@@ -17,6 +17,7 @@ You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
+#define INCLUDE_VECTOR
 #include "config.h"
 /* For use with name_hint.  */
 #include "system.h"
@@ -2007,6 +2008,14 @@ dump_function_decl (cxx_pretty_printer *pp, tree t, int flags)
   auto cds = make_temp_override (current_dump_scope, CP_DECL_CONTEXT (t));
 
   dump_function_name (pp, t, dump_function_name_flags);
+
+  /* By default we need no padding here, but if we emit target_version or
+     target_clones then we need some.  */
+  pp->set_padding (pp_none);
+  pp_cxx_function_target_version (pp, t);
+  pp_cxx_maybe_whitespace (pp);
+  pp_cxx_function_target_clones (pp, t);
+  pp_cxx_maybe_whitespace (pp);
 
   if (!(flags & TFF_NO_FUNCTION_ARGUMENTS))
     {

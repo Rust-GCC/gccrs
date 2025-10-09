@@ -18,6 +18,7 @@ You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
+#define INCLUDE_VECTOR
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
@@ -912,6 +913,16 @@ c_common_post_options (const char **pfilename)
     flag_permitted_flt_eval_methods = PERMITTED_FLT_EVAL_METHODS_TS_18661;
   else
     flag_permitted_flt_eval_methods = PERMITTED_FLT_EVAL_METHODS_C11;
+
+  if (cxx_dialect >= cxx26)
+    SET_OPTION_IF_UNSET (&global_options, &global_options_set,
+			 flag_auto_var_init, AUTO_INIT_CXX26);
+
+  /* The -Wtrivial-auto-var-init warning is useless for C++, where we always
+     add .DEFERRED_INIT calls when some (vacuous) initializers are bypassed
+     through jumps from switch condition to case/default label.  */
+  if (c_dialect_cxx ())
+    warn_trivial_auto_var_init = 0;
 
   /* C23 Annex F does not permit certain built-in functions to raise
      "inexact".  */

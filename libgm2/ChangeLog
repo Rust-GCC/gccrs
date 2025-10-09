@@ -1,3 +1,26 @@
+2025-10-07  Jonathan Wakely  <jwakely@redhat.com>
+
+	* configure.host: Fix spelling in comment.
+
+2025-10-05  Sam James  <sam@gentoo.org>
+
+	* Makefile.in: Regenerate.
+	* aclocal.m4: Regenerate.
+	* configure: Regenerate.
+	* libm2cor/Makefile.in: Regenerate.
+	* libm2iso/Makefile.in: Regenerate.
+	* libm2log/Makefile.in: Regenerate.
+	* libm2min/Makefile.in: Regenerate.
+	* libm2pim/Makefile.in: Regenerate.
+
+2025-09-19  Gaius Mulley  <gaiusmod2@gmail.com>
+
+	* libm2pim/Makefile.am (M2MODS): Add M2Diagnostic.mod.
+	Add M2WIDESET.mod.
+	(M2DEFS): Add M2Diagnostic.def.
+	Add M2WIDESET.def.
+	* libm2pim/Makefile.in: Regenerate.
+
 2025-07-23  Gaius Mulley  <gaiusmod2@gmail.com>
 
 	PR modula2/121164

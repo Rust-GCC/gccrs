@@ -900,6 +900,19 @@ extern void omp_clause_range_check_failed (const_tree, const char *, int,
 #define UNUSED_LABEL_P(NODE) \
   (LABEL_DECL_CHECK (NODE)->base.default_def_flag)
 
+/* Label used to goto around artificial .DEFERRED_INIT code for
+   C++ -ftrivial-auto-var-init= purposes with a goto around it.
+   VACUOUS_INIT_LABEL_P flag is used on the lab LABEL_DECL in:
+   goto lab;
+   lab1:
+   v1 = .DEFERRED_INIT (...);
+   v2 = .DEFERRED_INIT (...);
+   lab2:
+   v3 = .DEFERRED_INIT (...);
+   lab:  */
+#define VACUOUS_INIT_LABEL_P(NODE) \
+  (LABEL_DECL_CHECK (NODE)->base.nothrow_flag)
+
 /* Nonzero means this expression is volatile in the C sense:
    its address should be of type `volatile WHATEVER *'.
    In other words, the declared item is volatile qualified.
@@ -5960,7 +5973,7 @@ tree_code_for_canonical_type_merging (enum tree_code code)
   return code;
 }
 
-/* Return ture if get_alias_set care about TYPE_CANONICAL of given type.
+/* Return true if get_alias_set care about TYPE_CANONICAL of given type.
    We don't define the types for pointers, arrays and vectors.  The reason is
    that pointers are handled specially: ptr_type_node accesses conflict with
    accesses to all other pointers.  This is done by alias.cc.
@@ -7005,6 +7018,15 @@ fndecl_built_in_p (const_tree node, built_in_function name1, F... names)
 					name1, names...));
 }
 
+/* Returns true if the function decl NODE is an alloca. */
+inline bool
+fndecl_builtin_alloc_p (const_tree node)
+{
+  if (!fndecl_built_in_p (node, BUILT_IN_NORMAL))
+    return false;
+  return ALLOCA_FUNCTION_CODE_P (DECL_FUNCTION_CODE (node));
+}
+
 /* A struct for encapsulating location information about an operator
    and the operation built from it.
 
@@ -7101,16 +7123,24 @@ extern unsigned fndecl_dealloc_argno (tree);
    object or pointer.  Otherwise return null.  */
 extern tree get_attr_nonstring_decl (tree, tree * = NULL);
 
-extern int get_target_clone_attr_len (tree);
-
 /* Returns the version string for a decl with target_version attribute.
    Returns an invalid string_slice if no attribute is present.  */
 extern string_slice get_target_version (const tree);
 /* Returns a vector of the version strings from a target_clones attribute on
-   a decl.  Can also record the number of default versions found.  */
-extern auto_vec<string_slice> get_clone_versions (const tree, int * = NULL);
+   a decl.  Can also record the number of default versions found.
+   Use bool to control whether or not the results should
+   be filtered with TARGET_CHECK_TARGET_CLONE_VERSION.  */
+extern auto_vec<string_slice> get_clone_versions
+  (const tree,int * = NULL, bool = true);
 /* Returns a vector of the version strings from a target_clones attribute
-   directly.  */
-extern auto_vec<string_slice> get_clone_attr_versions (const tree, int *);
+   directly.  Additionally takes a bool to control whether or not the results
+   should be filtered with TARGET_CHECK_TARGET_CLONE_VERSION.  */
+extern auto_vec<string_slice> get_clone_attr_versions
+  (const tree, int *, bool = true);
+
+/* Checks if two decls define any overlapping versions.  */
+extern bool disjoint_version_decls (tree, tree);
+/* Checks if two overlapping decls are not mergeable.  */
+extern bool diagnose_versioned_decls (tree, tree);
 
 #endif  /* GCC_TREE_H  */

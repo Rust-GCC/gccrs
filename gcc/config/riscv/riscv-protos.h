@@ -207,6 +207,7 @@ rtl_opt_pass * make_pass_avlprop (gcc::context *ctxt);
 rtl_opt_pass * make_pass_vsetvl (gcc::context *ctxt);
 rtl_opt_pass * make_pass_insert_landing_pad (gcc::context *ctxt);
 rtl_opt_pass * make_pass_vector_permconst (gcc::context *ctxt);
+rtl_opt_pass * make_pass_bclr_lowest_set_bit (gcc::context *ctxt);
 
 
 /* Routines implemented in riscv-string.c.  */
@@ -765,7 +766,7 @@ opt_machine_mode vectorize_related_mode (machine_mode, scalar_mode,
 unsigned int autovectorize_vector_modes (vec<machine_mode> *, bool);
 bool cmp_lmul_le_one (machine_mode);
 bool cmp_lmul_gt_one (machine_mode);
-bool vls_mode_valid_p (machine_mode);
+bool vls_mode_valid_p (machine_mode, bool allow_up_to_lmul_8 = true);
 bool vlmax_avl_type_p (rtx_insn *);
 bool has_vl_op (rtx_insn *);
 bool tail_agnostic_p (rtx_insn *);
@@ -831,6 +832,7 @@ extern bool th_print_operand_address (FILE *, machine_mode, rtx);
 #endif
 
 extern bool strided_load_broadcast_p (void);
+extern bool riscv_prefer_agnostic_p (void);
 extern bool riscv_use_divmod_expander (void);
 void riscv_init_cumulative_args (CUMULATIVE_ARGS *, const_tree, rtx, tree, int);
 extern bool
@@ -839,6 +841,8 @@ extern bool
 riscv_option_valid_version_attribute_p (tree, tree, tree, int);
 extern bool
 riscv_process_target_version_attr (tree, location_t *);
+extern bool
+riscv_process_target_version_str (string_slice, location_t *);
 extern void
 riscv_override_options_internal (struct gcc_options *);
 extern void riscv_option_override (void);

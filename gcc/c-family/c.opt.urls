@@ -376,6 +376,9 @@ UrlSuffix(gcc/C_002b_002b-Dialect-Options.html#index-Wexceptions)
 Wexpansion-to-defined
 UrlSuffix(gcc/Warning-Options.html#index-Wexpansion-to-defined)
 
+Wexternal-tu-local
+UrlSuffix(gcc/C_002b_002b-Dialect-Options.html#index-Wexternal-tu-local)
+
 Wextra
 UrlSuffix(gcc/Warning-Options.html#index-Wextra) LangUrlSuffix_D(gdc/Warnings.html#index-Wextra) LangUrlSuffix_Fortran(gfortran/Error-and-Warning-Options.html#index-Wextra)
 
@@ -594,6 +597,9 @@ UrlSuffix(gcc/Warning-Options.html#index-Wmultichar)
 
 Wmultiple-inheritance
 UrlSuffix(gcc/C_002b_002b-Dialect-Options.html#index-Wmultiple-inheritance)
+
+Wmultiple-parameter-fwd-decl-lists
+UrlSuffix(gcc/Warning-Options.html#index-Wmultiple-parameter-fwd-decl-lists)
 
 Wmultistatement-macros
 UrlSuffix(gcc/Warning-Options.html#index-Wmultistatement-macros)

@@ -334,6 +334,13 @@
 	      && riscv_split_symbol_type (symbol_type)
 	      && symbol_type != SYMBOL_PCREL;
 
+    /* Be tight about the SUBREGs we accept.  In particular,
+       (subreg (mem)) has been discouraged for decades.  Just
+       allow (subreg (reg)) until such time as we see a strong
+       need to be more permissive.  */
+    case SUBREG:
+      return REG_P (SUBREG_REG (op));
+
     default:
       return true;
     }
@@ -607,13 +614,12 @@
 (define_predicate "ge_operator"
   (match_code "ge,geu"))
 
-;; pmode_reg_or_uimm5_operand can be used by vsll.vx/vsrl.vx/vsra.vx instructions.
-;; Since it has the same predicate with vector_length_operand which allows register
-;; or immediate (0 ~ 31), we define this predicate same as vector_length_operand here.
-;; We don't use vector_length_operand directly to predicate vsll.vx/vsrl.vx/vsra.vx
-;; since it may be confusing.
+;; pmode_reg_or_uimm5_operand can be used by vsll.vx/vsrl.vx/vsra.vx instructions
+;; It is *not* equivalent to vector_length_operand due to the vector_length_operand
+;; needing to conditionalize some behavior on XTHEADVECTOR.
 (define_special_predicate "pmode_reg_or_uimm5_operand"
-  (match_operand 0 "vector_length_operand"))
+  (ior (match_operand 0 "pmode_register_operand")
+       (match_operand 0 "const_csr_operand")))
 
 (define_special_predicate "pmode_reg_or_0_operand"
   (ior (match_operand 0 "const_0_operand")

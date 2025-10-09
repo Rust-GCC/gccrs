@@ -91,8 +91,10 @@ target_triplet = @target@
 subdir = include
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/../config/acx.m4 \
+	$(top_srcdir)/../config/clang-plugin.m4 \
 	$(top_srcdir)/../config/enable.m4 \
 	$(top_srcdir)/../config/futex.m4 \
+	$(top_srcdir)/../config/gcc-plugin.m4 \
 	$(top_srcdir)/../config/hwcaps.m4 \
 	$(top_srcdir)/../config/iconv.m4 \
 	$(top_srcdir)/../config/lead-dot.m4 \
@@ -222,6 +224,7 @@ LIBOBJS = @LIBOBJS@
 LIBS = @LIBS@
 LIBTOOL = @LIBTOOL@
 LIPO = @LIPO@
+LLVM_CONFIG = @LLVM_CONFIG@
 LN_S = @LN_S@
 LONG_DOUBLE_128_FLAGS = @LONG_DOUBLE_128_FLAGS@
 LONG_DOUBLE_ALT128_COMPAT_FLAGS = @LONG_DOUBLE_ALT128_COMPAT_FLAGS@
@@ -1897,11 +1900,11 @@ ${host_builddir}/c++config.h: ${CONFIG_HEADER} \
 	-e "$$verbose_assert" \
 	    < ${glibcxx_srcdir}/include/bits/c++config > $@ ;\
 	sed -e 's/HAVE_/_GLIBCXX_HAVE_/g' \
-	    -e 's/PACKAGE/_GLIBCXX_PACKAGE/g' \
-	    -e 's/VERSION/_GLIBCXX_VERSION/g' \
+	    -e '/PACKAGE/s,^,// ,' \
+	    -e '/PACKAGE/!s/VERSION/_GLIBCXX_VERSION/g' \
 	    -e 's/WORDS_/_GLIBCXX_WORDS_/g' \
 	    -e 's/LT_OBJDIR/_GLIBCXX_LT_OBJDIR/g' \
-	    -e 's/STDC_HEADERS/_GLIBCXX_STDC_HEADERS/g' \
+	    -e 's,^#.*STDC_HEADERS,// &,' \
 	    -e 's/_DARWIN_USE_64_BIT_INODE/_GLIBCXX_DARWIN_USE_64_BIT_INODE/g' \
 	    -e 's/_FILE_OFFSET_BITS/_GLIBCXX_FILE_OFFSET_BITS/g' \
 	    -e 's/_LARGE_FILES/_GLIBCXX_LARGE_FILES/g' \

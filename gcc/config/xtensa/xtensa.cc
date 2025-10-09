@@ -41,6 +41,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "diagnostic-core.h"
 #include "cfgrtl.h"
 #include "output.h"
+#include "addresses.h"
 #include "fold-const.h"
 #include "stor-layout.h"
 #include "calls.h"
@@ -57,8 +58,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "insn-attr.h"
 #include "tree-pass.h"
 #include "print-rtl.h"
-#include "context.h"
-#include "pass_manager.h"
 #include <math.h>
 #include "opts.h"
 
@@ -109,7 +108,7 @@ struct GTY(()) machine_function
   bool inhibit_logues_a1_adjusts;
   rtx last_logues_a9_content;
   HARD_REG_SET eliminated_callee_saved;
-  hash_map<rtx, int> *litpool_usage;
+  bool postreload_completed;
 };
 
 static void xtensa_option_override (void);
@@ -203,6 +202,10 @@ static rtx xtensa_delegitimize_address (rtx);
 static reg_class_t xtensa_ira_change_pseudo_allocno_class (int, reg_class_t,
 							   reg_class_t);
 static HARD_REG_SET xtensa_zero_call_used_regs (HARD_REG_SET);
+static rtx_insn *xtensa_md_asm_adjust (vec<rtx> &, vec<rtx> &,
+				       vec<machine_mode> &, vec<const char *> &,
+				       vec<rtx> &, vec<rtx> &, HARD_REG_SET &,
+				       location_t);
 
 
 
@@ -375,6 +378,9 @@ static HARD_REG_SET xtensa_zero_call_used_regs (HARD_REG_SET);
 
 #undef TARGET_ZERO_CALL_USED_REGS
 #define TARGET_ZERO_CALL_USED_REGS xtensa_zero_call_used_regs
+
+#undef TARGET_MD_ASM_ADJUST
+#define TARGET_MD_ASM_ADJUST xtensa_md_asm_adjust
 
 struct gcc_target targetm = TARGET_INITIALIZER;
 
@@ -1110,219 +1116,6 @@ xtensa_split_operand_pair (rtx operands[4], machine_mode mode)
 }
 
 
-/* Try to emit insns to load src (either naked or pooled SI/SF constant)
-   into dst with synthesizing a such constant value from a sequence of
-   load-immediate / arithmetic ones, instead of a L32R instruction
-   (plus a constant in litpool).  */
-
-static int
-xtensa_constantsynth_2insn (rtx dst, HOST_WIDE_INT srcval,
-			    rtx (*gen_op)(rtx, HOST_WIDE_INT),
-			    HOST_WIDE_INT op_imm)
-{
-  HOST_WIDE_INT imm = INT_MAX;
-  rtx x = NULL_RTX;
-  int shift, sqr;
-
-  gcc_assert (REG_P (dst));
-
-  shift = exact_log2 (srcval + 1);
-  if (IN_RANGE (shift, 1, 31))
-    {
-      imm = -1;
-      x = gen_lshrsi3 (dst, dst, GEN_INT (32 - shift));
-    }
-
-  shift = ctz_hwi (srcval);
-  if ((!x || (TARGET_DENSITY && ! IN_RANGE (imm, -32, 95)))
-      && xtensa_simm12b (srcval >> shift))
-    {
-      imm = srcval >> shift;
-      x = gen_ashlsi3 (dst, dst, GEN_INT (shift));
-    }
-
-  if ((!x || (TARGET_DENSITY && ! IN_RANGE (imm, -32, 95)))
-      && IN_RANGE (srcval, (-2048 - 32768), (2047 + 32512)))
-    {
-      HOST_WIDE_INT imm0, imm1;
-
-      if (srcval < -32768)
-	imm1 = -32768;
-      else if (srcval > 32512)
-	imm1 = 32512;
-      else
-	imm1 = srcval & ~255;
-      imm0 = srcval - imm1;
-      if (TARGET_DENSITY && imm1 < 32512 && IN_RANGE (imm0, 224, 255))
-	imm0 -= 256, imm1 += 256;
-      imm = imm0;
-      x = gen_addsi3 (dst, dst, GEN_INT (imm1));
-    }
-
-  sqr = (int) floorf (sqrtf (srcval));
-  if (TARGET_MUL32 && optimize_size
-      && !x && IN_RANGE (srcval, 0, (2047 * 2047)) && sqr * sqr == srcval)
-    {
-      imm = sqr;
-      x = gen_mulsi3 (dst, dst, dst);
-    }
-
-  if (!x)
-    return 0;
-
-  emit_move_insn (dst, GEN_INT (imm));
-  emit_insn (x);
-  if (gen_op)
-    emit_move_insn (dst, gen_op (dst, op_imm));
-
-  return 1;
-}
-
-static rtx
-xtensa_constantsynth_rtx_SLLI (rtx reg, HOST_WIDE_INT imm)
-{
-  return gen_rtx_ASHIFT (SImode, reg, GEN_INT (imm));
-}
-
-static rtx
-xtensa_constantsynth_rtx_ADDSUBX (rtx reg, HOST_WIDE_INT imm)
-{
-  return imm == 7
-	 ? gen_rtx_MINUS (SImode, gen_rtx_ASHIFT (SImode, reg, GEN_INT (3)),
-			  reg)
-	 : gen_rtx_PLUS (SImode, gen_rtx_ASHIFT (SImode, reg,
-						 GEN_INT (floor_log2 (imm - 1))),
-			 reg);
-}
-
-int
-xtensa_constantsynth (rtx dst, rtx src)
-{
-  HOST_WIDE_INT srcval;
-  static opt_pass *pass_rtl_split2;
-  int *pv;
-
-  /* Derefer if src is litpool entry, and get integer constant value.  */
-  src = avoid_constant_pool_reference (src);
-  if (CONST_INT_P (src))
-    srcval = INTVAL (src);
-  else if (CONST_DOUBLE_P (src) && GET_MODE (src) == SFmode)
-    {
-      long l;
-
-      REAL_VALUE_TO_TARGET_SINGLE (*CONST_DOUBLE_REAL_VALUE (src), l);
-      srcval = (int32_t)l, src = GEN_INT (srcval);
-    }
-  else
-    return 0;
-
-  /* Force dst as SImode.  */
-  gcc_assert (REG_P (dst));
-  if (GET_MODE (dst) != SImode)
-    dst = gen_rtx_REG (SImode, REGNO (dst));
-
-  if (optimize_size)
-    {
-      /* During the first split pass after register allocation (rtl-split2),
-	 record the occurrence of integer src value and do nothing.  */
-      if (!pass_rtl_split2)
-	pass_rtl_split2 = g->get_passes ()->get_pass_by_name ("rtl-split2");
-      if (current_pass == pass_rtl_split2)
-	{
-	  if (!cfun->machine->litpool_usage)
-	    cfun->machine->litpool_usage = hash_map<rtx, int>::create_ggc ();
-	  if ((pv = cfun->machine->litpool_usage->get (src)))
-	    ++*pv;
-	  else
-	    cfun->machine->litpool_usage->put (src, 1);
-	  return 0;
-	}
-
-      /* If two or more identical integer constants appear in the function,
-	 the code size can be reduced by re-emitting a "move" (load from an
-	 either litpool entry or relaxed immediate) instruction in SImode
-	 to increase the chances that the litpool entry will be shared.  */
-      if (cfun->machine->litpool_usage
-	  && (pv = cfun->machine->litpool_usage->get (src))
-	  && *pv > 1)
-	{
-	  emit_move_insn (dst, src);
-	  return 1;
-	}
-    }
-
-  /* No need for synthesizing for what fits into MOVI instruction.  */
-  if (xtensa_simm12b (srcval))
-    {
-      emit_move_insn (dst, src);
-      return 1;
-    }
-
-  /* 2-insns substitution.  */
-  if ((optimize_size || (optimize && xtensa_extra_l32r_costs >= 1))
-      && xtensa_constantsynth_2insn (dst, srcval, NULL, 0))
-    return 1;
-
-  /* 3-insns substitution.  */
-  if (optimize > 1 && !optimize_size && xtensa_extra_l32r_costs >= 2)
-    {
-      int shift, divisor;
-
-      /* 2-insns substitution followed by SLLI.  */
-      shift = ctz_hwi (srcval);
-      if (IN_RANGE (shift, 1, 31) &&
-	  xtensa_constantsynth_2insn (dst, srcval >> shift,
-				      xtensa_constantsynth_rtx_SLLI,
-				      shift))
-	return 1;
-
-      /* 2-insns substitution followed by ADDX[248] or SUBX8.  */
-      if (TARGET_ADDX)
-	for (divisor = 3; divisor <= 9; divisor += 2)
-	  if (srcval % divisor == 0 &&
-	      xtensa_constantsynth_2insn (dst, srcval / divisor,
-					  xtensa_constantsynth_rtx_ADDSUBX,
-					  divisor))
-	    return 1;
-
-      /* loading simm12 followed by left/right bitwise rotation:
-	 MOVI + SSAI + SRC.  */
-      if ((srcval & 0x001FF800) == 0
-	  || (srcval & 0x001FF800) == 0x001FF800)
-	{
-	  int32_t v;
-
-	  for (shift = 1; shift < 12; ++shift)
-	    {
-	      v = (int32_t)(((uint32_t)srcval >> shift)
-			    | ((uint32_t)srcval << (32 - shift)));
-	      if (xtensa_simm12b(v))
-		{
-		  emit_move_insn (dst, GEN_INT (v));
-		  emit_insn (gen_rotlsi3 (dst, dst, GEN_INT (shift)));
-		  return 1;
-		}
-	      v = (int32_t)(((uint32_t)srcval << shift)
-			    | ((uint32_t)srcval >> (32 - shift)));
-	      if (xtensa_simm12b(v))
-		{
-		  emit_move_insn (dst, GEN_INT (v));
-		  emit_insn (gen_rotrsi3 (dst, dst, GEN_INT (shift)));
-		  return 1;
-		}
-	    }
-	}
-    }
-
-  /* If cannot synthesize the value and also cannot fit into MOVI instruc-
-     tion, re-emit a "move" (load from an either litpool entry or relaxed
-     immediate) instruction in SImode in order to increase the chances that
-     the litpool entry will be shared.  */
-  emit_move_insn (dst, src);
-  return 1;
-}
-
-
 /* Emit insns to move operands[1] into operands[0].
    Return 1 if we have written out everything that needs to be done to
    do the move.  Otherwise, return 0 and the caller will emit the move
@@ -1334,7 +1127,7 @@ xtensa_emit_move_sequence (rtx *operands, machine_mode mode)
   rtx src = operands[1];
 
   if (CONSTANT_P (src)
-      && (! CONST_INT_P (src) || ! xtensa_simm12b (INTVAL (src))))
+      && ! (CONST_INT_P (src) && xtensa_simm12b (INTVAL (src))))
     {
       rtx dst = operands[0];
 
@@ -1358,8 +1151,8 @@ xtensa_emit_move_sequence (rtx *operands, machine_mode mode)
 	  return 1;
 	}
 
-      if (! TARGET_AUTO_LITPOOLS && ! TARGET_CONST16
-	  && ! (CONST_INT_P (src) && can_create_pseudo_p ()))
+      if (!TARGET_CONST16 && !TARGET_AUTO_LITPOOLS
+	  && (! CONST_INT_P (src) || xtensa_postreload_completed_p ()))
 	{
 	  src = force_const_mem (SImode, src);
 	  operands[1] = src;
@@ -2615,33 +2408,12 @@ xtensa_shlrd_which_direction (rtx op0, rtx op1)
 }
 
 
-/* Return true after "split1" pass has been finished.  */
+/* Return true after "postreload" pass has been completed.  */
 
 bool
-xtensa_split1_finished_p (void)
+xtensa_postreload_completed_p (void)
 {
-  return cfun && (cfun->curr_properties & PROP_rtl_split_insns);
-}
-
-
-/* Split a DImode pair of reg (operand[0]) and const_int (operand[1]) into
-   two SImode pairs, the low-part (operands[0] and [1]) and the high-part
-   (operands[2] and [3]).  */
-
-void
-xtensa_split_DI_reg_imm (rtx *operands)
-{
-  rtx lowpart, highpart;
-
-  if (WORDS_BIG_ENDIAN)
-    split_double (operands[1], &highpart, &lowpart);
-  else
-    split_double (operands[1], &lowpart, &highpart);
-
-  operands[3] = highpart;
-  operands[2] = gen_highpart (SImode, operands[0]);
-  operands[1] = lowpart;
-  operands[0] = gen_lowpart (SImode, operands[0]);
+  return cfun && cfun->machine->postreload_completed;
 }
 
 
@@ -5135,7 +4907,8 @@ static bool
 xtensa_legitimate_constant_p (machine_mode mode ATTRIBUTE_UNUSED, rtx x)
 {
   if (CONST_INT_P (x))
-    return TARGET_AUTO_LITPOOLS || TARGET_CONST16
+    return TARGET_CONST16 || TARGET_AUTO_LITPOOLS
+	   || ! xtensa_postreload_completed_p ()
 	   || xtensa_simm12b (INTVAL (x));
 
   return !xtensa_tls_referenced_p (x);
@@ -5645,6 +5418,954 @@ xtensa_zero_call_used_regs (HARD_REG_SET selected_regs)
     }
 
   return selected_regs;
+}
+
+/* Implement TARGET_MD_ASM_ADJUST.
+
+   If either TARGET_CONST16 or TARGET_AUTO_LITPOOLS is enabled, the 'g'-
+   constraint (based on general_operand()) accepts any integer constant,
+   but if neither it limits within signed 12 bit by
+   TARGET_LEGITIMATE_CONSTANT_P().
+   This behavior is not reasonable and can be addressed by prepending an
+   'n'-constraint to the 'g' during the RTL generation, if necessary.  */
+
+static rtx_insn *
+xtensa_md_asm_adjust (vec<rtx> &outputs ATTRIBUTE_UNUSED,
+		      vec<rtx> &inputs ATTRIBUTE_UNUSED,
+		      vec<machine_mode> &input_modes ATTRIBUTE_UNUSED,
+		      vec<const char *> &constraints,
+		      vec<rtx> &uses ATTRIBUTE_UNUSED,
+		      vec<rtx> &clobbers ATTRIBUTE_UNUSED,
+		      HARD_REG_SET &clobbered_regs ATTRIBUTE_UNUSED,
+		      location_t loc ATTRIBUTE_UNUSED)
+{
+  size_t n, l;
+  const char *p;
+  int c;
+  char *modified, *q;
+
+  if (!TARGET_CONST16 && !TARGET_AUTO_LITPOOLS)
+    for (auto &constraint : constraints)
+      {
+	/* Count the number of 'g'-constraints in each constraint string.  */
+	for (n = 0, p = constraint; (c = *p); p += CONSTRAINT_LEN (c, p))
+	  if (c == 'g')
+	    ++n;
+	if (n == 0)
+	  continue;
+
+	/* If the constraint string contains 'g'-constraints, then each
+	   'g' is prefixed with an 'n'-constraint to form a new constraint
+	   string.  */
+	n += strlen (constraint);
+	modified = (char *)ggc_alloc_atomic (n + 1);
+	for (p = constraint, q = modified; (c = *p); )
+	  if (c == 'g')
+	    q[0] = 'n', q[1] = 'g', ++p, q += 2;
+	  else
+	    if ((l = CONSTRAINT_LEN (c, p)) > 1)
+	      memcpy (q, p, l), p += l, q += l;
+	    else
+	      *q++ = *p++;
+	*q = '\0';
+	if (dump_file)
+	  fprintf (dump_file,
+		   "xtensa_md_asm_adjust: "
+		   "The constraint \"%s\" contains 'g's, so modify it to "
+		   "\"%s\".\n", constraint, modified);
+	constraint = modified;
+      }
+
+  return NULL;
+}
+
+/* Machine-specific pass in order to replace all assignments of large
+   integer constants (i.e., that do not fit into the immediate field which
+   can hold signed 12 bits) with other legitimate forms, specifically,
+   references to literal pool entries, when neither TARGET_CONST16 nor
+   TARGET_AUTO_LITPOOLS is enabled.
+
+   This pass also serves as a place to provide other optimizations, for
+   example, converting constants that are too large to fit into their
+   immediate fields into other representations that are more efficient
+   from a particular point of view.  */
+
+namespace
+{
+
+/* Cheap full_rtx_costs derivative for concise handling of insn sequence
+   costs.  */
+
+struct xt_full_rtx_costs : public full_rtx_costs
+{
+  inline xt_full_rtx_costs ()
+  {
+    init_costs_to_zero (this);
+  }
+
+  /* "Less-than" cost comparison.  */
+  inline bool operator< (xt_full_rtx_costs &rhs)
+  {
+    return costs_lt_p (this, &rhs, !optimize_size);
+  }
+
+  /* Accumulate the costs of a specified insn.  */
+  xt_full_rtx_costs &operator+= (rtx_insn *insn)
+  {
+    speed += xtensa_insn_cost (insn, true);
+    size += xtensa_insn_cost (insn, false);
+    return *this;
+  }
+
+  /* Create a new instance from the specified insn sequence.  */
+  explicit xt_full_rtx_costs (rtx_insn *seq)
+    : xt_full_rtx_costs ()
+  {
+    for (; seq; seq = NEXT_INSN (seq))
+      *this += seq;
+  }
+
+  /* superior/inferior parts of the costs.  */
+  inline int major ()
+  {
+    return optimize_size ? size : speed;
+  }
+  inline int minor ()
+  {
+    return optimize_size ? speed : size;
+  }
+};
+
+/* Optimize assignment of negatively-scaled (up to the minus 15th power
+   of two) signed 12-bit integer immediate values to hardware floating-
+   point registers.  For example, 0.12005615234375f is exactly equal to
+   (1967.f / (1 << 14)), so we can emit such as:
+	movi	a9, 1967
+	float.s	f0, a9, 14
+   if such conversion reduces costs.  */
+
+static bool
+FPreg_neg_scaled_simm12b_1 (const REAL_VALUE_TYPE *rval,
+			    HOST_WIDE_INT &v, int &scale)
+{
+  REAL_VALUE_TYPE r;
+  int shift;
+
+  /* Non-zero finite values can only be accepted.  */
+  if (! real_isfinite (rval) || rval->cl == rvc_zero)
+    return false;
+
+  /* Check whether the value multiplied by 32768 is an exact integer and
+     the result after truncating the trailing '0' bits fits into a signed
+     12-bit.  */
+  real_ldexp (&r, rval, 15);
+  if (! real_isinteger (&r, &v)
+      || ! xtensa_simm12b (v >>= (shift = MIN (ctz_hwi (v), 15))))
+    return false;
+
+  scale = shift - 15;
+  return true;
+}
+
+static bool
+FPreg_neg_scaled_simm12b (rtx_insn *insn)
+{
+  rtx pat, dest, src, pat_1, dest_1, note, dest_2, pat_2;
+  HOST_WIDE_INT v;
+  int scale;
+  rtx_insn *next, *last, *seq;
+  REAL_VALUE_TYPE r;
+
+  /* It matches RTL expressions of the following format:
+	(set (reg:SF gpr) (const_double:SF cst))
+	(set (reg:SF fpr) (reg:SF gpr))
+		REG_DEAD (reg:SF gpr)
+     where cst is a negatively-scaled signed 12-bit integer immediate
+     value.  */
+  if (TARGET_HARD_FLOAT && !TARGET_CONST16
+      && GET_CODE (pat = PATTERN (insn)) == SET
+      && REG_P (dest = SET_DEST (pat)) && GP_REG_P (REGNO (dest))
+      && GET_MODE (dest) == SFmode
+      && CONST_DOUBLE_P (src = avoid_constant_pool_reference (SET_SRC (pat)))
+      && GET_MODE (src) == SFmode
+      && FPreg_neg_scaled_simm12b_1 (CONST_DOUBLE_REAL_VALUE (src),
+				     v, scale)
+      && (next = next_nonnote_nondebug_insn (insn))
+      && NONJUMP_INSN_P (next)
+      && GET_CODE (pat_1 = PATTERN (next)) == SET
+      && REG_P (dest_1 = SET_DEST (pat_1)) && FP_REG_P (REGNO (dest_1))
+      && GET_MODE (dest_1) == SFmode
+      && rtx_equal_p (SET_SRC (pat_1), dest)
+      && (note = find_reg_note (next, REG_DEAD, dest)))
+    {
+      /* Estimate the costs of two matching insns.  */
+      xt_full_rtx_costs costs;
+      costs += insn, costs += next;
+
+      /* Prepare alternative insns and estimate their costs.  */
+      start_sequence ();
+      emit_insn (gen_rtx_SET (dest_2 = gen_rtx_REG (SImode, REGNO (dest)),
+			      GEN_INT (v)));
+      pat_2 = gen_rtx_FLOAT (SFmode, dest_2);
+      if (scale < 0)
+	{
+	  real_ldexp (&r, &dconst1, scale);
+	  pat_2 = gen_rtx_MULT (SFmode, pat_2,
+				const_double_from_real_value (r, SFmode));
+	}
+      last = emit_insn (gen_rtx_SET (dest_1, pat_2));
+      xt_full_rtx_costs costs_1 (seq = end_sequence ());
+
+      /* If the alternative is more cost effective, it replaces the original
+	 insns.  */
+      if (costs_1 < costs)
+	{
+	  if (dump_file)
+	    {
+	      fputs ("FPreg_neg_scaled_simm12b: ", dump_file);
+	      dump_value_slim (dump_file, src, 0);
+	      fprintf (dump_file,
+		       "f = (" HOST_WIDE_INT_PRINT_DEC ".f/(1<<%d))\n",
+		       v, -scale);
+	      dump_insn_slim (dump_file, insn);
+	      dump_insn_slim (dump_file, next);
+	    }
+	  remove_reg_equal_equiv_notes (insn);
+	  validate_change (insn, &PATTERN (insn),
+			   PATTERN (seq), 0);
+	  remove_reg_equal_equiv_notes (next);
+	  remove_note (next, note);
+	  validate_change (next, &PATTERN (next),
+			   PATTERN (last), 0);
+	  add_reg_note (next, REG_EQUIV, src);
+	  add_reg_note (next, REG_DEAD, dest_2);
+	  if (dump_file)
+	    {
+	      fprintf (dump_file,
+		       "FPreg_neg_scaled_simm12b: costs (%d,%d) -> (%d,%d)\n",
+		       costs.major (), costs.minor (),
+		       costs_1.major (), costs_1.minor ());
+	      dump_insn_slim (dump_file, insn);
+	      dump_insn_slim (dump_file, next);
+	    }
+	  return true;
+	}
+    }
+
+  return false;
+}
+
+/* Split DI/SF/DFmode constant assignments into pairs of SImode ones.  This
+   is also the pre-processing for constantsynth optimization that follows
+   immediately after.
+
+   Note that all constant values and assignments are treated as SImode
+   because:
+
+     - Synthesis methods rely on SImode operations
+     - SImode assignments may be shorter
+     - More opportunity for sharing literal pool entries
+
+   This behavior would be acceptable if TARGET_CAN_CHANGE_MODE_CLASS always
+   returned true (the current and default configuration).  */
+
+static bool
+split_DI_SF_DF_const (rtx_insn *insn)
+{
+  rtx pat, dest, src, dest0, dest1, src0, src1, src0c, src1c;
+  int regno;
+
+  if (GET_CODE (pat = PATTERN (insn)) != SET
+      || ! REG_P (dest = SET_DEST (pat)) || ! GP_REG_P (regno = REGNO (dest)))
+    return false;
+
+  /* It is more efficient to assign SFmode literal constants using their
+     bit-equivalent SImode ones, thus we convert them so.  */
+  src = avoid_constant_pool_reference (SET_SRC (pat));
+  if (GET_MODE (dest) == SFmode
+      && CONST_DOUBLE_P (src) && GET_MODE (src) == SFmode)
+    {
+      long l;
+      REAL_VALUE_TO_TARGET_SINGLE (*CONST_DOUBLE_REAL_VALUE (src), l);
+      src0 = GEN_INT ((int32_t)l), dest0 = gen_rtx_REG (SImode, regno);
+      if (dump_file)
+	{
+	  fputs ("split_DI_SF_DF_const: ", dump_file);
+	  dump_value_slim (dump_file, src, 0);
+	  fprintf (dump_file,
+		   "f -> " HOST_WIDE_INT_PRINT_DEC " ("
+		   HOST_WIDE_INT_PRINT_HEX ")\n",
+		   INTVAL (src0), INTVAL (src0));
+	}
+      src0c = NULL_RTX;
+      if (!TARGET_CONST16 && !TARGET_AUTO_LITPOOLS
+	  && ! xtensa_simm12b (INTVAL (src0)))
+	src0c = src0, src0 = force_const_mem (SImode, src0);
+      remove_reg_equal_equiv_notes (insn);
+      validate_change (insn, &PATTERN (insn), gen_rtx_SET (dest0, src0), 0);
+      if (src0c)
+	add_reg_note (insn, REG_EQUIV, copy_rtx (src0c));
+      return true;
+    }
+
+  /* Splitting a D[IF]mode literal constant into two with split_double()
+     results in a pair of CONST_INTs, so they are assigned in SImode
+     regardless of the original source mode.  */
+  if ((GET_MODE (dest) == DImode && CONST_INT_P (src))
+      || (GET_MODE (dest) == DFmode
+	  && CONST_DOUBLE_P (src) && GET_MODE (src) == DFmode))
+    {
+      dest0 = gen_rtx_REG (SImode, regno);
+      dest1 = gen_rtx_REG (SImode, regno + 1);
+      split_double (src, &src0, &src1);
+      if (dump_file)
+	{
+	  fputs ("split_DI_SF_DF_const: ", dump_file);
+	  dump_value_slim (dump_file, src, 0);
+	  fprintf (dump_file,
+		   " -> " HOST_WIDE_INT_PRINT_DEC " ("
+		   HOST_WIDE_INT_PRINT_HEX "), "
+		   HOST_WIDE_INT_PRINT_DEC " ("
+		   HOST_WIDE_INT_PRINT_HEX ")\n",
+		   INTVAL (src0), INTVAL (src0),
+		   INTVAL (src1), INTVAL (src1));
+	}
+      src1c = src0c = NULL_RTX;
+      if (!TARGET_CONST16 && !TARGET_AUTO_LITPOOLS)
+	{
+	  if (! xtensa_simm12b (INTVAL (src0)))
+	    src0c = src0, src0 = force_const_mem (SImode, src0);
+	  if (! xtensa_simm12b (INTVAL (src1)))
+	    src1c = src1, src1 = force_const_mem (SImode, src1);
+	}
+      remove_reg_equal_equiv_notes (insn);
+      validate_change (insn, &PATTERN (insn), gen_rtx_SET (dest0, src0), 0);
+      if (src0c)
+	add_reg_note (insn, REG_EQUIV, copy_rtx (src0c));
+      insn = emit_insn_after (gen_rtx_SET (dest1, src1), insn);
+      if (src1c)
+	add_reg_note (insn, REG_EQUIV, copy_rtx (src1c));
+      return true;
+    }
+
+  return false;
+}
+
+/* The constant-synthesis optimization (constantsynth for short).
+
+   This is an optimization that attempts to replace the assignment of a
+   large integer (and some single-precision floating-point) constant value
+   that won't fit in the immediate field of a single machine instruction
+   with a smaller integer value that does fit, and a group of subsequent
+   instructions that derive the equivalent value through some arithmetic/
+   bitwise operations.
+
+   In Xtensa ISA, when TARGET_CONST16 is not enabled, such large immediate
+   assignments are typically treated as references to literal pool entries
+   using the L32R machine instruction, which has a one-clock delay to load
+   from memory, plus possible further implementation-dependent exclusive
+   clock penalties (aka. pipeline stall).
+
+   To mitigate this, when optimization is enabled, we use several synthesis
+   methods to find alternative instruction sequences that do not exceed
+   the expected insn cost of single L32R instruction, based on either
+   clock cycle or # of bytes depending on whether optimizing for speed or
+   size.
+
+   However, using L32R instructions has the advantage of sharing literal
+   pool entries when two or more identical immediate values are needed
+   within a function, this also needs to be considered especially when
+   optimizing for size.
+
+   Below these are the definitions of each synthesis method.  Each method
+   takes a destination register ('dest', which can be assumed to be SImode
+   address register) and an integer value, and returns an insn sequence
+   that sets the register to that value, if applicable.  The framework
+   takes care of the rest of the heavy lifting, making it easy to test
+   and add new methods.
+
+   The insn sequence returned by the methods must follow all of the rules
+   below:
+
+     - The first insn assigns a signed 12-bit integer constant to 'dest'
+     - Each subsequent insn assigns to 'dest' the result of a unary or
+       binary operation between 'dest' and an integer constant or 'dest'
+       itself
+     - After the last insn is finished, the value of 'dest' will be equal
+       to the specified integer
+
+   The sequence is verified to conform to the above rules by formally
+   evaluating its RTL expressions before substituting constant assignments.  */
+
+/* A method that generates two machine instructions to logically right-
+   shift minus one by a certain number of bits to synthesize a power of
+   two minus one (eg., 65535).  */
+
+static rtx_insn *
+constantsynth_method_lshr_m1 (rtx dest, HOST_WIDE_INT v)
+{
+  int i;
+
+  if (! IN_RANGE (i = exact_log2 (v + 1), 1, 31))
+    return NULL;
+
+  start_sequence ();
+  emit_insn (gen_rtx_SET (dest, constm1_rtx));
+  emit_insn (gen_lshrsi3 (dest, dest, GEN_INT (32 - i)));
+  return end_sequence ();
+}
+
+/* Split the specified value between -34816 and 34559 into the two
+   immediates for the MOVI and ADDMI instruction.  */
+
+static bool
+split_hwi_to_MOVI_ADDMI (HOST_WIDE_INT v,
+			 HOST_WIDE_INT &v_movi, HOST_WIDE_INT &v_addmi)
+{
+  HOST_WIDE_INT v0, v1;
+
+  if (xtensa_simm12b (v))
+    {
+      v_movi = v, v_addmi = 0;
+      return true;
+    }
+
+  if (v < -32768)
+    v1 = -32768;
+  else if (v > 32512)
+    v1 = 32512;
+  else
+    v1 = v & ~255;
+  if (! xtensa_simm12b (v0 = v - v1))
+    return false;
+  if (TARGET_DENSITY && v0 >= 224 && v1 < 32512)
+    v0 -= 256, v1 += 256;
+
+  v_movi = v0, v_addmi = v1;
+  return true;
+}
+
+/* A method that generates two machine instructions to add a signed 12-bit
+   value to 256 times a signed 8-bit value to synthesize values between
+   -34816 and 34559.  Also, if the result of dividing the specified value
+   by a power of 2, or 9, 7, 5 or 3 with a remainder of 0 is within the
+   above range, the same processing is performed to append one instruction.  */
+
+static rtx_insn *
+constantsynth_method_16bits (rtx dest, HOST_WIDE_INT v)
+{
+  HOST_WIDE_INT v_movi, v_addmi;
+  rtx postfix;
+  int i;
+
+  if (split_hwi_to_MOVI_ADDMI (v, v_movi, v_addmi))
+    postfix = NULL_RTX;
+  else if (i = ctz_hwi (v),
+	   split_hwi_to_MOVI_ADDMI (v >> i, v_movi, v_addmi))
+    postfix = gen_ashlsi3 (dest, dest, GEN_INT (i));
+  else if (!TARGET_ADDX)
+    return NULL;
+  else for (i = 9; ; i -= 2)
+    if (i < 3)
+      return NULL;
+    else if (v % i == 0
+	     && split_hwi_to_MOVI_ADDMI (v / i, v_movi, v_addmi))
+      {
+	postfix = (i == 7)
+		  ? gen_subsi3 (dest,
+				gen_rtx_ASHIFT (SImode, dest, GEN_INT (3)),
+				dest)
+		  : gen_addsi3 (dest,
+				gen_rtx_ASHIFT (SImode, dest,
+						GEN_INT (floor_log2 (i))),
+				dest);
+	break;
+      }
+
+  start_sequence ();
+  emit_insn (gen_rtx_SET (dest, GEN_INT (v_movi)));
+  if (v_addmi)
+    emit_insn (gen_addsi3 (dest, dest, GEN_INT (v_addmi)));
+  emit_insn (postfix);
+  return end_sequence ();
+}
+
+/* A method of generating up to five machine instructions; a signed 12-bit
+   immediate assignment, a signed 8-bit immediate addition multiplied by
+   256, a logical left bit shift, a signed 8-bit immediate addition multi-
+   plied by 256, and a signed 8-bit immediate addition to synthesize a value
+   that can effectively be specified as 32 bits (adding zero is of course
+   omitted in the process).  */
+
+static rtx_insn *
+constantsynth_method_32bits (rtx dest, HOST_WIDE_INT v)
+{
+  HOST_WIDE_INT v0, v1, v_movi, v_addmi;
+  int i;
+
+  v1 = 0;
+  v0 = ((v += 128) & 255) - 128, v >>= 8;
+  if (v == 0)
+    i = 0, v_movi = 0, v_addmi = 0;
+  else if (i = ctz_hwi (v),
+	   split_hwi_to_MOVI_ADDMI (v >> i, v_movi, v_addmi))
+    i += 8;
+  else
+    {
+      v1 = ((v += 128) & 255) - 128, v >>= 8;
+      if (v == 0)
+	i = 0, v_movi = 0, v_addmi = 0;
+      else if (i = ctz_hwi (v),
+	       split_hwi_to_MOVI_ADDMI (v >> i, v_movi, v_addmi))
+	i += 16;
+      else
+	return NULL;
+    }
+
+  start_sequence ();
+  emit_insn (gen_rtx_SET (dest, GEN_INT (v_movi)));
+  if (v_addmi)
+    emit_insn (gen_addsi3 (dest, dest, GEN_INT (v_addmi)));
+  if (i)
+    emit_insn (gen_ashlsi3 (dest, dest, GEN_INT (i)));
+  if (v1)
+    emit_insn (gen_addsi3 (dest, dest, GEN_INT (v1 * 256)));
+  if (v0)
+    emit_insn (gen_addsi3 (dest, dest, GEN_INT (v0)));
+  return end_sequence ();
+}
+
+/* A method that generates two machine instructions to synthesize a
+   positive square number (up to 2047*2047) by assigning its square root
+   and multiplying it by itself.  This method only works when TARGET_MUL32
+   is enabled.  */
+
+static rtx_insn *
+constantsynth_method_square (rtx dest, HOST_WIDE_INT v)
+{
+  int v0;
+
+  if (!TARGET_MUL32 || ! IN_RANGE (v, 0, 2047 * 2047)
+      || (v0 = (int)sqrtf (v), v0 * v0 != v))
+    return NULL;
+
+  start_sequence ();
+  emit_insn (gen_rtx_SET (dest, GEN_INT (v0)));
+  emit_insn (gen_mulsi3 (dest, dest, dest));
+  return end_sequence ();
+}
+
+/* List of all available synthesis methods.  */
+
+struct constantsynth_method_info
+{
+  rtx_insn *(* const func) (rtx, HOST_WIDE_INT);
+  const char *name;
+};
+
+static const struct constantsynth_method_info constantsynth_methods[] =
+{
+  { constantsynth_method_lshr_m1, "lshr_m1" },
+  { constantsynth_method_16bits, "16bits" },
+  { constantsynth_method_32bits, "32bits" },
+  { constantsynth_method_square, "square" },
+};
+
+/* Information that mediates between synthesis pass 1 and 2.  */
+
+struct constantsynth_info
+{
+  xt_full_rtx_costs costs;
+  hash_map<rtx_insn *, rtx> insns;
+  hash_map<rtx, int> usage;
+  constantsynth_info ()
+  {
+    /* To avoid wasting literal pool entries, we use fake references to
+       estimate the costs of an L32R instruction.  */
+    rtx x = gen_rtx_SYMBOL_REF (Pmode, "*.LC-1");
+    SYMBOL_REF_FLAGS (x) |= SYMBOL_FLAG_LOCAL;
+    CONSTANT_POOL_ADDRESS_P (x) = 1;
+    x = gen_const_mem (SImode, x);
+    gcc_assert (constantpool_mem_p (x));
+    costs += make_insn_raw (gen_rtx_SET (gen_rtx_REG (SImode, A9_REG),
+					 x));
+  }
+};
+
+/* constantsynth pass 1.
+   Detect and record large constant assignments within the function.  */
+
+static bool
+constantsynth_pass1 (rtx_insn *insn, constantsynth_info &info)
+{
+  rtx pat, dest, src;
+  int *pcount;
+
+  /* Check whether the insn is an assignment to a constant that is eligible
+     for constantsynth.  If a large constant, record the insn and also the
+     number of occurrences of the constant if optimizing for size.  If the
+     constant fits in the immediate field, update the insn to re-assign the
+     constant.  */
+  if (TARGET_CONST16
+      || GET_CODE (pat = PATTERN (insn)) != SET
+      || ! REG_P (dest = SET_DEST (pat)) || ! GP_REG_P (REGNO (dest))
+      || GET_MODE (dest) != SImode
+      || ! CONST_INT_P (src = avoid_constant_pool_reference (SET_SRC (pat))))
+    return false;
+
+  if (xtensa_simm12b (INTVAL (src)))
+    {
+      if (src != SET_SRC (pat))
+	{
+	  remove_reg_equal_equiv_notes (insn);
+	  validate_change (insn, &PATTERN (insn),
+			   gen_rtx_SET (dest, src), 0);
+	}
+      if (dump_file)
+	fprintf (dump_file,
+		 "constantsynth_pass1: immediate, " HOST_WIDE_INT_PRINT_DEC
+		 " (" HOST_WIDE_INT_PRINT_HEX ")\n",
+		 INTVAL (src), INTVAL (src));
+    }
+  else
+    {
+      info.insns.put (insn, src);
+      if (optimize_size)
+	{
+	  if ((pcount = info.usage.get (src)))
+	    ++*pcount;
+	  else
+	    info.usage.put (src, 1);
+	}
+    }
+
+  return true;
+}
+
+/* If an insn sequence returned by one of the constantsynth methods conforms
+   to the rules and formal evaluation of the sequence from beginning to end
+   reduces to a single CONST_INT, return it.  */
+
+static rtx
+verify_synth_seq (rtx_insn *seq, const_rtx dest)
+{
+  rtx pat, cst;
+
+  if (! NONJUMP_INSN_P (seq)
+      || GET_CODE (pat = PATTERN (seq)) != SET
+      || ! rtx_equal_p (SET_DEST (pat), dest)
+      || ! CONST_INT_P (cst = SET_SRC (pat))
+      || ! xtensa_simm12b (INTVAL (cst)))
+    return NULL_RTX;
+
+  for (seq = NEXT_INSN (seq); seq; seq = NEXT_INSN (seq))
+    if (! NONJUMP_INSN_P (seq)
+	|| GET_CODE (pat = PATTERN (seq)) != SET
+	|| ! rtx_equal_p (SET_DEST (pat), dest)
+	|| ! CONST_INT_P (cst = simplify_replace_rtx (SET_SRC (pat),
+						      dest, cst)))
+      return NULL_RTX;
+
+  return cst;
+}
+
+/* constantsynth pass 2.
+   For each large constant value assignment collected in pass 1, try to
+   find a more efficient way to derive the value than referencing a literal
+   pool entry, and if found, replace the assignment with it.  */
+
+static void
+constantsynth_pass2 (constantsynth_info &info)
+{
+  rtx_insn *insn, *min_seq, *seq, *last;
+  rtx pat, dest, src, cst;
+  enum machine_mode mode;
+  int *pcount, processed = 0;
+  HOST_WIDE_INT v;
+  const char *name;
+
+  /* For each insn recorded in pass 1...  */
+  for (const auto &iter : info.insns)
+    {
+      dest = SET_DEST (pat = PATTERN (insn = iter.first));
+      if ((mode = GET_MODE (dest)) != SImode)
+	dest = gen_rtx_REG (SImode, REGNO (dest));
+      v = INTVAL (src = iter.second);
+
+      /* Only attempt to synthesize large constants if they occur at most
+	 once in a function, since it is more space-efficient to reference
+	 a shared literal pool entry multiple times.  */
+      if (! (pcount = info.usage.get (src))
+	  || *pcount == 1)
+	{
+	  /* Try multiple synthesis methods and choose the least expensive
+	     one.  */
+	  xt_full_rtx_costs min_costs = info.costs;
+
+	  v = INTVAL (src), min_seq = NULL, name = NULL;
+	  for (const auto &method : constantsynth_methods)
+	    if ((seq = method.func (dest, v)))
+	      {
+		xt_full_rtx_costs costs (seq);
+
+		if (costs < min_costs)
+		  min_costs = costs, min_seq = seq, name = method.name;
+	      }
+
+	  /* If there is a most efficient synthesis method, replace the
+	     insn with the result.  */
+	  if (min_seq)
+	    {
+	      if (flag_checking)
+		{
+		  if (! (cst = verify_synth_seq (min_seq, dest)))
+		    internal_error ("constantsynth: method %qs "
+				    "invalid insn sequence, "
+				    "expected %wd (%wx)", name,
+				    v, v);
+		  if (INTVAL (cst) != v)
+		    internal_error ("constantsynth: method %qs "
+				    "value mismatch, "
+				    "expected %wd (%wx) "
+				    "synthesized %wd (%wx)", name,
+				    v, v,INTVAL (cst), INTVAL (cst));
+		}
+
+	      for (last = min_seq; NEXT_INSN (last);
+		   last = NEXT_INSN (last))
+		;
+	      add_reg_note (last, REG_EQUIV, copy_rtx (src));
+	      if (dump_file)
+		{
+		  fprintf (dump_file,
+			   "constantsynth_pass2: method \"%s\", "
+			   HOST_WIDE_INT_PRINT_DEC " (",
+			   name, v);
+		  dump_value_slim (dump_file, src, 0);
+		  fprintf (dump_file, ")\n");
+		  dump_insn_slim (dump_file, insn);
+		  fprintf (dump_file,
+			   "constantsynth_pass2: costs (%d,%d) -> (%d,%d)\n",
+			   info.costs.major (), info.costs.minor (),
+			   min_costs.major (), min_costs.minor ());
+		  dump_rtl_slim (dump_file, min_seq, NULL, -1, 0);
+		}
+	      emit_insn_before (min_seq, insn);
+	      set_insn_deleted (insn);
+	      ++processed;
+	      continue;
+	    }
+	}
+
+      /* Large constants that are not subject to synthesize are left in
+	 the literal pool.  */
+      if (dump_file)
+	fprintf (dump_file,
+		 "constantsynth_pass2: litpool, " HOST_WIDE_INT_PRINT_DEC
+		 " (" HOST_WIDE_INT_PRINT_HEX ")\n",
+		 v, v);
+    }
+
+  if (dump_file)
+    {
+      fprintf (dump_file, "constantsynth_pass2: %u insns",
+	       (unsigned)info.insns.elements ());
+      if (optimize_size)
+	fprintf (dump_file, ", %u large CONST_INTs",
+		 (unsigned int)info.usage.elements ());
+      fprintf (dump_file, ", %d processed\n", processed);
+    }
+}
+
+/* Replace the source of [SH]Imode allocation whose value does not fit
+   into signed 12 bits with a reference to litpool entry.  */
+
+static bool
+litpool_set_src_1 (rtx_insn *insn, rtx set, bool in_group)
+{
+  rtx dest, src;
+  enum machine_mode mode;
+
+  if (REG_P (dest = SET_DEST (set))
+      && ((mode = GET_MODE (dest)) == SImode || mode == HImode)
+      && CONST_INT_P (src = SET_SRC (set))
+      && ! xtensa_simm12b (INTVAL (src)))
+    {
+      remove_reg_equal_equiv_notes (insn);
+      validate_change (insn, &SET_SRC (set),
+		       force_const_mem (mode, src), in_group);
+      add_reg_note (insn, REG_EQUIV, copy_rtx (src));
+      return true;
+    }
+
+  return false;
+}
+
+static bool
+litpool_set_src (rtx_insn *insn)
+{
+  rtx pat = PATTERN (insn);
+  int i;
+  bool changed;
+
+  switch (GET_CODE (pat))
+    {
+    case SET:
+      return litpool_set_src_1 (insn, pat, 0);
+
+    /* There should be no assignments within PARALLEL in this target,
+       but just to be sure.  */
+    case PARALLEL:
+      changed = false;
+      for (i = 0; i < XVECLEN (pat, 0); ++i)
+	if (GET_CODE (XVECEXP (pat, 0, i)) == SET
+	    && litpool_set_src_1 (insn, XVECEXP (pat, 0, i), 1))
+	  changed = true;
+      if (changed)
+	apply_change_group ();
+      return changed;
+
+    default:
+      return false;
+    }
+}
+
+/* Replace all occurrences of large immediate values in assignment sources
+   that were permitted for convenience with their legitimate forms, or
+   more efficient representations if possible.  */
+
+static void
+do_largeconst (void)
+{
+  bool replacing_required = !TARGET_CONST16 && !TARGET_AUTO_LITPOOLS;
+  bool optimize_enabled = optimize && !optimize_debug;
+  rtx_insn *insn;
+  constantsynth_info cs_info;
+
+  /* Verify the legitimacy of replacing constant assignments in
+     DI/SF/DFmode with those in SImode.  */
+  gcc_assert (targetm.can_change_mode_class
+		== hook_bool_mode_mode_reg_class_t_true);
+
+  for (insn = get_insns (); insn; insn = NEXT_INSN (insn))
+    if (NONJUMP_INSN_P (insn))
+      {
+	/* Optimize assignment of negatively scaled (up to the minus
+	   15th power of two) signed 12-bit immediate values to hardware
+	   floating-point registers.  */
+	if (optimize_enabled
+	    && FPreg_neg_scaled_simm12b (insn))
+	  continue;
+
+	/* Replace the source of [SH]Imode allocation whose value does not
+	   fit into signed 12 bits with a reference to litpool entry.  */
+	if (replacing_required)
+	  litpool_set_src (insn);
+
+	/* Split DI/SF/DFmode constant assignments into pairs of SImode
+	   ones.  This is also the pre-processing for constantsynth opti-
+	   mization that follows immediately after.  */
+	if (replacing_required)
+	  split_DI_SF_DF_const (insn);
+
+	/* constantsynth pass 1.
+	   Detect and record large constant assignments within a function.  */
+	if (optimize_enabled)
+	  constantsynth_pass1 (insn, cs_info);
+      }
+
+  /* constantsynth pass 2.
+     For each large constant value assignment collected in pass 1, try to
+     find a more efficient way to derive the value than referencing a literal
+     pool entry, and if found, replace the assignment with it.  */
+  if (optimize_enabled)
+    constantsynth_pass2 (cs_info);
+}
+
+/* Convert assignments for large constants.  */
+
+static unsigned int
+rest_of_handle_largeconst (void)
+{
+  /* Until this flag becomes true, all RTL expressions that assign integer
+     (not symbol nor floating-point) constants to [SH]Imode registers are
+     allowed regardless of the values' bit width or configurations of
+     TARGET_CONST16 and TARGET_AUTO_LITPOOLS.  This trick avoids some of
+     the problems that can arise from blindly following the result of
+     TARGET_LEGITIMATE_CONSTANT_P() either directly or via general/
+     immediate_operands().
+
+     For example, the "cbranchsi4" MD expansion pattern in this target has
+     "nonmemory_operand" predicate specified for operand 2, which is
+     reasonable for most RISC machines where only registers or small set of
+     constants can be compared.  Incidentally, the Xtensa ISA has branch
+     instructions that perform GEU/LTU comparisons with 32768 or 65536, but
+     such constants are previously not accepted by "nonmemory_operand"
+     because the predicate is internally constrained to "immediate_operand"
+     which is essentially TARGET_LEGITIMATE_CONSTANT_P().  It would not be
+     impossible to describe a peculiar predicate or condition in the pattern
+     to get around this, but it would be "elephant" (inelegant).
+     Fortunately, this issue will be salvaged at higher optimization levels
+     in subsequent RTL instruction combination pass, but these instructions
+     are suppose to be emitted properly without any optimization.
+
+     Also, there are not a few cases where optimizers only accept bare
+     CONST_INTs and do not consider that references to pooled constants
+     are semantically equivalent to bare ones.  A good example of this is
+     a certain constant anchoring optimization performed in the postreload
+     pass, which requires anchoring constants to be bare, not pooled.
+
+     In any case, once postreload is complete, the trick described above
+     is no longer needed, so such assignments must now be all converted
+     back to references to literal pool entries (the original legitimate
+     form) if neither TARGET_CONST16 nor TARGET_AUTO_LITPOOLS is enabled.
+     See the function do_largeconst() called below.  */
+  cfun->machine->postreload_completed = true;
+
+  df_set_flags (DF_DEFER_INSN_RESCAN);
+  df_note_add_problem ();
+  df_analyze ();
+
+  /* Do the process.  */
+  do_largeconst ();
+
+  return 0;
+}
+
+const pass_data pass_data_xtensa_largeconst =
+{
+  RTL_PASS, /* type */
+  "xt_largeconst", /* name */
+  OPTGROUP_NONE, /* optinfo_flags */
+  TV_MACH_DEP, /* tv_id */
+  0, /* properties_required */
+  0, /* properties_provided */
+  0, /* properties_destroyed */
+  0, /* todo_flags_start */
+  TODO_df_finish, /* todo_flags_finish */
+};
+
+class pass_xtensa_largeconst : public rtl_opt_pass
+{
+public:
+  pass_xtensa_largeconst (gcc::context *ctxt)
+    : rtl_opt_pass (pass_data_xtensa_largeconst, ctxt)
+  {}
+
+  /* opt_pass methods: */
+  unsigned int execute (function *) final override
+  {
+    return rest_of_handle_largeconst ();
+  }
+
+};  // class pass_xtensa_largeconst
+
+} // anon namespace
+
+rtl_opt_pass *
+make_pass_xtensa_largeconst (gcc::context *ctxt)
+{
+  return new pass_xtensa_largeconst (ctxt);
 }
 
 #include "gt-xtensa.h"

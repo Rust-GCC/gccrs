@@ -510,6 +510,7 @@ extern GTY(()) tree cp_global_trees[CPTI_MAX];
       PACK_EXPANSION_FORCE_EXTRA_ARGS_P (in *_PACK_EXPANSION)
       LAMBDA_EXPR_STATIC_P (in LAMBDA_EXPR)
       TARGET_EXPR_ELIDING_P (in TARGET_EXPR)
+      IF_STMT_VACUOUS_INIT_P (IF_STMT)
       contract_semantic (in ASSERTION_, PRECONDITION_, POSTCONDITION_STMT)
       TYPENAME_IS_UNION_P (in TYPENAME_TYPE)
    4: IDENTIFIER_MARKED (IDENTIFIER_NODEs)
@@ -1856,7 +1857,8 @@ struct GTY(()) tree_tu_local_entity {
   location_t loc;
 };
 
-/* The name of a translation-unit-local entity.  */
+/* The human-readable name of a translation-unit-local entity as
+   an IDENTIFIER_NODE.  */
 #define TU_LOCAL_ENTITY_NAME(NODE) \
   (((struct tree_tu_local_entity *)TU_LOCAL_ENTITY_CHECK (NODE))->name)
 
@@ -5686,6 +5688,9 @@ decl_template_parm_check (const_tree t, const char *f, int l, const char *fn)
 #define IF_SCOPE(NODE)		TREE_OPERAND (IF_STMT_CHECK (NODE), 3)
 #define IF_STMT_CONSTEXPR_P(NODE) TREE_LANG_FLAG_0 (IF_STMT_CHECK (NODE))
 #define IF_STMT_CONSTEVAL_P(NODE) TREE_LANG_FLAG_2 (IF_STMT_CHECK (NODE))
+/* True on artificial if (0) around .DEFERRED_INIT calls added for
+   !!flag_auto_var_init.  */
+#define IF_STMT_VACUOUS_INIT_P(NODE) TREE_LANG_FLAG_3 (IF_STMT_CHECK (NODE))
 
 /* Like PACK_EXPANSION_EXTRA_ARGS, for constexpr if.  IF_SCOPE is used while
    building an IF_STMT; IF_STMT_EXTRA_ARGS is used after it is complete.  */
@@ -7279,7 +7284,7 @@ extern tree duplicate_decls			(tree, tree,
 extern void mark_label_addressed		(tree);
 extern tree declare_local_label			(tree);
 extern tree define_label			(location_t, tree);
-extern void check_goto				(tree);
+extern void check_goto				(tree *);
 extern bool check_omp_return			(void);
 extern tree make_typename_type			(tree, tree, enum tag_types, tsubst_flags_t);
 extern tree build_typename_type			(tree, tree, tree, tag_types);
@@ -7381,6 +7386,7 @@ extern tree build_explicit_specifier		(tree, tsubst_flags_t);
 extern bool use_eh_spec_block			(tree);
 extern void do_push_parm_decls			(tree, tree, tree *);
 extern tree do_aggregate_paren_init		(tree, tree);
+extern void maybe_mark_function_versioned	(tree);
 
 /* in decl2.cc */
 extern void record_mangling			(tree, bool);
@@ -7555,6 +7561,7 @@ extern tree mark_lvalue_use_nonread		(tree);
 extern tree mark_type_use			(tree);
 extern tree mark_discarded_use			(tree);
 extern void mark_exp_read			(tree);
+extern tree wrap_with_if_consteval		(tree);
 
 /* friend.cc */
 extern int is_friend				(tree, tree);
@@ -7835,6 +7842,7 @@ extern tree make_constrained_auto		(tree, tree);
 extern tree make_constrained_decltype_auto	(tree, tree);
 extern tree make_template_placeholder		(tree);
 extern tree make_cast_auto			(void);
+extern tree make_auto_pack			(void);
 extern bool template_placeholder_p		(tree);
 extern bool ctad_template_p			(tree);
 extern bool unparenthesized_id_or_class_member_access_p (tree);

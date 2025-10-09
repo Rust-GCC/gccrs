@@ -3557,15 +3557,18 @@ build_new_1 (vec<tree, va_gc> **placement, tree type, tree nelts,
     alloc_expr = maybe_wrap_new_for_constexpr (alloc_expr, type,
 					       cookie_size);
 
-  bool std_placement = std_placement_new_fn_p (alloc_fn);
+  const bool std_placement = std_placement_new_fn_p (alloc_fn);
 
-  /* For std placement new, clobber the object if the constructor won't do it
-     in start_preparsed_function.  This is most important for activating an
-     array in a union (c++/121068), but should also help the optimizers.  */
+  /* Clobber the object now that the constructor won't do it in
+     start_preparsed_function.  This is most important for activating an array
+     in a union (c++/121068), but should also help the optimizers.  */
   const bool do_clobber
-    = (std_placement && !*init && flag_lifetime_dse > 1
-       && (!CLASS_TYPE_P (elt_type)
-	   || type_has_non_user_provided_default_constructor (elt_type)));
+    = (flag_lifetime_dse > 1
+       && !processing_template_decl
+       && !is_empty_type (elt_type)
+       && !integer_zerop (TYPE_SIZE (type))
+       && (!outer_nelts || !integer_zerop (cst_outer_nelts))
+       && (!*init || CLASS_TYPE_P (elt_type)));
 
   /* In the simple case, we can stop now.  */
   pointer_type = build_pointer_type (type);
@@ -3661,22 +3664,49 @@ build_new_1 (vec<tree, va_gc> **placement, tree type, tree nelts,
   tree clobber_expr = NULL_TREE;
   if (do_clobber)
     {
-      tree clobber = build_clobber (elt_type, CLOBBER_OBJECT_BEGIN);
-      CONSTRUCTOR_IS_DIRECT_INIT (clobber) = true;
-      if (array_p)
+      if (array_p && TREE_CODE (cst_outer_nelts) != INTEGER_CST)
 	{
 	  /* Clobber each element rather than the array at once.  */
-	  tree maxindex = cp_build_binary_op (input_location,
-					      MINUS_EXPR, outer_nelts,
-					      integer_one_node,
-					      complain);
-	  clobber_expr = build_vec_init (data_addr, maxindex, clobber,
-					 /*valinit*/false, /*from_arr*/0,
-					 complain, nullptr);
+	  /* But for now, limit a clobber loop to placement new during
+	     constant-evaluation, as cddce1 thinks it might be infinite, leading
+	     to bogus warnings on Wstringop-overflow-4.C (2025-09-30).  We
+	     need it in constexpr for constexpr-new4a.C.  */
+	  if (std_placement && current_function_decl
+	      && maybe_constexpr_fn (current_function_decl))
+	    {
+	      tree clobber = build_clobber (elt_type, CLOBBER_OBJECT_BEGIN);
+	      CONSTRUCTOR_IS_DIRECT_INIT (clobber) = true;
+	      tree maxindex = cp_build_binary_op (input_location,
+						  MINUS_EXPR, outer_nelts,
+						  integer_one_node,
+						  complain);
+	      clobber_expr = build_vec_init (data_addr, maxindex, clobber,
+					     /*valinit*/false, /*from_arr*/0,
+					     complain, nullptr);
+	      clobber_expr = wrap_with_if_consteval (clobber_expr);
+	    }
 	}
       else
 	{
-	  tree targ = cp_build_fold_indirect_ref (data_addr);
+	  tree targ = data_addr;
+	  tree ttype = type;
+	  /* Clobber the array as a whole, except that for a one-element array
+	     just clobber the element type, to avoid problems with code like
+	     construct_at that uses new T[1] for array T to get a pointer to
+	     the array.  */
+	  if (array_p && !integer_onep (cst_outer_nelts))
+	    {
+	      tree dom
+		= compute_array_index_type (NULL_TREE,
+					    CONST_CAST_TREE (cst_outer_nelts),
+					    complain);
+	      ttype = build_cplus_array_type (type, dom);
+	      tree ptype = build_pointer_type (ttype);
+	      targ = fold_convert (ptype, targ);
+	    }
+	  targ = cp_build_fold_indirect_ref (targ);
+	  tree clobber = build_clobber (ttype, CLOBBER_OBJECT_BEGIN);
+	  CONSTRUCTOR_IS_DIRECT_INIT (clobber) = true;
 	  clobber_expr = cp_build_init_expr (targ, clobber);
 	}
     }
@@ -3930,6 +3960,11 @@ build_new_1 (vec<tree, va_gc> **placement, tree type, tree nelts,
 					   complain);
 	  rval = build_conditional_expr (input_location, ifexp, rval,
 					 alloc_node, complain);
+	  /* If there's no offset between data_addr and alloc_node, append it
+	     to help -Wmismatched-new-delete at -O0.  */
+	  if (!cookie_size)
+	    rval = build2 (COMPOUND_EXPR, TREE_TYPE (alloc_node),
+			   rval, alloc_node);
 	}
 
       /* Perform the allocation before anything else, so that ALLOC_NODE
@@ -4918,7 +4953,8 @@ build_vec_init (tree base, tree maxindex, tree init,
 	}
 
       /* Any elements without explicit initializers get T{}.  */
-      empty_list = true;
+      if (!TREE_CLOBBER_P (init))
+	empty_list = true;
     }
   else if (init && TREE_CODE (init) == STRING_CST)
     {
@@ -5057,7 +5093,8 @@ build_vec_init (tree base, tree maxindex, tree init,
 	}
       else if (TREE_CODE (type) == ARRAY_TYPE)
 	{
-	  if (init && !BRACE_ENCLOSED_INITIALIZER_P (init))
+	  if (init && !BRACE_ENCLOSED_INITIALIZER_P (init)
+	      && !TREE_CLOBBER_P (init))
 	    {
 	      if ((complain & tf_error))
 		error_at (loc, "array must be initialized "

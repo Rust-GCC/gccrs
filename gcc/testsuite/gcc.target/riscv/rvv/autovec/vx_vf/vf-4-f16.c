@@ -24,4 +24,7 @@
 /* { dg-final { scan-assembler-not {vfmax.vf} } } */
 /* { dg-final { scan-assembler-not {vfwmul.vf} } } */
 /* { dg-final { scan-assembler-not {vfwadd.vf} } } */
+/* { dg-final { scan-assembler-not {vfwsub.vf} } } */
+/* { dg-final { scan-assembler-not {vfwadd.wf} } } */
+/* { dg-final { scan-assembler-not {vfwsub.wf} } } */
 /* { dg-final { scan-assembler {fcvt.s.h} } } */

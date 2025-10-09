@@ -949,6 +949,17 @@
   }
 )
 
+(define_expand "vec_trunc_add_high<mode>"
+  [(set (match_operand:<VNARROWQ> 0 "register_operand")
+	(plus:VQN (match_operand:VQN 1 "register_operand")
+		  (match_operand:VQN 2 "register_operand")))]
+  "TARGET_SIMD"
+  {
+    emit_insn (gen_aarch64_addhn<mode> (operands[0], operands[1], operands[2]));
+    DONE;
+  }
+)
+
 (define_insn "aarch64_<su>abal<mode>"
   [(set (match_operand:<VWIDE> 0 "register_operand" "=w")
 	(plus:<VWIDE>
@@ -9261,35 +9272,6 @@
   "TARGET_SHA3"
   "bcax\\t%0.16b, %1.16b, %2.16b, %3.16b"
   [(set_attr "type" "crypto_sha3")]
-)
-
-(define_insn_and_split "*bcaxqdi4"
-  [(set (match_operand:DI 0 "register_operand")
-	(xor:DI
-	  (and:DI
-	    (not:DI (match_operand:DI 3 "register_operand"))
-	    (match_operand:DI 2 "register_operand"))
-	  (match_operand:DI 1 "register_operand")))]
-  "TARGET_SHA3"
-  {@ [ cons: =0, 1, 2 , 3  ; attrs: type ]
-     [ w       , w, w , w  ; crypto_sha3 ] bcax\t%0.16b, %1.16b, %2.16b, %3.16b
-     [ &r      , r, r0, r0 ; multiple    ] #
-  }
-  "&& REG_P (operands[0]) && GP_REGNUM_P (REGNO (operands[0]))"
-  [(set (match_dup 4)
-	(and:DI (not:DI (match_dup 3))
-		(match_dup 2)))
-   (set (match_dup 0)
-	(xor:DI (match_dup 4)
-		(match_dup 1)))]
-  {
-    if (reload_completed)
-      operands[4] = operands[0];
-    else if (can_create_pseudo_p ())
-      operands[4] = gen_reg_rtx (DImode);
-    else
-      FAIL;
-  }
 )
 
 ;; SM3

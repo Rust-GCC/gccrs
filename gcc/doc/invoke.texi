@@ -272,7 +272,7 @@ in the following sections.
 -Woverloaded-virtual  -Wno-pmf-conversions -Wself-move -Wsign-promo
 -Wsized-deallocation  -Wsuggest-final-methods
 -Wsuggest-final-types  -Wsuggest-override  -Wno-template-body
--Wno-template-id-cdtor  -Wtemplate-names-tu-local
+-Wno-template-id-cdtor  -Wtemplate-names-tu-local -Wno-external-tu-local
 -Wno-terminate  -Wno-vexing-parse  -Wvirtual-inheritance
 -Wno-virtual-move-assign  -Wvolatile}
 
@@ -540,7 +540,9 @@ Objective-C and Objective-C++ Dialects}.
 @gccoptlist{-Wbad-function-cast -Wdeprecated-non-prototype -Wfree-labels
 -Wmissing-declarations -Wmissing-parameter-name -Wmissing-parameter-type
 -Wdeclaration-missing-parameter-type -Wmissing-prototypes
--Wmissing-variable-declarations -Wnested-externs -Wold-style-declaration
+-Wmissing-variable-declarations
+-Wmultiple-parameter-fwd-decl-lists
+-Wnested-externs -Wold-style-declaration
 -Wold-style-definition -Wstrict-prototypes -Wtraditional
 -Wtraditional-conversion -Wdeclaration-after-statement -Wpointer-sign}
 
@@ -592,7 +594,8 @@ Objective-C and Objective-C++ Dialects}.
 -fearly-inlining  -fipa-sra  -fexpensive-optimizations  -ffat-lto-objects
 -ffast-math  -ffinite-math-only  -ffloat-store  -fexcess-precision=@var{style}
 -ffinite-loops
--fforward-propagate  -ffp-contract=@var{style}  -ffunction-sections
+-fforward-propagate  -ffp-contract=@var{style}  -ffp-int-builtin-inexact
+-ffunction-sections
 -fgcse  -fgcse-after-reload  -fgcse-las  -fgcse-lm  -fgraphite-identity
 -fgcse-sm  -fhoist-adjacent-loads  -fif-conversion
 -fif-conversion2  -findirect-inlining
@@ -616,7 +619,7 @@ Objective-C and Objective-C++ Dialects}.
 -flto-incremental-cache-size=@var{n} -fmalloc-dce -fmerge-all-constants
 -fmerge-constants  -fmodulo-sched  -fmodulo-sched-allow-regmoves
 -fmove-loop-invariants  -fmove-loop-stores  -fno-branch-count-reg
--fno-defer-pop  -fno-fp-int-builtin-inexact  -fno-function-cse
+-fno-defer-pop  -fno-function-cse
 -fno-guess-branch-probability  -fno-inline  -fno-math-errno  -fno-peephole
 -fno-peephole2  -fno-printf-return-value  -fno-sched-interblock
 -fno-sched-spec  -fno-signed-zeros
@@ -728,7 +731,7 @@ Objective-C and Objective-C++ Dialects}.
 
 @item Linker Options
 @xref{Link Options,,Options for Linking}.
-@gccoptlist{@var{object-file-name}  -fuse-ld=@var{linker}  -l@var{library}
+@gccoptlist{@var{object-file-name} -flink-libatomic  -fuse-ld=@var{linker}  -l@var{library}
 -nostartfiles  -nodefaultlibs  -nolibc  -nostdlib  -nostdlib++
 -e @var{entry}  --entry=@var{entry}
 -pie  -pthread  -r  -rdynamic
@@ -4756,6 +4759,32 @@ The presence of an explicit instantiation silences the warning.
 
 This flag is enabled by @option{-Wextra}.
 
+@opindex Wexternal-tu-local
+@opindex Wno-external-tu-local
+@item -Wno-external-tu-local
+Warn when naming a TU-local entity outside of the translation unit it
+was declared in.  Such declarations will be ignored during name lookup.
+This can occur when performing ADL from a template declared in the same
+TU as the internal function:
+
+@smallexample
+export module M;
+template <typename T> void foo(T t) @{
+  bar(t);
+@}
+struct S @{@} s;
+static void bar(S) @{@}  // internal linkage
+
+// instantiating foo(s) from outside this TU can see ::bar,
+// but naming it there is ill-formed.
+@end smallexample
+
+This can be worked around by making @code{bar} attached to the global
+module, using @code{extern "C++"}.
+
+This warning is enabled by default, and is upgraded to an error by
+@option{-pedantic-errors}.
+
 @opindex Wterminate
 @opindex Wno-terminate
 @item -Wno-terminate @r{(C++ and Objective-C++ only)}
@@ -6682,6 +6711,7 @@ name is still supported, but the newer name is more descriptive.)
 -Wmissing-parameter-name @r{(C/ObjC only)}
 -Wmissing-parameter-type @r{(C/ObjC only)}
 -Wold-style-declaration @r{(C/ObjC only)}
+-Wmultiple-parameter-fwd-decl-lists @r{(C/ObjC only)}
 -Woverride-init @r{(C/ObjC only)}
 -Wredundant-move @r{(C++ and Objective-C++ only)}
 -Wshift-negative-value @r{(in C++11 to C++17 and in C99 and newer)}
@@ -6690,7 +6720,7 @@ name is still supported, but the newer name is more descriptive.)
 -Wstring-compare
 -Wtype-limits
 -Wuninitialized
--Wunterminated-string-initialization
+-Wunterminated-string-initialization @r{(C/ObjC only)}
 -Wunused-parameter @r{(only with} @option{-Wunused} @r{or} @option{-Wall}@r{)}
 -Wunused-but-set-parameter @r{(only with} @option{-Wunused} @r{or} @option{-Wall}@r{)}}
 
@@ -7410,7 +7440,7 @@ switch (cond)
 @end group
 @end smallexample
 
-C++17 provides a standard way to suppress the @option{-Wimplicit-fallthrough}
+C++17 and C23 provide a standard way to suppress the @option{-Wimplicit-fallthrough}
 warning using @code{[[fallthrough]];} instead of the GNU attribute.  In C++11
 or C++14 users can use @code{[[gnu::fallthrough]];}, which is a GNU extension.
 Instead of these attributes, it is also possible to add a fallthrough comment
@@ -8345,7 +8375,10 @@ known to read the object.)  Annotating the function with attribute
 the object and avoids the warning (@pxref{Common Function Attributes}).
 
 These warnings are only possible in optimizing compilation, because otherwise
-GCC does not keep track of the state of variables.
+GCC does not keep track of the state of variables.  On the other hand,
+@option{-Wmaybe-uninitialized} is known not to warn in many situations
+(false negatives) due to optimizations taking advantage of undefinedness
+of uninitialized uses like constant propagation.
 
 These warnings are made optional because GCC may not be able to determine when
 the code is correct in spite of appearing to have an error.  Here is one
@@ -8431,7 +8464,7 @@ It warns about code that might break the strict aliasing rules that the
 compiler is using for optimization.  The warning does not catch all
 cases, but does attempt to catch the more common pitfalls.  It is
 included in @option{-Wall}.
-It is equivalent to @option{-Wstrict-aliasing=3}
+It is equivalent to @option{-Wstrict-aliasing=3}.
 
 @opindex Wstrict-aliasing=n
 @item -Wstrict-aliasing=n
@@ -10135,7 +10168,7 @@ void h (char *s)
 @opindex Wno-date-time
 @item -Wdate-time
 Warn when macros @code{__TIME__}, @code{__DATE__} or @code{__TIMESTAMP__}
-are encountered as they might prevent bit-wise-identical reproducible
+are encountered as they might prevent bitwise-identical reproducible
 compilations.
 
 @opindex Wempty-body
@@ -10375,7 +10408,7 @@ enabled by default.
 @item -Wlogical-op
 Warn about suspicious uses of logical operators in expressions.
 This includes using logical operators in contexts where a
-bit-wise operator is likely to be expected.  Also warns when
+bitwise operator is likely to be expected.  Also warns when
 the operands of a logical operator are the same:
 @smallexample
 extern int a;
@@ -10534,6 +10567,13 @@ even if there is a previous prototype.  A definition using @samp{()}
 is not considered an old-style definition in C23 mode, because it is
 equivalent to @samp{(void)} in that case, but is considered an
 old-style definition for older standards.
+
+@opindex Wmultiple-parameter-fwd-decl-lists
+@opindex Wno-multiple-parameter-fwd-decl-lists
+@item -Wmultiple-parameter-fwd-decl-lists @r{(C and Objective-C only)}
+Warn if more than one list of forward declarations of parameters
+appears in a function prototype.
+This warning is also enabled by @option{-Wextra}.
 
 @opindex Wdeprecated-non-prototype
 @opindex Wno-deprecated-non-prototype
@@ -13289,6 +13329,24 @@ different statements.
 The default is @option{-ffp-contract=off} for C in a standards compliant mode
 (@option{-std=c11} or similar), @option{-ffp-contract=fast} otherwise.
 
+@opindex ffp-int-builtin-inexact
+@item -ffp-int-builtin-inexact
+Allow the built-in functions @code{ceil}, @code{floor},
+@code{round} and @code{trunc}, and their @code{float} and @code{long
+double} variants, to generate code that raises the ``inexact''
+floating-point exception for noninteger arguments.  ISO C99 and C11
+allow these functions to raise the ``inexact'' exception, but ISO/IEC
+TS 18661-1:2014, the C bindings to IEEE 754-2008, as integrated into
+ISO C23, does not allow these functions to do so.
+
+The default is @option{-fno-fp-int-builtin-inexact}, disallowing the
+exception to be raised, unless C17 or an earlier C standard is selected.
+This option does nothing unless @option{-ftrapping-math} is in effect.
+
+Even if @option{-fno-fp-int-builtin-inexact} is used, if the functions
+generate a call to a library function then the ``inexact'' exception
+may be raised if the library implementation does not follow TS 18661.
+
 @opindex fomit-frame-pointer
 @item -fomit-frame-pointer
 Omit the frame pointer in functions that don't need one.  This avoids the
@@ -14359,10 +14417,10 @@ Note that @option{-flive-patching} is not supported with link-time optimization
 @opindex fisolate-erroneous-paths-dereference
 @item -fisolate-erroneous-paths-dereference
 Detect paths that trigger erroneous or undefined behavior due to
-dereferencing a null pointer.  Isolate those paths from the main control
-flow and turn the statement with erroneous or undefined behavior into a trap.
-This flag is enabled by default at @option{-O2} and higher and depends on
-@option{-fdelete-null-pointer-checks} also being enabled.
+dereferencing a null pointer (with @option{-fdelete-null-pointer-checks}
+enabled) or a division by zero.  Isolate those paths from the main control
+flow and turn the statement with erroneous or undefined behavior into a
+trap.  This flag is enabled by default at @option{-O2} and higher.
 
 @opindex fisolate-erroneous-paths-attribute
 @item -fisolate-erroneous-paths-attribute
@@ -14696,27 +14754,25 @@ and @option{-fauto-profile}.
 
 @opindex ftrivial-auto-var-init
 @item -ftrivial-auto-var-init=@var{choice}
-Initialize automatic variables with either a pattern or with zeroes to increase
-the security and predictability of a program by preventing uninitialized memory
-disclosure and use.
+Initialize automatic variables or temporary objects with either a pattern or with
+zeroes to increase the security and predictability of a program by preventing
+uninitialized memory disclosure and use.
 GCC still considers an automatic variable that doesn't have an explicit
 initializer as uninitialized, @option{-Wuninitialized} and
 @option{-Wanalyzer-use-of-uninitialized-value} will still report
-warning messages on such automatic variables and the compiler will
-perform optimization as if the variable were uninitialized.
+warning messages on such automatic variables or temporary objects and the
+compiler will perform optimization as if the variable were uninitialized.
 With this option, GCC will also initialize any padding of automatic variables
-that have structure or union types to zeroes.
-However, the current implementation cannot initialize automatic variables that
-are declared between the controlling expression and the first case of a
-@code{switch} statement.  Using @option{-Wtrivial-auto-var-init} to report all
-such cases.
+or temporary objects that have structure or union types to zeroes.
+However, the current implementation cannot initialize automatic variables
+whose initialization is bypassed through @code{switch} or @code{goto}
+statement.  Using @option{-Wtrivial-auto-var-init} to report all such cases.
 
 The three values of @var{choice} are:
 
 @itemize @bullet
 @item
 @samp{uninitialized} doesn't initialize any automatic variables.
-This is C and C++'s default.
 
 @item
 @samp{pattern} Initialize automatic variables with values which will likely
@@ -14730,7 +14786,10 @@ The values used for pattern initialization might be changed in the future.
 @samp{zero} Initialize automatic variables with zeroes.
 @end itemize
 
-The default is @samp{uninitialized}.
+The default is @samp{uninitialized} except for C++26, in which case
+if @option{-ftrivial-auto-var-init=} is not specified at all automatic
+variables or temporary objects are zero initialized, but zero initialization
+of padding bits does not happen.
 
 Note that the initializer values, whether @samp{zero} or @samp{pattern},
 refer to data representation (in memory or machine registers), rather
@@ -14743,7 +14802,7 @@ with the bit patterns @code{0x00} or @code{0xFE}, depending on
 @var{choice}, whether or not these representations stand for values in
 that range, and even if they do, the interpretation of the value held by
 the variable will depend on the bias.  A @samp{hardbool} variable that
-uses say @code{0X5A} and @code{0xA5} for @code{false} and @code{true},
+uses say @code{0x5A} and @code{0xA5} for @code{false} and @code{true},
 respectively, will trap with either @samp{choice} of trivial
 initializer, i.e., @samp{zero} initialization will not convert to the
 representation for @code{false}, even if it would for a @code{static}
@@ -14754,7 +14813,8 @@ are initialized with @code{false} (zero), even when @samp{pattern} is
 requested.
 
 You can control this behavior for a specific variable by using the variable
-attribute @code{uninitialized} (@pxref{Variable Attributes}).
+attribute @code{uninitialized} standard attribute (@pxref{Variable Attributes})
+or the C++26 @code{[[indeterminate]]}.
 
 @opindex fvect-cost-model
 @item -fvect-cost-model=@var{model}
@@ -14989,10 +15049,11 @@ int f() @{
 @end smallexample
 The practice of reading from a different union member than the one most
 recently written to (called ``type-punning'') is common.  Even with
-@option{-fstrict-aliasing}, type-punning is allowed, provided the memory
-is accessed through the union type.  So, the code above works as
-expected.  @xref{Structures unions enumerations and bit-fields
-implementation}.  However, this code might not:
+@option{-fstrict-aliasing}, type-punning is allowed in C, provided the memory
+is accessed through the union type.  In ISO C++, type-punning through a union
+type is undefined behavior, but GCC supports it as an extension. So, the code
+above works as expected.  @xref{Structures unions enumerations and
+bit-fields implementation}.  However, this code might not:
 @smallexample
 int f() @{
   union a_union t;
@@ -15592,16 +15653,16 @@ This option is enabled by @option{-fauto-profile}.
 
 @opindex fprofile-partial-training
 @item -fprofile-partial-training
-With @code{-fprofile-use} all portions of programs not executed during train
-run are optimized aggressively for size rather than speed.  In some cases it is
-not practical to train all possible hot paths in the program. (For
-example, program may contain functions specific for a given hardware and
-training may not cover all hardware configurations program is run on.)  With
-@code{-fprofile-partial-training} profile feedback is ignored for all
-functions not executed during the train run, leading them to be optimized as if
-they were compiled without profile feedback. This leads to better performance
-when train run is not representative but also leads to significantly bigger
-code.
+With @code{-fprofile-use} all portions of programs not executed during
+training runs are optimized aggressively for size rather than speed.
+In some cases it is not practical to train all possible hot paths in
+the program. (For example, it may contain functions specific to a
+given hardware and training may not cover all hardware configurations
+the program later runs on.)  With @code{-fprofile-partial-training}
+profile feedback is ignored for all functions not executed during the
+training runs, causing them to be optimized as if they were compiled
+without profile feedback. This leads to better performance when the
+training is not representative at the cost of significantly bigger code.
 
 @opindex fprofile-use
 @item -fprofile-use
@@ -15894,25 +15955,6 @@ The default is @option{-fno-signaling-nans}.
 
 This option is experimental and does not currently guarantee to
 disable all GCC optimizations that affect signaling NaN behavior.
-
-@opindex fno-fp-int-builtin-inexact
-@opindex ffp-int-builtin-inexact
-@item -fno-fp-int-builtin-inexact
-Do not allow the built-in functions @code{ceil}, @code{floor},
-@code{round} and @code{trunc}, and their @code{float} and @code{long
-double} variants, to generate code that raises the ``inexact''
-floating-point exception for noninteger arguments.  ISO C99 and C11
-allow these functions to raise the ``inexact'' exception, but ISO/IEC
-TS 18661-1:2014, the C bindings to IEEE 754-2008, as integrated into
-ISO C23, does not allow these functions to do so.
-
-The default is @option{-ffp-int-builtin-inexact}, allowing the
-exception to be raised, unless C23 or a later C standard is selected.
-This option does nothing unless @option{-ftrapping-math} is in effect.
-
-Even if @option{-fno-fp-int-builtin-inexact} is used, if the functions
-generate a call to a library function then the ``inexact'' exception
-may be raised if the library implementation does not follow TS 18661.
 
 @opindex fsingle-precision-constant
 @item -fsingle-precision-constant
@@ -16235,6 +16277,11 @@ In each case, the @var{value} is an integer.  The following choices
 of @var{name} are recognized for all targets:
 
 @table @gcctabopt
+@item auto-profile-bbs
+If non-zero and used together with @option{-fauto-profile}, the auto-profile
+will be used to determine basic block profile.  If zero, then only function
+level profile will be read.
+
 @item phiopt-factor-max-stmts-live
 When factoring statements out of if/then/else, this is the max # of statements
 after the defining statement to be allow to extend the lifetime of a name
@@ -16311,6 +16358,10 @@ information.  Increasing this arbitrarily chosen value means more
 aggressive optimization, increasing the compilation time.  This parameter
 should be removed when the delay slot code is rewritten to maintain the
 control-flow graph.
+
+@item max-devirt-targets
+This limits number of function a virtual call may be speculatively
+devirtualized to using static analysis (without profile feedback).
 
 @item max-gcse-memory
 The approximate maximum amount of memory in @code{kB} that can be allocated in
@@ -19418,6 +19469,12 @@ to the linker.
 If any of these options is used, then the linker is not run, and
 object file names should not be used as arguments.  @xref{Overall
 Options}.
+
+@opindex flink-libatomic
+@item -flink-libatomic
+Enable linking of libatomic if it's supported by target, and is enabled by
+default. The negative form @option{-fno-link-libatomic} can be used to
+explicitly disable linking of libatomic.
 
 @opindex flinker-output
 @item -flinker-output=@var{type}
@@ -22529,10 +22586,7 @@ vector-length agnostic code.
 @opindex Wexperimental-fmv-target
 @opindex Wno-experimental-fmv-target
 @item -Wexperimental-fmv-target
-Warn about use of experimental Function Multi Versioning.
-The Arm C Language Extension specification for Function Multi Versioning
-is beta and subject to change. Any usage of FMV is caveated that future
-behavior change and incompatibility is likely.
+This option is deprecated.
 @end table
 
 @subsubsection @option{-march} and @option{-mcpu} Feature Modifiers
@@ -22728,6 +22782,8 @@ extension in streaming mode.
 Enable the Floating Point Absolute Maximum/Minimum extension.
 @item lut
 Enable the Lookup Table extension.
+@item sme-lutv2
+Enable the SME Lookup Table v2 (LUTv2) extension.
 @item cpa
 Enable the Checked Pointer Arithmetic instructions.
 @item sve-b16b16
@@ -31360,6 +31416,29 @@ Function return values larger than 64 bits are passed by using a hidden
 pointer as the first argument of the function.  TI ABI, though, mandates that
 the pointer can be NULL in case the caller is not using the returned value.
 GNU always passes and expects a valid return value pointer.
+
+@item Size Of Struct Containing Bit-fields
+TI ABI mandates that struct size is determined by the bit-field type, if it
+contains any.  Whereas GNU allocates the smallest amount of bytes which would
+fit the bit-field.
+
+For example, TI ABI reserves 4 bytes for this struct, whereas GNU reserves
+a single byte:
+
+@smallexample
+struct S @{ int i:1; @};
+@end smallexample
+
+@item Access Size For Volatile Bit-fields
+TI ABI mandates that volatile bit-fields are accessed using their type.
+In contrast, GNU ABI uses the smallest integer type fitting the bit-field.
+
+For example, TI ABI requires a single load of 4 bytes for the
+following bit-field.  Whereas GNU generates a load of 1 byte:
+
+@smallexample
+struct S @{ volatile int i:1; @};
+@end smallexample
 
 @end table
 

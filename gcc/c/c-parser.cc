@@ -3222,7 +3222,7 @@ c_parser_declaration_or_fndef (c_parser *parser, bool fndef_ok,
       else
 	fnbody = c_parser_compound_statement (parser, &endloc);
       tree fndecl = current_function_decl;
-      if (nested)
+      if (nested && specs->declspec_il == cdil_none)
 	{
 	  tree decl = current_function_decl;
 	  /* Mark nested functions as needing static-chain initially.
@@ -3234,6 +3234,15 @@ c_parser_declaration_or_fndef (c_parser *parser, bool fndef_ok,
 	  finish_function (endloc);
 	  c_pop_function_context ();
 	  add_stmt (build_stmt (DECL_SOURCE_LOCATION (decl), DECL_EXPR, decl));
+	}
+      else if (nested)
+	{
+	  if (specs->declspec_il == cdil_rtl)
+	    error ("%<__RTL%> function cannot be a nested function");
+	  else
+	    error ("%<__GIMPLE%> function cannot be a nested function");
+	  finish_function (endloc);
+	  c_pop_function_context ();
 	}
       else
 	{
@@ -11174,9 +11183,12 @@ c_parser_generic_selection (c_parser *parser)
   else
     {
       c_inhibit_evaluation_warnings++;
+      in_generic++;
       selector = c_parser_expr_no_commas (parser, NULL);
       selector = default_function_array_conversion (selector_loc, selector);
       c_inhibit_evaluation_warnings--;
+      in_generic--;
+      pop_maybe_used (!flag_isoc23);
 
       if (selector.value == error_mark_node)
 	{
@@ -11205,6 +11217,7 @@ c_parser_generic_selection (c_parser *parser)
     }
 
   auto_vec<c_generic_association> associations;
+  struct maybe_used_decl *maybe_used_default = NULL;
   while (1)
     {
       struct c_generic_association assoc, *iter;
@@ -11244,9 +11257,9 @@ c_parser_generic_selection (c_parser *parser)
 			 "incomplete type before C2Y");
 
 	  if (c_type_variably_modified_p (assoc.type))
-	    error_at (assoc.type_location,
-		      "%<_Generic%> association has "
-		      "variable length type");
+	    pedwarn_c23 (assoc.type_location, OPT_Wpedantic,
+			 "ISO C does not support %<_Generic%> association with "
+			 "variably-modified type before C2Y");
 	}
 
       if (!c_parser_require (parser, CPP_COLON, "expected %<:%>"))
@@ -11260,11 +11273,19 @@ c_parser_generic_selection (c_parser *parser)
 
       if (!match)
 	c_inhibit_evaluation_warnings++;
+      in_generic++;
 
       assoc.expression = c_parser_expr_no_commas (parser, NULL);
 
       if (!match)
 	  c_inhibit_evaluation_warnings--;
+      in_generic--;
+      if (!match)
+	pop_maybe_used (!flag_isoc23);
+      else if (assoc.type == NULL_TREE)
+	maybe_used_default = save_maybe_used ();
+      else
+	pop_maybe_used (true);
 
       if (assoc.expression.value == error_mark_node)
 	{
@@ -11323,6 +11344,20 @@ c_parser_generic_selection (c_parser *parser)
       if (c_parser_peek_token (parser)->type != CPP_COMMA)
 	break;
       c_parser_consume_token (parser);
+    }
+
+  if (match_found >= 0 && matched_assoc.type == NULL_TREE)
+    {
+      /* Declarations referenced in the default association are used.  */
+      restore_maybe_used (maybe_used_default);
+      pop_maybe_used (true);
+    }
+  else if (maybe_used_default)
+    {
+      /* Declarations referenced in the default association are not used, but
+	 are treated as used before C23.  */
+      restore_maybe_used (maybe_used_default);
+      pop_maybe_used (!flag_isoc23);
     }
 
   unsigned int ix;
@@ -27765,6 +27800,13 @@ c_finish_omp_declare_simd (c_parser *parser, tree fndecl, tree parms,
 		"%<#pragma omp declare %s%> not immediately followed by "
 		"a single function declaration or definition", kind);
       clauses[0].type = CPP_EOF;
+      return;
+    }
+  if (DECL_FUNCTION_VERSIONED (fndecl))
+    {
+      error_at (DECL_SOURCE_LOCATION (fndecl),
+		"%<#pragma omp declare %s%> cannot be used with function "
+		"multi-versioning", kind);
       return;
     }
 

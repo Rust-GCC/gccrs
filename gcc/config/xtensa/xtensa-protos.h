@@ -44,7 +44,6 @@ extern int xtensa_expand_scc (rtx *, machine_mode);
 extern int xtensa_expand_block_move (rtx *);
 extern int xtensa_expand_block_set (rtx *);
 extern void xtensa_split_operand_pair (rtx *, machine_mode);
-extern int xtensa_constantsynth (rtx, rtx);
 extern int xtensa_emit_move_sequence (rtx *, machine_mode);
 extern rtx xtensa_copy_incoming_a7 (rtx);
 extern void xtensa_expand_nonlocal_goto (rtx *);
@@ -58,8 +57,7 @@ extern char *xtensa_emit_call (int, rtx *);
 extern char *xtensa_emit_sibcall (int, rtx *);
 extern bool xtensa_tls_referenced_p (rtx);
 extern enum rtx_code xtensa_shlrd_which_direction (rtx, rtx);
-extern bool xtensa_split1_finished_p (void);
-extern void xtensa_split_DI_reg_imm (rtx *);
+extern bool xtensa_postreload_completed_p (void);
 extern char *xtensa_bswapsi2_output (rtx_insn *, const char *);
 
 #ifdef TREE_CODE
@@ -82,5 +80,6 @@ extern void xtensa_adjust_reg_alloc_order (void);
 extern enum reg_class xtensa_regno_to_class (int regno);
 extern HOST_WIDE_INT xtensa_initial_elimination_offset (int from, int to);
 extern const char **xtensa_get_config_strings (void);
+extern rtl_opt_pass *make_pass_xtensa_largeconst (gcc::context *);
 
 #endif /* !__XTENSA_PROTOS_H__ */

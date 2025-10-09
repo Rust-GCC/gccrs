@@ -361,6 +361,9 @@ context::finish ()
       dump (m_logger->get_stream (), m_logger->get_indent ());
     }
 
+  for (auto iter : m_sinks)
+    iter->finalize_extensions ();
+
   /* We might be handling a fatal error.
      Close any active diagnostic groups, which may trigger flushing
      sinks.  */
@@ -455,6 +458,11 @@ context::dump (FILE *outfile, int indent) const
     m_file_cache->dump (outfile, indent + 4);
   else
     dumping::emit_none (outfile, indent + 4);
+  dumping::emit_heading (outfile, indent + 2, "client data hooks");
+  if (m_client_data_hooks)
+    m_client_data_hooks->dump (outfile, indent + 4);
+  else
+    dumping::emit_none (outfile, indent + 4);
 }
 
 /* Return true if sufficiently severe diagnostics have been seen that
@@ -463,9 +471,8 @@ context::dump (FILE *outfile, int indent) const
 bool
 context::execution_failed_p () const
 {
-  /* Equivalent to (seen_error () || werrorcount), but on
-     this context, rather than global_dc.  */
-  return (diagnostic_count (kind::error)
+  return (diagnostic_count (kind::fatal)
+	  || diagnostic_count (kind::error)
 	  || diagnostic_count (kind::sorry)
 	  || diagnostic_count (kind::werror));
 }
@@ -653,6 +660,18 @@ context::initialize_fixits_change_set ()
   delete m_fixits_change_set;
   gcc_assert (m_file_cache);
   m_fixits_change_set = new changes::change_set (*m_file_cache);
+}
+
+// class client_data_hooks
+
+void
+client_data_hooks::dump (FILE *outfile, int indent) const
+{
+  dumping::emit_heading (outfile, indent, "logical location manager");
+  if (auto mgr = get_logical_location_manager ())
+    mgr->dump (outfile, indent + 2);
+  else
+    dumping::emit_none (outfile, indent + 2);
 }
 
 } // namespace diagnostics
@@ -1844,6 +1863,20 @@ sink::dump (FILE *out, int indent) const
 {
   dumping::emit_heading (out, indent, "printer");
   m_printer->dump (out, indent + 2);
+
+  dumping::emit_heading (out, indent, "extensions");
+  if (m_extensions.empty ())
+    dumping::emit_none (out, indent + 2);
+  else
+    for (auto &ext : m_extensions)
+      ext->dump (out, indent + 2);
+}
+
+void
+sink::finalize_extensions ()
+{
+  for (auto &ext : m_extensions)
+    ext->finalize ();
 }
 
 void

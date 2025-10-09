@@ -78,6 +78,9 @@ int in_countof;
 /* The level of nesting inside "typeof".  */
 int in_typeof;
 
+/* The level of nesting inside "_Generic".  */
+int in_generic;
+
 /* True when parsing OpenMP loop expressions.  */
 bool c_in_omp_for;
 
@@ -133,7 +136,7 @@ static void set_nonincremental_init_from_string (tree, struct obstack *);
 static tree find_init_member (tree, struct obstack *);
 static void readonly_warning (tree, enum lvalue_use);
 static int lvalue_or_else (location_t, const_tree, enum lvalue_use);
-static void record_maybe_used_decl (tree);
+static void record_maybe_used_decl (tree, bool address);
 static bool comptypes_internal (const_tree, const_tree,
 				struct comptypes_data *data);
 static bool comptypes_check_for_composite (tree t1, tree t2);
@@ -2328,7 +2331,15 @@ function_to_pointer_conversion (location_t loc, tree exp)
 
   copy_warning (exp, orig_exp);
 
-  return build_unary_op (loc, ADDR_EXPR, exp, false);
+  tree exp2 = build_unary_op (loc, ADDR_EXPR, exp, false);
+
+  /* If the function is defined and known to not to require a non-local
+     context, make sure no trampoline is generated.  */
+  if (TREE_CODE (exp) == FUNCTION_DECL
+      && DECL_INITIAL (exp) && !C_FUNC_NONLOCAL_CONTEXT (exp))
+   TREE_NO_TRAMPOLINE (exp2) = 1;
+
+  return exp2;
 }
 
 /* Mark EXP as read, not just set, for set but not used -Wunused
@@ -2504,6 +2515,8 @@ really_atomic_lvalue (tree expr)
     return false;
   if (!TYPE_ATOMIC (TREE_TYPE (expr)))
     return false;
+  if (!COMPLETE_TYPE_P (TREE_TYPE (expr)))
+    return false;
   if (!lvalue_p (expr))
     return false;
 
@@ -2521,6 +2534,8 @@ really_atomic_lvalue (tree expr)
 	return false;
       expr = TREE_OPERAND (expr, 0);
     }
+  if (TREE_CODE (expr) == COMPOUND_LITERAL_EXPR)
+    expr = COMPOUND_LITERAL_EXPR_DECL (expr);
   if (DECL_P (expr) && C_DECL_REGISTER (expr))
     return false;
   return true;
@@ -2599,7 +2614,9 @@ convert_lvalue_to_rvalue (location_t loc, struct c_expr exp,
 
   if (convert_p)
     exp = default_function_array_conversion (loc, exp);
-  if (!VOID_TYPE_P (TREE_TYPE (exp.value)))
+  if (!VOID_TYPE_P (TREE_TYPE (exp.value))
+      || (flag_isoc2y
+	  && TYPE_QUALS (TREE_TYPE (exp.value)) != TYPE_UNQUALIFIED))
     exp.value = require_complete_type (loc, exp.value);
   if (for_init || !RECORD_OR_UNION_TYPE_P (TREE_TYPE (exp.value)))
     {
@@ -3519,7 +3536,7 @@ build_array_ref (location_t loc, tree array, tree index)
 	  || (COMPLETE_TYPE_P (TREE_TYPE (TREE_TYPE (array)))
 	      && TREE_CODE (TYPE_SIZE (TREE_TYPE (TREE_TYPE (array)))) != INTEGER_CST))
 	{
-	  if (!c_mark_addressable (array, true))
+	  if (!c_mark_addressable (array, true, true))
 	    return error_mark_node;
 	}
       /* An array that is indexed by a constant value which is not within
@@ -3530,19 +3547,28 @@ build_array_ref (location_t loc, tree array, tree index)
 	  && TYPE_DOMAIN (TREE_TYPE (array))
 	  && !int_fits_type_p (index, TYPE_DOMAIN (TREE_TYPE (array))))
 	{
-	  if (!c_mark_addressable (array))
+	  if (!c_mark_addressable (array, false, true))
 	    return error_mark_node;
+	  /* ISO C2Y disallows a negative integer constant expression index
+	     when array subscripting has an operand of array type.  */
+	  if (flag_isoc2y
+	      && !TREE_OVERFLOW (index)
+	      && tree_int_cst_sgn (index) < 0)
+	    error_at (loc, "array subscript is negative");
 	}
 
-      if ((pedantic || warn_c90_c99_compat)
+      if ((pedantic || warn_c90_c99_compat || warn_c23_c2y_compat)
 	  && ! was_vector)
 	{
 	  tree foo = array;
 	  while (TREE_CODE (foo) == COMPONENT_REF)
 	    foo = TREE_OPERAND (foo, 0);
-	  if (VAR_P (foo) && C_DECL_REGISTER (foo))
-	    pedwarn (loc, OPT_Wpedantic,
-		     "ISO C forbids subscripting %<register%> array");
+	  if ((VAR_P (foo) && C_DECL_REGISTER (foo))
+	      || (TREE_CODE (foo) == COMPOUND_LITERAL_EXPR
+		  && C_DECL_REGISTER (COMPOUND_LITERAL_EXPR_DECL (foo))))
+	    pedwarn_c23 (loc, OPT_Wpedantic,
+			 "ISO C forbids subscripting %<register%> array "
+			 "before C2Y");
 	  else if (!lvalue_p (foo))
 	    pedwarn_c90 (loc, OPT_Wpedantic,
 			 "ISO C90 forbids subscripting non-lvalue "
@@ -3641,6 +3667,92 @@ build_omp_array_section (location_t loc, tree array, tree index, tree length)
   return build3_loc (loc, OMP_ARRAY_SECTION, sectype, array, index, length);
 }
 
+
+/* Record that REF is used.  This is relevant for undeclared static
+   function and declarations referenced from a non-local context.
+   ADDRESS indicates whether the address is taken.  */
+
+void
+mark_decl_used (tree ref, bool address)
+{
+  if (!ref || !DECL_P (ref) || in_alignof)
+    return;
+
+  /* Non-file-scope and non-local reference in nested function.  */
+  bool nonloc_p = current_function_decl && DECL_CONTEXT (ref)
+		  && DECL_CONTEXT (current_function_decl)
+		  && DECL_CONTEXT (ref) != current_function_decl;
+
+  /* An undeclared static function.  */
+  bool static_p = TREE_CODE (ref) == FUNCTION_DECL
+		  && DECL_INITIAL (ref) == NULL_TREE
+		  && DECL_EXTERNAL (ref)
+		  && !TREE_PUBLIC (ref);
+
+  if (!static_p && !nonloc_p)
+    return;
+
+  /* If we may be in an unevaluated context, delay the decision.  */
+  if (in_sizeof || in_typeof || in_countof || in_generic)
+    return record_maybe_used_decl (ref, address);
+
+  if (static_p)
+    C_DECL_USED (ref) = 1;
+
+  if (nonloc_p && (VAR_OR_FUNCTION_DECL_P (ref)
+		   || TREE_CODE (ref) == PARM_DECL))
+    DECL_NONLOCAL (ref) = 1;
+
+  /* Nothing to do anymore.  */
+  if (!nonloc_p || C_FUNC_NONLOCAL_CONTEXT (current_function_decl))
+    return;
+
+  /* Filter out the cases where referencing a non-local variable does not
+     require a non-local context passed via the static chain.  */
+  if (!C_TYPE_VARIABLY_MODIFIED (TREE_TYPE (ref)))
+    switch (TREE_CODE (ref))
+      {
+      case FUNCTION_DECL:
+	/* Use of another local function that requires no context is ok.  */
+	if (!C_FUNC_NONLOCAL_CONTEXT (ref) && DECL_INITIAL (ref))
+	  return;
+	break;
+      case VAR_DECL:
+	/* Static variables and constexpr are ok, but for the later only
+	   when the address is not taken.  */
+	if (TREE_STATIC (ref) || (C_DECL_DECLARED_CONSTEXPR (ref) && !address))
+	  return;
+	break;
+      case TYPE_DECL:
+	/* A typedef is ok when not for a variably-modified type. */
+	return;
+      case CONST_DECL:
+	/* An enumeration constant is ok. */
+	return;
+      case PARM_DECL:
+	break;
+      case LABEL_DECL:
+	break;
+      default:
+	gcc_unreachable ();
+    }
+
+  /* Mark all parent functions up to the nesting level of the variable as
+     as needing the non-local context.  */
+  for (tree cont = current_function_decl; cont; cont = DECL_CONTEXT (cont))
+    {
+      if (cont == DECL_CONTEXT (ref))
+	break;
+
+      /* There should not be any other type of context used for function
+	 except TRANSLATION_UNIT_DECL which we should be able to reach.  */
+      gcc_checking_assert (TREE_CODE (cont) == FUNCTION_DECL);
+
+      if (TREE_CODE (cont) == FUNCTION_DECL)
+	C_FUNC_NONLOCAL_CONTEXT (cont) = 1;
+    }
+}
+
 
 /* Build an external reference to identifier ID.  FUN indicates
    whether this will be used for a function call.  LOC is the source
@@ -3698,15 +3810,7 @@ build_external_ref (location_t loc, tree id, bool fun, tree *type)
       TREE_USED (ref) = 1;
     }
 
-  if (TREE_CODE (ref) == FUNCTION_DECL && !in_alignof)
-    {
-      if (!in_sizeof && !in_typeof && !in_countof)
-	C_DECL_USED (ref) = 1;
-      else if (DECL_INITIAL (ref) == NULL_TREE
-	       && DECL_EXTERNAL (ref)
-	       && !TREE_PUBLIC (ref))
-	record_maybe_used_decl (ref);
-    }
+  mark_decl_used (ref, false);
 
   if (TREE_CODE (ref) == CONST_DECL)
     {
@@ -3725,16 +3829,6 @@ build_external_ref (location_t loc, tree id, bool fun, tree *type)
       ref = DECL_INITIAL (ref);
       TREE_CONSTANT (ref) = 1;
     }
-  else if (current_function_decl != NULL_TREE
-	   && !DECL_FILE_SCOPE_P (current_function_decl)
-	   && (VAR_OR_FUNCTION_DECL_P (ref)
-	       || TREE_CODE (ref) == PARM_DECL))
-    {
-      tree context = decl_function_context (ref);
-
-      if (context != NULL_TREE && context != current_function_decl)
-	DECL_NONLOCAL (ref) = 1;
-    }
   /* C99 6.7.4p3: An inline definition of a function with external
      linkage ... shall not contain a reference to an identifier with
      internal linkage.  */
@@ -3751,50 +3845,42 @@ build_external_ref (location_t loc, tree id, bool fun, tree *type)
   return ref;
 }
 
-/* Record details of decls possibly used inside sizeof or typeof.  */
-struct maybe_used_decl
-{
-  /* The decl.  */
-  tree decl;
-  /* The level seen at (in_sizeof + in_typeof + in_countof).  */
-  int level;
-  /* The next one at this level or above, or NULL.  */
-  struct maybe_used_decl *next;
-};
-
 static struct maybe_used_decl *maybe_used_decls;
 
-/* Record that DECL, an undefined static function reference seen
-   inside sizeof or typeof, might be used if the operand of sizeof is
-   a VLA type or the operand of typeof is a variably modified
-   type.  */
+/* Record that DECL, a reference seen inside sizeof or typeof or _Countof or
+   _Generic, might be used if the operand of sizeof is a VLA type or the
+   operand of typeof is a variably modified type or the operand of _Countof has
+   a variable number of elements or the operand of _Generic is the one selected
+   as the result.  */
 
 static void
-record_maybe_used_decl (tree decl)
+record_maybe_used_decl (tree decl, bool address)
 {
   struct maybe_used_decl *t = XOBNEW (&parser_obstack, struct maybe_used_decl);
   t->decl = decl;
-  t->level = in_sizeof + in_typeof + in_countof;
+  t->level = in_sizeof + in_typeof + in_countof + in_generic;
+  t->address = address;
   t->next = maybe_used_decls;
   maybe_used_decls = t;
 }
 
-/* Pop the stack of decls possibly used inside sizeof or typeof.  If
-   USED is false, just discard them.  If it is true, mark them used
-   (if no longer inside sizeof or typeof) or move them to the next
-   level up (if still inside sizeof or typeof).  */
+/* Pop the stack of decls possibly used inside sizeof or typeof or _Countof or
+   _Generic.  If USED is false, just discard them.  If it is true, mark them
+   used (if no longer inside sizeof or typeof or _Countof or _Generic) or move
+   them to the next level up (if still inside sizeof or typeof or _Countof or
+   _Generic).  */
 
 void
 pop_maybe_used (bool used)
 {
   struct maybe_used_decl *p = maybe_used_decls;
-  int cur_level = in_sizeof + in_typeof + in_countof;
+  int cur_level = in_sizeof + in_typeof + in_countof + in_generic;
   while (p && p->level > cur_level)
     {
       if (used)
 	{
 	  if (cur_level == 0)
-	    C_DECL_USED (p->decl) = 1;
+	    mark_decl_used (p->decl, p->address);
 	  else
 	    p->level = cur_level;
 	}
@@ -3802,6 +3888,35 @@ pop_maybe_used (bool used)
     }
   if (!used || cur_level == 0)
     maybe_used_decls = p;
+}
+
+/* Pop the stack of decls possibly used inside sizeof or typeof or _Countof or
+   _Generic, without acting on them, and return the pointer to the previous top
+   of the stack.  This for use at the end of a default generic association when
+   it is not yet known whether the expression is used.  If it later turns out
+   the expression is used (or treated as used before C23), restore_maybe_used
+   should be called on the return value followed by pop_maybe_used (true);
+   otherwise, the return value can be discarded.  */
+
+struct maybe_used_decl *
+save_maybe_used ()
+{
+  struct maybe_used_decl *p = maybe_used_decls, *orig = p;
+  int cur_level = in_sizeof + in_typeof + in_countof + in_generic;
+  while (p && p->level > cur_level)
+    p = p->next;
+  maybe_used_decls = p;
+  return orig;
+}
+
+/* Restore the stack of decls possibly used inside sizeof or typeof or _Countof
+   or _Generic returned by save_maybe_used.  It is required that the stack is
+   at exactly the point where it was left by save_maybe_used.  */
+
+void
+restore_maybe_used (struct maybe_used_decl *stack)
+{
+  maybe_used_decls = stack;
 }
 
 /* Return the result of sizeof applied to EXPR.  */
@@ -6180,10 +6295,11 @@ lvalue_or_else (location_t loc, const_tree ref, enum lvalue_use use)
    is for ARRAY_REF construction - in that case we don't want
    to look through VIEW_CONVERT_EXPR from VECTOR_TYPE to ARRAY_TYPE,
    it is fine to use ARRAY_REFs for vector subscripts on vector
-   register variables.  */
+   register variables.  If OVERRIDE_REGISTER, clear DECL_REGISTER rather
+   than producing an error for taking the address of a register.  */
 
 bool
-c_mark_addressable (tree exp, bool array_ref_p)
+c_mark_addressable (tree exp, bool array_ref_p, bool override_register)
 {
   tree x = exp;
 
@@ -6216,8 +6332,13 @@ c_mark_addressable (tree exp, bool array_ref_p)
       case COMPOUND_LITERAL_EXPR:
 	if (C_DECL_REGISTER (COMPOUND_LITERAL_EXPR_DECL (x)))
 	  {
-	    error ("address of register compound literal requested");
-	    return false;
+	    if (override_register)
+	      DECL_REGISTER (COMPOUND_LITERAL_EXPR_DECL (x)) = 0;
+	    else
+	      {
+		error ("address of register compound literal requested");
+		return false;
+	      }
 	  }
 	TREE_ADDRESSABLE (x) = 1;
 	TREE_ADDRESSABLE (COMPOUND_LITERAL_EXPR_DECL (x)) = 1;
@@ -6246,6 +6367,13 @@ c_mark_addressable (tree exp, bool array_ref_p)
 	  {
 	    if (TREE_PUBLIC (x) || is_global_var (x))
 	      error ("address of global register variable %qD requested", x);
+	    else if (override_register && !DECL_HARD_REGISTER (x))
+	      {
+		DECL_REGISTER (x) = 0;
+		TREE_ADDRESSABLE (x) = 1;
+		mark_decl_used (x, true);
+		return true;
+	      }
 	    else
 	      error ("address of register variable %qD requested", x);
 	    return false;
@@ -6254,6 +6382,7 @@ c_mark_addressable (tree exp, bool array_ref_p)
 	/* FALLTHRU */
       case FUNCTION_DECL:
 	TREE_ADDRESSABLE (x) = 1;
+	mark_decl_used (x, true);
 	/* FALLTHRU */
       default:
 	return true;
@@ -10026,6 +10155,10 @@ static int constructor_zeroinit;
 /* 1 if this constructor should have padding bits zeroed (C23 {}.  */
 static bool constructor_zero_padding_bits;
 
+/* 1 if this constructor is a braced scalar initializer (further nested levels
+   of braces are an error).  */
+static bool constructor_braced_scalar;
+
 /* Structure for managing pending initializer elements, organized as an
    AVL tree.  */
 
@@ -10097,6 +10230,7 @@ struct constructor_stack
   char incremental;
   char designated;
   bool zero_padding_bits;
+  bool braced_scalar;
   int designator_depth;
 };
 
@@ -10273,6 +10407,7 @@ really_start_incremental_init (tree type)
   p->incremental = constructor_incremental;
   p->designated = constructor_designated;
   p->zero_padding_bits = constructor_zero_padding_bits;
+  p->braced_scalar = constructor_braced_scalar;
   p->designator_depth = designator_depth;
   p->next = 0;
   constructor_stack = p;
@@ -10288,6 +10423,7 @@ really_start_incremental_init (tree type)
   constructor_designated = 0;
   constructor_zero_padding_bits = false;
   constructor_zeroinit = 1;
+  constructor_braced_scalar = false;
   designator_depth = 0;
   designator_erroneous = 0;
 
@@ -10347,6 +10483,7 @@ really_start_incremental_init (tree type)
       /* Handle the case of int x = {5}; */
       constructor_fields = constructor_type;
       constructor_unfilled_fields = constructor_type;
+      constructor_braced_scalar = true;
     }
 }
 
@@ -10423,6 +10560,7 @@ push_init_level (location_t loc, int implicit,
   p->incremental = constructor_incremental;
   p->designated = constructor_designated;
   p->zero_padding_bits = constructor_zero_padding_bits;
+  p->braced_scalar = constructor_braced_scalar;
   p->designator_depth = designator_depth;
   p->next = constructor_stack;
   p->range_stack = 0;
@@ -10440,6 +10578,7 @@ push_init_level (location_t loc, int implicit,
   /* If the upper initializer has padding bits zeroed, that includes
      all nested initializers as well.  */
   constructor_zero_padding_bits = p->zero_padding_bits;
+  constructor_braced_scalar = false;
   constructor_pending_elts = 0;
   if (!implicit)
     {
@@ -10558,7 +10697,15 @@ push_init_level (location_t loc, int implicit,
   else
     {
       if (constructor_type != error_mark_node)
-	warning_init (input_location, 0, "braces around scalar initializer");
+	{
+	  if (p->braced_scalar)
+	    permerror_init (input_location, 0,
+			    "braces around scalar initializer");
+	  else
+	    warning_init (input_location, 0,
+			  "braces around scalar initializer");
+	  constructor_braced_scalar = true;
+	}
       constructor_fields = constructor_type;
       constructor_unfilled_fields = constructor_type;
     }
@@ -10780,6 +10927,7 @@ pop_init_level (location_t loc, int implicit,
   constructor_incremental = p->incremental;
   constructor_designated = p->designated;
   constructor_zero_padding_bits = p->zero_padding_bits;
+  constructor_braced_scalar = p->braced_scalar;
   designator_depth = p->designator_depth;
   constructor_pending_elts = p->pending_elts;
   constructor_depth = p->depth;
@@ -13015,6 +13163,7 @@ c_finish_goto_label (location_t loc, tree label)
   if (!decl)
     return NULL_TREE;
   TREE_USED (decl) = 1;
+  mark_decl_used (decl, false);
   {
     add_stmt (build_predict_expr (PRED_GOTO, NOT_TAKEN));
     tree t = build1 (GOTO_EXPR, void_type_node, decl);
@@ -13190,14 +13339,20 @@ c_finish_return (location_t loc, tree retval, tree origtype, bool musttail_p)
 
 	      if (DECL_P (inner)
 		  && !DECL_EXTERNAL (inner)
-		  && !TREE_STATIC (inner)
 		  && DECL_CONTEXT (inner) == current_function_decl
 		  && POINTER_TYPE_P (TREE_TYPE (TREE_TYPE (current_function_decl))))
 		{
 		  if (TREE_CODE (inner) == LABEL_DECL)
 		    warning_at (loc, OPT_Wreturn_local_addr,
 				"function returns address of label");
-		  else
+		  else if (TREE_CODE (inner) == FUNCTION_DECL
+			   && (C_FUNC_NONLOCAL_CONTEXT (inner)
+			       || !DECL_INITIAL (inner)))
+		    warning_at (loc, OPT_Wreturn_local_addr,
+				"function returns address of nested function "
+				"referencing local context");
+		  else if (TREE_CODE (inner) != FUNCTION_DECL
+			   && !TREE_STATIC (inner))
 		    {
 		      warning_at (loc, OPT_Wreturn_local_addr,
 				  "function returns address of local variable");

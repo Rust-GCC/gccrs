@@ -2140,10 +2140,8 @@ get_ma (rtx ma)
 enum tail_policy
 get_prefer_tail_policy ()
 {
-  /* TODO: By default, we choose to use TAIL_ANY which allows
-     compiler pick up either agnostic or undisturbed. Maybe we
-     will have a compile option like -mprefer=agnostic to set
-     this value???.  */
+  if (riscv_prefer_agnostic_p ())
+    return TAIL_AGNOSTIC;
   return TAIL_ANY;
 }
 
@@ -2151,10 +2149,8 @@ get_prefer_tail_policy ()
 enum mask_policy
 get_prefer_mask_policy ()
 {
-  /* TODO: By default, we choose to use MASK_ANY which allows
-     compiler pick up either agnostic or undisturbed. Maybe we
-     will have a compile option like -mprefer=agnostic to set
-     this value???.  */
+  if (riscv_prefer_agnostic_p ())
+    return MASK_AGNOSTIC;
   return MASK_ANY;
 }
 
@@ -3020,7 +3016,7 @@ autovectorize_vector_modes (vector_modes *modes, bool)
     machine_mode mode;
     while (size > 0 && get_vector_mode (QImode, size).exists (&mode))
      {
-	if (vls_mode_valid_p (mode))
+	if (vls_mode_valid_p (mode, /* allow_up_to_lmul_8 */ false))
 	  modes->safe_push (mode);
 
 	i++;
@@ -3064,7 +3060,7 @@ can_find_related_mode_p (machine_mode vector_mode, scalar_mode element_mode,
 		     GET_MODE_SIZE (element_mode), nunits))
     return true;
   if (riscv_v_ext_vls_mode_p (vector_mode)
-      && multiple_p (TARGET_MIN_VLEN * TARGET_MAX_LMUL,
+      && multiple_p ((TARGET_MIN_VLEN * TARGET_MAX_LMUL) / BITS_PER_UNIT,
 		     GET_MODE_SIZE (element_mode), nunits))
     return true;
   return false;
@@ -3742,8 +3738,8 @@ shuffle_compress_patterns (struct expand_vec_perm_d *d)
   return true;
 }
 
-/* Recognize patterns like [4 5 6 7 12 13 14 15] where either the lower
-   or the higher parts of both vectors are combined into one.  */
+/* Recognize patterns like [4 5 6 7 12 13 14 15] where a consecutive part of a
+   vector is combined into another.  */
 
 static bool
 shuffle_slide_patterns (struct expand_vec_perm_d *d)
@@ -3755,6 +3751,7 @@ shuffle_slide_patterns (struct expand_vec_perm_d *d)
     return false;
 
   int vlen = vec_len.to_constant ();
+  int len = 0;
   if (vlen < 4)
     return false;
 
@@ -3763,8 +3760,7 @@ shuffle_slide_patterns (struct expand_vec_perm_d *d)
 
   /* For a slideup OP0 can stay, for a slidedown OP1 can.
      The former requires that the first element of the permutation
-     is the first element of OP0, the latter that the last permutation
-     element is the last element of OP1.  */
+     is the first element of OP0.  */
   bool slideup = false;
   bool slidedown = false;
 
@@ -3776,35 +3772,49 @@ shuffle_slide_patterns (struct expand_vec_perm_d *d)
   if (known_eq (d->perm[vlen - 1], 2 * vlen - 1))
     slidedown = true;
 
-  if (slideup && slidedown)
-    return false;
-
   if (!slideup && !slidedown)
     return false;
 
-  /* Check for a monotonic sequence with one pivot.  */
+  /* Check for a monotonic sequence with one or two pivots.  */
   int pivot = -1;
   for (int i = 0; i < vlen; i++)
     {
+      /* The first pivot is in OP1.  */
       if (pivot == -1 && known_ge (d->perm[i], vec_len))
 	pivot = i;
       if (i > 0 && i != pivot
 	  && maybe_ne (d->perm[i], d->perm[i - 1] + 1))
-	return false;
+	{
+	  /* A second pivot would indicate the vector length and is in OP0.  */
+	  if (known_ge (d->perm[i], vec_len) || pivot == -1 || len != 0)
+	    return false;
+	  len = i;
+	}
     }
 
   if (pivot == -1)
     return false;
+
+  /* In case we have both the permutation starting at OP0's first element and
+     ending at OP1's last element we may have a slidedown from the
+     beginning.  */
+  if (slideup && slidedown)
+    {
+      /* The first pivot must be OP1's element in the PIVOT position.  */
+      if (maybe_ne (d->perm[pivot], vlen + pivot))
+	return false;
+
+      slideup = false;
+    }
 
   /* For a slideup OP1's part (to be slid up) must be a low part,
      i.e. starting with its first element.  */
   if (slideup && maybe_ne (d->perm[pivot], vlen))
       return false;
 
-  /* For a slidedown OP0's part (to be slid down) must be a high part,
-     i.e. ending with its last element.  */
-  if (slidedown && maybe_ne (d->perm[pivot - 1], vlen - 1))
-    return false;
+  /* The second pivot in a slideup must be following OP0's position.  */
+  if (slideup && len && maybe_ne (d->perm[len], len))
+      return false;
 
   /* Success!  */
   if (d->testing_p)
@@ -3813,22 +3823,23 @@ shuffle_slide_patterns (struct expand_vec_perm_d *d)
   /* PIVOT is the start of the lower/higher part of OP1 or OP2.
      For a slideup it indicates how many elements of OP1 to
      skip/slide over.  For a slidedown it indicates how long
-     OP1's high part is, while VLEN - PIVOT is the amount to slide.  */
-  int slide_cnt = slideup ? pivot : vlen - pivot;
+     OP1's high part is, while the first element is the amount to slide.  */
   insn_code icode;
+  int slide_cnt = slideup ? pivot : d->perm[0].to_constant();
   if (slideup)
     {
-      /* No need for a vector length because we slide up until the
-	 end of OP1 anyway.  */
       rtx ops[] = {d->target, d->op0, d->op1, gen_int_mode (slide_cnt, Pmode)};
       icode = code_for_pred_slide (UNSPEC_VSLIDEUP, vmode);
-      emit_vlmax_insn (icode, SLIDEUP_OP_MERGE, ops);
+      /* If we didn't set a vector length we slide up until the end of OP1.  */
+      if (len)
+	emit_nonvlmax_insn (icode, BINARY_OP_TUMA, ops,
+			    gen_int_mode (len, Pmode));
+      else
+	emit_vlmax_insn (icode, SLIDEUP_OP_MERGE, ops);
     }
   else
     {
-      /* Here we need a length because we slide to the beginning of OP1
-	 leaving the remaining elements undisturbed.  */
-      int len = pivot;
+      len = pivot;
       rtx ops[] = {d->target, d->op1, d->op0,
 		   gen_int_mode (slide_cnt, Pmode)};
       icode = code_for_pred_slide (UNSPEC_VSLIDEDOWN, vmode);
@@ -4219,6 +4230,9 @@ shuffle_series_patterns (struct expand_vec_perm_d *d)
   bool need_insert = false;
   bool have_series = false;
 
+  poly_int64 len = d->perm.length ();
+  bool need_modulo = !len.is_constant ();
+
   /* Check for a full series.  */
   if (known_ne (step1, 0) && d->perm.series_p (0, 1, el1, step1))
     have_series = true;
@@ -4230,7 +4244,33 @@ shuffle_series_patterns (struct expand_vec_perm_d *d)
       need_insert = true;
     }
 
-  if (!have_series)
+  /* A permute like {0, 3, 2, 1} is recognized as series because series_p also
+     allows wrapping/modulo of the permute index.  The step would be 3 and the
+     indices are correct modulo 4.  As noted in expand_vec_perm vrgather does
+     not handle wrapping but rather zeros out-of-bounds indices.
+     This means we would need to emit an explicit modulo operation here which
+     does not seem worth it.  We rather defer to the generic handling instead.
+     Even in the non-wrapping case it is doubtful whether
+      vid
+      vmul
+      vrgather
+     is preferable over
+      vle
+      vrgather.
+     If the permute mask can be reused there shouldn't be any difference and
+     otherwise it becomes a question of load bandwidth.  */
+  if (have_series && len.is_constant ())
+    {
+      int64_t step = need_insert ? step2.to_constant () : step1.to_constant ();
+      int prec = GET_MODE_PRECISION (GET_MODE_INNER (d->vmode));
+      wide_int wlen = wide_int::from (len.to_constant (), prec * 2, SIGNED);
+      wide_int wstep = wide_int::from (step, prec * 2, SIGNED);
+      wide_int result = wi::mul (wlen, wstep);
+      if (wi::gt_p (result, wlen, SIGNED))
+	need_modulo = true;
+    }
+
+  if (!have_series || (len.is_constant () && need_modulo))
     return false;
 
   /* Disable shuffle if we can't find an appropriate integer index mode for
@@ -4248,6 +4288,13 @@ shuffle_series_patterns (struct expand_vec_perm_d *d)
   rtx series = gen_reg_rtx (sel_mode);
   expand_vec_series (series, gen_int_mode (need_insert ? el2 : el1, eltmode),
 		     gen_int_mode (need_insert ? step2 : step1, eltmode));
+
+  if (need_modulo)
+    {
+      rtx mod = gen_const_vector_dup (sel_mode, len - 1);
+      series = expand_simple_binop (sel_mode, AND, series, mod, NULL,
+				    0, OPTAB_DIRECT);
+    }
 
   /* Insert the remaining element if necessary.  */
   if (need_insert)
@@ -5134,26 +5181,27 @@ cmp_lmul_gt_one (machine_mode mode)
    Then we can have the condition for VLS mode in fixed-vlmax, aka:
      PRECISION (VLSmode) < VLEN / (64 / PRECISION(VLS_inner_mode)).  */
 bool
-vls_mode_valid_p (machine_mode vls_mode)
+vls_mode_valid_p (machine_mode vls_mode, bool allow_up_to_lmul_8)
 {
   if (!TARGET_VECTOR || TARGET_XTHEADVECTOR)
     return false;
 
   if (rvv_vector_bits == RVV_VECTOR_BITS_SCALABLE)
     {
-      if (GET_MODE_CLASS (vls_mode) != MODE_VECTOR_BOOL
-	  && !ordered_p (TARGET_MAX_LMUL * BITS_PER_RISCV_VECTOR,
-			 GET_MODE_PRECISION (vls_mode)))
-	/* We enable VLS modes which are aligned with TARGET_MAX_LMUL and
-	   BITS_PER_RISCV_VECTOR.
+      if (GET_MODE_CLASS (vls_mode) != MODE_VECTOR_BOOL)
+	return true;
+      if (allow_up_to_lmul_8)
+	return true;
+      /* We enable VLS modes which are aligned with TARGET_MAX_LMUL and
+	 BITS_PER_RISCV_VECTOR.
 
-	   e.g. When TARGET_MAX_LMUL = 1 and BITS_PER_RISCV_VECTOR = (128,128).
-	   We enable VLS modes have fixed size <= 128bit.  Since ordered_p is
-	   false between VLA modes with size = (128, 128) bits and VLS mode
-	   with size = 128 bits, we will end up with multiple ICEs in
-	   middle-end generic codes.  */
-	return false;
-      return true;
+	 e.g. When TARGET_MAX_LMUL = 1 and BITS_PER_RISCV_VECTOR = (128,128).
+	 We enable VLS modes have fixed size <= 128bit.  Since ordered_p is
+	 false between VLA modes with size = (128, 128) bits and VLS mode
+	 with size = 128 bits, we will end up with multiple ICEs in
+	 middle-end generic codes.  */
+      return !ordered_p (TARGET_MAX_LMUL * BITS_PER_RISCV_VECTOR,
+			 GET_MODE_PRECISION (vls_mode));
     }
 
   if (rvv_vector_bits == RVV_VECTOR_BITS_ZVL)

@@ -1,3 +1,145 @@
+2025-10-08  Joseph Myers  <josmyers@redhat.com>
+
+	* c-typeck.cc (in_generic, save_maybe_used, restore_maybe_used):
+	New.
+	(mark_decl_used, record_maybe_used_decl, pop_maybe_used): Use
+	in_generic.
+	(struct maybe_used_decl): Move to c-tree.h.
+	* c-tree.h (struct maybe_used_decl): Move from c-typeck.cc.
+	(in_generic, save_maybe_used, restore_maybe_used): Declare.
+	* c-parser.cc (c_parser_generic_selection): Increment and
+	decrement in_generic.  Use pop_maybe_used, save_maybe_used and
+	restore_maybe_used.
+
+2025-10-08  Martin Uecker  <uecker@tugraz.at>
+
+	* c-parser.cc (c_parser_generic_selection): Change
+	error_at to pedwarn_c23.
+
+2025-10-08  Alfie Richards  <alfie.richards@arm.com>
+
+	PR target/122180
+	* c-decl.cc (pushdecl): Add TARGET_HAS_FMV_TARGET_ATTRIBUTE check.
+
+2025-10-07  Joseph Myers  <josmyers@redhat.com>
+
+	PR c/26581
+	* c-decl.cc (c_finish_incomplete_decl): Give error for tentative
+	definition of incomplete array for C2y with internal linkage.
+	(finish_decl): Do not set DO_DEFAULT based on -pedantic.  Use
+	pedwarn_c23 for missing array sizes for internal linkage.
+
+2025-10-02  Alfie Richards  <alfie.richards@arm.com>
+
+	* c-decl.cc (maybe_mark_function_versioned): Add diagnostic.
+	* c-parser.cc (c_finish_omp_declare_simd): Add diagnostic.
+
+2025-10-02  Alfie Richards  <alfie.richards@arm.com>
+
+	* c-decl.cc (maybe_mark_function_versioned): New function.
+	(merge_decls): Preserve DECL_FUNCTION_VERSIONED in merging.
+	(duplicate_decls): Add check and diagnostic for unmergable version decls.
+	(pushdecl): Add FMV target_version logic.
+	(lookup_name): Don't resolve non-default versions.
+	(start_decl): Mark and mangle versioned functions.
+	(start_function): Mark and mangle versioned functions.
+	(c_parse_final_cleanups): Add call to process_same_body_aliases.
+
+2025-10-01  Jan Hubicka  <hubicka@ucw.cz>
+
+	* Make-lang.in: Add c_FDAS
+	(create_fdas_for_cc1): Be sure that build fails if create_gcov fails.
+
+2025-09-30  Martin Uecker  <uecker@tugraz.at>
+
+	PR target/121933
+	* c-typeck.cc (mark_decl_used): Set DECL_NONLOCAL
+	only for VAR_DECL, FUNC_DECL, PARM_DECL.
+
+2025-09-26  Alejandro Colomar  <alx@kernel.org>
+
+	* c-decl.cc (c_scope): Rename {warned > had}_forward_parm_decls.
+	(mark_forward_parm_decls): Add
+	-Wmultiple-parameter-fwd-decl-lists.
+
+2025-09-26  Joseph Myers  <josmyers@redhat.com>
+
+	PR c/88642
+	* c-typeck.cc (constructor_braced_scalar): New variable.
+	(struct constructor_stack): Add braced_scalar field.
+	(really_start_incremental_init): Handle constructor_braced_scalar
+	and braced_scalar field.
+	(push_init_level): Handle constructor_braced_scalar and
+	braced_scalar field.  Give permerror rather than warning for
+	nested braces around scalar initializer.
+	(pop_init_level): Handle constructor_braced_scalar and
+	braced_scalar field.
+
+2025-09-24  Joseph Myers  <josmyers@redhat.com>
+
+	* c-typeck.cc (really_atomic_lvalue): For a COMPOUND_LITERAL_EXPR,
+	check C_DECL_REGISTER on the COMPOUND_LITERAL_EXPR_DECL.
+
+2025-09-23  Alfie Richards  <alfie.richards@arm.com>
+
+	* c-objc-common.cc (c_tree_printer): Add printing of target_clone and
+	target_version in decl diagnostics.
+
+2025-09-20  Joseph Myers  <josmyers@redhat.com>
+
+	* c-typeck.cc (really_atomic_lvalue): Return false for incomplete
+	types.
+	(convert_lvalue_to_rvalue): Call require_complete_type for
+	qualified void for C2y.
+
+2025-09-17  Richard Biener  <rguenther@suse.de>
+
+	* gimple-parser.cc (c_parser_parse_gimple_body): Initialize
+	SSA operands for each stmt.
+	(c_parser_gimple_compound_statement): Append stmts without
+	updating SSA operands.
+
+2025-09-16  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR c/121421
+	* c-parser.cc (c_parser_declaration_or_fndef): Error out for gimple
+	and rtl functions as nested functions.
+
+2025-09-13  Joseph Myers  <josmyers@redhat.com>
+
+	* c-typeck.cc (c_mark_addressable): New parameter
+	override_register.
+	(build_array_ref): Update calls to c_mark_addressable.  Give error
+	in C2Y mode for negative array indices when array expression is an
+	array not a pointer.  Use pedwarn_c23 for subscripting register
+	array; diagnose that also for register compound literal.
+	* c-tree.h (c_mark_addressable): Update prototype.
+
+2025-09-10  Martin Uecker  <uecker@tugraz.at>
+
+	* c-tree.h: Add new macro C_DECL_NONLOCAL_CONTEXT and prototype
+	for mark_decl_used.
+	* c-typeck.cc (mark_decl_used): New function.
+	(function_to_pointer_conversion): Mark exempt functions.
+	(record_maybe_used_decl): Add `address' parameter.
+	(build_external_ref): Change to mark_decl_used.
+	(pop_maybe_used): Call mark_decl_used.
+	(c_mark_addressable): Ditto.
+	(c_finish_goto_label): Ditto.
+	(c_finish_return): Add warning.
+	* c-decl.cc (declspecs_add_type): Ditto.
+	(grokdeclarator): Don't set C_DECL_REGISTER on function
+	declarators.
+
+2025-09-08  H.J. Lu  <hjl.tools@gmail.com>
+
+	PR c/107419
+	* c-decl.cc (c_decl_attributes): Update TLS model with the
+	default TLS access model if the default TLS access model is
+	stronger.
+	(grokdeclarator): Set a tentative TLS model which will be
+	updated by c_decl_attributes later.
+
 2025-09-05  Jakub Jelinek  <jakub@redhat.com>
 
 	* c-decl.cc (pushtag): Remove ()s around string literal

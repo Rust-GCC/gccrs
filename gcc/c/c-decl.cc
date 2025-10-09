@@ -504,10 +504,8 @@ struct GTY((chain_next ("%h.outer"))) c_scope {
      if these appears in a function definition.  */
   BOOL_BITFIELD had_vla_unspec : 1;
 
-  /* True if we already complained about forward parameter decls
-     in this scope.  This prevents double warnings on
-     foo (int a; int b; ...)  */
-  BOOL_BITFIELD warned_forward_parm_decls : 1;
+  /* True if we parsed a list of forward parameter decls in this scope.  */
+  BOOL_BITFIELD had_forward_parm_decls : 1;
 
   /* True if this is the outermost block scope of a function body.
      This scope contains the parameters, the local variables declared
@@ -910,8 +908,12 @@ c_finish_incomplete_decl (tree decl)
 	  && !DECL_EXTERNAL (decl)
 	  && TYPE_DOMAIN (type) == NULL_TREE)
 	{
-	  warning_at (DECL_SOURCE_LOCATION (decl),
-		      0, "array %q+D assumed to have one element", decl);
+	  if (flag_isoc2y && !TREE_PUBLIC (decl))
+	    error_at (DECL_SOURCE_LOCATION (decl),
+		      "array size missing in %q+D", decl);
+	  else
+	    warning_at (DECL_SOURCE_LOCATION (decl),
+			0, "array %q+D assumed to have one element", decl);
 
 	  complete_array_type (&TREE_TYPE (decl), NULL_TREE, true);
 
@@ -2088,6 +2090,35 @@ previous_tag (tree type)
   return NULL_TREE;
 }
 
+/* Subroutine to mark functions as versioned when using the attribute
+   'target_version'.  */
+
+static void
+maybe_mark_function_versioned (tree decl)
+{
+  if (!DECL_FUNCTION_VERSIONED (decl))
+    {
+      /* Check if the name of the function has been overridden.  */
+      if (DECL_ASSEMBLER_NAME_SET_P (decl)
+	  && IDENTIFIER_POINTER (DECL_ASSEMBLER_NAME (decl))[0] == '*')
+	error_at (DECL_SOURCE_LOCATION (decl),
+		  "cannot use function multiversioning on a renamed function");
+
+      /* We need to insert function version now to make sure the correct
+	 pre-mangled assembler name is recorded.  */
+      cgraph_node *node = cgraph_node::get_create (decl);
+
+      if (!node->function_version ())
+	node->insert_new_function_version ();
+
+      DECL_FUNCTION_VERSIONED (decl) = 1;
+
+      tree mangled_name
+	= targetm.mangle_decl_assembler_name (decl, DECL_NAME (decl));
+      SET_DECL_ASSEMBLER_NAME (decl, mangled_name);
+    }
+}
+
 /* Subroutine of duplicate_decls.  Compare NEWDECL to OLDDECL.
    Returns true if the caller should proceed to merge the two, false
    if OLDDECL should simply be discarded.  As a side effect, issues
@@ -2507,6 +2538,10 @@ diagnose_mismatched_decls (tree newdecl, tree olddecl,
 			"but not here");
 	    }
 	}
+      /* Check if these are unmergable overlapping FMV declarations.  */
+      if (!TARGET_HAS_FMV_TARGET_ATTRIBUTE
+	  && diagnose_versioned_decls (olddecl, newdecl))
+	return false;
     }
   else if (VAR_P (newdecl))
     {
@@ -2973,6 +3008,12 @@ merge_decls (tree newdecl, tree olddecl, tree newtype, tree oldtype)
 
   if (TREE_CODE (newdecl) == FUNCTION_DECL)
     {
+      if (DECL_FUNCTION_VERSIONED (olddecl)
+	  || DECL_FUNCTION_VERSIONED (newdecl))
+	{
+	  maybe_mark_function_versioned (olddecl);
+	  maybe_mark_function_versioned (newdecl);
+	}
       /* If we're redefining a function previously defined as extern
 	 inline, make sure we emit debug info for the inline before we
 	 throw it away, in case it was inlined into a function that
@@ -3372,6 +3413,56 @@ pushdecl (tree x)
 		TREE_TYPE (b_use->decl) = b_use->u.type;
 	    }
 	}
+
+      /* Check if x is part of a FMV set with b_use.
+	 FMV is only supported in c for targets with target_version
+	 attributes.  */
+      if (!TARGET_HAS_FMV_TARGET_ATTRIBUTE
+	  && b_use && TREE_CODE (b_use->decl) == FUNCTION_DECL
+	  && TREE_CODE (x) == FUNCTION_DECL && DECL_FILE_SCOPE_P (b_use->decl)
+	  && DECL_FILE_SCOPE_P (x)
+	  && disjoint_version_decls (x, b_use->decl)
+	  && comptypes (vistype, type) != 0)
+	{
+	  maybe_mark_function_versioned (b_use->decl);
+	  maybe_mark_function_versioned (b->decl);
+	  maybe_mark_function_versioned (x);
+
+	  cgraph_node *b_node = cgraph_node::get_create (b_use->decl);
+	  cgraph_function_version_info *b_v = b_node->function_version ();
+	  if (!b_v)
+	    b_v = b_node->insert_new_function_version ();
+
+	  /* Check if this new node conflicts with any previous functions
+	     in the set.  */
+	  cgraph_function_version_info *version = b_v;
+	  for (; version; version = version->next)
+	    if (!disjoint_version_decls (version->this_node->decl, x))
+	      {
+		/* The decls define overlapping version, so attempt to merge
+		   or diagnose the conflict.  */
+		if (duplicate_decls (x, version->this_node->decl))
+		  return version->this_node->decl;
+		else
+		  return error_mark_node;
+	      }
+
+	  /* This is a new version to be added to FMV structure.  */
+	  cgraph_node::add_function_version (b_v, x);
+
+	  /* Get the first node from the structure.  */
+	  cgraph_function_version_info *default_v = b_v;
+	  while (default_v->prev)
+	    default_v = default_v->prev;
+	  /* Always use the default node for the bindings.  */
+	  b_use->decl = default_v->this_node->decl;
+	  b->decl = default_v->this_node->decl;
+
+	  /* Node is not a duplicate, so no need to do the rest of the
+	     checks.  */
+	  return x;
+	}
+
       if (duplicate_decls (x, b_use->decl))
 	{
 	  if (b_use != b)
@@ -4496,6 +4587,12 @@ tree
 lookup_name (tree name)
 {
   struct c_binding *b = I_SYMBOL_BINDING (name);
+  /* Do not resolve non-default function versions.  */
+  if (b
+      && TREE_CODE (b->decl) == FUNCTION_DECL
+      && DECL_FUNCTION_VERSIONED (b->decl)
+      && !is_function_default_version (b->decl))
+    return NULL_TREE;
   if (b && !b->invisible)
     {
       maybe_record_typedef_use (b->decl);
@@ -5582,7 +5679,16 @@ c_decl_attributes (tree *node, tree attributes, int flags)
   tree last_decl = lookup_last_decl (*node);
   if (last_decl == error_mark_node)
     last_decl = NULL_TREE;
-  return decl_attributes (node, attributes, flags, last_decl);
+  tree attr = decl_attributes (node, attributes, flags, last_decl);
+  if (VAR_P (*node) && DECL_THREAD_LOCAL_P (*node))
+    {
+      // tls_model attribute can set a stronger TLS access model.
+      tls_model model = DECL_TLS_MODEL (*node);
+      tls_model default_model = decl_default_tls_model (*node);
+      if (default_model > model)
+	set_decl_tls_model (*node, default_model);
+    }
+  return attr;
 }
 
 
@@ -5769,6 +5875,17 @@ start_decl (struct c_declarator *declarator, struct c_declspecs *declspecs,
       && VAR_OR_FUNCTION_DECL_P (decl))
       objc_check_global_decl (decl);
 
+  /* To enable versions to be created across TU's we mark and mangle all
+     non-default versioned functions.  */
+  if (TREE_CODE (decl) == FUNCTION_DECL
+      && !TARGET_HAS_FMV_TARGET_ATTRIBUTE
+      && get_target_version (decl).is_valid ())
+    {
+      maybe_mark_function_versioned (decl);
+      if (current_scope != file_scope)
+	error ("versioned declarations are only allowed at file scope");
+    }
+
   /* Add this decl to the current scope.
      TEM may equal DECL or it may be a previous decl of the same name.  */
   if (do_push)
@@ -5874,11 +5991,7 @@ finish_decl (tree decl, location_t init_loc, tree init,
       && !(TREE_PUBLIC (decl) && current_scope != file_scope))
     {
       bool do_default
-	= (TREE_STATIC (decl)
-	   /* Even if pedantic, an external linkage array
-	      may have incomplete type at first.  */
-	   ? pedantic && !TREE_PUBLIC (decl)
-	   : !DECL_EXTERNAL (decl));
+	= !TREE_STATIC (decl) && !DECL_EXTERNAL (decl);
       int failure
 	= complete_array_type (&TREE_TYPE (decl), DECL_INITIAL (decl),
 			       do_default);
@@ -5895,6 +6008,9 @@ finish_decl (tree decl, location_t init_loc, tree init,
 	case 2:
 	  if (do_default)
 	    error ("array size missing in %q+D", decl);
+	  else if (!TREE_PUBLIC (decl))
+	    pedwarn_c23 (DECL_SOURCE_LOCATION (decl), OPT_Wpedantic,
+			 "array size missing in %q+D", decl);
 	  break;
 
 	case 3:
@@ -6260,12 +6376,14 @@ mark_forward_parm_decls (void)
 {
   struct c_binding *b;
 
-  if (pedantic && !current_scope->warned_forward_parm_decls)
-    {
-      pedwarn (input_location, OPT_Wpedantic,
-	       "ISO C forbids forward parameter declarations");
-      current_scope->warned_forward_parm_decls = true;
-    }
+  if (current_scope->had_forward_parm_decls)
+    warning_at (input_location, OPT_Wmultiple_parameter_fwd_decl_lists,
+		"more than one list of forward declarations of parameters");
+  if (pedantic && !current_scope->had_forward_parm_decls)
+    pedwarn (input_location, OPT_Wpedantic,
+	     "ISO C forbids forward parameter declarations");
+
+  current_scope->had_forward_parm_decls = true;
 
   for (b = current_scope->bindings; b; b = b->prev)
     if (TREE_CODE (b->decl) == PARM_DECL)
@@ -8181,8 +8299,11 @@ grokdeclarator (const struct c_declarator *declarator,
 	    TREE_PUBLIC (decl) = extern_ref;
 	  }
 
+	// NB: Set a tentative TLS model to avoid tls_model attribute
+	// warnings due to lack of thread storage duration.  It will
+	// be updated by c_decl_attributes later.
 	if (threadp)
-	  set_decl_tls_model (decl, decl_default_tls_model (decl));
+	  set_decl_tls_model (decl, TLS_MODEL_REAL);
       }
 
     if ((storage_class == csc_extern
@@ -8219,7 +8340,8 @@ grokdeclarator (const struct c_declarator *declarator,
     /* Record `register' declaration for warnings on &
        and in case doing stupid register allocation.  */
 
-    if (storage_class == csc_register)
+    if (storage_class == csc_register
+	&& TREE_CODE (type) != FUNCTION_TYPE)
       {
 	C_DECL_REGISTER (decl) = 1;
 	DECL_REGISTER (decl) = 1;
@@ -10741,6 +10863,17 @@ start_function (struct c_declspecs *declspecs, struct c_declarator *declarator,
       warn_parm_array_mismatch (origloc, old_decl, parms);
     }
 
+  /* To enable versions to be created across TU's we mark and mangle all
+     non-default versioned functions.  */
+  if (TREE_CODE (decl1) == FUNCTION_DECL
+      && !TARGET_HAS_FMV_TARGET_ATTRIBUTE
+      && get_target_version (decl1).is_valid ())
+    {
+      maybe_mark_function_versioned (decl1);
+      if (current_scope != file_scope)
+	error ("versioned definitions are only allowed at file scope");
+    }
+
   /* Record the decl so that the function name is defined.
      If we already have a decl for this name, and it is a FUNCTION_DECL,
      use the old decl.  */
@@ -12815,6 +12948,7 @@ declspecs_add_type (location_t loc, struct c_declspecs *specs,
     error_at (loc, "two or more data types in declaration specifiers");
   else if (TREE_CODE (type) == TYPE_DECL)
     {
+      mark_decl_used (type, false);
       specs->type = TREE_TYPE (type);
       if (TREE_TYPE (type) != error_mark_node)
 	{
@@ -13570,6 +13704,10 @@ c_parse_final_cleanups (void)
   FOR_EACH_VEC_ELT (*all_translation_units, i, t)
     c_write_global_declarations_1 (BLOCK_VARS (DECL_INITIAL (t)));
   c_write_global_declarations_1 (BLOCK_VARS (ext_block));
+
+  /* Call this to set cpp_implicit_aliases_done on all nodes.  This is
+     important for function multiversioning aliases to get resolved.  */
+  symtab->process_same_body_aliases ();
 
   if (!in_lto_p)
     free_attr_access_data ();

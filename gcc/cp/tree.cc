@@ -3730,7 +3730,9 @@ build_min_non_dep_op_overload (enum tree_code op,
 	     rebuild the <=>.  Note that both OVERLOAD and the provided arguments
 	     in this case already correspond to the selected operator<=>.  */
 
-	  tree spaceship_non_dep = CALL_EXPR_ARG (non_dep, reversed ? 1 : 0);
+	  tree spaceship_non_dep = (TREE_CODE (non_dep) == CALL_EXPR
+				    ? CALL_EXPR_ARG (non_dep, reversed ? 1 : 0)
+				    : TREE_OPERAND (non_dep, reversed ? 1 : 0));
 	  gcc_checking_assert (TREE_CODE (spaceship_non_dep) == CALL_EXPR);
 	  tree spaceship_op0 = va_arg (p, tree);
 	  tree spaceship_op1 = va_arg (p, tree);
@@ -3744,8 +3746,19 @@ build_min_non_dep_op_overload (enum tree_code op,
 						    TREE_VALUE (overload),
 						    spaceship_op0,
 						    spaceship_op1);
-	  tree op1 = CALL_EXPR_ARG (non_dep, reversed ? 0 : 1);
+	  tree op1 = (TREE_CODE (non_dep) == CALL_EXPR
+		      ? CALL_EXPR_ARG (non_dep, reversed ? 0 : 1)
+		      : TREE_OPERAND (non_dep, reversed ? 0 : 1));
 	  gcc_checking_assert (integer_zerop (op1));
+
+	  if (TREE_CODE (non_dep) != CALL_EXPR)
+	    {
+	      gcc_checking_assert (COMPARISON_CLASS_P (non_dep));
+	      if (reversed)
+		std::swap (op0, op1);
+	      return build_min_non_dep (TREE_CODE (non_dep), non_dep, op0, op1);
+	    }
+
 	  vec_safe_push (args, op0);
 	  vec_safe_push (args, op1);
 	  overload = CALL_EXPR_FN (non_dep);
@@ -5578,6 +5591,23 @@ handle_maybe_unused_attribute (tree *node, tree name, tree args, int flags,
   return ret;
 }
 
+/* The C++26 [[indeterminate]] attribute.  */
+
+static tree
+handle_indeterminate_attribute (tree *node, tree name, tree, int,
+				bool *no_add_attrs)
+{
+  if (TREE_CODE (*node) != PARM_DECL
+      && (!VAR_P (*node) || is_global_var (*node)))
+    {
+      pedwarn (input_location, OPT_Wattributes,
+	       "%qE on declaration other than parameter or automatic variable",
+	       name);
+      *no_add_attrs = true;
+    }
+  return NULL_TREE;
+}
+
 /* Table of valid C++ attributes.  */
 static const attribute_spec cxx_gnu_attributes[] =
 {
@@ -5617,6 +5647,8 @@ static const attribute_spec std_attributes[] =
     handle_noreturn_attribute, attr_noreturn_exclusions },
   { "carries_dependency", 0, 0, true, false, false, false,
     handle_carries_dependency_attribute, NULL },
+  { "indeterminate", 0, 0, true, false, false, false,
+    handle_indeterminate_attribute, NULL },
   { "pre", 0, -1, false, false, false, false,
     handle_contract_attribute, NULL },
   { "post", 0, -1, false, false, false, false,

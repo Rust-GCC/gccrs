@@ -18,10 +18,10 @@ You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
+#define INCLUDE_VECTOR
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
-#include "diagnostic.h"
 #include "diagnostics/buffering.h"
 #include "diagnostics/sink.h"
 #include "diagnostics/dumping.h"
@@ -39,6 +39,11 @@ namespace diagnostics {
 void
 context::set_diagnostic_buffer (buffer *buffer_)
 {
+  /* Early reject of no-op (to avoid recursively crashing when handling an
+     ICE when inside a nested diagnostics; see PR diagnostics/121876).  */
+  if (buffer_ == m_diagnostic_buffer)
+    return;
+
   /* We don't allow changing buffering within a diagnostic group
      (to simplify handling of buffered diagnostics within the
      diagnostic_format implementations).  */
