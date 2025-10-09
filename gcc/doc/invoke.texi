@@ -8397,7 +8397,7 @@ header included.
 
 @option{-Wunused-const-variable=1} is enabled by either
 @option{-Wunused-variable} or @option{-Wunused} for C, but not for
-C++. In C this declares variable storage, but in C++ this is not an
+C++. In C, this declares variable storage, but in C++, this is not an
 error since const variables take the place of @code{#define}s.
 
 @item -Wunused-const-variable=2
@@ -10415,8 +10415,8 @@ Do not warn about stray tokens after @code{#else} and @code{#endif}.
 @opindex Wno-enum-compare
 @item -Wenum-compare
 Warn about a comparison between values of different enumerated types.
-In C++ enumerated type mismatches in conditional expressions are also
-diagnosed and the warning is enabled by default.  In C this warning is
+In C++, enumerated type mismatches in conditional expressions are also
+diagnosed and the warning is enabled by default.  In C, this warning is
 enabled by @option{-Wall}.
 
 @opindex Wenum-conversion
