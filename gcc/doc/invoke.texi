@@ -7191,7 +7191,7 @@ because the floating-point literal is a @code{double}.
 @opindex Wduplicate-decl-specifier
 @opindex Wno-duplicate-decl-specifier
 @item -Wduplicate-decl-specifier @r{(C and Objective-C only)}
-Warn if a declaration has duplicate @code{const}, @code{volatile},
+Warn if a declaration has a duplicate @code{const}, @code{volatile},
 @code{restrict} or @code{_Atomic} specifier.  This warning is enabled by
 @option{-Wall}.
 
