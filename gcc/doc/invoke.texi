@@ -10811,7 +10811,7 @@ This warning is also enabled by @option{-Wextra}.
 Warn if a function declared with an empty parameter list @samp{()} is
 called with one or more arguments, or if a function definition with one
 or more parameters is encountered after such a declaration.  Both cases
-are errors in C23 and later dialects  of C.
+are errors in C23 and later dialects of C.
 
 This warning is also enabled by @option{-Wc11-c23-compat}.
 
