@@ -10623,7 +10623,7 @@ Comparisons against string literals result in unspecified behavior
 and are not portable, and suggest the intent was to call @code{strcmp}.
 The warning is suppressed if the suspicious expression is the result
 of macro expansion.
-@option{-Waddress} warning is enabled by @option{-Wall}.
+@option{-Waddress} is enabled by @option{-Wall}.
 
 @opindex Waddress-of-packed-member
 @opindex Wno-address-of-packed-member
