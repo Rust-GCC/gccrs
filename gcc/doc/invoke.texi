@@ -9120,7 +9120,7 @@ larger.
 @opindex Wno-alloca
 @opindex Walloca
 @item -Walloca
-This option warns on all uses of @code{alloca} in the source.
+Warn on all uses of @code{alloca} in the source.
 
 @opindex Wno-auto-profile
 @opindex Wauto-profile
@@ -9136,7 +9136,7 @@ a certain function.
 @opindex Walloca-larger-than=
 @opindex Wno-alloca-larger-than
 @item -Walloca-larger-than=@var{byte-size}
-This option warns on calls to @code{alloca} with an integer argument whose
+Warns on calls to @code{alloca} with an integer argument whose
 value is either zero, or that is not bounded by a controlling predicate
 that limits its value to at most @var{byte-size}.  It also warns for calls
 to @code{alloca} where the bound value is unknown.  Arguments of non-integer
