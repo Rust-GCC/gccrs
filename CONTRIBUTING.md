@@ -59,12 +59,12 @@ and the link to the GitHub PR sent to the submitter.
 
 * on all files using python scripts
 ... corresponding to what the _Clang Format Lint_ (`.github/workflows/clang-format.yml`)
-is doing, with `clang-format-10` being available locally, and avoiding the Docker overhead.
+is doing, with `clang-format-16` being available locally, and avoiding the Docker overhead.
 
 ```shell
 $ wget 'https://github.com/DoozyX/clang-format-lint-action/raw/v0.11/run-clang-format.py'
 $ cp contrib/clang-format .clang-format
-$ python3 run-clang-format.py --clang-format-executable clang-format-10 --recursive --extensions h,cc gcc/rust/
+$ python3 run-clang-format.py --clang-format-executable clang-format-16 --recursive --extensions h,cc gcc/rust/
 ```
 
 * on a given patch using python scripts
@@ -124,7 +124,7 @@ index 9559374ce60..bd3043295ce 100644
  };
 ```
 
-Also note that you can use a given version of `clang-format` by using `git clang-format-10` if you have
+Also note that you can use a given version of `clang-format` by using `git clang-format-16` if you have
 installed that particular version.
 
 Thanks! :heart: :heart: :heart:
