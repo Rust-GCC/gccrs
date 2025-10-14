@@ -2200,6 +2200,7 @@ class CallExpr : public ExprWithoutBlock
   std::unique_ptr<Expr> function;
   std::vector<std::unique_ptr<Expr>> params;
   location_t locus;
+  bool marked_for_strip;
 
 public:
   Function *fndeclRef;
@@ -2211,7 +2212,8 @@ public:
 	    std::vector<Attribute> outer_attribs, location_t locus)
     : outer_attrs (std::move (outer_attribs)),
       function (std::move (function_expr)),
-      params (std::move (function_params)), locus (locus)
+      params (std::move (function_params)), locus (locus),
+      marked_for_strip (false)
   {}
 
   // copy constructor requires clone
@@ -2260,8 +2262,8 @@ public:
   void accept_vis (ASTVisitor &vis) override;
 
   // Invalid if function expr is null, so base stripping on that.
-  void mark_for_strip () override { function = nullptr; }
-  bool is_marked_for_strip () const override { return function == nullptr; }
+  void mark_for_strip () override { marked_for_strip = true; }
+  bool is_marked_for_strip () const override { return marked_for_strip; }
 
   // TODO: this mutable getter seems really dodgy. Think up better way.
   const std::vector<std::unique_ptr<Expr>> &get_params () const
