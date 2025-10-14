@@ -18,6 +18,7 @@
 
 #include "rust-expand-visitor.h"
 #include "rust-ast-fragment.h"
+#include "rust-diagnostics.h"
 #include "rust-item.h"
 #include "rust-proc-macro.h"
 #include "rust-attributes.h"
