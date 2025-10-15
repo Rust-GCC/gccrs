@@ -9488,28 +9488,39 @@ Parser<ManagedTokenSource>::parse_paren_prefixed_type ()
 	{
 	  // release vector pointer
 	  std::unique_ptr<AST::Type> released_ptr = std::move (types[0]);
+
+	  // We don't want to convert it to TraitBound as it could be a
+	  // ParenthesisedType
+
+	  return std::unique_ptr<AST::ParenthesisedType> (
+	    new AST::ParenthesisedType (std::move (released_ptr),
+					left_delim_locus));
+
 	  /* HACK: attempt to convert to trait bound. if fails, parenthesised
 	   * type */
-	  std::unique_ptr<AST::TraitBound> converted_bound (
-	    released_ptr->to_trait_bound (true));
-	  if (converted_bound == nullptr)
-	    {
-	      // parenthesised type
-	      return std::unique_ptr<AST::ParenthesisedType> (
-		new AST::ParenthesisedType (std::move (released_ptr),
-					    left_delim_locus));
-	    }
-	  else
-	    {
-	      // trait object type (one bound)
 
-	      // get value semantics trait bound
-	      AST::TraitBound value_bound (*converted_bound);
+	  /*
+	      std::unique_ptr<AST::TraitBound> converted_bound (
+		released_ptr->to_trait_bound (true));
+	      if (converted_bound == nullptr)
+		{
+		  // parenthesised type
+		  return std::unique_ptr<AST::ParenthesisedType> (
+		    new AST::ParenthesisedType (std::move (released_ptr),
+						left_delim_locus));
+		}
+	      else
+		{
+		  // trait object type (one bound)
 
-	      return std::unique_ptr<AST::TraitObjectTypeOneBound> (
-		new AST::TraitObjectTypeOneBound (value_bound,
-						  left_delim_locus));
-	    }
+		  // get value semantics trait bound
+		  AST::TraitBound value_bound (*converted_bound);
+
+		  return std::unique_ptr<AST::TraitObjectTypeOneBound> (
+		    new AST::TraitObjectTypeOneBound (value_bound,
+						      left_delim_locus));
+		}
+	  */
 	}
     }
   else
