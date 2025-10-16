@@ -1,15 +1,12 @@
 name: Send emails for merged PR
 
 on:
-  pull_request:
-    types:
-      - closed
+  push:
     branches:
       - "master"
 
 jobs:
   send_patches:
-    if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
 
     steps:
@@ -46,38 +43,43 @@ jobs:
         run: |
           echo "$GH_EVENT" > /tmp/gh_event.json
 
-          PR_BASE_REF=$(jq -r '.pull_request.base.sha' /tmp/gh_event.json)
-          echo "PR_BASE_REF=$PR_BASE_REF" >> $GITHUB_ENV
+          BEFORE_REF=$(jq -r '.before' /tmp/gh_event.json)
+          echo "BEFORE_REF=$BEFORE_REF" >> $GITHUB_ENV
 
-          PR_NUMBER=$(jq -r '.pull_request.number' /tmp/gh_event.json)
-          echo "PR_NUMBER=$PR_NUMBER" >> $GITHUB_ENV
+          AFTER_REF=$(jq -r '.after' /tmp/gh_event.json)
+          echo "AFTER_REF=$AFTER_REF" >> $GITHUB_ENV
 
-          PR_TITLE=$(jq -r '.pull_request.title' /tmp/gh_event.json)
-          echo "PR_TITLE=$PR_TITLE" >> $GITHUB_ENV
+          # PR_NUMBER=$(jq -r '.pull_request.number' /tmp/gh_event.json)
+          # echo "PR_NUMBER=$PR_NUMBER" >> $GITHUB_ENV
 
-          PR_URL=$(jq -r '.pull_request.html_url' /tmp/gh_event.json)
-          echo "PR_URL=$PR_URL" >> $GITHUB_ENV
+          # PR_TITLE=$(jq -r '.pull_request.title' /tmp/gh_event.json)
+          # echo "PR_TITLE=$PR_TITLE" >> $GITHUB_ENV
 
-          PR_MERGE_COMMIT=$(jq -r '.pull_request.merge_commit_sha' /tmp/gh_event.json)
-          echo "PR_MERGE_COMMIT=$PR_MERGE_COMMIT" >> $GITHUB_ENV
+          # PR_URL=$(jq -r '.pull_request.html_url' /tmp/gh_event.json)
+          # echo "PR_URL=$PR_URL" >> $GITHUB_ENV
 
-          PR_TARGET_BRANCH=$(jq -r '.pull_request.base.ref' /tmp/gh_event.json)
-          echo "PR_TARGET_BRANCH=$PR_TARGET_BRANCH" >> $GITHUB_ENV
+          # PR_MERGE_COMMIT=$(jq -r '.pull_request.merge_commit_sha' /tmp/gh_event.json)
+          # echo "PR_MERGE_COMMIT=$PR_MERGE_COMMIT" >> $GITHUB_ENV
 
-          PR_LABELS=$(jq -r '[.pull_request.labels[].name] | join(",")' /tmp/gh_event.json)
-          echo "PR_LABELS=$PR_LABELS" >> $GITHUB_ENV
+          # PR_TARGET_BRANCH=$(jq -r '.pull_request.base.ref' /tmp/gh_event.json)
+          # echo "PR_TARGET_BRANCH=$PR_TARGET_BRANCH" >> $GITHUB_ENV
 
-          REPO_SSH=$(jq -r '.repository.ssh_url' /tmp/gh_event.json)
-          echo "REPO_SSH=$REPO_SSH" >> $GITHUB_ENV
+          # PR_LABELS=$(jq -r '[.pull_request.labels[].name] | join(",")' /tmp/gh_event.json)
+          # echo "PR_LABELS=$PR_LABELS" >> $GITHUB_ENV
+
+          # REPO_SSH=$(jq -r '.repository.ssh_url' /tmp/gh_event.json)
+          # echo "REPO_SSH=$REPO_SSH" >> $GITHUB_ENV
 
           echo "GH_TOKEN=${{ github.token }}" >> $GITHUB_ENV
 
-          echo "SERIES_DIR=/tmp/series" >> $GITHUB_ENV
+          # echo "SERIES_DIR=/tmp/series" >> $GITHUB_ENV
 
-      - name: Get commit list from PR and skip the internal ones
+      - name: Get commit list and skip the internal ones
         id: commits
         env:
           MAX_NUM_COMMITS: 30
+          BEFORE_REF: ${{ github.event.before }}
+          AFTER_REF: ${{ github.event.after }}
         run: |
           # Skip commits that touches any of these
           patterns=(".github/"
@@ -93,17 +95,44 @@ jobs:
 
           rm -f /tmp/commits.txt
 
-          # Fetch commits from the pull request (maybe they're from another repository)
-          git fetch origin "pull/$PR_NUMBER/head"
-
-          TOTAL=$(gh api repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/commits --paginate --jq '.[].sha'|wc -l)
-          if [ "${TOTAL}" -gt "$MAX_NUM_COMMITS" ]; then
-             echo "Pull request has too many commits"
+          if [ "$BEFORE_REF" = "0000000000000000000000000000000000000000" ] ; then
+             echo "New branch created, not sending anything" | tee $GITHUB_STEP_SUMMARY
              echo "has_commits=false" >> $GITHUB_OUTPUT
              exit 0
           fi
 
-          gh api repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/commits --paginate --jq '.[].sha' | while read SHA1; do
+          if [ "$AFTER_REF" = "0000000000000000000000000000000000000000" ] ; then
+             echo "Branch is being deleted, not sending anything" | tee $GITHUB_STEP_SUMMARY
+             echo "has_commits=false" >> $GITHUB_OUTPUT
+             exit 0
+          fi
+
+          if git merge-base --is-ancestor "$BEFORE_REF" "$AFTER_REF"; then
+            echo "fast-forward push (not forced)"
+          else
+            echo "non-fast-forward push (force push or history rewrite), not sending anything" | tee $GITHUB_STEP_SUMMARY
+            echo "has_commits=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          IS_MERGE=$(git show --pretty=%P -s HEAD | wc -w)
+          if [ "$IS_MERGE" -gt 1 ] ; then
+             echo "Last commit is a merge, don't send anything" | tee $GITHUB_STEP_SUMMARY
+             echo "has_commits=false" >> $GITHUB_OUTPUT
+             exit 0
+          fi
+
+          # Fetch commits from the pull request (maybe they're from another repository)
+          #git fetch origin "pull/$PR_NUMBER/head"
+
+          TOTAL=$(git log --oneline "$BEFORE_REF..$AFTER_REF" | wc -l)
+          if [ "${TOTAL}" -gt "$MAX_NUM_COMMITS" ]; then
+             echo "Push has too many commits" | tee $GITHUB_STEP_SUMMARY
+             echo "has_commits=false" >> $GITHUB_OUTPUT
+             exit 0
+          fi
+
+          git log --reverse --format=%H "$BEFORE_REF..$AFTER_REF" | while read SHA1; do
              echo "Looking at $SHA1"
              if grep -q -E "$regex" <(git diff-tree --no-commit-id --name-only -r "$SHA1"); then
                 echo "Touching something not to be upstreamed, skipping commit $SHA1"
@@ -127,14 +156,18 @@ jobs:
       - name: Check for label 'no-ml' to skip sending emails
         id: checklabel
         run: |
+          # not sure how to do that with "push".
+          echo "skip=false" >> $GITHUB_OUTPUT
+          exit 0
+
           # Skip if PR has label "no-ml"
-          if echo "$PR_LABELS" | grep -qiE "(^|,)no-ml(,|$)"; then
-            echo "Opt-out label present: skipping mailing list." | tee $GITHUB_STEP_SUMMARY
-            echo "skip=true" >> $GITHUB_OUTPUT
-          else
-            echo "No opt-out label found"
-            echo "skip=false" >> $GITHUB_OUTPUT
-          fi
+          # if echo "$PR_LABELS" | grep -qiE "(^|,)no-ml(,|$)"; then
+          #   echo "Opt-out label present: skipping mailing list." | tee $GITHUB_STEP_SUMMARY
+          #   echo "skip=true" >> $GITHUB_OUTPUT
+          # else
+          #   echo "No opt-out label found"
+          #   echo "skip=false" >> $GITHUB_OUTPUT
+          # fi
 
       - name: Decide if we're sending something or not
         id: send_emails
@@ -149,12 +182,11 @@ jobs:
           set -euo pipefail
 
           # Create a temporary branch that linearizes the PR commits
-          git checkout -B ci-mail-patches "$PR_BASE_REF"
+          git checkout -B ci-mail-patches "$BEFORE_REF"
           # Cherry-pick commits in the exact PR order (no-commit to batch, then commit)
           while read sha; do
             git cherry-pick "$sha"
           done < /tmp/commits.txt
-
 
           echo "This change was merged into the gccrs repository and is posted here for" >> /tmp/description.txt
           echo "upstream visibility and potential drive-by review, as requested by GCC" >>  /tmp/description.txt
@@ -169,9 +201,9 @@ jobs:
           git format-patch \
               --subject-prefix="gccrs COMMIT" \
               --no-cover-letter \
-              --base="$PR_BASE_REF" \
+              --base="$BEFORE_REF" \
               --output-directory /tmp/series \
-              "$PR_BASE_REF"..HEAD
+              "$BEFORE_REF"..HEAD
 
           echo "" >> /tmp/description.txt
 
