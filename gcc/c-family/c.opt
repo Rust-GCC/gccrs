@@ -761,6 +761,10 @@ Wexpansion-to-defined
 C ObjC C++ ObjC++ CPP(warn_expansion_to_defined) CppReason(CPP_W_EXPANSION_TO_DEFINED) Var(cpp_warn_expansion_to_defined) Init(0) Warning EnabledBy(Wextra || Wpedantic)
 Warn if \"defined\" is used outside #if.
 
+Wexternal-tu-local
+C++ ObjC++ Var(warn_tu_local) Warning Init(1)
+Warn about naming a TU-local entity declared in another translation unit.
+
 Wextra
 C ObjC C++ ObjC++ Warning
 ; in common.opt
@@ -1085,6 +1089,10 @@ Warn about use of multi-character character constants.
 Wmultiple-inheritance
 C++ ObjC++ Var(warn_multiple_inheritance) Warning
 Warn on direct multiple inheritance.
+
+Wmultiple-parameter-fwd-decl-lists
+C ObjC Var(warn_multiple_parameter_fwd_decl_lists) Warning EnabledBy(Wextra)
+Warn for multiple lists of forward declarations of function parameters.
 
 Wmultistatement-macros
 C ObjC C++ ObjC++ Var(warn_multistatement_macros) Warning LangEnabledBy(C ObjC C++ ObjC++,Wall)

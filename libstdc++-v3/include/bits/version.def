@@ -472,6 +472,10 @@ ftms = {
 ftms = {
   name = not_fn;
   values = {
+    v = 202306;
+    cxxmin = 26;
+  };
+  values = {
     v = 201603;
     cxxmin = 17;
   };
@@ -803,6 +807,10 @@ ftms = {
 ftms = {
   name = bind_front;
   values = {
+    v = 202306;
+    cxxmin = 26;
+  };
+  values = {
     v = 201907;
     cxxmin = 20;
   };
@@ -810,6 +818,10 @@ ftms = {
 
 ftms = {
   name = bind_back;
+  values = {
+    v = 202306;
+    cxxmin = 26;
+  };
   values = {
     v = 202202;
     cxxmin = 23;
@@ -1050,6 +1062,25 @@ ftms = {
     cxxmin = 26;
     extra_cond = "__glibcxx_assume_aligned "
     "&& __glibcxx_is_sufficiently_aligned";
+    };
+};
+
+// Purely internal macro padded layouts.
+ftms = {
+  name = padded_layouts;
+  no_stdname = true; // internal
+  values = {
+    v = 1;
+    cxxmin = 26;
+  };
+};
+
+ftms = {
+  name = submdspan;
+  no_stdname = true; // TODO: change once complete
+  values = {
+    v = 1;
+    cxxmin = 26;
   };
 };
 
@@ -1861,6 +1892,14 @@ ftms = {
 };
 
 ftms = {
+  name = start_lifetime_as;
+  values = {
+    v =  202207;
+    cxxmin = 23;
+  };
+};
+
+ftms = {
   name = string_contains;
   values = {
     v = 202011;
@@ -2114,6 +2153,15 @@ ftms = {
     v = 1; // TODO 202411;
     cxxmin = 26;
     extra_cond = "__cpp_constexpr_exceptions >= 202411L";
+  };
+};
+
+ftms = {
+  name = philox_engine;
+  values = {
+    v = 202406;
+    cxxmin = 26;
+    extra_cond = "__SIZEOF_INT128__";
   };
 };
 

@@ -149,6 +149,9 @@
 #  d_target_objs	List of extra target-dependent objects that be
 #			linked into the D compiler only.
 #
+#  jit_target_objs	List of extra target-dependent objects that be
+#			linked into the jit compiler only.
+#
 #  fortran_target_objs	List of extra target-dependent objects that be
 #			linked into the fortran compiler only.
 #
@@ -210,6 +213,9 @@
 #
 #  target_has_targetrustm	Set to yes or no depending on whether the target
 #			has its own definition of targetrustm.
+#
+#  target_has_targetjitm	Set to yes or no depending on whether the target
+#			has its own definition of targetjitm.
 
 out_file=
 common_out_file=
@@ -226,12 +232,14 @@ extra_options=
 c_target_objs=
 cxx_target_objs=
 d_target_objs=
+jit_target_objs=
 fortran_target_objs=
 rust_target_objs=
 target_has_targetcm=no
 target_has_targetm_common=yes
 target_has_targetdm=no
 target_has_targetrustm=no
+target_has_targetjitm=no
 tm_defines=
 xm_defines=
 # Set this to force installation and use of collect2.
@@ -351,7 +359,7 @@ aarch64*-*-*)
 	c_target_objs="aarch64-c.o"
 	cxx_target_objs="aarch64-c.o"
 	d_target_objs="aarch64-d.o"
-	extra_objs="aarch64-builtins.o aarch-common.o aarch64-elf-metadata.o aarch64-sve-builtins.o aarch64-sve-builtins-shapes.o aarch64-sve-builtins-base.o aarch64-sve-builtins-sve2.o aarch64-sve-builtins-sme.o cortex-a57-fma-steering.o aarch64-speculation.o aarch-bti-insert.o aarch64-early-ra.o aarch64-ldp-fusion.o"
+	extra_objs="aarch64-builtins.o aarch-common.o aarch64-elf-metadata.o aarch64-sve-builtins.o aarch64-sve-builtins-shapes.o aarch64-sve-builtins-base.o aarch64-sve-builtins-sve2.o aarch64-sve-builtins-sme.o cortex-a57-fma-steering.o aarch64-speculation.o aarch-bti-insert.o aarch64-early-ra.o aarch64-ldp-fusion.o aarch64-sched-dispatch.o"
 	target_gtfiles="\$(srcdir)/config/aarch64/aarch64-protos.h \$(srcdir)/config/aarch64/aarch64-builtins.h \$(srcdir)/config/aarch64/aarch64-builtins.cc \$(srcdir)/config/aarch64/aarch64-sve-builtins.h \$(srcdir)/config/aarch64/aarch64-sve-builtins.cc"
 	target_has_targetm_common=yes
 	;;
@@ -416,6 +424,7 @@ i[34567]86-*-* | x86_64-*-*)
 	c_target_objs="i386-c.o"
 	cxx_target_objs="i386-c.o"
 	d_target_objs="i386-d.o"
+	jit_target_objs="i386-jit.o"
 	extra_objs="x86-tune-sched.o x86-tune-sched-bd.o x86-tune-sched-atom.o x86-tune-sched-core.o i386-options.o i386-builtins.o i386-expand.o i386-features.o"
 	target_gtfiles="\$(srcdir)/config/i386/i386-builtins.cc \$(srcdir)/config/i386/i386-expand.cc \$(srcdir)/config/i386/i386-options.cc"
 	extra_options="${extra_options} fused-madd.opt"
@@ -550,7 +559,7 @@ riscv*)
 	extra_objs="riscv-builtins.o riscv-c.o riscv-sr.o riscv-shorten-memrefs.o riscv-selftests.o riscv-string.o"
 	extra_objs="${extra_objs} riscv-v.o riscv-vsetvl.o riscv-vector-costs.o riscv-avlprop.o riscv-vect-permconst.o"
 	extra_objs="${extra_objs} riscv-vector-builtins.o riscv-vector-builtins-shapes.o riscv-vector-builtins-bases.o sifive-vector-builtins-bases.o andes-vector-builtins-bases.o"
-	extra_objs="${extra_objs} thead.o riscv-target-attr.o riscv-zicfilp.o"
+	extra_objs="${extra_objs} thead.o riscv-target-attr.o riscv-zicfilp.o riscv-bclr-lowest-set-bit.o"
 	d_target_objs="riscv-d.o"
 	extra_headers="riscv_vector.h riscv_crypto.h riscv_bitmanip.h riscv_th_vector.h sifive_vector.h andes_vector.h"
 	target_gtfiles="$target_gtfiles \$(srcdir)/config/riscv/riscv-vector-builtins.cc"
@@ -618,6 +627,12 @@ fi
 if test -f ${srcdir}/config/${cpu_type}/${cpu_type}-rust.cc
 then
 	rust_target_objs="${rust_target_objs} ${cpu_type}-rust.o"
+fi
+
+tm_jit_file=
+if test -f ${srcdir}/config/${cpu_type}/${cpu_type}-jit.h
+then
+	tm_jit_file="${tm_jit_file} ${cpu_type}/${cpu_type}-jit.h"
 fi
 
 extra_modes=
@@ -3714,6 +3729,10 @@ if [ "$target_has_targetrustm" = "no" ]; then
   rust_target_objs="$rust_target_objs default-rust.o"
 fi
 
+if [ "$target_has_targetjitm" = "no" ]; then
+  jit_target_objs="$jit_target_objs default-jit.o"
+fi
+
 # Support for --with-cpu and related options (and a few unrelated options,
 # too).
 case ${with_cpu} in
@@ -4775,7 +4794,8 @@ case "${target}" in
 
 		# Infer arch from --with-arch, --target, and --with-abi.
 		case "${with_arch}" in
-		rv32e* | rv32i* | rv32g* | rv64e* | rv64i* | rv64g*)
+		rv32e* | rv32i* | rv32g* | rv64e* | rv64i* | rv64g* \
+		| rvi20* | rva20* | rva22* | rva23* | rvb23*)
 			# OK.
 			;;
 		"")
@@ -4789,7 +4809,7 @@ case "${target}" in
 			esac
 			;;
 		*)
-			echo "--with-arch=${with_arch} is not supported.  The argument must begin with rv32e, rv32i, rv32g, rv64e, rv64i, or rv64g." 1>&2
+			echo "--with-arch=${with_arch} is not supported.  The argument must begin with rv32e, rv32i, rv32g, rv64e, rv64i, rv64g, or a profile." 1>&2
 			exit 1
 			;;
 		esac
@@ -4827,9 +4847,15 @@ case "${target}" in
 		ilp32,rv32* | ilp32e,rv32e* \
 		| ilp32f,rv32*f* | ilp32f,rv32g* \
 		| ilp32d,rv32*d* | ilp32d,rv32g* \
+		| ilp32,rvi20u32* | ilp32f,rvi20u32* \
+		| ilp32d,rvi20u32* \
 		| lp64,rv64* | lp64e,rv64e* \
 		| lp64f,rv64*f* | lp64f,rv64g* \
-		| lp64d,rv64*d* | lp64d,rv64g*)
+		| lp64d,rv64*d* | lp64d,rv64g* \
+		| lp64,rvi20u64* | lp64f,rvi20u64* \
+		| lp64d,rva20u64* | lp64d,rva22u64* \
+		| lp64d,rva23u64* | lp64d,rva23s64* \
+		| lp64d,rvb23u64* | lp64d,rvb23s64)
 			;;
 		*)
 			echo "--with-abi=${with_abi} is not supported for ISA ${with_arch}" 1>&2
@@ -6080,6 +6106,7 @@ case ${target} in
 		c_target_objs="${c_target_objs} ${cpu_type}-c.o"
 		cxx_target_objs="${cxx_target_objs} ${cpu_type}-c.o"
 		d_target_objs="${d_target_objs} ${cpu_type}-d.o"
+		jit_target_objs="${jit_target_objs} ${cpu_type}-jit.o"
 		tmake_file="${cpu_type}/t-${cpu_type} ${tmake_file}"
 		;;
 

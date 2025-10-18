@@ -6,7 +6,7 @@ in
 #
 # Makefile for directory with subdirs to build.
 #   Copyright (C) 1990, 1991, 1992, 1993, 1994, 1995, 1996, 1997, 1998,
-#   1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011, 2023
+#   1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
 #   Free Software Foundation
 #
 # This file is free software; you can redistribute it and/or modify
@@ -147,8 +147,7 @@ BASE_EXPORTS = \
 	M4="$(M4)"; export M4; \
 	SED="$(SED)"; export SED; \
 	AWK="$(AWK)"; export AWK; \
-	MAKEINFO="$(MAKEINFO)"; export MAKEINFO; \
-	GUILE="$(GUILE)"; export GUILE;
+	MAKEINFO="$(MAKEINFO)"; export MAKEINFO;
 
 # This is the list of variables to export in the environment when
 # configuring subdirectories for the build system.
@@ -247,6 +246,7 @@ HOST_EXPORTS = \
 	GMPINC="$(HOST_GMPINC)"; export GMPINC; \
 	ISLLIBS="$(HOST_ISLLIBS)"; export ISLLIBS; \
 	ISLINC="$(HOST_ISLINC)"; export ISLINC; \
+	TARGET_CONFIGDIRS="$(TARGET_CONFIGDIRS)"; export TARGET_CONFIGDIRS; \
 	XGCC_FLAGS_FOR_TARGET="$(XGCC_FLAGS_FOR_TARGET)"; export XGCC_FLAGS_FOR_TARGET; \
 @if gcc-bootstrap
 	$(RPATH_ENVVAR)=`echo "$(TARGET_LIB_PATH)$$$(RPATH_ENVVAR)" | sed 's,::*,:,g;s,^:*,,;s,:*$$,,'`; export $(RPATH_ENVVAR); \
@@ -437,7 +437,7 @@ DLLTOOL = @DLLTOOL@
 DSYMUTIL = @DSYMUTIL@
 LD = @LD@
 LIPO = @LIPO@
-NM = @NM@
+NM = @NM@ @NM_PLUGIN_OPTION@
 OBJDUMP = @OBJDUMP@
 OTOOL = @OTOOL@
 RANLIB = @RANLIB@ @RANLIB_PLUGIN_OPTION@
@@ -462,8 +462,6 @@ GM2FLAGS = $(CFLAGS)
 CRAB1_LIBS = @CRAB1_LIBS@
 
 PKG_CONFIG_PATH = @PKG_CONFIG_PATH@
-
-GUILE = guile
 
 # Pass additional PGO and LTO compiler options to the PGO build.
 BUILD_CFLAGS = $(PGO_BUILD_CFLAGS) $(PGO_BUILD_LTO_CFLAGS)
@@ -590,7 +588,7 @@ do-compare3 = $(do-compare)
 # Programs producing files for the TARGET machine
 # -----------------------------------------------
 
-AR_FOR_TARGET=@AR_FOR_TARGET@
+AR_FOR_TARGET=@AR_FOR_TARGET@ @AR_PLUGIN_OPTION_FOR_TARGET@
 AS_FOR_TARGET=@AS_FOR_TARGET@
 CC_FOR_TARGET=$(STAGE_CC_WRAPPER) @CC_FOR_TARGET@
 
@@ -610,11 +608,11 @@ DSYMUTIL_FOR_TARGET=@DSYMUTIL_FOR_TARGET@
 LD_FOR_TARGET=@LD_FOR_TARGET@
 
 LIPO_FOR_TARGET=@LIPO_FOR_TARGET@
-NM_FOR_TARGET=@NM_FOR_TARGET@
+NM_FOR_TARGET=@NM_FOR_TARGET@ @NM_PLUGIN_OPTION_FOR_TARGET@
 OBJDUMP_FOR_TARGET=@OBJDUMP_FOR_TARGET@
 OBJCOPY_FOR_TARGET=@OBJCOPY_FOR_TARGET@
 OTOOL_FOR_TARGET=@OTOOL_FOR_TARGET@
-RANLIB_FOR_TARGET=@RANLIB_FOR_TARGET@
+RANLIB_FOR_TARGET=@RANLIB_FOR_TARGET@ @RANLIB_PLUGIN_OPTION_FOR_TARGET@
 READELF_FOR_TARGET=@READELF_FOR_TARGET@
 STRIP_FOR_TARGET=@STRIP_FOR_TARGET@
 WINDRES_FOR_TARGET=@WINDRES_FOR_TARGET@
@@ -2101,6 +2099,11 @@ ENDFOR dependencies +]@endif gcc-bootstrap
    (if (exist? "no_gcc")
        (hash-create-handle! lang-env-deps
 	  (string-append (get "module") "-" "no_gcc") #t))
+
+   (if (exist? "no_atomic")
+       (hash-create-handle! lang-env-deps
+	  (string-append (get "module") "-" "no_atomic") #t))
+
    "" +][+ ENDFOR lang_env_dependencies +]
 
 @if gcc-bootstrap[+ FOR target_modules +][+ IF (not (lang-dep "no_gcc"))
@@ -2119,6 +2122,17 @@ configure-target-[+module+]: maybe-all-target-newlib maybe-all-target-libgloss[+
   ENDIF +][+ IF (lang-dep "cxx") +]
 configure-target-[+module+]: maybe-all-target-libstdc++-v3[+
   ENDIF +]
+
+@if gcc-bootstrap[+ FOR target_modules +][+ IF (not (lang-dep "no_atomic"))
+  +][+ IF bootstrap +][+ FOR bootstrap_stage +]
+configure-stage[+id+]-target-[+module+]: maybe-all-stage[+id+]-target-libatomic[+
+  ENDFOR +][+ ENDIF bootstrap +][+ ENDIF +][+ ENDFOR target_modules +]
+@endif gcc-bootstrap
+
+@if gcc-no-bootstrap[+ FOR target_modules +][+ IF (not (lang-dep "no_atomic")) +]
+configure-target-[+module+]: maybe-all-target-libatomic[+
+  ENDIF +][+ ENDFOR target_modules +]
+@endif gcc-no-bootstrap
 [+ ENDFOR target_modules +]
 
 CONFIGURE_GDB_TK = @CONFIGURE_GDB_TK@

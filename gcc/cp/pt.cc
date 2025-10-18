@@ -8927,8 +8927,12 @@ convert_template_argument (tree parm,
 	  && same_type_p (TREE_TYPE (orig_arg), t))
 	orig_arg = TREE_OPERAND (orig_arg, 0);
 
-      if (!type_dependent_expression_p (orig_arg)
-	  && !uses_template_parms (t))
+      if (!uses_template_parms (t)
+	  && !type_dependent_expression_p (orig_arg)
+	  && !(force_conv
+	       && !(same_type_ignoring_top_level_qualifiers_p
+		    (TREE_TYPE (orig_arg), t))
+	       && value_dependent_expression_p (orig_arg)))
 	/* We used to call digest_init here.  However, digest_init
 	   will report errors, which we don't want when complain
 	   is zero.  More importantly, digest_init will try too
@@ -11125,7 +11129,10 @@ any_template_parm_r (tree t, void *data)
       break;
 
     case TEMPLATE_PARM_INDEX:
-      WALK_SUBTREE (TREE_TYPE (t));
+      /* No need to consider template parameters within the type of an NTTP:
+	 substitution into an NTTP is done directly with the corresponding
+	 template argument, and its type only comes into play earlier during
+	 coercion.  */
       break;
 
     case TEMPLATE_DECL:
@@ -22327,7 +22334,8 @@ tsubst_expr (tree t, tree args, tsubst_flags_t complain, tree in_decl)
 	  if (r == NULL_TREE && TREE_CODE (t) == PARM_DECL)
 	    {
 	      /* We get here for a use of 'this' in an NSDMI.  */
-	      if (DECL_NAME (t) == this_identifier && current_class_ptr)
+	      if (DECL_NAME (t) == this_identifier && current_class_ptr
+		  && !LAMBDA_TYPE_P (TREE_TYPE (TREE_TYPE (current_class_ptr))))
 		RETURN (current_class_ptr);
 
 	      /* Parameters of non-templates map to themselves (e.g. in
@@ -26301,8 +26309,8 @@ unify (tree tparms, tree targs, tree parm, tree arg, int strict,
     case TYPEOF_TYPE:
     case DECLTYPE_TYPE:
     case TRAIT_TYPE:
-      /* Cannot deduce anything from TYPEOF_TYPE, DECLTYPE_TYPE,
-	 or TRAIT_TYPE nodes.  */
+    case PACK_INDEX_TYPE:
+      /* These are non-deduced contexts.  */
       return unify_success (explain_p);
 
     case ERROR_MARK:
@@ -30488,6 +30496,18 @@ make_constrained_decltype_auto (tree con, tree args)
 {
   tree type = make_auto_1 (decltype_auto_identifier, false);
   return make_constrained_placeholder_type (type, con, args);
+}
+
+/* Create an "auto..." type-specifier.  */
+
+tree
+make_auto_pack ()
+{
+  tree type = make_auto_1 (auto_identifier, false);
+  TEMPLATE_TYPE_PARAMETER_PACK (type) = true;
+  /* Our canonical type depends on being a pack.  */
+  TYPE_CANONICAL (type) = canonical_type_parameter (type);
+  return type;
 }
 
 /* Returns true if the placeholder type constraint T has any dependent

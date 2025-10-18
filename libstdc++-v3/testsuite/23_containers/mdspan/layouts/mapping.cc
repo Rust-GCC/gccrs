@@ -2,10 +2,20 @@
 #include <mdspan>
 
 #include "../int_like.h"
+#include "padded_traits.h"
 #include <cstdint>
 #include <testsuite_hooks.h>
 
 constexpr size_t dyn = std::dynamic_extent;
+
+template<typename Mapping>
+  concept has_static_is_exhaustive = requires
+  {
+    { Mapping::is_exhaustive() } -> std::same_as<bool>;
+  };
+
+static_assert(has_static_is_exhaustive<std::layout_right::mapping<std::extents<int>>>);
+static_assert(!has_static_is_exhaustive<std::layout_stride::mapping<std::extents<int>>>);
 
 template<typename Layout, typename Extents>
   constexpr bool
@@ -32,7 +42,7 @@ template<typename Layout, typename Extents>
 
     static_assert(M::is_always_unique() && M::is_unique());
     static_assert(M::is_always_strided() && M::is_strided());
-    if constexpr (!std::is_same_v<Layout, std::layout_stride>)
+    if constexpr (has_static_is_exhaustive<M>)
       static_assert(M::is_always_exhaustive() && M::is_exhaustive());
     return true;
   }
@@ -306,7 +316,7 @@ template<typename Layout>
   constexpr void
   test_stride_1d()
   {
-    std::layout_left::mapping<std::extents<int, 3>> m;
+    typename Layout::mapping<std::extents<int, 3>> m;
     VERIFY(m.stride(0) == 1);
   }
 
@@ -321,73 +331,169 @@ template<>
   }
 
 template<typename Layout>
-  constexpr void
-  test_stride_2d();
+struct TestStride2D;
 
 template<>
-  constexpr void
-  test_stride_2d<std::layout_left>()
+  struct TestStride2D<std::layout_left>
   {
-    std::layout_left::mapping<std::extents<int, 3, 5>> m;
-    VERIFY(m.stride(0) == 1);
-    VERIFY(m.stride(1) == 3);
-  }
+    static constexpr void
+    run()
+    {
+      std::layout_left::mapping<std::extents<int, 3, 5>> m;
+      VERIFY(m.stride(0) == 1);
+      VERIFY(m.stride(1) == 3);
+    }
+  };
 
 template<>
-  constexpr void
-  test_stride_2d<std::layout_right>()
+  struct TestStride2D<std::layout_right>
   {
-    std::layout_right::mapping<std::extents<int, 3, 5>> m;
-    VERIFY(m.stride(0) == 5);
-    VERIFY(m.stride(1) == 1);
-  }
+    static constexpr void
+    run()
+    {
+      std::layout_right::mapping<std::extents<int, 3, 5>> m;
+      VERIFY(m.stride(0) == 5);
+      VERIFY(m.stride(1) == 1);
+    }
+  };
 
 template<>
-  constexpr void
-  test_stride_2d<std::layout_stride>()
+  struct TestStride2D<std::layout_stride>
   {
-    std::array<int, 2> strides{13, 2};
-    std::layout_stride::mapping m(std::extents<int, 3, 5>{}, strides);
-    VERIFY(m.stride(0) == strides[0]);
-    VERIFY(m.stride(1) == strides[1]);
-    VERIFY(m.strides() == strides);
-  }
+    static constexpr void
+    run()
+    {
+      std::array<int, 2> strides{13, 2};
+      std::layout_stride::mapping m(std::extents<int, 3, 5>{}, strides);
+      VERIFY(m.stride(0) == strides[0]);
+      VERIFY(m.stride(1) == strides[1]);
+      VERIFY(m.strides() == strides);
+    }
+  };
+
+#if __cplusplus > 202302L
+template<typename Layout>
+  requires is_left_padded<Layout> || is_right_padded<Layout>
+  struct TestStride2D<Layout>
+  {
+    static constexpr void
+    run()
+    {
+      using Traits = LayoutTraits<DeducePaddingSide::from_typename<Layout>()>;
+      using Extents = typename Traits::extents_type<std::extents<int, 3, 5>>;
+      using Mapping = typename Layout::mapping<Extents>;
+      constexpr size_t padding_value = Mapping::padding_value;
+
+      Mapping m;
+      size_t effective_pad = (padding_value == 0 || padding_value == dyn)
+	? size_t(1) : padding_value;
+
+      constexpr auto i0 = is_left_padded<Layout> ? 0 : 1;
+      VERIFY(m.stride(i0) == 1);
+
+      // The next multiple of padding_value, that's greater or equal
+      // to exts.extent(0) is the unique value in the range:
+      //   [exts.extent(0), exts.extent(0) + padding_value)
+      // that is divisible by padding_value.
+      auto stride = Traits::padded_stride(m);
+      VERIFY((stride % effective_pad) == 0);
+      VERIFY(3 <= stride && std::cmp_less(stride, 3 + effective_pad));
+    }
+  };
+#endif
 
 template<typename Layout>
   constexpr void
-  test_stride_3d();
-
-template<>
-  constexpr void
-  test_stride_3d<std::layout_left>()
+  test_stride_2d()
   {
-    std::layout_left::mapping m(std::dextents<int, 3>(3, 5, 7));
-    VERIFY(m.stride(0) == 1);
-    VERIFY(m.stride(1) == 3);
-    VERIFY(m.stride(2) == 3*5);
+    TestStride2D<Layout>::run();
   }
 
-template<>
-  constexpr void
-  test_stride_3d<std::layout_right>()
-  {
-    std::layout_right::mapping m(std::dextents<int, 3>(3, 5, 7));
-    VERIFY(m.stride(0) == 5*7);
-    VERIFY(m.stride(1) == 7);
-    VERIFY(m.stride(2) == 1);
-  }
+template<typename Layout>
+struct TestStride3D;
 
 template<>
-  constexpr void
-  test_stride_3d<std::layout_stride>()
+  struct TestStride3D<std::layout_left>
   {
-    std::dextents<int, 3> exts(3, 5, 7);
-    std::array<int, 3> strides{11, 2, 41};
-    std::layout_stride::mapping<std::dextents<int, 3>> m(exts, strides);
-    VERIFY(m.stride(0) == strides[0]);
-    VERIFY(m.stride(1) == strides[1]);
-    VERIFY(m.stride(2) == strides[2]);
-    VERIFY(m.strides() == strides);
+    static constexpr void
+    run()
+    {
+      std::layout_left::mapping m(std::dextents<int, 3>(3, 5, 7));
+      VERIFY(m.stride(0) == 1);
+      VERIFY(m.stride(1) == 3);
+      VERIFY(m.stride(2) == 3*5);
+    }
+  };
+
+
+template<>
+  struct TestStride3D<std::layout_right>
+  {
+    static constexpr void
+    run()
+    {
+      std::layout_right::mapping m(std::dextents<int, 3>(3, 5, 7));
+      VERIFY(m.stride(0) == 5*7);
+      VERIFY(m.stride(1) == 7);
+      VERIFY(m.stride(2) == 1);
+    }
+  };
+
+template<>
+  struct TestStride3D<std::layout_stride>
+  {
+    static constexpr void
+    run()
+    {
+      std::dextents<int, 3> exts(3, 5, 7);
+      std::array<int, 3> strides{11, 2, 41};
+      std::layout_stride::mapping<std::dextents<int, 3>> m(exts, strides);
+      VERIFY(m.stride(0) == strides[0]);
+      VERIFY(m.stride(1) == strides[1]);
+      VERIFY(m.stride(2) == strides[2]);
+      VERIFY(m.strides() == strides);
+    }
+  };
+
+#if __cplusplus > 202302L
+template<typename Layout>
+  requires is_left_padded<Layout> || is_right_padded<Layout>
+  struct TestStride3D<Layout>
+  {
+    static constexpr void
+    run()
+    {
+      using Traits = LayoutTraits<DeducePaddingSide::from_typename<Layout>()>;
+      using Extents = typename Traits::extents_type<std::extents<int, 3, 5, 7>>;
+      using Mapping = typename Layout::mapping<Extents>;
+      constexpr size_t padding_value = Mapping::padding_value;
+
+      Mapping m;
+      size_t effective_pad = (padding_value == 0 || padding_value == dyn)
+	? size_t(1) : padding_value;
+
+      constexpr auto i0 = is_left_padded<Layout> ? 0 : 2;
+      VERIFY(m.stride(i0) == 1);
+
+      // The next multiple of padding_value, that's greater or equal
+      // to exts.extent(0) is the unique value in the range:
+      //   [exts.extent(0), exts.extent(0) + padding_value)
+      // that is divisible by padding_value.
+      auto stride = Traits::padded_stride(m);
+      VERIFY((stride % effective_pad) == 0);
+      VERIFY(3 <= stride && std::cmp_less(stride, 3 + effective_pad));
+
+      constexpr auto i2 = is_left_padded<Layout> ? 2 : 0;
+      VERIFY(stride * 5 == m.stride(i2));
+    }
+  };
+#endif
+
+template<typename Layout>
+  constexpr void
+  test_stride_3d()
+  {
+    TestStride3D<Layout>::run();
   }
 
 template<typename Layout>
@@ -411,7 +517,8 @@ template<typename Layout>
   test_has_stride_0d()
   {
     using Mapping = typename Layout::mapping<std::extents<int>>;
-    constexpr bool expected = std::is_same_v<Layout, std::layout_stride>;
+    constexpr bool expected = !(std::is_same_v<Layout, std::layout_left>
+       || std::is_same_v<Layout, std::layout_right>);
     static_assert(has_stride<Mapping> == expected);
   }
 
@@ -555,16 +662,56 @@ template<typename Layout>
     test_has_op_eq<Layout, Layout, true>();
   }
 
+#if __cplusplus > 202302L
+template<template<size_t> typename Layout>
+  constexpr bool
+  test_padded_all()
+  {
+    test_all<Layout<0>>();
+    test_all<Layout<1>>();
+    test_all<Layout<2>>();
+    test_all<Layout<5>>();
+    test_all<Layout<dyn>>();
+    return true;
+  }
+
+template<template<size_t> typename Layout>
+  constexpr bool
+  test_padded_has_op_eq()
+  {
+    using Traits = LayoutTraits<DeducePaddingSide::from_template<Layout>()>;
+    test_has_op_eq<typename Traits::layout_same, Layout<0>, false>();
+    test_has_op_eq<typename Traits::layout_same, Layout<6>, false>();
+    test_has_op_eq<typename Traits::layout_same, Layout<dyn>, false>();
+    // The next one looks strange, because it's neither. Somehow, the
+    // conversion rules seem to be playing a critical role again.
+    // test_has_op_eq<typename Traits::layout_other, Layout<0>, false>();
+
+    test_has_op_eq<Layout<2>, Layout<6>, true>();
+    test_has_op_eq<Layout<2>, Layout<dyn>, true>();
+    return true;
+  }
+#endif
+
 int
 main()
 {
   test_all<std::layout_left>();
   test_all<std::layout_right>();
   test_all<std::layout_stride>();
+#if __cplusplus > 202302L
+  test_padded_all<std::layout_left_padded>();
+  test_padded_all<std::layout_right_padded>();
+#endif
 
   test_has_op_eq<std::layout_right, std::layout_left, false>();
   test_has_op_eq<std::layout_right, std::layout_stride, true>();
   test_has_op_eq<std::layout_left, std::layout_stride, true>();
+#if __cplusplus > 202302L
+  test_padded_has_op_eq<std::layout_left_padded>();
+  test_padded_has_op_eq<std::layout_right_padded>();
+#endif
+
   test_has_op_eq_peculiar();
   return 0;
 }

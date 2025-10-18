@@ -56,6 +56,7 @@ through the macros defined in the @file{.h} file.
 * C++ ABI::             Controlling C++ ABI changes.
 * D Language and ABI::  Controlling D ABI changes.
 * Rust Language and ABI:: Controlling Rust ABI changes.
+* JIT Language and ABI:: JIT ABI parameters
 * Named Address Spaces:: Adding support for named address spaces
 * Misc::                Everything else.
 @end menu
@@ -125,6 +126,14 @@ Hook''.  This is declared in @file{rust/rust-target.h}, the initializer
 If targets initialize @code{targetrustm} themselves, they should set
 @code{target_has_targetrustm=yes} in @file{config.gcc}; otherwise a
 default definition is used.
+
+Similarly, there is a @code{targetjitm} variable for hooks that are
+specific to the jit front end, documented as ``JIT Target Hook''.
+This is declared in @file{jit/jit-target.h}, the initializer
+@code{TARGETJITM_INITIALIZER} in @file{jit/jit-target-def.h}.  If targets
+initialize @code{targetjitm} themselves, they should set
+@code{target_has_targetjitm=yes} in @file{config.gcc}; otherwise a default
+definition is used.
 
 @node Driver
 @section Controlling the Compilation Driver, @file{gcc}
@@ -7121,6 +7130,16 @@ on this implementation detail.
 
 @hook TARGET_OPTION_VALID_VERSION_ATTRIBUTE_P
 
+@defmac TARGET_HAS_FMV_TARGET_ATTRIBUTE
+Define this macro to zero to use @code{target_version} attributes for function
+multiversioning (FMV) rather than @code{target} attributes.
+
+Targets using @code{target_version} attributes will also have
+"target_version" FMV semantics, which allow for FMV sets defined across TU's
+and using a combination of @code{target_version} and @code{target_clones}
+attributed declarations in the definition of a FMV function set.
+@end defmac
+
 @defmac TARGET_CLONES_ATTR_SEPARATOR
 Define this char-typed macro to select a character that separates each
 target specific attributes from the @code{attribute(target_clones("..."))}
@@ -7140,7 +7159,9 @@ with the target specific attributes.  The default value is @code{','}.
 
 @hook TARGET_OPTION_OVERRIDE
 
-@hook TARGET_OPTION_FUNCTION_VERSIONS
+@hook TARGET_OPTION_SAME_FUNCTION_VERSIONS
+
+@hook TARGET_OPTION_FUNCTIONS_B_RESOLVABLE_FROM_A
 
 @hook TARGET_CAN_INLINE_P
 
@@ -7289,6 +7310,12 @@ floating-point support; they are not included in this mechanism.
 @hook TARGET_RUST_CPU_INFO
 
 @hook TARGET_RUST_OS_INFO
+
+@node JIT Language and ABI
+@section JIT ABI parameters
+@cindex parameters, jit abi
+
+@hook TARGET_JIT_REGISTER_CPU_TARGET_INFO
 
 @node Named Address Spaces
 @section Adding support for named address spaces
@@ -7896,6 +7923,8 @@ to by @var{ce_info}.
 @hook TARGET_GET_FUNCTION_VERSIONS_DISPATCHER
 
 @hook TARGET_GENERATE_VERSION_DISPATCHER_BODY
+
+@hook TARGET_CHECK_TARGET_CLONE_VERSION
 
 @hook TARGET_PREDICT_DOLOOP_P
 

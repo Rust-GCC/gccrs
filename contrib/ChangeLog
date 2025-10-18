@@ -1,3 +1,59 @@
+2025-10-08  Jakub Jelinek  <jakub@redhat.com>
+
+	* unicode/README: Add HangulSyllableType.txt file to the
+	list as newest utf8_gen.py from glibc now needs it.  Adjust
+	git commit hash and change unicode 16 version to 17.
+	* unicode/from_glibc/utf8_gen.py: Updated from glibc.
+	* unicode/DerivedCoreProperties.txt: Updated from Unicode 17.0.0.
+	* unicode/emoji-data.txt: Likewise.
+	* unicode/PropList.txt: Likewise.
+	* unicode/GraphemeBreakProperty.txt: Likewise.
+	* unicode/DerivedNormalizationProps.txt: Likewise.
+	* unicode/NameAliases.txt: Likewise.
+	* unicode/UnicodeData.txt: Likewise.
+	* unicode/EastAsianWidth.txt: Likewise.
+	* unicode/DerivedGeneralCategory.txt: Likewise.
+	* unicode/HangulSyllableType.txt: New file.
+
+2025-10-05  Mark Wielaard  <mark@klomp.org>
+
+	* gcc-changelog/git_update_version.py (ignored_commits): Add
+	commit b40ef6e9dc096c8c19399e94947a1965258a6942.
+
+2025-10-03  David Malcolm  <dmalcolm@redhat.com>
+
+	Revert:
+	2025-10-02  David Malcolm  <dmalcolm@redhat.com>
+
+	* gcc.doxy (INPUT): Add gcc/custom-sarif-properties
+
+2025-10-02  David Malcolm  <dmalcolm@redhat.com>
+
+	* gcc.doxy (INPUT): Add gcc/custom-sarif-properties
+
+2025-09-23  Jonathan Wakely  <jwakely@redhat.com>
+
+	* unicode/gen_libstdcxx_unicode_data.py: Fix comment type.
+
+2025-09-22  Jonathan Wakely  <jwakely@redhat.com>
+
+	* unicode/gen_libstdcxx_unicode_data.py: Update comment at the
+	top of the file to mention DerivedGeneralCategory.txt
+	prerequisite.
+
+2025-09-17  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	* uninclude: Add `lib/gcc/<anything>/include`.
+
+2025-09-10  Christophe Lyon  <christophe.lyon@linaro.org>
+
+	* compare_tests: Improve non-unique tests report when testing
+	several configurations.
+
+2025-09-08  Christophe Lyon  <christophe.lyon@linaro.org>
+
+	* compare_tests: Report non-unique test names.
+
 2025-08-17  Filip Kastl  <fkastl@suse.cz>
 
 	* check-MAINTAINERS.py: Document the way the script sorts

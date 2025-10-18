@@ -2322,27 +2322,38 @@
   else
     {
       rtx reg;
-      rtx label = gen_label_rtx ();
+      rtx label1 = gen_label_rtx ();
+      rtx label2 = gen_label_rtx ();
+      rtx label3 = gen_label_rtx ();
       rtx end_label = gen_label_rtx ();
       rtx abs_reg = gen_reg_rtx (<ANYF:MODE>mode);
       rtx coeff_reg = gen_reg_rtx (<ANYF:MODE>mode);
       rtx tmp_reg = gen_reg_rtx (<ANYF:MODE>mode);
-      rtx fflags = gen_reg_rtx (SImode);
 
       riscv_emit_move (tmp_reg, operands[1]);
+
+      if (flag_trapping_math)
+	{
+	  /* Check if the input is a NaN.  */
+	  riscv_expand_conditional_branch (label1, EQ,
+					   operands[1], operands[1]);
+
+	  emit_jump_insn (gen_jump (label3));
+	  emit_barrier ();
+
+	  emit_label (label1);
+	}
+
       riscv_emit_move (coeff_reg,
 		       riscv_vector::get_fp_rounding_coefficient (<ANYF:MODE>mode));
       emit_insn (gen_abs<ANYF:mode>2 (abs_reg, operands[1]));
 
-      /* fp compare can set invalid flag for NaN, so backup fflags.  */
-      if (flag_trapping_math)
-        emit_insn (gen_riscv_frflags (fflags));
-      riscv_expand_conditional_branch (label, LT, abs_reg, coeff_reg);
+      riscv_expand_conditional_branch (label2, LT, abs_reg, coeff_reg);
 
       emit_jump_insn (gen_jump (end_label));
       emit_barrier ();
 
-      emit_label (label);
+      emit_label (label2);
       switch (<ANYF:MODE>mode)
 	{
 	case SFmode:
@@ -2361,15 +2372,17 @@
 
       emit_insn (gen_copysign<ANYF:mode>3 (tmp_reg, abs_reg, operands[1]));
 
-      emit_label (end_label);
+      emit_jump_insn (gen_jump (end_label));
+      emit_barrier ();
 
-      /* Restore fflags, but after label.  This is slightly different
-         than glibc implementation which only needs to restore under
-         the label, since it checks for NaN first, meaning following fp
-         compare can't raise fp exceptons and thus not clobber fflags.  */
       if (flag_trapping_math)
-        emit_insn (gen_riscv_fsflags (fflags));
+	{
+	  emit_label (label3);
+	  /* Generate a qNaN from an sNaN if needed.  */
+	  emit_insn (gen_add<ANYF:mode>3 (tmp_reg, operands[1], operands[1]));
+	}
 
+      emit_label (end_label);
       riscv_emit_move (operands[0], tmp_reg);
     }
 
@@ -4613,6 +4626,26 @@
   else
     FAIL;
 })
+
+; Split (A<<1) | (A>=0) into a rotate + xor. Using two’s-complement identities:
+; (A>=0) == ((A >> (W-1)) ^ 1) and (A<<1) | (A>>(W-1)) == ROL1 (A), so the whole
+; expression equals ROL1 (A) ^ 1.
+(define_split
+  [(set (match_operand:X 0 "register_operand")
+     (ior:X
+       (ashift:X (match_operand:X 1 "register_operand")
+		  (const_int 1))
+		(ge:X (match_dup 1) (const_int 0))))]
+  "TARGET_ZBB"
+  [(set (match_dup 0)
+       (rotatert:X (match_dup 1) (match_operand 2 "const_int_operand")))
+   (set (match_dup 0)
+       (xor:X (match_dup 0) (const_int 1)))]
+  {
+    HOST_WIDE_INT rotval;
+    rotval = GET_MODE_BITSIZE (GET_MODE (operands[1])).to_constant () - 1;
+    operands[2] = GEN_INT (rotval);
+  })
 
 (define_insn "*large_load_address"
   [(set (match_operand:DI 0 "register_operand" "=r")

@@ -1869,9 +1869,15 @@ export namespace std
   using std::aligned_accessor;
 #endif
   using std::mdspan;
-  // FIXME layout_left_padded, layout_right_padded, strided_slice,
-  // submdspan_mapping_result, full_extent_t, full_extent, submdspan_extents,
-  // mdsubspan
+#if __glibcxx_padded_layouts
+  using std::layout_left_padded;
+  using std::layout_right_padded;
+  using strided_slice;
+  using full_extent_t;
+  using full_extent;
+  using submdspan_mapping_result;
+#endif
+  // FIXME submdspan_extents, mdsubspan
 }
 #endif
 
@@ -2003,6 +2009,10 @@ export namespace std
 #if __cpp_lib_smart_ptr_owner_equality
   using std::owner_equal;
   using std::owner_hash;
+#endif
+#if __cpp_lib_start_lifetime_as
+  using std::start_lifetime_as;
+  using std::start_lifetime_as_array;
 #endif
 }
 

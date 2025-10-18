@@ -1,5 +1,6 @@
 /* { dg-do compile } */
-/* { dg-options "-O2 -fdump-tree-pre-stats" } */
+/* Both phiopt and cselim can commonalize the stores so disable them too. */
+/* { dg-options "-O2 -fdump-tree-pre-stats -fno-ssa-phiopt -fno-tree-cselim" } */
 
 struct Loc {
     int x[3];

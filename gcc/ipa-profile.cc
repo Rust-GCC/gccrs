@@ -316,7 +316,11 @@ ipa_profile_generate_summary (void)
 			      count = all;
 			    }
 			  speculative_call_target item (
-			    val, GCOV_COMPUTE_SCALE (count, all));
+			    val,
+			    profile_count::from_gcov_type (count)
+			      .probability_in
+				(profile_count::from_gcov_type (all))
+				 .to_reg_br_prob_base ());
 			  csum->speculative_call_targets.safe_push (item);
 			}
 
@@ -621,7 +625,7 @@ ipa_propagate_frequency_1 (struct cgraph_node *node, void *data)
   return edge != NULL;
 }
 
-/* Return ture if NODE contains hot calls.  */
+/* Return true if NODE contains hot calls.  */
 
 bool
 contains_hot_call_p (struct cgraph_node *node)

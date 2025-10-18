@@ -3882,6 +3882,10 @@ vect_recog_rotate_pattern (vec_info *vinfo,
 	goto use_rotate;
     }
 
+  /* We may not use a reduction operand twice.  */
+  if (vect_is_reduction (stmt_vinfo))
+    return NULL;
+
   tree utype = unsigned_type_for (type);
   tree uvectype = get_vectype_for_scalar_type (vinfo, utype);
   if (!uvectype)
@@ -4538,6 +4542,8 @@ extern bool gimple_unsigned_integer_sat_add (tree, tree*, tree (*)(tree));
 extern bool gimple_unsigned_integer_sat_sub (tree, tree*, tree (*)(tree));
 extern bool gimple_unsigned_integer_sat_trunc (tree, tree*, tree (*)(tree));
 
+extern bool gimple_unsigned_integer_narrow_clip (tree, tree*, tree (*)(tree));
+
 extern bool gimple_signed_integer_sat_add (tree, tree*, tree (*)(tree));
 extern bool gimple_signed_integer_sat_sub (tree, tree*, tree (*)(tree));
 extern bool gimple_signed_integer_sat_trunc (tree, tree*, tree (*)(tree));
@@ -4771,6 +4777,36 @@ vect_recog_sat_trunc_pattern (vec_info *vinfo, stmt_vec_info stmt_vinfo,
   tree ops[1];
   tree lhs = gimple_assign_lhs (last_stmt);
   tree otype = TREE_TYPE (lhs);
+
+  if ((gimple_unsigned_integer_narrow_clip (lhs, ops, NULL))
+       && type_has_mode_precision_p (otype))
+    {
+      tree itype = TREE_TYPE (ops[0]);
+      tree v_itype = get_vectype_for_scalar_type (vinfo, itype);
+      tree v_otype = get_vectype_for_scalar_type (vinfo, otype);
+      internal_fn fn = IFN_SAT_TRUNC;
+
+      if (v_itype != NULL_TREE && v_otype != NULL_TREE
+	&& direct_internal_fn_supported_p (fn, tree_pair (v_otype, v_itype),
+					   OPTIMIZE_FOR_BOTH))
+	{
+	  tree temp = vect_recog_temp_ssa_var (itype, NULL);
+	  gimple * max_stmt = gimple_build_assign (temp, build2 (MAX_EXPR, itype, build_zero_cst(itype), ops[0]));
+	  append_pattern_def_seq (vinfo, stmt_vinfo, max_stmt, v_itype);
+
+	  gcall *call = gimple_build_call_internal (fn, 1, temp);
+	  tree out_ssa = vect_recog_temp_ssa_var (otype, NULL);
+
+	  gimple_call_set_lhs (call, out_ssa);
+	  gimple_call_set_nothrow (call, /* nothrow_p */ false);
+	  gimple_set_location (call, gimple_location (last_stmt));
+
+	  *type_out = v_otype;
+
+	  return call;
+	}
+
+    }
 
   if ((gimple_unsigned_integer_sat_trunc (lhs, ops, NULL)
        || gimple_signed_integer_sat_trunc (lhs, ops, NULL))
@@ -5416,8 +5452,10 @@ integer_type_for_mask (tree var, vec_info *vinfo)
   if (!VECT_SCALAR_BOOLEAN_TYPE_P (TREE_TYPE (var)))
     return NULL_TREE;
 
-  stmt_vec_info def_stmt_info = vect_get_internal_def (vinfo, var);
-  if (!def_stmt_info || !vect_use_mask_type_p (def_stmt_info))
+  stmt_vec_info def_stmt_info = vinfo->lookup_def (var);
+  if (!def_stmt_info
+      || STMT_VINFO_DEF_TYPE (def_stmt_info) == vect_external_def
+      || !vect_use_mask_type_p (def_stmt_info))
     return NULL_TREE;
 
   return build_nonstandard_integer_type (def_stmt_info->mask_precision, 1);
@@ -5496,6 +5534,53 @@ vect_recog_gcond_pattern (vec_info *vinfo,
   vect_pattern_detected ("vect_recog_gcond_pattern", last_stmt);
   return pattern_stmt;
 }
+
+
+/* A helper for vect_recog_mask_conversion_pattern.  Build
+   conversion of MASK to a type suitable for masking VECTYPE.
+   Built statement gets required vectype and is appended to
+   a pattern sequence of STMT_VINFO.
+
+   Return converted mask.  */
+
+static tree
+build_mask_conversion (vec_info *vinfo,
+		       tree mask, tree vectype, stmt_vec_info stmt_vinfo)
+{
+  gimple *stmt;
+  tree masktype, tmp;
+
+  masktype = truth_type_for (vectype);
+  tmp = vect_recog_temp_ssa_var (TREE_TYPE (masktype), NULL);
+  stmt = gimple_build_assign (tmp, CONVERT_EXPR, mask);
+  append_pattern_def_seq (vinfo, stmt_vinfo,
+			  stmt, masktype, TREE_TYPE (vectype));
+
+  return tmp;
+}
+
+
+/* Return MASK if MASK is suitable for masking an operation on vectors
+   of type VECTYPE, otherwise convert it into such a form and return
+   the result.  Associate any conversion statements with STMT_INFO's
+   pattern.  */
+
+static tree
+vect_convert_mask_for_vectype (tree mask, tree vectype,
+			       stmt_vec_info stmt_info, vec_info *vinfo)
+{
+  tree mask_type = integer_type_for_mask (mask, vinfo);
+  if (mask_type)
+    {
+      tree mask_vectype = get_mask_type_for_scalar_type (vinfo, mask_type);
+      if (mask_vectype
+	  && maybe_ne (TYPE_VECTOR_SUBPARTS (vectype),
+		       TYPE_VECTOR_SUBPARTS (mask_vectype)))
+	mask = build_mask_conversion (vinfo, mask, vectype, stmt_info);
+    }
+  return mask;
+}
+
 
 /* Function vect_recog_bool_pattern
 
@@ -5655,9 +5740,11 @@ vect_recog_bool_pattern (vec_info *vinfo,
       if (!new_vectype)
 	return NULL;
 
-      new_vectype = truth_type_for (new_vectype);
       append_pattern_def_seq (vinfo, stmt_vinfo, pattern_stmt, new_vectype,
 			      TREE_TYPE (var));
+
+      lhs_var = vect_convert_mask_for_vectype (lhs_var, vectype, stmt_vinfo,
+					       vinfo);
 
       lhs = vect_recog_temp_ssa_var (TREE_TYPE (lhs), NULL);
       pattern_stmt
@@ -5669,6 +5756,68 @@ vect_recog_bool_pattern (vec_info *vinfo,
 
       return pattern_stmt;
     }
+  else if (rhs_code == BIT_XOR_EXPR
+	   || rhs_code == BIT_AND_EXPR
+	   || rhs_code == BIT_IOR_EXPR)
+    {
+      tree lhs_type = integer_type_for_mask (lhs, vinfo);
+      if (!lhs_type)
+	return NULL;
+      vectype = get_mask_type_for_scalar_type (vinfo, lhs_type);
+      if (!vectype)
+	return NULL;
+      tree rhs2 = gimple_assign_rhs2 (last_stmt);
+      tree rhs1_type = integer_type_for_mask (var, vinfo);
+      tree rhs2_type = integer_type_for_mask (rhs2, vinfo);
+      if (rhs1_type && rhs2_type)
+	return NULL;
+      /* When one input is a mask and the other is not create a pattern
+	 stmt sequence that creates a mask for the non-mask input and
+	 convert it to one suitable for the output mask used.  */
+      if (rhs1_type && !rhs2_type)
+	{
+	  tree rhs1_vectype = get_mask_type_for_scalar_type (vinfo, rhs1_type);
+	  if (!rhs1_vectype)
+	    return NULL;
+	  tree rhs2_vectype = get_vectype_for_scalar_type (vinfo,
+							   TREE_TYPE (rhs2));
+	  if (!rhs2_vectype)
+	    return NULL;
+	  tree new_vectype = truth_type_for (rhs2_vectype);
+	  tree tem = vect_recog_temp_ssa_var (TREE_TYPE (new_vectype), NULL);
+	  pattern_stmt = gimple_build_assign (tem, NE_EXPR, rhs2,
+					      build_zero_cst
+						(TREE_TYPE (rhs2)));
+	  append_pattern_def_seq (vinfo, stmt_vinfo, pattern_stmt,
+				  new_vectype, TREE_TYPE (new_vectype));
+	  rhs2 = vect_convert_mask_for_vectype (tem, rhs1_vectype,
+						stmt_vinfo, vinfo);
+	}
+      else if (!rhs1_type && rhs2_type)
+	{
+	  tree rhs2_vectype = get_mask_type_for_scalar_type (vinfo, rhs2_type);
+	  if (!rhs2_vectype)
+	    return NULL;
+	  tree rhs1_vectype = get_vectype_for_scalar_type (vinfo,
+							   TREE_TYPE (var));
+	  if (!rhs1_vectype)
+	    return NULL;
+	  tree new_vectype = truth_type_for (rhs1_vectype);
+	  tree tem = vect_recog_temp_ssa_var (TREE_TYPE (new_vectype), NULL);
+	  pattern_stmt = gimple_build_assign (tem, NE_EXPR, var,
+					      build_zero_cst
+						(TREE_TYPE (var)));
+	  append_pattern_def_seq (vinfo, stmt_vinfo, pattern_stmt,
+				  new_vectype, TREE_TYPE (new_vectype));
+	  var = vect_convert_mask_for_vectype (tem, rhs2_vectype,
+					       stmt_vinfo, vinfo);
+	}
+      lhs = vect_recog_temp_ssa_var (TREE_TYPE (lhs), NULL);
+      pattern_stmt = gimple_build_assign (lhs, rhs_code, var, rhs2);
+      vect_pattern_detected ("vect_recog_bool_pattern", last_stmt);
+      *type_out = vectype;
+      return pattern_stmt;
+    }
   else if (rhs_code == SSA_NAME
 	   && STMT_VINFO_DATA_REF (stmt_vinfo))
     {
@@ -5678,30 +5827,18 @@ vect_recog_bool_pattern (vec_info *vinfo,
 	return NULL;
 
       tree type = integer_type_for_mask (var, vinfo);
-      tree cst0, cst1, new_vectype;
-
       if (!type)
 	return NULL;
 
-      if (TYPE_MODE (type) == TYPE_MODE (TREE_TYPE (vectype)))
-	type = TREE_TYPE (vectype);
+      var = vect_convert_mask_for_vectype (var, vectype, stmt_vinfo, vinfo);
 
-      cst0 = build_int_cst (type, 0);
-      cst1 = build_int_cst (type, 1);
-      new_vectype = get_vectype_for_scalar_type (vinfo, type);
-
-      rhs = vect_recog_temp_ssa_var (type, NULL);
+      tree cst0 = build_int_cst (TREE_TYPE (vectype), 0);
+      tree cst1 = build_int_cst (TREE_TYPE (vectype), 1);
+      rhs = vect_recog_temp_ssa_var (TREE_TYPE (vectype), NULL);
       pattern_stmt = gimple_build_assign (rhs, COND_EXPR, var, cst1, cst0);
-      append_pattern_def_seq (vinfo, stmt_vinfo, pattern_stmt, new_vectype);
+      append_pattern_def_seq (vinfo, stmt_vinfo, pattern_stmt, vectype);
 
       lhs = build1 (VIEW_CONVERT_EXPR, TREE_TYPE (vectype), lhs);
-      if (!useless_type_conversion_p (TREE_TYPE (lhs), TREE_TYPE (rhs)))
-	{
-	  tree rhs2 = vect_recog_temp_ssa_var (TREE_TYPE (lhs), NULL);
-	  gimple *cast_stmt = gimple_build_assign (rhs2, NOP_EXPR, rhs);
-	  append_pattern_def_seq (vinfo, stmt_vinfo, cast_stmt);
-	  rhs = rhs2;
-	}
       pattern_stmt = gimple_build_assign (lhs, SSA_NAME, rhs);
       pattern_stmt_info = vinfo->add_stmt (pattern_stmt);
       vinfo->move_dr (pattern_stmt_info, stmt_vinfo);
@@ -5712,29 +5849,6 @@ vect_recog_bool_pattern (vec_info *vinfo,
     }
   else
     return NULL;
-}
-
-/* A helper for vect_recog_mask_conversion_pattern.  Build
-   conversion of MASK to a type suitable for masking VECTYPE.
-   Built statement gets required vectype and is appended to
-   a pattern sequence of STMT_VINFO.
-
-   Return converted mask.  */
-
-static tree
-build_mask_conversion (vec_info *vinfo,
-		       tree mask, tree vectype, stmt_vec_info stmt_vinfo)
-{
-  gimple *stmt;
-  tree masktype, tmp;
-
-  masktype = truth_type_for (vectype);
-  tmp = vect_recog_temp_ssa_var (TREE_TYPE (masktype), NULL);
-  stmt = gimple_build_assign (tmp, CONVERT_EXPR, mask);
-  append_pattern_def_seq (vinfo, stmt_vinfo,
-			  stmt, masktype, TREE_TYPE (vectype));
-
-  return tmp;
 }
 
 
@@ -5967,27 +6081,6 @@ vect_get_load_store_mask (stmt_vec_info stmt_info)
     }
 
   gcc_unreachable ();
-}
-
-/* Return MASK if MASK is suitable for masking an operation on vectors
-   of type VECTYPE, otherwise convert it into such a form and return
-   the result.  Associate any conversion statements with STMT_INFO's
-   pattern.  */
-
-static tree
-vect_convert_mask_for_vectype (tree mask, tree vectype,
-			       stmt_vec_info stmt_info, vec_info *vinfo)
-{
-  tree mask_type = integer_type_for_mask (mask, vinfo);
-  if (mask_type)
-    {
-      tree mask_vectype = get_mask_type_for_scalar_type (vinfo, mask_type);
-      if (mask_vectype
-	  && maybe_ne (TYPE_VECTOR_SUBPARTS (vectype),
-		       TYPE_VECTOR_SUBPARTS (mask_vectype)))
-	mask = build_mask_conversion (vinfo, mask, vectype, stmt_info);
-    }
-  return mask;
 }
 
 /* Return the equivalent of:

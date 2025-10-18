@@ -56,6 +56,7 @@ through the macros defined in the @file{.h} file.
 * C++ ABI::             Controlling C++ ABI changes.
 * D Language and ABI::  Controlling D ABI changes.
 * Rust Language and ABI:: Controlling Rust ABI changes.
+* JIT Language and ABI:: JIT ABI parameters
 * Named Address Spaces:: Adding support for named address spaces
 * Misc::                Everything else.
 @end menu
@@ -125,6 +126,14 @@ Hook''.  This is declared in @file{rust/rust-target.h}, the initializer
 If targets initialize @code{targetrustm} themselves, they should set
 @code{target_has_targetrustm=yes} in @file{config.gcc}; otherwise a
 default definition is used.
+
+Similarly, there is a @code{targetjitm} variable for hooks that are
+specific to the jit front end, documented as ``JIT Target Hook''.
+This is declared in @file{jit/jit-target.h}, the initializer
+@code{TARGETJITM_INITIALIZER} in @file{jit/jit-target-def.h}.  If targets
+initialize @code{targetjitm} themselves, they should set
+@code{target_has_targetjitm=yes} in @file{config.gcc}; otherwise a default
+definition is used.
 
 @node Driver
 @section Controlling the Compilation Driver, @file{gcc}
@@ -6388,14 +6397,14 @@ return type of the vectorized function shall be of vector type
 @var{vec_type_out} and the argument types should be @var{vec_type_in}.
 @end deftypefn
 
-@deftypefn {Target Hook} bool TARGET_VECTORIZE_SUPPORT_VECTOR_MISALIGNMENT (machine_mode @var{mode}, const_tree @var{type}, int @var{misalignment}, bool @var{is_packed}, bool @var{is_gather_scatter})
+@deftypefn {Target Hook} bool TARGET_VECTORIZE_SUPPORT_VECTOR_MISALIGNMENT (machine_mode @var{mode}, int @var{misalignment}, bool @var{is_packed}, bool @var{is_gather_scatter})
 This hook should return true if the target supports misaligned vector
 store/load of a specific factor denoted in the @var{misalignment}
-parameter.  The vector store/load should be of machine mode @var{mode} and
-the elements in the vectors should be of type @var{type}.  The
-@var{is_packed} parameter is true if the misalignment is unknown and the
-memory access is defined in a packed struct.  @var{is_gather_scatter} is true
-if the load/store is a gather or scatter.
+parameter.  The vector store/load should be of machine mode @var{mode}.
+The @var{is_packed} parameter is true if the original memory access is
+not naturally aligned.  @var{is_gather_scatter} is true if the
+load/store is a gather or scatter.  In that case misalignment
+denotes the misalignment of @var{mode}'s element mode.
 @end deftypefn
 
 @deftypefn {Target Hook} machine_mode TARGET_VECTORIZE_PREFERRED_SIMD_MODE (scalar_mode @var{mode})
@@ -9579,9 +9588,10 @@ It is false if we must use @command{collect2}.
 
 @deftypevr {Target Hook} bool TARGET_DTORS_FROM_CXA_ATEXIT
 This value is true if the target wants destructors to be queued to be
-run from __cxa_atexit.  If this is the case then, for each priority level,
-a new constructor will be entered that registers the destructors for that
-level with __cxa_atexit (and there will be no destructors emitted).
+run from @code{__cxa_atexit}.  If this is the case then, for each
+priority level, a new constructor will be entered that registers the
+destructors for that level with @code{__cxa_atexit} (and there will be
+no destructors emitted).
 It is false the method implied by @code{have_ctors_dtors} is used.
 @end deftypevr
 
@@ -10924,6 +10934,16 @@ the function declaration to hold a pointer to a target-specific
 @code{struct cl_target_option} structure.
 @end deftypefn
 
+@defmac TARGET_HAS_FMV_TARGET_ATTRIBUTE
+Define this macro to zero to use @code{target_version} attributes for function
+multiversioning (FMV) rather than @code{target} attributes.
+
+Targets using @code{target_version} attributes will also have
+"target_version" FMV semantics, which allow for FMV sets defined across TU's
+and using a combination of @code{target_version} and @code{target_clones}
+attributed declarations in the definition of a FMV function set.
+@end defmac
+
 @defmac TARGET_CLONES_ATTR_SEPARATOR
 Define this char-typed macro to select a character that separates each
 target specific attributes from the @code{attribute(target_clones("..."))}
@@ -10977,12 +10997,28 @@ changed via the optimize attribute or pragma, see
 @code{TARGET_OVERRIDE_OPTIONS_AFTER_CHANGE}
 @end deftypefn
 
-@deftypefn {Target Hook} bool TARGET_OPTION_FUNCTION_VERSIONS (tree @var{decl1}, tree @var{decl2})
-This target hook returns @code{true} if @var{DECL1} and @var{DECL2} are
-versions of the same function.  @var{DECL1} and @var{DECL2} are function
-versions if and only if they have the same function signature and
-different target specific attributes, that is, they are compiled for
-different target machines.
+@deftypefn {Target Hook} bool TARGET_OPTION_SAME_FUNCTION_VERSIONS (string_slice @var{fn1}, string_slice @var{fn2})
+This target hook returns @code{true} if the target/target-version strings
+@var{fn1} and @var{fn2} imply the same function version.
+@end deftypefn
+
+@deftypefn {Target Hook} bool TARGET_OPTION_FUNCTIONS_B_RESOLVABLE_FROM_A (tree @var{decl_a}, tree @var{decl_v}, tree @var{base})
+@var{decl_b} is a function declaration with a function multi-versioning
+(FMV) attribute; this attribute is either @code{target} or
+@code{target_version}, depending on @code{TARGET_HAS_FMV_TARGET_ATTRIBUTE}.
+@var{decl_a} is a function declaration that may or may not have an FMV
+attribute.
+
+Return true if we have enough information to determine that the
+requirements of @var{decl_b}'s FMV attribute are met whenever @var{decl_a}
+is executed, given that the target supports all features required by
+function declaration @var{base}.
+
+The default implementation just checks whether @var{decl_a} has the same
+FMV attribute as @var{decl_b}.  This is conservatively correct,
+but ports can do better by taking the relationships between architecture
+features into account.  For example, on AArch64, @code{sve} is present
+whenever @code{sve2} is present.
 @end deftypefn
 
 @deftypefn {Target Hook} bool TARGET_CAN_INLINE_P (tree @var{caller}, tree @var{callee})
@@ -11367,6 +11403,17 @@ compiled.
 @deftypefn {Rust Target Hook} void TARGET_RUST_OS_INFO (void)
 Similar to @code{TARGET_RUST_CPU_INFO}, but is used for configuration info
 relating to the target operating system.
+@end deftypefn
+
+@node JIT Language and ABI
+@section JIT ABI parameters
+@cindex parameters, jit abi
+
+@deftypefn {JIT Target Hook} void TARGET_JIT_REGISTER_CPU_TARGET_INFO (void)
+Register all target information keys relating to the target CPU using the
+function @code{jit_add_target_info}, which takes a key and a value.  The
+keys added by this hook are made available at compile time by calling
+get_target_info.
 @end deftypefn
 
 @node Named Address Spaces
@@ -12287,6 +12334,15 @@ This hook is used to generate the dispatcher logic to invoke the right
 function version at run-time for a given set of function versions.
 @var{arg} points to the callgraph node of the dispatcher function whose
 body must be generated.
+@end deftypefn
+
+@deftypefn {Target Hook} bool TARGET_CHECK_TARGET_CLONE_VERSION (string_slice @var{str}, location_t *@var{loc})
+This hook is used to check if a version specified in a @code{target_clones}
+annotation is valid. @var{str} is the version to be considered.
+If @var{loc} is not @code{NULL} then emit warnings for invalid versions at
+that location.  Otherwise emit no diagnostics.
+Returns @code{true} if @var{str} is a valid version string, and @code{false}
+otherwise
 @end deftypefn
 
 @deftypefn {Target Hook} bool TARGET_PREDICT_DOLOOP_P (class loop *@var{loop})

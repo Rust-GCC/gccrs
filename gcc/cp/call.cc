@@ -4104,15 +4104,18 @@ print_z_candidate (location_t loc, const char *msgstr,
     inform (cloc, "%s%#qD (rewritten)", msg, fn);
   else
     inform (cloc, "%s%#qD", msg, fn);
+
+  auto_diagnostic_nesting_level sentinel;
+
   if (fn != candidate->fn)
     {
       cloc = location_of (candidate->fn);
       inform (cloc, "inherited here");
     }
+
   /* Give the user some information about why this candidate failed.  */
   if (candidate->reason != NULL)
     {
-      auto_diagnostic_nesting_level sentinel;
       struct rejection_reason *r = candidate->reason;
 
       switch (r->code)
@@ -4172,10 +4175,7 @@ print_z_candidate (location_t loc, const char *msgstr,
 		  "class type is invalid");
 	  break;
 	case rr_constraint_failure:
-	  {
-	    auto_diagnostic_nesting_level sentinel;
-	    diagnose_constraints (cloc, fn, NULL_TREE);
-	  }
+	  diagnose_constraints (cloc, fn, NULL_TREE);
 	  break;
 	case rr_inherited_ctor:
 	  inform (cloc, "an inherited constructor is not a candidate for "
@@ -4255,7 +4255,11 @@ print_z_candidates (location_t loc, struct z_candidate *candidates,
 
   int num_candidates = 0;
   for (auto iter = candidates; iter; iter = iter->next)
-    ++num_candidates;
+    {
+      if (only_viable_p.is_true () && iter->viable != 1)
+	break;
+      ++num_candidates;
+    }
 
   inform_n (loc,
 	    num_candidates, "there is %i candidate", "there are %i candidates",
@@ -6925,6 +6929,16 @@ add_candidates (tree fns, tree first_arg, const vec<tree, va_gc> *args,
 	      }
 	  if (found)
 	    continue;
+	}
+
+      /* Do not resolve any non-default function.  Only the default version
+	 is resolvable (for the target_version attribute semantics.)  */
+      if (!TARGET_HAS_FMV_TARGET_ATTRIBUTE
+	  && TREE_CODE (fn) == FUNCTION_DECL
+	  && !is_function_default_version (fn))
+	{
+	  add_ignored_candidate (candidates, fn);
+	  continue;
 	}
 
       if (TREE_CODE (fn) == TEMPLATE_DECL)
@@ -10474,6 +10488,7 @@ build_over_call (struct z_candidate *cand, int flags, tsubst_flags_t complain)
   unsigned int arg_index = 0;
   int conv_index = 0;
   int param_index = 0;
+  tree parmd = DECL_ARGUMENTS (fn);
 
   auto consume_object_arg = [&arg_index, &first_arg, args]()
     {
@@ -10491,6 +10506,8 @@ build_over_call (struct z_candidate *cand, int flags, tsubst_flags_t complain)
       tree object_arg = consume_object_arg ();
       argarray[argarray_size++] = build_this (object_arg);
       parm = TREE_CHAIN (parm);
+      if (parmd)
+	parmd = DECL_CHAIN (parmd);
       /* We should never try to call the abstract constructor.  */
       gcc_assert (!DECL_HAS_IN_CHARGE_PARM_P (fn));
 
@@ -10499,6 +10516,8 @@ build_over_call (struct z_candidate *cand, int flags, tsubst_flags_t complain)
 	  argarray[argarray_size++] = (*args)[arg_index];
 	  ++arg_index;
 	  parm = TREE_CHAIN (parm);
+	  if (parmd)
+	    parmd = DECL_CHAIN (parmd);
 	}
     }
   /* Bypass access control for 'this' parameter.  */
@@ -10586,6 +10605,8 @@ build_over_call (struct z_candidate *cand, int flags, tsubst_flags_t complain)
 
       argarray[argarray_size++] = converted_arg;
       parm = TREE_CHAIN (parm);
+      if (parmd)
+	parmd = DECL_CHAIN (parmd);
     }
 
   auto handle_arg = [fn, flags](tree type,
@@ -10609,6 +10630,27 @@ build_over_call (struct z_candidate *cand, int flags, tsubst_flags_t complain)
       return val;
     };
 
+  auto handle_indeterminate_arg = [](tree parmd, tree val)
+    {
+      if (parmd
+	  && lookup_attribute (NULL, "indeterminate", DECL_ATTRIBUTES (parmd)))
+	{
+	  STRIP_NOPS (val);
+	  if (TREE_CODE (val) == ADDR_EXPR
+	      && TREE_CODE (TREE_OPERAND (val, 0)) == TARGET_EXPR)
+	    {
+	      val = TARGET_EXPR_SLOT (TREE_OPERAND (val, 0));
+	      if (auto_var_p (val) && DECL_ARTIFICIAL (val))
+		{
+		  tree id = get_identifier ("indeterminate");
+		  DECL_ATTRIBUTES (val)
+		    = tree_cons (build_tree_list (NULL_TREE, id), NULL_TREE,
+				 DECL_ATTRIBUTES (val));
+		}
+	    }
+	}
+    };
+
   if (DECL_XOBJ_MEMBER_FUNCTION_P (fn))
     {
       gcc_assert (cand->num_convs > 0);
@@ -10622,8 +10664,13 @@ build_over_call (struct z_candidate *cand, int flags, tsubst_flags_t complain)
       if (val == error_mark_node)
 	return error_mark_node;
       else
-	argarray[argarray_size++] = val;
+	{
+	  argarray[argarray_size++] = val;
+	  handle_indeterminate_arg (parmd, val);
+	}
       parm = TREE_CHAIN (parm);
+      if (parmd)
+	parmd = DECL_CHAIN (parmd);
     }
 
   gcc_assert (first_arg == NULL_TREE);
@@ -10669,7 +10716,12 @@ build_over_call (struct z_candidate *cand, int flags, tsubst_flags_t complain)
       if (val == error_mark_node)
 	return error_mark_node;
       else
-	argarray[argarray_size++] = val;
+	{
+	  argarray[argarray_size++] = val;
+	  handle_indeterminate_arg (parmd, val);
+	}
+      if (parmd)
+	parmd = DECL_CHAIN (parmd);
     }
 
   /* Default arguments */
@@ -10685,6 +10737,9 @@ build_over_call (struct z_candidate *cand, int flags, tsubst_flags_t complain)
       if (val == error_mark_node)
 	return error_mark_node;
       argarray[argarray_size++] = val;
+      handle_indeterminate_arg (parmd, val);
+      if (parmd)
+	parmd = DECL_CHAIN (parmd);
     }
 
   /* Ellipsis */

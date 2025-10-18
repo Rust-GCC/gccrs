@@ -1169,6 +1169,7 @@ AC_SUBST([am__untar])
 
 m4_include([../config/acx.m4])
 m4_include([../config/cet.m4])
+m4_include([../config/clang-plugin.m4])
 m4_include([../config/depstand.m4])
 m4_include([../config/enable.m4])
 m4_include([../config/gcc-plugin.m4])

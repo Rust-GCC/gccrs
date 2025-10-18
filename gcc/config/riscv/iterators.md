@@ -207,6 +207,9 @@
 ;; This code iterator allows signed and unsigned widening multiplications
 ;; to use the same template.
 (define_code_iterator any_extend [sign_extend zero_extend])
+(define_code_attr extend_name [
+  (sign_extend "extend") (zero_extend "zero_extend")
+])
 
 ;; These code iterators allow unsigned and signed extraction to be generated
 ;; from the same template.
@@ -263,6 +266,14 @@
 (define_code_iterator bitmanip_bitwise [and ior])
 
 (define_code_iterator bitmanip_minmax [smin umin smax umax])
+
+(define_code_iterator bitmanip_minmax_cmp_op [lt ltu le leu ge geu gt gtu])
+
+; Map a comparison operator to a min or max.
+(define_code_attr bitmanip_minmax_cmp_insn [(lt "min") (ltu "minu")
+					    (le "min") (leu "minu")
+					    (ge "max") (geu "maxu")
+					    (gt "max") (gtu "maxu")])
 
 (define_code_iterator clz_ctz_pcnt [clz ctz popcount])
 
