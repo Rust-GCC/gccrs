@@ -444,6 +444,12 @@ Session::handle_excluded_node (std::string arg)
 void
 Session::handle_input_files (int num_files, const char **files)
 {
+  static const char *stdin_file[] = {"-"};
+  if (num_files == 0)
+    {
+      files = stdin_file;
+      num_files = 1;
+    }
   if (num_files != 1)
     rust_fatal_error (UNDEF_LOCATION,
 		      "only one file may be specified on the command line");
