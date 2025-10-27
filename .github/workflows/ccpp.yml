@@ -392,7 +392,7 @@ jobs:
           git fetch arm-ian;
           GIT_AUTHOR_NAME=CI \
           GIT_AUTHOR_EMAIL='ci@invalid' \
-          git merge --no-edit e110b7b04a6df1275330455aa886a6e283d06e48;
+          git merge --no-edit 5335688e426583c2f4703e25cc24c69cf74280ed;
 
     - name: Install Deps
       run: |
