@@ -86,9 +86,11 @@ public:
 
   bool is_expression_fragment () const;
   bool is_type_fragment () const;
+  bool is_pattern_fragment () const;
 
   std::unique_ptr<Expr> take_expression_fragment ();
   std::unique_ptr<Type> take_type_fragment ();
+  std::unique_ptr<Pattern> take_pattern_fragment ();
 
   void accept_vis (ASTVisitor &vis);
 
@@ -119,8 +121,8 @@ private:
    * one Node will be extracted from the `nodes` vector
    */
   bool is_single_fragment () const;
-  bool is_single_fragment_of_kind (SingleASTNode::NodeType expected) const;
-  void assert_single_fragment (SingleASTNode::NodeType expected) const;
+  bool is_single_fragment_of_kind (SingleASTNode::Kind expected) const;
+  void assert_single_fragment (SingleASTNode::Kind expected) const;
 };
 
 enum class InvocKind

@@ -54,8 +54,8 @@ SubstitutionParamMapping::as_string () const
 SubstitutionParamMapping
 SubstitutionParamMapping::clone () const
 {
-  return SubstitutionParamMapping (generic,
-				   static_cast<ParamType *> (param->clone ()));
+  return SubstitutionParamMapping (generic, static_cast<BaseGeneric *> (
+					      param->clone ()));
 }
 
 BaseGeneric *
@@ -167,7 +167,12 @@ SubstitutionParamMapping::fill_param_ty (
     }
   else if (type.get_kind () == TyTy::TypeKind::CONST)
     {
-      param = static_cast<BaseGeneric *> (type.clone ());
+      rust_assert (param->get_kind () == TyTy::TypeKind::CONST);
+      auto *const_type = type.as_const_type ();
+      if (const_type->const_kind () == TyTy::BaseConstType::ConstKind::Decl)
+	param = static_cast<BaseGeneric *> (type.clone ());
+      else
+	param->set_ty_ref (type.get_ref ());
     }
   else if (param->get_kind () == TypeKind::PARAM)
     {
@@ -554,6 +559,7 @@ std::vector<SubstitutionParamMapping>
 SubstitutionRef::clone_substs () const
 {
   std::vector<SubstitutionParamMapping> clone;
+  clone.reserve (substitutions.size ());
 
   for (auto &sub : substitutions)
     clone.push_back (sub.clone ());
@@ -767,7 +773,7 @@ SubstitutionRef::get_mappings_from_generic_args (
 	}
       else if (generic.get_kind () == HIR::GenericParam::GenericKind::CONST)
 	{
-	  if (!resolved->is<ConstType> ())
+	  if (resolved->get_kind () != TyTy::TypeKind::CONST)
 	    {
 	      rich_location r (line_table, arg->get_locus ());
 	      r.add_fixit_remove (arg->get_locus ());
@@ -777,9 +783,8 @@ SubstitutionRef::get_mappings_from_generic_args (
 	    }
 	}
 
-      SubstitutionArg subst_arg (&param_mapping, resolved);
+      mappings.emplace_back (&param_mapping, resolved);
       offs++;
-      mappings.push_back (std::move (subst_arg));
     }
 
   for (auto &arg : args.get_const_args ())
@@ -802,40 +807,73 @@ SubstitutionRef::get_mappings_from_generic_args (
 
       // get the const generic specified type
       const auto base_generic = param_mapping.get_param_ty ();
-      rust_assert (base_generic->is<ConstType> ());
+      rust_assert (base_generic->get_kind () == TyTy::TypeKind::CONST);
       const auto const_param
-	= static_cast<const TyTy::ConstType *> (base_generic);
-      auto specified_type = const_param->get_ty ();
+	= static_cast<const TyTy::ConstParamType *> (base_generic);
+      auto specified_type = const_param->get_specified_type ();
 
       // validate this const generic is of the correct type
-      auto coereced_type
-	= Resolver::coercion_site (expr.get_mappings ().get_hirid (),
-				   TyTy::TyWithLocation (specified_type),
-				   TyTy::TyWithLocation (expr_type,
-							 expr.get_locus ()),
-				   arg.get_locus ());
-      if (coereced_type->is<ErrorType> ())
+      TyTy::BaseType *coereced_type = nullptr;
+      if (expr_type->get_kind () == TyTy::TypeKind::CONST)
+	{
+	  auto const_expr_type = expr_type->as_const_type ();
+	  auto const_value_type = const_expr_type->get_specified_type ();
+	  coereced_type
+	    = Resolver::coercion_site (expr.get_mappings ().get_hirid (),
+				       TyTy::TyWithLocation (specified_type),
+				       TyTy::TyWithLocation (const_value_type,
+							     expr.get_locus ()),
+				       arg.get_locus ());
+	}
+      else
+	{
+	  coereced_type
+	    = Resolver::coercion_site (expr.get_mappings ().get_hirid (),
+				       TyTy::TyWithLocation (specified_type),
+				       TyTy::TyWithLocation (expr_type,
+							     expr.get_locus ()),
+				       arg.get_locus ());
+	}
+
+      if (coereced_type == nullptr || coereced_type->is<ErrorType> ())
 	return SubstitutionArgumentMappings::error ();
 
-      // const fold it
-      auto ctx = Compile::Context::get ();
-      tree folded
-	= Compile::HIRCompileBase::query_compile_const_expr (ctx, coereced_type,
-							     expr);
+      TyTy::BaseType *const_value_ty = nullptr;
+      if (expr_type->get_kind () == TyTy::TypeKind::CONST)
+	const_value_ty = expr_type;
+      else
+	{
+	  // const fold it if available
+	  auto ctx = Compile::Context::get ();
+	  tree folded
+	    = Compile::HIRCompileBase::query_compile_const_expr (ctx,
+								 coereced_type,
+								 expr);
 
-      if (folded == error_mark_node)
-	return SubstitutionArgumentMappings::error ();
+	  if (folded == error_mark_node)
+	    {
+	      rich_location r (line_table, arg.get_locus ());
+	      r.add_range (expr.get_locus ());
+	      rust_error_at (r, "failed to resolve const expression");
+	      return SubstitutionArgumentMappings::error ();
+	    }
 
-      // create const type
-      auto const_value
-	= new TyTy::ConstType (TyTy::ConstType::ConstKind::Value, "",
-			       coereced_type, folded, {}, expr.get_locus (),
-			       expr.get_mappings ().get_hirid (),
-			       expr.get_mappings ().get_hirid (), {});
+	  // Use a fresh HirId to avoid conflicts with the expr's type
+	  auto &global_mappings = Analysis::Mappings::get ();
+	  HirId const_value_id = global_mappings.get_next_hir_id ();
+	  const_value_ty
+	    = new TyTy::ConstValueType (folded, coereced_type, const_value_id,
+					const_value_id, {});
 
-      SubstitutionArg subst_arg (&param_mapping, const_value);
+	  // Insert the ConstValueType into the context so it can be looked up
+	  auto context = Resolver::TypeCheckContext::get ();
+	  context->insert_type (
+	    Analysis::NodeMapping (0, 0, const_value_ty->get_ref (), 0),
+	    const_value_ty);
+	}
+
+      mappings.emplace_back (&param_mapping, const_value_ty);
       offs++;
-      mappings.push_back (std::move (subst_arg));
     }
 
   // we must need to fill out defaults
@@ -865,8 +903,7 @@ SubstitutionRef::get_mappings_from_generic_args (
 		return SubstitutionArgumentMappings::error ();
 	    }
 
-	  SubstitutionArg subst_arg (&param, resolved);
-	  mappings.push_back (std::move (subst_arg));
+	  mappings.emplace_back (&param, resolved);
 	}
     }
 
@@ -892,30 +929,24 @@ SubstitutionRef::infer_substitions (location_t locus)
 
 	  if (have_mapping)
 	    {
-	      args.push_back (SubstitutionArg (&p, it->second));
+	      args.emplace_back (&p, it->second);
 	    }
 	  else if (generic.get_kind () == HIR::GenericParam::GenericKind::TYPE)
 	    {
 	      TyVar infer_var = TyVar::get_implicit_infer_var (locus);
-	      args.push_back (SubstitutionArg (&p, infer_var.get_tyty ()));
+	      args.emplace_back (&p, infer_var.get_tyty ());
 	      argument_mappings[symbol] = infer_var.get_tyty ();
 	    }
 	  else if (generic.get_kind () == HIR::GenericParam::GenericKind::CONST)
 	    {
-	      const auto const_param = p.get_param_ty ();
-	      rust_assert (const_param->is<TyTy::ConstType> ());
-	      const auto &const_type
-		= *static_cast<const TyTy::ConstType *> (const_param);
-
-	      TyVar infer_var
-		= TyVar::get_implicit_const_infer_var (const_type, locus);
-	      args.push_back (SubstitutionArg (&p, infer_var.get_tyty ()));
+	      TyVar infer_var = TyVar::get_implicit_const_infer_var (locus);
+	      args.emplace_back (&p, infer_var.get_tyty ());
 	      argument_mappings[symbol] = infer_var.get_tyty ();
 	    }
 	}
       else
 	{
-	  args.push_back (SubstitutionArg (&p, p.get_param_ty ()->resolve ()));
+	  args.emplace_back (&p, p.get_param_ty ()->resolve ());
 	}
     }
 
@@ -961,10 +992,7 @@ SubstitutionRef::adjust_mappings_for_this (
 
       bool ok = !arg.is_error ();
       if (ok || (trait_mode && i == 0))
-	{
-	  SubstitutionArg adjusted (&subst, arg.get_tyty ());
-	  resolved_mappings.push_back (std::move (adjusted));
-	}
+	resolved_mappings.emplace_back (&subst, arg.get_tyty ());
     }
 
   if (resolved_mappings.empty ())
@@ -1008,10 +1036,7 @@ SubstitutionRef::are_mappings_bound (SubstitutionArgumentMappings &mappings)
 
       bool ok = !arg.is_error ();
       if (ok)
-	{
-	  SubstitutionArg adjusted (&subst, arg.get_tyty ());
-	  resolved_mappings.push_back (std::move (adjusted));
-	}
+	resolved_mappings.emplace_back (&subst, arg.get_tyty ());
     }
 
   return !resolved_mappings.empty ();
@@ -1032,10 +1057,7 @@ SubstitutionRef::solve_mappings_from_receiver_for_self (
       SubstitutionArg &arg = mappings.get_mappings ().at (i);
 
       if (param_mapping.needs_substitution ())
-	{
-	  SubstitutionArg adjusted (&param_mapping, arg.get_tyty ());
-	  resolved_mappings.push_back (std::move (adjusted));
-	}
+	resolved_mappings.emplace_back (&param_mapping, arg.get_tyty ());
     }
 
   return SubstitutionArgumentMappings (resolved_mappings,
@@ -1067,7 +1089,7 @@ SubstitutionRef::monomorphize ()
       if (!pty->can_resolve ())
 	continue;
 
-      const TyTy::BaseType *binding = pty->resolve ();
+      TyTy::BaseType *binding = pty->resolve ();
       if (binding->get_kind () == TyTy::TypeKind::PARAM)
 	continue;
 

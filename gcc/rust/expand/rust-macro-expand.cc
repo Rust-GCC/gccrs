@@ -27,7 +27,6 @@
 #include "rust-macro.h"
 #include "rust-parse.h"
 #include "rust-cfg-strip.h"
-#include "rust-early-name-resolver.h"
 #include "rust-proc-macro.h"
 #include "rust-token-tree-desugar.h"
 
@@ -961,9 +960,14 @@ transcribe_expression (Parser<MacroInvocLexer> &parser)
   auto &lexer = parser.get_token_source ();
   auto start = lexer.get_offs ();
 
-  auto expr = parser.parse_expr ();
+  auto attrs = parser.parse_outer_attributes ();
+  auto expr = parser.parse_expr (std::move (attrs));
   if (expr == nullptr)
-    return AST::Fragment::create_error ();
+    {
+      for (auto error : parser.get_errors ())
+	error.emit ();
+      return AST::Fragment::create_error ();
+    }
 
   // FIXME: make this an error for some edititons
   if (parser.peek_current_token ()->get_id () == SEMICOLON)
@@ -999,6 +1003,27 @@ transcribe_type (Parser<MacroInvocLexer> &parser)
   return AST::Fragment ({std::move (type)}, lexer.get_token_slice (start, end));
 }
 
+/**
+ * Transcribe one pattern from a macro invocation
+ *
+ * @param parser Parser to extract statements from
+ */
+static AST::Fragment
+transcribe_pattern (Parser<MacroInvocLexer> &parser)
+{
+  auto &lexer = parser.get_token_source ();
+  auto start = lexer.get_offs ();
+
+  auto pattern = parser.parse_pattern ();
+  for (auto err : parser.get_errors ())
+    err.emit ();
+
+  auto end = lexer.get_offs ();
+
+  return AST::Fragment ({std::move (pattern)},
+			lexer.get_token_slice (start, end));
+}
+
 static AST::Fragment
 transcribe_context (MacroExpander::ContextType ctx,
 		    Parser<MacroInvocLexer> &parser, bool semicolon,
@@ -1011,6 +1036,7 @@ transcribe_context (MacroExpander::ContextType ctx,
   //     -- Trait --> parser.parse_trait_item();
   //     -- Impl --> parser.parse_impl_item();
   //     -- Extern --> parser.parse_extern_item();
+  //     -- Pattern --> parser.parse_pattern();
   //     -- None --> [has semicolon?]
   //                 -- Yes --> parser.parse_stmt();
   //                 -- No --> [switch invocation.delimiter()]
@@ -1039,6 +1065,8 @@ transcribe_context (MacroExpander::ContextType ctx,
       break;
     case MacroExpander::ContextType::TYPE:
       return transcribe_type (parser);
+    case MacroExpander::ContextType::PATTERN:
+      return transcribe_pattern (parser);
       break;
     case MacroExpander::ContextType::STMT:
       return transcribe_many_stmts (parser, last_token_id, semicolon);
@@ -1080,8 +1108,9 @@ MacroExpander::transcribe_rule (
   auto invoc_stream = invoc_token_tree.to_token_stream ();
   auto macro_rule_tokens = transcribe_tree.to_token_stream ();
 
-  auto substitute_context = SubstituteCtx (invoc_stream, macro_rule_tokens,
-					   matched_fragments, definition);
+  auto substitute_context
+    = SubstituteCtx (invoc_stream, macro_rule_tokens, matched_fragments,
+		     definition, invoc_token_tree.get_locus ());
   std::vector<std::unique_ptr<AST::Token>> substituted_tokens
     = substitute_context.substitute_tokens ();
 
@@ -1128,11 +1157,7 @@ MacroExpander::transcribe_rule (
 
   // emit any errors
   if (parser.has_errors ())
-    {
-      for (auto &err : parser.get_errors ())
-	rust_error_at (err.locus, "%s", err.message.c_str ());
-      return AST::Fragment::create_error ();
-    }
+    return AST::Fragment::create_error ();
 
   // are all the tokens used?
   bool did_delimit = parser.skip_token (last_token_id);
@@ -1165,7 +1190,7 @@ MacroExpander::parse_proc_macro_output (ProcMacro::TokenStream ts)
 	  auto result = parser.parse_item (false);
 	  if (result == nullptr)
 	    break;
-	  nodes.push_back ({std::move (result)});
+	  nodes.emplace_back (std::move (result));
 	}
       break;
     case ContextType::STMT:
@@ -1174,7 +1199,7 @@ MacroExpander::parse_proc_macro_output (ProcMacro::TokenStream ts)
 	  auto result = parser.parse_stmt ();
 	  if (result == nullptr)
 	    break;
-	  nodes.push_back ({std::move (result)});
+	  nodes.emplace_back (std::move (result));
 	}
       break;
     case ContextType::TRAIT:

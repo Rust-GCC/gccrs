@@ -47,6 +47,10 @@ struct Term
 /** Variance constraint of a type parameter. */
 struct Constraint
 {
+  Constraint (SolutionIndex target_index, Term *term)
+    : target_index (target_index), term (term)
+  {}
+
   SolutionIndex target_index;
   Term *term;
 };
@@ -171,7 +175,10 @@ public:
 
   void visit (OpaqueType &type) override {}
 
-  void visit (ConstType &type) override {}
+  void visit (TyTy::ConstParamType &) override {}
+  void visit (TyTy::ConstValueType &) override {}
+  void visit (TyTy::ConstInferType &) override {}
+  void visit (TyTy::ConstErrorType &) override {}
 };
 
 /** Per crate context for generic type variance analysis. */

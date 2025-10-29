@@ -248,6 +248,7 @@ void
 DefaultASTVisitor::visit (AST::ErrorPropagationExpr &expr)
 {
   visit_outer_attrs (expr);
+  visit (expr.get_propagating_expr ());
 }
 
 void
@@ -1025,15 +1026,6 @@ DefaultASTVisitor::visit (AST::StaticItem &static_item)
 }
 
 void
-DefaultASTVisitor::visit (AST::TraitItemConst &item)
-{
-  visit_outer_attrs (item);
-  visit (item.get_type ());
-  if (item.has_expr ())
-    visit (item.get_expr ());
-}
-
-void
 DefaultASTVisitor::visit (AST::TraitItemType &item)
 {
   visit_outer_attrs (item);
@@ -1296,14 +1288,14 @@ DefaultASTVisitor::visit (AST::StructPattern &pattern)
 }
 
 void
-DefaultASTVisitor::visit (AST::TupleStructItemsNoRange &tuple_items)
+DefaultASTVisitor::visit (AST::TupleStructItemsNoRest &tuple_items)
 {
   for (auto &pattern : tuple_items.get_patterns ())
     visit (pattern);
 }
 
 void
-DefaultASTVisitor::visit (AST::TupleStructItemsRange &tuple_items)
+DefaultASTVisitor::visit (AST::TupleStructItemsHasRest &tuple_items)
 {
   for (auto &lower : tuple_items.get_lower_patterns ())
     visit (lower);
@@ -1319,14 +1311,14 @@ DefaultASTVisitor::visit (AST::TupleStructPattern &pattern)
 }
 
 void
-DefaultASTVisitor::visit (AST::TuplePatternItemsMultiple &tuple_items)
+DefaultASTVisitor::visit (AST::TuplePatternItemsNoRest &tuple_items)
 {
   for (auto &pattern : tuple_items.get_patterns ())
     visit (pattern);
 }
 
 void
-DefaultASTVisitor::visit (AST::TuplePatternItemsRanged &tuple_items)
+DefaultASTVisitor::visit (AST::TuplePatternItemsHasRest &tuple_items)
 {
   for (auto &lower : tuple_items.get_lower_patterns ())
     visit (lower);

@@ -101,7 +101,7 @@ parse_clobber_abi (InlineAsmContext inline_asm_ctx)
       if (token->get_id () == STRING_LITERAL)
 	{
 	  // TODO: Caring for span in here.
-	  new_abis.push_back ({token->as_string (), token->get_locus ()});
+	  new_abis.emplace_back (token->as_string (), token->get_locus ());
 	}
       else
 	{
@@ -787,12 +787,12 @@ expand_inline_asm_strings (InlineAsmContext inline_asm_ctx)
 
       auto pieces = Fmt::Pieces::collect (template_str.symbol, false,
 					  Fmt::ffi::ParseMode::InlineAsm);
-      auto pieces_vec = pieces.get_pieces ();
+      auto &pieces_vec = pieces.get_pieces ();
 
       std::string transformed_template_str = "";
       for (size_t i = 0; i < pieces_vec.size (); i++)
 	{
-	  auto piece = pieces_vec[i];
+	  auto &piece = pieces_vec[i];
 	  if (piece.tag == Fmt::ffi::Piece::Tag::String)
 	    {
 	      transformed_template_str += piece.string._0.to_string ();
@@ -880,7 +880,8 @@ parse_asm (location_t invoc_locus, AST::MacroInvocData &invoc,
   // context.
   if (resulting_context)
     {
-      auto node = (*resulting_context).inline_asm.clone_expr_without_block ();
+      auto resulting_ctx = resulting_context.value ();
+      auto node = resulting_ctx.inline_asm.clone_expr_without_block ();
 
       std::vector<AST::SingleASTNode> single_vec = {};
 
@@ -1124,8 +1125,11 @@ parse_llvm_clobbers (LlvmAsmContext &ctx)
 	{
 	  ctx.llvm_asm.get_clobbers ().push_back (
 	    {strip_double_quotes (token->as_string ()), token->get_locus ()});
+
+	  parser.skip_token (STRING_LITERAL);
 	}
-      parser.skip_token (STRING_LITERAL);
+
+      parser.maybe_skip_token (COMMA);
       token = parser.peek_current_token ();
     }
 }
@@ -1177,12 +1181,13 @@ parse_llvm_asm (location_t invoc_locus, AST::MacroInvocData &invoc,
 
   auto asm_ctx = LlvmAsmContext (llvm_asm, parser, last_token_id);
 
-  auto resulting_context
+  tl::optional<LlvmAsmContext> resulting_context
     = parse_llvm_templates (asm_ctx).and_then (parse_llvm_arguments);
 
   if (resulting_context)
     {
-      auto node = (*resulting_context).llvm_asm.clone_expr_without_block ();
+      auto resulting_ctx = resulting_context.value ();
+      auto node = resulting_ctx.llvm_asm.clone_expr_without_block ();
 
       std::vector<AST::SingleASTNode> single_vec = {};
 
@@ -1190,12 +1195,13 @@ parse_llvm_asm (location_t invoc_locus, AST::MacroInvocData &invoc,
       // need to make it a statement. This way, it will be expanded
       // properly.
       if (semicolon == AST::InvocKind::Semicoloned)
-	single_vec.emplace_back (AST::SingleASTNode (
-	  std::make_unique<AST::ExprStmt> (std::move (node), invoc_locus,
-					   semicolon
-					     == AST::InvocKind::Semicoloned)));
+	{
+	  single_vec.emplace_back (
+	    std::make_unique<AST::ExprStmt> (std::move (node), invoc_locus,
+					     true /* has semicolon */));
+	}
       else
-	single_vec.emplace_back (AST::SingleASTNode (std::move (node)));
+	single_vec.emplace_back (std::move (node));
 
       AST::Fragment fragment_ast
 	= AST::Fragment (single_vec,

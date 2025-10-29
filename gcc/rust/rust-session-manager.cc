@@ -29,7 +29,6 @@
 #include "rust-lex.h"
 #include "rust-parse.h"
 #include "rust-macro-expand.h"
-#include "rust-ast-resolve.h"
 #include "rust-ast-lower.h"
 #include "rust-hir-type-check.h"
 #include "rust-privacy-check.h"
@@ -46,10 +45,10 @@
 #include "rust-imports.h"
 #include "rust-extern-crate.h"
 #include "rust-attributes.h"
-#include "rust-early-name-resolver.h"
 #include "rust-name-resolution-context.h"
 #include "rust-early-name-resolver-2.0.h"
 #include "rust-late-name-resolver-2.0.h"
+#include "rust-resolve-builtins.h"
 #include "rust-cfg-strip.h"
 #include "rust-expand-visitor.h"
 #include "rust-unicode.h"
@@ -422,32 +421,31 @@ Session::handle_crate_name (const char *filename,
     {
       if (attr.get_path () != "crate_name")
 	continue;
-      if (!attr.has_attr_input ())
+
+      auto msg_str = Analysis::Attributes::extract_string_literal (attr);
+      if (!msg_str.has_value ())
 	{
 	  rust_error_at (attr.get_locus (),
-			 "%<crate_name%> accepts one argument");
+			 "malformed %<crate_name%> attribute input");
 	  continue;
 	}
 
-      auto &literal
-	= static_cast<AST::AttrInputLiteral &> (attr.get_attr_input ());
-      const auto &msg_str = literal.get_literal ().as_string ();
-      if (!validate_crate_name (msg_str, error))
+      if (!validate_crate_name (*msg_str, error))
 	{
 	  error.locus = attr.get_locus ();
 	  error.emit ();
 	  continue;
 	}
 
-      if (options.crate_name_set_manually && (options.crate_name != msg_str))
+      if (options.crate_name_set_manually && (options.crate_name != *msg_str))
 	{
 	  rust_error_at (attr.get_locus (),
 			 "%<-frust-crate-name%> and %<#[crate_name]%> are "
 			 "required to match, but %qs does not match %qs",
-			 options.crate_name.c_str (), msg_str.c_str ());
+			 options.crate_name.c_str (), msg_str->c_str ());
 	}
       crate_name_found = true;
-      options.set_crate_name (msg_str);
+      options.set_crate_name (*msg_str);
     }
 
   options.crate_name_set_manually |= crate_name_found;
@@ -551,10 +549,6 @@ Session::compile_crate (const char *filename)
   handle_crate_name (filename, *ast_crate.get ());
 
   // dump options except lexer dump
-  if (options.dump_option_enabled (CompileOptions::AST_DUMP_PRETTY))
-    {
-      dump_ast_pretty (*ast_crate.get ());
-    }
   if (options.dump_option_enabled (CompileOptions::TARGET_OPTION_DUMP))
     {
       options.target_data.dump_target_options ();
@@ -562,6 +556,11 @@ Session::compile_crate (const char *filename)
 
   if (saw_errors ())
     return;
+
+  if (options.dump_option_enabled (CompileOptions::AST_DUMP_PRETTY))
+    {
+      dump_ast_pretty (*ast_crate.get ());
+    }
 
   // setup the mappings for this AST
   CrateNum current_crate = mappings.get_current_crate ();
@@ -613,12 +612,12 @@ Session::compile_crate (const char *filename)
   if (last_step == CompileOptions::CompileStep::Expansion)
     return;
 
-  AST::CollectLangItems ().go (parsed_crate);
-
   auto name_resolution_ctx = Resolver2_0::NameResolutionContext ();
   // expansion pipeline stage
 
   expansion (parsed_crate, name_resolution_ctx);
+
+  AST::CollectLangItems ().go (parsed_crate);
 
   rust_debug ("\033[0;31mSUCCESSFULLY FINISHED EXPANSION \033[0m");
   if (options.dump_option_enabled (CompileOptions::EXPANSION_DUMP))
@@ -644,10 +643,7 @@ Session::compile_crate (const char *filename)
     return;
 
   // resolution pipeline stage
-  if (flag_name_resolution_2_0)
-    Resolver2_0::Late (name_resolution_ctx).go (parsed_crate);
-  else
-    Resolver::NameResolution::Resolve (parsed_crate);
+  Resolver2_0::Late (name_resolution_ctx).go (parsed_crate);
 
   if (options.dump_option_enabled (CompileOptions::RESOLUTION_DUMP))
     dump_name_resolution (name_resolution_ctx);
@@ -738,7 +734,7 @@ Session::compile_crate (const char *filename)
       // lints
       Analysis::ScanDeadcode::Scan (hir);
       Analysis::UnusedVariables::Lint (*ctx);
-      Analysis::ReadonlyCheck::Lint (*ctx);
+      HIR::ReadonlyChecker ().go (hir);
 
       // metadata
       bool specified_emit_metadata
@@ -757,6 +753,9 @@ Session::compile_crate (const char *filename)
 	      hir, options.get_metadata_output ());
 	}
     }
+
+  if (saw_errors ())
+    return;
 
   // pass to GCC middle-end
   ctx->write_to_backend ();
@@ -937,28 +936,23 @@ Session::expansion (AST::Crate &crate, Resolver2_0::NameResolutionContext &ctx)
   MacroExpander expander (crate, cfg, *this);
   std::vector<Error> macro_errors;
 
+  Resolver2_0::Builtins::setup_lang_prelude (ctx);
+
   while (!fixed_point_reached && iterations < cfg.recursion_limit)
     {
-      CfgStrip ().go (crate);
+      CfgStrip (cfg).go (crate);
       // Errors might happen during cfg strip pass
-      bool visitor_dirty = false;
 
-      if (flag_name_resolution_2_0)
-	{
-	  Resolver2_0::Early early (ctx);
-	  early.go (crate);
-	  macro_errors = early.get_macro_resolve_errors ();
-	  visitor_dirty = early.is_dirty ();
-	}
-      else
-	Resolver::EarlyNameResolver ().go (crate);
+      Resolver2_0::Early early (ctx);
+      early.go (crate);
+      macro_errors = early.get_macro_resolve_errors ();
 
       if (saw_errors ())
 	break;
 
       ExpandVisitor (expander).go (crate);
 
-      fixed_point_reached = !expander.has_changed () && !visitor_dirty;
+      fixed_point_reached = !expander.has_changed () && !early.is_dirty ();
       expander.reset_changed_state ();
       iterations++;
 
@@ -993,8 +987,7 @@ Session::expansion (AST::Crate &crate, Resolver2_0::NameResolutionContext &ctx)
       // HACK: we may need a final TopLevel pass
       // however, this should not count towards the recursion limit
       // and we don't need a full Early pass
-      if (flag_name_resolution_2_0)
-	Resolver2_0::TopLevel (ctx).go (crate);
+      Resolver2_0::TopLevel (ctx).go (crate);
     }
 
   // error reporting - check unused macros, get missing fragment specifiers
@@ -1189,14 +1182,6 @@ Session::load_extern_crate (const std::string &crate_name, location_t locus)
   mappings.insert_attribute_proc_macros (crate_num, attribute_macros);
   mappings.insert_bang_proc_macros (crate_num, bang_macros);
   mappings.insert_derive_proc_macros (crate_num, derive_macros);
-
-  // if flag_name_resolution_2_0 is enabled
-  // then we perform resolution later
-  if (!flag_name_resolution_2_0)
-    {
-      // name resolve it
-      Resolver::NameResolution::Resolve (parsed_crate);
-    }
 
   // always restore the crate_num
   mappings.set_current_crate (saved_crate_num);

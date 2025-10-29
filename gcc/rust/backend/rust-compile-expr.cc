@@ -828,6 +828,10 @@ CompileExpr::visit (HIR::BreakExpr &expr)
     {
       tree compiled_expr = CompileExpr::Compile (expr.get_expr (), ctx);
 
+      translated = error_mark_node;
+      if (!ctx->have_loop_context ())
+	return;
+
       Bvariable *loop_result_holder = ctx->peek_loop_context ();
       tree result_reference
 	= Backend::var_expression (loop_result_holder,
@@ -891,6 +895,10 @@ CompileExpr::visit (HIR::BreakExpr &expr)
 void
 CompileExpr::visit (HIR::ContinueExpr &expr)
 {
+  translated = error_mark_node;
+  if (!ctx->have_loop_context ())
+    return;
+
   tree label = ctx->peek_loop_begin_label ();
   if (expr.has_label ())
     {
@@ -1647,37 +1655,39 @@ CompileExpr::compile_integer_literal (const HIR::LiteralExpr &expr,
 				      const TyTy::BaseType *tyty)
 {
   rust_assert (expr.get_lit_type () == HIR::Literal::INT);
-  const auto literal_value = expr.get_literal ();
-
+  const auto &literal_value = expr.get_literal ();
   tree type = TyTyResolveCompile::compile (ctx, tyty);
 
+  std::string s = literal_value.as_string ();
+  s.erase (std::remove (s.begin (), s.end (), '_'), s.end ());
+
+  int base = 0;
   mpz_t ival;
-  if (mpz_init_set_str (ival, literal_value.as_string ().c_str (), 10) != 0)
+  if (mpz_init_set_str (ival, s.c_str (), base) != 0)
     {
-      rust_error_at (expr.get_locus (), "bad number in literal");
+      rust_error_at (expr.get_locus (), "failed to load number literal");
       return error_mark_node;
     }
+  if (expr.is_negative ())
+    mpz_neg (ival, ival);
 
-  mpz_t type_min;
-  mpz_t type_max;
+  mpz_t type_min, type_max;
   mpz_init (type_min);
   mpz_init (type_max);
   get_type_static_bounds (type, type_min, type_max);
 
-  if (expr.is_negative ())
-    {
-      mpz_neg (ival, ival);
-    }
   if (mpz_cmp (ival, type_min) < 0 || mpz_cmp (ival, type_max) > 0)
     {
       rust_error_at (expr.get_locus (),
 		     "integer overflows the respective type %qs",
 		     tyty->get_name ().c_str ());
+      mpz_clear (type_min);
+      mpz_clear (type_max);
+      mpz_clear (ival);
       return error_mark_node;
     }
 
   tree result = wide_int_to_tree (type, wi::from_mpz (type, ival, true));
-
   mpz_clear (type_min);
   mpz_clear (type_max);
   mpz_clear (ival);
@@ -2000,13 +2010,25 @@ CompileExpr::array_copied_expr (location_t expr_locus,
       return error_mark_node;
     }
 
-  ctx->push_const_context ();
-  tree capacity_expr = CompileExpr::Compile (elems.get_num_copies_expr (), ctx);
-  ctx->pop_const_context ();
+  auto capacity_ty = array_tyty.get_capacity ();
 
-  if (!TREE_CONSTANT (capacity_expr))
+  // Check if capacity is a const type
+  if (capacity_ty->get_kind () != TyTy::TypeKind::CONST)
     {
-      rust_error_at (expr_locus, "non const num copies %qT", array_type);
+      rust_error_at (array_tyty.get_locus (),
+		     "array capacity is not a const type");
+      return error_mark_node;
+    }
+
+  auto *capacity_const = capacity_ty->as_const_type ();
+
+  rust_assert (capacity_const->const_kind ()
+	       == TyTy::BaseConstType::ConstKind::Value);
+  auto &capacity_value = *static_cast<TyTy::ConstValueType *> (capacity_const);
+  auto cap_tree = capacity_value.get_value ();
+  if (error_operand_p (cap_tree) || !TREE_CONSTANT (cap_tree))
+    {
+      rust_error_at (expr_locus, "non const num copies %qT", cap_tree);
       return error_mark_node;
     }
 
@@ -2059,9 +2081,9 @@ CompileExpr::array_copied_expr (location_t expr_locus,
       ctx->push_block (init_block);
 
       tree tmp;
-      tree stmts = Backend::array_initializer (fndecl, init_block, array_type,
-					       capacity_expr, translated_expr,
-					       &tmp, expr_locus);
+      tree stmts
+	= Backend::array_initializer (fndecl, init_block, array_type, cap_tree,
+				      translated_expr, &tmp, expr_locus);
       ctx->add_statement (stmts);
 
       tree block = ctx->pop_block ();
@@ -2209,11 +2231,10 @@ HIRCompileBase::resolve_unsized_dyn_adjustment (
   tree rvalue = expression;
   location_t rvalue_locus = locus;
 
-  const TyTy::BaseType *actual = adjustment.get_actual ();
-  const TyTy::BaseType *expected = adjustment.get_expected ();
+  auto actual = adjustment.get_actual ();
+  auto expected = adjustment.get_expected ();
 
-  const TyTy::DynamicObjectType *dyn
-    = static_cast<const TyTy::DynamicObjectType *> (expected);
+  const auto dyn = static_cast<const TyTy::DynamicObjectType *> (expected);
 
   rust_debug ("resolve_unsized_dyn_adjustment actual={%s} dyn={%s}",
 	      actual->debug_str ().c_str (), dyn->debug_str ().c_str ());
@@ -2617,15 +2638,15 @@ CompileExpr::generate_closure_fntype (HIR::ClosureExpr &expr,
   TyTy::TypeBoundPredicateItem item = TyTy::TypeBoundPredicateItem::error ();
   if (predicate.get_name ().compare ("FnOnce") == 0)
     {
-      item = predicate.lookup_associated_item ("call_once");
+      item = predicate.lookup_associated_item ("call_once").value ();
     }
   else if (predicate.get_name ().compare ("FnMut") == 0)
     {
-      item = predicate.lookup_associated_item ("call_mut");
+      item = predicate.lookup_associated_item ("call_mut").value ();
     }
   else if (predicate.get_name ().compare ("Fn") == 0)
     {
-      item = predicate.lookup_associated_item ("call");
+      item = predicate.lookup_associated_item ("call").value ();
     }
   else
     {

@@ -30,7 +30,8 @@ TyVar::TyVar (HirId ref) : ref (ref)
   auto context = Resolver::TypeCheckContext::get ();
   BaseType *lookup = nullptr;
   bool ok = context->lookup_type (ref, &lookup);
-  rust_assert (ok);
+  if (!ok || lookup == nullptr || lookup->get_kind () == TypeKind::ERROR)
+    return;
 }
 
 BaseType *
@@ -39,7 +40,8 @@ TyVar::get_tyty () const
   auto context = Resolver::TypeCheckContext::get ();
   BaseType *lookup = nullptr;
   bool ok = context->lookup_type (ref, &lookup);
-  rust_assert (ok);
+  if (!ok || lookup == nullptr)
+    return nullptr;
   return lookup;
 }
 
@@ -60,17 +62,14 @@ TyVar::get_implicit_infer_var (location_t locus)
 }
 
 TyVar
-TyVar::get_implicit_const_infer_var (const ConstType &const_type,
-				     location_t locus)
+TyVar::get_implicit_const_infer_var (location_t locus)
 {
   auto &mappings = Analysis::Mappings::get ();
   auto context = Resolver::TypeCheckContext::get ();
 
+  TyVar ty_infer = get_implicit_infer_var (locus);
   HirId next = mappings.get_next_hir_id ();
-  auto infer
-    = new ConstType (ConstType::ConstKind::Infer, const_type.get_symbol (),
-		     const_type.get_ty (), error_mark_node,
-		     const_type.get_specified_bounds (), locus, next, next, {});
+  auto infer = new ConstInferType (ty_infer.get_tyty (), next, next, {});
 
   context->insert_implicit_type (infer->get_ref (), infer);
   mappings.insert_location (infer->get_ref (), locus);
@@ -98,7 +97,10 @@ TyVar::subst_covariant_var (TyTy::BaseType *orig, TyTy::BaseType *subst)
 TyVar
 TyVar::clone () const
 {
-  TyTy::BaseType *c = get_tyty ()->clone ();
+  TyTy::BaseType *base = get_tyty ();
+  if (base == nullptr || base->get_kind () == TypeKind::ERROR)
+    return TyVar::get_implicit_infer_var (UNKNOWN_LOCATION);
+  TyTy::BaseType *c = base->clone ();
   return TyVar (c->get_ref ());
 }
 
@@ -107,6 +109,10 @@ TyVar::monomorphized_clone () const
 {
   auto &mappings = Analysis::Mappings::get ();
   auto context = Resolver::TypeCheckContext::get ();
+
+  TyTy::BaseType *base = get_tyty ();
+  if (base == nullptr || base->get_kind () == TypeKind::ERROR)
+    return TyVar::get_implicit_infer_var (UNKNOWN_LOCATION);
 
   // this needs a new hirid
   TyTy::BaseType *c = get_tyty ()->monomorphized_clone ();

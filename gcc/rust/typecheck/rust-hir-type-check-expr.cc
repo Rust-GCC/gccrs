@@ -34,6 +34,7 @@
 #include "rust-immutable-name-resolution-context.h"
 #include "rust-compile-base.h"
 #include "rust-tyty-util.h"
+#include "rust-tyty.h"
 #include "tree.h"
 
 namespace Rust {
@@ -125,7 +126,13 @@ TypeCheckExpr::visit (HIR::TupleIndexExpr &expr)
     }
 
   TyTy::ADTType *adt = static_cast<TyTy::ADTType *> (resolved);
-  rust_assert (!adt->is_enum ());
+  if (!adt->is_tuple_struct ())
+    {
+      rust_error_at (expr.get_locus (),
+		     "expected tuple or tuple struct, found %qs",
+		     adt->get_name ().c_str ());
+      return;
+    }
   rust_assert (adt->number_of_variants () == 1);
 
   TyTy::VariantDef *variant = adt->get_variants ().at (0);
@@ -160,7 +167,7 @@ TypeCheckExpr::visit (HIR::TupleExpr &expr)
   for (auto &elem : expr.get_tuple_elems ())
     {
       auto field_ty = TypeCheckExpr::Resolve (*elem);
-      fields.push_back (TyTy::TyVar (field_ty->get_ref ()));
+      fields.emplace_back (field_ty->get_ref ());
     }
   infered = new TyTy::TupleType (expr.get_mappings ().get_hirid (),
 				 expr.get_locus (), fields);
@@ -629,10 +636,9 @@ TypeCheckExpr::visit (HIR::BlockExpr &expr)
       if (s->is_unit_check_needed () && !resolved->is_unit ())
 	{
 	  auto unit = TyTy::TupleType::get_unit_type ();
-	  resolved
-	    = unify_site (s->get_mappings ().get_hirid (),
-			  TyTy::TyWithLocation (unit),
-			  TyTy::TyWithLocation (resolved), s->get_locus ());
+	  unify_site (s->get_mappings ().get_hirid (),
+		      TyTy::TyWithLocation (unit),
+		      TyTy::TyWithLocation (resolved), s->get_locus ());
 	}
     }
 
@@ -669,16 +675,9 @@ TypeCheckExpr::visit (HIR::AnonConst &expr)
       return;
     }
 
-  auto locus = expr.get_locus ();
-  auto infer_ty_var = TyTy::TyVar::get_implicit_infer_var (locus);
-
-  HirId next = mappings.get_next_hir_id ();
-  infered = new TyTy::ConstType (TyTy::ConstType::ConstKind::Infer, "",
-				 infer_ty_var.get_tyty (), error_mark_node, {},
-				 locus, next, next, {});
-
-  context->insert_implicit_type (infered->get_ref (), infered);
-  mappings.insert_location (infered->get_ref (), locus);
+  TyTy::TyVar var
+    = TyTy::TyVar::get_implicit_const_infer_var (expr.get_locus ());
+  infered = var.get_tyty ();
 }
 
 void
@@ -730,7 +729,7 @@ TypeCheckExpr::visit (HIR::RangeFromToExpr &expr)
   // substitute it in
   std::vector<TyTy::SubstitutionArg> subst_mappings;
   const TyTy::SubstitutionParamMapping *param_ref = &adt->get_substs ().at (0);
-  subst_mappings.push_back (TyTy::SubstitutionArg (param_ref, unified));
+  subst_mappings.emplace_back (param_ref, unified);
 
   TyTy::SubstitutionArgumentMappings subst (
     subst_mappings, {}, adt->get_substitution_arguments ().get_regions (),
@@ -774,7 +773,7 @@ TypeCheckExpr::visit (HIR::RangeFromExpr &expr)
   // substitute it in
   std::vector<TyTy::SubstitutionArg> subst_mappings;
   const TyTy::SubstitutionParamMapping *param_ref = &adt->get_substs ().at (0);
-  subst_mappings.push_back (TyTy::SubstitutionArg (param_ref, from_ty));
+  subst_mappings.emplace_back (param_ref, from_ty);
 
   TyTy::SubstitutionArgumentMappings subst (
     subst_mappings, {}, adt->get_substitution_arguments ().get_regions (),
@@ -818,7 +817,7 @@ TypeCheckExpr::visit (HIR::RangeToExpr &expr)
   // substitute it in
   std::vector<TyTy::SubstitutionArg> subst_mappings;
   const TyTy::SubstitutionParamMapping *param_ref = &adt->get_substs ().at (0);
-  subst_mappings.push_back (TyTy::SubstitutionArg (param_ref, from_ty));
+  subst_mappings.emplace_back (param_ref, from_ty);
 
   TyTy::SubstitutionArgumentMappings subst (
     subst_mappings, {}, adt->get_substitution_arguments ().get_regions (),
@@ -991,7 +990,7 @@ TypeCheckExpr::visit (HIR::RangeFromToInclExpr &expr)
   // substitute it in
   std::vector<TyTy::SubstitutionArg> subst_mappings;
   const TyTy::SubstitutionParamMapping *param_ref = &adt->get_substs ().at (0);
-  subst_mappings.push_back (TyTy::SubstitutionArg (param_ref, unified));
+  subst_mappings.emplace_back (param_ref, unified);
 
   TyTy::SubstitutionArgumentMappings subst (
     subst_mappings, {}, adt->get_substitution_arguments ().get_regions (),
@@ -1091,15 +1090,19 @@ TypeCheckExpr::visit (HIR::ArrayExpr &expr)
 
 	auto capacity_expr_ty
 	  = TypeCheckExpr::Resolve (elems.get_num_copies_expr ());
+	if (capacity_expr_ty->is<TyTy::ErrorType> ())
+	  return;
 
 	context->insert_type (elems.get_num_copies_expr ().get_mappings (),
 			      expected_ty);
 
-	unify_site (
+	auto result = unify_site (
 	  expr.get_mappings ().get_hirid (), TyTy::TyWithLocation (expected_ty),
 	  TyTy::TyWithLocation (capacity_expr_ty,
 				elems.get_num_copies_expr ().get_locus ()),
 	  expr.get_locus ());
+	if (result->is<TyTy::ErrorType> ())
+	  return;
 
 	capacity_expr = &elems.get_num_copies_expr ();
 	capacity_type = expected_ty;
@@ -1152,14 +1155,23 @@ TypeCheckExpr::visit (HIR::ArrayExpr &expr)
   tree capacity_value
     = Compile::HIRCompileBase::query_compile_const_expr (ctx, capacity_type,
 							 *capacity_expr);
-  HirId size_id = capacity_expr->get_mappings ().get_hirid ();
-  TyTy::ConstType *const_type
-    = new TyTy::ConstType (TyTy::ConstType::ConstKind::Value, "", expected_ty,
-			   capacity_value, {}, capacity_expr->get_locus (),
-			   size_id, size_id);
+
+  // Create ConstValueType with ref == ty_ref (both pointing to capacity_expr)
+  // ty_ref gets updated during substitution via set_ty_ref()
+  HirId capacity_expr_id = capacity_expr->get_mappings ().get_hirid ();
+  auto const_type
+    = new TyTy::ConstValueType (capacity_value, expected_ty, capacity_expr_id,
+				capacity_expr_id);
+
+  // Insert the ConstValueType at its ref
+  context->insert_type (capacity_expr->get_mappings (),
+			const_type->as_base_type ());
+
   infered
     = new TyTy::ArrayType (expr.get_mappings ().get_hirid (), expr.get_locus (),
-			   const_type, TyTy::TyVar (element_type->get_ref ()));
+			   TyTy::TyVar (
+			     const_type->as_base_type ()->get_ty_ref ()),
+			   TyTy::TyVar (element_type->get_ref ()));
 }
 
 // empty struct
@@ -1888,7 +1900,7 @@ TypeCheckExpr::visit (HIR::ClosureExpr &expr)
 			     // auto resolve because the hir id's match
 			  ,
 			  expr.get_locus ());
-  args.get_type_args ().push_back (std::unique_ptr<HIR::Type> (implicit_tuple));
+  args.get_type_args ().emplace_back (implicit_tuple);
 
   // apply the arguments
   predicate.apply_generic_arguments (&args, false, false);
@@ -1974,13 +1986,13 @@ TypeCheckExpr::resolve_operator_overload (
 
       std::vector<TyTy::SubstitutionArg> mappings;
       auto &self_param_mapping = trait_subst[0];
-      mappings.push_back (TyTy::SubstitutionArg (&self_param_mapping, lhs));
+      mappings.emplace_back (&self_param_mapping, lhs);
 
       if (rhs != nullptr)
 	{
 	  rust_assert (trait_subst.size () == 2);
 	  auto &rhs_param_mapping = trait_subst[1];
-	  mappings.push_back (TyTy::SubstitutionArg (&rhs_param_mapping, lhs));
+	  mappings.emplace_back (&rhs_param_mapping, lhs);
 	}
 
       std::map<std::string, TyTy::BaseType *> binding_args;
@@ -2032,24 +2044,6 @@ TypeCheckExpr::resolve_operator_overload (
 
   rust_debug ("is_impl_item_candidate: %s",
 	      resolved_candidate.is_impl_candidate () ? "true" : "false");
-
-  if (resolved_candidate.is_impl_candidate ())
-    {
-      auto infer_arguments = TyTy::SubstitutionArgumentMappings::error ();
-      HIR::ImplBlock &impl = *resolved_candidate.item.impl.parent;
-      TyTy::BaseType *impl_self_infer
-	= TypeCheckItem::ResolveImplBlockSelfWithInference (impl,
-							    expr.get_locus (),
-							    &infer_arguments);
-      if (impl_self_infer->get_kind () == TyTy::TypeKind::ERROR)
-	{
-	  return false;
-	}
-      if (!infer_arguments.is_empty ())
-	{
-	  lookup = SubstMapperInternal::Resolve (lookup, infer_arguments);
-	}
-    }
 
   // in the case where we resolve to a trait bound we have to be careful we are
   // able to do so there is a case where we are currently resolving the deref
@@ -2312,7 +2306,7 @@ TypeCheckExpr::resolve_fn_trait_call (HIR::CallExpr &expr,
   for (auto &arg : expr.get_arguments ())
     {
       TyTy::BaseType *a = TypeCheckExpr::Resolve (*arg);
-      call_args.push_back (TyTy::TyVar (a->get_ref ()));
+      call_args.emplace_back (a->get_ref ());
     }
 
   // crate implicit tuple
@@ -2325,9 +2319,8 @@ TypeCheckExpr::resolve_fn_trait_call (HIR::CallExpr &expr,
   context->insert_implicit_type (implicit_arg_id, tuple);
 
   std::vector<TyTy::Argument> args;
-  TyTy::Argument a (mapping, tuple,
-		    expr.get_locus () /*FIXME is there a better location*/);
-  args.push_back (std::move (a));
+  args.emplace_back (mapping, tuple,
+		     expr.get_locus () /*FIXME is there a better location*/);
 
   TyTy::BaseType *function_ret_tyty
     = TyTy::TypeCheckMethodCallExpr::go (fn, expr.get_mappings (), args,

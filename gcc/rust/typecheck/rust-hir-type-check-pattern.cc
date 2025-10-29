@@ -21,6 +21,8 @@
 #include "rust-hir-type-check-expr.h"
 #include "rust-type-util.h"
 #include "rust-immutable-name-resolution-context.h"
+#include "rust-tyty.h"
+#include "tree.h"
 
 namespace Rust {
 namespace Resolver {
@@ -160,19 +162,32 @@ TypeCheckPattern::visit (HIR::TupleStructPattern &pattern)
 
   infered = pattern_ty;
   TyTy::ADTType *adt = static_cast<TyTy::ADTType *> (infered);
-  rust_assert (adt->number_of_variants () > 0);
 
-  TyTy::VariantDef *variant = adt->get_variants ().at (0);
+  TyTy::VariantDef *variant = nullptr;
   if (adt->is_enum ())
     {
       HirId variant_id = UNKNOWN_HIRID;
       bool ok = context->lookup_variant_definition (
 	pattern.get_path ().get_mappings ().get_hirid (), &variant_id);
-      rust_assert (ok);
+      if (!ok)
+	{
+	  rust_error_at (
+	    pattern.get_locus (), ErrorCode::E0532,
+	    "expected tuple struct or tuple variant, found enum %qs",
+	    pattern_ty->get_name ().c_str ());
+	  return;
+	}
 
       ok = adt->lookup_variant_by_id (variant_id, &variant);
       rust_assert (ok);
     }
+  else
+    {
+      rust_assert (adt->number_of_variants () > 0);
+      variant = adt->get_variants ().at (0);
+    }
+
+  rust_assert (variant != nullptr);
 
   // error[E0532]: expected tuple struct or tuple variant, found struct
   // variant `Foo::D`, E0532 by rustc 1.49.0 , E0164 by rustc 1.71.0
@@ -200,33 +215,144 @@ TypeCheckPattern::visit (HIR::TupleStructPattern &pattern)
   auto &items = pattern.get_items ();
   switch (items.get_item_type ())
     {
-    case HIR::TupleStructItems::RANGED:
+    case HIR::TupleStructItems::HAS_REST:
       {
-	// TODO
-	rust_unreachable ();
+	HIR::TupleStructItemsHasRest &items_has_rest
+	  = static_cast<HIR::TupleStructItemsHasRest &> (items);
+	auto &lower_patterns = items_has_rest.get_lower_patterns ();
+	auto &upper_patterns = items_has_rest.get_upper_patterns ();
+	size_t pattern_min_cap
+	  = lower_patterns.size () + upper_patterns.size ();
+	if (variant->num_fields () < pattern_min_cap)
+	  {
+	    if (!lower_patterns.empty ())
+	      {
+		// TODO initialize rich_locus with loc of ADT definition instead
+		rich_location rich_locus (line_table,
+					  lower_patterns[0]->get_locus ());
+		for (auto &pattern : lower_patterns)
+		  {
+		    if (pattern == lower_patterns[0])
+		      continue;
+		    rich_locus.add_range (pattern->get_locus (),
+					  SHOW_RANGE_WITH_CARET);
+		  }
+		for (auto &pattern : upper_patterns)
+		  {
+		    rich_locus.add_range (pattern->get_locus (),
+					  SHOW_RANGE_WITH_CARET);
+		  }
+		rust_error_at (rich_locus, ErrorCode::E0023,
+			       "this pattern has %lu %s but the corresponding "
+			       "tuple variant has %lu %s",
+			       (unsigned long) (pattern_min_cap),
+			       pattern_min_cap == 1 ? "field" : "fields",
+			       (unsigned long) variant->num_fields (),
+			       variant->num_fields () == 1 ? "field"
+							   : "fields");
+	      }
+	    else
+	      {
+		// TODO initialize rich_locus with loc of ADT definition instead
+		rich_location rich_locus (line_table,
+					  upper_patterns[0]->get_locus ());
+		for (auto &pattern : upper_patterns)
+		  {
+		    if (pattern == upper_patterns[0])
+		      continue;
+		    rich_locus.add_range (pattern->get_locus (),
+					  SHOW_RANGE_WITH_CARET);
+		  }
+		rust_error_at (rich_locus, ErrorCode::E0023,
+			       "this pattern has %lu %s but the corresponding "
+			       "tuple variant has %lu %s",
+			       (unsigned long) (pattern_min_cap),
+			       pattern_min_cap == 1 ? "field" : "fields",
+			       (unsigned long) variant->num_fields (),
+			       variant->num_fields () == 1 ? "field"
+							   : "fields");
+	      }
+	    // we continue on to try and setup the types as best we can for
+	    // type checking
+	  }
+
+	// iterate the fields manually to set them up
+	size_t i = 0;
+	for (auto &pattern : lower_patterns)
+	  {
+	    if (i >= variant->num_fields ())
+	      break;
+
+	    TyTy::StructFieldType *field = variant->get_field_at_index (i++);
+	    TyTy::BaseType *fty = field->get_field_type ();
+
+	    // setup the type on this pattern type
+	    context->insert_type (pattern->get_mappings (), fty);
+	    TypeCheckPattern::Resolve (*pattern, fty);
+	  }
+
+	i = variant->num_fields () - upper_patterns.size ();
+	for (auto &pattern : upper_patterns)
+	  {
+	    if (i >= variant->num_fields ())
+	      break;
+
+	    TyTy::StructFieldType *field = variant->get_field_at_index (i++);
+	    TyTy::BaseType *fty = field->get_field_type ();
+
+	    // setup the type on this pattern type
+	    context->insert_type (pattern->get_mappings (), fty);
+	    TypeCheckPattern::Resolve (*pattern, fty);
+	  }
       }
       break;
 
-    case HIR::TupleStructItems::MULTIPLE:
+    case HIR::TupleStructItems::NO_REST:
       {
-	HIR::TupleStructItemsNoRange &items_no_range
-	  = static_cast<HIR::TupleStructItemsNoRange &> (items);
+	HIR::TupleStructItemsNoRest &items_no_rest
+	  = static_cast<HIR::TupleStructItemsNoRest &> (items);
+	auto &patterns = items_no_rest.get_patterns ();
 
-	if (items_no_range.get_patterns ().size () != variant->num_fields ())
+	if (patterns.size () != variant->num_fields ())
 	  {
-	    rust_error_at (
-	      pattern.get_locus (), ErrorCode::E0023,
-	      "this pattern has %lu fields but the corresponding "
-	      "tuple variant has %lu field",
-	      (unsigned long) items_no_range.get_patterns ().size (),
-	      (unsigned long) variant->num_fields ());
+	    if (patterns.empty ())
+	      {
+		rust_error_at (pattern.get_locus (), ErrorCode::E0023,
+			       "this pattern has %lu %s but the corresponding "
+			       "tuple variant has %lu %s",
+			       (unsigned long) patterns.size (),
+			       patterns.size () == 1 ? "field" : "fields",
+			       (unsigned long) variant->num_fields (),
+			       variant->num_fields () == 1 ? "field"
+							   : "fields");
+	      }
+	    else
+	      {
+		rich_location rich_locus (line_table,
+					  patterns[0]->get_locus ());
+		for (auto &pattern : items_no_rest.get_patterns ())
+		  {
+		    if (pattern == patterns[0])
+		      continue;
+		    rich_locus.add_range (pattern->get_locus (),
+					  SHOW_RANGE_WITH_CARET);
+		  }
+		rust_error_at (rich_locus, ErrorCode::E0023,
+			       "this pattern has %lu %s but the corresponding "
+			       "tuple variant has %lu %s",
+			       (unsigned long) patterns.size (),
+			       patterns.size () == 1 ? "field" : "fields",
+			       (unsigned long) variant->num_fields (),
+			       variant->num_fields () == 1 ? "field"
+							   : "fields");
+	      }
 	    // we continue on to try and setup the types as best we can for
 	    // type checking
 	  }
 
 	// iterate the fields and set them up, I wish we had ZIP
 	size_t i = 0;
-	for (auto &pattern : items_no_range.get_patterns ())
+	for (auto &pattern : items_no_rest.get_patterns ())
 	  {
 	    if (i >= variant->num_fields ())
 	      break;
@@ -299,7 +425,30 @@ TypeCheckPattern::visit (HIR::StructPattern &pattern)
 
   // error[E0532]: expected tuple struct or tuple variant, found struct
   // variant `Foo::D`
-  if (variant->get_variant_type () != TyTy::VariantDef::VariantType::STRUCT)
+  bool error_E0532 = false;
+  if (variant->get_variant_type () == TyTy::VariantDef::VariantType::TUPLE)
+    {
+      // Tuple structs can still be matched with struct patterns via index
+      // numbers e.g. Foo {0: a, .., 3: b}, so check whether the fields are of
+      // type TUPLE_PAT. Throw E0532 if not.
+      auto &struct_pattern_elems = pattern.get_struct_pattern_elems ();
+      for (auto &field : struct_pattern_elems.get_struct_pattern_fields ())
+	{
+	  if (field->get_item_type ()
+	      != HIR::StructPatternField::ItemType::TUPLE_PAT)
+	    {
+	      error_E0532 = true;
+	      break;
+	    }
+	}
+    }
+  else if (variant->get_variant_type ()
+	   != TyTy::VariantDef::VariantType::STRUCT)
+    {
+      error_E0532 = true;
+    }
+
+  if (error_E0532)
     {
       std::string variant_type
 	= TyTy::VariantDef::variant_type_string (variant->get_variant_type ());
@@ -407,7 +556,8 @@ TypeCheckPattern::visit (HIR::StructPattern &pattern)
       // Expects enum struct or struct struct.
       // error[E0027]: pattern does not mention fields `x`, `y`
       // error[E0026]: variant `Foo::D` does not have a field named `b`
-      if (named_fields.size () != variant->num_fields ())
+      if (!pattern.get_struct_pattern_elems ().has_rest ()
+	  && named_fields.size () != variant->num_fields ())
 	{
 	  std::map<std::string, bool> missing_names;
 
@@ -463,10 +613,10 @@ TypeCheckPattern::visit (HIR::TuplePattern &pattern)
 
   switch (pattern.get_items ().get_item_type ())
     {
-    case HIR::TuplePatternItems::ItemType::MULTIPLE:
+    case HIR::TuplePatternItems::ItemType::NO_REST:
       {
-	auto &ref = static_cast<HIR::TuplePatternItemsMultiple &> (
-	  pattern.get_items ());
+	auto &ref
+	  = static_cast<HIR::TuplePatternItemsNoRest &> (pattern.get_items ());
 
 	const auto &patterns = ref.get_patterns ();
 	size_t nitems_to_resolve = patterns.size ();
@@ -486,17 +636,17 @@ TypeCheckPattern::visit (HIR::TuplePattern &pattern)
 	    TyTy::BaseType *par_type = par.get_field (i);
 
 	    TyTy::BaseType *elem = TypeCheckPattern::Resolve (*p, par_type);
-	    pattern_elems.push_back (TyTy::TyVar (elem->get_ref ()));
+	    pattern_elems.emplace_back (elem->get_ref ());
 	  }
 	infered = new TyTy::TupleType (pattern.get_mappings ().get_hirid (),
 				       pattern.get_locus (), pattern_elems);
       }
       break;
 
-    case HIR::TuplePatternItems::ItemType::RANGED:
+    case HIR::TuplePatternItems::ItemType::HAS_REST:
       {
-	HIR::TuplePatternItemsRanged &ref
-	  = static_cast<HIR::TuplePatternItemsRanged &> (pattern.get_items ());
+	HIR::TuplePatternItemsHasRest &ref
+	  = static_cast<HIR::TuplePatternItemsHasRest &> (pattern.get_items ());
 
 	const auto &lower = ref.get_lower_patterns ();
 	const auto &upper = ref.get_upper_patterns ();
@@ -507,37 +657,45 @@ TypeCheckPattern::visit (HIR::TuplePattern &pattern)
 	  {
 	    emit_pattern_size_error (pattern, par.get_fields ().size (),
 				     min_size_required);
-	    // TODO attempt to continue to do typechecking even after wrong size
-	    break;
+	    // continue and attempt to resolve individual items in the pattern
 	  }
 
 	// Resolve lower patterns
 	std::vector<TyTy::TyVar> pattern_elems;
-	for (size_t i = 0; i < lower.size (); i++)
+	size_t nlower_items_to_resolve
+	  = std::min (lower.size (), par.get_fields ().size ());
+	for (size_t i = 0; i < nlower_items_to_resolve; i++)
 	  {
 	    auto &p = lower[i];
 	    TyTy::BaseType *par_type = par.get_field (i);
 
 	    TyTy::BaseType *elem = TypeCheckPattern::Resolve (*p, par_type);
-	    pattern_elems.push_back (TyTy::TyVar (elem->get_ref ()));
+	    pattern_elems.emplace_back (elem->get_ref ());
 	  }
 
+	if (lower.size () > par.get_fields ().size ())
+	  break;
+
 	// Pad pattern_elems until needing to resolve upper patterns
-	size_t rest_end = par.get_fields ().size () - upper.size ();
+	size_t rest_end
+	  = std::max (par.get_fields ().size () - upper.size (), lower.size ());
 	for (size_t i = lower.size (); i < rest_end; i++)
 	  {
 	    TyTy::BaseType *par_type = par.get_field (i);
-	    pattern_elems.push_back (TyTy::TyVar (par_type->get_ref ()));
+	    pattern_elems.emplace_back (par_type->get_ref ());
 	  }
 
+	size_t nupper_items_to_resolve
+	  = std::min (upper.size (),
+		      par.get_fields ().size () - pattern_elems.size ());
 	// Resolve upper patterns
-	for (size_t i = 0; i < upper.size (); i++)
+	for (size_t i = 0; i < nupper_items_to_resolve; i++)
 	  {
 	    auto &p = upper[i];
 	    TyTy::BaseType *par_type = par.get_field (rest_end + i);
 
 	    TyTy::BaseType *elem = TypeCheckPattern::Resolve (*p, par_type);
-	    pattern_elems.push_back (TyTy::TyVar (elem->get_ref ()));
+	    pattern_elems.emplace_back (elem->get_ref ());
 	  }
 
 	infered = new TyTy::TupleType (pattern.get_mappings ().get_hirid (),
@@ -642,7 +800,32 @@ TypeCheckPattern::visit (HIR::SlicePattern &pattern)
 	auto &array_ty_ty = static_cast<TyTy::ArrayType &> (*parent);
 	parent_element_ty = array_ty_ty.get_element_type ();
 	auto capacity = array_ty_ty.get_capacity ();
-	tree cap = capacity->get_value ();
+
+	tree cap = error_mark_node;
+	if (capacity->get_kind () != TyTy::TypeKind::CONST)
+	  {
+	    // Error case - capacity is not a const type
+	    break;
+	  }
+
+	auto *capacity_const = capacity->as_const_type ();
+	switch (capacity_const->const_kind ())
+	  {
+	  case TyTy::BaseConstType::ConstKind::Value:
+	    {
+	      const auto &const_value
+		= *static_cast<TyTy::ConstValueType *> (capacity);
+	      cap = const_value.get_value ();
+	    }
+	    break;
+
+	  case TyTy::BaseConstType::ConstKind::Decl:
+	  case TyTy::BaseConstType::ConstKind::Infer:
+	  case TyTy::BaseConstType::ConstKind::Error:
+	    cap = error_mark_node;
+	    break;
+	  }
+
 	if (error_operand_p (cap))
 	  {
 	    rust_error_at (parent->get_locus (),
@@ -651,14 +834,45 @@ TypeCheckPattern::visit (HIR::SlicePattern &pattern)
 	    break;
 	  }
 	auto cap_wi = wi::to_wide (cap).to_uhwi ();
-	if (cap_wi != pattern.get_items ().size ())
+
+	// size check during compile time
+	switch (pattern.get_items ().get_item_type ())
 	  {
-	    rust_error_at (pattern.get_locus (), ErrorCode::E0527,
-			   "pattern requires %lu elements but array has %lu",
-			   (unsigned long) pattern.get_items ().size (),
-			   (unsigned long) cap_wi);
+	  case HIR::SlicePatternItems::ItemType::NO_REST:
+	    {
+	      auto &ref = static_cast<HIR::SlicePatternItemsNoRest &> (
+		pattern.get_items ());
+	      if (cap_wi != ref.get_patterns ().size ())
+		{
+		  rust_error_at (
+		    pattern.get_locus (), ErrorCode::E0527,
+		    "pattern requires %lu elements but array has %lu",
+		    (unsigned long) ref.get_patterns ().size (),
+		    (unsigned long) cap_wi);
+		  break;
+		}
+	    }
+	    break;
+	  case HIR::SlicePatternItems::ItemType::HAS_REST:
+	    {
+	      auto &ref = static_cast<HIR::SlicePatternItemsHasRest &> (
+		pattern.get_items ());
+	      auto pattern_min_cap = ref.get_lower_patterns ().size ()
+				     + ref.get_upper_patterns ().size ();
+
+	      if (cap_wi < pattern_min_cap)
+		{
+		  rust_error_at (pattern.get_locus (), ErrorCode::E0528,
+				 "pattern requires at least %lu elements but "
+				 "array has %lu",
+				 (unsigned long) pattern_min_cap,
+				 (unsigned long) cap_wi);
+		  break;
+		}
+	    }
 	    break;
 	  }
+
 	break;
       }
     case TyTy::SLICE:
@@ -694,10 +908,32 @@ TypeCheckPattern::visit (HIR::SlicePattern &pattern)
   infered->set_ref (pattern.get_mappings ().get_hirid ());
 
   // Type check every item in the SlicePattern against parent's element ty
-  // TODO update this after adding support for RestPattern in SlicePattern
-  for (const auto &item : pattern.get_items ())
+  switch (pattern.get_items ().get_item_type ())
     {
-      TypeCheckPattern::Resolve (*item, parent_element_ty);
+    case HIR::SlicePatternItems::ItemType::NO_REST:
+      {
+	auto &ref
+	  = static_cast<HIR::SlicePatternItemsNoRest &> (pattern.get_items ());
+	for (const auto &pattern_member : ref.get_patterns ())
+	  {
+	    TypeCheckPattern::Resolve (*pattern_member, parent_element_ty);
+	  }
+	break;
+      }
+    case HIR::SlicePatternItems::ItemType::HAS_REST:
+      {
+	auto &ref
+	  = static_cast<HIR::SlicePatternItemsHasRest &> (pattern.get_items ());
+	for (const auto &pattern_member : ref.get_lower_patterns ())
+	  {
+	    TypeCheckPattern::Resolve (*pattern_member, parent_element_ty);
+	  }
+	for (const auto &pattern_member : ref.get_upper_patterns ())
+	  {
+	    TypeCheckPattern::Resolve (*pattern_member, parent_element_ty);
+	  }
+	break;
+      }
     }
 }
 
@@ -814,6 +1050,11 @@ ClosureParamInfer::visit (HIR::WildcardPattern &pattern)
 void
 ClosureParamInfer::visit (HIR::IdentifierPattern &pattern)
 {
+  if (pattern.has_subpattern ())
+    {
+      ClosureParamInfer::Resolve (pattern.get_subpattern ());
+    }
+
   HirId id = pattern.get_mappings ().get_hirid ();
   infered = new TyTy::InferType (id, TyTy::InferType::InferTypeKind::GENERAL,
 				 TyTy::InferType::TypeHint::Default (),

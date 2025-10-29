@@ -27,7 +27,6 @@
 #include "rust-ast.h"
 #include "rust-macro.h"
 #include "rust-hir-map.h"
-#include "rust-early-name-resolver.h"
 #include "rust-name-resolver.h"
 #include "rust-macro-invoc-lexer.h"
 #include "rust-proc-macro-invoc-lexer.h"
@@ -291,6 +290,7 @@ struct MacroExpander
     TRAIT,
     IMPL,
     TRAIT_IMPL,
+    PATTERN,
   };
 
   ExpansionCfg cfg;

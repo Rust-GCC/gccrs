@@ -268,9 +268,27 @@ SubstMapperInternal::visit (TyTy::ParamType &type)
 }
 
 void
-SubstMapperInternal::visit (TyTy::ConstType &type)
+SubstMapperInternal::visit (TyTy::ConstParamType &type)
 {
   resolved = type.handle_substitions (mappings);
+}
+
+void
+SubstMapperInternal::visit (TyTy::ConstValueType &type)
+{
+  resolved = type.clone ();
+}
+
+void
+SubstMapperInternal::visit (TyTy::ConstInferType &type)
+{
+  resolved = type.clone ();
+}
+
+void
+SubstMapperInternal::visit (TyTy::ConstErrorType &type)
+{
+  resolved = type.clone ();
 }
 
 void
@@ -310,15 +328,15 @@ SubstMapperInternal::visit (TyTy::SliceType &type)
 {
   resolved = type.handle_substitions (mappings);
 }
+void
+SubstMapperInternal::visit (TyTy::FnPtr &type)
+{
+  resolved = type.handle_substitions (mappings);
+}
 
 // nothing to do for these
 void
 SubstMapperInternal::visit (TyTy::InferType &type)
-{
-  resolved = type.clone ();
-}
-void
-SubstMapperInternal::visit (TyTy::FnPtr &type)
 {
   resolved = type.clone ();
 }

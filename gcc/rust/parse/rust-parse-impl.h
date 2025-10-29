@@ -1053,6 +1053,7 @@ Parser<ManagedTokenSource>::parse_identifier_or_keyword_token ()
     }
   else
     {
+      add_error (Error (t->get_locus (), "expected keyword or identifier"));
       return nullptr;
     }
 }
@@ -1716,10 +1717,9 @@ Parser<ManagedTokenSource>::parse_decl_macro_def (AST::Visibility vis,
 	  return nullptr;
 	}
 
-      AST::MacroRule macro_rule
-	= AST::MacroRule (std::move (matcher), std::move (transcriber), locus);
       std::vector<AST::MacroRule> macro_rules;
-      macro_rules.push_back (macro_rule);
+      macro_rules.emplace_back (std::move (matcher), std::move (transcriber),
+				locus);
 
       return std::unique_ptr<AST::MacroRulesDefinition> (
 	AST::MacroRulesDefinition::decl_macro (std::move (rule_name),
@@ -3316,8 +3316,8 @@ Parser<ManagedTokenSource>::parse_lifetime_params ()
 	  break;
 	}
 
-      lifetime_params.push_back (std::unique_ptr<AST::LifetimeParam> (
-	new AST::LifetimeParam (std::move (lifetime_param.value ()))));
+      lifetime_params.emplace_back (
+	new AST::LifetimeParam (std::move (lifetime_param.value ())));
 
       if (lexer.peek_token ()->get_id () != COMMA)
 	break;
@@ -3356,8 +3356,8 @@ Parser<ManagedTokenSource>::parse_lifetime_params (EndTokenPred is_end_token)
 	  return {};
 	}
 
-      lifetime_params.push_back (std::unique_ptr<AST::LifetimeParam> (
-	new AST::LifetimeParam (std::move (lifetime_param))));
+      lifetime_params.emplace_back (
+	new AST::LifetimeParam (std::move (lifetime_param)));
 
       if (lexer.peek_token ()->get_id () != COMMA)
 	break;
@@ -5219,7 +5219,7 @@ Parser<ManagedTokenSource>::parse_trait_type (AST::AttrVec outer_attrs,
 
 // Parses a constant trait item.
 template <typename ManagedTokenSource>
-std::unique_ptr<AST::TraitItemConst>
+std::unique_ptr<AST::ConstantItem>
 Parser<ManagedTokenSource>::parse_trait_const (AST::AttrVec outer_attrs)
 {
   location_t locus = lexer.peek_token ()->get_locus ();
@@ -5257,10 +5257,9 @@ Parser<ManagedTokenSource>::parse_trait_const (AST::AttrVec outer_attrs)
       return nullptr;
     }
 
-  return std::unique_ptr<AST::TraitItemConst> (
-    new AST::TraitItemConst (std::move (ident), std::move (type),
-			     std::move (const_body), std::move (outer_attrs),
-			     locus));
+  return std::unique_ptr<AST::ConstantItem> (new AST::ConstantItem (
+    std::move (ident), AST::Visibility::create_private (), std::move (type),
+    std::move (const_body), std::move (outer_attrs), locus));
 }
 
 /* Parses a struct "impl" item (both inherent impl and trait impl can be
@@ -10484,15 +10483,21 @@ Parser<ManagedTokenSource>::parse_pattern ()
     return first;
 
   std::vector<std::unique_ptr<AST::Pattern>> alts;
-  alts.push_back (std::move (first));
+  if (first != nullptr)
+    alts.push_back (std::move (first));
 
   do
     {
       lexer.skip_token ();
-      alts.push_back (parse_pattern_no_alt ());
+      auto follow = parse_pattern_no_alt ();
+      if (follow != nullptr)
+	alts.push_back (std::move (follow));
     }
 
   while (lexer.peek_token ()->get_id () == PIPE);
+
+  if (alts.empty ())
+    return nullptr;
 
   /* alternates */
   return std::unique_ptr<AST::Pattern> (
@@ -10812,9 +10817,9 @@ Parser<ManagedTokenSource>::parse_grouped_or_tuple_pattern ()
 	  return nullptr;
 	}
 
-      // create ranged tuple pattern items with only upper items
-      std::unique_ptr<AST::TuplePatternItemsRanged> items (
-	new AST::TuplePatternItemsRanged (
+      // create tuple pattern items with only upper pattern items
+      std::unique_ptr<AST::TuplePatternItemsHasRest> items (
+	new AST::TuplePatternItemsHasRest (
 	  std::vector<std::unique_ptr<AST::Pattern>> (), std::move (patterns)));
       return std::unique_ptr<AST::TuplePattern> (
 	new AST::TuplePattern (std::move (items), paren_locus));
@@ -10822,8 +10827,8 @@ Parser<ManagedTokenSource>::parse_grouped_or_tuple_pattern ()
   else if (lexer.peek_token ()->get_id () == RIGHT_PAREN)
     {
       skip_token (RIGHT_PAREN);
-      auto items = std::unique_ptr<AST::TuplePatternItemsMultiple> (
-	new AST::TuplePatternItemsMultiple (
+      auto items = std::unique_ptr<AST::TuplePatternItemsNoRest> (
+	new AST::TuplePatternItemsNoRest (
 	  std::vector<std::unique_ptr<AST::Pattern>> ()));
       return std::unique_ptr<AST::TuplePattern> (
 	new AST::TuplePattern (std::move (items), paren_locus));
@@ -10887,8 +10892,8 @@ Parser<ManagedTokenSource>::parse_grouped_or_tuple_pattern ()
 	    // non-ranged tuple pattern
 	    lexer.skip_token ();
 
-	    std::unique_ptr<AST::TuplePatternItemsMultiple> items (
-	      new AST::TuplePatternItemsMultiple (std::move (patterns)));
+	    std::unique_ptr<AST::TuplePatternItemsNoRest> items (
+	      new AST::TuplePatternItemsNoRest (std::move (patterns)));
 	    return std::unique_ptr<AST::TuplePattern> (
 	      new AST::TuplePattern (std::move (items), paren_locus));
 	  }
@@ -10928,9 +10933,9 @@ Parser<ManagedTokenSource>::parse_grouped_or_tuple_pattern ()
 		return nullptr;
 	      }
 
-	    std::unique_ptr<AST::TuplePatternItemsRanged> items (
-	      new AST::TuplePatternItemsRanged (std::move (patterns),
-						std::move (upper_patterns)));
+	    std::unique_ptr<AST::TuplePatternItemsHasRest> items (
+	      new AST::TuplePatternItemsHasRest (std::move (patterns),
+						 std::move (upper_patterns)));
 	    return std::unique_ptr<AST::TuplePattern> (
 	      new AST::TuplePattern (std::move (items), paren_locus));
 	  }
@@ -11113,7 +11118,7 @@ Parser<ManagedTokenSource>::parse_identifier_pattern ()
       lexer.skip_token ();
 
       // parse required pattern to bind
-      bind_pattern = parse_pattern ();
+      bind_pattern = parse_pattern_no_alt ();
       if (bind_pattern == nullptr)
 	{
 	  Error error (lexer.peek_token ()->get_locus (),
@@ -11240,7 +11245,8 @@ Parser<ManagedTokenSource>::parse_ident_leading_pattern ()
 	    // identifier with pattern bind
 	    lexer.skip_token ();
 
-	    std::unique_ptr<AST::Pattern> bind_pattern = parse_pattern ();
+	    std::unique_ptr<AST::Pattern> bind_pattern
+	      = parse_pattern_no_alt ();
 	    if (bind_pattern == nullptr)
 	      {
 		Error error (
@@ -11325,9 +11331,9 @@ Parser<ManagedTokenSource>::parse_tuple_struct_items ()
       rust_debug (
 	"finished parsing tuple struct items ranged (upper/none only)");
 
-      return std::unique_ptr<AST::TupleStructItemsRange> (
-	new AST::TupleStructItemsRange (std::move (lower_patterns),
-					std::move (upper_patterns)));
+      return std::unique_ptr<AST::TupleStructItemsHasRest> (
+	new AST::TupleStructItemsHasRest (std::move (lower_patterns),
+					  std::move (upper_patterns)));
     }
 
   // has at least some lower patterns
@@ -11369,8 +11375,8 @@ Parser<ManagedTokenSource>::parse_tuple_struct_items ()
   switch (t->get_id ())
     {
     case RIGHT_PAREN:
-      return std::unique_ptr<AST::TupleStructItemsNoRange> (
-	new AST::TupleStructItemsNoRange (std::move (lower_patterns)));
+      return std::unique_ptr<AST::TupleStructItemsNoRest> (
+	new AST::TupleStructItemsNoRest (std::move (lower_patterns)));
     case DOT_DOT:
       {
 	// has an upper range that must be parsed separately
@@ -11402,9 +11408,9 @@ Parser<ManagedTokenSource>::parse_tuple_struct_items ()
 	    t = lexer.peek_token ();
 	  }
 
-	return std::unique_ptr<AST::TupleStructItemsRange> (
-	  new AST::TupleStructItemsRange (std::move (lower_patterns),
-					  std::move (upper_patterns)));
+	return std::unique_ptr<AST::TupleStructItemsHasRest> (
+	  new AST::TupleStructItemsHasRest (std::move (lower_patterns),
+					    std::move (upper_patterns)));
       }
     default:
       // error
@@ -11424,7 +11430,7 @@ Parser<ManagedTokenSource>::parse_struct_pattern_elems ()
   std::vector<std::unique_ptr<AST::StructPatternField>> fields;
 
   AST::AttrVec etc_attrs;
-  bool has_etc = false;
+  bool has_rest = false;
 
   // try parsing struct pattern fields
   const_TokenPtr t = lexer.peek_token ();
@@ -11437,7 +11443,7 @@ Parser<ManagedTokenSource>::parse_struct_pattern_elems ()
 	{
 	  lexer.skip_token ();
 	  etc_attrs = std::move (outer_attrs);
-	  has_etc = true;
+	  has_rest = true;
 	  break;
 	}
 
@@ -11462,7 +11468,7 @@ Parser<ManagedTokenSource>::parse_struct_pattern_elems ()
       t = lexer.peek_token ();
     }
 
-  if (has_etc)
+  if (has_rest)
     return AST::StructPatternElements (std::move (fields),
 				       std::move (etc_attrs));
   else
@@ -11761,6 +11767,8 @@ Parser<ManagedTokenSource>::parse_stmt_or_expr ()
 	    std::unique_ptr<AST::MacroInvocation> invoc
 	      = parse_macro_invocation_partial (std::move (path),
 						std::move (outer_attrs));
+	    if (invoc == nullptr)
+	      return ExprOrStmt::create_error ();
 
 	    if (restrictions.consume_semi && maybe_skip_token (SEMICOLON))
 	      {
@@ -11772,9 +11780,12 @@ Parser<ManagedTokenSource>::parse_stmt_or_expr ()
 
 	    TokenId after_macro = lexer.peek_token ()->get_id ();
 
-	    if (invoc->get_invoc_data ().get_delim_tok_tree ().get_delim_type ()
-		  == AST::CURLY
-		&& after_macro != DOT && after_macro != QUESTION_MARK)
+	    AST::DelimType delim_type = invoc->get_invoc_data ()
+					  .get_delim_tok_tree ()
+					  .get_delim_type ();
+
+	    if (delim_type == AST::CURLY && after_macro != DOT
+		&& after_macro != QUESTION_MARK)
 	      {
 		rust_debug ("braced macro statement");
 		return ExprOrStmt (
@@ -12149,20 +12160,12 @@ Parser<ManagedTokenSource>::parse_expr (int right_binding_power,
 	return nullptr;
     }
 
-  if (current_token->get_id () == LEFT_SHIFT)
-    {
-      lexer.split_current_token (LEFT_ANGLE, LEFT_ANGLE);
-      current_token = lexer.peek_token ();
-    }
-
-  lexer.skip_token ();
-
   ParseRestrictions null_denotation_restrictions = restrictions;
   null_denotation_restrictions.expr_can_be_stmt = false;
 
   // parse null denotation (unary part of expression)
   std::unique_ptr<AST::Expr> expr
-    = null_denotation (current_token, {}, null_denotation_restrictions);
+    = null_denotation ({}, null_denotation_restrictions);
 
   return left_denotations (std::move (expr), right_binding_power,
 			   std::move (outer_attrs), restrictions);
@@ -12230,8 +12233,7 @@ Parser<ManagedTokenSource>::parse_expr (AST::AttrVec outer_attrs,
 /* Determines action to take when finding token at beginning of expression. */
 template <typename ManagedTokenSource>
 std::unique_ptr<AST::Expr>
-Parser<ManagedTokenSource>::null_denotation (const_TokenPtr tok,
-					     AST::AttrVec outer_attrs,
+Parser<ManagedTokenSource>::null_denotation (AST::AttrVec outer_attrs,
 					     ParseRestrictions restrictions)
 {
   /* note: tok is previous character in input stream, not current one, as
@@ -12241,6 +12243,8 @@ Parser<ManagedTokenSource>::null_denotation (const_TokenPtr tok,
    * denotation and then a left denotation), null denotations handle primaries
    * and unary operands (but only prefix unary operands) */
 
+  auto tok = lexer.peek_token ();
+
   switch (tok->get_id ())
     {
     case IDENTIFIER:
@@ -12249,28 +12253,26 @@ Parser<ManagedTokenSource>::null_denotation (const_TokenPtr tok,
     case DOLLAR_SIGN:
     case CRATE:
     case SUPER:
+    case SCOPE_RESOLUTION:
       {
 	// DEBUG
 	rust_debug ("beginning null denotation identifier handling");
 
 	/* best option: parse as path, then extract identifier, macro,
 	 * struct/enum, or just path info from it */
-	AST::PathInExpression path = parse_path_in_expression_pratt (tok);
+	AST::PathInExpression path = parse_path_in_expression ();
 
 	return null_denotation_path (std::move (path), std::move (outer_attrs),
 				     restrictions);
       }
-    case SCOPE_RESOLUTION:
-      {
-	// TODO: fix: this is for global paths, i.e. std::string::whatever
-	Error error (tok->get_locus (),
-		     "found null denotation scope resolution operator, and "
-		     "have not written handling for it");
-	add_error (std::move (error));
-
-	return nullptr;
-      }
     default:
+      if (tok->get_id () == LEFT_SHIFT)
+	{
+	  lexer.split_current_token (LEFT_ANGLE, LEFT_ANGLE);
+	  tok = lexer.peek_token ();
+	}
+
+      lexer.skip_token ();
       return null_denotation_not_path (std::move (tok), std::move (outer_attrs),
 				       restrictions);
     }
@@ -13035,12 +13037,6 @@ Parser<ManagedTokenSource>::left_denotation (const_TokenPtr tok,
       // array or slice index expression (pseudo binary infix)
       return parse_index_expr (tok, std::move (left), std::move (outer_attrs),
 			       restrictions);
-    case FLOAT_LITERAL:
-      /* HACK: get around lexer mis-identifying '.0' or '.1' or whatever as a
-       * float literal - TODO does this happen anymore? It shouldn't. */
-      return parse_tuple_index_expr_float (tok, std::move (left),
-					   std::move (outer_attrs),
-					   restrictions);
     default:
       add_error (Error (tok->get_locus (),
 			"found unexpected token %qs in left denotation",
@@ -14436,119 +14432,6 @@ Parser<ManagedTokenSource>::parse_struct_expr_tuple_partial (
 		       std::move (outer_attrs), path_locus));
 }
 
-/* Parses a path in expression with the first token passed as a parameter (as
- * it is skipped in token stream). Note that this only parses segment-first
- * paths, not global ones. */
-template <typename ManagedTokenSource>
-AST::PathInExpression
-Parser<ManagedTokenSource>::parse_path_in_expression_pratt (const_TokenPtr tok)
-{
-  // HACK-y way of making up for pratt-parsing consuming first token
-
-  // DEBUG
-  rust_debug ("current peek token when starting path pratt parse: '%s'",
-	      lexer.peek_token ()->get_token_description ());
-
-  // create segment vector
-  std::vector<AST::PathExprSegment> segments;
-
-  std::string initial_str;
-
-  switch (tok->get_id ())
-    {
-    case IDENTIFIER:
-      initial_str = tok->get_str ();
-      break;
-    case SUPER:
-      initial_str = Values::Keywords::SUPER;
-      break;
-    case SELF:
-      initial_str = Values::Keywords::SELF;
-      break;
-    case SELF_ALIAS:
-      initial_str = Values::Keywords::SELF_ALIAS;
-      break;
-    case CRATE:
-      initial_str = Values::Keywords::CRATE;
-      break;
-    case DOLLAR_SIGN:
-      if (lexer.peek_token ()->get_id () == CRATE)
-	{
-	  initial_str = "$crate";
-	  break;
-	}
-      gcc_fallthrough ();
-    default:
-      add_error (Error (tok->get_locus (),
-			"unrecognised token %qs in path in expression",
-			tok->get_token_description ()));
-
-      return AST::PathInExpression::create_error ();
-    }
-
-  // parse required initial segment
-  AST::PathExprSegment initial_segment (initial_str, tok->get_locus ());
-  // parse generic args (and turbofish), if they exist
-  /* use lookahead to determine if they actually exist (don't want to
-   * accidently parse over next ident segment) */
-  if (lexer.peek_token ()->get_id () == SCOPE_RESOLUTION
-      && lexer.peek_token (1)->get_id () == LEFT_ANGLE)
-    {
-      // skip scope resolution
-      lexer.skip_token ();
-
-      AST::GenericArgs generic_args = parse_path_generic_args ();
-
-      initial_segment
-	= AST::PathExprSegment (AST::PathIdentSegment (initial_str,
-						       tok->get_locus ()),
-				tok->get_locus (), std::move (generic_args));
-    }
-  if (initial_segment.is_error ())
-    {
-      // skip after somewhere?
-      // don't necessarily throw error but yeah
-
-      // DEBUG
-      rust_debug ("initial segment is error - returning null");
-
-      return AST::PathInExpression::create_error ();
-    }
-  segments.push_back (std::move (initial_segment));
-
-  // parse optional segments (as long as scope resolution operator exists)
-  const_TokenPtr t = lexer.peek_token ();
-  while (t->get_id () == SCOPE_RESOLUTION)
-    {
-      // skip scope resolution operator
-      lexer.skip_token ();
-
-      // parse the actual segment - it is an error if it doesn't exist now
-      AST::PathExprSegment segment = parse_path_expr_segment ();
-      if (segment.is_error ())
-	{
-	  // skip after somewhere?
-	  Error error (t->get_locus (),
-		       "could not parse path expression segment");
-	  add_error (std::move (error));
-
-	  return AST::PathInExpression::create_error ();
-	}
-
-      segments.push_back (std::move (segment));
-
-      t = lexer.peek_token ();
-    }
-
-  // DEBUG:
-  rust_debug (
-    "current token (just about to return path to null denotation): '%s'",
-    lexer.peek_token ()->get_token_description ());
-
-  return AST::PathInExpression (std::move (segments), {}, tok->get_locus (),
-				false);
-}
-
 // Parses a closure expression with pratt parsing (from null denotation).
 template <typename ManagedTokenSource>
 std::unique_ptr<AST::ClosureExpr>
@@ -14684,35 +14567,6 @@ Parser<ManagedTokenSource>::parse_closure_expr_pratt (const_TokenPtr tok,
 	new AST::ClosureExprInner (std::move (expr), std::move (params), locus,
 				   has_move, std::move (outer_attrs)));
     }
-}
-
-/* Parses a tuple index expression (pratt-parsed) from a 'float' token as a
- * result of lexer misidentification. */
-template <typename ManagedTokenSource>
-std::unique_ptr<AST::TupleIndexExpr>
-Parser<ManagedTokenSource>::parse_tuple_index_expr_float (
-  const_TokenPtr tok, std::unique_ptr<AST::Expr> tuple_expr,
-  AST::AttrVec outer_attrs, ParseRestrictions restrictions ATTRIBUTE_UNUSED)
-{
-  // only works on float literals
-  if (tok->get_id () != FLOAT_LITERAL)
-    return nullptr;
-
-  // DEBUG:
-  rust_debug ("exact string form of float: '%s'", tok->get_str ().c_str ());
-
-  // get float string and remove dot and initial 0
-  std::string index_str = tok->get_str ();
-  index_str.erase (index_str.begin ());
-
-  // get int from string
-  int index = atoi (index_str.c_str ());
-
-  location_t locus = tuple_expr->get_locus ();
-
-  return std::unique_ptr<AST::TupleIndexExpr> (
-    new AST::TupleIndexExpr (std::move (tuple_expr), index,
-			     std::move (outer_attrs), locus));
 }
 
 // Returns true if the next token is END, ELSE, or EOF;

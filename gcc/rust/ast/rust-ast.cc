@@ -48,28 +48,32 @@ SingleASTNode::SingleASTNode (SingleASTNode const &other)
   kind = other.kind;
   switch (kind)
     {
-    case EXPRESSION:
+    case Kind::Expr:
       expr = other.expr->clone_expr ();
       break;
 
-    case ITEM:
+    case Kind::Item:
       item = other.item->clone_item ();
       break;
 
-    case STMT:
+    case Kind::Stmt:
       stmt = other.stmt->clone_stmt ();
       break;
 
-    case EXTERN:
+    case Kind::Extern:
       external_item = other.external_item->clone_external_item ();
       break;
 
-    case ASSOC_ITEM:
+    case Kind::Assoc:
       assoc_item = other.assoc_item->clone_associated_item ();
       break;
 
-    case TYPE:
+    case Kind::Type:
       type = other.type->clone_type ();
+      break;
+
+    case Kind::Pattern:
+      pattern = other.pattern->clone_pattern ();
       break;
     }
 }
@@ -80,28 +84,32 @@ SingleASTNode::operator= (SingleASTNode const &other)
   kind = other.kind;
   switch (kind)
     {
-    case EXPRESSION:
+    case Kind::Expr:
       expr = other.expr->clone_expr ();
       break;
 
-    case ITEM:
+    case Kind::Item:
       item = other.item->clone_item ();
       break;
 
-    case STMT:
+    case Kind::Stmt:
       stmt = other.stmt->clone_stmt ();
       break;
 
-    case EXTERN:
+    case Kind::Extern:
       external_item = other.external_item->clone_external_item ();
       break;
 
-    case ASSOC_ITEM:
+    case Kind::Assoc:
       assoc_item = other.assoc_item->clone_associated_item ();
       break;
 
-    case TYPE:
+    case Kind::Type:
       type = other.type->clone_type ();
+      break;
+
+    case Kind::Pattern:
+      pattern = other.pattern->clone_pattern ();
       break;
     }
   return *this;
@@ -112,28 +120,32 @@ SingleASTNode::accept_vis (ASTVisitor &vis)
 {
   switch (kind)
     {
-    case EXPRESSION:
+    case Kind::Expr:
       expr->accept_vis (vis);
       break;
 
-    case ITEM:
+    case Kind::Item:
       item->accept_vis (vis);
       break;
 
-    case STMT:
+    case Kind::Stmt:
       stmt->accept_vis (vis);
       break;
 
-    case EXTERN:
+    case Kind::Extern:
       external_item->accept_vis (vis);
       break;
 
-    case ASSOC_ITEM:
+    case Kind::Assoc:
       assoc_item->accept_vis (vis);
       break;
 
-    case TYPE:
+    case Kind::Type:
       type->accept_vis (vis);
+      break;
+
+    case Kind::Pattern:
+      pattern->accept_vis (vis);
       break;
     }
 }
@@ -143,18 +155,20 @@ SingleASTNode::is_error ()
 {
   switch (kind)
     {
-    case EXPRESSION:
+    case Kind::Expr:
       return expr == nullptr;
-    case ITEM:
+    case Kind::Item:
       return item == nullptr;
-    case STMT:
+    case Kind::Stmt:
       return stmt == nullptr;
-    case EXTERN:
+    case Kind::Extern:
       return external_item == nullptr;
-    case ASSOC_ITEM:
+    case Kind::Assoc:
       return assoc_item == nullptr;
-    case TYPE:
+    case Kind::Type:
       return type == nullptr;
+    case Kind::Pattern:
+      return pattern == nullptr;
     }
 
   rust_unreachable ();
@@ -166,18 +180,20 @@ SingleASTNode::as_string () const
 {
   switch (kind)
     {
-    case EXPRESSION:
+    case Kind::Expr:
       return "Expr: " + expr->as_string ();
-    case ITEM:
+    case Kind::Item:
       return "Item: " + item->as_string ();
-    case STMT:
+    case Kind::Stmt:
       return "Stmt: " + stmt->as_string ();
-    case EXTERN:
+    case Kind::Extern:
       return "External Item: " + external_item->as_string ();
-    case ASSOC_ITEM:
+    case Kind::Assoc:
       return "Associated Item: " + assoc_item->as_string ();
-    case TYPE:
+    case Kind::Type:
       return "Type: " + type->as_string ();
+    case Kind::Pattern:
+      return "Pattern: " + pattern->as_string ();
     }
 
   rust_unreachable ();
@@ -232,7 +248,7 @@ Attribute::as_string () const
 bool
 Attribute::is_derive () const
 {
-  return has_attr_input () && get_path () == "derive";
+  return has_attr_input () && get_path () == Values::Attributes::DERIVE;
 }
 
 /**
@@ -389,7 +405,7 @@ DelimTokenTree::as_string () const
 std::string
 Token::as_string () const
 {
-  if (tok_ref->has_str ())
+  if (tok_ref->should_have_str ())
     {
       std::string str = tok_ref->get_str ();
 
@@ -636,14 +652,8 @@ ConstantItem::as_string () const
     }
   str += "\n  Type: " + type->as_string ();
 
-  // DEBUG: null pointer check
-  if (const_expr == nullptr)
-    {
-      rust_debug ("something really terrible has gone wrong - null "
-		  "pointer expr in const item.");
-      return "NULL_POINTER_MARK";
-    }
-  str += "\n  Expression: " + const_expr->as_string ();
+  if (has_expr ())
+    str += "\n  Expression: " + const_expr->as_string ();
 
   return str + "\n";
 }
@@ -3034,20 +3044,6 @@ ExternalStaticItem::as_string () const
 }
 
 std::string
-TraitItemConst::as_string () const
-{
-  // TODO: rewrite to work with non-linearisable exprs
-  std::string str = append_attributes (outer_attrs, OUTER);
-
-  str += "\nconst " + name.as_string () + " : " + type->as_string ();
-
-  if (has_expression ())
-    str += " = " + expr->as_string ();
-
-  return str;
-}
-
-std::string
 TraitItemType::as_string () const
 {
   std::string str = append_attributes (outer_attrs, OUTER);
@@ -3367,7 +3363,13 @@ void
 Module::process_file_path ()
 {
   rust_assert (kind == Module::ModuleKind::UNLOADED);
-  rust_assert (module_file.empty ());
+
+  if (!module_file.empty ())
+    {
+      rust_error_at (locus, "error handling module file for %qs",
+		     module_name.as_string ().c_str ());
+      return;
+    }
 
   // This corresponds to the path of the file 'including' the module. So the
   // file that contains the 'mod <file>;' directive
@@ -4132,6 +4134,12 @@ AttrInputMetaItemContainer::separate_cfg_attrs () const
 
   for (auto it = items.begin () + 1; it != items.end (); ++it)
     {
+      if ((*it)->get_kind () == MetaItemInner::Kind::MetaItem
+	  && static_cast<MetaItem &> (**it).get_item_kind ()
+	       == MetaItem::ItemKind::PathExpr
+	  && !static_cast<MetaItemPathExpr &> (**it).get_expr ().is_literal ())
+	continue;
+
       Attribute attr = (*it)->to_attribute ();
       if (attr.is_empty ())
 	{
@@ -4149,11 +4157,12 @@ AttrInputMetaItemContainer::separate_cfg_attrs () const
 bool
 Attribute::check_cfg_predicate (const Session &session) const
 {
+  auto string_path = path.as_string ();
   /* assume that cfg predicate actually can exist, i.e. attribute has cfg or
    * cfg_attr path */
   if (!has_attr_input ()
-      || (path.as_string () != Values::Attributes::CFG
-	  && path.as_string () != Values::Attributes::CFG_ATTR))
+      || (string_path != Values::Attributes::CFG
+	  && string_path != Values::Attributes::CFG_ATTR))
     {
       // DEBUG message
       rust_debug (
@@ -4169,6 +4178,13 @@ Attribute::check_cfg_predicate (const Session &session) const
     return false;
 
   auto &meta_item = static_cast<AttrInputMetaItemContainer &> (*attr_input);
+  if (meta_item.get_items ().empty ()
+      && string_path == Values::Attributes::CFG_ATTR)
+    {
+      rust_error_at (path.get_locus (),
+		     "malformed %<cfg_attr%> attribute input");
+      return false;
+    }
   return meta_item.get_items ().front ()->check_cfg_predicate (session);
 }
 
@@ -4735,12 +4751,6 @@ ConstantItem::accept_vis (ASTVisitor &vis)
 
 void
 StaticItem::accept_vis (ASTVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-TraitItemConst::accept_vis (ASTVisitor &vis)
 {
   vis.visit (*this);
 }

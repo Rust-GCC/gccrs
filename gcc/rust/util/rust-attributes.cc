@@ -38,6 +38,31 @@ Attributes::is_known (const std::string &attribute_path)
   return !lookup.is_error ();
 }
 
+tl::optional<std::string>
+Attributes::extract_string_literal (const AST::Attribute &attr)
+{
+  if (!attr.has_attr_input ())
+    return tl::nullopt;
+
+  auto &attr_input = attr.get_attr_input ();
+
+  if (attr_input.get_attr_input_type ()
+      != AST::AttrInput::AttrInputType::LITERAL)
+    return tl::nullopt;
+
+  auto &literal_expr
+    = static_cast<AST::AttrInputLiteral &> (attr_input).get_literal ();
+
+  auto lit_type = literal_expr.get_lit_type ();
+
+  // TODO: bring escape sequence handling out of lexing?
+  if (lit_type != AST::Literal::LitType::STRING
+      && lit_type != AST::Literal::LitType::RAW_STRING)
+    return tl::nullopt;
+
+  return literal_expr.as_string ();
+}
+
 using Attrs = Values::Attributes;
 
 // https://doc.rust-lang.org/stable/nightly-rustc/src/rustc_feature/builtin_attrs.rs.html#248
@@ -53,6 +78,7 @@ static const BuiltinAttrDefinition __definitions[]
      {Attrs::DOC, HIR_LOWERING},
      {Attrs::MUST_USE, STATIC_ANALYSIS},
      {Attrs::LANG, HIR_LOWERING},
+     {Attrs::LINK_NAME, CODE_GENERATION},
      {Attrs::LINK_SECTION, CODE_GENERATION},
      {Attrs::NO_MANGLE, CODE_GENERATION},
      {Attrs::REPR, CODE_GENERATION},
@@ -64,6 +90,8 @@ static const BuiltinAttrDefinition __definitions[]
      {Attrs::PROC_MACRO, EXPANSION},
      {Attrs::PROC_MACRO_DERIVE, EXPANSION},
      {Attrs::PROC_MACRO_ATTRIBUTE, EXPANSION},
+
+     {Attrs::DERIVE, EXPANSION},
      // FIXME: This is not implemented yet, see
      // https://github.com/Rust-GCC/gccrs/issues/1475
      {Attrs::TARGET_FEATURE, CODE_GENERATION},
@@ -78,6 +106,7 @@ static const BuiltinAttrDefinition __definitions[]
      {Attrs::RUSTC_PROMOTABLE, CODE_GENERATION},
      {Attrs::RUSTC_CONST_STABLE, STATIC_ANALYSIS},
      {Attrs::RUSTC_CONST_UNSTABLE, STATIC_ANALYSIS},
+     {Attrs::RUSTC_ALLOW_CONST_FN_UNSTABLE, STATIC_ANALYSIS},
      {Attrs::PRELUDE_IMPORT, NAME_RESOLUTION},
      {Attrs::TRACK_CALLER, CODE_GENERATION},
      {Attrs::RUSTC_SPECIALIZATION_TRAIT, TYPE_CHECK},
@@ -100,8 +129,7 @@ static const BuiltinAttrDefinition __definitions[]
      {Attrs::NON_EXHAUSTIVE, TYPE_CHECK},
      {Attrs::RUSTFMT, EXTERNAL},
 
-     {Attrs::TEST, CODE_GENERATION},
-     {Attrs::SIMD_TEST, CODE_GENERATION}};
+     {Attrs::TEST, CODE_GENERATION}};
 
 BuiltinAttributeMappings *
 BuiltinAttributeMappings::get ()
@@ -144,6 +172,7 @@ AttributeChecker::go (AST::Crate &crate)
 void
 AttributeChecker::visit (AST::Crate &crate)
 {
+  check_inner_attributes (crate.get_inner_attrs ());
   check_attributes (crate.get_inner_attrs ());
 
   for (auto &item : crate.items)
@@ -214,8 +243,8 @@ check_doc_attribute (const AST::Attribute &attribute)
     {
       rust_error_at (
 	attribute.get_locus (),
-	// FIXME: Improve error message here. Rustc has a very good one
-	"%<#[doc]%> cannot be an empty attribute");
+	"valid forms for the attribute are "
+	"%<#[doc(hidden|inline|...)]%> and %<#[doc = \" string \"]%>");
       return;
     }
 
@@ -300,6 +329,20 @@ check_proc_macro_non_root (AST::AttrVec attributes, location_t loc)
 void
 AttributeChecker::check_attribute (const AST::Attribute &attribute)
 {
+  if (!attribute.empty_input ())
+    {
+      const auto &attr_input = attribute.get_attr_input ();
+      auto type = attr_input.get_attr_input_type ();
+      if (type == AST::AttrInput::AttrInputType::TOKEN_TREE)
+	{
+	  const auto &option = static_cast<const AST::DelimTokenTree &> (
+	    attribute.get_attr_input ());
+	  std::unique_ptr<AST::AttrInputMetaItemContainer> meta_item (
+	    option.parse_to_meta_item ());
+	  AST::DefaultASTVisitor::visit (meta_item);
+	}
+    }
+
   BuiltinAttrDefinition result;
 
   // This checker does not check non-builtin attributes
@@ -311,6 +354,15 @@ AttributeChecker::check_attribute (const AST::Attribute &attribute)
   // and costly
   if (result.name == Attrs::DOC)
     check_doc_attribute (attribute);
+}
+
+void
+AttributeChecker::check_inner_attributes (const AST::AttrVec &attributes)
+{
+  for (auto &attr : attributes)
+    if (attr.is_derive ())
+      rust_error_at (attr.get_locus (),
+		     "derive attribute cannot be used at crate level");
 }
 
 void
@@ -326,10 +378,6 @@ AttributeChecker::visit (AST::Token &)
 
 void
 AttributeChecker::visit (AST::DelimTokenTree &)
-{}
-
-void
-AttributeChecker::visit (AST::AttrInputMetaItemContainer &)
 {}
 
 void
@@ -395,8 +443,16 @@ AttributeChecker::visit (AST::MetaItemLitExpr &)
 {}
 
 void
-AttributeChecker::visit (AST::MetaItemPathExpr &)
-{}
+AttributeChecker::visit (AST::MetaItemPathExpr &attribute)
+{
+  if (!attribute.get_expr ().is_literal ())
+    {
+      rust_error_at (attribute.get_expr ().get_locus (),
+		     "malformed %<path%> attribute input");
+      rust_inform (attribute.get_expr ().get_locus (),
+		   "must be of the form: %<#[path = \"file\"]%>");
+    }
+}
 
 void
 AttributeChecker::visit (AST::BorrowExpr &)
@@ -622,6 +678,7 @@ AttributeChecker::visit (AST::TypeBoundWhereClauseItem &)
 void
 AttributeChecker::visit (AST::Module &module)
 {
+  check_attributes (module.get_outer_attrs ());
   check_proc_macro_non_function (module.get_outer_attrs ());
   for (auto &item : module.get_items ())
     {
@@ -774,10 +831,6 @@ AttributeChecker::visit (AST::StaticItem &item)
 }
 
 void
-AttributeChecker::visit (AST::TraitItemConst &)
-{}
-
-void
 AttributeChecker::visit (AST::TraitItemType &)
 {}
 
@@ -785,6 +838,7 @@ void
 AttributeChecker::visit (AST::Trait &trait)
 {
   check_proc_macro_non_function (trait.get_outer_attrs ());
+  check_attributes (trait.get_outer_attrs ());
 }
 
 void
@@ -838,10 +892,6 @@ AttributeChecker::visit (AST::MacroInvocation &)
 
 void
 AttributeChecker::visit (AST::MetaItemPath &)
-{}
-
-void
-AttributeChecker::visit (AST::MetaItemSeq &)
 {}
 
 void
@@ -920,11 +970,11 @@ AttributeChecker::visit (AST::StructPattern &)
 // void AttributeChecker::visit(TupleStructItems& ){}
 
 void
-AttributeChecker::visit (AST::TupleStructItemsNoRange &)
+AttributeChecker::visit (AST::TupleStructItemsNoRest &)
 {}
 
 void
-AttributeChecker::visit (AST::TupleStructItemsRange &)
+AttributeChecker::visit (AST::TupleStructItemsHasRest &)
 {}
 
 void
@@ -934,11 +984,11 @@ AttributeChecker::visit (AST::TupleStructPattern &)
 // void AttributeChecker::visit(TuplePatternItems& ){}
 
 void
-AttributeChecker::visit (AST::TuplePatternItemsMultiple &)
+AttributeChecker::visit (AST::TuplePatternItemsNoRest &)
 {}
 
 void
-AttributeChecker::visit (AST::TuplePatternItemsRanged &)
+AttributeChecker::visit (AST::TuplePatternItemsHasRest &)
 {}
 
 void

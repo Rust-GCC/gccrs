@@ -212,6 +212,11 @@ public:
   std::unique_ptr<AST::MacroInvocation>
   parse_macro_invocation (AST::AttrVec outer_attrs);
 
+  /*
+   * This has to be public for parsing expressions with outer attributes
+   */
+  AST::AttrVec parse_outer_attributes ();
+
 private:
   void skip_after_semicolon ();
   void skip_after_end ();
@@ -228,7 +233,6 @@ private:
 
   // AST-related stuff - maybe move or something?
   AST::Attribute parse_inner_attribute ();
-  AST::AttrVec parse_outer_attributes ();
   AST::Attribute parse_outer_attribute ();
   std::unique_ptr<AST::AttrInput> parse_attr_input ();
   std::tuple<AST::SimplePath, std::unique_ptr<AST::AttrInput>, location_t>
@@ -368,7 +372,7 @@ private:
 					   AST::AttrVec outer_attrs);
   std::unique_ptr<AST::TraitItemType>
   parse_trait_type (AST::AttrVec outer_attrs, AST::Visibility);
-  std::unique_ptr<AST::TraitItemConst>
+  std::unique_ptr<AST::ConstantItem>
   parse_trait_const (AST::AttrVec outer_attrs);
 
   tl::expected<std::unique_ptr<AST::Param>, ParseSelfError> parse_self_param ();
@@ -393,7 +397,7 @@ private:
 	      AST::AttrVec outer_attrs = AST::AttrVec (),
 	      ParseRestrictions restrictions = ParseRestrictions ());
   std::unique_ptr<AST::Expr>
-  null_denotation (const_TokenPtr t, AST::AttrVec outer_attrs = AST::AttrVec (),
+  null_denotation (AST::AttrVec outer_attrs = AST::AttrVec (),
 		   ParseRestrictions restrictions = ParseRestrictions ());
   std::unique_ptr<AST::Expr>
   null_denotation_path (AST::PathInExpression path, AST::AttrVec outer_attrs,
@@ -598,7 +602,6 @@ private:
   std::unique_ptr<AST::CallExpr>
   parse_struct_expr_tuple_partial (AST::PathInExpression path,
 				   AST::AttrVec outer_attrs);
-  AST::PathInExpression parse_path_in_expression_pratt (const_TokenPtr tok);
   std::unique_ptr<AST::ClosureExpr>
   parse_closure_expr_pratt (const_TokenPtr tok,
 			    AST::AttrVec outer_attrs = AST::AttrVec ());
@@ -782,7 +785,7 @@ private:
 
   // don't want to make things *only* AttributeParser uses public
   // TODO: fold more of AttributeParser into Parser?
-  friend class ::Rust::AST::AttributeParser;
+  friend struct ::Rust::AST::AttributeParser;
 };
 
 std::string extract_module_path (const AST::AttrVec &inner_attrs,

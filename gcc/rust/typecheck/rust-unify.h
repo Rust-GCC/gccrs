@@ -30,6 +30,11 @@ class UnifyRules
 public:
   struct InferenceSite
   {
+    InferenceSite (HirId pref, HirId ptyref, TyTy::ParamType *param,
+		   TyTy::InferType *infer)
+      : pref (pref), ptyref (ptyref), param (param), infer (infer)
+    {}
+
     HirId pref;
     HirId ptyref;
     TyTy::ParamType *param;
@@ -37,6 +42,11 @@ public:
   };
   struct CommitSite
   {
+    CommitSite (TyTy::BaseType *lhs, TyTy::BaseType *rhs,
+		TyTy::BaseType *resolved)
+      : lhs (lhs), rhs (rhs), resolved (resolved)
+    {}
+
     TyTy::BaseType *lhs;
     TyTy::BaseType *rhs;
     TyTy::BaseType *resolved;
@@ -45,6 +55,7 @@ public:
   static TyTy::BaseType *Resolve (TyTy::TyWithLocation lhs,
 				  TyTy::TyWithLocation rhs, location_t locus,
 				  bool commit_flag, bool emit_error, bool infer,
+				  bool check_bounds,
 				  std::vector<CommitSite> &commits,
 				  std::vector<InferenceSite> &infers);
 
@@ -84,12 +95,13 @@ protected:
 				  TyTy::BaseType *rtype);
   TyTy::BaseType *expect_opaque (TyTy::OpaqueType *ltype,
 				 TyTy::BaseType *rtype);
-  TyTy::BaseType *expect_const (TyTy::ConstType *ltype, TyTy::BaseType *rtype);
+  TyTy::BaseType *expect_const (TyTy::BaseConstType *ltype,
+				TyTy::BaseType *rtype);
 
 private:
   UnifyRules (TyTy::TyWithLocation lhs, TyTy::TyWithLocation rhs,
 	      location_t locus, bool commit_flag, bool emit_error, bool infer,
-	      std::vector<CommitSite> &commits,
+	      bool check_bounds, std::vector<CommitSite> &commits,
 	      std::vector<InferenceSite> &infers);
 
   TyTy::BaseType *resolve_subtype (TyTy::TyWithLocation lhs,
@@ -110,6 +122,7 @@ private:
   bool commit_flag;
   bool emit_error;
   bool infer_flag;
+  bool check_bounds_flag;
   std::vector<CommitSite> &commits;
   std::vector<InferenceSite> &infers;
 

@@ -164,7 +164,6 @@ public:
   virtual void visit (Union &union_item) = 0;
   virtual void visit (ConstantItem &const_item) = 0;
   virtual void visit (StaticItem &static_item) = 0;
-  virtual void visit (TraitItemConst &item) = 0;
   virtual void visit (TraitItemType &item) = 0;
   virtual void visit (Trait &trait) = 0;
   virtual void visit (InherentImpl &impl) = 0;
@@ -204,12 +203,12 @@ public:
   virtual void visit (StructPatternFieldIdent &field) = 0;
   virtual void visit (StructPattern &pattern) = 0;
   // virtual void visit(TupleStructItems& tuple_items) = 0;
-  virtual void visit (TupleStructItemsNoRange &tuple_items) = 0;
-  virtual void visit (TupleStructItemsRange &tuple_items) = 0;
+  virtual void visit (TupleStructItemsNoRest &tuple_items) = 0;
+  virtual void visit (TupleStructItemsHasRest &tuple_items) = 0;
   virtual void visit (TupleStructPattern &pattern) = 0;
   // virtual void visit(TuplePatternItems& tuple_items) = 0;
-  virtual void visit (TuplePatternItemsMultiple &tuple_items) = 0;
-  virtual void visit (TuplePatternItemsRanged &tuple_items) = 0;
+  virtual void visit (TuplePatternItemsNoRest &tuple_items) = 0;
+  virtual void visit (TuplePatternItemsHasRest &tuple_items) = 0;
   virtual void visit (TuplePattern &pattern) = 0;
   virtual void visit (GroupedPattern &pattern) = 0;
   virtual void visit (SlicePatternItemsNoRest &items) = 0;
@@ -349,7 +348,6 @@ public:
   virtual void visit (AST::Union &union_item) override;
   virtual void visit (AST::ConstantItem &const_item) override;
   virtual void visit (AST::StaticItem &static_item) override;
-  virtual void visit (AST::TraitItemConst &item) override;
   virtual void visit (AST::TraitItemType &item) override;
   virtual void visit (AST::Trait &trait) override;
   virtual void visit (AST::InherentImpl &impl) override;
@@ -381,11 +379,11 @@ public:
   virtual void visit (AST::StructPatternFieldIdentPat &field) override;
   virtual void visit (AST::StructPatternFieldIdent &field) override;
   virtual void visit (AST::StructPattern &pattern) override;
-  virtual void visit (AST::TupleStructItemsNoRange &tuple_items) override;
-  virtual void visit (AST::TupleStructItemsRange &tuple_items) override;
+  virtual void visit (AST::TupleStructItemsNoRest &tuple_items) override;
+  virtual void visit (AST::TupleStructItemsHasRest &tuple_items) override;
   virtual void visit (AST::TupleStructPattern &pattern) override;
-  virtual void visit (AST::TuplePatternItemsMultiple &tuple_items) override;
-  virtual void visit (AST::TuplePatternItemsRanged &tuple_items) override;
+  virtual void visit (AST::TuplePatternItemsNoRest &tuple_items) override;
+  virtual void visit (AST::TuplePatternItemsHasRest &tuple_items) override;
   virtual void visit (AST::TuplePattern &pattern) override;
   virtual void visit (AST::GroupedPattern &pattern) override;
   virtual void visit (AST::SlicePatternItemsNoRest &items) override;

@@ -121,7 +121,7 @@ TypeCheckTopLevelExternItem::visit (HIR::ExternalFunctionItem &function)
 				UNDEF_LOCATION, false, Mutability::Imm,
 				std::unique_ptr<HIR::Pattern> (nullptr)));
 
-      params.push_back (TyTy::FnParam (std::move (param_pattern), param_tyty));
+      params.emplace_back (std::move (param_pattern), param_tyty);
 
       context->insert_type (param.get_mappings (), param_tyty);
 
@@ -324,7 +324,7 @@ TypeCheckImplItem::visit (HIR::Function &function)
 	}
 
       context->insert_type (self_param.get_mappings (), self_type);
-      params.push_back (TyTy::FnParam (std::move (self_pattern), self_type));
+      params.emplace_back (std::move (self_pattern), self_type);
     }
 
   for (auto &param : function.get_function_params ())
@@ -335,8 +335,8 @@ TypeCheckImplItem::visit (HIR::Function &function)
       context->insert_type (param.get_mappings (), param_tyty);
       TypeCheckPattern::Resolve (param.get_param_name (), param_tyty);
 
-      params.push_back (
-	TyTy::FnParam (param.get_param_name ().clone_pattern (), param_tyty));
+      params.emplace_back (param.get_param_name ().clone_pattern (),
+			   param_tyty);
     }
 
   auto &nr_ctx
@@ -469,8 +469,8 @@ TypeCheckImplItemWithTrait::visit (HIR::ConstantItem &constant)
     }
 
   // get the item from the predicate
-  resolved_trait_item = trait_reference.lookup_associated_item (raw_trait_item);
-  rust_assert (!resolved_trait_item.is_error ());
+  resolved_trait_item
+    = trait_reference.lookup_associated_item (raw_trait_item).value ();
 
   // merge the attributes
   const HIR::TraitItem *hir_trait_item
@@ -519,8 +519,8 @@ TypeCheckImplItemWithTrait::visit (HIR::TypeAlias &type)
     }
 
   // get the item from the predicate
-  resolved_trait_item = trait_reference.lookup_associated_item (raw_trait_item);
-  rust_assert (!resolved_trait_item.is_error ());
+  resolved_trait_item
+    = trait_reference.lookup_associated_item (raw_trait_item).value ();
 
   // merge the attributes
   const HIR::TraitItem *hir_trait_item
@@ -578,8 +578,8 @@ TypeCheckImplItemWithTrait::visit (HIR::Function &function)
     }
 
   // get the item from the predicate
-  resolved_trait_item = trait_reference.lookup_associated_item (raw_trait_item);
-  rust_assert (!resolved_trait_item.is_error ());
+  resolved_trait_item
+    = trait_reference.lookup_associated_item (raw_trait_item).value ();
 
   // merge the attributes
   const HIR::TraitItem *hir_trait_item

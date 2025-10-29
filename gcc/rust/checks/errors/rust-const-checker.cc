@@ -813,11 +813,11 @@ ConstChecker::visit (StructPattern &)
 {}
 
 void
-ConstChecker::visit (TupleStructItemsNoRange &)
+ConstChecker::visit (TupleStructItemsNoRest &)
 {}
 
 void
-ConstChecker::visit (TupleStructItemsRange &)
+ConstChecker::visit (TupleStructItemsHasRest &)
 {}
 
 void
@@ -825,15 +825,23 @@ ConstChecker::visit (TupleStructPattern &)
 {}
 
 void
-ConstChecker::visit (TuplePatternItemsMultiple &)
+ConstChecker::visit (TuplePatternItemsNoRest &)
 {}
 
 void
-ConstChecker::visit (TuplePatternItemsRanged &)
+ConstChecker::visit (TuplePatternItemsHasRest &)
 {}
 
 void
 ConstChecker::visit (TuplePattern &)
+{}
+
+void
+ConstChecker::visit (SlicePatternItemsNoRest &)
+{}
+
+void
+ConstChecker::visit (SlicePatternItemsHasRest &)
 {}
 
 void

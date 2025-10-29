@@ -97,15 +97,20 @@ TypeCheckType::visit (HIR::BareFunctionType &fntype)
     }
 
   std::vector<TyTy::TyVar> params;
+  params.reserve (fntype.get_function_params ().size ());
+
   for (auto &param : fntype.get_function_params ())
     {
       TyTy::BaseType *ptype = TypeCheckType::Resolve (param.get_type ());
-      params.push_back (TyTy::TyVar (ptype->get_ref ()));
+      params.emplace_back (ptype->get_ref ());
     }
 
-  translated = new TyTy::FnPtr (fntype.get_mappings ().get_hirid (),
-				fntype.get_locus (), std::move (params),
-				TyTy::TyVar (return_type->get_ref ()));
+  translated
+    = new TyTy::FnPtr (fntype.get_mappings ().get_hirid (), fntype.get_locus (),
+		       std::move (params),
+		       TyTy::TyVar (return_type->get_ref ()),
+		       fntype.get_function_qualifiers ().get_abi (),
+		       fntype.get_function_qualifiers ().get_unsafety ());
 }
 
 void
@@ -118,10 +123,12 @@ TypeCheckType::visit (HIR::TupleType &tuple)
     }
 
   std::vector<TyTy::TyVar> fields;
+  fields.reserve (tuple.get_elems ().size ());
+
   for (auto &elem : tuple.get_elems ())
     {
       auto field_ty = TypeCheckType::Resolve (*elem);
-      fields.push_back (TyTy::TyVar (field_ty->get_ref ()));
+      fields.emplace_back (field_ty->get_ref ());
     }
 
   translated = new TyTy::TupleType (tuple.get_mappings ().get_hirid (),
@@ -207,9 +214,9 @@ TypeCheckType::visit (HIR::QualifiedPathInType &path)
   // lookup the associated item from the specified bound
   HIR::TypePathSegment &item_seg = path.get_associated_segment ();
   HIR::PathIdentSegment item_seg_identifier = item_seg.get_ident_segment ();
-  TyTy::TypeBoundPredicateItem item
+  tl::optional<TyTy::TypeBoundPredicateItem> item
     = specified_bound.lookup_associated_item (item_seg_identifier.as_string ());
-  if (item.is_error ())
+  if (!item.has_value ())
     {
       std::string item_seg_ident_name, rich_msg;
       item_seg_ident_name = qual_path_type.get_trait ().as_string ();
@@ -261,7 +268,7 @@ TypeCheckType::visit (HIR::QualifiedPathInType &path)
       // and we dont need to worry if the trait item is actually implemented or
       // not because this will have already been validated as part of the trait
       // impl block
-      translated = item.get_tyty_for_receiver (root);
+      translated = item->get_tyty_for_receiver (root);
     }
   else
     {
@@ -699,38 +706,47 @@ TypeCheckType::visit (HIR::ArrayType &type)
   rust_assert (ok);
   context->insert_type (type.get_size_expr ().get_mappings (), expected_ty);
 
-  TyTy::ConstType *const_type = nullptr;
+  TyTy::BaseConstType *const_type = nullptr;
   if (capacity_type->get_kind () == TyTy::TypeKind::CONST)
     {
-      const_type = static_cast<TyTy::ConstType *> (capacity_type);
+      const_type = capacity_type->as_const_type ();
 
       unify_site (type.get_size_expr ().get_mappings ().get_hirid (),
 		  TyTy::TyWithLocation (expected_ty),
-		  TyTy::TyWithLocation (const_type->get_ty (),
+		  TyTy::TyWithLocation (const_type->get_specified_type (),
 					type.get_size_expr ().get_locus ()),
 		  type.get_size_expr ().get_locus ());
     }
   else
     {
       HirId size_id = type.get_size_expr ().get_mappings ().get_hirid ();
-      unify_site (size_id, TyTy::TyWithLocation (expected_ty),
-		  TyTy::TyWithLocation (capacity_type,
-					type.get_size_expr ().get_locus ()),
-		  type.get_size_expr ().get_locus ());
+      TyTy::BaseType *result
+	= unify_site (size_id, TyTy::TyWithLocation (expected_ty),
+		      TyTy::TyWithLocation (capacity_type,
+					    type.get_size_expr ().get_locus ()),
+		      type.get_size_expr ().get_locus ());
 
-      auto ctx = Compile::Context::get ();
-      tree capacity_expr = Compile::HIRCompileBase::query_compile_const_expr (
-	ctx, capacity_type, type.get_size_expr ());
+      if (result->is<TyTy::ErrorType> ())
+	const_type = new TyTy::ConstErrorType (expected_ty, size_id, size_id);
+      else
+	{
+	  auto ctx = Compile::Context::get ();
+	  tree capacity_expr
+	    = Compile::HIRCompileBase::query_compile_const_expr (
+	      ctx, capacity_type, type.get_size_expr ());
 
-      const_type = new TyTy::ConstType (TyTy::ConstType::ConstKind::Value, "",
-					expected_ty, capacity_expr, {},
-					type.get_size_expr ().get_locus (),
-					size_id, size_id);
+	  const_type = new TyTy::ConstValueType (capacity_expr, expected_ty,
+						 size_id, size_id);
+	  context->insert_type (type.get_size_expr ().get_mappings (),
+				const_type->as_base_type ());
+	}
     }
 
   translated
     = new TyTy::ArrayType (type.get_mappings ().get_hirid (), type.get_locus (),
-			   const_type, TyTy::TyVar (element_type->get_ref ()));
+			   TyTy::TyVar (
+			     const_type->as_base_type ()->get_ty_ref ()),
+			   TyTy::TyVar (element_type->get_ref ()));
 }
 
 void
