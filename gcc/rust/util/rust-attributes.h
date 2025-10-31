@@ -54,10 +54,11 @@ struct BuiltinAttrDefinition
 {
   std::string name;
   CompilerPass handler;
+  bool can_be_inner;
 
   static BuiltinAttrDefinition get_error ()
   {
-    return BuiltinAttrDefinition{"", UNKNOWN};
+    return BuiltinAttrDefinition{"", UNKNOWN, false};
   }
 
   static BuiltinAttrDefinition &error_node ()
@@ -102,12 +103,14 @@ public:
 
 private:
   using AST::DefaultASTVisitor::visit;
+
+  /* Check the validity of an inner attribute */
+  void check_inner_attribute (const AST::Attribute &attribute);
+  /* Check the validy of all inner attributes */
+  void check_inner_attributes (const AST::AttrVec &attributes);
   /* Check the validity of a given attribute */
   void check_attribute (const AST::Attribute &attribute);
-
   /* Check the validity of all given attributes */
-
-  void check_inner_attributes (const AST::AttrVec &attributes);
   void check_attributes (const AST::AttrVec &attributes);
 
   // rust-ast.h
