@@ -7096,6 +7096,14 @@ maybe_deduce_size_from_array_init (tree decl, tree init)
       cp_apply_type_quals_to_decl (cp_type_quals (TREE_TYPE (decl)), decl);
 
       relayout_decl (decl);
+
+      /* Update the type of the corresponding TEMPLATE_DECL to match.  */
+      if (DECL_LANG_SPECIFIC (decl) && DECL_TEMPLATE_INFO (decl))
+	{
+	  tree tmpl = template_for_substitution (decl);
+	  if (DECL_TEMPLATE_RESULT (tmpl) == decl)
+	    TREE_TYPE (tmpl) = TREE_TYPE (decl);
+	}
     }
 }
 
@@ -18950,13 +18958,9 @@ finish_enum_value_list (tree enumtype)
         value = perform_implicit_conversion (underlying_type,
                                              DECL_INITIAL (decl),
                                              tf_warning_or_error);
-      /* Do not clobber shared ints.  */
-      if (value != error_mark_node)
-	{
-	  value = copy_node (value);
+      /* Do not clobber shared ints.  But do share identical enumerators.  */
+      value = fold_convert (enumtype, value);
 
-	  TREE_TYPE (value) = enumtype;
-	}
       DECL_INITIAL (decl) = value;
       if (export_p)
 	DECL_MODULE_EXPORT_P (decl) = true;

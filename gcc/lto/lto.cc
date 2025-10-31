@@ -267,7 +267,6 @@ stream_out_partitions (char *temp_filename, int blen, int min, int max,
 	      {
 		/* There are no free tokens, lets do the job outselves.  */
 		stream_out_partitions_1 (temp_filename, blen, min, max);
-		asm_nodes_output = true;
 		return;
 	      }
 	  }
@@ -296,7 +295,6 @@ stream_out_partitions (char *temp_filename, int blen, int min, int max,
       if (jinfo != NULL && jinfo->is_connected)
 	jinfo->disconnect ();
     }
-  asm_nodes_output = true;
 #else
   stream_out_partitions_1 (temp_filename, blen, min, max);
 #endif
@@ -381,14 +379,17 @@ lto_wpa_write_files (void)
 	       !lsei_end_p (lsei);
 	       lsei_next_in_partition (&lsei))
 	    {
-	      symtab_node *node = lsei_node (lsei);
-	      fprintf (symtab->dump_file, "%s ", node->dump_asm_name ());
+	      symtab_node *node = dyn_cast<symtab_node*> (lsei_node (lsei));
+	      if (node)
+		fprintf (symtab->dump_file, "%s ", node->dump_asm_name ());
 	    }
 	  fprintf (symtab->dump_file, "\n  Symbols in boundary: ");
 	  for (lsei = lsei_start (part->encoder); !lsei_end_p (lsei);
 	       lsei_next (&lsei))
 	    {
-	      symtab_node *node = lsei_node (lsei);
+	      symtab_node *node = dyn_cast<symtab_node*> (lsei_node (lsei));
+	      if (!node)
+		continue;
 	      if (!lto_symtab_encoder_in_partition_p (part->encoder, node))
 		{
 		  fprintf (symtab->dump_file, "%s ", node->dump_asm_name ());

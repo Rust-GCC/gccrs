@@ -145,9 +145,6 @@
 ;; Only integer modes equal or larger than a word.
 (define_mode_iterator ILSX_DW  [V2DI V4SI])
 
-;; Only integer modes smaller than a word.
-(define_mode_iterator ILSX_HB  [V8HI V16QI])
-
 ;;;; Only integer modes for fixed-point madd_q/maddr_q.
 ;;(define_mode_iterator ILSX_WH  [V4SI V8HI])
 
@@ -654,59 +651,6 @@
   [(set_attr "type" "simd_div")
    (set_attr "mode" "<MODE>")])
 
-(define_insn "xor<mode>3"
-  [(set (match_operand:LSX 0 "register_operand" "=f,f,f")
-	(xor:LSX
-	  (match_operand:LSX 1 "register_operand" "f,f,f")
-	  (match_operand:LSX 2 "reg_or_vector_same_val_operand" "f,YC,Urv8")))]
-  "ISA_HAS_LSX"
-  "@
-   vxor.v\t%w0,%w1,%w2
-   vbitrevi.%v0\t%w0,%w1,%V2
-   vxori.b\t%w0,%w1,%B2"
-  [(set_attr "type" "simd_logic,simd_bit,simd_logic")
-   (set_attr "mode" "<MODE>")])
-
-(define_insn "ior<mode>3"
-  [(set (match_operand:LSX 0 "register_operand" "=f,f,f")
-	(ior:LSX
-	  (match_operand:LSX 1 "register_operand" "f,f,f")
-	  (match_operand:LSX 2 "reg_or_vector_same_val_operand" "f,YC,Urv8")))]
-  "ISA_HAS_LSX"
-  "@
-   vor.v\t%w0,%w1,%w2
-   vbitseti.%v0\t%w0,%w1,%V2
-   vori.b\t%w0,%w1,%B2"
-  [(set_attr "type" "simd_logic,simd_bit,simd_logic")
-   (set_attr "mode" "<MODE>")])
-
-(define_insn "and<mode>3"
-  [(set (match_operand:LSX 0 "register_operand" "=f,f,f")
-	(and:LSX
-	  (match_operand:LSX 1 "register_operand" "f,f,f")
-	  (match_operand:LSX 2 "reg_or_vector_same_val_operand" "f,YZ,Urv8")))]
-  "ISA_HAS_LSX"
-{
-  switch (which_alternative)
-    {
-    case 0:
-      return "vand.v\t%w0,%w1,%w2";
-    case 1:
-      {
-	rtx elt0 = CONST_VECTOR_ELT (operands[2], 0);
-	unsigned HOST_WIDE_INT val = ~UINTVAL (elt0);
-	operands[2] = loongarch_gen_const_int_vector (<MODE>mode, val & (-val));
-	return "vbitclri.%v0\t%w0,%w1,%V2";
-      }
-    case 2:
-      return "vandi.b\t%w0,%w1,%B2";
-    default:
-      gcc_unreachable ();
-    }
-}
-  [(set_attr "type" "simd_logic,simd_bit,simd_logic")
-   (set_attr "mode" "<MODE>")])
-
 (define_insn "one_cmpl<mode>2"
   [(set (match_operand:ILSX 0 "register_operand" "=f")
 	(not:ILSX (match_operand:ILSX 1 "register_operand" "f")))]
@@ -849,16 +793,6 @@
 		  (match_operand:FLSX 3 "register_operand" "f")))]
   "ISA_HAS_LSX"
   "vfmadd.<flsxfmt>\t%w0,%w1,%w2,%w3"
-  [(set_attr "type" "simd_fmadd")
-   (set_attr "mode" "<MODE>")])
-
-(define_insn "fnma<mode>4"
-  [(set (match_operand:FLSX 0 "register_operand" "=f")
-	(fma:FLSX (neg:FLSX (match_operand:FLSX 1 "register_operand" "f"))
-		  (match_operand:FLSX 2 "register_operand" "f")
-		  (match_operand:FLSX 3 "register_operand" "0")))]
-  "ISA_HAS_LSX"
-  "vfnmsub.<flsxfmt>\t%w0,%w1,%w2,%w0"
   [(set_attr "type" "simd_fmadd")
    (set_attr "mode" "<MODE>")])
 
@@ -3220,3 +3154,48 @@
   [(set (match_dup 0)
 	(vec_duplicate:V2DI (match_dup 1)))]
   "")
+
+(define_expand "vec_widen_<su><optab>_<hi_lo>_<mode>"
+  [(match_operand:<VDMODE> 0 "register_operand")
+   (match_operand:ILSX_WHB 1 "register_operand")
+   (match_operand:ILSX_WHB 2 "register_operand")
+   (any_extend (const_int 0))
+   (addsub (const_int 0) (const_int 0))
+   (const_int zero_one)]
+  "ISA_HAS_LSX"
+{
+  rtx t_even = gen_reg_rtx (<VDMODE>mode);
+  rtx t_odd = gen_reg_rtx (<VDMODE>mode);
+  emit_insn (gen_lsx_v<optab>wev_<dlsxfmt>_<lsxfmt><u> (t_even, operands[1],
+	operands[2]));
+  emit_insn (gen_lsx_v<optab>wod_<dlsxfmt>_<lsxfmt><u> (t_odd, operands[1],
+	operands[2]));
+  if (<zero_one>)
+    emit_insn (gen_lsx_vilvh_<dlsxfmt> (operands[0], t_even, t_odd));
+  else
+    emit_insn (gen_lsx_vilvl_<dlsxfmt> (operands[0], t_even, t_odd));
+
+  DONE;
+})
+
+(define_expand "vec_widen_<su>mult_<hi_lo>_<mode>"
+  [(match_operand:<VDMODE> 0 "register_operand")
+   (match_operand:ILSX_WHB 1 "register_operand")
+   (match_operand:ILSX_WHB 2 "register_operand")
+   (any_extend (const_int 0))
+   (const_int zero_one)]
+  "ISA_HAS_LSX"
+{
+  rtx t_even = gen_reg_rtx (<VDMODE>mode);
+  rtx t_odd = gen_reg_rtx (<VDMODE>mode);
+  emit_insn (gen_lsx_vmulwev_<dlsxfmt>_<lsxfmt><u> (t_even, operands[1],
+	operands[2]));
+  emit_insn (gen_lsx_vmulwod_<dlsxfmt>_<lsxfmt><u> (t_odd, operands[1],
+	operands[2]));
+  if (<zero_one>)
+    emit_insn (gen_lsx_vilvh_<dlsxfmt> (operands[0], t_even, t_odd));
+  else
+    emit_insn (gen_lsx_vilvl_<dlsxfmt> (operands[0], t_even, t_odd));
+
+  DONE;
+})

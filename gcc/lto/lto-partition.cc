@@ -43,7 +43,8 @@ along with GCC; see the file COPYING3.  If not see
 
 vec<ltrans_partition> ltrans_partitions;
 
-static void add_symbol_to_partition (ltrans_partition part, symtab_node *node);
+static void add_symbol_to_partition (ltrans_partition part,
+				     toplevel_node *node);
 
 
 /* Helper for qsort; compare partitions and return one with smaller order.  */
@@ -61,7 +62,7 @@ cmp_partitions_order (const void *a, const void *b)
     ordera = lto_symtab_encoder_deref (pa->encoder, 0)->order;
   if (lto_symtab_encoder_size (pb->encoder))
     orderb = lto_symtab_encoder_deref (pb->encoder, 0)->order;
-  return orderb - ordera;
+  return ordera - orderb;
 }
 
 /* Create new partition with name NAME.
@@ -85,6 +86,15 @@ new_partition (const char *name)
   ltrans_partition part = new_partition_no_push (name);
   ltrans_partitions.safe_push (part);
   return part;
+}
+
+/* If the cgraph is empty, create one cgraph node set so that there is still
+   an output file for any variables that need to be exported in a DSO.  */
+static void
+create_partition_if_empty ()
+{
+  if (!ltrans_partitions.length ())
+    new_partition ("empty");
 }
 
 /* Free memory used by ltrans partition.
@@ -266,9 +276,15 @@ contained_in_symbol (symtab_node *node)
    of other symbol definition, add the other symbol, too.  */
 
 static void
-add_symbol_to_partition (ltrans_partition part, symtab_node *node)
+add_symbol_to_partition (ltrans_partition part, toplevel_node *tnode)
 {
   symtab_node *node1;
+  symtab_node* node = dyn_cast <symtab_node*> (tnode);
+  if (!node)
+    {
+      lto_set_symtab_encoder_in_partition (part->encoder, tnode);
+      return;
+    }
 
   /* Verify that we do not try to duplicate something that cannot be.  */
   gcc_checking_assert (node->get_partitioning_class () == SYMBOL_DUPLICATE
@@ -299,22 +315,53 @@ undo_partition (ltrans_partition partition, unsigned int n_nodes)
 {
   while (lto_symtab_encoder_size (partition->encoder) > (int)n_nodes)
     {
-      symtab_node *node = lto_symtab_encoder_deref (partition->encoder,
-						   n_nodes);
-      partition->symbols--;
-      cgraph_node *cnode;
+      toplevel_node *tnode = lto_symtab_encoder_deref (partition->encoder,
+						       n_nodes);
 
       /* After UNDO we no longer know what was visited.  */
       if (partition->initializers_visited)
 	delete partition->initializers_visited;
       partition->initializers_visited = NULL;
 
-      if (!node->alias && (cnode = dyn_cast <cgraph_node *> (node))
-          && node->get_partitioning_class () == SYMBOL_PARTITION)
-	partition->insns -= ipa_size_summaries->get (cnode)->size;
-      lto_symtab_encoder_delete_node (partition->encoder, node);
-      node->aux = (void *)((size_t)node->aux - 1);
+      lto_symtab_encoder_delete_node (partition->encoder, tnode);
+
+      if (symtab_node* node = dyn_cast <symtab_node *> (tnode))
+	{
+	  partition->symbols--;
+	  cgraph_node *cnode;
+	  if (!node->alias && (cnode = dyn_cast <cgraph_node *> (node))
+	      && node->get_partitioning_class () == SYMBOL_PARTITION)
+	    partition->insns -= ipa_size_summaries->get (cnode)->size;
+	  node->aux = (void *)((size_t)node->aux - 1);
+	}
     }
+}
+
+/* Insert node into its file partition.  */
+static void
+node_into_file_partition (toplevel_node* node,
+			  hash_map<lto_file_decl_data *,
+				   ltrans_partition>& pmap)
+{
+  ltrans_partition partition;
+
+  struct lto_file_decl_data *file_data = node->lto_file_data;
+
+  if (file_data)
+    {
+      ltrans_partition *slot = &pmap.get_or_insert (file_data);
+      if (*slot)
+	partition = *slot;
+      else
+	{
+	  partition = new_partition (file_data->file_name);
+	  *slot = partition;
+	}
+    }
+  else
+    partition = new_partition ("");
+
+  add_symbol_to_partition (partition, node);
 }
 
 /* Group cgrah nodes by input files.  This is used mainly for testing
@@ -324,10 +371,7 @@ void
 lto_1_to_1_map (void)
 {
   symtab_node *node;
-  struct lto_file_decl_data *file_data;
   hash_map<lto_file_decl_data *, ltrans_partition> pmap;
-  ltrans_partition partition;
-  int npartitions = 0;
 
   FOR_EACH_SYMBOL (node)
     {
@@ -335,39 +379,36 @@ lto_1_to_1_map (void)
 	  || symbol_partitioned_p (node))
 	continue;
 
-      file_data = node->lto_file_data;
-
-      if (file_data)
-	{
-          ltrans_partition *slot = &pmap.get_or_insert (file_data);
-          if (*slot)
-	    partition = *slot;
-	  else
-	    {
-	      partition = new_partition (file_data->file_name);
-	      *slot = partition;
-	      npartitions++;
-	    }
-	}
-      else if (!file_data && ltrans_partitions.length ())
-	partition = ltrans_partitions[0];
-      else
-	{
-	  partition = new_partition ("");
-	  npartitions++;
-	}
-
-      add_symbol_to_partition (partition, node);
+      node_into_file_partition (node, pmap);
     }
 
-  /* If the cgraph is empty, create one cgraph node set so that there is still
-     an output file for any variables that need to be exported in a DSO.  */
-  if (!npartitions)
-    new_partition ("empty");
+  struct asm_node *anode;
+  for (anode = symtab->first_asm_symbol (); anode; anode = anode->next)
+    node_into_file_partition (anode, pmap);
+
+  create_partition_if_empty ();
 
   /* Order partitions by order of symbols because they are linked into binary
      that way.  */
   ltrans_partitions.qsort (cmp_partitions_order);
+}
+
+/* Creates partition with all toplevel assembly.
+
+   Before toplevel asm could be partitioned, all toplevel asm was inserted
+   into first partition.
+   This function achieves similar behavior for partitionings that cannot
+   easily satisfy requirements of toplevel asm.  */
+static void
+create_asm_partition (void)
+{
+  struct asm_node *anode = symtab->first_asm_symbol ();
+  if (anode)
+    {
+      ltrans_partition partition = new_partition ("asm_nodes");
+      for (; anode; anode = anode->next)
+	add_symbol_to_partition (partition, anode);
+    }
 }
 
 /* Maximal partitioning.  Put every new symbol into new partition if possible.  */
@@ -377,7 +418,6 @@ lto_max_map (void)
 {
   symtab_node *node;
   ltrans_partition partition;
-  int npartitions = 0;
 
   FOR_EACH_SYMBOL (node)
     {
@@ -386,10 +426,10 @@ lto_max_map (void)
 	continue;
       partition = new_partition (node->asm_name ());
       add_symbol_to_partition (partition, node);
-      npartitions++;
     }
-  if (!npartitions)
-    new_partition ("empty");
+
+  create_asm_partition ();
+  create_partition_if_empty ();
 }
 
 /* Helper function for qsort; sort nodes by order.  */
@@ -398,7 +438,7 @@ node_cmp (const void *pa, const void *pb)
 {
   const symtab_node *a = *static_cast<const symtab_node * const *> (pa);
   const symtab_node *b = *static_cast<const symtab_node * const *> (pb);
-  return b->order - a->order;
+  return a->order - b->order;
 }
 
 /* Add all symtab nodes from NEXT_NODE to PARTITION in order.  */
@@ -467,16 +507,17 @@ join_partitions (ltrans_partition into, ltrans_partition from)
      before adding any symbols to other partition.  */
   for (lsei = lsei_start (encoder); !lsei_end_p (lsei); lsei_next (&lsei))
     {
-      symtab_node *node = lsei_node (lsei);
-      node->aux = (void *)((size_t)node->aux - 1);
+      if (symtab_node *node = dyn_cast <symtab_node*> (lsei_node (lsei)))
+	node->aux = (void *)((size_t)node->aux - 1);
     }
 
   for (lsei = lsei_start (encoder); !lsei_end_p (lsei); lsei_next (&lsei))
     {
-      symtab_node *node = lsei_node (lsei);
+      toplevel_node *node = lsei_node (lsei);
 
-      if (symbol_partitioned_p (node))
-	continue;
+      if (symtab_node *snode = dyn_cast <symtab_node*> (node))
+	if (symbol_partitioned_p (snode))
+	  continue;
 
       add_symbol_to_partition (into, node);
     }
@@ -498,16 +539,17 @@ split_partition_into_nodes (ltrans_partition part)
 
   for (lsei = lsei_start (encoder); !lsei_end_p (lsei); lsei_next (&lsei))
     {
-      symtab_node *node = lsei_node (lsei);
-      node->aux = (void *)((size_t)node->aux - 1);
+      if (symtab_node *node = dyn_cast <symtab_node*> (lsei_node (lsei)))
+	node->aux = (void *)((size_t)node->aux - 1);
     }
 
   for (lsei = lsei_start (encoder); !lsei_end_p (lsei); lsei_next (&lsei))
     {
-      symtab_node *node = lsei_node (lsei);
+      toplevel_node *node = lsei_node (lsei);
 
-      if (node->get_partitioning_class () != SYMBOL_PARTITION
-	  || symbol_partitioned_p (node))
+      symtab_node *snode = dyn_cast <symtab_node*> (node);
+      if (snode->get_partitioning_class () != SYMBOL_PARTITION
+	  || symbol_partitioned_p (snode))
 	continue;
 
       ltrans_partition new_part = new_partition_no_push (part->name);
@@ -527,8 +569,8 @@ is_partition_reorder (ltrans_partition part)
 
   for (lsei = lsei_start (encoder); !lsei_end_p (lsei); lsei_next (&lsei))
     {
-      symtab_node *node = lsei_node (lsei);
-      if (node->no_reorder)
+      symtab_node *node = dyn_cast <symtab_node*> (lsei_node (lsei));
+      if (!node || node->no_reorder)
 	return false;
     }
   return true;
@@ -1167,19 +1209,21 @@ lto_balanced_map (int n_lto_partitions, int max_partition_size)
          callgraph or IPA reference edge leaving the partition contributes into
          COST.  Every edge inside partition was earlier computed as one leaving
 	 it and thus we need to subtract it from COST.  */
-      while (last_visited_node < lto_symtab_encoder_size (partition->encoder))
+      for (; last_visited_node < lto_symtab_encoder_size (partition->encoder);
+	   last_visited_node++)
 	{
 	  int j;
 	  struct ipa_ref *ref = NULL;
-	  symtab_node *snode = lto_symtab_encoder_deref (partition->encoder,
-							last_visited_node);
+	  toplevel_node *tnode = lto_symtab_encoder_deref (partition->encoder,
+							   last_visited_node);
+
+	  symtab_node* snode = dyn_cast <symtab_node*> (tnode);
+	  if (!snode)
+	    continue;
 
 	  if (cgraph_node *node = dyn_cast <cgraph_node *> (snode))
 	    {
 	      struct cgraph_edge *edge;
-
-
-	      last_visited_node++;
 
 	      gcc_assert (node->definition || node->weakref);
 
@@ -1197,8 +1241,7 @@ lto_balanced_map (int n_lto_partitions, int max_partition_size)
 		    gcc_assert (edge_cost > 0);
 		    index = lto_symtab_encoder_lookup (partition->encoder,
 						       edge->callee);
-		    if (index != LCC_NOT_FOUND
-		        && index < last_visited_node - 1)
+		    if (index != LCC_NOT_FOUND && index < last_visited_node)
 		      cost -= edge_cost, internal += edge_cost;
 		    else
 		      cost += edge_cost;
@@ -1216,15 +1259,12 @@ lto_balanced_map (int n_lto_partitions, int max_partition_size)
 		  gcc_assert (edge_cost > 0);
 		  index = lto_symtab_encoder_lookup (partition->encoder,
 						     edge->caller);
-		  if (index != LCC_NOT_FOUND
-		      && index < last_visited_node - 1)
+		  if (index != LCC_NOT_FOUND && index < last_visited_node)
 		    cost -= edge_cost, internal += edge_cost;
 		  else
 		    cost += edge_cost;
 		}
 	    }
-	  else
-	    last_visited_node++;
 
 	  /* Compute boundary cost of IPA REF edges and at the same time look into
 	     variables referenced from current partition and try to add them.  */
@@ -1242,8 +1282,7 @@ lto_balanced_map (int n_lto_partitions, int max_partition_size)
 		  add_symbol_to_partition (partition, vnode);
 		index = lto_symtab_encoder_lookup (partition->encoder,
 						   vnode);
-		if (index != LCC_NOT_FOUND
-		    && index < last_visited_node - 1)
+		if (index != LCC_NOT_FOUND && index < last_visited_node)
 		  cost--, internal++;
 		else
 		  cost++;
@@ -1255,8 +1294,7 @@ lto_balanced_map (int n_lto_partitions, int max_partition_size)
 		node = dyn_cast <cgraph_node *> (ref->referred);
 		index = lto_symtab_encoder_lookup (partition->encoder,
 						   node);
-		if (index != LCC_NOT_FOUND
-		    && index < last_visited_node - 1)
+		if (index != LCC_NOT_FOUND && index < last_visited_node)
 		  cost--, internal++;
 		else
 		  cost++;
@@ -1281,8 +1319,7 @@ lto_balanced_map (int n_lto_partitions, int max_partition_size)
 		  add_symbol_to_partition (partition, vnode);
 		index = lto_symtab_encoder_lookup (partition->encoder,
 						   vnode);
-		if (index != LCC_NOT_FOUND
-		    && index < last_visited_node - 1)
+		if (index != LCC_NOT_FOUND && index < last_visited_node)
 		  cost--, internal++;
 		else
 		  cost++;
@@ -1295,8 +1332,7 @@ lto_balanced_map (int n_lto_partitions, int max_partition_size)
 		gcc_assert (node->definition);
 		index = lto_symtab_encoder_lookup (partition->encoder,
 						   node);
-		if (index != LCC_NOT_FOUND
-		    && index < last_visited_node - 1)
+		if (index != LCC_NOT_FOUND && index < last_visited_node)
 		  cost--, internal++;
 		else
 		  cost++;
@@ -1400,6 +1436,8 @@ lto_balanced_map (int n_lto_partitions, int max_partition_size)
      symbols here (these are not accounted) or we have accounting bug.  */
   gcc_assert (next_nodes.length () || npartitions != 1 || !best_cost || best_cost == -1);
   add_sorted_nodes (next_nodes, partition);
+
+  create_asm_partition ();
 
   if (dump_file)
     {
@@ -1872,7 +1910,10 @@ lto_promote_cross_file_statics (void)
       for (lsei = lsei_start (encoder); !lsei_end_p (lsei);
 	   lsei_next (&lsei))
         {
-          symtab_node *node = lsei_node (lsei);
+	  toplevel_node *tnode = lsei_node (lsei);
+	  symtab_node *node = dyn_cast <symtab_node*> (tnode);
+	  if (!node)
+	    continue;
 
 	  /* If symbol is static, rename it if its assembler name
 	     clashes with anything else in this unit.  */

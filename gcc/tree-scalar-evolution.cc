@@ -3949,17 +3949,17 @@ final_value_replacement_loop (class loop *loop)
       auto loc = gimple_phi_arg_location (phi, exit->dest_idx);
       remove_phi_node (&psi, false);
 
-      /* Propagate constants immediately, but leave an unused initialization
-	 around to avoid invalidating the SCEV cache.  */
-      if (CONSTANT_CLASS_P (def) && !SSA_NAME_OCCURS_IN_ABNORMAL_PHI (rslt))
-	replace_uses_by (rslt, def);
-
       /* Create the replacement statements.  */
       gimple_seq stmts;
       def = force_gimple_operand (def, &stmts, false, NULL_TREE);
       gassign *ass = gimple_build_assign (rslt, def);
       gimple_set_location (ass, loc);
       gimple_seq_add_stmt (&stmts, ass);
+
+      /* Propagate constants immediately, but leave an unused initialization
+	 around to avoid invalidating the SCEV cache.  */
+      if (CONSTANT_CLASS_P (def) && !SSA_NAME_OCCURS_IN_ABNORMAL_PHI (rslt))
+	replace_uses_by (rslt, def);
 
       /* If def's type has undefined overflow and there were folded
 	 casts, rewrite all stmts added for def into arithmetics
@@ -3995,11 +3995,17 @@ final_value_replacement_loop (class loop *loop)
 	{
 	  gimple *use_stmt;
 	  imm_use_iterator imm_iter;
+	  auto_vec<gimple *, 4> to_fold;
 	  FOR_EACH_IMM_USE_STMT (use_stmt, imm_iter, rslt)
+	    if (!stmt_can_throw_internal (cfun, use_stmt))
+	      to_fold.safe_push (use_stmt);
+	  /* Delay folding until after the immediate use walk is completed
+	     as we have an active ranger and that might walk immediate
+	     uses of rslt again.  See PR122502.  */
+	  for (gimple *use_stmt : to_fold)
 	    {
 	      gimple_stmt_iterator gsi = gsi_for_stmt (use_stmt);
-	      if (!stmt_can_throw_internal (cfun, use_stmt)
-		  && fold_stmt (&gsi, follow_all_ssa_edges))
+	      if (fold_stmt (&gsi, follow_all_ssa_edges))
 		update_stmt (gsi_stmt (gsi));
 	    }
 	}

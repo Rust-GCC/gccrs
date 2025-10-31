@@ -1406,7 +1406,7 @@ package body Sem_Ch13 is
                Error_Msg_N ("nonoverridable aspect % of type % requires % "
                             & Operation_Kind
                             & "# to be a primitive operation",
-                            Original);
+                            Expr);
             end;
          end if;
       end Check_Nonoverridable_Aspect_Subprograms;
@@ -2372,7 +2372,13 @@ package body Sem_Ch13 is
                then
                   if A_Id = Aspect_Import then
                      Set_Has_Completion (E);
-                     Set_Is_Imported (E);
+
+                     --  Do not set Is_Imported on Exceptions, similarly
+                     --  to Sem_Prag.Process_Import_Or_Interface.
+
+                     if Ekind (E) /= E_Exception then
+                        Set_Is_Imported (E);
+                     end if;
 
                      --  An imported object cannot be explicitly initialized
 
@@ -3590,6 +3596,7 @@ package body Sem_Ch13 is
                             | Aspect_Effective_Reads
                             | Aspect_Effective_Writes
                             | Aspect_Preelaborable_Initialization
+                            | Aspect_Unsigned_Base_Range
             then
                Error_Msg_Name_1 := Nam;
 
@@ -3701,6 +3708,13 @@ package body Sem_Ch13 is
                     and then Nkind (Prefix (Expr)) = N_Identifier
                     and then Chars (Prefix (Expr)) = Name_Standard
                   then
+                     Delay_Required := False;
+
+                  --  For Unsigned_Base_Range aspect, do not delay becase we
+                  --  need to process it before any type or subtype derivation
+                  --  is analyzed.
+
+                  elsif A_Id in Aspect_Unsigned_Base_Range then
                      Delay_Required := False;
 
                   --  All other cases are delayed

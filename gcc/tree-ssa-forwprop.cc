@@ -216,31 +216,6 @@ static bitmap to_purge;
 /* Const-and-copy lattice.  */
 static vec<tree> lattice;
 
-/* forwprop_may_propagate_copy is like may_propagate_copy except
-   after the final folding, don't allow propagating of pointer ORIG
-   that have a lower alignment than the DEST name.
-   This is to prevent losing alignment information from
-   __builtin_assume_aligned for expand (See also PR 122086).  */
-static bool
-forwprop_may_propagate_copy (tree dest, tree orig,
-			     bool dest_not_abnormal_phi_edge_p = false)
-{
-  if (!may_propagate_copy (dest, orig, dest_not_abnormal_phi_edge_p))
-    return false;
-
-  /* Only check alignment for the final folding.  */
-  if (!(cfun->curr_properties & PROP_last_full_fold))
-    return true;
-
-  /* Alignment only matters for pointer types.  */
-  if (!POINTER_TYPE_P (TREE_TYPE (dest)) || !POINTER_TYPE_P (TREE_TYPE (orig)))
-    return true;
-
-  unsigned aligndest = get_pointer_alignment (dest);
-  unsigned alignorig = get_pointer_alignment (orig);
-  return aligndest <= alignorig;
-}
-
 /* Set the lattice entry for NAME to VAL.  */
 static void
 fwprop_set_lattice_val (tree name, tree val)
@@ -1818,6 +1793,7 @@ do_simple_agr_dse (gassign *stmt, bool full_walk)
   /* Only handle clobbers of a full decl.  */
   if (!DECL_P (lhs))
     return;
+  clobber_kind kind = (clobber_kind)CLOBBER_KIND (gimple_assign_rhs1 (stmt));
   ao_ref_init (&read, lhs);
   tree vuse = gimple_vuse (stmt);
   unsigned limit = full_walk ? param_sccvn_max_alias_queries_per_access : 4;
@@ -1839,6 +1815,25 @@ do_simple_agr_dse (gassign *stmt, bool full_walk)
 	  basic_block ubb = gimple_bb (use_stmt);
 	  if (stmt == use_stmt)
 	    continue;
+	  /* If the use is the same kind of clobber for lhs,
+	     then it can be safely skipped; this happens with eh
+	     and sometimes jump threading.  */
+	  if (gimple_clobber_p (use_stmt, kind)
+	      && lhs == gimple_assign_lhs (use_stmt))
+	    continue;
+	  /* If the use is a phi and it is single use then check if that single use
+	     is a clobber of the same kind and lhs is the same.  */
+	  if (gphi *use_phi = dyn_cast<gphi*>(use_stmt))
+	    {
+	      use_operand_p ou;
+	      gimple *ostmt;
+	      if (single_imm_use (gimple_phi_result (use_phi), &ou, &ostmt)
+		  && gimple_clobber_p (ostmt, kind)
+	          && lhs == gimple_assign_lhs (ostmt))
+		continue;
+	      /* A phi node will never be dominating the clobber.  */
+	      return;
+	    }
 	  /* The use needs to be dominating the clobber. */
 	  if ((ubb != bb && !dominated_by_p (CDI_DOMINATORS, bb, ubb))
 	      || ref_maybe_used_by_stmt_p (use_stmt, &read, false))
@@ -5202,7 +5197,7 @@ pass_forwprop::execute (function *fun)
 	    }
 	  if (all_same)
 	    {
-	      if (forwprop_may_propagate_copy (res, first))
+	      if (may_propagate_copy (res, first))
 		to_remove_defs.safe_push (SSA_NAME_VERSION (res));
 	      fwprop_set_lattice_val (res, first);
 	    }
@@ -5557,7 +5552,7 @@ pass_forwprop::execute (function *fun)
 		{
 		  if (!is_gimple_debug (stmt))
 		    bitmap_set_bit (simple_dce_worklist, SSA_NAME_VERSION (use));
-		  if (forwprop_may_propagate_copy (use, val))
+		  if (may_propagate_copy (use, val))
 		    {
 		      propagate_value (usep, val);
 		      substituted_p = true;
@@ -5720,7 +5715,7 @@ pass_forwprop::execute (function *fun)
 		  /* If we can propagate the lattice-value mark the
 		     stmt for removal.  */
 		  if (val != lhs
-		      && forwprop_may_propagate_copy (lhs, val))
+		      && may_propagate_copy (lhs, val))
 		    to_remove_defs.safe_push (SSA_NAME_VERSION (lhs));
 		  fwprop_set_lattice_val (lhs, val);
 		}
@@ -5742,7 +5737,7 @@ pass_forwprop::execute (function *fun)
 	      continue;
 	    tree val = fwprop_ssa_val (arg);
 	    if (val != arg
-		&& forwprop_may_propagate_copy (arg, val, !(e->flags & EDGE_ABNORMAL)))
+		&& may_propagate_copy (arg, val, !(e->flags & EDGE_ABNORMAL)))
 	      propagate_value (use_p, val);
 	  }
 

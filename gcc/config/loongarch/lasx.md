@@ -146,9 +146,6 @@
 ;; Only integer modes equal or larger than a word.
 (define_mode_iterator ILASX_DW  [V4DI V8SI])
 
-;; Only integer modes smaller than a word.
-(define_mode_iterator ILASX_HB  [V16HI V32QI])
-
 ;; Only used for immediate set shuffle elements instruction.
 (define_mode_iterator LASX_WHB_W [V8SI V16HI V32QI V8SF])
 
@@ -834,59 +831,6 @@
   [(set_attr "type" "simd_div")
    (set_attr "mode" "<MODE>")])
 
-(define_insn "xor<mode>3"
-  [(set (match_operand:LASX 0 "register_operand" "=f,f,f")
-	(xor:LASX
-	  (match_operand:LASX 1 "register_operand" "f,f,f")
-	  (match_operand:LASX 2 "reg_or_vector_same_val_operand" "f,YC,Urv8")))]
-  "ISA_HAS_LASX"
-  "@
-   xvxor.v\t%u0,%u1,%u2
-   xvbitrevi.%v0\t%u0,%u1,%V2
-   xvxori.b\t%u0,%u1,%B2"
-  [(set_attr "type" "simd_logic,simd_bit,simd_logic")
-   (set_attr "mode" "<MODE>")])
-
-(define_insn "ior<mode>3"
-  [(set (match_operand:LASX 0 "register_operand" "=f,f,f")
-	(ior:LASX
-	  (match_operand:LASX 1 "register_operand" "f,f,f")
-	  (match_operand:LASX 2 "reg_or_vector_same_val_operand" "f,YC,Urv8")))]
-  "ISA_HAS_LASX"
-  "@
-   xvor.v\t%u0,%u1,%u2
-   xvbitseti.%v0\t%u0,%u1,%V2
-   xvori.b\t%u0,%u1,%B2"
-  [(set_attr "type" "simd_logic,simd_bit,simd_logic")
-   (set_attr "mode" "<MODE>")])
-
-(define_insn "and<mode>3"
-  [(set (match_operand:LASX 0 "register_operand" "=f,f,f")
-	(and:LASX
-	  (match_operand:LASX 1 "register_operand" "f,f,f")
-	  (match_operand:LASX 2 "reg_or_vector_same_val_operand" "f,YZ,Urv8")))]
-  "ISA_HAS_LASX"
-{
-  switch (which_alternative)
-    {
-    case 0:
-      return "xvand.v\t%u0,%u1,%u2";
-    case 1:
-      {
-	rtx elt0 = CONST_VECTOR_ELT (operands[2], 0);
-	unsigned HOST_WIDE_INT val = ~UINTVAL (elt0);
-	operands[2] = loongarch_gen_const_int_vector (<MODE>mode, val & (-val));
-	return "xvbitclri.%v0\t%u0,%u1,%V2";
-      }
-    case 2:
-      return "xvandi.b\t%u0,%u1,%B2";
-    default:
-      gcc_unreachable ();
-    }
-}
-  [(set_attr "type" "simd_logic,simd_bit,simd_logic")
-   (set_attr "mode" "<MODE>")])
-
 (define_insn "one_cmpl<mode>2"
   [(set (match_operand:ILASX 0 "register_operand" "=f")
 	(not:ILASX (match_operand:ILASX 1 "register_operand" "f")))]
@@ -1032,16 +976,6 @@
 		   (match_operand:FLASX 3 "register_operand" "f")))]
   "ISA_HAS_LASX"
   "xvfmadd.<flasxfmt>\t%u0,%u1,%u2,%u3"
-  [(set_attr "type" "simd_fmadd")
-   (set_attr "mode" "<MODE>")])
-
-(define_insn "fnma<mode>4"
-  [(set (match_operand:FLASX 0 "register_operand" "=f")
-	(fma:FLASX (neg:FLASX (match_operand:FLASX 1 "register_operand" "f"))
-		   (match_operand:FLASX 2 "register_operand" "f")
-		   (match_operand:FLASX 3 "register_operand" "0")))]
-  "ISA_HAS_LASX"
-  "xvfnmsub.<flasxfmt>\t%u0,%u1,%u2,%u0"
   [(set_attr "type" "simd_fmadd")
    (set_attr "mode" "<MODE>")])
 
@@ -3633,69 +3567,38 @@
   [(set_attr "type" "simd_store")
    (set_attr "mode" "DI")])
 
-(define_expand "vec_widen_<su>add_hi_<mode>"
+(define_expand "vec_widen_<su><optab>_<hi_lo>_<mode>"
   [(match_operand:<VDMODE256> 0 "register_operand")
-   (any_extend:<VDMODE256> (match_operand:ILASX_HB 1 "register_operand"))
-   (any_extend:<VDMODE256> (match_operand:ILASX_HB 2 "register_operand"))]
+   (match_operand:ILASX_WHB 1 "register_operand")
+   (match_operand:ILASX_WHB 2 "register_operand")
+   (any_extend (const_int 0))
+   (addsub (const_int 0) (const_int 0))
+   (const_int zero_one)]
   "ISA_HAS_LASX"
 {
+  rtx (*fn_even) (rtx, rtx, rtx) =
+gen_lasx_xv<optab>wev_<dlasxfmt>_<lasxfmt><u>;
+  rtx (*fn_odd) (rtx, rtx, rtx) =
+gen_lasx_xv<optab>wod_<dlasxfmt>_<lasxfmt><u>;
   loongarch_expand_vec_widen_hilo (operands[0], operands[1], operands[2],
-                        <u_bool>, true, "add");
+                        <zero_one>, fn_even, fn_odd);
   DONE;
 })
 
-(define_expand "vec_widen_<su>add_lo_<mode>"
+(define_expand "vec_widen_<su>mult_<hi_lo>_<mode>"
   [(match_operand:<VDMODE256> 0 "register_operand")
-   (any_extend:<VDMODE256> (match_operand:ILASX_HB 1 "register_operand"))
-   (any_extend:<VDMODE256> (match_operand:ILASX_HB 2 "register_operand"))]
+   (match_operand:ILASX_WHB 1 "register_operand")
+   (match_operand:ILASX_WHB 2 "register_operand")
+   (any_extend (const_int 0))
+   (const_int zero_one)]
   "ISA_HAS_LASX"
 {
+  rtx (*fn_even) (rtx, rtx, rtx) =
+gen_lasx_xvmulwev_<dlasxfmt>_<lasxfmt><u>;
+  rtx (*fn_odd) (rtx, rtx, rtx) =
+gen_lasx_xvmulwod_<dlasxfmt>_<lasxfmt><u>;
   loongarch_expand_vec_widen_hilo (operands[0], operands[1], operands[2],
-                        <u_bool>, false, "add");
-  DONE;
-})
-
-(define_expand "vec_widen_<su>sub_hi_<mode>"
-  [(match_operand:<VDMODE256> 0 "register_operand")
-   (any_extend:<VDMODE256> (match_operand:ILASX_HB 1 "register_operand"))
-   (any_extend:<VDMODE256> (match_operand:ILASX_HB 2 "register_operand"))]
-  "ISA_HAS_LASX"
-{
-  loongarch_expand_vec_widen_hilo (operands[0], operands[1], operands[2],
-                        <u_bool>, true, "sub");
-  DONE;
-})
-
-(define_expand "vec_widen_<su>sub_lo_<mode>"
-  [(match_operand:<VDMODE256> 0 "register_operand")
-   (any_extend:<VDMODE256> (match_operand:ILASX_HB 1 "register_operand"))
-   (any_extend:<VDMODE256> (match_operand:ILASX_HB 2 "register_operand"))]
-  "ISA_HAS_LASX"
-{
-  loongarch_expand_vec_widen_hilo (operands[0], operands[1], operands[2],
-                        <u_bool>, false, "sub");
-  DONE;
-})
-
-(define_expand "vec_widen_<su>mult_hi_<mode>"
-  [(match_operand:<VDMODE256> 0 "register_operand")
-   (any_extend:<VDMODE256> (match_operand:ILASX_HB 1 "register_operand"))
-   (any_extend:<VDMODE256> (match_operand:ILASX_HB 2 "register_operand"))]
-  "ISA_HAS_LASX"
-{
-  loongarch_expand_vec_widen_hilo (operands[0], operands[1], operands[2],
-                        <u_bool>, true, "mult");
-  DONE;
-})
-
-(define_expand "vec_widen_<su>mult_lo_<mode>"
-  [(match_operand:<VDMODE256> 0 "register_operand")
-   (any_extend:<VDMODE256> (match_operand:ILASX_HB 1 "register_operand"))
-   (any_extend:<VDMODE256> (match_operand:ILASX_HB 2 "register_operand"))]
-  "ISA_HAS_LASX"
-{
-  loongarch_expand_vec_widen_hilo (operands[0], operands[1], operands[2],
-                        <u_bool>, false, "mult");
+                        <zero_one>, fn_even, fn_odd);
   DONE;
 })
 

@@ -1,3 +1,57 @@
+2025-10-30  Mikael Morin  <mikael@gcc.gnu.org>
+
+	* trans-array.cc: Cleanup obsolete comment.
+
+2025-10-29  Yuao Ma  <c8ef@outlook.com>
+
+	* trans-expr.cc (gfc_conv_gfc_desc_to_cfi_desc): Remove unreachable
+	code.
+
+2025-10-29  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/122165
+	* primary.cc (gfc_match_varspec): If the previous component ref
+	was a type specification parameter, a type inquiry ref cannot
+	follow.
+
+2025-10-29  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/122433
+	PR fortran/122434
+	* decl.cc (gfc_get_pdt_instance): Prevent a PDT component of
+	the same type as the template from being converted into an
+	instance.
+	* resolve.cc (gfc_impure_variable): The result of a pure
+	function is a valid allocate object since it is pure.
+
+2025-10-28  Yuao Ma  <c8ef@outlook.com>
+
+	PR fortran/122342
+	* trans-const.cc (gfc_conv_constant): Create a variable for the
+	non-char pointer.
+
+2025-10-28  Paul-Antoine Arras  <parras@baylibre.com>
+
+	PR fortran/122439
+	* openmp.cc (gfc_resolve_omp_context_selector): Skip selectors that have
+	OMP_TRAIT_INVALID.
+
+2025-10-27  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/922290
+	PR fortran/95541
+	* resolve.cc (resolve_typebound_intrinsic_op): Add pdt_template
+	to the list of preemted specifics.
+	* trans-stmt.cc (trans_associate_var): PDT array and string
+	components are separately allocated for each element of a PDT
+	array, so copy in and copy out the selector expression.
+
+2025-10-27  Richard Biener  <rguenther@suse.de>
+
+	PR middle-end/122325
+	* options.cc (gfc_init_options_struct): Set flag_complex_method
+	to fortran rules.
+
 2025-10-26  Paul Thomas  <pault@gcc.gnu.org>
 
 	PR fortran/122290

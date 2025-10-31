@@ -2554,14 +2554,18 @@ output_constructor (struct varpool_node *node, int output_order)
 /* Emit toplevel asms.  */
 
 void
-lto_output_toplevel_asms (void)
+lto_output_toplevel_asms (lto_symtab_encoder_t encoder)
 {
   struct output_block *ob;
-  struct asm_node *can;
   char *section_name;
   struct lto_simple_header_with_strings header;
 
-  if (!symtab->first_asm_symbol ())
+  bool any_asm = false;
+  for (int i = 0; i < lto_symtab_encoder_size (encoder); i++)
+    if (is_a <asm_node*> (lto_symtab_encoder_deref (encoder, i)))
+      any_asm = true;
+
+  if (!any_asm)
     return;
 
   ob = create_output_block (LTO_section_asm);
@@ -2569,17 +2573,22 @@ lto_output_toplevel_asms (void)
   /* Make string 0 be a NULL string.  */
   streamer_write_char_stream (ob->string_stream, 0);
 
-  for (can = symtab->first_asm_symbol (); can; can = can->next)
+  for (int i = 0; i < lto_symtab_encoder_size (encoder); i++)
     {
-      if (TREE_CODE (can->asm_str) != STRING_CST)
+      toplevel_node *tnode = lto_symtab_encoder_deref (encoder, i);
+      asm_node *anode = dyn_cast <asm_node*> (tnode);
+      if (!anode)
+	continue;
+
+      if (TREE_CODE (anode->asm_str) != STRING_CST)
 	{
-	  sorry_at (EXPR_LOCATION (can->asm_str),
+	  sorry_at (EXPR_LOCATION (anode->asm_str),
 		    "LTO streaming of toplevel extended %<asm%> "
 		    "unimplemented");
 	  continue;
 	}
-      streamer_write_string_cst (ob, ob->main_stream, can->asm_str);
-      streamer_write_hwi (ob, can->order);
+      streamer_write_string_cst (ob, ob->main_stream, anode->asm_str);
+      streamer_write_hwi (ob, anode->order);
     }
 
   streamer_write_string_cst (ob, ob->main_stream, NULL_TREE);
@@ -2783,18 +2792,11 @@ create_order_remap (lto_symtab_encoder_t encoder)
 {
   auto_vec<int> orders;
   unsigned i;
-  struct asm_node* anode;
   encoder->order_remap = new hash_map<int_hash<int, -1, -2>, int>;
   unsigned n_nodes = lto_symtab_encoder_size (encoder);
 
   for (i = 0; i < n_nodes; i++)
     orders.safe_push (lto_symtab_encoder_deref (encoder, i)->order);
-
-  if (!asm_nodes_output)
-    {
-      for (anode = symtab->first_asm_symbol (); anode; anode = anode->next)
-	orders.safe_push (anode->order);
-    }
 
   orders.qsort (cmp_int);
   int ord = 0;
@@ -2809,14 +2811,6 @@ create_order_remap (lto_symtab_encoder_t encoder)
 	  ord++;
 	}
     }
-
-  /* Asm nodes are currently always output only into first partition.
-     We can remap already here.  */
-  if (!asm_nodes_output)
-    {
-      for (anode = symtab->first_asm_symbol (); anode; anode = anode->next)
-	anode->order = *encoder->order_remap->get (anode->order);
-    }
 }
 
 /* Main entry point from the pass manager.  */
@@ -2830,6 +2824,13 @@ lto_output (void)
   unsigned int i, n_nodes;
   lto_symtab_encoder_t encoder = lto_get_out_decl_state ()->symtab_node_encoder;
   auto_vec<symtab_node *> symbols_to_copy;
+
+  if (!flag_wpa)
+    {
+      asm_node *anode;
+      for (anode = symtab->first_asm_symbol (); anode; anode = anode->next)
+	lto_set_symtab_encoder_in_partition (encoder, anode);
+    }
 
   create_order_remap (encoder);
 
@@ -2851,16 +2852,18 @@ lto_output (void)
      section copying.  */
   for (i = 0; i < n_nodes; i++)
     {
-      symtab_node *snode = lto_symtab_encoder_deref (encoder, i);
-      if (snode->alias)
+      toplevel_node *tnode = lto_symtab_encoder_deref (encoder, i);
+      symtab_node *node = dyn_cast <symtab_node *> (tnode);
+      if (!node || node->alias)
 	continue;
-      if (cgraph_node *node = dyn_cast <cgraph_node *> (snode))
+
+      if (cgraph_node *node = dyn_cast <cgraph_node *> (tnode))
 	{
 	  if (lto_symtab_encoder_encode_body_p (encoder, node)
 	      && !node->clone_of)
 	    symbols_to_copy.safe_push (node);
 	}
-      else if (varpool_node *node = dyn_cast <varpool_node *> (snode))
+      else if (varpool_node *node = dyn_cast <varpool_node *> (tnode))
 	{
 	  /* Wrap symbol references inside the ctor in a type
 	     preserving MEM_REF.  */
@@ -3202,7 +3205,10 @@ produce_symtab (struct output_block *ob)
   for (lsei = lsei_start (encoder);
        !lsei_end_p (lsei); lsei_next (&lsei))
     {
-      symtab_node *node = lsei_node (lsei);
+      toplevel_node *tnode = lsei_node (lsei);
+      symtab_node *node = dyn_cast<symtab_node*> (tnode);
+      if (!node)
+	continue;
 
       if (DECL_EXTERNAL (node->decl) || !node->output_to_lto_symbol_table_p ())
 	continue;
@@ -3212,7 +3218,10 @@ produce_symtab (struct output_block *ob)
   for (lsei = lsei_start (encoder);
        !lsei_end_p (lsei); lsei_next (&lsei))
     {
-      symtab_node *node = lsei_node (lsei);
+      toplevel_node *tnode = lsei_node (lsei);
+      symtab_node *node = dyn_cast<symtab_node*> (tnode);
+      if (!node)
+	continue;
 
       if (!DECL_EXTERNAL (node->decl) || !node->output_to_lto_symbol_table_p ())
 	continue;
@@ -3253,7 +3262,10 @@ produce_symtab_extension (struct output_block *ob,
   for (lsei = lsei_start (encoder);
        !lsei_end_p (lsei); lsei_next (&lsei))
     {
-      symtab_node *node = lsei_node (lsei);
+      toplevel_node *tnode = lsei_node (lsei);
+      symtab_node *node = dyn_cast<symtab_node*> (tnode);
+      if (!node)
+	continue;
 
       if (DECL_EXTERNAL (node->decl) || !node->output_to_lto_symbol_table_p ())
 	continue;
@@ -3263,7 +3275,10 @@ produce_symtab_extension (struct output_block *ob,
   for (lsei = lsei_start (encoder);
        !lsei_end_p (lsei); lsei_next (&lsei))
     {
-      symtab_node *node = lsei_node (lsei);
+      toplevel_node *tnode = lsei_node (lsei);
+      symtab_node *node = dyn_cast<symtab_node*> (tnode);
+      if (!node)
+	continue;
 
       if (!DECL_EXTERNAL (node->decl) || !node->output_to_lto_symbol_table_p ())
 	continue;
