@@ -26,7 +26,7 @@
 #include "rust-tyty.h"
 #include "optional.h"
 #include "rust-hir-visitor.h"
-#include "rust-name-resolver.h"
+#include "rust-immutable-name-resolution-context.h"
 
 namespace Rust {
 namespace Analysis {
@@ -46,7 +46,7 @@ public:
 
 private:
   Resolver::TypeCheckContext &tyctx;
-  Resolver::Resolver &resolver;
+  const Resolver2_0::NameResolutionContext &resolver;
   Analysis::Mappings &mappings;
 
   virtual void visit (Lifetime &lifetime) override;
@@ -153,12 +153,14 @@ private:
   virtual void visit (StructPatternFieldIdentPat &field) override;
   virtual void visit (StructPatternFieldIdent &field) override;
   virtual void visit (StructPattern &pattern) override;
-  virtual void visit (TupleStructItemsNoRange &tuple_items) override;
-  virtual void visit (TupleStructItemsRange &tuple_items) override;
+  virtual void visit (TupleStructItemsNoRest &tuple_items) override;
+  virtual void visit (TupleStructItemsHasRest &tuple_items) override;
   virtual void visit (TupleStructPattern &pattern) override;
-  virtual void visit (TuplePatternItemsMultiple &tuple_items) override;
-  virtual void visit (TuplePatternItemsRanged &tuple_items) override;
+  virtual void visit (TuplePatternItemsNoRest &tuple_items) override;
+  virtual void visit (TuplePatternItemsHasRest &tuple_items) override;
   virtual void visit (TuplePattern &pattern) override;
+  virtual void visit (SlicePatternItemsNoRest &items) override;
+  virtual void visit (SlicePatternItemsHasRest &items) override;
   virtual void visit (SlicePattern &pattern) override;
   virtual void visit (AltPattern &pattern) override;
   virtual void visit (EmptyStmt &stmt) override;

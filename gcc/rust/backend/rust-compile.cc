@@ -183,8 +183,7 @@ HIRCompileBase::coercion_site1 (tree rvalue, TyTy::BaseType *rval,
 }
 
 tree
-HIRCompileBase::coerce_to_dyn_object (tree compiled_ref,
-				      const TyTy::BaseType *actual,
+HIRCompileBase::coerce_to_dyn_object (tree compiled_ref, TyTy::BaseType *actual,
 				      const TyTy::DynamicObjectType *ty,
 				      location_t locus)
 {
@@ -201,9 +200,7 @@ HIRCompileBase::coerce_to_dyn_object (tree compiled_ref,
   // __trait_object_ptr
   // [list of function ptrs]
 
-  std::vector<std::pair<Resolver::TraitReference *, HIR::ImplBlock *>>
-    probed_bounds_for_receiver = Resolver::TypeBoundsProbe::Probe (actual);
-
+  auto probed_bounds_for_receiver = Resolver::TypeBoundsProbe::Probe (actual);
   tree address_of_compiled_ref = null_pointer_node;
   if (!actual->is_unit ())
     address_of_compiled_ref = address_expression (compiled_ref, locus);
@@ -241,12 +238,13 @@ HIRCompileBase::compute_address_for_trait_item (
     &receiver_bounds,
   const TyTy::BaseType *receiver, const TyTy::BaseType *root, location_t locus)
 {
-  TyTy::TypeBoundPredicateItem predicate_item
+  tl::optional<TyTy::TypeBoundPredicateItem> predicate_item
     = predicate->lookup_associated_item (ref->get_identifier ());
-  rust_assert (!predicate_item.is_error ());
+  rust_assert (predicate_item.has_value ());
 
   // This is the expected end type
-  TyTy::BaseType *trait_item_type = predicate_item.get_tyty_for_receiver (root);
+  TyTy::BaseType *trait_item_type
+    = predicate_item->get_tyty_for_receiver (root);
   rust_assert (trait_item_type->get_kind () == TyTy::TypeKind::FNDEF);
   TyTy::FnType *trait_item_fntype
     = static_cast<TyTy::FnType *> (trait_item_type);

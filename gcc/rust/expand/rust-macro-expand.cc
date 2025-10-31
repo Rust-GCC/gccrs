@@ -961,7 +961,8 @@ transcribe_expression (Parser<MacroInvocLexer> &parser)
   auto &lexer = parser.get_token_source ();
   auto start = lexer.get_offs ();
 
-  auto expr = parser.parse_expr ();
+  auto attrs = parser.parse_outer_attributes ();
+  auto expr = parser.parse_expr (std::move (attrs));
   if (expr == nullptr)
     return AST::Fragment::create_error ();
 
@@ -999,6 +1000,27 @@ transcribe_type (Parser<MacroInvocLexer> &parser)
   return AST::Fragment ({std::move (type)}, lexer.get_token_slice (start, end));
 }
 
+/**
+ * Transcribe one pattern from a macro invocation
+ *
+ * @param parser Parser to extract statements from
+ */
+static AST::Fragment
+transcribe_pattern (Parser<MacroInvocLexer> &parser)
+{
+  auto &lexer = parser.get_token_source ();
+  auto start = lexer.get_offs ();
+
+  auto pattern = parser.parse_pattern ();
+  for (auto err : parser.get_errors ())
+    err.emit ();
+
+  auto end = lexer.get_offs ();
+
+  return AST::Fragment ({std::move (pattern)},
+			lexer.get_token_slice (start, end));
+}
+
 static AST::Fragment
 transcribe_context (MacroExpander::ContextType ctx,
 		    Parser<MacroInvocLexer> &parser, bool semicolon,
@@ -1011,6 +1033,7 @@ transcribe_context (MacroExpander::ContextType ctx,
   //     -- Trait --> parser.parse_trait_item();
   //     -- Impl --> parser.parse_impl_item();
   //     -- Extern --> parser.parse_extern_item();
+  //     -- Pattern --> parser.parse_pattern();
   //     -- None --> [has semicolon?]
   //                 -- Yes --> parser.parse_stmt();
   //                 -- No --> [switch invocation.delimiter()]
@@ -1039,6 +1062,8 @@ transcribe_context (MacroExpander::ContextType ctx,
       break;
     case MacroExpander::ContextType::TYPE:
       return transcribe_type (parser);
+    case MacroExpander::ContextType::PATTERN:
+      return transcribe_pattern (parser);
       break;
     case MacroExpander::ContextType::STMT:
       return transcribe_many_stmts (parser, last_token_id, semicolon);
@@ -1165,7 +1190,7 @@ MacroExpander::parse_proc_macro_output (ProcMacro::TokenStream ts)
 	  auto result = parser.parse_item (false);
 	  if (result == nullptr)
 	    break;
-	  nodes.push_back ({std::move (result)});
+	  nodes.emplace_back (std::move (result));
 	}
       break;
     case ContextType::STMT:
@@ -1174,7 +1199,7 @@ MacroExpander::parse_proc_macro_output (ProcMacro::TokenStream ts)
 	  auto result = parser.parse_stmt ();
 	  if (result == nullptr)
 	    break;
-	  nodes.push_back ({std::move (result)});
+	  nodes.emplace_back (std::move (result));
 	}
       break;
     case ContextType::TRAIT:

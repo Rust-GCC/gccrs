@@ -59,7 +59,7 @@ TypeCheckCallExpr::visit (ADTType &type)
   if (variant.get_variant_type () != TyTy::VariantDef::VariantType::TUPLE)
     {
       rust_error_at (
-	call.get_locus (), ErrorCode::E0423,
+	call.get_locus (), ErrorCode::E0618,
 	"expected function, tuple struct or tuple variant, found struct %qs",
 	type.get_name ().c_str ());
       return;
@@ -327,8 +327,8 @@ TypeCheckMethodCallExpr::go (FnType *ref, HIR::MethodCallExpr &call,
 	  return new ErrorType (ref->get_ref ());
 	}
 
-      Argument a (arg->get_mappings (), argument_expr_tyty, arg->get_locus ());
-      args.push_back (std::move (a));
+      args.emplace_back (arg->get_mappings (), argument_expr_tyty,
+			 arg->get_locus ());
     }
 
   TypeCheckMethodCallExpr checker (call.get_mappings (), args,

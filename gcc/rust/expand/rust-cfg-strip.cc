@@ -22,6 +22,7 @@
 #include "rust-path.h"
 #include "rust-session-manager.h"
 #include "rust-attribute-values.h"
+#include "rust-macro-expand.h"
 
 namespace Rust {
 
@@ -30,7 +31,7 @@ namespace Rust {
  * should be stripped. Note that attributes must be expanded before calling.
  */
 bool
-fails_cfg (const AST::AttrVec &attrs)
+CfgStrip::fails_cfg (const AST::AttrVec &attrs) const
 {
   auto &session = Session::get_instance ();
 
@@ -38,6 +39,9 @@ fails_cfg (const AST::AttrVec &attrs)
     {
       if (attr.get_path () == Values::Attributes::CFG
 	  && !attr.check_cfg_predicate (session))
+	return true;
+      else if (!expansion_cfg.should_test
+	       && attr.get_path () == Values::Attributes::TEST)
 	return true;
     }
   return false;
@@ -48,7 +52,7 @@ fails_cfg (const AST::AttrVec &attrs)
  * should be stripped. Will expand attributes as well.
  */
 bool
-fails_cfg_with_expand (AST::AttrVec &attrs)
+CfgStrip::fails_cfg_with_expand (AST::AttrVec &attrs) const
 {
   auto &session = Session::get_instance ();
 
@@ -85,6 +89,9 @@ fails_cfg_with_expand (AST::AttrVec &attrs)
 			  attr.as_string ().c_str ());
 	    }
 	}
+      else if (!expansion_cfg.should_test
+	       && attr.get_path () == Values::Attributes::TEST)
+	return true;
     }
   return false;
 }
@@ -2383,7 +2390,7 @@ CfgStrip::visit (AST::StructPattern &pattern)
 }
 
 void
-CfgStrip::visit (AST::TupleStructItemsNoRange &tuple_items)
+CfgStrip::visit (AST::TupleStructItemsNoRest &tuple_items)
 {
   AST::DefaultASTVisitor::visit (tuple_items);
   // can't strip individual patterns, only sub-patterns
@@ -2396,7 +2403,7 @@ CfgStrip::visit (AST::TupleStructItemsNoRange &tuple_items)
     }
 }
 void
-CfgStrip::visit (AST::TupleStructItemsRange &tuple_items)
+CfgStrip::visit (AST::TupleStructItemsHasRest &tuple_items)
 {
   AST::DefaultASTVisitor::visit (tuple_items);
   // can't strip individual patterns, only sub-patterns
@@ -2429,7 +2436,7 @@ CfgStrip::visit (AST::TupleStructPattern &pattern)
 }
 
 void
-CfgStrip::visit (AST::TuplePatternItemsMultiple &tuple_items)
+CfgStrip::visit (AST::TuplePatternItemsNoRest &tuple_items)
 {
   AST::DefaultASTVisitor::visit (tuple_items);
 
@@ -2444,7 +2451,7 @@ CfgStrip::visit (AST::TuplePatternItemsMultiple &tuple_items)
 }
 
 void
-CfgStrip::visit (AST::TuplePatternItemsRanged &tuple_items)
+CfgStrip::visit (AST::TuplePatternItemsHasRest &tuple_items)
 {
   AST::DefaultASTVisitor::visit (tuple_items);
 

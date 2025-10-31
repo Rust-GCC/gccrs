@@ -631,6 +631,12 @@ public:
     return *param_name;
   }
 
+  std::unique_ptr<Pattern> &get_pattern_ptr ()
+  {
+    rust_assert (param_name != nullptr);
+    return param_name;
+  }
+
   const Pattern &get_pattern () const
   {
     rust_assert (param_name != nullptr);
@@ -712,6 +718,12 @@ public:
   {
     rust_assert (param_name != nullptr);
     return *param_name;
+  }
+
+  std::unique_ptr<Pattern> &get_pattern_ptr ()
+  {
+    rust_assert (param_name != nullptr);
+    return param_name;
   }
 
   bool has_name () const { return param_name != nullptr; }
@@ -1567,6 +1579,9 @@ public:
 
   location_t get_locus () const override final { return locus; }
 
+  // needed to override AssociatedItem::get_node_id
+  NodeId get_node_id () const override final { return VisItem::get_node_id (); }
+
   void accept_vis (ASTVisitor &vis) override;
 
   // Invalid if existing type is null, so base stripping on that.
@@ -1593,6 +1608,12 @@ public:
   {
     rust_assert (existing_type != nullptr);
     return *existing_type;
+  }
+
+  std::unique_ptr<Type> &get_type_aliased_ptr ()
+  {
+    rust_assert (existing_type != nullptr);
+    return existing_type;
   }
 
   Identifier get_new_type_name () const { return new_type_name; }
@@ -2514,6 +2535,9 @@ public:
   bool is_unnamed () const { return identifier.as_string () == "_"; }
 
   location_t get_locus () const override final { return locus; }
+
+  // needed to override AssociatedItem::get_node_id
+  NodeId get_node_id () const override final { return VisItem::get_node_id (); }
 
   void accept_vis (ASTVisitor &vis) override;
 

@@ -282,6 +282,8 @@ public:
 
   Expr &get_expr () { return *expr; }
 
+  std::unique_ptr<Expr> &get_expr_ptr () { return expr; }
+
   std::string as_string () const override
   {
     return path.as_string () + " = " + expr->as_string ();
@@ -414,6 +416,12 @@ public:
     return *main_or_left_expr;
   }
 
+  std::unique_ptr<Expr> &get_borrowed_expr_ptr ()
+  {
+    rust_assert (main_or_left_expr != nullptr);
+    return main_or_left_expr;
+  }
+
   bool has_borrow_expr () const { return main_or_left_expr != nullptr; }
 
   bool get_is_mut () const { return mutability == Mutability::Mut; }
@@ -455,6 +463,12 @@ public:
     return *main_or_left_expr;
   }
 
+  std::unique_ptr<Expr> &get_dereferenced_expr_ptr ()
+  {
+    rust_assert (main_or_left_expr != nullptr);
+    return main_or_left_expr;
+  }
+
   Expr::Kind get_expr_kind () const override { return Expr::Kind::Dereference; }
 
 protected:
@@ -486,6 +500,12 @@ public:
   {
     rust_assert (main_or_left_expr != nullptr);
     return *main_or_left_expr;
+  }
+
+  std::unique_ptr<Expr> &get_propagating_expr_ptr ()
+  {
+    rust_assert (main_or_left_expr != nullptr);
+    return main_or_left_expr;
   }
 
   Expr::Kind get_expr_kind () const override
@@ -534,6 +554,12 @@ public:
   {
     rust_assert (main_or_left_expr != nullptr);
     return *main_or_left_expr;
+  }
+
+  std::unique_ptr<Expr> &get_negated_expr_ptr ()
+  {
+    rust_assert (main_or_left_expr != nullptr);
+    return main_or_left_expr;
   }
 
   Expr::Kind get_expr_kind () const override { return Expr::Kind::Negation; }
@@ -865,11 +891,23 @@ public:
     return *main_or_left_expr;
   }
 
+  std::unique_ptr<Expr> &get_casted_expr_ptr ()
+  {
+    rust_assert (main_or_left_expr != nullptr);
+    return main_or_left_expr;
+  }
+
   // TODO: is this better? Or is a "vis_block" better?
   TypeNoBounds &get_type_to_cast_to ()
   {
     rust_assert (type_to_convert_to != nullptr);
     return *type_to_convert_to;
+  }
+
+  std::unique_ptr<TypeNoBounds> &get_type_to_cast_to_ptr ()
+  {
+    rust_assert (type_to_convert_to != nullptr);
+    return type_to_convert_to;
   }
 
   Expr::Kind get_expr_kind () const override { return Expr::Kind::TypeCast; }
@@ -1282,11 +1320,23 @@ public:
     return *elem_to_copy;
   }
 
+  std::unique_ptr<Expr> &get_elem_to_copy_ptr ()
+  {
+    rust_assert (elem_to_copy != nullptr);
+    return elem_to_copy;
+  }
+
   // TODO: is this better? Or is a "vis_block" better?
   Expr &get_num_copies ()
   {
     rust_assert (num_copies != nullptr);
     return *num_copies;
+  }
+
+  std::unique_ptr<Expr> &get_num_copies_ptr ()
+  {
+    rust_assert (num_copies != nullptr);
+    return num_copies;
   }
 
 protected:
@@ -1468,11 +1518,23 @@ public:
     return *array_expr;
   }
 
+  std::unique_ptr<Expr> &get_array_expr_ptr ()
+  {
+    rust_assert (array_expr != nullptr);
+    return array_expr;
+  }
+
   // TODO: is this better? Or is a "vis_block" better?
   Expr &get_index_expr ()
   {
     rust_assert (index_expr != nullptr);
     return *index_expr;
+  }
+
+  std::unique_ptr<Expr> &get_index_expr_ptr ()
+  {
+    rust_assert (index_expr != nullptr);
+    return index_expr;
   }
 
   const std::vector<Attribute> &get_outer_attrs () const { return outer_attrs; }
@@ -1599,6 +1661,7 @@ class TupleIndexExpr : public ExprWithoutBlock
   TupleIndex tuple_index;
 
   location_t locus;
+  bool to_strip;
 
   // i.e. pair.0
 
@@ -1610,13 +1673,15 @@ public:
   TupleIndexExpr (std::unique_ptr<Expr> tuple_expr, TupleIndex index,
 		  std::vector<Attribute> outer_attribs, location_t locus)
     : outer_attrs (std::move (outer_attribs)),
-      tuple_expr (std::move (tuple_expr)), tuple_index (index), locus (locus)
+      tuple_expr (std::move (tuple_expr)), tuple_index (index), locus (locus),
+      to_strip (false)
   {}
 
   // Copy constructor requires a clone for tuple_expr
   TupleIndexExpr (TupleIndexExpr const &other)
     : ExprWithoutBlock (other), outer_attrs (other.outer_attrs),
-      tuple_index (other.tuple_index), locus (other.locus)
+      tuple_index (other.tuple_index), locus (other.locus),
+      to_strip (other.to_strip)
   {
     // guard to prevent null dereference (only required if error state)
     if (other.tuple_expr != nullptr)
@@ -1630,6 +1695,7 @@ public:
     tuple_index = other.tuple_index;
     locus = other.locus;
     outer_attrs = other.outer_attrs;
+    to_strip = other.to_strip;
 
     // guard to prevent null dereference (only required if error state)
     if (other.tuple_expr != nullptr)
@@ -1649,14 +1715,20 @@ public:
   void accept_vis (ASTVisitor &vis) override;
 
   // Invalid if tuple expr is null, so base stripping on that.
-  void mark_for_strip () override { tuple_expr = nullptr; }
-  bool is_marked_for_strip () const override { return tuple_expr == nullptr; }
+  void mark_for_strip () override { to_strip = true; }
+  bool is_marked_for_strip () const override { return to_strip; }
 
   // TODO: is this better? Or is a "vis_block" better?
   Expr &get_tuple_expr ()
   {
     rust_assert (tuple_expr != nullptr);
     return *tuple_expr;
+  }
+
+  std::unique_ptr<Expr> &get_tuple_expr_ptr ()
+  {
+    rust_assert (tuple_expr != nullptr);
+    return tuple_expr;
   }
 
   const std::vector<Attribute> &get_outer_attrs () const { return outer_attrs; }
@@ -1807,6 +1879,12 @@ public:
     rust_assert (base_struct != nullptr);
     return *base_struct;
   }
+
+  std::unique_ptr<Expr> &get_base_struct_ptr ()
+  {
+    rust_assert (base_struct != nullptr);
+    return base_struct;
+  }
 };
 
 /* Base AST node for a single struct expression field (in struct instance
@@ -1922,6 +2000,12 @@ public:
   {
     rust_assert (value != nullptr);
     return *value;
+  }
+
+  std::unique_ptr<Expr> &get_value_ptr ()
+  {
+    rust_assert (value != nullptr);
+    return value;
   }
 };
 
@@ -2293,6 +2377,12 @@ public:
     return *receiver;
   }
 
+  std::unique_ptr<Expr> &get_receiver_expr_ptr ()
+  {
+    rust_assert (receiver != nullptr);
+    return receiver;
+  }
+
   const PathExprSegment &get_method_name () const { return method_name; }
   PathExprSegment &get_method_name () { return method_name; }
 
@@ -2379,6 +2469,12 @@ public:
   {
     rust_assert (receiver != nullptr);
     return *receiver;
+  }
+
+  std::unique_ptr<Expr> &get_receiver_expr_ptr ()
+  {
+    rust_assert (receiver != nullptr);
+    return receiver;
   }
 
   Identifier get_field_name () const { return field; }
@@ -2480,6 +2576,12 @@ public:
     return *pattern;
   }
 
+  std::unique_ptr<Pattern> &get_pattern_ptr ()
+  {
+    rust_assert (pattern != nullptr);
+    return pattern;
+  }
+
   Type &get_type ()
   {
     rust_assert (has_type_given ());
@@ -2532,6 +2634,7 @@ public:
   Expr::Kind get_expr_kind () const override { return Expr::Kind::Closure; }
 
   virtual Expr &get_definition_expr () = 0;
+  virtual std::unique_ptr<Expr> &get_definition_expr_ptr () = 0;
 };
 
 // Represents a non-type-specified closure expression AST node
@@ -2595,6 +2698,12 @@ public:
   {
     rust_assert (closure_inner != nullptr);
     return *closure_inner;
+  }
+
+  std::unique_ptr<Expr> &get_definition_expr_ptr () override
+  {
+    rust_assert (closure_inner != nullptr);
+    return closure_inner;
   }
 
 protected:
@@ -2827,6 +2936,12 @@ public:
     return *expr.value ();
   }
 
+  std::unique_ptr<Expr> &get_inner_expr_ptr ()
+  {
+    rust_assert (expr.has_value ());
+    return expr.value ();
+  }
+
   NodeId get_node_id () const override { return node_id; }
 
   /* FIXME: AnonConst are always "internal" and should not have outer attributes
@@ -2922,8 +3037,7 @@ class ClosureExprInnerTyped : public ClosureExpr
 {
   // TODO: spec says typenobounds
   std::unique_ptr<Type> return_type;
-  std::unique_ptr<BlockExpr>
-    expr; // only used because may be polymorphic in future
+  std::unique_ptr<Expr> expr; // only used because may be polymorphic in future
 
 public:
   std::string as_string () const override;
@@ -2947,7 +3061,7 @@ public:
   {
     // guard to prevent null dereference (only required if error state)
     if (other.expr != nullptr)
-      expr = other.expr->clone_block_expr ();
+      expr = other.expr->clone_expr ();
     if (other.return_type != nullptr)
       return_type = other.return_type->clone_type ();
   }
@@ -2962,7 +3076,7 @@ public:
 
     // guard to prevent null dereference (only required if error state)
     if (other.expr != nullptr)
-      expr = other.expr->clone_block_expr ();
+      expr = other.expr->clone_expr ();
     else
       expr = nullptr;
     if (other.return_type != nullptr)
@@ -2985,10 +3099,17 @@ public:
   bool is_marked_for_strip () const override { return expr == nullptr; }
 
   // TODO: is this better? Or is a "vis_block" better?
-  BlockExpr &get_definition_expr () override
+  Expr &get_definition_expr () override
   {
     rust_assert (expr != nullptr);
     return *expr;
+  }
+
+  std::unique_ptr<Expr> &get_definition_expr_ptr () override
+  {
+    rust_assert (expr != nullptr);
+
+    return expr;
   }
 
   // TODO: is this better? Or is a "vis_block" better?
@@ -3147,6 +3268,12 @@ public:
     return *break_expr;
   }
 
+  std::unique_ptr<Expr> &get_break_expr_ptr ()
+  {
+    rust_assert (has_break_expr ());
+    return break_expr;
+  }
+
   const std::vector<Attribute> &get_outer_attrs () const { return outer_attrs; }
   std::vector<Attribute> &get_outer_attrs () override { return outer_attrs; }
 
@@ -3274,6 +3401,18 @@ public:
     return *to;
   }
 
+  std::unique_ptr<Expr> &get_from_expr_ptr ()
+  {
+    rust_assert (from != nullptr);
+    return from;
+  }
+
+  std::unique_ptr<Expr> &get_to_expr_ptr ()
+  {
+    rust_assert (to != nullptr);
+    return to;
+  }
+
 protected:
   /* Use covariance to implement clone function as returning this object rather
    * than base */
@@ -3333,6 +3472,12 @@ public:
   {
     rust_assert (from != nullptr);
     return *from;
+  }
+
+  std::unique_ptr<Expr> &get_from_expr_ptr ()
+  {
+    rust_assert (from != nullptr);
+    return from;
   }
 
 protected:
@@ -3395,6 +3540,12 @@ public:
   {
     rust_assert (to != nullptr);
     return *to;
+  }
+
+  std::unique_ptr<Expr> &get_to_expr_ptr ()
+  {
+    rust_assert (to != nullptr);
+    return to;
   }
 
 protected:
@@ -3510,6 +3661,18 @@ public:
     return *to;
   }
 
+  std::unique_ptr<Expr> &get_from_expr_ptr ()
+  {
+    rust_assert (from != nullptr);
+    return from;
+  }
+
+  std::unique_ptr<Expr> &get_to_expr_ptr ()
+  {
+    rust_assert (to != nullptr);
+    return to;
+  }
+
 protected:
   /* Use covariance to implement clone function as returning this object rather
    * than base */
@@ -3570,6 +3733,12 @@ public:
   {
     rust_assert (to != nullptr);
     return *to;
+  }
+
+  std::unique_ptr<Expr> &get_to_expr_ptr ()
+  {
+    rust_assert (to != nullptr);
+    return to;
   }
 
 protected:
@@ -3643,6 +3812,12 @@ public:
   {
     rust_assert (expr != nullptr);
     return *expr;
+  }
+
+  std::unique_ptr<Expr> &get_boxed_expr_ptr ()
+  {
+    rust_assert (expr != nullptr);
+    return expr;
   }
 
   Expr::Kind get_expr_kind () const override { return Expr::Kind::Box; }
@@ -3726,6 +3901,12 @@ public:
     return *return_expr;
   }
 
+  std::unique_ptr<Expr> &get_returned_expr_ptr ()
+  {
+    rust_assert (return_expr != nullptr);
+    return return_expr;
+  }
+
   const std::vector<Attribute> &get_outer_attrs () const { return outer_attrs; }
   std::vector<Attribute> &get_outer_attrs () override { return outer_attrs; }
 
@@ -3801,6 +3982,7 @@ public:
 
   // TODO: is this better? Or is a "vis_block" better?
   BlockExpr &get_block_expr () { return *block_expr; }
+  std::unique_ptr<BlockExpr> &get_block_expr_ptr () { return block_expr; }
 
   const std::vector<Attribute> &get_outer_attrs () const { return outer_attrs; }
   std::vector<Attribute> &get_outer_attrs () override { return outer_attrs; }
@@ -3884,6 +4066,12 @@ public:
   {
     rust_assert (expr != nullptr);
     return *expr;
+  }
+
+  std::unique_ptr<BlockExpr> &get_block_expr_ptr ()
+  {
+    rust_assert (expr != nullptr);
+    return expr;
   }
 
   const std::vector<Attribute> &get_outer_attrs () const { return outer_attrs; }
@@ -3976,6 +4164,12 @@ public:
   {
     rust_assert (loop_block != nullptr);
     return *loop_block;
+  }
+
+  std::unique_ptr<BlockExpr> &get_loop_block_ptr ()
+  {
+    rust_assert (loop_block != nullptr);
+    return loop_block;
   }
 
   const std::vector<Attribute> &get_outer_attrs () const { return outer_attrs; }
@@ -4078,6 +4272,12 @@ public:
     return *condition;
   }
 
+  std::unique_ptr<Expr> &get_predicate_expr_ptr ()
+  {
+    rust_assert (condition != nullptr);
+    return condition;
+  }
+
   BaseLoopExpr::Kind get_loop_kind () const override
   {
     return BaseLoopExpr::Kind::While;
@@ -4154,6 +4354,12 @@ public:
   {
     rust_assert (scrutinee != nullptr);
     return *scrutinee;
+  }
+
+  std::unique_ptr<Expr> &get_scrutinee_expr_ptr ()
+  {
+    rust_assert (scrutinee != nullptr);
+    return scrutinee;
   }
 
   // TODO: this mutable getter seems really dodgy. Think up better way.
@@ -4233,11 +4439,23 @@ public:
     return *iterator_expr;
   }
 
+  std::unique_ptr<Expr> &get_iterator_expr_ptr ()
+  {
+    rust_assert (iterator_expr != nullptr);
+    return iterator_expr;
+  }
+
   // TODO: is this better? Or is a "vis_block" better?
   Pattern &get_pattern ()
   {
     rust_assert (pattern != nullptr);
     return *pattern;
+  }
+
+  std::unique_ptr<Pattern> &get_pattern_ptr ()
+  {
+    rust_assert (pattern != nullptr);
+    return pattern;
   }
 
   BaseLoopExpr::Kind get_loop_kind () const override
@@ -4892,6 +5110,12 @@ public:
     return *branch_value;
   }
 
+  std::unique_ptr<Expr> &get_scrutinee_expr_ptr ()
+  {
+    rust_assert (branch_value != nullptr);
+    return branch_value;
+  }
+
   const std::vector<MatchCase> &get_match_cases () const { return match_arms; }
   std::vector<MatchCase> &get_match_cases () { return match_arms; }
 
@@ -5494,6 +5718,8 @@ struct InlineAsmTemplatePiece
 
 struct TupleClobber
 {
+  TupleClobber (std::string symbol, location_t loc) : symbol (symbol), loc (loc)
+  {}
   // as gccrs still doesn't contain a symbol class I have put them as strings
   std::string symbol;
   location_t loc;
@@ -5667,6 +5893,10 @@ public:
   }
 
   std::vector<TupleTemplateStr> &get_templates () { return templates; }
+  const std::vector<TupleTemplateStr> &get_templates () const
+  {
+    return templates;
+  }
 
   Expr::Kind get_expr_kind () const override
   {
@@ -5685,9 +5915,12 @@ public:
   void set_outputs (std::vector<LlvmOperand> operands) { outputs = operands; }
 
   std::vector<LlvmOperand> &get_inputs () { return inputs; }
+  const std::vector<LlvmOperand> &get_inputs () const { return inputs; }
   std::vector<LlvmOperand> &get_outputs () { return outputs; }
+  const std::vector<LlvmOperand> &get_outputs () const { return outputs; }
 
   std::vector<TupleClobber> &get_clobbers () { return clobbers; }
+  const std::vector<TupleClobber> &get_clobbers () const { return clobbers; }
 };
 
 } // namespace AST

@@ -51,6 +51,9 @@ MethodResolver::Select (std::set<MethodCandidate> &candidates,
     {
       TyTy::BaseType *candidate_type = candidate.candidate.ty;
       rust_assert (candidate_type->get_kind () == TyTy::TypeKind::FNDEF);
+      if (candidate_type == nullptr
+	  || candidate_type->get_kind () != TyTy::TypeKind::FNDEF)
+	continue;
       TyTy::FnType &fn = *static_cast<TyTy::FnType *> (candidate_type);
 
       // match the number of arguments
@@ -136,11 +139,11 @@ MethodResolver::assemble_inherent_impl_candidates (
       TyTy::BaseType *ty = nullptr;
       if (!query_type (func->get_mappings ().get_hirid (), &ty))
 	return true;
-      rust_assert (ty != nullptr);
-      if (ty->get_kind () == TyTy::TypeKind::ERROR)
+      if (ty == nullptr || ty->get_kind () == TyTy::TypeKind::ERROR)
+	return true;
+      if (ty->get_kind () != TyTy::TypeKind::FNDEF)
 	return true;
 
-      rust_assert (ty->get_kind () == TyTy::TypeKind::FNDEF);
       TyTy::FnType *fnty = static_cast<TyTy::FnType *> (ty);
       const TyTy::BaseType *impl_self
 	= TypeCheckItem::ResolveImplBlockSelf (*impl);
@@ -175,7 +178,7 @@ MethodResolver::assemble_inherent_impl_candidates (
 	    return true;
 	}
 
-      inherent_impl_fns.push_back ({func, impl, fnty});
+      inherent_impl_fns.emplace_back (func, impl, fnty);
 
       return true;
     });
@@ -220,10 +223,11 @@ MethodResolver::assemble_trait_impl_candidates (
 	TyTy::BaseType *ty = nullptr;
 	if (!query_type (func->get_mappings ().get_hirid (), &ty))
 	  continue;
-	if (ty->get_kind () == TyTy::TypeKind::ERROR)
+	if (ty == nullptr || ty->get_kind () == TyTy::TypeKind::ERROR)
+	  continue;
+	if (ty->get_kind () != TyTy::TypeKind::FNDEF)
 	  continue;
 
-	rust_assert (ty->get_kind () == TyTy::TypeKind::FNDEF);
 	TyTy::FnType *fnty = static_cast<TyTy::FnType *> (ty);
 	const TyTy::BaseType *impl_self
 	  = TypeCheckItem::ResolveImplBlockSelf (*impl);
@@ -259,7 +263,7 @@ MethodResolver::assemble_trait_impl_candidates (
 	      continue;
 	  }
 
-	impl_candidates.push_back ({func, impl, fnty});
+	impl_candidates.emplace_back (func, impl, fnty);
 	return true;
       }
 
@@ -282,11 +286,11 @@ MethodResolver::assemble_trait_impl_candidates (
       return true;
 
     TyTy::BaseType *ty = item_ref->get_tyty ();
-    rust_assert (ty->get_kind () == TyTy::TypeKind::FNDEF);
+    if (ty == nullptr || ty->get_kind () != TyTy::TypeKind::FNDEF)
+      return true;
     TyTy::FnType *fnty = static_cast<TyTy::FnType *> (ty);
 
-    trait_item_candidate candidate{func, trait, fnty, trait_ref, item_ref};
-    trait_candidates.push_back (candidate);
+    trait_candidates.emplace_back (func, trait, fnty, trait_ref, item_ref);
 
     return true;
   });
@@ -299,7 +303,8 @@ MethodResolver::try_select_predicate_candidates (TyTy::BaseType &receiver)
   for (const auto &predicate : predicate_items)
     {
       const TyTy::FnType *fn = predicate.fntype;
-      rust_assert (fn->is_method ());
+      if (!fn->is_method ())
+	continue;
 
       TyTy::BaseType *fn_self = fn->get_self_type ();
       rust_debug ("dot-operator predicate fn_self={%s} can_eq receiver={%s}",
@@ -346,7 +351,8 @@ MethodResolver::try_select_inherent_impl_candidates (
 	continue;
 
       TyTy::FnType *fn = impl_item.ty;
-      rust_assert (fn->is_method ());
+      if (!fn->is_method ())
+	continue;
 
       TyTy::BaseType *fn_self = fn->get_self_type ();
 
@@ -384,7 +390,8 @@ MethodResolver::try_select_trait_impl_candidates (
   for (auto trait_item : candidates)
     {
       TyTy::FnType *fn = trait_item.ty;
-      rust_assert (fn->is_method ());
+      if (!fn->is_method ())
+	continue;
 
       TyTy::BaseType *fn_self = fn->get_self_type ();
       rust_debug ("dot-operator trait_item fn_self={%s} can_eq receiver={%s}",
@@ -464,20 +471,17 @@ MethodResolver::get_predicate_items (
   std::vector<predicate_candidate> predicate_items;
   for (auto &bound : specified_bounds)
     {
-      TyTy::TypeBoundPredicateItem lookup
+      tl::optional<TyTy::TypeBoundPredicateItem> lookup
 	= bound.lookup_associated_item (segment_name.as_string ());
-      if (lookup.is_error ())
+      if (!lookup.has_value ())
 	continue;
 
-      TyTy::BaseType *ty = lookup.get_tyty_for_receiver (&receiver);
+      TyTy::BaseType *ty = lookup->get_tyty_for_receiver (&receiver);
       if (ty->get_kind () == TyTy::TypeKind::FNDEF)
 	{
 	  TyTy::FnType *fnty = static_cast<TyTy::FnType *> (ty);
 	  if (fnty->is_method ())
-	    {
-	      predicate_candidate candidate{lookup, fnty};
-	      predicate_items.push_back (candidate);
-	    }
+	    predicate_items.emplace_back (lookup.value (), fnty);
 	}
     }
 

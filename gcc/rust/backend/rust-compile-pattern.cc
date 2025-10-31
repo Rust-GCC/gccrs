@@ -158,13 +158,15 @@ CompilePatternCheckExpr::visit (HIR::RangePattern &pattern)
 					    pattern.get_mappings (),
 					    pattern.get_locus (), ctx);
 
+  ComparisonOperator upper_cmp = pattern.is_inclusive_range ()
+				   ? ComparisonOperator::LESS_OR_EQUAL
+				   : ComparisonOperator::LESS_THAN;
   tree check_lower
     = Backend::comparison_expression (ComparisonOperator::GREATER_OR_EQUAL,
 				      match_scrutinee_expr, lower,
 				      pattern.get_locus ());
   tree check_upper
-    = Backend::comparison_expression (ComparisonOperator::LESS_OR_EQUAL,
-				      match_scrutinee_expr, upper,
+    = Backend::comparison_expression (upper_cmp, match_scrutinee_expr, upper,
 				      pattern.get_locus ());
   check_expr = Backend::arithmetic_or_logical_expression (
     ArithmeticOrLogicalOperator::BITWISE_AND, check_lower, check_upper,
@@ -354,17 +356,17 @@ CompilePatternCheckExpr::visit (HIR::TupleStructPattern &pattern)
   HIR::TupleStructItems &items = pattern.get_items ();
   switch (items.get_item_type ())
     {
-    case HIR::TupleStructItems::RANGED:
+    case HIR::TupleStructItems::HAS_REST:
       {
 	// TODO
 	rust_unreachable ();
       }
       break;
 
-    case HIR::TupleStructItems::MULTIPLE:
+    case HIR::TupleStructItems::NO_REST:
       {
-	HIR::TupleStructItemsNoRange &items_no_range
-	  = static_cast<HIR::TupleStructItemsNoRange &> (items);
+	HIR::TupleStructItemsNoRest &items_no_range
+	  = static_cast<HIR::TupleStructItemsNoRest &> (items);
 
 	rust_assert (items_no_range.get_patterns ().size ()
 		     == variant->num_fields ());
@@ -428,10 +430,10 @@ CompilePatternCheckExpr::visit (HIR::TuplePattern &pattern)
 
   switch (pattern.get_items ().get_item_type ())
     {
-    case HIR::TuplePatternItems::RANGED:
+    case HIR::TuplePatternItems::HAS_REST:
       {
 	auto &items
-	  = static_cast<HIR::TuplePatternItemsRanged &> (pattern.get_items ());
+	  = static_cast<HIR::TuplePatternItemsHasRest &> (pattern.get_items ());
 	size_t tuple_field_index = 0;
 
 	// lookup the type to find out number of fields
@@ -477,10 +479,10 @@ CompilePatternCheckExpr::visit (HIR::TuplePattern &pattern)
       }
       break;
 
-    case HIR::TuplePatternItems::MULTIPLE:
+    case HIR::TuplePatternItems::NO_REST:
       {
-	auto &items = static_cast<HIR::TuplePatternItemsMultiple &> (
-	  pattern.get_items ());
+	auto &items
+	  = static_cast<HIR::TuplePatternItemsNoRest &> (pattern.get_items ());
 	size_t tuple_field_index = 0;
 
 	for (auto &pat : items.get_patterns ())
@@ -532,25 +534,14 @@ CompilePatternCheckExpr::visit (HIR::SlicePattern &pattern)
 	       || lookup->get_kind () == TyTy::TypeKind::SLICE
 	       || lookup->get_kind () == TyTy::REF);
 
-  size_t array_element_index = 0;
+  // function ptr that points to either array_index_expression or
+  // slice_index_expression depending on the scrutinee's type
+  tree (*scrutinee_index_expr_func) (tree, tree, location_t) = nullptr;
+
   switch (lookup->get_kind ())
     {
     case TyTy::TypeKind::ARRAY:
-      for (auto &pattern_member : pattern.get_items ())
-	{
-	  tree array_index_tree
-	    = Backend::size_constant_expression (array_element_index++);
-	  tree element_expr
-	    = Backend::array_index_expression (match_scrutinee_expr,
-					       array_index_tree,
-					       pattern.get_locus ());
-	  tree check_expr_sub
-	    = CompilePatternCheckExpr::Compile (*pattern_member, element_expr,
-						ctx);
-	  check_expr = Backend::arithmetic_or_logical_expression (
-	    ArithmeticOrLogicalOperator::BITWISE_AND, check_expr,
-	    check_expr_sub, pattern.get_locus ());
-	}
+      scrutinee_index_expr_func = Backend::array_index_expression;
       break;
     case TyTy::TypeKind::SLICE:
       rust_sorry_at (
@@ -560,25 +551,61 @@ CompilePatternCheckExpr::visit (HIR::SlicePattern &pattern)
     case TyTy::TypeKind::REF:
       {
 	rust_assert (RS_DST_FLAG_P (TREE_TYPE (match_scrutinee_expr)));
+	scrutinee_index_expr_func = Backend::slice_index_expression;
 	tree size_field
 	  = Backend::struct_field_expression (match_scrutinee_expr, 1,
 					      pattern.get_locus ());
 
-	// First compare the size
-	check_expr = Backend::comparison_expression (
-	  ComparisonOperator::EQUAL, size_field,
-	  build_int_cst (size_type_node, pattern.get_items ().size ()),
-	  pattern.get_locus ());
-
-	// Then compare each element in the slice pattern
-	for (auto &pattern_member : pattern.get_items ())
+	// for slices, generate a dynamic size comparison expression tree
+	// because size checking is done at runtime.
+	switch (pattern.get_items ().get_item_type ())
 	  {
-	    tree slice_index_tree
-	      = Backend::size_constant_expression (array_element_index++);
+	  case HIR::SlicePatternItems::ItemType::NO_REST:
+	    {
+	      auto &items = static_cast<HIR::SlicePatternItemsNoRest &> (
+		pattern.get_items ());
+	      check_expr = Backend::comparison_expression (
+		ComparisonOperator::EQUAL, size_field,
+		build_int_cst (size_type_node, items.get_patterns ().size ()),
+		pattern.get_locus ());
+	    }
+	    break;
+	  case HIR::SlicePatternItems::ItemType::HAS_REST:
+	    {
+	      auto &items = static_cast<HIR::SlicePatternItemsHasRest &> (
+		pattern.get_items ());
+	      auto pattern_min_cap = items.get_lower_patterns ().size ()
+				     + items.get_upper_patterns ().size ();
+	      check_expr = Backend::comparison_expression (
+		ComparisonOperator::GREATER_OR_EQUAL, size_field,
+		build_int_cst (size_type_node, pattern_min_cap),
+		pattern.get_locus ());
+	    }
+	    break;
+	  }
+      }
+      break;
+    default:
+      rust_unreachable ();
+    }
+
+  rust_assert (scrutinee_index_expr_func != nullptr);
+
+  // Generate tree to compare every element within array/slice
+  size_t element_index = 0;
+  switch (pattern.get_items ().get_item_type ())
+    {
+    case HIR::SlicePatternItems::ItemType::NO_REST:
+      {
+	auto &items
+	  = static_cast<HIR::SlicePatternItemsNoRest &> (pattern.get_items ());
+	for (auto &pattern_member : items.get_patterns ())
+	  {
+	    tree index_tree
+	      = Backend::size_constant_expression (element_index++);
 	    tree element_expr
-	      = Backend::slice_index_expression (match_scrutinee_expr,
-						 slice_index_tree,
-						 pattern.get_locus ());
+	      = scrutinee_index_expr_func (match_scrutinee_expr, index_tree,
+					   pattern.get_locus ());
 	    tree check_expr_sub
 	      = CompilePatternCheckExpr::Compile (*pattern_member, element_expr,
 						  ctx);
@@ -586,10 +613,91 @@ CompilePatternCheckExpr::visit (HIR::SlicePattern &pattern)
 	      ArithmeticOrLogicalOperator::BITWISE_AND, check_expr,
 	      check_expr_sub, pattern.get_locus ());
 	  }
+	break;
+      }
+    case HIR::SlicePatternItems::ItemType::HAS_REST:
+      {
+	auto &items
+	  = static_cast<HIR::SlicePatternItemsHasRest &> (pattern.get_items ());
+	for (auto &pattern_member : items.get_lower_patterns ())
+	  {
+	    tree index_tree
+	      = Backend::size_constant_expression (element_index++);
+	    tree element_expr
+	      = scrutinee_index_expr_func (match_scrutinee_expr, index_tree,
+					   pattern.get_locus ());
+	    tree check_expr_sub
+	      = CompilePatternCheckExpr::Compile (*pattern_member, element_expr,
+						  ctx);
+	    check_expr = Backend::arithmetic_or_logical_expression (
+	      ArithmeticOrLogicalOperator::BITWISE_AND, check_expr,
+	      check_expr_sub, pattern.get_locus ());
+	  }
+
+	// handle codegen for upper patterns differently for both types
+	switch (lookup->get_kind ())
+	  {
+	  case TyTy::TypeKind::ARRAY:
+	    {
+	      // for array type scrutinee, we can simply get the capacity as a
+	      // const and calculate how many elements to skip
+	      auto array_ty = static_cast<TyTy::ArrayType *> (lookup);
+	      auto cap_tree = array_ty->get_capacity ()->get_value ();
+	      size_t cap_wi = (size_t) wi::to_wide (cap_tree).to_uhwi ();
+	      element_index = cap_wi - items.get_upper_patterns ().size ();
+	      for (auto &pattern_member : items.get_upper_patterns ())
+		{
+		  tree index_tree
+		    = Backend::size_constant_expression (element_index++);
+		  tree element_expr
+		    = scrutinee_index_expr_func (match_scrutinee_expr,
+						 index_tree,
+						 pattern.get_locus ());
+		  tree check_expr_sub
+		    = CompilePatternCheckExpr::Compile (*pattern_member,
+							element_expr, ctx);
+		  check_expr = Backend::arithmetic_or_logical_expression (
+		    ArithmeticOrLogicalOperator::BITWISE_AND, check_expr,
+		    check_expr_sub, pattern.get_locus ());
+		}
+	    }
+	    break;
+	  case TyTy::TypeKind::REF:
+	    {
+	      // for slice type scrutinee, size is dyanamic, so number of
+	      // elements to skip is calculated during runtime
+	      tree slice_size
+		= Backend::struct_field_expression (match_scrutinee_expr, 1,
+						    pattern.get_locus ());
+	      tree upper_patterns_size = Backend::size_constant_expression (
+		items.get_upper_patterns ().size ());
+	      tree index_tree = Backend::arithmetic_or_logical_expression (
+		ArithmeticOrLogicalOperator::SUBTRACT, slice_size,
+		upper_patterns_size, pattern.get_locus ());
+	      for (auto &pattern_member : items.get_upper_patterns ())
+		{
+		  tree element_expr
+		    = scrutinee_index_expr_func (match_scrutinee_expr,
+						 index_tree,
+						 pattern.get_locus ());
+		  tree check_expr_sub
+		    = CompilePatternCheckExpr::Compile (*pattern_member,
+							element_expr, ctx);
+		  check_expr = Backend::arithmetic_or_logical_expression (
+		    ArithmeticOrLogicalOperator::BITWISE_AND, check_expr,
+		    check_expr_sub, pattern.get_locus ());
+		  index_tree = Backend::arithmetic_or_logical_expression (
+		    ArithmeticOrLogicalOperator::ADD, index_tree,
+		    Backend::size_constant_expression (1),
+		    pattern.get_locus ());
+		}
+	    }
+	    break;
+	  default:
+	    rust_unreachable ();
+	  }
       }
       break;
-    default:
-      rust_unreachable ();
     }
 }
 
@@ -628,17 +736,17 @@ CompilePatternBindings::visit (HIR::TupleStructPattern &pattern)
   HIR::TupleStructItems &items = pattern.get_items ();
   switch (items.get_item_type ())
     {
-    case HIR::TupleStructItems::RANGED:
+    case HIR::TupleStructItems::HAS_REST:
       {
 	// TODO
 	rust_unreachable ();
       }
       break;
 
-    case HIR::TupleStructItems::MULTIPLE:
+    case HIR::TupleStructItems::NO_REST:
       {
-	HIR::TupleStructItemsNoRange &items_no_range
-	  = static_cast<HIR::TupleStructItemsNoRange &> (items);
+	HIR::TupleStructItemsNoRest &items_no_range
+	  = static_cast<HIR::TupleStructItemsNoRest &> (items);
 
 	rust_assert (items_no_range.get_patterns ().size ()
 		     == variant->num_fields ());
@@ -843,11 +951,11 @@ CompilePatternBindings::visit (HIR::TuplePattern &pattern)
 
   switch (pattern.get_items ().get_item_type ())
     {
-    case HIR::TuplePatternItems::ItemType::RANGED:
+    case HIR::TuplePatternItems::ItemType::HAS_REST:
       {
 	size_t tuple_idx = 0;
 	auto &items
-	  = static_cast<HIR::TuplePatternItemsRanged &> (pattern.get_items ());
+	  = static_cast<HIR::TuplePatternItemsHasRest &> (pattern.get_items ());
 
 	auto &items_lower = items.get_lower_patterns ();
 	auto &items_upper = items.get_upper_patterns ();
@@ -887,11 +995,11 @@ CompilePatternBindings::visit (HIR::TuplePattern &pattern)
 
 	return;
       }
-    case HIR::TuplePatternItems::ItemType::MULTIPLE:
+    case HIR::TuplePatternItems::ItemType::NO_REST:
       {
 	size_t tuple_idx = 0;
-	auto &items = static_cast<HIR::TuplePatternItemsMultiple &> (
-	  pattern.get_items ());
+	auto &items
+	  = static_cast<HIR::TuplePatternItemsNoRest &> (pattern.get_items ());
 
 	for (auto &sub : items.get_patterns ())
 	  {
@@ -930,43 +1038,121 @@ CompilePatternBindings::visit (HIR::SlicePattern &pattern)
 	       || lookup->get_kind () == TyTy::TypeKind::SLICE
 	       || lookup->get_kind () == TyTy::REF);
 
-  size_t array_element_index = 0;
+  // function ptr that points to either array_index_expression or
+  // slice_index_expression depending on the scrutinee's type
+  tree (*scrutinee_index_expr_func) (tree, tree, location_t) = nullptr;
+
   switch (lookup->get_kind ())
     {
     case TyTy::TypeKind::ARRAY:
-      for (auto &pattern_member : pattern.get_items ())
-	{
-	  tree array_index_tree
-	    = Backend::size_constant_expression (array_element_index++);
-	  tree element_expr
-	    = Backend::array_index_expression (match_scrutinee_expr,
-					       array_index_tree,
-					       pattern.get_locus ());
-	  CompilePatternBindings::Compile (*pattern_member, element_expr, ctx);
-	}
+      scrutinee_index_expr_func = Backend::array_index_expression;
       break;
     case TyTy::TypeKind::SLICE:
-      rust_sorry_at (
-	pattern.get_locus (),
-	"SlicePattern matching against non-ref slices are not yet supported");
+      rust_sorry_at (pattern.get_locus (),
+		     "SlicePattern matching against non-ref slices are "
+		     "not yet supported");
       break;
     case TyTy::TypeKind::REF:
+      scrutinee_index_expr_func = Backend::slice_index_expression;
+      break;
+    default:
+      rust_unreachable ();
+    }
+
+  rust_assert (scrutinee_index_expr_func != nullptr);
+
+  size_t element_index = 0;
+
+  switch (pattern.get_items ().get_item_type ())
+    {
+    case HIR::SlicePatternItems::ItemType::NO_REST:
       {
-	for (auto &pattern_member : pattern.get_items ())
+	auto &items
+	  = static_cast<HIR::SlicePatternItemsNoRest &> (pattern.get_items ());
+	for (auto &pattern_member : items.get_patterns ())
 	  {
-	    tree slice_index_tree
-	      = Backend::size_constant_expression (array_element_index++);
+	    tree index_tree
+	      = Backend::size_constant_expression (element_index++);
 	    tree element_expr
-	      = Backend::slice_index_expression (match_scrutinee_expr,
-						 slice_index_tree,
-						 pattern.get_locus ());
+	      = scrutinee_index_expr_func (match_scrutinee_expr, index_tree,
+					   pattern.get_locus ());
 	    CompilePatternBindings::Compile (*pattern_member, element_expr,
 					     ctx);
 	  }
-	break;
       }
-    default:
-      rust_unreachable ();
+      break;
+    case HIR::SlicePatternItems::ItemType::HAS_REST:
+      {
+	auto &items
+	  = static_cast<HIR::SlicePatternItemsHasRest &> (pattern.get_items ());
+	for (auto &pattern_member : items.get_lower_patterns ())
+	  {
+	    tree index_tree
+	      = Backend::size_constant_expression (element_index++);
+	    tree element_expr
+	      = scrutinee_index_expr_func (match_scrutinee_expr, index_tree,
+					   pattern.get_locus ());
+	    CompilePatternBindings::Compile (*pattern_member, element_expr,
+					     ctx);
+	  }
+
+	// handle codegen for upper patterns differently for both types
+	switch (lookup->get_kind ())
+	  {
+	  case TyTy::TypeKind::ARRAY:
+	    {
+	      auto array_ty = static_cast<TyTy::ArrayType *> (lookup);
+	      auto cap_tree = array_ty->get_capacity ()->get_value ();
+	      size_t cap_wi = (size_t) wi::to_wide (cap_tree).to_uhwi ();
+	      element_index = cap_wi - items.get_upper_patterns ().size ();
+	      for (auto &pattern_member : items.get_upper_patterns ())
+		{
+		  tree index_tree
+		    = Backend::size_constant_expression (element_index++);
+		  tree element_expr
+		    = scrutinee_index_expr_func (match_scrutinee_expr,
+						 index_tree,
+						 pattern.get_locus ());
+		  CompilePatternBindings::Compile (*pattern_member,
+						   element_expr, ctx);
+		}
+	    }
+	    break;
+	  case TyTy::TypeKind::SLICE:
+	    rust_sorry_at (pattern.get_locus (),
+			   "SlicePattern matching against non-ref slices are "
+			   "not yet supported");
+	    break;
+	  case TyTy::TypeKind::REF:
+	    {
+	      tree slice_size
+		= Backend::struct_field_expression (match_scrutinee_expr, 1,
+						    pattern.get_locus ());
+	      tree upper_patterns_size = Backend::size_constant_expression (
+		items.get_upper_patterns ().size ());
+	      tree index_tree = Backend::arithmetic_or_logical_expression (
+		ArithmeticOrLogicalOperator::SUBTRACT, slice_size,
+		upper_patterns_size, pattern.get_locus ());
+	      for (auto &pattern_member : items.get_upper_patterns ())
+		{
+		  tree element_expr
+		    = scrutinee_index_expr_func (match_scrutinee_expr,
+						 index_tree,
+						 pattern.get_locus ());
+		  CompilePatternBindings::Compile (*pattern_member,
+						   element_expr, ctx);
+		  index_tree = Backend::arithmetic_or_logical_expression (
+		    ArithmeticOrLogicalOperator::ADD, index_tree,
+		    Backend::size_constant_expression (1),
+		    pattern.get_locus ());
+		}
+	    }
+	    break;
+	  default:
+	    rust_unreachable ();
+	  }
+      }
+      break;
     }
 }
 
@@ -979,6 +1165,11 @@ CompilePatternLet::visit (HIR::IdentifierPattern &pattern)
   rust_assert (
     ctx->lookup_var_decl (pattern.get_mappings ().get_hirid (), &var));
 
+  if (pattern.get_is_ref ())
+    {
+      init_expr = address_expression (init_expr, EXPR_LOCATION (init_expr));
+    }
+
   auto fnctx = ctx->peek_fn ();
   if (ty->is_unit ())
     {
@@ -990,6 +1181,11 @@ CompilePatternLet::visit (HIR::IdentifierPattern &pattern)
     }
   else
     {
+      if (pattern.has_subpattern ())
+	{
+	  CompilePatternLet::Compile (&pattern.get_subpattern (), init_expr, ty,
+				      rval_locus, ctx);
+	}
       auto s = Backend::init_statement (fnctx.fndecl, var, init_expr);
       ctx->add_statement (s);
     }
@@ -1013,22 +1209,65 @@ CompilePatternLet::visit (HIR::TuplePattern &pattern)
 {
   rust_assert (pattern.has_tuple_pattern_items ());
 
-  tree tuple_type = TyTyResolveCompile::compile (ctx, ty);
+  bool has_by_ref = false;
+  auto check_refs
+    = [] (const std::vector<std::unique_ptr<HIR::Pattern>> &patterns) {
+	for (const auto &sub : patterns)
+	  {
+	    switch (sub->get_pattern_type ())
+	      {
+	      case HIR::Pattern::PatternType::IDENTIFIER:
+		{
+		  auto id = static_cast<HIR::IdentifierPattern *> (sub.get ());
+		  if (id->get_is_ref ())
+		    return true;
+		  break;
+		}
+	      case HIR::Pattern::PatternType::REFERENCE:
+		return true;
+	      default:
+		break;
+	      }
+	  }
+	return false;
+      };
+  switch (pattern.get_items ().get_item_type ())
+    {
+    case HIR::TuplePatternItems::ItemType::NO_REST:
+      {
+	auto &items
+	  = static_cast<HIR::TuplePatternItemsNoRest &> (pattern.get_items ());
+	has_by_ref = check_refs (items.get_patterns ());
+	break;
+      }
+    case HIR::TuplePatternItems::ItemType::HAS_REST:
+      {
+	auto &items
+	  = static_cast<HIR::TuplePatternItemsHasRest &> (pattern.get_items ());
+	has_by_ref = check_refs (items.get_lower_patterns ())
+		     || check_refs (items.get_upper_patterns ());
+	break;
+      }
+    default:
+      break;
+    }
+
+  tree rhs_tuple_type = TYPE_MAIN_VARIANT (TREE_TYPE (init_expr));
   tree init_stmt;
   Bvariable *tmp_var
     = Backend::temporary_variable (ctx->peek_fn ().fndecl, NULL_TREE,
-				   tuple_type, init_expr, false,
+				   rhs_tuple_type, init_expr, has_by_ref,
 				   pattern.get_locus (), &init_stmt);
   tree access_expr = Backend::var_expression (tmp_var, pattern.get_locus ());
   ctx->add_statement (init_stmt);
 
   switch (pattern.get_items ().get_item_type ())
     {
-    case HIR::TuplePatternItems::ItemType::RANGED:
+    case HIR::TuplePatternItems::ItemType::HAS_REST:
       {
 	size_t tuple_idx = 0;
 	auto &items
-	  = static_cast<HIR::TuplePatternItemsRanged &> (pattern.get_items ());
+	  = static_cast<HIR::TuplePatternItemsHasRest &> (pattern.get_items ());
 
 	auto &items_lower = items.get_lower_patterns ();
 	auto &items_upper = items.get_upper_patterns ();
@@ -1069,11 +1308,11 @@ CompilePatternLet::visit (HIR::TuplePattern &pattern)
 
 	return;
       }
-    case HIR::TuplePatternItems::ItemType::MULTIPLE:
+    case HIR::TuplePatternItems::ItemType::NO_REST:
       {
 	size_t tuple_idx = 0;
-	auto &items = static_cast<HIR::TuplePatternItemsMultiple &> (
-	  pattern.get_items ());
+	auto &items
+	  = static_cast<HIR::TuplePatternItemsNoRest &> (pattern.get_items ());
 
 	for (auto &sub : items.get_patterns ())
 	  {

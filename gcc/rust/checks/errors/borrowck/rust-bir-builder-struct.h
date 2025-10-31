@@ -225,11 +225,11 @@ protected:
     rust_unreachable ();
   }
   void visit (HIR::StructPattern &pattern) override { rust_unreachable (); }
-  void visit (HIR::TupleStructItemsNoRange &tuple_items) override
+  void visit (HIR::TupleStructItemsNoRest &tuple_items) override
   {
     rust_unreachable ();
   }
-  void visit (HIR::TupleStructItemsRange &tuple_items) override
+  void visit (HIR::TupleStructItemsHasRest &tuple_items) override
   {
     rust_unreachable ();
   }
@@ -237,15 +237,23 @@ protected:
   {
     rust_unreachable ();
   }
-  void visit (HIR::TuplePatternItemsMultiple &tuple_items) override
+  void visit (HIR::TuplePatternItemsNoRest &tuple_items) override
   {
     rust_unreachable ();
   }
-  void visit (HIR::TuplePatternItemsRanged &tuple_items) override
+  void visit (HIR::TuplePatternItemsHasRest &tuple_items) override
   {
     rust_unreachable ();
   }
   void visit (HIR::TuplePattern &pattern) override { rust_unreachable (); }
+  void visit (HIR::SlicePatternItemsNoRest &tuple_items) override
+  {
+    rust_unreachable ();
+  }
+  void visit (HIR::SlicePatternItemsHasRest &tuple_items) override
+  {
+    rust_unreachable ();
+  }
   void visit (HIR::SlicePattern &pattern) override { rust_unreachable (); }
   void visit (HIR::AltPattern &pattern) override { rust_unreachable (); }
   void visit (HIR::EmptyStmt &stmt) override { rust_unreachable (); }

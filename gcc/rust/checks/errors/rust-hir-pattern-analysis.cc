@@ -28,15 +28,12 @@
 #include "rust-tyty.h"
 #include "rust-immutable-name-resolution-context.h"
 
-// for flag_name_resolution_2_0
-#include "options.h"
-
 namespace Rust {
 namespace Analysis {
 
 PatternChecker::PatternChecker ()
   : tyctx (*Resolver::TypeCheckContext::get ()),
-    resolver (*Resolver::Resolver::get ()),
+    resolver (Resolver2_0::ImmutableNameResolutionContext::get ().resolver ()),
     mappings (Analysis::Mappings::get ())
 {}
 
@@ -238,17 +235,9 @@ PatternChecker::visit (CallExpr &expr)
 
   NodeId ast_node_id = expr.get_fnexpr ().get_mappings ().get_nodeid ();
   NodeId ref_node_id;
-  if (flag_name_resolution_2_0)
-    {
-      auto &nr_ctx
-	= Resolver2_0::ImmutableNameResolutionContext::get ().resolver ();
-
-      if (auto id = nr_ctx.lookup (ast_node_id))
-	ref_node_id = *id;
-      else
-	return;
-    }
-  else if (!resolver.lookup_resolved_name (ast_node_id, &ref_node_id))
+  if (auto id = resolver.lookup (ast_node_id))
+    ref_node_id = *id;
+  else
     return;
 
   if (auto definition_id = mappings.lookup_node_to_hir (ref_node_id))
@@ -640,11 +629,11 @@ PatternChecker::visit (StructPattern &)
 {}
 
 void
-PatternChecker::visit (TupleStructItemsNoRange &)
+PatternChecker::visit (TupleStructItemsNoRest &)
 {}
 
 void
-PatternChecker::visit (TupleStructItemsRange &)
+PatternChecker::visit (TupleStructItemsHasRest &)
 {}
 
 void
@@ -652,15 +641,23 @@ PatternChecker::visit (TupleStructPattern &)
 {}
 
 void
-PatternChecker::visit (TuplePatternItemsMultiple &)
+PatternChecker::visit (TuplePatternItemsNoRest &)
 {}
 
 void
-PatternChecker::visit (TuplePatternItemsRanged &)
+PatternChecker::visit (TuplePatternItemsHasRest &)
 {}
 
 void
 PatternChecker::visit (TuplePattern &)
+{}
+
+void
+PatternChecker::visit (SlicePatternItemsNoRest &)
+{}
+
+void
+PatternChecker::visit (SlicePatternItemsHasRest &)
 {}
 
 void
@@ -980,7 +977,7 @@ Matrix::specialize (const Constructor &ctor) const
       if (ctor.is_covered_by (hd.ctor ()))
 	{
 	  pats.pop_head_constructor (ctor, subfields_place_info.size ());
-	  new_rows.push_back (MatrixRow (pats, row.is_under_guard ()));
+	  new_rows.emplace_back (pats, row.is_under_guard ());
 	}
     }
 
@@ -1186,7 +1183,7 @@ WitnessMatrix::apply_constructor (const Constructor &ctor,
 	    }
 	}
 
-      stack.push_back (WitnessPat (ctor, subfield, ty));
+      stack.emplace_back (ctor, subfield, ty);
     }
 }
 
@@ -1213,10 +1210,10 @@ lower_tuple_pattern (Resolver::TypeCheckContext *ctx,
   std::vector<DeconstructedPat> fields;
   switch (elems.get_item_type ())
     {
-    case HIR::TupleStructItems::ItemType::MULTIPLE:
+    case HIR::TupleStructItems::ItemType::NO_REST:
       {
-	HIR::TupleStructItemsNoRange &multiple
-	  = static_cast<HIR::TupleStructItemsNoRange &> (elems);
+	HIR::TupleStructItemsNoRest &multiple
+	  = static_cast<HIR::TupleStructItemsNoRest &> (elems);
 
 	rust_assert (variant->get_fields ().size ()
 		     == multiple.get_patterns ().size ());
@@ -1230,7 +1227,7 @@ lower_tuple_pattern (Resolver::TypeCheckContext *ctx,
 	return DeconstructedPat (ctor, arity, fields, pattern.get_locus ());
       }
       break;
-    case HIR::TupleStructItems::ItemType::RANGED:
+    case HIR::TupleStructItems::ItemType::HAS_REST:
       {
 	// TODO: ranged tuple struct items
 	rust_unreachable ();
@@ -1597,7 +1594,7 @@ check_match_usefulness (Resolver::TypeCheckContext *ctx,
       MatchArm lowered = lower_arm (ctx, arm, scrutinee_ty);
       PatOrWild pat = PatOrWild::make_pattern (lowered.get_pat ());
       pats.push (pat);
-      rows.push_back (MatrixRow (pats, lowered.has_guard ()));
+      rows.emplace_back (pats, lowered.has_guard ());
     }
 
   std::vector<PlaceInfo> place_infos = {{PlaceInfo (scrutinee_ty)}};

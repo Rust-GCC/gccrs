@@ -97,15 +97,20 @@ TypeCheckType::visit (HIR::BareFunctionType &fntype)
     }
 
   std::vector<TyTy::TyVar> params;
+  params.reserve (fntype.get_function_params ().size ());
+
   for (auto &param : fntype.get_function_params ())
     {
       TyTy::BaseType *ptype = TypeCheckType::Resolve (param.get_type ());
-      params.push_back (TyTy::TyVar (ptype->get_ref ()));
+      params.emplace_back (ptype->get_ref ());
     }
 
-  translated = new TyTy::FnPtr (fntype.get_mappings ().get_hirid (),
-				fntype.get_locus (), std::move (params),
-				TyTy::TyVar (return_type->get_ref ()));
+  translated
+    = new TyTy::FnPtr (fntype.get_mappings ().get_hirid (), fntype.get_locus (),
+		       std::move (params),
+		       TyTy::TyVar (return_type->get_ref ()),
+		       fntype.get_function_qualifiers ().get_abi (),
+		       fntype.get_function_qualifiers ().get_unsafety ());
 }
 
 void
@@ -118,10 +123,12 @@ TypeCheckType::visit (HIR::TupleType &tuple)
     }
 
   std::vector<TyTy::TyVar> fields;
+  fields.reserve (tuple.get_elems ().size ());
+
   for (auto &elem : tuple.get_elems ())
     {
       auto field_ty = TypeCheckType::Resolve (*elem);
-      fields.push_back (TyTy::TyVar (field_ty->get_ref ()));
+      fields.emplace_back (field_ty->get_ref ());
     }
 
   translated = new TyTy::TupleType (tuple.get_mappings ().get_hirid (),
@@ -207,9 +214,9 @@ TypeCheckType::visit (HIR::QualifiedPathInType &path)
   // lookup the associated item from the specified bound
   HIR::TypePathSegment &item_seg = path.get_associated_segment ();
   HIR::PathIdentSegment item_seg_identifier = item_seg.get_ident_segment ();
-  TyTy::TypeBoundPredicateItem item
+  tl::optional<TyTy::TypeBoundPredicateItem> item
     = specified_bound.lookup_associated_item (item_seg_identifier.as_string ());
-  if (item.is_error ())
+  if (!item.has_value ())
     {
       std::string item_seg_ident_name, rich_msg;
       item_seg_ident_name = qual_path_type.get_trait ().as_string ();
@@ -261,7 +268,7 @@ TypeCheckType::visit (HIR::QualifiedPathInType &path)
       // and we dont need to worry if the trait item is actually implemented or
       // not because this will have already been validated as part of the trait
       // impl block
-      translated = item.get_tyty_for_receiver (root);
+      translated = item->get_tyty_for_receiver (root);
     }
   else
     {
