@@ -399,6 +399,12 @@ Session::enable_dump (std::string arg)
 void
 Session::handle_input_files (int num_files, const char **files)
 {
+  if (num_files == 0)
+    {
+      static const char *stdin_file[] = {"-"};
+      files = stdin_file;
+      num_files = 1;
+    }
   if (num_files != 1)
     rust_fatal_error (UNDEF_LOCATION,
 		      "only one file may be specified on the command line");
