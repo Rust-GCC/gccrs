@@ -227,8 +227,11 @@ aarch64_update_cpp_builtins (cpp_reader *pfile)
 			"__ARM_FEATURE_SVE_B16B16", pfile);
   aarch64_def_or_undef (AARCH64_HAVE_ISA (SVE2), "__ARM_FEATURE_SVE2", pfile);
   aarch64_def_or_undef (TARGET_SVE2_AES, "__ARM_FEATURE_SVE2_AES", pfile);
-  aarch64_def_or_undef (TARGET_SVE2_BITPERM,
+  aarch64_def_or_undef (AARCH64_HAVE_ISA (SVE_BITPERM)
+			&& AARCH64_HAVE_ISA (SVE2),
 			"__ARM_FEATURE_SVE2_BITPERM", pfile);
+  aarch64_def_or_undef (AARCH64_HAVE_ISA (SSVE_BITPERM),
+			"__ARM_FEATURE_SSVE_BITPERM", pfile);
   aarch64_def_or_undef (TARGET_SVE2_SHA3, "__ARM_FEATURE_SVE2_SHA3", pfile);
   aarch64_def_or_undef (TARGET_SVE2_SM4, "__ARM_FEATURE_SVE2_SM4", pfile);
   aarch64_def_or_undef (TARGET_SVE2p1, "__ARM_FEATURE_SVE2p1", pfile);

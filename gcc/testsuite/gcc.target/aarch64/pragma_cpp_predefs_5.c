@@ -214,6 +214,17 @@
 #endif
 #pragma GCC pop_options
 
+#pragma GCC push_options
+#pragma GCC target "arch=armv8-a+sve2+ssve-bitperm"
+#ifndef __ARM_FEATURE_SSVE_BITPERM
+#error Foo
+#endif
+
+#ifndef __ARM_FEATURE_SVE2_BITPERM
+#error Foo
+#endif
+#pragma GCC pop_options
+
 int
 foo (int a)
 {

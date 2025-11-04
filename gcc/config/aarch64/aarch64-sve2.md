@@ -4398,7 +4398,7 @@
 	  [(match_operand:SVE_FULL_I 1 "register_operand" "w")
 	   (match_operand:SVE_FULL_I 2 "register_operand" "w")]
 	  SVE2_INT_BITPERM))]
-  "TARGET_SVE2_BITPERM"
+  "TARGET_SVE_BITPERM"
   "<sve_int_op>\t%0.<Vetype>, %1.<Vetype>, %2.<Vetype>"
   [(set_attr "sve_type" "sve_int_bit_perm")]
 )

@@ -37,7 +37,7 @@ gcc_parallel_test_enable 0
 set preamble {
 #include <arm_sve.h>
 
-#pragma GCC target "+i8mm+f32mm+f64mm+sve2+sve2-bitperm+sve2-sm4+sve2-aes+sve2-sha3+sme+sme2p2"
+#pragma GCC target "+i8mm+f32mm+f64mm+sve2+sve2-sm4+sve2-aes+sve2-sha3+sme+sme2p2+ssve-bitperm"
 
 extern svbool_t &pred;
 
@@ -146,6 +146,9 @@ set streaming_ok {
     s8 = svadd_x (pred, s8, s8)
     s8 = svld1 (pred, s8_ptr)
     u32 = svcompact (pred, u32)
+    u8 = svbdep (u8, u8)
+    u8 = svbext (u8, u8)
+    u8 = svbgrp (u8, u8)
 }
 
 # This order follows the list in the SME manual.
@@ -162,8 +165,6 @@ set nonstreaming_only {
     u8 = svaese (u8, u8)
     u8 = svaesimc (u8)
     u8 = svaesmc (u8)
-    u8 = svbdep (u8, u8)
-    u8 = svbext (u8, u8)
     f32 = svbfmmla (f32, bf16, bf16)
     f32 = svadda (pred, 1.0f, f32)
     f32 = svexpa (u32)

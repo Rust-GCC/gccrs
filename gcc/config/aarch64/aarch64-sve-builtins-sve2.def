@@ -205,8 +205,9 @@ DEF_SVE_FUNCTION (svpmullb_pair, binary_opt_n, d_unsigned, none)
 DEF_SVE_FUNCTION (svpmullt_pair, binary_opt_n, d_unsigned, none)
 #undef REQUIRED_EXTENSIONS
 
-#define REQUIRED_EXTENSIONS nonstreaming_sve (AARCH64_FL_SVE2 \
-					      | AARCH64_FL_SVE_BITPERM)
+#define REQUIRED_EXTENSIONS streaming_compatible (AARCH64_FL_SVE2 \
+						  | AARCH64_FL_SVE_BITPERM, \
+						  AARCH64_FL_SSVE_BITPERM)
 DEF_SVE_FUNCTION (svbdep, binary_opt_n, all_unsigned, none)
 DEF_SVE_FUNCTION (svbext, binary_opt_n, all_unsigned, none)
 DEF_SVE_FUNCTION (svbgrp, binary_opt_n, all_unsigned, none)

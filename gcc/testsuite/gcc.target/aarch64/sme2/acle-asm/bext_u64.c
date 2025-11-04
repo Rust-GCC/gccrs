@@ -2,13 +2,9 @@
 /* { dg-do compile { target { ! aarch64_asm_ssve-bitperm_ok } } } */
 /* { dg-final { check-function-bodies "**" "" "-DCHECK_ASM" } } */
 
-#include "test_sve_acle.h"
+#include "test_sme2_acle.h"
 
-#ifdef STREAMING_COMPATIBLE
 #pragma GCC target "+sve2+ssve-bitperm"
-#else
-#pragma GCC target "+sve2-bitperm"
-#endif
 
 /*
 ** bext_u64_tied1:
