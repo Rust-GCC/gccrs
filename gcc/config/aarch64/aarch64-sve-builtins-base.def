@@ -274,7 +274,6 @@ DEF_SVE_FUNCTION (svadrb, adr_offset, none, none)
 DEF_SVE_FUNCTION (svadrd, adr_index, none, none)
 DEF_SVE_FUNCTION (svadrh, adr_index, none, none)
 DEF_SVE_FUNCTION (svadrw, adr_index, none, none)
-DEF_SVE_FUNCTION (svexpa, unary_uint, all_float, none)
 DEF_SVE_FUNCTION (svld1_gather, load_gather_sv, sd_data, implicit)
 DEF_SVE_FUNCTION (svld1_gather, load_gather_vs, sd_data, implicit)
 DEF_SVE_FUNCTION (svld1sb_gather, load_ext_gather_offset, sd_integer, implicit)
@@ -376,4 +375,8 @@ DEF_SVE_FUNCTION (svzip2q, binary, all_data, none)
 
 #define REQUIRED_EXTENSIONS sve_and_sme (0, AARCH64_FL_SME2p2)
 DEF_SVE_FUNCTION (svcompact, unary, sd_data, implicit)
+#undef REQUIRED_EXTENSIONS
+
+#define REQUIRED_EXTENSIONS streaming_compatible (0, AARCH64_FL_SSVE_FEXPA)
+DEF_SVE_FUNCTION (svexpa, unary_uint, all_float, none)
 #undef REQUIRED_EXTENSIONS

@@ -3950,7 +3950,7 @@
 	(unspec:SVE_FULL_F
 	  [(match_operand:<V_INT_EQUIV> 1 "register_operand" "w")]
 	  SVE_FP_UNARY_INT))]
-  "TARGET_SVE"
+  "TARGET_SVE_FEXPA"
   "<sve_fp_op>\t%0.<Vetype>, %1.<Vetype>"
   [(set_attr "sve_type" "sve_fp_exp")]
 )

@@ -1,7 +1,12 @@
-/* { dg-skip-if "" { *-*-* } { "-DSTREAMING_COMPATIBLE" } { "" } } */
+/* { dg-do assemble { target aarch64_asm_ssve-fexpa_ok } } */
+/* { dg-do compile { target { ! aarch64_asm_ssve-fexpa_ok } } } */
 /* { dg-final { check-function-bodies "**" "" "-DCHECK_ASM" } } */
 
 #include "test_sve_acle.h"
+
+#ifdef STREAMING_COMPATIBLE
+#pragma GCC target "+ssve-fexpa"
+#endif
 
 /*
 ** expa_f16_tied1:

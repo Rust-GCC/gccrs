@@ -577,6 +577,12 @@ through +ssve-fp8dot2.  */
 
 #define TARGET_SSME2_FP8 (TARGET_FP8 && TARGET_STREAMING_SME2)
 
+/* SVE FEXPA instructions, enabled through +sve for streaming and +ssve-fexpa
+   for streaming.  */
+#define TARGET_SVE_FEXPA ((TARGET_SVE || TARGET_STREAMING) \
+			   && (AARCH64_HAVE_ISA (SSVE_FEXPA) \
+			       || TARGET_NON_STREAMING))
+
 /* Standard register usage.  */
 
 /* 31 64-bit general purpose registers R0-R30:

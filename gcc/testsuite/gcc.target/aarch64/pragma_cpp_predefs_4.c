@@ -383,3 +383,8 @@
 #ifndef __ARM_FEATURE_FAMINMAX
 #error Foo
 #endif
+
+#pragma GCC target "arch=armv8-a+sve2+ssve-fexpa"
+#ifndef __ARM_FEATURE_SSVE_FEXPA
+#error Foo
+#endif

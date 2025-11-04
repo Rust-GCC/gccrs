@@ -3720,7 +3720,7 @@
 ;; This might need to be revisited if new operations are added in future.
 (define_int_iterator SVE_FP_UNARY [UNSPEC_FRECPE UNSPEC_RSQRTE])
 
-(define_int_iterator SVE_FP_UNARY_INT [(UNSPEC_FEXPA "TARGET_NON_STREAMING")])
+(define_int_iterator SVE_FP_UNARY_INT [UNSPEC_FEXPA])
 
 (define_int_iterator SVE_INT_SHIFT_IMM [UNSPEC_ASRD
 					(UNSPEC_SQSHLU "TARGET_SVE2")
