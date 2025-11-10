@@ -48,7 +48,7 @@ $ apt install build-essential libgmp3-dev libmpfr-dev libmpc-dev flex bison auto
 Fetch dependencies for Fedora:
 
 ```bash
-$ dnf install autoconf automake dejagnu flex bison glibc-devel.{x86_64,i686} gmp-devel libmpc-devel mpfr-devel
+$ dnf install autoconf automake dejagnu flex bison glibc-devel.{x86_64,i686} gmp-devel libmpc-devel mpfr-devel gcc gcc-c++ cargo awk
 ```
 
 Clone the repository
