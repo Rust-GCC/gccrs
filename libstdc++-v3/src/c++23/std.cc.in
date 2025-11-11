@@ -3651,10 +3651,6 @@ export namespace std
   using std::make_integer_sequence;
   using std::move;
   using std::move_if_noexcept;
-#if __cpp_lib_function_ref
-  using std::nontype_t;
-  using std::nontype;
-#endif
   using std::pair;
   using std::swap;
   using std::operator==;

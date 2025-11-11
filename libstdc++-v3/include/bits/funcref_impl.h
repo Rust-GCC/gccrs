@@ -129,12 +129,19 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       // _GLIBCXX_RESOLVE_LIB_DEFECTS
       // 4256. Incorrect constrains for function_ref constructors from nontype
       /// Target object is __fn. There is no bound object.
-      template<auto __fn>
-	requires __is_invocable_using<const decltype(__fn)&>
+      template<auto __cwfn, typename _Fn>
+	requires __is_invocable_using<const _Fn&>
 	constexpr
-	function_ref(nontype_t<__fn>) noexcept
+	function_ref(constant_wrapper<__cwfn, _Fn>) noexcept
 	{
-	  using _Fn = remove_cv_t<decltype(__fn)>;
+	  constexpr const _Fn& __fn = constant_wrapper<__cwfn, _Fn>::value;
+	  if constexpr (sizeof...(_ArgTypes) > 0)
+	    if constexpr ((... && _ConstExprParam<remove_cvref_t<_ArgTypes>>))
+	      static_assert(!requires {
+	        typename constant_wrapper<
+		  std::__invoke(__fn, remove_cvref_t<_ArgTypes>::value...)>;
+	      }, "cw<fn>(args...) should be equivalent to fn(args...)");
+
 	  if constexpr (is_pointer_v<_Fn> || is_member_pointer_v<_Fn>)
 	    static_assert(__fn != nullptr);
 
@@ -144,13 +151,14 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
       /// Target object is equivalent to std::bind_front<_fn>(std::ref(__ref)).
       /// Bound object is object referenced by second parameter.
-      template<auto __fn, typename _Up, typename _Td = remove_reference_t<_Up>>
+      template<auto __cwfn, typename _Fn, typename _Up,
+	       typename _Td = remove_reference_t<_Up>>
 	requires (!is_rvalue_reference_v<_Up&&>)
-	  && __is_invocable_using<const decltype(__fn)&, _Td _GLIBCXX_MOF_CV&>
+		 && __is_invocable_using<const _Fn&, _Td _GLIBCXX_MOF_CV&>
 	constexpr
-	function_ref(nontype_t<__fn>, _Up&& __ref) noexcept
+	function_ref(constant_wrapper<__cwfn, _Fn>, _Up&& __ref) noexcept
 	{
-	  using _Fn = remove_cv_t<decltype(__fn)>;
+	  constexpr const _Fn& __fn = constant_wrapper<__cwfn, _Fn>::value;
 	  if constexpr (is_pointer_v<_Fn> || is_member_pointer_v<_Fn>)
 	    static_assert(__fn != nullptr);
 
@@ -166,12 +174,12 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
       /// Target object is equivalent to std::bind_front<_fn>(__ptr).
       /// Bound object is object pointed by second parameter (if any).
-      template<auto __fn, typename _Td>
-	requires __is_invocable_using<const decltype(__fn)&, _Td _GLIBCXX_MOF_CV*>
+      template< auto __cwfn, typename _Fn, typename _Td>
+	requires __is_invocable_using<const _Fn&, _Td _GLIBCXX_MOF_CV*>
 	constexpr
-	function_ref(nontype_t<__fn>, _Td _GLIBCXX_MOF_CV* __ptr) noexcept
+	function_ref(constant_wrapper<__cwfn, _Fn>, _Td _GLIBCXX_MOF_CV* __ptr) noexcept
 	{
-	  using _Fn = remove_cv_t<decltype(__fn)>;
+	  constexpr const _Fn& __fn = constant_wrapper<__cwfn, _Fn>::value;
 	  if constexpr (is_pointer_v<_Fn> || is_member_pointer_v<_Fn>)
 	    static_assert(__fn != nullptr);
 	  if constexpr (is_member_pointer_v<_Fn>)
@@ -182,8 +190,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	}
 
       template<typename _Tp>
-	requires (!is_same_v<_Tp, function_ref>)
-	       && (!is_pointer_v<_Tp>) && (!__is_nontype_v<_Tp>)
+	requires (!is_same_v<_Tp, function_ref>) && (!is_pointer_v<_Tp>)
+		 && (!__is_constant_wrapper_v<_Tp>)
 	function_ref&
 	operator=(_Tp) = delete;
 

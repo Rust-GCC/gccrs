@@ -3,7 +3,6 @@
 #include <functional>
 #include <testsuite_hooks.h>
 
-using std::nontype;
 using std::function_ref;
 
 void
@@ -55,8 +54,8 @@ test02()
   };
   S s{10};
 
-  function_ref<int()> r1(nontype<&S::x>, s);
-  function_ref<long()> r2(nontype<&S::x>, &s);
+  function_ref<int()> r1(std::cw<&S::x>, s);
+  function_ref<long()> r2(std::cw<&S::x>, &s);
 
   VERIFY( r1() == 10 );
   VERIFY( r2() == 10 );
@@ -66,8 +65,8 @@ test02()
   VERIFY( r1() == 20 );
   VERIFY( r2() == 20 );
 
-  r1 = function_ref<int()>(nontype<&S::f>, &s);
-  r2 = function_ref<long()>(nontype<&S::f>, s);
+  r1 = function_ref<int()>(std::cw<&S::f>, &s);
+  r2 = function_ref<long()>(std::cw<&S::f>, s);
 
   VERIFY( r1() == 20 );
   VERIFY( r2() == 20 );

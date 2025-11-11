@@ -46,7 +46,7 @@ struct NonStatic {
   { return x + y + v; }
 };
 
-constexpr auto vNonType = create(std::nontype<NonStatic{3}>);
+constexpr auto vNonType = create(std::cw<NonStatic{3}>);
 
 struct StaticWins {
   static int

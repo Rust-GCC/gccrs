@@ -8,8 +8,7 @@
 # error "Feature-test macro for function_ref has wrong value in <functional>"
 #endif
 
-using std::nontype;
-using std::nontype_t;
+using std::constant_wrapper;
 using std::function_ref;
 
 using std::is_nothrow_move_assignable_v;
@@ -55,13 +54,13 @@ static_assert( ! is_assignable_v<function_ref<int(S)>, decltype(&S::x)> );
 static_assert( ! is_assignable_v<function_ref<int(S)>, decltype(&S::f)> );
 
 static_assert( is_nothrow_assignable_v<function_ref<int(S)>,
-				       nontype_t<funS>> );
+				       constant_wrapper<funS>> );
 static_assert( is_nothrow_assignable_v<function_ref<int(S)>,
-				       nontype_t<&funS>> );
+				       constant_wrapper<&funS>> );
 static_assert( is_nothrow_assignable_v<function_ref<int(S)>,
-				       nontype_t<&S::x>> );
+				       constant_wrapper<&S::x>> );
 static_assert( is_nothrow_assignable_v<function_ref<int(S)>,
-				       nontype_t<&S::f>> );
+				       constant_wrapper<&S::f>> );
 struct Q
 {
   void operator()() const;
@@ -75,22 +74,22 @@ static_assert( ! is_assignable_v<function_ref<void() const>, Q&> );
 static_assert( ! is_assignable_v<function_ref<void() const>, const Q&> );
 
 static_assert( is_nothrow_assignable_v<function_ref<void()>,
-				       nontype_t<Q{}>> );
+				       constant_wrapper<Q{}>> );
 static_assert( is_nothrow_assignable_v<function_ref<void() const>,
-				       nontype_t<Q{}>> );
+				       constant_wrapper<Q{}>> );
 
 constexpr bool
 test_constexpr()
 {
-  function_ref<void(S)> fp(nontype<funS>);
-  fp = nontype<funS>;
-  fp = nontype<&funS>;
-  fp = nontype<&S::x>;
-  fp = nontype<&S::f>;
+  function_ref<void(S)> fp(std::cw<funS>);
+  fp = std::cw<funS>;
+  fp = std::cw<&funS>;
+  fp = std::cw<&S::x>;
+  fp = std::cw<&S::f>;
 
   constexpr Q cq;
   function_ref<void() const> fq(cq);
-  fq = nontype<cq>;
+  fq = std::cw<cq>;
   return true;
 }
 static_assert( test_constexpr() );

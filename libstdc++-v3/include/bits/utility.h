@@ -458,6 +458,12 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     { return value; }
   };
 
+  template<typename>
+    constexpr bool __is_constant_wrapper_v = false;
+
+  template<auto __cw, typename _Fn>
+    constexpr bool __is_constant_wrapper_v<constant_wrapper<__cw, _Fn>> = true;
+
   template<_CwFixedValue _Tp>
     constexpr auto cw = constant_wrapper<_Tp>{};
 #endif
@@ -635,23 +641,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   struct sorted_equivalent_t { explicit sorted_equivalent_t() = default; };
   inline constexpr sorted_equivalent_t sorted_equivalent{};
-#endif
-
-#if __glibcxx_function_ref // >= C++26
-  template<auto>
-    struct nontype_t
-    {
-      explicit nontype_t() = default;
-    };
-
-  template<auto __val>
-    constexpr nontype_t<__val> nontype{};
-
-  template<typename>
-    inline constexpr bool __is_nontype_v = false;
-
-  template<auto __val>
-    inline constexpr bool __is_nontype_v<nontype_t<__val>> = true;
 #endif
 
 _GLIBCXX_END_NAMESPACE_VERSION
