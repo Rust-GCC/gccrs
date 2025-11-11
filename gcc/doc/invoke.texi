@@ -13897,7 +13897,7 @@ This option results in less efficient code, but some strange hacks
 that alter the assembler output may be confused by the optimizations
 performed when this option is not used.
 
-The default is @option{-ffunction-cse}
+The default is @option{-ffunction-cse}.
 
 @opindex ffuse-ops-with-volatile-access
 @opindex fno-fuse-ops-with-volatile-access
