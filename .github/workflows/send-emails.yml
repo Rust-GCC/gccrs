@@ -35,7 +35,7 @@ jobs:
       - name: Configure git identity
         run: |
           git config user.name "gccrs gerris bot"
-          git config user.email "${{ secrets.SMTP_FROM }}"
+          git config user.email "${{ vars.SMTP_FROM }}"
 
       - name: Export env
         env:
@@ -232,15 +232,15 @@ jobs:
       - name: Send series via git send-email
         if: steps.send_emails.outputs.enabled == 'true'
         env:
-          GIT_SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
+          GIT_SMTP_SERVER: ${{ vars.SMTP_SERVER }}
           GIT_SMTP_ENCRYPTION: tls
-          GIT_SMTP_SERVER_PORT: ${{ secrets.SMTP_PORT }}
+          GIT_SMTP_SERVER_PORT: ${{ vars.SMTP_PORT }}
           GIT_SMTP_AUTH: "true"
-          GIT_SMTP_USER: ${{ secrets.SMTP_USERNAME }}
+          GIT_SMTP_USER: ${{ vars.SMTP_USERNAME }}
           GIT_SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
-          FROM: ${{ secrets.SMTP_FROM }}
-          TO: ${{ secrets.PATCH_TO }}
-          CC: ${{ secrets.PATCH_CC }}
+          FROM: ${{ vars.SMTP_FROM }}
+          TO: ${{ vars.PATCH_TO }}
+          CC: ${{ vars.PATCH_CC }}
         run: |
           set -euo pipefail
 
