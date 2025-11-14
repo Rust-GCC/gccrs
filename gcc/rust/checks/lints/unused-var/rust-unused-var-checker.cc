@@ -44,8 +44,9 @@ UnusedVarChecker::visit (HIR::ConstantItem &item)
   std::string var_name = item.get_identifier ().as_string ();
   bool starts_with_under_score = var_name.compare (0, 1, "_") == 0;
   auto id = item.get_mappings ().get_hirid ();
-  if (!unused_var_context.is_variable_used (id) && !starts_with_under_score)
-    rust_warning_at (item.get_locus (), OPT_Wunused_variable, "unused name %qs",
+  if (!unused_context.is_variable_used (id) && !starts_with_under_score)
+    rust_warning_at (item.get_locus (), OPT_Wunused_variable,
+		     "unused variable %qs",
 		     item.get_identifier ().as_string ().c_str ());
 }
 
@@ -55,8 +56,8 @@ UnusedVarChecker::visit (HIR::StaticItem &item)
   std::string var_name = item.get_identifier ().as_string ();
   bool starts_with_under_score = var_name.compare (0, 1, "_") == 0;
   auto id = item.get_mappings ().get_hirid ();
-  if (!unused_var_context.is_variable_used (id) && !starts_with_under_score)
-    rust_warning_at (item.get_locus (), OPT_Wunused_variable, "unused name %qs",
+  if (!unused_context.is_variable_used (id) && !starts_with_under_score)
+    rust_warning_at (item.get_locus (), OPT_Wunused_variable, "unused variable %qs",
 		     item.get_identifier ().as_string ().c_str ());
 }
 
@@ -74,7 +75,7 @@ UnusedVarChecker::visit (HIR::IdentifierPattern &pattern)
   if (!unused_var_context.is_variable_used (id) && var_name != "self"
       && !starts_with_under_score)
     rust_warning_at (pattern.get_locus (), OPT_Wunused_variable,
-		     "unused name %qs",
+		     "unused variable %qs",
 		     pattern.get_identifier ().as_string ().c_str ());
 }
 void
