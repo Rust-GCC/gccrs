@@ -7,7 +7,17 @@ library project Libgnat is
    for Source_List_File use "libgnat.lst";
    for Object_Dir use "../obj-" & Libgnat_Common.Library_Kind;
 
-   for Library_Name use "gnat";
+   case Libgnat_Common.Library_Kind is
+      when "static-pic" =>
+         for Library_Name use "gnat_pic";
+      when "dynamic" =>
+         for Library_Name use "gnat";
+         for Library_Version use
+           "libgnat-" & Libgnat_Common.Version & ".so";
+      when others =>
+         for Library_Name use "gnat";
+   end case;
+
    for Library_Dir use "../adalib";
    for Library_Kind use Libgnat_Common.Library_Kind;
 

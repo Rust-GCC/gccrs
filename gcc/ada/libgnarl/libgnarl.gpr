@@ -1,4 +1,5 @@
 with "libgnat_common";
+with "libgnat";
 
 library project Libgnarl is
 
@@ -7,7 +8,17 @@ library project Libgnarl is
    for Source_List_File use "libgnarl.lst";
    for Object_Dir use "../obj-" & Libgnat_Common.Library_Kind;
 
-   for Library_Name use "gnarl";
+   case Libgnat_Common.Library_Kind is
+      when "static-pic" =>
+         for Library_Name use "gnarl_pic";
+      when "dynamic" =>
+         for Library_Name use "gnarl";
+         for Library_Version use
+           "libgnarl-" & Libgnat_Common.Version & ".so";
+      when others =>
+         for Library_Name use "gnarl";
+   end case;
+
    for Library_Dir use "../adalib";
    for Library_Kind use Libgnat_Common.Library_Kind;
 
