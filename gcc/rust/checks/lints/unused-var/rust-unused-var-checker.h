@@ -37,6 +37,7 @@ private:
   UnusedVarContext unused_var_context;
 
   using HIR::DefaultHIRVisitor::visit;
+
   virtual void visit (HIR::TraitItemFunc &decl) override;
   virtual void visit (HIR::ConstantItem &item) override;
   virtual void visit (HIR::StaticItem &item) override;
