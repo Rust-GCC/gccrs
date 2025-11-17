@@ -16,33 +16,26 @@
 // along with GCC; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
-#include "rust-hir-expr.h"
-#include "rust-hir-item.h"
-#include "rust-hir-pattern.h"
-#include "rust-hir-visitor.h"
-#include "rust-immutable-name-resolution-context.h"
-#include "rust-unused-var-collector.h"
+#include "rust-mapping-common.h"
 
 namespace Rust {
 namespace Analysis {
-class UnusedVarChecker : public HIR::DefaultHIRVisitor
+
+class UnusedContext
 {
 public:
-  UnusedVarChecker ();
-  void go (HIR::Crate &crate);
+  void add_variable (HirId id);
+  bool is_variable_used (HirId id) const;
+  void add_assign (HirId id_def, HirId id);
+  void remove_assign (HirId id_def);
+  bool is_variable_assigned (HirId id_def, HirId id);
+
+  std::string as_string () const;
 
 private:
-  const Resolver2_0::NameResolutionContext &nr_context;
-  Analysis::Mappings &mappings;
-  UnusedVarContext unused_var_context;
-
-  using HIR::DefaultHIRVisitor::visit;
-
-  virtual void visit (HIR::TraitItemFunc &decl) override;
-  virtual void visit (HIR::ConstantItem &item) override;
-  virtual void visit (HIR::StaticItem &item) override;
-  virtual void visit (HIR::IdentifierPattern &identifier) override;
-  virtual void visit (HIR::AssignmentExpr &identifier) override;
+  std::unordered_set<HirId> used_vars;
+  std::map<HirId, std::vector<HirId>> assigned_vars;
 };
+
 } // namespace Analysis
 } // namespace Rust
