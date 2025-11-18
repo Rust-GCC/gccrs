@@ -38,8 +38,6 @@ private:
 
   using HIR::DefaultHIRVisitor::visit;
   virtual void visit (HIR::TraitItemFunc &decl) override;
-  virtual void visit (HIR::ConstantItem &item) override;
-  virtual void visit (HIR::StaticItem &item) override;
   virtual void visit (HIR::IdentifierPattern &identifier) override;
   virtual void visit (HIR::AssignmentExpr &identifier) override;
   virtual void visit (HIR::StructPatternFieldIdent &identifier) override;
