@@ -54,15 +54,10 @@ is_snake_case (Identifier identifier)
 void
 UnusedChecker::visit (HIR::ConstantItem &item)
 {
+  // Unused const item detection now lives in the dead-code scan
+  // (ScanDeadcode). Only the unused_visibilities lint remains here: a
+  // visibility qualifier on a `const _` item has no effect.
   std::string var_name = item.get_identifier ().as_string ();
-  auto id = item.get_mappings ().get_hirid ();
-  if (!unused_context.is_variable_used (id) && var_name[0] != '_')
-    rust_warning_at (item.get_locus (), OPT_Wunused_variable,
-		     "unused variable %qs",
-		     item.get_identifier ().as_string ().c_str ());
-
-  // The unused_visibilities lint: a visibility qualifier on a `const _` item
-  // has no effect.
   if (var_name == "_" && item.get_visibility ().is_public ())
     rust_warning_at (item.get_locus (), OPT_Wunused_variable,
 		     "visibility qualifier on a %<const _%> item is unused");
@@ -71,13 +66,9 @@ UnusedChecker::visit (HIR::ConstantItem &item)
 void
 UnusedChecker::visit (HIR::StaticItem &item)
 {
+  // The unused static/const item detection is handled by the dead-code scan
+  // visitor (ScanDeadcode). Only the naming lint remains here.
   std::string var_name = item.get_identifier ().as_string ();
-  auto id = item.get_mappings ().get_hirid ();
-  if (!unused_context.is_variable_used (id) && var_name[0] != '_')
-    rust_warning_at (item.get_locus (), OPT_Wunused_variable,
-		     "unused variable %qs",
-		     item.get_identifier ().as_string ().c_str ());
-
   if (!std::all_of (var_name.begin (), var_name.end (), [] (unsigned char c) {
 	return ISUPPER (c) || ISDIGIT (c) || c == '_';
       }))
