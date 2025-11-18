@@ -37,35 +37,13 @@ UnusedChecker::go (HIR::Crate &crate)
   for (auto &item : crate.get_items ())
     item->accept_vis (*this);
 }
-void
-UnusedChecker::visit (HIR::ConstantItem &item)
-{
-  std::string var_name = item.get_identifier ().as_string ();
-  bool starts_with_under_score = var_name.compare (0, 1, "_") == 0;
-  auto id = item.get_mappings ().get_hirid ();
-  if (!unused_context.is_variable_used (id) && !starts_with_under_score)
-    rust_warning_at (item.get_locus (), OPT_Wunused_variable,
-		     "unused variable %qs",
-		     item.get_identifier ().as_string ().c_str ());
-}
-
-void
-UnusedChecker::visit (HIR::StaticItem &item)
-{
-  std::string var_name = item.get_identifier ().as_string ();
-  bool starts_with_under_score = var_name.compare (0, 1, "_") == 0;
-  auto id = item.get_mappings ().get_hirid ();
-  if (!unused_context.is_variable_used (id) && !starts_with_under_score)
-    rust_warning_at (item.get_locus (), OPT_Wunused_variable,
-		     "unused variable %qs",
-		     item.get_identifier ().as_string ().c_str ());
-}
 
 void
 UnusedChecker::visit (HIR::TraitItemFunc &item)
 {
   // TODO: check trait item functions if they are not derived.
 }
+
 void
 UnusedChecker::visit (HIR::IdentifierPattern &pattern)
 {
