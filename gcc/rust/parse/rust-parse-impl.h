@@ -7930,9 +7930,9 @@ Parser<ManagedTokenSource>::parse_if_let_expr (AST::AttrVec outer_attrs,
   lexer.skip_token ();
 
   // parse match arm patterns (which are required)
-  std::vector<std::unique_ptr<AST::Pattern>> match_arm_patterns
-    = parse_match_arm_patterns (EQUAL);
-  if (match_arm_patterns.empty ())
+  std::unique_ptr<AST::Pattern> match_arm_pattern
+    = parse_match_arm_pattern (EQUAL);
+  if (match_arm_pattern == nullptr)
     {
       Error error (
 	lexer.peek_token ()->get_locus (),
@@ -7983,7 +7983,7 @@ Parser<ManagedTokenSource>::parse_if_let_expr (AST::AttrVec outer_attrs,
     {
       // single selection - end of if let expression
       return std::unique_ptr<AST::IfLetExpr> (
-	new AST::IfLetExpr (std::move (match_arm_patterns),
+	new AST::IfLetExpr (std::move (match_arm_pattern),
 			    std::move (scrutinee_expr), std::move (if_let_body),
 			    std::move (outer_attrs), locus));
     }
@@ -8015,7 +8015,7 @@ Parser<ManagedTokenSource>::parse_if_let_expr (AST::AttrVec outer_attrs,
 	      }
 
 	    return std::unique_ptr<AST::IfLetExprConseqElse> (
-	      new AST::IfLetExprConseqElse (std::move (match_arm_patterns),
+	      new AST::IfLetExprConseqElse (std::move (match_arm_pattern),
 					    std::move (scrutinee_expr),
 					    std::move (if_let_body),
 					    std::move (else_body),
@@ -8043,7 +8043,7 @@ Parser<ManagedTokenSource>::parse_if_let_expr (AST::AttrVec outer_attrs,
 
 		return std::unique_ptr<AST::IfLetExprConseqElse> (
 		  new AST::IfLetExprConseqElse (
-		    std::move (match_arm_patterns), std::move (scrutinee_expr),
+		    std::move (match_arm_pattern), std::move (scrutinee_expr),
 		    std::move (if_let_body), std::move (if_let_expr),
 		    std::move (outer_attrs), locus));
 	      }
@@ -8064,7 +8064,7 @@ Parser<ManagedTokenSource>::parse_if_let_expr (AST::AttrVec outer_attrs,
 
 		return std::unique_ptr<AST::IfLetExprConseqElse> (
 		  new AST::IfLetExprConseqElse (
-		    std::move (match_arm_patterns), std::move (scrutinee_expr),
+		    std::move (match_arm_pattern), std::move (scrutinee_expr),
 		    std::move (if_let_body), std::move (if_expr),
 		    std::move (outer_attrs), locus));
 	      }
@@ -8232,10 +8232,10 @@ Parser<ManagedTokenSource>::parse_while_let_loop_expr (
   lexer.skip_token ();
 
   // parse predicate patterns
-  std::vector<std::unique_ptr<AST::Pattern>> predicate_patterns
-    = parse_match_arm_patterns (EQUAL);
+  std::unique_ptr<AST::Pattern> predicate_pattern
+    = parse_match_arm_pattern (EQUAL);
   // ensure that there is at least 1 pattern
-  if (predicate_patterns.empty ())
+  if (predicate_pattern == nullptr)
     {
       Error error (lexer.peek_token ()->get_locus (),
 		   "should be at least 1 pattern");
@@ -8279,8 +8279,8 @@ Parser<ManagedTokenSource>::parse_while_let_loop_expr (
     }
 
   return std::unique_ptr<AST::WhileLetLoopExpr> (new AST::WhileLetLoopExpr (
-    std::move (predicate_patterns), std::move (predicate_expr),
-    std::move (body), locus, std::move (label), std::move (outer_attrs)));
+    std::move (predicate_pattern), std::move (predicate_expr), std::move (body),
+    locus, std::move (label), std::move (outer_attrs)));
 }
 
 /* Parses a "for" iterative loop. Label is not parsed and should be parsed via
@@ -8566,9 +8566,9 @@ Parser<ManagedTokenSource>::parse_match_arm ()
     }
 
   // parse match arm patterns - at least 1 is required
-  std::vector<std::unique_ptr<AST::Pattern>> match_arm_patterns
-    = parse_match_arm_patterns (RIGHT_CURLY);
-  if (match_arm_patterns.empty ())
+  std::unique_ptr<AST::Pattern> match_arm_pattern
+    = parse_match_arm_pattern (RIGHT_CURLY);
+  if (match_arm_pattern == nullptr)
     {
       Error error (lexer.peek_token ()->get_locus (),
 		   "failed to parse any patterns in match arm");
@@ -8602,7 +8602,7 @@ Parser<ManagedTokenSource>::parse_match_arm ()
   // DEBUG
   rust_debug ("successfully parsed match arm");
 
-  return AST::MatchArm (std::move (match_arm_patterns),
+  return AST::MatchArm (std::move (match_arm_pattern),
 			lexer.peek_token ()->get_locus (),
 			std::move (guard_expr), std::move (outer_attrs));
 }
@@ -8611,66 +8611,17 @@ Parser<ManagedTokenSource>::parse_match_arm ()
  * token that would exist after the patterns are done (e.g. '}' for match
  * expr, '=' for if let and while let). */
 template <typename ManagedTokenSource>
-std::vector<std::unique_ptr<AST::Pattern>>
-Parser<ManagedTokenSource>::parse_match_arm_patterns (TokenId end_token_id)
+std::unique_ptr<AST::Pattern>
+Parser<ManagedTokenSource>::parse_match_arm_pattern (TokenId end_token_id)
 {
-  // skip optional leading '|'
-  if (lexer.peek_token ()->get_id () == PIPE)
-    lexer.skip_token ();
-  /* TODO: do I even need to store the result of this? can't be used.
-   * If semantically different, I need a wrapped "match arm patterns" object
-   * for this. */
-
-  std::vector<std::unique_ptr<AST::Pattern>> patterns;
+  /* skip optional starting pipe */
+  maybe_skip_token (PIPE);
 
   // quick break out if end_token_id
   if (lexer.peek_token ()->get_id () == end_token_id)
-    return patterns;
+    return nullptr;
 
-  // parse required pattern - if doesn't exist, return empty
-  std::unique_ptr<AST::Pattern> initial_pattern = parse_pattern ();
-  if (initial_pattern == nullptr)
-    {
-      // FIXME: should this be an error?
-      return patterns;
-    }
-  patterns.push_back (std::move (initial_pattern));
-
-  // DEBUG
-  rust_debug ("successfully parsed initial match arm pattern");
-
-  // parse new patterns as long as next char is '|'
-  const_TokenPtr t = lexer.peek_token ();
-  while (t->get_id () == PIPE)
-    {
-      // skip pipe token
-      lexer.skip_token ();
-
-      // break if hit end token id
-      if (lexer.peek_token ()->get_id () == end_token_id)
-	break;
-
-      // parse pattern
-      std::unique_ptr<AST::Pattern> pattern = parse_pattern ();
-      if (pattern == nullptr)
-	{
-	  // this is an error
-	  Error error (lexer.peek_token ()->get_locus (),
-		       "failed to parse pattern in match arm patterns");
-	  add_error (std::move (error));
-
-	  // skip somewhere?
-	  return {};
-	}
-
-      patterns.push_back (std::move (pattern));
-
-      t = lexer.peek_token ();
-    }
-
-  patterns.shrink_to_fit ();
-
-  return patterns;
+  return parse_pattern ();
 }
 
 // Parses an async block expression.
