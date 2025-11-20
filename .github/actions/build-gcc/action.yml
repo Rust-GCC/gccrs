@@ -1,0 +1,191 @@
+name: 'Build GCC'
+description: 'Builds GCC with Rust enabled'
+inputs:
+  extra-configure-env:
+    description: 'Extra env for configure'
+    default: ''
+
+  run-test-flags:
+    description: 'Args for RUNTESTFLAGS'
+    required: true
+
+  rustc-version:
+    description: 'rustc version to install'
+    default: "1.72.0"
+
+  use-old-gcc:
+    description: 'Version to use for old GCC'
+    default: ''
+
+  bootstrap:
+    description: 'Set to true to bootstrap the compiler'
+    default: false
+
+  warning-file:
+    description: 'If set, checks compile log for extra warnings compared to provided file'
+    default: ''
+
+  extra-configure-args:
+    description: 'Extra configure args to use for ./configure step'
+    default: ''
+
+  glibc-assertion:
+    description: 'Enable GLIBC_ASSERTION for extra runtime checks'
+    default: false
+
+  enable-multilib:
+    description: 'Enable multilib'
+    default: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install dependencies
+      run: |
+          sudo apt-get update;
+          sudo apt-get install -y \
+                  automake \
+                  autoconf \
+                  libtool \
+                  autogen \
+                  bison \
+                  flex \
+                  libgmp3-dev \
+                  libmpfr-dev \
+                  libmpc-dev \
+                  build-essential \
+                  gcc-multilib \
+                  g++-multilib \
+                  dejagnu;
+      shell: bash
+
+    - uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: ${{ inputs.rustc-version }}
+
+    - name: Make Source Read-Only
+      run: chmod -R a-w ./*
+      shell: bash
+
+    - name: Restore cached old gcc ${{ inputs.use-old-gcc }}
+      if: inputs.use-old-gcc != ''
+      id: restore-gcc5
+      uses: actions/cache/restore@v4
+      with:
+        key: ce-tar-gcc-${{ inputs.use-old-gcc }}
+        path: ~/gcc-${{ inputs.use-old-gcc }}/
+
+    - name: Download and install gcc ${{ inputs.use-old-gcc }}
+      if: steps.restore-gcc5.outputs.cache-hit != 'true' && inputs.use-old-gcc != ''
+      shell: bash
+      run: |
+        curl "https://s3.amazonaws.com/compiler-explorer/opt/gcc-${{ inputs.use-old-gcc }}.tar.xz" -o /tmp/gcc.tar.xz;
+        cd ~;
+        tar xvf /tmp/gcc.tar.xz
+
+    - name: Store gcc ${{ inputs.use-old-gcc }} to cache
+      id: cache-gcc5
+      if: always() && steps.restore-gcc5.outputs.cache-hit != 'true' && inputs.use-old-gcc != ''
+      uses: actions/cache/save@v4
+      with:
+        key: ce-tar-gcc-${{ inputs.use-old-gcc }}
+        path: ~/gcc-${{ inputs.use-old-gcc }}/
+
+    - name: Configure GCC
+      shell: bash
+      run: |
+           mkdir -p gccrs-build;
+           cd gccrs-build;
+           if [ -n "${{ inputs.use-old-gcc }}" ]; then
+              echo "Adjusting PATH for old gcc"
+              export PATH=$HOME/gcc-${{ inputs.use-old-gcc }}/bin:$PATH
+           fi
+
+           if ${{ inputs.glibc-assertion }}; then
+              echo "Enabling GLIBCXX assertions"
+              export CXXFLAGS="$CXXFLAGS -D_GLIBCXX_ASSERTIONS"
+           fi
+
+           if ${{ inputs.enable-multilib }}; then
+              echo "Enabling multilib"
+              MULTILIB_FLG=--enable-multilib
+           else
+              echo "Disabling multilib"
+              MULTILIB_FLG=--disable-multilib
+           fi
+
+           if ${{ inputs.bootstrap }}; then
+              echo "Enabling bootstrap"
+              BOOTSTRAP_FLG=--enable-bootstrap
+           else
+              echo "Disabling bootstrap"
+              BOOTSTRAP_FLG=--disable-bootstrap
+           fi
+
+           if [ -n "${{ inputs.extra-configure-args }}" ]; then
+              EXTRA_CONFIGURE_ARGS="${{ inputs.extra-configure-args }}"
+              echo "Using extra configure args: $EXTRA_CONFIGURE_ARGS"
+           else
+              EXTRA_CONFIGURE_ARGS=""
+           fi
+
+           ../configure \
+               --enable-languages=rust \
+               $BOOTSTRAP_FLG \
+               $MULTILIB_FLG \
+               $EXTRA_CONFIGURE_ARGS
+
+    - name: Build GCC
+      shell: bash
+      run: |
+           cd gccrs-build; \
+
+           if [ -n "${{ inputs.use-old-gcc }}" ]; then
+              export PATH=$HOME/gcc-${{ inputs.use-old-gcc }}/bin:$PATH
+           fi
+
+           # Build without network access
+           unshare --net --ipc -r /bin/bash -c "\
+              make -Otarget -j $(nproc) 2>&1 | \
+                tee log; exit \${PIPESTATUS[0]}"
+           wc -l log
+
+    - name: Check for new warnings
+      if: inputs.warning-file != ''
+      shell: bash
+      run: |
+           cd gccrs-build
+           echo "Before"
+           if grep 'warning: ' log | grep rust | sort > log_warnings; then
+             echo yes
+           else
+             echo no
+           fi
+
+           echo "After"
+
+           if diff -U0 ../.github/${{ inputs.warning-file }} log_warnings; then
+               echo "No new warnings found"
+           else
+               echo 'See <https://github.com/Rust-GCC/gccrs/pull/1026>.'
+               exit 1
+           fi >&2
+
+    - name: Run Tests
+      shell: bash
+      run: |
+           cd gccrs-build; \
+           make check-rust RUNTESTFLAGS="${{ inputs.run-test-flags }}"
+
+    - name: Check regressions
+      shell: bash
+      run: |
+           cd gccrs-build
+           if grep -e "unexpected" -e "unresolved" -e "ERROR:" gcc/testsuite/rust/rust.sum;
+           then
+              echo "::error title=Regression test failed::some tests are not correct"
+              perl -n ../.github/emit_test_errors.pl < gcc/testsuite/rust/rust.sum
+              exit 1
+            else
+              exit 0
+            fi
