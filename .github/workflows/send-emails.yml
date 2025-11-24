@@ -220,7 +220,24 @@ jobs:
              echo ""
 
              cp /tmp/description.txt "/tmp/tmp_descr.txt"
-             echo "Commit on github: https://github.com/rust-GCC/gccrs/commit/$SHA1" >> "/tmp/tmp_descr.txt"
+             echo "Commit on github: https://github.com/${{ github.repository }}/commit/$SHA1" >> /tmp/tmp_descr.txt
+
+             if gh api "repos/${{ github.repository }}/commits/$SHA1/pulls" | \
+                  jq '.[].html_url' > /tmp/tmp_pr_links.txt;
+             then
+               if [ -s /tmp/tmp_pr_links.txt ]; then
+                 echo -e "\nThe commit has been mentionned in the following pull-request(s):" >> /tmp/tmp_descr.txt
+
+                 tr -d '"' < /tmp/tmp_pr_links.txt | \
+                   sed 's/^/ - /'  >> /tmp/tmp_descr.txt
+               else
+                 echo "The commit is not linked to any pull-request" >> /tmp/tmp_descr.txt
+               fi
+             else
+               echo "There was an error fetching data from github API for getting PR for commit" | tee -a "$GITHUB_STEP_SUMMARY"
+             fi
+
+             echo >> /tmp/tmp_descr.txt
 
              # insert the github header right after the '---'.
              sed '/^---$/ r /tmp/tmp_descr.txt' -i "$f"
