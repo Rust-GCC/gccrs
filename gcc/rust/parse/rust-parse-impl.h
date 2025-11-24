@@ -5418,7 +5418,7 @@ Parser<ManagedTokenSource>::parse_impl (AST::Visibility vis,
   else
     {
       // type path must both be valid and next token is for, so trait impl
-      if (!skip_token (FOR))
+      if (!skip_token (FOR) || !skip_token (IDENTIFIER))
 	{
 	  skip_after_next_block ();
 	  return nullptr;
