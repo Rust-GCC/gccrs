@@ -108,7 +108,11 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 // a mutex/condvar based wait.
   namespace __detail
   {
-# if ATOMIC_LONG_LOCK_FREE == 2
+# if defined __OpenBSD__ || defined __DragonFly__
+    // These targets provide 32-bit futex-like syscalls.
+    // We don't currently make use of them, but we want to in future.
+    using __platform_wait_t = unsigned int;
+# elif ATOMIC_LONG_LOCK_FREE == 2
     using __platform_wait_t = unsigned long;
 # else
     using __platform_wait_t = unsigned int;
