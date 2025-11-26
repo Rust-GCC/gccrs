@@ -3240,41 +3240,28 @@ __gnat_copy_attribs (char *from ATTRIBUTE_UNUSED, char *to ATTRIBUTE_UNUSED,
   TCHAR wfrom [GNAT_MAX_PATH_LEN + 2];
   TCHAR wto [GNAT_MAX_PATH_LEN + 2];
   BOOL res;
-  FILETIME fct, flat, flwt;
-  HANDLE hfrom, hto;
+  HANDLE hto;
 
   S2WSC (wfrom, from, GNAT_MAX_PATH_LEN + 2);
   S2WSC (wto, to, GNAT_MAX_PATH_LEN + 2);
 
-  /*  Do we need to copy the timestamp ? */
+  WIN32_FILE_ATTRIBUTE_DATA info;
+  res = GetFileAttributesEx(wfrom, GetFileExInfoStandard, &info);
+  if (res == 0)
+    return -1;
 
   if (mode != 2) {
-     /* retrieve from times */
-
-     hfrom = CreateFile
-       (wfrom, GENERIC_READ, 0, NULL, OPEN_EXISTING,
-        FILE_ATTRIBUTE_NORMAL, NULL);
-
-     if (hfrom == INVALID_HANDLE_VALUE)
-       return -1;
-
-     res = GetFileTime (hfrom, &fct, &flat, &flwt);
-
-     CloseHandle (hfrom);
-
-     if (res == 0)
-       return -1;
-
-     /* retrieve from times */
+     /* Mode is not "None", copy timestamps */
 
      hto = CreateFile
-       (wto, GENERIC_WRITE, 0, NULL, OPEN_EXISTING,
+       (wto, FILE_WRITE_ATTRIBUTES, 0, NULL, OPEN_EXISTING,
         FILE_ATTRIBUTE_NORMAL, NULL);
 
      if (hto == INVALID_HANDLE_VALUE)
        return -1;
 
-     res = SetFileTime (hto, NULL, &flat, &flwt);
+     res = SetFileTime
+       (hto, NULL, &info.ftCreationTime, &info.ftLastAccessTime);
 
      CloseHandle (hto);
 
@@ -3282,20 +3269,14 @@ __gnat_copy_attribs (char *from ATTRIBUTE_UNUSED, char *to ATTRIBUTE_UNUSED,
        return -1;
   }
 
-  /* Do we need to copy the permissions ? */
-  /* Set file attributes in full mode. */
+  if (mode != 0) {
+    /* Mode is not "Time_Stamps", copy file attributes. */
 
-  if (mode != 0)
-    {
-      DWORD attribs = GetFileAttributes (wfrom);
+    res = SetFileAttributes (wto, info.dwFileAttributes);
 
-      if (attribs == INVALID_FILE_ATTRIBUTES)
-	return -1;
-
-      res = SetFileAttributes (wto, attribs);
-      if (res == 0)
-	return -1;
-    }
+    if (res == 0)
+      return -1;
+  }
 
   return 0;
 
