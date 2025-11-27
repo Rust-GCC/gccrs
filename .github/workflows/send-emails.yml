@@ -226,7 +226,7 @@ jobs:
                   jq '.[].html_url' > /tmp/tmp_pr_links.txt;
              then
                if [ -s /tmp/tmp_pr_links.txt ]; then
-                 echo -e "\nThe commit has been mentionned in the following pull-request(s):" >> /tmp/tmp_descr.txt
+                 echo -e "\nThe commit has been mentioned in the following pull-request(s):" >> /tmp/tmp_descr.txt
 
                  tr -d '"' < /tmp/tmp_pr_links.txt | \
                    sed 's/^/ - /'  >> /tmp/tmp_descr.txt
