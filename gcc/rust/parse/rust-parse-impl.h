@@ -9643,7 +9643,7 @@ Parser<ManagedTokenSource>::parse_bare_function_type (
     return nullptr;
 
   auto t = lexer.peek_token ();
-  if (t->get_id () == IDENTIFIER)
+  if (t->get_id () != LEFT_PAREN)
     {
       Error error (t->get_locus (),
 		   "unexpected token %qs - expected bare function",
