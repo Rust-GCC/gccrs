@@ -4958,23 +4958,8 @@
       }
     else
       {
-	/* No CRC instruction is suitable, use the generic table-based
-	   implementation but optimize bit reversion.  */
-	auto rbit = [](rtx *r)
-	  {
-	    /* Well, this is ugly.  The problem is
-	       expand_reversed_crc_table_based only accepts one helper
-	       for reversing data elements and CRC states.  */
-	    auto mode = GET_MODE (*r);
-	    auto rbit = (mode == <MODE>mode ? gen_rbit<mode> : gen_rbitsi);
-	    rtx out = gen_reg_rtx (mode);
-
-	    emit_insn (rbit (out, *r));
-	    *r = out;
-	  };
 	expand_reversed_crc_table_based (operands[0], operands[1],
-					 msg, operands[3], <MODE>mode,
-					 rbit);
+					 msg, operands[3], <MODE>mode);
       }
     DONE;
   })

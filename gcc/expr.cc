@@ -14515,6 +14515,75 @@ generate_crc_table (unsigned HOST_WIDE_INT polynom, unsigned short crc_bits)
   return assemble_crc_table (polynom, crc_bits);
 }
 
+/* Calculate CRC for the initial CRC and given POLYNOMIAL.
+   CRC_BITS is CRC size.  */
+
+static unsigned HOST_WIDE_INT
+calculate_reversed_crc (unsigned HOST_WIDE_INT crc,
+			unsigned HOST_WIDE_INT polynomial,
+			unsigned short crc_bits)
+{
+  unsigned HOST_WIDE_INT rev_polynom = reflect_hwi (polynomial, crc_bits);
+  for (int j = 0; j < 8; j++)
+    {
+      if (crc & 1)
+	crc = (crc >> 1) ^ rev_polynom;
+      else
+	crc >>= 1;
+    }
+  /* Zero out bits in crc beyond the specified number of crc_bits.  */
+  if (crc_bits < sizeof (crc) * CHAR_BIT)
+    crc &= (HOST_WIDE_INT_1U << crc_bits) - 1;
+  return crc;
+}
+
+/* Assemble CRC table with 256 elements for the given POLYNOM and CRC_BITS.
+   POLYNOM is the polynomial used to calculate the CRC table's elements.
+   CRC_BITS is the size of CRC, may be 8, 16, ... . */
+
+static rtx
+assemble_reversed_crc_table (unsigned HOST_WIDE_INT polynom, unsigned short crc_bits)
+{
+  unsigned table_el_n = 0x100;
+  tree ar = build_array_type (make_unsigned_type (crc_bits),
+			      build_index_type (size_int (table_el_n - 1)));
+
+  /* Initialize the table.  */
+  vec<tree, va_gc> *initial_values;
+  vec_alloc (initial_values, table_el_n);
+  for (size_t i = 0; i < table_el_n; ++i)
+    {
+      unsigned HOST_WIDE_INT crc = calculate_reversed_crc (i, polynom, crc_bits);
+      tree element = build_int_cstu (make_unsigned_type (crc_bits), crc);
+      vec_safe_push (initial_values, element);
+    }
+  tree ctor = build_constructor_from_vec (ar, initial_values);
+  rtx mem = output_constant_def (ctor, 1);
+  gcc_assert (MEM_P (mem));
+  if (dump_file && (dump_flags & TDF_DETAILS))
+    {
+      fprintf (dump_file,
+	       ";; emitting reversed crc table crc_%u_polynomial_"
+	       HOST_WIDE_INT_PRINT_HEX " ",
+	       crc_bits, polynom);
+      print_rtl_single (dump_file, XEXP (mem, 0));
+      fprintf (dump_file, "\n");
+    }
+
+  return XEXP (mem, 0);
+}
+
+/* Generate reversed CRC table for the given POLYNOM and CRC_BITS.  */
+
+static rtx
+generate_reversed_crc_table (unsigned HOST_WIDE_INT polynom,
+			     unsigned short crc_bits)
+{
+  gcc_assert (crc_bits <= 64);
+
+  return assemble_reversed_crc_table (polynom, crc_bits);
+}
+
 /* Generate table-based CRC code for the given CRC, INPUT_DATA and the
    POLYNOMIAL (without leading 1).
 
@@ -14589,6 +14658,71 @@ calculate_table_based_CRC (rtx *crc, const rtx &input_data,
 
       /* crc = (crc << 8)
 	       ^ crc_table[(crc >> (crc_bit_size - 8)) ^ data_8bit];  */
+      *crc = expand_binop (mode, xor_optab, tab_el, high, NULL_RTX, 1,
+			   OPTAB_WIDEN);
+    }
+}
+
+/* Generate table-based reversed CRC code for the given CRC, INPUT_DATA
+   and the POLYNOMIAL (without leading 1).
+
+   This function generates code for reversed (bit-reflected) CRC calculation
+   using a pre-computed lookup table.  Unlike the standard CRC calculation,
+   this processes data from LSB to MSB, eliminating the need for explicit
+   bit reflection before and after the CRC computation.  */
+
+static void
+calculate_table_based_reversed_CRC (rtx *crc, const rtx &input_data,
+				    const rtx &polynomial,
+				    machine_mode data_mode)
+{
+  machine_mode mode = GET_MODE (*crc);
+  unsigned short crc_bit_size = GET_MODE_BITSIZE (mode).to_constant ();
+  unsigned short data_size = GET_MODE_SIZE (data_mode).to_constant ();
+  rtx tab = generate_reversed_crc_table (UINTVAL (polynomial), crc_bit_size);
+
+  /* CRC's mode is always at least as wide as INPUT_DATA.  Convert
+     INPUT_DATA into CRC's mode once outside the loop since INPUT_DATA
+     is loop-invariant.  */
+  rtx data_in_crc_mode = gen_reg_rtx (mode);
+  convert_move (data_in_crc_mode, input_data, 1);
+
+  for (unsigned short i = 0; i < data_size; i++)
+    {
+      *crc = force_reg (mode, *crc);
+
+      /* data >> (8 * i).  */
+      unsigned range_8 = 8 * i;
+      rtx data = expand_shift (RSHIFT_EXPR, mode, data_in_crc_mode,
+			       range_8, NULL_RTX, 1);
+
+      /* crc ^ (data >> (8 * i)).  */
+      rtx in = expand_binop (mode, xor_optab, *crc, data,
+			     NULL_RTX, 1, OPTAB_WIDEN);
+
+      /* (crc ^ data) & 0xFF.  */
+      rtx index = expand_and (mode, in, gen_int_mode (255, mode),
+			      NULL_RTX);
+      int log_crc_size = exact_log2 (GET_MODE_SIZE (mode).to_constant ());
+      index = expand_shift (LSHIFT_EXPR, mode, index,
+			    log_crc_size, NULL_RTX, 0);
+
+      rtx addr = gen_reg_rtx (Pmode);
+      convert_move (addr, index, 1);
+      addr = expand_binop (Pmode, add_optab, addr, tab, NULL_RTX,
+			    0, OPTAB_DIRECT);
+
+      /* crc_table[(crc ^ data) & 0xFF].  */
+      rtx tab_el = validize_mem (gen_rtx_MEM (mode, addr));
+
+      /* (crc >> 8) if CRC is larger than 8, otherwise 0.  */
+      rtx high = NULL_RTX;
+      if (crc_bit_size != 8)
+	high = expand_shift (RSHIFT_EXPR, mode, *crc, 8, NULL_RTX, 1);
+      else
+	high = gen_int_mode (0, mode);
+
+      /* crc = (crc >> 8) ^ crc_table[(crc ^ data) & 0xFF].  */
       *crc = expand_binop (mode, xor_optab, tab_el, high, NULL_RTX, 1,
 			   OPTAB_WIDEN);
     }
@@ -14731,41 +14865,30 @@ generate_reflecting_code_standard (rtx *op)
    the POLYNOMIAL (without leading 1).
 
    CRC is OP1, data is OP2 and the polynomial is OP3.
-   This must generate CRC table and assembly for the following code,
+   This generates a reversed CRC table and assembly for the following code,
    where crc_bit_size and data_bit_size may be 8, 16, 32, 64:
    uint_crc_bit_size_t
    crc_crc_bit_size (uint_crc_bit_size_t crc_init,
-			   uint_data_bit_size_t data, size_t size)
+		     uint_data_bit_size_t data)
    {
-     reflect (crc_init)
      uint_crc_bit_size_t crc = crc_init;
-     reflect (data);
      for (int i = 0; i < data_bit_size / 8; i++)
-       crc = (crc << 8) ^ crc_table[(crc >> (crc_bit_size - 8))
-			  ^ (data >> (data_bit_size - (i + 1) * 8) & 0xFF))];
-     reflect (crc);
+       crc = (crc >> 8) ^ crc_table[(crc ^ (data >> (i * 8))) & 0xFF];
      return crc;
-   }  */
+   }
+
+   This approach uses a pre-computed reversed polynomial table, eliminating
+   the need for explicit bit reflection before and after the CRC computation.  */
 
 void
 expand_reversed_crc_table_based (rtx op0, rtx op1, rtx op2, rtx op3,
-				 machine_mode data_mode,
-				 void (*gen_reflecting_code) (rtx *op))
+				 machine_mode data_mode)
 {
   gcc_assert (!CONST_INT_P (op0));
   gcc_assert (CONST_INT_P (op3));
   machine_mode crc_mode = GET_MODE (op0);
-
   rtx crc = gen_reg_rtx (crc_mode);
   convert_move (crc, op1, 0);
-  gen_reflecting_code (&crc);
-
-  rtx data = gen_reg_rtx (data_mode);
-  convert_move (data, op2, 0);
-  gen_reflecting_code (&data);
-
-  calculate_table_based_CRC (&crc, data, op3, data_mode);
-
-  gen_reflecting_code (&crc);
+  calculate_table_based_reversed_CRC (&crc, op2, op3, data_mode);
   convert_move (op0, crc, 0);
 }

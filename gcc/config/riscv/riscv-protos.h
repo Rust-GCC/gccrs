@@ -181,7 +181,6 @@ extern bool riscv_reg_frame_related (rtx);
 extern void riscv_split_sum_of_two_s12 (HOST_WIDE_INT, HOST_WIDE_INT *,
 					HOST_WIDE_INT *);
 extern bool riscv_vector_float_type_p (const_tree type);
-extern void generate_reflecting_code_using_brev (rtx *);
 extern void expand_crc_using_clmul (scalar_mode, scalar_mode, rtx *);
 extern void expand_reversed_crc_using_clmul (scalar_mode, scalar_mode, rtx *);
 

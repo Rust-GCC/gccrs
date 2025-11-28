@@ -4216,8 +4216,7 @@ expand_crc_optab_fn (internal_fn fn, gcall *stmt, convert_optab optab)
       else
 	/* If it's IFN_CRC_REV generate bit-reversed CRC.  */
 	expand_reversed_crc_table_based (dest, crc, data, polynomial,
-					 TYPE_MODE (data_type),
-					 generate_reflecting_code_standard);
+					 TYPE_MODE (data_type));
 
       /* Now get the return value where it needs to be, taking care to
 	 ensure it's promoted appropriately if the ABI demands it.

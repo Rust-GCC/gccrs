@@ -4988,8 +4988,7 @@
     else
       /* Otherwise, generate table-based CRC.  */
       expand_reversed_crc_table_based (operands[0], operands[1], operands[2],
-				       operands[3], <ALLI:MODE>mode,
-				       generate_reflecting_code_standard);
+				       operands[3], <ALLI:MODE>mode);
     DONE;
   }
 )

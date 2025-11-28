@@ -15052,39 +15052,6 @@ riscv_use_by_pieces_infrastructure_p (unsigned HOST_WIDE_INT size,
   return default_use_by_pieces_infrastructure_p (size, alignment, op, speed_p);
 }
 
-/* Generate instruction sequence
-   which reflects the value of the OP using bswap and brev8 instructions.
-   OP's mode may be less than word_mode, to get the correct number,
-   after reflecting we shift right the value by SHIFT_VAL.
-   E.g. we have 1111 0001, after reflection (target 32-bit) we will get
-   1000 1111 0000 0000, if we shift-out 16 bits,
-   we will get the desired one: 1000 1111.  */
-
-void
-generate_reflecting_code_using_brev (rtx *op_p)
-{
-  rtx op = *op_p;
-  machine_mode op_mode = GET_MODE (op);
-
-  /* OP may be smaller than a word.  We can use a paradoxical subreg
-     to compensate for that.  It should never be larger than a word
-     for RISC-V.  */
-  gcc_assert (op_mode <= word_mode);
-  if (op_mode != word_mode)
-    op = gen_lowpart (word_mode, op);
-
-  HOST_WIDE_INT shift_val = (BITS_PER_WORD
-			     - GET_MODE_BITSIZE (op_mode).to_constant ());
-  riscv_expand_op (BSWAP, word_mode, op, op, op);
-  riscv_expand_op (LSHIFTRT, word_mode, op, op,
-		   gen_int_mode (shift_val, word_mode));
-  if (TARGET_64BIT)
-    emit_insn (gen_riscv_brev8_di (op, op));
-  else
-    emit_insn (gen_riscv_brev8_si (op, op));
-}
-
-
 /* Generate assembly to calculate CRC using clmul instruction.
    The following code will be generated when the CRC and data sizes are equal:
      li      a4,quotient

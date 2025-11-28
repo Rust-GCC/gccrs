@@ -1237,25 +1237,16 @@
      it is possible to store the quotient within a single variable
      (E.g.  CRC64's quotient may need 65 bits,
      we can't keep it in 64 bit variable.)
-     then use clmul instruction to implement the CRC,
-     otherwise (TARGET_ZBKB) generate table based using brev.  */
+     then use clmul instruction to implement the CRC.  */
   if ((TARGET_ZBKC || TARGET_ZBC || TARGET_ZVBC) && <ANYI:MODE>mode < word_mode)
     expand_reversed_crc_using_clmul (<ANYI:MODE>mode, <ANYI1:MODE>mode,
 				     operands);
-  else if (TARGET_ZBKB)
-    /* Generate table-based CRC.
-       To reflect values use brev and bswap instructions.  */
-    expand_reversed_crc_table_based (operands[0], operands[1],
-				     operands[2], operands[3],
-				     GET_MODE (operands[2]),
-				     generate_reflecting_code_using_brev);
   else
     /* Generate table-based CRC.
        To reflect values use standard reflecting algorithm.  */
     expand_reversed_crc_table_based (operands[0], operands[1],
 				     operands[2], operands[3],
-				     GET_MODE (operands[2]),
-				     generate_reflecting_code_standard);
+				     GET_MODE (operands[2]));
   DONE;
 })
 

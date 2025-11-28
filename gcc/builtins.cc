@@ -7828,8 +7828,7 @@ expand_builtin_crc_table_based (internal_fn fn, scalar_mode crc_mode,
   else
     /* If it's IFN_CRC_REV generate bit-reversed CRC.  */
     expand_reversed_crc_table_based (target, op1, op2, op3,
-				     data_mode,
-				     generate_reflecting_code_standard);
+				     data_mode);
   return target;
 }
 
