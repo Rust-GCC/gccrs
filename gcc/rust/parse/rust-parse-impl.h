@@ -9653,9 +9653,6 @@ Parser<ManagedTokenSource>::parse_bare_function_type (
       return nullptr;
     }
 
-  if (!skip_token (LEFT_PAREN))
-    return nullptr;
-
   // parse function params, if they exist
   std::vector<AST::MaybeNamedParam> params;
   bool is_variadic = false;
