@@ -649,6 +649,9 @@ public:
   tl::expected<NodeId, DuplicateNameError> insert_at_root (Identifier name,
 							   NodeId id);
 
+  /** FIXME: Documetnation */
+  void insert_lang_prelude (Identifier name, NodeId id);
+
   /* Access the innermost `Rib` in this map */
   Rib &peek ();
   const Rib &peek () const;
