@@ -34,7 +34,10 @@ FeatureGate::check (AST::Crate &crate)
 void
 FeatureGate::visit (AST::Crate &crate)
 {
-  valid_features.clear ();
+  valid_lang_features.clear ();
+  valid_lib_features.clear ();
+
+  // avoid clearing defined features (?)
 
   for (const auto &attr : crate.inner_attrs)
     {
@@ -58,29 +61,45 @@ FeatureGate::visit (AST::Crate &crate)
 	      for (const auto &item : meta_item->get_items ())
 		{
 		  const auto &name_str = item->as_string ();
-		  auto tname = Feature::as_name (name_str);
-		  if (tname.has_value ())
-		    {
-		      auto name = tname.value ();
-		      valid_features.insert (name);
-		    }
 
+		  // TODO: detect duplicates
+		  if (auto tname = Feature::as_name (name_str))
+		    valid_lang_features.insert (tname.value ());
 		  else
-		    rust_error_at (item->get_locus (), ErrorCode::E0635,
-				   "unknown feature %qs", name_str.c_str ());
+		    valid_lib_features.emplace (name_str, item->get_locus ());
 		}
 	    }
 	}
     }
 
   AST::DefaultASTVisitor::visit (crate);
+
+  for (auto &ent : valid_lib_features)
+    {
+      const std::string &feature = ent.first;
+      location_t locus = ent.second;
+
+      // rustc treats these as valid,
+      // but apparently has special handling for them
+      if (feature == "libc" || feature == "test")
+	continue;
+
+      if (defined_lib_features.find (feature) != defined_lib_features.end ())
+	{
+	  // TODO: emit warning if stable
+	  continue;
+	}
+
+      rust_error_at (locus, ErrorCode::E0635, "unknown feature %qs",
+		     feature.c_str ());
+    }
 }
 
 void
 FeatureGate::gate (Feature::Name name, location_t loc,
 		   const std::string &error_msg)
 {
-  if (!valid_features.count (name))
+  if (!valid_lang_features.count (name))
     {
       auto &feature = Feature::lookup (name);
       if (auto issue = feature.issue ())
@@ -147,9 +166,77 @@ FeatureGate::check_may_dangle_attribute (
 }
 
 void
+FeatureGate::check_lang_item_attribute (
+  const std::vector<AST::Attribute> &attributes)
+{
+  for (const AST::Attribute &attr : attributes)
+    {
+      const auto &str_path = attr.get_path ().as_string ();
+      bool is_lang_item = str_path == Values::Attributes::LANG
+			  && attr.has_attr_input ()
+			  && attr.get_attr_input ().get_attr_input_type ()
+			       == AST::AttrInput::AttrInputType::LITERAL;
+
+      if (is_lang_item)
+	gate (Feature::Name::LANG_ITEMS, attr.get_locus (),
+	      "lang items are subject to change");
+    }
+}
+
+void
+FeatureGate::note_stability_attribute (
+  const std::vector<AST::Attribute> &attributes)
+{
+  for (const AST::Attribute &attr : attributes)
+    {
+      std::string attr_name = attr.get_path ().as_string ();
+
+      Stability stability;
+
+      if (attr_name == Values::Attributes::STABLE)
+	stability = Stability::STABLE;
+      else if (attr_name == Values::Attributes::UNSTABLE)
+	stability = Stability::UNSTABLE;
+      else if (attr_name == Values::Attributes::RUSTC_CONST_STABLE)
+	stability = Stability::STABLE;
+      else if (attr_name == Values::Attributes::RUSTC_CONST_UNSTABLE)
+	stability = Stability::UNSTABLE;
+      else
+	continue;
+
+      if (attr.empty_input ())
+	// TODO: error?
+	continue;
+
+      auto &attr_input = attr.get_attr_input ();
+      if (attr_input.get_attr_input_type ()
+	  != AST::AttrInput::AttrInputType::TOKEN_TREE)
+	// TODO: error?
+	continue;
+
+      std::unique_ptr<AST::AttrInputMetaItemContainer> meta_item (
+	static_cast<const AST::DelimTokenTree &> (attr_input)
+	  .parse_to_meta_item ());
+
+      for (auto &item : meta_item->get_items ())
+	{
+	  // TODO: more thorough error checking?
+	  // ~only the standard libraries should ever exercise this
+	  if (item->is_key_value_pair ())
+	    {
+	      auto &pair = static_cast<const AST::MetaNameValueStr &> (*item);
+	      if (pair.get_name ().as_string () == "feature")
+		defined_lib_features.emplace (pair.get_value (), stability);
+	    }
+	}
+    }
+}
+
+void
 FeatureGate::visit (AST::MacroRulesDefinition &rules_def)
 {
   check_rustc_attri (rules_def.get_outer_attrs ());
+  note_stability_attribute (rules_def.get_outer_attrs ());
 }
 
 void
@@ -157,6 +244,10 @@ FeatureGate::visit (AST::Function &function)
 {
   if (!function.is_external ())
     check_rustc_attri (function.get_outer_attrs ());
+
+  check_lang_item_attribute (function.get_outer_attrs ());
+
+  note_stability_attribute (function.get_outer_attrs ());
 
   AST::DefaultASTVisitor::visit (function);
 }
@@ -186,6 +277,7 @@ FeatureGate::visit (AST::Trait &trait)
   if (trait.is_auto ())
     gate (Feature::Name::OPTIN_BUILTIN_TRAITS, trait.get_locus (),
 	  "auto traits are experimental and possibly buggy");
+  check_lang_item_attribute (trait.get_outer_attrs ());
   AST::DefaultASTVisitor::visit (trait);
 }
 
@@ -241,6 +333,34 @@ FeatureGate::visit (AST::UseTreeGlob &use)
   // At the moment, UseTrees do not have outer attributes, but they should. we
   // need to eventually gate `#[prelude_import]` on use-trees based on the
   // #[feature(prelude_import)]
+}
+
+void
+FeatureGate::visit (AST::StructStruct &struct_item)
+{
+  check_lang_item_attribute (struct_item.get_outer_attrs ());
+  AST::DefaultASTVisitor::visit (struct_item);
+}
+
+void
+FeatureGate::visit (AST::TraitItemType &trait_item_type)
+{
+  check_lang_item_attribute (trait_item_type.get_outer_attrs ());
+  AST::DefaultASTVisitor::visit (trait_item_type);
+}
+
+void
+FeatureGate::visit (AST::Enum &enum_item)
+{
+  check_lang_item_attribute (enum_item.get_outer_attrs ());
+  AST::DefaultASTVisitor::visit (enum_item);
+}
+
+void
+FeatureGate::visit (AST::EnumItem &enum_variant)
+{
+  check_lang_item_attribute (enum_variant.get_outer_attrs ());
+  AST::DefaultASTVisitor::visit (enum_variant);
 }
 
 } // namespace Rust

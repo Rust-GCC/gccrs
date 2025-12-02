@@ -431,10 +431,6 @@ Parser<ManagedTokenSource>::parse_items ()
       std::unique_ptr<AST::Item> item = parse_item (false);
       if (item == nullptr)
 	{
-	  Error error (lexer.peek_token ()->get_locus (),
-		       "failed to parse item in crate");
-	  add_error (std::move (error));
-
 	  // TODO: should all items be cleared?
 	  items = std::vector<std::unique_ptr<AST::Item>> ();
 	  break;
@@ -982,16 +978,7 @@ Parser<ManagedTokenSource>::parse_delim_token_tree ()
       std::unique_ptr<AST::TokenTree> tok_tree = parse_token_tree ();
 
       if (tok_tree == nullptr)
-	{
-	  // TODO: is this error handling appropriate?
-	  Error error (
-	    t->get_locus (),
-	    "failed to parse token tree in delimited token tree - found %qs",
-	    t->get_token_description ());
-	  add_error (std::move (error));
-
-	  return AST::DelimTokenTree::create_empty ();
-	}
+	return AST::DelimTokenTree::create_empty ();
 
       token_trees_in_tree.push_back (std::move (tok_tree));
 
@@ -1079,11 +1066,12 @@ Parser<ManagedTokenSource>::parse_token_tree ()
     case RIGHT_SQUARE:
     case RIGHT_CURLY:
       // error - should not be called when this a token
-      add_error (
-	Error (t->get_locus (),
-	       "unexpected closing delimiter %qs - token tree requires "
-	       "either paired delimiters or non-delimiter tokens",
-	       t->get_token_description ()));
+      add_error (Error (t->get_locus (), "unexpected closing delimiter %qs",
+			t->get_token_description ()));
+
+      add_error (Error (Error::Kind::Hint, t->get_locus (),
+			"token tree requires either paired delimiters or "
+			"non-delimiter tokens"));
 
       lexer.skip_token ();
       return nullptr;
@@ -1867,15 +1855,7 @@ Parser<ManagedTokenSource>::parse_macro_invocation_semi (
       std::unique_ptr<AST::TokenTree> tree = parse_token_tree ();
 
       if (tree == nullptr)
-	{
-	  Error error (t->get_locus (),
-		       "failed to parse token tree for macro invocation semi "
-		       "- found %qs",
-		       t->get_token_description ());
-	  add_error (std::move (error));
-
-	  return nullptr;
-	}
+	return nullptr;
 
       token_trees.push_back (std::move (tree));
 
@@ -3011,8 +2991,9 @@ Parser<ManagedTokenSource>::parse_function (AST::Visibility vis,
   else
     {
       std::unique_ptr<AST::BlockExpr> block_expr = parse_block_expr ();
-      if (block_expr != nullptr)
-	body = std::move (block_expr);
+      if (block_expr == nullptr)
+	return nullptr;
+      body = std::move (block_expr);
     }
 
   return std::unique_ptr<AST::Function> (
@@ -6238,10 +6219,6 @@ Parser<ManagedTokenSource>::parse_let_stmt (AST::AttrVec outer_attrs,
       expr = parse_expr ();
       if (expr == nullptr)
 	{
-	  Error error (lexer.peek_token ()->get_locus (),
-		       "failed to parse expression in let statement");
-	  add_error (std::move (error));
-
 	  skip_after_semicolon ();
 	  return nullptr;
 	}
@@ -7268,11 +7245,7 @@ Parser<ManagedTokenSource>::parse_block_expr (
       ExprOrStmt expr_or_stmt = parse_stmt_or_expr ();
       if (expr_or_stmt.is_error ())
 	{
-	  Error error (
-	    t->get_locus (),
-	    "failed to parse statement or expression in block expression");
-	  add_error (std::move (error));
-
+	  skip_after_end_block ();
 	  return nullptr;
 	}
 
@@ -7795,14 +7768,7 @@ Parser<ManagedTokenSource>::parse_if_expr (AST::AttrVec outer_attrs,
   // parse required block expr
   std::unique_ptr<AST::BlockExpr> if_body = parse_block_expr ();
   if (if_body == nullptr)
-    {
-      Error error (lexer.peek_token ()->get_locus (),
-		   "failed to parse if body block expression in if expression");
-      add_error (std::move (error));
-
-      // skip somewhere?
-      return nullptr;
-    }
+    return nullptr;
 
   // branch to parse end or else (and then else, else if, or else if let)
   if (lexer.peek_token ()->get_id () != ELSE)
@@ -8125,13 +8091,7 @@ Parser<ManagedTokenSource>::parse_loop_expr (AST::AttrVec outer_attrs,
   // parse loop body, which is required
   std::unique_ptr<AST::BlockExpr> loop_body = parse_block_expr ();
   if (loop_body == nullptr)
-    {
-      Error error (lexer.peek_token ()->get_locus (),
-		   "could not parse loop body in (infinite) loop expression");
-      add_error (std::move (error));
-
-      return nullptr;
-    }
+    return nullptr;
 
   return std::unique_ptr<AST::LoopExpr> (
     new AST::LoopExpr (std::move (loop_body), locus, std::move (label),
@@ -12210,6 +12170,8 @@ Parser<ManagedTokenSource>::parse_expr (int right_binding_power,
   // parse null denotation (unary part of expression)
   std::unique_ptr<AST::Expr> expr
     = null_denotation ({}, null_denotation_restrictions);
+  if (expr == nullptr)
+    return nullptr;
 
   return left_denotations (std::move (expr), right_binding_power,
 			   std::move (outer_attrs), restrictions);

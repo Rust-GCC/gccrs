@@ -47,13 +47,30 @@ public:
   void visit (AST::ExternBlock &block) override;
   void visit (AST::MacroRulesDefinition &rules_def) override;
   void visit (AST::RangePattern &pattern) override;
+  void visit (AST::StructStruct &struct_item) override;
+  void visit (AST::TraitItemType &trait_item_type) override;
+  void visit (AST::Enum &enum_item) override;
+  void visit (AST::EnumItem &enum_variant) override;
 
 private:
   void gate (Feature::Name name, location_t loc, const std::string &error_msg);
   void check_rustc_attri (const std::vector<AST::Attribute> &attributes);
   void
   check_may_dangle_attribute (const std::vector<AST::Attribute> &attributes);
-  std::set<Feature::Name> valid_features;
+  void
+  check_lang_item_attribute (const std::vector<AST::Attribute> &attributes);
+  void note_stability_attribute (const std::vector<AST::Attribute> &attributes);
+
+  std::set<Feature::Name> valid_lang_features;
+  std::map<std::string, location_t> valid_lib_features;
+
+  enum class Stability
+  {
+    STABLE,
+    UNSTABLE,
+  };
+
+  std::map<std::string, Stability> defined_lib_features;
 };
 } // namespace Rust
 #endif
