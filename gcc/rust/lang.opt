@@ -237,4 +237,8 @@ frust-unused-check-2.0
 Rust Var(flag_unused_check_2_0)
 Use the new unused variable check implementation.
 
+frust-compile-core
+Rust Var(flag_compile_core)
+Tell the compiler that we are currently compiling the core library
+
 ; This comment is to ensure we retain the blank line above.
