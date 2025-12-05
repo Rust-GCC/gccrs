@@ -27,6 +27,7 @@
 #if __glibcxx_atomic_wait
 #include <atomic>
 #include <bits/atomic_timed_wait.h>
+#include <utility> // cmp_less
 #include <cstdint> // uint32_t, uint64_t, uintptr_t
 #include <climits> // INT_MAX
 #include <cerrno>  // errno, ETIMEDOUT, etc.
@@ -38,6 +39,19 @@
 # include <sys/syscall.h> // SYS_futex
 # include <unistd.h>
 # include <sys/time.h> // timespec
+# define _GLIBCXX_HAVE_PLATFORM_WAIT 1
+#elif defined __APPLE__ \
+      && __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ >= 101200
+// These are thin wrappers over the underlying syscall, they exist on
+// earlier versions of the OS, however those versions do not support the
+// UL_COMPARE_AND_WAIT64 operation.
+extern "C" int
+__ulock_wait(uint32_t operation, void* addr, uint64_t value, uint32_t timeout);
+extern "C" int
+__ulock_wake(uint32_t operation, void* addr, uint64_t wake_value);
+# define UL_COMPARE_AND_WAIT             1
+# define UL_COMPARE_AND_WAIT64          5
+# define ULF_WAKE_ALL                    0x00000100
 # define _GLIBCXX_HAVE_PLATFORM_WAIT 1
 #elif defined __FreeBSD__ && __FreeBSD__ >= 11 && __SIZEOF_LONG__ == 8
 # include <sys/types.h>
@@ -153,6 +167,66 @@ namespace
   inline __wait_value_type
   __platform_load(const int* addr, int order, int /* obj_sz */) noexcept
   { return __atomic_load_n(addr, order); }
+
+#elif defined __APPLE__ \
+      && __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ >= 101200
+
+  [[gnu::always_inline]]
+  inline uint32_t
+  wait_op(int obj_sz) noexcept
+  {
+    __glibcxx_assert(obj_sz == 4 || obj_sz == 8);
+    return obj_sz == 4 ? UL_COMPARE_AND_WAIT : UL_COMPARE_AND_WAIT64;
+  }
+
+  void
+  __platform_wait(const void* addr, uint64_t val, int obj_sz) noexcept
+  {
+    if (0 > __ulock_wait(wait_op(obj_sz), const_cast<void*>(addr), val, 0))
+      if (errno != EINTR && errno != EFAULT)
+	__throw_system_error(errno);
+  }
+
+  void
+  __platform_notify(const void* addr, bool all, int obj_sz) noexcept
+  {
+    uint32_t op = wait_op (obj_sz);
+    if (all)
+      op |= ULF_WAKE_ALL;
+    __ulock_wake(op, const_cast<void*>(addr), 0);
+  }
+
+  // returns true if wait ended before timeout
+  bool
+  __platform_wait_until(const void* addr, uint64_t val,
+			const __wait_clock_t::time_point& atime,
+			int obj_sz) noexcept
+  {
+    auto reltime
+      = chrono::ceil<chrono::microseconds>(atime - __wait_clock_t::now());
+    if (reltime <= reltime.zero())
+      return false;
+    uint32_t timeout = numeric_limits<uint32_t>::max();
+    if (std::cmp_less(reltime.count(), timeout))
+       timeout = reltime.count();
+
+    if (0 > __ulock_wait(wait_op(obj_sz), const_cast<void*>(addr), val,
+			 timeout))
+      {
+	if (errno == ETIMEDOUT)
+	  return timeout == numeric_limits<uint32_t>::max();
+	if (errno != EINTR && errno != EFAULT)
+	  __throw_system_error(errno);
+      }
+    return true;
+  }
+
+  // ??? CHECKME: this could likely be more efficient.
+  [[gnu::always_inline]]
+  inline __wait_value_type
+  __platform_load(const __platform_wait_t* addr, int memory_order,
+		  int /* obj_sz */) noexcept
+  { return __atomic_load_n(addr, memory_order); }
 
 #elif defined __FreeBSD__ && __SIZEOF_LONG__ == 8
   [[gnu::always_inline]]
