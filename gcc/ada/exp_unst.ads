@@ -27,6 +27,7 @@
 
 with Table;
 with Types; use Types;
+with Elists;         use Elists;
 
 package Exp_Unst is
 
@@ -696,7 +697,18 @@ package Exp_Unst is
       --  activation record that references the ARECnF pointer (which points
       --  the activation record one level higher, thus forming the chain).
 
+      Renamings : Elist_Id;
+      --  This list contains all renamings of this subprogram. It is used when
+      --  the subprogram is dropped because it's unreachable: all renamings
+      --  must also be dropped.
+
    end record;
+
+   Pending_Renamings : Elist_Id := New_Elmt_List;
+   --  This is a list of subprogram renamings that are waiting for their
+   --  corresponding Subp_Entry to be created. Once the Subp_Entry is
+   --  available, the compiler moves the renaming entry from this list to
+   --  the Subp_Entry.Renamings list.
 
    package Subps is new Table.Table (
      Table_Component_Type => Subp_Entry,
