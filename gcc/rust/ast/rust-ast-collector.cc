@@ -1431,10 +1431,7 @@ TokenCollector::visit (WhileLetLoopExpr &expr)
   push (Rust::Token::make (WHILE, expr.get_locus ()));
   push (Rust::Token::make (LET, UNDEF_LOCATION));
   // TODO: The reference mention only one Pattern
-  for (auto &item : expr.get_patterns ())
-    {
-      visit (item);
-    }
+  visit (expr.get_pattern ());
   push (Rust::Token::make (EQUAL, UNDEF_LOCATION));
   visit (expr.get_scrutinee_expr ());
   visit (expr.get_loop_block ());
@@ -1473,10 +1470,7 @@ TokenCollector::visit (IfLetExpr &expr)
 {
   push (Rust::Token::make (IF, expr.get_locus ()));
   push (Rust::Token::make (LET, UNDEF_LOCATION));
-  for (auto &pattern : expr.get_patterns ())
-    {
-      visit (pattern);
-    }
+  visit (expr.get_pattern ());
   push (Rust::Token::make (EQUAL, UNDEF_LOCATION));
   visit (expr.get_value_expr ());
   visit (expr.get_if_block ());
@@ -1495,10 +1489,7 @@ void
 TokenCollector::visit (MatchArm &arm)
 {
   visit_items_as_lines (arm.get_outer_attrs ());
-  for (auto &pattern : arm.get_patterns ())
-    {
-      visit (pattern);
-    }
+  visit (arm.get_pattern ());
   if (arm.has_match_arm_guard ())
     {
       push (Rust::Token::make (IF, UNDEF_LOCATION));
