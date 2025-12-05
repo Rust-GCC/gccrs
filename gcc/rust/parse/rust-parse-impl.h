@@ -9659,15 +9659,23 @@ Parser<ManagedTokenSource>::parse_bare_function_type (
   if (!skip_token (FN_KW))
     return nullptr;
 
-  if (!skip_token (LEFT_PAREN))
-    return nullptr;
+  auto t = lexer.peek_token ();
+  if (t->get_id () != LEFT_PAREN)
+    {
+      Error error (t->get_locus (),
+		   "unexpected token %qs - expected bare function",
+		   t->get_token_description ());
+      add_error (std::move (error));
+
+      return nullptr;
+    }
 
   // parse function params, if they exist
   std::vector<AST::MaybeNamedParam> params;
   bool is_variadic = false;
   AST::AttrVec variadic_attrs;
 
-  const_TokenPtr t = lexer.peek_token ();
+  t = lexer.peek_token ();
   while (t->get_id () != RIGHT_PAREN)
     {
       AST::AttrVec temp_attrs = parse_outer_attributes ();
