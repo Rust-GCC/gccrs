@@ -987,6 +987,8 @@ Session::expansion (AST::Crate &crate, Resolver2_0::NameResolutionContext &ctx)
 
       AST::DesugarApit ().go (crate);
 
+      NodeIdVisitor::go (crate);
+
       // HACK: we may need a final TopLevel pass
       // however, this should not count towards the recursion limit
       // and we don't need a full Early pass
