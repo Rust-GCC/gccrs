@@ -45,6 +45,7 @@
 #include "rust-imports.h"
 #include "rust-extern-crate.h"
 #include "rust-attributes.h"
+#include "rust-node-id-visitor.h"
 #include "rust-name-resolution-context.h"
 #include "rust-early-name-resolver-2.0.h"
 #include "rust-late-name-resolver-2.0.h"
@@ -942,6 +943,8 @@ Session::expansion (AST::Crate &crate, Resolver2_0::NameResolutionContext &ctx)
     {
       CfgStrip (cfg).go (crate);
       // Errors might happen during cfg strip pass
+
+      NodeIdVisitor::go (crate);
 
       Resolver2_0::Early early (ctx);
       early.go (crate);

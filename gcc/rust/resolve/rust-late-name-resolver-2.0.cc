@@ -31,6 +31,7 @@
 #include "rust-hir-type-check.h"
 #include "rust-ice-finalizer.h"
 #include "rust-ast.h"
+#include "rust-node-id-visitor.h"
 
 namespace Rust {
 namespace Resolver2_0 {
@@ -641,6 +642,9 @@ Late::visit (AST::GenericArg &arg)
 	arg = arg.disambiguate_to_const ();
       else
 	arg = arg.disambiguate_to_type ();
+
+      // make sure to set node ids
+      NodeIdVisitor::go (arg);
     }
 
   DefaultResolver::visit (arg);

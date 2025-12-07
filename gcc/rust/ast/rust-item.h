@@ -77,8 +77,7 @@ public:
 	     = std::vector<std::unique_ptr<TypeParamBound>> (),
 	     std::unique_ptr<Type> type = nullptr,
 	     AST::AttrVec outer_attrs = {}, bool was_impl_trait = false)
-    : GenericParam (Analysis::Mappings::get ().get_next_node_id ()),
-      outer_attrs (std::move (outer_attrs)),
+    : outer_attrs (std::move (outer_attrs)),
       type_representation (std::move (type_representation)),
       type_param_bounds (std::move (type_param_bounds)),
       type (std::move (type)), locus (locus), was_impl_trait (was_impl_trait)
@@ -86,7 +85,7 @@ public:
 
   // Copy constructor uses clone
   TypeParam (TypeParam const &other)
-    : GenericParam (other.node_id), outer_attrs (other.outer_attrs),
+    : GenericParam (other), outer_attrs (other.outer_attrs),
       type_representation (other.type_representation), locus (other.locus),
       was_impl_trait (other.was_impl_trait)
   {
@@ -102,10 +101,10 @@ public:
   // Overloaded assignment operator to clone
   TypeParam &operator= (TypeParam const &other)
   {
+    GenericParam::operator= (other);
     type_representation = other.type_representation;
     outer_attrs = other.outer_attrs;
     locus = other.locus;
-    node_id = other.node_id;
     was_impl_trait = other.was_impl_trait;
 
     // guard to prevent null pointer dereference
@@ -169,7 +168,7 @@ protected:
 
 /* "where" clause item base. Abstract - use LifetimeWhereClauseItem,
  * TypeBoundWhereClauseItem */
-class WhereClauseItem
+class WhereClauseItem : public HasNodeId
 {
 public:
   virtual ~WhereClauseItem () {}
@@ -184,8 +183,6 @@ public:
 
   virtual void accept_vis (ASTVisitor &vis) = 0;
 
-  virtual NodeId get_node_id () const = 0;
-
 protected:
   // Clone function implementation as pure virtual method
   virtual WhereClauseItem *clone_where_clause_item_impl () const = 0;
@@ -197,22 +194,18 @@ class LifetimeWhereClauseItem : public WhereClauseItem
   Lifetime lifetime;
   std::vector<Lifetime> lifetime_bounds;
   location_t locus;
-  NodeId node_id;
 
 public:
   LifetimeWhereClauseItem (Lifetime lifetime,
 			   std::vector<Lifetime> lifetime_bounds,
 			   location_t locus)
     : lifetime (std::move (lifetime)),
-      lifetime_bounds (std::move (lifetime_bounds)), locus (locus),
-      node_id (Analysis::Mappings::get ().get_next_node_id ())
+      lifetime_bounds (std::move (lifetime_bounds)), locus (locus)
   {}
 
   std::string as_string () const override;
 
   void accept_vis (ASTVisitor &vis) override;
-
-  NodeId get_node_id () const override final { return node_id; }
 
   Lifetime &get_lifetime () { return lifetime; }
 
@@ -234,7 +227,6 @@ class TypeBoundWhereClauseItem : public WhereClauseItem
   std::vector<LifetimeParam> for_lifetimes;
   std::unique_ptr<Type> bound_type;
   std::vector<std::unique_ptr<TypeParamBound>> type_param_bounds;
-  NodeId node_id;
   location_t locus;
 
 public:
@@ -253,15 +245,14 @@ public:
     : for_lifetimes (std::move (for_lifetimes)),
       bound_type (std::move (bound_type)),
       type_param_bounds (std::move (type_param_bounds)),
-      node_id (Analysis::Mappings::get ().get_next_node_id ()), locus (locus)
+      locus (locus)
   {}
 
   // Copy constructor requires clone
   TypeBoundWhereClauseItem (TypeBoundWhereClauseItem const &other)
-    : for_lifetimes (other.for_lifetimes),
+    : WhereClauseItem (other), for_lifetimes (other.for_lifetimes),
       bound_type (other.bound_type->clone_type ())
   {
-    node_id = other.node_id;
     type_param_bounds.reserve (other.type_param_bounds.size ());
     for (const auto &e : other.type_param_bounds)
       type_param_bounds.push_back (e->clone_type_param_bound ());
@@ -270,7 +261,7 @@ public:
   // Overload assignment operator to clone
   TypeBoundWhereClauseItem &operator= (TypeBoundWhereClauseItem const &other)
   {
-    node_id = other.node_id;
+    WhereClauseItem::operator= (other);
     for_lifetimes = other.for_lifetimes;
     bound_type = other.bound_type->clone_type ();
     type_param_bounds.reserve (other.type_param_bounds.size ());
@@ -313,8 +304,6 @@ public:
     return type_param_bounds;
   }
 
-  NodeId get_node_id () const override final { return node_id; }
-
   location_t get_locus () const { return locus; }
 
 protected:
@@ -326,21 +315,18 @@ protected:
 };
 
 // A where clause
-class WhereClause
+class WhereClause : public HasNodeId
 {
   std::vector<std::unique_ptr<WhereClauseItem>> where_clause_items;
-  NodeId node_id;
 
 public:
   WhereClause (std::vector<std::unique_ptr<WhereClauseItem>> where_clause_items)
-    : where_clause_items (std::move (where_clause_items)),
-      node_id (Analysis::Mappings::get ().get_next_node_id ())
+    : where_clause_items (std::move (where_clause_items))
   {}
 
   // copy constructor with vector clone
-  WhereClause (WhereClause const &other)
+  WhereClause (WhereClause const &other) : HasNodeId (other)
   {
-    node_id = other.node_id;
     where_clause_items.reserve (other.where_clause_items.size ());
     for (const auto &e : other.where_clause_items)
       where_clause_items.push_back (e->clone_where_clause_item ());
@@ -349,7 +335,7 @@ public:
   // overloaded assignment operator with vector clone
   WhereClause &operator= (WhereClause const &other)
   {
-    node_id = other.node_id;
+    HasNodeId::operator= (other);
     where_clause_items.reserve (other.where_clause_items.size ());
     for (const auto &e : other.where_clause_items)
       where_clause_items.push_back (e->clone_where_clause_item ());
@@ -372,8 +358,6 @@ public:
 
   std::string as_string () const;
 
-  NodeId get_node_id () const { return node_id; }
-
   // TODO: this mutable getter seems kinda dodgy
   std::vector<std::unique_ptr<WhereClauseItem>> &get_items ()
   {
@@ -386,12 +370,11 @@ public:
 };
 
 // Abstract class Param
-class Param : public Visitable
+class Param : public Visitable, public HasNodeId
 {
 public:
   Param (std::vector<Attribute> outer_attrs, location_t locus)
-    : outer_attrs (std::move (outer_attrs)), locus (locus),
-      node_id (Analysis::Mappings::get ().get_next_node_id ())
+    : outer_attrs (std::move (outer_attrs)), locus (locus)
   {}
 
   virtual ~Param () = default;
@@ -404,8 +387,6 @@ public:
   virtual bool is_variadic () const { return false; }
 
   virtual bool is_self () const { return false; }
-
-  NodeId get_node_id () const { return node_id; }
 
   location_t get_locus () const { return locus; }
 
@@ -420,7 +401,6 @@ public:
 protected:
   std::vector<Attribute> outer_attrs;
   location_t locus;
-  NodeId node_id;
 };
 
 // A self parameter in a method
@@ -479,10 +459,9 @@ public:
 
   // Copy constructor requires clone
   SelfParam (SelfParam const &other)
-    : Param (other.get_outer_attrs (), other.get_locus ()),
+    : Param (other),
       has_ref (other.has_ref), is_mut (other.is_mut), lifetime (other.lifetime)
   {
-    node_id = other.node_id;
     if (other.type != nullptr)
       type = other.type->clone_type ();
   }
@@ -490,12 +469,10 @@ public:
   // Overload assignment operator to use clone
   SelfParam &operator= (SelfParam const &other)
   {
+    Param::operator= (other);
     is_mut = other.is_mut;
     has_ref = other.has_ref;
     lifetime = other.lifetime;
-    locus = other.locus;
-    node_id = other.node_id;
-    outer_attrs = other.outer_attrs;
 
     if (other.type != nullptr)
       type = other.type->clone_type ();
@@ -520,8 +497,6 @@ public:
 
   Lifetime get_lifetime () const { return lifetime.value (); }
   Lifetime &get_lifetime () { return lifetime.value (); }
-
-  NodeId get_node_id () const { return node_id; }
 
   // TODO: is this better? Or is a "vis_block" better?
   Type &get_type ()
@@ -599,7 +574,7 @@ public:
   {}
 
   VariadicParam (VariadicParam const &other)
-    : Param (other.get_outer_attrs (), other.locus)
+    : Param (other)
   {
     if (other.param_name != nullptr)
       param_name = other.param_name->clone_pattern ();
@@ -607,9 +582,7 @@ public:
 
   VariadicParam &operator= (VariadicParam const &other)
   {
-    outer_attrs = other.outer_attrs;
-    locus = other.locus;
-    node_id = other.node_id;
+    Param::operator= (other);
     if (other.param_name != nullptr)
       param_name = other.param_name->clone_pattern ();
     else
@@ -666,7 +639,7 @@ public:
 
   // Copy constructor uses clone
   FunctionParam (FunctionParam const &other)
-    : Param (other.get_outer_attrs (), other.locus)
+    : Param (other)
   {
     // guard to prevent nullptr dereference
     if (other.param_name != nullptr)
@@ -678,8 +651,7 @@ public:
   // Overload assignment operator to use clone
   FunctionParam &operator= (FunctionParam const &other)
   {
-    locus = other.locus;
-    node_id = other.node_id;
+    Param::operator= (other);
 
     // guard to prevent nullptr dereference
     if (other.param_name != nullptr)
@@ -980,10 +952,9 @@ protected:
 };
 
 // The path-ish thing referred to in a use declaration - abstract base class
-class UseTree
+class UseTree : public HasNodeId
 {
   location_t locus;
-  NodeId node_id;
 
 public:
   enum Kind
@@ -995,14 +966,7 @@ public:
 
   virtual ~UseTree () {}
 
-  // Overload assignment operator to clone
-  UseTree &operator= (UseTree const &other)
-  {
-    locus = other.locus;
-
-    return *this;
-  }
-
+  UseTree &operator= (UseTree const &other) = default;
   UseTree (const UseTree &other) = default;
 
   // move constructors
@@ -1019,7 +983,6 @@ public:
   virtual Kind get_kind () const = 0;
 
   location_t get_locus () const { return locus; }
-  NodeId get_node_id () const { return node_id; }
 
   virtual void accept_vis (ASTVisitor &vis) = 0;
 
@@ -1028,7 +991,7 @@ protected:
   virtual UseTree *clone_use_tree_impl () const = 0;
 
   UseTree (location_t locus)
-    : locus (locus), node_id (Analysis::Mappings::get ().get_next_node_id ())
+    : locus (locus)
   {}
 };
 
@@ -1375,7 +1338,7 @@ public:
 	    location_t locus, bool has_default = false,
 	    bool is_external_function = false)
     : VisItem (std::move (vis), std::move (outer_attrs)),
-      ExternalItem (Stmt::node_id), qualifiers (std::move (qualifiers)),
+      qualifiers (std::move (qualifiers)),
       function_name (std::move (function_name)),
       generic_params (std::move (generic_params)),
       function_params (std::move (function_params)),
@@ -1472,9 +1435,6 @@ public:
     rust_assert (has_self_param ());
     return *function_params[0];
   }
-
-  // ExternalItem::node_id is same as Stmt::node_id
-  NodeId get_node_id () const override { return Stmt::node_id; }
 
   Item::Kind get_item_kind () const override { return Item::Kind::Function; }
 
@@ -1578,9 +1538,6 @@ public:
   TypeAlias &operator= (TypeAlias &&other) = default;
 
   location_t get_locus () const override final { return locus; }
-
-  // needed to override AssociatedItem::get_node_id
-  NodeId get_node_id () const override final { return VisItem::get_node_id (); }
 
   void accept_vis (ASTVisitor &vis) override;
 
@@ -1723,7 +1680,7 @@ protected:
 };
 
 // A single field in a struct
-class StructField
+class StructField : public HasNodeId
 {
   // bool has_outer_attributes;
   std::vector<Attribute> outer_attrs;
@@ -1733,8 +1690,6 @@ class StructField
 
   Identifier field_name;
   std::unique_ptr<Type> field_type;
-
-  NodeId node_id;
 
   location_t locus;
 
@@ -1750,13 +1705,13 @@ public:
 	       std::vector<Attribute> outer_attrs = std::vector<Attribute> ())
     : outer_attrs (std::move (outer_attrs)), visibility (std::move (vis)),
       field_name (std::move (field_name)), field_type (std::move (field_type)),
-      node_id (Analysis::Mappings::get ().get_next_node_id ()), locus (locus)
+      locus (locus)
   {}
 
   // Copy constructor
   StructField (StructField const &other)
-    : outer_attrs (other.outer_attrs), visibility (other.visibility),
-      field_name (other.field_name), node_id (other.node_id),
+    : HasNodeId (other), outer_attrs (other.outer_attrs), visibility (other.visibility),
+      field_name (other.field_name),
       locus (other.locus)
   {
     // guard to prevent null dereference
@@ -1769,10 +1724,10 @@ public:
   // Overloaded assignment operator to clone
   StructField &operator= (StructField const &other)
   {
+    HasNodeId::operator= (other);
     field_name = other.field_name;
     visibility = other.visibility;
     outer_attrs = other.outer_attrs;
-    node_id = other.node_id;
 
     // guard to prevent null dereference
     if (other.field_type != nullptr)
@@ -1826,8 +1781,6 @@ public:
 
   Visibility &get_visibility () { return visibility; }
   const Visibility &get_visibility () const { return visibility; }
-
-  NodeId get_node_id () const { return node_id; }
 };
 
 // Rust struct declaration with true struct type AST node
@@ -1882,7 +1835,7 @@ protected:
 };
 
 // A single field in a tuple
-class TupleField
+class TupleField : public HasNodeId
 {
   // bool has_outer_attributes;
   std::vector<Attribute> outer_attrs;
@@ -1891,8 +1844,6 @@ class TupleField
   Visibility visibility;
 
   std::unique_ptr<Type> field_type;
-
-  NodeId node_id;
 
   location_t locus;
 
@@ -1910,13 +1861,13 @@ public:
 	      std::vector<Attribute> outer_attrs = std::vector<Attribute> ())
     : outer_attrs (std::move (outer_attrs)), visibility (std::move (vis)),
       field_type (std::move (field_type)),
-      node_id (Analysis::Mappings::get ().get_next_node_id ()), locus (locus)
+      locus (locus)
   {}
 
   // Copy constructor with clone
   TupleField (TupleField const &other)
-    : outer_attrs (other.outer_attrs), visibility (other.visibility),
-      node_id (other.node_id), locus (other.locus)
+    : HasNodeId (other), outer_attrs (other.outer_attrs), visibility (other.visibility),
+      locus (other.locus)
   {
     // guard to prevent null dereference (only required if error)
     if (other.field_type != nullptr)
@@ -1928,9 +1879,9 @@ public:
   // Overloaded assignment operator to clone
   TupleField &operator= (TupleField const &other)
   {
+    HasNodeId::operator= (other);
     visibility = other.visibility;
     outer_attrs = other.outer_attrs;
-    node_id = other.node_id;
     locus = other.locus;
 
     // guard to prevent null dereference (only required if error)
@@ -1956,8 +1907,6 @@ public:
   }
 
   std::string as_string () const;
-
-  NodeId get_node_id () const { return node_id; }
 
   Visibility &get_visibility () { return visibility; }
   const Visibility &get_visibility () const { return visibility; }
@@ -2536,9 +2485,6 @@ public:
 
   location_t get_locus () const override final { return locus; }
 
-  // needed to override AssociatedItem::get_node_id
-  NodeId get_node_id () const override final { return VisItem::get_node_id (); }
-
   void accept_vis (ASTVisitor &vis) override;
 
   // Invalid if type and expression are null, so base stripping on that.
@@ -2752,10 +2698,9 @@ public:
 
   // Copy constructor with vector clone
   TraitItemType (TraitItemType const &other)
-    : TraitItem (other.locus), outer_attrs (other.outer_attrs),
+    : TraitItem (other), outer_attrs (other.outer_attrs),
       name (other.name)
   {
-    node_id = other.node_id;
     generic_params.reserve (other.generic_params.size ());
     for (const auto &e : other.generic_params)
       generic_params.push_back (e->clone_generic_param ());
@@ -2771,7 +2716,6 @@ public:
     outer_attrs = other.outer_attrs;
     name = other.name;
     locus = other.locus;
-    node_id = other.node_id;
 
     generic_params.reserve (other.generic_params.size ());
     for (const auto &e : other.generic_params)
@@ -3358,16 +3302,14 @@ public:
 
   // copy constructor
   ExternalTypeItem (ExternalTypeItem const &other)
-    : ExternalItem (other.get_node_id ()), outer_attrs (other.outer_attrs),
+    : ExternalItem (other), outer_attrs (other.outer_attrs),
       visibility (other.visibility), item_name (other.item_name),
       locus (other.locus), marked_for_strip (other.marked_for_strip)
-  {
-    node_id = other.node_id;
-  }
+  {}
 
   ExternalTypeItem &operator= (ExternalTypeItem const &other)
   {
-    node_id = other.node_id;
+    ExternalItem::operator= (other);
     outer_attrs = other.outer_attrs;
     visibility = other.visibility;
     item_name = other.item_name;
@@ -3440,11 +3382,10 @@ public:
 
   // Copy constructor
   ExternalStaticItem (ExternalStaticItem const &other)
-    : ExternalItem (other.get_node_id ()), outer_attrs (other.outer_attrs),
+    : ExternalItem (other), outer_attrs (other.outer_attrs),
       visibility (other.visibility), item_name (other.item_name),
       locus (other.locus), has_mut (other.has_mut)
   {
-    node_id = other.node_id;
     // guard to prevent null dereference (only required if error state)
     if (other.item_type != nullptr)
       item_type = other.item_type->clone_type ();
@@ -3453,7 +3394,7 @@ public:
   // Overloaded assignment operator to clone
   ExternalStaticItem &operator= (ExternalStaticItem const &other)
   {
-    node_id = other.node_id;
+    ExternalItem::operator= (other);
     outer_attrs = other.outer_attrs;
     visibility = other.visibility;
     item_name = other.item_name;

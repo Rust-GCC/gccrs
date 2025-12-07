@@ -29,6 +29,7 @@
 #include "rust-cfg-strip.h"
 #include "rust-proc-macro.h"
 #include "rust-token-tree-desugar.h"
+#include "rust-node-id-visitor.h"
 
 namespace Rust {
 
@@ -327,6 +328,8 @@ MacroExpander::expand_invoc (AST::MacroInvocation &invoc,
   else
     fragment
       = expand_decl_macro (invoc.get_locus (), invoc_data, *rdef, semicolon);
+
+  NodeIdVisitor::go (fragment);
 
   set_expanded_fragment (std::move (fragment));
 }

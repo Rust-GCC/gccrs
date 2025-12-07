@@ -201,6 +201,8 @@ NodeId
 Mappings::get_next_node_id ()
 {
   auto it = nodeIdIter;
+  if (it > MAX_NODEID)
+    rust_fatal_error (UNKNOWN_LOCATION, "out of node ids");
   nodeIdIter++;
   return it;
 }
@@ -262,6 +264,8 @@ AST::Crate &
 Mappings::insert_ast_crate (std::unique_ptr<AST::Crate> &&crate,
 			    CrateNum crate_num)
 {
+  crate->assign_node_id ();
+
   auto it = ast_crate_mappings.find (crate_num);
   rust_assert (it == ast_crate_mappings.end ());
 

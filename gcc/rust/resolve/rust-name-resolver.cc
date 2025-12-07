@@ -283,7 +283,7 @@ Resolver::Resolver ()
     macro_scope (Scope (mappings.get_current_crate ())),
     global_type_node_id (UNKNOWN_NODEID), unit_ty_node_id (UNKNOWN_NODEID)
 {
-  generate_builtins ();
+  // generate_builtins ();
 }
 
 Resolver *
@@ -459,6 +459,7 @@ Resolver::setup_builtin (const std::string &name, TyTy::BaseType *tyty)
   auto builtin_type
     = new AST::TypePath (::std::move (segs), BUILTINS_LOCATION, false);
   builtins.push_back (builtin_type);
+  builtin_type->assign_node_id ();
   tyctx->insert_builtin (tyty->get_ref (), builtin_type->get_node_id (), tyty);
   mappings.insert_node_to_hir (builtin_type->get_node_id (), tyty->get_ref ());
   mappings.insert_canonical_path (
