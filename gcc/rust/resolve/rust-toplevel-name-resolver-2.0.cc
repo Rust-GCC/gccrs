@@ -22,6 +22,7 @@
 #include "rust-ast-full.h"
 #include "rust-hir-map.h"
 #include "rust-attribute-values.h"
+#include "rust-node-id-visitor.h"
 
 namespace Rust {
 namespace Resolver2_0 {
@@ -518,17 +519,26 @@ TopLevel::visit (AST::UseDeclaration &use)
   auto imports = std::vector<ImportKind> ();
 
   for (auto &&path : paths)
-    imports.emplace_back (
-      ImportKind::Simple (std::move (path), values_rib, types_rib, macros_rib));
+    {
+      NodeIdVisitor::go (path);
+      imports.emplace_back (
+        ImportKind::Simple (std::move (path), values_rib, types_rib, macros_rib));
+    }
 
   for (auto &&glob : glob_path)
-    imports.emplace_back (
-      ImportKind::Glob (std::move (glob), values_rib, types_rib, macros_rib));
+    {
+      NodeIdVisitor::go (glob);
+      imports.emplace_back (
+        ImportKind::Glob (std::move (glob), values_rib, types_rib, macros_rib));
+    }
 
   for (auto &&rebind : rebind_path)
-    imports.emplace_back (
-      ImportKind::Rebind (std::move (rebind.first), std::move (rebind.second),
-			  values_rib, types_rib, macros_rib));
+    {
+      NodeIdVisitor::go (rebind.first);
+      imports.emplace_back (
+        ImportKind::Rebind (std::move (rebind.first), std::move (rebind.second),
+			    values_rib, types_rib, macros_rib));
+    }
 
   imports_to_resolve.insert ({use.get_node_id (), std::move (imports)});
 }

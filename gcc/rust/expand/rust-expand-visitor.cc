@@ -25,6 +25,7 @@
 #include "rust-ast.h"
 #include "rust-type.h"
 #include "rust-derive.h"
+#include "rust-node-id-visitor.h"
 
 namespace Rust {
 
@@ -51,7 +52,10 @@ builtin_derive_item (AST::Item &item, const AST::Attribute &derive,
 {
   auto items = AST::DeriveVisitor::derive (item, derive, to_derive);
   for (auto &item : items)
+  {
+    NodeIdVisitor::go (*item);
     Analysis::Mappings::get ().add_derived_node (item->get_node_id ());
+  }
   return items;
 }
 
@@ -336,6 +340,8 @@ ExpandVisitor::expand_inner_stmts (AST::BlockExpr &expr)
 void
 ExpandVisitor::maybe_expand_expr (std::unique_ptr<AST::Expr> &expr)
 {
+  rust_debug_loc (expr->get_locus (), "EXPANDING");
+
   NodeId old_expect = expr->get_node_id ();
   std::swap (macro_invoc_expect_id, old_expect);
 

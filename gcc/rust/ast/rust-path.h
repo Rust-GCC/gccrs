@@ -505,13 +505,12 @@ public:
 
 /* A segment of a path in expression, including an identifier aspect and maybe
  * generic args */
-class PathExprSegment
+class PathExprSegment : public HasNodeId
 { // or should this extend PathIdentSegment?
 private:
   PathIdentSegment segment_name;
   GenericArgs generic_args;
   location_t locus;
-  NodeId node_id;
 
 public:
   // Returns true if there are any generic arguments
@@ -521,8 +520,7 @@ public:
   PathExprSegment (PathIdentSegment segment_name, location_t locus,
 		   GenericArgs generic_args = GenericArgs::create_empty ())
     : segment_name (std::move (segment_name)),
-      generic_args (std::move (generic_args)), locus (locus),
-      node_id (Analysis::Mappings::get ().get_next_node_id ())
+      generic_args (std::move (generic_args)), locus (locus)
   {}
 
   /* Constructor for segment with generic arguments (from segment name and all
@@ -535,7 +533,7 @@ public:
       generic_args (GenericArgs (std::move (lifetime_args),
 				 std::move (generic_args),
 				 std::move (binding_args))),
-      locus (locus), node_id (Analysis::Mappings::get ().get_next_node_id ())
+      locus (locus)
   {}
 
   // Returns whether path expression segment is in an error state.
@@ -560,8 +558,6 @@ public:
 
   PathIdentSegment &get_ident_segment () { return segment_name; }
   const PathIdentSegment &get_ident_segment () const { return segment_name; }
-
-  NodeId get_node_id () const { return node_id; }
 
   bool is_super_path_seg () const
   {
@@ -657,7 +653,6 @@ class PathInExpression : public Path, public ExprWithoutBlock
   std::vector<Attribute> outer_attrs;
   bool has_opening_scope_resolution;
   location_t locus;
-  NodeId _node_id;
 
   bool marked_for_strip;
 
@@ -670,7 +665,7 @@ public:
 		    bool has_opening_scope_resolution = false)
     : Path (std::move (path_segments)), outer_attrs (std::move (outer_attrs)),
       has_opening_scope_resolution (has_opening_scope_resolution),
-      locus (locus), _node_id (Analysis::Mappings::get ().get_next_node_id ()),
+      locus (locus),
       marked_for_strip (false)
   {}
 
@@ -678,7 +673,6 @@ public:
 		    std::vector<Attribute> outer_attrs, location_t locus)
     : Path (lang_item), outer_attrs (std::move (outer_attrs)),
       has_opening_scope_resolution (false), locus (locus),
-      _node_id (Analysis::Mappings::get ().get_next_node_id ()),
       marked_for_strip (false)
   {}
 
@@ -716,8 +710,6 @@ public:
   {
     return has_opening_scope_resolution;
   }
-
-  NodeId get_node_id () const override { return _node_id; }
 
   const std::vector<Attribute> &get_outer_attrs () const { return outer_attrs; }
   std::vector<Attribute> &get_outer_attrs () override { return outer_attrs; }
@@ -761,7 +753,7 @@ protected:
 
 /* Base class for segments used in type paths - not abstract (represents an
  * ident-only segment) */
-class TypePathSegment
+class TypePathSegment: public HasNodeId
 {
 public:
   enum SegmentType
@@ -780,7 +772,6 @@ protected:
   /* This is protected because it is only really used by derived classes, not
    * the base. */
   bool has_separating_scope_resolution;
-  NodeId node_id;
 
 public:
   // Clone function implementation - not pure virtual as overrided by
@@ -788,11 +779,6 @@ public:
   virtual TypePathSegment *clone_type_path_segment_impl () const
   {
     return new TypePathSegment (*this);
-  }
-  virtual TypePathSegment *reconstruct_impl () const
-  {
-    return new TypePathSegment (lang_item, ident_segment,
-				has_separating_scope_resolution, locus);
   }
 
 public:
@@ -805,24 +791,17 @@ public:
   {
     return std::unique_ptr<TypePathSegment> (clone_type_path_segment_impl ());
   }
-  // Unique pointer custom reconstruct function
-  std::unique_ptr<TypePathSegment> reconstruct () const
-  {
-    return reconstruct_base (this);
-  }
 
   TypePathSegment (PathIdentSegment ident_segment,
 		   bool has_separating_scope_resolution, location_t locus)
     : lang_item (tl::nullopt), ident_segment (std::move (ident_segment)),
       locus (locus),
-      has_separating_scope_resolution (has_separating_scope_resolution),
-      node_id (Analysis::Mappings::get ().get_next_node_id ())
+      has_separating_scope_resolution (has_separating_scope_resolution)
   {}
 
   TypePathSegment (LangItem::Kind lang_item, location_t locus)
     : lang_item (lang_item), ident_segment (tl::nullopt), locus (locus),
-      has_separating_scope_resolution (false),
-      node_id (Analysis::Mappings::get ().get_next_node_id ())
+      has_separating_scope_resolution (false)
   {}
 
   TypePathSegment (std::string segment_name,
@@ -830,8 +809,7 @@ public:
     : lang_item (tl::nullopt),
       ident_segment (PathIdentSegment (std::move (segment_name), locus)),
       locus (locus),
-      has_separating_scope_resolution (has_separating_scope_resolution),
-      node_id (Analysis::Mappings::get ().get_next_node_id ())
+      has_separating_scope_resolution (has_separating_scope_resolution)
   {}
 
   // General constructor
@@ -839,24 +817,22 @@ public:
 		   tl::optional<PathIdentSegment> ident_segment,
 		   bool has_separating_scope_resolution, location_t locus)
     : lang_item (lang_item), ident_segment (ident_segment), locus (locus),
-      has_separating_scope_resolution (has_separating_scope_resolution),
-      node_id (Analysis::Mappings::get ().get_next_node_id ())
+      has_separating_scope_resolution (has_separating_scope_resolution)
   {}
 
   TypePathSegment (TypePathSegment const &other)
-    : lang_item (other.lang_item), ident_segment (other.ident_segment),
+    : HasNodeId (other), lang_item (other.lang_item), ident_segment (other.ident_segment),
       locus (other.locus),
-      has_separating_scope_resolution (other.has_separating_scope_resolution),
-      node_id (other.node_id)
+      has_separating_scope_resolution (other.has_separating_scope_resolution)
   {}
 
   TypePathSegment &operator= (TypePathSegment const &other)
   {
+    HasNodeId::operator= (other);
     ident_segment = other.ident_segment;
     lang_item = other.lang_item;
     locus = other.locus;
     has_separating_scope_resolution = other.has_separating_scope_resolution;
-    node_id = other.node_id;
 
     return *this;
   }
@@ -913,8 +889,6 @@ public:
     rust_assert (is_lang_item ());
     return *lang_item;
   }
-
-  NodeId get_node_id () const { return node_id; }
 
   bool is_crate_path_seg () const
   {
@@ -983,6 +957,7 @@ public:
   // Overloaded assignment operator with vector clone
   TypePathSegmentGeneric &operator= (TypePathSegmentGeneric const &other)
   {
+    TypePathSegment::operator= (other);
     generic_args = other.generic_args;
 
     return *this;
@@ -1174,11 +1149,6 @@ protected:
   {
     return new TypePath (*this);
   }
-  TypePath *reconstruct_impl () const override
-  {
-    return new TypePath (reconstruct_vec (segments), locus,
-			 has_opening_scope_resolution);
-  }
 
 public:
   /* Returns whether the TypePath has an opening scope resolution operator
@@ -1216,10 +1186,9 @@ public:
 
   // Copy constructor with vector clone
   TypePath (TypePath const &other)
-    : has_opening_scope_resolution (other.has_opening_scope_resolution),
+    : HasNodeId (other), TypeNoBounds (other), has_opening_scope_resolution (other.has_opening_scope_resolution),
       locus (other.locus)
   {
-    node_id = other.node_id;
     segments.reserve (other.segments.size ());
     for (const auto &e : other.segments)
       segments.push_back (e->clone_type_path_segment ());
@@ -1228,7 +1197,7 @@ public:
   // Overloaded assignment operator with clone
   TypePath &operator= (TypePath const &other)
   {
-    node_id = other.node_id;
+    TypeNoBounds::operator= (other);
     has_opening_scope_resolution = other.has_opening_scope_resolution;
     locus = other.locus;
 
@@ -1255,7 +1224,6 @@ public:
   TraitBound *to_trait_bound (bool in_parens) const override;
 
   location_t get_locus () const override final { return locus; }
-  NodeId get_node_id () const override { return node_id; }
 
   void mark_for_strip () override {}
   bool is_marked_for_strip () const override { return false; }
@@ -1275,13 +1243,12 @@ public:
   size_t get_num_segments () const { return segments.size (); }
 };
 
-struct QualifiedPathType
+struct QualifiedPathType : public HasNodeId
 {
 private:
   std::unique_ptr<Type> type_to_invoke_on;
   TypePath trait_path;
   location_t locus;
-  NodeId node_id;
 
 public:
   // Constructor
@@ -1289,14 +1256,13 @@ public:
 		     location_t locus = UNDEF_LOCATION,
 		     TypePath trait_path = TypePath::create_error ())
     : type_to_invoke_on (std::move (invoke_on_type)), trait_path (trait_path),
-      locus (locus), node_id (Analysis::Mappings::get ().get_next_node_id ())
+      locus (locus)
   {}
 
   // Copy constructor uses custom deep copy for Type to preserve polymorphism
   QualifiedPathType (QualifiedPathType const &other)
-    : trait_path (other.trait_path), locus (other.locus)
+    : HasNodeId (other), trait_path (other.trait_path), locus (other.locus)
   {
-    node_id = other.node_id;
     // guard to prevent null dereference
     if (other.type_to_invoke_on != nullptr)
       type_to_invoke_on = other.type_to_invoke_on->clone_type ();
@@ -1308,7 +1274,7 @@ public:
   // overload assignment operator to use custom clone method
   QualifiedPathType &operator= (QualifiedPathType const &other)
   {
-    node_id = other.node_id;
+    HasNodeId::operator= (other);
     trait_path = other.trait_path;
     locus = other.locus;
 
@@ -1360,8 +1326,6 @@ public:
     rust_assert (has_as_clause ());
     return trait_path;
   }
-
-  NodeId get_node_id () const { return node_id; }
 };
 
 /* AST node representing a qualified path-in-expression pattern (path that
@@ -1371,7 +1335,6 @@ class QualifiedPathInExpression : public Path, public ExprWithoutBlock
   std::vector<Attribute> outer_attrs;
   QualifiedPathType path_type;
   location_t locus;
-  NodeId _node_id;
 
 public:
   std::string as_string () const override;
@@ -1381,8 +1344,7 @@ public:
 			     std::vector<Attribute> outer_attrs,
 			     location_t locus)
     : Path (std::move (path_segments)), outer_attrs (std::move (outer_attrs)),
-      path_type (std::move (qual_path_type)), locus (locus),
-      _node_id (Analysis::Mappings::get ().get_next_node_id ())
+      path_type (std::move (qual_path_type)), locus (locus)
   {}
 
   /* TODO: maybe make a shortcut constructor that has QualifiedPathType
@@ -1423,8 +1385,6 @@ public:
   {
     outer_attrs = std::move (new_attrs);
   }
-
-  NodeId get_node_id () const override { return _node_id; }
 
   Expr::Kind get_expr_kind () const override
   {
@@ -1469,12 +1429,6 @@ protected:
   QualifiedPathInType *clone_type_no_bounds_impl () const override
   {
     return new QualifiedPathInType (*this);
-  }
-  QualifiedPathInType *reconstruct_impl () const override
-  {
-    return new QualifiedPathInType (path_type,
-				    associated_segment->reconstruct (),
-				    reconstruct_vec (segments), locus);
   }
 
 public:

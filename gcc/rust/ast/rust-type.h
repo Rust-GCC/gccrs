@@ -59,24 +59,14 @@ public:
 	      bool opening_question_mark = false,
 	      std::vector<LifetimeParam> for_lifetimes
 	      = std::vector<LifetimeParam> ())
-    : TypeParamBound (Analysis::Mappings::get ().get_next_node_id ()),
+    : TypeParamBound (),
       in_parens (in_parens), opening_question_mark (opening_question_mark),
       for_lifetimes (std::move (for_lifetimes)),
       type_path (std::move (type_path)), locus (locus)
   {}
 
-  TraitBound (NodeId id, TypePath type_path, location_t locus,
-	      bool in_parens = false, bool opening_question_mark = false,
-	      std::vector<LifetimeParam> for_lifetimes
-	      = std::vector<LifetimeParam> ())
-    : TypeParamBound (id), in_parens (in_parens),
-      opening_question_mark (opening_question_mark),
-      for_lifetimes (std::move (for_lifetimes)),
-      type_path (std::move (type_path)), locus (locus)
-  {}
-
   TraitBound (TraitBound const &other)
-    : TypeParamBound (other.get_node_id ()), in_parens (other.in_parens),
+    : TypeParamBound (other), in_parens (other.in_parens),
       opening_question_mark (other.opening_question_mark),
       for_lifetimes (other.for_lifetimes), type_path (other.type_path),
       locus (other.locus)
@@ -105,13 +95,7 @@ protected:
    * than base */
   TraitBound *clone_type_param_bound_impl () const override
   {
-    return new TraitBound (node_id, type_path, locus, in_parens,
-			   opening_question_mark, for_lifetimes);
-  }
-  TraitBound *reconstruct_impl () const override
-  {
-    return new TraitBound (type_path, locus, in_parens, opening_question_mark,
-			   for_lifetimes);
+    return new TraitBound (*this);
   }
 };
 
@@ -134,10 +118,6 @@ protected:
   {
     return new ImplTraitType (*this);
   }
-  ImplTraitType *reconstruct_impl () const override
-  {
-    return new ImplTraitType (reconstruct_vec (type_param_bounds), locus);
-  }
 
 public:
   ImplTraitType (
@@ -148,7 +128,7 @@ public:
 
   // copy constructor with vector clone
   ImplTraitType (ImplTraitType const &other)
-    : Type (other.node_id), locus (other.locus)
+    : HasNodeId (other), Type (other), locus (other.locus)
   {
     type_param_bounds.reserve (other.type_param_bounds.size ());
     for (const auto &e : other.type_param_bounds)
@@ -158,6 +138,7 @@ public:
   // overloaded assignment operator to clone
   ImplTraitType &operator= (ImplTraitType const &other)
   {
+    Type::operator= (other);
     locus = other.locus;
 
     type_param_bounds.reserve (other.type_param_bounds.size ());
@@ -202,11 +183,6 @@ protected:
   {
     return new TraitObjectType (*this);
   }
-  TraitObjectType *reconstruct_impl () const override
-  {
-    return new TraitObjectType (reconstruct_vec (type_param_bounds), locus,
-				has_dyn);
-  }
 
 public:
   TraitObjectType (
@@ -218,7 +194,7 @@ public:
 
   // copy constructor with vector clone
   TraitObjectType (TraitObjectType const &other)
-    : Type (other.node_id), has_dyn (other.has_dyn), locus (other.locus)
+    : HasNodeId (other), Type (other), has_dyn (other.has_dyn), locus (other.locus)
   {
     type_param_bounds.reserve (other.type_param_bounds.size ());
     for (const auto &e : other.type_param_bounds)
@@ -228,6 +204,7 @@ public:
   // overloaded assignment operator to clone
   TraitObjectType &operator= (TraitObjectType const &other)
   {
+    Type::operator= (other);
     has_dyn = other.has_dyn;
     locus = other.locus;
     type_param_bounds.reserve (other.type_param_bounds.size ());
@@ -273,10 +250,6 @@ protected:
   {
     return new ParenthesisedType (*this);
   }
-  ParenthesisedType *reconstruct_impl () const override
-  {
-    return new ParenthesisedType (type_in_parens->reconstruct (), locus);
-  }
 
 public:
   // Constructor uses Type pointer for polymorphism
@@ -287,12 +260,13 @@ public:
   /* Copy constructor uses custom deep copy method for type to preserve
    * polymorphism */
   ParenthesisedType (ParenthesisedType const &other)
-    : type_in_parens (other.type_in_parens->clone_type ()), locus (other.locus)
+    : HasNodeId (other), TypeNoBounds (other), type_in_parens (other.type_in_parens->clone_type ()), locus (other.locus)
   {}
 
   // overload assignment operator to use custom clone method
   ParenthesisedType &operator= (ParenthesisedType const &other)
   {
+    TypeNoBounds::operator= (other);
     type_in_parens = other.type_in_parens->clone_type ();
     locus = other.locus;
     return *this;
@@ -341,7 +315,7 @@ public:
   {}
 
   ImplTraitTypeOneBound (ImplTraitTypeOneBound const &other)
-    : trait_bound (other.trait_bound->clone_type_param_bound ()),
+    : HasNodeId (other), TypeNoBounds (other), trait_bound (other.trait_bound->clone_type_param_bound ()),
       locus (other.locus)
   {}
 
@@ -356,10 +330,6 @@ public:
   TypeNoBounds *clone_type_no_bounds_impl () const override
   {
     return new ImplTraitTypeOneBound (*this);
-  }
-  TypeNoBounds *reconstruct_impl () const override
-  {
-    return new ImplTraitTypeOneBound (trait_bound->reconstruct (), locus);
   }
 };
 
@@ -377,10 +347,6 @@ protected:
   TraitObjectTypeOneBound *clone_type_no_bounds_impl () const override
   {
     return new TraitObjectTypeOneBound (*this);
-  }
-  TraitObjectTypeOneBound *reconstruct_impl () const override
-  {
-    return new TraitObjectTypeOneBound (trait_bound, locus, has_dyn);
   }
 
 public:
@@ -432,7 +398,7 @@ public:
   {}
 
   // copy constructor with vector clone
-  TupleType (TupleType const &other) : locus (other.locus)
+  TupleType (TupleType const &other) : HasNodeId (other), TypeNoBounds (other), locus (other.locus)
   {
     elems.reserve (other.elems.size ());
     for (const auto &e : other.elems)
@@ -442,6 +408,7 @@ public:
   // overloaded assignment operator to clone
   TupleType &operator= (TupleType const &other)
   {
+    TypeNoBounds::operator= (other);
     locus = other.locus;
 
     elems.reserve (other.elems.size ());
@@ -474,10 +441,6 @@ protected:
   {
     return new TupleType (*this);
   }
-  TupleType *reconstruct_impl () const override
-  {
-    return new TupleType (reconstruct_vec (elems), locus);
-  }
 };
 
 /* A type with no values, representing the result of computations that never
@@ -493,10 +456,6 @@ protected:
   NeverType *clone_type_no_bounds_impl () const override
   {
     return new NeverType (*this);
-  }
-  NeverType *reconstruct_impl () const override
-  {
-    return new NeverType (locus);
   }
 
 public:
@@ -538,13 +497,14 @@ public:
 
   // Copy constructor calls custom polymorphic clone function
   RawPointerType (RawPointerType const &other)
-    : pointer_type (other.pointer_type),
+    : HasNodeId (other), TypeNoBounds (other), pointer_type (other.pointer_type),
       type (other.type->clone_type_no_bounds ()), locus (other.locus)
   {}
 
   // overload assignment operator to use custom clone method
   RawPointerType &operator= (RawPointerType const &other)
   {
+    TypeNoBounds::operator= (other);
     pointer_type = other.pointer_type;
     type = other.type->clone_type_no_bounds ();
     locus = other.locus;
@@ -584,10 +544,6 @@ protected:
   {
     return new RawPointerType (*this);
   }
-  RawPointerType *reconstruct_impl () const override
-  {
-    return new RawPointerType (pointer_type, type->reconstruct (), locus);
-  }
 };
 
 // A type pointing to memory owned by another value
@@ -617,13 +573,14 @@ public:
 
   // Copy constructor with custom clone method
   ReferenceType (ReferenceType const &other)
-    : lifetime (other.lifetime), has_mut (other.has_mut),
+    : HasNodeId (other), TypeNoBounds (other), lifetime (other.lifetime), has_mut (other.has_mut),
       type (other.type->clone_type_no_bounds ()), locus (other.locus)
   {}
 
   // Operator overload assignment operator to custom clone the unique pointer
   ReferenceType &operator= (ReferenceType const &other)
   {
+    TypeNoBounds::operator= (other);
     lifetime = other.lifetime;
     has_mut = other.has_mut;
     type = other.type->clone_type_no_bounds ();
@@ -672,16 +629,6 @@ protected:
   {
     return new ReferenceType (*this);
   }
-  ReferenceType *reconstruct_impl () const override
-  {
-    return new ReferenceType (has_mut, type->reconstruct (), locus,
-			      // TODO: Improve this - it's ugly!
-			      has_lifetime () ? tl::make_optional<Lifetime> (
-				lifetime->get_lifetime_type (),
-				lifetime->get_lifetime_name (),
-				lifetime->get_locus ())
-					      : tl::nullopt);
-  }
 };
 
 // A fixed-size sequence of elements of a specified type
@@ -699,13 +646,14 @@ public:
 
   // Copy constructor requires deep copies of both unique pointers
   ArrayType (ArrayType const &other)
-    : elem_type (other.elem_type->clone_type ()), size (other.size),
+    : HasNodeId (other), TypeNoBounds (other), elem_type (other.elem_type->clone_type ()), size (other.size),
       locus (other.locus)
   {}
 
   // Overload assignment operator to deep copy pointers
   ArrayType &operator= (ArrayType const &other)
   {
+    TypeNoBounds::operator= (other);
     elem_type = other.elem_type->clone_type ();
     size = other.size;
     locus = other.locus;
@@ -752,12 +700,6 @@ protected:
   {
     return new ArrayType (*this);
   }
-  ArrayType *reconstruct_impl () const override
-  {
-    return new ArrayType (elem_type->reconstruct (),
-			  size /* FIXME: This should be `reconstruct_expr()` */,
-			  locus);
-  }
 };
 
 /* A dynamically-sized type representing a "view" into a sequence of elements of
@@ -775,12 +717,13 @@ public:
 
   // Copy constructor requires deep copy of Type smart pointer
   SliceType (SliceType const &other)
-    : elem_type (other.elem_type->clone_type ()), locus (other.locus)
+    : HasNodeId (other), TypeNoBounds (other), elem_type (other.elem_type->clone_type ()), locus (other.locus)
   {}
 
   // Overload assignment operator to deep copy
   SliceType &operator= (SliceType const &other)
   {
+    TypeNoBounds::operator= (other);
     elem_type = other.elem_type->clone_type ();
     locus = other.locus;
 
@@ -814,10 +757,6 @@ protected:
   {
     return new SliceType (*this);
   }
-  SliceType *reconstruct_impl () const override
-  {
-    return new SliceType (elem_type->reconstruct (), locus);
-  }
 };
 
 /* Type used in generic arguments to explicitly request type inference (wildcard
@@ -834,13 +773,6 @@ protected:
   {
     // This goes through the copy constructor
     return new InferredType (*this);
-  }
-
-  InferredType *reconstruct_impl () const override
-  {
-    // This goes through the base constructor which calls the base
-    // TypeNoBounds constructor, which allocates a new NodeId
-    return new InferredType (locus);
   }
 
 public:
@@ -1006,7 +938,7 @@ public:
 
   // Copy constructor with clone
   BareFunctionType (BareFunctionType const &other)
-    : for_lifetimes (other.for_lifetimes),
+    : HasNodeId (other), TypeNoBounds (other), for_lifetimes (other.for_lifetimes),
       function_qualifiers (other.function_qualifiers), params (other.params),
       _is_variadic (other._is_variadic), variadic_attrs (other.variadic_attrs),
       locus (other.locus)
@@ -1019,6 +951,7 @@ public:
   // Overload assignment operator to deep copy
   BareFunctionType &operator= (BareFunctionType const &other)
   {
+    TypeNoBounds::operator= (other);
     for_lifetimes = other.for_lifetimes;
     function_qualifiers = other.function_qualifiers;
     params = other.params;
@@ -1066,18 +999,6 @@ public:
   }
 
   FunctionQualifiers &get_function_qualifiers () { return function_qualifiers; }
-
-  BareFunctionType *reconstruct_impl () const override
-  {
-    std::unique_ptr<TypeNoBounds> ret_type = nullptr;
-    if (return_type != nullptr)
-      ret_type = return_type->reconstruct ();
-
-    return new BareFunctionType (
-      for_lifetimes, function_qualifiers, params,
-      /* FIXME: Should params be reconstruct() as well? */
-      _is_variadic, variadic_attrs, std::move (ret_type), locus);
-  }
 
 protected:
   /* Use covariance to implement clone function as returning this object

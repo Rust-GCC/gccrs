@@ -672,11 +672,6 @@ public:
     outer_attrs = std::move (new_attrs);
   }
 
-  NodeId get_node_id () const override final
-  {
-    return ExprWithoutBlock::get_node_id ();
-  }
-
   NodeId get_macro_node_id () const { return node_id; }
 
   MacroInvocData &get_invoc_data () { return invoc_data; }
@@ -722,7 +717,8 @@ private:
   {}
 
   MacroInvocation (const MacroInvocation &other)
-    : TraitItem (other.locus), ExternalItem (other.node_id),
+    : HasNodeId (other), TypeNoBounds (other), Pattern (other), Item (other),
+      TraitItem (other), ExternalItem (other), ExprWithoutBlock (other),
       outer_attrs (other.outer_attrs), locus (other.locus),
       node_id (other.node_id), invoc_data (other.invoc_data),
       is_semi_coloned (other.is_semi_coloned), kind (other.kind),
@@ -785,20 +781,6 @@ public:
   /*virtual*/ MacroInvocation *clone_macro_invocation_impl () const
   {
     return new MacroInvocation (*this);
-  }
-
-  std::unique_ptr<MacroInvocation> reconstruct_macro_invocation () const
-  {
-    return nullptr;
-    //  return reconstruct (this,
-    // &MacroInvocation::reconstruct_macro_invocation_impl);
-  }
-
-  MacroInvocation *reconstruct_impl () const override
-  {
-    return new MacroInvocation (kind, builtin_kind, invoc_data, outer_attrs,
-				locus, is_semi_coloned,
-				reconstruct_vec (pending_eager_invocs));
   }
 
   void add_semicolon () override { is_semi_coloned = true; }

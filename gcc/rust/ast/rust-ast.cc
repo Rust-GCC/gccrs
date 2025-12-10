@@ -1082,7 +1082,7 @@ Union::as_string () const
 }
 
 Function::Function (Function const &other)
-  : VisItem (other), ExternalItem (other.get_node_id ()),
+  : VisItem (other), AssociatedItem (other), ExternalItem (other),
     qualifiers (other.qualifiers), function_name (other.function_name),
     where_clause (other.where_clause), locus (other.locus),
     has_default (other.has_default),
@@ -1111,6 +1111,8 @@ Function &
 Function::operator= (Function const &other)
 {
   VisItem::operator= (other);
+  AssociatedItem::operator= (other);
+  ExternalItem::operator= (other);
   function_name = other.function_name;
   qualifiers = other.qualifiers;
   where_clause = other.where_clause;

@@ -16,27 +16,22 @@ namespace AST {
 
 // Loop label expression AST node used with break and continue expressions
 // TODO: inline?
-class LoopLabel /*: public Visitable*/
+class LoopLabel : public HasNodeId /*, public Visitable*/
 {
   Lifetime label; // or type LIFETIME_OR_LABEL
   location_t locus;
-
-  NodeId node_id;
 
 public:
   std::string as_string () const;
 
   LoopLabel (Lifetime loop_label, location_t locus = UNDEF_LOCATION)
-    : label (std::move (loop_label)), locus (locus),
-      node_id (Analysis::Mappings::get ().get_next_node_id ())
+    : label (std::move (loop_label)), locus (locus)
   {}
 
   // Returns whether the LoopLabel is in an error state.
   location_t get_locus () const { return locus; }
 
   Lifetime &get_lifetime () { return label; }
-
-  NodeId get_node_id () const { return node_id; }
 };
 
 // AST node for an expression with an accompanying block - abstract
@@ -1186,7 +1181,7 @@ protected:
 
 // Base array initialisation internal element representation thing (abstract)
 // aka ArrayElements
-class ArrayElems
+class ArrayElems : public HasNodeId
 {
 public:
   virtual ~ArrayElems () {}
@@ -1201,15 +1196,11 @@ public:
 
   virtual void accept_vis (ASTVisitor &vis) = 0;
 
-  NodeId get_node_id () const { return node_id; }
-
 protected:
-  ArrayElems () : node_id (Analysis::Mappings::get ().get_next_node_id ()) {}
+  ArrayElems () {}
 
   // pure virtual clone implementation
   virtual ArrayElems *clone_array_elems_impl () const = 0;
-
-  NodeId node_id;
 };
 
 // Value array elements
@@ -1885,7 +1876,7 @@ public:
 
 /* Base AST node for a single struct expression field (in struct instance
  * creation) - abstract */
-class StructExprField
+class StructExprField : public HasNodeId
 {
 public:
   virtual ~StructExprField () {}
@@ -1902,8 +1893,6 @@ public:
 
   virtual location_t get_locus () const = 0;
 
-  NodeId get_node_id () const { return node_id; }
-
   const std::vector<AST::Attribute> &get_outer_attrs () const
   {
     return outer_attrs;
@@ -1915,16 +1904,13 @@ protected:
   // pure virtual clone implementation
   virtual StructExprField *clone_struct_expr_field_impl () const = 0;
 
-  StructExprField () : node_id (Analysis::Mappings::get ().get_next_node_id ())
-  {}
+  StructExprField () {}
 
   StructExprField (AST::AttrVec outer_attrs)
-    : outer_attrs (std::move (outer_attrs)),
-      node_id (Analysis::Mappings::get ().get_next_node_id ())
+    : outer_attrs (std::move (outer_attrs))
   {}
 
   AST::AttrVec outer_attrs;
-  NodeId node_id;
 };
 
 // Identifier-only variant of StructExprField AST node
@@ -2747,7 +2733,7 @@ public:
 
   // Copy constructor with clone
   BlockExpr (BlockExpr const &other)
-    : ExprWithBlock (other), outer_attrs (other.outer_attrs),
+    : HasNodeId (other), ExprWithBlock (other), outer_attrs (other.outer_attrs),
       inner_attrs (other.inner_attrs), label (other.label),
       start_locus (other.start_locus), end_locus (other.end_locus),
       marked_for_strip (other.marked_for_strip)
@@ -2898,9 +2884,8 @@ public:
       expr (tl::nullopt)
   {}
 
-  AnonConst (const AnonConst &other)
+  AnonConst (const AnonConst &other) : HasNodeId (other), ExprWithBlock (other)
   {
-    node_id = other.node_id;
     locus = other.locus;
     kind = other.kind;
 
@@ -2910,7 +2895,7 @@ public:
 
   AnonConst operator= (const AnonConst &other)
   {
-    node_id = other.node_id;
+    ExprWithBlock::operator= (other);
     locus = other.locus;
     kind = other.kind;
 
@@ -2937,8 +2922,6 @@ public:
     rust_assert (expr.has_value ());
     return expr.value ();
   }
-
-  NodeId get_node_id () const override { return node_id; }
 
   /* FIXME: AnonConst are always "internal" and should not have outer attributes
    * - is that true? Or should we instead call
@@ -2987,8 +2970,9 @@ public:
 
   ConstBlock operator= (const ConstBlock &other)
   {
+    ExprWithBlock::operator= (other);
+
     expr = other.expr;
-    node_id = other.node_id;
     outer_attrs = other.outer_attrs;
     locus = other.locus;
 
@@ -3946,7 +3930,7 @@ public:
 
   // Copy constructor with clone
   TryExpr (TryExpr const &other)
-    : ExprWithBlock (other), outer_attrs (other.outer_attrs),
+    : HasNodeId (other), ExprWithBlock (other), outer_attrs (other.outer_attrs),
       block_expr (other.block_expr->clone_block_expr ()), locus (other.locus),
       marked_for_strip (other.marked_for_strip)
   {}
@@ -4240,7 +4224,7 @@ public:
 
   // Copy constructor with clone
   WhileLoopExpr (WhileLoopExpr const &other)
-    : BaseLoopExpr (other), condition (other.condition->clone_expr ())
+    : HasNodeId (other), BaseLoopExpr (other), condition (other.condition->clone_expr ())
   {}
 
   // Overloaded assignment operator to clone
@@ -4313,7 +4297,7 @@ public:
 
   // Copy constructor with clone
   WhileLetLoopExpr (WhileLetLoopExpr const &other)
-    : BaseLoopExpr (other),
+    : HasNodeId (other), BaseLoopExpr (other),
       /*match_arm_patterns(other.match_arm_patterns),*/ scrutinee (
 	other.scrutinee->clone_expr ())
   {
@@ -4962,31 +4946,29 @@ public:
 
 /* A "match case" - a correlated match arm and resulting expression. Not
  * abstract. */
-struct MatchCase
+struct MatchCase : public HasNodeId
 {
 private:
   MatchArm arm;
   std::unique_ptr<Expr> expr;
-  NodeId node_id;
 
   /* TODO: does whether trailing comma exists need to be stored? currently
    * assuming it is only syntactical and has no effect on meaning. */
 
 public:
   MatchCase (MatchArm arm, std::unique_ptr<Expr> expr)
-    : arm (std::move (arm)), expr (std::move (expr)),
-      node_id (Analysis::Mappings::get ().get_next_node_id ())
+    : arm (std::move (arm)), expr (std::move (expr))
   {}
 
   MatchCase (const MatchCase &other)
-    : arm (other.arm), expr (other.expr->clone_expr ()), node_id (other.node_id)
+    : HasNodeId (other), arm (other.arm), expr (other.expr->clone_expr ())
   {}
 
   MatchCase &operator= (const MatchCase &other)
   {
+    HasNodeId::operator= (other);
     arm = other.arm;
     expr = other.expr->clone_expr ();
-    node_id = other.node_id;
 
     return *this;
   }
@@ -5017,8 +4999,6 @@ public:
     rust_assert (!arm.is_error ());
     return arm;
   }
-
-  NodeId get_node_id () const { return node_id; }
 };
 
 // Match expression AST node

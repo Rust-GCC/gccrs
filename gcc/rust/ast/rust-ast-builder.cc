@@ -587,7 +587,7 @@ Builder::new_type_param (
   std::unique_ptr<Type> type = nullptr;
 
   if (param.has_type ())
-    type = param.get_type ().reconstruct ();
+    type = param.get_type ().clone_type ();
 
   for (auto &&extra_bound : extra_bounds)
     type_param_bounds.emplace_back (std::move (extra_bound));
@@ -708,7 +708,7 @@ Builder::new_generic_args (GenericArgs &args)
   for (auto &binding : args.get_binding_args ())
     {
       Type &t = *binding.get_type_ptr ().get ();
-      std::unique_ptr<Type> ty = t.reconstruct ();
+      std::unique_ptr<Type> ty = t.clone_type ();
       binding_args.emplace_back (binding.get_identifier (), std::move (ty),
 				 binding.get_locus ());
     }
@@ -720,7 +720,7 @@ Builder::new_generic_args (GenericArgs &args)
       switch (arg.get_kind ())
 	{
 	case GenericArg::Kind::Type:
-	  new_arg = GenericArg::create_type (arg.get_type ().reconstruct ());
+	  new_arg = GenericArg::create_type (arg.get_type ().clone_type ());
 	  break;
 	case GenericArg::Kind::Either:
 	  new_arg
@@ -729,7 +729,6 @@ Builder::new_generic_args (GenericArgs &args)
 	case GenericArg::Kind::Const:
 	  new_arg
 	    = GenericArg::create_const (arg.get_expression ().clone_expr ());
-	  // FIXME: Use `reconstruct()` here, not `clone_expr()`
 	  break;
 	}
 
