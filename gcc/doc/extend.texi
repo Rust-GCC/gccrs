@@ -403,12 +403,14 @@ FPU.
 @cindex @code{_Decimal32} data type
 @cindex @code{_Decimal64} data type
 @cindex @code{_Decimal128} data type
-@cindex @code{df} integer suffix
-@cindex @code{dd} integer suffix
-@cindex @code{dl} integer suffix
-@cindex @code{DF} integer suffix
-@cindex @code{DD} integer suffix
-@cindex @code{DL} integer suffix
+@cindex @code{df} floating point suffix
+@cindex @code{dd} floating point suffix
+@cindex @code{dl} floating point suffix
+@cindex @code{DF} floating point suffix
+@cindex @code{DD} floating point suffix
+@cindex @code{DL} floating point suffix
+@cindex @code{d} floating point suffix
+@cindex @code{D} floating point suffix
 
 As an extension, GNU C supports decimal floating types as defined in
 the N1312 draft of ISO/IEC WDTR24732.  GCC does not yet implement the
@@ -428,7 +430,8 @@ relational operators; equality operators; and conversions to and from
 integer and other floating types.  Use a suffix @samp{df} or
 @samp{DF} in a literal constant of type @code{_Decimal32}, @samp{dd}
 or @samp{DD} for @code{_Decimal64}, and @samp{dl} or @samp{DL} for
-@code{_Decimal128}.
+@code{_Decimal128}.  The draft TR also defines the suffixes @samp{d}
+and @samp{D} for type @code{double}.
 
 GCC support of decimal float as specified by the draft technical report
 is incomplete:
