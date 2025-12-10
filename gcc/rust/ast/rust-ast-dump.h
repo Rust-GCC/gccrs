@@ -22,6 +22,7 @@
 #include "rust-ast.h"
 #include "rust-ast-full.h"
 #include "rust-dump.h"
+#include "rust-system.h"
 
 #include "rust-ast-collector.h"
 
@@ -31,7 +32,28 @@ namespace AST {
 class Dump
 {
 public:
+  struct Configuration
+  {
+    enum class InternalComment
+    {
+      Dump,
+      Hide,
+    } dump_internal_comments;
+    enum class NodeDescription
+    {
+      Dump,
+      Hide,
+    } dump_node_description;
+    enum class Comment
+    {
+      Dump,
+      Hide,
+    } dump_comments;
+  };
+
   Dump (std::ostream &stream);
+  Dump (std::ostream &stream, Configuration configuration,
+	std::set<std::string> excluded_node);
 
   /**
    * Run the visitor on an entire crate and its items
@@ -59,7 +81,8 @@ public:
 	    }
 	    break;
 	  case AST::CollectItem::Kind::Comment:
-	    stream << " /* " << item.get_comment () << " */ ";
+	    if (configuration.dump_comments == Configuration::Comment::Dump)
+	      stream << " /* " << item.get_comment () << " */ ";
 	    break;
 	  case AST::CollectItem::Kind::Indentation:
 	    for (size_t i = 0; i < item.get_indent_level (); i++)
@@ -70,6 +93,32 @@ public:
 	  case AST::CollectItem::Kind::Newline:
 	    stream << "\n";
 	    previous = nullptr;
+	    break;
+	  case AST::CollectItem::Kind::BeginNodeDescription:
+	    if (configuration.dump_node_description
+		== Configuration::NodeDescription::Dump)
+	      {
+		std::string comment = item.get_node_description ();
+		if (excluded_node.find (comment) == excluded_node.end ())
+		  stream << " /* " << comment << " */ ";
+	      }
+	    break;
+	  case AST::CollectItem::Kind::EndNodeDescription:
+	    if (configuration.dump_node_description
+		== Configuration::NodeDescription::Dump)
+	      {
+		std::string comment = item.get_node_description ();
+		if (excluded_node.find (comment) == excluded_node.end ())
+		  stream << " /* !" << comment << " */ ";
+	      }
+	    break;
+	  case AST::CollectItem::Kind::InternalComment:
+	    if (configuration.dump_internal_comments
+		== Configuration::InternalComment::Dump)
+	      {
+		std::string comment = item.get_internal_comment ();
+		stream << " /* " << comment << " */ ";
+	      }
 	    break;
 	  default:
 	    rust_unreachable ();
@@ -83,6 +132,8 @@ public:
 private:
   std::ostream &stream;
   Indent indentation;
+  Configuration configuration;
+  std::set<std::string> excluded_node;
 
   static bool require_spacing (TokenPtr previous, TokenPtr current);
 };

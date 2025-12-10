@@ -23,6 +23,7 @@
 #include "rust-ast-visitor.h"
 #include "rust-ast.h"
 #include "rust-ast-full.h"
+#include "rust-system.h"
 
 namespace Rust {
 namespace AST {
@@ -33,15 +34,39 @@ public:
   enum class Kind
   {
     Comment,
+    InternalComment,
+    BeginNodeDescription,
+    EndNodeDescription,
     Newline,
     Indentation,
     Token,
   };
 
   CollectItem (TokenPtr token) : token (token), kind (Kind::Token) {}
-  CollectItem (std::string comment) : comment (comment), kind (Kind::Comment) {}
   CollectItem (Kind kind) : kind (kind) { rust_assert (kind != Kind::Token); }
   CollectItem (size_t level) : indent_level (level), kind (Kind::Indentation) {}
+
+  static CollectItem make_internal_comment (const std::string &internal_comment)
+  {
+    return CollectItem (internal_comment, Kind::InternalComment);
+  }
+
+  static CollectItem make_comment (const std::string &comment)
+  {
+    return CollectItem (comment, Kind::Comment);
+  }
+
+  static CollectItem
+  make_begin_node_description (const std::string &node_description)
+  {
+    return CollectItem (node_description, Kind::BeginNodeDescription);
+  }
+
+  static CollectItem
+  make_end_node_description (const std::string &node_description)
+  {
+    return CollectItem (node_description, Kind::EndNodeDescription);
+  }
 
   Kind get_kind () { return kind; }
 
@@ -63,11 +88,30 @@ public:
     return indent_level;
   }
 
+  std::string get_internal_comment ()
+  {
+    rust_assert (kind == Kind::InternalComment);
+    return comment;
+  }
+
+  std::string get_node_description ()
+  {
+    rust_assert (kind == Kind::BeginNodeDescription
+		 || kind == Kind::EndNodeDescription);
+    return comment;
+  }
+
+  bool is_debug () { return debug; }
+
 private:
+  CollectItem (std::string comment, Kind kind) : comment (comment), kind (kind)
+  {}
+
   TokenPtr token;
   std::string comment;
   size_t indent_level;
   Kind kind;
+  bool debug = false;
 };
 
 class TokenCollector : public ASTVisitor
@@ -163,6 +207,9 @@ private:
 	newline ();
       }
   }
+
+  void describe_node (const std::string &node_name,
+		      std::function<void ()> visitor);
 
   void trailing_comma ();
   void newline ();

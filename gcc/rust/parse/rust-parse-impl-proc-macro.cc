@@ -16,12 +16,12 @@
 // along with GCC; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
-#include "rust-parse-impl.h"
+#include "rust-parse-impl.hxx"
 #include "rust-proc-macro-invoc-lexer.h"
 
 namespace Rust {
 
-template std::unique_ptr<AST::Item>
+template tl::expected<std::unique_ptr<AST::Item>, Parse::Error::Item>
 Parser<ProcMacroInvocLexer>::parse_item (bool);
 
 template std::unique_ptr<AST::Stmt>

@@ -25,6 +25,7 @@
 #include "rust-expression-yeast.h"
 #include "rust-hir-pattern-analysis.h"
 #include "rust-immutable-name-resolution-context.h"
+#include "rust-location.h"
 #include "rust-unsafe-checker.h"
 #include "rust-lex.h"
 #include "rust-parse.h"
@@ -61,6 +62,7 @@
 #include "selftest.h"
 #include "tm.h"
 #include "rust-target.h"
+#include "rust-system.h"
 
 extern bool saw_errors (void);
 
@@ -71,6 +73,7 @@ namespace Rust {
 const char *kLexDumpFile = "gccrs.lex.dump";
 const char *kASTDumpFile = "gccrs.ast.dump";
 const char *kASTPrettyDumpFile = "gccrs.ast-pretty.dump";
+const char *kASTPrettyInternalDumpFile = "gccrs.ast-pretty-internal.dump";
 const char *kASTPrettyDumpFileExpanded = "gccrs.ast-pretty-expanded.dump";
 const char *kASTExpandedDumpFile = "gccrs.ast-expanded.dump";
 const char *kASTmacroResolutionDumpFile = "gccrs.ast-macro-resolution.dump";
@@ -325,6 +328,8 @@ Session::handle_cfg_option (std::string &input)
 bool
 Session::enable_dump (std::string arg)
 {
+  const std::string INTERNAL_DUMP_OPTION_TEXT = "internal";
+
   if (arg.empty ())
     {
       rust_error_at (
@@ -380,18 +385,57 @@ Session::enable_dump (std::string arg)
     {
       options.enable_dump_option (CompileOptions::BIR_DUMP);
     }
+  else if (!arg.compare (0, INTERNAL_DUMP_OPTION_TEXT.size (),
+			 INTERNAL_DUMP_OPTION_TEXT))
+    {
+      if (arg.size () == INTERNAL_DUMP_OPTION_TEXT.size ())
+	{
+	  options.enable_dump_option (CompileOptions::INTERNAL_DUMP);
+	}
+      else
+	{
+	  if (arg[INTERNAL_DUMP_OPTION_TEXT.size ()] != ':')
+	    {
+	      rust_error_at (UNDEF_LOCATION, "bad format for %qs",
+			     arg.c_str ());
+	      rust_inform (UNDEF_LOCATION,
+			   "to specify the nodes to ignore when "
+			   "dumping their description put a "
+			   "%<:%> then all the Nodes separated by comma");
+	      return false;
+	    }
+	  handle_excluded_node (arg);
+	  options.enable_dump_option (CompileOptions::INTERNAL_DUMP);
+	}
+    }
   else
     {
       rust_error_at (
 	UNDEF_LOCATION,
 	"dump option %qs was unrecognised. choose %<lex%>, %<ast-pretty%>, "
-	"%<register_plugins%>, %<injection%>, "
-	"%<expansion%>, %<resolution%>, %<target_options%>, %<hir%>, "
-	"%<hir-pretty%>, or %<all%>",
+	"%<internal[:ignore1,ignore2,...]%>, %<register_plugins%>, "
+	"%<injection%>, %<expansion%>, %<resolution%>, %<target_options%>, "
+	"%<hir%>, %<hir-pretty%>, or %<all%>",
 	arg.c_str ());
       return false;
     }
   return true;
+}
+
+/* Helper function to parse a string when dump internal to get node to blacklist
+ */
+
+void
+Session::handle_excluded_node (std::string arg)
+{
+  size_t colon = arg.find (":");
+  size_t suffix_size = arg.size () - colon;
+  std::istringstream blist_str (arg.substr (colon + 1, suffix_size));
+  std::string token;
+  while (std::getline (blist_str, token, ','))
+    {
+      options.add_excluded (token);
+    }
 }
 
 /* Actual main entry point for front-end. Called from langhook to parse files.
@@ -560,6 +604,10 @@ Session::compile_crate (const char *filename)
   if (options.dump_option_enabled (CompileOptions::AST_DUMP_PRETTY))
     {
       dump_ast_pretty (*ast_crate.get ());
+    }
+  if (options.dump_option_enabled (CompileOptions::INTERNAL_DUMP))
+    {
+      dump_ast_pretty_internal (*ast_crate.get ());
     }
 
   // setup the mappings for this AST
@@ -873,7 +921,7 @@ Session::injection (AST::Crate &crate)
 
       // create "extern crate" item with the name
       std::unique_ptr<AST::ExternCrate> extern_crate (
-	new AST::ExternCrate (*it, AST::Visibility::create_error (),
+	new AST::ExternCrate (*it, AST::Visibility::create_private (),
 			      {std::move (attr)}, UNKNOWN_LOCATION));
 
       // insert at beginning
@@ -1018,6 +1066,33 @@ Session::dump_ast_pretty (AST::Crate &crate, bool expanded) const
     }
 
   AST::Dump (out).go (crate);
+
+  out.close ();
+}
+
+void
+Session::dump_ast_pretty_internal (AST::Crate &crate) const
+{
+  std::ofstream out;
+  out.open (kASTPrettyInternalDumpFile);
+
+  if (out.fail ())
+    {
+      rust_error_at (UNKNOWN_LOCATION, "cannot open %s:%m; ignored",
+		     kASTDumpFile);
+      return;
+    }
+
+  std::set<std::string> str_tmp = options.get_excluded ();
+
+  AST::Dump (out,
+	     AST::Dump::Configuration{
+	       AST::Dump::Configuration::InternalComment::Dump,
+	       AST::Dump::Configuration::NodeDescription::Dump,
+	       AST::Dump::Configuration::Comment::Dump,
+	     },
+	     str_tmp)
+    .go (crate);
 
   out.close ();
 }

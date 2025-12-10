@@ -22,6 +22,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "rust-lex.h"
 #include "rust-ast-full.h"
 #include "rust-diagnostics.h"
+#include "rust-parse-error.h"
+#include "rust-parse-utils.h"
 
 #include "expected.h"
 
@@ -51,6 +53,106 @@ enum class ParseSelfError
   SELF_PTR,
   PARSING,
   NOT_SELF,
+};
+
+// Left binding powers of operations.
+enum binding_powers
+{
+  // Highest priority
+  LBP_HIGHEST = 100,
+
+  LBP_PATH = 95,
+
+  LBP_METHOD_CALL = 90,
+
+  LBP_FIELD_EXPR = 85,
+
+  LBP_FUNCTION_CALL = 80,
+  LBP_ARRAY_REF = LBP_FUNCTION_CALL,
+
+  LBP_QUESTION_MARK = 75, // unary postfix - counts as left
+
+  LBP_UNARY_PLUS = 70,		    // Used only when the null denotation is +
+  LBP_UNARY_MINUS = LBP_UNARY_PLUS, // Used only when the null denotation is -
+  LBP_UNARY_ASTERISK = LBP_UNARY_PLUS, // deref operator - unary prefix
+  LBP_UNARY_EXCLAM = LBP_UNARY_PLUS,
+  LBP_UNARY_AMP = LBP_UNARY_PLUS,
+  LBP_UNARY_AMP_MUT = LBP_UNARY_PLUS,
+
+  LBP_AS = 65,
+
+  LBP_MUL = 60,
+  LBP_DIV = LBP_MUL,
+  LBP_MOD = LBP_MUL,
+
+  LBP_PLUS = 55,
+  LBP_MINUS = LBP_PLUS,
+
+  LBP_L_SHIFT = 50,
+  LBP_R_SHIFT = LBP_L_SHIFT,
+
+  LBP_AMP = 45,
+
+  LBP_CARET = 40,
+
+  LBP_PIPE = 35,
+
+  LBP_EQUAL = 30,
+  LBP_NOT_EQUAL = LBP_EQUAL,
+  LBP_SMALLER_THAN = LBP_EQUAL,
+  LBP_SMALLER_EQUAL = LBP_EQUAL,
+  LBP_GREATER_THAN = LBP_EQUAL,
+  LBP_GREATER_EQUAL = LBP_EQUAL,
+
+  LBP_LOGICAL_AND = 25,
+
+  LBP_LOGICAL_OR = 20,
+
+  LBP_DOT_DOT = 15,
+  LBP_DOT_DOT_EQ = LBP_DOT_DOT,
+
+  // TODO: note all these assig operators are RIGHT associative!
+  LBP_ASSIG = 10,
+  LBP_PLUS_ASSIG = LBP_ASSIG,
+  LBP_MINUS_ASSIG = LBP_ASSIG,
+  LBP_MULT_ASSIG = LBP_ASSIG,
+  LBP_DIV_ASSIG = LBP_ASSIG,
+  LBP_MOD_ASSIG = LBP_ASSIG,
+  LBP_AMP_ASSIG = LBP_ASSIG,
+  LBP_PIPE_ASSIG = LBP_ASSIG,
+  LBP_CARET_ASSIG = LBP_ASSIG,
+  LBP_L_SHIFT_ASSIG = LBP_ASSIG,
+  LBP_R_SHIFT_ASSIG = LBP_ASSIG,
+
+  // return, break, and closures as lowest priority?
+  LBP_RETURN = 5,
+  LBP_BREAK = LBP_RETURN,
+  LBP_CLOSURE = LBP_RETURN, // unary prefix operators
+
+#if 0
+  // rust precedences
+  // used for closures
+  PREC_CLOSURE = -40,
+  // used for break, continue, return, and yield
+  PREC_JUMP = -30,
+  // used for range (although weird comment in rustc about this)
+  PREC_RANGE = -10,
+  // used for binary operators mentioned below - also cast, colon (type),
+  // assign, assign_op
+  PREC_BINOP = FROM_ASSOC_OP,
+  // used for box, address_of, let, unary (again, weird comment on let)
+  PREC_PREFIX = 50,
+  // used for await, call, method call, field, index, try,
+  // inline asm, macro invocation
+  PREC_POSTFIX = 60,
+  // used for array, repeat, tuple, literal, path, paren, if,
+  // while, for, 'loop', match, block, try block, async, struct
+  PREC_PAREN = 99,
+  PREC_FORCE_PAREN = 100,
+#endif
+
+  // lowest priority
+  LBP_LOWEST = 0
 };
 
 /* HACK: used to resolve the expression-or-statement problem at the end of a
@@ -180,7 +282,8 @@ public:
 			  location_t loc = UNKNOWN_LOCATION);
 
   bool is_macro_rules_def (const_TokenPtr t);
-  std::unique_ptr<AST::Item> parse_item (bool called_from_statement);
+  tl::expected<std::unique_ptr<AST::Item>, Parse::Error::Item>
+  parse_item (bool called_from_statement);
   std::unique_ptr<AST::Pattern> parse_pattern ();
   std::unique_ptr<AST::Pattern> parse_pattern_no_alt ();
 
@@ -202,11 +305,14 @@ public:
   std::unique_ptr<AST::AssociatedItem> parse_trait_impl_item ();
   AST::PathInExpression parse_path_in_expression ();
   std::vector<std::unique_ptr<AST::LifetimeParam>> parse_lifetime_params ();
-  AST::Visibility parse_visibility ();
+  tl::expected<AST::Visibility, Parse::Error::Visibility> parse_visibility ();
   std::unique_ptr<AST::IdentifierPattern> parse_identifier_pattern ();
-  std::unique_ptr<AST::Token> parse_identifier_or_keyword_token ();
-  std::unique_ptr<AST::TokenTree> parse_token_tree ();
-  std::tuple<AST::SimplePath, std::unique_ptr<AST::AttrInput>, location_t>
+  tl::expected<std::unique_ptr<AST::Token>, Parse::Error::Token>
+  parse_identifier_or_keyword_token ();
+  tl::expected<std::unique_ptr<AST::TokenTree>, Parse::Error::TokenTree>
+  parse_token_tree ();
+
+  tl::expected<Parse::AttributeBody, Parse::Error::AttributeBody>
   parse_attribute_body ();
   AST::AttrVec parse_inner_attributes ();
   std::unique_ptr<AST::MacroInvocation>
@@ -232,18 +338,22 @@ private:
   void parse_statement_seq (bool (Parser::*done) ());
 
   // AST-related stuff - maybe move or something?
-  AST::Attribute parse_inner_attribute ();
-  AST::Attribute parse_outer_attribute ();
-  std::unique_ptr<AST::AttrInput> parse_attr_input ();
-  std::tuple<AST::SimplePath, std::unique_ptr<AST::AttrInput>, location_t>
-  parse_doc_comment ();
+  tl::expected<AST::Attribute, Parse::Error::Attribute>
+  parse_inner_attribute ();
+  tl::expected<AST::Attribute, Parse::Error::Attribute>
+  parse_outer_attribute ();
+  tl::expected<std::unique_ptr<AST::AttrInput>, Parse::Error::AttrInput>
+  parse_attr_input ();
+  Parse::AttributeBody parse_doc_comment ();
 
   // Path-related
-  AST::SimplePath parse_simple_path ();
-  AST::SimplePathSegment parse_simple_path_segment (int base_peek = 0);
+  tl::expected<AST::SimplePath, Parse::Error::SimplePath> parse_simple_path ();
+  tl::expected<AST::SimplePathSegment, Parse::Error::SimplePathSegment>
+  parse_simple_path_segment (int base_peek = 0);
   AST::TypePath parse_type_path ();
   std::unique_ptr<AST::TypePathSegment> parse_type_path_segment ();
-  AST::PathIdentSegment parse_path_ident_segment ();
+  tl::expected<AST::PathIdentSegment, Parse::Error::PathIdentSegment>
+  parse_path_ident_segment ();
   tl::optional<AST::GenericArg> parse_generic_arg ();
   AST::GenericArgs parse_path_generic_args ();
   AST::GenericArgsBinding parse_generic_args_binding ();
@@ -260,7 +370,8 @@ private:
   AST::QualifiedPathInType parse_qualified_path_in_type ();
 
   // Token tree or macro related
-  AST::DelimTokenTree parse_delim_token_tree ();
+  tl::expected<AST::DelimTokenTree, Parse::Error::DelimTokenTree>
+  parse_delim_token_tree ();
   std::unique_ptr<AST::MacroRulesDefinition>
   parse_macro_rules_def (AST::AttrVec outer_attrs);
   std::unique_ptr<AST::MacroRulesDefinition>
@@ -742,7 +853,8 @@ public:
 
   // Parse items without parsing an entire crate. This function is the main
   // parsing loop of AST::Crate::parse_crate().
-  std::vector<std::unique_ptr<AST::Item>> parse_items ();
+  tl::expected<std::vector<std::unique_ptr<AST::Item>>, Parse::Error::Items>
+  parse_items ();
 
   // Main entry point for parser.
   std::unique_ptr<AST::Crate> parse_crate ();
