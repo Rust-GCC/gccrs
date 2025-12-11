@@ -48,6 +48,7 @@
 ;; ---- [PRED] Predicate count
 ;;
 ;; == Uniform unary arithmnetic
+;; ---- [FP] General unary arithmetic that maps to unspecs
 ;; ---- [FP] Multi-register unary operations
 ;;
 ;; == Uniform binary arithmnetic
@@ -723,6 +724,34 @@
 ;; =========================================================================
 ;; == Uniform unary arithmnetic
 ;; =========================================================================
+
+;; -------------------------------------------------------------------------
+;; ---- [FP] General unary arithmetic that maps to unspecs
+;; -------------------------------------------------------------------------
+;; Includes:
+;; - FRINT32X (SVE2p2, SME2p2)
+;; - FRINT32Z (SVE2p2, SME2p2)
+;; - FRINT64X (SVE2p2, SME2p2)
+;; - FRINT64Z (SVE2p2, SME2p2)
+;; -------------------------------------------------------------------------
+
+(define_insn "@cond_<frintnzs_op><mode>"
+  [(set (match_operand:SVE_FULL_SDF 0 "register_operand")
+	(unspec:SVE_FULL_SDF
+	  [(match_operand:<VPRED> 1 "register_operand")
+	   (unspec:SVE_FULL_SDF
+	     [(match_operand:SVE_FULL_SDF 2 "register_operand")]
+	     FRINTNZX)
+	   (match_operand:SVE_FULL_SDF 3 "aarch64_simd_reg_or_zero")]
+	  UNSPEC_SEL))]
+  "TARGET_SVE2p2_OR_SME2p2"
+  {@ [ cons: =0 , 1   , 2 , 3  ; attrs: movprfx ]
+     [ w        , Upl , w , 0  ; *   ] <frintnzs_op>\t%0.<SVE_FULL_SDF:Vetype>, %1/m, %2.<SVE_FULL_SDF:Vetype>
+     [ w        , Upl , w , Dz ; *   ] <frintnzs_op>\t%0.<SVE_FULL_SDF:Vetype>, %1/z, %2.<SVE_FULL_SDF:Vetype>
+     [ ?&w      , Upl , w , w  ; yes ] movprfx\t%0, %3\;<frintnzs_op>\t%0.<SVE_FULL_SDF:Vetype>, %1/m, %2.<SVE_FULL_SDF:Vetype>
+  }
+  [(set_attr "sve_type" "sve_fp_cvt")]
+)
 
 ;; -------------------------------------------------------------------------
 ;; ---- [FP] Multi-register unary operations

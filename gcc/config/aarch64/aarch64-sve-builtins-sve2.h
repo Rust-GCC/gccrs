@@ -196,6 +196,10 @@ namespace aarch64_sve
     extern const function_base *const svrax1;
     extern const function_base *const svrevd;
     extern const function_base *const svrhadd;
+    extern const function_base *const svrint32x;
+    extern const function_base *const svrint32z;
+    extern const function_base *const svrint64x;
+    extern const function_base *const svrint64z;
     extern const function_base *const svrshl;
     extern const function_base *const svrshr;
     extern const function_base *const svrshrnb;

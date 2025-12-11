@@ -304,6 +304,10 @@ DEF_SVE_FUNCTION (svcvtlt, unary_convert, cvt_long, z)
 DEF_SVE_FUNCTION (svcvtnt, unary_convert_narrowt, cvt_narrow, z)
 DEF_SVE_FUNCTION (svcvtnt, unary_convert_narrowt, cvt_bfloat, z)
 DEF_SVE_FUNCTION (svcvtxnt, unary_convert_narrowt, cvt_narrow_s, z)
+DEF_SVE_FUNCTION (svrint32x, unary, sd_float, mxz)
+DEF_SVE_FUNCTION (svrint32z, unary, sd_float, mxz)
+DEF_SVE_FUNCTION (svrint64x, unary, sd_float, mxz)
+DEF_SVE_FUNCTION (svrint64z, unary, sd_float, mxz)
 #undef REQUIRED_EXTENSIONS
 
 #define REQUIRED_EXTENSIONS streaming_only (AARCH64_FL_SME2)
