@@ -51,7 +51,12 @@ public:
     return std::unique_ptr<GenericParam> (clone_generic_param_impl ());
   }
 
-  virtual std::string as_string () const = 0;
+  virtual std::string to_string () const = 0;
+
+  std::string to_debug_string () const
+  {
+    return to_string () + mappings.as_string ();
+  }
 
   virtual location_t get_locus () const = 0;
 
@@ -116,7 +121,7 @@ public:
   LifetimeParam (LifetimeParam &&other) = default;
   LifetimeParam &operator= (LifetimeParam &&other) = default;
 
-  std::string as_string () const override;
+  std::string to_string () const override;
 
   void accept_vis (HIRFullVisitor &vis) override;
 
@@ -144,7 +149,7 @@ public:
 
   AST::AttrVec &get_outer_attrs () override { return outer_attrs; }
 
-  std::string as_string () const override final;
+  std::string to_string () const override final;
 
   void accept_vis (HIRFullVisitor &vis) override final;
 

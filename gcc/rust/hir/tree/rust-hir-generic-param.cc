@@ -77,12 +77,12 @@ ConstGenericParam::ConstGenericParam (const ConstGenericParam &other)
 }
 
 std::string
-ConstGenericParam::as_string () const
+ConstGenericParam::to_string () const
 {
-  auto result = "ConstGenericParam: " + name + " : " + type->as_string ();
+  auto result = "ConstGenericParam: " + name + " : " + type->to_string ();
 
   if (default_expression)
-    result += " = " + default_expression->as_string ();
+    result += " = " + default_expression->to_string ();
 
   return result;
 }

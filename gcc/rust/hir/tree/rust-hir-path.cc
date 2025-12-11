@@ -168,7 +168,7 @@ PathInExpression::is_self () const
   if (!is_single_segment ())
     return false;
 
-  return get_final_segment ().get_segment ().as_string ().compare ("self") == 0;
+  return get_final_segment ().get_segment ().to_string ().compare ("self") == 0;
 }
 
 TypePathSegment::TypePathSegment (Analysis::NodeMapping mappings,
