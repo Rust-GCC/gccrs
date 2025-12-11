@@ -10677,6 +10677,165 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
 					 OPTIMIZE_FOR_SPEED))
   (with { tree utype = unsigned_type_for (TREE_TYPE (@0)); }
    (plus (CTZ:type (convert:utype @0)) { build_one_cst (type); }))))
+
+/* To recognize the popcnt pattern for 32-bit from Hacker's Delight
+   int Gia_WordCountOnes32c ( uint32_t uword)
+   {
+   uword = (uword & 0x55555555) + ((uword>>1) & 0x55555555);
+   uword = (uword & 0x33333333) + ((uword>>2) & 0x33333333);
+   uword = (uword & 0x0f0f0f0f) + ((uword>>4) & 0x0f0f0f0f);
+   uword = (uword & 0x00ff00ff) + ((uword>>8) & 0x00ff00ff);
+   return (uword & 0x0000ffff) + (uword>>16);
+   or
+   return (uword & 0x0000ffff) + ((uword>>16) & 0x0000ffff);
+   }
+*/
+
+  (simplify
+     (plus:c
+       (bit_and @step_4 INTEGER_CST@9)
+       (rshift
+	 (plus:c@step4
+	   (bit_and @step3 INTEGER_CST@7)
+	(bit_and
+	   (rshift
+	      (plus:c@step3
+		  (bit_and @step2 INTEGER_CST@5)
+		  (bit_and
+		     (rshift
+			(plus:c@step2
+			   (bit_and @step1 INTEGER_CST@3)
+			   (bit_and
+			      (rshift
+				  (plus:c@step1
+				      (bit_and @0 INTEGER_CST@1)
+				      (bit_and (rshift @0 INTEGER_CST@2) @1))
+				  INTEGER_CST@4)
+			      INTEGER_CST@3))
+			INTEGER_CST@6)
+		     INTEGER_CST@5))
+	      INTEGER_CST@8)
+	   INTEGER_CST@7))
+	 INTEGER_CST@10))
+   (with {
+    unsigned prec = TYPE_PRECISION (type);
+    }
+    (if (prec == 32
+	 && TYPE_UNSIGNED (type)
+	 && compare_tree_int (@2, 1) == 0
+	 && compare_tree_int (@4, 2) == 0
+	 && compare_tree_int (@6, 4) == 0
+	 && compare_tree_int (@8, 8) == 0
+	 && compare_tree_int (@10, 16) == 0
+	 && compare_tree_int (@1, 0x55555555) == 0
+	 && compare_tree_int (@3, 0x33333333) == 0
+	 && compare_tree_int (@5, 0x0F0F0F0F) == 0
+	 && compare_tree_int (@7, 0x00FF00FF) == 0
+	 && compare_tree_int (@9, 0x0000FFFF) == 0)
+       (if (direct_internal_fn_supported_p (IFN_POPCOUNT, type,
+					    OPTIMIZE_FOR_BOTH))
+	(convert (IFN_POPCOUNT:type @0))))))
+
+/* To recognize the popcnt pattern for 32-bit from Hacker's Delight
+   int pop (unsigned x)
+   {
+    x = x - ((x >> 1) & 0x55555555);
+    x = (x & 0x33333333) + ((x >> 2) & 0x33333333);
+    x = (x + (x >> 4)) & 0x0F0F0F0F;
+    x = x + (x >> 8);
+    x = x + (x >> 16);
+    return x & 0x0000003F
+   }
+*/
+(simplify
+ (bit_and
+   (plus
+    (rshift @step4 INTEGER_CST@10)
+     (plus:c@step4
+	(rshift @step3 INTEGER_CST@8)
+	   (bit_and@step3
+	     (plus
+		(rshift @step2 INTEGER_CST@6)
+		   (plus:c@step2
+		      (bit_and @step1 INTEGER_CST@3)
+		      (bit_and
+			  (rshift
+			    (minus@step1
+			     @0
+			     (bit_and (rshift @0 INTEGER_CST@2) INTEGER_CST@1))
+			    INTEGER_CST@4)
+			 INTEGER_CST@3)))
+	     INTEGER_CST@5)))
+   INTEGER_CST@7)
+ (with {
+   unsigned prec = TYPE_PRECISION (type);
+   }
+   (if (prec == 32
+	&& TYPE_UNSIGNED (type)
+	&& compare_tree_int (@2, 1) == 0
+	&& compare_tree_int (@4, 2) == 0
+	&& compare_tree_int (@6, 4) == 0
+	&& compare_tree_int (@8, 8) == 0
+	&& compare_tree_int (@10, 16) == 0
+	&& compare_tree_int (@1, 0x55555555) == 0
+	&& compare_tree_int (@3, 0x33333333) == 0
+	&& compare_tree_int (@5, 0x0F0F0F0F) == 0
+	&& compare_tree_int (@7, 0x0000003F) == 0)
+     (if (direct_internal_fn_supported_p (IFN_POPCOUNT, type,
+					  OPTIMIZE_FOR_BOTH))
+	(convert (IFN_POPCOUNT:type @0))))))
+
+/* To recognize the popcnt pattern for 32-bit from Hacker's Delight
+   int pop (unsigned x)
+   {
+     x = x - ((x >> 1) & 0x55555555);
+     x = x - 3*((x >> 2) & 0x33333333)
+     x = (x + (x >> 4)) & 0x0F0F0F0F;
+     x = x + (x >> 8);
+     x = x + (x >> 16);
+     return x & 0x0000003F;
+   }
+*/
+(simplify
+ (bit_and
+   (plus
+    (rshift @step4 INTEGER_CST@10)
+     (plus:c@step4
+	(rshift @step3 INTEGER_CST@8)
+	   (bit_and@step3
+	      (plus
+		(rshift @step2 INTEGER_CST@6)
+		(minus@step2
+		   @step1
+		   (mult:c
+		      (bit_and
+			(rshift
+			  (minus@step1
+			     @0
+			     (bit_and (rshift @0 INTEGER_CST@2) INTEGER_CST@1))
+			  INTEGER_CST@4)
+			INTEGER_CST@3)
+		      INTEGER_CST@11)))
+	      INTEGER_CST@5)))
+   INTEGER_CST@7)
+ (with {
+   unsigned prec = TYPE_PRECISION (type);
+   }
+   (if (prec == 32
+	&& TYPE_UNSIGNED (type)
+	&& compare_tree_int (@2, 1) == 0
+	&& compare_tree_int (@4, 2) == 0
+	&& compare_tree_int (@6, 4) == 0
+	&& compare_tree_int (@8, 8) == 0
+	&& compare_tree_int (@10, 16) == 0
+	&& compare_tree_int (@11, 3) == 0
+	&& compare_tree_int (@1, 0x55555555) == 0
+	&& compare_tree_int (@3, 0x33333333) == 0
+	&& compare_tree_int (@5, 0x0F0F0F0F) == 0
+	&& compare_tree_int (@5, 0x0F0F0F0F) == 0)
+     (if (direct_internal_fn_supported_p (IFN_POPCOUNT, type,
+					  OPTIMIZE_FOR_BOTH))
+	(convert (IFN_POPCOUNT:type @0))))))
 #endif
 
 (for ffs (FFS)
