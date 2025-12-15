@@ -23,6 +23,7 @@
 --                                                                          --
 ------------------------------------------------------------------------------
 
+with Aspects;        use Aspects;
 with Atree;          use Atree;
 with Casing;         use Casing;
 with Checks;         use Checks;
@@ -145,7 +146,13 @@ package body Exp_Prag is
         or else (Prag_Id = Pragma_Default_Scalar_Storage_Order
                  and then Ignore_Rep_Clauses)
       then
-         Rewrite (N, Make_Null_Statement (Sloc (N)));
+         --  For a pragma specifying an ignored aspect, we want to leave
+         --  the unanalyzed pragma in the tree.
+         if Get_Aspect_Id (Chars (Pragma_Identifier (N)))
+           not in Ignored_Aspects
+         then
+            Rewrite (N, Make_Null_Statement (Sloc (N)));
+         end if;
          return;
       end if;
 

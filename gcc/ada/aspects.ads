@@ -159,6 +159,9 @@ package Aspects is
       Aspect_Super,                         -- GNAT
       Aspect_Suppress,
       Aspect_Synchronization,
+      Aspect_Taint_Sanitizer,               -- GNAT
+      Aspect_Taint_Sink,                    -- GNAT
+      Aspect_Taint_Source,                  -- GNAT
       Aspect_Test_Case,                     -- GNAT
       Aspect_Type_Invariant,
       Aspect_Unimplemented,                 -- GNAT
@@ -281,6 +284,14 @@ package Aspects is
       Aspect_Type_Invariant    => True,
       others                   => False);
 
+   --  Ignored aspects are intended for use by other tools (e.g., CodePeer) and
+   --  should be accepted and then ignored by the compiler.
+   --  Any aspect_definition in an aspect_specification for an ignored aspect
+   --  is parsed but is otherwise ignored (in particular, it is not analyzed).
+
+   subtype Ignored_Aspects is Aspect_Id range
+     Aspect_Taint_Sanitizer .. Aspect_Taint_Source;
+
    --  The following array identifies all implementation defined aspects
 
    Implementation_Defined_Aspect : constant array (Aspect_Id) of Boolean :=
@@ -363,6 +374,7 @@ package Aspects is
       Aspect_Volatile_Full_Access       => True,
       Aspect_Volatile_Function          => True,
       Aspect_Warnings                   => True,
+      Ignored_Aspects                   => True,
       others                            => False);
 
    --  The following array indicates aspects that specify operational
@@ -525,6 +537,7 @@ package Aspects is
       Aspect_Warnings                   => Name,
       Aspect_Write                      => Name,
 
+      Ignored_Aspects                   => Optional_Expression,
       Library_Unit_Aspects              => Optional_Expression,
       Boolean_Aspects                   => Optional_Expression);
 
@@ -633,6 +646,7 @@ package Aspects is
       Aspect_Warnings                     => False,
       Aspect_Write                        => False,
 
+      Ignored_Aspects                     => False,
       Library_Unit_Aspects                => False,
 
       Aspect_Always_Terminates            => False,
@@ -838,6 +852,9 @@ package Aspects is
       Aspect_Suppress                     => Name_Suppress,
       Aspect_Suppress_Debug_Info          => Name_Suppress_Debug_Info,
       Aspect_Suppress_Initialization      => Name_Suppress_Initialization,
+      Aspect_Taint_Sanitizer              => Name_Taint_Sanitizer,
+      Aspect_Taint_Sink                   => Name_Taint_Sink,
+      Aspect_Taint_Source                 => Name_Taint_Source,
       Aspect_Thread_Local_Storage         => Name_Thread_Local_Storage,
       Aspect_Synchronization              => Name_Synchronization,
       Aspect_Test_Case                    => Name_Test_Case,
@@ -1123,6 +1140,7 @@ package Aspects is
       Aspect_Volatile_Function            => Never_Delay,
       Aspect_Warnings                     => Never_Delay,
       Aspect_Yield                        => Never_Delay,
+      Ignored_Aspects                     => Never_Delay,
 
       Aspect_Alignment                    => Rep_Aspect,
       Aspect_Atomic                       => Rep_Aspect,

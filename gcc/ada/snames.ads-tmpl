@@ -171,6 +171,9 @@ package Snames is
    Name_Storage_Model_Type             : constant Name_Id := N + $;
    Name_String_Literal                 : constant Name_Id := N + $;
    Name_Synchronization                : constant Name_Id := N + $;
+   Name_Taint_Sanitizer                : constant Name_Id := N + $;
+   Name_Taint_Sink                     : constant Name_Id := N + $;
+   Name_Taint_Source                   : constant Name_Id := N + $;
    Name_Unimplemented                  : constant Name_Id := N + $;
    Name_User_Aspect                    : constant Name_Id := N + $;
 

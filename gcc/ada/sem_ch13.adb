@@ -5391,6 +5391,10 @@ package body Sem_Ch13 is
                   end if;
                end Super;
 
+               when Ignored_Aspects =>
+                  --  nothing to do
+                  goto Continue;
+
                when Boolean_Aspects
                   | Library_Unit_Aspects
                =>
@@ -12321,6 +12325,7 @@ package body Sem_Ch13 is
             | Aspect_Unimplemented
             | Aspect_Unsuppress
             | Aspect_User_Aspect
+            | Ignored_Aspects
          =>
             raise Program_Error;
 

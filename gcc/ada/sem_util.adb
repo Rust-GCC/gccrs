@@ -29147,7 +29147,8 @@ package body Sem_Util is
                       and then not In_Internal_Unit (N);
 
    begin
-      return Result;
+      return Result
+        or else Get_Aspect_Id (Prag_Name) in Ignored_Aspects;
    end Should_Ignore_Pragma_Sem;
 
    --------------------
