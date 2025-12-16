@@ -374,6 +374,21 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       [[no_unique_address]] stride_type stride{};
     };
 
+  template<typename _FirstType, typename _LastType, typename _StrideType = constant_wrapper<1zu>>
+    struct range_slice
+    {
+      static_assert(__is_signed_or_unsigned_integer<_FirstType>::value
+	|| __detail::__integral_constant_like<_FirstType>);
+      static_assert(__is_signed_or_unsigned_integer<_LastType>::value
+	|| __detail::__integral_constant_like<_LastType>);
+      static_assert(__is_signed_or_unsigned_integer<_StrideType>::value
+	|| __detail::__integral_constant_like<_StrideType>);
+
+      [[no_unique_address]] _FirstType first{};
+      [[no_unique_address]] _LastType last{};
+      [[no_unique_address]] _StrideType stride{};
+    };
+
   template<typename _Mapping>
     struct submdspan_mapping_result
     {
@@ -869,6 +884,13 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     template<typename _OffsetType, typename _ExtentType, typename _StrideType>
       constexpr bool __is_strided_slice<strided_slice<_OffsetType,
 	  _ExtentType, _StrideType>> = true;
+
+    template<typename _Tp>
+      constexpr bool __is_range_slice = false;
+
+    template<typename _FirstType, typename _LastType, typename _StrideType>
+      constexpr bool __is_range_slice<range_slice<_FirstType,
+	  _LastType, _StrideType>> = true;
 
     template<typename _IndexType, typename _OIndexType>
       consteval bool
@@ -3300,6 +3322,17 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 		.stride
 		  = __mdspan::__canonical_index<_IndexType>(std::move(__slice.stride))
 	      };
+	  }
+	else if constexpr (__is_range_slice<_SliceType>)
+	  {
+	    auto __first
+	      = __mdspan::__canonical_index<_IndexType>(std::move(__slice.first));
+	    auto __last
+	      = __mdspan::__canonical_index<_IndexType>(std::move(__slice.last));
+	    auto __stride
+	      = __mdspan::__canonical_index<_IndexType>(std::move(__slice.stride));
+            return __mdspan::__slice_cast<_IndexType>(
+		     strided_slice{__first, __last - __first, __stride});
 	  }
 	else
 	  {

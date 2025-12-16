@@ -1915,6 +1915,7 @@ export namespace std
 #endif
 #if __glibcxx_submdspan
   using std::strided_slice;
+  using std::range_slice;
   using std::full_extent_t;
   using std::full_extent;
   using std::submdspan_mapping_result;
