@@ -328,6 +328,27 @@ package Exp_Util is
    --  operation that has the condition. Adjust_Sloc is True when the sloc of
    --  nodes traversed should be adjusted for the inherited pragma.
 
+   function Build_Component_Assignment
+     (Loc           : Source_Ptr;
+      Prefix        : Entity_Id;
+      Prefix_Type   : Entity_Id;
+      Proc_Id       : Entity_Id;
+      Component_Id  : Entity_Id;
+      Default_Expr  : Node_Id;
+      Is_Incomplete : Boolean := False) return List_Id;
+   --  This helper function is used to build component assignment in
+   --  initialization procedures or constructor prologues. It builds an
+   --  assignment statement that assigns the default expression to its
+   --  corresponding record component, selected with the first formal for
+   --   visibility. The right-hand side of the assignment, cf. the default
+   --  expression, is scoped in the given procedure, the left-hand side is
+   --  marked Assignment_OK so that initialization of limited private records
+   --  works correctly. This routine may also build an adjustment call if the
+   --  component is controlled.
+   --  If Is_Incomplete is true, the entities in the default expression will
+   --  be mapped to the type of the first formal in order to handle "current
+   --  instance" references.
+
    function Build_DIC_Call
      (Loc      : Source_Ptr;
       Obj_Name : Node_Id;

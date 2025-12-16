@@ -1800,6 +1800,133 @@ package body Exp_Util is
       Replace_Condition_Entities (Pragma_Or_Expr);
    end Build_Class_Wide_Expression;
 
+   --------------------------------
+   -- Build_Component_Assignment --
+   --------------------------------
+
+   function Build_Component_Assignment
+     (Loc                : Source_Ptr;
+      Prefix             : Node_Id;
+      Prefix_Type        : Entity_Id;
+      Proc_Id            : Entity_Id;
+      Component_Id       : Entity_Id;
+      Default_Expr       : Node_Id;
+      Is_Incomplete : Boolean := False) return List_Id
+   is
+      Default_Loc : constant Source_Ptr := Sloc (Default_Expr);
+      Typ         : constant Entity_Id :=
+        Underlying_Type (Etype (Component_Id));
+
+      Exp   : Node_Id;
+      Exp_Q : Node_Id;
+      Lhs   : Node_Id;
+      Res   : List_Id;
+
+   begin
+      Lhs :=
+        Make_Selected_Component (Default_Loc,
+          Prefix        => Prefix,
+          Selector_Name => New_Occurrence_Of (Component_Id, Default_Loc));
+      Set_Assignment_OK (Lhs);
+
+      --  Take copy of Default to ensure that later copies of this component
+      --  declaration in derived types see the original tree, not a node
+      --  rewritten during expansion. If the copy contains itypes, the scope of
+      --  the new itypes is the type being built.
+
+      declare
+         Map : Elist_Id := No_Elist;
+
+      begin
+         if Is_Incomplete then
+            --  Map the type to the first formal in order to handle "current
+            --  instance" references.
+
+            Map := New_Elmt_List
+                     (Elmt1 => Prefix_Type,
+                      Elmt2 => Defining_Identifier (First
+                                (Parameter_Specifications
+                                   (Parent (Proc_Id)))));
+
+            --  If the type has an incomplete view, a current instance may have
+            --  an incomplete type. In that case, it must also be replaced by
+            --  the formal of the current procedure.
+
+            if Present (Incomplete_View (Prefix_Type)) then
+               Append_Elmt (
+                 N  => Incomplete_View (Prefix_Type),
+                 To => Map);
+               Append_Elmt (
+                 N  => Defining_Identifier
+                         (First
+                           (Parameter_Specifications
+                             (Parent (Proc_Id)))),
+                 To => Map);
+            end if;
+         end if;
+
+         Exp := New_Copy_Tree (Default_Expr, New_Scope => Proc_Id, Map => Map);
+      end;
+
+      Res := New_List (
+        Make_Assignment_Statement (Loc,
+          Name       => Lhs,
+          Expression => Exp));
+
+      Exp_Q := Unqualify (Exp);
+
+      --  Adjust the component if controlled, except if the expression is an
+      --  aggregate that will be expanded inline (but note that the case of
+      --  container aggregates does require component adjustment), or else a
+      --  function call whose result is adjusted in the called function.
+      --  Note that, when we don't inhibit component adjustment, the tag will
+      --  be automatically inserted by Make_Tag_Ctrl_Assignment in the tagged
+      --  case. Otherwise, we have to generate a tag assignment here.
+
+      if Needs_Finalization (Typ)
+        and then (Nkind (Exp_Q) not in N_Aggregate | N_Extension_Aggregate
+                   or else Is_Container_Aggregate (Exp_Q))
+        and then not Is_Build_In_Place_Function_Call (Exp)
+        and then not (Back_End_Return_Slot
+                       and then Nkind (Exp) = N_Function_Call)
+      then
+         Set_No_Finalize_Actions (First (Res));
+
+      else
+         Set_No_Ctrl_Actions (First (Res));
+
+         --  Adjust the tag if tagged because of possible view conversions
+
+         if Is_Tagged_Type (Typ)
+           and then Tagged_Type_Expansion
+           and then Nkind (Exp_Q) /= N_Raise_Expression
+         then
+            declare
+               Utyp : Entity_Id := Underlying_Type (Typ);
+
+            begin
+               --  Get the relevant type for Make_Tag_Assignment_From_Type,
+               --  which, for concurrent types is the corresponding record.
+
+               if Ekind (Utyp) in E_Protected_Type | E_Task_Type then
+                  Utyp := Corresponding_Record_Type (Utyp);
+               end if;
+
+               Append_To (Res,
+                 Make_Tag_Assignment_From_Type (Default_Loc,
+                   New_Copy_Tree (Lhs, New_Scope => Proc_Id),
+                   Utyp));
+            end;
+         end if;
+      end if;
+
+      return Res;
+
+   exception
+      when RE_Not_Available =>
+         return Empty_List;
+   end Build_Component_Assignment;
+
    --------------------
    -- Build_DIC_Call --
    --------------------

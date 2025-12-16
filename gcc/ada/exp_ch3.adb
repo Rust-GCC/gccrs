@@ -2752,15 +2752,6 @@ package body Exp_Ch3 is
       Init_Control_Formal : Entity_Id := Empty; -- set in Build_Init_Statements
       Has_Late_Init_Comp  : Boolean := False;   -- set in Build_Init_Statements
 
-      function Build_Assignment
-        (Id      : Entity_Id;
-         Default : Node_Id) return List_Id;
-      --  Build an assignment statement that assigns the default expression to
-      --  its corresponding record component if defined. The left-hand side of
-      --  the assignment is marked Assignment_OK so that initialization of
-      --  limited private records works correctly. This routine may also build
-      --  an adjustment call if the component is controlled.
-
       procedure Build_Discriminant_Assignments (Statement_List : List_Id);
       --  If the record has discriminants, add assignment statements to
       --  Statement_List to initialize the discriminant values from the
@@ -2822,127 +2813,6 @@ package body Exp_Ch3 is
       --  Determine whether a record initialization procedure needs to be
       --  generated for the given record type.
 
-      ----------------------
-      -- Build_Assignment --
-      ----------------------
-
-      function Build_Assignment
-        (Id      : Entity_Id;
-         Default : Node_Id) return List_Id
-      is
-         Default_Loc : constant Source_Ptr := Sloc (Default);
-         Typ         : constant Entity_Id  := Underlying_Type (Etype (Id));
-
-         Exp   : Node_Id;
-         Exp_Q : Node_Id;
-         Lhs   : Node_Id;
-         Res   : List_Id;
-
-      begin
-         Lhs :=
-           Make_Selected_Component (Default_Loc,
-             Prefix        => Make_Identifier (Loc, Name_uInit),
-             Selector_Name => New_Occurrence_Of (Id, Default_Loc));
-         Set_Assignment_OK (Lhs);
-
-         --  Take copy of Default to ensure that later copies of this component
-         --  declaration in derived types see the original tree, not a node
-         --  rewritten during expansion of the init_proc. If the copy contains
-         --  itypes, the scope of the new itypes is the init_proc being built.
-
-         declare
-            Map : Elist_Id := No_Elist;
-
-         begin
-            if Has_Late_Init_Comp then
-               --  Map the type to the _Init parameter in order to
-               --  handle "current instance" references.
-
-               Map := New_Elmt_List
-                        (Elmt1 => Rec_Type,
-                         Elmt2 => Defining_Identifier (First
-                                   (Parameter_Specifications
-                                      (Parent (Proc_Id)))));
-
-               --  If the type has an incomplete view, a current instance
-               --  may have an incomplete type. In that case, it must also be
-               --  replaced by the formal of the Init_Proc.
-
-               if Present (Incomplete_View (Rec_Type)) then
-                  Append_Elmt (
-                    N  => Incomplete_View (Rec_Type),
-                    To => Map);
-                  Append_Elmt (
-                    N  => Defining_Identifier
-                            (First
-                              (Parameter_Specifications
-                                (Parent (Proc_Id)))),
-                    To => Map);
-               end if;
-            end if;
-
-            Exp := New_Copy_Tree (Default, New_Scope => Proc_Id, Map => Map);
-         end;
-
-         Res := New_List (
-           Make_Assignment_Statement (Loc,
-             Name       => Lhs,
-             Expression => Exp));
-
-         Exp_Q := Unqualify (Exp);
-
-         --  Adjust the component if controlled, except if the expression is an
-         --  aggregate that will be expanded inline (but note that the case of
-         --  container aggregates does require component adjustment), or else
-         --  a function call whose result is adjusted in the called function.
-         --  Note that, when we don't inhibit component adjustment, the tag
-         --  will be automatically inserted by Make_Tag_Ctrl_Assignment in the
-         --  tagged case. Otherwise, we have to generate a tag assignment here.
-
-         if Needs_Finalization (Typ)
-           and then (Nkind (Exp_Q) not in N_Aggregate | N_Extension_Aggregate
-                      or else Is_Container_Aggregate (Exp_Q))
-           and then not Is_Build_In_Place_Function_Call (Exp)
-           and then not (Back_End_Return_Slot
-                          and then Nkind (Exp) = N_Function_Call)
-         then
-            Set_No_Finalize_Actions (First (Res));
-
-         else
-            Set_No_Ctrl_Actions (First (Res));
-
-            --  Adjust the tag if tagged because of possible view conversions
-
-            if Is_Tagged_Type (Typ)
-              and then Tagged_Type_Expansion
-              and then Nkind (Exp_Q) /= N_Raise_Expression
-            then
-               declare
-                  Utyp : Entity_Id := Underlying_Type (Typ);
-
-               begin
-                  --  Get the relevant type for Make_Tag_Assignment_From_Type,
-                  --  which, for concurrent types is the corresponding record.
-
-                  if Ekind (Utyp) in E_Protected_Type | E_Task_Type then
-                     Utyp := Corresponding_Record_Type (Utyp);
-                  end if;
-
-                  Append_To (Res,
-                    Make_Tag_Assignment_From_Type (Default_Loc,
-                      New_Copy_Tree (Lhs, New_Scope => Proc_Id),
-                      Utyp));
-               end;
-            end if;
-         end if;
-
-         return Res;
-
-      exception
-         when RE_Not_Available =>
-            return Empty_List;
-      end Build_Assignment;
-
       ------------------------------------
       -- Build_Discriminant_Assignments --
       ------------------------------------
@@ -2972,8 +2842,14 @@ package body Exp_Ch3 is
                else
                   D_Loc := Sloc (D);
                   Append_List_To (Statement_List,
-                    Build_Assignment (D,
-                      New_Occurrence_Of (Discriminal (D), D_Loc)));
+                    Build_Component_Assignment (Loc,
+                      Prefix        => Make_Identifier (Loc, Name_uInit),
+                      Prefix_Type   => Rec_Type,
+                      Proc_Id       => Proc_Id,
+                      Component_Id  => D,
+                      Default_Expr  =>
+                        New_Occurrence_Of (Discriminal (D), D_Loc),
+                      Is_Incomplete => Has_Late_Init_Comp));
                end if;
 
                Next_Discriminant (D);
@@ -4000,7 +3876,14 @@ package body Exp_Ch3 is
                           Discr_Map       => Discr_Map,
                           Constructor_Ref => Expression (Decl));
                   else
-                     Actions := Build_Assignment (Id, Expression (Decl));
+                     Actions :=
+                       Build_Component_Assignment (Loc,
+                         Prefix        => Make_Identifier (Loc, Name_uInit),
+                         Prefix_Type   => Rec_Type,
+                         Proc_Id       => Proc_Id,
+                         Component_Id  => Id,
+                         Default_Expr  => Expression (Decl),
+                         Is_Incomplete => Has_Late_Init_Comp);
                   end if;
 
                --  Expand components with constructors to have the 'Make
@@ -4016,7 +3899,14 @@ package body Exp_Ch3 is
                         Subtype_Indication
                           (Component_Definition (Decl))));
                   Analyze (Expression (Decl));
-                  Actions := Build_Assignment (Id, Expression (Decl));
+                  Actions :=
+                    Build_Component_Assignment (Loc,
+                      Prefix        => Make_Identifier (Loc, Name_uInit),
+                      Prefix_Type   => Rec_Type,
+                      Proc_Id       => Proc_Id,
+                      Component_Id  => Id,
+                      Default_Expr  => Expression (Decl),
+                      Is_Incomplete => Has_Late_Init_Comp);
 
                --  CPU, Dispatching_Domain, Priority, and Secondary_Stack_Size
                --  components are filled in with the corresponding rep-item
@@ -4113,7 +4003,14 @@ package body Exp_Ch3 is
                            Exp := Convert_To (RTE (RE_Size_Type), Exp);
                         end if;
 
-                        Actions := Build_Assignment (Id, Exp);
+                        Actions :=
+                          Build_Component_Assignment (Loc,
+                            Prefix        => Make_Identifier (Loc, Name_uInit),
+                            Prefix_Type   => Rec_Type,
+                            Proc_Id       => Proc_Id,
+                            Component_Id  => Id,
+                            Default_Expr  => Exp,
+                            Is_Incomplete => Has_Late_Init_Comp);
 
                      --  Nothing needed if no Rep Item
 
@@ -4194,15 +4091,19 @@ package body Exp_Ch3 is
 
                elsif Component_Needs_Simple_Initialization (Typ) then
                   Actions :=
-                    Build_Assignment
-                      (Id      => Id,
-                       Default =>
-                         Get_Simple_Init_Val
-                           (Typ  => Typ,
-                            N    => N,
-                            Size =>
-                              (if Known_Esize (Id) then Esize (Id)
-                               else Uint_0)));
+                    Build_Component_Assignment (Loc,
+                      Prefix        => Make_Identifier (Loc, Name_uInit),
+                      Prefix_Type   => Rec_Type,
+                      Proc_Id       => Proc_Id,
+                      Component_Id  => Id,
+                      Default_Expr  =>
+                        Get_Simple_Init_Val
+                          (Typ  => Typ,
+                           N    => N,
+                           Size =>
+                             (if Known_Esize (Id) then Esize (Id)
+                              else Uint_0)),
+                      Is_Incomplete => Has_Late_Init_Comp);
 
                --  Nothing needed for this case
 
@@ -4408,7 +4309,13 @@ package body Exp_Ch3 is
                then
                   if Present (Expression (Decl)) then
                      Append_List_To (Late_Stmts,
-                       Build_Assignment (Id, Expression (Decl)));
+                       Build_Component_Assignment (Loc,
+                         Prefix        => Make_Identifier (Loc, Name_uInit),
+                         Prefix_Type   => Rec_Type,
+                         Proc_Id       => Proc_Id,
+                         Component_Id  => Id,
+                         Default_Expr  => Expression (Decl),
+                         Is_Incomplete => Has_Late_Init_Comp));
 
                   elsif Has_Non_Null_Base_Init_Proc (Typ) then
                      Append_List_To (Late_Stmts,
@@ -4435,13 +4342,17 @@ package body Exp_Ch3 is
                      end if;
                   elsif Component_Needs_Simple_Initialization (Typ) then
                      Append_List_To (Late_Stmts,
-                       Build_Assignment
-                         (Id      => Id,
-                          Default =>
-                            Get_Simple_Init_Val
-                              (Typ  => Typ,
-                               N    => N,
-                               Size => Esize (Id))));
+                       Build_Component_Assignment (Loc,
+                         Prefix        => Make_Identifier (Loc, Name_uInit),
+                         Prefix_Type   => Rec_Type,
+                         Proc_Id       => Proc_Id,
+                         Component_Id  => Id,
+                         Default_Expr  =>
+                           Get_Simple_Init_Val
+                             (Typ  => Typ,
+                              N    => N,
+                              Size => Esize (Id)),
+                         Is_Incomplete => Has_Late_Init_Comp));
                   end if;
                end if;
 

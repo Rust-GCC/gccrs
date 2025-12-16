@@ -6500,7 +6500,13 @@ package body Exp_Ch6 is
 
          begin
             while Present (Component) loop
-               pragma Assert (Ekind (Component) = E_Component);
+
+               --  Skip if not a component, this may happen when initialization
+               --  expressions contain strings.
+
+               if Ekind (Component) /= E_Component then
+                  goto Next_Component;
+               end if;
 
                if Chars (Component) = Name_uTag then
                   null;
@@ -6528,28 +6534,16 @@ package body Exp_Ch6 is
                      --  specification or as part of the component declaration.
 
                      if Present (Maybe_Init_Exp) then
-                        --  ??? Should reorganize things so that
-                        --  procedure Build_Assignment in exp_ch3.adb
-                        --  (which is currently declared inside of
-                        --  Build_Record_Init_Proc) can be called from here.
-                        --  That procedure handles some corner cases
-                        --  that are not properly handled here (e.g.,
-                        --  mapping current instance references to the
-                        --  appropriate formal parameter).
-
-                        if Is_Tagged_Type (Etype (Component)) then
-                           Append_To (Init_List,
-                             Make_Tag_Assignment_From_Type (Loc,
-                               Target => Make_Component_Name,
-                               Typ => Etype (Component)));
-                        end if;
-
-                        Append_To (Init_List,
-                          Make_Assignment_Statement (Loc,
-                            Name       => Make_Component_Name,
-                            Expression => New_Copy_Tree
-                                            (Maybe_Init_Exp,
-                                             New_Scope => Body_Id)));
+                        Append_List_To (Init_List,
+                          Build_Component_Assignment (Loc,
+                            Prefix       =>
+                              New_Occurrence_Of (First_Formal (Spec_Id), Loc),
+                            Prefix_Type  => First_Param_Type,
+                            Proc_Id      => Body_Id,
+                            Component_Id => Component,
+                            Default_Expr => New_Copy_Tree
+                                              (Maybe_Init_Exp,
+                                               New_Scope => Body_Id)));
 
                      --  Handle case where component's type has an init proc
                      elsif Has_Non_Null_Base_Init_Proc (Etype (Component)) then
@@ -6563,6 +6557,7 @@ package body Exp_Ch6 is
                   end;
                end if;
 
+               <<Next_Component>>
                Next_Entity (Component);
             end loop;
 

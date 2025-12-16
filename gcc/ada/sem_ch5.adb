@@ -674,13 +674,13 @@ package body Sem_Ch5 is
       --  Error of assigning to limited type. We do however allow this in
       --  certain cases where the front end generates the assignments.
       --  Comes_From_Source test is needed to allow compiler-generated
-      --  constructor calls or streaming/put_image subprograms, which may
-      --  ignore privacy.
+      --  streaming/put_image subprograms, which may ignore privacy.
 
       elsif Is_Limited_Type (T1)
         and then not Assignment_OK (Lhs)
         and then not Assignment_OK (Original_Node (Lhs))
-        and then Comes_From_Source (N)
+        and then (Comes_From_Source (N)
+                   or else Is_Immutably_Limited_Type (T1))
       then
          --  CPP constructors can only be called in declarations
 
