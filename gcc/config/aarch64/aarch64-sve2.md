@@ -46,6 +46,7 @@
 ;; ---- [PRED] Predicate extraction
 ;; ---- [PRED] Predicate selection
 ;; ---- [PRED] Predicate count
+;; ---- [PRED] Predicate first/last true element
 ;;
 ;; == Uniform unary arithmnetic
 ;; ---- [FP] General unary arithmetic that maps to unspecs
@@ -718,6 +719,38 @@
 	  UNSPEC_CNTP_C))]
   "TARGET_SVE2p1_OR_SME2"
   "cntp\t%x0, %K1.<bits_etype>, vlx%2"
+  [(set_attr "sve_type" "sve_pred_cnt_scalar")]
+)
+
+;; -------------------------------------------------------------------------
+;; ---- [PRED] Predicate first/last true element
+;; -------------------------------------------------------------------------
+;; Includes
+;; - FIRSTP (predicate first true element) (SVE2p2, SME2p2)
+;; - LASTP (predicate last true element) (SVE2p2, SME2p2)
+;; -------------------------------------------------------------------------
+
+;; Count the number of set bits in a predicate.  Operand 3 is true if
+;; operand 1 is known to be all-true.
+(define_insn "@aarch64_pred_firstp<mode>"
+  [(set (match_operand:DI 0 "register_operand" "=r")
+	(unspec:DI [(match_operand:PRED_ALL 1 "register_operand" "Upl")
+		    (match_operand:PRED_ALL 2 "register_operand" "Upa")]
+		    UNSPEC_FIRSTP))]
+  "TARGET_SVE2p2_OR_SME2p2"
+  "firstp\t%x0, %1, %2.<Vetype>"
+  [(set_attr "sve_type" "sve_pred_cnt_scalar")]
+)
+
+;; Count the number of set bits in a predicate.  Operand 3 is true if
+;; operand 1 is known to be all-true.
+(define_insn "@aarch64_pred_lastp<mode>"
+  [(set (match_operand:DI 0 "register_operand" "=r")
+	(unspec:DI [(match_operand:PRED_ALL 1 "register_operand" "Upl")
+		    (match_operand:PRED_ALL 2 "register_operand" "Upa")]
+		    UNSPEC_LASTP))]
+  "TARGET_SVE2p2_OR_SME2p2"
+  "lastp\t%x0, %1, %2.<Vetype>"
   [(set_attr "sve_type" "sve_pred_cnt_scalar")]
 )
 

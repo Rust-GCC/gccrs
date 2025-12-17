@@ -291,6 +291,65 @@ public:
   }
 };
 
+class svfirst_lastp_impl : public function_base
+{
+public:
+  CONSTEXPR svfirst_lastp_impl (bool first)
+    : m_first (first)
+  {}
+
+  gimple *
+  fold (gimple_folder &f) const override
+  {
+    tree pg = gimple_call_arg (f.call, 0);
+    tree pn = gimple_call_arg (f.call, 1);
+
+    gcc_assert (TYPE_MODE (TREE_TYPE (pg)) == TYPE_MODE (TREE_TYPE (pn)));
+
+    if (is_pfalse (pg) || is_pfalse (pn))
+      return f.fold_call_to (build_minus_one_cst (TREE_TYPE (f.lhs)));
+
+    if (TREE_CODE (pg) != VECTOR_CST
+	|| TREE_CODE (pn) != VECTOR_CST)
+      return NULL;
+
+    HOST_WIDE_INT nelts_full_vector = aarch64_fold_sve_cnt_pat (AARCH64_SV_ALL,
+						      f.elements_per_vq (0));
+    if (!m_first && nelts_full_vector < 0)
+      return NULL;
+
+    tree pa = fold_build2 (BIT_AND_EXPR, TREE_TYPE (pg), pg, pn);
+    gcc_assert (TREE_CODE (pa) == VECTOR_CST);
+
+    int elt_size = f.type_suffix (0).element_bytes;
+    unsigned int nelts = vector_cst_encoded_nelts (pa);
+    for (unsigned int i = 0; i < nelts; i++)
+      {
+	unsigned int idx = m_first ? i : nelts - 1 - i;
+	if (tree_to_shwi (VECTOR_CST_ENCODED_ELT (pa, idx)) != 0)
+	  return f.fold_call_to (build_int_cst (TREE_TYPE (f.lhs),
+						m_first
+						? i / elt_size
+						: (nelts_full_vector - 1
+						   - i / elt_size)));
+      }
+
+    return f.fold_call_to (build_minus_one_cst (TREE_TYPE (f.lhs)));
+  }
+
+  rtx
+  expand (function_expander &e) const override
+  {
+    machine_mode mode = e.vector_mode (0);
+    return e.use_exact_insn (m_first ? code_for_aarch64_pred_firstp (mode)
+				     : code_for_aarch64_pred_lastp (mode));
+  }
+
+private:
+  /* True for svfirstp, false for svlastp.  */
+  bool m_first;
+};
+
 class svld1q_gather_impl : public full_width_access
 {
 public:
@@ -1023,12 +1082,14 @@ FUNCTION (sveorbt, unspec_based_function, (UNSPEC_EORBT, UNSPEC_EORBT, -1))
 FUNCTION (sveorqv, reduction, (UNSPEC_EORQV, UNSPEC_EORQV, -1))
 FUNCTION (sveortb, unspec_based_function, (UNSPEC_EORTB, UNSPEC_EORTB, -1))
 FUNCTION (svextq, svextq_impl,)
+FUNCTION (svfirstp, svfirst_lastp_impl, (true))
 FUNCTION (svhadd, unspec_based_function, (UNSPEC_SHADD, UNSPEC_UHADD, -1))
 FUNCTION (svhsub, unspec_based_function, (UNSPEC_SHSUB, UNSPEC_UHSUB, -1))
 FUNCTION (svhistcnt, CODE_FOR_MODE0 (aarch64_sve2_histcnt),)
 FUNCTION (svhistseg, CODE_FOR_MODE0 (aarch64_sve2_histseg),)
 FUNCTION (svhsubr, unspec_based_function_rotated, (UNSPEC_SHSUB,
 						   UNSPEC_UHSUB, -1))
+FUNCTION (svlastp, svfirst_lastp_impl, (false))
 FUNCTION (svld1q_gather, svld1q_gather_impl,)
 FUNCTION (svld1udq, svld1uxq_impl, (VNx1DImode))
 FUNCTION (svld1uwq, svld1uxq_impl, (VNx1SImode))
