@@ -560,23 +560,65 @@ public:
 	  if (resolved_nodes.find (Usage (seg_id)) == resolved_nodes.end ())
 	    map_usage (Usage (seg_id), Definition (id));
 	};
+
+    tl::optional<Rib::Definition> resolved = tl::nullopt;
+
     switch (ns)
       {
       case Namespace::Values:
-	return values.resolve_path (segments, mode, insert_segment_resolution,
-				    collect_errors);
+	resolved
+	  = values.resolve_path (segments, mode, insert_segment_resolution,
+				 collect_errors);
+	break;
       case Namespace::Types:
-	return types.resolve_path (segments, mode, insert_segment_resolution,
-				   collect_errors);
+	resolved
+	  = types.resolve_path (segments, mode, insert_segment_resolution,
+				collect_errors);
+	break;
       case Namespace::Macros:
-	return macros.resolve_path (segments, mode, insert_segment_resolution,
-				    collect_errors);
+	resolved
+	  = macros.resolve_path (segments, mode, insert_segment_resolution,
+				 collect_errors);
+	break;
       case Namespace::Labels:
-	return labels.resolve_path (segments, mode, insert_segment_resolution,
-				    collect_errors);
+	resolved
+	  = labels.resolve_path (segments, mode, insert_segment_resolution,
+				 collect_errors);
+	break;
       default:
 	rust_unreachable ();
       }
+
+    // If it fails, switch to std prelude resolution if it exists
+    if (prelude && !resolved)
+      {
+	std::vector<Error> ignore_errors = {};
+
+	// TODO: Factor this with the above
+	switch (ns)
+	  {
+	  case Namespace::Values:
+	    return values.resolve_path (segments, mode,
+					insert_segment_resolution,
+					ignore_errors, *prelude);
+	  case Namespace::Types:
+	    return types.resolve_path (segments, mode,
+				       insert_segment_resolution, ignore_errors,
+				       *prelude);
+	  case Namespace::Macros:
+	    return macros.resolve_path (segments, mode,
+					insert_segment_resolution,
+					ignore_errors, *prelude);
+	  case Namespace::Labels:
+	    return labels.resolve_path (segments, mode,
+					insert_segment_resolution,
+					ignore_errors, *prelude);
+	  default:
+	    rust_unreachable ();
+	  }
+      }
+
+    return resolved;
   }
 
   template <typename S, typename... Args>
@@ -675,6 +717,9 @@ public:
 			 path.has_opening_scope_resolution_op (),
 			 std::forward<Args> (args)...);
   }
+
+  /* If declared with #[prelude_import], the current standard library module */
+  tl::optional<NodeId> prelude;
 
 private:
   /* Map of "usage" nodes which have been resolved to a "definition" node */
