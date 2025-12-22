@@ -18,15 +18,14 @@ macro x(
     }
 
     pub macro $type_name {
-                (Copy $e:expr) => {},
-                (check_fields) => {test_fields!(check_fields);},
-
-            }
+        (Copy $e:expr) => {},
+        (check_fields) => {test_fields!(check_fields);},
+    }
 }
 
 x!(test_fields, test_fields2, x, field, MY_CONST);
 
 pub fn check_fields_local() {
-    test_fields!(check_fields); // { dg-error "Failed to match any rule within macro" }
+    test_fields!(check_fields);
     test_fields2!(check_fields); // { dg-error "could not resolve macro invocation" }
 }
