@@ -1293,7 +1293,7 @@ emit_ambiguous_resolution_error (HIR::MethodCallExpr &expr,
 {
   rich_location r (line_table, expr.get_method_name ().get_locus ());
   std::string rich_msg = "multiple "
-			 + expr.get_method_name ().get_segment ().as_string ()
+			 + expr.get_method_name ().get_segment ().to_string ()
 			 + " found";
 
   // We have to filter out default candidates
@@ -1304,7 +1304,7 @@ emit_ambiguous_resolution_error (HIR::MethodCallExpr &expr,
   r.add_fixit_replace (rich_msg.c_str ());
 
   rust_error_at (r, ErrorCode::E0592, "duplicate definitions with name %qs",
-		 expr.get_method_name ().get_segment ().as_string ().c_str ());
+		 expr.get_method_name ().get_segment ().to_string ().c_str ());
 }
 
 // We are allowed to have multiple candidates if they are all specializable
@@ -1380,7 +1380,7 @@ TypeCheckExpr::visit (HIR::MethodCallExpr &expr)
       rust_error_at (
 	richloc, ErrorCode::E0599,
 	"no method named %qs found in the current scope",
-	expr.get_method_name ().get_segment ().as_string ().c_str ());
+	expr.get_method_name ().get_segment ().to_string ().c_str ());
       return;
     }
 
@@ -1550,18 +1550,25 @@ void
 TypeCheckExpr::visit (HIR::WhileLoopExpr &expr)
 {
   context->push_new_while_loop_context (expr.get_mappings ().get_hirid ());
-
-  TypeCheckExpr::Resolve (expr.get_predicate_expr ());
+  TyTy::BaseType *predicate_type
+    = TypeCheckExpr::Resolve (expr.get_predicate_expr ());
+  if (predicate_type->get_kind () != TyTy::TypeKind::BOOL
+      && predicate_type->get_kind () != TyTy::TypeKind::NEVER)
+    {
+      rust_error_at (expr.get_predicate_expr ().get_locus (),
+		     "expected boolean expression in %<while%> condition");
+      context->pop_loop_context ();
+      return;
+    }
   TyTy::BaseType *block_expr = TypeCheckExpr::Resolve (expr.get_loop_block ());
-
   if (!block_expr->is_unit ())
     {
       rust_error_at (expr.get_loop_block ().get_locus (),
 		     "expected %<()%> got %s",
 		     block_expr->as_string ().c_str ());
+      context->pop_loop_context ();
       return;
     }
-
   context->pop_loop_context ();
   infered = TyTy::TupleType::get_unit_type ();
 }
@@ -1611,7 +1618,6 @@ TypeCheckExpr::visit (HIR::ContinueExpr &expr)
 		     "%<continue%> outside of a loop");
       return;
     }
-
   infered = new TyTy::NeverType (expr.get_mappings ().get_hirid ());
 }
 
@@ -2253,7 +2259,7 @@ TypeCheckExpr::resolve_fn_trait_call (HIR::CallExpr &expr,
 
       rust_error_at (
 	r, "multiple candidates found for function trait method call %qs",
-	method_name.as_string ().c_str ());
+	method_name.to_string ().c_str ());
       return false;
     }
 
