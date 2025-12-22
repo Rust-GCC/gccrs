@@ -2890,6 +2890,20 @@
   [(set_attr "sve_type" "sve_int_general")]
 )
 
+;; Initialize an SVE vector by duplicating a 128-bit AdvSIMD register that
+;; itself contains a duplicated scalar or subvector value.
+(define_insn "*aarch64_vec_duplicate_subvector<vconsv><vconq><mode>"
+  [(set (match_operand:<VCONSV> 0 "register_operand")
+	(vec_duplicate:<VCONSV>
+	  (vec_duplicate:<VCONQ>
+	    (match_operand:VQDUP 1 "register_operand"))))]
+  "TARGET_SVE"
+  {@ [ cons: =0 , 1 ]
+     [ w        , r ] mov\t%0.<single_type>, %<single_wx>1
+     [ w        , w ] mov\t%0.<single_type>, %<single_type>1
+  }
+)
+
 ;; This is used for vec_duplicate<mode>s from memory, but can also
 ;; be used by combine to optimize selects of a vec_duplicate<mode>
 ;; with zero.

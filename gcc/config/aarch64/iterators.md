@@ -1995,6 +1995,30 @@
 			 (HI   "v8hi") (QI   "v16qi")
 			 (SF   "v4sf") (DF   "v2df")])
 
+;; SVE container modes for duplication into a full SVE register.
+(define_mode_attr VCONSV [(V8QI "VNx16QI") (V4QI "VNx16QI")
+			  (V2QI "VNx16QI") (QI "VNx16QI")
+			  (V4HI "VNx8HI") (V2HI "VNx8HI")
+			  (HI "VNx8HI") (V2SI "VNx4SI")
+			  (SI "VNx4SI") (DI "VNx2DI")
+			  (V4BF "VNx8BF") (V2BF "VNx8BF")
+			  (BF "VNx8BF") (V4HF "VNx8HF")
+			  (V2HF "VNx8HF") (HF "VNx8HF")
+			  (V2SF "VNx4SF") (SF "VNx4SF")
+			  (DF "VNx2DF")])
+
+;; Same as above, but in lowercase.
+(define_mode_attr vconsv [(V8QI "vnx16qi") (V4QI "vnx16qi")
+			  (V2QI "vnx16qi") (QI "vnx16qi")
+			  (V4HI "vnx8hi") (V2HI "vnx8hi")
+			  (HI "vnx8hi") (V2SI "vnx4si")
+			  (SI "vnx4si") (DI "vnx2di")
+			  (V4BF "vnx8bf") (V2BF "vnx8bf")
+			  (BF "vnx8bf") (V4HF "vnx8hf")
+			  (V2HF "vnx8hf") (HF "vnx8hf")
+			  (V2SF "vnx4sf") (SF "vnx4sf")
+			  (DF "vnx2df")])
+
 ;; Half modes of all vector modes.
 (define_mode_attr VHALF [(V8QI "V4QI")  (V16QI "V8QI")
 			 (V4HI "V2HI")  (V8HI  "V4HI")
