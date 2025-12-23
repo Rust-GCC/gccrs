@@ -1203,10 +1203,7 @@ package body Exp_Disp is
          Set_SCIL_Node (SCIL_Related_Node, SCIL_Node);
       end if;
 
-      --  Suppress all checks during the analysis of the expanded code to avoid
-      --  the generation of spurious warnings under ZFP run-time.
-
-      Analyze_And_Resolve (Call_Node, Call_Typ, Suppress => All_Checks);
+      Analyze_And_Resolve (Call_Node, Call_Typ);
 
       Set_Is_Expanded_Dispatching_Call (Call_Node);
    end Expand_Dispatching_Call;
