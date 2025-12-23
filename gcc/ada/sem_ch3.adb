@@ -10454,6 +10454,12 @@ package body Sem_Ch3 is
       if Is_Tagged_Type (Derived_Type) then
          Set_No_Tagged_Streams_Pragma
            (Derived_Type, No_Tagged_Streams_Pragma (Parent_Type));
+
+         --  Propagate information about constructor dependence from parent
+
+         Set_Needs_Construction
+           (Derived_Type,
+            Needs_Construction (Parent_Type));
       end if;
 
       --  If the parent has primitive routines and may have not-seen-yet aspect
@@ -23473,14 +23479,6 @@ package body Sem_Ch3 is
          end if;
 
          Propagate_Concurrent_Flags (T, Etype (Component));
-
-         --  Propagate information about constructor dependence
-
-         if Ekind (Etype (Component)) /= E_Void
-           and then Needs_Construction (Etype (Component))
-         then
-            Set_Needs_Construction (T);
-         end if;
 
          if Ekind (Component) /= E_Component then
             null;
