@@ -20,11 +20,11 @@
 #include "expected.h"
 #include "rust-ast-fragment.h"
 #include "rust-hir-map.h"
-#include "rust-item.h"
-#include "rust-stmt.h"
 #include "rust-proc-macro.h"
 #include "rust-attributes.h"
 #include "rust-ast.h"
+#include "rust-item.h"
+#include "rust-stmt.h"
 #include "rust-type.h"
 #include "rust-derive.h"
 
@@ -53,11 +53,7 @@ enum VectorExpandError
   EmptyDeriveResult,
 };
 
-template <typename T>
-using VectorExpandResult
-  = tl::expected<std::vector<std::unique_ptr<T>>, VectorExpandError>;
-
-static VectorExpandResult<AST::Item>
+static tl::expected<std::vector<std::unique_ptr<AST::Item>>, VectorExpandError>
 builtin_derive_item (AST::Item &item, const AST::Attribute &derive,
 		     BuiltinMacro to_derive)
 {
@@ -72,7 +68,7 @@ builtin_derive_item (AST::Item &item, const AST::Attribute &derive,
   return items;
 }
 
-static VectorExpandResult<AST::Item>
+static tl::expected<std::vector<std::unique_ptr<AST::Item>>, VectorExpandError>
 derive_item (AST::Item &item, AST::SimplePath &to_derive,
 	     MacroExpander &expander)
 {
@@ -99,7 +95,7 @@ derive_item (AST::Item &item, AST::SimplePath &to_derive,
   return result;
 }
 
-static VectorExpandResult<AST::Item>
+static tl::expected<std::vector<std::unique_ptr<AST::Item>>, VectorExpandError>
 expand_item_attribute (AST::Item &item, AST::SimplePath &name,
 		       MacroExpander &expander)
 {
@@ -130,7 +126,7 @@ expand_item_attribute (AST::Item &item, AST::SimplePath &name,
  * attributes.
  */
 template <typename T>
-static VectorExpandResult<AST::Stmt>
+static tl::expected<std::vector<std::unique_ptr<AST::Stmt>>, VectorExpandError>
 expand_stmt_attribute (T &statement, AST::SimplePath &attribute,
 		       MacroExpander &expander)
 {
