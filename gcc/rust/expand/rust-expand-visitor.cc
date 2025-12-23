@@ -49,6 +49,7 @@ ExpandVisitor::go (AST::Crate &crate)
 enum VectorExpandError
 {
   FragmentError,
+  EmptyDeriveResult,
 };
 
 template <typename T>
@@ -60,8 +61,13 @@ builtin_derive_item (AST::Item &item, const AST::Attribute &derive,
 		     BuiltinMacro to_derive)
 {
   auto items = AST::DeriveVisitor::derive (item, derive, to_derive);
+
+  if (items.empty ())
+    return tl::make_unexpected (VectorExpandError::EmptyDeriveResult);
+
   for (auto &item : items)
     Analysis::Mappings::get ().add_derived_node (item->get_node_id ());
+
   return items;
 }
 
