@@ -21,6 +21,7 @@
 #include "rust-ast-fragment.h"
 #include "rust-hir-map.h"
 #include "rust-item.h"
+#include "rust-stmt.h"
 #include "rust-proc-macro.h"
 #include "rust-attributes.h"
 #include "rust-ast.h"
