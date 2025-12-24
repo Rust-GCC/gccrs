@@ -1613,7 +1613,8 @@ package body Sem_Warn is
                         if not Has_Discriminants (Etype (E1))
                           and then
                             Is_Partially_Initialized_Type
-                              (Etype (Parent (UR)), False)
+                              (Typ              => Etype (Parent (UR)),
+                               Include_Implicit => False)
                         then
                            goto Continue;
                         end if;

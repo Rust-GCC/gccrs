@@ -143,11 +143,9 @@ package body Sem_Util is
    --  Shared function used to detect effectively volatile objects and
    --  effectively volatile objects for reading.
 
-   function Is_Fully_Initialized_Variant (Typ : Entity_Id) return Boolean;
-   --  Subsidiary to Is_Fully_Initialized_Type. For an unconstrained type
-   --  with discriminants whose default values are static, examine only the
-   --  components in the selected variant to determine whether all of them
-   --  have a default.
+   function Is_Fully_Initialized_Constrained_Array
+     (Typ : Entity_Id) return Boolean;
+   --  Determines if Typ is a fully initialized constrained array type
 
    function Is_Preelaborable_Function (Id : Entity_Id) return Boolean;
    --  Ada 2022: Determine whether the specified function is suitable as the
@@ -18299,87 +18297,25 @@ package body Sem_Util is
    -------------------------------
 
    function Is_Fully_Initialized_Type (Typ : Entity_Id) return Boolean is
-   begin
-      --  Scalar types
 
-      if Is_Scalar_Type (Typ) then
+      function Is_Fully_Initialized_Record_Type
+        (Typ : Entity_Id) return Boolean;
+      --  Determines if record type Typ is fully initialized
 
-         --  A scalar type with an aspect Default_Value is fully initialized
+      function Is_Fully_Initialized_Variant
+        (Typ : Entity_Id) return Boolean;
+      --  Used when checking full type initialization. For an unconstrained
+      --  type with discriminants whose default values are static, examine only
+      --  the components in the selected variant to determine whether all of
+      --  them have a default.
 
-         --  Note: Iniitalize/Normalize_Scalars also ensure full initialization
-         --  of a scalar type, but we don't take that into account here, since
-         --  we don't want these to affect warnings.
+      --------------------------------------
+      -- Is_Fully_Initialized_Record_Type --
+      --------------------------------------
 
-         return Has_Default_Aspect (Typ);
-
-      elsif Is_Access_Type (Typ) then
-         return True;
-
-      elsif Is_Array_Type (Typ) then
-         if Is_Fully_Initialized_Type (Component_Type (Typ))
-           or else (Ada_Version >= Ada_2012 and then Has_Default_Aspect (Typ))
-         then
-            return True;
-         end if;
-
-         --  An interesting case, if we have a constrained type one of whose
-         --  bounds is known to be null, then there are no elements to be
-         --  initialized, so all the elements are initialized.
-
-         if Is_Constrained (Typ) then
-            declare
-               Indx     : Node_Id;
-               Indx_Typ : Entity_Id;
-               Lbd, Hbd : Node_Id;
-
-            begin
-               Indx := First_Index (Typ);
-               while Present (Indx) loop
-                  if Etype (Indx) = Any_Type then
-                     return False;
-
-                  --  If index is a range, use directly
-
-                  elsif Nkind (Indx) = N_Range then
-                     Lbd := Low_Bound  (Indx);
-                     Hbd := High_Bound (Indx);
-
-                  else
-                     Indx_Typ := Etype (Indx);
-
-                     if Is_Private_Type (Indx_Typ) then
-                        Indx_Typ := Full_View (Indx_Typ);
-                     end if;
-
-                     if No (Indx_Typ) or else Etype (Indx_Typ) = Any_Type then
-                        return False;
-                     else
-                        Lbd := Type_Low_Bound  (Indx_Typ);
-                        Hbd := Type_High_Bound (Indx_Typ);
-                     end if;
-                  end if;
-
-                  if Compile_Time_Known_Value (Lbd)
-                       and then
-                     Compile_Time_Known_Value (Hbd)
-                  then
-                     if Expr_Value (Hbd) < Expr_Value (Lbd) then
-                        return True;
-                     end if;
-                  end if;
-
-                  Next_Index (Indx);
-               end loop;
-            end;
-         end if;
-
-         --  If no null indexes, then type is not fully initialized
-
-         return False;
-
-      --  Record types
-
-      elsif Is_Record_Type (Typ) then
+      function Is_Fully_Initialized_Record_Type
+        (Typ : Entity_Id) return Boolean is
+      begin
          --  Mutably tagged types get default initialized to their parent
          --  subtype's default values.
 
@@ -18443,6 +18379,7 @@ package body Sem_Util is
 
          begin
             Comp := First_Component (Typ);
+
             while Present (Comp) loop
                if (No (Parent (Comp))
                     or else No (Expression (Parent (Comp))))
@@ -18461,21 +18398,157 @@ package body Sem_Util is
 
                Next_Component (Comp);
             end loop;
+
+            --  No uninitialized components, so type is fully initialized.
+            --  Note that this catches the case of no components as well.
+
+            return True;
          end;
+      end Is_Fully_Initialized_Record_Type;
 
-         --  No uninitialized components, so type is fully initialized.
-         --  Note that this catches the case of no components as well.
+      ----------------------------------
+      -- Is_Fully_Initialized_Variant --
+      ----------------------------------
 
+      function Is_Fully_Initialized_Variant (Typ : Entity_Id) return Boolean is
+         Loc           : constant Source_Ptr := Sloc (Typ);
+         Constraints   : constant List_Id    := New_List;
+         Components    : constant Elist_Id   := New_Elmt_List;
+         Comp_Elmt     : Elmt_Id;
+         Comp_Id       : Node_Id;
+         Comp_List     : Node_Id;
+         Discr         : Entity_Id;
+         Discr_Val     : Node_Id;
+
+         Report_Errors : Boolean;
+         pragma Warnings (Off, Report_Errors);
+
+      begin
+         if Serious_Errors_Detected > 0 then
+            return False;
+         end if;
+
+         if Is_Record_Type (Typ)
+           and then Nkind (Parent (Typ)) = N_Full_Type_Declaration
+           and then
+             Nkind (Type_Definition (Parent (Typ))) = N_Record_Definition
+         then
+            Comp_List := Component_List (Type_Definition (Parent (Typ)));
+
+            Discr := First_Discriminant (Typ);
+            while Present (Discr) loop
+               if Nkind (Parent (Discr)) = N_Discriminant_Specification then
+                  Discr_Val := Expression (Parent (Discr));
+
+                  if Present (Discr_Val)
+                    and then Is_OK_Static_Expression (Discr_Val)
+                  then
+                     Append_To (Constraints,
+                       Make_Component_Association (Loc,
+                         Choices    => New_List
+                                         (New_Occurrence_Of (Discr, Loc)),
+                         Expression => New_Copy (Discr_Val)));
+                  else
+                     return False;
+                  end if;
+               else
+                  return False;
+               end if;
+
+               Next_Discriminant (Discr);
+            end loop;
+
+            Gather_Components
+              (Typ           => Typ,
+               Comp_List     => Comp_List,
+               Governed_By   => Constraints,
+               Into          => Components,
+               Report_Errors => Report_Errors);
+
+            --  Check that each component present is fully initialized
+
+            Comp_Elmt := First_Elmt (Components);
+            while Present (Comp_Elmt) loop
+               Comp_Id := Node (Comp_Elmt);
+
+               if Ekind (Comp_Id) = E_Component
+                 and then (No (Parent (Comp_Id))
+                            or else No (Expression (Parent (Comp_Id))))
+                 and then not Is_Fully_Initialized_Type (Etype (Comp_Id))
+               then
+                  return False;
+               end if;
+
+               Next_Elmt (Comp_Elmt);
+            end loop;
+
+            return True;
+
+         elsif Is_Private_Type (Typ) then
+            declare
+               U : constant Entity_Id := Underlying_Type (Typ);
+
+            begin
+               if No (U) then
+                  return False;
+               else
+                  return Is_Fully_Initialized_Variant (U);
+               end if;
+            end;
+
+         else
+            return False;
+         end if;
+      end Is_Fully_Initialized_Variant;
+
+   --  Start of processing for Is_Fully_Initialized_Type
+
+   begin
+      --  Scalar types
+
+      if Is_Scalar_Type (Typ) then
+
+         --  A scalar type with an aspect Default_Value is fully initialized
+
+         --  Note: Initalize/Normalize_Scalars also ensure full initialization
+         --  of a scalar type, but we don't take that into account here, since
+         --  we don't want these to affect warnings.
+
+         return Has_Default_Aspect (Typ);
+
+      elsif Is_Access_Type (Typ) then
          return True;
+
+      elsif Is_Array_Type (Typ) then
+         if Is_Fully_Initialized_Type (Component_Type (Typ))
+           or else (Ada_Version >= Ada_2012 and then Has_Default_Aspect (Typ))
+         then
+            return True;
+         end if;
+
+         return Is_Fully_Initialized_Constrained_Array (Typ);
+
+      --  Record types
+
+      elsif Is_Record_Type (Typ) then
+         return Is_Fully_Initialized_Record_Type (Typ);
+
+      --  Concurrent types are always considered fully initialized and
+      --  partially initialized.
 
       elsif Is_Concurrent_Type (Typ) then
          return True;
 
-      elsif Is_Private_Type (Typ) then
+      elsif Is_Private_Type (Typ)
+        or else Is_Incomplete_Type (Typ)
+      then
          declare
             U : constant Entity_Id := Underlying_Type (Typ);
 
          begin
+            --  If the underlying type is not available assume partially
+            --  initialized.
+
             if No (U) then
                return False;
             else
@@ -18483,103 +18556,75 @@ package body Sem_Util is
             end if;
          end;
 
+      --  For any other type (are there any?) assume partially initialized
+
       else
          return False;
       end if;
    end Is_Fully_Initialized_Type;
 
-   ----------------------------------
-   -- Is_Fully_Initialized_Variant --
-   ----------------------------------
+   --------------------------------------------
+   -- Is_Fully_Initialized_Constrained_Array --
+   --------------------------------------------
 
-   function Is_Fully_Initialized_Variant (Typ : Entity_Id) return Boolean is
-      Loc           : constant Source_Ptr := Sloc (Typ);
-      Constraints   : constant List_Id    := New_List;
-      Components    : constant Elist_Id   := New_Elmt_List;
-      Comp_Elmt     : Elmt_Id;
-      Comp_Id       : Node_Id;
-      Comp_List     : Node_Id;
-      Discr         : Entity_Id;
-      Discr_Val     : Node_Id;
-
-      Report_Errors : Boolean;
-      pragma Warnings (Off, Report_Errors);
+   function Is_Fully_Initialized_Constrained_Array
+     (Typ : Entity_Id) return Boolean
+   is
+      Indx     : Node_Id;
+      Indx_Typ : Entity_Id;
+      Lbd, Hbd : Node_Id;
 
    begin
-      if Serious_Errors_Detected > 0 then
+      if not Is_Constrained (Typ) then
          return False;
       end if;
 
-      if Is_Record_Type (Typ)
-        and then Nkind (Parent (Typ)) = N_Full_Type_Declaration
-        and then Nkind (Type_Definition (Parent (Typ))) = N_Record_Definition
-      then
-         Comp_List := Component_List (Type_Definition (Parent (Typ)));
+      --  An interesting case, if we have a constrained type one of whose
+      --  bounds is known to be null, then there are no elements to be
+      --  initialized, so all the elements are initialized.
 
-         Discr := First_Discriminant (Typ);
-         while Present (Discr) loop
-            if Nkind (Parent (Discr)) = N_Discriminant_Specification then
-               Discr_Val := Expression (Parent (Discr));
+      Indx := First_Index (Typ);
+      while Present (Indx) loop
+         if Etype (Indx) = Any_Type then
+            return False;
 
-               if Present (Discr_Val)
-                 and then Is_OK_Static_Expression (Discr_Val)
-               then
-                  Append_To (Constraints,
-                    Make_Component_Association (Loc,
-                      Choices    => New_List (New_Occurrence_Of (Discr, Loc)),
-                      Expression => New_Copy (Discr_Val)));
-               else
-                  return False;
-               end if;
-            else
-               return False;
+         --  If index is a range, use directly
+
+         elsif Nkind (Indx) = N_Range then
+            Lbd := Low_Bound  (Indx);
+            Hbd := High_Bound (Indx);
+
+         else
+            Indx_Typ := Etype (Indx);
+
+            if Is_Private_Type (Indx_Typ) then
+               Indx_Typ := Full_View (Indx_Typ);
             end if;
 
-            Next_Discriminant (Discr);
-         end loop;
-
-         Gather_Components
-           (Typ           => Typ,
-            Comp_List     => Comp_List,
-            Governed_By   => Constraints,
-            Into          => Components,
-            Report_Errors => Report_Errors);
-
-         --  Check that each component present is fully initialized
-
-         Comp_Elmt := First_Elmt (Components);
-         while Present (Comp_Elmt) loop
-            Comp_Id := Node (Comp_Elmt);
-
-            if Ekind (Comp_Id) = E_Component
-              and then (No (Parent (Comp_Id))
-                         or else No (Expression (Parent (Comp_Id))))
-              and then not Is_Fully_Initialized_Type (Etype (Comp_Id))
-            then
-               return False;
-            end if;
-
-            Next_Elmt (Comp_Elmt);
-         end loop;
-
-         return True;
-
-      elsif Is_Private_Type (Typ) then
-         declare
-            U : constant Entity_Id := Underlying_Type (Typ);
-
-         begin
-            if No (U) then
+            if No (Indx_Typ) or else Etype (Indx_Typ) = Any_Type then
                return False;
             else
-               return Is_Fully_Initialized_Variant (U);
+               Lbd := Type_Low_Bound  (Indx_Typ);
+               Hbd := Type_High_Bound (Indx_Typ);
             end if;
-         end;
+         end if;
 
-      else
-         return False;
-      end if;
-   end Is_Fully_Initialized_Variant;
+         if Compile_Time_Known_Value (Lbd)
+              and then
+            Compile_Time_Known_Value (Hbd)
+         then
+            if Expr_Value (Hbd) < Expr_Value (Lbd) then
+               return True;
+            end if;
+         end if;
+
+         Next_Index (Indx);
+      end loop;
+
+      --  If no null indexes, then type is not fully initialized
+
+      return False;
+   end Is_Fully_Initialized_Constrained_Array;
 
    -----------------------------------
    -- Is_Function_With_Side_Effects --
@@ -20399,9 +20444,98 @@ package body Sem_Util is
 
    function Is_Partially_Initialized_Type
      (Typ              : Entity_Id;
-      Include_Implicit : Boolean := True) return Boolean
+      Include_Implicit : Boolean := True;
+      Predicate_Check  : Boolean := False) return Boolean
    is
+      function Is_Partially_Initialized_Record_Type
+        (Typ : Entity_Id) return Boolean;
+      --  Determines if record type Typ is partially initialized
+
+      ------------------------------------------
+      -- Is_Partially_Initialized_Record_Type --
+      ------------------------------------------
+
+      function Is_Partially_Initialized_Record_Type
+        (Typ : Entity_Id) return Boolean is
+      begin
+         --  A discriminated type is always partially initialized if in
+         --  all mode
+
+         if Has_Discriminants (Typ) and then Include_Implicit then
+            return True;
+
+         --  A tagged type is always partially initialized
+
+         elsif Is_Tagged_Type (Typ) then
+            return True;
+         end if;
+
+         --  Check discriminants and record components
+
+         declare
+            Comp        : Entity_Id;
+            First_Round : constant Natural :=
+                            (if Predicate_Check
+                               and then Has_Discriminants (Typ)
+                             then 1 else 2);
+
+         begin
+            --  Loop through components in two rounds: discriminants first
+            --  (only if we must check discriminants), and record components
+            --  in the second round.
+
+            for Round in First_Round .. 2 loop
+               if Round = 1 then
+                  Comp := First_Discriminant (Typ);
+               else
+                  Comp := First_Component (Typ);
+
+                  --  Case of record type with no components; we consider
+                  --  the type to be initialized.
+
+                  if No (Comp) then
+                     return False;
+                  end if;
+               end if;
+
+               while Present (Comp) loop
+
+                  --  If a component has an initialization expression then the
+                  --  enclosing record type is partially initialized.
+
+                  if Present (Parent (Comp))
+                    and then Present (Expression (Parent (Comp)))
+                  then
+                     return True;
+
+                  --  If a component is of a type which is itself partially
+                  --  initialized, then the enclosing record type is also.
+
+                  elsif Is_Partially_Initialized_Type (Etype (Comp),
+                          Include_Implicit => Include_Implicit,
+                          Predicate_Check  => Predicate_Check)
+                  then
+                     return True;
+                  end if;
+
+                  Comp := (if Round = 1 then Next_Discriminant (Comp)
+                                        else Next_Component (Comp));
+               end loop;
+            end loop;
+
+            --  No initialized components found. If we found any components
+            --  they were all uninitialized so the result is false.
+
+            return False;
+         end;
+      end Is_Partially_Initialized_Record_Type;
+
+   --  Start of processing for Is_Partially_Initialized_Type
+
    begin
+      --  Predicate check requires Include_Implicit = False
+      pragma Assert (not Predicate_Check or else not Include_Implicit);
+
       if Is_Scalar_Type (Typ) then
          return Has_Default_Aspect (Base_Type (Typ));
 
@@ -20413,91 +20547,24 @@ package body Sem_Util is
          --  If component type is partially initialized, so is array type
 
          if Has_Default_Aspect (Base_Type (Typ))
-           or else Is_Partially_Initialized_Type
-                     (Component_Type (Typ), Include_Implicit)
+           or else Is_Partially_Initialized_Type (Component_Type (Typ),
+                     Include_Implicit => Include_Implicit,
+                     Predicate_Check  => Predicate_Check)
          then
             return True;
 
          --  Otherwise we are only partially initialized if we are fully
-         --  initialized (this is the empty array case, no point in us
-         --  duplicating that code here).
+         --  initialized (this includes the empty array case).
 
          else
-            return Is_Fully_Initialized_Type (Typ);
+            return Is_Fully_Initialized_Constrained_Array (Typ);
          end if;
 
       elsif Is_Record_Type (Typ) then
+         return Is_Partially_Initialized_Record_Type (Typ);
 
-         --  A discriminated type is always partially initialized if in
-         --  all mode
-
-         if Has_Discriminants (Typ) and then Include_Implicit then
-            return True;
-
-         --  A tagged type is always partially initialized
-
-         elsif Is_Tagged_Type (Typ) then
-            return True;
-
-         --  Case of record type with no components
-
-         elsif No (First_Component (Typ)) then
-            return False;
-
-         --  Case of record type with components
-
-         else
-            declare
-               Comp : Entity_Id;
-
-               Component_Present : Boolean := False;
-               --  Set True if at least one component is present. If no
-               --  components are present, then record type is fully
-               --  initialized (another odd case, like the null array).
-
-            begin
-               --  Loop through components
-
-               Comp := First_Component (Typ);
-               while Present (Comp) loop
-                  Component_Present := True;
-
-                  --  If a component has an initialization expression then the
-                  --  enclosing record type is partially initialized
-
-                  if Present (Parent (Comp))
-                    and then Present (Expression (Parent (Comp)))
-                  then
-                     return True;
-
-                  --  If a component is of a type which is itself partially
-                  --  initialized, then the enclosing record type is also.
-
-                  elsif Is_Partially_Initialized_Type
-                          (Etype (Comp), Include_Implicit)
-                  then
-                     return True;
-                  end if;
-
-                  Next_Component (Comp);
-               end loop;
-
-               --  No initialized components found. If we found any components
-               --  they were all uninitialized so the result is false.
-
-               if Component_Present then
-                  return False;
-
-               --  But if we found no components, then all the components are
-               --  initialized so we consider the type to be initialized.
-
-               else
-                  return True;
-               end if;
-            end;
-         end if;
-
-      --  Concurrent types are always fully initialized
+      --  Concurrent types are always considered fully initialized and
+      --  partially initialized.
 
       elsif Is_Concurrent_Type (Typ) then
          return True;
@@ -20506,22 +20573,29 @@ package body Sem_Util is
       --  type then just assume this partially initialized. Not clear if this
       --  can happen in a non-error case, but no harm in testing for this.
 
-      elsif Is_Private_Type (Typ) then
+      elsif Is_Private_Type (Typ)
+        or else Is_Incomplete_Type (Typ)
+      then
          declare
             U : constant Entity_Id := Underlying_Type (Typ);
          begin
+            --  If the underlying type is not available assume partially
+            --  initialized.
+
             if No (U) then
                return True;
             else
-               return Is_Partially_Initialized_Type (U, Include_Implicit);
+               return Is_Partially_Initialized_Type (U,
+                        Include_Implicit => Include_Implicit,
+                        Predicate_Check  => Predicate_Check);
             end if;
          end;
+      end if;
 
       --  For any other type (are there any?) assume partially initialized
 
-      else
-         return True;
-      end if;
+      pragma Assert (False);
+      return True;
    end Is_Partially_Initialized_Type;
 
    ------------------------------------

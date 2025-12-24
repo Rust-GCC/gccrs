@@ -2394,7 +2394,8 @@ package Sem_Util is
 
    function Is_Partially_Initialized_Type
      (Typ              : Entity_Id;
-      Include_Implicit : Boolean := True) return Boolean;
+      Include_Implicit : Boolean := True;
+      Predicate_Check  : Boolean := False) return Boolean;
    --  Typ is a type entity. This function returns true if this type is partly
    --  initialized, meaning that an object of the type is at least partly
    --  initialized (in particular in the record case, that at least one
@@ -2408,6 +2409,10 @@ package Sem_Util is
    --  access values not explicitly initialized will return True. Otherwise
    --  if Include_Implicit is False, these cases do not count as making the
    --  type be partially initialized.
+   --  Predicate_Check indicates that this function has been invoked to
+   --  determine if a predicate check for Typ is needed. In this context
+   --  discriminants of record types are counted as making the type be
+   --  partially initialized, and Include_Implicit must be False.
 
    function Is_Potentially_Unevaluated (N : Node_Id) return Boolean;
    --  Predicate to implement definition given in RM 2012 6.1.1 (20/3)

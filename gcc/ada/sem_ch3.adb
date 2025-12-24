@@ -4917,7 +4917,9 @@ package body Sem_Ch3 is
         and then
           (Present (E)
             or else
-              Is_Partially_Initialized_Type (T, Include_Implicit => False))
+              Is_Partially_Initialized_Type (T,
+                Include_Implicit => False,
+                Predicate_Check  => True))
         and then not (Constant_Present (N) and then No (E))
       then
          --  If the type has a static predicate and the expression is known at
