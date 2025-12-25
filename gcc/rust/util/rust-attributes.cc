@@ -369,6 +369,45 @@ check_deprecated_attribute (const AST::Attribute &attribute)
     }
 }
 
+/**
+ * Emit an error when an attribute is attached
+ * to an incompatable item type. e.g.:
+ *
+ * #[cold]
+ * struct A(u8, u8);
+ *
+ * Note that "#[derive]" is handled
+ * explicitly in rust-derive.cc
+ */
+static void
+check_valid_attribute_for_item (const AST::AttrVec &attributes,
+				const AST::Item &item)
+{
+  for (auto &attr : attributes)
+    {
+      if (item.get_item_kind () != AST::Item::Kind::Function
+	  && (attr.get_path () == Values::Attributes::TARGET_FEATURE
+	      || attr.get_path () == Values::Attributes::COLD
+	      || attr.get_path () == Values::Attributes::INLINE))
+	{
+	  rust_error_at (
+	    attr.get_locus (),
+	    "the %<#[%s]%> attribute may only be applied to functions",
+	    attr.get_path ().as_string ().c_str ());
+	}
+      else if (attr.get_path () == Values::Attributes::REPR
+	       && item.get_item_kind () == AST::Item::Kind::Enum
+	       && item.get_item_kind () == AST::Item::Kind::Union
+	       && item.get_item_kind () == AST::Item::Kind::Struct)
+	{
+	  rust_error_at (attr.get_locus (),
+			 "the %<#[%s]%> attribute may only be applied "
+			 "to structs, enums and unions",
+			 attr.get_path ().as_string ().c_str ());
+	}
+    }
+}
+
 static bool
 is_proc_macro_type (const AST::Attribute &attribute)
 {
@@ -809,6 +848,7 @@ AttributeChecker::visit (AST::TypeBoundWhereClauseItem &)
 void
 AttributeChecker::visit (AST::Module &module)
 {
+  check_valid_attribute_for_item (module.get_outer_attrs (), module);
   check_attributes (module.get_outer_attrs ());
   check_proc_macro_non_function (module.get_outer_attrs ());
   for (auto &item : module.get_items ())
@@ -821,6 +861,7 @@ AttributeChecker::visit (AST::Module &module)
 void
 AttributeChecker::visit (AST::ExternCrate &crate)
 {
+  check_valid_attribute_for_item (crate.get_outer_attrs (), crate);
   check_proc_macro_non_function (crate.get_outer_attrs ());
 }
 
@@ -839,6 +880,7 @@ AttributeChecker::visit (AST::UseTreeRebind &)
 void
 AttributeChecker::visit (AST::UseDeclaration &declaration)
 {
+  check_valid_attribute_for_item (declaration.get_outer_attrs (), declaration);
   check_proc_macro_non_function (declaration.get_outer_attrs ());
 }
 
@@ -861,6 +903,7 @@ check_no_mangle_function (const AST::Attribute &attribute,
 void
 AttributeChecker::visit (AST::Function &fun)
 {
+  check_valid_attribute_for_item (fun.get_outer_attrs (), fun);
   auto check_crate_type = [] (const char *name, AST::Attribute &attribute) {
     if (!Session::get_instance ().options.is_proc_macro ())
       rust_error_at (attribute.get_locus (),
@@ -943,12 +986,6 @@ AttributeChecker::visit (AST::Function &fun)
 	{
 	  check_link_section_attribute (attribute);
 	}
-      else if (result.name == Attrs::REPR)
-	{
-	  rust_error_at (
-	    attribute.get_locus (),
-	    "attribute should be applied to a struct, enum, or union");
-	}
     }
 
   if (fun.has_body ())
@@ -958,12 +995,14 @@ AttributeChecker::visit (AST::Function &fun)
 void
 AttributeChecker::visit (AST::TypeAlias &alias)
 {
+  check_valid_attribute_for_item (alias.get_outer_attrs (), alias);
   check_proc_macro_non_function (alias.get_outer_attrs ());
 }
 
 void
 AttributeChecker::visit (AST::StructStruct &struct_item)
 {
+  check_valid_attribute_for_item (struct_item.get_outer_attrs (), struct_item);
   check_attributes (struct_item.get_outer_attrs ());
   check_proc_macro_non_function (struct_item.get_outer_attrs ());
 }
@@ -971,6 +1010,7 @@ AttributeChecker::visit (AST::StructStruct &struct_item)
 void
 AttributeChecker::visit (AST::TupleStruct &tuplestruct)
 {
+  check_valid_attribute_for_item (tuplestruct.get_outer_attrs (), tuplestruct);
   check_proc_macro_non_function (tuplestruct.get_outer_attrs ());
 }
 
@@ -993,24 +1033,28 @@ AttributeChecker::visit (AST::EnumItemDiscriminant &)
 void
 AttributeChecker::visit (AST::Enum &enumeration)
 {
+  check_valid_attribute_for_item (enumeration.get_outer_attrs (), enumeration);
   check_proc_macro_non_function (enumeration.get_outer_attrs ());
 }
 
 void
 AttributeChecker::visit (AST::Union &u)
 {
+  check_valid_attribute_for_item (u.get_outer_attrs (), u);
   check_proc_macro_non_function (u.get_outer_attrs ());
 }
 
 void
 AttributeChecker::visit (AST::ConstantItem &item)
 {
+  check_valid_attribute_for_item (item.get_outer_attrs (), item);
   check_proc_macro_non_function (item.get_outer_attrs ());
 }
 
 void
 AttributeChecker::visit (AST::StaticItem &item)
 {
+  check_valid_attribute_for_item (item.get_outer_attrs (), item);
   check_proc_macro_non_function (item.get_outer_attrs ());
 
   BuiltinAttrDefinition result;
@@ -1037,6 +1081,7 @@ AttributeChecker::visit (AST::TraitItemType &)
 void
 AttributeChecker::visit (AST::Trait &trait)
 {
+  check_valid_attribute_for_item (trait.get_outer_attrs (), trait);
   check_proc_macro_non_function (trait.get_outer_attrs ());
   check_attributes (trait.get_outer_attrs ());
 }
@@ -1044,6 +1089,7 @@ AttributeChecker::visit (AST::Trait &trait)
 void
 AttributeChecker::visit (AST::InherentImpl &impl)
 {
+  check_valid_attribute_for_item (impl.get_outer_attrs (), impl);
   check_proc_macro_non_function (impl.get_outer_attrs ());
   AST::DefaultASTVisitor::visit (impl);
 }
@@ -1051,6 +1097,7 @@ AttributeChecker::visit (AST::InherentImpl &impl)
 void
 AttributeChecker::visit (AST::TraitImpl &impl)
 {
+  check_valid_attribute_for_item (impl.get_outer_attrs (), impl);
   check_proc_macro_non_function (impl.get_outer_attrs ());
   AST::DefaultASTVisitor::visit (impl);
 }
@@ -1066,6 +1113,7 @@ AttributeChecker::visit (AST::ExternalStaticItem &)
 void
 AttributeChecker::visit (AST::ExternBlock &block)
 {
+  check_valid_attribute_for_item (block.get_outer_attrs (), block);
   check_proc_macro_non_function (block.get_outer_attrs ());
 }
 
