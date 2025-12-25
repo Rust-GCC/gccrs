@@ -1143,6 +1143,19 @@ protected:
   Item *clone_stmt_impl () const final override { return clone_item_impl (); }
 };
 
+class GlobContainer
+{
+public:
+  enum class Kind
+  {
+    Crate,
+    Module,
+    Enum,
+  };
+
+  virtual Kind get_glob_container_kind () const = 0;
+};
+
 // Item that supports visibility - abstract base class
 class VisItem : public Item
 {
@@ -2021,7 +2034,7 @@ public:
 };
 
 // A crate AST object - holds all the data for a single compilation unit
-struct Crate
+struct Crate : public GlobContainer
 {
   std::vector<Attribute> inner_attrs;
   // dodgy spacing required here
@@ -2093,6 +2106,11 @@ public:
   void set_items (std::vector<std::unique_ptr<AST::Item>> &&new_items)
   {
     items = std::move (new_items);
+  }
+
+  GlobContainer::Kind get_glob_container_kind () const override
+  {
+    return GlobContainer::Kind::Crate;
   }
 };
 
