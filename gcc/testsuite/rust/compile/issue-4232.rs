@@ -1,3 +1,3 @@
 // { dg-options "-w" }
-#[repr(C)] // { dg-error "attribute should be applied to a struct, enum, or union" }
+#[repr(C)] // { dg-error "the ...repr.. attribute may only be applied to structs, enums and unions" }
 fn a() {}
