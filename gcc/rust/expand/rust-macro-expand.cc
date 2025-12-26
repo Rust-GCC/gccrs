@@ -980,7 +980,8 @@ transcribe_expression (Parser<MacroInvocLexer> &parser)
 
   auto end = lexer.get_offs ();
 
-  return AST::Fragment ({std::move (expr)}, lexer.get_token_slice (start, end));
+  return AST::Fragment ({std::move (expr.value ())},
+			lexer.get_token_slice (start, end));
 }
 
 /**

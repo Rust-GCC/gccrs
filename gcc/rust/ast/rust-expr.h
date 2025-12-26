@@ -3192,7 +3192,7 @@ class BreakExpr : public ExprWithoutBlock
 {
   std::vector<Attribute> outer_attrs;
   tl::optional<LoopLabel> label;
-  std::unique_ptr<Expr> break_expr;
+  tl::optional<std::unique_ptr<Expr>> break_expr;
   location_t locus;
 
   // TODO: find another way to store this to save memory?
@@ -3206,15 +3206,18 @@ public:
 
   /* Returns whether the break expression has an expression used in the break or
    * not. */
-  bool has_break_expr () const { return break_expr != nullptr; }
+  bool has_break_expr () const { return break_expr.has_value (); }
 
   // Constructor for a break expression
   BreakExpr (tl::optional<LoopLabel> break_label,
-	     std::unique_ptr<Expr> expr_in_break,
+	     tl::optional<std::unique_ptr<Expr>> expr_in_break,
 	     std::vector<Attribute> outer_attribs, location_t locus)
     : outer_attrs (std::move (outer_attribs)), label (std::move (break_label)),
       break_expr (std::move (expr_in_break)), locus (locus)
-  {}
+  {
+    if (expr_in_break.has_value ())
+      rust_assert (expr_in_break.value () != nullptr);
+  }
 
   // Copy constructor defined to use clone for unique pointer
   BreakExpr (BreakExpr const &other)
@@ -3222,9 +3225,8 @@ public:
       label (other.label), locus (other.locus),
       marked_for_strip (other.marked_for_strip)
   {
-    // guard to protect from null pointer dereference
-    if (other.break_expr != nullptr)
-      break_expr = other.break_expr->clone_expr ();
+    if (other.has_break_expr ())
+      break_expr = other.get_break_expr_unchecked ().clone_expr ();
   }
 
   // Overload assignment operator to clone unique pointer
@@ -3237,10 +3239,10 @@ public:
     outer_attrs = other.outer_attrs;
 
     // guard to protect from null pointer dereference
-    if (other.break_expr != nullptr)
-      break_expr = other.break_expr->clone_expr ();
+    if (other.has_break_expr ())
+      break_expr = other.get_break_expr_unchecked ().clone_expr ();
     else
-      break_expr = nullptr;
+      break_expr = tl::nullopt;
 
     return *this;
   }
@@ -3258,16 +3260,22 @@ public:
   bool is_marked_for_strip () const override { return marked_for_strip; }
 
   // TODO: is this better? Or is a "vis_block" better?
-  Expr &get_break_expr ()
+  Expr &get_break_expr_unchecked ()
   {
     rust_assert (has_break_expr ());
-    return *break_expr;
+    return *break_expr.value ();
   }
 
-  std::unique_ptr<Expr> &get_break_expr_ptr ()
+  const Expr &get_break_expr_unchecked () const
   {
     rust_assert (has_break_expr ());
-    return break_expr;
+    return *break_expr.value ();
+  }
+
+  std::unique_ptr<Expr> &get_break_expr_ptr_unchecked ()
+  {
+    rust_assert (has_break_expr ());
+    return break_expr.value ();
   }
 
   const std::vector<Attribute> &get_outer_attrs () const { return outer_attrs; }
