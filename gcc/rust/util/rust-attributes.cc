@@ -168,8 +168,11 @@ AttributeChecker::go (AST::Crate &crate)
 void
 AttributeChecker::visit (AST::Crate &crate)
 {
-  check_inner_attributes (crate.get_inner_attrs ());
-  check_attributes (crate.get_inner_attrs ());
+  for (auto &attr : crate.get_inner_attrs ())
+    {
+      check_inner_attribute (attr);
+      check_attribute (attr);
+    }
 
   for (auto &item : crate.items)
     item->accept_vis (*this);
@@ -455,13 +458,6 @@ AttributeChecker::check_inner_attribute (const AST::Attribute &attribute)
 }
 
 void
-AttributeChecker::check_inner_attributes (const AST::AttrVec &attributes)
-{
-  for (auto &attr : attributes)
-    check_inner_attribute (attr);
-}
-
-void
 AttributeChecker::check_attribute (const AST::Attribute &attribute)
 {
   if (!attribute.empty_input ())
@@ -491,13 +487,6 @@ AttributeChecker::check_attribute (const AST::Attribute &attribute)
     check_doc_attribute (attribute);
   else if (result.name == Attrs::DEPRECATED)
     check_deprecated_attribute (attribute);
-}
-
-void
-AttributeChecker::check_attributes (const AST::AttrVec &attributes)
-{
-  for (auto &attr : attributes)
-    check_attribute (attr);
 }
 
 void
