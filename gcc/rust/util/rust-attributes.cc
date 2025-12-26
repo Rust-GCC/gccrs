@@ -124,9 +124,23 @@ static const BuiltinAttrDefinition __definitions[]
      {Attrs::TEST, CODE_GENERATION}};
 
 static const std::set<std::string> __outer_attributes
-  = {Attrs::INLINE,	    Attrs::DERIVE_ATTR, Attrs::ALLOW_INTERNAL_UNSTABLE,
-     Attrs::LANG,	    Attrs::REPR,	Attrs::PATH,
-     Attrs::TARGET_FEATURE, Attrs::TEST};
+  = {Attrs::INLINE,
+     Attrs::DERIVE_ATTR,
+     Attrs::ALLOW_INTERNAL_UNSTABLE,
+     Attrs::LANG,
+     Attrs::REPR,
+     Attrs::PATH,
+     Attrs::TARGET_FEATURE,
+     Attrs::TEST,
+     Attrs::COLD,
+     Attrs::MACRO_USE,
+     Attrs::MACRO_EXPORT,
+     Attrs::PROC_MACRO_ATTRIBUTE,
+     Attrs::PROC_MACRO_DERIVE,
+     Attrs::DEPRECATED,
+     Attrs::MUST_USE,
+     Attrs::LINK_NAME,
+     Attrs::LINK_SECTION};
 
 BuiltinAttributeMappings *
 BuiltinAttributeMappings::get ()
