@@ -26,7 +26,7 @@ namespace Rust {
 
 // Parses a block expression, including the curly braces at start and end.
 template <typename ManagedTokenSource>
-std::unique_ptr<AST::BlockExpr>
+tl::expected<std::unique_ptr<AST::BlockExpr>, Parse::Error::Node>
 Parser<ManagedTokenSource>::parse_block_expr (
   AST::AttrVec outer_attrs, tl::optional<AST::LoopLabel> label,
   location_t pratt_parsed_loc)
@@ -38,7 +38,7 @@ Parser<ManagedTokenSource>::parse_block_expr (
       if (!skip_token (LEFT_CURLY))
 	{
 	  skip_after_end_block ();
-	  return nullptr;
+	  return tl::unexpected (Parse::Error::Node::MALFORMED);
 	}
     }
 
@@ -55,7 +55,7 @@ Parser<ManagedTokenSource>::parse_block_expr (
       if (expr_or_stmt.is_error ())
 	{
 	  skip_after_end_block ();
-	  return nullptr;
+	  return tl::unexpected (Parse::Error::Node::CHILD_ERROR);
 	}
 
       t = lexer.peek_token ();
@@ -82,7 +82,7 @@ Parser<ManagedTokenSource>::parse_block_expr (
       add_error (std::move (error));
 
       skip_after_end_block ();
-      return nullptr;
+      return tl::unexpected (Parse::Error::Node::MALFORMED);
     }
 
   // grammar allows for empty block expressions
@@ -98,7 +98,7 @@ Parser<ManagedTokenSource>::parse_block_expr (
 /* Parse an anonymous const expression. This can be a regular const expression
  * or an underscore for deferred const inference */
 template <typename ManagedTokenSource>
-tl::expected<AST::AnonConst, AnonConstError>
+tl::expected<AST::AnonConst, Parse::Error::Node>
 Parser<ManagedTokenSource>::parse_anon_const ()
 {
   auto current = lexer.peek_token ();
@@ -111,7 +111,7 @@ Parser<ManagedTokenSource>::parse_anon_const ()
   auto expr = parse_expr ();
 
   if (!expr)
-    return tl::make_unexpected (AnonConstError::InvalidSizeExpr);
+    return tl::make_unexpected (Parse::Error::Node{});
 
   return AST::AnonConst (std::move (expr), locus);
 }
@@ -119,19 +119,20 @@ Parser<ManagedTokenSource>::parse_anon_const ()
 /* Parse a "const block", a block preceded by the `const` keyword whose
  * statements can be const evaluated and used in constant contexts */
 template <typename ManagedTokenSource>
-std::unique_ptr<AST::ConstBlock>
+tl::expected<std::unique_ptr<AST::ConstBlock>, Parse::Error::Node>
 Parser<ManagedTokenSource>::parse_const_block_expr (AST::AttrVec outer_attrs,
 						    location_t locus)
 {
-  auto block = parse_block_expr ();
+  auto block_res = parse_block_expr ();
 
-  if (!block)
+  if (!block_res)
     {
       add_error (Error (locus, "failed to parse inner block in const block"));
       skip_after_end_block ();
 
-      return nullptr;
+      return tl::unexpected (Parse::Error::Node{});
     }
+  auto block = std::move (block_res.value ());
 
   auto block_locus = block->get_locus ();
 
@@ -143,7 +144,7 @@ Parser<ManagedTokenSource>::parse_const_block_expr (AST::AttrVec outer_attrs,
 /* Parses a "grouped" expression (expression in parentheses), used to control
  * precedence. */
 template <typename ManagedTokenSource>
-std::unique_ptr<AST::GroupedExpr>
+tl::expected<std::unique_ptr<AST::GroupedExpr>, Parse::Error::Node>
 Parser<ManagedTokenSource>::parse_grouped_expr (AST::AttrVec outer_attrs)
 {
   location_t locus = lexer.peek_token ()->get_locus ();
@@ -153,17 +154,17 @@ Parser<ManagedTokenSource>::parse_grouped_expr (AST::AttrVec outer_attrs)
 
   // parse required expr inside parentheses
   std::unique_ptr<AST::Expr> expr_in_parens = parse_expr ();
-  if (expr_in_parens == nullptr)
+  if (!expr_in_parens)
     {
       // skip after somewhere?
       // error?
-      return nullptr;
+      return tl::unexpected (Parse::Error::Node::CHILD_ERROR);
     }
 
   if (!skip_token (RIGHT_PAREN))
     {
       // skip after somewhere?
-      return nullptr;
+      return tl::unexpected (Parse::Error::Node::MALFORMED);
     }
 
   return std::unique_ptr<AST::GroupedExpr> (
@@ -173,7 +174,7 @@ Parser<ManagedTokenSource>::parse_grouped_expr (AST::AttrVec outer_attrs)
 
 // Parses a closure expression (closure definition).
 template <typename ManagedTokenSource>
-std::unique_ptr<AST::ClosureExpr>
+tl::expected<std::unique_ptr<AST::ClosureExpr>, Parse::Error::Node>
 Parser<ManagedTokenSource>::parse_closure_expr (AST::AttrVec outer_attrs)
 {
   location_t locus = lexer.peek_token ()->get_locus ();
@@ -233,7 +234,7 @@ Parser<ManagedTokenSource>::parse_closure_expr (AST::AttrVec outer_attrs)
 			t->get_token_description ()));
 
       // skip somewhere?
-      return nullptr;
+      return tl::unexpected (Parse::Error::Node::MALFORMED);
     }
 
   // again branch based on next token
@@ -254,12 +255,12 @@ Parser<ManagedTokenSource>::parse_closure_expr (AST::AttrVec outer_attrs)
 	  add_error (std::move (error));
 
 	  // skip somewhere?
-	  return nullptr;
+	  return tl::unexpected (Parse::Error::Node::CHILD_ERROR);
 	}
 
       // parse block expr, which is required
-      std::unique_ptr<AST::BlockExpr> block = parse_block_expr ();
-      if (block == nullptr)
+      auto block = parse_block_expr ();
+      if (!block)
 	{
 	  // error
 	  Error error (lexer.peek_token ()->get_locus (),
@@ -267,11 +268,12 @@ Parser<ManagedTokenSource>::parse_closure_expr (AST::AttrVec outer_attrs)
 	  add_error (std::move (error));
 
 	  // skip somewhere?
-	  return nullptr;
+	  return tl::unexpected (Parse::Error::Node::CHILD_ERROR);
 	}
 
       return std::unique_ptr<AST::ClosureExprInnerTyped> (
-	new AST::ClosureExprInnerTyped (std::move (type), std::move (block),
+	new AST::ClosureExprInnerTyped (std::move (type),
+					std::move (block.value ()),
 					std::move (params), locus, has_move,
 					std::move (outer_attrs)));
     }
@@ -288,7 +290,7 @@ Parser<ManagedTokenSource>::parse_closure_expr (AST::AttrVec outer_attrs)
 	  add_error (std::move (error));
 
 	  // skip somewhere?
-	  return nullptr;
+	  return tl::unexpected (Parse::Error::Node::CHILD_ERROR);
 	}
 
       return std::unique_ptr<AST::ClosureExprInner> (
@@ -299,7 +301,7 @@ Parser<ManagedTokenSource>::parse_closure_expr (AST::AttrVec outer_attrs)
 
 // Parses a literal token (to literal expression).
 template <typename ManagedTokenSource>
-std::unique_ptr<AST::LiteralExpr>
+tl::expected<std::unique_ptr<AST::LiteralExpr>, Parse::Error::Node>
 Parser<ManagedTokenSource>::parse_literal_expr (AST::AttrVec outer_attrs)
 {
   // TODO: change if literal representation in lexer changes
@@ -365,7 +367,7 @@ Parser<ManagedTokenSource>::parse_literal_expr (AST::AttrVec outer_attrs)
 			t->get_token_description ()));
 
       // skip?
-      return nullptr;
+      return tl::unexpected (Parse::Error::Node::MALFORMED);
     }
 
   // create literal based on stuff in switch
@@ -433,7 +435,7 @@ Parser<ManagedTokenSource>::parse_try_expr (AST::AttrVec outer_attrs,
       skip_token (TRY);
     }
 
-  std::unique_ptr<AST::BlockExpr> block_expr = parse_block_expr ();
+  auto block_expr = parse_block_expr ();
 
   if (!block_expr)
     {
@@ -445,7 +447,8 @@ Parser<ManagedTokenSource>::parse_try_expr (AST::AttrVec outer_attrs,
     }
 
   return std::unique_ptr<AST::TryExpr> (
-    new AST::TryExpr (std::move (block_expr), std::move (outer_attrs), locus));
+    new AST::TryExpr (std::move (block_expr.value ()), std::move (outer_attrs),
+		      locus));
 }
 
 /* Parses a break expression (including any label to break to AND any return
@@ -548,8 +551,8 @@ Parser<ManagedTokenSource>::parse_if_expr (AST::AttrVec outer_attrs,
     }
 
   // parse required block expr
-  std::unique_ptr<AST::BlockExpr> if_body = parse_block_expr ();
-  if (if_body == nullptr)
+  auto if_body = parse_block_expr ();
+  if (!if_body)
     return nullptr;
 
   // branch to parse end or else (and then else, else if, or else if let)
@@ -557,7 +560,7 @@ Parser<ManagedTokenSource>::parse_if_expr (AST::AttrVec outer_attrs,
     {
       // single selection - end of if expression
       return std::unique_ptr<AST::IfExpr> (
-	new AST::IfExpr (std::move (condition), std::move (if_body),
+	new AST::IfExpr (std::move (condition), std::move (if_body.value ()),
 			 std::move (outer_attrs), locus));
     }
   else
@@ -575,8 +578,8 @@ Parser<ManagedTokenSource>::parse_if_expr (AST::AttrVec outer_attrs,
 	  {
 	    // double selection - else
 	    // parse else block expr (required)
-	    std::unique_ptr<AST::BlockExpr> else_body = parse_block_expr ();
-	    if (else_body == nullptr)
+	    auto else_body = parse_block_expr ();
+	    if (!else_body)
 	      {
 		Error error (lexer.peek_token ()->get_locus (),
 			     "failed to parse else body block expression in "
@@ -589,8 +592,8 @@ Parser<ManagedTokenSource>::parse_if_expr (AST::AttrVec outer_attrs,
 
 	    return std::unique_ptr<AST::IfExprConseqElse> (
 	      new AST::IfExprConseqElse (std::move (condition),
-					 std::move (if_body),
-					 std::move (else_body),
+					 std::move (if_body.value ()),
+					 std::move (else_body.value ()),
 					 std::move (outer_attrs), locus));
 	  }
 	case IF:
@@ -615,7 +618,7 @@ Parser<ManagedTokenSource>::parse_if_expr (AST::AttrVec outer_attrs,
 
 		return std::unique_ptr<AST::IfExprConseqElse> (
 		  new AST::IfExprConseqElse (std::move (condition),
-					     std::move (if_body),
+					     std::move (if_body.value ()),
 					     std::move (if_let_expr),
 					     std::move (outer_attrs), locus));
 	      }
@@ -636,7 +639,7 @@ Parser<ManagedTokenSource>::parse_if_expr (AST::AttrVec outer_attrs,
 
 		return std::unique_ptr<AST::IfExprConseqElse> (
 		  new AST::IfExprConseqElse (std::move (condition),
-					     std::move (if_body),
+					     std::move (if_body.value ()),
 					     std::move (if_expr),
 					     std::move (outer_attrs), locus));
 	      }
@@ -723,8 +726,8 @@ Parser<ManagedTokenSource>::parse_if_let_expr (AST::AttrVec outer_attrs,
    * expression here? or actually probably in semantic analysis. */
 
   // parse block expression (required)
-  std::unique_ptr<AST::BlockExpr> if_let_body = parse_block_expr ();
-  if (if_let_body == nullptr)
+  auto if_let_body = parse_block_expr ();
+  if (!if_let_body)
     {
       Error error (
 	lexer.peek_token ()->get_locus (),
@@ -739,10 +742,9 @@ Parser<ManagedTokenSource>::parse_if_let_expr (AST::AttrVec outer_attrs,
   if (lexer.peek_token ()->get_id () != ELSE)
     {
       // single selection - end of if let expression
-      return std::unique_ptr<AST::IfLetExpr> (
-	new AST::IfLetExpr (std::move (match_arm_patterns),
-			    std::move (scrutinee_expr), std::move (if_let_body),
-			    std::move (outer_attrs), locus));
+      return std::unique_ptr<AST::IfLetExpr> (new AST::IfLetExpr (
+	std::move (match_arm_patterns), std::move (scrutinee_expr),
+	std::move (if_let_body.value ()), std::move (outer_attrs), locus));
     }
   else
     {
@@ -759,8 +761,8 @@ Parser<ManagedTokenSource>::parse_if_let_expr (AST::AttrVec outer_attrs,
 	  {
 	    // double selection - else
 	    // parse else block expr (required)
-	    std::unique_ptr<AST::BlockExpr> else_body = parse_block_expr ();
-	    if (else_body == nullptr)
+	    auto else_body = parse_block_expr ();
+	    if (!else_body)
 	      {
 		Error error (lexer.peek_token ()->get_locus (),
 			     "failed to parse else body block expression in "
@@ -774,8 +776,8 @@ Parser<ManagedTokenSource>::parse_if_let_expr (AST::AttrVec outer_attrs,
 	    return std::unique_ptr<AST::IfLetExprConseqElse> (
 	      new AST::IfLetExprConseqElse (std::move (match_arm_patterns),
 					    std::move (scrutinee_expr),
-					    std::move (if_let_body),
-					    std::move (else_body),
+					    std::move (if_let_body.value ()),
+					    std::move (else_body.value ()),
 					    std::move (outer_attrs), locus));
 	  }
 	case IF:
@@ -801,7 +803,7 @@ Parser<ManagedTokenSource>::parse_if_let_expr (AST::AttrVec outer_attrs,
 		return std::unique_ptr<AST::IfLetExprConseqElse> (
 		  new AST::IfLetExprConseqElse (
 		    std::move (match_arm_patterns), std::move (scrutinee_expr),
-		    std::move (if_let_body), std::move (if_let_expr),
+		    std::move (if_let_body.value ()), std::move (if_let_expr),
 		    std::move (outer_attrs), locus));
 	      }
 	    else
@@ -822,7 +824,7 @@ Parser<ManagedTokenSource>::parse_if_let_expr (AST::AttrVec outer_attrs,
 		return std::unique_ptr<AST::IfLetExprConseqElse> (
 		  new AST::IfLetExprConseqElse (
 		    std::move (match_arm_patterns), std::move (scrutinee_expr),
-		    std::move (if_let_body), std::move (if_expr),
+		    std::move (if_let_body.value ()), std::move (if_expr),
 		    std::move (outer_attrs), locus));
 	      }
 	  }
@@ -871,12 +873,12 @@ Parser<ManagedTokenSource>::parse_loop_expr (AST::AttrVec outer_attrs,
     }
 
   // parse loop body, which is required
-  std::unique_ptr<AST::BlockExpr> loop_body = parse_block_expr ();
-  if (loop_body == nullptr)
+  auto loop_body = parse_block_expr ();
+  if (!loop_body)
     return nullptr;
 
   return std::unique_ptr<AST::LoopExpr> (
-    new AST::LoopExpr (std::move (loop_body), locus, std::move (label),
+    new AST::LoopExpr (std::move (loop_body.value ()), locus, std::move (label),
 		       std::move (outer_attrs)));
 }
 
@@ -937,8 +939,8 @@ Parser<ManagedTokenSource>::parse_while_loop_expr (
    * semantic analysis */
 
   // parse loop body (required)
-  std::unique_ptr<AST::BlockExpr> body = parse_block_expr ();
-  if (body == nullptr)
+  auto body = parse_block_expr ();
+  if (!body)
     {
       Error error (lexer.peek_token ()->get_locus (),
 		   "failed to parse loop body block expression in while loop");
@@ -949,8 +951,8 @@ Parser<ManagedTokenSource>::parse_while_loop_expr (
     }
 
   return std::unique_ptr<AST::WhileLoopExpr> (
-    new AST::WhileLoopExpr (std::move (predicate), std::move (body), locus,
-			    std::move (label), std::move (outer_attrs)));
+    new AST::WhileLoopExpr (std::move (predicate), std::move (body.value ()),
+			    locus, std::move (label), std::move (outer_attrs)));
 }
 
 /* Parses a "while let" loop expression. Label is not parsed and should be
@@ -1018,8 +1020,8 @@ Parser<ManagedTokenSource>::parse_while_let_loop_expr (
    * semantic analysis. */
 
   // parse loop body, which is required
-  std::unique_ptr<AST::BlockExpr> body = parse_block_expr ();
-  if (body == nullptr)
+  auto body = parse_block_expr ();
+  if (!body)
     {
       Error error (lexer.peek_token ()->get_locus (),
 		   "failed to parse block expr (loop body) of while let loop");
@@ -1029,9 +1031,11 @@ Parser<ManagedTokenSource>::parse_while_let_loop_expr (
       return nullptr;
     }
 
-  return std::unique_ptr<AST::WhileLetLoopExpr> (new AST::WhileLetLoopExpr (
-    std::move (predicate_patterns), std::move (predicate_expr),
-    std::move (body), locus, std::move (label), std::move (outer_attrs)));
+  return std::unique_ptr<AST::WhileLetLoopExpr> (
+    new AST::WhileLetLoopExpr (std::move (predicate_patterns),
+			       std::move (predicate_expr),
+			       std::move (body.value ()), locus,
+			       std::move (label), std::move (outer_attrs)));
 }
 
 /* Parses a "for" iterative loop. Label is not parsed and should be parsed via
@@ -1083,8 +1087,8 @@ Parser<ManagedTokenSource>::parse_for_loop_expr (
   // TODO: check to ensure this isn't struct expr? Or in semantic analysis.
 
   // parse loop body, which is required
-  std::unique_ptr<AST::BlockExpr> body = parse_block_expr ();
-  if (body == nullptr)
+  auto body = parse_block_expr ();
+  if (!body)
     {
       Error error (lexer.peek_token ()->get_locus (),
 		   "failed to parse loop body block expression in for loop");
@@ -1093,10 +1097,9 @@ Parser<ManagedTokenSource>::parse_for_loop_expr (
       // skip somewhere?
       return nullptr;
     }
-
   return std::unique_ptr<AST::ForLoopExpr> (
     new AST::ForLoopExpr (std::move (pattern), std::move (expr),
-			  std::move (body), locus, std::move (label),
+			  std::move (body.value ()), locus, std::move (label),
 			  std::move (outer_attrs)));
 }
 
@@ -1106,33 +1109,34 @@ std::unique_ptr<AST::Expr>
 Parser<ManagedTokenSource>::parse_labelled_loop_expr (const_TokenPtr tok,
 						      AST::AttrVec outer_attrs)
 {
-  /* TODO: decide whether it should not work if there is no label, or parse it
-   * with no label at the moment, I will make it not work with no label
-   * because that's the implication. */
-
-  if (tok->get_id () != LIFETIME)
-    {
-      Error error (tok->get_locus (),
-		   "expected lifetime in labelled loop expr (to parse loop "
-		   "label) - found %qs",
-		   tok->get_token_description ());
-      add_error (std::move (error));
-
-      // skip?
-      return nullptr;
-    }
-
   // parse loop label (required)
-  // TODO: Convert this return type to tl::expected instead of tl::optional
   auto parsed_label = parse_loop_label (tok);
   if (!parsed_label)
     {
-      Error error (lexer.peek_token ()->get_locus (),
-		   "failed to parse loop label in labelled loop expr");
-      add_error (std::move (error));
+      /* TODO: decide whether it should not work if there is no label, or parse
+       * it with no label at the moment, I will make it not work with no label
+       * because that's the implication. */
 
-      // skip?
-      return nullptr;
+      if (parsed_label.error ().kind
+	  == Parse::Error::LoopLabel::Kind::NOT_LOOP_LABEL)
+	{
+	  Error error (tok->get_locus (),
+		       "expected lifetime in labelled loop expr (to parse loop "
+		       "label) - found %qs",
+		       tok->get_token_description ());
+	  add_error (std::move (error));
+	  return nullptr;
+	}
+
+      else
+	{
+	  Error error (lexer.peek_token ()->get_locus (),
+		       "failed to parse loop label in labelled loop expr");
+	  add_error (std::move (error));
+
+	  // skip?
+	  return nullptr;
+	}
     }
 
   auto label = parsed_label
@@ -1160,7 +1164,14 @@ Parser<ManagedTokenSource>::parse_labelled_loop_expr (const_TokenPtr tok,
 					std::move (label));
 	}
     case LEFT_CURLY:
-      return parse_block_expr (std::move (outer_attrs), std::move (label));
+      {
+	auto block
+	  = parse_block_expr (std::move (outer_attrs), std::move (label));
+	if (block)
+	  return std::move (block.value ());
+	else
+	  return nullptr;
+      }
     default:
       // error
       add_error (Error (t->get_locus (),
@@ -1315,8 +1326,8 @@ Parser<ManagedTokenSource>::parse_async_block_expr (AST::AttrVec outer_attrs)
     }
 
   // parse block expression (required)
-  std::unique_ptr<AST::BlockExpr> block_expr = parse_block_expr ();
-  if (block_expr == nullptr)
+  auto block_expr = parse_block_expr ();
+  if (!block_expr)
     {
       Error error (
 	lexer.peek_token ()->get_locus (),
@@ -1328,7 +1339,7 @@ Parser<ManagedTokenSource>::parse_async_block_expr (AST::AttrVec outer_attrs)
     }
 
   return std::unique_ptr<AST::AsyncBlockExpr> (
-    new AST::AsyncBlockExpr (std::move (block_expr), has_move,
+    new AST::AsyncBlockExpr (std::move (block_expr.value ()), has_move,
 			     std::move (outer_attrs), locus));
 }
 
@@ -1346,8 +1357,8 @@ Parser<ManagedTokenSource>::parse_unsafe_block_expr (
     }
 
   // parse block expression (required)
-  std::unique_ptr<AST::BlockExpr> block_expr = parse_block_expr ();
-  if (block_expr == nullptr)
+  auto block_expr = parse_block_expr ();
+  if (!block_expr)
     {
       Error error (
 	lexer.peek_token ()->get_locus (),
@@ -1357,10 +1368,9 @@ Parser<ManagedTokenSource>::parse_unsafe_block_expr (
       // skip somewhere?
       return nullptr;
     }
-
   return std::unique_ptr<AST::UnsafeBlockExpr> (
-    new AST::UnsafeBlockExpr (std::move (block_expr), std::move (outer_attrs),
-			      locus));
+    new AST::UnsafeBlockExpr (std::move (block_expr.value ()),
+			      std::move (outer_attrs), locus));
 }
 
 // Parses an array definition expression.
@@ -2203,8 +2213,14 @@ Parser<ManagedTokenSource>::null_denotation_not_path (
       return parse_continue_expr (std::move (outer_attrs), tok->get_locus ());
     case LEFT_CURLY:
       // ok - this is an expression with block for once.
-      return parse_block_expr (std::move (outer_attrs), tl::nullopt,
-			       tok->get_locus ());
+      {
+	auto block = parse_block_expr (std::move (outer_attrs), tl::nullopt,
+				       tok->get_locus ());
+	if (block)
+	  return std::move (block.value ());
+	else
+	  return nullptr;
+      }
     case IF:
       // if or if let, so more lookahead to find out
       if (lexer.peek_token ()->get_id () == LET)
@@ -2252,8 +2268,14 @@ Parser<ManagedTokenSource>::null_denotation_not_path (
 	       tok->get_token_description ()));
       return nullptr;
     case CONST:
-      return parse_const_block_expr (std::move (outer_attrs),
-				     tok->get_locus ());
+      {
+	auto const_block
+	  = parse_const_block_expr (std::move (outer_attrs), tok->get_locus ());
+	if (const_block)
+	  return std::move (const_block.value ());
+	else
+	  return nullptr;
+      }
     default:
       if (!restrictions.expr_can_be_null)
 	add_error (Error (tok->get_locus (),
@@ -4064,8 +4086,8 @@ Parser<ManagedTokenSource>::parse_closure_expr_pratt (const_TokenPtr tok,
 	}
 
       // parse block expr, which is required
-      std::unique_ptr<AST::BlockExpr> block = parse_block_expr ();
-      if (block == nullptr)
+      auto block = parse_block_expr ();
+      if (!block)
 	{
 	  // error
 	  Error error (lexer.peek_token ()->get_locus (),
@@ -4077,7 +4099,8 @@ Parser<ManagedTokenSource>::parse_closure_expr_pratt (const_TokenPtr tok,
 	}
 
       return std::unique_ptr<AST::ClosureExprInnerTyped> (
-	new AST::ClosureExprInnerTyped (std::move (type), std::move (block),
+	new AST::ClosureExprInnerTyped (std::move (type),
+					std::move (block.value ()),
 					std::move (params), locus, has_move,
 					std::move (outer_attrs)));
     }

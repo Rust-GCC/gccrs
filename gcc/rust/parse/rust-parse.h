@@ -29,32 +29,6 @@ along with GCC; see the file COPYING3.  If not see
 
 namespace Rust {
 
-class ParseLifetimeParamError
-{
-};
-
-class ParseLifetimeError
-{
-};
-
-enum class AnonConstError
-{
-  InvalidSizeExpr,
-};
-
-enum class ParseLoopLabelError
-{
-  NOT_LOOP_LABEL,
-  MISSING_COLON,
-};
-
-enum class ParseSelfError
-{
-  SELF_PTR,
-  PARSING,
-  NOT_SELF,
-};
-
 // Left binding powers of operations.
 enum binding_powers
 {
@@ -267,17 +241,17 @@ public:
   parse_expr (AST::AttrVec outer_attrs = AST::AttrVec (),
 	      ParseRestrictions restrictions = ParseRestrictions ());
 
-  std::unique_ptr<AST::LiteralExpr> parse_literal_expr (AST::AttrVec outer_attrs
-							= AST::AttrVec ());
+  tl::expected<std::unique_ptr<AST::LiteralExpr>, Parse::Error::Node>
+  parse_literal_expr (AST::AttrVec outer_attrs = AST::AttrVec ());
 
-  std::unique_ptr<AST::BlockExpr>
+  tl::expected<std::unique_ptr<AST::BlockExpr>, Parse::Error::Node>
   parse_block_expr (AST::AttrVec outer_attrs = AST::AttrVec (),
 		    tl::optional<AST::LoopLabel> = tl::nullopt,
 		    location_t pratt_parsed_loc = UNKNOWN_LOCATION);
 
-  tl::expected<AST::AnonConst, AnonConstError> parse_anon_const ();
+  tl::expected<AST::AnonConst, Parse::Error::Node> parse_anon_const ();
 
-  std::unique_ptr<AST::ConstBlock>
+  tl::expected<std::unique_ptr<AST::ConstBlock>, Parse::Error::Node>
   parse_const_block_expr (AST::AttrVec outer_attrs = AST::AttrVec (),
 			  location_t loc = UNKNOWN_LOCATION);
 
@@ -307,9 +281,9 @@ public:
   std::vector<std::unique_ptr<AST::LifetimeParam>> parse_lifetime_params ();
   tl::expected<AST::Visibility, Parse::Error::Visibility> parse_visibility ();
   std::unique_ptr<AST::IdentifierPattern> parse_identifier_pattern ();
-  tl::expected<std::unique_ptr<AST::Token>, Parse::Error::Token>
+  tl::expected<std::unique_ptr<AST::Token>, Parse::Error::Node>
   parse_identifier_or_keyword_token ();
-  tl::expected<std::unique_ptr<AST::TokenTree>, Parse::Error::TokenTree>
+  tl::expected<std::unique_ptr<AST::TokenTree>, Parse::Error::Node>
   parse_token_tree ();
 
   tl::expected<Parse::AttributeBody, Parse::Error::AttributeBody>
@@ -347,7 +321,7 @@ private:
   Parse::AttributeBody parse_doc_comment ();
 
   // Path-related
-  tl::expected<AST::SimplePath, Parse::Error::SimplePath> parse_simple_path ();
+  tl::expected<AST::SimplePath, Parse::Error::Node> parse_simple_path ();
   tl::expected<AST::SimplePathSegment, Parse::Error::SimplePathSegment>
   parse_simple_path_segment (int base_peek = 0);
   AST::TypePath parse_type_path ();
@@ -370,7 +344,7 @@ private:
   AST::QualifiedPathInType parse_qualified_path_in_type ();
 
   // Token tree or macro related
-  tl::expected<AST::DelimTokenTree, Parse::Error::DelimTokenTree>
+  tl::expected<AST::DelimTokenTree, Parse::Error::Node>
   parse_delim_token_tree ();
   std::unique_ptr<AST::MacroRulesDefinition>
   parse_macro_rules_def (AST::AttrVec outer_attrs);
@@ -420,7 +394,7 @@ private:
     ParseFunction parsing_function, EndTokenPred is_end_token,
     std::string error_msg = "failed to parse generic param in generic params")
     -> std::vector<decltype (parsing_function ())>;
-  tl::expected<AST::LifetimeParam, ParseLifetimeParamError>
+  tl::expected<AST::LifetimeParam, Parse::Error::LifetimeParam>
   parse_lifetime_param ();
   std::vector<std::unique_ptr<AST::TypeParam>> parse_type_params ();
   template <typename EndTokenPred>
@@ -450,7 +424,7 @@ private:
   std::vector<AST::Lifetime> parse_lifetime_bounds ();
   template <typename EndTokenPred>
   std::vector<AST::Lifetime> parse_lifetime_bounds (EndTokenPred is_end_token);
-  tl::expected<AST::Lifetime, ParseLifetimeError>
+  tl::expected<AST::Lifetime, Parse::Error::Lifetime>
   parse_lifetime (bool allow_elided);
   AST::Lifetime lifetime_from_token (const_TokenPtr tok);
   std::unique_ptr<AST::ExternalTypeItem>
@@ -486,7 +460,8 @@ private:
   std::unique_ptr<AST::ConstantItem>
   parse_trait_const (AST::AttrVec outer_attrs);
 
-  tl::expected<std::unique_ptr<AST::Param>, ParseSelfError> parse_self_param ();
+  tl::expected<std::unique_ptr<AST::Param>, Parse::Error::Self>
+  parse_self_param ();
 
   std::unique_ptr<AST::Impl> parse_impl (AST::Visibility vis,
 					 AST::AttrVec outer_attrs);
@@ -753,14 +728,14 @@ private:
   std::unique_ptr<AST::Expr> parse_labelled_loop_expr (const_TokenPtr tok,
 						       AST::AttrVec outer_attrs
 						       = AST::AttrVec ());
-  tl::expected<AST::LoopLabel, ParseLoopLabelError>
+  tl::expected<AST::LoopLabel, Parse::Error::LoopLabel>
   parse_loop_label (const_TokenPtr tok);
   std::unique_ptr<AST::AsyncBlockExpr>
   parse_async_block_expr (AST::AttrVec outer_attrs = AST::AttrVec ());
-  std::unique_ptr<AST::GroupedExpr> parse_grouped_expr (AST::AttrVec outer_attrs
-							= AST::AttrVec ());
-  std::unique_ptr<AST::ClosureExpr> parse_closure_expr (AST::AttrVec outer_attrs
-							= AST::AttrVec ());
+  tl::expected<std::unique_ptr<AST::GroupedExpr>, Parse::Error::Node>
+  parse_grouped_expr (AST::AttrVec outer_attrs = AST::AttrVec ());
+  tl::expected<std::unique_ptr<AST::ClosureExpr>, Parse::Error::Node>
+  parse_closure_expr (AST::AttrVec outer_attrs = AST::AttrVec ());
   AST::ClosureParam parse_closure_param ();
 
   std::unique_ptr<AST::BoxExpr> parse_box_expr (AST::AttrVec outer_attrs,
