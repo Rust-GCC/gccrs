@@ -193,10 +193,19 @@ ResolvePathRef::resolve_with_node_id (
       auto d = lookup->destructure ();
       rust_assert (d->get_kind () == TyTy::TypeKind::CONST);
       auto c = d->as_const_type ();
-      rust_assert (c->const_kind () == TyTy::BaseConstType::ConstKind::Value);
+
+      if (c->const_kind () != TyTy::BaseConstType::ConstKind::Value)
+        {
+          rust_error_at (
+            expr_locus,
+            "cannot evaluate constant expression with  generic parameters");
+          return error_mark_node;
+        }
+
       auto val = static_cast<TyTy::ConstValueType *> (c);
       return val->get_value ();
     }
+
 
   // Handle unit struct
   tree resolved_item = error_mark_node;
