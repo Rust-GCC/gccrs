@@ -511,13 +511,13 @@ resolve_type_path_like (NameResolutionContext &ctx, bool block_big_self,
       return;
     }
 
-  // if (ctx.types.forward_declared (resolved->get_node_id (),
-  // 		  type.get_node_id ()))
-  //   {
-  //     rust_error_at (type.get_locus (), ErrorCode::E0128,
-  //      "type parameters with a default cannot use forward "
-  //      "declared identifiers");
-  //   }
+  if (ctx.types.forward_declared (resolved->get_node_id (),
+				  type.get_node_id ()))
+    {
+      rust_error_at (type.get_locus (), ErrorCode::E0128,
+		     "type parameters with a default cannot use forward "
+		     "declared identifiers");
+    }
 
   ctx.map_usage (Usage (type.get_node_id ()),
 		 Definition (resolved->get_node_id ()));
