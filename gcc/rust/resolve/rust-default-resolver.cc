@@ -195,8 +195,6 @@ DefaultResolver::visit (AST::InherentImpl &impl)
 
   if (is_lang_impl (impl.get_outer_attrs ()))
     {
-      rust_warning_at (impl.get_locus (), 0, "found lang item impl");
-
       if (impl.get_type ().get_type_kind () == AST::Type::Kind::TypePath)
 	{
 	  auto type = static_cast<AST::TypePath &> (impl.get_type ());
