@@ -3760,9 +3760,11 @@ initialize_inlined_parameters (copy_body_data *id, gimple *stmt,
   gcc_assert (fn != current_function_decl);
   if (p)
     {
-      /* No static chain?  Seems like a bug in tree-nested.cc.  */
-      gcc_assert (static_chain);
-
+      /* Calling a function that requires a static chain directly
+	 without setting up the static chain has undefined behavior
+	 at run-time.  */
+      if (!static_chain)
+	static_chain = null_pointer_node;
       setup_one_parameter (id, p, static_chain, fn, bb, &vars);
     }
 

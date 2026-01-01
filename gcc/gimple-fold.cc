@@ -5409,6 +5409,33 @@ gimple_fold_builtin_stdarg (gimple_stmt_iterator *gsi, gcall *call)
     }
 }
 
+/* Fold __builtin_call_{code_address,static_chain} builtins.  This handles
+   only the trivial left-over cases not processed in tree-nested.cc.  */
+
+static bool
+gimple_fold_builtin_call_info (gimple_stmt_iterator *gsi,
+			       enum built_in_function fcode)
+{
+  gcall *stmt = as_a <gcall *>(gsi_stmt (*gsi));
+  tree arg = gimple_call_arg (stmt, 0);
+
+  /* The error will be emitted in builtins.cc.  */
+  if (TREE_CODE (arg) != ADDR_EXPR
+      || FUNCTION_DECL != TREE_CODE (TREE_OPERAND (arg, 0)))
+    return false;
+
+  /* The case with static chain is handled in tree-nested.cc.  */
+  gcc_assert (!DECL_STATIC_CHAIN (TREE_OPERAND (arg, 0)));
+
+  if (fcode == BUILT_IN_CALL_STATIC_CHAIN)
+    replace_call_with_value (gsi, null_pointer_node);
+  else
+    replace_call_with_value (gsi, arg);
+
+  return true;
+}
+
+
 /* Fold the non-target builtin at *GSI and return whether any simplification
    was made.  */
 
@@ -5588,6 +5615,10 @@ gimple_fold_builtin (gimple_stmt_iterator *gsi)
 
     case BUILT_IN_CONSTANT_P:
       return gimple_fold_builtin_constant_p (gsi);
+
+    case BUILT_IN_CALL_CODE_ADDRESS:
+    case BUILT_IN_CALL_STATIC_CHAIN:
+      return gimple_fold_builtin_call_info (gsi, fcode);
 
     default:;
     }

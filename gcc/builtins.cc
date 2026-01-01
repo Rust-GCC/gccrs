@@ -8092,6 +8092,18 @@ expand_builtin (tree exp, rtx target, rtx subtarget, machine_mode mode,
 	expand_builtin_return (expand_normal (CALL_EXPR_ARG (exp, 0)));
       return const0_rtx;
 
+    case BUILT_IN_CALL_CODE_ADDRESS:
+      /* All valid uses of __builtin_call_code_address () are removed in
+	 in tree-nested.cc or gimple-fold.cc.  */
+      error ("argument to %<__builtin_call_code_address%> must be a function");
+      return const0_rtx;
+
+    case BUILT_IN_CALL_STATIC_CHAIN:
+       /* All valid uses of __builtin_call_static_chain () are removed in
+	  in tree-nested.cc or gimple-fold.cc.  */
+      error ("argument to %<__builtin_call_static_chain%> must be a function");
+      return const0_rtx;
+
     case BUILT_IN_SAVEREGS:
       return expand_builtin_saveregs ();
 
@@ -12368,6 +12380,8 @@ is_simple_builtin (tree decl)
       case BUILT_IN_STACK_SAVE:
       case BUILT_IN_STACK_RESTORE:
       case BUILT_IN_DWARF_CFA:
+      case BUILT_IN_CALL_CODE_ADDRESS:
+      case BUILT_IN_CALL_STATIC_CHAIN:
 	/* Exception state returns or moves registers around.  */
       case BUILT_IN_EH_FILTER:
       case BUILT_IN_EH_POINTER:

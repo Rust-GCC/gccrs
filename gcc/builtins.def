@@ -1170,6 +1170,10 @@ DEF_BUILTIN_STUB (BUILT_IN_NONLOCAL_GOTO, "__builtin_nonlocal_goto")
 DEF_EXT_LIB_BUILTIN (BUILT_IN_GCC_NESTED_PTR_CREATED, "__gcc_nested_func_ptr_created", BT_FN_VOID_PTR_PTR_PTR, ATTR_NOTHROW_LIST)
 DEF_EXT_LIB_BUILTIN (BUILT_IN_GCC_NESTED_PTR_DELETED, "__gcc_nested_func_ptr_deleted", BT_FN_VOID, ATTR_NOTHROW_LIST)
 
+/* Information needed to call (nested) functions.  */
+DEF_GCC_BUILTIN (BUILT_IN_CALL_CODE_ADDRESS, "call_code_address", BT_FN_PTR_PTR, ATTR_NULL)
+DEF_GCC_BUILTIN (BUILT_IN_CALL_STATIC_CHAIN, "call_static_chain", BT_FN_PTR_PTR, ATTR_NULL)
+
 /* Implementing __builtin_setjmp.  */
 DEF_BUILTIN_STUB (BUILT_IN_SETJMP_SETUP, "__builtin_setjmp_setup")
 DEF_BUILTIN_STUB (BUILT_IN_SETJMP_RECEIVER, "__builtin_setjmp_receiver")

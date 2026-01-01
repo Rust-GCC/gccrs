@@ -13978,7 +13978,10 @@ safe.
 GCC implements taking the address of a nested function using a technique
 called @dfn{trampolines}.  This technique was described in
 @cite{Lexical Closures for C++} (Thomas M. Breuel, USENIX
-C++ Conference Proceedings, October 17-21, 1988).
+C++ Conference Proceedings, October 17-21, 1988).  It is also
+possible to use the built-in @code{__builtin_call_with_static_chain}
+(@pxref{Constructing Calls}) to invoke a nested function indirectly
+without the use of a trampoline.
 
 A nested function can jump to a label inherited from a containing
 function, provided the label is explicitly declared in the containing
@@ -16674,11 +16677,73 @@ myopen (const char *path, int oflag, ...)
 The @var{call_exp} expression must be a function call, and the
 @var{pointer_exp} expression must be a pointer.  The @var{pointer_exp}
 is passed to the function call in the target's static chain location.
-The result of builtin is the result of the function call.
+The result of the built-in is the result of the function call.
+This built-in can be used to call Go closures from C, and it can be
+used to call @xref{Nested Functions} using the code address and
+static chain obtained with @code{__builtin_call_code_address} and
+@code{__builtin_call_static_chain}, respectively.
 
-@emph{Note:} This builtin is only available for C@.
-This builtin can be used to call Go closures from C.
+@smallexample
+int process(int (*callback)(int, void *), void *data)
+@{
+  int value = 5;
+  return (*callback)(value, data);
+@}
 
+struct call_info @{
+  int (*code)(int);
+  void *chain;
+@};
+
+int callback(int arg, void *data)
+@{
+   struct call_info *ci = data;
+   return __builtin_call_with_static_chain(ci->code(arg), ci->chain);
+@}
+
+int doit(int x)
+@{
+  int worker(int y)
+  @{
+    return x + y;
+  @}
+
+  struct call_info ci = @{
+    ci.code = __builtin_call_code_address(worker),
+    ci.chain = __builtin_call_static_chain(worker),
+  @};
+
+  return process(callback, &ci);
+@}
+@end smallexample
+
+@emph{Note:} This built-in is only available for C@.
+@enddefbuiltin
+
+@defbuiltin{@var{type} __builtin_call_static_chain (@var{pointer_exp})}
+
+The @var{pointer_exp} expression must a function identifier.
+The result is the static chain pointer that can be used to call
+the function in its current context using the built-in
+@code{__builtin_call_with_static_chain}, or a null pointer if
+no static chain is needed.
+
+@emph{Note:} The lifetime of a nested function that accesses the
+environment of an enclosing function is limited.  Any use of the
+static chain after this lifetime has ended has undefined behavior.
+@enddefbuiltin
+
+@defbuiltin{@var{type} __builtin_call_code_address (@var{pointer_exp})}
+
+The @var{pointer_exp} expression must be a function identifier.
+The result is the static address of the function.  For a nested function,
+it represents the address of the underlying machine code and not of a
+trampoline that would otherwise be generated to setup the static chain.
+The code address can be used together with a static chain pointer to
+call the function with the built-in @code{__builtin_call_with_static_chain}.
+
+@emph{Note:} Calling a function that requires a static chain using the
+code address directly in a function call expression has undefined behavior.
 @enddefbuiltin
 
 @node Return Address

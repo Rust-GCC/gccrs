@@ -36,6 +36,7 @@
 #include "gimplify.h"
 #include "gimple-iterator.h"
 #include "gimple-walk.h"
+#include "gimple-fold.h"
 #include "tree-cfg.h"
 #include "explow.h"
 #include "langhooks.h"
@@ -2886,6 +2887,12 @@ convert_tramp_reference_stmt (gimple_stmt_iterator *gsi, bool *handled_ops_p,
     {
     case GIMPLE_CALL:
       {
+	tree decl = gimple_call_fndecl (stmt);
+	if (decl && fndecl_built_in_p (decl, BUILT_IN_NORMAL)
+	    && (DECL_FUNCTION_CODE (decl) == BUILT_IN_CALL_CODE_ADDRESS
+		|| DECL_FUNCTION_CODE (decl) == BUILT_IN_CALL_STATIC_CHAIN))
+	  break;
+
 	/* Only walk call arguments, lest we generate trampolines for
 	   direct calls.  */
 	unsigned long i, nargs = gimple_call_num_args (stmt);
@@ -2998,10 +3005,40 @@ convert_gimple_call (gimple_stmt_iterator *gsi, bool *handled_ops_p,
   switch (gimple_code (stmt))
     {
     case GIMPLE_CALL:
-      if (gimple_call_chain (stmt))
-	break;
       decl = gimple_call_fndecl (stmt);
       if (!decl)
+	break;
+      if (fndecl_built_in_p (decl, BUILT_IN_NORMAL)
+	  && (DECL_FUNCTION_CODE (decl) == BUILT_IN_CALL_CODE_ADDRESS
+	      || DECL_FUNCTION_CODE (decl) == BUILT_IN_CALL_STATIC_CHAIN))
+	{
+	  tree d = gimple_call_arg (stmt, 0);
+	  if (TREE_CODE (d) != ADDR_EXPR
+	      || FUNCTION_DECL != TREE_CODE (TREE_OPERAND (d, 0)))
+	    break;
+	  tree ret = null_pointer_node;
+	  if (DECL_FUNCTION_CODE (decl) == BUILT_IN_CALL_CODE_ADDRESS)
+	    {
+	      /* Return code pointer.  */
+	      ret = build_addr (TREE_OPERAND (d, 0));
+	      TREE_NO_TRAMPOLINE (ret) = 1;
+	    }
+	  else
+	    {
+	      decl = TREE_OPERAND (d, 0);
+	      target_context = decl_function_context (decl);
+	      if (target_context && DECL_STATIC_CHAIN (decl))
+		{
+		  /* Return static chain.  */
+		  info->static_chain_added
+		    |= (1 << (info->context != target_context));
+		  ret = get_static_chain (info, target_context, &wi->gsi);
+		}
+	    }
+	  replace_call_with_value (gsi, ret);
+	  break;
+	}
+      if (gimple_call_chain (stmt))
 	break;
       target_context = decl_function_context (decl);
       if (target_context && DECL_STATIC_CHAIN (decl))
