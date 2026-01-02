@@ -200,6 +200,14 @@ ForeverStack<Namespace::Types>::insert_variant (Identifier name, NodeId node)
 }
 
 template <Namespace N>
+inline void
+ForeverStack<N>::insert_lang_prelude (Identifier name, NodeId id)
+{
+  insert_inner (lang_prelude.rib, name.as_string (),
+		Rib::Definition::NonShadowable (id, false));
+}
+
+template <Namespace N>
 Rib &
 ForeverStack<N>::peek ()
 {
@@ -341,6 +349,17 @@ tl::optional<Rib::Definition>
 ForeverStack<N>::get_lang_prelude (const std::string &name)
 {
   return lang_prelude.rib.get (name);
+}
+
+template <Namespace N>
+tl::optional<Rib::Definition>
+ForeverStack<N>::get_from_prelude (NodeId prelude, const Identifier &name)
+{
+  auto starting_point = dfs_node (root, prelude);
+  if (!starting_point)
+    return tl::nullopt;
+
+  return get (*starting_point, name);
 }
 
 template <>
@@ -653,11 +672,44 @@ tl::optional<Rib::Definition>
 ForeverStack<N>::resolve_path (
   const std::vector<S> &segments, ResolutionMode mode,
   std::function<void (const S &, NodeId)> insert_segment_resolution,
+  std::vector<Error> &collect_errors, NodeId starting_point_id)
+{
+  auto starting_point = dfs_node (root, starting_point_id);
+
+  // We may have a prelude, but haven't visited it yet and thus it's not in our
+  // nodes
+  if (!starting_point)
+    return tl::nullopt;
+
+  return resolve_path (segments, mode, insert_segment_resolution,
+		       collect_errors, *starting_point);
+}
+
+template <Namespace N>
+template <typename S>
+tl::optional<Rib::Definition>
+ForeverStack<N>::resolve_path (
+  const std::vector<S> &segments, ResolutionMode mode,
+  std::function<void (const S &, NodeId)> insert_segment_resolution,
   std::vector<Error> &collect_errors)
+{
+  std::reference_wrapper<Node> starting_point = cursor ();
+
+  return resolve_path (segments, mode, insert_segment_resolution,
+		       collect_errors, starting_point);
+}
+
+template <Namespace N>
+template <typename S>
+tl::optional<Rib::Definition>
+ForeverStack<N>::resolve_path (
+  const std::vector<S> &segments, ResolutionMode mode,
+  std::function<void (const S &, NodeId)> insert_segment_resolution,
+  std::vector<Error> &collect_errors,
+  std::reference_wrapper<Node> starting_point)
 {
   rust_assert (!segments.empty ());
 
-  std::reference_wrapper<Node> starting_point = cursor ();
   switch (mode)
     {
     case ResolutionMode::Normal:
