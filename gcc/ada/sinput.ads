@@ -46,13 +46,13 @@
 --    significance, but they are significant for error reporting purposes,
 --    since errors are identified by line and column location.
 
---  In GNAT, a physical line is ended by any of the sequences LF, CR/LF, or
---  CR. LF is used in typical Unix systems, CR/LF in DOS systems, and CR
---  alone in System 7. In addition, we recognize any of these sequences in
+--  In GNAT, a physical line is ended by any of the sequences CR, LF, or CR/LF.
+--  CR is used in some MAC systems, LF is used in Unix systems, and CR/LF in
+--  DOS/Windows systems. In addition, we recognize any of these sequences in
 --  any of the operating systems, for better behavior in treating foreign
 --  files (e.g. a Unix file with LF terminators transferred to a DOS system).
 --  Finally, wide character codes in categories Separator, Line and Separator,
---  Paragraph are considered to be physical line terminators.
+--  Paragraph are considered to be logical line terminators.
 
 with Alloc;
 with Casing; use Casing;
