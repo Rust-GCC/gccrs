@@ -66,7 +66,7 @@ IdentifierPattern::as_string () const
   str += variable_ident.as_string ();
 
   if (has_subpattern ())
-    str += " @ " + subpattern->as_string ();
+    str += " @ " + subpattern.get ()->as_string ();
 
   return str;
 }
@@ -91,11 +91,11 @@ RangePattern::as_string () const
   switch (range_kind)
     {
     case RangeKind::EXCLUDED:
-      return lower->as_string () + ".." + upper->as_string ();
+      return lower.get ()->as_string () + ".." + upper.get ()->as_string ();
     case RangeKind::INCLUDED:
-      return lower->as_string () + "..=" + upper->as_string ();
+      return lower.get ()->as_string () + "..=" + upper.get ()->as_string ();
     case RangeKind::ELLIPSIS:
-      return lower->as_string () + "..." + upper->as_string ();
+      return lower.get ()->as_string () + "..." + upper.get ()->as_string ();
     default:
       rust_unreachable ();
     }
@@ -113,7 +113,7 @@ ReferencePattern::as_string () const
   if (is_mut)
     str += "mut ";
 
-  str += pattern->as_string ();
+  str += pattern.get ()->as_string ();
 
   return str;
 }
@@ -135,7 +135,7 @@ StructPatternFieldTuplePat::as_string () const
 
   str += "\n";
 
-  str += std::to_string (index) + " : " + tuple_pattern->as_string ();
+  str += std::to_string (index) + " : " + tuple_pattern.get ()->as_string ();
 
   return str;
 }
@@ -148,7 +148,7 @@ StructPatternFieldIdentPat::as_string () const
 
   str += "\n";
 
-  str += ident.as_string () + " : " + ident_pattern->as_string ();
+  str += ident.as_string () + " : " + ident_pattern.get ()->as_string ();
 
   return str;
 }
@@ -182,7 +182,7 @@ StructPatternElements::as_string () const
     }
   else
     {
-      for (const auto &field : fields)
+      for (const auto &field : fields.get ())
 	str += "\n   " + field->as_string ();
     }
 
@@ -216,7 +216,7 @@ TupleStructItemsNoRest::as_string () const
 {
   std::string str;
 
-  for (const auto &pattern : patterns)
+  for (const auto &pattern : patterns.get ())
     str += "\n  " + pattern->as_string ();
 
   return str;
@@ -227,24 +227,24 @@ TupleStructItemsHasRest::as_string () const
 {
   std::string str ("\n  Lower patterns: ");
 
-  if (lower_patterns.empty ())
+  if (lower_patterns.get ().empty ())
     {
       str += "none";
     }
   else
     {
-      for (const auto &lower : lower_patterns)
+      for (const auto &lower : lower_patterns.get ())
 	str += "\n   " + lower->as_string ();
     }
 
   str += "\n  Upper patterns: ";
-  if (upper_patterns.empty ())
+  if (upper_patterns.get ().empty ())
     {
       str += "none";
     }
   else
     {
-      for (const auto &upper : upper_patterns)
+      for (const auto &upper : upper_patterns.get ())
 	str += "\n   " + upper->as_string ();
     }
 
@@ -258,7 +258,7 @@ TupleStructPattern::as_string () const
 
   str += path.as_string ();
 
-  str += "\n Tuple struct items: " + items->as_string ();
+  str += "\n Tuple struct items: " + items.get ()->as_string ();
 
   return str;
 }
@@ -268,7 +268,7 @@ TuplePatternItemsNoRest::as_string () const
 {
   std::string str;
 
-  for (const auto &pattern : patterns)
+  for (const auto &pattern : patterns.get ())
     str += "\n " + pattern->as_string ();
 
   return str;
@@ -280,24 +280,24 @@ TuplePatternItemsHasRest::as_string () const
   std::string str;
 
   str += "\n Lower patterns: ";
-  if (lower_patterns.empty ())
+  if (lower_patterns.get ().empty ())
     {
       str += "none";
     }
   else
     {
-      for (const auto &lower : lower_patterns)
+      for (const auto &lower : lower_patterns.get ())
 	str += "\n  " + lower->as_string ();
     }
 
   str += "\n Upper patterns: ";
-  if (upper_patterns.empty ())
+  if (upper_patterns.get ().empty ())
     {
       str += "none";
     }
   else
     {
-      for (const auto &upper : upper_patterns)
+      for (const auto &upper : upper_patterns.get ())
 	str += "\n  " + upper->as_string ();
     }
 
@@ -307,7 +307,7 @@ TuplePatternItemsHasRest::as_string () const
 std::string
 TuplePattern::as_string () const
 {
-  return "TuplePattern: " + items->as_string ();
+  return "TuplePattern: " + items.get ()->as_string ();
 }
 
 std::string
@@ -331,7 +331,7 @@ SlicePatternItemsNoRest::as_string () const
 {
   std::string str;
 
-  for (const auto &pattern : patterns)
+  for (const auto &pattern : patterns.get ())
     str += "\n " + pattern->as_string ();
 
   return str;
@@ -343,24 +343,24 @@ SlicePatternItemsHasRest::as_string () const
   std::string str;
 
   str += "\n Lower patterns: ";
-  if (lower_patterns.empty ())
+  if (lower_patterns.get ().empty ())
     {
       str += "none";
     }
   else
     {
-      for (const auto &lower : lower_patterns)
+      for (const auto &lower : lower_patterns.get ())
 	str += "\n  " + lower->as_string ();
     }
 
   str += "\n Upper patterns: ";
-  if (upper_patterns.empty ())
+  if (upper_patterns.get ().empty ())
     {
       str += "none";
     }
   else
     {
-      for (const auto &upper : upper_patterns)
+      for (const auto &upper : upper_patterns.get ())
 	str += "\n  " + upper->as_string ();
     }
 
@@ -370,7 +370,7 @@ SlicePatternItemsHasRest::as_string () const
 std::string
 SlicePattern::as_string () const
 {
-  return "SlicePattern: " + items->as_string ();
+  return "SlicePattern: " + items.get ()->as_string ();
 }
 
 std::string
@@ -378,7 +378,7 @@ AltPattern::as_string () const
 {
   std::string str ("AltPattern: ");
 
-  for (const auto &pattern : alts)
+  for (const auto &pattern : alts.get ())
     str += "\n " + pattern->as_string ();
 
   return str;
