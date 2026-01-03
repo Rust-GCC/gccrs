@@ -24,7 +24,7 @@
 #include "rust-ast.h"
 #include "rust-item.h"
 #include "rust-operators.h"
-#include <initializer_list>
+#include "options.h"
 
 namespace Rust {
 namespace AST {
@@ -332,10 +332,19 @@ public:
   /* Location of the generated AST nodes */
   location_t loc;
 
+  const char *get_path_start () const
+  {
+    if (flag_compile_core)
+      return "crate";
+    else
+      return "core";
+  }
+
 private:
-  /* Some constexpr helpers for some of the builders */
-  static constexpr std::initializer_list<const char *> discriminant_value_path
-    = {"core", "intrinsics", "discriminant_value"};
+  // /* Some constexpr helpers for some of the builders */
+  // static constexpr std::initializer_list<const char *>
+  // discriminant_value_path
+  //   = {"core", "intrinsics", "discriminant_value"};
 };
 
 } // namespace AST

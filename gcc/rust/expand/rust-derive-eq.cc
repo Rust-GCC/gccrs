@@ -61,7 +61,7 @@ std::unique_ptr<Stmt>
 DeriveEq::assert_param_is_eq ()
 {
   auto eq_bound = std::unique_ptr<TypeParamBound> (
-    new TraitBound (builder.type_path ({"core", "cmp", "Eq"}, true), loc));
+    new TraitBound (builder.type_path ({builder.get_path_start(), "cmp", "Eq"}, true), loc));
 
   auto sized_bound = std::unique_ptr<TypeParamBound> (
     new TraitBound (builder.type_path (LangItem::Kind::SIZED), loc, false,
@@ -113,9 +113,9 @@ DeriveEq::eq_impls (
   const std::vector<std::unique_ptr<GenericParam>> &type_generics)
 {
   // We create two copies of the type-path to avoid duplicate NodeIds
-  auto eq = builder.type_path ({"core", "cmp", "Eq"}, true);
+  auto eq = builder.type_path ({builder.get_path_start(), "cmp", "Eq"}, true);
   auto eq_bound
-    = builder.trait_bound (builder.type_path ({"core", "cmp", "Eq"}, true));
+    = builder.trait_bound (builder.type_path ({builder.get_path_start(), "cmp", "Eq"}, true));
 
   auto steq = builder.type_path (LangItem::Kind::STRUCTURAL_TEQ);
 
