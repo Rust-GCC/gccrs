@@ -866,6 +866,16 @@ AttributeChecker::visit (AST::Function &fun)
 	}
       else if (result.name == "no_mangle")
 	check_no_mangle_function (attribute, fun);
+      else if (result.name == Attrs::TARGET_FEATURE)
+	{
+	  if (!fun.get_qualifiers ().is_unsafe ())
+	    {
+	      rust_error_at (
+		attribute.get_locus (),
+		"the %<#[target_feature]%> attribute can only be applied "
+		"to %<unsafe%> functions");
+	    }
+	}
     }
   if (fun.has_body ())
     fun.get_definition ().value ()->accept_vis (*this);

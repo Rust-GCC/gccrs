@@ -1,5 +1,5 @@
 #[target_feature(sse)]
-fn foo() {
+unsafe fn foo() {
     let a: usize = 0;
 }
 
