@@ -464,12 +464,22 @@ AttributeChecker::check_attribute (const AST::Attribute &attribute)
   else if (result.name == Attrs::DEPRECATED)
     check_deprecated_attribute (attribute);
 }
-
 void
 AttributeChecker::check_attributes (const AST::AttrVec &attributes)
 {
-  for (auto &attr : attributes)
-    check_attribute (attr);
+  for (const auto &attr : attributes)
+    {
+      check_attribute (attr);
+
+      if (attr.get_path ().as_string () == "no_mangle")
+	{
+	  if (attr.has_attr_input ())
+	    {
+	      rust_error_at (attr.get_locus (),
+			     "malformed %<no_mangle%> attribute input");
+	    }
+	}
+    }
 }
 
 void
