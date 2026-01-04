@@ -865,8 +865,25 @@ AttributeChecker::visit (AST::Function &fun)
 	  check_crate_type (name, attribute);
 	}
       else if (result.name == "no_mangle")
-	check_no_mangle_function (attribute, fun);
-    }
+	{
+	  check_no_mangle_function (attribute, fun);
+	}
+      // <<<< NEW CODE STARTS HERE >>>>
+      else if (result.name == Attrs::ALLOW || result.name == Attrs::DENY
+	       || result.name == Attrs::WARN || result.name == Attrs::FORBID)
+	{
+	  if (!attribute.has_attr_input ())
+	    {
+	      rust_error_at (attribute.get_locus (),
+			     "malformed %qs attribute input", name);
+	      rust_inform (attribute.get_locus (),
+			   "must be of the form: %<#[%s(lint1, lint2, ...)]%>",
+			   name);
+	    }
+	}
+      // <<<< NEW CODE ENDS HERE >>>>
+    } // Loop must close AFTER the new check
+
   if (fun.has_body ())
     fun.get_definition ().value ()->accept_vis (*this);
 }
