@@ -928,6 +928,25 @@ void
 AttributeChecker::visit (AST::StaticItem &item)
 {
   check_proc_macro_non_function (item.get_outer_attrs ());
+
+  BuiltinAttrDefinition result;
+  for (auto &attribute : item.get_outer_attrs ())
+    {
+      if (is_builtin (attribute, result))
+	{
+	  if (result.name == Attrs::LINK_SECTION)
+	    {
+	      if (!attribute.has_attr_input ())
+		{
+		  rust_error_at (attribute.get_locus (),
+				 "malformed %<link_section%> attribute input");
+		  rust_inform (attribute.get_locus (),
+			       "must be of the form: "
+			       "%<#[link_section = \"name\"]%>");
+		}
+	    }
+	}
+    }
 }
 
 void
