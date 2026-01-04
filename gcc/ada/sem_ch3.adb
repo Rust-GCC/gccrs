@@ -4865,6 +4865,19 @@ package body Sem_Ch3 is
               ("formal parameter cannot be implicitly converted to "
                & "class-wide type when Extensions_Visible is False", E);
          end if;
+
+         --  Cannot invoke a C++ constructor in the return statement of
+         --  a function with foreign convention, because the extra formal
+         --  BIP_Object_Access is not available.
+
+         if Is_CPP_Constructor_Call (E)
+           and then Is_Return_Object (Id)
+           and then Has_Foreign_Convention (Return_Applies_To (Scope (Id)))
+         then
+            Error_Msg_N
+              ("C++ constructor call in return statement of "
+               &  "function with foreign convention", E);
+         end if;
       end if;
 
       --  If the No_Streams restriction is set, check that the type of the

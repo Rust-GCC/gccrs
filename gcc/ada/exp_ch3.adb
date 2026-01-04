@@ -8476,6 +8476,44 @@ package body Exp_Ch3 is
             --  class that has no virtual methods is an untagged limited
             --  record type.
 
+            --  a) C++ constructor call placed in a return statement. The
+            --     BIP_Object_Access param of the enclosing function has
+            --     the pointer to the object; convert it to the type of the
+            --     first formal of the called C++ constructor.
+
+            elsif Is_CPP_Constructor_Call (Expr)
+              and then Is_Return_Object (Def_Id)
+            then
+               declare
+                  Encl_Func   : constant Entity_Id :=
+                                  Return_Applies_To (Scope (Def_Id));
+                  BIP_Object  : constant Node_Id :=
+                                  Build_In_Place_Formal (Encl_Func,
+                                    BIP_Object_Access);
+                  Id_Ctor     : constant Entity_Id := Entity (Name (Expr));
+                  Id_Ref      : constant Node_Id :=
+                                  Unchecked_Convert_To (Etype (Id_Ctor),
+                                    Make_Explicit_Dereference (Loc,
+                                      New_Occurrence_Of (BIP_Object, Loc)));
+                  BIP_Obj_Ref : constant Node_Id :=
+                                  Make_Explicit_Dereference (Loc,
+                                    New_Occurrence_Of (BIP_Object, Loc));
+
+               begin
+                  Insert_List_Before_And_Analyze (N,
+                    Build_Initialization_Call (N, Id_Ref, Typ,
+                      Constructor_Ref => Expr));
+
+                  --  Generate:
+                  --    obj : T := renames BIP_Object_Access.all;
+
+                  Analyze (BIP_Obj_Ref);
+                  Rewrite_Object_Declaration_As_Renaming (N, BIP_Obj_Ref);
+                  return;
+               end;
+
+            --  b) C++ constructor call not placed in a return statement
+
             elsif Is_CPP_Constructor_Call (Expr) then
                declare
                   Id_Ref : constant Node_Id := New_Occurrence_Of (Def_Id, Loc);
