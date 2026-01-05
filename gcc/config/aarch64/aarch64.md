@@ -503,7 +503,7 @@
 ;; Q registers and is equivalent to "simd".
 
 (define_enum "arches" [any rcpc8_4 fp fp_q base_simd nobase_simd
-		       simd nosimd sve fp16 sme cssc sve2p2_or_sme2p2])
+		       simd nosimd sve fp16 sme cssc fprcvt sve2p2_or_sme2p2])
 
 (define_enum_attr "arch" "arches" (const_string "any"))
 
@@ -585,7 +585,10 @@
 	     (match_test "TARGET_SME"))
 
 	(and (eq_attr "arch" "sve2p2_or_sme2p2")
-	     (match_test "TARGET_SVE2p2_OR_SME2p2"))))
+	     (match_test "TARGET_SVE2p2_OR_SME2p2"))
+
+	(and (eq_attr "arch" "fprcvt")
+	     (match_test "TARGET_FPRCVT"))))
     (const_string "yes")
     (const_string "no")))
 
@@ -3156,8 +3159,8 @@
 (define_insn "*adds_<optab><ALLX:mode>_shift_<GPI:mode>"
   [(set (reg:CC_NZ CC_REGNUM)
 	(compare:CC_NZ
-	 (plus:GPI (ashift:GPI 
-		    (ANY_EXTEND:GPI 
+	 (plus:GPI (ashift:GPI
+		    (ANY_EXTEND:GPI
 		     (match_operand:ALLX 1 "register_operand" "r"))
 		    (match_operand 2 "aarch64_imm3" "Ui3"))
 		   (match_operand:GPI 3 "register_operand" "rk"))
@@ -3175,7 +3178,7 @@
   [(set (reg:CC_NZ CC_REGNUM)
 	(compare:CC_NZ
 	 (minus:GPI (match_operand:GPI 1 "register_operand" "rk")
-		    (ashift:GPI 
+		    (ashift:GPI
 		     (ANY_EXTEND:GPI
 		      (match_operand:ALLX 2 "register_operand" "r"))
 		     (match_operand 3 "aarch64_imm3" "Ui3")))
@@ -7101,13 +7104,15 @@
 ;; frcvt floating-point round to integer and convert standard patterns.
 ;; Expands to lbtrunc, lceil, lfloor, lround.
 (define_insn "l<fcvt_pattern><su_optab><GPF_F16:mode><GPI:mode>2"
-  [(set (match_operand:GPI 0 "register_operand" "=r")
+  [(set (match_operand:GPI 0 "register_operand")
 	(FIXUORS:GPI
-	  (unspec:GPF_F16 [(match_operand:GPF_F16 1 "register_operand" "w")]
+	  (unspec:GPF_F16 [(match_operand:GPF_F16 1 "register_operand")]
 	   FCVT)))]
-  "TARGET_FLOAT"
-  "fcvt<frint_suffix><su>\\t%<GPI:w>0, %<GPF_F16:s>1"
-  [(set_attr "type" "f_cvtf2i")]
+  ""
+  {@ [ cons: =0 , 1 ; attrs: type , arch   ]
+     [ r        , w ; f_cvtf2i    , fp     ] fcvt<frint_suffix><su>\t%<GPI:w>0, %<GPF_F16:s>1
+     [ w        , w ; f_cvtf2i    , fprcvt ] fcvt<frint_suffix><su>\t%<GPI:v>0, %<GPF_F16:s>1
+  }
 )
 
 (define_insn "*aarch64_fcvt<su_optab><GPF:mode><GPI:mode>2_mult"
@@ -7288,32 +7293,38 @@
 ;; Convert HF -> SI or DI
 
 (define_insn "<optab>_trunchf<GPI:mode>2"
-  [(set (match_operand:GPI 0 "register_operand" "=r")
-	(FIXUORS:GPI (match_operand:HF 1 "register_operand" "w")))]
+  [(set (match_operand:GPI 0 "register_operand")
+	(FIXUORS:GPI (match_operand:HF 1 "register_operand")))]
   "TARGET_FP_F16INST"
-  "fcvtz<su>\t%<w>0, %h1"
-  [(set_attr "type" "f_cvtf2i")]
+  {@ [ cons: =0 , 1 ; attrs: type , arch   ]
+     [ r        , w ; f_cvtf2i    , fp     ] fcvtz<su>\t%<w>0, %h1
+     [ w        , w ; f_cvtf2i    , fprcvt ] fcvtz<su>\t%<s>0, %h1
+  }
 )
 
 ;; Convert DF -> SI or SF -> DI which can only be accomplished with
 ;; input in a fp register and output in a integer register
 
 (define_insn "<optab>_trunc<fcvt_change_mode><GPI:mode>2"
-  [(set (match_operand:GPI 0 "register_operand" "=r")
-	(FIXUORS:GPI (match_operand:<FCVT_CHANGE_MODE> 1 "register_operand" "w")))]
+  [(set (match_operand:GPI 0 "register_operand")
+	(FIXUORS:GPI (match_operand:<FCVT_CHANGE_MODE> 1 "register_operand")))]
   "TARGET_FLOAT"
-  "fcvtz<su>\t%<w>0, %<fpw>1"
-  [(set_attr "type" "f_cvtf2i")]
+  {@ [ cons: =0 , 1 ; attrs: type      , arch   ]
+     [ r        , w ; f_cvtf2i         , fp     ] fcvtz<su>\t%<w>0, %<fpw>1
+     [ w        , w ; f_cvtf2i         , fprcvt ] fcvtz<su>\t%<s>0, %<fpw>1
+  }
 )
 
 (define_insn "*fix_to_zero_extend<mode>di2"
-  [(set (match_operand:DI 0 "register_operand" "=r")
+  [(set (match_operand:DI 0 "register_operand")
 	(zero_extend:DI
 	 (unsigned_fix:SI
-	  (match_operand:GPF 1 "register_operand" "w"))))]
+	  (match_operand:GPF 1 "register_operand"))))]
   "TARGET_FLOAT"
-  "fcvtzu\t%w0, %<s>1"
-  [(set_attr "type" "f_cvtf2i")]
+  {@ [ cons: =0 , 1 ; attrs: type      , arch   ]
+     [ r        , w ; f_cvtf2i         , fp     ] fcvtzu\t%w0, %<s>1
+     [ w        , w ; f_cvtf2i         , fprcvt ] fcvtzu\t%s0, %<s>1
+  }
 )
 
 ;; Equal width integer to fp and multiply combine.
@@ -7366,10 +7377,13 @@
 
 ;; Unequal width integer to fp conversions.
 (define_insn "<optab><fcvt_iesize><GPF:mode>2"
-  [(set (match_operand:GPF 0 "register_operand" "=w")
-        (FLOATUORS:GPF (match_operand:<FCVT_IESIZE> 1 "register_operand" "r")))]
+  [(set (match_operand:GPF 0 "register_operand")
+	(FLOATUORS:GPF (match_operand:<FCVT_IESIZE> 1 "register_operand")))]
   "TARGET_FLOAT"
-  "<su_optab>cvtf\t%<GPF:s>0, %<w2>1"
+  {@ [ cons: =0 , 1 ; attrs: type      , arch   ]
+     [ w        , r ; f_cvti2f         , fp     ] <su_optab>cvtf\t%<GPF:s>0, %<w2>1
+     [ w        , w ; f_cvti2f         , fprcvt ] <su_optab>cvtf\t%<GPF:s>0, %<fpw>1
+  }
   [(set_attr "type" "f_cvti2f")]
 )
 
@@ -7381,11 +7395,13 @@
 ;; of the mid-end logic.
 
 (define_insn "aarch64_fp16_<optab><mode>hf2"
-  [(set (match_operand:HF 0 "register_operand" "=w")
-	(FLOATUORS:HF (match_operand:GPI 1 "register_operand" "r")))]
+  [(set (match_operand:HF 0 "register_operand")
+	(FLOATUORS:HF (match_operand:GPI 1 "register_operand")))]
   "TARGET_FP_F16INST"
-  "<su_optab>cvtf\t%h0, %<w>1"
-  [(set_attr "type" "f_cvti2f")]
+  {@ [ cons: =0 , 1 ; attrs: type , arch   ]
+     [ w        , r ; f_cvti2f    , fp     ] <su_optab>cvtf\t%h0, %<w>1
+     [ w        , w ; f_cvti2f    , fprcvt ] <su_optab>cvtf\t%h0, %<v>1
+  }
 )
 
 (define_expand "<optab>sihf2"

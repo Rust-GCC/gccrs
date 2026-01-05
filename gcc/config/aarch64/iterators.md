@@ -1427,7 +1427,7 @@
 (define_mode_attr w2 [(HF "x") (SF "x") (DF "w")])
 
 ;; For width of fp registers in fcvt instruction
-(define_mode_attr fpw [(DI "s") (SI "d")])
+(define_mode_attr fpw [(DI "s") (SI "d") (DF "s") (SF "d")])
 
 (define_mode_attr short_mask [(HI "65535") (QI "255")])
 

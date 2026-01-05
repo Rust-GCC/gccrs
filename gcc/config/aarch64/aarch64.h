@@ -583,6 +583,8 @@ through +ssve-fp8dot2.  */
 			   && (AARCH64_HAVE_ISA (SSVE_FEXPA) \
 			       || TARGET_NON_STREAMING))
 
+#define TARGET_FPRCVT (AARCH64_HAVE_ISA (FPRCVT))
+
 /* Standard register usage.  */
 
 /* 31 64-bit general purpose registers R0-R30:
