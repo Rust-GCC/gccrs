@@ -577,6 +577,8 @@
   /* Implemented by l<fcvt_pattern><su_optab><GPF_F16:mode><GPI:mode>2.  */
   BUILTIN_GPI_I16 (UNOP, lroundhf, 2, FP)
   VAR1 (UNOP, lroundsf, 2, FP, si)
+  VAR1 (UNOP, lroundsf, 2, FP, di)
+  VAR1 (UNOP, lrounddf, 2, FP, si)
   VAR1 (UNOP, lrounddf, 2, FP, di)
 
   VAR1 (UNOPUS, lrounduv4hf, 2, FP, v4hi)
@@ -586,6 +588,8 @@
   VAR1 (UNOPUS, lrounduv2df, 2, FP, v2di)
   BUILTIN_GPI_I16 (UNOPUS, lrounduhf, 2, FP)
   VAR1 (UNOPUS, lroundusf, 2, FP, si)
+  VAR1 (UNOPUS, lroundusf, 2, FP, di)
+  VAR1 (UNOPUS, lroundudf, 2, FP, si)
   VAR1 (UNOPUS, lroundudf, 2, FP, di)
 
   VAR1 (UNOP, lceilv4hf, 2, FP, v4hi)
@@ -594,6 +598,8 @@
   VAR1 (UNOP, lceilv4sf, 2, FP, v4si)
   VAR1 (UNOP, lceilv2df, 2, FP, v2di)
   BUILTIN_GPI_I16 (UNOP, lceilhf, 2, FP)
+  VAR1 (UNOP, lceilsf, 2, FP, di)
+  VAR1 (UNOP, lceildf, 2, FP, si)
 
   VAR1 (UNOPUS, lceiluv4hf, 2, FP, v4hi)
   VAR1 (UNOPUS, lceiluv8hf, 2, FP, v8hi)
@@ -602,6 +608,8 @@
   VAR1 (UNOPUS, lceiluv2df, 2, FP, v2di)
   BUILTIN_GPI_I16 (UNOPUS, lceiluhf, 2, FP)
   VAR1 (UNOPUS, lceilusf, 2, FP, si)
+  VAR1 (UNOPUS, lceilusf, 2, FP, di)
+  VAR1 (UNOPUS, lceiludf, 2, FP, si)
   VAR1 (UNOPUS, lceiludf, 2, FP, di)
 
   VAR1 (UNOP, lfloorv4hf, 2, FP, v4hi)
@@ -610,6 +618,8 @@
   VAR1 (UNOP, lfloorv4sf, 2, FP, v4si)
   VAR1 (UNOP, lfloorv2df, 2, FP, v2di)
   BUILTIN_GPI_I16 (UNOP, lfloorhf, 2, FP)
+  VAR1 (UNOP, lfloorsf, 2, FP, di)
+  VAR1 (UNOP, lfloordf, 2, FP, si)
 
   VAR1 (UNOPUS, lflooruv4hf, 2, FP, v4hi)
   VAR1 (UNOPUS, lflooruv8hf, 2, FP, v8hi)
@@ -618,6 +628,8 @@
   VAR1 (UNOPUS, lflooruv2df, 2, FP, v2di)
   BUILTIN_GPI_I16 (UNOPUS, lflooruhf, 2, FP)
   VAR1 (UNOPUS, lfloorusf, 2, FP, si)
+  VAR1 (UNOPUS, lfloorusf, 2, FP, di)
+  VAR1 (UNOPUS, lfloorudf, 2, FP, si)
   VAR1 (UNOPUS, lfloorudf, 2, FP, di)
 
   VAR1 (UNOP, lfrintnv4hf, 2, FP, v4hi)
@@ -627,6 +639,8 @@
   VAR1 (UNOP, lfrintnv2df, 2, FP, v2di)
   BUILTIN_GPI_I16 (UNOP, lfrintnhf, 2, FP)
   VAR1 (UNOP, lfrintnsf, 2, FP, si)
+  VAR1 (UNOP, lfrintnsf, 2, FP, di)
+  VAR1 (UNOP, lfrintndf, 2, FP, si)
   VAR1 (UNOP, lfrintndf, 2, FP, di)
 
   VAR1 (UNOPUS, lfrintnuv4hf, 2, FP, v4hi)
@@ -636,6 +650,8 @@
   VAR1 (UNOPUS, lfrintnuv2df, 2, FP, v2di)
   BUILTIN_GPI_I16 (UNOPUS, lfrintnuhf, 2, FP)
   VAR1 (UNOPUS, lfrintnusf, 2, FP, si)
+  VAR1 (UNOPUS, lfrintnusf, 2, FP, di)
+  VAR1 (UNOPUS, lfrintnudf, 2, FP, si)
   VAR1 (UNOPUS, lfrintnudf, 2, FP, di)
 
   /* Implemented by <optab><fcvt_target><VDQF:mode>2.  */

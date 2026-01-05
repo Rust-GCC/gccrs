@@ -10033,11 +10033,25 @@ vcvtd_s64_f64 (float64_t __a)
   return (int64_t) __a;
 }
 
+__extension__ extern __inline int32_t
+__attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
+vcvtd_s32_f64 (float64_t __a)
+{
+  return (int32_t) __a;
+}
+
 __extension__ extern __inline uint64_t
 __attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
 vcvtd_u64_f64 (float64_t __a)
 {
   return (uint64_t) __a;
+}
+
+__extension__ extern __inline uint32_t
+__attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
+vcvtd_u32_f64 (float64_t __a)
+{
+  return (uint32_t) __a;
 }
 
 __extension__ extern __inline int32_t
@@ -10047,11 +10061,25 @@ vcvts_s32_f32 (float32_t __a)
   return (int32_t) __a;
 }
 
+__extension__ extern __inline int64_t
+__attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
+vcvts_s64_f32 (float32_t __a)
+{
+  return (int64_t) __a;
+}
+
 __extension__ extern __inline uint32_t
 __attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
 vcvts_u32_f32 (float32_t __a)
 {
   return (uint32_t) __a;
+}
+
+__extension__ extern __inline uint64_t
+__attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
+vcvts_u64_f32 (float32_t __a)
+{
+  return (uint64_t) __a;
 }
 
 __extension__ extern __inline int32x2_t
@@ -10119,11 +10147,25 @@ vcvtad_s64_f64 (float64_t __a)
   return __builtin_aarch64_lrounddfdi (__a);
 }
 
+__extension__ extern __inline int32_t
+__attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
+vcvtad_s32_f64 (float64_t __a)
+{
+  return __builtin_aarch64_lrounddfsi (__a);
+}
+
 __extension__ extern __inline uint64_t
 __attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
 vcvtad_u64_f64 (float64_t __a)
 {
   return __builtin_aarch64_lroundudfdi_us (__a);
+}
+
+__extension__ extern __inline uint32_t
+__attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
+vcvtad_u32_f64 (float64_t __a)
+{
+  return __builtin_aarch64_lroundudfsi_us (__a);
 }
 
 __extension__ extern __inline int32_t
@@ -10133,11 +10175,25 @@ vcvtas_s32_f32 (float32_t __a)
   return __builtin_aarch64_lroundsfsi (__a);
 }
 
+__extension__ extern __inline int64_t
+__attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
+vcvtas_s64_f32 (float32_t __a)
+{
+  return __builtin_aarch64_lroundsfdi (__a);
+}
+
 __extension__ extern __inline uint32_t
 __attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
 vcvtas_u32_f32 (float32_t __a)
 {
   return __builtin_aarch64_lroundusfsi_us (__a);
+}
+
+__extension__ extern __inline uint64_t
+__attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
+vcvtas_u64_f32 (float32_t __a)
+{
+  return __builtin_aarch64_lroundusfdi_us (__a);
 }
 
 __extension__ extern __inline int32x2_t
@@ -10205,11 +10261,25 @@ vcvtmd_s64_f64 (float64_t __a)
   return __builtin_llfloor (__a);
 }
 
+__extension__ extern __inline int32_t
+__attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
+vcvtmd_s32_f64 (float64_t __a)
+{
+  return __builtin_aarch64_lfloordfsi (__a);
+}
+
 __extension__ extern __inline uint64_t
 __attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
 vcvtmd_u64_f64 (float64_t __a)
 {
   return __builtin_aarch64_lfloorudfdi_us (__a);
+}
+
+__extension__ extern __inline uint32_t
+__attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
+vcvtmd_u32_f64 (float64_t __a)
+{
+  return __builtin_aarch64_lfloorudfsi_us (__a);
 }
 
 __extension__ extern __inline int32_t
@@ -10219,11 +10289,25 @@ vcvtms_s32_f32 (float32_t __a)
   return __builtin_ifloorf (__a);
 }
 
+__extension__ extern __inline int64_t
+__attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
+vcvtms_s64_f32 (float32_t __a)
+{
+  return __builtin_aarch64_lfloorsfdi (__a);
+}
+
 __extension__ extern __inline uint32_t
 __attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
 vcvtms_u32_f32 (float32_t __a)
 {
   return __builtin_aarch64_lfloorusfsi_us (__a);
+}
+
+__extension__ extern __inline uint64_t
+__attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
+vcvtms_u64_f32 (float32_t __a)
+{
+  return __builtin_aarch64_lfloorusfdi_us (__a);
 }
 
 __extension__ extern __inline int32x2_t
@@ -10291,11 +10375,25 @@ vcvtnd_s64_f64 (float64_t __a)
   return __builtin_aarch64_lfrintndfdi (__a);
 }
 
+__extension__ extern __inline int64_t
+__attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
+vcvtnd_s32_f64 (float64_t __a)
+{
+  return __builtin_aarch64_lfrintndfsi (__a);
+}
+
 __extension__ extern __inline uint64_t
 __attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
 vcvtnd_u64_f64 (float64_t __a)
 {
   return __builtin_aarch64_lfrintnudfdi_us (__a);
+}
+
+__extension__ extern __inline uint32_t
+__attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
+vcvtnd_u32_f64 (float64_t __a)
+{
+  return __builtin_aarch64_lfrintnudfsi_us (__a);
 }
 
 __extension__ extern __inline int32_t
@@ -10305,11 +10403,24 @@ vcvtns_s32_f32 (float32_t __a)
   return __builtin_aarch64_lfrintnsfsi (__a);
 }
 
+__extension__ extern __inline int64_t
+__attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
+vcvtns_s64_f32 (float32_t __a)
+{
+  return __builtin_aarch64_lfrintnsfdi (__a);
+}
+
 __extension__ extern __inline uint32_t
 __attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
 vcvtns_u32_f32 (float32_t __a)
 {
   return __builtin_aarch64_lfrintnusfsi_us (__a);
+}
+__extension__ extern __inline uint64_t
+__attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
+vcvtns_u64_f32 (float32_t __a)
+{
+  return __builtin_aarch64_lfrintnusfdi_us (__a);
 }
 
 __extension__ extern __inline int32x2_t
@@ -10377,11 +10488,25 @@ vcvtpd_s64_f64 (float64_t __a)
   return __builtin_llceil (__a);
 }
 
+__extension__ extern __inline int32_t
+__attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
+vcvtpd_s32_f64 (float64_t __a)
+{
+  return __builtin_aarch64_lceildfsi (__a);
+}
+
 __extension__ extern __inline uint64_t
 __attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
 vcvtpd_u64_f64 (float64_t __a)
 {
   return __builtin_aarch64_lceiludfdi_us (__a);
+}
+
+__extension__ extern __inline uint32_t
+__attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
+vcvtpd_u32_f64 (float64_t __a)
+{
+  return __builtin_aarch64_lceiludfsi_us (__a);
 }
 
 __extension__ extern __inline int32_t
@@ -10391,11 +10516,25 @@ vcvtps_s32_f32 (float32_t __a)
   return __builtin_iceilf (__a);
 }
 
+__extension__ extern __inline int64_t
+__attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
+vcvtps_s64_f32 (float32_t __a)
+{
+  return __builtin_aarch64_lceilsfdi (__a);
+}
+
 __extension__ extern __inline uint32_t
 __attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
 vcvtps_u32_f32 (float32_t __a)
 {
   return __builtin_aarch64_lceilusfsi_us (__a);
+}
+
+__extension__ extern __inline uint64_t
+__attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
+vcvtps_u64_f32 (float32_t __a)
+{
+  return __builtin_aarch64_lceilusfdi_us (__a);
 }
 
 __extension__ extern __inline int32x2_t
