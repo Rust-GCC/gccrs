@@ -9313,7 +9313,7 @@ package body Exp_Ch3 is
          end if;
 
       --  If this is the return object of a function returning on the secondary
-      --  stack, convert the declaration to a renaming of the dereference of ah
+      --  stack, convert the declaration to a renaming of the dereference of an
       --  allocator for the secondary stack.
 
       --    Result : T [:= <expression>];
@@ -9404,7 +9404,7 @@ package body Exp_Ch3 is
          end;
 
       --  If this is the return object of a function returning a by-reference
-      --  type, convert the declaration to a renaming of the dereference of ah
+      --  type, convert the declaration to a renaming of the dereference of an
       --  allocator for the return stack.
 
       --    Result : T [:= <expression>];
@@ -9477,10 +9477,10 @@ package body Exp_Ch3 is
          end;
       end if;
 
-      --  Final transformation - turn the object declaration into a renaming
-      --  if appropriate. If this is the completion of a deferred constant
-      --  declaration, then this transformation generates what would be
-      --  illegal code if written by hand, but that's OK.
+      --  Final transformation: turn the object declaration into a renaming if
+      --  needed. If this is the completion of a deferred constant declaration,
+      --  this transformation generates what would be illegal code if written
+      --  by hand, but that's OK.
 
       if Rewrite_As_Renaming then
          Rewrite_Object_Declaration_As_Renaming (N, Expr_Q);
