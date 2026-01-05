@@ -249,6 +249,21 @@ set_predicates_for_bb (basic_block bb, vec<unswitch_predicate *> predicates)
   bb_predicates->safe_push (predicates);
 }
 
+/* Estimate number of instructions in LOOP using eni_size_weights.  */
+
+static unsigned
+estimate_loop_insns (class loop *loop)
+{
+  unsigned insns = 0;
+  basic_block *body = get_loop_body (loop);
+  for (unsigned i = 0; i < loop->num_nodes; i++)
+    for (gimple_stmt_iterator gsi = gsi_start_bb (body[i]);
+	 !gsi_end_p (gsi); gsi_next (&gsi))
+      insns += estimate_num_insns (gsi_stmt (gsi), &eni_size_weights);
+  free (body);
+  return insns;
+}
+
 /* Initialize LOOP information reused during the unswitching pass.
    Return total number of instructions in the loop.  Adjusts LOOP to
    the outermost loop all candidates are invariant in.  */
@@ -261,13 +276,35 @@ init_loop_unswitch_info (class loop *&loop, unswitch_predicate *&hottest,
 
   basic_block *bbs = get_loop_body (loop);
 
-  /* Unswitch only nests with no sibling loops.  */
+  /* Unswitch only nests with no sibling loops.  Since predicates come from
+     the innermost loop, only the outer-loop bodies get duplicated by hoisting
+     the unswitching out; the innermost loop is shared in the cost estimate.  */
   class loop *outer_loop = loop;
   unsigned max_depth = param_max_unswitch_depth;
+  unsigned innermost_size = estimate_loop_insns (loop);
   while (loop_outer (outer_loop)->num != 0
-	 && !loop_outer (outer_loop)->inner->next
-	 && --max_depth != 0)
-    outer_loop = loop_outer (outer_loop);
+	 && !loop_outer (outer_loop)->inner->next)
+    {
+      if (--max_depth == 0)
+	break;
+
+      class loop *candidate = loop_outer (outer_loop);
+      unsigned candidate_size = estimate_loop_insns (candidate);
+
+      if (candidate_size - innermost_size
+	  > (unsigned) param_max_unswitch_insns)
+	{
+	  if (dump_enabled_p ())
+	    dump_printf_loc (MSG_NOTE, find_loop_location (loop),
+			     "Not unswitching outer loop, duplicated size %u "
+			     "exceeds max-unswitch-insns %u\n",
+			     candidate_size - innermost_size,
+			     (unsigned) param_max_unswitch_insns);
+	  break;
+	}
+
+      outer_loop = candidate;
+    }
   hottest = NULL;
   hottest_bb = NULL;
   /* Find all unswitching candidates in the innermost loop.  */
@@ -1676,5 +1713,4 @@ make_pass_tree_unswitch (gcc::context *ctxt)
 {
   return new pass_tree_unswitch (ctxt);
 }
-
 
