@@ -6409,8 +6409,24 @@ package body Exp_Ch6 is
                   Next (Initialize_Comp_Assoc);
                end loop;
 
+               --  If a default expression is present in the record
+               --  declaration, then use it.
+
                if Present (Expression (Parent (Component))) then
                   return Expression (Parent (Component));
+               end if;
+
+               --  In case the type needs construction and a parameterless
+               --  constructor is present, then it can be implicitly used it
+               --  here.
+
+               if Needs_Construction (Etype (Component))
+                 and then Has_Parameterless_Constructor (Etype (Component))
+               then
+                  return Make_Attribute_Reference (Loc,
+                           Prefix         =>
+                             New_Occurrence_Of (Etype (Component), Loc),
+                           Attribute_Name => Name_Make);
                end if;
 
                return Empty;
@@ -6466,10 +6482,17 @@ package body Exp_Ch6 is
                        Expression (Super_Aspect);
                      Expr       : Node_Id;
                   begin
-                     if Nkind (Super_Expr) /= N_Aggregate then
+                     --  Super without expression is a call to the parent
+                     --  parameterless constructor.
+
+                     if No (Super_Expr) then
+                        Actual_Parameters := No_List;
+
+                     elsif Nkind (Super_Expr) /= N_Aggregate then
                         Expr := New_Copy_Tree (Super_Expr);
                         Set_Paren_Count (Expr, 0);
                         Actual_Parameters := New_List (Expr);
+
                      else
                         --  Interpret this "aggregate" as a list of
                         --  actual parameter expressions.
@@ -6509,7 +6532,11 @@ package body Exp_Ch6 is
                end if;
 
                if Chars (Component) = Name_uTag then
-                  null;
+                  Append_To (Init_List,
+                    Make_Tag_Assignment_From_Type (Loc,
+                      Target => New_Occurrence_Of
+                                  (First_Formal (Spec_Id), Loc),
+                      Typ    => First_Param_Type));
 
                elsif Chars (Component) = Name_uParent
                  and then Needs_Construction (Etype (Component))

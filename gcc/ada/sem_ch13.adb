@@ -5346,48 +5346,52 @@ package body Sem_Ch13 is
                      Error_Msg_N ("Super must apply to a constructor body", N);
                   end if;
 
-                  --  handle missing parameter list (an error case)
+                  --  Without parameter list, the parent parameterless
+                  --  constructor is called, nothing more to do here.
 
-                  if No (Expr) then
-                     Error_Msg_N ("constructor parameters required", N);
+                  if Present (Expr) then
 
-                  --  Handle parameter list of length more than one
-                  --  (such a list is parsed as an aggregate).
+                     --  Handle parameter list of length more than one
+                     --  (such a list is parsed as an aggregate).
 
-                  elsif Nkind (Expr) = N_Aggregate then
-                     if Present (Component_Associations (Expr))
-                       or else No (Expressions (Expr))
-                     then
+                     if Nkind (Expr) = N_Aggregate then
+                        if Present (Component_Associations (Expr))
+                          or else No (Expressions (Expr))
+                        then
+                           Error_Msg_N
+                             ("malformed constructor parameter list", N);
+
+                        elsif Analyze_Parameter_Expressions then
+                           declare
+                              Param_Expr : Node_Id :=
+                                First (Expressions (Expr));
+                           begin
+                              while Present (Param_Expr) loop
+                                 Analyze (Param_Expr);
+                                 Check_Super_Arg (Param_Expr);
+                                 Next (Param_Expr);
+                              end loop;
+
+                              Set_Analyzed (Expr);
+                              --  Someday Vast may complain that this so-called
+                              --  aggregate has no Etype. For now, we mark it
+                              --  as analyzed and hope that nobody trips over
+                              --  it.
+                           end;
+                        end if;
+
+                     --  handle parameter list of length one
+
+                     elsif Paren_Count (Expr) = 0 then
                         Error_Msg_N
-                          ("malformed constructor parameter list", N);
+                          ("parentheses missing for constructor parameter " &
+                           "list ",
+                           N);
 
                      elsif Analyze_Parameter_Expressions then
-                        declare
-                           Param_Expr : Node_Id := First (Expressions (Expr));
-                        begin
-                           while Present (Param_Expr) loop
-                              Analyze (Param_Expr);
-                              Check_Super_Arg (Param_Expr);
-                              Next (Param_Expr);
-                           end loop;
-
-                           Set_Analyzed (Expr);
-                           --  Someday Vast may complain that this so-called
-                           --  aggregate has no Etype. For now, we mark it
-                           --  as analyzed and hope that nobody trips over it.
-                        end;
+                        Analyze (Expr);
+                        Check_Super_Arg (Expr);
                      end if;
-
-                  --  handle parameter list of length one
-
-                  elsif Paren_Count (Expr) = 0 then
-                     Error_Msg_N
-                       ("parentheses missing for constructor parameter list ",
-                        N);
-
-                  elsif Analyze_Parameter_Expressions then
-                     Analyze (Expr);
-                     Check_Super_Arg (Expr);
                   end if;
                end Super;
 

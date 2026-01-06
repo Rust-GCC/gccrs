@@ -95,8 +95,13 @@ package body Exp_Ch3 is
    --  It also supplies the source location used for the procedure.
 
    procedure Build_Implicit_Copy_Constructor (N : Node_Id; Typ : Entity_Id);
-   --  Build default copy constructor. N is the type declaration node, and Typ
+   --  Build implicit copy constructor. N is the type declaration node, and Typ
    --  is the corresponding entity for the record type.
+
+   procedure Build_Implicit_Parameterless_Constructor
+     (N : Node_Id; Typ : Entity_Id);
+   --  Build implicit parameterless constructor. N is the type declaration
+   --  node, and Typ is the corresponding entity for the record type.
 
    function Build_Discriminant_Formals
      (Rec_Id : Entity_Id;
@@ -1981,6 +1986,74 @@ package body Exp_Ch3 is
       Set_Is_Constructor (Copy_Id);
       Set_Init_Proc (Typ, Copy_Id);
    end Build_Implicit_Copy_Constructor;
+
+   ----------------------------------------------
+   -- Build_Implicit_Parameterless_Constructor --
+   ----------------------------------------------
+
+   procedure Build_Implicit_Parameterless_Constructor
+     (N : Node_Id; Typ : Entity_Id)
+   is
+      Loc            : constant Source_Ptr := Sloc (Typ);
+      Constructor_Id : Entity_Id;
+      Spec_Node      : Node_Id;
+   begin
+      --  The implicit parameterless constructor doesn't need to do anything.
+      --  In fact, during subprogram expansion, prepending the prologue of
+      --  constructors takes care of calling the parent's constructor (if
+      --  derived) and initializing components that need construction. Exactly
+      --  what an implicit parameterless constructor should do.
+
+      if not Comes_From_Source (N)
+        or else not Needs_Construction (Typ)
+        or else Has_Parameterless_Constructor (Typ, Allow_Removed => True)
+        or else Has_Explicit_Constructor (Typ)
+        or else (Is_Derived_Type (Typ)
+                 and then not Has_Parameterless_Constructor
+                                (Parent_Subtype (Typ)))
+      then
+         return;
+      end if;
+
+      Constructor_Id :=
+        Make_Defining_Identifier (Loc,
+          Direct_Attribute_Definition_Name (Typ, Name_Constructor));
+      Mutate_Ekind (Constructor_Id, E_Procedure);
+
+      if not Debug_Generated_Code then
+         Set_Debug_Info_Off (Constructor_Id);
+      end if;
+
+      Spec_Node := New_Node (N_Procedure_Specification, Loc);
+      Set_Defining_Unit_Name (Spec_Node, Constructor_Id);
+
+      --  The implicit parameterless constructor has the following profile:
+      --    procedure T'Constructor (Self : in out T);
+
+      Set_Parameter_Specifications (Spec_Node, New_List (
+        Make_Parameter_Specification (Loc,
+          Defining_Identifier => Make_Defining_Identifier (Loc, Name_Self),
+          In_Present          => True,
+          Out_Present         => True,
+          Parameter_Type      => New_Occurrence_Of (Typ, Loc))));
+
+      Freeze_Extra_Formals (Constructor_Id);
+
+      declare
+         Ignore : Node_Id;
+      begin
+         Ignore :=
+           Make_Subprogram_Body (Loc,
+             Specification => Spec_Node,
+             Handled_Statement_Sequence =>
+               Make_Handled_Sequence_Of_Statements (Loc));
+      end;
+
+      Set_Is_Public (Constructor_Id, Is_Public (Typ));
+      Set_Is_Internal (Constructor_Id);
+      Set_Is_Constructor (Constructor_Id);
+      Set_Init_Proc (Typ, Constructor_Id);
+   end Build_Implicit_Parameterless_Constructor;
 
    --------------------------------
    -- Build_Discriminant_Formals --
@@ -6583,10 +6656,6 @@ package body Exp_Ch3 is
          Build_Untagged_Record_Equality (Typ);
       end if;
 
-      --  Freeze constructors as predefined operations
-
-      Append_Freeze_Actions (Typ, Constructor_Freeze (Typ));
-
       --  Before building the record initialization procedure, if we are
       --  dealing with a concurrent record value type, then we must go through
       --  the discriminants, exchanging discriminals between the concurrent
@@ -6631,8 +6700,13 @@ package body Exp_Ch3 is
         and then (Tagged_Type_Expansion or else not Is_Interface (Typ))
       then
          Build_Record_Init_Proc (Typ_Decl, Typ);
+         Build_Implicit_Parameterless_Constructor (Typ_Decl, Typ);
          Build_Implicit_Copy_Constructor (Typ_Decl, Typ);
       end if;
+
+      --  Freeze constructors as done with predefined operations
+
+      Append_Freeze_Actions (Typ, Constructor_Freeze (Typ));
 
       --  Create the body of TSS primitive Finalize_Address. This must be done
       --  before the bodies of all predefined primitives are created. If Typ

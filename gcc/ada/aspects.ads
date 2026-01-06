@@ -524,7 +524,7 @@ package Aspects is
       Aspect_Stream_Size                => Expression,
       Aspect_String_Literal             => Name,
       Aspect_Subprogram_Variant         => Expression,
-      Aspect_Super                      => Expression,
+      Aspect_Super                      => Optional_Expression,
       Aspect_Suppress                   => Name,
       Aspect_Synchronization            => Name,
       Aspect_Test_Case                  => Expression,
