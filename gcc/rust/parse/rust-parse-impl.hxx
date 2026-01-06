@@ -7198,6 +7198,19 @@ Parser<ManagedTokenSource>::parse_stmt_or_expr ()
 	return ExprOrStmt (
 	  std::make_unique<AST::ExprStmt> (std::move (expr.value ()),
 					   t->get_locus (), false));
+
+      // Check if expr_without_block is properly terminated
+      if (expr.value ()->is_expr_without_block ()
+	  && after_expr->get_id () != RIGHT_CURLY)
+	{
+	  // expr_without_block must be followed by ';' or '}'
+	  Error error (after_expr->get_locus (),
+		       "expected %<;%> or %<}%> after expression, found %qs",
+		       after_expr->get_token_description ());
+	  add_error (std::move (error));
+	  return tl::unexpected<Parse::Error::Node> (
+	    Parse::Error::Node::MALFORMED);
+	}
     }
 
   // return expression
