@@ -77,11 +77,7 @@ Parser<ManagedTokenSource>::parse_block_expr (
 
   if (!skip_token (RIGHT_CURLY))
     {
-      Error error (t->get_locus (),
-		   "error may be from having an expression (as opposed to "
-		   "statement) in the body of the function but not last");
-      add_error (std::move (error));
-
+      // We don't need to throw an error as it already reported by skip_token
       skip_after_end_block ();
       return tl::unexpected<Parse::Error::Node> (Parse::Error::Node::MALFORMED);
     }
@@ -1289,11 +1285,9 @@ Parser<ManagedTokenSource>::parse_match_expr (AST::AttrVec outer_attrs,
 
       if (!expr)
 	{
-	  Error error (lexer.peek_token ()->get_locus (),
-		       "failed to parse expr in match arm in match expr");
-	  add_error (std::move (error));
-
-	  // skip somewhere?
+	  /* We don't need to throw an error as it already reported by
+	   * parse_expr
+	   */
 	  return tl::unexpected<Parse::Error::Node> (
 	    Parse::Error::Node::CHILD_ERROR);
 	}
