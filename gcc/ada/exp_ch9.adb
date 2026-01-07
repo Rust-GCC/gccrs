@@ -8250,8 +8250,8 @@ package body Exp_Ch9 is
       Op_Body := First (Declarations (N));
 
       --  The protected body is replaced with the bodies of its protected
-      --  operations, and the declarations for internal objects that may
-      --  have been created for entry family bounds.
+      --  operations, and other things, such as pragmas and byproducts of
+      --  expansion.
 
       Rewrite (N, Make_Null_Statement (Sloc (N)));
       Analyze (N);
@@ -8366,20 +8366,14 @@ package body Exp_Ch9 is
                Current_Node := New_Op_Body;
                Analyze (New_Op_Body);
 
-            when N_Implicit_Label_Declaration =>
-               null;
+            --  Anything else, such as object declarations produced by
+            --  expansion, are copied.
 
-            when N_Call_Marker
-               | N_Itype_Reference
-            =>
-               New_Op_Body := New_Copy (Op_Body);
-               Insert_After (Current_Node, New_Op_Body);
-               Current_Node := New_Op_Body;
-
-            when N_Freeze_Entity =>
+            when others =>
                New_Op_Body := New_Copy (Op_Body);
 
-               if Present (Entity (Op_Body))
+               if Nkind (Op_Body) = N_Freeze_Entity
+                 and then Present (Entity (Op_Body))
                  and then Freeze_Node (Entity (Op_Body)) = Op_Body
                then
                   Set_Freeze_Node (Entity (Op_Body), New_Op_Body);
@@ -8388,22 +8382,6 @@ package body Exp_Ch9 is
                Insert_After (Current_Node, New_Op_Body);
                Current_Node := New_Op_Body;
                Analyze (New_Op_Body);
-
-            when N_Pragma =>
-               New_Op_Body := New_Copy (Op_Body);
-               Insert_After (Current_Node, New_Op_Body);
-               Current_Node := New_Op_Body;
-               Analyze (New_Op_Body);
-
-            when N_Object_Declaration =>
-               pragma Assert (not Comes_From_Source (Op_Body));
-               New_Op_Body := New_Copy (Op_Body);
-               Insert_After (Current_Node, New_Op_Body);
-               Current_Node := New_Op_Body;
-               Analyze (New_Op_Body);
-
-            when others =>
-               raise Program_Error;
          end case;
 
          Next (Op_Body);
