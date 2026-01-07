@@ -4357,8 +4357,15 @@ case "${target}" in
 		fi
 		for which in cpu arch tune; do
 			eval "val=\$with_$which"
-			base_val=`echo $val | sed -E -e 's/\+.*//'`
-			ext_val=`echo $val | sed -E -e 's/[a-z0-9.-]+//'`
+			filtered_val=`echo "$val" | sed -E -e 's/[-A-Za-z0-9.+]+//'`
+			if [ x"$filtered_val" != x ]; then
+			  echo "Invalid characters used in --with-$which=$val"
+			  exit 1
+			fi
+
+			escaped_val=`echo "$val" | sed -E -e 's/\./\\\./g'`
+			base_val=`echo "$escaped_val" | sed -E -e 's/\+.*//'`
+			ext_val=`echo "$escaped_val" | sed -E -e 's/^[^+]*//'`
 
 			if [ $which = arch ]; then
 			  def=aarch64-arches.def
@@ -4390,20 +4397,19 @@ case "${target}" in
 
 			  while [ x"$ext_val" != x ]
 			  do
-				ext_val=`echo $ext_val | sed -E -e 's/\+//'`
-				ext=`echo $ext_val | sed -E -e 's/\+.*//'`
-				base_ext=`echo $ext | sed -E -e 's/^no//'`
+				ext_val=`echo "$ext_val" | sed -E -e 's/\+//'`
+				ext=`echo "$ext_val" | sed -E -e 's/\+.*//'`
+				base_ext=`echo "$ext" | sed -E -e 's/^no//'`
 				opt_line=`echo -e "$options_parsed" | \
 					grep "^\"$base_ext\""`
 
-				if [ x"$base_ext" = x ] \
-				    || [ x"$opt_line" != x ]; then
+				if [ x"$opt_line" != x ]; then
 				  true
 				else
 				  echo "Unknown extension used in --with-$which=$val" 1>&2
 				  exit 1
 				fi
-				ext_val=`echo $ext_val | sed -E -e 's/[a-z0-9-]+//'`
+				ext_val=`echo "$ext_val" | sed -E -e 's/[^+]+//'`
 			  done
 
 			  true
