@@ -1746,6 +1746,9 @@ another sequence of statements is completed, whether normally or abnormally.
 
 This feature is similar to the one with the same name in other languages such as Java.
 
+Note that ``finally`` is a keyword but it is not a reserved word. This is a
+configuration that does not exist in standard Ada.
+
 Syntax
 ^^^^^^
 

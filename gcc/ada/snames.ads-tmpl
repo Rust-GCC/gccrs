@@ -1409,6 +1409,7 @@ package Snames is
 
    Name_Synchronous_Task_Control         : constant Name_Id := N + $;
    Name_Continue                         : constant Name_Id := N + $;
+   Name_Finally                          : constant Name_Id := N + $;
 
    --  Names used to implement iterators over predefined containers
 
@@ -1456,16 +1457,6 @@ package Snames is
 
    subtype Ada_2012_Reserved_Words is Name_Id
      range First_2012_Reserved_Word .. Last_2012_Reserved_Word;
-
-   --  GNAT extensions reserved words
-
-   First_GNAT_Extensions_Reserved_Word   : constant Name_Id := N + $;
-   Name_Finally                          : constant Name_Id := N + $;
-   Last_GNAT_Extensions_Reserved_Word    : constant Name_Id := N + $;
-
-   subtype GNAT_Extensions_Reserved_Words is Name_Id
-     range First_GNAT_Extensions_Reserved_Word ..
-       Last_GNAT_Extensions_Reserved_Word;
 
    --  Mark last defined name for consistency check in Snames body
 

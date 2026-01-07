@@ -19,7 +19,7 @@
 
 @copying
 @quotation
-GNAT Reference Manual , Jan 09, 2026
+GNAT Reference Manual , May 19, 2026
 
 AdaCore
 
@@ -11300,13 +11300,15 @@ prefix) yields a static Boolean value that is True if pragma
 @geindex Finalization_Size
 
 The prefix of attribute @code{Finalization_Size} must be an object or
-a non-class-wide type. This attribute returns the size of any hidden data
+a type. This attribute returns the size of any hidden data
 reserved by the compiler to handle finalization-related actions. The type of
 the attribute is `universal_integer'.
 
 @code{Finalization_Size} yields a value of zero for a type with no controlled
 parts, an object whose type has no controlled parts, or an object of a
 class-wide type whose tag denotes a type with no controlled parts.
+For a class-wide type, @code{Finalization_Size} yields a non-zero value except
+if a No_Finalization restriction is in effect, in which case it yields zero.
 
 Note that only heap-allocated objects contain finalization data.
 
@@ -30625,7 +30627,7 @@ RM references: 3.03 (23.2/3) 8.05.01 (4.7/5) 8.05.01 (5/3)
 
 @itemize *
 
-@item
+@item 
 `AI12-0402 Master of a function call with elementary result type (2026-01-07)'
 
 This AI restricts the rule that makes the master of a function call, which
@@ -32842,6 +32844,9 @@ another sequence of statements is completed, whether normally or abnormally.
 
 This feature is similar to the one with the same name in other languages such as Java.
 
+Note that @code{finally} is a keyword but it is not a reserved word. This is a
+configuration that does not exist in standard Ada.
+
 @menu
 * Syntax: Syntax<2>. 
 * Legality Rules: Legality Rules<2>. 
@@ -33036,7 +33041,6 @@ actual parameters. This instance is unique to a partition, except when a
 generic subprogram instantiation is automatically demoted to a local
 instantiation as described under Legality Rules.
 
-
 Example:
 
 @example
@@ -33073,11 +33077,11 @@ package Q is
 end Q;
 @end example
 
-The reason is that @code{Ada.Containers.Vectors}, @code{Positive} and @code{Q.T}
-being library-level entities, the structural instance @code{Ada.Containers.Vectors(Positive,T)} is a library unit with a dependence
+The reason is that @code{Ada.Containers.Vectors}, @code{Positive} and @code{Q.T} being
+library-level entities, the structural instance @code{Ada.Containers.Vectors(Positive,T)} is a library unit with a dependence
 on @code{Q} and, therefore, cannot be referenced from within @code{Q}. This
-restriction applies to structural instantiations of generic packages. The simple
-way out is to declare a traditional instantiation in this case:
+restriction applies to structural instantiations of generic packages. The
+simple way out is to declare a traditional instantiation in this case:
 
 @example
 with Ada.Containers.Vectors;
@@ -33133,11 +33137,11 @@ package body Q is
 end Q;
 @end example
 
-is legal: since @code{T} and @code{T_Access} are local entities of @code{Q},
-the structural instantiation of @code{Ada.Unchecked_Deallocation} is demoted
-to a local instantiation rather than producing an error. Note that the
-uniqueness guarantee no longer holds in this case and several instances of
-the generic subprogram may be present in a single partition.
+is legal: since @code{T} and @code{T_Access} are local entities of @code{Q}, the
+structural instantiation of @code{Ada.Unchecked_Deallocation} is demoted to a
+local instantiation rather than producing an error. Note that the uniqueness
+guarantee no longer holds in this case and several instances of the generic
+subprogram may be present in a single partition.
 
 The first example can be rewritten in a less verbose manner:
 
