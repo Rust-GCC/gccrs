@@ -35,6 +35,7 @@ with Csets;          use Csets;
 with Debug;          use Debug;
 with Einfo.Entities; use Einfo.Entities;
 with Einfo.Utils;    use Einfo.Utils;
+with Errid.Diagnostic_Repository; use Errid.Diagnostic_Repository;
 with Erroutc;        use Erroutc;
 with Erroutc.Pretty_Emitter;
 with Erroutc.SARIF_Emitter; use Erroutc.SARIF_Emitter;
@@ -43,6 +44,7 @@ with Lib;            use Lib;
 with Opt;            use Opt;
 with Nlists;         use Nlists;
 with Output;         use Output;
+with Rident;         use Rident;
 with Scans;          use Scans;
 with Sem_Aux;        use Sem_Aux;
 with Sinput;         use Sinput;
@@ -237,6 +239,10 @@ package body Errout is
       --  Insert a switch to the printers swtiches list by adding them in
       --  the same order as they are defined (alphanumerically).
 
+      procedure Insert_Restriction (R : Restriction_Id);
+      --  Insert a restriction to the printers restriction list by adding them
+      --  in the same order as they are defined.
+
       -----------------------
       -- Insert_Diagnostic --
       -----------------------
@@ -259,6 +265,35 @@ package body Errout is
 
          Append (Printer.Diagnostics, D);
       end Insert_Diagnostic;
+
+      ------------------------
+      -- Insert_Restriction --
+      ------------------------
+
+      procedure Insert_Restriction (R : Restriction_Id) is
+         use Restriction_Id_Lists;
+         It : Iterator := Iterate (Printer.Restrictions);
+         El : Restriction_Id;
+      begin
+         --  Do not add a switch if the diagnostic was not using one
+
+         if R = Not_A_Restriction_Id then
+            return;
+         end if;
+
+         while Has_Next (It) loop
+            Next (It, El);
+
+            if El = R then
+               return;
+            elsif El > R then
+               Insert_Before (Printer.Restrictions, El, R);
+               return;
+            end if;
+         end loop;
+
+         Append (Printer.Restrictions, R);
+      end Insert_Restriction;
 
       -------------------
       -- Insert_Switch --
@@ -294,12 +329,14 @@ package body Errout is
    begin
       Printer.Diagnostics := Diagnostic_Id_Lists.Create;
       Printer.Switches := Switch_Id_Lists.Create;
+      Printer.Restrictions := Restriction_Id_Lists.Create;
 
       E_Id := First_Error_Msg;
       while E_Id /= No_Error_Msg loop
          E_Obj := Errors.Table (E_Id);
          Insert_Diagnostic (E_Obj.Id);
          Insert_Switch (E_Obj.Switch);
+         Insert_Restriction (E_Obj.Restriction);
 
          Next_Error_Msg (E_Id);
       end loop;
@@ -1522,6 +1559,7 @@ package body Errout is
           Id                  => Error_Code,
           Switch              =>
             Get_Switch_Id (Error_Msg_Kind, Warning_Msg_Char),
+          Restriction         => Diagnostic_Entries (Error_Code).Restriction,
           Fixes               => First_Fix));
       Cur_Msg := Errors.Last;
 

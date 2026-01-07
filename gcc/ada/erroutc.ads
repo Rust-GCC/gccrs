@@ -27,9 +27,10 @@
 --  reporting packages, including Errout and Prj.Err.
 
 with Table;
-with Errid; use Errid;
-with Osint; use Osint;
-with Types; use Types;
+with Errid;  use Errid;
+with Osint;  use Osint;
+with Rident; use Rident;
+with Types;  use Types;
 
 package Erroutc is
 
@@ -352,6 +353,9 @@ package Erroutc is
 
       Id : Diagnostic_Id := No_Diagnostic_Id;
       --  Unique error code for the given message
+
+      Restriction : Restriction_Id := Not_A_Restriction_Id;
+      --  Restriction related to the diagnostic
 
       Locations : Labeled_Span_Id := No_Labeled_Span;
       --  Identifier to the first location identified by the error message.

@@ -23,23 +23,24 @@
 --                                                                          --
 ------------------------------------------------------------------------------
 
-with Atree;          use Atree;
-with Casing;         use Casing;
-with Einfo.Entities; use Einfo.Entities;
-with Einfo.Utils;    use Einfo.Utils;
-with Errout;         use Errout;
-with Debug;          use Debug;
-with Fname;          use Fname;
-with Fname.UF;       use Fname.UF;
-with Lib;            use Lib;
-with Opt;            use Opt;
-with Sinfo.Nodes;    use Sinfo.Nodes;
-with Sinfo.Utils;    use Sinfo.Utils;
-with Sinput;         use Sinput;
-with Stand;          use Stand;
-with Targparm;       use Targparm;
-with Uname;          use Uname;
-with Warnsw;         use Warnsw;
+with Atree;                        use Atree;
+with Casing;                       use Casing;
+with Einfo.Entities;               use Einfo.Entities;
+with Einfo.Utils;                  use Einfo.Utils;
+with Errid.Restriction_Repository; use Errid.Restriction_Repository;
+with Errout;                       use Errout;
+with Debug;                        use Debug;
+with Fname;                        use Fname;
+with Fname.UF;                     use Fname.UF;
+with Lib;                          use Lib;
+with Opt;                          use Opt;
+with Sinfo.Nodes;                  use Sinfo.Nodes;
+with Sinfo.Utils;                  use Sinfo.Utils;
+with Sinput;                       use Sinput;
+with Stand;                        use Stand;
+with Targparm;                     use Targparm;
+with Uname;                        use Uname;
+with Warnsw;                       use Warnsw;
 
 package body Restrict is
 
@@ -1246,13 +1247,19 @@ package body Restrict is
          end if;
 
          Add_Char ('!');
-         Error_Msg_N (Msg (1 .. Len), N);
+         Error_Msg_N
+           (Msg        => Msg (1 .. Len),
+            N          => N,
+            Error_Code => Rest_To_Diag_Mappping (R));
 
       --  Case of secondary profile continuation message present
 
       else
          Add_Char ('!');
-         Error_Msg_N (Msg (1 .. Len), N);
+         Error_Msg_N
+           (Msg        => Msg (1 .. Len),
+            N          => N,
+            Error_Code => Rest_To_Diag_Mappping (R));
 
          Len := 0;
          Add_Char ('\');
@@ -1277,7 +1284,10 @@ package body Restrict is
          --  Output unconditional message and we are done
 
          Add_Char ('!');
-         Error_Msg_N (Msg (1 .. Len), N);
+         Error_Msg_N
+           (Msg        => Msg (1 .. Len),
+            N          => N,
+            Error_Code => Rest_To_Diag_Mappping (R));
       end if;
    end Restriction_Msg;
 

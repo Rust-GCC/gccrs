@@ -331,6 +331,7 @@ GNAT_ADA_OBJS =	\
  ada/err_vars.o	\
  ada/errid.o \
  ada/errid-diagnostic_repository.o \
+ ada/errid-restriction_repository.o \
  ada/errid-switch_repository.o \
  ada/errout.o	\
  ada/erroutc.o	\
@@ -623,6 +624,7 @@ GNATBIND_OBJS = \
  ada/err_vars.o   \
  ada/errid.o      \
  ada/errid-diagnostic_repository.o \
+ ada/errid-restriction_repository.o \
  ada/errid-switch_repository.o \
  ada/errout.o     \
  ada/erroutc.o    \

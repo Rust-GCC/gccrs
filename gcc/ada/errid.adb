@@ -23,9 +23,11 @@
 --                                                                          --
 ------------------------------------------------------------------------------
 
-with Errid.Diagnostic_Repository; use Errid.Diagnostic_Repository;
-with Errid.Switch_Repository;     use Errid.Switch_Repository;
-with Erroutc.SARIF_Emitter;       use Erroutc.SARIF_Emitter;
+with Errid.Diagnostic_Repository;  use Errid.Diagnostic_Repository;
+with Errid.Restriction_Repository; use Errid.Restriction_Repository;
+with Errid.Switch_Repository;      use Errid.Switch_Repository;
+with Erroutc.SARIF_Emitter;        use Erroutc.SARIF_Emitter;
+with Rident;                       use Rident;
 
 package body Errid is
 
@@ -37,12 +39,25 @@ package body Errid is
    procedure Add_All_Diagnostic_Rules (Printer : in out SARIF_Printer);
    --  Add all active Diagnostic_Id-s to the SARIF_Printer
 
+   procedure Add_All_Restriction_Rules (Printer : in out SARIF_Printer);
+   --  Add all active Restriction_Id-s to the SARIF_Printer
+
    procedure Add_All_Switch_Rules (Printer : in out SARIF_Printer);
    --  Add all active Switch_Id-s to the SARIF_Printer
 
    procedure Check_Diagnostic_To_Switch_Consistency (D_Id : Diagnostic_Id);
    --  Check that if a diagnostic has a switch then that diagnostic is also
    --  included in the list of diagnostics for that switch.
+
+   procedure Check_Diagnostic_To_Restriction_Consistency
+     (D_Id : Diagnostic_Id);
+   --  Check that if a diagnostic has a restriction then that diagnostic is
+   --  also included as the diagnostic for that restriction.
+
+   procedure Check_Restriction_To_Diagnostic_Consistency
+     (R_Id : Restriction_Id);
+   --  Check that the diagnostic set for a restriction has that restriction as
+   --  its restriction in the repository.
 
    procedure Check_Switch_To_Diagnostic_Consistency (S_Id : Switch_Id);
    --  Check that if a Switch has diagnostics then that diagnostic has the same
@@ -76,6 +91,55 @@ package body Errid is
 
       raise Diagnostic_Inconsistency with Err_Msg;
    end Check_Diagnostic_To_Switch_Consistency;
+
+   -------------------------------------------------
+   -- Check_Diagnostic_To_Restriction_Consistency --
+   -------------------------------------------------
+
+   procedure Check_Diagnostic_To_Restriction_Consistency (D_Id : Diagnostic_Id)
+   is
+      D        : constant Diagnostic_Entry_Type := Diagnostic_Entries (D_Id);
+      Restrict : constant Restriction_Id := D.Restriction;
+      Err_Msg  : constant String :=
+        Restriction_Id'Image (D.Restriction)
+        & " should contain "
+        & Diagnostic_Id'Image (D_Id)
+        & " in its diagnostics";
+   begin
+      if Restrict = Not_A_Restriction_Id then
+         return;
+      end if;
+
+      if Rest_To_Diag_Mappping (Restrict) /= D_Id then
+         raise Diagnostic_Inconsistency with Err_Msg;
+      end if;
+   end Check_Diagnostic_To_Restriction_Consistency;
+
+   -------------------------------------------------
+   -- Check_Restriction_To_Diagnostic_Consistency --
+   -------------------------------------------------
+
+   procedure Check_Restriction_To_Diagnostic_Consistency
+     (R_Id : Restriction_Id)
+   is
+      D    : Diagnostic_Entry_Type;
+      D_Id : Diagnostic_Id;
+   begin
+      if R_Id = Not_A_Restriction_Id then
+         return;
+      end if;
+
+      D_Id := Rest_To_Diag_Mappping (R_Id);
+      D := Diagnostic_Entries (D_Id);
+
+      if D.Restriction /= R_Id then
+         raise Diagnostic_Inconsistency
+           with
+             Restriction_Id'Image (R_Id)
+             & " should be the restriction for "
+             & Diagnostic_Id'Image (D_Id);
+      end if;
+   end Check_Restriction_To_Diagnostic_Consistency;
 
    --------------------------------------------
    -- Check_Switch_To_Diagnostic_Consistency --
@@ -138,9 +202,23 @@ package body Errid is
          if Id /= No_Diagnostic_Id then
             Diagnostic_Id_Lists.Append (Printer.Diagnostics, Id);
             Check_Diagnostic_To_Switch_Consistency (Id);
+            Check_Diagnostic_To_Restriction_Consistency (Id);
          end if;
       end loop;
    end Add_All_Diagnostic_Rules;
+
+   -------------------------------
+   -- Add_All_Restriction_Rules --
+   -------------------------------
+
+   procedure Add_All_Restriction_Rules (Printer : in out SARIF_Printer) is
+   begin
+      Printer.Restrictions := Restriction_Id_Lists.Create;
+      for R in All_Restrictions loop
+         Restriction_Id_Lists.Append (Printer.Restrictions, R);
+         Check_Restriction_To_Diagnostic_Consistency (R);
+      end loop;
+   end Add_All_Restriction_Rules;
 
    --------------------------
    -- Add_All_Switch_Rules --
@@ -166,6 +244,7 @@ package body Errid is
    begin
       Add_All_Diagnostic_Rules (Printer);
       Add_All_Switch_Rules (Printer);
+      Add_All_Restriction_Rules (Printer);
       Printer.Report_Type := Repository_Report;
 
       Print_SARIF_Report (Printer);

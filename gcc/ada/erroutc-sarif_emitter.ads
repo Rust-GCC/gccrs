@@ -25,6 +25,15 @@
 with GNAT.Lists; use GNAT.Lists;
 package Erroutc.SARIF_Emitter is
 
+   procedure Destroy (Elem : in out Restriction_Id) is null;
+   pragma Inline (Destroy);
+   package Restriction_Id_Lists is new Doubly_Linked_Lists
+     (Element_Type    => Restriction_Id,
+      "="             => "=",
+      Destroy_Element => Destroy,
+      Check_Tampering => False);
+   subtype Restriction_Id_List is Restriction_Id_Lists.Doubly_Linked_List;
+
    procedure Destroy (Elem : in out Switch_Id) is null;
    pragma Inline (Destroy);
    package Switch_Id_Lists is new Doubly_Linked_Lists
@@ -61,7 +70,10 @@ package Erroutc.SARIF_Emitter is
       --  Unique diagnostics printed as rules in the SARIF report
 
       Switches : Switch_Id_List;
-      --  Unique switches printed as rules in the SARIF report
+      --  Unique switches printed as rules in the SARIF
+
+      Restrictions : Restriction_Id_List;
+      --  Unique Restrictions printed as rules in the SARIF report
 
       Report_Type : Report_Kind := Diagnostic_Report;
       --  The type of report to be printed in SARIF

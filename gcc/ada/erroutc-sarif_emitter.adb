@@ -24,6 +24,7 @@
 ------------------------------------------------------------------------------
 
 with Errid.Diagnostic_Repository; use Errid.Diagnostic_Repository;
+with Errid.Restriction_Repository; use Errid.Restriction_Repository;
 with Errid.Switch_Repository;     use Errid.Switch_Repository;
 with JSON_Utils;                  use JSON_Utils;
 with Gnatvsn;                     use Gnatvsn;
@@ -332,6 +333,16 @@ package body Erroutc.SARIF_Emitter is
    --    "name": <Human_Id(S)>
    --  },
 
+   procedure Print_Rule (R : Restriction_Id);
+   --  Print a rule node that consists of the following attributes:
+   --  * ruleId
+   --  * name
+   --
+   --  {
+   --    "id": <Restroction_Id>,
+   --    "name": <Restroction_Id>_Restriction
+   --  },
+
    procedure Print_Rules (Self : SARIF_Printer);
    --  Print a rules node that consists of multiple rule nodes.
    --  Rules are considered to be a set of unique diagnostics with the unique
@@ -384,6 +395,10 @@ package body Erroutc.SARIF_Emitter is
    begin
       if Diagnostic_Id_Lists.Present (Self.Diagnostics) then
          Diagnostic_Id_Lists.Destroy (Self.Diagnostics);
+      end if;
+
+      if Restriction_Id_Lists.Present (Self.Restrictions) then
+         Restriction_Id_Lists.Destroy (Self.Restrictions);
       end if;
 
       if Switch_Id_Lists.Present (Self.Switches) then
@@ -1146,6 +1161,7 @@ package body Erroutc.SARIF_Emitter is
    procedure Print_Rule (E : Diagnostic_Id) is
       Human_Id : constant String_Ptr := Diagnostic_Entries (E).Human_Id;
       Switch   : constant Switch_Id := Diagnostic_Entries (E).Switch;
+      Restrict : constant Restriction_Id := Diagnostic_Entries (E).Restriction;
    begin
       Write_Char ('{');
       Begin_Block;
@@ -1170,6 +1186,20 @@ package body Erroutc.SARIF_Emitter is
 
          NL_And_Indent;
          Print_Relationship (Switches (Switch).Short_Name.all, "superset");
+
+         End_Block;
+         NL_And_Indent;
+         Write_Char (']');
+
+      elsif Restrict /= Not_A_Restriction_Id then
+         Write_Char (',');
+         NL_And_Indent;
+
+         Write_Str ("""" & N_RELATIONSHIPS & """" & ": " & "[");
+         Begin_Block;
+
+         NL_And_Indent;
+         Print_Relationship (Restriction_Id'Image (Restrict), "superset");
 
          End_Block;
          NL_And_Indent;
@@ -1223,6 +1253,44 @@ package body Erroutc.SARIF_Emitter is
       Write_Char ('}');
    end Print_Rule;
 
+   procedure Print_Rule (R : Restriction_Id) is
+      function Restriction_Name (R : Restriction_Id) return String
+      is (Restriction_Id'Image (R) & "_Restriction");
+
+   begin
+      pragma Assert (R /= Not_A_Restriction_Id);
+
+      Write_Char ('{');
+      Begin_Block;
+      NL_And_Indent;
+
+      Write_String_Attribute (N_ID, Restriction_Id'Image (R));
+      Write_Char (',');
+      NL_And_Indent;
+
+      Write_String_Attribute (N_NAME, Restriction_Name (R));
+
+      if Rest_To_Diag_Mappping (R) /= No_Diagnostic_Id then
+         Write_Char (',');
+         NL_And_Indent;
+
+         Write_Str ("""" & N_RELATIONSHIPS & """" & ": " & "[");
+         Begin_Block;
+         NL_And_Indent;
+
+         Print_Relationship
+           (Diagnostic_Id'Image (Rest_To_Diag_Mappping (R)), "subset");
+
+         End_Block;
+         NL_And_Indent;
+         Write_Char (']');
+      end if;
+
+      End_Block;
+      NL_And_Indent;
+      Write_Char ('}');
+   end Print_Rule;
+
    -----------------
    -- Print_Rules --
    -----------------
@@ -1230,8 +1298,11 @@ package body Erroutc.SARIF_Emitter is
    procedure Print_Rules (Self : SARIF_Printer) is
       D       : Diagnostic_Id;
       S       : Switch_Id;
+      R       : Restriction_Id;
       Diag_It : Diagnostic_Id_Lists.Iterator :=
         Diagnostic_Id_Lists.Iterate (Self.Diagnostics);
+      Rest_It   : Restriction_Id_Lists.Iterator :=
+        Restriction_Id_Lists.Iterate (Self.Restrictions);
       Sw_It   : Switch_Id_Lists.Iterator :=
         Switch_Id_Lists.Iterate (Self.Switches);
 
@@ -1260,6 +1331,15 @@ package body Erroutc.SARIF_Emitter is
 
          NL_And_Indent;
          Print_Rule (S);
+      end loop;
+
+      while Restriction_Id_Lists.Has_Next (Rest_It) loop
+         Restriction_Id_Lists.Next (Rest_It, R);
+
+         Write_Char (',');
+
+         NL_And_Indent;
+         Print_Rule (R);
       end loop;
 
       End_Block;

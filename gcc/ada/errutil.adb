@@ -30,6 +30,7 @@ with Erroutc;  use Erroutc;
 with Namet;    use Namet;
 with Opt;      use Opt;
 with Output;   use Output;
+with Rident;   use Rident;
 with Scans;    use Scans;
 with Sinput;   use Sinput;
 with Stringt;  use Stringt;
@@ -217,6 +218,7 @@ package body Errutil is
             Kind                => Error_Msg_Kind,
             Id                  => No_Diagnostic_Id,
             Switch              => No_Switch_Id,
+            Restriction         => Not_A_Restriction_Id,
             Locations           => No_Labeled_Span,
             Fixes               => No_Fix));
 
