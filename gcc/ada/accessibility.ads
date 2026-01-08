@@ -45,10 +45,10 @@ package Accessibility is
    --  When in the context of the function Accessibility_Level,
    --  Accessibility_Level_Kind signals what type of accessibility level to
    --  obtain. For example, when Level is Dynamic_Level, a defining identifier
-   --  associated with a SAOOAAT may be returned or an N_Integer_Literal node.
+   --  associated with a saooaaat may be returned or an N_Integer_Literal node.
    --  When the level is Object_Decl_Level, an N_Integer_Literal node is
    --  returned containing the level of the declaration of the object if
-   --  relevant (be it a SAOOAAT or otherwise). Finally, Zero_On_Dynamic_Level
+   --  relevant (be it a saooaaat or otherwise). Finally, Zero_On_Dynamic_Level
    --  returns library level for all cases where the accessibility level is
    --  dynamic (used to bypass static accessibility checks in dynamic cases).
 
@@ -178,9 +178,13 @@ package Accessibility is
    --  Returns True if the given subtype is unconstrained and has one or more
    --  access discriminants.
 
-   function Is_Anonymous_Access_Actual (N : Node_Id) return Boolean;
-   --  Determine if N is used as an actual for a call whose corresponding
-   --  formal is of an anonymous access type.
+   function Needs_Accessibility_Level_Temp_Or_Check
+     (Conditional_Expr : Node_Id) return Boolean;
+   --  Determine whether a conditional expression occurs in a context that
+   --  requires either an associated accessibility-level-valued temp (which
+   --  is assigned to in each arm of the conditional expression) or an
+   --  accessibility level check (which is pushed down into each arm of the
+   --  conditional expression).
 
    function Needs_Result_Accessibility_Level
      (Func_Id : Entity_Id) return Boolean;

@@ -5751,12 +5751,16 @@ package body Exp_Ch4 is
       Par   : constant Node_Id    := Parent (N);
       Typ   : constant Entity_Id  := Etype (N);
 
-      Force_Expand : constant Boolean := Is_Anonymous_Access_Actual (N);
+      Force_Expand : constant Boolean
+        := Needs_Accessibility_Level_Temp_Or_Check (N);
       --  Determine if we are dealing with a special case of a conditional
       --  expression used as an actual for an anonymous access type which
       --  forces us to transform the if expression into an expression with
       --  actions in order to create a temporary to capture the level of the
-      --  expression in each branch.
+      --  expression in each branch. Also True if the conditional
+      --  expression is the RHS of an assignment to a saooaaat (so the
+      --  accessibility level temp associated with the saooaaat also needs
+      --  to be updated as part of the assignment).
 
       function Is_Copy_Type (Typ : Entity_Id) return Boolean;
       --  Return True if we can copy objects of this type when expanding an if

@@ -1958,18 +1958,20 @@ package body Accessibility is
       return False;
    end Has_Unconstrained_Access_Discriminants;
 
-   --------------------------------
-   -- Is_Anonymous_Access_Actual --
-   --------------------------------
+   ---------------------------------------------
+   -- Needs_Accessibility_Level_Temp_Or_Check --
+   ---------------------------------------------
 
-   function Is_Anonymous_Access_Actual (N : Node_Id) return Boolean is
+   function Needs_Accessibility_Level_Temp_Or_Check
+     (Conditional_Expr : Node_Id) return Boolean
+   is
       Par : Node_Id;
    begin
-      if Ekind (Etype (N)) /= E_Anonymous_Access_Type then
+      if Ekind (Etype (Conditional_Expr)) /= E_Anonymous_Access_Type then
          return False;
       end if;
 
-      Par := Parent (N);
+      Par := Parent (Conditional_Expr);
       while Present (Par)
         and then Nkind (Par) in N_Case_Expression
                               | N_If_Expression
@@ -1977,8 +1979,9 @@ package body Accessibility is
       loop
          Par := Parent (Par);
       end loop;
-      return Nkind (Par) in N_Subprogram_Call;
-   end Is_Anonymous_Access_Actual;
+
+      return Nkind (Par) in N_Subprogram_Call | N_Assignment_Statement;
+   end Needs_Accessibility_Level_Temp_Or_Check;
 
    --------------------------------------
    -- Needs_Result_Accessibility_Level --
