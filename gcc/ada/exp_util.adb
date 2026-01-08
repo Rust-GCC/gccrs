@@ -12542,7 +12542,15 @@ package body Exp_Util is
               and then Is_Entity_Name (Name (Init_Call))
               and then Entity (Name (Init_Call)) = Init_Proc
             then
-               return Init_Call;
+               declare
+                  Act : constant Node_Id :=
+                    Unqual_Conv (First (Parameter_Associations (Init_Call)));
+
+               begin
+                  if Is_Entity_Name (Act) and then Entity (Act) = Var then
+                     return Init_Call;
+                  end if;
+               end;
             end if;
 
             Next (Init_Call);
