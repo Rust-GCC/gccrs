@@ -3634,53 +3634,49 @@ package body Sem_Ch6 is
       --  generic specification. Determine whether current scope has a
       --  previous declaration.
 
+      if Present (Prev_Id) and then Is_Generic_Subprogram (Prev_Id) then
+         Spec_Id := Prev_Id;
+
+         --  A subprogram body is Ghost when it is stand-alone and subject
+         --  to pragma Ghost or when the corresponding spec is Ghost. Set
+         --  the mode now to ensure that any nodes generated during analysis
+         --  and expansion are properly marked as Ghost.
+
+         Mark_And_Set_Ghost_Body (N, Spec_Id);
+
+         --  If the body completes the initial declaration of a compilation
+         --  unit which is subject to pragma Elaboration_Checks, set the
+         --  model specified by the pragma because it applies to all parts
+         --  of the unit.
+
+         Install_Elaboration_Model (Spec_Id);
+
+         Set_Is_Compilation_Unit (Body_Id, Is_Compilation_Unit (Spec_Id));
+         Set_Is_Child_Unit       (Body_Id, Is_Child_Unit       (Spec_Id));
+
+         Analyze_Generic_Subprogram_Body (N, Spec_Id);
+
+         if Nkind (N) = N_Subprogram_Body then
+            Check_Missing_Return;
+         end if;
+
+         goto Leave;
+
       --  If the subprogram body is defined within an instance of the same
       --  name, the instance appears as a package renaming, and will be hidden
-      --  within the subprogram.
+      --  within the subprogram. Otherwise a previous non-overloadable entity
+      --  conflicts with the subprogram. Entering the name will post an error.
 
-      if Present (Prev_Id)
+      elsif Present (Prev_Id)
         and then not Is_Overloadable (Prev_Id)
         and then (Nkind (Parent (Prev_Id)) /= N_Package_Renaming_Declaration
                    or else Comes_From_Source (Prev_Id))
       then
-         if Is_Generic_Subprogram (Prev_Id) then
-            Spec_Id := Prev_Id;
-
-            --  A subprogram body is Ghost when it is stand-alone and subject
-            --  to pragma Ghost or when the corresponding spec is Ghost. Set
-            --  the mode now to ensure that any nodes generated during analysis
-            --  and expansion are properly marked as Ghost.
-
-            Mark_And_Set_Ghost_Body (N, Spec_Id);
-
-            --  If the body completes the initial declaration of a compilation
-            --  unit which is subject to pragma Elaboration_Checks, set the
-            --  model specified by the pragma because it applies to all parts
-            --  of the unit.
-
-            Install_Elaboration_Model (Spec_Id);
-
-            Set_Is_Compilation_Unit (Body_Id, Is_Compilation_Unit (Spec_Id));
-            Set_Is_Child_Unit       (Body_Id, Is_Child_Unit       (Spec_Id));
-
-            Analyze_Generic_Subprogram_Body (N, Spec_Id);
-
-            if Nkind (N) = N_Subprogram_Body then
-               Check_Missing_Return;
-            end if;
-
-            goto Leave;
-
-         --  Otherwise a previous entity conflicts with the subprogram name.
-         --  Attempting to enter name will post error.
-
-         else
-            Enter_Name (Body_Id);
-            goto Leave;
-         end if;
+         Enter_Name (Body_Id);
+         goto Leave;
 
       --  Non-generic case, find the subprogram declaration, if one was seen,
-      --  or enter new overloaded entity in the current scope. If the
+      --  or else enter a new overloaded entity in the current scope. If the
       --  Current_Entity is the Body_Id itself, the unit is being analyzed as
       --  part of the context of one of its subunits. No need to redo the
       --  analysis.
