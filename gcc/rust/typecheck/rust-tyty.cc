@@ -3860,6 +3860,73 @@ ConstErrorType::ConstErrorType (BaseType *type, HirId ref, HirId ty_ref,
     BaseConstType (type)
 {}
 
+// --- ConstExprType
+
+ConstExprType::ConstExprType (HIR::Expr *expr, BaseType *type, HirId ref,
+			      HirId ty_ref, std::set<HirId> refs)
+  : BaseType (ref, ty_ref, KIND,
+	      {Resolver::CanonicalPath::create_empty (), UNKNOWN_LOCATION},
+	      refs),
+    BaseConstType (type), expr (expr)
+{}
+
+BaseConstType::ConstKind
+ConstExprType::const_kind () const
+{
+  return BaseConstType::ConstKind::Expr;
+}
+
+void
+ConstExprType::accept_vis (TyVisitor &vis)
+{
+  vis.visit (*this);
+}
+
+void
+ConstExprType::accept_vis (TyConstVisitor &vis) const
+{
+  vis.visit (*this);
+}
+
+std::string
+ConstExprType::as_string () const
+{
+  return "<const_expr>";
+}
+
+BaseType *
+ConstExprType::clone () const
+{
+  return new ConstExprType (expr, specified_type, get_ref (), get_ty_ref (),
+			    get_combined_refs ());
+}
+
+std::string
+ConstExprType::get_name () const
+{
+  return as_string ();
+}
+
+bool
+ConstExprType::is_equal (const BaseType &other) const
+{
+  if (get_kind () != other.get_kind ())
+    return false;
+
+  auto other_const = other.as_const_type ();
+  if (other_const->const_kind () != BaseConstType::ConstKind::Expr)
+    return false;
+
+  auto &other2 = static_cast<const ConstExprType &> (*other_const);
+  return expr == other2.expr;
+}
+
+HIR::Expr *
+ConstExprType::get_expr () const
+{
+  return expr;
+}
+
 BaseConstType::ConstKind
 ConstErrorType::const_kind () const
 {

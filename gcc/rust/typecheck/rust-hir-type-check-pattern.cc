@@ -823,6 +823,7 @@ TypeCheckPattern::visit (HIR::SlicePattern &pattern)
 	  case TyTy::BaseConstType::ConstKind::Decl:
 	  case TyTy::BaseConstType::ConstKind::Infer:
 	  case TyTy::BaseConstType::ConstKind::Error:
+	  case TyTy::BaseConstType::ConstKind::Expr:
 	    cap = error_mark_node;
 	    break;
 	  }

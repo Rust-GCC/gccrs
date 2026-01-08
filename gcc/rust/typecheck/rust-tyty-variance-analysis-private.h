@@ -165,6 +165,11 @@ public:
 
   void visit (ErrorType &type) override {}
 
+  void visit (TyTy::ConstExprType &type) override
+  {
+    // TODO: Traverse expression for variance
+  }
+
   void visit (PlaceholderType &type) override { rust_unreachable (); }
   void visit (InferType &type) override { rust_unreachable (); }
 

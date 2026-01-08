@@ -19,6 +19,7 @@
 #include "rust-compile-type.h"
 #include "rust-constexpr.h"
 #include "rust-compile-base.h"
+#include "rust-compile-expr.h"
 
 #include "tree.h"
 #include "fold-const.h"
@@ -26,6 +27,34 @@
 
 namespace Rust {
 namespace Compile {
+
+// Universal helper to convert any Rust Constant into a GCC Tree
+static tree
+compile_const_to_tree (const TyTy::BaseConstType *capacity_const, Context *ctx,
+		       location_t locus)
+{
+  switch (capacity_const->const_kind ())
+    {
+    case TyTy::BaseConstType::ConstKind::Expr:
+      {
+	auto &expr_type
+	  = *static_cast<const TyTy::ConstExprType *> (capacity_const);
+	// Compile the expression (handle { N + 1 })
+	return CompileExpr::Compile (*expr_type.get_expr (), ctx);
+      }
+    case TyTy::BaseConstType::ConstKind::Value:
+      {
+	auto &capacity_value
+	  = *static_cast<const TyTy::ConstValueType *> (capacity_const);
+	// Return the already-known value (handle 2)
+	return capacity_value.get_value ();
+      }
+    default:
+      // FAIL GRACEFULLY: Return error instead of crashing on Param/Infer/Error
+      rust_error_at (locus, "unexpected constant kind in backend compilation");
+      return error_mark_node;
+    }
+}
 
 static const std::string RUST_ENUM_DISR_FIELD_NAME = "RUST$ENUM$DISR";
 
@@ -163,6 +192,12 @@ void
 TyTyResolveCompile::visit (const TyTy::ConstErrorType &type)
 {
   translated = error_mark_node;
+}
+
+void
+TyTyResolveCompile::visit (const TyTy::ConstExprType &type)
+{
+  translated = CompileExpr::Compile (*type.get_expr (), ctx);
 }
 
 void
@@ -488,9 +523,11 @@ TyTyResolveCompile::visit (const TyTy::ArrayType &type)
 {
   tree element_type
     = TyTyResolveCompile::compile (ctx, type.get_element_type ());
+
+  // 1. Get capacity
   auto const_capacity = type.get_capacity ();
 
-  // Check if capacity is a const type
+  // 2. CHECK if it is valid BEFORE using it
   if (const_capacity->get_kind () != TyTy::TypeKind::CONST)
     {
       rust_error_at (type.get_locus (), "array capacity is not a const type");
@@ -499,14 +536,15 @@ TyTyResolveCompile::visit (const TyTy::ArrayType &type)
     }
 
   auto *capacity_const = const_capacity->as_const_type ();
+  tree folded_capacity_expr
+    = compile_const_to_tree (capacity_const, ctx, type.get_locus ());
 
-  rust_assert (capacity_const->const_kind ()
-	       == TyTy::BaseConstType::ConstKind::Value);
-  auto &capacity_value = *static_cast<TyTy::ConstValueType *> (capacity_const);
-  auto folded_capacity_expr = capacity_value.get_value ();
+  if (folded_capacity_expr == error_mark_node)
+    {
+      translated = error_mark_node;
+      return;
+    }
 
-  // build_index_type takes the maximum index, which is one less than
-  // the length.
   tree index_type_tree = build_index_type (
     fold_build2 (MINUS_EXPR, sizetype, folded_capacity_expr, size_one_node));
 

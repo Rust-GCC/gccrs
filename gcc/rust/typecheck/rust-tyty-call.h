@@ -67,6 +67,8 @@ public:
   void visit (ConstInferType &) override { rust_unreachable (); }
   void visit (ConstErrorType &) override { rust_unreachable (); }
 
+  void visit (ConstExprType &type) override;
+
   // tuple-structs
   void visit (ADTType &type) override;
 

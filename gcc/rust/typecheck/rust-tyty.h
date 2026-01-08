@@ -542,7 +542,8 @@ public:
     Decl,
     Value,
     Infer,
-    Error
+    Error,
+    Expr
   };
 
   virtual ConstKind const_kind () const = 0;
@@ -694,6 +695,41 @@ public:
 
   BaseConstType *as_const_type () override { return this; }
   const BaseConstType *as_const_type () const override { return this; }
+};
+
+class ConstExprType : public BaseType, public BaseConstType
+{
+public:
+  static constexpr auto KIND = TypeKind::CONST;
+
+  ConstExprType (HIR::Expr *expr, BaseType *type, HirId ref, HirId ty_ref,
+		 std::set<HirId> refs = std::set<HirId> ());
+
+  ConstKind const_kind () const override final;
+
+  void accept_vis (TyVisitor &vis) override;
+  void accept_vis (TyConstVisitor &vis) const override;
+
+  std::string as_string () const override;
+
+  BaseType *clone () const final override;
+  std::string get_name () const override final;
+
+  bool is_equal (const BaseType &other) const override;
+
+  HIR::Expr *get_expr () const;
+
+  BaseType *as_base_type () override { return static_cast<BaseType *> (this); }
+  const BaseType *as_base_type () const override
+  {
+    return static_cast<const BaseType *> (this);
+  }
+
+  BaseConstType *as_const_type () override { return this; }
+  const BaseConstType *as_const_type () const override { return this; }
+
+private:
+  HIR::Expr *expr;
 };
 
 class OpaqueType : public BaseType

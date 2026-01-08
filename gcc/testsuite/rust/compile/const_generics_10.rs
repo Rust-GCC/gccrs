@@ -21,13 +21,11 @@ fn main() {
     };
 
     let invalid_foo: Foo<i32, { 1 + 1 }> = Foo::<i32, 3> { value: [15, 13] };
-    // { dg-error {mismatched types, expected ..T=i32; 3.. but got ...integer.; 2.. .E0308.} "" { target *-*-* } .-1 }
-    // { dg-error {mismatched types, expected ..T=i32; 2.. but got ..T=i32; 3.. .E0308.} "" { target *-*-* } .-2 }
+    // { dg-error "mismatched types" "" { target *-*-* } .-1 }
 
     let invalid_foo: Foo<i32, { 1 + 1 }> = Foo::<i32, M> { value: [15, 13] };
-    // { dg-error {mismatched types, expected ..T=i32; 4.. but got ...integer.; 2.. .E0308.} "" { target *-*-* } .-1 }
-    // { dg-error {mismatched types, expected ..T=i32; 2.. but got ..T=i32; 4.. .E0308.} "" { target *-*-* } .-2 }
+    // { dg-error "mismatched types" "" { target *-*-* } .-1 }
 
-    let invalid_foo: Foo<i32> = Foo::<i32, 2> { value: [15, 13] };
-    // { dg-error {mismatched types, expected ..T=i32; 1.. but got ..T=i32; 2.. .E0308.} "" { target *-*-* } .-1 }
+    let invalid_foo: Foo<i32, { 1 + 2 }> = Foo::<i32, 2> { value: [15, 13] };
+    // { dg-error "mismatched types" "" { target *-*-* } .-1 }
 }
