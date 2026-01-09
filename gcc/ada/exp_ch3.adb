@@ -2040,13 +2040,24 @@ package body Exp_Ch3 is
       Freeze_Extra_Formals (Constructor_Id);
 
       declare
-         Ignore : Node_Id;
+         Ignore             : Node_Id;
+         Default_Initialize : constant Node_Id :=
+           Make_Aspect_Specification (Loc,
+             Identifier => Make_Identifier (Loc, Name_Initialize),
+             Expression =>
+               Make_Aggregate (Loc,
+                 Component_Associations   => New_List (
+                   Make_Component_Association (Loc,
+                     Choices     => New_List (Make_Others_Choice (Loc)),
+                     Box_Present => True)),
+                 Is_Parenthesis_Aggregate => True));
       begin
          Ignore :=
            Make_Subprogram_Body (Loc,
              Specification => Spec_Node,
              Handled_Statement_Sequence =>
-               Make_Handled_Sequence_Of_Statements (Loc));
+               Make_Handled_Sequence_Of_Statements (Loc),
+             Aspect_Specifications => New_List (Default_Initialize));
       end;
 
       Set_Is_Public (Constructor_Id, Is_Public (Typ));

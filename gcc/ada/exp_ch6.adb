@@ -6366,16 +6366,28 @@ package body Exp_Ch6 is
                else Empty);
 
             Component : Entity_Id := First_Entity (First_Param_Type);
-            Init_List : constant List_Id := New_List;
+            Comp_List, Initialize_List, Tag_List, Parent_List :
+              constant List_Id := New_List;
+            --  Comp_List contains the list of default initializations, init
+            --  procedure calls, or constructor calls for components;
+            --  Initialize_List contains the list of component initializations
+            --  coming from the Initialize aspect;
+            --  Tag_List contains the initialization for the tag;
+            --  Parent_List contains the parent constructor call.
 
-            function Init_Expression_If_Any (Component : Entity_Id)
-              return Node_Id;
-            --  If the given component is mentioned in the Initialize
-            --  aspect for the constructor procedure, then return the
-            --  initial value expression specified there.
-            --  Otherwise, if the component declaration includes an
-            --  initial value expression, then return that expression.
-            --  Otherwise, return Empty.
+            function Init_From_Initialize_Expression
+              (Component : Entity_Id) return Node_Id;
+            --  If the Initialize aspect for the constructor procedure contains
+            --  the given component or the default others, then return the
+            --  initial value expression specified there. Otherwise, return
+            --  Empty.
+
+            function Init_From_Default_Or_Constructor
+              (Component : Entity_Id) return Node_Id;
+            --  If the component declaration includes a default initial value
+            --  expression or its type has a parameterless constructor
+            --  available, then return that expression (or a corresponding Make
+            --  call in the constructor case). Otherwise, return Empty.
 
             function Make_Init_Proc_Call (Component      : Entity_Id;
                                           Component_Name : Node_Id)
@@ -6391,39 +6403,55 @@ package body Exp_Ch6 is
             --  This function is called only in the case of a
             --  Constructor procedure for a type extension.
 
-            ----------------------------
-            -- Init_Expression_If_Any --
-            ----------------------------
+            --------------------------------
+            -- From_Initialize_Expression --
+            --------------------------------
 
-            function Init_Expression_If_Any (Component : Entity_Id)
+            function Init_From_Initialize_Expression (Component : Entity_Id)
               return Node_Id
             is
-               Initialize_Comp_Assoc : Node_Id := First_Initialize_Comp_Assoc;
-               Choice : Node_Id;
+               Component_Cursor  : Node_Id := First_Initialize_Comp_Assoc;
+               Choice            : Node_Id;
+               Others_Expression : Node_Id := Empty;
 
                --  ??? Technically, this is quadratic (linear search called
                --  a linear number of times). When/if we see performance
                --  problems with hundreds of components mentioned in one
                --  Initialize aspect specification, we can revisit this.
             begin
-               while Present (Initialize_Comp_Assoc) loop
-                  Choice := First (Choices (Initialize_Comp_Assoc));
+               while Present (Component_Cursor) loop
+                  Choice := First (Choices (Component_Cursor));
 
                   while Present (Choice) loop
-                     if Nkind (Choice) = N_Identifier
+                     --  The others expression is used in case there is no
+                     --  explicit component association for the given one.
+
+                     if Nkind (Choice) = N_Others_Choice
+                       and then Comes_From_Source (Choice)
+                     then
+                        Others_Expression := Expression (Component_Cursor);
+
+                     elsif Nkind (Choice) = N_Identifier
                        and then Chars (Choice) = Chars (Component)
                      then
-                        return Expression (Initialize_Comp_Assoc);
+                        return Expression (Component_Cursor);
                      end if;
                      Next (Choice);
                   end loop;
 
-                  Next (Initialize_Comp_Assoc);
+                  Next (Component_Cursor);
                end loop;
 
-               --  If a default expression is present in the record
-               --  declaration, then use it.
+               return Others_Expression;
+            end Init_From_Initialize_Expression;
 
+            --------------------------------------
+            -- Init_From_Default_Or_Constructor --
+            --------------------------------------
+
+            function Init_From_Default_Or_Constructor (Component : Entity_Id)
+              return Node_Id is
+            begin
                if Present (Expression (Parent (Component))) then
                   return Expression (Parent (Component));
                end if;
@@ -6442,7 +6470,7 @@ package body Exp_Ch6 is
                end if;
 
                return Empty;
-            end Init_Expression_If_Any;
+            end Init_From_Default_Or_Constructor;
 
             -------------------------
             -- Make_Init_Proc_Call --
@@ -6544,7 +6572,7 @@ package body Exp_Ch6 is
                end if;
 
                if Chars (Component) = Name_uTag then
-                  Append_To (Init_List,
+                  Append_To (Tag_List,
                     Make_Tag_Assignment_From_Type (Loc,
                       Target => New_Occurrence_Of
                                   (First_Formal (Spec_Id), Loc),
@@ -6553,13 +6581,16 @@ package body Exp_Ch6 is
                elsif Chars (Component) = Name_uParent
                  and then Needs_Construction (Etype (Component))
                then
-                  Append_To (Init_List, Make_Parent_Constructor_Call
-                                          (Parent_Type => Etype (Component)));
+                  Append_To (Parent_List,
+                    Make_Parent_Constructor_Call
+                      (Parent_Type => Etype (Component)));
 
                else
                   declare
-                     Maybe_Init_Exp : constant Node_Id :=
-                       Init_Expression_If_Any (Component);
+                     Maybe_Initialize             : constant Node_Id :=
+                       Init_From_Initialize_Expression (Component);
+                     Maybe_Default_Or_Constructor : constant Node_Id :=
+                       Init_From_Default_Or_Constructor (Component);
 
                      function Make_Component_Name return Node_Id is
                        (Make_Selected_Component (Loc,
@@ -6568,25 +6599,39 @@ package body Exp_Ch6 is
                           Selector_Name =>
                             Make_Identifier (Loc, Chars (Component))));
                   begin
-                     --  Handle case where initial value for this component
-                     --  is specified either in an Initialize aspect
-                     --  specification or as part of the component declaration.
+                     --  Handle case where initial value for this component is
+                     --  specified either in an Initialize aspect specification
+                     --  or as part of the component declaration.
 
-                     if Present (Maybe_Init_Exp) then
-                        Append_List_To (Init_List,
-                          Build_Component_Assignment (Loc,
-                            Prefix       =>
-                              New_Occurrence_Of (First_Formal (Spec_Id), Loc),
-                            Prefix_Type  => First_Param_Type,
-                            Proc_Id      => Body_Id,
-                            Component_Id => Component,
-                            Default_Expr => New_Copy_Tree
-                                              (Maybe_Init_Exp,
-                                               New_Scope => Body_Id)));
+                     if Present (Maybe_Initialize)
+                       or else Present (Maybe_Default_Or_Constructor)
+                     then
+                        declare
+                           Init : Node_Id;
+                           List : List_Id;
+                        begin
+                           if Present (Maybe_Initialize) then
+                              Init := Maybe_Initialize;
+                              List := Initialize_List;
+                           else
+                              Init := Maybe_Default_Or_Constructor;
+                              List := Comp_List;
+                           end if;
+                           Append_List_To (List,
+                             Build_Component_Assignment (Loc,
+                               Prefix       =>
+                                 New_Occurrence_Of
+                                   (First_Formal (Spec_Id), Loc),
+                               Prefix_Type  => First_Param_Type,
+                               Proc_Id      => Body_Id,
+                               Component_Id => Component,
+                               Default_Expr =>
+                                 New_Copy_Tree (Init, New_Scope => Body_Id)));
+                        end;
 
                      --  Handle case where component's type has an init proc
                      elsif Has_Non_Null_Base_Init_Proc (Etype (Component)) then
-                        Append_To (Init_List,
+                        Append_To (Comp_List,
                                    Make_Init_Proc_Call (
                                     Component      => Component,
                                     Component_Name => Make_Component_Name));
@@ -6600,7 +6645,14 @@ package body Exp_Ch6 is
                Next_Entity (Component);
             end loop;
 
-            Insert_List_Before_And_Analyze (First (L), Init_List);
+            --  First, use default value initializations and init procedures,
+            --  then call the parent constructor (if any), then initialize all
+            --  other components through the Initialize aspect, last the tag.
+
+            Append_List (Tag_List, Initialize_List);
+            Append_List (Initialize_List, Parent_List);
+            Append_List (Parent_List, Comp_List);
+            Insert_List_Before_And_Analyze (First (L), Comp_List);
          end;
 
          Pop_Scope;

@@ -2134,8 +2134,14 @@ package body Sem_Ch13 is
             procedure Analyze_Aspect_Static;
             --  Ada 2022 (AI12-0075): Perform analysis of aspect Static
 
+            procedure Check_Constructor_Choices (Choice_List : List_Id);
+            --  Check that each choice occurring in the aggregate of a
+            --  contructor Initialize aspect specification represents a
+            --  component that belongs to the current type, otherwise flag an
+            --  error as initialization of parent components is not permitted.
+
             procedure Check_Constructor_Initialization_Expression
-              (Expr : Node_Id; Aspect_Name : String);
+              (Expr : Node_Id; Aspect : Name_Id);
             --  Check legality rules for an expression occurring as
             --  an expression of a Super or Initialize aspect specification.
             --  These expressions are evaluated before the constructed
@@ -3296,12 +3302,49 @@ package body Sem_Ch13 is
                end if;
             end Analyze_Aspect_Yield;
 
+            -------------------------------
+            -- Check_Constructor_Choices --
+            -------------------------------
+
+            procedure Check_Constructor_Choices (Choice_List : List_Id) is
+               Choice_Cursor    : Node_Id := First (Choice_List);
+               Component_Cursor : Node_Id;
+            begin
+               while Present (Choice_Cursor) loop
+                  if Nkind (Choice_Cursor) = N_Others_Choice then
+                     goto Next_Choice;
+                  end if;
+
+                  Component_Cursor := First_Entity (Etype (First_Entity (E)));
+                  while Present (Component_Cursor) loop
+                     if Ekind (Component_Cursor) = E_Component
+                       and then Chars (Component_Cursor)
+                                = Chars (Choice_Cursor)
+                     then
+                        if Original_Record_Component (Component_Cursor)
+                           /= Component_Cursor
+                        then
+                           Error_Msg_N
+                             ("cannot initialize parent component&",
+                              Choice_Cursor);
+                        end if;
+                        exit;
+                     end if;
+
+                     Next_Entity (Component_Cursor);
+                  end loop;
+
+               <<Next_Choice>>
+                  Next (Choice_Cursor);
+               end loop;
+            end Check_Constructor_Choices;
+
             -------------------------------------------------
             -- Check_Constructor_Initialization_Expression --
             -------------------------------------------------
 
             procedure Check_Constructor_Initialization_Expression
-              (Expr : Node_Id; Aspect_Name : String)
+              (Expr : Node_Id; Aspect : Name_Id)
             is
                First_Parameter : Entity_Id;
 
@@ -3319,9 +3362,10 @@ package body Sem_Ch13 is
                   if Nkind (N) = N_Identifier
                     and then Entity (N) = First_Parameter
                   then
+                     Error_Msg_Name_1 := Aspect;
                      Error_Msg_N
-                       ("constructed object referenced in " &
-                        Aspect_Name & " aspect_specification", N);
+                       ("constructed object referenced in% " &
+                        "aspect_specification", N);
                   end if;
 
                   return OK;
@@ -3330,6 +3374,8 @@ package body Sem_Ch13 is
                procedure Check_Tree_For_Bad_Reference is
                  new Traverse_Proc (Check_Node_For_Bad_Reference);
             begin
+               pragma Assert (Aspect in Name_Super | Name_Initialize);
+
                --  If coming from an implicit constructor, the Self parameter
                --  is retrieved via the specification's defining unit name.
 
@@ -4497,8 +4543,10 @@ package body Sem_Ch13 is
                when Aspect_Initialize => Initialize : declare
                   Aspect_Comp : Node_Id;
                   Type_Comp   : Node_Id;
-                  Typ  : Entity_Id;
-                  Dummy_Aggr : Node_Id;
+                  Typ         : Entity_Id;
+                  Dummy       : Node_Id;
+
+                  Has_User_Defined_Default : Boolean := False;
                begin
                   --  Error checking
 
@@ -4508,8 +4556,13 @@ package body Sem_Ch13 is
                      goto Continue;
                   end if;
 
-                  if Ekind (E) /= E_Subprogram_Body
-                    or else Nkind (Parent (E)) /= N_Procedure_Specification
+                  --  Initialize aspect can only apply to a constructor body or
+                  --  to the implicit constructors, which are represented by
+                  --  procedure specs.
+
+                  if (Ekind (E) /= E_Subprogram_Body
+                       or else Nkind (Parent (E)) /= N_Procedure_Specification)
+                    and then not Acts_As_Spec (N)
                   then
                      Error_Msg_N
                        ("Initialize must apply to a constructor body", N);
@@ -4517,6 +4570,14 @@ package body Sem_Ch13 is
 
                   if Present (Expressions (Expression (Aspect))) then
                      Error_Msg_N ("only component associations allowed", N);
+                  end if;
+
+                  --  Errors may suggest missing self parameters or wrong
+                  --  constructor profile, the analysis would crash if we
+                  --  continue.
+
+                  if Error_Posted (N) then
+                     goto Continue;
                   end if;
 
                   --  Install the others for the aggregate if necessary
@@ -4528,6 +4589,13 @@ package body Sem_Ch13 is
                        ("Initialize can only apply to contructors"
                          & " whose type has one or more components", N);
                   end if;
+
+                  --  Here it follows three loops: the first is linear over the
+                  --  components, the second is quadratic over the components
+                  --  and then aggregate choices, the last is quadratic over
+                  --  the aggregate choices and then components (hidden by the
+                  --  Check_Constructor_Choices). If this becomes a performance
+                  --  issue we can merge all loops together ???
 
                   Aspect_Comp :=
                     First (Component_Associations (Expression (Aspect)));
@@ -4544,6 +4612,7 @@ package body Sem_Ch13 is
                      elsif Nkind (First (Choices (Aspect_Comp)))
                              = N_Others_Choice
                      then
+                        Has_User_Defined_Default := Comes_From_Source (Aspect);
                         exit;
                      end if;
 
@@ -4551,7 +4620,60 @@ package body Sem_Ch13 is
                      Next_Entity (Type_Comp);
                   end loop;
 
-                  --  Analyze the components
+                  --  Flag components that are missing a required explicit
+                  --  initialization, that is the case for by-constructor types
+                  --  without the parameterless constructor that have no
+                  --  default expression and are not choiced in the Initialize
+                  --  aggregate.
+
+                  if not Has_User_Defined_Default then
+                     Type_Comp := First_Entity (Typ);
+                     while Present (Type_Comp) loop
+                        if Ekind (Type_Comp) /= E_Component
+                          or else Chars (Type_Comp) in Name_uTag | Name_uParent
+                        then
+                           goto Next_Component;
+                        end if;
+
+                        --  Check if the component needs to be initialized by
+                        --  the Initialize aspect specification.
+
+                        if Needs_Construction (Etype (Type_Comp))
+                          and then No (Expression (Parent (Type_Comp)))
+                        then
+                           Aspect_Comp := First (
+                             Component_Associations (Expression (Aspect)));
+                           while Present (Aspect_Comp) loop
+                              declare
+                                 Cursor_Choice : Node_Id :=
+                                   First (Choices (Aspect_Comp));
+                              begin
+                                 while Present (Cursor_Choice) loop
+                                    if Nkind (Cursor_Choice) /= N_Others_Choice
+                                      and then Chars (Type_Comp)
+                                               = Chars (Cursor_Choice)
+                                    then
+                                       goto Next_Component;
+                                    end if;
+
+                                    Next (Cursor_Choice);
+                                 end loop;
+                              end;
+
+                              Next (Aspect_Comp);
+                           end loop;
+
+                           Error_Msg_NE ("explicit initialization required " &
+                                         "for component&",
+                                         Aspect, Type_Comp);
+                        end if;
+
+                     <<Next_Component>>
+                        Next_Entity (Type_Comp);
+                     end loop;
+                  end if;
+
+                  --  Analyze the components, both expressions and choices
 
                   Aspect_Comp :=
                     First (Component_Associations (Expression (Aspect)));
@@ -4562,18 +4684,24 @@ package body Sem_Ch13 is
                         if Present (Expr) then
                            Analyze (Expr);
                            Check_Constructor_Initialization_Expression
-                             (Expr, Aspect_Name => "Initialize");
+                             (Expr, Aspect => Name_Initialize);
                         end if;
                      end;
+                     Check_Constructor_Choices (Choices (Aspect_Comp));
 
                      Next (Aspect_Comp);
                   end loop;
 
-                  --  Do a psuedo pass over the aggregate to ensure it is valid
+                  --  Do a psuedo pass over the aggregate to ensure its
+                  --  validity. The expression with actions is required to
+                  --  have a valid node where to place the ABE check during
+                  --  resolution.
 
                   Expander_Active := False;
-                  Dummy_Aggr := New_Copy_Tree (Expression (Aspect));
-                  Resolve_Aggregate (Dummy_Aggr, Typ);
+                  Dummy := Make_Expression_With_Actions (Loc,
+                    Actions => Empty_List,
+                    Expression => New_Copy_Tree (Expression (Aspect)));
+                  Resolve_Aggregate (Expression (Dummy), Typ);
                   Expander_Active := True;
                end Initialize;
 
@@ -5330,7 +5458,7 @@ package body Sem_Ch13 is
                   --  To reverse this decision, set this flag to False.
 
                   procedure Check_Super_Arg
-                    (Expr : Node_Id; Aspect_Name : String := "Super")
+                    (Expr : Node_Id; Aspect : Name_Id := Name_Super)
                     renames Check_Constructor_Initialization_Expression;
 
                begin
@@ -6054,6 +6182,16 @@ package body Sem_Ch13 is
                Error_Msg_N
                  ("aspect specification must appear on initial declaration",
                   Asp);
+
+               --  Improve the error message for likely misspelling since the
+               --  Initialize aspect (singular) can be used in stubs but the
+               --  Initializes aspect (plural) cannot and would raise a
+               --  misleading error here.
+
+               if Asp_Nam = Name_Initializes then
+                  Error_Msg_Name_1 := Name_Initialize;
+                  Error_Msg_N ("\possible misspelling of%", Asp);
+               end if;
             end if;
 
             Next (Asp);

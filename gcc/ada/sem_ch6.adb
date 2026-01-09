@@ -5274,9 +5274,41 @@ package body Sem_Ch6 is
       -----------------------------------------
 
       procedure Analyze_Direct_Attribute_Definition (Designator : Entity_Id) is
+         procedure Add_Default_Initialize_Aspect;
+         --  Adds a default Initialize aspect specification to the body stub of
+         --  the Designator.
+
          function Can_Be_Destructor_Of
            (E : Entity_Id; T : Entity_Id) return Boolean;
          --  Returns whether E can be declared the destructor of T
+
+         -----------------------------------
+         -- Add_Default_Initialize_Aspect --
+         -----------------------------------
+
+         procedure Add_Default_Initialize_Aspect is
+            Body_N : constant Node_Id := Unit_Declaration_Node (Designator);
+            Loc    : constant Source_Ptr := Sloc (Body_N);
+
+            Default_Initialize : constant Node_Id :=
+              Make_Aspect_Specification (Loc,
+                Identifier => Make_Identifier (Loc, Name_Initialize),
+                Expression =>
+                  Make_Aggregate (Loc,
+                    Component_Associations   => New_List (
+                      Make_Component_Association (Loc,
+                        Choices     => New_List (Make_Others_Choice (Loc)),
+                        Box_Present => True)),
+                    Is_Parenthesis_Aggregate => True));
+         begin
+            if No (Aspect_Specifications (Body_N)) then
+               Set_Aspect_Specifications
+                 (Body_N,
+                  New_List (Default_Initialize));
+            else
+               Append_To (Aspect_Specifications (Body_N), Default_Initialize);
+            end if;
+         end Add_Default_Initialize_Aspect;
 
          --------------------------
          -- Can_Be_Destructor_Of --
@@ -5320,9 +5352,15 @@ package body Sem_Ch6 is
             when Name_Constructor =>
                Error_Msg_Name_1 := Att_Name;
 
-               --  No further action required in a subprogram body
+               --  If missing, add a default initialization aspect for this
+               --  constructor's body stub: Initialize => (others => <>).
 
                if Parent_Kind (N) not in N_Subprogram_Declaration then
+                  if not Has_Aspect (Designator, Aspect_Initialize) then
+                     Add_Default_Initialize_Aspect;
+                  end if;
+
+                  --  No further action required in a subprogram body
                   return;
 
                elsif No (Prefix_E) or else not Is_Type (Prefix_E) then
