@@ -4130,8 +4130,9 @@
 	     UNSPEC_REVD_ONLY)]
 	  UNSPEC_PRED_X))]
   "TARGET_SVE2p1_OR_SME"
-  {@ [ cons: =0 , 1   , 2 ]
-     [ w        , Upl , 0 ] revd\t%0.q, %1/m, %2.q
+  {@ [ cons: =0 , 1   , 2 ; attrs: arch ]
+     [ w        , Upl , 0 ; *                ] revd\t%0.q, %1/m, %2.q
+     [ w        , Upl , w ; sve2p2_or_sme2p2 ] revd\t%0.q, %1/z, %2.q
   }
   [(set_attr "sve_type" "sve_int_general")]
 )
@@ -4143,11 +4144,12 @@
 	   (unspec:SVE_FULL
 	     [(match_operand:SVE_FULL 2 "register_operand")]
 	     UNSPEC_REVD_ONLY)
-	   (match_operand:SVE_FULL 3 "register_operand")]
+	   (match_operand:SVE_FULL 3 "aarch64_simd_reg_or_direct_zero")]
 	  UNSPEC_SEL))]
   "TARGET_SVE2p1_OR_SME"
-  {@ [ cons: =0 , 1   , 2 , 3 ]
-     [ w        , Upl , w , 0 ] revd\t%0.q, %1/m, %2.q
+  {@ [ cons: =0 , 1   , 2 , 3  ; attrs: arch ]
+     [ w        , Upl , w , 0  ; *                ] revd\t%0.q, %1/m, %2.q
+     [ w        , Upl , w , Dz ; sve2p2_or_sme2p2 ] revd\t%0.q, %1/z, %2.q
   }
   [(set_attr "sve_type" "sve_int_general")]
 )

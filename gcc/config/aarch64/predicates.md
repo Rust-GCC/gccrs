@@ -645,6 +645,15 @@
 	    (match_test "op == const0_rtx")
 	    (match_operand 0 "aarch64_simd_or_scalar_imm_zero"))))
 
+;; Same as above, but a zero const_vector is only allowed when a
+;; corresponding single-insn (i.e. not involving MOVPRFX) alternative is
+;; enabled.  Used for zeroing predication forms of some SVE2.2
+;; instructions.
+(define_predicate "aarch64_simd_reg_or_direct_zero"
+  (ior (and (match_test "TARGET_SVE2p2_OR_SME2p2")
+	    (match_operand 0 "aarch64_simd_reg_or_zero"))
+       (match_operand 0 "register_operand")))
+
 (define_predicate "aarch64_simd_reg_or_minus_one"
   (ior (match_operand 0 "register_operand")
        (match_operand 0 "aarch64_simd_imm_minus_one")))
