@@ -35,10 +35,14 @@
 #include <atomic>     // atomic<T*>, atomic<int>
 #include <memory>     // atomic<shared_ptr<T>>
 #include <mutex>      // mutex
+#include <iomanip>    // quoted
 #if defined __GTHREADS && ! defined _GLIBCXX_HAS_GTHREADS
 # include <ext/concurrence.h> // __gnu_cxx::__mutex
 #endif
-#include <filesystem> // filesystem::read_symlink
+
+#if defined(_GLIBCXX_HAVE_READLINK) && defined(_GLIBCXX_HAVE_UNISTD_H)
+# include <unistd.h>  // readlink
+#endif
 
 #ifdef _AIX
 # include <cstdlib>   // getenv
@@ -1890,28 +1894,87 @@ namespace std::chrono
   tzdb::current_zone() const
   {
     // TODO cache this function's result?
+    // Could check the modification time of /etc/localtime, and not re-read
+    // it if it hasn't changed. reload_tzdb() could clear the cache too,
+    // to have a way to force a re-read.
 
 #if !defined(_AIX) && !defined(_GLIBCXX_HAVE_WINDOWS_H)
-    // Repeat the preprocessor condition used by filesystem::read_symlink,
-    // to avoid a dependency on src/c++17/fs_ops.o if it won't work anyway.
-#if defined(_GLIBCXX_HAVE_READLINK) && defined(_GLIBCXX_HAVE_SYS_STAT_H)
-    error_code ec;
-    // This should be a symlink to e.g. /usr/share/zoneinfo/Europe/London
-    auto path = filesystem::read_symlink("/etc/localtime", ec);
-    if (!ec)
+#if defined(_GLIBCXX_HAVE_READLINK) && defined(_GLIBCXX_HAVE_UNISTD_H)
+    string_view str;
+    char buf[128]; // strlen("../usr/share/zoneinfo/...") is usually < 55
+    string dynbuf;
+    // /etc/localtime should be a symlink that ends with a zone name,
+    // e.g. /etc/localtime -> /usr/share/zoneinfo/Europe/London
+    // https://www.freedesktop.org/software/systemd/man/latest/localtime.html
+    // This should work on GNU/Linux, macOS, NetBSD, and OpenBSD.
+    // Some FreeBSD systems also use a symlink for /etc/localtime.
+    // Use readlink directly to avoid std::filesystem overhead.
+    if (auto n = ::readlink("/etc/localtime", buf, sizeof(buf)); n > 0)
       {
-	auto first = path.begin(), last = path.end();
-	if (std::distance(first, last) > 2)
+	if (static_cast<size_t>(n) < sizeof(buf))
+	  str = string_view(buf, n);
+	else [[unlikely]]
 	  {
-	    --last;
-	    string name = last->string();
-	    if (auto tz = do_locate_zone(this->zones, this->links, name))
-	      return tz;
-	    --last;
-	    name = last->string() + '/' + name;
-	    if (auto tz = do_locate_zone(this->zones, this->links, name))
-	      return tz;
+	    // We read the symlink but it didn't fit in buf[], use dynbuf.
+	    do
+	      {
+		n *= 2;
+		dynbuf.__resize_and_overwrite(n, [](char* p, size_t len) {
+		  auto n2 = ::readlink("/etc/localtime", p, len);
+		  if (n2 == -1) // symlink removed or replaced by file?!
+		    __throw_runtime_error("tzdb: error reading /etc/localtime");
+		  const size_t r = n2;
+		  return r < len ? r : 0;
+		});
+	      }
+	    while (dynbuf.empty());
+	    str = dynbuf;
 	  }
+      }
+
+    if (!str.empty())
+      {
+	// Remove any redundant slashes so we can match zone names.
+	// e.g. /usr/share/zoneinfo/Europe//London is a valid symlink,
+	// but won't match against "Europe/London".
+	if (auto pos = str.rfind("//"); pos != str.npos) [[unlikely]]
+	  {
+	    if (str.data() != dynbuf.data())
+	      dynbuf = str;
+	    string::size_type spos = pos;
+	    do
+	      {
+		dynbuf.erase(spos, 1);
+		spos = dynbuf.rfind("//", spos);
+	      }
+	    while (spos != dynbuf.npos);
+	    str = dynbuf;
+	  }
+
+	// Check the trailing components of the path against known zone names.
+	// Valid IANA times zones can have one, two, or three parts, e.g.
+	// "UTC", "Europe/London", and "America/Indiana/Indianapolis".
+	// Custom tzdata.zi files could in theory use four or more parts.
+
+	auto pos = str.rfind('/');
+	while (pos != str.npos && pos != 0)
+	  {
+	    if (auto tz = do_locate_zone(this->zones, this->links,
+					 str.substr(pos + 1)))
+	      return tz;
+	    pos = str.rfind('/', pos - 1);
+	  }
+	// If we didn't match yet, try once more so that we will match
+	// a symlink to a relative path such as "Europe/London"
+	// or symlink to an absolute path such as "/Europe/London".
+	// Both cases seem unlikely because it would require either
+	// /etc/Europe or /Europe to be a directory (or a symlink to one)
+	// containing the TZif files, but it's theoretically possible.
+	// If pos==npos then pos+1 wraps to 0 and we use the whole string.
+	// If pos==0 then substr(1) discards the leading slash.
+	if (auto tz = do_locate_zone(this->zones, this->links,
+				     str.substr(pos + 1)))
+	  return tz;
       }
 #endif
     // Otherwise, look for a file naming the time zone.
@@ -1948,6 +2011,11 @@ namespace std::chrono
 		  return tz;
 	      }
       }
+
+    // FIXME: For DragonFly BSD /etc/localtime is a copy of one of the
+    // zone files in /usr/share/zoneinfo so we need to compare its contents
+    // to each one until we find a match.
+
 #elif defined(_GLIBCXX_HAVE_WINDOWS_H)
     if (auto tz
 	= do_locate_zone(this->zones, this->links, detect_windows_zone()))
