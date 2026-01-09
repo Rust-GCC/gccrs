@@ -3853,10 +3853,11 @@
 	   (match_operand:VNx4SI_ONLY 3 "aarch64_simd_reg_or_zero")]
 	  UNSPEC_SEL))]
   "TARGET_SVE2"
-  {@ [ cons: =0 , 1   , 2 , 3  ; attrs: movprfx ]
-     [ w        , Upl , w , 0  ; *              ] <sve_int_op>\t%0.<Vetype>, %1/m, %2.<Vetype>
-     [ ?&w      , Upl , w , Dz ; yes            ] movprfx\t%0.<Vetype>, %1/z, %2.<Vetype>\;<sve_int_op>\t%0.<Vetype>, %1/m, %2.<Vetype>
-     [ ?&w      , Upl , w , w  ; yes            ] movprfx\t%0, %3\;<sve_int_op>\t%0.<Vetype>, %1/m, %2.<Vetype>
+  {@ [ cons: =0 , 1   , 2 , 3  ; attrs: movprfx, arch ]
+     [ w        , Upl , w , 0  ; *   , *                ] <sve_int_op>\t%0.<Vetype>, %1/m, %2.<Vetype>
+     [ w        , Upl , w , Dz ; *   , sve2p2_or_sme2p2 ] <sve_int_op>\t%0.<Vetype>, %1/z, %2.<Vetype>
+     [ ?&w      , Upl , w , Dz ; yes , *                ] movprfx\t%0.<Vetype>, %1/z, %2.<Vetype>\;<sve_int_op>\t%0.<Vetype>, %1/m, %2.<Vetype>
+     [ ?&w      , Upl , w , w  ; yes , *                ] movprfx\t%0, %3\;<sve_int_op>\t%0.<Vetype>, %1/m, %2.<Vetype>
   }
   "&& !CONSTANT_P (operands[4])"
   {
