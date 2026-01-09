@@ -433,6 +433,18 @@ AttributeChecker::check_inner_attributes (const AST::AttrVec &attributes)
     check_inner_attribute (attr);
 }
 
+static void
+check_link_section_attribute (const AST::Attribute &attribute)
+{
+  if (!attribute.has_attr_input ())
+    {
+      rust_error_at (attribute.get_locus (),
+		     "malformed %<link_section%> attribute input");
+      rust_inform (attribute.get_locus (),
+		   "must be of the form: %<#[link_section = \"name\"]%>");
+    }
+}
+
 void
 AttributeChecker::check_attribute (const AST::Attribute &attribute)
 {
@@ -896,7 +908,12 @@ AttributeChecker::visit (AST::Function &fun)
 			   "must be of the form: %<#[link_name = \"name\"]%>");
 	    }
 	}
+      else if (result.name == Attrs::LINK_SECTION)
+	{
+	  check_link_section_attribute (attribute);
+	}
     }
+
   if (fun.has_body ())
     fun.get_definition ().value ()->accept_vis (*this);
 }
@@ -958,6 +975,15 @@ void
 AttributeChecker::visit (AST::StaticItem &item)
 {
   check_proc_macro_non_function (item.get_outer_attrs ());
+
+  BuiltinAttrDefinition result;
+  for (auto &attribute : item.get_outer_attrs ())
+    {
+      if (is_builtin (attribute, result) && result.name == Attrs::LINK_SECTION)
+	{
+	  check_link_section_attribute (attribute);
+	}
+    }
 }
 
 void
