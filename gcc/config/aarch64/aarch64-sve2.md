@@ -3596,10 +3596,11 @@
 	   (match_operand:VNx4SF_ONLY 3 "aarch64_simd_reg_or_zero")]
 	  UNSPEC_SEL))]
   "TARGET_SVE2 && !rtx_equal_p (operands[2], operands[3])"
-  {@ [ cons: =0 , 1   , 2 , 3  ; attrs: movprfx ]
-     [ &w       , Upl , w , 0  ; *              ] <sve_fp_op>\t%0.<Vetype>, %1/m, %2.<Vewtype>
-     [ &w       , Upl , w , Dz ; yes            ] movprfx\t%0.<Vewtype>, %1/z, %2.<Vewtype>\;<sve_fp_op>\t%0.<Vetype>, %1/m, %2.<Vewtype>
-     [ &w       , Upl , w , w  ; yes            ] movprfx\t%0, %3\;<sve_fp_op>\t%0.<Vetype>, %1/m, %2.<Vewtype>
+  {@ [ cons: =0 , 1   , 2 , 3  ; attrs: movprfx, arch ]
+     [ &w       , Upl , w , 0  ; *   , *                ] <sve_fp_op>\t%0.<Vetype>, %1/m, %2.<Vewtype>
+     [ &w       , Upl , w , Dz ; *   , sve2p2_or_sme2p2 ] <sve_fp_op>\t%0.<Vetype>, %1/z, %2.<Vewtype>
+     [ &w       , Upl , w , Dz ; yes , *                ] movprfx\t%0.<Vewtype>, %1/z, %2.<Vewtype>\;<sve_fp_op>\t%0.<Vetype>, %1/m, %2.<Vewtype>
+     [ &w       , Upl , w , w  ; yes , *                ] movprfx\t%0, %3\;<sve_fp_op>\t%0.<Vetype>, %1/m, %2.<Vewtype>
   }
   "&& !rtx_equal_p (operands[1], operands[4])"
   {
@@ -3620,10 +3621,11 @@
 	   (match_operand:VNx4SF_ONLY 3 "aarch64_simd_reg_or_zero")]
 	  UNSPEC_SEL))]
   "TARGET_SVE2 && !rtx_equal_p (operands[2], operands[3])"
-  {@ [ cons: =0 , 1   , 2 , 3  ; attrs: movprfx ]
-     [ &w       , Upl , w , 0  ; *              ] <sve_fp_op>\t%0.<Vetype>, %1/m, %2.<Vewtype>
-     [ &w       , Upl , w , Dz ; yes            ] movprfx\t%0.<Vewtype>, %1/z, %2.<Vewtype>\;<sve_fp_op>\t%0.<Vetype>, %1/m, %2.<Vewtype>
-     [ &w       , Upl , w , w  ; yes            ] movprfx\t%0, %3\;<sve_fp_op>\t%0.<Vetype>, %1/m, %2.<Vewtype>
+  {@ [ cons: =0 , 1   , 2 , 3  ; attrs: movprfx, arch ]
+     [ &w       , Upl , w , 0  ; *   , *                ] <sve_fp_op>\t%0.<Vetype>, %1/m, %2.<Vewtype>
+     [ &w       , Upl , w , Dz ; *   , sve2p2_or_sme2p2 ] <sve_fp_op>\t%0.<Vetype>, %1/z, %2.<Vewtype>
+     [ &w       , Upl , w , Dz ; yes , *                ] movprfx\t%0.<Vewtype>, %1/z, %2.<Vewtype>\;<sve_fp_op>\t%0.<Vetype>, %1/m, %2.<Vewtype>
+     [ &w       , Upl , w , w  ; yes , *                ] movprfx\t%0, %3\;<sve_fp_op>\t%0.<Vetype>, %1/m, %2.<Vewtype>
   }
   [(set_attr "sve_type" "sve_fp_cvt")]
 )

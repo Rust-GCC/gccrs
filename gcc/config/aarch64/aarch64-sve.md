@@ -11027,10 +11027,11 @@
 	   (match_operand:SVE_FULL_F 3 "aarch64_simd_reg_or_zero")]
 	  UNSPEC_SEL))]
   "TARGET_SVE && <SVE_FULL_HSDI:elem_bits> >= <SVE_FULL_F:elem_bits>"
-  {@ [ cons: =0 , 1   , 2 , 3  ; attrs: movprfx ]
-     [ &w       , Upl , w , 0  ; *              ] <su>cvtf\t%0.<SVE_FULL_F:Vetype>, %1/m, %2.<SVE_FULL_HSDI:Vetype>
-     [ &w       , Upl , w , Dz ; yes            ] movprfx\t%0.<SVE_FULL_HSDI:Vetype>, %1/z, %2.<SVE_FULL_HSDI:Vetype>\;<su>cvtf\t%0.<SVE_FULL_F:Vetype>, %1/m, %2.<SVE_FULL_HSDI:Vetype>
-     [ ?&w      , Upl , w , w  ; yes            ] movprfx\t%0, %3\;<su>cvtf\t%0.<SVE_FULL_F:Vetype>, %1/m, %2.<SVE_FULL_HSDI:Vetype>
+  {@ [ cons: =0 , 1   , 2 , 3  ; attrs: movprfx, arch ]
+     [ &w       , Upl , w , 0  ; *   , *                ] <su>cvtf\t%0.<SVE_FULL_F:Vetype>, %1/m, %2.<SVE_FULL_HSDI:Vetype>
+     [ &w       , Upl , w , Dz ; *   , sve2p2_or_sme2p2 ] <su>cvtf\t%0.<SVE_FULL_F:Vetype>, %1/z, %2.<SVE_FULL_HSDI:Vetype>
+     [ &w       , Upl , w , Dz ; yes , *                ] movprfx\t%0.<SVE_FULL_HSDI:Vetype>, %1/z, %2.<SVE_FULL_HSDI:Vetype>\;<su>cvtf\t%0.<SVE_FULL_F:Vetype>, %1/m, %2.<SVE_FULL_HSDI:Vetype>
+     [ ?&w      , Upl , w , w  ; yes , *                ] movprfx\t%0, %3\;<su>cvtf\t%0.<SVE_FULL_F:Vetype>, %1/m, %2.<SVE_FULL_HSDI:Vetype>
   }
   "&& !rtx_equal_p (operands[1], operands[4])"
   {
@@ -11053,10 +11054,11 @@
 	  UNSPEC_SEL))]
   "TARGET_SVE
    && (~(<SVE_HSDI:self_mask> | <SVE_HSDI:narrower_mask>) & <SVE_PARTIAL_F:self_mask>) == 0"
-  {@ [ cons: =0 , 1   , 2 , 3  ; attrs: movprfx ]
-     [ &w       , Upl , w , 0  ; *              ] <su>cvtf\t%0.<SVE_PARTIAL_F:Vetype>, %1/m, %2.<SVE_HSDI:Vetype>
-     [ &w       , Upl , w , Dz ; yes            ] movprfx\t%0.<SVE_HSDI:Vetype>, %1/z, %2.<SVE_HSDI:Vetype>\;<su>cvtf\t%0.<SVE_PARTIAL_F:Vetype>, %1/m, %2.<SVE_HSDI:Vetype>
-     [ ?&w      , Upl , w , w  ; yes            ] movprfx\t%0, %3\;<su>cvtf\t%0.<SVE_PARTIAL_F:Vetype>, %1/m, %2.<SVE_HSDI:Vetype>
+  {@ [ cons: =0 , 1   , 2 , 3  ; attrs: movprfx, arch ]
+     [ &w       , Upl , w , 0  ; *   , *                ] <su>cvtf\t%0.<SVE_PARTIAL_F:Vetype>, %1/m, %2.<SVE_HSDI:Vetype>
+     [ &w       , Upl , w , Dz ; *   , sve2p2_or_sme2p2 ] <su>cvtf\t%0.<SVE_PARTIAL_F:Vetype>, %1/z, %2.<SVE_HSDI:Vetype>
+     [ &w       , Upl , w , Dz ; yes , *                ] movprfx\t%0.<SVE_HSDI:Vetype>, %1/z, %2.<SVE_HSDI:Vetype>\;<su>cvtf\t%0.<SVE_PARTIAL_F:Vetype>, %1/m, %2.<SVE_HSDI:Vetype>
+     [ ?&w      , Upl , w , w  ; yes , *                ] movprfx\t%0, %3\;<su>cvtf\t%0.<SVE_PARTIAL_F:Vetype>, %1/m, %2.<SVE_HSDI:Vetype>
   }
   "&& !rtx_equal_p (operands[1], operands[4])"
   {
@@ -11076,10 +11078,11 @@
 	   (match_operand:SVE_FULL_F 3 "aarch64_simd_reg_or_zero")]
 	  UNSPEC_SEL))]
   "TARGET_SVE && <SVE_FULL_HSDI:elem_bits> >= <SVE_FULL_F:elem_bits>"
-  {@ [ cons: =0 , 1   , 2 , 3  ; attrs: movprfx ]
-     [ &w       , Upl , w , 0  ; *              ] <su>cvtf\t%0.<SVE_FULL_F:Vetype>, %1/m, %2.<SVE_FULL_HSDI:Vetype>
-     [ &w       , Upl , w , Dz ; yes            ] movprfx\t%0.<SVE_FULL_HSDI:Vetype>, %1/z, %2.<SVE_FULL_HSDI:Vetype>\;<su>cvtf\t%0.<SVE_FULL_F:Vetype>, %1/m, %2.<SVE_FULL_HSDI:Vetype>
-     [ ?&w      , Upl , w , w  ; yes            ] movprfx\t%0, %3\;<su>cvtf\t%0.<SVE_FULL_F:Vetype>, %1/m, %2.<SVE_FULL_HSDI:Vetype>
+  {@ [ cons: =0 , 1   , 2 , 3  ; attrs: movprfx, arch ]
+     [ &w       , Upl , w , 0  ; *   , *                ] <su>cvtf\t%0.<SVE_FULL_F:Vetype>, %1/m, %2.<SVE_FULL_HSDI:Vetype>
+     [ &w       , Upl , w , Dz ; *   , sve2p2_or_sme2p2 ] <su>cvtf\t%0.<SVE_FULL_F:Vetype>, %1/z, %2.<SVE_FULL_HSDI:Vetype>
+     [ &w       , Upl , w , Dz ; yes , *                ] movprfx\t%0.<SVE_FULL_HSDI:Vetype>, %1/z, %2.<SVE_FULL_HSDI:Vetype>\;<su>cvtf\t%0.<SVE_FULL_F:Vetype>, %1/m, %2.<SVE_FULL_HSDI:Vetype>
+     [ ?&w      , Upl , w , w  ; yes , *                ] movprfx\t%0, %3\;<su>cvtf\t%0.<SVE_FULL_F:Vetype>, %1/m, %2.<SVE_FULL_HSDI:Vetype>
   }
   [(set_attr "sve_type" "sve_int_cvt")]
 )
@@ -11111,10 +11114,11 @@
 	   (match_operand:VNx2DF_ONLY 3 "aarch64_simd_reg_or_zero")]
 	  UNSPEC_SEL))]
   "TARGET_SVE"
-  {@ [ cons: =0 , 1   , 2 , 3  ; attrs: movprfx ]
-     [ w        , Upl , w , 0  ; *              ] <su>cvtf\t%0.<VNx2DF_ONLY:Vetype>, %1/m, %2.<VNx4SI_ONLY:Vetype>
-     [ ?&w      , Upl , w , Dz ; yes            ] movprfx\t%0.<VNx2DF_ONLY:Vetype>, %1/z, %2.<VNx2DF_ONLY:Vetype>\;<su>cvtf\t%0.<VNx2DF_ONLY:Vetype>, %1/m, %2.<VNx4SI_ONLY:Vetype>
-     [ ?&w      , Upl , w , w  ; yes            ] movprfx\t%0, %3\;<su>cvtf\t%0.<VNx2DF_ONLY:Vetype>, %1/m, %2.<VNx4SI_ONLY:Vetype>
+  {@ [ cons: =0 , 1   , 2 , 3  ; attrs: movprfx, arch ]
+     [ w        , Upl , w , 0  ; *   , *                ] <su>cvtf\t%0.<VNx2DF_ONLY:Vetype>, %1/m, %2.<VNx4SI_ONLY:Vetype>
+     [ w        , Upl , w , Dz ; *   , sve2p2_or_sme2p2 ] <su>cvtf\t%0.<VNx2DF_ONLY:Vetype>, %1/z, %2.<VNx4SI_ONLY:Vetype>
+     [ ?&w      , Upl , w , Dz ; yes , *                ] movprfx\t%0.<VNx2DF_ONLY:Vetype>, %1/z, %2.<VNx2DF_ONLY:Vetype>\;<su>cvtf\t%0.<VNx2DF_ONLY:Vetype>, %1/m, %2.<VNx4SI_ONLY:Vetype>
+     [ ?&w      , Upl , w , w  ; yes , *                ] movprfx\t%0, %3\;<su>cvtf\t%0.<VNx2DF_ONLY:Vetype>, %1/m, %2.<VNx4SI_ONLY:Vetype>
   }
   [(set_attr "sve_type" "sve_int_cvt")]
 )
@@ -11270,10 +11274,11 @@
 	   (match_operand:SVE_FULL_HSF 3 "aarch64_simd_reg_or_zero")]
 	  UNSPEC_SEL))]
   "TARGET_SVE && <SVE_FULL_SDF:elem_bits> > <SVE_FULL_HSF:elem_bits>"
-  {@ [ cons: =0 , 1   , 2 , 3  ; attrs: movprfx ]
-     [ w        , Upl , w , 0  ; *              ] fcvt\t%0.<SVE_FULL_HSF:Vetype>, %1/m, %2.<SVE_FULL_SDF:Vetype>
-     [ ?&w      , Upl , w , Dz ; yes            ] movprfx\t%0.<SVE_FULL_SDF:Vetype>, %1/z, %2.<SVE_FULL_SDF:Vetype>\;fcvt\t%0.<SVE_FULL_HSF:Vetype>, %1/m, %2.<SVE_FULL_SDF:Vetype>
-     [ ?&w      , Upl , w , w  ; yes            ] movprfx\t%0, %3\;fcvt\t%0.<SVE_FULL_HSF:Vetype>, %1/m, %2.<SVE_FULL_SDF:Vetype>
+  {@ [ cons: =0 , 1   , 2 , 3  ; attrs: movprfx, arch ]
+     [ w        , Upl , w , 0  ; *   , *                ] fcvt\t%0.<SVE_FULL_HSF:Vetype>, %1/m, %2.<SVE_FULL_SDF:Vetype>
+     [ w        , Upl , w , Dz ; *   , sve2p2_or_sme2p2 ] fcvt\t%0.<SVE_FULL_HSF:Vetype>, %1/z, %2.<SVE_FULL_SDF:Vetype>
+     [ ?&w      , Upl , w , Dz ; yes , *                ] movprfx\t%0.<SVE_FULL_SDF:Vetype>, %1/z, %2.<SVE_FULL_SDF:Vetype>\;fcvt\t%0.<SVE_FULL_HSF:Vetype>, %1/m, %2.<SVE_FULL_SDF:Vetype>
+     [ ?&w      , Upl , w , w  ; yes , *                ] movprfx\t%0, %3\;fcvt\t%0.<SVE_FULL_HSF:Vetype>, %1/m, %2.<SVE_FULL_SDF:Vetype>
   }
   [(set_attr "sve_type" "sve_fp_cvt")]
 )
@@ -11291,10 +11296,11 @@
 	   (match_operand:SVE_PARTIAL_HSF 3 "aarch64_simd_reg_or_zero")]
 	  UNSPEC_SEL))]
   "TARGET_SVE && (~<SVE_SDF:narrower_mask> & <SVE_PARTIAL_HSF:self_mask>) == 0"
-  {@ [ cons: =0 , 1   , 2 , 3  ; attrs: movprfx ]
-     [ w        , Upl , w , 0  ; *              ] fcvt\t%0.<SVE_PARTIAL_HSF:Vetype>, %1/m, %2.<SVE_SDF:Vetype>
-     [ ?&w      , Upl , w , Dz ; yes            ] movprfx\t%0.<SVE_SDF:Vetype>, %1/z, %2.<SVE_SDF:Vetype>\;fcvt\t%0.<SVE_PARTIAL_HSF:Vetype>, %1/m, %2.<SVE_SDF:Vetype>
-     [ ?&w      , Upl , w , w  ; yes            ] movprfx\t%0, %3\;fcvt\t%0.<SVE_PARTIAL_HSF:Vetype>, %1/m, %2.<SVE_SDF:Vetype>
+  {@ [ cons: =0 , 1   , 2 , 3  ; attrs: movprfx, arch ]
+     [ w        , Upl , w , 0  ; *   , *                ] fcvt\t%0.<SVE_PARTIAL_HSF:Vetype>, %1/m, %2.<SVE_SDF:Vetype>
+     [ w        , Upl , w , Dz ; *   , sve2p2_or_sme2p2 ] fcvt\t%0.<SVE_PARTIAL_HSF:Vetype>, %1/z, %2.<SVE_SDF:Vetype>
+     [ ?&w      , Upl , w , Dz ; yes , *                ] movprfx\t%0.<SVE_SDF:Vetype>, %1/z, %2.<SVE_SDF:Vetype>\;fcvt\t%0.<SVE_PARTIAL_HSF:Vetype>, %1/m, %2.<SVE_SDF:Vetype>
+     [ ?&w      , Upl , w , w  ; yes , *                ] movprfx\t%0, %3\;fcvt\t%0.<SVE_PARTIAL_HSF:Vetype>, %1/m, %2.<SVE_SDF:Vetype>
   }
   "&& !rtx_equal_p (operands[1], operands[4])"
   {
@@ -11353,10 +11359,11 @@
 	   (match_operand:VNx8BF_ONLY 3 "aarch64_simd_reg_or_zero")]
 	  UNSPEC_SEL))]
   "TARGET_SVE_BF16"
-  {@ [ cons: =0 , 1   , 2 , 3  ; attrs: movprfx ]
-     [ w        , Upl , w , 0  ; *              ] bfcvt\t%0.h, %1/m, %2.s
-     [ ?&w      , Upl , w , Dz ; yes            ] movprfx\t%0.s, %1/z, %2.s\;bfcvt\t%0.h, %1/m, %2.s
-     [ ?&w      , Upl , w , w  ; yes            ] movprfx\t%0, %3\;bfcvt\t%0.h, %1/m, %2.s
+  {@ [ cons: =0 , 1   , 2 , 3  ; attrs: movprfx, arch ]
+     [ w        , Upl , w , 0  ; *   , *                ] bfcvt\t%0.h, %1/m, %2.s
+     [ w        , Upl , w , Dz ; *   , sve2p2_or_sme2p2 ] bfcvt\t%0.h, %1/z, %2.s
+     [ ?&w      , Upl , w , Dz ; yes , *                ] movprfx\t%0.s, %1/z, %2.s\;bfcvt\t%0.h, %1/m, %2.s
+     [ ?&w      , Upl , w , w  ; yes , *                ] movprfx\t%0, %3\;bfcvt\t%0.h, %1/m, %2.s
   }
   [(set_attr "sve_type" "sve_fp_cvt")]
 )
@@ -11493,10 +11500,11 @@
 	   (match_operand:SVE_FULL_SDF 3 "aarch64_simd_reg_or_zero")]
 	  UNSPEC_SEL))]
   "TARGET_SVE && <SVE_FULL_SDF:elem_bits> > <SVE_FULL_HSF:elem_bits>"
-  {@ [ cons: =0 , 1   , 2 , 3  ; attrs: movprfx ]
-     [ w        , Upl , w , 0  ; *              ] fcvt\t%0.<SVE_FULL_SDF:Vetype>, %1/m, %2.<SVE_FULL_HSF:Vetype>
-     [ ?&w      , Upl , w , Dz ; yes            ] movprfx\t%0.<SVE_FULL_SDF:Vetype>, %1/z, %2.<SVE_FULL_SDF:Vetype>\;fcvt\t%0.<SVE_FULL_SDF:Vetype>, %1/m, %2.<SVE_FULL_HSF:Vetype>
-     [ ?&w      , Upl , w , w  ; yes            ] movprfx\t%0, %3\;fcvt\t%0.<SVE_FULL_SDF:Vetype>, %1/m, %2.<SVE_FULL_HSF:Vetype>
+  {@ [ cons: =0 , 1   , 2 , 3  ; attrs: movprfx, arch ]
+     [ w        , Upl , w , 0  ; *   , *                ] fcvt\t%0.<SVE_FULL_SDF:Vetype>, %1/m, %2.<SVE_FULL_HSF:Vetype>
+     [ w        , Upl , w , Dz ; *   , sve2p2_or_sme2p2 ] fcvt\t%0.<SVE_FULL_SDF:Vetype>, %1/z, %2.<SVE_FULL_HSF:Vetype>
+     [ ?&w      , Upl , w , Dz ; yes , *                ] movprfx\t%0.<SVE_FULL_SDF:Vetype>, %1/z, %2.<SVE_FULL_SDF:Vetype>\;fcvt\t%0.<SVE_FULL_SDF:Vetype>, %1/m, %2.<SVE_FULL_HSF:Vetype>
+     [ ?&w      , Upl , w , w  ; yes , *                ] movprfx\t%0, %3\;fcvt\t%0.<SVE_FULL_SDF:Vetype>, %1/m, %2.<SVE_FULL_HSF:Vetype>
   }
   [(set_attr "sve_type" "sve_fp_cvt")]
 )
@@ -11514,10 +11522,11 @@
 	   (match_operand:SVE_SDF 3 "aarch64_simd_reg_or_zero")]
 	  UNSPEC_SEL))]
   "TARGET_SVE && (~<SVE_SDF:narrower_mask> & <SVE_PARTIAL_HSF:self_mask>) == 0"
-  {@ [ cons: =0 , 1   , 2 , 3  ; attrs: movprfx ]
-     [ w        , Upl , w , 0  ; *              ] fcvt\t%0.<SVE_SDF:Vetype>, %1/m, %2.<SVE_PARTIAL_HSF:Vetype>
-     [ ?&w      , Upl , w , Dz ; yes            ] movprfx\t%0.<SVE_SDF:Vetype>, %1/z, %2.<SVE_SDF:Vetype>\;fcvt\t%0.<SVE_SDF:Vetype>, %1/m, %2.<SVE_PARTIAL_HSF:Vetype>
-     [ ?&w      , Upl , w , w  ; yes            ] movprfx\t%0, %3\;fcvt\t%0.<SVE_SDF:Vetype>, %1/m, %2.<SVE_PARTIAL_HSF:Vetype>
+  {@ [ cons: =0 , 1   , 2 , 3  ; attrs: movprfx, arch ]
+     [ w        , Upl , w , 0  ; *   , *                ] fcvt\t%0.<SVE_SDF:Vetype>, %1/m, %2.<SVE_PARTIAL_HSF:Vetype>
+     [ w        , Upl , w , Dz ; *   , sve2p2_or_sme2p2 ] fcvt\t%0.<SVE_SDF:Vetype>, %1/z, %2.<SVE_PARTIAL_HSF:Vetype>
+     [ ?&w      , Upl , w , Dz ; yes , *                ] movprfx\t%0.<SVE_SDF:Vetype>, %1/z, %2.<SVE_SDF:Vetype>\;fcvt\t%0.<SVE_SDF:Vetype>, %1/m, %2.<SVE_PARTIAL_HSF:Vetype>
+     [ ?&w      , Upl , w , w  ; yes , *                ] movprfx\t%0, %3\;fcvt\t%0.<SVE_SDF:Vetype>, %1/m, %2.<SVE_PARTIAL_HSF:Vetype>
   }
   "&& !rtx_equal_p (operands[1], operands[4])"
   {
