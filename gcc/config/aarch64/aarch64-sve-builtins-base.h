@@ -105,6 +105,7 @@ namespace aarch64_sve
     extern const function_base *const sveor;
     extern const function_base *const sveorv;
     extern const function_base *const svexpa;
+    extern const function_base *const svexpand;
     extern const function_base *const svext;
     extern const function_base *const svextb;
     extern const function_base *const svexth;

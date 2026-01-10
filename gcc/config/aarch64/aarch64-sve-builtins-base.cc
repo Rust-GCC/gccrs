@@ -1291,6 +1291,19 @@ public:
   }
 };
 
+class svexpand_impl
+  : public QUIET_CODE_FOR_MODE0 (aarch64_sve_expand)
+{
+public:
+  gimple *
+  fold (gimple_folder &f) const override
+  {
+    if (is_pfalse (gimple_call_arg (f.call, 0)))
+      return f.fold_call_to (build_zero_cst (TREE_TYPE (f.lhs)));
+    return NULL;
+  }
+};
+
 /* Implements svextb, svexth and svextw.  */
 class svext_bhw_impl : public function_base
 {
@@ -3595,6 +3608,7 @@ FUNCTION (svdupq_lane, svdupq_lane_impl,)
 FUNCTION (sveor, rtx_code_function, (XOR, XOR, -1))
 FUNCTION (sveorv, sveorv_impl,)
 FUNCTION (svexpa, unspec_based_function, (-1, -1, UNSPEC_FEXPA))
+FUNCTION (svexpand, svexpand_impl,)
 FUNCTION (svext, QUIET_CODE_FOR_MODE0 (aarch64_sve_ext),)
 FUNCTION (svextb, svext_bhw_impl, (QImode))
 FUNCTION (svexth, svext_bhw_impl, (HImode))

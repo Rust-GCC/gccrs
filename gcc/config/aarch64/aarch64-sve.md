@@ -10304,7 +10304,9 @@
 ;; ---- [INT,FP] Special-purpose unary permutes
 ;; -------------------------------------------------------------------------
 ;; Includes:
-;; - COMPACT
+;; - COMPACT word/doubleword
+;; - COMPACT byte/halfword (SVE2p2)
+;; - EXPAND (SVE2p2)
 ;; - DUP
 ;; - REV
 ;; -------------------------------------------------------------------------
@@ -10316,8 +10318,31 @@
 	  [(match_operand:<VPRED> 1 "register_operand" "Upl")
 	   (match_operand:SVE_FULL_SD 2 "register_operand" "w")]
 	  UNSPEC_SVE_COMPACT))]
-  "TARGET_SVE && TARGET_NON_STREAMING"
+  "TARGET_SVE_OR_SME2p2"
   "compact\t%0.<Vetype>, %1, %2.<Vetype>"
+  [(set_attr "sve_type" "sve_int_extract")]
+)
+
+(define_insn "@aarch64_sve_compact<mode>"
+  [(set (match_operand:SVE_FULL_BH 0 "register_operand" "=w")
+	(unspec:SVE_FULL_BH
+	  [(match_operand:<VPRED> 1 "register_operand" "Upl")
+	   (match_operand:SVE_FULL_BH 2 "register_operand" "w")]
+	  UNSPEC_SVE_COMPACT))]
+  "TARGET_SVE2p2_OR_SME2p2"
+  "compact\t%0.<Vetype>, %1, %2.<Vetype>"
+  [(set_attr "sve_type" "sve_int_extract")]
+)
+
+;; Expand into active elements and set inactive elements to zero.
+(define_insn "@aarch64_sve_expand<mode>"
+  [(set (match_operand:SVE_FULL 0 "register_operand" "=w")
+	(unspec:SVE_FULL
+	  [(match_operand:<VPRED> 1 "register_operand" "Upl")
+	   (match_operand:SVE_FULL 2 "register_operand" "w")]
+	  UNSPEC_SVE_EXPAND))]
+  "TARGET_SVE2p2_OR_SME2p2"
+  "expand\t%0.<Vetype>, %1, %2.<Vetype>"
   [(set_attr "sve_type" "sve_int_extract")]
 )
 
