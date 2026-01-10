@@ -55,22 +55,6 @@ private:
   Attribute (Kind kind) : kind (kind) {}
 };
 
-struct SimplePath
-{
-  static tl::expected<AST::SimplePath, SimplePath> make_malformed ()
-  {
-    return tl::unexpected<SimplePath> (SimplePath (Kind::MALFORMED));
-  }
-
-  enum class Kind
-  {
-    MALFORMED,
-  } kind;
-
-private:
-  SimplePath (Kind kind) : kind (kind) {}
-};
-
 struct AttributeBody
 {
   static tl::expected<Parse::AttributeBody, AttributeBody> make_invalid_path ()
@@ -172,81 +156,6 @@ private:
   AttrInput (Kind kind) : kind (kind) {}
 };
 
-struct DelimTokenTree
-{
-  static tl::expected<AST::DelimTokenTree, DelimTokenTree>
-  make_expected_delimiter ()
-  {
-    return tl::unexpected<DelimTokenTree> (
-      DelimTokenTree (Kind::EXPECTED_DELIMITER));
-  }
-
-  static tl::expected<AST::DelimTokenTree, DelimTokenTree>
-  make_invalid_token_tree ()
-  {
-    return tl::unexpected<DelimTokenTree> (
-      DelimTokenTree (Kind::INVALID_TOKEN_TREE));
-  }
-
-  static tl::expected<AST::DelimTokenTree, DelimTokenTree>
-  make_mismatched_delimiters ()
-  {
-    return tl::unexpected<DelimTokenTree> (
-      DelimTokenTree (Kind::INVALID_TOKEN_TREE));
-  }
-
-  enum class Kind
-  {
-    EXPECTED_DELIMITER,
-    INVALID_TOKEN_TREE,
-    MISMATCHED_DELIMITERS,
-  } kind;
-
-private:
-  DelimTokenTree (Kind kind) : kind (kind) {}
-};
-
-struct Token
-{
-  static tl::expected<std::unique_ptr<AST::Token>, Token> make_malformed ()
-  {
-    return tl::unexpected<Token> (Token (Kind::MALFORMED));
-  }
-
-  enum class Kind
-  {
-    MALFORMED,
-  } kind;
-
-private:
-  Token (Kind kind) : kind (kind) {}
-};
-
-struct TokenTree
-{
-  static tl::expected<std::unique_ptr<AST::TokenTree>, TokenTree>
-  make_malformed ()
-  {
-    return tl::unexpected<TokenTree> (TokenTree (Kind::MALFORMED));
-  }
-
-  static tl::expected<std::unique_ptr<AST::TokenTree>, TokenTree>
-  make_malformed_delimited_token_tree ()
-  {
-    return tl::unexpected<TokenTree> (
-      TokenTree (Kind::MALFORMED_DELIMITED_TOKEN_TREE));
-  }
-
-  enum class Kind
-  {
-    MALFORMED,
-    MALFORMED_DELIMITED_TOKEN_TREE,
-  } kind;
-
-private:
-  TokenTree (Kind kind) : kind (kind) {}
-};
-
 struct Item
 {
   static tl::expected<std::unique_ptr<AST::Item>, Item> make_end_of_file ()
@@ -317,6 +226,108 @@ struct Visibility
 
 private:
   Visibility (Kind kind) : kind (kind) {}
+};
+
+struct LifetimeParam
+{
+  static tl::expected<AST::LifetimeParam, LifetimeParam>
+  make_not_a_lifetime_param ()
+  {
+    return tl::unexpected<LifetimeParam> (
+      LifetimeParam (Kind::NOT_A_LIFETIME_PARAM));
+  }
+
+  enum class Kind
+  {
+    NOT_A_LIFETIME_PARAM,
+  } kind;
+
+private:
+  LifetimeParam (Kind kind) : kind (kind) {}
+};
+
+class Lifetime
+{
+};
+
+struct LoopLabel
+{
+  static tl::expected<AST::LoopLabel, LoopLabel> make_not_loop_label ()
+  {
+    return tl::unexpected<LoopLabel> (LoopLabel (Kind::NOT_LOOP_LABEL));
+  }
+
+  static tl::expected<AST::LoopLabel, LoopLabel> make_missing_colon ()
+  {
+    return tl::unexpected<LoopLabel> (LoopLabel (Kind::MISSING_COLON));
+  }
+
+  enum class Kind
+  {
+    // Not an hard error
+    NOT_LOOP_LABEL,
+    // Hard error
+    MISSING_COLON,
+  } kind;
+
+private:
+  LoopLabel (Kind kind) : kind (kind) {}
+};
+
+struct Self
+{
+  static tl::expected<std::unique_ptr<AST::Param>, Self>
+  make_self_raw_pointer ()
+  {
+    return tl::unexpected<Self> (Self (Kind::SELF_RAW_PTR));
+  }
+
+  static tl::expected<std::unique_ptr<AST::Param>, Self> make_not_self ()
+  {
+    return tl::unexpected<Self> (Self (Kind::NOT_SELF));
+  }
+
+  static tl::expected<std::unique_ptr<AST::Param>, Self> make_parsing_error ()
+  {
+    return tl::unexpected<Self> (Self (Kind::PARSING));
+  }
+
+  enum class Kind
+  {
+    SELF_RAW_PTR,
+    PARSING,
+    NOT_SELF,
+  } kind;
+
+private:
+  Self (Kind kind) : kind (kind) {}
+};
+
+enum class Expr
+{
+  MALFORMED,
+  CHILD_ERROR,
+  NULL_EXPR,
+  NULL_DENOTATION,
+  LEFT_DENOTATION,
+};
+
+enum class StructExprField
+{
+  MALFORMED,
+  CHILD_ERROR,
+  // Not a hard error
+  STRUCT_BASE,
+};
+
+// Generic intermediate AST node error used when the errors need no special
+// handling
+enum class Node
+{
+  // Unexpected or missing token whilst parsing the node
+  MALFORMED,
+  // Error whilst parsing a child construct for the current node
+  CHILD_ERROR,
 };
 
 } // namespace Error

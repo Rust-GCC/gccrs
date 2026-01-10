@@ -499,7 +499,25 @@ CompileExpr::visit (HIR::StructExprStruct &struct_expr)
       return;
     }
 
-  rust_assert (tyty->is_unit ());
+  TyTy::ADTType *adt = static_cast<TyTy::ADTType *> (tyty);
+  TyTy::VariantDef *variant = nullptr;
+  if (adt->is_enum ())
+    {
+      // unwrap variant and ensure that it can be resolved
+      HirId variant_id;
+      bool ok = ctx->get_tyctx ()->lookup_variant_definition (
+	struct_expr.get_struct_name ().get_mappings ().get_hirid (),
+	&variant_id);
+      rust_assert (ok);
+
+      ok = adt->lookup_variant_by_id (variant_id, &variant);
+      rust_assert (ok);
+    }
+  else
+    {
+      rust_assert (tyty->is_unit ());
+    }
+
   translated = unit_expression (struct_expr.get_locus ());
 }
 
@@ -1193,60 +1211,58 @@ CompileExpr::visit (HIR::MatchExpr &expr)
     {
       // for now lets just get single pattern's working
       HIR::MatchArm &kase_arm = kase.get_arm ();
-      rust_assert (kase_arm.get_patterns ().size () > 0);
+      rust_assert (kase_arm.get_pattern () != nullptr);
 
-      for (auto &kase_pattern : kase_arm.get_patterns ())
-	{
-	  // setup the match-arm-body-block
-	  location_t start_location = UNKNOWN_LOCATION; // FIXME
-	  location_t end_location = UNKNOWN_LOCATION;	// FIXME
-	  tree arm_body_block = Backend::block (fndecl, enclosing_scope, {},
-						start_location, end_location);
+      auto &kase_pattern = kase_arm.get_pattern ();
+      // setup the match-arm-body-block
+      location_t start_location = UNKNOWN_LOCATION; // FIXME
+      location_t end_location = UNKNOWN_LOCATION;   // FIXME
+      tree arm_body_block = Backend::block (fndecl, enclosing_scope, {},
+					    start_location, end_location);
 
-	  ctx->push_block (arm_body_block);
+      ctx->push_block (arm_body_block);
 
-	  // setup the bindings for the block
-	  CompilePatternBindings::Compile (*kase_pattern, match_scrutinee_expr,
-					   ctx);
+      // setup the bindings for the block
+      CompilePatternBindings::Compile (*kase_pattern, match_scrutinee_expr,
+				       ctx);
 
-	  // compile the expr and setup the assignment if required when tmp !=
-	  // NULL
-	  location_t arm_locus = kase_arm.get_locus ();
-	  tree kase_expr_tree = CompileExpr::Compile (kase.get_expr (), ctx);
-	  tree result_reference = Backend::var_expression (tmp, arm_locus);
+      // compile the expr and setup the assignment if required when tmp !=
+      // NULL
+      location_t arm_locus = kase_arm.get_locus ();
+      tree kase_expr_tree = CompileExpr::Compile (kase.get_expr (), ctx);
+      tree result_reference = Backend::var_expression (tmp, arm_locus);
 
-	  TyTy::BaseType *actual = nullptr;
-	  bool ok = ctx->get_tyctx ()->lookup_type (
-	    kase.get_expr ().get_mappings ().get_hirid (), &actual);
-	  rust_assert (ok);
+      TyTy::BaseType *actual = nullptr;
+      bool ok = ctx->get_tyctx ()->lookup_type (
+	kase.get_expr ().get_mappings ().get_hirid (), &actual);
+      rust_assert (ok);
 
-	  tree coerced_result
-	    = coercion_site (kase.get_expr ().get_mappings ().get_hirid (),
-			     kase_expr_tree, actual, expr_tyty,
-			     expr.get_locus (), arm_locus);
+      tree coerced_result
+	= coercion_site (kase.get_expr ().get_mappings ().get_hirid (),
+			 kase_expr_tree, actual, expr_tyty, expr.get_locus (),
+			 arm_locus);
 
-	  tree assignment
-	    = Backend::assignment_statement (result_reference, coerced_result,
-					     arm_locus);
-	  ctx->add_statement (assignment);
+      tree assignment
+	= Backend::assignment_statement (result_reference, coerced_result,
+					 arm_locus);
+      ctx->add_statement (assignment);
 
-	  // go to end label
-	  tree goto_end_label
-	    = build1_loc (arm_locus, GOTO_EXPR, void_type_node, end_label);
-	  ctx->add_statement (goto_end_label);
+      // go to end label
+      tree goto_end_label
+	= build1_loc (arm_locus, GOTO_EXPR, void_type_node, end_label);
+      ctx->add_statement (goto_end_label);
 
-	  ctx->pop_block ();
+      ctx->pop_block ();
 
-	  tree check_expr
-	    = CompilePatternCheckExpr::Compile (*kase_pattern,
-						match_scrutinee_expr, ctx);
+      tree check_expr
+	= CompilePatternCheckExpr::Compile (*kase_pattern, match_scrutinee_expr,
+					    ctx);
 
-	  tree check_stmt
-	    = Backend::if_statement (NULL_TREE, check_expr, arm_body_block,
-				     NULL_TREE, kase_pattern->get_locus ());
+      tree check_stmt
+	= Backend::if_statement (NULL_TREE, check_expr, arm_body_block,
+				 NULL_TREE, kase_pattern->get_locus ());
 
-	  ctx->add_statement (check_stmt);
-	}
+      ctx->add_statement (check_stmt);
     }
 
   // setup the switch expression

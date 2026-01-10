@@ -93,8 +93,7 @@ Late::visit (AST::MatchArm &arm)
 
   ctx.bindings.enter (BindingSource::Match);
 
-  for (auto &pattern : arm.get_patterns ())
-    visit (pattern);
+  visit (arm.get_pattern ());
 
   ctx.bindings.exit ();
 
@@ -153,8 +152,7 @@ Late::visit (AST::WhileLetLoopExpr &while_let)
 
   ctx.bindings.enter (BindingSource::WhileLet);
 
-  for (auto &pattern : while_let.get_patterns ())
-    visit (pattern);
+  visit (while_let.get_pattern ());
 
   ctx.bindings.exit ();
 
@@ -265,7 +263,7 @@ Late::visit (AST::BreakExpr &expr)
 
   if (expr.has_break_expr ())
     {
-      auto &break_expr = expr.get_break_expr ();
+      auto &break_expr = expr.get_break_expr_unchecked ();
       if (break_expr.get_expr_kind () == AST::Expr::Kind::Identifier)
 	{
 	  /* This is a break with an expression, and the expression is
@@ -275,9 +273,9 @@ Late::visit (AST::BreakExpr &expr)
 	     emit the error here though, because the identifier may still
 	     be in scope, and ICE'ing on valid programs would not be very
 	     funny.  */
-	  std::string ident
-	    = static_cast<AST::IdentifierExpr &> (expr.get_break_expr ())
-		.as_string ();
+	  std::string ident = static_cast<AST::IdentifierExpr &> (
+				expr.get_break_expr_unchecked ())
+				.as_string ();
 	  if (ident == "rust" || ident == "gcc")
 	    funny_error = true;
 	}
@@ -348,7 +346,17 @@ Late::visit (AST::IdentifierExpr &expr)
 	{
 	  resolved = type;
 	}
-      else
+      else if (!resolved && ctx.prelude)
+	{
+	  resolved
+	    = ctx.values.get_from_prelude (*ctx.prelude, expr.get_ident ());
+
+	  if (!resolved)
+	    resolved
+	      = ctx.types.get_from_prelude (*ctx.prelude, expr.get_ident ());
+	}
+
+      if (!resolved)
 	{
 	  rust_error_at (expr.get_locus (), ErrorCode::E0425,
 			 "cannot find value %qs in this scope",

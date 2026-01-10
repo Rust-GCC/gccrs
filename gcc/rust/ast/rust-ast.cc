@@ -1649,7 +1649,7 @@ ReturnExpr::as_string () const
   std::string str ("return ");
 
   if (has_returned_expr ())
-    str += return_expr->as_string ();
+    str += get_returned_expr ().as_string ();
 
   return str;
 }
@@ -1943,14 +1943,13 @@ IfLetExpr::as_string () const
   str += append_attributes (outer_attrs, OUTER);
 
   str += "\n Condition match arm patterns: ";
-  if (match_arm_patterns.empty ())
+  if (match_arm_pattern == nullptr)
     {
       str += "none";
     }
   else
     {
-      for (const auto &pattern : match_arm_patterns)
-	str += "\n  " + pattern->as_string ();
+      str += "\n  " + match_arm_pattern->as_string ();
     }
 
   str += "\n Scrutinee expr: " + value->as_string ();
@@ -2167,14 +2166,13 @@ WhileLetLoopExpr::as_string () const
     str += get_loop_label ().as_string ();
 
   str += "\n Match arm patterns: ";
-  if (match_arm_patterns.empty ())
+  if (match_arm_pattern == nullptr)
     {
       str += "none";
     }
   else
     {
-      for (const auto &pattern : match_arm_patterns)
-	str += "\n  " + pattern->as_string ();
+      str += "\n  " + match_arm_pattern->as_string ();
     }
 
   str += "\n Scrutinee expr: " + scrutinee->as_string ();
@@ -2235,7 +2233,7 @@ BreakExpr::as_string () const
     str += get_label_unchecked ().as_string () + " ";
 
   if (has_break_expr ())
-    str += break_expr->as_string ();
+    str += get_break_expr_unchecked ().as_string ();
 
   return str;
 }
@@ -2253,14 +2251,13 @@ MatchArm::as_string () const
   std::string str = append_attributes (outer_attrs, OUTER);
 
   str += "\nPatterns: ";
-  if (match_arm_patterns.empty ())
+  if (match_arm_pattern == nullptr)
     {
       str += "none";
     }
   else
     {
-      for (const auto &pattern : match_arm_patterns)
-	str += "\n " + pattern->as_string ();
+      str += "\n " + match_arm_pattern->as_string ();
     }
 
   str += "\nGuard expr: ";
@@ -3729,7 +3726,7 @@ AttributeParser::parse_path_meta_item ()
       {
 	lexer->skip_token ();
 
-	std::unique_ptr<Expr> expr = parser->parse_expr ();
+	auto expr = parser->parse_expr ();
 
 	// handle error
 	// parse_expr should already emit an error and return nullptr
@@ -3737,7 +3734,8 @@ AttributeParser::parse_path_meta_item ()
 	  return nullptr;
 
 	return std::unique_ptr<MetaItemPathExpr> (
-	  new MetaItemPathExpr (std::move (path.value ()), std::move (expr)));
+	  new MetaItemPathExpr (std::move (path.value ()),
+				std::move (expr.value ())));
       }
     case COMMA:
       // just simple path
@@ -3816,7 +3814,7 @@ DelimTokenTree::to_token_stream () const
 std::unique_ptr<MetaItemLitExpr>
 AttributeParser::parse_meta_item_lit ()
 {
-  std::unique_ptr<LiteralExpr> lit_expr = parser->parse_literal_expr ({});
+  auto lit_expr = parser->parse_literal_expr ({});
 
   // TODO: return nullptr instead?
   if (!lit_expr)
@@ -3825,7 +3823,7 @@ AttributeParser::parse_meta_item_lit ()
 		       lexer->peek_token ()->get_locus ()));
 
   return std::unique_ptr<MetaItemLitExpr> (
-    new MetaItemLitExpr (std::move (*lit_expr)));
+    new MetaItemLitExpr (std::move (*lit_expr.value ())));
 }
 
 bool

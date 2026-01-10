@@ -668,6 +668,8 @@ public:
   tl::optional<Rib::Definition> get (const Identifier &name);
   tl::optional<Rib::Definition> get_lang_prelude (const Identifier &name);
   tl::optional<Rib::Definition> get_lang_prelude (const std::string &name);
+  tl::optional<Rib::Definition> get_from_prelude (NodeId prelude,
+						  const Identifier &name);
 
   /**
    * Resolve a path to its definition in the current `ForeverStack`
@@ -682,6 +684,11 @@ public:
     const std::vector<S> &segments, ResolutionMode mode,
     std::function<void (const S &, NodeId)> insert_segment_resolution,
     std::vector<Error> &collect_errors);
+  template <typename S>
+  tl::optional<Rib::Definition> resolve_path (
+    const std::vector<S> &segments, ResolutionMode mode,
+    std::function<void (const S &, NodeId)> insert_segment_resolution,
+    std::vector<Error> &collect_errors, NodeId starting_point_id);
 
   // FIXME: Documentation
   tl::optional<Rib &> to_rib (NodeId rib_id);
@@ -743,8 +750,18 @@ private:
     tl::optional<Node &> parent; // `None` only if the node is a root
   };
 
-  // private overload which allows specifying a starting point
+  /**
+   * Private overloads which allow specifying a starting point
+   */
+
   tl::optional<Rib::Definition> get (Node &start, const Identifier &name);
+
+  template <typename S>
+  tl::optional<Rib::Definition> resolve_path (
+    const std::vector<S> &segments, ResolutionMode mode,
+    std::function<void (const S &, NodeId)> insert_segment_resolution,
+    std::vector<Error> &collect_errors,
+    std::reference_wrapper<Node> starting_point);
 
   /* Should we keep going upon seeing a Rib? */
   enum class KeepGoing
@@ -777,6 +794,7 @@ private:
    * resolution
    */
   Node lang_prelude;
+
   /*
    * The extern prelude, used for resolving external crates
    */
@@ -787,7 +805,7 @@ private:
   void stream_rib (std::stringstream &stream, const Rib &rib,
 		   const std::string &next, const std::string &next_next) const;
   void stream_node (std::stringstream &stream, unsigned indentation,
-		    const Node &node) const;
+		    const Node &node, unsigned depth = 0) const;
 
   /* Helper types and functions for `resolve_path` */
 

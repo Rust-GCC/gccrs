@@ -117,5 +117,23 @@ UnusedChecker::visit (HIR::StructPatternFieldIdent &pattern)
 		     pattern.get_identifier ().as_string ().c_str ());
 }
 
+void
+UnusedChecker::visit (HIR::EmptyStmt &stmt)
+{
+  rust_warning_at (stmt.get_locus (), OPT_Wunused_variable,
+		   "unnecessary trailing semicolons");
+}
+
+void
+UnusedChecker::visit_loop_label (HIR::LoopLabel &label)
+{
+  auto lifetime = label.get_lifetime ();
+  std::string var_name = lifetime.to_string ();
+  auto id = lifetime.get_mappings ().get_hirid ();
+  if (!unused_context.is_label_used (id) && var_name[0] != '_')
+    rust_warning_at (lifetime.get_locus (), OPT_Wunused_variable,
+		     "unused label %qs", lifetime.to_string ().c_str ());
+}
+
 } // namespace Analysis
 } // namespace Rust

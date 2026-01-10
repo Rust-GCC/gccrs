@@ -1187,31 +1187,56 @@ TypeCheckExpr::visit (HIR::ArrayExpr &expr)
 void
 TypeCheckExpr::visit (HIR::StructExprStruct &struct_expr)
 {
-  TyTy::BaseType *struct_path_ty
-    = TypeCheckExpr::Resolve (struct_expr.get_struct_name ());
+  HIR::PathInExpression &path = struct_expr.get_struct_name ();
+
+  TyTy::BaseType *struct_path_ty = TypeCheckExpr::Resolve (path);
   if (struct_path_ty->get_kind () != TyTy::TypeKind::ADT)
     {
-      rust_error_at (struct_expr.get_struct_name ().get_locus (),
-		     "expected an ADT type for constructor");
+      rust_error_at (path.get_locus (), "expected an ADT type for constructor");
       return;
     }
 
   TyTy::ADTType *adt = static_cast<TyTy::ADTType *> (struct_path_ty);
-  for (auto variant : adt->get_variants ())
+  TyTy::VariantDef *variant;
+
+  // unwrap and type check the variant if it's an enum
+  if (adt->is_enum ())
     {
-      if (!variant->get_fields ().empty ())
+      HirId variant_id;
+      bool ok = context->lookup_variant_definition (
+	struct_expr.get_struct_name ().get_mappings ().get_hirid (),
+	&variant_id);
+      if (!ok)
 	{
-	  std::vector<std::string> field_names;
-	  for (auto &field : variant->get_fields ())
-	    field_names.push_back (field->get_name ());
-	  Error missing_fields_error
-	    = TypeCheckStructExpr::make_missing_field_error (
-	      struct_expr.get_locus (), field_names,
-	      struct_path_ty->get_name ());
-	  // We might want to return or handle these in the future emit for now.
-	  missing_fields_error.emit ();
+	  rich_location r (line_table, struct_expr.get_locus ());
+	  r.add_range (struct_expr.get_struct_name ().get_locus ());
+	  rust_error_at (
+	    struct_expr.get_struct_name ().get_locus (), ErrorCode::E0574,
+	    "expected a struct, variant or union type, found enum %qs",
+	    adt->get_name ().c_str ());
 	  return;
 	}
+
+      ok = adt->lookup_variant_by_id (variant_id, &variant);
+      rust_assert (ok);
+    }
+  else
+    {
+      rust_assert (adt->number_of_variants () == 1);
+      variant = adt->get_variants ().at (0);
+    }
+
+  if (!variant->get_fields ().empty ())
+    {
+      std::vector<std::string> field_names;
+      for (auto &field : variant->get_fields ())
+	field_names.push_back (field->get_name ());
+      Error missing_fields_error
+	= TypeCheckStructExpr::make_missing_field_error (
+	  struct_expr.get_locus (), field_names, struct_path_ty->get_name ());
+      // We might want to return or handle these in the future emit for now.
+      missing_fields_error.emit ();
+      return;
     }
 
   infered = struct_path_ty;
@@ -1744,27 +1769,25 @@ TypeCheckExpr::visit (HIR::MatchExpr &expr)
     {
       // lets check the arms
       HIR::MatchArm &kase_arm = kase.get_arm ();
-      for (auto &pattern : kase_arm.get_patterns ())
+      auto &pattern = kase_arm.get_pattern ();
+      TyTy::BaseType *kase_arm_ty
+	= TypeCheckPattern::Resolve (*pattern, scrutinee_tyty);
+      if (kase_arm_ty->get_kind () == TyTy ::TypeKind::ERROR)
 	{
-	  TyTy::BaseType *kase_arm_ty
-	    = TypeCheckPattern::Resolve (*pattern, scrutinee_tyty);
-	  if (kase_arm_ty->get_kind () == TyTy ::TypeKind::ERROR)
-	    {
-	      saw_error = true;
-	      continue;
-	    }
+	  saw_error = true;
+	  continue;
+	}
 
-	  TyTy::BaseType *checked_kase = unify_site (
-	    expr.get_mappings ().get_hirid (),
-	    TyTy::TyWithLocation (scrutinee_tyty,
-				  expr.get_scrutinee_expr ().get_locus ()),
-	    TyTy::TyWithLocation (kase_arm_ty, pattern->get_locus ()),
-	    expr.get_locus ());
-	  if (checked_kase->get_kind () == TyTy::TypeKind::ERROR)
-	    {
-	      saw_error = true;
-	      continue;
-	    }
+      TyTy::BaseType *checked_kase = unify_site (
+	expr.get_mappings ().get_hirid (),
+	TyTy::TyWithLocation (scrutinee_tyty,
+			      expr.get_scrutinee_expr ().get_locus ()),
+	TyTy::TyWithLocation (kase_arm_ty, pattern->get_locus ()),
+	expr.get_locus ());
+      if (checked_kase->get_kind () == TyTy::TypeKind::ERROR)
+	{
+	  saw_error = true;
+	  continue;
 	}
 
       // check the kase type

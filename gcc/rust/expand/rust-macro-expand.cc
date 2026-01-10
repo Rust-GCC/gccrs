@@ -327,7 +327,14 @@ MacroExpander::expand_invoc (AST::MacroInvocation &invoc,
   else
     fragment
       = expand_decl_macro (invoc.get_locus (), invoc_data, *rdef, semicolon);
-
+  // fix: if the expansion is failing, we must replace the marco with an empty
+  // error or node
+  // makes sure that it doesn't panic on Rouge macro (it -> Lowering Phase)
+  // added the parsing errors in gcc/testsuite/rust/compile/issue-4213.rs
+  if (fragment.is_error ())
+    {
+      fragment = AST::Fragment::create_empty ();
+    }
   set_expanded_fragment (std::move (fragment));
 }
 
@@ -427,7 +434,7 @@ MacroExpander::match_fragment (Parser<MacroInvocLexer> &parser,
       break;
 
     case AST::MacroFragSpec::LITERAL:
-      parser.parse_literal_expr ();
+      std::ignore = parser.parse_literal_expr ();
       break;
 
     case AST::MacroFragSpec::ITEM:
@@ -980,7 +987,8 @@ transcribe_expression (Parser<MacroInvocLexer> &parser)
 
   auto end = lexer.get_offs ();
 
-  return AST::Fragment ({std::move (expr)}, lexer.get_token_slice (start, end));
+  return AST::Fragment ({std::move (expr.value ())},
+			lexer.get_token_slice (start, end));
 }
 
 /**

@@ -151,7 +151,7 @@ try_expand_many_expr (Parser<MacroInvocLexer> &parser,
       auto expr = parser.parse_expr (AST::AttrVec (), restrictions);
       // something must be so wrong that the expression could not be parsed
       rust_assert (expr);
-      result.push_back (std::move (expr));
+      result.push_back (std::move (expr.value ()));
 
       auto next_token = parser.peek_current_token ();
       if (!parser.skip_token (COMMA) && next_token->get_id () != last_token_id)
@@ -188,7 +188,7 @@ parse_single_string_literal (BuiltinMacro kind,
 
   if (parser.peek_current_token ()->get_id () == STRING_LITERAL)
     {
-      lit_expr = parser.parse_literal_expr ();
+      lit_expr = parser.parse_literal_expr ().value ();
       parser.maybe_skip_token (COMMA);
       if (parser.peek_current_token ()->get_id () != last_token_id)
 	{
