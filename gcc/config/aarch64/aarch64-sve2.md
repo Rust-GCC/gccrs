@@ -3479,18 +3479,21 @@
 
 ;; These instructions do not take MOVPRFX.
 (define_insn_and_rewrite "*cond_<sve_fp_op><mode>_relaxed"
-  [(set (match_operand:SVE_FULL_SDF 0 "register_operand" "=w")
+  [(set (match_operand:SVE_FULL_SDF 0 "register_operand")
 	(unspec:SVE_FULL_SDF
-	  [(match_operand:<VPRED> 1 "register_operand" "Upl")
+	  [(match_operand:<VPRED> 1 "register_operand")
 	   (unspec:SVE_FULL_SDF
 	     [(match_operand 4)
 	      (const_int SVE_RELAXED_GP)
-	      (match_operand:<VNARROW> 2 "register_operand" "w")]
+	      (match_operand:<VNARROW> 2 "register_operand")]
 	     SVE2_COND_FP_UNARY_LONG)
-	   (match_operand:SVE_FULL_SDF 3 "register_operand" "0")]
+	   (match_operand:SVE_FULL_SDF 3 "aarch64_simd_reg_or_direct_zero")]
 	  UNSPEC_SEL))]
   "TARGET_SVE2"
-  "<sve_fp_op>\t%0.<Vetype>, %1/m, %2.<Ventype>"
+  {@ [ cons: =0 , 1   , 2 , 3  ; attrs: arch ]
+     [ w        , Upl , w , 0  ; *                ] <sve_fp_op>\t%0.<Vetype>, %1/m, %2.<Ventype>
+     [ w        , Upl , w , Dz ; sve2p2_or_sme2p2 ] <sve_fp_op>\t%0.<Vetype>, %1/z, %2.<Ventype>
+  }
   "&& !rtx_equal_p (operands[1], operands[4])"
   {
     operands[4] = copy_rtx (operands[1]);
@@ -3499,18 +3502,21 @@
 )
 
 (define_insn "*cond_<sve_fp_op><mode>_strict"
-  [(set (match_operand:SVE_FULL_SDF 0 "register_operand" "=w")
+  [(set (match_operand:SVE_FULL_SDF 0 "register_operand")
 	(unspec:SVE_FULL_SDF
-	  [(match_operand:<VPRED> 1 "register_operand" "Upl")
+	  [(match_operand:<VPRED> 1 "register_operand")
 	   (unspec:SVE_FULL_SDF
 	     [(match_dup 1)
 	      (const_int SVE_STRICT_GP)
-	      (match_operand:<VNARROW> 2 "register_operand" "w")]
+	      (match_operand:<VNARROW> 2 "register_operand")]
 	     SVE2_COND_FP_UNARY_LONG)
-	   (match_operand:SVE_FULL_SDF 3 "register_operand" "0")]
+	   (match_operand:SVE_FULL_SDF 3 "aarch64_simd_reg_or_direct_zero")]
 	  UNSPEC_SEL))]
   "TARGET_SVE2"
-  "<sve_fp_op>\t%0.<Vetype>, %1/m, %2.<Ventype>"
+  {@ [ cons: =0 , 1   , 2 , 3  ; attrs: arch ]
+     [ w        , Upl , w , 0  ; *                ] <sve_fp_op>\t%0.<Vetype>, %1/m, %2.<Ventype>
+     [ w        , Upl , w , Dz ; sve2p2_or_sme2p2 ] <sve_fp_op>\t%0.<Vetype>, %1/z, %2.<Ventype>
+  }
   [(set_attr "sve_type" "sve_fp_cvt")]
 )
 
@@ -3540,15 +3546,19 @@
 ;;
 ;; These instructions do not take MOVPRFX.
 (define_insn "@aarch64_sve_cvtnt<mode>"
-  [(set (match_operand:SVE_FULL_HSF 0 "register_operand" "=w")
+  [(set (match_operand:SVE_FULL_HSF 0 "register_operand")
 	(unspec:SVE_FULL_HSF
-	  [(match_operand:<VWIDE_PRED> 2 "register_operand" "Upl")
+	  [(match_operand:<VWIDE_PRED> 2 "register_operand")
 	   (const_int SVE_STRICT_GP)
-	   (match_operand:SVE_FULL_HSF 1 "register_operand" "0")
-	   (match_operand:<VWIDE> 3 "register_operand" "w")]
+	   (match_operand:SVE_FULL_HSF 1 "register_operand")
+	   (match_operand:SVE_FULL_HSF 4 "aarch64_constant_vector_operand")
+	   (match_operand:<VWIDE> 3 "register_operand")]
 	  UNSPEC_COND_FCVTNT))]
   "TARGET_SVE2"
-  "fcvtnt\t%0.<Vetype>, %2/m, %3.<Vewtype>"
+  {@ [ cons: =0 , 1 , 2   , 3 , 4   ; attrs: arch ]
+     [ w        , 0 , Upl , w , vs1 ; *                ] fcvtnt\t%0.<Vetype>, %2/m, %3.<Vewtype>
+     [ w        , 0 , Upl , w , Dz  ; sve2p2_or_sme2p2 ] fcvtnt\t%0.<Vetype>, %2/z, %3.<Vewtype>
+  }
   [(set_attr "sve_type" "sve_fp_cvt")]
 )
 
@@ -3636,17 +3646,22 @@
 ;;
 ;; These instructions do not take MOVPRFX.
 (define_insn "@aarch64_sve2_cvtxnt<mode>"
-  [(set (match_operand:<VNARROW> 0 "register_operand" "=w")
+  [(set (match_operand:<VNARROW> 0 "register_operand")
 	(unspec:<VNARROW>
-	  [(match_operand:<VPRED> 2 "register_operand" "Upl")
+	  [(match_operand:<VPRED> 2 "register_operand")
 	   (const_int SVE_STRICT_GP)
-	   (match_operand:<VNARROW> 1 "register_operand" "0")
-	   (match_operand:VNx2DF_ONLY 3 "register_operand" "w")]
+	   (match_operand:<VNARROW> 1 "register_operand")
+	   (match_operand:<VNARROW> 4 "aarch64_constant_vector_operand")
+	   (match_operand:VNx2DF_ONLY 3 "register_operand")]
 	  UNSPEC_COND_FCVTXNT))]
   "TARGET_SVE2"
-  "fcvtxnt\t%0.<Ventype>, %2/m, %3.<Vetype>"
+  {@ [ cons: =0 , 1 , 2   , 3 , 4    ; attrs: arch ]
+     [ w        , 0 , Upl , w , vs1  ; *                ] fcvtxnt\t%0.<Ventype>, %2/m, %3.<Vetype>
+     [ w        , 0 , Upl , w , Dz   ; sve2p2_or_sme2p2 ] fcvtxnt\t%0.<Ventype>, %2/z, %3.<Vetype>
+  }
   [(set_attr "sve_type" "sve_fp_cvt")]
 )
+
 
 ;; -------------------------------------------------------------------------
 ;; ---- [FP<-FP] Multi-vector widening conversions

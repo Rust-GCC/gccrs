@@ -870,6 +870,47 @@ public:
   int m_unspec_for_uint;
 };
 
+template<insn_code (*CODE_FOR_MODE) (machine_mode), unsigned int N>
+class narrowing_top_convert : public code_for_mode_function <CODE_FOR_MODE, N>
+{
+  using base = code_for_mode_function <CODE_FOR_MODE, N>;
+
+public:
+  gimple *
+  fold (gimple_folder &f) const override
+  {
+    if (f.pred == PRED_x && is_pfalse (gimple_call_arg (f.call, 1)))
+      return f.fold_call_to (build_zero_cst (TREE_TYPE (f.lhs)));
+    return NULL;
+  }
+
+  rtx
+  expand (function_expander &e) const override
+  {
+    /* If the instruction is predicated, Add a selector argument for the
+       values of inactive lanes, which is equal to all ones for merging
+       predication and to all zeros for zeroing predication.  */
+    if (e.pred == PRED_none)
+      ;
+    else if (e.pred == PRED_z)
+      {
+	e.args.quick_push (CONST0_RTX (e.result_mode ()));
+      }
+    else
+      {
+	gcc_assert (e.pred == PRED_m || e.pred == PRED_x);
+	e.args.quick_push (CONST1_RTX (e.result_mode ()));
+      }
+
+    return base::expand (e);
+  }
+};
+
+#define NARROWING_TOP_CONVERT0(PATTERN)\
+  narrowing_top_convert<code_for_##PATTERN, 0>
+#define NARROWING_TOP_CONVERT1(PATTERN)\
+  narrowing_top_convert<code_for_##PATTERN, 1>
+
 }
 
 /* Declare the global function base NAME, creating it from an instance

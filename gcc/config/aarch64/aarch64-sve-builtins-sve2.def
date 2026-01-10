@@ -299,6 +299,13 @@ DEF_SVE_FUNCTION (svst1q_scatter, store_scatter64_index, hsd_data, implicit)
 DEF_SVE_FUNCTION (svst1wq, store, s_data, implicit)
 #undef REQUIRED_EXTENSIONS
 
+#define REQUIRED_EXTENSIONS sve_and_sme (AARCH64_FL_SVE2p2, AARCH64_FL_SME2p2)
+DEF_SVE_FUNCTION (svcvtlt, unary_convert, cvt_long, z)
+DEF_SVE_FUNCTION (svcvtnt, unary_convert_narrowt, cvt_narrow, z)
+DEF_SVE_FUNCTION (svcvtnt, unary_convert_narrowt, cvt_bfloat, z)
+DEF_SVE_FUNCTION (svcvtxnt, unary_convert_narrowt, cvt_narrow_s, z)
+#undef REQUIRED_EXTENSIONS
+
 #define REQUIRED_EXTENSIONS streaming_only (AARCH64_FL_SME2)
 DEF_SVE_FUNCTION_GS (svadd, binary_single, all_integer, x24, none)
 DEF_SVE_FUNCTION_GS (svclamp, clamp, all_arith, x24, none)

@@ -11374,15 +11374,19 @@
 ;;
 ;; This instructions does not take MOVPRFX.
 (define_insn "@aarch64_sve_cvtnt<mode>"
-  [(set (match_operand:VNx8BF_ONLY 0 "register_operand" "=w")
+  [(set (match_operand:VNx8BF_ONLY 0 "register_operand")
 	(unspec:VNx8BF_ONLY
-	  [(match_operand:VNx4BI 2 "register_operand" "Upl")
+	  [(match_operand:VNx4BI 2 "register_operand")
 	   (const_int SVE_STRICT_GP)
-	   (match_operand:VNx8BF_ONLY 1 "register_operand" "0")
-	   (match_operand:VNx4SF 3 "register_operand" "w")]
+	   (match_operand:VNx8BF_ONLY 1 "register_operand")
+	   (match_operand:VNx8BF_ONLY 4 "aarch64_constant_vector_operand")
+	   (match_operand:VNx4SF 3 "register_operand")]
 	  UNSPEC_COND_FCVTNT))]
-  "TARGET_SVE_BF16"
-  "bfcvtnt\t%0.h, %2/m, %3.s"
+  "TARGET_SVE_BF16 || TARGET_SVE2p2_OR_SME2p2"
+  {@ [ cons: =0 , 1 , 2   , 3 , 4   ; attrs: arch ]
+     [ w        , 0 , Upl , w , vs1 ; *                ] bfcvtnt\t%0.h, %2/m, %3.s
+     [ w        , 0 , Upl , w , Dz  ; sve2p2_or_sme2p2 ] bfcvtnt\t%0.h, %2/z, %3.s
+  }
   [(set_attr "sve_type" "sve_fp_cvt")]
 )
 

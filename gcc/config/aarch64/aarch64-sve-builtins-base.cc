@@ -855,18 +855,6 @@ public:
   }
 };
 
-class svcvtnt_impl : public CODE_FOR_MODE0 (aarch64_sve_cvtnt)
-{
-public:
-  gimple *
-  fold (gimple_folder &f) const override
-  {
-    if (f.pred == PRED_x && is_pfalse (gimple_call_arg (f.call, 1)))
-      f.fold_call_to (build_zero_cst (TREE_TYPE (f.lhs)));
-    return NULL;
-  }
-};
-
 class svdiv_impl : public rtx_code_function
 {
 public:
@@ -3594,7 +3582,7 @@ FUNCTION (svcreate2, svcreate_impl, (2))
 FUNCTION (svcreate3, svcreate_impl, (3))
 FUNCTION (svcreate4, svcreate_impl, (4))
 FUNCTION (svcvt, svcvt_impl,)
-FUNCTION (svcvtnt, svcvtnt_impl,)
+FUNCTION (svcvtnt, NARROWING_TOP_CONVERT0 (aarch64_sve_cvtnt),)
 FUNCTION (svdiv, svdiv_impl,)
 FUNCTION (svdivr, rtx_code_function_rotated, (DIV, UDIV, UNSPEC_COND_FDIV))
 FUNCTION (svdot, svdot_impl,)

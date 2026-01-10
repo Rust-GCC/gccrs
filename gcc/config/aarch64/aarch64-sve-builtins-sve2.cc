@@ -252,18 +252,6 @@ public:
   }
 };
 
-class svcvtxnt_impl : public CODE_FOR_MODE1 (aarch64_sve2_cvtxnt)
-{
-public:
-  gimple *
-  fold (gimple_folder &f) const override
-  {
-    if (f.pred == PRED_x && is_pfalse (gimple_call_arg (f.call, 1)))
-      return f.fold_call_to (build_zero_cst (TREE_TYPE (f.lhs)));
-    return NULL;
-  }
-};
-
 class svdup_laneq_impl : public function_base
 {
 public:
@@ -1028,7 +1016,7 @@ FUNCTION (svcvtlt, unspec_based_function, (-1, -1, UNSPEC_COND_FCVTLT))
 FUNCTION (svcvtn, svcvtn_impl,)
 FUNCTION (svcvtnb, fixed_insn_function, (CODE_FOR_aarch64_sve2_fp8_cvtnbvnx16qi))
 FUNCTION (svcvtx, unspec_based_function, (-1, -1, UNSPEC_COND_FCVTX))
-FUNCTION (svcvtxnt, svcvtxnt_impl,)
+FUNCTION (svcvtxnt, NARROWING_TOP_CONVERT1 (aarch64_sve2_cvtxnt),)
 FUNCTION (svdup_laneq, svdup_laneq_impl,)
 FUNCTION (sveor3, CODE_FOR_MODE0 (aarch64_sve2_eor3),)
 FUNCTION (sveorbt, unspec_based_function, (UNSPEC_EORBT, UNSPEC_EORBT, -1))
