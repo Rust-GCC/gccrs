@@ -553,8 +553,13 @@ TypeCheckBase::resolve_generic_params (
 	  {
 	    if (is_foreign && abi != Rust::ABI::INTRINSIC)
 	      {
-		rust_error_at (generic_param->get_locus (), ErrorCode::E0044,
+		rich_location r (line_table, generic_param->get_locus ());
+		rust_error_at (r, ErrorCode::E0044,
 			       "foreign items may not have const parameters");
+
+		rust_inform (
+		  generic_param->get_locus (),
+		  "replace the const parameters with concrete types");
 	      }
 
 	    auto &param
@@ -627,8 +632,12 @@ TypeCheckBase::resolve_generic_params (
 	  {
 	    if (is_foreign && abi != Rust::ABI::INTRINSIC)
 	      {
-		rust_error_at (generic_param->get_locus (), ErrorCode::E0044,
+		rich_location r (line_table, generic_param->get_locus ());
+		rust_error_at (r, ErrorCode::E0044,
 			       "foreign items may not have type parameters");
+
+		rust_inform (generic_param->get_locus (),
+			     "replace the type parameters with concrete types");
 	      }
 
 	    auto param_type = TypeResolveGenericParam::Resolve (
