@@ -2161,7 +2161,7 @@ package Sem_Util is
    function Is_Expression_Function_Or_Completion
      (Subp : Entity_Id) return Boolean;
    --  Determine whether subprogram [body] Subp denotes an expression function
-   --  or is completed by an expression function body.
+   --  or is completed by an expression function.
 
    function Is_Extended_Precision_Floating_Point_Type
      (E : Entity_Id) return Boolean;

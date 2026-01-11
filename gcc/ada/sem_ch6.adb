@@ -2374,6 +2374,13 @@ package body Sem_Ch6 is
       Loc       : constant Source_Ptr := Sloc (N);
       Prev_Id   : constant Entity_Id  := Current_Entity_In_Scope (Body_Id);
 
+      From_Expression_Function : constant Boolean :=
+        Nkind (N) = N_Subprogram_Body and then Was_Expression_Function (N);
+      --  True if the body was generated either from a stand-alone expression
+      --  function or from an expression function that is a completion, which
+      --  means that it is equivalent to Is_Expression_Function_Or_Completion
+      --  invoked on Spec_Id declared below and not to Is_Expression_Function.
+
       Body_Nod         : Node_Id := Empty;
       Minimum_Acc_Objs : List_Id := No_List;
 
@@ -3666,11 +3673,16 @@ package body Sem_Ch6 is
       --  name, the instance appears as a package renaming, and will be hidden
       --  within the subprogram. Otherwise a previous non-overloadable entity
       --  conflicts with the subprogram. Entering the name will post an error.
+      --  Note that a subprogram body generated from an expression function is
+      --  always the completion of a declaration, either present in the source
+      --  code or synthesized by Analyze_Expression_Function, so the conflict
+      --  is reported on the declaration.
 
       elsif Present (Prev_Id)
         and then not Is_Overloadable (Prev_Id)
         and then (Nkind (Parent (Prev_Id)) /= N_Package_Renaming_Declaration
                    or else Comes_From_Source (Prev_Id))
+        and then not From_Expression_Function
       then
          Enter_Name (Body_Id);
          goto Leave;
@@ -3856,7 +3868,12 @@ package body Sem_Ch6 is
 
       else
          Spec_Decl := Unit_Declaration_Node (Spec_Id);
-         Verify_Overriding_Indicator;
+
+         --  No possible inconsistency for an expression function
+
+         if not Is_Expression_Function (Spec_Id) then
+            Verify_Overriding_Indicator;
+         end if;
 
          --  For functions with separate spec, if their return type was visible
          --  through a limited-with context clause, their extra formals were
@@ -3887,8 +3904,7 @@ package body Sem_Ch6 is
          --  They are necessary in any case to ensure proper elaboration order
          --  in gigi.
 
-         if Nkind (N) = N_Subprogram_Body
-           and then Was_Expression_Function (N)
+         if From_Expression_Function
            and then not Has_Completion (Spec_Id)
            and then Serious_Errors_Detected = 0
            and then (Expander_Active
@@ -3988,8 +4004,7 @@ package body Sem_Ch6 is
             --  If the body is the completion of a previous function
             --  declared elsewhere, the conformance check is required.
 
-            elsif Nkind (N) = N_Subprogram_Body
-              and then Was_Expression_Function (N)
+            elsif From_Expression_Function
               and then Sloc (Spec_Id) = Sloc (Body_Id)
             then
                Conformant := True;
@@ -4146,8 +4161,7 @@ package body Sem_Ch6 is
 
            --  No warnings for expression functions
 
-           and then (Nkind (N) /= N_Subprogram_Body
-                      or else not Was_Expression_Function (N))
+           and then not From_Expression_Function
          then
             Style.Body_With_No_Spec (N);
          end if;
@@ -4176,9 +4190,7 @@ package body Sem_Ch6 is
          --  An exception in Ada 2012 is that the body created for expression
          --  functions does not freeze.
 
-         if Nkind (N) /= N_Subprogram_Body
-           or else not Was_Expression_Function (N)
-         then
+         if not From_Expression_Function then
             --  First clear the Is_Public flag on thunks since they are only
             --  referenced locally by dispatch tables and thus never inlined.
 
@@ -4612,8 +4624,7 @@ package body Sem_Ch6 is
       --  (SPARK RM 6.1.12(6)).
 
       if Present (Spec_Id)
-        and then (Is_Expression_Function (Spec_Id)
-                  or else Is_Expression_Function (Body_Id))
+        and then From_Expression_Function
         and then Is_Function_With_Side_Effects (Spec_Id)
       then
          if From_Aspect_Specification
@@ -4957,9 +4968,7 @@ package body Sem_Ch6 is
          --  Check references of the subprogram spec when we are dealing with
          --  an expression function due to it having a generated body.
 
-         if Present (Spec_Id)
-           and then Is_Expression_Function (Spec_Id)
-         then
+         if Present (Spec_Id) and then Is_Expression_Function (Spec_Id) then
             Check_References (Spec_Id);
 
          --  Skip the check for subprograms generated for protected subprograms

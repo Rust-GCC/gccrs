@@ -18152,21 +18152,18 @@ package body Sem_Util is
       Subp_Decl : Node_Id;
 
    begin
-      if Ekind (Subp) = E_Function then
+      --  The function declaration is either an expression function or is
+      --  completed by an expression function.
+
+      if Is_Expression_Function (Subp) then
+         return True;
+
+      elsif Ekind (Subp) = E_Function then
          Subp_Decl := Unit_Declaration_Node (Subp);
 
-         --  The function declaration is either an expression function or is
-         --  completed by an expression function body.
-
-         return
-           Is_Expression_Function (Subp)
-             or else (Nkind (Subp_Decl) = N_Subprogram_Declaration
-                       and then Present (Corresponding_Body (Subp_Decl))
-                       and then Is_Expression_Function
-                                  (Corresponding_Body (Subp_Decl)));
-
-      elsif Ekind (Subp) = E_Subprogram_Body then
-         return Is_Expression_Function (Subp);
+         return Nkind (Subp_Decl) = N_Subprogram_Declaration
+           and then Present (Corresponding_Body (Subp_Decl))
+           and then Is_Expression_Function (Corresponding_Body (Subp_Decl));
 
       else
          return False;
