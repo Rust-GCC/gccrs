@@ -122,7 +122,6 @@ along with GCC; see the file COPYING3.  If not see
 */
 
 #define DEFAULT_AUTO_PROFILE_FILE "fbdata.afdo"
-#define AUTO_PROFILE_VERSION 3
 
 /* profile counts determined by AFDO smaller than afdo_hot_bb_threshold are
    considered cols.  */

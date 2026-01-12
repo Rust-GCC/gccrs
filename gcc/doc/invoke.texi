@@ -864,6 +864,7 @@ Objective-C and Objective-C++ Dialects}.
 -fsel-sched-verbose  -fsel-sched-dump-cfg  -fsel-sched-pipelining-verbose
 -fstats  -fstack-usage  -ftime-report  -ftime-report-details
 -fvar-tracking-assignments-toggle  -gtoggle
+-print-autofdo-gcov-version
 -print-file-name=@var{library}  -print-libgcc-file-name
 -print-multi-directory  -print-multi-lib  -print-multi-os-directory
 -print-multiarch
@@ -872,6 +873,7 @@ Objective-C and Objective-C++ Dialects}.
 -save-temps  -save-temps=cwd  -save-temps=obj
 -specs=@var{file}  -time@r{[}=@var{file}@r{]}
 --dump=@var{letters}
+--print-autofdo-gcov-version
 --print-file-name=@var{library}  --print-libgcc-file-file-name
 --print-multi-directory  --print-multi-lib  --print-multi-os-directory
 --print-multiarch  --print-prog-name=@var{program}
@@ -21027,6 +21029,11 @@ For example, with @option{-fdbg-cnt=dce:2-4:10-11,tail_call:10},
 @code{dbg_cnt(dce)} returns true only for second, third, fourth, tenth and
 eleventh invocation.
 For @code{dbg_cnt(tail_call)} true is returned for first 10 invocations.
+
+@opindex print-autofdo-gcov-version
+@item -print-autofdo-gcov-version
+@itemx --print-autofdo-gcov-version
+Print the current version of GCOV being used by the AutoFDO infrastructure.
 
 @opindex print-file-name
 @item -print-file-name=@var{library}

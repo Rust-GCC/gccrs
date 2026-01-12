@@ -349,6 +349,9 @@ Driver JoinedOrMissing Alias(B)
 -preprocess
 Driver Alias(E)
 
+-print-autofdo-gcov-version
+Driver Alias(print-autofdo-gcov-version)
+
 -print-file-name
 Driver Separate Alias(print-file-name=)
 
@@ -3901,6 +3904,9 @@ Driver
 
 pipe
 Driver Var(use_pipes)
+
+print-autofdo-gcov-version
+Driver Var(print_autofdo_gcov_version)
 
 print-file-name=
 Driver JoinedOrMissing Var(print_file_name)

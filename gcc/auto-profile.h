@@ -21,6 +21,8 @@ along with GCC; see the file COPYING3.  If not see
 #ifndef AUTO_PROFILE_H
 #define AUTO_PROFILE_H
 
+#define AUTO_PROFILE_VERSION 3
+
 /* Read, process, finalize AutoFDO data structures.  */
 extern void read_autofdo_file (void);
 extern void end_auto_profile (void);

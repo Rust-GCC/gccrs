@@ -54,6 +54,7 @@ compilation is specified by a string called a "spec".  */
 #include "common/common-target.h"
 #include "gcc-urlifier.h"
 #include "opts-diagnostic.h"
+#include "auto-profile.h" /* for AUTO_PROFILE_VERSION.  */
 
 #ifndef MATH_LIBRARY
 #define MATH_LIBRARY "m"
@@ -4297,6 +4298,7 @@ driver_handle_option (struct gcc_options *opts,
     case OPT__no_sysroot_suffix:
     case OPT_pass_exit_codes:
     case OPT_print_search_dirs:
+    case OPT_print_autofdo_gcov_version:
     case OPT_print_file_name_:
     case OPT_print_prog_name_:
     case OPT_print_multi_lib:
@@ -8827,6 +8829,12 @@ driver::maybe_print_and_exit () const
 	      build_search_list (&exec_prefixes, "", false, false));
       printf (_("libraries: %s\n"),
 	      build_search_list (&startfile_prefixes, "", false, true));
+      return (0);
+    }
+
+  if (print_autofdo_gcov_version)
+    {
+      printf ("%d\n", AUTO_PROFILE_VERSION);
       return (0);
     }
 
