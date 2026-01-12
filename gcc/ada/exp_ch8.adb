@@ -160,9 +160,11 @@ package body Exp_Ch8 is
 
       --  Local variables
 
+      Def_Id : constant Entity_Id := Defining_Identifier (N);
+      Nam    : constant Node_Id   := Name (N);
+      T      : constant Entity_Id := Etype (Def_Id);
+
       Decl : Node_Id;
-      Nam  : constant Node_Id   := Name (N);
-      T    : constant Entity_Id := Etype (Defining_Identifier (N));
 
    --  Start of processing for Expand_N_Object_Renaming_Declaration
 
@@ -171,7 +173,7 @@ package body Exp_Ch8 is
 
       if Evaluation_Required (Nam) then
          Evaluate_Name (Nam);
-         Set_Is_Renaming_Of_Object (Defining_Identifier (N));
+         Set_Is_Renaming_Of_Object (Def_Id);
       end if;
 
       --  Deal with construction of subtype in class-wide case
@@ -179,7 +181,7 @@ package body Exp_Ch8 is
       if Is_Class_Wide_Type (T) then
          Expand_Subtype_From_Expr (N, T, Subtype_Mark (N), Name (N));
          Find_Type (Subtype_Mark (N));
-         Set_Etype (Defining_Identifier (N), Entity (Subtype_Mark (N)));
+         Set_Etype (Def_Id, Entity (Subtype_Mark (N)));
 
          --  Freeze the class-wide subtype here to ensure that the subtype
          --  and equivalent type are frozen before the renaming.
@@ -200,6 +202,37 @@ package body Exp_Ch8 is
 
       elsif Present (Unqual_BIP_Iface_Function_Call (Nam)) then
          Make_Build_In_Place_Iface_Call_In_Anonymous_Context (Nam);
+
+      --  The renaming of a controlled function call declared at library level
+      --  must be turned into a regular object declaration if the result is not
+      --  returned on the secondary stack because, otherwise, the finalization
+      --  machinery of the library level would have the address of a temporary
+      --  created on the stack of the elaboration routine to hold the result.
+
+      elsif Nkind (Nam) = N_Function_Call
+        and then Is_Controlled (T)
+        and then not Needs_Secondary_Stack (T)
+        and then Is_Library_Level_Entity (Def_Id)
+      then
+         Rewrite (N,
+           Make_Object_Declaration (Sloc (N),
+             Defining_Identifier => Def_Id,
+             Constant_Present    => True,
+             Object_Definition   => New_Occurrence_Of (T, Sloc (N)),
+             Expression          => Nam));
+
+         --  We do not analyze this object declaration, because all its
+         --  components have already been analyzed, and if we were to go
+         --  ahead and analyze it, we would in effect be trying to generate
+         --  another declaration of Def_Id, which won't do.
+
+         Set_Analyzed (N);
+
+         --  Therefore we need to set the Has_Completion flag manually
+
+         Set_Has_Completion (Def_Id);
+
+         return;
       end if;
 
       --  Create renaming entry for debug information. Mark the entity as

@@ -13943,7 +13943,7 @@ package body Exp_Util is
       --  We do not analyze this renaming declaration, because all its
       --  components have already been analyzed, and if we were to go
       --  ahead and analyze it, we would in effect be trying to generate
-      --  another declaration of X, which won't do.
+      --  another declaration of Def_Id, which won't do.
 
       Set_Renamed_Object (Def_Id, Nam);
       Set_Analyzed (N);

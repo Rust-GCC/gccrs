@@ -5824,6 +5824,18 @@ package body Exp_Ch6 is
          return;
       end if;
 
+      --  Do not expand the name of an object renaming declaration at library
+      --  level if the call does not return on the secondary stack, since the
+      --  renaming will eventually be turned into a regular object declaration
+      --  in Expand_N_Object_Renaming_Declaration.
+
+      if Nkind (Par) = N_Object_Renaming_Declaration
+        and then not Use_Sec_Stack
+        and then Is_Library_Level_Entity (Defining_Identifier (Par))
+      then
+         return;
+      end if;
+
       --  Resolution is now finished, make sure we don't start analysis again
       --  because of the duplication.
 
