@@ -136,9 +136,6 @@ package body Sem_Ch7 is
    --  one entity on its visibility chain, and recurses on the visible part if
    --  the entity is an inner package.
 
-   function Is_Private_Base_Type (E : Entity_Id) return Boolean;
-   --  True for a private type that is not a subtype
-
    function Is_Visible_Dependent (Dep : Entity_Id) return Boolean;
    --  If the private dependent is a private type whose full view is derived
    --  from the parent type, its full properties are revealed only if we are in

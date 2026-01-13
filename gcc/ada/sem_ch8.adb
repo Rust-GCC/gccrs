@@ -3545,20 +3545,16 @@ package body Sem_Ch8 is
             Error_Msg_NE ("subprogram& is not overriding", N, Rename_Spec);
          end if;
 
-         --  AI12-0132: a renames-as-body freezes the expression of any
-         --  expression function that it renames.
+         --  RM 13.14(5.2/4): At the occurrence of a renames-as-body whose
+         --  name denotes an expression function, the return expression of
+         --  the expression function causes freezing.
 
-         if Is_Entity_Name (Nam)
+         if Comes_From_Source (N)
+           and then Is_Entity_Name (Nam)
            and then Is_Expression_Function (Entity (Nam))
            and then not Inside_A_Generic
          then
-            Freeze_Expr_Types
-              (Def_Id => Entity (Nam),
-               Typ    => Etype (Entity (Nam)),
-               Expr   =>
-                 Expression
-                   (Original_Node (Unit_Declaration_Node (Entity (Nam)))),
-               N      => N);
+            Freeze_Expression (Nam);
          end if;
 
       --  Normal subprogram renaming (not renaming as body)

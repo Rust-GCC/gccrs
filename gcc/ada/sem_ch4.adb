@@ -1812,7 +1812,7 @@ package body Sem_Ch4 is
         and then Has_Static_Predicate_Aspect (Exp_Type)
         and then Preanalysis_Active
       then
-         null;
+         Analyze_Choices (Alternatives (N), Exp_Type);
 
       --  Call Analyze_Choices and Check_Choices to do the rest of the work
 

@@ -11707,8 +11707,16 @@ package body Sem_Attr is
                   --  spec expressions). The profile of the subprogram is not
                   --  frozen at this point.
 
+                  --  Taking the 'Access of an expression function freezes its
+                  --  expression (RM 13.14(10.3)).
+
                   if not Preanalysis_Active then
-                     Freeze_Before (N, Entity (P), Do_Freeze_Profile => False);
+                     if Is_Expression_Function (Entity (P)) then
+                        Freeze_Expression (P);
+                     else
+                        Freeze_Before
+                          (N, Entity (P), Do_Freeze_Profile => False);
+                     end if;
                   end if;
 
                --  If it is a type, there is nothing to resolve.
@@ -11717,7 +11725,12 @@ package body Sem_Attr is
 
                elsif Is_Overloadable (Entity (P)) then
                   if not Preanalysis_Active then
-                     Freeze_Before (N, Entity (P), Do_Freeze_Profile => False);
+                     if Is_Expression_Function (Entity (P)) then
+                        Freeze_Expression (P);
+                     else
+                        Freeze_Before
+                          (N, Entity (P), Do_Freeze_Profile => False);
+                     end if;
                   end if;
 
                --  Nothing to do if prefix is a type name
@@ -12498,8 +12511,8 @@ package body Sem_Attr is
                   Scop      : constant Entity_Id := Scope (Subp_Id);
                   Subp_Decl : constant Node_Id   :=
                                 Unit_Declaration_Node (Subp_Id);
-                  Flag_Id   : Entity_Id;
-                  Subp_Body : Node_Id;
+
+                  Flag_Id : Entity_Id;
 
                --  If the access has been taken and the body of the subprogram
                --  has not been see yet, indirect calls must be protected with
@@ -12551,58 +12564,6 @@ package body Sem_Attr is
                      --  where processing depends on correct scope setting.
 
                      Set_Scope (Flag_Id, Scop);
-                  end if;
-
-                  --  Taking the 'Access of an expression function freezes its
-                  --  expression (RM 13.14 10.3/3). This does not apply to an
-                  --  expression function that acts as a completion because the
-                  --  generated body is immediately analyzed and the expression
-                  --  is automatically frozen.
-
-                  if Is_Expression_Function (Subp_Id)
-                    and then Present (Corresponding_Body (Subp_Decl))
-                  then
-                     Subp_Body :=
-                       Unit_Declaration_Node (Corresponding_Body (Subp_Decl));
-
-                     --  The body has already been analyzed when the expression
-                     --  function acts as a completion.
-
-                     if Analyzed (Subp_Body) then
-                        null;
-
-                     --  Attribute 'Access may appear within the generated body
-                     --  of the expression function subject to the attribute:
-
-                     --    function F is (... F'Access ...);
-
-                     --  If the expression function is on the scope stack, then
-                     --  the body is currently being analyzed. Do not reanalyze
-                     --  it because this will lead to infinite recursion.
-
-                     elsif In_Open_Scopes (Subp_Id) then
-                        null;
-
-                     --  If reference to the expression function appears in an
-                     --  inner scope, for example as an actual in an instance,
-                     --  this is not a freeze point either.
-
-                     elsif Scope (Subp_Id) /= Current_Scope then
-                        null;
-
-                     --  Dispatch tables are not a freeze point either
-
-                     elsif Nkind (Parent (N)) = N_Unchecked_Type_Conversion
-                       and then Is_Dispatch_Table_Entity (Etype (Parent (N)))
-                     then
-                        null;
-
-                      --  Analyze the body of the expression function to freeze
-                      --  the expression.
-
-                     else
-                        Analyze (Subp_Body);
-                     end if;
                   end if;
                end;
             end if;

@@ -2021,7 +2021,7 @@ package body Ghost is
 
       Check_Ghost_Completion (Prev_Id => Spec_Id, Compl_Id => Body_Id);
 
-      --  Mark the body as its formals as Ghost
+      --  Mark the body and its formals as Ghost
 
       Mark_Ghost_Declaration_Or_Body (N, Policy, Level);
 
@@ -2029,6 +2029,36 @@ package body Ghost is
 
       Install_Ghost_Region (Policy, N, Level);
    end Mark_And_Set_Ghost_Body;
+
+   ----------------------------------------------------
+   -- Mark_And_Set_Ghost_Body_Of_Expression_Function --
+   ----------------------------------------------------
+
+   procedure Mark_And_Set_Ghost_Body_Of_Expression_Function
+     (N       : Node_Id;
+      Spec_Id : Entity_Id)
+   is
+      Level : constant Entity_Id := Ghost_Assertion_Level (Spec_Id);
+
+      Policy : Name_Id;
+
+   begin
+      if Is_Checked_Ghost_Entity (Spec_Id) then
+         Policy := Name_Check;
+      elsif Is_Ignored_Ghost_Entity (Spec_Id) then
+         Policy := Name_Ignore;
+      else
+         Policy := No_Name;
+      end if;
+
+      --  Mark the body and its formals as Ghost
+
+      Mark_Ghost_Declaration_Or_Body (N, Policy, Level);
+
+      --  Install the appropriate Ghost region
+
+      Install_Ghost_Region (Policy, N, Level);
+   end Mark_And_Set_Ghost_Body_Of_Expression_Function;
 
    -----------------------------------
    -- Mark_And_Set_Ghost_Completion --

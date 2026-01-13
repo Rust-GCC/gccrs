@@ -2438,14 +2438,30 @@ package body Sem_Ch12 is
 
       --  An instantiation freezes all generic actuals, except for incomplete
       --  types and subprograms that are not fully defined at the point of
-      --  instantiation.
+      --  instantiation. If one of them is an expression function, then the
+      --  instantiation also freezes its expression (RM 13.14(10.2)).
 
       declare
-         Elmt : Elmt_Id := First_Elmt (Actuals_To_Freeze);
+         Elmt : Elmt_Id;
+         Expr : Node_Id;
 
       begin
+         Elmt := First_Elmt (Actuals_To_Freeze);
          while Present (Elmt) loop
-            Freeze_Before (N, Node (Elmt));
+            --  For technical reasons, we need an expression attached to the
+            --  tree to freeze the expression of an expression function, so
+            --  we manufacture one on the fly.
+
+            if Is_Expression_Function (Node (Elmt)) then
+               Expr := New_Occurrence_Of (Node (Elmt), Sloc (N));
+               Set_Comes_From_Source (Expr);
+               Set_Entity (Expr, Node (Elmt));
+               Set_Parent (Expr, N);
+               Freeze_Expression (Expr);
+            else
+               Freeze_Before (N, Node (Elmt));
+            end if;
+
             Next_Elmt (Elmt);
          end loop;
       end;
@@ -2567,16 +2583,6 @@ package body Sem_Ch12 is
                       Explicit_Generic_Actual_Parameter =>
                         New_Copy_Tree (Expression (Assoc.Un_Formal))));
                end if;
-            end if;
-
-            --  If the object is a call to an expression function, this
-            --  is a freezing point for it.
-
-            if Is_Entity_Name (Match)
-              and then Present (Entity (Match))
-              and then Is_Expression_Function (Entity (Match))
-            then
-               Append_Elmt (Entity (Match), Actuals_To_Freeze);
             end if;
 
          when N_Formal_Type_Declaration =>

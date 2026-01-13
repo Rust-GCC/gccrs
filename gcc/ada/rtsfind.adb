@@ -1527,12 +1527,16 @@ package body Rtsfind is
       Lib_Unit : Node_Id;
       Pkg_Ent  : Entity_Id;
 
-      Save_Front_End_Inlining : constant Boolean := Front_End_Inlining;
+      Saved_Front_End_Inlining : constant Boolean := Front_End_Inlining;
       --  This flag is used to disable front-end inlining when RTE is invoked.
       --  This prevents the analysis of other runtime bodies when a particular
-      --  spec is loaded through Rtsfind. This is both efficient, and prevents
-      --  spurious visibility conflicts between use-visible user entities, and
+      --  spec is loaded through Rtsfind. This is efficient, and also prevents
+      --  spurious visibility conflicts between use-visible user entities and
       --  entities in run-time packages.
+
+      Saved_In_Inlined_Body : constant Boolean := In_Inlined_Body;
+      --  This flag is used to preserve and reset In_Inlined_Body when RTE is
+      --  invoked.
 
    --  Start of processing for RTE
 
@@ -1556,6 +1560,7 @@ package body Rtsfind is
       end if;
 
       Front_End_Inlining := False;
+      In_Inlined_Body := False;
 
       --  Load unit if unit not previously loaded
 
@@ -1630,7 +1635,9 @@ package body Rtsfind is
       end if;
 
       Maybe_Add_With (U);
-      Front_End_Inlining := Save_Front_End_Inlining;
+
+      Front_End_Inlining := Saved_Front_End_Inlining;
+      In_Inlined_Body := Saved_In_Inlined_Body;
 
       return Check_CRT (E, RE_Table (E));
    end RTE;
@@ -1680,21 +1687,24 @@ package body Rtsfind is
       Lib_Unit : Node_Id;
       Pkg_Ent  : Entity_Id;
 
-      --  The following flag is used to disable front-end inlining when
+      Saved_Front_End_Inlining : constant Boolean := Front_End_Inlining;
+      --  This flags is used to disable front-end inlining when
       --  RTE_Record_Component is invoked. This prevents the analysis of other
       --  runtime bodies when a particular spec is loaded through Rtsfind. This
-      --  is both efficient, and it prevents spurious visibility conflicts
-      --  between use-visible user entities, and entities in run-time packages.
+      --  is efficient, and also prevents spurious visibility conflicts between
+      --  use-visible user entities and entities in run-time packages.
 
-      Save_Front_End_Inlining : Boolean;
+      Saved_In_Inlined_Body : constant Boolean := In_Inlined_Body;
+      --  This flag is used to preserve and reset In_Inlined_Body when
+      --  RTE_Record_Component is invoked.
 
    begin
       --  Note: Contrary to subprogram RTE, there is no need to do any special
       --  management with package system.ads because it has no record type
       --  declarations.
 
-      Save_Front_End_Inlining := Front_End_Inlining;
-      Front_End_Inlining      := False;
+      Front_End_Inlining := False;
+      In_Inlined_Body := False;
 
       --  Load unit if unit not previously loaded
 
@@ -1733,7 +1743,9 @@ package body Rtsfind is
 
       Maybe_Add_With (U);
 
-      Front_End_Inlining := Save_Front_End_Inlining;
+      Front_End_Inlining := Saved_Front_End_Inlining;
+      In_Inlined_Body := Saved_In_Inlined_Body;
+
       return Check_CRT (E, Found_E);
    end RTE_Record_Component;
 

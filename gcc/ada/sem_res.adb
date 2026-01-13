@@ -3589,11 +3589,6 @@ package body Sem_Res is
          --  default expression mode (the Freeze_Expression routine tests this
          --  flag and only freezes static types if it is set).
 
-         --  Ada 2012 (AI05-177): The declaration of an expression function
-         --  does not cause freezing, but we never reach here in that case.
-         --  Here we are resolving the corresponding expanded body, so we do
-         --  need to perform normal freezing.
-
          --  As elsewhere we do not emit freeze node within a generic.
 
          if not Inside_A_Generic then
@@ -6659,28 +6654,22 @@ package body Sem_Res is
       --  conditions of subsequent functions or expression functions. Such
       --  calls do not freeze when they appear within generated bodies,
       --  (including the body of another expression function) which would
-      --  place the freeze node in the wrong scope. An expression function
-      --  is frozen in the usual fashion, by the appearance of a real body,
-      --  or at the end of a declarative part. However an implicit call to
+      --  place the freeze node in the wrong scope. But an implicit call to
       --  an expression function may appear when it is part of a default
       --  expression in a call to an initialization procedure, and must be
       --  frozen now, even if the body is inserted at a later point.
-      --  Otherwise, the call freezes the expression if expander is active,
-      --  for example as part of an object declaration.
 
       if Is_Entity_Name (Subp)
         and then not In_Spec_Expression
         and then not Is_Expression_Function_Or_Completion (Current_Scope)
-        and then not (Chars (Current_Scope) = Name_uWrapped_Statements
-                       and then Is_Expression_Function_Or_Completion
-                                  (Scope (Current_Scope)))
-        and then
-          (not Is_Expression_Function_Or_Completion (Entity (Subp))
-            or else Expander_Active)
+        and then not
+          (Chars (Current_Scope) = Name_uWrapped_Statements
+            and then
+              Is_Expression_Function_Or_Completion (Scope (Current_Scope)))
       then
          if Is_Expression_Function (Entity (Subp)) then
 
-            --  Force freeze of expression function in call
+            --  Force freezing of expression function in call
 
             Set_Comes_From_Source (Subp, True);
             Set_Must_Not_Freeze   (Subp, False);

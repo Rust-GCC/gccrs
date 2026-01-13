@@ -226,16 +226,21 @@ package Freeze is
    --  so need to be similarly treated. Freeze_Expression takes care of
    --  determining the proper insertion point for generated freeze actions.
 
-   procedure Freeze_Expr_Types
-     (Def_Id : Entity_Id;
-      Typ    : Entity_Id;
+   procedure Freeze_Expr_Types_Before
+     (N      : Node_Id;
       Expr   : Node_Id;
-      N      : Node_Id);
-   --  N is the body constructed for an expression function that is a
-   --  completion, and Def_Id is the function being completed.
+      Def_Id : Entity_Id;
+      Typ    : Entity_Id := Empty);
    --  This procedure freezes before N all the types referenced in Expr,
-   --  which is either the expression of the expression function, or
-   --  the expression in a pre/post aspect that applies to Def_Id;
+   --  which is either the expression of the expression function Def_Id,
+   --  or the expression in a pre/post aspect that applies to Def_Id.
+
+   --  If Typ is present, it is the type used to preanalyze and resolve a
+   --  copy of Expr; if it is not, Expr is assumed to be already analyzed.
+
+   --  Check that the expression does not include references to deferred
+   --  constants without completion. We report this at the freeze point of
+   --  the function, to provide a better error message.
 
    procedure Freeze_Fixed_Point_Type (Typ : Entity_Id);
    --  Freeze fixed point type. For fixed-point types, we have to defer

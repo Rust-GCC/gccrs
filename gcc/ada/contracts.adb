@@ -753,13 +753,13 @@ package body Contracts is
                   if Freeze_Types
                     and then Present (Corresponding_Aspect (Prag))
                   then
-                     Freeze_Expr_Types
-                       (Def_Id => Subp_Id,
-                        Typ    => Standard_Boolean,
+                     Freeze_Expr_Types_Before
+                       (N      => Bod,
                         Expr   =>
                           Expression
                             (First (Pragma_Argument_Associations (Prag))),
-                        N      => Bod);
+                        Def_Id => Subp_Id,
+                        Typ    => Standard_Boolean);
                   end if;
 
                   Analyze_Pre_Post_Condition_In_Decl_Part (Prag, Freeze_Id);
@@ -3102,13 +3102,13 @@ package body Contracts is
                      if Freeze_T
                        and then Present (Corresponding_Aspect (Prag))
                      then
-                        Freeze_Expr_Types
-                          (Def_Id => Subp_Id,
-                           Typ    => Standard_Boolean,
+                        Freeze_Expr_Types_Before
+                          (N      => Body_Decl,
                            Expr   =>
                              Expression
                                (First (Pragma_Argument_Associations (Prag))),
-                           N      => Body_Decl);
+                           Def_Id => Subp_Id,
+                           Typ    => Standard_Boolean);
                      end if;
 
                      Prepend_Pragma_To_Decls (Prag);

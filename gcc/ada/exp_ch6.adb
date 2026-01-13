@@ -5538,7 +5538,9 @@ package body Exp_Ch6 is
 
          elsif Is_Inlinable_Expression_Function (Subp) then
             Rewrite
-              (Call_Node, New_Copy (Expression_Of_Expression_Function (Subp)));
+              (Call_Node,
+               New_Copy
+                 (Original_Node (Expression_Of_Expression_Function (Subp))));
             Analyze (Call_Node);
             return;
 

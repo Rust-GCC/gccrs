@@ -181,6 +181,15 @@ package Ghost is
    --  Install the Ghost mode of the body. This routine starts a Ghost region
    --  and must be used with routine Restore_Ghost_Region.
 
+   procedure Mark_And_Set_Ghost_Body_Of_Expression_Function
+     (N       : Node_Id;
+      Spec_Id : Entity_Id);
+   --  Mark the subprogram body N generated for an expression function Spec_Id
+   --  that is not a completion as Ghost when Spec_Id is a Ghost entity.
+   --
+   --  Install the Ghost mode of the body. This routine starts a Ghost region
+   --  and must be used with routine Restore_Ghost_Region.
+
    procedure Mark_And_Set_Ghost_Completion
      (N       : Node_Id;
       Prev_Id : Entity_Id);

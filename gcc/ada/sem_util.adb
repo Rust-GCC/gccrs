@@ -2592,6 +2592,8 @@ package body Sem_Util is
 
    procedure Check_Fully_Declared (T : Entity_Id; N : Node_Id) is
    begin
+      --  The immediate case is an incomplete type
+
       if Ekind (T) = E_Incomplete_Type then
 
          --  Ada 2005 (AI-50217): If the type is available through a limited
@@ -2610,10 +2612,15 @@ package body Sem_Util is
               ("premature usage of incomplete}", N, First_Subtype (T));
          end if;
 
-      --  Need comments for these tests ???
+      --  The other case is a type with a private component (including itself)
+      --  that has not yet received a full declaration. But we exclude formal
+      --  types, as well as references in generic units to entities declared
+      --  outside of them, and all references in spec expressions.
 
       elsif Has_Private_Component (T)
         and then not Is_Generic_Type (Root_Type (T))
+        and then (not Is_Generic_Unit (Current_Scope)
+                   or else Scope_Within_Or_Same (Scope (T), Current_Scope))
         and then not In_Spec_Expression
       then
          --  Special case: if T is the anonymous type created for a single
@@ -8589,7 +8596,7 @@ package body Sem_Util is
          Subp_Decl := Unit_Declaration_Node (Corresponding_Body (Subp_Decl));
       end if;
 
-      return Original_Node (Expression (Original_Node (Subp_Decl)));
+      return Expression (Original_Node (Subp_Decl));
    end Expression_Of_Expression_Function;
 
    -------------------------------
@@ -18812,7 +18819,8 @@ package body Sem_Util is
         and then Present (Subprogram_Body (Subp))
         and then Was_Expression_Function (Subprogram_Body (Subp))
       then
-         Return_Expr := Expression_Of_Expression_Function (Subp);
+         Return_Expr :=
+           Original_Node (Expression_Of_Expression_Function (Subp));
 
          --  The returned object must not have a qualified expression and its
          --  nominal subtype must be statically compatible with the result

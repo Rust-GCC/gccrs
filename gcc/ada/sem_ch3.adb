@@ -2894,7 +2894,8 @@ package body Sem_Ch3 is
          --  generated bodies that have not been analyzed yet), freeze all
          --  types now. Note that in the latter case, the expander must take
          --  care to attach the bodies at a proper place in the tree so as to
-         --  not cause unwanted freezing at that point.
+         --  not cause unwanted freezing at that point. The exception is the
+         --  generated body of an expression function, which does not freeze.
 
          --  It is also necessary to check for a case where both an expression
          --  function is used and the current scope depends on an incomplete
@@ -2940,11 +2941,6 @@ package body Sem_Ch3 is
             end if;
 
             Adjust_Decl;
-
-            --  The generated body of an expression function does not freeze,
-            --  unless it is a completion, in which case only the expression
-            --  itself freezes. This is handled when the body itself is
-            --  analyzed (see Freeze_Expr_Types, sem_ch6.adb).
 
             Freeze_All (Freeze_From, Decl);
             Freeze_From := Last_Entity (Current_Scope);
@@ -12575,6 +12571,10 @@ package body Sem_Ch3 is
          --  source (including the _Call primitive operation of RAS types,
          --  which has to have the flag Comes_From_Source for other purposes):
          --  we assume that the expander will provide the missing completion.
+
+         --  Likewise for a stand-alone expression function, whose body may be
+         --  generated outside of the package.
+
          --  In case of previous errors, other expansion actions that provide
          --  bodies for null procedures with not be invoked, so inhibit message
          --  in those cases.
@@ -12598,6 +12598,9 @@ package body Sem_Ch3 is
               and then (not Comes_From_Source (E)
                          or else Chars (E) = Name_uCall)
             then
+               null;
+
+            elsif Is_Expression_Function (E) then
                null;
 
             elsif

@@ -62,6 +62,7 @@ with Sem_Cat;        use Sem_Cat;
 with Sem_Ch3;        use Sem_Ch3;
 with Sem_Ch4;        use Sem_Ch4;
 with Sem_Ch5;        use Sem_Ch5;
+with Sem_Ch7;        use Sem_Ch7;
 with Sem_Ch8;        use Sem_Ch8;
 with Sem_Ch9;        use Sem_Ch9;
 with Sem_Ch10;       use Sem_Ch10;
@@ -304,6 +305,8 @@ package body Sem_Ch6 is
       --  Local variables
 
       Asp      : Node_Id;
+      F_Id     : Node_Id;
+      F_Spec   : Node_Id;
       New_Body : Node_Id;
       New_Spec : Node_Id;
       Orig_N   : Node_Id := Empty;
@@ -439,11 +442,11 @@ package body Sem_Ch6 is
             --  with the function body.
 
             Ghost_Context_Checks_Disabled := True;
-            Freeze_Expr_Types
-              (Def_Id => Def_Id,
-               Typ    => Typ,
+            Freeze_Expr_Types_Before
+              (N      => N,
                Expr   => Expr,
-               N      => N);
+               Def_Id => Def_Id,
+               Typ    => Typ);
             Ghost_Context_Checks_Disabled := False;
          end if;
 
@@ -529,8 +532,35 @@ package body Sem_Ch6 is
 
          Def_Id := Defining_Entity (N);
          Set_Is_Inlined (Def_Id);
+         Set_In_Private_Part (Def_Id, In_Private_Part (Scope (Def_Id)));
 
          Typ := Etype (Def_Id);
+
+         --  Propagate the results of the resolution of the specification of
+         --  the declaration to the specification of the body, so that it is
+         --  not done again and potentially out of context.
+
+         Set_Result_Definition (New_Spec, New_Occurrence_Of (Typ, Loc));
+
+         F_Id := First_Formal (Def_Id);
+         F_Spec := First (Parameter_Specifications (New_Spec));
+         while Present (F_Spec) loop
+            if Nkind (Parameter_Type (F_Spec)) = N_Access_Definition then
+               Set_Subtype_Mark
+                 (Parameter_Type (F_Spec),
+                  New_Occurrence_Of
+                    (Directly_Designated_Type (Etype (F_Id)), Loc));
+            elsif Null_Exclusion_Present (F_Spec) then
+               Set_Parameter_Type
+                 (F_Spec, New_Occurrence_Of (Base_Type (Etype (F_Id)), Loc));
+            else
+               Set_Parameter_Type
+                 (F_Spec, New_Occurrence_Of (Etype (F_Id), Loc));
+            end if;
+
+            Next_Formal (F_Id);
+            Next (F_Spec);
+         end loop;
 
          --  Establish the linkages between the spec and the body. These are
          --  used when the expression function acts as the prefix of attribute
@@ -550,7 +580,8 @@ package body Sem_Ch6 is
             Insert_After (N, New_Body);
 
          --  To prevent premature freeze action, insert the new body at the end
-         --  of the current declarations, or at the end of the package spec.
+         --  of the current declarative part or at the end of the specification
+         --  of the innermost package that is a library unit per RM 13.14(3/5).
          --  However, resolve usage names now, to prevent spurious visibility
          --  on later entities. Note that the function can now be called in
          --  the current declarative part, which will appear to be prior to the
@@ -560,10 +591,19 @@ package body Sem_Ch6 is
 
          else
             declare
-               Decls : List_Id          := List_Containing (N);
-               Par   : constant Node_Id := Parent (Decls);
+               Decls : List_Id := List_Containing (N);
+               Par   : Node_Id := Parent (Decls);
 
             begin
+               while Nkind (Par) = N_Package_Specification
+                 and then not Is_Compilation_Unit (Defining_Entity (Par))
+                 and then not Is_Generic_Instance (Defining_Entity (Par))
+                 and then not Is_Generic_Unit (Defining_Entity (Par))
+               loop
+                  Decls := List_Containing (Parent (Par));
+                  Par := Parent (Decls);
+               end loop;
+
                if Nkind (Par) = N_Package_Specification
                  and then Decls = Visible_Declarations (Par)
                  and then not Is_Empty_List (Private_Declarations (Par))
@@ -652,8 +692,7 @@ package body Sem_Ch6 is
                --  calls.
 
                Set_Expression
-                 (Original_Node (Subprogram_Spec (Def_Id)),
-                  Make_Expr_Copy);
+                 (Original_Node (Subprogram_Spec (Def_Id)), Make_Expr_Copy);
 
                --  Mark static expression functions as inlined, to ensure
                --  that even calls with nonstatic actuals will be inlined.
@@ -2384,7 +2423,6 @@ package body Sem_Ch6 is
       Conformant : Boolean;
       Desig_View : Entity_Id := Empty;
       Exch_Views : Elist_Id  := No_Elist;
-      Mask_Types : Elist_Id  := No_Elist;
       Prot_Typ   : Entity_Id := Empty;
       Spec_Decl  : Node_Id   := Empty;
       Spec_Id    : Entity_Id := Empty;
@@ -2474,12 +2512,6 @@ package body Sem_Ch6 is
       --  Determine whether subprogram Subp_Id is a primitive of a concurrent
       --  type that implements an interface and has a private view.
 
-      function Mask_Unfrozen_Types (Spec_Id : Entity_Id) return Elist_Id;
-      --  N is the body generated for an expression function that is not a
-      --  completion and Spec_Id the defining entity of its spec. Mark all
-      --  the not-yet-frozen types referenced by the simple return statement
-      --  of the function as formally frozen.
-
       procedure Move_Pragmas (From : Node_Id; To : Node_Id);
       --  Find all suitable source pragmas at the top of subprogram body
       --  From's declarations and move them after arbitrary node To.
@@ -2495,9 +2527,6 @@ package body Sem_Ch6 is
       --  causing the flag to be set, if the following statement is a return
       --  of an entity, we mark the entity as set in source to suppress any
       --  warning on the stylized use of function stubs with a dummy return.
-
-      procedure Unmask_Unfrozen_Types (Unmask_List : Elist_Id);
-      --  Undo the transformation done by Mask_Unfrozen_Types
 
       procedure Verify_Overriding_Indicator;
       --  If there was a previous spec, the entity has been entered in the
@@ -3308,86 +3337,6 @@ package body Sem_Ch6 is
          return False;
       end Is_Private_Concurrent_Primitive;
 
-      -------------------------
-      -- Mask_Unfrozen_Types --
-      -------------------------
-
-      function Mask_Unfrozen_Types (Spec_Id : Entity_Id) return Elist_Id is
-         Result : Elist_Id := No_Elist;
-
-         function Mask_Type_Refs (Node : Node_Id) return Traverse_Result;
-         --  Mask all types referenced in the subtree rooted at Node as
-         --  formally frozen.
-
-         --------------------
-         -- Mask_Type_Refs --
-         --------------------
-
-         function Mask_Type_Refs (Node : Node_Id) return Traverse_Result is
-            procedure Mask_Type (Typ : Entity_Id);
-            --  Mask a given type as formally frozen when outside the current
-            --  scope, or else freeze the type.
-
-            ---------------
-            -- Mask_Type --
-            ---------------
-
-            procedure Mask_Type (Typ : Entity_Id) is
-            begin
-               --  Skip Itypes created by the preanalysis
-
-               if Is_Itype (Typ)
-                 and then Scope_Within_Or_Same (Scope (Typ), Spec_Id)
-               then
-                  return;
-               end if;
-
-               if not Is_Frozen (Typ) then
-                  if Scope (Typ) /= Current_Scope then
-                     Set_Is_Frozen (Typ);
-                     Append_New_Elmt (Typ, Result);
-                  else
-                     Freeze_Before (N, Typ);
-                  end if;
-               end if;
-            end Mask_Type;
-
-         --  Start of processing for Mask_Type_Refs
-
-         begin
-            if Is_Entity_Name (Node) and then Present (Entity (Node)) then
-               Mask_Type (Etype (Entity (Node)));
-
-               if Ekind (Entity (Node)) in E_Component | E_Discriminant then
-                  Mask_Type (Scope (Entity (Node)));
-               end if;
-
-            elsif Nkind (Node) in N_Aggregate | N_Null | N_Type_Conversion
-              and then Present (Etype (Node))
-            then
-               Mask_Type (Etype (Node));
-            end if;
-
-            return OK;
-         end Mask_Type_Refs;
-
-         procedure Mask_References is new Traverse_Proc (Mask_Type_Refs);
-
-         --  Local variables
-
-         Return_Stmt : constant Node_Id :=
-                         First (Statements (Handled_Statement_Sequence (N)));
-
-      --  Start of processing for Mask_Unfrozen_Types
-
-      begin
-         pragma Assert (Nkind (Return_Stmt) = N_Simple_Return_Statement);
-
-         Mask_References (Expression (Return_Stmt));
-
-         return Result;
-      end Mask_Unfrozen_Types;
-
       ------------------
       -- Move_Pragmas --
       ------------------
@@ -3490,20 +3439,6 @@ package body Sem_Ch6 is
          end if;
       end Set_Trivial_Subprogram;
 
-      ---------------------------
-      -- Unmask_Unfrozen_Types --
-      ---------------------------
-
-      procedure Unmask_Unfrozen_Types (Unmask_List : Elist_Id) is
-         Elmt : Elmt_Id := First_Elmt (Unmask_List);
-
-      begin
-         while Present (Elmt) loop
-            Set_Is_Frozen (Node (Elmt), False);
-            Next_Elmt (Elmt);
-         end loop;
-      end Unmask_Unfrozen_Types;
-
       ---------------------------------
       -- Verify_Overriding_Indicator --
       ---------------------------------
@@ -3604,6 +3539,8 @@ package body Sem_Ch6 is
       Saved_ISMP : constant Boolean         :=
                      Ignore_SPARK_Mode_Pragmas_In_Instance;
       --  Save the Ghost and SPARK mode-related data to restore on exit
+
+      Saved_In_Inlined_Body : Boolean;
 
    --  Start of processing for Analyze_Subprogram_Body_Helper
 
@@ -3810,7 +3747,11 @@ package body Sem_Ch6 is
             --  the mode now to ensure that any nodes generated during analysis
             --  and expansion are properly marked as Ghost.
 
-            Mark_And_Set_Ghost_Body (N, Spec_Id);
+            if Is_Expression_Function (Spec_Id) then
+               Mark_And_Set_Ghost_Body_Of_Expression_Function (N, Spec_Id);
+            else
+               Mark_And_Set_Ghost_Body (N, Spec_Id);
+            end if;
 
             --  If the body completes the initial declaration of a compilation
             --  unit which is subject to pragma Elaboration_Checks, set the
@@ -3889,51 +3830,25 @@ package body Sem_Ch6 is
             Compute_Returns_By_Ref (Spec_Id);
          end if;
 
-         --  In general, the spec will be frozen when we start analyzing the
-         --  body. However, for internally generated operations, such as
-         --  wrapper functions for inherited operations with controlling
-         --  results, the spec may not have been frozen by the time we expand
-         --  the freeze actions that include the bodies. In particular, extra
-         --  formals for accessibility or for return-in-place may need to be
-         --  generated. Freeze nodes, if any, are inserted before the current
-         --  body. These freeze actions are also needed in Compile_Only mode to
-         --  enable the proper back-end type annotations.
-         --  They are necessary in any case to ensure proper elaboration order
-         --  in gigi.
+         --  In most cases the spec is frozen when we start analyzing the body.
+         --  However, for some internally generated operations such as wrapper
+         --  functions for inherited operations with a controlling result, and
+         --  for expression functions, it has not necessarily been frozen yet.
+         --  In particular, extra formals for accessibility or build-in-place
+         --  return purposes may still need to be generated. Freeze nodes are
+         --  inserted before the body, and are necessary to ensure the proper
+         --  elaboration order in the code generator.
 
-         if From_Expression_Function
-           and then not Has_Completion (Spec_Id)
-           and then Serious_Errors_Detected = 0
-           and then (Expander_Active
-                      or else Operating_Mode = Check_Semantics
-                      or else Is_Ignored_Ghost_Entity_In_Codegen (Spec_Id))
-         then
-            --  The body generated for an expression function that is not a
-            --  completion is a freeze point neither for the profile nor for
-            --  anything else. That's why, in order to prevent any freezing
-            --  during analysis, we need to mask types declared outside the
-            --  expression (and in an outer scope) that are not yet frozen.
-            --  This also needs to be done in the case of an ignored Ghost
-            --  expression function, where the expander isn't active.
+         --  A further complication arises when the expression function is a
+         --  primitive operation of a tagged type: in that case the function
+         --  entity must be frozen before the dispatch table for the type is
+         --  built, but this freezing must not freeze the tagged type itself.
 
-            --  A further complication arises if the expression function is
-            --  a primitive operation of a tagged type: in that case the
-            --  function entity must be frozen before the dispatch table for
-            --  the type is constructed, so it will be frozen like other local
-            --  entities, at the end of the current scope.
-
-            if not Is_Dispatching_Operation (Spec_Id) then
-               Set_Is_Frozen (Spec_Id);
-            end if;
-
-            Mask_Types := Mask_Unfrozen_Types (Spec_Id);
-
-         elsif not Is_Frozen (Spec_Id)
-           and then Serious_Errors_Detected = 0
-         then
+         if not Is_Frozen (Spec_Id) and then Serious_Errors_Detected = 0 then
             Set_Has_Delayed_Freeze (Spec_Id);
             Create_Extra_Formals (Spec_Id, Related_Nod => N);
-            Freeze_Before (N, Spec_Id);
+            Freeze_Before (N, Spec_Id,
+              Do_Freeze_Profile => not Is_Dispatching_Operation (Spec_Id));
          end if;
       end if;
 
@@ -3996,7 +3911,7 @@ package body Sem_Ch6 is
             then
                Conformant := True;
 
-            --  Finally, a body generated for an expression function copies
+            --  The body generated for a stand-alone expression function copies
             --  the profile of the function and no check is needed either.
 
             elsif Is_Expression_Function (Spec_Id) then
@@ -4122,13 +4037,57 @@ package body Sem_Ch6 is
                Build_Subprogram_Instance_Renamings (N, Current_Scope);
             end if;
 
-            Push_Scope (Spec_Id);
+            --  The body of a stand-alone expression function may be generated
+            --  out of context like an inlined body, so we set In_Inlined_Body
+            --  when analyzing it to bypass visibility constraints on the types
+            --  of operators (the constraints have already been checked during
+            --  the preanalysis of the expression but, unlike resolution per se
+            --  which is not redone, they are checked again to set the Etype).
+
+            if Is_Expression_Function (Spec_Id) then
+               Saved_In_Inlined_Body := In_Inlined_Body;
+               In_Inlined_Body := True;
+
+               --  Moreover, if the expression function was declared in the
+               --  private part of its package, we need to temporarily make
+               --  the full view of the private types visible.
+
+               if Scope (Spec_Id) /= Current_Scope
+                 and then In_Private_Part (Spec_Id)
+               then
+                  declare
+                     S : constant Entity_Id := Scope (Spec_Id);
+
+                     Ent : Entity_Id;
+
+                  begin
+                     Ent := First_Entity (S);
+                     while Present (Ent)
+                       and then Ent /= First_Private_Entity (S)
+                     loop
+                        if Is_Private_Base_Type (Ent)
+                          and then Present (Full_View (Ent))
+                          and then Comes_From_Source (Full_View (Ent))
+                          and then Scope (Full_View (Ent)) = Scope (Ent)
+                          and then Ekind (Full_View (Ent)) /= E_Incomplete_Type
+                        then
+                           Exchange_Declarations (Ent);
+                        end if;
+
+                        Next_Entity (Ent);
+                     end loop;
+                  end;
+               end if;
 
             --  Make sure that the subprogram is immediately visible. For
             --  child units that have no separate spec this is indispensable.
             --  Otherwise it is safe albeit redundant.
 
-            Set_Is_Immediately_Visible (Spec_Id);
+            else
+               Set_Is_Immediately_Visible (Spec_Id);
+            end if;
+
+            Push_Scope (Spec_Id);
          end if;
 
          Set_Corresponding_Body (Unit_Declaration_Node (Spec_Id), Body_Id);
@@ -4749,6 +4708,34 @@ package body Sem_Ch6 is
       Update_Use_Clause_Chain;
       End_Scope;
 
+      --  Cleanup for the body of a stand-alone expression function
+
+      if Present (Spec_Id) and then Is_Expression_Function (Spec_Id) then
+         In_Inlined_Body := Saved_In_Inlined_Body;
+
+         if Scope (Spec_Id) /= Current_Scope
+           and then In_Private_Part (Spec_Id)
+         then
+            declare
+               S : constant Entity_Id := Scope (Spec_Id);
+
+               Ent : Entity_Id;
+
+            begin
+               Ent := First_Private_Entity (S);
+               while Present (Ent) loop
+                  if Is_Private_Base_Type (Ent)
+                    and then Present (Full_View (Ent))
+                  then
+                     Exchange_Declarations (Ent);
+                  end if;
+
+                  Next_Entity (Ent);
+               end loop;
+            end;
+         end if;
+      end if;
+
       --  If we are compiling an entry wrapper, remove the enclosing
       --  synchronized object from the stack.
 
@@ -5007,10 +4994,6 @@ package body Sem_Ch6 is
 
       if Present (Exch_Views) then
          Restore_Limited_Views (Exch_Views);
-      end if;
-
-      if Present (Mask_Types) then
-         Unmask_Unfrozen_Types (Mask_Types);
       end if;
 
       if Present (Desig_View) then
@@ -12539,6 +12522,13 @@ package body Sem_Ch6 is
 
          else
             Report_Conflict (S, E);
+
+            --  Prevent cascaded error about missing body
+
+            if Is_Package_Or_Generic_Package (E) then
+               Set_Has_Completion (E);
+            end if;
+
             return;
          end if;
 
