@@ -885,6 +885,13 @@ AttributeChecker::visit (AST::Function &fun)
 			   "must be of the form: %<#[target_feature(enable = "
 			   "\"name\")]%>");
 	    }
+	  else if (!fun.get_qualifiers ().is_unsafe ())
+	    {
+	      rust_error_at (
+		attribute.get_locus (),
+		"the %<#[target_feature]%> attribute can only be applied "
+		"to %<unsafe%> functions");
+	    }
 	}
       else if (result.name == "no_mangle")
 	{
