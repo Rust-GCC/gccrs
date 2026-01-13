@@ -74,6 +74,17 @@ CompileStmt::visit (HIR::LetStmt &stmt)
   tree init = CompileExpr::Compile (stmt.get_init_expr (), ctx);
   // FIXME use error_mark_node, check that CompileExpr returns error_mark_node
   // on failure and make this an assertion
+  if (init == error_mark_node)
+    {
+      if (stmt.get_pattern ().get_pattern_type ()
+	  == HIR::Pattern::PatternType::TUPLE)
+	{
+	  if (!seen_error ())
+	    rust_error_at (stmt.get_init_expr ().get_locus (),
+			   "expected value, found invalid expression");
+	  return;
+	}
+    }
   if (init == nullptr)
     return;
 
