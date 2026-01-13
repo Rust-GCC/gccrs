@@ -1,8 +1,9 @@
 #[target_feature(sse)]
-fn foo() {
+unsafe fn foo() {
     let a: usize = 0;
 }
 
 fn main() {
-    foo() // { dg-error "requires unsafe function or block" }
+    foo(); // { dg-error "requires unsafe function or block" }
+    unsafe { foo(); }
 }
