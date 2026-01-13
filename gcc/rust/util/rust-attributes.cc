@@ -912,6 +912,12 @@ AttributeChecker::visit (AST::Function &fun)
 	{
 	  check_link_section_attribute (attribute);
 	}
+      else if (result.name == Attrs::REPR)
+	{
+	  rust_error_at (
+	    attribute.get_locus (),
+	    "attribute should be applied to a struct, enum, or union");
+	}
     }
 
   if (fun.has_body ())
