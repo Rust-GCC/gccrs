@@ -200,6 +200,14 @@ ForeverStack<Namespace::Types>::insert_variant (Identifier name, NodeId node)
 }
 
 template <Namespace N>
+inline void
+ForeverStack<N>::insert_lang_prelude (Identifier name, NodeId id)
+{
+  insert_inner (lang_prelude.rib, name.as_string (),
+		Rib::Definition::NonShadowable (id, false));
+}
+
+template <Namespace N>
 Rib &
 ForeverStack<N>::peek ()
 {
