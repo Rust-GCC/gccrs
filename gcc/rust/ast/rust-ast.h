@@ -1450,6 +1450,28 @@ class TraitBound;
 class Type : public Visitable
 {
 public:
+  enum Kind
+  {
+    MacroInvocation,
+    TypePath,
+    QualifiedPathInType,
+    ImplTrait,
+    TraitObject,
+    Parenthesised,
+    ImplTraitTypeOneBound,
+    TraitObjectTypeOneBound,
+    Tuple,
+    Never,
+    RawPointer,
+    Reference,
+    Array,
+    Slice,
+    Inferred,
+    BareFunction,
+  };
+
+  virtual Kind get_type_kind () const = 0;
+
   // Unique pointer custom clone function
   std::unique_ptr<Type> clone_type () const
   {
