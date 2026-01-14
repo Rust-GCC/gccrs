@@ -59,6 +59,13 @@ UnusedChecker::visit (HIR::StaticItem &item)
     rust_warning_at (item.get_locus (), OPT_Wunused_variable,
 		     "unused variable %qs",
 		     item.get_identifier ().as_string ().c_str ());
+
+  if (!std::all_of (var_name.begin (), var_name.end (), [] (unsigned char c) {
+	return ISUPPER (c) || ISDIGIT (c) || c == '_';
+      }))
+    rust_warning_at (item.get_locus (), OPT_Wunused_variable,
+		     "static variable %qs should have an upper case name",
+		     var_name.c_str ());
 }
 
 void
