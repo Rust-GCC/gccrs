@@ -158,6 +158,55 @@ UnusedChecker::visit (HIR::EmptyStmt &stmt)
 		   "unnecessary trailing semicolons");
 }
 
+bool
+is_camel_case (Identifier identifier)
+{
+  auto s = identifier.as_string ();
+  return ISUPPER (s.front ())
+	 && std::all_of (s.begin (), s.end (),
+			 [] (unsigned char c) { return ISALNUM (c); });
+}
+
+void
+UnusedChecker::visit (HIR::Trait &trait)
+{
+  if (!is_camel_case (trait.get_name ()))
+    rust_warning_at (trait.get_locus (), OPT_Wunused_variable,
+		     "trait %qs should have an upper camel case name",
+		     trait.get_name ().as_string ().c_str ());
+  walk (trait);
+}
+
+void
+UnusedChecker::visit (HIR::StructStruct &strct)
+{
+  if (!is_camel_case (strct.get_identifier ()))
+    rust_warning_at (strct.get_locus (), OPT_Wunused_variable,
+		     "struct %qs should have an upper camel case name",
+		     strct.get_identifier ().as_string ().c_str ());
+  walk (strct);
+}
+
+void
+UnusedChecker::visit (HIR::TupleStruct &strct)
+{
+  if (!is_camel_case (strct.get_identifier ()))
+    rust_warning_at (strct.get_locus (), OPT_Wunused_variable,
+		     "struct %qs should have an upper camel case name",
+		     strct.get_identifier ().as_string ().c_str ());
+  walk (strct);
+}
+
+void
+UnusedChecker::visit (HIR::Enum &enm)
+{
+  if (!is_camel_case (enm.get_identifier ()))
+    rust_warning_at (enm.get_locus (), OPT_Wunused_variable,
+		     "enum %qs should have an upper camel case name",
+		     enm.get_identifier ().as_string ().c_str ());
+  walk (enm);
+}
+
 void
 UnusedChecker::visit (HIR::Function &fct)
 {
