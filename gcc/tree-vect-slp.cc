@@ -4852,8 +4852,11 @@ vect_analyze_slp_reduction_group (loop_vec_info loop_vinfo,
 				  unsigned max_tree_size, unsigned *limit,
 				  bool *matches)
 {
-  /* Try to form a reduction group.  */
+  /* Try to form a reduction group.  Size-1 groups are not suitable
+     for SLP reduction and should fall back to single-lane reduction.  */
   unsigned int group_size = scalar_stmts.length ();
+  if (group_size <= 1)
+    return false;
   if (!matches)
     matches = XALLOCAVEC (bool, group_size);
   poly_uint64 max_nunits = 1;
@@ -5003,6 +5006,8 @@ vect_analyze_slp_reductions (loop_vec_info loop_vinfo,
 	      }
 	  scalar_stmts.truncate (j);
 	  group_size = scalar_stmts.length ();
+	  if (group_size <= 1)
+	    break;
 	  if (vect_analyze_slp_reduction_group (loop_vinfo, scalar_stmts,
 						bst_map, max_tree_size, limit,
 						matches))
