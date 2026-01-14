@@ -323,5 +323,14 @@ UnusedChecker::visit (HIR::MatchExpr &expr)
   walk (expr);
 }
 
+void
+UnusedChecker::visit (HIR::GroupedExpr &expr)
+{
+  auto id = expr.get_mappings ().get_hirid ();
+  if (!unused_context.is_group_used (id))
+    rust_warning_at (expr.get_locus (), OPT_Wunused_variable,
+		     "unnecessary parentheses");
+}
+
 } // namespace Analysis
 } // namespace Rust
