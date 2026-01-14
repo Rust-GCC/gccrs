@@ -1,4 +1,4 @@
-// Copyright (C) 2025-2026 Free Software Foundation, Inc.
+// Copyright (C) 2025 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -21,7 +21,6 @@
 #include "rust-hir-item.h"
 
 #include "options.h"
-#include "rust-keyword-values.h"
 
 namespace Rust {
 namespace Analysis {
@@ -40,45 +39,25 @@ UnusedChecker::go (HIR::Crate &crate)
 }
 
 void
-UnusedChecker::visit (HIR::ConstantItem &item)
-{
-  std::string var_name = item.get_identifier ().as_string ();
-  auto id = item.get_mappings ().get_hirid ();
-  if (!unused_context.is_variable_used (id) && var_name[0] != '_')
-    rust_warning_at (item.get_locus (), OPT_Wunused_variable,
-		     "unused variable %qs",
-		     item.get_identifier ().as_string ().c_str ());
-}
-
-void
-UnusedChecker::visit (HIR::StaticItem &item)
-{
-  std::string var_name = item.get_identifier ().as_string ();
-  auto id = item.get_mappings ().get_hirid ();
-  if (!unused_context.is_variable_used (id) && var_name[0] != '_')
-    rust_warning_at (item.get_locus (), OPT_Wunused_variable,
-		     "unused variable %qs",
-		     item.get_identifier ().as_string ().c_str ());
-}
-
-void
 UnusedChecker::visit (HIR::TraitItemFunc &item)
 {
   // TODO: check trait item functions if they are not derived.
 }
+
 void
 UnusedChecker::visit (HIR::IdentifierPattern &pattern)
 {
   std::string var_name = pattern.get_identifier ().as_string ();
+  bool starts_with_under_score = var_name.compare (0, 1, "_") == 0;
   auto id = pattern.get_mappings ().get_hirid ();
-  if (!unused_context.is_variable_used (id)
-      && var_name != Values::Keywords::SELF && var_name[0] != '_')
+  if (!unused_context.is_variable_used (id) && var_name != "self"
+      && !starts_with_under_score)
     rust_warning_at (pattern.get_locus (), OPT_Wunused_variable,
 		     "unused variable %qs",
 		     pattern.get_identifier ().as_string ().c_str ());
 
   if (pattern.is_mut () && !unused_context.is_mut_used (id)
-      && var_name != Values::Keywords::SELF && var_name[0] != '_')
+      && var_name != "self" && !starts_with_under_score)
     rust_warning_at (pattern.get_locus (), OPT_Wunused_variable,
 		     "unused mut %qs",
 		     pattern.get_identifier ().as_string ().c_str ());
@@ -89,12 +68,14 @@ UnusedChecker::visit (HIR::AssignmentExpr &expr)
 
 {
   const auto &lhs = expr.get_lhs ();
-  auto var_name = lhs.to_string ();
+  auto s = lhs.as_string ();
+  std::string var_name = s.substr (0, s.find (':'));
+  bool starts_with_under_score = var_name.compare (0, 1, "_") == 0;
   NodeId ast_node_id = lhs.get_mappings ().get_nodeid ();
   NodeId def_id = nr_context.lookup (ast_node_id).value ();
   HirId id = mappings.lookup_node_to_hir (def_id).value ();
   if (unused_context.is_variable_assigned (id, lhs.get_mappings ().get_hirid ())
-      && var_name[0] != '_')
+      && !starts_with_under_score)
     rust_warning_at (lhs.get_locus (), OPT_Wunused_variable,
 		     "unused assignment %qs", var_name.c_str ());
 }
@@ -103,36 +84,19 @@ void
 UnusedChecker::visit (HIR::StructPatternFieldIdent &pattern)
 {
   std::string var_name = pattern.get_identifier ().as_string ();
+  bool starts_with_under_score = var_name.compare (0, 1, "_") == 0;
   auto id = pattern.get_mappings ().get_hirid ();
-  if (!unused_context.is_variable_used (id)
-      && var_name != Values::Keywords::SELF && var_name[0] != '_')
+  if (!unused_context.is_variable_used (id) && var_name != "self"
+      && !starts_with_under_score)
     rust_warning_at (pattern.get_locus (), OPT_Wunused_variable,
 		     "unused variable %qs",
 		     pattern.get_identifier ().as_string ().c_str ());
 
   if (pattern.is_mut () && !unused_context.is_mut_used (id)
-      && var_name != Values::Keywords::SELF && var_name[0] != '_')
+      && var_name != "self" && !starts_with_under_score)
     rust_warning_at (pattern.get_locus (), OPT_Wunused_variable,
 		     "unused mut %qs",
 		     pattern.get_identifier ().as_string ().c_str ());
-}
-
-void
-UnusedChecker::visit (HIR::EmptyStmt &stmt)
-{
-  rust_warning_at (stmt.get_locus (), OPT_Wunused_variable,
-		   "unnecessary trailing semicolons");
-}
-
-void
-UnusedChecker::visit_loop_label (HIR::LoopLabel &label)
-{
-  auto lifetime = label.get_lifetime ();
-  std::string var_name = lifetime.to_string ();
-  auto id = lifetime.get_mappings ().get_hirid ();
-  if (!unused_context.is_label_used (id) && var_name[0] != '_')
-    rust_warning_at (lifetime.get_locus (), OPT_Wunused_variable,
-		     "unused label %qs", lifetime.to_string ().c_str ());
 }
 
 } // namespace Analysis
