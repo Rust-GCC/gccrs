@@ -45,6 +45,7 @@ private:
   virtual void visit (HIR::StructPatternFieldIdent &identifier) override;
   virtual void visit (HIR::EmptyStmt &stmt) override;
   virtual void visit_loop_label (HIR::LoopLabel &label) override;
+  virtual void visit (HIR::GroupedExpr &expr) override;
 };
 } // namespace Analysis
 } // namespace Rust

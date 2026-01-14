@@ -42,6 +42,10 @@ public:
   void add_label (HirId id);
   bool is_label_used (HirId id) const;
 
+  // Unused grup
+  void add_group (HirId id);
+  bool is_group_used (HirId id) const;
+
   std::string as_string () const;
 
 private:
@@ -49,6 +53,7 @@ private:
   std::unordered_set<HirId> mutable_vars;
   std::map<HirId, std::vector<HirId>> assigned_vars;
   std::unordered_set<HirId> used_labels;
+  std::unordered_set<HirId> used_groups;
 };
 
 } // namespace Analysis

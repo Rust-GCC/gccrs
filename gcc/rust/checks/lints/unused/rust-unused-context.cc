@@ -86,6 +86,19 @@ UnusedContext::is_label_used (HirId id) const
   return used_labels.find (id) != used_labels.end ();
 }
 
+void
+UnusedContext::add_group (HirId id)
+
+{
+  used_groups.emplace (id);
+}
+
+bool
+UnusedContext::is_group_used (HirId id) const
+{
+  return used_groups.find (id) != used_groups.end ();
+}
+
 std::string
 UnusedContext::as_string () const
 {
