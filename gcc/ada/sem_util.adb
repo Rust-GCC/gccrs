@@ -8575,27 +8575,21 @@ package body Sem_Util is
    function Expression_Of_Expression_Function
      (Subp : Entity_Id) return Node_Id
    is
-      Expr_Func : Node_Id := Empty;
+      Subp_Decl : Node_Id;
 
    begin
       pragma Assert (Is_Expression_Function_Or_Completion (Subp));
 
-      if Nkind (Original_Node (Subprogram_Spec (Subp))) =
-           N_Expression_Function
-      then
-         Expr_Func := Original_Node (Subprogram_Spec (Subp));
+      --  The function declaration is either an expression function or is
+      --  completed by an expression function.
 
-      elsif Nkind (Original_Node (Subprogram_Body (Subp))) =
-              N_Expression_Function
-      then
-         Expr_Func := Original_Node (Subprogram_Body (Subp));
+      Subp_Decl := Unit_Declaration_Node (Subp);
 
-      else
-         pragma Assert (False);
-         null;
+      if Nkind (Original_Node (Subp_Decl)) /= N_Expression_Function then
+         Subp_Decl := Unit_Declaration_Node (Corresponding_Body (Subp_Decl));
       end if;
 
-      return Original_Node (Expression (Expr_Func));
+      return Original_Node (Expression (Original_Node (Subp_Decl)));
    end Expression_Of_Expression_Function;
 
    -------------------------------
@@ -18131,13 +18125,9 @@ package body Sem_Util is
 
    function Is_Expression_Function (Subp : Entity_Id) return Boolean is
    begin
-      if Ekind (Subp) in E_Function | E_Subprogram_Body then
-         return
-           Nkind (Original_Node (Unit_Declaration_Node (Subp))) =
-             N_Expression_Function;
-      else
-         return False;
-      end if;
+      return Ekind (Subp) in E_Function | E_Subprogram_Body
+        and then Nkind (Original_Node (Unit_Declaration_Node (Subp))) =
+                                                         N_Expression_Function;
    end Is_Expression_Function;
 
    ------------------------------------------

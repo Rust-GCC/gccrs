@@ -2567,9 +2567,7 @@ package body Sem_Ch12 is
 
             if Is_Entity_Name (Match)
               and then Present (Entity (Match))
-              and then Nkind
-                (Original_Node (Unit_Declaration_Node (Entity (Match))))
-                                               = N_Expression_Function
+              and then Is_Expression_Function (Entity (Match))
             then
                Append_Elmt (Entity (Match), Actuals_To_Freeze);
             end if;

@@ -5512,12 +5512,8 @@ package body Sem_Res is
 
          if Is_Limited_Type (Etype (E))
            and then Comes_From_Source (N)
-           and then
-             (Comes_From_Source (Parent (N))
-               or else
-                 (Ekind (Current_Scope) = E_Function
-                   and then Nkind (Original_Node (Unit_Declaration_Node
-                              (Current_Scope))) = N_Expression_Function))
+           and then (Comes_From_Source (Parent (N))
+                      or else Is_Expression_Function (Current_Scope))
            and then not In_Instance_Body
          then
             if not OK_For_Limited_Init (Etype (E), Expression (E)) then
@@ -13033,17 +13029,10 @@ package body Sem_Res is
       --  Likewise when an expression function is being preanalyzed, since the
       --  expression will be reanalyzed as part of the generated body.
 
-      if In_Spec_Expression then
-         declare
-            S : constant Entity_Id := Current_Scope_No_Loops;
-         begin
-            if Ekind (S) = E_Function
-              and then Nkind (Original_Node (Unit_Declaration_Node (S))) =
-                         N_Expression_Function
-            then
-               return;
-            end if;
-         end;
+      if In_Spec_Expression
+        and then Is_Expression_Function (Current_Scope_No_Loops)
+      then
+         return;
       end if;
 
       Op_Node := New_Node (Operator_Kind (Nam, Is_Binary), Sloc (N));

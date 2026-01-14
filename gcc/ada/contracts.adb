@@ -2331,7 +2331,7 @@ package body Contracts is
                --  An Initialization procedure must be considered visible even
                --  though it is internally generated.
 
-               if Is_Init_Proc (Defining_Entity (Subp_Decl)) then
+               if Is_Init_Proc (Subp_Id) then
                   return True;
 
                elsif Ekind (Scope (Typ)) /= E_Package then
@@ -2343,10 +2343,8 @@ package body Contracts is
                --  last check.
 
                elsif not Comes_From_Source (Subp_Decl)
-                 and then
-                   (Nkind (Original_Node (Subp_Decl)) /= N_Expression_Function
-                      or else not
-                        Comes_From_Source (Defining_Entity (Subp_Decl)))
+                 and then (not Is_Expression_Function (Subp_Id)
+                            or else not Comes_From_Source (Subp_Id))
                then
                   return False;
 
@@ -2358,8 +2356,7 @@ package body Contracts is
                   declare
                      Decls      : constant List_Id   :=
                                     List_Containing (Subp_Decl);
-                     Subp_Scope : constant Entity_Id :=
-                                    Scope (Defining_Entity (Subp_Decl));
+                     Subp_Scope : constant Entity_Id := Scope (Subp_Id);
                      Typ_Scope  : constant Entity_Id := Scope (Typ);
 
                   begin
@@ -2387,8 +2384,7 @@ package body Contracts is
                     (Nkind (Parent (Subp_Decl)) = N_Compilation_Unit);
 
                   declare
-                     Subp_Scope : constant Entity_Id :=
-                                    Scope (Defining_Entity (Subp_Decl));
+                     Subp_Scope : constant Entity_Id := Scope (Subp_Id);
                      Typ_Scope  : constant Entity_Id := Scope (Typ);
 
                   begin

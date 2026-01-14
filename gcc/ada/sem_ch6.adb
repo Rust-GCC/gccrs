@@ -361,10 +361,7 @@ package body Sem_Ch6 is
          --  The previous entity may be an expression function as well, in
          --  which case the redeclaration is illegal.
 
-         if Present (Prev)
-           and then Nkind (Original_Node (Unit_Declaration_Node (Prev))) =
-                                                        N_Expression_Function
-         then
+         if Present (Prev) and then Is_Expression_Function (Prev) then
             Error_Msg_Sloc := Sloc (Prev);
             Error_Msg_N ("& conflicts with declaration#", Def_Id);
             return;
@@ -4001,12 +3998,8 @@ package body Sem_Ch6 is
 
             --  Finally, a body generated for an expression function copies
             --  the profile of the function and no check is needed either.
-            --  If the body is the completion of a previous function
-            --  declared elsewhere, the conformance check is required.
 
-            elsif From_Expression_Function
-              and then Sloc (Spec_Id) = Sloc (Body_Id)
-            then
+            elsif Is_Expression_Function (Spec_Id) then
                Conformant := True;
 
             else
@@ -4814,9 +4807,7 @@ package body Sem_Ch6 is
          --  been preanalyzed already, if 'access was applied to it.
 
          else
-            if Nkind (Original_Node (Unit_Declaration_Node (Spec_Id))) /=
-                                                       N_Expression_Function
-            then
+            if not Is_Expression_Function (Spec_Id) then
                pragma Assert (No (Last_Entity (Body_Id)));
                null;
             end if;
@@ -5497,7 +5488,7 @@ package body Sem_Ch6 is
          --  derived from a synchronized interface.
 
          --  This modification is not done for invariant procedures because
-         --  the corresponding record may not necessarely be visible when the
+         --  the corresponding record may not necessarily be visible when the
          --  concurrent type acts as the full view of a private type.
 
          --    package Pack is
@@ -10117,11 +10108,10 @@ package body Sem_Ch6 is
                --  Expression functions can be completions, but cannot be
                --  completed by an explicit body.
 
-               elsif Comes_From_Source (E)
-                 and then Comes_From_Source (N)
+               elsif Comes_From_Source (N)
                  and then Nkind (N) = N_Subprogram_Body
-                 and then Nkind (Original_Node (Unit_Declaration_Node (E))) =
-                            N_Expression_Function
+                 and then Comes_From_Source (E)
+                 and then Is_Expression_Function (E)
                then
                   Error_Msg_Sloc := Sloc (E);
                   Error_Msg_N ("body conflicts with expression function#", N);

@@ -334,8 +334,7 @@ package body Ghost is
 
             --  Local variables
 
-            Subp_Decl : Node_Id;
-            Subp_Id   : Entity_Id;
+            Subp_Id : Entity_Id;
 
          --  Start of processing for Is_OK_Declaration
 
@@ -398,17 +397,13 @@ package body Ghost is
                   elsif Is_Predicate_Function (Subp_Id) then
                      return True;
 
-                  else
-                     Subp_Decl :=
-                       Original_Node (Unit_Declaration_Node (Subp_Id));
+                  --  The original context is an expression function that
+                  --  has been split into a spec and a body. The context is
+                  --  OK as long as the initial declaration is Ghost.
 
-                     --  The original context is an expression function that
-                     --  has been split into a spec and a body. The context is
-                     --  OK as long as the initial declaration is Ghost.
-
-                     if Nkind (Subp_Decl) = N_Expression_Function then
-                        return Is_Ghost_Declaration (Subp_Decl);
-                     end if;
+                  elsif Is_Expression_Function (Subp_Id) then
+                     return Is_Ghost_Declaration
+                             (Original_Node (Unit_Declaration_Node (Subp_Id)));
                   end if;
 
                --  Otherwise this is either an internal body or an internal
