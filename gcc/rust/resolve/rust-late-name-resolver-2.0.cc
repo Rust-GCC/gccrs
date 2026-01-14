@@ -119,7 +119,7 @@ Late::visit (AST::LetStmt &let)
   ctx.bindings.exit ();
 
   if (let.has_else_expr ())
-    visit (let.get_init_expr ());
+    visit (let.get_else_expr ());
 
   // how do we deal with the fact that `let a = blipbloup` should look for a
   // label and cannot go through function ribs, but `let a = blipbloup()` can?
