@@ -1273,6 +1273,8 @@ public:
   }
 
   size_t get_num_segments () const { return segments.size (); }
+
+  Type::Kind get_type_kind () const override { return Type::Kind::TypePath; }
 };
 
 struct QualifiedPathType
@@ -1558,6 +1560,11 @@ public:
   }
 
   location_t get_locus () const override final { return locus; }
+
+  Type::Kind get_type_kind () const override
+  {
+    return Type::Kind::QualifiedPathInType;
+  }
 };
 } // namespace AST
 } // namespace Rust

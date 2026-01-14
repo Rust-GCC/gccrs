@@ -818,6 +818,11 @@ public:
     return Item::Kind::MacroInvocation;
   }
 
+  Type::Kind get_type_kind () const override
+  {
+    return Type::Kind::MacroInvocation;
+  }
+
 protected:
   Item *clone_item_impl () const override
   {
