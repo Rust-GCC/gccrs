@@ -203,6 +203,7 @@ GRS_OBJS = \
     rust/rust-const-checker.o \
     rust/rust-lint-marklive.o \
     rust/rust-lint-unused-var.o \
+    rust/rust-lint-naming.o \
     rust/rust-unused-checker.o \
     rust/rust-unused-collector.o \
     rust/rust-unused-context.o \
