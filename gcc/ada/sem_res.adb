@@ -8156,16 +8156,12 @@ package body Sem_Res is
            and then not Is_Imported (E)
            and then Nkind (Parent (E)) /= N_Object_Renaming_Declaration
            and then not Needs_Construction (Etype (E))
+           and then not No_Initialization (Parent (E))
+           and then not (Present (Full_View (E))
+                          and then No_Initialization (Parent (Full_View (E))))
          then
-            if No_Initialization (Parent (E))
-              or else (Present (Full_View (E))
-                        and then No_Initialization (Parent (Full_View (E))))
-            then
-               null;
-            else
-               Error_Msg_N
-                 ("deferred constant is frozen before completion", N);
-            end if;
+            Error_Msg_NE
+              ("deferred constant& is frozen before completion", N, E);
          end if;
 
          Eval_Entity_Name (N);
