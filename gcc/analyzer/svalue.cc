@@ -678,8 +678,9 @@ svalue::cmp_ptr (const svalue *sval1, const svalue *sval2)
       {
 	const compound_svalue *compound_sval1 = (const compound_svalue *)sval1;
 	const compound_svalue *compound_sval2 = (const compound_svalue *)sval2;
-	return binding_map::cmp (compound_sval1->get_map (),
-				 compound_sval2->get_map ());
+	return concrete_binding_map::cmp
+	  (compound_sval1->get_concrete_bindings (),
+	   compound_sval2->get_concrete_bindings ());
       }
       break;
     case SK_CONJURED:
@@ -2349,19 +2350,29 @@ unmergeable_svalue::implicitly_live_p (const svalue_set *live_svalues,
 
 compound_svalue::compound_svalue (symbol::id_t id,
 				  tree type,
-				  const binding_map &map)
-: svalue (calc_complexity (map), id, type), m_map (map)
+				  concrete_binding_map &&map)
+: svalue (map.calc_complexity (), id, type), m_map (std::move (map))
 {
 #if CHECKING_P
   for (auto iter : *this)
     {
-      /* All keys within the underlying binding_map are required to be concrete,
-	 not symbolic.  */
-      const binding_key *key = iter.m_key;
-      gcc_assert (key->concrete_p ());
-
       /* We don't nest compound svalues.  */
-      const svalue *sval = iter.m_sval;
+      const svalue *sval = iter.second;
+      gcc_assert (sval->get_kind () != SK_COMPOUND);
+    }
+#endif
+}
+
+compound_svalue::compound_svalue (symbol::id_t id,
+				  tree type,
+				  const concrete_binding_map &map)
+: svalue (map.calc_complexity (), id, type), m_map (map)
+{
+#if CHECKING_P
+  for (auto iter : *this)
+    {
+      /* We don't nest compound svalues.  */
+      const svalue *sval = iter.second;
       gcc_assert (sval->get_kind () != SK_COMPOUND);
     }
 #endif
@@ -2424,28 +2435,8 @@ void
 compound_svalue::accept (visitor *v) const
 {
   for (auto iter : m_map)
-    {
-      //iter.first.accept (v);
-      iter.m_sval->accept (v);
-    }
+    iter.second->accept (v);
   v->visit_compound_svalue (this);
-}
-
-/* Calculate what the complexity of a compound_svalue instance for MAP
-   will be, based on the svalues bound within MAP.  */
-
-complexity
-compound_svalue::calc_complexity (const binding_map &map)
-{
-  unsigned num_child_nodes = 0;
-  unsigned max_child_depth = 0;
-  for (auto iter : map)
-    {
-      const complexity &sval_c = iter.m_sval->get_complexity ();
-      num_child_nodes += sval_c.m_num_nodes;
-      max_child_depth = MAX (max_child_depth, sval_c.m_max_depth);
-    }
-  return complexity (num_child_nodes + 1, max_child_depth + 1);
 }
 
 /* Implementation of svalue::maybe_fold_bits_within vfunc
@@ -2456,65 +2447,56 @@ compound_svalue::maybe_fold_bits_within (tree type,
 					 const bit_range &bits,
 					 region_model_manager *mgr) const
 {
-  binding_map result_map (*mgr->get_store_manager ());
+  concrete_binding_map result_map;
   for (auto iter : m_map)
     {
-      const binding_key *key = iter.m_key;
-      if (const concrete_binding *conc_key
-	  = key->dyn_cast_concrete_binding ())
-	{
-	  /* Ignore concrete bindings outside BITS.  */
-	  if (!conc_key->get_bit_range ().intersects_p (bits))
-	    continue;
+      const bit_range &iter_bits = iter.first;
 
-	  const svalue *sval = iter.m_sval;
-	  /* Get the position of conc_key relative to BITS.  */
-	  bit_range result_location (conc_key->get_start_bit_offset ()
-				     - bits.get_start_bit_offset (),
-				     conc_key->get_size_in_bits ());
-	  /* If conc_key starts after BITS, trim off leading bits
-	     from the svalue and adjust binding location.  */
-	  if (result_location.m_start_bit_offset < 0)
-	    {
-	      bit_size_t leading_bits_to_drop
-		= -result_location.m_start_bit_offset;
-	      result_location = bit_range
-		(0, result_location.m_size_in_bits - leading_bits_to_drop);
-	      bit_range bits_within_sval (leading_bits_to_drop,
-					  result_location.m_size_in_bits);
-	      /* Trim off leading bits from iter_sval.  */
-	      sval = mgr->get_or_create_bits_within (NULL_TREE,
-						     bits_within_sval,
-						     sval);
-	    }
-	  /* If conc_key finishes after BITS, trim off trailing bits
-	     from the svalue and adjust binding location.  */
-	  if (conc_key->get_next_bit_offset ()
-	      > bits.get_next_bit_offset ())
-	    {
-	      bit_size_t trailing_bits_to_drop
-		= (conc_key->get_next_bit_offset ()
-		   - bits.get_next_bit_offset ());
-	      result_location = bit_range
-		(result_location.m_start_bit_offset,
-		 result_location.m_size_in_bits - trailing_bits_to_drop);
-	      bit_range bits_within_sval (0,
-					  result_location.m_size_in_bits);
-	      /* Trim off leading bits from iter_sval.  */
-	      sval = mgr->get_or_create_bits_within (NULL_TREE,
-						     bits_within_sval,
-						     sval);
-	    }
-	  const concrete_binding *offset_conc_key
-	    = mgr->get_store_manager ()->get_concrete_binding
-		(result_location);
-	  result_map.put (offset_conc_key, sval);
+      /* Ignore concrete bindings outside BITS.  */
+      if (!iter_bits.intersects_p (bits))
+	continue;
+
+      const svalue *sval = iter.second;
+      /* Get the position of iter_bits relative to BITS.  */
+      bit_range result_location (iter_bits.get_start_bit_offset ()
+				 - bits.get_start_bit_offset (),
+				 iter_bits.m_size_in_bits);
+      /* If iter_bits starts after BITS, trim off leading bits
+	 from the svalue and adjust binding location.  */
+      if (result_location.m_start_bit_offset < 0)
+	{
+	  bit_size_t leading_bits_to_drop
+	    = -result_location.m_start_bit_offset;
+	  result_location = bit_range
+	    (0, result_location.m_size_in_bits - leading_bits_to_drop);
+	  bit_range bits_within_sval (leading_bits_to_drop,
+				      result_location.m_size_in_bits);
+	  /* Trim off leading bits from iter_sval.  */
+	  sval = mgr->get_or_create_bits_within (NULL_TREE,
+						 bits_within_sval,
+						 sval);
 	}
-      else
-	/* If we have any symbolic keys we can't get it as bits.  */
-	return nullptr;
+      /* If iter_bits finishes after BITS, trim off trailing bits
+	 from the svalue and adjust binding location.  */
+      if (iter_bits.get_next_bit_offset ()
+	  > bits.get_next_bit_offset ())
+	{
+	  bit_size_t trailing_bits_to_drop
+	    = (iter_bits.get_next_bit_offset ()
+	       - bits.get_next_bit_offset ());
+	  result_location = bit_range
+	    (result_location.m_start_bit_offset,
+	     result_location.m_size_in_bits - trailing_bits_to_drop);
+	  bit_range bits_within_sval (0,
+				      result_location.m_size_in_bits);
+	  /* Trim off leading bits from iter_sval.  */
+	  sval = mgr->get_or_create_bits_within (NULL_TREE,
+						 bits_within_sval,
+						 sval);
+	}
+      result_map.insert (result_location, sval);
     }
-  return mgr->get_or_create_compound_svalue (type, result_map);
+  return mgr->get_or_create_compound_svalue (type, std::move (result_map));
 }
 
 /* class conjured_svalue : public svalue.  */

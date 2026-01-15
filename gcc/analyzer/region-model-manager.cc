@@ -639,7 +639,7 @@ maybe_undo_optimize_bit_field_compare (tree type,
   if (!INTEGRAL_TYPE_P (type))
     return nullptr;
 
-  const binding_map &map = compound_sval->get_map ();
+  const concrete_binding_map &map = compound_sval->get_concrete_bindings ();
   unsigned HOST_WIDE_INT mask = TREE_INT_CST_LOW (cst);
   /* If "mask" is a contiguous range of set bits, see if the
      compound_sval has a value for those bits.  */
@@ -651,11 +651,13 @@ maybe_undo_optimize_bit_field_compare (tree type,
   if (BYTES_BIG_ENDIAN)
     bound_bits = bit_range (BITS_PER_UNIT - bits.get_next_bit_offset (),
 			    bits.m_size_in_bits);
-  const concrete_binding *conc
-    = get_store_manager ()->get_concrete_binding (bound_bits);
-  const svalue *sval = map.get (conc);
+  const svalue *sval = map.get_any_exact_binding (bound_bits);
   if (!sval)
-    return nullptr;
+    {
+      /* In theory we could also look for bindings that straddle the
+	 bit range.  For simplicity, bail out on this case.  */
+      return nullptr;
+    }
 
   /* We have a value;
      shift it by the correct number of bits.  */
@@ -1406,7 +1408,26 @@ get_or_create_widening_svalue (tree type,
 
 const svalue *
 region_model_manager::get_or_create_compound_svalue (tree type,
-						     const binding_map &map)
+						     concrete_binding_map &&map)
+{
+  compound_svalue::key_t tmp_key (type, &map);
+  if (compound_svalue **slot = m_compound_values_map.get (tmp_key))
+    return *slot;
+  compound_svalue *compound_sval
+    = new compound_svalue (alloc_symbol_id (), type, std::move (map));
+  RETURN_UNKNOWN_IF_TOO_COMPLEX (compound_sval);
+  /* Use make_key rather than reusing the key, so that we use a
+     ptr to compound_sval's binding_map, rather than the MAP param.  */
+  m_compound_values_map.put (compound_sval->make_key (), compound_sval);
+  return compound_sval;
+}
+
+/* Return the svalue * of type TYPE for the compound values in MAP,
+   creating it if necessary.  */
+
+const svalue *
+region_model_manager::get_or_create_compound_svalue (tree type,
+						     const concrete_binding_map &map)
 {
   compound_svalue::key_t tmp_key (type, &map);
   if (compound_svalue **slot = m_compound_values_map.get (tmp_key))

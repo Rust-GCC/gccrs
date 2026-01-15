@@ -421,19 +421,12 @@ call_summary_replay::convert_svalue_from_summary_1 (const svalue *summary_sval)
 	const compound_svalue *compound_summary_sval
 	  = as_a <const compound_svalue *> (summary_sval);
 	region_model_manager *mgr = get_manager ();
-	store_manager *store_mgr = mgr->get_store_manager ();
-	binding_map caller_map (*store_mgr);
-	auto_vec <const binding_key *> summary_keys;
-	for (auto kv : *compound_summary_sval)
-	  summary_keys.safe_push (kv.m_key);
-	summary_keys.qsort (binding_key::cmp_ptrs);
-	for (auto key : summary_keys)
+	concrete_binding_map caller_map;
+	for (auto iter_summary : *compound_summary_sval)
 	  {
-	    gcc_assert (key->concrete_p ());
 	    /* No remapping is needed for concrete binding keys.  */
-
-	    const svalue *bound_summary_sval
-	      = compound_summary_sval->get_map ().get (key);
+	    const bit_range &summary_bits = iter_summary.first;
+	    const svalue *bound_summary_sval = iter_summary.second;
 	    const svalue *caller_sval
 	      = convert_svalue_from_summary (bound_summary_sval);
 	    if (!caller_sval)
@@ -442,31 +435,26 @@ call_summary_replay::convert_svalue_from_summary_1 (const svalue *summary_sval)
 	    if (const compound_svalue *inner_compound_sval
 		= caller_sval->dyn_cast_compound_svalue ())
 	      {
-		const concrete_binding *outer_key
-		  = as_a <const concrete_binding *> (key);
+		const bit_range &outer_key = summary_bits;
 		for (auto inner_kv : *inner_compound_sval)
 		  {
 		    // These should already be mapped to the caller.
-		    const binding_key *inner_key = inner_kv.m_key;
-		    const svalue *inner_sval = inner_kv.m_sval;
-		    gcc_assert (inner_key->concrete_p ());
-		    const concrete_binding *concrete_key
-		      = as_a <const concrete_binding *> (inner_key);
+		    const bit_range &inner_key = inner_kv.first;
+		    const svalue *inner_sval = inner_kv.second;
 		    bit_offset_t effective_start
-		      = (concrete_key->get_start_bit_offset ()
-			 + outer_key->get_start_bit_offset ());
-		    const concrete_binding *effective_concrete_key
-		      = store_mgr->get_concrete_binding
-			  (effective_start,
-			   concrete_key->get_size_in_bits ());
-		    caller_map.put (effective_concrete_key, inner_sval);
+		      = (inner_key.get_start_bit_offset ()
+			 + outer_key.get_start_bit_offset ());
+		    const bit_range effective_concrete_key
+		      (effective_start,
+		       summary_bits.m_size_in_bits);
+		    caller_map.insert (effective_concrete_key, inner_sval);
 		  }
 	      }
 	    else
-	      caller_map.put (key, caller_sval);
+	      caller_map.insert (summary_bits, caller_sval);
 	  }
 	return mgr->get_or_create_compound_svalue (summary_sval->get_type (),
-						   caller_map);
+						   std::move (caller_map));
       }
       break;
     case SK_CONJURED:

@@ -618,6 +618,234 @@ simplify_for_binding (const svalue *sval)
   return sval;
 }
 
+/* class concrete_binding_map.  */
+
+/* Dump a representation of this concrete_binding_map to PP.
+   SIMPLE controls how values and regions are to be printed.
+   If MULTILINE, then split the dump over multiple lines and
+   use whitespace for readability, otherwise put all on one line.  */
+
+void
+concrete_binding_map::dump_to_pp (pretty_printer *pp, bool simple, bool multiline) const
+{
+  bool first = true;
+  for (auto iter : *this)
+    {
+      const bit_range &bits = iter.first;
+      const svalue *value = iter.second;
+      if (multiline)
+	{
+	  pp_string (pp, "    bits:   {");
+	  bits.dump_to_pp (pp);
+	  pp_string (pp, "}");
+	  pp_newline (pp);
+	  pp_string (pp, "    value: ");
+	  if (tree t = value->get_type ())
+	    dump_quoted_tree (pp, t);
+	  pp_string (pp, " {");
+	  value->dump_to_pp (pp, simple);
+	  pp_string (pp, "}");
+	  pp_newline (pp);
+	}
+      else
+	{
+	  if (first)
+	    first = false;
+	  else
+	    pp_string (pp, ", ");
+	  pp_string (pp, "bits: {");
+	  bits.dump_to_pp (pp);
+	  pp_string (pp, "}, value: {");
+	  value->dump_to_pp (pp, simple);
+	  pp_string (pp, "}");
+	}
+    }
+}
+
+void
+concrete_binding_map::dump (bool simple) const
+{
+  tree_dump_pretty_printer pp (stderr);
+  dump_to_pp (&pp, simple, true);
+  pp_newline (&pp);
+}
+
+void
+concrete_binding_map::add_to_tree_widget (text_art::tree_widget &parent_widget,
+					  const text_art::dump_widget_info &dwi) const
+{
+  for (auto iter : *this)
+    {
+      const bit_range &bits = iter.first;
+      const svalue *sval = iter.second;
+
+      pretty_printer the_pp;
+      pretty_printer * const pp = &the_pp;
+      pp_format_decoder (pp) = default_tree_printer;
+      pp_show_color (pp) = true;
+      const bool simple = true;
+
+      bits.dump_to_pp (pp);
+      pp_string (pp, ": ");
+      if (tree t = sval->get_type ())
+	dump_quoted_tree (pp, t);
+      pp_string (pp, " {");
+      sval->dump_to_pp (pp, simple);
+      pp_string (pp, "}");
+
+      parent_widget.add_child (text_art::tree_widget::make (dwi, pp));
+    }
+}
+
+void
+concrete_binding_map::validate () const
+{
+  for (auto iter = m_map.begin (); iter != m_map.end (); ++iter)
+    {
+      /* Ensure we don't nest compound svalues
+	 within concrete_binding_map instances.  */
+      const svalue *sval = iter->second;
+      gcc_assert (sval->get_kind () != SK_COMPOUND);
+
+      /* Check for overlapping concrete bindings.  */
+      auto next (iter);
+      ++next;
+      if (next != m_map.end ())
+	{
+	  /* Verify they are in order, and do not overlap.  */
+	  const bit_range &iter_bits = iter->first;
+	  const bit_range &next_bits = next->first;
+	  gcc_assert (iter_bits.get_start_bit_offset ()
+		      < next_bits.get_start_bit_offset ());
+	  gcc_assert (iter_bits.get_last_bit_offset ()
+		      < next_bits.get_start_bit_offset ());
+	  gcc_assert (iter_bits.get_next_bit_offset ()
+		      <= next_bits.get_start_bit_offset ());
+	}
+    }
+}
+
+/* Comparator for imposing an order on concrete_binding_map instances.  */
+
+int
+concrete_binding_map::cmp (const concrete_binding_map &map1,
+			   const concrete_binding_map &map2)
+{
+  if (int size_cmp = map1.size () - map2.size ())
+    return size_cmp;
+
+  auto iter1 = map1.begin ();
+  auto iter2 = map2.begin ();
+  while (iter1 != map1.end ())
+    {
+      gcc_assert (iter2 != map2.end ());
+      if (int bit_cmp = bit_range::cmp (iter1->first, iter2->first))
+	return bit_cmp;
+      if (int sval_cmp = svalue::cmp_ptr (iter1->second, iter2->second))
+	return sval_cmp;
+      ++iter1;
+      ++iter2;
+    }
+  return 0;
+}
+
+/* Get the svalue bound precisely to BITS, if any, otherwise
+   return nullptr.  */
+
+const svalue *
+concrete_binding_map::get_any_exact_binding (const bit_range &bits) const
+{
+  auto iter = m_map.find (bits);
+  if (iter == m_map.end ())
+    return nullptr;
+  return iter->second;
+}
+
+/* Calculate what the complexity of a compound_svalue instance for this
+   map will be, based on the bound svalues.  */
+
+complexity
+concrete_binding_map::calc_complexity () const
+{
+  unsigned num_child_nodes = 0;
+  unsigned max_child_depth = 0;
+  for (auto iter : m_map)
+    {
+      const complexity &sval_c = iter.second->get_complexity ();
+      num_child_nodes += sval_c.m_num_nodes;
+      max_child_depth = MAX (max_child_depth, sval_c.m_max_depth);
+    }
+  return complexity (num_child_nodes + 1, max_child_depth + 1);
+}
+
+void
+concrete_binding_map::
+remove_overlapping_binding (store_manager *mgr,
+			    const bit_range &bits_to_drop,
+			    const bit_range &affected_bound_bits,
+			    const svalue &old_sval)
+{
+  gcc_assert (bits_to_drop.intersects_p (affected_bound_bits));
+
+  /* Remove existing binding.  */
+  erase (affected_bound_bits);
+
+  if (affected_bound_bits.get_start_bit_offset ()
+      < bits_to_drop.get_start_bit_offset ())
+    {
+      /* We have a truncated prefix.  */
+      bit_range prefix_bits (affected_bound_bits.get_start_bit_offset (),
+			     (bits_to_drop.get_start_bit_offset ()
+			      - affected_bound_bits.get_start_bit_offset ()));
+      bit_range rel_prefix (0, prefix_bits.m_size_in_bits);
+      const svalue *prefix_sval
+	= old_sval.extract_bit_range (NULL_TREE,
+				      rel_prefix,
+				      mgr->get_svalue_manager ());
+      insert (prefix_bits, prefix_sval);
+    }
+
+  if (affected_bound_bits.get_next_bit_offset ()
+      > bits_to_drop.get_next_bit_offset ())
+    {
+      /* We have a truncated suffix.  */
+      bit_range suffix_bits (bits_to_drop.get_next_bit_offset (),
+			     (affected_bound_bits.get_next_bit_offset ()
+			      - bits_to_drop.get_next_bit_offset ()));
+      bit_range rel_suffix (bits_to_drop.get_next_bit_offset ()
+			    - affected_bound_bits.get_start_bit_offset (),
+			    suffix_bits.m_size_in_bits);
+      const svalue *suffix_sval
+	= old_sval.extract_bit_range (NULL_TREE,
+				      rel_suffix,
+				      mgr->get_svalue_manager ());
+      insert (suffix_bits, suffix_sval);
+    }
+}
+
+void
+concrete_binding_map::
+remove_overlapping_bindings (store_manager *mgr,
+			     const bit_range &bits_to_drop)
+{
+  auto bindings = get_overlapping_bindings (bits_to_drop);
+  for (auto iter : bindings)
+    remove_overlapping_binding (mgr, bits_to_drop, iter.first, iter.second);
+}
+
+std::vector<std::pair<bit_range, const svalue &>>
+concrete_binding_map::get_overlapping_bindings (const bit_range &bits)
+{
+  std::vector<std::pair<bit_range, const svalue &>> result;
+  for (auto iter : m_map)
+    if (iter.first.intersects_p (bits))
+      {
+	gcc_assert (iter.second);
+	result.push_back ({iter.first, *iter.second});
+      }
+  return result;
+}
+
 /* class binding_map::const_iterator.  */
 
 bool
@@ -838,7 +1066,7 @@ binding_map::put (const binding_key *key, const svalue *sval)
       if (iter != m_concrete.end ())
 	(*iter).second = sval;
       else
-	m_concrete.insert ({bits, sval});
+	m_concrete.insert (bits, sval);
     }
 }
 
@@ -974,24 +1202,7 @@ binding_map::validate () const
   /* We can't have both concrete and symbolic keys.  */
   gcc_assert (num_concrete == 0 || num_symbolic == 0);
 
-  /* Check for overlapping concrete bindings.  */
-  for (auto iter = m_concrete.begin (); iter != m_concrete.end (); ++iter)
-    {
-      auto next (iter);
-      ++next;
-      if (next != m_concrete.end ())
-	{
-	  /* Verify they are in order, and do not overlap.  */
-	  const bit_range &iter_bits = iter->first;
-	  const bit_range &next_bits = next->first;
-	  gcc_assert (iter_bits.get_start_bit_offset ()
-		      < next_bits.get_start_bit_offset ());
-	  gcc_assert (iter_bits.get_last_bit_offset ()
-		      < next_bits.get_start_bit_offset ());
-	  gcc_assert (iter_bits.get_next_bit_offset ()
-		      <= next_bits.get_start_bit_offset ());
-	}
-    }
+  m_concrete.validate ();
 }
 
 /* Return a new json::object of the form
@@ -1050,39 +1261,6 @@ binding_map::add_to_tree_widget (text_art::tree_widget &parent_widget,
       add_binding_to_tree_widget (parent_widget, dwi,
 				  key, sval);
     }
-}
-
-
-/* Comparator for imposing an order on binding_maps.  */
-
-int
-binding_map::cmp (const binding_map &map1, const binding_map &map2)
-{
-  if (int count_cmp = map1.elements () - map2.elements ())
-    return count_cmp;
-
-  auto_vec <const binding_key *> keys1 (map1.elements ());
-  for (auto iter : map1)
-    keys1.quick_push (iter.m_key);
-  keys1.qsort (binding_key::cmp_ptrs);
-
-  auto_vec <const binding_key *> keys2 (map2.elements ());
-  for (auto iter : map2)
-    keys2.quick_push (iter.m_key);
-  keys2.qsort (binding_key::cmp_ptrs);
-
-  for (size_t i = 0; i < keys1.length (); i++)
-    {
-      const binding_key *k1 = keys1[i];
-      const binding_key *k2 = keys2[i];
-      if (int key_cmp = binding_key::cmp (k1, k2))
-	return key_cmp;
-      gcc_assert (k1 == k2);
-      if (int sval_cmp = svalue::cmp_ptr (map1.get (k1), map2.get (k2)))
-	return sval_cmp;
-    }
-
-  return 0;
 }
 
 /* Get the child region of PARENT_REG based upon INDEX within a
@@ -1157,8 +1335,8 @@ get_svalue_for_ctor_val (tree val, region_model_manager *mgr)
    to hitting a complexity limit).  */
 
 bool
-binding_map::apply_ctor_to_region (const region *parent_reg, tree ctor,
-				   region_model_manager *mgr)
+concrete_binding_map::apply_ctor_to_region (const region *parent_reg, tree ctor,
+					    region_model_manager *mgr)
 {
   gcc_assert (parent_reg);
   gcc_assert (TREE_CODE (ctor) == CONSTRUCTOR);
@@ -1218,10 +1396,10 @@ binding_map::apply_ctor_to_region (const region *parent_reg, tree ctor,
    to hitting a complexity limit).  */
 
 bool
-binding_map::apply_ctor_val_to_range (const region *parent_reg,
-				      region_model_manager *mgr,
-				      tree min_index, tree max_index,
-				      tree val)
+concrete_binding_map::apply_ctor_val_to_range (const region *parent_reg,
+					       region_model_manager *mgr,
+					       tree min_index, tree max_index,
+					       tree val)
 {
   gcc_assert (TREE_CODE (min_index) == INTEGER_CST);
   gcc_assert (TREE_CODE (max_index) == INTEGER_CST);
@@ -1245,10 +1423,6 @@ binding_map::apply_ctor_val_to_range (const region *parent_reg,
     = max_element_key->dyn_cast_concrete_binding ();
   bit_size_t range_size_in_bits
     = max_element_ckey->get_next_bit_offset () - start_bit_offset;
-  const concrete_binding *range_key
-    = smgr->get_concrete_binding (start_bit_offset, range_size_in_bits);
-  if (range_key->symbolic_p ())
-    return false;
 
   /* Get the value.  */
   if (TREE_CODE (val) == CONSTRUCTOR)
@@ -1256,7 +1430,8 @@ binding_map::apply_ctor_val_to_range (const region *parent_reg,
   const svalue *sval = get_svalue_for_ctor_val (val, mgr);
 
   /* Bind the value to the range.  */
-  put (range_key, sval);
+  const bit_range affected_bits (start_bit_offset, range_size_in_bits);
+  insert (affected_bits, sval);
   return true;
 }
 
@@ -1266,9 +1441,9 @@ binding_map::apply_ctor_val_to_range (const region *parent_reg,
    to hitting a complexity limit).  */
 
 bool
-binding_map::apply_ctor_pair_to_child_region (const region *parent_reg,
-					      region_model_manager *mgr,
-					      tree index, tree val)
+concrete_binding_map::apply_ctor_pair_to_child_region (const region *parent_reg,
+						       region_model_manager *mgr,
+						       tree index, tree val)
 {
   const region *child_reg
     = get_subregion_within_ctor_for_ctor_pair (parent_reg, index, val, mgr);
@@ -1309,7 +1484,8 @@ binding_map::apply_ctor_pair_to_child_region (const region *parent_reg,
 	    (child_parent_offset, sval_bit_size);
 	}
       gcc_assert (k->concrete_p ());
-      put (k, sval);
+      auto conc_key = as_a <const concrete_binding *> (k);
+      insert (conc_key->get_bit_range (), sval);
       return true;
     }
 }
@@ -1477,42 +1653,9 @@ binding_map::remove_overlapping_bindings (store_manager *mgr,
 
 	    const bit_range &drop_bits = drop_ckey->get_bit_range ();
 	    const bit_range &iter_bits = iter_ckey->get_bit_range ();
-
-	    if (iter_bits.get_start_bit_offset ()
-		  < drop_bits.get_start_bit_offset ())
-	      {
-		/* We have a truncated prefix.  */
-		bit_range prefix_bits (iter_bits.get_start_bit_offset (),
-				       (drop_bits.get_start_bit_offset ()
-					- iter_bits.get_start_bit_offset ()));
-		const concrete_binding *prefix_key
-		  = mgr->get_concrete_binding (prefix_bits);
-		bit_range rel_prefix (0, prefix_bits.m_size_in_bits);
-		const svalue *prefix_sval
-		  = old_sval->extract_bit_range (NULL_TREE,
-						 rel_prefix,
-						 mgr->get_svalue_manager ());
-		put (prefix_key, prefix_sval);
-	      }
-
-	    if (iter_bits.get_next_bit_offset ()
-		  > drop_bits.get_next_bit_offset ())
-	      {
-		/* We have a truncated suffix.  */
-		bit_range suffix_bits (drop_bits.get_next_bit_offset (),
-				       (iter_bits.get_next_bit_offset ()
-					- drop_bits.get_next_bit_offset ()));
-		const concrete_binding *suffix_key
-		  = mgr->get_concrete_binding (suffix_bits);
-		bit_range rel_suffix (drop_bits.get_next_bit_offset ()
-					- iter_bits.get_start_bit_offset (),
-				      suffix_bits.m_size_in_bits);
-		const svalue *suffix_sval
-		  = old_sval->extract_bit_range (NULL_TREE,
-						 rel_suffix,
-						 mgr->get_svalue_manager ());
-		put (suffix_key, suffix_sval);
-	      }
+	    gcc_assert (old_sval);
+	    m_concrete.remove_overlapping_binding (mgr, drop_bits, iter_bits,
+						   *old_sval);
 	  }
     }
 }
@@ -1753,22 +1896,15 @@ binding_cluster::bind_compound_sval (store_manager *mgr,
 
   for (auto iter : *compound_sval)
     {
-      const binding_key *iter_key = iter.m_key;
-      const svalue *iter_sval = iter.m_sval;
+      const bit_range &iter_bits = iter.first;
+      const svalue *iter_sval = iter.second;
 
-      if (const concrete_binding *concrete_key
-	  = iter_key->dyn_cast_concrete_binding ())
-	{
-	  bit_offset_t effective_start
-	    = (concrete_key->get_start_bit_offset ()
-	       + reg_offset.get_bit_offset ());
-	  const concrete_binding *effective_concrete_key
-	    = mgr->get_concrete_binding (effective_start,
-					 concrete_key->get_size_in_bits ());
-	  bind_key (effective_concrete_key, iter_sval);
-	}
-      else
-	gcc_unreachable ();
+      bit_offset_t effective_start
+	= (iter_bits.get_start_bit_offset ()
+	   + reg_offset.get_bit_offset ());
+      const bit_range affected_bits (effective_start,
+				     iter_bits.m_size_in_bits);
+      bind_key (mgr->get_concrete_binding (affected_bits), iter_sval);
     }
 }
 
@@ -2060,8 +2196,8 @@ binding_cluster::maybe_get_compound_binding (store_manager *mgr,
      perhaps we should have a spatial-organized data structure for
      concrete keys, though.  */
 
-  binding_map result_map (*mgr);
-  binding_map default_map (*mgr);
+  concrete_binding_map result_map;
+  concrete_binding_map default_map;
 
   /* Set up default values in default_map.  */
   const svalue *default_sval;
@@ -2077,10 +2213,10 @@ binding_cluster::maybe_get_compound_binding (store_manager *mgr,
     = default_key->dyn_cast_concrete_binding ();
   if (!concrete_default_key)
     return nullptr;
-  const concrete_binding *default_key_relative_to_reg
-     = mgr->get_concrete_binding (0, concrete_default_key->get_size_in_bits ());
+  const bit_range default_key_relative_to_reg
+     (0, concrete_default_key->get_size_in_bits ());
 
-  default_map.put (default_key_relative_to_reg, default_sval);
+  default_map.insert (default_key_relative_to_reg, default_sval);
 
   for (auto iter : m_map)
     {
@@ -2111,19 +2247,12 @@ binding_cluster::maybe_get_compound_binding (store_manager *mgr,
 	  if (reg_range.contains_p (bound_range, &subrange))
 	    {
 	      /* We have a bound range fully within REG.
-		 Add it to map, offsetting accordingly.  */
-
-	      /* Get offset of KEY relative to REG, rather than to
-		 the cluster.  */
-	      const concrete_binding *offset_concrete_key
-		= mgr->get_concrete_binding (subrange);
-	      result_map.put (offset_concrete_key, sval);
+		 Add it to result_map, offsetting accordingly.  */
+	      result_map.insert (subrange, sval);
 
 	      /* Clobber default_map, removing/trimming/spliting where
 		 it overlaps with offset_concrete_key.  */
-	      default_map.remove_overlapping_bindings (mgr,
-						       offset_concrete_key,
-						       nullptr, nullptr, false);
+	      default_map.remove_overlapping_bindings (mgr, subrange);
 	    }
 	  else if (bound_range.contains_p (reg_range, &subrange))
 	    {
@@ -2148,16 +2277,11 @@ binding_cluster::maybe_get_compound_binding (store_manager *mgr,
 					   bound_subrange,
 					   mgr->get_svalue_manager ());
 
-	      /* Get key for overlap, relative to the REG.  */
-	      const concrete_binding *overlap_concrete_key
-		= mgr->get_concrete_binding (reg_subrange);
-	      result_map.put (overlap_concrete_key, overlap_sval);
+	      result_map.insert (reg_subrange, overlap_sval);
 
 	      /* Clobber default_map, removing/trimming/spliting where
 		 it overlaps with overlap_concrete_key.  */
-	      default_map.remove_overlapping_bindings (mgr,
-						       overlap_concrete_key,
-						       nullptr, nullptr, false);
+	      default_map.remove_overlapping_bindings (mgr, reg_subrange);
 	    }
 	}
       else
@@ -2165,18 +2289,19 @@ binding_cluster::maybe_get_compound_binding (store_manager *mgr,
 	return nullptr;
     }
 
-  if (result_map.elements () == 0)
+  if (result_map.size () == 0)
     return nullptr;
 
   /* Merge any bindings from default_map into result_map.  */
   for (auto iter : default_map)
     {
-      const binding_key *key = iter.m_key;
-      const svalue *sval = iter.m_sval;
-      result_map.put (key, sval);
+      const bit_range &key = iter.first;
+      const svalue *sval = iter.second;
+      result_map.insert (key, sval);
     }
 
-  return sval_mgr->get_or_create_compound_svalue (reg->get_type (), result_map);
+  return sval_mgr->get_or_create_compound_svalue (reg->get_type (),
+						  std::move (result_map));
 }
 
 /* Remove, truncate, and/or split any bindings within this map that
@@ -3845,7 +3970,7 @@ store::replay_call_summary_cluster (call_summary_replay &r,
 	if (!summary_sval)
 	  summary_sval = reg_mgr->get_or_create_compound_svalue
 	    (summary_base_reg->get_type (),
-	     summary_cluster->get_map ());
+	     summary_cluster->get_map ().get_concrete_bindings ());
 	const svalue *caller_sval
 	  = r.convert_svalue_from_summary (summary_sval);
 	if (!caller_sval)

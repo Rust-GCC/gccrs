@@ -22,6 +22,7 @@ along with GCC; see the file COPYING3.  If not see
 #define GCC_ANALYZER_STORE_H
 
 #include "text-art/tree-widget.h"
+#include "analyzer/complexity.h"
 
 /* Implementation of the region-based ternary model described in:
      "A Memory Model for Static Analysis of C Programs"
@@ -513,11 +514,115 @@ template <> struct default_hash_traits<ana::symbolic_binding>
 
 namespace ana {
 
-/* A mapping from binding_keys to svalues, for use by binding_cluster
-   and compound_svalue.
-   We store a map from concrete keys to svalues, which is ordered by
-   the start offset.
-   We also store a vector of (symbolic key, svalue) pairs, but for now
+/* A mapping from concrete bit_ranges to svalues, for use by
+   binding_cluster and compound_svalue.
+   The keys are ordered by the start offset, and must not overlap
+   The bound svalues may not be compound_svalues, so that we don't
+   nest these (for canonicalization).  */
+
+class concrete_binding_map
+{
+public:
+  using map_t = std::map<bit_range, const svalue *>;
+  using const_iterator = map_t::const_iterator;
+  using iterator = map_t::iterator;
+
+  void clear () { m_map.clear (); }
+  bool empty_p () const { return m_map.empty (); }
+
+  bool
+  operator== (const concrete_binding_map &other) const
+  {
+    return m_map == other.m_map;
+  }
+  bool
+  operator!= (const concrete_binding_map &other) const
+  {
+    return m_map != other.m_map;
+  }
+
+  const_iterator begin () const { return m_map.begin (); }
+  const_iterator end () const { return m_map.end (); }
+  iterator begin () { return m_map.begin (); }
+  iterator end () { return m_map.end (); }
+
+  size_t size () const { return m_map.size (); }
+
+  void dump_to_pp (pretty_printer *pp, bool simple, bool multiline) const;
+  void dump (bool simple) const;
+
+  void add_to_tree_widget (text_art::tree_widget &parent_widget,
+			   const text_art::dump_widget_info &dwi) const;
+
+  void validate () const;
+
+  static int
+  cmp (const concrete_binding_map &map1,
+       const concrete_binding_map &map2);
+
+  void
+  insert (const bit_range &bits, const svalue *sval)
+  {
+    m_map.insert ({bits, sval});
+  }
+
+  void
+  insert (const byte_range &bytes, const svalue *sval)
+  {
+    m_map.insert ({bytes.as_bit_range (), sval});
+  }
+
+  void
+  erase (const bit_range &bits)
+  {
+    m_map.erase (bits);
+  }
+
+  const svalue *
+  get_any_exact_binding (const bit_range &bits) const;
+
+  const_iterator
+  find (const bit_range &bits) const
+  {
+    return m_map.find (bits);
+  }
+  iterator
+  find (const bit_range &bits)
+  {
+    return m_map.find (bits);
+  }
+
+  complexity calc_complexity () const;
+
+  bool apply_ctor_to_region (const region *parent_reg, tree ctor,
+			     region_model_manager *mgr);
+
+  void remove_overlapping_binding (store_manager *mgr,
+				   const bit_range &bits_to_drop,
+				   const bit_range &affected_bound_bits,
+				   const svalue &old_sval);
+
+  void remove_overlapping_bindings (store_manager *mgr,
+				    const bit_range &bits);
+
+private:
+  std::vector<std::pair<bit_range, const svalue &>>
+  get_overlapping_bindings (const bit_range &bits);
+
+  bool apply_ctor_val_to_range (const region *parent_reg,
+				region_model_manager *mgr,
+				tree min_index, tree max_index,
+				tree val);
+  bool apply_ctor_pair_to_child_region (const region *parent_reg,
+					region_model_manager *mgr,
+					tree index, tree val);
+
+  map_t m_map;
+};
+
+/* A mapping from binding_keys to svalues, for use by binding_cluster.
+   We store bindings at concrete bit ranges via a concrete_binding_map,
+   along with a vector of (symbolic key, svalue) pairs, but for now
    this has maximum length of 1.  */
 
 class binding_map
@@ -534,7 +639,7 @@ public:
     const region *m_region;
     const svalue *m_sval;
   };
-  using concrete_bindings_t = std::map<bit_range, const svalue *>;
+  using concrete_bindings_t = concrete_binding_map;
   using symbolic_bindings_t = std::vector<symbolic_binding>;
 
   struct binding_pair
@@ -632,7 +737,7 @@ public:
 
   bool empty_p () const
   {
-    return m_concrete.empty () && m_symbolic.empty ();
+    return m_concrete.empty_p () && m_symbolic.empty ();
   }
 
   const_iterator_t begin () const;
@@ -651,11 +756,6 @@ public:
   void add_to_tree_widget (text_art::tree_widget &parent_widget,
 			   const text_art::dump_widget_info &dwi) const;
 
-  bool apply_ctor_to_region (const region *parent_reg, tree ctor,
-			     region_model_manager *mgr);
-
-  static int cmp (const binding_map &map1, const binding_map &map2);
-
   void remove_overlapping_bindings (store_manager *mgr,
 				    const binding_key *drop_key,
 				    uncertainty_t *uncertainty,
@@ -671,13 +771,6 @@ public:
 private:
   void get_overlapping_bindings (const binding_key *key,
 				 auto_vec<const binding_key *> *out);
-  bool apply_ctor_val_to_range (const region *parent_reg,
-				region_model_manager *mgr,
-				tree min_index, tree max_index,
-				tree val);
-  bool apply_ctor_pair_to_child_region (const region *parent_reg,
-					region_model_manager *mgr,
-					tree index, tree val);
 
   store_manager &m_store_mgr;
   concrete_bindings_t m_concrete;

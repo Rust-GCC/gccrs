@@ -4701,7 +4701,6 @@ region_model::scan_for_null_terminator_1 (const region *reg,
 					  region_model_context *ctxt) const
 {
   logger *logger = ctxt ? ctxt->get_logger () : nullptr;
-  store_manager *store_mgr = m_mgr->get_store_manager ();
 
   region_offset offset = reg->get_offset (m_mgr);
   if (offset.symbolic_p ())
@@ -4764,7 +4763,7 @@ region_model::scan_for_null_terminator_1 (const region *reg,
       logger->end_log_line ();
     }
 
-  binding_map result (*store_mgr);
+  concrete_binding_map result;
 
   while (1)
     {
@@ -4809,9 +4808,7 @@ region_model::scan_for_null_terminator_1 (const region *reg,
 	  if (out_sval)
 	    {
 	      byte_range bytes_to_write (dst_byte_offset, fragment_bytes_read);
-	      const binding_key *key
-		= store_mgr->get_concrete_binding (bytes_to_write);
-	      result.put (key, sval);
+	      result.insert (bytes_to_write, sval);
 	    }
 
 	  src_byte_offset += fragment_bytes_read;
@@ -4821,7 +4818,7 @@ region_model::scan_for_null_terminator_1 (const region *reg,
 	    {
 	      if (out_sval)
 		*out_sval = m_mgr->get_or_create_compound_svalue (NULL_TREE,
-								  result);
+								  std::move (result));
 	      if (logger)
 		logger->log ("got terminator");
 	      return m_mgr->get_or_create_int_cst (size_type_node,
@@ -7203,7 +7200,7 @@ private:
 	    = as_a <const compound_svalue *> (m_copied_sval);
 	  bit_size_t result = 0;
 	  /* Find keys for uninit svals.  */
-	  for (auto iter : compound_sval->get_map ().get_concrete_bindings ())
+	  for (auto iter : compound_sval->get_concrete_bindings ())
 	    {
 	      const svalue *sval = iter.second;
 	      if (const poisoned_svalue *psval
@@ -7252,7 +7249,7 @@ private:
       {
 	/* Find keys for uninit svals.  */
 	auto_vec<bit_range> uninit_bit_ranges;
-	for (auto iter : compound_sval->get_map ().get_concrete_bindings ())
+	for (auto iter : compound_sval->get_concrete_bindings ())
 	  {
 	    const svalue *sval = iter.second;
 	    if (const poisoned_svalue *psval
@@ -7462,7 +7459,7 @@ contains_uninit_p (const svalue *sval)
 	for (auto iter = compound_sval->begin ();
 	     iter != compound_sval->end (); ++iter)
 	  {
-	    const svalue *inner_sval = iter.get_svalue ();
+	    const svalue *inner_sval = iter->second;
 	    if (const poisoned_svalue *psval
 		= inner_sval->dyn_cast_poisoned_svalue ())
 	      if (psval->get_poison_kind () == poison_kind::uninit)

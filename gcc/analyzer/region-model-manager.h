@@ -77,7 +77,9 @@ public:
 					       const svalue *base_svalue,
 					       const svalue *iter_svalue);
   const svalue *get_or_create_compound_svalue (tree type,
-					       const binding_map &map);
+					       concrete_binding_map &&map);
+  const svalue *get_or_create_compound_svalue (tree type,
+					       const concrete_binding_map &map);
   const svalue *get_or_create_conjured_svalue (tree type, const gimple *stmt,
 					       const region *id_reg,
 					       const conjured_purge &p,

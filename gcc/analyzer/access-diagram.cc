@@ -1212,23 +1212,18 @@ public:
   : svalue_spatial_item (sval, bits, kind),
     m_compound_sval (sval)
   {
-    const binding_map &map = m_compound_sval.get_map ();
+    const concrete_binding_map &map = m_compound_sval.get_concrete_bindings ();
     auto_vec <const binding_key *> binding_keys;
     for (auto iter : map)
       {
-	const binding_key *key = iter.m_key;
-	const svalue *bound_sval = iter.m_sval;
-	if (const concrete_binding *concrete_key
-	      = key->dyn_cast_concrete_binding ())
-	  {
-	    access_range range (nullptr,
-				concrete_key->get_bit_range ());
-	    if (std::unique_ptr<spatial_item> child
-		  = make_existing_svalue_spatial_item (bound_sval,
-						       range,
-						       theme))
-	      m_children.push_back (std::move (child));
-	  }
+	const bit_range &key = iter.first;
+	const svalue *bound_sval = iter.second;
+	access_range range (nullptr, key);
+	if (std::unique_ptr<spatial_item> child
+	    = make_existing_svalue_spatial_item (bound_sval,
+						 range,
+						 theme))
+	  m_children.push_back (std::move (child));
       }
   }
 

@@ -1713,15 +1713,15 @@ const svalue *
 decl_region::calc_svalue_for_constructor (tree ctor,
 					  region_model_manager *mgr) const
 {
-  /* Create a binding map, applying ctor to it, using this
+  /* Create a concrete_binding_map, applying ctor to it, using this
      decl_region as the base region when building child regions
      for offset calculations.  */
-  binding_map map (*mgr->get_store_manager ());
+  concrete_binding_map map;
   if (!map.apply_ctor_to_region (this, ctor, mgr))
     return mgr->get_or_create_unknown_svalue (get_type ());
 
   /* Return a compound svalue for the map we built.  */
-  return mgr->get_or_create_compound_svalue (get_type (), map);
+  return mgr->get_or_create_compound_svalue (get_type (), std::move (map));
 }
 
 /* Get an svalue for CTOR, a CONSTRUCTOR for this region's decl.  */
@@ -1778,7 +1778,7 @@ decl_region::get_svalue_for_initializer (region_model_manager *mgr) const
       binding_cluster c (*mgr->get_store_manager (), this);
       c.zero_fill_region (mgr->get_store_manager (), this);
       return mgr->get_or_create_compound_svalue (TREE_TYPE (m_decl),
-						 c.get_map ());
+						 c.get_map ().get_concrete_bindings ());
     }
 
   /* LTO can write out error_mark_node as the DECL_INITIAL for simple scalar
