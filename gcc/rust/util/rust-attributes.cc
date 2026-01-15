@@ -894,7 +894,7 @@ AttributeChecker::visit (AST::Function &fun)
 		"to %<unsafe%> functions");
 	    }
 	}
-      else if (result.name == "no_mangle")
+      else if (result.name == Attrs::NO_MANGLE)
 	{
 	  if (attribute.has_attr_input ())
 	    {
