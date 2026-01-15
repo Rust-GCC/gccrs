@@ -39,6 +39,7 @@ public:
   static constexpr auto &LINK_NAME = "link_name";
   static constexpr auto &LINK_SECTION = "link_section";
   static constexpr auto &NO_MANGLE = "no_mangle";
+  static constexpr auto &EXPORT_NAME = "export_name";
   static constexpr auto &REPR = "repr";
   static constexpr auto &RUSTC_BUILTIN_MACRO = "rustc_builtin_macro";
   static constexpr auto &RUSTC_MACRO_TRANSPARENCY = "rustc_macro_transparency";
