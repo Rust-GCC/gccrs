@@ -32,6 +32,7 @@ with Einfo.Entities; use Einfo.Entities;
 with Einfo.Utils;    use Einfo.Utils;
 with Elists;         use Elists;
 with Exp_Aggr;       use Exp_Aggr;
+with Exp_Ch3;        use Exp_Ch3;
 with Exp_Ch6;        use Exp_Ch6;
 with Exp_Ch7;        use Exp_Ch7;
 with Exp_Ch11;       use Exp_Ch11;
@@ -2412,6 +2413,26 @@ package body Exp_Ch5 is
       if Componentwise_Assignment (N) then
          Expand_Assign_Record (N);
          return;
+
+      --  Another special case: internally generated initialization invoking
+      --  a C++ constructor. This case corresponds with the initialization
+      --  of an aggregate component.
+
+      elsif not Comes_From_Source (N)
+        and then (No_Ctrl_Actions (N) or else No_Finalize_Actions (N))
+        and then Is_CPP_Constructor_Call (Rhs)
+      then
+         declare
+            Expr   : constant Node_Id := Relocate_Node (Rhs);
+            Id_Ref : constant Node_Id := Relocate_Node (Lhs);
+
+         begin
+            Insert_List_Before_And_Analyze (N,
+              Build_Initialization_Call (N, Id_Ref, Typ,
+                Constructor_Ref => Expr));
+            Rewrite (N, Make_Null_Statement (Loc));
+            return;
+         end;
       end if;
 
       --  Defend against invalid subscripts on left side if we are in standard
