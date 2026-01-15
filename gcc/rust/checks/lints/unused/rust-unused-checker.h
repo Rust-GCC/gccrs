@@ -44,6 +44,10 @@ private:
   virtual void visit (HIR::AssignmentExpr &identifier) override;
   virtual void visit (HIR::StructPatternFieldIdent &identifier) override;
   virtual void visit (HIR::EmptyStmt &stmt) override;
+  virtual void visit (HIR::Trait &item) override;
+  virtual void visit (HIR::StructStruct &strct) override;
+  virtual void visit (HIR::TupleStruct &strct) override;
+  virtual void visit (HIR::Enum &enm) override;
   virtual void visit_loop_label (HIR::LoopLabel &label) override;
 };
 } // namespace Analysis
