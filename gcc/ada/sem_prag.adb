@@ -13397,8 +13397,11 @@ package body Sem_Prag is
 
                --  Local variables
 
-               Opt     : Node_Id;
-               Opt_Nam : Node_Id;
+               Expr     : Node_Id;
+               Is_Ghost : Boolean;
+               Level    : Entity_Id;
+               Opt      : Node_Id;
+               Opt_Nam  : Node_Id;
 
             --  Start of processing for Analyze_Abstract_State
 
@@ -13568,20 +13571,51 @@ package body Sem_Prag is
                            Check_Ghost_Synchronous;
 
                            if Present (State_Id) then
-                              Set_Is_Ghost_Entity (State_Id);
+                              Is_Ghost := True;
+                              Expr := Expression (Opt);
 
-                              --  Amend the Assertion_Level coming from the
-                              --  package.
+                              if Nkind (Expr) /= N_Identifier
+                                or else
+                                  No (Get_Assertion_Level (Chars (Expr)))
+                              then
+                                 Analyze_And_Resolve (Expr, Standard_Boolean);
 
-                              if Nkind (Expression (Opt)) /= N_Identifier then
-                                 Error_Pragma_Arg
-                                   ("level name must be an identifier", N);
+                                 if not Is_OK_Static_Expression (Expr) then
+                                    Error_Msg_Name_1 := Pname;
+                                    SPARK_Msg_N
+                                      (Fix_Error
+                                         ("expression used for Ghost "
+                                          & "in pragma % "
+                                          & "must be static"),
+                                       Expr);
+                                 end if;
+
+                                 if Is_False (Expr_Value (Expr)) then
+                                    Is_Ghost := False;
+
+                                    --  "Ghostness" cannot be turned off once
+                                    --  enabled within a region (SPARK RM
+                                    --  6.9(8)).
+
+                                    if Ghost_Config.Ghost_Mode > None then
+                                       Error_Msg_Name_1 := Pname;
+                                       SPARK_Msg_N
+                                         (Fix_Error ("pragma %")
+                                          & " with value ""Ghost ='> False"""
+                                          & " cannot appear"
+                                          & " in a ghost region", N);
+                                    end if;
+                                 end if;
                               end if;
 
-                              Set_Ghost_Assertion_Level
-                                (State_Id,
-                                 Get_Assertion_Level
-                                   (Chars (Expression (Opt))));
+                              Level := Assertion_Level_From_Arg (Expr);
+
+                              Set_Ghost_Assertion_Level (State_Id, Level);
+
+                              if Is_Ghost then
+                                 Set_Is_Implicit_Ghost (State_Id, False);
+                                 Set_Is_Ghost_Entity (State_Id);
+                              end if;
                            end if;
                         else
                            SPARK_Msg_N ("invalid state option", Opt);
