@@ -90,6 +90,10 @@ _GLIBCXX_END_INLINE_ABI_NAMESPACE(_V2)
       __rand_uint128(const __rand_uint128&) = default;
       __rand_uint128& operator=(const __rand_uint128&) = default;
 
+      constexpr explicit
+      operator bool() const noexcept
+      { return _M_lo || _M_hi; }
+
       _GLIBCXX14_CONSTEXPR type&
       operator=(uint64_t __x) noexcept
       { return *this = type(__x); }
@@ -134,6 +138,13 @@ _GLIBCXX_END_INLINE_ABI_NAMESPACE(_V2)
       operator+(type __l, uint64_t __r) noexcept
       { return __l += type(__r); }
 
+      _GLIBCXX14_CONSTEXPR type&
+      operator-=(const type& __r) noexcept
+      {
+	_M_hi -= __r._M_hi + __builtin_sub_overflow(_M_lo, __r._M_lo, &_M_lo);
+	return *this;
+      }
+
       // Subtraction with 64-bit operand
       _GLIBCXX14_CONSTEXPR type&
       operator-=(uint64_t __r) noexcept
@@ -141,6 +152,10 @@ _GLIBCXX_END_INLINE_ABI_NAMESPACE(_V2)
 	_M_hi -= __builtin_sub_overflow(_M_lo, __r, &_M_lo);
 	return *this;
       }
+
+      friend _GLIBCXX14_CONSTEXPR type
+      operator-(type __l, const type& __r) noexcept
+      { return __l -= __r; }
 
       friend _GLIBCXX14_CONSTEXPR type
       operator-(type __l, uint64_t __r) noexcept
@@ -172,7 +187,6 @@ _GLIBCXX_END_INLINE_ABI_NAMESPACE(_V2)
       }
 
       // Multiplication with a 64-bit operand is simpler.
-      // pre: _M_hi == 0
       _GLIBCXX14_CONSTEXPR type&
       operator*=(uint64_t __x) noexcept
       {
@@ -190,7 +204,9 @@ _GLIBCXX_END_INLINE_ABI_NAMESPACE(_V2)
 	// These bits are the low half of _M_hi and the high half of _M_lo.
 	uint64_t __mid
 	  = (__l0x1 & __mask) + (__l1x0 & __mask) + (__l1x1 >> 32);
-	_M_hi = __l0x0 + (__l0x1 >> 32) + (__l1x0 >> 32) + (__mid >> 32);
+
+	_M_hi *= __x;
+	_M_hi += __l0x0 + (__l0x1 >> 32) + (__l1x0 >> 32) + (__mid >> 32);
 	_M_lo = (__mid << 32) + (__l1x1 & __mask);
 	return *this;
       }
@@ -296,6 +312,10 @@ _GLIBCXX_END_INLINE_ABI_NAMESPACE(_V2)
 	return *this;
       }
 
+      _GLIBCXX14_CONSTEXPR type&
+      operator/=(uint64_t __r) noexcept
+      { return *this /= type(__r); }
+
       // Currently only supported for 64-bit operands.
       _GLIBCXX14_CONSTEXPR type&
       operator%=(uint64_t __m) noexcept
@@ -343,6 +363,10 @@ _GLIBCXX_END_INLINE_ABI_NAMESPACE(_V2)
 
       friend _GLIBCXX14_CONSTEXPR type
       operator/(type __l, const type& __r) noexcept
+      { return __l /= __r; }
+
+      friend _GLIBCXX14_CONSTEXPR type
+      operator/(type __l, uint64_t __r) noexcept
       { return __l /= __r; }
 
       friend _GLIBCXX14_CONSTEXPR type
