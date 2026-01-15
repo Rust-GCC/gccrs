@@ -1016,9 +1016,16 @@ AttributeChecker::visit (AST::StaticItem &item)
   BuiltinAttrDefinition result;
   for (auto &attribute : item.get_outer_attrs ())
     {
-      if (is_builtin (attribute, result) && result.name == Attrs::LINK_SECTION)
+      if (is_builtin (attribute, result))
 	{
-	  check_link_section_attribute (attribute);
+	  if (result.name == Attrs::LINK_SECTION)
+	    {
+	      check_link_section_attribute (attribute);
+	    }
+	  else if (result.name == Attrs::EXPORT_NAME)
+	    {
+	      check_export_name_attribute (attribute);
+	    }
 	}
     }
 }
