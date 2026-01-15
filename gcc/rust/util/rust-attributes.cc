@@ -446,6 +446,25 @@ check_link_section_attribute (const AST::Attribute &attribute)
     }
 }
 
+static void
+check_export_name_attribute (const AST::Attribute &attribute)
+{
+  if (!attribute.has_attr_input ())
+    {
+      rust_error_at (attribute.get_locus (),
+		     "malformed %<export_name%> attribute input");
+      rust_inform (attribute.get_locus (),
+		   "must be of the form: %<#[export_name = \"name\"]%>");
+      return;
+    }
+
+  if (!Attributes::extract_string_literal (attribute))
+    {
+      rust_error_at (attribute.get_locus (),
+		     "attribute must be a string literal");
+    }
+}
+
 void
 AttributeChecker::check_attribute (const AST::Attribute &attribute)
 {
@@ -905,6 +924,10 @@ AttributeChecker::visit (AST::Function &fun)
 	    }
 	  else
 	    check_no_mangle_function (attribute, fun);
+	}
+      else if (result.name == Attrs::EXPORT_NAME)
+	{
+	  check_export_name_attribute (attribute);
 	}
       else if (result.name == Attrs::LINK_NAME)
 	{
