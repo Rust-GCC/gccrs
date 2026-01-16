@@ -2777,9 +2777,15 @@ package body Sem_Prag is
             --  identifiers Normal_Return, Exception_Raised, or Program_Exit.
 
             if Nkind (Exit_Kind) = N_Identifier then
-               if Chars (Exit_Kind) not in Name_Normal_Return
-                                         | Name_Exception_Raised
-                                         | Name_Program_Exit
+               if Chars (Exit_Kind) = Name_Exception_Raised then
+                  if No_Raise (Spec_Id) then
+                     Error_Msg_N
+                       ("exit kind cannot be Exception_Raised on No_Raise " &
+                          "subprogram",
+                        Exit_Kind);
+                  end if;
+               elsif Chars (Exit_Kind) not in Name_Normal_Return
+                                            | Name_Program_Exit
                then
                   Error_Msg_N
                     ("exit kind should be Normal_Return, Exception_Raised, " &
@@ -2810,6 +2816,12 @@ package body Sem_Prag is
                      Error_Msg_N
                        ("exit kind should have a single choice named "
                         & "Exception_Raised",
+                        Exit_Kind);
+
+                  elsif No_Raise (Spec_Id) then
+                     Error_Msg_N
+                       ("exit kind cannot be Exception_Raised on No_Raise " &
+                          "subprogram",
                         Exit_Kind);
 
                   elsif Nkind (Exc) /= N_Identifier then
@@ -18218,6 +18230,17 @@ package body Sem_Prag is
                end if;
             end if;
 
+            --  Pragma Exceptional_Cases is not allowed when No_Raise is
+            --  specified.
+
+            Analyze_If_Present (Pragma_No_Raise);
+
+            if No_Raise (Spec_Id) then
+               Error_Msg_N (Fix_Error
+                 ("pragma % cannot apply to No_Raise subprogram"), N);
+               return;
+            end if;
+
             --  A pragma that applies to a Ghost entity becomes Ghost for the
             --  purposes of legality checks and removal of ignored Ghost code.
 
@@ -18404,6 +18427,8 @@ package body Sem_Prag is
 
                Analyze_If_Present (Pragma_SPARK_Mode);
                Analyze_If_Present (Pragma_Volatile_Function);
+               Analyze_If_Present (Pragma_No_Raise);
+
                Analyze_Exit_Cases_In_Decl_Part (N);
             end if;
          end Exit_Cases;
