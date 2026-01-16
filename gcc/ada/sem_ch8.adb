@@ -3555,7 +3555,9 @@ package body Sem_Ch8 is
             Freeze_Expr_Types
               (Def_Id => Entity (Nam),
                Typ    => Etype (Entity (Nam)),
-               Expr   => Expression_Of_Expression_Function (Entity (Nam)),
+               Expr   =>
+                 Expression
+                   (Original_Node (Unit_Declaration_Node (Entity (Nam)))),
                N      => N);
          end if;
 
