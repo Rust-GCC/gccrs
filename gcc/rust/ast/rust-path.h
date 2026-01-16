@@ -84,6 +84,15 @@ public:
     // and also identifier is empty, but cheaper computation
   }
 
+  GenericArgsBinding reconstruct () const
+  {
+    std::unique_ptr<Type> new_type = nullptr;
+    if (type)
+      new_type = type->reconstruct ();
+
+    return GenericArgsBinding (identifier, std::move (new_type), locus);
+  }
+
   // Creates an error state generic args binding.
   static GenericArgsBinding create_error ()
   {
@@ -188,6 +197,22 @@ public:
   static GenericArg create_ambiguous (Identifier path, location_t locus)
   {
     return GenericArg (nullptr, nullptr, std::move (path), Kind::Either, locus);
+  }
+
+  GenericArg reconstruct () const
+  {
+    switch (kind)
+      {
+      case Kind::Type:
+	return create_type (type->reconstruct ());
+      case Kind::Const:
+	// FIXME: Use reconstruct_expr when available
+	return create_const (expression->clone_expr ());
+      case Kind::Either:
+      default:
+	// For ambiguous or error states, copy constructs are sufficient
+	return GenericArg (*this);
+      }
   }
 
   GenericArg (const GenericArg &other)
@@ -460,6 +485,23 @@ public:
 
   ~GenericArgs () = default;
 
+  GenericArgs reconstruct () const
+  {
+    std::vector<GenericArg> new_args;
+    new_args.reserve (generic_args.size ());
+    for (const auto &arg : generic_args)
+      new_args.push_back (arg.reconstruct ());
+
+    std::vector<GenericArgsBinding> new_bindings;
+    new_bindings.reserve (binding_args.size ());
+    for (const auto &binding : binding_args)
+      new_bindings.push_back (binding.reconstruct ());
+
+    // Lifetimes are values, so they can be copied directly
+    return GenericArgs (lifetime_args, std::move (new_args),
+			std::move (new_bindings), locus);
+  }
+
   // overloaded assignment operator to vector clone
   GenericArgs &operator= (GenericArgs const &other)
   {
@@ -562,6 +604,11 @@ public:
   const PathIdentSegment &get_ident_segment () const { return segment_name; }
 
   NodeId get_node_id () const { return node_id; }
+
+  PathExprSegment reconstruct () const
+  {
+    return PathExprSegment (segment_name, locus, generic_args.reconstruct ());
+  }
 
   bool is_super_path_seg () const
   {
@@ -703,6 +750,20 @@ public:
      * access to it.
      */
     return convert_to_simple_path (has_opening_scope_resolution);
+  }
+
+  std::unique_ptr<PathInExpression> reconstruct () const
+  {
+    std::vector<PathExprSegment> new_segments;
+    new_segments.reserve (segments.size ());
+    for (const auto &seg : segments)
+      new_segments.push_back (seg.reconstruct ());
+
+    auto *new_path
+      = new PathInExpression (std::move (new_segments), outer_attrs, locus,
+			      has_opening_scope_resolution);
+
+    return std::unique_ptr<PathInExpression> (new_path);
   }
 
   location_t get_locus () const override final { return locus; }
@@ -1004,6 +1065,14 @@ public:
   {
     return new TypePathSegmentGeneric (*this);
   }
+
+  TypePathSegmentGeneric *reconstruct_impl () const override
+  {
+    return new TypePathSegmentGeneric (get_ident_segment (),
+				       has_separating_scope_resolution,
+				       generic_args.reconstruct (),
+				       get_locus ());
+  }
 };
 
 // A function as represented in a type path
@@ -1112,6 +1181,21 @@ public:
     return return_type;
   }
 
+  TypePathFunction reconstruct () const
+  {
+    std::vector<std::unique_ptr<Type>> new_inputs;
+    new_inputs.reserve (inputs.size ());
+    for (const auto &e : inputs)
+      new_inputs.push_back (e->reconstruct ());
+
+    std::unique_ptr<Type> new_ret = nullptr;
+    if (return_type)
+      new_ret = return_type->reconstruct ();
+
+    return TypePathFunction (std::move (new_inputs), locus,
+			     std::move (new_ret));
+  }
+
   location_t get_locus () const { return locus; }
 };
 
@@ -1158,6 +1242,14 @@ public:
   TypePathSegmentFunction *clone_type_path_segment_impl () const override
   {
     return new TypePathSegmentFunction (*this);
+  }
+
+  TypePathSegmentFunction *reconstruct_impl () const override
+  {
+    return new TypePathSegmentFunction (get_ident_segment (),
+					has_separating_scope_resolution,
+					function_path.reconstruct (),
+					get_locus ());
   }
 };
 
@@ -1327,6 +1419,20 @@ public:
   QualifiedPathType (QualifiedPathType &&other) = default;
   QualifiedPathType &operator= (QualifiedPathType &&other) = default;
 
+  QualifiedPathType reconstruct () const
+  {
+    auto new_type = type_to_invoke_on->reconstruct ();
+
+    // trait_path is stored by value, but reconstruct returns a unique_ptr.
+    // We must dereference it to pass to the constructor.
+    // This is safe because the constructor makes its own copy/move.
+    auto new_trait_path_ptr = trait_path.reconstruct ();
+    TypePath *concrete_ptr
+      = static_cast<TypePath *> (new_trait_path_ptr.get ());
+
+    return QualifiedPathType (std::move (new_type), locus, *concrete_ptr);
+  }
+
   // Returns whether the qualified path type has a rebind as clause.
   bool has_as_clause () const { return !trait_path.is_error (); }
 
@@ -1433,6 +1539,20 @@ public:
     return Expr::Kind::QualifiedPathInExpression;
   }
 
+  std::unique_ptr<QualifiedPathInExpression> reconstruct () const
+  {
+    std::vector<PathExprSegment> new_segments;
+    new_segments.reserve (segments.size ());
+    for (const auto &seg : segments)
+      new_segments.push_back (seg.reconstruct ());
+
+    auto *new_path = new QualifiedPathInExpression (path_type.reconstruct (),
+						    std::move (new_segments),
+						    outer_attrs, locus);
+
+    return std::unique_ptr<QualifiedPathInExpression> (new_path);
+  }
+
 protected:
   /* Use covariance to implement clone function as returning this object
    * rather than base */
@@ -1474,7 +1594,7 @@ protected:
   }
   QualifiedPathInType *reconstruct_impl () const override
   {
-    return new QualifiedPathInType (path_type,
+    return new QualifiedPathInType (path_type.reconstruct (),
 				    associated_segment->reconstruct (),
 				    reconstruct_vec (segments), locus);
   }
