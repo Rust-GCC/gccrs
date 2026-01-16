@@ -2181,15 +2181,6 @@ execute_todo (unsigned int flags)
     df_finish_pass ((flags & TODO_df_verify) != 0);
 }
 
-/* Verify invariants that should hold between passes.  This is a place
-   to put simple sanity checks.  */
-
-static void
-verify_interpass_invariants (void)
-{
-  gcc_checking_assert (!fold_deferring_overflow_warnings_p ());
-}
-
 /* Helper function. Verify that the properties has been turn into the
    properties expected by the pass.  */
 
@@ -2338,7 +2329,6 @@ execute_one_ipa_transform_pass (struct cgraph_node *node,
   /* Run post-pass cleanup.  */
   gcc_checking_assert (!(todo_after & TODO_verify_il));
   execute_todo (todo_after);
-  verify_interpass_invariants ();
 
   /* Stop timevar.  */
   if (pass->tv_id != TV_NONE)
@@ -2713,8 +2703,6 @@ execute_one_pass (opt_pass *pass)
 	  account_profile (pass->static_pass_number, true);
 	}
     }
-
-  verify_interpass_invariants ();
 
   /* Stop timevar.  */
   if (pass->tv_id != TV_NONE)

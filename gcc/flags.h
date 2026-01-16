@@ -113,9 +113,6 @@ extern class target_flag_state *this_target_flag_state;
 #define abi_version_at_least(N) \
   (flag_abi_version == 0 || flag_abi_version >= (N))
 
-/* Whether to emit an overflow warning whose code is C.  */
-#define issue_strict_overflow_warning(c) (warn_strict_overflow >= (int) (c))
-
 #endif /* ! in target library */
 
 #endif /* ! GCC_FLAGS_H */

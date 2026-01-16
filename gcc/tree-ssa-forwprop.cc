@@ -407,13 +407,9 @@ combine_cond_expr_cond (gimple *stmt, enum tree_code code, tree type,
 
   gcc_assert (TREE_CODE_CLASS (code) == tcc_comparison);
 
-  fold_defer_overflow_warnings ();
   t = fold_binary_loc (gimple_location (stmt), code, type, op0, op1);
   if (!t)
-    {
-      fold_undefer_overflow_warnings (false, NULL, 0);
-      return NULL_TREE;
-    }
+    return NULL_TREE;
 
   /* Require that we got a boolean type out if we put one in.  */
   gcc_assert (TREE_CODE (TREE_TYPE (t)) == TREE_CODE (type));
@@ -423,13 +419,7 @@ combine_cond_expr_cond (gimple *stmt, enum tree_code code, tree type,
 
   /* Bail out if we required an invariant but didn't get one.  */
   if (!t || (invariant_only && !is_gimple_min_invariant (t)))
-    {
-      fold_undefer_overflow_warnings (false, NULL, 0);
-      return NULL_TREE;
-    }
-
-  bool nowarn = warning_suppressed_p (stmt, OPT_Wstrict_overflow);
-  fold_undefer_overflow_warnings (!nowarn, stmt, 0);
+    return NULL_TREE;
 
   return t;
 }

@@ -3425,12 +3425,6 @@ pointer_int_sum (location_t loc, enum tree_code resultcode,
 	}
     }
 
-  /* We are manipulating pointer values, so we don't need to warn
-     about relying on undefined signed overflow.  We disable the
-     warning here because we use integer types so fold won't know that
-     they are really pointers.  */
-  fold_defer_overflow_warnings ();
-
   /* If what we are about to multiply by the size of the elements
      contains a constant term, apply distributive law
      and multiply that constant term separately.
@@ -3479,8 +3473,6 @@ pointer_int_sum (location_t loc, enum tree_code resultcode,
 
       ret = fold_build_pointer_plus_loc (loc, ptrop, intop);
 
-      fold_undefer_and_ignore_overflow_warnings ();
-
       return ret;
     }
 
@@ -3508,8 +3500,6 @@ pointer_int_sum (location_t loc, enum tree_code resultcode,
     intop = fold_build1_loc (loc, NEGATE_EXPR, sizetype, intop);
 
   ret = fold_build_pointer_plus_loc (loc, ptrop, intop);
-
-  fold_undefer_and_ignore_overflow_warnings ();
 
   return ret;
 }

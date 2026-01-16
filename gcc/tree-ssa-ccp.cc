@@ -2263,7 +2263,6 @@ evaluate_stmt (gimple *stmt)
      not attempt to fold them, including builtins that may profit.  */
   if (likelyvalue == CONSTANT)
     {
-      fold_defer_overflow_warnings ();
       simplified = ccp_fold (stmt);
       if (simplified
 	  && TREE_CODE (simplified) == SSA_NAME)
@@ -2275,10 +2274,7 @@ evaluate_stmt (gimple *stmt)
 	    {
 	      ccp_prop_value_t *val = get_value (simplified);
 	      if (val && val->lattice_val != VARYING)
-		{
-		  fold_undefer_overflow_warnings (true, stmt, 0);
-		  return *val;
-		}
+		return *val;
 	    }
 	  else
 	    /* We may also not place a non-valueized copy in the lattice
@@ -2286,7 +2282,6 @@ evaluate_stmt (gimple *stmt)
 	    simplified = NULL_TREE;
 	}
       is_constant = simplified && is_gimple_min_invariant (simplified);
-      fold_undefer_overflow_warnings (is_constant, stmt, 0);
       if (is_constant)
 	{
 	  /* The statement produced a constant value.  */

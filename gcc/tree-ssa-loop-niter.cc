@@ -2842,9 +2842,7 @@ expand_simple_operations (tree expr, tree stop, hash_map<tree, tree> &cache)
       if (!ret)
 	return expr;
 
-      fold_defer_overflow_warnings ();
       ret = fold (ret);
-      fold_undefer_and_ignore_overflow_warnings ();
       return ret;
     }
 
@@ -3288,10 +3286,6 @@ number_of_iterations_exit_assumptions (class loop *loop, edge exit,
   if (iv0_niters && iv1_niters)
     return false;
 
-  /* We don't want to see undefined signed overflow warnings while
-     computing the number of iterations.  */
-  fold_defer_overflow_warnings ();
-
   iv0.base = expand_simple_operations (iv0.base);
   iv1.base = expand_simple_operations (iv1.base);
   bool body_from_caller = true;
@@ -3306,7 +3300,6 @@ number_of_iterations_exit_assumptions (class loop *loop, edge exit,
   if (!number_of_iterations_cond (loop, type, &iv0, code, &iv1, niter,
 				  only_exit_p, safe))
     {
-      fold_undefer_and_ignore_overflow_warnings ();
       return false;
     }
 
@@ -3348,8 +3341,6 @@ number_of_iterations_exit_assumptions (class loop *loop, edge exit,
   niter->may_be_zero
 	  = simplify_using_initial_conditions (loop,
 					       niter->may_be_zero);
-
-  fold_undefer_and_ignore_overflow_warnings ();
 
   /* If NITER has simplified into a constant, update MAX.  */
   if (TREE_CODE (niter->niter) == INTEGER_CST)
@@ -3747,9 +3738,6 @@ loop_niter_by_eval (class loop *loop, edge exit)
 	}
     }
 
-  /* Don't issue signed overflow warnings.  */
-  fold_defer_overflow_warnings ();
-
   for (i = 0; i < MAX_ITERATIONS_TO_TRACK; i++)
     {
       for (j = 0; j < 2; j++)
@@ -3758,7 +3746,6 @@ loop_niter_by_eval (class loop *loop, edge exit)
       acnd = fold_binary (cmp, boolean_type_node, aval[0], aval[1]);
       if (acnd && integer_zerop (acnd))
 	{
-	  fold_undefer_and_ignore_overflow_warnings ();
 	  if (dump_file && (dump_flags & TDF_DETAILS))
 	    fprintf (dump_file,
 		     "Proved that loop %d iterates %d times using brute force.\n",
@@ -3771,10 +3758,7 @@ loop_niter_by_eval (class loop *loop, edge exit)
 	  aval[j] = val[j];
 	  val[j] = get_val_for (next[j], val[j]);
 	  if (!is_gimple_min_invariant (val[j]))
-	    {
-	      fold_undefer_and_ignore_overflow_warnings ();
-	      return chrec_dont_know;
-	    }
+	    return chrec_dont_know;
 	}
 
       /* If the next iteration would use the same base values
@@ -3783,8 +3767,6 @@ loop_niter_by_eval (class loop *loop, edge exit)
       if (val[0] == aval[0] && val[1] == aval[1])
 	break;
     }
-
-  fold_undefer_and_ignore_overflow_warnings ();
 
   return chrec_dont_know;
 }
@@ -5242,14 +5224,8 @@ estimated_stmt_executions (class loop *loop, widest_int *nit)
 void
 estimate_numbers_of_iterations (function *fn)
 {
-  /* We don't want to issue signed overflow warnings while getting
-     loop iteration estimates.  */
-  fold_defer_overflow_warnings ();
-
   for (auto loop : loops_list (fn, 0))
     estimate_numbers_of_iterations (loop);
-
-  fold_undefer_and_ignore_overflow_warnings ();
 }
 
 /* Returns true if statement S1 dominates statement S2.  */
@@ -5394,9 +5370,6 @@ loop_exits_before_overflow (tree base, tree step,
   tree type = TREE_TYPE (step);
   tree unsigned_type, valid_niter;
 
-  /* Don't issue signed overflow warnings.  */
-  fold_defer_overflow_warnings ();
-
   /* Compute the number of iterations before we reach the bound of the
      type, and verify that the loop is exited before this occurs.  */
   unsigned_type = unsigned_type_for (type);
@@ -5428,20 +5401,13 @@ loop_exits_before_overflow (tree base, tree step,
 			   wide_int_to_tree (TREE_TYPE (valid_niter),
 					     niter))) != NULL
       && integer_nonzerop (e))
-    {
-      fold_undefer_and_ignore_overflow_warnings ();
-      return true;
-    }
+    return true;
   if (at_stmt)
     for (bound = loop->bounds; bound; bound = bound->next)
       {
 	if (n_of_executions_at_most (at_stmt, bound, valid_niter))
-	  {
-	    fold_undefer_and_ignore_overflow_warnings ();
-	    return true;
-	  }
+	  return true;
       }
-  fold_undefer_and_ignore_overflow_warnings ();
 
   /* Try to prove loop is exited before {base, step} overflows with the
      help of analyzed loop control IV.  This is done only for IVs with

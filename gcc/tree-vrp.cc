@@ -670,27 +670,18 @@ compare_values (tree val1, tree val2)
       if (operand_equal_p (val1, val2, 0))
 	return 0;
 
-      fold_defer_overflow_warnings ();
-
       /* If VAL1 is a lower address than VAL2, return -1.  */
       tree t = fold_binary_to_constant (LT_EXPR, boolean_type_node, val1, val2);
       if (t && integer_onep (t))
-	{
-	  fold_undefer_and_ignore_overflow_warnings ();
-	  return -1;
-	}
+	return -1;
 
       /* If VAL1 is a higher address than VAL2, return +1.  */
       t = fold_binary_to_constant (LT_EXPR, boolean_type_node, val2, val1);
       if (t && integer_onep (t))
-	{
-	  fold_undefer_and_ignore_overflow_warnings ();
-	  return 1;
-	}
+	return 1;
 
       /* If VAL1 is different than VAL2, return +2.  */
       t = fold_binary_to_constant (NE_EXPR, boolean_type_node, val1, val2);
-      fold_undefer_and_ignore_overflow_warnings ();
       if (t && integer_onep (t))
 	return 2;
 

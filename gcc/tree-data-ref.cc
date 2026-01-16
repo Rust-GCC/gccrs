@@ -2676,7 +2676,6 @@ create_runtime_alias_checks (class loop *loop,
 {
   tree part_cond_expr;
 
-  fold_defer_overflow_warnings ();
   for (const dr_with_seg_len_pair_t &alias_pair : alias_pairs)
     {
       gcc_assert (alias_pair.flags);
@@ -2694,7 +2693,6 @@ create_runtime_alias_checks (class loop *loop,
       else
 	*cond_expr = part_cond_expr;
     }
-  fold_undefer_and_ignore_overflow_warnings ();
 }
 
 /* Check if OFFSET1 and OFFSET2 (DR_OFFSETs of some data-refs) are identical

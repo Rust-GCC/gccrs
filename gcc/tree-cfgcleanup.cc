@@ -173,7 +173,6 @@ cleanup_control_expr_graph (basic_block bb, gimple_stmt_iterator gsi)
     {
       edge e;
       edge_iterator ei;
-      bool warned;
       tree val = NULL_TREE;
 
       /* Try to convert a switch with just a single non-default case to
@@ -185,7 +184,6 @@ cleanup_control_expr_graph (basic_block bb, gimple_stmt_iterator gsi)
       if (gimple_code (stmt) == GIMPLE_COND)
 	canonicalize_bool_cond (as_a<gcond*> (stmt), bb);
 
-      fold_defer_overflow_warnings ();
       switch (gimple_code (stmt))
 	{
 	case GIMPLE_COND:
@@ -207,24 +205,13 @@ cleanup_control_expr_graph (basic_block bb, gimple_stmt_iterator gsi)
 	}
       taken_edge = find_taken_edge (bb, val);
       if (!taken_edge)
-	{
-	  fold_undefer_and_ignore_overflow_warnings ();
-	  return false;
-	}
+	return false;
 
       /* Remove all the edges except the one that is always executed.  */
-      warned = false;
       for (ei = ei_start (bb->succs); (e = ei_safe_edge (ei)); )
 	{
 	  if (e != taken_edge)
 	    {
-	      if (!warned)
-		{
-		  fold_undefer_overflow_warnings
-		    (true, stmt, WARN_STRICT_OVERFLOW_CONDITIONAL);
-		  warned = true;
-		}
-
 	      taken_edge->probability += e->probability;
 	      remove_edge_and_dominated_blocks (e);
 	      retval = true;
@@ -232,8 +219,6 @@ cleanup_control_expr_graph (basic_block bb, gimple_stmt_iterator gsi)
 	  else
 	    ei_next (&ei);
 	}
-      if (!warned)
-	fold_undefer_and_ignore_overflow_warnings ();
     }
   else
     taken_edge = single_succ_edge (bb);
