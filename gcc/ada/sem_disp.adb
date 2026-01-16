@@ -309,7 +309,29 @@ package body Sem_Disp is
          --  Common Ada case
 
          if not Has_First_Controlling_Parameter_Aspect (Typ) then
-            Ctrl_Type := Check_Controlling_Type (Etype (Formal), Subp);
+
+            --  Formals of a type specifying aspect First_Controlling_Parameter
+            --  are not candidate controlling parameters when they are not
+            --  the first formal of the dispatching primitive. For example:
+            --
+            --     type T1 is tagged ...
+            --     type T2 is tagged ... with First_Controlling_Parameter;
+            --     procedure Prim (X : T1; Y : T2);
+            --
+            --  When T2 does not have the First_Controlling_Parameter aspect
+            --  this example is rejected because a primitive can be dispatching
+            --  in only one type. However, T2 cannot be a candidate controlling
+            --  type for Prim because Y is not its first formal. Therefore,
+            --  this example is accepted.
+
+            if Is_Tagged_Type (Etype (Formal))
+              and then Has_First_Controlling_Parameter_Aspect (Etype (Formal))
+              and then Formal /= First_Formal (Subp)
+            then
+               null;
+            else
+               Ctrl_Type := Check_Controlling_Type (Etype (Formal), Subp);
+            end if;
 
          --  Type with the First_Controlling_Parameter aspect: for overriding
          --  primitives of a parent type that lacks this aspect, we cannot be
