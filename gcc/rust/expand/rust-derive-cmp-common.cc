@@ -96,9 +96,8 @@ EnumMatchBuilder::tuple (EnumItem &variant_raw)
       });
     }
 
-  // TODO: Replace with `reconstruct()` instead of building these twice
   auto self_variant_path = builder.variant_path (enum_path, variant_path);
-  auto other_variant_path = builder.variant_path (enum_path, variant_path);
+  auto other_variant_path = self_variant_path.reconstruct ();
 
   auto self_pattern_items = std::unique_ptr<TupleStructItems> (
     new TupleStructItemsNoRest (std::move (self_patterns)));
@@ -111,7 +110,7 @@ EnumMatchBuilder::tuple (EnumItem &variant_raw)
 			  false, false, builder.loc));
   auto other_pattern = std::unique_ptr<Pattern> (new ReferencePattern (
     std::unique_ptr<Pattern> (new TupleStructPattern (
-      other_variant_path, std::move (other_pattern_items))),
+      *other_variant_path, std::move (other_pattern_items))),
     false, false, builder.loc));
 
   auto tuple_items = std::make_unique<TuplePatternItemsNoRest> (
@@ -159,9 +158,8 @@ EnumMatchBuilder::strukt (EnumItem &variant_raw)
       });
     }
 
-  // TODO: Replace with `reconstruct()` instead of building these twice
   auto self_variant_path = builder.variant_path (enum_path, variant_path);
-  auto other_variant_path = builder.variant_path (enum_path, variant_path);
+  auto other_variant_path = self_variant_path.reconstruct ();
 
   auto self_elts = StructPatternElements (std::move (self_fields));
   auto other_elts = StructPatternElements (std::move (other_fields));
@@ -172,7 +170,7 @@ EnumMatchBuilder::strukt (EnumItem &variant_raw)
     false, false, builder.loc));
   auto other_pattern = std::unique_ptr<Pattern> (
     new ReferencePattern (std::unique_ptr<Pattern> (
-			    new StructPattern (other_variant_path, builder.loc,
+			    new StructPattern (*other_variant_path, builder.loc,
 					       std::move (other_elts))),
 			  false, false, builder.loc));
 
