@@ -1593,6 +1593,7 @@
 ;; -------------------------------------------------------------------------
 ;; Includes the multiple and single vector and multiple vectors forms of
 ;; - BFMUL (SVE_BFSCALE)
+;; - FMUL (SME2p2)
 ;; -------------------------------------------------------------------------
 
 ;; BFMUL (multiple vectors)
@@ -1623,6 +1624,28 @@
 	  SVE_FP_MUL))]
   "TARGET_STREAMING_SME2 && TARGET_SVE_BFSCALE"
   "bfmul\t%0, %1, %2.h"
+)
+
+;; FMUL (multiple vectors)
+(define_insn "@aarch64_sve_<optab><mode>"
+  [(set (match_operand:SVE_Fx24_NOBF 0 "register_operand" "=Uw<vector_count>")
+	(unspec:SVE_Fx24_NOBF
+	  [(match_operand:SVE_Fx24_NOBF 1 "register_operand" "Uw<vector_count>")
+	   (match_operand:SVE_Fx24_NOBF 2 "register_operand" "Uw<vector_count>")]
+	  SVE_FP_MUL))]
+  "TARGET_STREAMING_SME2p2"
+  "fmul\t%0, %1, %2"
+)
+
+;; FMUL (multiple x single vector)
+(define_insn "@aarch64_sve_<optab><mode>_single"
+  [(set (match_operand:SVE_Fx24_NOBF 0 "register_operand" "=Uw<vector_count>")
+	(unspec:SVE_Fx24_NOBF
+	  [(match_operand:SVE_Fx24_NOBF 1 "register_operand" "Uw<vector_count>")
+	   (match_operand:<VSINGLE> 2 "register_operand" "x")]
+	  SVE_FP_MUL))]
+  "TARGET_STREAMING_SME2p2"
+  "fmul\t%0, %1, %2.<Vetype>"
 )
 
 ;; =========================================================================
