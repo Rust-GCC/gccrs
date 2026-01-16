@@ -96,9 +96,10 @@ EnumMatchBuilder::tuple (EnumItem &variant_raw)
       });
     }
 
-  // TODO: Replace with `reconstruct()` instead of building these twice
   auto self_variant_path = builder.variant_path (enum_path, variant_path);
-  auto other_variant_path = builder.variant_path (enum_path, variant_path);
+  // Dereference the unique_ptr if you need the object directly,
+  // or move it if you need ownership.
+  auto other_variant_path = *self_variant_path.reconstruct();
 
   auto self_pattern_items = std::unique_ptr<TupleStructItems> (
     new TupleStructItemsNoRest (std::move (self_patterns)));
@@ -159,9 +160,8 @@ EnumMatchBuilder::strukt (EnumItem &variant_raw)
       });
     }
 
-  // TODO: Replace with `reconstruct()` instead of building these twice
   auto self_variant_path = builder.variant_path (enum_path, variant_path);
-  auto other_variant_path = builder.variant_path (enum_path, variant_path);
+  auto other_variant_path = reconstruct_path (self_variant_path);
 
   auto self_elts = StructPatternElements (std::move (self_fields));
   auto other_elts = StructPatternElements (std::move (other_fields));
