@@ -36,7 +36,6 @@ struct range_entry
   tree low;
   tree high;
   bool in_p;
-  bool strict_overflow_p;
   unsigned int idx, next;
 };
 
