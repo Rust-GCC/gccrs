@@ -1019,50 +1019,6 @@ ch_base::copy_headers (function *fun)
       delete candidate.invariant_exits;
       copied.safe_push (std::make_pair (entry, loop));
 
-      /* If the loop has the form "for (i = j; i < j + 10; i++)" then
-	 this copying can introduce a case where we rely on undefined
-	 signed overflow to eliminate the preheader condition, because
-	 we assume that "j < j + 10" is true.  We don't want to warn
-	 about that case for -Wstrict-overflow, because in general we
-	 don't warn about overflow involving loops.  Prevent the
-	 warning by setting the no_warning flag in the condition.  */
-      if (warn_strict_overflow > 0)
-	{
-	  unsigned int i;
-
-	  for (i = 0; i < n_bbs; ++i)
-	    {
-	      gimple_stmt_iterator bsi;
-
-	      for (bsi = gsi_start_bb (copied_bbs[i]);
-		   !gsi_end_p (bsi);
-		   gsi_next (&bsi))
-		{
-		  gimple *stmt = gsi_stmt (bsi);
-		  if (gimple_code (stmt) == GIMPLE_COND)
-		    {
-		      tree lhs = gimple_cond_lhs (stmt);
-		      if (gimple_cond_code (stmt) != EQ_EXPR
-			  && gimple_cond_code (stmt) != NE_EXPR
-			  && INTEGRAL_TYPE_P (TREE_TYPE (lhs))
-			  && TYPE_OVERFLOW_UNDEFINED (TREE_TYPE (lhs)))
-			suppress_warning (stmt, OPT_Wstrict_overflow_);
-		    }
-		  else if (is_gimple_assign (stmt))
-		    {
-		      enum tree_code rhs_code = gimple_assign_rhs_code (stmt);
-		      tree rhs1 = gimple_assign_rhs1 (stmt);
-		      if (TREE_CODE_CLASS (rhs_code) == tcc_comparison
-			  && rhs_code != EQ_EXPR
-			  && rhs_code != NE_EXPR
-			  && INTEGRAL_TYPE_P (TREE_TYPE (rhs1))
-			  && TYPE_OVERFLOW_UNDEFINED (TREE_TYPE (rhs1)))
-			suppress_warning (stmt, OPT_Wstrict_overflow_);
-		    }
-		}
-	    }
-	}
-
       /* Update header of the loop.  */
       loop->header = header;
       /* Find correct latch.  We only duplicate chain of conditionals so
