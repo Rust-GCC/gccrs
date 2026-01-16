@@ -503,6 +503,18 @@ check_export_name_attribute (const AST::Attribute &attribute)
     }
 }
 
+static void
+check_lint_attribute (const AST::Attribute &attribute, const char *name)
+{
+  if (!attribute.has_attr_input ())
+    {
+      rust_error_at (attribute.get_locus (), "malformed %qs attribute input",
+		     name);
+      rust_inform (attribute.get_locus (),
+		   "must be of the form: %<#[%s(lint1, lint2, ...)]%>", name);
+    }
+}
+
 void
 AttributeChecker::check_attribute (const AST::Attribute &attribute)
 {
@@ -976,6 +988,11 @@ AttributeChecker::visit (AST::Function &fun)
       else if (result.name == Attrs::EXPORT_NAME)
 	{
 	  check_export_name_attribute (attribute);
+	}
+      else if (result.name == Attrs::ALLOW || result.name == "deny"
+	       || result.name == "warn" || result.name == "forbid")
+	{
+	  check_lint_attribute (attribute, name);
 	}
       else if (result.name == Attrs::LINK_NAME)
 	{
