@@ -737,5 +737,15 @@ Builder::new_generic_args (GenericArgs &args)
 		      std::move (binding_args), locus);
 }
 
+std::unique_ptr<Expr>
+Builder::qualified_call (std::vector<std::string> &&segments,
+			 std::vector<std::unique_ptr<Expr>> &&args) const
+{
+  auto path = std::unique_ptr<Expr> (
+    new PathInExpression (path_in_expression (std::move (segments))));
+
+  return call (std::move (path), std::move (args));
+}
+
 } // namespace AST
 } // namespace Rust
