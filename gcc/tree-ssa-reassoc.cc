@@ -2660,8 +2660,7 @@ init_range_entry (struct range_entry *r, tree exp, gimple *stmt)
 	    return;
 	do_default:
 	  nexp = make_range_step (loc, code, arg0, arg1, exp_type,
-				  &low, &high, &in_p,
-				  &strict_overflow_p);
+				  &low, &high, &in_p);
 	  if (nexp != NULL_TREE)
 	    {
 	      exp = nexp;

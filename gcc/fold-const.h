@@ -213,9 +213,9 @@ extern bool tree_expr_maybe_signaling_nan_p (const_tree);
 extern bool tree_expr_nan_p (const_tree);
 extern bool tree_expr_maybe_nan_p (const_tree);
 extern bool tree_expr_maybe_real_minus_zero_p (const_tree);
-extern tree make_range (tree, int *, tree *, tree *, bool *);
+extern tree make_range (tree, int *, tree *, tree *);
 extern tree make_range_step (location_t, enum tree_code, tree, tree, tree,
-			     tree *, tree *, int *, bool *);
+			     tree *, tree *, int *);
 extern tree range_check_type (tree);
 extern tree build_range_check (location_t, tree, tree, int, tree, tree);
 extern bool merge_ranges (int *, tree *, tree *, int, tree, tree, int,

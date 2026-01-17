@@ -189,7 +189,6 @@ warn_logical_operator (location_t location, enum tree_code code, tree type,
   int or_op = (code == TRUTH_ORIF_EXPR || code == TRUTH_OR_EXPR);
   int in0_p, in1_p, in_p;
   tree low0, low1, low, high0, high1, high, lhs, rhs, tem;
-  bool strict_overflow_p = false;
 
   if (!warn_logical_op)
     return;
@@ -264,7 +263,7 @@ warn_logical_operator (location_t location, enum tree_code code, tree type,
      portable code.  */
   op_left = unshare_expr (op_left);
   walk_tree_without_duplicates (&op_left, unwrap_c_maybe_const, NULL);
-  lhs = make_range (op_left, &in0_p, &low0, &high0, &strict_overflow_p);
+  lhs = make_range (op_left, &in0_p, &low0, &high0);
   if (!lhs)
     return;
 
@@ -279,7 +278,7 @@ warn_logical_operator (location_t location, enum tree_code code, tree type,
 
   op_right = unshare_expr (op_right);
   walk_tree_without_duplicates (&op_right, unwrap_c_maybe_const, NULL);
-  rhs = make_range (op_right, &in1_p, &low1, &high1, &strict_overflow_p);
+  rhs = make_range (op_right, &in1_p, &low1, &high1);
   if (!rhs)
     return;
 

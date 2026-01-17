@@ -5245,8 +5245,7 @@ range_binop (enum tree_code code, tree type, tree arg0, int upper0_p,
 
 tree
 make_range_step (location_t loc, enum tree_code code, tree arg0, tree arg1,
-		 tree exp_type, tree *p_low, tree *p_high, int *p_in_p,
-		 bool *strict_overflow_p)
+		 tree exp_type, tree *p_low, tree *p_high, int *p_in_p)
 {
   tree arg0_type = TREE_TYPE (arg0);
   tree n_low, n_high, low = *p_low, high = *p_high;
@@ -5380,9 +5379,6 @@ make_range_step (location_t loc, enum tree_code code, tree arg0, tree arg1,
       if ((n_low != 0 && TREE_OVERFLOW (n_low))
 	  || (n_high != 0 && TREE_OVERFLOW (n_high)))
 	return NULL_TREE;
-
-      if (TYPE_OVERFLOW_UNDEFINED (arg0_type))
-	*strict_overflow_p = true;
 
       normalize:
 	/* Check for an unsigned range which has wrapped around the maximum
@@ -5535,14 +5531,10 @@ make_range_step (location_t loc, enum tree_code code, tree arg0, tree arg1,
    variables denoted by PIN_P, PLOW, and PHIGH.  Return the expression
    actually being tested.  *PLOW and *PHIGH will be made of the same
    type as the returned expression.  If EXP is not a comparison, we
-   will most likely not be returning a useful value and range.  Set
-   *STRICT_OVERFLOW_P to true if the return value is only valid
-   because signed overflow is undefined; otherwise, do not change
-   *STRICT_OVERFLOW_P.  */
+   will most likely not be returning a useful value and range.  */
 
 tree
-make_range (tree exp, int *pin_p, tree *plow, tree *phigh,
-	    bool *strict_overflow_p)
+make_range (tree exp, int *pin_p, tree *plow, tree *phigh)
 {
   enum tree_code code;
   tree arg0, arg1 = NULL_TREE;
@@ -5580,7 +5572,7 @@ make_range (tree exp, int *pin_p, tree *plow, tree *phigh,
 	break;
 
       nexp = make_range_step (loc, code, arg0, arg1, exp_type, &low,
-			      &high, &in_p, strict_overflow_p);
+			      &high, &in_p);
       if (nexp == NULL_TREE)
 	break;
       exp = nexp;
@@ -6277,15 +6269,12 @@ fold_range_test (location_t loc, enum tree_code code, tree type,
 	       || code == TRUTH_OR_EXPR);
   int in0_p, in1_p, in_p;
   tree low0, low1, low, high0, high1, high;
-  bool strict_overflow_p = false;
   tree tem, lhs, rhs;
-  const char * const warnmsg = G_("assuming signed overflow does not occur "
-				  "when simplifying range test");
 
   if (!INTEGRAL_TYPE_P (type))
     return 0;
 
-  lhs = make_range (op0, &in0_p, &low0, &high0, &strict_overflow_p);
+  lhs = make_range (op0, &in0_p, &low0, &high0);
   /* If op0 is known true or false and this is a short-circuiting
      operation we must not merge with op1 since that makes side-effects
      unconditional.  So special-case this.  */
@@ -6293,7 +6282,7 @@ fold_range_test (location_t loc, enum tree_code code, tree type,
       && ((code == TRUTH_ORIF_EXPR && in0_p)
 	  || (code == TRUTH_ANDIF_EXPR && !in0_p)))
     return op0;
-  rhs = make_range (op1, &in1_p, &low1, &high1, &strict_overflow_p);
+  rhs = make_range (op1, &in1_p, &low1, &high1);
 
   /* If this is an OR operation, invert both sides; we will invert
      again at the end.  */
@@ -6312,8 +6301,6 @@ fold_range_test (location_t loc, enum tree_code code, tree type,
 				    : rhs != 0 ? rhs : integer_zero_node,
 				    in_p, low, high))) != 0)
     {
-      if (strict_overflow_p)
-	fold_overflow_warning (warnmsg, WARN_STRICT_OVERFLOW_COMPARISON);
       return or_op ? invert_truthvalue_loc (loc, tem) : tem;
     }
 
@@ -6350,9 +6337,6 @@ fold_range_test (location_t loc, enum tree_code code, tree type,
 					   or_op ? ! in1_p : in1_p,
 					   low1, high1)) != 0)
 	    {
-	      if (strict_overflow_p)
-		fold_overflow_warning (warnmsg,
-				       WARN_STRICT_OVERFLOW_COMPARISON);
 	      return build2_loc (loc, code == TRUTH_ANDIF_EXPR
 				 ? TRUTH_AND_EXPR : TRUTH_OR_EXPR,
 				 type, lhs, rhs);
