@@ -11449,10 +11449,10 @@ gimple_assign_nonnegative_warnv_p (gimple *stmt, bool *strict_overflow_p,
   switch (get_gimple_rhs_class (code))
     {
     case GIMPLE_UNARY_RHS:
-      return tree_unary_nonnegative_warnv_p (gimple_assign_rhs_code (stmt),
-					     type,
-					     gimple_assign_rhs1 (stmt),
-					     strict_overflow_p, depth);
+      return tree_unary_nonnegative_p (gimple_assign_rhs_code (stmt),
+				       type,
+				       gimple_assign_rhs1 (stmt),
+				       depth);
     case GIMPLE_BINARY_RHS:
       return tree_binary_nonnegative_p (gimple_assign_rhs_code (stmt),
 					type,

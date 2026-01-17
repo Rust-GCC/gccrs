@@ -14604,17 +14604,19 @@ tree_simple_nonnegative_warnv_p (enum tree_code code, tree type)
   return false;
 }
 
-/* Return true if (CODE OP0) is known to be non-negative.  If the return
-   value is based on the assumption that signed overflow is undefined,
-   set *STRICT_OVERFLOW_P to true; otherwise, don't change
-   *STRICT_OVERFLOW_P.  DEPTH is the current nesting depth of the query.  */
+/* Return true if (CODE OP0) is known to be non-negative.
+  DEPTH is the current nesting depth of the query.  */
 
 bool
-tree_unary_nonnegative_warnv_p (enum tree_code code, tree type, tree op0,
-				bool *strict_overflow_p, int depth)
+tree_unary_nonnegative_p (enum tree_code code, tree type, tree op0, int depth)
 {
   if (TYPE_UNSIGNED (type))
     return true;
+
+  /* The RECURSE () macro counts with a strict_overflow_p bool
+     pointer being declared beforehand.  */
+  bool val = false;
+  bool *strict_overflow_p = &val;
 
   switch (code)
     {
@@ -14624,10 +14626,7 @@ tree_unary_nonnegative_warnv_p (enum tree_code code, tree type, tree op0,
       if (!ANY_INTEGRAL_TYPE_P (type))
 	return true;
       if (TYPE_OVERFLOW_UNDEFINED (type))
-	{
-	  *strict_overflow_p = true;
-	  return true;
-	}
+	return true;
       break;
 
     case NON_LVALUE_EXPR:
@@ -15124,10 +15123,10 @@ tree_expr_nonnegative_warnv_p (tree t, bool *strict_overflow_p, int depth)
 					depth);
 
     case tcc_unary:
-      return tree_unary_nonnegative_warnv_p (TREE_CODE (t),
-					     TREE_TYPE (t),
-					     TREE_OPERAND (t, 0),
-					     strict_overflow_p, depth);
+      return tree_unary_nonnegative_p (TREE_CODE (t),
+				       TREE_TYPE (t),
+				       TREE_OPERAND (t, 0),
+				       depth);
 
     case tcc_constant:
     case tcc_declaration:
@@ -15149,10 +15148,10 @@ tree_expr_nonnegative_warnv_p (tree t, bool *strict_overflow_p, int depth)
 					TREE_OPERAND (t, 1),
 					depth);
     case TRUTH_NOT_EXPR:
-      return tree_unary_nonnegative_warnv_p (TREE_CODE (t),
-					     TREE_TYPE (t),
-					     TREE_OPERAND (t, 0),
-					     strict_overflow_p, depth);
+      return tree_unary_nonnegative_p (TREE_CODE (t),
+				       TREE_TYPE (t),
+				       TREE_OPERAND (t, 0),
+				       depth);
 
     case COND_EXPR:
     case CONSTRUCTOR:
