@@ -199,8 +199,7 @@ extern tree size_diffop_loc (location_t, tree, tree);
 extern tree non_lvalue_loc (location_t, tree);
 
 extern bool tree_expr_nonzero_p (tree);
-extern bool tree_expr_nonnegative_p (tree);
-extern bool tree_expr_nonnegative_warnv_p (tree, bool *, int = 0);
+extern bool tree_expr_nonnegative_p (tree, int = 0);
 extern bool tree_expr_finite_p (const_tree);
 extern bool tree_expr_infinite_p (const_tree);
 extern bool tree_expr_maybe_infinite_p (const_tree);

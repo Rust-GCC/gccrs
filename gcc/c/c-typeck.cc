@@ -6811,8 +6811,6 @@ build_conditional_expr (location_t colon_loc, tree ifexp, bool ifexp_bcp,
 
 	  if (unsigned_op1 ^ unsigned_op2)
 	    {
-	      bool ovf;
-
 	      /* Do not warn if the result type is signed, since the
 		 signed type will only be chosen if it can represent
 		 all the values of the unsigned type.  */
@@ -6848,9 +6846,9 @@ build_conditional_expr (location_t colon_loc, tree ifexp, bool ifexp_bcp,
 		  if (warn_sign_compare)
 		    {
 		      if ((unsigned_op2
-			   && tree_expr_nonnegative_warnv_p (op1, &ovf))
+			   && tree_expr_nonnegative_p (op1))
 			  || (unsigned_op1
-			      && tree_expr_nonnegative_warnv_p (op2, &ovf)))
+			      && tree_expr_nonnegative_p (op2)))
 			/* OK */;
 		      else if (unsigned_op2)
 			warning_at (op1_loc, OPT_Wsign_compare,

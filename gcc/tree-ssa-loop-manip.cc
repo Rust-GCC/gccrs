@@ -133,9 +133,7 @@ create_iv (tree base, tree_code incr_op, tree step, tree var, class loop *loop,
 	}
       else
 	{
-	  bool ovf;
-
-	  if (!tree_expr_nonnegative_warnv_p (step, &ovf)
+	  if (!tree_expr_nonnegative_p (step)
 	      && may_negate_without_overflow_p (step))
 	    {
 	      incr_op = (incr_op == PLUS_EXPR ? MINUS_EXPR : PLUS_EXPR);

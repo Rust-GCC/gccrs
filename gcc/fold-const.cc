@@ -10909,7 +10909,6 @@ fold_binary_loc (location_t loc, enum tree_code code, tree type,
   enum tree_code_class kind = TREE_CODE_CLASS (code);
   tree arg0, arg1, tem;
   tree t1 = NULL_TREE;
-  bool strict_overflow_p;
   unsigned int prec;
 
   gcc_assert (IS_EXPR_CODE_CLASS (kind)
@@ -11922,10 +11921,9 @@ fold_binary_loc (location_t loc, enum tree_code code, tree type,
     case FLOOR_DIV_EXPR:
       /* Simplify A / (B << N) where A and B are positive and B is
 	 a power of 2, to A >> (N + log2(B)).  */
-      strict_overflow_p = false;
       if (TREE_CODE (arg1) == LSHIFT_EXPR
 	  && (TYPE_UNSIGNED (type)
-	      || tree_expr_nonnegative_warnv_p (op0, &strict_overflow_p)))
+	      || tree_expr_nonnegative_p (op0)))
 	{
 	  tree sval = TREE_OPERAND (arg1, 0);
 	  if (integer_pow2p (sval) && tree_int_cst_sgn (sval) > 0)
@@ -11933,11 +11931,6 @@ fold_binary_loc (location_t loc, enum tree_code code, tree type,
 	      tree sh_cnt = TREE_OPERAND (arg1, 1);
 	      tree pow2 = build_int_cst (TREE_TYPE (sh_cnt),
 					 wi::exact_log2 (wi::to_wide (sval)));
-
-	      if (strict_overflow_p)
-		fold_overflow_warning (("assuming signed overflow does not "
-					"occur when simplifying A / (B << N)"),
-				       WARN_STRICT_OVERFLOW_MISC);
 
 	      sh_cnt = fold_build2_loc (loc, PLUS_EXPR, TREE_TYPE (sh_cnt),
 					sh_cnt, pow2);
@@ -12521,38 +12514,22 @@ fold_binary_loc (location_t loc, enum tree_code code, tree type,
 				    TREE_OPERAND (arg0, 0), arg1));
 
       /* Convert ABS_EXPR<x> >= 0 to true.  */
-      strict_overflow_p = false;
       if (code == GE_EXPR
 	  && (integer_zerop (arg1)
 	      || (! HONOR_NANS (arg0)
 		  && real_zerop (arg1)))
-	  && tree_expr_nonnegative_warnv_p (arg0, &strict_overflow_p))
-	{
-	  if (strict_overflow_p)
-	    fold_overflow_warning (("assuming signed overflow does not occur "
-				    "when simplifying comparison of "
-				    "absolute value and zero"),
-				   WARN_STRICT_OVERFLOW_CONDITIONAL);
-	  return omit_one_operand_loc (loc, type,
-				       constant_boolean_node (true, type),
-				       arg0);
-	}
+	  && tree_expr_nonnegative_p (arg0))
+	return omit_one_operand_loc (loc, type,
+				     constant_boolean_node (true, type),
+				     arg0);
 
       /* Convert ABS_EXPR<x> < 0 to false.  */
-      strict_overflow_p = false;
       if (code == LT_EXPR
 	  && (integer_zerop (arg1) || real_zerop (arg1))
-	  && tree_expr_nonnegative_warnv_p (arg0, &strict_overflow_p))
-	{
-	  if (strict_overflow_p)
-	    fold_overflow_warning (("assuming signed overflow does not occur "
-				    "when simplifying comparison of "
-				    "absolute value and zero"),
-				   WARN_STRICT_OVERFLOW_CONDITIONAL);
-	  return omit_one_operand_loc (loc, type,
-				       constant_boolean_node (false, type),
-				       arg0);
-	}
+	  && tree_expr_nonnegative_p (arg0))
+	return omit_one_operand_loc (loc, type,
+				     constant_boolean_node (false, type),
+				     arg0);
 
       /* If X is unsigned, convert X < (1 << Y) into X >> Y == 0
 	 and similarly for >= into !=.  */
@@ -14584,11 +14561,11 @@ tree_expr_maybe_real_minus_zero_p (const_tree x)
   return true;
 }
 
-#define tree_expr_nonnegative_warnv_p(X, Y) \
+#define tree_expr_nonnegative_p(X, Y) \
   _Pragma ("GCC error \"Use RECURSE for recursive calls\"") 0
 
 #define RECURSE(X) \
-  ((tree_expr_nonnegative_warnv_p) (X, strict_overflow_p, depth + 1))
+  ((tree_expr_nonnegative_p) (X, depth + 1))
 
 /* Return true if CODE or TYPE is known to be non-negative. */
 
@@ -14612,11 +14589,6 @@ tree_unary_nonnegative_p (enum tree_code code, tree type, tree op0, int depth)
 {
   if (TYPE_UNSIGNED (type))
     return true;
-
-  /* The RECURSE () macro counts with a strict_overflow_p bool
-     pointer being declared beforehand.  */
-  bool val = false;
-  bool *strict_overflow_p = &val;
 
   switch (code)
     {
@@ -14678,11 +14650,6 @@ tree_binary_nonnegative_p (enum tree_code code, tree type, tree op0,
 {
   if (TYPE_UNSIGNED (type))
     return true;
-
-  /* The RECURSE () macro counts with a strict_overflow_p bool
-     pointer being declared beforehand.  */
-  bool val = false;
-  bool *strict_overflow_p = &val;
 
   switch (code)
     {
@@ -14802,11 +14769,6 @@ tree_single_nonnegative_p (tree t, int depth)
   if (TYPE_UNSIGNED (TREE_TYPE (t)))
     return true;
 
-  /* The RECURSE () macro counts with a strict_overflow_p bool
-     pointer being declared beforehand.  */
-  bool val = false;
-  bool *strict_overflow_p = &val;
-
   switch (TREE_CODE (t))
     {
     case INTEGER_CST:
@@ -14843,11 +14805,6 @@ bool
 tree_call_nonnegative_p (tree type, combined_fn fn, tree arg0, tree arg1,
 			 int depth)
 {
-  /* The RECURSE () macro counts with a strict_overflow_p bool
-     pointer being declared beforehand.  */
-  bool val = false;
-  bool *strict_overflow_p = &val;
-
   switch (fn)
     {
     CASE_CFN_ACOS:
@@ -15040,11 +14997,6 @@ tree_invalid_nonnegative_p (tree t, int depth)
   if (TYPE_UNSIGNED (TREE_TYPE (t)))
     return true;
 
-  /* The RECURSE () macro counts with a strict_overflow_p bool
-     pointer being declared beforehand.  */
-  bool val = false;
-  bool *strict_overflow_p = &val;
-
   switch (code)
     {
     case TARGET_EXPR:
@@ -15105,15 +15057,13 @@ tree_invalid_nonnegative_p (tree t, int depth)
 }
 
 #undef RECURSE
-#undef tree_expr_nonnegative_warnv_p
+#undef tree_expr_nonnegative_p
 
 /* Return true if T is known to be non-negative.
    DEPTH is the current nesting depth of the query.  */
 
 bool
-tree_expr_nonnegative_warnv_p (tree t,
-			       bool *strict_overflow_p ATTRIBUTE_UNUSED,
-			       int depth)
+tree_expr_nonnegative_p (tree t, int depth)
 {
   enum tree_code code;
   if (error_operand_p (t))
@@ -15174,24 +15124,6 @@ tree_expr_nonnegative_warnv_p (tree t,
     }
 }
 
-/* Return true if `t' is known to be non-negative.  Handle warnings
-   about undefined signed overflow.  */
-
-bool
-tree_expr_nonnegative_p (tree t)
-{
-  bool ret, strict_overflow_p;
-
-  strict_overflow_p = false;
-  ret = tree_expr_nonnegative_warnv_p (t, &strict_overflow_p);
-  if (strict_overflow_p)
-    fold_overflow_warning (("assuming signed overflow does not occur when "
-			    "determining that expression is always "
-			    "non-negative"),
-			   WARN_STRICT_OVERFLOW_MISC);
-  return ret;
-}
-
 
 /* Return true when (CODE OP0) is an address and is known to be nonzero.
    For floating point we further ensure that T is not denormal.
@@ -15232,7 +15164,6 @@ tree_unary_nonzero_p (enum tree_code code, tree type, tree op0)
 bool
 tree_binary_nonzero_p (enum tree_code code, tree type, tree op0, tree op1)
 {
-  bool sub_strict_overflow_p = false;
   switch (code)
     {
     case POINTER_PLUS_EXPR:
@@ -15241,10 +15172,8 @@ tree_binary_nonzero_p (enum tree_code code, tree type, tree op0, tree op1)
 	{
 	  /* With the presence of negative values it is hard
 	     to say something.  */
-	  if (!tree_expr_nonnegative_warnv_p (op0,
-					      &sub_strict_overflow_p)
-	      || !tree_expr_nonnegative_warnv_p (op1,
-						 &sub_strict_overflow_p))
+	  if (!tree_expr_nonnegative_p (op0)
+	      || !tree_expr_nonnegative_p (op1))
 	    return false;
 	  /* One of operands must be positive and the other non-negative.  */
 	  return (tree_expr_nonzero_p (op0)
@@ -15265,7 +15194,6 @@ tree_binary_nonzero_p (enum tree_code code, tree type, tree op0, tree op1)
       break;
 
     case MAX_EXPR:
-      sub_strict_overflow_p = false;
       if (tree_expr_nonzero_p (op0))
 	{
 
@@ -15274,13 +15202,11 @@ tree_binary_nonzero_p (enum tree_code code, tree type, tree op0, tree op1)
 	    return true;
 
 	  /* MAX where operand 0 is positive is positive.  */
-	  return tree_expr_nonnegative_warnv_p (op0,
-						&sub_strict_overflow_p);
+	  return tree_expr_nonnegative_p (op0);
 	}
       /* MAX where operand 1 is positive is positive.  */
       else if (tree_expr_nonzero_p (op1)
-	       && tree_expr_nonnegative_warnv_p (op1,
-						 &sub_strict_overflow_p))
+	       && tree_expr_nonnegative_p (op1))
 	return true;
       break;
 

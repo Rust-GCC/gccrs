@@ -2377,7 +2377,6 @@ warn_for_sign_compare (location_t location,
   else
     {
       tree sop, uop, base_type;
-      bool ovf;
 
       if (op0_signed)
 	sop = orig_op0, uop = orig_op1;
@@ -2396,7 +2395,7 @@ warn_for_sign_compare (location_t location,
 	 literal (or some static constant expression involving such
 	 literals or a conditional expression involving such literals)
 	 and it is non-negative.  */
-      if (tree_expr_nonnegative_warnv_p (sop, &ovf))
+      if (tree_expr_nonnegative_p (sop))
 	/* OK */;
       /* Do not warn if the comparison is an equality operation, the
 	 unsigned quantity is an integral constant, and it would fit
