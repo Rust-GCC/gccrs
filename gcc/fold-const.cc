@@ -14670,18 +14670,20 @@ tree_unary_nonnegative_warnv_p (enum tree_code code, tree type, tree op0,
   return false;
 }
 
-/* Return true if (CODE OP0 OP1) is known to be non-negative.  If the return
-   value is based on the assumption that signed overflow is undefined,
-   set *STRICT_OVERFLOW_P to true; otherwise, don't change
-   *STRICT_OVERFLOW_P.  DEPTH is the current nesting depth of the query.  */
+/* Return true if (CODE OP0 OP1) is known to be non-negative.
+   DEPTH is the current nesting depth of the query.  */
 
 bool
-tree_binary_nonnegative_warnv_p (enum tree_code code, tree type, tree op0,
-				 tree op1, bool *strict_overflow_p,
-				 int depth)
+tree_binary_nonnegative_p (enum tree_code code, tree type, tree op0,
+			   tree op1, int depth)
 {
   if (TYPE_UNSIGNED (type))
     return true;
+
+  /* The RECURSE () macro counts with a strict_overflow_p bool
+     pointer being declared beforehand.  */
+  bool val = false;
+  bool *strict_overflow_p = &val;
 
   switch (code)
     {
@@ -14715,12 +14717,7 @@ tree_binary_nonnegative_warnv_p (enum tree_code code, tree type, tree op0,
 	     or without overflow.  */
 	  if (operand_equal_p (op0, op1, 0)
 	      || (RECURSE (op0) && RECURSE (op1)))
-	    {
-	      if (ANY_INTEGRAL_TYPE_P (type)
-		  && TYPE_OVERFLOW_UNDEFINED (type))
-		*strict_overflow_p = true;
-	      return true;
-	    }
+	    return true;
 	}
 
       /* zero_extend(x) * zero_extend(y) is non-negative if x and y are
@@ -15120,11 +15117,11 @@ tree_expr_nonnegative_warnv_p (tree t, bool *strict_overflow_p, int depth)
     {
     case tcc_binary:
     case tcc_comparison:
-      return tree_binary_nonnegative_warnv_p (TREE_CODE (t),
-					      TREE_TYPE (t),
-					      TREE_OPERAND (t, 0),
-					      TREE_OPERAND (t, 1),
-					      strict_overflow_p, depth);
+      return tree_binary_nonnegative_p (TREE_CODE (t),
+					TREE_TYPE (t),
+					TREE_OPERAND (t, 0),
+					TREE_OPERAND (t, 1),
+					depth);
 
     case tcc_unary:
       return tree_unary_nonnegative_warnv_p (TREE_CODE (t),
@@ -15146,11 +15143,11 @@ tree_expr_nonnegative_warnv_p (tree t, bool *strict_overflow_p, int depth)
     case TRUTH_AND_EXPR:
     case TRUTH_OR_EXPR:
     case TRUTH_XOR_EXPR:
-      return tree_binary_nonnegative_warnv_p (TREE_CODE (t),
-					      TREE_TYPE (t),
-					      TREE_OPERAND (t, 0),
-					      TREE_OPERAND (t, 1),
-					      strict_overflow_p, depth);
+      return tree_binary_nonnegative_p (TREE_CODE (t),
+					TREE_TYPE (t),
+					TREE_OPERAND (t, 0),
+					TREE_OPERAND (t, 1),
+					depth);
     case TRUTH_NOT_EXPR:
       return tree_unary_nonnegative_warnv_p (TREE_CODE (t),
 					     TREE_TYPE (t),
