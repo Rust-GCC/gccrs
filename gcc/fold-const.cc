@@ -138,8 +138,8 @@ static tree range_successor (tree);
 static tree fold_range_test (location_t, enum tree_code, tree, tree, tree);
 static tree fold_cond_expr_with_comparison (location_t, tree, enum tree_code,
 					    tree, tree, tree, tree);
-static tree extract_muldiv (tree, tree, enum tree_code, tree, bool *);
-static tree extract_muldiv_1 (tree, tree, enum tree_code, tree, bool *);
+static tree extract_muldiv (tree, tree, enum tree_code, tree);
+static tree extract_muldiv_1 (tree, tree, enum tree_code, tree);
 static tree fold_binary_op_with_conditional_arg (location_t,
 						 enum tree_code, tree,
 						 tree, tree,
@@ -6560,15 +6560,10 @@ fold_truth_andor_1 (location_t loc, enum tree_code code, tree truth_type,
    in the language in question.
 
    If we return a non-null expression, it is an equivalent form of the
-   original computation, but need not be in the original type.
-
-   We set *STRICT_OVERFLOW_P to true if the return values depends on
-   signed overflow being undefined.  Otherwise we do not change
-   *STRICT_OVERFLOW_P.  */
+   original computation, but need not be in the original type.  */
 
 static tree
-extract_muldiv (tree t, tree c, enum tree_code code, tree wide_type,
-		bool *strict_overflow_p)
+extract_muldiv (tree t, tree c, enum tree_code code, tree wide_type)
 {
   /* To avoid exponential search depth, refuse to allow recursion past
      three levels.  Beyond that (1) it's highly unlikely that we'll find
@@ -6582,15 +6577,14 @@ extract_muldiv (tree t, tree c, enum tree_code code, tree wide_type,
     return NULL;
 
   depth++;
-  ret = extract_muldiv_1 (t, c, code, wide_type, strict_overflow_p);
+  ret = extract_muldiv_1 (t, c, code, wide_type);
   depth--;
 
   return ret;
 }
 
 static tree
-extract_muldiv_1 (tree t, tree c, enum tree_code code, tree wide_type,
-		  bool *strict_overflow_p)
+extract_muldiv_1 (tree t, tree c, enum tree_code code, tree wide_type)
 {
   tree type = TREE_TYPE (t);
   enum tree_code tcode = TREE_CODE (t);
@@ -6610,7 +6604,6 @@ extract_muldiv_1 (tree t, tree c, enum tree_code code, tree wide_type,
   tree t1, t2;
   bool same_p = tcode == code;
   tree op0 = NULL_TREE, op1 = NULL_TREE;
-  bool sub_strict_overflow_p;
 
   /* Don't deal with constants of zero here; they confuse the code below.  */
   if (integer_zerop (c))
@@ -6680,8 +6673,8 @@ extract_muldiv_1 (tree t, tree c, enum tree_code code, tree wide_type,
 	  && TREE_CODE (t2) == INTEGER_CST
 	  && !TREE_OVERFLOW (t2)
 	  && (t1 = extract_muldiv (op0, t2, code,
-				   code == MULT_EXPR ? ctype : NULL_TREE,
-				   strict_overflow_p)) != 0)
+				   code == MULT_EXPR ? ctype : NULL_TREE))
+				   != 0)
 	return t1;
       break;
 
@@ -6691,8 +6684,7 @@ extract_muldiv_1 (tree t, tree c, enum tree_code code, tree wide_type,
       if (TYPE_UNSIGNED (ctype) && !TYPE_UNSIGNED (type))
         {
           tree cstype = (*signed_type_for) (ctype);
-          if ((t1 = extract_muldiv (op0, c, code, cstype, strict_overflow_p))
-	      != 0)
+	  if ((t1 = extract_muldiv (op0, c, code, cstype)) != 0)
             {
               t1 = fold_build1 (tcode, cstype, fold_convert (cstype, t1));
               return fold_convert (ctype, t1);
@@ -6709,8 +6701,7 @@ extract_muldiv_1 (tree t, tree c, enum tree_code code, tree wide_type,
 	 For signed types, even with wrapping overflow, this is fine.  */
       if (code != MULT_EXPR && TYPE_UNSIGNED (type))
 	break;
-      if ((t1 = extract_muldiv (op0, c, code, wide_type, strict_overflow_p))
-	  != 0)
+      if ((t1 = extract_muldiv (op0, c, code, wide_type)) != 0)
 	return fold_build1 (tcode, ctype, fold_convert (ctype, t1));
       break;
 
@@ -6742,16 +6733,11 @@ extract_muldiv_1 (tree t, tree c, enum tree_code code, tree wide_type,
 	break;
 
       /* MIN (a, b) / 5 -> MIN (a / 5, b / 5)  */
-      sub_strict_overflow_p = false;
-      if ((t1 = extract_muldiv (op0, c, code, wide_type,
-				&sub_strict_overflow_p)) != 0
-	  && (t2 = extract_muldiv (op1, c, code, wide_type,
-				   &sub_strict_overflow_p)) != 0)
+      if ((t1 = extract_muldiv (op0, c, code, wide_type)) != 0
+	  && (t2 = extract_muldiv (op1, c, code, wide_type)) != 0)
 	{
 	  if (tree_int_cst_sgn (c) < 0)
 	    tcode = (tcode == MIN_EXPR ? MAX_EXPR : MIN_EXPR);
-	  if (sub_strict_overflow_p)
-	    *strict_overflow_p = true;
 	  return fold_build2 (tcode, ctype, fold_convert (ctype, t1),
 			      fold_convert (ctype, t2));
 	}
@@ -6779,7 +6765,7 @@ extract_muldiv_1 (tree t, tree c, enum tree_code code, tree wide_type,
 				       ctype,
 				       fold_convert (ctype, op0),
 				       t1),
-			       c, code, wide_type, strict_overflow_p);
+				       c, code, wide_type);
       break;
 
     case PLUS_EXPR:  case MINUS_EXPR:
@@ -6787,9 +6773,8 @@ extract_muldiv_1 (tree t, tree c, enum tree_code code, tree wide_type,
 	 can return a new PLUS or MINUS.  If we can't, the only remaining
 	 cases where we can do anything are if the second operand is a
 	 constant.  */
-      sub_strict_overflow_p = false;
-      t1 = extract_muldiv (op0, c, code, wide_type, &sub_strict_overflow_p);
-      t2 = extract_muldiv (op1, c, code, wide_type, &sub_strict_overflow_p);
+      t1 = extract_muldiv (op0, c, code, wide_type);
+      t2 = extract_muldiv (op1, c, code, wide_type);
       if (t1 != 0 && t2 != 0
 	  && TYPE_OVERFLOW_WRAPS (ctype)
 	  && (code == MULT_EXPR
@@ -6798,8 +6783,6 @@ extract_muldiv_1 (tree t, tree c, enum tree_code code, tree wide_type,
 	      || (multiple_of_p (ctype, op0, c)
 	          && multiple_of_p (ctype, op1, c))))
 	{
-	  if (sub_strict_overflow_p)
-	    *strict_overflow_p = true;
 	  return fold_build2 (tcode, ctype, fold_convert (ctype, t1),
 			      fold_convert (ctype, t2));
 	}
@@ -6884,7 +6867,6 @@ extract_muldiv_1 (tree t, tree c, enum tree_code code, tree wide_type,
 	  && wi::multiple_of_p (wi::to_wide (op1), wi::to_wide (c),
 				TYPE_SIGN (type)))
 	{
-	  *strict_overflow_p = true;
 	  return omit_one_operand (type, integer_zero_node, op0);
 	}
 
@@ -6897,14 +6879,12 @@ extract_muldiv_1 (tree t, tree c, enum tree_code code, tree wide_type,
 	 do something only if the second operand is a constant.  */
       if (same_p
 	  && TYPE_OVERFLOW_WRAPS (ctype)
-	  && (t1 = extract_muldiv (op0, c, code, wide_type,
-				   strict_overflow_p)) != 0)
+	  && (t1 = extract_muldiv (op0, c, code, wide_type)) != 0)
 	return fold_build2 (tcode, ctype, fold_convert (ctype, t1),
 			    fold_convert (ctype, op1));
       else if (tcode == MULT_EXPR && code == MULT_EXPR
 	       && TYPE_OVERFLOW_WRAPS (ctype)
-	       && (t1 = extract_muldiv (op1, c, code, wide_type,
-					strict_overflow_p)) != 0)
+	       && (t1 = extract_muldiv (op1, c, code, wide_type)) != 0)
 	return fold_build2 (tcode, ctype, fold_convert (ctype, op0),
 			    fold_convert (ctype, t1));
       else if (TREE_CODE (op1) != INTEGER_CST)
@@ -6948,7 +6928,6 @@ extract_muldiv_1 (tree t, tree c, enum tree_code code, tree wide_type,
 	  if (wi::multiple_of_p (wi::to_wide (op1), wi::to_wide (c),
 				 TYPE_SIGN (type)))
 	    {
-	      *strict_overflow_p = true;
 	      return fold_build2 (tcode, ctype, fold_convert (ctype, op0),
 				  fold_convert (ctype,
 						const_binop (TRUNC_DIV_EXPR,
@@ -6957,7 +6936,6 @@ extract_muldiv_1 (tree t, tree c, enum tree_code code, tree wide_type,
 	  else if (wi::multiple_of_p (wi::to_wide (c), wi::to_wide (op1),
 				      TYPE_SIGN (type)))
 	    {
-	      *strict_overflow_p = true;
 	      return fold_build2 (code, ctype, fold_convert (ctype, op0),
 				  fold_convert (ctype,
 						const_binop (TRUNC_DIV_EXPR,
@@ -11767,16 +11745,9 @@ fold_binary_loc (location_t loc, enum tree_code code, tree type,
 				    fold_convert_loc (loc, type,
 						      negate_expr (op0)), tem);
 
-	  strict_overflow_p = false;
 	  if (TREE_CODE (arg1) == INTEGER_CST
-	      && (tem = extract_muldiv (op0, arg1, code, NULL_TREE,
-					&strict_overflow_p)) != 0)
+	      && (tem = extract_muldiv (op0, arg1, code, NULL_TREE)) != 0)
 	    {
-	      if (strict_overflow_p)
-		fold_overflow_warning (("assuming signed overflow does not "
-					"occur when simplifying "
-					"multiplication"),
-				       WARN_STRICT_OVERFLOW_MISC);
 	      return fold_convert_loc (loc, type, tem);
 	    }
 
@@ -12071,17 +12042,9 @@ fold_binary_loc (location_t loc, enum tree_code code, tree type,
 				fold_convert (type, arg0),
 				fold_convert (type, arg1));
 
-      strict_overflow_p = false;
       if (TREE_CODE (arg1) == INTEGER_CST
-	  && (tem = extract_muldiv (op0, arg1, code, NULL_TREE,
-				    &strict_overflow_p)) != 0)
-	{
-	  if (strict_overflow_p)
-	    fold_overflow_warning (("assuming signed overflow does not occur "
-				    "when simplifying division"),
-				   WARN_STRICT_OVERFLOW_MISC);
+	  && (tem = extract_muldiv (op0, arg1, code, NULL_TREE)) != 0)
 	  return fold_convert_loc (loc, type, tem);
-	}
 
       return NULL_TREE;
 
@@ -12089,17 +12052,9 @@ fold_binary_loc (location_t loc, enum tree_code code, tree type,
     case FLOOR_MOD_EXPR:
     case ROUND_MOD_EXPR:
     case TRUNC_MOD_EXPR:
-      strict_overflow_p = false;
       if (TREE_CODE (arg1) == INTEGER_CST
-	  && (tem = extract_muldiv (op0, arg1, code, NULL_TREE,
-				    &strict_overflow_p)) != 0)
-	{
-	  if (strict_overflow_p)
-	    fold_overflow_warning (("assuming signed overflow does not occur "
-				    "when simplifying modulus"),
-				   WARN_STRICT_OVERFLOW_MISC);
+	  && (tem = extract_muldiv (op0, arg1, code, NULL_TREE)) != 0)
 	  return fold_convert_loc (loc, type, tem);
-	}
 
       return NULL_TREE;
 
