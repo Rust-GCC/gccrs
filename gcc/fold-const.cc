@@ -10804,9 +10804,10 @@ mask_with_tz (tree type, const wide_int &x, const wide_int &y)
    For floating point we further ensure that T is not denormal.
    Similar logic is present in nonzero_address in rtlanal.h.
 
-   If the return value is based on the assumption that signed overflow
-   is undefined, set *STRICT_OVERFLOW_P to true; otherwise, don't
-   change *STRICT_OVERFLOW_P.  */
+   For certain tree code classes, if the return value is based on
+   the assumption that signed overflow is undefined, set
+   *STRICT_OVERFLOW_P to true; otherwise, don't change
+   *STRICT_OVERFLOW_P.  */
 
 static bool
 tree_expr_nonzero_warnv_p (tree t, bool *strict_overflow_p)
@@ -10822,8 +10823,7 @@ tree_expr_nonzero_warnv_p (tree t, bool *strict_overflow_p)
   switch (TREE_CODE_CLASS (code))
     {
     case tcc_unary:
-      return tree_unary_nonzero_warnv_p (code, type, TREE_OPERAND (t, 0),
-					      strict_overflow_p);
+      return tree_unary_nonzero_p (code, type, TREE_OPERAND (t, 0));
     case tcc_binary:
     case tcc_comparison:
       return tree_binary_nonzero_warnv_p (code, type,
@@ -10842,8 +10842,7 @@ tree_expr_nonzero_warnv_p (tree t, bool *strict_overflow_p)
   switch (code)
     {
     case TRUTH_NOT_EXPR:
-      return tree_unary_nonzero_warnv_p (code, type, TREE_OPERAND (t, 0),
-					      strict_overflow_p);
+      return tree_unary_nonzero_p (code, type, TREE_OPERAND (t, 0));
 
     case TRUTH_AND_EXPR:
     case TRUTH_OR_EXPR:
@@ -15236,21 +15235,17 @@ tree_expr_nonnegative_p (tree t)
 
 /* Return true when (CODE OP0) is an address and is known to be nonzero.
    For floating point we further ensure that T is not denormal.
-   Similar logic is present in nonzero_address in rtlanal.h.
-
-   If the return value is based on the assumption that signed overflow
-   is undefined, set *STRICT_OVERFLOW_P to true; otherwise, don't
-   change *STRICT_OVERFLOW_P.  */
+   Similar logic is present in nonzero_address in rtlanal.h.  */
 
 bool
-tree_unary_nonzero_warnv_p (enum tree_code code, tree type, tree op0,
-				 bool *strict_overflow_p)
+tree_unary_nonzero_p (enum tree_code code, tree type, tree op0)
 {
+  bool sub_strict_overflow_p = false;
   switch (code)
     {
     case ABS_EXPR:
       return tree_expr_nonzero_warnv_p (op0,
-					strict_overflow_p);
+					&sub_strict_overflow_p);
 
     case NOP_EXPR:
       {
@@ -15259,13 +15254,13 @@ tree_unary_nonzero_warnv_p (enum tree_code code, tree type, tree op0,
 
 	return (TYPE_PRECISION (outer_type) >= TYPE_PRECISION (inner_type)
 		&& tree_expr_nonzero_warnv_p (op0,
-					      strict_overflow_p));
+					      &sub_strict_overflow_p));
       }
       break;
 
     case NON_LVALUE_EXPR:
       return tree_expr_nonzero_warnv_p (op0,
-					strict_overflow_p);
+					&sub_strict_overflow_p);
 
     default:
       break;
