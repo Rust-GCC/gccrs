@@ -63,6 +63,8 @@ protected:
 				    bool &failure_flag);
 
   void validate_trait_impl_block (
+    const TyTy::TypeBoundPredicate &specified_bound,
+    std::vector<const TraitItemReference *> trait_item_refs,
     TraitReference *trait_reference, HIR::ImplBlock &impl_block,
     TyTy::BaseType *self,
     std::vector<TyTy::SubstitutionParamMapping> &substitutions);

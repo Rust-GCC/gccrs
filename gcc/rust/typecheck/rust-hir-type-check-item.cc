@@ -471,15 +471,6 @@ TypeCheckItem::visit (HIR::ImplBlock &impl_block)
 {
   auto binder_pin = context->push_clean_lifetime_resolver (true);
 
-  TraitReference *trait_reference = &TraitReference::error_node ();
-  if (impl_block.has_trait_ref ())
-    {
-      HIR::TypePath &ref = impl_block.get_trait_ref ();
-      trait_reference = TraitResolver::Resolve (ref);
-      if (trait_reference->is_error ())
-	return;
-    }
-
   bool failed_flag = false;
   auto result = resolve_impl_block_substitutions (impl_block, failed_flag);
   if (failed_flag)
@@ -493,14 +484,69 @@ TypeCheckItem::visit (HIR::ImplBlock &impl_block)
 
   TyTy::BaseType *self = resolve_impl_block_self (impl_block);
 
-  // resolve each impl_item
-  for (auto &impl_item : impl_block.get_impl_items ())
+  auto specified_bound = TyTy::TypeBoundPredicate::error ();
+  TraitReference *trait_reference = &TraitReference::error_node ();
+  if (impl_block.has_trait_ref ())
     {
-      TypeCheckImplItem::Resolve (impl_block, *impl_item, self, substitutions);
+      HIR::TypePath &ref = impl_block.get_trait_ref ();
+      trait_reference = TraitResolver::Resolve (ref);
+      if (trait_reference->is_error ())
+	return;
+
+      // we don't error out here see: gcc/testsuite/rust/compile/traits2.rs
+      // for example
+      specified_bound = get_predicate_from_bound (ref, impl_block.get_type (),
+						  impl_block.get_polarity ());
+
+      // need to check that if this specified bound has super traits does this
+      // Self implement them?
+      specified_bound.validate_type_implements_super_traits (
+	*self, impl_block.get_type (), impl_block.get_trait_ref ());
     }
 
-  // validate the impl items
-  validate_trait_impl_block (trait_reference, impl_block, self, substitutions);
+  bool is_trait_impl_block = !trait_reference->is_error ();
+  if (!is_trait_impl_block)
+    {
+      for (auto &impl_item : impl_block.get_impl_items ())
+	TypeCheckImplItem::Resolve (impl_block, *impl_item, self,
+				    substitutions);
+    }
+  else
+    {
+      std::vector<const TraitItemReference *> trait_item_refs;
+      for (auto &impl_item : impl_block.get_impl_items ())
+	{
+	  bool is_type_alias = impl_item->get_impl_item_type ()
+			       == HIR::ImplItem::ImplItemType::TYPE_ALIAS;
+	  if (!is_type_alias)
+	    continue;
+
+	  auto trait_item_ref
+	    = TypeCheckImplItemWithTrait::Resolve (impl_block, *impl_item, self,
+						   specified_bound,
+						   substitutions);
+	  if (!trait_item_ref.is_error ())
+	    trait_item_refs.push_back (trait_item_ref.get_raw_item ());
+	}
+      for (auto &impl_item : impl_block.get_impl_items ())
+	{
+	  bool is_type_alias = impl_item->get_impl_item_type ()
+			       == HIR::ImplItem::ImplItemType::TYPE_ALIAS;
+	  if (is_type_alias)
+	    continue;
+
+	  auto trait_item_ref
+	    = TypeCheckImplItemWithTrait::Resolve (impl_block, *impl_item, self,
+						   specified_bound,
+						   substitutions);
+	  if (!trait_item_ref.is_error ())
+	    trait_item_refs.push_back (trait_item_ref.get_raw_item ());
+	}
+
+      validate_trait_impl_block (specified_bound, trait_item_refs,
+				 trait_reference, impl_block, self,
+				 substitutions);
+    }
 }
 
 TyTy::BaseType *
@@ -733,12 +779,14 @@ TypeCheckItem::resolve_impl_block_substitutions (HIR::ImplBlock &impl_block,
     {
       auto &ref = impl_block.get_trait_ref ();
       trait_reference = TraitResolver::Resolve (ref);
-      rust_assert (!trait_reference->is_error ());
-
-      // we don't error out here see: gcc/testsuite/rust/compile/traits2.rs
-      // for example
-      specified_bound = get_predicate_from_bound (ref, impl_block.get_type (),
-						  impl_block.get_polarity ());
+      if (!trait_reference->is_error ())
+	{
+	  // we don't error out here see: gcc/testsuite/rust/compile/traits2.rs
+	  // for example
+	  specified_bound
+	    = get_predicate_from_bound (ref, impl_block.get_type (),
+					impl_block.get_polarity ());
+	}
     }
 
   TyTy::BaseType *self = TypeCheckType::Resolve (impl_block.get_type ());
@@ -769,45 +817,12 @@ TypeCheckItem::resolve_impl_block_substitutions (HIR::ImplBlock &impl_block,
 
 void
 TypeCheckItem::validate_trait_impl_block (
+  const TyTy::TypeBoundPredicate &specified_bound,
+  std::vector<const TraitItemReference *> trait_item_refs,
   TraitReference *trait_reference, HIR::ImplBlock &impl_block,
   TyTy::BaseType *self,
   std::vector<TyTy::SubstitutionParamMapping> &substitutions)
 {
-  auto specified_bound = TyTy::TypeBoundPredicate::error ();
-  if (impl_block.has_trait_ref ())
-    {
-      auto &ref = impl_block.get_trait_ref ();
-      trait_reference = TraitResolver::Resolve (ref);
-      if (trait_reference->is_error ())
-	return;
-
-      // we don't error out here see: gcc/testsuite/rust/compile/traits2.rs
-      // for example
-      specified_bound = get_predicate_from_bound (ref, impl_block.get_type (),
-						  impl_block.get_polarity ());
-
-      // need to check that if this specified bound has super traits does this
-      // Self
-      // implement them?
-      specified_bound.validate_type_implements_super_traits (
-	*self, impl_block.get_type (), impl_block.get_trait_ref ());
-    }
-
-  bool is_trait_impl_block = !trait_reference->is_error ();
-  std::vector<const TraitItemReference *> trait_item_refs;
-  for (auto &impl_item : impl_block.get_impl_items ())
-    {
-      if (!specified_bound.is_error ())
-	{
-	  auto trait_item_ref
-	    = TypeCheckImplItemWithTrait::Resolve (impl_block, *impl_item, self,
-						   specified_bound,
-						   substitutions);
-	  if (!trait_item_ref.is_error ())
-	    trait_item_refs.push_back (trait_item_ref.get_raw_item ());
-	}
-    }
-
   bool impl_block_missing_trait_items
     = !specified_bound.is_error ()
       && trait_reference->size () != trait_item_refs.size ();
@@ -856,18 +871,15 @@ TypeCheckItem::validate_trait_impl_block (
 	}
     }
 
-  if (is_trait_impl_block)
-    {
-      trait_reference->clear_associated_types ();
+  trait_reference->clear_associated_types ();
 
-      AssociatedImplTrait associated (trait_reference, specified_bound,
-				      &impl_block, self, context);
-      context->insert_associated_trait_impl (
-	impl_block.get_mappings ().get_hirid (), std::move (associated));
-      context->insert_associated_impl_mapping (
-	trait_reference->get_mappings ().get_hirid (), self,
-	impl_block.get_mappings ().get_hirid ());
-    }
+  AssociatedImplTrait associated (trait_reference, specified_bound, &impl_block,
+				  self, context);
+  context->insert_associated_trait_impl (
+    impl_block.get_mappings ().get_hirid (), std::move (associated));
+  context->insert_associated_impl_mapping (
+    trait_reference->get_mappings ().get_hirid (), self,
+    impl_block.get_mappings ().get_hirid ());
 }
 
 TyTy::BaseType *
