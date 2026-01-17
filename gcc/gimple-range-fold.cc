@@ -842,7 +842,6 @@ fold_using_range::range_of_address (prange &r, gimple *stmt, fur_source &src)
   gcc_checking_assert (gimple_code (stmt) == GIMPLE_ASSIGN);
   gcc_checking_assert (gimple_assign_rhs_code (stmt) == ADDR_EXPR);
 
-  bool strict_overflow_p;
   tree expr = gimple_assign_rhs1 (stmt);
   poly_int64 bitsize, bitpos;
   tree offset;
@@ -910,7 +909,7 @@ fold_using_range::range_of_address (prange &r, gimple *stmt, fur_source &src)
     }
 
   // Handle "= &a".
-  if (tree_single_nonzero_warnv_p (expr, &strict_overflow_p))
+  if (tree_single_nonzero_p (expr))
     {
       r.set_nonzero (TREE_TYPE (gimple_assign_rhs1 (stmt)));
       return true;
@@ -956,8 +955,7 @@ range_from_readonly_load (vrange &r, tree type, tree cst,
 
       if (POINTER_TYPE_P (type))
 	{
-	  bool strict_overflow_p;
-	  return tree_single_nonzero_warnv_p (cst, &strict_overflow_p);
+	  return tree_single_nonzero_p (cst);
 	}
 
       if (TREE_CODE (cst) != INTEGER_CST)

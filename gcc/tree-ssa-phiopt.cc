@@ -1329,7 +1329,7 @@ absorbing_element_p (tree_code code, tree arg, bool right, tree rval)
     case ROUND_MOD_EXPR:
       return (!right
 	      && integer_zerop (arg)
-	      && tree_single_nonzero_warnv_p (rval, NULL));
+	      && tree_single_nonzero_p (rval));
 
     default:
       return false;

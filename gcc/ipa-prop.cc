@@ -2543,8 +2543,7 @@ ipa_compute_jump_functions_for_edge (struct ipa_func_body_info *fbi,
 	      || vr.varying_p ()
 	      || vr.undefined_p ())
 	    {
-	      bool strict_overflow = false;
-	      if (tree_single_nonzero_warnv_p (arg, &strict_overflow))
+	      if (tree_single_nonzero_p (arg))
 		vr.set_nonzero (TREE_TYPE (arg));
 	      else
 		vr.set_varying (TREE_TYPE (arg));

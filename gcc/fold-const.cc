@@ -10832,7 +10832,7 @@ tree_expr_nonzero_warnv_p (tree t, bool *strict_overflow_p)
     case tcc_constant:
     case tcc_declaration:
     case tcc_reference:
-      return tree_single_nonzero_warnv_p (t, strict_overflow_p);
+      return tree_single_nonzero_p (t);
 
     default:
       break;
@@ -10856,7 +10856,7 @@ tree_expr_nonzero_warnv_p (tree t, bool *strict_overflow_p)
     case ADDR_EXPR:
     case WITH_SIZE_EXPR:
     case SSA_NAME:
-      return tree_single_nonzero_warnv_p (t, strict_overflow_p);
+      return tree_single_nonzero_p (t);
 
     case COMPOUND_EXPR:
     case MODIFY_EXPR:
@@ -15351,14 +15351,10 @@ tree_binary_nonzero_p (enum tree_code code, tree type, tree op0, tree op1)
 
 /* Return true when T is an address and is known to be nonzero.
    For floating point we further ensure that T is not denormal.
-   Similar logic is present in nonzero_address in rtlanal.h.
-
-   If the return value is based on the assumption that signed overflow
-   is undefined, set *STRICT_OVERFLOW_P to true; otherwise, don't
-   change *STRICT_OVERFLOW_P.  */
+   Similar logic is present in nonzero_address in rtlanal.h.  */
 
 bool
-tree_single_nonzero_warnv_p (tree t, bool *strict_overflow_p)
+tree_single_nonzero_p (tree t)
 {
   bool sub_strict_overflow_p;
   switch (TREE_CODE (t))
@@ -15399,11 +15395,7 @@ tree_single_nonzero_warnv_p (tree t, bool *strict_overflow_p)
 				     &sub_strict_overflow_p)
 	  && tree_expr_nonzero_warnv_p (TREE_OPERAND (t, 2),
 					&sub_strict_overflow_p))
-	{
-	  if (sub_strict_overflow_p)
-	    *strict_overflow_p = true;
-	  return true;
-	}
+	return true;
       break;
 
     case SSA_NAME:

@@ -389,8 +389,7 @@ range_query::get_tree_range (vrange &r, tree expr, gimple *stmt,
     case ADDR_EXPR:
       {
 	// Handle &var which can show up in phi arguments.
-	bool ov;
-	if (tree_single_nonzero_warnv_p (expr, &ov))
+	if (tree_single_nonzero_p (expr))
 	  {
 	    r.set_nonzero (type);
 	    return true;

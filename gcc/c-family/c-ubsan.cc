@@ -920,16 +920,14 @@ ubsan_maybe_instrument_reference_or_call (location_t loc, tree op, tree ptype,
     {
       if (sanitize_flags_p (SANITIZE_NULL) && TREE_CODE (op) == ADDR_EXPR)
 	{
-	  bool strict_overflow_p = false;
-	  /* tree_single_nonzero_warnv_p will not return true for non-weak
+	  /* tree_single_nonzero_p will not return true for non-weak
 	     non-automatic decls with -fno-delete-null-pointer-checks,
 	     which is disabled during -fsanitize=null.  We don't want to
 	     instrument those, just weak vars though.  */
 	  int save_flag_delete_null_pointer_checks
 	    = flag_delete_null_pointer_checks;
 	  flag_delete_null_pointer_checks = 1;
-	  if (!tree_single_nonzero_warnv_p (op, &strict_overflow_p)
-	      || strict_overflow_p)
+	  if (!tree_single_nonzero_p (op))
 	    instrument = true;
 	  flag_delete_null_pointer_checks
 	    = save_flag_delete_null_pointer_checks;
