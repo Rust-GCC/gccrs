@@ -167,7 +167,7 @@ extern bool tree_binary_nonzero_p (enum tree_code, tree, tree, tree op1);
 extern bool tree_single_nonzero_p (tree);
 extern bool tree_unary_nonnegative_p (enum tree_code, tree, tree, int);
 extern bool tree_binary_nonnegative_p (enum tree_code, tree, tree, tree, int);
-extern bool tree_single_nonnegative_warnv_p (tree, bool *, int);
+extern bool tree_single_nonnegative_p (tree, int);
 extern bool tree_call_nonnegative_warnv_p (tree, combined_fn, tree, tree,
 					   bool *, int);
 

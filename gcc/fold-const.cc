@@ -14793,16 +14793,19 @@ tree_binary_nonnegative_p (enum tree_code code, tree type, tree op0,
   return false;
 }
 
-/* Return true if T is known to be non-negative.  If the return
-   value is based on the assumption that signed overflow is undefined,
-   set *STRICT_OVERFLOW_P to true; otherwise, don't change
-   *STRICT_OVERFLOW_P.  DEPTH is the current nesting depth of the query.  */
+/* Return true if T is known to be non-negative.
+   DEPTH is the current nesting depth of the query.  */
 
 bool
-tree_single_nonnegative_warnv_p (tree t, bool *strict_overflow_p, int depth)
+tree_single_nonnegative_p (tree t, int depth)
 {
   if (TYPE_UNSIGNED (TREE_TYPE (t)))
     return true;
+
+  /* The RECURSE () macro counts with a strict_overflow_p bool
+     pointer being declared beforehand.  */
+  bool val = false;
+  bool *strict_overflow_p = &val;
 
   switch (TREE_CODE (t))
     {
@@ -15131,7 +15134,7 @@ tree_expr_nonnegative_warnv_p (tree t, bool *strict_overflow_p, int depth)
     case tcc_constant:
     case tcc_declaration:
     case tcc_reference:
-      return tree_single_nonnegative_warnv_p (t, strict_overflow_p, depth);
+      return tree_single_nonnegative_p (t, depth);
 
     default:
       break;
@@ -15159,7 +15162,7 @@ tree_expr_nonnegative_warnv_p (tree t, bool *strict_overflow_p, int depth)
     case ADDR_EXPR:
     case WITH_SIZE_EXPR:
     case SSA_NAME:
-      return tree_single_nonnegative_warnv_p (t, strict_overflow_p, depth);
+      return tree_single_nonnegative_p (t, depth);
 
     default:
       return tree_invalid_nonnegative_warnv_p (t, strict_overflow_p, depth);
