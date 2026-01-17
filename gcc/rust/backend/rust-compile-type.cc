@@ -19,7 +19,9 @@
 #include "rust-compile-type.h"
 #include "rust-constexpr.h"
 #include "rust-compile-base.h"
+#include "rust-type-util.h"
 
+#include "rust-tyty.h"
 #include "tree.h"
 #include "fold-const.h"
 #include "stor-layout.h"
@@ -168,7 +170,16 @@ TyTyResolveCompile::visit (const TyTy::ConstErrorType &type)
 void
 TyTyResolveCompile::visit (const TyTy::ProjectionType &type)
 {
-  translated = error_mark_node;
+  auto normalized
+    = Resolver::normalize_projection ((TyTy::ProjectionType *) &type,
+				      BUILTINS_LOCATION, false, false);
+  if (normalized == &type)
+    {
+      translated = error_mark_node;
+      return;
+    }
+
+  translated = TyTyResolveCompile::compile (ctx, normalized, false);
 }
 
 void

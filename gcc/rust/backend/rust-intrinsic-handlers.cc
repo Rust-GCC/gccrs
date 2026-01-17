@@ -1159,14 +1159,12 @@ tree
 discriminant_value (Context *ctx, TyTy::FnType *fntype)
 {
   rust_assert (fntype->get_params ().size () == 1);
-  rust_assert (fntype->get_return_type ()->is<TyTy::PlaceholderType> ());
   rust_assert (fntype->has_substitutions ());
   rust_assert (fntype->get_num_type_params () == 1);
   auto &mapping = fntype->get_substs ().at (0);
   auto param_ty = mapping.get_param_ty ();
   rust_assert (param_ty->can_resolve ());
   auto resolved = param_ty->resolve ();
-  auto p = static_cast<TyTy::PlaceholderType *> (fntype->get_return_type ());
 
   TyTy::BaseType *return_type = nullptr;
   bool ok = ctx->get_tyctx ()->lookup_builtin ("isize", &return_type);
@@ -1177,12 +1175,11 @@ discriminant_value (Context *ctx, TyTy::FnType *fntype)
   if (is_adt)
     {
       const auto &adt = *static_cast<TyTy::ADTType *> (resolved);
-      return_type = adt.get_repr_options ().repr;
-      rust_assert (return_type != nullptr);
+      auto *repr = adt.get_repr_options ().repr;
+      if (repr != nullptr)
+	return_type = repr;
       is_enum = adt.is_enum ();
     }
-
-  p->set_associated_type (return_type->get_ref ());
 
   tree lookup = NULL_TREE;
   if (check_for_cached_intrinsic (ctx, fntype, &lookup))

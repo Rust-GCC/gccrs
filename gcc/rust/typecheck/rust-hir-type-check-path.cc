@@ -93,7 +93,9 @@ TypeCheckExpr::visit (HIR::QualifiedPathInExpression &expr)
     = lookup_associated_impl_block (specified_bound, root);
   if (associated_impl_trait != nullptr)
     {
-      associated_impl_trait->setup_associated_types (root, specified_bound);
+      // TODO maybe not needed
+      // possibly a case for trait reference guard
+      // associated_impl_trait->setup_associated_types (root, specified_bound);
 
       for (auto &i :
 	   associated_impl_trait->get_impl_block ()->get_impl_items ())
@@ -514,11 +516,13 @@ TypeCheckExpr::resolve_segments (NodeId root_resolved_node_id,
 	      const auto &trait_ref = *TraitResolver::Resolve (bound_path);
 	      rust_assert (!trait_ref.is_error ());
 
-	      const auto &predicate
-		= impl_block_ty->lookup_predicate (trait_ref.get_defid ());
-	      if (!predicate.is_error ())
-		associated->setup_associated_types (prev_segment, predicate,
-						    nullptr, false);
+	      // FIXME possibly need to do trait guard frame here
+	      //
+	      // const auto &predicate
+	      // 	= impl_block_ty->lookup_predicate (trait_ref.get_defid
+	      // ()); if (!predicate.is_error ())
+	      // 	associated->setup_associated_types (prev_segment,
+	      // predicate, 					    nullptr, false);
 	    }
 	}
 

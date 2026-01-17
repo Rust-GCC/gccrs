@@ -25,10 +25,12 @@
 #include "rust-hir-type-check-type.h"
 #include "rust-casts.h"
 #include "rust-mapping-common.h"
+#include "rust-tyty.h"
 #include "rust-unify.h"
 #include "rust-coercion.h"
 #include "rust-hir-type-bounds.h"
 #include "rust-immutable-name-resolution-context.h"
+#include "rust-hir-trait-resolve.h"
 #include "options.h"
 
 namespace Rust {
@@ -78,6 +80,51 @@ query_type (HirId reference, TyTy::BaseType **result)
     {
       auto impl_block
 	= mappings.lookup_hir_impl_block (impl_item->second).value ();
+
+      tl::optional<ImplTraitFrameGuard> guard;
+      if (impl_block->has_trait_ref ())
+	{
+	  bool failure_flag = false;
+	  auto substitutions
+	    = TypeCheckItem::ResolveImplBlockSubstitutions (*impl_block,
+							    failure_flag);
+	  if (failure_flag)
+	    {
+	      context->query_completed (reference);
+	      return false;
+	    }
+
+	  TyTy::BaseType *self = nullptr;
+	  bool ok
+	    = query_type (impl_block->get_type ().get_mappings ().get_hirid (),
+			  &self);
+	  if (!ok)
+	    {
+	      context->query_completed (reference);
+	      return false;
+	    }
+
+	  HIR::TypePath &ref = impl_block->get_trait_ref ();
+	  auto trait_reference = TraitResolver::Resolve (ref);
+	  if (trait_reference->is_error ())
+	    {
+	      context->query_completed (reference);
+	      return false;
+	    }
+
+	  auto specified_bound = TypeCheckBase::ResolvePredicateFromBound (
+	    ref, impl_block->get_type (), impl_block->get_polarity ());
+
+	  std::map<DefId, AssocTypeEntry> assoc_types_by_trait_item;
+	  std::vector<const TraitItemReference *> trait_item_refs;
+	  TypeCheckItem::ResolveImplTraitAssociatedTypes (
+	    context, *impl_block, specified_bound, self, substitutions,
+	    assoc_types_by_trait_item, trait_item_refs);
+
+	  ImplTraitContextFrame frame{trait_reference, self,
+				      std::move (assoc_types_by_trait_item)};
+	  guard.emplace (frame);
+	}
 
       // found an impl item
       rust_debug_loc (impl_item->first->get_locus (),
@@ -432,6 +479,202 @@ lookup_associated_impl_block (const TyTy::TypeBoundPredicate &bound,
     }
 
   return associate_impl_trait;
+}
+
+TyTy::BaseType *
+normalize_projection (TyTy::ProjectionType *proj, location_t locus,
+		      bool emit_errors, bool unify_self)
+{
+  if (!proj->is_trait_position ())
+    return proj->get ();
+
+  // Special-case the discriminant_type lang item: <T as DiscriminantKind>::Discriminant
+  // always normalizes to isize (we don't yet support custom repr on enums).
+  auto &mappings = Analysis::Mappings::get ();
+  if (auto discriminant_type_id
+      = mappings.lookup_lang_item (LangItem::Kind::DISCRIMINANT_TYPE))
+    {
+      if (proj->get_item_defid () == discriminant_type_id.value ())
+	{
+	  auto *ctx = TypeCheckContext::get ();
+	  TyTy::BaseType *isize_ty = nullptr;
+	  bool ok = ctx->lookup_builtin ("isize", &isize_ty);
+	  rust_assert (ok);
+
+	  // If the self type is a concrete ADT, use its repr.
+	  TyTy::BaseType *self = proj->get_self ()->destructure ();
+	  if (auto *adt = self->try_as<TyTy::ADTType> ())
+	    {
+	      auto *repr = adt->get_repr_options ().repr;
+	      if (repr != nullptr)
+		return repr;
+	    }
+	  return isize_ty;
+	}
+    }
+
+  auto *ctx = TypeCheckContext::get ();
+  ImplTraitContextFrame frame;
+  if (!ctx->find_matching_impl_trait_frame (*proj->get_trait_ref (), &frame))
+    {
+      // No concrete impl frame — check WHERE clause bindings on the self type.
+      // e.g. fn foo<T: Trait<AssocType = X>>() normalizes <T as Trait>::AssocType → X.
+      TyTy::BaseType *self = proj->get_self ()->destructure ();
+      const DefId item_defid = proj->get_item_defid ();
+
+      // Find the name of the associated type from the trait reference.
+      std::string assoc_name;
+      for (const auto &ti : proj->get_trait_ref ()->get_trait_items ())
+	{
+	  if (ti.get_mappings ().get_defid () == item_defid)
+	    {
+	      assoc_name = ti.get_identifier ();
+	      break;
+	    }
+	}
+
+      if (!assoc_name.empty ())
+	{
+	  for (auto &bound : self->get_specified_bounds ())
+	    {
+	      if (!bound.get ()->is_equal (*proj->get_trait_ref ()))
+		continue;
+
+	      auto &binding = bound.get_substitution_arguments ().get_binding_args ();
+	      auto it = binding.find (assoc_name);
+	      if (it != binding.end ())
+		return it->second;
+	    }
+	}
+
+      // If self is a trait-position projection (e.g. <S as T1>::A used as the
+      // self type of an outer qualified path), recursively normalize it first
+      // so the impl-block lookup below works on a concrete type.
+      if (auto *self_proj = self->try_as<TyTy::ProjectionType> ())
+	{
+	  if (self_proj->is_trait_position ())
+	    {
+	      auto *norm
+		= normalize_projection (self_proj, locus, emit_errors, unify_self);
+	      if (norm != self_proj && norm->get_kind () != TyTy::TypeKind::ERROR)
+		self = norm->destructure ();
+	    }
+	  else
+	    {
+	      auto *base = self_proj->get ();
+	      if (base && base != self_proj)
+		self = base->destructure ();
+	    }
+	}
+
+      // Direct impl-block lookup for concrete self types (no active frame).
+      if (!assoc_name.empty ()
+	  && self->get_kind () != TyTy::TypeKind::PARAM
+	  && self->get_kind () != TyTy::TypeKind::INFER
+	  && self->get_kind () != TyTy::TypeKind::PROJECTION)
+	{
+	  auto candidates = TypeBoundsProbe::Probe (self);
+	  for (auto &probed : candidates)
+	    {
+	      HIR::ImplBlock *impl_block = probed.second;
+	      if (!impl_block->has_trait_ref ())
+		continue;
+	      HIR::TypePath &ref = impl_block->get_trait_ref ();
+	      auto *tref = TraitResolver::Resolve (ref);
+	      if (tref->is_error () || !tref->is_equal (*proj->get_trait_ref ()))
+		continue;
+	      for (auto &impl_item : impl_block->get_impl_items ())
+		{
+		  if (impl_item->get_impl_item_name ().compare (assoc_name) != 0)
+		    continue;
+		  TyTy::BaseType *result = nullptr;
+		  if (query_type (impl_item->get_impl_mappings ().get_hirid (),
+				  &result))
+		    {
+		      // impl type aliases are stored as non-trait-position
+		      // ProjectionType; unwrap to base only when there are no
+		      // substitution params (non-GAT). For GATs the caller
+		      // (SubstMapper) needs the ProjectionType with its params
+		      // intact to apply the concrete type arguments.
+		      if (auto *p = result->try_as<TyTy::ProjectionType> ())
+			if (!p->is_trait_position () && !p->has_substitutions ())
+			  result = p->get ();
+		      return result;
+		    }
+		  break;
+		}
+	    }
+	}
+
+      return proj;
+    }
+
+  if (unify_self)
+    {
+      TyTy::BaseType *proj_self = proj->get_self ();
+      TyTy::BaseType *impl_self = frame.self;
+      TyTy::BaseType *self
+	= unify_site_and (/*id*/ 0, TyTy::TyWithLocation (proj_self, locus),
+			  TyTy::TyWithLocation (impl_self, locus), locus,
+			  /*emit_errors*/ false,
+			  /*commit*/ false,
+			  /*infer*/ false,
+			  /*cleanup*/ true,
+			  /*check_bounds*/ false);
+
+      if (self->get_kind () == TyTy::TypeKind::ERROR)
+	return self;
+    }
+
+  // Lookup the trait item -> impl type mapping (key = trait item DefId).
+  const DefId item = proj->get_item_defid ();
+  auto it = frame.assoc_types_by_trait_item.find (item);
+  if (it == frame.assoc_types_by_trait_item.end ())
+    {
+      return proj;
+    }
+
+  auto &entry = it->second;
+  auto impl_value = entry.value;
+
+  // TODO
+  // Optional: if impl_value still contains params, you can apply the frame
+  // args: impl_value = Resolver::SubstMapperInternal::Resolve(impl_value,
+  // frame->args);
+
+  rust_debug ("normalize_projection result 1 = %s",
+	      impl_value->as_string ().c_str ());
+
+  // FIXME limit it as const
+  TyTy::BaseType *normalized = impl_value;
+  for (int i = 0; i < 16; i++)
+    {
+      if (!normalized->is<TyTy::ProjectionType> ())
+	break;
+
+      auto p = normalized->as<TyTy::ProjectionType> ();
+      if (p->is_trait_position ())
+	{
+	  auto *n = normalize_projection (p, locus, emit_errors, unify_self);
+	  if (n == p)
+	    break;
+
+	  normalized = n;
+	}
+      else
+	{
+	  auto *v = p->get ();
+	  if (v == nullptr || v == p)
+	    break;
+
+	  normalized = v;
+	}
+    }
+
+  rust_debug ("normalize_projection result 3 = %s",
+	      normalized->as_string ().c_str ());
+
+  return normalized;
 }
 
 } // namespace Resolver

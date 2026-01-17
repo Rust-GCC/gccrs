@@ -56,6 +56,10 @@ lookup_associated_impl_block (const TyTy::TypeBoundPredicate &bound,
 			      TyTy::BaseType *binding,
 			      bool *ambigious = nullptr);
 
+TyTy::BaseType *normalize_projection (TyTy::ProjectionType *proj,
+				      location_t locus, bool emit_errors,
+				      bool unify_self);
+
 } // namespace Resolver
 } // namespace Rust
 

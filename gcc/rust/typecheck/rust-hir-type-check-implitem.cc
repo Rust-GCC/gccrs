@@ -181,6 +181,8 @@ TypeCheckImplItem::Resolve (
   // is it already resolved?
   auto context = TypeCheckContext::get ();
   TyTy::BaseType *resolved = nullptr;
+  rust_debug_loc (item.get_locus (), "XXX LOOKUP: %d",
+		  item.get_impl_mappings ().get_hirid ());
   bool already_resolved
     = context->lookup_type (item.get_impl_mappings ().get_hirid (), &resolved);
   if (already_resolved)
@@ -218,7 +220,17 @@ TypeCheckImplItem::visit (HIR::Function &function)
     ret_type = TyTy::TupleType::get_unit_type ();
   else
     {
-      auto resolved = TypeCheckType::Resolve (function.get_return_type ());
+      rust_debug ("XXXXXXXXXXXXXX PPPPPPPPPP 1");
+      if (function.get_impl_mappings ().get_hirid () == 120)
+	{
+	  rust_debug ("HELLO");
+	}
+
+      auto &ret = function.get_return_type ();
+      auto resolved = TypeCheckType::Resolve (ret);
+      rust_debug ("XXXXXXXXXXXXXX PPPPPPPPPP 2");
+      resolved->debug ();
+
       if (resolved == nullptr)
 	{
 	  rust_error_at (function.get_locus (),
@@ -526,8 +538,13 @@ TypeCheckImplItemWithTrait::visit (HIR::TypeAlias &type)
 			    type.get_generic_params (), substitutions);
 
   // normal resolution of the item
+  rust_debug_loc (type.get_locus (), "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX ZZ 11");
+  self->debug ();
   TyTy::BaseType *lookup
     = TypeCheckImplItem::Resolve (parent, type, self, substitutions);
+  rust_debug_loc (type.get_locus (), "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX 22");
+  lookup->debug ();
+  self->debug ();
 
   // map the impl item to the associated trait item
   const auto tref = trait_reference.get ();
@@ -557,10 +574,20 @@ TypeCheckImplItemWithTrait::visit (HIR::TypeAlias &type)
     = resolved_trait_item.get_raw_item ()->get_hir_trait_item ();
   merge_attributes (type.get_outer_attrs (), *hir_trait_item);
 
+  // its actually a projection, since we need a way to actually bind the
+  // generic substitutions to the type itself
+  auto projection
+    = new TyTy::ProjectionType (type.get_mappings ().get_hirid (), lookup, tref,
+				raw_trait_item->get_mappings ().get_defid (),
+				substitutions, self);
+
   // check the types are compatible
   auto trait_item_type = resolved_trait_item.get_tyty_for_receiver (self);
+  rust_debug ("TYPE_COMPATIBLE IMPL CHECK");
+  trait_item_type->debug ();
+  projection->debug ();
   if (!types_compatable (TyTy::TyWithLocation (trait_item_type),
-			 TyTy::TyWithLocation (lookup), type.get_locus (),
+			 TyTy::TyWithLocation (projection), type.get_locus (),
 			 true /*emit_errors*/))
     {
       rich_location r (line_table, type.get_locus ());
@@ -571,25 +598,21 @@ TypeCheckImplItemWithTrait::visit (HIR::TypeAlias &type)
 		     trait_reference.get_name ().c_str ());
     }
 
-  // its actually a projection, since we need a way to actually bind the
-  // generic substitutions to the type itself
-  TyTy::ProjectionType *projection
-    = new TyTy::ProjectionType (type.get_mappings ().get_hirid (), lookup, tref,
-				raw_trait_item->get_mappings ().get_defid (),
-				substitutions);
-
   context->insert_type (type.get_mappings (), projection);
-  raw_trait_item->associated_type_set (projection);
 }
 
 void
 TypeCheckImplItemWithTrait::visit (HIR::Function &function)
 {
+  rust_debug ("PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP 111");
   // normal resolution of the item
   TyTy::BaseType *lookup
     = TypeCheckImplItem::Resolve (parent, function, self, substitutions);
   if (lookup == nullptr)
     return;
+
+  rust_debug ("PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP 222");
+  lookup->debug ();
 
   // map the impl item to the associated trait item
   const auto tref = trait_reference.get ();

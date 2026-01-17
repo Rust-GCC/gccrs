@@ -138,7 +138,8 @@ TypeCheckType::visit (HIR::TupleType &tuple)
 void
 TypeCheckType::visit (HIR::TypePath &path)
 {
-  rust_debug ("{ARTHUR}: Path visited: %s", path.to_string ().c_str ());
+  rust_debug_loc (path.get_locus (), "--> TypeCheckType TypePath: [%s]",
+		  path.to_string ().c_str ());
 
   // this can happen so we need to look up the root then resolve the
   // remaining segments if possible
@@ -169,8 +170,19 @@ TypeCheckType::visit (HIR::TypePath &path)
 			offset, path_type, path.get_mappings (),
 			path.get_locus (), wasBigSelf);
 
+  rust_debug ("-> ------------------------------------ 1");
+  translated->debug ();
+  if (auto p = translated->try_as<TyTy::ProjectionType> ())
+    {
+      rust_debug ("trying to normalize xxx");
+      translated
+	= normalize_projection (p, path.get_locus (), false /*emit errors*/,
+				false /*unify self*/);
+    }
+
   rust_debug_loc (path.get_locus (), "resolved type-path to: [%s]",
 		  translated->debug_str ().c_str ());
+  rust_debug ("-> ------------------------------------ 2");
 }
 
 void
@@ -232,57 +244,17 @@ TypeCheckType::visit (HIR::QualifiedPathInType &path)
       return;
     }
 
-  // we try to look for the real impl item if possible
-  TyTy::SubstitutionArgumentMappings args
-    = TyTy::SubstitutionArgumentMappings::error ();
-  HIR::ImplItem *impl_item = nullptr;
-  if (root->is_concrete ())
-    {
-      // lookup the associated impl trait for this if we can (it might be
-      // generic)
-      AssociatedImplTrait *associated_impl_trait
-	= lookup_associated_impl_block (specified_bound, root);
-      if (associated_impl_trait != nullptr)
-	{
-	  associated_impl_trait->setup_associated_types (root, specified_bound,
-							 &args);
+  // create projection
+  DefId item_id = item->get_raw_item ()->get_mappings ().get_defid ();
+  auto projection
+    = new TyTy::ProjectionType (/*ref*/ path.get_mappings ().get_hirid (),
+				/*base=*/nullptr,
+				/*trait=*/trait_ref,
+				/*item=*/item_id, {}, root);
 
-	  for (auto &i :
-	       associated_impl_trait->get_impl_block ()->get_impl_items ())
-	    {
-	      bool found = i->get_impl_item_name ().compare (
-			     item_seg_identifier.to_string ())
-			   == 0;
-	      if (found)
-		{
-		  impl_item = i.get ();
-		  break;
-		}
-	    }
-	}
-    }
-
-  if (impl_item == nullptr)
-    {
-      // this may be valid as there could be a default trait implementation here
-      // and we dont need to worry if the trait item is actually implemented or
-      // not because this will have already been validated as part of the trait
-      // impl block
-      translated = item->get_tyty_for_receiver (root);
-    }
-  else
-    {
-      HirId impl_item_id = impl_item->get_impl_mappings ().get_hirid ();
-      bool ok = query_type (impl_item_id, &translated);
-      if (!ok)
-	return;
-
-      if (!args.is_error ())
-	{
-	  // apply the args
-	  translated = SubstMapperInternal::Resolve (translated, args);
-	}
-    }
+  translated
+    = normalize_projection (projection, path.get_locus (),
+			    false /*emit errors*/, false /*unify self*/);
 
   // turbo-fish segment path::<ty>
   if (item_seg.get_type () == HIR::TypePathSegment::SegmentType::GENERIC)
@@ -306,6 +278,12 @@ TypeCheckType::visit (HIR::QualifiedPathInType &path)
 				    &generic_seg.get_generic_args (),
 				    context->regions_from_generic_args (
 				      generic_seg.get_generic_args ()));
+
+	  // After substitution, a non-trait-position ProjectionType is just a
+	  // wrapper around the concrete type (e.g. Bar<u32> -> u32); unwrap it.
+	  if (auto *proj = translated->try_as<TyTy::ProjectionType> ())
+	    if (!proj->is_trait_position () && proj->get () != nullptr)
+	      translated = proj->get ();
 	}
     }
 

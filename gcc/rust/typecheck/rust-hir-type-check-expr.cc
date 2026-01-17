@@ -275,47 +275,45 @@ TypeCheckExpr::visit (HIR::CallExpr &expr)
 
   auto discriminant_type_lookup
     = mappings.lookup_lang_item (LangItem::Kind::DISCRIMINANT_TYPE);
-  if (infered->is<TyTy::PlaceholderType> () && discriminant_type_lookup)
+  // Pre-GATS: associated types were PlaceholderType; post-GATS they are
+  // ProjectionType. Handle both so the isize special-case still fires.
+  bool is_discriminant_type = false;
+  if (discriminant_type_lookup)
     {
-      const auto &p = *static_cast<const TyTy::PlaceholderType *> (infered);
-      if (p.get_def_id () == discriminant_type_lookup.value ())
+      if (auto *p = infered->try_as<TyTy::PlaceholderType> ())
+	is_discriminant_type = p->get_def_id () == discriminant_type_lookup.value ();
+      else if (auto *p = infered->try_as<TyTy::ProjectionType> ())
+	is_discriminant_type
+	  = p->get_item_defid () == discriminant_type_lookup.value ();
+    }
+  if (is_discriminant_type)
+    {
+      // This is a special case: discriminant_value returns the repr of the
+      // enum. We don't currently support repr on enum yet, so the default
+      // is always isize.
+      bool ok = context->lookup_builtin ("isize", &infered);
+      rust_assert (ok);
+
+      rust_assert (function_tyty->is<TyTy::FnType> ());
+      auto &fn = *static_cast<TyTy::FnType *> (function_tyty);
+      rust_assert (fn.has_substitutions ());
+      rust_assert (fn.get_num_type_params () == 1);
+      auto &mapping = fn.get_substs ().at (0);
+      auto param_ty = mapping.get_param_ty ();
+
+      if (!param_ty->can_resolve ())
 	{
-	  // this is a special case where this will actually return the repr of
-	  // the enum. We dont currently support repr on enum yet to change the
-	  // discriminant type but the default is always isize. We need to
-	  // assert this is a generic function with one param
-	  //
-	  // fn<BookFormat> (v & T=BookFormat{Paperback) -> <placeholder:>
-	  //
-	  // note the default is isize
+	  rust_internal_error_at (expr.get_locus (),
+				  "something wrong computing return type");
+	  return;
+	}
 
-	  bool ok = context->lookup_builtin ("isize", &infered);
-	  rust_assert (ok);
-
-	  rust_assert (function_tyty->is<TyTy::FnType> ());
-	  auto &fn = *static_cast<TyTy::FnType *> (function_tyty);
-	  rust_assert (fn.has_substitutions ());
-	  rust_assert (fn.get_num_type_params () == 1);
-	  auto &mapping = fn.get_substs ().at (0);
-	  auto param_ty = mapping.get_param_ty ();
-
-	  if (!param_ty->can_resolve ())
-	    {
-	      // this could be a valid error need to test more weird cases and
-	      // look at rustc
-	      rust_internal_error_at (expr.get_locus (),
-				      "something wrong computing return type");
-	      return;
-	    }
-
-	  auto resolved = param_ty->resolve ();
-	  bool is_adt = resolved->is<TyTy::ADTType> ();
-	  if (is_adt)
-	    {
-	      const auto &adt = *static_cast<TyTy::ADTType *> (resolved);
-	      infered = adt.get_repr_options ().repr;
-	      rust_assert (infered != nullptr);
-	    }
+      auto resolved = param_ty->resolve ();
+      if (resolved->is<TyTy::ADTType> ())
+	{
+	  const auto &adt = *static_cast<TyTy::ADTType *> (resolved);
+	  infered = adt.get_repr_options ().repr;
+	  rust_assert (infered != nullptr);
 	}
     }
 }
@@ -1466,7 +1464,6 @@ TypeCheckExpr::visit (HIR::MethodCallExpr &expr)
       return;
     }
 
-  fn->prepare_higher_ranked_bounds ();
   rust_debug_loc (expr.get_locus (), "resolved method call to: {%u} {%s}",
 		  found_candidate.candidate.ty->get_ref (),
 		  found_candidate.candidate.ty->debug_str ().c_str ());
@@ -1867,7 +1864,7 @@ TypeCheckExpr::visit (HIR::ClosureExpr &expr)
   TyTy::TyVar result_type
     = expr.has_return_type ()
 	? TyTy::TyVar (
-	  TypeCheckType::Resolve (expr.get_return_type ())->get_ref ())
+	    TypeCheckType::Resolve (expr.get_return_type ())->get_ref ())
 	: TyTy::TyVar::get_implicit_infer_var (expr.get_locus ());
 
   // resolve the block
@@ -1953,6 +1950,7 @@ TypeCheckExpr::resolve_operator_overload (
   TyTy::BaseType *lhs, TyTy::BaseType *rhs,
   HIR::PathIdentSegment specified_segment)
 {
+  rust_debug_loc (expr.get_locus (), "ATTEMPTING OPERATOR OVERLOAD RESOLUTION");
   // look up lang item for arithmetic type
   std::string associated_item_name = LangItem::ToString (lang_item_type);
 
@@ -2007,9 +2005,13 @@ TypeCheckExpr::resolve_operator_overload (
   auto selected_candidates
     = MethodResolver::Select (resolved_candidates, lhs, select_args);
 
+  rust_debug ("\t MMMMMMMMMMMMMMMMMMMMMMMMM 1");
+
   bool have_implementation_for_lang_item = selected_candidates.size () > 0;
   if (!have_implementation_for_lang_item)
     return false;
+
+  rust_debug ("\t MMMMMMMMMMMMMMMMMMMMMMMMM 2");
 
   if (selected_candidates.size () > 1)
     {
@@ -2057,6 +2059,8 @@ TypeCheckExpr::resolve_operator_overload (
 			    TyTy::TyWithLocation (infer), expr.get_locus ());
       return true;
     }
+
+  rust_debug ("\t MMMMMMMMMMMMMMMMMMMMMMMMM 3");
 
   // Get the adjusted self
   MethodCandidate candidate = *selected_candidates.begin ();
@@ -2137,7 +2141,6 @@ TypeCheckExpr::resolve_operator_overload (
     }
 
   // we found a valid operator overload
-  fn->prepare_higher_ranked_bounds ();
   rust_debug_loc (expr.get_locus (), "resolved operator overload to: {%u} {%s}",
 		  candidate.candidate.ty->get_ref (),
 		  candidate.candidate.ty->debug_str ().c_str ());

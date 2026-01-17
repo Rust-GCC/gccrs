@@ -39,6 +39,17 @@ public:
     HIR::ImplBlock &impl, location_t locus,
     TyTy::SubstitutionArgumentMappings *infer_arguments);
 
+  static std::vector<TyTy::SubstitutionParamMapping>
+  ResolveImplBlockSubstitutions (HIR::ImplBlock &impl_block,
+				 bool &failure_flag);
+
+  static void ResolveImplTraitAssociatedTypes (
+    TypeCheckContext *context, HIR::ImplBlock &impl_block,
+    TyTy::TypeBoundPredicate &specified_bound, TyTy::BaseType *self,
+    std::vector<TyTy::SubstitutionParamMapping> &substitutions,
+    std::map<DefId, AssocTypeEntry> &assoc_types_by_trait_item,
+    std::vector<const TraitItemReference *> &trait_item_refs);
+
   void visit (HIR::Module &module) override;
   void visit (HIR::Function &function) override;
   void visit (HIR::TypeAlias &alias) override;
@@ -57,12 +68,17 @@ public:
   void visit (HIR::UseDeclaration &) override {}
 
 protected:
+  void resolve_impl_block (HIR::ImplBlock &impl_block);
+  void resolve_trait_impl_block (HIR::ImplBlock &impl_block);
+
   std::pair<std::vector<TyTy::SubstitutionParamMapping>,
 	    TyTy::RegionConstraints>
   resolve_impl_block_substitutions (HIR::ImplBlock &impl_block,
 				    bool &failure_flag);
 
   void validate_trait_impl_block (
+    const TyTy::TypeBoundPredicate &specified_bound,
+    std::vector<const TraitItemReference *> trait_item_refs,
     TraitReference *trait_reference, HIR::ImplBlock &impl_block,
     TyTy::BaseType *self,
     std::vector<TyTy::SubstitutionParamMapping> &substitutions);

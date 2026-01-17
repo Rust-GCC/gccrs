@@ -712,7 +712,9 @@ SubstitutionRef::get_mappings_from_generic_args (
     = args.get_type_args ().size () + args.get_const_args ().size ();
   if (total_arguments < substitutions.size ())
     {
-      offs = used_arguments.size ();
+      offs = used_arguments.get_mappings ().empty ()
+	       ? get_outer_param_count ()
+	       : used_arguments.size ();
       total_arguments += offs;
     }
 
@@ -1072,20 +1074,6 @@ SubstitutionRef::solve_mappings_from_receiver_for_self (
 				       mappings.get_locus ());
 }
 
-void
-SubstitutionRef::prepare_higher_ranked_bounds ()
-{
-  for (const auto &subst : get_substs ())
-    {
-      const auto pty = subst.get_param_ty ();
-      for (const auto &bound : pty->get_specified_bounds ())
-	{
-	  const auto ref = bound.get ();
-	  ref->clear_associated_type_projections ();
-	}
-    }
-}
-
 bool
 SubstitutionRef::monomorphize ()
 {
@@ -1099,15 +1087,15 @@ SubstitutionRef::monomorphize ()
       if (binding->get_kind () == TyTy::TypeKind::PARAM)
 	continue;
 
-      for (const auto &bound : pty->get_specified_bounds ())
-	{
-	  bool ambigious = false;
-	  auto associated
-	    = Resolver::lookup_associated_impl_block (bound, binding,
-						      &ambigious);
-	  if (associated != nullptr)
-	    associated->setup_associated_types (binding, bound);
-	}
+      // for (const auto &bound : pty->get_specified_bounds ())
+      // 	{
+      // 	  bool ambigious = false;
+      // 	  auto associated
+      // 	    = Resolver::lookup_associated_impl_block (bound, binding,
+      // 						      &ambigious);
+      // 	  if (associated != nullptr)
+      // 	    associated->setup_associated_types (binding, bound);
+      // 	}
     }
 
   return true;

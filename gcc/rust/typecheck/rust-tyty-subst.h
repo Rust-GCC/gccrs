@@ -274,6 +274,11 @@ public:
   // construct which supports associated types
   virtual size_t get_num_associated_bindings () const;
 
+  // Number of substitution params inherited from an outer scope (e.g. trait
+  // params inherited by a GAT). These are not supplied by the user when writing
+  // angle-bracket args and are skipped during arity checking.
+  virtual size_t get_outer_param_count () const { return 0; }
+
   // this is overridden in TypeBoundPredicate
   virtual TypeBoundPredicateItem
   lookup_associated_type (const std::string &search);
@@ -397,10 +402,6 @@ public:
   // This function will inject implicit inference variables for the type
   // parameters X and Y
   BaseType *infer_substitions (location_t locus);
-
-  // this clears any possible projections from higher ranked trait bounds which
-  // could be hanging around from a previous resolution
-  void prepare_higher_ranked_bounds ();
 
   // FIXME
   // this is bad name for this, i think it should be something like

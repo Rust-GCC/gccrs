@@ -1792,10 +1792,6 @@ public:
 
   std::string get_symbol () const;
 
-  void set_associated_type (HirId ref);
-
-  void clear_associated_type ();
-
   bool can_resolve () const;
 
   BaseType *resolve () const;
@@ -1817,21 +1813,27 @@ public:
   ProjectionType (HirId ref, BaseType *base,
 		  const Resolver::TraitReference *trait, DefId item,
 		  std::vector<SubstitutionParamMapping> subst_refs,
+		  TyTy::BaseType *self,
 		  SubstitutionArgumentMappings generic_arguments
 		  = SubstitutionArgumentMappings::error (),
 		  RegionConstraints region_constraints = {},
-		  std::set<HirId> refs = std::set<HirId> ());
+		  std::set<HirId> refs = std::set<HirId> (),
+		  size_t num_trait_substitutions = 0);
 
   ProjectionType (HirId ref, HirId ty_ref, BaseType *base,
 		  const Resolver::TraitReference *trait, DefId item,
 		  std::vector<SubstitutionParamMapping> subst_refs,
+		  TyTy::BaseType *self,
 		  SubstitutionArgumentMappings generic_arguments
 		  = SubstitutionArgumentMappings::error (),
 		  RegionConstraints region_constraints = {},
-		  std::set<HirId> refs = std::set<HirId> ());
+		  std::set<HirId> refs = std::set<HirId> (),
+		  size_t num_trait_substitutions = 0);
 
   void accept_vis (TyVisitor &vis) override;
   void accept_vis (TyConstVisitor &vis) const override;
+
+  bool is_trait_position () const;
 
   std::string as_string () const override;
 
@@ -1842,13 +1844,24 @@ public:
   const BaseType *get () const;
   BaseType *get ();
 
+  const BaseType *get_self () const;
+  BaseType *get_self ();
+
+  const Resolver::TraitReference *get_trait_ref () const;
+
+  DefId get_item_defid () const;
+
   ProjectionType *
   handle_substitions (SubstitutionArgumentMappings &mappings) override final;
+
+  size_t get_outer_param_count () const override { return num_trait_substitutions; }
 
 private:
   BaseType *base;
   const Resolver::TraitReference *trait;
   DefId item;
+  TyTy::BaseType *self;
+  size_t num_trait_substitutions = 0;
 };
 
 template <>

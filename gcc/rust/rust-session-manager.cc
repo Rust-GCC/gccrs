@@ -805,7 +805,7 @@ Session::compile_crate (const char *filename)
   Resolver::TypeResolution::Resolve (hir);
 
   Resolver::TypeCheckContext::get ()->get_variance_analysis_ctx ().solve ();
-
+  rust_debug ("XXXXXXXXXXXXX TYPE CHECK COMPLETE XXXXXXXXXXXXXXXXXX");
   if (saw_errors ())
     return;
 

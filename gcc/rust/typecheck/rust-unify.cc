@@ -18,8 +18,10 @@
 
 #include "rust-unify.h"
 #include "fold-const.h"
+#include "rust-substitution-mapper.h"
 #include "rust-tyty-util.h"
 #include "rust-tyty.h"
+#include "rust-type-util.h"
 
 namespace Rust {
 namespace Resolver {
@@ -242,7 +244,6 @@ UnifyRules::go ()
 	    }
 	}
     }
-
   if (infer_flag)
     {
       bool rgot_param = rtype->get_kind () == TyTy::TypeKind::PARAM;
@@ -347,6 +348,9 @@ UnifyRules::go ()
 		}
 	    }
 	}
+      // For PROJECTION vs PROJECTION, expect_projection handles the structural
+      // comparison directly. InferSubst on projections creates fresh infer vars
+      // that are not tracked in `infers` and thus leak when commit=false.
     }
 
   if (ltype->get_kind () != TyTy::TypeKind::CONST
@@ -361,6 +365,13 @@ UnifyRules::go ()
     {
       auto *lc = ltype->as_const_type ();
       ltype = lc->get_specified_type ();
+    }
+
+  if (ltype->get_kind () != TyTy::TypeKind::PROJECTION
+      && rtype->get_kind () == TyTy::TypeKind::PROJECTION)
+    {
+      auto *rtype_proj = static_cast<TyTy::ProjectionType *> (rtype);
+      rtype = normalize_projection (rtype_proj, locus, false, false);
     }
 
   switch (ltype->get_kind ())
@@ -1872,9 +1883,52 @@ UnifyRules::expect_projection (TyTy::ProjectionType *ltype,
       }
       break;
 
-      // FIXME
     case TyTy::PROJECTION:
-      rust_unreachable ();
+      {
+	auto *rtype_proj = static_cast<TyTy::ProjectionType *> (rtype);
+
+	const auto ltype_tref = ltype->get_trait_ref ();
+	const auto rtype_tref = rtype_proj->get_trait_ref ();
+	if (!ltype_tref->is_equal (*rtype_tref))
+	  return unify_error_type_node ();
+
+	auto ltype_item = ltype->get_item_defid ();
+	auto rtype_item = rtype_proj->get_item_defid ();
+	if (ltype_item != rtype_item)
+	  return unify_error_type_node ();
+
+	auto lrecv = ltype->get_self ();
+	auto rrecv = rtype_proj->get_self ();
+	auto res = resolve_subtype (TyTy::TyWithLocation (lrecv),
+				    TyTy::TyWithLocation (rrecv));
+	if (res->get_kind () == TyTy::TypeKind::ERROR)
+	  return unify_error_type_node ();
+
+	auto base_res = unify_error_type_node ();
+	bool ltrait = ltype->is_trait_position ();
+	bool rtrait = rtype_proj->is_trait_position ();
+	if (!ltrait && !rtrait)
+	  {
+	    auto lbase = ltype->get ();
+	    auto rbase = rtype_proj->get ();
+	    base_res = resolve_subtype (TyTy::TyWithLocation (lbase),
+					TyTy::TyWithLocation (rbase));
+	    if (base_res->get_kind () == TyTy::TypeKind::ERROR)
+	      return unify_error_type_node ();
+	  }
+	else if (!ltrait)
+	  base_res = ltype->get ();
+	else if (!rtrait)
+	  base_res = rtype_proj->get ();
+	else
+	  base_res = nullptr;
+
+	auto result
+	  = new TyTy::ProjectionType (ltype->get_ref (), ltype->get_ty_ref (),
+				      base_res, ltype_tref, ltype_item,
+				      ltype->get_substs (), res);
+	return result;
+      }
       break;
 
     case TyTy::DYNAMIC:
@@ -1900,6 +1954,20 @@ UnifyRules::expect_projection (TyTy::ProjectionType *ltype,
     case TyTy::PLACEHOLDER:
     case TyTy::OPAQUE:
     case TyTy::CONST:
+      {
+	if (ltype->is_trait_position ())
+	  {
+	    TyTy::BaseType *ln
+	      = normalize_projection (ltype, locus, false, false);
+	    if (ln != nullptr && ln != ltype)
+	      {
+		return resolve_subtype (TyTy::TyWithLocation (ln),
+					TyTy::TyWithLocation (rtype));
+	      }
+	  }
+      }
+      break;
+
     case TyTy::ERROR:
       return unify_error_type_node ();
     }

@@ -22,6 +22,7 @@
 #include "rust-hir-map.h"
 #include "rust-mapping-common.h"
 #include "rust-tyty.h"
+#include "rust-hir-impl-trait-context.h"
 #include "rust-hir-trait-reference.h"
 #include "rust-stacked-contexts.h"
 #include "rust-autoderef.h"
@@ -232,6 +233,14 @@ public:
 
   void swap_head_loop_context (TyTy::BaseType *val);
 
+  bool
+  find_matching_impl_trait_frame (const TraitReference &tref,
+				  struct ImplTraitContextFrame *find) const;
+  bool have_impl_trait_context () const;
+  void push_impl_trait_context (struct ImplTraitContextFrame frame);
+  struct ImplTraitContextFrame pop_impl_trait_context ();
+  struct ImplTraitContextFrame peek_impl_trait_context ();
+
   void insert_trait_reference (DefId id, TraitReference &&ref);
   bool lookup_trait_reference (DefId id, TraitReference **ref);
 
@@ -323,6 +332,7 @@ private:
   StackedContexts<TypeCheckBlockContextItem> block_stack;
   std::map<DefId, TraitReference> trait_context;
   std::map<HirId, AssociatedImplTrait> associated_impl_traits;
+  std::vector<ImplTraitContextFrame> impl_trait_frame_stack;
 
   // trait-id -> list of < self-tyty:impl-id>
   std::map<HirId, std::vector<std::pair<TyTy::BaseType *, HirId>>>
@@ -556,6 +566,21 @@ public:
 private:
   DefId id;
   TypeCheckContext &ctx;
+};
+
+class ImplTraitFrameGuard
+{
+public:
+  ImplTraitFrameGuard (ImplTraitContextFrame frame)
+    : ctx (*TypeCheckContext::get ())
+  {
+    ctx.push_impl_trait_context (frame);
+  }
+
+  ~ImplTraitFrameGuard () { ctx.pop_impl_trait_context (); }
+
+private:
+  Resolver::TypeCheckContext &ctx;
 };
 
 } // namespace Resolver
