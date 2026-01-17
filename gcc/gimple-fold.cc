@@ -11468,13 +11468,10 @@ gimple_assign_nonnegative_p (gimple *stmt, int depth)
 }
 
 /* Return true if return value of call STMT is known to be non-negative.
-   If the return value is based on the assumption that signed overflow is
-   undefined, set *STRICT_OVERFLOW_P to true; otherwise, don't change
-   *STRICT_OVERFLOW_P.  DEPTH is the current nesting depth of the query.  */
+   DEPTH is the current nesting depth of the query.  */
 
 static bool
-gimple_call_nonnegative_warnv_p (gimple *stmt, bool *strict_overflow_p,
-				 int depth)
+gimple_call_nonnegative_p (gimple *stmt, int depth)
 {
   tree arg0
     = gimple_call_num_args (stmt) > 0 ? gimple_call_arg (stmt, 0) : NULL_TREE;
@@ -11482,10 +11479,9 @@ gimple_call_nonnegative_warnv_p (gimple *stmt, bool *strict_overflow_p,
     = gimple_call_num_args (stmt) > 1 ? gimple_call_arg (stmt, 1) : NULL_TREE;
   tree lhs = gimple_call_lhs (stmt);
   return (lhs
-	  && tree_call_nonnegative_warnv_p (TREE_TYPE (lhs),
-					    gimple_call_combined_fn (stmt),
-					    arg0, arg1,
-					    strict_overflow_p, depth));
+	  && tree_call_nonnegative_p (TREE_TYPE (lhs),
+				      gimple_call_combined_fn (stmt),
+				      arg0, arg1, depth));
 }
 
 /* Return true if return value of call STMT is known to be non-negative.
@@ -11504,13 +11500,10 @@ gimple_phi_nonnegative_p (gimple *stmt, int depth)
 }
 
 /* Return true if STMT is known to compute a non-negative value.
-   If the return value is based on the assumption that signed overflow is
-   undefined, set *STRICT_OVERFLOW_P to true; otherwise, don't change
-   *STRICT_OVERFLOW_P.  DEPTH is the current nesting depth of the query.  */
+   DEPTH is the current nesting depth of the query.  */
 
 bool
-gimple_stmt_nonnegative_warnv_p (gimple *stmt, bool *strict_overflow_p,
-				 int depth)
+gimple_stmt_nonnegative_p (gimple *stmt, int depth)
 {
   tree type = gimple_range_type (stmt);
   if (type && frange::supports_p (type))
@@ -11526,8 +11519,7 @@ gimple_stmt_nonnegative_warnv_p (gimple *stmt, bool *strict_overflow_p,
     case GIMPLE_ASSIGN:
       return gimple_assign_nonnegative_p (stmt, depth);
     case GIMPLE_CALL:
-      return gimple_call_nonnegative_warnv_p (stmt, strict_overflow_p,
-					      depth);
+      return gimple_call_nonnegative_p (stmt, depth);
     case GIMPLE_PHI:
       return gimple_phi_nonnegative_p (stmt, depth);
     default:

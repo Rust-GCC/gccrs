@@ -687,9 +687,8 @@ fold_using_range::fold_stmt (vrange &r, gimple *s, fur_source &src, tree name)
   // If the result is varying, check for basic nonnegativeness.
   // Specifically this helps for now with strict enum in cases like
   // g++.dg/warn/pr33738.C.
-  bool so_p;
   if (res && r.varying_p () && INTEGRAL_TYPE_P (r.type ())
-      && gimple_stmt_nonnegative_warnv_p (s, &so_p))
+      && gimple_stmt_nonnegative_p (s))
     r.set_nonnegative (r.type ());
 
   if (!res)
@@ -1256,9 +1255,8 @@ fold_using_range::range_of_call (vrange &r, gcall *call, fur_source &)
     return false;
 
   tree lhs = gimple_call_lhs (call);
-  bool strict_overflow_p;
 
-  if (gimple_stmt_nonnegative_warnv_p (call, &strict_overflow_p))
+  if (gimple_stmt_nonnegative_p (call))
     r.set_nonnegative (type);
   else if (gimple_call_nonnull_result_p (call)
 	   || gimple_call_nonnull_arg (call))

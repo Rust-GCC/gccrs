@@ -264,7 +264,7 @@ gimple_build_round_up (gimple_seq *seq, tree type, tree old_size,
 				UNKNOWN_LOCATION, type, old_size, align);
 }
 
-extern bool gimple_stmt_nonnegative_warnv_p (gimple *, bool *, int = 0);
+extern bool gimple_stmt_nonnegative_p (gimple *, int = 0);
 extern bool gimple_stmt_integer_valued_real_p (gimple *, int = 0);
 extern void mark_lhs_in_seq_for_dce (bitmap, gimple_seq);
 
