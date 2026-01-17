@@ -364,25 +364,6 @@ fold_deferring_overflow_warnings_p (void)
   return fold_deferring_overflow_warnings > 0;
 }
 
-/* This is called when we fold something based on the fact that signed
-   overflow is undefined.  */
-
-void
-fold_overflow_warning (const char* gmsgid, enum warn_strict_overflow_code wc)
-{
-  if (fold_deferring_overflow_warnings > 0)
-    {
-      if (fold_deferred_overflow_warning == NULL
-	  || wc < fold_deferred_overflow_code)
-	{
-	  fold_deferred_overflow_warning = gmsgid;
-	  fold_deferred_overflow_code = wc;
-	}
-    }
-  else if (issue_strict_overflow_warning (wc))
-    warning (OPT_Wstrict_overflow, gmsgid);
-}
-
 /* Return true if the built-in mathematical function specified by CODE
    is odd, i.e. -f(x) == f(-x).  */
 
@@ -9826,57 +9807,6 @@ maybe_canonicalize_comparison (location_t loc, enum tree_code code, tree type,
   return t;
 }
 
-/* Return whether BASE + OFFSET + BITPOS may wrap around the address
-   space.  This is used to avoid issuing overflow warnings for
-   expressions like &p->x which cannot wrap.  */
-
-static bool
-pointer_may_wrap_p (tree base, tree offset, poly_int64 bitpos)
-{
-  if (!POINTER_TYPE_P (TREE_TYPE (base)))
-    return true;
-
-  if (maybe_lt (bitpos, 0))
-    return true;
-
-  poly_wide_int wi_offset;
-  int precision = TYPE_PRECISION (TREE_TYPE (base));
-  if (offset == NULL_TREE)
-    wi_offset = wi::zero (precision);
-  else if (!poly_int_tree_p (offset) || TREE_OVERFLOW (offset))
-    return true;
-  else
-    wi_offset = wi::to_poly_wide (offset);
-
-  wi::overflow_type overflow;
-  poly_wide_int units = wi::shwi (bits_to_bytes_round_down (bitpos),
-				  precision);
-  poly_wide_int total = wi::add (wi_offset, units, UNSIGNED, &overflow);
-  if (overflow)
-    return true;
-
-  poly_uint64 total_hwi, size;
-  if (!total.to_uhwi (&total_hwi)
-      || !poly_int_tree_p (TYPE_SIZE_UNIT (TREE_TYPE (TREE_TYPE (base))),
-			   &size)
-      || known_eq (size, 0U))
-    return true;
-
-  if (known_le (total_hwi, size))
-    return false;
-
-  /* We can do slightly better for SIZE if we have an ADDR_EXPR of an
-     array.  */
-  if (TREE_CODE (base) == ADDR_EXPR
-      && poly_int_tree_p (TYPE_SIZE_UNIT (TREE_TYPE (TREE_OPERAND (base, 0))),
-			  &size)
-      && maybe_ne (size, 0U)
-      && known_le (total_hwi, size))
-    return false;
-
-  return true;
-}
-
 /* Return a positive integer when the symbol DECL is known to have
    a nonzero address, zero when it's known not to (e.g., it's a weak
    symbol), and a negative integer when the symbol is not yet in the
@@ -10055,15 +9985,6 @@ fold_comparison (location_t loc, enum tree_code code, tree type,
 		      && (DECL_P (base0) || CONSTANT_CLASS_P (base0)))
 		  || TYPE_OVERFLOW_UNDEFINED (TREE_TYPE (arg0))))
 	    {
-	      if (!equality_code
-		  && maybe_ne (bitpos0, bitpos1)
-		  && (pointer_may_wrap_p (base0, offset0, bitpos0)
-		      || pointer_may_wrap_p (base1, offset1, bitpos1)))
-		fold_overflow_warning (("assuming pointer wraparound does not "
-					"occur when comparing P +- C1 with "
-					"P +- C2"),
-				       WARN_STRICT_OVERFLOW_CONDITIONAL);
-
 	      switch (code)
 		{
 		case EQ_EXPR:
@@ -10131,14 +10052,6 @@ fold_comparison (location_t loc, enum tree_code code, tree type,
 		offset1 = build_int_cst (ssizetype, 0);
 	      else
 		offset1 = fold_convert_loc (loc, ssizetype, offset1);
-
-	      if (!equality_code
-		  && (pointer_may_wrap_p (base0, offset0, bitpos0)
-		      || pointer_may_wrap_p (base1, offset1, bitpos1)))
-		fold_overflow_warning (("assuming pointer wraparound does not "
-					"occur when comparing P +- C1 with "
-					"P +- C2"),
-				       WARN_STRICT_OVERFLOW_COMPARISON);
 
 	      return fold_build2_loc (loc, code, type, offset0, offset1);
 	    }
@@ -10215,9 +10128,6 @@ fold_comparison (location_t loc, enum tree_code code, tree type,
       tree variable1 = TREE_OPERAND (arg0, 0);
       tree variable2 = TREE_OPERAND (arg1, 0);
       tree cst;
-      const char * const warnmsg = G_("assuming signed overflow does not "
-				      "occur when combining constants around "
-				      "a comparison");
 
       /* Put the constant on the side where it doesn't overflow and is
 	 of lower absolute value and of same sign than before.  */
@@ -10227,14 +10137,11 @@ fold_comparison (location_t loc, enum tree_code code, tree type,
       if (!TREE_OVERFLOW (cst)
 	  && tree_int_cst_compare (const2, cst) == tree_int_cst_sgn (const2)
 	  && tree_int_cst_sgn (cst) == tree_int_cst_sgn (const2))
-	{
-	  fold_overflow_warning (warnmsg, WARN_STRICT_OVERFLOW_COMPARISON);
-	  return fold_build2_loc (loc, code, type,
-				  variable1,
-				  fold_build2_loc (loc, TREE_CODE (arg1),
-						   TREE_TYPE (arg1),
-						   variable2, cst));
-	}
+	return fold_build2_loc (loc, code, type,
+				variable1,
+				fold_build2_loc (loc, TREE_CODE (arg1),
+						 TREE_TYPE (arg1),
+						 variable2, cst));
 
       cst = int_const_binop (TREE_CODE (arg0) == TREE_CODE (arg1)
 			     ? MINUS_EXPR : PLUS_EXPR,
@@ -10242,14 +10149,11 @@ fold_comparison (location_t loc, enum tree_code code, tree type,
       if (!TREE_OVERFLOW (cst)
 	  && tree_int_cst_compare (const1, cst) == tree_int_cst_sgn (const1)
 	  && tree_int_cst_sgn (cst) == tree_int_cst_sgn (const1))
-	{
-	  fold_overflow_warning (warnmsg, WARN_STRICT_OVERFLOW_COMPARISON);
-	  return fold_build2_loc (loc, code, type,
-				  fold_build2_loc (loc, TREE_CODE (arg0),
-						   TREE_TYPE (arg0),
-						   variable1, cst),
-				  variable2);
-	}
+	return fold_build2_loc (loc, code, type,
+				fold_build2_loc (loc, TREE_CODE (arg0),
+						 TREE_TYPE (arg0),
+						 variable1, cst),
+				variable2);
     }
 
   tem = maybe_canonicalize_comparison (loc, code, type, arg0, arg1);
@@ -11952,31 +11856,17 @@ fold_binary_loc (location_t loc, enum tree_code code, tree type,
       if ((!ANY_INTEGRAL_TYPE_P (type) || TYPE_OVERFLOW_UNDEFINED (type))
 	  && TREE_CODE (op0) == NEGATE_EXPR
 	  && negate_expr_p (op1))
-	{
-	  if (ANY_INTEGRAL_TYPE_P (type))
-	    fold_overflow_warning (("assuming signed overflow does not occur "
-				    "when distributing negation across "
-				    "division"),
-				   WARN_STRICT_OVERFLOW_MISC);
-	  return fold_build2_loc (loc, code, type,
+	return fold_build2_loc (loc, code, type,
 				  fold_convert_loc (loc, type,
 						    TREE_OPERAND (arg0, 0)),
 				  negate_expr (op1));
-	}
       if ((!ANY_INTEGRAL_TYPE_P (type) || TYPE_OVERFLOW_UNDEFINED (type))
 	  && TREE_CODE (arg1) == NEGATE_EXPR
 	  && negate_expr_p (op0))
-	{
-	  if (ANY_INTEGRAL_TYPE_P (type))
-	    fold_overflow_warning (("assuming signed overflow does not occur "
-				    "when distributing negation across "
-				    "division"),
-				   WARN_STRICT_OVERFLOW_MISC);
-	  return fold_build2_loc (loc, code, type,
-				  negate_expr (op0),
-				  fold_convert_loc (loc, type,
-						    TREE_OPERAND (arg1, 0)));
-	}
+	return fold_build2_loc (loc, code, type,
+				negate_expr (op0),
+				fold_convert_loc (loc, type,
+						  TREE_OPERAND (arg1, 0)));
 
       /* If arg0 is a multiple of arg1, then rewrite to the fastest div
 	 operation, EXACT_DIV_EXPR.
