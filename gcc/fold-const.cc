@@ -10826,10 +10826,9 @@ tree_expr_nonzero_warnv_p (tree t, bool *strict_overflow_p)
       return tree_unary_nonzero_p (code, type, TREE_OPERAND (t, 0));
     case tcc_binary:
     case tcc_comparison:
-      return tree_binary_nonzero_warnv_p (code, type,
-					       TREE_OPERAND (t, 0),
-					       TREE_OPERAND (t, 1),
-					       strict_overflow_p);
+      return tree_binary_nonzero_p (code, type,
+				    TREE_OPERAND (t, 0),
+				    TREE_OPERAND (t, 1));
     case tcc_constant:
     case tcc_declaration:
     case tcc_reference:
@@ -10847,10 +10846,9 @@ tree_expr_nonzero_warnv_p (tree t, bool *strict_overflow_p)
     case TRUTH_AND_EXPR:
     case TRUTH_OR_EXPR:
     case TRUTH_XOR_EXPR:
-      return tree_binary_nonzero_warnv_p (code, type,
-					       TREE_OPERAND (t, 0),
-					       TREE_OPERAND (t, 1),
-					       strict_overflow_p);
+      return tree_binary_nonzero_p (code, type,
+				    TREE_OPERAND (t, 0),
+				    TREE_OPERAND (t, 1));
 
     case COND_EXPR:
     case CONSTRUCTOR:
@@ -15271,19 +15269,12 @@ tree_unary_nonzero_p (enum tree_code code, tree type, tree op0)
 
 /* Return true when (CODE OP0 OP1) is an address and is known to be nonzero.
    For floating point we further ensure that T is not denormal.
-   Similar logic is present in nonzero_address in rtlanal.h.
-
-   If the return value is based on the assumption that signed overflow
-   is undefined, set *STRICT_OVERFLOW_P to true; otherwise, don't
-   change *STRICT_OVERFLOW_P.  */
+   Similar logic is present in nonzero_address in rtlanal.h.  */
 
 bool
-tree_binary_nonzero_warnv_p (enum tree_code code,
-			     tree type,
-			     tree op0,
-			     tree op1, bool *strict_overflow_p)
+tree_binary_nonzero_p (enum tree_code code, tree type, tree op0, tree op1)
 {
-  bool sub_strict_overflow_p;
+  bool sub_strict_overflow_p = false;
   switch (code)
     {
     case POINTER_PLUS_EXPR:
@@ -15292,7 +15283,6 @@ tree_binary_nonzero_warnv_p (enum tree_code code,
 	{
 	  /* With the presence of negative values it is hard
 	     to say something.  */
-	  sub_strict_overflow_p = false;
 	  if (!tree_expr_nonnegative_warnv_p (op0,
 					      &sub_strict_overflow_p)
 	      || !tree_expr_nonnegative_warnv_p (op1,
@@ -15303,9 +15293,9 @@ tree_binary_nonzero_warnv_p (enum tree_code code,
 	     overflows, on a twos-complement machine the sum of two
 	     nonnegative numbers can never be zero.  */
 	  return (tree_expr_nonzero_warnv_p (op0,
-					     strict_overflow_p)
+					     &sub_strict_overflow_p)
 		  || tree_expr_nonzero_warnv_p (op1,
-						strict_overflow_p));
+						&sub_strict_overflow_p));
 	}
       break;
 
@@ -15313,26 +15303,14 @@ tree_binary_nonzero_warnv_p (enum tree_code code,
       if (TYPE_OVERFLOW_UNDEFINED (type))
 	{
 	  if (tree_expr_nonzero_warnv_p (op0,
-					 strict_overflow_p)
+					 &sub_strict_overflow_p)
 	      && tree_expr_nonzero_warnv_p (op1,
-					    strict_overflow_p))
-	    {
-	      *strict_overflow_p = true;
-	      return true;
-	    }
+					    &sub_strict_overflow_p))
+	    return true;
 	}
       break;
 
     case MIN_EXPR:
-      sub_strict_overflow_p = false;
-      if (tree_expr_nonzero_warnv_p (op0,
-				     &sub_strict_overflow_p)
-	  && tree_expr_nonzero_warnv_p (op1,
-					&sub_strict_overflow_p))
-	{
-	  if (sub_strict_overflow_p)
-	    *strict_overflow_p = true;
-	}
       break;
 
     case MAX_EXPR:
@@ -15340,35 +15318,29 @@ tree_binary_nonzero_warnv_p (enum tree_code code,
       if (tree_expr_nonzero_warnv_p (op0,
 				     &sub_strict_overflow_p))
 	{
-	  if (sub_strict_overflow_p)
-	    *strict_overflow_p = true;
 
 	  /* When both operands are nonzero, then MAX must be too.  */
 	  if (tree_expr_nonzero_warnv_p (op1,
-					 strict_overflow_p))
+					 &sub_strict_overflow_p))
 	    return true;
 
 	  /* MAX where operand 0 is positive is positive.  */
 	  return tree_expr_nonnegative_warnv_p (op0,
-					       strict_overflow_p);
+						&sub_strict_overflow_p);
 	}
       /* MAX where operand 1 is positive is positive.  */
       else if (tree_expr_nonzero_warnv_p (op1,
 					  &sub_strict_overflow_p)
 	       && tree_expr_nonnegative_warnv_p (op1,
 						 &sub_strict_overflow_p))
-	{
-	  if (sub_strict_overflow_p)
-	    *strict_overflow_p = true;
-	  return true;
-	}
+	return true;
       break;
 
     case BIT_IOR_EXPR:
       return (tree_expr_nonzero_warnv_p (op1,
-					 strict_overflow_p)
+					 &sub_strict_overflow_p)
 	      || tree_expr_nonzero_warnv_p (op0,
-					    strict_overflow_p));
+					    &sub_strict_overflow_p));
 
     default:
       break;

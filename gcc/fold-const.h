@@ -163,8 +163,7 @@ extern enum tree_code invert_tree_comparison (enum tree_code, bool);
 extern bool inverse_conditions_p (const_tree, const_tree);
 
 extern bool tree_unary_nonzero_p (enum tree_code, tree, tree);
-extern bool tree_binary_nonzero_warnv_p (enum tree_code, tree, tree, tree op1,
-                                         bool *);
+extern bool tree_binary_nonzero_p (enum tree_code, tree, tree, tree op1);
 extern bool tree_single_nonzero_warnv_p (tree, bool *);
 extern bool tree_unary_nonnegative_warnv_p (enum tree_code, tree, tree,
 					    bool *, int);
