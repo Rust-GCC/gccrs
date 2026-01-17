@@ -9731,14 +9731,11 @@ fold_truth_andor (location_t loc, enum tree_code code, tree type,
    by changing CODE to reduce the magnitude of constants involved in
    ARG0 of the comparison.
    Returns a canonicalized comparison tree if a simplification was
-   possible, otherwise returns NULL_TREE.
-   Set *STRICT_OVERFLOW_P to true if the canonicalization is only
-   valid if signed overflow is undefined.  */
+   possible, otherwise returns NULL_TREE.  */
 
 static tree
 maybe_canonicalize_comparison_1 (location_t loc, enum tree_code code, tree type,
-				 tree arg0, tree arg1,
-				 bool *strict_overflow_p)
+				 tree arg0, tree arg1)
 {
   enum tree_code code0 = TREE_CODE (arg0);
   tree t, cst0 = NULL_TREE;
@@ -9785,7 +9782,6 @@ maybe_canonicalize_comparison_1 (location_t loc, enum tree_code code, tree type,
     code = GT_EXPR;
   else
     return NULL_TREE;
-  *strict_overflow_p = true;
 
   /* Now build the constant reduced in magnitude.  But not if that
      would produce one outside of its types range.  */
@@ -9817,29 +9813,16 @@ maybe_canonicalize_comparison (location_t loc, enum tree_code code, tree type,
 			       tree arg0, tree arg1)
 {
   tree t;
-  bool strict_overflow_p;
-  const char * const warnmsg = G_("assuming signed overflow does not occur "
-				  "when reducing constant in comparison");
 
   /* Try canonicalization by simplifying arg0.  */
-  strict_overflow_p = false;
-  t = maybe_canonicalize_comparison_1 (loc, code, type, arg0, arg1,
-				       &strict_overflow_p);
+  t = maybe_canonicalize_comparison_1 (loc, code, type, arg0, arg1);
   if (t)
-    {
-      if (strict_overflow_p)
-	fold_overflow_warning (warnmsg, WARN_STRICT_OVERFLOW_MAGNITUDE);
-      return t;
-    }
+    return t;
 
   /* Try canonicalization by simplifying arg1 using the swapped
      comparison.  */
   code = swap_tree_comparison (code);
-  strict_overflow_p = false;
-  t = maybe_canonicalize_comparison_1 (loc, code, type, arg1, arg0,
-				       &strict_overflow_p);
-  if (t && strict_overflow_p)
-    fold_overflow_warning (warnmsg, WARN_STRICT_OVERFLOW_MAGNITUDE);
+  t = maybe_canonicalize_comparison_1 (loc, code, type, arg1, arg0);
   return t;
 }
 
