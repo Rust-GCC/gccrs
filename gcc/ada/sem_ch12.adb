@@ -2455,7 +2455,6 @@ package body Sem_Ch12 is
             if Is_Expression_Function (Node (Elmt)) then
                Expr := New_Occurrence_Of (Node (Elmt), Sloc (N));
                Set_Comes_From_Source (Expr);
-               Set_Entity (Expr, Node (Elmt));
                Set_Parent (Expr, N);
                Freeze_Expression (Expr);
             else

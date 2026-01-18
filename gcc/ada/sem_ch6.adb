@@ -3848,7 +3848,9 @@ package body Sem_Ch6 is
             Set_Has_Delayed_Freeze (Spec_Id);
             Create_Extra_Formals (Spec_Id, Related_Nod => N);
             Freeze_Before (N, Spec_Id,
-              Do_Freeze_Profile => not Is_Dispatching_Operation (Spec_Id));
+              Do_Freeze_Profile => not
+                (From_Expression_Function
+                  and then Is_Dispatching_Operation (Spec_Id)));
          end if;
       end if;
 
