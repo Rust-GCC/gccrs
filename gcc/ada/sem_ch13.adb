@@ -4275,6 +4275,11 @@ package body Sem_Ch13 is
                         Discard_Node (RTE (RE_Activate_Tasks));
                      end if;
 
+                     --  Record aspect specification as a representation item
+                     --  to detect pragmas that would duplicate it.
+
+                     Record_Rep_Item (E, Aspect);
+
                      --  Handling for these aspects in subprograms is complete
 
                      goto Continue;
