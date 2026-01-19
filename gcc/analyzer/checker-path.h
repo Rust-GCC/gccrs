@@ -95,10 +95,10 @@ public:
     m_events.block_remove (start_idx, len);
   }
 
-  void replace_event (unsigned idx, checker_event *new_event)
+  void replace_event (unsigned idx, std::unique_ptr<checker_event> new_event)
   {
     delete m_events[idx];
-    m_events[idx] = new_event;
+    m_events[idx] = new_event.release ();
   }
 
   void add_region_creation_events (pending_diagnostic *pd,
