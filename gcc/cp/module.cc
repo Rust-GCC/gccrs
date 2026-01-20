@@ -22139,7 +22139,7 @@ check_module_decl_linkage (tree decl)
       && decl_defined_p (decl)
       && !(DECL_LANG_SPECIFIC (decl)
 	   && DECL_TEMPLATE_INSTANTIATION (decl))
-      && decl_linkage (decl) == lk_external)
+      && DECL_EXTERNAL_LINKAGE_P (decl))
     error_at (DECL_SOURCE_LOCATION (decl),
 	      "external linkage definition of %qD in header module must "
 	      "be declared %<inline%>", decl);

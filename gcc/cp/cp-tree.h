@@ -6124,12 +6124,16 @@ enum special_function_kind {
 	 translation unit.
 
       -- When a name has no linkage, the entity it denotes cannot be
-	 referred to by names from other scopes.  */
+	 referred to by names from other scopes.
+
+      -- When the declaration of the name is attached to a named module
+	 and is not exported, the name has module linkage.  */
 
 enum linkage_kind {
   lk_none,			/* No linkage.  */
   lk_internal,			/* Internal linkage.  */
-  lk_external			/* External linkage.  */
+  lk_external,			/* External linkage.  */
+  lk_module			/* Module linkage.  */
 };
 
 enum duration_kind {

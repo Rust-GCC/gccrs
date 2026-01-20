@@ -2031,10 +2031,7 @@ eval_has_module_linkage (tree r, reflect_kind kind)
       if (!r)
 	return boolean_false_node;
     }
-  if (decl_linkage (r) == lk_external
-      && DECL_LANG_SPECIFIC (r)
-      && DECL_MODULE_ATTACH_P (r)
-      && !DECL_MODULE_EXPORT_P (r))
+  if (decl_linkage (r) == lk_module)
     return boolean_true_node;
   else
     return boolean_false_node;
@@ -2061,10 +2058,7 @@ eval_has_external_linkage (tree r, reflect_kind kind)
       if (!r)
 	return boolean_false_node;
     }
-  if (decl_linkage (r) == lk_external
-      && !(DECL_LANG_SPECIFIC (r)
-	   && DECL_MODULE_ATTACH_P (r)
-	   && !DECL_MODULE_EXPORT_P (r)))
+  if (DECL_EXTERNAL_LINKAGE_P (r))
     return boolean_true_node;
   else
     return boolean_false_node;

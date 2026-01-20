@@ -5488,12 +5488,8 @@ check_can_export_using_decl (tree binding)
     not_tmpl = TYPE_NAME (DECL_CONTEXT (not_tmpl));
 
   /* If the using decl is exported, the things it refers to must
-     have external linkage.  decl_linkage returns lk_external for
-     module linkage so also check for attachment.  */
-  if (linkage != lk_external
-      || (DECL_LANG_SPECIFIC (not_tmpl)
-	  && DECL_MODULE_ATTACH_P (not_tmpl)
-	  && !DECL_MODULE_EXPORT_P (not_tmpl)))
+     have external linkage.  */
+  if (linkage != lk_external)
     {
       auto_diagnostic_group d;
       bool diag = true;

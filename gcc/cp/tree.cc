@@ -6653,6 +6653,18 @@ decl_linkage (tree decl)
   if (cxx_dialect >= cxx11 && decl_internal_context_p (decl))
     return lk_internal;
 
+  /* Helper to decide if T is lk_module or lk_external.  */
+  auto external_or_module = [] (tree t)
+    {
+      if (t
+	  && DECL_LANG_SPECIFIC (t)
+	  && DECL_MODULE_ATTACH_P (t)
+	  && !DECL_MODULE_EXPORT_P (t))
+	return lk_module;
+
+      return lk_external;
+    };
+
   /* Templates don't properly propagate TREE_PUBLIC, consider the
      template result instead.  Any template that isn't a variable
      or function must be external linkage by this point.  */
@@ -6660,17 +6672,17 @@ decl_linkage (tree decl)
     {
       decl = DECL_TEMPLATE_RESULT (decl);
       if (!decl || !VAR_OR_FUNCTION_DECL_P (decl))
-	return lk_external;
+	return external_or_module (decl);
     }
 
   /* Things that are TREE_PUBLIC have external linkage.  */
   if (TREE_PUBLIC (decl))
-    return lk_external;
+    return external_or_module (decl);
 
   /* All types have external linkage in C++98, since anonymous namespaces
      didn't explicitly confer internal linkage.  */
   if (TREE_CODE (decl) == TYPE_DECL && cxx_dialect < cxx11)
-    return lk_external;
+    return external_or_module (decl);
 
   /* Variables or function decls not marked as TREE_PUBLIC might still
      be external linkage, such as for template instantiations on targets
@@ -6678,7 +6690,7 @@ decl_linkage (tree decl)
      or compiler-generated entities; in such cases, decls really meant to
      have internal linkage will have DECL_THIS_STATIC set.  */
   if (VAR_OR_FUNCTION_DECL_P (decl) && !DECL_THIS_STATIC (decl))
-    return lk_external;
+    return external_or_module (decl);
 
   /* Everything else has internal linkage.  */
   return lk_internal;
