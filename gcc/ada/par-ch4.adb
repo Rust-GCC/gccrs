@@ -482,12 +482,7 @@ package body Ch4 is
          elsif Token = Tok_Identifier then
             Attr_Name := Token_Name;
 
-            --  Attribute Unsigned_Base_Range temporarily disabled
-
-            if not Is_Attribute_Name (Attr_Name)
-              or else (Attr_Name = Name_Unsigned_Base_Range
-                         and then not Debug_Flag_Dot_U)
-            then
+            if not Is_Attribute_Name (Attr_Name) then
                if Apostrophe_Should_Be_Semicolon then
                   Expr_Form := EF_Name;
                   return Name_Node;

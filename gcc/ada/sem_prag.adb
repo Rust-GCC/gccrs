@@ -12720,12 +12720,7 @@ package body Sem_Prag is
 
       --  Deal with unrecognized pragma
 
-      --  Pragma Unsigned_Base_Range temporarily disabled
-
-      if not Is_Pragma_Name (Pname)
-        or else (Pname = Name_Unsigned_Base_Range
-                  and then not Debug_Flag_Dot_U)
-      then
+      if not Is_Pragma_Name (Pname) then
          declare
             Msg_Issued : Boolean := False;
          begin

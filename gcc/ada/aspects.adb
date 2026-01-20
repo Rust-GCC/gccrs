@@ -24,7 +24,6 @@
 ------------------------------------------------------------------------------
 
 with Atree;          use Atree;
-with Debug;          use Debug;
 with Einfo.Entities; use Einfo.Entities;
 with Einfo.Utils;    use Einfo.Utils;
 with Nlists;         use Nlists;
@@ -279,14 +278,6 @@ package body Aspects is
 
    function Get_Aspect_Id (Name : Name_Id) return Aspect_Id is
    begin
-      --  Aspect Unsigned_Base_Range temporarily disabled
-
-      if Name = Name_Unsigned_Base_Range
-        and then not Debug_Flag_Dot_U
-      then
-         return No_Aspect;
-      end if;
-
       return Aspect_Id_Hash_Table.Get (Name);
    end Get_Aspect_Id;
 
