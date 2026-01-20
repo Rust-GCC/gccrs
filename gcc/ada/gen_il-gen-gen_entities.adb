@@ -942,7 +942,8 @@ begin -- Gen_IL.Gen.Gen_Entities
         Sm (Extra_Accessibility_Of_Result, Node_Id),
         Sm (Extra_Formals, Node_Id),
         Sm (Extra_Formals_Known, Flag),
-        Sm (Needs_No_Actuals, Flag)));
+        Sm (Needs_No_Actuals, Flag),
+        Sm (Scope_Depth_Value, Unat)));
 
    Ab (Overloadable_Kind, Entity_Kind,
        (Sm (Renamed_Or_Alias, Node_Id),
