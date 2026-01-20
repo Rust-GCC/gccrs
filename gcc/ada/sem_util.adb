@@ -31667,6 +31667,11 @@ package body Sem_Util is
 
    package body Old_Attr_Util is
       package body Conditional_Evaluation is
+
+         function As_Boolean (N : Node_Id) return Node_Id;
+         --  Decorate newly created node with Etype = Standard_Boolean,
+         --  and return it.
+
          type Determining_Expr_Context is
            (No_Context, If_Expr, Case_Expr, Short_Circuit_Op, Membership_Test);
 
@@ -31725,6 +31730,16 @@ package body Sem_Util is
          function Is_Known_On_Entry (Expr : Node_Id) return Boolean;
          --  See RM 6.1.1 for definition of term "known on entry".
 
+         ----------------
+         -- As_Boolean --
+         ----------------
+
+         function As_Boolean (N : Node_Id) return Node_Id is
+         begin
+            Set_Etype (N, Standard_Boolean);
+            return N;
+         end As_Boolean;
+
          --------------------------------------
          -- Conditional_Evaluation_Condition --
          --------------------------------------
@@ -31746,6 +31761,7 @@ package body Sem_Util is
                            Left_Opnd  => Result,
                            Right_Opnd =>
                              Determining_Condition (Determiners (I)));
+               Result := As_Boolean (Result);
             end loop;
             return Result;
          end Conditional_Evaluation_Condition;
@@ -31763,14 +31779,16 @@ package body Sem_Util is
                   if Det.Is_And_Then then
                      return New_Copy_Tree (Det.Expr);
                   else
-                     return Make_Op_Not (Loc, New_Copy_Tree (Det.Expr));
+                     return As_Boolean
+                       (Make_Op_Not (Loc, New_Copy_Tree (Det.Expr)));
                   end if;
 
                when If_Expr =>
                   if Det.Is_Then_Part then
                      return New_Copy_Tree (Det.Expr);
                   else
-                     return Make_Op_Not (Loc, New_Copy_Tree (Det.Expr));
+                     return As_Boolean
+                       (Make_Op_Not (Loc, New_Copy_Tree (Det.Expr)));
                   end if;
 
                when Case_Expr =>
@@ -31781,10 +31799,11 @@ package body Sem_Util is
                         Alts := Others_Discrete_Choices (First (Alts));
                      end if;
 
-                     return Make_In (Loc,
-                       Left_Opnd    => New_Copy_Tree (Det.Expr),
-                       Right_Opnd   => Empty,
-                       Alternatives => New_Copy_List (Alts));
+                     return As_Boolean
+                       (Make_In (Loc,
+                        Left_Opnd    => New_Copy_Tree (Det.Expr),
+                        Right_Opnd   => Empty,
+                        Alternatives => New_Copy_List (Alts)));
                   end;
 
                when Membership_Test =>
@@ -31817,12 +31836,13 @@ package body Sem_Util is
                      end Copy_Prefix;
 
                   begin
-                     return Make_In (Loc,
-                       Left_Opnd    => New_Copy_Tree (Left_Opnd (Det.Expr)),
-                       Right_Opnd   => Empty,
-                       Alternatives => Copy_Prefix
-                                         (Alternatives (Det.Expr),
-                                          Det.First_Non_Preceding));
+                     return As_Boolean
+                       (Make_In (Loc,
+                        Left_Opnd    => New_Copy_Tree (Left_Opnd (Det.Expr)),
+                        Right_Opnd   => Empty,
+                        Alternatives => Copy_Prefix
+                          (Alternatives (Det.Expr),
+                           Det.First_Non_Preceding)));
                   end;
 
                when No_Context =>
