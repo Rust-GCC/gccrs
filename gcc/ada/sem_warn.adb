@@ -3921,7 +3921,7 @@ package body Sem_Warn is
       --  known to refer to the same object as the other name; or one of the
       --  two names statically denotes a renaming declaration whose renamed
       --  object_name is known to refer to the same object as the other name
-      --  (RM 6.4.1(6.11/3))
+      --  (RM 6.4.1(6.12/3))
 
       -----------------------------
       -- Explicitly_By_Reference --
@@ -3980,7 +3980,7 @@ package body Sem_Warn is
       --  of an elementary type, then the call is legal only if for each name
       --  N that is passed as a parameter of mode in out or out to the call C,
       --  there is no other name among the other parameters of mode in out or
-      --  out to C that is known to denote the same object (RM 6.4.1(6.15/3))
+      --  out to C that is known to denote the same object (RM 6.4.1(6.16/3))
       --  This has been clarified in AI12-0216 to indicate that the illegality
       --  only occurs if both formals are of an elementary type, because of the
       --  nondeterminism on the write-back of the corresponding actuals.

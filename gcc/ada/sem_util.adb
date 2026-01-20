@@ -2801,7 +2801,7 @@ package body Sem_Util is
                if Is_Writable_Actual then
 
                   --  Skip checking the error in non-elementary types since
-                  --  RM 6.4.1(6.15/3) is restricted to elementary types, but
+                  --  RM 6.4.1(6.16/3) is restricted to elementary types, but
                   --  store this actual in Writable_Actuals_List since it is
                   --  needed to perform checks on other constructs that have
                   --  arbitrary order of evaluation (for example, aggregates).
@@ -2959,7 +2959,7 @@ package body Sem_Util is
       --  call C2 (not including the construct C itself), there is no other
       --  name anywhere within a direct constituent of the construct C other
       --  than the one containing C2, that is known to refer to the same
-      --  object (RM 6.4.1(6.17/3)).
+      --  object (RM 6.4.1(6.18/3)).
 
       case Nkind (N) is
          when N_Range =>
@@ -3206,7 +3206,7 @@ package body Sem_Util is
 
                --  For an array aggregate, a discrete_choice_list that has
                --  a nonstatic range is considered as two or more separate
-               --  occurrences of the expression (RM 6.4.1(6.20/3)).
+               --  occurrences of the expression (RM 6.4.1(6.21/3)).
 
                elsif Is_Array_Type (Etype (N))
                  and then Nkind (N) = N_Aggregate
@@ -7052,7 +7052,7 @@ package body Sem_Util is
       --  For renamings, return False if the prefix of any dereference within
       --  the renamed object_name is a variable, or any expression within the
       --  renamed object_name contains references to variables or calls on
-      --  nonstatic functions; otherwise return True (RM 6.4.1(6.10/3))
+      --  nonstatic functions; otherwise return True (RM 6.4.1(6.11/3))
 
       ------------------------
       -- Is_Object_Renaming --
