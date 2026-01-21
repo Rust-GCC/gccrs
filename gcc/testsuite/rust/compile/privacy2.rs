@@ -5,6 +5,7 @@ mod orange {
 
     mod green {
         mod blue {
+            use super::super::tangerine;
             fn berry() {
                 tangerine();
             }
