@@ -12492,15 +12492,16 @@ package body Sem_Util is
 
    function Has_Inferable_Discriminants (N : Node_Id) return Boolean is
 
-      function Prefix_Is_Formal_Parameter (N : Node_Id) return Boolean;
-      --  Determines whether the left-most prefix of a selected component is a
-      --  formal parameter in a subprogram. Assumes N is a selected component.
+      function Prefix_Is_Formal_Parameter_Of_EQ (N : Node_Id) return Boolean;
+      --  Determines whether the left-most prefix of selected component N
+      --  is a formal parameter of the predefined equality function of an
+      --  Unchecked_Union type.
 
-      --------------------------------
-      -- Prefix_Is_Formal_Parameter --
-      --------------------------------
+      --------------------------------------
+      -- Prefix_Is_Formal_Parameter_Of_EQ --
+      --------------------------------------
 
-      function Prefix_Is_Formal_Parameter (N : Node_Id) return Boolean is
+      function Prefix_Is_Formal_Parameter_Of_EQ (N : Node_Id) return Boolean is
          Sel_Comp : Node_Id;
 
       begin
@@ -12513,8 +12514,10 @@ package body Sem_Util is
             Sel_Comp := Parent (Sel_Comp);
          end loop;
 
-         return Is_Formal (Entity (Prefix (Sel_Comp)));
-      end Prefix_Is_Formal_Parameter;
+         return Is_Formal (Entity (Prefix (Sel_Comp)))
+           and then
+             Is_Unchecked_Union_Equality (Scope (Entity (Prefix (Sel_Comp))));
+      end Prefix_Is_Formal_Parameter_Of_EQ;
 
    --  Start of processing for Has_Inferable_Discriminants
 
@@ -12532,14 +12535,14 @@ package body Sem_Util is
             return False;
          end if;
 
-         --  A small hack. If we have a per-object constrained selected
-         --  component of a formal parameter, return True since we do not
-         --  know the actual parameter association yet.
+         --  We need to return True for the component of a formal parameter
+         --  of the predefined equality function of an Unchecked_Union type
+         --  when expanding it (see Expand_Unchecked_Union_Equality).
 
          return not Has_Per_Object_Constraint (Entity (Selector_Name (N)))
            or else not Is_Unchecked_Union (Etype (Prefix (N)))
            or else Has_Inferable_Discriminants (Prefix (N))
-           or else Prefix_Is_Formal_Parameter (N);
+           or else Prefix_Is_Formal_Parameter_Of_EQ (N);
 
       --  A qualified expression has inferable discriminants if its subtype
       --  mark is a constrained Unchecked_Union subtype.
