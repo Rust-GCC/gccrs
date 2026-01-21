@@ -1,4 +1,3 @@
-// { dg-skip-if "" { *-*-* } { "-m32" } { "" } }
 // { dg-options "-w" }
 // { dg-output "Hash: 0x63d53fd2170bbb8c\r*\n" }
 #![feature(intrinsics, lang_items, rustc_attrs)]
@@ -35,7 +34,7 @@ macro_rules! add_impl {
     )*)
 }
 
-add_impl! { usize u8 u16 u32 u64 u128 isize i8 i16 i32 i64 i128 f32 f64 }
+add_impl! { usize u8 u16 u32 u64 isize i8 i16 i32 i64 f32 f64 }
 
 impl<T> *const T {
     pub unsafe fn add(self, count: usize) -> Self {
@@ -82,7 +81,6 @@ impl_uint!(
     u16 = "u16",
     u32 = "u32",
     u64 = "u64",
-    u128 = "u128",
     usize = "usize"
 );
 
