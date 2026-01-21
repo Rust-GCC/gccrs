@@ -19,6 +19,8 @@
 #ifndef RUST_NAME_RESOLVER_2_0_H
 #define RUST_NAME_RESOLVER_2_0_H
 
+#include "rust-mapping-common.h"
+
 namespace Rust {
 namespace Resolver2_0 {
 
@@ -39,6 +41,7 @@ public:
 class Definition
 {
 public:
+  explicit Definition () : id (UNKNOWN_NODEID) {}
   explicit Definition (NodeId id) : id (id) {}
 
   NodeId id;
