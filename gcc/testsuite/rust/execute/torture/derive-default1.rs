@@ -10,6 +10,8 @@ trait Sized {}
 
 mod core {
     mod default {
+        use crate::Sized;
+
         trait Default: Sized {
             fn default() -> Self;
         }
