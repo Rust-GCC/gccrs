@@ -22,7 +22,7 @@
 #include "rust-hir-visitor.h"
 #include "rust-hir-type-check.h"
 #include "rust-stacked-contexts.h"
-#include "rust-name-resolver.h"
+#include "rust-name-resolution-context.h"
 
 namespace Rust {
 namespace HIR {
@@ -72,7 +72,7 @@ private:
     std::vector<std::unique_ptr<GenericParam>> &param, ConstGenericCtx context);
 
   StackedContexts<HirId> const_context;
-  Resolver::Resolver &resolver;
+  const Resolver2_0::NameResolutionContext &resolver;
   Analysis::Mappings &mappings;
 
   virtual void visit (Lifetime &lifetime) override;
