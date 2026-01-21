@@ -861,21 +861,23 @@ package body System.Interrupts is
          --  We don't check anything if Restoration is True, since we may be
          --  detaching a static handler to restore a dynamic one.
 
-         if not Restoration and then not Static
-
+         if not Restoration and then not Static then
             --  Tries to overwrite a static Interrupt Handler with a dynamic
             --  Handler
+            if User_Handler (Interrupt).Static then
+               raise Program_Error
+                 with
+                   "trying to overwrite a static Interrupt Handler with a "
+                   & "dynamic handler";
+            end if;
 
-           and then (User_Handler (Interrupt).Static
-
-                       --  The new handler is not specified as an
-                       --  Interrupt Handler by a pragma.
-
-                       or else not Is_Registered (New_Handler))
-         then
-            raise Program_Error with
-              "trying to overwrite a static Interrupt Handler with a " &
-              "dynamic handler";
+            --  The new handler is not specified as an interrupt handler by an
+            --  aspect (see the second sentence of RM C.3.2 (17/3)).
+            if not Is_Registered (New_Handler) then
+               raise Program_Error
+                 with
+                   "trying to attach procedure without " & "Interrupt_Handler";
+            end if;
          end if;
 
          --  The interrupt should no longer be ignored if
