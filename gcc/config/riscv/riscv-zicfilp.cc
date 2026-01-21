@@ -107,16 +107,16 @@ rest_of_insert_landing_pad (void)
 	       && (LABEL_PRESERVE_P (insn)
 		   || bb->flags & BB_NON_LOCAL_GOTO_TARGET))
 	    {
-	      emit_insn_before (gen_lpad_align (), insn);
 	      emit_insn_after (gen_lpad (const0_rtx), insn);
 	      continue;
 	    }
 
+	  /* gpr_save outputs the full CFI sequence when Zicfilp is active
+	     Reset t2 to 0 so the hardware lpad check passes on return from
+	     __riscv_save_N.  */
 	  if (INSN_P (insn) && INSN_CODE (insn) == CODE_FOR_gpr_save)
 	    {
 	      emit_move_insn (RISCV_CALL_ADDRESS_LPAD (Pmode), const0_rtx);
-	      emit_insn_before (gen_lpad_align (), insn);
-	      emit_insn_after (gen_lpad (const0_rtx), insn);
 	      continue;
 	    }
 

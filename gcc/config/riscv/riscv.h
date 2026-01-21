@@ -1105,6 +1105,13 @@ extern enum riscv_cc get_riscv_cc (const rtx use);
   fprintf (STREAM, "\t.word\t%sL%d-%sL%d\n",				\
 	   LOCAL_LABEL_PREFIX, VALUE, LOCAL_LABEL_PREFIX, REL)
 
+/* For Zicfilp, labels that may be indirect jump targets need 4-byte
+   alignment so that the lpad instruction after them is properly aligned.  */
+#define LABEL_ALIGN(LABEL)						\
+  (TARGET_ZICFILP && LABEL_PRESERVE_P (LABEL)				\
+   ? ((align_labels.levels[0].log > 2) ? align_labels : align_flags (2)) \
+   : align_labels)
+
 /* This is how to output an assembler line
    that says to advance the location counter
    to a multiple of 2**LOG bytes.  */

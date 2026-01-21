@@ -4347,8 +4347,23 @@
      [(unspec_volatile [(match_operand 0 "const_int_operand")]
 	               UNSPECV_GPR_SAVE)])]
   ""
-  "call\tt0,__riscv_save_%0"
-  [(set_attr "type" "call")])
+  {
+    if (is_zicfilp_p ())
+      {
+	output_asm_insn (".p2align\t2", operands);
+	output_asm_insn (".option push", operands);
+	output_asm_insn (".option norelax", operands);
+	output_asm_insn (".option norvc", operands);
+	output_asm_insn ("call\tt0,__riscv_save_%0", operands);
+	output_asm_insn (".option pop", operands);
+	return "lpad\t0";
+      }
+    return "call\tt0,__riscv_save_%0";
+  }
+  [(set_attr "type" "call")
+   (set (attr "length") (if_then_else (match_test "is_zicfilp_p ()")
+				      (const_string "12")
+				      (const_string "8")))])
 
 (define_insn "gpr_restore"
   [(unspec_volatile [(match_operand 0 "const_int_operand")] UNSPECV_GPR_RESTORE)]
