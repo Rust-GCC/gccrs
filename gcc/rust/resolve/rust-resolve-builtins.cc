@@ -120,6 +120,16 @@ setup_type_ctx ()
 			 unit_type);
 }
 
+tl::optional<NodeId>
+find_builtin_node_id (const std::string &name)
+{
+  for (size_t i = 0; i < builtin_count; i++)
+    if (strcmp (name.c_str (), builtin_names[i]) == 0)
+      return builtin_node_ids[i];
+
+  return tl::nullopt;
+}
+
 } // namespace Builtins
 } // namespace Resolver2_0
 } // namespace Rust

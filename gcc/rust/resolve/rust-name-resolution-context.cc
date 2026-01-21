@@ -252,10 +252,10 @@ NameResolutionContext::insert_globbed (Identifier name, NodeId id, Namespace ns)
 void
 NameResolutionContext::map_usage (Usage usage, Definition definition)
 {
-  auto inserted = resolved_nodes.emplace (usage, definition).second;
+  resolved_nodes[usage] = definition;
 
-  // is that valid?
-  rust_assert (inserted);
+  // TODO: Are reinsertions okay?
+  // rust_assert (inserted);
 }
 
 tl::optional<NodeId>

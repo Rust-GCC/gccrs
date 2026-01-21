@@ -323,6 +323,10 @@ public:
 
   void insert_glob_container (NodeId, AST::GlobContainer *);
   tl::optional<AST::GlobContainer *> lookup_glob_container (NodeId id);
+
+  void insert_module_id (NodeId);
+  bool is_module (NodeId id);
+
   void insert_module_child (NodeId module, NodeId child);
   tl::optional<std::vector<NodeId> &> lookup_module_children (NodeId module);
 
@@ -438,10 +442,13 @@ private:
   // Module tree maps
 
   // Maps each module's node id to a list of its children
+  // TODO: I think these are only used by the old resolved and can be removed
   std::map<NodeId, std::vector<NodeId>> module_child_map;
   std::map<NodeId, std::vector<Resolver::CanonicalPath>> module_child_items;
   std::map<NodeId, NodeId> child_to_parent_module_map;
+
   std::map<NodeId, AST::GlobContainer *> glob_containers;
+  std::set<NodeId> module_ids;
 
   // AST mappings
   std::map<NodeId, AST::Item *> ast_item_mappings;

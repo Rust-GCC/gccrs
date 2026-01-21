@@ -517,6 +517,33 @@ resolve_type_path_like (NameResolutionContext &ctx, bool block_big_self,
 		     "declared identifiers");
     }
 
+  if (Analysis::Mappings::get ().is_module (resolved->get_node_id ()))
+    {
+      if (type.get_segments ().size () == 1)
+	{
+	  if (auto resolved
+	      = Builtins::find_builtin_node_id (type.as_string ()))
+	    {
+	      ctx.map_usage (Usage (type.get_node_id ()),
+			     Definition (*resolved));
+
+	      // In that specific case, we also override the segment resolution
+	      // as it causes issues later down the line during typechecking
+	      ctx.map_usage (Usage (unwrap_segment_node_id (
+			       type.get_segments ().front ())),
+			     Definition (*resolved));
+	    }
+	  else
+	    {
+	      rust_error_at (type.get_locus (), ErrorCode::E0573,
+			     "expected type, found module %qs",
+			     unwrap_segment_error_string (type).c_str ());
+	    }
+	}
+
+      return;
+    }
+
   ctx.map_usage (Usage (type.get_node_id ()),
 		 Definition (resolved->get_node_id ()));
 }
