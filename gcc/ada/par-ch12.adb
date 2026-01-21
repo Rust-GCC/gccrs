@@ -1213,7 +1213,7 @@ package body Ch12 is
             if Nkind (Spec_Node) = N_Function_Specification then
                Scan;  --  past "("
 
-               Set_Expression (Def_Node, P_Expression);
+               Set_Expression (Def_Node, P_Expression_If_OK);
 
                if Token /= Tok_Right_Paren then
                   Error_Msg_SC ("missing "")"" at end of expression default");

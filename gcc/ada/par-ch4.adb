@@ -2135,19 +2135,19 @@ package body Ch4 is
    end P_Expression;
 
    --  This function is identical to the normal P_Expression, except that it
-   --  also permits the appearance of a case, conditional, or quantified
+   --  also permits the appearance of a conditional, quantified, or declare
    --  expression if the call immediately follows a left paren, and followed
    --  by a right parenthesis. These forms are allowed if these conditions
    --  are not met, but an error message will be issued.
 
    function P_Expression_If_OK return Node_Id is
    begin
-      --  Case of conditional, case or quantified expression
+      --  Case of conditional, quantified, or declare expression
 
       if Token in Tok_Case | Tok_If | Tok_For | Tok_Declare then
          return P_Unparen_Cond_Expr_Etc;
 
-      --  Normal case, not case/conditional/quantified expression
+      --  Normal case: not a conditional, quantified, or declare expression
 
       else
          return P_Expression;

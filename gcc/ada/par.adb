@@ -839,10 +839,10 @@ function Par (Configuration_Pragmas : Boolean) return List_Id is
 
       function P_Expression_If_OK return Node_Id;
       --  Scans out an expression allowing an unparenthesized case expression,
-      --  if expression, or quantified expression to appear without enclosing
-      --  parentheses. However, if such an expression is not preceded by a left
-      --  paren, and followed by a right paren, an error message will be output
-      --  noting that parenthesization is required.
+      --  if expression, quantified expression, or declare expression to appear
+      --  without enclosing parentheses. However, if such an expression is not
+      --  preceded by a left paren, and followed by a right paren, an error
+      --  message will be output noting that parenthesization is required.
 
       function P_Expression_No_Right_Paren return Node_Id;
       --  Scans out an expression in contexts where the expression cannot be
