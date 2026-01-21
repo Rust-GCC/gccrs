@@ -4520,7 +4520,7 @@ package body Sem_Aggr is
             Choice := First (Choice_List (Assoc));
             while Present (Choice) loop
                if Is_Deep_Choice (Choice, Typ) then
-                  pragma Assert (All_Extensions_Allowed);
+                  pragma Assert (Core_Extensions_Allowed);
                   Deep_Choice_Seen := True;
 
                   --  a deep delta aggregate
@@ -4796,7 +4796,8 @@ package body Sem_Aggr is
             Deep_Choice := Nkind (Choice) /= N_Identifier;
             if Deep_Choice then
                Error_Msg_GNAT_Extension
-                 ("deep delta aggregate", Sloc (Choice));
+                 ("deep delta aggregate", Sloc (Choice),
+                  Is_Core_Extension => True);
             end if;
 
             Comp_Type := Get_Component_Type

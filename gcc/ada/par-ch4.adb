@@ -2655,7 +2655,7 @@ package body Ch4 is
          end;
       end if;
 
-      --  If all extensions are enabled and we have a deep delta aggregate
+      --  If core extensions are enabled and we have a deep delta aggregate
       --  whose type is an array type with an element type that is a
       --  record type, then we can encounter legal things like
       --    with delta (Some_Index_Expression).Some_Component
@@ -2668,7 +2668,7 @@ package body Ch4 is
         and then Prev_Token = Tok_Right_Paren
         and then Serious_Errors_Detected = 0
         and then Inside_Delta_Aggregate
-        and then All_Extensions_Allowed
+        and then Core_Extensions_Allowed
       then
          if Token = Tok_Dot then
             Node2 := New_Node (N_Selected_Component, Token_Ptr);

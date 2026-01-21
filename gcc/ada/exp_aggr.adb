@@ -7848,7 +7848,7 @@ package body Exp_Aggr is
 
             else
                --  a deep delta aggregate choice
-               pragma Assert (All_Extensions_Allowed);
+               pragma Assert (Core_Extensions_Allowed);
 
                declare
                   --  recursively get name for prefix
