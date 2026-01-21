@@ -1240,11 +1240,11 @@ package body Exp_Put_Image is
       return Make_Defining_Identifier (Loc, Sname);
    end Make_Put_Image_Name;
 
-   ---------------------------------
-   -- Image_Should_Call_Put_Image --
-   ---------------------------------
+   -------------------------------
+   -- Image_Must_Call_Put_Image --
+   -------------------------------
 
-   function Image_Should_Call_Put_Image (N : Node_Id) return Boolean is
+   function Image_Must_Call_Put_Image (N : Node_Id) return Boolean is
    begin
       if Ada_Version < Ada_2022 then
          return False;
@@ -1282,7 +1282,7 @@ package body Exp_Put_Image is
 
          return False;
       end;
-   end Image_Should_Call_Put_Image;
+   end Image_Must_Call_Put_Image;
 
    ----------------------
    -- Build_Image_Call --

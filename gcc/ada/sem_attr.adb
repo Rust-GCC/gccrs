@@ -8525,7 +8525,7 @@ package body Sem_Attr is
         and then Is_Enumeration_Type (Etype (P))
         and then not Is_Character_Type (Etype (P))
         and then Compile_Time_Known_Value (P)
-        and then not Image_Should_Call_Put_Image (N)
+        and then not Image_Must_Call_Put_Image (N)
       then
          Fold_Compile_Time_Known_Enumeration_Image (P);
          Set_Is_Static_Expression
@@ -9740,7 +9740,7 @@ package body Sem_Attr is
          if Is_Enumeration_Type (Etype (P))
            and then not Is_Character_Type (Etype (P))
            and then Compile_Time_Known_Value (E1)
-           and then not Image_Should_Call_Put_Image (N)
+           and then not Image_Must_Call_Put_Image (N)
          then
             Fold_Compile_Time_Known_Enumeration_Image (E1);
             Set_Is_Static_Expression (N, False);

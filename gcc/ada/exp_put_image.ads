@@ -82,9 +82,9 @@ package Exp_Put_Image is
    function Build_Unknown_Put_Image_Call (N : Node_Id) return Node_Id;
    --  Build a call to Put_Image_Unknown
 
-   function Image_Should_Call_Put_Image (N : Node_Id) return Boolean;
-   --  True if T'Image should call T'Put_Image. N is the attribute_reference
-   --  T'Image.
+   function Image_Must_Call_Put_Image (N : Node_Id) return Boolean;
+   --  True if T'Image must be implemented by a call to T'Put_Image. N is the
+   --  attribute reference to T'Image.
 
    function Build_Image_Call (N : Node_Id) return Node_Id;
    --  N is a call to T'[[Wide_]Wide_]Image, and this translates it into the

@@ -1047,10 +1047,9 @@ package body Exp_Imgv is
          return;
       end if;
 
-      --  If Image should be transformed using Put_Image, then do so. See
-      --  Exp_Put_Image for details.
+      --  If Image must be turned into Put_Image, then do so
 
-      if Exp_Put_Image.Image_Should_Call_Put_Image (N) then
+      if Exp_Put_Image.Image_Must_Call_Put_Image (N) then
          Establish_Transient_Scope (N, Manage_Sec_Stack => True);
          Rewrite (N, Exp_Put_Image.Build_Image_Call (N));
          Analyze_And_Resolve (N, Standard_String, Suppress => All_Checks);
@@ -1860,10 +1859,9 @@ package body Exp_Imgv is
          return;
       end if;
 
-      --  If Image should be transformed using Put_Image, then do so. See
-      --  Exp_Put_Image for details.
+      --  If Image must be turned into Put_Image, then do so
 
-      if Exp_Put_Image.Image_Should_Call_Put_Image (N) then
+      if Exp_Put_Image.Image_Must_Call_Put_Image (N) then
          Establish_Transient_Scope (N, Manage_Sec_Stack => True);
          Rewrite (N, Exp_Put_Image.Build_Image_Call (N));
          Analyze_And_Resolve (N, Standard_Wide_String, Suppress => All_Checks);
@@ -1970,10 +1968,9 @@ package body Exp_Imgv is
          return;
       end if;
 
-      --  If Image should be transformed using Put_Image, then do so. See
-      --  Exp_Put_Image for details.
+      --  If Image must be turned into Put_Image, then do so
 
-      if Exp_Put_Image.Image_Should_Call_Put_Image (N) then
+      if Exp_Put_Image.Image_Must_Call_Put_Image (N) then
          Establish_Transient_Scope (N, Manage_Sec_Stack => True);
          Rewrite (N, Exp_Put_Image.Build_Image_Call (N));
          Analyze_And_Resolve
