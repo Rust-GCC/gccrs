@@ -311,20 +311,25 @@ ForeverStack<N>::get (Node &start, const Identifier &name)
 
     auto candidate = current.rib.get (name.as_string ());
 
-    return candidate.map_or (
-      [&resolved_definition] (Rib::Definition found) {
-	if (found.is_variant ())
+    if (candidate)
+      {
+	if (candidate->is_variant ())
 	  return KeepGoing::Yes;
 	// for most namespaces, we do not need to care about various ribs -
 	// they are available from all contexts if defined in the current
 	// scope, or an outermore one. so if we do have a candidate, we can
 	// return it directly and stop iterating
-	resolved_definition = found;
+	resolved_definition = *candidate;
 
 	return KeepGoing::No;
-      },
-      // if there was no candidate, we keep iterating
-      KeepGoing::Yes);
+      }
+    else
+      {
+	if (current.rib.kind == Rib::Kind::Module)
+	  return KeepGoing::No;
+	else
+	  return KeepGoing::Yes;
+      }
   });
 
   return resolved_definition;
