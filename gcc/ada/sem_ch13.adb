@@ -3780,7 +3780,7 @@ package body Sem_Ch13 is
                   then
                      Delay_Required := False;
 
-                  --  For Unsigned_Base_Range aspect, do not delay becase we
+                  --  For Unsigned_Base_Range aspect, do not delay because we
                   --  need to process it before any type or subtype derivation
                   --  is analyzed.
 
@@ -5646,10 +5646,17 @@ package body Sem_Ch13 is
                      goto Continue;
 
                   --  GNAT Core Extension: Checks for this aspect are performed
-                  --  when the corresponding pragma is analyzed.
+                  --  when the corresponding pragma is analyzed; if aspect has
+                  --  no effect, pragma generation is skipped.
 
                   elsif A_Id = Aspect_Unsigned_Base_Range then
-                     null;
+                     if Present (Expr) then
+                        Analyze_And_Resolve (Expr, Standard_Boolean);
+
+                        if Is_False (Static_Boolean (Expr)) then
+                           goto Continue;
+                        end if;
+                     end if;
 
                   --  Ada 2022 (AI12-0279)
 

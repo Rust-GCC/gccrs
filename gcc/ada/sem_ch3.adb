@@ -3193,12 +3193,22 @@ package body Sem_Ch3 is
    begin
       if Present (Aspect_Specifications (Parent (Def))) then
          declare
-            Asp : Node_Id;
+            Asp  : Node_Id;
+            Expr : Node_Id;
+
          begin
             Asp := First (Aspect_Specifications (Parent (Def)));
             while Present (Asp) loop
                if Chars (Identifier (Asp)) = Name_Unsigned_Base_Range then
-                  Is_Unsigned_Base_Range_Type_Decl := True;
+                  Expr := Expression (Asp);
+
+                  if Present (Expr) then
+                     Analyze_And_Resolve (Expr, Standard_Boolean);
+                  end if;
+
+                  Is_Unsigned_Base_Range_Type_Decl :=
+                    No (Expression (Asp))
+                      or else Is_True (Static_Boolean (Expr));
                   exit;
                end if;
 
