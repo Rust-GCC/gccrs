@@ -3418,9 +3418,13 @@ Module::process_file_path ()
   auto path_string = filename_from_path_attribute (get_outer_attrs ());
 
   std::string including_subdir;
+  bool subdir_was_added = false;
   if (path_string.empty () && module_scope.empty ()
       && get_file_subdir (including_fname, including_subdir))
-    current_directory_name += including_subdir + file_separator;
+    {
+      current_directory_name += including_subdir + file_separator;
+      subdir_was_added = true;
+    }
 
   // Handle inline module declarations adding path components.
   for (auto const &name : module_scope)
@@ -3448,6 +3452,28 @@ Module::process_file_path ()
   std::string dir_mod_path = current_directory_name + module_name.as_string ()
 			     + file_separator + expected_dir_path;
   bool dir_mod_found = file_exists (dir_mod_path);
+
+  if (!file_mod_found && !dir_mod_found && subdir_was_added)
+    {
+      size_t suffix_len
+	= including_subdir.length () + std::string (file_separator).length ();
+      std::string fallback_dir
+	= current_directory_name.substr (0, current_directory_name.length ()
+					      - suffix_len);
+      std::string fallback_file = fallback_dir + expected_file_path;
+      std::string fallback_dir_mod = fallback_dir + module_name.as_string ()
+				     + file_separator + expected_dir_path;
+      if (file_exists (fallback_file))
+	{
+	  file_mod_found = true;
+	  file_mod_path = fallback_file;
+	}
+      else if (file_exists (fallback_dir_mod))
+	{
+	  dir_mod_found = true;
+	  dir_mod_path = fallback_dir_mod;
+	}
+    }
 
   bool multiple_candidates_found = file_mod_found && dir_mod_found;
   bool no_candidates_found = !file_mod_found && !dir_mod_found;
