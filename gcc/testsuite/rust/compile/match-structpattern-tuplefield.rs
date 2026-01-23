@@ -1,3 +1,6 @@
+#![feature(no_core)]
+#![no_core]
+
 pub struct TupStruct (i32, i32);
 
 pub fn main() {
