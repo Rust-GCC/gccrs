@@ -1,6 +1,9 @@
 #![feature(no_core)]
 #![no_core]
 
+#![feature(no_core)]
+#![no_core]
+
 struct Marker;
 
 struct Foo {

@@ -1,3 +1,6 @@
+#![feature(no_core)]
+#![no_core]
+
 fn get_tuple() -> (i32, i32) {
     (5, 10)
 }
