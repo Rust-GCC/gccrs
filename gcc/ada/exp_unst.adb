@@ -2266,18 +2266,16 @@ package body Exp_Unst is
                                     Insert_After (Ins, Asn);
                                  end if;
 
-                                 --  Analyze the assignment statement. We do
-                                 --  not need to establish the relevant scope
-                                 --  stack entries here, because we have
-                                 --  already set the correct entity references,
-                                 --  so no name resolution is required, and no
-                                 --  new entities are created, so we don't even
-                                 --  need to set the current scope.
+                                 --  Analyze the assignment statement. We set
+                                 --  the scope of the current subprogram, so
+                                 --  that newly created entities go in the
+                                 --  right entity chain.
 
                                  --  We analyze with all checks suppressed
                                  --  (since we do not expect any exceptions).
-
+                                 Push_Scope (STJ.Ent);
                                  Analyze (Asn, Suppress => All_Checks);
+                                 Pop_Scope;
                               end;
 
                               Next_Elmt (Elmt);
