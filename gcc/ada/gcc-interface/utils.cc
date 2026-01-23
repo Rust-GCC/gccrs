@@ -1763,6 +1763,16 @@ maybe_pad_type (tree type, tree size, unsigned int align,
 	       size_binop (EXACT_DIV_EXPR, TYPE_SIZE (record),
 			   bitsize_unit_node));
 
+  /* Propagate the storage order from an aggregate type to the padded type.
+     Ideally this should not be necessary, because the flag on the padded
+     type has no semantic effects given that its only field is not scalar.
+     However, when the aggregate type contains a single scalar field, SRA
+     may totally scalarize the padded type without taking into account the
+     intermediate aggregate type and, therefore, may test the flag on the
+     former instead of the latter to generate a reverse memory access.  */
+  if (AGGREGATE_TYPE_P (type))
+    TYPE_REVERSE_STORAGE_ORDER (record) = TYPE_REVERSE_STORAGE_ORDER (type);
+
   /* If we are changing the alignment and the input type is a record with
      BLKmode and a small constant size, try to make a form that has an
      integral mode.  This might allow the padding record to also have an
