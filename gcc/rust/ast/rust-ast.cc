@@ -235,6 +235,14 @@ Crate::as_string () const
   return str + "\n";
 }
 
+void
+Crate::inject_extern_crate (std::string name)
+{
+  items.push_back (std::make_unique<AST::ExternCrate> (
+    AST::ExternCrate (name, AST::Visibility::create_public (UNKNOWN_LOCATION),
+		      {}, UNKNOWN_LOCATION)));
+}
+
 std::string
 Attribute::as_string () const
 {
