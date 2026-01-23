@@ -1,4 +1,7 @@
 // { dg-additional-options "-frust-unused-check-2.0" }
+#![feature(no_core)]
+#![no_core]
+
 
 pub fn MyFunction() {
 // { dg-warning "function .MyFunction. should have a snake case name" "" { target *-*-* } .-1 }

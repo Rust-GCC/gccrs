@@ -1,3 +1,6 @@
+#![feature(no_core)]
+#![no_core]
+
 fn get_forty_two() -> i32 {
     return 42;
 }
