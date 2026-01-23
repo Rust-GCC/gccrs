@@ -805,7 +805,12 @@ package body Ghost is
          --  Local variables
 
          Applic_Policy : Ghost_Mode_Type := Ghost_Config.Ghost_Mode;
+         Asp_Entity : Entity_Id := Empty;
+         Asp_Entity_Level : Entity_Id := Empty;
          Ghost_Region  : constant Node_Id := Ghost_Config.Current_Region;
+         Region_Level    : constant Entity_Id :=
+           Ghost_Config.Ghost_Mode_Assertion_Level;
+         Id_Level  : constant Entity_Id := Ghost_Assertion_Level (Id);
 
       --  Start of processing for Check_Ghost_Policy
 
@@ -844,13 +849,12 @@ package body Ghost is
             Error_Msg_NE ("\& used # with ghost policy `Ignore`", Ref, Id);
          end if;
 
-         --  A ghost entity E shall not be referenced within an aspect
-         --  specification [(including an aspect-specifying pragma)] which
-         --  specifies an aspect of an entity that is either non-ghost or not
-         --  assertion-level-dependent on E except in the following cases the
-         --  specified aspect is either Global, Depends, Refined_Global,
-         --  Refined_Depends, Initializes, Refined_State, or Iterable (SPARK RM
-         --  6.9(14)).
+         --  If the assertion policy applicable to the declaration of a Ghost
+         --  entity is Ignore, then the assertion policy applicable to any
+         --  reference to that entity shall be Ignore except if the reference
+         --  occurs in an aspect specification for the aspects Global, Depends,
+         --  Refined_Global, Refined_Depends, Initializes, or Refined_State
+         --  (SPARK RM 6.9(18)).
 
          if No (Ghost_Region)
            or else (Nkind (Ghost_Region) = N_Pragma
@@ -872,6 +876,49 @@ package body Ghost is
             Error_Msg_NE ("\& declared # with ghost policy `Ignore`", Ref, Id);
             Error_Msg_Sloc := Sloc (Ref);
             Error_Msg_NE ("\& used # with ghost policy `Check`", Ref, Id);
+         end if;
+
+         --  A ghost entity E shall not be referenced within an aspect
+         --  specification [(including an aspect-specifying pragma)] which
+         --  specifies an aspect of an entity that is either non-ghost or not
+         --  assertion-level-dependent on E except in the following cases the
+         --  specified aspect is either Global, Depends, Refined_Global,
+         --  Refined_Depends, Initializes, Refined_State, or Iterable (SPARK RM
+         --  6.9(14)).
+
+         if No (Region_Level)
+           or else No (Id_Level)
+           or else Nkind (Ghost_Region) /= N_Pragma
+           or else No (Corresponding_Aspect (Ghost_Region))
+         then
+            return;
+         end if;
+
+         Asp_Entity := Entity (Corresponding_Aspect (Ghost_Region));
+
+         if Present (Asp_Entity) then
+            Asp_Entity_Level := Ghost_Assertion_Level (Asp_Entity);
+         end if;
+
+         --  The level of the aspect should be compatible with the identifier
+         --  unless it is already compatible with entity attached to the
+         --  aspect. This is because if that entity is ignored then also all of
+         --  the aspects attached to it are also ignored.
+
+         if not Is_Assertion_Level_Dependent (Region_Level, Id_Level)
+           and then
+             (No (Asp_Entity)
+              or else No (Asp_Entity_Level)
+              or else
+                not Is_Assertion_Level_Dependent (Asp_Entity_Level, Id_Level))
+         then
+            Error_Msg_N (Assertion_Level_Error_Msg, Ref);
+            Error_Msg_Name_1 := Chars (Id_Level);
+            Error_Msg_NE ("\& has assertion level %", Ref, Id);
+            Error_Msg_Name_1 := Chars (Region_Level);
+            Error_Msg_NE ("\& is used within a region with %", Ref, Id);
+            Error_Msg_Name_1 := Chars (Region_Level);
+            Error_Msg_NE ("\assertion level of & should depend on %", Ref, Id);
          end if;
       end Check_Ghost_Policy;
 
