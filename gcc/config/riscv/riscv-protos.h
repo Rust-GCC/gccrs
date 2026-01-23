@@ -660,7 +660,8 @@ bool neg_simm5_p (rtx);
 #ifdef RTX_CODE
 bool has_vi_variant_p (rtx_code, rtx);
 void expand_vec_cmp (rtx, rtx_code, rtx, rtx, rtx = nullptr, rtx = nullptr);
-bool expand_vec_cmp_float (rtx, rtx_code, rtx, rtx, bool);
+bool expand_vec_cmp_float (rtx, rtx_code, rtx, rtx, bool, rtx = nullptr,
+			   rtx = nullptr);
 void expand_cond_len_unop (unsigned, rtx *);
 void expand_cond_len_binop (unsigned, rtx *);
 void expand_reduction (unsigned, unsigned, unsigned, rtx *, rtx);

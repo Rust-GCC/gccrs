@@ -3111,7 +3111,7 @@ vectorize_related_mode (machine_mode vector_mode, scalar_mode element_mode,
 
 void
 expand_vec_cmp (rtx target, rtx_code code, rtx op0, rtx op1, rtx mask,
-		rtx maskoff)
+		rtx els)
 {
   machine_mode mask_mode = GET_MODE (target);
   machine_mode data_mode = GET_MODE (op0);
@@ -3121,8 +3121,8 @@ expand_vec_cmp (rtx target, rtx_code code, rtx op0, rtx op1, rtx mask,
     {
       rtx lt = gen_reg_rtx (mask_mode);
       rtx gt = gen_reg_rtx (mask_mode);
-      expand_vec_cmp (lt, LT, op0, op1, mask, maskoff);
-      expand_vec_cmp (gt, GT, op0, op1, mask, maskoff);
+      expand_vec_cmp (lt, LT, op0, op1, mask, els);
+      expand_vec_cmp (gt, GT, op0, op1, mask, els);
       icode = code_for_pred (IOR, mask_mode);
       rtx ops[] = {target, lt, gt};
       emit_vlmax_insn (icode, BINARY_MASK_OP, ops);
@@ -3130,14 +3130,14 @@ expand_vec_cmp (rtx target, rtx_code code, rtx op0, rtx op1, rtx mask,
     }
 
   rtx cmp = gen_rtx_fmt_ee (code, mask_mode, op0, op1);
-  if (!mask && !maskoff)
+  if (!mask && !els)
     {
       rtx ops[] = {target, cmp, op0, op1};
       emit_vlmax_insn (icode, COMPARE_OP, ops);
     }
   else
     {
-      rtx ops[] = {target, mask, maskoff, cmp, op0, op1};
+      rtx ops[] = {target, mask, els, cmp, op0, op1};
       emit_vlmax_insn (icode, COMPARE_OP_MU, ops);
     }
 }
@@ -3145,14 +3145,18 @@ expand_vec_cmp (rtx target, rtx_code code, rtx op0, rtx op1, rtx mask,
 /* Expand an RVV floating-point comparison:
 
    If CAN_INVERT_P is true, the caller can also handle inverted results;
-   return true if the result is in fact inverted.  */
+   return true if the result is in fact inverted.
+
+   If MASK is non-null, inactive lanes get the respective element from
+   ELS.  */
 
 bool
 expand_vec_cmp_float (rtx target, rtx_code code, rtx op0, rtx op1,
-		      bool can_invert_p)
+		      bool can_invert_p, rtx mask, rtx els)
 {
   machine_mode mask_mode = GET_MODE (target);
   machine_mode data_mode = GET_MODE (op0);
+  gcc_assert (!mask || !can_invert_p);
 
   /* If can_invert_p = true:
      It suffices to implement a u>= b as !(a < b) but with the NaNs masked off:
@@ -3192,7 +3196,7 @@ expand_vec_cmp_float (rtx target, rtx_code code, rtx op0, rtx op1,
     case GE:
     case LTGT:
       /* There is native support for the comparison.  */
-      expand_vec_cmp (target, code, op0, op1);
+      expand_vec_cmp (target, code, op0, op1, mask, els);
       return false;
     case UNEQ:
     case ORDERED:
@@ -3226,15 +3230,19 @@ expand_vec_cmp_float (rtx target, rtx_code code, rtx op0, rtx op1,
 
   if (code == ORDERED)
     {
-      emit_move_insn (target, eq0);
+      if (mask)
+	{
+	  rtx ops[] = {target, eq0, mask};
+	  emit_vlmax_insn (code_for_pred (AND, mask_mode), BINARY_MASK_OP, ops);
+	}
+      else
+	emit_move_insn (target, eq0);
       return false;
     }
 
   /* There is native support for the inverse comparison.  */
   code = reverse_condition_maybe_unordered (code);
-  if (code == ORDERED)
-    emit_move_insn (target, eq0);
-  else
+  if (code != ORDERED)
     expand_vec_cmp (eq0, code, op0, op1, eq0, eq0);
 
   if (can_invert_p)
@@ -3245,7 +3253,15 @@ expand_vec_cmp_float (rtx target, rtx_code code, rtx op0, rtx op1,
 
   /* We use one_cmpl<mode>2 to make Combine PASS to combine mask instructions
      into: vmand.mm/vmnor.mm/vmnand.mm/vmxnor.mm.  */
-  emit_insn (gen_rtx_SET (target, gen_rtx_NOT (mask_mode, eq0)));
+  rtx not_eq0 = gen_reg_rtx (mask_mode);
+  emit_insn (gen_rtx_SET (not_eq0, gen_rtx_NOT (mask_mode, eq0)));
+  if (mask)
+    {
+      rtx ops[] = {target, not_eq0, mask};
+      emit_vlmax_insn (code_for_pred (AND, mask_mode), BINARY_MASK_OP, ops);
+    }
+  else
+    emit_move_insn (target, not_eq0);
   return false;
 }
 

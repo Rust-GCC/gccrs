@@ -31,7 +31,6 @@ DEFINE_TEST_FUNC(f4, !=)
 DEFINE_TEST_FUNC(f5, <)
 DEFINE_TEST_FUNC(f6, <=)
 
-/* Array setup macro.  */
 #define RESET_ARRAYS(_aval, _idx, _force, _bval)         \
   do {                                                   \
     _Pragma("GCC novector")				 \
@@ -43,7 +42,6 @@ DEFINE_TEST_FUNC(f6, <=)
       a[_idx] = _force;                                  \
   } while (0)
 
-/* Value check macros.  */
 #define CHECK_EQ(_i, _val)                        \
   do {                                            \
     if (b[_i] != _val)                            \
@@ -68,7 +66,6 @@ DEFINE_TEST_FUNC(f6, <=)
   } while (0)
 
 int main(void) {
-  /* Break on random intervals.  */
   TEST_FUNC (f1, 1, 0, 1, 10, CHECK_EQ (0, 11); CHECK_EQ (1, 10));
   TEST_FUNC (f2, -1, 5, 0, 10, CHECK_EQ (0, 9); CHECK_EQ (5, 10));
   TEST_FUNC (f3, 3, 3, 0, 0, CHECK_EQ (0, 3); CHECK_EQ (3, 0));
@@ -76,7 +73,6 @@ int main(void) {
   TEST_FUNC (f5, 1, 6, -1, 5, CHECK_EQ (6, 4); CHECK_EQ (7, 5));
   TEST_FUNC (f6, 2, 10, 0, 7, CHECK_EQ (10, 7); CHECK_EQ (11, 7));
 
-  /* Break on last iteration.  */
   TEST_FUNC (f1, 0, N-1, 1, 1,
     CHECK_RANGE_EQ (0, N-1, 1); CHECK_EQ (N-1, 2));
 
