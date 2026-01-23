@@ -1,3 +1,6 @@
+#![feature(no_core)]
+#![no_core]
+
 #[target_feature(sse)]
 unsafe fn foo() {
     let a: usize = 0;
