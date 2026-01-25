@@ -89,17 +89,17 @@ DeriveClone::clone_impl (
   std::unique_ptr<AssociatedItem> &&clone_fn, std::string name,
   const std::vector<std::unique_ptr<GenericParam>> &type_generics)
 {
-  // we should have two of these, so we don't run into issues with
-  // two paths sharing a node id
-  auto clone_bound = builder.type_path (LangItem::Kind::CLONE);
-  auto clone_trait_path = builder.type_path (LangItem::Kind::CLONE);
+  auto clone_trait_path
+    = [this] () { return builder.type_path (LangItem::Kind::CLONE); };
 
   auto trait_items = vec (std::move (clone_fn));
 
-  auto generics = setup_impl_generics (name, type_generics,
-				       builder.trait_bound (clone_bound));
+  auto generics = setup_impl_generics (name, type_generics, [&, this] () {
+    return builder.trait_bound (clone_trait_path ());
+  });
 
-  return builder.trait_impl (clone_trait_path, std::move (generics.self_type),
+  return builder.trait_impl (clone_trait_path (),
+			     std::move (generics.self_type),
 			     std::move (trait_items),
 			     std::move (generics.impl));
 }
