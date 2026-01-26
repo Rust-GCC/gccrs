@@ -1054,7 +1054,7 @@ CNU(RTS_CONTROL_ENABLE, "Enable RTS flow ctrl")
 
 */
 
-#if defined (__FreeBSD__) || defined (__linux__) || defined (__DragonFly__)
+#if defined (__FreeBSD__) || defined (__DragonFly__)
 # define PTY_Library "-lutil"
 #else
 # define PTY_Library ""
