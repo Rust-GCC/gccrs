@@ -953,9 +953,8 @@ package body System.Interrupts is
          end;
       end Initialize;
 
-      --  Note: All tasks in RTS will have all the Reserve Interrupts being
-      --  masked (except the Interrupt_Manager) and Keep_Unmasked unmasked
-      --  when created.
+      --  Note: All tasks in RTS will have all the Keep_Unmasked interrupts
+      --  unmasked when created.
 
       --  Abort_Task_Interrupt is one of the Interrupt unmasked in all tasks.
       --  We mask the Interrupt in this particular task so that "sigwait" is
@@ -1240,9 +1239,8 @@ package body System.Interrupts is
 
       IMOP.Install_Default_Action (IMNG.Interrupt_ID (Interrupt));
 
-      --  Note: All tasks in RTS will have all the Reserve Interrupts being
-      --  masked (except the Interrupt_Manager) and Keep_Unmasked unmasked when
-      --  created.
+      --  Note: All tasks in RTS will have all the Keep_Unmasked interrupts
+      --  unmasked when created.
 
       --  Abort_Task_Interrupt is one of the Interrupt unmasked in all tasks.
       --  We mask the Interrupt in this particular task so that "sigwait" is
