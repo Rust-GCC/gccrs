@@ -2825,32 +2825,22 @@ package body Sem_Ch6 is
       ----------------------------------------------
 
       procedure Check_Anonymous_Access_Return_With_Tasks is
+         Scop : constant Entity_Id :=
+                  (if Present (Spec_Id) then Spec_Id else Body_Id);
+
          Decl : Node_Id;
-         Scop : Entity_Id;
 
       begin
-         if Present (Spec_Id) then
-            Scop := Spec_Id;
-         else
-            Scop := Body_Id;
-         end if;
-
          if Ekind (Scop) = E_Function
-           and then Ekind (Etype (Scop)) = E_Anonymous_Access_Type
            and then not Is_Thunk (Scop)
+           and then Ekind (Etype (Scop)) = E_Anonymous_Access_Type
+           and then Might_Have_Tasks (Designated_Type (Etype (Scop)))
 
             --  Skip internally built functions which handle the case of
             --  a null access (see Expand_Interface_Conversion)
 
            and then not (Is_Interface (Designated_Type (Etype (Scop)))
                           and then not Comes_From_Source (Parent (Scop)))
-
-           and then (Has_Task (Designated_Type (Etype (Scop)))
-                      or else
-                        (Is_Class_Wide_Type (Designated_Type (Etype (Scop)))
-                           and then
-                         Is_Limited_Record
-                           (Etype (Designated_Type (Etype (Scop))))))
            and then Expander_Active
          then
             Decl := Build_Master_Declaration (Loc);
