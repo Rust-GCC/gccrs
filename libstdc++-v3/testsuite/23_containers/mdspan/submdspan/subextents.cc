@@ -21,7 +21,7 @@ test_from_full_extent()
 
 template<template<typename, typename> typename Pair, template<int> typename Cw>
   constexpr bool
-  test_from_tuple()
+  test_from_pair()
   {
     auto exts = std::extents<int, 3, 5, 7>{};
     auto s0 = Cw<1>{};
@@ -29,21 +29,21 @@ template<template<typename, typename> typename Pair, template<int> typename Cw>
     auto s2 = Pair{Cw<1>{}, 4};
     auto sub_exts = std::subextents(exts, s0, s1, s2);
     VERIFY(sub_exts.rank() == 2);
-    VERIFY(sub_exts.static_extent(0) == size_t(get<1>(s1) - get<0>(s1)));
+    VERIFY(sub_exts.static_extent(0) == 1);
     VERIFY(sub_exts.static_extent(1) == dyn);
-    VERIFY(std::cmp_equal(sub_exts.extent(1), get<1>(s2) - get<0>(s2)));
+    VERIFY(std::cmp_equal(sub_exts.extent(1), 3));
     return true;
   }
 
 template<template<int> typename Cw>
   constexpr bool
-  test_from_tuple_all()
+  test_from_pair_all()
   {
-    test_from_tuple<std::tuple, Cw>();
-    test_from_tuple<std::pair, Cw>();
+    test_from_pair<std::tuple, Cw>();
+    test_from_pair<std::pair, Cw>();
+    test_from_pair<std::range_slice, Cw>();
     return true;
   }
-
 
 template<typename Int>
   void
@@ -104,45 +104,57 @@ template<template<int> typename Cw>
       VERIFY(sub_exts.rank() == 2);
       VERIFY(sub_exts.static_extent(0) == dyn);
       VERIFY(sub_exts.extent(0) == 2);
-      VERIFY(sub_exts.static_extent(1) == dyn);
-      VERIFY(sub_exts.extent(1) == 2);
+      VERIFY(sub_exts.static_extent(1) == 2);
     }
 
     {
       // selected = 1 x [1, 3] x [1, 4, 7, 10]
       auto s0 = 1;
-      auto s1 = std::strided_slice{1, Cw<4>{}, 2};
-      auto s2 = std::strided_slice{1, Cw<10>{}, Cw<3>{}};
+      auto s1 = std::strided_slice{1, Cw<2>{}, 2};
+      auto s2 = std::strided_slice{1, Cw<4>{}, Cw<3>{}};
       auto sub_exts = std::subextents(exts, s0, s1, s2);
       VERIFY(sub_exts.rank() == 2);
-      VERIFY(sub_exts.static_extent(0) == dyn);
-      VERIFY(sub_exts.extent(0) == 2);
+      VERIFY(sub_exts.static_extent(0) == 2);
       VERIFY(sub_exts.static_extent(1) == 4);
     }
 
     {
       // selected = [0, 2] x [1, 3] x [0, 3, 6]
-      auto s0 = std::strided_slice(0, 3, 2);
-      auto s1 = std::strided_slice(1, 4, 2);
-      auto s2 = std::strided_slice(0, 7, 3);
+      auto s0 = std::strided_slice(0, 2, 2);
+      auto s1 = std::strided_slice(1, 2, 2);
+      auto s2 = std::strided_slice(0, 3, 3);
       auto sub_exts = std::subextents(exts, s0, s1, s2);
       VERIFY(sub_exts.rank() == 3);
       VERIFY(sub_exts.extent(0) == 2);
       VERIFY(sub_exts.extent(1) == 2);
       VERIFY(sub_exts.extent(2) == 3);
     }
+
+    {
+      // selected = [0] x [1] x [2]
+      auto s0 = std::strided_slice(0, 1, 99);
+      auto s1 = std::strided_slice(1, 1, 99);
+      auto s2 = std::strided_slice(2, 1, 99);
+      auto sub_exts = std::subextents(exts, s0, s1, s2);
+      VERIFY(sub_exts.rank() == 3);
+      VERIFY(sub_exts.extent(0) == 1);
+      VERIFY(sub_exts.extent(1) == 1);
+      VERIFY(sub_exts.extent(2) == 1);
+    }
+
     return true;
   }
 
-template<template<int> typename Cw>
+template<template<typename, typename, typename> class Triple,
+	 template<int> typename Cw>
   constexpr bool
-  test_from_range_slice()
+  test_from_triple()
   {
     auto exts = std::extents<int, 5, 7, 11>{};
     {
       auto s0 = 1;
-      auto s1 = std::range_slice{0, 0, 0};
-      auto s2 = std::range_slice{Cw<1>{}, Cw<1>{}, 0};
+      auto s1 = Triple{0, 0, 0};
+      auto s2 = Triple{Cw<1>{}, Cw<1>{}, 0};
       auto sub_exts = std::subextents(exts, s0, s1, s2);
       VERIFY(sub_exts.rank() == 2);
       VERIFY(sub_exts.static_extent(0) == dyn);
@@ -152,8 +164,8 @@ template<template<int> typename Cw>
 
     {
       auto s0 = 1;
-      auto s1 = std::range_slice{0, 2, Cw<1>{}};
-      auto s2 = std::range_slice{1, Cw<3>{}};
+      auto s1 = Triple{0, 2, Cw<1>{}};
+      auto s2 = Triple{1, Cw<3>{}, Cw<1>{}};
       auto sub_exts = std::subextents(exts, s0, s1, s2);
       VERIFY(sub_exts.rank() == 2);
       VERIFY(sub_exts.static_extent(0) == dyn);
@@ -164,8 +176,8 @@ template<template<int> typename Cw>
 
     {
       auto s0 = 1;
-      auto s1 = std::range_slice{0, 2, Cw<1>{}};
-      auto s2 = std::range_slice{Cw<1>{}, Cw<3>{}, 1};
+      auto s1 = Triple{0, 2, Cw<1>{}};
+      auto s2 = Triple{Cw<1>{}, Cw<3>{}, 1};
       auto sub_exts = std::subextents(exts, s0, s1, s2);
       VERIFY(sub_exts.rank() == 2);
       VERIFY(sub_exts.static_extent(0) == dyn);
@@ -177,8 +189,8 @@ template<template<int> typename Cw>
     {
       // selected = 1 x [1, 3] x [1, 4, 7, 10]
       auto s0 = 1;
-      auto s1 = std::range_slice{1, Cw<5>{}, 2};
-      auto s2 = std::range_slice{1, Cw<11>{}, Cw<3>{}};
+      auto s1 = Triple{1, Cw<5>{}, 2};
+      auto s2 = Triple{1, Cw<11>{}, Cw<3>{}};
       auto sub_exts = std::subextents(exts, s0, s1, s2);
       VERIFY(sub_exts.rank() == 2);
       VERIFY(sub_exts.static_extent(0) == dyn);
@@ -190,8 +202,8 @@ template<template<int> typename Cw>
     {
       // selected = 1 x [1, 3] x [1, 4, 7, 10]
       auto s0 = 1;
-      auto s1 = std::range_slice{1, Cw<5>{}, 2};
-      auto s2 = std::range_slice{Cw<1>{}, Cw<11>{}, Cw<3>{}};
+      auto s1 = Triple{1, Cw<5>{}, 2};
+      auto s2 = Triple{Cw<1>{}, Cw<11>{}, Cw<3>{}};
       auto sub_exts = std::subextents(exts, s0, s1, s2);
       VERIFY(sub_exts.rank() == 2);
       VERIFY(sub_exts.static_extent(0) == dyn);
@@ -201,18 +213,26 @@ template<template<int> typename Cw>
 
     {
       // selected = [0, 2] x [1, 3] x [0, 3, 6]
-      auto s0 = std::range_slice(0, 3, 2);
-      auto s1 = std::range_slice(1, 5, 2);
-      auto s2 = std::range_slice(0, 7, 3);
+      auto s0 = Triple{0, 3, 2};
+      auto s1 = Triple{1, 5, 2};
+      auto s2 = Triple{0, 7, 3};
       auto sub_exts = std::subextents(exts, s0, s1, s2);
       VERIFY(sub_exts.rank() == 3);
       VERIFY(sub_exts.extent(0) == 2);
       VERIFY(sub_exts.extent(1) == 2);
       VERIFY(sub_exts.extent(2) == 3);
     }
+
     return true;
   }
 
+template<template<int> typename Cw>
+  constexpr bool
+  test_from_triple_all()
+  {
+    test_from_triple<std::range_slice, Cw>();
+    return true;
+  }
 
 template<int Value>
   using CW = std::constant_wrapper<Value, int>;
@@ -224,14 +244,14 @@ constexpr bool
 test_all()
 {
   test_from_full_extent();
-  test_from_tuple_all<CW>();
-  test_from_tuple_all<IC>();
+  test_from_pair_all<CW>();
+  test_from_pair_all<IC>();
   test_from_const_int<CW>();
   test_from_const_int<IC>();
   test_from_strided_slice<CW>();
   test_from_strided_slice<IC>();
-  test_from_range_slice<CW>();
-  test_from_range_slice<IC>();
+  test_from_triple_all<CW>();
+  test_from_triple_all<IC>();
   test_from_int_like_in_tuple<StructuralInt>();
   return true;
 }

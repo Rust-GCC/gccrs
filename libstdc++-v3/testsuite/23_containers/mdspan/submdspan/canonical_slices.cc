@@ -114,7 +114,130 @@ test_pair_all()
 {
   test_pair<std::pair>();
   test_pair<std::tuple>();
+  test_pair<std::range_slice>();
   test_pair<Range>();
+  return true;
+}
+
+template<template<typename, typename, typename> typename Triple>
+constexpr bool
+test_triple(auto exts, auto ce, auto cf, auto cl, auto cs)
+{
+  using IndexType = decltype(exts)::index_type;
+
+  auto coffset = std::cw<IndexType{cf.value}>;
+  auto cextent = std::cw<IndexType{ce.value}>;
+  auto cstride = std::cw<IndexType{cs.value}>;
+
+  auto raw_ccc = Triple{cf, cl, cs};
+  auto [ccc] = std::canonical_slices(exts, raw_ccc);
+  assert_same(ccc.offset, coffset);
+  assert_same(ccc.extent, cextent);
+  assert_same(ccc.stride, cstride);
+
+  auto raw_dcc = Triple{cf.value, cl, cs};
+  auto [dcc] = std::canonical_slices(exts, raw_dcc);
+  assert_same(dcc.offset, coffset.value);
+  assert_same(dcc.extent, cextent.value);
+  assert_same(dcc.stride, cstride);
+
+  auto raw_cdc = Triple{cf, cl.value, cs};
+  auto [cdc] = std::canonical_slices(exts, raw_cdc);
+  assert_same(cdc.offset, coffset);
+  assert_same(cdc.extent, cextent.value);
+  assert_same(cdc.stride, cstride);
+
+  auto raw_ccd = Triple{cf, cl, cs.value};
+  auto [ccd] = std::canonical_slices(exts, raw_ccd);
+  assert_same(ccd.offset, coffset);
+  assert_same(ccd.extent, cextent.value);
+  assert_same(ccd.stride, cstride.value);
+  return true;
+}
+
+template<template<typename, typename, typename> typename Triple>
+constexpr bool
+test_triple_zero_extent(auto exts, auto cf, auto cs)
+{
+  using IndexType = typename decltype(exts)::index_type;
+  auto raw_ccc = Triple{cf, cf, cs};
+  auto [ccc] = std::canonical_slices(exts, raw_ccc);
+  assert_same(ccc.stride, std::cw<IndexType{1}>);
+
+  auto raw_ccd = Triple{cf, cf, cs.value};
+  auto [ccd] = std::canonical_slices(exts, raw_ccd);
+  assert_same(ccd.stride, std::cw<IndexType{1}>);
+
+  auto raw_cdd = Triple{cf, cf.value, cs.value};
+  auto [cdd] = std::canonical_slices(exts, raw_cdd);
+  assert_same(cdd.stride, IndexType(1));
+
+  auto raw_dcd = Triple{cf.value, cf, cs.value};
+  auto [dcd] = std::canonical_slices(exts, raw_dcd);
+  assert_same(dcd.stride, IndexType(1));
+
+  auto raw_ddd = Triple{cf.value, cf.value, cs.value};
+  auto [ddd] = std::canonical_slices(exts, raw_ddd);
+  assert_same(cdd.stride, IndexType(1));
+
+  if constexpr (decltype(cs)::value > 0)
+  {
+    auto cstride = std::cw<IndexType(cs.value)>;
+
+    auto raw_cdc = Triple{cf, cf.value, cs};
+    auto [cdc] = std::canonical_slices(exts, raw_cdc);
+    assert_same(cdc.stride, cstride);
+
+    auto raw_dcc = Triple{cf.value, cf, cs};
+    auto [dcc] = std::canonical_slices(exts, raw_dcc);
+    assert_same(dcc.stride, cstride);
+
+    auto raw_ddc = Triple{cf.value, cf.value, cs};
+    auto [ddc] = std::canonical_slices(exts, raw_ddc);
+    assert_same(cdc.stride, cstride);
+  }
+
+  return true;
+}
+
+template<template<typename, typename, typename> typename Triple>
+constexpr bool
+test_triple()
+{
+  auto run = [](auto exts) {
+    test_triple<Triple>(exts, std::cw<uint8_t{5}>,
+      std::cw<uint8_t{0}>, std::cw<uint8_t{5}>, std::cw<uint8_t{1}>);
+    test_triple<Triple>(exts, std::cw<uint8_t{3}>,
+      std::cw<uint8_t{0}>, std::cw<uint8_t{5}>, std::cw<uint8_t{2}>);
+    test_triple<Triple>(exts, std::cw<uint8_t{2}>,
+      std::cw<uint8_t{1}>, std::cw<uint8_t{5}>, std::cw<uint8_t{3}>);
+    test_triple<Triple>(exts, std::cw<uint8_t{1}>,
+      std::cw<uint8_t{1}>, std::cw<uint8_t{5}>, std::cw<uint8_t{9}>);
+
+    test_triple_zero_extent<Triple>(exts, 
+      std::cw<uint8_t{0}>, std::cw<uint8_t{9}>);
+    test_triple_zero_extent<Triple>(exts,
+      std::cw<uint8_t{0}>, std::cw<uint8_t{0}>);
+    test_triple_zero_extent<Triple>(exts,
+      std::cw<uint8_t{5}>, std::cw<uint8_t{9}>);
+    test_triple_zero_extent<Triple>(exts,
+      std::cw<uint8_t{5}>, std::cw<uint8_t{0}>);
+  };
+  run(std::extents<int, 5>{});
+  run(std::extents<int, dyn>{5});
+
+  test_triple_zero_extent<Triple>(std::extents<int, 0>{}, 
+    std::cw<uint8_t{0}>, std::cw<uint8_t{9}>);
+  test_triple_zero_extent<Triple>(std::extents<int, dyn>{0},
+    std::cw<uint8_t{0}>, std::cw<uint8_t{0}>);
+
+  return true;
+}
+
+constexpr bool
+test_triple_all()
+{
+  test_triple<std::range_slice>();
   return true;
 }
 
@@ -158,9 +281,13 @@ test_strided_slice()
 {
   auto run = [](auto exts)
   {
-    auto cs = std::cw<uint8_t{9}>;
-    test_strided_slice(exts, std::cw<uint8_t{2}>, std::cw<uint8_t{3}>, cs);
-    test_strided_slice(exts, std::cw<uint8_t{0}>, std::cw<uint8_t{5}>, cs);
+    auto cs = std::cw<uint8_t{1}>;
+    test_strided_slice(exts, std::cw<uint8_t{2}>, std::cw<uint8_t{2}>, std::cw<uint8_t{2}>);
+    test_strided_slice(exts, std::cw<uint8_t{0}>, std::cw<uint8_t{5}>, std::cw<uint8_t{1}>);
+    test_strided_slice(exts, std::cw<uint8_t{0}>, std::cw<uint8_t{0}>, std::cw<uint8_t{1}>);
+    test_strided_slice(exts, std::cw<uint8_t{0}>, std::cw<uint8_t{0}>, std::cw<uint8_t{3}>);
+    test_strided_slice(exts, std::cw<uint8_t{0}>, std::cw<uint8_t{0}>, std::cw<uint8_t{0}>);
+    test_strided_slice(exts, std::cw<uint8_t{0}>, std::cw<uint8_t{0}>, std::cw<uint8_t{9}>);
   };
 
   run(std::extents<int, 5>{});
@@ -169,45 +296,12 @@ test_strided_slice()
 }
 
 constexpr bool
-test_strided_slice_zero_extent(auto exts, auto cs)
-{
-  using IndexType = typename decltype(exts)::index_type;
-  auto c0 = std::cw<uint8_t{0}>;
-  auto raw_ccc = std::strided_slice{c0, c0, cs};
-  auto [ccc] = std::canonical_slices(exts, raw_ccc);
-  assert_same(ccc.stride, std::cw<IndexType{1}>);
-
-  auto raw_ccd = std::strided_slice{c0, c0, cs.value};
-  auto [ccd] = std::canonical_slices(exts, raw_ccd);
-  assert_same(ccd.stride, std::cw<IndexType{1}>);
-  return true;
-}
-
-constexpr bool
-test_strided_slice_zero_extent(auto exts)
-{
-  test_strided_slice_zero_extent(exts, std::cw<uint8_t{0}>);
-  test_strided_slice_zero_extent(exts, std::cw<uint8_t{9}>);
-  return true;
-}
-
-constexpr bool
-test_strided_slice_zero_extent()
-{
-  test_strided_slice_zero_extent(std::extents<int, 0>{});
-  test_strided_slice_zero_extent(std::extents<int, dyn>{0});
-  test_strided_slice_zero_extent(std::extents<int, 5>{});
-  test_strided_slice_zero_extent(std::extents<int, dyn>{5});
-  return true;
-}
-
-constexpr bool
 test_all()
 {
   test_scalar();
   test_pair_all();
+  test_triple_all();
   test_strided_slice();
-  test_strided_slice_zero_extent();
   return true;
 }
 

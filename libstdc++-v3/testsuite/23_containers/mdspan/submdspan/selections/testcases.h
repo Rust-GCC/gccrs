@@ -292,10 +292,10 @@ template<typename Layout>
       check_selection<Layout>(exts, collapse{}, s, collapse{});
     };
 
+    check(std::strided_slice(0, 1, 2));
     check(std::strided_slice(0, 2, 2));
-    check(std::strided_slice(0, 3, 2));
-    check(std::strided_slice(1, 3, 2));
-    check(std::strided_slice(1, std::cw<3>, std::cw<2>));
+    check(std::strided_slice(1, 2, 2));
+    check(std::strided_slice(1, std::cw<2>, std::cw<2>));
     return true;
   }
 
@@ -303,9 +303,9 @@ template<typename Layout>
   constexpr bool
   test_strided_box_selection(auto exts)
   {
-    auto s0 = std::strided_slice(0, 3, 2);
-    auto s1 = std::strided_slice(1, 4, 2);
-    auto s2 = std::strided_slice(0, 7, 3);
+    auto s0 = std::strided_slice(0, 2, 2);
+    auto s1 = std::strided_slice(1, 2, 2);
+    auto s2 = std::strided_slice(0, 3, 3);
 
     check_selection<Layout>(exts, s0, s1, s2);
     return true;

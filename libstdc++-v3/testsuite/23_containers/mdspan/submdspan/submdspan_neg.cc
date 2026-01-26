@@ -75,7 +75,7 @@ template<typename Layout>
   constexpr bool
   test_strided_slice_zero()
   {
-    check_slice_range<Layout>(1, std::strided_slice{1, 1, 0}, 2);  // { dg-error "expansion of" }
+    check_slice_range<Layout>(1, std::strided_slice{1, 2, 0}, 2);  // { dg-error "expansion of" }
     return true;
   }
 static_assert(test_strided_slice_zero<std::layout_left>());   // { dg-error "expansion of" }

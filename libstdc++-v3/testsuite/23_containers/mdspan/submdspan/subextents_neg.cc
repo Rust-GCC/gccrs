@@ -19,7 +19,7 @@ constexpr bool
 test_invalid_stride_zero()
 {
   auto exts = std::extents(3, 5, 7);
-  auto s = std::strided_slice{0, 1, 0};
+  auto s = std::strided_slice{0, 2, 0};
   auto sub_exts = std::subextents(exts, 1, s, 2);  // { dg-error "expansion of" }
   return true;
 }
@@ -34,9 +34,9 @@ test_out_of_bounds(const Slice& slice)
   return true;
 }
 static_assert(test_out_of_bounds(std::strided_slice{0, 6, 1}));  // { dg-error "expansion of" }
-static_assert(test_out_of_bounds(std::strided_slice{0, 7, 2}));  // { dg-error "expansion of" }
+static_assert(test_out_of_bounds(std::strided_slice{0, 4, 2}));  // { dg-error "expansion of" }
 static_assert(test_out_of_bounds(std::strided_slice{1, 6, 1}));  // { dg-error "expansion of" }
-static_assert(test_out_of_bounds(std::strided_slice{1, 6, 2}));  // { dg-error "expansion of" }
+static_assert(test_out_of_bounds(std::strided_slice{1, 4, 2}));  // { dg-error "expansion of" }
 static_assert(test_out_of_bounds(std::tuple{1, 6}));             // { dg-error "expansion of" }
 static_assert(test_out_of_bounds(std::tuple{std::cw<1>, std::cw<6>})); // { dg-error "expansion of" }
 static_assert(test_out_of_bounds(std::strided_slice{-1, 2, 1})); // { dg-error "expansion of" }

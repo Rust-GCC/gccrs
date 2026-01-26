@@ -112,6 +112,7 @@ template<typename Offset, typename Extent, typename Stride, typename Extents>
 constexpr auto i8_6 = int8_t{6};
 constexpr auto c_i8_6 = std::cw<int8_t{6}>;
 constexpr auto c2 = std::cw<2>;
+constexpr auto c3 = std::cw<3>;
 constexpr auto c4 = std::cw<4>;
 
 static_assert(test_over2(i8_6, 0, 1, dyn_uexts));    // { dg-error "expansion of" }
@@ -122,6 +123,14 @@ static_assert(test_over2(0, c_i8_6, 1, dyn_uexts));  // { dg-error "expansion of
 static_assert(test_over2(c2, 4, 1, dyn_uexts));      // { dg-error "expansion of" }
 static_assert(test_over2(2, c4, 1, dyn_uexts));      // { dg-error "expansion of" }
 static_assert(test_over2(c2, c4, 1, dyn_uexts));     // { dg-error "expansion of" }
+static_assert(test_over2(2, 3, 2, dyn_uexts));       // { dg-error "expansion of" }
+static_assert(test_over2(2, 3, c2, dyn_uexts));      // { dg-error "expansion of" }
+static_assert(test_over2(2, c3, 2, dyn_uexts));      // { dg-error "expansion of" }
+static_assert(test_over2(c2, 3, 2, dyn_uexts));      // { dg-error "expansion of" }
+static_assert(test_over2(c2, c3, 2, dyn_uexts));     // { dg-error "expansion of" }
+static_assert(test_over2(2, c3, c2, dyn_uexts));     // { dg-error "expansion of" }
+static_assert(test_over2(c2, 3, c2, dyn_uexts));     // { dg-error "expansion of" }
+static_assert(test_over2(c2, c3, c2, dyn_uexts));    // { dg-error "expansion of" }
 
 static_assert(test_over2(i8_6, 0, 1, dyn_sexts));    // { dg-error "expansion of" }
 static_assert(test_over2(0, i8_6, 1, dyn_sexts));    // { dg-error "expansion of" }
@@ -131,6 +140,14 @@ static_assert(test_over2(0, c_i8_6, 1, dyn_sexts));  // { dg-error "expansion of
 static_assert(test_over2(c2, 4, 1, dyn_sexts));      // { dg-error "expansion of" }
 static_assert(test_over2(2, c4, 1, dyn_sexts));      // { dg-error "expansion of" }
 static_assert(test_over2(c2, c4, 1, dyn_sexts));     // { dg-error "expansion of" }
+static_assert(test_over2(2, 3, 2, dyn_sexts));       // { dg-error "expansion of" }
+static_assert(test_over2(2, 3, c2, dyn_sexts));      // { dg-error "expansion of" }
+static_assert(test_over2(2, c3, 2, dyn_sexts));      // { dg-error "expansion of" }
+static_assert(test_over2(c2, 3, 2, dyn_sexts));      // { dg-error "expansion of" }
+static_assert(test_over2(c2, c3, 2, dyn_sexts));     // { dg-error "expansion of" }
+static_assert(test_over2(2, c3, c2, dyn_sexts));     // { dg-error "expansion of" }
+static_assert(test_over2(c2, 3, c2, dyn_sexts));     // { dg-error "expansion of" }
+static_assert(test_over2(c2, c3, c2, dyn_sexts));    // { dg-error "expansion of" }
 
 static_assert(test_over2(i8_6, 0, 1, sta_uexts));    // { dg-error "expansion of" }
 static_assert(test_over2(0, i8_6, 1, sta_uexts));    // { dg-error "expansion of" }
@@ -140,6 +157,14 @@ static_assert(test_over2(0, c_i8_6, 1, sta_uexts));  // { dg-error "expansion of
 static_assert(test_over2(c2, 4, 1, sta_uexts));      // { dg-error "expansion of" }
 static_assert(test_over2(2, c4, 1, sta_uexts));      // { dg-error "expansion of" }
 static_assert(test_over2(c2, c4, 1, sta_uexts));     // { dg-error "expansion of" }
+static_assert(test_over2(2, 3, 2, sta_uexts));       // { dg-error "expansion of" }
+static_assert(test_over2(2, 3, c2, sta_uexts));      // { dg-error "expansion of" }
+static_assert(test_over2(2, c3, 2, sta_uexts));      // { dg-error "expansion of" }
+static_assert(test_over2(c2, 3, 2, sta_uexts));      // { dg-error "expansion of" }
+static_assert(test_over2(c2, c3, 2, sta_uexts));     // { dg-error "expansion of" }
+static_assert(test_over2(2, c3, c2, sta_uexts));     // { dg-error "expansion of" }
+static_assert(test_over2(c2, 3, c2, sta_uexts));     // { dg-error "expansion of" }
+static_assert(test_over2(c2, c3, c2, sta_uexts));    // { dg-error "from here" }
 
 static_assert(test_over2(i8_6, 0, 1, sta_sexts));    // { dg-error "expansion of" }
 static_assert(test_over2(0, i8_6, 1, sta_sexts));    // { dg-error "expansion of" }
@@ -149,6 +174,14 @@ static_assert(test_over2(0, c_i8_6, 1, sta_sexts));  // { dg-error "expansion of
 static_assert(test_over2(c2, 4, 1, sta_sexts));      // { dg-error "expansion of" }
 static_assert(test_over2(2, c4, 1, sta_sexts));      // { dg-error "expansion of" }
 static_assert(test_over2(c2, c4, 1, sta_sexts));     // { dg-error "expansion of" }
+static_assert(test_over2(2, 3, 2, sta_sexts));       // { dg-error "expansion of" }
+static_assert(test_over2(2, 3, c2, sta_sexts));      // { dg-error "expansion of" }
+static_assert(test_over2(2, c3, 2, sta_sexts));      // { dg-error "expansion of" }
+static_assert(test_over2(c2, 3, 2, sta_sexts));      // { dg-error "expansion of" }
+static_assert(test_over2(c2, c3, 2, sta_sexts));     // { dg-error "expansion of" }
+static_assert(test_over2(2, c3, c2, sta_sexts));     // { dg-error "expansion of" }
+static_assert(test_over2(c2, 3, c2, sta_sexts));     // { dg-error "expansion of" }
+static_assert(test_over2(c2, c3, c2, sta_sexts));    // { dg-error "from here" }
 
 // Checks the precondition: offset + extent <= exts.extent(0) for unsigned
 // index_type when offset + extent overflows.
