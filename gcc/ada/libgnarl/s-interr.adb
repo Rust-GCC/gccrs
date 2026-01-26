@@ -156,10 +156,10 @@ package body System.Interrupts is
    User_Handler : array (Interrupt_ID'Range) of Handler_Assoc :=
                     [others => (null, Static => False)];
    pragma Volatile_Components (User_Handler);
-   --  Holds the protected procedure handler (if any) and its Static
-   --  information for each interrupt. A handler is a Static one if it is
-   --  specified through the pragma Attach_Handler. Attach_Handler. Otherwise,
-   --  not static)
+   --  Holds the protected procedure handler (if any) and whether it is Static
+   --  for each interrupt. A handler is a Static one if and only if it is
+   --  specified through the Attach_Handler aspect (or the obsolescent
+   --  Attach_Handler pragma).
 
    User_Entry : array (Interrupt_ID'Range) of Entry_Assoc :=
                   [others => (T => Null_Task, E => Null_Task_Entry)];
@@ -875,8 +875,7 @@ package body System.Interrupts is
             --  aspect (see the second sentence of RM C.3.2 (17/3)).
             if not Is_Registered (New_Handler) then
                raise Program_Error
-                 with
-                   "trying to attach procedure without " & "Interrupt_Handler";
+                 with "trying to attach procedure without Interrupt_Handler";
             end if;
          end if;
 
