@@ -153,6 +153,7 @@ public:
 class Definition
 {
 public:
+  explicit Definition () : id (UNKNOWN_NODEID) {}
   explicit Definition (NodeId id) : id (id) {}
 
   NodeId id;
