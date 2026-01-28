@@ -364,7 +364,8 @@ begin -- Gen_IL.Gen.Gen_Nodes
 
    Cc (N_Expression_With_Actions, N_Subexpr,
        (Sy (Actions, List_Id, Default_No_List),
-        Sy (Expression, Node_Id, Default_Empty)));
+        Sy (Expression, Node_Id, Default_Empty),
+        Sm (Scope_Link, Node_Id)));
 
    Cc (N_External_Initializer, N_Subexpr,
        (Sy (File_Index, Source_File_Index)));

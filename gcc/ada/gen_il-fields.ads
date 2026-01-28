@@ -383,6 +383,7 @@ package Gen_IL.Fields is
       SCIL_Tag_Value,
       SCIL_Target_Prim,
       Scope,
+      Scope_Link,
       Select_Alternatives,
       Selector_Name,
       Selector_Names,

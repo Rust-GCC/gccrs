@@ -94,17 +94,6 @@ package body Sem_Ch5 is
    --  statements. On success, the return value is the entity of the loop
    --  referenced by the statement.
 
-   function Has_Sec_Stack_Call (N : Node_Id) return Boolean;
-   --  N is the node for an arbitrary construct. This function searches the
-   --  construct N to see if it contains a function call that returns on the
-   --  secondary stack, returning True if any such call is found, and False
-   --  otherwise.
-
-   --  ??? The implementation invokes Sem_Util.Requires_Transient_Scope so it
-   --  will return True if N contains a function call that needs finalization,
-   --  in addition to the above specification. See Analyze_Loop_Statement for
-   --  a similar comment about this entanglement.
-
    procedure Preanalyze_Range (R_Copy : Node_Id);
    --  Determine expected type of range or domain of iteration of Ada 2012
    --  loop by analyzing separate copy. Do the analysis and resolution of the

@@ -2482,6 +2482,8 @@ package body Sem_Ch4 is
          Error_Msg_N ("object renaming or constant declaration expected", A);
       end Check_Action_OK;
 
+      --  Local variables
+
       A        : Node_Id;
       EWA_Scop : Entity_Id;
 
@@ -2496,6 +2498,8 @@ package body Sem_Ch4 is
       Set_Scope  (EWA_Scop, Current_Scope);
       Set_Parent (EWA_Scop, N);
       Push_Scope (EWA_Scop);
+
+      Set_Scope_Link (N, EWA_Scop);
 
       --  If this Expression_With_Actions node comes from source, then it
       --  represents a declare_expression; increment the counter to take note
@@ -2514,11 +2518,13 @@ package body Sem_Ch4 is
 
       Analyze_Expression (Expression (N));
       Set_Etype (N, Etype (Expression (N)));
-      End_Scope;
 
       if Comes_From_Source (N) then
          In_Declare_Expr := In_Declare_Expr - 1;
       end if;
+
+      pragma Assert (Current_Scope = Scope_Link (N));
+      End_Scope;
    end Analyze_Expression_With_Actions;
 
    ---------------------------

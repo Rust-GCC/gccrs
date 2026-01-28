@@ -52,4 +52,15 @@ package Sem_Ch5 is
    --  checks to see if the statement is followed by some other statement, and
    --  if so generates an appropriate warning for unreachable code.
 
+   function Has_Sec_Stack_Call (N : Node_Id) return Boolean;
+   --  N is the node for an arbitrary construct. This function searches the
+   --  construct N to see if it contains a function call that returns on the
+   --  secondary stack, returning True if any such call is found, and False
+   --  otherwise.
+
+   --  ??? The implementation invokes Sem_Util.Requires_Transient_Scope so it
+   --  will return True if N contains a function call that needs finalization,
+   --  in addition to the above specification. See Analyze_Loop_Statement for
+   --  a similar comment about this entanglement.
+
 end Sem_Ch5;

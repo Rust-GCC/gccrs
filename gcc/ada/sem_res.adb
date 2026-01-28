@@ -7767,6 +7767,22 @@ package body Sem_Res is
    --  Start of processing for Resolve_Declare_Expression
 
    begin
+      --  Create a transient scope if the type of this declare-expression
+      --  or its expression requires it; this must be done before we push
+      --  in the scope stack the scope of this declare expression (in order
+      --  to properly remove it from the stack on exit from this routine).
+      --  Given that we don't know yet if secondary stack management will
+      --  be needed, we assume the worst case.
+
+      if not Preanalysis_Active
+        and then (Requires_Transient_Scope (Typ)
+                    or else Has_Sec_Stack_Call (Expr))
+      then
+         Establish_Transient_Scope (N, Manage_Sec_Stack => True);
+      end if;
+
+      Push_Scope (Scope_Link (N));
+
       Decl := First (Actions (N));
 
       while Present (Decl) loop
@@ -7831,6 +7847,9 @@ package body Sem_Res is
             Next_Elmt (Cursor);
          end loop;
       end;
+
+      pragma Assert (Current_Scope = Scope_Link (N));
+      End_Scope;
    end Resolve_Declare_Expression;
 
    -----------------------------------

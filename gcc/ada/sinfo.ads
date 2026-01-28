@@ -2261,6 +2261,11 @@ package Sinfo is
    --    scope all use this field to reference the corresponding scope entity.
    --    See Einfo for further details.
 
+   --  Scope_Link
+   --    Present in N_Expression_With_Actions nodes. References the internally
+   --    built scope created to provide proper visibility of the declare_items
+   --    to the expander.
+
    --  Selector_Name
    --    Present in N_Expanded_Name N_Selected_Component,
    --    N_Generic_Association, and N_Parameter_Association nodes.
@@ -8099,6 +8104,7 @@ package Sinfo is
       --  N_Expression_With_Actions
       --  Actions
       --  Expression
+      --  Scope_Link
       --  plus fields for expression
 
       --  Note: In the final generated tree presented to the code generator,
