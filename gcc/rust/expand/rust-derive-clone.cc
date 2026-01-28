@@ -42,13 +42,10 @@ DeriveClone::clone_call (std::unique_ptr<Expr> &&to_clone)
 
   // Not sure how to call it properly in the meantime...
 
-  auto path = std::unique_ptr<Expr> (
-    new PathInExpression (builder.path_in_expression ({"Clone", "clone"})));
-
   auto args = std::vector<std::unique_ptr<Expr>> ();
   args.emplace_back (std::move (to_clone));
 
-  return builder.call (std::move (path), std::move (args));
+  return builder.qualified_call ({"Clone", "clone"}, std::move (args));
 }
 
 /**
@@ -103,8 +100,6 @@ DeriveClone::clone_impl (
 			     std::move (trait_items),
 			     std::move (generics.impl));
 }
-
-// TODO: Create new `make_qualified_call` helper function
 
 DeriveClone::DeriveClone (location_t loc)
   : DeriveVisitor (loc), expanded (nullptr)
