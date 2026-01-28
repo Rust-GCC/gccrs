@@ -292,6 +292,12 @@ SubstMapperInternal::visit (TyTy::ConstErrorType &type)
 }
 
 void
+SubstMapperInternal::visit (TyTy::ConstExprType &type)
+{
+  resolved = type.clone ();
+}
+
+void
 SubstMapperInternal::visit (TyTy::PlaceholderType &type)
 {
   rust_assert (type.can_resolve ());

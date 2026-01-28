@@ -54,6 +54,7 @@ public:
   void visit (const TyTy::ConstValueType &) override;
   void visit (const TyTy::ConstInferType &) override;
   void visit (const TyTy::ConstErrorType &) override;
+  void visit (const TyTy::ConstExprType &) override;
   void visit (const TyTy::StrType &) override;
   void visit (const TyTy::NeverType &) override;
   void visit (const TyTy::PlaceholderType &) override;
