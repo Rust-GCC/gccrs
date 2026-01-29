@@ -1003,20 +1003,20 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 #endif
       }
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wc++17-extensions"
+
     template<typename _Tp>
       _GLIBCXX_ALWAYS_INLINE _GLIBCXX14_CONSTEXPR _Tp*
       __clear_padding(_Tp& __val) noexcept
       {
 	auto* __ptr = std::__addressof(__val);
 #if __has_builtin(__builtin_clear_padding)
-	if _GLIBCXX17_CONSTEXPR (__atomic_impl::__maybe_has_padding<_Tp>())
+	if constexpr (__atomic_impl::__maybe_has_padding<_Tp>())
 	  __builtin_clear_padding(__ptr);
 #endif
 	return __ptr;
       }
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wc++17-extensions"
 
     template<bool _AtomicRef = false, typename _Tp>
       _GLIBCXX_ALWAYS_INLINE bool
@@ -1392,7 +1392,10 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
       constexpr
       __atomic_float(_Fp __t) : _M_fp(__t)
-      { __atomic_impl::__clear_padding(_M_fp); }
+      { 
+ 	if (!std::__is_constant_evaluated())
+	  __atomic_impl::__clear_padding(_M_fp);
+      }
 
       __atomic_float(const __atomic_float&) = delete;
       __atomic_float& operator=(const __atomic_float&) = delete;
