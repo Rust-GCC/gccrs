@@ -184,6 +184,15 @@ CanonicalPathRecordTraitImpl::as_path (const NameResolutionContext &ctx)
       impl_id, trait_path_record.as_path (ctx), type_record.as_path (ctx)));
 }
 
+Resolver::CanonicalPath
+CanonicalPathCtx::get_path (NodeId id) const
+{
+  if (auto rec = get_record_opt (id))
+    return (*rec)->as_path (*nr_ctx);
+
+  return Resolver::CanonicalPath::create_empty ();
+}
+
 NameResolutionContext::NameResolutionContext ()
   : mappings (Analysis::Mappings::get ()), canonical_ctx (*this)
 {}
