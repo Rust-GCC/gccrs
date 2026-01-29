@@ -18912,7 +18912,7 @@ gimplify_omp_workshare (tree *expr_p, gimple_seq *pre_p)
     }
 
   gimple_seq iterator_loops_seq = NULL;
-  if (TREE_CODE (expr) == OMP_TARGET)
+  if (TREE_CODE (expr) == OMP_TARGET || TREE_CODE (expr) == OMP_TARGET_DATA)
     {
       remove_unused_omp_iterator_vars (&OMP_CLAUSES (expr));
       build_omp_iterators_loops (&OMP_CLAUSES (expr), &iterator_loops_seq);
@@ -19026,7 +19026,7 @@ gimplify_omp_workshare (tree *expr_p, gimple_seq *pre_p)
 	*uc = NULL_TREE;
 	*pc = use_device_clauses;
 	stmt = gimple_build_omp_target (body, GF_OMP_TARGET_KIND_DATA,
-					OMP_CLAUSES (expr));
+					OMP_CLAUSES (expr), iterator_loops_seq);
       }
       break;
     case OMP_TEAMS:
