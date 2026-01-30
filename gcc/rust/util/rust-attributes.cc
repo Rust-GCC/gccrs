@@ -193,8 +193,8 @@ AttributeChecker::visit (AST::Crate &crate)
     item->accept_vis (*this);
 }
 
-static bool
-is_builtin (const AST::Attribute &attribute, BuiltinAttrDefinition &builtin)
+tl::optional<BuiltinAttrDefinition>
+identify_builtin (const AST::Attribute &attribute)
 {
   auto &segments = attribute.get_path ().get_segments ();
 
@@ -202,12 +202,10 @@ is_builtin (const AST::Attribute &attribute, BuiltinAttrDefinition &builtin)
   // strings all over the place and performing a linear search in the builtins
   // map
   if (segments.size () != 1)
-    return false;
+    return tl::nullopt;
 
-  builtin = BuiltinAttributeMappings::get ()->lookup_builtin (
+  return BuiltinAttributeMappings::get ()->lookup_builtin (
     segments.at (0).get_segment_name ());
-
-  return !builtin.is_error ();
 }
 
 /**
@@ -427,9 +425,10 @@ check_valid_attribute_for_item (const AST::Attribute &attr,
 static bool
 is_proc_macro_type (const AST::Attribute &attribute)
 {
-  BuiltinAttrDefinition result;
-  if (!is_builtin (attribute, result))
+  auto result_opt = identify_builtin (attribute);
+  if (!result_opt.has_value ())
     return false;
+  auto result = result_opt.value ();
 
   auto name = result.name;
   return name == Attrs::PROC_MACRO || name == Attrs::PROC_MACRO_DERIVE
@@ -465,10 +464,10 @@ check_proc_macro_non_root (const AST::Attribute &attr, location_t loc)
 void
 AttributeChecker::check_inner_attribute (const AST::Attribute &attribute)
 {
-  BuiltinAttrDefinition result;
-
-  if (!is_builtin (attribute, result))
+  auto result_opt = identify_builtin (attribute);
+  if (!result_opt.has_value ())
     return;
+  auto result = result_opt.value ();
 
   if (__outer_attributes.find (result.name) != __outer_attributes.end ())
     rust_error_at (attribute.get_locus (),
@@ -535,11 +534,12 @@ AttributeChecker::check_attribute (const AST::Attribute &attribute)
 	}
     }
 
-  BuiltinAttrDefinition result;
+  auto result_opt = identify_builtin (attribute);
 
   // This checker does not check non-builtin attributes
-  if (!is_builtin (attribute, result))
+  if (!result_opt.has_value ())
     return;
+  auto result = result_opt.value ();
 
   // TODO: Add checks here for each builtin attribute
   // TODO: Have an enum of builtins as well, switching on strings is annoying
@@ -935,12 +935,13 @@ AttributeChecker::visit (AST::Function &fun)
   BuiltinAttrDefinition result;
   for (auto &attribute : fun.get_outer_attrs ())
     {
-      if (!is_builtin (attribute, result))
+      auto result = identify_builtin (attribute);
+      if (!result)
 	return;
 
-      auto name = result.name.c_str ();
+      auto name = result->name.c_str ();
 
-      if (result.name == Attrs::PROC_MACRO_DERIVE)
+      if (result->name == Attrs::PROC_MACRO_DERIVE)
 	{
 	  if (!attribute.has_attr_input ())
 	    {
@@ -953,12 +954,12 @@ AttributeChecker::visit (AST::Function &fun)
 	    }
 	  check_crate_type (name, attribute);
 	}
-      else if (result.name == Attrs::PROC_MACRO
-	       || result.name == Attrs::PROC_MACRO_ATTRIBUTE)
+      else if (result->name == Attrs::PROC_MACRO
+	       || result->name == Attrs::PROC_MACRO_ATTRIBUTE)
 	{
 	  check_crate_type (name, attribute);
 	}
-      else if (result.name == Attrs::TARGET_FEATURE)
+      else if (result->name == Attrs::TARGET_FEATURE)
 	{
 	  if (!attribute.has_attr_input ())
 	    {
@@ -976,7 +977,7 @@ AttributeChecker::visit (AST::Function &fun)
 		"to %<unsafe%> functions");
 	    }
 	}
-      else if (result.name == Attrs::NO_MANGLE)
+      else if (result->name == Attrs::NO_MANGLE)
 	{
 	  if (attribute.has_attr_input ())
 	    {
@@ -988,16 +989,16 @@ AttributeChecker::visit (AST::Function &fun)
 	  else
 	    check_no_mangle_function (attribute, fun);
 	}
-      else if (result.name == Attrs::EXPORT_NAME)
+      else if (result->name == Attrs::EXPORT_NAME)
 	{
 	  check_export_name_attribute (attribute);
 	}
-      else if (result.name == Attrs::ALLOW || result.name == "deny"
-	       || result.name == "warn" || result.name == "forbid")
+      else if (result->name == Attrs::ALLOW || result->name == "deny"
+	       || result->name == "warn" || result->name == "forbid")
 	{
 	  check_lint_attribute (attribute, name);
 	}
-      else if (result.name == Attrs::LINK_NAME)
+      else if (result->name == Attrs::LINK_NAME)
 	{
 	  if (!attribute.has_attr_input ())
 	    {
@@ -1007,7 +1008,7 @@ AttributeChecker::visit (AST::Function &fun)
 			   "must be of the form: %<#[link_name = \"name\"]%>");
 	    }
 	}
-      else if (result.name == Attrs::LINK_SECTION)
+      else if (result->name == Attrs::LINK_SECTION)
 	{
 	  check_link_section_attribute (attribute);
 	}
@@ -1097,21 +1098,17 @@ AttributeChecker::visit (AST::ConstantItem &item)
 void
 AttributeChecker::visit (AST::StaticItem &item)
 {
-  BuiltinAttrDefinition result;
   for (auto &attr : item.get_outer_attrs ())
     {
       check_valid_attribute_for_item (attr, item);
       check_proc_macro_non_function (attr);
-      if (is_builtin (attr, result))
+
+      if (auto result = identify_builtin (attr))
 	{
-	  if (result.name == Attrs::LINK_SECTION)
-	    {
-	      check_link_section_attribute (attr);
-	    }
-	  else if (result.name == Attrs::EXPORT_NAME)
-	    {
-	      check_export_name_attribute (attr);
-	    }
+	  if (result->name == Attrs::LINK_SECTION)
+	    check_link_section_attribute (attr);
+	  else if (result->name == Attrs::EXPORT_NAME)
+	    check_export_name_attribute (attr);
 	}
     }
 }
