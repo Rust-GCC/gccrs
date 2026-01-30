@@ -34,6 +34,7 @@
 #include "rust-hir-type-check.h"
 #include "rust-privacy-check.h"
 #include "rust-const-checker.h"
+#include "rust-feature-collector.h"
 #include "rust-feature-gate.h"
 #include "rust-compile.h"
 #include "rust-cfg-parser.h"
@@ -701,7 +702,9 @@ Session::compile_crate (const char *filename)
   // feature gating
   if (last_step == CompileOptions::CompileStep::FeatureGating)
     return;
-  FeatureGate ().check (parsed_crate);
+  auto parsed_crate_features
+    = Features::FeatureCollector{}.collect (parsed_crate);
+  FeatureGate (parsed_crate_features).check (parsed_crate);
 
   if (last_step == CompileOptions::CompileStep::NameResolution)
     return;

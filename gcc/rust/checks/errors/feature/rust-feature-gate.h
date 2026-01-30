@@ -21,13 +21,14 @@
 
 #include "rust-ast-visitor.h"
 #include "rust-feature.h"
+#include "rust-feature-collector.h"
 
 namespace Rust {
 
 class FeatureGate : public AST::DefaultASTVisitor
 {
 public:
-  FeatureGate () {}
+  FeatureGate (Features::CrateFeatures &features) : features (features) {}
 
   using AST::DefaultASTVisitor::visit;
 
@@ -61,8 +62,7 @@ private:
   check_lang_item_attribute (const std::vector<AST::Attribute> &attributes);
   void note_stability_attribute (const std::vector<AST::Attribute> &attributes);
 
-  std::set<Feature::Name> valid_lang_features;
-  std::map<std::string, location_t> valid_lib_features;
+  Features::CrateFeatures &features;
 
   enum class Stability
   {
