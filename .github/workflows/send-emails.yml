@@ -41,7 +41,9 @@ jobs:
         env:
           GH_EVENT: ${{ toJson(github.event) }}
         run: |
-          echo "$GH_EVENT" > /tmp/gh_event.json
+          # GH_EVENT can be very big as it contains the full commit log and
+          # overflow the shell's maximum length.
+          echo '$GH_EVENT' | envsubst '$GH_EVENT' > /tmp/gh_event.json
 
           BEFORE_REF=$(jq -r '.before' /tmp/gh_event.json)
           echo "BEFORE_REF=$BEFORE_REF" >> $GITHUB_ENV
