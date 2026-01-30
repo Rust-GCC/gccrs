@@ -19,6 +19,7 @@
 #include "rust-feature-gate.h"
 #include "rust-abi.h"
 #include "rust-attribute-values.h"
+#include "rust-attributes.h"
 #include "rust-ast-visitor.h"
 #include "rust-feature.h"
 #include "rust-ast-full.h"
@@ -34,63 +35,9 @@ FeatureGate::check (AST::Crate &crate)
 void
 FeatureGate::visit (AST::Crate &crate)
 {
-  valid_lang_features.clear ();
-  valid_lib_features.clear ();
-
-  // avoid clearing defined features (?)
-
-  for (const auto &attr : crate.inner_attrs)
-    {
-      if (attr.get_path ().as_string () == "feature")
-	{
-	  // check for empty feature, such as `#![feature], this is an error
-	  if (attr.empty_input ())
-	    {
-	      rust_error_at (attr.get_locus (), ErrorCode::E0556,
-			     "malformed %<feature%> attribute input");
-	      continue;
-	    }
-	  const auto &attr_input = attr.get_attr_input ();
-	  auto type = attr_input.get_attr_input_type ();
-	  if (type == AST::AttrInput::AttrInputType::TOKEN_TREE)
-	    {
-	      const auto &option = static_cast<const AST::DelimTokenTree &> (
-		attr.get_attr_input ());
-	      std::unique_ptr<AST::AttrInputMetaItemContainer> meta_item (
-		option.parse_to_meta_item ());
-	      for (const auto &item : meta_item->get_items ())
-		{
-		  const auto &name_str = item->as_string ();
-
-		  // TODO: detect duplicates
-		  if (auto tname = Feature::as_name (name_str))
-		    valid_lang_features.insert (tname.value ());
-		  else
-		    valid_lib_features.emplace (name_str, item->get_locus ());
-		}
-	    }
-	  else if (type == AST::AttrInput::AttrInputType::META_ITEM)
-	    {
-	      const auto &meta_item
-		= static_cast<const AST::AttrInputMetaItemContainer &> (
-		  attr_input);
-	      for (const auto &item : meta_item.get_items ())
-		{
-		  const auto &name_str = item->as_string ();
-
-		  // TODO: detect duplicates
-		  if (auto tname = Feature::as_name (name_str))
-		    valid_lang_features.insert (tname.value ());
-		  else
-		    valid_lib_features.emplace (name_str, item->get_locus ());
-		}
-	    }
-	}
-    }
-
   AST::DefaultASTVisitor::visit (crate);
 
-  for (auto &ent : valid_lib_features)
+  for (auto &ent : features.valid_lib_features)
     {
       const std::string &feature = ent.first;
       location_t locus = ent.second;
@@ -115,7 +62,7 @@ void
 FeatureGate::gate (Feature::Name name, location_t loc,
 		   const std::string &error_msg)
 {
-  if (!valid_lang_features.count (name))
+  if (!features.valid_lang_features.count (name))
     {
       auto &feature = Feature::lookup (name);
       if (auto issue = feature.issue ())
