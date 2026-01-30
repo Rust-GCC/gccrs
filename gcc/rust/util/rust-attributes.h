@@ -277,6 +277,9 @@ private:
   void visit (AST::SelfParam &param) override;
 };
 
+tl::optional<BuiltinAttrDefinition>
+identify_builtin (const AST::Attribute &attribute);
+
 } // namespace Analysis
 } // namespace Rust
 
