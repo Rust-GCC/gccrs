@@ -2001,20 +2001,36 @@ Parser<ManagedTokenSource>::null_denotation_path (
 	    return std::unique_ptr<AST::PathInExpression> (
 	      new AST::PathInExpression (std::move (path)));
 	  }
-	return parse_struct_expr_struct_partial (std::move (path),
-						 std::move (outer_attrs));
+	auto struct_expr
+	  = parse_struct_expr_struct_partial (std::move (path),
+					      std::move (outer_attrs));
+	if (struct_expr == nullptr)
+	  {
+	    return tl::unexpected<Parse::Error::Expr> (
+	      Parse::Error::Expr::CHILD_ERROR);
+	  }
+	return struct_expr;
       }
     case LEFT_PAREN:
-      // struct/enum expr tuple
-      if (!restrictions.can_be_struct_expr)
-	{
-	  // assume path is returned
-	  // HACK: add outer attributes to path
-	  path.set_outer_attrs (std::move (outer_attrs));
-	  return std::make_unique<AST::PathInExpression> (std::move (path));
-	}
-      return parse_struct_expr_tuple_partial (std::move (path),
-					      std::move (outer_attrs));
+      {
+	// struct/enum expr tuple
+	if (!restrictions.can_be_struct_expr)
+	  {
+	    // assume path is returned
+	    // HACK: add outer attributes to path
+	    path.set_outer_attrs (std::move (outer_attrs));
+	    return std::make_unique<AST::PathInExpression> (std::move (path));
+	  }
+	auto tuple_expr
+	  = parse_struct_expr_tuple_partial (std::move (path),
+					     std::move (outer_attrs));
+	if (tuple_expr == nullptr)
+	  {
+	    return tl::unexpected<Parse::Error::Expr> (
+	      Parse::Error::Expr::CHILD_ERROR);
+	  }
+	return tuple_expr;
+      }
     default:
       // assume path is returned if not single segment
       if (path.is_single_segment ())
