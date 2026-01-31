@@ -1392,7 +1392,8 @@ discriminant_value_handler (Context *ctx, TyTy::FnType *fntype)
       is_enum = adt.is_enum ();
     }
 
-  p->set_associated_type (return_type->get_ref ());
+  // FIXME check
+  // p->set_associated_type (return_type->get_ref ());
 
   tree lookup = NULL_TREE;
   if (check_for_cached_intrinsic (ctx, fntype, &lookup))

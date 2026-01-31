@@ -17,6 +17,7 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "rust-hir-trait-resolve.h"
+#include "rust-hir-trait-reference.h"
 #include "rust-hir-type-check-expr.h"
 #include "rust-substitution-mapper.h"
 #include "rust-type-util.h"
@@ -338,20 +339,20 @@ TraitResolver::lookup_path (HIR::TypePath &path)
 }
 
 void
-TraitItemReference::on_resolved ()
+TraitItemReference::on_resolved (const TraitReference *tref)
 {
   switch (type)
     {
     case CONST:
-      resolve_item (static_cast<HIR::TraitItemConst &> (*hir_trait_item));
+      resolve_item (tref, static_cast<HIR::TraitItemConst &> (*hir_trait_item));
       break;
 
     case TYPE:
-      resolve_item (static_cast<HIR::TraitItemType &> (*hir_trait_item));
+      resolve_item (tref, static_cast<HIR::TraitItemType &> (*hir_trait_item));
       break;
 
     case FN:
-      resolve_item (static_cast<HIR::TraitItemFunc &> (*hir_trait_item));
+      resolve_item (tref, static_cast<HIR::TraitItemFunc &> (*hir_trait_item));
       break;
 
     default:
@@ -360,17 +361,27 @@ TraitItemReference::on_resolved ()
 }
 
 void
-TraitItemReference::resolve_item (HIR::TraitItemType &type)
+TraitItemReference::resolve_item (const TraitReference *tref,
+				  HIR::TraitItemType &type)
 {
-  TyTy::BaseType *ty
-    = new TyTy::PlaceholderType (type.get_name ().as_string (),
-				 type.get_mappings ().get_defid (),
-				 type.get_mappings ().get_hirid ());
-  context->insert_type (type.get_mappings (), ty);
+  std::vector<TyTy::SubstitutionParamMapping> substitutions;
+
+  // FIXME make this callback from TypeCheckBase
+  // if (type.has_generics ())
+  //   resolve_generic_params (HIR::Item::ItemKind::... XXX, type.get_locus (),
+  // 			    type.get_generic_params (), substitutions);
+
+  auto projection
+    = new TyTy::ProjectionType (type.get_mappings ().get_hirid (), nullptr,
+				tref, type.get_mappings ().get_defid (),
+				substitutions, self);
+
+  context->insert_type (type.get_mappings (), projection);
 }
 
 void
-TraitItemReference::resolve_item (HIR::TraitItemConst &constant)
+TraitItemReference::resolve_item (const TraitReference *tref,
+				  HIR::TraitItemConst &constant)
 {
   TyTy::BaseType *ty = nullptr;
   if (constant.has_type ())
@@ -395,7 +406,8 @@ TraitItemReference::resolve_item (HIR::TraitItemConst &constant)
 }
 
 void
-TraitItemReference::resolve_item (HIR::TraitItemFunc &func)
+TraitItemReference::resolve_item (const TraitReference *tref,
+				  HIR::TraitItemFunc &func)
 {
   TyTy::BaseType *item_tyty = get_tyty ();
   if (item_tyty->get_kind () == TyTy::TypeKind::ERROR)
@@ -424,93 +436,6 @@ TraitItemReference::resolve_item (HIR::TraitItemFunc &func)
 		 TyTy::TyWithLocation (block_expr_ty), func.get_locus ());
 
   context->pop_return_type ();
-}
-
-void
-TraitItemReference::associated_type_set (TyTy::BaseType *ty) const
-{
-  rust_assert (get_trait_item_type () == TraitItemType::TYPE);
-
-  // this isnt super safe there are cases like the FnTraits where the type is
-  // set to the impls placeholder associated type. For example
-  //
-  // type Output = F::Output; -- see the fn trait impls in libcore
-  //
-  // then this projection ends up resolving back to this placeholder so it just
-  // ends up being cyclical
-
-  TyTy::BaseType *item_ty = get_tyty ();
-  rust_assert (item_ty->get_kind () == TyTy::TypeKind::PLACEHOLDER);
-  TyTy::PlaceholderType *placeholder
-    = static_cast<TyTy::PlaceholderType *> (item_ty);
-
-  if (ty->is<TyTy::ProjectionType> ())
-    {
-      const auto &projection = *static_cast<const TyTy::ProjectionType *> (ty);
-      const auto resolved = projection.get ();
-      if (resolved == item_ty)
-	return;
-    }
-
-  placeholder->set_associated_type (ty->get_ty_ref ());
-}
-
-void
-TraitItemReference::associated_type_reset (bool only_projections) const
-{
-  rust_assert (get_trait_item_type () == TraitItemType::TYPE);
-
-  TyTy::BaseType *item_ty = get_tyty ();
-  rust_assert (item_ty->get_kind () == TyTy::TypeKind::PLACEHOLDER);
-  TyTy::PlaceholderType *placeholder
-    = static_cast<TyTy::PlaceholderType *> (item_ty);
-
-  if (!only_projections)
-    {
-      placeholder->clear_associated_type ();
-    }
-  else
-    {
-      if (!placeholder->can_resolve ())
-	return;
-
-      const TyTy::BaseType *r = placeholder->resolve ();
-      if (r->get_kind () == TyTy::TypeKind::PROJECTION)
-	{
-	  placeholder->clear_associated_type ();
-	}
-    }
-}
-
-void
-AssociatedImplTrait::setup_raw_associated_types ()
-{
-  auto &impl_items = impl->get_impl_items ();
-  for (auto &impl_item : impl_items)
-    {
-      bool is_type_alias = impl_item->get_impl_item_type ()
-			   == HIR::ImplItem::ImplItemType::TYPE_ALIAS;
-      if (!is_type_alias)
-	continue;
-
-      HIR::TypeAlias &type = *static_cast<HIR::TypeAlias *> (impl_item.get ());
-
-      TraitItemReference *resolved_trait_item = nullptr;
-      bool ok
-	= trait->lookup_trait_item (type.get_new_type_name ().as_string (),
-				    &resolved_trait_item);
-      if (!ok)
-	continue;
-      if (resolved_trait_item->get_trait_item_type ()
-	  != TraitItemReference::TraitItemType::TYPE)
-	continue;
-
-      TyTy::BaseType *lookup;
-      ok = context->lookup_type (type.get_mappings ().get_hirid (), &lookup);
-      rust_assert (ok);
-
-      resolved_trait_item->associated_type_set (lookup);
-    }
 }
 
 TyTy::BaseType *
@@ -716,7 +641,11 @@ AssociatedImplTrait::setup_associated_types (
       // this might be generic
       TyTy::BaseType *substituted
 	= SubstMapperInternal::Resolve (lookup, associated_type_args);
-      resolved_trait_item->associated_type_set (substituted);
+
+      // FIXME
+      substituted->debug ();
+      rust_unreachable ();
+      // resolved_trait_item->associated_type_set (substituted);
     }
 
   if (args != nullptr)
@@ -725,12 +654,6 @@ AssociatedImplTrait::setup_associated_types (
     }
 
   return self_result;
-}
-
-void
-AssociatedImplTrait::reset_associated_types ()
-{
-  trait->clear_associated_types ();
 }
 
 location_t

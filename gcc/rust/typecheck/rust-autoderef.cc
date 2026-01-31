@@ -235,7 +235,6 @@ resolve_operator_overload_fn (
     }
 
   // we found a valid operator overload
-  fn->prepare_higher_ranked_bounds ();
   rust_debug ("resolved operator overload to: {%u} {%s}",
 	      candidate.candidate.ty->get_ref (),
 	      candidate.candidate.ty->debug_str ().c_str ());

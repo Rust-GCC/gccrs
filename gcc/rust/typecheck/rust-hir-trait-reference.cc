@@ -344,37 +344,13 @@ TraitReference::on_resolved ()
     {
       if (item.get_trait_item_type ()
 	  == TraitItemReference::TraitItemType::TYPE)
-	item.on_resolved ();
+	item.on_resolved (this);
     }
   for (auto &item : item_refs)
     {
       if (item.get_trait_item_type ()
 	  != TraitItemReference::TraitItemType::TYPE)
-	item.on_resolved ();
-    }
-}
-
-void
-TraitReference::clear_associated_types () const
-{
-  for (const auto &item : item_refs)
-    {
-      bool is_assoc_type = item.get_trait_item_type ()
-			   == TraitItemReference::TraitItemType::TYPE;
-      if (is_assoc_type)
-	item.associated_type_reset (false);
-    }
-}
-
-void
-TraitReference::clear_associated_type_projections () const
-{
-  for (const auto &item : item_refs)
-    {
-      bool is_assoc_type = item.get_trait_item_type ()
-			   == TraitItemReference::TraitItemType::TYPE;
-      if (is_assoc_type)
-	item.associated_type_reset (true);
+	item.on_resolved (this);
     }
 }
 

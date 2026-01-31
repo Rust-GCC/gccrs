@@ -500,8 +500,16 @@ TypeCheckItem::visit (HIR::ImplBlock &impl_block)
 
       // need to check that if this specified bound has super traits does this
       // Self implement them?
+      rust_debug_loc (impl_block.get_type ().get_locus (),
+		      "\tXXXX checking SELF implements associated trait XXXX");
+      self->debug ();
       specified_bound.validate_type_implements_super_traits (
 	*self, impl_block.get_type (), impl_block.get_trait_ref ());
+
+      rust_debug_loc (impl_block.get_type ().get_locus (),
+		      "\tYYYYYYYYYYYYYY inherit bound %s XXXX",
+		      specified_bound.as_string ().c_str ());
+      self->inherit_bounds ({specified_bound});
     }
 
   bool is_trait_impl_block = !trait_reference->is_error ();
@@ -871,8 +879,6 @@ TypeCheckItem::validate_trait_impl_block (
 	}
     }
 
-  trait_reference->clear_associated_types ();
-
   AssociatedImplTrait associated (trait_reference, specified_bound, &impl_block,
 				  self, context);
   context->insert_associated_trait_impl (
@@ -880,6 +886,10 @@ TypeCheckItem::validate_trait_impl_block (
   context->insert_associated_impl_mapping (
     trait_reference->get_mappings ().get_hirid (), self,
     impl_block.get_mappings ().get_hirid ());
+
+  rust_debug_loc (
+    impl_block.get_locus (),
+    "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXx done");
 }
 
 TyTy::BaseType *

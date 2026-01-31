@@ -349,9 +349,14 @@ BaseType::satisfies_bound (const TypeBoundPredicate &predicate, bool emit_error)
 	  if (!lookup.has_value ())
 	    return false;
 
+	  rust_debug ("ZZZZZZZZZZZZZZZZZZZZZZ");
 	  const auto *item_ref = lookup->get_raw_item ();
 	  TyTy::BaseType *bound_ty = item_ref->get_tyty ();
 
+	  rust_debug ("XXXXXXXXXXX CHECKING bound types compat");
+	  rust_debug ("XXXXXXXX PRED: %s", predicate.as_string ().c_str ());
+	  bound_ty->debug ();
+	  impl_item_ty->debug ();
 	  if (!Resolver::types_compatable (
 		TyTy::TyWithLocation (bound_ty, predicate.get_locus ()),
 		TyTy::TyWithLocation (impl_item_ty, item->get_locus ()),
@@ -496,10 +501,6 @@ BaseType::destructure ()
 
 	  x = p->resolve ();
 	}
-      else if (auto p = x->try_as<ProjectionType> ())
-	{
-	  x = p->get ();
-	}
       else
 	{
 	  return x;
@@ -557,10 +558,6 @@ BaseType::destructure () const
 	    return p;
 
 	  x = p->resolve ();
-	}
-      else if (auto p = x->try_as<const ProjectionType> ())
-	{
-	  x = p->get ();
 	}
       else if (auto p = x->try_as<const OpaqueType> ())
 	{
@@ -1699,7 +1696,7 @@ VariantDef::clone () const
 
   auto &&discriminant_opt = has_discriminant ()
 			      ? tl::optional<std::unique_ptr<HIR::Expr>> (
-				get_discriminant ().clone_expr ())
+				  get_discriminant ().clone_expr ())
 			      : tl::nullopt;
 
   return new VariantDef (id, defid, identifier, ident, type,
@@ -1715,7 +1712,7 @@ VariantDef::monomorphized_clone () const
 
   auto discriminant_opt = has_discriminant ()
 			    ? tl::optional<std::unique_ptr<HIR::Expr>> (
-			      get_discriminant ().clone_expr ())
+				get_discriminant ().clone_expr ())
 			    : tl::nullopt;
 
   return new VariantDef (id, defid, identifier, ident, type,
@@ -2483,7 +2480,8 @@ ClosureType::setup_fn_once_output () const
   rust_assert (found);
 
   // setup
-  item_reference->associated_type_set (&get_result_type ());
+  rust_unreachable ();
+  // item_reference->associated_type_set (&get_result_type ());
 }
 
 void
@@ -4148,20 +4146,6 @@ PlaceholderType::clone () const
 			      get_ty_ref (), get_combined_refs ());
 }
 
-void
-PlaceholderType::set_associated_type (HirId ref)
-{
-  auto context = Resolver::TypeCheckContext::get ();
-  context->insert_associated_type_mapping (get_ty_ref (), ref);
-}
-
-void
-PlaceholderType::clear_associated_type ()
-{
-  auto context = Resolver::TypeCheckContext::get ();
-  context->clear_associated_type_mapping (get_ty_ref ());
-}
-
 bool
 PlaceholderType::can_resolve () const
 {
@@ -4216,7 +4200,7 @@ PlaceholderType::get_def_id () const
 
 ProjectionType::ProjectionType (
   HirId ref, BaseType *base, const Resolver::TraitReference *trait, DefId item,
-  std::vector<SubstitutionParamMapping> subst_refs,
+  std::vector<SubstitutionParamMapping> subst_refs, TyTy::BaseType *self,
   SubstitutionArgumentMappings generic_arguments,
   RegionConstraints region_constraints, std::set<HirId> refs)
   : BaseType (ref, ref, KIND,
@@ -4224,13 +4208,13 @@ ProjectionType::ProjectionType (
 	      std::move (refs)),
     SubstitutionRef (std::move (subst_refs), std::move (generic_arguments),
 		     std::move (region_constraints)),
-    base (base), trait (trait), item (item)
+    base (base), trait (trait), item (item), self (self)
 {}
 
 ProjectionType::ProjectionType (
   HirId ref, HirId ty_ref, BaseType *base,
   const Resolver::TraitReference *trait, DefId item,
-  std::vector<SubstitutionParamMapping> subst_refs,
+  std::vector<SubstitutionParamMapping> subst_refs, TyTy::BaseType *self,
   SubstitutionArgumentMappings generic_arguments,
   RegionConstraints region_constraints, std::set<HirId> refs)
   : BaseType (ref, ty_ref, KIND,
@@ -4238,7 +4222,7 @@ ProjectionType::ProjectionType (
 	      refs),
     SubstitutionRef (std::move (subst_refs), std::move (generic_arguments),
 		     std::move (region_constraints)),
-    base (base), trait (trait), item (item)
+    base (base), trait (trait), item (item), self (self)
 {}
 
 std::string
@@ -4247,16 +4231,48 @@ ProjectionType::get_name () const
   return as_string ();
 }
 
+bool
+ProjectionType::is_trait_position () const
+{
+  return base == nullptr;
+}
+
 const BaseType *
 ProjectionType::get () const
 {
+  rust_assert (base != nullptr);
   return base;
 }
 
 BaseType *
 ProjectionType::get ()
 {
+  rust_assert (base != nullptr);
   return base;
+}
+
+const BaseType *
+ProjectionType::get_self () const
+{
+  return self;
+}
+
+BaseType *
+ProjectionType::get_self ()
+{
+  return self;
+}
+
+const Resolver::TraitReference *
+ProjectionType::get_trait_ref () const
+{
+  return trait;
+}
+
+DefId
+ProjectionType::get_item_defid () const
+{
+  return item;
 }
 
 void
@@ -4274,15 +4290,19 @@ ProjectionType::accept_vis (TyConstVisitor &vis) const
 std::string
 ProjectionType::as_string () const
 {
-  return "<Projection=" + subst_as_string () + "::" + base->as_string () + ">";
+  return "<Projection=" + subst_as_string ()
+	 + "::" + (base == nullptr ? "TRAIT_POSITION" : base->as_string ())
+	 + "::" + self->as_string () + ">";
 }
 
 BaseType *
 ProjectionType::clone () const
 {
-  return new ProjectionType (get_ref (), get_ty_ref (), base->clone (), trait,
-			     item, clone_substs (), used_arguments,
-			     region_constraints, get_combined_refs ());
+  return new ProjectionType (get_ref (), get_ty_ref (),
+			     base != nullptr ? base->clone () : nullptr, trait,
+			     item, clone_substs (), self->clone (),
+			     used_arguments, region_constraints,
+			     get_combined_refs ());
 }
 
 ProjectionType *
@@ -4314,8 +4334,11 @@ ProjectionType::handle_substitions (
     }
 
   auto fty = projection->base;
-  bool is_param_ty = fty->get_kind () == TypeKind::PARAM;
-  if (is_param_ty)
+  if (fty == nullptr)
+    {
+      // TODO
+    }
+  else if (fty->get_kind () == TypeKind::PARAM)
     {
       ParamType *p = static_cast<ParamType *> (fty);
 

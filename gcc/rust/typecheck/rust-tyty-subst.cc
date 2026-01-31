@@ -1072,20 +1072,6 @@ SubstitutionRef::solve_mappings_from_receiver_for_self (
 				       mappings.get_locus ());
 }
 
-void
-SubstitutionRef::prepare_higher_ranked_bounds ()
-{
-  for (const auto &subst : get_substs ())
-    {
-      const auto pty = subst.get_param_ty ();
-      for (const auto &bound : pty->get_specified_bounds ())
-	{
-	  const auto ref = bound.get ();
-	  ref->clear_associated_type_projections ();
-	}
-    }
-}
-
 bool
 SubstitutionRef::monomorphize ()
 {

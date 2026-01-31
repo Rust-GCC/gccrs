@@ -1466,7 +1466,6 @@ TypeCheckExpr::visit (HIR::MethodCallExpr &expr)
       return;
     }
 
-  fn->prepare_higher_ranked_bounds ();
   rust_debug_loc (expr.get_locus (), "resolved method call to: {%u} {%s}",
 		  found_candidate.candidate.ty->get_ref (),
 		  found_candidate.candidate.ty->debug_str ().c_str ());
@@ -1867,7 +1866,7 @@ TypeCheckExpr::visit (HIR::ClosureExpr &expr)
   TyTy::TyVar result_type
     = expr.has_return_type ()
 	? TyTy::TyVar (
-	  TypeCheckType::Resolve (expr.get_return_type ())->get_ref ())
+	    TypeCheckType::Resolve (expr.get_return_type ())->get_ref ())
 	: TyTy::TyVar::get_implicit_infer_var (expr.get_locus ());
 
   // resolve the block
@@ -1953,6 +1952,7 @@ TypeCheckExpr::resolve_operator_overload (
   TyTy::BaseType *lhs, TyTy::BaseType *rhs,
   HIR::PathIdentSegment specified_segment)
 {
+  rust_debug_loc (expr.get_locus (), "ATTEMPTING OPERATOR OVERLOAD RESOLUTION");
   // look up lang item for arithmetic type
   std::string associated_item_name = LangItem::ToString (lang_item_type);
 
@@ -2007,9 +2007,13 @@ TypeCheckExpr::resolve_operator_overload (
   auto selected_candidates
     = MethodResolver::Select (resolved_candidates, lhs, select_args);
 
+  rust_debug ("\t MMMMMMMMMMMMMMMMMMMMMMMMM 1");
+
   bool have_implementation_for_lang_item = selected_candidates.size () > 0;
   if (!have_implementation_for_lang_item)
     return false;
+
+  rust_debug ("\t MMMMMMMMMMMMMMMMMMMMMMMMM 2");
 
   if (selected_candidates.size () > 1)
     {
@@ -2057,6 +2061,8 @@ TypeCheckExpr::resolve_operator_overload (
 			    TyTy::TyWithLocation (infer), expr.get_locus ());
       return true;
     }
+
+  rust_debug ("\t MMMMMMMMMMMMMMMMMMMMMMMMM 3");
 
   // Get the adjusted self
   MethodCandidate candidate = *selected_candidates.begin ();
@@ -2137,7 +2143,6 @@ TypeCheckExpr::resolve_operator_overload (
     }
 
   // we found a valid operator overload
-  fn->prepare_higher_ranked_bounds ();
   rust_debug_loc (expr.get_locus (), "resolved operator overload to: {%u} {%s}",
 		  candidate.candidate.ty->get_ref (),
 		  candidate.candidate.ty->debug_str ().c_str ());

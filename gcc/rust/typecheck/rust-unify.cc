@@ -224,6 +224,15 @@ UnifyRules::go ()
 	{
 	  if (ltype->num_specified_bounds () > 0)
 	    {
+	      rust_debug ("LTYPE BOUNDS CHECK");
+	      ltype->debug ();
+	      rtype->debug ();
+
+	      for (auto &bound : ltype->get_specified_bounds ())
+		{
+		  rust_debug ("XXX bound: %s", bound.as_string ().c_str ());
+		}
+
 	      if (!ltype->bounds_compatible (*rtype, locus, emit_error))
 		{
 		  // already emitted an error
@@ -233,6 +242,9 @@ UnifyRules::go ()
 	    }
 	  else if (rtype->num_specified_bounds () > 0)
 	    {
+	      rust_debug ("RTYPE BOUNDS CHECK");
+	      ltype->debug ();
+	      rtype->debug ();
 	      if (!rtype->bounds_compatible (*ltype, locus, emit_error))
 		{
 		  // already emitted an error
@@ -1872,9 +1884,54 @@ UnifyRules::expect_projection (TyTy::ProjectionType *ltype,
       }
       break;
 
-      // FIXME
     case TyTy::PROJECTION:
-      rust_unreachable ();
+      {
+	auto *rtype_proj = static_cast<TyTy::ProjectionType *> (rtype);
+
+	const auto ltype_tref = ltype->get_trait_ref ();
+	const auto rtype_tref = rtype_proj->get_trait_ref ();
+	if (!ltype_tref->is_equal (*rtype_tref))
+	  return unify_error_type_node ();
+
+	auto ltype_item = ltype->get_item_defid ();
+	auto rtype_item = rtype_proj->get_item_defid ();
+	if (ltype_item != rtype_item)
+	  return unify_error_type_node ();
+
+	auto lrecv = ltype->get_self ();
+	auto rrecv = rtype_proj->get_self ();
+	auto res = resolve_subtype (TyTy::TyWithLocation (lrecv),
+				    TyTy::TyWithLocation (rrecv));
+	if (res->get_kind () == TyTy::TypeKind::ERROR)
+	  return unify_error_type_node ();
+
+	auto base_res = unify_error_type_node ();
+	bool ltrait = ltype->is_trait_position ();
+	bool rtrait = rtype_proj->is_trait_position ();
+	if (!ltrait && !rtrait)
+	  {
+	    auto lbase = ltype->get ();
+	    auto rbase = rtype_proj->get ();
+	    base_res = resolve_subtype (TyTy::TyWithLocation (lbase),
+					TyTy::TyWithLocation (rbase));
+	    if (base_res->get_kind () == TyTy::TypeKind::ERROR)
+	      return unify_error_type_node ();
+	  }
+	else if (!ltrait)
+	  base_res = ltype->get ();
+	else if (!rtrait)
+	  base_res = rtype_proj->get ();
+	else
+	  base_res = nullptr;
+
+	auto result
+	  = new TyTy::ProjectionType (ltype->get_ref (), ltype->get_ty_ref (),
+				      base_res, ltype_tref, ltype_item,
+				      ltype->get_substs (), res);
+	rust_debug ("XXXXXXXXXXXXXX CAKE");
+	result->debug ();
+	return result;
+      }
       break;
 
     case TyTy::DYNAMIC:

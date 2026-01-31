@@ -565,21 +565,24 @@ TypeBoundPredicate::apply_argument_mappings (
 			   substs_need_bounds_check);
     }
 
-  // associated argument mappings
-  for (auto &it : subst_mappings.get_binding_args ())
-    {
-      std::string identifier = it.first;
-      TyTy::BaseType *type = it.second;
+  // TODO
+  // dont think we need anymore
+  //
+  // // associated argument mappings
+  // for (auto &it : subst_mappings.get_binding_args ())
+  //   {
+  //     std::string identifier = it.first;
+  //     TyTy::BaseType *type = it.second;
 
-      tl::optional<TypeBoundPredicateItem> item
-	= lookup_associated_item (identifier);
+  //     tl::optional<TypeBoundPredicateItem> item
+  // 	= lookup_associated_item (identifier);
 
-      if (!item.has_value ())
-	continue;
+  //     if (!item.has_value ())
+  // 	continue;
 
-      const auto item_ref = item->get_raw_item ();
-      item_ref->associated_type_set (type);
-    }
+  //     const auto item_ref = item->get_raw_item ();
+  //     item_ref->associated_type_set (type);
+  //   }
 
   for (auto &super_trait : super_traits)
     {
@@ -725,20 +728,23 @@ TypeBoundPredicate::handle_substitions (
       p->set_ty_ref (s->get_ty_ref ());
     }
 
+  // TODO
+  // dont think we need it
+  //
   // associated argument mappings
-  for (auto &it : subst_mappings.get_binding_args ())
-    {
-      std::string identifier = it.first;
-      TyTy::BaseType *type = it.second;
+  // for (auto &it : subst_mappings.get_binding_args ())
+  //   {
+  //     std::string identifier = it.first;
+  //     TyTy::BaseType *type = it.second;
 
-      tl::optional<TypeBoundPredicateItem> item
-	= lookup_associated_item (identifier);
-      if (item.has_value ())
-	{
-	  const auto item_ref = item->get_raw_item ();
-	  item_ref->associated_type_set (type);
-	}
-    }
+  //     tl::optional<TypeBoundPredicateItem> item
+  // 	= lookup_associated_item (identifier);
+  //     if (item.has_value ())
+  // 	{
+  // 	  const auto item_ref = item->get_raw_item ();
+  // 	  item_ref->associated_type_set (type);
+  // 	}
+  //   }
 
   // FIXME more error handling at some point
   // used_arguments = subst_mappings;

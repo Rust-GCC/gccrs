@@ -398,10 +398,6 @@ public:
   // parameters X and Y
   BaseType *infer_substitions (location_t locus);
 
-  // this clears any possible projections from higher ranked trait bounds which
-  // could be hanging around from a previous resolution
-  void prepare_higher_ranked_bounds ();
-
   // FIXME
   // this is bad name for this, i think it should be something like
   // compute-higher-ranked-bounds

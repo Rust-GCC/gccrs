@@ -182,20 +182,23 @@ CompileItem::visit (HIR::Function &function)
 
       fntype->monomorphize ();
     }
-  else
-    {
-      // if this is part of a trait impl block which is not generic we need to
-      // ensure associated types are setup
-      HirId id = function.get_mappings ().get_hirid ();
-      if (auto impl_item = ctx->get_mappings ().lookup_hir_implitem (id))
-	{
-	  Resolver::AssociatedImplTrait *impl = nullptr;
-	  bool found = ctx->get_tyctx ()->lookup_associated_trait_impl (
-	    impl_item->second, &impl);
-	  if (found)
-	    impl->setup_raw_associated_types ();
-	}
-    }
+
+  // TODO check if we need this
+  // else
+  //   {
+  //     // if this is part of a trait impl block which is not generic we need
+  //     to
+  //     // ensure associated types are setup
+  //     HirId id = function.get_mappings ().get_hirid ();
+  //     if (auto impl_item = ctx->get_mappings ().lookup_hir_implitem (id))
+  // 	{
+  // 	  Resolver::AssociatedImplTrait *impl = nullptr;
+  // 	  bool found = ctx->get_tyctx ()->lookup_associated_trait_impl (
+  // 	    impl_item->second, &impl);
+  // 	  if (found)
+  // 	    impl->setup_raw_associated_types ();
+  // 	}
+  //   }
 
   auto &nr_ctx
     = Resolver2_0::ImmutableNameResolutionContext::get ().resolver ();
