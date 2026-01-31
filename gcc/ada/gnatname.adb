@@ -39,7 +39,6 @@ with Osint;     use Osint;
 with Output;
 with Switch;    use Switch;
 with Table;
-with Tempdir;
 with Types;     use Types;
 
 with System.CRTL;
@@ -423,7 +422,6 @@ procedure Gnatname is
          Dir     : Dir_Type;
          Do_Process : Boolean := True;
 
-         Temp_File_Name         : String_Access := null;
          Save_Last_Source_Index : Natural := 0;
          File_Name_Id           : Name_Id := No_Name;
 
@@ -529,7 +527,7 @@ procedure Gnatname is
                         Success : Boolean;
                         Saved_Output : File_Descriptor;
                         Saved_Error  : File_Descriptor;
-                        Tmp_File     : Path_Name_Type;
+                        Tmp_File     : Temp_File_Name;
 
                      begin
                         --  If we don't have the path of the compiler yet,
@@ -553,15 +551,11 @@ procedure Gnatname is
 
                         --  Create the temporary file
 
-                        Tempdir.Create_Temp_File (FD, Tmp_File);
+                        Create_Temp_File (FD, Tmp_File);
 
                         if FD = Invalid_FD then
                            Fail_Program
                              ("could not create temporary file");
-
-                        else
-                           Temp_File_Name :=
-                             new String'(Get_Name_String (Tmp_File));
                         end if;
 
                         Args (Args'Last) :=
@@ -604,19 +598,22 @@ procedure Gnatname is
                         --  they should contain the kind and name of the unit.
 
                         declare
+                           File_Name : String renames
+                             Tmp_File (1 .. Temp_File_Len - 1);
+                           --  Name of temporary file without the trailing NUL
                            File      : Ada.Text_IO.File_Type;
                            Text_Line : String (1 .. 1_000);
                            Text_Last : Natural;
 
                         begin
                            begin
-                              Open (File, In_File, Temp_File_Name.all);
+                              Open (File, In_File, File_Name);
 
                            exception
                               when others =>
                                  Fail_Program
                                    ("could not read temporary file " &
-                                      Temp_File_Name.all);
+                                      File_Name);
                            end;
 
                            Save_Last_Source_Index := Sources.Last;
@@ -701,7 +698,7 @@ procedure Gnatname is
 
                            Close (File);
 
-                           Delete_File (Temp_File_Name.all, Success);
+                           Delete_File (File_Name, Success);
                         end;
                      end;
 
