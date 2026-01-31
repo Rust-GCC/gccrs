@@ -54,7 +54,6 @@ with Switch;   use Switch;
 with Switch.M; use Switch.M;
 with Table;
 with Targparm;
-with Tempdir;
 with Types;    use Types;
 
 with Ada.Command_Line; use Ada.Command_Line;
@@ -551,14 +550,14 @@ package body Make is
    --  Mapping files
    -----------------
 
-   type Temp_Path_Names is array (Positive range <>) of Path_Name_Type;
-   type Temp_Path_Ptr is access Temp_Path_Names;
+   type Temp_Names is array (Positive range <>) of Temp_File_Name;
+   type Temp_Names_Ptr is access Temp_Names;
 
    type Free_File_Indexes is array (Positive range <>) of Positive;
    type Free_Indexes_Ptr is access Free_File_Indexes;
 
    type Mapping_File_Data is record
-      Mapping_File_Names : Temp_Path_Ptr;
+      Mapping_File_Names : Temp_Names_Ptr;
       --  The name ids of the temporary mapping files used. This is indexed
       --  on the maximum number of compilation processes we will be spawning
       --  (-j parameter)
@@ -583,28 +582,28 @@ package body Make is
    procedure Init_Mapping_File (File_Index : out Natural);
    --  Create a new mapping file or reuse one already created.
 
-   package Temp_File_Paths is new Table.Table
-     (Table_Component_Type => Path_Name_Type,
+   package Temp_File_Names is new Table.Table
+     (Table_Component_Type => Temp_File_Name,
       Table_Index_Type     => Natural,
       Table_Low_Bound      => 1,
       Table_Initial        => 4,
       Table_Increment      => 100,
-      Table_Name           => "Make.Temp_File_Paths",
+      Table_Name           => "Make.Temp_File_Names",
       Release_Threshold    => 0);
 
-   procedure Record_Temp_File (Path : Path_Name_Type);
+   procedure Record_Temp_File (Name : Temp_File_Name);
    --  Record the path of a temporary file, so that it can be deleted at the
    --  end of execution of gnatmake.
 
-   procedure Record_Temp_File (Path : Path_Name_Type) is
+   procedure Record_Temp_File (Name : Temp_File_Name) is
    begin
-      for J in 1 .. Temp_File_Paths.Last loop
-         if Temp_File_Paths.Table (J) = Path then
+      for J in 1 .. Temp_File_Names.Last loop
+         if Temp_File_Names.Table (J) = Name then
             return;
          end if;
       end loop;
 
-      Temp_File_Paths.Append (Path);
+      Temp_File_Names.Append (Name);
    end Record_Temp_File;
 
    -------------------------------------------------
@@ -2245,14 +2244,14 @@ package body Make is
          end if;
 
          --  Put the name in the mapping file argument for the invocation
-         --  of the compiler.
+         --  of the compiler (while stripping the trailing NUL).
 
          Free (Mapping_File_Arg);
          Mapping_File_Arg :=
            new String'
              ("-gnatem=" &
-                Get_Name_String
-                  (The_Mapping_Files.Mapping_File_Names (Mfile)));
+                The_Mapping_Files.Mapping_File_Names (Mfile)
+                  (1 .. Temp_File_Len - 1));
       end Get_Mapping_File;
 
       -----------------------
@@ -3458,7 +3457,7 @@ package body Make is
 
             The_Mapping_Files :=
                 (Mapping_File_Names        =>
-                    new Temp_Path_Names (1 .. Maximum_Processes),
+                    new Temp_Names (1 .. Maximum_Processes),
                  Last_Mapping_File_Names   => 0,
                  Free_Mapping_File_Indexes =>
                     new Free_File_Indexes (1 .. Maximum_Processes),
@@ -3627,7 +3626,7 @@ package body Make is
 
       --  Just create an empty file
 
-      Tempdir.Create_Temp_File
+      Create_Temp_File
         (FD,
          The_Mapping_Files.Mapping_File_Names
            (The_Mapping_Files.Last_Mapping_File_Names));
