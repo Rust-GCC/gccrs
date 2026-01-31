@@ -230,6 +230,32 @@ TypeCheckContext::swap_head_loop_context (TyTy::BaseType *val)
   loop_type_stack.push_back (val);
 }
 
+bool
+TypeCheckContext::have_impl_trait_context () const
+{
+  return !impl_trait_frame_stack.empty ();
+}
+
+void
+TypeCheckContext::push_impl_trait_context (struct ImplTraitContextFrame frame)
+{
+  impl_trait_frame_stack.push_back (frame);
+}
+
+struct ImplTraitContextFrame
+TypeCheckContext::pop_impl_trait_context ()
+{
+  auto back = peek_impl_trait_context ();
+  impl_trait_frame_stack.pop_back ();
+  return back;
+}
+
+struct ImplTraitContextFrame
+TypeCheckContext::peek_impl_trait_context ()
+{
+  return impl_trait_frame_stack.back ();
+}
+
 void
 TypeCheckContext::insert_trait_reference (DefId id, TraitReference &&ref)
 {
