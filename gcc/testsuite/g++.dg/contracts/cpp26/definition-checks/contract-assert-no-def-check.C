@@ -2,6 +2,7 @@
 // are turned off
 // { dg-do run { target c++26 } }
 // { dg-options "-fcontracts -fcontracts-definition-check=off -fcontract-evaluation-semantic=observe" }
+// { dg-skip-if "requires hosted libstdc++ for stdc++exp" { ! hostedlib } }
 
 #include <cstdlib>
 

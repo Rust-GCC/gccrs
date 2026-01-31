@@ -2,6 +2,7 @@
 // { dg-do run { target c++26 } }
 // { dg-additional-options "-fcontracts" }
 // { dg-additional-sources "throwing-violation-handler.cc" }
+// { dg-skip-if "requires hosted libstdc++ for stdc++exp" { ! hostedlib } }
 
 #include <exception>
 

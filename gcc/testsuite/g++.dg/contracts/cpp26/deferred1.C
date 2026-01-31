@@ -2,6 +2,7 @@
 // For now, diagnose that we at least don't accidentally merge the contracts
 // { dg-do run { target c++23 } }
 // { dg-additional-options "-fcontracts -g3" }
+// { dg-skip-if "requires hosted libstdc++ for stdc++exp" { ! hostedlib } }
 #include <cassert>
 struct contract
 {

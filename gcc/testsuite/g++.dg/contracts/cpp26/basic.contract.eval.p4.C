@@ -4,6 +4,7 @@
 // [Note 2 : The predicate is potentially evaluated (6.3), but not evaluated. — end note]
 // { dg-do run { target c++26 } }
 // { dg-additional-options "-fcontracts -fcontract-evaluation-semantic=ignore" }
+// { dg-skip-if "requires hosted libstdc++ for stdc++exp" { ! hostedlib } }
 
 #include <contracts>
 

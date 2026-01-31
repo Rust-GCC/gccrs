@@ -2,6 +2,7 @@
 // can be caught by the function.
 // { dg-do run { target c++26 } }
 // { dg-additional-options "-fcontracts -fcontract-evaluation-semantic=observe -fcontract-checks-outlined" }
+// { dg-skip-if "requires hosted libstdc++ for stdc++exp" { ! hostedlib } }
 
 #include <contracts>
 #include <exception>

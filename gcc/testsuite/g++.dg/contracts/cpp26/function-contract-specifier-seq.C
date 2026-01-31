@@ -10,7 +10,6 @@
 //	post attribute-specifier-seq opt ( result-name-introducer opt conditional-expression )
 // { dg-do compile { target c++23 } }
 // { dg-additional-options "-fcontracts" }
-// { dg-additional-options "-fcontracts" }
 
 static_assert (__cpp_contracts >= 202502L);
 

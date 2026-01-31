@@ -1,3 +1,4 @@
+// { dg-skip-if "requires hosted libstdc++ for stdc++exp" { ! hostedlib } }
 #include <contracts>
 
 void handle_contract_violation(const std::contracts::contract_violation&)

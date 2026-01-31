@@ -1,6 +1,6 @@
 // { dg-do run { target c++20 } }
 // { dg-additional-options "-fcontracts -fcontract-evaluation-semantic=observe -fcontracts-client-check=all" }
-
+// { dg-skip-if "requires hosted libstdc++ for stdc++exp" { ! hostedlib } }
 
 
 int f(const int a, const int b) pre (a > 2) post(r : r > 2){ return b;  }

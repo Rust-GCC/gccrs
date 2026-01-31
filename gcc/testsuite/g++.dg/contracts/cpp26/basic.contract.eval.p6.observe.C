@@ -6,7 +6,6 @@
 // { dg-do compile { target c++26 } }
 // { dg-additional-options "-fcontracts -fcontract-evaluation-semantic=observe -fdump-tree-gimple " }
 
-
 int main(int ac, char *av[])
 {
    int i = ac;

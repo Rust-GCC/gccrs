@@ -1,6 +1,6 @@
 // { dg-do run { target c++23 } }
 // { dg-additional-options "-fcontracts -fcontract-evaluation-semantic=observe " }
-
+// { dg-skip-if "requires hosted libstdc++ for stdc++exp" { ! hostedlib } }
 // Test source location without including <source_location>
 
 int
