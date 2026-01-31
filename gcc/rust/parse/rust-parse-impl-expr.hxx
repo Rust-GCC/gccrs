@@ -1794,7 +1794,9 @@ Parser<ManagedTokenSource>::parse_expr (int right_binding_power,
     = null_denotation ({}, null_denotation_restrictions);
   if (!expr)
     return tl::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
-
+  if (expr.value () == nullptr)
+    return tl::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
+  
   return left_denotations (std::move (expr), right_binding_power,
 			   std::move (outer_attrs), restrictions);
 }
