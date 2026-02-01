@@ -164,7 +164,6 @@ package Aspects is
       Aspect_Taint_Source,                  -- GNAT
       Aspect_Test_Case,                     -- GNAT
       Aspect_Type_Invariant,
-      Aspect_Unimplemented,                 -- GNAT
       Aspect_Unsuppress,
       Aspect_User_Aspect,                   -- GNAT
       Aspect_Value_Size,                    -- GNAT
@@ -363,7 +362,6 @@ package Aspects is
       Aspect_Suppress_Initialization    => True,
       Aspect_Test_Case                  => True,
       Aspect_Thread_Local_Storage       => True,
-      Aspect_Unimplemented              => True,
       Aspect_Universal_Aliasing         => True,
       Aspect_Unmodified                 => True,
       Aspect_Unreferenced               => True,
@@ -529,7 +527,6 @@ package Aspects is
       Aspect_Synchronization            => Name,
       Aspect_Test_Case                  => Expression,
       Aspect_Type_Invariant             => Expression,
-      Aspect_Unimplemented              => Optional_Expression,
       Aspect_Unsuppress                 => Name,
       Aspect_User_Aspect                => Expression,
       Aspect_Value_Size                 => Expression,
@@ -637,7 +634,6 @@ package Aspects is
       Aspect_Synchronization              => False,
       Aspect_Test_Case                    => False,
       Aspect_Type_Invariant               => False,
-      Aspect_Unimplemented                => False,
       Aspect_Unsigned_Base_Range          => True,
       Aspect_Unsuppress                   => False,
       Aspect_User_Aspect                  => False,
@@ -860,7 +856,6 @@ package Aspects is
       Aspect_Test_Case                    => Name_Test_Case,
       Aspect_Type_Invariant               => Name_Type_Invariant,
       Aspect_Unchecked_Union              => Name_Unchecked_Union,
-      Aspect_Unimplemented                => Name_Unimplemented,
       Aspect_Universal_Aliasing           => Name_Universal_Aliasing,
       Aspect_Unmodified                   => Name_Unmodified,
       Aspect_Unreferenced                 => Name_Unreferenced,
@@ -1135,7 +1130,6 @@ package Aspects is
       Aspect_Super                        => Never_Delay,
       Aspect_Synchronization              => Never_Delay,
       Aspect_Test_Case                    => Never_Delay,
-      Aspect_Unimplemented                => Never_Delay,
       Aspect_User_Aspect                  => Never_Delay,
       Aspect_Volatile_Function            => Never_Delay,
       Aspect_Warnings                     => Never_Delay,

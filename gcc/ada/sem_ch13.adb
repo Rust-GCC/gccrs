@@ -3768,10 +3768,7 @@ package body Sem_Ch13 is
             --  Processing based on specific aspect
 
             case A_Id is
-               when Aspect_Unimplemented =>
-                  null; -- ??? temp for now
-
-               --  No_Aspect should be impossible
+               --  No_Aspect is impossible
 
                when No_Aspect =>
                   raise Program_Error;
@@ -12439,7 +12436,6 @@ package body Sem_Ch13 is
             | Aspect_Super
             | Aspect_Suppress
             | Aspect_Test_Case
-            | Aspect_Unimplemented
             | Aspect_Unsuppress
             | Aspect_User_Aspect
             | Ignored_Aspects
