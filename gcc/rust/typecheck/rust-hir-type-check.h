@@ -22,6 +22,7 @@
 #include "rust-hir-map.h"
 #include "rust-mapping-common.h"
 #include "rust-tyty.h"
+#include "rust-hir-impl-trait-context.h"
 #include "rust-hir-trait-reference.h"
 #include "rust-stacked-contexts.h"
 #include "rust-autoderef.h"
@@ -189,20 +190,6 @@ struct DeferredOpOverload
 
     return *this;
   }
-};
-
-struct AssocTypeEntry
-{
-  DefId trait_item_defid;
-  DefId impl_item_defid;
-  TyTy::BaseType *value;
-};
-
-struct ImplTraitContextFrame
-{
-  const TraitReference *trait;
-  TyTy::BaseType *self;
-  std::map<DefId, AssocTypeEntry> assoc_types_by_trait_item;
 };
 
 class TypeCheckContext

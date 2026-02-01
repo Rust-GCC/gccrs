@@ -21,7 +21,7 @@
 
 #include "rust-hir-full.h"
 #include "rust-tyty-visitor.h"
-#include "rust-hir-type-check.h"
+#include "rust-hir-impl-trait-context.h"
 
 namespace Rust {
 namespace Resolver {

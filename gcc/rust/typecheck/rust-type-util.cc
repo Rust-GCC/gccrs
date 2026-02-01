@@ -481,15 +481,39 @@ normalize_projection (TyTy::ProjectionType *proj, location_t locus,
   // args: impl_value = Resolver::SubstMapperInternal::Resolve(impl_value,
   // frame->args);
 
-  if (auto p = impl_value->try_as<TyTy::ProjectionType> ())
-    {
-      impl_value = p->get ();
-    }
-
-  rust_debug ("normalize_projection result = %s",
+  rust_debug ("normalize_projection result 1 = %s",
 	      impl_value->as_string ().c_str ());
 
-  return impl_value;
+  // FIXME limit it as const
+  TyTy::BaseType *normalized = impl_value;
+  for (int i = 0; i < 16; i++)
+    {
+      if (!normalized->is<TyTy::ProjectionType> ())
+	break;
+
+      auto p = normalized->as<TyTy::ProjectionType> ();
+      if (p->is_trait_position ())
+	{
+	  auto *n = normalize_projection (p, locus, emit_errors, unify_self);
+	  if (n == p)
+	    break;
+
+	  normalized = n;
+	}
+      else
+	{
+	  auto *v = p->get ();
+	  if (v == nullptr || v == p)
+	    break;
+
+	  normalized = v;
+	}
+    }
+
+  rust_debug ("normalize_projection result 3 = %s",
+	      normalized->as_string ().c_str ());
+
+  return normalized;
 }
 
 } // namespace Resolver

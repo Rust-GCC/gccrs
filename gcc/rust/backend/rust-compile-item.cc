@@ -182,21 +182,18 @@ CompileItem::visit (HIR::Function &function)
 
       fntype->monomorphize ();
     }
-  else
+
+  Resolver::AssociatedImplTrait *impl = nullptr;
+  HirId id = function.get_mappings ().get_hirid ();
+  if (auto impl_item = ctx->get_mappings ().lookup_hir_implitem (id))
     {
-      HirId id = function.get_mappings ().get_hirid ();
-      if (auto impl_item = ctx->get_mappings ().lookup_hir_implitem (id))
-	{
-	  Resolver::AssociatedImplTrait *impl = nullptr;
-	  bool found = ctx->get_tyctx ()->lookup_associated_trait_impl (
-	    impl_item->second, &impl);
-	  if (found)
-	    {
-	      // FIXME
-	      // push impl trait frame
-	    }
-	}
+      ctx->get_tyctx ()->lookup_associated_trait_impl (impl_item->second,
+						       &impl);
     }
+
+  tl::optional<Resolver::ImplTraitFrameGuard> guard;
+  if (impl)
+    guard.emplace (impl->get_frame ());
 
   auto &nr_ctx
     = Resolver2_0::ImmutableNameResolutionContext::get ().resolver ();

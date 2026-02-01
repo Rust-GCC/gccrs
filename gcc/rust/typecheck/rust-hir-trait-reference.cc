@@ -17,6 +17,7 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "rust-hir-trait-reference.h"
+#include "rust-hir-type-check.h"
 
 namespace Rust {
 namespace Resolver {
