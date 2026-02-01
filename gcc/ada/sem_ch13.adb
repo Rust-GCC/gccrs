@@ -2081,13 +2081,6 @@ package body Sem_Ch13 is
       Aspect := First (L);
       Aspect_Loop : while Present (Aspect) loop
          Analyze_One_Aspect : declare
-
-            Aspect_Exit : exception;
-            --  This exception is used to exit aspect processing completely. It
-            --  is used when an error is detected, and no further processing is
-            --  required. It is also used if an earlier error has left the tree
-            --  in a state where the aspect should not be processed.
-
             Expr : constant Node_Id    := Expression (Aspect);
             Id   : constant Node_Id    := Identifier (Aspect);
             Loc  : constant Source_Ptr := Sloc (Aspect);
@@ -2147,17 +2140,6 @@ package body Sem_Ch13 is
             --  These expressions are evaluated before the constructed
             --  object has been initialized and therefore shall not
             --  reference that object.
-
-            procedure Check_Expr_Is_OK_Static_Expression
-              (Expr : Node_Id;
-               Typ  : Entity_Id := Empty);
-            --  Check the specified expression Expr to make sure that it is a
-            --  static expression of the given type (i.e. it will be analyzed
-            --  and resolved using this type, which can be any valid argument
-            --  to Resolve, e.g. Any_Integer is OK). If not, give an error
-            --  and raise Aspect_Exit. If Typ is left Empty, then any static
-            --  expression is allowed. Includes checking that the expression
-            --  does not raise Constraint_Error.
 
             procedure Convert_Aspect_With_Assertion_Levels (Aspect : Node_Id);
             --  If an Aspect is using an association with an Assertion_Level
@@ -3388,29 +3370,6 @@ package body Sem_Ch13 is
 
                Check_Tree_For_Bad_Reference (Expr);
             end Check_Constructor_Initialization_Expression;
-
-            ----------------------------------------
-            -- Check_Expr_Is_OK_Static_Expression --
-            ----------------------------------------
-
-            procedure Check_Expr_Is_OK_Static_Expression
-              (Expr : Node_Id; Typ : Entity_Id := Empty) is
-            begin
-               case Is_OK_Static_Expression_Of_Type (Expr, Typ) is
-                  when Static =>
-                     null;
-
-                  when Not_Static =>
-                     Error_Msg_Name_1 := Nam;
-                     Flag_Non_Static_Expr
-                       ("entity for aspect% must be a static expression!",
-                        Expr);
-                     raise Aspect_Exit;
-
-                  when Invalid =>
-                     raise Aspect_Exit;
-               end case;
-            end Check_Expr_Is_OK_Static_Expression;
 
             ------------------------------------------
             -- Convert_Aspect_With_Assertion_Levels --
@@ -5623,10 +5582,17 @@ package body Sem_Ch13 is
                            Aspect);
                      end if;
 
-                     --  Resolve the expression to a boolean
+                     --  Resolve the expression to a boolean, and check
+                     --  staticness.
 
-                     if Present (Expr) then
-                        Check_Expr_Is_OK_Static_Expression (Expr, Any_Boolean);
+                     if Present (Expr) and then
+                       Is_OK_Static_Expression_Of_Type (Expr, Any_Boolean) =
+                         Not_Static
+                     then
+                        Error_Msg_Name_1 := Nam;
+                        Flag_Non_Static_Expr
+                          ("entity for aspect% must be a static expression!",
+                           Expr); -- why "entity"???
                      end if;
 
                      --  Record the No_Task_Parts aspects as a rep item so it
@@ -6071,9 +6037,6 @@ package body Sem_Ch13 is
                   end loop;
                end;
             end if;
-
-         exception
-            when Aspect_Exit => null;
          end Analyze_One_Aspect;
 
          Next (Aspect);
