@@ -80,6 +80,34 @@ query_type (HirId reference, TyTy::BaseType **result)
       auto impl_block
 	= mappings.lookup_hir_impl_block (impl_item->second).value ();
 
+      tl::optional<ImplTraitFrameGuard> guard;
+      if (impl_block->has_trait_ref ())
+	{
+	  TyTy::BaseType *self = nullptr;
+	  bool ok
+	    = query_type (impl_block->get_type ().get_mappings ().get_hirid (),
+			  &self);
+	  rust_assert (ok);
+
+	  // TODO
+	  //
+	  // TraitReference *trait_reference = &TraitReference::error_node ();
+	  // HIR::TypePath &ref = impl_block->get_trait_ref ();
+	  // trait_reference = TraitResolver::Resolve (ref);
+
+	  // auto trait_bound = TypeCheckBase::get_predicate_from_bound (
+	  //   ref, impl_block->get_type (), impl_block->get_polarity ());
+
+	  // TyTy::BaseType *trait_ref_ty
+	  //   = TypeCheckItem::ResolveImplBlockTraitRef (*impl_block);
+
+	  // AssocTypeMap assoc;
+	  // TypeCheckItem::CollectImplAssocTypes (*impl_block, assoc);
+
+	  // ImplTraitContextFrame frame{trait_reference, self, std::move
+	  // (assoc)}; guard.emplace (frame);
+	}
+
       // found an impl item
       rust_debug_loc (impl_item->first->get_locus (),
 		      "resolved impl-item {%u} to", reference);
