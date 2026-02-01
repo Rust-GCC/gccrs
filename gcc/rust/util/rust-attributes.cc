@@ -298,6 +298,9 @@ check_doc_attribute (const AST::Attribute &attribute)
 static void
 check_deprecated_attribute (const AST::Attribute &attribute)
 {
+  if (!attribute.has_attr_input ())
+    return;
+
   const auto &input = attribute.get_attr_input ();
 
   if (input.get_attr_input_type () != AST::AttrInput::META_ITEM)
