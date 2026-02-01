@@ -21,6 +21,7 @@
 
 #include "rust-hir-full.h"
 #include "rust-tyty-visitor.h"
+#include "rust-hir-type-check.h"
 
 namespace Rust {
 namespace Resolver {
@@ -234,8 +235,7 @@ class AssociatedImplTrait
 public:
   AssociatedImplTrait (TraitReference *trait,
 		       TyTy::TypeBoundPredicate predicate, HIR::ImplBlock *impl,
-		       TyTy::BaseType *self,
-		       Resolver::TypeCheckContext *context);
+		       TyTy::BaseType *self, ImplTraitContextFrame frame);
 
   TyTy::TypeBoundPredicate &get_predicate ();
 
@@ -245,6 +245,8 @@ public:
 
   TyTy::BaseType *get_self ();
   const TyTy::BaseType *get_self () const;
+
+  ImplTraitContextFrame get_frame () const;
 
   TyTy::BaseType *setup_associated_types (
     const TyTy::BaseType *self, const TyTy::TypeBoundPredicate &bound,
@@ -256,6 +258,7 @@ private:
   HIR::ImplBlock *impl;
   TyTy::BaseType *self;
   Resolver::TypeCheckContext *context;
+  ImplTraitContextFrame frame;
 };
 
 } // namespace Resolver

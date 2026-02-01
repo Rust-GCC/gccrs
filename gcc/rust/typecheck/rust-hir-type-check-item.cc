@@ -583,6 +583,14 @@ TypeCheckItem::resolve_trait_impl_block (HIR::ImplBlock &impl_block)
 
   validate_trait_impl_block (specified_bound, trait_item_refs, trait_reference,
 			     impl_block, self, substitutions);
+
+  AssociatedImplTrait associated (trait_reference, specified_bound, &impl_block,
+				  self, frame);
+  context->insert_associated_trait_impl (
+    impl_block.get_mappings ().get_hirid (), std::move (associated));
+  context->insert_associated_impl_mapping (
+    trait_reference->get_mappings ().get_hirid (), self,
+    impl_block.get_mappings ().get_hirid ());
 }
 
 TyTy::BaseType *
@@ -906,18 +914,6 @@ TypeCheckItem::validate_trait_impl_block (
 			 trait_reference->get_name ().c_str ());
 	}
     }
-
-  AssociatedImplTrait associated (trait_reference, specified_bound, &impl_block,
-				  self, context);
-  context->insert_associated_trait_impl (
-    impl_block.get_mappings ().get_hirid (), std::move (associated));
-  context->insert_associated_impl_mapping (
-    trait_reference->get_mappings ().get_hirid (), self,
-    impl_block.get_mappings ().get_hirid ());
-
-  rust_debug_loc (
-    impl_block.get_locus (),
-    "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXx done");
 }
 
 TyTy::BaseType *

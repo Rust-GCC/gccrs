@@ -587,7 +587,7 @@ public:
   ImplTraitFrameGuard (ImplTraitContextFrame frame)
     : ctx (*TypeCheckContext::get ())
   {
-    ctx.push_impl_trait_context (std::move (frame));
+    ctx.push_impl_trait_context (frame);
   }
 
   ~ImplTraitFrameGuard () { ctx.pop_impl_trait_context (); }

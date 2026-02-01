@@ -244,8 +244,10 @@ TypeCheckType::visit (HIR::QualifiedPathInType &path)
 	= lookup_associated_impl_block (specified_bound, root);
       if (associated_impl_trait != nullptr)
 	{
-	  associated_impl_trait->setup_associated_types (root, specified_bound,
-							 &args);
+	  // FIXME
+	  // rust_unreachable ();
+	  // associated_impl_trait->setup_associated_types (root,
+	  // specified_bound, 						 &args);
 
 	  for (auto &i :
 	       associated_impl_trait->get_impl_block ()->get_impl_items ())

@@ -1085,15 +1085,15 @@ SubstitutionRef::monomorphize ()
       if (binding->get_kind () == TyTy::TypeKind::PARAM)
 	continue;
 
-      for (const auto &bound : pty->get_specified_bounds ())
-	{
-	  bool ambigious = false;
-	  auto associated
-	    = Resolver::lookup_associated_impl_block (bound, binding,
-						      &ambigious);
-	  if (associated != nullptr)
-	    associated->setup_associated_types (binding, bound);
-	}
+      // for (const auto &bound : pty->get_specified_bounds ())
+      // 	{
+      // 	  bool ambigious = false;
+      // 	  auto associated
+      // 	    = Resolver::lookup_associated_impl_block (bound, binding,
+      // 						      &ambigious);
+      // 	  if (associated != nullptr)
+      // 	    associated->setup_associated_types (binding, bound);
+      // 	}
     }
 
   return true;

@@ -439,9 +439,9 @@ AssociatedImplTrait::AssociatedImplTrait (TraitReference *trait,
 					  TyTy::TypeBoundPredicate predicate,
 					  HIR::ImplBlock *impl,
 					  TyTy::BaseType *self,
-					  Resolver::TypeCheckContext *context)
+					  ImplTraitContextFrame frame)
   : trait (trait), predicate (predicate), impl (impl), self (self),
-    context (context)
+    context (TypeCheckContext::get ()), frame (frame)
 {}
 
 TyTy::TypeBoundPredicate &
@@ -466,6 +466,12 @@ const TyTy::BaseType *
 AssociatedImplTrait::get_self () const
 {
   return self;
+}
+
+ImplTraitContextFrame
+AssociatedImplTrait::get_frame () const
+{
+  return frame;
 }
 
 } // namespace Resolver
