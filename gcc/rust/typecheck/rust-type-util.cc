@@ -25,6 +25,7 @@
 #include "rust-hir-type-check-type.h"
 #include "rust-casts.h"
 #include "rust-mapping-common.h"
+#include "rust-tyty.h"
 #include "rust-unify.h"
 #include "rust-coercion.h"
 #include "rust-hir-type-bounds.h"
@@ -432,6 +433,63 @@ lookup_associated_impl_block (const TyTy::TypeBoundPredicate &bound,
     }
 
   return associate_impl_trait;
+}
+
+TyTy::BaseType *
+normalize_projection (TyTy::ProjectionType *proj, location_t locus,
+		      bool emit_errors, bool unify_self)
+{
+  if (!proj->is_trait_position ())
+    return proj;
+
+  auto *ctx = TypeCheckContext::get ();
+  ImplTraitContextFrame frame;
+  if (!ctx->find_matching_impl_trait_frame (*proj->get_trait_ref (), &frame))
+    return proj;
+
+  if (unify_self)
+    {
+      TyTy::BaseType *proj_self = proj->get_self ();
+      TyTy::BaseType *impl_self = frame.self;
+      TyTy::BaseType *self
+	= unify_site_and (/*id*/ 0, TyTy::TyWithLocation (proj_self, locus),
+			  TyTy::TyWithLocation (impl_self, locus), locus,
+			  emit_errors,
+			  /*commit*/ true,
+			  /*infer*/ true,
+			  /*cleanup*/ true,
+			  /*check_bounds*/ true);
+
+      if (self->get_kind () == TyTy::TypeKind::ERROR)
+	return self;
+    }
+
+  // Lookup the trait item -> impl type mapping (key = trait item DefId).
+  const DefId item = proj->get_item_defid ();
+  auto it = frame.assoc_types_by_trait_item.find (item);
+  if (it == frame.assoc_types_by_trait_item.end ())
+    {
+      rust_debug ("ZZZZZZZZZ");
+      return proj;
+    }
+
+  auto &entry = it->second;
+  auto impl_value = entry.value;
+
+  // TODO
+  // Optional: if impl_value still contains params, you can apply the frame
+  // args: impl_value = Resolver::SubstMapperInternal::Resolve(impl_value,
+  // frame->args);
+
+  if (auto p = impl_value->try_as<TyTy::ProjectionType> ())
+    {
+      impl_value = p->get ();
+    }
+
+  rust_debug ("normalize_projection result = %s",
+	      impl_value->as_string ().c_str ());
+
+  return impl_value;
 }
 
 } // namespace Resolver

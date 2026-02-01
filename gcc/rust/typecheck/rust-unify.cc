@@ -20,6 +20,7 @@
 #include "fold-const.h"
 #include "rust-tyty-util.h"
 #include "rust-tyty.h"
+#include "rust-type-util.h"
 
 namespace Rust {
 namespace Resolver {
@@ -1957,6 +1958,24 @@ UnifyRules::expect_projection (TyTy::ProjectionType *ltype,
     case TyTy::PLACEHOLDER:
     case TyTy::OPAQUE:
     case TyTy::CONST:
+      {
+	rust_debug ("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX 1");
+	if (ltype->is_trait_position ())
+	  {
+	    rust_debug ("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX 2");
+	    TyTy::BaseType *ln
+	      = normalize_projection (ltype, locus, false, false);
+	    rust_debug ("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX 3");
+	    ln->debug ();
+	    if (ln != nullptr && ln != ltype)
+	      {
+		return resolve_subtype (TyTy::TyWithLocation (ln),
+					TyTy::TyWithLocation (rtype));
+	      }
+	  }
+      }
+      break;
+
     case TyTy::ERROR:
       return unify_error_type_node ();
     }

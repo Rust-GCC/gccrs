@@ -246,6 +246,9 @@ public:
 
   void swap_head_loop_context (TyTy::BaseType *val);
 
+  bool
+  find_matching_impl_trait_frame (const TraitReference &tref,
+				  struct ImplTraitContextFrame *find) const;
   bool have_impl_trait_context () const;
   void push_impl_trait_context (struct ImplTraitContextFrame frame);
   struct ImplTraitContextFrame pop_impl_trait_context ();
@@ -581,8 +584,7 @@ private:
 class ImplTraitFrameGuard
 {
 public:
-  ImplTraitFrameGuard (Resolver::TypeCheckContext &ctx,
-		       ImplTraitContextFrame frame)
+  ImplTraitFrameGuard (ImplTraitContextFrame frame)
     : ctx (*TypeCheckContext::get ())
   {
     ctx.push_impl_trait_context (std::move (frame));

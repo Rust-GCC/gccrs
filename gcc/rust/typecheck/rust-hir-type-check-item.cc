@@ -27,6 +27,7 @@
 #include "rust-hir-type-check-expr.h"
 #include "rust-hir-type-check-pattern.h"
 #include "rust-hir-trait-resolve.h"
+#include "rust-hir-type-check.h"
 #include "rust-identifier.h"
 #include "rust-session-manager.h"
 #include "rust-immutable-name-resolution-context.h"
@@ -469,6 +470,15 @@ TypeCheckItem::visit (HIR::ConstantItem &constant)
 void
 TypeCheckItem::visit (HIR::ImplBlock &impl_block)
 {
+  if (impl_block.has_trait_ref ())
+    resolve_trait_impl_block (impl_block);
+  else
+    resolve_impl_block (impl_block);
+}
+
+void
+TypeCheckItem::resolve_impl_block (HIR::ImplBlock &impl_block)
+{
   auto binder_pin = context->push_clean_lifetime_resolver (true);
 
   bool failed_flag = false;
@@ -484,77 +494,95 @@ TypeCheckItem::visit (HIR::ImplBlock &impl_block)
 
   TyTy::BaseType *self = resolve_impl_block_self (impl_block);
 
+  for (auto &impl_item : impl_block.get_impl_items ())
+    TypeCheckImplItem::Resolve (impl_block, *impl_item, self, substitutions);
+}
+
+void
+TypeCheckItem::resolve_trait_impl_block (HIR::ImplBlock &impl_block)
+{
+  auto binder_pin = context->push_clean_lifetime_resolver (true);
+
+  bool failed_flag = false;
+  auto result = resolve_impl_block_substitutions (impl_block, failed_flag);
+  if (failed_flag)
+    {
+      infered = new TyTy::ErrorType (impl_block.get_mappings ().get_hirid ());
+      return;
+    }
+  std::vector<TyTy::SubstitutionParamMapping> substitutions
+    = std::move (result.first);
+  TyTy::RegionConstraints region_constraints = std::move (result.second);
+
   auto specified_bound = TyTy::TypeBoundPredicate::error ();
   TraitReference *trait_reference = &TraitReference::error_node ();
-  if (impl_block.has_trait_ref ())
+  TyTy::BaseType *self = resolve_impl_block_self (impl_block);
+
+  HIR::TypePath &ref = impl_block.get_trait_ref ();
+  trait_reference = TraitResolver::Resolve (ref);
+  if (trait_reference->is_error ())
+    return;
+
+  // we don't error out here see: gcc/testsuite/rust/compile/traits2.rs
+  // for example
+  specified_bound = get_predicate_from_bound (ref, impl_block.get_type (),
+					      impl_block.get_polarity ());
+
+  // need to check that if this specified bound has super traits does this
+  // Self implement them?
+  specified_bound.validate_type_implements_super_traits (
+    *self, impl_block.get_type (), impl_block.get_trait_ref ());
+
+  std::map<DefId, AssocTypeEntry> assoc_types_by_trait_item;
+  std::vector<const TraitItemReference *> trait_item_refs;
+  for (auto &impl_item : impl_block.get_impl_items ())
     {
-      HIR::TypePath &ref = impl_block.get_trait_ref ();
-      trait_reference = TraitResolver::Resolve (ref);
-      if (trait_reference->is_error ())
-	return;
+      bool is_type_alias = impl_item->get_impl_item_type ()
+			   == HIR::ImplItem::ImplItemType::TYPE_ALIAS;
+      if (!is_type_alias)
+	continue;
 
-      // we don't error out here see: gcc/testsuite/rust/compile/traits2.rs
-      // for example
-      specified_bound = get_predicate_from_bound (ref, impl_block.get_type (),
-						  impl_block.get_polarity ());
-
-      // need to check that if this specified bound has super traits does this
-      // Self implement them?
-      rust_debug_loc (impl_block.get_type ().get_locus (),
-		      "\tXXXX checking SELF implements associated trait XXXX");
-      self->debug ();
-      specified_bound.validate_type_implements_super_traits (
-	*self, impl_block.get_type (), impl_block.get_trait_ref ());
-
-      rust_debug_loc (impl_block.get_type ().get_locus (),
-		      "\tYYYYYYYYYYYYYY inherit bound %s XXXX",
-		      specified_bound.as_string ().c_str ());
-      self->inherit_bounds ({specified_bound});
-    }
-
-  bool is_trait_impl_block = !trait_reference->is_error ();
-  if (!is_trait_impl_block)
-    {
-      for (auto &impl_item : impl_block.get_impl_items ())
-	TypeCheckImplItem::Resolve (impl_block, *impl_item, self,
-				    substitutions);
-    }
-  else
-    {
-      std::vector<const TraitItemReference *> trait_item_refs;
-      for (auto &impl_item : impl_block.get_impl_items ())
+      auto trait_item_ref
+	= TypeCheckImplItemWithTrait::Resolve (impl_block, *impl_item, self,
+					       specified_bound, substitutions);
+      if (!trait_item_ref.is_error ())
 	{
-	  bool is_type_alias = impl_item->get_impl_item_type ()
-			       == HIR::ImplItem::ImplItemType::TYPE_ALIAS;
-	  if (!is_type_alias)
-	    continue;
+	  const TraitItemReference *tiref = trait_item_ref.get_raw_item ();
+	  trait_item_refs.push_back (tiref);
 
-	  auto trait_item_ref
-	    = TypeCheckImplItemWithTrait::Resolve (impl_block, *impl_item, self,
-						   specified_bound,
-						   substitutions);
-	  if (!trait_item_ref.is_error ())
-	    trait_item_refs.push_back (trait_item_ref.get_raw_item ());
+	  DefId impl_item_defid = impl_item->get_impl_mappings ().get_defid ();
+	  DefId trait_item_defid = tiref->get_mappings ().get_defid ();
+	  TyTy::BaseType *impl_item_ty;
+
+	  bool ok = context->lookup_type (
+	    impl_item->get_impl_mappings ().get_hirid (), &impl_item_ty);
+	  rust_assert (ok);
+
+	  AssocTypeEntry entry
+	    = {trait_item_defid, impl_item_defid, impl_item_ty};
+	  assoc_types_by_trait_item[trait_item_defid] = std::move (entry);
 	}
-      for (auto &impl_item : impl_block.get_impl_items ())
-	{
-	  bool is_type_alias = impl_item->get_impl_item_type ()
-			       == HIR::ImplItem::ImplItemType::TYPE_ALIAS;
-	  if (is_type_alias)
-	    continue;
-
-	  auto trait_item_ref
-	    = TypeCheckImplItemWithTrait::Resolve (impl_block, *impl_item, self,
-						   specified_bound,
-						   substitutions);
-	  if (!trait_item_ref.is_error ())
-	    trait_item_refs.push_back (trait_item_ref.get_raw_item ());
-	}
-
-      validate_trait_impl_block (specified_bound, trait_item_refs,
-				 trait_reference, impl_block, self,
-				 substitutions);
     }
+
+  ImplTraitContextFrame frame{trait_reference, self,
+			      std::move (assoc_types_by_trait_item)};
+  ImplTraitFrameGuard guard (frame);
+  for (auto &impl_item : impl_block.get_impl_items ())
+    {
+      bool is_type_alias = impl_item->get_impl_item_type ()
+			   == HIR::ImplItem::ImplItemType::TYPE_ALIAS;
+      if (is_type_alias)
+	continue;
+
+      auto trait_item_ref
+	= TypeCheckImplItemWithTrait::Resolve (impl_block, *impl_item, self,
+					       specified_bound, substitutions);
+      if (!trait_item_ref.is_error ())
+	trait_item_refs.push_back (trait_item_ref.get_raw_item ());
+    }
+
+  validate_trait_impl_block (specified_bound, trait_item_refs, trait_reference,
+			     impl_block, self, substitutions);
 }
 
 TyTy::BaseType *

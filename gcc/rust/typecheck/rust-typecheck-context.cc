@@ -231,6 +231,27 @@ TypeCheckContext::swap_head_loop_context (TyTy::BaseType *val)
 }
 
 bool
+TypeCheckContext::find_matching_impl_trait_frame (
+  const TraitReference &tref, struct ImplTraitContextFrame *find) const
+{
+  if (!have_impl_trait_context ())
+    return false;
+
+  for (auto it = impl_trait_frame_stack.rbegin ();
+       it != impl_trait_frame_stack.rend (); ++it)
+    {
+      const auto &i = *it;
+      if (i.trait->is_equal (tref))
+	{
+	  *find = i;
+	  return true;
+	}
+    }
+
+  return false;
+}
+
+bool
 TypeCheckContext::have_impl_trait_context () const
 {
   return !impl_trait_frame_stack.empty ();
