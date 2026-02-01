@@ -1957,9 +1957,15 @@ Parser<ManagedTokenSource>::null_denotation_path (
   switch (t->get_id ())
     {
     case EXCLAM:
-      // macro
-      return parse_macro_invocation_partial (std::move (path),
-					     std::move (outer_attrs));
+      {
+	// macro
+	auto macro = parse_macro_invocation_partial (std::move (path),
+						     std::move (outer_attrs));
+	if (macro == nullptr)
+	  return tl::unexpected<Parse::Error::Expr> (
+	    Parse::Error::Expr::CHILD_ERROR);
+	return std::unique_ptr<AST::Expr> (std::move (macro));
+      }
     case LEFT_CURLY:
       {
 	bool not_a_block = lexer.peek_token (1)->get_id () == IDENTIFIER
