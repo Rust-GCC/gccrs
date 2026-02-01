@@ -2056,7 +2056,7 @@ public:
 };
 
 // A crate AST object - holds all the data for a single compilation unit
-struct Crate : public GlobContainer
+struct Crate final : public GlobContainer
 {
   std::vector<Attribute> inner_attrs;
   // dodgy spacing required here
