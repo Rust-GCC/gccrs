@@ -41,6 +41,9 @@
 
 #include <bits/invoke.h>
 #include <bits/utility.h>
+#if __glibcxx_function_ref
+#include <bits/stl_function.h>
+#endif
 
 namespace std _GLIBCXX_VISIBILITY(default)
 {
@@ -139,6 +142,11 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	 { return &_S_call_ptrs<_Adjust_target<_Tp>>; }
 
 #ifdef __glibcxx_function_ref // C++ >= 26
+       template<typename _Fn>
+	 static _Ret
+	 _S_static(_Ptrs, _Args... __args) noexcept(_Noex)
+	 { return _Fn::operator()(std::forward<_Args>(__args)...); }
+
        template<auto __fn>
 	 static _Ret
 	 _S_nttp(_Ptrs, _Args... __args) noexcept(_Noex)

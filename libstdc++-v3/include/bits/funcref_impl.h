@@ -106,8 +106,24 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	constexpr
 	function_ref(_Fn&& __f) noexcept
 	{
-	  _M_invoke = _Invoker::template _S_ptrs<_Vt _GLIBCXX_MOF_CV&>();
-	  _M_init(std::addressof(__f));
+	  using _Fd = remove_cv_t<_Vt>;
+	  if constexpr (__is_std_op_wrapper<_Fd>)
+	    {
+	      _M_invoke = _Invoker::template _S_nttp<_Fd{}>;
+	      _M_ptrs._M_obj = nullptr;
+	    }
+	  else if constexpr (requires (_ArgTypes&&... __args) {
+		    _Fd::operator()(std::forward<_ArgTypes>(__args)...);
+		  })
+	    {
+	      _M_invoke = _Invoker::template _S_static<_Fd>;
+	      _M_ptrs._M_obj = nullptr;
+	    }
+          else
+	    {
+	      _M_invoke = _Invoker::template _S_ptrs<_Vt _GLIBCXX_MOF_CV&>();
+	      _M_init(std::addressof(__f));
+	    }
 	}
 
       // _GLIBCXX_RESOLVE_LIB_DEFECTS

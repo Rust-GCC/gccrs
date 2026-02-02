@@ -1537,6 +1537,56 @@ template <typename _Kt, typename _Container>
     __not_container_iterator<_Kt, _Container>;
 #endif
 
+#if __cplusplus > 201703L
+  template<template<typename> class>
+    constexpr bool __is_std_op_template = false;
+
+  template<>
+    inline constexpr bool __is_std_op_template<std::equal_to> = true;
+  template<>
+    inline constexpr bool __is_std_op_template<std::not_equal_to> = true;
+  template<>
+    inline constexpr bool __is_std_op_template<std::greater> = true;
+  template<>
+    inline constexpr bool __is_std_op_template<std::less> = true;
+  template<>
+    inline constexpr bool __is_std_op_template<std::greater_equal> = true;
+  template<>
+    inline constexpr bool __is_std_op_template<std::less_equal> = true;
+  template<>
+    inline constexpr bool __is_std_op_template<std::plus> = true;
+  template<>
+    inline constexpr bool __is_std_op_template<std::minus> = true;
+  template<>
+    inline constexpr bool __is_std_op_template<std::multiplies> = true;
+  template<>
+    inline constexpr bool __is_std_op_template<std::divides> = true;
+  template<>
+    inline constexpr bool __is_std_op_template<std::modulus> = true;
+  template<>
+    inline constexpr bool __is_std_op_template<std::negate> = true;
+  template<>
+    inline constexpr bool __is_std_op_template<std::logical_and> = true;
+  template<>
+    inline constexpr bool __is_std_op_template<std::logical_or> = true;
+  template<>
+    inline constexpr bool __is_std_op_template<std::logical_not> = true;
+  template<>
+    inline constexpr bool __is_std_op_template<std::bit_and> = true;
+  template<>
+    inline constexpr bool __is_std_op_template<std::bit_or> = true;
+  template<>
+    inline constexpr bool __is_std_op_template<std::bit_xor> = true;
+  template<>
+    inline constexpr bool __is_std_op_template<std::bit_not> = true;
+
+  template<typename _Fn>
+    constexpr bool __is_std_op_wrapper = false;
+
+  template<template<typename> class _Ft, typename _Tp>
+    constexpr bool __is_std_op_wrapper<_Ft<_Tp>>
+      = __is_std_op_template<_Ft>;
+#endif
 _GLIBCXX_END_NAMESPACE_VERSION
 } // namespace
 
