@@ -1522,10 +1522,6 @@ package Sinfo is
    --    expansion of an asynchronous entry call. Such a block needs cleanup
    --    handler to assure that the call is cancelled.
 
-   --  Is_Boolean_Aspect
-   --    Present in N_Aspect_Specification node. Set if the aspect is for a
-   --    boolean aspect (i.e. Aspect_Id is in Boolean_Aspect subtype).
-
    --  Is_Checked
    --    Present in N_Aspect_Specification and N_Pragma nodes. Set for an
    --    assertion aspect or pragma, or check pragma for an assertion, that

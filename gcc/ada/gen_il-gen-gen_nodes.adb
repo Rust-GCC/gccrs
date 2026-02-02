@@ -1143,7 +1143,6 @@ begin -- Gen_IL.Gen.Gen_Nodes
         Sm (Aspect_Subprograms, Elist_Id),
         Sm (Entity_Or_Associated_Node, Node_Id), -- just Entity
         Sm (Expression_Copy, Node_Id),
-        Sm (Is_Boolean_Aspect, Flag),
         Sm (Is_Checked, Flag),
         Sm (Is_Delayed_Aspect, Flag),
         Sm (Is_Disabled, Flag),

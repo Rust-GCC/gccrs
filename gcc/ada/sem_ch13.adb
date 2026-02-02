@@ -2094,7 +2094,9 @@ package body Sem_Ch13 is
             --  An auxiliary node
 
             Delay_Required : Boolean;
-            --  Set False if delay is not required
+            --  Indicates delayed aspects. Note that this is somewhat of a
+            --  misnomer: False doesn't just mean delaying is optional; in
+            --  some cases, it means delaying won't work.
 
             Eloc : Source_Ptr := No_Location;
             --  Source location of expression, modified when we split PPC's. It
@@ -5491,8 +5493,6 @@ package body Sem_Ch13 is
                when Boolean_Aspects
                   | Library_Unit_Aspects
                =>
-                  Set_Is_Boolean_Aspect (Aspect);
-
                   --  Lock_Free aspect only apply to protected objects
 
                   if A_Id = Aspect_Lock_Free then
@@ -5862,7 +5862,8 @@ package body Sem_Ch13 is
             --  library unit pragmas are better handled early.
 
             if Nkind (Parent (N)) = N_Compilation_Unit
-              and then (Present (Aitem) or else Is_Boolean_Aspect (Aspect))
+              and then (Present (Aitem)
+                or else A_Id in Boolean_Aspects | Library_Unit_Aspects)
             then
                declare
                   Aux : constant Node_Id := Aux_Decls_Node (Parent (N));
@@ -5873,7 +5874,9 @@ package body Sem_Ch13 is
                   --  For a Boolean aspect, create the corresponding pragma if
                   --  no expression or if the value is True.
 
-                  if Is_Boolean_Aspect (Aspect) and then No (Aitem) then
+                  if A_Id in Boolean_Aspects | Library_Unit_Aspects
+                    and then No (Aitem)
+                  then
                      if Is_True (Static_Boolean (Expr)) then
                         Aitem := Make_Aitem_Pragma
                           (Pragma_Argument_Associations => New_List (

@@ -70,7 +70,7 @@ package Aspects is
    type Aspect_Id is
      (No_Aspect,                            -- Dummy entry for no aspect
 
-      --  The following aspects do not have a (static) boolean value
+      --  The following aspects do not have a Boolean value
 
       Aspect_Abstract_State,                -- GNAT
       Aspect_Address,
@@ -171,7 +171,7 @@ package Aspects is
       Aspect_Warnings,                      -- GNAT
       Aspect_Write,
 
-      --  The following aspects correspond to library unit pragmas
+      --  The following are in subtype Library_Unit_Aspects
 
       Aspect_All_Calls_Remote,
       Aspect_Elaborate_Body,
@@ -182,12 +182,7 @@ package Aspects is
       Aspect_Remote_Types,
       Aspect_Shared_Passive,
 
-      --  Remaining aspects have a static boolean value that turns the aspect
-      --  on or off. They all correspond to pragmas, but are only converted to
-      --  the pragmas where the value is True. A value of False normally means
-      --  that the aspect is ignored, except in the case of derived types where
-      --  the aspect value is inherited from the parent, in which case, we do
-      --  not allow False if we inherit a True value from the parent.
+      --  The following are in subtype Boolean_Aspects
 
       Aspect_Always_Terminates,             -- GNAT
       Aspect_Asynchronous,
@@ -374,6 +369,7 @@ package Aspects is
       Aspect_Warnings                   => True,
       Ignored_Aspects                   => True,
       others                            => False);
+         --  end Implementation_Defined_Aspect
 
    --  The following array indicates aspects that specify operational
    --  characteristics, and thus can be specified on partial views.
@@ -407,15 +403,19 @@ package Aspects is
      Aspect_Id range Aspect_All_Calls_Remote .. Aspect_Shared_Passive;
 
    --  The following subtype defines aspects accepting an optional static
-   --  boolean parameter indicating if the aspect should be active or
-   --  cancelling. If the parameter is missing the effective value is True,
-   --  enabling the aspect. If the parameter is present it must be a static
-   --  expression of type Standard.Boolean. If the value is True, then the
-   --  aspect is enabled. If it is False, the aspect is disabled.
+   --  Boolean parameter. If the parameter is missing the effective value is
+   --  True. These aspects all correspond to pragmas, but are only converted to
+   --  the pragmas if the value is True. A value of False normally means
+   --  that the aspect is ignored, except in the case of derived types where
+   --  the aspect value is inherited from the parent, in which case we do
+   --  not allow False if we inherit a True value from the parent.
    --
-   --  The Always_Terminates fits in this category even though it accepts an
-   --  optional boolean parameter which is non-static, because we want it to
-   --  be usable with pragma User_Defined_Aspect.
+   --  Always_Terminates fits in this category even though it accepts a
+   --  nonstatic value, because we want it to be usable with pragma
+   --  User_Aspect_Definition.
+   --
+   --  Note that this does not include all Boolean-valued aspects; in
+   --  particular, the Library_Unit_Aspects are also of type Boolean.
 
    subtype Boolean_Aspects is
      Aspect_Id range Aspect_Always_Terminates .. Aspect_Id'Last;
@@ -537,6 +537,7 @@ package Aspects is
       Ignored_Aspects                   => Optional_Expression,
       Library_Unit_Aspects              => Optional_Expression,
       Boolean_Aspects                   => Optional_Expression);
+         --  end Aspect_Argument
 
    --  The following array indicates what aspects are representation aspects
 
@@ -699,6 +700,7 @@ package Aspects is
       Aspect_Volatile_Full_Access         => True,
       Aspect_Volatile_Function            => False,
       Aspect_Yield                        => False);
+         --  end Is_Representation_Aspect
 
    -----------------------------------------
    -- Table Linking Names and Aspect_Id's --
@@ -871,7 +873,7 @@ package Aspects is
       Aspect_Volatile_Function            => Name_Volatile_Function,
       Aspect_Warnings                     => Name_Warnings,
       Aspect_Write                        => Name_Write,
-      Aspect_Yield                        => Name_Yield);
+      Aspect_Yield                        => Name_Yield); -- Aspect_Names
 
    function Get_Aspect_Id (Name : Name_Id) return Aspect_Id;
    pragma Inline (Get_Aspect_Id);
@@ -1206,9 +1208,9 @@ package Aspects is
       Aspect_Warnings                     => True,
       others                              => False);
 
-   -------------------------------------------------------------------
-   -- Handling of Aspects Specifications on Single Concurrent Types --
-   -------------------------------------------------------------------
+   ------------------------------------------------------------------
+   -- Handling of Aspect Specifications on Single Concurrent Types --
+   ------------------------------------------------------------------
 
    --  Certain aspects that appear on the following nodes
 

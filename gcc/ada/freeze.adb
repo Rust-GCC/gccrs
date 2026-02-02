@@ -3107,7 +3107,7 @@ package body Freeze is
                     A  => Aspect_No_Parts);
             end if;
 
-            --  Examine aspects specifications on private type declarations
+            --  Examine aspect specifications on private type declarations
 
             --  Should Find_Aspect be improved to handle this case ???
 

@@ -359,7 +359,7 @@ package Tbuild is
    procedure Set_NUA (Attr : Name_Id; OK : out Boolean);
    procedure Set_NUP (Prag : Name_Id; OK : out Boolean);
    --  Subprograms for call to Get_Target_Parameters in Gnat1drv, see spec
-   --  of package Targparm for full description of these four subprograms.
+   --  of package Targparm for full description of these subprograms.
    --  These have to be declared at the top level of a package (accessibility
    --  issues), and Gnat1drv is a procedure, so they can't go there.
 

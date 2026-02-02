@@ -233,7 +233,6 @@ package Gen_IL.Fields is
       Is_Accessibility_Actual,
       Is_Analyzed_Pragma,
       Is_Asynchronous_Call_Block,
-      Is_Boolean_Aspect,
       Is_Checked,
       Is_Checked_Ghost_Pragma,
       Is_Component_Left_Opnd,

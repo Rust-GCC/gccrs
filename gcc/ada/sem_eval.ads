@@ -97,7 +97,7 @@ package Sem_Eval is
 
    --  For most legality checking purposes the flag Is_Static_Expression
    --  defined in Sinfo should be used. This package also provides a routine
-   --  called Is_OK_Static_Expression which in addition of checking that an
+   --  called Is_OK_Static_Expression which in addition to checking that an
    --  expression is static in the RM 4.9 sense, it checks that the expression
    --  does not raise constraint error. In fact for certain legality checks not
    --  only do we need to ascertain that the expression is static, but we must
