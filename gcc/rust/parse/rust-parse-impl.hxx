@@ -2750,6 +2750,8 @@ Parser<ManagedTokenSource>::parse_trait_bound ()
 
   // handle TypePath
   AST::TypePath type_path = parse_type_path ();
+  if (type_path.is_error())
+    return nullptr;
 
   // handle closing parentheses
   if (has_parens)
