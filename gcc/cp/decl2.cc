@@ -1634,6 +1634,12 @@ grokbitfield (const cp_declarator *declarator,
       return NULL_TREE;
     }
 
+  /* [class.bit]/2 "An unnamed bit-field shall not be declared with
+     a cv-qualified type."  */
+  if (!DECL_NAME (value) && TYPE_QUALS (type) != TYPE_UNQUALIFIED)
+    pedwarn (DECL_SOURCE_LOCATION (value), 0,
+	     "unnamed bit-field cannot be cv-qualified");
+
   int flags = LOOKUP_IMPLICIT;
   if (init && DIRECT_LIST_INIT_P (init))
     flags = LOOKUP_NORMAL;
