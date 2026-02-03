@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-O2 -mpc-relative-literal-loads" } */
+/* { dg-options "-O2 -mpc-relative-literal-loads -Wno-deprecated" } */
 
 char *
 foo ()

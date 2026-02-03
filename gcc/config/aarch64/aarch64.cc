@@ -20152,6 +20152,9 @@ aarch64_override_options (void)
   if (TARGET_ILP32)
     warning (OPT_Wdeprecated, "%<-mabi=ilp32%> is deprecated");
 
+  if (global_options.x_pcrelative_literal_loads == 1)
+    warning (OPT_Wdeprecated, "%<-mpc-relative-literal-loads%> is deprecated");
+
   /* Convert -msve-vector-bits to a VG count.  */
   aarch64_sve_vg = aarch64_convert_sve_vector_bits (aarch64_sve_vector_bits);
 

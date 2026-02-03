@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-O2 -mcmodel=large -mpc-relative-literal-loads -fno-pie" } */
+/* { dg-options "-O2 -mcmodel=large -mpc-relative-literal-loads -fno-pie -Wno-deprecated" } */
 /* { dg-require-effective-target lp64 } */
 /* { dg-skip-if "-mcmodel=large, no support for -fpic" { aarch64-*-* }  { "-fpic" } { "" } } */
 

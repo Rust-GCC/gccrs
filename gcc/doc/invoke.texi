@@ -21672,6 +21672,8 @@ accessed using a single instruction and emitted after each function.  This
 limits the maximum size of functions to 1MB.  This is enabled by default for
 @option{-mcmodel=tiny}.
 
+The @option{-mpc-relative-literal-loads} is deprecated.
+
 @opindex msign-return-address
 @item -msign-return-address=@var{scope}
 Select the function scope on which return address signing will be applied.

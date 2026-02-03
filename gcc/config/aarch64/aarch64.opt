@@ -222,7 +222,7 @@ Enum(aarch64_abi) String(lp64) Value(AARCH64_ABI_LP64)
 
 mpc-relative-literal-loads
 Target Save Var(pcrelative_literal_loads) Init(2) Save
-PC relative literal loads.
+PC relative literal loads.  This option is deprecated.
 
 mbranch-protection=
 Target RejectNegative Joined Var(aarch64_branch_protection_string) Save
