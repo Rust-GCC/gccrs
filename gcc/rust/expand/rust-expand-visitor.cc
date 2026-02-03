@@ -17,12 +17,14 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "rust-expand-visitor.h"
+#include "expected.h"
 #include "rust-ast-fragment.h"
 #include "rust-hir-map.h"
-#include "rust-item.h"
 #include "rust-proc-macro.h"
 #include "rust-attributes.h"
 #include "rust-ast.h"
+#include "rust-item.h"
+#include "rust-stmt.h"
 #include "rust-type.h"
 #include "rust-derive.h"
 
@@ -45,61 +47,76 @@ ExpandVisitor::go (AST::Crate &crate)
   visit (crate);
 }
 
-static std::vector<std::unique_ptr<AST::Item>>
+enum VectorExpandError
+{
+  FragmentError,
+  EmptyDeriveResult,
+};
+
+static tl::expected<std::vector<std::unique_ptr<AST::Item>>, VectorExpandError>
 builtin_derive_item (AST::Item &item, const AST::Attribute &derive,
 		     BuiltinMacro to_derive)
 {
   auto items = AST::DeriveVisitor::derive (item, derive, to_derive);
+
+  if (items.empty ())
+    return tl::make_unexpected (VectorExpandError::EmptyDeriveResult);
+
   for (auto &item : items)
     Analysis::Mappings::get ().add_derived_node (item->get_node_id ());
+
   return items;
 }
 
-static std::vector<std::unique_ptr<AST::Item>>
+static tl::expected<std::vector<std::unique_ptr<AST::Item>>, VectorExpandError>
 derive_item (AST::Item &item, AST::SimplePath &to_derive,
 	     MacroExpander &expander)
 {
   std::vector<std::unique_ptr<AST::Item>> result;
   auto frag = expander.expand_derive_proc_macro (item, to_derive);
-  if (!frag.is_error ())
+
+  if (frag.is_error ())
+    return tl::make_unexpected (VectorExpandError::FragmentError);
+
+  for (auto &node : frag.get_nodes ())
     {
-      for (auto &node : frag.get_nodes ())
+      switch (node.get_kind ())
 	{
-	  switch (node.get_kind ())
-	    {
-	    case AST::SingleASTNode::Kind::Item:
-	      Analysis::Mappings::get ().add_derived_node (
-		node.get_item ()->get_node_id ());
-	      result.push_back (node.take_item ());
-	      break;
-	    default:
-	      rust_unreachable ();
-	    }
+	case AST::SingleASTNode::Kind::Item:
+	  Analysis::Mappings::get ().add_derived_node (
+	    node.get_item ()->get_node_id ());
+	  result.push_back (node.take_item ());
+	  break;
+	default:
+	  rust_unreachable ();
 	}
     }
+
   return result;
 }
 
-static std::vector<std::unique_ptr<AST::Item>>
+static tl::expected<std::vector<std::unique_ptr<AST::Item>>, VectorExpandError>
 expand_item_attribute (AST::Item &item, AST::SimplePath &name,
 		       MacroExpander &expander)
 {
   std::vector<std::unique_ptr<AST::Item>> result;
   auto frag = expander.expand_attribute_proc_macro (item, name);
-  if (!frag.is_error ())
+
+  if (frag.is_error ())
+    return tl::make_unexpected (VectorExpandError::FragmentError);
+
+  for (auto &node : frag.get_nodes ())
     {
-      for (auto &node : frag.get_nodes ())
+      switch (node.get_kind ())
 	{
-	  switch (node.get_kind ())
-	    {
-	    case AST::SingleASTNode::Kind::Item:
-	      result.push_back (node.take_item ());
-	      break;
-	    default:
-	      rust_unreachable ();
-	    }
+	case AST::SingleASTNode::Kind::Item:
+	  result.push_back (node.take_item ());
+	  break;
+	default:
+	  rust_unreachable ();
 	}
     }
+
   return result;
 }
 
@@ -109,26 +126,28 @@ expand_item_attribute (AST::Item &item, AST::SimplePath &name,
  * attributes.
  */
 template <typename T>
-static std::vector<std::unique_ptr<AST::Stmt>>
+static tl::expected<std::vector<std::unique_ptr<AST::Stmt>>, VectorExpandError>
 expand_stmt_attribute (T &statement, AST::SimplePath &attribute,
 		       MacroExpander &expander)
 {
   std::vector<std::unique_ptr<AST::Stmt>> result;
   auto frag = expander.expand_attribute_proc_macro (statement, attribute);
-  if (!frag.is_error ())
+
+  if (frag.is_error ())
+    return tl::make_unexpected (VectorExpandError::FragmentError);
+
+  for (auto &node : frag.get_nodes ())
     {
-      for (auto &node : frag.get_nodes ())
+      switch (node.get_kind ())
 	{
-	  switch (node.get_kind ())
-	    {
-	    case AST::SingleASTNode::Kind::Stmt:
-	      result.push_back (node.take_stmt ());
-	      break;
-	    default:
-	      rust_unreachable ();
-	    }
+	case AST::SingleASTNode::Kind::Stmt:
+	  result.push_back (node.take_stmt ());
+	  break;
+	default:
+	  rust_unreachable ();
 	}
     }
+
   return result;
 }
 
@@ -151,12 +170,16 @@ expand_tail_expr (AST::BlockExpr &block_expr, MacroExpander &expander)
 	    {
 	      it = attrs.erase (it);
 	      changed = true;
+
+	      auto &stmts = block_expr.get_statements ();
+
 	      auto new_stmts
 		= expand_stmt_attribute (block_expr, current.get_path (),
 					 expander);
-	      auto &stmts = block_expr.get_statements ();
-	      std::move (new_stmts.begin (), new_stmts.end (),
-			 std::inserter (stmts, stmts.end ()));
+
+	      if (new_stmts)
+		std::move (new_stmts->begin (), new_stmts->end (),
+			   std::inserter (stmts, stmts.end ()));
 	    }
 	}
       if (changed)
@@ -200,8 +223,9 @@ ExpandVisitor::expand_inner_items (
 			    = builtin_derive_item (item, current,
 						   maybe_builtin.value ());
 
-			  for (auto &&new_item : new_items)
-			    it = items.insert (it, std::move (new_item));
+			  if (new_items)
+			    for (auto &&new_item : new_items.value ())
+			      it = items.insert (it, std::move (new_item));
 			}
 		      else
 			{
@@ -209,8 +233,10 @@ ExpandVisitor::expand_inner_items (
 			  // user-defined derive macro.
 			  auto new_items
 			    = derive_item (item, to_derive, expander);
-			  std::move (new_items.begin (), new_items.end (),
-				     std::inserter (items, it));
+
+			  if (new_items)
+			    std::move (new_items->begin (), new_items->end (),
+				       std::inserter (items, it));
 			}
 		    }
 		}
@@ -226,14 +252,18 @@ ExpandVisitor::expand_inner_items (
 		      auto new_items
 			= expand_item_attribute (item, current.get_path (),
 						 expander);
-		      it = items.erase (it);
-		      std::move (new_items.begin (), new_items.end (),
-				 std::inserter (items, it));
-		      // TODO: Improve this ?
-		      // item is invalid since it refers to now deleted,
-		      // cancel the loop increment and break.
-		      it--;
-		      break;
+
+		      if (new_items)
+			{
+			  it = items.erase (it);
+			  std::move (new_items->begin (), new_items->end (),
+				     std::inserter (items, it));
+			  // TODO: Improve this ?
+			  // item is invalid since it refers to now deleted,
+			  // cancel the loop increment and break.
+			  it--;
+			  break;
+			}
 		    }
 		}
 	    }
@@ -287,15 +317,18 @@ ExpandVisitor::expand_inner_stmts (AST::BlockExpr &expr)
 
 			  // this inserts the derive *before* the item - is it a
 			  // problem?
-			  for (auto &&new_item : new_items)
-			    it = stmts.insert (it, std::move (new_item));
+			  if (new_items)
+			    for (auto &&new_item : new_items.value ())
+			      it = stmts.insert (it, std::move (new_item));
 			}
 		      else
 			{
 			  auto new_items
 			    = derive_item (item, to_derive, expander);
-			  std::move (new_items.begin (), new_items.end (),
-				     std::inserter (stmts, it));
+
+			  if (new_items)
+			    std::move (new_items->begin (), new_items->end (),
+				       std::inserter (stmts, it));
 			}
 		    }
 		}
@@ -311,14 +344,18 @@ ExpandVisitor::expand_inner_stmts (AST::BlockExpr &expr)
 		      auto new_items
 			= expand_stmt_attribute (item, current.get_path (),
 						 expander);
-		      it = stmts.erase (it);
-		      std::move (new_items.begin (), new_items.end (),
-				 std::inserter (stmts, it));
-		      // TODO: Improve this ?
-		      // item is invalid since it refers to now deleted,
-		      // cancel the loop increment and break.
-		      it--;
-		      break;
+
+		      if (new_items)
+			{
+			  it = stmts.erase (it);
+			  std::move (new_items->begin (), new_items->end (),
+				     std::inserter (stmts, it));
+			  // TODO: Improve this ?
+			  // item is invalid since it refers to now deleted,
+			  // cancel the loop increment and break.
+			  it--;
+			  break;
+			}
 		    }
 		}
 	    }

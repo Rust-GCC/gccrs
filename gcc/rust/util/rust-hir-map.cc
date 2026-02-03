@@ -918,6 +918,10 @@ Mappings::insert_macro_invocation (AST::MacroInvocation &invoc,
   auto it = macroInvocations.find (invoc.get_macro_node_id ());
   rust_assert (it == macroInvocations.end ());
 
+  // Don't insert null pointers into the map as it could segfault later
+  if (!def)
+    return;
+
   macroInvocations[invoc.get_macro_node_id ()] = def;
 }
 
