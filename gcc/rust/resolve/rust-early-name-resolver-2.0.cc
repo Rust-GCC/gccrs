@@ -454,8 +454,12 @@ Early::finalize_rebind_import (const Early::ImportPair &mapping)
     }
 
   for (auto &&definition : data.definitions ())
-    toplevel.insert_or_error_out (
-      declared_name, locus, definition.first.get_node_id (), definition.second /* TODO: This isn't clear - it would be better if it was called .ns or something */);
+    {
+      if (definition.first.is_ambiguous ())
+	continue;
+      toplevel.insert_or_error_out (
+	declared_name, locus, definition.first.get_node_id (), definition.second /* TODO: This isn't clear - it would be better if it was called .ns or something */);
+    }
 }
 
 void
