@@ -27098,6 +27098,14 @@ package body Sem_Util is
          Kind := Policy_In_List (Check_Policy_List_Config);
       end if;
 
+      --  Normalize the policy names
+
+      if Kind = Name_Off then
+         Kind := Name_Ignore;
+      elsif Kind = Name_On then
+         Kind := Name_Check;
+      end if;
+
       --  The context lacks policy pragmas, determine the mode based on whether
       --  assertions are enabled at the configuration level. This ensures that
       --  the policy is preserved when analyzing generics.
