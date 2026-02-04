@@ -7387,6 +7387,12 @@ package body Sem_Util is
       pragma Assert (Ekind (Self) = E_Assertion_Level);
       pragma Assert (Ekind (Other) = E_Assertion_Level);
 
+      if Other = Standard_Level_Runtime
+         and then not Is_Same_Or_Depends_On_Level (Self, Standard_Level_Static)
+      then
+         return True;
+      end if;
+
       if No (Parent_Levels (Self)) then
          return False;
       end if;
