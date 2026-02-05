@@ -12880,7 +12880,16 @@ package body Exp_Util is
                    or else Nkind (Prefix (Exp)) /= N_Aggregate)
         and then not Is_Name_Reference (Prefix (Exp))
       then
-         Remove_Side_Effects (Prefix (Exp), Name_Req, Variable_Ref);
+         Remove_Side_Effects
+           (Exp                => Prefix (Exp),
+            Name_Req           => Name_Req,
+            Renaming_Req       => Renaming_Req,
+            Variable_Ref       => False,
+            Related_Id         => Related_Id,
+            Is_Low_Bound       => False,
+            Is_High_Bound      => False,
+            Discr_Number       => 0,
+            Check_Side_Effects => Check_Side_Effects);
          goto Leave;
 
       --  If this is an elementary or a small not-by-reference record type, and
@@ -12982,7 +12991,16 @@ package body Exp_Util is
       elsif Nkind (Exp) = N_Unchecked_Type_Conversion
         and then Nkind (Expression (Exp)) = N_Explicit_Dereference
       then
-         Remove_Side_Effects (Expression (Exp), Name_Req, Variable_Ref);
+         Remove_Side_Effects
+           (Exp                => Expression (Exp),
+            Name_Req           => Name_Req,
+            Renaming_Req       => Renaming_Req,
+            Variable_Ref       => Variable_Ref,
+            Related_Id         => Related_Id,
+            Is_Low_Bound       => Is_Low_Bound,
+            Is_High_Bound      => Is_High_Bound,
+            Discr_Number       => Discr_Number,
+            Check_Side_Effects => Check_Side_Effects);
          goto Leave;
 
       --  If this is a type conversion, leave the type conversion and remove
@@ -12995,7 +13013,16 @@ package body Exp_Util is
       elsif Nkind (Exp) = N_Type_Conversion
         and then Etype (Expression (Exp)) /= Universal_Integer
       then
-         Remove_Side_Effects (Expression (Exp), Name_Req, Variable_Ref);
+         Remove_Side_Effects
+           (Exp                => Expression (Exp),
+            Name_Req           => Name_Req,
+            Renaming_Req       => Renaming_Req,
+            Variable_Ref       => Variable_Ref,
+            Related_Id         => Related_Id,
+            Is_Low_Bound       => Is_Low_Bound,
+            Is_High_Bound      => Is_High_Bound,
+            Discr_Number       => Discr_Number,
+            Check_Side_Effects => Check_Side_Effects);
          goto Leave;
 
       --  If this is an unchecked conversion that Gigi can't handle, make
@@ -13076,7 +13103,16 @@ package body Exp_Util is
         and then Nkind (Prefix (Exp)) = N_Function_Call
         and then Is_Array_Type (Und_Typ)
       then
-         Remove_Side_Effects (Prefix (Exp), Name_Req, Variable_Ref);
+         Remove_Side_Effects
+           (Exp                => Prefix (Exp),
+            Name_Req           => Name_Req,
+            Renaming_Req       => Renaming_Req,
+            Variable_Ref       => Variable_Ref,
+            Related_Id         => Related_Id,
+            Is_Low_Bound       => Is_Low_Bound,
+            Is_High_Bound      => Is_High_Bound,
+            Discr_Number       => Discr_Number,
+            Check_Side_Effects => Check_Side_Effects);
          goto Leave;
 
       --  Otherwise we generate a reference to the expression
