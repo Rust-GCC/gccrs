@@ -52,6 +52,7 @@
 #include "rust-early-name-resolver-2.0.h"
 #include "rust-late-name-resolver-2.0.h"
 #include "rust-resolve-builtins.h"
+#include "rust-early-cfg-strip.h"
 #include "rust-cfg-strip.h"
 #include "rust-expand-visitor.h"
 #include "rust-unicode.h"
@@ -669,7 +670,15 @@ Session::compile_crate (const char *filename)
 
   Analysis::AttributeChecker ().go (parsed_crate);
 
-  if (!has_attribute (parsed_crate, std::string (Values::Attributes::NO_CORE)))
+  EarlyCfgStrip ().go (parsed_crate);
+
+  auto parsed_crate_features
+    = Features::FeatureCollector{}.collect (parsed_crate);
+
+  // Do not inject core if some errors were emitted
+  if (!saw_errors ()
+      && !has_attribute (parsed_crate,
+			 std::string (Values::Attributes::NO_CORE)))
     {
       parsed_crate.inject_extern_crate ("core");
     }
@@ -702,8 +711,7 @@ Session::compile_crate (const char *filename)
   // feature gating
   if (last_step == CompileOptions::CompileStep::FeatureGating)
     return;
-  auto parsed_crate_features
-    = Features::FeatureCollector{}.collect (parsed_crate);
+
   FeatureGate (parsed_crate_features).check (parsed_crate);
 
   if (last_step == CompileOptions::CompileStep::NameResolution)
