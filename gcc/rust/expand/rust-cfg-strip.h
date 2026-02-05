@@ -24,6 +24,8 @@
 
 namespace Rust {
 
+void expand_cfg_attrs (AST::AttrVec &attrs);
+
 // forward declare
 struct ExpansionCfg;
 
