@@ -106,12 +106,16 @@ TopLevel::go (AST::Crate &crate)
 void
 TopLevel::visit (AST::Module &module)
 {
-  DefaultResolver::visit (module);
-
   if (Analysis::Mappings::get ().lookup_glob_container (module.get_node_id ())
       == tl::nullopt)
     Analysis::Mappings::get ().insert_glob_container (module.get_node_id (),
 						      &module);
+
+  insert_or_error_out (module.get_name (), module, Namespace::Types);
+
+  Analysis::Mappings::get ().insert_module_id (module.get_node_id ());
+
+  DefaultResolver::visit (module);
 }
 
 void
