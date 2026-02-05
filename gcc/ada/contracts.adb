@@ -3377,12 +3377,12 @@ package body Contracts is
       --  Step 6: Construct subprogram _wrapped_statements
 
       --  When no statements are present we still need to insert contract
-      --  related declarations.
+      --  related declarations. There's also no need to create the contracts
+      --  wrapper when the subprogram is marked as not returning, since
+      --  postconditions and invariant checks won't be reached in that case.
 
-      if No (Stmts) then
+      if No (Stmts) or else No_Return (Subp_Id) then
          Prepend_List_To (Declarations (Body_Decl), Decls);
-
-      --  Otherwise, we need a wrapper
 
       else
          Build_Subprogram_Contract_Wrapper (Body_Id, Stmts, Decls, Result);
