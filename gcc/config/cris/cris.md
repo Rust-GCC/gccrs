@@ -173,6 +173,9 @@
 (define_mode_iterator BWD [SI HI QI])
 (define_mode_iterator BWDD [DI SI HI QI])
 
+;; Need to handle SI and SF similarly, at least in the expander.
+(define_mode_iterator SISF [SI SF])
+
 ;; To be able to refer to the same mode_attr for both a multi-mode
 ;; and a mode-specific pattern, we use some singleton iterators.
 (define_mode_iterator DI_ [DI])
@@ -560,11 +563,11 @@
 
 ;; Normal move patterns from SI on.
 
-(define_expand "movsi"
+(define_expand "mov<mode>"
   [(parallel
     [(set
-      (match_operand:SI 0 "nonimmediate_operand")
-      (match_operand:SI 1 "general_operand"))
+      (match_operand:SISF 0 "nonimmediate_operand")
+      (match_operand:SISF 1 "general_operand"))
      (clobber (reg:CC CRIS_CC0_REGNUM))])]
   ""
 {
@@ -572,14 +575,16 @@
      input.  */
   if (MEM_P (operands[0])
       && ! REG_S_P (operands[1])
-      && operands[1] != const0_rtx
+      && operands[1] != CONST0_RTX (<MODE>mode)
       && can_create_pseudo_p ())
-    operands[1] = force_reg (SImode, operands[1]);
+    operands[1] = force_reg (<MODE>mode, operands[1]);
 
    /* At post-reload time, we'll get here for e.g. split multi-mode insns
       with a memory destination.  Go directly to the clobber-less variant.
-      FIXME: Also applies to special-register source or destination.  */
-   if (reload_completed
+      FIXME: Also applies to special-register source or destination.
+      Only do this for integer modes.  */
+   if (SCALAR_INT_MODE_P (<MODE>mode)
+       && reload_completed
        && (MEM_P (operands[0]) || operands[1] == const0_rtx))
      {
         emit_insn (gen_rtx_SET (operands[0], operands[1]));
@@ -778,11 +783,13 @@
 ;; all ones); the worthwhile one is "0.0".
 ;; It will use clear, so we know ALL types of immediate 0 never change cc.
 
-(define_insn "movsf"
+(define_insn "*movsf_internal"
   [(set (match_operand:SF 0 "nonimmediate_operand" "=r,Q>,r, r,Q>,g,g,r,r,x,Q>,m,x, x")
 	(match_operand:SF 1 "general_operand"       "r,r, Q>,G,G, G,r,g,x,r,x, x,Q>,g"))
    (clobber (reg:CC CRIS_CC0_REGNUM))]
-  ""
+  "(register_operand (operands[0], SFmode)
+    || register_operand (operands[1], SFmode)
+    || operands[1] == CONST0_RTX (SFmode))"
   "@
    move.d %1,%0
    move.d %1,%0
