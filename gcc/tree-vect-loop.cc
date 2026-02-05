@@ -6544,7 +6544,7 @@ vectorize_fold_left_reduction (loop_vec_info loop_vinfo,
       if (LOOP_VINFO_FULLY_WITH_LENGTH_P (loop_vinfo))
 	{
 	  len = vect_get_loop_len (loop_vinfo, gsi, lens, vec_num, vectype_in,
-				   i, 1);
+				   i, 1, false);
 	  signed char biasval = LOOP_VINFO_PARTIAL_LOAD_STORE_BIAS (loop_vinfo);
 	  bias = build_int_cst (intQI_type_node, biasval);
 	  if (!is_cond_op)
@@ -9938,7 +9938,7 @@ vectorizable_induction (loop_vec_info loop_vinfo,
 		   _21 = vect_vec_iv_.6_22 + vect_cst__22;  */
 	      vec_loop_lens *lens = &LOOP_VINFO_LENS (loop_vinfo);
 	      tree len = vect_get_loop_len (loop_vinfo, NULL, lens, 1,
-					    vectype, 0, 0);
+					    vectype, 0, 0, false);
 	      if (SCALAR_FLOAT_TYPE_P (stept))
 		expr = gimple_build (&stmts, FLOAT_EXPR, stept, len);
 	      else
@@ -10085,7 +10085,7 @@ vectorizable_live_operation_1 (loop_vec_info loop_vinfo, basic_block exit_bb,
     {
       /* Emit:
 
-	 SCALAR_RES = VEC_EXTRACT <VEC_LHS, LEN - (BIAS + 1)>
+	 SCALAR_RES = VEC_EXTRACT <VEC_LHS, LEN - 1>
 
 	 where VEC_LHS is the vectorized live-out result, LEN is the length of
 	 the vector, BIAS is the load-store bias.  The bias should not be used
@@ -10096,21 +10096,14 @@ vectorizable_live_operation_1 (loop_vec_info loop_vinfo, basic_block exit_bb,
       gimple_stmt_iterator gsi = gsi_last (tem);
       tree len = vect_get_loop_len (loop_vinfo, &gsi,
 				    &LOOP_VINFO_LENS (loop_vinfo),
-				    1, vectype, 0, 1);
+				    1, vectype, 0, 1, false);
       gimple_seq_add_seq (&stmts, tem);
 
-      /* BIAS + 1.  */
-      signed char biasval = LOOP_VINFO_PARTIAL_LOAD_STORE_BIAS (loop_vinfo);
-      tree bias_plus_one
-	= int_const_binop (PLUS_EXPR,
-			   build_int_cst (TREE_TYPE (len), biasval),
-			   build_one_cst (TREE_TYPE (len)));
-
-      /* LAST_INDEX = LEN - (BIAS + 1).  */
+      /* LAST_INDEX = LEN - 1.  */
       tree last_index = gimple_build (&stmts, MINUS_EXPR, TREE_TYPE (len),
-				     len, bias_plus_one);
+				     len, build_one_cst (TREE_TYPE (len)));
 
-      /* SCALAR_RES = VEC_EXTRACT <VEC_LHS, LEN - (BIAS + 1)>.  */
+      /* SCALAR_RES = VEC_EXTRACT <VEC_LHS, LEN - 1>.  */
       tree scalar_res
 	= gimple_build (&stmts, CFN_VEC_EXTRACT, TREE_TYPE (vectype),
 			vec_lhs_phi, last_index);
@@ -10731,7 +10724,7 @@ vect_record_loop_len (loop_vec_info loop_vinfo, vec_loop_lens *lens,
 tree
 vect_get_loop_len (loop_vec_info loop_vinfo, gimple_stmt_iterator *gsi,
 		   vec_loop_lens *lens, unsigned int nvectors, tree vectype,
-		   unsigned int index, unsigned int factor)
+		   unsigned int index, unsigned int factor, bool adjusted)
 {
   rgroup_controls *rgl = &(*lens)[nvectors - 1];
   bool use_bias_adjusted_len =
@@ -10764,7 +10757,7 @@ vect_get_loop_len (loop_vec_info loop_vinfo, gimple_stmt_iterator *gsi,
 	}
     }
 
-  if (use_bias_adjusted_len)
+  if (use_bias_adjusted_len && adjusted)
     return rgl->bias_adjusted_ctrl;
 
   tree loop_len = rgl->controls[index];
@@ -10787,6 +10780,36 @@ vect_get_loop_len (loop_vec_info loop_vinfo, gimple_stmt_iterator *gsi,
 	    gsi_insert_seq_before (gsi, seq, GSI_SAME_STMT);
 	}
     }
+  else if (factor && rgl->factor != factor)
+    {
+      /* The number of scalars per iteration, scalar occupied bytes and
+	 the number of vectors are both compile-time constants.  */
+      unsigned int nscalars_per_iter
+	= exact_div (nvectors * TYPE_VECTOR_SUBPARTS (vectype),
+		     LOOP_VINFO_VECT_FACTOR (loop_vinfo)).to_constant ();
+      unsigned int rglvecsize = rgl->factor * rgl->max_nscalars_per_iter;
+      unsigned int vecsize = nscalars_per_iter * factor;
+      if (rglvecsize > vecsize)
+	{
+	  unsigned int fac = rglvecsize / vecsize;
+	  tree iv_type = LOOP_VINFO_RGROUP_IV_TYPE (loop_vinfo);
+	  gimple_seq seq = NULL;
+	  loop_len = gimple_build (&seq, EXACT_DIV_EXPR, iv_type, loop_len,
+				   build_int_cst (iv_type, fac));
+	  if (seq)
+	    gsi_insert_seq_before (gsi, seq, GSI_SAME_STMT);
+	}
+      else if (rglvecsize < vecsize)
+	{
+	  unsigned int fac = vecsize / rglvecsize;
+	  tree iv_type = LOOP_VINFO_RGROUP_IV_TYPE (loop_vinfo);
+	  gimple_seq seq = NULL;
+	  loop_len = gimple_build (&seq, MULT_EXPR, iv_type, loop_len,
+				   build_int_cst (iv_type, fac));
+	  if (seq)
+	    gsi_insert_seq_before (gsi, seq, GSI_SAME_STMT);
+	}
+    }
   return loop_len;
 }
 
@@ -10804,7 +10827,7 @@ vect_gen_loop_len_mask (loop_vec_info loop_vinfo, gimple_stmt_iterator *gsi,
   tree all_one_mask = build_all_ones_cst (vectype);
   tree all_zero_mask = build_zero_cst (vectype);
   tree len = vect_get_loop_len (loop_vinfo, gsi, lens, nvectors, vectype, index,
-				factor);
+				factor, true);
   tree bias = build_int_cst (intQI_type_node,
 			     LOOP_VINFO_PARTIAL_LOAD_STORE_BIAS (loop_vinfo));
   tree len_mask = make_temp_ssa_name (TREE_TYPE (stmt), NULL, "vec_len_mask");
@@ -11075,7 +11098,7 @@ vect_update_ivs_after_vectorizer_for_early_breaks (loop_vec_info loop_vinfo)
     {
       vec_loop_lens *lens = &LOOP_VINFO_LENS (loop_vinfo);
       tree_vf = vect_get_loop_len (loop_vinfo, NULL, lens, 1,
-				   NULL_TREE, 0, 0);
+				   NULL_TREE, 0, 0, true);
     }
 
   tree iter_var;

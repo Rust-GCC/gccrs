@@ -2678,7 +2678,7 @@ extern void vect_record_loop_len (loop_vec_info, vec_loop_lens *, unsigned int,
 				  tree, unsigned int);
 extern tree vect_get_loop_len (loop_vec_info, gimple_stmt_iterator *,
 			       vec_loop_lens *, unsigned int, tree,
-			       unsigned int, unsigned int);
+			       unsigned int, unsigned int, bool);
 extern tree vect_gen_loop_len_mask (loop_vec_info, gimple_stmt_iterator *,
 				    gimple_stmt_iterator *, vec_loop_lens *,
 				    unsigned int, tree, tree, unsigned int,

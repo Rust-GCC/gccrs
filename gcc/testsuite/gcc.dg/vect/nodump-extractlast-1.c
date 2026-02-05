@@ -1,4 +1,4 @@
-/* Check for a bung in the treatment of LOOP_VINFO_PARTIAL_LOAD_STORE_BIAS when
+/* Check for a bug in the treatment of LOOP_VINFO_PARTIAL_LOAD_STORE_BIAS when
    using VEC_EXTRACT.  */
 /* { dg-require-effective-target vect_int } */
 
