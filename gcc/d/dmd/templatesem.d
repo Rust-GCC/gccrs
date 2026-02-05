@@ -2778,7 +2778,9 @@ private MATCH matchArg(TemplateParameter tp, Scope* sc, RootObject oarg, size_t 
             if (!sa || si != sa)
                 return matchArgNoMatch();
         }
-        dedtypes[i] = sa;
+        // Note: Dsymbol can't have type qualifiers, so use type if it has them
+        // https://github.com/dlang/dmd/issues/17959
+        dedtypes[i] = ta && ta.mod ? ta : sa;
 
         if (psparam)
         {
@@ -5569,7 +5571,7 @@ bool TemplateInstance_semanticTiargs(Loc loc, Scope* sc, Objects* tiargs, int fl
  *      errorHelper = delegate to send error message to if not null
  */
 void functionResolve(ref MatchAccumulator m, Dsymbol dstart, Loc loc, Scope* sc, Objects* tiargs,
-    Type tthis, ArgumentList argumentList, void delegate(const(char)*) scope errorHelper = null)
+    Type tthis, ArgumentList argumentList, void delegate(const(char)*, Loc argloc = Loc.initial) scope errorHelper = null)
 {
     version (none)
     {
@@ -7598,7 +7600,39 @@ MATCH deduceType(scope RootObject o, scope Scope* sc, scope Type tparam,
                 //printf("\ttf  = %s\n", tf.toChars());
                 const dim = tf.parameterList.length;
 
-                if (tof.parameterList.length != dim || tof.parameterList.varargs != tf.parameterList.varargs)
+                if (tof.parameterList.varargs != tf.parameterList.varargs)
+                    return;
+
+                // https://github.com/dlang/dmd/issues/19905
+                // Resolve and expand TypeTuples (e.g. from AliasSeq) in tof's parameters
+                // before comparing counts. We can't call TypeFunction.typeSemantic because
+                // the return type may contain unresolved template parameters.
+                Types* expandedTypes;
+                foreach (pto; *tof.parameterList.parameters)
+                {
+                    Type pt = pto.type;
+                    if (!reliesOnTemplateParameters(pt, parameters[inferStart .. parameters.length]))
+                    {
+                        pt = pt.syntaxCopy().typeSemantic(e.loc, sc);
+                        if (pt.ty == Terror)
+                            return;
+                    }
+                    if (auto tt = pt.isTypeTuple())
+                    {
+                        if (!expandedTypes)
+                            expandedTypes = new Types();
+                        foreach (arg; *tt.arguments)
+                            expandedTypes.push(arg.type);
+                    }
+                    else
+                    {
+                        if (!expandedTypes)
+                            expandedTypes = new Types();
+                        expandedTypes.push(pt);
+                    }
+                }
+
+                if (!expandedTypes || expandedTypes.length != dim)
                     return;
 
                 auto tiargs = new Objects();
@@ -7614,15 +7648,19 @@ MATCH deduceType(scope RootObject o, scope Scope* sc, scope Type tparam,
                         ++u;
                     }
                     assert(u < dim);
-                    Parameter pto = tof.parameterList[u];
-                    if (!pto)
+                    Type t = (*expandedTypes)[u];
+                    if (!t)
                         break;
-                    Type t = pto.type.syntaxCopy(); // https://issues.dlang.org/show_bug.cgi?id=11774
                     if (reliesOnTemplateParameters(t, parameters[inferStart .. parameters.length]))
                         return;
-                    t = t.typeSemantic(e.loc, sc);
-                    if (t.ty == Terror)
-                        return;
+                    // https://issues.dlang.org/show_bug.cgi?id=11774
+                    t = t.syntaxCopy();
+                    if (!t.deco)
+                    {
+                        t = t.typeSemantic(e.loc, sc);
+                        if (t.ty == Terror)
+                            return;
+                    }
                     tiargs.push(t);
                 }
 

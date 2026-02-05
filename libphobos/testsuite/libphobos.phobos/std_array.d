@@ -27,25 +27,29 @@
     static assert(isRandomAccessRange!dstring == true);
 }
 
-@safe pure unittest
+@safe pure nothrow unittest
 {
     import std.array;
 
-    import std.range : repeat, zip;
     import std.typecons : tuple;
-    import std.range.primitives : autodecodeStrings;
-    auto a = assocArray(zip([0, 1, 2], ["a", "b", "c"])); // aka zipMap
-    static assert(is(typeof(a) == string[int]));
-    assert(a == [0:"a", 1:"b", 2:"c"]);
 
     auto b = assocArray([ tuple("foo", "bar"), tuple("baz", "quux") ]);
     static assert(is(typeof(b) == string[string]));
     assert(b == ["foo":"bar", "baz":"quux"]);
+}
+
+@safe pure nothrow unittest
+{
+    import std.array;
+
+    import std.range.primitives : autodecodeStrings;
+    import std.range : repeat;
 
     static if (autodecodeStrings)
         alias achar = dchar;
     else
         alias achar = immutable(char);
+
     auto c = assocArray("ABCD", true.repeat);
     static assert(is(typeof(c) == bool[achar]));
     bool[achar] expected = ['D':true, 'A':true, 'B':true, 'C':true];

@@ -476,7 +476,13 @@ template ThompsonOps(E, S, bool withInput:true)
             uint n = re.ir[t.pc].data;
             Group!DataIndex* source = re.ir[t.pc].localRef ? t.matches.ptr : backrefed.ptr;
             assert(source);
-            if (source[n].begin == source[n].end)//zero-width Backref!
+            if (!source[n])  // unmatched group
+            {
+                recycle(t);
+                t = worklist.fetch();
+                return t != null;
+            }
+            if (source[n].begin == source[n].end)  // zero-width match
             {
                 t.pc += IRL!(IR.Backref);
                 return true;
@@ -681,7 +687,7 @@ template ThompsonOps(E,S, bool withInput:false)
         return state.popState(e);
     }
 
-    // special case of zero-width backref
+    // special case of zero-width or unmatched backref
     static bool op(IR code:IR.Backref)(E e, S* state)
     {
         with(e) with(state)
@@ -689,7 +695,9 @@ template ThompsonOps(E,S, bool withInput:false)
             uint n = re.ir[t.pc].data;
             Group!DataIndex* source = re.ir[t.pc].localRef ? t.matches.ptr : backrefed.ptr;
             assert(source);
-            if (source[n].begin == source[n].end)//zero-width Backref!
+            if (!source[n])  // unmatched group
+                return popState(e);
+            if (source[n].begin == source[n].end)  // zero-width match
             {
                 t.pc += IRL!(IR.Backref);
                 return true;

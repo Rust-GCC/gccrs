@@ -1516,12 +1516,12 @@ private void resolveHelper(TypeQualified mt, Loc loc, Scope* sc, Dsymbol s, Dsym
             if (const n = importHint(id.toString()))
                 error(loc, "`%s` is not defined, perhaps `import %.*s;` ?", p, cast(int)n.length, n.ptr);
             else if (auto s2 = sc.search_correct(id))
-                error(loc, "undefined identifier `%s`, did you mean %s `%s`?", p, s2.kind(), s2.toChars());
+                error(mt.loc, "undefined identifier `%s`, did you mean %s `%s`?", p, s2.kind(), s2.toChars());
             else if (const q = search_correct_C(id))
-                error(loc, "undefined identifier `%s`, did you mean `%s`?", p, q);
+                error(mt.loc, "undefined identifier `%s`, did you mean `%s`?", p, q);
             else if ((id == Id.This   && sc.getStructClassScope()) ||
                      (id == Id._super && sc.getClassScope()))
-                error(loc, "undefined identifier `%s`, did you mean `typeof(%s)`?", p, p);
+                error(mt.loc, "undefined identifier `%s`, did you mean `typeof(%s)`?", p, p);
             else
                 error(mt.loc, "undefined identifier `%s`", p);
         }
@@ -1529,9 +1529,9 @@ private void resolveHelper(TypeQualified mt, Loc loc, Scope* sc, Dsymbol s, Dsym
             if (const n = cIncludeHint(id.toString()))
                 error(loc, "`%s` is not defined, perhaps `#include %.*s` ?", p, cast(int)n.length, n.ptr);
             else if (auto s2 = sc.search_correct(id))
-                error(loc, "undefined identifier `%s`, did you mean %s `%s`?", p, s2.kind(), s2.toChars());
+                error(mt.loc, "undefined identifier `%s`, did you mean %s `%s`?", p, s2.kind(), s2.toChars());
             else
-                error(loc, "undefined identifier `%s`", p);
+                error(mt.loc, "undefined identifier `%s`", p);
         }
 
         pt = Type.terror;
@@ -2165,7 +2165,7 @@ extern(D) Expressions* resolveNamedArgs(TypeFunction tf, ArgumentList argumentLi
  *      MATCHxxxx
  */
 extern (D) MATCH callMatch(FuncDeclaration fd, TypeFunction tf, Type tthis, ArgumentList argumentList,
-        int flag = 0, void delegate(const(char)*) scope errorHelper = null, Scope* sc = null)
+        int flag = 0, void delegate(const(char)*, Loc argloc = Loc.initial) scope errorHelper = null, Scope* sc = null)
 {
     //printf("callMatch() fd: %s, tf: %s\n", fd ? fd.ident.toChars() : "null", toChars(tf));
     MATCH match = MATCH.exact; // assume exact match
@@ -2330,12 +2330,20 @@ extern (D) MATCH callMatch(FuncDeclaration fd, TypeFunction tf, Type tthis, Argu
             if (errorHelper)
             {
                 if (u >= args.length)
+                {
                     getMatchError(buf, "missing argument for parameter #%d: `%s`",
                                   u + 1, parameterToChars(p, tf, false));
+                }
                 // If an error happened previously, `pMessage` was already filled
                 else if (buf.length == 0)
+                {
                     buf.writestring(tf.getParamError(args[u], p));
-
+                    if(args[u].loc !is Loc.initial)
+                    {
+                        errorHelper(buf.peekChars(),args[u].loc);
+                        return MATCH.nomatch;
+                    }
+                }
                 errorHelper(buf.peekChars());
             }
             return MATCH.nomatch;
@@ -4919,7 +4927,7 @@ Expression defaultInitLiteral(Type t, Loc loc)
             return ErrorExp.get();
 
         auto structelems = new Expressions(ts.sym.nonHiddenFields());
-        uint offset = 0;
+        ulong bitoffset = 0;
         foreach (j; 0 .. structelems.length)
         {
             VarDeclaration vd = ts.sym.fields[j];
@@ -4929,7 +4937,11 @@ Expression defaultInitLiteral(Type t, Loc loc)
                 error(loc, "circular reference to `%s`", vd.toPrettyChars());
                 return ErrorExp.get();
             }
-            if (vd.offset < offset || vd.type.size() == 0)
+            ulong vbitoffset = vd.offset * 8;
+            auto vbf = vd.isBitFieldDeclaration();
+            if (vbf)
+                vbitoffset += vbf.bitOffset;
+            if (vbitoffset < bitoffset || vd.type.size() == 0)
                 e = null;
             else if (vd._init)
             {
@@ -4943,7 +4955,12 @@ Expression defaultInitLiteral(Type t, Loc loc)
             if (e && e.op == EXP.error)
                 return e;
             if (e)
-                offset = vd.offset + cast(uint)vd.type.size();
+            {
+                if (vbf)
+                    bitoffset = vbitoffset + vbf.fieldWidth;
+                else
+                    bitoffset = vbitoffset + vd.type.size() * 8;
+            }
             (*structelems)[j] = e;
         }
         auto structinit = new StructLiteralExp(loc, ts.sym, structelems);

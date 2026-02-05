@@ -239,11 +239,13 @@ struct Param
     FeatureState dtorFields;     // destruct fields of partially constructed objects
                                  // https://issues.dlang.org/show_bug.cgi?id=14246
     FeatureState systemVariables; // limit access to variables marked @system from @safe code
+    d_bool useFastDFA;             // Use fast data flow analysis engine
 
     CHECKENABLE useInvariants;     // generate class invariant checks
     CHECKENABLE useIn;             // generate precondition checks
     CHECKENABLE useOut;            // generate postcondition checks
     CHECKENABLE useArrayBounds;    // when to generate code for array bounds checks
+    CHECKENABLE useNullCheck;      // when to generate code for null dereference checks
     CHECKENABLE useAssert;         // when to generate code for assert()'s
     CHECKENABLE useSwitchError;    // check for switches without a default
     CHECKENABLE boundscheck;       // state of -boundscheck switch

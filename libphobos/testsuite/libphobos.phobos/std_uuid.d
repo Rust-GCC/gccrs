@@ -43,6 +43,18 @@
         
 }
 
+@system unittest
+{
+    import std.uuid;
+
+            import std.datetime : DateTime, SysTime;
+            SysTime st = DateTime(2025, 8, 19, 10, 38, 45);
+            UUID u = UUID(st);
+            SysTime o = u.v7Timestamp();
+            assert(o == st, st.toString() ~ " | " ~ o.toString());
+        
+}
+
 @safe pure unittest
 {
     import std.uuid;
@@ -189,6 +201,26 @@
     auto uuid3 = randomUUID(gen);
 }
 
+@system unittest
+{
+    import std.uuid;
+
+    auto f = new shared MonotonicUUIDsFactory;
+
+    UUID[10] monotonic;
+
+    foreach (ref u; monotonic)
+        u = f.createUUIDv7_method3;
+}
+
+@system unittest
+{
+    import std.uuid;
+
+    UUID u = timestampRandomUUID();
+    assert(u.uuidVersion == UUID.Version.timestampRandom);
+}
+
 @safe unittest
 {
     import std.uuid;
@@ -248,5 +280,32 @@
     assert(ex.input == inputUUID);
     assert(ex.position == 0);
     assert(ex.reason == UUIDParsingException.Reason.tooLittle);
+}
+
+@system unittest
+{
+    import std.uuid;
+
+    import std.datetime : DateTime, SysTime;
+
+    SysTime st = DateTime(2025, 8, 19, 10, 38, 45);
+    UUID u = UUID(st);
+    assert(u.uuidVersion == UUID.Version.timestampRandom);
+    SysTime o = u.v7Timestamp();
+    assert(o == st, st.toString() ~ " | " ~ o.toString());
+    string s = u.toString();
+    UUID u2 = UUID(s);
+    SysTime o2 = u2.v7Timestamp();
+    assert(o2 == st, st.toString() ~ " | " ~ o2.toString());
+}
+
+@system unittest
+{
+    import std.uuid;
+
+    import std.datetime : DateTime, SysTime;
+    UUID u = UUID("0198c2b2-c5a8-7a0f-a1db-86aac7906c7b");
+    auto d = DateTime(2025,8,19);
+    assert((cast(DateTime) u.v7Timestamp()).year == d.year);
 }
 

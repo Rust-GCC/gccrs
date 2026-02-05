@@ -2753,7 +2753,7 @@ build_vthis (AggregateDeclaration *decl)
 	{
 	  tree ffo = get_frameinfo (fdo);
 	  if (FRAMEINFO_CREATES_FRAME (ffo) || FRAMEINFO_STATIC_CHAIN (ffo)
-	      || fdo->hasNestedFrameRefs ())
+	      || dmd::hasNestedFrameRefs (fdo))
 	    vthis_value = get_frame_for_symbol (decl);
 	  else if (cd != NULL)
 	    {
@@ -2997,7 +2997,7 @@ get_frameinfo (FuncDeclaration *fd)
       FRAMEINFO_CREATES_FRAME (ffi) = 1;
       FRAMEINFO_IS_CLOSURE (ffi) = 1;
     }
-  else if (fd->hasNestedFrameRefs ())
+  else if (dmd::hasNestedFrameRefs (fd))
     {
       /* Functions with nested refs must create a static frame for local
 	 variables to be referenced from.  */

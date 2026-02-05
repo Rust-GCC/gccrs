@@ -375,7 +375,8 @@ if (is(Unqual!Char == Char))
             case '0': flZero = true; ++i; break;
             case ' ': flSpace = true; ++i; break;
             case '*':
-                if (isDigit(trailing[++i]))
+                ++i;
+                if (i < trailing.length && isDigit(trailing[i]))
                 {
                     // a '*' followed by digits and '$' is a
                     // positional format
@@ -427,17 +428,17 @@ if (is(Unqual!Char == Char))
                 }
                 break;
             case ',':
-                // Precision
+                // Separator (default 3 digits)
                 ++i;
                 flSeparator = true;
 
-                if (trailing[i] == '*')
+                if (i < trailing.length && trailing[i] == '*')
                 {
                     ++i;
                     // read result
                     separators = DYNAMIC;
                 }
-                else if (isDigit(trailing[i]))
+                else if (i < trailing.length && isDigit(trailing[i]))
                 {
                     auto tmp = trailing[i .. $];
                     separators = parse!int(tmp);
@@ -449,7 +450,7 @@ if (is(Unqual!Char == Char))
                     separators = 3;
                 }
 
-                if (trailing[i] == '?')
+                if (i < trailing.length && trailing[i] == '?')
                 {
                     dynamicSeparatorChar = true;
                     ++i;
@@ -458,9 +459,11 @@ if (is(Unqual!Char == Char))
                 break;
             case '.':
                 // Precision
-                if (trailing[++i] == '*')
+                ++i;
+                if (i < trailing.length && trailing[i] == '*')
                 {
-                    if (isDigit(trailing[++i]))
+                    ++i;
+                    if (i < trailing.length && isDigit(trailing[i]))
                     {
                         // a '.*' followed by digits and '$' is a
                         // positional precision
@@ -476,7 +479,7 @@ if (is(Unqual!Char == Char))
                         precision = DYNAMIC;
                     }
                 }
-                else if (trailing[i] == '-')
+                else if (i < trailing.length && trailing[i] == '-')
                 {
                     // negative precision, as good as 0
                     precision = 0;
@@ -484,7 +487,7 @@ if (is(Unqual!Char == Char))
                     parse!int(tmp); // skip digits
                     i = trailing.length - tmp.length;
                 }
-                else if (isDigit(trailing[i]))
+                else if (i < trailing.length && isDigit(trailing[i]))
                 {
                     auto tmp = trailing[i .. $];
                     precision = parse!int(tmp);
@@ -938,6 +941,11 @@ FormatSpec!Char singleSpec(Char)(Char[] fmt)
     assertThrown!FormatException(singleSpec("Test%2.3e"));
     assertThrown!FormatException(singleSpec("%2.3eTest"));
     assertThrown!FormatException(singleSpec("%%"));
+    assertThrown!FormatException(singleSpec("%."));
+    assertThrown!FormatException(singleSpec("%.*"));
+    assertThrown!FormatException(singleSpec("%*"));
+    assertThrown!FormatException(singleSpec("%,"));
+    assertThrown!FormatException(singleSpec("%,*"));
 }
 
 // @@@DEPRECATED_[2.107.0]@@@

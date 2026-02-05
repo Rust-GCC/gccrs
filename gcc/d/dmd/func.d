@@ -631,46 +631,6 @@ extern (C++) class FuncDeclaration : Declaration
         return toAliasFunc().isThis() !is null;
     }
 
-    // Determine if a function is pedantically virtual
-    final bool isVirtualMethod()
-    {
-        if (toAliasFunc() != this)
-            return toAliasFunc().isVirtualMethod();
-
-        //printf("FuncDeclaration::isVirtualMethod() %s\n", toChars());
-        if (!isVirtual())
-            return false;
-        // If it's a final method, and does not override anything, then it is not virtual
-        if (isFinalFunc() && foverrides.length == 0)
-        {
-            return false;
-        }
-        return true;
-    }
-
-    // Determine if function goes into virtual function pointer table
-    bool isVirtual() const
-    {
-        if (toAliasFunc() != this)
-            return toAliasFunc().isVirtual();
-
-        auto p = toParent();
-
-        if (!isMember || !p.isClassDeclaration)
-            return false;
-
-        if (p.isClassDeclaration.classKind == ClassKind.objc)
-            return .objc.isVirtual(this);
-
-        version (none)
-        {
-            printf("FuncDeclaration::isVirtual(%s)\n", toChars());
-            printf("isMember:%p isStatic:%d private:%d ctor:%d !Dlinkage:%d\n", isMember(), isStatic(), visibility == Visibility.Kind.private_, isCtorDeclaration(), linkage != LINK.d);
-            printf("result is %d\n", isMember() && !(isStatic() || visibility == Visibility.Kind.private_ || visibility == Visibility.Kind.package_) && p.isClassDeclaration() && !(p.isInterfaceDeclaration() && isFinalFunc()));
-        }
-        return !(isStatic() || visibility.kind == Visibility.Kind.private_ || visibility.kind == Visibility.Kind.package_) && !(p.isInterfaceDeclaration() && isFinalFunc());
-    }
-
     final bool isFinalFunc() const
     {
         if (toAliasFunc() != this)
@@ -693,53 +653,9 @@ extern (C++) class FuncDeclaration : Declaration
         return (cd !is null) && (cd.storage_class & STC.final_);
     }
 
-    bool addPreInvariant()
-    {
-        auto ad = isThis();
-        return (ad && global.params.useInvariants == CHECKENABLE.on && (visibility.kind == Visibility.Kind.protected_ || visibility.kind == Visibility.Kind.public_ || visibility.kind == Visibility.Kind.export_) && !this.isNaked);
-    }
-
-    bool addPostInvariant()
-    {
-        auto ad = isThis();
-        return (ad && ad.inv && global.params.useInvariants == CHECKENABLE.on && (visibility.kind == Visibility.Kind.protected_ || visibility.kind == Visibility.Kind.public_ || visibility.kind == Visibility.Kind.export_) && !this.isNaked);
-    }
-
     override const(char)* kind() const
     {
         return this.isGenerated ? "generated function" : "function";
-    }
-
-    /***********************************************
-     * Determine if function's variables are referenced by a function
-     * nested within it.
-     */
-    final bool hasNestedFrameRefs()
-    {
-        if (closureVars.length)
-            return true;
-
-        /* If a virtual function has contracts, assume its variables are referenced
-         * by those contracts, even if they aren't. Because they might be referenced
-         * by the overridden or overriding function's contracts.
-         * This can happen because frequire and fensure are implemented as nested functions,
-         * and they can be called directly by an overriding function and the overriding function's
-         * context had better match, or
-         * https://issues.dlang.org/show_bug.cgi?id=7335 will bite.
-         */
-        if (fdrequire || fdensure)
-            return true;
-
-        if (foverrides.length && isVirtualMethod())
-        {
-            for (size_t i = 0; i < foverrides.length; i++)
-            {
-                FuncDeclaration fdv = foverrides[i];
-                if (fdv.hasNestedFrameRefs())
-                    return true;
-            }
-        }
-        return false;
     }
 
     /*********************************************
@@ -939,21 +855,6 @@ extern (C++) final class FuncLiteralDeclaration : FuncDeclaration
         return tok == TOK.delegate_ ? super.isThis() : null;
     }
 
-    override bool isVirtual() const
-    {
-        return false;
-    }
-
-    override bool addPreInvariant()
-    {
-        return false;
-    }
-
-    override bool addPostInvariant()
-    {
-        return false;
-    }
-
     override const(char)* kind() const
     {
         // GCC requires the (char*) casts
@@ -1003,21 +904,6 @@ extern (C++) final class CtorDeclaration : FuncDeclaration
              isMoveCtor ? "move constructor" : "constructor";
     }
 
-    override bool isVirtual() const
-    {
-        return false;
-    }
-
-    override bool addPreInvariant()
-    {
-        return false;
-    }
-
-    override bool addPostInvariant()
-    {
-        return (isThis() && vthis && global.params.useInvariants == CHECKENABLE.on);
-    }
-
     override void accept(Visitor v)
     {
         v.visit(this);
@@ -1040,21 +926,6 @@ extern (C++) final class PostBlitDeclaration : FuncDeclaration
         auto dd = new PostBlitDeclaration(loc, endloc, storage_class, ident);
         FuncDeclaration.syntaxCopy(dd);
         return dd;
-    }
-
-    override bool isVirtual() const
-    {
-        return false;
-    }
-
-    override bool addPreInvariant()
-    {
-        return false;
-    }
-
-    override bool addPostInvariant()
-    {
-        return (isThis() && vthis && global.params.useInvariants == CHECKENABLE.on);
     }
 
     override void accept(Visitor v)
@@ -1092,23 +963,6 @@ extern (C++) final class DtorDeclaration : FuncDeclaration
         return "destructor";
     }
 
-    override bool isVirtual() const
-    {
-        // D dtor's don't get put into the vtbl[]
-        // this is a hack so that extern(C++) destructors report as virtual, which are manually added to the vtable
-        return vtblIndex != -1;
-    }
-
-    override bool addPreInvariant()
-    {
-        return (isThis() && vthis && global.params.useInvariants == CHECKENABLE.on);
-    }
-
-    override bool addPostInvariant()
-    {
-        return false;
-    }
-
     override void accept(Visitor v)
     {
         v.visit(this);
@@ -1142,21 +996,6 @@ extern (C++) class StaticCtorDeclaration : FuncDeclaration
     override final inout(AggregateDeclaration) isThis() inout @nogc nothrow pure @safe
     {
         return null;
-    }
-
-    override final bool isVirtual() const @nogc nothrow pure @safe
-    {
-        return false;
-    }
-
-    override final bool addPreInvariant() @nogc nothrow pure @safe
-    {
-        return false;
-    }
-
-    override final bool addPostInvariant() @nogc nothrow pure @safe
-    {
-        return false;
     }
 
     override void accept(Visitor v)
@@ -1223,21 +1062,6 @@ extern (C++) class StaticDtorDeclaration : FuncDeclaration
         return null;
     }
 
-    override final bool isVirtual() const
-    {
-        return false;
-    }
-
-    override final bool addPreInvariant()
-    {
-        return false;
-    }
-
-    override final bool addPostInvariant()
-    {
-        return false;
-    }
-
     override void accept(Visitor v)
     {
         v.visit(this);
@@ -1288,21 +1112,6 @@ extern (C++) final class InvariantDeclaration : FuncDeclaration
         return id;
     }
 
-    override bool isVirtual() const
-    {
-        return false;
-    }
-
-    override bool addPreInvariant()
-    {
-        return false;
-    }
-
-    override bool addPostInvariant()
-    {
-        return false;
-    }
-
     override void accept(Visitor v)
     {
         v.visit(this);
@@ -1348,21 +1157,6 @@ extern (C++) final class UnitTestDeclaration : FuncDeclaration
         return null;
     }
 
-    override bool isVirtual() const
-    {
-        return false;
-    }
-
-    override bool addPreInvariant()
-    {
-        return false;
-    }
-
-    override bool addPostInvariant()
-    {
-        return false;
-    }
-
     override void accept(Visitor v)
     {
         v.visit(this);
@@ -1390,21 +1184,6 @@ extern (C++) final class NewDeclaration : FuncDeclaration
     override const(char)* kind() const
     {
         return "allocator";
-    }
-
-    override bool isVirtual() const
-    {
-        return false;
-    }
-
-    override bool addPreInvariant()
-    {
-        return false;
-    }
-
-    override bool addPostInvariant()
-    {
-        return false;
     }
 
     override void accept(Visitor v)

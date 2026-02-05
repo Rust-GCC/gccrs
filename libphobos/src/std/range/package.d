@@ -1807,7 +1807,7 @@ pure @safe nothrow unittest
 /**
 Choose one of two ranges at runtime depending on a Boolean condition.
 
-The ranges may be different, but they must have compatible element types (i.e.
+The ranges may have different capabilities, but they must have compatible element types (i.e.
 `CommonType` must exist for the two element types). The result is a range
 that offers the weakest capabilities of the two (e.g. `ForwardRange` if $(D
 R1) is a random-access range and `R2` is a forward range).
@@ -1914,7 +1914,7 @@ private struct ChooseResult(Ranges...)
                 break sw;
             }
 
-            default: assert(false);
+            default: assert(false, "index exceeds `Ranges.length`");
         }
     }
 
@@ -2280,7 +2280,7 @@ pure @safe nothrow unittest
 /**
 Choose one of multiple ranges at runtime.
 
-The ranges may be different, but they must have compatible element types. The
+The ranges may have different capabilities, but they must have compatible element types. The
 result is a range that offers the weakest capabilities of all `Ranges`.
 
 Params:
@@ -2288,9 +2288,8 @@ Params:
     rs = two or more ranges
 
 Returns:
-    The indexed range. If rs consists of only one range, the return type is an
-    alias of that range's type.
- */
+    A range type dependent on `Ranges`.
+*/
 auto chooseAmong(Ranges...)(size_t index, return scope Ranges rs)
 if (Ranges.length >= 2
         && allSatisfy!(isInputRange, staticMap!(Unqual, Ranges))
@@ -2306,12 +2305,9 @@ if (Ranges.length >= 2
     {
         import std.algorithm.comparison : equal;
 
-        int[4] sarr1 = [1, 2, 3, 4];
-        int[2] sarr2 = [5, 6];
-        int[1] sarr3 = [7];
-        auto arr1 = sarr1[];
-        auto arr2 = sarr2[];
-        auto arr3 = sarr3[];
+        scope arr1 = [1, 2, 3, 4];
+        scope arr2 = [5, 6];
+        scope arr3 = [7];
 
         {
             auto s = chooseAmong(0, arr1, arr2, arr3);
@@ -2321,23 +2317,43 @@ if (Ranges.length >= 2
             s.popFront();
             assert(equal(t, only(1, 2, 3, 4)));
         }
+        // result elements can be modified
         {
             auto s = chooseAmong(1, arr1, arr2, arr3);
             assert(s.length == 2);
             s.front = 8;
             assert(equal(s, only(8, 6)));
-        }
-        {
-            auto s = chooseAmong(1, arr1, arr2, arr3);
-            assert(s.length == 2);
             s[1] = 9;
             assert(equal(s, only(8, 9)));
+            // original range was mutated
+            assert(equal(s, arr2));
         }
+        return 0;
+    }
+    // works at runtime
+    auto a = test();
+    // and at compile time
+    static b = test();
+}
+
+/// Result has minimum capabilities of all given ranges
+@safe nothrow pure @nogc unittest
+{
+    auto test()
+    {
+        import std.algorithm.comparison : equal;
+
+        scope arr1 = [1, 2, 3, 4];
+        scope arr2 = [8, 9];
+        scope arr3 = [10];
+
+        // slicing
         {
             auto s = chooseAmong(1, arr2, arr1, arr3)[1 .. 3];
             assert(s.length == 2);
             assert(equal(s, only(2, 3)));
         }
+        // bidirectional
         {
             auto s = chooseAmong(0, arr1, arr2, arr3);
             assert(s.length == 4);
@@ -2348,6 +2364,7 @@ if (Ranges.length >= 2
             s.back = 3;
             assert(equal(s, only(1, 2, 3)));
         }
+        // range primitives
         {
             uint[5] foo = [1, 2, 3, 4, 5];
             uint[5] bar = [6, 7, 8, 9, 10];
@@ -2359,6 +2376,7 @@ if (Ranges.length >= 2
             assert(c.moveBack() == 10);
             assert(c.moveAt(4) == 10);
         }
+        // composability
         {
             import std.range : cycle;
             auto s = chooseAmong(0, cycle(arr2), cycle(arr3));

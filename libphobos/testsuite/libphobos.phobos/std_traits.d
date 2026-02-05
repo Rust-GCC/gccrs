@@ -154,14 +154,7 @@
     static assert(pstc.length == 4); // number of parameters
     static assert(pstc[0] == STC.ref_);
     static assert(pstc[1] == STC.out_);
-    version (none)
-    {
-        // TODO: When the DMD PR (dlang/dmd#11474) gets merged,
-        // remove the versioning and the second test
-        static assert(pstc[2] == STC.in_);
-        // This is the current behavior, before `in` is fixed to not be an alias
-        static assert(pstc[2] == STC.scope_);
-    }
+    static assert(pstc[2] == STC.in_);
     static assert(pstc[3] == STC.none);
 }
 
@@ -1638,6 +1631,20 @@
     static assert( isCallable!f);
     static assert( isCallable!g);
 
+    auto fp = &f;
+    static assert( isCallable!fp);
+    static assert( isCallable!((int x) {}));
+
+    int x;
+    static assert(!isCallable!x);
+    auto d = () => x;
+    static assert( isCallable!d);
+}
+
+@safe unittest
+{
+    import std.traits;
+
     class C { int opCall(int) { return 0; } }
     auto c = new C;
     struct S { static int opCall(int) { return 0; } }
@@ -1647,7 +1654,6 @@
     static assert( isCallable!(c.opCall));
     static assert( isCallable!S);
     static assert( isCallable!(I.value));
-    static assert( isCallable!((int a) { return a; }));
 
     static assert(!isCallable!I);
 }
@@ -1658,13 +1664,17 @@
 
     void f()() { }
     T g(T = int)(T x) { return x; }
+    int h(T)();
     struct S1 { static void opCall()() { } }
     struct S2 { static T opCall(T = int)(T x) {return x; } }
 
     static assert( isCallable!f);
     static assert( isCallable!g);
+    static assert(!isCallable!h);
     static assert( isCallable!S1);
     static assert( isCallable!S2);
+
+    static assert(!isCallable!((x) {}));
 }
 
 @safe unittest
@@ -2368,6 +2378,14 @@
 
     static void func(){}
     static assert(isFunction!func);
+    static assert(isFunction!(typeof(func)));
+
+    auto fp = &func; // function pointer
+    static assert(!isFunction!fp);
+
+    int i;
+    int f2() => i; // nested function
+    static assert(isFunction!f2);
 
     struct S
     {

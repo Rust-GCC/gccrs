@@ -295,6 +295,9 @@
 
         assert(SysTime(DateTime(2016, 1, 1, 0, 59, 59)) - hours(1) ==
                SysTime(DateTime(2015, 12, 31, 23, 59, 59)));
+
+        assert(SysTime(DateTime(2015, 12, 31, 23, 59, 59)) + seconds(1) ==
+               seconds(1) + SysTime(DateTime(2015, 12, 31, 23, 59, 59)));
     
 }
 

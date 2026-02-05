@@ -886,6 +886,10 @@ d_post_options (const char ** fn)
 	? CHECKENABLEoff : CHECKENABLEon;
     }
 
+  /* Checks for `null' pointer dereferences are default off.  */
+  if (global.params.useNullCheck == CHECKENABLEdefault)
+    global.params.useNullCheck = CHECKENABLEoff;
+
   /* When not linking against D runtime, turn off all code generation that
      would otherwise reference it.  */
   if (global.params.betterC)

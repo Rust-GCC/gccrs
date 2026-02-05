@@ -16,10 +16,20 @@ $(TR $(TH Function Name) $(TH Description)
         $(TD Joins a couple of functions into one that executes the original
         functions independently and returns a tuple with all the results.
     ))
+    $(TR $(TD $(LREF bind))
+        $(TD Passes the fields of a struct as arguments to a function.
+    ))
     $(TR $(TD $(LREF compose), $(LREF pipe))
         $(TD Join a couple of functions into one that executes the original
         functions one after the other, using one function's result for the next
         function's argument.
+    ))
+    $(TR $(TD $(LREF ctEval))
+        $(TD Enforces the evaluation of an expression during compile-time.
+    ))
+    $(TR $(TD $(LREF curry))
+        $(TD Converts a multi-argument function into a series of single-argument
+        functions. `f(x, y) == curry(f)(x)(y)`
     ))
     $(TR $(TD $(LREF lessThan), $(LREF greaterThan), $(LREF equalTo))
         $(TD Ready-made predicate functions to compare two values.
@@ -34,10 +44,6 @@ $(TR $(TH Function Name) $(TH Description)
         $(TD Creates a function that binds the first argument of a given function
         to a given value.
     ))
-    $(TR $(TD $(LREF curry))
-        $(TD Converts a multi-argument function into a series of single-argument
-        functions.  f(x, y) == curry(f)(x)(y)
-    ))
     $(TR $(TD $(LREF reverseArgs))
         $(TD Predicate that reverses the order of its arguments.
     ))
@@ -47,12 +53,6 @@ $(TR $(TH Function Name) $(TH Description)
     $(TR $(TD $(LREF unaryFun), $(LREF binaryFun))
         $(TD Create a unary or binary function from a string. Most often
         used when defining algorithms on ranges.
-    ))
-    $(TR $(TD $(LREF bind))
-        $(TD Passes the fields of a struct as arguments to a function.
-    ))
-    $(TR $(TD $(LREF ctEval))
-        $(TD Enforces the evaluation of an expression during compile-time.
     ))
 ))
 
@@ -911,7 +911,7 @@ template partial(alias fun, alias arg)
 
 /**
 Takes a function of (potentially) many arguments, and returns a function taking
-one argument and returns a callable taking the rest.  f(x, y) == curry(f)(x)(y)
+one argument and returns a callable taking the rest. `f(x, y) == curry(f)(x)(y)`
 
 Params:
     F = a function taking at least one argument

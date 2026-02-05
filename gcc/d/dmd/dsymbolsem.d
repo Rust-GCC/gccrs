@@ -1613,6 +1613,8 @@ bool checkDeprecated(Dsymbol d, Loc loc, Scope* sc)
     else
         deprecation(loc, "%s `%s` is deprecated", d.kind, d.toPrettyChars);
 
+    deprecationSupplemental(d.loc, "`%s` is declared here", d.toErrMsg);
+
     if (auto ti = sc.parent ? sc.parent.isInstantiated() : null)
         ti.printInstantiationTrace(Classification.deprecation);
     else if (auto ti = sc.parent ? sc.parent.isTemplateInstance() : null)
@@ -2479,7 +2481,9 @@ private extern(C++) final class DsymbolSemanticVisitor : Visitor
                         if (i == 0)
                             einit = Expression.combine(te.e0, einit);
                     }
-                    ti = new ExpInitializer(einit.loc, einit);
+                    // Use the original initializer location, not the tuple element's location,
+                    // so error messages point to the declaration site
+                    ti = new ExpInitializer(dsym._init ? dsym._init.loc : einit.loc, einit);
                 }
                 else
                     ti = dsym._init ? dsym._init.syntaxCopy() : null;
@@ -3174,6 +3178,14 @@ private extern(C++) final class DsymbolSemanticVisitor : Visitor
         if (dsym.semanticRun >= PASS.semanticdone)
             return;
 
+        const bool isAnonymous = dsym.isAnonymous();
+        if (isAnonymous && dsym._init)
+        {
+             .error(dsym._init.loc, "anonymous bitfield cannot have default initializer");
+             dsym._init = null;
+             dsym.errors = true;
+        }
+
         visit(cast(VarDeclaration)dsym);
         if (dsym.errors)
             return;
@@ -3195,8 +3207,12 @@ private extern(C++) final class DsymbolSemanticVisitor : Visitor
         if (!dsym.type.isIntegral())
         {
             // C11 6.7.2.1-5
-            error(width.loc, "bitfield type `%s` is not an integer type", dsym.type.toChars());
+            if (isAnonymous)
+                error(dsym.loc, "anonymous bitfield cannot be of non-integral type `%s`", dsym.type.toChars());
+            else
+                error(dsym.loc, "bitfield `%s` cannot be of non-integral type `%s`", dsym.toChars(), dsym.type.toChars());
             dsym.errors = true;
+            return;
         }
         if (!width.isIntegerExp())
         {
@@ -3204,19 +3220,33 @@ private extern(C++) final class DsymbolSemanticVisitor : Visitor
             dsym.errors = true;
         }
         const uwidth = width.toInteger(); // uwidth is unsigned
-        if (uwidth == 0 && !dsym.isAnonymous())
+        if (uwidth == 0 && !isAnonymous)
         {
-            error(width.loc, "bitfield `%s` has zero width", dsym.toChars());
+            error(dsym.loc, "bitfield `%s` cannot have zero width", dsym.toChars());
             dsym.errors = true;
         }
-        const sz = dsym.type.size();
-        if (sz == SIZE_INVALID)
-            dsym.errors = true;
-        const max_width = sz * 8;
-        if (uwidth > max_width)
+        if (cast(long)uwidth < 0)
         {
-            error(width.loc, "width `%lld` of bitfield `%s` does not fit in type `%s`", cast(long)uwidth, dsym.toChars(), dsym.type.toChars());
+            if (isAnonymous)
+                error(width.loc, "anonymous bitfield has negative width `%lld`", cast(long)uwidth);
+            else
+                error(width.loc, "bitfield `%s` has negative width `%lld`", dsym.toChars(), cast(long)uwidth);
             dsym.errors = true;
+        }
+        else
+        {
+            const sz = dsym.type.size();
+            if (sz == SIZE_INVALID)
+                dsym.errors = true;
+            const max_width = sz * 8;
+            if (uwidth > max_width)
+            {
+                if (isAnonymous)
+                    error(width.loc, "width `%lld` of anonymous bitfield does not fit in type `%s`", cast(long)uwidth, dsym.type.toChars());
+                else
+                    error(width.loc, "width `%lld` of bitfield `%s` does not fit in type `%s`", cast(long)uwidth, dsym.toChars(), dsym.type.toChars());
+                dsym.errors = true;
+            }
         }
         dsym.fieldWidth = cast(uint)uwidth;
     }
@@ -7040,10 +7070,20 @@ bool determineFields(AggregateDeclaration ad)
         {
             if (ad == tvs.sym)
             {
+                if (ad.type.ty == Terror || ad.errors)
+                    return 1;   // failed already
+
                 const(char)* psz = (v.type.toBasetype().ty == Tsarray) ? "static array of " : "";
-                .error(ad.loc, "%s `%s` cannot have field `%s` with %ssame struct type", ad.kind, ad.toPrettyChars, v.toChars(), psz);
-                ad.type = Type.terror;
-                ad.errors = true;
+                if (!v.isAnonymous())
+                    .error(v.loc, "%s `%s` cannot have field `%s` with %ssame struct type", ad.kind, ad.toPrettyChars, v.toChars(), psz);
+                else
+                    .error(v.loc, "%s `%s` cannot have anonymous field with %ssame struct type", ad.kind, ad.toPrettyChars, psz);
+                // Don't cache errors from speculative semantic
+                if (!global.gag)
+                {
+                    ad.type = Type.terror;
+                    ad.errors = true;
+                }
                 return 1;
             }
         }
@@ -8398,8 +8438,8 @@ private extern(C++) class SetFieldOffsetVisitor : Visitor
             ad.structsize, ad.alignsize,
             isunion);
 
-        //printf("\t%s: memalignsize = %d\n", toChars(), memalignsize);
-        //printf(" addField '%s' to '%s' at offset %d, size = %d\n", toChars(), ad.toChars(), offset, memsize);
+        //printf("\t%s: memalignsize = %d\n", vd.toChars(), memalignsize);
+        //printf(" addField '%s' to '%s' at offset %d, size = %d\n", vd.toChars(), ad.toChars(), fieldState.offset, memsize);
     }
 
     override void visit(BitFieldDeclaration bfd)
@@ -8433,10 +8473,9 @@ private extern(C++) class SetFieldOffsetVisitor : Visitor
         uint memalignsize = target.fieldalign(t);   // size of member for alignment purposes
         if (log) printf("          memsize: %u memalignsize: %u\n", memsize, memalignsize);
 
-        if (bfd.fieldWidth == 0 && !anon)
-            error(bfd.loc, "named bit fields cannot have 0 width");
-        if (bfd.fieldWidth > memsize * 8)
-            error(bfd.loc, "bit field width %d is larger than type", bfd.fieldWidth);
+        // Handled in dsymbolSemantic as errors
+        assert(bfd.fieldWidth != 0 || anon, "named bit fields cannot have 0 width");
+        assert(bfd.fieldWidth <= memsize * 8, "bit field width is larger than type");
 
         const style = target.c.bitFieldStyle;
         if (style != TargetC.BitFieldStyle.MS && style != TargetC.BitFieldStyle.Gcc_Clang)
@@ -9921,7 +9960,7 @@ private extern(C++) class FinalizeSizeVisitor : Visitor
 
     override void visit(StructDeclaration sd)
     {
-        //printf("StructDeclaration::finalizeSize() %s, sizeok = %d\n", toChars(), sizeok);
+        //printf("StructDeclaration::finalizeSize() %s, sizeok = %d\n", sd.toChars(), sd.sizeok);
         assert(sd.sizeok != Sizeok.done);
 
         if (sd.sizeok == Sizeok.inProcess)
@@ -9952,14 +9991,28 @@ private extern(C++) class FinalizeSizeVisitor : Visitor
         if (sd.structsize == 0)
         {
             sd.hasNoFields = true;
-            sd.alignsize = 1;
+
+            // alignsize has already been set when the struct consists only of
+            // zero sized fields.
+            if (sd.alignsize == 0)
+                sd.alignsize = 1;
 
             // A fine mess of what size a zero sized struct should be
             final switch (sd.classKind)
             {
                 case ClassKind.d:
-                case ClassKind.cpp:
                     sd.structsize = 1;
+                    break;
+
+                case ClassKind.cpp:
+                    if (sd.fields.length == 0 ||
+                        target.c.bitFieldStyle == TargetC.BitFieldStyle.MS)
+                    {
+                        // Give struct a size when there's no named fields
+                        sd.structsize = 1;
+                    }
+                    else
+                        sd.structsize = 0;
                     break;
 
                 case ClassKind.c:

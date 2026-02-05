@@ -158,6 +158,9 @@
 
         assert(DateTime(2016, 1, 1, 0, 59, 59) - hours(1) ==
                DateTime(2015, 12, 31, 23, 59, 59));
+
+        assert(DateTime(2015, 12, 31, 23, 59, 59) + hours(1) ==
+               hours(1) + DateTime(2015, 12, 31, 23, 59, 59));
     
 }
 
@@ -555,6 +558,8 @@
 
         assert(Date(2016, 1, 1) - days(1) == Date(2015, 12, 31));
         assert(Date(2004, 3, 1) - days(4) == Date(2004, 2, 26));
+
+        assert(Date(2004, 2, 26) + days(4) == days(4) + Date(2004, 2, 26));
     
 }
 
@@ -797,6 +802,8 @@
         assert(TimeOfDay(12, 12, 12) - minutes(1) == TimeOfDay(12, 11, 12));
         assert(TimeOfDay(12, 12, 12) - hours(1) == TimeOfDay(11, 12, 12));
         assert(TimeOfDay(0, 0, 0) - seconds(1) == TimeOfDay(23, 59, 59));
+
+        assert(TimeOfDay(12, 12, 12) + seconds(1) == seconds(1) + TimeOfDay(12, 12, 12));
     
 }
 

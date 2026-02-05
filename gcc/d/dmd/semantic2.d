@@ -320,6 +320,48 @@ private extern(C++) final class Semantic2Visitor : Visitor
         vd.semanticRun = PASS.semantic2done;
     }
 
+    override void visit(BitFieldDeclaration bfd)
+    {
+        visit(cast(VarDeclaration)bfd);
+        if (bfd.semanticRun != PASS.semantic2done)
+            return;
+
+        if (bfd.fieldWidth == 0)
+            return;
+
+        if (!bfd._init)
+            return;
+
+        auto ei = bfd._init.isExpInitializer();
+        if (!ei)
+            return;
+
+        if (!ei.exp.isIntegerExp())
+            return;
+
+        import dmd.intrange;
+        auto value = getIntRange(ei.exp);
+
+        const bool isUnsigned = bfd.type.isUnsigned();
+        auto bounds = IntRange(
+            SignExtendedNumber(bfd.getMinMax(Id.min), !isUnsigned),
+            SignExtendedNumber(bfd.getMinMax(Id.max), false)
+        );
+
+        if (!bounds.contains(value))
+        {
+            const uwidth = bfd.fieldWidth;
+            error(ei.loc, "default initializer `%s` is not representable as bitfield type `%s:%lld`",
+                  ei.exp.toChars(), bfd.type.toBasetype().toChars(), cast(long)uwidth);
+            if (isUnsigned)
+                errorSupplemental(bfd.loc, "bitfield `%s` default initializer must be a value between `%llu..%llu`",
+                                  bfd.toChars(), bounds.imin.value, bounds.imax.value);
+            else
+                errorSupplemental(bfd.loc, "bitfield `%s` default initializer must be a value between `%lld..%lld`",
+                                  bfd.toChars(), bounds.imin.value, bounds.imax.value);
+        }
+    }
+
     override void visit(Module mod)
     {
         //printf("Module::semantic2('%s'): parent = %p\n", toChars(), parent);

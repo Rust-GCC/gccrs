@@ -603,6 +603,21 @@
 {
     import std.typecons;
 
+        Nullable!int a = 5;
+        Nullable!int b = 0;
+        assert(a > b);
+        assert(b < a);
+
+        Nullable!int c;
+        assert(c < a);
+        assert(c < b);
+    
+}
+
+@safe unittest
+{
+    import std.typecons;
+
         Nullable!int empty;
         Nullable!int a = 42;
         Nullable!int b = 42;

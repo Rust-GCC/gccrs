@@ -60,6 +60,40 @@
     assert(i == 3); //cache has accessed 3. It is still stored internally by cache.
 }
 
+@safe unittest
+{
+    import std.algorithm.iteration;
+
+    import std.algorithm.comparison : equal;
+    import std.range, std.stdio;
+    import std.typecons : tuple;
+
+    ulong counter = 0;
+    double fun(int x)
+    {
+        ++counter;
+        // http://en.wikipedia.org/wiki/Quartic_function
+        return ( (x + 4.0) * (x + 1.0) * (x - 1.0) * (x - 3.0) ) / 14.0 + 0.5;
+    }
+    // With lazyCache, front won't be evaluated until requested
+    counter = 0;
+    auto result = iota(-4, 5).map!(a => tuple(a, fun(a)))()
+                            .lazyCache();
+    // At this point, no elements have been evaluated yet
+    assert(counter == 0);
+    // Now access the first element
+    auto firstElement = result.front;
+    // Only now the first element is evaluated
+    assert(counter == 1);
+    // Process the result lazily
+    auto filtered = result.filter!(a => a[1] < 0)()
+                         .map!(a => a[0])();
+    // Values are calculated as we iterate
+    assert(equal(filtered, [-3, -2, 2]));
+    // Only elements we actually accessed were evaluated
+    assert(counter == iota(-4, 5).length);
+}
+
 @safe @nogc unittest
 {
     import std.algorithm.iteration;
@@ -769,30 +803,6 @@ nothrow pure @safe unittest
     import std.algorithm.iteration;
 
     import std.algorithm.comparison : equal;
-    import std.range.primitives : front;
-
-    assert(equal(splitter!(a => a == '|')("a|bc|def"), [ "a", "bc", "def" ]));
-    assert(equal(splitter!(a => a == ' ')("hello  world"), [ "hello", "", "world" ]));
-
-    int[] a = [ 1, 2, 0, 0, 3, 0, 4, 5, 0 ];
-    int[][] w = [ [1, 2], [], [3], [4, 5], [] ];
-    assert(equal(splitter!(a => a == 0)(a), w));
-
-    a = [ 0 ];
-    assert(equal(splitter!(a => a == 0)(a), [ (int[]).init, (int[]).init ]));
-
-    a = [ 0, 1 ];
-    assert(equal(splitter!(a => a == 0)(a), [ [], [1] ]));
-
-    w = [ [0], [1], [2] ];
-    assert(equal(splitter!(a => a.front == 1)(w), [ [[0]], [[2]] ]));
-}
-
-@safe unittest
-{
-    import std.algorithm.iteration;
-
-    import std.algorithm.comparison : equal;
 
     assert("|ab|".splitter('|').equal([ "", "ab", "" ]));
     assert("ab".splitter('|').equal([ "ab" ]));
@@ -839,8 +849,32 @@ nothrow pure @safe unittest
     import std.algorithm.comparison : equal;
     import std.algorithm.iteration : splitter;
 
-    string str = "Hello World!";
-    assert(str.splitter!(isWhite).equal(["Hello", "World!"]));
+    string str = "Hello World\t!";
+    assert(str.splitter!(isWhite).equal(["Hello", "World", "!"]));
+}
+
+@safe unittest
+{
+    import std.algorithm.iteration;
+
+    import std.algorithm.comparison : equal;
+    import std.range.primitives : front;
+
+    assert(equal(splitter!(a => a == '|')("a|bc|def"), [ "a", "bc", "def" ]));
+    assert(equal(splitter!(a => a == ' ')("hello  world"), [ "hello", "", "world" ]));
+
+    int[] a = [ 1, 2, 0, 0, 3, 0, 4, 5, 0 ];
+    int[][] w = [ [1, 2], [], [3], [4, 5], [] ];
+    assert(equal(splitter!(a => a == 0)(a), w));
+
+    a = [ 0 ];
+    assert(equal(splitter!(a => a == 0)(a), [ (int[]).init, (int[]).init ]));
+
+    a = [ 0, 1 ];
+    assert(equal(splitter!(a => a == 0)(a), [ [], [1] ]));
+
+    w = [ [0], [1], [2] ];
+    assert(equal(splitter!(a => a.front == 1)(w), [ [[0]], [[2]] ]));
 }
 
 @safe pure unittest

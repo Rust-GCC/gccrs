@@ -3684,6 +3684,83 @@ struct Nullable(T)
     private bool _isNull = true;
 
     /**
+     * Compares two Nullable values.
+     *
+     * - If one is null and the other is not, the null one is considered smaller.
+     * - If both are null, they are equal.
+     * - If both are non-null, compares the payloads.
+     *
+     * Returns:
+     *     Negative if `this < rhs`, zero if equal, positive if `this > rhs`.
+     */
+    int opCmp(this This, Rhs)(auto ref Rhs rhs)
+    if (is(Rhs == Nullable!U, U) && is(typeof(this.get < rhs.get)))
+    {
+        if (_isNull)
+            return rhs.isNull ? 0 : -1;
+        else if (rhs.isNull)
+            return 1;
+        else if (_value.payload < rhs.get)
+            return -1;
+        else if (_value.payload > rhs.get)
+            return 1;
+        else
+            return 0;
+    }
+
+    /// Basic `Nullable` comparison test
+    @safe unittest
+    {
+        Nullable!int a = 5;
+        Nullable!int b = 0;
+        assert(a > b);
+        assert(b < a);
+
+        Nullable!int c;
+        assert(c < a);
+        assert(c < b);
+    }
+
+    // Not suitable for documentation.
+    @safe unittest
+    {
+        Nullable!int a = 5;
+        Nullable!int b = 0;
+        Nullable!int c;
+        assert(a.opCmp(a) == 0); // Do not use `opEquals`, i.e. no `a == a`.
+        assert(b.opCmp(b) == 0);
+        assert(c.opCmp(c) == 0);
+        assert(b.opCmp(c) != 0);
+    }
+
+    // Advanced `Nullable` comparison test
+    @safe unittest
+    {
+        Nullable!int  a = 5;
+        Nullable!byte b = 0;
+
+        assert(a > b);
+        assert(b < a);
+        assert(a.opCmp(a) == 0);
+        assert(b.opCmp(b) == 0);
+
+        Nullable!float f = 2;
+        assert(a > f);
+        assert(b < f);
+        assert(f.opCmp(f) == 0);
+
+        Nullable!short s = 5;
+        assert(a == s);
+
+        a.nullify();
+        assert(a.opCmp(s) != 0);
+        assert(a < b);
+
+        b.nullify();
+        assert(a.opCmp(b) == 0);
+    }
+
+    /**
      * Constructor initializing `this` with `value`.
      *
      * Params:
@@ -11237,6 +11314,32 @@ unittest
     assert(s.get().i == 1);
     s = S(2);
     assert(s.get().i == 2);
+}
+
+/*
+    `Nullable` comparison with a user-defined type whose `opCmp` is not `const`
+
+    This tests for the following pitfall:
+        template `opCmp` is not callable using argument types `!()(Nullable!(NonConstOpCmp))`
+    This test cannot embedded into `Nullable` because of the following issue:
+        template instance `core.internal.traits._hasIndirections!(NonConstOpCmp)` recursive expansion
+ */
+@safe unittest
+{
+    static struct NonConstOpCmp
+    {
+        int value;
+
+        // non-const on purpose!
+        int opCmp(NonConstOpCmp b) => (this.value > b.value) - (this.value < b.value);
+    }
+
+    auto a = nullable(NonConstOpCmp(0));
+    auto b = nullable(NonConstOpCmp(1));
+    assert(a < b);
+
+    Nullable!NonConstOpCmp c;
+    assert(c < a);
 }
 
 /// The old version of $(LREF SafeRefCounted), before $(LREF borrow) existed.

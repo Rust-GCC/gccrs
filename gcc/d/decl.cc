@@ -759,7 +759,7 @@ public:
        `assert(0)` if ever read.  */
     if (d->type->isTypeNoreturn ())
       {
-	if (!d->isDataseg () && !d->isMember ()
+	if (!d->isDataseg () && !d->isMember () && !d->isRef ()
 	    && d->_init && !d->_init->isVoidInitializer ())
 	  {
 	    /* Evaluate RHS for side effects first.  */

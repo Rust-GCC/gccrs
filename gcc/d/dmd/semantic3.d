@@ -77,6 +77,12 @@ import dmd.templateparamsem;
 import dmd.typesem;
 import dmd.visitor;
 
+version (IN_GCC) { /* Not using Fast DFA */ }
+else version = FastDFA;
+
+version (FastDFA)
+    import dmd.dfa.entry;
+
 enum LOG = false;
 
 
@@ -288,7 +294,7 @@ private extern(C++) final class Semantic3Visitor : Visitor
             return;
         funcdecl.semanticRun = PASS.semantic3;
         funcdecl.hasSemantic3Errors = false;
-        funcdecl.saferD = sc.previews.safer;
+        funcdecl.saferD = sc.previews.safer && !sc.inCfile;
 
         if (!funcdecl.type || funcdecl.type.ty != Tfunction)
             return;
@@ -1096,6 +1102,10 @@ private extern(C++) final class Semantic3Visitor : Visitor
             else
             {
                 auto a = new Statements();
+
+                size_t expectedSize = (funcdecl.parameters ? funcdecl.parameters.length : 0) + 7;
+                    a.reserve(expectedSize);
+
                 // Merge in initialization of 'out' parameters
                 if (funcdecl.parameters)
                 {
@@ -1418,6 +1428,16 @@ private extern(C++) final class Semantic3Visitor : Visitor
             funcdecl.type.isTypeFunction().isLive)
         {
             oblive(funcdecl);
+        }
+
+        version (FastDFA)
+        {
+            if (global.params.useFastDFA && global.errors == oldErrors && funcdecl.fbody && funcdecl.type.ty != Terror)
+            {
+                // Don't run DFA if there are errors,
+                //  this is a costly enough operation that it warrents the explicit check.
+                dfaEntry(funcdecl, sc);
+            }
         }
 
         /* If this function had instantiated with gagging, error reproduction will be
@@ -1872,6 +1892,10 @@ extern (D) bool checkClosure(FuncDeclaration fd)
     }
 
     FuncDeclarations a;
+
+    if (fd.closureVars.length > 0)
+        a.reserve(fd.closureVars.length);
+
     foreach (v; fd.closureVars)
     {
         foreach (f; v.nestedrefs)

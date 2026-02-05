@@ -123,19 +123,30 @@
     assert(countUntil("日本語", '語')   == 2);
     assert(countUntil("日本語", "五") == -1);
     assert(countUntil("日本語", '五') == -1);
-    assert(countUntil([0, 7, 12, 22, 9], [12, 22]) == 2);
-    assert(countUntil([0, 7, 12, 22, 9], 9) == 4);
-    assert(countUntil!"a > b"([0, 7, 12, 22, 9], 20) == 3);
 
-    // supports multiple needles
+    const arr = [0, 7, 12, 22, 9];
+    assert(countUntil(arr, [12, 22]) == 2);
+    assert(countUntil(arr, 9) == 4);
+    assert(countUntil!"a > b"(arr, 20) == 3);
+}
+
+@safe unittest
+{
+    import std.algorithm.searching;
+
     auto res = "...hello".countUntil("ha", "he");
     assert(res.steps == 3);
-    assert(res.needle == 1);
+    assert(res.needle == 1); // the 2nd needle matched
 
     // returns -1 if no needle was found
     res = "hello".countUntil("ha", "hu");
     assert(res.steps == -1);
     assert(res.needle == -1);
+
+    // `steps` can also be implicitly compared
+    const arr = [0, 7, 12, 22, 9];
+    assert(countUntil(arr, 22, 12) == 2); // `12` found after 2 elements
+    assert(countUntil(arr, 5, 6) == -1);
 }
 
 @safe unittest

@@ -2966,6 +2966,43 @@ public:
         return newSocket;
     }
 
+    /**
+     * Accept an incoming connection and retrieve the peer `Address`. If the
+     * socket is blocking, `accept` waits for a connection request. Throws
+     * `SocketAcceptException` if unable to _accept. See `accepting` for use
+     * with derived classes.
+     */
+    Socket accept(out Address peerAddress) @trusted
+    {
+        Address addr = createAddress();
+        socklen_t nameLen = addr.nameLen;
+        auto newsock = cast(socket_t).accept(sock, addr.name, &nameLen);
+        if (socket_t.init == newsock)
+            throw new SocketAcceptException("Unable to accept socket connection");
+
+        addr.setNameLen(nameLen);
+        peerAddress = addr;
+
+        Socket newSocket;
+        try
+        {
+            newSocket = accepting();
+            assert(newSocket.sock == socket_t.init);
+
+            newSocket.setSock(newsock);
+            version (Windows)
+                newSocket._blocking = _blocking;                 //inherits blocking mode
+            newSocket._family = _family;             //same family
+        }
+        catch (Throwable o)
+        {
+            _close(newsock);
+            throw o;
+        }
+
+        return newSocket;
+    }
+
     /// Disables sends and/or receives.
     void shutdown(SocketShutdown how) @trusted nothrow @nogc
     {
@@ -3687,6 +3724,10 @@ class UdpSocket: Socket
             {
                 checkAttributes!q{@trusted}; assert(0);
             }
+            @trusted Socket accept(out Address peerAddress)
+            {
+                checkAttributes!q{@trusted}; assert(0);
+            }
             nothrow @nogc @trusted void shutdown(SocketShutdown how)
             {
                 checkAttributes!q{nothrow @nogc @trusted};
@@ -3858,4 +3899,27 @@ Socket[2] socketPair() @trusted
     auto buf = new ubyte[data.length];
     pair[1].receive(buf);
     assert(buf == data);
+}
+
+// Test accept with peer address
+@safe unittest
+{
+    auto listener = new TcpSocket();
+    scope(exit) listener.close();
+    listener.setOption(SocketOptionLevel.SOCKET, SocketOption.REUSEADDR, true);
+    listener.bind(new InternetAddress(INADDR_LOOPBACK, InternetAddress.PORT_ANY));
+    auto serverAddr = listener.localAddress;
+    listener.listen(1);
+
+    auto client = new TcpSocket(serverAddr);
+    scope(exit) client.close();
+
+    Address peerAddress;
+    auto server = listener.accept(peerAddress);
+    scope(exit) server.close();
+
+    assert(peerAddress !is null);
+    assert(peerAddress.addressFamily == AddressFamily.INET);
+    // The peer address should match the client's local address
+    assert(peerAddress.toAddrString() == client.localAddress.toAddrString());
 }

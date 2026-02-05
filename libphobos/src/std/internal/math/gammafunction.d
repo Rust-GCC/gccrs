@@ -22,6 +22,9 @@ module std.internal.math.gammafunction;
 import std.internal.math.errorfunction;
 import std.math;
 import core.math : fabs, sin, sqrt;
+import std.algorithm.iteration : fold;
+import std.algorithm.searching : any;
+import std.range : only;
 
 pure:
 nothrow:
@@ -76,6 +79,34 @@ immutable real[8] logGammaDenominator = [
     -0x1.25e17184848c66d2p+22L, -0x1.301303b99a614a0ap+19L, -0x1.09e76ab41ae965p+15L,
     -0x1.00f95ced9e5f54eep+9L, 1.0L
 ];
+
+
+/* Given a set of real values where at least one of them is NaN, it returns the
+ * NaN with the largest payload. This implements the NaN handling policy
+ * followed by D operators that accept multiple floating point arguments.
+ *
+ * It preserves the sign of the NaN. Also, when multiple NaNs have the largest
+ * payload, it returns the leftmost one. This means that
+ * largestNaNPayload(-NaN(1), NaN(1)) returns -NaN(1), and
+ * largestNaNPayload(NaN(1), -NaN(1)) returns NaN(1).
+ *
+ * When none of the provided values are NaN, the result is undefined.
+ */
+real largestNaNPayload(real first, real[] rest ...)
+{
+    return fold!((a, b) => cmp(abs(a), abs(b)) >= 0 ? a : b)(rest, first);
+}
+
+@safe unittest
+{
+    assert(largestNaNPayload(NaN(0)) is NaN(0));
+    assert(largestNaNPayload(NaN(1), NaN(0)) is NaN(1));
+    assert(largestNaNPayload(NaN(2), NaN(3), NaN(1)) is NaN(3));
+    assert(largestNaNPayload(-10.0L, -real.nan, 1.0L) is -real.nan);
+    assert(largestNaNPayload(-NaN(1), NaN(1)) is -NaN(1));
+    assert(largestNaNPayload(NaN(1), -NaN(1)) is NaN(1));
+}
+
 
 /*
  * Helper function: Gamma function computed by Stirling's formula.
@@ -1012,14 +1043,7 @@ enum real BETA_BIGINV = 1.084202172485504434007e-19L;
  */
 real betaIncomplete(real aa, real bb, real xx )
 {
-    // If any parameters are NaN, return the NaN with the largest payload.
-    if (isNaN(aa) || isNaN(bb) || isNaN(xx))
-    {
-        // With cmp,
-        // -NaN(larger) < -NaN(smaller) < -inf < inf < NaN(smaller) < NaN(larger).
-        const largerParam = cmp(abs(aa), abs(bb)) >= 0 ? aa : bb;
-        return cmp(abs(xx), abs(largerParam)) >= 0 ? xx : largerParam;
-    }
+    if (only(aa, bb, xx).any!isNaN) return largestNaNPayload(xx, aa, bb);
 
     // domain errors
     if (signbit(aa) == 1 || signbit(bb) == 1) return real.nan;
@@ -1762,14 +1786,6 @@ real betaDistPowerSeries(real a, real b, real x )
 /***************************************
  *  Incomplete gamma integral and its complement
  *
- * These functions are defined by
- *
- *   gammaIncomplete = ( $(INTEGRATE 0, x) $(POWER e, -t) $(POWER t, a-1) dt )/ $(GAMMA)(a)
- *
- *  gammaIncompleteCompl(a,x)   =   1 - gammaIncomplete(a,x)
- * = ($(INTEGRATE x, &infin;) $(POWER e, -t) $(POWER t, a-1) dt )/ $(GAMMA)(a)
- *
- * In this implementation both arguments must be positive.
  * The integral is evaluated by either a power series or
  * continued fraction expansion, depending on the relative
  * values of a and x.
@@ -1777,22 +1793,26 @@ real betaDistPowerSeries(real a, real b, real x )
 real gammaIncomplete(real a, real x )
 in
 {
-   assert(x >= 0);
-   assert(a > 0);
+    if (!any!isNaN(only(a, x)))
+    {
+        assert(x >= 0);
+        assert(signbit(a) == 0);
+    }
 }
 do
 {
-    /* left tail of incomplete gamma function:
-     *
-     *          inf.      k
-     *   a  -x   -       x
-     *  x  e     >   ----------
-     *           -     -
-     *          k=0   | (a+k+1)
-     *
-     */
-    if (x == 0)
-       return 0.0L;
+    // pass x first, so that if x and a are NaNs with the same payload but with
+    // opposite signs, return x.
+    if (any!isNaN(only(a, x))) return largestNaNPayload(x, a);
+
+    // domain violation
+    if (signbit(a) == 1 || x < 0.0L) return real.nan;
+
+    // edge cases
+    if (x == 0.0L) return 0.0L;
+    if (x is real.infinity) return 1.0L;
+    if (a is +0.0L) return 1.0L;
+    if (a is real.infinity) return 0.0L;
 
     if ( (x > 1.0L) && (x > a ) )
         return 1.0L - gammaIncompleteCompl(a,x);
@@ -1823,13 +1843,27 @@ do
 real gammaIncompleteCompl(real a, real x )
 in
 {
-   assert(x >= 0);
-   assert(a > 0);
+    if (!any!isNaN(only(a, x)))
+    {
+        assert(x >= 0);
+        assert(signbit(a) == 0);
+    }
 }
 do
 {
-    if (x == 0)
-        return 1.0L;
+    // pass x first, so that if x and a are NaNs with the same payload but with
+    // opposite signs, return x.
+    if (any!isNaN(only(a, x))) return largestNaNPayload(x, a);
+
+    // domain violation
+    if (signbit(a) == 1 || x < 0.0L) return real.nan;
+
+    // edge cases
+    if (x == 0.0L) return 1.0L;
+    if (x is real.infinity) return 0.0L;
+    if (a is +0.0L) return 0.0L;
+    if (a is real.infinity) return 1.0L;
+
     if ( (x < 1.0L) || (x < a) )
         return 1.0L - gammaIncomplete(a,x);
 
@@ -2039,6 +2073,18 @@ ihalve:
 
 @safe unittest
 {
+assert(gammaIncomplete(NaN(4), -NaN(4)) is -NaN(4));
+assert(!isNaN(gammaIncomplete(+0.0L, 1.0L)));
+assert(!isNaN(gammaIncomplete(1.0L, -0.0L)));
+assert(gammaIncomplete(+0.0L, 0.0L) == 0.0L);
+assert(gammaIncomplete(real.infinity, real.infinity) == 1.0L);
+
+assert(gammaIncompleteCompl(NaN(4), -NaN(4)) is -NaN(4));
+assert(!isNaN(gammaIncompleteCompl(+0.0L, 1.0L)));
+assert(!isNaN(gammaIncompleteCompl(1.0L, -0.0L)));
+assert(gammaIncompleteCompl(+0.0L, 0.0L) == 1.0L);
+assert(gammaIncompleteCompl(real.infinity, real.infinity) == 0.0L);
+
 //Values from Excel's GammaInv(1-p, x, 1)
 assert(fabs(gammaIncompleteComplInv(1, 0.5L) - 0.693147188044814L) < 0.00000005L);
 assert(fabs(gammaIncompleteComplInv(12, 0.99L) - 5.42818075054289L) < 0.00000005L);
