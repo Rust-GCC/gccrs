@@ -1956,6 +1956,22 @@ vect_analyze_loop_costing (loop_vec_info loop_vinfo,
       return -1;
     }
 
+  /* As we cannot use a runtime check to gate profitability for uncounted
+     loops require either an estimate or if none, at least a profitable
+     vectorization within the first vector iteration (that condition
+     will practically never be true due to the required epilog and
+     likely alignment prologue).   */
+  if (LOOP_VINFO_NITERS_UNCOUNTED_P (loop_vinfo)
+      && estimated_niter == -1
+      && min_profitable_estimate > (int) vect_vf_for_cost (loop_vinfo))
+    {
+      if (dump_enabled_p ())
+	dump_printf_loc (MSG_NOTE, vect_location,
+			 "not vectorized: no loop iteration estimate on the "
+			 "uncounted loop and not trivially profitable.\n");
+      return -1;
+    }
+
   return 1;
 }
 
