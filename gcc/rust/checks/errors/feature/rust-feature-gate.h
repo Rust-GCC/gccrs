@@ -32,7 +32,9 @@ public:
 
   using AST::DefaultASTVisitor::visit;
 
-  void check (AST::Crate &crate);
+  void check (
+    AST::Crate &crate,
+    std::vector<std::pair<Feature::Name, Error>> &parsing_feature_gate_errors);
   void visit (AST::Crate &crate) override;
 
   void visit (AST::LifetimeParam &lifetime_param) override;
