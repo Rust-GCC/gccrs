@@ -1,4 +1,4 @@
-// Copyright (C) YYYY Free Software Foundation, Inc.
+// Copyright (C) 2025-2026 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -16,6 +16,11 @@
 // along with GCC; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
-// AUTO-GENERATED -- SEE LOCAL contrib SUBDIRECTORY
+/* Included by auto-generated rust-feature-defs.h
+ *
+ * This file gathers the features required for rust-for-linux that were not
+ * available in the version targeted by the compiler.
+ */
 
-#include "rust-feature-defs-rfl.h"
+FEATURE_ACTIVE ("extended_key_value_attributes", EXTENDED_KEY_VALUE_ATTRIBUTES,
+		"1.50.0", ISSUE_SOME (78835), EDITION_NONE)
