@@ -601,6 +601,7 @@ Session::compile_crate (const char *filename)
 
   // generate crate from parser
   std::unique_ptr<AST::Crate> ast_crate = parser.parse_crate ();
+  auto &feature_gate_errors = parser.get_potential_feature_gate_errors ();
 
   // handle crate name
   handle_crate_name (filename, *ast_crate.get ());
@@ -712,7 +713,7 @@ Session::compile_crate (const char *filename)
   if (last_step == CompileOptions::CompileStep::FeatureGating)
     return;
 
-  FeatureGate (parsed_crate_features).check (parsed_crate);
+  FeatureGate (parsed_crate_features).check (parsed_crate, feature_gate_errors);
 
   if (last_step == CompileOptions::CompileStep::NameResolution)
     return;
