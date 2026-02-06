@@ -672,12 +672,7 @@ public:
     outer_attrs = std::move (new_attrs);
   }
 
-  NodeId get_node_id () const override final
-  {
-    return ExprWithoutBlock::get_node_id ();
-  }
-
-  NodeId get_macro_node_id () const { return node_id; }
+  NodeId get_node_id () const override final { return node_id; }
 
   MacroInvocData &get_invoc_data () { return invoc_data; }
 
