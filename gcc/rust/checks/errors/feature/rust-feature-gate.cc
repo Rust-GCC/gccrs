@@ -27,8 +27,12 @@
 namespace Rust {
 
 void
-FeatureGate::check (AST::Crate &crate)
+FeatureGate::check (
+  AST::Crate &crate,
+  std::vector<std::pair<Feature::Name, Error>> &parsing_feature_gate_errors)
 {
+  for (auto &pair : parsing_feature_gate_errors)
+    gate (pair.first, pair.second.locus, pair.second.message);
   visit (crate);
 }
 
