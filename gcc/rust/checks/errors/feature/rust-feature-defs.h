@@ -18,6 +18,8 @@
 
 // AUTO-GENERATED -- SEE LOCAL contrib SUBDIRECTORY
 
+#include "rust-feature-defs-rfl.h"
+
 FEATURE_ACCEPTED ("issue_5723_bootstrap", ISSUE_5723_BOOTSTRAP, "1.0.0",
 		  ISSUE_NONE)
 FEATURE_ACCEPTED ("test_accepted_feature", TEST_ACCEPTED_FEATURE, "1.0.0",
