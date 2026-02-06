@@ -393,6 +393,7 @@
     UNSPEC_SYSREG_WTI
     UNSPEC_PLDX
     UNSPEC_PLDIR
+    UNSPEC_PLDX_RANGE
     ;; Represents an SVE-style lane index, in which the indexing applies
     ;; within the containing 128-bit block.
     UNSPEC_SVE_LANE_SELECT
@@ -1385,6 +1386,15 @@
     operands[1] = gen_rtx_MEM (DImode, operands[1]);
     return "prfm\\t%0, %1";
   }
+  [(set_attr "type" "load_4")]
+)
+
+(define_insn "aarch64_rprfm"
+  [(unspec [(match_operand 0 "" "")
+	    (match_operand:DI 1 "aarch64_prefetch_operand" "Dp")
+	    (match_operand:DI 2 "memory_operand" "Q")] UNSPEC_PLDX_RANGE)]
+  ""
+  "rprfm\\t%0, %1, %2"
   [(set_attr "type" "load_4")]
 )
 

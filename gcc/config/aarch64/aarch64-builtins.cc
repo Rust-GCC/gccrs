@@ -894,6 +894,8 @@ enum aarch64_builtins
   AARCH64_WSR128,
   AARCH64_PREFETCH_PLD,
   AARCH64_PREFETCH_PLDX,
+  AARCH64_PREFETCH_PLD_RANGE,
+  AARCH64_PREFETCH_PLDX_RANGE,
   AARCH64_PREFETCH_PLI,
   AARCH64_PREFETCH_PLIX,
   AARCH64_PREFETCH_PLDIR,
@@ -2251,6 +2253,18 @@ aarch64_init_prefetch_builtins (void)
 
   ftype = build_function_type_list (void_type_node, cv_argtype, NULL_TREE);
   AARCH64_INIT_PREFETCH_BUILTINS_DECL ("__pldir", PLDIR);
+
+  ftype = build_function_type_list (void_type_node, unsigned_type_node,
+				    unsigned_type_node, integer_type_node,
+				    unsigned_type_node, integer_type_node,
+				    size_type_node, cv_argtype, NULL);
+  AARCH64_INIT_PREFETCH_BUILTINS_DECL ("__pldx_range", PLDX_RANGE);
+
+  ftype = build_function_type_list (void_type_node, unsigned_type_node,
+				    unsigned_type_node,
+				    long_long_unsigned_type_node, cv_argtype,
+				    NULL);
+  AARCH64_INIT_PREFETCH_BUILTINS_DECL ("__pld_range", PLD_RANGE);
 }
 
 /* Initialize the memory tagging extension (MTE) builtins.  */
@@ -3669,9 +3683,13 @@ require_const_argument (tree exp, unsigned int argno, HOST_WIDE_INT minval,
   auto argval = wi::to_widest (arg);
 
   if (argval < minval || argval > maxval)
-    error_at (EXPR_LOCATION (exp),
-	      "argument %d must be a constant immediate "
-	      "in range [%wd,%wd]", argno + 1, minval, maxval);
+    {
+      error_at (EXPR_LOCATION (exp),
+		"argument %d must be a constant immediate "
+		"in range [%wd,%wd]",
+		argno + 1, minval, maxval);
+      return -1;
+    }
 
   HOST_WIDE_INT retval = argval.to_shwi ();
   return retval;
@@ -3742,8 +3760,109 @@ aarch64_expand_prefetch_builtin (tree exp, int fcode)
   maybe_expand_insn (CODE_FOR_aarch64_pldx, 2, ops);
 }
 
-/* Expand an expression EXP that calls a MEMTAG built-in FCODE
-   with result going to TARGET.  */
+/* Expand a prefetch range builtin EXP.  */
+void
+aarch64_expand_prefetch_range_builtin (tree exp, int fcode)
+{
+  char prfop[11];
+  class expand_operand ops[3];
+
+  static const char *kind_s[] = {"PLD", "PST"};
+  static const char *rettn_s[] = {"KEEP", "STRM"};
+
+  int argno = 0;
+
+  int kind_id = require_const_argument (exp, argno++, 0, ARRAY_SIZE (kind_s));
+  int rettn_id = require_const_argument (exp, argno++, 0, ARRAY_SIZE (rettn_s));
+
+  rtx metadata = NULL_RTX;
+
+  switch (fcode)
+    {
+    case AARCH64_PREFETCH_PLDX_RANGE:
+      {
+	/* length must be in [-2^21,2^21).  */
+	int length = require_const_argument (exp, argno++, -(1 << 21), 1 << 21);
+
+	/* count must be in [1,2^16].  */
+	int count = require_const_argument (exp, argno++, 1, (1 << 16) + 1);
+
+	/* stride must be in [-2^21,2^21).  */
+	int stride = require_const_argument (exp, argno++, -(1 << 21), 1 << 21);
+
+	/* There is no requirements on reuse_distance other than to be a
+	   non-negative integer.  However it is meaningless for
+	   values less than 2^15 or greater than 2^29.  */
+	uint64_t reuse_distance = require_const_argument (exp, argno++, 0,
+							  LONG_LONG_MAX);
+
+	if (seen_error ())
+	  return;
+
+	gcc_assert (length >= -(1 << 21) && length < (1 << 21));
+	gcc_assert (count >= 1 && count <= (1 << 16));
+	gcc_assert (stride >= -(1 << 21) && stride < (1 << 21));
+
+	uint64_t length_bits = ((uint64_t) length) & ((1 << 22) - 1);
+	uint64_t count_bits = ((uint64_t) count - 1) & ((1 << 16) - 1);
+	uint64_t stride_bits = ((uint64_t) stride) & ((1 << 22) - 1);
+
+	uint64_t reuse_distance_bits = 0;
+	  /* If reuse distance > 512MiB or = 0 then use 0 to represent distance
+	     unknown.  */
+	if (reuse_distance != 0 && reuse_distance <= (1ULL << 29))
+	  {
+	    /* Find the largest n such that (2 ^ (15-n)) * 32KB >= reuse
+	       distance.  */
+	    if (reuse_distance <= (1ULL << 15))
+	      reuse_distance_bits = 15;
+	    else
+	      reuse_distance_bits = __builtin_clzll (reuse_distance - 1) - 34;
+
+	    /* Reuse distance is a 4 bit value.  */
+	    gcc_assert (reuse_distance_bits < (1 << 4));
+	  }
+
+	uint64_t metadata_val = length_bits
+				| (count_bits << 22)
+				| (stride_bits << 38)
+				| (reuse_distance_bits << 60);
+
+	metadata = GEN_INT (metadata_val);
+	break;
+      }
+    case AARCH64_PREFETCH_PLD_RANGE:
+      {
+	tree metadata_arg = CALL_EXPR_ARG (exp, argno++);
+	metadata = copy_to_mode_reg (E_DImode, expand_normal (metadata_arg));
+	break;
+      }
+    default:
+      gcc_unreachable ();
+    }
+
+  /* Any -1 id variable is to be user-supplied.  Here we fill these in and run
+     bounds checks on them.  "PLI" is used only implicitly by AARCH64_PLI &
+     AARCH64_PLIX, never explicitly.  */
+  rtx address = expand_expr (CALL_EXPR_ARG (exp, argno), NULL_RTX, Pmode,
+			     EXPAND_NORMAL);
+  address = gen_rtx_MEM (Pmode, address);
+
+  if (seen_error ())
+    return;
+
+  sprintf (prfop, "%s%s", kind_s[kind_id], rettn_s[rettn_id]);
+
+  rtx const_str = rtx_alloc (CONST_STRING);
+  PUT_CODE (const_str, CONST_STRING);
+  XSTR (const_str, 0) = ggc_strdup (prfop);
+
+  create_fixed_operand (&ops[0], const_str);
+  create_input_operand (&ops[1], metadata, E_DImode);
+  create_address_operand (&ops[2], address);
+  expand_insn (CODE_FOR_aarch64_rprfm, 3, ops);
+}
+
 static rtx
 aarch64_expand_builtin_memtag (int fcode, tree exp, rtx target)
 {
@@ -4596,6 +4715,10 @@ aarch64_general_expand_builtin (unsigned int fcode, tree exp, rtx target,
       return target;
     case AARCH64_PREFETCH_PLDIR:
       aarch64_expand_pldir_builtin (exp);
+      return target;
+    case AARCH64_PREFETCH_PLD_RANGE:
+    case AARCH64_PREFETCH_PLDX_RANGE:
+      aarch64_expand_prefetch_range_builtin (exp, fcode);
       return target;
     case AARCH64_BUILTIN_CHKFEAT:
       {
