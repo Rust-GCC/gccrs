@@ -498,11 +498,38 @@ check_export_name_attribute (const AST::Attribute &attribute)
       return;
     }
 
-  if (!Attributes::extract_string_literal (attribute))
+  // We don't support the whole extended_key_value_attributes feature, we only
+  // support a subset for macros. We need to emit an error message when the
+  // attribute does not contain a macro or a string literal.
+  if (attribute.has_attr_input ())
     {
-      rust_error_at (attribute.get_locus (),
-		     "attribute must be a string literal");
+      auto &attr_input = attribute.get_attr_input ();
+      switch (attr_input.get_attr_input_type ())
+	{
+	case AST::AttrInput::AttrInputType::LITERAL:
+	  {
+	    auto &literal_expr
+	      = static_cast<AST::AttrInputLiteral &> (attr_input)
+		  .get_literal ();
+	    auto lit_type = literal_expr.get_lit_type ();
+	    switch (lit_type)
+	      {
+	      case AST::Literal::LitType::STRING:
+	      case AST::Literal::LitType::RAW_STRING:
+	      case AST::Literal::LitType::BYTE_STRING:
+		return;
+	      default:
+		break;
+	      }
+	    break;
+	  }
+	case AST::AttrInput::AttrInputType::MACRO:
+	  return;
+	default:
+	  break;
+	}
     }
+  rust_error_at (attribute.get_locus (), "attribute must be a string literal");
 }
 
 static void
