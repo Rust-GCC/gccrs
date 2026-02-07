@@ -306,6 +306,9 @@ package body Exp_Ch6 is
    --  Expand simple return from function. In the case where we are returning
    --  from a function body this is called by Expand_N_Simple_Return_Statement.
 
+   function Get_Function_Entity (N : Node_Id) return Entity_Id;
+   --  Get the entity of function call N, or raise Program_Error if not found
+
    procedure Insert_Post_Call_Actions (N : Node_Id; Post_Call : List_Id);
    --  Insert the Post_Call list previously produced by routine Expand_Actuals
    --  or Expand_Call_Helper into the tree.
@@ -8143,6 +8146,23 @@ package body Exp_Ch6 is
       Compute_Returns_By_Ref (Subp);
    end Freeze_Subprogram;
 
+   -------------------------
+   -- Get_Function_Entity --
+   -------------------------
+
+   function Get_Function_Entity (N : Node_Id) return Entity_Id is
+   begin
+      if Is_Entity_Name (Name (N)) then
+         return Entity (Name (N));
+
+      elsif Nkind (Name (N)) = N_Explicit_Dereference then
+         return Etype (Name (N));
+
+      else
+         raise Program_Error;
+      end if;
+   end Get_Function_Entity;
+
    --------------------------
    -- Has_BIP_Extra_Formal --
    --------------------------
@@ -9036,12 +9056,13 @@ package body Exp_Ch6 is
      (Allocator     : Node_Id;
       Function_Call : Node_Id)
    is
-      Acc_Type          : constant Entity_Id  := Etype (Allocator);
-      Loc               : constant Source_Ptr := Sloc (Function_Call);
-      Func_Call         : constant Node_Id    := Unqual_Conv (Function_Call);
+      Acc_Type    : constant Entity_Id  := Etype (Allocator);
+      Loc         : constant Source_Ptr := Sloc (Function_Call);
+      Func_Call   : constant Node_Id    := Unqual_Conv (Function_Call);
+      Func_Id     : constant Entity_Id  := Get_Function_Entity (Func_Call);
+      Result_Subt : constant Entity_Id  := Available_View (Etype (Func_Id));
+
       Ref_Func_Call     : Node_Id;
-      Function_Id       : Entity_Id;
-      Result_Subt       : Entity_Id;
       New_Allocator     : Node_Id;
       Return_Obj_Access : Entity_Id; -- temp for function result
       Temp_Init         : Node_Id; -- initial value of Return_Obj_Access
@@ -9056,19 +9077,7 @@ package body Exp_Ch6 is
       pragma Assert (not Is_Expanded_Build_In_Place_Call (Func_Call));
       Set_Is_Expanded_Build_In_Place_Call (Func_Call);
 
-      if Is_Entity_Name (Name (Func_Call)) then
-         Function_Id := Entity (Name (Func_Call));
-
-      elsif Nkind (Name (Func_Call)) = N_Explicit_Dereference then
-         Function_Id := Etype (Name (Func_Call));
-
-      else
-         raise Program_Error;
-      end if;
-
       Warn_BIP (Func_Call);
-
-      Result_Subt := Available_View (Etype (Function_Id));
 
       --  Create a temp for the function result. In the caller-allocates case,
       --  this will be initialized to the result of a new uninitialized
@@ -9085,7 +9094,7 @@ package body Exp_Ch6 is
       --  tagged, the called function itself must perform the allocation of
       --  the return object, so we pass parameters indicating that.
 
-      if Needs_BIP_Alloc_Form (Function_Id) then
+      if Needs_BIP_Alloc_Form (Func_Id) then
          Temp_Init := Empty;
 
          --  Case of a user-defined storage pool. Pass an allocation parameter
@@ -9106,7 +9115,7 @@ package body Exp_Ch6 is
          --  the function should allocate its result on the heap. When there is
          --  a finalization collection, a pool reference is required.
 
-         elsif Needs_BIP_Collection (Function_Id) then
+         elsif Needs_BIP_Collection (Func_Id) then
             Alloc_Form  := Global_Heap;
             Pool_Actual :=
               Make_Attribute_Reference (Loc,
@@ -9260,16 +9269,16 @@ package body Exp_Ch6 is
 
       Add_Unconstrained_Actuals_To_Build_In_Place_Call
         (Func_Call,
-         Function_Id,
+         Func_Id,
          Alloc_Form => Alloc_Form,
          Pool_Exp   => Pool_Actual);
 
       Add_Collection_Actual_To_Build_In_Place_Call
-        (Func_Call, Function_Id, Ptr_Typ => Acc_Type);
+        (Func_Call, Func_Id, Ptr_Typ => Acc_Type);
 
       Add_Task_Actuals_To_Build_In_Place_Call
         (Func_Call,
-         Function_Id,
+         Func_Id,
          Master_Actual => Master_Id (Acc_Type),
          Chain => Chain);
 
@@ -9279,12 +9288,12 @@ package body Exp_Ch6 is
       --  the access type of the allocator has a class-wide designated type.
 
       Add_Access_Actual_To_Build_In_Place_Call
-        (Func_Call, Function_Id, Return_Obj_Actual);
+        (Func_Call, Func_Id, Return_Obj_Actual);
 
       --  If the allocation is done in the caller, create a custom Allocate
       --  procedure if need be.
 
-      if not Needs_BIP_Alloc_Form (Function_Id) then
+      if not Needs_BIP_Alloc_Form (Func_Id) then
          Build_Allocate_Deallocate_Proc
            (Declaration_Node (Return_Obj_Access), Mark => Allocator);
       end if;
@@ -9295,9 +9304,9 @@ package body Exp_Ch6 is
 
       Analyze_And_Resolve (Allocator, Acc_Type);
 
-      pragma Assert (Returns_By_Ref (Function_Id));
-      pragma Assert (Check_Number_Of_Actuals (Func_Call, Function_Id));
-      pragma Assert (Check_BIP_Actuals (Func_Call, Function_Id));
+      pragma Assert (Returns_By_Ref (Func_Id));
+      pragma Assert (Check_Number_Of_Actuals (Func_Call, Func_Id));
+      pragma Assert (Check_BIP_Actuals (Func_Call, Func_Id));
    end Make_Build_In_Place_Call_In_Allocator;
 
    ---------------------------------------------------
@@ -9309,11 +9318,12 @@ package body Exp_Ch6 is
    is
       Loc         : constant Source_Ptr := Sloc (Function_Call);
       Func_Call   : constant Node_Id    := Unqual_Conv (Function_Call);
-      Function_Id : Entity_Id;
-      Has_Tasks   : Boolean;
-      Known_Size  : Boolean;
-      Needs_Fin   : Boolean;
-      Result_Subt : Entity_Id;
+      Func_Id     : constant Entity_Id  := Get_Function_Entity (Func_Call);
+      Result_Subt : constant Entity_Id  := Available_View (Etype (Func_Id));
+      Has_Tasks   : constant Boolean    := Might_Have_Tasks (Result_Subt);
+      Needs_Fin   : constant Boolean    := Needs_Finalization (Result_Subt);
+      Known_Size  : constant Boolean
+                      := Caller_Known_Size (Func_Call, Result_Subt);
 
    begin
       --  If the call has already been processed to add build-in-place actuals
@@ -9326,22 +9336,7 @@ package body Exp_Ch6 is
          return;
       end if;
 
-      if Is_Entity_Name (Name (Func_Call)) then
-         Function_Id := Entity (Name (Func_Call));
-
-      elsif Nkind (Name (Func_Call)) = N_Explicit_Dereference then
-         Function_Id := Etype (Name (Func_Call));
-
-      else
-         raise Program_Error;
-      end if;
-
       Warn_BIP (Func_Call);
-
-      Result_Subt := Etype (Function_Id);
-      Has_Tasks := Might_Have_Tasks (Result_Subt);
-      Known_Size := Caller_Known_Size (Func_Call, Result_Subt);
-      Needs_Fin := Needs_Finalization (Result_Subt);
 
       --  If the build-in-place function returns a controlled object, then the
       --  object needs to be finalized immediately after the context is exited,
@@ -9398,19 +9393,19 @@ package body Exp_Ch6 is
          --  allocate its result on the secondary stack.
 
          Add_Unconstrained_Actuals_To_Build_In_Place_Call
-           (Func_Call, Function_Id, Alloc_Form => Secondary_Stack);
+           (Func_Call, Func_Id, Alloc_Form => Secondary_Stack);
 
          Add_Collection_Actual_To_Build_In_Place_Call
-           (Func_Call, Function_Id);
+           (Func_Call, Func_Id);
 
          Add_Task_Actuals_To_Build_In_Place_Call
-           (Func_Call, Function_Id, Make_Identifier (Loc, Name_uMaster));
+           (Func_Call, Func_Id, Make_Identifier (Loc, Name_uMaster));
 
          --  Pass a null value to the function since no return object is
          --  available on the caller side.
 
          Add_Access_Actual_To_Build_In_Place_Call
-           (Func_Call, Function_Id, Empty);
+           (Func_Call, Func_Id, Empty);
 
          Establish_Transient_Scope (Func_Call, Manage_Sec_Stack => True);
 
@@ -9418,9 +9413,9 @@ package body Exp_Ch6 is
 
          Set_Is_Expanded_Build_In_Place_Call (Func_Call);
 
-         pragma Assert (Returns_By_Ref (Function_Id));
-         pragma Assert (Check_Number_Of_Actuals (Func_Call, Function_Id));
-         pragma Assert (Check_BIP_Actuals (Func_Call, Function_Id));
+         pragma Assert (Returns_By_Ref (Func_Id));
+         pragma Assert (Check_Number_Of_Actuals (Func_Call, Func_Id));
+         pragma Assert (Check_BIP_Actuals (Func_Call, Func_Id));
       end if;
    end Make_Build_In_Place_Call_In_Anonymous_Context;
 
@@ -9432,16 +9427,17 @@ package body Exp_Ch6 is
      (Assign        : Node_Id;
       Function_Call : Node_Id)
    is
-      Func_Call    : constant Node_Id    := Unqual_Conv (Function_Call);
-      Lhs          : constant Node_Id    := Name (Assign);
-      Loc          : constant Source_Ptr := Sloc (Function_Call);
-      Func_Id      : Entity_Id;
+      Lhs         : constant Node_Id    := Name (Assign);
+      Loc         : constant Source_Ptr := Sloc (Function_Call);
+      Func_Call   : constant Node_Id    := Unqual_Conv (Function_Call);
+      Func_Id     : constant Entity_Id  := Get_Function_Entity (Func_Call);
+      Result_Subt : constant Entity_Id  := Available_View (Etype (Func_Id));
+
       Obj_Decl     : Node_Id;
       Obj_Id       : Entity_Id;
       Ptr_Typ      : Entity_Id;
       Ptr_Typ_Decl : Node_Id;
       New_Expr     : Node_Id;
-      Result_Subt  : Entity_Id;
 
    begin
       --  Mark the call as processed as a build-in-place call
@@ -9449,19 +9445,7 @@ package body Exp_Ch6 is
       pragma Assert (not Is_Expanded_Build_In_Place_Call (Func_Call));
       Set_Is_Expanded_Build_In_Place_Call (Func_Call);
 
-      if Is_Entity_Name (Name (Func_Call)) then
-         Func_Id := Entity (Name (Func_Call));
-
-      elsif Nkind (Name (Func_Call)) = N_Explicit_Dereference then
-         Func_Id := Etype (Name (Func_Call));
-
-      else
-         raise Program_Error;
-      end if;
-
       Warn_BIP (Func_Call);
-
-      Result_Subt := Etype (Func_Id);
 
       --  When the result subtype is unconstrained, an additional actual must
       --  be passed to indicate that the caller is providing the return object.
@@ -9534,37 +9518,15 @@ package body Exp_Ch6 is
      (Obj_Decl      : Node_Id;
       Function_Call : Node_Id)
    is
-      function Get_Function_Id (Func_Call : Node_Id) return Entity_Id;
-      --  Get the value of Function_Id, below
-
-      ---------------------
-      -- Get_Function_Id --
-      ---------------------
-
-      function Get_Function_Id (Func_Call : Node_Id) return Entity_Id is
-      begin
-         if Is_Entity_Name (Name (Func_Call)) then
-            return Entity (Name (Func_Call));
-
-         elsif Nkind (Name (Func_Call)) = N_Explicit_Dereference then
-            return Etype (Name (Func_Call));
-
-         else
-            raise Program_Error;
-         end if;
-      end Get_Function_Id;
-
-      --  Local variables
-
-      Func_Call   : constant Node_Id    := Unqual_Conv (Function_Call);
-      Function_Id : constant Entity_Id  := Get_Function_Id (Func_Call);
       Loc         : constant Source_Ptr := Sloc (Function_Call);
+      Func_Call   : constant Node_Id    := Unqual_Conv (Function_Call);
+      Func_Id     : constant Entity_Id  := Get_Function_Entity (Func_Call);
       Marker      : constant Node_Id    := Next (Obj_Decl);
       Obj_Loc     : constant Source_Ptr := Sloc (Obj_Decl);
       Obj_Def_Id  : constant Entity_Id  := Defining_Identifier (Obj_Decl);
       Obj_Typ     : constant Entity_Id  := Etype (Obj_Def_Id);
       Encl_Func   : constant Entity_Id  := Enclosing_Subprogram (Obj_Def_Id);
-      Result_Subt : constant Entity_Id  := Etype (Function_Id);
+      Result_Subt : constant Entity_Id  := Available_View (Etype (Func_Id));
 
       Call_Deref        : Node_Id;
       Caller_Object     : Node_Id;
@@ -9707,7 +9669,7 @@ package body Exp_Ch6 is
 
             Add_Unconstrained_Actuals_To_Build_In_Place_Call
               (Function_Call  => Func_Call,
-               Function_Id    => Function_Id,
+               Function_Id    => Func_Id,
                Alloc_Form_Exp =>
                  New_Occurrence_Of
                    (Build_In_Place_Formal (Encl_Func, BIP_Alloc_Form), Loc),
@@ -9718,7 +9680,7 @@ package body Exp_Ch6 is
 
          else
             Add_Unconstrained_Actuals_To_Build_In_Place_Call
-              (Func_Call, Function_Id, Alloc_Form => Caller_Allocation);
+              (Func_Call, Func_Id, Alloc_Form => Caller_Allocation);
          end if;
 
          if Needs_BIP_Collection (Encl_Func) then
@@ -9733,7 +9695,7 @@ package body Exp_Ch6 is
 
          Caller_Object :=
            Unchecked_Convert_To
-             (Etype (Build_In_Place_Formal (Function_Id, BIP_Object_Access)),
+             (Etype (Build_In_Place_Formal (Func_Id, BIP_Object_Access)),
               New_Occurrence_Of
                 (Build_In_Place_Formal (Encl_Func, BIP_Object_Access), Loc));
 
@@ -9753,7 +9715,7 @@ package body Exp_Ch6 is
          --  functions with indefinite result subtypes.
 
          Add_Unconstrained_Actuals_To_Build_In_Place_Call
-           (Func_Call, Function_Id, Alloc_Form => Caller_Allocation);
+           (Func_Call, Func_Id, Alloc_Form => Caller_Allocation);
 
       --  The allocation for indefinite library-level objects occurs on the
       --  heap as opposed to the secondary stack. This accommodates DLLs where
@@ -9767,7 +9729,7 @@ package body Exp_Ch6 is
          --  ensure that the heap allocation can properly chain the object
          --  and later finalize it when the library unit goes out of scope.
 
-         if Needs_BIP_Collection (Function_Id) then
+         if Needs_BIP_Collection (Func_Id) then
             Build_Finalization_Collection
               (Typ            => Ptr_Typ,
                For_Lib_Level  => True,
@@ -9791,7 +9753,7 @@ package body Exp_Ch6 is
 
          Add_Unconstrained_Actuals_To_Build_In_Place_Call
            (Func_Call,
-            Function_Id,
+            Func_Id,
             Alloc_Form => Global_Heap,
             Pool_Exp   => Pool_Actual);
          Caller_Object := Empty;
@@ -9803,7 +9765,7 @@ package body Exp_Ch6 is
 
       else
          Add_Unconstrained_Actuals_To_Build_In_Place_Call
-           (Func_Call, Function_Id, Alloc_Form => Secondary_Stack);
+           (Func_Call, Func_Id, Alloc_Form => Secondary_Stack);
          Caller_Object := Empty;
 
          Establish_Transient_Scope (Obj_Decl, Manage_Sec_Stack => True);
@@ -9814,28 +9776,28 @@ package body Exp_Ch6 is
       --  an enclosing build-in-place function.
 
       Add_Collection_Actual_To_Build_In_Place_Call
-        (Func_Call, Function_Id, Collection_Exp => Collection_Actual);
+        (Func_Call, Func_Id, Collection_Exp => Collection_Actual);
 
       if Nkind (Parent (Obj_Decl)) = N_Extended_Return_Statement
-        and then Needs_BIP_Task_Actuals (Function_Id)
+        and then Needs_BIP_Task_Actuals (Func_Id)
       then
          --  Here we're passing along the master that was passed in to this
          --  function.
 
          Add_Task_Actuals_To_Build_In_Place_Call
-           (Func_Call, Function_Id,
+           (Func_Call, Func_Id,
             Master_Actual =>
               New_Occurrence_Of
                 (Build_In_Place_Formal (Encl_Func, BIP_Task_Master), Loc));
 
       else
          Add_Task_Actuals_To_Build_In_Place_Call
-           (Func_Call, Function_Id, Make_Identifier (Loc, Name_uMaster));
+           (Func_Call, Func_Id, Make_Identifier (Loc, Name_uMaster));
       end if;
 
       Add_Access_Actual_To_Build_In_Place_Call
         (Func_Call,
-         Function_Id,
+         Func_Id,
          Caller_Object,
          Is_Access => Pass_Caller_Acc);
 
@@ -9946,9 +9908,9 @@ package body Exp_Ch6 is
          end if;
       end if;
 
-      pragma Assert (Returns_By_Ref (Function_Id));
-      pragma Assert (Check_Number_Of_Actuals (Func_Call, Function_Id));
-      pragma Assert (Check_BIP_Actuals (Func_Call, Function_Id));
+      pragma Assert (Returns_By_Ref (Func_Id));
+      pragma Assert (Check_Number_Of_Actuals (Func_Call, Func_Id));
+      pragma Assert (Check_BIP_Actuals (Func_Call, Func_Id));
    end Make_Build_In_Place_Call_In_Object_Declaration;
 
    -------------------------------------------------
