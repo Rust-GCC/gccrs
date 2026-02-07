@@ -26,13 +26,36 @@
 
 namespace Rust {
 
-void
-FeatureGate::check (
-  AST::Crate &crate,
-  std::vector<std::pair<Feature::Name, Error>> &parsing_feature_gate_errors)
+EarlyFeatureGateStore &
+EarlyFeatureGateStore::get ()
 {
-  for (auto &pair : parsing_feature_gate_errors)
-    gate (pair.first, pair.second.locus, pair.second.message);
+  static EarlyFeatureGateStore instance{};
+  return instance;
+}
+
+void
+EarlyFeatureGateStore::add (Feature::Name name, Error error)
+{
+  potential_errors.emplace (name, error);
+}
+
+std::pair<Feature::Name, Error>
+EarlyFeatureGateStore::get_error ()
+{
+  auto ret = potential_errors.front ();
+  potential_errors.pop ();
+  return ret;
+}
+
+void
+FeatureGate::check (AST::Crate &crate)
+{
+  auto &store = EarlyFeatureGateStore::get ();
+  while (store.has_error ())
+    {
+      auto pair = store.get_error ();
+      gate (pair.first, pair.second.locus, pair.second.message);
+    }
   visit (crate);
 }
 

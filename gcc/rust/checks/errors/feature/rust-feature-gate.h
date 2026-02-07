@@ -25,6 +25,24 @@
 
 namespace Rust {
 
+/**
+ * We don't know the whole set of valid features until a crate has been parsed.
+ * We're collecting in this store all the potential feature errors and check
+ * them later.
+ */
+class EarlyFeatureGateStore
+{
+  std::queue<std::pair<Feature::Name, Error>> potential_errors;
+
+public:
+  static EarlyFeatureGateStore &get ();
+  void add (Feature::Name name, Error error);
+
+  bool has_error () { return !potential_errors.empty (); }
+
+  std::pair<Feature::Name, Error> get_error ();
+};
+
 class FeatureGate : public AST::DefaultASTVisitor
 {
 public:
@@ -32,9 +50,7 @@ public:
 
   using AST::DefaultASTVisitor::visit;
 
-  void check (
-    AST::Crate &crate,
-    std::vector<std::pair<Feature::Name, Error>> &parsing_feature_gate_errors);
+  void check (AST::Crate &crate);
   void visit (AST::Crate &crate) override;
 
   void visit (AST::LifetimeParam &lifetime_param) override;
