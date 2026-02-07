@@ -20,28 +20,9 @@
 #define RUST_FEATURE_GATE_H
 
 #include "rust-ast-visitor.h"
-#include "rust-feature.h"
 #include "rust-feature-collector.h"
 
 namespace Rust {
-
-/**
- * We don't know the whole set of valid features until a crate has been parsed.
- * We're collecting in this store all the potential feature errors and check
- * them later.
- */
-class EarlyFeatureGateStore
-{
-  std::queue<std::pair<Feature::Name, Error>> potential_errors;
-
-public:
-  static EarlyFeatureGateStore &get ();
-  void add (Feature::Name name, Error error);
-
-  bool has_error () { return !potential_errors.empty (); }
-
-  std::pair<Feature::Name, Error> get_error ();
-};
 
 class FeatureGate : public AST::DefaultASTVisitor
 {
