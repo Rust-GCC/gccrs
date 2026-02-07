@@ -431,16 +431,15 @@ ForeverStack<N>::find_closest_module (Node &starting_point)
 
 /* If a the given condition is met, emit an error about misused leading path
  * segments */
-template <typename S>
 static inline bool
-check_leading_kw_at_start (std::vector<Error> &collect_errors, const S &segment,
+check_leading_kw_at_start (std::vector<Error> &collect_errors,
+			   const ResolutionPath::Segment &segment,
 			   bool condition)
 {
   if (condition)
     collect_errors.emplace_back (
-      segment.get_locus (), ErrorCode::E0433,
-      "%qs in paths can only be used in start position",
-      segment.as_string ().c_str ());
+      segment.locus, ErrorCode::E0433,
+      "%qs in paths can only be used in start position", segment.name.c_str ());
 
   return condition;
 }
@@ -451,23 +450,19 @@ check_leading_kw_at_start (std::vector<Error> &collect_errors, const S &segment,
 // `super` segment, we go back to the cursor's parent until we reach the
 // correct one or the root.
 template <Namespace N>
-template <typename S>
-tl::optional<typename std::vector<S>::const_iterator>
+tl::optional<typename std::vector<ResolutionPath::Segment>::const_iterator>
 ForeverStack<N>::find_starting_point (
-  const std::vector<S> &segments, std::reference_wrapper<Node> &starting_point,
-  std::function<void (const S &, NodeId)> insert_segment_resolution,
+  const std::vector<ResolutionPath::Segment> &segments,
+  std::reference_wrapper<Node> &starting_point,
+  std::function<void (Usage, Definition)> insert_segment_resolution,
   std::vector<Error> &collect_errors)
 {
   auto iterator = segments.begin ();
 
   for (; !is_last (iterator, segments); iterator++)
     {
-      auto &outer_seg = *iterator;
+      auto &seg = *iterator;
 
-      if (unwrap_segment_get_lang_item (outer_seg).has_value ())
-	break;
-
-      auto &seg = unwrap_type_segment (outer_seg);
       bool is_self_or_crate
 	= seg.is_crate_path_seg () || seg.is_lower_self_seg ();
 
@@ -481,7 +476,8 @@ ForeverStack<N>::find_starting_point (
       if (seg.is_crate_path_seg ())
 	{
 	  starting_point = root;
-	  insert_segment_resolution (outer_seg, starting_point.get ().id);
+	  insert_segment_resolution (Usage (seg.node_id),
+				     Definition (starting_point.get ().id));
 	  iterator++;
 	  break;
 	}
@@ -489,7 +485,8 @@ ForeverStack<N>::find_starting_point (
 	{
 	  // insert segment resolution and exit
 	  starting_point = find_closest_module (starting_point);
-	  insert_segment_resolution (outer_seg, starting_point.get ().id);
+	  insert_segment_resolution (Usage (seg.node_id),
+				     Definition (starting_point.get ().id));
 	  iterator++;
 	  break;
 	}
@@ -499,7 +496,7 @@ ForeverStack<N>::find_starting_point (
 	  if (starting_point.get ().is_root ())
 	    {
 	      collect_errors.emplace_back (
-		seg.get_locus (), ErrorCode::E0433,
+		seg.locus, ErrorCode::E0433,
 		"too many leading %<super%> keywords");
 	      return tl::nullopt;
 	    }
@@ -507,7 +504,8 @@ ForeverStack<N>::find_starting_point (
 	  starting_point
 	    = find_closest_module (starting_point.get ().parent.value ());
 
-	  insert_segment_resolution (outer_seg, starting_point.get ().id);
+	  insert_segment_resolution (Usage (seg.node_id),
+				     Definition (starting_point.get ().id));
 	  continue;
 	}
 
@@ -521,31 +519,19 @@ ForeverStack<N>::find_starting_point (
 }
 
 template <Namespace N>
-template <typename S>
 tl::optional<typename ForeverStack<N>::Node &>
 ForeverStack<N>::resolve_segments (
-  Node &starting_point, const std::vector<S> &segments,
-  typename std::vector<S>::const_iterator iterator,
-  std::function<void (const S &, NodeId)> insert_segment_resolution,
+  Node &starting_point, const std::vector<ResolutionPath::Segment> &segments,
+  typename std::vector<ResolutionPath::Segment>::const_iterator iterator,
+  std::function<void (Usage, Definition)> insert_segment_resolution,
   std::vector<Error> &collect_errors)
 {
   Node *current_node = &starting_point;
   for (; !is_last (iterator, segments); iterator++)
     {
-      auto &outer_seg = *iterator;
+      auto &seg = *iterator;
 
-      if (auto lang_item = unwrap_segment_get_lang_item (outer_seg))
-	{
-	  NodeId seg_id = Analysis::Mappings::get ().get_lang_item_node (
-	    lang_item.value ());
-	  current_node = &dfs_node (root, seg_id).value ();
-
-	  insert_segment_resolution (outer_seg, seg_id);
-	  continue;
-	}
-
-      auto &seg = unwrap_type_segment (outer_seg);
-      std::string str = seg.as_string ();
+      std::string str = seg.name;
       rust_debug ("[ARTHUR]: resolving segment part: %s", str.c_str ());
 
       // check that we don't encounter *any* leading keywords afterwards
@@ -607,7 +593,7 @@ ForeverStack<N>::resolve_segments (
 	      break;
 	    }
 
-	  auto rib_lookup = current_node->rib.get (seg.as_string ());
+	  auto rib_lookup = current_node->rib.get (seg.name);
 	  if (rib_lookup && !rib_lookup->is_ambiguous ())
 	    {
 	      if (Analysis::Mappings::get ()
@@ -619,8 +605,9 @@ ForeverStack<N>::resolve_segments (
 		}
 	      else
 		{
-		  insert_segment_resolution (outer_seg,
-					     rib_lookup->get_node_id ());
+		  insert_segment_resolution (Usage (seg.node_id),
+					     Definition (
+					       rib_lookup->get_node_id ()));
 		  return tl::nullopt;
 		}
 	    }
@@ -645,7 +632,8 @@ ForeverStack<N>::resolve_segments (
       // if child didn't point to a value
       // the while loop above would have returned or kept looping
       current_node = &child->get ();
-      insert_segment_resolution (outer_seg, current_node->id);
+      insert_segment_resolution (Usage (seg.node_id),
+				 Definition (current_node->id));
     }
 
   return *current_node;
@@ -672,11 +660,10 @@ ForeverStack<N>::resolve_final_segment (Node &final_node, std::string &seg_name,
 }
 
 template <Namespace N>
-template <typename S>
 tl::optional<Rib::Definition>
 ForeverStack<N>::resolve_path (
-  const std::vector<S> &segments, ResolutionMode mode,
-  std::function<void (const S &, NodeId)> insert_segment_resolution,
+  const ResolutionPath &path, ResolutionMode mode,
+  std::function<void (Usage, Definition)> insert_segment_resolution,
   std::vector<Error> &collect_errors, NodeId starting_point_id)
 {
   auto starting_point = dfs_node (root, starting_point_id);
@@ -686,34 +673,56 @@ ForeverStack<N>::resolve_path (
   if (!starting_point)
     return tl::nullopt;
 
-  return resolve_path (segments, mode, insert_segment_resolution,
-		       collect_errors, *starting_point);
+  return resolve_path (path, mode, insert_segment_resolution, collect_errors,
+		       *starting_point);
 }
 
 template <Namespace N>
-template <typename S>
 tl::optional<Rib::Definition>
 ForeverStack<N>::resolve_path (
-  const std::vector<S> &segments, ResolutionMode mode,
-  std::function<void (const S &, NodeId)> insert_segment_resolution,
+  const ResolutionPath &path, ResolutionMode mode,
+  std::function<void (Usage, Definition)> insert_segment_resolution,
   std::vector<Error> &collect_errors)
 {
   std::reference_wrapper<Node> starting_point = cursor ();
 
-  return resolve_path (segments, mode, insert_segment_resolution,
-		       collect_errors, starting_point);
+  return resolve_path (path, mode, insert_segment_resolution, collect_errors,
+		       starting_point);
 }
 
 template <Namespace N>
-template <typename S>
 tl::optional<Rib::Definition>
 ForeverStack<N>::resolve_path (
-  const std::vector<S> &segments, ResolutionMode mode,
-  std::function<void (const S &, NodeId)> insert_segment_resolution,
+  const ResolutionPath &path, ResolutionMode mode,
+  std::function<void (Usage, Definition)> insert_segment_resolution,
   std::vector<Error> &collect_errors,
   std::reference_wrapper<Node> starting_point)
 {
-  rust_assert (!segments.empty ());
+  bool can_descend = true;
+
+  rust_debug ("resolving %s", path.as_string ().c_str ());
+
+  if (auto lang_item = path.get_lang_prefix ())
+    {
+      NodeId seg_id
+	= Analysis::Mappings::get ().get_lang_item_node (lang_item->first);
+
+      insert_segment_resolution (Usage (lang_item->second),
+				 Definition (seg_id));
+
+      if (path.get_segments ().empty ())
+	return Rib::Definition::NonShadowable (seg_id);
+
+      auto new_start = dfs_node (root, seg_id);
+      rust_assert (new_start.has_value ());
+      starting_point = new_start.value ();
+
+      can_descend = false;
+    }
+  else
+    {
+      rust_assert (!path.get_segments ().empty ());
+    }
 
   switch (mode)
     {
@@ -729,40 +738,31 @@ ForeverStack<N>::resolve_path (
       rust_unreachable ();
     }
 
+  auto &segments = path.get_segments ();
+
   // if there's only one segment, we just use `get`
-  if (segments.size () == 1)
+  if (can_descend && segments.size () == 1)
     {
-      auto &outer_seg = segments.front ();
-      if (auto lang_item = unwrap_segment_get_lang_item (outer_seg))
-	{
-	  NodeId seg_id = Analysis::Mappings::get ().get_lang_item_node (
-	    lang_item.value ());
+      auto &seg = segments.front ();
 
-	  insert_segment_resolution (outer_seg, seg_id);
-	  // TODO: does NonShadowable matter?
-	  return Rib::Definition::NonShadowable (seg_id);
-	}
-
-      auto &seg = unwrap_type_segment (outer_seg);
-
-      tl::optional<Rib::Definition> res
-	= get (starting_point.get (), seg.as_string ());
+      tl::optional<Rib::Definition> res = get (starting_point.get (), seg.name);
 
       if (!res)
-	res = get_lang_prelude (seg.as_string ());
+	res = get_lang_prelude (seg.name);
 
       if (N == Namespace::Types && !res)
 	{
 	  if (seg.is_crate_path_seg ())
 	    {
-	      insert_segment_resolution (outer_seg, root.id);
+	      insert_segment_resolution (Usage (seg.node_id),
+					 Definition (root.id));
 	      // TODO: does NonShadowable matter?
 	      return Rib::Definition::NonShadowable (root.id);
 	    }
 	  else if (seg.is_lower_self_seg ())
 	    {
 	      NodeId id = find_closest_module (starting_point.get ()).id;
-	      insert_segment_resolution (outer_seg, id);
+	      insert_segment_resolution (Usage (seg.node_id), Definition (id));
 	      // TODO: does NonShadowable matter?
 	      return Rib::Definition::NonShadowable (id);
 	    }
@@ -772,14 +772,14 @@ ForeverStack<N>::resolve_path (
 		= find_closest_module (starting_point.get ());
 	      if (closest_module.is_root ())
 		{
-		  rust_error_at (seg.get_locus (), ErrorCode::E0433,
+		  rust_error_at (seg.locus, ErrorCode::E0433,
 				 "too many leading %<super%> keywords");
 		  return tl::nullopt;
 		}
 
 	      NodeId id
 		= find_closest_module (closest_module.parent.value ()).id;
-	      insert_segment_resolution (outer_seg, id);
+	      insert_segment_resolution (Usage (seg.node_id), Definition (id));
 	      // TODO: does NonShadowable matter?
 	      return Rib::Definition::NonShadowable (id);
 	    }
@@ -794,11 +794,12 @@ ForeverStack<N>::resolve_path (
 		  if (link.path.map_or (
 			[&seg] (Identifier path) {
 			  auto &path_str = path.as_string ();
-			  return path_str == seg.as_string ();
+			  return path_str == seg.name;
 			},
 			false))
 		    {
-		      insert_segment_resolution (outer_seg, kv.second.id);
+		      insert_segment_resolution (Usage (seg.node_id),
+						 Definition (kv.second.id));
 		      return Rib::Definition::NonShadowable (kv.second.id);
 		    }
 		}
@@ -806,28 +807,33 @@ ForeverStack<N>::resolve_path (
 	}
 
       if (res && !res->is_ambiguous ())
-	insert_segment_resolution (outer_seg, res->get_node_id ());
+	insert_segment_resolution (Usage (seg.node_id),
+				   Definition (res->get_node_id ()));
       return res;
     }
 
-  return find_starting_point (segments, starting_point,
-			      insert_segment_resolution, collect_errors)
-    .and_then (
-      [this, &segments, &starting_point, &insert_segment_resolution,
-       &collect_errors] (typename std::vector<S>::const_iterator iterator) {
-	return resolve_segments (starting_point.get (), segments, iterator,
-				 insert_segment_resolution, collect_errors);
-      })
+  auto iterator = segments.begin ();
+  if (can_descend)
+    {
+      if (auto res
+	  = find_starting_point (segments, starting_point,
+				 insert_segment_resolution, collect_errors))
+	iterator = *res;
+      else
+	return tl::nullopt;
+    }
+
+  return resolve_segments (starting_point.get (), segments, iterator,
+			   insert_segment_resolution, collect_errors)
     .and_then ([this, &segments, &insert_segment_resolution] (
 		 Node &final_node) -> tl::optional<Rib::Definition> {
       // leave resolution within impl blocks to type checker
       if (final_node.rib.kind == Rib::Kind::TraitOrImpl)
 	return tl::nullopt;
 
-      auto &seg = unwrap_type_segment (segments.back ());
-      std::string seg_name = seg.as_string ();
+      auto &seg = segments.back ();
+      std::string seg_name = seg.name;
 
-      // assuming this can't be a lang item segment
       tl::optional<Rib::Definition> res
 	= resolve_final_segment (final_node, seg_name,
 				 seg.is_lower_self_seg ());
@@ -849,14 +855,16 @@ ForeverStack<N>::resolve_path (
 		    },
 		    false))
 		{
-		  insert_segment_resolution (segments.back (), kv.second.id);
+		  insert_segment_resolution (Usage (seg.node_id),
+					     Definition (kv.second.id));
 		  return Rib::Definition::NonShadowable (kv.second.id);
 		}
 	    }
 	}
 
       if (res && !res->is_ambiguous ())
-	insert_segment_resolution (segments.back (), res->get_node_id ());
+	insert_segment_resolution (Usage (seg.node_id),
+				   Definition (res->get_node_id ()));
 
       return res;
     });

@@ -16,8 +16,8 @@
 // along with GCC; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
-#ifndef RUST_NAME_RESOLVER_2_0_H
-#define RUST_NAME_RESOLVER_2_0_H
+#ifndef RUST_NAME_RESOLVER_2_0_CTX_H
+#define RUST_NAME_RESOLVER_2_0_CTX_H
 
 #include "optional.h"
 #include "rust-forever-stack.h"
@@ -25,6 +25,7 @@
 #include "rust-rib.h"
 #include "rust-stacked-contexts.h"
 #include "rust-item.h"
+#include "rust-name-resolution.h"
 
 namespace Rust {
 namespace Resolver2_0 {
@@ -135,28 +136,6 @@ change?
     TODO: Mention that ForeverStack is templated to make sure that behavior is
 correct
 */
-
-// FIXME: Documentation
-class Usage
-{
-public:
-  explicit Usage (NodeId id) : id (id) {}
-
-  // TODO: move to name-resolution-ctx.cc
-  // storing it as a key in a map
-  bool operator< (const Usage other) const { return other.id < id; }
-
-  NodeId id;
-};
-
-// FIXME: Documentation
-class Definition
-{
-public:
-  explicit Definition (NodeId id) : id (id) {}
-
-  NodeId id;
-};
 
 struct IdentifierMode
 {
@@ -549,16 +528,14 @@ public:
     return canonical_ctx.get_path (id);
   }
 
-  template <typename S>
   tl::optional<Rib::Definition>
-  resolve_path (const std::vector<S> &segments, ResolutionMode mode,
+  resolve_path (const ResolutionPath &path, ResolutionMode mode,
 		std::vector<Error> &collect_errors, Namespace ns)
   {
-    std::function<void (const S &, NodeId)> insert_segment_resolution
-      = [this] (const S &seg, NodeId id) {
-	  auto seg_id = unwrap_segment_node_id (seg);
-	  if (resolved_nodes.find (Usage (seg_id)) == resolved_nodes.end ())
-	    map_usage (Usage (seg_id), Definition (id));
+    std::function<void (Usage, Definition)> insert_segment_resolution
+      = [this] (Usage seg_id, Definition id) {
+	  if (resolved_nodes.find (seg_id) == resolved_nodes.end ())
+	    map_usage (seg_id, id);
 	};
 
     tl::optional<Rib::Definition> resolved = tl::nullopt;
@@ -566,24 +543,20 @@ public:
     switch (ns)
       {
       case Namespace::Values:
-	resolved
-	  = values.resolve_path (segments, mode, insert_segment_resolution,
-				 collect_errors);
+	resolved = values.resolve_path (path, mode, insert_segment_resolution,
+					collect_errors);
 	break;
       case Namespace::Types:
-	resolved
-	  = types.resolve_path (segments, mode, insert_segment_resolution,
-				collect_errors);
+	resolved = types.resolve_path (path, mode, insert_segment_resolution,
+				       collect_errors);
 	break;
       case Namespace::Macros:
-	resolved
-	  = macros.resolve_path (segments, mode, insert_segment_resolution,
-				 collect_errors);
+	resolved = macros.resolve_path (path, mode, insert_segment_resolution,
+					collect_errors);
 	break;
       case Namespace::Labels:
-	resolved
-	  = labels.resolve_path (segments, mode, insert_segment_resolution,
-				 collect_errors);
+	resolved = labels.resolve_path (path, mode, insert_segment_resolution,
+					collect_errors);
 	break;
       default:
 	rust_unreachable ();
@@ -596,20 +569,16 @@ public:
 	switch (ns)
 	  {
 	  case Namespace::Values:
-	    return values.resolve_path (segments, mode,
-					insert_segment_resolution,
+	    return values.resolve_path (path, mode, insert_segment_resolution,
 					collect_errors, *prelude);
 	  case Namespace::Types:
-	    return types.resolve_path (segments, mode,
-				       insert_segment_resolution,
+	    return types.resolve_path (path, mode, insert_segment_resolution,
 				       collect_errors, *prelude);
 	  case Namespace::Macros:
-	    return macros.resolve_path (segments, mode,
-					insert_segment_resolution,
+	    return macros.resolve_path (path, mode, insert_segment_resolution,
 					collect_errors, *prelude);
 	  case Namespace::Labels:
-	    return labels.resolve_path (segments, mode,
-					insert_segment_resolution,
+	    return labels.resolve_path (path, mode, insert_segment_resolution,
 					collect_errors, *prelude);
 	  default:
 	    rust_unreachable ();
@@ -619,37 +588,136 @@ public:
     return resolved;
   }
 
+  class ResolutionBuilder
+  {
+  public:
+    ResolutionBuilder (NameResolutionContext &ctx)
+      : collect_errors (nullptr), ctx (&ctx)
+    {}
+
+    template <typename S>
+    void set_path (const std::vector<S> &path_segments, NodeId node_id,
+		   bool has_opening_scope)
+    {
+      path = ResolutionPath (path_segments, node_id);
+      mode = ResolutionMode::Normal;
+      if (has_opening_scope)
+	{
+	  if (get_rust_edition () == Edition::E2015)
+	    mode = ResolutionMode::FromRoot;
+	  else
+	    mode = ResolutionMode::FromExtern;
+	}
+      has_path_set = true;
+    }
+
+    template <typename S>
+    void set_path (const std::vector<S> &path_segments, NodeId node_id,
+		   ResolutionMode mode)
+    {
+      path = ResolutionPath (path_segments, node_id);
+      this->mode = mode;
+      has_path_set = true;
+    }
+
+    void set_path (const AST::SimplePath &path)
+    {
+      set_path (path.get_segments (), path.get_node_id (),
+		path.has_opening_scope_resolution ());
+    }
+
+    void set_path (const AST::PathInExpression &path)
+    {
+      set_path (path.get_segments (), path.get_node_id (),
+		path.opening_scope_resolution ());
+    }
+
+    void set_path (const AST::TypePath &path)
+    {
+      set_path (path.get_segments (), path.get_node_id (),
+		path.has_opening_scope_resolution_op ());
+    }
+
+    void set_mode (ResolutionMode mode) { this->mode = mode; }
+
+    void add_namespaces (Namespace ns) { namespace_list.push_back (ns); }
+
+    template <typename... Args> void add_namespaces (Namespace ns, Args... rest)
+    {
+      add_namespaces (ns);
+      add_namespaces (rest...);
+    }
+
+    void set_collect_errors (std::vector<Error> &collect_errors)
+    {
+      this->collect_errors = &collect_errors;
+    }
+
+    tl::optional<Rib::Definition> resolve ()
+    {
+      rust_assert (has_path_set);
+
+      for (auto ns : namespace_list)
+	{
+	  std::vector<Error> collect_errors_inner;
+	  if (auto ret
+	      = ctx->resolve_path (path, mode, collect_errors_inner, ns))
+	    return ret;
+	  if (!collect_errors_inner.empty ())
+	    {
+	      if (collect_errors != nullptr)
+		{
+		  std::move (collect_errors_inner.begin (),
+			     collect_errors_inner.end (),
+			     std::back_inserter (*collect_errors));
+		}
+	      else
+		{
+		  for (auto &e : collect_errors_inner)
+		    e.emit ();
+		}
+	    }
+	}
+
+      return tl::nullopt;
+    }
+
+    void reset ()
+    {
+      NameResolutionContext *ctx = this->ctx;
+      this->~ResolutionBuilder ();
+      new (this) ResolutionBuilder (*ctx);
+    }
+
+  private:
+    ResolutionPath path;
+    ResolutionMode mode;
+    bool has_path_set;
+
+    static constexpr int NS_VALUE = 1;
+    static constexpr int NS_TYPE = 2;
+    static constexpr int NS_LABEL = 4;
+    static constexpr int NS_MACRO = 8;
+    std::vector<Namespace> namespace_list;
+
+    std::vector<Error> *collect_errors;
+
+    NameResolutionContext *ctx;
+  };
+
   template <typename S, typename... Args>
   tl::optional<Rib::Definition>
-  resolve_path (const std::vector<S> &segments, ResolutionMode mode,
+  resolve_path (const std::vector<S> &path_segments, ResolutionMode mode,
 		tl::optional<std::vector<Error> &> collect_errors,
 		Namespace ns_first, Args... ns_args)
   {
-    std::initializer_list<Namespace> namespaces = {ns_first, ns_args...};
+    ResolutionBuilder builder (*this);
+    builder.set_path (path_segments, UNKNOWN_NODEID, mode);
+    builder.add_namespaces (ns_first, ns_args...);
+    if (collect_errors.has_value ())
+      builder.set_collect_errors (collect_errors.value ());
 
-    for (auto ns : namespaces)
-      {
-	std::vector<Error> collect_errors_inner;
-	if (auto ret = resolve_path (segments, mode, collect_errors_inner, ns))
-	  return ret;
-	if (!collect_errors_inner.empty ())
-	  {
-	    if (collect_errors.has_value ())
-	      {
-		std::move (collect_errors_inner.begin (),
-			   collect_errors_inner.end (),
-			   std::back_inserter (collect_errors.value ()));
-	      }
-	    else
-	      {
-		for (auto &e : collect_errors_inner)
-		  e.emit ();
-	      }
-	    return tl::nullopt;
-	  }
-      }
-
-    return tl::nullopt;
+    return builder.resolve ();
   }
 
   template <typename S, typename... Args>
@@ -659,16 +727,14 @@ public:
 		tl::optional<std::vector<Error> &> collect_errors,
 		Namespace ns_first, Args... ns_args)
   {
-    auto mode = ResolutionMode::Normal;
-    if (has_opening_scope_resolution)
-      {
-	if (get_rust_edition () == Edition::E2015)
-	  mode = ResolutionMode::FromRoot;
-	else
-	  mode = ResolutionMode::FromExtern;
-      }
-    return resolve_path (path_segments, mode, collect_errors, ns_first,
-			 ns_args...);
+    ResolutionBuilder builder (*this);
+    builder.set_path (path_segments, UNKNOWN_NODEID,
+		      has_opening_scope_resolution);
+    builder.add_namespaces (ns_first, ns_args...);
+    if (collect_errors.has_value ())
+      builder.set_collect_errors (collect_errors.value ());
+
+    return builder.resolve ();
   }
 
   template <typename S, typename... Args>
@@ -677,8 +743,12 @@ public:
 		bool has_opening_scope_resolution, Namespace ns_first,
 		Args... ns_args)
   {
-    return resolve_path (path_segments, has_opening_scope_resolution,
-			 tl::nullopt, ns_first, ns_args...);
+    ResolutionBuilder builder (*this);
+    builder.set_path (path_segments, UNKNOWN_NODEID,
+		      has_opening_scope_resolution);
+    builder.add_namespaces (ns_first, ns_args...);
+
+    return builder.resolve ();
   }
 
   template <typename S, typename... Args>
@@ -686,8 +756,11 @@ public:
   resolve_path (const std::vector<S> &path_segments, ResolutionMode mode,
 		Namespace ns_first, Args... ns_args)
   {
-    return resolve_path (path_segments, mode, tl::nullopt, ns_first,
-			 ns_args...);
+    ResolutionBuilder builder (*this);
+    builder.set_path (path_segments, UNKNOWN_NODEID, mode);
+    builder.add_namespaces (ns_first, ns_args...);
+
+    return builder.resolve ();
   }
 
   template <typename... Args>
@@ -727,4 +800,4 @@ private:
 } // namespace Resolver2_0
 } // namespace Rust
 
-#endif // ! RUST_NAME_RESOLVER_2_0_H
+#endif // ! RUST_NAME_RESOLVER_2_0_CTX_H
