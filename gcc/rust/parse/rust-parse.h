@@ -25,7 +25,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "rust-parse-error.h"
 #include "rust-parse-utils.h"
 #include "rust-feature.h"
-#include "rust-feature-gate.h"
+#include "rust-feature-store.h"
 
 #include "expected.h"
 
@@ -856,7 +856,7 @@ private:
 
   void collect_potential_gating_error (Feature::Name feature, Error error)
   {
-    EarlyFeatureGateStore::get ().add (feature, error);
+    Features::EarlyFeatureGateStore::get ().add (feature, error);
   }
 
 public:

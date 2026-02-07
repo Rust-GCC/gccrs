@@ -23,34 +23,14 @@
 #include "rust-ast-visitor.h"
 #include "rust-feature.h"
 #include "rust-ast-full.h"
+#include "rust-feature-store.h"
 
 namespace Rust {
-
-EarlyFeatureGateStore &
-EarlyFeatureGateStore::get ()
-{
-  static EarlyFeatureGateStore instance{};
-  return instance;
-}
-
-void
-EarlyFeatureGateStore::add (Feature::Name name, Error error)
-{
-  potential_errors.emplace (name, error);
-}
-
-std::pair<Feature::Name, Error>
-EarlyFeatureGateStore::get_error ()
-{
-  auto ret = potential_errors.front ();
-  potential_errors.pop ();
-  return ret;
-}
 
 void
 FeatureGate::check (AST::Crate &crate)
 {
-  auto &store = EarlyFeatureGateStore::get ();
+  auto &store = Features::EarlyFeatureGateStore::get ();
   while (store.has_error ())
     {
       auto pair = store.get_error ();
