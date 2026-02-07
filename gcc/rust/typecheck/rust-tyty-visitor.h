@@ -49,6 +49,7 @@ public:
   virtual void visit (ConstValueType &type) = 0;
   virtual void visit (ConstInferType &type) = 0;
   virtual void visit (ConstErrorType &type) = 0;
+  virtual void visit (ConstExprType &type) = 0;
   virtual void visit (StrType &type) = 0;
   virtual void visit (NeverType &type) = 0;
   virtual void visit (PlaceholderType &type) = 0;
@@ -83,6 +84,7 @@ public:
   virtual void visit (const ConstValueType &type) = 0;
   virtual void visit (const ConstInferType &type) = 0;
   virtual void visit (const ConstErrorType &type) = 0;
+  virtual void visit (const ConstExprType &type) = 0;
   virtual void visit (const StrType &type) = 0;
   virtual void visit (const NeverType &type) = 0;
   virtual void visit (const PlaceholderType &type) = 0;

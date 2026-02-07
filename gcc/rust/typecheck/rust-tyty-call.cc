@@ -300,6 +300,13 @@ TypeCheckCallExpr::visit (FnPtr &type)
   resolved = type.get_return_type ()->monomorphized_clone ();
 }
 
+void
+TypeCheckCallExpr::visit (ConstExprType &type)
+{
+  // A constant expression is not a callable function.
+  // We do nothing, which leaves 'resolved' as nullptr and fails gracefully.
+}
+
 // method call checker
 
 TypeCheckMethodCallExpr::TypeCheckMethodCallExpr (

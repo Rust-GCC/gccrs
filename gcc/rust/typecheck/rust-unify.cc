@@ -2132,6 +2132,21 @@ UnifyRules::expect_const (TyTy::BaseConstType *ltype, TyTy::BaseType *rtype)
 	}
     }
 
+  if (resolved_lhs->const_kind () == TyTy::BaseConstType::ConstKind::Expr)
+    {
+      if (resolved_rhs->const_kind () != TyTy::BaseConstType::ConstKind::Expr)
+	return unify_error_type_node ();
+
+      auto l_expr = static_cast<TyTy::ConstExprType *> (resolved_lhs);
+      auto r_expr = static_cast<TyTy::ConstExprType *> (resolved_rhs);
+
+      // Identity check: Are they the same symbolic expression?
+      if (l_expr->get_expr () != r_expr->get_expr ())
+	return unify_error_type_node ();
+
+      return resolved_lhs->as_base_type ();
+    }
+
   auto res = resolve_subtype (
     TyTy::TyWithLocation (resolved_lhs->get_specified_type ()),
     TyTy::TyWithLocation (resolved_rhs->get_specified_type ()));
