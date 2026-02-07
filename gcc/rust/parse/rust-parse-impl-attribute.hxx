@@ -293,6 +293,16 @@ Parser<ManagedTokenSource>::parse_attr_input ()
 
 	t = lexer.peek_token ();
 
+	/* Ensure token is a "literal expression" (literally only a literal
+	 * token of any type) */
+	if (!t->is_literal ())
+	  {
+	    Error error (
+	      t->get_locus (),
+	      "arbitrary expressions in key-value attributes are unstable");
+	    collect_potential_gating_error (
+	      Feature::Name::EXTENDED_KEY_VALUE_ATTRIBUTES, std::move (error));
+	  }
 	// attempt to parse macro
 	// TODO: macros may/may not be allowed in attributes
 	// this is needed for "#[doc = include_str!(...)]"
@@ -306,20 +316,6 @@ Parser<ManagedTokenSource>::parse_attr_input ()
 
 	    return std::unique_ptr<AST::AttrInput> (
 	      new AST::AttrInputMacro (std::move (invoke)));
-	  }
-
-	/* Ensure token is a "literal expression" (literally only a literal
-	 * token of any type) */
-	if (!t->is_literal ())
-	  {
-	    Error error (
-	      t->get_locus (),
-	      "unknown token %qs in attribute body - literal expected",
-	      t->get_token_description ());
-	    add_error (std::move (error));
-
-	    skip_after_end_attribute ();
-	    return Parse::Error::AttrInput::make_malformed ();
 	  }
 
 	AST::Literal::LitType lit_type = AST::Literal::STRING;
@@ -345,9 +341,14 @@ Parser<ManagedTokenSource>::parse_attr_input ()
 	    lit_type = AST::Literal::RAW_STRING;
 	    break;
 	  case STRING_LITERAL:
-	  default:
 	    lit_type = AST::Literal::STRING;
 	    break; // TODO: raw string? don't eliminate it from lexer?
+	  default:
+	    rust_sorry_at (t->get_locus (),
+			   "Unsupported attribute input, only literals and "
+			   "macros are supported for now");
+	    skip_after_end_attribute ();
+	    return Parse::Error::AttrInput::make_malformed ();
 	  }
 
 	// create actual LiteralExpr
