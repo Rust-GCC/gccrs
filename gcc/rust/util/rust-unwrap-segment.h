@@ -16,6 +16,9 @@
 // along with GCC; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
+#ifndef RUST_UNWRAP_SEGMENT_H
+#define RUST_UNWRAP_SEGMENT_H
+
 #include "rust-system.h"
 #include "optional.h"
 #include "rust-lang-item.h"
@@ -136,3 +139,5 @@ unwrap_segment_error_string (const AST::PathInExpression &path)
 }
 
 } // namespace Rust
+
+#endif // RUST_UNWRAP_SEGMENT_H
