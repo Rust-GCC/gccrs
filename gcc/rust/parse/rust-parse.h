@@ -25,6 +25,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "rust-parse-error.h"
 #include "rust-parse-utils.h"
 #include "rust-feature.h"
+#include "rust-feature-gate.h"
 
 #include "expected.h"
 
@@ -853,15 +854,9 @@ private:
 
   void add_error (Error error) { error_table.push_back (std::move (error)); }
 
-  // We don't know the crate's valid feature set since we may not have parsed
-  // all feature declaration attributes yet, some features are not available and
-  // we can't decide at parse time whether we should reject the syntax.
-  //
-  // To fix this we collect the feature gating errors now and will emit the
-  // errors later.
   void collect_potential_gating_error (Feature::Name feature, Error error)
   {
-    gating_errors.emplace_back (feature, error);
+    EarlyFeatureGateStore::get ().add (feature, error);
   }
 
 public:
