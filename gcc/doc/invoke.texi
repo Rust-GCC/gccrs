@@ -37217,11 +37217,10 @@ These options are supported for Xtensa targets:
 @item -mconst16
 @itemx -mno-const16
 Enable or disable use of @code{CONST16} instructions for loading
-constant values.  The @code{CONST16} instruction is currently not a
-standard option from Tensilica.  When enabled, @code{CONST16}
-instructions are always used in place of the standard @code{L32R}
-instructions.  The use of @code{CONST16} is enabled by default only if
-the @code{L32R} instruction is not available.
+constant values.  When enabled, @code{CONST16} instructions are always
+used in place of the standard @code{L32R} instructions.  The use of
+@code{CONST16} is enabled by default only if the @code{L32R} instruction
+is not available.
 
 @opindex mserialize-volatile
 @opindex mno-serialize-volatile
