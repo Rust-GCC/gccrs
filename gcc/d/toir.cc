@@ -1241,7 +1241,7 @@ public:
     else
       arg = build_nop (build_ctype (get_object_type ()), arg);
 
-    add_stmt (build_libcall (LIBCALL_THROW, Type::tnoreturn, 1, arg));
+    add_stmt (build_libcall (LIBCALL_THROW, 1, arg));
   }
 
   /* Build a try-catch statement, one of the building blocks for exception
@@ -1307,8 +1307,7 @@ public:
 	       the end catch callback.  */
 	    if (cd->isCPPclass ())
 	      {
-		tree endcatch = build_libcall (LIBCALL_CXA_END_CATCH,
-					       Type::tvoid, 0);
+		tree endcatch = build_libcall (LIBCALL_CXA_END_CATCH, 0);
 		catchbody = build2 (TRY_FINALLY_EXPR, void_type_node,
 				    catchbody, endcatch);
 	      }

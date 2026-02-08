@@ -694,6 +694,7 @@ extern void d_defer_declaration (Declaration *);
 extern void d_finish_compilation (tree *, int);
 
 /* In runtime.cc.  */
+extern tree build_libcall (libcall_fn, int ...);
 extern tree build_libcall (libcall_fn, Type *, int ...);
 
 /* In typeinfo.cc.  */

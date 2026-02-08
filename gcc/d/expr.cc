@@ -1005,7 +1005,7 @@ public:
   void visit (ThrowExp *e) final override
   {
     tree arg = build_expr_dtor (e->e1);
-    this->result_ = build_libcall (LIBCALL_THROW, Type::tnoreturn, 1, arg);
+    this->result_ = build_libcall (LIBCALL_THROW, 1, arg);
   }
 
   /* Build a postfix expression.  */
@@ -1254,7 +1254,7 @@ public:
 	libcall_fn libcall = tb1->isClassHandle ()->isInterfaceDeclaration ()
 	  ? LIBCALL_CALLINTERFACEFINALIZER : LIBCALL_CALLFINALIZER;
 
-	this->result_ = build_libcall (libcall, Type::tvoid, 1, t1);
+	this->result_ = build_libcall (libcall, 1, t1);
 	return;
       }
     else
@@ -1764,8 +1764,7 @@ public:
 		if (!cd->isInterfaceDeclaration () && !cd->isCPPclass ())
 		  {
 		    arg = d_save_expr (arg);
-		    assert_pass = build_libcall (LIBCALL_INVARIANT,
-						 Type::tvoid, 1, arg);
+		    assert_pass = build_libcall (LIBCALL_INVARIANT, 1, arg);
 		  }
 	      }
 	    else if (tb1->ty == TY::Tpointer

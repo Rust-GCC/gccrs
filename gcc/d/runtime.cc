@@ -301,24 +301,52 @@ get_libcall (libcall_fn libcall)
   return libcall_decls[libcall];
 }
 
-/* Generate a call to LIBCALL, returning the result as TYPE.  NARGS is the
-   number of call arguments, the expressions of which are provided in `...'.
+
+/* Subroutine of build_libcall; generate a call to LIBCALL.  NARGS is the
+   number of call arguments, the expressions of which are provided in ARGP.
    This does not perform conversions or promotions on the arguments.  */
 
-tree
-build_libcall (libcall_fn libcall, Type *type, int nargs, ...)
+static tree
+build_libcall_1 (libcall_fn libcall, int nargs, va_list argp)
 {
   /* Build the call expression to the runtime function.  */
   tree decl = get_libcall (libcall);
   tree *args = XALLOCAVEC (tree, nargs);
+
+  for (int i = 0; i < nargs; i++)
+    args[i] = va_arg (argp, tree);
+
+  return build_call_expr_loc_array (input_location, decl, nargs, args);
+}
+
+/* Generate a call to LIBCALL.  NARGS is the number of call arguments, the
+   expressions of which are provided in `...'.  */
+
+tree
+build_libcall (libcall_fn libcall, int nargs, ...)
+{
   va_list ap;
 
   va_start (ap, nargs);
-  for (int i = 0; i < nargs; i++)
-    args[i] = va_arg (ap, tree);
+
+  tree result = build_libcall_1 (libcall, nargs, ap);
   va_end (ap);
 
-  tree result = build_call_expr_loc_array (input_location, decl, nargs, args);
+  return result;
+}
+
+/* Generate a call to LIBCALL, returning the result as TYPE.  NARGS is the
+   number of call arguments, the expressions of which are provided in `...'.  */
+
+tree
+build_libcall (libcall_fn libcall, Type *type, int nargs, ...)
+{
+  va_list ap;
+
+  va_start (ap, nargs);
+
+  tree result = build_libcall_1 (libcall, nargs, ap);
+  va_end (ap);
 
   /* Assumes caller knows what it is doing.  */
   return convert (build_ctype (type), result);
