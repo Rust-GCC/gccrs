@@ -1,6 +1,6 @@
 // { dg-additional-options "-O3" }
 
-void *operator new(unsigned long, void *);
+void *operator new(__SIZE_TYPE__, void *);
 int to_constant();
 int vec_copy_construct_n, vec_stmts_size, vectorizable_load_vec_stmt,
     vectorizable_load_offvar;
