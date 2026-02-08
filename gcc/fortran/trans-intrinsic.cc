@@ -7647,6 +7647,14 @@ gfc_conv_intrinsic_len (gfc_se * se, gfc_expr * expr)
       break;
 
     case EXPR_ARRAY:
+      /* If there is an explicit type-spec, use it.  */
+      if (arg->ts.u.cl->length && arg->ts.u.cl->length_from_typespec)
+	{
+	  gfc_conv_string_length (arg->ts.u.cl, arg, &se->pre);
+	  len = arg->ts.u.cl->backend_decl;
+	  break;
+	}
+
       /* Obtain the string length from the function used by
          trans-array.cc(gfc_trans_array_constructor).  */
       len = NULL_TREE;

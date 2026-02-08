@@ -10405,7 +10405,7 @@ gfc_match_volatile (void)
       switch (m)
 	{
 	case MATCH_YES:
-	  name = XCNEWVAR (char, strlen (sym->name) + 1);
+	  name = XALLOCAVAR (char, strlen (sym->name) + 1);
 	  strcpy (name, sym->name);
 	  if (!check_function_name (name))
 	    return MATCH_ERROR;
@@ -10469,7 +10469,7 @@ gfc_match_asynchronous (void)
       switch (m)
 	{
 	case MATCH_YES:
-	  name = XCNEWVAR (char, strlen (sym->name) + 1);
+	  name = XALLOCAVAR (char, strlen (sym->name) + 1);
 	  strcpy (name, sym->name);
 	  if (!check_function_name (name))
 	    return MATCH_ERROR;

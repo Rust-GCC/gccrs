@@ -5083,6 +5083,21 @@ gfc_simplify_len (gfc_expr *e, gfc_expr *kind)
 	    }
 	}
     }
+  else if (e->expr_type == EXPR_ARRAY && e->ts.type == BT_CHARACTER
+	   && e->ts.u.cl
+	   && e->ts.u.cl->length_from_typespec
+	   && e->ts.u.cl->length
+	   && e->ts.u.cl->length->ts.type == BT_INTEGER)
+    {
+      gfc_typespec ts;
+      gfc_clear_ts (&ts);
+      ts.type = BT_INTEGER;
+      ts.kind = k;
+      result = gfc_copy_expr (e->ts.u.cl->length);
+      gfc_convert_type_warn (result, &ts, 2, 0);
+      return result;
+    }
+
   return NULL;
 }
 
