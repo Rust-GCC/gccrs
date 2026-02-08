@@ -3645,6 +3645,9 @@ package body Freeze is
          Clause : Node_Id;
          --  Set to Component_Size clause or Atomic pragma, if any
 
+         Junk : Boolean;
+         pragma Warnings (Off, Junk);
+
          Non_Standard_Enum : Boolean := False;
          --  Set true if any of the index types is an enumeration type with a
          --  non-standard representation.
@@ -3792,6 +3795,21 @@ package body Freeze is
                                or else Component_Size (Arr) < Esize (Ctyp))
                   then
                      Complain_CS ("independent", Min => True);
+                  end if;
+
+                  --  If the component is of a fixed-point type, we must check
+                  --  the size. This is not done until the freeze point since,
+                  --  for fixed-point types, we do not know the size until the
+                  --  type is frozen. Likewise for a bit-packed array type.
+
+                  if Is_Fixed_Point_Type (Ctyp)
+                    or else Is_Bit_Packed_Array (Ctyp)
+                  then
+                     Clause :=
+                       Get_Attribute_Definition_Clause
+                         (FS, Attribute_Component_Size);
+                     Check_Size
+                       (Expression (Clause), Ctyp, Component_Size (Arr), Junk);
                   end if;
                end CS_Check;
 
