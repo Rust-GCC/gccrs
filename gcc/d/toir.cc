@@ -1241,7 +1241,7 @@ public:
     else
       arg = build_nop (build_ctype (get_object_type ()), arg);
 
-    add_stmt (build_libcall (LIBCALL_THROW, Type::tvoid, 1, arg));
+    add_stmt (build_libcall (LIBCALL_THROW, Type::tnoreturn, 1, arg));
   }
 
   /* Build a try-catch statement, one of the building blocks for exception

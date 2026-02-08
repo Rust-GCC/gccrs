@@ -1005,7 +1005,7 @@ public:
   void visit (ThrowExp *e) final override
   {
     tree arg = build_expr_dtor (e->e1);
-    this->result_ = build_libcall (LIBCALL_THROW, Type::tvoid, 1, arg);
+    this->result_ = build_libcall (LIBCALL_THROW, Type::tnoreturn, 1, arg);
   }
 
   /* Build a postfix expression.  */

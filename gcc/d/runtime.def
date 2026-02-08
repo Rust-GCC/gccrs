@@ -39,24 +39,26 @@ along with GCC; see the file COPYING3.  If not see
 #define RT(T1)	LCT_ ## T1
 
 /* Used when an assert() contract fails.  */
-DEF_D_RUNTIME (ASSERTP, "_d_assertp", RT(VOID), P2(IMMUTABLE_CHARPTR, UINT),
+DEF_D_RUNTIME (ASSERTP, "_d_assertp", RT(NORETURN), P2(IMMUTABLE_CHARPTR, UINT),
 	       ECF_NORETURN)
-DEF_D_RUNTIME (ASSERT_MSG, "_d_assert_msg", RT(VOID), P3(STRING, STRING, UINT),
+DEF_D_RUNTIME (ASSERT_MSG, "_d_assert_msg", RT(NORETURN),
+	       P3(STRING, STRING, UINT),
 	       ECF_NORETURN)
 
 /* Used when an assert() contract fails in a unittest function.  */
-DEF_D_RUNTIME (UNITTESTP, "_d_unittestp", RT(VOID), P2(IMMUTABLE_CHARPTR, UINT),
+DEF_D_RUNTIME (UNITTESTP, "_d_unittestp", RT(NORETURN),
+	       P2(IMMUTABLE_CHARPTR, UINT),
 	       ECF_NORETURN)
-DEF_D_RUNTIME (UNITTEST_MSG, "_d_unittest_msg", RT(VOID),
+DEF_D_RUNTIME (UNITTEST_MSG, "_d_unittest_msg", RT(NORETURN),
 	       P3(STRING, STRING, UINT), ECF_NORETURN)
 
 /* Used when an array index outside the bounds of its range.  */
-DEF_D_RUNTIME (ARRAYBOUNDSP, "_d_arrayboundsp", RT(VOID),
+DEF_D_RUNTIME (ARRAYBOUNDSP, "_d_arrayboundsp", RT(NORETURN),
 	       P2(IMMUTABLE_CHARPTR, UINT), ECF_NORETURN)
-DEF_D_RUNTIME (ARRAYBOUNDS_SLICEP, "_d_arraybounds_slicep", RT(VOID),
+DEF_D_RUNTIME (ARRAYBOUNDS_SLICEP, "_d_arraybounds_slicep", RT(NORETURN),
 	       P5(IMMUTABLE_CHARPTR, UINT, SIZE_T, SIZE_T, SIZE_T),
 	       ECF_NORETURN)
-DEF_D_RUNTIME (ARRAYBOUNDS_INDEXP, "_d_arraybounds_indexp", RT(VOID),
+DEF_D_RUNTIME (ARRAYBOUNDS_INDEXP, "_d_arraybounds_indexp", RT(NORETURN),
 	       P4(IMMUTABLE_CHARPTR, UINT, SIZE_T, SIZE_T), ECF_NORETURN)
 
 /* Used when calling delete on a stack-allocated class or interface.  */
@@ -92,7 +94,7 @@ DEF_D_RUNTIME (ARRAYAPPENDWD, "_d_arrayappendwd", RT(ARRAY_VOID),
 	       P2(ARRAYPTR_BYTE, DCHAR), 0)
 
 /* Used for throw() expressions.  */
-DEF_D_RUNTIME (THROW, "_d_throw", RT(VOID), P1(OBJECT), ECF_NORETURN)
+DEF_D_RUNTIME (THROW, "_d_throw", RT(NORETURN), P1(OBJECT), ECF_NORETURN)
 DEF_D_RUNTIME (BEGIN_CATCH, "__gdc_begin_catch", RT(VOIDPTR), P1(VOIDPTR), 0)
 
 /* C++ exception handlers.  */

@@ -1994,9 +1994,9 @@ build_assert_call (const Loc &loc, libcall_fn libcall, tree msg)
 
 
   if (msg != NULL_TREE)
-    return build_libcall (libcall, Type::tvoid, 3, msg, file, line);
+    return build_libcall (libcall, Type::tnoreturn, 3, msg, file, line);
   else
-    return build_libcall (libcall, Type::tvoid, 2, file, line);
+    return build_libcall (libcall, Type::tnoreturn, 2, file, line);
 }
 
 /* Builds a CALL_EXPR at location LOC in the source file to execute when an
@@ -2010,7 +2010,7 @@ build_array_bounds_call (const Loc &loc)
     return build_call_expr (builtin_decl_explicit (BUILT_IN_TRAP), 0);
   else
     {
-      return build_libcall (LIBCALL_ARRAYBOUNDSP, Type::tvoid, 2,
+      return build_libcall (LIBCALL_ARRAYBOUNDSP, Type::tnoreturn, 2,
 			    build_filename_from_loc (loc),
 			    size_int (loc.linnum ()));
     }
@@ -2039,7 +2039,7 @@ build_bounds_index_condition (IndexExp *ie, tree index, tree length)
     boundserr = build_call_expr (builtin_decl_explicit (BUILT_IN_TRAP), 0);
   else
     {
-      boundserr = build_libcall (LIBCALL_ARRAYBOUNDS_INDEXP, Type::tvoid, 4,
+      boundserr = build_libcall (LIBCALL_ARRAYBOUNDS_INDEXP, Type::tnoreturn, 4,
 				 build_filename_from_loc (ie->e2->loc),
 				 size_int (ie->e2->loc.linnum ()),
 				 index, length);
@@ -2089,7 +2089,7 @@ build_bounds_slice_condition (SliceExp *se, tree lower, tree upper, tree length)
 	  else
 	    {
 	      boundserr = build_libcall (LIBCALL_ARRAYBOUNDS_SLICEP,
-					 Type::tvoid, 5,
+					 Type::tnoreturn, 5,
 					 build_filename_from_loc (se->loc),
 					 size_int (se->loc.linnum ()),
 					 lower, upper, length);

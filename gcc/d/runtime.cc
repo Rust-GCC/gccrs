@@ -36,6 +36,7 @@ along with GCC; see the file COPYING3.  If not see
 
 enum d_libcall_type
 {
+  LCT_NORETURN,		    /* typeof(*null)	    */
   LCT_VOID,		    /* void		    */
   LCT_BYTE,		    /* byte		    */
   LCT_INT,		    /* int		    */
@@ -89,6 +90,10 @@ get_libcall_type (d_libcall_type type)
 
   switch (type)
     {
+    case LCT_NORETURN:
+      libcall_types[type] = Type::tnoreturn;
+      break;
+
     case LCT_VOID:
       libcall_types[type] = Type::tvoid;
       break;
