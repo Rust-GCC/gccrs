@@ -417,20 +417,23 @@ TypeCheckStructExpr::make_missing_field_error (
     {
       return Error (locus, ErrorCode::E0063,
 		    "missing field %s in initializer of %qs",
-		    missing_field_names[0].c_str (), struct_name.c_str ());
+		    ("`" + missing_field_names[0] + "`").c_str (),
+		    struct_name.c_str ());
     }
   // Make comma separated string for display
   std::stringstream display_field_names;
-  bool first = true;
-  for (auto &name : missing_field_names)
+  int missing_files_count = missing_field_names.size ();
+  for (int index = 0; index + 2 < missing_files_count; ++index)
     {
-      if (!first)
-	{
-	  display_field_names << ", ";
-	}
-      first = false;
-      display_field_names << name;
+      auto name = missing_field_names[index];
+      display_field_names << '`' << name << "`, ";
     }
+  display_field_names << '`' << missing_field_names[missing_files_count - 2]
+		      << '`';
+  display_field_names << " and ";
+  display_field_names << '`' << missing_field_names[missing_files_count - 1]
+		      << '`';
+
   return Error (locus, ErrorCode::E0063,
 		"missing fields %s in initializer of %qs",
 		display_field_names.str ().c_str (), struct_name.c_str ());
