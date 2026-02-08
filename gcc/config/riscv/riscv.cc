@@ -3912,9 +3912,16 @@ riscv_legitimize_move (machine_mode mode, rtx dest, rtx src)
 		}
 	    }
 
+	  /* If we are extracting a single element out of a vector and do
+	     not need an intermediate register, then the extraction will
+	     occur directly into RESULT.  RESULT is the same as DEST and
+	     INT_REG.  So we end up with a nop move.  That is not a major
+	     problem, except in this case it'll send us right back into
+	     this code and we recurse.  Given we put the value in RESULT
+	     already we can just elide the nop move here and be done.  */
 	  if (need_int_reg_p)
 	    emit_move_insn (dest, gen_lowpart (GET_MODE (dest), int_reg));
-	  else
+	  else if (!rtx_equal_p (dest, int_reg)) 
 	    emit_move_insn (dest, int_reg);
 	  return true;
 	}
