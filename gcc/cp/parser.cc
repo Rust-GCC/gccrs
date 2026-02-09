@@ -1635,10 +1635,11 @@ struct saved_token_sentinel
 {
   cp_lexer *lexer;
   unsigned len;
+  location_t loc;
   saved_token_sentinel_mode mode;
   saved_token_sentinel (cp_lexer *_lexer,
 			saved_token_sentinel_mode _mode = STS_COMMIT)
-    : lexer (_lexer), mode (_mode)
+    : lexer (_lexer), loc (input_location), mode (_mode)
   {
     len = lexer->saved_tokens.length ();
     cp_lexer_save_tokens (lexer);
@@ -1646,8 +1647,7 @@ struct saved_token_sentinel
   void rollback ()
   {
     cp_lexer_rollback_tokens (lexer);
-    cp_lexer_set_source_position_from_token
-      (cp_lexer_previous_token (lexer));
+    input_location = loc;
     mode = STS_DONOTHING;
   }
   ~saved_token_sentinel ()
@@ -6523,18 +6523,9 @@ cp_parser_skip_entire_splice_expr (cp_parser *parser)
 static bool
 cp_parser_splice_spec_is_nns_p (cp_parser *parser)
 {
-  /* ??? It'd be nice to use saved_token_sentinel, but its rollback
-     uses cp_lexer_previous_token, but we may be the first token in the
-     file so there are no previous tokens.  Sigh.  */
-  cp_lexer_save_tokens (parser->lexer);
-
-  const bool ok = (cp_parser_skip_entire_splice_expr (parser)
-		   && cp_lexer_next_token_is (parser->lexer, CPP_SCOPE));
-
-  /* Roll back the tokens we skipped.  */
-  cp_lexer_rollback_tokens (parser->lexer);
-
-  return ok;
+  saved_token_sentinel toks (parser->lexer, STS_ROLLBACK);
+  return (cp_parser_skip_entire_splice_expr (parser)
+	  && cp_lexer_next_token_is (parser->lexer, CPP_SCOPE));
 }
 
 /* Return true if the N-th token is '[:' and its closing ':]' is NOT
