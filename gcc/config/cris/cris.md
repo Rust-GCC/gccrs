@@ -2349,7 +2349,9 @@
 	 (label_ref (match_operand 2 ""))
 	 (pc)))
    (clobber (reg:CC CRIS_CC0_REGNUM))]
-  ""
+  "(register_operand (operands[0], <MODE>mode)
+    || register_operand (operands[1], <MODE>mode)
+    || operands[1] == const0_rtx)"
   "#"
   "&& reload_completed"
   [(set (reg:<xCC> CRIS_CC0_REGNUM)
@@ -2505,7 +2507,9 @@
 	 (match_operand:BWDD 1 "nonimmediate_operand" "<cmp_op0c>")
 	 (match_operand:BWDD 2 "general_operand" "<cmp_op1c>")))
    (clobber (reg:CC CRIS_CC0_REGNUM))]
-  ""
+  "(register_operand (operands[1], <MODE>mode)
+    || register_operand (operands[2], <MODE>mode)
+    || operands[2] == const0_rtx)"
   "#"
   "&& reload_completed"
   [(set (reg:<xCC> CRIS_CC0_REGNUM)

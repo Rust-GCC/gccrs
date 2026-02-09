@@ -2799,11 +2799,11 @@ cris_split_constant (HOST_WIDE_INT wval, enum rtx_code code,
 
 /* Try to change a comparison against a constant to be against zero, and
    an unsigned compare against zero to be an equality test.  Beware:
-   only valid for compares of integer-type operands.  Also, note that we
-   don't use operand 0 at the moment.  */
+   only valid for compares of integer-type operands.  Also forces one operand
+   to be a register, unless either is 0.  */
 
 void
-cris_reduce_compare (rtx *relp, rtx *, rtx *op1p)
+cris_reduce_compare (rtx *relp, rtx *op0p, rtx *op1p)
 {
   rtx op1 = *op1p;
   rtx_code code = GET_CODE (*relp);
@@ -2849,9 +2849,18 @@ cris_reduce_compare (rtx *relp, rtx *, rtx *op1p)
 
   if (code != GET_CODE (*relp))
   {
-    *op1p = const0_rtx;
+    op1 = const0_rtx;
+    *op1p = op1;
     PUT_CODE (*relp, code);
   }
+
+  if (op1 != const0_rtx && *op0p != const0_rtx)
+    {
+      machine_mode op1mode = GET_MODE (op1);
+
+      *op0p = force_reg (op1mode != VOIDmode ? op1mode : GET_MODE (*op0p),
+			 *op0p);
+    }
 }
 
 /* The expander for the prologue pattern name.  */
