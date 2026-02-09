@@ -493,7 +493,7 @@ AC_DEFUN([gcc_GAS_FLAGS],
     esac
     ;;
   *-*-solaris2*:no)
-    dnl Override the default, which may be incompatible.
+    dnl Solaris with the native assembler uses -m32/-m64 consistently.
     case "$target" in
       i?86-*-* | sparc-*-*)
 	gcc_cv_as_flags=-m32
@@ -505,16 +505,16 @@ AC_DEFUN([gcc_GAS_FLAGS],
     as_32_opt=-m32
     as_64_opt=-m64
     ;;
-  i?86-*-*:* | x86_64-*-*:* )
-    dnl Override the default, which may be incompatible.
+  i?86-*-*:* | x86_64-*-*:* | sparc*-*-*:*)
+    dnl Otherwise x86 and SPARC use GNU assembler options --32/--64/--x32.
     case "$target" in
-      i?86-*-*)
+      i?86-*-* | sparc-*-*)
 	gcc_cv_as_flags=--32
 	;;
       x86_64-*-linux-gnux32*)
 	gcc_cv_as_flags=--x32
 	;;
-      x86_64-*-linux*)
+      x86_64-*-* | sparcv9-*-* | sparc64-*-*)
 	gcc_cv_as_flags=--64
 	;;
     esac
