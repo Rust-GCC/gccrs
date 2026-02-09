@@ -6080,8 +6080,9 @@ eval_define_aggregate (location_t loc, const constexpr_ctx *ctx,
   if (!TYPE_BINFO (type))
     xref_basetypes (type, NULL_TREE);
   pushclass (type);
-  gcc_assert (!TYPE_FIELDS (type));
-  tree fields = NULL_TREE;
+  TYPE_BEING_DEFINED (type) = 1;
+  build_self_reference ();
+  tree fields = TYPE_FIELDS (type);
   for (int i = 0; i < TREE_VEC_LENGTH (rvec); ++i)
     {
       tree ra = TREE_VEC_ELT (rvec, i);
