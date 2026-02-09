@@ -1,5 +1,5 @@
 ! { dg-do run }
-! { dg-output " finalizing id\\s+0\\n finalizing id\\s+1\\n finalizer count =\\s+2\\n" }
+! { dg-output " finalizing id\\s+0\(\r*\n+) finalizing id\\s+1\(\r*\n+) finalizer count =\\s+2\(\r*\n+)" }
 ! PR fortran/90519
 
 module pr90519_finalizer_run_mod
