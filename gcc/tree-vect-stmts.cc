@@ -644,10 +644,7 @@ process_use (stmt_vec_info stmt_vinfo, tree use, loop_vec_info loop_vinfo,
 	   && STMT_VINFO_DEF_TYPE (stmt_vinfo) == vect_induction_def
 	   && (PHI_ARG_DEF_FROM_EDGE (stmt_vinfo->stmt,
 				      loop_latch_edge (bb->loop_father))
-	       == use)
-	   && (!LOOP_VINFO_EARLY_BREAKS (loop_vinfo)
-	       || (gimple_bb (stmt_vinfo->stmt)
-		   != LOOP_VINFO_LOOP (loop_vinfo)->header)))
+	       == use))
     {
       if (dump_enabled_p ())
 	dump_printf_loc (MSG_NOTE, vect_location,
