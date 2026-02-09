@@ -1,5 +1,5 @@
 /* { dg-do compile { target { lp64 && s390_vx } } } */
-/* { dg-options "-march=native -O2 -ftree-vectorize -fno-vect-cost-model -fno-unroll-loops -ffast-math -fno-trapping-math" } */
+/* { dg-options "-march=z14 -O2 -ftree-vectorize -fno-vect-cost-model -fno-unroll-loops -ffast-math -fno-trapping-math" } */
 
 /* { dg-additional-options "--param=vect-partial-vector-usage=1 --param=min-vect-loop-bound=0" } */
 
