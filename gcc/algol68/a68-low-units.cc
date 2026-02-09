@@ -1296,13 +1296,12 @@ a68_lower_formal_hole (NODE_T *p, LOW_CTX_T ctx ATTRIBUTE_UNUSED)
 	{
 	  decl = a68_make_anonymous_routine_decl (MOID (p));
 	  a68_add_decl (decl);
-	  a68_wrap_formal_proc_hole (p, decl);
-
-	  /* XXX necessary */
 	  a68_add_decl_expr (fold_build1_loc (a68_get_node_location (p),
 					      DECL_EXPR,
 					      TREE_TYPE (decl),
 					      decl));
+	  a68_wrap_formal_proc_hole (p, decl);
+
 	  decl = fold_build1 (ADDR_EXPR,
 			      build_pointer_type (TREE_TYPE (decl)),
 			      decl);

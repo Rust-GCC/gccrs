@@ -164,7 +164,7 @@ a68_wrap_formal_proc_hole (NODE_T *p, tree wrapper)
     }
   DECL_ARGUMENTS (wrapper) = nreverse (DECL_ARGUMENTS (wrapper));
 
-  a68_push_function_range (wrapper, wrapper_ret_type, true /* top_level */);
+  a68_push_function_range (wrapper, wrapper_ret_type);
 
   /* We need a pointer to a function type.  */
   if (!POINTER_TYPE_P (TREE_TYPE (wrapped)))

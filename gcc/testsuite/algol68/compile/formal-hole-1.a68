@@ -1,0 +1,7 @@
+{ Freestanding formal hole. }
+
+begin
+      proc msleep = (int ms) void:
+         proc(bits)int (nest C "usleep") (BIN ms);
+      skip
+end
