@@ -3727,8 +3727,10 @@ gnat_to_gnu_entity (Entity_Id gnat_entity, tree gnu_expr, bool definition)
 		 we are asked to output GNAT encodings, write a record that
 		 shows what we are a subtype of and also make a variable that
 		 indicates our size, if still variable.  */
-	      if (debug_info_p
-		  && gnat_encodings == DWARF_GNAT_ENCODINGS_ALL)
+	      if (!debug_info_p)
+		;
+
+	      else if (gnat_encodings == DWARF_GNAT_ENCODINGS_ALL)
 		{
 		  tree gnu_subtype_marker = make_node (RECORD_TYPE);
 		  tree gnu_unpad_base_name
@@ -3759,11 +3761,9 @@ gnat_to_gnu_entity (Entity_Id gnat_entity, tree gnu_expr, bool definition)
 					 true, true, NULL, gnat_entity, false);
 		}
 
-	      /* Or else, if the subtype is artificial and GNAT encodings are
-		 not used, use the base record type as the debug type.  */
-	      else if (debug_info_p
-		       && artificial_p
-		       && gnat_encodings != DWARF_GNAT_ENCODINGS_ALL)
+	      /* Or else, if the subtype is artificial, use the base record
+	         type as the debug type.  */
+	      else if (artificial_p)
 		SET_TYPE_DEBUG_TYPE (gnu_type, gnu_unpad_base_type);
 	    }
 
@@ -10974,6 +10974,27 @@ copy_and_substitute_in_layout (Entity_Id gnat_new_type,
 	else
 	  save_gnu_tree (gnat_field, gnu_field, false);
       }
+
+  /* For a tagged subtype, inherit the non-stored dicriminants from the old
+     type instead of inheriting them from an ancestor.  That's specifically
+     helpful for the Parent_Subtype of tagged extensions when discriminants
+     must be rematerialized by the DWARF back-end, to describe the variant
+     part of extensions, because the discriminants of the old type are also
+     non-stored whereas those of the (ultimate) ancestor are stored.  */
+  if (is_subtype && Is_Tagged_Type (gnat_new_type))
+    for (gnat_field = First_Discriminant (gnat_new_type);
+	 Present (gnat_field);
+	 gnat_field = Next_Discriminant (gnat_field))
+      if (!is_stored_discriminant (gnat_field, gnat_new_type)
+	  && (gnat_old_field = Original_Record_Component (gnat_field))
+	  && Underlying_Type (Scope (gnat_old_field)) == gnat_old_type
+	  && present_gnu_tree (gnat_old_field))
+	{
+	  tree gnu_old_field = get_gnu_tree (gnat_old_field);
+	  if (TREE_CODE (gnu_old_field) == COMPONENT_REF)
+	    gnu_old_field = TREE_OPERAND (gnu_old_field, 1);
+	  save_gnu_tree (gnat_field, gnu_old_field, false);
+	}
 
   /* Put the fields with fixed position in order of increasing position.  */
   if (gnu_field_list)
