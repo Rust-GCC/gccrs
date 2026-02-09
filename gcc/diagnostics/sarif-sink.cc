@@ -801,7 +801,9 @@ public:
   const logical_locations::manager *
   get_logical_location_manager () const
   {
-    return m_logical_loc_mgr;
+    if (auto client_data_hooks = m_context.get_client_data_hooks ())
+      return client_data_hooks->get_logical_location_manager ();
+    return nullptr;
   }
 
   void
@@ -993,8 +995,6 @@ private:
   pretty_printer *m_printer;
   const line_maps *m_line_maps;
   sarif_token_printer m_token_printer;
-
-  const logical_locations::manager *m_logical_loc_mgr;
 
   /* The JSON object for the invocation object.  */
   std::unique_ptr<sarif_invocation> m_invocation_obj;
@@ -1700,7 +1700,6 @@ sarif_builder::sarif_builder (diagnostics::context &dc,
   m_printer (&printer),
   m_line_maps (line_maps),
   m_token_printer (*this),
-  m_logical_loc_mgr (nullptr),
   m_invocation_obj
     (std::make_unique<sarif_invocation> (*this,
 					 dc.get_original_argv ())),
@@ -1721,9 +1720,6 @@ sarif_builder::sarif_builder (diagnostics::context &dc,
 {
   gcc_assert (m_line_maps);
   gcc_assert (m_serialization_format);
-
-  if (auto client_data_hooks = dc.get_client_data_hooks ())
-    m_logical_loc_mgr = client_data_hooks->get_logical_location_manager ();
 }
 
 sarif_builder::~sarif_builder ()
@@ -2307,7 +2303,8 @@ set_any_logical_locs_arr (sarif_location &location_obj,
 {
   if (!logical_loc)
     return;
-  gcc_assert (m_logical_loc_mgr);
+  auto logical_loc_mgr = get_logical_location_manager ();
+  gcc_assert (logical_loc_mgr);
   auto location_locs_arr = std::make_unique<json::array> ();
 
   auto logical_loc_obj = make_minimal_sarif_logical_location (logical_loc);
@@ -3061,28 +3058,29 @@ int
 sarif_builder::
 ensure_sarif_logical_location_for (logical_locations::key k)
 {
-  gcc_assert (m_logical_loc_mgr);
+  auto logical_loc_mgr = get_logical_location_manager ();
+  gcc_assert (logical_loc_mgr);
 
   auto sarif_logical_loc = std::make_unique<sarif_logical_location> ();
 
-  if (const char *short_name = m_logical_loc_mgr->get_short_name (k))
+  if (const char *short_name = logical_loc_mgr->get_short_name (k))
     sarif_logical_loc->set_string ("name", short_name);
 
   /* "fullyQualifiedName" property (SARIF v2.1.0 section 3.33.5).  */
-  if (const char *name_with_scope = m_logical_loc_mgr->get_name_with_scope (k))
+  if (const char *name_with_scope = logical_loc_mgr->get_name_with_scope (k))
     sarif_logical_loc->set_string ("fullyQualifiedName", name_with_scope);
 
   /* "decoratedName" property (SARIF v2.1.0 section 3.33.6).  */
-  if (const char *internal_name = m_logical_loc_mgr->get_internal_name (k))
+  if (const char *internal_name = logical_loc_mgr->get_internal_name (k))
     sarif_logical_loc->set_string ("decoratedName", internal_name);
 
   /* "kind" property (SARIF v2.1.0 section 3.33.7).  */
-  enum logical_locations::kind kind = m_logical_loc_mgr->get_kind (k);
+  enum logical_locations::kind kind = logical_loc_mgr->get_kind (k);
   if (const char *sarif_kind_str = maybe_get_sarif_kind (kind))
     sarif_logical_loc->set_string ("kind", sarif_kind_str);
 
   /* "parentIndex" property (SARIF v2.1.0 section 3.33.8).  */
-  if (auto parent_key = m_logical_loc_mgr->get_parent (k))
+  if (auto parent_key = logical_loc_mgr->get_parent (k))
     {
       /* Recurse upwards.  */
       int parent_index = ensure_sarif_logical_location_for (parent_key);
@@ -3105,7 +3103,8 @@ std::unique_ptr<sarif_logical_location>
 sarif_builder::
 make_minimal_sarif_logical_location (logical_locations::key logical_loc)
 {
-  gcc_assert (m_logical_loc_mgr);
+  auto logical_loc_mgr = get_logical_location_manager ();
+  gcc_assert (logical_loc_mgr);
 
   /* Ensure that m_cached_logical_locs has a "logicalLocation" object
      (SARIF v2.1.0 section 3.33) for LOGICAL_LOC, and return its index within
@@ -3120,7 +3119,7 @@ make_minimal_sarif_logical_location (logical_locations::key logical_loc)
 
   /* "fullyQualifiedName" property (SARIF v2.1.0 section 3.33.5).  */
   if (const char *name_with_scope
-        = m_logical_loc_mgr->get_name_with_scope (logical_loc))
+	= logical_loc_mgr->get_name_with_scope (logical_loc))
     sarif_logical_loc->set_string ("fullyQualifiedName", name_with_scope);
 
   return sarif_logical_loc;
