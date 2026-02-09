@@ -1124,6 +1124,9 @@ explain_invalid_constexpr_fn (tree fun)
 		/* Also check the body, not just the ctor-initializer.  */
 		require_potential_rvalue_constant_expression (body);
 	    }
+	  else if (massaged == NULL_TREE || massaged == error_mark_node)
+	    error ("body of %<constexpr%> function %qD not a return-statement",
+		   fun);
 	}
     }
 }
