@@ -297,7 +297,9 @@ package body Aspects is
       Class_Present : Boolean := False) return Boolean
    is
    begin
-      return Present (Find_Aspect (Id, A, Class_Present => Class_Present));
+      return Present
+              (Find_Aspect
+                (Id, A, Class_Present => Class_Present, Or_Rep_Item => True));
    end Has_Aspect;
 
    function Has_Aspects (N : Node_Id) return Boolean
