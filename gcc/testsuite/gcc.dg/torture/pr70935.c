@@ -19,7 +19,7 @@ zn(void)
             ;
         }
       r3 = &pm;
-      *js = (long)&gc;
+      *js = (__INTPTR_TYPE__)&gc;
 ka:
       for (d0 = 0; d0 < 2; ++d0)
         {
