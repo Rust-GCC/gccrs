@@ -1,3 +1,18 @@
+2026-02-08  Eric Botcazou  <ebotcazou@adacore.com>
+	    Liam Powell  <liam@liampwll.com>
+
+	PR ada/124025
+	* exp_ch9.adb (Expand_Entry_Barrier.Is_Global_Entity): Use
+	Scope_Within_Or_Same to test whether the object is local.
+
+2026-02-08  Eric Botcazou  <ebotcazou@adacore.com>
+	    Liam Powell  <liam@liampwll.com>
+
+	PR ada/121576
+	* freeze.adb (Freeze_Array_Type): When the component size is
+	specified, check that it is valid when the component type is
+	either a fixed-point type or a bit-packed array type.
+
 2026-02-03  Eric Botcazou  <ebotcazou@adacore.com>
 
 	* checks.adb (Apply_Discriminant_Check): Bail out for a source type

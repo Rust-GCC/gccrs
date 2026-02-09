@@ -1,3 +1,38 @@
+2026-02-08  Harald Anlauf  <anlauf@gmx.de>
+
+	PR fortran/85547
+	* decl.cc (gfc_match_volatile): Fix frontend memleak.
+	(gfc_match_asynchronous): Likewise.
+	* dump-parse-tree.cc (show_expr): Show type-spec for character
+	array constructor when given.
+	* simplify.cc (gfc_simplify_len): Simplify LEN() when type-spec
+	is provided for character array constructor.
+	* trans-intrinsic.cc (gfc_conv_intrinsic_len): Likewise.
+
+2026-02-08  Harald Anlauf  <anlauf@gmx.de>
+
+	PR fortran/123961
+	* check.cc (array_check): Extend check to class array functions.
+	* class.cc (gfc_add_class_array_ref): Fix NULL pointer dereference.
+
+2026-02-08  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/123545
+	PR fortran/123673
+	* decl.cc (gfc_get_pdt_instance): If a pdt_type component is
+	allocatable or has allocatable components, mark it alloc_comp.
+	(gfc_match_decl_type_spec): Sometimes in compiling contained
+	functions, the symtree for the constructor points to the type
+	instead of the constructor symbol. This corrects itself later
+	in compilation so return MATCH_YES.
+	* trans-decl.cc (gfc_generate_function_code): Unconditionally
+	nullify allocatable components as well as applying the default
+	initializer.
+	* trans-expr.cc (gfc_trans_alloc_subarray_assign): Restrict the
+	freeing of the destination data to non-allocatable expressions
+	and, instead, add the se finalblock to the encompassing final_
+	block.
+
 2026-02-06  Torbjörn SVENSSON  <torbjorn.svensson@foss.st.com>
 
 	PR middle-end/123892

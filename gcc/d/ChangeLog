@@ -1,3 +1,43 @@
+2026-02-08  Iain Buclaw  <ibuclaw@gdcproject.org>
+
+	* d-tree.h (build_libcall): New declaration.
+	* runtime.cc (build_libcall_1): New function.
+	(build_libcall): New overload.
+	* d-codegen.cc (build_assert_call): Call build_libcall without Type
+	argument.
+	(build_array_bounds_call): Likewise.
+	(build_bounds_index_condition): Likewise.
+	(build_bounds_slice_condition): Likewise.
+	(build_closure): Likewise.
+	* expr.cc (ExprVisitor::visit): Likewise.
+	* toir.cc (IRVisitor::visit): Likewise.
+
+2026-02-08  Iain Buclaw  <ibuclaw@gdcproject.org>
+
+	PR d/124026
+	* expr.cc (ExprVisitor::visit (FuncExp *)): Always convert function
+	literal to a delegate if the expression expects one.
+
+2026-02-08  Iain Buclaw  <ibuclaw@gdcproject.org>
+
+	PR d/123995
+	* d-codegen.cc (build_assert_call): Cast libcall result to `noreturn'.
+	(build_array_bounds_call):  Likewise.
+	(build_bounds_index_condition): Likewise.
+	(build_bounds_slice_condition): Likewise.
+	* expr.cc (ExprVisitor::visit (ThrowExp *)): Likewise.
+	* toir.cc (IRVisitor::visit (ThrowStatement *)): Likewise.
+	* runtime.cc (enum d_libcall_type): Add LCT_NORETURN.
+	(get_libcall_type): Handle LCT_NORETURN.
+	* runtime.def (ASSERTP): Change return type to `noreturn'.
+	(ASSERT_MSG): Likewise.
+	(UNITTESTP): Likewise.
+	(UNITTEST_MSG): Likewise.
+	(ARRAYBOUNDSP): Likewise.
+	(ARRAYBOUNDS_SLICEP): Likewise.
+	(ARRAYBOUNDS_INDEXP): Likewise.
+	(THROW): Likewise.
+
 2026-02-06  Torbjörn SVENSSON  <torbjorn.svensson@foss.st.com>
 
 	PR middle-end/123892

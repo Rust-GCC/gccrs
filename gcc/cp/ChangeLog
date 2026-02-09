@@ -1,3 +1,29 @@
+2026-02-08  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	PR c++/123738
+	* module.cc (preprocess_module): Complain for any non-imported
+	module declaration in a module purview.
+
+2026-02-08  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/123823
+	PR c++/123640
+	* parser.cc (cp_parser_splice_specifier): New typename_p parameter.
+	Use cp_parser_nth_token_starts_template_argument_list_p instead of
+	checking CPP_LESS.  Check for typename/template/TEMPLATE_DECL before
+	parsing a template-id.
+	(cp_parser_splice_type_specifier): Adjust the call to
+	cp_parser_splice_specifier.
+	(cp_parser_splice_expression): Don't detect unparenthesized splice
+	expressions here.  Adjust the call to cp_parser_splice_specifier.
+	(cp_parser_splice_scope_specifier): Adjust the call to
+	cp_parser_splice_specifier.
+	(cp_parser_skip_entire_splice_expr): New, broken out of...
+	(cp_parser_splice_spec_is_nns_p): ...this.
+	(cp_parser_template_id): Call pop_deferring_access_checks.
+	(cp_parser_template_argument): Detect unparenthesized splice
+	expressions here.
+
 2026-02-07  Jakub Jelinek  <jakub@redhat.com>
 
 	PR c++/123659
