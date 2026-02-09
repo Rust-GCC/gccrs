@@ -31,6 +31,7 @@
 #include "tm.h"
 #include "target.h"
 #include "tree.h"
+#include "stor-layout.h"
 
 #include "ada.h"
 #include "types.h"

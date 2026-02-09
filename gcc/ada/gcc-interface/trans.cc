@@ -3995,17 +3995,8 @@ Subprogram_Body_to_gnu (Node_Id gnat_node)
   else
     gnu_return_var_elmt = NULL_TREE;
 
-  /* If the function returns by invisible reference, make it explicit in the
-     function body, but beware that maybe_make_gnu_thunk may already have done
-     it if the function is inlined across units.  See gnat_to_gnu_subprog_type
-     for more details.  */
-  if (TREE_ADDRESSABLE (gnu_subprog_type)
-      && TREE_CODE (TREE_TYPE (gnu_result_decl)) != REFERENCE_TYPE)
-    {
-      TREE_TYPE (gnu_result_decl)
-	= build_reference_type (TREE_TYPE (gnu_result_decl));
-      relayout_decl (gnu_result_decl);
-    }
+  /* If the function returns by invisible reference, make it explicit.  */
+  adjust_result_decl_for_invisible_reference (gnu_subprog);
 
   /* Set the line number in the decl to correspond to that of the body.  */
   if (DECL_IGNORED_P (gnu_subprog))
@@ -11514,16 +11505,8 @@ maybe_make_gnu_thunk (Entity_Id gnat_thunk, tree gnu_thunk)
       indirect_offset = (HOST_WIDE_INT) (POINTER_SIZE / BITS_PER_UNIT);
     }
 
-  /* If the target returns by invisible reference and is external, apply the
-     same transformation as Subprogram_Body_to_gnu here.  */
-  if (TREE_ADDRESSABLE (TREE_TYPE (gnu_target))
-      && DECL_EXTERNAL (gnu_target)
-      && TREE_CODE (TREE_TYPE (DECL_RESULT (gnu_target))) != REFERENCE_TYPE)
-    {
-      TREE_TYPE (DECL_RESULT (gnu_target))
-	= build_reference_type (TREE_TYPE (DECL_RESULT (gnu_target)));
-      relayout_decl (DECL_RESULT (gnu_target));
-    }
+  /* If the function returns by invisible reference, make it explicit.  */
+  adjust_result_decl_for_invisible_reference (gnu_target);
 
   /* The thunk expander requires the return types of thunk and target to be
      compatible, which is not fully the case with the CICO mechanism.  */

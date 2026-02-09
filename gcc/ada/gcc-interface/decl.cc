@@ -6018,6 +6018,9 @@ update_profile (Entity_Id gnat_subprog)
 
       DECL_ARGUMENTS (gnu_subprog) = gnu_param_list;
       finish_subprog_decl (gnu_subprog, gnu_ext_name, gnu_type);
+
+      /* If the function returns by invisible reference, make it explicit.  */
+      adjust_result_decl_for_invisible_reference (gnu_subprog);
     }
 }
 
