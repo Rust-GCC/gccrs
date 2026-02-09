@@ -359,6 +359,9 @@ extern bitmap_head lra_optional_reload_pseudos;
 /* lra-constraints.cc: */
 
 extern void lra_init_equiv (void);
+extern void lra_pointer_equiv_set_add (rtx);
+extern bool lra_pointer_equiv_set_in (rtx);
+extern void lra_finish_equiv (void);
 extern int lra_constraint_offset (int, machine_mode);
 
 extern int lra_constraint_iter;

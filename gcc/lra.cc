@@ -489,16 +489,25 @@ int lra_curr_reload_num;
 
 static void remove_insn_scratches (rtx_insn *insn);
 
-/* Emit x := y, processing special case when y = u + v or y = u + v *
-   scale + w through emit_add (Y can be an address which is base +
-   index reg * scale + displacement in general case).  X may be used
-   as intermediate result therefore it should be not in Y.  */
+/* Emit x := y, processing special case when y = u + v or y = u + v * scale + w
+   through emit_add (Y can be an address which is base + index reg * scale +
+   displacement in general case).  X may be used as intermediate result
+   therefore it should be not in Y.  Set up pointer flag of X if Y is
+   equivalence whose original target has setup pointer flag.  */
 void
 lra_emit_move (rtx x, rtx y)
 {
   int old;
   rtx_insn *insn;
 
+  if ((REG_P (x) || MEM_P (x)) && lra_pointer_equiv_set_in (y))
+     {
+       /* Set up pointer flag from original equivalence target: */
+       if (REG_P (x))
+	 REG_POINTER (x) = 1;
+       else
+	 MEM_POINTER (x) = 1;
+     }
   if (GET_CODE (y) != PLUS)
     {
       if (rtx_equal_p (x, y))
@@ -2608,6 +2617,7 @@ lra (FILE *f, int verbose)
   sbitmap_free (lra_constraint_insn_stack_bitmap);
   lra_constraint_insn_stack.release ();
   finish_insn_recog_data ();
+  lra_finish_equiv ();
   regstat_free_n_sets_and_refs ();
   regstat_free_ri ();
   reload_completed = 1;

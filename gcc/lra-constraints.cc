@@ -134,6 +134,7 @@
 #include "print-rtl.h"
 #include "function-abi.h"
 #include "rtl-iter.h"
+#include "hash-set.h"
 
 /* Value of LRA_CURR_RELOAD_NUM at the beginning of BB of the current
    insn.  Remember that LRA_CURR_RELOAD_NUM is the number of emitted
@@ -495,6 +496,23 @@ satisfies_address_constraint_p (rtx op, enum constraint_num constraint)
   return satisfies_address_constraint_p (&ad, constraint);
 }
 
+/* Set of equivalences whose original targets have set up pointer flag.  */
+static hash_set <rtx> *pointer_equiv_set;
+
+/* Add x to pointer_equiv_set.  */
+void
+lra_pointer_equiv_set_add (rtx x)
+{
+  pointer_equiv_set->add (x);
+}
+
+/* Return true if x is in pointer_equiv_set.  */
+bool
+lra_pointer_equiv_set_in (rtx x)
+{
+  return pointer_equiv_set->contains (x);
+}
+
 /* Initiate equivalences for LRA.  As we keep original equivalences
    before any elimination, we need to make copies otherwise any change
    in insns might change the equivalences.  */
@@ -511,6 +529,14 @@ lra_init_equiv (void)
       if ((res = ira_reg_equiv[i].invariant) != NULL_RTX)
 	ira_reg_equiv[i].invariant = copy_rtx (res);
     }
+  pointer_equiv_set = new hash_set <rtx>;
+}
+
+/* Finish equivalence data for LRA.  */
+void
+lra_finish_equiv (void)
+{
+  delete pointer_equiv_set;
 }
 
 static rtx loc_equivalence_callback (rtx, const_rtx, void *);
@@ -560,9 +586,9 @@ get_equiv (rtx x)
   gcc_unreachable ();
 }
 
-/* If we have decided to substitute X with the equivalent value,
-   return that value after elimination for INSN, otherwise return
-   X.  */
+/* If we have decided to substitute X with the equivalent value, return that
+   value after elimination for INSN, otherwise return X.  Add the result to
+   pointer_equiv_set if X has set up pointer flag.  */
 static rtx
 get_equiv_with_elimination (rtx x, rtx_insn *insn)
 {
@@ -570,8 +596,11 @@ get_equiv_with_elimination (rtx x, rtx_insn *insn)
 
   if (x == res || CONSTANT_P (res))
     return res;
-  return lra_eliminate_regs_1 (insn, res, GET_MODE (res),
-			       false, false, 0, true);
+  res = lra_eliminate_regs_1 (insn, res, GET_MODE (res),
+			      false, false, 0, true);
+  if (REG_POINTER (x))
+    lra_pointer_equiv_set_add (res);
+  return res;
 }
 
 /* Set up curr_operand_mode.  */
@@ -1605,7 +1634,10 @@ process_addr_reg (rtx *loc, bool check_only_p, rtx_insn **before, rtx_insn **aft
 	      dump_value_slim (lra_dump_file, *loc, 1);
 	      fprintf (lra_dump_file, "\n");
 	    }
-	  *loc = copy_rtx (*loc);
+	  rtx new_equiv = copy_rtx (*loc);
+	  if (lra_pointer_equiv_set_in (*loc))
+	    lra_pointer_equiv_set_add (new_equiv);
+	  *loc = new_equiv;
 	}
       if (*loc != reg || ! in_class_p (reg, cl, &new_class))
 	{
@@ -4333,7 +4365,10 @@ curr_insn_transform (bool check_only_p)
 	if (subst != old)
 	  {
 	    equiv_substition_p[i] = true;
-	    subst = copy_rtx (subst);
+	    rtx new_subst = copy_rtx (subst);
+	    if (lra_pointer_equiv_set_in (subst))
+	      lra_pointer_equiv_set_add (new_subst);
+	    subst = new_subst;
 	    lra_assert (REG_P (old));
 	    if (GET_CODE (op) != SUBREG)
 	      *curr_id->operand_loc[i] = subst;
