@@ -173,8 +173,8 @@
 (define_mode_iterator BWD [SI HI QI])
 (define_mode_iterator BWDD [DI SI HI QI])
 
-;; Need to handle SI and SF similarly, at least in the expander.
-(define_mode_iterator SISF [SI SF])
+;; Need to handle BWD and SF similarly, at least in the expander.
+(define_mode_iterator BWDSF [SI HI QI SF])
 
 ;; To be able to refer to the same mode_attr for both a multi-mode
 ;; and a mode-specific pattern, we use some singleton iterators.
@@ -566,8 +566,8 @@
 (define_expand "mov<mode>"
   [(parallel
     [(set
-      (match_operand:SISF 0 "nonimmediate_operand")
-      (match_operand:SISF 1 "general_operand"))
+      (match_operand:BWDSF 0 "nonimmediate_operand")
+      (match_operand:BWDSF 1 "general_operand"))
      (clobber (reg:CC CRIS_CC0_REGNUM))])]
   ""
 {
@@ -661,14 +661,14 @@
    (set_attr "cc<cccc><ccnz><ccnzvc>"
 	     "*,*,none,none,*,none,none,*,*,none,none,none,none,none,none,*,none")])
 
-;; FIXME: See movsi.
-
-(define_insn "<acc><anz><anzvc>movhi<setcc><setnz><setnzvc>"
+(define_insn "*movhi_internal<setcc><setnz><setnzvc>"
   [(set
     (match_operand:HI 0 "nonimmediate_operand" "=r,r, r,Q>,r,Q>,r,r,r,g,g,r,r,x")
     (match_operand:HI 1 "general_operand"	"r,Q>,M,M, I,r, L,O,n,M,r,g,x,r"))
    (clobber (reg:CC CRIS_CC0_REGNUM))]
-  ""
+  "(register_operand (operands[0], HImode)
+    || register_operand (operands[1], HImode)
+    || operands[1] == const0_rtx)"
 {
   switch (which_alternative)
     {
@@ -705,13 +705,32 @@
   [(set_attr "slottable" "yes,yes,yes,yes,yes,yes,no,yes,no,no,no,no,yes,yes")
    (set_attr "cc<cccc><ccnz><ccnzvc>" "*,*,none,none,*,none,*,clobber,*,none,none,*,none,none")])
 
-(define_insn "movstricthi"
+(define_expand "movstrict<mode>"
+  [(parallel
+    [(set
+      (strict_low_part (match_operand:BW 0 "nonimmediate_operand"))
+      (match_operand:BW 1 "general_operand"))
+     (clobber (reg:CC CRIS_CC0_REGNUM))])]
+  ""
+{
+  /* If the output goes to a MEM, make sure we have zero or a register as
+     input.  */
+  if (MEM_P (operands[0])
+      && ! REG_S_P (operands[1])
+      && operands[1] != const0_rtx
+      && can_create_pseudo_p ())
+    operands[1] = force_reg (<MODE>mode, operands[1]);
+})
+
+(define_insn "*movstricthi_internal"
   [(set
     (strict_low_part
      (match_operand:HI 0 "nonimmediate_operand" "+r,r, r,Q>,Q>,g,r,g"))
     (match_operand:HI 1 "general_operand"	 "r,Q>,M,M, r, M,g,r"))
    (clobber (reg:CC CRIS_CC0_REGNUM))]
-  ""
+  "(register_operand (operands[0], HImode)
+    || register_operand (operands[1], HImode)
+    || operands[1] == const0_rtx)"
   "@
    move.w %1,%0
    move.w %1,%0
@@ -739,11 +758,13 @@
   ""
   "")
 
-(define_insn "<acc><anz><anzvc>movqi<setcc><setnz><setnzvc>"
+(define_insn "*movqi_internal<setcc><setnz><setnzvc>"
   [(set (match_operand:QI 0 "nonimmediate_operand" "=r,Q>,r, r,Q>,r,g,g,r,r,r,x")
 	(match_operand:QI 1 "general_operand"	    "r,r, Q>,M,M, I,M,r,O,g,x,r"))
    (clobber (reg:CC CRIS_CC0_REGNUM))]
-  ""
+  "(register_operand (operands[0], QImode)
+    || register_operand (operands[1], QImode)
+    || operands[1] == const0_rtx)"
   "@
    move.b %1,%0
    move.b %1,%0
@@ -761,12 +782,14 @@
    (set_attr "cc<cccc><ccnz><ccnzvc>"
 	     "*,none,*,none,none,*,none,none,clobber,*,none,none")])
 
-(define_insn "movstrictqi"
+(define_insn "*movstrictqi_internal"
   [(set (strict_low_part
 	 (match_operand:QI 0 "nonimmediate_operand" "+r,Q>,r, r,Q>,g,g,r"))
 	(match_operand:QI 1 "general_operand"	     "r,r, Q>,M,M, M,r,g"))
    (clobber (reg:CC CRIS_CC0_REGNUM))]
-  ""
+  "(register_operand (operands[0], QImode)
+    || register_operand (operands[1], QImode)
+    || operands[1] == const0_rtx)"
   "@
    move.b %1,%0
    move.b %1,%0
