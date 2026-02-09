@@ -11184,11 +11184,10 @@ aarch64_cannot_force_const_mem (machine_mode mode ATTRIBUTE_UNUSED, rtx x)
 	|| aarch64_sme_vq_unspec_p (x, &factor))
       return true;
 
-  /* Only allow symbols in literal pools with the large model (non-PIC).  */
+  /* Don't allow symbols in literal pools.  */
   poly_int64 offset;
   rtx base = strip_offset_and_salt (x, &offset);
-  if ((SYMBOL_REF_P (base) || LABEL_REF_P (base))
-      && aarch64_cmodel != AARCH64_CMODEL_LARGE)
+  if (SYMBOL_REF_P (base) || LABEL_REF_P (base))
     return true;
 
   return aarch64_tls_referenced_p (x);
@@ -14319,14 +14318,12 @@ aarch64_uxt_size (int shift, HOST_WIDE_INT mask)
 }
 
 /* Constant pools are per function only when PC relative
-   literal loads are true or we are in the large memory
-   model.  */
+   literal loads are true.  */
 
 static inline bool
 aarch64_can_use_per_function_literal_pools_p (void)
 {
-  return (aarch64_pcrelative_literal_loads
-	  || aarch64_cmodel == AARCH64_CMODEL_LARGE);
+  return aarch64_pcrelative_literal_loads;
 }
 
 static bool
@@ -14345,8 +14342,6 @@ aarch64_select_rtx_section (machine_mode mode,
 			    rtx x,
 			    unsigned HOST_WIDE_INT align)
 {
-  /* Forcing special symbols into the .text section is not correct (PR123791).
-     This is only an issue with the large code model.  */
   if (aarch64_can_use_per_function_literal_pools_p ())
     return function_section (current_function_decl);
 
@@ -20363,9 +20358,6 @@ initialize_aarch64_code_model (struct gcc_options *opts)
   aarch64_cmodel = opts->x_aarch64_cmodel_var;
   if (aarch64_cmodel == AARCH64_CMODEL_LARGE)
     {
-      if (opts->x_flag_pic)
-	sorry ("code model %qs with %<-f%s%>", "large",
-	       opts->x_flag_pic > 1 ? "PIC" : "pic");
       if (opts->x_aarch64_abi == AARCH64_ABI_ILP32)
 	sorry ("code model %qs not supported in ilp32 mode", "large");
     }
@@ -22294,9 +22286,6 @@ aarch64_classify_symbol (rtx x, HOST_WIDE_INT offset)
       if (aarch64_cmodel == AARCH64_CMODEL_TINY)
 	return SYMBOL_TINY_ABSOLUTE;
 
-      if (aarch64_cmodel == AARCH64_CMODEL_LARGE)
-	return SYMBOL_FORCE_TO_MEM;
-
       return SYMBOL_SMALL_ABSOLUTE;
     }
 
@@ -22346,13 +22335,32 @@ aarch64_classify_symbol (rtx x, HOST_WIDE_INT offset)
 	  return SYMBOL_SMALL_ABSOLUTE;
 
 	case AARCH64_CMODEL_LARGE:
-	  /* This is alright even in PIC code as the constant
-	     pool reference is always PC relative and within
-	     the same translation unit.  */
-	  if (!aarch64_pcrelative_literal_loads && CONSTANT_POOL_ADDRESS_P (x))
-	    return SYMBOL_SMALL_ABSOLUTE;
-	  else
+	  if (!TARGET_PECOFF
+	      && (flag_pic || SYMBOL_REF_WEAK (x))
+	      && !aarch64_symbol_binds_local_p (x))
+	    return SYMBOL_SMALL_GOT_4G;
+
+	  /* Read-only data uses ADRP/ADD, writable data uses the GOT.  */
+
+	  if (!(IN_RANGE (offset, -0x100000, 0x100000)
+		|| offset_within_block_p (x, offset)))
 	    return SYMBOL_FORCE_TO_MEM;
+
+	  if (SYMBOL_REF_DECL (x) && TREE_READONLY (SYMBOL_REF_DECL (x)))
+	    return SYMBOL_SMALL_ABSOLUTE;
+
+	  if (CONSTANT_POOL_ADDRESS_P (x))
+	    return SYMBOL_SMALL_ABSOLUTE;
+
+	  if (SYMBOL_REF_HAS_BLOCK_INFO_P (x) && SYMBOL_REF_BLOCK (x) != NULL)
+	    {
+	      section *sect = SYMBOL_REF_BLOCK (x)->sect;
+
+	      if (sect != NULL && !(sect->common.flags & SECTION_WRITE))
+		return SYMBOL_SMALL_ABSOLUTE;
+	    }
+
+	  return SYMBOL_SMALL_GOT_4G;
 
 	default:
 	  gcc_unreachable ();
