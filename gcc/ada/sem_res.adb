@@ -6815,23 +6815,12 @@ package body Sem_Res is
 
       else
          --  If the called function is not declared in the main unit and it
-         --  returns the limited view of type then use the available view (as
-         --  is done in Try_Object_Operation) to prevent back-end confusion;
-         --  for the function entity itself. The call must appear in a context
-         --  where the nonlimited view is available. If the function entity is
-         --  in the extended main unit then no action is needed, because the
-         --  back end handles this case. In either case the type of the call
-         --  is the nonlimited view.
+         --  returns the limited view of a type, then use the available view
+         --  to prevent back-end confusion. The function call must appear in
+         --  a context where the nonlimited view is available.
 
-         if From_Limited_With (Etype (Nam))
-           and then Present (Available_View (Etype (Nam)))
-         then
+         if From_Limited_With (Etype (Nam)) then
             Set_Etype (N, Available_View (Etype (Nam)));
-
-            if not In_Extended_Main_Code_Unit (Nam) then
-               Set_Etype (Nam, Available_View (Etype (Nam)));
-            end if;
-
          else
             Set_Etype (N, Etype (Nam));
          end if;
