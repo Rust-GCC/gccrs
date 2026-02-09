@@ -283,12 +283,14 @@ a68_bits_shift (NODE_T *p, tree shift, tree bits)
 						shift, build_zero_cst (shift_type)),
 				   shifted_right, shifted_left);
 
-  return fold_build3_loc (a68_get_node_location (p),
-			  COND_EXPR,
-			  TREE_TYPE (bits),
-			  fold_build2 (LT_EXPR, TREE_TYPE (abs_shift),
-				       abs_shift, a68_bits_width (bits_type)),
-			  shifted_bits, build_zero_cst (bits_type));
+  return fold_build2 (COMPOUND_EXPR, TREE_TYPE (bits),
+		      bits,
+		      fold_build3_loc (a68_get_node_location (p),
+				       COND_EXPR,
+				       TREE_TYPE (bits),
+				       fold_build2 (LT_EXPR, TREE_TYPE (abs_shift),
+						    abs_shift, a68_bits_width (bits_type)),
+				       shifted_bits, build_zero_cst (bits_type)));
 }
 
 /* Given two bits values, build an expression that calculates whether A = B.  */
