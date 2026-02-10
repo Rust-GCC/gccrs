@@ -97,7 +97,8 @@ EnumMatchBuilder::tuple (EnumItem &variant_raw)
     }
 
   auto self_variant_path = builder.variant_path (enum_path, variant_path);
-  auto other_variant_path = self_variant_path.reconstruct ();
+  // Use reconstruct to create a deep copy with fresh NodeIDs
+  auto other_variant_path = *self_variant_path.reconstruct ();
 
   auto self_pattern_items = std::unique_ptr<TupleStructItems> (
     new TupleStructItemsNoRest (std::move (self_patterns)));
@@ -159,7 +160,8 @@ EnumMatchBuilder::strukt (EnumItem &variant_raw)
     }
 
   auto self_variant_path = builder.variant_path (enum_path, variant_path);
-  auto other_variant_path = self_variant_path.reconstruct ();
+  // Use reconstruct to create a deep copy with fresh NodeIDs
+  auto other_variant_path = *self_variant_path.reconstruct ();
 
   auto self_elts = StructPatternElements (std::move (self_fields));
   auto other_elts = StructPatternElements (std::move (other_fields));
