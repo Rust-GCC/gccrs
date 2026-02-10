@@ -1,3 +1,12 @@
+2026-02-09  Federico Angelilli  <code@fedang.net>
+	    David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/123981
+	* sm-malloc.cc: Include "target.h".
+	(zero_address_valid_p): New.
+	(malloc_state_machine::on_stmt): Guard possible_null_deref and
+	null_deref with !zero_address_valid_p.
+
 2026-02-07  David Malcolm  <dmalcolm@redhat.com>
 
 	PR analyzer/116228

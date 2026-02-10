@@ -1,3 +1,17 @@
+2026-02-09  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/123984
+	* reflect.cc (eval_define_aggregate): Set TYPE_BEING_DEFINED on type
+	after pushclass, call build_self_reference, remove assertion that
+	TYPE_FIELDS (type) is NULL and instead set fields to
+	TYPE_FIELDS (type).
+
+2026-02-09  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/123889
+	* constexpr.cc (explain_invalid_constexpr_fn): Diagnose
+	NULL or error_mark_node massaged on non-constructor.
+
 2026-02-08  Nathaniel Shead  <nathanieloshead@gmail.com>
 
 	PR c++/123738

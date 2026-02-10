@@ -1,3 +1,10 @@
+2026-02-09  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/124024
+	* include/bits/out_ptr.h (out_ptr): Fix doxygen comment to refer
+	to the right function.
+	(inout_ptr): Improve markup in doxygen comment.
+
 2026-02-06  Tomasz Kamiński  <tkaminsk@redhat.com>
 
 	* include/bits/hashtable.h (std::__heterogeneous_hash_key)

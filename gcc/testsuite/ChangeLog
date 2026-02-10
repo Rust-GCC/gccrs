@@ -1,3 +1,110 @@
+2026-02-09  Federico Angelilli  <code@fedang.net>
+	    David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/123981
+	* gcc.dg/analyzer/null-deref-pr123981-1.c: New test.
+	* gcc.dg/analyzer/null-deref-pr123981-2.c: New test.
+
+2026-02-09  David Malcolm  <dmalcolm@redhat.com>
+
+	PR diagnostics/124014
+	* gcc.dg/sarif-output/ice-pr124014.c: New test.
+
+2026-02-09  Jose E. Marchesi  <jemarch@gnu.org>
+
+	PR algol68/124028
+	* algol68/execute/bits-shift-4.a68: New test.
+
+2026-02-09  Jose E. Marchesi  <jemarch@gnu.org>
+
+	* algol68/compile/formal-hole-1.a68: New test.
+
+2026-02-09  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	* gfortran.dg/finalizer_recursive_alloc_2.f90: Update dg-output string.
+
+2026-02-09  David Faust  <david.faust@oracle.com>
+
+	PR target/123556
+	* gcc.target/bpf/pr123556.c: New test.
+
+2026-02-09  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* c-c++-common/tls-attr-dll.c: New test.
+
+2026-02-09  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/123984
+	* g++.dg/reflect/define_aggregate6.C: New test.
+
+2026-02-09  Stefan Schulze Frielinghaus  <stefansf@gcc.gnu.org>
+
+	* gcc.target/s390/vector/partial/s390-vec-length-epil-1.c:
+	Use arch z14 instead of native.
+	* gcc.target/s390/vector/partial/s390-vec-length-epil-2.c:
+	Ditto.
+	* gcc.target/s390/vector/partial/s390-vec-length-epil-3.c:
+	Ditto.
+	* gcc.target/s390/vector/partial/s390-vec-length-epil-7.c:
+	Ditto.
+	* gcc.target/s390/vector/partial/s390-vec-length-epil-run-1.c:
+	Ditto.
+	* gcc.target/s390/vector/partial/s390-vec-length-epil-run-2.c:
+	Ditto.
+	* gcc.target/s390/vector/partial/s390-vec-length-epil-run-3.c:
+	Ditto.
+	* gcc.target/s390/vector/partial/s390-vec-length-epil-run-7.c:
+	Ditto.
+	* gcc.target/s390/vector/partial/s390-vec-length-full-1.c:
+	Ditto.
+	* gcc.target/s390/vector/partial/s390-vec-length-full-2.c:
+	Ditto.
+	* gcc.target/s390/vector/partial/s390-vec-length-full-3.c:
+	Ditto.
+	* gcc.target/s390/vector/partial/s390-vec-length-full-7.c:
+	Ditto.
+	* gcc.target/s390/vector/partial/s390-vec-length-full-run-1.c:
+	Ditto.
+	* gcc.target/s390/vector/partial/s390-vec-length-full-run-2.c:
+	Ditto.
+	* gcc.target/s390/vector/partial/s390-vec-length-full-run-3.c:
+	Ditto.
+	* gcc.target/s390/vector/partial/s390-vec-length-full-run-7.c:
+	Ditto.
+	* gcc.target/s390/vector/partial/s390-vec-length-small.c:
+	Ditto.
+
+2026-02-09  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/123225
+	* gcc.dg/vect/costmodel/x86_64/costmodel-pr123225.c: New testcase.
+
+2026-02-09  Richard Biener  <rguenther@suse.de>
+
+	PR testsuite/124036
+	* gcc.dg/torture/pr117567.c: Add -w.
+
+2026-02-09  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/124034
+	* gcc.dg/vect/vect-early-break_142-pr124034.c: New testcase.
+
+2026-02-09  Martin Jambor  <mjambor@suse.cz>
+
+	PR tree-optimization/117217
+	* g++.dg/torture/pr117217-1.C: New test.
+	* g++.dg/torture/pr117217-2.C: Likewise.
+
+2026-02-09  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/123889
+	* g++.dg/cpp0x/constexpr-123889.C: New test.
+
+2026-02-09  Jeff Law  <jeffrey.law@oss.qualcomm.com>
+
+	PR target/123911
+	* gcc.target/riscv/pr123911.c: New test.
+
 2026-02-08  Eric Botcazou  <ebotcazou@adacore.com>
 	    Liam Powell  <liam@liampwll.com>
 

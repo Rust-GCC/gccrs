@@ -1,3 +1,85 @@
+2026-02-09  David Malcolm  <dmalcolm@redhat.com>
+
+	PR diagnostics/124014
+	* diagnostics/sarif-sink.cc
+	(sarif_builder::get_logical_location_manager): Reimplement, to
+	eliminate m_logical_loc_mgr.
+	(sarif_builder::m_logical_loc_mgr): Drop field.
+	(sarif_builder::sarif_builder): Update for removed field.
+	(sarif_builder::set_any_logical_locs_arr): Likewise.
+	(sarif_builder::ensure_sarif_logical_location_for): Likewise.
+	(sarif_builder::make_minimal_sarif_logical_location): Likewise.
+
+2026-02-09  David Faust  <david.faust@oracle.com>
+
+	PR target/123556
+	* config/bpf/bpf.h (SLOW_BYTE_ACCESS): Set to 0, update comment.
+
+2026-02-09  Eric Botcazou  <ebotcazou@adacore.com>
+
+	PR target/80881
+	* attribs.cc (handle_dll_attribute): If TARGET_WIN32_TLS is 1,
+	issue an error if either attribute is set on a TLS variable.
+
+2026-02-09  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	PR other/123841
+	PR target/123926
+	* acinclude.m4 (gcc_GAS_FLAGS): Handle non-Darwin/Solaris as cases
+	alike on x86 and SPARC.
+	* configure: Regenerate.
+
+2026-02-09  Vladimir N. Makarov  <vmakarov@redhat.com>
+
+	PR rtl-optimization/123796
+	* lra-int.h (lra_pointer_equiv_set_add): Add prototype.
+	(lra_pointer_equiv_set_in, lra_finish_equiv): Ditto.
+	* lra.cc (lra_emit_move): Set up pointer flag of the destination
+	if necessary.
+	(lra): Call lra_finish_equiv.
+	* lra-constraints.cc: Include hash-set.h.
+	(pointer_equiv_set, lra_pointer_equiv_set_add): New.
+	(lra_pointer_equiv_set_in, lra_finish_equiv): New.
+	(get_equiv_with_elimination): Propagate pointer flag by adding to
+	pointer_equiv_set.
+	(process_addr_reg, curr_insn_transform): Ditto.
+
+2026-02-09  Richard Biener  <rguenther@suse.de>
+
+	* doc/analyzer.texi (State Tracking): Fix typo.
+
+2026-02-09  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/123225
+	* tree-vect-loop.cc (vect_analyze_loop_costing): For uncounted
+	loops reject not trivially profitable loops that have no
+	estimate on the number of scalar iterations.
+
+2026-02-09  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/124034
+	* tree-vect-stmts.cc (process_use): Never force induction
+	latch defs relevant when doing early break vectorization.
+
+2026-02-09  Takayuki 'January June' Suwa  <jjsuwa_sys3175@yahoo.co.jp>
+
+	* doc/invoke.texi (-mconst16/-mno-const16):
+	Remove the clause "The CONST16 instruction is currently not a
+	standard option from Tensilica."
+
+2026-02-09  Martin Jambor  <mjambor@suse.cz>
+
+	PR tree-optimization/117217
+	* tree-sra.cc (propagate_subaccesses_from_rhs): Do not propagate
+	bit-field children.
+	(propagate_subaccesses_from_lhs): Likewise.
+
+2026-02-09  Jeff Law  <jeffrey.law@oss.qualcomm.com>
+
+	PR target/123911
+	* config/riscv/riscv.cc (riscv_legitimize_move): Elide nop moves to
+	avoid infinite recursion.
+
 2026-02-07  Jakub Jelinek  <jakub@redhat.com>
 
 	PR tree-optimization/123672
