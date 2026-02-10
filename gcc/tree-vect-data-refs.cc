@@ -3068,10 +3068,9 @@ vect_enhance_data_refs_alignment (loop_vec_info loop_vinfo)
 
 /* Function vect_analyze_data_refs_alignment
 
-   Analyze the alignment of the data-references in the loop.
-   Return FALSE if a data reference is found that cannot be vectorized.  */
+   Analyze the alignment of the data-references in the loop.  */
 
-opt_result
+void
 vect_analyze_data_refs_alignment (loop_vec_info loop_vinfo)
 {
   DUMP_VECT_SCOPE ("vect_analyze_data_refs_alignment");
@@ -3094,8 +3093,6 @@ vect_analyze_data_refs_alignment (loop_vec_info loop_vinfo)
 					   STMT_VINFO_VECTYPE (dr_info->stmt));
 	}
     }
-
-  return opt_result::success ();
 }
 
 

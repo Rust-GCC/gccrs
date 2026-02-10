@@ -2328,17 +2328,8 @@ start_over:
 
   loop_vinfo->vector_costs = init_cost (loop_vinfo, false);
 
-  /* Analyze the alignment of the data-refs in the loop.
-     Fail if a data reference is found that cannot be vectorized.  */
-
-  ok = vect_analyze_data_refs_alignment (loop_vinfo);
-  if (!ok)
-    {
-      if (dump_enabled_p ())
-	dump_printf_loc (MSG_MISSED_OPTIMIZATION, vect_location,
-			 "bad data alignment.\n");
-      return ok;
-    }
+  /* Analyze the alignment of the data-refs in the loop.  */
+  vect_analyze_data_refs_alignment (loop_vinfo);
 
   /* Prune the list of ddrs to be tested at run-time by versioning for alias.
      It is important to call pruning after vect_analyze_data_ref_accesses,
