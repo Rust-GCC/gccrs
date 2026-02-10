@@ -555,6 +555,9 @@ UrlSuffix(gcc/Warning-Options.html#index-Wno-vector-operation-performance)
 Wtsan
 UrlSuffix(gcc/Warning-Options.html#index-Wno-tsan)
 
+Wzero-init-padding-bits=
+UrlSuffix(gcc/Warning-Options.html#index-Wzero-init-padding-bits_003d)
+
 Xassembler
 UrlSuffix(gcc/Assembler-Options.html#index-Xassembler)
 

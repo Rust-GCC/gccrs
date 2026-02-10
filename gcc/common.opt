@@ -932,6 +932,10 @@ Wtsan
 Common Var(warn_tsan) Init(1) Warning
 Warn about unsupported features in ThreadSanitizer.
 
+Wzero-init-padding-bits=
+Common Joined RejectNegative Enum(zero_init_padding_bits_kind) Var(warn_zero_init_padding_bits) Init(ZERO_INIT_PADDING_BITS_STANDARD) Warning
+-Wzero-init-padding-bits=[standard|unions|all]	Warn about initializers that might not zero padding bits.
+
 Xassembler
 Driver Separate
 

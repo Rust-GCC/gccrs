@@ -6460,7 +6460,7 @@ gimplify_init_constructor (tree *expr_p, gimple_seq *pre_p, gimple_seq *post_p,
 	struct gimplify_init_ctor_preeval_data preeval_data;
 	HOST_WIDE_INT num_ctor_elements, num_nonzero_elements;
 	HOST_WIDE_INT num_unique_nonzero_elements;
-	int complete_p;
+	ctor_completeness complete_p;
 	bool valid_const_initializer;
 
 	/* Aggregate types must lower constructors to initialization of
@@ -6545,7 +6545,7 @@ gimplify_init_constructor (tree *expr_p, gimple_seq *pre_p, gimple_seq *post_p,
 	     objects.  Initializers for such objects must explicitly set
 	     every field that needs to be set.  */
 	  cleared = false;
-	else if (!complete_p)
+	else if (complete_p.sparse)
 	  /* If the constructor isn't complete, clear the whole object
 	     beforehand, unless CONSTRUCTOR_NO_CLEARING is set on it.
 
@@ -6570,7 +6570,8 @@ gimplify_init_constructor (tree *expr_p, gimple_seq *pre_p, gimple_seq *post_p,
 	   That will avoid wasting cycles preserving any padding bits
 	   that might be there, and if there aren't any, the compiler
 	   is smart enough to optimize the clearing out.  */
-	else if (complete_p <= 0
+	else if ((complete_p.sparse || complete_p.padded_union
+		  || complete_p.padded_non_union)
 		 && !TREE_ADDRESSABLE (ctor)
 		 && !TREE_THIS_VOLATILE (object)
 		 && (TYPE_MODE (type) != BLKmode || TYPE_NO_FORCE_BLK (type))
@@ -6589,7 +6590,7 @@ gimplify_init_constructor (tree *expr_p, gimple_seq *pre_p, gimple_seq *post_p,
 	   clearing), and don't try to make bitwise copies of
 	   TREE_ADDRESSABLE types.  */
 	if (valid_const_initializer
-	    && complete_p
+	    && !complete_p.sparse
 	    && !(cleared || num_nonzero_elements == 0)
 	    && !TREE_ADDRESSABLE (type))
 	  {
@@ -6642,6 +6643,24 @@ gimplify_init_constructor (tree *expr_p, gimple_seq *pre_p, gimple_seq *post_p,
 		   pretend we didn't do anything here to let that happen.  */
 		return GS_UNHANDLED;
 	      }
+	  }
+
+	if (!cleared)
+	  {
+	    if (complete_p.padded_non_union
+		&& warn_zero_init_padding_bits >= ZERO_INIT_PADDING_BITS_ALL)
+		warning (OPT_Wzero_init_padding_bits_,
+			 "padding might not be initialized to zero; "
+			 "if code relies on it being zero, consider "
+			 "using %<-fzero-init-padding-bits=all%>");
+	    else if (complete_p.padded_union
+		     && warn_zero_init_padding_bits
+			>= ZERO_INIT_PADDING_BITS_UNIONS)
+		warning (OPT_Wzero_init_padding_bits_,
+			 "padding might not be initialized to zero; "
+			 "if code relies on it being zero, consider "
+			 "using %<-fzero-init-padding-bits=unions%> "
+			 "or %<-fzero-init-padding-bits=all%>");
 	  }
 
 	/* If a single access to the target must be ensured and there are

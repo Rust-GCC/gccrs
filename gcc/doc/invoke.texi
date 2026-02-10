@@ -474,6 +474,7 @@ Objective-C and Objective-C++ Dialects}.
 -Wno-xor-used-as-pow
 -Wzero-as-null-pointer-constant
 -Wzero-length-bounds
+-Wzero-init-padding-bits=@var{value}
 --all-warnings  --extra-warnings  --no-warnings
 --pedantic  --pedantic-errors}
 
@@ -11523,6 +11524,88 @@ Requires @option{-flto} to be enabled.  Enabled by default.
 Suppress warnings when a positional initializer is used to initialize
 a structure that has been marked with the @code{designated_init}
 attribute.
+
+@opindex Wzero-init-padding-bits=
+@item -Wzero-init-padding-bits=@var{value}
+Warn about automatic variable initializers that might not zero
+initialize padding bits.
+
+Certain languages guarantee zero initialization of padding bits in
+certain cases.  The @code{-fzero-init-padding-bits=unions} and
+@code{-fzero-init-padding-bits=all} options provide additional
+guarantees that padding bits will be zero initialized in other
+circumstances.
+
+This warning is mainly intended to find source code that might need to
+be modified or else recompiled with
+@code{-fzero-init-padding-bits=unions} or
+@code{-fzero-init-padding-bits=all} in order to retain the behavior
+that it had when compiled by versions of GCC older than 15.1.  It can
+also be used to find code that might result in uninitialized struct
+padding unless GCC is invoked with @code{-fzero-init-padding-bits=all}
+(regardless of the fact that older versions of GCC would not have
+guaranteed initialization of struct padding either).
+
+It does not follow that all source code which causes warnings about
+uninitialized padding bits has undefined behavior: usually, the values
+of padding bits have no effect on execution of a program.
+
+The two options interact as follows:
+
+@multitable @columnfractions 0.25 0.25 0.25 0.25
+@headitem @tab f:standard @tab f:unions @tab f:all
+@item W:standard @tab X @tab X @tab X
+@item W:unions @tab U @tab X @tab X
+@item W:all @tab A @tab S @tab X
+@end multitable
+
+@multitable @columnfractions .10 .90
+@headitem Letter @tab Meaning
+@item X @tab No warnings about padding bits.
+@item U @tab Warnings about padding bits of unions.
+@item S @tab Warnings about padding bits of structs.
+@item A @tab Warnings about padding bits of structs and unions.
+@end multitable
+
+Examples of union initialization for ISO C23 with
+@code{-fzero-init-padding-bits=standard} and
+@code{-Wzero-init-padding-bits=unions}:
+
+@smallexample
+  long long q;
+  unsigned char r;
+  union U @{ unsigned char a; long long b; @};
+  struct F @{ long long a; union U b; @};
+
+  // Padding bits are explicitly initialized
+  union U h = @{@};
+
+  // Padding bits might not be initialized
+  union U i = @{ r @};
+
+  // Padding bits might not be initialized
+  union U j = @{ .a = r @};
+
+  // Union is expected to have no padding bits
+  union U k = @{ .b = q @};
+
+  // Padding bits (of union) are explicitly initialized
+  struct F l = @{ q, @{@}, .b.a = r @};
+
+  // Padding bits (of union) might not be initialized
+  struct F m = @{ q, @{@}, .b = @{.a = r@} @};
+@end smallexample
+
+In the declaration of @code{m}, an empty initializer that would otherwise
+guarantee zero initialization of the padding bits of the union (i.e., storage
+allocated for member @code{b} that is not part of member @code{a}) is
+overridden by a subsequently listed initializer.  This is an anti-pattern.
+
+Whether or not a given initializer causes a warning to be produced can be
+predicted for simple cases but in general it is target-dependent because the
+layout of storage is target-dependent.  The level of optimization, size, and
+initial value of the object being initialized also affect whether warnings are
+produced.
 
 @end table
 

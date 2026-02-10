@@ -7133,7 +7133,8 @@ count_type_elements (const_tree type, bool for_ctor_p)
 static bool
 categorize_ctor_elements_1 (const_tree ctor, HOST_WIDE_INT *p_nz_elts,
 			    HOST_WIDE_INT *p_unique_nz_elts,
-			    HOST_WIDE_INT *p_init_elts, int *p_complete)
+			    HOST_WIDE_INT *p_init_elts,
+			    ctor_completeness *p_complete)
 {
   unsigned HOST_WIDE_INT idx;
   HOST_WIDE_INT nz_elts, unique_nz_elts, init_elts, num_fields;
@@ -7260,34 +7261,34 @@ categorize_ctor_elements_1 (const_tree ctor, HOST_WIDE_INT *p_nz_elts,
 	}
     }
 
-  if (*p_complete && !complete_ctor_at_level_p (TREE_TYPE (ctor),
+  if (!p_complete->sparse && !complete_ctor_at_level_p (TREE_TYPE (ctor),
 						num_fields, elt_type))
-    *p_complete = 0;
+    p_complete->sparse = true;
   else if (TREE_CODE (TREE_TYPE (ctor)) == UNION_TYPE
 	   || TREE_CODE (TREE_TYPE (ctor)) == QUAL_UNION_TYPE)
     {
-      if (*p_complete
+      if (!p_complete->sparse
 	  && CONSTRUCTOR_ZERO_PADDING_BITS (ctor)
 	  && (num_fields
 	      ? simple_cst_equal (TYPE_SIZE (TREE_TYPE (ctor)),
 				  TYPE_SIZE (elt_type)) != 1
 	      : type_has_padding_at_level_p (TREE_TYPE (ctor))))
-	*p_complete = 0;
-      else if (*p_complete > 0
+	p_complete->sparse = true;
+      else if (!p_complete->sparse && !p_complete->padded_union
 	       && (num_fields
 		   ? simple_cst_equal (TYPE_SIZE (TREE_TYPE (ctor)),
 				       TYPE_SIZE (elt_type)) != 1
 		   : type_has_padding_at_level_p (TREE_TYPE (ctor))))
-	*p_complete = -1;
+	p_complete->padded_union = true;
     }
-  else if (*p_complete
+  else if (!p_complete->sparse
 	   && (CONSTRUCTOR_ZERO_PADDING_BITS (ctor)
 	       || flag_zero_init_padding_bits == ZERO_INIT_PADDING_BITS_ALL)
 	   && type_has_padding_at_level_p (TREE_TYPE (ctor)))
-    *p_complete = 0;
-  else if (*p_complete > 0
+    p_complete->sparse = true;
+  else if (!p_complete->sparse && !p_complete->padded_non_union
 	   && type_has_padding_at_level_p (TREE_TYPE (ctor)))
-    *p_complete = -1;
+    p_complete->padded_non_union = true;
 
   *p_nz_elts += nz_elts;
   *p_unique_nz_elts += unique_nz_elts;
@@ -7309,9 +7310,6 @@ categorize_ctor_elements_1 (const_tree ctor, HOST_WIDE_INT *p_nz_elts,
    * whether the constructor is complete -- in the sense that every
      meaningful byte is explicitly given a value --
      and place it in *P_COMPLETE:
-     -  0 if any field is missing
-     -  1 if all fields are initialized, and there's no padding
-     - -1 if all fields are initialized, but there's padding
 
    Return whether or not CTOR is a valid static constant initializer, the same
    as "initializer_constant_valid_p (CTOR, TREE_TYPE (CTOR)) != 0".  */
@@ -7319,12 +7317,13 @@ categorize_ctor_elements_1 (const_tree ctor, HOST_WIDE_INT *p_nz_elts,
 bool
 categorize_ctor_elements (const_tree ctor, HOST_WIDE_INT *p_nz_elts,
 			  HOST_WIDE_INT *p_unique_nz_elts,
-			  HOST_WIDE_INT *p_init_elts, int *p_complete)
+			  HOST_WIDE_INT *p_init_elts,
+			  ctor_completeness *p_complete)
 {
   *p_nz_elts = 0;
   *p_unique_nz_elts = 0;
   *p_init_elts = 0;
-  *p_complete = 1;
+  *p_complete = {};
 
   return categorize_ctor_elements_1 (ctor, p_nz_elts, p_unique_nz_elts,
 				     p_init_elts, p_complete);
@@ -7398,11 +7397,11 @@ mostly_zeros_p (const_tree exp)
   if (TREE_CODE (exp) == CONSTRUCTOR)
     {
       HOST_WIDE_INT nz_elts, unz_elts, init_elts;
-      int complete_p;
+      ctor_completeness complete_p;
 
       categorize_ctor_elements (exp, &nz_elts, &unz_elts, &init_elts,
 				&complete_p);
-      return !complete_p || nz_elts < init_elts / 4;
+      return complete_p.sparse || nz_elts < init_elts / 4;
     }
 
   return initializer_zerop (exp);
@@ -7416,7 +7415,7 @@ all_zeros_p (const_tree exp)
   if (TREE_CODE (exp) == CONSTRUCTOR)
     {
       HOST_WIDE_INT nz_elts, unz_elts, init_elts;
-      int complete_p;
+      ctor_completeness complete_p;
 
       categorize_ctor_elements (exp, &nz_elts, &unz_elts, &init_elts,
 				&complete_p);
