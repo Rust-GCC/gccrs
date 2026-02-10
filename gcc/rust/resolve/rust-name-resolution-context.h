@@ -359,10 +359,7 @@ public:
     : current_record (nullptr), nr_ctx (&ctx)
   {}
 
-  Resolver::CanonicalPath get_path (NodeId id) const
-  {
-    return get_record (id).as_path (*nr_ctx);
-  }
+  Resolver::CanonicalPath get_path (NodeId id) const;
 
   CanonicalPathRecord &get_record (NodeId id) const
   {
@@ -378,6 +375,14 @@ public:
       return tl::nullopt;
     else
       return it->second.get ();
+  }
+
+  tl::optional<Resolver::CanonicalPath> get_path_opt (NodeId id) const
+  {
+    auto rec = get_record_opt (id);
+    if (!rec)
+      return tl::nullopt;
+    return (*rec)->as_path (*nr_ctx);
   }
 
   void insert_record (NodeId id, const Identifier &ident)
