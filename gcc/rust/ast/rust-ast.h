@@ -1423,6 +1423,12 @@ public:
     return std::unique_ptr<Pattern> (clone_pattern_impl ());
   }
 
+  // Unique pointer custom reconstruct function
+  std::unique_ptr<Pattern> reconstruct () const
+  {
+    return reconstruct_base (this);
+  }
+
   virtual Kind get_pattern_kind () = 0;
 
   // possible virtual methods: is_refutable()
@@ -1437,6 +1443,7 @@ public:
 
   virtual location_t get_locus () const = 0;
   virtual NodeId get_node_id () const = 0;
+  virtual Pattern *reconstruct_impl () const = 0;
 
 protected:
   // Clone pattern implementation as pure virtual method
