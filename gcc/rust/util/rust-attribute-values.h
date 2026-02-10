@@ -50,6 +50,8 @@ public:
   static constexpr auto &PROC_MACRO = "proc_macro";
   static constexpr auto &PROC_MACRO_DERIVE = "proc_macro_derive";
   static constexpr auto &PROC_MACRO_ATTRIBUTE = "proc_macro_attribute";
+  static constexpr auto &CRATE_NAME = "crate_name";
+  static constexpr auto &CRATE_TYPE = "crate_type";
 
   static constexpr auto &TARGET_FEATURE = "target_feature";
   static constexpr auto &FEATURE = "feature";
