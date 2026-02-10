@@ -36,10 +36,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 #pragma GCC diagnostic ignored "-Wc++17-extensions" // if constexpr
 namespace __detail
 {
-_GLIBCXX_BEGIN_INLINE_ABI_NAMESPACE(_V2)
-  template<typename _BiIter, typename _Alloc, typename _TraitsT,
-	   bool __dfs_mode>
-    bool _Executor<_BiIter, _Alloc, _TraitsT, __dfs_mode>::
+  template<typename _BiIter, typename _Alloc, typename _TraitsT>
+    bool _Executor<_BiIter, _Alloc, _TraitsT>::
     _M_search()
     {
       if (_M_search_from_first())
@@ -160,9 +158,8 @@ _GLIBCXX_BEGIN_INLINE_ABI_NAMESPACE(_V2)
   // Time complexity: \Omega(match_length), O(2^(_M_nfa.size()))
   // Space complexity: \theta(match_results.size() + match_length)
   //
-  template<typename _BiIter, typename _Alloc, typename _TraitsT,
-	   bool __dfs_mode>
-    bool _Executor<_BiIter, _Alloc, _TraitsT, __dfs_mode>::
+  template<typename _BiIter, typename _Alloc, typename _TraitsT>
+    bool _Executor<_BiIter, _Alloc, _TraitsT>::
     _M_main_dfs(_Match_mode __match_mode)
     {
       _M_has_sol = false;
@@ -194,9 +191,8 @@ _GLIBCXX_BEGIN_INLINE_ABI_NAMESPACE(_V2)
   //                  O(match_length * _M_nfa.size() * match_results.size())
   // Space complexity: \Omega(_M_nfa.size() + match_results.size())
   //                   O(_M_nfa.size() * match_results.size())
-  template<typename _BiIter, typename _Alloc, typename _TraitsT,
-	   bool __dfs_mode>
-    bool _Executor<_BiIter, _Alloc, _TraitsT, __dfs_mode>::
+  template<typename _BiIter, typename _Alloc, typename _TraitsT>
+    bool _Executor<_BiIter, _Alloc, _TraitsT>::
     _M_main_bfs(_Match_mode __match_mode)
     {
       _M_match_queue.emplace_back(_M_start, _M_results);
@@ -227,9 +223,8 @@ _GLIBCXX_BEGIN_INLINE_ABI_NAMESPACE(_V2)
     }
 
   // Return whether now match the given sub-NFA.
-  template<typename _BiIter, typename _Alloc, typename _TraitsT,
-	   bool __dfs_mode>
-    bool _Executor<_BiIter, _Alloc, _TraitsT, __dfs_mode>::
+  template<typename _BiIter, typename _Alloc, typename _TraitsT>
+    bool _Executor<_BiIter, _Alloc, _TraitsT>::
     _M_lookahead(_StateIdT __next)
     {
       // Backreferences may refer to captured content.
@@ -255,9 +250,8 @@ _GLIBCXX_BEGIN_INLINE_ABI_NAMESPACE(_V2)
   // infinite loop by refusing to continue when it's already been
   // visited more than twice. It's `twice` instead of `once` because
   // we need to spare one more time for potential group capture.
-  template<typename _BiIter, typename _Alloc, typename _TraitsT,
-	   bool __dfs_mode>
-    void _Executor<_BiIter, _Alloc, _TraitsT, __dfs_mode>::
+  template<typename _BiIter, typename _Alloc, typename _TraitsT>
+    void _Executor<_BiIter, _Alloc, _TraitsT>::
     _M_rep_once_more(_Match_mode __match_mode, _StateIdT __i)
     {
       const auto& __state = _M_nfa[__i];
@@ -286,9 +280,8 @@ _GLIBCXX_BEGIN_INLINE_ABI_NAMESPACE(_V2)
   // of this quantifier". Executing _M_next first or _M_alt first don't
   // mean the same thing, and we need to choose the correct order under
   // given greedy mode.
-  template<typename _BiIter, typename _Alloc, typename _TraitsT,
-	   bool __dfs_mode>
-    void _Executor<_BiIter, _Alloc, _TraitsT, __dfs_mode>::
+  template<typename _BiIter, typename _Alloc, typename _TraitsT>
+    void _Executor<_BiIter, _Alloc, _TraitsT>::
     _M_handle_repeat(_Match_mode __match_mode, _StateIdT __i)
     {
       const auto& __state = _M_nfa[__i];
@@ -329,9 +322,8 @@ _GLIBCXX_BEGIN_INLINE_ABI_NAMESPACE(_V2)
 	}
     }
 
-  template<typename _BiIter, typename _Alloc, typename _TraitsT,
-	   bool __dfs_mode>
-    void _Executor<_BiIter, _Alloc, _TraitsT, __dfs_mode>::
+  template<typename _BiIter, typename _Alloc, typename _TraitsT>
+    void _Executor<_BiIter, _Alloc, _TraitsT>::
     _M_handle_subexpr_begin(_Match_mode __match_mode, _StateIdT __i)
     {
       const auto& __state = _M_nfa[__i];
@@ -343,9 +335,8 @@ _GLIBCXX_BEGIN_INLINE_ABI_NAMESPACE(_V2)
       _M_frames.emplace_back(_S_fopcode_next, __state._M_next);
     }
 
-  template<typename _BiIter, typename _Alloc, typename _TraitsT,
-	   bool __dfs_mode>
-    void _Executor<_BiIter, _Alloc, _TraitsT, __dfs_mode>::
+  template<typename _BiIter, typename _Alloc, typename _TraitsT>
+    void _Executor<_BiIter, _Alloc, _TraitsT>::
     _M_handle_subexpr_end(_Match_mode __match_mode, _StateIdT __i)
     {
       const auto& __state = _M_nfa[__i];
@@ -360,9 +351,8 @@ _GLIBCXX_BEGIN_INLINE_ABI_NAMESPACE(_V2)
       _M_frames.emplace_back(_S_fopcode_next, __state._M_next);
     }
 
-  template<typename _BiIter, typename _Alloc, typename _TraitsT,
-	   bool __dfs_mode>
-    inline void _Executor<_BiIter, _Alloc, _TraitsT, __dfs_mode>::
+  template<typename _BiIter, typename _Alloc, typename _TraitsT>
+    inline void _Executor<_BiIter, _Alloc, _TraitsT>::
     _M_handle_line_begin_assertion(_Match_mode __match_mode, _StateIdT __i)
     {
       const auto& __state = _M_nfa[__i];
@@ -370,9 +360,8 @@ _GLIBCXX_BEGIN_INLINE_ABI_NAMESPACE(_V2)
 	_M_frames.emplace_back(_S_fopcode_next, __state._M_next);
     }
 
-  template<typename _BiIter, typename _Alloc, typename _TraitsT,
-	   bool __dfs_mode>
-    inline void _Executor<_BiIter, _Alloc, _TraitsT, __dfs_mode>::
+  template<typename _BiIter, typename _Alloc, typename _TraitsT>
+    inline void _Executor<_BiIter, _Alloc, _TraitsT>::
     _M_handle_line_end_assertion(_Match_mode __match_mode, _StateIdT __i)
     {
       const auto& __state = _M_nfa[__i];
@@ -380,9 +369,8 @@ _GLIBCXX_BEGIN_INLINE_ABI_NAMESPACE(_V2)
 	_M_frames.emplace_back(_S_fopcode_next, __state._M_next);
     }
 
-  template<typename _BiIter, typename _Alloc, typename _TraitsT,
-	   bool __dfs_mode>
-    inline void _Executor<_BiIter, _Alloc, _TraitsT, __dfs_mode>::
+  template<typename _BiIter, typename _Alloc, typename _TraitsT>
+    inline void _Executor<_BiIter, _Alloc, _TraitsT>::
     _M_handle_word_boundary(_Match_mode __match_mode, _StateIdT __i)
     {
       const auto& __state = _M_nfa[__i];
@@ -392,9 +380,8 @@ _GLIBCXX_BEGIN_INLINE_ABI_NAMESPACE(_V2)
 
   // Here __state._M_alt offers a single start node for a sub-NFA.
   // We recursively invoke our algorithm to match the sub-NFA.
-  template<typename _BiIter, typename _Alloc, typename _TraitsT,
-	   bool __dfs_mode>
-    void _Executor<_BiIter, _Alloc, _TraitsT, __dfs_mode>::
+  template<typename _BiIter, typename _Alloc, typename _TraitsT>
+    void _Executor<_BiIter, _Alloc, _TraitsT>::
     _M_handle_subexpr_lookahead(_Match_mode __match_mode, _StateIdT __i)
     {
       const auto& __state = _M_nfa[__i];
@@ -402,9 +389,8 @@ _GLIBCXX_BEGIN_INLINE_ABI_NAMESPACE(_V2)
 	_M_frames.emplace_back(_S_fopcode_next, __state._M_next);
     }
 
-  template<typename _BiIter, typename _Alloc, typename _TraitsT,
-	   bool __dfs_mode>
-    void _Executor<_BiIter, _Alloc, _TraitsT, __dfs_mode>::
+  template<typename _BiIter, typename _Alloc, typename _TraitsT>
+    void _Executor<_BiIter, _Alloc, _TraitsT>::
     _M_handle_match(_Match_mode __match_mode, _StateIdT __i)
     {
       const auto& __state = _M_nfa[__i];
@@ -475,9 +461,8 @@ _GLIBCXX_BEGIN_INLINE_ABI_NAMESPACE(_V2)
   // then compare it with
   // (_M_current, _M_current + (__submatch.second - __submatch.first)).
   // If matched, keep going; else just return and try another state.
-  template<typename _BiIter, typename _Alloc, typename _TraitsT,
-	   bool __dfs_mode>
-    void _Executor<_BiIter, _Alloc, _TraitsT, __dfs_mode>::
+  template<typename _BiIter, typename _Alloc, typename _TraitsT>
+    void _Executor<_BiIter, _Alloc, _TraitsT>::
     _M_handle_backref(_Match_mode __match_mode, _StateIdT __i)
     {
       __glibcxx_assert(_M_search_mode == _Search_mode::_DFS);
@@ -501,9 +486,8 @@ _GLIBCXX_BEGIN_INLINE_ABI_NAMESPACE(_V2)
 	}
     }
 
-  template<typename _BiIter, typename _Alloc, typename _TraitsT,
-	   bool __dfs_mode>
-    void _Executor<_BiIter, _Alloc, _TraitsT, __dfs_mode>::
+  template<typename _BiIter, typename _Alloc, typename _TraitsT>
+    void _Executor<_BiIter, _Alloc, _TraitsT>::
     _M_handle_accept(_Match_mode __match_mode, _StateIdT)
     {
       if (_M_search_mode == _Search_mode::_DFS)
@@ -554,9 +538,8 @@ _GLIBCXX_BEGIN_INLINE_ABI_NAMESPACE(_V2)
 	}
     }
 
-  template<typename _BiIter, typename _Alloc, typename _TraitsT,
-	   bool __dfs_mode>
-    void _Executor<_BiIter, _Alloc, _TraitsT, __dfs_mode>::
+  template<typename _BiIter, typename _Alloc, typename _TraitsT>
+    void _Executor<_BiIter, _Alloc, _TraitsT>::
     _M_handle_alternative(_Match_mode __match_mode, _StateIdT __i)
     {
       const auto& __state = _M_nfa[__i];
@@ -578,12 +561,11 @@ _GLIBCXX_BEGIN_INLINE_ABI_NAMESPACE(_V2)
 	}
     }
 
-  template<typename _BiIter, typename _Alloc, typename _TraitsT,
-	   bool __dfs_mode>
+  template<typename _BiIter, typename _Alloc, typename _TraitsT>
 #ifdef __OPTIMIZE__
     [[__gnu__::__always_inline__]]
 #endif
-    inline void _Executor<_BiIter, _Alloc, _TraitsT, __dfs_mode>::
+    inline void _Executor<_BiIter, _Alloc, _TraitsT>::
     _M_node(_Match_mode __match_mode, _StateIdT __i)
     {
       if (_M_visited(__i))
@@ -622,9 +604,8 @@ _GLIBCXX_BEGIN_INLINE_ABI_NAMESPACE(_V2)
 	}
     }
 
-  template<typename _BiIter, typename _Alloc, typename _TraitsT,
-	   bool __dummy>
-    void _Executor<_BiIter, _Alloc, _TraitsT, __dummy>::
+  template<typename _BiIter, typename _Alloc, typename _TraitsT>
+    void _Executor<_BiIter, _Alloc, _TraitsT>::
     _M_dfs(_Match_mode __match_mode, _StateIdT __start)
     {
       const bool __dfs_mode = (_M_search_mode == _Search_mode::_DFS);
@@ -692,9 +673,8 @@ _GLIBCXX_BEGIN_INLINE_ABI_NAMESPACE(_V2)
     }
 
   // Return whether now is at some word boundary.
-  template<typename _BiIter, typename _Alloc, typename _TraitsT,
-	   bool __dfs_mode>
-    bool _Executor<_BiIter, _Alloc, _TraitsT, __dfs_mode>::
+  template<typename _BiIter, typename _Alloc, typename _TraitsT>
+    bool _Executor<_BiIter, _Alloc, _TraitsT>::
     _M_word_boundary() const
     {
       if (_M_current == _M_begin && (_M_flags & regex_constants::match_not_bow))
@@ -715,7 +695,6 @@ _GLIBCXX_BEGIN_INLINE_ABI_NAMESPACE(_V2)
 
       return __left_is_word != __right_is_word;
     }
-_GLIBCXX_END_INLINE_ABI_NAMESPACE(_V2)
 } // namespace __detail
 #pragma GCC diagnostic pop
 

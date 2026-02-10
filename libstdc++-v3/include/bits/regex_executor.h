@@ -36,7 +36,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
 namespace __detail
 {
-_GLIBCXX_BEGIN_INLINE_ABI_NAMESPACE(_V2)
   /**
    * @addtogroup regex-detail
    * @{
@@ -49,10 +48,9 @@ _GLIBCXX_BEGIN_INLINE_ABI_NAMESPACE(_V2)
    * @brief Takes a regex and an input string and does the matching.
    *
    * The %_Executor class has two modes: DFS mode and BFS mode, controlled
-   * by the template parameter %__dfs_mode.
+   * by the function parameter %__search_mode.
    */
-  template<typename _BiIter, typename _Alloc, typename _TraitsT,
-	   bool __dfs_mode>
+  template<typename _BiIter, typename _Alloc, typename _TraitsT>
     class _Executor
     {
       enum class _Search_mode : unsigned char { _BFS = 0, _DFS = 1 };
@@ -287,7 +285,6 @@ _GLIBCXX_BEGIN_INLINE_ABI_NAMESPACE(_V2)
     };
 
  ///@} regex-detail
-_GLIBCXX_END_INLINE_ABI_NAMESPACE(_V2)
 } // namespace __detail
 _GLIBCXX_END_NAMESPACE_VERSION
 } // namespace std

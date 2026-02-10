@@ -67,7 +67,7 @@ namespace __detail
 	      && !__re._M_automaton->_M_has_backref))
 	__use_dfs = false;
 
-      _Executor<_BiIter, _Alloc, _TraitsT, true>
+      _Executor<_BiIter, _Alloc, _TraitsT>
 	__executor(__s, __e, __res, __re, __flags, __use_dfs);
       if (__match_mode)
 	__ret = __executor._M_match();
