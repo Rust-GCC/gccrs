@@ -58,15 +58,6 @@ enum riscv_function_type {
   RISCV_MAX_FTYPE_MAX
 };
 
-/* Specifies how a built-in function should be converted into rtl.  */
-enum riscv_builtin_type {
-  /* The function corresponds directly to an .md pattern.  */
-  RISCV_BUILTIN_DIRECT,
-
-  /* Likewise, but with return type VOID.  */
-  RISCV_BUILTIN_DIRECT_NO_TARGET
-};
-
 /* Declare an availability predicate for built-in functions.  */
 #define AVAIL(NAME, COND)		\
  static unsigned int			\
@@ -77,18 +68,18 @@ enum riscv_builtin_type {
 
 /* This structure describes a single built-in function.  */
 struct riscv_builtin_description {
+  /* The name of the built-in function.  */
+  const char *name;
+
   /* The code of the main .md file instruction.  See riscv_builtin_type
      for more information.  */
   enum insn_code icode;
 
-  /* The name of the built-in function.  */
-  const char *name;
-
-  /* Specifies how the function should be expanded.  */
-  enum riscv_builtin_type builtin_type;
-
   /* The function's prototype.  */
-  enum riscv_function_type prototype;
+  enum riscv_function_type prototype : 24;
+
+  /* True, if the function returns void (and so expansion has no target RTL).  */
+  bool no_target : 8;
 
   /* Whether the function is available.  */
   unsigned int (*avail) (void);
@@ -142,50 +133,33 @@ AVAIL (andesperf32, !TARGET_64BIT && TARGET_XANDESPERF)
 AVAIL (andesperf64, TARGET_64BIT && TARGET_XANDESPERF)
 AVAIL (andesbfhcvt, TARGET_XANDESBFHCVT)
 
-/* Construct a riscv_builtin_description from the given arguments.
-
-   INSN is the name of the associated instruction pattern, without the
-   leading CODE_FOR_riscv_.
+/* Construct a riscv_builtin_description from the given arguments like RISCV_BUILTIN.
 
    NAME is the name of the function itself, without the leading
    "__builtin_riscv_".
-
-   BUILTIN_TYPE and FUNCTION_TYPE are riscv_builtin_description fields.
-
-   AVAIL is the name of the availability predicate, without the leading
-   riscv_builtin_avail_.  */
-#define RISCV_BUILTIN(INSN, NAME, BUILTIN_TYPE,	FUNCTION_TYPE, AVAIL)	\
-  { CODE_FOR_riscv_ ## INSN, "__builtin_riscv_" NAME,			\
-    BUILTIN_TYPE, FUNCTION_TYPE, riscv_builtin_avail_ ## AVAIL }
-
-/* Construct a riscv_builtin_description from the given arguments like RISCV_BUILTIN.
 
    INSN is the name of the associated instruction pattern, without the
    leading CODE_FOR_.
 
-   NAME is the name of the function itself, without the leading
-   "__builtin_riscv_".
-
-   BUILTIN_TYPE and FUNCTION_TYPE are riscv_builtin_description fields.
+   FUNCTION_TYPE is the builtin type enumerator.
 
    AVAIL is the name of the availability predicate, without the leading
    riscv_builtin_avail_.  */
-#define RISCV_BUILTIN_NO_PREFIX(INSN, NAME, BUILTIN_TYPE,	FUNCTION_TYPE, AVAIL)	\
-  { CODE_FOR_ ## INSN, "__builtin_riscv_" NAME,			\
-    BUILTIN_TYPE, FUNCTION_TYPE, riscv_builtin_avail_ ## AVAIL }
+#define RISCV_BUILTIN_NO_PREFIX(INSN, NAME, FUNCTION_TYPE, AVAIL)	\
+  { "__builtin_riscv_" NAME, CODE_FOR_ ## INSN,				\
+      FUNCTION_TYPE, false, riscv_builtin_avail_ ## AVAIL }
 
-/* Define __builtin_riscv_<INSN>, which is a RISCV_BUILTIN_DIRECT function
-   mapped to instruction CODE_FOR_riscv_<INSN>,  FUNCTION_TYPE and AVAIL
-   are as for RISCV_BUILTIN.  */
+/* Like RISCV_BUiLTIN_NO_PREFIX but with a 'riscv_' prefix added to the
+   instruction code.  */
+#define RISCV_BUILTIN(INSN, NAME, FUNCTION_TYPE, AVAIL)			\
+  RISCV_BUILTIN_NO_PREFIX (riscv_ ## INSN, NAME, FUNCTION_TYPE, AVAIL)
+
+/* Define __builtin_riscv_<INSN>, which is builtin function mapped to
+   instruction CODE_FOR_riscv_<INSN>, FUNCTION_TYPE and AVAIL are as for
+   RISCV_BUILTIN.  */
 #define DIRECT_BUILTIN(INSN, FUNCTION_TYPE, AVAIL)			\
-  RISCV_BUILTIN (INSN, #INSN, RISCV_BUILTIN_DIRECT, FUNCTION_TYPE, AVAIL)
+  RISCV_BUILTIN (INSN, #INSN, FUNCTION_TYPE, AVAIL)
 
-/* Define __builtin_riscv_<INSN>, which is a RISCV_BUILTIN_DIRECT_NO_TARGET
-   function mapped to instruction CODE_FOR_riscv_<INSN>,  FUNCTION_TYPE
-   and AVAIL are as for RISCV_BUILTIN.  */
-#define DIRECT_NO_TARGET_BUILTIN(INSN, FUNCTION_TYPE, AVAIL)		\
-  RISCV_BUILTIN (INSN, #INSN, RISCV_BUILTIN_DIRECT_NO_TARGET,		\
-		FUNCTION_TYPE, AVAIL)
 
 /* Argument types.  */
 #define RISCV_ATYPE_VOID void_type_node
@@ -216,15 +190,15 @@ AVAIL (andesbfhcvt, TARGET_XANDESBFHCVT)
   RISCV_ATYPE_##A, RISCV_ATYPE_##B, RISCV_ATYPE_##C, RISCV_ATYPE_##D, \
   RISCV_ATYPE_##E
 
-static const struct riscv_builtin_description riscv_builtins[] = {
+static struct riscv_builtin_description riscv_builtins[] = {
   #include "riscv-cmo.def"
   #include "riscv-scalar-crypto.def"
   #include "corev.def"
   #include "andes.def"
 
   DIRECT_BUILTIN (frflags, RISCV_USI_FTYPE, hard_float),
-  DIRECT_NO_TARGET_BUILTIN (fsflags, RISCV_VOID_FTYPE_USI, hard_float),
-  RISCV_BUILTIN (pause, "pause", RISCV_BUILTIN_DIRECT_NO_TARGET, RISCV_VOID_FTYPE, hint_pause),
+  DIRECT_BUILTIN (fsflags, RISCV_VOID_FTYPE_USI, hard_float),
+  RISCV_BUILTIN (pause, "pause", RISCV_VOID_FTYPE, hint_pause),
 };
 
 /* Index I is the function declaration for riscv_builtins[I], or null if the
@@ -310,10 +284,12 @@ riscv_init_builtins (void)
 
   for (size_t i = 0; i < ARRAY_SIZE (riscv_builtins); i++)
     {
-      const struct riscv_builtin_description *d = &riscv_builtins[i];
+      struct riscv_builtin_description *d = &riscv_builtins[i];
       if (d->avail ())
 	{
 	  tree type = riscv_build_function_type (d->prototype);
+	  if (VOID_TYPE_P (TREE_TYPE (type)))
+	    d->no_target = true;
 	  riscv_builtin_decls[i]
 	    = add_builtin_function (d->name, type,
 				    (i << RISCV_BUILTIN_SHIFT)
@@ -443,14 +419,7 @@ riscv_expand_builtin (tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
       case RISCV_BUILTIN_GENERAL: {
 	const struct riscv_builtin_description *d = &riscv_builtins[subcode];
 
-	switch (d->builtin_type)
-	  {
-	  case RISCV_BUILTIN_DIRECT:
-	    return riscv_expand_builtin_direct (d->icode, target, exp, true);
-
-	  case RISCV_BUILTIN_DIRECT_NO_TARGET:
-	    return riscv_expand_builtin_direct (d->icode, target, exp, false);
-	  }
+	return riscv_expand_builtin_direct (d->icode, target, exp, !d->no_target);
       }
     }
 
