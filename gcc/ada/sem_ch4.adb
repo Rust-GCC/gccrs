@@ -4528,9 +4528,36 @@ package body Sem_Ch4 is
       Expr : constant Node_Id   := Expression (N);
       Mark : constant Entity_Id := Subtype_Mark (N);
 
-      I    : Interp_Index;
-      It   : Interp;
-      T    : Entity_Id;
+      function Same_Class_Wide_Type (Typ, CW_Typ : Entity_Id) return Boolean;
+      --  Return whether Typ is the same class-wide type as CW_Typ. This is
+      --  essentially an equality test modulo the Non_Limited_View attribute.
+
+      --------------------------
+      -- Same_Class_Wide_Type --
+      --------------------------
+
+      function Same_Class_Wide_Type (Typ, CW_Typ : Entity_Id) return Boolean is
+         Btyp : constant Entity_Id := Base_Type (Typ);
+
+      begin
+         if Ekind (Btyp) /= E_Class_Wide_Type then
+            return False;
+         end if;
+
+         if Has_Non_Limited_View (Btyp) then
+            return Non_Limited_View (Btyp) = Base_Type (CW_Typ);
+         else
+            return Btyp = Base_Type (CW_Typ);
+         end if;
+      end Same_Class_Wide_Type;
+
+      --  Local variables
+
+      I  : Interp_Index;
+      It : Interp;
+      T  : Entity_Id;
+
+   --  Start of processing for Analyze_Qualified_Expression
 
    begin
       Find_Type (Mark);
@@ -4569,7 +4596,7 @@ package body Sem_Ch4 is
 
       if Is_Class_Wide_Type (T) then
          if not Is_Overloaded (Expr) then
-            if Base_Type (Etype (Expr)) /= Base_Type (T)
+            if not Same_Class_Wide_Type (Etype (Expr), T)
               and then Etype (Expr) /= Raise_Type
             then
                if Nkind (Expr) = N_Aggregate then
@@ -4583,7 +4610,7 @@ package body Sem_Ch4 is
             Get_First_Interp (Expr, I, It);
 
             while Present (It.Nam) loop
-               if Base_Type (It.Typ) /= Base_Type (T) then
+               if not Same_Class_Wide_Type (It.Typ, T) then
                   Remove_Interp (I);
                end if;
 
