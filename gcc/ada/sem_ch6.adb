@@ -14459,6 +14459,10 @@ package body Sem_Ch6 is
            ("incorrect number of arguments for operator", Designator);
       end if;
 
+      if Id = Name_Op_Eq then
+         Check_Ghost_Equality_Op (Designator);
+      end if;
+
       if Id = Name_Op_Ne
         and then Base_Type (Etype (Designator)) = Standard_Boolean
         and then not Is_Intrinsic_Subprogram (Designator)

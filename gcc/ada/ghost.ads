@@ -61,6 +61,11 @@ package Ghost is
    --  Check that if Actual contains references to ghost entities, generic
    --  formal parameter Formal is ghost (SPARK RM 6.9(13)).
 
+   procedure Check_Ghost_Equality_Op (Eq_Op : Entity_Id);
+   --  A user-defined primitive equality operation on a
+   --  non-ghost record type shall not be ghost, unless the
+   --  record type has only limited views. (SPARK RM 6.9(23))
+
    procedure Check_Ghost_Formal_Procedure_Or_Package
      (N          : Node_Id;
       Actual     : Entity_Id;

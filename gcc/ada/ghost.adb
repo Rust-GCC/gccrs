@@ -1118,6 +1118,50 @@ package body Ghost is
       Check_Valid_Assertion_Level (Id, N);
    end Check_Valid_Ghost_Declaration;
 
+   -----------------------------
+   -- Check_Ghost_Equality_Op --
+   -----------------------------
+
+   procedure Check_Ghost_Equality_Op (Eq_Op : Entity_Id) is
+      F     : Entity_Id;
+      F_Typ : Entity_Id;
+   begin
+      if not Is_Ghost_Entity (Eq_Op) then
+         return;
+      end if;
+
+      F := First_Formal (Eq_Op);
+      while Present (F) loop
+         F_Typ := Etype (F);
+         if Is_Record_Type (F_Typ) and then not Is_Limited_Record (F_Typ) then
+            if not Is_Ghost_Entity (F_Typ) then
+               Error_Msg_N
+                 ("incompatible primitive equaility operation", Eq_Op);
+
+               Error_Msg_N ("\equality operation is defined as ghost", Eq_Op);
+
+               Error_Msg_Sloc := Sloc (F_Typ);
+               Error_Msg_N
+                 ("\but applied to a non-ghost record type #", Eq_Op);
+            elsif Ghost_Assertion_Level (Eq_Op)
+              /= Ghost_Assertion_Level (F_Typ)
+            then
+               Error_Msg_N (Assertion_Level_Error_Msg, Eq_Op);
+
+               Error_Msg_Name_1 := Chars (Ghost_Assertion_Level (Eq_Op));
+               Error_Msg_N ("\equality operator declared with %", Eq_Op);
+
+               Error_Msg_Name_1 := Chars (Ghost_Assertion_Level (F_Typ));
+               Error_Msg_Sloc := Sloc (F_Typ);
+               Error_Msg_NE ("\record type & declared # with %", Eq_Op, F_Typ);
+               Error_Msg_N ("\& should have the same assertion level", Eq_Op);
+            end if;
+         end if;
+
+         Next_Formal (F);
+      end loop;
+   end Check_Ghost_Equality_Op;
+
    ---------------------------------------------
    -- Check_Ghost_Formal_Procedure_Or_Package --
    ---------------------------------------------
