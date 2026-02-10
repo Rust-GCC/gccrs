@@ -476,7 +476,7 @@ Session::handle_crate_name (const char *filename,
 
   for (const auto &attr : parsed_crate.inner_attrs)
     {
-      if (attr.get_path () != "crate_name")
+      if (attr.get_path () != Values::Attributes::CRATE_NAME)
 	continue;
 
       auto msg_str = Analysis::Attributes::extract_string_literal (attr);
