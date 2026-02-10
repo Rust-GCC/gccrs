@@ -1054,7 +1054,7 @@ number_of_iterations_ne (class loop *loop, tree type, affine_iv *iv,
       if (tree_int_cst_sign_bit (iv->step))
 	{
 	  cond = fold_build2 (GE_EXPR, boolean_type_node, iv->base, final);
-	  if (TREE_CODE (type) == INTEGER_TYPE)
+	  if (INTEGRAL_NB_TYPE_P (type))
 	    {
 	      /* Only when base - step doesn't overflow.  */
 	      t = TYPE_MAX_VALUE (type);
@@ -1071,7 +1071,7 @@ number_of_iterations_ne (class loop *loop, tree type, affine_iv *iv,
       else
 	{
 	  cond = fold_build2 (LE_EXPR, boolean_type_node, iv->base, final);
-	  if (TREE_CODE (type) == INTEGER_TYPE)
+	  if (INTEGRAL_NB_TYPE_P (type))
 	    {
 	      /* Only when base - step doesn't underflow.  */
 	      t = TYPE_MIN_VALUE (type);
@@ -2439,7 +2439,7 @@ number_of_iterations_cltz (loop_p loop, edge exit,
 	  iv_2 = gimple_assign_rhs1 (test_value_stmt);
 	  tree rhs_type = TREE_TYPE (iv_2);
 	  if (TREE_CODE (iv_2) != SSA_NAME
-	      || TREE_CODE (rhs_type) != INTEGER_TYPE
+	      || !INTEGRAL_NB_TYPE_P (rhs_type)
 	      || (TYPE_PRECISION (rhs_type)
 		  != TYPE_PRECISION (test_value_type)))
 	    return false;
@@ -3275,7 +3275,7 @@ number_of_iterations_exit_assumptions (class loop *loop, edge exit,
   op1 = gimple_cond_rhs (stmt);
   type = TREE_TYPE (op0);
 
-  if (TREE_CODE (type) != INTEGER_TYPE
+  if (!INTEGRAL_NB_TYPE_P (type)
       && !POINTER_TYPE_P (type))
     return false;
 

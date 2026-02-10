@@ -1897,8 +1897,8 @@ interpret_rhs_expr (class loop *loop, gimple *at_stmt,
 	 the operation done in an unsigned type of the same precision
 	 as the final truncation.  We cannot derive a scalar evolution
 	 for the widened operation but for the truncated result.  */
-      if (TREE_CODE (type) == INTEGER_TYPE
-	  && TREE_CODE (TREE_TYPE (rhs1)) == INTEGER_TYPE
+      if (INTEGRAL_NB_TYPE_P (type)
+	  && INTEGRAL_NB_TYPE_P (TREE_TYPE (rhs1))
 	  && TYPE_PRECISION (type) < TYPE_PRECISION (TREE_TYPE (rhs1))
 	  && TYPE_OVERFLOW_UNDEFINED (type)
 	  && TREE_CODE (rhs1) == SSA_NAME

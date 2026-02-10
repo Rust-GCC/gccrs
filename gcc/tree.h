@@ -617,6 +617,13 @@ extern void omp_clause_range_check_failed (const_tree, const char *, int,
    || TREE_CODE (TYPE) == INTEGER_TYPE \
    || TREE_CODE (TYPE) == BITINT_TYPE)
 
+/* Nonzero if TYPE represents an integral type (non-boolean).  */
+
+#define INTEGRAL_NB_TYPE_P(TYPE)  \
+  (TREE_CODE (TYPE) == ENUMERAL_TYPE  \
+   || TREE_CODE (TYPE) == INTEGER_TYPE \
+   || TREE_CODE (TYPE) == BITINT_TYPE)
+
 /* Nonzero if TYPE represents an integral type, including complex
    and vector integer types.  */
 
