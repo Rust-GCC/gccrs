@@ -8338,8 +8338,8 @@ check_splice_expr (location_t loc, location_t start_loc, tree t,
 	  if (TYPE_P (t))
 	    {
 	      auto_diagnostic_group d;
-	      error_at (loc, "expected a reflection of an expression instead "
-			"of type %qT", t);
+	      error_at (loc, "expected a reflection of an expression");
+	      inform_tree_category (t);
 	      if (start_loc != UNKNOWN_LOCATION)
 		{
 		  rich_location richloc (line_table, start_loc);
@@ -8352,8 +8352,11 @@ check_splice_expr (location_t loc, location_t start_loc, tree t,
 			"a type-only context");
 	    }
 	  else
-	    error_at (loc, "expected a reflection of an expression instead "
-		      "of %qD", t);
+	    {
+	      auto_diagnostic_group d;
+	      error_at (loc, "expected a reflection of an expression");
+	      inform_tree_category (t);
+	    }
 	}
       return false;
     }

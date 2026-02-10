@@ -7688,6 +7688,7 @@ extern bool pedwarn_cxx98                       (location_t,
 extern location_t location_of                   (tree);
 extern void qualified_name_lookup_error		(tree, tree, tree,
 						 location_t);
+void inform_tree_category			(tree);
 
 struct decl_location_traits
   : simple_cache_map_traits<tree_decl_hash, location_t> { };

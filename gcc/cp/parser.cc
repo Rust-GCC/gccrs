@@ -279,6 +279,8 @@ static tree omp_start_variant_function
 static int omp_finish_variant_function
   (cp_parser *, tree, tree, tree, bool, bool);
 static void maybe_start_implicit_template (cp_parser *parser);
+static void missing_template_diag
+  (location_t, diagnostics::kind = diagnostics::kind::warning);
 
 /* Manifest constants.  */
 #define CP_LEXER_BUFFER_SIZE ((256 * 1024) / sizeof (cp_token))
@@ -6183,7 +6185,9 @@ cp_parser_splice_specifier (cp_parser *parser, bool template_p = false,
       /* As a courtesy to the user, if there is a < after a template
 	 name, parse the construct as an s-s-s and warn about the missing
 	 'template'; it can't be anything else.  */
-      && (template_p || typename_p || TREE_CODE (expr) == TEMPLATE_DECL))
+      && (template_p
+	  || typename_p
+	  || TREE_CODE (OVL_FIRST (expr)) == TEMPLATE_DECL))
     {
       /* For member access splice-specialization-specifier, try to wrap
 	 non-dependent splice for function template into a BASELINK so
@@ -6252,7 +6256,11 @@ cp_parser_splice_type_specifier (cp_parser *parser)
   if (!valid_splice_type_p (type))
     {
       if (!cp_parser_simulate_error (parser))
-	error_at (loc, "reflection %qE not usable in a splice type", type);
+	{
+	  auto_diagnostic_group d;
+	  error_at (loc, "expected a reflection of a type");
+	  inform_tree_category (type);
+	}
       type = NULL_TREE;
     }
 
@@ -6313,63 +6321,42 @@ cp_parser_splice_expression (cp_parser *parser, bool template_p,
       return error_mark_node;
     }
 
+  /* Make sure this splice-expression produces an expression.  */
+  if (!check_splice_expr (loc, expr.get_start (), t, address_p,
+			  member_access_p, /*complain=*/true))
+    return error_mark_node;
+
   if (template_p)
     {
       /* [expr.prim.splice] For a splice-expression of the form template
 	 splice-specifier, the splice-specifier shall designate a function
 	 template.  */
-      if (!targs_p)
+      if (!targs_p
+	  && !really_overloaded_fn (t)
+	  && !dependent_splice_p (t))
 	{
-	  if (!really_overloaded_fn (t) && !dependent_splice_p (t))
-	    {
-	      auto_diagnostic_group d;
-	      error_at (loc, "reflection %qE not usable in a template splice",
-			t);
-	      inform (loc, "only function templates are allowed here");
-	      return error_mark_node;
-	    }
+	  auto_diagnostic_group d;
+	  error_at (loc, "expected a reflection of a function template");
+	  inform_tree_category (t);
+	  return error_mark_node;
 	}
       /* [expr.prim.splice] For a splice-expression of the form
 	 template splice-specialization-specifier, the splice-specifier of the
-	 splice-specialization-specifier shall designate a template.  */
-      else
-	{
-	  if (really_overloaded_fn (t)
-	      || get_template_info (t)
-	      || TREE_CODE (t) == TEMPLATE_ID_EXPR)
-	    /* OK */;
-	  else
-	    {
-	      auto_diagnostic_group d;
-	      error_at (loc, "reflection %qE not usable in a template splice",
-			t);
-	      inform (loc, "only templates are allowed here");
-	      return error_mark_node;
-	    }
-	}
+	 splice-specialization-specifier shall designate a template.  Since
+	 we would have already complained, just check that we have a template.  */
+      gcc_checking_assert (really_overloaded_fn (t)
+			   || get_template_info (t)
+			   || TREE_CODE (t) == TEMPLATE_ID_EXPR
+			   || dependent_splice_p (t));
     }
   else if (/* No 'template' but there were template arguments?  */
-	   targs_p
-	   /* No 'template' but the splice-specifier designates a template?  */
-	   || really_overloaded_fn (t))
-    {
-      auto_diagnostic_group d;
-      if (targs_p)
-	error_at (loc, "reflection %qE not usable in a splice expression with "
-		  "template arguments", t);
-      else
-	error_at (loc, "reflection %qE not usable in a splice expression", t);
-      location_t sloc = expr.get_start ();
-      rich_location richloc (line_table, sloc);
-      richloc.add_fixit_insert_before (sloc, "template ");
-      inform (&richloc, "add %<template%> to denote a template");
-      return error_mark_node;
-    }
-
-  /* Make sure this splice-expression produces an expression.  */
-  if (!check_splice_expr (loc, expr.get_start (), t, address_p,
-			  member_access_p, /*complain=*/true))
-    return error_mark_node;
+	   (targs_p
+	    /* No 'template' but the splice-specifier designates a function
+	       template?  */
+	    || really_overloaded_fn (t))
+	   && warning_enabled_at (loc, OPT_Wmissing_template_keyword))
+    /* Were 'template' present, this would be valid code, so keep going.  */
+    missing_template_diag (loc, diagnostics::kind::pedwarn);
 
   /* When doing foo.[: bar :], cp_parser_postfix_dot_deref_expression wants
      to see an identifier or a TEMPLATE_ID_EXPR, if we have something like
@@ -6471,13 +6458,9 @@ cp_parser_splice_scope_specifier (cp_parser *parser, bool typename_p,
   if (!valid_splice_scope_p (scope))
     {
       auto_diagnostic_group d;
-      error_at (loc, "reflection not usable in a splice scope");
-      if (TYPE_P (scope))
-	inform (loc, "%qT is not a class, namespace, or enumeration",
-		tree (scope));
-      else
-	inform (loc, "%qE is not a class, namespace, or enumeration",
-		tree (scope));
+      error_at (loc, "expected a reflection of a class, namespace, or "
+		"enumeration");
+      inform_tree_category (tree (scope));
       scope = error_mark_node;
     }
 
@@ -7235,7 +7218,7 @@ cp_parser_primary_expression (cp_parser *parser,
 
 static void
 missing_template_diag (location_t loc,
-		       enum diagnostics::kind diag_kind = diagnostics::kind::warning)
+		       diagnostics::kind diag_kind/*=kind::warning*/)
 {
   if (warning_suppressed_at (loc, OPT_Wmissing_template_keyword))
     return;

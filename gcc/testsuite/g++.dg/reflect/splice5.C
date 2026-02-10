@@ -13,10 +13,12 @@ struct S {
 void
 baz (S &s)
 {
-  template [: ^^foo :] (0);			// { dg-error "reflection 'foo' not usable in a template splice" }
-  template [: ^^bar :] (0);			// { dg-message "only function templates are allowed here" "" { target *-*-* } .-1 }
-  s.template [: ^^S::foo :] (0);		// { dg-error "reflection 'S::foo' not usable in a template splice" }
-  s.template [: ^^S::bar :] (0);		// { dg-message "only function templates are allowed here" "" { target *-*-* } .-1 }
+  template [: ^^foo :] (0);			// { dg-error "expected a reflection of a function template" }
+  // { dg-message "but .foo. is a function" "" { target *-*-* } 4 }
+  template [: ^^bar :] (0);
+  s.template [: ^^S::foo :] (0);		// { dg-error "expected a reflection of a function template" }
+  // { dg-message "but .S::foo. is a function" "" { target *-*-* } 8 }
+  s.template [: ^^S::bar :] (0);
 }
 
 template <int N>

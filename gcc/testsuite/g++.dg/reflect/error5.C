@@ -9,7 +9,8 @@ template<info R>
 void
 f ()
 {
-  int i = [:R:]; // { dg-error "expected a reflection of an expression instead of .N." }
+  int i = [:R:]; // { dg-error "expected a reflection of an expression" }
+  // { dg-message "but .N. is a namespace" "" { target *-*-* } 6 }
 }
 
 void

@@ -12,7 +12,8 @@ template<info R>
 void
 f ()
 {
-  int j = s.template [:R:]<int>; // { dg-error "expected a reflection of an expression instead of type .S." }
+  int j = s.template [:R:]<int>; // { dg-error "expected a reflection of an expression" }
+  // { dg-message "but .S. is a type" "" { target *-*-* } 6 }
 }
 
 void

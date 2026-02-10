@@ -15,7 +15,8 @@ using alias = [:^^TCls:]<([:^^v:])>;
 static_assert(alias::s == 2);
 
 // error: < means less than
-auto o1 = [:^^TCls:]<([:^^v:])>();  // { dg-error "reflection .TCls<1>. not usable" }
+auto o1 = [:^^TCls:]<([:^^v:])>();  // { dg-error "expected a reflection of an expression" }
+// { dg-message "but .TCls<1>. is a type" "" { target *-*-* } 8 }
 // OK, o2 is an object of type TCls<1>
 auto o2 = typename [:^^TCls:]<([:^^v:])>();
 

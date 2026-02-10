@@ -13,8 +13,9 @@ void
 f ()
 {
   // Parsed as "S::tfn < S".
-  [: ^^T :]::tfn<[: ^^T :]>();	// { dg-error "expected primary-expression|expected a reflection of an expression instead of type .S." }
+  [: ^^T :]::tfn<[: ^^T :]>();	// { dg-error "expected primary-expression|expected a reflection of an expression" }
 // { dg-warning "expected .template. keyword" "" { target *-*-* } .-1 }
+// { dg-message "but .S. is a type" "" { target *-*-* } 4 }
   int i = [: ^^T :]::var<int>;	// { dg-error "missing|expected" }
 }
 

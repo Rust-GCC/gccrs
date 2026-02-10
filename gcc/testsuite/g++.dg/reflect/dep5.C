@@ -18,8 +18,9 @@ f ()
   static_assert ([: ^^T :]::x == 42);
   typename [: ^^T :]::type a = 42;
   [: ^^T :]::fn (42);
-  [: ^^T :]::template tfn<([: ^^T :])>();  // { dg-error "expected a reflection of an expression instead of type .S." }
-  auto x = [: ^^T :]::template var<([: ^^T :])>;  // { dg-error "expected a reflection of an expression instead of type .S." }
+  [: ^^T :]::template tfn<([: ^^T :])>();  // { dg-error "expected a reflection of an expression" }
+  // { dg-message "but .S. is a type" "" { target *-*-* } 4 }
+  auto x = [: ^^T :]::template var<([: ^^T :])>;  // { dg-error "expected a reflection of an expression" }
 }
 
 void

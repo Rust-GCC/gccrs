@@ -55,9 +55,9 @@ f ()
   sp->template [: ^^S::tfn :](42);
   s.template [: ^^S::tfn :]<int>(42);
   sp->template [: ^^S::tfn :]<int>(42);
-  s.[: ^^S::var :]<int> = 1; // { dg-error "reflection .var<int>. not usable in a splice expression with template arguments" }
+  s.[: ^^S::var :]<int> = 1; // { dg-error "expected 'template' keyword before dependent template name" }
   s.template [: ^^S::var :]<int> = 1;
-  sp->[: ^^S::var :]<int> = 1; // { dg-error "reflection .var<int>. not usable in a splice expression with template arguments" }
+  sp->[: ^^S::var :]<int> = 1; // { dg-error "expected 'template' keyword before dependent template name" }
   sp->template [: ^^S::var :]<int> = 1;
   s.[: ^^S::b :].[: ^^B::a :].val;
   sp->[: ^^S::b :].[: ^^B::a :].val;
@@ -74,9 +74,9 @@ f ()
   cp->template [: ^^C<int>::tfn :](42);
   c.template [: ^^C<int>::tfn :]<int>(42);
   cp->template [: ^^C<int>::tfn :]<int>(42);
-  c.[: ^^C<int>::var :]<int> = 1; // { dg-error "reflection .var<int>. not usable in a splice expression with template arguments" }
+  c.[: ^^C<int>::var :]<int> = 1; // { dg-error "expected 'template' keyword before dependent template name" }
   c.template [: ^^C<int>::var :]<int> = 1;
-  cp->[: ^^C<int>::var :]<int> = 1; // { dg-error "reflection .var<int>. not usable in a splice expression with template arguments" }
+  cp->[: ^^C<int>::var :]<int> = 1; // { dg-error "expected 'template' keyword before dependent template name" }
   cp->template [: ^^C<int>::var :]<int> = 1;
   c.[: ^^C<int>::b :].[: ^^B::a :].val;
   cp->[: ^^C<int>::b :].[: ^^B::a :].val;
@@ -92,8 +92,10 @@ f ()
   sp.[: ^^S::x :] = 2; // { dg-error "which is of pointer type" }
   c.[: ^^C<char>::x :] = 1; // { dg-error "is not a base of" }
   cp->[: ^^C<char>::x :] = 1; // { dg-error "is not a base of" }
-  s.template [: ^^S::N :].t;  // { dg-error "reflection .S::N. not usable in a template splice" }
+  s.template [: ^^S::N :].t;  // { dg-error "expected a reflection of a function template" }
+  // { dg-message "but .S::N. is a class template" "" { target *-*-* } 20 }
   S::template [: ^^S::N<int> :] e1;  // { dg-error "expected unqualified-id" }
   C<int>::template [: ^^S::N<int> :] e2;  // { dg-error "expected unqualified-id" }
-  s.template [: ^^S::var<int> :] = 1;  // { dg-error "reflection .S::var<int>. not usable in a template splice" }
+  s.template [: ^^S::var<int> :] = 1;  // { dg-error "expected a reflection of a function template" }
+  // { dg-message "but .S::var<int>. is a variable" "" { target *-*-* } 22 }
 }

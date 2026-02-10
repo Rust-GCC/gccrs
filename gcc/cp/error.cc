@@ -3976,6 +3976,42 @@ function_category (tree fn)
     return G_("In function %qD");
 }
 
+/* We expected some kind of tree but instead got T and emitted a diagnostic.
+   Print the category of T (type, expression, ...) if possible.  */
+
+void
+inform_tree_category (tree t)
+{
+  const location_t loc = location_of (t);
+
+  t = maybe_get_first_fn (t);
+  if (TREE_CODE (t) == TYPE_DECL)
+    t = TREE_TYPE (t);
+
+  if (TYPE_P (t))
+    inform (loc, "but %qE is a type", t);
+  else if (EXPR_P (t))
+    inform (loc, "but %qE is an expression", t);
+  else if (DECL_DECOMPOSITION_P (t) && !DECL_DECOMP_IS_BASE (t))
+    inform (loc, "but %qE is a structured binding", t);
+  else if (VAR_P (t))
+    inform (loc, "but %qE is a variable", t);
+  else if (TREE_CODE (t) == PARM_DECL)
+    inform (loc, "but %qE is a parameter", t);
+  else if (TREE_CODE (t) == FUNCTION_DECL)
+    inform (loc, "but %qE is a function", t);
+  else if (TREE_CODE (t) == FIELD_DECL)
+    inform (loc, "but %qE is a data member", t);
+  else if (DECL_FUNCTION_TEMPLATE_P (t))
+    inform (loc, "but %qE is a function template", t);
+  else if (DECL_CLASS_TEMPLATE_P (t))
+    inform (loc, "but %qE is a class template", t);
+  else if (TREE_CODE (t) == NAMESPACE_DECL)
+    inform (loc, "but %qE is a namespace", t);
+  else if (TREE_CODE (t) == CONST_DECL && !DECL_TEMPLATE_PARM_P (t))
+    inform (loc, "but %qE is an enumerator", t);
+}
+
 /* Disable warnings about missing quoting in GCC diagnostics for
    the pp_verbatim calls.  Their format strings deliberately don't
    follow GCC diagnostic conventions.  */
