@@ -106,8 +106,157 @@ namespace __detail
 	}
       return __ret;
     }
+
+  inline void
+  __lookup_collatename(string& __name) noexcept
+  {
+    static const char* const __collatenames[] =
+      {
+	"NUL",
+	"SOH",
+	"STX",
+	"ETX",
+	"EOT",
+	"ENQ",
+	"ACK",
+	"alert",
+	"backspace",
+	"tab",
+	"newline",
+	"vertical-tab",
+	"form-feed",
+	"carriage-return",
+	"SO",
+	"SI",
+	"DLE",
+	"DC1",
+	"DC2",
+	"DC3",
+	"DC4",
+	"NAK",
+	"SYN",
+	"ETB",
+	"CAN",
+	"EM",
+	"SUB",
+	"ESC",
+	"IS4",
+	"IS3",
+	"IS2",
+	"IS1",
+	"space",
+	"exclamation-mark",
+	"quotation-mark",
+	"number-sign",
+	"dollar-sign",
+	"percent-sign",
+	"ampersand",
+	"apostrophe",
+	"left-parenthesis",
+	"right-parenthesis",
+	"asterisk",
+	"plus-sign",
+	"comma",
+	"hyphen",
+	"period",
+	"slash",
+	"zero",
+	"one",
+	"two",
+	"three",
+	"four",
+	"five",
+	"six",
+	"seven",
+	"eight",
+	"nine",
+	"colon",
+	"semicolon",
+	"less-than-sign",
+	"equals-sign",
+	"greater-than-sign",
+	"question-mark",
+	"commercial-at",
+	"A",
+	"B",
+	"C",
+	"D",
+	"E",
+	"F",
+	"G",
+	"H",
+	"I",
+	"J",
+	"K",
+	"L",
+	"M",
+	"N",
+	"O",
+	"P",
+	"Q",
+	"R",
+	"S",
+	"T",
+	"U",
+	"V",
+	"W",
+	"X",
+	"Y",
+	"Z",
+	"left-square-bracket",
+	"backslash",
+	"right-square-bracket",
+	"circumflex",
+	"underscore",
+	"grave-accent",
+	"a",
+	"b",
+	"c",
+	"d",
+	"e",
+	"f",
+	"g",
+	"h",
+	"i",
+	"j",
+	"k",
+	"l",
+	"m",
+	"n",
+	"o",
+	"p",
+	"q",
+	"r",
+	"s",
+	"t",
+	"u",
+	"v",
+	"w",
+	"x",
+	"y",
+	"z",
+	"left-curly-bracket",
+	"vertical-line",
+	"right-curly-bracket",
+	"tilde",
+	"DEL",
+      };
+
+    for (const auto& __it : __collatenames)
+      if (__name == __it)
+	{
+	  __name.assign(1, static_cast<char>(&__it - __collatenames));
+	  return;
+	}
+
+    __name.clear();
+  }
+
   /// @endcond
 } // namespace __detail
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wc++17-extensions" // if constexpr
 
   template<typename _Ch_type>
   template<typename _Fwd_iter>
@@ -115,154 +264,29 @@ namespace __detail
     regex_traits<_Ch_type>::
     lookup_collatename(_Fwd_iter __first, _Fwd_iter __last) const
     {
-      typedef std::ctype<char_type> __ctype_type;
-      const __ctype_type& __fctyp(use_facet<__ctype_type>(_M_locale));
-
-      static const char* const __collatenames[] =
-	{
-	  "NUL",
-	  "SOH",
-	  "STX",
-	  "ETX",
-	  "EOT",
-	  "ENQ",
-	  "ACK",
-	  "alert",
-	  "backspace",
-	  "tab",
-	  "newline",
-	  "vertical-tab",
-	  "form-feed",
-	  "carriage-return",
-	  "SO",
-	  "SI",
-	  "DLE",
-	  "DC1",
-	  "DC2",
-	  "DC3",
-	  "DC4",
-	  "NAK",
-	  "SYN",
-	  "ETB",
-	  "CAN",
-	  "EM",
-	  "SUB",
-	  "ESC",
-	  "IS4",
-	  "IS3",
-	  "IS2",
-	  "IS1",
-	  "space",
-	  "exclamation-mark",
-	  "quotation-mark",
-	  "number-sign",
-	  "dollar-sign",
-	  "percent-sign",
-	  "ampersand",
-	  "apostrophe",
-	  "left-parenthesis",
-	  "right-parenthesis",
-	  "asterisk",
-	  "plus-sign",
-	  "comma",
-	  "hyphen",
-	  "period",
-	  "slash",
-	  "zero",
-	  "one",
-	  "two",
-	  "three",
-	  "four",
-	  "five",
-	  "six",
-	  "seven",
-	  "eight",
-	  "nine",
-	  "colon",
-	  "semicolon",
-	  "less-than-sign",
-	  "equals-sign",
-	  "greater-than-sign",
-	  "question-mark",
-	  "commercial-at",
-	  "A",
-	  "B",
-	  "C",
-	  "D",
-	  "E",
-	  "F",
-	  "G",
-	  "H",
-	  "I",
-	  "J",
-	  "K",
-	  "L",
-	  "M",
-	  "N",
-	  "O",
-	  "P",
-	  "Q",
-	  "R",
-	  "S",
-	  "T",
-	  "U",
-	  "V",
-	  "W",
-	  "X",
-	  "Y",
-	  "Z",
-	  "left-square-bracket",
-	  "backslash",
-	  "right-square-bracket",
-	  "circumflex",
-	  "underscore",
-	  "grave-accent",
-	  "a",
-	  "b",
-	  "c",
-	  "d",
-	  "e",
-	  "f",
-	  "g",
-	  "h",
-	  "i",
-	  "j",
-	  "k",
-	  "l",
-	  "m",
-	  "n",
-	  "o",
-	  "p",
-	  "q",
-	  "r",
-	  "s",
-	  "t",
-	  "u",
-	  "v",
-	  "w",
-	  "x",
-	  "y",
-	  "z",
-	  "left-curly-bracket",
-	  "vertical-line",
-	  "right-curly-bracket",
-	  "tilde",
-	  "DEL",
-	};
-
-      string __s;
-      for (; __first != __last; ++__first)
-	__s += __fctyp.narrow(*__first, 0);
-
-      for (const auto& __it : __collatenames)
-	if (__s == __it)
-	  return string_type(1, __fctyp.widen(
-	    static_cast<char>(&__it - __collatenames)));
-
       // TODO Add digraph support:
       // http://boost.sourceforge.net/libs/regex/doc/collating_names.html
 
-      return string_type();
+      if constexpr (is_same<char_type, char>::value)
+	{
+	  string __s(__first, __last);
+	  __detail::__lookup_collatename(__s);
+	  return __s;
+	}
+      else
+	{
+	  typedef std::ctype<char_type> __ctype_type;
+	  const __ctype_type& __fctyp(use_facet<__ctype_type>(_M_locale));
+
+	  string __s;
+	  for (; __first != __last; ++__first)
+	    __s += __fctyp.narrow(*__first, 0);
+	  __detail::__lookup_collatename(__s);
+	  if (__s.empty())
+	    return string_type();
+	  else
+	    return string_type(1, __fctyp.widen(__s[0]));
+	}
     }
 
   template<typename _Ch_type>
@@ -271,43 +295,97 @@ namespace __detail
     regex_traits<_Ch_type>::
     lookup_classname(_Fwd_iter __first, _Fwd_iter __last, bool __icase) const
     {
+      if constexpr (__is_any_random_access_iter<_Fwd_iter>::value)
+	if ((__last - __first) > 6) [[__unlikely__]]
+	  return {}; // "xdigit" is the longest classname
+
       typedef std::ctype<char_type> __ctype_type;
       const __ctype_type& __fctyp(use_facet<__ctype_type>(_M_locale));
 
-      // Mappings from class name to class mask.
-      static const pair<const char*, char_class_type> __classnames[] =
-      {
-	{"d", ctype_base::digit},
-	{"w", {ctype_base::alnum, _RegexMask::_S_under}},
-	{"s", ctype_base::space},
-	{"alnum", ctype_base::alnum},
-	{"alpha", ctype_base::alpha},
-	{"blank", ctype_base::blank},
-	{"cntrl", ctype_base::cntrl},
-	{"digit", ctype_base::digit},
-	{"graph", ctype_base::graph},
-	{"lower", ctype_base::lower},
-	{"print", ctype_base::print},
-	{"punct", ctype_base::punct},
-	{"space", ctype_base::space},
-	{"upper", ctype_base::upper},
-	{"xdigit", ctype_base::xdigit},
+      auto __read_ch = [&]() -> char {
+	if (__first == __last)
+	  return '\0';
+	char __c = __fctyp.narrow(__fctyp.tolower(*__first), 0);
+	++__first;
+	return __c;
       };
 
-      string __s;
-      for (; __first != __last; ++__first)
-	__s += __fctyp.narrow(__fctyp.tolower(*__first), 0);
+      auto __match = [&](const char* __s) -> bool {
+	do
+	  if (__read_ch() != *__s)
+	    return false;
+	while (*++__s);
+	return __first == __last;
+      };
 
-      for (const auto& __it : __classnames)
-	if (__s == __it.first)
+      switch(__read_ch())
+	{
+	case 'a':
+	  if (__read_ch() == 'l')
+	    switch (__read_ch())
+	      {
+	      case 'n':
+		if (__match("um")) // "alnum"
+		  return ctype_base::alnum;
+		break;
+	      case 'p':
+		if (__match("ha")) // "alpha"
+		  return ctype_base::alpha;
+		break;
+	      }
+	  break;
+	case 'b':
+	  if (__match("lank")) // "blank"
+	    return ctype_base::blank;
+	  break;
+	case 'c':
+	  if (__match("ntrl")) // "cntrl"
+	    return ctype_base::cntrl;
+	  break;
+	case 'd':
+	  if (__first == __last || __match("igit")) // "d" or "digit"
+	    return ctype_base::digit;
+	  break;
+	case 'g':
+	  if (__match("raph")) // "graph"
+	    return ctype_base::graph;
+	  break;
+	case 'l':
+	  if (__match("ower")) // "lower"
+	    return __icase ? ctype_base::alpha : ctype_base::lower;
+	  break;
+	case 'p':
+	  switch (__read_ch())
 	  {
-	    if (__icase
-		&& (__it.second._M_base == ctype_base::lower
-		      || __it.second._M_base == ctype_base::upper))
-	      return ctype_base::alpha;
-	    return __it.second;
+	  case 'r':
+	    if (__match("int")) // "print"
+	      return ctype_base::print;
+	    break;
+	  case 'u':
+	    if (__match("nct")) // "punct"
+	      return ctype_base::punct;
+	    break;
 	  }
-      return 0;
+	  break;
+	case 's':
+	  if (__first == __last || __match("pace")) // "s" or "space"
+	    return ctype_base::space;
+	  break;
+	case 'u':
+	  if (__match("pper")) // "upper"
+	    return __icase ? ctype_base::alpha : ctype_base::upper;
+	  break;
+	case 'w':
+	  if (__first == __last) // "w"
+	    return {ctype_base::alnum, char_class_type::_S_under};
+	  break;
+	case 'x':
+	  if (__match("digit")) // "xdigit"
+	    return ctype_base::xdigit;
+	  break;
+	}
+
+      return {};
     }
 
   template<typename _Ch_type>
@@ -324,8 +402,6 @@ namespace __detail
 	    && __c == __fctyp.widen('_'));
     }
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wc++17-extensions" // if constexpr
   template<typename _Ch_type>
     int
     regex_traits<_Ch_type>::
