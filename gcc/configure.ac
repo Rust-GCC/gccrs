@@ -1565,10 +1565,10 @@ if test $gcc_cv_header_zstd_h = yes; then
 elif test "x$with_zstd" != x; then
     as_fn_error $? "Unable to find zstd.h.  See config.log for details." "$LINENO" 5
 fi
-fi
 
 CXXFLAGS="$saved_CXXFLAGS"
 LDFLAGS="$saved_LDFLAGS"
+fi
 
 dnl Disabled until we have a complete test for buggy enum bitfields.
 dnl gcc_AC_C_ENUM_BF_UNSIGNED
