@@ -1271,9 +1271,6 @@ a68_lower_formal_hole (NODE_T *p, LOW_CTX_T ctx ATTRIBUTE_UNUSED)
 	  TAX_TREE_DECL (TAX (defining_identifier)) = func_decl;
 	}
 
-      /* Create the body for the wrapper from the formal hole. */
-      a68_wrap_formal_proc_hole (p, func_decl);
-
       /* If the identity-declaration is in a public range then add the
 	 declaration to the module's declarations list.  Otherwise chain the
 	 declaration in the proper block and bind it.  */
@@ -1286,6 +1283,10 @@ a68_lower_formal_hole (NODE_T *p, LOW_CTX_T ctx ATTRIBUTE_UNUSED)
 					  DECL_EXPR,
 					  TREE_TYPE (func_decl),
 					  func_decl));
+
+      /* Create the body for the wrapper from the formal hole. */
+      a68_wrap_formal_proc_hole (p, func_decl);
+
       return func_decl;
     }
   else
