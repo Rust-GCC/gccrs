@@ -209,6 +209,26 @@ serialize_vec_costs_sve (const T &sve)
 {
   auto sve_obj = std::make_unique<json::object> ();
 
+  SERIALIZE_INTEGER_FIELD (sve_obj, "int_stmt_cost", sve.int_stmt_cost);
+  SERIALIZE_INTEGER_FIELD (sve_obj, "fp_stmt_cost", sve.fp_stmt_cost);
+  SERIALIZE_INTEGER_FIELD (sve_obj, "ld2_st2_permute_cost", sve.ld2_st2_permute_cost);
+  SERIALIZE_INTEGER_FIELD (sve_obj, "ld3_st3_permute_cost", sve.ld3_st3_permute_cost);
+  SERIALIZE_INTEGER_FIELD (sve_obj, "ld4_st4_permute_cost", sve.ld4_st4_permute_cost);
+  SERIALIZE_INTEGER_FIELD (sve_obj, "permute_cost", sve.permute_cost);
+  SERIALIZE_INTEGER_FIELD (sve_obj, "reduc_i8_cost", sve.reduc_i8_cost);
+  SERIALIZE_INTEGER_FIELD (sve_obj, "reduc_i16_cost", sve.reduc_i16_cost);
+  SERIALIZE_INTEGER_FIELD (sve_obj, "reduc_i32_cost", sve.reduc_i32_cost);
+  SERIALIZE_INTEGER_FIELD (sve_obj, "reduc_i64_cost", sve.reduc_i64_cost);
+  SERIALIZE_INTEGER_FIELD (sve_obj, "reduc_f16_cost", sve.reduc_f16_cost);
+  SERIALIZE_INTEGER_FIELD (sve_obj, "reduc_f32_cost", sve.reduc_f32_cost);
+  SERIALIZE_INTEGER_FIELD (sve_obj, "reduc_f64_cost", sve.reduc_f64_cost);
+  SERIALIZE_INTEGER_FIELD (sve_obj, "store_elt_extra_cost", sve.store_elt_extra_cost);
+  SERIALIZE_INTEGER_FIELD (sve_obj, "vec_to_scalar_cost", sve.vec_to_scalar_cost);
+  SERIALIZE_INTEGER_FIELD (sve_obj, "scalar_to_vec_cost", sve.scalar_to_vec_cost);
+  SERIALIZE_INTEGER_FIELD (sve_obj, "align_load_cost", sve.align_load_cost);
+  SERIALIZE_INTEGER_FIELD (sve_obj, "unalign_load_cost", sve.unalign_load_cost);
+  SERIALIZE_INTEGER_FIELD (sve_obj, "unalign_store_cost", sve.unalign_store_cost);
+  SERIALIZE_INTEGER_FIELD (sve_obj, "store_cost", sve.store_cost);
   SERIALIZE_INTEGER_FIELD (sve_obj, "clast_cost", sve.clast_cost);
   SERIALIZE_INTEGER_FIELD (sve_obj, "fadda_f16_cost", sve.fadda_f16_cost);
   SERIALIZE_INTEGER_FIELD (sve_obj, "fadda_f32_cost", sve.fadda_f32_cost);

@@ -175,6 +175,26 @@ template <typename T>
 static void
 parse_vec_costs_sve (const json::object *jo, T &sve)
 {
+  PARSE_INTEGER_FIELD (jo, "int_stmt_cost", sve.int_stmt_cost);
+  PARSE_INTEGER_FIELD (jo, "fp_stmt_cost", sve.fp_stmt_cost);
+  PARSE_INTEGER_FIELD (jo, "ld2_st2_permute_cost", sve.ld2_st2_permute_cost);
+  PARSE_INTEGER_FIELD (jo, "ld3_st3_permute_cost", sve.ld3_st3_permute_cost);
+  PARSE_INTEGER_FIELD (jo, "ld4_st4_permute_cost", sve.ld4_st4_permute_cost);
+  PARSE_INTEGER_FIELD (jo, "permute_cost", sve.permute_cost);
+  PARSE_INTEGER_FIELD (jo, "reduc_i8_cost", sve.reduc_i8_cost);
+  PARSE_INTEGER_FIELD (jo, "reduc_i16_cost", sve.reduc_i16_cost);
+  PARSE_INTEGER_FIELD (jo, "reduc_i32_cost", sve.reduc_i32_cost);
+  PARSE_INTEGER_FIELD (jo, "reduc_i64_cost", sve.reduc_i64_cost);
+  PARSE_INTEGER_FIELD (jo, "reduc_f16_cost", sve.reduc_f16_cost);
+  PARSE_INTEGER_FIELD (jo, "reduc_f32_cost", sve.reduc_f32_cost);
+  PARSE_INTEGER_FIELD (jo, "reduc_f64_cost", sve.reduc_f64_cost);
+  PARSE_INTEGER_FIELD (jo, "store_elt_extra_cost", sve.store_elt_extra_cost);
+  PARSE_INTEGER_FIELD (jo, "vec_to_scalar_cost", sve.vec_to_scalar_cost);
+  PARSE_INTEGER_FIELD (jo, "scalar_to_vec_cost", sve.scalar_to_vec_cost);
+  PARSE_INTEGER_FIELD (jo, "align_load_cost", sve.align_load_cost);
+  PARSE_INTEGER_FIELD (jo, "unalign_load_cost", sve.unalign_load_cost);
+  PARSE_INTEGER_FIELD (jo, "unalign_store_cost", sve.unalign_store_cost);
+  PARSE_INTEGER_FIELD (jo, "store_cost", sve.store_cost);
   PARSE_INTEGER_FIELD (jo, "clast_cost", sve.clast_cost);
   PARSE_INTEGER_FIELD (jo, "fadda_f16_cost", sve.fadda_f16_cost);
   PARSE_INTEGER_FIELD (jo, "fadda_f32_cost", sve.fadda_f32_cost);

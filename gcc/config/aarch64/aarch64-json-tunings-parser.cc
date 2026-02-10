@@ -496,6 +496,20 @@ aarch64_load_tuning_params_from_json_string (const char *json_string,
     }
 
   parse_tunings (jo, *tune);
+
+  /* dispatch_constraints are not represented in JSON tunings.  If the JSON
+     sets DISPATCH_SCHED in extra_tuning_flags but the base model does not
+     provide dispatch_constraints, clear the flag to avoid an assertion
+     failure later.  */
+  if ((tune->extra_tuning_flags & AARCH64_EXTRA_TUNE_DISPATCH_SCHED)
+      && tune->dispatch_constraints == nullptr)
+    {
+      warning (0, "JSON tuning enables dispatch scheduling but "
+	       "%<dispatch_constraints%> is not available; "
+	       "disabling dispatch scheduling");
+      tune->extra_tuning_flags &= ~AARCH64_EXTRA_TUNE_DISPATCH_SCHED;
+    }
+
   return;
 }
 
