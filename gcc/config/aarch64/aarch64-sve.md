@@ -2958,7 +2958,7 @@
 ;; -------------------------------------------------------------------------
 
 (define_expand "vec_init<mode><Vel>"
-  [(match_operand:SVE_FULL 0 "register_operand")
+  [(match_operand:SVE_ALL 0 "register_operand")
     (match_operand 1 "")]
   "TARGET_SVE"
   {
@@ -3002,17 +3002,17 @@
 
 ;; Shift an SVE vector left and insert a scalar into element 0.
 (define_insn "vec_shl_insert_<mode>"
-  [(set (match_operand:SVE_FULL 0 "register_operand")
-	(unspec:SVE_FULL
-	  [(match_operand:SVE_FULL 1 "register_operand")
+  [(set (match_operand:SVE_ALL 0 "register_operand")
+	(unspec:SVE_ALL
+	  [(match_operand:SVE_ALL 1 "register_operand")
 	   (match_operand:<VEL> 2 "aarch64_reg_or_zero")]
 	  UNSPEC_INSR))]
   "TARGET_SVE"
   {@ [ cons: =0 , 1 , 2  ; attrs: movprfx ]
-     [ ?w       , 0 , rZ ; *              ] insr\t%0.<Vetype>, %<vwcore>2
-     [ w        , 0 , w  ; *              ] insr\t%0.<Vetype>, %<Vetype>2
-     [ ??&w     , w , rZ ; yes            ] movprfx\t%0, %1\;insr\t%0.<Vetype>, %<vwcore>2
-     [ ?&w      , w , w  ; yes            ] movprfx\t%0, %1\;insr\t%0.<Vetype>, %<Vetype>2
+     [ ?w       , 0 , rZ ; *              ] insr\t%0.<Vctype>, %<vccore>2
+     [ w        , 0 , w  ; *              ] insr\t%0.<Vctype>, %<Vctype>2
+     [ ??&w     , w , rZ ; yes            ] movprfx\t%0, %1\;insr\t%0.<Vctype>, %<vccore>2
+     [ ?&w      , w , w  ; yes            ] movprfx\t%0, %1\;insr\t%0.<Vctype>, %<Vctype>2
   }
   [(set_attr "sve_type" "sve_int_general")]
 )
