@@ -31718,7 +31718,7 @@ alias_ctad_tweaks (tree tmpl, tree uguides)
 			  (INNERMOST_TEMPLATE_PARMS (fullatparms)));
     }
 
-  tsubst_flags_t complain = tf_none;
+  tsubst_flags_t complain = tf_partial;
   tree aguides = NULL_TREE;
   tree atparms = INNERMOST_TEMPLATE_PARMS (fullatparms);
   unsigned natparms = TREE_VEC_LENGTH (atparms);
@@ -31825,7 +31825,8 @@ alias_ctad_tweaks (tree tmpl, tree uguides)
 	  if (ci)
 	    {
 	      if (tree outer_targs = outer_template_args (f))
-		ci = tsubst_constraint_info (ci, outer_targs, complain, in_decl);
+		ci = tsubst_constraint_info (ci, outer_targs,
+					     complain & ~tf_partial, in_decl);
 	      ci = tsubst_constraint_info (ci, targs, complain, in_decl);
 	    }
 	  if (ci == error_mark_node)
