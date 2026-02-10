@@ -1134,7 +1134,7 @@ private:
   std::unique_ptr<Parser<MacroInvocLexer>> parser;
 
 public:
-  AttributeParser (std::vector<std::unique_ptr<Token>> token_stream,
+  AttributeParser (std::vector<const_TokenPtr> token_stream,
 		   int stream_start_pos = 0);
 
   ~AttributeParser ();
