@@ -55,10 +55,7 @@ _GLIBCXX_BEGIN_INLINE_ABI_NAMESPACE(_V2)
 	   bool __dfs_mode>
     class _Executor
     {
-      using __search_mode = integral_constant<bool, __dfs_mode>;
-      using __dfs = true_type;
-      using __bfs = false_type;
-
+      enum class _Search_mode : unsigned char { _BFS = 0, _DFS = 1 };
       enum class _Match_mode : unsigned char { _Exact, _Prefix };
 
     public:
@@ -74,7 +71,8 @@ _GLIBCXX_BEGIN_INLINE_ABI_NAMESPACE(_V2)
 		_BiIter         __end,
 		_ResultsVec&    __results,
 		const _RegexT&  __re,
-		_FlagT          __flags)
+		_FlagT          __flags,
+		bool            __use_dfs)
       : _M_cur_results(__results.get_allocator()),
 	_M_begin(__begin),
 	_M_end(__end),
@@ -82,13 +80,20 @@ _GLIBCXX_BEGIN_INLINE_ABI_NAMESPACE(_V2)
 	_M_nfa(*__re._M_automaton),
 	_M_results(__results),
 	_M_rep_count(_M_nfa.size()),
-	_M_states(_M_nfa._M_start(), _M_nfa.size()),
-	_M_flags(__flags)
+	_M_start(_M_nfa._M_start()),
+	_M_visited_states(nullptr),
+	_M_flags(__flags),
+	_M_search_mode(__use_dfs ? _Search_mode::_DFS : _Search_mode::_BFS)
       {
 	using namespace regex_constants;
 	if (__flags & match_prev_avail) // ignore not_bol and not_bow
 	  _M_flags &= ~(match_not_bol | match_not_bow);
+	if (_M_search_mode == _Search_mode::_BFS)
+	  _M_visited_states = new bool[_M_nfa.size()];
       }
+
+      ~_Executor()
+      { delete[] _M_visited_states; }
 
       // Set matched when string exactly matches the pattern.
       bool
@@ -154,13 +159,18 @@ _GLIBCXX_BEGIN_INLINE_ABI_NAMESPACE(_V2)
 
       bool
       _M_main(_Match_mode __match_mode)
-      { return _M_main_dispatch(__match_mode, __search_mode{}); }
+      {
+	if (_M_search_mode == _Search_mode::_DFS)
+	  return _M_main_dfs(__match_mode);
+	else
+	  return _M_main_bfs(__match_mode);
+      }
 
       bool
-      _M_main_dispatch(_Match_mode __match_mode, __dfs);
+      _M_main_dfs(_Match_mode __match_mode);
 
       bool
-      _M_main_dispatch(_Match_mode __match_mode, __bfs);
+      _M_main_bfs(_Match_mode __match_mode);
 
       bool
       _M_is_word(_CharT __ch) const
@@ -239,62 +249,19 @@ _GLIBCXX_BEGIN_INLINE_ABI_NAMESPACE(_V2)
 	return (_M_re._M_automaton->_M_options() & __m) == __m;
       }
 
-       // Holds additional information used in BFS-mode.
-      template<typename _SearchMode, typename _ResultsVec>
-	struct _State_info;
-
-      template<typename _ResultsVec>
-	struct _State_info<__bfs, _ResultsVec>
-	{
-	  explicit
-	  _State_info(_StateIdT __start, size_t __n)
-	  : _M_visited_states(new bool[__n]()), _M_start(__start)
-	  { }
-
-	  ~_State_info() { delete[] _M_visited_states; }
-
-	  _State_info(const _State_info&) = delete;
-	  _State_info& operator=(const _State_info&) = delete;
-
-	  bool _M_visited(_StateIdT __i)
+      bool
+      _M_visited(_StateIdT __i)
+      {
+	if (_M_visited_states)
 	  {
 	    if (_M_visited_states[__i])
 	      return true;
 	    _M_visited_states[__i] = true;
-	    return false;
 	  }
+	return false;
+      }
 
-	  void _M_queue(_StateIdT __i, const _ResultsVec& __res)
-	  { _M_match_queue.emplace_back(__i, __res); }
-
-	  // Dummy implementations for BFS mode.
-	  _BiIter* _M_get_sol_pos() { return nullptr; }
-
-	  // Saves states that need to be considered for the next character.
-	  _GLIBCXX_STD_C::vector<pair<_StateIdT, _ResultsVec>> _M_match_queue;
-	  // Indicates which states are already visited.
-	  bool*     _M_visited_states;
-	  // To record current solution.
-	  _StateIdT _M_start;
-	};
-
-      template<typename _ResultsVec>
-	struct _State_info<__dfs, _ResultsVec>
-	{
-	  explicit
-	  _State_info(_StateIdT __start, size_t) : _M_start(__start)
-	  { }
-
-	  // Dummy implementations for DFS mode.
-	  bool _M_visited(_StateIdT) const { return false; }
-	  void _M_queue(_StateIdT, const _ResultsVec&) { }
-
-	  _BiIter* _M_get_sol_pos() { return &_M_sol_pos; }
-
-	  // To record current solution.
-	  _StateIdT _M_start;
-	  _BiIter   _M_sol_pos;
-	};
+      _BiIter* _M_get_sol_pos() { return &_M_sol_pos; }
 
     public:
       _GLIBCXX_STD_C::vector<_ExecutorFrame<_BiIter>>       _M_frames;
@@ -306,8 +273,15 @@ _GLIBCXX_BEGIN_INLINE_ABI_NAMESPACE(_V2)
       const _NFAT&                                          _M_nfa;
       _ResultsVec&                                          _M_results;
       _GLIBCXX_STD_C::vector<pair<_BiIter, int>>            _M_rep_count;
-      _State_info<__search_mode, _ResultsVec>		    _M_states;
+      // To record current solution.
+      _StateIdT                                             _M_start;
+      _BiIter                                               _M_sol_pos;
+      // (BFS only) Saves states that need to be considered for the next character.
+      _GLIBCXX_STD_C::vector<pair<_StateIdT, _ResultsVec>>  _M_match_queue;
+      // (BFS only) Indicates which states are already visited.
+      bool*                                                 _M_visited_states;
       _FlagT                                                _M_flags;
+      const _Search_mode                                    _M_search_mode;
       // Do we have a solution so far?
       bool                                                  _M_has_sol;
     };

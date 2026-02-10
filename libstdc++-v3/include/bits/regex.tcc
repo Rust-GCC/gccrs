@@ -61,26 +61,19 @@ namespace __detail
       __m._M_resize(__re._M_automaton->_M_sub_count());
 
       bool __ret;
+      bool __use_dfs = true;
       if ((__re.flags() & regex_constants::__polynomial)
 	  || (__policy == _RegexExecutorPolicy::_S_alternate
 	      && !__re._M_automaton->_M_has_backref))
-	{
-	  _Executor<_BiIter, _Alloc, _TraitsT, false>
-	    __executor(__s, __e, __res, __re, __flags);
-	  if (__match_mode)
-	    __ret = __executor._M_match();
-	  else
-	    __ret = __executor._M_search();
-	}
+	__use_dfs = false;
+
+      _Executor<_BiIter, _Alloc, _TraitsT, true>
+	__executor(__s, __e, __res, __re, __flags, __use_dfs);
+      if (__match_mode)
+	__ret = __executor._M_match();
       else
-	{
-	  _Executor<_BiIter, _Alloc, _TraitsT, true>
-	    __executor(__s, __e, __res, __re, __flags);
-	  if (__match_mode)
-	    __ret = __executor._M_match();
-	  else
-	    __ret = __executor._M_search();
-	}
+	__ret = __executor._M_search();
+
       if (__ret)
 	{
 	  for (auto& __it : __res)
