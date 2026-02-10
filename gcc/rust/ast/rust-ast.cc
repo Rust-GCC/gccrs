@@ -3554,7 +3554,12 @@ DelimTokenTree::parse_to_meta_item () const
 
   /* assume top-level delim token tree in attribute - convert all nested ones
    * to token stream */
-  std::vector<std::unique_ptr<Token>> token_stream = to_token_stream ();
+  std::vector<std::unique_ptr<Token>> token_stream_wrapped = to_token_stream ();
+
+  std::vector<const_TokenPtr> token_stream;
+  token_stream.reserve (token_stream_wrapped.size ());
+  for (auto &tk : token_stream_wrapped)
+    token_stream.push_back (tk->get_tok_ptr ());
 
   AttributeParser parser (std::move (token_stream));
   std::vector<std::unique_ptr<MetaItemInner>> meta_items (
@@ -3563,8 +3568,8 @@ DelimTokenTree::parse_to_meta_item () const
   return new AttrInputMetaItemContainer (std::move (meta_items));
 }
 
-AttributeParser::AttributeParser (
-  std::vector<std::unique_ptr<Token>> token_stream, int stream_start_pos)
+AttributeParser::AttributeParser (std::vector<const_TokenPtr> token_stream,
+				  int stream_start_pos)
   : lexer (new MacroInvocLexer (std::move (token_stream))),
     parser (new Parser<MacroInvocLexer> (*lexer))
 {

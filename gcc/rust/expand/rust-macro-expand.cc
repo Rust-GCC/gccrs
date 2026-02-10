@@ -177,9 +177,9 @@ MacroExpander::expand_eager_invocations (AST::MacroInvocation &invoc)
 
   // we need to create a clone of the delimited token tree as the lexer
   // expects ownership of the tokens
-  std::vector<std::unique_ptr<Rust::AST::Token>> dtt_clone;
+  std::vector<const_TokenPtr> dtt_clone;
   for (auto &tok : stream)
-    dtt_clone.emplace_back (tok->clone_token ());
+    dtt_clone.emplace_back (tok->get_tok_ptr ());
 
   MacroInvocLexer lex (std::move (dtt_clone));
   Parser<MacroInvocLexer> parser (lex);
@@ -1212,8 +1212,8 @@ MacroExpander::transcribe_rule (
 AST::Fragment
 MacroExpander::parse_proc_macro_output (ProcMacro::TokenStream ts)
 {
-  ProcMacroInvocLexer lex (convert (ts));
-  Parser<ProcMacroInvocLexer> parser (lex);
+  MacroInvocLexer lex (convert (ts));
+  Parser<MacroInvocLexer> parser (lex);
 
   std::vector<AST::SingleASTNode> nodes;
   switch (peek_context ())

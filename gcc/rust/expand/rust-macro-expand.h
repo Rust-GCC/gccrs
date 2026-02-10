@@ -29,7 +29,6 @@
 #include "rust-hir-map.h"
 #include "rust-name-resolver.h"
 #include "rust-macro-invoc-lexer.h"
-#include "rust-proc-macro-invoc-lexer.h"
 #include "rust-token-converter.h"
 #include "rust-ast-collector.h"
 #include "rust-system.h"
