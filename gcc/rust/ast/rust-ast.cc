@@ -253,6 +253,12 @@ Attribute::as_string () const
     return path_str + attr_input->as_string ();
 }
 
+void
+Attribute::accept_vis (ASTVisitor &vis)
+{
+  vis.visit (*this);
+}
+
 bool
 Attribute::is_derive () const
 {
