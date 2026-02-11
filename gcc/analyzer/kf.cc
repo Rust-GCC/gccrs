@@ -1399,10 +1399,11 @@ kf_strcpy::impl_call_pre (const call_details &cd) const
   /* strcpy returns the initial param.  */
   cd.maybe_set_lhs (dest_sval);
 
-  const svalue *bytes_to_copy;
+  const svalue *bytes_to_copy = nullptr;
   if (const svalue *num_bytes_read_sval
       = cd.check_for_null_terminated_string_arg (1, true, &bytes_to_copy))
     {
+      gcc_assert (bytes_to_copy);
       cd.complain_about_overlap (0, 1, num_bytes_read_sval);
       model->write_bytes (dest_reg, num_bytes_read_sval, bytes_to_copy, ctxt);
     }

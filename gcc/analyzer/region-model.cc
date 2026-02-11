@@ -4844,7 +4844,11 @@ region_model::scan_for_null_terminator (const region *reg,
       reg->dump_to_pp (pp, true);
       logger->end_log_line ();
     }
+  if (out_sval)
+    *out_sval = nullptr;
   const svalue *sval = scan_for_null_terminator_1 (reg, expr, out_sval, ctxt);
+  if (sval && out_sval)
+    gcc_assert (*out_sval);
   if (logger)
     {
       pretty_printer *pp = logger->get_printer ();
@@ -5028,6 +5032,8 @@ region_model::check_for_null_terminated_string_arg (const call_details &cd,
 				  out_sval,
 				  &my_ctxt))
     {
+      if (out_sval)
+	gcc_assert (*out_sval);
       if (include_terminator)
 	return num_bytes_read_sval;
       else
