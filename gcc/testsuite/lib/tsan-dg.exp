@@ -81,6 +81,9 @@ proc tsan_link_flags { paths } {
     return "$flags"
 }
 
+set orig_tsan_options_saved 0
+set orig_tsan_options 0
+
 #
 # tsan_init -- called at the start of each subdir of tests
 #
@@ -93,6 +96,17 @@ proc tsan_init { args } {
     global tsan_saved_ALWAYS_CXXFLAGS
     global dg-do-what-default
     global tsan_saved_dg-do-what-default
+    global orig_tsan_options_saved
+    global orig_tsan_options
+
+    if { $orig_tsan_options_saved == 0 } {
+	# Save the original environment.
+	if [info exists env(TSAN_OPTIONS)] {
+	    set orig_tsan_options "$env(TSAN_OPTIONS)"
+	    set orig_tsan_options_saved 1
+	}
+    }
+    setenv TSAN_OPTIONS color=never
 
     set link_flags ""
     if ![is_remote host] {
@@ -134,6 +148,14 @@ proc tsan_finish { args } {
     global tsan_saved_dg-do-what-default
     global tsan_saved_library_path
     global ld_library_path
+    global orig_tsan_options_saved
+    global orig_tsan_options
+
+    if { $orig_tsan_options_saved } {
+	setenv TSAN_OPTIONS "$orig_tsan_options"
+    } elseif [info exists env(TSAN_OPTIONS)] {
+	unsetenv TSAN_OPTIONS
+    }
 
     if [info exists tsan_saved_ALWAYS_CXXFLAGS ] {
 	set ALWAYS_CXXFLAGS $tsan_saved_ALWAYS_CXXFLAGS

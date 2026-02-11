@@ -1,7 +1,7 @@
 /* { dg-do run } */
 /* { dg-require-effective-target fstack_protector } */
 /* { dg-options "-fstack-protector-strong" } */
-/* { dg-set-target-env-var ASAN_OPTIONS "detect_stack_use_after_return=1" } */
+/* { dg-set-target-env-var ASAN_OPTIONS "color=never detect_stack_use_after_return=1" } */
 /* { dg-shouldfail "asan" } */
 
 __attribute__((noinline))
