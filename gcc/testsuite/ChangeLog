@@ -1,3 +1,37 @@
+2026-02-10  Alice Carlotti  <alice.carlotti@arm.com>
+
+	PR target/123624
+	* gcc.target/aarch64/sme/sme-shrinkwrap.c: New test.
+
+2026-02-10  Juergen Christ  <jchrist@linux.ibm.com>
+
+	PR tree-optimization/122297
+	* gcc.dg/vect/nodump-extractlast-1.c: Fix typo.
+	* gcc.dg/vect/nodump-extractlast-2.c: New test.
+
+2026-02-10  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/107690
+	* g++.dg/vect/vect-pr107690.cc: New testcase.
+
+2026-02-10  Jonathan Yong  <10walls@gmail.com>
+
+	* gcc.dg/torture/pr70935.c: change long to __INTPTR_TYPE__.
+
+2026-02-10  Jonathan Yong  <10walls@gmail.com>
+
+	* gcc.dg/torture/pr70935.c: change from DOS to unix line end.
+
+2026-02-10  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/113496
+	* gcc.dg/analyzer/ice-pr113496.c: New test.
+
+2026-02-10  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/122621
+	* g++.dg/cpp2a/class-deduction-alias26.C: New test.
+
 2026-02-09  Federico Angelilli  <code@fedang.net>
 	    David Malcolm  <dmalcolm@redhat.com>
 

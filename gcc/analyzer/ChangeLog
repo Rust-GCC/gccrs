@@ -1,3 +1,10 @@
+2026-02-10  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/113496
+	* constraint-manager.cc (cmp_types): New.
+	(bounded_range::cmp): Compare the types of the constants, as well
+	as their values.
+
 2026-02-09  Federico Angelilli  <code@fedang.net>
 	    David Malcolm  <dmalcolm@redhat.com>
 

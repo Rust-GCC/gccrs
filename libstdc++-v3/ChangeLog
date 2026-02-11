@@ -1,3 +1,65 @@
+2026-02-10  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	PR libstdc++/123875
+	* include/bits/atomic_base.h (__atomic_impl::__clear_padding):
+	Use if constexpr unconditionally.
+	(__atomic_float<_Fp>::__atomic_float(_Fp)): Skip __clear_padding
+	call for constant evaluation.
+	* include/std/atomic (atomic<_Tp>::atomic(_Tp)): Likewise.
+	* testsuite/29_atomics/atomic/cons/static_zero_padding.cc: New test.
+
+2026-02-10  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/123991
+	* include/bits/basic_string.h (compare(size_type, size_type, T)):
+	Remove noexcept-specifier.
+	(compare(size_type, size_type, T, size_type, size_type)):
+	Likewise.
+	* include/bits/cow_string.h (compare(size_type, size_type, T)):
+	Remove noexcept-specifier.
+	(compare(size_type, size_type, T, size_type, size_type)):
+	Likewise.
+	* testsuite/21_strings/basic_string/operations/compare/char/123991.cc:
+	New test.
+	* testsuite/21_strings/basic_string/operations/compare/wchar_t/123991.cc:
+	New test.
+
+2026-02-10  Patrick Palka  <ppalka@redhat.com>
+
+	* include/bits/regex.h (_Executor): Remove __dfs_mode template
+	parameter and _V2 inline namespace.
+	* include/bits/regex.tcc (__regex_algo_impl): Adjust after
+	__dfs_mode template parameter removal.
+	* include/bits/regex_executor.h (_Executor): Remove __dfs_mode
+	parameter and _V2 inline namespace.
+	* include/bits/regex_executor.tcc (_Executor): Likewise.
+
+2026-02-10  Patrick Palka  <ppalka@redhat.com>
+
+	* include/bits/regex.tcc (__regex_algo_impl): Pass __use_dfs
+	parameter to _Executor's constructor.
+	* include/bits/regex_executor.h (_Executor::_Search_mode): New.
+	(_Executor::_Executor): Add __use_dfs parameter and initialize
+	_M_search_mode.  Adjust after inlining _State_info members into
+	_Executor.
+	(_Executor::~_Executor): Free _M_visted_states.
+	(_Executor::_M_main): Adjust after renaming _M_main_dispatch
+	overloads to _M_main_dfs and _M_main_bfs.
+	(_Executor::_State_info): Remove.
+	(_Executor::_M_visited): Inlined from _State_info.
+	(_Executor::_M_get_sol_pos): Likewise.
+	(_Executor::_M_states): Remove.
+	(_Executor::_M_start): Inlined from _State_info.
+	(_Executor::_M_sol_pos): Likewise.
+	(_Executor::_M_match_queue): Likewise.
+	(_Executor::_M_search_mode): New.
+	* include/bits/regex_executor.tcc (_Executor::_M_main_dispatch):
+	Renamed to...
+	(_Executor::_M_main_dfs, _Executor::_M_main_bfs): ... these.
+	(_Executor::_M_*): Adjust after _M_states removal.
+	(_Executor::_M_lookhead): Also adjust _Executor constructor
+	call.
+
 2026-02-09  Jonathan Wakely  <jwakely@redhat.com>
 
 	PR libstdc++/124024

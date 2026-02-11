@@ -1,3 +1,16 @@
+2026-02-10  Marek Polacek  <polacek@redhat.com>
+
+	* parser.cc (struct saved_token_sentinel): Save input_location.
+	(saved_token_sentinel::rollback): Restore input_location.
+	(cp_parser_splice_spec_is_nns_p): Use saved_token_sentinel.  Refactor.
+
+2026-02-10  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/122621
+	* pt.cc (tsubst_pack_expansion): Use tf_partial instead of
+	tf_none, except when substituting outer (non-dependent) template
+	arguments.
+
 2026-02-09  Jakub Jelinek  <jakub@redhat.com>
 
 	PR c++/123984

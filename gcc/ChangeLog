@@ -1,3 +1,61 @@
+2026-02-10  Dimitry Andric  <dimitry@andric.com>
+
+	PR libfortran/123366
+	* configure.ac: Move restoring of CXXFLAGS/LDFLAGS for zstd test to
+	the correct place.
+	* configure: Regenerate.
+
+2026-02-10  Alice Carlotti  <alice.carlotti@arm.com>
+
+	PR target/123624
+	* config/aarch64/aarch64-protos.h
+	(aarch64_use_simple_return_insn_p): New.
+	* config/aarch64/aarch64.cc
+	(aarch64_use_simple_return_insn_p): New, used...
+	* config/aarch64/aarch64.md (simple_return): ...here.
+
+2026-02-10  Alice Carlotti  <alice.carlotti@arm.com>
+
+	* config.gcc: Improve aarch64 --with-arch checks.
+
+2026-02-10  Alfie Richards  <alfie.richards@arm.com>
+
+	* tree-vect-data-refs.cc (vect_analyze_data_refs_alignment):
+	Update signature and comment.
+	* tree-vect-loop.cc (vect_analyze_loop_2): Update comment for
+	vect_analyze_data_refs_alignment and remove control flow.
+	* tree-vectorizer.h (vect_analyze_data_refs_alignment): Update
+	signature.
+
+2026-02-10  Juergen Christ  <jchrist@linux.ibm.com>
+
+	PR tree-optimization/122297
+	* tree-vect-loop.cc (vectorize_fold_left_reduction): Adjust.
+	(vectorizable_induction): Adjust.
+	(vectorizable_live_operation_1): Adjust.
+	(vect_get_loop_len): Provide parameter to select bias-adjusted
+	length.
+	(vect_gen_loop_len_mask): Adjust.
+	(vect_update_ivs_after_vectorizer_for_early_breaks): Adjust.
+	* tree-vect-stmts.cc (vect_get_strided_load_store_ops): Adjust.
+	(vectorizable_call): Adjust.
+	(vectorizable_operation): Adjust.
+	(vectorizable_store): Adjust.
+	(vectorizable_load): Adjust.
+	(vectorizable_condition): Adjust.
+	* tree-vectorizer.h (vect_get_loop_len): Add parameter.
+
+2026-02-10  Kyrylo Tkachov  <ktkachov@nvidia.com>
+
+	* config/aarch64/tuning_models/olympus.h (olympus_sve_vector_cost):
+	Set align_load_cost to 6.
+
+2026-02-10  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/107690
+	* tree-ssa-ifcombine.cc (ifcombine_ifandif): Do not merge
+	possibly analyzable exit conditions.
+
 2026-02-09  David Malcolm  <dmalcolm@redhat.com>
 
 	PR diagnostics/124014
