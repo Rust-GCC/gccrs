@@ -44,15 +44,15 @@ void test_struct(std::atomic<T>& g, const T& zp)
   T const d{3, 4};
   T t;
 
-  std::memcpy(&t, &zp, sizeof(T)); 
+  std::memcpy(&t, &zp, sizeof(T));
   VERIFY( g.compare_exchange_strong(t, d) );
 
   static std::atomic<T> st(T{1, 2});
-  std::memcpy(&t, &zp, sizeof(T)); 
+  std::memcpy(&t, &zp, sizeof(T));
   VERIFY( st.compare_exchange_strong(t, d) );
 
   thread_local std::atomic<T> tl(T{1, 2});
-  std::memcpy(&t, &zp, sizeof(T)); 
+  std::memcpy(&t, &zp, sizeof(T));
   VERIFY( tl.compare_exchange_strong(t, d) );
 
   std::atomic<T> l(T{1, 2});
@@ -60,6 +60,13 @@ void test_struct(std::atomic<T>& g, const T& zp)
 #if __cplusplus >= 201402L // Remove once PR114865 is fixed
   VERIFY( l.compare_exchange_strong(t, d) );
 #endif
+
+  std::atomic<T>* h = new std::atomic<T>(T{1, 2});
+  std::memcpy(&t, &zp, sizeof(T));
+#if __cplusplus >= 201402L // Remove once PR114865 is fixed
+  VERIFY( h->compare_exchange_strong(t, d) );
+#endif
+  delete h;
 
   constexpr std::atomic<T> cl(T{1, 2});
 }
@@ -75,21 +82,26 @@ void test_floating(std::atomic<T>& g, const T& zp)
   T const d = T(7.5);
   T t;
 
-  std::memcpy(&t, &zp, sizeof(T)); 
+  std::memcpy(&t, &zp, sizeof(T));
   VERIFY( g.compare_exchange_strong(t, d) );
 
   static std::atomic<T> st(T(10.5));
-  std::memcpy(&t, &zp, sizeof(T)); 
+  std::memcpy(&t, &zp, sizeof(T));
   VERIFY( st.compare_exchange_strong(t, d) );
 
   thread_local std::atomic<T> tl(T(10.5));
-  std::memcpy(&t, &zp, sizeof(T)); 
+  std::memcpy(&t, &zp, sizeof(T));
   VERIFY( tl.compare_exchange_strong(t, d) );
 
   std::atomic<T> l(T(10.5));
-  std::memcpy(&t, &zp, sizeof(T)); 
+  std::memcpy(&t, &zp, sizeof(T));
   VERIFY( l.compare_exchange_strong(t, d) );
-  
+
+  std::atomic<T>* h = new std::atomic<T>(T(10.5));
+  std::memcpy(&t, &zp, sizeof(T));
+  VERIFY( h->compare_exchange_strong(t, d) );
+  delete h;
+
   constexpr std::atomic<T> cl(T(10.5));
 }
 #endif
