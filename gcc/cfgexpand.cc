@@ -3786,13 +3786,22 @@ expand_asm_stmt (gasm *stmt)
      Case in point is when the i386 backend moved from cc0 to a hard reg --
      maintaining source-level compatibility means automatically clobbering
      the flags register.  */
-  rtx_insn *after_md_seq = NULL;
   auto_vec<rtx> use_rvec;
   if (targetm.md_asm_adjust)
-    after_md_seq
+    {
+      rtx_insn *after_md_seq
 	= targetm.md_asm_adjust (output_rvec, input_rvec, input_mode,
 				 constraints, use_rvec, clobber_rvec,
 				 clobbered_regs, locus);
+      if (after_md_seq)
+	{
+	  push_to_sequence (after_md_seq);
+	  emit_insn (after_rtl_seq);
+	  after_rtl_seq = get_insns ();
+	  after_rtl_end = get_last_insn ();
+	  end_sequence ();
+	}
+    }
 
   /* Do not allow the hook to change the output and input count,
      lest it mess up the operand numbering.  */
@@ -3967,8 +3976,6 @@ expand_asm_stmt (gasm *stmt)
   if (fallthru_label)
     emit_label (fallthru_label);
 
-  if (after_md_seq)
-    emit_insn (after_md_seq);
   if (after_rtl_seq)
     {
       if (nlabels == 0)
