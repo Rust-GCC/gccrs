@@ -3194,6 +3194,9 @@ noce_try_cond_arith (struct noce_if_info *if_info)
   else if (!(noce_cond_zero_binary_op_supported (a) && REG_P (b)))
     goto fail;
 
+  if (code == UNKNOWN)
+    goto fail;
+
   op = GET_CODE (a);
 
   /* Canonicalize x = (z op y) : y to x = (y op z) : y */
