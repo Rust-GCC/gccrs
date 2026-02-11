@@ -68,6 +68,17 @@ ASTLoweringBase::visit (AST::WhileLetLoopExpr &expr)
 }
 
 void
+ASTLoweringBase::visit (AST::Attribute &attribute)
+{
+  auto &path = attribute.get_path ();
+  if (path.as_string () == "derive")
+    {
+      rust_fatal_error (attribute.get_locus (),
+			"missing desugar for attribute");
+    }
+}
+
+void
 ASTLoweringBase::visit (AST::Token &)
 {}
 void
