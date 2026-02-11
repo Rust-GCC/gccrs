@@ -576,6 +576,8 @@ class Attribute : Visitable
 
   bool inner_attribute;
 
+  NodeId node_id;
+
   // TODO: maybe a variable storing whether attr input is parsed or not
 
 public:
@@ -586,7 +588,8 @@ public:
   Attribute (SimplePath path, std::unique_ptr<AttrInput> input,
 	     location_t locus = UNDEF_LOCATION, bool inner_attribute = false)
     : path (std::move (path)), attr_input (std::move (input)), locus (locus),
-      inner_attribute (inner_attribute)
+      inner_attribute (inner_attribute),
+      node_id (Analysis::Mappings::get ().get_next_node_id ())
   {}
 
   bool is_derive () const;
@@ -688,6 +691,8 @@ public:
 
   const SimplePath &get_path () const { return path; }
   SimplePath &get_path () { return path; }
+
+  NodeId get_node_id () { return node_id; }
 
   // Call to parse attribute body to meta item syntax.
   void parse_attr_to_meta_item ();
