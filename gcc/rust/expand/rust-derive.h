@@ -256,6 +256,7 @@ private:
   virtual void visit (FunctionParam &param) override final{};
   virtual void visit (VariadicParam &param) override final{};
   virtual void visit (FormatArgs &param) override final{};
+  virtual void visit (Attribute &attribute) override final{};
   virtual void visit (OffsetOf &param) override final{};
 };
 

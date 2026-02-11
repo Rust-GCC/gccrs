@@ -71,6 +71,7 @@ public:
 
   // visitor impl
   // rust-ast.h
+  virtual void visit (AST::Attribute &attribute) override;
   //  virtual void visit(AttrInput& attr_input);
   //  virtual void visit(TokenTree& token_tree);
   //  virtual void visit(MacroMatch& macro_match);

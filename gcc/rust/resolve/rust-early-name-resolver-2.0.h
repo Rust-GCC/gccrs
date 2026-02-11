@@ -37,6 +37,10 @@ class Early : public DefaultResolver
   TopLevel toplevel;
   bool dirty;
 
+  void visit_derive_attribute (AST::Attribute &, Analysis::Mappings &);
+  void visit_non_builtin_attribute (AST::Attribute &, Analysis::Mappings &,
+				    std::string &name);
+
 public:
   Early (NameResolutionContext &ctx);
 
@@ -62,6 +66,8 @@ public:
   void visit (AST::StructStruct &) override;
   void visit (AST::UseDeclaration &) override;
   void visit (AST::UseTreeList &) override;
+
+  void visit (AST::Attribute &) override;
 
   struct ImportData
   {
