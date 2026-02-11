@@ -268,7 +268,8 @@ MethodResolver::assemble_trait_impl_candidates (
       }
 
     TraitReference *trait_ref = TraitResolver::Resolve (impl->get_trait_ref ());
-    rust_assert (!trait_ref->is_error ());
+    if (trait_ref->is_error ())
+      return true;
 
     auto item_ref
       = trait_ref->lookup_trait_item (segment_name.to_string (),
