@@ -4171,7 +4171,8 @@ cp_parser_parse_and_diagnose_invalid_type_name (cp_parser *parser)
   /* If the next token is a (, this is a function with no explicit return
      type, i.e. constructor, destructor or conversion op.  */
   if (cp_lexer_next_token_is (parser->lexer, CPP_OPEN_PAREN)
-      || TREE_CODE (id) == TYPE_DECL)
+      || TREE_CODE (id) == TYPE_DECL
+      || id == error_mark_node)
     {
       cp_parser_abort_tentative_parse (parser);
       return false;
@@ -17924,9 +17925,12 @@ cp_parser_simple_declaration (cp_parser* parser,
      omitted only when declaring a class or enumeration, that is when
      the decl-specifier-seq contains either a class-specifier, an
      elaborated-type-specifier, or an enum-specifier.  */
-  cp_parser_decl_specifier_seq (parser,
-				CP_PARSER_FLAGS_OPTIONAL,
-				&decl_specifiers,
+  cp_parser_flags flags = CP_PARSER_FLAGS_OPTIONAL;
+  /* [temp.res.general]/4.4.1: a decl-specifier of the decl-specifier-seq
+     of a simple-declaration in namespace scope is a type-only context.  */
+  if (at_namespace_scope_p ())
+    flags |= CP_PARSER_FLAGS_TYPENAME_OPTIONAL;
+  cp_parser_decl_specifier_seq (parser, flags, &decl_specifiers,
 				&declares_class_or_enum);
   /* We no longer need to defer access checks.  */
   stop_deferring_access_checks ();
@@ -36481,7 +36485,7 @@ cp_parser_single_declaration (cp_parser* parser,
       && (cp_lexer_next_token_is_not (parser->lexer, CPP_SEMICOLON)
 	  || decl_specifiers.type != error_mark_node))
     {
-      int flags = CP_PARSER_FLAGS_TYPENAME_OPTIONAL;
+      cp_parser_flags flags = CP_PARSER_FLAGS_TYPENAME_OPTIONAL;
       /* FIXME: Delay parsing for all template friends, not just class
 	 template scope ones (PR114764).  */
       if (member_p && (!(friend_p && *friend_p)

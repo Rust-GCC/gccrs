@@ -21,11 +21,11 @@ constexpr info g7 = ^^T;
 constexpr info g8 = ^^decltype(^^int);
 constexpr info g9 = ^^void() const & noexcept;
 
-[: g1 :] u1;  // { dg-error "expected unqualified-id" }
+[: g1 :] u1;
 typename [: g1 :] u2;
 
 namespace N {
-  [: g1 :] nu1;  // { dg-error "expected unqualified-id" }
+  [: g1 :] nu1;
   typename [: g1 :] nu2;
 }
 
