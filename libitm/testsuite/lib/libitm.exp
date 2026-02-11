@@ -79,7 +79,7 @@ proc libitm_init { args } {
     global ALWAYS_CFLAGS
     global CFLAGS
     global TOOL_EXECUTABLE TOOL_OPTIONS
-    global GCC_UNDER_TEST
+    global GCC_UNDER_TEST GXX_UNDER_TEST
     global TESTING_IN_BUILD_TREE
     global target_triplet
     global always_ld_library_path
@@ -96,6 +96,17 @@ proc libitm_init { args } {
 	    set GCC_UNDER_TEST $TOOL_EXECUTABLE
 	} else {
 	    set GCC_UNDER_TEST "[find_gcc]"
+	}
+	# Only if we're guessing 'GCC_UNDER_TEST', we're also going to guess
+	# 'GXX_UNDER_TEST'
+	if ![info exists GXX_UNDER_TEST] then {
+	    if [info exists TOOL_EXECUTABLE] {
+		set GXX_UNDER_TEST $TOOL_EXECUTABLE
+	    } else {
+		set GXX_UNDER_TEST "[find_g++]"
+	    }
+	} else {
+	    error "GXX_UNDER_TEST set but not GCC_UNDER_TEST"
 	}
     }
 
@@ -119,7 +130,7 @@ proc libitm_init { args } {
     }
 
     # Compute what needs to be put into LD_LIBRARY_PATH
-    set always_ld_library_path ".:${blddir}/.libs"
+    set always_ld_library_path "."
 
     # Compute what needs to be added to the existing LD_LIBRARY_PATH.
     if {$gccdir != ""} {
@@ -150,6 +161,8 @@ proc libitm_init { args } {
 	lappend ALWAYS_CFLAGS "additional_flags=-B${blddir}/"
 	lappend ALWAYS_CFLAGS "additional_flags=-I${blddir}"
 	lappend ALWAYS_CFLAGS "ldflags=-L${blddir}/.libs"
+
+	append always_ld_library_path ":${blddir}/.libs"
     }
     lappend ALWAYS_CFLAGS "additional_flags=-I${srcdir}/.."
 
@@ -179,7 +192,8 @@ proc libitm_init { args } {
     # Turn on transactional memory support.
     lappend ALWAYS_CFLAGS "additional_flags=-fgnu-tm"
 
-    lappend ALWAYS_CFLAGS "additional_flags=-fdiagnostics-color=never"
+    # Disable caret, color, URL diagnostics
+    lappend ALWAYS_CFLAGS "additional_flags=-fdiagnostics-plain-output"
 }
 
 #
@@ -220,7 +234,6 @@ proc libitm_target_compile { source dest type options } {
 
     lappend options "additional_flags=[libio_include_flags]"
     lappend options "timeout=[timeout_value]"
-    lappend options "compiler=$GCC_UNDER_TEST"
 
     set options [concat $libitm_compile_options $options]
 
