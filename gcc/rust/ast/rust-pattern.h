@@ -21,6 +21,7 @@
 
 #include "rust-ast.h"
 #include "rust-path.h"
+#include "rust-cloneable.h"
 
 namespace Rust {
 namespace AST {
@@ -93,7 +94,7 @@ class IdentifierPattern : public Pattern
   bool is_mut;
 
   // bool has_pattern;
-  std::unique_ptr<Pattern> subpattern;
+  Cloneable<std::unique_ptr<Pattern>> subpattern;
   location_t locus;
   NodeId node_id;
 
@@ -120,38 +121,6 @@ public:
       node_id (node_id)
   {}
 
-  // Copy constructor with clone
-  IdentifierPattern (IdentifierPattern const &other)
-    : variable_ident (other.variable_ident), is_ref (other.is_ref),
-      is_mut (other.is_mut), locus (other.locus), node_id (other.node_id)
-  {
-    // fix to get prevent null pointer dereference
-    if (other.subpattern != nullptr)
-      subpattern = other.subpattern->clone_pattern ();
-  }
-
-  // Overload assignment operator to use clone
-  IdentifierPattern &operator= (IdentifierPattern const &other)
-  {
-    variable_ident = other.variable_ident;
-    is_ref = other.is_ref;
-    is_mut = other.is_mut;
-    locus = other.locus;
-    node_id = other.node_id;
-
-    // fix to prevent null pointer dereference
-    if (other.subpattern != nullptr)
-      subpattern = other.subpattern->clone_pattern ();
-    else
-      subpattern = nullptr;
-
-    return *this;
-  }
-
-  // default move semantics
-  IdentifierPattern (IdentifierPattern &&other) = default;
-  IdentifierPattern &operator= (IdentifierPattern &&other) = default;
-
   location_t get_locus () const override final { return locus; }
 
   void accept_vis (ASTVisitor &vis) override;
@@ -159,13 +128,13 @@ public:
   Pattern &get_subpattern ()
   {
     rust_assert (has_subpattern ());
-    return *subpattern;
+    return *subpattern.get ();
   }
 
   std::unique_ptr<Pattern> &get_subpattern_ptr ()
   {
     rust_assert (has_subpattern ());
-    return subpattern;
+    return subpattern.get ();
   }
 
   Identifier get_ident () const { return variable_ident; }
@@ -403,8 +372,8 @@ RangeKind tokenid_to_rangekind (TokenId id);
 // AST node for matching within a certain range (range pattern)
 class RangePattern : public Pattern
 {
-  std::unique_ptr<RangePatternBound> lower;
-  std::unique_ptr<RangePatternBound> upper;
+  Cloneable<std::unique_ptr<RangePatternBound>> lower;
+  Cloneable<std::unique_ptr<RangePatternBound>> upper;
 
   RangeKind range_kind;
 
@@ -425,30 +394,6 @@ public:
       node_id (Analysis::Mappings::get ().get_next_node_id ())
   {}
 
-  // Copy constructor with clone
-  RangePattern (RangePattern const &other)
-    : lower (other.lower->clone_range_pattern_bound ()),
-      upper (other.upper->clone_range_pattern_bound ()),
-      range_kind (other.range_kind), locus (other.locus),
-      node_id (other.node_id)
-  {}
-
-  // Overloaded assignment operator to clone
-  RangePattern &operator= (RangePattern const &other)
-  {
-    lower = other.lower->clone_range_pattern_bound ();
-    upper = other.upper->clone_range_pattern_bound ();
-    range_kind = other.range_kind;
-    locus = other.locus;
-    node_id = other.node_id;
-
-    return *this;
-  }
-
-  // default move semantics
-  RangePattern (RangePattern &&other) = default;
-  RangePattern &operator= (RangePattern &&other) = default;
-
   location_t get_locus () const override final { return locus; }
 
   bool get_has_ellipsis_syntax () const
@@ -468,13 +413,13 @@ public:
   RangePatternBound &get_lower_bound ()
   {
     rust_assert (lower != nullptr);
-    return *lower;
+    return *lower.get ();
   }
 
   RangePatternBound &get_upper_bound ()
   {
     rust_assert (upper != nullptr);
-    return *upper;
+    return *upper.get ();
   }
 
   NodeId get_node_id () const override { return node_id; }
@@ -495,7 +440,7 @@ class ReferencePattern : public Pattern
 {
   bool has_two_amps;
   bool is_mut;
-  std::unique_ptr<Pattern> pattern;
+  Cloneable<std::unique_ptr<Pattern>> pattern;
   location_t locus;
   NodeId node_id;
 
@@ -509,29 +454,6 @@ public:
       node_id (Analysis::Mappings::get ().get_next_node_id ())
   {}
 
-  // Copy constructor requires clone
-  ReferencePattern (ReferencePattern const &other)
-    : has_two_amps (other.has_two_amps), is_mut (other.is_mut),
-      pattern (other.pattern->clone_pattern ()), locus (other.locus),
-      node_id (other.node_id)
-  {}
-
-  // Overload assignment operator to clone
-  ReferencePattern &operator= (ReferencePattern const &other)
-  {
-    pattern = other.pattern->clone_pattern ();
-    is_mut = other.is_mut;
-    has_two_amps = other.has_two_amps;
-    locus = other.locus;
-    node_id = other.node_id;
-
-    return *this;
-  }
-
-  // default move semantics
-  ReferencePattern (ReferencePattern &&other) = default;
-  ReferencePattern &operator= (ReferencePattern &&other) = default;
-
   location_t get_locus () const override final { return locus; }
 
   void accept_vis (ASTVisitor &vis) override;
@@ -540,13 +462,13 @@ public:
   Pattern &get_referenced_pattern ()
   {
     rust_assert (pattern != nullptr);
-    return *pattern;
+    return *pattern.get ();
   }
 
   std::unique_ptr<Pattern> &get_referenced_pattern_ptr ()
   {
     rust_assert (pattern != nullptr);
-    return pattern;
+    return pattern.get ();
   }
 
   bool is_double_reference () const { return has_two_amps; }
@@ -647,7 +569,7 @@ protected:
 class StructPatternFieldTuplePat : public StructPatternField
 {
   TupleIndex index;
-  std::unique_ptr<Pattern> tuple_pattern;
+  Cloneable<std::unique_ptr<Pattern>> tuple_pattern;
 
 public:
   StructPatternFieldTuplePat (TupleIndex index,
@@ -658,39 +580,6 @@ public:
 			  Analysis::Mappings::get ().get_next_node_id ()),
       index (index), tuple_pattern (std::move (tuple_pattern))
   {}
-
-  // Copy constructor requires clone
-  StructPatternFieldTuplePat (StructPatternFieldTuplePat const &other)
-    : StructPatternField (other), index (other.index)
-  {
-    // guard to prevent null dereference (only required if error state)
-    node_id = other.get_node_id ();
-    if (other.tuple_pattern != nullptr)
-      tuple_pattern = other.tuple_pattern->clone_pattern ();
-  }
-
-  // Overload assignment operator to perform clone
-  StructPatternFieldTuplePat &
-  operator= (StructPatternFieldTuplePat const &other)
-  {
-    StructPatternField::operator= (other);
-    index = other.index;
-    // outer_attrs = other.outer_attrs;
-    node_id = other.get_node_id ();
-
-    // guard to prevent null dereference (only required if error state)
-    if (other.tuple_pattern != nullptr)
-      tuple_pattern = other.tuple_pattern->clone_pattern ();
-    else
-      tuple_pattern = nullptr;
-
-    return *this;
-  }
-
-  // default move semantics
-  StructPatternFieldTuplePat (StructPatternFieldTuplePat &&other) = default;
-  StructPatternFieldTuplePat &operator= (StructPatternFieldTuplePat &&other)
-    = default;
 
   std::string as_string () const override;
 
@@ -709,13 +598,13 @@ public:
   Pattern &get_index_pattern ()
   {
     rust_assert (tuple_pattern != nullptr);
-    return *tuple_pattern;
+    return *tuple_pattern.get ();
   }
 
   std::unique_ptr<Pattern> &get_index_pattern_ptr ()
   {
     rust_assert (tuple_pattern != nullptr);
-    return tuple_pattern;
+    return tuple_pattern.get ();
   }
 
   ItemType get_item_type () const override final { return ItemType::TUPLE_PAT; }
@@ -733,7 +622,7 @@ protected:
 class StructPatternFieldIdentPat : public StructPatternField
 {
   Identifier ident;
-  std::unique_ptr<Pattern> ident_pattern;
+  Cloneable<std::unique_ptr<Pattern>> ident_pattern;
 
 public:
   StructPatternFieldIdentPat (Identifier ident,
@@ -744,39 +633,6 @@ public:
 			  Analysis::Mappings::get ().get_next_node_id ()),
       ident (std::move (ident)), ident_pattern (std::move (ident_pattern))
   {}
-
-  // Copy constructor requires clone
-  StructPatternFieldIdentPat (StructPatternFieldIdentPat const &other)
-    : StructPatternField (other), ident (other.ident)
-  {
-    // guard to prevent null dereference (only required if error state)
-    node_id = other.get_node_id ();
-    if (other.ident_pattern != nullptr)
-      ident_pattern = other.ident_pattern->clone_pattern ();
-  }
-
-  // Overload assignment operator to clone
-  StructPatternFieldIdentPat &
-  operator= (StructPatternFieldIdentPat const &other)
-  {
-    StructPatternField::operator= (other);
-    ident = other.ident;
-    // outer_attrs = other.outer_attrs;
-    node_id = other.get_node_id ();
-
-    // guard to prevent null dereference (only required if error state)
-    if (other.ident_pattern != nullptr)
-      ident_pattern = other.ident_pattern->clone_pattern ();
-    else
-      ident_pattern = nullptr;
-
-    return *this;
-  }
-
-  // default move semantics
-  StructPatternFieldIdentPat (StructPatternFieldIdentPat &&other) = default;
-  StructPatternFieldIdentPat &operator= (StructPatternFieldIdentPat &&other)
-    = default;
 
   std::string as_string () const override;
 
@@ -795,13 +651,13 @@ public:
   Pattern &get_ident_pattern ()
   {
     rust_assert (ident_pattern != nullptr);
-    return *ident_pattern;
+    return *ident_pattern.get ();
   }
 
   std::unique_ptr<Pattern> &get_ident_pattern_ptr ()
   {
     rust_assert (ident_pattern != nullptr);
-    return ident_pattern;
+    return ident_pattern.get ();
   }
 
   ItemType get_item_type () const override final { return ItemType::IDENT_PAT; }
@@ -859,7 +715,7 @@ protected:
 class StructPatternElements
 {
   // bool has_struct_pattern_fields;
-  std::vector<std::unique_ptr<StructPatternField>> fields;
+  Cloneable<std::vector<std::unique_ptr<StructPatternField>>> fields;
 
   bool has_rest_pattern;
   std::vector<Attribute> struct_pattern_etc_attrs;
@@ -871,7 +727,7 @@ class StructPatternElements
 
 public:
   // Returns whether there are any struct pattern fields
-  bool has_struct_pattern_fields () const { return !fields.empty (); }
+  bool has_struct_pattern_fields () const { return !fields.get ().empty (); }
 
   /* Returns whether the struct pattern elements is entirely empty (no fields,
    * no etc). */
@@ -897,34 +753,6 @@ public:
       struct_pattern_etc_attrs ()
   {}
 
-  // Copy constructor with vector clone
-  StructPatternElements (StructPatternElements const &other)
-    : has_rest_pattern (other.has_rest_pattern),
-      struct_pattern_etc_attrs (other.struct_pattern_etc_attrs)
-  {
-    fields.reserve (other.fields.size ());
-    for (const auto &e : other.fields)
-      fields.push_back (e->clone_struct_pattern_field ());
-  }
-
-  // Overloaded assignment operator with vector clone
-  StructPatternElements &operator= (StructPatternElements const &other)
-  {
-    struct_pattern_etc_attrs = other.struct_pattern_etc_attrs;
-    has_rest_pattern = other.has_rest_pattern;
-
-    fields.clear ();
-    fields.reserve (other.fields.size ());
-    for (const auto &e : other.fields)
-      fields.push_back (e->clone_struct_pattern_field ());
-
-    return *this;
-  }
-
-  // move constructors
-  StructPatternElements (StructPatternElements &&other) = default;
-  StructPatternElements &operator= (StructPatternElements &&other) = default;
-
   // Creates an empty StructPatternElements
   static StructPatternElements create_empty ()
   {
@@ -937,12 +765,12 @@ public:
   // TODO: seems kinda dodgy. Think of better way.
   std::vector<std::unique_ptr<StructPatternField>> &get_struct_pattern_fields ()
   {
-    return fields;
+    return fields.get ();
   }
   const std::vector<std::unique_ptr<StructPatternField>> &
   get_struct_pattern_fields () const
   {
-    return fields;
+    return fields.get ();
   }
 
   std::vector<Attribute> &get_etc_outer_attrs ()
@@ -1065,45 +893,25 @@ protected:
 // Class for non-ranged tuple struct pattern patterns
 class TupleStructItemsNoRest : public TupleStructItems
 {
-  std::vector<std::unique_ptr<Pattern>> patterns;
+  Cloneable<std::vector<std::unique_ptr<Pattern>>> patterns;
 
 public:
   TupleStructItemsNoRest (std::vector<std::unique_ptr<Pattern>> patterns)
     : patterns (std::move (patterns))
   {}
 
-  // Copy constructor with vector clone
-  TupleStructItemsNoRest (TupleStructItemsNoRest const &other)
-  {
-    patterns.reserve (other.patterns.size ());
-    for (const auto &e : other.patterns)
-      patterns.push_back (e->clone_pattern ());
-  }
-
-  // Overloaded assignment operator with vector clone
-  TupleStructItemsNoRest &operator= (TupleStructItemsNoRest const &other)
-  {
-    patterns.clear ();
-    patterns.reserve (other.patterns.size ());
-    for (const auto &e : other.patterns)
-      patterns.push_back (e->clone_pattern ());
-
-    return *this;
-  }
-
-  // move constructors
-  TupleStructItemsNoRest (TupleStructItemsNoRest &&other) = default;
-  TupleStructItemsNoRest &operator= (TupleStructItemsNoRest &&other) = default;
-
   std::string as_string () const override;
 
   void accept_vis (ASTVisitor &vis) override;
 
   // TODO: seems kinda dodgy. Think of better way.
-  std::vector<std::unique_ptr<Pattern>> &get_patterns () { return patterns; }
+  std::vector<std::unique_ptr<Pattern>> &get_patterns ()
+  {
+    return patterns.get ();
+  }
   const std::vector<std::unique_ptr<Pattern>> &get_patterns () const
   {
-    return patterns;
+    return patterns.get ();
   }
 
   ItemType get_item_type () const override final { return ItemType::NO_REST; }
@@ -1120,8 +928,8 @@ protected:
 // Class for ranged tuple struct pattern patterns
 class TupleStructItemsHasRest : public TupleStructItems
 {
-  std::vector<std::unique_ptr<Pattern>> lower_patterns;
-  std::vector<std::unique_ptr<Pattern>> upper_patterns;
+  Cloneable<std::vector<std::unique_ptr<Pattern>>> lower_patterns;
+  Cloneable<std::vector<std::unique_ptr<Pattern>>> upper_patterns;
 
 public:
   TupleStructItemsHasRest (std::vector<std::unique_ptr<Pattern>> lower_patterns,
@@ -1130,39 +938,6 @@ public:
       upper_patterns (std::move (upper_patterns))
   {}
 
-  // Copy constructor with vector clone
-  TupleStructItemsHasRest (TupleStructItemsHasRest const &other)
-  {
-    lower_patterns.reserve (other.lower_patterns.size ());
-    for (const auto &e : other.lower_patterns)
-      lower_patterns.push_back (e->clone_pattern ());
-
-    upper_patterns.reserve (other.upper_patterns.size ());
-    for (const auto &e : other.upper_patterns)
-      upper_patterns.push_back (e->clone_pattern ());
-  }
-
-  // Overloaded assignment operator to clone
-  TupleStructItemsHasRest &operator= (TupleStructItemsHasRest const &other)
-  {
-    lower_patterns.clear ();
-    lower_patterns.reserve (other.lower_patterns.size ());
-    for (const auto &e : other.lower_patterns)
-      lower_patterns.push_back (e->clone_pattern ());
-
-    upper_patterns.clear ();
-    upper_patterns.reserve (other.upper_patterns.size ());
-    for (const auto &e : other.upper_patterns)
-      upper_patterns.push_back (e->clone_pattern ());
-
-    return *this;
-  }
-
-  // move constructors
-  TupleStructItemsHasRest (TupleStructItemsHasRest &&other) = default;
-  TupleStructItemsHasRest &operator= (TupleStructItemsHasRest &&other)
-    = default;
-
   std::string as_string () const override;
 
   void accept_vis (ASTVisitor &vis) override;
@@ -1170,21 +945,21 @@ public:
   // TODO: seems kinda dodgy. Think of better way.
   std::vector<std::unique_ptr<Pattern>> &get_lower_patterns ()
   {
-    return lower_patterns;
+    return lower_patterns.get ();
   }
   const std::vector<std::unique_ptr<Pattern>> &get_lower_patterns () const
   {
-    return lower_patterns;
+    return lower_patterns.get ();
   }
 
   // TODO: seems kinda dodgy. Think of better way.
   std::vector<std::unique_ptr<Pattern>> &get_upper_patterns ()
   {
-    return upper_patterns;
+    return upper_patterns.get ();
   }
   const std::vector<std::unique_ptr<Pattern>> &get_upper_patterns () const
   {
-    return upper_patterns;
+    return upper_patterns.get ();
   }
 
   ItemType get_item_type () const override final { return ItemType::HAS_REST; }
@@ -1202,7 +977,7 @@ protected:
 class TupleStructPattern : public Pattern
 {
   PathInExpression path;
-  std::unique_ptr<TupleStructItems> items;
+  Cloneable<std::unique_ptr<TupleStructItems>> items;
   NodeId node_id;
 
   /* TOOD: should this store location data? current accessor uses path location
@@ -1219,34 +994,6 @@ public:
     rust_assert (this->items != nullptr);
   }
 
-  // Copy constructor required to clone
-  TupleStructPattern (TupleStructPattern const &other) : path (other.path)
-  {
-    // guard to protect from null dereference
-    rust_assert (other.items != nullptr);
-
-    node_id = other.node_id;
-    items = other.items->clone_tuple_struct_items ();
-  }
-
-  // Operator overload assignment operator to clone
-  TupleStructPattern &operator= (TupleStructPattern const &other)
-  {
-    path = other.path;
-    node_id = other.node_id;
-
-    // guard to protect from null dereference
-    rust_assert (other.items != nullptr);
-
-    items = other.items->clone_tuple_struct_items ();
-
-    return *this;
-  }
-
-  // move constructors
-  TupleStructPattern (TupleStructPattern &&other) = default;
-  TupleStructPattern &operator= (TupleStructPattern &&other) = default;
-
   location_t get_locus () const override { return path.get_locus (); }
 
   void accept_vis (ASTVisitor &vis) override;
@@ -1254,7 +1001,7 @@ public:
   TupleStructItems &get_items ()
   {
     rust_assert (items != nullptr);
-    return *items;
+    return *items.get ();
   }
 
   PathInExpression &get_path () { return path; }
@@ -1294,46 +1041,25 @@ protected:
 // Class representing TuplePattern patterns which contains no rest pattern
 class TuplePatternItemsNoRest : public TuplePatternItems
 {
-  std::vector<std::unique_ptr<Pattern>> patterns;
+  Cloneable<std::vector<std::unique_ptr<Pattern>>> patterns;
 
 public:
   TuplePatternItemsNoRest (std::vector<std::unique_ptr<Pattern>> patterns)
     : patterns (std::move (patterns))
   {}
 
-  // Copy constructor with vector clone
-  TuplePatternItemsNoRest (TuplePatternItemsNoRest const &other)
-  {
-    patterns.reserve (other.patterns.size ());
-    for (const auto &e : other.patterns)
-      patterns.push_back (e->clone_pattern ());
-  }
-
-  // Overloaded assignment operator to vector clone
-  TuplePatternItemsNoRest &operator= (TuplePatternItemsNoRest const &other)
-  {
-    patterns.clear ();
-    patterns.reserve (other.patterns.size ());
-    for (const auto &e : other.patterns)
-      patterns.push_back (e->clone_pattern ());
-
-    return *this;
-  }
-
-  // move constructors
-  TuplePatternItemsNoRest (TuplePatternItemsNoRest &&other) = default;
-  TuplePatternItemsNoRest &operator= (TuplePatternItemsNoRest &&other)
-    = default;
-
   std::string as_string () const override;
 
   void accept_vis (ASTVisitor &vis) override;
 
   // TODO: seems kinda dodgy. Think of better way.
-  std::vector<std::unique_ptr<Pattern>> &get_patterns () { return patterns; }
+  std::vector<std::unique_ptr<Pattern>> &get_patterns ()
+  {
+    return patterns.get ();
+  }
   const std::vector<std::unique_ptr<Pattern>> &get_patterns () const
   {
-    return patterns;
+    return patterns.get ();
   }
 
   ItemType get_item_type () const override { return ItemType::NO_REST; }
@@ -1350,8 +1076,8 @@ protected:
 // Class representing TuplePattern patterns which contains a rest pattern
 class TuplePatternItemsHasRest : public TuplePatternItems
 {
-  std::vector<std::unique_ptr<Pattern>> lower_patterns;
-  std::vector<std::unique_ptr<Pattern>> upper_patterns;
+  Cloneable<std::vector<std::unique_ptr<Pattern>>> lower_patterns;
+  Cloneable<std::vector<std::unique_ptr<Pattern>>> upper_patterns;
 
 public:
   TuplePatternItemsHasRest (
@@ -1361,39 +1087,6 @@ public:
       upper_patterns (std::move (upper_patterns))
   {}
 
-  // Copy constructor with vector clone
-  TuplePatternItemsHasRest (TuplePatternItemsHasRest const &other)
-  {
-    lower_patterns.reserve (other.lower_patterns.size ());
-    for (const auto &e : other.lower_patterns)
-      lower_patterns.push_back (e->clone_pattern ());
-
-    upper_patterns.reserve (other.upper_patterns.size ());
-    for (const auto &e : other.upper_patterns)
-      upper_patterns.push_back (e->clone_pattern ());
-  }
-
-  // Overloaded assignment operator to clone
-  TuplePatternItemsHasRest &operator= (TuplePatternItemsHasRest const &other)
-  {
-    lower_patterns.clear ();
-    lower_patterns.reserve (other.lower_patterns.size ());
-    for (const auto &e : other.lower_patterns)
-      lower_patterns.push_back (e->clone_pattern ());
-
-    upper_patterns.clear ();
-    upper_patterns.reserve (other.upper_patterns.size ());
-    for (const auto &e : other.upper_patterns)
-      upper_patterns.push_back (e->clone_pattern ());
-
-    return *this;
-  }
-
-  // move constructors
-  TuplePatternItemsHasRest (TuplePatternItemsHasRest &&other) = default;
-  TuplePatternItemsHasRest &operator= (TuplePatternItemsHasRest &&other)
-    = default;
-
   std::string as_string () const override;
 
   void accept_vis (ASTVisitor &vis) override;
@@ -1401,21 +1094,21 @@ public:
   // TODO: seems kinda dodgy. Think of better way.
   std::vector<std::unique_ptr<Pattern>> &get_lower_patterns ()
   {
-    return lower_patterns;
+    return lower_patterns.get ();
   }
   const std::vector<std::unique_ptr<Pattern>> &get_lower_patterns () const
   {
-    return lower_patterns;
+    return lower_patterns.get ();
   }
 
   // TODO: seems kinda dodgy. Think of better way.
   std::vector<std::unique_ptr<Pattern>> &get_upper_patterns ()
   {
-    return upper_patterns;
+    return upper_patterns.get ();
   }
   const std::vector<std::unique_ptr<Pattern>> &get_upper_patterns () const
   {
-    return upper_patterns;
+    return upper_patterns.get ();
   }
 
   ItemType get_item_type () const override { return ItemType::HAS_REST; }
@@ -1432,7 +1125,7 @@ protected:
 // AST node representing a tuple pattern
 class TuplePattern : public Pattern
 {
-  std::unique_ptr<TuplePatternItems> items;
+  Cloneable<std::unique_ptr<TuplePatternItems>> items;
   location_t locus;
   NodeId node_id;
 
@@ -1446,29 +1139,6 @@ public:
     rust_assert (this->items != nullptr);
   }
 
-  // Copy constructor requires clone
-  TuplePattern (TuplePattern const &other) : locus (other.locus)
-  {
-    // guard to prevent null dereference
-    rust_assert (other.items != nullptr);
-
-    node_id = other.node_id;
-    items = other.items->clone_tuple_pattern_items ();
-  }
-
-  // Overload assignment operator to clone
-  TuplePattern &operator= (TuplePattern const &other)
-  {
-    locus = other.locus;
-    node_id = other.node_id;
-
-    // guard to prevent null dereference
-    rust_assert (other.items != nullptr);
-
-    items = other.items->clone_tuple_pattern_items ();
-    return *this;
-  }
-
   location_t get_locus () const override final { return locus; }
 
   void accept_vis (ASTVisitor &vis) override;
@@ -1477,7 +1147,7 @@ public:
   TuplePatternItems &get_items ()
   {
     rust_assert (items != nullptr);
-    return *items;
+    return *items.get ();
   }
 
   NodeId get_node_id () const override { return node_id; }
@@ -1496,40 +1166,20 @@ protected:
 // AST node representing a pattern in parentheses, used to control precedence
 class GroupedPattern : public Pattern
 {
-  std::unique_ptr<Pattern> pattern_in_parens;
+  Cloneable<std::unique_ptr<Pattern>> pattern_in_parens;
   location_t locus;
   NodeId node_id;
 
 public:
   std::string as_string () const override
   {
-    return "(" + pattern_in_parens->as_string () + ")";
+    return "(" + pattern_in_parens.get ()->as_string () + ")";
   }
 
   GroupedPattern (std::unique_ptr<Pattern> pattern_in_parens, location_t locus)
     : pattern_in_parens (std::move (pattern_in_parens)), locus (locus),
       node_id (Analysis::Mappings::get ().get_next_node_id ())
   {}
-
-  // Copy constructor uses clone
-  GroupedPattern (GroupedPattern const &other)
-    : pattern_in_parens (other.pattern_in_parens->clone_pattern ()),
-      locus (other.locus), node_id (other.node_id)
-  {}
-
-  // Overload assignment operator to clone
-  GroupedPattern &operator= (GroupedPattern const &other)
-  {
-    pattern_in_parens = other.pattern_in_parens->clone_pattern ();
-    locus = other.locus;
-    node_id = other.node_id;
-
-    return *this;
-  }
-
-  // default move semantics
-  GroupedPattern (GroupedPattern &&other) = default;
-  GroupedPattern &operator= (GroupedPattern &&other) = default;
 
   location_t get_locus () const override final { return locus; }
 
@@ -1539,13 +1189,13 @@ public:
   Pattern &get_pattern_in_parens ()
   {
     rust_assert (pattern_in_parens != nullptr);
-    return *pattern_in_parens;
+    return *pattern_in_parens.get ();
   }
 
   std::unique_ptr<Pattern> &get_pattern_in_parens_ptr ()
   {
     rust_assert (pattern_in_parens != nullptr);
-    return pattern_in_parens;
+    return pattern_in_parens.get ();
   }
 
   NodeId get_node_id () const override { return node_id; }
@@ -1579,46 +1229,25 @@ protected:
 // Class representing the patterns in a SlicePattern without `..`
 class SlicePatternItemsNoRest : public SlicePatternItems
 {
-  std::vector<std::unique_ptr<Pattern>> patterns;
+  Cloneable<std::vector<std::unique_ptr<Pattern>>> patterns;
 
 public:
   SlicePatternItemsNoRest (std::vector<std::unique_ptr<Pattern>> patterns)
     : patterns (std::move (patterns))
   {}
 
-  // Copy constructor with vector clone
-  SlicePatternItemsNoRest (SlicePatternItemsNoRest const &other)
-  {
-    patterns.reserve (other.patterns.size ());
-    for (const auto &e : other.patterns)
-      patterns.push_back (e->clone_pattern ());
-  }
-
-  // Overloaded assignment operator to vector clone
-  SlicePatternItemsNoRest &operator= (SlicePatternItemsNoRest const &other)
-  {
-    patterns.clear ();
-    patterns.reserve (other.patterns.size ());
-    for (const auto &e : other.patterns)
-      patterns.push_back (e->clone_pattern ());
-
-    return *this;
-  }
-
-  // move constructors
-  SlicePatternItemsNoRest (SlicePatternItemsNoRest &&other) = default;
-  SlicePatternItemsNoRest &operator= (SlicePatternItemsNoRest &&other)
-    = default;
-
   std::string as_string () const override;
 
   void accept_vis (ASTVisitor &vis) override;
 
   // TODO: seems kinda dodgy. Think of better way.
-  std::vector<std::unique_ptr<Pattern>> &get_patterns () { return patterns; }
+  std::vector<std::unique_ptr<Pattern>> &get_patterns ()
+  {
+    return patterns.get ();
+  }
   const std::vector<std::unique_ptr<Pattern>> &get_patterns () const
   {
-    return patterns;
+    return patterns.get ();
   }
 
   ItemType get_item_type () const override { return ItemType::NO_REST; }
@@ -1635,8 +1264,8 @@ protected:
 // Class representing the patterns in a SlicePattern that contains a `..`
 class SlicePatternItemsHasRest : public SlicePatternItems
 {
-  std::vector<std::unique_ptr<Pattern>> lower_patterns;
-  std::vector<std::unique_ptr<Pattern>> upper_patterns;
+  Cloneable<std::vector<std::unique_ptr<Pattern>>> lower_patterns;
+  Cloneable<std::vector<std::unique_ptr<Pattern>>> upper_patterns;
 
 public:
   SlicePatternItemsHasRest (
@@ -1646,39 +1275,6 @@ public:
       upper_patterns (std::move (upper_patterns))
   {}
 
-  // Copy constructor with vector clone
-  SlicePatternItemsHasRest (SlicePatternItemsHasRest const &other)
-  {
-    lower_patterns.reserve (other.lower_patterns.size ());
-    for (const auto &e : other.lower_patterns)
-      lower_patterns.push_back (e->clone_pattern ());
-
-    upper_patterns.reserve (other.upper_patterns.size ());
-    for (const auto &e : other.upper_patterns)
-      upper_patterns.push_back (e->clone_pattern ());
-  }
-
-  // Overloaded assignment operator to clone
-  SlicePatternItemsHasRest &operator= (SlicePatternItemsHasRest const &other)
-  {
-    lower_patterns.clear ();
-    lower_patterns.reserve (other.lower_patterns.size ());
-    for (const auto &e : other.lower_patterns)
-      lower_patterns.push_back (e->clone_pattern ());
-
-    upper_patterns.clear ();
-    upper_patterns.reserve (other.upper_patterns.size ());
-    for (const auto &e : other.upper_patterns)
-      upper_patterns.push_back (e->clone_pattern ());
-
-    return *this;
-  }
-
-  // move constructors
-  SlicePatternItemsHasRest (SlicePatternItemsHasRest &&other) = default;
-  SlicePatternItemsHasRest &operator= (SlicePatternItemsHasRest &&other)
-    = default;
-
   std::string as_string () const override;
 
   void accept_vis (ASTVisitor &vis) override;
@@ -1686,21 +1282,21 @@ public:
   // TODO: seems kinda dodgy. Think of better way.
   std::vector<std::unique_ptr<Pattern>> &get_lower_patterns ()
   {
-    return lower_patterns;
+    return lower_patterns.get ();
   }
   const std::vector<std::unique_ptr<Pattern>> &get_lower_patterns () const
   {
-    return lower_patterns;
+    return lower_patterns.get ();
   }
 
   // TODO: seems kinda dodgy. Think of better way.
   std::vector<std::unique_ptr<Pattern>> &get_upper_patterns ()
   {
-    return upper_patterns;
+    return upper_patterns.get ();
   }
   const std::vector<std::unique_ptr<Pattern>> &get_upper_patterns () const
   {
-    return upper_patterns;
+    return upper_patterns.get ();
   }
 
   ItemType get_item_type () const override { return ItemType::HAS_REST; }
@@ -1717,7 +1313,7 @@ protected:
 // AST node representing patterns that can match slices and arrays
 class SlicePattern : public Pattern
 {
-  std::unique_ptr<SlicePatternItems> items;
+  Cloneable<std::unique_ptr<SlicePatternItems>> items;
   location_t locus;
   NodeId node_id;
 
@@ -1729,33 +1325,6 @@ public:
       node_id (Analysis::Mappings::get ().get_next_node_id ())
   {}
 
-  // Copy constructor requires clone
-  SlicePattern (SlicePattern const &other) : locus (other.locus)
-  {
-    // guard to prevent null dereference
-    rust_assert (other.items != nullptr);
-
-    node_id = other.node_id;
-    items = other.items->clone_slice_pattern_items ();
-  }
-
-  // Overloaded assignment operator to clone
-  SlicePattern &operator= (SlicePattern const &other)
-  {
-    locus = other.locus;
-    node_id = other.node_id;
-
-    // guard to prevent null dereference
-    rust_assert (other.items != nullptr);
-
-    items = other.items->clone_slice_pattern_items ();
-    return *this;
-  }
-
-  // move constructors
-  SlicePattern (SlicePattern &&other) = default;
-  SlicePattern &operator= (SlicePattern &&other) = default;
-
   location_t get_locus () const override final { return locus; }
 
   void accept_vis (ASTVisitor &vis) override;
@@ -1764,7 +1333,7 @@ public:
   SlicePatternItems &get_items ()
   {
     rust_assert (items != nullptr);
-    return *items;
+    return *items.get ();
   }
 
   NodeId get_node_id () const override { return node_id; }
@@ -1784,7 +1353,7 @@ protected:
 // joins together what are technically 'PatternNoTopAlt's
 class AltPattern : public Pattern
 {
-  std::vector<std::unique_ptr<Pattern>> alts;
+  Cloneable<std::vector<std::unique_ptr<Pattern>>> alts;
   location_t locus;
   NodeId node_id;
 
@@ -1796,42 +1365,15 @@ public:
       node_id (Analysis::Mappings::get ().get_next_node_id ())
   {}
 
-  // Copy constructor with vector clone
-  AltPattern (AltPattern const &other) : locus (other.locus)
-  {
-    node_id = other.node_id;
-    alts.reserve (other.alts.size ());
-    for (const auto &e : other.alts)
-      alts.push_back (e->clone_pattern ());
-  }
-
-  // Overloaded assignment operator to vector clone
-  AltPattern &operator= (AltPattern const &other)
-  {
-    locus = other.locus;
-    node_id = other.node_id;
-
-    alts.clear ();
-    alts.reserve (other.alts.size ());
-    for (const auto &e : other.alts)
-      alts.push_back (e->clone_pattern ());
-
-    return *this;
-  }
-
-  // move constructors
-  AltPattern (AltPattern &&other) = default;
-  AltPattern &operator= (AltPattern &&other) = default;
-
   location_t get_locus () const override final { return locus; }
 
   void accept_vis (ASTVisitor &vis) override;
 
   // TODO: seems kinda dodgy. Think of better way.
-  std::vector<std::unique_ptr<Pattern>> &get_alts () { return alts; }
+  std::vector<std::unique_ptr<Pattern>> &get_alts () { return alts.get (); }
   const std::vector<std::unique_ptr<Pattern>> &get_alts () const
   {
-    return alts;
+    return alts.get ();
   }
 
   NodeId get_node_id () const override { return node_id; }
@@ -1857,6 +1399,67 @@ class QualifiedPathInExpression;
 // Replaced with forward decl - defined in rust-macro.h
 class MacroInvocation;
 } // namespace AST
+
+template <> struct CloneableDelegate<std::unique_ptr<AST::RangePatternBound>>
+{
+  static std::unique_ptr<AST::RangePatternBound>
+  clone (const std::unique_ptr<AST::RangePatternBound> &other)
+  {
+    if (other == nullptr)
+      return nullptr;
+    else
+      return other->clone_range_pattern_bound ();
+  }
+};
+
+template <> struct CloneableDelegate<std::unique_ptr<AST::TupleStructItems>>
+{
+  static std::unique_ptr<AST::TupleStructItems>
+  clone (const std::unique_ptr<AST::TupleStructItems> &other)
+  {
+    if (other == nullptr)
+      return nullptr;
+    else
+      return other->clone_tuple_struct_items ();
+  }
+};
+
+template <> struct CloneableDelegate<std::unique_ptr<AST::TuplePatternItems>>
+{
+  static std::unique_ptr<AST::TuplePatternItems>
+  clone (const std::unique_ptr<AST::TuplePatternItems> &other)
+  {
+    if (other == nullptr)
+      return nullptr;
+    else
+      return other->clone_tuple_pattern_items ();
+  }
+};
+
+template <> struct CloneableDelegate<std::unique_ptr<AST::SlicePatternItems>>
+{
+  static std::unique_ptr<AST::SlicePatternItems>
+  clone (const std::unique_ptr<AST::SlicePatternItems> &other)
+  {
+    if (other == nullptr)
+      return nullptr;
+    else
+      return other->clone_slice_pattern_items ();
+  }
+};
+
+template <> struct CloneableDelegate<std::unique_ptr<AST::StructPatternField>>
+{
+  static std::unique_ptr<AST::StructPatternField>
+  clone (const std::unique_ptr<AST::StructPatternField> &other)
+  {
+    if (other == nullptr)
+      return nullptr;
+    else
+      return other->clone_struct_pattern_field ();
+  }
+};
+
 } // namespace Rust
 
 #endif

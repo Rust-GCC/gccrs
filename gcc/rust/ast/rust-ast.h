@@ -26,6 +26,7 @@
 #include "rust-location.h"
 #include "rust-diagnostics.h"
 #include "rust-keyword-values.h"
+#include "rust-cloneable.h"
 
 namespace Rust {
 // TODO: remove typedefs and make actual types for these
@@ -2139,6 +2140,19 @@ public:
 };
 
 } // namespace AST
+
+template <> struct CloneableDelegate<std::unique_ptr<AST::Pattern>>
+{
+  static std::unique_ptr<AST::Pattern>
+  clone (const std::unique_ptr<AST::Pattern> &other)
+  {
+    if (other == nullptr)
+      return nullptr;
+    else
+      return other->clone_pattern ();
+  }
+};
+
 } // namespace Rust
 
 namespace std {
