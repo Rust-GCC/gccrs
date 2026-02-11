@@ -1,4 +1,5 @@
 /* { dg-require-effective-target vect_condition } */
+/* { dg-additional-options "--param vect-epilogues-nomask=0" } */
 /* { dg-additional-options "-fdump-tree-vect-details" } */
 
 #include "tree-vect.h"
