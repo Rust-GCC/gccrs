@@ -2586,6 +2586,12 @@ GLIBCXX_3.4.35 {
     _ZNSt12__cow_stringaSERKS_;
     _ZNSt12__cow_stringaSEOS_;
     _ZNKSt12__cow_string5c_strEv;
+
+#if defined (_WIN32) && !defined (__CYGWIN__)
+    _ZSt19__get_once_callablev;
+    _ZSt15__get_once_callv;
+#endif
+
 } GLIBCXX_3.4.34;
 
 # Symbols in the support library (libsupc++) have their own tag.
