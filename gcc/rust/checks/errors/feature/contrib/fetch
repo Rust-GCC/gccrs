@@ -18,7 +18,7 @@
 # along with GCC; see the file COPYING3.  If not see
 # <http://www.gnu.org/licenses/>.
 
-RUST_VERSION="1.49.0"
+RUST_VERSION="1.50.0"
 
 [ $# = 1 ] || exit 1
 
@@ -27,4 +27,4 @@ RUST_VERSION="1.49.0"
 URL_PREFIX='https://raw.githubusercontent.com/rust-lang/rust/refs/tags'
 URL_TEMPLATE="$URL_PREFIX/$RUST_VERSION/compiler/rustc_feature/src"
 
-wget -O $1 "$URL_TEMPLATE"/{accepted,active,removed}.rs
+wget -O $1 "$URL_TEMPLATE/accepted.rs" "$URL_TEMPLATE/active.rs" "$URL_TEMPLATE/removed.rs"

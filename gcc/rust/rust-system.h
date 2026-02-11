@@ -36,6 +36,7 @@
 #include <map>
 #include <set>
 #include <vector>
+#include <queue>
 #include <stack>
 #include <sstream>
 #include <string>

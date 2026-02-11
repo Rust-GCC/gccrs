@@ -39,6 +39,7 @@ public:
 
   // rust-ast.h
   // virtual void visit(AttrInput& attr_input) = 0;
+  virtual void visit (AST::Attribute &attribute) = 0;
   // virtual void visit(TokenTree& token_tree) = 0;
   // virtual void visit(MacroMatch& macro_match) = 0;
   virtual void visit (Token &tok) = 0;
@@ -444,7 +445,7 @@ public:
   virtual void visit (AST::StructPatternElements &spe);
   virtual void visit (AST::MaybeNamedParam &param);
 
-  void visit (AST::Attribute &attribute) {}
+  virtual void visit (AST::Attribute &attribute) override;
 
   template <typename T> void visit_outer_attrs (T &node)
   {

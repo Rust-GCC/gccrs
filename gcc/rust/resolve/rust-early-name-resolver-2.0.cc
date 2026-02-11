@@ -314,63 +314,82 @@ Early::visit (AST::MacroInvocation &invoc)
 }
 
 void
-Early::visit_attributes (std::vector<AST::Attribute> &attrs)
+Early::visit_derive_attribute (AST::Attribute &attr,
+			       Analysis::Mappings &mappings)
+{
+  auto traits = attr.get_traits_to_derive ();
+  for (auto &trait : traits)
+    {
+      auto definition = ctx.resolve_path (trait.get (), Namespace::Macros);
+      if (!definition.has_value ())
+	{
+	  // FIXME: Change to proper error message
+	  // FIXME: Change locus to trait locus instead of attribute locus
+	  collect_error (Error (attr.get_locus (),
+				"could not resolve trait %qs",
+				trait.get ().as_string ().c_str ()));
+	  continue;
+	}
+
+      auto pm_def
+	= mappings.lookup_derive_proc_macro_def (definition->get_node_id ());
+
+      if (pm_def.has_value ())
+	mappings.insert_derive_proc_macro_invocation (trait, pm_def.value ());
+    }
+}
+
+void
+Early::visit_non_builtin_attribute (AST::Attribute &attr,
+				    Analysis::Mappings &mappings,
+				    std::string &name)
+{
+  auto definition = ctx.resolve_path (attr.get_path (), Namespace::Macros);
+  if (!definition.has_value ())
+    {
+      // FIXME: Change to proper error message
+      collect_error (Error (attr.get_locus (),
+			    "could not resolve attribute macro invocation %qs",
+			    name.c_str ()));
+      return;
+    }
+  auto pm_def
+    = mappings.lookup_attribute_proc_macro_def (definition->get_node_id ());
+
+  if (!pm_def.has_value ())
+    return;
+
+  mappings.insert_attribute_proc_macro_invocation (attr.get_path (),
+						   pm_def.value ());
+}
+
+void
+Early::visit (AST::Attribute &attr)
 {
   auto &mappings = Analysis::Mappings::get ();
 
-  for (auto &attr : attrs)
+  auto name = attr.get_path ().get_segments ().at (0).get_segment_name ();
+  auto is_not_builtin = [&name] (AST::Attribute &attr) {
+    return Analysis::BuiltinAttributeMappings::get ()
+      ->lookup_builtin (name)
+      .is_error ();
+  };
+
+  if (attr.is_derive ())
     {
-      auto name = attr.get_path ().get_segments ().at (0).get_segment_name ();
-
-      if (attr.is_derive ())
-	{
-	  auto traits = attr.get_traits_to_derive ();
-	  for (auto &trait : traits)
-	    {
-	      auto definition
-		= ctx.resolve_path (trait.get (), Namespace::Macros);
-	      if (!definition.has_value ())
-		{
-		  // FIXME: Change to proper error message
-		  collect_error (Error (trait.get ().get_locus (),
-					"could not resolve trait %qs",
-					trait.get ().as_string ().c_str ()));
-		  continue;
-		}
-
-	      auto pm_def = mappings.lookup_derive_proc_macro_def (
-		definition->get_node_id ());
-
-	      if (pm_def.has_value ())
-		mappings.insert_derive_proc_macro_invocation (trait,
-							      pm_def.value ());
-	    }
-	}
-      else if (Analysis::BuiltinAttributeMappings::get ()
-		 ->lookup_builtin (name)
-		 .is_error ()) // Do not resolve builtins
-	{
-	  auto definition
-	    = ctx.resolve_path (attr.get_path (), Namespace::Macros);
-	  if (!definition.has_value ())
-	    {
-	      // FIXME: Change to proper error message
-	      collect_error (
-		Error (attr.get_locus (),
-		       "could not resolve attribute macro invocation %qs",
-		       name.c_str ()));
-	      return;
-	    }
-	  auto pm_def = mappings.lookup_attribute_proc_macro_def (
-	    definition->get_node_id ());
-
-	  if (!pm_def.has_value ())
-	    return;
-
-	  mappings.insert_attribute_proc_macro_invocation (attr.get_path (),
-							   pm_def.value ());
-	}
+      visit_derive_attribute (attr, mappings);
     }
+  else if (is_not_builtin (attr)) // Do not resolve builtins
+    {
+      visit_non_builtin_attribute (attr, mappings, name);
+    }
+}
+
+void
+Early::visit_attributes (std::vector<AST::Attribute> &attrs)
+{
+  for (auto &attr : attrs)
+    visit (attr);
 }
 
 void

@@ -24,6 +24,8 @@
 
 namespace Rust {
 
+void expand_cfg_attrs (AST::AttrVec &attrs);
+
 // forward declare
 struct ExpansionCfg;
 
@@ -31,8 +33,6 @@ struct ExpansionCfg;
 class CfgStrip : public AST::DefaultASTVisitor
 {
 private:
-  bool fails_cfg (const AST::AttrVec &attrs) const;
-
   bool fails_cfg_with_expand (AST::AttrVec &attrs) const;
 
 public:
