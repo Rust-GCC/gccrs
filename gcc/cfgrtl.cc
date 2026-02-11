@@ -1594,54 +1594,20 @@ force_nonfallthru_and_redirect (edge e, basic_block target, rtx jump_label)
     }
 
   /* If e->src ends with asm goto, see if any of the ASM_OPERANDS_LABELs
-     don't point to the target or fallthru label.  */
+     don't point to the fallthru label.  */
   if (JUMP_P (BB_END (e->src))
       && target != EXIT_BLOCK_PTR_FOR_FN (cfun)
       && (e->flags & EDGE_FALLTHRU)
       && (note = extract_asm_operands (PATTERN (BB_END (e->src)))))
     {
-      int i, n = ASM_OPERANDS_LABEL_LENGTH (note);
-      bool adjust_jump_target = false;
+      int n = ASM_OPERANDS_LABEL_LENGTH (note);
 
-      for (i = 0; i < n; ++i)
-	{
-	  if (XEXP (ASM_OPERANDS_LABEL (note, i), 0) == BB_HEAD (e->dest))
-	    {
-	      LABEL_NUSES (XEXP (ASM_OPERANDS_LABEL (note, i), 0))--;
-	      XEXP (ASM_OPERANDS_LABEL (note, i), 0) = block_label (target);
-	      LABEL_NUSES (XEXP (ASM_OPERANDS_LABEL (note, i), 0))++;
-	      adjust_jump_target = true;
-	    }
-	  if (XEXP (ASM_OPERANDS_LABEL (note, i), 0) == BB_HEAD (target))
+      for (int i = 0; i < n; ++i)
+	if (XEXP (ASM_OPERANDS_LABEL (note, i), 0) == BB_HEAD (e->dest))
+	  {
 	    asm_goto_edge = true;
-	}
-      if (adjust_jump_target)
-	{
-	  rtx_insn *insn = BB_END (e->src);
-	  rtx note;
-	  rtx_insn *old_label = BB_HEAD (e->dest);
-	  rtx_insn *new_label = BB_HEAD (target);
-
-	  if (JUMP_LABEL (insn) == old_label)
-	    {
-	      JUMP_LABEL (insn) = new_label;
-	      note = find_reg_note (insn, REG_LABEL_TARGET, new_label);
-	      if (note)
-		remove_note (insn, note);
-	    }
-	  else
-	    {
-	      note = find_reg_note (insn, REG_LABEL_TARGET, old_label);
-	      if (note)
-		remove_note (insn, note);
-	      if (JUMP_LABEL (insn) != new_label
-		  && !find_reg_note (insn, REG_LABEL_TARGET, new_label))
-		add_reg_note (insn, REG_LABEL_TARGET, new_label);
-	    }
-	  while ((note = find_reg_note (insn, REG_LABEL_OPERAND, old_label))
-		 != NULL_RTX)
-	    XEXP (note, 0) = new_label;
-	}
+	    break;
+	  }
     }
 
   if (EDGE_COUNT (e->src->succs) >= 2 || abnormal_edge_flags || asm_goto_edge)
@@ -1680,15 +1646,45 @@ force_nonfallthru_and_redirect (edge e, basic_block target, rtx jump_label)
          and the reg crossing note should be removed.  */
       fixup_partition_crossing (new_edge);
 
-      /* If asm goto has any label refs to target's label,
-	 add also edge from asm goto bb to target.  */
+      /* If asm goto has any label refs to e->dest, change them to point
+	 to jump_block instead.  */
       if (asm_goto_edge)
 	{
-	  new_edge->probability /= 2;
-	  jump_block->count /= 2;
-	  edge new_edge2 = make_edge (new_edge->src, target,
-				      e->flags & ~EDGE_FALLTHRU);
-	  new_edge2->probability = probability - new_edge->probability;
+	  int n = ASM_OPERANDS_LABEL_LENGTH (note);
+
+	  for (int i = 0; i < n; ++i)
+	    if (XEXP (ASM_OPERANDS_LABEL (note, i), 0) == BB_HEAD (e->dest))
+	      {
+		LABEL_NUSES (XEXP (ASM_OPERANDS_LABEL (note, i), 0))--;
+		XEXP (ASM_OPERANDS_LABEL (note, i), 0)
+		  = block_label (jump_block);
+		LABEL_NUSES (XEXP (ASM_OPERANDS_LABEL (note, i), 0))++;
+	      }
+
+	  rtx_insn *insn = BB_END (new_edge->src);
+	  rtx note;
+	  rtx_insn *old_label = BB_HEAD (e->dest);
+	  rtx_insn *new_label = BB_HEAD (jump_block);
+
+	  if (JUMP_LABEL (insn) == old_label)
+	    {
+	      JUMP_LABEL (insn) = new_label;
+	      note = find_reg_note (insn, REG_LABEL_TARGET, new_label);
+	      if (note)
+		remove_note (insn, note);
+	    }
+	  else
+	    {
+	      note = find_reg_note (insn, REG_LABEL_TARGET, old_label);
+	      if (note)
+		remove_note (insn, note);
+	      if (JUMP_LABEL (insn) != new_label
+		  && !find_reg_note (insn, REG_LABEL_TARGET, new_label))
+		add_reg_note (insn, REG_LABEL_TARGET, new_label);
+	    }
+	  while ((note = find_reg_note (insn, REG_LABEL_OPERAND, old_label))
+		 != NULL_RTX)
+	    XEXP (note, 0) = new_label;
 	}
 
       new_bb = jump_block;
