@@ -682,6 +682,18 @@ canonicalize_reload_addr (rtx addr)
   return addr;
 }
 
+/* Return rtx accessing reload REG matching another reload reg in MODE.  */
+static rtx
+get_matching_reload_reg_subreg (machine_mode mode, rtx reg)
+{
+  if (SCALAR_INT_MODE_P (mode) && SCALAR_INT_MODE_P (GET_MODE (reg)))
+    /* For matching scalar int modes generate the right subreg byte offset for
+       BE targets -- see call of reload.cc:operands_match_p in
+       recog.cc:constrain_operands.  */
+    return lowpart_subreg (mode, reg, GET_MODE (reg));
+  return gen_rtx_SUBREG (mode, reg, 0);
+}
+
 /* Create a new pseudo using MODE, RCLASS, EXCLUDE_START_HARD_REGS, ORIGINAL or
    reuse an existing reload pseudo.  Don't reuse an existing reload pseudo if
    IN_SUBREG_P is true and the reused pseudo should be wrapped up in a SUBREG.
@@ -766,7 +778,7 @@ get_reload_reg (enum op_type type, machine_mode mode, rtx original,
 		if (maybe_lt (GET_MODE_SIZE (GET_MODE (reg)),
 			      GET_MODE_SIZE (mode)))
 		  continue;
-		reg = lowpart_subreg (mode, reg, GET_MODE (reg));
+		reg = get_matching_reload_reg_subreg (mode, reg);
 		if (reg == NULL_RTX || GET_CODE (reg) != SUBREG)
 		  continue;
 	      }
@@ -1134,7 +1146,7 @@ match_reload (signed char out, signed char *ins, signed char *outs,
 	    = lra_create_new_reg_with_unique_value (inmode, in_rtx, goal_class,
 						    exclude_start_hard_regs,
 						    "");
-	  new_out_reg = gen_lowpart_SUBREG (outmode, reg);
+	  new_out_reg = get_matching_reload_reg_subreg (outmode, reg);
 	  LRA_SUBREG_P (new_out_reg) = 1;
 	  /* If the input reg is dying here, we can use the same hard
 	     register for REG and IN_RTX.  We do it only for original
@@ -1153,7 +1165,7 @@ match_reload (signed char out, signed char *ins, signed char *outs,
 						    goal_class,
 						    exclude_start_hard_regs,
 						    "");
-	  new_in_reg = gen_lowpart_SUBREG (inmode, reg);
+	  new_in_reg = get_matching_reload_reg_subreg (inmode, reg);
 	  /* NEW_IN_REG is non-paradoxical subreg.  We don't want
 	     NEW_OUT_REG living above.  We add clobber clause for
 	     this.  This is just a temporary clobber.  We can remove
