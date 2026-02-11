@@ -16771,6 +16771,17 @@ tsubst_splice_expr (tree t, tree args, tsubst_flags_t complain, tree in_decl)
 			     SPLICE_EXPR_MEMBER_ACCESS_P (t),
 			     (complain & tf_error)))
     return error_mark_node;
+
+  if (SPLICE_EXPR_ADDRESS_P (t))
+    {
+      if (BASELINK_P (op))
+	op = build_offset_ref (BINFO_TYPE (BASELINK_ACCESS_BINFO (op)), op,
+			       /*address_p=*/true, complain);
+      else if (DECL_NONSTATIC_MEMBER_P (op))
+	op = build_offset_ref (DECL_CONTEXT (op), op,
+			       /*address_p=*/true, complain);
+    }
+
   if (outer_automatic_var_p (op))
     op = process_outer_var_ref (op, complain);
   /* Like in cp_parser_splice_expression, for foo.[: bar :]
