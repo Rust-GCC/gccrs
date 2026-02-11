@@ -565,9 +565,8 @@ protected:
 
 // aka Attr
 // Attribute AST representation
-struct Attribute
+class Attribute : Visitable
 {
-private:
   SimplePath path;
 
   // bool has_attr_input;
@@ -685,7 +684,7 @@ public:
 
   bool is_inner_attribute () const { return inner_attribute; }
 
-  // no visitor pattern as not currently polymorphic
+  void accept_vis (ASTVisitor &vis) override;
 
   const SimplePath &get_path () const { return path; }
   SimplePath &get_path () { return path; }
