@@ -22,6 +22,7 @@
 #include "rust-ast-visitor.h"
 #include "rust-ast.h"
 #include "rust-attribute-values.h"
+#include "rust-diagnostics.h"
 #include "rust-item.h"
 #include "rust-path.h"
 

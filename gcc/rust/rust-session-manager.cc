@@ -715,6 +715,9 @@ Session::compile_crate (const char *filename)
   if (saw_errors ())
     return;
 
+  // FIXME: Or run it within Late at the end?
+  name_resolution_ctx.flatten ();
+
   if (last_step == CompileOptions::CompileStep::Lowering)
     return;
 

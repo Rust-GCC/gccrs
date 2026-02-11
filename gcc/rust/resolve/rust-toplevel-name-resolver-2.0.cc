@@ -20,8 +20,12 @@
 #include "input.h"
 #include "optional.h"
 #include "rust-ast-full.h"
+#include "rust-ast.h"
 #include "rust-hir-map.h"
 #include "rust-attribute-values.h"
+#include "rust-item.h"
+#include "rust-mapping-common.h"
+#include "rust-rib.h"
 
 namespace Rust {
 namespace Resolver2_0 {
@@ -39,6 +43,25 @@ TopLevel::insert_enum_variant_or_error_out (const Identifier &identifier,
 				    node.get_node_id ());
 }
 
+static void
+emit_multiple_definitions_error (
+  std::unordered_map<NodeId, location_t> &node_locations,
+  const Identifier &identifier, const location_t &locus, const NodeId &new_id,
+  const tl::expected<NodeId, DuplicateNameError> &result)
+{
+  auto has_existing
+    = node_locations.find (result.error ().existing) != node_locations.end ();
+  auto has_new = node_locations.find (new_id) != node_locations.end ();
+
+  rich_location rich_loc (line_table, locus);
+  rich_loc.add_range (node_locations[result.error ().existing]);
+
+  rust_error_at (rich_loc, ErrorCode::E0428,
+		 "%qs defined multiple times. has existing? %s has new? %s",
+		 identifier.as_string ().c_str (),
+		 has_existing ? "true" : "false", has_new ? "true" : "false");
+}
+
 void
 TopLevel::check_multiple_insertion_error (
   tl::expected<NodeId, DuplicateNameError> result, const Identifier &identifier,
@@ -48,11 +71,8 @@ TopLevel::check_multiple_insertion_error (
     dirty = true;
   else if (result.error ().existing != node_id)
     {
-      rich_location rich_loc (line_table, locus);
-      rich_loc.add_range (node_locations[result.error ().existing]);
-
-      rust_error_at (rich_loc, ErrorCode::E0428, "%qs defined multiple times",
-		     identifier.as_string ().c_str ());
+      emit_multiple_definitions_error (node_locations, identifier, locus,
+				       node_id, result);
     }
 }
 void
@@ -95,12 +115,12 @@ TopLevel::go (AST::Crate &crate)
   // times in a row in a fixed-point fashion, so it would make the code
   // responsible for this ugly and perfom a lot of error checking.
 
-  visit (crate);
-
   if (Analysis::Mappings::get ().lookup_glob_container (crate.get_node_id ())
       == tl::nullopt)
     Analysis::Mappings::get ().insert_glob_container (crate.get_node_id (),
 						      &crate);
+
+  visit (crate);
 }
 
 void
@@ -384,7 +404,8 @@ TopLevel::visit (AST::TypeAlias &type_item)
 
 static void flatten_rebind (
   const AST::UseTreeRebind &glob,
-  std::vector<std::pair<AST::SimplePath, AST::UseTreeRebind>> &rebind_paths);
+  std::vector<std::pair<AST::SimplePath, AST::UseTreeRebind>> &rebind_paths,
+  std::vector<AST::SimplePath> &paths);
 
 static void flatten_list (
   const AST::UseTreeList &glob, std::vector<AST::SimplePath> &paths,
@@ -407,7 +428,7 @@ flatten (
     case AST::UseTree::Rebind:
       {
 	auto rebind = static_cast<const AST::UseTreeRebind *> (tree);
-	flatten_rebind (*rebind, rebind_paths);
+	flatten_rebind (*rebind, rebind_paths, paths);
 	break;
       }
     case AST::UseTree::List:
@@ -429,8 +450,16 @@ flatten (
 static void
 flatten_rebind (
   const AST::UseTreeRebind &rebind,
-  std::vector<std::pair<AST::SimplePath, AST::UseTreeRebind>> &rebind_paths)
+  std::vector<std::pair<AST::SimplePath, AST::UseTreeRebind>> &rebind_paths,
+  std::vector<AST::SimplePath> &paths)
 {
+  // If the current rebind is just a `self`, it comes from something like `use
+  // foo::{self, bar}`. In that case, we only want the prefix we've built in
+  // `flatten_list` to be resolved and declared, so we insert an empty path to
+  // resolve, which will be prefixed later.
+  // if (rebind.get_path ().get_final_segment ().is_lower_self_seg ())
+  //   paths.emplace_back (AST::SimplePath::create_empty (rebind.get_locus ()));
+  // else
   rebind_paths.emplace_back (rebind.get_path (), rebind);
 }
 
@@ -524,10 +553,6 @@ TopLevel::visit (AST::UseDeclaration &use)
   auto &values_rib = ctx.values.peek ();
   auto &types_rib = ctx.types.peek ();
   auto &macros_rib = ctx.macros.peek ();
-
-  // FIXME: How do we handle `use foo::{self}` imports? Some beforehand cleanup?
-  // How do we handle module imports in general? Should they get added to all
-  // namespaces?
 
   const auto &tree = use.get_tree ();
   flatten (tree.get (), paths, glob_path, rebind_path, this->ctx);
