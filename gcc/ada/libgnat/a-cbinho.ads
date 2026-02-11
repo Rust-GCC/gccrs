@@ -173,11 +173,6 @@ private
        Storage_Count'Max (System.Address'Alignment,
          Element_Type'Alignment));
 
-   --  Convert Element_Type'Size from bits to bytes, rounding up
-   Element_Size_In_Storage_Elements : constant Long_Integer :=
-     Long_Integer ((Element_Type'Size / System.Storage_Unit) +
-       Boolean'Pos (Element_Type'Size mod System.Storage_Unit /= 0));
-
    --  An upper bound on additional storage required for an allocator for data
    --  other than the allocated object itself. This includes things like
    --  array bounds (if Element_Type is an unconstrained array subtype),
@@ -187,38 +182,14 @@ private
    --  overhead except for aforementioned possibility of an alignment-related
    --  gap between some prefix data and the object itself.
 
-   pragma Warnings (Off); -- avoid warnings for exceptions raised in dead code
-
-   function Max_Allocation_Overhead_In_Storage_Elements return Storage_Count is
-     (if Element_Size_In_Storage_Elements >= Long_Integer (Integer'Last) then
-         --  If the more precise computation in the else-arm (below) could
-         --  overflow or return the wrong answer then return a guess.
-         --  We get a multiplier of 6 by adding 2 for finalization-linkage
-         --  and 4 for array bounds. If we have an unconstrained array subtype
-         --  with a controlled element type and with multiple dimensions each
-         --  indexed by Long_Long_Integer, then this guess could be too small.
-         System.Address'Max_Size_In_Storage_Elements * 6
-      else
-         Storage_Count (Element_Type'Max_Size_In_Storage_Elements -
-           Element_Size_In_Storage_Elements));
-   --
-   --  ???  It would be helpful if GNAT provided this value as an attribute so
-   --  that we would not have to deal with the "huge" case here. Instead, we
-   --  use a very imprecise "hugeness" test; in the "huge" case, we return an
-   --  estimate. If the estimate turns out to be too small, then it is
-   --  possible for the size check in Allocate_From_Subpool to fail even
-   --  though the earlier (earlier at run-time) size check in Replace_Element
-   --  passed. A GNAT-defined attribute could eliminate this issue.
-
-   pragma Warnings (On);
-
    --  Compute extra amount needed for space requested for an allocator
    --  (specifically, in a call to Allocate_From_Subpool) in addition to
    --  the space required for the allocated object itself.
    Extra_Storage : constant Storage_Count :=
      Holder_Subpool'Max_Size_In_Storage_Elements +
      Worst_Case_Alignment * 2 +
-     Max_Allocation_Overhead_In_Storage_Elements;
+     (Element_Type'Descriptor_Size / System.Storage_Unit) +
+     (Element_Type'Finalization_Size / System.Storage_Unit);
 
    subtype Bound_Range is Storage_Count range
      0 ..  Max_Element_Size_In_Storage_Elements + Extra_Storage;

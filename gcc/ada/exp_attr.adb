@@ -30,6 +30,7 @@ with Debug;          use Debug;
 with Einfo.Entities; use Einfo.Entities;
 with Einfo.Utils;    use Einfo.Utils;
 with Elists;         use Elists;
+with Errout;         use Errout;
 with Exp_Atag;       use Exp_Atag;
 with Exp_Ch3;        use Exp_Ch3;
 with Exp_Ch6;        use Exp_Ch6;
@@ -4050,7 +4051,7 @@ package body Exp_Attr is
          --
          --  and the attribute reference is replaced with a reference to Size.
 
-         elsif Is_Class_Wide_Type (Ptyp) then
+         elsif Is_Class_Wide_Type (Ptyp) and then Is_Object_Prefix (Pref) then
             Size := Make_Temporary (Loc, 'S');
 
             Insert_Actions (N, New_List (
@@ -7342,14 +7343,25 @@ package body Exp_Attr is
                end if;
             end if;
 
-            --  If the prefix is X'Class, transform it into a direct reference
-            --  to the class-wide type, because the back end must not see a
-            --  'Class reference.
+            --  If the prefix is X'Class, transform it into a
+            --  raise of Constraint_Error.
 
             if Is_Entity_Name (Pref)
               and then Is_Class_Wide_Type (Entity (Pref))
             then
-               Rewrite (Prefix (N), New_Occurrence_Of (Entity (Pref), Loc));
+               pragma Assert (not Is_Mutably_Tagged_Type (Entity (Pref)));
+               --  In the Mutably_Tagged_Case, this attribute reference
+               --  should have been transformed into an integer literal
+               --  (in Eval_Attribute) before we get here.
+               --  If this assertion ever fails, the thing to do here
+               --  is generate a literal equal to the specified
+               --  T'Size'Class [sic] aspect value.
+
+               Error_Msg_N
+                 ("Constraint_Error will be raised at run time??", N);
+               Rewrite (N, Make_Raise_Constraint_Error
+                             (Loc, Reason => CE_Range_Check_Failed));
+               Set_Etype (N, Etype (Original_Node (N)));
                return;
 
             --  For X'Size applied to an object of a class-wide type, transform

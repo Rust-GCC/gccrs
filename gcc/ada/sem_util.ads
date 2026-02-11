@@ -2350,9 +2350,11 @@ package Sem_Util is
    --  (with a null extension if tagged). Returns True for interface types,
    --  False for discriminated types.
 
-   function Is_Object_Image (Prefix : Node_Id) return Boolean;
-   --  Returns True if an 'Img, 'Image, 'Wide_Image, or 'Wide_Wide_Image
-   --  attribute is applied to an object.
+   function Is_Object_Prefix (Prefix : Node_Id) return Boolean;
+   --  Returns True if the given prefix of an attribute reference denotes
+   --  an object. Useful for attributes such as 'Img, 'Image, 'Wide_Image,
+   --  or 'Wide_Wide_Image, where the prefix may denote either an object or
+   --  a type/subtype.
 
    function Is_Object_Reference (N : Node_Id) return Boolean;
    --  Determines if the tree referenced by N represents an object. Both

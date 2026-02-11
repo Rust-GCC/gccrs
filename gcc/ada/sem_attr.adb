@@ -1575,7 +1575,7 @@ package body Sem_Attr is
          --  scalar types, so that the prefix can be an object, a named value,
          --  or a type. If the prefix is an object, there is no argument.
 
-         if Is_Object_Image (P) then
+         if Is_Object_Prefix (P) then
             Check_E0;
             Set_Etype (N, Str_Typ);
             Check_Image_Type (Etype (P));
@@ -4417,15 +4417,6 @@ package body Sem_Attr is
          elsif Is_Entity_Name (P) and then Is_Type (Entity (P)) then
             Check_Type;
             Check_Not_Incomplete_Type;
-
-            --  Attribute 'Finalization_Size is not defined for class-wide
-            --  types because it is not possible to know statically whether
-            --  a definite type will have controlled components or not.
-
-            if Is_Class_Wide_Type (Etype (P)) then
-               Error_Attr_P
-                 ("prefix of % attribute cannot denote a class-wide type");
-            end if;
 
          --  The prefix denotes an illegal construct
 

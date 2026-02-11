@@ -1042,7 +1042,7 @@ package body Exp_Imgv is
    --  Start of processing for Expand_Image_Attribute
 
    begin
-      if Is_Object_Image (Pref) then
+      if Is_Object_Prefix (Pref) then
          Rewrite_Object_Image (N, Pref, Name_Image, Standard_String);
          return;
       end if;
@@ -1856,7 +1856,7 @@ package body Exp_Imgv is
       Rtyp : Entity_Id;
 
    begin
-      if Is_Object_Image (Pref) then
+      if Is_Object_Prefix (Pref) then
          Rewrite_Object_Image (N, Pref, Name_Wide_Image, Standard_Wide_String);
          return;
       end if;
@@ -1965,7 +1965,7 @@ package body Exp_Imgv is
       Rtyp : Entity_Id;
 
    begin
-      if Is_Object_Image (Pref) then
+      if Is_Object_Prefix (Pref) then
          Rewrite_Object_Image
            (N, Pref, Name_Wide_Wide_Image, Standard_Wide_Wide_String);
          return;

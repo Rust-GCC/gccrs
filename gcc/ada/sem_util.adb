@@ -19849,11 +19849,11 @@ package body Sem_Util is
       end case;
    end Is_Null_Record_Type;
 
-   ---------------------
-   -- Is_Object_Image --
-   ---------------------
+   ----------------------
+   -- Is_Object_Prefix --
+   ----------------------
 
-   function Is_Object_Image (Prefix : Node_Id) return Boolean is
+   function Is_Object_Prefix (Prefix : Node_Id) return Boolean is
    begin
       --  Here we test for the case that the prefix is not a type and assume
       --  if it is not then it must be a named value or an object reference.
@@ -19863,7 +19863,7 @@ package body Sem_Util is
       return not (Is_Entity_Name (Prefix)
                   and then Is_Type (Entity (Prefix))
                   and then not Is_Current_Instance (Prefix));
-   end Is_Object_Image;
+   end Is_Object_Prefix;
 
    -------------------------
    -- Is_Object_Reference --

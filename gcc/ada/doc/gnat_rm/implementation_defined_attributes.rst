@@ -416,13 +416,15 @@ Attribute Finalization_Size
 .. index:: Finalization_Size
 
 The prefix of attribute ``Finalization_Size`` must be an object or
-a non-class-wide type. This attribute returns the size of any hidden data
+a type. This attribute returns the size of any hidden data
 reserved by the compiler to handle finalization-related actions. The type of
 the attribute is *universal_integer*.
 
 ``Finalization_Size`` yields a value of zero for a type with no controlled
 parts, an object whose type has no controlled parts, or an object of a
 class-wide type whose tag denotes a type with no controlled parts.
+For a class-wide type, ``Finalization_Size`` yields a non-zero value except
+if a No_Finalization restriction is in effect, in which case it yields zero.
 
 Note that only heap-allocated objects contain finalization data.
 
