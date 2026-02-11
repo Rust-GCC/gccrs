@@ -3,6 +3,7 @@
 // { dg-options "-O -g" }
 
 typedef unsigned uint32_t __attribute__((mode (__SI__)));
+typedef __INTPTR_TYPE__ intptr_t;
 
 struct DebugOnly {};
 template <class T>
@@ -95,7 +96,7 @@ struct AllocationSiteKey
   uint32_t offset : 24;
   int kind;
   typedef AllocationSiteKey Lookup;
-  static unsigned hash (AllocationSiteKey key) { return (long (key.script->code + key.offset)) ^ key.kind; }
+  static unsigned hash (AllocationSiteKey key) { return (intptr_t (key.script->code + key.offset)) ^ key.kind; }
 };
 void
 TypeCompartment::sweep (FreeOp *)
