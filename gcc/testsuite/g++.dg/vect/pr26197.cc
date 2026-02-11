@@ -3,7 +3,7 @@
 void g(const void*);
 struct B
 {
-  int* x[2];
+  int* x[4];
   int *p;
   B()
   {
