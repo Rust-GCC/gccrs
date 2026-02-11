@@ -1,4 +1,4 @@
-/* { dg-do compile { target { ! ia32 } } } */
+/* { dg-do compile { target { { ! ia32 } && glibc } } } */
 /* { dg-options "-O2 -ftree-vectorize -ffast-math -march=znver5 -mveclibabi=aocl" } */
 
 
