@@ -118,17 +118,94 @@ bool
 Early::resolve_rebind_import (NodeId use_dec_id,
 			      TopLevel::ImportKind &&rebind_import)
 {
+  rust_debug_loc (rebind_import.to_resolve.get_locus (),
+		  "resolve_rebind_import called '%s'",
+		  rebind_import.to_resolve.as_string ().c_str ());
+
+  NodeId import_id = UNKNOWN_NODEID;
+  auto &path = rebind_import.to_resolve;
+  auto &rebind = rebind_import.rebind.value ();
+
+  // rust_debug ("ARTHUR 1: %s", ctx.types.as_debug_string ().c_str ());
+
+  switch (rebind.get_new_bind_type ())
+    {
+    case AST::UseTreeRebind::NewBindType::IDENTIFIER:
+      // declared_name = rebind.get_identifier ().as_string ();
+      // locus = rebind.get_identifier ().get_locus ();
+      import_id = rebind.get_node_id ();
+      break;
+    case AST::UseTreeRebind::NewBindType::NONE:
+      {
+	const auto &segments = path.get_segments ();
+	// We don't want to insert `self` with `use module::self`
+	if (path.get_final_segment ().is_lower_self_seg ())
+	  {
+	    // Erroneous `self` or `{self}` use declaration
+	    if (segments.size () == 1)
+	      break;
+	    import_id = segments[segments.size () - 2].get_node_id ();
+	  }
+	else
+	  {
+	    import_id = path.get_final_segment ().get_node_id ();
+	  }
+	break;
+      }
+    case AST::UseTreeRebind::NewBindType::WILDCARD:
+      // nothing
+      break;
+    }
+
+  if (ctx.lookup (import_id))
+    return true;
+
   auto definitions = resolve_path_in_all_ns (rebind_import.to_resolve);
 
   // if we've found at least one definition, then we're good
   if (definitions.empty ())
     return false;
 
+  // if the last segment is `self`, then we need to insert the segment before
+  // that one as the definition
+  //  if (rebind_import.to_resolve.get_final_segment ().is_lower_self_seg ())
+  //    {
+  //      auto second_to_last
+  // = rebind_import.to_resolve.get_segments ().size () - 2;
+
+  //      rust_assert (second_to_last >= 0);
+
+  //      auto mod_segment
+  // = rebind_import.to_resolve.get_segments ().at (second_to_last);
+  //      auto resolved = ctx.lookup (mod_segment.get_node_id ());
+
+  //      rust_assert (resolved);
+
+  //      auto def = std::make_pair (Rib::Definition::Shadowable (*resolved),
+  // 			 Namespace::Types);
+
+  //      auto &imports = import_mappings.new_or_access (use_dec_id);
+
+  //      imports.emplace_back (
+  // ImportPair (std::move (rebind_import), ImportData::Rebind ({def})));
+
+  //      return true;
+  //    }
+
   auto &imports = import_mappings.new_or_access (use_dec_id);
+
+  rust_debug ("ARTHUR NS ns: %s",
+	      definitions.front ().second == Namespace::Types ? "Types"
+							      : "other :(");
 
   imports.emplace_back (
     ImportPair (std::move (rebind_import),
 		ImportData::Rebind (std::move (definitions))));
+
+  rust_debug_loc (rebind_import.to_resolve.get_locus (),
+		  "finished resolve_rebind_import successfully");
+
+  // rust_debug ("ARTHUR 2: %s", ctx.types.as_debug_string ().c_str ());
 
   return true;
 }
@@ -392,15 +469,26 @@ Early::finalize_simple_import (const Early::ImportPair &mapping)
 {
   // FIXME: We probably need to store namespace information
 
-  auto locus = mapping.import_kind.to_resolve.get_locus ();
+  auto import = mapping.import_kind.to_resolve;
+  // auto import_id = Analysis::Mappings::get ().get_next_node_id ();
+  auto import_id = import.get_final_segment ().get_node_id ();
   auto data = mapping.data;
-  auto identifier
-    = mapping.import_kind.to_resolve.get_final_segment ().get_segment_name ();
+  auto identifier = import.get_final_segment ().get_segment_name ();
+
+  rust_debug ("[ARTHUR] RESOLVING IMPORT ``%s```",
+	      mapping.import_kind.to_resolve.as_string ().c_str ());
 
   for (auto &&definition : data.definitions ())
-    toplevel
-      .insert_or_error_out (
-	identifier, locus, definition.first.get_node_id (), definition.second /* TODO: This isn't clear - it would be better if it was called .ns or something */);
+    {
+      dirty = true;
+
+      ctx.map_usage (Usage (import_id),
+		     Definition (definition.first.get_node_id ()));
+
+      toplevel
+	.insert_or_error_out (identifier,
+			      import.get_locus (), import_id, definition.second /* TODO: This isn't clear - it would be better if it was called .ns or something */);
+    }
 }
 
 void
@@ -428,11 +516,14 @@ Early::finalize_rebind_import (const Early::ImportPair &mapping)
 {
   // We can fetch the value here as `resolve_rebind` will only be called on
   // imports of the right kind
+  // auto import_id = Analysis::Mappings::get ().get_next_node_id ();
   auto &path = mapping.import_kind.to_resolve;
   auto &rebind = mapping.import_kind.rebind.value ();
   auto data = mapping.data;
 
   location_t locus = UNKNOWN_LOCATION;
+  NodeId import_id = UNKNOWN_NODEID;
+
   std::string declared_name;
 
   // FIXME: This needs to be done in `FinalizeImports`
@@ -441,6 +532,7 @@ Early::finalize_rebind_import (const Early::ImportPair &mapping)
     case AST::UseTreeRebind::NewBindType::IDENTIFIER:
       declared_name = rebind.get_identifier ().as_string ();
       locus = rebind.get_identifier ().get_locus ();
+      import_id = rebind.get_node_id ();
       break;
     case AST::UseTreeRebind::NewBindType::NONE:
       {
@@ -452,9 +544,13 @@ Early::finalize_rebind_import (const Early::ImportPair &mapping)
 	    if (segments.size () == 1)
 	      break;
 	    declared_name = segments[segments.size () - 2].as_string ();
+	    import_id = segments[segments.size () - 2].get_node_id ();
 	  }
 	else
-	  declared_name = path.get_final_segment ().as_string ();
+	  {
+	    declared_name = path.get_final_segment ().as_string ();
+	    import_id = path.get_final_segment ().get_node_id ();
+	  }
 	locus = path.get_final_segment ().get_locus ();
 	break;
       }
@@ -463,9 +559,25 @@ Early::finalize_rebind_import (const Early::ImportPair &mapping)
       return;
     }
 
+  // FIXME: This is a problem. We insert a definition as if it was the original
+  // definition, which means certain things that should error do not
+  //
+  // For example, the following is currently accepted by the compiler.
+  //
+  // mod foo { ... }
+  // use foo;
+
   for (auto &&definition : data.definitions ())
-    toplevel.insert_or_error_out (
-      declared_name, locus, definition.first.get_node_id (), definition.second /* TODO: This isn't clear - it would be better if it was called .ns or something */);
+    {
+      dirty = true;
+
+      ctx.map_usage (Usage (import_id),
+		     Definition (definition.first.get_node_id ()));
+
+      toplevel
+	.insert_or_error_out (declared_name,
+			      path.get_locus (), import_id, definition.second /* TODO: This isn't clear - it would be better if it was called .ns or something */);
+    }
 }
 
 void

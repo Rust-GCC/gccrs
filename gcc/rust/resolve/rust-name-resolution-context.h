@@ -719,6 +719,25 @@ public:
   /* If declared with #[prelude_import], the current standard library module */
   tl::optional<NodeId> prelude;
 
+  /**
+   * We've now collected every definition and import, and errored out when
+   * necessary if multiple definitions are colliding. Do a final flattening of
+   * the name resolution context to make it easier to digest for the late name
+   * resolution and type-checker. This basically turns the `resolved_nodes` map
+   * from a linked-list-like map to a regular, flat hashmap.
+   *
+   * FIXME: The documentation is wrong, this needs to also run after all usages
+   * have been *resolved* so after Late as well!!!
+   *
+   * TODO: Should this return something like the ImmutableNameResolutionCtx? Or
+   * set it up at least? And instead of mutating the `resolved_nodes` map,
+   * create a new one for the ImmutableNameResolutionCtx?
+   * Actually, since Late uses the NRCtx directly we should mutate this. Most
+   * later passes don't look at this map. So let's go for side-effects in a void
+   * function, yipee.
+   */
+  void flatten ();
+
 private:
   /* Map of "usage" nodes which have been resolved to a "definition" node */
   std::map<Usage, Definition> resolved_nodes;
