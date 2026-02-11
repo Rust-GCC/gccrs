@@ -12433,33 +12433,50 @@ gfc_resolve_forall_body (gfc_code *code, int nvar, gfc_expr **var_expr)
    nested forall constructs. This is used to allocate the needed memory
    in gfc_resolve_forall.  */
 
+static int gfc_count_forall_iterators (gfc_code *code);
+
+/* Return the deepest nested FORALL/DO CONCURRENT iterator count in CODE's
+   next-chain, descending into block arms such as IF/ELSE branches.  */
+
+static int
+gfc_max_forall_iterators_in_chain (gfc_code *code)
+{
+  int max_iters = 0;
+
+  for (gfc_code *c = code; c; c = c->next)
+    {
+      int sub_iters = 0;
+
+      if (c->op == EXEC_FORALL || c->op == EXEC_DO_CONCURRENT)
+	sub_iters = gfc_count_forall_iterators (c);
+      else if (c->block)
+	for (gfc_code *b = c->block; b; b = b->block)
+	  {
+	    int arm_iters = gfc_max_forall_iterators_in_chain (b->next);
+	    if (arm_iters > sub_iters)
+	      sub_iters = arm_iters;
+	  }
+
+      if (sub_iters > max_iters)
+	max_iters = sub_iters;
+    }
+
+  return max_iters;
+}
+
+
 static int
 gfc_count_forall_iterators (gfc_code *code)
 {
-  int max_iters, sub_iters, current_iters;
+  int current_iters = 0;
   gfc_forall_iterator *fa;
 
   gcc_assert (code->op == EXEC_FORALL || code->op == EXEC_DO_CONCURRENT);
-  max_iters = 0;
-  current_iters = 0;
 
   for (fa = code->ext.concur.forall_iterator; fa; fa = fa->next)
-    current_iters ++;
+    current_iters++;
 
-  code = code->block->next;
-
-  while (code)
-    {
-      if (code->op == EXEC_FORALL || code->op == EXEC_DO_CONCURRENT)
-        {
-          sub_iters = gfc_count_forall_iterators (code);
-          if (sub_iters > max_iters)
-            max_iters = sub_iters;
-        }
-      code = code->next;
-    }
-
-  return current_iters + max_iters;
+  return current_iters + gfc_max_forall_iterators_in_chain (code->block->next);
 }
 
 
