@@ -1,5 +1,6 @@
 /* { dg-do compile } */
 /* { dg-require-effective-target vect_int } */
+/* { dg-additional-options "-fno-tree-scev-cprop" } */
 
 int const_bar (void) __attribute__ ((__const__));
 int pure_bar (void) __attribute__ ((__pure__));

@@ -1,4 +1,5 @@
 /* { dg-do compile } */
+/* { dg-additional-options "-O3 -fno-ipa-cp-clone" } */
 
 typedef struct __GLcontextRec GLcontext;
 

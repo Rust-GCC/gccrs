@@ -1,4 +1,5 @@
 /* { dg-do compile } */
+/* { dg-additional-options "--param ggc-min-expand=0 --param ggc-min-heapsize=0" } */
 
 #include <stdarg.h>
 

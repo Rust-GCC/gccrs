@@ -1,4 +1,5 @@
 /* { dg-do compile } */
+/* { dg-additional-options "-fno-tree-fre" } */
 
 extern unsigned char g_5;
 extern int g_31, g_76;

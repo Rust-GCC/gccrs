@@ -2,6 +2,7 @@
 /* { dg-additional-options "--param vect-epilogues-nomask=0" } */
 /* { dg-require-effective-target vect_int } */
 /* { dg-add-options bind_pic_locally } */
+/* { dg-additional-options "-fno-section-anchors" } */
 
 #include <stdarg.h>
 #include "tree-vect.h"

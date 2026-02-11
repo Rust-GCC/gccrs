@@ -1,5 +1,6 @@
 /* { dg-require-effective-target section_anchors } */
 /* { dg-additional-options "--param vect-max-peeling-for-alignment=0" } */
+/* { dg-additional-options "-fsection-anchors" } */
 
 #include <stdarg.h>
 #include "tree-vect.h"

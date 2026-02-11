@@ -1,5 +1,6 @@
 /* PR tree-optimization/45241 */
 /* { dg-do compile } */
+/* { dg-additional-options "-fno-tree-pre" } */
 
 int
 foo (short x)

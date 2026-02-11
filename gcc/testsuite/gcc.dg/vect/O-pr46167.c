@@ -1,4 +1,5 @@
 /* { dg-do compile } */
+/* { dg-additional-options "-O" } */
 
 int foo (char c, int i)
 {

@@ -1,5 +1,6 @@
 /* { dg-require-effective-target vect_int } */
 /* { dg-additional-options "--param max-completely-peel-times=1" } */
+/* { dg-additional-options "-fno-tree-scev-cprop" } */
 
 #include <stdarg.h>
 #include "tree-vect.h"

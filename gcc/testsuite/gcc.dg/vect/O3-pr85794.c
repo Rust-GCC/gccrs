@@ -1,4 +1,5 @@
 /* { dg-do compile } */
+/* { dg-additional-options "-O3 -fno-ipa-cp-clone" } */
 
 int a, b, *c, d;
 int *f[6];

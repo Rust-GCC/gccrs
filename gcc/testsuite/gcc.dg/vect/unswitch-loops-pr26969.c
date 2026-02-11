@@ -1,5 +1,6 @@
 /* { dg-do compile } */
 /* { dg-require-effective-target vect_int } */
+/* { dg-additional-options "-funswitch-loops" } */
 
 void
 ruby_re_compile_fastmap (char *fastmap, int options)

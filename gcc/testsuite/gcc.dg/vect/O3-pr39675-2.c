@@ -1,5 +1,6 @@
 /* { dg-do compile } */
 /* { dg-require-effective-target vect_int } */
+/* { dg-additional-options "-O3 -fno-ipa-cp-clone" } */
 
 #define N 128
 

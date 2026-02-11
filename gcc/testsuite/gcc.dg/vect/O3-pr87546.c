@@ -1,3 +1,5 @@
+/* { dg-additional-options "-O3 -fno-ipa-cp-clone" } */
+
 #include "tree-vect.h"
 
 int a;

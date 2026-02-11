@@ -1,5 +1,6 @@
 /* { dg-do compile } */
 /* { dg-require-effective-target vect_float } */
+/* { dg-additional-options "-fno-tree-sra" } */
 
 typedef __complex__ float Value;
 typedef struct {

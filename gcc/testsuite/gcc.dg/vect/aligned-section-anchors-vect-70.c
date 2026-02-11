@@ -1,6 +1,7 @@
 /* { dg-do compile } */
 /* { dg-require-effective-target section_anchors } */
 /* { dg-require-effective-target vect_int } */
+/* { dg-additional-options "-fsection-anchors -fdump-ipa-increase_alignment-details" } */
 
 #define N 32
 
