@@ -2333,6 +2333,19 @@ ftms = {
   };
 };
 
+ftms = {
+  name = simd;
+  values = {
+    no_stdname = true; // TODO: change once complete
+    v = 202506;
+    cxxmin = 26;
+    extra_cond = "__cpp_structured_bindings >= 202411L "
+    "&& __cpp_expansion_statements >= 202411L "
+    "&& (__x86_64__ || __i386__)"; // TODO: lift initial restriction to x86
+    hosted = yes;
+  };
+};
+
 // Standard test specifications.
 stds[97] = ">= 199711L";
 stds[03] = ">= 199711L";

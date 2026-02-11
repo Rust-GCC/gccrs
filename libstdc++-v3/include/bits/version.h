@@ -2616,4 +2616,13 @@
 #endif /* !defined(__cpp_lib_contracts) */
 #undef __glibcxx_want_contracts
 
+#if !defined(__cpp_lib_simd)
+# if (__cplusplus >  202302L) && _GLIBCXX_HOSTED && (__cpp_structured_bindings >= 202411L && __cpp_expansion_statements >= 202411L && (__x86_64__ || __i386__))
+#  define __glibcxx_simd 202506L
+#  if defined(__glibcxx_want_all) || defined(__glibcxx_want_simd)
+#  endif
+# endif
+#endif /* !defined(__cpp_lib_simd) */
+#undef __glibcxx_want_simd
+
 #undef __glibcxx_want_all
