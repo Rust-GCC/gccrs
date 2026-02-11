@@ -969,7 +969,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       // Defined as a template to work around PR libstdc++/116440.
       template<typename = void>
 	constexpr explicit(!__convertible<const _Elements&...>())
-	tuple(const _Elements&... __elements)
+	tuple(const type_identity_t<_Elements>&... __elements)
 	noexcept(__nothrow_constructible<const _Elements&...>())
 	requires (__constructible<const _Elements&...>())
 	: _Inherited(__elements...)
@@ -1161,7 +1161,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       template<typename _Alloc>
 	constexpr explicit(!__convertible<const _Elements&...>())
 	tuple(allocator_arg_t __tag, const _Alloc& __a,
-	      const _Elements&... __elements)
+	      const type_identity_t<_Elements>&... __elements)
 	requires (__constructible<const _Elements&...>())
 	: _Inherited(__tag, __a, __elements...)
 	{ }
@@ -1470,14 +1470,14 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       template<bool _NotEmpty = (sizeof...(_Elements) >= 1),
 	       _ImplicitCtor<_NotEmpty, const _Elements&...> = true>
 	constexpr
-	tuple(const _Elements&... __elements)
+	tuple(const __type_identity_t<_Elements>&... __elements)
 	noexcept(__nothrow_constructible<const _Elements&...>())
 	: _Inherited(__elements...) { }
 
       template<bool _NotEmpty = (sizeof...(_Elements) >= 1),
 	       _ExplicitCtor<_NotEmpty, const _Elements&...> = false>
 	explicit constexpr
-	tuple(const _Elements&... __elements)
+	tuple(const __type_identity_t<_Elements>&... __elements)
 	noexcept(__nothrow_constructible<const _Elements&...>())
 	: _Inherited(__elements...) { }
 
@@ -1562,7 +1562,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	       _ImplicitCtor<_NotEmpty, const _Elements&...> = true>
 	_GLIBCXX20_CONSTEXPR
 	tuple(allocator_arg_t __tag, const _Alloc& __a,
-	      const _Elements&... __elements)
+	      const __type_identity_t<_Elements>&... __elements)
 	: _Inherited(__tag, __a, __elements...) { }
 
       template<typename _Alloc, bool _NotEmpty = (sizeof...(_Elements) >= 1),
@@ -1570,7 +1570,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	_GLIBCXX20_CONSTEXPR
 	explicit
 	tuple(allocator_arg_t __tag, const _Alloc& __a,
-	      const _Elements&... __elements)
+	      const __type_identity_t<_Elements>&... __elements)
 	: _Inherited(__tag, __a, __elements...) { }
 
       template<typename _Alloc, typename... _UElements,
