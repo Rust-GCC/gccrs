@@ -195,6 +195,14 @@ DefaultASTVisitor::visit (AST::LiteralExpr &expr)
 }
 
 void
+DefaultASTVisitor::visit (AST::Attribute &attribute)
+{
+  visit (attribute.get_path ());
+  if (attribute.has_attr_input ())
+    visit (attribute.get_attr_input ());
+}
+
+void
 DefaultASTVisitor::visit (AST::AttrInputLiteral &attr_input)
 {
   visit (attr_input.get_literal ());
