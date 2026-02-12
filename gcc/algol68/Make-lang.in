@@ -61,6 +61,7 @@ ALGOL68_OBJS = algol68/a68-lang.o \
                algol68/a68-unistr.o \
                algol68/a68-moids-diagnostics.o \
                algol68/a68-moids-misc.o \
+               algol68/a68-moids-sorting.o \
                algol68/a68-moids-to-string.o \
                algol68/a68-postulates.o \
                algol68/a68-diagnostics.o \

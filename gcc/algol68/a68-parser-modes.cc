@@ -1349,4 +1349,5 @@ a68_make_moid_list (MODULE_T *mod)
 
   compute_derived_modes (mod);
   a68_init_postulates ();
+  a68_sort_union_packs(TOP_MOID (mod));
 }

@@ -483,6 +483,10 @@ bool a68_is_c_mode (MOID_T *m, int level = 0);
 
 #define A68_IF_MODE_IS_WELL(n) (! ((n) == M_ERROR || (n) == M_UNDEFINED))
 
+/* a68-moids-sorting.cc */
+
+void a68_sort_union_packs (MOID_T* m);
+
 /* a68-parser-scope.cc  */
 
 void a68_scope_checker (NODE_T *p);

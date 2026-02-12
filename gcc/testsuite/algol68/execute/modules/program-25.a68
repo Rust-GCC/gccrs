@@ -1,0 +1,9 @@
+{ dg-modules "module25a module25b" }
+access Module_25a,Module_25b begin
+    Union_a a = 1;
+    Union_b b = 1;
+    assert(union_a_string(a) = "int");
+    assert(union_a_string(b) = "int");
+    assert(union_b_string(a) = "int");
+    assert(union_b_string(b) = "int")
+end
