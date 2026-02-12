@@ -43,9 +43,9 @@
 --  used without requiring the whole tasking implementation to be linked and
 --  elaborated.
 
+with System.Interrupt_Types;
 with System.Tasking;
 with System.Tasking.Protected_Objects.Entries;
-with System.OS_Interface;
 
 package System.Interrupts is
 
@@ -61,10 +61,7 @@ package System.Interrupts is
    --  Default value used when a pragma Interrupt_Handler or Attach_Handler is
    --  specified without an Interrupt_Priority pragma, see D.3(10).
 
-   type Ada_Interrupt_ID is range 0 .. System.OS_Interface.Max_Interrupt;
-   --  Avoid inheritance by Ada.Interrupts.Interrupt_ID of unwanted operations
-
-   type Interrupt_ID is range 0 .. System.OS_Interface.Max_Interrupt;
+   type Interrupt_ID is new System.Interrupt_Types.Preelab_Interrupt_ID;
 
    subtype System_Interrupt_Id is Interrupt_ID;
    --  This synonym is introduced so that the type is accessible through

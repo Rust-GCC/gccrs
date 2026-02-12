@@ -643,8 +643,15 @@ $(RTSDIR)/s-oscons.ads: ../stamp-gnatlib1-$(RTSDIR) s-oscons-tmplt.c gsocket.h .
 	    $(OSCONS_EXTRACT) ; \
 	    ../bldtools/oscons/xoscons s-oscons)
 
-gnatlib: ../stamp-gnatlib1-$(RTSDIR) ../stamp-gnatlib2-$(RTSDIR) $(RTSDIR)/s-oscons.ads
+$(RTSDIR)/a-intnam.ads: ../stamp-gnatlib1-$(RTSDIR)
+	touch $@
+
+$(RTSDIR)/s-intnam.ads: $(fsrcdir)/ada/xsintnam.sed $(RTSDIR)/a-intnam.ads
+	sed -E -f $(fsrcdir)/ada/xsintnam.sed $(RTSDIR)/a-intnam.ads | cat -s > $@
+
+gnatlib: ../stamp-gnatlib1-$(RTSDIR) ../stamp-gnatlib2-$(RTSDIR) $(RTSDIR)/s-oscons.ads $(RTSDIR)/s-intnam.ads
 	test -f $(RTSDIR)/s-oscons.ads || exit 1
+	test -f $(RTSDIR)/s-intnam.ads || exit 1
 # C files
 	$(MAKE) -C $(RTSDIR) \
 		CC="$(GCC_FOR_ADA_RTS)" \

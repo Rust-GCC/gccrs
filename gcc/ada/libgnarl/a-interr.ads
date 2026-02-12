@@ -33,13 +33,13 @@
 --                                                                          --
 ------------------------------------------------------------------------------
 
-with System.Interrupts;
+with System.Interrupt_Types;
 with System.Multiprocessors;
 with Ada.Task_Identification;
 
 package Ada.Interrupts is
 
-   type Interrupt_ID is new System.Interrupts.Ada_Interrupt_ID;
+   type Interrupt_ID is new System.Interrupt_Types.Preelab_Interrupt_ID;
 
    type Parameterless_Handler is access protected procedure;
 

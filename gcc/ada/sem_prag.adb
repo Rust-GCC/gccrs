@@ -20959,9 +20959,42 @@ package body Sem_Prag is
          --  given as a static integer expression which must be in the range of
          --  Ada.Interrupts.Interrupt_ID.
 
+         --  Note: There are two places where the runtime does significant work
+         --  with interrupt/signals:
+         --
+         --  1. __gnat_install_handler.
+         --  2. Ada.Interrupts and its partition closure, at least for some
+         --     configurations of the runtime.
+         --
+         --  1. kicks in by default whereas 2. only happens for applications
+         --  that have a with clause to Ada.Interrupts. Users who develop
+         --  mixed-language applications sometimes want to opt out of 1., and
+         --  pragma Interrupt_State is the preferred way to do that. So we
+         --  jump through a few hoops to make pragma Interrupt_State *not*
+         --  implicitly pull in Ada.Interrupts, as users who want to suppress
+         --  the effects of 1. surely don't want to enable the effects of 2.
+         --
+         --  The hoops in question are:
+         --
+         --  A. We have a Preelab_Interrupt_ID type in the runtime in a
+         --     preelaborate package. Interrupt_ID trivially derives from this
+         --     type, therefore we can correctly substitute
+         --     Preelab_Interrupt_ID for Interrupt_ID when analyzing
+         --     Interrupt_State pragmas.
+         --  B. The runtime configurations for which Ada.Interrupts has
+         --     significant side effects expose a preelaborate package,
+         --     System.Interrupt_Names, that mirrors Ada.Interrupts.Names. The
+         --     constant declarations of Ada.Interrupts.Names are replaced with
+         --     named numbers so there's no dependency on Ada.Interrupts.
+         --     System.Interrupt_Names is generated from Ada.Interrupts.Names
+         --     during the build of the runtime. Again, we can correctly
+         --     substitute System.Interrupt_Names for Ada.Interrupts.Names when
+         --     analyzing identifiers used in Interrupt_State pragmas.
+
          when Pragma_Interrupt_State => Interrupt_State : declare
-            Int_Id : constant Entity_Id := RTE (RE_Interrupt_ID);
-            --  This is the entity Ada.Interrupts.Interrupt_ID;
+            Int_Id : constant Entity_Id := RTE (RE_Preelab_Interrupt_ID);
+            --  This is the entity System.Interrupt_Types.Ada_Interrupt_Id,
+            --  from which Ada.Interrupts.Interrupt_ID directly derives.
 
             State_Type : Character;
             --  Set to 's'/'r'/'u' for System/Runtime/User
@@ -20975,8 +21008,15 @@ package body Sem_Prag is
             Arg1X : constant Node_Id := Get_Pragma_Arg (Arg1);
             --  The first argument to the pragma
 
+            Names_Package : constant Entity_Id :=
+              RTE
+                (if RTE_Available (RE_Interrupt_Names)
+                 then RE_Interrupt_Names
+                 else RE_Names);
+            --  The package we search for Interrupt_ID constants
+
             Int_Ent : Entity_Id;
-            --  Interrupt entity in Ada.Interrupts.Names
+            --  Interrupt entity in Names_Package
 
          begin
             GNAT_Pragma;
@@ -20991,9 +21031,9 @@ package body Sem_Prag is
 
             if Nkind (Arg1X) = N_Identifier then
 
-               --  Search list of names in Ada.Interrupts.Names
+               --  Search list of names in Names_Package
 
-               Int_Ent := First_Entity (RTE (RE_Names));
+               Int_Ent := First_Entity (Names_Package);
                loop
                   if No (Int_Ent) then
                      Error_Pragma_Arg ("invalid interrupt name", Arg1);

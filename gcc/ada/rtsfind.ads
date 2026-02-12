@@ -292,6 +292,8 @@ package Rtsfind is
       System_Img_LLLU,
       System_Img_Uns,
       System_Img_WChar,
+      System_Interrupt_Names,
+      System_Interrupt_Types,
       System_Interrupts,
       System_Long_Long_Float_Expon,
       System_Machine_Code,
@@ -1008,6 +1010,10 @@ package Rtsfind is
 
      RE_Image_Wide_Character,            -- System.Img_WChar
      RE_Image_Wide_Wide_Character,       -- System.Img_WChar
+
+     RE_Interrupt_Names,                 -- System.Interrupt_Names
+
+     RE_Preelab_Interrupt_ID,            -- System.Interrupt_Types
 
      RE_Bind_Interrupt_To_Entry,         -- System.Interrupts
      RE_Default_Interrupt_Priority,      -- System.Interrupts
@@ -2676,6 +2682,10 @@ package Rtsfind is
 
      RE_Image_Wide_Character             => System_Img_WChar,
      RE_Image_Wide_Wide_Character        => System_Img_WChar,
+
+     RE_Interrupt_Names                  => System_Interrupt_Names,
+
+     RE_Preelab_Interrupt_ID             => System_Interrupt_Types,
 
      RE_Bind_Interrupt_To_Entry          => System_Interrupts,
      RE_Default_Interrupt_Priority       => System_Interrupts,

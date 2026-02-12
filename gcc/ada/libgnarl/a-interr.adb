@@ -32,6 +32,8 @@
 
 with Ada.Unchecked_Conversion;
 
+with System.Interrupts;
+
 package body Ada.Interrupts is
 
    package SI renames System.Interrupts;
