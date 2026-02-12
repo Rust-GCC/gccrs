@@ -1067,57 +1067,6 @@ package body Ghost is
       end if;
    end Check_Ghost_Context_In_Generic_Association;
 
-   -----------------------------------
-   -- Check_Valid_Ghost_Declaration --
-   -----------------------------------
-
-   procedure Check_Valid_Ghost_Declaration (N : Node_Id) is
-      procedure Check_Valid_Assertion_Level (Id : Entity_Id; Ref : Node_Id);
-      --  Check that the the assertion level of the declared entity is
-      --  compatible with assertion level of the ghost region.
-
-      ---------------------------------
-      -- Check_Valid_Assertion_Level --
-      ---------------------------------
-
-      procedure Check_Valid_Assertion_Level (Id : Entity_Id; Ref : Node_Id) is
-         Id_Level     : constant Entity_Id := Ghost_Assertion_Level (Id);
-         Region_Level : constant Entity_Id :=
-           Ghost_Config.Ghost_Mode_Assertion_Level;
-      begin
-         --  This check is not applied for generic isntantiations
-
-         if Is_Generic_Instance (Id) then
-            return;
-         end if;
-
-         if not Is_Assertion_Level_Dependent (Id_Level, Region_Level) then
-            Error_Msg_Sloc := Sloc (Ref);
-
-            Error_Msg_N (Assertion_Level_Error_Msg, Ref);
-            Error_Msg_Name_1 := Chars (Id_Level);
-            Error_Msg_NE ("\& has assertion level %", Ref, Id);
-            Error_Msg_Name_1 := Chars (Region_Level);
-            Error_Msg_NE ("\& is declared within a region with %", Ref, Id);
-            Error_Msg_Name_1 := Chars (Region_Level);
-            Error_Msg_NE ("\assertion level of & should depend on %", Ref, Id);
-         end if;
-      end Check_Valid_Assertion_Level;
-
-      --  Local variables
-
-      Id : constant Entity_Id := Defining_Entity (N);
-
-   --  Start of processing for Check_Valid_Ghost_Declaration
-   begin
-      if not Is_Ghost_Entity (Id) or else Ghost_Config.Ghost_Mode = None
-      then
-         return;
-      end if;
-
-      Check_Valid_Assertion_Level (Id, N);
-   end Check_Valid_Ghost_Declaration;
-
    -----------------------------
    -- Check_Ghost_Equality_Op --
    -----------------------------
@@ -1516,6 +1465,57 @@ package body Ghost is
          end if;
       end if;
    end Check_Ghost_Type;
+
+   -----------------------------------
+   -- Check_Valid_Ghost_Declaration --
+   -----------------------------------
+
+   procedure Check_Valid_Ghost_Declaration (N : Node_Id) is
+      procedure Check_Valid_Assertion_Level (Id : Entity_Id; Ref : Node_Id);
+      --  Check that the the assertion level of the declared entity is
+      --  compatible with assertion level of the ghost region.
+
+      ---------------------------------
+      -- Check_Valid_Assertion_Level --
+      ---------------------------------
+
+      procedure Check_Valid_Assertion_Level (Id : Entity_Id; Ref : Node_Id) is
+         Id_Level     : constant Entity_Id := Ghost_Assertion_Level (Id);
+         Region_Level : constant Entity_Id :=
+           Ghost_Config.Ghost_Mode_Assertion_Level;
+      begin
+         --  This check is not applied for generic isntantiations
+
+         if Is_Generic_Instance (Id) then
+            return;
+         end if;
+
+         if not Is_Assertion_Level_Dependent (Id_Level, Region_Level) then
+            Error_Msg_Sloc := Sloc (Ref);
+
+            Error_Msg_N (Assertion_Level_Error_Msg, Ref);
+            Error_Msg_Name_1 := Chars (Id_Level);
+            Error_Msg_NE ("\& has assertion level %", Ref, Id);
+            Error_Msg_Name_1 := Chars (Region_Level);
+            Error_Msg_NE ("\& is declared within a region with %", Ref, Id);
+            Error_Msg_Name_1 := Chars (Region_Level);
+            Error_Msg_NE ("\assertion level of & should depend on %", Ref, Id);
+         end if;
+      end Check_Valid_Assertion_Level;
+
+      --  Local variables
+
+      Id : constant Entity_Id := Defining_Entity (N);
+
+   --  Start of processing for Check_Valid_Ghost_Declaration
+   begin
+      if not Is_Ghost_Entity (Id) or else Ghost_Config.Ghost_Mode = None
+      then
+         return;
+      end if;
+
+      Check_Valid_Assertion_Level (Id, N);
+   end Check_Valid_Ghost_Declaration;
 
    ----------------------
    -- Get_Ghost_Aspect --
