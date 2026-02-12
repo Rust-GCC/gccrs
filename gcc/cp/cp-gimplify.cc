@@ -923,8 +923,9 @@ cp_gimplify_expr (tree *expr_p, gimple_seq *pre_p, gimple_seq *post_p)
 	    fntype = TREE_TYPE (fntype);
 	  tree decl = cp_get_callee_fndecl_nofold (*expr_p);
 	  /* We can't just rely on 'decl' because virtual function callees
-	     are expressed as OBJ_TYPE_REF.  Though checking for METHOD_TYPE
-	     means we'll also sequence PMF calls, which is allowed under
+	     are expressed as OBJ_TYPE_REF.  Note that the xobj memfn check
+	     will also hold for calls of the form (&A::f)(a, ...) which does
+	     not require such sequencing, though it's allowed under
 	     "indeterminately sequenced".  */
 	  if (TREE_CODE (fntype) == METHOD_TYPE
 	      || (decl && DECL_LANG_SPECIFIC (decl)
