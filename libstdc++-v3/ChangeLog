@@ -1,3 +1,56 @@
+2026-02-11  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* include/bits/funcref_impl.h (function_ref::function_ref(_Fn&&)):
+	Use _S_static and _S_nttp invokers.
+	* include/bits/funcwrap.h (_Base_invoker::_S_static):
+	Define.
+	* include/bits/stl_function.h (std::__is_std_op_template)
+	(std::__is_std_op_wrapper) [__cplusplus > 201703L]:
+	Moved from std/ranges.
+	* include/std/ranges (__detail::__is_std_op_template)
+	(__detail::__is_std_op_wrapper): Moved to bits/stl_function.h.
+	* testsuite/20_util/function_ref/dangling.cc: New test.
+	* testsuite/20_util/function_ref/dangling_neg.cc: New test.
+
+2026-02-11  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	PR libstdc++/123875
+	* testsuite/29_atomics/atomic/cons/static_zero_padding.cc: Move to...
+	* testsuite/29_atomics/atomic/cons/zero_padding.cc: ...here and
+	added heap tests. Also fixed trailing whitespaces.
+
+2026-02-11  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/123908
+	* config/abi/pre/gnu.ver (GLIBCXX_3.4.35): Add exports for
+	std::__get_once_callable and std::__get_once_call.
+
+2026-02-11  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/bits/regex.tcc (__detail::__lookup_collatename): New
+	function.
+	(regex_traits::lookup_collatename): Use new function. Elide
+	redundant narrowing via ctype facet for regex_traits<char>.
+	(regex_traits::lookup_classname): Replace lookup table with
+	handwritten prefix match.
+
+2026-02-11  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/124015
+	* include/bits/regex.tcc (regex_traits::lookup_classname): Fix
+	handling of icase parameter.
+
+2026-02-11  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/124015
+	* testsuite/28_regex/traits/char/lookup_classname.cc: Check for
+	correct result for unrecognized classname. Check that lookup is
+	case insensitive. Check that all required classnames are
+	recognized. Check that icase flag only affects "lower" and
+	"upper".
+	* testsuite/28_regex/traits/wchar_t/lookup_classname.cc:
+	Likewise.
+
 2026-02-10  Tomasz Kamiński  <tkaminsk@redhat.com>
 
 	PR libstdc++/123875

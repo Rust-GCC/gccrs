@@ -1,3 +1,22 @@
+2026-02-11  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/124055
+	* kf.cc (kf_strcpy::impl_call_pre): Ensure bytes_to_copy is
+	initialized.  Assert that it was written to with non-null if
+	check_for_null_terminated_string_arg returns non-null.
+	* region-model.cc (region_model::scan_for_null_terminator):
+	Initialize *out_sval, and assert it is written to when
+	returning non-null.
+	(region_model::check_for_null_terminated_string_arg): Assert
+	that scan_for_null_terminator wrote to *out_sval if it
+	returns non-null.
+
+2026-02-11  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/123973
+	* region-model-manager.cc
+	(region_model_manager::maybe_fold_binop): Fold X + (Y - X) to Y.
+
 2026-02-10  David Malcolm  <dmalcolm@redhat.com>
 
 	PR analyzer/113496

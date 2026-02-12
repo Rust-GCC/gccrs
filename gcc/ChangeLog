@@ -1,3 +1,32 @@
+2026-02-11  Vladimir N. Makarov  <vmakarov@redhat.com>
+
+	PR rtl-optimization/121191
+	* lra-constraints.cc (get_matching_reload_reg_subreg): New.
+	(get_reload_reg, match_reload): Use it.
+
+2026-02-11  Tamar Christina  <tamar.christina@arm.com>
+
+	PR tree-optimization/124038
+	* tree-ssa-math-opts.cc (strip_nop_view_converts): Remove.
+	(convert_mult_to_fma): Undo stripping.
+
+2026-02-11  Jakub Jelinek  <jakub@redhat.com>
+
+	PR middle-end/124056
+	* cfgexpand.cc (expand_asm_stmt): If after_md_seq is non-NULL, emit
+	it at the start of after_rtl_seq instead of after fallthru_label.
+
+2026-02-11  Jakub Jelinek  <jakub@redhat.com>
+
+	PR rtl-optimization/116600
+	PR middle-end/123386
+	* cfgrtl.cc (force_nonfallthru_and_redirect): Don't do any
+	asm goto adjustments early, only note in asm_goto_edge if
+	any labels point originally to e->dest head.  After jumpblock
+	creation don't add an extra edge for asm_goto_edge, instead
+	adjust those labels pointing to former e->dest head to point
+	to jumpblock instead.
+
 2026-02-10  Dimitry Andric  <dimitry@andric.com>
 
 	PR libfortran/123366

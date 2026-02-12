@@ -1,3 +1,7 @@
+2026-02-11  Jose E. Marchesi  <jemarch@gnu.org>
+
+	* ga68-coding-guidelines.texi (Enquiry clauses): New section.
+
 2026-02-10  Jose E. Marchesi  <jemarch@gnu.org>
 
 	* a68-low-units.cc (a68_lower_formal_hole): Call

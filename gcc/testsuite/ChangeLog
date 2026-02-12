@@ -1,3 +1,191 @@
+2026-02-11  Joseph Myers  <josmyers@redhat.com>
+
+	* lib/tsan-dg.exp (orig_tsan_options_saved, orig_tsan_options):
+	New global variables.
+	(tsan_init): Save TSAN_OPTIONS and set it to color=never.
+	(tsan_finish): Restore TSAN_OPTIONS.
+	* c-c++-common/asan/pr64820.c: Include color=never in
+	ASAN_OPTIONS.
+	* c-c++-common/asan/use-after-return-1.c: Likewise.
+
+2026-02-11  Richard Biener  <rguenther@suse.de>
+
+	* gcc.dg/vect/bb-slp-cond-1.c: Disable epilogue vectorization.
+
+2026-02-11  Chris Bazley  <Chris.Bazley@arm.com>
+
+	* gcc.target/aarch64/rev_32_1.c: New test.
+	* gcc.target/aarch64/rev_32_2.c: New test.
+	* gcc.target/aarch64/rev_32_3.c: New test
+
+2026-02-11  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/124055
+	* gcc.dg/analyzer/ice-pr124055-1.c: New test.
+	* gcc.dg/analyzer/ice-pr124055-2.c: New test.
+
+2026-02-11  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/123973
+	* c-c++-common/analyzer/infinite-recursion-pr123973.c: New test.
+
+2026-02-11  Richard Biener  <rguenther@suse.de>
+
+	* gcc.dg/vect/vect.exp: Remove remaining filename based
+	testcase options in favor of dg-additional-options.
+	* gcc.dg/vect/O-pr46167.c: Use dg-additional-options.
+	* gcc.dg/vect/O1-pr33854.c: Likewise.
+	* gcc.dg/vect/O1-pr41008.c: Likewise.
+	* gcc.dg/vect/Os-vect-95.c: Likewise.
+	* gcc.dg/vect/ggc-pr37574.c: Likewise.
+	* gcc.dg/vect/no-fre-pre-pr50208.c: Likewise.
+	* gcc.dg/vect/no-tree-dom-vect-bug.c: Likewise.
+	* gcc.dg/vect/no-tree-fre-pr50039.c: Likewise.
+	* gcc.dg/vect/no-tree-pre-pr45241.c: Likewise.
+	* gcc.dg/vect/no-tree-pre-slp-29.c: Likewise.
+	* gcc.dg/vect/unswitch-loops-pr26969.c: Likewise.
+	* gcc.dg/vect/O3-pr36098.c: Likewise.
+	* gcc.dg/vect/O3-pr39675-2.c: Likewise.
+	* gcc.dg/vect/O3-pr41881.c: Likewise.
+	* gcc.dg/vect/O3-pr45971.c: Likewise.
+	* gcc.dg/vect/O3-pr46077.c: Likewise.
+	* gcc.dg/vect/O3-pr49087.c: Likewise.
+	* gcc.dg/vect/O3-pr70130.c: Likewise.
+	* gcc.dg/vect/O3-pr85794.c: Likewise.
+	* gcc.dg/vect/O3-pr87546.c: Likewise.
+	* gcc.dg/vect/O3-slp-reduc-10.c: Likewise.
+	* gcc.dg/vect/O3-vect-pr32243.c: Likewise.
+	* gcc.dg/vect/O3-vect-pr34223.c: Likewise.
+	* gcc.dg/vect/O3-vect-pr61917.c: Likewise.
+	* gcc.dg/vect/aligned-section-anchors-nest-1.c: Likewise.
+	* gcc.dg/vect/aligned-section-anchors-vect-70.c: Likewise.
+	* gcc.dg/vect/aligned-section-anchors-vect-71.c: Likewise.
+	* gcc.dg/vect/aligned-section-anchors-vect-72.c: Likewise.
+	* gcc.dg/vect/no-scevccp-noreassoc-outer-1.c: Likewise.
+	* gcc.dg/vect/no-scevccp-noreassoc-outer-2.c: Likewise.
+	* gcc.dg/vect/no-scevccp-noreassoc-outer-3.c: Likewise.
+	* gcc.dg/vect/no-scevccp-noreassoc-outer-4.c: Likewise.
+	* gcc.dg/vect/no-scevccp-noreassoc-outer-5.c: Likewise.
+	* gcc.dg/vect/no-scevccp-noreassoc-slp-reduc-7.c: Likewise.
+	* gcc.dg/vect/no-scevccp-outer-1.c: Likewise.
+	* gcc.dg/vect/no-scevccp-outer-10.c: Likewise.
+	* gcc.dg/vect/no-scevccp-outer-10a.c: Likewise.
+	* gcc.dg/vect/no-scevccp-outer-10b.c: Likewise.
+	* gcc.dg/vect/no-scevccp-outer-11.c: Likewise.
+	* gcc.dg/vect/no-scevccp-outer-12.c: Likewise.
+	* gcc.dg/vect/no-scevccp-outer-13.c: Likewise.
+	* gcc.dg/vect/no-scevccp-outer-14.c: Likewise.
+	* gcc.dg/vect/no-scevccp-outer-15.c: Likewise.
+	* gcc.dg/vect/no-scevccp-outer-16.c: Likewise.
+	* gcc.dg/vect/no-scevccp-outer-17.c: Likewise.
+	* gcc.dg/vect/no-scevccp-outer-18.c: Likewise.
+	* gcc.dg/vect/no-scevccp-outer-19.c: Likewise.
+	* gcc.dg/vect/no-scevccp-outer-2.c: Likewise.
+	* gcc.dg/vect/no-scevccp-outer-20.c: Likewise.
+	* gcc.dg/vect/no-scevccp-outer-21.c: Likewise.
+	* gcc.dg/vect/no-scevccp-outer-22.c: Likewise.
+	* gcc.dg/vect/no-scevccp-outer-3.c: Likewise.
+	* gcc.dg/vect/no-scevccp-outer-4.c: Likewise.
+	* gcc.dg/vect/no-scevccp-outer-5.c: Likewise.
+	* gcc.dg/vect/no-scevccp-outer-6-global.c: Likewise.
+	* gcc.dg/vect/no-scevccp-outer-6.c: Likewise.
+	* gcc.dg/vect/no-scevccp-outer-7.c: Likewise.
+	* gcc.dg/vect/no-scevccp-outer-8.c: Likewise.
+	* gcc.dg/vect/no-scevccp-outer-9.c: Likewise.
+	* gcc.dg/vect/no-scevccp-outer-9a.c: Likewise.
+	* gcc.dg/vect/no-scevccp-outer-9b.c: Likewise.
+	* gcc.dg/vect/no-scevccp-pr49199.c: Likewise.
+	* gcc.dg/vect/no-scevccp-pr86725-1.c: Likewise.
+	* gcc.dg/vect/no-scevccp-pr86725-2.c: Likewise.
+	* gcc.dg/vect/no-scevccp-pr86725-3.c: Likewise.
+	* gcc.dg/vect/no-scevccp-pr86725-4.c: Likewise.
+	* gcc.dg/vect/no-scevccp-pr86725-5.c: Likewise.
+	* gcc.dg/vect/no-scevccp-slp-30.c: Likewise.
+	* gcc.dg/vect/no-scevccp-slp-31.c: Likewise.
+	* gcc.dg/vect/no-scevccp-vect-iv-1.c: Likewise.
+	* gcc.dg/vect/no-scevccp-vect-iv-2.c: Likewise.
+	* gcc.dg/vect/no-scevccp-vect-iv-3.c: Likewise.
+	* gcc.dg/vect/no-section-anchors-vect-31.c: Likewise.
+	* gcc.dg/vect/no-section-anchors-vect-34.c: Likewise.
+	* gcc.dg/vect/no-section-anchors-vect-36.c: Likewise.
+	* gcc.dg/vect/no-section-anchors-vect-64.c: Likewise.
+	* gcc.dg/vect/no-section-anchors-vect-65.c: Likewise.
+	* gcc.dg/vect/no-section-anchors-vect-66.c: Likewise.
+	* gcc.dg/vect/no-section-anchors-vect-68.c: Likewise.
+	* gcc.dg/vect/no-section-anchors-vect-69.c: Likewise.
+	* gcc.dg/vect/no-section-anchors-vect-outer-4h.c: Likewise.
+	* gcc.dg/vect/no-trapping-math-1.c: Likewise.
+	* gcc.dg/vect/no-trapping-math-2.c: Likewise.
+	* gcc.dg/vect/no-trapping-math-vect-111.c: Likewise.
+	* gcc.dg/vect/no-trapping-math-vect-ifcvt-11.c: Likewise.
+	* gcc.dg/vect/no-trapping-math-vect-ifcvt-12.c: Likewise.
+	* gcc.dg/vect/no-trapping-math-vect-ifcvt-13.c: Likewise.
+	* gcc.dg/vect/no-trapping-math-vect-ifcvt-14.c: Likewise.
+	* gcc.dg/vect/no-trapping-math-vect-ifcvt-15.c: Likewise.
+	* gcc.dg/vect/section-anchors-pr27770.c: Likewise.
+	* gcc.dg/vect/section-anchors-vect-69.c: Likewise.
+	* gcc.dg/vect/no-tree-reassoc-bb-slp-12.c: Rename to ...
+	* gcc.dg/vect/bb-slp-12.c: ... this.  Use dg-additional-options.
+	* gcc.dg/vect/fast-math-bb-slp-call-1.c: Rename to ...
+	* gcc.dg/vect/bb-slp-call-1.c: ... this.
+	* gcc.dg/vect/fast-math-bb-slp-call-2.c: Rename to ...
+	* gcc.dg/vect/bb-slp-call-2.c: ... this.
+	* gcc.dg/vect/fast-math-bb-slp-call-3.c: Rename to ...
+	* gcc.dg/vect/bb-slp-call-3.c: ... this.
+	* gcc.dg/vect/no-tree-sra-bb-slp-pr50730.c: Rename to ...
+	* gcc.dg/vect/bb-slp-pr50730.c: ... this.  Use dg-additional-options.
+
+2026-02-11  Tamar Christina  <tamar.christina@arm.com>
+
+	PR tree-optimization/124038
+	* gcc.target/riscv/rvv/pr124038.c: New test.
+
+2026-02-11  Eric Botcazou  <ebotcazou@adacore.com>
+	    Liam Powell  <liam@liampwll.com>
+
+	* gnat.dg/allocator4.adb: New test.
+
+2026-02-11  Jonathan Yong  <10walls@gmail.com>
+
+	* g++.dg/expr/cast11.C: Cast to intptr_t instead of long.
+	* g++.dg/opt/pr55717.C: Ditto.
+	* g++.dg/warn/Wunused-value-1.C: Ditto.
+
+2026-02-11  Jakub Jelinek  <jakub@redhat.com>
+
+	PR middle-end/124056
+	* gcc.target/i386/pr124056.c: New test.
+
+2026-02-11  Jakub Jelinek  <jakub@redhat.com>
+
+	PR rtl-optimization/116600
+	PR middle-end/123386
+	* gcc.c-torture/compile/pr116600.c: New test.
+	* gcc.c-torture/compile/pr123386.c: New test.
+
+2026-02-11  Richard Biener  <rguenther@suse.de>
+
+	* g++.dg/vect/vect.exp: Remove param-max-aliased-* handling.
+	* g++.dg/vect/param-max-aliased-pr26197.cc: Rename to ...
+	* g++.dg/vect/pr26197.cc: ... this and fixup array overflow.
+
+2026-02-11  Boris Staletic  <boris.staletic@protonmail.com>
+
+	PR c++/123660
+	PR c++/123661
+	* g++.dg/reflect/splice10.C: New test.
+	* g++.dg/reflect/splice11.C: New test.
+
+2026-02-11  Alexandre Oliva  <oliva@adacore.com>
+
+	* gcc.target/i386/vectorize-aocl1.c: Require glibc.
+
+2026-02-11  Alexandre Oliva  <oliva@adacore.com>
+
+	PR tree-optimization/114375
+	* gcc.dg/vect/vect-pr114375.c: Adjust dump pattern requirement
+	to match that of options.
+
 2026-02-10  Alice Carlotti  <alice.carlotti@arm.com>
 
 	PR target/123624

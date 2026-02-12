@@ -1,3 +1,33 @@
+2026-02-11  Steve Baird  <baird@adacore.com>
+
+	PR ada/124016
+	* doc/gnat_rm/implementation_defined_attributes.rst: Document
+	that Finalization_Size attribute is defined for class-wide types.
+	* exp_attr.adb (Expand_N_Attribute_Reference) <Finalization_Size>:
+	Add support for class-wide types.
+	<Size>: Raise Constraint_Error for class-wide types.
+	* exp_imgv.adb (Expand_Image_Attribute): Adjust call to renaming.
+	(Expand_Wide_Image_Attribute): Likewise.
+	(Expand_Wide_Wide_Image_Attribute): Likewise.
+	* sem_attr.ads (Finalization_Size): Update comment.
+	* sem_attr.adb (Analyze_Image): Adjust call to renaming.
+	(Analyze_Attribute): Remove check disallowing Finalization_Size
+	attribute for class-wide types.
+	* sem_util.ads (Is_Object_Image): Rename into...
+	(Is_Object_Prefix): ...this.
+	* sem_util.adb (Is_Object_Image): Rename into...
+	(Is_Object_Prefix): ...this.
+	* libgnat/a-cbinho.ads (Extra_Storage): Use Descriptor_Size and
+	Finalization_Size attributes.
+	(Max_Allocation_Overhead_In_Storage_Elements): Delete.
+
+2026-02-11  Eric Botcazou  <ebotcazou@adacore.com>
+	    Liam Powell  <liam@liampwll.com>
+
+	PR ada/124054
+	* exp_util.adb (Build_Allocate_Deallocate_Proc): Tidy up and pass
+	Proc_Id as the new scope in the call to the New_Copy_Tree function.
+
 2026-02-08  Eric Botcazou  <ebotcazou@adacore.com>
 	    Liam Powell  <liam@liampwll.com>
 

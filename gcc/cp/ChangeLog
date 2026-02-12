@@ -1,3 +1,10 @@
+2026-02-11  Boris Staletic  <boris.staletic@protonmail.com>
+
+	PR c++/123660
+	PR c++/123661
+	* pt.cc (tsubst_splice_expr): Handle pointers to non-static members
+	from splice expressions
+
 2026-02-10  Marek Polacek  <polacek@redhat.com>
 
 	* parser.cc (struct saved_token_sentinel): Save input_location.
