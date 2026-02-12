@@ -252,7 +252,7 @@ namespace __detail
   // we need to spare one more time for potential group capture.
   template<typename _BiIter, typename _Alloc, typename _TraitsT>
     void _Executor<_BiIter, _Alloc, _TraitsT>::
-    _M_rep_once_more(_Match_mode __match_mode, _StateIdT __i)
+    _M_rep_once_more(_Match_mode, _StateIdT __i)
     {
       const auto& __state = _M_nfa[__i];
       auto& __rep_count = _M_rep_count[__i];
@@ -282,7 +282,7 @@ namespace __detail
   // given greedy mode.
   template<typename _BiIter, typename _Alloc, typename _TraitsT>
     void _Executor<_BiIter, _Alloc, _TraitsT>::
-    _M_handle_repeat(_Match_mode __match_mode, _StateIdT __i)
+    _M_handle_repeat(_Match_mode, _StateIdT __i)
     {
       const auto& __state = _M_nfa[__i];
       // Greedy.
@@ -324,7 +324,7 @@ namespace __detail
 
   template<typename _BiIter, typename _Alloc, typename _TraitsT>
     void _Executor<_BiIter, _Alloc, _TraitsT>::
-    _M_handle_subexpr_begin(_Match_mode __match_mode, _StateIdT __i)
+    _M_handle_subexpr_begin(_Match_mode, _StateIdT __i)
     {
       const auto& __state = _M_nfa[__i];
       auto& __res = _M_cur_results[__state._M_subexpr];
@@ -337,7 +337,7 @@ namespace __detail
 
   template<typename _BiIter, typename _Alloc, typename _TraitsT>
     void _Executor<_BiIter, _Alloc, _TraitsT>::
-    _M_handle_subexpr_end(_Match_mode __match_mode, _StateIdT __i)
+    _M_handle_subexpr_end(_Match_mode, _StateIdT __i)
     {
       const auto& __state = _M_nfa[__i];
       auto& __res = _M_cur_results[__state._M_subexpr];
@@ -353,7 +353,7 @@ namespace __detail
 
   template<typename _BiIter, typename _Alloc, typename _TraitsT>
     inline void _Executor<_BiIter, _Alloc, _TraitsT>::
-    _M_handle_line_begin_assertion(_Match_mode __match_mode, _StateIdT __i)
+    _M_handle_line_begin_assertion(_Match_mode, _StateIdT __i)
     {
       const auto& __state = _M_nfa[__i];
       if (_M_at_begin())
@@ -362,7 +362,7 @@ namespace __detail
 
   template<typename _BiIter, typename _Alloc, typename _TraitsT>
     inline void _Executor<_BiIter, _Alloc, _TraitsT>::
-    _M_handle_line_end_assertion(_Match_mode __match_mode, _StateIdT __i)
+    _M_handle_line_end_assertion(_Match_mode, _StateIdT __i)
     {
       const auto& __state = _M_nfa[__i];
       if (_M_at_end())
@@ -371,7 +371,7 @@ namespace __detail
 
   template<typename _BiIter, typename _Alloc, typename _TraitsT>
     inline void _Executor<_BiIter, _Alloc, _TraitsT>::
-    _M_handle_word_boundary(_Match_mode __match_mode, _StateIdT __i)
+    _M_handle_word_boundary(_Match_mode, _StateIdT __i)
     {
       const auto& __state = _M_nfa[__i];
       if (_M_word_boundary() == !__state._M_neg)
@@ -382,7 +382,7 @@ namespace __detail
   // We recursively invoke our algorithm to match the sub-NFA.
   template<typename _BiIter, typename _Alloc, typename _TraitsT>
     void _Executor<_BiIter, _Alloc, _TraitsT>::
-    _M_handle_subexpr_lookahead(_Match_mode __match_mode, _StateIdT __i)
+    _M_handle_subexpr_lookahead(_Match_mode, _StateIdT __i)
     {
       const auto& __state = _M_nfa[__i];
       if (_M_lookahead(__state._M_alt) == !__state._M_neg)
@@ -391,7 +391,7 @@ namespace __detail
 
   template<typename _BiIter, typename _Alloc, typename _TraitsT>
     void _Executor<_BiIter, _Alloc, _TraitsT>::
-    _M_handle_match(_Match_mode __match_mode, _StateIdT __i)
+    _M_handle_match(_Match_mode, _StateIdT __i)
     {
       const auto& __state = _M_nfa[__i];
       if (_M_current == _M_end)
@@ -463,7 +463,7 @@ namespace __detail
   // If matched, keep going; else just return and try another state.
   template<typename _BiIter, typename _Alloc, typename _TraitsT>
     void _Executor<_BiIter, _Alloc, _TraitsT>::
-    _M_handle_backref(_Match_mode __match_mode, _StateIdT __i)
+    _M_handle_backref(_Match_mode, _StateIdT __i)
     {
       __glibcxx_assert(_M_search_mode == _Search_mode::_DFS);
 
@@ -540,7 +540,7 @@ namespace __detail
 
   template<typename _BiIter, typename _Alloc, typename _TraitsT>
     void _Executor<_BiIter, _Alloc, _TraitsT>::
-    _M_handle_alternative(_Match_mode __match_mode, _StateIdT __i)
+    _M_handle_alternative(_Match_mode, _StateIdT __i)
     {
       const auto& __state = _M_nfa[__i];
       if (_M_nfa._M_flags & regex_constants::ECMAScript)
