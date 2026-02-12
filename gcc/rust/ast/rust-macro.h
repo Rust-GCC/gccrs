@@ -955,6 +955,11 @@ public:
 
   void accept_vis (ASTVisitor &vis) override;
 
+  SimplePath to_path_item () const override
+  {
+    return SimplePath::from_str (ident.as_string (), ident_locus);
+  }
+
   Identifier &get_ident () { return ident; }
 
   location_t get_locus () const override { return ident_locus; }
