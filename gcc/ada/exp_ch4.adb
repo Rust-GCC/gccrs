@@ -12543,6 +12543,17 @@ package body Exp_Ch4 is
          --  Start of processing for Tagged_Conversion
 
          begin
+            --  When the operand is a qualified expression of an aggregate,
+            --  force its evaluation by capturing its value in a constant
+            --  (to ensure full initialization of the tagged object).
+
+            if Nkind (Operand) = N_Qualified_Expression
+              and then Nkind (Expression (Operand)) in N_Aggregate
+                                                     | N_Extension_Aggregate
+            then
+               Force_Evaluation (Operand, Mode => Strict);
+            end if;
+
             --  Handle entities from the limited view
 
             if Is_Access_Type (Operand_Type) then
