@@ -7232,6 +7232,16 @@ fold_offsetof (tree expr, tree type, enum tree_code ctx)
     case ERROR_MARK:
       return expr;
 
+    case REALPART_EXPR:
+     return fold_offsetof (TREE_OPERAND (expr, 0), type, code);
+
+    case IMAGPART_EXPR:
+     base = fold_offsetof (TREE_OPERAND (expr, 0), type, code);
+     if (base == error_mark_node)
+	return base;
+     off = TYPE_SIZE_UNIT (TREE_TYPE (TREE_TYPE (TREE_OPERAND (expr, 0))));
+     break;
+
     case VAR_DECL:
       error ("cannot apply %<offsetof%> to static data member %qD", expr);
       return error_mark_node;
