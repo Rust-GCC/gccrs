@@ -1,3 +1,5 @@
+/* { dg-skip-if "template file" { *-*-* } } */
+
 #include <complex.h>
 
 void fms0 (_Complex TYPE a[restrict N], _Complex TYPE b[restrict N],

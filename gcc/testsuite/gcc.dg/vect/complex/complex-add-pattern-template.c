@@ -1,3 +1,5 @@
+/* { dg-skip-if "template file" { *-*-* } } */
+
 void add90 (TYPE a[restrict N], TYPE b[restrict N], TYPE c[restrict N])
 {
 #if defined (UNROLL)

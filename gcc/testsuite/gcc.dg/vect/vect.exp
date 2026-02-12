@@ -59,7 +59,7 @@ lappend DEFAULT_VECTCFLAGS "-O2"
 # "-O -fdump-tree-veclower2"
 lappend VEC_FLAGS "-O" "-fdump-tree-veclower2"
 et-dg-runtest dg-runtest [lsort [glob -nocomplain \
-	$srcdir/$subdir/vec-scal-*.\[cS\]]] \
+	$srcdir/$subdir/veclower/*.\[cS\]]] \
 	"" $VEC_FLAGS
 
 set VECT_SLP_CFLAGS $DEFAULT_VECTCFLAGS
@@ -73,60 +73,20 @@ if { [check_effective_target_lto] } {
     lappend VECT_ADDITIONAL_FLAGS "-flto -ffat-lto-objects"
 }
 foreach flags $VECT_ADDITIONAL_FLAGS {
-    et-dg-runtest dg-runtest [lsort \
-	[glob -nocomplain $srcdir/$subdir/pr*.\[cS\]]] \
-	$flags $DEFAULT_VECTCFLAGS
-    et-dg-runtest dg-runtest [lsort \
-	[glob -nocomplain $srcdir/$subdir/vect-*.\[cS\]]] \
-	$flags $DEFAULT_VECTCFLAGS
+    set tests ""
+    foreach file [glob -nocomplain $srcdir/$subdir/*.\[cS\]] {
+	if { ! [string match $srcdir/$subdir/bb-slp-*.\[cS\] $file] } {
+	   lappend tests $file
+	}
+    }
+    et-dg-runtest dg-runtest $tests $flags $DEFAULT_VECTCFLAGS
+
     et-dg-runtest dg-runtest [lsort \
 	[glob -nocomplain $srcdir/$subdir/tsvc/*.\[cS\]]] \
 	$flags $DEFAULT_VECTCFLAGS
-    et-dg-runtest dg-runtest [lsort \
-	[glob -nocomplain $srcdir/$subdir/slp-*.\[cS\]]] \
-	$flags $DEFAULT_VECTCFLAGS
-    et-dg-runtest dg-runtest [lsort \
-	[glob -nocomplain $srcdir/$subdir/no-*.\[cS\]]] \
-	$flags $DEFAULT_VECTCFLAGS
-    et-dg-runtest dg-runtest [lsort \
-	[glob -nocomplain $srcdir/$subdir/fast-math-\[ipsvc\]*.\[cS\]]] \
-	$flags $DEFAULT_VECTCFLAGS
-    et-dg-runtest dg-runtest [lsort \
-	[glob -nocomplain $srcdir/$subdir/wrapv-*.\[cS\]]] \
-	$flags $DEFAULT_VECTCFLAGS
-    et-dg-runtest dg-runtest [lsort \
-	[glob -nocomplain $srcdir/$subdir/trapv-*.\[cS\]]] \
-	$flags $DEFAULT_VECTCFLAGS
-    et-dg-runtest dg-runtest [lsort \
-	[glob -nocomplain $srcdir/$subdir/unswitch-loops-*.\[cS\]]] \
-	$flags $DEFAULT_VECTCFLAGS
-    et-dg-runtest dg-runtest [lsort \
-	[glob -nocomplain $srcdir/$subdir/ggc-*.\[cS\]]] \
-	$flags $DEFAULT_VECTCFLAGS
-    et-dg-runtest dg-runtest [lsort \
-	[glob -nocomplain $srcdir/$subdir/Os-vect-*.\[cS\]]] \
-	$flags $DEFAULT_VECTCFLAGS
-    et-dg-runtest dg-runtest [lsort \
-	[glob -nocomplain $srcdir/$subdir/O3-*.\[cS\]]] \
-	$flags $DEFAULT_VECTCFLAGS
-    et-dg-runtest dg-runtest [lsort \
-	[glob -nocomplain $srcdir/$subdir/O1-*.\[cS\]]] \
-	$flags $DEFAULT_VECTCFLAGS
-    et-dg-runtest dg-runtest [lsort \
-	[glob -nocomplain $srcdir/$subdir/O-*.\[cS\]]] \
-	$flags $DEFAULT_VECTCFLAGS
-    et-dg-runtest dg-runtest [lsort \
-	[glob -nocomplain $srcdir/$subdir/section-anchors-*.\[cS\]]] \
-	$flags $DEFAULT_VECTCFLAGS
-    et-dg-runtest dg-runtest [lsort \
-	[glob -nocomplain $srcdir/$subdir/aligned-section-anchors-*.\[cS\]]] \
-	$flags $DEFAULT_VECTCFLAGS
-    et-dg-runtest dg-runtest [lsort \
-	[glob -nocomplain $srcdir/$subdir/nodump-*.\[cS\]]] \
-	$flags $DEFAULT_VECTCFLAGS
 
     et-dg-runtest dg-runtest [lsort \
-	[glob -nocomplain $srcdir/$subdir/bb-slp*.\[cS\]]] \
+	[glob -nocomplain $srcdir/$subdir/bb-slp-*.\[cS\]]] \
 	$flags $VECT_SLP_CFLAGS
 }
 
