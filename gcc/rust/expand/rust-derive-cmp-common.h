@@ -87,8 +87,8 @@ public:
   MatchCase strukt (EnumItem &variant);
 
 private:
-  const std::string &enum_path;
-  const std::string &variant_path;
+  std::string enum_path;
+  std::string variant_path;
   ExprFn fn;
   Builder &builder;
 };

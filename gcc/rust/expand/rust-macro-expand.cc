@@ -40,7 +40,14 @@ MacroExpander::expand_decl_macro (location_t invoc_locus,
 {
   // ensure that both invocation and rules are in a valid state
   rust_assert (!invoc.is_marked_for_strip ());
-  rust_assert (!rules_def.is_marked_for_strip ());
+  /* Note: We can't safely check if rules_def is marked for strip here because
+   * rules_def might be a dangling pointer to a deleted macro definition.
+   * This can happen when a macro definition has an invalid attribute (such as
+   * #[x] where x is not an attribute macro), causing the item to be deleted
+   * during attribute processing, but the pointer in in the invocation map still
+   * exists.
+   */
+  // rust_assert (!rules_def.is_marked_for_strip ());
   rust_assert (rules_def.get_macro_rules ().size () > 0);
 
   /* probably something here about parsing invoc and rules def token trees to
@@ -317,6 +324,9 @@ MacroExpander::expand_invoc (AST::MacroInvocation &invoc,
     return;
 
   auto rdef = rules_def.value ();
+
+  if (!rdef)
+    return;
 
   // We store the last expanded invocation and macro definition for error
   // reporting in case the recursion limit is reached
