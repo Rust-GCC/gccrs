@@ -8113,6 +8113,8 @@ extern bool is_specialization_of_friend		(tree, tree);
 extern bool comp_template_args			(tree, tree, tree * = NULL,
 						 tree * = NULL);
 extern int template_args_equal                  (tree, tree);
+extern tree copy_template_args			(tree);
+extern tree expand_template_argument_pack	(tree);
 extern tree maybe_process_partial_specialization (tree);
 extern tree most_specialized_instantiation	(tree);
 extern tree most_specialized_partial_spec       (tree, tsubst_flags_t, bool = false);
@@ -9176,7 +9178,7 @@ extern tree build_concept_check                 (tree, tree, tree, tsubst_flags_
 extern tree build_constrained_parameter         (tree, tree, tree = NULL_TREE);
 extern bool equivalent_placeholder_constraints  (tree, tree);
 extern hashval_t iterative_hash_placeholder_constraint	(tree, hashval_t);
-extern tree finish_shorthand_constraint         (tree, tree);
+extern tree finish_shorthand_constraint         (tree, tree, bool);
 extern tree finish_requires_expr                (location_t, tree, tree);
 extern tree finish_simple_requirement           (location_t, tree);
 extern tree finish_type_requirement             (location_t, tree);

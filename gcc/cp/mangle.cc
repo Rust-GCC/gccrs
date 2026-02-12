@@ -1921,8 +1921,10 @@ write_template_param_decl (tree parm)
 	write_string ("Tn");
 
 	tree type = TREE_TYPE (decl);
+	/* TODO: We need to also mangle constrained auto*, auto&, etc, but
+	   it's not clear how.  See finish_constrained_parameter.  */
 	if (tree c = (is_auto (type)
-		      ? PLACEHOLDER_TYPE_CONSTRAINTS (type)
+		      ? TEMPLATE_PARM_CONSTRAINTS (parm)
 		      : NULL_TREE))
 	  {
 	    if (AUTO_IS_DECLTYPE (type))

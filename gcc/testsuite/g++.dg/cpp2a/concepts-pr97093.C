@@ -29,4 +29,4 @@ struct pc
 };
 
 constexpr auto cc = pc {};
-constexpr auto mmcc = m <cc> {}; // { dg-error "not satisfied" }
+constexpr auto mmcc = m <cc> {}; // { dg-error "constraint failure" }

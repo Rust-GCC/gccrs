@@ -20576,34 +20576,6 @@ cp_parser_check_constrained_type_parm (cp_parser *parser,
   return true;
 }
 
-/* Finish parsing/processing a template type parameter and checking
-   various restrictions. */
-
-static inline tree
-cp_parser_constrained_type_template_parm (cp_parser *parser,
-                                          tree id,
-                                          cp_parameter_declarator* parmdecl)
-{
-  if (cp_parser_check_constrained_type_parm (parser, parmdecl))
-    return finish_template_type_parm (class_type_node, id);
-  else
-    return error_mark_node;
-}
-
-/* Create a new non-type template parameter from the given PARM
-   declarator.  */
-
-static tree
-cp_parser_constrained_non_type_template_parm (bool *is_non_type,
-					      cp_parameter_declarator *parm)
-{
-  *is_non_type = true;
-  cp_declarator *decl = parm->declarator;
-  cp_decl_specifier_seq *specs = &parm->decl_specifiers;
-  specs->type = TREE_TYPE (DECL_INITIAL (specs->type));
-  return grokdeclarator (decl, specs, TPARM, 0, NULL);
-}
-
 /* Build a constrained template parameter based on the PARMDECL
    declarator. The type of PARMDECL is the constrained type, which
    refers to the prototype template parameter that ultimately
@@ -20614,24 +20586,60 @@ finish_constrained_parameter (cp_parser *parser,
                               cp_parameter_declarator *parmdecl,
                               bool *is_non_type)
 {
-  tree decl = parmdecl->decl_specifiers.type;
+  tree constr = parmdecl->decl_specifiers.type;
   tree id = get_unqualified_id (parmdecl->declarator);
   tree def = parmdecl->default_argument;
-  tree proto = DECL_INITIAL (decl);
 
   /* Build the parameter. Return an error if the declarator was invalid. */
+  bool set_template_parm_constraints_p = true;
   tree parm;
-  if (TREE_CODE (proto) == TYPE_DECL)
-    parm = cp_parser_constrained_type_template_parm (parser, id, parmdecl);
+  if (is_constrained_auto (constr))
+    {
+      /* Constrained non-type parameter.  */
+      *is_non_type = true;
+      if (!parmdecl->declarator
+	  || parmdecl->declarator->kind == cdk_id)
+	/* For a simple constrained auto NTTP, move its constraint from
+	   PLACEHOLDER_TYPE_CONSTRAINTS to TEMPLATE_PARM_CONSTRAINTS to
+	   eventually include them in the template's associated constraints.
+	   finish_shorthand_constraint will convert the constraint to its
+	   final form.  */
+	parmdecl->decl_specifiers.type = (AUTO_IS_DECLTYPE (constr)
+					  ? make_decltype_auto ()
+					  : make_auto ());
+      else
+	/* ??? For constrained auto*, auto& etc it's not clear how to represent
+	   the type-constraint as an associated constraint (we need it in terms
+	   of the pointed-to type).  We keep it in PLACEHOLDER_TYPE_CONSTRAINTS
+	   and effectively treat it like a non-NTTP constrained auto.  */
+	set_template_parm_constraints_p = false;
+      parm = grokdeclarator (parmdecl->declarator,
+			     &parmdecl->decl_specifiers,
+			     TPARM, /*initialized=*/0, /*attrlist=*/NULL);
+    }
   else
-    parm = cp_parser_constrained_non_type_template_parm (is_non_type, parmdecl);
+    {
+      /* Constrained type parameter.  */
+      gcc_checking_assert (CONSTRAINED_PARM_CONCEPT (constr));
+      if (cp_parser_check_constrained_type_parm (parser, parmdecl))
+	parm = finish_template_type_parm (class_type_node, id);
+      else
+	parm = error_mark_node;
+    }
   if (parm == error_mark_node)
     return error_mark_node;
 
   /* Finish the parameter decl and create a node attaching the
      default argument and constraint.  */
   parm = build_tree_list (def, parm);
-  TEMPLATE_PARM_CONSTRAINTS (parm) = decl;
+  if (set_template_parm_constraints_p)
+    {
+      if (*is_non_type)
+	TEMPLATE_PARM_CONSTRAINTS (parm)
+	  = PLACEHOLDER_TYPE_CONSTRAINTS (constr);
+      else
+	TEMPLATE_PARM_CONSTRAINTS (parm) = constr;
+    }
 
   return parm;
 }
@@ -20828,7 +20836,9 @@ cp_parser_template_parameter (cp_parser* parser, bool *is_non_type,
     }
 
   /* The parameter may have been constrained type parameter.  */
-  if (declares_constrained_type_template_parameter (parameter_declarator))
+  tree type = parameter_declarator->decl_specifiers.type;
+  if (declares_constrained_type_template_parameter (parameter_declarator)
+      || (type && is_constrained_auto (type)))
     return finish_constrained_parameter (parser,
                                          parameter_declarator,
                                          is_non_type);

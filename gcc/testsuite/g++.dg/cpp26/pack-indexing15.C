@@ -17,4 +17,4 @@ foo ()
 }
 
 Set<bool> sb;
-Set<float> sf; // { dg-error "placeholder constraints not satisfied" }
+Set<float> sf; // { dg-error "constraint failure" }

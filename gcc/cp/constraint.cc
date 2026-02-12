@@ -1218,7 +1218,7 @@ build_constrained_parameter (tree cnc, tree proto, tree args)
    done only after the requires clause has been parsed (or not).  */
 
 tree
-finish_shorthand_constraint (tree decl, tree constr)
+finish_shorthand_constraint (tree decl, tree constr, bool is_non_type)
 {
   /* No requirements means no constraints.  */
   if (!constr)
@@ -1227,9 +1227,26 @@ finish_shorthand_constraint (tree decl, tree constr)
   if (error_operand_p (constr))
     return NULL_TREE;
 
-  tree proto = CONSTRAINED_PARM_PROTOTYPE (constr);
-  tree con = CONSTRAINED_PARM_CONCEPT (constr);
-  tree args = CONSTRAINED_PARM_EXTRA_ARGS (constr);
+  tree proto, con, args;
+  if (is_non_type)
+    {
+      /* This function should not see constrained auto&, auto* NTTPs, and a
+	 simple constrained auto NTTP type should by now have been replaced
+	 by ordinary auto; see finish_constrained_parameter.  */
+      gcc_checking_assert (is_auto (TREE_TYPE (decl))
+			   && !is_constrained_auto (TREE_TYPE (decl)));
+      gcc_checking_assert (TREE_CODE (constr) == TEMPLATE_ID_EXPR);
+      tree tmpl = TREE_OPERAND (constr, 0);
+      proto = concept_prototype_parameter (tmpl);
+      con = DECL_TEMPLATE_RESULT (tmpl);
+      args = TREE_OPERAND (constr, 1);
+    }
+  else
+    {
+      proto = CONSTRAINED_PARM_PROTOTYPE (constr);
+      con = CONSTRAINED_PARM_CONCEPT (constr);
+      args = CONSTRAINED_PARM_EXTRA_ARGS (constr);
+    }
 
   bool variadic_concept_p = template_parameter_pack_p (proto);
   bool declared_pack_p = template_parameter_pack_p (decl);
@@ -1243,7 +1260,19 @@ finish_shorthand_constraint (tree decl, tree constr)
 
   /* Build the concept constraint-expression.  */
   tree tmpl = DECL_TI_TEMPLATE (con);
-  tree check = build_concept_check (tmpl, arg, args, tf_warning_or_error);
+  tree check;
+  if (is_non_type)
+    {
+      arg = finish_decltype_type (arg, /*id_expr=*/true, tf_warning_or_error);
+      if (ARGUMENT_PACK_P (TREE_VEC_ELT (args, 0)))
+	args = expand_template_argument_pack (args);
+      else
+	args = copy_template_args (args);
+      TREE_VEC_ELT (args, 0) = arg;
+      check = build_concept_check (tmpl, args, tf_warning_or_error);
+    }
+  else
+    check = build_concept_check (tmpl, arg, args, tf_warning_or_error);
 
   /* Make the check a fold-expression if needed.
      Use UNKNOWN_LOCATION so write_template_args can tell the

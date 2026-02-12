@@ -169,7 +169,6 @@ static tree convert_template_argument (tree, tree, tree,
 				       tsubst_flags_t, int, tree);
 static tree for_each_template_parm (tree, tree_fn_t, void*,
 				    hash_set<tree> *, bool, tree_fn_t = NULL);
-static tree expand_template_argument_pack (tree);
 static tree build_template_parm_index (int, int, int, tree, tree);
 static bool inline_needs_template_parms (tree, bool);
 static void push_inline_template_parms_recursive (tree, int);
@@ -184,7 +183,6 @@ static int template_decl_level (tree);
 static int check_cv_quals_for_unify (int, tree, tree);
 static int unify_pack_expansion (tree, tree, tree,
 				 tree, unification_kind_t, bool, bool);
-static tree copy_template_args (tree);
 static tree tsubst_template_parms (tree, tree, tsubst_flags_t);
 static void tsubst_each_template_parm_constraints (tree, tree, tsubst_flags_t);
 static tree tsubst_arg_types (tree, tree, tree, tsubst_flags_t, tree);
@@ -4747,7 +4745,7 @@ process_template_parm (tree list, location_t parm_loc, tree parm,
 
   tree decl = NULL_TREE;
   tree defval = TREE_PURPOSE (parm);
-  tree constr = TREE_TYPE (parm);
+  tree constr = TEMPLATE_PARM_CONSTRAINTS (parm);
 
   if (is_non_type)
     {
@@ -4845,7 +4843,7 @@ process_template_parm (tree list, location_t parm_loc, tree parm,
   /* Build requirements for the type/template parameter.
      This must be done after SET_DECL_TEMPLATE_PARM_P or
      process_template_parm could fail. */
-  tree reqs = finish_shorthand_constraint (parm, constr);
+  tree reqs = finish_shorthand_constraint (parm, constr, is_non_type);
 
   decl = pushdecl (decl);
   if (!is_non_type)
@@ -14400,7 +14398,7 @@ make_argument_pack (tree vec)
 /* Return an exact copy of template args T that can be modified
    independently.  */
 
-static tree
+tree
 copy_template_args (tree t)
 {
   if (t == error_mark_node)
@@ -30840,8 +30838,7 @@ make_constrained_placeholder_type (tree type, tree con, tree args)
   /* Our canonical type depends on the constraint.  */
   TYPE_CANONICAL (type) = canonical_type_parameter (type);
 
-  /* Attach the constraint to the type declaration. */
-  return TYPE_NAME (type);
+  return type;
 }
 
 /* Make a "constrained auto" type-specifier.  */
@@ -32657,6 +32654,11 @@ do_auto_deduction (tree type, tree init, tree auto_node,
     /* Constraints will be checked after deduction.  */;
   else if (tree constr = NON_ERROR (PLACEHOLDER_TYPE_CONSTRAINTS (auto_node)))
     {
+      if (context == adc_unify)
+	/* Simple constrained auto NTTPs should have gotten their constraint
+	   moved to the template's associated constraints.  */
+	gcc_checking_assert (type != auto_node);
+
       if (processing_template_decl)
 	{
 	  gcc_checking_assert (context == adc_variable_type
