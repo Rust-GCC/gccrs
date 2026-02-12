@@ -1617,6 +1617,12 @@ You may specify any of the following switches to ``gnatdll``:
   ``file`` contains the name of an ALI or object file.
 
 
+  .. index:: -m (gnatdll)
+
+:switch:`-m`
+  Generate map file
+
+
   .. index:: -n (gnatdll)
 
 :switch:`-n`

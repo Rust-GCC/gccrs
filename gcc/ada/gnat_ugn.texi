@@ -25254,6 +25254,12 @@ The list of ALI and object files used to build the DLL are listed in
 @code{file}, instead of being given in the command line. Each line in
 @code{file} contains the name of an ALI or object file.
 
+@geindex -m (gnatdll)
+
+@item @code{-m}
+
+Generate map file
+
 @geindex -n (gnatdll)
 
 @item @code{-n}
