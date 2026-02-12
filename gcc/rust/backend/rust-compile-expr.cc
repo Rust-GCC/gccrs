@@ -2074,6 +2074,17 @@ CompileExpr::array_copied_expr (location_t expr_locus,
   unsigned HOST_WIDE_INT len
     = wi::ext (max - min + 1, precision, sign).to_uhwi ();
 
+  unsigned int res;
+  if (__builtin_umul_overflow (TREE_INT_CST_ELT (TYPE_SIZE_UNIT (array_type),
+						 0),
+			       len, &res))
+    {
+      rust_error_at (expr_locus, ErrorCode::E0080,
+		     "the type %qs is too big for the current architecture",
+		     array_tyty.as_string ().c_str ());
+      return error_mark_node;
+    }
+
   // In a const context we must initialize the entire array, which entails
   // allocating for each element. If the user wants a huge array, we will OOM
   // and die horribly.
