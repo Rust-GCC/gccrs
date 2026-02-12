@@ -14,7 +14,7 @@
 
 @SET_MAKE@
 
-# Copyright (C) 2025 Free Software Foundation, Inc.
+# Copyright (C) 2026 Free Software Foundation, Inc.
 # Contributed by the Symas Corporation, 2025
 
 # This file is part of GCC.
@@ -112,7 +112,6 @@ POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
 target_triplet = @target@
-#AM_CXXFLAGS += -fstrict-aliasing -Wstrict-aliasing -Wstrict-aliasing=3
 
 # Handle embedded rpaths for Darwin.
 @BUILD_LIBGCOBOL_TRUE@@ENABLE_DARWIN_AT_RPATH_TRUE@am__append_1 = -Wc,-nodefaultrpaths \
@@ -459,7 +458,8 @@ gcc_version := $(shell @get_gcc_base_ver@ $(top_srcdir)/../gcc/BASE-VER)
 @BUILD_LIBGCOBOL_TRUE@	/usr/include/libxml2
 @BUILD_LIBGCOBOL_TRUE@AM_CFLAGS = $(XCFLAGS)
 @BUILD_LIBGCOBOL_TRUE@AM_CXXFLAGS = $(XCFLAGS) $(WARN_CFLAGS) \
-@BUILD_LIBGCOBOL_TRUE@	-DIN_TARGET_LIBS -fno-strict-aliasing
+@BUILD_LIBGCOBOL_TRUE@	-DIN_TARGET_LIBS -fstrict-aliasing \
+@BUILD_LIBGCOBOL_TRUE@	-Wstrict-aliasing -Wstrict-aliasing=3
 
 # We want to link with the c++ runtime.
 @BUILD_LIBGCOBOL_TRUE@libgcobol_la_LINK = $(CXXLINK) $(libgcobol_la_LDFLAGS)

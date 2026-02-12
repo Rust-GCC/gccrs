@@ -1,4 +1,4 @@
-# Copyright (C) 2025 Free Software Foundation, Inc.
+# Copyright (C) 2026 Free Software Foundation, Inc.
 # Contributed by the Symas Corporation, 2025
 
 # This file is part of GCC.
@@ -91,8 +91,7 @@ AM_CFLAGS = $(XCFLAGS)
 AM_CXXFLAGS = $(XCFLAGS)
 AM_CXXFLAGS += $(WARN_CFLAGS)
 AM_CXXFLAGS += -DIN_TARGET_LIBS
-AM_CXXFLAGS += -fno-strict-aliasing
-#AM_CXXFLAGS += -fstrict-aliasing -Wstrict-aliasing -Wstrict-aliasing=3
+AM_CXXFLAGS += -fstrict-aliasing -Wstrict-aliasing -Wstrict-aliasing=3
 
 if ENABLE_DARWIN_AT_RPATH
 # Handle embedded rpaths for Darwin.

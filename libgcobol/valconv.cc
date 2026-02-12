@@ -1,6 +1,6 @@
 // This file is included in both the libgcobol and gcc/cobol compilations
 /*
- * Copyright (c) 2021-2025 Symas Corporation
+ * Copyright (c) 2021-2026 Symas Corporation
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
