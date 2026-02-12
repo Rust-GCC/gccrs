@@ -775,6 +775,27 @@ struct gomp_target_task
   void *hostaddrs[];
 };
 
+#ifdef __AMDGCN__
+/* Parameters needed to kick off new threads on AMD GCN.  They correspond to
+   various fields in gomp_thread.  This struct, and all its contents, should
+   only be modified by gomp_team_start, and stay untouched until the threads
+   of a team reach the final barrier.  */
+
+struct gomp_thread_start_data
+{
+  /* Team the new thread is part of.  */
+  struct gomp_team *team;
+  /* Active nesting level.  */
+  unsigned level, active_level;
+  /* Parent task.  */
+  struct gomp_task *parent_task;
+  /* Previous ICVs.  */
+  struct gomp_task_icv prev_icvs;
+  /* Task group for the new threads implicit task.  */
+  struct gomp_taskgroup *taskgroup;
+};
+#endif
+
 /* This structure describes a "team" of threads.  These are the threads
    that are spawned by a PARALLEL constructs, as well as the work sharing
    constructs that the team encounters.  */
@@ -857,6 +878,11 @@ struct gomp_team
   /* Number of tasks waiting for their completion event to be fulfilled.  */
   unsigned int task_detach_count;
 
+#ifdef __AMDGCN__
+  /* Used on AMD GCN to inform threads how to launch in a team.  */
+  struct gomp_thread_start_data thr_start_data;
+#endif
+
   /* This array contains structures for implicit tasks.  */
   struct gomp_task implicit_task[];
 };
@@ -869,6 +895,11 @@ struct gomp_thread
   /* This is the function that the thread should run upon launch.  */
   void (*fn) (void *data);
   void *data;
+
+#ifdef __AMDGCN__
+  /* And these are the parameters it should set.  */
+  struct gomp_thread_start_data *start_data;
+#endif
 
   /* This is the current team state for this thread.  The ts.team member
      is NULL only if the thread is idle.  */
