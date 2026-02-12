@@ -93,7 +93,7 @@ components_in_prev = "bfd opcodes binutils fixincludes gas gcc gmp mpfr mpc isl 
 components_in_prev_target = "libstdc++-v3 libsanitizer libvtv libgcc libbacktrace libphobos zlib libgomp libatomic"
 
 cc1.fda: create_fdas_for_cc1
-	$(PROFILE_MERGER) $(shell ls -ha cc1_*.fda) --output_file cc1.fda -gcov_version 2
+	$(PROFILE_MERGER) $(shell ls -ha cc1_*.fda) --output_file cc1.fda -gcov_version 3
 
 create_fdas_for_cc1: ../stage1-gcc/cc1$(exeext) ../prev-gcc/$(PERF_DATA)
 	for component_in_prev in "$(components_in_prev)"; do \

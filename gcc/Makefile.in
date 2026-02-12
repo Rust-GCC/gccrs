@@ -4818,7 +4818,7 @@ paranoia: paranoia.o real.o $(LIBIBERTY)
 	g++ -o $@ paranoia.o real.o $(LIBIBERTY)
 
 all.fda: $(ALL_FDAS)
-	$(PROFILE_MERGER) $(ALL_FDAS) --output_file all.fda -gcov_version 2
+	$(PROFILE_MERGER) $(ALL_FDAS) --output_file all.fda -gcov_version 3
 
 # These exist for maintenance purposes.
 
