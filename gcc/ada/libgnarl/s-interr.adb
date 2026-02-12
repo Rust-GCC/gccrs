@@ -846,12 +846,10 @@ package body System.Interrupts is
       is
       begin
          if User_Entry (Interrupt).T /= Null_Task then
+            --  If an entry is attached to the interrupt (See RM J.7.1), raise
+            --  Program_Error.
 
-            --  In case we have an Interrupt Entry already installed, raise a
-            --  program error, (propagate it to the caller).
-
-            raise Program_Error with
-              "an interrupt is already installed";
+            raise Program_Error with "an interrupt is already installed";
          end if;
 
          --  Note : A null handler with Static = True will pass the following
@@ -1279,7 +1277,7 @@ package body System.Interrupts is
             --  No Interrupt binding. If there is an interrupt,
             --  Interrupt_Manager will take default action.
 
-            Self_ID.Common.State := Interrupt_Server_Blocked_Interrupt_Sleep;
+            Self_ID.Common.State := Interrupt_Server_Idle_Sleep;
             POP.Sleep (Self_ID, Interrupt_Server_Idle_Sleep);
             Self_ID.Common.State := Runnable;
 

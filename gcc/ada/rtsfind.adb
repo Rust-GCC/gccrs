@@ -1577,8 +1577,7 @@ package body Rtsfind is
          if Nkind (Lib_Unit) = N_Subprogram_Declaration then
             RE_Table (E) := U.Entity;
 
-         --  Otherwise we must have the package case. First check package
-         --  entity itself (e.g. RTE_Name for System.Interrupts.Name)
+         --  Otherwise we must have the package case
 
          else
             pragma Assert (Nkind (Lib_Unit) = N_Package_Declaration);
