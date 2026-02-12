@@ -302,8 +302,9 @@ Attribute::get_traits_to_derive ()
 			auto word = static_cast<AST::MetaWord *> (meta_item);
 			// Convert current word to path
 			current = std::make_unique<AST::MetaItemPath> (
-			  AST::MetaItemPath (
-			    AST::SimplePath (word->get_ident ())));
+			  AST::MetaItemPath (AST::SimplePath::from_str (
+			    word->get_ident ().as_string (),
+			    word->get_locus ())));
 			auto path
 			  = static_cast<AST::MetaItemPath *> (current.get ());
 
