@@ -6371,13 +6371,14 @@ region_model::push_frame (const function &fun,
 
 	    /* Get region for default val of DECL_RESULT within the
 	       callee.  */
-	    tree result_default_ssa = get_ssa_default_def (fun, result);
-	    gcc_assert (result_default_ssa);
-	    const region *callee_result_reg
-	      = get_lvalue (result_default_ssa, ctxt);
+	    if (tree result_default_ssa = get_ssa_default_def (fun, result))
+	      {
+		const region *callee_result_reg
+		  = get_lvalue (result_default_ssa, ctxt);
 
-	    /* Set the callee's reference to refer to the caller's lhs.  */
-	    set_value (callee_result_reg, ref_sval, ctxt);
+		/* Set the callee's reference to refer to the caller's lhs.  */
+		set_value (callee_result_reg, ref_sval, ctxt);
+	      }
 	  }
     }
   else
