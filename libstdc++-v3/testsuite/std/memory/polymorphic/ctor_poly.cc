@@ -129,16 +129,17 @@ test_forwarding_ctor()
   if (std::is_constant_evaluated())
     return;
 
+  const ScopedAlloc scopedAlloc(uneq_allocator<Base>(11), UneqAlloc(22));
   const VecDerived<int, UneqAlloc> v{1, 2, 3, 4, 5};
   // Object is constructed using allocator-aware constructor.
   std::polymorphic<Base, ScopedAlloc>
-    i5(std::allocator_arg, ScopedAlloc(11, 22), v);
+    i5(std::allocator_arg, scopedAlloc, v);
   VERIFY( *i5 == v );
   VERIFY( i5->get_personality() == 22 );
   VERIFY( i5.get_allocator().get_personality() == 11 );
 
   std::polymorphic<Base, ScopedAlloc>
-    i6(std::allocator_arg, ScopedAlloc(11, 22), auto(v));
+    i6(std::allocator_arg, scopedAlloc, auto(v));
   VERIFY( *i6 == v  );
   VERIFY( i6->get_personality() == 22 );
   VERIFY( i6.get_allocator().get_personality() == 11 );
@@ -156,13 +157,15 @@ test_inplace_ctor()
   VERIFY( i2->get_personality() == -2 );
 
   std::polymorphic<Base, uneq_allocator<Base>>
-    i3(std::allocator_arg, 42, std::in_place_type<ObjDerived>);
+    i3(std::allocator_arg, uneq_allocator<Base>(42),
+       std::in_place_type<ObjDerived>);
   VERIFY( *i3 == ObjDerived() );
   VERIFY( i3->get_personality() == -2 );
   VERIFY( i3.get_allocator().get_personality() == 42 );
 
   std::polymorphic<Base, uneq_allocator<Base>>
-    i4(std::allocator_arg, 42, std::in_place_type<ObjDerived>, 10, 20, 30);
+    i4(std::allocator_arg, uneq_allocator<Base>(42),
+       std::in_place_type<ObjDerived>, 10, 20, 30);
   VERIFY( *i4 == ObjDerived(10, 20, 30) );
   VERIFY( i4->get_personality() == -2 );
   VERIFY( i4.get_allocator().get_personality() == 42 );
@@ -189,22 +192,23 @@ test_inplace_ctor()
   if (std::is_constant_evaluated())
     return;
 
+  const ScopedAlloc scopedAlloc(uneq_allocator<Base>(11), UneqAlloc(22));
   std::polymorphic<Base, ScopedAlloc>
-    i8(std::allocator_arg, ScopedAlloc(11, 22),
+    i8(std::allocator_arg, scopedAlloc,
 	std::in_place_type<VecDerived<int, UneqAlloc>>);
   VERIFY( *i8 == ze );
   VERIFY( i8->get_personality() == 22 );
   VERIFY( i8.get_allocator().get_personality() == 11 );
 
   std::polymorphic<Base, ScopedAlloc>
-    i9(std::allocator_arg, ScopedAlloc(11, 22),
+    i9(std::allocator_arg, scopedAlloc,
        std::in_place_type<VecDerived<int, UneqAlloc>>, 5, 13);
   VERIFY( *i9 == fe );
   VERIFY( i9->get_personality() == 22 );
   VERIFY( i9.get_allocator().get_personality() == 11 );
 
   std::polymorphic<Base, ScopedAlloc>
-    i10(std::allocator_arg, ScopedAlloc(11, 22),
+    i10(std::allocator_arg, scopedAlloc,
 	std::in_place_type<VecDerived<int, UneqAlloc>>, {1, 2, 3, 4});
   VERIFY( *i10 == il );
   VERIFY( i10->get_personality() == 22 );
