@@ -8,6 +8,7 @@
  * * Redistributions of source code must retain the above copyright
  *   notice, this list of conditions and the following disclaimer.
  * * Redistributions in binary form must reproduce the above
+ * * Redistributions in binary form must reproduce the above
  *   copyright notice, this list of conditions and the following disclaimer
  *   in the documentation and/or other materials provided with the
  *   distribution.
@@ -11568,23 +11569,7 @@ __gg__fetch_call_by_value_value(const cblc_field_t *field,
 
     case FldFloat:
       {
-      switch(length)
-        {
-        case 4:
-          *PTRCAST(float, &retval) = *PTRCAST(float, data);
-          break;
-
-        case 8:
-          *PTRCAST(double, &retval) = *PTRCAST(double, data);
-          break;
-
-        case 16:
-          // *(_Float128 *)(&retval) = double(*(_Float128 *)data);
-          GCOB_FP128 t;
-          memcpy(&t, data, 16);
-          memcpy(&retval, &t, 16);
-          break;
-        }
+      memcpy(&retval, data, length);
       break;
       }
 
@@ -11629,23 +11614,7 @@ __gg__assign_value_from_stack(cblc_field_t *dest, __int128 parameter)
 
     case FldFloat:
       {
-      switch(dest->capacity)
-        {
-        case 4:
-          *PTRCAST(float, dest->data) = *PTRCAST(float, (&parameter));
-          break;
-
-        case 8:
-          *PTRCAST(double, dest->data) = *PTRCAST(double, (&parameter));
-          break;
-
-        case 16:
-          // *(_Float128 *)(dest->data) = *(_Float128 *)&parameter;
-          GCOB_FP128 t;
-          memcpy(&t, &parameter, 16);
-          memcpy(dest->data, &t, 16);
-          break;
-        }
+      memcpy(dest->data, &parameter, dest->capacity);
       break;
       }
 
@@ -11745,8 +11714,8 @@ __gg__unstring( const cblc_field_t *id1,        // The string being unstring
   int tally = 0;
   size_t pointer = 1;
   size_t nreceiver;
-  size_t left;
-  size_t right;
+  size_t left=0;
+  size_t right=0;
 
   std::u32string str_id1;
   std::vector<std::u32string> delimiters;
@@ -14633,4 +14602,28 @@ __gg__convert(cblc_field_t *dest,
     free(converted);
     __gg__adjust_dest_size(dest, len);
     }
+  }
+
+
+extern "C"
+__int128
+__gg__look_at_int128(__int128 val128)
+  {
+  /* This silly-looking function is included here as an aide to debugging
+     code generated at compile time.  Because it is difficult to use GDB on
+     code created via GENERIC tags (there is, after all, no source code), it's
+     necessary to use things like gg_printf to do print-statement debugging on
+     such code.  But there is no provision in printf for outputting __int128
+     values.  So, I created this routine; during debugging I can generate a
+     call to it, and then with GDB (which can display __int128 values in
+     decimal) I can set a breakpoint here and see the value. */
+  return val128;
+  }
+
+extern "C"
+void *
+__gg__look_at_pointer(void *ptr)
+  {
+  // See comment for __gg__look_at_int128
+  return ptr;
   }

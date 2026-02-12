@@ -298,10 +298,12 @@ xml_event( const char event_name[], size_t len, const xmlChar * value ) {
   xml_event(event_name, len, text);
 }
 
+namespace XML {
+
 static inline void
 xml_event( const char event_name[], const xmlChar * value ) {
   char *text = reinterpret_cast<char*>(const_cast<xmlChar*>(value));
-  xml_event(event_name, strlen(text), text);
+  ::xml_event(event_name, strlen(text), text);
 }
 
 /*
@@ -327,7 +329,7 @@ static void cdataBlock(void * CTX,
                        int len)
 {
   SAYSO_DATA(len, data);
-  xml_event("CONTENT-CHARACTERS", len, data);
+  ::xml_event("CONTENT-CHARACTERS", len, data);
 }
 
 static void characters(void * CTX,
@@ -335,7 +337,7 @@ static void characters(void * CTX,
                        int len)
 {
   SAYSO_DATA(len, data);
-  xml_event("CONTENT-CHARACTERS", len, data);
+  ::xml_event("CONTENT-CHARACTERS", len, data);
 }
 
 static void comment(void * CTX, const xmlChar * value) {
@@ -781,4 +783,4 @@ __gg__xml_parse(  const cblc_field_t *input_field,
   return erc;
 }
 
-
+} // end XML namespace

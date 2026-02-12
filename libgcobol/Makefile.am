@@ -92,6 +92,7 @@ AM_CXXFLAGS = $(XCFLAGS)
 AM_CXXFLAGS += $(WARN_CFLAGS)
 AM_CXXFLAGS += -DIN_TARGET_LIBS
 AM_CXXFLAGS += -fno-strict-aliasing
+#AM_CXXFLAGS += -fstrict-aliasing -Wstrict-aliasing -Wstrict-aliasing=3
 
 if ENABLE_DARWIN_AT_RPATH
 # Handle embedded rpaths for Darwin.

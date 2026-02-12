@@ -7012,7 +7012,14 @@ establish_using(size_t nusing,
       tree par_type = tree_type_from_field_type(args[i].refer.field, nbytes);
       if( par_type == FLOAT )
         {
-        par_type = SSIZE_T;
+        if( nbytes == 16 )
+          {
+          par_type = INT128;
+          }
+        else
+          {
+          par_type = SSIZE_T;
+          }
         }
       if( par_type == DOUBLE )
         {
@@ -7087,56 +7094,6 @@ establish_using(size_t nusing,
 
       // It makes more sense if you don't think about it too hard.
 
-      // We need to be able to restore prior arguments when doing recursive
-      // calls:
-      IF( member(args[i].refer.field->var_decl_node, "data"),
-          ne_op,
-          gg_cast(UCHAR_P, null_pointer_node) )
-        {
-        gg_call(VOID,
-                "__gg__push_local_variable",
-                gg_get_address_of(args[i].refer.field->var_decl_node),
-                NULL_TREE);
-        }
-      ELSE
-        ENDIF
-
-      tree base = gg_define_variable(UCHAR_P);
-      gg_assign(rt_i, build_int_cst_type(INT, i));
-      //gg_printf("The rt_i counter is %d\n", rt_i, NULL_TREE);
-      IF( rt_i, lt_op , var_decl_call_parameter_count )
-        {
-        if( i == 0 )
-          {
-          // This is the first parameter.
-          parameter = DECL_ARGUMENTS(current_function->function_decl);
-          }
-        else
-          {
-          // These are subsequent parameters
-          parameter = TREE_CHAIN(parameter);
-          }
-        gg_assign(base, gg_cast(UCHAR_P, parameter));
-
-        if( args[i].refer.field->attr & any_length_e )
-          {
-          // gg_printf("side channel: Length of \"%s\" is %ld\n",
-                    // member(args[i].refer.field->var_decl_node, "name"),
-                    // gg_array_value(var_decl_call_parameter_lengths, rt_i),
-                    // NULL_TREE);
-
-          // Get the length from the global lengths[] side channel.  Don't
-          // forget to use the length mask on the table value.
-          gg_assign(member(args[i].refer.field->var_decl_node, "capacity"),
-                    gg_array_value(var_decl_call_parameter_lengths, rt_i));
-          }
-        }
-      ELSE
-        {
-        gg_assign(base, gg_cast(UCHAR_P, null_pointer_node));
-        }
-        ENDIF
-
       // Arriving here means that we are processing an instruction like
       // this:
       // PROCEDURE DIVISION USING using[0] using[1] ... using using[nusing-1]
@@ -7145,6 +7102,7 @@ establish_using(size_t nusing,
       // an OTHER-TO-COBOL call and the var_decl_call_parameter_lengths array
       // is not valid
 
+      // Sort out the USING BY; it can be BY REFERENCE or BY VALUE:
       cbl_ffi_crv_t crv = args[i].crv;
       cbl_field_t *new_var = args[i].refer.field;
 
@@ -7163,46 +7121,158 @@ establish_using(size_t nusing,
           }
         }
 
+      // We need to be able to restore prior arguments when doing recursive
+      // calls:
+      IF( member(args[i].refer.field->var_decl_node, "data"),
+          ne_op,
+          gg_cast(UCHAR_P, null_pointer_node) )
+        {
+        gg_call(VOID,
+                "__gg__push_local_variable",
+                gg_get_address_of(args[i].refer.field->var_decl_node),
+                NULL_TREE);
+        }
+      ELSE
+        ENDIF
+
+      if( crv == by_reference_e )
+        {
+        // The passed parameter, if it exists, is a pointer to a COBOL
+        // variable's data area
+        tree reference = gg_define_variable(UCHAR_P);
+        gg_assign(rt_i, build_int_cst_type(INT, i));
+        IF( rt_i, lt_op , var_decl_call_parameter_count )
+          {
+          if( i == 0 )
+            {
+            // This is the first parameter.
+            parameter = DECL_ARGUMENTS(current_function->function_decl);
+            }
+          else
+            {
+            // These are subsequent parameters
+            parameter = TREE_CHAIN(parameter);
+            }
+          gg_assign(reference, gg_cast(UCHAR_P, parameter));
+
+          if( args[i].refer.field->attr & any_length_e )
+            {
+            // gg_printf("side channel: Length of \"%s\" is %ld\n",
+                      // member(args[i].refer.field->var_decl_node, "name"),
+                      // gg_array_value(var_decl_call_parameter_lengths, rt_i),
+                      // NULL_TREE);
+
+            // Get the length from the global lengths[] side channel.  Don't
+            // forget to use the length mask on the table value.
+            gg_assign(member(args[i].refer.field->var_decl_node, "capacity"),
+                      gg_array_value(var_decl_call_parameter_lengths, rt_i));
+            }
+          }
+        ELSE
+          {
+          gg_assign(reference, gg_cast(UCHAR_P, null_pointer_node));
+          }
+        ENDIF
+        // 'parameter' is a reference, so it it becomes the data member of
+        // the cblc_field_t COBOL variable.
+        gg_assign(member(args[i].field()->var_decl_node, "data"), reference);
+
+        // We need to apply reference + offset to the LINKAGE variable
+        // and all of its children
+        propogate_linkage_offsets( args[i].field(), reference );
+        }
+
       if( crv == by_value_e )
         {
-        // 'parameter' is the 64-bit or 128-bit value that was placed on the stack
-
         size_t nbytes;
         tree_type_from_field_type(new_var, nbytes);
         tree parm = gg_define_variable(INT128);
+
+        tree value_type;
+        if( nbytes == 16 )
+          {
+          value_type = INT128;
+          }
+        else
+          {
+          value_type = SSIZE_T;
+          }
+
+        // 'parameter' is the 64-bit or 128-bit value that was placed on the stack
+        tree value = gg_define_variable(value_type);
+
+        gg_assign(rt_i, build_int_cst_type(INT, i));
+        IF( rt_i, lt_op , var_decl_call_parameter_count )
+          {
+          if( i == 0 )
+            {
+            // This is the first parameter.
+            parameter = DECL_ARGUMENTS(current_function->function_decl);
+            }
+          else
+            {
+            // These are subsequent parameters
+            parameter = TREE_CHAIN(parameter);
+            }
+          gg_assign(value, gg_cast(value_type, parameter));
+          gg_memcpy(gg_get_address_of(value),
+                    gg_get_address_of(parameter),
+                    build_int_cst_type(SIZE_T, nbytes));
+
+          if( args[i].refer.field->attr & any_length_e )
+            {
+            // gg_printf("side channel: Length of \"%s\" is %ld\n",
+                      // member(args[i].refer.field->var_decl_node, "name"),
+                      // gg_array_value(var_decl_call_parameter_lengths, rt_i),
+                      // NULL_TREE);
+
+            // Get the length from the global lengths[] side channel.  Don't
+            // forget to use the length mask on the table value.
+            gg_assign(member(args[i].refer.field->var_decl_node, "capacity"),
+                      gg_array_value(var_decl_call_parameter_lengths, rt_i));
+            }
+          }
+        ELSE
+          {
+          gg_assign(value, gg_cast(value_type, integer_zero_node));
+          }
+        ENDIF
 
         if( nbytes <= 8 )
           {
           // Our input is a 64-bit number
           if( new_var->attr & signable_e )
             {
-            IF( gg_bitwise_and( gg_cast(SIZE_T, base),
+            IF( gg_bitwise_and( gg_cast(SIZE_T, value),
                                 build_int_cst_type(SIZE_T, 0x8000000000000000ULL)),
                 ne_op,
                 gg_cast(SIZE_T, integer_zero_node) )
               {
-              // Our input is a negative number
+              // Our input is a negative number.  Set it to -1, so that the
+              // eight high-order bytes are 0xFF
               gg_assign(parm, gg_cast(INT128, integer_minus_one_node));
               }
             ELSE
               {
-              // Our input is a positive number
+              // Our input is a positive number, so set it to zero, so that
+              // the eight high-order bytes are 0x00
               gg_assign(parm, gg_cast(INT128, integer_zero_node));
               }
             ENDIF
             }
           else
             {
-            // This is a 64-bit positive number:
+            // This is a 64-bit positive number: so set it to zero, so that
+              // the eight high-order bytes are 0x00
             gg_assign(parm, gg_cast(INT128, integer_zero_node));
             }
           }
-        // At this point, parm has been set to 0 or -1
 
+        // Now copy over the little-endian binary bytes, either 8 or 16 as
+        // necessary
         gg_memcpy(gg_get_address_of(parm),
-                  gg_get_address_of(base),
+                  gg_get_address_of(value),
                   build_int_cst_type(SIZE_T, nbytes));
-
         tree array_type = build_array_type_nelts(UCHAR, new_var->data.capacity());
         tree data_decl_node = gg_define_variable( array_type,
                                                   NULL,
@@ -7252,16 +7322,6 @@ establish_using(size_t nusing,
             }
           next_index += 1;
           }
-        }
-      else
-        {
-        // 'parameter' is a reference, so it it becomes the data member of
-        // the cblc_field_t COBOL variable.
-        gg_assign(member(args[i].field()->var_decl_node, "data"), base);
-
-        // We need to apply base + offset to the LINKAGE variable
-        // and all of its children
-        propogate_linkage_offsets( args[i].field(), base );
         }
       }
     }
@@ -13297,8 +13357,7 @@ create_and_call(size_t narg,
             if( !(args[i].refer.field->attr & intermediate_e) )
               {
               // All temporaries are SIZE_T
-              if( args[i].refer.field->type == FldFloat
-                  && args[i].refer.field->data.capacity() == 16 )
+              if( args[i].refer.field->type == FldFloat )
                 {
                 as_int128 = true;
                 }
