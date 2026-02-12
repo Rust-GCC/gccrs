@@ -45,6 +45,11 @@ if [ "$use_brbe" = true ] ; then
   set -x
   perf record --inherit -o perf.data -j any,$FLAGS "$@"
   set +x
+elif [ -n "$(perf list | grep arm_spe)" ] ; then
+  echo >&2 "Info: Using SPE to collect branch profiles"
+  set -x
+  perf record --inherit -o perf.data -e arm_spe_0/branch_filter=1/ "$@"
+  set +x
 else
   echo >&2 "Warning: branch profiling may not be functional without BRBE"
   set -x

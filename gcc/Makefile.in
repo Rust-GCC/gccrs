@@ -1951,6 +1951,12 @@ $(ALL_HOST_BACKEND_OBJS): ALL_COMPILERFLAGS += -fauto-profile=all.fda
 $(ALL_HOST_BACKEND_OBJS): all.fda
 endif
 
+# Path to the perf utility
+PERF = @PERF@
+
+# The profiler to be used by autoprofiledbootstrap
+AFDO_PROFILER = @AFDO_PROFILER@
+
 # This lists all host object files, whether they are included in this
 # compilation or not.
 ALL_HOST_OBJS = $(ALL_HOST_FRONTEND_OBJS) $(ALL_HOST_BACKEND_OBJS)

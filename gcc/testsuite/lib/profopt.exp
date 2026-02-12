@@ -456,7 +456,13 @@ proc profopt-execute { src } {
                 set bprefix "afdo."
 		set compiler [lindex $GCC_UNDER_TEST 0]
 		set autofdo_version [string trim [lindex [remote_exec target "$compiler --print-autofdo-gcov-version"] 1] ]
-		set cmd "create_gcov --binary $execname1 --profile=$tmpdir/$base.perf.data --gcov_version=$autofdo_version --gcov=$tmpdir/$bprefix$base.$ext"
+		set profiler_check [string trim [lindex [remote_exec target "perf list | grep arm_spe"] 1]]
+		if {$profiler_check ne ""} {
+		    set profiler "perf_spe"
+		} else {
+		    set profiler "perf"
+		}
+		set cmd "create_gcov --binary $execname1 --profile=$tmpdir/$base.perf.data --profiler=$profiler --gcov_version=$autofdo_version --gcov=$tmpdir/$bprefix$base.$ext"
 		verbose "Running $cmd"
 		set id [remote_spawn "" $cmd]
 		if { $id < 0 } {

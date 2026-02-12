@@ -98,21 +98,27 @@ cc1.fda: create_fdas_for_cc1
 create_fdas_for_cc1: ../stage1-gcc/cc1$(exeext) ../prev-gcc/$(PERF_DATA)
 	for component_in_prev in "$(components_in_prev)"; do \
 	  perf_path=../prev-$$component_in_prev/$(PERF_DATA); \
-	  echo "Perf path:"; \
-	  echo $$perf_path; \
+	  echo "Perf path:" $$perf_path "..." `[ -f $$perf_path ] && echo exists || echo does not exist`; \
 	  if [ -f $$perf_path ]; then \
 	    profile_name=cc1_$$component_in_prev.fda; \
-	    $(CREATE_GCOV) -binary ../stage1-gcc/cc1$(exeext) -gcov $$profile_name -profile $$perf_path -gcov_version `../stage1-gcc/xgcc$(exeext) --print-autofdo-gcov-version` || exit 1; \
+	    if [ "x`$(PERF) buildid-list -i $$perf_path | grep '/cc1$$' && echo yes`" != "x" ]; then \
+	      $(CREATE_GCOV) -binary ../stage1-gcc/cc1$(exeext) -gcov $$profile_name -profile $$perf_path -profiler $(AFDO_PROFILER) -gcov_version `../stage1-gcc/xgcc$(exeext) --print-autofdo-gcov-version` || exit 1; \
+	    else \
+	      echo "  warning: $$perf_path is missing cc1!"; \
+	    fi; \
 	  fi; \
 	done;
 
 	for component_in_prev_target in "$(components_in_prev_target)"; do \
 	  perf_path=../prev-$(TARGET_SUBDIR)/$$component_in_prev_target/$(PERF_DATA); \
-	  echo "Perf path:"; \
-	  echo $$perf_path; \
+	  echo "Perf path:" $$perf_path "..." `[ -f $$perf_path ] && echo exists || echo does not exist`; \
 	  if [ -f $$perf_path ]; then \
 	    profile_name=cc1_$$component_in_prev_target.fda; \
-	    $(CREATE_GCOV) -binary ../prev-gcc/cc1$(exeext) -gcov $$profile_name -profile $$perf_path -gcov_version `../prev-gcc/xgcc$(exeext) --print-autofdo-gcov-version` || exit 1; \
+	    if [ "x`$(PERF) buildid-list -i $$perf_path | grep '/cc1$$' && echo yes`" != "x" ]; then \
+	      $(CREATE_GCOV) -binary ../prev-gcc/cc1$(exeext) -gcov $$profile_name -profile $$perf_path -profiler $(AFDO_PROFILER) -gcov_version `../prev-gcc/xgcc$(exeext) --print-autofdo-gcov-version` || exit 1; \
+	    else \
+	      echo "  warning: $$perf_path is missing cc1!"; \
+	    fi; \
 	  fi; \
 	done;
 

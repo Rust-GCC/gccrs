@@ -7904,6 +7904,30 @@ gif=`if test x$enable_x86_64_mfentry = xyes; then echo 1; else echo 0; fi`
 AC_DEFINE_UNQUOTED(ENABLE_X86_64_MFENTRY, $gif,
 [Define to enable -mfentry by default on x86-64.])
 
+AC_PATH_PROG(PERF, perf, no)
+AFDO_PROFILER=perf
+if test x$PERF != xno; then
+  case "$cpu_type" in
+    aarch64)
+      AC_MSG_CHECKING(AArch64 build supports SPE profiling for autoprofiledbootstrap)
+      aarch64_spe_support=no
+      if test -x $PERF; then
+	# Do not use perf_spe if BRBE is supported
+	if test ! -n "$($PERF record -j any,u -o /dev/null /bin/true 2>&1 | grep "PMU Hardware or event type doesn't support branch stack sampling.")"; then
+	  AFDO_PROFILER=perf
+	  aarch64_spe_support="using BRBE instead"
+	elif test -n "$($PERF list | grep arm_spe)"; then
+	  AFDO_PROFILER=perf_spe
+	  aarch64_spe_support=yes
+	fi
+      fi
+      AC_MSG_RESULT($aarch64_spe_support)
+      ;;
+  esac
+fi
+AC_SUBST(PERF)
+AC_SUBST(AFDO_PROFILER)
+
 # Check if the linker supports '-z now'
 ld_now_support=no
 AC_MSG_CHECKING(linker -z now option)
