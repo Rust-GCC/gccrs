@@ -1245,6 +1245,12 @@ public:
     const svalue *dst_ptr = cd.get_arg_svalue (0);
     const region *dst_reg
       = model->deref_rvalue (dst_ptr, cd.get_arg_tree (0), ctxt);
+    /* Restrict the region we consider to be affected to the valid capacity
+       so that we don't trigger buffer overflow false positives.  */
+    const svalue *capacity = model->get_capacity (dst_reg);
+    dst_reg = model->get_manager ()->get_sized_region (dst_reg,
+						       NULL_TREE,
+						       capacity);
     const svalue *content = cd.get_or_create_conjured_svalue (dst_reg);
     model->set_value (dst_reg, content, ctxt);
     cd.set_any_lhs_with_defaults ();
