@@ -12384,7 +12384,7 @@ package body Exp_Ch4 is
                null;
 
             else
-               Apply_Accessibility_Check
+               Apply_Accessibility_Check_For_Parameter
                  (Operand, Target_Type, Insert_Node => Operand);
             end if;
 

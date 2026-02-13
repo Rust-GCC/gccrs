@@ -105,25 +105,6 @@ package Exp_Ch6 is
    --  Create the extra actuals of the given call and add them to its
    --  actual parameters list.
 
-   procedure Apply_Access_Discrims_Accessibility_Check
-     (Exp : Node_Id; Func : Entity_Id);
-   --  Exp is an expression being returned from a function Func.
-   --  If the result type of the function has access discriminants, insert
-   --  checks that the accessibility level of each entity designated by an
-   --  access discriminant of the result is not deeper than the level of the
-   --  master of the call.
-
-   procedure Apply_CW_Accessibility_Check (Exp : Node_Id; Func : Entity_Id);
-   --  Exp is an expression being returned from a function Func.
-   --  Ada 2005 (AI95-344): If the result type is class-wide, insert a check
-   --  that the level of the return expression's underlying type is not deeper
-   --  than the level of the master enclosing the function. Always generate the
-   --  check when the type of the return expression is class-wide, when it's a
-   --  type conversion, or when it's a formal parameter. Otherwise suppress the
-   --  check in the case where the return expression has a specific type whose
-   --  level is known not to be statically deeper than the result type of the
-   --  function.
-
    function BIP_Formal_Suffix (Kind : BIP_Formal_Kind) return String;
    --  Ada 2005 (AI-318-02): Returns a string to be used as the suffix of names
    --  for build-in-place formal parameters of the given kind.

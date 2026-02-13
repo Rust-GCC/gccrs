@@ -2417,10 +2417,7 @@ package body Sem_Ch6 is
       --  means that it is equivalent to Is_Expression_Function_Or_Completion
       --  invoked on Spec_Id declared below and not to Is_Expression_Function.
 
-      Body_Nod         : Node_Id := Empty;
-      Minimum_Acc_Objs : List_Id := No_List;
-
-      Conformant : Boolean;
+      Acc_Objs   : List_Id   := No_List;
       Desig_View : Entity_Id := Empty;
       Exch_Views : Elist_Id  := No_Elist;
       Prot_Typ   : Entity_Id := Empty;
@@ -2462,8 +2459,6 @@ package body Sem_Ch6 is
       --  body must be expanded separately to create a subprogram declaration
       --  for it, in order to resolve internal calls to it from other protected
       --  operations.
-      --
-      --  Possibly factor this with Exp_Dist.Copy_Specification ???
 
       procedure Build_Subprogram_Declaration;
       --  Create a matching subprogram declaration for subprogram body N
@@ -2527,6 +2522,16 @@ package body Sem_Ch6 is
       --  causing the flag to be set, if the following statement is a return
       --  of an entity, we mark the entity as set in source to suppress any
       --  warning on the stylized use of function stubs with a dummy return.
+
+      function Subprogram_Entity return Entity_Id is
+        (if Present (Spec_Id) then
+          (if Is_Protected_Type (Scope (Spec_Id))
+             and then Present (Protected_Body_Subprogram (Spec_Id))
+           then Protected_Body_Subprogram (Spec_Id)
+           else Spec_Id)
+         else Body_Id);
+      --  Return the entity of the subprogram whose N is the body, in other
+      --  words the E_Function or E_Procedure entity to be used as a scope.
 
       procedure Verify_Overriding_Indicator;
       --  If there was a previous spec, the entity has been entered in the
@@ -3242,9 +3247,11 @@ package body Sem_Ch6 is
         (Extra_Access : Entity_Id;
          Related_Form : Entity_Id := Empty)
       is
-         Loc      : constant Source_Ptr := Sloc (Body_Nod);
-         Form     : Entity_Id;
-         Obj_Node : Node_Id;
+         Loc : constant Source_Ptr := Sloc (N);
+
+         Decl : Node_Id;
+         Form : Entity_Id;
+
       begin
          --  When no related formal exists then we are dealing with an
          --  extra accessibility formal for a function result.
@@ -3255,43 +3262,35 @@ package body Sem_Ch6 is
             Form := Related_Form;
          end if;
 
-         --  Create the minimum accessibility object
+         --  Declare the minimum accessibility object
 
-         Obj_Node :=
-            Make_Object_Declaration (Loc,
-             Defining_Identifier =>
-               Make_Temporary
-                 (Loc, 'A', Extra_Access),
-             Object_Definition   => New_Occurrence_Of
-                                      (Standard_Natural, Loc),
-             Expression          =>
-               Make_Attribute_Reference (Loc,
-                 Prefix         => New_Occurrence_Of
-                                     (Standard_Natural, Loc),
-                 Attribute_Name => Name_Min,
-                 Expressions    => New_List (
-                   Make_Integer_Literal (Loc,
-                     Scope_Depth (Body_Id)),
-                   New_Occurrence_Of
-                     (Extra_Access, Loc))));
+         Decl :=
+           Make_Object_Declaration (Loc,
+            Defining_Identifier => Make_Temporary (Loc, 'A', Extra_Access),
+            Object_Definition   => New_Occurrence_Of (Standard_Natural, Loc),
+            Expression          =>
+              Make_Attribute_Reference (Loc,
+                Prefix         => New_Occurrence_Of (Standard_Natural, Loc),
+                Attribute_Name => Name_Min,
+                Expressions    => New_List (
+                  Make_Integer_Literal (Loc, Scope_Depth (Body_Id)),
+                  New_Occurrence_Of (Extra_Access, Loc))));
 
-         --  Add the new local object to the Minimum_Acc_Obj to
-         --  be later prepended to the subprogram's list of
-         --  declarations after we are sure all expansion is
-         --  done.
+         --  Add the new local object to the Minimum_Acc_Obj to be later
+         --  prepended to the subprogram's list of declarations after we
+         --  are sure all expansion is done.
 
-         if Present (Minimum_Acc_Objs) then
-            Prepend (Obj_Node, Minimum_Acc_Objs);
+         if Present (Acc_Objs) then
+            Prepend (Decl, Acc_Objs);
          else
-            Minimum_Acc_Objs := New_List (Obj_Node);
+            Acc_Objs := New_List (Decl);
          end if;
 
          --  Register the object and analyze it
 
-         Set_Minimum_Accessibility
-           (Form, Defining_Identifier (Obj_Node));
+         Set_Minimum_Accessibility (Form, Defining_Identifier (Decl));
 
-         Analyze (Obj_Node);
+         Analyze (Decl);
       end Generate_Minimum_Accessibility;
 
       -------------------------------------
@@ -3530,6 +3529,7 @@ package body Sem_Ch6 is
                      Ignore_SPARK_Mode_Pragmas_In_Instance;
       --  Save the Ghost and SPARK mode-related data to restore on exit
 
+      Conformant            : Boolean;
       Saved_In_Inlined_Body : Boolean;
 
    --  Start of processing for Analyze_Subprogram_Body_Helper
@@ -4458,7 +4458,7 @@ package body Sem_Ch6 is
       --  in an actual to a call to a nested subprogram.
 
       --  This method is used to supplement our "small integer model" for
-      --  accessibility-check generation (for more information see
+      --  accessibility check generation (for more information see
       --  Accessibility_Level).
 
       --  Because we allow accessibility values greater than our expected value
@@ -4472,69 +4472,49 @@ package body Sem_Ch6 is
       --  This generated object is referred to as a "minimum accessibility
       --  level."
 
-      if Present (Spec_Id) or else Present (Body_Id) then
-         Body_Nod := Unit_Declaration_Node (Body_Id);
+      --  Loop through formals if the subprogram is capable of accepting
+      --  a generated local object. If it is not, then it is also not
+      --  capable of having local subprograms meaning it would not need
+      --  a minimum accessibility level object anyway.
 
+      if Has_Declarations (N) then
          declare
-            Form : Entity_Id;
+            Subp_Id : constant Entity_Id := Subprogram_Entity;
+
+            Formal : Node_Id;
+
          begin
-            --  Grab the appropriate formal depending on whether there exists
-            --  an actual spec for the subprogram or whether we are dealing
-            --  with a protected subprogram.
+            Formal := First_Formal (Subp_Id);
+            while Present (Formal) loop
+               --  Generate the minimum accessibility level object:
 
-            if Present (Spec_Id) then
-               if Present (Protected_Body_Subprogram (Spec_Id)) then
-                  Form := First_Formal (Protected_Body_Subprogram (Spec_Id));
-               else
-                  Form := First_Formal (Spec_Id);
-               end if;
-            else
-               Form := First_Formal (Body_Id);
-            end if;
+               --    Ann : constant natural := natural'min(1, paramL);
 
-            --  Loop through formals if the subprogram is capable of accepting
-            --  a generated local object. If it is not then it is also not
-            --  capable of having local subprograms meaning it would not need
-            --  a minimum accessibility level object anyway.
-
-            if Present (Body_Nod)
-              and then Has_Declarations (Body_Nod)
-              and then Nkind (Body_Nod) /= N_Package_Specification
-            then
-               while Present (Form) loop
-
-                  if Present (Extra_Accessibility (Form))
-                    and then No (Minimum_Accessibility (Form))
-                  then
-                     --  Generate the minimum accessibility level object
-
-                     --    A60b : constant natural := natural'min(1, paramL);
-
-                     Generate_Minimum_Accessibility
-                       (Extra_Accessibility (Form), Form);
-                  end if;
-
-                  Next_Formal (Form);
-               end loop;
-
-               --  Generate the minimum accessibility level object for the
-               --  function's Extra_Accessibility_Of_Result.
-
-               --    A31b : constant natural := natural'min (2, funcL);
-
-               if Ekind (Body_Id) = E_Function
-                 and then Present (Extra_Accessibility_Of_Result (Body_Id))
-               then
+               if Present (Extra_Accessibility (Formal)) then
                   Generate_Minimum_Accessibility
-                    (Extra_Accessibility_Of_Result (Body_Id));
-
-                  --  Replace the Extra_Accessibility_Of_Result with the new
-                  --  minimum accessibility object.
-
-                  Set_Extra_Accessibility_Of_Result
-                    (Body_Id, Minimum_Accessibility
-                                (Extra_Accessibility_Of_Result (Body_Id)));
+                    (Extra_Accessibility (Formal), Formal);
                end if;
+
+               Next_Formal (Formal);
+            end loop;
+
+            --  Generate the minimum accessibility level object for the
+            --  function's Extra_Accessibility_Of_Result:
+
+            --    Ann : constant natural := natural'min (1, funcL);
+
+            if Ekind (Subp_Id) = E_Function
+              and then Present (Extra_Accessibility_Of_Result (Subp_Id))
+            then
+               Generate_Minimum_Accessibility
+                 (Extra_Accessibility_Of_Result (Subp_Id));
+
+               --  Replace the Extra_Accessibility_Of_Result with the new
+               --  minimum accessibility object.
+
+               Set_Extra_Accessibility_Of_Result
+                 (Subp_Id, Minimum_Accessibility
+                             (Extra_Accessibility_Of_Result (Subp_Id)));
             end if;
          end;
       end if;
@@ -4680,18 +4660,10 @@ package body Sem_Ch6 is
       Inspect_Deferred_Constant_Completion (Declarations (N));
       Analyze (Handled_Statement_Sequence (N));
 
-      --  Add the generated minimum accessibility objects to the subprogram
-      --  body's list of declarations after analysis of the statements and
-      --  contracts.
+      --  Prepend the declaration of minimum accessibility objects to the list
+      --  of declarations after analysis of the statements and contracts.
 
-      while Is_Non_Empty_List (Minimum_Acc_Objs) loop
-         if Present (Declarations (Body_Nod)) then
-            Prepend (Remove_Head (Minimum_Acc_Objs), Declarations (Body_Nod));
-         else
-            Set_Declarations
-              (Body_Nod, New_List (Remove_Head (Minimum_Acc_Objs)));
-         end if;
-      end loop;
+      Prepend_List (Acc_Objs, Declarations (N));
 
       --  Deal with end of scope processing for the body
 
@@ -4726,6 +4698,23 @@ package body Sem_Ch6 is
                end loop;
             end;
          end if;
+      end if;
+
+      --  Restore the Extra_Accessibility_Of_Result object that was clobbered
+      --  earlier, so that the name of the local temporary does not leak.
+
+      if Has_Declarations (N) then
+         declare
+            Subp_Id : constant Entity_Id := Subprogram_Entity;
+
+         begin
+            if Ekind (Subp_Id) = E_Function
+              and then Present (Extra_Accessibility_Of_Result (Subp_Id))
+            then
+               Set_Extra_Accessibility_Of_Result (Subp_Id,
+                 Related_Expression (Extra_Accessibility_Of_Result (Subp_Id)));
+            end if;
+         end;
       end if;
 
       --  If we are compiling an entry wrapper, remove the enclosing
@@ -8740,8 +8729,8 @@ package body Sem_Ch6 is
          Original : Entity_Id;
          Root     : Entity_Id;
 
-         function Has_No_Task_Parts_Enabled (E : Entity_Id) return Boolean
-         is (Has_Enabled_Aspect (E, Aspect_No_Task_Parts));
+         function Has_No_Task_Parts_Enabled (E : Entity_Id) return Boolean is
+           (Has_Enabled_Aspect (E, Aspect_No_Task_Parts));
 
          function Collect_Ancestors_With_No_Task_Parts is new
            Collect_Types_In_Hierarchy (Predicate => Has_No_Task_Parts_Enabled);

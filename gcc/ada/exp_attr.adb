@@ -2998,7 +2998,8 @@ package body Exp_Attr is
                                 (Entity (Prefix (Enc_Object))))
               and then not No_Dynamic_Accessibility_Checks_Enabled (Enc_Object)
             then
-               Apply_Accessibility_Check (Prefix (Enc_Object), Typ, N);
+               Apply_Accessibility_Check_For_Parameter
+                 (Prefix (Enc_Object), Typ, N);
 
                --  Ada 2005 (AI-251): If the designated type is an interface we
                --  add an implicit conversion to force the displacement of the

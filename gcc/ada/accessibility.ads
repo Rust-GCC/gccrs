@@ -68,16 +68,6 @@ package Accessibility is
    --  The Allow_Alt_Model parameter allows the alternative level calculation
    --  under the restriction No_Dynamic_Accessibility_Checks to be performed.
 
-   procedure Apply_Accessibility_Check
-     (N           : Node_Id;
-      Typ         : Entity_Id;
-      Insert_Node : Node_Id);
-   --  Given a name N denoting an access parameter, emits a run-time
-   --  accessibility check (if necessary), checking that the level of
-   --  the object denoted by the access parameter is not deeper than the
-   --  level of the type Typ. Program_Error is raised if the check fails.
-   --  Insert_Node indicates the node where the check should be inserted.
-
    procedure Apply_Accessibility_Check_For_Allocator
      (N              : Node_Id;
       Exp            : Node_Id;
@@ -109,6 +99,21 @@ package Accessibility is
    --  case seems to be an actual gap in the language rules that needs to
    --  be fixed by the ARG. ???
 
+   procedure Apply_Accessibility_Check_For_Parameter
+     (N           : Node_Id;
+      Typ         : Entity_Id;
+      Insert_Node : Node_Id);
+   --  Given a name N denoting an access parameter, insert a run-time check
+   --  that the accessibility level of the object denoted by the parameter
+   --  is not deeper than the level of the type Typ. Insert_Node indicates
+   --  the node where the check should be inserted.
+
+   procedure Apply_Accessibility_Check_For_Return
+     (Exp  : Node_Id;
+      Func : Entity_Id);
+   --  Insert the required run-time accessibility checks for an expression Exp
+   --  that is being returned from function Func.
+
    procedure Check_Return_Construct_Accessibility
      (Return_Stmt : Node_Id;
       Stm_Entity  : Entity_Id);
@@ -131,8 +136,7 @@ package Accessibility is
    --  under the restriction No_Dynamic_Accessibility_Checks to be performed.
 
    function Effective_Extra_Accessibility (Id : Entity_Id) return Entity_Id;
-   --  Same as Einfo.Extra_Accessibility except thtat object renames
-   --  are looked through.
+   --  Same as Extra_Accessibility in Einfo, but looks through object renamings
 
    function Get_Dynamic_Accessibility (E : Entity_Id) return Entity_Id;
    --  Obtain the accessibility level for a given entity formal taking into
