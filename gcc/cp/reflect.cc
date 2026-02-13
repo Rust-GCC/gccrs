@@ -8092,8 +8092,79 @@ consteval_only_p (tree t)
   return !!cp_walk_tree (&t, consteval_only_type_r, &visited, &visited);
 }
 
+/* A walker for check_out_of_consteval_use_r.  It cannot be a lambda, because
+   we have to call this recursively.  */
+
+static tree
+check_out_of_consteval_use_r (tree *tp, int *walk_subtrees, void *pset)
+{
+  tree t = *tp;
+
+  /* No need to look into types or unevaluated operands.  */
+  if (TYPE_P (t)
+      || unevaluated_p (TREE_CODE (t))
+      /* Don't walk INIT_EXPRs, because we'd emit bogus errors about
+	 member initializers.  */
+      || TREE_CODE (t) == INIT_EXPR
+      /* Don't walk BIND_EXPR_VARS.  */
+      || TREE_CODE (t) == BIND_EXPR
+      /* And don't recurse on DECL_EXPRs.  */
+      || TREE_CODE (t) == DECL_EXPR)
+    {
+      *walk_subtrees = false;
+      return NULL_TREE;
+    }
+
+  /* A subexpression of a manifestly constant-evaluated expression is
+     an immediate function context.  For example,
+
+      consteval void foo (std::meta::info) { }
+      void g() { foo (^^void); }
+
+      is all good.  */
+  if (tree decl = cp_get_callee_fndecl_nofold (t))
+    if (immediate_invocation_p (decl))
+      {
+	*walk_subtrees = false;
+	return NULL_TREE;
+      }
+
+  if (VAR_P (t) && DECL_HAS_VALUE_EXPR_P (t))
+    {
+      tree vexpr = DECL_VALUE_EXPR (t);
+      if (tree ret = cp_walk_tree (&vexpr, check_out_of_consteval_use_r, pset,
+				   (hash_set<tree> *) pset))
+	return ret;
+    }
+
+  /* Now check the type to see if we are dealing with a consteval-only
+     expression.  */
+  if (!consteval_only_p (t))
+    return NULL_TREE;
+
+  /* Already escalated?  */
+  if (current_function_decl
+      && DECL_IMMEDIATE_FUNCTION_P (current_function_decl))
+    {
+      *walk_subtrees = false;
+      return NULL_TREE;
+    }
+
+  /* We might have to escalate if we are in an immediate-escalating
+     function.  */
+  if (immediate_escalating_function_p (current_function_decl))
+    {
+      promote_function_to_consteval (current_function_decl);
+      *walk_subtrees = false;
+      return NULL_TREE;
+    }
+
+  *walk_subtrees = false;
+  return t;
+}
+
 /* Detect if a consteval-only expression EXPR or a consteval-only
-   variable EXPR not declared constexpr/constinit is used outside
+   variable EXPR not declared constexpr is used outside
    a manifestly constant-evaluated context.  E.g.:
 
      void f() {
@@ -8115,88 +8186,24 @@ consteval_only_p (tree t)
 bool
 check_out_of_consteval_use (tree expr, bool complain/*=true*/)
 {
-  if (!flag_reflection || in_immediate_context ())
+  if (!flag_reflection || in_immediate_context () || expr == NULL_TREE)
     return false;
 
-  auto walker = [](tree *tp, int *walk_subtrees, void *) -> tree
-    {
-      tree t = *tp;
+  if (VAR_P (expr) && DECL_DECLARED_CONSTEXPR_P (expr))
+    return false;
 
-      /* No need to look into types or unevaluated operands.  */
-      if (TYPE_P (t)
-	  || unevaluated_p (TREE_CODE (t))
-	  /* Don't walk INIT_EXPRs, because we'd emit bogus errors about
-	     member initializers.  */
-	  || TREE_CODE (t) == INIT_EXPR
-	  /* Don't walk BIND_EXPR_VARS.  */
-	  || TREE_CODE (t) == BIND_EXPR
-	  /* And don't recurse on DECL_EXPRs.  */
-	  || TREE_CODE (t) == DECL_EXPR)
-	{
-	  *walk_subtrees = false;
-	  return NULL_TREE;
-	}
-
-      /* A subexpression of a manifestly constant-evaluated expression is
-	 an immediate function context.  For example,
-
-	   consteval void foo (std::meta::info) { }
-	   void g() { foo (^^void); }
-
-	 is all good.  */
-      if (tree decl = cp_get_callee_fndecl_nofold (t))
-	if (immediate_invocation_p (decl))
-	  {
-	    *walk_subtrees = false;
-	    return NULL_TREE;
-	  }
-
-      if (VAR_P (t)
-	  && (DECL_DECLARED_CONSTEXPR_P (t) || DECL_DECLARED_CONSTINIT_P (t)))
-	/* This is fine, don't bother checking the type.  */
-	return NULL_TREE;
-
-      /* Now check the type to see if we are dealing with a consteval-only
-	 expression.  */
-      if (!consteval_only_p (t))
-	return NULL_TREE;
-
-      /* Already escalated?  */
-      if (current_function_decl
-	  && DECL_IMMEDIATE_FUNCTION_P (current_function_decl))
-	{
-	  *walk_subtrees = false;
-	  return NULL_TREE;
-	}
-
-      /* We might have to escalate if we are in an immediate-escalating
-	 function.  */
-      if (immediate_escalating_function_p (current_function_decl))
-	{
-	  promote_function_to_consteval (current_function_decl);
-	  *walk_subtrees = false;
-	  return NULL_TREE;
-	}
-
-      *walk_subtrees = false;
-      return t;
-    };
-
-  if (tree t = cp_walk_tree_without_duplicates (&expr, walker, nullptr))
+  hash_set<tree> pset;
+  if (tree t = cp_walk_tree (&expr, check_out_of_consteval_use_r, &pset, &pset))
     {
       if (complain)
 	{
-	  if (VAR_P (t))
+	  if (VAR_P (t) && !DECL_DECLARED_CONSTEXPR_P (t))
 	    {
 	      auto_diagnostic_group d;
 	      error_at (cp_expr_loc_or_input_loc (t),
 			"consteval-only variable %qD not declared %<constexpr%> "
 			"used outside a constant-evaluated context", t);
-	      if (TREE_STATIC (t) || CP_DECL_THREAD_LOCAL_P (t))
-		inform (DECL_SOURCE_LOCATION (t), "add %<constexpr%> or "
-			"%<constinit%>");
-	      else
-		inform (DECL_SOURCE_LOCATION (t), "add %<constexpr%>");
+	      inform (DECL_SOURCE_LOCATION (t), "add %<constexpr%>");
 	    }
 	  else
 	    error_at (cp_expr_loc_or_input_loc (t),

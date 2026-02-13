@@ -22,8 +22,8 @@ struct W {
   decltype(^^::) i = ^^W::i;
 };
 
-constinit info r = ^^int;
-constinit info *p = &r;
+constexpr info r = ^^int;
+constexpr const info *p = &r;
 
 consteval void
 f ()

@@ -12,11 +12,11 @@ struct N {
 };
 
 S s1;  // { dg-error "consteval-only variable" }
-constinit S s2{};
+constinit S s2{};  // { dg-error "consteval-only variable" }
 constexpr S s3{^^int};
 
 N n1;  // { dg-error "consteval-only variable" }
-constinit N n2;
+constinit N n2;  // { dg-error "consteval-only variable" }
 constexpr N n3;
 
 template<typename T>
@@ -25,7 +25,7 @@ struct X {
 };
 
 X<info> x1;  // { dg-error "consteval-only variable" }
-constinit X<info> x2{};
+constinit X<info> x2{};  // { dg-error "consteval-only variable" }
 constexpr X<info> x3{^^int};
 
 void

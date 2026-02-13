@@ -10,7 +10,7 @@ struct A {
 };
 
 A a1;  // { dg-error "consteval-only variable .a1." }
-constinit A a2;
+constinit A a2;  // { dg-error "consteval-only variable .a2." }
 constexpr A a3;
 
 struct B {
@@ -20,5 +20,5 @@ struct B {
 };
 
 B b1;  // { dg-error "consteval-only variable .b1." }
-constinit B b2;
+constinit B b2;  // { dg-error "consteval-only variable .b2." }
 constexpr B b3;
