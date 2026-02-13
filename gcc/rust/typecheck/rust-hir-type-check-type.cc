@@ -458,6 +458,11 @@ TypeCheckType::resolve_root_path (HIR::TypePath &path, size_t *offset,
 
 	  auto regions = context->regions_from_generic_args (
 	    generic_segment.get_generic_args ());
+	  // regions_from_generic_args returns empty vector on error
+	  if (!generic_segment.get_generic_args ().get_lifetime_args ().empty ()
+	      && regions.empty ())
+	    return new TyTy::ErrorType (seg->get_mappings ().get_hirid ());
+
 	  lookup = SubstMapper::Resolve (lookup, path.get_locus (),
 					 &generic_segment.get_generic_args (),
 					 regions);
