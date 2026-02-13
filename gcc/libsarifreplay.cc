@@ -32,6 +32,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "sarif-spec-urls.def"
 #include "libsarifreplay.h"
 #include "label-text.h"
+#include "pretty-print.h"
 
 namespace {
 
@@ -145,7 +146,9 @@ make_logical_location_from_jv (libgdiagnostics::manager &mgr,
     parent = make_logical_location_from_jv (mgr,
 					    *jv.m_pointer_token.m_parent);
 
-  std::string short_name;
+  pretty_printer pp;
+  pointer_token.print (&pp);
+  std::string short_name = pp_formatted_text (&pp);
   std::string fully_qualified_name;
   switch (pointer_token.m_kind)
     {
@@ -153,19 +156,16 @@ make_logical_location_from_jv (libgdiagnostics::manager &mgr,
       gcc_unreachable ();
 
     case json::pointer::token::kind::root_value:
-      short_name = "";
       fully_qualified_name = "";
       break;
 
     case json::pointer::token::kind::object_member:
-      short_name = pointer_token.m_data.u_member;
       gcc_assert (parent.m_inner);
       fully_qualified_name
 	= std::string (parent.get_fully_qualified_name ()) + "/" + short_name;
       break;
 
     case json::pointer::token::kind::array_index:
-      short_name = std::to_string (pointer_token.m_data.u_index);
       gcc_assert (parent.m_inner);
       fully_qualified_name
 	= std::string (parent.get_fully_qualified_name ()) + "/" + short_name;

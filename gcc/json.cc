@@ -120,6 +120,42 @@ pointer::token::operator= (pointer::token &&other)
   return *this;
 }
 
+/* Print this to PP as an RFC 6901 section 3 reference-token.  */
+
+void
+pointer::token::print (pretty_printer *pp) const
+{
+  switch (m_kind)
+    {
+    case kind::root_value:
+      break;
+
+    case kind::object_member:
+      {
+	for (const char *ch = m_data.u_member; *ch; ++ch)
+	  {
+	    switch (*ch)
+	      {
+	      case '~':
+		pp_string (pp, "~0");
+		break;
+	      case '/':
+		pp_string (pp, "~1");
+		break;
+	      default:
+		pp_character (pp, *ch);
+		break;
+	      }
+	  }
+      }
+      break;
+
+    case kind::array_index:
+      pp_scalar (pp, HOST_SIZE_T_PRINT_UNSIGNED, m_data.u_index);
+      break;
+    }
+}
+
 /* class json::value.  */
 
 /* Dump this json::value tree to OUTF.
@@ -231,6 +267,29 @@ value::compare (const value &val_a, const value &val_b)
       /* All instances of literals compare equal to instances
 	 of the same literal.  */
       return 0;
+    }
+}
+
+/* Print this value's JSON Pointer to PP.  */
+
+void
+value::print_pointer (pretty_printer *pp) const
+{
+  /* Get path from this value to root.  */
+  auto_vec<const pointer::token *> ancestry;
+  for (auto *iter = this; iter; iter = iter->m_pointer_token.m_parent)
+    ancestry.safe_push (&iter->m_pointer_token);
+
+  /* Walk backward, going from root to this value.  */
+  ancestry.reverse ();
+  bool first = true;
+  for (auto iter : ancestry)
+    {
+      if (first)
+	first = false;
+      else
+	pp_character (pp, '/');
+      iter->print (pp);
     }
 }
 

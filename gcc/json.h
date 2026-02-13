@@ -107,6 +107,8 @@ struct token
   token &
   operator= (token &&other);
 
+  void print (pretty_printer *pp) const;
+
   json::value *m_parent;
   union u
   {
@@ -174,6 +176,7 @@ class value
   static int compare (const json::value &val_a, const json::value &val_b);
 
   const pointer::token &get_pointer_token () const { return m_pointer_token; }
+  void print_pointer (pretty_printer *pp) const;
 
   pointer::token m_pointer_token;
 };

@@ -1495,6 +1495,25 @@ assert_err_eq (const location &loc,
 		 (END_UNICHAR_IDX), (END_LINE), (END_COLUMN),	\
 		 (EXPECTED_MSG))
 
+/* Implementation detail of ASSERT_JSON_POINTER_EQ.  */
+
+static void
+assert_json_pointer_eq (const location &loc,
+			const json::value *jv,
+			const char *expected_str)
+{
+  pretty_printer pp;
+  ASSERT_TRUE_AT (loc, jv);
+  jv->print_pointer (&pp);
+  ASSERT_STREQ_AT (loc, pp_formatted_text (&pp), expected_str);
+}
+
+/* Assert that JV is a non-NULL json::value *, and that
+   jv->print_pointer prints EXPECTED_STR.  */
+
+#define ASSERT_JSON_POINTER_EQ(JV, EXPECTED_STR) \
+  assert_json_pointer_eq ((SELFTEST_LOCATION), (JV), (EXPECTED_STR))
+
 /* Verify that the JSON lexer works as expected.  */
 
 static void
@@ -2130,6 +2149,7 @@ test_parse_object ()
 		   0, line_1, 0,
 		   32, line_1, 32);
   const json::object *jo = static_cast <const json::object *> (jv);
+  ASSERT_JSON_POINTER_EQ (jv, "");
 
   json::value *foo_value = jo->get ("foo");
   ASSERT_NE (foo_value, nullptr);
@@ -2140,6 +2160,7 @@ test_parse_object ()
   ASSERT_RANGE_EQ (*range,
 		   8, line_1, 8,
 		   12, line_1, 12);
+  ASSERT_JSON_POINTER_EQ (foo_value, "/foo");
 
   json::value *baz_value = jo->get ("baz");
   ASSERT_NE (baz_value, nullptr);
@@ -2149,6 +2170,7 @@ test_parse_object ()
   ASSERT_RANGE_EQ (*range,
 		   22, line_1, 22,
 		   31, line_1, 31);
+  ASSERT_JSON_POINTER_EQ (baz_value, "/baz");
 
   json::array *baz_array = as_a <json::array *> (baz_value);
   ASSERT_EQ (baz_array->length (), 2);
@@ -2160,6 +2182,7 @@ test_parse_object ()
   ASSERT_RANGE_EQ (*range,
 		   23, line_1, 23,
 		   24, line_1, 24);
+  ASSERT_JSON_POINTER_EQ (element0, "/baz/0");
 
   json::value *element1 = baz_array->get (1);
   ASSERT_EQ (element1->get_kind (), JSON_NULL);
@@ -2168,6 +2191,7 @@ test_parse_object ()
   ASSERT_RANGE_EQ (*range,
 		   27, line_1, 27,
 		   30, line_1, 30);
+  ASSERT_JSON_POINTER_EQ (element1, "/baz/1");
 }
 
 /* Verify that the JSON literals "true", "false" and "null" are parsed
@@ -2297,6 +2321,28 @@ test_parsing_comments ()
   }
 }
 
+/* Verify that JSON Pointers are correctly escaped.  */
+
+static void
+test_pointer_escaping ()
+{
+  std::unique_ptr<error> err;
+  /* Example adapted from RFC 6901 section 5.  */
+  parser_testcase tc
+    ("     {\n"
+     "      \"a/b\": 1,\n"
+     "      \"m~n\": 8\n"
+     "   }\n");
+  ASSERT_EQ (tc.get_error (), nullptr);
+  const json::value *jv = tc.get_value ();
+  ASSERT_NE (jv, nullptr);
+  ASSERT_EQ (jv->get_kind (), JSON_OBJECT);
+
+  auto jo = static_cast <const json::object *> (jv);
+  ASSERT_JSON_POINTER_EQ (jo->get ("a/b"), "/a~1b");
+  ASSERT_JSON_POINTER_EQ (jo->get ("m~n"), "/m~0n");
+}
+
 /* Verify that we can parse an empty JSON string.  */
 
 static void
@@ -2378,6 +2424,7 @@ json_parser_cc_tests ()
   test_parse_jsonrpc ();
   test_parse_empty_object ();
   test_parsing_comments ();
+  test_pointer_escaping ();
   test_error_empty_string ();
   test_error_bad_token ();
   test_error_object_with_missing_comma ();
