@@ -1721,6 +1721,41 @@ optimize_agr_copyprop_arg (gimple *defstmt, gcall *call,
     update_stmt (call);
 }
 
+/* Helper function for optimize_agr_copyprop, propagate aggregates
+   into the return stmt USE if the operand of the return matches DEST;
+   replacing it with SRC.  */
+static void
+optimize_agr_copyprop_return (gimple *defstmt, greturn *use,
+			      tree dest, tree src)
+{
+  tree rvalue = gimple_return_retval (use);
+  if (!rvalue
+      || TREE_CODE (rvalue) == SSA_NAME
+      || is_gimple_min_invariant (rvalue)
+      || TYPE_VOLATILE (TREE_TYPE (rvalue)))
+    return;
+  tree newsrc = new_src_based_on_copy (rvalue, dest, src);
+  if (!newsrc)
+    return;
+  /* Currently only support decls, could support VCEs too? */
+  if (!DECL_P (newsrc))
+    return;
+  if (dump_file && (dump_flags & TDF_DETAILS))
+    {
+      fprintf (dump_file, "Simplified\n  ");
+      print_gimple_stmt (dump_file, use, 0, dump_flags);
+      fprintf (dump_file, "after previous\n  ");
+      print_gimple_stmt (dump_file, defstmt, 0, dump_flags);
+    }
+  gimple_return_set_retval (use, newsrc);
+  if (dump_file && (dump_flags & TDF_DETAILS))
+    {
+      fprintf (dump_file, "into\n  ");
+      print_gimple_stmt (dump_file, use, 0, dump_flags);
+    }
+  update_stmt (use);
+}
+
 /* Optimizes
    DEST = SRC;
    DEST2 = DEST; # DEST2 = SRC2;
@@ -1764,6 +1799,8 @@ optimize_agr_copyprop (gimple *stmt)
 	optimize_agr_copyprop_1 (stmt, use_stmt, dest, src);
       else if (is_gimple_call (use_stmt))
 	optimize_agr_copyprop_arg (stmt, as_a<gcall*>(use_stmt), dest, src);
+      else if (is_a<greturn*> (use_stmt))
+	optimize_agr_copyprop_return (stmt, as_a<greturn*>(use_stmt), dest, src);
     }
 }
 
