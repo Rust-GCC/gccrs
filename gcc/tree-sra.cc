@@ -2588,8 +2588,8 @@ create_access_replacement (struct access *access, tree reg_type = NULL_TREE)
   DECL_IGNORED_P (repl) = DECL_IGNORED_P (access->base);
 
   if (DECL_NAME (access->base)
-      && !DECL_IGNORED_P (access->base)
-      && !DECL_ARTIFICIAL (access->base))
+      && ((!DECL_IGNORED_P (access->base) && !DECL_ARTIFICIAL (access->base))
+	  || DECL_NONLOCAL_FRAME (access->base)))
     {
       char *pretty_name = make_fancy_name (access->expr);
       tree debug_expr = unshare_expr_without_location (access->expr), d;
