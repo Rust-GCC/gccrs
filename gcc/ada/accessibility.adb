@@ -57,7 +57,7 @@ package body Accessibility is
    -- Local Subprograms --
    -----------------------
 
-   procedure Apply_Accessibility_Check_For_Anonymous
+   procedure Apply_Accessibility_Check_For_Anonymous_Return
      (Exp         : Node_Id;
       Func        : Entity_Id;
       Insert_Node : Node_Id);
@@ -66,7 +66,7 @@ package body Accessibility is
    --  result is not deeper than the level of the master of the call. Exp is
    --  an expression being returned from Func.
 
-   procedure Apply_Accessibility_Check_For_Class_Wide
+   procedure Apply_Accessibility_Check_For_Class_Wide_Return
      (Exp  : Node_Id;
       Func : Entity_Id);
    --  Ada 2005 (AI95-344): If the result type is class-wide, insert a check
@@ -78,7 +78,7 @@ package body Accessibility is
    --  level is known not to be statically deeper than the result type of the
    --  function. Exp is an expression being returned from Func.
 
-   procedure Apply_Accessibility_Check_For_Discriminant
+   procedure Apply_Accessibility_Check_For_Discriminated_Return
      (Exp  : Node_Id;
       Func : Entity_Id);
    --  If the result type of the function has access discriminants, insert
@@ -1173,11 +1173,11 @@ package body Accessibility is
       end if;
    end Apply_Accessibility_Check_For_Allocator;
 
-   ---------------------------------------------
-   -- Apply_Accessibility_Check_For_Anonymous --
-   ---------------------------------------------
+   ----------------------------------------------------
+   -- Apply_Accessibility_Check_For_Anonymous_Return --
+   ----------------------------------------------------
 
-   procedure Apply_Accessibility_Check_For_Anonymous
+   procedure Apply_Accessibility_Check_For_Anonymous_Return
      (Exp         : Node_Id;
       Func        : Entity_Id;
       Insert_Node : Node_Id)
@@ -1227,7 +1227,7 @@ package body Accessibility is
          return False;
       end Has_Level_Tied_To_Explicitly_Aliased_Parameter;
 
-   --  Start of processing for Apply_Accessibility_Check_For_Anonymous
+   --  Start of processing for Apply_Accessibility_Check_For_Anonymous_Return
 
    begin
       if Present (Extra_Accessibility_Of_Result (Func))
@@ -1260,13 +1260,13 @@ package body Accessibility is
               Suppress => Access_Check);
          end;
       end if;
-   end Apply_Accessibility_Check_For_Anonymous;
+   end Apply_Accessibility_Check_For_Anonymous_Return;
 
-   ----------------------------------------------
-   -- Apply_Accessibility_Check_For_Class_Wide --
-   ----------------------------------------------
+   -----------------------------------------------------
+   -- Apply_Accessibility_Check_For_Class_Wide_Return --
+   -----------------------------------------------------
 
-   procedure Apply_Accessibility_Check_For_Class_Wide
+   procedure Apply_Accessibility_Check_For_Class_Wide_Return
      (Exp  : Node_Id;
       Func : Entity_Id)
    is
@@ -1374,11 +1374,11 @@ package body Accessibility is
               Suppress => Access_Check);
          end;
       end if;
-   end Apply_Accessibility_Check_For_Class_Wide;
+   end Apply_Accessibility_Check_For_Class_Wide_Return;
 
-   ------------------------------------------------
-   -- Apply_Accessibility_Check_For_Discriminant --
-   ------------------------------------------------
+   --------------------------------------------------------
+   -- Apply_Accessibility_Check_For_Discriminated_Return --
+   --------------------------------------------------------
 
    --  A case that is not addressed today is the case where we need to check
    --  an access discriminant subcomponent of the function result other than
@@ -1395,7 +1395,7 @@ package body Accessibility is
    --  where we know statically the specific type of the function result.
    --  Finding a less important unimplemented case would be challenging.
 
-   procedure Apply_Accessibility_Check_For_Discriminant
+   procedure Apply_Accessibility_Check_For_Discriminated_Return
      (Exp : Node_Id; Func : Entity_Id)
    is
       Loc : constant Source_Ptr := Sloc (Exp);
@@ -1483,7 +1483,7 @@ package body Accessibility is
       Discr_Index : Positive  := 1;
       Discr_Exp   : Node_Id;
 
-   --  Start of processing for Apply_Accessibility_Check_For_Discriminant
+   --  Start of Apply_Accessibility_Check_For_Discriminated_Return
 
    begin
       --  ??? Do not generate a check if version is Ada 95 (or earlier).
@@ -1532,13 +1532,14 @@ package body Accessibility is
 
             Analyze (Discr_Exp);
 
-            Apply_Accessibility_Check_For_Anonymous (Discr_Exp, Func, Exp);
+            Apply_Accessibility_Check_For_Anonymous_Return
+              (Discr_Exp, Func, Exp);
          end if;
 
          Next_Discriminant (Discr);
          Discr_Index := Discr_Index + 1;
       end loop;
-   end Apply_Accessibility_Check_For_Discriminant;
+   end Apply_Accessibility_Check_For_Discriminated_Return;
 
    ---------------------------------------------
    -- Apply_Accessibility_Check_For_Parameter --
@@ -1669,19 +1670,19 @@ package body Accessibility is
       --  is not deeper than the level of the master enclosing the function.
 
       if Is_Class_Wide_Type (Typ) then
-         Apply_Accessibility_Check_For_Class_Wide (Exp, Func);
+         Apply_Accessibility_Check_For_Class_Wide_Return (Exp, Func);
 
       --  Check that the access result does not designate an entity that
       --  the function result could outlive.
 
       elsif Ekind (Typ) = E_Anonymous_Access_Type then
-         Apply_Accessibility_Check_For_Anonymous (Exp, Func, Exp);
+         Apply_Accessibility_Check_For_Anonymous_Return (Exp, Func, Exp);
 
       --  Check that result's access discriminants (if any) do not designate
       --  entities that the function result could outlive.
 
       elsif Has_Anonymous_Access_Discriminant (Typ) then
-         Apply_Accessibility_Check_For_Discriminant (Exp, Func);
+         Apply_Accessibility_Check_For_Discriminated_Return (Exp, Func);
       end if;
    end Apply_Accessibility_Check_For_Return;
 
