@@ -335,13 +335,16 @@ package body Exp_SPARK is
                   elsif Is_Deep_Choice (Index, Typ) then
                      Apply_Range_Checks (Index);
 
+                  --  In delta_aggregate and Update attribute on array the
+                  --  others_choice is not allowed.
+
+                  elsif Nkind (Index) = N_Others_Choice then
+                     pragma Assert (Serious_Errors_Detected > 0);
+
                   --  Otherwise the index denotes a single expression where
                   --  range checks need to be applied or a subtype name
                   --  (without range constraints) where applying checks is
                   --  harmless.
-                  --
-                  --  In delta_aggregate and Update attribute on array the
-                  --  others_choice is not allowed.
 
                   else pragma Assert (Nkind (Index) in N_Subexpr);
                      Apply_Scalar_Range_Check (Index, Etype (Index_Typ));
