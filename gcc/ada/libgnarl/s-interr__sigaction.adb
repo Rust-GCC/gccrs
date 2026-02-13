@@ -36,6 +36,7 @@ with Ada.Unchecked_Conversion;
 
 with Interfaces.C;
 
+with System.OS_Interface;
 with System.Storage_Elements;
 with System.Task_Primitives.Operations;
 with System.Tasking.Utilities;
