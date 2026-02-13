@@ -1,3 +1,154 @@
+2026-02-12  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR c/105555
+	* gcc.dg/complex-10.c: New test.
+
+2026-02-12  Patrick Palka  <ppalka@redhat.com>
+
+	* g++.dg/cpp26/pack-indexing15.C: Adjust expected error upon
+	constrained auto NTTP satisfaction failure.
+	* g++.dg/cpp2a/concepts-placeholder12.C: Likewise.
+	* g++.dg/cpp2a/concepts-pr97093.C: Likewise.
+	* g++.dg/cpp2a/concepts-template-parm2.C: Likewise.
+	* g++.dg/cpp2a/concepts-template-parm6.C: Likewise.
+	* g++.dg/cpp2a/concepts-template-parm12.C: New test.
+
+2026-02-12  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/123989
+	* g++.dg/cpp23/explicit-obj-eval-order.C: New test.
+
+2026-02-12  Kwok Cheung Yeung  <kcyeung@baylibre.com>
+
+	PR middle-end/113436
+	* c-c++-common/gomp/pr113436-1.c: New.
+	* c-c++-common/gomp/pr113436-2.c: New.
+	* g++.dg/gomp/pr113436.C: New.
+	* gfortran.dg/gomp/pr113436-1.f90: New.
+	* gfortran.dg/gomp/pr113436-2.f90: New.
+	* gfortran.dg/gomp/pr113436-3.f90: New.
+	* gfortran.dg/gomp/pr113436-4.f90: New.
+
+2026-02-12  Robert Dubner  <rdubner@symas.com>
+
+	* cobol.dg/group2/USING_COMP-3_BY_REFERENCE.cob: New test.
+	* cobol.dg/group2/USING_COMP-3_BY_REFERENCE.out: New test.
+	* cobol.dg/group2/USING_COMP-3_BY_VALUE.cob: New test.
+	* cobol.dg/group2/USING_COMP-3_BY_VALUE.out: New test.
+	* cobol.dg/group2/USING_FLOAT-SLX_BY_REFERENCE.cob: New test.
+	* cobol.dg/group2/USING_FLOAT-SLX_BY_REFERENCE.out: New test.
+	* cobol.dg/group2/USING_FLOAT-SLX_BY_VALUE.cob: New test.
+	* cobol.dg/group2/USING_FLOAT-SLX_BY_VALUE.out: New test.
+	* cobol.dg/group2/USING_NumericDisplay_BY_REFERENCE.cob: New test.
+	* cobol.dg/group2/USING_NumericDisplay_BY_REFERENCE.out: New test.
+	* cobol.dg/group2/USING_NumericDisplay_BY_VALUE.cob: New test.
+	* cobol.dg/group2/USING_NumericDisplay_BY_VALUE.out: New test.
+	* cobol.dg/group2/USING_Signed_-_COMP-3_BY_REFERENCE.cob: New test.
+	* cobol.dg/group2/USING_Signed_-_COMP-3_BY_REFERENCE.out: New test.
+	* cobol.dg/group2/USING_Signed_-_COMP-3_BY_VALUE.cob: New test.
+	* cobol.dg/group2/USING_Signed_-_COMP-3_BY_VALUE.out: New test.
+	* cobol.dg/group2/USING_Signed_-_NumericDisplay_BY_REFERENCE.cob: New test.
+	* cobol.dg/group2/USING_Signed_-_NumericDisplay_BY_REFERENCE.out: New test.
+	* cobol.dg/group2/USING_Signed_-_NumericDisplay_BY_VALUE.cob: New test.
+	* cobol.dg/group2/USING_Signed_-_NumericDisplay_BY_VALUE.out: New test.
+	* cobol.dg/group2/USING_Signed___COMP-3_BY_REFERENCE.cob: New test.
+	* cobol.dg/group2/USING_Signed___COMP-3_BY_REFERENCE.out: New test.
+	* cobol.dg/group2/USING_Signed___COMP-3_BY_VALUE.cob: New test.
+	* cobol.dg/group2/USING_Signed___COMP-3_BY_VALUE.out: New test.
+	* cobol.dg/group2/USING_Signed___NumericDisplay_BY_REFERENCE.cob: New test.
+	* cobol.dg/group2/USING_Signed___NumericDisplay_BY_REFERENCE.out: New test.
+	* cobol.dg/group2/USING_Signed___NumericDisplay_BY_VALUE.cob: New test.
+	* cobol.dg/group2/USING_Signed___NumericDisplay_BY_VALUE.out: New test.
+
+2026-02-12  Richard Biener  <rguenther@suse.de>
+
+	* gcc.dg/vect/vect.exp: Adjust vec-scal-*.c glob.  Merge
+	globbing of non-bb-slp-*.c tests to a *.c glob excluding
+	bb-slp-*.c.
+	* gcc.dg/vect/vec-scal-opt.c: Move ...
+	* gcc.dg/vect/veclower/vec-scal-opt.c: ... here.
+	* gcc.dg/vect/vec-scal-opt1.c: Move ...
+	* gcc.dg/vect/veclower/vec-scal-opt1.c: ... here.
+	* gcc.dg/vect/vec-scal-opt2.c: Move ...
+	* gcc.dg/vect/veclower/vec-scal-opt2.c: ... here.
+	* gcc.dg/vect/complex/fast-math-bb-slp-complex-add-double.c: Rename to ...
+	* gcc.dg/vect/complex/bb-slp-complex-add-double.c: ... this.
+	* gcc.dg/vect/complex/fast-math-bb-slp-complex-add-float.c: Rename to ...
+	* gcc.dg/vect/complex/bb-slp-complex-add-float.c: ... this.
+	* gcc.dg/vect/complex/fast-math-bb-slp-complex-add-half-float.c: Rename to ...
+	* gcc.dg/vect/complex/bb-slp-complex-add-half-float.c: ... this.
+	* gcc.dg/vect/complex/fast-math-bb-slp-complex-add-pattern-double.c: Rename to ...
+	* gcc.dg/vect/complex/bb-slp-complex-add-pattern-double.c: ... this.
+	* gcc.dg/vect/complex/fast-math-bb-slp-complex-add-pattern-float.c: Rename to ...
+	* gcc.dg/vect/complex/bb-slp-complex-add-pattern-float.c: ... this.
+	* gcc.dg/vect/complex/fast-math-bb-slp-complex-add-pattern-half-float.c: Rename to ...
+	* gcc.dg/vect/complex/bb-slp-complex-add-pattern-half-float.c: ... this.
+	* gcc.dg/vect/complex/fast-math-bb-slp-complex-mla-double.c: Rename to ...
+	* gcc.dg/vect/complex/bb-slp-complex-mla-double.c: ... this.
+	* gcc.dg/vect/complex/fast-math-bb-slp-complex-mla-float.c: Rename to ...
+	* gcc.dg/vect/complex/bb-slp-complex-mla-float.c: ... this.
+	* gcc.dg/vect/complex/fast-math-bb-slp-complex-mla-half-float.c: Rename to ...
+	* gcc.dg/vect/complex/bb-slp-complex-mla-half-float.c: ... this.
+	* gcc.dg/vect/complex/fast-math-bb-slp-complex-mls-double.c: Rename to ...
+	* gcc.dg/vect/complex/bb-slp-complex-mls-double.c: ... this.
+	* gcc.dg/vect/complex/fast-math-bb-slp-complex-mls-float.c: Rename to ...
+	* gcc.dg/vect/complex/bb-slp-complex-mls-float.c: ... this.
+	* gcc.dg/vect/complex/fast-math-bb-slp-complex-mls-half-float.c: Rename to ...
+	* gcc.dg/vect/complex/bb-slp-complex-mls-half-float.c: ... this.
+	* gcc.dg/vect/complex/fast-math-bb-slp-complex-mul-double.c: Rename to ...
+	* gcc.dg/vect/complex/bb-slp-complex-mul-double.c: ... this.
+	* gcc.dg/vect/complex/fast-math-bb-slp-complex-mul-float.c: Rename to ...
+	* gcc.dg/vect/complex/bb-slp-complex-mul-float.c : ... this.
+	* gcc.dg/vect/complex/fast-math-bb-slp-complex-mul-half-float.c: Rename to ...
+	* gcc.dg/vect/complex/bb-slp-complex-mul-half-float.c: ... this.
+	* gcc.dg/vect/complex/complex-add-pattern-template.c: Skip.
+	* gcc.dg/vect/complex/complex-add-template.c: Skip.
+	* gcc.dg/vect/complex/complex-mla-template.c: Skip.
+	* gcc.dg/vect/complex/complex-mls-template.c: Skip.
+	* gcc.dg/vect/complex/complex-mul-template.c: Skip.
+	* gcc.dg/vect/complex/complex-operations.c: Skip.
+
+2026-02-12  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/124045
+	* g++.dg/reflect/type1.C: Don't expect an error for a missing typename
+	in a namespace scope.
+
+2026-02-12  James Bohl  <bohlj47@gmail.com>
+
+	PR algol68/124049
+	* algol68/execute/modules/program-25.a68: New test.
+	* algol68/execute/modules/module25a.a68: New file.
+	* algol68/execute/modules/module25b.a68: New file.
+
+2026-02-12  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR rtl-optimization/124062
+	* gcc.dg/torture/pr124062-1.c: New test.
+
+2026-02-12  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/98939
+	PR libstdc++/119745
+	* g++.dg/cpp0x/ref-qual5.C: Expect no diagnostics in C++20.
+
+2026-02-12  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/117369
+	* c-c++-common/analyzer/sprintf-pr117369.c: New test.
+	* gcc.dg/analyzer/doom-d_main-IdentifyVersion.c: Update expected
+	results to reflect complexity limits being hit earlier.
+
+2026-02-12  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/111099
+	* gcc.dg/analyzer/torture/ice-pr111099.c: New test.
+
+2026-02-12  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/124073
+	* g++.dg/analyzer/ice-pr124073.C: New test.
+
 2026-02-11  Joseph Myers  <josmyers@redhat.com>
 
 	* lib/tsan-dg.exp (orig_tsan_options_saved, orig_tsan_options):

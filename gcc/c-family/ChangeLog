@@ -1,3 +1,9 @@
+2026-02-12  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR c/105555
+	* c-common.cc (fold_offsetof): Handle REALPART_EXPR
+	and IMAGPART_EXPR.
+
 2026-02-06  Torbjörn SVENSSON  <torbjorn.svensson@foss.st.com>
 
 	PR middle-end/123892

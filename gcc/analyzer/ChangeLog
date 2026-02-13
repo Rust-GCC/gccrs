@@ -1,3 +1,17 @@
+2026-02-12  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/117369
+	* kf.cc (kf_sprintf::impl_call_pre): Use the capacity of the
+	region when "faking" a write to the destination buffer, to
+	avoid buffer overflow false +ves.
+
+2026-02-12  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/124073
+	* region-model.cc (region_model::push_frame): Bulletproof against
+	DECL_RESULT having null SSA on function missing a return
+	statement (-Wreturn-type).
+
 2026-02-11  David Malcolm  <dmalcolm@redhat.com>
 
 	PR analyzer/124055

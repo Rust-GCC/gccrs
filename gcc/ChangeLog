@@ -1,3 +1,63 @@
+2026-02-12  Hans-Peter Nilsson  <hp@axis.com>
+
+	* config/cris/cris.cc (cris_reduce_compare): Add forcing the first
+	operand to be a register, unless the second operand is 0, to scope.
+	* config/cris/cris.md ("*cstore<mode><code>4")
+	("*cbranch<mode><code>4"): Add guards to condition, for either operand
+	to be a register unless the last operand is zero.
+
+2026-02-12  Hans-Peter Nilsson  <hp@axis.com>
+
+	* config/cris/cris.md (BWDSF): New mode_iterator replacing SISF.
+	All callers changed.
+	("*movhi_internal<setcc><setnz><setnzvc>"): Anonymized from
+	"<acc><anz><anzvc>movhi<setcc><setnz><setnzvc>" to make it a
+	match-only pattern.  Add conditions to guard from source and
+	destination both being memory operands.
+	("*movstricthi_internal", "*movstrictqi_internal"): Similarly
+	for "movstricthi" and "movstrictqi".
+	("movstrict<mode>"): Add common expander for BW, forcing one operand
+	to be a register or source being zero.
+
+2026-02-12  Hans-Peter Nilsson  <hp@axis.com>
+
+	* config/cris/cris.md (SISF): New mode_iterator for SI and SF.
+	("mov<mode>"): Make "movsi" a define_expand to include SFmode by
+	means of the SISF iterator and adjust to also handle SFmode.
+	("*movsf_internal"): Anonymize "movsf"; make it a match-only pattern.
+	Add conditions to guard from source and destination both being memory
+	operands.
+
+2026-02-12  Kwok Cheung Yeung  <kcyeung@baylibre.com>
+
+	PR middle-end/113436
+	* omp-low.cc (is_variable_sized): Add extra is_ref argument.  Check
+	referenced type if true.
+	(lower_omp_target): Call lower_private_allocate to generate code to
+	allocate memory for firstprivate/private clauses with allocators, and
+	insert code after dependent variables have been initialized.
+	Construct calls to free allocate memory and insert after target block.
+	Adjust decl values for clause variables.  Copy value of firstprivate
+	variables to allocated memory.
+
+2026-02-12  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR rtl-optimization/124062
+	* ifcvt.cc (noce_try_cond_arith): Check the conditional code
+	for UNKNOWN.
+
+2026-02-12  Soumya AR  <soumyaa@nvidia.com>
+
+	* config/aarch64/aarch64-json-schema.h: Include inherited members for
+	SVE vector costs.
+	* config/aarch64/aarch64-json-tunings-parser-generated.inc
+	(parse_vec_costs_sve): Regenerate.
+	* config/aarch64/aarch64-json-tunings-parser.cc
+	(aarch64_load_tuning_params_from_json_string): Clear dispatch scheduling
+	flag if dispatch_constraints is NULL.
+	* config/aarch64/aarch64-json-tunings-printer-generated.inc
+	(serialize_vec_costs_sve): Regenerate.
+
 2026-02-11  Vladimir N. Makarov  <vmakarov@redhat.com>
 
 	PR rtl-optimization/121191

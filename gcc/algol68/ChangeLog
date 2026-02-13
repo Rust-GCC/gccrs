@@ -1,3 +1,12 @@
+2026-02-12  James Bohl  <bohlj47@gmail.com>
+
+	PR algol68/124049
+	* Make-lang.in (ALGOL68_OBJS): Add algol68/a68-moids-sorting.o.
+	* a68.h: Add prototype for a68_sort_union_packs.
+	* a68-moids-sorting.cc: New file.
+	* a68-parser-modes.cc (a68_make_moid_list): Call a68_sort_union_packs.
+	* ga68-exports.pk (ga68_mode_64): Add comment on union mode ordering.
+
 2026-02-11  Jose E. Marchesi  <jemarch@gnu.org>
 
 	* ga68-coding-guidelines.texi (Enquiry clauses): New section.

@@ -1,3 +1,52 @@
+2026-02-12  Robert Dubner  <rdubner@symas.com>
+
+	PR cobol/121499
+	* LICENSE: Copyright updated to 2026.
+	* Makefile.am: Compile with -fstrict-aliasing.
+	* Makefile.in: Autoreconf.
+	* acinclude.m4: Copyright updated to 2026.
+	* charmaps.cc: Likewise.
+	* charmaps.h: Likewise.
+	* common-defs.h: Likewise.
+	* configure.tgt: Likewise.
+	* constants.cc: Likewise.
+	* ec.h: Likewise.
+	* encodings.h: Likewise.
+	* exceptl.h: Likewise.
+	* gcobolio.h: Likewise.
+	* gfileio.cc: Likewise.
+	* gfileio.h: Likewise.
+	* gmath.cc (multiply_int256_by_int64): Eliminate aliasing.
+	(divide_int256_by_int64): Likewise.
+	(multiply_int128_by_int128): Likewise.
+	(divide_int128_by_int128): Likewise.
+	* gmath.h: Copyright updated to 2026.
+	* intrinsic.cc: Likewise.
+	* io.cc: Likewise.
+	* io.h: Likewise.
+	* libgcobol.cc: Likewise.
+	* libgcobol.h: Likewise.
+	* stringbin.cc: Likewise.
+	* stringbin.h: Likewise.
+	* valconv.cc: Likewise.
+	* valconv.h: Likewise.
+	* xmlparse.cc: Likewise.
+
+2026-02-12  Robert Dubner  <rdubner@symas.com>
+
+	* Makefile.am: Temporarily continue to use -fno-strict-aliasing.
+	* Makefile.in: Likewise.
+	* libgcobol.cc (__gg__fetch_call_by_value_value): Simplify handling
+	of FldFloat.
+	(__gg__assign_value_from_stack): Likewise.
+	(__gg__unstring): Avoid uninitialized variable error.
+	(__gg__look_at_int128): New function useful for debugging.
+	(__gg__look_at_pointer): Likewise.
+	* xmlparse.cc (xml_event): Implement namespace XML.
+	(cdataBlock): Likewise.
+	(characters): Likewise.
+	(__gg__xml_parse):  Likewise.
+
 2026-02-05  Robert Dubner  <rdubner@symas.com>
 
 	* valconv.cc (__gg__string_to_numeric_edited): Explanatory comment.

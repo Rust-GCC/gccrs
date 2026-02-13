@@ -1,3 +1,49 @@
+2026-02-12  Robert Dubner  <rdubner@symas.com>
+
+	* cbldiag.h: Copyright updated to 2026.
+	* cdf-copy.cc: Likewise.
+	* cdf.y: Likewise.
+	* cdfval.h: Likewise.
+	* cobol-system.h: Likewise.
+	* convert.cc: Likewise.
+	* copybook.h: Likewise.
+	* except.cc: Likewise.
+	* exceptg.h: Likewise.
+	* genapi.cc: Likewise.
+	* genapi.h: Likewise.
+	* gengen.cc: Likewise.
+	* gengen.h: Likewise.
+	* genmath.cc: Likewise.
+	* genmath.h: Likewise.
+	* genutil.cc: Likewise.
+	* genutil.h: Likewise.
+	* inspect.h: Likewise.
+	* lang-specs.h: Likewise.
+	* lexio.cc: Likewise.
+	* lexio.h: Likewise.
+	* messages.cc: Likewise.
+	* parse.y: Likewise.
+	* parse_ante.h: Likewise.
+	* parse_util.h: Likewise.
+	* scan.l: Likewise.
+	* scan_ante.h: Likewise.
+	* scan_post.h: Likewise.
+	* show_parse.h: Likewise.
+	* structs.cc: Likewise.
+	* structs.h: Likewise.
+	* symbols.cc: Likewise.
+	* symbols.h: Likewise.
+	* symfind.cc: Likewise.
+	* util.cc: Likewise.
+	* util.h: Likewise.
+
+2026-02-12  Robert Dubner  <rdubner@symas.com>
+
+	* genapi.cc (establish_using): Use a 128-bit type for
+	float-extended; handle numeric-edited values of different sizes
+	and signs correctly.
+	(create_and_call):  Use a 128-bit type for float-extended.
+
 2026-02-06  Robert Dubner  <rdubner@symas.com>
 
 	PR cobol/119332

@@ -1,3 +1,38 @@
+2026-02-12  Patrick Palka  <ppalka@redhat.com>
+
+	* include/bits/regex_executor.tcc (_Executor::_M_rep_once_more):
+	Make unnused _Match_mode parameter unnamed.
+	(_Executor::_M_handle_repeat): Likewise.
+	(_Executor::_M_handle_subexpr_begin): Likewise.
+	(_Executor::_M_handle_subexpr_end): Likewise.
+	(_Executor::_M_handle_line_begin_assertion): Likewise.
+	(_Executor::_M_handle_line_end_assertion): Likewise.
+	(_Executor::_M_handle_match): Likewise.
+	(_Executor::_M_handle_backref): Likewise.
+	(_Executor::_M_handle_alternative): Likewise.
+
+2026-02-12  Xi Ruoyao  <xry111@xry111.site>
+	    Jonathan Wakely  <jwakely@redhat.com>
+
+	* testsuite/17_intro/badnames.cc (__unused): Do not define.
+	* testsuite/17_intro/names.cc [glibc == 2.43] (__unused): Undef.
+
+2026-02-12  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/std/type_traits (is_function): Declare before first
+	use.
+
+2026-02-12  Patrick Palka  <ppalka@redhat.com>
+
+	PR libstdc++/114865
+	* include/std/atomic (atomic<_Tp>::atomic(_Tp)) [C++11]:
+	Enable __builtin_clear_padding logic.
+	* testsuite/29_atomics/atomic/compare_exchange_padding.cc: Enable
+	this test in earlier modes, including C++11.
+	* testsuite/29_atomics/atomic/cons/zero_padding.cc [C++11]:
+	Enable tests verifying cleared padding bits for a non-static-init
+	std::atomic object.
+
 2026-02-11  Tomasz Kamiński  <tkaminsk@redhat.com>
 
 	* include/bits/funcref_impl.h (function_ref::function_ref(_Fn&&)):

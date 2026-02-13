@@ -1,3 +1,58 @@
+2026-02-12  Patrick Palka  <ppalka@redhat.com>
+
+	* constraint.cc (finish_shorthand_constraint): Add is_non_type
+	parameter.  Handle constrained auto NTTPs.
+	* cp-tree.h (copy_template_args): Declare.
+	(expand_template_argument_pack): Declare.
+	(finish_shorthand_constraint): Adjust declaration.
+	* mangle.cc (write_template_param_decl): Obtain constraints of
+	an auto NTTP through TEMPLATE_PARM_CONSTRAINTS instead of
+	PLACEHOLDER_TYPE_CONSTRAINTS.
+	* parser.cc (cp_parser_constrained_type_template_parm): Inline
+	into its only caller and remove.
+	(cp_parser_constrained_non_type_template_parm): Likewise.
+	(finish_constrained_parameter): Simplify after the above.  Replace
+	the type of an ordinary constrained auto NTTP with a
+	non-constrained one and set TEMPLATE_PARM_CONSTRAINTS for it.
+	(cp_parser_template_parameter): Dispatch to
+	finish_constrained_parameter for a constrained auto NTTP.
+	* pt.cc (process_template_parm): Pass is_non_type to
+	finish_shorthand_constraint.  Use TEMPLATE_PARM_CONSTRAINTS
+	instead of TREE_TYPE for clarity.
+	(expand_template_argument_pack): Remove forward declaration.
+	(copy_template_args): Likewise.
+	(make_constrained_placeholder_type): Return the type not the
+	TYPE_NAME for consistency with make_auto_1 etc.
+	(do_auto_deduction): Assert we no longer see simple constrained
+	autos during coercion/deduction.
+
+2026-02-12  Patrick Palka  <ppalka@redhat.com>
+
+	* cp-gimplify.cc (cp_gimplify_expr) <case CALL_EXPR>: Adjust
+	r16-7487 comment.
+
+2026-02-12  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/123989
+	* cp-gimplify.cc (cp_gimplify_expr) <case CALL_EXPR>: Evaluate
+	the object argument of an xobj memfn call first too.
+
+2026-02-12  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/124045
+	* parser.cc (cp_parser_parse_and_diagnose_invalid_type_name): Also
+	abort the tentative parse when id is error_mark_node.
+	(cp_parser_simple_declaration): Set CP_PARSER_FLAGS_TYPENAME_OPTIONAL
+	when in a namespace scope.
+	(cp_parser_single_declaration): Use cp_parser_flags instead of int.
+
+2026-02-12  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/98939
+	PR libstdc++/119745
+	* class.cc (object_parms_correspond): Allow differing
+	FUNCTION_REF_QUALIFIED in C++20.
+
 2026-02-11  Boris Staletic  <boris.staletic@protonmail.com>
 
 	PR c++/123660

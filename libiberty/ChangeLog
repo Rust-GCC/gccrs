@@ -1,3 +1,8 @@
+2026-02-12  LIU Hao  <lh_mouse@126.com>
+
+	* vprintf-support.c (do_strtoul): New function.
+	(libiberty_vprintf_buffer_size): Replace `strtoul` with `do_strtoul`.
+
 2026-02-05  Matthieu Longo  <matthieu.longo@arm.com>
 
 	* testsuite/test-doubly-linked-list.c: Update.

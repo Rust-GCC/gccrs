@@ -1,3 +1,20 @@
+2026-02-12  Pietro Monteiro  <pietro@sociotechnical.xyz>
+	    Jakub Jelinek   <jakub@redhat.com>
+
+	PR libitm/69018
+	* testsuite/lib/libitm.exp (libitm_init): Check
+	GXX_UNDER_TEST.  Add "${blddir}/.libs" to
+	always_ld_library_path if blddir is not empty.  Use
+	"-fdiagnostics-plain-output".  Don't set compiler to GCC_UNDER_TEST.
+	* testsuite/libitm.c++/c++.exp: If $blddir is not empty set
+	libstdc++_library_path, shlib_ext, lang_include_flags, add
+	"${blddir}/${lang_library_paths}" to ld_library_path.
+	Unset libstdc++_library_path and shlib_ext if we skip C++
+	tests and at the end of the test run.
+	* testsuite/libitm.c/c.exp: Update the FSF address to the
+	website in the license text. Unset lang_library_paths and
+	lang_include_flags.  Set the compiler to $GCC_UNDER_TEST.
+
 2026-01-31  Pietro Monteiro  <pietro@sociotechnical.xyz>
 
 	PR libitm/69018
