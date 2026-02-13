@@ -41,6 +41,7 @@
 #include <hsa_ext_amd.h>
 #include <dlfcn.h>
 #include <signal.h>
+#include "alloc_cache.h"
 #define _LIBGOMP_PLUGIN_INCLUDE 1
 #include "libgomp-plugin.h"
 #undef _LIBGOMP_PLUGIN_INCLUDE
@@ -281,8 +282,9 @@ struct kernel_dispatch
   struct agent_info *agent;
   /* Pointer to a command queue associated with a kernel dispatch agent.  */
   void *queue;
-  /* Pointer to a memory space used for kernel arguments passing.  */
-  void *kernarg_address;
+  /* Pointer to a memory space used for kernel arguments passing, wrapped in a
+     node from the agent kernel argument cache.  */
+  struct alloc_cache_node *kernarg_cache_node;
   /* Kernel object.  */
   uint64_t object;
   /* Synchronization signal used for dispatch synchronization.  */
@@ -471,6 +473,10 @@ struct agent_info
 
   /* The HSA memory region from which to allocate kernel arguments.  */
   hsa_region_t kernarg_region;
+
+  /* A stack of allocations in kernarg_region of (sizeof (struct kernargs))
+     size each, used for ammortizing kernel argument allocation cost.  */
+  struct alloc_cache kernarg_cache;
 
   /* The HSA memory region from which to allocate device data.  */
   hsa_region_t data_region;
@@ -1082,7 +1088,7 @@ dump_executable_symbols (hsa_executable_t executable)
 static void
 print_kernel_dispatch (struct kernel_dispatch *dispatch, unsigned indent)
 {
-  struct kernargs *kernargs = (struct kernargs *)dispatch->kernarg_address;
+  struct kernargs *kernargs = dispatch->kernarg_cache_node->allocation;
 
   fprintf (stderr, "%*sthis: %p\n", indent, "", dispatch);
   fprintf (stderr, "%*squeue: %p\n", indent, "", dispatch->queue);
@@ -2004,6 +2010,34 @@ alloc_by_agent (struct agent_info *agent, size_t size)
   return ptr;
 }
 
+/* Get a cached kernargs from AGENT, returning an existing one if any are
+   available.  Returns an alloc_cache_node whose value is this allocation.  */
+
+static struct alloc_cache_node *
+alloc_kernargs_on_agent (struct agent_info *agent, size_t size)
+{
+  struct alloc_cache_node *ka_node = (alloc_cache_try_find
+				      (&agent->kernarg_cache, size));
+
+  /* The cache was empty.  */
+  if (!ka_node)
+    {
+      void *ka_addr;
+      hsa_status_t status = hsa_fns.hsa_memory_allocate_fn
+	(agent->kernarg_region, sizeof (struct kernargs), &ka_addr);
+      if (status != HSA_STATUS_SUCCESS)
+	hsa_fatal ("Could not allocate memory for GCN kernel arguments", status);
+
+      ka_node = alloc_cache_add_taken_node (&agent->kernarg_cache,
+					    ka_addr,
+					    size);
+      if (!ka_node)
+	GOMP_PLUGIN_fatal ("Could not allocate cache node for kernel arguments");
+    }
+
+  return ka_node;
+}
+
 /* Create kernel dispatch data structure for given KERNEL, along with
    the necessary device signals and memory allocations.  */
 
@@ -2054,12 +2088,10 @@ create_kernel_dispatch (struct kernel_info *kernel, int num_teams,
       return NULL;
     }
 
-  status = hsa_fns.hsa_memory_allocate_fn (agent->kernarg_region,
-					   sizeof (struct kernargs),
-					   &shadow->kernarg_address);
-  if (status != HSA_STATUS_SUCCESS)
-    hsa_fatal ("Could not allocate memory for GCN kernel arguments", status);
-  struct kernargs *kernargs = shadow->kernarg_address;
+  /* Get an allocation, if possible from the cache.  */
+  shadow->kernarg_cache_node = (alloc_kernargs_on_agent
+				(agent, sizeof (struct kernargs)));
+  struct kernargs *kernargs = shadow->kernarg_cache_node->allocation;
 
   /* Zero-initialize the output_data (minimum needed).  */
   kernargs->abi.out_ptr = (int64_t)&kernargs->output_data;
@@ -2158,13 +2190,13 @@ release_kernel_dispatch (struct kernel_dispatch *shadow)
 {
   GCN_DEBUG ("Released kernel dispatch: %p\n", shadow);
 
-  struct kernargs *kernargs = shadow->kernarg_address;
+  struct kernargs *kernargs = shadow->kernarg_cache_node->allocation;
   void *addr = (void *)kernargs->abi.arena_ptr;
   if (!addr)
     addr = (void *)kernargs->abi.stack_ptr;
   release_ephemeral_memories (shadow->agent, addr);
 
-  hsa_fns.hsa_memory_free_fn (shadow->kernarg_address);
+  release_alloc_cache_node (shadow->kernarg_cache_node);
 
   hsa_signal_t s;
   s.handle = shadow->signal;
@@ -2406,12 +2438,13 @@ run_kernel (struct kernel_info *kernel, void *vars,
   packet->private_segment_size = shadow->private_segment_size;
   packet->group_segment_size = shadow->group_segment_size;
   packet->kernel_object = shadow->object;
-  packet->kernarg_address = shadow->kernarg_address;
+  struct kernargs *kernargs = (packet->kernarg_address
+			       = shadow->kernarg_cache_node->allocation);
   hsa_signal_t s;
   s.handle = shadow->signal;
   packet->completion_signal = s;
   hsa_fns.hsa_signal_store_relaxed_fn (s, 1);
-  memcpy (shadow->kernarg_address, &vars, sizeof (vars));
+  memcpy (kernargs, &vars, sizeof (vars));
 
   GCN_DEBUG ("Copying kernel runtime pointer to kernarg_address\n");
 
@@ -2437,11 +2470,10 @@ run_kernel (struct kernel_info *kernel, void *vars,
 					     1000 * 1000,
 					     HSA_WAIT_STATE_BLOCKED) != 0)
     {
-      console_output (kernel, shadow->kernarg_address, false);
+      console_output (kernel, kernargs, false);
     }
-  console_output (kernel, shadow->kernarg_address, true);
+  console_output (kernel, kernargs, true);
 
-  struct kernargs *kernargs = shadow->kernarg_address;
   unsigned int return_value = (unsigned int)kernargs->output_data.return_value;
 
   release_kernel_dispatch (shadow);
@@ -3766,6 +3798,9 @@ GOMP_OFFLOAD_init_device (int n)
   GCN_DEBUG ("Selected device data memory region:\n");
   dump_hsa_region (agent->data_region, NULL);
 
+  /* Prepare kernargs cache.  */
+  init_alloc_cache (&agent->kernarg_cache);
+
   GCN_DEBUG ("GCN agent %d initialized\n", n);
 
   agent->initialized = true;
@@ -4182,6 +4217,17 @@ GOMP_OFFLOAD_fini_device (int n)
   hsa_status_t status = hsa_fns.hsa_queue_destroy_fn (agent->sync_queue);
   if (status != HSA_STATUS_SUCCESS)
     return hsa_error ("Error destroying command queue", status);
+
+  /* Clean up kernargs cache.  */
+  struct alloc_cache_node *node = agent->kernarg_cache.head;
+  while (node)
+    {
+      hsa_fns.hsa_memory_free_fn (node->allocation);
+
+      struct alloc_cache_node *curr_node = node;
+      node = curr_node->next;
+      destroy_alloc_cache_node (curr_node);
+    }
 
   if (pthread_mutex_destroy (&agent->prog_mutex))
     {
