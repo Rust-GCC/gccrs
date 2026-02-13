@@ -292,14 +292,19 @@ package body Sem_Disp is
      (Typ  : Entity_Id;
       Subp : Entity_Id)
    is
-      Formal    : Entity_Id;
-      Ctrl_Type : Entity_Id;
+      Ctrl_Type  : Entity_Id;
+      Formal     : Entity_Id;
+      Ovr_Formal : Entity_Id := Empty;
 
    begin
       --  We skip the check for thunks
 
       if Is_Thunk (Subp) then
          return;
+      end if;
+
+      if Present (Overridden_Operation (Subp)) then
+         Ovr_Formal := First_Formal (Overridden_Operation (Subp));
       end if;
 
       Formal := First_Formal (Subp);
@@ -354,7 +359,15 @@ package body Sem_Disp is
              (Ekind (Subp) = E_Function
                 and then Is_Operator_Name (Chars (Subp)))
          then
-            Ctrl_Type := Check_Controlling_Type (Etype (Formal), Subp);
+            --  Overriding a parent primitive
+
+            if Present (Ovr_Formal)
+              and then not Is_Controlling_Formal (Ovr_Formal)
+            then
+               null;
+            else
+               Ctrl_Type := Check_Controlling_Type (Etype (Formal), Subp);
+            end if;
          end if;
 
          if Present (Ctrl_Type) then
@@ -432,6 +445,10 @@ package body Sem_Disp is
                Error_Msg_N
                  ("operation can be dispatching in only one type", Subp);
             end if;
+         end if;
+
+         if Present (Overridden_Operation (Subp)) then
+            Next_Formal (Ovr_Formal);
          end if;
 
          Next_Formal (Formal);

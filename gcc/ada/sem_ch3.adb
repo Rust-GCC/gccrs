@@ -16870,6 +16870,23 @@ package body Sem_Ch3 is
          if Present (Formal_Of_Actual) then
             Replace_Type (Formal_Of_Actual, New_Formal);
             Next_Formal (Formal_Of_Actual);
+
+         --  Do not replace the type when Derived_Type inherits the first
+         --  controlling parameter aspect and this is not the first formal
+         --  of this operation. The exception to this common case is when
+         --  this is a controlling formal; this case corresponds with an
+         --  inherited operation of an ancestor that does not have the
+         --  first controlling parameter aspect.
+
+         elsif Is_Tagged_Type (Parent_Type)
+           and then Has_First_Controlling_Parameter_Aspect (Parent_Type)
+           and then Formal /= First_Formal (Parent_Subp)
+           and then not Is_Controlling_Formal (Formal)
+           and then Is_Dispatching_Operation (Parent_Subp)
+           and then not Is_Predefined_Dispatching_Operation (Parent_Subp)
+         then
+            null;
+
          else
             Replace_Type (Formal, New_Formal);
          end if;
