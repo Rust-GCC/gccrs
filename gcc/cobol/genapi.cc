@@ -15705,7 +15705,7 @@ mh_source_is_group( const cbl_refer_t &destref,
                     const TREEPLET    &tsrc)
   {
   bool retval = false;
- charmap_t *charmap = __gg__get_charmap(destref.field->codeset.encoding);
+  charmap_t *charmap = __gg__get_charmap(destref.field->codeset.encoding);
   if(   sourceref.field->type == FldGroup && !(destref.field->attr & rjust_e)
      && sourceref.field->codeset.encoding == destref.field->codeset.encoding
      && charmap->stride() == 1)
@@ -15727,7 +15727,7 @@ mh_source_is_group( const cbl_refer_t &destref,
       }
     ELSE
       {
-      // There are too-few source bytes:
+      // There are too few source bytes:
       int dest_space = charmap->mapped_character(ascii_space);
       gg_memset(tdest, build_int_cst_type(INT, dest_space), dbytes);
       gg_memcpy(tdest, tsource, sbytes);
@@ -15861,38 +15861,91 @@ mh_source_is_literalA(const cbl_refer_t &destref,
         }
       }
 
-    // If the source is flagged ALL, or if we are setting the destination to
-    // a figurative constant, pass along the ALL bit:
-    int rounded_parameter = rounded
-                           | ((sourceref.all || figconst ) ? REFER_ALL_BIT : 0);
-
-    if( size_error )
+    // Check to see if we can do a simple alphanumeric-to-alphanumeric move
+    if( (   destref.field->type == FldAlphanumeric
+         || destref.field->type == FldGroup )
+       && !(destref.field->attr & any_length_e)
+       && !sourceref.all                         
+       && !size_error)
       {
-      gg_assign(size_error,
-                gg_call_expr( INT,
-                              "__gg__move_literala",
-                              gg_get_address_of(destref.field->var_decl_node),
-                              refer_offset(destref),
-                              refer_size_dest(destref),
-                              build_int_cst_type(INT, rounded_parameter),
-                              build_string_literal(outlength,
-                                                   buffer),
-                              build_int_cst_type( SIZE_T, outlength),
-                              NULL_TREE));
+      // A simple alpha-to-alpha move is possible
+      size_t dest_bytes = destref.field->data.capacity();
+      // We have 'outlength' bytes in 'buffer' that need to go to
+      // destref.field->data.capacity() bytes at destref.field->data.
+      char *src = static_cast<char *>(xmalloc(dest_bytes));
+      size_t src_bytes = std::min(outlength, dest_bytes);
+      charmap_t *charmap = __gg__get_charmap(destref.field->codeset.encoding);
+      charmap->memset(src, charmap->mapped_character(ascii_space), dest_bytes);
+
+      if( destref.field->attr & rjust_e )
+        {
+        size_t fill = 0;
+        if( src_bytes < dest_bytes )
+          {
+          fill = dest_bytes - src_bytes;
+          }
+        memcpy(src+fill, buffer+outlength-src_bytes, src_bytes);
+        }
+      else
+        {
+        memcpy(src, buffer, src_bytes);
+        }
+      // src is now the desired string, space-filled if necessary on the right,
+      // (or on the left, for rjust_e destinations).
+
+      if( refer_is_clean(destref) )
+        {
+        gg_memcpy(member(destref.field->var_decl_node, "data"),
+                  build_string_literal(dest_bytes, src),
+                  build_int_cst_type(SIZE_T, dest_bytes));
+        }
+      else
+        {
+        gg_memcpy(gg_add(member(destref.field->var_decl_node, "data"),
+                         refer_offset(destref)),
+                  build_string_literal(dest_bytes, src),
+                  refer_size_dest(destref));
+        }
+      free(src);
       }
     else
       {
-                gg_call     ( INT,
-                              "__gg__move_literala",
-                              gg_get_address_of(destref.field->var_decl_node),
-                              refer_offset(destref),
-                              refer_size_dest(destref),
-                              build_int_cst_type(INT, rounded_parameter),
-                              build_string_literal(outlength,
-                                                   buffer),
-                              build_int_cst_type( SIZE_T, outlength),
-                              NULL_TREE);
+      // This is more complicated than a simple alpha-to-alpha move
+
+      // If the source is flagged ALL, or if we are setting the destination to
+      // a figurative constant, pass along the ALL bit:
+      int rounded_parameter = rounded
+                             | ((sourceref.all || figconst ) ? REFER_ALL_BIT : 0);
+
+      if( size_error )
+        {
+        gg_assign(size_error,
+                  gg_call_expr( INT,
+                                "__gg__move_literala",
+                                gg_get_address_of(destref.field->var_decl_node),
+                                refer_offset(destref),
+                                refer_size_dest(destref),
+                                build_int_cst_type(INT, rounded_parameter),
+                                build_string_literal(outlength,
+                                                     buffer),
+                                build_int_cst_type( SIZE_T, outlength),
+                                NULL_TREE));
+        }
+      else
+        {
+                  gg_call     ( INT,
+                                "__gg__move_literala",
+                                gg_get_address_of(destref.field->var_decl_node),
+                                refer_offset(destref),
+                                refer_size_dest(destref),
+                                build_int_cst_type(INT, rounded_parameter),
+                                build_string_literal(outlength,
+                                                     buffer),
+                                build_int_cst_type( SIZE_T, outlength),
+                                NULL_TREE);
+        }
       }
+
     if(    destref.refmod.from
         || destref.refmod.len )
       {
@@ -15900,6 +15953,118 @@ mh_source_is_literalA(const cbl_refer_t &destref,
       gg_attribute_bit_clear(destref.field, refmod_e);
       }
     moved = true;
+    }
+  return moved;
+  }
+
+static bool
+mh_alpha_to_alpha(const cbl_refer_t &destref,
+                  const cbl_refer_t &sourceref,
+                        cbl_round_t /*rounded*/,
+                        tree        size_error)
+  {
+  bool moved = false;
+  // If a bunch of conditions are met, we can do a move without resorting to
+  // the library.
+  if(   sourceref.field->type == FldAlphanumeric
+     && destref.field->type   == FldAlphanumeric
+     && !size_error
+     && sourceref.field->codeset.encoding == destref.field->codeset.encoding
+     && !destref.refmod.from
+     && !destref.refmod.len
+     && !(destref.field->attr   & rjust_e)
+     && !(sourceref.field->attr & any_length_e)
+     && !(destref.field->attr   & any_length_e)
+     && !(sourceref.field->attr & intermediate_e)
+     && !sourceref.all
+     )
+    {
+    // We are in a position to simply move bytes from the source to the dest.
+    if( refer_is_clean(sourceref) && refer_is_clean(destref) )
+      {
+      // Source and destination are both clean
+      if( destref.field->data.capacity() <= sourceref.field->data.capacity() )
+        {
+        // This is the simplest case of all
+        gg_memcpy(member(  destref.field->var_decl_node, "data"),
+                  member(sourceref.field->var_decl_node, "data"),
+                  build_int_cst_type(SIZE_T, destref.field->data.capacity()));
+        moved = true;
+        }
+      else
+        {
+        // This is a tad more complicated.  The source is too short, so we need
+        // to copy over what we can...
+        gg_memcpy(member(  destref.field->var_decl_node, "data"),
+                 member(sourceref.field->var_decl_node, "data"),
+                 build_int_cst_type(SIZE_T, sourceref.field->data.capacity()));
+        // And then space-fill the rest:
+        size_t fill_bytes =
+            destref.field->data.capacity() - sourceref.field->data.capacity();
+
+        // ...and then create a memory area with the fill spaces...
+        char *spaces = static_cast<char *>(xmalloc(fill_bytes));
+        charmap_t *charmap =__gg__get_charmap(destref.field->codeset.encoding);
+        charmap->memset(spaces,
+                        charmap->mapped_character(ascii_space),
+                        fill_bytes);
+        // ...and then copy those spaces into place.
+        gg_memcpy(
+          gg_add(member(destref.field->var_decl_node, "data"),
+                 build_int_cst_type(SIZE_T, sourceref.field->data.capacity())),
+          build_string_literal(fill_bytes, spaces),
+          build_int_cst_type(SIZE_T, fill_bytes));
+        free(spaces);
+        moved = true;
+        }
+      }
+    else
+      {
+      // Either the source or the dest is a table or refmod, so we need to do
+      // more work.
+      tree source_data = gg_define_variable(UCHAR_P);
+      tree source_len  = gg_define_variable(SIZE_T);
+
+      tree dest_data = gg_define_variable(UCHAR_P);
+      tree dest_len  = gg_define_variable(SIZE_T);
+
+      gg_assign(source_data,
+                gg_add(member(sourceref.field->var_decl_node, "data"),
+                       refer_offset(sourceref)));
+      gg_assign(source_len, refer_size_source(sourceref));
+
+      gg_assign(dest_data,
+                gg_add(member(destref.field->var_decl_node, "data"),
+                       refer_offset(destref)));
+      gg_assign(dest_len, refer_size_dest(destref));
+      IF( source_len, ge_op, dest_len )
+        {
+        // The source has enough (or more) bytes to fill the destination:
+        gg_memcpy(dest_data, source_data, dest_len);
+        }
+      ELSE
+        {
+        // The source data is too short.  We need to copy over what we have...
+        gg_memcpy(dest_data, source_data, source_len);
+
+        // And then right-fill the remainder with spaces. Create a buffer with
+        // more than enough spaces for our purposes:
+        size_t fill_bytes = destref.field->data.capacity();
+        char *spaces = static_cast<char *>(xmalloc(fill_bytes));
+        charmap_t *charmap =__gg__get_charmap(destref.field->codeset.encoding);
+        charmap->memset(spaces,
+                        charmap->mapped_character(ascii_space),
+                        fill_bytes);
+        // And then copy enough of those spaces into place.
+        gg_memcpy(gg_add(dest_data, source_len),
+                  build_string_literal(fill_bytes, spaces),
+                  gg_subtract(dest_len, source_len));
+        free(spaces);
+        }
+      ENDIF
+
+      moved = true;
+      }
     }
   return moved;
   }
@@ -15932,7 +16097,6 @@ move_helper(tree size_error,        // This is an INT
 
   tree st_data = NULL_TREE;
   tree st_size = NULL_TREE;
-
   if( restore_on_error )
     {
     // We are creating a copy of the original destination in case we clobber it
@@ -15954,12 +16118,6 @@ move_helper(tree size_error,        // This is an INT
     gg_memcpy(stash,
               st_data,
               st_size);
-    }
-
-  if(     (sourceref.field->attr & (linkage_e | based_e))
-      ||  (  destref.field->attr & (linkage_e | based_e)) )
-    {
-    //goto dont_be_clever; this will go through to the default.
     }
 
   // if( !moved ) // commented out to quiet cppcheck
@@ -16013,6 +16171,14 @@ move_helper(tree size_error,        // This is an INT
                                   sourceref,
                                   rounded,
                                   size_error);
+    }
+
+  if( !moved )
+    {
+    moved = mh_alpha_to_alpha(destref,
+                              sourceref,
+                              rounded,
+                              size_error);
     }
 
   if( !moved )
