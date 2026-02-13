@@ -170,6 +170,12 @@ public:
   std::unique_ptr<xml::node>
   maybe_make_state_diagram (const paths::event &event);
 
+  const logical_locations::manager *
+  get_logical_loc_mgr () const
+  {
+    return m_context.get_logical_location_manager ();
+  }
+
 private:
   void
   add_stylesheet (std::string url);
@@ -201,7 +207,6 @@ private:
   pretty_printer *m_printer;
   const line_maps *m_line_maps;
   html_generation_options m_html_gen_opts;
-  const logical_locations::manager *m_logical_loc_mgr;
 
   std::unique_ptr<xml::document> m_document;
   xml::element *m_head_element;
@@ -426,7 +431,6 @@ html_builder::html_builder (context &dc,
   m_printer (&pp),
   m_line_maps (line_maps),
   m_html_gen_opts (html_gen_opts),
-  m_logical_loc_mgr (nullptr),
   m_head_element (nullptr),
   m_title_element (nullptr),
   m_body_element (nullptr),
@@ -436,9 +440,6 @@ html_builder::html_builder (context &dc,
   m_last_expanded_location ({})
 {
   gcc_assert (m_line_maps);
-
-  if (auto client_data_hooks = dc.get_client_data_hooks ())
-    m_logical_loc_mgr = client_data_hooks->get_logical_location_manager ();
 
   m_document = std::make_unique<xml::document> ();
   m_document->m_doctypedecl = std::make_unique<html_doctypedecl> ();
@@ -636,7 +637,8 @@ html_builder::maybe_make_state_diagram (const paths::event &event)
   if (!m_html_gen_opts.m_show_state_diagrams)
     return nullptr;
 
-  if (!m_logical_loc_mgr)
+  auto logical_loc_mgr = get_logical_loc_mgr ();
+  if (!logical_loc_mgr)
     return nullptr;
 
   /* Get state graph; if we're going to print it later, also request
@@ -649,7 +651,7 @@ html_builder::maybe_make_state_diagram (const paths::event &event)
 
   // Convert it to .dot AST
   auto dot_graph = state_graphs::make_dot_graph (*state_graph,
-						 *m_logical_loc_mgr);
+						 *logical_loc_mgr);
   gcc_assert (dot_graph);
 
   auto wrapper = std::make_unique<xml::element> ("div", false);
@@ -1083,16 +1085,16 @@ html_builder::make_element_for_diagnostic (const diagnostic_info &diagnostic,
   gcc_assert (xp.get_num_open_tags () == depth_within_alert_div);
 
   /* Show any logical location.  */
-  if (m_logical_loc_mgr)
+  if (auto logical_loc_mgr = get_logical_loc_mgr ())
     if (auto client_data_hooks = m_context.get_client_data_hooks ())
       if (auto logical_loc = client_data_hooks->get_current_logical_location ())
 	if (logical_loc != m_last_logical_location)
 	  {
 	    enum logical_locations::kind kind
-	      = m_logical_loc_mgr->get_kind (logical_loc);;
+	      = logical_loc_mgr->get_kind (logical_loc);;
 	    if (const char *label = get_label_for_logical_location_kind (kind))
 	      if (const char *name_with_scope
-		  = m_logical_loc_mgr->get_name_with_scope (logical_loc))
+		  = logical_loc_mgr->get_name_with_scope (logical_loc))
 		add_labelled_value (xp, "logical-location",
 				    label, name_with_scope, true);
 	    m_last_logical_location = logical_loc;
