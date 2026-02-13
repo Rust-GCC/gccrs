@@ -682,16 +682,25 @@ canonicalize_reload_addr (rtx addr)
   return addr;
 }
 
-/* Return rtx accessing reload REG matching another reload reg in MODE.  */
+/* Return rtx accessing reload REG of RCLASS matching another reload reg in
+   MODE.  */
 static rtx
-get_matching_reload_reg_subreg (machine_mode mode, rtx reg)
+get_matching_reload_reg_subreg (machine_mode mode, rtx reg,
+				enum reg_class rclass)
 {
-  if (SCALAR_INT_MODE_P (mode) && SCALAR_INT_MODE_P (GET_MODE (reg)))
+  int hard_regno = ira_class_hard_regs[rclass][0];
+  if (subreg_regno_offset (hard_regno,
+			   GET_MODE (reg),
+			   subreg_lowpart_offset (mode, GET_MODE (reg)),
+			   mode) == 0)
     /* For matching scalar int modes generate the right subreg byte offset for
        BE targets -- see call of reload.cc:operands_match_p in
        recog.cc:constrain_operands.  */
     return lowpart_subreg (mode, reg, GET_MODE (reg));
-  return gen_rtx_SUBREG (mode, reg, 0);
+  int offset = (lra_constraint_offset (hard_regno, GET_MODE (reg))
+		- lra_constraint_offset (hard_regno, mode)) * UNITS_PER_WORD;
+  lra_assert (offset >= 0);
+  return gen_rtx_SUBREG (mode, reg, offset);
 }
 
 /* Create a new pseudo using MODE, RCLASS, EXCLUDE_START_HARD_REGS, ORIGINAL or
@@ -778,7 +787,7 @@ get_reload_reg (enum op_type type, machine_mode mode, rtx original,
 		if (maybe_lt (GET_MODE_SIZE (GET_MODE (reg)),
 			      GET_MODE_SIZE (mode)))
 		  continue;
-		reg = get_matching_reload_reg_subreg (mode, reg);
+		reg = get_matching_reload_reg_subreg (mode, reg, new_class);
 		if (reg == NULL_RTX || GET_CODE (reg) != SUBREG)
 		  continue;
 	      }
@@ -1146,7 +1155,7 @@ match_reload (signed char out, signed char *ins, signed char *outs,
 	    = lra_create_new_reg_with_unique_value (inmode, in_rtx, goal_class,
 						    exclude_start_hard_regs,
 						    "");
-	  new_out_reg = get_matching_reload_reg_subreg (outmode, reg);
+	  new_out_reg = get_matching_reload_reg_subreg (outmode, reg, goal_class);
 	  LRA_SUBREG_P (new_out_reg) = 1;
 	  /* If the input reg is dying here, we can use the same hard
 	     register for REG and IN_RTX.  We do it only for original
@@ -1165,7 +1174,7 @@ match_reload (signed char out, signed char *ins, signed char *outs,
 						    goal_class,
 						    exclude_start_hard_regs,
 						    "");
-	  new_in_reg = get_matching_reload_reg_subreg (inmode, reg);
+	  new_in_reg = get_matching_reload_reg_subreg (inmode, reg, goal_class);
 	  /* NEW_IN_REG is non-paradoxical subreg.  We don't want
 	     NEW_OUT_REG living above.  We add clobber clause for
 	     this.  This is just a temporary clobber.  We can remove
