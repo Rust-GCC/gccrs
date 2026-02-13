@@ -664,14 +664,18 @@ extract_component (gimple_stmt_iterator *gsi, tree t, bool imagpart_p,
       }
 
     case VIEW_CONVERT_EXPR:
-      /* Getting the real/imag parts of a VCE of a ssa-name requires
-	 to place the complex into a ssa name before getting the
-	 2 parts.
+      /* Getting the real/imag parts of a VCE of a ssa-name
+         (or gimple invariant) requires to place the complex
+	 into a ssa name before getting the 2 parts.
 	 As `IMAGPART_EXPR<VIEW_CONVERT_EXPR<a_BN>>` is an invalid
 	 gimple. This will only show up when gimplifying it.
 	 Note this creates an extra copy.  The call to
 	 force_gimple_operand_gsi would create one too.  */
-      if (TREE_CODE (TREE_OPERAND (t, 0)) == SSA_NAME)
+      tree expr;
+      expr = TREE_OPERAND (t, 0);
+      if (TREE_CODE (expr) == SSA_NAME
+	  || (is_gimple_min_invariant (expr)
+	      && TREE_CODE (expr) != STRING_CST))
 	{
 	  gcc_assert (gimple_p);
 	  tree new_cplx = make_ssa_name (TREE_TYPE (t));
