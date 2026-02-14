@@ -5259,6 +5259,7 @@ gfc_conv_ss_startstride (gfc_loopinfo * loop)
 	    {
 	    case GFC_ISYM_LBOUND:
 	    case GFC_ISYM_UBOUND:
+	    case GFC_ISYM_COSHAPE:
 	    case GFC_ISYM_LCOBOUND:
 	    case GFC_ISYM_UCOBOUND:
 	    case GFC_ISYM_MAXLOC:
@@ -5385,6 +5386,7 @@ done:
 		  /* Otherwise fall through GFC_SS_FUNCTION.  */
 		  gcc_fallthrough ();
 	      }
+	    case GFC_ISYM_COSHAPE:
 	    case GFC_ISYM_LCOBOUND:
 	    case GFC_ISYM_UCOBOUND:
 	    case GFC_ISYM_THIS_IMAGE:

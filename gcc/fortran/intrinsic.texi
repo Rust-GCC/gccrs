@@ -127,6 +127,7 @@ Some basic guidelines for editing this document:
 * @code{COS}:           COS,       Cosine function
 * @code{COSD}:          COSD,      Cosine function, degrees
 * @code{COSH}:          COSH,      Hyperbolic cosine function
+* @code{COSHAPE}:       COSHAPE,   Determine the coshape of a coarray
 * @code{COSPI}:         COSPI,     Circular cosine function
 * @code{COTAN}:         COTAN,     Cotangent function
 * @code{COTAND}:        COTAND,    Cotangent function, degrees
@@ -4631,6 +4632,48 @@ Fortran 77 and later, for a complex argument Fortran 2008 or later
 @item @emph{See also}:
 Inverse function: @*
 @ref{ACOSH}
+@end table
+
+
+
+@node COSHAPE
+@section @code{COSHAPE} --- Determine the coshape of a coarray
+@fnindex COSHAPE
+@cindex coarray, coshape
+
+@table @asis
+@item @emph{Synopsis}:
+@code{RESULT = COSHAPE(COARRAY [, KIND])}
+
+@item @emph{Description}:
+Returns the shape of the cobounds of a coarray.
+
+@item @emph{Class}:
+Inquiry function
+
+@item @emph{Arguments}:
+@multitable @columnfractions .15 .70
+@item @var{COARRAY} @tab Shall be an coarray, of any type.
+@item @var{KIND} @tab (Optional) A scalar @code{INTEGER} constant
+expression indicating the kind parameter of the result.
+@end multitable
+
+
+@item @emph{Example}:
+
+@smallexample
+program test_cosh
+  real(8) :: x[*]
+  integer, allocatable :: csh (:)
+  csh = coshape(x, kind = kind(csh))
+end program test_cosh
+@end smallexample
+
+@item @emph{Standard}:
+Fortran 2018
+
+@item @emph{See also}:
+@ref{SHAPE}
 @end table
 
 
@@ -13563,6 +13606,7 @@ END PROGRAM
 Fortran 90 and later, with @var{KIND} argument Fortran 2003 and later
 
 @item @emph{See also}:
+@ref{COSHAPE}, @*
 @ref{RESHAPE}, @*
 @ref{SIZE}
 @end table

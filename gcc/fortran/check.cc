@@ -2772,6 +2772,26 @@ gfc_check_complex (gfc_expr *x, gfc_expr *y)
 
 
 bool
+gfc_check_coshape (gfc_expr *coarray, gfc_expr *kind)
+{
+  if (flag_coarray == GFC_FCOARRAY_NONE)
+    {
+      gfc_fatal_error ("Coarrays disabled at %L, use %<-fcoarray=%> to enable",
+		       gfc_current_intrinsic_where);
+      return false;
+    }
+
+  if (!coarray_check (coarray, 0))
+    return false;
+
+  if (!kind_check (kind, 2, BT_INTEGER))
+    return false;
+
+  return true;
+}
+
+
+bool
 gfc_check_count (gfc_expr *mask, gfc_expr *dim, gfc_expr *kind)
 {
   if (!logical_array_check (mask, 0))

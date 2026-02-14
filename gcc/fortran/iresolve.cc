@@ -733,6 +733,25 @@ gfc_resolve_cosh (gfc_expr *f, gfc_expr *x)
 
 
 void
+gfc_resolve_coshape (gfc_expr *f, gfc_expr *array, gfc_expr *kind)
+{
+  f->ts.type = BT_INTEGER;
+  if (kind)
+    f->ts.kind = mpz_get_si (kind->value.integer);
+  else
+    f->ts.kind = gfc_default_integer_kind;
+
+  f->value.function.name
+    = gfc_get_string ("__coshape_%c%d", gfc_type_letter (array->ts.type),
+		      gfc_type_abi_kind (&array->ts));
+  f->rank = 1;
+  f->corank = 0;
+  f->shape = gfc_get_shape (1);
+  mpz_init_set_si (f->shape[0], array->corank);
+}
+
+
+void
 gfc_resolve_count (gfc_expr *f, gfc_expr *mask, gfc_expr *dim, gfc_expr *kind)
 {
   f->ts.type = BT_INTEGER;
