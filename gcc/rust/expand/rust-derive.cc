@@ -74,6 +74,13 @@ DeriveVisitor::derive (Item &item, const Attribute &attr,
       return vec (DeriveOrd (DeriveOrd::Ordering::Total, loc).go (item));
     case BuiltinMacro::PartialOrd:
       return vec (DeriveOrd (DeriveOrd::Ordering::Partial, loc).go (item));
+    case BuiltinMacro::RustcEncodable:
+    case BuiltinMacro::RustcDecodable:
+      rust_sorry_at (loc, "derive(%s) is not yet implemented",
+		     to_derive == BuiltinMacro::RustcEncodable
+		       ? "RustcEncodable"
+		       : "RustcDecodable");
+      return {};
     default:
       rust_unreachable ();
     };
