@@ -647,7 +647,7 @@ $(RTSDIR)/a-intnam.ads: ../stamp-gnatlib1-$(RTSDIR)
 	touch $@
 
 $(RTSDIR)/s-intnam.ads: $(fsrcdir)/ada/xsintnam.sed $(RTSDIR)/a-intnam.ads
-	sed -E -f $(fsrcdir)/ada/xsintnam.sed $(RTSDIR)/a-intnam.ads | cat -s > $@
+	sed -f $(fsrcdir)/ada/xsintnam.sed $(RTSDIR)/a-intnam.ads > $@
 
 gnatlib: ../stamp-gnatlib1-$(RTSDIR) ../stamp-gnatlib2-$(RTSDIR) $(RTSDIR)/s-oscons.ads $(RTSDIR)/s-intnam.ads
 	test -f $(RTSDIR)/s-oscons.ads || exit 1
