@@ -1,5 +1,6 @@
 // { dg-do compile }
 // { dg-options "-O1 -fsanitize=address" }
+// { dg-skip-if "no address sanitizer" { no_fsanitize_address } }
 
 // PR tree-optimization/95825
 
