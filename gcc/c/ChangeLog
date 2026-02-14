@@ -1,3 +1,7 @@
+2026-02-13  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* Make-lang.in (cc1.fda): Likewise.
+
 2026-02-06  Torbjörn SVENSSON  <torbjorn.svensson@foss.st.com>
 
 	PR middle-end/123892

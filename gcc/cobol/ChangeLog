@@ -1,3 +1,11 @@
+2026-02-13  Robert Dubner  <rdubner@symas.com>
+
+	PR cobol/119455
+	* genapi.cc (mh_source_is_group): Formatting.
+	(mh_source_is_literalA): Implement accelerated move.
+	(mh_alpha_to_alpha): New function; implements accelerated move.
+	(move_helper): Calls new mh_alpha_to_alpha.
+
 2026-02-12  Robert Dubner  <rdubner@symas.com>
 
 	* cbldiag.h: Copyright updated to 2026.

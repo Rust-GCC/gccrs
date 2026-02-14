@@ -1,3 +1,71 @@
+2026-02-13  Vladimir N. Makarov  <vmakarov@redhat.com>
+
+	PR rtl-optimization/124079
+	* gcc.target/s390/pr124079.c: New.
+
+2026-02-13  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR tree-optimization/95825
+	* g++.dg/warn/uninit-pr95825-1.C: New test.
+	* gcc.dg/tree-ssa/copy-prop-aggregate-return-1.c: New test.
+
+2026-02-13  Marek Polacek  <polacek@redhat.com>
+
+	* g++.dg/reflect/crash10.C: Adjust expected diagnostics.
+	* g++.dg/reflect/crash2.C: Likewise.
+	* g++.dg/reflect/crash3.C: Likewise.
+	* g++.dg/reflect/crash7.C: Likewise.
+	* g++.dg/reflect/crash9.C: Likewise.
+	* g++.dg/reflect/dep5.C: Likewise.
+	* g++.dg/reflect/diag1.C: Likewise.
+	* g++.dg/reflect/error10.C: Likewise.
+	* g++.dg/reflect/error12.C: Likewise.
+	* g++.dg/reflect/error5.C: Likewise.
+	* g++.dg/reflect/expr3.C: Likewise.
+	* g++.dg/reflect/member1.C: Likewise.
+	* g++.dg/reflect/ns2.C: Likewise.  Test more cases.
+	* g++.dg/reflect/p2996-12.C: Likewise.
+	* g++.dg/reflect/splice5.C: Likewise.
+	* g++.dg/reflect/diag1a.C: New test.
+	* g++.dg/reflect/diag1b.C: New test.
+
+2026-02-13  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/124012
+	* g++.dg/reflect/pr124012.C: New test.
+	* g++.dg/reflect/init1.C (r): Change constinit to constexpr.
+	(p): Change constinit to constexpr const.
+	* g++.dg/reflect/init6.C: Expect diagnostics for constinit
+	consteval-only vars.
+	* g++.dg/reflect/init7.C: Likewise.
+	* g++.dg/reflect/init10.C: Likewise.
+	* g++.dg/reflect/diag3.C: Likewise.  Don't expect suggestion to
+	add constinit.
+
+2026-02-13  Richard Biener  <rguenther@suse.de>
+
+	PR testsuite/115827
+	* gcc.dg/auto-init-uninit-17.c: Avoid CCP.
+	* gcc.dg/uninit-17.c: Likewise.
+
+2026-02-13  Tobias Burnus  <tburnus@baylibre.com>
+
+	PR middle-end/113436
+	* c-c++-common/gomp/pr113436-1.c: Replace '#include <omp.h>' by
+	local declaration for omp_allocator_handle_t.
+	* c-c++-common/gomp/pr113436-2.c: Likewise.
+	* g++.dg/gomp/pr113436.C: Likewise.
+	* gfortran.dg/gomp/pr113436-1.f90: Replace 'use omp_lib' by local
+	omp_*_mem_alloc parameter declarations.
+	* gfortran.dg/gomp/pr113436-2.f90: Likewise.
+	* gfortran.dg/gomp/pr113436-3.f90: Likewise.
+	* gfortran.dg/gomp/pr113436-4.f90: Likewise.
+
+2026-02-13  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/99959
+	* gcc.dg/uninit-pr99959.c: New testcase.
+
 2026-02-12  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
 
 	PR c/105555

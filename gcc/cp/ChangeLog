@@ -1,3 +1,36 @@
+2026-02-13  Marek Polacek  <polacek@redhat.com>
+
+	* cp-tree.h (inform_tree_category): Declare.
+	* error.cc (inform_tree_category): New.
+	* parser.cc (cp_parser_splice_specifier): Use OVL_FIRST when checking
+	for TEMPLATE_DECL.
+	(cp_parser_splice_type_specifier): Reword an error message.  Call
+	inform_tree_category.
+	(cp_parser_splice_expression): Check check_splice_expr earlier.  Reword
+	error messages.  Call inform_tree_category.  Turn an error into an
+	assert.  Use missing_template_diag instead of giving an error about
+	a missing 'template' keyword.
+	(cp_parser_splice_scope_specifier): Reword an error message.  Call
+	inform_tree_category.
+	(missing_template_diag): Forward declare.  Drop "enum" in a parameter.
+	* reflect.cc (check_splice_expr): Reword error messages.  Call
+	inform_tree_category.
+
+2026-02-13  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/124012
+	* reflect.cc (check_out_of_consteval_use_r): New function.
+	(check_out_of_consteval_use): Use it instead of lambda.  Don't ignore
+	constexpr/constinit vars in the walker and walk DECL_VALUE_EXPR of
+	vars which have it.  Ignore expr equal to constexpr VAR_DECL.  In
+	diagnostics only complain about missing constexpr on VAR_DECLs without
+	that flag and never suggest constinit.  Remove constinit traces from
+	function comment.
+
+2026-02-13  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* Make-lang.in (cc1plus.fda): Likewise.
+
 2026-02-12  Patrick Palka  <ppalka@redhat.com>
 
 	* constraint.cc (finish_shorthand_constraint): Add is_non_type

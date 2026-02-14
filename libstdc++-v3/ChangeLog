@@ -1,3 +1,22 @@
+2026-02-13  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* testsuite/20_util/scoped_allocator/construct_pair_c++2a.cc
+	(__gnu_test::uneq_allocator(int)): Declare as explicit.
+	* testsuite/std/memory/indirect/ctor.cc: Construct uneq_allocator
+	from int explicitly.
+	* testsuite/std/memory/polymorphic/ctor.cc: Likewise.
+	* testsuite/std/memory/polymorphic/ctor_poly.cc: Likewise.
+	* testsuite/util/testsuite_allocator.h: Likewise.
+
+2026-02-13  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/121771
+	* include/std/tuple (tuple::tuple(const Elements&...)): Use
+	type_identity_t to prevent constructor being used for CTAD.
+	(tuple::tuple(allocator_arg_t, const A&, const Elements&...)):
+	Likewise.
+	* testsuite/20_util/tuple/cons/121771.cc: New test.
+
 2026-02-12  Patrick Palka  <ppalka@redhat.com>
 
 	* include/bits/regex_executor.tcc (_Executor::_M_rep_once_more):

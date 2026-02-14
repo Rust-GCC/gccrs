@@ -1,3 +1,61 @@
+2026-02-13  David Malcolm  <dmalcolm@redhat.com>
+
+	* json-parsing.cc (selftest::assert_json_pointer_eq): New.
+	(ASSERT_JSON_POINTER_EQ): New.
+	(selftest::test_parse_object): Add tests of JSON pointer.
+	(selftest::test_pointer_escaping): New test.
+	(selftest::json_parser_cc_tests): Call it.
+	* json.cc (json::pointer::token::print): New.
+	(json::value::print_pointer): New.
+	* json.h (json::pointer::token::print): New decl.
+	(json::value::print_pointer): New decl.
+	* libsarifreplay.cc: Include pretty-print.h.
+	(make_logical_location_from_jv): Use
+	json::pointer::token::print for short_name.
+
+2026-02-13  Vladimir N. Makarov  <vmakarov@redhat.com>
+
+	PR rtl-optimization/124079
+	* lra-constraints.cc (get_matching_reload_reg_subreg): Add new arg
+	rclass.  Use another condition to use lowpart_subreg.  Use lra_constraint_offset
+	to calculate the subreg offset.
+	(get_reload_reg, match_reload): Pass the new arg.
+
+2026-02-13  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR tree-optimization/95825
+	* tree-ssa-forwprop.cc (optimize_agr_copyprop_return): New function.
+	(optimize_agr_copyprop): Call optimize_agr_copyprop_return
+	for return statements.
+
+2026-02-13  David Malcolm  <dmalcolm@redhat.com>
+
+	PR diagnostics/124014
+	* diagnostics/html-sink.cc (html_builder::get_logical_loc_mgr):
+	New.
+	(html_builder::m_logical_loc_mgr): Drop field.
+	(html_builder::html_builder): Drop initialization of
+	m_logical_loc_mgr.
+	(html_builder::maybe_make_state_diagram): Use get_logical_loc_mgr
+	rather than m_logical_loc_mgr.
+	(html_builder::make_element_for_diagnostic): Likewise.
+
+2026-02-13  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/99959
+	* tree-sra.cc (create_access_replacement): Guard DECL_NONLOCAL_FRAME
+	access.
+
+2026-02-13  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/99959
+	* tree-sra.cc (create_access_replacement): Always create
+	debug expressions for DECL_NONLOCAL_FRAME bases.
+
+2026-02-13  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* Makefile.in (all.fda): Bump profile_merger gcov_version to 3.
+
 2026-02-12  Hans-Peter Nilsson  <hp@axis.com>
 
 	* config/cris/cris.cc (cris_reduce_compare): Add forcing the first
