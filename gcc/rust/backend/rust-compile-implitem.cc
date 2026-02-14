@@ -44,8 +44,12 @@ CompileTraitItem::visit (HIR::TraitItemConst &constant)
 			     resolved_type, canonical_path, const_value_expr,
 			     constant.get_locus (),
 			     const_value_expr.get_locus ());
-  ctx->push_const (const_expr);
-  ctx->insert_const_decl (constant.get_mappings ().get_hirid (), const_expr);
+  if (const_expr != error_mark_node)
+    {
+      ctx->push_const (const_expr);
+      ctx->insert_const_decl (constant.get_mappings ().get_hirid (),
+			      const_expr);
+    }
 
   reference = const_expr;
 }
