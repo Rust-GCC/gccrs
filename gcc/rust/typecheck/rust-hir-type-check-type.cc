@@ -458,6 +458,11 @@ TypeCheckType::resolve_root_path (HIR::TypePath &path, size_t *offset,
 
 	  auto regions = context->regions_from_generic_args (
 	    generic_segment.get_generic_args ());
+	  // regions_from_generic_args returns empty vector on error
+	  if (!generic_segment.get_generic_args ().get_lifetime_args ().empty ()
+	      && regions.empty ())
+	    return new TyTy::ErrorType (seg->get_mappings ().get_hirid ());
+
 	  lookup = SubstMapper::Resolve (lookup, path.get_locus (),
 					 &generic_segment.get_generic_args (),
 					 regions);
@@ -760,6 +765,13 @@ void
 TypeCheckType::visit (HIR::ReferenceType &type)
 {
   TyTy::BaseType *base = TypeCheckType::Resolve (type.get_base_type ());
+
+  if (base->get_kind () == TyTy::TypeKind::ERROR)
+    {
+      translated = new TyTy::ErrorType (type.get_mappings ().get_hirid ());
+      return;
+    }
+
   rust_assert (type.has_lifetime ());
   auto region = context->lookup_and_resolve_lifetime (type.get_lifetime ());
   if (!region.has_value ())
