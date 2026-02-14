@@ -85,7 +85,7 @@ nobase_libsubinclude_HEADERS =			\
 WARN_CFLAGS = -W -Wall -Wwrite-strings
 
 AM_CPPFLAGS = -I. -I posix/shim $(LIBQUADINCLUDE)
-AM_CPPFLAGS += -I /usr/include/libxml2
+AM_CPPFLAGS += $(LIBXML2_CPPFLAGS)
 
 AM_CFLAGS = $(XCFLAGS)
 AM_CXXFLAGS = $(XCFLAGS)
@@ -103,7 +103,7 @@ endif
 libgcobol_la_LINK = $(CXXLINK) $(libgcobol_la_LDFLAGS)
 version_arg = -version-info $(LIBGCOBOL_VERSION)
 libgcobol_la_LDFLAGS = $(LTLDFLAGS) $(LIBQUADLIB) $(LTLIBICONV) \
-	$(extra_ldflags_libgcobol) $(LIBS) $(version_arg)
+	$(extra_ldflags_libgcobol) $(LIBS) $(LIBXML2_LIBS) $(version_arg)
 libgcobol_la_DEPENDENCIES = libgcobol.spec $(LIBQUADLIB_DEP)
 
 endif BUILD_LIBGCOBOL

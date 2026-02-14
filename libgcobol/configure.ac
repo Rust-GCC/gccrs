@@ -233,14 +233,102 @@ libgcobol_have_cacosf128=no
 AC_SEARCH_LIBS([cacosf128], [c m], libgcobol_have_cacosf128=yes)
 
 # These are libxml2.
-AC_CHECK_LIB(xml2, xmlSAXUserParseMemory,
-  [LIBS="-lxml2 $LIBS"
-   AC_DEFINE(HAVE_SAX_XML_PARSER, 1,
-	     [Define to 1 if you have the `xmlSAXUserParseMemory' function.])])
-AC_CHECK_LIB(xml2, xmlParseChunk,
-  [LIBS="-lxml2 $LIBS"
-   AC_DEFINE(HAVE_SAX_XML_PARSER, 1,
-	     [Define to 1 if you have the `xmlParseChunk' function.])])
+AC_ARG_WITH([target-libxml2],
+[AS_HELP_STRING([--with-target-libxml2=PATHLIST],
+		[specify prefix directory for installed libxml2 package.
+		 Equivalent to --with-target-libxml2-include=PATH/include
+		 plus --with-target-libxml2-lib=PATH/lib])])
+AC_ARG_WITH([target-libxml2-include],
+[AS_HELP_STRING([--with-target-libxml2-include=PATHLIST],
+		[specify directories for installed libxml2 include files])])
+AC_ARG_WITH([target-libxml2-lib],
+[AS_HELP_STRING([--with-target-libxml2-lib=PATHLIST],
+		[specify directories for installed libxml2 library])])
+
+if test "x$use_libgcobol" = xyes && test "x$libgcobol_cv_have_int128" = xyes; then
+  AC_MSG_CHECKING([for libxml2])
+  if test "x$with_target_libxml2$with_target_libxml2_include$with_target_libxml2_lib" = x; then
+    dnl no libxml2 options, assuming libxml2 in default locations
+    LIBXML2_CPPFLAGS="-I /usr/include/libxml2"
+    LIBXML2_LIBS="-lxml2"
+  else
+    dnl libxml2 options passed by configure flags
+    if test "x$with_target_libxml2_include" = x && test "x$with_target_libxml2_lib" != x; then
+      AC_MSG_ERROR([found --with-target-libxml2-lib but --with-target-libxml2-include missing])
+    elif test "x$with_target_libxml2_include" != x && test "x$with_target_libxml2_lib" = x; then
+      AC_MSG_ERROR([found --with-target-libxml2-include but --with-target-libxml2-lib missing])
+    else
+      AC_MSG_RESULT([using paths configured with --with-target-libxml2 options])
+    fi
+    mldir=`${CC-gcc} --print-multi-directory 2>/dev/null`
+    libxml2_val=
+    if test "x$with_target_libxml2" != x; then
+      for i in `echo $with_target_libxml2 | tr ',' ' '`; do
+        case "$i" in
+          *=*) sd=${i%%=*}; d=${i#*=} ;;
+          *) sd=.; d=$i ;;
+        esac
+        if test "$mldir" = "$sd"; then
+          libxml2_val=$d
+        fi
+      done
+      if test "x$libxml2_val" = x; then
+        AC_MSG_ERROR([no multilib path ($mldir) found in --with-target-libxml2])
+      fi
+      libxml2_inc_dir="$libxml2_val/include"
+      libxml2_lib_dir="$libxml2_val/lib"
+    fi
+    libxml2_val=
+    if test "x$with_target_libxml2_include" != x; then
+      for i in `echo $with_target_libxml2_include | tr ',' ' '`; do
+        case "$i" in
+          *=*) sd=${i%%=*}; d=${i#*=} ;;
+          *) sd=.; d=$i; fallback=$i ;;
+        esac
+        if test "$mldir" = "$sd"; then
+          libxml2_val=$d
+        fi
+      done
+      if test "x$libxml2_val" = x && test "x$libxml2_inc_dir" = x && test "x$fallback" != x; then
+        libxml2_inc_dir="$fallback"
+      elif test "x$libxml2_val" = x; then
+        AC_MSG_ERROR([no multilib path ($mldir) found in --with-target-libxml2-include])
+      else
+        libxml2_inc_dir="$libxml2_val"
+      fi
+    fi
+    libxml2_val=
+    if test "x$with_target_libxml2_lib" != x; then
+      for i in `echo $with_target_libxml2_lib | tr ',' ' '`; do
+        case "$i" in
+          *=*) sd=${i%%=*}; d=${i#*=} ;;
+          *) sd=.; d=$i ;;
+        esac
+        if test "$mldir" = "$sd"; then
+          libxml2_val=$d
+        fi
+      done
+      if test "x$libxml2_val" = x; then
+        AC_MSG_ERROR([no multilib path ($mldir) found in --with-target-libxml2-lib])
+      fi
+      libxml2_lib_dir="$libxml2_val"
+    fi
+    if test "x$libxml2_inc_dir" = x; then
+      AC_MSG_ERROR([no multilib path ($mldir) found in --with-target-libxml2-include])
+    fi
+    if test "x$libxml2_lib_dir" = x; then
+      AC_MSG_ERROR([no multilib path ($mldir) found in --with-target-libxml2-lib])
+    fi
+    LIBXML2_CPPFLAGS="-I$libxml2_inc_dir"
+    LIBXML2_LIBS="-L$libxml2_lib_dir -lxml2"
+    AC_MSG_RESULT([found])
+  fi
+else
+  LIBXML2_CPPFLAGS=
+  LIBXML2_LIBS=
+fi
+AC_SUBST(LIBXML2_CPPFLAGS)
+AC_SUBST(LIBXML2_LIBS)
 
 # Copied from gcc/configure.ac. 2025-06-05 R.J.Dubner
 # At least for glibc, clock_gettime is in librt.  But don't pull that
