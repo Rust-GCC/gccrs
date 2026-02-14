@@ -10,6 +10,3 @@ s/end Ada.Interrupts.Names/end System.Interrupt_Names/g
 
 #Update the copyright header.
 /A D A . I N T E R R U P T S . N A M E S/c --                S Y S T E M . I N T E R R U P T S _ N A M E S             --
-
-#Remove non-copyright-header comments.
-s/[[:blank:]]*--  [^ ].*//g
