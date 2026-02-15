@@ -1,0 +1,19 @@
+#![feature(negative_impls)]
+
+use std::marker::Send;
+
+struct NoSend;
+impl !Send for NoSend {}
+
+enum Foo {
+    A(NoSend)
+}
+
+fn bar<T: Send>(_: T) {}
+
+fn main() {
+    let x = Foo::A(NoSend);
+    bar(x);
+// { dg-error ".E0277." "" { target *-*-* } .-1 }
+}
+

@@ -1,0 +1,30 @@
+// build-fail
+// normalize-stderr-test: ".nll/" -> "/"
+
+trait ToOpt: Sized {
+    fn to_option(&self) -> Option<Self>;
+}
+
+impl ToOpt for usize {
+    fn to_option(&self) -> Option<usize> {
+        Some(*self)
+    }
+}
+
+impl<T:Clone> ToOpt for Option<T> {
+    fn to_option(&self) -> Option<Option<T>> {
+        Some((*self).clone())
+    }
+}
+
+fn function<T:ToOpt + Clone>(counter: usize, t: T) {
+    if counter > 0 {
+        function(counter - 1, t.to_option());
+// { dg-error "" "" { target *-*-* } .-1 }
+    }
+}
+
+fn main() {
+    function(22, 22);
+}
+
