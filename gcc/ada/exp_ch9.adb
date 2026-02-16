@@ -5746,6 +5746,30 @@ package body Exp_Ch9 is
                      null;
                end case;
 
+            when N_Attribute_Reference =>
+
+               --  Attribute Count has been already expanded to function call,
+               --  or it is illegal, or expansion is disabled and attribute
+               --  is legal, i.e. it is prefixed by a name of entry or by a
+               --  indexed entry family of the current protected object.
+
+               if Attribute_Name (N) = Name_Count then
+                  pragma Assert
+                    (if Serious_Errors_Detected = 0
+                     then not Expander_Active
+                     and then
+                       ((Is_Entity_Name (Prefix (N))
+                         and then Is_Entry (Entity (Prefix (N)))
+                         and then Scope (Entity (Prefix (N))) = Prot)
+                        or else
+                        (Nkind (Prefix (N)) = N_Indexed_Component
+                         and then Is_Entity_Name (Prefix (Prefix (N)))
+                         and then Is_Entry (Entity (Prefix (Prefix (N))))
+                         and then Scope (Entity (Prefix (Prefix (N)))) = Prot))
+                       );
+                  return Skip;
+               end if;
+
             when N_Function_Call =>
 
                --  Function call checks are carried out as part of the analysis
