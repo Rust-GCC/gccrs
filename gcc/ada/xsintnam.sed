@@ -1,6 +1,9 @@
 #Indicate that the output was generated.
 /package Ada.Interrupts.Names/i --  Generated from Ada.Interrupts.Names for use by pragma Interrupt_State
 
+#Disable style checks.
+/package Ada.Interrupts.Names/i pragma Style_Checks ("N");
+
 #Turn constants into named numbers.
 s/constant Interrupt_ID/constant/g
 
