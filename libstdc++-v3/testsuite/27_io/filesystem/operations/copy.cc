@@ -68,13 +68,14 @@ test02()
 {
 #ifndef NO_SYMLINKS
   const std::error_code bad_ec = make_error_code(std::errc::invalid_argument);
+  __gnu_test::scoped_file tmp_file;
   auto from = __gnu_test::nonexistent_path();
   std::error_code ec;
 
   ec = bad_ec;
-  fs::create_symlink(".", from, ec);
+  fs::create_symlink(tmp_file.path, from, ec);
   VERIFY( !ec );
-  VERIFY( fs::exists(from) );
+  VERIFY( fs::exists(symlink_status(from)) );
 
   auto to = __gnu_test::nonexistent_path();
   ec = bad_ec;
@@ -97,7 +98,7 @@ test02()
   ec = bad_ec;
   fs::copy(from, to, fs::copy_options::copy_symlinks, ec);
   VERIFY( !ec );
-  VERIFY( fs::exists(to) );
+  VERIFY( fs::exists(symlink_status(to)) );
   VERIFY( is_symlink(to) );
 
   ec.clear();

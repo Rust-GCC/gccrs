@@ -42,7 +42,7 @@ namespace test_fs = std::experimental::filesystem;
 #include <stdlib.h> // mkstemp
 #endif
 
-#ifndef _GLIBCXX_HAVE_SYMLINK
+#if !defined _GLIBCXX_HAVE_SYMLINK && !defined _GLIBCXX_FILESYSTEM_IS_WINDOWS
 #define NO_SYMLINKS
 #endif
 

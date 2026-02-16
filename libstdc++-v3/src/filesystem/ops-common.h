@@ -105,6 +105,101 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
 namespace filesystem
 {
+#ifdef _GLIBCXX_FILESYSTEM_IS_WINDOWS
+namespace __detail
+{
+#define S_IFLNK 0xC000
+#define S_ISLNK(m) (((m) & S_IFMT) == S_IFLNK)
+
+  using stat_type = struct ::__stat64;
+
+  inline HANDLE __open_for_stat(const wchar_t* path, bool following_symlinks)
+  {
+    constexpr auto share_flags
+      = FILE_SHARE_DELETE | FILE_SHARE_READ | FILE_SHARE_WRITE;
+    auto file_flags = FILE_FLAG_BACKUP_SEMANTICS;
+    if (!following_symlinks)
+      file_flags |= FILE_FLAG_OPEN_REPARSE_POINT;
+    HANDLE handle
+      = CreateFileW(path, 0, share_flags, 0, OPEN_EXISTING, file_flags, 0);
+
+    if (handle == INVALID_HANDLE_VALUE)
+      {
+	// CreateFileW does not set errno.
+	errno = std::__last_system_error().default_error_condition().value();
+      }
+
+    return handle;
+  }
+
+  // _fstat64 in mingw-w64 does not know about symlinks and before v14.0.0
+  // it does not know about directories.
+  // We use GetFileInformationByHandleEx to check whether the HANDLE refers
+  // to a symlink or directory, then fix the result of _fstat64 accordingly.
+  enum class FileType { Err = -1, Dir = S_IFDIR, Link = S_IFLNK, Other = 0 };
+
+  inline FileType __check_handle_type(HANDLE handle, bool following_symlinks)
+  {
+#ifdef SYMBOLIC_LINK_FLAG_DIRECTORY
+    FILE_ATTRIBUTE_TAG_INFO type_info;
+    if (!GetFileInformationByHandleEx(handle, FileAttributeTagInfo,
+				      &type_info, sizeof(type_info)))
+      {
+	errno = std::__last_system_error().default_error_condition().value();
+	return FileType::Err;
+      }
+    // A directory symlink has both DIRECTORY and REPARSE_POINT set,
+    // so to detect a symlink we need to check for REPARSE_POINT first.
+    if (!following_symlinks)
+      if (type_info.FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT
+	     && type_info.ReparseTag == IO_REPARSE_TAG_SYMLINK)
+	return FileType::Link;
+    if (type_info.FileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+      return FileType::Dir;
+#endif
+    return FileType::Other;
+  }
+
+  // -1 error, 0 not a symlink, 1 a symlink
+  inline int __is_handle_symlink(HANDLE handle)
+  {
+    FileType type = __check_handle_type(handle, false);
+    if (type == FileType::Err)
+      return -1;
+    return type == FileType::Link;
+  }
+
+  inline int __stat_windows(const wchar_t* path, stat_type* buffer,
+			    bool following_symlinks)
+  {
+    HANDLE handle = __open_for_stat(path, following_symlinks);
+    if (handle == INVALID_HANDLE_VALUE)
+      return -1;
+    // Manually check for directory or symlink, because _fstat does not.
+    FileType type = __check_handle_type(handle, following_symlinks);
+    if (type == FileType::Err)
+      {
+	CloseHandle(handle);
+	return -1;
+      }
+    int fd = ::_open_osfhandle((intptr_t)handle, _O_RDONLY);
+    if (fd == -1)
+      {
+	CloseHandle(handle);
+	return -1;
+      }
+    int stat_result = ::_fstat64(fd, buffer);
+    if (stat_result != -1 && type != FileType::Other)
+      {
+	// Clear the previous file type.
+	buffer->st_mode &= ~S_IFMT;
+	buffer->st_mode |= (::mode_t)type;
+      }
+    ::_close(fd);
+    return stat_result;
+  }
+}
+#endif
 namespace __gnu_posix
 {
 #ifdef _GLIBCXX_FILESYSTEM_IS_WINDOWS
@@ -121,13 +216,14 @@ namespace __gnu_posix
   using stat_type = struct ::__stat64;
 
   inline int stat(const wchar_t* path, stat_type* buffer)
-  { return ::_wstat64(path, buffer); }
+  { return __detail::__stat_windows(path, buffer, true); }
 
   inline int lstat(const wchar_t* path, stat_type* buffer)
-  {
-    // FIXME: symlinks not currently supported
-    return stat(path, buffer);
-  }
+#ifdef SYMBOLIC_LINK_FLAG_DIRECTORY
+  { return __detail::__stat_windows(path, buffer, false); }
+#else
+  { return stat(path, buffer); }
+#endif
 
   using ::mode_t;
 

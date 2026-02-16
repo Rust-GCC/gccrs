@@ -56,6 +56,8 @@
 #ifdef _GLIBCXX_FILESYSTEM_IS_WINDOWS
 # define WIN32_LEAN_AND_MEAN
 # include <windows.h>
+# include <winioctl.h> // FSCTL_GET_REPARSE_POINT
+# include <ntdef.h> // REPARSE_DATA_BUFFER
 #endif
 
 #define _GLIBCXX_BEGIN_NAMESPACE_FILESYSTEM namespace filesystem {
@@ -644,6 +646,52 @@ fs::create_directory(const path& p, const path& attributes,
 #endif
 }
 
+#ifdef _GLIBCXX_FILESYSTEM_IS_WINDOWS
+namespace
+{
+  void
+  windows_create_symlink(const fs::path& to, const fs::path& new_symlink,
+			 const fs::file_type target_type,
+			 std::error_code& ec) noexcept
+  {
+#ifdef SYMBOLIC_LINK_FLAG_DIRECTORY // Implies CreateSymbolicLinkW support.
+    DWORD symlink_type = target_type == fs::file_type::directory
+			 ? SYMBOLIC_LINK_FLAG_DIRECTORY : 0;
+    // Windows can't handle relative symlinks with non-preferred slashes.
+    // Creating the symlink will succeed, but the symlink won't resolve
+    // correctly in later operations.
+    const fs::path* preferred_to = &to;
+    fs::path to2;
+    if (to.native().find(L'/') != std::string::npos)
+      {
+	__try
+	  {
+	    to2 = to;
+	    to2.make_preferred();
+	    preferred_to = &to2;
+	  }
+	__catch (const std::bad_alloc&)
+	  {
+	    ec = std::make_error_code(std::errc::not_enough_memory);
+	    return;
+	  }
+      }
+    if (CreateSymbolicLinkW(new_symlink.c_str(), preferred_to->c_str(),
+			    symlink_type
+			    | SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE))
+      ec.clear();
+    else if (GetLastError() == ERROR_INVALID_PARAMETER
+	     && CreateSymbolicLinkW(new_symlink.c_str(), preferred_to->c_str(),
+				    symlink_type))
+      ec.clear();
+    else
+      ec = std::__last_system_error();
+#else
+    ec = std::make_error_code(std::errc::function_not_supported);
+#endif
+  }
+}
+#endif
 
 void
 fs::create_directory_symlink(const path& to, const path& new_symlink)
@@ -660,7 +708,7 @@ fs::create_directory_symlink(const path& to, const path& new_symlink,
 			     error_code& ec) noexcept
 {
 #ifdef _GLIBCXX_FILESYSTEM_IS_WINDOWS
-  ec = std::make_error_code(std::errc::function_not_supported);
+  windows_create_symlink(to, new_symlink, file_type::directory, ec);
 #else
   create_symlink(to, new_symlink, ec);
 #endif
@@ -715,6 +763,8 @@ fs::create_symlink(const path& to, const path& new_symlink,
     ec.assign(errno, std::generic_category());
   else
     ec.clear();
+#elif _GLIBCXX_FILESYSTEM_IS_WINDOWS
+  windows_create_symlink(to, new_symlink, file_type::regular, ec);
 #else
   ec = std::make_error_code(std::errc::function_not_supported);
 #endif
@@ -829,10 +879,14 @@ namespace
   struct auto_win_file_handle
   {
     explicit
-    auto_win_file_handle(const wchar_t* p, std::error_code& ec) noexcept
+    auto_win_file_handle(const wchar_t* p, std::error_code& ec,
+			 const bool follow_symlink = true) noexcept
     : handle(CreateFileW(p, 0,
 			 FILE_SHARE_DELETE | FILE_SHARE_READ | FILE_SHARE_WRITE,
-			 0, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0)),
+			 0, OPEN_EXISTING,
+			 (FILE_FLAG_BACKUP_SEMANTICS
+			  | (follow_symlink ? 0 : FILE_FLAG_OPEN_REPARSE_POINT)),
+			 0)),
       ec(ec)
     {
       if (handle == INVALID_HANDLE_VALUE)
@@ -1193,6 +1247,74 @@ fs::proximate(const path& p, const path& base, error_code& ec)
   return result;
 }
 
+#if defined(_GLIBCXX_FILESYSTEM_IS_WINDOWS) \
+    && defined(SYMBOLIC_LINK_FLAG_DIRECTORY)
+namespace
+{
+  void
+  windows_read_symlink_handle(auto_win_file_handle& link_handle,
+			      std::error_code& ec,
+			      fs::path& result)
+  {
+    PREPARSE_DATA_BUFFER reparse_buffer = nullptr;
+    std::unique_ptr<char[]> big_buffer;
+
+    // Allocate enough memory on the stack to get the reparse data
+    // plus a 260 character path.  Should be sufficient in most cases.
+    // Allocate an extra wchar_t to ensure we can manually null terminate.
+    static constexpr size_t small_buffer_size = sizeof(REPARSE_DATA_BUFFER)
+						+ 260 * sizeof(wchar_t);
+    char small_buffer[small_buffer_size + sizeof(wchar_t)];
+    reparse_buffer = reinterpret_cast<PREPARSE_DATA_BUFFER>(&small_buffer[0]);
+    long unsigned int bytes_returned, big_buffer_size;
+
+    // Attempt to get the reparse data with the buffer on the stack
+    // before allocating the exact amount needed on the heap.
+    bool got_reparse_data = DeviceIoControl(link_handle.handle,
+					    FSCTL_GET_REPARSE_POINT,
+					    nullptr, 0,
+					    &small_buffer, small_buffer_size,
+					    &bytes_returned, nullptr);
+
+    int last_error = GetLastError();
+    if (!got_reparse_data && last_error == ERROR_MORE_DATA)
+      {
+	big_buffer_size = bytes_returned;
+	big_buffer.reset(new char[big_buffer_size + sizeof(wchar_t)]);
+	got_reparse_data = DeviceIoControl(link_handle.handle,
+					   FSCTL_GET_REPARSE_POINT,
+					   nullptr, 0,
+					   big_buffer.get(), big_buffer_size,
+					   &bytes_returned, nullptr);
+	if (!got_reparse_data)
+	  {
+	    ec = std::__last_system_error();
+	    return;
+	  }
+
+	reparse_buffer
+	  = reinterpret_cast<PREPARSE_DATA_BUFFER>(big_buffer.get());
+
+      }
+    else
+      {
+	if (!got_reparse_data)
+	  {
+	    ec = std::__last_system_error();
+	    return;
+	  }
+      }
+
+    ec.clear();
+    auto& symlink_buffer = reparse_buffer->SymbolicLinkReparseBuffer;
+    wchar_t* target_name = &symlink_buffer.PathBuffer[0];
+    target_name += symlink_buffer.PrintNameOffset / sizeof(wchar_t);
+    target_name[symlink_buffer.PrintNameLength / sizeof(wchar_t)] = L'\0';
+    result = target_name;
+  }
+};
+#endif // _GLIBCXX_FILESYSTEM_IS_WINDOWS
+
 fs::path
 fs::read_symlink(const path& p)
 {
@@ -1248,6 +1370,26 @@ fs::path fs::read_symlink(const path& p, error_code& ec)
 	bufsz *= 2;
     }
   while (true);
+#elif defined(_GLIBCXX_FILESYSTEM_IS_WINDOWS) \
+      && defined(SYMBOLIC_LINK_FLAG_DIRECTORY)
+  auto_win_file_handle link_handle(p.c_str(), ec, false);
+  if (!link_handle)
+    return result;
+
+  int is_symlink = __detail::__is_handle_symlink(link_handle.handle);
+  if (is_symlink == -1)
+    {
+      ec = __last_system_error();
+      return result;
+    }
+
+  if (!is_symlink)
+    {
+      ec.assign(EINVAL, std::generic_category());
+      return result;
+    }
+
+  windows_read_symlink_handle(link_handle, ec, result);
 #else
   ec = std::make_error_code(std::errc::function_not_supported);
 #endif
@@ -1291,8 +1433,14 @@ fs::remove(const path& p, error_code& ec) noexcept
   auto st = symlink_status(p, ec);
   if (exists(st))
     {
-      if ((is_directory(p, ec) && RemoveDirectoryW(p.c_str()))
-	  || DeleteFileW(p.c_str()))
+      if ((is_directory(st) || is_symlink(st))
+	  && RemoveDirectoryW(p.c_str()))
+	{
+	  ec.clear();
+	  return true;
+	}
+      else if ((is_regular_file(st) || is_symlink(st))
+	       && DeleteFileW(p.c_str()))
 	{
 	  ec.clear();
 	  return true;
@@ -1320,6 +1468,30 @@ std::uintmax_t
 fs::remove_all(const path& p)
 {
   error_code ec;
+#if _GLIBCXX_FILESYSTEM_IS_WINDOWS
+  if (p.empty())
+    return 0;
+  // The current opendir implementation on Windows always follows an initial
+  // symlink.  Therefore, if remove_all is called on a symlink,
+  // the target is removed.  Call remove if we have a symlink.
+  auto p_status = symlink_status(p, ec);
+  if (!exists(p_status))
+    {
+      int err = ec.default_error_condition().value();
+      bool not_found = !ec || is_not_found_errno(err);
+      if (!not_found)
+	_GLIBCXX_THROW_OR_ABORT(filesystem_error("cannot remove all",
+						 p, ec));
+      return 0;
+    }
+  if (is_symlink(p_status))
+    {
+      if (!remove(p, ec))
+	_GLIBCXX_THROW_OR_ABORT(filesystem_error("cannot remove all",
+						 p, ec));
+      return 1;
+    }
+#endif
   uintmax_t count = 0;
   recursive_directory_iterator dir(p, directory_options{64|128}, ec);
   switch (ec.value()) // N.B. assumes ec.category() == std::generic_category()
@@ -1363,6 +1535,34 @@ fs::remove_all(const path& p)
 std::uintmax_t
 fs::remove_all(const path& p, error_code& ec)
 {
+#if _GLIBCXX_FILESYSTEM_IS_WINDOWS
+  if (p.empty())
+    {
+      ec.clear();
+      return 0;
+    }
+  // The current opendir implementation on Windows always follows an initial
+  // symlink.  Therefore, if remove_all is called on a symlink,
+  // the target is removed.  Call remove if we have a symlink.
+  auto p_status = symlink_status(p, ec);
+  if (!exists(p_status))
+    {
+      int err = ec.default_error_condition().value();
+      bool not_found = !ec || is_not_found_errno(err);
+      if (not_found)
+	{
+	  ec.clear();
+	  return 0;
+	}
+      return -1;
+    }
+  if (is_symlink(p_status))
+    {
+      if (remove(p, ec))
+	return 1;
+      return ec ? -1 : 0;
+    }
+#endif
   uintmax_t count = 0;
   recursive_directory_iterator dir(p, directory_options{64|128}, ec);
   switch (ec.value()) // N.B. assumes ec.category() == std::generic_category()
