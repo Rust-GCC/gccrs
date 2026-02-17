@@ -162,6 +162,8 @@ unchecked_op_handler (tree_code op)
   };
 }
 
+static tree write_bytes_handler (Context *ctx, TyTy::FnType *fntype);
+
 static inline tree copy_handler_inner (Context *ctx, TyTy::FnType *fntype,
 				       bool overlaps);
 
@@ -220,6 +222,7 @@ static const std::map<std::string,
      {"mul_with_overflow", op_with_overflow (MULT_EXPR)},
      {"copy", copy_handler (true)},
      {"copy_nonoverlapping", copy_handler (false)},
+     {"write_bytes", write_bytes_handler},
      {"prefetch_read_data", prefetch_read_data},
      {"prefetch_write_data", prefetch_write_data},
      {"atomic_store_seqcst", atomic_store_handler (__ATOMIC_SEQ_CST)},
@@ -712,6 +715,76 @@ op_with_overflow_inner (Context *ctx, TyTy::FnType *fntype, tree_code op)
   ctx->add_statement (return_statement);
 
   // BUILTIN wrapping_<op> FN BODY END
+
+  finalize_intrinsic_block (ctx, fndecl);
+
+  return fndecl;
+}
+
+/**
+ * fn write_bytes<T>(dst: *mut T, val: u8, count: usize);
+ */
+static tree
+write_bytes_handler (Context *ctx, TyTy::FnType *fntype)
+{
+  rust_assert (fntype->get_params ().size () == 3);
+  rust_assert (fntype->get_num_substitutions () == 1);
+
+  tree lookup = NULL_TREE;
+  if (check_for_cached_intrinsic (ctx, fntype, &lookup))
+    return lookup;
+
+  auto fndecl = compile_intrinsic_function (ctx, fntype);
+
+  // memset modifies memory, so the function is not pure.
+  TREE_READONLY (fndecl) = 0;
+  TREE_SIDE_EFFECTS (fndecl) = 1;
+
+  // setup the params
+  std::vector<Bvariable *> param_vars;
+  compile_fn_params (ctx, fntype, fndecl, &param_vars);
+
+  if (!Backend::function_set_parameters (fndecl, param_vars))
+    return error_mark_node;
+
+  enter_intrinsic_block (ctx, fndecl);
+
+  // BUILTIN write_bytes BODY BEGIN
+
+  auto dst = Backend::var_expression (param_vars[0], UNDEF_LOCATION);
+  auto val = Backend::var_expression (param_vars[1], UNDEF_LOCATION);
+  auto count = Backend::var_expression (param_vars[2], UNDEF_LOCATION);
+
+  // We want to create the following GIMPLE statement:
+  // memset(dst, val, count * size_of::<T>());
+
+  // 1. Resolve `<T>` and get `size_of::<T>()`
+  auto *resolved_ty = fntype->get_substs ().at (0).get_param_ty ()->resolve ();
+  auto param_type = TyTyResolveCompile::compile (ctx, resolved_ty);
+
+  // 2. Build the MULT_EXPR: count * TYPE_SIZE_UNIT(T)
+  tree size_expr
+    = build2 (MULT_EXPR, size_type_node, TYPE_SIZE_UNIT (param_type), count);
+
+  // 3. Type Safety: Rust passes `val` as `u8`, but C's `memset` expects an
+  // `int`. We explicitly cast the `u8` tree to an integer_type_node to prevent
+  // ICEs in the backend.
+  tree val_int = build1 (CONVERT_EXPR, integer_type_node, val);
+
+  // 4. Lookup __builtin_memset and build the call
+  tree memset_raw = nullptr;
+  BuiltinsContext::get ().lookup_simple_builtin ("__builtin_memset",
+						 &memset_raw);
+  rust_assert (memset_raw);
+
+  auto memset_fn = build_fold_addr_expr_loc (UNKNOWN_LOCATION, memset_raw);
+  auto memset_call
+    = Backend::call_expression (memset_fn, {dst, val_int, size_expr}, nullptr,
+				UNDEF_LOCATION);
+
+  ctx->add_statement (memset_call);
+
+  // BUILTIN write_bytes BODY END
 
   finalize_intrinsic_block (ctx, fndecl);
 
