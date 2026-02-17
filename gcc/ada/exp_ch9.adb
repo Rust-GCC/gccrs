@@ -1345,52 +1345,6 @@ package body Exp_Ch9 is
       return Ecount;
    end Build_Entry_Count_Expression;
 
-   ------------------------------
-   -- Build_Master_Declaration --
-   ------------------------------
-
-   function Build_Master_Declaration (Loc : Source_Ptr) return Node_Id is
-      Master_Decl : Node_Id;
-
-   begin
-      --  Generate a dummy master if tasks or tasking hierarchies are
-      --  prohibited.
-
-      --    _Master : constant Integer := Library_Task_Level;
-
-      if not Tasking_Allowed
-        or else Restrictions.Set (No_Task_Hierarchy)
-        or else not RTE_Available (RE_Current_Master)
-      then
-         Master_Decl :=
-           Make_Object_Declaration (Loc,
-             Defining_Identifier =>
-               Make_Defining_Identifier (Loc, Name_uMaster),
-             Constant_Present    => True,
-             Object_Definition   =>
-               New_Occurrence_Of (Standard_Integer, Loc),
-             Expression          =>
-               Make_Integer_Literal (Loc, Library_Task_Level));
-
-      --  Generate:
-      --    _master : constant Integer := Current_Master.all;
-
-      else
-         Master_Decl :=
-           Make_Object_Declaration (Loc,
-             Defining_Identifier =>
-               Make_Defining_Identifier (Loc, Name_uMaster),
-             Constant_Present    => True,
-             Object_Definition   =>
-               New_Occurrence_Of (Standard_Integer, Loc),
-             Expression          =>
-               Make_Explicit_Dereference (Loc,
-                 New_Occurrence_Of (RTE (RE_Current_Master), Loc)));
-      end if;
-
-      return Master_Decl;
-   end Build_Master_Declaration;
-
    ---------------------------
    -- Build_Parameter_Block --
    ---------------------------
@@ -3027,6 +2981,51 @@ package body Exp_Ch9 is
           Handled_Statement_Sequence => Hand_Stmt_Seq);
    end Build_Lock_Free_Unprotected_Subprogram_Body;
 
+   ------------------------------
+   -- Build_Master_Declaration --
+   ------------------------------
+
+   function Build_Master_Declaration (Loc : Source_Ptr) return Node_Id is
+      Master_Decl : Node_Id;
+
+   begin
+      --  Generate a dummy master if tasks or tasking hierarchies are
+      --  prohibited:
+      --    _Master : constant Integer := Library_Task_Level;
+
+      if not Tasking_Allowed
+        or else Restrictions.Set (No_Task_Hierarchy)
+        or else not RTE_Available (RE_Current_Master)
+      then
+         Master_Decl :=
+           Make_Object_Declaration (Loc,
+             Defining_Identifier =>
+               Make_Defining_Identifier (Loc, Name_uMaster),
+             Constant_Present    => True,
+             Object_Definition   =>
+               New_Occurrence_Of (Standard_Integer, Loc),
+             Expression          =>
+               Make_Integer_Literal (Loc, Library_Task_Level));
+
+      --  Generate:
+      --    _Master : constant Integer := Current_Master.all;
+
+      else
+         Master_Decl :=
+           Make_Object_Declaration (Loc,
+             Defining_Identifier =>
+               Make_Defining_Identifier (Loc, Name_uMaster),
+             Constant_Present    => True,
+             Object_Definition   =>
+               New_Occurrence_Of (Standard_Integer, Loc),
+             Expression          =>
+               Make_Explicit_Dereference (Loc,
+                 New_Occurrence_Of (RTE (RE_Current_Master), Loc)));
+      end if;
+
+      return Master_Decl;
+   end Build_Master_Declaration;
+
    -------------------------
    -- Build_Master_Entity --
    -------------------------
@@ -3107,6 +3106,35 @@ package body Exp_Ch9 is
       end if;
    end Build_Master_Entity;
 
+   ---------------------------------------
+   -- Build_Master_Renaming_Declaration --
+   ---------------------------------------
+
+   function Build_Master_Renaming_Declaration
+     (Ptr_Typ : Entity_Id;
+      Loc     : Source_Ptr) return Node_Id
+   is
+      --  Generate:
+      --    <Ptr_Typ>M : Integer renames _Master;
+      --  and add a numeric suffix to the name to ensure that it is
+      --  unique in case other access types in nested constructs
+      --  are homonyms of this one.
+
+      Master_Id : constant Entity_Id :=
+        Make_Defining_Identifier (Loc,
+          New_External_Name (Chars (Ptr_Typ), 'M', -1));
+
+      Master_Decl : constant Node_Id :=
+        Make_Object_Renaming_Declaration (Loc,
+          Defining_Identifier => Master_Id,
+          Subtype_Mark        =>
+            New_Occurrence_Of (Standard_Integer, Loc),
+          Name                => Make_Identifier (Loc, Name_uMaster));
+
+   begin
+      return Master_Decl;
+   end Build_Master_Renaming_Declaration;
+
    ---------------------------
    -- Build_Master_Renaming --
    ---------------------------
@@ -3115,10 +3143,10 @@ package body Exp_Ch9 is
      (Ptr_Typ : Entity_Id;
       Ins_Nod : Node_Id := Empty)
    is
-      Loc         : constant Source_Ptr := Sloc (Ptr_Typ);
+      Loc : constant Source_Ptr := Sloc (Ptr_Typ);
+
       Context     : Node_Id;
       Master_Decl : Node_Id;
-      Master_Id   : Entity_Id;
 
    begin
       --  No action needed if the run-time has no tasking support
@@ -3126,6 +3154,8 @@ package body Exp_Ch9 is
       if Global_No_Tasking then
          return;
       end if;
+
+      Master_Decl := Build_Master_Renaming_Declaration (Ptr_Typ, Loc);
 
       --  Determine the proper context to insert the master renaming
 
@@ -3169,28 +3199,11 @@ package body Exp_Ch9 is
          Context := Parent (Ptr_Typ);
       end if;
 
-      --  Generate:
-      --    <Ptr_Typ>M : Master_Id renames _Master;
-      --  and add a numeric suffix to the name to ensure that it is
-      --  unique in case other access types in nested constructs
-      --  are homonyms of this one.
-
-      Master_Id :=
-        Make_Defining_Identifier (Loc,
-          New_External_Name (Chars (Ptr_Typ), 'M', -1));
-
-      Master_Decl :=
-        Make_Object_Renaming_Declaration (Loc,
-          Defining_Identifier => Master_Id,
-          Subtype_Mark        =>
-            New_Occurrence_Of (Standard_Integer, Loc),
-          Name                => Make_Identifier (Loc, Name_uMaster));
-
       Insert_Action (Context, Master_Decl);
 
       --  The renamed master now services the access type
 
-      Set_Master_Id (Ptr_Typ, Master_Id);
+      Set_Master_Id (Ptr_Typ, Defining_Identifier (Master_Decl));
    end Build_Master_Renaming;
 
    ---------------------------

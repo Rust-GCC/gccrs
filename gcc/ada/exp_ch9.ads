@@ -54,13 +54,19 @@ package Exp_Ch9 is
    --  For targets supporting tasks, generate:
    --      _Master : constant Integer := Current_Master.all;
    --  For targets where tasks or tasking hierarchies are prohibited, generate:
-   --      _Master : constant Master_Id := 3;
+   --      _Master : constant Integer := Library_Task_Level;
 
    procedure Build_Master_Entity (Obj_Or_Typ : Entity_Id);
    --  Given the name of an object or a type which is either a task, contains
-   --  tasks or designates tasks, create a _master in the appropriate scope
+   --  tasks or designates tasks, create a _Master in the appropriate scope
    --  which captures the value of Current_Master. Mark the nearest enclosing
    --  body or block as being a task master.
+
+   function Build_Master_Renaming_Declaration
+     (Ptr_Typ : Entity_Id;
+      Loc     : Source_Ptr) return Node_Id;
+   --  Generate:
+   --     <Ptr_Typ>M : Integer renames _Master;
 
    procedure Build_Master_Renaming
      (Ptr_Typ : Entity_Id;
@@ -68,9 +74,9 @@ package Exp_Ch9 is
    --  Given an access type Ptr_Typ whose designated type is either a task or
    --  contains tasks, create a renaming of the form:
    --
-   --     <Ptr_Typ>M : Master_Id renames _Master;
+   --     <Ptr_Typ>M : Integer renames _Master;
    --
-   --  where _master denotes the task master of the enclosing context. Ins_Nod
+   --  where _Master denotes the task master of the enclosing context. Ins_Nod
    --  is used to provide a specific insertion node for the renaming.
 
    function Build_Protected_Sub_Specification

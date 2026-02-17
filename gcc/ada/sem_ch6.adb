@@ -2850,18 +2850,23 @@ package body Sem_Ch6 is
          then
             Decl := Build_Master_Declaration (Loc);
 
-            if Present (Declarations (N)) then
-               Prepend (Decl, Declarations (N));
-            else
-               Set_Declarations (N, New_List (Decl));
-            end if;
+            Prepend_To (Declarations (N), Decl);
+
+            --  Although Scop has a _master entity, it is not marked as a task
+            --  master as Build_Master_Entity would do, because its completion
+            --  cannot wait for the tasks it indirectly returns to terminate.
 
             Set_Has_Master_Entity (Scop);
-            Set_Master_Id (Etype (Scop), Defining_Identifier (Decl));
 
-            --  Now mark the enclosing construct as a task master
+            --  Instead the enclosing construct is marked as a task master
 
             Mark_Construct_As_Task_Master (Parent (N));
+
+            Decl := Build_Master_Renaming_Declaration (Etype (Scop), Loc);
+
+            Insert_After (First (Declarations (N)), Decl);
+
+            Set_Master_Id (Etype (Scop), Defining_Identifier (Decl));
          end if;
       end Check_Anonymous_Access_Return_With_Tasks;
 
