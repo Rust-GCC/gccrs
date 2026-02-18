@@ -229,7 +229,7 @@ package Sem_Ch13 is
    --  Note: Calls to Rep_Item_Too_Late are ignored for the case of attribute
    --  definition clauses which have From_Aspect_Specification set. This is
    --  because such clauses are linked on to the Rep_Item chain in procedure
-   --  Sem_Ch13.Analyze_Aspect_Specifications. See that procedure for details.
+   --  Analyze_Aspect_Specifications. See that procedure for details.
 
    procedure Validate_Unchecked_Conversion
      (N        : Node_Id;

@@ -900,7 +900,7 @@ package Sinfo is
    --    additional cleanup actions carried over from the transient scope.
 
    --  Check_Address_Alignment
-   --    A flag present in N_Attribute_Definition clause for a 'Address
+   --    A flag present in N_Attribute_Definition_Clause for a 'Address
    --    attribute definition. This flag is set if a dynamic check should be
    --    generated at the freeze point for the entity to which this address
    --    clause applies. The reason that we need this flag is that we want to

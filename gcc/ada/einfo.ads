@@ -430,7 +430,7 @@ package Einfo is
 --    Alignment_Clause (synthesized)
 --       Applies to all entities for types and objects. If an alignment
 --       attribute definition clause is present for the entity, then this
---       function returns the N_Attribute_Definition clause that specifies the
+--       function returns the N_Attribute_Definition_Clause that specifies the
 --       alignment. If no alignment clause applies to the type, then the call
 --       to this function returns Empty. Note that the call can return a
 --       non-Empty value even if Has_Alignment_Clause is not set (happens with

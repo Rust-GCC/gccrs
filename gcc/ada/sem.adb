@@ -651,7 +651,6 @@ package body Sem is
          when N_Empty =>
             pragma Assert (Serious_Errors_Detected /= 0
               or else Configurable_Run_Time_Violations /= 0);
-            null;
 
          --  A call to analyze the error node is simply ignored, to avoid
          --  causing cascaded errors (happens of course only in error cases)
@@ -660,7 +659,6 @@ package body Sem is
 
          when N_Error =>
             Expander_Mode_Save_And_Set (False);
-            null;
 
          --  Push/Pop nodes normally don't come through an analyze call. An
          --  exception is the dummy ones bracketing a subprogram body. In any

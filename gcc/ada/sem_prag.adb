@@ -5222,9 +5222,9 @@ package body Sem_Prag is
       --  errors out and uses Arg as the pragma argument for the message.
 
       function Fix_Error (Msg : String) return String;
-      --  This is called prior to issuing an error message. Msg is the normal
-      --  error message issued in the pragma case. This routine checks for the
-      --  case of a pragma coming from an aspect in the source, and returns a
+      --  This is called prior to issuing an error message. Msg is the error
+      --  message issued in the pragma case. This routine checks for the case
+      --  of a pragma coming from an aspect in the source, and returns a
       --  message suitable for the aspect case as follows:
       --
       --    Each substring "pragma" is replaced by "aspect"
