@@ -11920,6 +11920,14 @@ package body Sem_Ch6 is
                   --  (SPARK RM 6.9(21)).
 
                   Check_Ghost_Primitive (S, B_Typ);
+
+                  --  A user-defined primitive equality operation on a
+                  --  non-ghost record type shall not be ghost, unless the
+                  --  record type has only limited views. (SPARK RM 6.9(23))
+
+                  if Chars (S) = Name_Op_Eq then
+                     Check_Ghost_Equality_Op (S, B_Typ);
+                  end if;
                end if;
             end if;
 
@@ -11961,6 +11969,14 @@ package body Sem_Ch6 is
                   --  (SPARK RM 6.9(21)).
 
                   Check_Ghost_Primitive (S, B_Typ);
+
+                  --  A user-defined primitive equality operation on a
+                  --  non-ghost record type shall not be ghost, unless the
+                  --  record type has only limited views. (SPARK RM 6.9(23))
+
+                  if Chars (S) = Name_Op_Eq then
+                     Check_Ghost_Equality_Op (S, B_Typ);
+                  end if;
                end if;
 
                Next_Formal (Formal);
