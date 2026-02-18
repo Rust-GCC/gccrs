@@ -314,20 +314,24 @@ package Sem_Aux is
    --  should be cleaned up???
 
    function Is_Immutably_Limited_Type (Ent : Entity_Id) return Boolean;
-   --  Implements definition in Ada 2012 RM-7.5 (8.1/3). This differs from the
-   --  following predicate in that an untagged record with immutably limited
-   --  components is NOT by itself immutably limited. This matters, e.g. when
-   --  checking the legality of an access to the current instance.
+   --  Ent is any entity. True if and only if Ent is a type that's immutably
+   --  limited as defined by RM 7.5 (8.1/3).
 
    function Is_Inherently_Limited_Type (Ent : Entity_Id) return Boolean;
-   --  Ent is any entity. True for a type that is "inherently" limited (i.e.
-   --  cannot become nonlimited). From the Ada 2005 RM-7.5(8.1/2), "a type with
-   --  a part that is of a task, protected, or explicitly limited record type".
-   --  These are the types that are defined as return-by-reference types in Ada
-   --  95 (see RM95-6.5(11-16)). In Ada 2005, these are the types that require
-   --  build-in-place for function calls. Note that build-in-place is allowed
-   --  for other types, too. This is also used for identifying pure procedures
-   --  whose calls should not be eliminated (RM 10.2.1(18/2)).
+   --  Ent is any entity. True if and only if Ent is a type such that objects
+   --  of type Ent must be built in place because of RM 7.6 (17.2/3).
+   --
+   --  Note that Is_Immutably_Limited_Type => Is_Inherently_Limited_Type holds,
+   --  but the reverse implication doesn't. For example with
+   --
+   --     type T1 is limited null record;
+   --
+   --     type T2 is record
+   --        C : T1;
+   --     end record;
+   --
+   --  Is_Inherently_Limited_Type (T2) = True and
+   --  Is_Immutably_Limited_Type (T2) = False.
 
    function Nearest_Ancestor (Typ : Entity_Id) return Entity_Id;
    --  Given a subtype Typ, this function finds out the nearest ancestor from
