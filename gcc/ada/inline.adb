@@ -1428,7 +1428,7 @@ package body Inline is
            and then not Same_Type (Etype (F), Etype (A))
            and then
              (Is_By_Reference_Type (Etype (A))
-               or else Is_Limited_Type (Etype (A)))
+              or else Is_Limited_Type (Etype (A)))
          then
             return False;
          end if;
@@ -1476,6 +1476,11 @@ package body Inline is
       --  with an address clause, which could become illegal in SPARK after
       --  inlining, if the address clause mentions a constant view of a mutable
       --  object at call site.
+
+      function Has_Formal_Of_UU_Type
+        (Id : Entity_Id) return Boolean;
+      --  Returns true if the subprogram has at least one formal parameter of
+      --  an unchecked conversion type.
 
       function Has_Formal_Or_Result_Of_Deep_Type
         (Id : Entity_Id) return Boolean;
@@ -1580,6 +1585,35 @@ package body Inline is
          return Check_All_Constants_With_Address_Clause
            (Body_Node) = Abandon;
       end Has_Constant_With_Address_Clause;
+
+      ---------------------------
+      -- Has_Formal_Of_UU_Type --
+      ---------------------------
+
+      function Has_Formal_Of_UU_Type
+        (Id : Entity_Id) return Boolean
+      is
+         Subp_Id    : constant Entity_Id := Ultimate_Alias (Id);
+         Formal     : Entity_Id;
+         Formal_Typ : Entity_Id;
+
+      begin
+         --  Inspect all parameters of the subprogram looking for a formal
+         --  of an unchecked union type.
+
+         Formal := First_Formal (Subp_Id);
+         while Present (Formal) loop
+            Formal_Typ := Etype (Formal);
+
+            if Is_Unchecked_Union (Formal_Typ) then
+               return True;
+            end if;
+
+            Next_Formal (Formal);
+         end loop;
+
+         return False;
+      end Has_Formal_Of_UU_Type;
 
       ---------------------------------------
       -- Has_Formal_Or_Result_Of_Deep_Type --
@@ -2064,6 +2098,14 @@ package body Inline is
       --  code did not.
 
       elsif Has_Formal_Or_Result_Of_Deep_Type (Id) then
+         return False;
+
+      --  Do not inline calls if a parameter has an uncked union type as
+      --  inlining might cause an object to have inferrable discriminants
+      --  while it would not be the case without inlining, resulting in
+      --  checks for UU restrictions being missed.
+
+      elsif Has_Formal_Of_UU_Type (Id) then
          return False;
 
       --  Do not inline subprograms which may be traversal functions. Such
