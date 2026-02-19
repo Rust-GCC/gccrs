@@ -21821,10 +21821,7 @@ package body Sem_Ch3 is
       --  decoration of the full view and thus cannot be placed with other
       --  similar checks in Find_Type_Name
 
-      if not Is_Limited_Type (Priv_T)
-        and then (Is_Limited_Type (Full_T)
-                   or else Is_Limited_Composite (Full_T))
-      then
+      if not Is_Limited_Type (Priv_T) and then Is_Limited_Type (Full_T) then
          if In_Instance then
             null;
          else
