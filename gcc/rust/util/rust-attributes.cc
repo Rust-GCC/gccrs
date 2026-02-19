@@ -192,7 +192,6 @@ AttributeChecker::visit (AST::Crate &crate)
   for (auto &attr : crate.get_inner_attrs ())
     {
       check_inner_attribute (attr);
-      check_attribute (attr);
     }
 
   for (auto &item : crate.items)
@@ -551,7 +550,7 @@ check_lint_attribute (const AST::Attribute &attribute, const char *name)
 }
 
 void
-AttributeChecker::check_attribute (const AST::Attribute &attribute)
+AttributeChecker::visit (AST::Attribute &attribute)
 {
   if (!attribute.empty_input ())
     {
@@ -892,7 +891,6 @@ AttributeChecker::visit (AST::Module &module)
   for (auto &attr : module.get_outer_attrs ())
     {
       check_valid_attribute_for_item (attr, module);
-      check_attribute (attr);
       check_proc_macro_non_function (attr);
     }
 
@@ -1067,9 +1065,10 @@ AttributeChecker::visit (AST::StructStruct &struct_item)
   for (auto &attr : struct_item.get_outer_attrs ())
     {
       check_valid_attribute_for_item (attr, struct_item);
-      check_attribute (attr);
       check_proc_macro_non_function (attr);
     }
+
+  AST::DefaultASTVisitor::visit (struct_item);
 }
 
 void
@@ -1157,8 +1156,8 @@ AttributeChecker::visit (AST::Trait &trait)
     {
       check_valid_attribute_for_item (attr, trait);
       check_proc_macro_non_function (attr);
-      check_attribute (attr);
     }
+  AST::DefaultASTVisitor::visit (trait);
 }
 
 void
