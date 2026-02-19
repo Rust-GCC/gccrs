@@ -19228,7 +19228,7 @@ package body Sem_Ch3 is
          --  of discriminated private type without a full view.
 
          else
-            Insert_Actions (Obj_Def, Freeze_Entity (Base_Type (T), P));
+            Freeze_Before (Obj_Def, Base_Type (T));
          end if;
 
       --  Ada 2005 AI-406: the object definition in an object declaration
