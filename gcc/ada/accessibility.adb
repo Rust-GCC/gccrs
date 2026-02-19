@@ -1279,7 +1279,6 @@ package body Accessibility is
       if Ada_Version >= Ada_2005
         and then not CodePeer_Mode
         and then Tagged_Type_Expansion
-        and then not Scope_Suppress.Suppress (Accessibility_Check)
         and then
           (Is_Class_Wide_Type (Etype (Exp))
             or else Nkind (Exp) in
@@ -1665,6 +1664,12 @@ package body Accessibility is
       Typ : constant Entity_Id := Etype (Func);
 
    begin
+      --  Return immediately if accessiblity checks are suppressed for Func
+
+      if Accessibility_Checks_Suppressed (Func) then
+         return;
+      end if;
+
       --  Ada 2005 (AI95-344): If the result type is class-wide, then insert
       --  a check that the level of the return expression's underlying type
       --  is not deeper than the level of the master enclosing the function.
