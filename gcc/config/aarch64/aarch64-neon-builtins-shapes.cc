@@ -73,6 +73,14 @@ lane (function_checker &c)
   return c.require_immediate_range (PARAM_INDEX, 0, element_count - 1);
 }
 
+/* Require that the parameter at PARAM_INDEX is a valid shift amount.  */
+template <unsigned int PARAM_INDEX>
+bool
+shift (function_checker &c)
+{
+  auto bits = c.type_suffix (0).element_bits;
+  return c.require_immediate_range (PARAM_INDEX, 0, bits - 1);
+}
 
 /* A checker that always returns true.  */
 bool

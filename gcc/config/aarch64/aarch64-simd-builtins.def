@@ -57,10 +57,6 @@
   BUILTIN_VHSDF_HSDF (UNOP, sqrt, 2, FP)
   BUILTIN_VDQ_I (BINOP, addp, 0, DEFAULT)
   BUILTIN_VDQ_I (BINOPU, addp, 0, DEFAULT)
-  BUILTIN_VDQ_BHSI (UNOP, clrsb, 2, DEFAULT)
-  BUILTIN_VDQ_BHSI (UNOP, clz, 2, DEFAULT)
-  BUILTIN_VS (UNOP, ctz, 2, DEFAULT)
-  BUILTIN_VB (UNOP, popcount, 2, DEFAULT)
 
   /* Implemented by aarch64_<sur>q<r>shl<mode>.  */
   BUILTIN_VSDQ_I (BINOP, sqshl, 0, DEFAULT)
@@ -664,10 +660,6 @@
   VAR1 (UNOP, floatunsv4si, 2, FP, v4sf)
   VAR1 (UNOP, floatunsv2di, 2, FP, v2df)
 
-  VAR5 (UNOPU, bswap, 2, DEFAULT, v4hi, v8hi, v2si, v4si, v2di)
-
-  BUILTIN_VB (UNOP, rbit, 0, DEFAULT)
-
   /* Implemented by
      aarch64_<PERMUTE:perm_insn><mode>.  */
   BUILTIN_VALL (BINOP, zip1, 0, QUIET)
@@ -728,12 +720,6 @@
   BUILTIN_VDQSF (QUADOP_LANE, float_mls_lane, 0, FP)
   BUILTIN_VDQSF (QUADOP_LANE, float_mla_laneq, 0, FP)
   BUILTIN_VDQSF (QUADOP_LANE, float_mls_laneq, 0, FP)
-
-  /* Implemented by aarch64_simd_bsl<mode>.  */
-  BUILTIN_VDQQH (BSL_P, simd_bsl, 0, DEFAULT)
-  VAR2 (BSL_P, simd_bsl,0, DEFAULT, di, v2di)
-  BUILTIN_VSDQ_I_DI (BSL_U, simd_bsl, 0, DEFAULT)
-  BUILTIN_VALLDIF (BSL_S, simd_bsl, 0, QUIET)
 
   /* Implemented by aarch64_crypto_aes<op><mode>.  */
   VAR1 (BINOPU, crypto_aese, 0, DEFAULT, v16qi)
@@ -897,16 +883,6 @@
   VAR1 (BINOPU, crypto_sha512su0q, 0, DEFAULT, v2di)
   /* Implemented by aarch64_crypto_sha512su1qv2di.  */
   VAR1 (TERNOPU, crypto_sha512su1q, 0, DEFAULT, v2di)
-  /* Implemented by eor3q<mode>4.  */
-  BUILTIN_VQ_I (TERNOPU, eor3q, 4, DEFAULT)
-  BUILTIN_VQ_I (TERNOP, eor3q, 4, DEFAULT)
-  /* Implemented by aarch64_rax1qv2di.  */
-  VAR1 (BINOPU, rax1q, 0, DEFAULT, v2di)
-  /* Implemented by aarch64_xarqv2di.  */
-  VAR1 (TERNOPUI, xarq, 0, DEFAULT, v2di)
-  /* Implemented by bcaxq<mode>4.  */
-  BUILTIN_VQ_I (TERNOPU, bcaxq, 4, DEFAULT)
-  BUILTIN_VQ_I (TERNOP, bcaxq, 4, DEFAULT)
 
   /* Implemented by aarch64_fml<f16mac1>l<f16quad>_low<mode>.  */
   VAR1 (TERNOP, fmlal_low, 0, FP, v2sf)

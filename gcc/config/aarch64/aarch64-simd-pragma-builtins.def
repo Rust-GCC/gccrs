@@ -196,12 +196,6 @@ ENTRY_FMA_FPM (vmlalltb, f32, UNSPEC_FMLALLTB_FP8)
 ENTRY_FMA_FPM (vmlalltt, f32, UNSPEC_FMLALLTT_FP8)
 #undef REQUIRED_EXTENSIONS
 
-// bsl
-#define REQUIRED_EXTENSIONS nonstreaming_only (AARCH64_FL_SIMD)
-ENTRY_TERNARY (vbsl_mf8, mf8, u8, mf8, mf8, UNSPEC_BSL, QUIET)
-ENTRY_TERNARY (vbslq_mf8, mf8q, u8q, mf8q, mf8q, UNSPEC_BSL, QUIET)
-#undef REQUIRED_EXTENSIONS
-
 // ext
 #define REQUIRED_EXTENSIONS nonstreaming_only (AARCH64_FL_SIMD)
 ENTRY_BINARY_LANE (vext_mf8, mf8, mf8, mf8, UNSPEC_EXT, QUIET)

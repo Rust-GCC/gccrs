@@ -509,7 +509,7 @@
   "TARGET_SIMD"
   "")
 
-(define_insn "aarch64_rbit<mode><vczle><vczbe>"
+(define_insn "@aarch64_rbit<mode><vczle><vczbe>"
   [(set (match_operand:VB 0 "register_operand" "=w")
 	(bitreverse:VB (match_operand:VB 1 "register_operand" "w")))]
   "TARGET_SIMD"
@@ -9819,7 +9819,7 @@
 
 ;; sha3
 
-(define_insn "eor3q<mode>4"
+(define_insn "@eor3q<mode>4"
   [(set (match_operand:VDQ_I 0 "register_operand" "=w")
 	(xor:VDQ_I
 	 (xor:VDQ_I
@@ -9843,12 +9843,13 @@
   [(set_attr "type" "crypto_sha3")]
 )
 
+;; matches 'Vd = Vn ^ rotl (Vm, splat (1))'
 (define_insn "aarch64_rax1qv2di"
   [(set (match_operand:V2DI 0 "register_operand" "=w")
 	(xor:V2DI
 	 (rotate:V2DI
 	  (match_operand:V2DI 2 "register_operand" "w")
-	  (const_int 1))
+	  (const_vector:V2DI [(const_int 1) (const_int 1)]))
 	 (match_operand:V2DI 1 "register_operand" "w")))]
   "TARGET_SHA3"
   "rax1\\t%0.2d, %1.2d, %2.2d"
@@ -9899,7 +9900,7 @@
   }
 )
 
-(define_insn "bcaxq<mode>4"
+(define_insn "@bcaxq<mode>4"
   [(set (match_operand:VDQ_I 0 "register_operand" "=w")
 	(xor:VDQ_I
 	 (and:VDQ_I
@@ -10974,4 +10975,3 @@
      [ w        , 0 , w , w ] <insn>\t%0.<Vtype>, %2.16b, %3.16b
   }
 )
-

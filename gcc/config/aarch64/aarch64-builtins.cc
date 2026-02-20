@@ -416,22 +416,6 @@ aarch64_types_loadstruct_lane_p_qualifiers[SIMD_MAX_BUILTIN_ARGS]
       qualifier_poly, qualifier_struct_load_store_lane_index };
 #define TYPES_LOADSTRUCT_LANE_P (aarch64_types_loadstruct_lane_p_qualifiers)
 
-static enum aarch64_type_qualifiers
-aarch64_types_bsl_p_qualifiers[SIMD_MAX_BUILTIN_ARGS]
-  = { qualifier_poly, qualifier_unsigned,
-      qualifier_poly, qualifier_poly };
-#define TYPES_BSL_P (aarch64_types_bsl_p_qualifiers)
-static enum aarch64_type_qualifiers
-aarch64_types_bsl_s_qualifiers[SIMD_MAX_BUILTIN_ARGS]
-  = { qualifier_none, qualifier_unsigned,
-      qualifier_none, qualifier_none };
-#define TYPES_BSL_S (aarch64_types_bsl_s_qualifiers)
-static enum aarch64_type_qualifiers
-aarch64_types_bsl_u_qualifiers[SIMD_MAX_BUILTIN_ARGS]
-  = { qualifier_unsigned, qualifier_unsigned,
-      qualifier_unsigned, qualifier_unsigned };
-#define TYPES_BSL_U (aarch64_types_bsl_u_qualifiers)
-
 /* The first argument (return type) of a store should be void type,
    which we represent with qualifier_void.  Their first operand will be
    a DImode pointer to the location to store to, so we must use
@@ -4209,10 +4193,6 @@ aarch64_expand_pragma_builtin (tree exp, rtx target,
   insn_code icode;
   switch (builtin_data.unspec)
     {
-    case UNSPEC_BSL:
-      icode = code_for_aarch64_simd_bsl (ops[0].mode);
-      break;
-
     case UNSPEC_DUP:
       if (builtin_data.signature == aarch64_builtin_signatures::load)
 	aarch64_dereference_pointer (&ops[1], GET_MODE_INNER (ops[0].mode));

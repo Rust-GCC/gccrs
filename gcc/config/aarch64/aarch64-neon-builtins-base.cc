@@ -45,6 +45,15 @@
 #include "gimple-fold.h"
 
 namespace aarch64_acle {
+/* Build a cast expression, `(TYPE)EXPR`, if necessary to make an expression
+   with type TYPE.  */
+tree
+build_cast (tree type, tree expr)
+{
+  return TREE_TYPE (expr) != type ? fold_build1 (VIEW_CONVERT_EXPR, type, expr)
+				  : expr;
+}
+
 /* Convert a lane index to the correct index for the target endianness.
    For little-endian targets, this is a no-op.
    For big-endian targets, this is `len - index - 1`.  */
@@ -272,6 +281,196 @@ struct gimple_dup_lane : public gimple_function_base
   }
 };
 
+/* For intrinsics that map to a GIMPLE expression with a `BIT_NOT` applied to
+   the second argument.  */
+class gimple_not_rhs : public gimple_function_base
+{
+  tree_code m_code;
+
+public:
+  constexpr gimple_not_rhs (tree_code code)
+    : m_code (code)
+    {}
+
+  gimple *fold (gimple_folder &f) const override
+  {
+    auto lhs = gimple_call_arg (f.call, 0);
+    auto rhs = gimple_call_arg (f.call, 1);
+    auto type = TREE_TYPE (lhs);
+
+    // tmp1 = ~rhs
+    auto tmp1 = f.force_val (fold_build1 (BIT_NOT_EXPR, type, rhs));
+    return gimple_build_assign (f.lhs, this->m_code, lhs, tmp1);
+  }
+};
+
+/* BSL (d, n, m) == m ^ ((m ^ n) & d).  */
+class gimple_bsl : public gimple_function_base
+{
+public:
+  gimple *fold (gimple_folder &f) const override
+  {
+    auto d = gimple_call_arg (f.call, 0);
+    auto n = gimple_call_arg (f.call, 1);
+    auto m = gimple_call_arg (f.call, 2);
+
+    auto uint_type = TREE_TYPE (d);
+    auto ret_type = TREE_TYPE (f.lhs);
+
+    // Cast to unsigned integer type if necessary.
+    m = f.force_val (build_cast (uint_type, m));
+    n = f.force_val (build_cast (uint_type, n));
+
+    // tmp1 = m ^ n
+    auto tmp1 = f.force_val (fold_build2 (BIT_XOR_EXPR, uint_type, m, n));
+
+    // tmp2 = (m ^ n) & d
+    auto tmp2 = f.force_val (fold_build2 (BIT_AND_EXPR, uint_type, tmp1, d));
+
+    // tmp3 = m ^ ((m ^ n) & d)
+    auto tmp3 = f.force_val (fold_build2 (BIT_XOR_EXPR, uint_type, m, tmp2));
+
+    return gimple_build_assign (f.lhs, build_cast (ret_type, tmp3));
+  }
+};
+
+/* SHA3 intrinsics expand to RTL at `-O0` because we want to emit one
+   instruction for them even when optimizations are disabled.  */
+
+/* EOR3 (n, m, a) = (n ^ m) ^ a.  */
+class gimple_eor3 : public gimple_function_base
+{
+public:
+  gimple *fold (gimple_folder &f) const override
+  {
+    if (optimize == 0)
+      return nullptr;
+
+    auto n = gimple_call_arg (f.call, 0);
+    auto m = gimple_call_arg (f.call, 1);
+    auto a = gimple_call_arg (f.call, 2);
+    auto type = TREE_TYPE (f.lhs);
+
+    // tmp1 = n ^ m
+    auto tmp1 = f.force_val (fold_build2 (BIT_XOR_EXPR, type, n, m));
+
+    // lhs = (n ^ m) ^ a
+    return gimple_build_assign (f.lhs, BIT_XOR_EXPR, tmp1, a);
+  }
+
+  rtx expand (function_expander &e) const override
+  {
+    return e.use_exact_insn (code_for_eor3q4 (e.args[0]->mode));
+  }
+};
+
+/* BCAX (n, m, a) = n ^ (m & ~a).  */
+class gimple_bcax : public gimple_function_base
+{
+public:
+  gimple *fold (gimple_folder &f) const override
+  {
+    if (optimize == 0)
+      return nullptr;
+
+    auto n = gimple_call_arg (f.call, 0);
+    auto m = gimple_call_arg (f.call, 1);
+    auto a = gimple_call_arg (f.call, 2);
+    auto arg_type = TREE_TYPE (n);
+
+    // tmp1 = ~a
+    auto tmp1 = f.force_val (fold_build1 (BIT_NOT_EXPR, arg_type, a));
+
+    // tmp2 = m & ~a
+    auto tmp2 = f.force_val (fold_build2 (BIT_AND_EXPR, arg_type, m, tmp1));
+
+    // lhs = n ^ (m & ~a)
+    return gimple_build_assign (f.lhs, BIT_XOR_EXPR, n, tmp2);
+  }
+
+  rtx expand (function_expander &e) const override
+  {
+    return e.use_exact_insn (code_for_bcaxq4 (e.args[0]->mode));
+  }
+};
+
+/* RAX1 (n, m) = n ^ rotl (m, splat (1)).  */
+class gimple_rax1 : public gimple_function_base
+{
+public:
+  gimple *fold (gimple_folder &f) const override
+  {
+    if (optimize == 0)
+      return nullptr;
+
+    auto n = gimple_call_arg (f.call, 0);
+    auto m = gimple_call_arg (f.call, 1);
+    auto arg_type = TREE_TYPE (n);
+
+    // tmp1 = rotl (m, 1)
+    auto tmp1 = f.force_val (
+      fold_build2 (LROTATE_EXPR, arg_type, m, build_one_cst (arg_type)));
+
+    // lhs = n ^ rotl (m, 1)
+    return gimple_build_assign (f.lhs, BIT_XOR_EXPR, n, tmp1);
+  }
+
+  rtx expand (function_expander &e) const override
+  {
+    return e.use_exact_insn (CODE_FOR_aarch64_rax1qv2di);
+  }
+};
+
+/* XAR (n, m, imm6) = rotr (n ^ m, imm6).  */
+class gimple_xar : public gimple_function_base
+{
+public:
+  gimple *fold (gimple_folder &f) const override
+  {
+    if (optimize == 0)
+      return nullptr;
+
+    auto n = gimple_call_arg (f.call, 0);
+    auto m = gimple_call_arg (f.call, 1);
+    auto imm6 = gimple_call_arg (f.call, 2);
+    auto type = TREE_TYPE (f.lhs);
+
+    // tmp1 = n ^ m
+    auto tmp1 = f.force_val (fold_build2 (BIT_XOR_EXPR, type, n, m));
+
+    // lhs = rotr (n ^ m, imm6)
+    return gimple_build_assign (f.lhs, RROTATE_EXPR, tmp1, imm6);
+  }
+
+  rtx expand (function_expander &e) const override
+  {
+    return e.use_exact_insn (CODE_FOR_aarch64_xarqv2di);
+  }
+};
+
+/* For intrinsics that map to a single GIMPLE IFN with no argument
+   preparation necessary.  */
+class gimple_ifn : public gimple_function_base
+{
+  internal_fn m_ifn;
+
+public:
+  constexpr gimple_ifn (internal_fn fn)
+    : m_ifn (fn)
+      {}
+
+  gimple *fold (gimple_folder &f) const override
+  {
+    vec<tree> args{};
+    for (unsigned i = 0; i < gimple_call_num_args (f.call); i++)
+      args.safe_push (gimple_call_arg (f.call, i));
+
+    auto call = gimple_build_call_internal_vec (this->m_ifn, args);
+    gimple_call_set_lhs (call, f.lhs);
+    return call;
+  }
+};
+
 // Lane get/set
 NEON_FUNCTION (vget_lane,    gimple_get_lane,)
 NEON_FUNCTION (vgetq_lane,   gimple_get_lane,)
@@ -300,4 +499,36 @@ NEON_FUNCTION (vdupd_laneq,  gimple_get_lane,)
 NEON_FUNCTION (vaddd, gimple_expr, (PLUS_EXPR))
 NEON_FUNCTION (vadd,  gimple_expr, (PLUS_EXPR, PLUS_EXPR, BIT_XOR_EXPR))
 NEON_FUNCTION (vaddq, gimple_expr, (PLUS_EXPR, PLUS_EXPR, BIT_XOR_EXPR))
+
+// Bitwise operations
+NEON_FUNCTION (vand,   gimple_expr,    (BIT_AND_EXPR))
+NEON_FUNCTION (vandq,  gimple_expr,    (BIT_AND_EXPR))
+NEON_FUNCTION (vbic,   gimple_not_rhs, (BIT_AND_EXPR))
+NEON_FUNCTION (vbicq,  gimple_not_rhs, (BIT_AND_EXPR))
+NEON_FUNCTION (vbsl,   gimple_bsl,)
+NEON_FUNCTION (vbslq,  gimple_bsl,)
+NEON_FUNCTION (veor,   gimple_expr,    (BIT_XOR_EXPR))
+NEON_FUNCTION (veorq,  gimple_expr,    (BIT_XOR_EXPR))
+NEON_FUNCTION (vmvn,   gimple_expr,    (BIT_NOT_EXPR))
+NEON_FUNCTION (vmvnq,  gimple_expr,    (BIT_NOT_EXPR))
+NEON_FUNCTION (vorn,   gimple_not_rhs, (BIT_IOR_EXPR))
+NEON_FUNCTION (vornq,  gimple_not_rhs, (BIT_IOR_EXPR))
+NEON_FUNCTION (vorr,   gimple_expr,    (BIT_IOR_EXPR))
+NEON_FUNCTION (vorrq,  gimple_expr,    (BIT_IOR_EXPR))
+NEON_FUNCTION (vrbit,  gimple_ifn,     (IFN_BITREVERSE))
+NEON_FUNCTION (vrbitq, gimple_ifn,     (IFN_BITREVERSE))
+
+// Bitwise operations (SHA3)
+NEON_FUNCTION (vbcaxq, gimple_bcax,)
+NEON_FUNCTION (veor3q, gimple_eor3,)
+NEON_FUNCTION (vrax1q, gimple_rax1,)
+NEON_FUNCTION (vxarq,  gimple_xar,)
+
+// Bit counting operations
+NEON_FUNCTION (vcls,  gimple_ifn, (IFN_CLRSB))
+NEON_FUNCTION (vclsq, gimple_ifn, (IFN_CLRSB))
+NEON_FUNCTION (vclz,  gimple_ifn, (IFN_CLZ))
+NEON_FUNCTION (vclzq, gimple_ifn, (IFN_CLZ))
+NEON_FUNCTION (vcnt,  gimple_ifn, (IFN_POPCOUNT))
+NEON_FUNCTION (vcntq, gimple_ifn, (IFN_POPCOUNT))
 }

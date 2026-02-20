@@ -1783,6 +1783,14 @@ function_expander::result_mode () const
   TYPES_bhsd_neon (S, D, T), \
   TYPES_h_bfloat (S, D, T)
 
+/* _p8 _s8 _u8.  */
+#define TYPES_b_neon(S, D, T) \
+  S (p8), S (s8), S (u8)
+
+/* _p8.  */
+#define TYPES_b_poly(S, D, T) \
+  S (p8)
+
 /* _p8 _p16 _p64.  */
 #define TYPES_bhd_poly(S, D, T) \
   S (p8), S (p16), S (p64)
@@ -1951,6 +1959,7 @@ DEF_SVE_TYPES_ARRAY (b_float);
 DEF_SVE_TYPES_ARRAY (all_neon);
 DEF_SVE_TYPES_ARRAY (b_neon);
 DEF_SVE_TYPES_ARRAY (h_neon);
+DEF_SVE_TYPES_ARRAY (b_poly);
 DEF_SVE_TYPES_ARRAY (bhd_poly);
 DEF_SVE_TYPES_ARRAY (bhdq_poly);
 DEF_SVE_TYPES_ARRAY (bhsd_neon);

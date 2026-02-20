@@ -10,7 +10,5 @@ __attribute__ ((target ("+nosimd")))
 uint8x16_t
 foo (uint8x16_t a, uint8x16_t b, uint8x16_t c)
 {
-  return vbslq_u8 (a, b, c); /* { dg-message "called from here" } */
+  return vbslq_u8 (a, b, c); /* { dg-error {ACLE function 'vbslq_u8' requires ISA extension 'simd'} } */
 }
-
-/* { dg-error "inlining failed in call to 'always_inline'" "" { target *-*-* } 0 } */
