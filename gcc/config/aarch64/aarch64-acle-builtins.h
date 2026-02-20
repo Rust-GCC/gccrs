@@ -1795,9 +1795,25 @@ function_expander::result_mode () const
 #define TYPES_bhd_poly(S, D, T) \
   S (p8), S (p16), S (p64)
 
+/* _p8 _p16.  */
+#define TYPES_bh_poly(S, D, T) \
+  S (p8), S (p16)
+
+/* _p16.  */
+#define TYPES_h_poly(S, D, T) \
+  S (p16)
+
 /* _p8 _p16 _p64 _p128.  */
 #define TYPES_bhdq_poly(S, D, T) \
   S (p8), S (p16), S (p64), S (p128)
+
+/* _p8  _s8  _u8  _mf8
+   _p16 _s16 _u16 _f16
+	_s32 _u32 _f32.  */
+#define TYPES_bhs_neon(S, D, T) \
+  TYPES_bh_poly (S, D, T), S (mf8), \
+  TYPES_bhs_integer (S, D, T), \
+  TYPES_hs_float (S, D, T)
 
 /* _p8  _s8  _u8  _mf8
    _p16 _s16 _u16 _f16
@@ -1820,6 +1836,25 @@ function_expander::result_mode () const
 /* _p8 _s8 _u8.  */
 #define TYPES_b_neon(S, D, T) \
   S (p8), S (s8), S (u8)
+
+/* _p8 _s8 _u8 _mf8.  */
+#define TYPES_neon_rev16(S, D, T) \
+  S (p8), S (s8), S (u8), S (mf8)
+
+/* _p8  _s8  _u8  _mf8
+   _p16 _s16 _u16.  */
+#define TYPES_neon_rev32(S, D, T) \
+  S (p8),  S (s8),  S (u8), S (mf8), \
+  S (p16), S (s16), S (u16)
+
+/* _p8  _s8  _u8  _mf8
+   _p16 _s16 _u16 _f16
+	_s32 _u32 _f32.  */
+#define TYPES_neon_rev64(S, D, T) \
+  S (p8),  S (s8),  S (u8),  S (mf8), \
+  S (p16), S (s16), S (u16), S (f16), \
+	   S (s32), S (u32), S (f32)
+
 
 /* Describe a tuple of type suffixes in which only the first is used.  */
 #define DEF_VECTOR_TYPE(X) \
@@ -1960,10 +1995,16 @@ DEF_SVE_TYPES_ARRAY (all_neon);
 DEF_SVE_TYPES_ARRAY (b_neon);
 DEF_SVE_TYPES_ARRAY (h_neon);
 DEF_SVE_TYPES_ARRAY (b_poly);
+DEF_SVE_TYPES_ARRAY (h_poly);
+DEF_SVE_TYPES_ARRAY (bh_poly);
 DEF_SVE_TYPES_ARRAY (bhd_poly);
 DEF_SVE_TYPES_ARRAY (bhdq_poly);
+DEF_SVE_TYPES_ARRAY (bhs_neon);
 DEF_SVE_TYPES_ARRAY (bhsd_neon);
 DEF_SVE_TYPES_ARRAY (neon_copy_lane);
+DEF_SVE_TYPES_ARRAY (neon_rev16);
+DEF_SVE_TYPES_ARRAY (neon_rev32);
+DEF_SVE_TYPES_ARRAY (neon_rev64);
 
 static const group_suffix_index groups_none[] = {
   GROUP_none, NUM_GROUP_SUFFIXES

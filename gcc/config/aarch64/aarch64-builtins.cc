@@ -942,7 +942,7 @@ struct aarch64_simd_type_info_trees
 aarch64_simd_types_trees[ARRAY_SIZE (aarch64_simd_types)];
 
 static machine_mode aarch64_simd_tuple_modes[ARM_NEON_H_TYPES_LAST][3];
-static GTY(()) tree aarch64_simd_tuple_types[ARM_NEON_H_TYPES_LAST][3];
+GTY (()) tree aarch64_simd_tuple_types[ARM_NEON_H_TYPES_LAST][3];
 
 static GTY(()) tree aarch64_simd_intOI_type_node = NULL_TREE;
 static GTY(()) tree aarch64_simd_intCI_type_node = NULL_TREE;
@@ -2822,9 +2822,6 @@ aarch64_pragma_builtins_checker::check ()
     case UNSPEC_ST4_LANE:
       return require_immediate_lane_index (nargs - 1, nargs - 2);
 
-    case UNSPEC_EXT:
-      return require_immediate_range (2, 0, types[2].nunits () - 1);
-
     case UNSPEC_FDOT_LANE_FP8:
       return require_immediate_lane_index (nargs - 2, nargs - 3, 0);
 
@@ -4002,24 +3999,6 @@ aarch64_get_low_unspec (int unspec)
     }
 }
 
-/* OPS contains the operands for one of the permute pair functions vtrn,
-   vuzp or vzip.  Expand the call, given that PERMUTE1 is the unspec for
-   the first permute and PERMUTE2 is the unspec for the second permute.  */
-static rtx
-aarch64_expand_permute_pair (vec<expand_operand> &ops, int permute1,
-			     int permute2)
-{
-  rtx op0 = force_reg (ops[1].mode, ops[1].value);
-  rtx op1 = force_reg (ops[2].mode, ops[2].value);
-  rtx target = gen_reg_rtx (ops[0].mode);
-  rtx target0 = gen_rtx_SUBREG (ops[1].mode, target, 0);
-  rtx target1 = gen_rtx_SUBREG (ops[1].mode, target,
-				GET_MODE_SIZE (ops[1].mode));
-  emit_insn (gen_aarch64 (permute1, ops[1].mode, target0, op0, op1));
-  emit_insn (gen_aarch64 (permute2, ops[1].mode, target1, op0, op1));
-  return target;
-}
-
 /* Emit a TBL or TBX instruction with inputs INPUTS and a result of mode
    MODE.  Return the result of the instruction.
 
@@ -4198,11 +4177,6 @@ aarch64_expand_pragma_builtin (tree exp, rtx target,
 	aarch64_dereference_pointer (&ops[1], GET_MODE_INNER (ops[0].mode));
       return expand_vector_broadcast (ops[0].mode, ops[1].value);
 
-
-    case UNSPEC_EXT:
-      icode = code_for_aarch64_ext (ops[0].mode);
-      break;
-
     case UNSPEC_FAMAX:
     case UNSPEC_FAMIN:
     case UNSPEC_FMMLA:
@@ -4210,12 +4184,6 @@ aarch64_expand_pragma_builtin (tree exp, rtx target,
     case UNSPEC_F2CVTL_FP8:
     case UNSPEC_FDOT_FP8:
     case UNSPEC_FSCALE:
-    case UNSPEC_TRN1:
-    case UNSPEC_TRN2:
-    case UNSPEC_UZP1:
-    case UNSPEC_UZP2:
-    case UNSPEC_ZIP1:
-    case UNSPEC_ZIP2:
       icode = code_for_aarch64 (builtin_data.unspec, ops[0].mode);
       break;
 
@@ -4323,12 +4291,6 @@ aarch64_expand_pragma_builtin (tree exp, rtx target,
       icode = code_for_aarch64_lut (ops[1].mode, ops[2].mode);
       break;
 
-    case UNSPEC_REV16:
-    case UNSPEC_REV32:
-    case UNSPEC_REV64:
-      icode = code_for_aarch64_rev (builtin_data.unspec, ops[0].mode);
-      break;
-
     case UNSPEC_SET_LANE:
       if (builtin_data.signature == aarch64_builtin_signatures::load_lane)
 	aarch64_dereference_pointer (&ops[1], GET_MODE_INNER (ops[0].mode));
@@ -4378,15 +4340,6 @@ aarch64_expand_pragma_builtin (tree exp, rtx target,
     case UNSPEC_TBL:
     case UNSPEC_TBX:
       return aarch64_expand_tbl_tbx (ops, builtin_data.unspec);
-
-    case UNSPEC_TRN:
-      return aarch64_expand_permute_pair (ops, UNSPEC_TRN1, UNSPEC_TRN2);
-
-    case UNSPEC_UZP:
-      return aarch64_expand_permute_pair (ops, UNSPEC_UZP1, UNSPEC_UZP2);
-
-    case UNSPEC_ZIP:
-      return aarch64_expand_permute_pair (ops, UNSPEC_ZIP1, UNSPEC_ZIP2);
 
     default:
       gcc_unreachable ();
@@ -4964,79 +4917,6 @@ aarch64_fold_store (gcall *stmt, tree type)
   return nullptr;
 }
 
-/* An aarch64_fold_permute callback for vext.  SELECTOR is the value of
-   the final argument.  */
-static unsigned int
-aarch64_ext_index (unsigned int, unsigned int selector, unsigned int i)
-{
-  return selector + i;
-}
-
-/* An aarch64_fold_permute callback for vrev.  SELECTOR is the number
-   of elements in each reversal group.  */
-static unsigned int
-aarch64_rev_index (unsigned int, unsigned int selector, unsigned int i)
-{
-  return ROUND_DOWN (i, selector) + (selector - 1) - (i % selector);
-}
-
-/* An aarch64_fold_permute callback for vtrn.  SELECTOR is 0 for TRN1
-   and 1 for TRN2.  */
-static unsigned int
-aarch64_trn_index (unsigned int nelts, unsigned int selector, unsigned int i)
-{
-  return (i % 2) * nelts + ROUND_DOWN (i, 2) + selector;
-}
-
-/* An aarch64_fold_permute callback for vuzp.  SELECTOR is 0 for UZP1
-   and 1 for UZP2.  */
-static unsigned int
-aarch64_uzp_index (unsigned int, unsigned int selector, unsigned int i)
-{
-  return i * 2 + selector;
-}
-
-/* An aarch64_fold_permute callback for vzip.  SELECTOR is 0 for ZIP1
-   and 1 for ZIP2.  */
-static unsigned int
-aarch64_zip_index (unsigned int nelts, unsigned int selector, unsigned int i)
-{
-  return (i % 2) * nelts + (i / 2) + selector * (nelts / 2);
-}
-
-/* Fold STMT to a VEC_PERM_EXPR on the first NINPUTS arguments.
-   Make the VEC_PERM_EXPR emulate an NINPUTS-input TBL in which
-   architectural lane I of the result selects architectural lane:
-
-     GET_INDEX (NELTS, SELECTOR, I)
-
-   of the input table.  NELTS is the number of elements in one vector.  */
-static gimple *
-aarch64_fold_permute (gcall *stmt, unsigned int ninputs,
-		      unsigned int (*get_index) (unsigned int, unsigned int,
-						 unsigned int),
-		      unsigned int selector)
-{
-  tree op0 = gimple_call_arg (stmt, 0);
-  tree op1 = ninputs == 2 ? gimple_call_arg (stmt, 1) : op0;
-  auto nelts = TYPE_VECTOR_SUBPARTS (TREE_TYPE (op0)).to_constant ();
-  vec_perm_builder sel (nelts, nelts, 1);
-  for (unsigned int i = 0; i < nelts; ++i)
-    {
-      unsigned int index = get_index (nelts, selector,
-				      ENDIAN_LANE_N (nelts, i));
-      unsigned int vec = index / nelts;
-      unsigned int elt = ENDIAN_LANE_N (nelts, index % nelts);
-      sel.quick_push (vec * nelts + elt);
-    }
-
-  vec_perm_indices indices (sel, ninputs, nelts);
-  tree mask_type = build_vector_type (ssizetype, nelts);
-  tree mask = vec_perm_indices_to_tree (mask_type, indices);
-  return gimple_build_assign (gimple_call_lhs (stmt), VEC_PERM_EXPR,
-			      op0, op1, mask);
-}
-
 /* Try to fold STMT (at GSI), given that it is a call to the builtin
    described by BUILTIN_DATA.  Return the new statement on success,
    otherwise return null.  */
@@ -5061,32 +4941,8 @@ aarch64_gimple_fold_pragma_builtin
 	return aarch64_fold_to_val (stmt, gsi, nullptr, dup);
       }
 
-    case UNSPEC_EXT:
-      {
-	auto index = tree_to_uhwi (gimple_call_arg (stmt, 2));
-	return aarch64_fold_permute (stmt, 2, aarch64_ext_index, index);
-      }
-
     case UNSPEC_LD1:
       return aarch64_fold_load (stmt, types[0].type ());
-
-    case UNSPEC_REV16:
-      {
-	auto selector = 16 / GET_MODE_UNIT_BITSIZE (types[0].mode);
-	return aarch64_fold_permute (stmt, 1, aarch64_rev_index, selector);
-      }
-
-    case UNSPEC_REV32:
-      {
-	auto selector = 32 / GET_MODE_UNIT_BITSIZE (types[0].mode);
-	return aarch64_fold_permute (stmt, 1, aarch64_rev_index, selector);
-      }
-
-    case UNSPEC_REV64:
-      {
-	auto selector = 64 / GET_MODE_UNIT_BITSIZE (types[0].mode);
-	return aarch64_fold_permute (stmt, 1, aarch64_rev_index, selector);
-      }
 
     case UNSPEC_SET_LANE:
       {
@@ -5113,24 +4969,6 @@ aarch64_gimple_fold_pragma_builtin
 	val = aarch64_force_gimple_val (gsi, val);
 	return aarch64_copy_vops (gimple_build_assign (mem, val), stmt);
       }
-
-    case UNSPEC_TRN1:
-      return aarch64_fold_permute (stmt, 2, aarch64_trn_index, 0);
-
-    case UNSPEC_TRN2:
-      return aarch64_fold_permute (stmt, 2, aarch64_trn_index, 1);
-
-    case UNSPEC_UZP1:
-      return aarch64_fold_permute (stmt, 2, aarch64_uzp_index, 0);
-
-    case UNSPEC_UZP2:
-      return aarch64_fold_permute (stmt, 2, aarch64_uzp_index, 1);
-
-    case UNSPEC_ZIP1:
-      return aarch64_fold_permute (stmt, 2, aarch64_zip_index, 0);
-
-    case UNSPEC_ZIP2:
-      return aarch64_fold_permute (stmt, 2, aarch64_zip_index, 1);
 
     default:
       return nullptr;

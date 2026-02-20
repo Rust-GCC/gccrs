@@ -110,5 +110,6 @@ struct GTY(()) aarch64_simd_type_info_trees
 
 extern const aarch64_simd_type_info aarch64_simd_types[];
 extern aarch64_simd_type_info_trees aarch64_simd_types_trees[];
+extern tree aarch64_simd_tuple_types[ARM_NEON_H_TYPES_LAST][3];
 
 #endif

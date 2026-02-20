@@ -205,6 +205,8 @@ parse_element_type (const function_instance &instance, const char *&format)
    v<elt>  - a vector with the given element suffix
    D<elt>  - a 64 bit neon vector
    Q<elt>  - a 128 bit neon vector
+   D<elt>x<n>  - an n-tuple of 64 bit neon vectors
+   Q<elt>x<n>  - an n-tuple of 128 bit neon vectors
 
    where <elt> has the format described above parse_element_type
 
@@ -321,18 +323,23 @@ parse_type (const function_instance &instance, const char *&format)
       return acle_vector_types[0][type_suffixes[suffix].vector_type];
     }
 
-  if (ch == 'D')
+  if (ch == 'D' || ch == 'Q')
     {
       type_suffix_index suffix = parse_element_type (instance, format);
-      int neon_index = type_suffixes[suffix].neon64_type;
-      return aarch64_simd_types_trees[neon_index].itype;
-    }
-
-  if (ch == 'Q')
-    {
-      type_suffix_index suffix = parse_element_type (instance, format);
-      int neon_index = type_suffixes[suffix].neon128_type;
-      return aarch64_simd_types_trees[neon_index].itype;
+      aarch64_simd_type neon_index = ch == 'D'
+				       ? type_suffixes[suffix].neon64_type
+				       : type_suffixes[suffix].neon128_type;
+      unsigned int num_vectors = 1;
+      if (format[0] == 'x')
+	{
+	  int ch = format[1];
+	  format += 2;
+	  gcc_assert (IN_RANGE (ch, '1', '4'));
+	  num_vectors = ch - '0';
+	}
+      return num_vectors == 1
+	       ? aarch64_simd_types_trees[neon_index].itype
+	       : aarch64_simd_tuple_types[neon_index][num_vectors - 2];
     }
 
   gcc_unreachable ();

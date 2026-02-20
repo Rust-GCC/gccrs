@@ -196,12 +196,6 @@ ENTRY_FMA_FPM (vmlalltb, f32, UNSPEC_FMLALLTB_FP8)
 ENTRY_FMA_FPM (vmlalltt, f32, UNSPEC_FMLALLTT_FP8)
 #undef REQUIRED_EXTENSIONS
 
-// ext
-#define REQUIRED_EXTENSIONS nonstreaming_only (AARCH64_FL_SIMD)
-ENTRY_BINARY_LANE (vext_mf8, mf8, mf8, mf8, UNSPEC_EXT, QUIET)
-ENTRY_BINARY_LANE (vextq_mf8, mf8q, mf8q, mf8q, UNSPEC_EXT, QUIET)
-#undef REQUIRED_EXTENSIONS
-
 // ld1
 #define REQUIRED_EXTENSIONS nonstreaming_only (AARCH64_FL_SIMD)
 ENTRY_LOAD (vld1_mf8, mf8, mf8_scalar_const_ptr, UNSPEC_LD1)
@@ -259,18 +253,6 @@ ENTRY_TERNARY (vmmlaq_f16_mf8, f16q, f16q, mf8q, mf8q, UNSPEC_FMMLA, FP8)
 // mmla f32 mf8
 #define REQUIRED_EXTENSIONS nonstreaming_only (AARCH64_FL_F8F32MM)
 ENTRY_TERNARY (vmmlaq_f32_mf8, f32q, f32q, mf8q, mf8q, UNSPEC_FMMLA, FP8)
-#undef REQUIRED_EXTENSIONS
-
-// rev
-#define REQUIRED_EXTENSIONS nonstreaming_only (AARCH64_FL_SIMD)
-ENTRY_UNARY (vrev64_mf8, mf8, mf8, UNSPEC_REV64, QUIET)
-ENTRY_UNARY (vrev64q_mf8, mf8q, mf8q, UNSPEC_REV64, QUIET)
-
-ENTRY_UNARY (vrev32_mf8, mf8, mf8, UNSPEC_REV32, QUIET)
-ENTRY_UNARY (vrev32q_mf8, mf8q, mf8q, UNSPEC_REV32, QUIET)
-
-ENTRY_UNARY (vrev16_mf8, mf8, mf8, UNSPEC_REV16, QUIET)
-ENTRY_UNARY (vrev16q_mf8, mf8q, mf8q, UNSPEC_REV16, QUIET)
 #undef REQUIRED_EXTENSIONS
 
 // st1
@@ -338,34 +320,4 @@ ENTRY_TERNARY (vqtbx3_mf8, mf8, mf8, mf8qx3, u8, UNSPEC_TBX, QUIET)
 ENTRY_TERNARY (vqtbx3q_mf8, mf8q, mf8q, mf8qx3, u8q, UNSPEC_TBX, QUIET)
 ENTRY_TERNARY (vqtbx4_mf8, mf8, mf8, mf8qx4, u8, UNSPEC_TBX, QUIET)
 ENTRY_TERNARY (vqtbx4q_mf8, mf8q, mf8q, mf8qx4, u8q, UNSPEC_TBX, QUIET)
-#undef REQUIRED_EXTENSIONS
-
-// trn<n>
-#define REQUIRED_EXTENSIONS nonstreaming_only (AARCH64_FL_SIMD)
-ENTRY_BINARY (vtrn1_mf8, mf8, mf8, mf8, UNSPEC_TRN1, QUIET)
-ENTRY_BINARY (vtrn1q_mf8, mf8q, mf8q, mf8q, UNSPEC_TRN1, QUIET)
-ENTRY_BINARY (vtrn2_mf8, mf8, mf8, mf8, UNSPEC_TRN2, QUIET)
-ENTRY_BINARY (vtrn2q_mf8, mf8q, mf8q, mf8q, UNSPEC_TRN2, QUIET)
-ENTRY_BINARY (vtrn_mf8, mf8x2, mf8, mf8, UNSPEC_TRN, QUIET)
-ENTRY_BINARY (vtrnq_mf8, mf8qx2, mf8q, mf8q, UNSPEC_TRN, QUIET)
-#undef REQUIRED_EXTENSIONS
-
-// uzp<n>
-#define REQUIRED_EXTENSIONS nonstreaming_only (AARCH64_FL_SIMD)
-ENTRY_BINARY (vuzp1_mf8, mf8, mf8, mf8, UNSPEC_UZP1, QUIET)
-ENTRY_BINARY (vuzp1q_mf8, mf8q, mf8q, mf8q, UNSPEC_UZP1, QUIET)
-ENTRY_BINARY (vuzp2_mf8, mf8, mf8, mf8, UNSPEC_UZP2, QUIET)
-ENTRY_BINARY (vuzp2q_mf8, mf8q, mf8q, mf8q, UNSPEC_UZP2, QUIET)
-ENTRY_BINARY (vuzp_mf8, mf8x2, mf8, mf8, UNSPEC_UZP, QUIET)
-ENTRY_BINARY (vuzpq_mf8, mf8qx2, mf8q, mf8q, UNSPEC_UZP, QUIET)
-#undef REQUIRED_EXTENSIONS
-
-// zip<n>
-#define REQUIRED_EXTENSIONS nonstreaming_only (AARCH64_FL_SIMD)
-ENTRY_BINARY (vzip1_mf8, mf8, mf8, mf8, UNSPEC_ZIP1, QUIET)
-ENTRY_BINARY (vzip1q_mf8, mf8q, mf8q, mf8q, UNSPEC_ZIP1, QUIET)
-ENTRY_BINARY (vzip2_mf8, mf8, mf8, mf8, UNSPEC_ZIP2, QUIET)
-ENTRY_BINARY (vzip2q_mf8, mf8q, mf8q, mf8q, UNSPEC_ZIP2, QUIET)
-ENTRY_BINARY (vzip_mf8, mf8x2, mf8, mf8, UNSPEC_ZIP, QUIET)
-ENTRY_BINARY (vzipq_mf8, mf8qx2, mf8q, mf8q, UNSPEC_ZIP, QUIET)
 #undef REQUIRED_EXTENSIONS

@@ -106,6 +106,50 @@ build_vec_dup (tree type, tree elem)
 	   : fold_build1 (VEC_DUPLICATE_EXPR, type, elem);
 }
 
+/* Build a `TUPLE.val[INDEX]` expression.  */
+tree
+build_tuple_get (tree tuple, tree index)
+{
+  auto tuple_type = TREE_TYPE (tuple);
+  auto field = tuple_type_field (tuple_type);
+  auto array_type = TREE_TYPE (field);
+  auto vec_type = TREE_TYPE (array_type);
+
+  auto field_ref = fold_build3 (COMPONENT_REF, array_type, unshare_expr (tuple),
+				field, NULL_TREE);
+  auto array_ref
+    = build4 (ARRAY_REF, vec_type, field_ref, index, NULL_TREE, NULL_TREE);
+
+  return array_ref;
+}
+
+/* Build a `TUPLE.val[INDEX][LANE]` expression.  */
+tree
+build_tuple_get (gimple_folder &f, tree tuple, tree index, tree lane)
+{
+  auto vec = f.force_val (build_tuple_get (tuple, index));
+  return build_lane_get (vec, lane);
+}
+
+/* Build a `TUPLE.val[INDEX] = ELEM;` statement.
+   Returns an expression representing the updated tuple.  */
+tree
+build_tuple_set (gimple_folder &f, tree tuple, tree index, tree elem)
+{
+  f.assign (build_tuple_get (tuple, index), elem);
+  return tuple;
+}
+
+/* Build a `TUPLE.val[INDEX][LANE] = ELEM;` statement.
+   Returns an expression representing the updated tuple.  */
+tree
+build_tuple_set (gimple_folder &f, tree tuple, tree index, tree lane, tree elem)
+{
+  auto vec = f.force_val (build_tuple_get (tuple, index));
+  vec = f.force_val (build_lane_set (vec, lane, elem));
+  return build_tuple_set (f, tuple, index, vec);
+}
+
 /* Base class for all function expanders.
    At least one of `expand` or `fold` must be overriden by derived classes.  */
 class gimple_function_base : public function_base
@@ -471,6 +515,200 @@ public:
   }
 };
 
+using mask_fn_t = tree (*) (gimple_folder &);
+
+/* For intrinsics that map to a VEC_PERM (A, B, MASK) expression.
+   A and B come the intrinsic's arguments, MASK is genereted by calling the
+   provided MASK_FN with gimple_folder.  */
+class gimple_permute : public gimple_function_base
+{
+  mask_fn_t m_mask_fn;
+
+public:
+  constexpr gimple_permute (mask_fn_t mask_fn)
+    : m_mask_fn (mask_fn)
+      {}
+
+  gimple *fold (gimple_folder &f) const override
+  {
+    auto a = gimple_call_arg (f.call, 0);
+    auto b
+      = gimple_call_num_args (f.call) >= 2 ? gimple_call_arg (f.call, 1) : a;
+
+    if (BYTES_BIG_ENDIAN)
+      std::swap (a, b);
+
+    auto mask = this->m_mask_fn (f);
+    return gimple_build_assign (f.lhs, VEC_PERM_EXPR, a, b, mask);
+  }
+};
+
+class gimple_permute_pair : public gimple_function_base
+{
+  mask_fn_t m_mask_fn_1;
+  mask_fn_t m_mask_fn_2;
+
+public:
+  constexpr gimple_permute_pair (mask_fn_t mask_fn_1, mask_fn_t mask_fn_2)
+    : m_mask_fn_1 (mask_fn_1), m_mask_fn_2 (mask_fn_2)
+  {}
+
+  gimple *fold (gimple_folder &f) const override
+  {
+    auto a = gimple_call_arg (f.call, 0);
+    auto b = gimple_call_arg (f.call, 1);
+
+    if (BYTES_BIG_ENDIAN)
+      std::swap (a, b);
+
+    auto arg_type = TREE_TYPE (a);
+    gcc_assert (arg_type == TREE_TYPE (b));
+
+    auto tuple_type = TREE_TYPE (f.lhs);
+    auto tuple = create_tmp_var (tuple_type);
+    f.assign (tuple, build_clobber (tuple_type));
+    for (auto i = 0; i < 2; i++)
+      {
+	auto mask = i == 0 ? this->m_mask_fn_1 (f) : this->m_mask_fn_2 (f);
+	auto permuted
+	  = f.force_val (fold_build3 (VEC_PERM_EXPR, arg_type, a, b, mask));
+	build_tuple_set (f, tuple, size_int (i), permuted);
+      }
+
+    return gimple_build_assign (f.lhs, tuple);
+  }
+};
+
+tree
+ext_mask (gimple_folder &f)
+{
+  auto vec_type = TREE_TYPE (gimple_call_arg (f.call, 0));
+  auto start = int_cst_value (gimple_call_arg (f.call, 2));
+  auto len = TYPE_VECTOR_SUBPARTS (vec_type).to_constant ();
+  auto mask_type = build_vector_type (sizetype, len);
+  return build_vec_series (mask_type,
+			   size_int (!BYTES_BIG_ENDIAN ? start : len - start),
+			   size_int (1));
+}
+
+/* vrev16_u8  => {{1, 0}, {3, 2}, {5, 4}, {7, 6}}
+   vrev16q_u8 => {{1, 0}, {3, 2}, {5, 4}, {7, 6},
+		  {9, 8}, {11, 10}, {13, 12}, {15, 14}}
+
+   vrev32_u8   => {{3, 2, 1, 0}, {7, 6, 5, 4}}
+   vrev32q_u8  => {{3, 2, 1, 0}, {7, 6, 5, 4}, {11, 10, 9, 8}, {15, 14, 13, 12}}
+   vrev32_u16  => {{1, 0}, {3, 2}}
+   vrev32q_p16 => {{1, 0}, {3, 2}, {5, 4}, {7, 6}}
+
+   rev64_u8   => {{7, 6, 5, 4, 3, 2, 1, 0}}
+   rev64q_u8  => {{7, 6, 5, 4, 3, 2, 1, 0}, {15, 14, 13, 12, 11, 10, 9, 8}}
+   rev64_u16  => {{3, 2, 1, 0}}
+   rev64q_u16 => {{3, 2, 1, 0}, {7, 6, 5, 4}}
+   rev64_u32  => {{1, 0}}
+   rev64q_u32 => {{1, 0}, {3, 2}}
+*/
+template <unsigned int bits_per_word>
+tree
+rev_mask (gimple_folder &f)
+{
+  auto vec_type = TREE_TYPE (gimple_call_arg (f.call, 0));
+
+  auto elem_type = TREE_TYPE (vec_type);
+  auto len = TYPE_VECTOR_SUBPARTS (vec_type).to_constant ();
+  auto mask_type = build_vector_type (sizetype, len);
+
+  auto num_elems_per_word
+    = bits_per_word / int_cst_value (TYPE_SIZE (elem_type));
+  auto num_groups = len / num_elems_per_word;
+
+  tree_vector_builder builder (mask_type, len, 1);
+
+  for (auto i = 1U; i <= num_groups; i++)
+    for (auto j = 1U; j <= num_elems_per_word; j++)
+      builder.quick_push (size_int (i * num_elems_per_word - j));
+
+  return builder.build ();
+}
+
+/* TRN1 ({a0, a1},	   {b0, b1})	     = {a0, b0}
+					     = VEC_PERM (a, b, {0, 2})
+   TRN1 ({a0, a1, a2, a3}, {b0, b1, b2, b3}) = {a0, b0, a2, b2}
+					     = VEC_PERM (a, b, {0, 4, 2, 6})
+
+   TRN2 ({a0, a1},	   {b0, b1})	     = {a1, b1}
+					     = VEC_PERM (a, b, {1, 3})
+   TRN2 ({a0, a1, a2, a3}, {b0, b1, b2, b3}) = {a1, b1, a3, b3}
+					     = VEC_PERM (a, b, {1, 5, 3, 7})
+*/
+template <bool secondary_p>
+tree
+trn_mask (gimple_folder &f)
+{
+  auto vec_type = TREE_TYPE (gimple_call_arg (f.call, 0));
+  auto len = TYPE_VECTOR_SUBPARTS (vec_type).to_constant ();
+  auto mask_type = build_vector_type (sizetype, len);
+  tree_vector_builder builder (mask_type, len, 1);
+
+  for (auto i = 0U; i < len / 2; i++)
+    {
+      builder.quick_push (size_int (i * 2 + (secondary_p ^ BYTES_BIG_ENDIAN)));
+      builder.quick_push (
+	size_int (len + i * 2 + (secondary_p ^ BYTES_BIG_ENDIAN)));
+    }
+
+  return builder.build ();
+}
+
+/* UZP1 ({a0, a1},	   {b0, b1})	     = {a0, b0}
+					     = VEC_PERM (a, b, {0, 2})
+   UZP1 ({a0, a1, a2, a3}, {b0, b1, b2, b3}) = {a0, a2, b0, b2}
+					     = VEC_PERM (a, b, {0, 2, 4, 6})
+
+   UZP2 ({a0, a1},	   {b0, b1})	     = {a1, b1}
+					     = VEC_PERM (a, b, {1, 3})
+   UZP2 ({a0, a1, a2, a3}, {b0, b1, b2, b3}) = {a1, a3, b1, b3}
+					     = VEC_PERM (a, b, {1, 3, 5, 7})
+*/
+template <bool secondary_p>
+tree
+uzp_mask (gimple_folder &f)
+{
+  auto vec_type = TREE_TYPE (gimple_call_arg (f.call, 0));
+  auto len = TYPE_VECTOR_SUBPARTS (vec_type).to_constant ();
+  auto mask_type = build_vector_type (sizetype, len);
+  return build_vec_series (mask_type, size_int (secondary_p ^ BYTES_BIG_ENDIAN),
+			   size_int (2));
+}
+
+/* ZIP1 ({a0, a1},	   {b0, b1})	     = {a0, b0}
+					     = VEC_PERM (a, b, {0, 2})
+   ZIP1 ({a0, a1, a2, a3}, {b0, b1, b2, b3}) = {a0, b0, a1, b1}
+					     = VEC_PERM (a, b, {0, 4, 1, 5})
+
+   ZIP2 ({a0, a1},	   {b0, b1})	     = {a1, b1}
+					     = VEC_PERM (a, b, {1, 3})
+   ZIP2 ({a0, a1, a2, a3}, {b0, b1, b2, b3}) = {a2, b2, a3, b3}
+					     = VEC_PERM (a, b, {2, 6, 3, 7})
+*/
+template <bool secondary_p>
+tree
+zip_mask (gimple_folder &f)
+{
+  auto vec_type = TREE_TYPE (gimple_call_arg (f.call, 0));
+  auto len = TYPE_VECTOR_SUBPARTS (vec_type).to_constant ();
+  auto mask_type = build_vector_type (sizetype, len);
+
+  auto start = (secondary_p ^ BYTES_BIG_ENDIAN) ? len / 2 : 0;
+  tree_vector_builder builder (mask_type, len, 1);
+
+  for (auto i = 0U; i < len / 2; i++)
+    {
+      builder.quick_push (size_int (start + i));
+      builder.quick_push (size_int (len + start + i));
+    }
+  return builder.build ();
+}
+
 // Lane get/set
 NEON_FUNCTION (vget_lane,    gimple_get_lane,)
 NEON_FUNCTION (vgetq_lane,   gimple_get_lane,)
@@ -531,4 +769,41 @@ NEON_FUNCTION (vclz,  gimple_ifn, (IFN_CLZ))
 NEON_FUNCTION (vclzq, gimple_ifn, (IFN_CLZ))
 NEON_FUNCTION (vcnt,  gimple_ifn, (IFN_POPCOUNT))
 NEON_FUNCTION (vcntq, gimple_ifn, (IFN_POPCOUNT))
+
+// Permutations
+// Extract
+NEON_FUNCTION (vext,  gimple_permute, (ext_mask))
+NEON_FUNCTION (vextq, gimple_permute, (ext_mask))
+
+// Reverse
+NEON_FUNCTION (vrev16,  gimple_permute, (rev_mask<16>))
+NEON_FUNCTION (vrev16q, gimple_permute, (rev_mask<16>))
+NEON_FUNCTION (vrev32,  gimple_permute, (rev_mask<32>))
+NEON_FUNCTION (vrev32q, gimple_permute, (rev_mask<32>))
+NEON_FUNCTION (vrev64,  gimple_permute, (rev_mask<64>))
+NEON_FUNCTION (vrev64q, gimple_permute, (rev_mask<64>))
+
+// Transpose
+NEON_FUNCTION (vtrn1,  gimple_permute,      (trn_mask<false>))
+NEON_FUNCTION (vtrn1q, gimple_permute,      (trn_mask<false>))
+NEON_FUNCTION (vtrn2,  gimple_permute,      (trn_mask<true>))
+NEON_FUNCTION (vtrn2q, gimple_permute,      (trn_mask<true>))
+NEON_FUNCTION (vtrn,   gimple_permute_pair, (trn_mask<false>, trn_mask<true>))
+NEON_FUNCTION (vtrnq,  gimple_permute_pair, (trn_mask<false>, trn_mask<true>))
+
+// Unzip
+NEON_FUNCTION (vuzp1,  gimple_permute,      (uzp_mask<false>))
+NEON_FUNCTION (vuzp1q, gimple_permute,      (uzp_mask<false>))
+NEON_FUNCTION (vuzp2,  gimple_permute,      (uzp_mask<true>))
+NEON_FUNCTION (vuzp2q, gimple_permute,      (uzp_mask<true>))
+NEON_FUNCTION (vuzp,   gimple_permute_pair, (uzp_mask<false>, uzp_mask<true>))
+NEON_FUNCTION (vuzpq,  gimple_permute_pair, (uzp_mask<false>, uzp_mask<true>))
+
+// Zip
+NEON_FUNCTION (vzip1,  gimple_permute,      (zip_mask<false>))
+NEON_FUNCTION (vzip1q, gimple_permute,      (zip_mask<false>))
+NEON_FUNCTION (vzip2,  gimple_permute,      (zip_mask<true>))
+NEON_FUNCTION (vzip2q, gimple_permute,      (zip_mask<true>))
+NEON_FUNCTION (vzip,   gimple_permute_pair, (zip_mask<false>, zip_mask<true>))
+NEON_FUNCTION (vzipq,  gimple_permute_pair, (zip_mask<false>, zip_mask<true>))
 }

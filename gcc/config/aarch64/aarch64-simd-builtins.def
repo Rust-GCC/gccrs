@@ -660,15 +660,6 @@
   VAR1 (UNOP, floatunsv4si, 2, FP, v4sf)
   VAR1 (UNOP, floatunsv2di, 2, FP, v2df)
 
-  /* Implemented by
-     aarch64_<PERMUTE:perm_insn><mode>.  */
-  BUILTIN_VALL (BINOP, zip1, 0, QUIET)
-  BUILTIN_VALL (BINOP, zip2, 0, QUIET)
-  BUILTIN_VALL (BINOP, uzp1, 0, QUIET)
-  BUILTIN_VALL (BINOP, uzp2, 0, QUIET)
-  BUILTIN_VALL (BINOP, trn1, 0, QUIET)
-  BUILTIN_VALL (BINOP, trn2, 0, QUIET)
-
   BUILTIN_GPF_F16 (UNOP, frecpe, 0, FP)
   BUILTIN_GPF_F16 (UNOP, frecpx, 0, FP)
 
