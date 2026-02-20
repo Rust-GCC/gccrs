@@ -135,7 +135,7 @@ package body Sem_Ch13 is
       Id  : Entity_Id) return Node_Id;
    --  Create the corresponding pragma for aspect Export or Import denoted by
    --  Asp. Id is the related entity subject to the aspect. Return Empty when
-   --  the expression of aspect Asp evaluates to False or is erroneous.
+   --  the expression of aspect Asp evaluates to False or is illegal.
 
    function Build_Predicate_Function_Declaration
      (Typ : Entity_Id) return Node_Id;
@@ -984,7 +984,7 @@ package body Sem_Ch13 is
       --  denoted by a nonoverridable aspect ASN has a parameter or result of
       --  either type E or access E, then all denoted subprograms are
       --  primitive. If missing, Original is initialized with ASN and will not
-      --  change during the recursive exploration of aggregate aspects, it is
+      --  change during the recursive exploration of aggregate aspects; it is
       --  used to improve the error message.
 
       procedure Make_Pragma_From_Boolean_Aspect (ASN : Node_Id);
@@ -1784,49 +1784,13 @@ package body Sem_Ch13 is
       --  Establish linkages between an aspect and its corresponding pragma
 
       procedure Insert_Pragma
-        (Prag        : Node_Id;
+        (Prag        : in out Node_Id;
          Is_Instance : Boolean := False);
-      --  Subsidiary to the analysis of aspects
-      --    Abstract_State
-      --    Always_Terminates
-      --    Attach_Handler
-      --    Async_Readers
-      --    Async_Writers
-      --    Constant_After_Elaboration
-      --    Contract_Cases
-      --    Convention
-      --    Default_Initial_Condition
-      --    Default_Storage_Pool
-      --    Depends
-      --    Effective_Reads
-      --    Effective_Writes
-      --    Exceptional_Cases
-      --    Exit_Cases
-      --    Extensions_Visible
-      --    Ghost
-      --    Global
-      --    Initial_Condition
-      --    Initializes
-      --    Max_Entry_Queue_Length
-      --    Max_Queue_Length
-      --    No_Caching
-      --    Part_Of
-      --    Post
-      --    Pre
-      --    Program_Exit
-      --    Refined_Depends
-      --    Refined_Global
-      --    Refined_Post
-      --    Refined_State
-      --    Side_Effects
-      --    SPARK_Mode
-      --    Secondary_Stack_Size
-      --    Subprogram_Variant
-      --    Volatile_Function
-      --    Warnings
-      --  Insert pragma Prag such that it mimics the placement of a source
-      --  pragma of the same kind. Flag Is_Generic should be set when the
-      --  context denotes a generic instance.
+      --  Prag is a pragma or attribute definition clause generated from an
+      --  aspect specification. Insert it in the appropriate place.
+      --  Is_Instance indicates that the context denotes a generic instance.
+      --  ????We will rename this to be Insert_Aitem, because it now
+      --  works for N_Attribute_Definition_Clause. And rename the formal.
 
       function Relocate_Expression (Source : Node_Id) return Node_Id;
       --  Outside of a generic this function is equivalent to Relocate_Node.
@@ -1856,173 +1820,154 @@ package body Sem_Ch13 is
       -- Insert_Pragma --
       -------------------
 
+      Ins_Node : Node_Id := N;
+      --  Used to (sometimes) preserve order of pragmas relative to the aspects
+      --  whence they came.
+
       procedure Insert_Pragma
-        (Prag        : Node_Id;
+        (Prag        : in out Node_Id;
          Is_Instance : Boolean := False)
       is
-         Aux      : Node_Id;
-         Decl     : Node_Id;
-         Decls    : List_Id;
-         Def      : Node_Id;
-         Inserted : Boolean := False;
+         pragma Assert
+           (Nkind (Prag) in N_Pragma | N_Attribute_Definition_Clause);
+         Decl  : Node_Id;
+         Def   : Node_Id;
+         Decls : List_Id; -- List on which to prepend Prag, if any
 
       begin
-         --  When the aspect appears on an entry, package, protected unit,
-         --  subprogram, or task unit body, insert the generated pragma at the
-         --  top of the body declarations to emulate the behavior of a source
-         --  pragma.
+         --  ???Preelaborate in a package body is illegal, but older compilers
+         --  accepted it, and put the pragma after the body (which is also
+         --  illegal, but not detected by GNAT), so we mimic that behavior.
+         --  This special case should be removed, in which case the pragma
+         --  will be placed inside the package body, and will correctly
+         --  generate an error:
+         --    aspect "Preelaborate" misplaced, must be on the package spec
+         --  Same for Pure.
 
-         --    package body Pack with Aspect is
-
-         --    package body Pack is
-         --       pragma Prag;
-
-         if Nkind (N) in N_Entry_Body
-                       | N_Package_Body
-                       | N_Protected_Body
-                       | N_Subprogram_Body
-                       | N_Task_Body
+         if Nkind (N) in N_Package_Body
+           and then Nkind (Prag) = N_Pragma
+           and then Get_Pragma_Id (Prag) in Pragma_Preelaborate | Pragma_Pure
          then
-            Decls := Declarations (N);
+            goto After;
+         end if;
 
-            if No (Decls) then
-               Decls := New_List;
-               Set_Declarations (N, Decls);
-            end if;
+         --  In some cases, Prag must be inserted INSIDE N, for example at the
+         --  beginning of the visible part of a package or protected type. In
+         --  other cases, Prag goes AFTER N. The following inserts Prag at the
+         --  appropriate place INSIDE N and jumps to <<Done>>, or else jumps to
+         --  <<After>>, where we insert Prag AFTER N.
 
-            Prepend_To (Decls, Prag);
+         case Nkind (Prag) is
+            when N_Attribute_Definition_Clause =>
+               goto After;
+            when N_Pragma =>
+               if Get_Pragma_Id (Prag) in Pragma_First_Controlling_Parameter
+                                        | Pragma_Invariant | Pragma_Volatile
+               then
+                  goto After;
+               end if;
+            when others => raise Program_Error;
+         end case;
 
-         --  When the aspect is associated with a [generic] package declaration
-         --  insert the generated pragma at the top of the visible declarations
-         --  to emulate the behavior of a source pragma.
+         case Nkind (N) is
+            when N_Proper_Body | N_Entry_Body =>
+               if No (Declarations (N)) then
+                  Set_Declarations (N, New_List);
+               end if;
+               Decls := Declarations (N);
 
-         --    package Pack with Aspect is
+            when N_Package_Declaration | N_Generic_Package_Declaration
+               | N_Protected_Type_Declaration | N_Task_Type_Declaration
+            =>
+               case Nkind (N) is
+                  when N_Generic_Package_Declaration | N_Package_Declaration =>
+                     Def := Specification (N);
+                  when N_Protected_Type_Declaration =>
+                     if No (Protected_Definition (N)) then
+                        Set_Protected_Definition (N,
+                          Make_Protected_Definition (Sloc (N),
+                            Visible_Declarations => New_List));
+                     end if;
+                     Def := Protected_Definition (N);
+                  when N_Task_Type_Declaration =>
+                     if No (Task_Definition (N)) then
+                        Set_Task_Definition (N,
+                          Make_Task_Definition (Sloc (N),
+                            Visible_Declarations => New_List));
+                     end if;
+                     Def := Task_Definition (N);
+                  when others => raise Program_Error;
+               end case;
 
-         --    package Pack is
-         --       pragma Prag;
+               if No (Visible_Declarations (Def)) then
+                  Set_Visible_Declarations (Def, New_List);
+               end if;
+               Decls := Visible_Declarations (Def);
 
-         elsif Nkind (N) in N_Generic_Package_Declaration
-                          | N_Package_Declaration
-         then
-            Decls := Visible_Declarations (Specification (N));
+               --  The visible declarations of a generic instance have the
+               --  following structure:
 
-            if No (Decls) then
-               Decls := New_List;
-               Set_Visible_Declarations (Specification (N), Decls);
-            end if;
+               --    <renamings of generic formals>
+               --    <renamings of internally-generated spec and body>
+               --    <first source declaration>
 
-            --  The visible declarations of a generic instance have the
-            --  following structure:
+               --  Insert the pragma before the first source declaration by
+               --  skipping the instance "header" to ensure proper visibility
+               --  of the formals.
 
-            --    <renamings of generic formals>
-            --    <renamings of internally-generated spec and body>
-            --    <first source declaration>
+               if Is_Instance then
+                  Decl := First (Decls);
+                  while Present (Decl) loop
+                     if Comes_From_Source (Decl) then
+                        Insert_Before (Decl, Prag);
+                        goto Done;
+                     end if;
 
-            --  Insert the pragma before the first source declaration by
-            --  skipping the instance "header" to ensure proper visibility of
-            --  all formals.
-
-            if Is_Instance then
-               Decl := First (Decls);
-               while Present (Decl) loop
-                  if Comes_From_Source (Decl) then
-                     Insert_Before (Decl, Prag);
-                     Inserted := True;
-                     exit;
-                  else
                      Next (Decl);
-                  end if;
-               end loop;
+                  end loop;
 
-               --  The pragma is placed after the instance "header"
-
-               if not Inserted then
-                  Append_To (Decls, Prag);
+                  Append_To (Decls, Prag); -- no source decls found
+                  goto Done;
                end if;
 
-            --  Otherwise this is not a generic instance
+            when others => goto After;
+         end case;
 
-            else
-               Prepend_To (Decls, Prag);
+         Prepend_To (Decls, Prag);
+         goto Done;
+
+         <<After>>
+
+         --  Here we insert Prag AFTER N. For a compilation unit, that means in
+         --  the Pragmas_After field. For anything else, after N in some list.
+
+         if Nkind (Parent (N)) = N_Compilation_Unit then
+            if No (Pragmas_After (Aux_Decls_Node (Parent (N)))) then
+               Set_Pragmas_After (Aux_Decls_Node (Parent (N)), New_List);
             end if;
 
-         --  When the aspect is associated with a protected unit declaration,
-         --  insert the generated pragma at the top of the visible declarations
-         --  the emulate the behavior of a source pragma.
-
-         --    protected [type] Prot with Aspect is
-
-         --    protected [type] Prot is
-         --       pragma Prag;
-
-         elsif Nkind (N) = N_Protected_Type_Declaration then
-            Def := Protected_Definition (N);
-
-            if No (Def) then
-               Def :=
-                 Make_Protected_Definition (Sloc (N),
-                   Visible_Declarations => New_List,
-                   End_Label            => Empty);
-
-               Set_Protected_Definition (N, Def);
-            end if;
-
-            Decls := Visible_Declarations (Def);
-
-            if No (Decls) then
-               Decls := New_List;
-               Set_Visible_Declarations (Def, Decls);
-            end if;
-
-            Prepend_To (Decls, Prag);
-
-         --  When the aspect is associated with a task unit declaration, insert
-         --  insert the generated pragma at the top of the visible declarations
-         --  the emulate the behavior of a source pragma.
-
-         --    task [type] Prot with Aspect is
-
-         --    task [type] Prot is
-         --       pragma Prag;
-
-         elsif Nkind (N) = N_Task_Type_Declaration then
-            Def := Task_Definition (N);
-
-            if No (Def) then
-               Def :=
-                 Make_Task_Definition (Sloc (N),
-                   Visible_Declarations => New_List,
-                   End_Label            => Empty);
-
-               Set_Task_Definition (N, Def);
-            end if;
-
-            Decls := Visible_Declarations (Def);
-
-            if No (Decls) then
-               Decls := New_List;
-               Set_Visible_Declarations (Def, Decls);
-            end if;
-
-            Prepend_To (Decls, Prag);
-
-         --  When the context is a library unit, the pragma is added to the
-         --  Pragmas_After list.
-
-         elsif Nkind (Parent (N)) = N_Compilation_Unit then
-            Aux := Aux_Decls_Node (Parent (N));
-
-            if No (Pragmas_After (Aux)) then
-               Set_Pragmas_After (Aux, New_List);
-            end if;
-
-            Prepend (Prag, Pragmas_After (Aux));
-
-         --  Default, the pragma is inserted after the context
-
+            Prepend_To (Pragmas_After (Aux_Decls_Node (Parent (N))), Prag);
+            --  ???Should this be Append_To?
          else
-            Insert_After (N, Prag);
+            Insert_After (Ins_Node, Prag);
+
+            --  The order shouldn't matter, but for Annotate, some tests fail
+            --  in minor ways if we don't use Ins_Node to make the order of
+            --  pragmas match the order of aspects. For some other aspects,
+            --  such as Pre, some tests fail if we DO use Ins_Node.
+            --  ???Consider getting rid of Ins_Node, and just doing
+            --  "Insert_After (N, Prag);" above. Or consider always
+            --  updating Ins_Node below.
+
+            if Nkind (Prag) = N_Pragma
+              and then Get_Pragma_Id (Prag) = Pragma_Annotate
+            then
+               Ins_Node := Prag;
+            end if;
          end if;
+
+         <<Done>>
+         Prag := Empty;
       end Insert_Pragma;
 
       -------------------------
@@ -2044,10 +1989,6 @@ package body Sem_Ch13 is
       Ent    : Node_Id;
 
       L : constant List_Id := Aspect_Specifications (N);
-
-      Ins_Node : Node_Id := N;
-      --  Insert pragmas/attribute definition clause after this node when no
-      --  delayed analysis is required.
 
    --  Start of processing for Analyze_Aspect_Specifications
 
@@ -2371,11 +2312,11 @@ package body Sem_Ch13 is
 
                   Aitem := Build_Export_Import_Pragma (Aspect, E);
 
-               --  Otherwise the expression is either False or erroneous. There
+               --  Otherwise the expression is either False or illegal. There
                --  is no corresponding pragma.
 
                else
-                  Aitem := Empty;
+                  pragma Assert (No (Aitem));
                end if;
             end Analyze_Aspect_Export_Import;
 
@@ -4558,7 +4499,7 @@ package body Sem_Ch13 is
                   --  and then aggregate choices, the last is quadratic over
                   --  the aggregate choices and then components (hidden by the
                   --  Check_Constructor_Choices). If this becomes a performance
-                  --  issue we can merge all loops together ???
+                  --  issue we can merge all loops together.
 
                   Aspect_Comp :=
                     First (Component_Associations (Expression (Aspect)));
@@ -4920,6 +4861,7 @@ package body Sem_Ch13 is
                         else
                            Set_Visible_Declarations (Def, New_List (Aitem));
                         end if;
+                        Aitem := Empty;
 
                         goto Continue;
                      end;
@@ -5677,18 +5619,6 @@ package body Sem_Ch13 is
                   --  Cases where we do not delay
 
                   if not Delay_Required then
-
-                     --  Exclude aspects Export and Import because their pragma
-                     --  syntax does not map directly to a Boolean aspect.
-
-                     if A_Id not in Aspect_Export | Aspect_Import then
-                        Aitem := Make_Aitem_Pragma
-                          (Pragma_Argument_Associations => New_List (
-                             Make_Pragma_Argument_Association (Sloc (Ent),
-                               Expression => Ent)),
-                           Pragma_Name                  => Nam);
-                     end if;
-
                      --  Minimum check of First_Controlling_Parameter aspect;
                      --  the checks shared by the aspect and its corresponding
                      --  pragma are performed when the pragma is analyzed.
@@ -5746,12 +5676,37 @@ package body Sem_Ch13 is
                         Set_Has_First_Controlling_Parameter_Aspect (E);
                      end if;
 
+                     --  Exclude aspects Export and Import because their pragma
+                     --  syntax does not map directly to a Boolean aspect.
+
+                     if A_Id not in Aspect_Export | Aspect_Import then
+                        Aitem := Make_Aitem_Pragma
+                          (Pragma_Argument_Associations => New_List (
+                             Make_Pragma_Argument_Association (Sloc (Ent),
+                               Expression => Ent)),
+                           Pragma_Name                  => Nam);
+                     end if;
+
                   --  In general cases, the corresponding pragma/attribute
                   --  definition clause will be inserted later at the freezing
                   --  point, and we do not need to build it now.
 
-                  else
-                     Aitem := Empty;
+                  else pragma Assert (Delay_Required);
+                     if Nkind (Parent (N)) = N_Compilation_Unit then
+                        if Is_True (Static_Boolean (Expr)) then
+                           Aitem := Make_Aitem_Pragma
+                             (Pragma_Argument_Associations => New_List (
+                                Make_Pragma_Argument_Association (Sloc (Ent),
+                                  Expression => Ent)),
+                              Pragma_Name                  => Nam);
+
+                           Set_From_Aspect_Specification (Aitem, True);
+                           Set_Corresponding_Aspect (Aitem, Aspect);
+
+                        else
+                           goto Continue;
+                        end if;
+                     end if;
                   end if;
 
                --  Storage_Size
@@ -5797,6 +5752,7 @@ package body Sem_Ch13 is
                         Prepend
                           (Aitem,
                            Visible_Declarations (Task_Definition (Decl)));
+                        Aitem := Empty;
                         goto Continue;
                      end;
 
@@ -5809,8 +5765,8 @@ package body Sem_Ch13 is
                          Chars      => Name_Storage_Size,
                          Expression => Relocate_Node (Expr));
 
-                  --  This is likely a misplaced aspect. Create a pragma to
-                  --  emit the actual error.
+                  --  Misplaced Storage_Size aspect; create a pragma to emit
+                  --  the error.
 
                   else
                      Aitem :=
@@ -5853,87 +5809,11 @@ package body Sem_Ch13 is
                Set_Aspect_On_Partial_View (Aspect);
             end if;
 
-            --  In the context of a compilation unit, we directly put the
-            --  pragma in the Pragmas_After list of the N_Compilation_Unit_Aux
-            --  node (no delay is required here) except for aspects on a
-            --  subprogram body (see below) and a generic package, for which we
-            --  need to introduce the pragma before building the generic copy
-            --  (see sem_ch12), and for package instantiations, where the
-            --  library unit pragmas are better handled early.
-
-            if Nkind (Parent (N)) = N_Compilation_Unit
-              and then (Present (Aitem)
-                or else A_Id in Boolean_Aspects | Library_Unit_Aspects)
+            if Nkind (Parent (N)) = N_Compilation_Unit and then Present (Aitem)
             then
-               declare
-                  Aux : constant Node_Id := Aux_Decls_Node (Parent (N));
-
-               begin
-                  pragma Assert (Nkind (Aux) = N_Compilation_Unit_Aux);
-
-                  --  For a Boolean aspect, create the corresponding pragma if
-                  --  no expression or if the value is True.
-
-                  if A_Id in Boolean_Aspects | Library_Unit_Aspects
-                    and then No (Aitem)
-                  then
-                     if Is_True (Static_Boolean (Expr)) then
-                        Aitem := Make_Aitem_Pragma
-                          (Pragma_Argument_Associations => New_List (
-                             Make_Pragma_Argument_Association (Sloc (Ent),
-                               Expression => Ent)),
-                           Pragma_Name                  => Nam);
-
-                        Set_From_Aspect_Specification (Aitem, True);
-                        Set_Corresponding_Aspect (Aitem, Aspect);
-
-                     else
-                        goto Continue;
-                     end if;
-                  end if;
-
-                  --  If the aspect is on a subprogram body (relevant aspect
-                  --  is Inline), add the pragma in front of the declarations.
-
-                  if Nkind (N) = N_Subprogram_Body then
-                     if No (Declarations (N)) then
-                        Set_Declarations (N, New_List);
-                     end if;
-
-                     if Present (Aitem) then
-                        Prepend (Aitem, Declarations (N));
-                     end if;
-
-                  elsif Nkind (N) = N_Generic_Package_Declaration then
-                     if No (Visible_Declarations (Specification (N))) then
-                        Set_Visible_Declarations (Specification (N), New_List);
-                     end if;
-
-                     Prepend (Aitem,
-                       Visible_Declarations (Specification (N)));
-
-                  elsif Nkind (N) = N_Package_Instantiation then
-                     declare
-                        Spec : constant Node_Id :=
-                                 Specification (Instance_Spec (N));
-                     begin
-                        if No (Visible_Declarations (Spec)) then
-                           Set_Visible_Declarations (Spec, New_List);
-                        end if;
-
-                        Prepend (Aitem, Visible_Declarations (Spec));
-                     end;
-
-                  else
-                     if No (Pragmas_After (Aux)) then
-                        Set_Pragmas_After (Aux, New_List);
-                     end if;
-
-                     Append (Aitem, Pragmas_After (Aux));
-                  end if;
-
-                  goto Continue;
-               end;
+               pragma Assert (Nkind (Aitem) in N_Pragma);
+               Insert_Pragma (Aitem);
+               goto Continue;
             end if;
 
             --  The evaluation of the aspect is delayed to the freezing point.
@@ -5962,28 +5842,11 @@ package body Sem_Ch13 is
 
                Set_Has_Delayed_Aspects (E);
                Record_Rep_Item (E, Aspect);
-
-            --  When delay is not required and the context is a package or a
-            --  subprogram body, insert the pragma in the body declarations.
-
-            elsif Nkind (N) in N_Package_Body | N_Subprogram_Body then
-               if No (Declarations (N)) then
-                  Set_Declarations (N, New_List);
-               end if;
-
-               --  The pragma is added before source declarations
-
-               if Present (Aitem) then
-                  Prepend_To (Declarations (N), Aitem);
-               end if;
-
-            --  When delay is not required and the context is not a compilation
-            --  unit, we simply insert the pragma/attribute definition clause
-            --  in sequence.
+               Aitem := Empty;
 
             elsif Present (Aitem) then
-               Insert_After (Ins_Node, Aitem);
-               Ins_Node := Aitem;
+               Insert_Pragma (Aitem);
+               goto Continue;
             end if;
 
             <<Continue>>
@@ -8803,8 +8666,7 @@ package body Sem_Ch13 is
       end if;
 
       --  Ignore rep clause on generic actual type. This will already have
-      --  been flagged on the template as an error, and this is the safest
-      --  way to ensure we don't get a junk cascaded message in the instance.
+      --  been flagged on the template as an error.
 
       if Is_Generic_Actual_Type (Enumtype) then
          return;
@@ -10755,7 +10617,7 @@ package body Sem_Ch13 is
          Create_Pragma := True;
       end if;
 
-      --  Nothing to do when the expression is False or is erroneous
+      --  Nothing to do when the expression is False or is illegal
 
       if not Create_Pragma then
          return Empty;
@@ -14617,7 +14479,7 @@ package body Sem_Ch13 is
       end if;
 
       --  After all forms of overriding have been resolved, a tagged type may
-      --  be left with a set of implicitly declared and possibly erroneous
+      --  be left with a set of implicitly declared and possibly-illegal
       --  abstract subprograms, null procedures and subprograms that require
       --  overriding. If this set contains fully conformant homographs, then
       --  one is chosen arbitrarily (already done during resolution), otherwise
