@@ -1940,12 +1940,11 @@ aarch64_target_switcher::~aarch64_target_switcher ()
 	  sizeof (have_regs_of_mode));
 }
 
-/* Implement #pragma GCC aarch64 "arm_neon.h".
-
-   The types and functions defined here need to be available internally
-   during LTO as well.  */
+/* Initialize NEON builtins using the old framework.
+   Delete once NEON all intrinsics have been ported to the pragma-based
+   framework.  */
 void
-handle_arm_neon_h (void)
+init_arm_neon_builtins (void)
 {
   aarch64_target_switcher switcher (AARCH64_FL_SIMD);
 
@@ -1973,7 +1972,7 @@ aarch64_init_simd_builtins (void)
 
   aarch64_init_simd_builtin_functions (false);
   if (in_lto_p)
-    handle_arm_neon_h ();
+    init_arm_neon_builtins ();
 
   /* Initialize the remaining fcmla_laneq intrinsics.  */
   aarch64_init_fcmla_laneq_builtins ();

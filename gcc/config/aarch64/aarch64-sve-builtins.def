@@ -26,6 +26,8 @@
 
    - aarch64-sve-builtins.def for common data types, groups, and other
        supporting definitions used across all files.
+   - aarch64-neon-builtins-base.def for any AdvSIMD intrinsic that is
+       enabled by the +simd extension.
    - aarch64-sve-builtins-base.def for the baseline SVE intrinsics which predate
        SVE2 and SME.
    - aarch64-sve-builtins-sve2.def for any scalable SIMD intrinsic that is
@@ -158,6 +160,15 @@ DEF_SVE_NEON_TYPE_SUFFIX (u32, svuint32_t, unsigned, 32, VNx4SImode,
 			  Uint32x2_t, Uint32x4_t)
 DEF_SVE_NEON_TYPE_SUFFIX (u64, svuint64_t, unsigned, 64, VNx2DImode,
 			  Uint64x1_t, Uint64x2_t)
+
+DEF_SVE_NEON_TYPE_SUFFIX (p8, svuint8_t, poly, 8, VNx16QImode,
+			  Poly8x8_t, Poly8x16_t)
+DEF_SVE_NEON_TYPE_SUFFIX (p16, svuint16_t, poly, 16, VNx8HImode,
+			  Poly16x4_t, Poly16x8_t)
+DEF_SVE_NEON_TYPE_SUFFIX (p64, svuint64_t, poly, 64, VNx2DImode,
+			  Poly64x1_t, Poly64x2_t)
+DEF_SVE_NEON_TYPE_SUFFIX (p128, svuint64_t, poly, 128, TImode,
+			  Poly128_t, Poly128_t)
 
 /* Associate _za with bytes.  This is needed for svldr_vnum_za and
    svstr_vnum_za, whose ZA offset can be in the range [0, 15], as for za8.  */

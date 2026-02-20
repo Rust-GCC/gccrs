@@ -30,5 +30,5 @@ void G(
     v[12] = vgetq_lane_s64(vd01, 0);
 }
 
-/* { dg-final { scan-assembler {\txar\tv[0-9]+\.2d, v[0-9]+\.2d, v[0-9]+\.2d, 32\n} } } */
+/* { dg-final { scan-assembler {\txar\tv[0-9]+\.2d, v[0-9]+\.2d, v[0-9]+\.2d, #?32\n} } } */
 

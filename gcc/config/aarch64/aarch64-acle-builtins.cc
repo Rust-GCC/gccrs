@@ -54,6 +54,8 @@
 #include "aarch64-sve-builtins-sve2.h"
 #include "aarch64-sve-builtins-sme.h"
 #include "aarch64-sve-builtins-shapes.h"
+#include "aarch64-neon-builtins-shapes.h"
+#include "aarch64-neon-builtins-base.h"
 #include "aarch64-builtins.h"
 
 using namespace aarch64;
@@ -180,818 +182,20 @@ CONSTEXPR const group_suffix_info group_suffixes[] = {
   { "", 0, 1 }
 };
 
-/* Define a TYPES_<combination> macro for each combination of type
-   suffixes that an ACLE function can have, where <combination> is the
-   name used in DEF_SVE_FUNCTION entries.
-
-   Use S (T) for single type suffix T and D (T1, T2) for a pair of type
-   suffixes T1 and T2.  Use commas to separate the suffixes.
-
-   Although the order shouldn't matter, the convention is to sort the
-   suffixes lexicographically after dividing suffixes into a type
-   class ("b", "f", etc.) and a numerical bit count.  */
-
-/* _b8 _b16 _b32 _b64.  */
-#define TYPES_all_pred(S, D, T) \
-  S (b8), S (b16), S (b32), S (b64)
-
-/* _c8 _c16 _c32 _c64.  */
-#define TYPES_all_count(S, D, T) \
-  S (c8), S (c16), S (c32), S (c64)
-
-/* _b8 _b16 _b32 _b64
-   _c8 _c16 _c32 _c64.  */
-#define TYPES_all_pred_count(S, D, T) \
-  TYPES_all_pred (S, D, T), \
-  TYPES_all_count (S, D, T)
-
-/* _f16 _f32 _f64.  */
-#define TYPES_all_float(S, D, T) \
-  S (f16), S (f32), S (f64)
-
-/* _f32 _f64.  */
-#define TYPES_sd_float(S, D, T) \
-  S (f32), S (f64)
-
-/* _s8 _s16 _s32 _s64.  */
-#define TYPES_all_signed(S, D, T) \
-  S (s8), S (s16), S (s32), S (s64)
-
-/*     _f16 _f32 _f64
-   _s8 _s16 _s32 _s64.  */
-#define TYPES_all_float_and_signed(S, D, T) \
-  TYPES_all_float (S, D, T), TYPES_all_signed (S, D, T)
-
-/* _u8 _u16 _u32 _u64.  */
-#define TYPES_all_unsigned(S, D, T) \
-  S (u8), S (u16), S (u32), S (u64)
-
-/* _s8 _s16 _s32 _s64
-   _u8 _u16 _u32 _u64.  */
-#define TYPES_all_integer(S, D, T) \
-  TYPES_all_signed (S, D, T), TYPES_all_unsigned (S, D, T)
-
-/*     _f16 _f32 _f64
-   _s8 _s16 _s32 _s64
-   _u8 _u16 _u32 _u64.  */
-#define TYPES_all_arith(S, D, T) \
-  TYPES_all_float (S, D, T), TYPES_all_integer (S, D, T)
-
-#define TYPES_all_data(S, D, T) \
-  TYPES_b_data (S, D, T), \
-  TYPES_h_data (S, D, T), \
-  TYPES_s_data (S, D, T), \
-  TYPES_d_data (S, D, T)
-
-/* _b only.  */
-#define TYPES_b(S, D, T) \
-  S (b)
-
-/* _c only.  */
-#define TYPES_c(S, D, T) \
-  S (c)
-
-/* _u8.  */
-#define TYPES_b_unsigned(S, D, T) \
-  S (u8)
-
-/* _s8
-   _u8.  */
-#define TYPES_b_integer(S, D, T) \
-  S (s8), TYPES_b_unsigned (S, D, T)
-
-/* _mf8
-   _s8
-   _u8.  */
-#define TYPES_b_data(S, D, T) \
-  S (mf8), TYPES_b_integer (S, D, T)
-
-/* _s8 _s16
-   _u8 _u16.  */
-#define TYPES_bh_integer(S, D, T) \
-  S (s8), S (s16), S (u8), S (u16)
-
-/* _u8 _u32.  */
-#define TYPES_bs_unsigned(S, D, T) \
-  S (u8), S (u32)
-
-/* _s8 _s16 _s32.  */
-#define TYPES_bhs_signed(S, D, T) \
-  S (s8), S (s16), S (s32)
-
-/* _u8 _u16 _u32.  */
-#define TYPES_bhs_unsigned(S, D, T) \
-  S (u8), S (u16), S (u32)
-
-/* _s8 _s16 _s32
-   _u8 _u16 _u32.  */
-#define TYPES_bhs_integer(S, D, T) \
-  TYPES_bhs_signed (S, D, T), TYPES_bhs_unsigned (S, D, T)
-
-#define TYPES_bh_data(S, D, T)			\
-  TYPES_b_data (S, D, T), \
-  TYPES_h_data (S, D, T)
-
-#define TYPES_bhs_data(S, D, T)			\
-  TYPES_b_data (S, D, T), \
-  TYPES_h_data (S, D, T), \
-  TYPES_s_data (S, D, T)
-
-/* _s16_s8  _s32_s16  _s64_s32
-   _u16_u8  _u32_u16  _u64_u32.  */
-#define TYPES_bhs_widen(S, D, T) \
-  D (s16, s8), D (s32, s16), D (s64, s32), \
-  D (u16, u8), D (u32, u16), D (u64, u32)
-
-/* _bf16.  */
-#define TYPES_h_bfloat(S, D, T) \
-  S (bf16)
-
-/* _f16.  */
-#define TYPES_h_float(S, D, T) \
-  S (f16)
-
-/* _s16
-   _u16.  */
-#define TYPES_h_integer(S, D, T) \
-  S (s16), S (u16)
-
-/* _bf16
-   _f16
-   _s16
-   _u16.  */
-#define TYPES_h_data(S, D, T) \
-  S (bf16), S (f16), TYPES_h_integer (S, D, T)
-
-/* _s16 _s32.  */
-#define TYPES_hs_signed(S, D, T) \
-  S (s16), S (s32)
-
-/* _s16 _s32
-   _u16 _u32.  */
-#define TYPES_hs_integer(S, D, T) \
-  TYPES_hs_signed (S, D, T), S (u16), S (u32)
-
-/* _f16 _f32.  */
-#define TYPES_hs_float(S, D, T) \
-  S (f16), S (f32)
-
-#define TYPES_hs_data(S, D, T) \
-  TYPES_h_data (S, D, T), \
-  TYPES_s_data (S, D, T)
-
-/* _u16 _u64.  */
-#define TYPES_hd_unsigned(S, D, T) \
-  S (u16), S (u64)
-
-/* _s16 _s32 _s64.  */
-#define TYPES_hsd_signed(S, D, T) \
-  S (s16), S (s32), S (s64)
-
-/* _s16 _s32 _s64
-   _u16 _u32 _u64.  */
-#define TYPES_hsd_integer(S, D, T) \
-  TYPES_hsd_signed (S, D, T), S (u16), S (u32), S (u64)
-
-#define TYPES_hsd_data(S, D, T) \
-  TYPES_h_data (S, D, T), \
-  TYPES_s_data (S, D, T), \
-  TYPES_d_data (S, D, T)
-
-/* _f16_mf8.  */
-#define TYPES_h_float_mf8(S, D, T) \
-  D (f16, mf8)
-
-/* _f32.  */
-#define TYPES_s_float(S, D, T) \
-  S (f32)
-
-/* _f32_mf8.  */
-#define TYPES_s_float_mf8(S, D, T) \
-  D (f32, mf8)
-
-/*      _f32
-   _s16 _s32 _s64
-   _u16 _u32 _u64.  */
-#define TYPES_s_float_hsd_integer(S, D, T) \
-  TYPES_s_float (S, D, T), TYPES_hsd_integer (S, D, T)
-
-/* _f32
-   _s32 _s64
-   _u32 _u64.  */
-#define TYPES_s_float_sd_integer(S, D, T) \
-  TYPES_s_float (S, D, T), TYPES_sd_integer (S, D, T)
-
-/* _s32.  */
-#define TYPES_s_signed(S, D, T) \
-  S (s32)
-
-/* _u32.  */
-#define TYPES_s_unsigned(S, D, T) \
-  S (u32)
-
-/* _s32
-   _u32.  */
-#define TYPES_s_integer(S, D, T) \
-  TYPES_s_signed (S, D, T), TYPES_s_unsigned (S, D, T)
-
-/* _f32
-   _s32
-   _u32.  */
-#define TYPES_s_data(S, D, T) \
-  TYPES_s_float (S, D, T), TYPES_s_integer (S, D, T)
-
-/* _s32 _s64.  */
-#define TYPES_sd_signed(S, D, T) \
-  S (s32), S (s64)
-
-/* _u32 _u64.  */
-#define TYPES_sd_unsigned(S, D, T) \
-  S (u32), S (u64)
-
-/* _s32 _s64
-   _u32 _u64.  */
-#define TYPES_sd_integer(S, D, T) \
-  TYPES_sd_signed (S, D, T), TYPES_sd_unsigned (S, D, T)
-
-#define TYPES_sd_data(S, D, T) \
-  TYPES_s_data (S, D, T), \
-  TYPES_d_data (S, D, T)
-
-/* _f16 _f32 _f64
-	_s32 _s64
-	_u32 _u64.  */
-#define TYPES_all_float_and_sd_integer(S, D, T) \
-  TYPES_all_float (S, D, T), TYPES_sd_integer (S, D, T)
-
-/* _f64.  */
-#define TYPES_d_float(S, D, T) \
-  S (f64)
-
-/* _u64.  */
-#define TYPES_d_unsigned(S, D, T) \
-  S (u64)
-
-/* _s64
-   _u64.  */
-#define TYPES_d_integer(S, D, T) \
-  S (s64), TYPES_d_unsigned (S, D, T)
-
-/* _f64
-   _s64
-   _u64.  */
-#define TYPES_d_data(S, D, T) \
-  TYPES_d_float (S, D, T), TYPES_d_integer (S, D, T)
-
-/* All the type combinations allowed by svcvt.  */
-#define TYPES_cvt(S, D, T) \
-  D (f16, f32), D (f16, f64), \
-  D (f16, s16), D (f16, s32), D (f16, s64), \
-  D (f16, u16), D (f16, u32), D (f16, u64), \
-  \
-  D (f32, f16), D (f32, f64), \
-  D (f32, s32), D (f32, s64), \
-  D (f32, u32), D (f32, u64), \
-  \
-  D (f64, f16), D (f64, f32), \
-  D (f64, s32), D (f64, s64), \
-  D (f64, u32), D (f64, u64), \
-  \
-  D (s16, f16), \
-  D (s32, f16), D (s32, f32), D (s32, f64), \
-  D (s64, f16), D (s64, f32), D (s64, f64), \
-  \
-  D (u16, f16), \
-  D (u32, f16), D (u32, f32), D (u32, f64), \
-  D (u64, f16), D (u64, f32), D (u64, f64)
-
-/* _bf16_f32.  */
-#define TYPES_cvt_bfloat(S, D, T) \
-  D (bf16, f32)
-
-/* { _bf16 _f16 } x _f32.  */
-#define TYPES_cvt_h_s_float(S, D, T) \
-  D (bf16, f32), D (f16, f32)
-
-/* _f32_f16.  */
-#define TYPES_cvt_f32_f16(S, D, T) \
-  D (f32, f16)
-
-/* _f32_f16
-   _f64_f32.  */
-#define TYPES_cvt_long(S, D, T) \
-  D (f32, f16), D (f64, f32)
-
-/* _f32_f64.  */
-#define TYPES_cvt_narrow_s(S, D, T) \
-  D (f32, f64)
-
-/* _f16_f32
-   _f32_f64.  */
-#define TYPES_cvt_narrow(S, D, T) \
-  D (f16, f32), TYPES_cvt_narrow_s (S, D, T)
-
-/* { _s32 _u32 } x _f32
-
-   _f32 x { _s32 _u32 }.  */
-#define TYPES_cvt_s_s(S, D, T) \
-  D (s32, f32), \
-  D (u32, f32), \
-  D (f32, s32), \
-  D (f32, u32)
-
-/* _f16_mf8
-   _bf16_mf8.  */
-#define TYPES_cvt_mf8(S, D, T) \
-  D (f16, mf8), D (bf16, mf8)
-
-/* _mf8_f16
-   _mf8_bf16.  */
-#define TYPES_cvtn_mf8(S, D, T) \
-  D (mf8, f16), D (mf8, bf16)
-
-/* _mf8_f32.  */
-#define TYPES_cvtnx_mf8(S, D, T) \
-  D (mf8, f32)
-
-/* { _s32 _s64 } x { _b8 _b16 _b32 _b64 }
-   { _u32 _u64 }.  */
-#define TYPES_inc_dec_n1(D, A) \
-  D (A, b8), D (A, b16), D (A, b32), D (A, b64)
-#define TYPES_inc_dec_n(S, D, T) \
-  TYPES_inc_dec_n1 (D, s32), \
-  TYPES_inc_dec_n1 (D, s64), \
-  TYPES_inc_dec_n1 (D, u32), \
-  TYPES_inc_dec_n1 (D, u64)
-
-/* { _s16 _u16 } x _s32
-
-   {      _u16 } x _u32.  */
-#define TYPES_qcvt_x2(S, D, T) \
-  D (s16, s32), \
-  D (u16, u32), \
-  D (u16, s32)
-
-/* { _s8  _u8  } x _s32
-
-   {      _u8  } x _u32
-
-   { _s16 _u16 } x _s64
-
-   {      _u16 } x _u64.  */
-#define TYPES_qcvt_x4(S, D, T) \
-  D (s8, s32), \
-  D (u8, u32), \
-  D (u8, s32), \
-  D (s16, s64), \
-  D (u16, u64), \
-  D (u16, s64)
-
-/* _s16_s32
-   _u16_u32.  */
-#define TYPES_qrshr_x2(S, D, T) \
-  D (s16, s32), \
-  D (u16, u32)
-
-/* _u16_s32.  */
-#define TYPES_qrshru_x2(S, D, T) \
-  D (u16, s32)
-
-/* _s8_s32
-   _s16_s64
-   _u8_u32
-   _u16_u64.  */
-#define TYPES_qrshr_x4(S, D, T) \
-  D (s8, s32), \
-  D (s16, s64), \
-  D (u8, u32), \
-  D (u16, u64)
-
-/* _u8_s32
-   _u16_s64.  */
-#define TYPES_qrshru_x4(S, D, T) \
-  D (u8, s32), \
-  D (u16, s64)
-
-/* { _mf8 _bf16          }   { _mf8 _bf16          }
-   {      _f16 _f32 _f64 }   {      _f16 _f32 _f64 }
-   { _s8  _s16 _s32 _s64 } x { _s8  _s16 _s32 _s64 }
-   { _u8  _u16 _u32 _u64 }   { _u8  _u16 _u32 _u64 }.  */
-#define TYPES_reinterpret1(D, A) \
-  D (A, mf8), \
-  D (A, bf16), \
-  D (A, f16), D (A, f32), D (A, f64), \
-  D (A, s8), D (A, s16), D (A, s32), D (A, s64), \
-  D (A, u8), D (A, u16), D (A, u32), D (A, u64)
-#define TYPES_reinterpret(S, D, T) \
-  TYPES_reinterpret1 (D, mf8), \
-  TYPES_reinterpret1 (D, bf16), \
-  TYPES_reinterpret1 (D, f16), \
-  TYPES_reinterpret1 (D, f32), \
-  TYPES_reinterpret1 (D, f64), \
-  TYPES_reinterpret1 (D, s8), \
-  TYPES_reinterpret1 (D, s16), \
-  TYPES_reinterpret1 (D, s32), \
-  TYPES_reinterpret1 (D, s64), \
-  TYPES_reinterpret1 (D, u8), \
-  TYPES_reinterpret1 (D, u16), \
-  TYPES_reinterpret1 (D, u32), \
-  TYPES_reinterpret1 (D, u64)
-
-/* _b_c
-   _c_b.  */
-#define TYPES_reinterpret_b(S, D, T) \
-  D (b, c), \
-  D (c, b)
-
-/* { _b8 _b16 _b32 _b64 } x { _s32 _s64 }
-			    { _u32 _u64 } */
-#define TYPES_while1(D, bn) \
-  D (bn, s32), D (bn, s64), D (bn, u32), D (bn, u64)
-#define TYPES_while(S, D, T) \
-  TYPES_while1 (D, b8), \
-  TYPES_while1 (D, b16), \
-  TYPES_while1 (D, b32), \
-  TYPES_while1 (D, b64)
-
-/* { _b8 _b16 _b32 _b64 } x { _s64 }
-			    { _u64 } */
-#define TYPES_while_x(S, D, T) \
-  D (b8, s64), D (b8, u64), \
-  D (b16, s64), D (b16, u64), \
-  D (b32, s64), D (b32, u64), \
-  D (b64, s64), D (b64, u64)
-
-/* { _c8 _c16 _c32 _c64 } x { _s64 }
-			    { _u64 } */
-#define TYPES_while_x_c(S, D, T) \
-  D (c8, s64), D (c8, u64), \
-  D (c16, s64), D (c16, u64), \
-  D (c32, s64), D (c32, u64), \
-  D (c64, s64), D (c64, u64)
-
-/* _f32_f16
-   _s32_s16
-   _u32_u16.  */
-#define TYPES_s_narrow_fsu(S, D, T) \
-  D (f32, f16), D (s32, s16), D (u32, u16)
-
-/* _za8 _za16 _za32 _za64 _za128.  */
-#define TYPES_all_za(S, D, T) \
-  S (za8), S (za16), S (za32), S (za64), S (za128)
-
-/* _za64.  */
-#define TYPES_d_za(S, D, T) \
-  S (za64)
-
-/* {   _za8 } x {  _mf8       _s8  _u8 }
-
-   {  _za16 } x { _bf16 _f16 _s16 _u16 }
-
-   {  _za32 } x {       _f32 _s32 _u32 }
-
-   {  _za64 } x {       _f64 _s64 _u64 }.  */
-#define TYPES_za_bhsd_data(S, D, T) \
-  D (za8, mf8), D (za8, s8), D (za8, u8), \
-  D (za16, bf16), D (za16, f16), D (za16, s16), D (za16, u16), \
-  D (za32, f32), D (za32, s32), D (za32, u32), \
-  D (za64, f64), D (za64, s64), D (za64, u64)
-
-/* Likewise, plus:
-
-   { _za128 } x {      _bf16           }
-		{       _f16 _f32 _f64 }
-		{ _s8   _s16 _s32 _s64 }
-		{ _u8   _u16 _u32 _u64 }.  */
-
-#define TYPES_za_all_data(S, D, T) \
-  TYPES_za_bhsd_data (S, D, T), \
-  TYPES_reinterpret1 (D, za128)
-
-/* _za16_mf8.  */
-#define TYPES_za_h_mf8(S, D, T) \
-  D (za16, mf8)
-
-/* { _za_16 _za_32 } x _mf8.  */
-#define TYPES_za_hs_mf8(S, D, T) \
-  D (za16, mf8), D (za32, mf8)
-
-/* _za16_bf16.  */
-#define TYPES_za_h_bfloat(S, D, T) \
-  D (za16, bf16)
-
-/* _za16_f16.  */
-#define TYPES_za_h_float(S, D, T) \
-  D (za16, f16)
-
-/* _za32_s8.  */
-#define TYPES_za_s_b_signed(S, D, T) \
-   D (za32, s8)
-
-/* _za32_u8.  */
-#define TYPES_za_s_b_unsigned(S, D, T) \
-   D (za32, u8)
-
-/* _za32 x { _s8 _u8 }.  */
-#define TYPES_za_s_b_integer(S, D, T) \
-  D (za32, s8), D (za32, u8)
-
-/* _za32 x { _s16 _u16 }.  */
-#define TYPES_za_s_h_integer(S, D, T) \
-  D (za32, s16), D (za32, u16)
-
-/* _za32 x { _bf16 _f16 _s16 _u16 }.  */
-#define TYPES_za_s_h_data(S, D, T) \
-  D (za32, bf16), D (za32, f16), D (za32, s16), D (za32, u16)
-
-/* _za32_u32.  */
-#define TYPES_za_s_unsigned(S, D, T) \
-  D (za32, u32)
-
-/* _za32 x { _s32 _u32 }.  */
-#define TYPES_za_s_integer(S, D, T) \
-  D (za32, s32), D (za32, u32)
-
-/* _za32_mf8.  */
-#define TYPES_za_s_mf8(S, D, T) \
-  D (za32, mf8)
-
-/* _za32_f32.  */
-#define TYPES_za_s_float(S, D, T) \
-  D (za32, f32)
-
-/* _za32 x { _f32 _s32 _u32 }.  */
-#define TYPES_za_s_data(S, D, T) \
-  D (za32, f32), D (za32, s32), D (za32, u32)
-
-/* _za64 x { _s16 _u16 }.  */
-#define TYPES_za_d_h_integer(S, D, T) \
-  D (za64, s16), D (za64, u16)
-
-/* _za64_f64.  */
-#define TYPES_za_d_float(S, D, T) \
-  D (za64, f64)
-
-/* _za64 x { _s64 _u64 }.  */
-#define TYPES_za_d_integer(S, D, T) \
-  D (za64, s64), D (za64, u64)
-
-/* _za32 x { _s8 _u8 _bf16 _f16 _f32 }.  */
-#define TYPES_mop_base(S, D, T) \
-  D (za32, s8), D (za32, u8), D (za32, bf16), D (za32, f16), D (za32, f32)
-
-/* _za32_s8.  */
-#define TYPES_mop_base_signed(S, D, T) \
-  D (za32, s8)
-
-/* _za32_u8.  */
-#define TYPES_mop_base_unsigned(S, D, T) \
-  D (za32, u8)
-
-/* _za64 x { _s16 _u16 }.  */
-#define TYPES_mop_i16i64(S, D, T) \
-  D (za64, s16), D (za64, u16)
-
-/* _za64_s16.  */
-#define TYPES_mop_i16i64_signed(S, D, T) \
-  D (za64, s16)
-
-/* _za64_u16.  */
-#define TYPES_mop_i16i64_unsigned(S, D, T) \
-  D (za64, u16)
-
-/* _za.  */
-#define TYPES_za(S, D, T) \
-  S (za)
-
-/* Describe a tuple of type suffixes in which only the first is used.  */
-#define DEF_VECTOR_TYPE(X) \
-  { TYPE_SUFFIX_ ## X, NUM_TYPE_SUFFIXES, NUM_TYPE_SUFFIXES }
-
-/* Describe a tuple of type suffixes in which only the first two are used.  */
-#define DEF_DOUBLE_TYPE(X, Y) \
-  { TYPE_SUFFIX_ ## X, TYPE_SUFFIX_ ## Y, NUM_TYPE_SUFFIXES }
-
-/* Describe a tuple of type suffixes in which three elements are used.  */
-#define DEF_TRIPLE_TYPE(X, Y, Z) \
-  { TYPE_SUFFIX_ ## X, TYPE_SUFFIX_ ## Y, TYPE_SUFFIX_ ## Z }
-
-/* Create an array that can be used in aarch64-sve-builtins.def to
-   select the type suffixes in TYPES_<NAME>.  */
-#define DEF_SVE_TYPES_ARRAY(NAME) \
-  static const type_suffix_triple types_##NAME[] = { \
-    TYPES_##NAME (DEF_VECTOR_TYPE, DEF_DOUBLE_TYPE, DEF_TRIPLE_TYPE), \
-    { NUM_TYPE_SUFFIXES, NUM_TYPE_SUFFIXES, NUM_TYPE_SUFFIXES } \
-  }
-
-/* For functions that don't take any type suffixes.  */
-static const type_suffix_triple types_none[] = {
-  { NUM_TYPE_SUFFIXES, NUM_TYPE_SUFFIXES, NUM_TYPE_SUFFIXES },
-  { NUM_TYPE_SUFFIXES, NUM_TYPE_SUFFIXES, NUM_TYPE_SUFFIXES }
+constexpr const aarch64_acle::function_group_info neon_function_groups[] = {
+#define DEF_NEON_FUNCTION(NAME, TYPES, SHAPE_ARGS)			\
+  {									\
+    /* .base_name  = */ #NAME,						\
+    /* .base       = */ &aarch64_acle::functions::NAME,			\
+    /* .shape      = */ &aarch64_acle::shapes::SHAPE_NAME (NAME, TYPES),\
+    /* .types      = */ aarch64_acle::types_##TYPES,			\
+    /* .groups     = */ aarch64_acle::groups_none,			\
+    /* .preds      = */ aarch64_acle::preds_none,			\
+    /* .extensions = */ aarch64_required_extensions::REQUIRED_EXTENSIONS,\
+    /* .fpm_mode   = */ aarch64_acle::FPM_unused,			\
+  },
+#include "aarch64-neon-builtins.def"
 };
-
-/* Create an array for each TYPES_<combination> macro above.  */
-DEF_SVE_TYPES_ARRAY (all_pred);
-DEF_SVE_TYPES_ARRAY (all_count);
-DEF_SVE_TYPES_ARRAY (all_pred_count);
-DEF_SVE_TYPES_ARRAY (all_float);
-DEF_SVE_TYPES_ARRAY (all_signed);
-DEF_SVE_TYPES_ARRAY (all_float_and_signed);
-DEF_SVE_TYPES_ARRAY (all_unsigned);
-DEF_SVE_TYPES_ARRAY (all_integer);
-DEF_SVE_TYPES_ARRAY (all_arith);
-DEF_SVE_TYPES_ARRAY (all_data);
-DEF_SVE_TYPES_ARRAY (b);
-DEF_SVE_TYPES_ARRAY (b_unsigned);
-DEF_SVE_TYPES_ARRAY (b_integer);
-DEF_SVE_TYPES_ARRAY (bh_integer);
-DEF_SVE_TYPES_ARRAY (bs_unsigned);
-DEF_SVE_TYPES_ARRAY (bhs_signed);
-DEF_SVE_TYPES_ARRAY (bhs_unsigned);
-DEF_SVE_TYPES_ARRAY (bhs_integer);
-DEF_SVE_TYPES_ARRAY (bh_data);
-DEF_SVE_TYPES_ARRAY (bhs_data);
-DEF_SVE_TYPES_ARRAY (bhs_widen);
-DEF_SVE_TYPES_ARRAY (c);
-DEF_SVE_TYPES_ARRAY (h_bfloat);
-DEF_SVE_TYPES_ARRAY (h_float);
-DEF_SVE_TYPES_ARRAY (h_float_mf8);
-DEF_SVE_TYPES_ARRAY (h_integer);
-DEF_SVE_TYPES_ARRAY (h_data);
-DEF_SVE_TYPES_ARRAY (hs_signed);
-DEF_SVE_TYPES_ARRAY (hs_integer);
-DEF_SVE_TYPES_ARRAY (hs_float);
-DEF_SVE_TYPES_ARRAY (hs_data);
-DEF_SVE_TYPES_ARRAY (hd_unsigned);
-DEF_SVE_TYPES_ARRAY (hsd_signed);
-DEF_SVE_TYPES_ARRAY (hsd_integer);
-DEF_SVE_TYPES_ARRAY (hsd_data);
-DEF_SVE_TYPES_ARRAY (s_float);
-DEF_SVE_TYPES_ARRAY (s_float_hsd_integer);
-DEF_SVE_TYPES_ARRAY (s_float_mf8);
-DEF_SVE_TYPES_ARRAY (s_float_sd_integer);
-DEF_SVE_TYPES_ARRAY (s_signed);
-DEF_SVE_TYPES_ARRAY (s_unsigned);
-DEF_SVE_TYPES_ARRAY (s_integer);
-DEF_SVE_TYPES_ARRAY (s_data);
-DEF_SVE_TYPES_ARRAY (sd_float);
-DEF_SVE_TYPES_ARRAY (sd_signed);
-DEF_SVE_TYPES_ARRAY (sd_unsigned);
-DEF_SVE_TYPES_ARRAY (sd_integer);
-DEF_SVE_TYPES_ARRAY (sd_data);
-DEF_SVE_TYPES_ARRAY (all_float_and_sd_integer);
-DEF_SVE_TYPES_ARRAY (d_float);
-DEF_SVE_TYPES_ARRAY (d_unsigned);
-DEF_SVE_TYPES_ARRAY (d_integer);
-DEF_SVE_TYPES_ARRAY (d_data);
-DEF_SVE_TYPES_ARRAY (cvt);
-DEF_SVE_TYPES_ARRAY (cvt_bfloat);
-DEF_SVE_TYPES_ARRAY (cvt_h_s_float);
-DEF_SVE_TYPES_ARRAY (cvt_f32_f16);
-DEF_SVE_TYPES_ARRAY (cvt_long);
-DEF_SVE_TYPES_ARRAY (cvt_mf8);
-DEF_SVE_TYPES_ARRAY (cvt_narrow_s);
-DEF_SVE_TYPES_ARRAY (cvt_narrow);
-DEF_SVE_TYPES_ARRAY (cvt_s_s);
-DEF_SVE_TYPES_ARRAY (cvtn_mf8);
-DEF_SVE_TYPES_ARRAY (cvtnx_mf8);
-DEF_SVE_TYPES_ARRAY (inc_dec_n);
-DEF_SVE_TYPES_ARRAY (qcvt_x2);
-DEF_SVE_TYPES_ARRAY (qcvt_x4);
-DEF_SVE_TYPES_ARRAY (qrshr_x2);
-DEF_SVE_TYPES_ARRAY (qrshr_x4);
-DEF_SVE_TYPES_ARRAY (qrshru_x2);
-DEF_SVE_TYPES_ARRAY (qrshru_x4);
-DEF_SVE_TYPES_ARRAY (reinterpret);
-DEF_SVE_TYPES_ARRAY (reinterpret_b);
-DEF_SVE_TYPES_ARRAY (while);
-DEF_SVE_TYPES_ARRAY (while_x);
-DEF_SVE_TYPES_ARRAY (while_x_c);
-DEF_SVE_TYPES_ARRAY (s_narrow_fsu);
-DEF_SVE_TYPES_ARRAY (all_za);
-DEF_SVE_TYPES_ARRAY (d_za);
-DEF_SVE_TYPES_ARRAY (za_bhsd_data);
-DEF_SVE_TYPES_ARRAY (za_all_data);
-DEF_SVE_TYPES_ARRAY (za_h_mf8);
-DEF_SVE_TYPES_ARRAY (za_h_bfloat);
-DEF_SVE_TYPES_ARRAY (za_h_float);
-DEF_SVE_TYPES_ARRAY (za_s_b_signed);
-DEF_SVE_TYPES_ARRAY (za_s_b_unsigned);
-DEF_SVE_TYPES_ARRAY (za_s_b_integer);
-DEF_SVE_TYPES_ARRAY (za_s_h_integer);
-DEF_SVE_TYPES_ARRAY (za_s_h_data);
-DEF_SVE_TYPES_ARRAY (za_s_unsigned);
-DEF_SVE_TYPES_ARRAY (za_s_integer);
-DEF_SVE_TYPES_ARRAY (za_s_mf8);
-DEF_SVE_TYPES_ARRAY (za_hs_mf8);
-DEF_SVE_TYPES_ARRAY (za_s_float);
-DEF_SVE_TYPES_ARRAY (za_s_data);
-DEF_SVE_TYPES_ARRAY (za_d_h_integer);
-DEF_SVE_TYPES_ARRAY (za_d_float);
-DEF_SVE_TYPES_ARRAY (za_d_integer);
-DEF_SVE_TYPES_ARRAY (mop_base);
-DEF_SVE_TYPES_ARRAY (mop_base_signed);
-DEF_SVE_TYPES_ARRAY (mop_base_unsigned);
-DEF_SVE_TYPES_ARRAY (mop_i16i64);
-DEF_SVE_TYPES_ARRAY (mop_i16i64_signed);
-DEF_SVE_TYPES_ARRAY (mop_i16i64_unsigned);
-DEF_SVE_TYPES_ARRAY (za);
-
-static const group_suffix_index groups_none[] = {
-  GROUP_none, NUM_GROUP_SUFFIXES
-};
-
-static const group_suffix_index groups_x2[] = { GROUP_x2, NUM_GROUP_SUFFIXES };
-
-static const group_suffix_index groups_x12[] = {
-  GROUP_none, GROUP_x2, NUM_GROUP_SUFFIXES
-};
-
-static const group_suffix_index groups_x4[] = { GROUP_x4, NUM_GROUP_SUFFIXES };
-
-static const group_suffix_index groups_x24[] = {
-  GROUP_x2, GROUP_x4, NUM_GROUP_SUFFIXES
-};
-
-static const group_suffix_index groups_x124[] = {
-  GROUP_none, GROUP_x2, GROUP_x4, NUM_GROUP_SUFFIXES
-};
-
-static const group_suffix_index groups_x1234[] = {
-  GROUP_none, GROUP_x2, GROUP_x3, GROUP_x4, NUM_GROUP_SUFFIXES
-};
-
-static const group_suffix_index groups_vg1x2[] = {
-  GROUP_vg1x2, NUM_GROUP_SUFFIXES
-};
-
-static const group_suffix_index groups_vg1x4[] = {
-  GROUP_vg1x4, NUM_GROUP_SUFFIXES
-};
-
-static const group_suffix_index groups_vg1x24[] = {
-  GROUP_vg1x2, GROUP_vg1x4, NUM_GROUP_SUFFIXES
-};
-
-static const group_suffix_index groups_vg2[] = {
-  GROUP_vg2x1, GROUP_vg2x2, GROUP_vg2x4, NUM_GROUP_SUFFIXES
-};
-
-static const group_suffix_index groups_vg4[] = {
-  GROUP_vg4x1, GROUP_vg4x2, GROUP_vg4x4, NUM_GROUP_SUFFIXES
-};
-
-static const group_suffix_index groups_vg24[] = {
-  GROUP_vg2, GROUP_vg4, NUM_GROUP_SUFFIXES
-};
-
-/* Used by functions that have no governing predicate.  */
-static const predication_index preds_none[] = { PRED_none, NUM_PREDS };
-
-/* Used by functions that have a governing predicate but do not have an
-   explicit suffix.  */
-static const predication_index preds_implicit[] = { PRED_implicit, NUM_PREDS };
-
-/* Used by functions that only support "_m" predication.  */
-static const predication_index preds_m[] = { PRED_m, NUM_PREDS };
-
-/* Used by functions that allow merging and "don't care" predication,
-   but are not suitable for predicated MOVPRFX.  */
-static const predication_index preds_mx[] = {
-  PRED_m, PRED_x, NUM_PREDS
-};
-
-/* Used by functions that allow merging, zeroing and "don't care"
-   predication.  */
-static const predication_index preds_mxz[] = {
-  PRED_m, PRED_x, PRED_z, NUM_PREDS
-};
-
-/* Used by functions that have the mxz predicated forms above, and in addition
-   have an unpredicated form.  */
-static const predication_index preds_mxz_or_none[] = {
-  PRED_m, PRED_x, PRED_z, PRED_none, NUM_PREDS
-};
-
-/* Used by functions that allow merging and zeroing predication but have
-   no "_x" form.  */
-static const predication_index preds_mz[] = { PRED_m, PRED_z, NUM_PREDS };
-
-/* Used by functions that have an unpredicated form and a _z predicated
-   form.  */
-static const predication_index preds_z_or_none[] = {
-  PRED_z, PRED_none, NUM_PREDS
-};
-
-/* Used by (mostly predicate) functions that only support "_z" predication.  */
-static const predication_index preds_z[] = { PRED_z, NUM_PREDS };
-
-/* Used by SME instructions that always merge into ZA.  */
-static const predication_index preds_za_m[] = { PRED_za_m, NUM_PREDS };
-
-#define NONSTREAMING_SVE(X) nonstreaming_only (AARCH64_FL_SVE | (X))
-#define SVE_AND_SME(X, Y) streaming_compatible (AARCH64_FL_SVE | (X), (Y))
-#define SSVE(X) SVE_AND_SME (X, X)
 
 /* A list of all arm_sve.h functions.  */
 static CONSTEXPR const function_group_info function_groups[] = {
@@ -1351,6 +555,9 @@ function_builder::function_builder (handle_pragma_index pragma_index,
   m_function_nulls = function_nulls;
 
   gcc_obstack_init (&m_string_obstack);
+
+  if (!function_table)
+    function_table = hash_table<registered_function_hasher>::create_ggc (1023);
 }
 
 function_builder::~function_builder ()
@@ -3864,9 +3071,9 @@ gimple_folder::fold_to_stmt_vops (gimple *g)
 gimple *
 gimple_folder::fold ()
 {
-  /* Don't fold anything when SVE is disabled; emit an error during
+  /* Don't fold anything when NEON/SVE are disabled; emit an error during
      expansion instead.  */
-  if (!TARGET_SVE)
+  if (!TARGET_SIMD && !TARGET_SVE)
     return NULL;
 
   /* Punt if the function has a return type and no result location is
@@ -4777,6 +3984,7 @@ init_builtins ()
   register_builtin_types ();
   if (in_lto_p)
     {
+      aarch64_acle::handle_arm_neon_h (false);
       handle_arm_sve_h (false);
       handle_arm_sme_h (false);
       handle_arm_neon_sve_bridge_h (false);
@@ -4879,13 +4087,50 @@ register_svprfop ()
 						      "svprfop", &values);
 }
 
+static bool arm_neon_h_handled = false;
+
+static bool arm_sve_h_handled = false;
+static location_t arm_sve_h_location;
+
+static bool arm_sme_h_handled = false;
+static location_t arm_sme_h_location;
+
+static bool arm_neon_sve_bridge_h_handled = false;
+static location_t arm_neon_sve_bridge_h_location;
+
+/* Implement #pragma GCC aarch64 "arm_neon.h".  */
+void
+handle_arm_neon_h (bool function_nulls_p)
+{
+  if (arm_neon_h_handled)
+    return;
+
+  /* FIXME: Remove once all NEON intrinsics have been ported to the pragma-based
+    framework.  */
+  init_arm_neon_builtins ();
+
+  aarch64_target_switcher switcher;
+  aarch64_acle::function_builder builder (aarch64_acle::arm_neon_handle,
+					  function_nulls_p);
+
+  for (auto &group : neon_function_groups)
+    builder.register_function_group (group);
+
+  arm_neon_h_handled = true;
+}
+
 /* Implement #pragma GCC aarch64 "arm_sve.h".  */
 void
 handle_arm_sve_h (bool function_nulls_p)
 {
-  if (function_table)
+  if (!aarch64_acle::arm_neon_h_handled)
+    aarch64_acle::handle_arm_neon_h (false);
+
+  if (arm_sve_h_handled)
     {
       error ("duplicate definition of %qs", "arm_sve.h");
+      inform (arm_sve_h_location, "previous definition of %qs here",
+	      "arm_sve.h");
       return;
     }
 
@@ -4908,18 +4153,28 @@ handle_arm_sve_h (bool function_nulls_p)
   register_svprfop ();
 
   /* Define the functions.  */
-  function_table = hash_table<registered_function_hasher>::create_ggc (1023);
   function_builder builder (arm_sve_handle, function_nulls_p);
   for (unsigned int i = 0; i < ARRAY_SIZE (function_groups); ++i)
     builder.register_function_group (function_groups[i]);
+
+  arm_sve_h_handled = true;
+  arm_sve_h_location = input_location;
 }
 
 /* Implement #pragma GCC aarch64 "arm_neon_sve_bridge.h".  */
 void
 handle_arm_neon_sve_bridge_h (bool function_nulls_p)
 {
-  if (initial_indexes[arm_sme_handle] == 0)
+  if (!arm_sme_h_handled)
     handle_arm_sme_h (true);
+
+  if (arm_neon_sve_bridge_h_handled)
+    {
+      error ("duplicate definition of %qs", "arm_neon_sve_bridge.h");
+      inform (arm_neon_sve_bridge_h_location, "previous definition of %qs here",
+	      "arm_neon_sve_bridge.h");
+      return;
+    }
 
   aarch64_target_switcher switcher;
 
@@ -4927,6 +4182,9 @@ handle_arm_neon_sve_bridge_h (bool function_nulls_p)
   function_builder builder (arm_neon_sve_handle, function_nulls_p);
   for (unsigned int i = 0; i < ARRAY_SIZE (neon_sve_function_groups); ++i)
     builder.register_function_group (neon_sve_function_groups[i]);
+
+  arm_neon_sve_bridge_h_handled = true;
+  arm_neon_sve_bridge_h_location = input_location;
 }
 
 /* Return the function decl with SVE function subcode CODE, or error_mark_node
@@ -4943,7 +4201,7 @@ builtin_decl (unsigned int code, bool)
 void
 handle_arm_sme_h (bool function_nulls_p)
 {
-  if (!function_table)
+  if (!arm_sve_h_handled)
     {
       error ("%qs defined without first defining %qs",
 	     "arm_sme.h", "arm_sve.h");
@@ -4955,6 +4213,9 @@ handle_arm_sme_h (bool function_nulls_p)
   function_builder builder (arm_sme_handle, function_nulls_p);
   for (unsigned int i = 0; i < ARRAY_SIZE (sme_function_groups); ++i)
     builder.register_function_group (sme_function_groups[i]);
+
+  arm_sme_h_handled = true;
+  arm_sme_h_location = input_location;
 }
 
 /* If we're implementing manual overloading, check whether the SVE

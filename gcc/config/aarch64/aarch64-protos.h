@@ -1157,7 +1157,7 @@ tree aarch64_general_builtin_decl (unsigned, bool);
 tree aarch64_general_builtin_rsqrt (unsigned int);
 void aarch64_ms_variadic_abi_init_builtins (void);
 void handle_arm_acle_h (void);
-void handle_arm_neon_h (void);
+void init_arm_neon_builtins (void);
 
 bool aarch64_check_required_extensions (location_t, tree,
 					aarch64_required_extensions);
@@ -1184,6 +1184,7 @@ namespace aarch64_acle {
   void handle_arm_sve_h (bool);
   void handle_arm_sme_h (bool);
   void handle_arm_neon_sve_bridge_h (bool);
+  void handle_arm_neon_h (bool);
   tree builtin_decl (unsigned, bool);
   bool builtin_type_p (const_tree);
   bool builtin_type_p (const_tree, unsigned int *, unsigned int *);

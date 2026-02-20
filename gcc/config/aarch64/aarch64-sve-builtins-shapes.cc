@@ -277,6 +277,18 @@ parse_type (const function_instance &instance, const char *&format)
   if (ch == 's')
     {
       type_suffix_index suffix = parse_element_type (instance, format);
+
+      // HACK: remove once all NEON intrinsics have been ported to the
+      // pragma-based framework.
+      if (suffix == TYPE_SUFFIX_p8)
+	return aarch64_simd_types_trees[Poly8_t].eltype;
+      if (suffix == TYPE_SUFFIX_p16)
+	return aarch64_simd_types_trees[Poly16_t].eltype;
+      if (suffix == TYPE_SUFFIX_p64)
+	return aarch64_simd_types_trees[Poly64_t].eltype;
+      if (suffix == TYPE_SUFFIX_p128)
+	return aarch64_simd_types_trees[Poly128_t].eltype;
+
       return scalar_types[type_suffixes[suffix].vector_type];
     }
 
@@ -530,10 +542,10 @@ build_vs_offset (function_builder &b, const char *signature,
    predicate.  FORCE_DIRECT_OVERLOADS is true if there is a one-to-one
    mapping between "short" and "full" names, and if standard overload
    resolution therefore isn't necessary.  */
-static void
+void
 build_all (function_builder &b, const char *signature,
 	   const function_group_info &group, mode_suffix_index mode_suffix_id,
-	   bool force_direct_overloads = false)
+	   bool force_direct_overloads)
 {
   for (unsigned int pi = 0; group.preds[pi] != NUM_PREDS; ++pi)
     for (unsigned int gi = 0; group.groups[gi] != NUM_GROUP_SUFFIXES; ++gi)

@@ -416,7 +416,7 @@ aarch64_pragma_aarch64 (cpp_reader *)
   else if (strcmp (name, "arm_sme.h") == 0)
     aarch64_acle::handle_arm_sme_h (false);
   else if (strcmp (name, "arm_neon.h") == 0)
-    handle_arm_neon_h ();
+    aarch64_acle::handle_arm_neon_h (false);
   else if (strcmp (name, "arm_acle.h") == 0)
     handle_arm_acle_h ();
   else if (strcmp (name, "arm_neon_sve_bridge.h") == 0)

@@ -392,6 +392,8 @@ aarch64*-*-*)
 	extra_objs="${extra_objs} aarch64-json-tunings-printer.o"
 	extra_objs="${extra_objs} aarch64-json-tunings-parser.o"
 	extra_objs="${extra_objs} aarch64-narrow-gp-writes.o"
+	extra_objs="${extra_objs} aarch64-neon-builtins-base.o"
+	extra_objs="${extra_objs} aarch64-neon-builtins-shapes.o"
 
 	target_gtfiles="${target_gtfiles} \$(srcdir)/config/aarch64/aarch64-protos.h"
 	target_gtfiles="${target_gtfiles} \$(srcdir)/config/aarch64/aarch64-builtins.h"
