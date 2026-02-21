@@ -299,8 +299,7 @@ struct MacroExpander
     : cfg (cfg), crate (crate), session (session),
       sub_stack (SubstitutionScope ()),
       expanded_fragment (AST::Fragment::create_error ()),
-      has_changed_flag (false), had_duplicate_error (false),
-      resolver (Resolver::Resolver::get ()),
+      has_changed_flag (false), resolver (Resolver::Resolver::get ()),
       mappings (Analysis::Mappings::get ())
   {}
 
@@ -511,9 +510,6 @@ private:
 
   tl::optional<AST::MacroRulesDefinition &> last_def;
   tl::optional<AST::MacroInvocation &> last_invoc;
-
-  // used to avoid emitting excess errors
-  bool had_duplicate_error;
 
 public:
   Resolver::Resolver *resolver;
