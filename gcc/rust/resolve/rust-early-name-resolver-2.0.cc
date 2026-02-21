@@ -31,6 +31,73 @@
 namespace Rust {
 namespace Resolver2_0 {
 
+namespace {
+
+static bool
+check_matcher_for_duplicate_bindings (
+  AST::MacroMatch &match,
+  std::unordered_map<std::string, location_t> &duplicate_check)
+{
+  switch (match.get_macro_match_type ())
+    {
+    case AST::MacroMatch::MacroMatchType::Fragment:
+      {
+	auto *fragment = static_cast<AST::MacroMatchFragment *> (&match);
+	auto duplicate_result
+	  = duplicate_check.insert (
+	    std::make_pair (fragment->get_ident ().as_string (),
+			    fragment->get_ident ().get_locus ()));
+
+	if (!duplicate_result.second)
+	  {
+	    rich_location r (line_table, fragment->get_ident ().get_locus ());
+	    r.add_range (duplicate_result.first->second);
+	    rust_error_at (r, "duplicate matcher binding");
+	    return false;
+	  }
+
+	return true;
+      }
+    case AST::MacroMatch::MacroMatchType::Repetition:
+      {
+	auto *repetition = static_cast<AST::MacroMatchRepetition *> (&match);
+	for (auto &sub_match : repetition->get_matches ())
+	  if (!check_matcher_for_duplicate_bindings (*sub_match,
+						     duplicate_check))
+	    return false;
+
+	return true;
+      }
+    case AST::MacroMatch::MacroMatchType::Matcher:
+      {
+	auto *matcher = static_cast<AST::MacroMatcher *> (&match);
+	for (auto &sub_match : matcher->get_matches ())
+	  if (!check_matcher_for_duplicate_bindings (*sub_match,
+						     duplicate_check))
+	    return false;
+
+	return true;
+      }
+    case AST::MacroMatch::MacroMatchType::Tok:
+      return true;
+    }
+
+  rust_unreachable ();
+}
+
+static bool
+check_matcher_for_duplicate_bindings (AST::MacroMatcher &matcher)
+{
+  std::unordered_map<std::string, location_t> duplicate_check;
+  for (auto &match : matcher.get_matches ())
+    if (!check_matcher_for_duplicate_bindings (*match, duplicate_check))
+      return false;
+
+  return true;
+}
+
+} // namespace
+
 Early::Early (NameResolutionContext &ctx)
   : DefaultResolver (ctx), toplevel (TopLevel (ctx)), dirty (false)
 {}
@@ -217,6 +284,10 @@ Early::visit (AST::MacroRulesDefinition &def)
 
   textual_scope.insert (def.get_rule_name ().as_string (), def.get_node_id ());
   insert_once (def);
+
+  for (auto &rule : def.get_rules ())
+    if (!check_matcher_for_duplicate_bindings (rule.get_matcher ()))
+      return;
 }
 
 void
