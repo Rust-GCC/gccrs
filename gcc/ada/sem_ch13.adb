@@ -1783,14 +1783,13 @@ package body Sem_Ch13 is
       procedure Decorate (Asp : Node_Id; Prag : Node_Id);
       --  Establish linkages between an aspect and its corresponding pragma
 
-      procedure Insert_Pragma
-        (Prag        : in out Node_Id;
+      procedure Insert_Aitem
+        (Aitem       : in out Node_Id;
          Is_Instance : Boolean := False);
-      --  Prag is a pragma or attribute definition clause generated from an
+      --  Aitem is a pragma or attribute definition clause generated from an
       --  aspect specification. Insert it in the appropriate place.
       --  Is_Instance indicates that the context denotes a generic instance.
-      --  ????We will rename this to be Insert_Aitem, because it now
-      --  works for N_Attribute_Definition_Clause. And rename the formal.
+      --  When done, this sets Aitem to Empty.
 
       function Relocate_Expression (Source : Node_Id) return Node_Id;
       --  Outside of a generic this function is equivalent to Relocate_Node.
@@ -1816,23 +1815,23 @@ package body Sem_Ch13 is
          Set_Parent                    (Prag, Asp);
       end Decorate;
 
-      -------------------
-      -- Insert_Pragma --
-      -------------------
+      ------------------
+      -- Insert_Aitem --
+      ------------------
 
       Ins_Node : Node_Id := N;
       --  Used to (sometimes) preserve order of pragmas relative to the aspects
       --  whence they came.
 
-      procedure Insert_Pragma
-        (Prag        : in out Node_Id;
+      procedure Insert_Aitem
+        (Aitem       : in out Node_Id;
          Is_Instance : Boolean := False)
       is
          pragma Assert
-           (Nkind (Prag) in N_Pragma | N_Attribute_Definition_Clause);
+           (Nkind (Aitem) in N_Pragma | N_Attribute_Definition_Clause);
          Decl  : Node_Id;
          Def   : Node_Id;
-         Decls : List_Id; -- List on which to prepend Prag, if any
+         Decls : List_Id; -- List on which to prepend Aitem, if any
 
       begin
          --  ???Preelaborate in a package body is illegal, but older compilers
@@ -1845,23 +1844,23 @@ package body Sem_Ch13 is
          --  Same for Pure.
 
          if Nkind (N) in N_Package_Body
-           and then Nkind (Prag) = N_Pragma
-           and then Get_Pragma_Id (Prag) in Pragma_Preelaborate | Pragma_Pure
+           and then Nkind (Aitem) = N_Pragma
+           and then Get_Pragma_Id (Aitem) in Pragma_Preelaborate | Pragma_Pure
          then
             goto After;
          end if;
 
-         --  In some cases, Prag must be inserted INSIDE N, for example at the
+         --  In some cases, Aitem must be inserted INSIDE N, for example at the
          --  beginning of the visible part of a package or protected type. In
-         --  other cases, Prag goes AFTER N. The following inserts Prag at the
-         --  appropriate place INSIDE N and jumps to <<Done>>, or else jumps to
-         --  <<After>>, where we insert Prag AFTER N.
+         --  other cases, Aitem goes AFTER N. The following inserts Aitem at
+         --  the appropriate place INSIDE N and jumps to <<Done>>, or else
+         --  jumps to <<After>>, where we insert Aitem AFTER N.
 
-         case Nkind (Prag) is
+         case Nkind (Aitem) is
             when N_Attribute_Definition_Clause =>
                goto After;
             when N_Pragma =>
-               if Get_Pragma_Id (Prag) in Pragma_First_Controlling_Parameter
+               if Get_Pragma_Id (Aitem) in Pragma_First_Controlling_Parameter
                                         | Pragma_Invariant | Pragma_Volatile
                then
                   goto After;
@@ -1919,56 +1918,57 @@ package body Sem_Ch13 is
                   Decl := First (Decls);
                   while Present (Decl) loop
                      if Comes_From_Source (Decl) then
-                        Insert_Before (Decl, Prag);
+                        Insert_Before (Decl, Aitem);
                         goto Done;
                      end if;
 
                      Next (Decl);
                   end loop;
 
-                  Append_To (Decls, Prag); -- no source decls found
+                  Append_To (Decls, Aitem); -- no source decls found
                   goto Done;
                end if;
 
             when others => goto After;
          end case;
 
-         Prepend_To (Decls, Prag);
+         Prepend_To (Decls, Aitem);
          goto Done;
 
          <<After>>
 
-         --  Here we insert Prag AFTER N. For a compilation unit, that means in
-         --  the Pragmas_After field. For anything else, after N in some list.
+         --  Here we insert Aitem AFTER N. For a compilation unit, that means
+         --  in the Pragmas_After field. For anything else, after N in some
+         --  list.
 
          if Nkind (Parent (N)) = N_Compilation_Unit then
             if No (Pragmas_After (Aux_Decls_Node (Parent (N)))) then
                Set_Pragmas_After (Aux_Decls_Node (Parent (N)), New_List);
             end if;
 
-            Prepend_To (Pragmas_After (Aux_Decls_Node (Parent (N))), Prag);
+            Prepend_To (Pragmas_After (Aux_Decls_Node (Parent (N))), Aitem);
             --  ???Should this be Append_To?
          else
-            Insert_After (Ins_Node, Prag);
+            Insert_After (Ins_Node, Aitem);
 
             --  The order shouldn't matter, but for Annotate, some tests fail
             --  in minor ways if we don't use Ins_Node to make the order of
             --  pragmas match the order of aspects. For some other aspects,
             --  such as Pre, some tests fail if we DO use Ins_Node.
             --  ???Consider getting rid of Ins_Node, and just doing
-            --  "Insert_After (N, Prag);" above. Or consider always
+            --  "Insert_After (N, Aitem);" above. Or consider always
             --  updating Ins_Node below.
 
-            if Nkind (Prag) = N_Pragma
-              and then Get_Pragma_Id (Prag) = Pragma_Annotate
+            if Nkind (Aitem) = N_Pragma
+              and then Get_Pragma_Id (Aitem) = Pragma_Annotate
             then
-               Ins_Node := Prag;
+               Ins_Node := Aitem;
             end if;
          end if;
 
          <<Done>>
-         Prag := Empty;
-      end Insert_Pragma;
+         Aitem := Empty;
+      end Insert_Aitem;
 
       -------------------------
       -- Relocate_Expression --
@@ -2165,7 +2165,7 @@ package body Sem_Ch13 is
                          Expression => Ent)));
 
                   Decorate (Aspect, Aitem);
-                  Insert_Pragma (Aitem);
+                  Insert_Aitem (Aitem);
                end if;
             end Analyze_Aspect_Convention;
 
@@ -3880,7 +3880,7 @@ package body Sem_Ch13 is
                   --  We need to insert this pragma into the tree to get proper
                   --  processing and to look valid from a placement viewpoint.
 
-                  Insert_Pragma (Aitem);
+                  Insert_Aitem (Aitem);
                   goto Continue;
 
                --  Dynamic_Predicate, Predicate, Static_Predicate
@@ -4221,7 +4221,7 @@ package body Sem_Ch13 is
                      Pragma_Name                  => Name_Warnings);
 
                   Decorate (Aspect, Aitem);
-                  Insert_Pragma (Aitem);
+                  Insert_Aitem (Aitem);
                   goto Continue;
 
                --  Case 2c: Aspects corresponding to pragmas with three
@@ -4299,8 +4299,8 @@ package body Sem_Ch13 is
                         Pragma_Name                  => Name_Abstract_State);
 
                      Decorate (Aspect, Aitem);
-                     Insert_Pragma
-                       (Prag        => Aitem,
+                     Insert_Aitem
+                       (Aitem,
                         Is_Instance =>
                           Is_Generic_Instance (Defining_Entity (Context)));
 
@@ -4336,7 +4336,7 @@ package body Sem_Ch13 is
                        Name_Default_Initial_Condition);
 
                   Decorate (Aspect, Aitem);
-                  Insert_Pragma (Aitem);
+                  Insert_Aitem (Aitem);
                   goto Continue;
 
                --  Default_Storage_Pool
@@ -4350,7 +4350,7 @@ package body Sem_Ch13 is
                        Name_Default_Storage_Pool);
 
                   Decorate (Aspect, Aitem);
-                  Insert_Pragma (Aitem);
+                  Insert_Aitem (Aitem);
                   goto Continue;
 
                --  Depends
@@ -4370,7 +4370,7 @@ package body Sem_Ch13 is
                      Pragma_Name                  => Name_Depends);
 
                   Decorate (Aspect, Aitem);
-                  Insert_Pragma (Aitem);
+                  Insert_Aitem (Aitem);
                   goto Continue;
 
                --  Global
@@ -4390,7 +4390,7 @@ package body Sem_Ch13 is
                      Pragma_Name                  => Name_Global);
 
                   Decorate (Aspect, Aitem);
-                  Insert_Pragma (Aitem);
+                  Insert_Aitem (Aitem);
                   goto Continue;
 
                --  Initial_Condition
@@ -4426,8 +4426,8 @@ package body Sem_Ch13 is
                           Name_Initial_Condition);
 
                      Decorate (Aspect, Aitem);
-                     Insert_Pragma
-                       (Prag        => Aitem,
+                     Insert_Aitem
+                       (Aitem,
                         Is_Instance =>
                           Is_Generic_Instance (Defining_Entity (Context)));
 
@@ -4640,8 +4640,8 @@ package body Sem_Ch13 is
                         Pragma_Name                  => Name_Initializes);
 
                      Decorate (Aspect, Aitem);
-                     Insert_Pragma
-                       (Prag        => Aitem,
+                     Insert_Aitem
+                       (Aitem,
                         Is_Instance =>
                           Is_Generic_Instance (Defining_Entity (Context)));
 
@@ -4666,7 +4666,7 @@ package body Sem_Ch13 is
                      Pragma_Name => Name_Max_Entry_Queue_Length);
 
                   Decorate (Aspect, Aitem);
-                  Insert_Pragma (Aitem);
+                  Insert_Aitem (Aitem);
                   goto Continue;
 
                --  Max_Queue_Length
@@ -4679,7 +4679,7 @@ package body Sem_Ch13 is
                      Pragma_Name                  => Name_Max_Queue_Length);
 
                   Decorate (Aspect, Aitem);
-                  Insert_Pragma (Aitem);
+                  Insert_Aitem (Aitem);
                   goto Continue;
 
                --  Obsolescent
@@ -4715,7 +4715,7 @@ package body Sem_Ch13 is
                         Pragma_Name                  => Name_Part_Of);
 
                      Decorate (Aspect, Aitem);
-                     Insert_Pragma (Aitem);
+                     Insert_Aitem (Aitem);
 
                   else
                      Error_Msg_NE
@@ -4742,7 +4742,7 @@ package body Sem_Ch13 is
                      Pragma_Name                  => Name_SPARK_Mode);
 
                   Decorate (Aspect, Aitem);
-                  Insert_Pragma (Aitem);
+                  Insert_Aitem (Aitem);
                   goto Continue;
 
                --  Refined_Depends
@@ -4763,7 +4763,7 @@ package body Sem_Ch13 is
                      Pragma_Name                  => Name_Refined_Depends);
 
                   Decorate (Aspect, Aitem);
-                  Insert_Pragma (Aitem);
+                  Insert_Aitem (Aitem);
                   goto Continue;
 
                --  Refined_Global
@@ -4784,7 +4784,7 @@ package body Sem_Ch13 is
                      Pragma_Name                  => Name_Refined_Global);
 
                   Decorate (Aspect, Aitem);
-                  Insert_Pragma (Aitem);
+                  Insert_Aitem (Aitem);
                   goto Continue;
 
                --  Refined_Post
@@ -4797,7 +4797,7 @@ package body Sem_Ch13 is
                      Pragma_Name                  => Name_Refined_Post);
 
                   Decorate (Aspect, Aitem);
-                  Insert_Pragma (Aitem);
+                  Insert_Aitem (Aitem);
                   goto Continue;
 
                --  Refined_State
@@ -4817,7 +4817,7 @@ package body Sem_Ch13 is
                         Pragma_Name                  => Name_Refined_State);
 
                      Decorate (Aspect, Aitem);
-                     Insert_Pragma (Aitem);
+                     Insert_Aitem (Aitem);
 
                   --  Otherwise the context is illegal
 
@@ -4889,7 +4889,7 @@ package body Sem_Ch13 is
                        Name_Secondary_Stack_Size);
 
                   Decorate (Aspect, Aitem);
-                  Insert_Pragma (Aitem);
+                  Insert_Aitem (Aitem);
                   goto Continue;
 
                --  User_Aspect
@@ -5197,7 +5197,7 @@ package body Sem_Ch13 is
                   --  about delay issues, since the pragmas themselves deal
                   --  with delay of visibility for the expression analysis.
 
-                  Insert_Pragma (Aitem);
+                  Insert_Aitem (Aitem);
 
                   goto Continue;
                end Pre_Post;
@@ -5284,7 +5284,7 @@ package body Sem_Ch13 is
                      Pragma_Name                  => Name_Contract_Cases);
 
                   Decorate (Aspect, Aitem);
-                  Insert_Pragma (Aitem);
+                  Insert_Aitem (Aitem);
                   goto Continue;
 
                --  Exceptional_Cases
@@ -5297,7 +5297,7 @@ package body Sem_Ch13 is
                      Pragma_Name                  => Name_Exceptional_Cases);
 
                   Decorate (Aspect, Aitem);
-                  Insert_Pragma (Aitem);
+                  Insert_Aitem (Aitem);
                   goto Continue;
 
                --  Exit_Cases
@@ -5310,7 +5310,7 @@ package body Sem_Ch13 is
                      Pragma_Name                  => Name_Exit_Cases);
 
                   Decorate (Aspect, Aitem);
-                  Insert_Pragma (Aitem);
+                  Insert_Aitem (Aitem);
                   goto Continue;
 
                --  Program_Exit
@@ -5323,7 +5323,7 @@ package body Sem_Ch13 is
                      Pragma_Name                  => Name_Program_Exit);
 
                   Decorate (Aspect, Aitem);
-                  Insert_Pragma (Aitem);
+                  Insert_Aitem (Aitem);
                   goto Continue;
 
                --  Subprogram_Variant
@@ -5336,7 +5336,7 @@ package body Sem_Ch13 is
                      Pragma_Name                  => Name_Subprogram_Variant);
 
                   Decorate (Aspect, Aitem);
-                  Insert_Pragma (Aitem);
+                  Insert_Aitem (Aitem);
                   goto Continue;
 
                --  Case 5: Special handling for aspects with an optional
@@ -5591,7 +5591,7 @@ package body Sem_Ch13 is
                               Expression => Relocate_Node (Expr))),
                           Pragma_Name                  => Nam);
                      Decorate (Aspect, Aitem);
-                     Insert_Pragma (Aitem);
+                     Insert_Aitem (Aitem);
                      goto Continue;
                   end if;
 
@@ -5776,7 +5776,7 @@ package body Sem_Ch13 is
                               (Make_Pragma_Argument_Association
                                  (Loc, Expression => Relocate_Node (Expr))),
                           Pragma_Name                  => Name_Storage_Size);
-                     Insert_Pragma (Aitem);
+                     Insert_Aitem (Aitem);
                      goto Continue;
                   end if;
 
@@ -5812,7 +5812,7 @@ package body Sem_Ch13 is
             if Nkind (Parent (N)) = N_Compilation_Unit and then Present (Aitem)
             then
                pragma Assert (Nkind (Aitem) in N_Pragma);
-               Insert_Pragma (Aitem);
+               Insert_Aitem (Aitem);
                goto Continue;
             end if;
 
@@ -5845,7 +5845,7 @@ package body Sem_Ch13 is
                Aitem := Empty;
 
             elsif Present (Aitem) then
-               Insert_Pragma (Aitem);
+               Insert_Aitem (Aitem);
                goto Continue;
             end if;
 
