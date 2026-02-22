@@ -6510,85 +6510,86 @@ members_cmp (const void *a, const void *b)
 static vec<constructor_elt, va_gc> *
 namespace_members_of (location_t loc, tree ns)
 {
-  vec<constructor_elt, va_gc> *elts = nullptr;
-  hash_set<tree> *seen = nullptr;
-  for (tree o : *DECL_NAMESPACE_BINDINGS (ns))
-    {
-      if (STAT_HACK_P (o))
-	{
-	  if (STAT_TYPE (o) && !STAT_TYPE_HIDDEN_P (o))
-	    {
-	      tree m = TREE_TYPE (STAT_TYPE (o));
-	      if (members_of_representable_p (ns, m))
-		CONSTRUCTOR_APPEND_ELT (elts, NULL_TREE,
-					get_reflection_raw (loc, m));
-	    }
-	  if (STAT_DECL_HIDDEN_P (o) || !STAT_DECL (o))
-	    continue;
-	  o = STAT_DECL (o);
-	}
-      for (ovl_iterator iter (o); iter; ++iter)
-	{
-	  if (iter.hidden_p ())
-	    continue;
-	  tree b = *iter;
-	  tree m = b;
+  struct data_t {
+    location_t loc = UNKNOWN_LOCATION;
+    tree ns = NULL_TREE;
+    vec<constructor_elt, va_gc> *elts = nullptr;
+    hash_set<tree> *seen = nullptr;
 
-	  if (VAR_P (b) && DECL_ANON_UNION_VAR_P (b))
-	    {
-	      /* TODO: This doesn't handle namespace N { static union {}; }
-		 but we pedwarn on that, so perhaps it doesn't need to be
-		 handled.  */
-	      tree v = DECL_VALUE_EXPR (b);
-	      gcc_assert (v && TREE_CODE (v) == COMPONENT_REF);
-	      tree var = TREE_OPERAND (v, 0);
-	      tree type = TREE_TYPE (var);
-	      if (!seen)
-		seen = new hash_set<tree>;
-	      if (members_of_representable_p (ns, type) && !seen->add (type))
-		CONSTRUCTOR_APPEND_ELT (elts, NULL_TREE,
-					get_reflection_raw (loc, type));
-	      if (members_of_representable_p (ns, var) && !seen->add (var))
-		CONSTRUCTOR_APPEND_ELT (elts, NULL_TREE,
-					get_reflection_raw (loc, var));
-	      continue;
-	    }
-	  if (TREE_CODE (b) == TYPE_DECL)
-	    m = TREE_TYPE (b);
-	  if (!members_of_representable_p (ns, m))
-	    continue;
-	  if (DECL_DECOMPOSITION_P (m) && !DECL_DECOMP_IS_BASE (m))
-	    {
-	      tree base = DECL_DECOMP_BASE (m);
-	      if (!seen)
-		seen = new hash_set<tree>;
-	      if (members_of_representable_p (ns, base) && !seen->add (base))
-		CONSTRUCTOR_APPEND_ELT (elts, NULL_TREE,
-					get_reflection_raw (loc, base));
-	      if (!DECL_HAS_VALUE_EXPR_P (m))
-		CONSTRUCTOR_APPEND_ELT (elts, NULL_TREE,
-					get_reflection_raw (loc, m,
-							    REFLECT_VAR));
-	      continue;
-	    }
-	  /* eval_is_accessible should be always true for namespace members,
-	     so don't bother calling it here.  */
-	  CONSTRUCTOR_APPEND_ELT (elts, NULL_TREE,
-				  get_reflection_raw (loc, m));
-	  /* For typedef struct { ... } S; include both the S type
-	     alias (added above) and dealias of that for the originally
-	     unnamed type (added below).  */
-	  if (TREE_CODE (b) == TYPE_DECL
-	      && TYPE_DECL_FOR_LINKAGE_PURPOSES_P (b))
-	    CONSTRUCTOR_APPEND_ELT (elts, NULL_TREE,
-				    get_reflection_raw (loc,
-							strip_typedefs (m)));
+    data_t (location_t loc, tree ns) : loc (loc), ns (ns) {}
+    ~data_t () { delete seen; }
+  };
+
+  const auto walker = [](tree b, void *data_)
+    {
+      auto *data = static_cast<data_t *>(data_);
+      tree m = b;
+
+      if (VAR_P (b) && DECL_ANON_UNION_VAR_P (b))
+	{
+	  /* TODO: This doesn't handle namespace N { static union {}; }
+	     but we pedwarn on that, so perhaps it doesn't need to be
+	     handled.  */
+	  tree v = DECL_VALUE_EXPR (b);
+	  gcc_assert (v && TREE_CODE (v) == COMPONENT_REF);
+	  tree var = TREE_OPERAND (v, 0);
+	  tree type = TREE_TYPE (var);
+	  if (!data->seen)
+	    data->seen = new hash_set<tree>;
+	  if (members_of_representable_p (data->ns, type)
+	      && !data->seen->add (type))
+	    CONSTRUCTOR_APPEND_ELT (data->elts, NULL_TREE,
+				    get_reflection_raw (data->loc, type));
+	  if (members_of_representable_p (data->ns, var)
+	      && !data->seen->add (var))
+	    CONSTRUCTOR_APPEND_ELT (data->elts, NULL_TREE,
+				    get_reflection_raw (data->loc, var));
+	  return;
 	}
-    }
-  delete seen;
-  if (elts)
-    elts->qsort (members_cmp);
-  return elts;
+
+      if (TREE_CODE (b) == TYPE_DECL)
+	m = TREE_TYPE (b);
+
+      if (!members_of_representable_p (data->ns, m))
+	return;
+
+      if (DECL_DECOMPOSITION_P (m) && !DECL_DECOMP_IS_BASE (m))
+	{
+	  tree base = DECL_DECOMP_BASE (m);
+	  if (!data->seen)
+	    data->seen = new hash_set<tree>;
+	  if (members_of_representable_p (data->ns, base)
+	      && !data->seen->add (base))
+	    CONSTRUCTOR_APPEND_ELT (data->elts, NULL_TREE,
+				    get_reflection_raw (data->loc, base));
+	  if (!DECL_HAS_VALUE_EXPR_P (m))
+	    CONSTRUCTOR_APPEND_ELT (data->elts, NULL_TREE,
+				    get_reflection_raw (data->loc, m,
+							REFLECT_VAR));
+	  return;
+	}
+
+      /* eval_is_accessible should be always true for namespace members,
+	 so don't bother calling it here.  */
+      CONSTRUCTOR_APPEND_ELT (data->elts, NULL_TREE,
+			      get_reflection_raw (data->loc, m));
+
+      /* For typedef struct { ... } S; include both the S type
+	 alias (added above) and dealias of that for the originally
+	 unnamed type (added below).  */
+      if (TREE_CODE (b) == TYPE_DECL
+	  && TYPE_DECL_FOR_LINKAGE_PURPOSES_P (b))
+	CONSTRUCTOR_APPEND_ELT (data->elts, NULL_TREE,
+				get_reflection_raw (data->loc,
+						    strip_typedefs (m)));
+    };
+
+  data_t data (loc, ns);
+  walk_namespace_bindings (ns, walker, &data);
+
+  if (data.elts)
+    data.elts->qsort (members_cmp);
+  return data.elts;
 }
 
 /* Enumerate members of class R for eval_*members_of.  KIND is
