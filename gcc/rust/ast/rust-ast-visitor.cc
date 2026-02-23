@@ -215,6 +215,12 @@ DefaultASTVisitor::visit (AST::AttrInputMacro &attr_input)
 }
 
 void
+DefaultASTVisitor::visit (AST::AttrInputExpr &attr_input)
+{
+  visit (attr_input.get_expr ());
+}
+
+void
 DefaultASTVisitor::visit (AST::MetaItemLitExpr &meta_item)
 {
   visit (meta_item.get_literal ());
