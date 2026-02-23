@@ -143,6 +143,10 @@ ASTLoweringBase::visit (AST::AttrInputLiteral &)
 void
 ASTLoweringBase::visit (AST::AttrInputMacro &)
 {}
+
+void
+ASTLoweringBase::visit (AST::AttrInputExpr &)
+{}
 void
 ASTLoweringBase::visit (AST::MetaItemLitExpr &)
 {}

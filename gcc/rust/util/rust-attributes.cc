@@ -270,6 +270,7 @@ check_doc_attribute (const AST::Attribute &attribute)
     case AST::AttrInput::LITERAL:
     case AST::AttrInput::MACRO:
     case AST::AttrInput::META_ITEM:
+    case AST::AttrInput::EXPR:
       break;
       // FIXME: Handle them as well
 

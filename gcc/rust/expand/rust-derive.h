@@ -105,6 +105,7 @@ private:
   virtual void visit (DelimTokenTree &delim_tok_tree) override final{};
   virtual void visit (AttrInputMetaItemContainer &input) override final{};
   virtual void visit (AttrInputMacro &expr) override final{};
+  virtual void visit (AttrInputExpr &expr) override final{};
   virtual void visit (IdentifierExpr &ident_expr) override final{};
   virtual void visit (Lifetime &lifetime) override final{};
   virtual void visit (LifetimeParam &lifetime_param) override final{};
