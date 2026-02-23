@@ -553,34 +553,28 @@ check_lint_attribute (const AST::Attribute &attribute, const char *name)
 void
 AttributeChecker::visit (AST::Attribute &attribute)
 {
-  if (!attribute.empty_input ())
+  auto &session = Session::get_instance ();
+  if (attribute.get_path () == Values::Attributes::CFG_ATTR)
     {
-      const auto &attr_input = attribute.get_attr_input ();
-      auto type = attr_input.get_attr_input_type ();
-      if (type == AST::AttrInput::AttrInputType::TOKEN_TREE)
-	{
-	  const auto &option = static_cast<const AST::DelimTokenTree &> (
-	    attribute.get_attr_input ());
-	  std::unique_ptr<AST::AttrInputMetaItemContainer> meta_item (
-	    option.parse_to_meta_item ());
-	  AST::DefaultASTVisitor::visit (meta_item);
-	}
+      if (!attribute.is_parsed_to_meta_item ())
+	attribute.parse_attr_to_meta_item ();
+      if (!attribute.check_cfg_predicate (session))
+	return; // Do not emit errors for attribute that'll get stripped.
     }
 
-  auto result_opt = identify_builtin (attribute);
+  if (auto builtin = identify_builtin (attribute))
+    {
+      auto result = builtin.value ();
+      // TODO: Add checks here for each builtin attribute
+      // TODO: Have an enum of builtins as well, switching on strings is
+      // annoying and costly
+      if (result.name == Attrs::DOC)
+	check_doc_attribute (attribute);
+      else if (result.name == Attrs::DEPRECATED)
+	check_deprecated_attribute (attribute);
+    }
 
-  // This checker does not check non-builtin attributes
-  if (!result_opt.has_value ())
-    return;
-  auto result = result_opt.value ();
-
-  // TODO: Add checks here for each builtin attribute
-  // TODO: Have an enum of builtins as well, switching on strings is annoying
-  // and costly
-  if (result.name == Attrs::DOC)
-    check_doc_attribute (attribute);
-  else if (result.name == Attrs::DEPRECATED)
-    check_deprecated_attribute (attribute);
+  AST::DefaultASTVisitor::visit (attribute);
 }
 
 void
