@@ -169,6 +169,47 @@ protected:
   }
 };
 
+class AttrInputExpr : public AttrInput
+{
+  std::unique_ptr<Expr> expr;
+
+public:
+  AttrInputExpr (std::unique_ptr<Expr> expr) : expr (std::move (expr)) {}
+
+  AttrInputExpr (const AttrInputExpr &oth);
+
+  AttrInputExpr (AttrInputExpr &&oth) : expr (std::move (oth.expr)) {}
+
+  AttrInputType get_attr_input_type () const final override
+  {
+    return AttrInput::AttrInputType::EXPR;
+  }
+
+  AttrInputExpr &operator= (const AttrInputExpr &oth);
+
+  AttrInputExpr &operator= (AttrInputExpr &&oth)
+  {
+    expr = std::move (oth.expr);
+    return *this;
+  }
+
+  std::string as_string () const override;
+
+  void accept_vis (ASTVisitor &vis) override;
+
+  bool check_cfg_predicate (const Session &) const override { return false; }
+
+  // assuming this is like AttrInputLiteral
+  bool is_meta_item () const override { return false; }
+
+  Expr &get_expr () { return *expr; }
+
+  AttrInputExpr *clone_attr_input_impl () const override
+  {
+    return new AttrInputExpr (*this);
+  }
+};
+
 // Like an AttrInputLiteral, but stores a MacroInvocation
 class AttrInputMacro : public AttrInput
 {
