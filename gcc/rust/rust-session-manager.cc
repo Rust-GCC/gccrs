@@ -43,6 +43,7 @@
 #include "rust-readonly-check.h"
 #include "rust-hir-dump.h"
 #include "rust-ast-dump.h"
+#include "rust-ast-visitor.h"
 #include "rust-export-metadata.h"
 #include "rust-imports.h"
 #include "rust-extern-crate.h"
@@ -88,6 +89,44 @@ const char *kTargetOptionsDumpFile = "gccrs.target-options.dump";
 
 const std::string kDefaultCrateName = "rust_out";
 const size_t kMaxNameLength = 64;
+
+namespace {
+
+class UnusedMacroRulesVisitor : public AST::DefaultASTVisitor
+{
+public:
+  using AST::DefaultASTVisitor::visit;
+
+  explicit UnusedMacroRulesVisitor (Analysis::Mappings &mappings)
+    : mappings (mappings)
+  {}
+
+  void visit (AST::MacroRulesDefinition &macro) override
+  {
+    DefaultASTVisitor::visit (macro);
+
+    if (macro.is_builtin () || has_macro_export (macro)
+	|| mappings.macro_is_invoked (macro))
+      return;
+
+    rust_warning_at (macro.get_locus (), 0, "unused macro definition: %qs",
+		     macro.get_rule_name ().as_string ().c_str ());
+  }
+
+private:
+  static bool has_macro_export (const AST::MacroRulesDefinition &macro)
+  {
+    for (const auto &attr : macro.get_outer_attrs ())
+      if (attr.get_path ().as_string () == Values::Attributes::MACRO_EXPORT)
+	return true;
+
+    return false;
+  }
+
+  Analysis::Mappings &mappings;
+};
+
+} // namespace
 
 Session &
 Session::get_instance ()
@@ -1060,6 +1099,8 @@ Session::expansion (AST::Crate &crate, Resolver2_0::NameResolutionContext &ctx)
     }
 
   // error reporting - check unused macros, get missing fragment specifiers
+  UnusedMacroRulesVisitor unused_macro_rules (Analysis::Mappings::get ());
+  unused_macro_rules.visit (crate);
 
   // build test harness
 
