@@ -339,6 +339,7 @@ Attribute::get_traits_to_derive ()
     case AST::AttrInput::TOKEN_TREE:
     case AST::AttrInput::LITERAL:
     case AST::AttrInput::MACRO:
+    case AST::AttrInput::EXPR:
       rust_unreachable ();
       break;
     }
@@ -3345,6 +3346,29 @@ AttrInputMetaItemContainer::as_string () const
     }
 
   return str + ")";
+}
+
+AttrInputExpr::AttrInputExpr (const AttrInputExpr &oth)
+  : expr (oth.expr->clone_expr ())
+{}
+
+AttrInputExpr &
+AttrInputExpr::operator= (const AttrInputExpr &oth)
+{
+  expr = oth.expr->clone_expr ();
+  return *this;
+}
+
+std::string
+AttrInputExpr::as_string () const
+{
+  return expr->as_string ();
+}
+
+void
+AttrInputExpr::accept_vis (ASTVisitor &vis)
+{
+  vis.visit (*this);
 }
 
 std::string
