@@ -143,5 +143,6 @@ private:
 
 // In the global namespace to make it easier to call from debugger
 void debug (Rust::AST::Visitable &v);
+void debug (Rust::AST::Crate &v);
 
 #endif // !RUST_AST_DUMP_H
