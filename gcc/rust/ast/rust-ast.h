@@ -724,6 +724,7 @@ class AttrInput : public Visitable
 public:
   enum AttrInputType
   {
+    EXPR,
     LITERAL,
     MACRO,
     META_ITEM,

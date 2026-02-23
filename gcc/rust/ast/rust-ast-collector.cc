@@ -181,6 +181,11 @@ TokenCollector::visit (Attribute &attrib)
 	      visit (static_cast<AttrInputMacro &> (attrib.get_attr_input ()));
 	      break;
 	    }
+	  case AST::AttrInput::AttrInputType::EXPR:
+	    {
+	      visit (static_cast<AttrInputExpr &> (attrib.get_attr_input ()));
+	      break;
+	    }
 	  case AST::AttrInput::AttrInputType::META_ITEM:
 	    {
 	      visit (static_cast<AttrInputMetaItemContainer &> (
@@ -905,6 +910,13 @@ TokenCollector::visit (AttrInputMacro &macro)
     push (Rust::Token::make (EQUAL, UNDEF_LOCATION));
     visit (macro.get_macro ());
   });
+}
+
+void
+TokenCollector::visit (AttrInputExpr &attr)
+{
+  describe_node (std::string ("AttrInputExpr"),
+		 [this, &attr] () { visit (attr.get_expr ()); });
 }
 
 void
