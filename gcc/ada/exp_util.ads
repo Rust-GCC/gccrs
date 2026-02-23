@@ -851,6 +851,13 @@ package Exp_Util is
    --  Return True if N is a type conversion, or a dereference thereof, or a
    --  reference to a formal parameter.
 
+   function Is_Distributable_Declaration (N : Node_Id) return Boolean;
+   --  Return True if N is an object declaration that can be distributed into
+   --  the dependent expressions of a conditional expression, given that the
+   --  conditional expression is the initialization expression of N. Such a
+   --  distribution avoids a copy operation and is required for limited types
+   --  and, more generally, desirable for all by-reference types.
+
    function Is_Expanded_Class_Wide_Interface_Object_Decl
       (N : Node_Id) return Boolean;
    --  Determine if N is the expanded code for a class-wide interface type

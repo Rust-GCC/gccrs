@@ -9082,6 +9082,43 @@ package body Exp_Util is
         and then Expansion_Delayed (Unqual_N);
    end Is_Delayed_Conditional_Expression;
 
+   --------------------------------
+   -- Is_Distributable_Declaration --
+   --------------------------------
+
+   function Is_Distributable_Declaration (N : Node_Id) return Boolean is
+      Obj_Def : Node_Id;
+
+   begin
+      --  First limitation: distribution is not implemented for return objects
+
+      if Nkind (N) /= N_Object_Declaration
+        or else Is_Return_Object (Defining_Identifier (N))
+      then
+         return False;
+      end if;
+
+      Obj_Def := Object_Definition (N);
+
+      --  Second limitation: distribution is not implemented for CW types
+
+      if Is_Entity_Name (Obj_Def)
+        and then Is_Class_Wide_Type (Entity (Obj_Def))
+      then
+         return False;
+      end if;
+
+      --  The declaration of a variable of an unconstrained definite nonlimited
+      --  subtype cannot be distributed because the variable is mutable and the
+      --  expansion of 'Constrained must statically return False for it.
+
+      return Constant_Present (N)
+        or else not Is_Entity_Name (Obj_Def)
+        or else Is_Constrained (Entity (Obj_Def))
+        or else not Is_Definite_Subtype (Entity (Obj_Def))
+        or else Is_Inherently_Limited_Type (Entity (Obj_Def));
+   end Is_Distributable_Declaration;
+
    --------------------------------------------------
    -- Is_Expanded_Class_Wide_Interface_Object_Decl --
    --------------------------------------------------

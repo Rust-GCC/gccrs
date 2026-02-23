@@ -5162,9 +5162,6 @@ package body Exp_Ch4 is
       --  Return True if we can copy objects of this type when expanding a case
       --  expression.
 
-      function Is_Optimizable_Declaration (N : Node_Id) return Boolean;
-      --  Return True if N is an object declaration that can be optimized
-
       ------------------
       -- Is_Copy_Type --
       ------------------
@@ -5173,20 +5170,6 @@ package body Exp_Ch4 is
       begin
          return Is_Elementary_Type (Underlying_Type (Typ));
       end Is_Copy_Type;
-
-      --------------------------------
-      -- Is_Optimizable_Declaration --
-      --------------------------------
-
-      function Is_Optimizable_Declaration (N : Node_Id) return Boolean is
-      begin
-         return Nkind (N) = N_Object_Declaration
-           and then not (Is_Entity_Name (Object_Definition (N))
-                          and then Is_Class_Wide_Type
-                                     (Entity (Object_Definition (N))))
-           and then not Is_Return_Object (Defining_Identifier (N))
-           and then not Is_Copy_Type (Typ);
-      end Is_Optimizable_Declaration;
 
       --  Local variables
 
@@ -5265,7 +5248,8 @@ package body Exp_Ch4 is
                            Unqualified_Unconditional_Parent (N);
          begin
             if Nkind (Uncond_Par) = N_Simple_Return_Statement
-              or else Is_Optimizable_Declaration (Uncond_Par)
+              or else (Is_Distributable_Declaration (Uncond_Par)
+                        and then not Is_Copy_Type (Typ))
               or else (Parent_Is_Regular_Aggregate (Uncond_Par)
                         and then not Is_Copy_Type (Typ))
             then
@@ -5286,7 +5270,7 @@ package body Exp_Ch4 is
          elsif Nkind (Par) = N_Simple_Return_Statement then
             Optimize_Return_Stmt := True;
 
-         elsif Is_Optimizable_Declaration (Par) then
+         elsif Is_Distributable_Declaration (Par) then
             Optimize_Object_Decl := True;
 
          else
@@ -5766,9 +5750,6 @@ package body Exp_Ch4 is
       --  Return True if we can copy objects of this type when expanding an if
       --  expression.
 
-      function Is_Optimizable_Declaration (N : Node_Id) return Boolean;
-      --  Return True if N is an object declaration that can be optimized
-
       function OK_For_Single_Subtype (T1, T2 : Entity_Id) return Boolean;
       --  Return true if it is acceptable to use a single subtype for two
       --  dependent expressions of subtype T1 and T2 respectively, which are
@@ -5785,20 +5766,6 @@ package body Exp_Ch4 is
          return Is_Definite_Subtype (Utyp)
            and then not Is_By_Reference_Type (Utyp);
       end Is_Copy_Type;
-
-      --------------------------------
-      -- Is_Optimizable_Declaration --
-      --------------------------------
-
-      function Is_Optimizable_Declaration (N : Node_Id) return Boolean is
-      begin
-         return Nkind (N) = N_Object_Declaration
-           and then not (Is_Entity_Name (Object_Definition (N))
-                          and then Is_Class_Wide_Type
-                                     (Entity (Object_Definition (N))))
-           and then not Is_Return_Object (Defining_Identifier (N))
-           and then not Is_Copy_Type (Typ);
-      end Is_Optimizable_Declaration;
 
       ---------------------------
       -- OK_For_Single_Subtype --
@@ -5889,7 +5856,8 @@ package body Exp_Ch4 is
                            Unqualified_Unconditional_Parent (N);
          begin
             if Nkind (Uncond_Par) = N_Simple_Return_Statement
-              or else Is_Optimizable_Declaration (Uncond_Par)
+              or else (Is_Distributable_Declaration (Uncond_Par)
+                        and then not Is_Copy_Type (Typ))
               or else (Parent_Is_Regular_Aggregate (Uncond_Par)
                         and then not Is_Copy_Type (Typ))
             then
@@ -5910,7 +5878,7 @@ package body Exp_Ch4 is
          elsif Nkind (Par) = N_Simple_Return_Statement then
             Optimize_Return_Stmt := True;
 
-         elsif Is_Optimizable_Declaration (Par) then
+         elsif Is_Distributable_Declaration (Par) then
             Optimize_Object_Decl := True;
 
          else
