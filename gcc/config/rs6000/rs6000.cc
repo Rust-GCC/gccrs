@@ -25645,7 +25645,7 @@ rs6000_generate_version_dispatcher_body (void *node_p)
 	 not.  This happens for methods in derived classes that override
 	 virtual methods in base classes but are not explicitly marked as
 	 virtual.  */
-      if (DECL_VINDEX (version->decl))
+      if (DECL_VIRTUAL_P (version->decl))
 	sorry ("Virtual function multiversioning not supported");
 
       fn_ver_vec.safe_push (version->decl);
