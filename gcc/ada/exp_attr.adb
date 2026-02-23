@@ -3554,6 +3554,25 @@ package body Exp_Attr is
               New_Occurrence_Of
                 (Extra_Constrained (Formal_Ent), Loc));
 
+         --  Extra formals are not created for Unchecked_Union parameters
+
+         elsif Present (Formal_Ent)
+           and then Ekind (Formal_Ent) /= E_In_Parameter
+           and then Is_Unchecked_Union (Base_Type (Etype (Formal_Ent)))
+         then
+            if Comes_From_Source (N) then
+               Error_Msg_N
+                 ("constraints cannot be determined for Unchecked_Union??", N);
+               Error_Msg_N
+                 ("\Program_Error will be raised for ''Constrained??", N);
+            end if;
+
+            Insert_Action (N,
+              Make_Raise_Program_Error (Loc,
+                Reason => PE_Unchecked_Union_Restriction));
+
+            Rewrite (N, New_Occurrence_Of (Boolean_Literals (False), Loc));
+
          --  If the prefix is an access to object, the attribute applies to
          --  the designated object, so rewrite with an explicit dereference.
 
