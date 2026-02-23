@@ -93,6 +93,9 @@ expand_cfg_attrs (AST::AttrVec &attrs)
 
 	  if (attr.check_cfg_predicate (session))
 	    {
+	      // Key has been found we need to remove the conditional part of
+	      // the attribute and insert the content back
+
 	      // split off cfg_attr
 	      AST::AttrVec new_attrs = attr.separate_cfg_attrs ();
 
@@ -108,6 +111,12 @@ expand_cfg_attrs (AST::AttrVec &attrs)
 	       * position i, allowing us to reprocess the newly inserted
 	       * attribute (in case it's also a cfg_attr that needs expansion)
 	       */
+	      i--;
+	    }
+	  else
+	    {
+	      // Key has not been found, remove the whole attribute
+	      attrs.erase (attrs.begin () + i);
 	      i--;
 	    }
 
