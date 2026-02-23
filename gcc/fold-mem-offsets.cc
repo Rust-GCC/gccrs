@@ -653,7 +653,10 @@ do_analysis (rtx_insn *insn)
       print_rtl_single (dump_file, insn);
     }
 
-  /* Analyse folding opportunities for this memory instruction.  */
+  /* Mark this memory instruction as foldable before the DFS so that its
+     address definitions can see it in can_fold_insns during analysis.
+     This is required because fold_offsets checks that all uses of a
+     definition are in can_fold_insns before marking the definition.  */
   bitmap_set_bit (&can_fold_insns, INSN_UID (insn));
   fold_offsets (insn, reg, true, NULL);
 }
