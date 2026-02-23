@@ -292,6 +292,7 @@ public:
   void visit (LiteralExpr &expr);
   void visit (AttrInputLiteral &attr_input);
   void visit (AttrInputMacro &attr_input);
+  void visit (AttrInputExpr &attr_input);
   void visit (MetaItemLitExpr &meta_item);
   void visit (MetaItemPathExpr &meta_item);
   void visit (BorrowExpr &expr);
