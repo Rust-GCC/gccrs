@@ -688,14 +688,16 @@ do_check_validity (rtx_insn *insn, fold_mem_info *info)
   int icode = INSN_CODE (insn);
   INSN_CODE (insn) = -1;
   rtx mem_addr = XEXP (mem, 0);
-  machine_mode mode = GET_MODE (mem_addr);
+  machine_mode addr_mode = GET_MODE (mem_addr);
+  machine_mode mem_mode = GET_MODE (mem);
   if (new_offset != 0)
-    XEXP (mem, 0) = gen_rtx_PLUS (mode, reg, gen_int_mode (new_offset, mode));
+    XEXP (mem, 0) = gen_rtx_PLUS (addr_mode, reg,
+				   gen_int_mode (new_offset, addr_mode));
   else
     XEXP (mem, 0) = reg;
 
   bool illegal = insn_invalid_p (insn, false)
-		 || !memory_address_addr_space_p (mode, XEXP (mem, 0),
+		 || !memory_address_addr_space_p (mem_mode, XEXP (mem, 0),
 						  MEM_ADDR_SPACE (mem));
 
   /* Restore the instruction.  */
