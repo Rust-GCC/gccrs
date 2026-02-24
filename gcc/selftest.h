@@ -239,6 +239,7 @@ extern void input_cc_tests ();
 extern void ipa_modref_tree_cc_tests ();
 extern void json_cc_tests ();
 extern void json_parser_cc_tests ();
+extern void json_pointer_parsing_cc_tests ();
 extern void opt_suggestions_cc_tests ();
 extern void optinfo_emit_json_cc_tests ();
 extern void opts_cc_tests ();

@@ -418,21 +418,27 @@ object::get (const char *key) const
 }
 
 /* Set value of KEY within this object to a JSON
-   string value based on UTF8_VALUE.  */
+   string value based on UTF8_VALUE.
+   Return a borrowed ptr to the new json::string.  */
 
-void
+const json::string *
 object::set_string (const char *key, const char *utf8_value)
 {
-  set (key, new json::string (utf8_value));
+  json::string *str = new json::string (utf8_value);
+  set (key, str);
+  return str;
 }
 
 /* Set value of KEY within this object to a JSON
-   integer value based on V.  */
+   integer value based on V.
+   Return a borrowed ptr to the new json::integer_number.  */
 
-void
+const json::integer_number *
 object::set_integer (const char *key, long v)
 {
-  set (key, new json::integer_number (v));
+  json::integer_number *js_int = new json::integer_number (v);
+  set (key, js_int);
+  return js_int;
 }
 
 /* Set value of KEY within this object to a JSON
@@ -572,11 +578,16 @@ array::append (value *v)
   m_elements.safe_push (v);
 }
 
-void
+/* Append UTF8_VALUE to this array, returning a borrowed pointer to the
+   new json::string.  */
+
+const json::string *
 array::append_string (const char *utf8_value)
 {
   gcc_assert (utf8_value);
-  append (new json::string (utf8_value));
+  auto js_str = new json::string (utf8_value);
+  append (js_str);
+  return js_str;
 }
 
 /* class json::float_number, a subclass of json::value, wrapping a double.  */

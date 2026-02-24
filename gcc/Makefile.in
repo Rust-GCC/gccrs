@@ -1905,7 +1905,7 @@ OBJS-libcommon = \
 	gcc-diagnostic-spec.o \
 	graphviz.o pex.o \
 	pretty-print.o pretty-print-token-buffer.o intl.o \
-	json.o json-parsing.o json-diagnostic.o \
+	json.o json-parsing.o json-diagnostic.o json-pointer-parsing.o \
 	pub-sub.o \
 	xml.o \
 	sbitmap.o \

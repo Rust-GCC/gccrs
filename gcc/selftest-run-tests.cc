@@ -78,6 +78,7 @@ selftest::run_tests ()
   opts_cc_tests ();
   json_cc_tests ();
   json_parser_cc_tests ();
+  json_pointer_parsing_cc_tests ();
   cgraph_cc_tests ();
   optinfo_emit_json_cc_tests ();
   ordered_hash_map_tests_cc_tests ();
