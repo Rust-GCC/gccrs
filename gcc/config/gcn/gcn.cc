@@ -1874,6 +1874,15 @@ gcn_addr_space_subset_p (addr_space_t subset, addr_space_t superset)
   return false;
 }
 
+static addr_space_t
+gcn_addr_space_resolve_default (addr_space_t as)
+{
+  if (as != ADDR_SPACE_DEFAULT)
+    return as;
+
+  return DEFAULT_ADDR_SPACE;
+}
+
 /* Convert from one address space to another.  */
 
 static rtx
@@ -1882,8 +1891,10 @@ gcn_addr_space_convert (rtx op, tree from_type, tree to_type)
   gcc_assert (POINTER_TYPE_P (from_type));
   gcc_assert (POINTER_TYPE_P (to_type));
 
-  addr_space_t as_from = TYPE_ADDR_SPACE (TREE_TYPE (from_type));
-  addr_space_t as_to = TYPE_ADDR_SPACE (TREE_TYPE (to_type));
+  addr_space_t as_from = (gcn_addr_space_resolve_default
+			  (TYPE_ADDR_SPACE (TREE_TYPE (from_type))));
+  addr_space_t as_to = (gcn_addr_space_resolve_default
+			  (TYPE_ADDR_SPACE (TREE_TYPE (to_type))));
 
   if (AS_LDS_P (as_from) && AS_FLAT_P (as_to))
     {
