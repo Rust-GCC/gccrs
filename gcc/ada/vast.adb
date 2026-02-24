@@ -632,8 +632,7 @@ package body VAST is
 
       if Nkind (N) in N_Aspect_Specification then
          if Present (Aspect_Rep_Item (N)) then
-            Assert (Nkind (Aspect_Rep_Item (N)) in
-                      N_Pragma | N_Attribute_Definition_Clause,
+            Assert (Nkind (Aspect_Rep_Item (N)) = N_Pragma,
                     Check_Corresponding_Aspect);
             Assert (From_Aspect_Specification (Aspect_Rep_Item (N)),
                     Check_Corresponding_Aspect);
@@ -642,7 +641,7 @@ package body VAST is
          end if;
       end if;
 
-      if Nkind (N) in N_Pragma | N_Attribute_Definition_Clause then
+      if Nkind (N) = N_Pragma then
          Assert
            (From_Aspect_Specification (N) = Present (Corresponding_Aspect (N)),
             Check_Corresponding_Aspect);
