@@ -6,14 +6,14 @@
 /* { dg-skip-if "" { nvptx-*-* } } */
 /* { dg-skip-if PR119369 { amdgcn-*-* } } */
 
-/* { dg-final { scan-assembler "weak\[^ \t\]*\[ \t\]_?a" } } */
-/* { dg-final { scan-assembler "weak\[^ \t\]*\[ \t\]_?b" } } */
-/* { dg-final { scan-assembler "weak\[^ \t\]*\[ \t\]_?c" } } */
-/* { dg-final { scan-assembler "weak\[^ \t\]*\[ \t\]_?d" } } */
-/* { dg-final { scan-assembler "weak\[^ \t\]*\[ \t\]_?e" } } */
-/* { dg-final { scan-assembler "weak\[^ \t\]*\[ \t\]_?g" } } */
-/* { dg-final { scan-assembler-not "weak\[^ \t\]*\[ \t\]_?i" } } */
-/* { dg-final { scan-assembler "weak\[^ \t\]*\[ \t\]_?j" } } */
+/* { dg-final { scan-weak "a" } } */
+/* { dg-final { scan-weak "b" } } */
+/* { dg-final { scan-weak "c" } } */
+/* { dg-final { scan-weak "d" } } */
+/* { dg-final { scan-weak "e" } } */
+/* { dg-final { scan-weak "g" } } */
+/* { dg-final { scan-not-weak "i" } } */
+/* { dg-final { scan-weak "j" } } */
 
 #pragma weak a
 int a;

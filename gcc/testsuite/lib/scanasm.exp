@@ -153,6 +153,53 @@ proc hidden-scan-for { symbol } {
 
 }
 
+proc weak-scan-for { symbol } {
+
+    set objformat [gcc_target_object_format]
+
+    switch $objformat {
+        default  { return "weak\[^ \t\]*\[ \t\]_?$symbol" }
+    }
+}
+
+# Check that a symbol is defined as a weak symbol in the .s file
+# produced by the compiler.
+
+proc scan-weak { args } {
+    set testcase [testname-for-summary]
+    # The name might include a list of options; extract the file name.
+    set filename [lindex $testcase 0]
+    set output_file "[file rootname [file tail $filename]].s"
+
+    if { [llength $args] > 0 } {
+	set symbol [lindex $args 0]
+
+	set weak_scan [weak-scan-for $symbol]
+
+	set args [lreplace $args 0 0 "$weak_scan"]
+    }
+
+    dg-scan "scan-weak" 1 $testcase $output_file $args
+}
+
+# Check that a symbol is not defined as a weak symbol in the .s file
+# produced by the compiler.
+
+proc scan-not-weak { args } {
+    set testcase [testname-for-summary]
+    # The name might include a list of options; extract the file name.
+    set filename [lindex $testcase 0]
+    set output_file "[file rootname [file tail $filename]].s"
+
+    if { [llength $args] > 0 } {
+	set symbol [lindex $args 0]
+	set weak_scan [weak-scan-for $symbol]
+
+	set args [lreplace $args 0 0 "$weak_scan"]
+    }
+
+    dg-scan "scan-not-weak" 0 $testcase $output_file $args
+}
 
 # Check that a symbol is defined as a hidden symbol in the .s file
 # produced by the compiler.
