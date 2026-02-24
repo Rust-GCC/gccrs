@@ -6,6 +6,9 @@ UrlSuffix(gcc/Static-Analyzer-Options.html#index-Wanalyzer-allocation-size)
 Wanalyzer-deref-before-check
 UrlSuffix(gcc/Static-Analyzer-Options.html#index-Wanalyzer-deref-before-check)
 
+Wanalyzer-div-by-zero
+UrlSuffix(gcc/Static-Analyzer-Options.html#index-Wanalyzer-div-by-zero)
+
 Wanalyzer-double-fclose
 UrlSuffix(gcc/Static-Analyzer-Options.html#index-Wanalyzer-double-fclose)
 

@@ -78,6 +78,10 @@ Wanalyzer-deref-before-check
 Common Var(warn_analyzer_deref_before_check) Init(1) Warning
 Warn about code paths in which a pointer is checked for NULL after it has already been dereferenced.
 
+Wanalyzer-div-by-zero
+Common Var(warn_analyzer_div_by_zero) Init(1) Warning
+Warn about code paths which attempt integer division by zero.
+
 Wanalyzer-double-fclose
 Common Var(warn_analyzer_double_fclose) Init(1) Warning
 Warn about code paths in which a stdio FILE can be closed more than once.

@@ -11555,6 +11555,7 @@ Enabling this option effectively enables the following warnings:
 @gccoptlist{
 -Wanalyzer-allocation-size
 -Wanalyzer-deref-before-check
+-Wanalyzer-div-by-zero
 -Wanalyzer-double-fclose
 -Wanalyzer-double-free
 -Wanalyzer-exposure-through-output-file
@@ -11645,6 +11646,18 @@ a buffer is assigned to point at a buffer with a size that is not a
 multiple of @code{sizeof (*pointer)}.
 
 See @uref{https://cwe.mitre.org/data/definitions/131.html, CWE-131: Incorrect Calculation of Buffer Size}.
+
+@opindex Wanalyzer-div-by-zero
+@opindex Wno-analyzer-div-by-zero
+@item -Wno-analyzer-div-by-zero
+This warning requires @option{-fanalyzer}, which enables it;
+to disable it, use @option{-Wno-analyzer-div-by-zero}.
+
+This diagnostic warns for paths through the code which attempt
+integer division by zero.  It is analogous to @option{-Wdiv-by-zero}, but
+implemented in a different way.
+
+See @uref{https://cwe.mitre.org/data/definitions/369.html,  CWE-369: Divide By Zero}.
 
 @opindex Wanalyzer-deref-before-check
 @opindex Wno-analyzer-deref-before-check

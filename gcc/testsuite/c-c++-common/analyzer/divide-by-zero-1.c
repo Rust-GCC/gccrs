@@ -9,11 +9,11 @@ return_zero (void)
 void
 test_div (int a)
 {
-  __analyzer_eval (a / return_zero () == 0); /* { dg-warning "UNKNOWN" } */
+  __analyzer_eval (a / return_zero () == 0); /* { dg-warning "division by zero \\\[-Wanalyzer-div-by-zero\\\]" } */
 }
 
 void
 test_mod (int a)
 {
-  __analyzer_eval (a % return_zero () == 0); /* { dg-warning "UNKNOWN" } */
+  __analyzer_eval (a % return_zero () == 0); /* { dg-warning "division by zero \\\[-Wanalyzer-div-by-zero\\\]" } */
 }

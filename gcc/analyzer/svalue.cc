@@ -891,9 +891,11 @@ type_can_have_value_range_p (tree type)
 {
   if (!type)
     return false;
-  if (!irange::supports_p (type))
-    return false;
-  return true;
+  if (irange::supports_p (type))
+    return true;
+  if (frange::supports_p (type))
+    return true;
+  return false;
 }
 
 /* Base implementation of svalue::maybe_get_value_range_1 vfunc.

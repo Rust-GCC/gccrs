@@ -855,6 +855,46 @@ private:
   const region *m_base_reg_b;
 };
 
+class div_by_zero_diagnostic
+: public pending_diagnostic_subclass<div_by_zero_diagnostic>
+{
+public:
+  div_by_zero_diagnostic (const gassign *assign)
+  : m_assign (assign)
+  {}
+
+  const char *get_kind () const final override
+  {
+    return "div_by_zero_diagnostic";
+  }
+
+  bool operator== (const div_by_zero_diagnostic &other) const
+  {
+    return m_assign == other.m_assign;
+  }
+
+  int get_controlling_option () const final override
+  {
+    return OPT_Wanalyzer_div_by_zero;
+  }
+
+  bool emit (diagnostic_emission_context &ctxt) final override
+  {
+    return ctxt.warn ("division by zero");
+  }
+
+  bool
+  describe_final_event (pretty_printer &pp,
+			const evdesc::final_event &) final override
+  {
+    pp_printf (&pp, "division by zero");
+    return true;
+  }
+
+private:
+  const gassign *m_assign;
+};
+
 /* Check the pointer subtraction SVAL_A - SVAL_B at ASSIGN and add
    a warning to CTXT if they're not within the same base region.  */
 
@@ -1073,24 +1113,27 @@ region_model::get_gassign_result (const gassign *assign,
 		}
 	  }
 
-	if (ctxt
-	    && (op == TRUNC_DIV_EXPR
-		|| op == CEIL_DIV_EXPR
-		|| op == FLOOR_DIV_EXPR
-		|| op == ROUND_DIV_EXPR
-		|| op == TRUNC_MOD_EXPR
-		|| op == CEIL_MOD_EXPR
-		|| op == FLOOR_MOD_EXPR
-		|| op == ROUND_MOD_EXPR
-		|| op == RDIV_EXPR
-		|| op == EXACT_DIV_EXPR))
+	if (op == TRUNC_DIV_EXPR
+	    || op == CEIL_DIV_EXPR
+	    || op == FLOOR_DIV_EXPR
+	    || op == ROUND_DIV_EXPR
+	    || op == TRUNC_MOD_EXPR
+	    || op == CEIL_MOD_EXPR
+	    || op == FLOOR_MOD_EXPR
+	    || op == ROUND_MOD_EXPR
+	    || op == RDIV_EXPR
+	    || op == EXACT_DIV_EXPR)
 	  {
 	    value_range rhs_vr;
 	    if (rhs2_sval->maybe_get_value_range (rhs_vr))
 	      if (rhs_vr.zero_p ())
 		{
-		  /* Ideally we should issue a warning here;
-		     see PR analyzer/124217.  */
+		  if (ctxt)
+		    {
+		      ctxt->warn
+			(std::make_unique<div_by_zero_diagnostic> (assign));
+		      ctxt->terminate_path ();
+		    }
 		  return nullptr;
 		}
 	  }
