@@ -1898,21 +1898,27 @@ gcn_addr_space_convert (rtx op, tree from_type, tree to_type)
 
   if (AS_LDS_P (as_from) && AS_FLAT_P (as_to))
     {
-      /* The high bits of the QUEUE_PTR_ARG register are used by
-	 GCN_BUILTIN_FIRST_CALL_THIS_THREAD_P, so mask them out.  */
-      rtx queue_reg = gen_rtx_REG (DImode,
-				   cfun->machine->args.reg[QUEUE_PTR_ARG]);
-      rtx queue_ptr = gen_reg_rtx (DImode);
-      emit_insn (gen_anddi3 (queue_ptr, queue_reg, GEN_INT (0xffffffffffff)));
-      rtx group_seg_aperture_hi = gen_rtx_MEM (SImode,
-				     gen_rtx_PLUS (DImode, queue_ptr,
-						   gen_int_mode (64, SImode)));
-      rtx tmp = gen_reg_rtx (DImode);
+      /* The LDS based pointer is held in SHARED_BASE.
 
+	 Per:
+
+	   For GFX9-GFX11 the aperture base addresses are directly available as
+	   inline constant registers SRC_SHARED_BASE/LIMIT and
+	   SRC_PRIVATE_BASE/LIMIT. In 64-bit address mode the aperture sizes
+	   are 2^32 bytes and the base is aligned to 2^32 which makes it easier
+	   to convert from flat to segment or segment to flat.
+	   -- User Guide for AMDGPU Backend (LLVM)
+
+	 ... we can safely assume that the SImode low-part of SHARED_BASE_REG
+	 contains all zeroes.  As OP is an LDS address, it is 32-bit.  Ergo,
+	 SHARED_BASE_REG+OP is equivalent to SHARED_BASE_REG|OP.  If
+	 SHARED_BASE_REG is in r[N:N+1], then, writing OP to rN should suffice.
+	 Ergo, this conversion can be implemented as two moves.  */
+      rtx group_seg_aperture = gen_rtx_REG (Pmode, SHARED_BASE_REG);
+      rtx tmp = gen_reg_rtx (Pmode);
+
+      emit_move_insn (tmp, group_seg_aperture);
       emit_move_insn (gen_lowpart (SImode, tmp), op);
-      emit_move_insn (gen_highpart_mode (SImode, DImode, tmp),
-		      group_seg_aperture_hi);
-
       return tmp;
     }
   else if (as_from == as_to)
