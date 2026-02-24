@@ -1,9 +1,3 @@
-2026-02-24  hriztam  <hritamstark05@gmail.com>
-
-	* .gitignore: Ignore mac-build/ build artifacts.
-	* mac-build/: Remove configure-generated files that were committed
-	accidentally.
-
 2026-02-05  Iain Buclaw  <ibuclaw@gdcproject.org>
 
 	PR d/116975
