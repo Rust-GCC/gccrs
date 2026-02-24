@@ -2,6 +2,7 @@
 /* { dg-skip-if "No section attribute" { { hppa*-*-hpux* } && { ! lp64 } } } */
 /* { dg-options "-fpic -Os -g" } */
 /* { dg-require-effective-target fpic } */
+/* { dg-require-effective-target named_sections } */
 
 struct fit_loadable_tbl {
 	int type;

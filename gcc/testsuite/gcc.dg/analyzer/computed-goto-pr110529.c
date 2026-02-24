@@ -1,4 +1,5 @@
 /* C only: reuse of same array for int and label pointers.  */
+/* { dg-require-effective-target label_values } */
 
 #include "../../gcc.dg/analyzer/analyzer-decls.h"
 

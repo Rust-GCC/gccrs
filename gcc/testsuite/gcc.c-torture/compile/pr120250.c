@@ -1,3 +1,4 @@
+/* { dg-require-effective-target label_values } */
 /* PR target/120250 */
 
 int a = 5, b = 7, c, *d;

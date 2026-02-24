@@ -1,3 +1,4 @@
+/* { dg-require-effective-target label_values } */
 extern void* malloc (__SIZE_TYPE__);
 
 const char* write_strchr_literal (int x)

@@ -2,6 +2,7 @@
    Verify simple cases without optimization.
    { dg-do compile }
    { dg-options "-Wall -Winfinite-recursion" } */
+/* { dg-require-effective-target nonlocal_goto } */
 
 #define NORETURN __attribute__ ((noreturn))
 

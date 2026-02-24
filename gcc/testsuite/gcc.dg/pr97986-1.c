@@ -1,5 +1,6 @@
 /* { dg-do run } */
 /* { dg-options "-std=gnu23" } */
+/* { dg-require-effective-target nonlocal_goto } */
 
 #include <stdarg.h>
 

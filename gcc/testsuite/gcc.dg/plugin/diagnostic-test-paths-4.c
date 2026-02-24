@@ -1,6 +1,7 @@
 /* { dg-do compile } */
 /* { dg-options "-fdiagnostics-path-format=inline-events -fdiagnostics-show-caret -fdiagnostics-show-line-numbers -fdiagnostics-add-output=experimental-html:javascript=no" } */
 /* { dg-enable-nn-line-numbers "" } */
+/* { dg-require-effective-target signal } */
 
 #include <stdio.h>
 #include <signal.h>

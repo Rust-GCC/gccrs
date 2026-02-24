@@ -1,6 +1,7 @@
 /* PR middle-end/106080 */
 /* { dg-do compile } */
 /* { dg-options "-O2 -Wdangling-pointer" } */
+/* { dg-require-effective-target label_values } */
 
 void
 foo (void **failaddr)

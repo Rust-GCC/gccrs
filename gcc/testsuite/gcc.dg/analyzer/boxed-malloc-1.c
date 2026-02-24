@@ -1,4 +1,5 @@
 /* Adapted from malloc-1.c, but wrapping the pointers in a struct.  */
+/* { dg-require-effective-target label_values } */
 
 #include <stdlib.h>
 

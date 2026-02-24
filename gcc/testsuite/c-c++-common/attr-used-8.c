@@ -1,5 +1,6 @@
 /* { dg-do compile } */
 /* { dg-skip-if "non-ELF target" { *-*-darwin* } } */
+/* { dg-require-effective-target label_values } */
 /* { dg-options "-Wall -O2" } */
 
 int __attribute__((section(".data.foo"))) foo1 = 1;

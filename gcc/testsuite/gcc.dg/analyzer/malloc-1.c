@@ -1,3 +1,4 @@
+/* { dg-require-effective-target label_values } */
 #include <stdlib.h>
 
 extern int foo (void);

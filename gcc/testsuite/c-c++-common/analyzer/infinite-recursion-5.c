@@ -1,4 +1,5 @@
 /* Adapted from gcc.dg/Winfinite-recursion.c.  */
+/* { dg-require-effective-target nonlocal_goto } */
 
 #define NORETURN __attribute__ ((noreturn))
 

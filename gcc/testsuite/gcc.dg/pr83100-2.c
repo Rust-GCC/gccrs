@@ -3,6 +3,8 @@
 /* { dg-options "-O2 -fcommon -fdata-sections" } */
 /* { dg-additional-sources pr83100-3.c } */
 /* { dg-skip-if "-fdata-sections not supported" { hppa*-*-hpux* nvptx-*-* } } */
+/* { dg-require-effective-target named_sections } */
+
 
 const int a;
 
