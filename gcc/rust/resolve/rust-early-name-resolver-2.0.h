@@ -62,8 +62,6 @@ public:
 
   void visit (AST::MacroInvocation &) override;
 
-  void visit (AST::Function &) override;
-  void visit (AST::StructStruct &) override;
   void visit (AST::UseDeclaration &) override;
   void visit (AST::UseTreeList &) override;
 
@@ -174,8 +172,6 @@ public:
   };
 
 private:
-  void visit_attributes (std::vector<AST::Attribute> &attrs);
-
   /**
    * Insert a resolved macro invocation into the mappings once, meaning that we
    * can call this function each time the early name resolution pass is underway
