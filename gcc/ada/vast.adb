@@ -145,6 +145,8 @@ package body VAST is
 
    type Pass_Number is range 1 .. 2;
    Pass : Pass_Number;
+   --  We walk the tree twice (with Pass = 1, then Pass = 2), so that we can
+   --  compute information in Pass 1, and then check it in Pass 2.
 
    procedure VAST;
    --  Called by VAST_If_Enabled to do all the checking
