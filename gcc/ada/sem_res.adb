@@ -7775,6 +7775,7 @@ package body Sem_Res is
       --  be needed, we assume the worst case.
 
       if not Preanalysis_Active
+        and then not GNATprove_Mode
         and then (Requires_Transient_Scope (Typ)
                     or else Has_Sec_Stack_Call (Expr))
       then
