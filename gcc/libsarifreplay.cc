@@ -28,6 +28,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "libgdiagnostics++.h"
 #include "libgdiagnostics-private.h"
 #include "json-parsing.h"
+#include "json-pointer-parsing.h"
 #include "intl.h"
 #include "sarif-spec-urls.def"
 #include "libsarifreplay.h"
@@ -307,6 +308,7 @@ public:
 		  libgdiagnostics::manager &&control_manager)
   : m_output_mgr (std::move (output_manager)),
     m_control_mgr (std::move (control_manager)),
+    m_root_val (nullptr),
     m_driver_obj (nullptr),
     m_artifacts_arr (nullptr)
   {
@@ -711,7 +713,12 @@ private:
 
   void
   append_embeddded_link (libgdiagnostics::message_buffer &result,
-			 const embedded_link &link);
+			 const embedded_link &link,
+			 const json::object &message_obj);
+
+  const json::value *
+  decode_link_within_sarif (const char *dst,
+			    const json::object &message_obj);
 
   /* The manager to replay the SARIF files to.  */
   libgdiagnostics::manager m_output_mgr;
@@ -724,6 +731,7 @@ private:
 
   json::simple_location_map m_json_location_map;
 
+  const json::value *m_root_val;
   const json::object *m_driver_obj;
   const json::array *m_artifacts_arr;
 };
@@ -857,6 +865,7 @@ sarif_replayer::replay_file (const char *filename,
     }
 
   gcc_assert (result.m_val.get ());
+  m_root_val = result.m_val.get ();
   return emit_sarif_as_diagnostics (*result.m_val.get ());
 }
 
@@ -1563,17 +1572,65 @@ maybe_consume_embedded_link (const char *&iter_src)
 
 void
 sarif_replayer::append_embeddded_link (libgdiagnostics::message_buffer &result,
-				       const embedded_link &link)
+				       const embedded_link &link,
+				       const json::object &message_obj)
 {
-  /* We can't yet decode intra-sarif links, so simply use their text.  */
+  /* Try to convert intra-sarif links into event ids.  */
   if (!strncmp (link.destination.c_str (), "sarif:/", strlen ("sarif:/")))
     {
+      if (auto linked_val = decode_link_within_sarif (link.destination.c_str (),
+						      message_obj))
+	{
+	  /* Assume we have a threadFlowLocation object, and that it's
+	     for the correct code flow.  */
+	  if (const json::object *linked_obj
+		= dyn_cast <const json::object *> (linked_val))
+	    {
+	      const property_spec_ref location_prop
+		("threadFlowLocation", "executionOrder", "3.38.11");
+	      if (auto execution_order
+		  = get_optional_property<json::integer_number> (*linked_obj,
+								 location_prop))
+		if (execution_order->get () > 0)
+		  {
+		    diagnostic_event_id event_id = execution_order->get () - 1;
+		    diagnostic_message_buffer_append_event_id (result.m_inner,
+							       event_id);
+		    return;
+		  }
+	    }
+	}
+
+      /* If we can't use the sarif link, simply use the text.  */
       result += link.text.c_str ();
       return;
     }
   result.begin_url (link.destination.c_str ());
   result += link.text.c_str ();
   result.end_url ();
+}
+
+const json::value *
+sarif_replayer::decode_link_within_sarif (const char *dst,
+					  const json::object &message_obj)
+{
+  gcc_assert (!strncmp (dst, "sarif:/", strlen ("sarif:/")));
+  gcc_assert (m_root_val);
+
+  auto result
+    = json::pointer::parse_utf8_string (dst + strlen ("sarif:/") - 1,
+					m_root_val);
+  if (result.m_err)
+    {
+      const spec_ref uris_with_sarif_scheme ("3.10.3");
+      pp_token_buffer_element e (result.m_err->m_tokens);
+      report_invalid_sarif
+	(message_obj, uris_with_sarif_scheme,
+	 "error parsing JSON pointer in SARIF link %qs: %e",
+	 dst, &e);
+      return nullptr;
+    }
+  return result.m_val;
 }
 
 /* Lookup the plain text string within a result.message (§3.27.11),
@@ -1660,7 +1717,7 @@ make_plain_text_within_result_message (const json::object *tool_component_obj,
 	    }
 	}
       else if (auto link = maybe_consume_embedded_link (iter_src))
-	append_embeddded_link (result, *link);
+	append_embeddded_link (result, *link, message_obj);
       else
 	{
 	  result += ch;

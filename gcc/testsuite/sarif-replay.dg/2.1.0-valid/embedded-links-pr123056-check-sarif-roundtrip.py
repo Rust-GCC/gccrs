@@ -11,4 +11,4 @@ def test_roundtrip_of_url_in_generated_sarif(sarif):
     assert result['level'] == 'warning'
     assert result['message']['text'] == "leak of ‘p’"
     assert (result['codeFlows'][0]['threadFlows'][0]['locations'][1]['location']['message']['text']
-            == "‘p’ leaks here; was allocated at (1)")
+            == "‘p’ leaks here; was allocated at [(1)](sarif:/runs/0/results/0/codeFlows/0/threadFlows/0/locations/0)")
