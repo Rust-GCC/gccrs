@@ -10,10 +10,11 @@
 int
 main ()
 {
+  float f;
 #if __DBL_MANT_DIG__ == 53 && __FLT_MANT_DIG__ == 24
 #ifdef FE_UPWARD
   fesetround (FE_UPWARD);
-  float f = 1.3;
+  f = 1.3;
   if (f != 0x1.4ccccep+0f)
     __builtin_abort ();
 #endif
