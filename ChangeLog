@@ -1,3 +1,8 @@
+2026-02-24  hriztam  <hritamstark05@gmail.com>
+
+	* .gitignore: Add mac-build/ to ignore configure/build outputs.
+	* mac-build/: Remove committed build artifacts.
+
 2026-02-05  Iain Buclaw  <ibuclaw@gdcproject.org>
 
 	PR d/116975

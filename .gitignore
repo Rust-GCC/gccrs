@@ -71,3 +71,4 @@ stamp-*
 /gmp*
 /isl*
 /gettext*
+/mac-build/
