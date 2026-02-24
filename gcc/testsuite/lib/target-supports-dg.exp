@@ -267,9 +267,15 @@ proc dg-require-effective-target { args } {
 # If this target does not have fork, skip this test.
 
 proc dg-require-fork { args } {
-    if { ![check_fork_available] } {
-	upvar dg-do-what dg-do-what
-        set dg-do-what [list [lindex ${dg-do-what} 0] "N" "P"]
+    upvar dg-do-what dg-do-what
+
+    set doaction [lindex ${dg-do-what} 0]
+    if { $doaction == "run" } {
+       if { ![check_fork_runtime] } {
+	   set dg-do-what [list $doaction "N" "P"]
+       }
+    } elseif { ![check_fork_available] } {
+       set dg-do-what [list $doaction "N" "P"]
     }
 }
 

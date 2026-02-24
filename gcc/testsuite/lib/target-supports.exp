@@ -3801,6 +3801,27 @@ proc check_fork_available {} {
     return [check_function_available "fork"]
 }
 
+# Returns true iff "fork" is working on the target system.
+
+proc check_fork_runtime {} {
+    if { ![check_fork_available] } {
+	return 0
+    }
+
+    return [check_runtime fork_runtime {
+       #include <unistd.h>
+       #include <stdlib.h>
+
+       int main()
+       {
+	 pid_t p = fork();
+	 if (p < 0)
+	   abort();
+	 return 0;
+       }
+    }]
+}
+
 # Returns true iff "mkfifo" is available on the target system.
 
 proc check_mkfifo_available {} {
