@@ -44,7 +44,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "libgdiagnostics-private.h"
 #include "pretty-print-format-impl.h"
 #include "pretty-print-markup.h"
-#include "auto-obstack.h"
+#include "pretty-print-token-buffer.h"
 
 class owned_nullable_string
 {
@@ -252,97 +252,6 @@ private:
   diagnostics::source_printing_options m_source_printing;
 };
 
-/* A token_printer that makes a deep copy of the pp_token_list
-   into another obstack.  */
-
-class copying_token_printer : public token_printer
-{
-public:
-  copying_token_printer (obstack &dst_obstack,
-			 pp_token_list &dst_token_list)
-  : m_dst_obstack (dst_obstack),
-    m_dst_token_list (dst_token_list)
-  {
-  }
-
-  void
-  print_tokens (pretty_printer *,
-		const pp_token_list &tokens) final override
-  {
-    for (auto iter = tokens.m_first; iter; iter = iter->m_next)
-      switch (iter->m_kind)
-	{
-	default:
-	  gcc_unreachable ();
-
-	case pp_token::kind::text:
-	  {
-	    const pp_token_text *sub = as_a <const pp_token_text *> (iter);
-	    /* Copy the text, with null terminator.  */
-	    obstack_grow (&m_dst_obstack, sub->m_value.get (),
-			  strlen (sub->m_value.get ()) + 1);
-	    m_dst_token_list.push_back_text
-	      (label_text::borrow (XOBFINISH (&m_dst_obstack,
-					      const char *)));
-	  }
-	  break;
-
-	case pp_token::kind::begin_color:
-	  {
-	    pp_token_begin_color *sub = as_a <pp_token_begin_color *> (iter);
-	    /* Copy the color, with null terminator.  */
-	    obstack_grow (&m_dst_obstack, sub->m_value.get (),
-			  strlen (sub->m_value.get ()) + 1);
-	    m_dst_token_list.push_back<pp_token_begin_color>
-	      (label_text::borrow (XOBFINISH (&m_dst_obstack,
-					      const char *)));
-	  }
-	  break;
-	case pp_token::kind::end_color:
-	  m_dst_token_list.push_back<pp_token_end_color> ();
-	  break;
-
-	case pp_token::kind::begin_quote:
-	  m_dst_token_list.push_back<pp_token_begin_quote> ();
-	  break;
-	case pp_token::kind::end_quote:
-	  m_dst_token_list.push_back<pp_token_end_quote> ();
-	  break;
-
-	case pp_token::kind::begin_url:
-	  {
-	    pp_token_begin_url *sub = as_a <pp_token_begin_url *> (iter);
-	    /* Copy the URL, with null terminator.  */
-	    obstack_grow (&m_dst_obstack, sub->m_value.get (),
-			  strlen (sub->m_value.get ()) + 1);
-	    m_dst_token_list.push_back<pp_token_begin_url>
-	      (label_text::borrow (XOBFINISH (&m_dst_obstack,
-					      const char *)));
-	  }
-	  break;
-	case pp_token::kind::end_url:
-	  m_dst_token_list.push_back<pp_token_end_url> ();
-	  break;
-
-	case pp_token::kind::event_id:
-	  {
-	    pp_token_event_id *sub = as_a <pp_token_event_id *> (iter);
-	    m_dst_token_list.push_back<pp_token_event_id> (sub->m_event_id);
-	  }
-	  break;
-
-	case pp_token::kind::custom_data:
-	  /* These should have been eliminated by replace_custom_tokens.  */
-	  gcc_unreachable ();
-	  break;
-	}
-  }
-
-private:
-  obstack &m_dst_obstack;
-  pp_token_list &m_dst_token_list;
-};
-
 class sarif_sink : public sink
 {
 public:
@@ -352,31 +261,13 @@ public:
 	      const diagnostics::sarif_generation_options &sarif_gen_opts);
 };
 
-struct diagnostic_message_buffer
+struct diagnostic_message_buffer : public pretty_print_token_buffer
 {
-  diagnostic_message_buffer ()
-  : m_tokens (m_obstack)
+  diagnostic_message_buffer () {}
+  diagnostic_message_buffer (const char *gmsgid, va_list *args)
+  : pretty_print_token_buffer (gmsgid, args)
   {
   }
-
-  diagnostic_message_buffer (const char *gmsgid,
-			     va_list *args)
-  : m_tokens (m_obstack)
-  {
-    text_info text (gmsgid, args, errno);
-    pretty_printer pp;
-    pp.set_output_stream (nullptr);
-    copying_token_printer tok_printer (m_obstack, m_tokens);
-    pp.set_token_printer (&tok_printer);
-    pp_format (&pp, &text);
-    pp_output_formatted_text (&pp, nullptr);
-  }
-
-
-  std::string to_string () const;
-
-  auto_obstack m_obstack;
-  pp_token_list m_tokens;
 };
 
 /* A pp_element subclass that replays the saved tokens in a
@@ -1564,64 +1455,6 @@ sarif_sink (diagnostic_manager &mgr,
 				     std::move (output_file));
   inner_sink->set_main_input_filename (main_input_file->get_name ());
   mgr.get_dc ().add_sink (std::move (inner_sink));
-}
-
-// struct diagnostic_message_buffer
-
-std::string
-diagnostic_message_buffer::to_string () const
-{
-  std::string result;
-
-  /* Convert to text, dropping colorization, URLs, etc.  */
-  for (auto iter = m_tokens.m_first; iter; iter = iter->m_next)
-    switch (iter->m_kind)
-      {
-      default:
-	gcc_unreachable ();
-
-      case pp_token::kind::text:
-	{
-	  pp_token_text *sub = as_a <pp_token_text *> (iter);
-	  result += sub->m_value.get ();
-	}
-	break;
-
-      case pp_token::kind::begin_color:
-      case pp_token::kind::end_color:
-	// Skip
-	break;
-
-      case pp_token::kind::begin_quote:
-	result += open_quote;
-	break;
-
-      case pp_token::kind::end_quote:
-	result += close_quote;
-	break;
-
-      case pp_token::kind::begin_url:
-      case pp_token::kind::end_url:
-	// Skip
-	break;
-
-      case pp_token::kind::event_id:
-	{
-	  pp_token_event_id *sub = as_a <pp_token_event_id *> (iter);
-	  gcc_assert (sub->m_event_id.known_p ());
-	  result += '(';
-	  result += std::to_string (sub->m_event_id.one_based ());
-	  result += ')';
-	}
-	break;
-
-      case pp_token::kind::custom_data:
-	/* We don't have a way of handling custom_data tokens here.  */
-	gcc_unreachable ();
-	break;
-      }
-
-  return result;
 }
 
 /* struct diagnostic_manager.  */

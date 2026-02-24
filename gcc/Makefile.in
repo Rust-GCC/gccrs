@@ -1904,7 +1904,7 @@ OBJS-libcommon = \
 	diagnostics/diagnostics-selftests.o \
 	gcc-diagnostic-spec.o \
 	graphviz.o pex.o \
-	pretty-print.o intl.o \
+	pretty-print.o pretty-print-token-buffer.o intl.o \
 	json.o json-parsing.o json-diagnostic.o \
 	pub-sub.o \
 	xml.o \

@@ -68,6 +68,7 @@ selftest::run_tests ()
   hash_set_tests_cc_tests ();
   vec_cc_tests ();
   pretty_print_cc_tests ();
+  pretty_print_token_buffer_cc_tests ();
   wide_int_cc_tests ();
   ggc_tests_cc_tests ();
   sreal_cc_tests ();
