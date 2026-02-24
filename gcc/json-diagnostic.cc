@@ -34,6 +34,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "diagnostics/text-sink.h"
 #include "diagnostics/physical-location-maker.h"
 #include "pretty-print-markup.h"
+#include "pretty-print-markup-json.h"
 
 static bool
 emit_json_diagnostic (gcc_json_context &ctxt,
@@ -183,32 +184,6 @@ private:
   json_logical_location_manager m_logical_loc_mgr;
   const json::value &m_js_val;
 };
-
-namespace pp_markup {
-
-/* Print the JSON Pointer of a given json::value in quotes.  */
-
-class quoted_json_pointer : public pp_element
-{
-public:
-  quoted_json_pointer (const json::value &js_val)
-  : m_js_val (js_val)
-  {
-  }
-
-  void
-  add_to_phase_2 (context &ctxt) final override
-  {
-    ctxt.begin_quote ();
-    m_js_val.print_pointer (&ctxt.m_pp);
-    ctxt.end_quote ();
-  }
-
-private:
-  const json::value &m_js_val;
-};
-
-} // namespace pp_markup
 
 /* text_sink starter for diagnostics relating to JSON.  */
 
