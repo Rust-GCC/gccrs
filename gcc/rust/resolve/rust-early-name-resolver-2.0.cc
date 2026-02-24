@@ -324,8 +324,7 @@ Early::visit_derive_attribute (AST::Attribute &attr,
       if (!definition.has_value ())
 	{
 	  // FIXME: Change to proper error message
-	  // FIXME: Change locus to trait locus instead of attribute locus
-	  collect_error (Error (attr.get_locus (),
+	  collect_error (Error (trait.get ().get_locus (),
 				"could not resolve trait %qs",
 				trait.get ().as_string ().c_str ()));
 	  continue;
@@ -383,27 +382,6 @@ Early::visit (AST::Attribute &attr)
     {
       visit_non_builtin_attribute (attr, mappings, name);
     }
-}
-
-void
-Early::visit_attributes (std::vector<AST::Attribute> &attrs)
-{
-  for (auto &attr : attrs)
-    visit (attr);
-}
-
-void
-Early::visit (AST::Function &fn)
-{
-  visit_attributes (fn.get_outer_attrs ());
-  DefaultResolver::visit (fn);
-}
-
-void
-Early::visit (AST::StructStruct &s)
-{
-  visit_attributes (s.get_outer_attrs ());
-  DefaultResolver::visit (s);
 }
 
 void
