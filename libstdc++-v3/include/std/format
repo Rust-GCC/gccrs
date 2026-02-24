@@ -3655,19 +3655,19 @@ namespace __format
       }
     };
 
-  // Partial specialization for contiguous iterators.
+  // Used for contiguous iterators.
   // No buffer is used, characters are written straight to the iterator.
   // We do not know the size of the output range, so the span size just grows
   // as needed. The end of the span might be an invalid pointer outside the
   // valid range, but we never actually call _M_span.end(). This class does
   // not introduce any invalid pointer arithmetic or overflows that would not
   // have happened anyway.
-  template<typename _CharT, contiguous_iterator _OutIter>
-    requires same_as<iter_value_t<_OutIter>, _CharT>
-    class _Iter_sink<_CharT, _OutIter> : public _Sink<_CharT>
+  template<typename _CharT>
+    class _Ptr_sink : public _Sink<_CharT>
     {
-      _OutIter _M_first;
-      iter_difference_t<_OutIter> _M_max = -1;
+      static constexpr size_t _S_no_limit = size_t(-1);
+
+      size_t _M_max;
     protected:
       size_t _M_count = 0;
     private:
@@ -3682,7 +3682,7 @@ namespace __format
 
 	auto __s = this->_M_used();
 
-	if (_M_max >= 0)
+	if (_M_max != _S_no_limit)
 	  {
 	    _M_count += __s.size();
 	    // Span was already sized for the maximum character count,
@@ -3694,7 +3694,7 @@ namespace __format
 	  {
 	    // No maximum character count. Just extend the span to allow
 	    // writing more characters to it.
-	    this->_M_reset({__s.data(), __s.size() + 1024}, __s.size());
+	    _M_rebuf(__s.data(), __s.size() + 1024, __s.size());
 	  }
       }
 
@@ -3712,73 +3712,92 @@ namespace __format
 	auto __avail = this->_M_unused();
 	if (__n > __avail.size())
 	  {
-	    if (_M_max >= 0)
+	    if (_M_max != _S_no_limit)
 	      return {}; // cannot grow
 
 	    auto __s = this->_M_used();
-	    this->_M_reset({__s.data(), __s.size() + __n}, __s.size());
+	    _M_rebuf(__s.data(), __s.size() + __n, __s.size());
 	  }
 	return { this };
       }
 
     private:
-      static span<_CharT>
-      _S_make_span(_CharT* __ptr, iter_difference_t<_OutIter> __n,
-		   span<_CharT> __buf) noexcept
+      template<typename _IterDifference>
+	static size_t
+	_S_trim_max(_IterDifference __max)
+	{
+	  if (__max < 0)
+	    return _S_no_limit;
+	  if constexpr (!is_integral_v<_IterDifference> || sizeof(__max) > sizeof(size_t))
+	    // __int128 or __detail::__max_diff_type
+	    if (_IterDifference((size_t)-1) < __max)
+	      return _S_no_limit;
+	  return size_t(__max);
+	}
+
+      [[__gnu__::__always_inline__]]
+      void
+      _M_rebuf(_CharT* __ptr, size_t __total, size_t __inuse = 0)
       {
-	if (__n == 0)
-	  return __buf; // Only write to the internal buffer.
-
-	if (__n > 0)
-	  {
-	    if constexpr (!is_integral_v<iter_difference_t<_OutIter>>
-			    || sizeof(__n) > sizeof(size_t))
-	      {
-		// __int128 or __detail::__max_diff_type
-		auto __m = iter_difference_t<_OutIter>((size_t)-1);
-		if (__n > __m)
-		  __n = __m;
-	      }
-	    return {__ptr, (size_t)__n};
-	  }
-
-#if __has_builtin(__builtin_dynamic_object_size)
-	if (size_t __bytes = __builtin_dynamic_object_size(__ptr, 2))
-	  return {__ptr, __bytes / sizeof(_CharT)};
-#endif
-	// Avoid forming a pointer to a different memory page.
-	const auto __off = reinterpret_cast<__UINTPTR_TYPE__>(__ptr) % 1024;
-	__n = (1024 - __off) / sizeof(_CharT);
-	if (__n > 0) [[likely]]
-	  return {__ptr, static_cast<size_t>(__n)};
-	else // Misaligned/packed buffer of wchar_t?
-	  return {__ptr, 1};
+	std::span<_CharT> __span(__ptr, __total);
+	this->_M_reset(__span, __inuse);
       }
 
     public:
       explicit
-      _Iter_sink(_OutIter __out, iter_difference_t<_OutIter> __n = -1) noexcept
-      : _Sink<_CharT>(_S_make_span(std::to_address(__out), __n, _M_buf)),
-	_M_first(__out), _M_max(__n)
-      { }
-
-      format_to_n_result<_OutIter>
-      _M_finish() &&
+      _Ptr_sink(_CharT* __ptr, size_t __n = _S_no_limit) noexcept
+      : _Sink<_CharT>(_M_buf), _M_max(__n)
       {
-	auto __s = this->_M_used();
-	if (__s.data() == _M_buf)
+      	if (__n == 0)
+	  return; // Only write to the internal buffer.
+	else if (__n != _S_no_limit)
+	  _M_rebuf(__ptr, __n);
+#if __has_builtin(__builtin_dynamic_object_size)
+	else if (size_t __bytes = __builtin_dynamic_object_size(__ptr, 2))
+	  _M_rebuf(__ptr, __bytes / sizeof(_CharT));
+#endif
+	else
 	  {
-	    // Switched to internal buffer, so must have written _M_max.
-	    iter_difference_t<_OutIter> __count(_M_count + __s.size());
-	    return { _M_first + _M_max, __count };
-	  }
-	else // Not using internal buffer yet
-	  {
-	    iter_difference_t<_OutIter> __count(__s.size());
-	    return { _M_first + __count, __count };
+	    // Avoid forming a pointer to a different memory page.
+	    const auto __off = reinterpret_cast<__UINTPTR_TYPE__>(__ptr) % 1024;
+	    __n = (1024 - __off) / sizeof(_CharT);
+	    if (__n > 0) [[likely]]
+	      _M_rebuf(__ptr, __n);
+	    else // Misaligned/packed buffer of wchar_t?
+	      _M_rebuf(__ptr, 1);
 	  }
       }
+
+      template<contiguous_iterator _OutIter>
+	explicit
+	_Ptr_sink(_OutIter __out, iter_difference_t<_OutIter> __n = -1)
+	: _Ptr_sink(std::to_address(__out), _S_trim_max(__n))
+	{ }
+
+      template<contiguous_iterator _OutIter>
+	format_to_n_result<_OutIter>
+	_M_finish(_OutIter __first) const
+	{
+	  auto __s = this->_M_used();
+	  if (__s.data() == _M_buf)
+	    {
+	      // Switched to internal buffer, so must have written _M_max.
+	      iter_difference_t<_OutIter> __max(_M_max);
+	      iter_difference_t<_OutIter> __count(_M_count + __s.size());
+	      return { __first + __max, __count };
+	    }
+	  else // Not using internal buffer yet
+	    {
+	      iter_difference_t<_OutIter> __count(__s.size());
+	      return { __first + __count, __count };
+	    }
+	 }
     };
+
+  template<typename _CharT, typename _OutIter>
+    concept __contiguous_char_iter
+      = contiguous_iterator<_OutIter>
+	&& same_as<iter_value_t<_OutIter>, _CharT>;
 
   // A sink for handling the padded outputs (_M_padwidth) or truncated
   // (_M_maxwidth). The handling is done by writting to buffer (_Str_strink)
@@ -5206,92 +5225,113 @@ namespace __format
 		    const basic_format_args<_Context>& __args,
 		    const locale* __loc)
     {
-      _Iter_sink<_CharT, _Out> __sink(std::move(__out));
-      _Sink_iter<_CharT> __sink_out;
-
       if constexpr (is_same_v<_Out, _Sink_iter<_CharT>>)
-	__sink_out = __out; // Already a sink iterator, safe to use post-move.
-      else
-	__sink_out = __sink.out();
-
-      if constexpr (is_same_v<_CharT, char>)
-	// Fast path for "{}" format strings and simple format arg types.
-	if (__fmt.size() == 2 && __fmt[0] == '{' && __fmt[1] == '}')
-	  {
-	    bool __done = false;
-	    __format::__visit_format_arg([&](auto& __arg) {
-	      using _Tp = remove_cvref_t<decltype(__arg)>;
-	      if constexpr (is_same_v<_Tp, bool>)
-		{
-		  size_t __len = 4 + !__arg;
-		  const char* __chars[] = { "false", "true" };
-		  if (auto __res = __sink_out._M_reserve(__len))
-		    {
-		      __builtin_memcpy(__res.get(), __chars[__arg], __len);
-		      __res._M_bump(__len);
-		      __done = true;
-		    }
-		}
-	      else if constexpr (is_same_v<_Tp, char>)
-		{
-		  if (auto __res = __sink_out._M_reserve(1))
-		    {
-		      *__res.get() = __arg;
-		      __res._M_bump(1);
-		      __done = true;
-		    }
-		}
-	      else if constexpr (is_integral_v<_Tp>)
-		{
-		  make_unsigned_t<_Tp> __uval;
-		  const bool __neg = __arg < 0;
-		  if (__neg)
-		    __uval = make_unsigned_t<_Tp>(~__arg) + 1u;
-		  else
-		    __uval = __arg;
-		  const auto __n = __detail::__to_chars_len(__uval);
-		  if (auto __res = __sink_out._M_reserve(__n + __neg))
-		    {
-		      auto __ptr = __res.get();
-		      *__ptr = '-';
-		      __detail::__to_chars_10_impl(__ptr + (int)__neg, __n,
-						   __uval);
-		      __res._M_bump(__n + __neg);
-		      __done = true;
-		    }
-		}
-	      else if constexpr (is_convertible_v<_Tp, string_view>)
-		{
-		  string_view __sv = __arg;
-		  if (auto __res = __sink_out._M_reserve(__sv.size()))
-		    {
-		      __builtin_memcpy(__res.get(), __sv.data(), __sv.size());
-		      __res._M_bump(__sv.size());
-		      __done = true;
-		    }
-		}
-	    }, __args.get(0));
-
-	    if (__done)
+	{
+	  if constexpr (is_same_v<_CharT, char>)
+	    // Fast path for "{}" format strings and simple format arg types.
+	    if (__fmt.size() == 2 && __fmt[0] == '{' && __fmt[1] == '}')
 	      {
-		if constexpr (is_same_v<_Out, _Sink_iter<_CharT>>)
-		  return __sink_out;
-		else
-		  return std::move(__sink)._M_finish().out;
+		bool __done = false;
+		__format::__visit_format_arg([&](auto& __arg) {
+		  using _Tp = remove_cvref_t<decltype(__arg)>;
+		  if constexpr (is_same_v<_Tp, bool>)
+		    {
+		      size_t __len = 4 + !__arg;
+		      const char* __chars[] = { "false", "true" };
+		      if (auto __res = __out._M_reserve(__len))
+			{
+			  __builtin_memcpy(__res.get(), __chars[__arg], __len);
+			  __res._M_bump(__len);
+			  __done = true;
+			}
+		    }
+		  else if constexpr (is_same_v<_Tp, char>)
+		    {
+		      if (auto __res = __out._M_reserve(1))
+			{
+			  *__res.get() = __arg;
+			  __res._M_bump(1);
+			  __done = true;
+			}
+		    }
+		  else if constexpr (is_integral_v<_Tp>)
+		    {
+		      make_unsigned_t<_Tp> __uval;
+		      const bool __neg = __arg < 0;
+		      if (__neg)
+			__uval = make_unsigned_t<_Tp>(~__arg) + 1u;
+		      else
+			__uval = __arg;
+		      const auto __n = __detail::__to_chars_len(__uval);
+		      if (auto __res = __out._M_reserve(__n + __neg))
+			{
+			  auto __ptr = __res.get();
+			  *__ptr = '-';
+			  __detail::__to_chars_10_impl(__ptr + (int)__neg, __n,
+						       __uval);
+			  __res._M_bump(__n + __neg);
+			  __done = true;
+			}
+		    }
+		  else if constexpr (is_convertible_v<_Tp, string_view>)
+		    {
+		      string_view __sv = __arg;
+		      if (auto __res = __out._M_reserve(__sv.size()))
+			{
+			  __builtin_memcpy(__res.get(), __sv.data(), __sv.size());
+			  __res._M_bump(__sv.size());
+			  __done = true;
+			}
+		    }
+		}, __args.get(0));
+
+		if (__done)
+		  return __out;
 	      }
-	  }
 
-      auto __ctx = __loc == nullptr
-		     ? _Context(__args, __sink_out)
-		     : _Context(__args, __sink_out, *__loc);
-      _Formatting_scanner<_Sink_iter<_CharT>, _CharT> __scanner(__ctx, __fmt);
-      __scanner._M_scan();
-
-      if constexpr (is_same_v<_Out, _Sink_iter<_CharT>>)
-	return __ctx.out();
+	  auto __ctx = __loc == nullptr
+			 ? _Context(__args, __out)
+			 : _Context(__args, __out, *__loc);
+	  _Formatting_scanner<_Sink_iter<_CharT>, _CharT> __scanner(__ctx, __fmt);
+	  __scanner._M_scan();
+	  return __out;
+	}
+      else if constexpr (__contiguous_char_iter<_CharT, _Out>)
+	{
+	  _Ptr_sink<_CharT> __sink(__out);
+	  __format::__do_vformat_to(__sink.out(), __fmt, __args, __loc);
+	  return std::move(__sink)._M_finish(__out).out;
+	}
       else
-	return std::move(__sink)._M_finish().out;
+	{
+	  _Iter_sink<_CharT, _Out> __sink(std::move(__out));
+	  __format::__do_vformat_to(__sink.out(), __fmt, __args, __loc);
+	  return std::move(__sink)._M_finish().out;
+	}
     }
+
+  template<typename _Out, typename _CharT>
+    format_to_n_result<_Out>
+    __do_vformat_to_n(_Out __out, iter_difference_t<_Out> __n,
+		      basic_string_view<_CharT> __fmt,
+		      const type_identity_t<
+			basic_format_args<__format_context<_CharT>>>& __args,
+		      const locale* __loc = nullptr)
+    {
+      if constexpr (__contiguous_char_iter<_CharT, _Out>)
+	{
+	  _Ptr_sink<_CharT> __sink(__out, __n);
+	  __format::__do_vformat_to(__sink.out(), __fmt, __args, __loc);
+	  return std::move(__sink)._M_finish(__out);
+	}
+      else
+	{
+	  _Iter_sink<_CharT, _Out> __sink(std::move(__out), __n);
+	  __format::__do_vformat_to(__sink.out(), __fmt, __args, __loc);
+	  return std::move(__sink)._M_finish();
+	}
+    }
+
 #pragma GCC diagnostic pop
 
 } // namespace __format
@@ -5497,10 +5537,9 @@ namespace __format
     format_to_n(_Out __out, iter_difference_t<_Out> __n,
 		format_string<_Args...> __fmt, _Args&&... __args)
     {
-      __format::_Iter_sink<char, _Out> __sink(std::move(__out), __n);
-      std::vformat_to(__sink.out(), __fmt.get(),
-		      std::make_format_args(__args...));
-      return std::move(__sink)._M_finish();
+      return __format::__do_vformat_to_n(
+	       std::move(__out), __n, __fmt.get(),
+	       std::make_format_args(__args...));
     }
 
 #ifdef _GLIBCXX_USE_WCHAR_T
@@ -5510,10 +5549,9 @@ namespace __format
     format_to_n(_Out __out, iter_difference_t<_Out> __n,
 		wformat_string<_Args...> __fmt, _Args&&... __args)
     {
-      __format::_Iter_sink<wchar_t, _Out> __sink(std::move(__out), __n);
-      std::vformat_to(__sink.out(), __fmt.get(),
-		      std::make_wformat_args(__args...));
-      return std::move(__sink)._M_finish();
+      return __format::__do_vformat_to_n(
+	       std::move(__out), __n, __fmt.get(),
+	       std::make_wformat_args(__args...));
     }
 #endif
 
@@ -5523,10 +5561,9 @@ namespace __format
     format_to_n(_Out __out, iter_difference_t<_Out> __n, const locale& __loc,
 		format_string<_Args...> __fmt, _Args&&... __args)
     {
-      __format::_Iter_sink<char, _Out> __sink(std::move(__out), __n);
-      std::vformat_to(__sink.out(), __loc, __fmt.get(),
-		      std::make_format_args(__args...));
-      return std::move(__sink)._M_finish();
+      return __format::__do_vformat_to_n(
+	       std::move(__out), __n, __fmt.get(),
+	       std::make_format_args(__args...), &__loc);
     }
 
 #ifdef _GLIBCXX_USE_WCHAR_T
@@ -5536,10 +5573,9 @@ namespace __format
     format_to_n(_Out __out, iter_difference_t<_Out> __n, const locale& __loc,
 		wformat_string<_Args...> __fmt, _Args&&... __args)
     {
-      __format::_Iter_sink<wchar_t, _Out> __sink(std::move(__out), __n);
-      std::vformat_to(__sink.out(), __loc, __fmt.get(),
-		      std::make_wformat_args(__args...));
-      return std::move(__sink)._M_finish();
+      return __format::__do_vformat_to_n(
+	       std::move(__out), __n, __fmt.get(),
+	       std::make_wformat_args(__args...), &__loc);
     }
 #endif
 
@@ -5548,10 +5584,10 @@ namespace __format
 {
 #if 1
   template<typename _CharT>
-    class _Counting_sink final : public _Iter_sink<_CharT, _CharT*>
+    class _Counting_sink final : public _Ptr_sink<_CharT>
     {
     public:
-      _Counting_sink() : _Iter_sink<_CharT, _CharT*>(nullptr, 0) { }
+      _Counting_sink() : _Ptr_sink<_CharT>(nullptr, 0) { }
 
       [[__gnu__::__always_inline__]]
       size_t
