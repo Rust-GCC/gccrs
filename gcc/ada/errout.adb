@@ -2950,8 +2950,8 @@ package body Errout is
       E          : Error_Msg_Id;
       Err_Flag   : Boolean;
 
-      Sarif_File_Name       : constant String :=
-        Get_First_Main_File_Name & ".gnat.sarif";
+      Sarif_File_Name : constant String :=
+        Strip_Directory (Get_First_Main_File_Name) & ".gnat.sarif";
 
       Printer : Erroutc.SARIF_Emitter.SARIF_Printer;
 

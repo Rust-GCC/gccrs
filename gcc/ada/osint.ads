@@ -181,6 +181,10 @@ package Osint is
    --  Strips the prefix directory name (if any) from Name. Returns the
    --  stripped name. Name cannot end with a directory separator.
 
+   function Strip_Directory (Name : String) return String;
+   --  Strips the prefix directory name (if any) from Name. Returns the
+   --  stripped name. Name cannot end with a directory separator.
+
    function Strip_Suffix (Name : File_Name_Type) return File_Name_Type;
    --  Strips the suffix (the last '.' and whatever comes after it) from Name.
    --  Returns the stripped name.

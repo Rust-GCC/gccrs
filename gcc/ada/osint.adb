@@ -3048,6 +3048,23 @@ package body Osint is
       return Name;
    end Strip_Directory;
 
+   ---------------------
+   -- Strip_Directory --
+   ---------------------
+
+   function Strip_Directory (Name : String) return String is
+   begin
+      pragma Assert (not Is_Directory_Separator (Name (Name'Last)));
+
+      for I in reverse Name'Range loop
+         if Is_Directory_Separator (Name (I)) then
+            return Name (I + 1 .. Name'Last);
+         end if;
+      end loop;
+
+      return Name;
+   end Strip_Directory;
+
    ------------------
    -- Strip_Suffix --
    ------------------
