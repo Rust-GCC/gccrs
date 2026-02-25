@@ -508,28 +508,6 @@ vect_def_types_match (enum vect_def_type dta, enum vect_def_type dtb)
 
 #define GATHER_SCATTER_OFFSET (-3)
 
-static const int no_arg_map[] = { 0 };
-static const int arg0_map[] = { 1, 0 };
-static const int arg2_map[] = { 1, 2 };
-static const int arg2_arg3_map[] = { 2, 2, 3 };
-static const int arg2_arg4_map[] = { 2, 2, 4 };
-static const int arg2_arg5_arg6_map[] = { 3, 2, 5, 6 };
-static const int arg2_arg4_arg5_map[] = { 3, 2, 4, 5 };
-static const int arg3_arg2_map[] = { 2, 3, 2 };
-static const int op1_op0_map[] = { 2, 1, 0 };
-static const int off_map[] = { 1, GATHER_SCATTER_OFFSET };
-static const int off_op0_map[] = { 2, GATHER_SCATTER_OFFSET, 0 };
-static const int off_arg2_arg3_map[] = { 3, GATHER_SCATTER_OFFSET, 2, 3 };
-static const int off_arg3_arg2_map[] = { 3, GATHER_SCATTER_OFFSET, 3, 2 };
-static const int mask_call_maps[6][7] = {
-  { 1, 1, },
-  { 2, 1, 2, },
-  { 3, 1, 2, 3, },
-  { 4, 1, 2, 3, 4, },
-  { 5, 1, 2, 3, 4, 5, },
-  { 6, 1, 2, 3, 4, 5, 6 },
-};
-
 /* For most SLP statements, there is a one-to-one mapping between
    gimple arguments and child nodes.  If that is not true for STMT,
    return an array that contains:
@@ -547,21 +525,53 @@ static const int *
 vect_get_operand_map (const gimple *stmt, bool gather_scatter_p = false,
 		      unsigned char swap = 0)
 {
+  static const int no_arg_map[] = { 0 };
+  static const int arg0_map[] = { 1, 0 };
+  static const int arg2_map[] = { 1, 2 };
+  static const int arg2_arg3_map[] = { 2, 2, 3 };
+  static const int arg2_arg4_map[] = { 2, 2, 4 };
+  static const int arg2_arg5_arg6_map[] = { 3, 2, 5, 6 };
+  static const int arg2_arg4_arg5_map[] = { 3, 2, 4, 5 };
+  static const int arg3_arg2_map[] = { 2, 3, 2 };
+  static const int op00_map[] = { 1, -1 };
+  static const int op1_op0_map[] = { 2, 1, 0 };
+  static const int off_map[] = { 1, GATHER_SCATTER_OFFSET };
+  static const int off_op0_map[] = { 2, GATHER_SCATTER_OFFSET, 0 };
+  static const int off_arg2_arg3_map[] = { 3, GATHER_SCATTER_OFFSET, 2, 3 };
+  static const int off_arg3_arg2_map[] = { 3, GATHER_SCATTER_OFFSET, 3, 2 };
+  static const int mask_call_maps[6][7] = {
+	{ 1, 1, },
+	{ 2, 1, 2, },
+	{ 3, 1, 2, 3, },
+	{ 4, 1, 2, 3, 4, },
+	{ 5, 1, 2, 3, 4, 5, },
+	{ 6, 1, 2, 3, 4, 5, 6 },
+  };
+
+  gcc_checking_assert (!swap
+		       || !is_gimple_assign (stmt)
+		       || TREE_CODE_CLASS
+			    (gimple_assign_rhs_code (stmt)) == tcc_comparison
+		       || commutative_tree_code
+			    (gimple_assign_rhs_code (stmt)));
+
   if (auto assign = dyn_cast<const gassign *> (stmt))
     {
-      if (gimple_assign_rhs_code (assign) == COND_EXPR
+      tree_code code = gimple_assign_rhs_code (assign);
+      if (code == COND_EXPR
 	  && COMPARISON_CLASS_P (gimple_assign_rhs1 (assign)))
 	gcc_unreachable ();
-      if ((TREE_CODE_CLASS (gimple_assign_rhs_code (assign)) == tcc_comparison
-	   || commutative_tree_code (gimple_assign_rhs_code (assign)))
-	  && swap)
+      else if ((TREE_CODE_CLASS (code) == tcc_comparison
+		|| commutative_tree_code (code))
+	       && swap)
 	return op1_op0_map;
-      if (gather_scatter_p)
+      else if (code == VIEW_CONVERT_EXPR)
+	return op00_map;
+      else if (gather_scatter_p)
 	return (TREE_CODE (gimple_assign_lhs (assign)) != SSA_NAME
 		? off_op0_map : off_map);
     }
-  gcc_assert (!swap);
-  if (auto call = dyn_cast<const gcall *> (stmt))
+  else if (auto call = dyn_cast<const gcall *> (stmt))
     {
       if (gimple_call_internal_p (call))
 	switch (gimple_call_internal_fn (call))
@@ -737,8 +747,6 @@ vect_get_and_check_slp_defs (vec_info *vinfo, tree vectype, unsigned char swap,
 					    gimple_bb (stmt_info->stmt)));
 	    }
 	}
-      if (TREE_CODE (oprnd) == VIEW_CONVERT_EXPR)
-	oprnd = TREE_OPERAND (oprnd, 0);
 
       stmt_vec_info def_stmt_info;
       if (!vect_is_simple_use (oprnd, vinfo, &dts[i], &def_stmt_info))
