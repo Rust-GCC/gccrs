@@ -367,8 +367,9 @@ TopLevel::visit (AST::Union &union_item)
 void
 TopLevel::visit (AST::ConstantItem &const_item)
 {
-  insert_or_error_out (const_item.get_identifier (), const_item,
-		       Namespace::Values);
+  if (const_item.get_identifier ().as_string () != Values::Keywords::UNDERSCORE)
+    insert_or_error_out (const_item.get_identifier (), const_item,
+			 Namespace::Values);
 
   DefaultResolver::visit (const_item);
 }
