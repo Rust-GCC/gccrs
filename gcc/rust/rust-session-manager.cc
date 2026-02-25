@@ -681,6 +681,12 @@ Session::compile_crate (const char *filename)
 			 std::string (Values::Attributes::NO_CORE)))
     {
       parsed_crate.inject_extern_crate ("core");
+      // #![no_core] implies #![no_std]
+      if (!has_attribute (parsed_crate,
+			  std::string (Values::Attributes::NO_STD)))
+	{
+	  parsed_crate.inject_extern_crate ("std");
+	}
     }
 
   if (last_step == CompileOptions::CompileStep::Expansion)
