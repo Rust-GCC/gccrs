@@ -38,6 +38,7 @@ public:
   static constexpr auto &LANG = "lang";
   static constexpr auto &LINK_NAME = "link_name";
   static constexpr auto &NO_CORE = "no_core";
+  static constexpr auto &NO_STD = "no_std";
   static constexpr auto &LINK_SECTION = "link_section";
   static constexpr auto &NO_MANGLE = "no_mangle";
   static constexpr auto &EXPORT_NAME = "export_name";
