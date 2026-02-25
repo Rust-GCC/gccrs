@@ -7774,8 +7774,7 @@ package body Sem_Res is
       --  Given that we don't know yet if secondary stack management will
       --  be needed, we assume the worst case.
 
-      if not Preanalysis_Active
-        and then not GNATprove_Mode
+      if Expander_Active
         and then (Requires_Transient_Scope (Typ)
                     or else Has_Sec_Stack_Call (Expr))
       then
