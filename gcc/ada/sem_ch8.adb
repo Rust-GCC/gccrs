@@ -8163,7 +8163,8 @@ package body Sem_Ch8 is
                Old_S := Entity (Nam);
             end if;
 
-         elsif Present (First_Formal (Entity (Nam)))
+         elsif Can_Have_Formals (Entity (Nam))
+           and then Present (First_Formal (Entity (Nam)))
            and then Present (First_Formal (New_S))
            and then Base_Type (Etype (First_Formal (Entity (Nam)))) =
                     Base_Type (Etype (First_Formal (New_S)))
