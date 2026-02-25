@@ -559,10 +559,8 @@ CompileExpr::visit (HIR::StructExprStructFields &struct_expr)
       rust_assert (ok);
     }
 
-  // compile it
-  tree compiled_adt_type = TyTyResolveCompile::compile (ctx, tyty);
-
   std::vector<tree> arguments;
+
   if (adt->is_union ())
     {
       rust_assert (struct_expr.get_fields ().size () == 1);
@@ -595,17 +593,42 @@ CompileExpr::visit (HIR::StructExprStructFields &struct_expr)
     }
   else
     {
-      // this assumes all fields are in order from type resolution and if a
-      // base struct was specified those fields are filed via accessors
+      std::vector<TyTy::StructFieldType *> ordered_variant_fields;
+
       for (size_t i = 0; i < struct_expr.get_fields ().size (); i++)
 	{
+	  std::string field_name;
+	  const auto &argument = struct_expr.get_fields ().at (i);
+	  switch (argument->get_kind ())
+	    {
+	    case HIR::StructExprField::StructExprFieldKind::IDENTIFIER:
+	      field_name
+		= (static_cast<HIR::StructExprFieldIdentifier &> (*argument))
+		    .get_field_name ();
+	      break;
+
+	    case HIR::StructExprField::StructExprFieldKind::IDENTIFIER_VALUE:
+	      field_name = (static_cast<HIR::StructExprFieldIdentifierValue &> (
+			      *argument))
+			     .get_field_name ();
+	      break;
+
+	    case HIR::StructExprField::StructExprFieldKind::INDEX_VALUE:
+	      field_name = std::to_string (
+		(static_cast<HIR::StructExprFieldIndexValue &> (*argument))
+		  .get_tuple_index ());
+	      break;
+	    }
 	  // assignments are coercion sites so lets convert the rvalue if
 	  // necessary
-	  auto respective_field = variant->get_field_at_index (i);
+	  TyTy::StructFieldType *respective_field = nullptr;
+	  auto _ok
+	    = variant->lookup_field (field_name, &respective_field, nullptr);
+	  rust_assert (_ok);
+
+	  ordered_variant_fields.push_back (respective_field);
 	  auto expected = respective_field->get_field_type ();
 
-	  // process arguments
-	  auto &argument = struct_expr.get_fields ().at (i);
 	  auto lvalue_locus
 	    = ctx->get_mappings ().lookup_location (expected->get_ty_ref ());
 	  auto rvalue_locus = argument->get_locus ();
@@ -616,7 +639,7 @@ CompileExpr::visit (HIR::StructExprStructFields &struct_expr)
 	    argument->get_mappings ().get_hirid (), &actual);
 
 	  // coerce it if required/possible see
-	  // compile/torture/struct_base_init_1.rs
+	  // compile/torture/struct_base_init.rs
 	  if (ok)
 	    {
 	      rvalue
@@ -627,7 +650,20 @@ CompileExpr::visit (HIR::StructExprStructFields &struct_expr)
 	  // add it to the list
 	  arguments.push_back (rvalue);
 	}
+      // We evaluate field expressions in the order they are found, not in the
+      // order of their declaration, so we reorder the field types according to
+      // their values and use this correspondence to compile field expressions
+      // and the ADT type itself. Note that we do not overwrite the fields in
+      // the original ADT variant type because if the struct fields have a base
+      // struct, they will be evaluated in the order of the base struct's
+      // evaluation, which is incorrect.
+      auto _adt = static_cast<TyTy::ADTType *> (adt->clone ());
+      _adt->get_variants ()[0]->get_fields () = ordered_variant_fields;
+      tyty = _adt;
     }
+
+  // compile it
+  tree compiled_adt_type = TyTyResolveCompile::compile (ctx, tyty);
 
   if (!adt->is_enum ())
     {
