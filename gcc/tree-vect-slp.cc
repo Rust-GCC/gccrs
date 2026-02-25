@@ -9393,197 +9393,110 @@ vect_bb_partition_graph (bb_vec_info bb_vinfo)
     }
 }
 
-/* Compute the set of scalar stmts participating in internal and external
-   nodes.  */
-
-static void
-vect_slp_gather_vectorized_scalar_stmts (vec_info *vinfo, slp_tree node,
-					 hash_set<slp_tree> &visited,
-					 hash_set<stmt_vec_info> &vstmts,
-					 hash_set<stmt_vec_info> &estmts)
-{
-  int i;
-  stmt_vec_info stmt_info;
-  slp_tree child;
-
-  if (visited.add (node))
-    return;
-
-  if (SLP_TREE_DEF_TYPE (node) == vect_internal_def)
-    {
-      FOR_EACH_VEC_ELT (SLP_TREE_SCALAR_STMTS (node), i, stmt_info)
-	if (stmt_info)
-	  vstmts.add (stmt_info);
-
-      FOR_EACH_VEC_ELT (SLP_TREE_CHILDREN (node), i, child)
-	if (child)
-	  vect_slp_gather_vectorized_scalar_stmts (vinfo, child, visited,
-						   vstmts, estmts);
-    }
-  else
-    for (tree def : SLP_TREE_SCALAR_OPS (node))
-      {
-	stmt_vec_info def_stmt = vinfo->lookup_def (def);
-	if (def_stmt)
-	  estmts.add (def_stmt);
-      }
-}
-
-
 /* Compute the scalar cost of the SLP node NODE and its children
    and return it.  Do not account defs that are marked in LIFE and
    update LIFE according to uses of NODE.  */
 
 static void
-vect_bb_slp_scalar_cost (vec_info *vinfo,
-			 slp_tree node, vec<bool, va_heap> *life,
+vect_bb_slp_scalar_cost (bb_vec_info vinfo,
+			 vec<stmt_vec_info> &worklist,
 			 stmt_vector_for_cost *cost_vec,
-			 hash_set<stmt_vec_info> &vectorized_scalar_stmts,
-			 hash_set<stmt_vec_info> &scalar_stmts_in_externs,
-			 hash_set<slp_tree> &visited)
+			 hash_set<stmt_vec_info> &visited)
 {
-  unsigned i;
-  stmt_vec_info stmt_info;
-  slp_tree child;
-
-  if (visited.add (node))
-    return;
-
-  FOR_EACH_VEC_ELT (SLP_TREE_SCALAR_STMTS (node), i, stmt_info)
+  while (!worklist.is_empty ())
     {
-      ssa_op_iter op_iter;
-      def_operand_p def_p;
-
-      if (!stmt_info
-	  || (*life)[i]
-	  /* Defs also used in external nodes are not in the
-	     vectorized_scalar_stmts set as they need to be preserved.
-	     Honor that.  */
-	  || scalar_stmts_in_externs.contains (stmt_info))
+      stmt_vec_info stmt = worklist.pop ();
+      if (!PURE_SLP_STMT (stmt))
 	continue;
 
-      stmt_vec_info orig_stmt_info = vect_orig_stmt (stmt_info);
-      gimple *orig_stmt = orig_stmt_info->stmt;
-
-      /* If there is a non-vectorized use of the defs then the scalar
-         stmt is kept live in which case we do not account it or any
-	 required defs in the SLP children in the scalar cost.  This
-	 way we make the vectorization more costly when compared to
-	 the scalar cost.  */
-      if (!STMT_VINFO_LIVE_P (stmt_info))
+      /* When the stmt is live but not actually vectorized we have
+	 to keep the feeding scalar defs.  */
+      if (!STMT_VINFO_LIVE_P (vect_stmt_to_vectorize (stmt)))
 	{
-	  auto_vec<gimple *, 8> worklist;
-	  hash_set<gimple *> *worklist_visited = NULL;
-	  worklist.quick_push (orig_stmt);
-	  do
+	  bool live_p = false;
+	  ssa_op_iter op_iter;
+	  def_operand_p def_p;
+	  FOR_EACH_PHI_OR_STMT_DEF (def_p, stmt->stmt, op_iter, SSA_OP_DEF)
 	    {
-	      gimple *work_stmt = worklist.pop ();
-	      FOR_EACH_PHI_OR_STMT_DEF (def_p, work_stmt, op_iter, SSA_OP_DEF)
-		{
-		  imm_use_iterator use_iter;
-		  gimple *use_stmt;
-		  FOR_EACH_IMM_USE_STMT (use_stmt, use_iter,
-					 DEF_FROM_PTR (def_p))
-		    if (!is_gimple_debug (use_stmt))
+	      imm_use_iterator use_iter;
+	      gimple *use_stmt;
+	      FOR_EACH_IMM_USE_STMT (use_stmt, use_iter, DEF_FROM_PTR (def_p))
+		if (!is_gimple_debug (use_stmt))
+		  {
+		    stmt_vec_info use_stmt_info = vinfo->lookup_stmt (use_stmt);
+		    if (!use_stmt_info || !PURE_SLP_STMT (use_stmt_info))
 		      {
-			stmt_vec_info use_stmt_info
-			  = vinfo->lookup_stmt (use_stmt);
-			if (!use_stmt_info
-			    || !vectorized_scalar_stmts.contains (use_stmt_info))
+			if (dump_enabled_p ())
 			  {
-			    if (use_stmt_info
-				&& STMT_VINFO_IN_PATTERN_P (use_stmt_info))
-			      {
-				/* For stmts participating in patterns we have
-				   to check its uses recursively.  */
-				if (!worklist_visited)
-				  worklist_visited = new hash_set<gimple *> ();
-				if (!worklist_visited->add (use_stmt))
-				  worklist.safe_push (use_stmt);
-				continue;
-			      }
-			    (*life)[i] = true;
-			    goto next_lane;
+			    dump_printf_loc (MSG_NOTE, vect_location,
+					     "stmt considered live: %G",
+					     stmt->stmt);
+			    dump_printf_loc (MSG_NOTE, vect_location,
+					     "because of use in: %G",
+					     use_stmt);
 			  }
+			live_p = true;
 		      }
-		}
+		  }
 	    }
-	  while (!worklist.is_empty ());
-next_lane:
-	  if (worklist_visited)
-	    delete worklist_visited;
-	  if ((*life)[i])
+	  if (live_p)
 	    continue;
 	}
 
-      /* Count scalar stmts only once.  */
-      if (gimple_visited_p (orig_stmt))
-	continue;
-      gimple_set_visited (orig_stmt, true);
+      gcc_assert (!gimple_visited_p (stmt->stmt));
 
-      vect_cost_for_stmt kind;
-      if (STMT_VINFO_DATA_REF (orig_stmt_info))
+      gcc_assert (vect_orig_stmt (stmt) == stmt);
+      stmt_vec_info orig_stmt_info = stmt;
+
+      do
 	{
-	  data_reference_p dr = STMT_VINFO_DATA_REF (orig_stmt_info);
-	  tree base = get_base_address (DR_REF (dr));
-	  /* When the scalar access is to a non-global not address-taken
-	     decl that is not BLKmode assume we can access it with a single
-	     non-load/store instruction.  */
-	  if (DECL_P (base)
-	      && !is_global_var (base)
-	      && !TREE_ADDRESSABLE (base)
-	      && DECL_MODE (base) != BLKmode)
+	  vect_cost_for_stmt kind;
+	  if (STMT_VINFO_DATA_REF (orig_stmt_info))
+	    {
+	      data_reference_p dr = STMT_VINFO_DATA_REF (orig_stmt_info);
+	      tree base = get_base_address (DR_REF (dr));
+	      /* When the scalar access is to a non-global not
+		 address-taken decl that is not BLKmode assume we can
+		 access it with a single non-load/store instruction.  */
+	      if (DECL_P (base)
+		  && !is_global_var (base)
+		  && !TREE_ADDRESSABLE (base)
+		  && DECL_MODE (base) != BLKmode)
+		kind = scalar_stmt;
+	      else if (DR_IS_READ (STMT_VINFO_DATA_REF (orig_stmt_info)))
+		kind = scalar_load;
+	      else
+		kind = scalar_store;
+	    }
+	  else if (vect_nop_conversion_p (orig_stmt_info))
+	    continue;
+	  /* For single-argument PHIs assume coalescing which means zero
+	     cost for the scalar and the vector PHIs.  This avoids
+	     artificially favoring the vector path (but may pessimize it
+	     in some cases).  */
+	  else if (is_a <gphi *> (orig_stmt_info->stmt)
+		   && gimple_phi_num_args
+		   (as_a <gphi *> (orig_stmt_info->stmt)) == 1)
+	    continue;
+	  else
 	    kind = scalar_stmt;
-	  else if (DR_IS_READ (STMT_VINFO_DATA_REF (orig_stmt_info)))
-	    kind = scalar_load;
-	  else
-	    kind = scalar_store;
-	}
-      else if (vect_nop_conversion_p (orig_stmt_info))
-	continue;
-      /* For single-argument PHIs assume coalescing which means zero cost
-	 for the scalar and the vector PHIs.  This avoids artificially
-	 favoring the vector path (but may pessimize it in some cases).  */
-      else if (is_a <gphi *> (orig_stmt_info->stmt)
-	       && gimple_phi_num_args
-		    (as_a <gphi *> (orig_stmt_info->stmt)) == 1)
-	continue;
-      else
-	kind = scalar_stmt;
-      record_stmt_cost (cost_vec, 1, kind, orig_stmt_info,
-			NULL_TREE, 0, vect_body);
-    }
+	  gimple_set_visited (stmt->stmt, true);
+	  record_stmt_cost (cost_vec, 1, kind, orig_stmt_info,
+			    NULL_TREE, 0, vect_body);
+	} while (false);
 
-  auto_vec<bool, 20> subtree_life;
-  FOR_EACH_VEC_ELT (SLP_TREE_CHILDREN (node), i, child)
-    {
-      if (child && SLP_TREE_DEF_TYPE (child) == vect_internal_def)
+      /* Now walk relevant parts of the SSA use-def graph.  */
+      slp_oprnds child_ops (stmt);
+      for (unsigned i = 0; i < child_ops.num_slp_children; ++i)
 	{
-	  /* Do not directly pass LIFE to the recursive call, copy it to
-	     confine changes in the callee to the current child/subtree.  */
-	  if (SLP_TREE_PERMUTE_P (node))
-	    {
-	      subtree_life.safe_grow_cleared (SLP_TREE_LANES (child), true);
-	      for (unsigned j = 0;
-		   j < SLP_TREE_LANE_PERMUTATION (node).length (); ++j)
-		{
-		  auto perm = SLP_TREE_LANE_PERMUTATION (node)[j];
-		  if (perm.first == i)
-		    subtree_life[perm.second] = (*life)[j];
-		}
-	    }
-	  else
-	    {
-	      gcc_assert (SLP_TREE_LANES (node) == SLP_TREE_LANES (child));
-	      subtree_life.safe_splice (*life);
-	    }
-	  vect_bb_slp_scalar_cost (vinfo, child, &subtree_life, cost_vec,
-				   vectorized_scalar_stmts,
-				   scalar_stmts_in_externs, visited);
-	  subtree_life.truncate (0);
+	  tree op = child_ops.get_op_for_slp_child (stmt, i);
+	  stmt_vec_info def = vinfo->lookup_def (op);
+	  if (def && !visited.add (def))
+	    worklist.safe_push (def);
 	}
     }
 }
+
 
 /* Comparator for the loop-index sorted cost vectors.  */
 
@@ -9621,47 +9534,27 @@ vect_bb_vectorization_profitable_p (bb_vec_info bb_vinfo,
 			      SLP_INSTANCE_TREE (instance), visited);
     }
 
-  /* Compute the set of scalar stmts we know will go away 'locally' when
-     vectorizing.  This used to be tracked with just PURE_SLP_STMT but that's
-     not accurate for nodes promoted extern late or for scalar stmts that
-     are used both in extern defs and in vectorized defs.  */
-  hash_set<stmt_vec_info> vectorized_scalar_stmts;
-  hash_set<stmt_vec_info> scalar_stmts_in_externs;
-  hash_set<slp_tree> visited;
-  FOR_EACH_VEC_ELT (slp_instances, i, instance)
-    {
-      vect_slp_gather_vectorized_scalar_stmts (bb_vinfo,
-					       SLP_INSTANCE_TREE (instance),
-					       visited,
-					       vectorized_scalar_stmts,
-					       scalar_stmts_in_externs);
-      for (stmt_vec_info rstmt : SLP_INSTANCE_ROOT_STMTS (instance))
-	vectorized_scalar_stmts.add (rstmt);
-    }
-  /* Scalar stmts used as defs in external nodes need to be preseved, so
-     remove them from vectorized_scalar_stmts.  */
-  for (stmt_vec_info stmt : scalar_stmts_in_externs)
-    vectorized_scalar_stmts.remove (stmt);
-
-  /* Calculate scalar cost and sum the cost for the vector stmts
-     previously collected.  */
+  /* Then DFS walk scalar stmts, performing costing and handling
+     still live scalar stmts via the previously computed vector coverage.  */
   stmt_vector_for_cost scalar_costs = vNULL;
   stmt_vector_for_cost vector_costs = vNULL;
-  visited.empty ();
+  hash_set<slp_tree> visited;
+  hash_set<stmt_vec_info> svisited;
   FOR_EACH_VEC_ELT (slp_instances, i, instance)
     {
-      auto_vec<bool, 20> life;
-      life.safe_grow_cleared (SLP_TREE_LANES (SLP_INSTANCE_TREE (instance)),
-			      true);
-      if (!SLP_INSTANCE_ROOT_STMTS (instance).is_empty ())
+      auto_vec<stmt_vec_info> worklist;
+      if (SLP_INSTANCE_ROOT_STMTS (instance).exists ())
 	record_stmt_cost (&scalar_costs,
 			  SLP_INSTANCE_ROOT_STMTS (instance).length (),
 			  scalar_stmt,
 			  SLP_INSTANCE_ROOT_STMTS (instance)[0], 0, vect_body);
-      vect_bb_slp_scalar_cost (bb_vinfo,
-			       SLP_INSTANCE_TREE (instance),
-			       &life, &scalar_costs, vectorized_scalar_stmts,
-			       scalar_stmts_in_externs, visited);
+      for (auto stmt : SLP_TREE_SCALAR_STMTS (SLP_INSTANCE_TREE (instance)))
+	{
+	  stmt = vect_orig_stmt (stmt);
+	  if (!svisited.add (stmt))
+	    worklist.safe_push (stmt);
+	}
+      vect_bb_slp_scalar_cost (bb_vinfo, worklist, &scalar_costs, svisited);
       vector_costs.safe_splice (instance->cost_vec);
       instance->cost_vec.release ();
     }
