@@ -25658,7 +25658,7 @@ aarch64_choose_vector_init_constant (machine_mode mode, rtx vals)
    The caller has already tried a divide-and-conquer approach, so do
    not consider that case here.  */
 
-void
+static void
 aarch64_expand_vector_init_fallback (rtx target, rtx vals)
 {
   machine_mode mode = GET_MODE (target);
@@ -25714,6 +25714,43 @@ aarch64_expand_vector_init_fallback (rtx target, rtx vals)
       rtx x = force_reg (inner_mode, v0);
       aarch64_emit_move (target, gen_vec_duplicate (mode, x));
       return;
+    }
+
+  /* Check if the vector can be represented as a duplicate of a
+     subvector starting at index 0.  */
+  if (pow2p_hwi (n_elts))
+    {
+	bool halves_equal = true;
+	int n_seq = n_elts;
+	while (n_seq > 2)
+	  {
+	    for (int i = 0; i < n_seq / 2; i++)
+	      if (!rtx_equal_p (XVECEXP (vals, 0, i),
+				XVECEXP (vals, 0, i + n_seq / 2)))
+		{
+		  halves_equal = false;
+		  break;
+		}
+
+	    if (!halves_equal)
+	      break;
+
+	    n_seq /= 2;
+	  }
+
+	if (n_seq != n_elts)
+	  {
+	    machine_mode subv_mode = mode_for_vector (inner_mode,
+						      n_seq).require ();
+	    rtx new_target = gen_reg_rtx (subv_mode);
+	    rtvec new_vals = rtvec_alloc (n_seq);
+	    for (int i = 0; i < n_seq; i++)
+	      RTVEC_ELT (new_vals, i) = XVECEXP (vals, 0, i);
+	    aarch64_expand_vector_init (new_target,
+					gen_rtx_PARALLEL (subv_mode, new_vals));
+	    aarch64_emit_move (target, gen_vec_duplicate (mode, new_target));
+	    return;
+	  }
     }
 
   enum insn_code icode = optab_handler (vec_set_optab, mode);
@@ -25875,7 +25912,8 @@ scalar_move_insn_p (rtx set)
   rtx src = SET_SRC (set);
   rtx dest = SET_DEST (set);
   return (is_a<scalar_mode> (GET_MODE (dest))
-	  && aarch64_mov_operand (src, GET_MODE (dest)));
+	  && aarch64_mov_operand (src, GET_MODE (dest)))
+	 || aarch64_advsimd_sub_dword_mode_p (GET_MODE (dest));
 }
 
 /* Similar to seq_cost, but ignore cost for scalar moves.  */

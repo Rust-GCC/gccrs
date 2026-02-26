@@ -137,6 +137,28 @@
   }
 )
 
+(define_insn "*aarch64_simd_dup_subvector<vconq><mode>"
+  [(set (match_operand:<VCONQ> 0 "register_operand")
+	(vec_duplicate:<VCONQ>
+	  (match_operand:VQDUP 1 "register_operand")))]
+  "TARGET_SIMD"
+  {@ [ cons: =0 , 1 ; attrs: type    ]
+     [ w        , w ; neon_dup_q     ] dup\t%0.<Vqduptype>, %1.<vstype>[0]
+     [ w        , r ; neon_from_gp_q ] dup\t%0.<Vqduptype>, %<single_wx>1
+  }
+)
+
+(define_insn "*aarch64_simd_dup_subvector<vcond><mode>"
+  [(set (match_operand:<VCOND> 0 "register_operand")
+	(vec_duplicate:<VCOND>
+	  (match_operand:VDDUP 1 "register_operand")))]
+  "TARGET_SIMD"
+  {@ [ cons: =0 , 1 ; attrs: type  ]
+     [ w        , w ; neon_dup     ] dup\t%0.<Vdduptype>, %1.<vstype>[0]
+     [ w        , r ; neon_from_gp ] dup\t%0.<Vdduptype>, %<single_wx>1
+  }
+)
+
 (define_insn "@aarch64_dup_lane<mode>"
   [(set (match_operand:VALL_F16 0 "register_operand" "=w")
 	(vec_duplicate:VALL_F16
@@ -1291,6 +1313,32 @@
   [(set_attr "type" "neon_ins<q>, neon_from_gp<q>, neon_load1_one_lane<q>")]
 )
 
+(define_insn "@aarch64_simd_vec_set<mode>"
+  [(set (match_operand:VSUB64 0 "register_operand" "=r,w,w")
+	(vec_merge:VSUB64
+	    (vec_duplicate:VSUB64
+		(match_operand:<VEL> 1 "aarch64_simd_nonimmediate_operand" "r,w,Utv"))
+	    (match_operand:VSUB64 3 "register_operand" "0,0,0")
+	    (match_operand:SI 2 "immediate_operand" "i,i,i")))]
+  "TARGET_SIMD && exact_log2 (INTVAL (operands[2])) >= 0"
+  {
+    int elt = exact_log2 (INTVAL (operands[2]));
+    switch (which_alternative)
+      {
+      case 0:
+	operands[2] = GEN_INT (elt * <elem_bits>);
+	return "bfi\t%w0, %w1, %2, <elem_bits>";
+      case 1:
+	return "ins\t%0.<Vetype>[%p2], %1.<Vetype>[0]";
+      case 2:
+	return "ld1\t{%0.<Vetype>}[%p2], %1";
+      default:
+	gcc_unreachable ();
+      }
+  }
+  [(set_attr "type" "bfm, neon_ins, neon_load1_one_lane")]
+)
+
 ;; Inserting from the zero register into a vector lane is treated as an
 ;; expensive GP->FP move on all CPUs.  Avoid it when optimizing for speed.
 (define_insn "aarch64_simd_vec_set_zero<mode>"
@@ -1720,7 +1768,7 @@
 )
 
 (define_expand "vec_set<mode>"
-  [(match_operand:VALL_F16 0 "register_operand")
+  [(match_operand:VALL_F16_SUB64 0 "register_operand")
    (match_operand:<VEL> 1 "aarch64_simd_nonimmediate_operand")
    (match_operand:SI 2 "immediate_operand")]
   "TARGET_SIMD"
