@@ -640,6 +640,41 @@ vect_slp_child_index_for_operand (const stmt_vec_info stmt, int op)
   gcc_unreachable ();
 }
 
+/* Helper class for mapping of GIMPLE operands to SLP children.  */
+/* ???  Add vect_slp_child_index_for_operand here and amend opmaps
+   with the full reverse mapping and indicating the position of the
+   first commutative operand index, eliding the swap_p argument from
+   vect_get_operand_map.  Adjust all consumers.  */
+
+struct slp_oprnds {
+  slp_oprnds (stmt_vec_info);
+  tree get_op_for_slp_child (stmt_vec_info, unsigned);
+  const int *opmap;
+  const unsigned int num_slp_children;
+};
+
+slp_oprnds::slp_oprnds (stmt_vec_info stmt_info)
+  : opmap (vect_get_operand_map (stmt_info)),
+    num_slp_children (opmap ? opmap[0] : gimple_num_args (stmt_info->stmt))
+{
+}
+
+/* For SLP child number N get the corresponding tree operand from GIMPLE
+   statement described by STMT_INFO.  */
+
+tree
+slp_oprnds::get_op_for_slp_child (stmt_vec_info stmt_info, unsigned n)
+{
+  gcc_assert (n < num_slp_children);
+  int opno = opmap ? opmap[n + 1] : (int) n;
+  if (opno == GATHER_SCATTER_OFFSET)
+    gcc_unreachable (); // TODO
+  else if (opno < 0)
+    return TREE_OPERAND (gimple_arg (stmt_info->stmt, 0), -1 - opno);
+  else
+    return gimple_arg (stmt_info->stmt, opno);
+}
+
 /* Get the defs for the rhs of STMT (collect them in OPRNDS_INFO), check that
    they are of a valid type and that they match the defs of the first stmt of
    the SLP group (stored in OPRNDS_INFO).  This function tries to match stmts
