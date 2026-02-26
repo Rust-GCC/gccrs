@@ -2836,8 +2836,7 @@ vect_check_store_rhs (vec_info *vinfo, stmt_vec_info stmt_info,
 	  && internal_store_fn_p (gimple_call_internal_fn (call)))
 	op_no = internal_fn_stored_value_index (gimple_call_internal_fn (call));
     }
-  op_no = vect_slp_child_index_for_operand
-	    (stmt_info->stmt, op_no, STMT_VINFO_GATHER_SCATTER_P (stmt_info));
+  op_no = vect_slp_child_index_for_operand (stmt_info, op_no);
 
   enum vect_def_type rhs_dt;
   tree rhs_vectype;
@@ -4162,9 +4161,8 @@ vectorizable_simd_clone_call (vec_info *vinfo, stmt_vec_info stmt_info,
       thisarginfo.op = NULL_TREE;
       thisarginfo.simd_lane_linear = false;
 
-      int op_no = vect_slp_child_index_for_operand (stmt,
-						    i + masked_call_offset,
-						    false);
+      int op_no = vect_slp_child_index_for_operand (stmt_info,
+						    i + masked_call_offset);
       if (!vect_is_simple_use (vinfo, slp_node,
 			       op_no, &op, &slp_op[i],
 			       &thisarginfo.dt, &thisarginfo.vectype)
@@ -8179,8 +8177,7 @@ vectorizable_store (vec_info *vinfo,
 
       int mask_index = internal_fn_mask_index (ifn);
       if (mask_index >= 0)
-	mask_index = vect_slp_child_index_for_operand
-		    (call, mask_index, STMT_VINFO_GATHER_SCATTER_P (stmt_info));
+	mask_index = vect_slp_child_index_for_operand (stmt_info, mask_index);
       if (mask_index >= 0
 	  && !vect_check_scalar_mask (vinfo, slp_node, mask_index,
 				      &mask_node, &mask_dt,
@@ -9765,8 +9762,7 @@ vectorizable_load (vec_info *vinfo,
 
       mask_index = internal_fn_mask_index (ifn);
       if (mask_index >= 0)
-	mask_index = vect_slp_child_index_for_operand
-		    (call, mask_index, STMT_VINFO_GATHER_SCATTER_P (stmt_info));
+	mask_index = vect_slp_child_index_for_operand (stmt_info, mask_index);
       if (mask_index >= 0
 	  && !vect_check_scalar_mask (vinfo, slp_node, mask_index,
 				      &mask_node, &mask_dt, &mask_vectype))
@@ -9774,8 +9770,7 @@ vectorizable_load (vec_info *vinfo,
 
       els_index = internal_fn_else_index (ifn);
       if (els_index >= 0)
-	els_index = vect_slp_child_index_for_operand
-	  (call, els_index, STMT_VINFO_GATHER_SCATTER_P (stmt_info));
+	els_index = vect_slp_child_index_for_operand (stmt_info, els_index);
       if (els_index >= 0
 	  && !vect_is_simple_use (vinfo, slp_node, els_index,
 				  &els, &els_op, &els_dt, &els_vectype))

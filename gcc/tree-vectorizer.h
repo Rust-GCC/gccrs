@@ -2768,7 +2768,7 @@ extern int vect_get_place_in_interleaving_chain (stmt_vec_info, stmt_vec_info);
 extern slp_tree vect_create_new_slp_node (unsigned, tree_code);
 extern void vect_free_slp_tree (slp_tree);
 extern bool compatible_calls_p (gcall *, gcall *, bool);
-extern int vect_slp_child_index_for_operand (const gimple *, int op, bool);
+extern int vect_slp_child_index_for_operand (const stmt_vec_info, int op);
 
 extern tree prepare_vec_mask (loop_vec_info, tree, tree, tree,
 			      gimple_stmt_iterator *);

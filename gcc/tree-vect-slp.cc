@@ -522,8 +522,8 @@ vect_def_types_match (enum vect_def_type dta, enum vect_def_type dtb)
    SWAP is as for vect_get_and_check_slp_defs.  */
 
 static const int *
-vect_get_operand_map (const gimple *stmt, bool gather_scatter_p = false,
-		      unsigned char swap = 0)
+vect_get_operand_map (const gimple *stmt, bool gather_scatter_p,
+		      unsigned char swap)
 {
   static const int no_arg_map[] = { 0 };
   static const int arg0_map[] = { 1, 0 };
@@ -619,13 +619,19 @@ vect_get_operand_map (const gimple *stmt, bool gather_scatter_p = false,
   return nullptr;
 }
 
+static const int *
+vect_get_operand_map (const stmt_vec_info stmt, unsigned char swap = 0)
+{
+  return vect_get_operand_map (stmt->stmt, STMT_VINFO_GATHER_SCATTER_P (stmt),
+			       swap);
+}
+
 /* Return the SLP node child index for operand OP of STMT.  */
 
 int
-vect_slp_child_index_for_operand (const gimple *stmt, int op,
-				  bool gather_scatter_p)
+vect_slp_child_index_for_operand (const stmt_vec_info stmt, int op)
 {
-  const int *opmap = vect_get_operand_map (stmt, gather_scatter_p);
+  const int *opmap = vect_get_operand_map (stmt);
   if (!opmap)
     return op;
   for (int i = 1; i < 1 + opmap[0]; ++i)
@@ -677,9 +683,7 @@ vect_get_and_check_slp_defs (vec_info *vinfo, tree vectype, unsigned char swap,
     return -1;
 
   number_of_oprnds = gimple_num_args (stmt_info->stmt);
-  const int *map
-    = vect_get_operand_map (stmt_info->stmt,
-			    STMT_VINFO_GATHER_SCATTER_P (stmt_info), swap);
+  const int *map = vect_get_operand_map (stmt_info, swap);
   if (map)
     number_of_oprnds = *map++;
   if (gcall *stmt = dyn_cast <gcall *> (stmt_info->stmt))
@@ -1035,7 +1039,7 @@ compatible_calls_p (gcall *call1, gcall *call2, bool allow_two_operators)
     }
 
   /* Check that any unvectorized arguments are equal.  */
-  if (const int *map = vect_get_operand_map (call1))
+  if (const int *map = vect_get_operand_map (call1, false, false))
     {
       unsigned int nkept = *map++;
       unsigned int mapi = 0;
@@ -1990,9 +1994,7 @@ vect_build_slp_tree_2 (vec_info *vinfo, slp_tree node,
     return NULL;
 
   nops = gimple_num_args (stmt_info->stmt);
-  if (const int *map = vect_get_operand_map (stmt_info->stmt,
-					     STMT_VINFO_GATHER_SCATTER_P
-					       (stmt_info)))
+  if (const int *map = vect_get_operand_map (stmt_info))
     nops = map[0];
 
   /* If the SLP node is a PHI (induction or reduction), terminate
