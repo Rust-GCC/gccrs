@@ -10932,9 +10932,14 @@ package body Sem_Ch6 is
    procedure Install_Entity (E : Entity_Id) is
       Prev : constant Entity_Id := Current_Entity (E);
    begin
+      if Prev = E then
+         --  avoid creating a Homonym-list cycle
+         pragma Assert (Serious_Errors_Detected > 0);
+         return;
+      end if;
+
       Set_Is_Immediately_Visible (E);
       Set_Current_Entity (E);
-      pragma Assert (Prev /= E);
       Set_Homonym (E, Prev);
    end Install_Entity;
 
