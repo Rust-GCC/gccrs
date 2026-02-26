@@ -9598,7 +9598,7 @@ next_lane:
       else
 	kind = scalar_stmt;
       record_stmt_cost (cost_vec, 1, kind, orig_stmt_info,
-			SLP_TREE_VECTYPE (node), 0, vect_body);
+			NULL_TREE, 0, vect_body);
     }
 
   auto_vec<bool, 20> subtree_life;
