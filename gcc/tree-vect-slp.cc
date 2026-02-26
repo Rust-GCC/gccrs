@@ -217,11 +217,13 @@ vect_free_slp_instance (slp_instance instance)
 }
 
 
-/* Create an SLP node for SCALAR_STMTS.  */
+/* Create a SLP node with NOPS children with CODE, either VEC_PERM_EXPR
+   for a permute node or else ERROR_MARK.  */
 
 slp_tree
 vect_create_new_slp_node (unsigned nops, tree_code code)
 {
+  gcc_assert (code == ERROR_MARK || code == VEC_PERM_EXPR);
   slp_tree node = new _slp_tree;
   SLP_TREE_SCALAR_STMTS (node) = vNULL;
   SLP_TREE_CHILDREN (node).create (nops);
@@ -229,7 +231,8 @@ vect_create_new_slp_node (unsigned nops, tree_code code)
   SLP_TREE_CODE (node) = code;
   return node;
 }
-/* Create an SLP node for SCALAR_STMTS.  */
+
+/* Create a SLP node inplace at NODE for SCALAR_STMTS and NOPS children.  */
 
 static slp_tree
 vect_create_new_slp_node (slp_tree node,
@@ -243,7 +246,7 @@ vect_create_new_slp_node (slp_tree node,
   return node;
 }
 
-/* Create an SLP node for SCALAR_STMTS.  */
+/* Create an SLP node for SCALAR_STMTS and NOPS children.  */
 
 static slp_tree
 vect_create_new_slp_node (vec<stmt_vec_info> scalar_stmts, unsigned nops)
@@ -251,7 +254,8 @@ vect_create_new_slp_node (vec<stmt_vec_info> scalar_stmts, unsigned nops)
   return vect_create_new_slp_node (new _slp_tree, scalar_stmts, nops);
 }
 
-/* Create an SLP node for OPS.  */
+/* Create a vect_external_def SLP node inplace at NODE for scalar
+   operands OPS.  */
 
 static slp_tree
 vect_create_new_slp_node (slp_tree node, vec<tree> ops)
@@ -262,7 +266,7 @@ vect_create_new_slp_node (slp_tree node, vec<tree> ops)
   return node;
 }
 
-/* Create an SLP node for OPS.  */
+/* Create a vect_external_def SLP node for scalar operands OPS.  */
 
 static slp_tree
 vect_create_new_slp_node (vec<tree> ops)

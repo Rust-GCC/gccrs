@@ -274,7 +274,7 @@ static slp_tree
 vect_build_swap_evenodd_node (slp_tree node)
 {
   /* Attempt to linearise the permute.  */
-  vec<std::pair<unsigned, unsigned> > zipped;
+  lane_permutation_t zipped;
   zipped.create (SLP_TREE_LANES (node));
 
   for (unsigned x = 0; x < SLP_TREE_LANES (node); x+=2)
@@ -953,7 +953,7 @@ vect_validate_multiplication (slp_tree_to_load_perm_map_t *perm_cache,
 static slp_tree
 vect_build_combine_node (slp_tree even, slp_tree odd, slp_tree rep)
 {
-  vec<std::pair<unsigned, unsigned> > perm;
+  lane_permutation_t perm;
   perm.create (SLP_TREE_LANES (rep));
 
   for (unsigned x = 0; x < SLP_TREE_LANES (rep); x+=2)
@@ -962,8 +962,7 @@ vect_build_combine_node (slp_tree even, slp_tree odd, slp_tree rep)
       perm.quick_push (std::make_pair (1, x+1));
     }
 
-  slp_tree vnode = vect_create_new_slp_node (2, SLP_TREE_CODE (even));
-  SLP_TREE_CODE (vnode) = VEC_PERM_EXPR;
+  slp_tree vnode = vect_create_new_slp_node (2, VEC_PERM_EXPR);
   SLP_TREE_LANE_PERMUTATION (vnode) = perm;
 
   SLP_TREE_CHILDREN (vnode).create (2);
