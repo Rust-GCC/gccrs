@@ -398,6 +398,10 @@ enum ParseMode
   InlineAsm,
 };
 
+// Required to avoid Clang warning about returning an incomplete FFIVec<Piece>
+// from extern "C" functions.
+template class FFIVec<Piece>;
+
 extern "C" {
 
 FFIVec<Piece> collect_pieces (RustHamster input, bool append_newline,
