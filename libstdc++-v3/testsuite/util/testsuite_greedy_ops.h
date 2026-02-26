@@ -46,10 +46,11 @@ namespace greedy_ops
   X operator>=(T, T)
   { return X(); }
 
+  /*
   template<typename T>
   X operator-(T, T)
   { return X(); }
-  /*
+
   template<typename T>
   T operator+(std::size_t, T)
   { return T(); }
