@@ -238,6 +238,21 @@
 ;; All sub-64-bit vector modes.
 (define_mode_iterator VSUB64 [V2QI V4QI V2HI V2HF V2BF])
 
+;; All sub-64-bit scalar modes.
+(define_mode_iterator SSUB64 [QI HI HF BF SI SF])
+
+;; All sub-64-bit modes.
+(define_mode_iterator VSSUB64 [VSUB64 SSUB64])
+
+;; All sub-32-bit integer modes.
+(define_mode_iterator VSSUB32_I [V2QI QI HI])
+
+;; All sub-64-bit floating-point modes.
+(define_mode_iterator VSSUB64_F [V2HF V2BF HF BF])
+
+;; All 32-bit integer and sub-64-bit floating point modes.
+(define_mode_iterator VS32_I_SUB64_F [V4QI V2HI VSSUB64_F])
+
 ;; All Advanced SIMD modes suitable for moving, loading, and storing.
 (define_mode_iterator VALL_F16 [V8QI V16QI V4HI V8HI V2SI V4SI V2DI
 				V4HF V8HF V4BF V8BF V2SF V4SF V2DF])
@@ -1475,7 +1490,13 @@
 (define_mode_attr bitsize [(V8QI "64") (V16QI "128")
 			   (V4HI "64") (V8HI "128")
 			   (V2SI "64") (V4SI "128")
-			   (V1DI "64") (V2DI "128")])
+			   (V1DI "64") (V2DI "128")
+			   (QI "8") (V2QI "16")
+			   (V4QI "32") (HI "16")
+			   (HF "16") (BF "16")
+			   (SI "32") (SF "32")
+			   (V2HI "32") (V2HF "32")
+			   (V2BF "32")])
 
 ;; Map a floating point or integer mode to the appropriate register name prefix
 (define_mode_attr s [(HF "h") (SF "s") (DF "d") (SI "s") (DI "d")])
@@ -2015,10 +2036,16 @@
 (define_mode_attr V1half [(V2DI "v1di")  (V2DF  "v1df")])
 
 ;; Double modes of vector modes.
-(define_mode_attr VDBL [(V8QI "V16QI") (V4HI "V8HI")
+(define_mode_attr VDBL [(V8QI "V16QI") (V4QI "V8QI")
+			(V2QI "V4QI")  (V4HI "V8HI")
 			(V4HF "V8HF")  (V4BF "V8BF")
+			(V2BF "V4BF")
 			(V2SI "V4SI")  (V2SF "V4SF")
+			(V2HI "V4HI")  (V2HF "V4HF")
+			(BF   "V2BF")
 			(SI   "V2SI")  (SF   "V2SF")
+			(QI   "V2QI")
+			(HI   "V2HI")  (HF   "V2HF")
 			(DI   "V2DI")  (DF   "V2DF")])
 
 ;; Load/store pair mode.
@@ -2245,6 +2272,14 @@
 			     (HI   "w")
 			     (V2SI "x") (V2SF "x")
 			     (DI   "x") (DF   "x")])
+
+(define_mode_attr single_dwx [(SI  "x") (SF   "x")
+			     (V2QI "w") (V4QI "x")
+			     (V2HI "x") (V2HF "x")
+			     (HF   "w") (QI   "w")
+			     (V2BF "x") (BF   "w")
+			     (HI   "w")])
+
 
 ;; Whether a mode fits in S or D registers (i.e. "s" for 32-bit modes
 ;; and "d" for 64-bit modes).

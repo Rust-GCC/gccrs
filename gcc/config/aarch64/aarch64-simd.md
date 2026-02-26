@@ -4856,6 +4856,34 @@
   }
 )
 
+(define_insn "*aarch64_combine_internal<mode>"
+  [(set (match_operand:<VDBL> 0 "register_operand")
+	(vec_concat:<VDBL>
+	  (match_operand:VS32_I_SUB64_F 1 "register_operand")
+	  (match_operand:VS32_I_SUB64_F 2 "aarch64_simd_nonimmediate_operand")))]
+  "TARGET_FLOAT
+   && !BYTES_BIG_ENDIAN"
+  {@ [ cons: =0 , 1  , 2   ; attrs: type               , arch  ]
+     [ w        , w  , w   ; neon_permute              , simd  ] uzp1\t%0.<Vdduptype>, %1.<Vdduptype>, %2.<Vdduptype>
+     [ w        , 0  , w   ; neon_move                 , simd  ] mov\t%0.<single_type>[1], %2.<single_type>[0]
+     [ w        , 0  , Utv ; neon_load1_one_lane       , simd  ] ld1\t{%0.<single_type>}[1], %2
+     [ w        , 0  , r   ; neon_from_gp              , simd  ] ins\t%0.<single_type>[1], %<single_wx>2
+     [ ?r       , 0  , r   ; bfm                       , *     ] bfi\t%<single_dwx>0, %<single_dwx>2, <bitsize>, <bitsize>
+  }
+)
+
+(define_insn "*aarch64_combine_internal<mode>"
+  [(set (match_operand:<VDBL> 0 "register_operand")
+	(vec_concat:<VDBL>
+	  (match_operand:VSSUB32_I 1 "register_operand")
+	  (match_operand:VSSUB32_I 2 "aarch64_simd_nonimmediate_operand")))]
+  "TARGET_FLOAT
+   && !BYTES_BIG_ENDIAN"
+  {@ [ cons: =0 , 1  , 2  ; attrs: type               , arch  ]
+     [ r        , 0  , r  ; bfm                       , *     ] bfi\t%<single_dwx>0, %<single_dwx>2, <bitsize>, <bitsize>
+  }
+)
+
 (define_insn "*aarch64_combine_internal_be<mode>"
   [(set (match_operand:<VDBL> 0 "aarch64_reg_or_mem_pair_operand")
 	(vec_concat:<VDBL>
@@ -4875,6 +4903,35 @@
   }
 )
 
+(define_insn "*aarch64_combine_internal_be<mode>"
+  [(set (match_operand:<VDBL> 0 "register_operand")
+	(vec_concat:<VDBL>
+	  (match_operand:VS32_I_SUB64_F 2 "aarch64_simd_nonimmediate_operand")
+	  (match_operand:VS32_I_SUB64_F 1 "register_operand")))]
+  "TARGET_FLOAT
+   && BYTES_BIG_ENDIAN"
+  {@ [ cons: =0 , 1  , 2   ; attrs: type               , arch  ]
+     [ w        , w  , w   ; neon_permute              , simd  ] uzp1\t%0.<Vdduptype>, %1.<Vdduptype>, %2.<Vdduptype>
+     [ w        , 0  , w   ; neon_move                 , simd  ] mov\t%0.<single_type>[1], %2.<single_type>[0]
+     [ w        , 0  , Utv ; neon_load1_one_lane       , simd  ] ld1\t{%0.<single_type>}[1], %2
+     [ w        , 0  , r   ; neon_from_gp              , simd  ] ins\t%0.<single_type>[1], %<single_wx>2
+     [ ?r       , 0  , r   ; bfm                       , *     ] bfi\t%<single_dwx>0, %<single_dwx>2, <bitsize>, <bitsize>
+  }
+)
+
+(define_insn "*aarch64_combine_internal_be<mode>"
+  [(set (match_operand:<VDBL> 0 "register_operand")
+	(vec_concat:<VDBL>
+	  (match_operand:VSSUB32_I 2 "aarch64_simd_nonimmediate_operand")
+	  (match_operand:VSSUB32_I 1 "register_operand")))]
+  "TARGET_FLOAT
+   && BYTES_BIG_ENDIAN"
+  {@ [ cons: =0 , 1  , 2  ; attrs: type               , arch  ]
+     [ r        , 0  , r  ; bfm                       , *     ] bfi\t%<single_dwx>0, %<single_dwx>2, <bitsize>, <bitsize>
+  }
+)
+
+
 ;; In this insn, operand 1 should be low, and operand 2 the high part of the
 ;; dest vector.
 
@@ -4891,6 +4948,33 @@
   }
 )
 
+(define_insn "*aarch64_combinez<mode>"
+  [(set (match_operand:<VDBL> 0 "register_operand")
+	(vec_concat:<VDBL>
+          (match_operand:VSSUB32_I 1 "nonimmediate_operand")
+	  (match_operand:VSSUB32_I 2 "aarch64_simd_or_scalar_imm_zero")))]
+  "TARGET_FLOAT && !BYTES_BIG_ENDIAN"
+  {@ [ cons: =0 , 1  ; attrs: type      ]
+     [ r        , r  ; mov_reg          ] uxt<size>\t%w0, %w1
+     [ r        , m  ; load_4           ] ldr<size>\t%<single_wx>0, %1
+  }
+)
+
+(define_insn "*aarch64_combinez<mode>"
+  [(set (match_operand:<VDBL> 0 "register_operand")
+	(vec_concat:<VDBL>
+          (match_operand:VS32_I_SUB64_F 1 "nonimmediate_operand")
+	  (match_operand:VS32_I_SUB64_F 2 "aarch64_simd_or_scalar_imm_zero")))]
+  "TARGET_FLOAT && !BYTES_BIG_ENDIAN"
+  {@ [ cons: =0 , 1  ; attrs: type      ]
+     [ w        , w  ; neon_move        ] fmov\t%<single_type>0, %<single_type>1
+     [ w        , r  ; neon_from_gp     ] fmov\t%<single_type>0, %<single_wx>1
+     [ w        , m  ; neon_load1_1reg  ] ldr\t%<single_type>0, %1
+     [ r        , r  ; mov_reg          ] uxtw\t%x0, %w1
+     [ r        , m  ; load_4           ] ldr<size>\t%<single_wx>0, %1
+  }
+)
+
 (define_insn "*aarch64_combinez_be<mode>"
   [(set (match_operand:<VDBL> 0 "register_operand")
         (vec_concat:<VDBL>
@@ -4904,14 +4988,41 @@
   }
 )
 
+(define_insn "*aarch64_combinez_be<mode>"
+  [(set (match_operand:<VDBL> 0 "register_operand")
+	(vec_concat:<VDBL>
+	  (match_operand:VSSUB32_I 2 "aarch64_simd_or_scalar_imm_zero")
+          (match_operand:VSSUB32_I 1 "nonimmediate_operand")))]
+  "TARGET_FLOAT && BYTES_BIG_ENDIAN"
+  {@ [ cons: =0 , 1  ; attrs: type      ]
+     [ r        , r  ; mov_reg          ] uxt<size>\t%w0, %w1
+     [ r        , m  ; load_4           ] ldr<size>\t%<single_wx>0, %1
+  }
+)
+
+(define_insn "*aarch64_combinez_be<mode>"
+  [(set (match_operand:<VDBL> 0 "register_operand")
+	(vec_concat:<VDBL>
+	  (match_operand:VS32_I_SUB64_F 2 "aarch64_simd_or_scalar_imm_zero")
+          (match_operand:VS32_I_SUB64_F 1 "nonimmediate_operand")))]
+  "TARGET_FLOAT && BYTES_BIG_ENDIAN"
+  {@ [ cons: =0 , 1  ; attrs: type      ]
+     [ w        , w  ; neon_move        ] fmov\t%<single_type>0, %<single_type>1
+     [ w        , r  ; neon_from_gp     ] fmov\t%<single_type>0, %<single_wx>1
+     [ w        , m  ; neon_load1_1reg  ] ldr\t%<single_type>0, %1
+     [ r        , r  ; mov_reg          ] uxtw\t%x0, %w1
+     [ r        , m  ; load_4           ] ldr<size>\t%<single_wx>0, %1
+  }
+)
+
 ;; Form a vector whose first half (in array order) comes from operand 1
 ;; and whose second half (in array order) comes from operand 2.
 ;; This operand order follows the RTL vec_concat operation.
 (define_expand "@aarch64_vec_concat<mode>"
   [(set (match_operand:<VDBL> 0 "register_operand")
 	(vec_concat:<VDBL>
-	  (match_operand:VDCSIF 1 "general_operand")
-	  (match_operand:VDCSIF 2 "general_operand")))]
+	  (match_operand:VQDUP 1 "general_operand")
+	  (match_operand:VQDUP 2 "general_operand")))]
   "TARGET_FLOAT"
 {
   int lo = BYTES_BIG_ENDIAN ? 2 : 1;

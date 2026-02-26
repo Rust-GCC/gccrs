@@ -111,9 +111,8 @@ TEST_64(int, int64_t, s)
 
 /*
 ** test_int8_5:
-**	mov	w1, 0
-**	bfi	w1, w0, 0, 8
-**	dup	v0\.8h, w1
+**	uxtb	w0, w0
+**	dup	v0\.8h, w0
 **	ret
 */
 
@@ -217,7 +216,7 @@ TEST_64(int, int64_t, s)
 ** test_float16_2:
 **	fcvt	h1, s1
 **	fcvt	h0, s0
-**	ins	v0\.h\[1\], v1\.h\[0\]
+**	uzp1	v0\.4h, v0\.4h, v1\.4h
 **	dup	v0\.4s, v0\.s\[0\]
 **	ret
 */
@@ -227,55 +226,51 @@ TEST_64(int, int64_t, s)
 **	uzp1	v2\.2s, v0\.2s, v2\.2s
 **	uzp1	v3\.2s, v1\.2s, v3\.2s
 **	zip1	v3\.4s, v2\.4s, v3\.4s
-**	fcvtn	v0\.4h, v3\.4s
-**	uzp1	v0\.2d, v0\.2d, v0\.2d
+**	fcvtn	v3\.4h, v3\.4s
+**	dup	v0\.2d, v3\.d\[0\]
 **	ret
 */
 
 /*
 ** test_float16_4:
 **	fcvt	h0, s0
-**	movi	v31\.2d, #0
-**	ins	v31\.h\[0\], v0\.h\[0\]
-**	dup	v0\.4s, v31\.s\[0\]
+**	fmov	h0, h0
+**	dup	v0\.4s, v0\.s\[0\]
 **	ret
 */
 
 /*
 ** test_float16_5:
+**	movi	v31\.4h, #0
 **	fcvt	h0, s0
-**	movi	v31\.2d, #0
-**	ins	v31\.h\[1\], v0\.h\[0\]
-**	dup	v0\.4s, v31\.s\[0\]
+**	uzp1	v0\.4h, v31\.4h, v0\.4h
+**	dup	v0\.4s, v0\.s\[0\]
 **	ret
 */
 
 /*
 ** test_float16_6:
-**	fcvt	h1, s1
 **	fcvt	h0, s0
-**	movi	v31\.2d, #0
-**	mov	w0, 1006648320
-**	umov	w1, v1\.h\[0\]
-**	ins	v31\.h\[0\], v0\.h\[0\]
-**	bfi	w0, w1, 0, 16
-**	dup	v31\.2s, v31\.s\[0\]
-**	dup	v0\.2s, w0
-**	zip1	v0\.8h, v31\.8h, v0\.8h
+**	fcvt	h1, s1
+**	fmov	h31, 1.0e\+0
+**	fmov	h0, h0
+**	uzp1	v1\.4h, v1\.4h, v31\.4h
+**	dup	v0\.2s, v0\.s\[0\]
+**	dup	v1\.2s, v1\.s\[0\]
+**	zip1	v0\.8h, v0\.8h, v1\.8h
 **	ret
 */
 
 /*
 ** test_float16_7:
-**	fcvt	h1, s1
 **	fcvt	h0, s0
-**	movi	v31\.2d, #0
-**	mov	w0, 1006648320
-**	umov	w1, v1\.h\[0\]
-**	ins	v31\.h\[1\], v0\.h\[0\]
-**	bfi	w0, w1, 16, 16
+**	movi	v31\.4h, #0
+**	fcvt	h1, s1
+**	uzp1	v31\.4h, v31\.4h, v0\.4h
+**	fmov	h0, 1.0e\+0
+**	uzp1	v0\.4h, v0\.4h, v1\.4h
 **	dup	v31\.2s, v31\.s\[0\]
-**	dup	v0\.2s, w0
+**	dup	v0\.2s, v0\.s\[0\]
 **	zip1	v0\.8h, v31\.8h, v0\.8h
 **	ret
 */
@@ -285,7 +280,7 @@ TEST_64(int, int64_t, s)
 **	fcvt	h1, s1
 **	fcvt	h0, s0
 **	movi	v31\.2s, 0x3c, lsl 24
-**	ins	v0\.h\[1\], v1\.h\[0\]
+**	uzp1	v0\.4h, v0\.4h, v1\.4h
 **	dup	v0\.2s, v0\.s\[0\]
 **	zip1	v0\.8h, v31\.8h, v0\.8h
 **	ret
@@ -316,9 +311,8 @@ TEST_64(int, int64_t, s)
 
 /*
 ** test_int16_4:
-**	mov	w1, 0
-**	bfi	w1, w0, 0, 16
-**	dup	v0\.4s, w1
+**	uxth	w0, w0
+**	dup	v0\.4s, w0
 **	ret
 */
 
@@ -332,12 +326,11 @@ TEST_64(int, int64_t, s)
 
 /*
 ** test_int16_6:
-**	mov	w2, 0
-**	bfi	w2, w0, 0, 16
-**	mov	w0, 65537
-**	bfi	w0, w1, 0, 16
-**	dup	v31\.2s, w2
-**	dup	v0\.2s, w0
+**	uxth	w0, w0
+**	dup	v31\.2s, w0
+**	mov	w0, 1
+**	bfi	w1, w0, 16, 16
+**	dup	v0\.2s, w1
 **	zip1	v0\.8h, v31\.8h, v0\.8h
 **	ret
 */
@@ -378,17 +371,16 @@ TEST_64(int, int64_t, s)
 
 /*
 ** test_float32_3:
-**	movi	v31\.2s, 0
-**	dup	v0\.2s, v0\.s\[0\]
-**	zip1	v0\.4s, v0\.4s, v31\.4s
+**	fmov	s0, s0
+**	dup	v0\.2d, v0\.d\[0\]
 **	ret
 */
 
 /*
 ** test_float32_4:
-**	movi	v31\.2s, 0
-**	dup	v0\.2s, v0\.s\[0\]
-**	zip1	v0\.4s, v31\.4s, v0\.4s
+**	movi	v31\.2s, #0
+**	uzp1	v0\.2s, v31\.2s, v0\.2s
+**	dup	v0\.2d, v0\.d\[0\]
 **	ret
 */
 
@@ -408,9 +400,8 @@ TEST_64(int, int64_t, s)
 
 /*
 ** test_int32_3:
-**	dup	v31\.2s, w0
-**	movi	v0\.2s, 0
-**	zip1	v0\.4s, v31\.4s, v0\.4s
+**	fmov	s0, w0
+**	dup	v0\.2d, v0\.d\[0\]
 **	ret
 */
 

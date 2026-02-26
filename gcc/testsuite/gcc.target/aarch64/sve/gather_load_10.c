@@ -11,7 +11,8 @@ foo (uint64_t *restrict x, uint64_t *restrict y, uint64_t *restrict index)
     x[i] += y[index[i]];
 }
 
-/* { dg-final { scan-assembler-times {\tldr\td[0-9]+, \[x[0-9]+, x[0-9]+, lsl #?3\]} 2 } } */
+/* { dg-final { scan-assembler-times {\tldr\td[0-9]+, \[x[0-9]+, x[0-9]+, lsl #?3\]} 1 } } */
+/* { dg-final { scan-assembler-times {\tld1\t{v[0-9]+\.d}\[1\], \[x[0-9]+\]} 1 } } */
 /* { dg-final { scan-assembler-not {\tshl\tv[0-9]+\.2d,} } } */
 /* { dg-final { scan-assembler-not {\tumov\t} } } */
 /* { dg-final { scan-assembler {\tadd\tv[0-9]+\.2d,} } } */

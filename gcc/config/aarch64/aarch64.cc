@@ -25669,21 +25669,29 @@ aarch64_expand_vector_init_fallback (rtx target, rtx vals)
   int n_var = 0;
   /* The first element of vals.  */
   rtx v0 = XVECEXP (vals, 0, 0);
+  machine_mode v0mode = GET_MODE (v0);
   bool all_same = true;
 
-  /* This is a special vec_init<M><N> where N is not an element mode but a
+  /* This is a special vec_init<M><N> where N is either an element mode or a
      vector mode with half the elements of M.  We expect to find two entries
      of mode N in VALS and we must put their concatentation into TARGET.  */
-  if (XVECLEN (vals, 0) == 2 && VECTOR_MODE_P (GET_MODE (XVECEXP (vals, 0, 0))))
+  if (n_elts == 2 && (VECTOR_MODE_P (v0mode)
+				 || SCALAR_INT_MODE_P (v0mode)
+				 || SCALAR_FLOAT_MODE_P (v0mode)))
     {
-      machine_mode narrow_mode = GET_MODE (XVECEXP (vals, 0, 0));
+      rtx v1 = XVECEXP (vals, 0, 1);
+      machine_mode narrow_mode = GET_MODE (v0);
       gcc_assert (GET_MODE_INNER (narrow_mode) == inner_mode
 		  && known_eq (GET_MODE_SIZE (mode),
 			       2 * GET_MODE_SIZE (narrow_mode)));
-      emit_insn (gen_aarch64_vec_concat (narrow_mode, target,
-					 XVECEXP (vals, 0, 0),
-					 XVECEXP (vals, 0, 1)));
-     return;
+      if (rtx_equal_p (v0, v1))
+       aarch64_emit_move (target,
+			  gen_vec_duplicate (mode,
+					     force_reg (narrow_mode, v0)));
+      else
+       emit_insn (gen_aarch64_vec_concat (narrow_mode, target,
+					  v0, v1));
+      return;
    }
 
   /* Count the number of variable elements to initialise.  */

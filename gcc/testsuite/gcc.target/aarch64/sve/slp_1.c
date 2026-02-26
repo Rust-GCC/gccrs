@@ -30,13 +30,13 @@ vec_slp_##TYPE (TYPE *restrict a, TYPE b, TYPE c, int n)	\
 TEST_ALL (VEC_PERM)
 
 /* We should use one DUP for each of the 8-, 16- and 32-bit types,
-   (for now, insert both elements with ins for _Float16).  We should use two
+   (and we now use fmov + ins for _Float16).  We should use two
    DUPs for each of the three 64-bit types.  */
 /* { dg-final { scan-assembler-times {\tmov\tz[0-9]+\.h, [hw]} 2 } } */
 /* { dg-final { scan-assembler-times {\tmov\tz[0-9]+\.s, [sw]} 3 } } */
 /* { dg-final { scan-assembler-times {\tmov\tz[0-9]+\.d, [dx]} 9 } } */
-/* { dg-final { scan-assembler-times {\tins\tv[0-9]+\.h\[0\], v[0-9]+\.h\[0\]} 3 } } */
-/* { dg-final { scan-assembler-times {\tins\tv[0-9]+\.h\[1\], v[0-9]+\.h\[0\]} 3 } } */
+/* { dg-final { scan-assembler-times {\tfmov\th[0-9]+, h} 1 } } */
+/* { dg-final { scan-assembler-times {\tins\tv[0-9]+\.h\[1\], v[0-9]+\.h\[0\]} 1 } } */
 /* { dg-final { scan-assembler-times {\tzip1\tz[0-9]+\.d, z[0-9]+\.d, z[0-9]+\.d\n} 3 } } */
 /* { dg-final { scan-assembler-not {\tzip2\t} } } */
 
