@@ -301,11 +301,17 @@ TypeCheckType::visit (HIR::QualifiedPathInType &path)
 		= new TyTy::ErrorType (path.get_mappings ().get_hirid ());
 	      return;
 	    }
-	  translated
-	    = SubstMapper::Resolve (translated, path.get_locus (),
-				    &generic_seg.get_generic_args (),
-				    context->regions_from_generic_args (
-				      generic_seg.get_generic_args ()));
+	  auto regions = context->regions_from_generic_args (
+	    generic_seg.get_generic_args ());
+	  if (!regions.has_value ())
+	    {
+	      translated
+		= new TyTy::ErrorType (path.get_mappings ().get_hirid ());
+	      return;
+	    }
+	  translated = SubstMapper::Resolve (translated, path.get_locus (),
+					     &generic_seg.get_generic_args (),
+					     regions.value ());
 	}
     }
 
@@ -458,9 +464,12 @@ TypeCheckType::resolve_root_path (HIR::TypePath &path, size_t *offset,
 
 	  auto regions = context->regions_from_generic_args (
 	    generic_segment.get_generic_args ());
+	  if (!regions.has_value ())
+	    return new TyTy::ErrorType (seg->get_mappings ().get_hirid ());
+
 	  lookup = SubstMapper::Resolve (lookup, path.get_locus (),
 					 &generic_segment.get_generic_args (),
-					 regions);
+					 regions.value ());
 	  if (lookup->get_kind () == TyTy::TypeKind::ERROR)
 	    return new TyTy::ErrorType (seg->get_mappings ().get_hirid ());
 	}
@@ -468,9 +477,9 @@ TypeCheckType::resolve_root_path (HIR::TypePath &path, size_t *offset,
 	{
 	  HIR::GenericArgs empty
 	    = HIR::GenericArgs::create_empty (path.get_locus ());
-	  lookup
-	    = SubstMapper::Resolve (lookup, path.get_locus (), &empty,
-				    context->regions_from_generic_args (empty));
+	  lookup = SubstMapper::Resolve (
+	    lookup, path.get_locus (), &empty,
+	    context->regions_from_generic_args (empty).value ());
 	}
 
       *offset = *offset + 1;

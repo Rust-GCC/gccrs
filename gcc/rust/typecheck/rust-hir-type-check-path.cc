@@ -145,12 +145,17 @@ TypeCheckExpr::visit (HIR::QualifiedPathInExpression &expr)
 	  infered = new TyTy::ErrorType (expr.get_mappings ().get_hirid ());
 	  return;
 	}
-      std::vector<TyTy::Region> regions;
+      auto regions
+	= context->regions_from_generic_args (item_seg.get_generic_args ());
+      if (!regions.has_value ())
+	{
+	  infered = new TyTy::ErrorType (expr.get_mappings ().get_hirid ());
+	  return;
+	}
 
       infered = SubstMapper::Resolve (infered, expr.get_locus (),
 				      &item_seg.get_generic_args (),
-				      context->regions_from_generic_args (
-					item_seg.get_generic_args ()));
+				      regions.value ());
     }
 
   // continue on as a path-in-expression
@@ -366,10 +371,14 @@ TypeCheckExpr::resolve_root_path (HIR::PathInExpression &expr, size_t *offset,
       // turbo-fish segment path::<ty>
       if (seg.has_generic_args ())
 	{
-	  lookup = SubstMapper::Resolve (lookup, expr.get_locus (),
-					 &seg.get_generic_args (),
-					 context->regions_from_generic_args (
-					   seg.get_generic_args ()));
+	  auto regions
+	    = context->regions_from_generic_args (seg.get_generic_args ());
+	  if (!regions.has_value ())
+	    return new TyTy::ErrorType (expr.get_mappings ().get_hirid ());
+
+	  lookup
+	    = SubstMapper::Resolve (lookup, expr.get_locus (),
+				    &seg.get_generic_args (), regions.value ());
 	  if (lookup->get_kind () == TyTy::TypeKind::ERROR)
 	    return new TyTy::ErrorType (expr.get_mappings ().get_hirid ());
 	}
@@ -526,10 +535,14 @@ TypeCheckExpr::resolve_segments (NodeId root_resolved_node_id,
 	{
 	  rust_debug_loc (seg.get_locus (), "applying segment generics: %s",
 			  tyseg->as_string ().c_str ());
+	  auto regions
+	    = context->regions_from_generic_args (seg.get_generic_args ());
+	  if (!regions.has_value ())
+	    return;
+
 	  tyseg
 	    = SubstMapper::Resolve (tyseg, expr_locus, &seg.get_generic_args (),
-				    context->regions_from_generic_args (
-				      seg.get_generic_args ()));
+				    regions.value ());
 	  if (tyseg->get_kind () == TyTy::TypeKind::ERROR)
 	    return;
 	}
