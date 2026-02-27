@@ -626,7 +626,9 @@ CompileExpr::visit (HIR::StructExprStructFields &struct_expr)
 	    = variant->lookup_field (field_name, &respective_field, nullptr);
 	  rust_assert (_ok);
 
-	  ordered_variant_fields.push_back (respective_field);
+	  if (adt->is_struct_struct () || adt->is_tuple_struct ())
+	    ordered_variant_fields.push_back (respective_field);
+
 	  auto expected = respective_field->get_field_type ();
 
 	  auto lvalue_locus
@@ -657,9 +659,12 @@ CompileExpr::visit (HIR::StructExprStructFields &struct_expr)
       // the original ADT variant type because if the struct fields have a base
       // struct, they will be evaluated in the order of the base struct's
       // evaluation, which is incorrect.
-      auto _adt = static_cast<TyTy::ADTType *> (adt->clone ());
-      _adt->get_variants ()[0]->get_fields () = ordered_variant_fields;
-      tyty = _adt;
+      if (adt->is_struct_struct () || adt->is_tuple_struct ())
+	{
+	  auto _adt = static_cast<TyTy::ADTType *> (adt->clone ());
+	  _adt->get_variants ()[0]->get_fields () = ordered_variant_fields;
+	  tyty = _adt;
+	}
     }
 
   // compile it
