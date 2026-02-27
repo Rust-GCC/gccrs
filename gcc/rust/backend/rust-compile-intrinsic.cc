@@ -67,7 +67,8 @@ static const std::map<std::string, handlers::HandlerBuilder> generic_intrinsics
      {IValue::TRY, handlers::try_handler (false)},
      {IValue::CATCH_UNWIND, handlers::try_handler (true)},
      {IValue::DISCRIMINANT_VALUE, handlers::discriminant_value},
-     {IValue::VARIANT_COUNT, handlers::variant_count}};
+     {IValue::VARIANT_COUNT, handlers::variant_count},
+     {IValue::BSWAP, handlers::bswap_handler}};
 
 Intrinsics::Intrinsics (Context *ctx) : ctx (ctx) {}
 
