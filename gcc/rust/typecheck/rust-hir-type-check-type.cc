@@ -769,6 +769,12 @@ void
 TypeCheckType::visit (HIR::ReferenceType &type)
 {
   TyTy::BaseType *base = TypeCheckType::Resolve (type.get_base_type ());
+  if (base->is<TyTy::ErrorType> ())
+    {
+      translated = new TyTy::ErrorType (type.get_mappings ().get_hirid ());
+      return;
+    }
+
   rust_assert (type.has_lifetime ());
   auto region = context->lookup_and_resolve_lifetime (type.get_lifetime ());
   if (!region.has_value ())
