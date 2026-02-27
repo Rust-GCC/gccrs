@@ -1370,6 +1370,166 @@ offset (Context *ctx, TyTy::FnType *fntype)
   return fndecl;
 }
 
+/**
+ * pub const fn bswap<T: Copy>(x: T) -> T;
+ */
+tree
+bswap_handler (Context *ctx, TyTy::FnType *fntype)
+{
+  rust_assert (fntype->get_params ().size () == 1);
+
+  tree lookup = NULL_TREE;
+  if (check_for_cached_intrinsic (ctx, fntype, &lookup))
+    return lookup;
+
+  auto fndecl = compile_intrinsic_function (ctx, fntype);
+
+  auto locus = fntype->get_locus ();
+
+  std::vector<Bvariable *> param_vars;
+  compile_fn_params (ctx, fntype, fndecl, &param_vars);
+
+  auto &x_param = param_vars.at (0);
+  rust_assert (param_vars.size () == 1);
+  if (!Backend::function_set_parameters (fndecl, param_vars))
+    return error_mark_node;
+
+  auto *monomorphized_type
+    = fntype->get_substs ().at (0).get_param_ty ()->resolve ();
+
+  check_for_basic_integer_type ("bswap", fntype->get_locus (),
+				monomorphized_type);
+
+  tree template_parameter_type
+    = TyTyResolveCompile::compile (ctx, monomorphized_type);
+
+  tree size_expr = TYPE_SIZE_UNIT (template_parameter_type);
+  unsigned HOST_WIDE_INT size = TREE_INT_CST_LOW (size_expr);
+
+  enter_intrinsic_block (ctx, fndecl);
+
+  // BUILTIN bswap FN BODY BEGIN
+
+  auto expr_x = Backend::var_expression (x_param, locus);
+  tree result = NULL_TREE;
+
+  if (size == 1)
+    {
+      result = expr_x;
+    }
+  else
+    {
+      tree target_type = NULL_TREE;
+      const char *builtin_name = nullptr;
+      switch (size)
+	{
+	case 2:
+	  builtin_name = "__builtin_bswap16";
+	  target_type = uint16_type_node;
+	  break;
+	case 4:
+	  builtin_name = "__builtin_bswap32";
+	  target_type = uint32_type_node;
+	  break;
+	case 8:
+	  builtin_name = "__builtin_bswap64";
+	  target_type = uint64_type_node;
+	  break;
+	case 16:
+	  builtin_name = "__builtin_bswap128";
+	  target_type = uint128_type_node;
+	  break;
+	default:
+	  return error_mark_node;
+	}
+
+      tree bswap_raw = nullptr;
+      auto ok = BuiltinsContext::get ().lookup_simple_builtin (builtin_name,
+							       &bswap_raw);
+
+      if (ok)
+	{
+	  tree bswap_fn = build_fold_addr_expr_loc (locus, bswap_raw);
+
+	  auto bswap_x = build1 (CONVERT_EXPR, target_type, expr_x);
+
+	  auto bswap_call
+	    = Backend::call_expression (bswap_fn, {bswap_x}, NULL_TREE, locus);
+
+	  result = build1 (CONVERT_EXPR, template_parameter_type, bswap_call);
+	}
+      else
+	{
+	  auto ok2 = BuiltinsContext::get ().lookup_simple_builtin (
+	    "__builtin_bswap64", &bswap_raw);
+	  rust_assert (ok2);
+
+	  tree bswap_fn = build_fold_addr_expr_loc (locus, bswap_raw);
+
+	  tree tmp_in_stmt = error_mark_node;
+	  Bvariable *in_var
+	    = Backend::temporary_variable (fndecl, NULL_TREE,
+					   template_parameter_type, expr_x,
+					   true, locus, &tmp_in_stmt);
+	  ctx->add_statement (tmp_in_stmt);
+
+	  tree addr_x
+	    = build_fold_addr_expr_loc (locus, in_var->get_tree (locus));
+	  tree u64_ptr_type = build_pointer_type (uint64_type_node);
+
+	  tree low_ptr = fold_convert (u64_ptr_type, addr_x);
+	  tree low = build_fold_indirect_ref_loc (locus, low_ptr);
+
+	  tree high_ptr = fold_build2 (POINTER_PLUS_EXPR, u64_ptr_type, low_ptr,
+				       size_int (8));
+	  tree high = build_fold_indirect_ref_loc (locus, high_ptr);
+
+	  auto new_high
+	    = Backend::call_expression (bswap_fn, {low}, NULL_TREE, locus);
+	  auto new_low
+	    = Backend::call_expression (bswap_fn, {high}, NULL_TREE, locus);
+
+	  tree tmp_stmt = error_mark_node;
+	  Bvariable *result_var
+	    = Backend::temporary_variable (fndecl, NULL_TREE,
+					   template_parameter_type, NULL_TREE,
+					   true, locus, &tmp_stmt);
+	  ctx->add_statement (tmp_stmt);
+
+	  tree addr_res
+	    = build_fold_addr_expr_loc (locus, result_var->get_tree (locus));
+	  tree res_ptr = fold_convert (u64_ptr_type, addr_res);
+
+	  tree store_low
+	    = build2 (MODIFY_EXPR, void_type_node,
+		      build_fold_indirect_ref_loc (locus, res_ptr), new_low);
+	  ctx->add_statement (store_low);
+
+	  tree res_high_ptr = fold_build2 (POINTER_PLUS_EXPR, u64_ptr_type,
+					   res_ptr, size_int (8));
+	  tree store_high
+	    = build2 (MODIFY_EXPR, void_type_node,
+		      build_fold_indirect_ref_loc (locus, res_high_ptr),
+		      new_high);
+	  ctx->add_statement (store_high);
+
+	  result = result_var->get_tree (locus);
+	}
+    }
+
+  auto return_statement = Backend::return_statement (fndecl, result, locus);
+
+  TREE_READONLY (result) = 1;
+
+  ctx->add_statement (return_statement);
+
+  // BUILTIN bswap FN BODY END
+
+  finalize_intrinsic_block (ctx, fndecl);
+
+  return fndecl;
+}
+
 } // namespace handlers
 } // namespace Compile
 } // namespace Rust
