@@ -123,6 +123,17 @@ Early::resolve_rebind_import (NodeId use_dec_id,
   // if we've found at least one definition, then we're good
   if (definitions.empty ())
     return false;
+  for (const auto &def : definitions)
+    {
+      if (def.first.is_ambiguous ())
+	{
+	  rich_location rich_locus (line_table,
+				    rebind_import.to_resolve.get_locus ());
+	  rust_error_at (rich_locus, ErrorCode::E0659, "%qs is ambiguous",
+			 rebind_import.to_resolve.as_string ().c_str ());
+	  return true;
+	}
+    }
 
   auto &imports = import_mappings.new_or_access (use_dec_id);
 
