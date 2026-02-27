@@ -1,4 +1,4 @@
-// Copyright (C) YYYY Free Software Foundation, Inc.
+// Copyright (C) 2026 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -16,6 +16,23 @@
 // along with GCC; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
-// AUTO-GENERATED -- SEE LOCAL contrib SUBDIRECTORY
+#include "rust-early-cfg-strip.h"
+#include "rust-cfg-strip.h"
 
-#include "rust-feature-defs-rfl.h"
+namespace Rust {
+
+void
+EarlyCfgStrip::go (AST::Crate &crate)
+{
+  visit (crate);
+}
+
+void
+EarlyCfgStrip::visit (AST::Crate &crate)
+{
+  expand_cfg_attrs (crate.inner_attrs);
+
+  AST::DefaultASTVisitor::visit (crate);
+}
+
+} // namespace Rust

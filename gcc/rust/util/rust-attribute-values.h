@@ -38,6 +38,7 @@ public:
   static constexpr auto &LANG = "lang";
   static constexpr auto &LINK_NAME = "link_name";
   static constexpr auto &NO_CORE = "no_core";
+  static constexpr auto &NO_STD = "no_std";
   static constexpr auto &LINK_SECTION = "link_section";
   static constexpr auto &NO_MANGLE = "no_mangle";
   static constexpr auto &EXPORT_NAME = "export_name";
@@ -50,8 +51,11 @@ public:
   static constexpr auto &PROC_MACRO = "proc_macro";
   static constexpr auto &PROC_MACRO_DERIVE = "proc_macro_derive";
   static constexpr auto &PROC_MACRO_ATTRIBUTE = "proc_macro_attribute";
+  static constexpr auto &CRATE_NAME = "crate_name";
+  static constexpr auto &CRATE_TYPE = "crate_type";
 
   static constexpr auto &TARGET_FEATURE = "target_feature";
+  static constexpr auto &FEATURE = "feature";
   // From now on, these are reserved by the compiler and gated through
   // #![feature(rustc_attrs)]
   static constexpr auto &RUSTC_DEPRECATED = "rustc_deprecated";

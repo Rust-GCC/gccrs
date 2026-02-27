@@ -106,9 +106,9 @@ private:
   /* Check the validity of an inner attribute */
   void check_inner_attribute (const AST::Attribute &attribute);
   /* Check the validity of a given attribute */
-  void check_attribute (const AST::Attribute &attribute);
 
   // rust-ast.h
+  void visit (AST::Attribute &attribute) override;
   void visit (AST::Crate &crate) override;
   void visit (AST::Token &tok) override;
   void visit (AST::DelimTokenTree &delim_tok_tree) override;
@@ -276,6 +276,9 @@ private:
   void visit (AST::VariadicParam &param) override;
   void visit (AST::SelfParam &param) override;
 };
+
+tl::optional<BuiltinAttrDefinition>
+identify_builtin (const AST::Attribute &attribute);
 
 } // namespace Analysis
 } // namespace Rust

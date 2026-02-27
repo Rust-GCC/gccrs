@@ -24,6 +24,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "rust-diagnostics.h"
 #include "rust-parse-error.h"
 #include "rust-parse-utils.h"
+#include "rust-feature.h"
+#include "rust-feature-store.h"
 
 #include "expected.h"
 
@@ -852,6 +854,11 @@ private:
 
   void add_error (Error error) { error_table.push_back (std::move (error)); }
 
+  void collect_potential_gating_error (Feature::Name feature, Error error)
+  {
+    Features::EarlyFeatureGateStore::get ().add (feature, error);
+  }
+
 public:
   // Construct parser with specified "managed" token source.
   Parser (ManagedTokenSource &tokenSource) : lexer (tokenSource) {}
@@ -874,6 +881,12 @@ public:
   // Get a reference to the list of errors encountered
   std::vector<Error> &get_errors () { return error_table; }
 
+  std::vector<std::pair<Feature::Name, Error>> &
+  get_potential_feature_gate_errors ()
+  {
+    return gating_errors;
+  }
+
   const ManagedTokenSource &get_token_source () const { return lexer; }
 
   const_TokenPtr peek_current_token () { return lexer.peek_token (0); }
@@ -884,6 +897,8 @@ private:
   ManagedTokenSource &lexer;
   // The error list.
   std::vector<Error> error_table;
+
+  std::vector<std::pair<Feature::Name, Error>> gating_errors;
   // The names of inline modules while parsing.
   std::vector<std::string> inline_module_stack;
 

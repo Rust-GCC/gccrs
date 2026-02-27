@@ -28,27 +28,6 @@ namespace Rust {
 
 /**
  * Determines whether any cfg predicate is false and hence item with attributes
- * should be stripped. Note that attributes must be expanded before calling.
- */
-bool
-CfgStrip::fails_cfg (const AST::AttrVec &attrs) const
-{
-  auto &session = Session::get_instance ();
-
-  for (const auto &attr : attrs)
-    {
-      if (attr.get_path () == Values::Attributes::CFG
-	  && !attr.check_cfg_predicate (session))
-	return true;
-      else if (!expansion_cfg.should_test
-	       && attr.get_path () == Values::Attributes::TEST)
-	return true;
-    }
-  return false;
-}
-
-/**
- * Determines whether any cfg predicate is false and hence item with attributes
  * should be stripped. Will expand attributes as well.
  */
 bool
@@ -114,6 +93,9 @@ expand_cfg_attrs (AST::AttrVec &attrs)
 
 	  if (attr.check_cfg_predicate (session))
 	    {
+	      // Key has been found we need to remove the conditional part of
+	      // the attribute and insert the content back
+
 	      // split off cfg_attr
 	      AST::AttrVec new_attrs = attr.separate_cfg_attrs ();
 
@@ -129,6 +111,12 @@ expand_cfg_attrs (AST::AttrVec &attrs)
 	       * position i, allowing us to reprocess the newly inserted
 	       * attribute (in case it's also a cfg_attr that needs expansion)
 	       */
+	      i--;
+	    }
+	  else
+	    {
+	      // Key has not been found, remove the whole attribute
+	      attrs.erase (attrs.begin () + i);
 	      i--;
 	    }
 

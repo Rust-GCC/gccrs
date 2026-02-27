@@ -1,4 +1,5 @@
-// Copyright (C) YYYY Free Software Foundation, Inc.
+
+// Copyright (C) 2026 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -16,6 +17,31 @@
 // along with GCC; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
-// AUTO-GENERATED -- SEE LOCAL contrib SUBDIRECTORY
+#include "rust-feature-store.h"
 
-#include "rust-feature-defs-rfl.h"
+namespace Rust {
+namespace Features {
+
+EarlyFeatureGateStore &
+EarlyFeatureGateStore::get ()
+{
+  static EarlyFeatureGateStore instance{};
+  return instance;
+}
+
+void
+EarlyFeatureGateStore::add (Feature::Name name, Error error)
+{
+  potential_errors.emplace (name, error);
+}
+
+std::pair<Feature::Name, Error>
+EarlyFeatureGateStore::get_error ()
+{
+  auto ret = potential_errors.front ();
+  potential_errors.pop ();
+  return ret;
+}
+
+} // namespace Features
+} // namespace Rust

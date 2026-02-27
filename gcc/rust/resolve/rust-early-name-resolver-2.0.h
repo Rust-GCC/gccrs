@@ -37,6 +37,10 @@ class Early : public DefaultResolver
   TopLevel toplevel;
   bool dirty;
 
+  void visit_derive_attribute (AST::Attribute &, Analysis::Mappings &);
+  void visit_non_builtin_attribute (AST::Attribute &, Analysis::Mappings &,
+				    std::string &name);
+
 public:
   Early (NameResolutionContext &ctx);
 
@@ -58,10 +62,10 @@ public:
 
   void visit (AST::MacroInvocation &) override;
 
-  void visit (AST::Function &) override;
-  void visit (AST::StructStruct &) override;
   void visit (AST::UseDeclaration &) override;
   void visit (AST::UseTreeList &) override;
+
+  void visit (AST::Attribute &) override;
 
   struct ImportData
   {
@@ -168,8 +172,6 @@ public:
   };
 
 private:
-  void visit_attributes (std::vector<AST::Attribute> &attrs);
-
   /**
    * Insert a resolved macro invocation into the mappings once, meaning that we
    * can call this function each time the early name resolution pass is underway

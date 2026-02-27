@@ -71,6 +71,7 @@ public:
 
   // visitor impl
   // rust-ast.h
+  virtual void visit (AST::Attribute &attribute) override;
   //  virtual void visit(AttrInput& attr_input);
   //  virtual void visit(TokenTree& token_tree);
   //  virtual void visit(MacroMatch& macro_match);
@@ -104,6 +105,7 @@ public:
   // rust-expr.h
   virtual void visit (AST::LiteralExpr &expr) override;
   virtual void visit (AST::AttrInputLiteral &attr_input) override;
+  virtual void visit (AST::AttrInputExpr &attr_input) override;
   virtual void visit (AST::AttrInputMacro &attr_input) override;
   virtual void visit (AST::MetaItemLitExpr &meta_item) override;
   virtual void visit (AST::MetaItemPathExpr &meta_item) override;

@@ -253,6 +253,12 @@ Attribute::as_string () const
     return path_str + attr_input->as_string ();
 }
 
+void
+Attribute::accept_vis (ASTVisitor &vis)
+{
+  vis.visit (*this);
+}
+
 bool
 Attribute::is_derive () const
 {
@@ -333,6 +339,7 @@ Attribute::get_traits_to_derive ()
     case AST::AttrInput::TOKEN_TREE:
     case AST::AttrInput::LITERAL:
     case AST::AttrInput::MACRO:
+    case AST::AttrInput::EXPR:
       rust_unreachable ();
       break;
     }
@@ -3341,6 +3348,29 @@ AttrInputMetaItemContainer::as_string () const
   return str + ")";
 }
 
+AttrInputExpr::AttrInputExpr (const AttrInputExpr &oth)
+  : expr (oth.expr->clone_expr ())
+{}
+
+AttrInputExpr &
+AttrInputExpr::operator= (const AttrInputExpr &oth)
+{
+  expr = oth.expr->clone_expr ();
+  return *this;
+}
+
+std::string
+AttrInputExpr::as_string () const
+{
+  return expr->as_string ();
+}
+
+void
+AttrInputExpr::accept_vis (ASTVisitor &vis)
+{
+  vis.visit (*this);
+}
+
 std::string
 AttrInputMacro::as_string () const
 {
@@ -4170,10 +4200,8 @@ MetaListNameValueStr::to_attribute () const
 Attribute
 MetaItemPathExpr::to_attribute () const
 {
-  rust_assert (expr->is_literal ());
-  auto &lit = static_cast<LiteralExpr &> (*expr);
-  return Attribute (path, std::unique_ptr<AttrInputLiteral> (
-			    new AttrInputLiteral (lit)));
+  auto input = std::make_unique<AttrInputExpr> (expr->clone_expr ());
+  return Attribute (path, std::move (input));
 }
 
 std::vector<Attribute>
@@ -4189,13 +4217,9 @@ AttrInputMetaItemContainer::separate_cfg_attrs () const
 
   for (auto it = items.begin () + 1; it != items.end (); ++it)
     {
-      if ((*it)->get_kind () == MetaItemInner::Kind::MetaItem
-	  && static_cast<MetaItem &> (**it).get_item_kind ()
-	       == MetaItem::ItemKind::PathExpr
-	  && !static_cast<MetaItemPathExpr &> (**it).get_expr ().is_literal ())
-	continue;
+      auto &item = **it;
 
-      Attribute attr = (*it)->to_attribute ();
+      Attribute attr = item.to_attribute ();
       if (attr.is_empty ())
 	{
 	  /* TODO should this be an error that causes us to chuck out

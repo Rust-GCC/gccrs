@@ -34,7 +34,7 @@ class DelimTokenTree;
 class PathSegment;
 class SimplePathSegment;
 class SimplePath;
-struct Attribute;
+class Attribute;
 class MetaItemInner;
 class AttrInputMetaItemContainer;
 class MetaItem;
