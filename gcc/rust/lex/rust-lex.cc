@@ -2239,8 +2239,10 @@ Lexer::parse_raw_string (location_t loc, int initial_hash_count)
 template <typename IsDigitFunc>
 TokenPtr
 Lexer::parse_non_decimal_int_literal (location_t loc, IsDigitFunc is_digit_func,
-				      std::string existent_str, int base)
+				      int base)
 {
+  std::string raw_str;
+
   int length = 1;
 
   skip_input ();
@@ -2265,15 +2267,19 @@ Lexer::parse_non_decimal_int_literal (location_t loc, IsDigitFunc is_digit_func,
       length++;
 
       // add raw numbers
-      existent_str += current_char;
+      raw_str += current_char;
       skip_input ();
       current_char = peek_input ();
     }
 
   // convert value to decimal representation
-  long dec_num = std::strtol (existent_str.c_str (), nullptr, base);
-
-  existent_str = std::to_string (dec_num);
+  mpz_t dec_num;
+  mpz_init (dec_num);
+  mpz_set_str (dec_num, raw_str.c_str (), base);
+  char *s = mpz_get_str (NULL, 10, dec_num);
+  std::string dec_str = s;
+  free (s);
+  mpz_clear (dec_num);
 
   // parse in type suffix if it exists
   auto type_suffix_pair = parse_in_type_suffix ();
@@ -2297,35 +2303,29 @@ Lexer::parse_non_decimal_int_literal (location_t loc, IsDigitFunc is_digit_func,
 
   loc += length - 1;
 
-  return Token::make_int (loc, std::move (existent_str), type_hint);
+  return Token::make_int (loc, std::move (dec_str), type_hint);
 }
 
 // Parses a hex, binary or octal int literal.
 TokenPtr
 Lexer::parse_non_decimal_int_literals (location_t loc)
 {
-  std::string str;
-  str.reserve (16); // some sensible default
-  str += current_char;
-
   current_char = peek_input ();
 
   if (current_char == 'x')
     {
       // hex (integer only)
-      return parse_non_decimal_int_literal (loc, is_x_digit, str + "x", 16);
+      return parse_non_decimal_int_literal (loc, is_x_digit, 16);
     }
   else if (current_char == 'o')
     {
       // octal (integer only)
-      return parse_non_decimal_int_literal (loc, is_octal_digit,
-					    std::move (str), 8);
+      return parse_non_decimal_int_literal (loc, is_octal_digit, 8);
     }
   else if (current_char == 'b')
     {
       // binary (integer only)
-      return parse_non_decimal_int_literal (loc, is_bin_digit, std::move (str),
-					    2);
+      return parse_non_decimal_int_literal (loc, is_bin_digit, 2);
     }
   else
     {
