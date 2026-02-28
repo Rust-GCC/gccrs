@@ -9970,6 +9970,23 @@ finish_struct (location_t loc, tree t, tree fieldlist, tree attributes,
       warning_at (loc, 0, "union cannot be made transparent");
     }
 
+  tree incomplete_vars = C_TYPE_INCOMPLETE_VARS (TYPE_MAIN_VARIANT (t));
+  for (x = TYPE_MAIN_VARIANT (t); x; x = TYPE_NEXT_VARIANT (x))
+    {
+      TYPE_FIELDS (x) = TYPE_FIELDS (t);
+      TYPE_LANG_SPECIFIC (x) = TYPE_LANG_SPECIFIC (t);
+      TYPE_TRANSPARENT_AGGR (x) = TYPE_TRANSPARENT_AGGR (t);
+      TYPE_TYPELESS_STORAGE (x) = TYPE_TYPELESS_STORAGE (t);
+      C_TYPE_FIELDS_READONLY (x) = C_TYPE_FIELDS_READONLY (t);
+      C_TYPE_FIELDS_VOLATILE (x) = C_TYPE_FIELDS_VOLATILE (t);
+      C_TYPE_FIELDS_NON_CONSTEXPR (x) = C_TYPE_FIELDS_NON_CONSTEXPR (t);
+      C_TYPE_FIELDS_HAS_COUNTED_BY (x) = C_TYPE_FIELDS_HAS_COUNTED_BY (t);
+      C_TYPE_VARIABLE_SIZE (x) = C_TYPE_VARIABLE_SIZE (t);
+      C_TYPE_VARIABLY_MODIFIED (x) = C_TYPE_VARIABLY_MODIFIED (t);
+      C_TYPE_INCOMPLETE_VARS (x) = NULL_TREE;
+      TYPE_INCLUDES_FLEXARRAY (x) = TYPE_INCLUDES_FLEXARRAY (t);
+    }
+
   /* Check for consistency with previous definition.  */
   if (flag_isoc23 && NULL != enclosing_struct_parse_info)
     {
@@ -10022,23 +10039,6 @@ finish_struct (location_t loc, tree t, tree fieldlist, tree attributes,
 	  *e = t;
 	}
       c_update_type_canonical (t);
-    }
-
-  tree incomplete_vars = C_TYPE_INCOMPLETE_VARS (TYPE_MAIN_VARIANT (t));
-  for (x = TYPE_MAIN_VARIANT (t); x; x = TYPE_NEXT_VARIANT (x))
-    {
-      TYPE_FIELDS (x) = TYPE_FIELDS (t);
-      TYPE_LANG_SPECIFIC (x) = TYPE_LANG_SPECIFIC (t);
-      TYPE_TRANSPARENT_AGGR (x) = TYPE_TRANSPARENT_AGGR (t);
-      TYPE_TYPELESS_STORAGE (x) = TYPE_TYPELESS_STORAGE (t);
-      C_TYPE_FIELDS_READONLY (x) = C_TYPE_FIELDS_READONLY (t);
-      C_TYPE_FIELDS_VOLATILE (x) = C_TYPE_FIELDS_VOLATILE (t);
-      C_TYPE_FIELDS_NON_CONSTEXPR (x) = C_TYPE_FIELDS_NON_CONSTEXPR (t);
-      C_TYPE_FIELDS_HAS_COUNTED_BY (x) = C_TYPE_FIELDS_HAS_COUNTED_BY (t);
-      C_TYPE_VARIABLE_SIZE (x) = C_TYPE_VARIABLE_SIZE (t);
-      C_TYPE_VARIABLY_MODIFIED (x) = C_TYPE_VARIABLY_MODIFIED (t);
-      C_TYPE_INCOMPLETE_VARS (x) = NULL_TREE;
-      TYPE_INCLUDES_FLEXARRAY (x) = TYPE_INCLUDES_FLEXARRAY (t);
     }
 
   /* Update type location to the one of the definition, instead of e.g.
