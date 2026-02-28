@@ -60,7 +60,8 @@ extern const char *riscv_arch_help (int argc, const char **argv);
   { "riscv_arch_help", riscv_arch_help },
 
 /* Support for a compile-time default CPU, et cetera.  The rules are:
-   --with-arch and --with-cpu are ignored if -march or -mcpu is specified.
+   --with-cpu is ignored if -mcpu is specified.
+   --with-arch is ignored if -march or -mcpu is specified.
    --with-abi is ignored if -mabi is specified.
    --with-tune is ignored if -mtune or -mcpu is specified.
    --with-isa-spec is ignored if -misa-spec is specified.
@@ -68,10 +69,10 @@ extern const char *riscv_arch_help (int argc, const char **argv);
 
    Uses default values if -mcpu doesn't have a valid option.  */
 #define OPTION_DEFAULT_SPECS \
+  {"cpu", "%{!mcpu=*:-mcpu=%(VALUE)}" },				\
   {"tune", "%{!mtune=*:"						\
 	   "  %{!mcpu=*:-mtune=%(VALUE)}"				\
 	   "  %{mcpu=*:-mtune=%:riscv_default_mtune(%* %(VALUE))}}" },	\
-  {"cpu", "%{!march=*:%{!mcpu=*:%:riscv_expand_arch_from_cpu(%(VALUE))}}" }, \
   {"arch", "%{!march=*|march=unset:"					\
 	   "  %{!mcpu=*:-march=%(VALUE)}"				\
 	   "  %{mcpu=*:%:riscv_expand_arch_from_cpu(%* %(VALUE))}}" },	\
