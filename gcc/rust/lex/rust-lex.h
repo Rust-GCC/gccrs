@@ -154,8 +154,7 @@ private:
 
   template <typename IsDigitFunc>
   TokenPtr parse_non_decimal_int_literal (location_t loc,
-					  IsDigitFunc is_digit_func,
-					  std::string existent_str, int base);
+					  IsDigitFunc is_digit_func, int base);
 
 public:
   // Construct lexer with input file and filename provided
