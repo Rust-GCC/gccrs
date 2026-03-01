@@ -1231,8 +1231,11 @@ package body Exp_Ch9 is
                Asp_Copy := New_Copy_Tree (Aspect);
 
                --  Force its analysis in the corresponding record to add
-               --  the pragma.
+               --  the pragma. Remove Aspect_Rep_Item left over from the
+               --  previous analysis.
 
+               pragma Assert (Present (Aspect_Rep_Item (Asp_Copy)));
+               Set_Aspect_Rep_Item (Asp_Copy, Empty);
                Set_Analyzed (Asp_Copy, False);
                Append_To (Alist, Asp_Copy);
                exit;

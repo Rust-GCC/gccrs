@@ -520,13 +520,16 @@ package body Sem_Ch6 is
          Analyze (N);
 
          --  If aspect SPARK_Mode was specified on the body, it needs to be
-         --  repeated both on the generated spec and the body.
+         --  repeated both on the generated spec and the body. Remove
+         --  Aspect_Rep_Item from the copy.
 
          Asp := Find_Aspect (Defining_Unit_Name (Spec), Aspect_SPARK_Mode);
 
          if Present (Asp) then
             Asp := New_Copy_Tree (Asp);
             Set_Analyzed (Asp, False);
+            pragma Assert (Present (Aspect_Rep_Item (Asp)));
+            Set_Aspect_Rep_Item (Asp, Empty);
             Set_Aspect_Specifications (New_Body, New_List (Asp));
          end if;
 

@@ -26,6 +26,7 @@
 with Local_Restrict;
 with Types; use Types;
 with Sem_Disp; use Sem_Disp;
+with Sinfo.Nodes; use Sinfo.Nodes;
 with Uintp; use Uintp;
 
 package Sem_Ch13 is
@@ -41,9 +42,9 @@ package Sem_Ch13 is
    procedure Analyze_Record_Representation_Clause       (N : Node_Id);
    procedure Analyze_Code_Statement                     (N : Node_Id);
 
-   procedure Analyze_Aspect_Specifications (N : Node_Id; E : Entity_Id);
-   --  This procedure is called to analyze aspect specifications for node N. E
-   --  is the corresponding entity declared by the declaration node N.
+   procedure Analyze_Aspect_Specifications (N : Node_Id; E : N_Entity_Id);
+   --  Analyze aspect specifications of declaration N. E is the entity
+   --  declared by N.
 
    procedure Analyze_Aspects_On_Subprogram_Body_Or_Stub (N : Node_Id);
    --  Analyze the aspect specifications of [generic] subprogram body or stub
@@ -170,11 +171,12 @@ package Sem_Ch13 is
    --  in the case of the aspect of a type, Negated will always be False.
 
    function Rep_Item_Too_Early (T : Entity_Id; N : Node_Id) return Boolean;
-   --  Called at start of processing a representation clause/pragma. Used to
-   --  check that the representation item is not being applied to an incomplete
-   --  type or to a generic formal type or a type derived from a generic formal
-   --  type. Returns False if no such error occurs. If this error does occur,
-   --  appropriate error messages are posted on node N, and True is returned.
+   --  Called at start of processing a representation clause, pragma, or
+   --  aspect. Used to check that the representation item is not being applied
+   --  to an incomplete type or to a generic formal type or a type derived from
+   --  a generic formal type. Returns False if no such error occurs. If this
+   --  error does occur, appropriate error messages are posted on node N, and
+   --  True is returned.
 
    generic
       with procedure Replace_Type_Reference (N : Node_Id);

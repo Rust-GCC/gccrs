@@ -4147,7 +4147,7 @@ package body Sem_Ch12 is
 
             Analyze (Prefix (Def));
             Valid_Default_Attribute (Nam, Def);
-            goto Leave;
+            goto Do_Aspects;
          end if;
 
          --  The default for a ghost generic formal procedure should be a ghost
@@ -4288,9 +4288,10 @@ package body Sem_Ch12 is
          End_Scope;
       end if;
 
-   <<Leave>>
+   <<Do_Aspects>>
       Analyze_Aspect_Specifications (N, Nam);
 
+   <<Leave>>
       if Parent_Installed then
          Remove_Parent;
       end if;

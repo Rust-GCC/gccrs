@@ -171,7 +171,8 @@ package Aspects is
       Aspect_Warnings,                      -- GNAT
       Aspect_Write,
 
-      --  The following are in subtype Library_Unit_Aspects
+      --  The following are in subtype Library_Unit_Aspects (and also in
+      --  subtype Boolean_Aspects).
 
       Aspect_All_Calls_Remote,
       Aspect_Elaborate_Body,
@@ -411,15 +412,13 @@ package Aspects is
    --  the aspect value is inherited from the parent, in which case we do
    --  not allow False if we inherit a True value from the parent.
    --
-   --  Always_Terminates fits in this category even though it accepts a
-   --  nonstatic value, because we want it to be usable with pragma
+   --  Always_Terminates fits in this category except that it accepts a
+   --  nonstatic value; we want it to be usable with pragma
    --  User_Aspect_Definition.
-   --
-   --  Note that this does not include all Boolean-valued aspects; in
-   --  particular, the Library_Unit_Aspects are also of type Boolean.
 
    subtype Boolean_Aspects is
-     Aspect_Id range Aspect_Always_Terminates .. Aspect_Id'Last;
+     Aspect_Id range Library_Unit_Aspects'First .. Aspect_Id'Last;
+   --  Includes Library_Unit_Aspects
 
    subtype Pre_Post_Aspects is Aspect_Id
    with Static_Predicate => Pre_Post_Aspects in Aspect_Post
@@ -536,7 +535,6 @@ package Aspects is
       Aspect_Write                      => Name,
 
       Ignored_Aspects                   => Optional_Expression,
-      Library_Unit_Aspects              => Optional_Expression,
       Boolean_Aspects                   => Optional_Expression);
          --  end Aspect_Argument
 
@@ -1020,7 +1018,6 @@ package Aspects is
       Aspect_Favor_Top_Level              => Always_Delay,
       Aspect_Finalizable                  => Always_Delay,
       Aspect_Ghost_Predicate              => Always_Delay,
-      Aspect_Implicit_Dereference         => Always_Delay,
       Aspect_Independent                  => Always_Delay,
       Aspect_Independent_Components       => Always_Delay,
       Aspect_Inline                       => Always_Delay,
@@ -1029,7 +1026,6 @@ package Aspects is
       Aspect_Integer_Literal              => Always_Delay,
       Aspect_Interrupt_Handler            => Always_Delay,
       Aspect_Interrupt_Priority           => Always_Delay,
-      Aspect_Invariant                    => Always_Delay,
       Aspect_Iterable                     => Always_Delay,
       Aspect_Iterator_Element             => Always_Delay,
       Aspect_Lock_Free                    => Always_Delay,
@@ -1038,10 +1034,6 @@ package Aspects is
       Aspect_No_Return                    => Always_Delay,
       Aspect_Output                       => Always_Delay,
       Aspect_Persistent_BSS               => Always_Delay,
-      Aspect_Post                         => Always_Delay,
-      Aspect_Postcondition                => Always_Delay,
-      Aspect_Pre                          => Always_Delay,
-      Aspect_Precondition                 => Always_Delay,
       Aspect_Predicate                    => Always_Delay,
       Aspect_Predicate_Failure            => Always_Delay,
       Aspect_Preelaborable_Initialization => Always_Delay,
@@ -1068,17 +1060,14 @@ package Aspects is
       Aspect_Storage_Pool                 => Always_Delay,
       Aspect_Stream_Size                  => Always_Delay,
       Aspect_String_Literal               => Always_Delay,
-      Aspect_Suppress                     => Always_Delay,
       Aspect_Suppress_Debug_Info          => Always_Delay,
       Aspect_Suppress_Initialization      => Always_Delay,
       Aspect_Thread_Local_Storage         => Always_Delay,
-      Aspect_Type_Invariant               => Always_Delay,
       Aspect_Unchecked_Union              => Always_Delay,
       Aspect_Universal_Aliasing           => Always_Delay,
       Aspect_Unmodified                   => Always_Delay,
       Aspect_Unreferenced                 => Always_Delay,
       Aspect_Unreferenced_Objects         => Always_Delay,
-      Aspect_Unsuppress                   => Always_Delay,
       Aspect_Variable_Indexing            => Always_Delay,
       Aspect_Write                        => Always_Delay,
 
@@ -1102,15 +1091,19 @@ package Aspects is
       Aspect_Export                       => Never_Delay,
       Aspect_Extensions_Visible           => Never_Delay,
       Aspect_External_Initialization      => Never_Delay,
+      Aspect_External_Name                => Never_Delay,
       Aspect_First_Controlling_Parameter  => Never_Delay,
       Aspect_Ghost                        => Never_Delay,
       Aspect_Global                       => Never_Delay,
       Aspect_GNAT_Annotate                => Never_Delay,
       Aspect_Import                       => Never_Delay,
       Aspect_Initial_Condition            => Never_Delay,
+      Aspect_Link_Name                    => Never_Delay,
       Aspect_Local_Restrictions           => Never_Delay,
+      Aspect_Implicit_Dereference         => Never_Delay,
       Aspect_Initialize                   => Never_Delay,
       Aspect_Initializes                  => Never_Delay,
+      Aspect_Invariant                    => Never_Delay,
       Aspect_Max_Entry_Queue_Length       => Never_Delay,
       Aspect_Max_Queue_Length             => Never_Delay,
       Aspect_No_Caching                   => Never_Delay,
@@ -1120,7 +1113,11 @@ package Aspects is
       Aspect_No_Tagged_Streams            => Never_Delay,
       Aspect_Obsolescent                  => Never_Delay,
       Aspect_Part_Of                      => Never_Delay,
+      Aspect_Post                         => Never_Delay,
+      Aspect_Postcondition                => Never_Delay,
       Aspect_Potentially_Invalid          => Never_Delay,
+      Aspect_Pre                          => Never_Delay,
+      Aspect_Precondition                 => Never_Delay,
       Aspect_Refined_Depends              => Never_Delay,
       Aspect_Refined_Global               => Never_Delay,
       Aspect_Refined_Post                 => Never_Delay,
@@ -1131,8 +1128,11 @@ package Aspects is
       Aspect_Static                       => Never_Delay,
       Aspect_Subprogram_Variant           => Never_Delay,
       Aspect_Super                        => Never_Delay,
+      Aspect_Suppress                     => Never_Delay,
       Aspect_Synchronization              => Never_Delay,
       Aspect_Test_Case                    => Never_Delay,
+      Aspect_Type_Invariant               => Never_Delay,
+      Aspect_Unsuppress                   => Never_Delay,
       Aspect_User_Aspect                  => Never_Delay,
       Aspect_Volatile_Function            => Never_Delay,
       Aspect_Warnings                     => Never_Delay,
@@ -1145,9 +1145,7 @@ package Aspects is
       Aspect_Bit_Order                    => Rep_Aspect,
       Aspect_Component_Size               => Rep_Aspect,
       Aspect_Extended_Access              => Rep_Aspect,
-      Aspect_External_Name                => Rep_Aspect,
       Aspect_Full_Access_Only             => Rep_Aspect,
-      Aspect_Link_Name                    => Rep_Aspect,
       Aspect_Linker_Section               => Rep_Aspect,
       Aspect_Machine_Radix                => Rep_Aspect,
       Aspect_Object_Size                  => Rep_Aspect,

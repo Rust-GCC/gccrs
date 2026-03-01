@@ -807,7 +807,7 @@ package Sinfo is
    --    Present on an N_Aspect_Specification node. For an aspect that applies
    --    to a type entity, indicates whether the specification appears on the
    --    partial view of a private type or extension. Undefined for aspects
-   --    that apply to other entities.
+   --    that apply to other entities. Used only by SPARK.
 
    --  Aspect_Rep_Item
    --    Present in N_Aspect_Specification nodes. Points to the corresponding
