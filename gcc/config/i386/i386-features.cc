@@ -5629,7 +5629,7 @@ make_resolver_func (const tree default_decl,
 
   tree id = ix86_mangle_decl_assembler_name
     (decl, node->function_version ()->assembler_name);
-  SET_DECL_ASSEMBLER_NAME (decl, id);
+  symtab->change_decl_assembler_name (decl, id);
 
   DECL_NAME (decl) = DECL_NAME (default_decl);
   TREE_USED (decl) = 1;
