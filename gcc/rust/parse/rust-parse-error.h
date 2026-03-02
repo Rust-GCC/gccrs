@@ -27,6 +27,48 @@ namespace Rust {
 namespace Parse {
 namespace Error {
 
+struct EnumVariant
+{
+  enum class Kind
+  {
+    CHILD_ERROR,
+    NO_IDENTIFIER,
+    UNFINISHED_TUPLE_VARIANT,
+  } kind;
+
+  static tl::expected<std::unique_ptr<AST::EnumItem>, EnumVariant>
+  make_not_identifier (const_TokenPtr unexpected_token)
+  {
+    return tl::unexpected<EnumVariant> (EnumVariant (unexpected_token));
+  }
+
+  static tl::expected<std::unique_ptr<AST::EnumItem>, EnumVariant>
+  make_child_error ()
+  {
+    return tl::unexpected<EnumVariant> (EnumVariant (Kind::CHILD_ERROR));
+  }
+
+  static tl::expected<std::unique_ptr<AST::EnumItem>, EnumVariant>
+  make_unfinished_tuple_variant ()
+  {
+    return tl::unexpected<EnumVariant> (
+      EnumVariant (Kind::UNFINISHED_TUPLE_VARIANT));
+  }
+
+private:
+  EnumVariant (const_TokenPtr unexpected_token)
+    : kind (Kind::NO_IDENTIFIER), unexpected_token (unexpected_token)
+  {}
+
+  EnumVariant (Kind kind) : kind (kind), unexpected_token (nullptr)
+  {
+    rust_assert (kind != Kind::NO_IDENTIFIER);
+  }
+
+  // Only valid for missing identifier
+  const_TokenPtr unexpected_token;
+};
+
 struct Attribute
 {
   static tl::expected<AST::Attribute, Attribute> make_malformed ()
