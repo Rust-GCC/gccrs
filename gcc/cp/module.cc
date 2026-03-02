@@ -12323,11 +12323,12 @@ trees_in::key_mergeable (int tag, merge_kind mk, tree decl, tree inner,
 	    gcc_checking_assert (!is_imported_temploid_friend);
 	    int use_tmpl = 0;
 	    if (is_attached && !(state->is_module () || state->is_partition ())
-		/* Implicit member functions can come from
-		   anywhere.  */
-		&& !(DECL_ARTIFICIAL (decl)
-		     && TREE_CODE (decl) == FUNCTION_DECL
-		     && !DECL_THUNK_P (decl))
+		/* Implicit or in-class defaulted member functions
+		   can come from anywhere.  */
+		&& !(TREE_CODE (decl) == FUNCTION_DECL
+		     && !DECL_THUNK_P (decl)
+		     && DECL_DEFAULTED_FN (decl)
+		     && !DECL_DEFAULTED_OUTSIDE_CLASS_P (decl))
 		/* As can members of template specialisations.  */
 		&& !(node_template_info (container, use_tmpl)
 		     && use_tmpl != 0))
