@@ -81,6 +81,7 @@ static tree uninit_handler (Context *ctx, TyTy::FnType *fntype);
 static tree move_val_init_handler (Context *ctx, TyTy::FnType *fntype);
 static tree assume_handler (Context *ctx, TyTy::FnType *fntype);
 static tree discriminant_value_handler (Context *ctx, TyTy::FnType *fntype);
+static tree black_box_handler (Context *ctx, TyTy::FnType *fntype);
 static tree variant_count_handler (Context *ctx, TyTy::FnType *fntype);
 
 enum class Prefetch
@@ -245,6 +246,7 @@ static const std::map<std::string,
      {"try", try_handler (false)},
      {"catch_unwind", try_handler (true)},
      {"discriminant_value", discriminant_value_handler},
+     {"black_box", black_box_handler},
      {"variant_count", variant_count_handler}};
 
 Intrinsics::Intrinsics (Context *ctx) : ctx (ctx) {}
@@ -1426,6 +1428,55 @@ discriminant_value_handler (Context *ctx, TyTy::FnType *fntype)
 
   finalize_intrinsic_block (ctx, fndecl);
 
+  return fndecl;
+}
+
+static tree
+black_box_handler (Context *ctx, TyTy::FnType *fntype)
+{
+  rust_assert (fntype->get_params ().size () == 1);
+  tree lookup = NULL_TREE;
+  if (check_for_cached_intrinsic (ctx, fntype, &lookup))
+    return lookup;
+
+  auto fndecl = compile_intrinsic_function (ctx, fntype);
+  std::vector<Bvariable *> param_vars;
+  compile_fn_params (ctx, fntype, fndecl, &param_vars);
+  auto &x_param = param_vars.at (0);
+
+  if (!Backend::function_set_parameters (fndecl, param_vars))
+    return error_mark_node;
+
+  enter_intrinsic_block (ctx, fndecl);
+
+  auto expr_x = Backend::var_expression (x_param, UNDEF_LOCATION);
+
+  tree asm_str = build_string (1, "");
+  TREE_TYPE (asm_str)
+    = build_array_type (char_type_node, build_index_type (size_int (1)));
+
+  tree input_constraint = build_string (2, "g");
+  TREE_TYPE (input_constraint)
+    = build_array_type (char_type_node, build_index_type (size_int (2)));
+  tree input_purpose = build_tree_list (NULL_TREE, input_constraint);
+  tree input_list = build_tree_list (input_purpose, expr_x);
+
+  tree clobber_string = build_string (7, "memory");
+  TREE_TYPE (clobber_string)
+    = build_array_type (char_type_node, build_index_type (size_int (7)));
+  tree clobber_list = build_tree_list (NULL_TREE, clobber_string);
+
+  tree asm_expr = build5 (ASM_EXPR, void_type_node, asm_str, NULL_TREE,
+			  input_list, clobber_list, NULL_TREE);
+
+  ASM_VOLATILE_P (asm_expr) = 1;
+  ctx->add_statement (asm_expr);
+
+  auto return_statement
+    = Backend::return_statement (fndecl, expr_x, UNDEF_LOCATION);
+  ctx->add_statement (return_statement);
+
+  finalize_intrinsic_block (ctx, fndecl);
   return fndecl;
 }
 
