@@ -1543,11 +1543,8 @@ package body Sem_Ch13 is
                   Make_Pragma_Argument_Association (Sloc (Ident),
                     Expression => New_Occurrence_Of (Ent, Sloc (Ident)))));
 
-            Set_From_Aspect_Specification (Prag, True);
-            Set_Corresponding_Aspect (Prag, ASN);
-            Set_Aspect_Rep_Item (ASN, Prag);
+            Decorate (ASN, Prag);
             Set_Is_Delayed_Aspect (Prag);
-            Set_Parent (Prag, ASN);
          end if;
       end Make_Pragma_From_Boolean_Aspect;
 
