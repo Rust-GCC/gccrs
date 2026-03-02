@@ -1199,8 +1199,6 @@ package body Sem_Disp is
    ---------------------------------
 
    procedure Check_Dispatching_Operation (Subp, Old_Subp : Entity_Id) is
-      function Is_Access_To_Subprogram_Wrapper (E : Entity_Id) return Boolean;
-      --  Return True if E is an access to subprogram wrapper
 
       procedure Warn_On_Late_Primitive_After_Private_Extension
         (Typ  : Entity_Id;
@@ -1208,22 +1206,6 @@ package body Sem_Disp is
       --  Prim is a dispatching primitive of the tagged type Typ. Warn on Prim
       --  if it is a public primitive defined after some private extension of
       --  the tagged type.
-
-      -------------------------------------
-      -- Is_Access_To_Subprogram_Wrapper --
-      -------------------------------------
-
-      function Is_Access_To_Subprogram_Wrapper (E : Entity_Id) return Boolean
-      is
-         Decl_N : constant Node_Id := Unit_Declaration_Node (E);
-         Par_N  : constant Node_Id := Parent (List_Containing (Decl_N));
-
-      begin
-         --  Access to subprogram wrappers are declared in the freezing actions
-
-         return Nkind (Par_N) = N_Freeze_Entity
-           and then Ekind (Entity (Par_N)) = E_Access_Subprogram_Type;
-      end Is_Access_To_Subprogram_Wrapper;
 
       ----------------------------------------------------
       -- Warn_On_Late_Primitive_After_Private_Extension --
@@ -1298,9 +1280,7 @@ package body Sem_Disp is
 
       --  Wrappers of access to subprograms are not primitive subprograms.
 
-      elsif Is_Wrapper (Subp)
-        and then Is_Access_To_Subprogram_Wrapper (Subp)
-      then
+      elsif Is_Access_To_Subprogram_Wrapper (Subp) then
          return;
       end if;
 

@@ -6176,7 +6176,13 @@ package body Sem_Attr is
                   --  Otherwise the prefix denotes some unrelated function
 
                   else
-                     Error_Msg_Name_2 := Chars (Spec_Id);
+                     if Is_Access_To_Subprogram_Wrapper (Spec_Id) then
+                        Error_Msg_Name_2 :=
+                          Chars (Etype (Last_Formal (Spec_Id)));
+                     else
+                        Error_Msg_Name_2 := Chars (Spec_Id);
+                     end if;
+
                      Error_Attr
                        ("incorrect prefix for attribute %, expected %", P);
                   end if;
@@ -6187,8 +6193,17 @@ package body Sem_Attr is
                elsif Is_Access_Subprogram_Type (Pref_Id) then
                   if Pref_Id = Spec_Id then
                      Set_Etype (N, Etype (Designated_Type (Spec_Id)));
+
+                  --  Otherwise the prefix denotes some unrelated function
+
                   else
-                     Error_Msg_Name_2 := Chars (Spec_Id);
+                     if Is_Access_To_Subprogram_Wrapper (Spec_Id) then
+                        Error_Msg_Name_2 :=
+                          Chars (Etype (Last_Formal (Spec_Id)));
+                     else
+                        Error_Msg_Name_2 := Chars (Spec_Id);
+                     end if;
+
                      Error_Attr
                        ("incorrect prefix for attribute %, expected %", P);
                   end if;

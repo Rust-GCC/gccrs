@@ -12747,18 +12747,28 @@ package body Sem_Util is
       return False;
    end Has_Non_Null_Statements;
 
-   ----------------------------------
-   -- Is_Access_Subprogram_Wrapper --
-   ----------------------------------
+   -------------------------------------
+   -- Is_Access_To_Subprogram_Wrapper --
+   -------------------------------------
 
-   function Is_Access_Subprogram_Wrapper (E : Entity_Id) return Boolean is
-      Formal : constant Entity_Id := Last_Formal (E);
+   function Is_Access_To_Subprogram_Wrapper (E : Entity_Id) return Boolean is
+      Formal : Entity_Id;
+
    begin
-      return Present (Formal)
-        and then Ekind (Etype (Formal)) in Access_Subprogram_Kind
-        and then Access_Subprogram_Wrapper
-           (Directly_Designated_Type (Etype (Formal))) = E;
-   end Is_Access_Subprogram_Wrapper;
+      if not Is_Wrapper (E)
+        or else not Can_Have_Formals (E)
+        or else No (Last_Formal (E))
+      then
+         return False;
+
+      else
+         Formal := Last_Formal (E);
+
+         return Ekind (Etype (Formal)) in Access_Subprogram_Kind
+           and then Access_Subprogram_Wrapper
+              (Directly_Designated_Type (Etype (Formal))) = E;
+      end if;
+   end Is_Access_To_Subprogram_Wrapper;
 
    ---------------------------
    -- Is_Explicitly_Aliased --

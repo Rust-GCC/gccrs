@@ -34170,7 +34170,7 @@ package body Sem_Prag is
                then
                   return Stmt;
 
-               elsif Is_Access_Subprogram_Wrapper (Defining_Entity (Stmt))
+               elsif Is_Access_To_Subprogram_Wrapper (Defining_Entity (Stmt))
                  and then Ada_Version >= Ada_2022
                then
                   return Stmt;

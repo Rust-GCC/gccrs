@@ -2812,10 +2812,10 @@ package body Exp_Ch6 is
 
       if Must_Rewrite_Indirect_Call
         and then (not Is_Overloadable (Current_Scope)
-             or else not (Is_Access_Subprogram_Wrapper (Current_Scope)
+             or else not (Is_Access_To_Subprogram_Wrapper (Current_Scope)
                            or else
                              (Chars (Current_Scope) = Name_uWrapped_Statements
-                               and then Is_Access_Subprogram_Wrapper
+                               and then Is_Access_To_Subprogram_Wrapper
                                           (Scope (Current_Scope)))))
       then
          declare
