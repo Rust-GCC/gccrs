@@ -3482,13 +3482,6 @@ vect_mark_slp_stmts (vec_info *vinfo, slp_tree node,
       vect_mark_slp_stmts (vinfo, child, visited);
 }
 
-static void
-vect_mark_slp_stmts (vec_info *vinfo, slp_tree node)
-{
-  hash_set<slp_tree> visited;
-  vect_mark_slp_stmts (vinfo, node, visited);
-}
-
 /* Mark the statements of the tree rooted at NODE as relevant (vect_used).  */
 
 static void
@@ -9331,10 +9324,6 @@ vect_slp_analyze_operations (vec_info *vinfo)
 	  ++i;
     }
 
-  /* Compute vectorizable live stmts.  */
-  if (bb_vec_info bb_vinfo = dyn_cast <bb_vec_info> (vinfo))
-    vect_bb_slp_mark_live_stmts (bb_vinfo);
-
   return !vinfo->slp_instances.is_empty ();
 }
 
@@ -10271,15 +10260,8 @@ vect_slp_analyze_bb_1 (bb_vec_info bb_vinfo, int n_stmts, bool &fatal,
 	  continue;
 	}
 
-      /* Mark all the statements that we want to vectorize as pure SLP and
-	 relevant.  */
-      vect_mark_slp_stmts (bb_vinfo, SLP_INSTANCE_TREE (instance));
+      /* Mark all the statements that we want to vectorize as relevant.  */
       vect_mark_slp_stmts_relevant (SLP_INSTANCE_TREE (instance));
-      unsigned j;
-      stmt_vec_info root;
-      /* Likewise consider instance root stmts as vectorized.  */
-      FOR_EACH_VEC_ELT (SLP_INSTANCE_ROOT_STMTS (instance), j, root)
-	STMT_SLP_TYPE (root) = pure_slp;
 
       i++;
     }
@@ -10293,6 +10275,21 @@ vect_slp_analyze_bb_1 (bb_vec_info bb_vinfo, int n_stmts, bool &fatal,
 			 "not vectorized: bad operation in basic block.\n");
       return false;
     }
+
+  /* Mark all the statements that we want to vectorize as pure SLP.  */
+  hash_set<slp_tree> visited;
+  for (auto instance : BB_VINFO_SLP_INSTANCES (bb_vinfo))
+    {
+      vect_mark_slp_stmts (bb_vinfo, SLP_INSTANCE_TREE (instance), visited);
+      unsigned j;
+      stmt_vec_info root;
+      /* Likewise consider instance root stmts as vectorized.  */
+      FOR_EACH_VEC_ELT (SLP_INSTANCE_ROOT_STMTS (instance), j, root)
+	STMT_SLP_TYPE (root) = pure_slp;
+    }
+
+  /* Compute vectorizable live stmts.  */
+  vect_bb_slp_mark_live_stmts (bb_vinfo);
 
   vect_bb_partition_graph (bb_vinfo);
 
