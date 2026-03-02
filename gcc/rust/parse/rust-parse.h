@@ -438,7 +438,8 @@ private:
   template <typename EndTokenPred>
   std::vector<std::unique_ptr<AST::EnumItem>>
   parse_enum_items (EndTokenPred is_end_token);
-  std::unique_ptr<AST::EnumItem> parse_enum_item ();
+  tl::expected<std::unique_ptr<AST::EnumItem>, Parse::Error::EnumVariant>
+  parse_enum_item ();
   std::unique_ptr<AST::Union> parse_union (AST::Visibility vis,
 					   AST::AttrVec outer_attrs);
   std::unique_ptr<AST::ConstantItem>
