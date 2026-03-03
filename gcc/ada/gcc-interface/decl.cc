@@ -8617,9 +8617,9 @@ components_to_record (Node_Id gnat_component_list, Entity_Id gnat_record_type,
      mutually exclusive and should go in the same memory.  To do this we need
      to treat each variant as a record whose elements are created from the
      component list for the variant.  So here we create the records from the
-     lists for the variants and put them all into the QUAL_UNION_TYPE.
-     If this is an Unchecked_Union, we make a UNION_TYPE instead or
-     use GNU_RECORD_TYPE if there are no fields so far.  */
+     lists for the variants and put them all into the QUAL_UNION_TYPE.  But
+     if this is an Unchecked_Union, we make a UNION_TYPE instead, or reuse
+     GNU_RECORD_TYPE (which is a UNION_TYPE) if there are no fixed fields.  */
   if (Present (gnat_variant_part))
     {
       Node_Id gnat_discr = Name (gnat_variant_part), variant;
@@ -9724,7 +9724,8 @@ build_position_list (tree gnu_type, bool do_not_flatten_variant, tree gnu_pos,
 	{
 	  tree gnu_field_type = TREE_TYPE (gnu_field);
 	  if (do_not_flatten_variant
-	      && TREE_CODE (gnu_field_type) == QUAL_UNION_TYPE)
+	      && (TREE_CODE (gnu_field_type) == QUAL_UNION_TYPE
+		  || TREE_CODE (gnu_field_type) == UNION_TYPE))
 	    gnu_list
 	      = build_position_list (gnu_field_type, do_not_flatten_variant,
 				     size_zero_node, bitsize_zero_node,
@@ -9811,7 +9812,7 @@ build_variant_list (tree gnu_qual_union_type, Node_Id gnat_variant_part,
 
       /* If the new qualifier is not unconditionally false, its variant may
 	 still be accessed.  */
-      if (!integer_zerop (qual))
+      if (!qual || !integer_zerop (qual))
 	{
 	  tree variant_type = TREE_TYPE (gnu_field), variant_subpart;
 	  variant_desc v
@@ -9820,7 +9821,7 @@ build_variant_list (tree gnu_qual_union_type, Node_Id gnat_variant_part,
 	  gnu_list.safe_push (v);
 
 	  /* Annotate the GNAT node if present.  */
-	  if (Present (gnat_variant))
+	  if (qual && Present (gnat_variant))
 	    Set_Present_Expr (gnat_variant, annotate_value (qual));
 
 	  /* Recurse on the variant subpart of the variant, if any.  */
@@ -9837,7 +9838,7 @@ build_variant_list (tree gnu_qual_union_type, Node_Id gnat_variant_part,
 
 	  /* If the new qualifier is unconditionally true, the subsequent
 	     variants cannot be accessed.  */
-	  if (integer_onep (qual))
+	  if (qual && integer_onep (qual))
 	    break;
 	}
     }
@@ -10552,10 +10553,11 @@ get_variant_part (tree record_type)
 {
   tree field;
 
-  /* The variant part is the only internal field that is a qualified union.  */
+  /* The variant part is the only internal field that is a union.  */
   for (field = TYPE_FIELDS (record_type); field; field = DECL_CHAIN (field))
     if (DECL_INTERNAL_P (field)
-	&& TREE_CODE (TREE_TYPE (field)) == QUAL_UNION_TYPE)
+	&& (TREE_CODE (TREE_TYPE (field)) == QUAL_UNION_TYPE
+	    || TREE_CODE (TREE_TYPE (field)) == UNION_TYPE))
       return field;
 
   return NULL_TREE;
@@ -10582,7 +10584,7 @@ create_variant_part_from (tree old_variant_part,
   unsigned int i;
 
   /* First create the type of the variant part from that of the old one.  */
-  new_union_type = make_node (QUAL_UNION_TYPE);
+  new_union_type = make_node (TREE_CODE (TREE_TYPE (old_variant_part)));
   TYPE_NAME (new_union_type)
     = concat_name (TYPE_NAME (record_type),
 		   IDENTIFIER_POINTER (DECL_NAME (old_variant_part)));
@@ -10785,7 +10787,7 @@ copy_and_substitute_in_layout (Entity_Id gnat_new_type,
 	 is statically selected.  */
       selected_variant = true;
       FOR_EACH_VEC_ELT (gnu_variant_list, i, v)
-	if (!integer_onep (v->qual))
+	if (!v->qual || !integer_onep (v->qual))
 	  {
 	    selected_variant = false;
 	    break;
