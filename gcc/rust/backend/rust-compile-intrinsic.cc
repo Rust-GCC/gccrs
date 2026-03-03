@@ -82,6 +82,7 @@ static tree move_val_init_handler (Context *ctx, TyTy::FnType *fntype);
 static tree assume_handler (Context *ctx, TyTy::FnType *fntype);
 static tree discriminant_value_handler (Context *ctx, TyTy::FnType *fntype);
 static tree variant_count_handler (Context *ctx, TyTy::FnType *fntype);
+static tree abort_handler (Context *ctx, TyTy::FnType *fntype);
 
 enum class Prefetch
 {
@@ -245,7 +246,8 @@ static const std::map<std::string,
      {"try", try_handler (false)},
      {"catch_unwind", try_handler (true)},
      {"discriminant_value", discriminant_value_handler},
-     {"variant_count", variant_count_handler}};
+     {"variant_count", variant_count_handler},
+     {"abort", abort_handler}};
 
 Intrinsics::Intrinsics (Context *ctx) : ctx (ctx) {}
 
@@ -1474,6 +1476,46 @@ variant_count_handler (Context *ctx, TyTy::FnType *fntype)
   ctx->add_statement (return_statement);
 
   // BUILTIN disriminant_value FN BODY END
+
+  finalize_intrinsic_block (ctx, fndecl);
+
+  return fndecl;
+}
+
+/**
+ * pub fn abort() -> !;
+ */
+static tree
+abort_handler (Context *ctx, TyTy::FnType *fntype)
+{
+  rust_assert (fntype->get_params ().size () == 0);
+
+  tree lookup = NULL_TREE;
+  if (check_for_cached_intrinsic (ctx, fntype, &lookup))
+    return lookup;
+
+  auto fndecl = compile_intrinsic_function (ctx, fntype);
+
+  enter_intrinsic_block (ctx, fndecl);
+
+  // BUILTIN abort FN BODY BEGIN
+
+  tree abort_fn_raw = nullptr;
+  auto ok = BuiltinsContext::get ().lookup_simple_builtin ("__builtin_abort",
+							   &abort_fn_raw);
+  rust_assert (ok);
+
+  tree abort_fn = build_fold_addr_expr_loc (BUILTINS_LOCATION, abort_fn_raw);
+
+  auto abort_call
+    = Backend::call_expression (abort_fn, {}, NULL_TREE, BUILTINS_LOCATION);
+
+  auto return_statement
+    = Backend::return_statement (fndecl, abort_call, BUILTINS_LOCATION);
+
+  ctx->add_statement (return_statement);
+
+  // BUILTIN abort FN BODY END
 
   finalize_intrinsic_block (ctx, fndecl);
 
