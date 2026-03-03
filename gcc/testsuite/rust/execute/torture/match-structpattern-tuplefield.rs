@@ -5,9 +5,10 @@ pub struct TupStruct (i32, i32);
 
 pub fn main() -> i32 {
     let mut t = TupStruct (1, 1);
+    let mut ret = 1;
     match t {
-        TupStruct { 0: 1, 1: b } => { b -= 1 }
+        TupStruct { 0: 1, 1: b } => { b -= 1; ret = b }
         _ => {}
     }
-    b
+    ret
 }

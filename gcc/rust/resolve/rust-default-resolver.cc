@@ -390,6 +390,14 @@ DefaultResolver::visit (AST::MatchExpr &expr)
 }
 
 void
+DefaultResolver::visit (AST::MatchCase &cas)
+{
+  auto vis = [this, &cas] () { AST::DefaultASTVisitor::visit (cas); };
+
+  ctx.scoped (Rib::Kind::Normal, cas.get_node_id (), vis);
+}
+
+void
 DefaultResolver::visit (AST::ConstantItem &item)
 {
   auto expr_vis_1 = [this, &item] () { AST::DefaultASTVisitor::visit (item); };
