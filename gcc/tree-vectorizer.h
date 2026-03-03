@@ -328,6 +328,10 @@ struct _slp_tree {
   vec<stmt_vec_info> stmts;
   /* A group of scalar operands to be vectorized together.  */
   vec<tree> ops;
+  /* A set of lane indices that are live and to be code-generated from
+     this SLP node.  */
+  vec<unsigned> live_lanes;
+
   /* The representative that should be used for analysis and
      code generation.  */
   stmt_vec_info representative;
@@ -457,6 +461,7 @@ public:
 #define SLP_TREE_CHILDREN(S)                     (S)->children
 #define SLP_TREE_SCALAR_STMTS(S)                 (S)->stmts
 #define SLP_TREE_SCALAR_OPS(S)                   (S)->ops
+#define SLP_TREE_LIVE_LANES(S)			 (S)->live_lanes
 #define SLP_TREE_REF_COUNT(S)                    (S)->refcnt
 #define SLP_TREE_VEC_DEFS(S)                     (S)->vec_defs
 #define SLP_TREE_LOAD_PERMUTATION(S)             (S)->load_permutation

@@ -114,6 +114,7 @@ _slp_tree::_slp_tree ()
   slp_first_node = this;
   SLP_TREE_SCALAR_STMTS (this) = vNULL;
   SLP_TREE_SCALAR_OPS (this) = vNULL;
+  SLP_TREE_LIVE_LANES (this) = vNULL;
   SLP_TREE_VEC_DEFS (this) = vNULL;
   SLP_TREE_CHILDREN (this) = vNULL;
   SLP_TREE_LOAD_PERMUTATION (this) = vNULL;
@@ -149,6 +150,7 @@ _slp_tree::~_slp_tree ()
   SLP_TREE_CHILDREN (this).release ();
   SLP_TREE_SCALAR_STMTS (this).release ();
   SLP_TREE_SCALAR_OPS (this).release ();
+  SLP_TREE_LIVE_LANES (this).release ();
   SLP_TREE_VEC_DEFS (this).release ();
   SLP_TREE_LOAD_PERMUTATION (this).release ();
   SLP_TREE_LANE_PERMUTATION (this).release ();
@@ -3330,7 +3332,9 @@ vect_print_slp_tree (dump_flags_t dump_kind, dump_location_t loc,
     FOR_EACH_VEC_ELT (SLP_TREE_SCALAR_STMTS (node), i, stmt_info)
       if (stmt_info)
 	dump_printf_loc (metadata, user_loc, "\t%sstmt %u %G",
-			 STMT_VINFO_LIVE_P (stmt_info) ? "[l] " : "",
+			 SLP_TREE_LIVE_LANES (node).contains (i)
+			 ? "[l*]" : (STMT_VINFO_LIVE_P (stmt_info)
+				     ? "[l] " : ""),
 			 i, stmt_info->stmt);
       else
 	dump_printf_loc (metadata, user_loc, "\tstmt %u ---\n", i);
@@ -9030,28 +9034,23 @@ vect_bb_slp_mark_live_stmts (bb_vec_info bb_vinfo, slp_tree node,
 	      }
 	  if (live_p && can_insert)
 	    {
+	      /* Only record a live stmt when we can replace all uses.  We
+		 record from which SLP tree we vectorize the uses, so we'll
+		 cost once and can deal with the case that not all SLP nodes
+		 may be suitable for code-generation of all live uses.
+		 ???  But we never split up the work between multiple SLP
+		 nodes.  */
 	      STMT_VINFO_LIVE_P (stmt_info) = true;
-	      if (vectorizable_live_operation (bb_vinfo, stmt_info, node,
-					       instance, i, false, cost_vec))
+	      if (!vectorizable_live_operation (bb_vinfo, stmt_info, node,
+						instance, i, false, cost_vec))
 		{
-		  /* ???  So we know we can vectorize the live stmt from one SLP
-		     node.  If we cannot do so from all or none consistently
-		     we'd have to record which SLP node (and lane) we want to
-		     use for the live operation.  So make sure we can
-		     code-generate from all nodes.  */
-		  /* ???  We are costing the extract possibly multiple times,
-		     but code-generation also works this way, leaving uses
-		     that are not valid for one extraction to be handled
-		     by another.  */
+		  STMT_VINFO_LIVE_P (stmt_info) = false;
 		  mark_visited = false;
 		}
 	    }
 	}
       if (mark_visited)
-	{
-	  STMT_VINFO_LIVE_P (stmt_info) = false;
-	  svisited.add (stmt_info);
-	}
+	svisited.add (stmt_info);
     }
 
   slp_tree child;

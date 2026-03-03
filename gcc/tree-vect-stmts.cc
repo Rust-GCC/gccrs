@@ -13326,7 +13326,6 @@ vect_analyze_stmt (vec_info *vinfo,
   /* Stmts that are (also) "live" (i.e. - that are used out of the loop)
       need extra handling, except for vectorizable reductions.  */
   if (!bb_vinfo
-      && SLP_TREE_TYPE (node) != reduc_vec_info_type
       && (SLP_TREE_TYPE (node) != lc_phi_info_type
 	  || SLP_TREE_DEF_TYPE (node) == vect_internal_def)
       && (!node->ldst_lanes || SLP_TREE_PERMUTE_P (node))
@@ -13476,9 +13475,14 @@ vect_transform_stmt (vec_info *vinfo,
     {
       /* Handle stmts whose DEF is used outside the loop-nest that is
 	 being vectorized.  */
-      done = can_vectorize_live_stmts (vinfo, slp_node,
-				       slp_node_instance, true, NULL);
-      gcc_assert (done);
+      for (unsigned lane : SLP_TREE_LIVE_LANES (slp_node))
+	{
+	  stmt_vec_info slp_stmt_info = SLP_TREE_SCALAR_STMTS (slp_node)[lane];
+	  done = vectorizable_live_operation (vinfo, slp_stmt_info, slp_node,
+					      slp_node_instance, lane,
+					      true, NULL);
+	  gcc_assert (done);
+	}
     }
 
   return is_store;
