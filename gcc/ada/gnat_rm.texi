@@ -27791,7 +27791,7 @@ Ada issue AI12-061 introduces a new construct in array aggregates allowing
 component associations to be parameterized by a loop variable, for example:
 
 @example
-Array (1 .. 10) of Integer :=
+array (1 .. 10) of Integer :=
   (for I in 1 .. 10 => I ** 2);
 type Matrix is
 array

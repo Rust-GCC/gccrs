@@ -356,7 +356,7 @@ http://www.ada-auth.org/AI12-SUMMARY.HTML.
 
   .. code::
 
-    Array (1 .. 10) of Integer :=
+    array (1 .. 10) of Integer :=
       (for I in 1 .. 10 => I ** 2);
     type Matrix is
     array
