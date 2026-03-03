@@ -3470,51 +3470,86 @@ debug (slp_instance instance)
 			SLP_INSTANCE_TREE (instance));
 }
 
-/* Mark the tree rooted at NODE with PURE_SLP.  */
+
+/* Compute the set of scalar stmts participating in external nodes.  */
 
 static void
-vect_mark_slp_stmts (vec_info *vinfo, slp_tree node,
-		     hash_set<slp_tree> &visited)
+vect_slp_gather_extern_scalar_stmts (vec_info *vinfo, slp_tree node,
+				     hash_set<slp_tree> &visited,
+				     hash_set<stmt_vec_info> &estmts)
 {
-  int i;
-  stmt_vec_info stmt_info;
-  slp_tree child;
-
-  if (SLP_TREE_DEF_TYPE (node) != vect_internal_def)
-    return;
-
   if (visited.add (node))
     return;
 
-  FOR_EACH_VEC_ELT (SLP_TREE_SCALAR_STMTS (node), i, stmt_info)
-    if (stmt_info)
+  if (SLP_TREE_DEF_TYPE (node) == vect_internal_def)
+    {
+      slp_tree child;
+      int i;
+      FOR_EACH_VEC_ELT (SLP_TREE_CHILDREN (node), i, child)
+	if (child)
+	  vect_slp_gather_extern_scalar_stmts (vinfo, child, visited, estmts);
+    }
+  else
+    for (tree def : SLP_TREE_SCALAR_OPS (node))
       {
-	STMT_SLP_TYPE (stmt_info) = pure_slp;
-	/* ???  For .MASK_LOAD and .MASK_STORE detected as load/store-lanes
-	   when there is the mask_conversion pattern applied we have lost the
-	   alternate lanes of the uniform mask which nevertheless
-	   have separate pattern defs.  To not confuse hybrid
-	   analysis we mark those as covered as well here.  */
-	if (node->ldst_lanes)
-	  if (gcall *call = dyn_cast <gcall *> (stmt_info->stmt))
-	    if (gimple_call_internal_p (call, IFN_MASK_LOAD)
-		|| gimple_call_internal_p (call, IFN_MASK_STORE))
-	      {
-		tree mask = gimple_call_arg (call,
-					     internal_fn_mask_index
-					     (gimple_call_internal_fn (call)));
-		if (TREE_CODE (mask) == SSA_NAME)
-		  if (stmt_vec_info mask_info = vinfo->lookup_def (mask))
-		    {
-		      mask_info = vect_stmt_to_vectorize (mask_info);
-		      STMT_SLP_TYPE (mask_info) = pure_slp;
-		    }
-	      }
+	stmt_vec_info def_stmt = vinfo->lookup_def (def);
+	if (def_stmt)
+	  estmts.add (def_stmt);
       }
+}
 
-  FOR_EACH_VEC_ELT (SLP_TREE_CHILDREN (node), i, child)
-    if (child)
-      vect_mark_slp_stmts (vinfo, child, visited);
+/* Mark the original scalar stmt coverage of the vector SLP graph of VINFO
+   with STMT_SLP_TYPE == pure_slp.  */
+
+static void
+vect_bb_slp_mark_stmts_vectorized (bb_vec_info vinfo)
+{
+  /* Gather the scalar stmt leafs of the SLP graph to stop the below DFS
+     walk on.  */
+  hash_set<stmt_vec_info> scalar_stmts_in_externs;
+  hash_set<slp_tree> visited;
+  for (auto instance : BB_VINFO_SLP_INSTANCES (vinfo))
+    vect_slp_gather_extern_scalar_stmts (vinfo, SLP_INSTANCE_TREE (instance),
+					 visited, scalar_stmts_in_externs);
+
+  /* DFS walk scalar stmts to compute the vectorized coverage indicated
+     by STMT_SLP_TYPE (stmt) == pure_slp on the original scalar (non-pattern)
+     stmts.  */
+  for (auto instance : BB_VINFO_SLP_INSTANCES (vinfo))
+    {
+      for (auto stmt : SLP_INSTANCE_ROOT_STMTS (instance))
+	STMT_SLP_TYPE (stmt) = pure_slp;
+      auto_vec<stmt_vec_info> worklist;
+      for (auto stmt : SLP_TREE_SCALAR_STMTS (SLP_INSTANCE_TREE (instance)))
+	{
+	  stmt = vect_orig_stmt (stmt);
+	  if (!scalar_stmts_in_externs.contains (stmt)
+	      && STMT_SLP_TYPE (stmt) != pure_slp)
+	    {
+	      STMT_SLP_TYPE (stmt) = pure_slp;
+	      worklist.safe_push (stmt);
+	    }
+	}
+      while (!worklist.is_empty ())
+	{
+	  stmt_vec_info stmt = worklist.pop ();
+
+	  /* Now walk relevant parts of the SSA use-def graph.  */
+	  slp_oprnds child_ops (stmt);
+	  for (unsigned i = 0; i < child_ops.num_slp_children; ++i)
+	    {
+	      tree op = child_ops.get_op_for_slp_child (stmt, i);
+	      stmt_vec_info def = vinfo->lookup_def (op);
+	      if (def
+		  && !scalar_stmts_in_externs.contains (def)
+		  && STMT_SLP_TYPE (def) != pure_slp)
+		{
+		  STMT_SLP_TYPE (def) = pure_slp;
+		  worklist.safe_push (def);
+		}
+	    }
+	}
+    }
 }
 
 /* Mark the statements of the tree rooted at NODE as relevant (vect_used).  */
@@ -9092,7 +9127,7 @@ vect_bb_slp_mark_live_stmts (bb_vec_info bb_vinfo, slp_tree node,
 	    FOR_EACH_IMM_USE_STMT (use_stmt, use_iter, DEF_FROM_PTR (def_p))
 	      if (!is_gimple_debug (use_stmt)
 		  && (!(use_stmt_info = bb_vinfo->lookup_stmt (use_stmt))
-		      || !PURE_SLP_STMT (vect_stmt_to_vectorize (use_stmt_info)))
+		      || !PURE_SLP_STMT (use_stmt_info))
 		  && !vect_stmt_dominates_stmt_p (last_stmt->stmt, use_stmt))
 		{
 		  if (dump_enabled_p ())
@@ -10311,17 +10346,8 @@ vect_slp_analyze_bb_1 (bb_vec_info bb_vinfo, int n_stmts, bool &fatal,
       return false;
     }
 
-  /* Mark all the statements that we want to vectorize as pure SLP.  */
-  hash_set<slp_tree> visited;
-  for (auto instance : BB_VINFO_SLP_INSTANCES (bb_vinfo))
-    {
-      vect_mark_slp_stmts (bb_vinfo, SLP_INSTANCE_TREE (instance), visited);
-      unsigned j;
-      stmt_vec_info root;
-      /* Likewise consider instance root stmts as vectorized.  */
-      FOR_EACH_VEC_ELT (SLP_INSTANCE_ROOT_STMTS (instance), j, root)
-	STMT_SLP_TYPE (root) = pure_slp;
-    }
+  /* Mark all the statements that we vectorize.  */
+  vect_bb_slp_mark_stmts_vectorized (bb_vinfo);
 
   /* Compute vectorizable live stmts.  */
   vect_bb_slp_mark_live_stmts (bb_vinfo);
