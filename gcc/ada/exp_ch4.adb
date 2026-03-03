@@ -8582,6 +8582,8 @@ package body Exp_Ch4 is
 
          if Validity_Check_Operands
            and then not Is_Known_Valid (Component_Type (Typl))
+           and then not
+             Is_Check_Suppressed (Component_Type (Typl), Validity_Check)
          then
             declare
                Save_Force_Validity_Checks : constant Boolean :=
