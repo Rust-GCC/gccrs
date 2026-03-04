@@ -24,6 +24,7 @@
 #include "rust-attribute-values.h"
 #include "rust-system.h"
 #include "rust-immutable-name-resolution-context.h"
+#include "rust-intrinsic-values.h"
 
 // for flag_name_resolution_2_0
 #include "options.h"
@@ -95,42 +96,44 @@ check_unsafe_call (HIR::Function *fn, location_t locus, const std::string &kind)
 static bool
 is_safe_intrinsic (const std::string &fn_name)
 {
+  using Intrinsics = Values::Intrinsics;
+
   static const std::unordered_set<std::string> safe_intrinsics = {
-    "abort",
-    "size_of",
-    "min_align_of",
-    "needs_drop",
-    "caller_location",
-    "add_with_overflow",
-    "sub_with_overflow",
-    "mul_with_overflow",
-    "wrapping_add",
-    "wrapping_sub",
-    "wrapping_mul",
-    "saturating_add",
-    "saturating_sub",
-    "rotate_left",
-    "rotate_right",
-    "ctpop",
-    "ctlz",
-    "cttz",
-    "bswap",
-    "bitreverse",
-    "discriminant_value",
-    "type_id",
-    "likely",
-    "unlikely",
-    "ptr_guaranteed_eq",
-    "ptr_guaranteed_ne",
-    "minnumf32",
-    "minnumf64",
-    "maxnumf32",
-    "rustc_peek",
-    "maxnumf64",
-    "type_name",
-    "forget",
-    "black_box",
-    "variant_count",
+    Intrinsics::ABORT,
+    Intrinsics::SIZE_OF,
+    Intrinsics::MIN_ALIGN_OF,
+    Intrinsics::NEEDS_DROP,
+    Intrinsics::CALLER_LOCATION,
+    Intrinsics::ADD_WITH_OVERFLOW,
+    Intrinsics::SUB_WITH_OVERFLOW,
+    Intrinsics::MUL_WITH_OVERFLOW,
+    Intrinsics::WRAPPING_ADD,
+    Intrinsics::WRAPPING_SUB,
+    Intrinsics::WRAPPING_MUL,
+    Intrinsics::SATURATING_ADD,
+    Intrinsics::SATURATING_SUB,
+    Intrinsics::ROTATE_LEFT,
+    Intrinsics::ROTATE_RIGHT,
+    Intrinsics::CTPOP,
+    Intrinsics::CTLZ,
+    Intrinsics::CTTZ,
+    Intrinsics::BSWAP,
+    Intrinsics::BITREVERSE,
+    Intrinsics::DISCRIMINANT_VALUE,
+    Intrinsics::TYPE_ID,
+    Intrinsics::LIKELY,
+    Intrinsics::UNLIKELY,
+    Intrinsics::PTR_GUARANTEED_EQ,
+    Intrinsics::PTR_GUARANTEED_NE,
+    Intrinsics::MINNUMF32,
+    Intrinsics::MINNUMF64,
+    Intrinsics::MAXNUMF32,
+    Intrinsics::MAXNUMF64,
+    Intrinsics::RUSTC_PEEK,
+    Intrinsics::TYPE_NAME,
+    Intrinsics::FORGET,
+    Intrinsics::BLACK_BOX,
+    Intrinsics::VARIANT_COUNT,
   };
 
   return safe_intrinsics.find (fn_name) != safe_intrinsics.end ();
