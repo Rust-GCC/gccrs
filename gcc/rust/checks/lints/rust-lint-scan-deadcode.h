@@ -51,7 +51,10 @@ public:
   void visit (HIR::Function &function) override
   {
     HirId hirId = function.get_mappings ().get_hirid ();
-    if (should_warn (hirId) && !function.get_visibility ().is_public ())
+    auto starts_with_underscore
+      = function.get_function_name ().as_string ().rfind ('_', 0) == 0;
+    if (should_warn (hirId) && !function.get_visibility ().is_public ()
+	&& !starts_with_underscore)
       {
 	if (mappings.is_impl_item (hirId))
 	  {
