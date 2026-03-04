@@ -11693,6 +11693,7 @@ package body Exp_Ch3 is
             Func_Id := Defining_Unit_Name (Specification (Func_Decl));
 
             Mutate_Ekind (Func_Id, E_Function);
+            Set_Has_Controlling_Result (Func_Id);
             Set_Is_Wrapper (Func_Id);
 
             --  Corresponding_Spec will be set again to the same value during

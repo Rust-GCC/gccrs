@@ -173,14 +173,6 @@ package Sem_Disp is
    --  controlling operands are also indeterminate. Such a function call may
    --  inherit a tag from an enclosing call.
 
-   procedure Override_Dispatching_Operation
-     (Tagged_Type : Entity_Id;
-      Prev_Op     : Entity_Id;
-      New_Op      : Entity_Id);
-   --  Replace an implicit dispatching operation of the type Tagged_Type
-   --  with an explicit one. Prev_Op is an inherited primitive operation which
-   --  is overridden by the explicit declaration of New_Op.
-
    procedure Propagate_Tag (Control : Node_Id; Actual : Node_Id);
    --  If a function call given by Actual is tag-indeterminate, its controlling
    --  argument is found in the context, given by Control: either from an

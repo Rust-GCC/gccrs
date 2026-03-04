@@ -96,6 +96,14 @@ package body Sem_Disp is
    --  Check whether a primitive operation is inherited from an operation
    --  declared in the visible part of its package.
 
+   procedure Override_Dispatching_Operation
+     (Tagged_Type : Entity_Id;
+      Prev_Op     : Entity_Id;
+      New_Op      : Entity_Id);
+   --  Replace an implicit dispatching operation of the type Tagged_Type
+   --  with an explicit one. Prev_Op is an inherited primitive operation which
+   --  is overridden by the explicit declaration of New_Op.
+
    -------------------------------
    -- Add_Dispatching_Operation --
    -------------------------------
@@ -2432,6 +2440,14 @@ package body Sem_Disp is
             pragma Assert (False);
             return Empty;
          end if;
+
+      --  Deal with controlling function wrappers
+
+      elsif Ekind (Subp) = E_Function
+        and then Has_Controlling_Result (Subp)
+        and then Is_Wrapper (Subp)
+      then
+         return Check_Controlling_Type (Etype (Subp), Subp);
 
       --  General case
 
