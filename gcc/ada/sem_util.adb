@@ -12756,7 +12756,6 @@ package body Sem_Util is
 
    begin
       if not Is_Wrapper (E)
-        or else not Can_Have_Formals (E)
         or else No (Last_Formal (E))
       then
          return False;
