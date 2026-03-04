@@ -89,6 +89,10 @@ package body GNAT.Command_Line is
    --  converts the given string to canonical all lower case form, so that two
    --  file names compare equal if they refer to the same file.
 
+   function Command_Name return String;
+   --  Returns the command name of the current program without
+   --  platform-specific suffix, like ".exe" on Windows.
+
    procedure Internal_Initialize_Option_Scan
      (Parser                   : Opt_Parser;
       Switch_Char              : Character;
@@ -243,6 +247,21 @@ package body GNAT.Command_Line is
          end loop;
       end if;
    end Canonical_Case_File_Name;
+
+   ------------------
+   -- Command_Name --
+   ------------------
+
+   function Command_Name return String is
+      Target_Executable_Suffix : String_Access :=
+        GNAT.OS_Lib.Get_Target_Executable_Suffix;
+      Result : constant String :=
+        Base_Name (Ada.Command_Line.Command_Name,
+                   Suffix => Target_Executable_Suffix.all);
+   begin
+      Free (Target_Executable_Suffix);
+      return Result;
+   end Command_Name;
 
    ---------------
    -- Expansion --
@@ -3351,12 +3370,9 @@ package body GNAT.Command_Line is
       end if;
 
       if Config.Usage /= null then
-         Put_Line ("Usage: "
-                   & Base_Name
-                     (Ada.Command_Line.Command_Name) & " " & Config.Usage.all);
+         Put_Line ("Usage: " & Command_Name & " " & Config.Usage.all);
       else
-         Put_Line ("Usage: " & Base_Name (Ada.Command_Line.Command_Name)
-                   & " [switches] [arguments]");
+         Put_Line ("Usage: " & Command_Name & " [switches] [arguments]");
       end if;
 
       if Config.Help_Msg /= null and then Config.Help_Msg.all /= "" then
@@ -3590,11 +3606,12 @@ package body GNAT.Command_Line is
       when Invalid_Switch =>
          Free (Getopt_Switches);
 
-         --  Message inspired by "ls" on Unix
+         --  Message inspired by "ls" on Unix and by its Windows port, which
+         --  doesn't mention the ".exe" suffix.
 
          if not Quiet then
             Put_Line (Standard_Error,
-                      Base_Name (Ada.Command_Line.Command_Name)
+                      Command_Name
                       & ": unrecognized option '"
                       & Full_Switch (Parser)
                       & "'");
@@ -3661,8 +3678,7 @@ package body GNAT.Command_Line is
    begin
       Put_Line
         (Standard_Error,
-         "try """ & Base_Name (Ada.Command_Line.Command_Name, Suffix => ".exe")
-         & " --help"" for more information.");
+         "try """ & Command_Name & " --help"" for more information.");
    end Try_Help;
 
 end GNAT.Command_Line;
