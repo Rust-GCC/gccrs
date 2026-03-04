@@ -594,8 +594,10 @@ __gnat_error_handler (int sig, siginfo_t *si ATTRIBUTE_UNUSED, void *ucontext)
 
 #ifndef __ia64__
 #define HAVE_GNAT_ALTERNATE_STACK 1
-/* This must be in keeping with System.OS_Interface.Alternate_Stack_Size.  */
-char __gnat_alternate_stack[32 * 1024];
+/* Address sanitizer requires the alternate stack to be 8-byte aligned,
+   regardless of any extra alignment added by the operating system.  The size
+   must be in keeping with System.OS_Interface.Alternate_Stack_Size.  */
+char __gnat_alternate_stack[32 * 1024] __attribute__ ((aligned (8)));
 #endif
 
 #ifdef __XENO__
