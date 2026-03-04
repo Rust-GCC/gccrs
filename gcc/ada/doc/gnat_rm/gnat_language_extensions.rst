@@ -635,8 +635,9 @@ Here is the archetypal example:
     procedure Finalize   (Obj : in out T);
     procedure Initialize (Obj : in out T);
 
-The three procedures have the same profile, with a single ``in out`` parameter,
-and also have the same dynamic semantics as for controlled types:
+The three procedures must be primitive operations of ``T`` and have a single
+``in out`` parameter. They need not be all specified by the aspect. If they
+are specified, they have the same dynamic semantics as for controlled types:
 
  - ``Initialize`` is called when an object of type ``T`` is declared without
    initialization expression.

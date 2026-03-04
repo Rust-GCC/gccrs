@@ -31573,8 +31573,9 @@ procedure Finalize   (Obj : in out T);
 procedure Initialize (Obj : in out T);
 @end example
 
-The three procedures have the same profile, with a single @code{in out} parameter,
-and also have the same dynamic semantics as for controlled types:
+The three procedures must be primitive operations of @code{T} and have a single
+@code{in out} parameter. They need not be all specified by the aspect. If they
+are specified, they have the same dynamic semantics as for controlled types:
 
 @quotation
 

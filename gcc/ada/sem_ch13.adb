@@ -17870,9 +17870,13 @@ package body Sem_Ch13 is
       end if;
 
       Error_Msg_N
-        ("finalizable primitive must be local procedure whose only formal " &
+        ("subprogram must denote primitive procedure whose only formal " &
          "parameter has mode `IN OUT` and is of the finalizable type", N);
    end Resolve_Finalizable_Argument;
+
+   ------------------------------------
+   -- Resolve_Finalization_Procedure --
+   ------------------------------------
 
    function Resolve_Finalization_Procedure
      (N   : Node_Id;
@@ -17890,6 +17894,7 @@ package body Sem_Ch13 is
       begin
          return Ekind (E) = E_Procedure
            and then Scope (E) = Scope (Typ)
+           and then Is_Primitive (E)
            and then Present (First_Formal (E))
            and then Ekind (First_Formal (E)) = E_In_Out_Parameter
            and then Etype (First_Formal (E)) = Typ
