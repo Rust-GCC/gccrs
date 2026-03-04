@@ -3551,8 +3551,11 @@ gnat_to_gnu_entity (Entity_Id gnat_entity, tree gnu_expr, bool definition)
 	      }
 
 	/* If this is a derived type with discriminants and these discriminants
-	   affect the initial shape it has inherited, factor them in.  */
-	if (has_discr
+	   affect the initial shape it has inherited, factor them in, but this
+	   is not needed for a C-compatible Unchecked_Union since the variants
+	   are at offset 0 in there.  */
+	if (TREE_CODE (gnu_type) == RECORD_TYPE
+	    && has_discr
 	    && !is_extension
 	    && !Has_Record_Rep_Clause (gnat_entity)
 	    && Stored_Constraint (gnat_entity) != No_Elist
