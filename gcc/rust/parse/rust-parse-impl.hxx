@@ -2979,10 +2979,6 @@ Parser<ManagedTokenSource>::parse_struct (AST::Visibility vis,
   const_TokenPtr name_tok = expect_token (IDENTIFIER);
   if (name_tok == nullptr)
     {
-      Error error (lexer.peek_token ()->get_locus (),
-		   "could not parse struct or tuple struct identifier");
-      add_error (std::move (error));
-
       // skip after somewhere?
       return nullptr;
     }
