@@ -9930,23 +9930,13 @@ remove_unused_omp_iterator_vars (tree *list_p)
 	  if (t == NULL_TREE)
 	    t = walk_tree (&OMP_CLAUSE_SIZE (c), find_var_decl, var, NULL);
 	  if (t == NULL_TREE)
-	    {
-	      need_new_iterators = true;
-	      if ((OMP_CLAUSE_CODE (c) == OMP_CLAUSE_MAP
-		   && (OMP_CLAUSE_MAP_KIND (c) == GOMP_MAP_TO
-		       || OMP_CLAUSE_MAP_KIND (c) == GOMP_MAP_FROM))
-		  || OMP_CLAUSE_CODE (c) == OMP_CLAUSE_TO
-		  || OMP_CLAUSE_CODE (c) == OMP_CLAUSE_FROM)
-		warning_at (OMP_CLAUSE_LOCATION (c), OPT_Wopenmp,
-			    "iterator variable %qE not used in clause "
-			    "expression", DECL_NAME (var));
-	    }
+	    need_new_iterators = true;
 	  else
 	    vars.safe_push (var);
 	}
       if (!need_new_iterators)
 	continue;
-      if (need_new_iterators && vars.is_empty ())
+      if (vars.is_empty ())
 	{
 	  /* No iteration variables are used in the clause - remove the
 	     iterator from the clause.  */

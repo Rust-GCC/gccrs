@@ -3,18 +3,15 @@
 
 void f (int *x, float *y, double *z)
 {
-  #pragma omp target map(iterator(i=0:10), to: x) /* { dg-warning "iterator variable 'i' not used in clause expression" } */
+  #pragma omp target map(iterator(i=0:10), to: x)
     /* Add a reference to x to ensure that the 'to' clause does not get
        dropped.  */
     x[0] = 0;
 
-  #pragma omp target map(iterator(i2=0:10, j2=0:20), from: x[i2]) /* { dg-warning "iterator variable 'j2' not used in clause expression" } */
+  #pragma omp target map(iterator(i2=0:10, j2=0:20), from: x[i2])
     ;
 
   #pragma omp target map(iterator(i3=0:10, j3=0:20, k3=0:30), to: x[i3+j3], y[j3+k3], z[k3+i3])
-  /* { dg-warning "iterator variable 'i3' not used in clause expression" "" { target *-*-* } .-1 } */
-  /* { dg-warning "iterator variable 'j3' not used in clause expression" "" { target *-*-* } .-2 } */
-  /* { dg-warning "iterator variable 'k3' not used in clause expression" "" { target *-*-* } .-3 } */
     ;
 
   /* Test iterator with zero iterations.  */

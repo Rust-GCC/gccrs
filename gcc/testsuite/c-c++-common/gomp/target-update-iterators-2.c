@@ -3,16 +3,13 @@
 
 void f (int *x, float *y, double *z)
 {
-  #pragma omp target update to(iterator(i=0:10): x) /* { dg-warning "iterator variable 'i' not used in clause expression" }*/
+  #pragma omp target update to(iterator(i=0:10): x)
     ;
 
-  #pragma omp target update from(iterator(i2=0:10, j2=0:20): x[i2]) /* { dg-warning "iterator variable 'j2' not used in clause expression" }*/
+  #pragma omp target update from(iterator(i2=0:10, j2=0:20): x[i2])
     ;
 
   #pragma omp target update to(iterator(i3=0:10, j3=0:20, k3=0:30): x[i3+j3], y[j3+k3], z[k3+i3])
-  /* { dg-warning "iterator variable 'i3' not used in clause expression" "" { target *-*-* } .-1 } */
-  /* { dg-warning "iterator variable 'j3' not used in clause expression" "" { target *-*-* } .-2 } */
-  /* { dg-warning "iterator variable 'k3' not used in clause expression" "" { target *-*-* } .-3 } */
     ;
 }
 
