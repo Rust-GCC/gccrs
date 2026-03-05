@@ -635,6 +635,7 @@ build_constexpr_constructor_member_initializers (tree type, tree body)
       {
       case MUST_NOT_THROW_EXPR:
       case EH_SPEC_BLOCK:
+      case TRY_FINALLY_EXPR: // For C++26 postconditions.
 	body = TREE_OPERAND (body, 0);
 	break;
 
@@ -10741,8 +10742,9 @@ mark_non_constant (tree t)
    a failed or non-constant contract that would invalidate this.  */
 
 static bool
-check_for_failed_contracts (constexpr_global_ctx *global_ctx)
+check_for_failed_contracts (constexpr_ctx *ctx)
 {
+  constexpr_global_ctx *const global_ctx = ctx->global;
   if (!flag_contracts || !global_ctx->contract_statement)
     return false;
 
@@ -10751,7 +10753,12 @@ check_for_failed_contracts (constexpr_global_ctx *global_ctx)
   bool error = false;
   /* [intro.compliance.general]/2.3.4. */
   /* [basic.contract.eval]/8. */
-  if (contract_terminating_p (global_ctx->contract_statement))
+  if (ctx->manifestly_const_eval != mce_true)
+    {
+      /* When !MCE, silently return not constant.  */
+      return true;
+    }
+  else if (contract_terminating_p (global_ctx->contract_statement))
     {
       kind = diagnostics::kind::error;
       error = true;
@@ -11124,6 +11131,19 @@ cxx_eval_outermost_constant_expr (tree t, bool allow_non_constant,
 
   if (non_constant_p && !allow_non_constant)
     return error_mark_node;
+  else if (check_for_failed_contracts (&ctx))
+    {
+      if (manifestly_const_eval == mce_true)
+	/* If MCE, we gave a hard error and return error_mark_node.  */
+	return error_mark_node;
+      else
+	{
+	  /* Otherwise treat it as non-constant so the violation is still
+	     detectable at run-time.  */
+	  gcc_checking_assert (allow_non_constant);
+	  return t;
+	}
+    }
   else if (non_constant_p && TREE_CONSTANT (r))
     r = mark_non_constant (r);
   else if (non_constant_p)
@@ -11131,10 +11151,7 @@ cxx_eval_outermost_constant_expr (tree t, bool allow_non_constant,
 
   if (constexpr_dtor)
     {
-      if (check_for_failed_contracts (&global_ctx))
-	r = mark_non_constant (r);
-      else
-        DECL_INITIALIZED_BY_CONSTANT_EXPRESSION_P (object) = true;
+      DECL_INITIALIZED_BY_CONSTANT_EXPRESSION_P (object) = true;
       return r;
     }
 
@@ -11184,8 +11201,6 @@ cxx_eval_outermost_constant_expr (tree t, bool allow_non_constant,
   if (location_t loc = EXPR_LOCATION (t))
     protected_set_expr_location (r, loc);
 
-  if (check_for_failed_contracts (&global_ctx))
-    r = mark_non_constant (r);
   return r;
 }
 
@@ -12655,6 +12670,12 @@ potential_constant_expression_1 (tree t, bool want_rval, bool strict, bool now,
     case TRY_FINALLY_EXPR:
       return (RECUR (TREE_OPERAND (t, 0), want_rval)
 	      && RECUR (TREE_OPERAND (t, 1), any));
+
+    case EH_ELSE_EXPR:
+      /* maybe_apply_function_contracts uses this to check postconditions only
+	 on normal return.  */
+      return (RECUR (TREE_OPERAND (t, 1), any)
+	      || RECUR (TREE_OPERAND (t, 0), any));
 
     case SCOPE_REF:
       return RECUR (TREE_OPERAND (t, 1), want_rval);
