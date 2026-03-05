@@ -63,6 +63,7 @@ FeatureGate::visit (AST::Crate &crate)
       rust_error_at (locus, ErrorCode::E0635, "unknown feature %qs",
 		     feature.c_str ());
     }
+  check_no_core_attribute (crate.inner_attrs);
 }
 
 void
@@ -106,6 +107,18 @@ FeatureGate::visit (AST::ExternBlock &block)
 	      "intrinsics are subject to change");
     }
   AST::DefaultASTVisitor::visit (block);
+}
+
+void
+FeatureGate::check_no_core_attribute (
+  const std::vector<AST::Attribute> &attributes)
+{
+  for (const AST::Attribute &attr : attributes)
+    {
+      if (attr.get_path ().as_string () == Values::Attributes::NO_CORE)
+	gate (Feature::Name::NO_CORE, attr.get_locus (),
+	      "no_core is experimental");
+    }
 }
 
 void
