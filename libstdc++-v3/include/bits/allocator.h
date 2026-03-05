@@ -216,6 +216,12 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       }
 #endif // C++20
 
+#ifdef __glibcxx_allocate_at_least  // C++23
+      [[nodiscard]] constexpr allocation_result<_Tp*, size_t>
+      allocate_at_least(size_t __n)
+      { return { this->allocate(__n), __n }; }
+#endif
+
       friend __attribute__((__always_inline__)) _GLIBCXX20_CONSTEXPR
       bool
       operator==(const allocator&, const allocator&) _GLIBCXX_NOTHROW
