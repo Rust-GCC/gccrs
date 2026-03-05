@@ -7,7 +7,7 @@ extern int asm_var;
 asm("%cc0:" :: ":" (&asm_var));
 
 static int a;
-asm (".local %cc0\n %cc0:" :: ":"(&a));
+asm (".local %cc0\n %cc0: .long 0" :: ":"(&a));
 
 int use_statics () {
   static_asm_fn ();

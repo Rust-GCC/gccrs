@@ -6,7 +6,7 @@ extern int use_statics ();
 extern int asm_var;
 
 static int a;
-asm (".local %cc0\n %cc0:" :: ":"(&a));
+asm (".local %cc0\n %cc0: .long 0" :: ":"(&a));
 
 int main() {
   return a + use_statics ();
