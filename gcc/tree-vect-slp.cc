@@ -8986,6 +8986,12 @@ vect_bb_slp_mark_live_stmts (bb_vec_info bb_vinfo, slp_tree node,
 	  && STMT_VINFO_RELATED_STMT (orig_stmt_info) != stmt_info)
 	/* Only the pattern root stmt computes the original scalar value.  */
 	continue;
+      if (!PURE_SLP_STMT (orig_stmt_info))
+	/* Iff the stmt is not part of the vector coverage because it or
+	   uses of it are used by SLP graph leafs as extern input there is
+	   no point in trying to live code-generate from a vector stmt as
+	   the scalar stmt will survive anyway.  */
+	continue;
       bool mark_visited = true;
       gimple *orig_stmt = orig_stmt_info->stmt;
       ssa_op_iter op_iter;
