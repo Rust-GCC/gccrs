@@ -45,6 +45,27 @@ static bitmap livenow;
 static bitmap changed_pseudos;
 static bool modify;
 
+/* Chain detection for promotion: we defer promotions and only apply them
+   when they form chains (one candidate's result feeds another's operand).
+   Standalone promotions are skipped as they cause regressions on targets
+   with free sign extension (e.g., RISC-V W-suffix instructions).  */
+struct promotion_candidate_info {
+  rtx_insn *insn;
+  rtx set;
+};
+
+static vec<promotion_candidate_info> promotion_candidates;
+static bitmap promotable_dests;
+static bitmap consumed_by_candidate;
+
+/* Copy pairs seen during the reverse scan (from optimized extensions).
+   Used to propagate chain info transitively.  */
+struct copy_info {
+  unsigned int dest_regno;
+  unsigned int src_regno;
+};
+static vec<copy_info> promotion_copies;
+
 /* We consider four bit groups for liveness:
    bit 0..7   (least significant byte)
    bit 8..15  (second least significant byte)
@@ -529,6 +550,287 @@ ext_dce_try_optimize_extension (rtx_insn *insn, rtx set)
     }
 }
 
+/* Try to promote a narrow-mode operation wrapped in a sign/zero extension
+   to the wider mode when the extended bits are dead.  For example,
+   (sign_extend:DI (plus:SI (x) (y))) -> (plus:DI (x') (y'))
+   where x' and y' are the operands promoted to DI mode.
+
+   This enables the combine pass to match wider-mode target patterns
+   (e.g., sh2add on RISC-V) that cannot match the narrow-mode operation.  */
+
+static void
+ext_dce_try_promote_operation (rtx_insn *insn, rtx set)
+{
+  rtx src = SET_SRC (set);
+
+  /* If the extension was already optimized away, nothing to do.  */
+  if (GET_CODE (src) != SIGN_EXTEND && GET_CODE (src) != ZERO_EXTEND)
+    return;
+
+  machine_mode outer_mode = GET_MODE (src);
+  rtx inner = XEXP (src, 0);
+
+  /* Only handle binary and unary arithmetic/logic operations.  */
+  if (!BINARY_P (inner) && !UNARY_P (inner))
+    return;
+
+  rtx_code inner_code = GET_CODE (inner);
+
+  /* Restrict to operations whose result in the low bits is identical
+     regardless of input width (i.e., no high-bit dependencies).  */
+  switch (inner_code)
+    {
+    case PLUS:
+    case MINUS:
+    case MULT:
+    case NEG:
+    case AND:
+    case IOR:
+    case XOR:
+    case NOT:
+    case ASHIFT:
+      break;
+    default:
+      return;
+    }
+
+  /* Promote each operand to the outer mode.  */
+  int nops = BINARY_P (inner) ? 2 : 1;
+  rtx new_ops[2];
+
+  for (int i = 0; i < nops; i++)
+    {
+      rtx op = XEXP (inner, i);
+
+      if (CONST_INT_P (op))
+	new_ops[i] = op;
+      else if (REG_P (op))
+	{
+	  new_ops[i] = simplify_gen_subreg (outer_mode, op,
+					    GET_MODE (op), 0);
+	  if (!new_ops[i])
+	    return;
+	}
+      else if (SUBREG_P (op) && REG_P (SUBREG_REG (op)))
+	{
+	  /* The inner register may already be in the target mode
+	     (e.g., subreg:SI (reg:DI ...) 0).  Extract it directly
+	     rather than creating a paradoxical subreg of a subreg,
+	     which simplify_gen_subreg rejects.  */
+	  rtx inner_reg = SUBREG_REG (op);
+	  if (GET_MODE (inner_reg) == outer_mode)
+	    new_ops[i] = inner_reg;
+	  else
+	    {
+	      new_ops[i] = simplify_gen_subreg (outer_mode, inner_reg,
+						GET_MODE (inner_reg), 0);
+	      if (!new_ops[i])
+		return;
+	    }
+	}
+      else
+	return;
+    }
+
+  /* Build the promoted operation.  */
+  rtx new_src;
+  if (BINARY_P (inner))
+    new_src = gen_rtx_fmt_ee (inner_code, outer_mode,
+			      new_ops[0], new_ops[1]);
+  else
+    new_src = gen_rtx_fmt_e (inner_code, outer_mode, new_ops[0]);
+
+  if (dump_file)
+    {
+      fprintf (dump_file, "Processing insn:\n");
+      dump_insn_slim (dump_file, insn);
+      fprintf (dump_file, "Trying to promote to wider mode:\n");
+      print_rtl_single (dump_file, new_src);
+    }
+
+  /* We decided to try the promotion but allow it to be rejected for
+     bisection purposes.  */
+  if (!dbg_cnt (::ext_dce))
+    {
+      if (dump_file)
+	fprintf (dump_file, "Rejected due to debug counter.\n");
+      return;
+    }
+
+  int ok = validate_change (insn, &SET_SRC (set), new_src, false);
+
+  rtx x = SET_DEST (set);
+  while (SUBREG_P (x) || GET_CODE (x) == ZERO_EXTRACT)
+    x = XEXP (x, 0);
+
+  gcc_assert (REG_P (x));
+  if (ok)
+    bitmap_set_bit (changed_pseudos, REGNO (x));
+
+  if (dump_file)
+    {
+      if (ok)
+	fprintf (dump_file, "Successfully promoted to:\n");
+      else
+	fprintf (dump_file, "Failed promotion to:\n");
+      print_rtl_single (dump_file, new_src);
+      fprintf (dump_file, "\n");
+    }
+
+  if (ok)
+    remove_reg_equal_equiv_notes (insn, false);
+}
+
+/* Record INSN as a promotion candidate if it passes the same validity
+   checks as ext_dce_try_promote_operation.  We defer actual promotion
+   until we can determine whether the candidate is part of a chain.  */
+
+static void
+ext_dce_record_promotion_candidate (rtx_insn *insn, rtx set)
+{
+  rtx src = SET_SRC (set);
+
+  if (GET_CODE (src) != SIGN_EXTEND && GET_CODE (src) != ZERO_EXTEND)
+    return;
+
+  machine_mode outer_mode = GET_MODE (src);
+  rtx inner = XEXP (src, 0);
+
+  if (!BINARY_P (inner) && !UNARY_P (inner))
+    return;
+
+  rtx_code inner_code = GET_CODE (inner);
+
+  switch (inner_code)
+    {
+    case PLUS:
+    case MINUS:
+    case MULT:
+    case NEG:
+    case AND:
+    case IOR:
+    case XOR:
+    case NOT:
+    case ASHIFT:
+      break;
+    default:
+      return;
+    }
+
+  /* Dry-run: check that all operands can be promoted.  */
+  int nops = BINARY_P (inner) ? 2 : 1;
+  for (int i = 0; i < nops; i++)
+    {
+      rtx op = XEXP (inner, i);
+      if (CONST_INT_P (op))
+	continue;
+      else if (REG_P (op))
+	{
+	  if (!simplify_gen_subreg (outer_mode, op, GET_MODE (op), 0))
+	    return;
+	}
+      else if (SUBREG_P (op) && REG_P (SUBREG_REG (op)))
+	{
+	  rtx inner_reg = SUBREG_REG (op);
+	  if (GET_MODE (inner_reg) != outer_mode
+	      && !simplify_gen_subreg (outer_mode, inner_reg,
+				       GET_MODE (inner_reg), 0))
+	    return;
+	}
+      else
+	return;
+    }
+
+  /* Find the destination register.  */
+  rtx dest = SET_DEST (set);
+  while (SUBREG_P (dest) || GET_CODE (dest) == ZERO_EXTRACT)
+    dest = XEXP (dest, 0);
+  if (!REG_P (dest))
+    return;
+  unsigned int dest_regno = REGNO (dest);
+
+  /* Record the candidate.  */
+  promotion_candidates.safe_push ({insn, set});
+  bitmap_set_bit (promotable_dests, dest_regno);
+
+  /* Mark register operands as consumed by a candidate.  */
+  for (int i = 0; i < nops; i++)
+    {
+      rtx op = XEXP (inner, i);
+      if (REG_P (op))
+	bitmap_set_bit (consumed_by_candidate, REGNO (op));
+      else if (SUBREG_P (op) && REG_P (SUBREG_REG (op)))
+	bitmap_set_bit (consumed_by_candidate, REGNO (SUBREG_REG (op)));
+    }
+}
+
+/* Promote candidates that form chains: a candidate whose result feeds
+   into another candidate's operand, or whose operand comes from another
+   candidate's result.  Skip standalone (isolated) promotions.  */
+
+static void
+ext_dce_promote_chained_candidates (void)
+{
+  /* Propagate chain info through copies recorded during the reverse scan.
+     Since copies are recorded in reverse order, iterate forward to propagate
+     promotable_dests (which was set late in the scan) through copies that
+     were seen earlier.  */
+  unsigned cix;
+  copy_info *cp;
+  FOR_EACH_VEC_ELT (promotion_copies, cix, cp)
+    {
+      if (bitmap_bit_p (promotable_dests, cp->src_regno))
+	bitmap_set_bit (promotable_dests, cp->dest_regno);
+      if (bitmap_bit_p (consumed_by_candidate, cp->dest_regno))
+	bitmap_set_bit (consumed_by_candidate, cp->src_regno);
+    }
+
+  unsigned ix;
+  promotion_candidate_info *cand;
+
+  FOR_EACH_VEC_ELT (promotion_candidates, ix, cand)
+    {
+      /* Find destination register.  */
+      rtx dest = SET_DEST (cand->set);
+      while (SUBREG_P (dest) || GET_CODE (dest) == ZERO_EXTRACT)
+	dest = XEXP (dest, 0);
+      unsigned int dest_regno = REGNO (dest);
+
+      /* Check if this candidate's result feeds into another candidate.  */
+      bool is_chained = bitmap_bit_p (consumed_by_candidate, dest_regno);
+
+      /* Check if any operand comes from another candidate's result.  */
+      if (!is_chained)
+	{
+	  rtx inner = XEXP (SET_SRC (cand->set), 0);
+	  int nops = BINARY_P (inner) ? 2 : 1;
+	  for (int i = 0; i < nops && !is_chained; i++)
+	    {
+	      rtx op = XEXP (inner, i);
+	      if (REG_P (op))
+		is_chained = bitmap_bit_p (promotable_dests, REGNO (op));
+	      else if (SUBREG_P (op) && REG_P (SUBREG_REG (op)))
+		is_chained = bitmap_bit_p (promotable_dests,
+					   REGNO (SUBREG_REG (op)));
+	    }
+	}
+
+      if (is_chained)
+	ext_dce_try_promote_operation (cand->insn, cand->set);
+      else if (dump_file)
+	{
+	  fprintf (dump_file, "Skipping standalone promotion for insn:\n");
+	  dump_insn_slim (dump_file, cand->insn);
+	  fprintf (dump_file, "\n");
+	}
+    }
+
+  promotion_candidates.truncate (0);
+  promotion_copies.truncate (0);
+  bitmap_clear (promotable_dests);
+  bitmap_clear (consumed_by_candidate);
+}
+
 /* Some operators imply that their second operand is fully live,
    regardless of how many bits in the output are live.  An example
    would be the shift count on a target without SHIFT_COUNT_TRUNCATED
@@ -786,7 +1088,43 @@ ext_dce_process_uses (rtx_insn *insn, rtx obj,
 		  /* DST_MASK could be zero if we had something in the SET
 		     that we couldn't handle.  */
 		  if (modify && !skipped_dest && (dst_mask & ~src_mask) == 0)
-		    ext_dce_try_optimize_extension (insn, x);
+		    {
+		      ext_dce_try_optimize_extension (insn, x);
+
+		      /* If the extension was optimized to a copy, propagate
+			 chain info through it: if the dest is consumed by a
+			 promotion candidate (seen later in reverse scan),
+			 the source register is transitively consumed too.  */
+		      rtx opt_src = SET_SRC (x);
+		      if (GET_CODE (opt_src) != SIGN_EXTEND
+			  && GET_CODE (opt_src) != ZERO_EXTEND)
+			{
+			  rtx copy_dest = SET_DEST (x);
+			  while (SUBREG_P (copy_dest)
+				 || GET_CODE (copy_dest) == ZERO_EXTRACT)
+			    copy_dest = XEXP (copy_dest, 0);
+
+			  rtx copy_src = opt_src;
+			  if (SUBREG_P (copy_src))
+			    copy_src = SUBREG_REG (copy_src);
+
+			  if (REG_P (copy_dest) && REG_P (copy_src))
+			    {
+			      if (bitmap_bit_p (consumed_by_candidate,
+						REGNO (copy_dest)))
+				bitmap_set_bit (consumed_by_candidate,
+						REGNO (copy_src));
+			      if (bitmap_bit_p (promotable_dests,
+						REGNO (copy_src)))
+				bitmap_set_bit (promotable_dests,
+						REGNO (copy_dest));
+			      promotion_copies.safe_push (
+				{REGNO (copy_dest), REGNO (copy_src)});
+			    }
+			}
+		      else
+			ext_dce_record_promotion_candidate (insn, x);
+		    }
 
 		  /* Stripping the extension here just seems wrong on multiple
 		     levels.  It's source side handling, so it seems like it
@@ -1073,6 +1411,9 @@ ext_dce_process_bb (basic_block bb)
 
       BITMAP_FREE (live_tmp);
     }
+
+  if (modify)
+    ext_dce_promote_chained_candidates ();
 }
 
 /* SUBREG_PROMOTED_VAR_P is set by the gimple->rtl optimizers and
@@ -1263,6 +1604,8 @@ ext_dce_init (void)
   livenow = BITMAP_ALLOC (NULL);
   all_blocks = BITMAP_ALLOC (NULL);
   changed_pseudos = BITMAP_ALLOC (NULL);
+  promotable_dests = BITMAP_ALLOC (NULL);
+  consumed_by_candidate = BITMAP_ALLOC (NULL);
 
   for (int i = 0; i < last_basic_block_for_fn (cfun); i++)
     if (i != ENTRY_BLOCK && i != EXIT_BLOCK)
@@ -1284,6 +1627,10 @@ ext_dce_finish (void)
   BITMAP_FREE (livenow);
   BITMAP_FREE (changed_pseudos);
   BITMAP_FREE (all_blocks);
+  BITMAP_FREE (promotable_dests);
+  BITMAP_FREE (consumed_by_candidate);
+  promotion_candidates.release ();
+  promotion_copies.release ();
 }
 
 /* Process block number BB_INDEX as part of the backward
