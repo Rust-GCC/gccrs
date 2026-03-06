@@ -98,6 +98,7 @@ static const BuiltinAttrDefinition __definitions[]
      // #![feature(rustc_attrs)]
      {Attrs::FEATURE, STATIC_ANALYSIS},
      {Attrs::NO_CORE, CODE_GENERATION},
+     {Attrs::NO_STD, CODE_GENERATION},
      {Attrs::DOC, EXTERNAL},
      {Attrs::CRATE_NAME, CODE_GENERATION},
      {Attrs::CRATE_TYPE, CODE_GENERATION},
