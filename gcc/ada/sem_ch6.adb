@@ -535,8 +535,6 @@ package body Sem_Ch6 is
 
          Def_Id := Defining_Entity (N);
          Set_Is_Inlined (Def_Id);
-         Set_In_Private_Part (Def_Id, In_Private_Part (Scope (Def_Id)));
-
          Typ := Etype (Def_Id);
 
          --  Propagate the results of the resolution of the specification of
@@ -9723,7 +9721,14 @@ package body Sem_Ch6 is
       if Is_Inherited_Operation (S) then
          Append_Inherited_Subprogram (S);
       else
-         Append_Entity (S, Current_Scope);
+         Append_Entity (S, Scope (S));
+      end if;
+
+      --  Deal with setting In_Package_Body and In_Private_Part flags
+
+      if Ekind (Scope (S)) = E_Package then
+         Set_In_Package_Body (S, In_Package_Body (Scope (S)));
+         Set_In_Private_Part (S, In_Private_Part (Scope (S)));
       end if;
 
       Set_Public_Status (S);

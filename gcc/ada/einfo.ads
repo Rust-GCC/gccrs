@@ -2294,17 +2294,20 @@ package Einfo is
 --       to multiple subprogram entities).
 
 --    In_Package_Body
---       Defined in package entities. Set on the entity that denotes the
---       package (the defining occurrence of the package declaration) while
---       analyzing and expanding the package body. Reset on completion of
---       analysis/expansion.
+--       Defined in all entities. Can be set only in package entities, objects
+--       and overloadable entities. For package entities, this flag is set to
+--       indicate that the body of the package is being analyzed. The flag is
+--       reset at the end of the package body. For objects and overloadable
+--       entities, indicates that the declaration of the entity occurs in the
+--       body of a package.
 
 --    In_Private_Part
---       Defined in all entities. Can be set only in package entities and
---       objects. For package entities, this flag is set to indicate that the
---       private part of the package is being analyzed. The flag is reset at
---       the end of the package declaration. For objects it indicates that the
---       declaration of the object occurs in the private part of a package.
+--       Defined in all entities. Can be set only in package entities, objects
+--       and overloadable entities. For package entities, this flag is set to
+--       indicate that the private part of the package is being analyzed. The
+--       flag is reset at the end of the package declaration. For objects and
+--       overloadable entities, indicates that the declaration of the entity
+--       occurs in the private part of a package.
 
 --    Incomplete_Actuals
 --       Defined on package entities that are instances. Indicates the actuals

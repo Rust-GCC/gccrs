@@ -5892,7 +5892,7 @@ package body Sem_Util is
             --  predefined "=" operator.
 
             if Is_Overloadable (Id)
-              and then (Is_Type_In_Pkg
+              and then ((Is_Type_In_Pkg and then not In_Package_Body (Id))
                          or else Is_Primitive (Id)
                          or else not Comes_From_Source (Id))
 
