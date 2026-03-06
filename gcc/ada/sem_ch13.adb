@@ -18235,7 +18235,9 @@ package body Sem_Ch13 is
 
       begin
          if not Is_Overloaded (Subp_Id) then
-            if not Pred (Entity (Subp_Id)) then
+            if not Is_Entity_Name (Subp_Id)
+              or else not Pred (Entity (Subp_Id))
+            then
                Error_Msg_NE
                  ("improper aggregate operation for&", Subp_Id, Typ);
             end if;
