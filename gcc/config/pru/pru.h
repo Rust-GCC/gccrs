@@ -49,6 +49,11 @@
   "%(cpp_device) "					\
   "%{mabi=ti:-D__PRU_EABI_TI__; :-D__PRU_EABI_GNU__}"
 
+/* Allow MCU specs to append assembler command line.  */
+#undef  ASM_SPEC
+#define ASM_SPEC					    \
+  "%(asm_device) "
+
 /* Do not relax when in TI ABI mode since TI tools do not always
    put PRU_S10_PCREL.  */
 #undef  LINK_SPEC
