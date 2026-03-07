@@ -65,6 +65,8 @@ tree assume (Context *ctx, TyTy::FnType *fntype);
 tree discriminant_value (Context *ctx, TyTy::FnType *fntype);
 tree variant_count (Context *ctx, TyTy::FnType *fntype);
 tree bswap_handler (Context *ctx, TyTy::FnType *fntype);
+tree ctlz_handler (Context *ctx, TyTy::FnType *fntype);
+tree ctlz_nonzero_handler (Context *ctx, TyTy::FnType *fntype);
 
 tree prefetch_data (Context *ctx, TyTy::FnType *fntype, Prefetch kind);
 
