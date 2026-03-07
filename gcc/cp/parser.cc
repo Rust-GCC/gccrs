@@ -30624,6 +30624,18 @@ cp_parser_class_head (cp_parser* parser,
   if (type && type != error_mark_node)
     start_lambda_scope (TYPE_NAME (type));
 
+  /* Check that it's valid to declare this type here.  */
+  if (modules_p () && type)
+    {
+      if (module_may_redeclare (TYPE_NAME (type)))
+	{
+	  set_instantiating_module (TYPE_NAME (type));
+	  set_defining_module (TYPE_NAME (type));
+	}
+      else
+	type = NULL_TREE;
+    }
+
   /* We will have entered the scope containing the class; the names of
      base classes should be looked up in that context.  For example:
 
