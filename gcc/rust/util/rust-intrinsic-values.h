@@ -81,6 +81,7 @@ public:
   static constexpr auto &CALLER_LOCATION = "caller_location";
   static constexpr auto &CTPOP = "ctpop";
   static constexpr auto &CTLZ = "ctlz";
+  static constexpr auto &CTLZ_NONZERO = "ctlz_nonzero";
   static constexpr auto &CTTZ = "cttz";
   static constexpr auto &BSWAP = "bswap";
   static constexpr auto &BITREVERSE = "bitreverse";
