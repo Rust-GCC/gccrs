@@ -120,7 +120,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	// from UTF-8 to ordinary literal encoding failed.
 	// In that case what() should be non-constant.
 	if (_M_what.size() == 0 && _M_u8what.size() != 0)
-	  asm("");
+	  __asm__("");
 	return _M_what.c_str();
       }
       consteval u8string_view u8what() const noexcept { return _M_u8what; }
@@ -599,7 +599,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 				       "or complete class type reflection",
 				     ^^access_context::via);
 #else
-	  asm("");
+	  __asm__("");
 	  return *this;
 #endif
 	}
