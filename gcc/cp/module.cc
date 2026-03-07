@@ -14922,6 +14922,16 @@ depset::hash::add_binding_entity (tree decl, WMB_Flags flags, void *data_)
 	   than trying to clear out bindings after the fact.  */
 	return false;
 
+      if ((flags & WMB_Hidden)
+	  && DECL_LANG_SPECIFIC (inner)
+	  && DECL_UNIQUE_FRIEND_P (inner))
+	/* Hidden friends will be found via ADL on the class type,
+	   and so do not need to have bindings.  Anticipated builtin
+	   functions and the hidden decl underlying a DECL_LOCAL_DECL_P
+	   also don't need exporting, but we should create a binding
+	   anyway so that we can have a common decl to match against.  */
+	return false;
+
       bool internal_decl = false;
       if (!header_module_p () && is_tu_local_entity (decl))
 	{
