@@ -6692,6 +6692,10 @@ start_decl (const cp_declarator *declarator,
 			       context, DECL_NAME (decl));
 		  DECL_CONTEXT (decl) = DECL_CONTEXT (field);
 		}
+
+	      if (modules_p () && !module_may_redeclare (field))
+		return error_mark_node;
+
 	      /* Static data member are tricky; an in-class initialization
 		 still doesn't provide a definition, so the in-class
 		 declaration will have DECL_EXTERNAL set, but will have an
@@ -12676,6 +12680,9 @@ grokfndecl (tree ctype,
 		      "%q#D explicitly defaulted here", old_decl);
 	      return NULL_TREE;
 	    }
+
+	  if (modules_p () && !module_may_redeclare (old_decl))
+	    return NULL_TREE;
 
 	  /* Since we've smashed OLD_DECL to its
 	     DECL_TEMPLATE_RESULT, we must do the same to DECL.  */
