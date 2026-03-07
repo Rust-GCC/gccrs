@@ -438,7 +438,7 @@ c_types_compatible_p (tree x, tree y)
 bool
 c_var_mod_p (tree x, tree fn ATTRIBUTE_UNUSED)
 {
-  return C_TYPE_VARIABLY_MODIFIED (x);
+  return c_type_variably_modified_p (x);
 }
 
 /* Special routine to get the alias set of T for C.  */

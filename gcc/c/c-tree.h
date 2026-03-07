@@ -807,7 +807,31 @@ extern bool null_pointer_constant_p (const_tree);
 inline bool
 c_type_variably_modified_p (tree t)
 {
-  return error_mark_node != t && C_TYPE_VARIABLY_MODIFIED (t);
+  if (error_mark_node == t)
+    return false;
+  if (C_TYPE_VARIABLY_MODIFIED (t))
+    return true;
+  if (TYPE_STRUCTURAL_EQUALITY_P (t))
+    {
+      /* The flag may not have been set yet because of incomplete
+	 structure or union types completed later.  */
+      switch (TREE_CODE (t))
+	{
+	case ARRAY_TYPE:
+	case FUNCTION_TYPE:
+	case POINTER_TYPE:
+	  /* Recurse.  */
+	  if (c_type_variably_modified_p (TREE_TYPE (t)))
+	    {
+	      C_TYPE_VARIABLY_MODIFIED (t) = 1;
+	      return true;
+	    }
+	  break;
+	default:
+	  break;
+	}
+    }
+  return false;
 }
 
 inline bool
