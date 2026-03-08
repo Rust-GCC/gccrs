@@ -287,18 +287,28 @@ a68_lower_denotation (NODE_T *p, LOW_CTX_T ctx)
 	s = SUB (p);
 
       type = CTYPE (moid);
-      int64_t radix = strtol (NSYMBOL (s), &end, 10);
-      gcc_assert (end != NSYMBOL (s) && *end == 'r');
+      errno = 0;
+#if defined(INT64_T_IS_LONG)
+      uint64_t radix = strtoul (NSYMBOL (s), &end, 10);
+#else
+      uint64_t radix = strtoull (NSYMBOL (s), &end, 10);
+#endif
+      gcc_assert (errno == 0 && end != NSYMBOL (s) && *end == 'r');
       end++;
-      int64_t val = strtol (end, &end, radix);
-      gcc_assert (end[0] == '\0');
+      errno = 0;
+#if defined(INT64_T_IS_LONG)
+      uint64_t val = strtoul (end, &end, radix);
+#else
+      uint64_t val = strtoull (end, &end, radix);
+#endif
+      gcc_assert (errno == 0 && end[0] == '\0');
       return build_int_cst (type, val);
     }
   else if (moid == M_REAL
 	   || moid == M_LONG_REAL
 	   || moid == M_LONG_LONG_REAL)
     {
-      /* SIZETY INT */
+      /* SIZETY REAL */
       tree type;
       NODE_T *s = NO_NODE;
       if (IS (SUB (p), LONGETY) || IS (SUB (p), SHORTETY))
