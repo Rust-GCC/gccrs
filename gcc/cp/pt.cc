@@ -21051,7 +21051,8 @@ tsubst_lambda_expr (tree t, tree args, tsubst_flags_t complain, tree in_decl)
       /* [temp.deduct] A lambda-expression appearing in a function type or a
 	 template parameter is not considered part of the immediate context for
 	 the purposes of template argument deduction. */
-      complain = tf_warning_or_error;
+      if (!emitting_diagnostic_p ())
+	complain = tf_warning_or_error;
 
       tree saved = DECL_SAVED_TREE (oldfn);
       if (TREE_CODE (saved) == BIND_EXPR && BIND_EXPR_BODY_BLOCK (saved))

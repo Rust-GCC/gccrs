@@ -313,6 +313,11 @@ public:
     return m_option_classifier.option_unspecified_p (opt_id);
   }
 
+  bool emitting_diagnostic_p () const
+  {
+    return m_lock > 0;
+  }
+
   bool emit_diagnostic_with_group (enum kind kind,
 				   rich_location &richloc,
 				   const metadata *metadata,
