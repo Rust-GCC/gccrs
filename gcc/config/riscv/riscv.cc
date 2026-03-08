@@ -7461,8 +7461,8 @@ riscv_get_vls_cc_attr (const_tree args, bool check_only = false)
   if (!riscv_valid_abi_vlen_vls_cc_p (abi_vlen) && !check_only)
     {
       error_at (input_location,
-		"unsupported %<ABI_VLEN%> value %d for %qs attribute;"
-		"%<ABI_VLEN must%> be in the range [32, 16384] and must be "
+		"unsupported %<ABI_VLEN%> value %d for %qs attribute; "
+		"%<ABI_VLEN%> must be in the range [32, 16384] and must be "
 		"a power of 2",
 		abi_vlen, "riscv_vls_cc");
       return RISCV_CC_UNKNOWN;
