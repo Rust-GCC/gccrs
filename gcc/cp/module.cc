@@ -3735,7 +3735,7 @@ enum module_directness {
   MD_NONE,  		/* Not direct.  */
   MD_PARTITION_DIRECT,	/* Direct import of a partition.  */
   MD_DIRECT,		/* Direct import.  */
-  MD_PURVIEW_DIRECT,	/* direct import in purview.  */
+  MD_PURVIEW_DIRECT,	/* Direct import in purview.  */
 };
 
 /* State of a particular module. */
@@ -16974,8 +16974,11 @@ module_state::read_imports (bytes_in &sec, cpp_reader *reader, line_maps *lmaps)
 
 	  if (is_partition ())
 	    {
-	      if (!imp->is_direct ())
-		imp->directness = MD_PARTITION_DIRECT;
+	      if (!imp->is_direct () && !imp->is_partition_direct ())
+		{
+		  imp->directness = MD_PARTITION_DIRECT;
+		  linemap_module_reparent (line_table, imp->loc, floc);
+		}
 	      if (exportedness > 0)
 		imp->exported_p = true;
 	    }
