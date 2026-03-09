@@ -2700,17 +2700,21 @@ package body Sem_Aggr is
                        ("(Ada 83) illegal context for OTHERS choice", N);
                   end if;
 
-               elsif Is_Entity_Name (Choice) then
+               else
                   Analyze (Choice);
 
-                  declare
-                     E      : constant Entity_Id := Entity (Choice);
-                     New_Cs : List_Id;
-                     P      : Node_Id;
-                     C      : Node_Id;
+                  if Is_Entity_Name (Choice)
+                    and then Is_Type (Entity (Choice))
+                    and then Has_Predicates (Entity (Choice))
+                  then
+                     declare
+                        E : constant Entity_Id := Entity (Choice);
 
-                  begin
-                     if Is_Type (E) and then Has_Predicates (E) then
+                        C : Node_Id;
+                        L : List_Id;
+                        P : Node_Id;
+
+                     begin
                         Freeze_Before (N, E);
 
                         if Has_Dynamic_Predicate_Aspect (E)
@@ -2734,19 +2738,19 @@ package body Sem_Aggr is
                         if Present (Static_Discrete_Predicate (E)) then
                            Delete_Choice := True;
 
-                           New_Cs := New_List;
+                           L := New_List;
                            P := First (Static_Discrete_Predicate (E));
                            while Present (P) loop
                               C := New_Copy (P);
                               Set_Sloc (C, Sloc (Choice));
-                              Append_To (New_Cs, C);
+                              Append_To (L, C);
                               Next (P);
                            end loop;
 
-                           Insert_List_After (Choice, New_Cs);
+                           Insert_List_After (Choice, L);
                         end if;
-                     end if;
-                  end;
+                     end;
+                  end if;
                end if;
 
                Nb_Choices := Nb_Choices + 1;
@@ -2873,8 +2877,8 @@ package body Sem_Aggr is
 
                   --  Test for subtype mark without constraint
 
-                  elsif Is_Entity_Name (Choice) and then
-                    Is_Type (Entity (Choice))
+                  elsif Is_Entity_Name (Choice)
+                    and then Is_Type (Entity (Choice))
                   then
                      if Base_Type (Entity (Choice)) /= Index_Base then
                         Error_Msg_N
