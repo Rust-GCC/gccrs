@@ -4520,6 +4520,14 @@ package body Sem_Ch3 is
          Generate_Definition (Id);
          Enter_Name (Id);
 
+         --  For artificial return objects created from within a transient
+         --  scope, propagate Return_Applies_To from the enclosing return.
+
+         if Is_Return_Object (Id) and then Scope_Is_Transient then
+            Set_Return_Applies_To
+              (Scope (Id), Return_Applies_To (Scope (Scope (Id))));
+         end if;
+
          Mark_Coextensions (N, Object_Definition (N));
 
          T := Find_Type_Of_Object (Object_Definition (N), N);
@@ -4775,8 +4783,7 @@ package body Sem_Ch3 is
          --  has been replaced by a renaming declaration during its expansion
          --  (see Expand_N_Case_Expression and Expand_N_If_Expression).
 
-         if Expander_Active
-           and then Nkind (E) in N_Case_Expression | N_If_Expression
+         if Nkind (E) in N_Case_Expression | N_If_Expression
            and then Nkind (N) = N_Object_Renaming_Declaration
          then
             goto Leave;

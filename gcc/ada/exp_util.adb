@@ -9090,20 +9090,18 @@ package body Exp_Util is
       Obj_Def : Node_Id;
 
    begin
-      --  First limitation: distribution is not implemented for return objects
-
-      if Nkind (N) /= N_Object_Declaration
-        or else Is_Return_Object (Defining_Identifier (N))
-      then
+      if Nkind (N) /= N_Object_Declaration then
          return False;
       end if;
 
       Obj_Def := Object_Definition (N);
 
-      --  Second limitation: distribution is not implemented for CW types
+      --  Current limitation: distribution is not implemented for CW types,
+      --  except for return objects which always live on the secondary stack.
 
       if Is_Entity_Name (Obj_Def)
-        and then Is_Class_Wide_Type (Entity (Obj_Def))
+        and then (Is_Class_Wide_Type (Entity (Obj_Def))
+                   and then not Is_Return_Object (Defining_Identifier (N)))
       then
          return False;
       end if;

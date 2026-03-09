@@ -5219,10 +5219,10 @@ package body Exp_Ch4 is
       --    case X is
       --       when A =>
       --          then-obj : typ := then_expr;
-      --          target :=  then-obj'Unrestricted_Access;
+      --          target := then-obj'Unrestricted_Access;
       --       when B =>
       --          else-obj : typ := else-expr;
-      --          target :=  else-obj'Unrestricted_Access;
+      --          target := else-obj'Unrestricted_Access;
       --       ...
       --    end case
       --
@@ -5463,8 +5463,10 @@ package body Exp_Ch4 is
             --    Target := Obj'Unrestricted_Access;
 
             elsif Optimize_Object_Decl then
+               Par_Obj := Defining_Identifier (Par);
                Obj := Make_Temporary (Loc, 'C', Alt_Expr);
 
+               Set_Is_Return_Object (Obj, Is_Return_Object (Par_Obj));
                Insert_Conditional_Object_Declaration
                  (Obj, Typ, Alt_Expr, Const => Constant_Present (Par));
 
@@ -5827,10 +5829,10 @@ package body Exp_Ch4 is
 
       --    if cond then
       --       then-obj : typ := then_expr;
-      --       target :=  then-obj'Unrestricted_Access;
+      --       target := then-obj'Unrestricted_Access;
       --    else
       --       else-obj : typ := else-expr;
-      --       target :=  else-obj'Unrestricted_Access;
+      --       target := else-obj'Unrestricted_Access;
       --    end if;
       --
       --    obj : typ renames target.all;
@@ -6046,8 +6048,11 @@ package body Exp_Ch4 is
             Target   : constant Entity_Id := Make_Temporary (Loc, 'C', N);
 
          begin
+            Set_Is_Return_Object (Then_Obj, Is_Return_Object (Par_Obj));
             Insert_Conditional_Object_Declaration
               (Then_Obj, Typ, Thenx, Const => Constant_Present (Par));
+
+            Set_Is_Return_Object (Else_Obj, Is_Return_Object (Par_Obj));
             Insert_Conditional_Object_Declaration
               (Else_Obj, Typ, Elsex, Const => Constant_Present (Par));
 
@@ -13647,7 +13652,9 @@ package body Exp_Ch4 is
       --  cannot invoke Process_Transients_In_Expression on it since it is not
       --  a transient object (it has the lifetime of the original object).
 
-      if Needs_Finalization (Base_Type (Etype (Obj_Id))) then
+      if Needs_Finalization (Base_Type (Etype (Obj_Id)))
+        and then not Is_Return_Object (Obj_Id)
+      then
          Master_Node_Id := Make_Temporary (Loc, 'N');
          Master_Node_Decl :=
            Make_Master_Node_Declaration (Loc, Master_Node_Id, Obj_Id);
