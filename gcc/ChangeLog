@@ -1,3 +1,9 @@
+2026-03-08  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR target/124403
+	* config/riscv/riscv.cc (riscv_get_vls_cc_attr): Fix formating
+	of the diagnostic.
+
 2026-03-07  Sandra Loosemore  <sloosemore@baylibre.com>
 
 	PR driver/69367

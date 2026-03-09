@@ -1,3 +1,11 @@
+2026-03-08  Jose E. Marchesi  <jemarch@gnu.org>
+
+	PR algol68/124372
+	* a68-low-units.cc (a68_lower_denotation): Call to strtoull if
+	INT64_T_IS_LONG is not defined, strtol otherwise.
+	* a68-parser-scanner.cc (get_next_token): Use strtoul for radix
+	instead of strtol.
+
 2026-03-05  Jose E. Marchesi  <jemarch@gnu.org>
 
 	PR algol68/124322
