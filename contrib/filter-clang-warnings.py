@@ -75,6 +75,7 @@ def skip_warning(filename, message):
             # except perhaps for this one, see
             # https://github.com/Rust-GCC/gccrs/issues/4441
             'rust/ast/rust-fmt.h': ['-Wreturn-type-c-linkage'],
+            'libiberty/': ["-Wimplicit-int-enum-cast"],
             'libiberty/sha1.c': ['-Wc23-extensions'],
             'libtool': ['']
     }
