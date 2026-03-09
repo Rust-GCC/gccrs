@@ -207,9 +207,13 @@ NameResolutionContext::insert (Identifier name, NodeId id, Namespace ns)
 }
 
 tl::expected<NodeId, DuplicateNameError>
-NameResolutionContext::insert_variant (Identifier name, NodeId id)
+NameResolutionContext::insert_variant (Identifier name, NodeId id,
+				       bool is_also_value)
 {
-  return types.insert_variant (name, id);
+  auto res = types.insert_variant (name, id);
+  if (res.has_value () && is_also_value)
+    res = values.insert_variant (name, id);
+  return res;
 }
 
 tl::expected<NodeId, DuplicateNameError>

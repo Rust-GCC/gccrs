@@ -199,6 +199,14 @@ ForeverStack<Namespace::Types>::insert_variant (Identifier name, NodeId node)
 		       Rib::Definition::NonShadowable (node, true));
 }
 
+template <>
+inline tl::expected<NodeId, DuplicateNameError>
+ForeverStack<Namespace::Values>::insert_variant (Identifier name, NodeId node)
+{
+  return insert_inner (peek (), name.as_string (),
+		       Rib::Definition::NonShadowable (node, true));
+}
+
 template <Namespace N>
 inline void
 ForeverStack<N>::insert_lang_prelude (Identifier name, NodeId id)
