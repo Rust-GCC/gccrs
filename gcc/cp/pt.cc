@@ -18069,12 +18069,12 @@ tsubst_baselink (tree baselink, tree object_type,
    true if the qualified-id will be a postfix-expression in-and-of
    itself; false if more of the postfix-expression follows the
    QUALIFIED_ID.  ADDRESS_P is true if the qualified-id is the operand
-   of "&".  */
+   of "&".  NAME_LOOKUP_P is true if we intend to perform name lookup.  */
 
 static tree
 tsubst_qualified_id (tree qualified_id, tree args,
 		     tsubst_flags_t complain, tree in_decl,
-		     bool done, bool address_p)
+		     bool done, bool address_p, bool name_lookup_p = true)
 {
   tree expr;
   tree scope;
@@ -18197,7 +18197,9 @@ tsubst_qualified_id (tree qualified_id, tree args,
   if (expr == error_mark_node && complain & tf_error)
     qualified_name_lookup_error (scope, TREE_OPERAND (qualified_id, 1),
 				 expr, input_location);
-  else if (TYPE_P (scope))
+  /* For ^^S::mem, we do not want to create the dummy object that
+     finish_non_static_data_member would give us.  */
+  else if (TYPE_P (scope) && name_lookup_p)
     {
       expr = (adjust_result_of_qualified_name_lookup
 	      (expr, scope, current_nonlambda_class_type ()));
@@ -23155,6 +23157,10 @@ tsubst_expr (tree t, tree args, tsubst_flags_t complain, tree in_decl)
 	     instantiated entities and so no need to tsubst the annotation
 	     attribute and we rely on pointer equality of that.  */
 	  ;
+	else if (TREE_CODE (h) == SCOPE_REF)
+	  h = tsubst_qualified_id (h, args, complain, in_decl,
+				   /*done=*/true, /*address_p=*/false,
+				   /*name_lookup_p=*/false);
 	else
 	  {
 	    /* [expr.reflect] The id-expression of a reflect-expression is
