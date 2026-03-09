@@ -30400,7 +30400,7 @@ aarch64_scalar_mode_supported_p (scalar_mode mode)
     return default_decimal_float_supported_p ();
 
   if (mode == TFmode)
-    return true;
+    return TARGET_LONG_DOUBLE_128 != 0;
 
   return ((mode == HFmode || mode == BFmode)
 	  ? true
