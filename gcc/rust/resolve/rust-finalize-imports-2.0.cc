@@ -64,8 +64,13 @@ void
 GlobbingVisitor::visit_enum_container (AST::Enum &item)
 {
   for (auto &variant : item.get_variants ())
-    ctx.insert_globbed (variant->get_identifier (), variant->get_node_id (),
-			Namespace::Types);
+    {
+      ctx.insert_globbed (variant->get_identifier (), variant->get_node_id (),
+			  Namespace::Types);
+      if (variant->get_enum_item_kind () != AST::EnumItem::Kind::Struct)
+	ctx.insert_globbed (variant->get_identifier (), variant->get_node_id (),
+			    Namespace::Values);
+    }
 }
 
 void
