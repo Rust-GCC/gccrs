@@ -188,11 +188,14 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 #endif
       ~allocator() _GLIBCXX_NOTHROW { }
 
-#if __cplusplus > 201703L
+#if __cpp_constexpr_dynamic_alloc // >= C++20
       [[nodiscard,__gnu__::__always_inline__]]
       constexpr _Tp*
       allocate(size_t __n)
       {
+#if __cpp_concepts
+	if constexpr (requires { sizeof(_Tp); })
+#endif
 	if (std::__is_constant_evaluated())
 	  {
 	    if (__builtin_mul_overflow(__n, sizeof(_Tp), &__n))
