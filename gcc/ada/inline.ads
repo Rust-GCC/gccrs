@@ -42,10 +42,11 @@
 --  Inline_Always subprograms, but there are fewer restrictions on the source
 --  of subprograms.
 
-with Opt;    use Opt;
-with Sem;    use Sem;
-with Types;  use Types;
-with Warnsw; use Warnsw;
+with Opt;      use Opt;
+with Sem;      use Sem;
+with Sem_Util; use Sem_Util;
+with Types;    use Types;
+with Warnsw;   use Warnsw;
 
 package Inline is
 
@@ -248,8 +249,8 @@ package Inline is
    --  Check a list of statements, Stats, that make inlining of Subp not
    --  worthwhile, including any tasking statement, nested at any level.
 
-   procedure Inline_Static_Function_Call
-     (N : Node_Id; Subp : Entity_Id);
+   procedure Inline_Static_Function_Call (N : Node_Id; Subp : Entity_Id)
+   with Pre => Is_Static_Function_Call (N);
    --  Evaluate static call to a static function Subp, substituting actuals in
    --  place of references to their corresponding formals and rewriting the
    --  call N as a fully folded and static result expression.
