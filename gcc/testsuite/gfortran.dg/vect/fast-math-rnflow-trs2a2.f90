@@ -1,5 +1,6 @@
 ! { dg-do compile }
 ! { dg-require-effective-target vect_double }
+! { dg-additional-options "-ffast-math" }
 
       function trs2a2 (j, k, u, d, m)
 !      matrice de transition intermediaire, partant de k sans descendre

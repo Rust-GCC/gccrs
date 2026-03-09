@@ -1,4 +1,5 @@
 ! { dg-do compile }
+! { dg-additional-options "-O3" }
        subroutine tranx3 (jbeg,jend,kbeg,kend,dlo,den,mflx,zro)
       parameter(in =           128+5
      &        , jn =           128+5

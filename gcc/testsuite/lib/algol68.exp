@@ -134,7 +134,7 @@ proc algol68_init { args } {
 		    set specpath [get_multilibs]
 		}
 		set algol68_init_set_ALGOL68_UNDER_TEST 1
-		set ALGOL68_UNDER_TEST [findfile $base_dir/../../ga68 "$base_dir/../../ga68 -B$base_dir/../../ -B$specpath/libga68/" [findfile $base_dir/ga68 "$base_dir/ga68 -B$base_dir/" [transform ga68]]]
+		set ALGOL68_UNDER_TEST [findfile $base_dir/../../ga68 "$base_dir/../../ga68 -B$base_dir/../.. -B$specpath/libga68 -I$base_dir/../../.libs -I$specpath/libga68/.libs" [findfile $base_dir/ga68 "$base_dir/ga68 -B$base_dir" [transform ga68]]]
 	    }
 	}
     }

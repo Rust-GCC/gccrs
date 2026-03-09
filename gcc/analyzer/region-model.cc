@@ -1353,6 +1353,27 @@ region_model::get_gassign_result (const gassign *assign,
 		}
 	  }
 
+	if (ctxt
+	    && (op == TRUNC_DIV_EXPR
+		|| op == CEIL_DIV_EXPR
+		|| op == FLOOR_DIV_EXPR
+		|| op == ROUND_DIV_EXPR
+		|| op == TRUNC_MOD_EXPR
+		|| op == CEIL_MOD_EXPR
+		|| op == FLOOR_MOD_EXPR
+		|| op == ROUND_MOD_EXPR
+		|| op == RDIV_EXPR
+		|| op == EXACT_DIV_EXPR))
+	  {
+	    if (const tree rhs2_cst = rhs2_sval->maybe_get_constant ())
+	      if (zerop (rhs2_cst))
+		{
+		  /* Ideally we should issue a warning here;
+		     see PR analyzer/124217.  */
+		  return nullptr;
+		}
+	  }
+
 	const svalue *sval_binop
 	  = m_mgr->get_or_create_binop (TREE_TYPE (lhs), op,
 					rhs1_sval, rhs2_sval);

@@ -382,7 +382,7 @@
   "#"
   "&& 1"
   [(set (match_dup 4) (and:X (match_dup 2) (match_dup 3)))
-   (set (match_dup 5) (if_then_else:X (ne:X (match_dup 1) (const_int 0))
+   (set (match_dup 5) (if_then_else:X (eq:X (match_dup 1) (const_int 0))
 				      (match_dup 2)
 				      (const_int 0)))
    (set (match_dup 0) (ior:X (match_dup 5) (match_dup 4)))]
@@ -406,7 +406,7 @@
   "#"
   "&& 1"
   [(set (match_dup 4) (and:X (match_dup 2) (match_dup 3)))
-   (set (match_dup 5) (if_then_else:X (ne:X (match_dup 1) (const_int 0))
+   (set (match_dup 5) (if_then_else:X (eq:X (match_dup 1) (const_int 0))
 				      (match_dup 2)
 				      (const_int 0)))
    (set (match_dup 0) (ior:X (match_dup 5) (match_dup 4)))]

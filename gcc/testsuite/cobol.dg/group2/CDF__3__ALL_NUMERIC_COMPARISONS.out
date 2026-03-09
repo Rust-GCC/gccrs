@@ -1,0 +1,7 @@
+ONE <> TWO
+ONE <  TWO
+ONE <= TWO
+ONE =  ONE
+ONE <= ONE
+ONE >= ONE
+

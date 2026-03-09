@@ -2750,7 +2750,7 @@ Parser<ManagedTokenSource>::parse_trait_bound ()
 
   // handle TypePath
   AST::TypePath type_path = parse_type_path ();
-  if (type_path.is_error())
+  if (type_path.is_error ())
     return nullptr;
 
   // handle closing parentheses
@@ -2979,10 +2979,6 @@ Parser<ManagedTokenSource>::parse_struct (AST::Visibility vis,
   const_TokenPtr name_tok = expect_token (IDENTIFIER);
   if (name_tok == nullptr)
     {
-      Error error (lexer.peek_token ()->get_locus (),
-		   "could not parse struct or tuple struct identifier");
-      add_error (std::move (error));
-
       // skip after somewhere?
       return nullptr;
     }
@@ -3353,26 +3349,26 @@ Parser<ManagedTokenSource>::parse_enum_items ()
 {
   std::vector<std::unique_ptr<AST::EnumItem>> items;
 
-  std::unique_ptr<AST::EnumItem> initial_item = parse_enum_item ();
+  auto initial_item = parse_enum_item ();
 
   // Return empty item list if no field there
-  if (initial_item == nullptr)
+  if (!initial_item)
     return items;
 
-  items.push_back (std::move (initial_item));
+  items.push_back (std::move (initial_item.value ()));
 
   while (lexer.peek_token ()->get_id () == COMMA)
     {
       lexer.skip_token ();
 
-      std::unique_ptr<AST::EnumItem> item = parse_enum_item ();
-      if (item == nullptr)
+      auto item = parse_enum_item ();
+      if (!item)
 	{
 	  // this would occur with a trailing comma, which is allowed
 	  break;
 	}
 
-      items.push_back (std::move (item));
+      items.push_back (std::move (item.value ()));
     }
 
   items.shrink_to_fit ();
@@ -3389,13 +3385,13 @@ Parser<ManagedTokenSource>::parse_enum_items (EndTokenPred is_end_tok)
 {
   std::vector<std::unique_ptr<AST::EnumItem>> items;
 
-  std::unique_ptr<AST::EnumItem> initial_item = parse_enum_item ();
+  auto initial_item = parse_enum_item ();
 
   // Return empty item list if no field there
-  if (initial_item == nullptr)
+  if (!initial_item)
     return items;
 
-  items.push_back (std::move (initial_item));
+  items.push_back (std::move (initial_item.value ()));
 
   while (lexer.peek_token ()->get_id () == COMMA)
     {
@@ -3404,8 +3400,8 @@ Parser<ManagedTokenSource>::parse_enum_items (EndTokenPred is_end_tok)
       if (is_end_tok (lexer.peek_token ()->get_id ()))
 	break;
 
-      std::unique_ptr<AST::EnumItem> item = parse_enum_item ();
-      if (item == nullptr)
+      auto item = parse_enum_item ();
+      if (!item)
 	{
 	  /* TODO should this ignore all successfully parsed enum items just
 	   * because one failed? */
@@ -3416,7 +3412,7 @@ Parser<ManagedTokenSource>::parse_enum_items (EndTokenPred is_end_tok)
 	  return {};
 	}
 
-      items.push_back (std::move (item));
+      items.push_back (std::move (item.value ()));
     }
 
   items.shrink_to_fit ();
@@ -3428,7 +3424,7 @@ Parser<ManagedTokenSource>::parse_enum_items (EndTokenPred is_end_tok)
 /* Parses a single enum variant item in an enum definition. Does not parse
  * commas. */
 template <typename ManagedTokenSource>
-std::unique_ptr<AST::EnumItem>
+tl::expected<std::unique_ptr<AST::EnumItem>, Parse::Error::EnumVariant>
 Parser<ManagedTokenSource>::parse_enum_item ()
 {
   // parse outer attributes if they exist
@@ -3437,7 +3433,7 @@ Parser<ManagedTokenSource>::parse_enum_item ()
   // parse visibility, which may or may not exist
   auto vis_res = parse_visibility ();
   if (!vis_res)
-    return nullptr;
+    return Parse::Error::EnumVariant::make_child_error ();
   auto vis = vis_res.value ();
 
   // parse name for enum item, which is required
@@ -3445,7 +3441,7 @@ Parser<ManagedTokenSource>::parse_enum_item ()
   if (item_name_tok->get_id () != IDENTIFIER)
     {
       // this may not be an error but it means there is no enum item here
-      return nullptr;
+      return Parse::Error::EnumVariant::make_not_identifier (item_name_tok);
     }
   lexer.skip_token ();
   Identifier item_name{item_name_tok};
@@ -3469,7 +3465,7 @@ Parser<ManagedTokenSource>::parse_enum_item ()
 	if (!skip_token (RIGHT_PAREN))
 	  {
 	    // skip after somewhere
-	    return nullptr;
+	    return Parse::Error::EnumVariant::make_unfinished_tuple_variant ();
 	  }
 
 	return std::unique_ptr<AST::EnumItemTuple> (new AST::EnumItemTuple (
@@ -3487,7 +3483,7 @@ Parser<ManagedTokenSource>::parse_enum_item ()
 	if (!skip_token (RIGHT_CURLY))
 	  {
 	    // skip after somewhere
-	    return nullptr;
+	    return Parse::Error::EnumVariant::make_unfinished_tuple_variant ();
 	  }
 
 	return std::unique_ptr<AST::EnumItemStruct> (new AST::EnumItemStruct (
@@ -3501,20 +3497,19 @@ Parser<ManagedTokenSource>::parse_enum_item ()
 
 	auto discriminant_expr = parse_expr ();
 	if (!discriminant_expr)
-	  return nullptr;
+	  return Parse::Error::EnumVariant::make_child_error ();
 
-	return std::unique_ptr<AST::EnumItemDiscriminant> (
-	  new AST::EnumItemDiscriminant (std::move (item_name), std::move (vis),
-					 std::move (discriminant_expr.value ()),
-					 std::move (outer_attrs),
-					 item_name_tok->get_locus ()));
+	return std::make_unique<AST::EnumItemDiscriminant> (
+	  std::move (item_name), std::move (vis),
+	  std::move (discriminant_expr.value ()), std::move (outer_attrs),
+	  item_name_tok->get_locus ());
       }
     default:
       // regular enum with just an identifier
-      return std::unique_ptr<AST::EnumItem> (
-	new AST::EnumItem (std::move (item_name), std::move (vis),
-			   std::move (outer_attrs),
-			   item_name_tok->get_locus ()));
+      return std::make_unique<AST::EnumItem> (std::move (item_name),
+					      std::move (vis),
+					      std::move (outer_attrs),
+					      item_name_tok->get_locus ());
     }
 }
 

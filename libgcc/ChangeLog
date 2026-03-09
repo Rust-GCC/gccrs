@@ -1,3 +1,9 @@
+2026-02-23  Alice Carlotti  <alice.carlotti@arm.com>
+
+	* config/aarch64/libgcc-sme.ver: Add __arm_get_current_vg.
+	* config/aarch64/t-aarch64: Add new source file.
+	* config/aarch64/__arm_get_current_vg.S: New file.
+
 2026-02-06  Torbjörn SVENSSON  <torbjorn.svensson@foss.st.com>
 
 	* config/i386/gthr-win32.h: Replace CONST_CAST2 with expanded

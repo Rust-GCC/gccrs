@@ -92,6 +92,7 @@
 #include "options.h"
 
 #include "a68.h"
+#include "a68-pretty-print.h"
 
 /* Forward declarations of some of the functions defined below.  */
 
@@ -515,7 +516,11 @@ mode_check_specified_unit_list (SOID_T **r, NODE_T *p, SOID_T *x, MOID_T *u)
 	{
 	  MOID_T *m = MOID (NEXT_SUB (p));
 	  if (u != NO_MOID && !a68_is_unitable (m, u, SAFE_DEFLEXING))
-	    a68_error (p, "M is neither component nor subset of M", m, u);
+	    {
+	      a68_moid_format_token m1 (m);
+	      a68_moid_format_token m2 (u);
+	      a68_error (p, "%e is neither component nor subset of %e", &m1, &m2);
+	    }
 
 	}
       else if (IS (p, UNIT))
@@ -590,7 +595,8 @@ mode_check_united_case_parts (SOID_T **ry, NODE_T *p, SOID_T *x)
 	}
       else
 	{
-	  a68_error (NEXT_SUB (p), "M is not a united mode", u);
+	  a68_moid_format_token m (u);
+	  a68_error (NEXT_SUB (p), "%e is not a united mode", &m);
 	  return;
 	}
     }
@@ -709,15 +715,16 @@ mode_check_collateral (NODE_T *p, SOID_T *x, SOID_T *y)
       if (SORT (x) == STRONG)
 	{
 	  if (MOID (x) == NO_MOID)
-	    a68_error (p, "vacuum cannot have row elements (use a Y generator)",
-		       "REF MODE");
+	    a68_error (p, "vacuum cannot have row elements (use a %qs generator)",
+		       a68_strop_keyword ("REF MODE"));
 	  else if (IS_FLEXETY_ROW (MOID (x)))
 	    a68_make_soid (y, STRONG, M_VACUUM, 0);
 	  else
 	    {
 	      /* The syntax only allows vacuums in strong contexts with rowed
 		 modes.  See rule 33d.  */
-	      a68_error (p, "a vacuum is not a valid M", MOID (x));
+	      a68_moid_format_token m (MOID (x));
+	      a68_error (p, "a vacuum is not a valid %e", &m);
 	      a68_make_soid (y, STRONG, M_ERROR, 0);
 	    }
 	}
@@ -1103,7 +1110,8 @@ mode_check_monadic_operator (NODE_T *p, SOID_T *x, SOID_T *y)
 	a68_make_soid (y, SORT (x), M_ERROR, 0);
       else if (u == M_HIP)
 	{
-	  a68_error (NEXT (p), "M construct is an invalid operand", u);
+	  a68_moid_format_token m (u);
+	  a68_error (NEXT (p), "%e construct is an invalid operand", &m);
 	  a68_make_soid (y, SORT (x), M_ERROR, 0);
 	}
       else
@@ -1111,7 +1119,9 @@ mode_check_monadic_operator (NODE_T *p, SOID_T *x, SOID_T *y)
 	  if (strchr (NOMADS, *(NSYMBOL (p))) != NO_TEXT)
 	    {
 	      t = NO_TAG;
-	      a68_error (p, "monadic S cannot start with a character from Z", NOMADS);
+	      a68_symbol_format_token s (p);
+	      a68_error (p, "monadic %e cannot start with a character from %qs",
+			 &s, NOMADS);
 	      a68_make_soid (y, SORT (x), M_ERROR, 0);
 	    }
 	  else
@@ -1119,7 +1129,10 @@ mode_check_monadic_operator (NODE_T *p, SOID_T *x, SOID_T *y)
 	      t = find_operator (TABLE (p), NSYMBOL (p), u, NO_MOID);
 	      if (t == NO_TAG)
 		{
-		  a68_error (p, "monadic operator S O has not been declared", u);
+		  a68_symbol_format_token s (p);
+		  a68_opmoid_format_token o (u);
+		  a68_error (p, "monadic operator %e %e has not been declared",
+			     &s, &o);
 		  a68_make_soid (y, SORT (x), M_ERROR, 0);
 		}
 	    }
@@ -1192,12 +1205,14 @@ mode_check_formula (NODE_T *p, SOID_T *x, SOID_T *y)
 	a68_make_soid (y, SORT (x), M_ERROR, 0);
       else if (u == M_HIP)
 	{
-	  a68_error (p, "M construct is an invalid operand", u);
+	  a68_moid_format_token m (u);
+	  a68_error (p, "%e construct is an invalid operand", &m);
 	  a68_make_soid (y, SORT (x), M_ERROR, 0);
 	}
       else if (v == M_HIP)
 	{
-	  a68_error (q, "M construct is an invalid operand", u);
+	  a68_moid_format_token m (u);
+	  a68_error (q, "%e construct is an invalid operand", &m);
 	  a68_make_soid (y, SORT (x), M_ERROR, 0);
 	}
       else
@@ -1205,7 +1220,11 @@ mode_check_formula (NODE_T *p, SOID_T *x, SOID_T *y)
 	  TAG_T *op = find_operator (TABLE (NEXT (p)), NSYMBOL (NEXT (p)), u, v);
 	  if (op == NO_TAG)
 	    {
-	      a68_error (NEXT (p), "dyadic operator O S O has not been declared", u, v);
+	      a68_symbol_format_token s (NEXT (p));
+	      a68_opmoid_format_token o1 (u);
+	      a68_opmoid_format_token o2 (v);
+	      a68_error (NEXT (p), "dyadic operator %e %e %e has not been declared",
+			 &o1, &s, &o2);
 	      a68_make_soid (y, SORT (x), M_ERROR, 0);
 	    }
 	  if (op != NO_TAG)
@@ -1234,7 +1253,11 @@ mode_check_assignation (NODE_T *p, SOID_T *x, SOID_T *y)
   if (ATTRIBUTE (name_moid) != REF_SYMBOL)
     {
       if (A68_IF_MODE_IS_WELL (name_moid))
-	a68_error (p, "M A does not yield a name", ori, ATTRIBUTE (SUB (p)));
+	{
+	  a68_moid_format_token m (ori);
+	  a68_attr_format_token a (ATTRIBUTE (SUB (p)));
+	  a68_error (p, "%e %e does not yield a name", &m, &a);
+	}
       a68_make_soid (y, SORT (x), M_ERROR, 0);
       return;
     }
@@ -1268,12 +1291,16 @@ mode_check_identity_relation (NODE_T *p, SOID_T *x, SOID_T *y)
   MOID_T *rhs = a68_deproc_completely (orir);
   if (A68_IF_MODE_IS_WELL (lhs) && lhs != M_HIP && ATTRIBUTE (lhs) != REF_SYMBOL)
     {
-      a68_error (ln, "M A does not yield a name", oril, ATTRIBUTE (SUB (ln)));
+      a68_moid_format_token m (oril);
+      a68_attr_format_token a (ATTRIBUTE (SUB (ln)));
+      a68_error (ln, "%e %e does not yield a name", &m, &a);
       lhs = M_ERROR;
     }
   if (A68_IF_MODE_IS_WELL (rhs) && rhs != M_HIP && ATTRIBUTE (rhs) != REF_SYMBOL)
     {
-      a68_error (rn, "M A does not yield a name", orir, ATTRIBUTE (SUB (rn)));
+      a68_moid_format_token m (orir);
+      a68_attr_format_token a (ATTRIBUTE (SUB (rn)));
+      a68_error (rn, "%e %e does not yield a name", &m, &a);
       rhs = M_ERROR;
     }
   if (lhs == M_HIP && rhs == M_HIP)
@@ -1371,7 +1398,8 @@ mode_check_argument_list (SOID_T **r, NODE_T *p, PACK_T **x, PACK_T **v, PACK_T 
 	  SOID_T z;
 	  if (SUB (p) != NO_NODE)
 	    {
-	      a68_error (p, "syntax error detected in A", ARGUMENT);
+	      a68_attr_format_token a (ARGUMENT);
+	      a68_error (p, "syntax error detected in %e", &a);
 	      a68_make_soid (&z, STRONG, M_ERROR, 0);
 	      a68_add_mode_to_pack_end (v, M_VOID, NO_TEXT, p);
 	      a68_add_mode_to_pack_end (w, MOID (*x), NO_TEXT, p);
@@ -1389,7 +1417,10 @@ mode_check_argument_list (SOID_T **r, NODE_T *p, PACK_T **x, PACK_T **v, PACK_T 
 	  a68_add_to_soid_list (r, p, &z);
 	}
       else if (IS (p, SUB_SYMBOL) && !OPTION_BRACKETS (&A68_JOB))
-	a68_error (p, "syntax error detected in A", CALL);
+	{
+	  a68_attr_format_token a (CALL);
+	  a68_error (p, "syntax error detected in %e", &a);
+	}
     }
 }
 
@@ -1484,7 +1515,8 @@ mode_check_call (NODE_T *p, MOID_T *n, SOID_T *x, SOID_T *y)
   PARTIAL_LOCALE (GINFO (p)) = a68_register_extra_mode (&TOP_MOID (&A68_JOB), PARTIAL_LOCALE (GINFO (p)));
   if (DIM (MOID (&d)) != DIM (n))
     {
-      a68_error (p, "incorrect number of arguments for M", n);
+      a68_moid_format_token m (n);
+      a68_error (p, "incorrect number of arguments for %e", &m);
       a68_make_soid (y, SORT (x), SUB (n), 0);
       /*  a68_make_soid (y, SORT (x), M_ERROR, 0);.  */
     }
@@ -1496,7 +1528,8 @@ mode_check_call (NODE_T *p, MOID_T *n, SOID_T *x, SOID_T *y)
 	a68_make_soid (y, SORT (x), SUB (n), 0);
       else
 	{
-	  a68_warning (NEXT (p), OPT_Wextensions, "@ is an extension");
+	  a68_construct_format_token c (NEXT (p));
+	  a68_warning (NEXT (p), OPT_Wextensions, "%e is an extension", &c);
 	  a68_make_soid (y, SORT (x), PARTIAL_PROC (GINFO (p)), 0);
 	}
     }
@@ -1515,8 +1548,11 @@ mode_check_slice (NODE_T *p, MOID_T *ori, SOID_T *x, SOID_T *y)
   if (n == NO_MOID || !(SLICE (DEFLEX (n)) != NO_MOID || a68_is_ref_row (n)))
     {
       if (A68_IF_MODE_IS_WELL (n))
-	a68_error (p, "M A does not yield a row or procedure",
-		   n, ATTRIBUTE (SUB (p)));
+	{
+	  a68_moid_format_token m (n);
+	  a68_attr_format_token a (ATTRIBUTE (SUB (p)));
+	  a68_error (p, "%e %e does not yield a row or procedure", &m, &a);
+	}
       a68_make_soid (y, SORT (x), M_ERROR, 0);
     }
 
@@ -1531,7 +1567,8 @@ mode_check_slice (NODE_T *p, MOID_T *ori, SOID_T *x, SOID_T *y)
 
   if ((subs + trims) != dim)
     {
-      a68_error (p, "incorrect number of indexers for M", n);
+      a68_moid_format_token m (n);
+      a68_error (p, "incorrect number of indexers for %e", &m);
       a68_make_soid (y, SORT (x), M_ERROR, 0);
     }
   else
@@ -1595,7 +1632,10 @@ mode_check_specification (NODE_T *p, SOID_T *x, SOID_T *y)
   else
     {
       if (m != M_ERROR)
-	a68_error (p, "M construct must yield a routine or a row value", m);
+	{
+	  a68_moid_format_token m1 (m);
+	  a68_error (p, "%e construct must yield a routine or a row value", &m1);
+	}
       a68_make_soid (y, SORT (x), M_ERROR, 0);
       return PRIMARY;
     }
@@ -1654,7 +1694,11 @@ mode_check_selection (NODE_T *p, SOID_T *x, SOID_T *y)
   if (t == NO_PACK)
     {
       if (A68_IF_MODE_IS_WELL (MOID (&d)))
-	a68_error (secondary, "M A does not yield a structured value", ori, ATTRIBUTE (secondary));
+	{
+	  a68_moid_format_token m (ori);
+	  a68_attr_format_token a (ATTRIBUTE (secondary));
+	  a68_error (secondary, "%e %e does not yield a structured value", &m, &a);
+	}
       a68_make_soid (y, SORT (x), M_ERROR, 0);
       return;
     }
@@ -1685,7 +1729,8 @@ mode_check_selection (NODE_T *p, SOID_T *x, SOID_T *y)
       FORWARD (t_2);
     }
   a68_make_soid (&d, NO_SORT, n, 0);
-  a68_error (p, "M has no field Z", str, fs);
+  a68_moid_format_token m (str);
+  a68_error (p, "%e has no field %qs", &m, fs);
   a68_make_soid (y, SORT (x), M_ERROR, 0);
 }
 
@@ -1757,7 +1802,7 @@ mode_check_unit (NODE_T *p, SOID_T *x, SOID_T *y)
 	  if (att == STOP)
 	    {
 	      (void) a68_add_tag (TABLE (p), IDENTIFIER, p, M_ERROR, NORMAL_IDENTIFIER);
-	      a68_error (p, "tag S has not been declared properly");
+	      a68_error (p, "tag %qs has not been declared properly", NSYMBOL (p));
 	      MOID (p) = M_ERROR;
 	    }
 	  else
@@ -1768,7 +1813,7 @@ mode_check_unit (NODE_T *p, SOID_T *x, SOID_T *y)
 	      else
 		{
 		  (void) a68_add_tag (TABLE (p), IDENTIFIER, p, M_ERROR, NORMAL_IDENTIFIER);
-		  a68_error (p, "tag S has not been declared properly");
+		  a68_error (p, "tag %qs has not been declared properly", NSYMBOL (p));
 		  MOID (p) = M_ERROR;
 		}
 	    }
@@ -1808,7 +1853,11 @@ mode_check_unit (NODE_T *p, SOID_T *x, SOID_T *y)
   else if (a68_is_one_of (p, JUMP, SKIP, STOP))
     {
       if (SORT (x) != STRONG)
-	a68_warning (p, 0, "@ should not be in C context", SORT (x));
+	{
+	  a68_construct_format_token c (p);
+	  a68_sort_format_token s (SORT (x));
+	  a68_warning (p, 0, "%e should not be in %e context", &c, &s);
+	}
       /*  a68_make_soid (y, STRONG, M_HIP, 0);  */
       a68_make_soid (y, SORT (x), M_HIP, 0);
     }
@@ -1869,7 +1918,8 @@ mode_check_unit (NODE_T *p, SOID_T *x, SOID_T *y)
 	{
 	  /* Additionally, the mode of the formal hole should be amenable to be
 	     somehow "translated" to C semantics. */
-	  a68_error (p, "formal hole cannot be of mode M", MOID (x));
+	  a68_moid_format_token m (MOID (x));
+	  a68_error (p, "formal hole cannot be of mode %e", &m);
 	  a68_make_soid (y, STRONG, M_ERROR, 0);
 	}
       else if (NSYMBOL (str)[0] == '&' && !IS_REF (MOID (x)))

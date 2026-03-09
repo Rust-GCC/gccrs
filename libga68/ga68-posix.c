@@ -47,6 +47,10 @@ static int _libga68_errno;
 
 /* Simple I/O based on POSIX file descriptors.  */
 
+int _libga68_stdin = 0;
+int _libga68_stdout = 1;
+int _libga68_stderr = 2;
+
 int
 _libga68_posixerrno (void)
 {
@@ -67,11 +71,11 @@ _libga68_posixperror (uint32_t *s, size_t len, size_t stride)
   _libga68_free_internal (u8str);
 }
 
-uint32_t *
-_libga68_posixstrerror (int errnum, size_t *len)
+void
+_libga68_posixstrerror (int errnum, uint32_t **r, size_t *rlen)
 {
   const char *str = strerror (errnum);
-  return _libga68_u8_to_u32 ((const uint8_t *)str, strlen (str), NULL, len);
+  *r = _libga68_u8_to_u32 ((const uint8_t *)str, strlen (str), NULL, rlen);
 }
 
 /* Helper for _libga68_posixfopen.  */
@@ -83,11 +87,11 @@ _libga68_open (const char *path, unsigned int flags)
   return fd;
 }
 
-#define FILE_O_DEFAULT 0x99999999
-#define FILE_O_RDONLY  0x0
-#define FILE_O_WRONLY  0x1
-#define FILE_O_RDWR    0x2
-#define FILE_O_TRUNC   0x8
+unsigned int _libga68_file_o_default = 0x99999999;
+unsigned int _libga68_file_o_rdonly = 0x0;
+unsigned int _libga68_file_o_wronly = 0x1;
+unsigned int _libga68_file_o_rdwr = 0x2;
+unsigned int _libga68_file_o_trunc = 0x8;
 
 int
 _libga68_posixfopen (const uint32_t *pathname, size_t len, size_t stride,
@@ -101,7 +105,7 @@ _libga68_posixfopen (const uint32_t *pathname, size_t len, size_t stride,
   /* Default mode: try read-write initially.
      If that fails, then try read-only.
      If that fails, then try write-only.  */
-  if (flags == FILE_O_DEFAULT)
+  if (flags == _libga68_file_o_default)
     {
       openflags = O_RDWR;
       if ((fd = _libga68_open (filepath, openflags)) < 0)
@@ -119,13 +123,13 @@ _libga68_posixfopen (const uint32_t *pathname, size_t len, size_t stride,
       return fd;
     }
 
-  if (flags & FILE_O_RDONLY)
+  if (flags & _libga68_file_o_rdonly)
     openflags |= O_RDONLY;
-  if (flags & FILE_O_WRONLY)
+  if (flags & _libga68_file_o_wronly)
     openflags |= O_WRONLY;
-  if (flags & FILE_O_RDWR)
+  if (flags & _libga68_file_o_rdwr)
     openflags |= O_RDWR;
-  if (flags & FILE_O_TRUNC)
+  if (flags & _libga68_file_o_trunc)
     openflags |= O_TRUNC;
 
   fd = _libga68_open (filepath, openflags);
@@ -164,19 +168,19 @@ _libga68_posixargc (void)
 
 /* Implementation of the posix prelude `posix argv'.  */
 
-uint32_t *
-_libga68_posixargv (int n, size_t *len)
+void
+_libga68_posixargv (int n, uint32_t **r, size_t *rlen)
 {
   if (n < 0 || n > _libga68_argc)
     {
       /* Return an empty string.  */
-      *len = 0;
-      return NULL;
+      *rlen = 0;
+      *r = NULL;
     }
   else
     {
       char *arg = _libga68_argv[n - 1];
-      return _libga68_u8_to_u32 (arg, strlen (arg), NULL, len);
+      *r = _libga68_u8_to_u32 (arg, strlen (arg), NULL, rlen);
     }
 }
 
@@ -307,8 +311,8 @@ _libga68_posixgetchar (void)
 
 /* Implementation of the posix prelude `posix fgets'.  */
 
-uint32_t *
-_libga68_posixfgets (int fd, int nchars, size_t *len)
+void
+_libga68_posixfgets (int fd, int nchars, uint32_t **r, size_t *rlen)
 {
   uint32_t *res = NULL;
   int n = 0;
@@ -347,16 +351,16 @@ _libga68_posixfgets (int fd, int nchars, size_t *len)
 	res = _libga68_realloc (res, n * 80 * sizeof (uint32_t));
     }
 
-  *len = n;
-  return res;
+  *rlen = n;
+  *r = res;
 }
 
 /* Implementation of the posix prelude `posix gets'.  */
 
-uint32_t *
-_libga68_posixgets (int nchars, size_t *len)
+void
+_libga68_posixgets (int nchars, uint32_t **r, size_t *rlen)
 {
-  return _libga68_posixfgets (0, nchars, len);
+  _libga68_posixfgets (0, nchars, r, rlen);
 }
 
 /* Implementation of the posix prelude `fconnect'.  */
@@ -429,9 +433,14 @@ _libga68_posixfsize (int fd)
 }
 
 /* Implementation of the posix prelude `lseek'.  */
+
 #define A68_SEEK_CUR 0
 #define A68_SEEK_END 1
 #define A68_SEEK_SET 2
+
+const int _libga68_seek_cur = A68_SEEK_CUR;
+const int _libga68_seek_end = A68_SEEK_END;
+const int _libga68_seek_set = A68_SEEK_SET;
 
 long long int
 _libga68_posixlseek (int fd, long long int offset, int whence)

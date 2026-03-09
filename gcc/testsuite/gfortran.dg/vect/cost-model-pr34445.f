@@ -1,4 +1,5 @@
 c { dg-do compile }
+c { dg-additional-options "-fvect-cost-model=dynamic" }
       Subroutine FndSph(Alpha,Rad)
       Dimension Rad(100),RadInp(100)
       Do I = 1, NSphInp

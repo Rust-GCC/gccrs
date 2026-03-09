@@ -1,4 +1,5 @@
 ! { dg-do compile }
+! { dg-additional-options "-O3" }
 ! { dg-additional-options "-mavx2" { target x86_64-*-* i?86-*-* } }
        subroutine tranx3 (ibeg,jbeg,jend,kbeg,kend
      &                   ,dlo,den

@@ -49,9 +49,11 @@ along with GCC; see the file COPYING3.  If not see
 
 #define SIG_ATOMIC_TYPE "int"
 
-/* ??? This definition of int8_t follows the system header but does
-   not conform to C99.  Likewise int_fast8_t, int_least8_t.  */
-#define INT8_TYPE "char"
+/* <sys/int_types.h> uses char (which is signed) to define int8_t, which does
+   not conform to C99, 7.18.1.1 Exact-width integer types.  Likewise
+   int_fast8_t, int_least8_t.  Until this is fixed, it's handled by
+   fixincludes.  */
+#define INT8_TYPE "signed char"
 #define INT16_TYPE "short int"
 #define INT32_TYPE "int"
 #define INT64_TYPE (LONG_TYPE_SIZE == 64 ? "long int" : "long long int")
@@ -60,7 +62,7 @@ along with GCC; see the file COPYING3.  If not see
 #define UINT32_TYPE "unsigned int"
 #define UINT64_TYPE (LONG_TYPE_SIZE == 64 ? "long unsigned int" : "long long unsigned int")
 
-#define INT_LEAST8_TYPE "char"
+#define INT_LEAST8_TYPE "signed char"
 #define INT_LEAST16_TYPE "short int"
 #define INT_LEAST32_TYPE "int"
 #define INT_LEAST64_TYPE (LONG_TYPE_SIZE == 64 ? "long int" : "long long int")
@@ -69,7 +71,7 @@ along with GCC; see the file COPYING3.  If not see
 #define UINT_LEAST32_TYPE "unsigned int"
 #define UINT_LEAST64_TYPE (LONG_TYPE_SIZE == 64 ? "long unsigned int" : "long long unsigned int")
 
-#define INT_FAST8_TYPE "char"
+#define INT_FAST8_TYPE "signed char"
 #define INT_FAST16_TYPE "int"
 #define INT_FAST32_TYPE "int"
 #define INT_FAST64_TYPE (LONG_TYPE_SIZE == 64 ? "long int" : "long long int")
@@ -226,7 +228,7 @@ along with GCC; see the file COPYING3.  If not see
    in that case, and for executable link with --{,no-}whole-archive around
    it to force everything into the executable.  */
 
-#if !HAVE_GNU_LD
+#if HAVE_SOLARIS_LD
 #define LD_WHOLE_ARCHIVE_OPTION "-z allextract"
 #define LD_NO_WHOLE_ARCHIVE_OPTION "-z defaultextract"
 #else
@@ -278,14 +280,14 @@ along with GCC; see the file COPYING3.  If not see
    %{YP,*} \
    %{R*}"
 
-#if !HAVE_GNU_LD
+#if HAVE_SOLARIS_LD
 #define LINK_ARCH_SPEC_1 \
   "%{mcmodel=medlow:-M /usr/lib/ld/map.below4G} " LINK_ARCH_SPEC_BASE
 #else
 #define LINK_ARCH_SPEC_1 LINK_ARCH_SPEC_BASE
 #endif
 
-#if HAVE_GNU_LD
+#if !HAVE_SOLARIS_LD
 #if DEFAULT_ARCH32_P
 #define ARCH_DEFAULT_EMULATION ARCH32_EMULATION
 #else
@@ -323,7 +325,7 @@ along with GCC; see the file COPYING3.  If not see
   { "endfile_vtv",		ENDFILE_VTV_SPEC },		\
   SUBTARGET_CPU_EXTRA_SPECS
 
-#if !HAVE_GNU_LD
+#if HAVE_SOLARIS_LD
 /* With Sun ld, -rdynamic is a no-op.  */
 #define RDYNAMIC_SPEC ""
 #else
@@ -331,12 +333,12 @@ along with GCC; see the file COPYING3.  If not see
 #define RDYNAMIC_SPEC "--export-dynamic"
 #endif
 
-#if !HAVE_GNU_LD
+#if HAVE_SOLARIS_LD
 /* Prefer native form with Solaris ld.  */
 #define SYSROOT_SPEC "-z sysroot=%R"
 #endif
 
-#if !HAVE_GNU_LD && defined(ENABLE_SHARED_LIBGCC)
+#if HAVE_SOLARIS_LD && defined(ENABLE_SHARED_LIBGCC)
 /* With Sun ld, use mapfile to enforce direct binding to libgcc_s unwinder.  */
 #define LINK_LIBGCC_MAPFILE_SPEC \
   "%{shared|shared-libgcc:-M %slibgcc-unwind.map}"
@@ -385,12 +387,12 @@ along with GCC; see the file COPYING3.  If not see
 #define USE_LD_AS_NEEDED 1
 #endif
 
-#if HAVE_GNU_LD
+#if !HAVE_SOLARIS_LD
 /* GNU ld needs --eh-frame-hdr to create the required .eh_frame_hdr sections.  */
 #define LINK_EH_SPEC "%{!static|static-pie:--eh-frame-hdr} "
 #endif
 
-#if HAVE_GNU_LD
+#if !HAVE_SOLARIS_LD
 /* Assert -z text by default to match Solaris ld.  */
 #define LD_PIE_SPEC "-pie %{!mimpure-text:-z text}"
 #else
@@ -441,7 +443,7 @@ along with GCC; see the file COPYING3.  If not see
     }								\
   while (0)
 
-#if !HAVE_GNU_AS
+#if HAVE_SOLARIS_AS
 #undef TARGET_ASM_ASSEMBLE_VISIBILITY
 #define TARGET_ASM_ASSEMBLE_VISIBILITY solaris_assemble_visibility
 

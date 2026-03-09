@@ -3472,22 +3472,26 @@ package body Sem_Ch9 is
    ------------------------------------
 
    procedure Analyze_Triggering_Alternative (N : Node_Id) is
-      Trigger : constant Node_Id := Triggering_Statement (N);
+      Stmt : constant Node_Id := Triggering_Statement (N);
 
    begin
       if Present (Pragmas_Before (N)) then
          Analyze_List (Pragmas_Before (N));
       end if;
 
-      Analyze (Trigger);
+      Analyze (Stmt);
 
-      if Comes_From_Source (Trigger)
-        and then Nkind (Trigger) not in N_Delay_Statement
-        and then Nkind (Trigger) /= N_Entry_Call_Statement
+      --  N_Delay_Statement may be rewritten as N_Procedure_Call_Statement,
+      --  and N_Entry_Call_Statement is parsed as N_Procedure_Call_Statement.
+
+      if Nkind (Stmt) not in N_Delay_Statement
+                           | N_Entry_Call_Statement
+        and then Nkind (Original_Node (Stmt)) not in N_Delay_Statement
+                                                   | N_Entry_Call_Statement
       then
          if Ada_Version < Ada_2005 then
             Error_Msg_N
-             ("triggering statement must be delay or entry call", Trigger);
+             ("triggering statement must be delay or entry call", Stmt);
 
          --  Ada 2005 (AI-345): If a procedure_call_statement is used for a
          --  procedure_or_entry_call, the procedure_name or procedure_prefix
@@ -3495,14 +3499,14 @@ package body Sem_Ch9 is
          --  procedure, or (a view of) a primitive subprogram of a limited
          --  interface whose first parameter is a controlling parameter.
 
-         elsif Nkind (Trigger) = N_Procedure_Call_Statement
-           and then not Is_Renamed_Entry (Entity (Name (Trigger)))
-           and then not Is_Controlling_Limited_Procedure
-                          (Entity (Name (Trigger)))
+         elsif Nkind (Stmt) /= N_Procedure_Call_Statement
+           or else (not Is_Renamed_Entry (Entity (Name (Stmt)))
+                     and then not
+                       Is_Controlling_Limited_Procedure (Entity (Name (Stmt))))
          then
             Error_Msg_N
               ("triggering statement must be procedure or entry call " &
-               "or delay statement", Trigger);
+               "or delay statement", Stmt);
          end if;
       end if;
 

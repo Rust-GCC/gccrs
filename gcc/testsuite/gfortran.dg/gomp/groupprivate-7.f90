@@ -18,4 +18,23 @@ common /com/ z
 !!$omp target enter data map(to : /com/) ! -> PR fortran/92730
 end
 
+subroutine g1
+integer, save :: x
+!$omp threadprivate(x)
+!$omp groupprivate(x)  ! { dg-error "THREADPRIVATE attribute conflicts with OpenMP GROUPPRIVATE attribute in 'x'" }
+end
+
+subroutine g2
+integer, save :: y
+!$omp groupprivate(y)
+!$omp threadprivate(y)  ! { dg-error "THREADPRIVATE attribute conflicts with OpenMP GROUPPRIVATE attribute in 'y'" }
+end
+
+subroutine h
+ ! Hmm, for some reasons, it is diagnosed twice ...
+ integer :: k
+ common /b_k/ k  ! { dg-error "THREADPRIVATE attribute conflicts with OpenMP GROUPPRIVATE attribute in 'k'" }
+ !$omp groupprivate(/b_k/)
+ !$omp threadprivate(/b_k/)  ! { dg-error "THREADPRIVATE attribute conflicts with OpenMP GROUPPRIVATE attribute in 'k'" }
+end
 end module

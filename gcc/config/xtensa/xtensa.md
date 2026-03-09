@@ -2315,6 +2315,23 @@
    (set_attr "mode"	"SI")
    (set_attr "length"	"3")])
 
+(define_expand "spaceshipsi4"
+  [(match_operand:SI 0 "register_operand")
+   (match_operand:SI 1 "register_operand")
+   (match_operand:SI 2 "register_operand")
+   (match_operand:SI 3 "const_int_operand")]
+  "TARGET_SALT"
+{
+  rtx (*gen_op)(rtx, rtx, rtx);
+  rtx temp0, temp1;
+  gcc_assert (operands[3] == const1_rtx || operands[3] == constm1_rtx);
+  gen_op = (operands[3] == const1_rtx) ? gen_saltu : gen_salt;
+  emit_insn (gen_op (temp0 = gen_reg_rtx (SImode), operands[1], operands[2]));
+  emit_insn (gen_op (temp1 = gen_reg_rtx (SImode), operands[2], operands[1]));
+  emit_insn (gen_subsi3 (operands[0], temp1, temp0));
+  DONE;
+})
+
 (define_expand "cstoresf4"
   [(match_operand:SI 0 "register_operand")
    (match_operator:SI 1 "comparison_operator"

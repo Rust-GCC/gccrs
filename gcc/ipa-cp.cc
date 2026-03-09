@@ -5259,11 +5259,30 @@ self_recursive_pass_through_p (cgraph_edge *cs, ipa_jump_func *jfunc, int i,
 			       bool simple = true)
 {
   enum availability availability;
-  if (cs->caller == cs->callee->function_symbol (&availability)
+  if (jfunc->type == IPA_JF_PASS_THROUGH
+      && cs->caller == cs->callee->function_symbol (&availability)
       && availability > AVAIL_INTERPOSABLE
-      && jfunc->type == IPA_JF_PASS_THROUGH
       && (!simple || ipa_get_jf_pass_through_operation (jfunc) == NOP_EXPR)
       && ipa_get_jf_pass_through_formal_id (jfunc) == i
+      && ipa_node_params_sum->get (cs->caller)
+      && !ipa_node_params_sum->get (cs->caller)->ipcp_orig_node)
+    return true;
+  return false;
+}
+
+/* Return true if JFUNC, which describes the i-th parameter of call CS, is an
+   ancestor function with zero offset to itself when the cgraph_node involved
+   is not an IPA-CP clone.  */
+
+static bool
+self_recursive_ancestor_p (cgraph_edge *cs, ipa_jump_func *jfunc, int i)
+{
+  enum availability availability;
+  if (jfunc->type == IPA_JF_ANCESTOR
+      && cs->caller == cs->callee->function_symbol (&availability)
+      && availability > AVAIL_INTERPOSABLE
+      && ipa_get_jf_ancestor_offset (jfunc) == 0
+      && ipa_get_jf_ancestor_formal_id (jfunc) == i
       && ipa_node_params_sum->get (cs->caller)
       && !ipa_node_params_sum->get (cs->caller)->ipcp_orig_node)
     return true;
@@ -5361,6 +5380,8 @@ find_scalar_values_for_callers_subset (vec<tree> &known_csts,
 				op_type);
 	      t = ipacp_value_safe_for_type (type, t);
 	    }
+	  else if (self_recursive_ancestor_p (cs, jump_func, i))
+	    continue;
 	  else
 	    t = ipa_value_from_jfunc (ipa_node_params_sum->get (cs->caller),
 				      jump_func, type);
@@ -5515,7 +5536,8 @@ push_agg_values_for_index_from_edge (struct cgraph_edge *cs, int index,
 	      && !src_plats->aggs_bottom
 	      && (agg_jf_preserved || !src_plats->aggs_by_ref))
 	    {
-	      if (interim && self_recursive_pass_through_p (cs, jfunc, index))
+	      if (interim && (self_recursive_pass_through_p (cs, jfunc, index)
+			      || self_recursive_ancestor_p (cs, jfunc, index)))
 		{
 		  interim->push_adjusted_values (src_idx, index, unit_delta,
 						 res);
@@ -5900,7 +5922,8 @@ ipcp_val_replacement_ok_p (vec<tree> &,
 {
   if (offset != -1)
     return false;
-  return (!known_contexts[index].useless_p ()
+  return (known_contexts.length () > (unsigned) index
+	  && !known_contexts[index].useless_p ()
 	  && known_contexts[index].equal_to (value));
 }
 

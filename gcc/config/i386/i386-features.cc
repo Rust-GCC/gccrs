@@ -3903,8 +3903,11 @@ ix86_get_dominator_for_reg (unsigned int regno, basic_block bb)
    registers, if DEST is FLAGS register.  */
 
 static void
-ix86_check_flags_reg (rtx dest, const_rtx, void *data)
+ix86_check_flags_reg (rtx dest, const_rtx x, void *data)
 {
+  if (GET_CODE (x) == CLOBBER)
+    return;
+
   auto_bitmap *live_caller_saved_regs = (auto_bitmap *) data;
   if (REG_P (dest) && REGNO (dest) == FLAGS_REG)
     bitmap_set_bit (*live_caller_saved_regs, FLAGS_REG);
@@ -4080,7 +4083,9 @@ ix86_emit_tls_call (rtx tls_set, x86_cse_kind kind, basic_block bb,
 
 	  rtx link;
 	  for (link = REG_NOTES (insn); link; link = XEXP (link, 1))
-	    if (REG_NOTE_KIND (link) == REG_DEAD
+	    if ((REG_NOTE_KIND (link) == REG_DEAD
+		 || (REG_NOTE_KIND (link) == REG_UNUSED
+		     && REGNO (XEXP (link, 0)) == FLAGS_REG))
 		&& REG_P (XEXP (link, 0)))
 	      {
 		/* Mark the live caller-saved register as dead.  */

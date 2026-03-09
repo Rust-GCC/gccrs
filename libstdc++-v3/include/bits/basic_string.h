@@ -354,6 +354,11 @@ _GLIBCXX_BEGIN_NAMESPACE_CXX11
 	void
 	_M_construct(const _CharT *__c, size_type __n);
 
+#if __cplusplus >= 202302L
+      constexpr void
+      _M_construct(basic_string&& __str, size_type __pos,  size_type __n);
+#endif
+
       _GLIBCXX20_CONSTEXPR
       allocator_type&
       _M_get_allocator()
@@ -670,6 +675,26 @@ _GLIBCXX_BEGIN_NAMESPACE_CXX11
 	_M_construct(__start, __start + __str._M_limit(__pos, __n),
 		     std::forward_iterator_tag());
       }
+
+#if __cplusplus >= 202302L
+      _GLIBCXX20_CONSTEXPR
+      basic_string(basic_string&& __str, size_type __pos,
+		   const _Alloc& __a = _Alloc())
+      : _M_dataplus(_M_local_data(), __a)
+      {
+	__pos = __str._M_check(__pos, "string::string");
+	_M_construct(std::move(__str), __pos, __str.length() - __pos);
+      }
+
+      _GLIBCXX20_CONSTEXPR
+      basic_string(basic_string&& __str, size_type __pos, size_type __n,
+		   const _Alloc& __a = _Alloc())
+      : _M_dataplus(_M_local_data(), __a)
+      {
+	__pos = __str._M_check(__pos, "string::string");
+	_M_construct(std::move(__str), __pos, __str._M_limit(__pos, __n));
+      }
+#endif // C++23
 
       /**
        *  @brief  Construct string initialized by a character %array.
@@ -3441,6 +3466,18 @@ _GLIBCXX_BEGIN_NAMESPACE_CXX11
       substr(size_type __pos = 0, size_type __n = npos) const
       { return basic_string(*this,
 			    _M_check(__pos, "basic_string::substr"), __n); }
+
+#if __cplusplus >= 202302L
+      _GLIBCXX_NODISCARD
+      constexpr basic_string
+      substr(size_type __pos = 0) &&
+      { return basic_string(std::move(*this), __pos); }
+
+      _GLIBCXX_NODISCARD
+      constexpr basic_string
+      substr(size_type __pos, size_type __n) &&
+      { return basic_string(std::move(*this), __pos, __n); }
+#endif // C++23
 
 #ifdef __glibcxx_string_subview // >= C++26
       /**

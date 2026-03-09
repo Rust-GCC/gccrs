@@ -1,0 +1,29 @@
+      Complex three-by-three table, with extra fields
+50-1 "leading     three-inner James  Keen   Lowden three-inner James  Keen   Lowden three-inner James  Keen   Lowden middling    three-inner James  Keen   Lowden three-inner James  Keen   Lowden three-inner James  Keen   Lowden trailing    "
+50-2 "leading     three-inner James  Keen   Lowden three-inner James  Keen   Lowden three-inner James  Keen   Lowden middling    three-inner James  Keen   Lowden three-inner James  Keen   Lowden three-inner James  Keen   Lowden trailing    "
+50-3 "leading     three-inner James  Keen   Lowden three-inner James  Keen   Lowden three-inner James  Keen   Lowden middling    three-inner James  Keen   Lowden three-inner James  Keen   Lowden three-inner James  Keen   Lowden trailing    "
+      After INITIALIZE, only the KEEN columns should be left
+51-1 "                               Keen                             Keen                             Keen                                         Keen                             Keen                             Keen                      "
+51-2 "                               Keen                             Keen                             Keen                                         Keen                             Keen                             Keen                      "
+51-3 "                               Keen                             Keen                             Keen                                         Keen                             Keen                             Keen                      "
+      After INITIALIZE WITH FILLER, all should be blank
+52-1 "                                                                                                                                                                                                                                          "
+52-2 "                                                                                                                                                                                                                                          "
+52-3 "                                                                                                                                                                                                                                          "
+      After INITIALIZE ALL VALUE, all but the KEEN columns should be back
+53-1 "leading     three-inner James         Lowden three-inner James         Lowden three-inner James         Lowden middling    three-inner James         Lowden three-inner James         Lowden three-inner James         Lowden trailing    "
+53-2 "leading     three-inner James         Lowden three-inner James         Lowden three-inner James         Lowden middling    three-inner James         Lowden three-inner James         Lowden three-inner James         Lowden trailing    "
+53-3 "leading     three-inner James         Lowden three-inner James         Lowden three-inner James         Lowden middling    three-inner James         Lowden three-inner James         Lowden three-inner James         Lowden trailing    "
+      After INITIALIZE WITH FILLER ALL VALUE, should be the original
+54-1 "leading     three-inner James  Keen   Lowden three-inner James  Keen   Lowden three-inner James  Keen   Lowden middling    three-inner James  Keen   Lowden three-inner James  Keen   Lowden three-inner James  Keen   Lowden trailing    "
+54-2 "leading     three-inner James  Keen   Lowden three-inner James  Keen   Lowden three-inner James  Keen   Lowden middling    three-inner James  Keen   Lowden three-inner James  Keen   Lowden three-inner James  Keen   Lowden trailing    "
+54-3 "leading     three-inner James  Keen   Lowden three-inner James  Keen   Lowden three-inner James  Keen   Lowden middling    three-inner James  Keen   Lowden three-inner James  Keen   Lowden three-inner James  Keen   Lowden trailing    "
+      After setting FILLER fields to unique values
+55-1 "ZZZZZZZZZZZZAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCZZZZZZZZZZZZaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbcccccccccccccccccccccccccccccccccZZZZZZZZZZZZ"
+55-2 "ZZZZZZZZZZZZDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFZZZZZZZZZZZZdddddddddddddddddddddddddddddddddeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeefffffffffffffffffffffffffffffffffZZZZZZZZZZZZ"
+55-3 "ZZZZZZZZZZZZGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIZZZZZZZZZZZZggggggggggggggggggggggggggggggggghhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiZZZZZZZZZZZZ"
+      After INITIALIZE ALL VALUE, the KEEN columns should have the unique values
+56-1 "leading     three-inner James  AAAAAAALowden three-inner James  BBBBBBBLowden three-inner James  CCCCCCCLowden middling    three-inner James  aaaaaaaLowden three-inner James  bbbbbbbLowden three-inner James  cccccccLowden trailing    "
+56-2 "leading     three-inner James  DDDDDDDLowden three-inner James  EEEEEEELowden three-inner James  FFFFFFFLowden middling    three-inner James  dddddddLowden three-inner James  eeeeeeeLowden three-inner James  fffffffLowden trailing    "
+56-3 "leading     three-inner James  GGGGGGGLowden three-inner James  HHHHHHHLowden three-inner James  IIIIIIILowden middling    three-inner James  gggggggLowden three-inner James  hhhhhhhLowden three-inner James  iiiiiiiLowden trailing    "
+

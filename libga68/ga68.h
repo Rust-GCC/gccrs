@@ -88,14 +88,14 @@ long double _libga68_longlongrandom (void);
 int _libga68_posixerrno (void);
 void _libga68_posixexit (int) __attribute__ ((__noreturn__));
 void _libga68_posixperror (uint32_t *s, size_t len, size_t stride);
-uint32_t *_libga68_posixstrerror (int errnum, size_t *len);
+void _libga68_posixstrerror (int errnum, uint32_t **r, size_t *rlen);
 long long int _libga68_posixfsize (int fd);
 int _libga68_posixfopen (const uint32_t *pathname, size_t len, size_t stride,
 			 unsigned int flags);
 int _libga68_posixcreat (uint32_t *pathname, size_t len, size_t stride, uint32_t mode);
 int _libga68_posixclose (int fd);
 int _libga68_posixargc (void);
-uint32_t *_libga68_posixargv (int n, size_t *len);
+void _libga68_posixargv (int n, uint32_t **r, size_t *rlen);
 void _libga68_posixgetenv (uint32_t *s, size_t len, size_t stride,
 			   uint32_t **r, size_t *rlen);
 void _libga68_posixputs (uint32_t *s, size_t len, size_t stride);
@@ -105,8 +105,8 @@ int _libga68_posixfputs (int fd, uint32_t *s, size_t len, size_t stride);
 
 uint32_t _libga68_posixgetchar (void);
 uint32_t _libga68_posixfgetc (int fd);
-uint32_t *_libga68_posixfgets (int fd, int nchars, size_t *len);
-uint32_t *_libga68_posixgets (int nchars, size_t *len);
+void _libga68_posixfgets (int fd, int nchars, uint32_t **r, size_t *rlen);
+void _libga68_posixgets (int nchars, uint32_t **r, size_t *rlen);
 
 int _libga68_posixfconnect (uint32_t *str, size_t len, size_t stride,
 			    int port);

@@ -79,6 +79,7 @@ public:
   void visit (AST::ClosureExprInner &) override;
   void visit (AST::ClosureExprInnerTyped &) override;
   void visit (AST::MatchExpr &) override;
+  void visit (AST::MatchCase &) override;
 
   // Leaf visitors, which do nothing by default
   void visit (AST::ConstantItem &) override;

@@ -22,6 +22,7 @@
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
+#include "options.h"
 
 #include "a68.h"
 
@@ -48,7 +49,7 @@
 
 static void
 add_a68_standenv (bool portable, int a, NODE_T* n, char *c, MOID_T *m,
-		  int p, LOWERER_T l = NO_LOWERER)
+		  int p, LOWERER_T l = LOWERER_UNIMPL)
 {
 #define INSERT_TAG(l, n) \
   do {			 \
@@ -119,7 +120,7 @@ a68_proc (MOID_T *m, ...)
 /* Enter an identifier in standenv.  */
 
 static void
-a68_idf (bool portable, const char *n, MOID_T *m, LOWERER_T l = NO_LOWERER)
+a68_idf (bool portable, const char *n, MOID_T *m, LOWERER_T l = LOWERER_UNIMPL)
 {
   add_a68_standenv (portable, IDENTIFIER,
 		    a68_some_node (TEXT (a68_add_token (&A68 (top_token), n))),
@@ -144,13 +145,13 @@ a68_prio (const char *p, int b)
 {
   add_a68_standenv (true, PRIO_SYMBOL,
 		    a68_some_node (TEXT (a68_add_token (&A68 (top_token), p))),
-		    NO_TEXT, NO_MOID, b, NO_LOWERER);
+		    NO_TEXT, NO_MOID, b, LOWERER_UNIMPL);
 }
 
 /* Enter operator in standenv.  */
 
 static void
-a68_op (bool portable, const char *n, MOID_T *m, LOWERER_T l = NO_LOWERER)
+a68_op (bool portable, const char *n, MOID_T *m, LOWERER_T l = LOWERER_UNIMPL)
 {
   add_a68_standenv (portable, OP_SYMBOL,
 		    a68_some_node (TEXT (a68_add_token (&A68 (top_token), n))),
@@ -356,7 +357,7 @@ stand_moids (void)
   SLICE (M_ROW_SIMPLOUT) = M_SIMPLOUT;
 }
 
-/* Set up standenv - general RR but not transput.  */
+/* Set up standenv - general RR including transput.  */
 
 static void
 stand_prelude (void)
@@ -388,17 +389,6 @@ stand_prelude (void)
   a68_idf (A68_STD, "longmaxbits", M_LONG_BITS, a68_lower_maxbits);
   a68_idf (A68_STD, "longlongmaxbits", M_LONG_LONG_BITS, a68_lower_maxbits);
   a68_idf (A68_STD, "maxabschar", M_INT, a68_lower_maxabschar);
-  a68_idf (A68_STD, "intwidth", M_INT, a68_lower_intwidth);
-  a68_idf (A68_STD, "longintwidth", M_INT, a68_lower_longintwidth);
-  a68_idf (A68_STD, "longlongintwidth", M_INT, a68_lower_longlongintwidth);
-  a68_idf (A68_STD, "shortintwidth", M_INT, a68_lower_shortintwidth);
-  a68_idf (A68_STD, "shortshortintwidth", M_INT, a68_lower_shortshortintwidth);
-  a68_idf (A68_STD, "realwidth", M_INT, a68_lower_realwidth);
-  a68_idf (A68_STD, "longrealwidth", M_INT, a68_lower_longrealwidth);
-  a68_idf (A68_STD, "longlongrealwidth", M_INT, a68_lower_longlongrealwidth);
-  a68_idf (A68_STD, "expwidth", M_INT, a68_lower_expwidth);
-  a68_idf (A68_STD, "longexpwidth", M_INT, a68_lower_longexpwidth);
-  a68_idf (A68_STD, "longlongexpwidth", M_INT, a68_lower_longlongexpwidth);
   a68_idf (A68_STD, "pi", M_REAL, a68_lower_pi);
   a68_idf (A68_STD, "longpi", M_LONG_REAL, a68_lower_pi);
   a68_idf (A68_STD, "longlongpi", M_LONG_LONG_REAL, a68_lower_pi);
@@ -413,23 +403,8 @@ stand_prelude (void)
   a68_idf (A68_STD, "errorchar", M_CHAR, a68_lower_errorchar);
   a68_idf (A68_STD, "nullcharacter", M_CHAR, a68_lower_nullcharacter);
   a68_idf (A68_STD, "blank", M_CHAR, a68_lower_blank);
-  /* BITS procedures.  */
-  MOID_T *m = a68_proc (M_BITS, M_ROW_BOOL, NO_MOID);
-  a68_idf (A68_STD, "bitspack", m);
-  /* SHORT BITS procedures.  */
-  m = a68_proc (M_SHORT_BITS, M_ROW_BOOL, NO_MOID);
-  a68_idf (A68_STD, "shortbitspack", m);
-  /* SHORT SHORT BITS procedures.  */
-  m = a68_proc (M_SHORT_SHORT_BITS, M_ROW_BOOL, NO_MOID);
-  a68_idf (A68_STD, "shortshortbitspack", m);
-  /* LONG BITS procedures.  */
-  m = a68_proc (M_LONG_BITS, M_ROW_BOOL, NO_MOID);
-  a68_idf (A68_STD, "longbitspack", m);
-  /* LONG LONG BITS procedures.  */
-  m = a68_proc (M_LONG_LONG_BITS, M_ROW_BOOL, NO_MOID);
-  a68_idf (A68_STD, "longlongbitspack", m);
   /* RNG procedures.  */
-  m = a68_proc (M_VOID, M_INT, NO_MOID);
+  MOID_T *m = a68_proc (M_VOID, M_INT, NO_MOID);
   a68_idf (A68_STD, "firstrandom", m);
   /* REAL procedures.  */
   m = A68_MCACHE (proc_real);
@@ -1305,6 +1280,12 @@ stand_prelude (void)
   m = a68_proc (M_VOID, M_SEMA, NO_MOID);
   a68_op (A68_STD, "UP", m);
   a68_op (A68_STD, "DOWN", m);
+
+
+  /* Load Algol 68 parts.  */
+  if (!flag_building_libga68)
+    a68_extract_revelation (A68_STANDENV, LINE (INFO (TOP_NODE (&A68_JOB))),
+			    "STANDARD", "ga68");
 }
 
 /* GNU extensions for the standenv.  */
@@ -1404,82 +1385,10 @@ gnu_prelude (void)
 static void
 posix_prelude (void)
 {
-  MOID_T *m = NO_MOID;
-
-  /* Environment variables.  */
-  m = a68_proc (M_STRING, M_STRING, NO_MOID);
-  a68_idf (A68_EXT, "getenv", m, a68_lower_posixgetenv);
-  /* Exit status handling.  */
-  m = a68_proc (M_VOID, M_INT, NO_MOID);
-  a68_idf (A68_EXT, "posixexit", m, a68_lower_posixexit);
-  /* Argument handling.  */
-  m = A68_MCACHE (proc_int);
-  a68_idf (A68_EXT, "argc", m, a68_lower_posixargc);
-  m = a68_proc (M_STRING, M_INT, NO_MOID);
-  a68_idf (A68_EXT, "argv", m, a68_lower_posixargv);
-  /* Error procedures.  */
-  m = A68_MCACHE (proc_int);
-  a68_idf (A68_EXT, "errno", m, a68_lower_posixerrno);
-  m = a68_proc (M_VOID, M_STRING, NO_MOID);
-  a68_idf (A68_EXT, "perror", m, a68_lower_posixperror);
-  m = a68_proc (M_STRING, M_INT, NO_MOID);
-  a68_idf (A68_EXT, "strerror", m, a68_lower_posixstrerror);
-  /* I/O identifiers.  */
-  a68_idf (A68_EXT, "stdin", M_INT, a68_lower_posixstdinfiledes);
-  a68_idf (A68_EXT, "stdout", M_INT, a68_lower_posixstdoutfiledes);
-  a68_idf (A68_EXT, "stderr", M_INT, a68_lower_posixstderrfiledes);
-  a68_idf (A68_EXT, "fileodefault", M_BITS, a68_lower_posixfileodefault);
-  a68_idf (A68_EXT, "fileordwr", M_BITS, a68_lower_posixfileordwr);
-  a68_idf (A68_EXT, "fileordonly", M_BITS, a68_lower_posixfileordonly);
-  a68_idf (A68_EXT, "fileowronly", M_BITS, a68_lower_posixfileowronly);
-  a68_idf (A68_EXT, "fileotrunc", M_BITS, a68_lower_posixfileotrunc);
-  /* Opening and closing files.  */
-  m = a68_proc (M_INT, M_STRING, M_BITS, NO_MOID);
-  a68_idf (A68_EXT, "fopen", m, a68_lower_posixfopen);
-  a68_idf (A68_EXT, "fcreate", m, a68_lower_posixfcreate);
-  m = A68_MCACHE (proc_int_int);
-  a68_idf (A68_EXT, "fclose", m, a68_lower_posixfclose);
-  /* Getting properties of files.  */
-  m = a68_proc (M_LONG_LONG_INT, M_INT, NO_MOID);
-  a68_idf (A68_EXT, "fsize", m, a68_lower_posixfsize);
-  m = a68_proc (M_LONG_LONG_INT, M_INT, M_LONG_LONG_INT, M_INT, NO_MOID);
-  a68_idf (A68_EXT, "lseek", m, a68_lower_posixlseek);
-  a68_idf (A68_EXT, "seekcur", M_INT, a68_lower_posixseekcur);
-  a68_idf (A68_EXT, "seekend", M_INT, a68_lower_posixseekend);
-  a68_idf (A68_EXT, "seekset", M_INT, a68_lower_posixseekset);
-  /* Sockets.  */
-  m = a68_proc (M_INT, M_STRING, M_INT, NO_MOID);
-  a68_idf (A68_EXT, "fconnect", m, a68_lower_posixfconnect);
-  /* String and character output.  */
-  m = a68_proc (M_CHAR, M_CHAR, NO_MOID);
-  a68_idf (A68_EXT, "putchar", m, a68_lower_posixputchar);
-  m = a68_proc (M_VOID, M_STRING, NO_MOID);
-  a68_idf (A68_EXT, "puts", m, a68_lower_posixputs);
-  m = a68_proc (M_CHAR, M_INT, M_CHAR, NO_MOID);
-  a68_idf (A68_EXT, "fputc", m, a68_lower_posixfputc);
-  m = a68_proc (M_INT, M_INT, M_STRING, NO_MOID);
-  a68_idf (A68_EXT, "fputs", m, a68_lower_posixfputs);
-  /* String and character input.  */
-  m = A68_MCACHE (proc_char);
-  a68_idf (A68_EXT, "getchar", m, a68_lower_posixgetchar);
-  m = a68_proc (M_CHAR, M_INT, NO_MOID);
-  a68_idf (A68_EXT, "fgetc", m, a68_lower_posixfgetc);
-  m = a68_proc (M_REF_STRING, M_INT, NO_MOID);
-  a68_idf (A68_EXT, "gets", m, a68_lower_posixgets);
-  m = a68_proc (M_REF_STRING, M_INT, M_INT, NO_MOID);
-  a68_idf (A68_EXT, "fgets", m, a68_lower_posixfgets);
+  if (!flag_building_libga68)
+    a68_extract_revelation (A68_STANDENV, LINE (INFO (TOP_NODE (&A68_JOB))),
+			    "POSIX", "ga68");
 }
-
-/* Transput.  */
-
-static void
-stand_transput (void)
-{
-  /* Most of the standard transput is implemented in Algol 68 and doesn't
-     require compiler support.  See libga68/transput.a68.in */
-}
-
-/* Build the standard environ symbol table.  */
 
 void
 a68_make_standard_environ (void)
@@ -1511,5 +1420,4 @@ a68_make_standard_environ (void)
       gnu_prelude ();
       posix_prelude ();
     }
-  stand_transput ();
 }

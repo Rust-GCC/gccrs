@@ -1,5 +1,5 @@
 // { dg-do compile { target c++14 } }
-// { dg-additional-options "-Wno-deprecated-declarations" { target { c++2a } } }
+// { dg-additional-options "-Wno-deprecated-declarations" { target { c++20 } } }
 
 // Copyright (C) 2014-2026 Free Software Foundation, Inc.
 //

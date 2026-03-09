@@ -17,4 +17,4 @@ test_loop_versioning (double *x, int stepx, int n)
 
 /* Check that loop versioning occurred and discriminators are present on the loop body. */
 /* { dg-final { scan-tree-dump "versioned this loop for when certain strides are 1" "lversion" } } */
-/* { dg-final { scan-assembler "\\.loc 1 (9|10) \[0-9\]+ is_stmt 0 discriminator \[0-9\]+" } } */
+/* { dg-final { scan-assembler "\\.loc 1 (9|10) \[0-9\]+ is_stmt 0 discriminator \[0-9\]+" { target gas } } } */

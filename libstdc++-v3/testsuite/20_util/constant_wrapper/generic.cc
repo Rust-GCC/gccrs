@@ -241,19 +241,6 @@ test_member_pointer()
   check_same(((&decltype(co)::value)->*cdiv)(denom), expect_unwrapped);
 }
 
-constexpr void
-test_pseudo_mutator()
-{
-  auto ci = std::cw<3>;
-  auto cmmi = --ci;
-  VERIFY(ci.value == 3);
-  VERIFY(cmmi.value == 2);
-
-  auto cimm = ci--;
-  VERIFY(ci.value == 3);
-  VERIFY(cimm.value == 3);
-}
-
 struct Truthy
 {
   constexpr operator bool() const
@@ -375,7 +362,6 @@ test_all()
   test_indexable2();
   test_indexable3();
   test_member_pointer();
-  test_pseudo_mutator();
   test_logic();
   test_three_way();
   test_equality();

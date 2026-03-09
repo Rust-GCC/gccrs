@@ -1,0 +1,65 @@
+{ posix.a68 - POSIX prelude.
+
+  Copyright (C) 2026 Jose E. Marchesi
+
+  GCC is free software; you can redistribute it and/or modify it under
+  the terms of the GNU General Public License as published by the Free
+  Software Foundation; either version 3, or (at your option) any later
+  version.
+
+  GCC is distributed in the hope that it will be useful, but WITHOUT
+  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+  or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public
+  License for more details.
+
+  Under Section 7 of GPL version 3, you are granted additional
+  permissions described in the GCC Runtime Library Exception, version
+  3.1, as published by the Free Software Foundation.
+
+  You should have received a copy of the GNU General Public License
+  and a copy of the GCC Runtime Library Exception along with this
+  program; see the files COPYING3 and COPYING.RUNTIME respectively.
+  If not, see <http://www.gnu.org/licenses/>. }
+
+module POSIX =
+def
+    pub int stdin = nest C "_libga68_stdin",
+            stdout = nest C "_libga68_stdout",
+            stderr = nest C "_libga68_stderr";
+
+    pub bits file_o_default = nest C "_libga68_file_o_default",
+             file_o_rdwr    = nest C "_libga68_file_o_rdwr",
+             file_o_rdonly  = nest C "_libga68_file_o_rdonly",
+             file_o_wronly  = nest C "_libga68_file_o_wronly",
+             file_o_trunc   = nest C "_libga68_file_o_trunc";
+
+    pub int seekcur = nest C "_libga68_seek_cur",
+            seekend = nest C "_libga68_seek_end",
+            seekset = nest C "_libga68_seek_set";
+
+    pub proc int             errno = nest C "_libga68_posixerrno",
+                             argc  = nest C "_libga68_posixargc";
+    pub proc(int)string      argv = nest C "_libga68_posixargv";
+    pub proc(int)string      strerror = nest C "_libga68_posixstrerror";
+    pub proc(string,bits)int fopen = nest C "_libga68_posixfopen",
+                             fcreate = nest C "_libga68_posixcreat";
+    pub proc(string,int)int  fconnect = nest C "_libga68_posixfconnect";
+    pub proc(int)int         fclose = nest C "_libga68_posixclose";
+    pub proc(int)long long int
+                             fsize = nest C "_libga68_posixfsize";
+    pub proc(int,long long int,int)long long int
+                             lseek = nest C "_libga68_posixlseek";
+    pub proc char            getchar = nest C "_libga68_posixgetchar";
+    pub proc(char)char       putchar = nest C "_libga68_posixputchar";
+    pub proc(int)char        fgetc = nest C "_libga68_posixfgetc";
+    pub proc(int,char)char       fputc = nest C "_libga68_posixfputc";
+    pub proc(int)ref string      gets = nest C "_libga68_posixgets";
+    pub proc(string)void         puts = nest C "_libga68_posixputs";
+    pub proc(int,int)ref string  fgets = nest C "_libga68_posixfgets";
+    pub proc(int,string)int  fputs = nest C "_libga68_posixfputs";
+    pub proc(int)void        posix_exit = nest C "_libga68_posixexit";
+    pub proc(string)void     perror = nest C "_libga68_posixperror";
+    pub proc(string)string   getenv = nest C "_libga68_posixgetenv";
+
+    skip
+fed

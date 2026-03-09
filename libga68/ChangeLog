@@ -1,3 +1,47 @@
+2026-02-23  Jose E. Marchesi  <jemarch@gnu.org>
+
+	* transput.a68.in: Remove and move content to..
+	* standard.a68.in: .. here.
+	* Makefile.am (libga68_la_DEPENDENCIES): Remove transput.lo.
+	(libga68_la_LIBADD): Likewise.
+	(transput.a68): Remove rule.
+	(standard.a68): Remove transput.a68.
+	* Makefile.in: Regenerate.
+
+2026-02-21  Jose E. Marchesi  <jemarch@gnu.org>
+
+	* standard.a68.in ({L_}bits_pack): New procedures.
+
+2026-02-21  Jose E. Marchesi  <jemarch@gnu.org>
+
+	* posix.a68: New file.
+	* standard.a68.in: Likewise.
+	* ga68-posix.c (_libga68_stdin): Define.
+	(_libga68_stdout): Likewise.
+	(_libga68_stderr): Likewise.
+	(_libga68_file_o_default): Likewise.
+	(_libga68_file_o_rdonly): Likewise.
+	(_libga68_file_o_rdwr): Likewise.
+	(_libga68_file_o_trunc): Likewise.
+	(_libga68_seek_cur): Likewise.
+	(_libga68_seek_end): Likewise.
+	(_libga68_seek_set): Likewise.
+	(_libga68_posixstrerror): Update interface to new way of returning
+	Algol 68 strings.
+	(_libga68_posixargv): Likewise.
+	(_libga68_posixfgets): Likewise.
+	(_libga68_posixgets): Likewise.
+	(_libga68_posixfopen): Use _libga68_file_o_default rather than FILE_O_DEFAULT.
+	(_libga68_posixfopen): Ditto for other FILE_O_* values.
+	* ga68.h: Update prototypes.
+	* Makefile.am (libga68_la_LIBADD): Add standard.lo.
+	(libga68_la_DEPENDENCIES): Likeise.
+	(.a68.o): Pass -fbuilding-libga68.
+	(.a68.lo): Likewise.
+	(standard.a68): New rule.
+	* Makefile.in: Regenerate.
+	* transput.a68.in: Add Emacs -*- mode: a68 -*- comment.
+
 2026-01-30  Pietro Monteiro  <pietro@sociotechnical.xyz>
 
 	* ga68-alloc.c (_libga68_realloc_internal): New function.

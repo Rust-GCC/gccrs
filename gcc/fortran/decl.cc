@@ -3960,17 +3960,15 @@ gfc_get_pdt_instance (gfc_actual_arglist *param_list, gfc_symbol **sym,
   /* Pointers to the parameter specification being used.  */
   gfc_actual_arglist *actual_param;
   gfc_actual_arglist *tail = NULL;
-  /* Used to build up the name of the PDT instance. The prefix uses 4
-     characters and each KIND parameter 2 more.  Allow 8 of the latter. */
-  char name[GFC_MAX_SYMBOL_LEN + 21];
-
+  /* Used to build up the name of the PDT instance.  */
+  char *name;
   bool name_seen = (param_list == NULL);
   bool assumed_seen = false;
   bool deferred_seen = false;
   bool spec_error = false;
   bool alloc_seen = false;
   bool ptr_seen = false;
-  int kind_value, i;
+  int i;
   gfc_expr *kind_expr;
   gfc_component *c1, *c2;
   match m;
@@ -3980,7 +3978,6 @@ gfc_get_pdt_instance (gfc_actual_arglist *param_list, gfc_symbol **sym,
 
   type_param_name_list = pdt->formal;
   actual_param = param_list;
-  sprintf (name, "Pdt%s", pdt->name);
 
   /* Prevent a PDT component of the same type as the template from being
      converted into an instance. Doing this results in the component being
@@ -3994,6 +3991,8 @@ gfc_get_pdt_instance (gfc_actual_arglist *param_list, gfc_symbol **sym,
 	*ext_param_list = gfc_copy_actual_arglist (param_list);
       return MATCH_YES;
     }
+
+  name = xasprintf ("%s%s", PDT_PREFIX, pdt->name);
 
   /* Run through the parameter name list and pick up the actual
      parameter values or use the default values in the PDT declaration.  */
@@ -4157,17 +4156,22 @@ gfc_get_pdt_instance (gfc_actual_arglist *param_list, gfc_symbol **sym,
 	  goto error_return;
 	}
 
-      kind_value = 0;
       /* This can come about during the parsing of nested pdt_templates. An
 	 error arises because the KIND parameter expression has not been
 	 provided. Use the template instead of an incorrect instance.  */
-      if (gfc_extract_int (kind_expr, &kind_value))
+      if (kind_expr->expr_type != EXPR_CONSTANT
+	  || kind_expr->ts.type != BT_INTEGER)
 	{
 	  gfc_free_actual_arglist (type_param_spec_list);
+	  free (name);
 	  return MATCH_YES;
 	}
 
-      sprintf (name + strlen (name), "_%d", kind_value);
+      char *kind_value = mpz_get_str (NULL, 10, kind_expr->value.integer);
+      char *old_name = name;
+      name = xasprintf ("%s_%s", old_name, kind_value);
+      free (old_name);
+      free (kind_value);
 
       if (!name_seen && actual_param)
 	actual_param = actual_param->next;
@@ -4218,6 +4222,7 @@ gfc_get_pdt_instance (gfc_actual_arglist *param_list, gfc_symbol **sym,
         *ext_param_list = type_param_spec_list;
       *sym = instance;
       gfc_commit_symbols ();
+      free (name);
       return m;
     }
 
@@ -4534,10 +4539,12 @@ gfc_get_pdt_instance (gfc_actual_arglist *param_list, gfc_symbol **sym,
   if (ext_param_list)
     *ext_param_list = type_param_spec_list;
   *sym = instance;
+  free (name);
   return m;
 
 error_return:
   gfc_free_actual_arglist (type_param_spec_list);
+  free (name);
   return MATCH_ERROR;
 }
 
@@ -9268,7 +9275,8 @@ cleanup:
 	  ns = ns->sibling;
 	}
 
-      gfc_free_namespace (gfc_current_ns);
+      /* The namespace can still be referenced by parser state and code nodes;
+	 let normal block unwinding/freeing own its lifetime.  */
       gfc_current_ns = parent_ns;
       gfc_state_stack = gfc_state_stack->previous;
       state = gfc_current_state ();

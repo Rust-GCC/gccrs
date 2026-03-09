@@ -929,7 +929,8 @@ vpath % $(strip $(search_path))
 # makefile fragments to avoid broken *.Ppo getting included into the Makefile
 # when it is reloaded during the build of all-multi.
 all-multi: $(libatomic_la_LIBADD)
-all-local: libatomic.la
+all-local: stmp-libatomic
+stmp-libatomic: libatomic.la
 	$(LIBTOOL) --mode=install $(INSTALL_DATA) libatomic.la $(gcc_objdir)$(MULTISUBDIR)/
 @LIBAT_BUILD_ASNEEDED_SOLINK_TRUE@	cd $(gcc_objdir)$(MULTISUBDIR) || exit 1; \
 @LIBAT_BUILD_ASNEEDED_SOLINK_TRUE@	if test -f libatomic.so; then (echo "/* GNU ld script"; \
@@ -939,6 +940,7 @@ all-local: libatomic.la
 @LIBAT_BUILD_ASNEEDED_SOLINK_TRUE@	if test -f libatomic.a; then rm -f libatomic_asneeded.a; \
 @LIBAT_BUILD_ASNEEDED_SOLINK_TRUE@	$(LN_S) libatomic.a libatomic_asneeded.a; fi
 	rm $(gcc_objdir)$(MULTISUBDIR)/libatomic.la
+	touch $@
 
 @LIBAT_BUILD_ASNEEDED_SOLINK_TRUE@install-data-am: install-asneeded
 

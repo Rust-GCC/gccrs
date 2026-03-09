@@ -1792,7 +1792,10 @@ void
 merge_decl_arguments (tree newdecl, tree olddecl, bool new_defines_function,
 		      bool types_match, bool extern_alias)
 {
-  tree oldarg, newarg;
+  tree oldarg, newarg, type = NULL_TREE;
+  tree first_user_parm = NULL_TREE;
+  if (extern_alias)
+    first_user_parm = FUNCTION_FIRST_USER_PARM (newdecl);
   for (oldarg = DECL_ARGUMENTS (olddecl), newarg = DECL_ARGUMENTS (newdecl);
        oldarg && newarg;
        oldarg = DECL_CHAIN (oldarg), newarg = DECL_CHAIN (newarg))
@@ -1813,6 +1816,27 @@ merge_decl_arguments (tree newdecl, tree olddecl, bool new_defines_function,
 	 we should do that for the function itself, not just parameters.  */
       if (!extern_alias || flag_reflection)
 	DECL_ATTRIBUTES (oldarg) = DECL_ATTRIBUTES (newarg);
+      if (!flag_reflection)
+	continue;
+      /* For extern_alias set DECL_HAS_DEFAULT_ARGUMENT_P on oldarg
+	 if the local extern has a default argument for that parameter.  */
+      if (extern_alias)
+	{
+	  if (newarg == first_user_parm)
+	    type = FUNCTION_FIRST_USER_PARMTYPE (newdecl);
+	  else if (type)
+	    type = TREE_CHAIN (type);
+	  if (type && TREE_PURPOSE (type))
+	    DECL_HAS_DEFAULT_ARGUMENT_P (oldarg) = 1;
+	}
+      else
+	{
+	  /* Otherwise propagate the flag.  */
+	  if (DECL_HAS_DEFAULT_ARGUMENT_P (oldarg))
+	    DECL_HAS_DEFAULT_ARGUMENT_P (newarg) = 1;
+	  if (DECL_HAS_DEFAULT_ARGUMENT_P (newarg))
+	    DECL_HAS_DEFAULT_ARGUMENT_P (oldarg) = 1;
+	}
       /* Merge names for std::meta::has_identifier and
 	 std::meta::{,u8}identifier_of purposes.  If they are different and
 	 both oldarg and newarg are named, add flag to force that
@@ -1820,7 +1844,7 @@ merge_decl_arguments (tree newdecl, tree olddecl, bool new_defines_function,
 	 unnamed, if neither is a olddecl nor newdecl is definition, propagate
 	 DECL_NAME to both.  Otherwise stash the old name into "old parm name"
 	 artificial attribute.  */
-      if (flag_reflection && DECL_NAME (oldarg) != DECL_NAME (newarg))
+      if (DECL_NAME (oldarg) != DECL_NAME (newarg))
 	{
 	  if (DECL_NAME (oldarg) && DECL_NAME (newarg))
 	    {
@@ -5612,6 +5636,15 @@ cxx_init_decl_processing (void)
 			    BUILT_IN_FRONTEND, NULL, NULL_TREE);
   set_call_expr_flags (decl, ECF_CONST | ECF_NOTHROW | ECF_LEAF);
 
+  tree void_vaintftype = build_varargs_function_type_list (void_type_node,
+							   integer_type_node,
+							   NULL_TREE);
+  decl = add_builtin_function ("__builtin_constexpr_diag",
+			       void_vaintftype,
+			       CP_BUILT_IN_CONSTEXPR_DIAG,
+			       BUILT_IN_FRONTEND, NULL, NULL_TREE);
+  set_call_expr_flags (decl, ECF_NOTHROW | ECF_LEAF);
+
   integer_two_node = build_int_cst (NULL_TREE, 2);
 
   /* Guess at the initial static decls size.  */
@@ -6585,8 +6618,7 @@ start_decl (const cp_declarator *declarator,
   /* If this is a typedef that names the class for linkage purposes
      (7.1.3p8), apply any attributes directly to the type.  */
   if (TREE_CODE (decl) == TYPE_DECL
-      && OVERLOAD_TYPE_P (TREE_TYPE (decl))
-      && decl == TYPE_NAME (TYPE_MAIN_VARIANT (TREE_TYPE (decl))))
+      && TYPE_DECL_FOR_LINKAGE_PURPOSES_P (decl))
     flags = ATTR_FLAG_TYPE_IN_PLACE;
   else
     flags = 0;
@@ -13698,7 +13730,8 @@ maybe_diagnose_non_c_class_typedef_for_linkage (tree type, tree orig, tree t)
     {
       auto_diagnostic_group d;
       if (diagnose_non_c_class_typedef_for_linkage (type, orig))
-	inform (DECL_SOURCE_LOCATION (TYPE_NAME (t)),
+	inform (type == t ? DECL_SOURCE_LOCATION (orig)
+		: DECL_SOURCE_LOCATION (TYPE_NAME (t)),
 		"type is not C-compatible because it has a base class");
       return true;
     }
@@ -13764,12 +13797,22 @@ name_unnamed_type (tree type, tree decl)
   gcc_assert (TYPE_UNNAMED_P (type)
 	      || enum_with_enumerator_for_linkage_p (type));
 
-  /* Replace the anonymous decl with the real decl.  Be careful not to
-     rename other typedefs (such as the self-reference) of type.  */
   tree orig = TYPE_NAME (type);
-  for (tree t = TYPE_MAIN_VARIANT (type); t; t = TYPE_NEXT_VARIANT (t))
-    if (TYPE_NAME (t) == orig)
-      TYPE_NAME (t) = decl;
+  if (flag_reflection)
+    {
+      /* For -freflection for typedef struct { ... } S; ^^S needs to be
+	 a reflection of a type alias.  So, TREE_TYPE (DECL) can't be
+	 TYPE.  Instead of what we do below, override DECL_NAME (orig).  */
+      DECL_NAME (orig) = DECL_NAME (decl);
+      TYPE_DECL_FOR_LINKAGE_PURPOSES_P (orig) = 1;
+    }
+  else
+    /* Replace the anonymous decl with the real decl.  Be careful not to
+       rename other typedefs (such as the self-reference) of type.  */
+    for (tree t = TYPE_MAIN_VARIANT (type); t; t = TYPE_NEXT_VARIANT (t))
+      if (TYPE_NAME (t) == orig)
+	TYPE_NAME (t) = decl;
+  TYPE_DECL_FOR_LINKAGE_PURPOSES_P (decl) = 1;
 
   /* If this is a typedef within a template class, the nested
      type is a (non-primary) template.  The name for the

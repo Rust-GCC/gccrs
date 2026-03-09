@@ -731,7 +731,7 @@ __gg__fixed_phase2_assign_to_c( cbl_arith_format_t ,
                                 int          *compute_error
                                 )
   {
-  // This is the assignment phase of an ADD Format 2
+  // This is the assignment phase of an ADD or SUBTRACT Format 2
 
         cblc_field_t **C  = __gg__treeplet_3f;
   const size_t       *C_o = __gg__treeplet_3o;
@@ -767,6 +767,15 @@ __gg__fixed_phase2_assign_to_c( cbl_arith_format_t ,
     if( overflow )
       {
       *compute_error |= compute_error_overflow;
+      }
+
+    if( C[0]->type == FldPointer )
+      {
+      // In case somebody does pointer arithmetic that goes negative, we need
+      // to make the top 64 bits positive.  Otherwise, the conditional stash
+      // will see that FldPointer is not signable, and force the value
+      // positive with a two's complement.
+      value_a.i128[0] &= 0xFFFFFFFFFFFFFFFFUL;
       }
 
       // At this point, we assign that value to *C.
@@ -1056,7 +1065,7 @@ __gg__subtractf2_fixed_phase1(cbl_arith_format_t ,
                           on_error_flag,
                           compute_error);
 
-  // Subtract that from the B value:
+  // Subtract the phase1_result from the B value:
 
   int256 value_a   = phase1_result;
   int    rdigits_a = phase1_rdigits;
@@ -1078,8 +1087,8 @@ __gg__subtractf2_fixed_phase1(cbl_arith_format_t ,
     scale_int256_by_digits(value_a, rdigits_b - rdigits_a);
     }
 
-  // The two numbers have the same number of rdigits.  It's now safe to add
-  // them.
+  // The two numbers have the same number of rdigits.  It's now safe to take
+  // the difference.
   subtract_int256_from_int256(value_b, value_a);
 
   int overflow = squeeze_int256(value_b, rdigits_b);

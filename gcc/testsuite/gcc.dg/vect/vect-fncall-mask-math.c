@@ -1,10 +1,9 @@
-/* Test the correct application of masking to autovectorized math function calls.
-   Test is currently set to xfail pending the release of the relevant lmvec
-   support. */
+/* Test the correct application of masking to autovectorized math function calls.  */
 /* { dg-do compile { target { aarch64*-*-* } } } */
 /* { dg-additional-options "-march=armv8.2-a+sve -fdump-tree-ifcvt-raw -Ofast" { target { aarch64*-*-* } } } */
 
-#include <math.h>
+__attribute__ ((__simd__ ("notinbranch"), const)) extern float
+expf (float __x) __attribute__ ((__nothrow__ , __leaf__));
 
 const int N = 20;
 const float lim = 101.0;
@@ -29,5 +28,4 @@ int main (void)
   return (0);
 }
 
-/* { dg-final { scan-tree-dump-not { gimple_call <expf, _2, _1>} ifcvt { xfail { aarch64*-*-* } } } } */
-/* { dg-final { scan-tree-dump { gimple_call <.MASK_CALL, _2, expf, _1, _30>} ifcvt { xfail { aarch64*-*-* } } } } */
+/* { dg-final { scan-tree-dump { gimple_call <.MASK_CALL, _[0-9]+, expf, _[0-9]+, _[0-9]+>} ifcvt { target { aarch64*-*-* } } } } */

@@ -284,11 +284,11 @@ constexpr auto AARCH64_FL_DEFAULT_ISA_MODE ATTRIBUTE_UNUSED
 /* Dot Product is an optional extension to AdvSIMD enabled through +dotprod.  */
 #define TARGET_DOTPROD AARCH64_HAVE_ISA (DOTPROD)
 
-/* SVE instructions, enabled through +sve.  */
-#define TARGET_SVE AARCH64_HAVE_ISA (SVE)
+/* SVE instructions, enabled in non-streaming mode through +sve.  */
+#define TARGET_SVE (AARCH64_HAVE_ISA (SVE) || TARGET_STREAMING)
 
-/* SVE2 instructions, enabled through +sve2.  */
-#define TARGET_SVE2 AARCH64_HAVE_ISA (SVE2)
+/* SVE2 instructions, enabled in non-streaming mode through +sve2.  */
+#define TARGET_SVE2 (AARCH64_HAVE_ISA (SVE2) || TARGET_STREAMING)
 
 /* SVE2 AES instructions, enabled through +sve2-aes.  */
 #define TARGET_SVE2_AES (AARCH64_HAVE_ISA (SVE2) \

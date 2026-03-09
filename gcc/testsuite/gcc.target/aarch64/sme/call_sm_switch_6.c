@@ -2,6 +2,8 @@
 
 #include <arm_sve.h>
 
+#pragma GCC target "+sve"
+
 svbool_t ns_callee ();
  svbool_t s_callee () [[arm::streaming]];
  svbool_t sc_callee () [[arm::streaming_compatible]];

@@ -1,0 +1,16 @@
+--- COMP-1 FORMAT 2 ---
+add      10 7 17
+subtract 10 7 3
+multiply 10 7 70
+divide   10 7 1.428571463
+--- COMP-2 FORMAT 2 ---
+add      10 7 17
+subtract 10 7 3
+multiply 10 7 70
+divide   10 7 1.4285714285714286
+--- FLOAT-EXTENDED FORMAT 2 ---
+add      10 7 17
+subtract 10 7 3
+multiply 10 7 70
+divide   10 7 1.428571428571428571428571428571428599
+

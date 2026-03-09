@@ -1,6 +1,5 @@
        *> { dg-do run }
        *> { dg-output-file "group2/ALLOCATE_Rule_8_OPTION_INITIALIZE_with_figconst.out" }
-
         identification          division.
         program-id.             prog.
         procedure               division.
@@ -95,6 +94,12 @@
         identification          division.
         program-id.             reporter.
         data                    division.
+        working-storage         section.
+        01.
+            02 asciiv  pic x(8) value X"2020202020202020".
+            02 asciip  redefines asciiv pointer.
+            02 ebcdicv pic x(8) value X"4040404040404040".
+            02 ebcdicp redefines ebcdicv pointer.
         linkage                 section.
         01   based-var          based.
          02  based-x            pic x(24).
@@ -108,7 +113,11 @@
         reportt2.
             display "       " """" based-x """" with no advancing
             display space     """" based-9 """" with no advancing
-            display space       based-p.
+            if based-p = asciip or ebcdicp
+                display " Pointer is Okay"
+            else
+                display space       based-p
+                end-if
             continue.
         end program             reporter.
 

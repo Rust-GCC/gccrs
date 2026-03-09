@@ -24,7 +24,9 @@ void sc_caller_sme() __arm_streaming_compatible
     ns_callee ();
 }
 
-#pragma GCC target "+nosme"
+/* Add +sve to prevent passing +fcma to the assembler, since +fcma was
+   added to assemblers later than SME support.  */
+#pragma GCC target "+sve+nosme"
 
 /*
 ** sc_caller_nosme:

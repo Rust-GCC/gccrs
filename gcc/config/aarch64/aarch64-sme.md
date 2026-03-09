@@ -78,6 +78,7 @@
 (define_c_enum "unspec" [
   UNSPEC_OLD_VG_SAVED
   UNSPEC_UPDATE_VG
+  UNSPEC_GET_CURRENT_VG
   UNSPEC_GET_SME_STATE
   UNSPEC_READ_SVCR
 ])
@@ -101,6 +102,19 @@
   ""
   ""
   [(set_attr "type" "no_insn")]
+)
+
+(define_insn "aarch64_get_current_vg"
+  [(set (reg:DI R0_REGNUM)
+	(unspec_volatile:DI [(const_int 0)] UNSPEC_GET_CURRENT_VG))
+   (clobber (reg:DI R16_REGNUM))
+   (clobber (reg:DI R17_REGNUM))
+   (clobber (reg:DI R18_REGNUM))
+   (clobber (reg:DI R30_REGNUM))
+   (clobber (reg:CC CC_REGNUM))]
+  ""
+  "bl\t__arm_get_current_vg"
+  [(set_attr "is_call" "yes")]
 )
 
 (define_insn "aarch64_get_sme_state"

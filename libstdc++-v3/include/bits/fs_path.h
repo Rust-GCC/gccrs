@@ -50,6 +50,10 @@
 # include <compare>
 #endif
 
+#ifdef __glibcxx_format_path // C++ >= 26 && HOSTED
+# include <bits/formatfwd.h>
+#endif
+
 #if defined(_WIN32) && !defined(__CYGWIN__)
 # define _GLIBCXX_FILESYSTEM_IS_WINDOWS 1
 #endif
@@ -1450,6 +1454,109 @@ template<>
     operator()(const filesystem::path& __p) const noexcept
     { return filesystem::hash_value(__p); }
   };
+
+#ifdef __glibcxx_format_path // C++ >= 26 && HOSTED
+  template<__format::__char _CharT>
+    struct formatter<filesystem::path, _CharT>
+    {
+      formatter() = default;
+
+      constexpr typename basic_format_parse_context<_CharT>::iterator
+      parse(basic_format_parse_context<_CharT>& __pc)
+      {
+	auto __first = __pc.begin();
+	const auto __last = __pc.end();
+	__format::_Spec<_CharT> __spec{};
+
+	auto __finalize = [this, &__spec] {
+	  _M_spec = __spec;
+	};
+
+	auto __finished = [&] {
+	  if (__first == __last || *__first == '}')
+	    {
+	      __finalize();
+	      return true;
+	    }
+	  return false;
+	};
+
+	if (__finished())
+	  return __first;
+
+	__first = __spec._M_parse_fill_and_align(__first, __last);
+	if (__finished())
+	  return __first;
+
+	__first = __spec._M_parse_width(__first, __last, __pc);
+	if (__finished())
+	  return __first;
+
+	if (*__first == '?')
+	  {
+	    __spec._M_debug = true;
+	    ++__first;
+	  }
+	if (__finished())
+	  return __first;
+
+	if (*__first == 'g')
+	  {
+	    __spec._M_type = __format::_Pres_g;
+	    ++__first;
+	  }
+	if (__finished())
+	  return __first;
+
+	__format::__failed_to_parse_format_spec();
+      }
+
+      template<typename _Out>
+	typename basic_format_context<_Out, _CharT>::iterator
+	format(const filesystem::path& __p,
+	       basic_format_context<_Out, _CharT>& __fc) const
+	{
+	  using _ValueT = filesystem::path::value_type;
+	  using _ViewT = basic_string_view<_ValueT>;
+	  using _FmtStrT = __format::__formatter_str<_CharT>;
+
+	  _ViewT __sv;
+	  filesystem::path::string_type __s;
+	  if (_M_spec._M_type == __format::_Pres_g)
+	    __sv = __s = __p.generic_string<_ValueT>();
+	  else
+	    __sv = __p.native();
+
+	  auto __spec = _M_spec;
+	  // 'g' should not be passed along.
+	  __spec._M_type = __format::_Pres_none;
+
+	  if constexpr (is_same_v<_CharT, _ValueT>)
+	    return _FmtStrT(__spec).format(__sv, __fc);
+	  else
+	    {
+	      __format::_Str_sink<_ValueT> __sink;
+	      if (__spec._M_debug)
+		{
+		  using __format::_Term_quote;
+		  __format::__write_escaped(__sink.out(), __sv, _Term_quote);
+		  __sv = __sink.view();
+		  __spec._M_debug = 0;
+		}
+	      basic_string<_CharT> __out_str
+	        (std::from_range, __unicode::_Utf_view<_CharT, _ViewT>(__sv));
+	      return _FmtStrT(__spec).format(__out_str, __fc);
+	    }
+	}
+
+      constexpr void
+      set_debug_format() noexcept
+      { _M_spec._M_debug = true; }
+
+    private:
+      __format::_Spec<_CharT> _M_spec{};
+    };
+#endif // __glibcxx_format_path
 
 _GLIBCXX_END_NAMESPACE_VERSION
 } // namespace std

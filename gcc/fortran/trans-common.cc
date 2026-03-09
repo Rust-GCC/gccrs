@@ -489,17 +489,7 @@ build_common_decl (gfc_common_head *com, tree union_type, bool is_init)
 	  omp_clauses = c;
 	}
       /* Also check trans-decl.cc when updating/removing the following;
-	 also update f95.c's gfc_gnu_attributes.
-	 For the warning, see also OpenMP spec issue 4663.  */
-      if (com->omp_groupprivate && com->threadprivate)
-	{
-	  /* Unset this flag; implicit 'declare target local(...)' remains.  */
-	  com->omp_groupprivate = 0;
-	  gfc_warning (OPT_Wopenmp,
-		       "Ignoring the %<groupprivate%> attribute for "
-		       "%<threadprivate%> common block %</%s/%> declared at %L",
-		       com->name, &com->where);
-	}
+	 also update f95.c's gfc_gnu_attributes.  */
       if (com->omp_groupprivate)
 	gfc_error ("Sorry, OMP GROUPPRIVATE not implemented, used by common "
 		   "block %</%s/%> declared at %L", com->name, &com->where);

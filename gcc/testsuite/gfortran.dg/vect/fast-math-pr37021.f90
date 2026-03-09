@@ -1,5 +1,6 @@
 ! { dg-do compile }
 ! { dg-require-effective-target vect_double }
+! { dg-additional-options "-ffast-math" }
 
 subroutine to_product_of(self,a,b,a1,a2)
   complex(kind=8) :: self (:)

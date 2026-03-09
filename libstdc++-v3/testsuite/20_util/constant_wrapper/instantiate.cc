@@ -98,40 +98,85 @@ namespace member_ops
     };
 }
 
+namespace mutable_ops
+{
+  template<int OpId>
+    struct UnaryOps
+    {
+      constexpr int
+      operator+() noexcept requires (OpId == 0)
+      { return OpId; }
+
+      constexpr int
+      operator-() noexcept requires (OpId == 1)
+      { return OpId; }
+
+      constexpr int
+      operator~() noexcept requires (OpId == 2)
+      { return OpId; }
+
+      constexpr int
+      operator!() noexcept requires (OpId == 3)
+      { return OpId; }
+
+      constexpr int
+      operator&() noexcept requires (OpId == 4)
+      { return OpId; }
+
+      constexpr int
+      operator*() noexcept requires (OpId == 5)
+      { return OpId; }
+
+      constexpr int
+      operator++() noexcept requires (OpId == 6)
+      { return OpId; }
+
+      constexpr int
+      operator++(int) noexcept requires (OpId == 7)
+      { return OpId; }
+
+      constexpr int
+      operator--() noexcept requires (OpId == 8)
+      { return OpId; }
+
+      constexpr int
+      operator--(int) noexcept requires (OpId == 9)
+      { return OpId; }
+    };
+}
+
 constexpr size_t n_unary_ops = 10;
 
-template<template<int> typename Ops, int OpId>
+template<template<int> typename Ops, int EnabledId, int ActiveId = EnabledId>
   constexpr void
   test_unary_operator()
   {
-    auto x = std::cw<Ops<OpId>{}>;
+    auto x = std::cw<Ops<EnabledId>{}>;
 
     auto check = [](auto c)
     {
-      VERIFY(c == OpId);
-      static_assert(std::same_as<decltype(c), std::constant_wrapper<OpId>>);
+      VERIFY(c == EnabledId);
+      static_assert(std::same_as<decltype(c), std::constant_wrapper<EnabledId>>);
     };
 
-    if constexpr (OpId == 0)
-      check(+x);
-    if constexpr (OpId == 1)
-      check(-x);
-    if constexpr (OpId == 2)
-      check(~x);
-    if constexpr (OpId == 3)
-      check(!x);
-    if constexpr (OpId == 4)
+#define CHECK_EXPR(Id, Expr)      \
+    if constexpr (ActiveId == Id) \
+      check(Expr);                \
+    else                          \
+      static_assert(!requires { Expr; })
+
+    CHECK_EXPR(0, +x);
+    CHECK_EXPR(1, -x);
+    CHECK_EXPR(2, ~x);
+    CHECK_EXPR(3, !x);
+    if constexpr (ActiveId == 4)
       check(&x);
-    if constexpr (OpId == 5)
-      check(*x);
-    if constexpr (OpId == 6)
-      check(++x);
-    if constexpr (OpId == 7)
-      check(x++);
-    if constexpr (OpId == 8)
-      check(--x);
-    if constexpr (OpId == 9)
-      check(x--);
+    CHECK_EXPR(5, *x);
+    CHECK_EXPR(6, ++x);
+    CHECK_EXPR(7, x++);
+    CHECK_EXPR(8, --x);
+    CHECK_EXPR(9, x--);
+#undef CHECK_EXPR
 
     static_assert(n_unary_ops == 10);
   }
@@ -143,6 +188,7 @@ test_unary_operators_all()
   {
     (test_unary_operator<free_ops::UnaryOps, Idx>(), ...);
     (test_unary_operator<member_ops::UnaryOps, Idx>(), ...);
+    (test_unary_operator<mutable_ops::UnaryOps, Idx, -1>(), ...);
   };
   run(std::make_index_sequence<n_unary_ops>());
 }
@@ -393,77 +439,187 @@ namespace member_ops
     };
 }
 
+namespace mutable_ops
+{
+  template<int OpId>
+    struct BinaryOps
+    {
+      constexpr int
+      operator+(BinaryOps) noexcept requires (OpId == 0)
+      { return OpId; }
+
+      constexpr int
+      operator-(BinaryOps) noexcept requires (OpId == 1)
+      { return OpId; }
+
+      constexpr int
+      operator*(BinaryOps) noexcept requires (OpId == 2)
+      { return OpId; }
+
+      constexpr int
+      operator/(BinaryOps) noexcept requires (OpId == 3)
+      { return OpId; }
+
+      constexpr int
+      operator%(BinaryOps) noexcept requires (OpId == 4)
+      { return OpId; }
+
+      constexpr int
+      operator<<(BinaryOps) noexcept requires (OpId == 5)
+      { return OpId; }
+
+      constexpr int
+      operator>>(BinaryOps) noexcept requires (OpId == 6)
+      { return OpId; }
+
+      constexpr int
+      operator&(BinaryOps) noexcept requires (OpId == 7)
+      { return OpId; }
+
+      constexpr int
+      operator|(BinaryOps) noexcept requires (OpId == 8)
+      { return OpId; }
+
+      constexpr int
+      operator^(BinaryOps) noexcept requires (OpId == 9)
+      { return OpId; }
+
+      constexpr int
+      operator&&(BinaryOps) noexcept requires (OpId == 10)
+      { return OpId; }
+
+      constexpr int
+      operator||(BinaryOps) noexcept requires (OpId == 11)
+      { return OpId; }
+
+      constexpr int
+      operator<=>(BinaryOps) noexcept requires (OpId == 12)
+      { return OpId; }
+
+      constexpr int
+      operator<(BinaryOps) noexcept requires (OpId == 13)
+      { return OpId; }
+
+      constexpr int
+      operator<=(BinaryOps) noexcept requires (OpId == 14)
+      { return OpId; }
+
+      constexpr int
+      operator==(BinaryOps) noexcept requires (OpId == 15)
+      { return OpId; }
+
+      constexpr int
+      operator!=(BinaryOps) noexcept requires (OpId == 16)
+      { return OpId; }
+
+      constexpr int
+      operator>(BinaryOps) noexcept requires (OpId == 17)
+      { return OpId; }
+
+      constexpr int
+      operator>=(BinaryOps) noexcept requires (OpId == 18)
+      { return OpId; }
+
+      constexpr int
+      operator+=(BinaryOps) noexcept requires (OpId == 19)
+      { return OpId; }
+
+      constexpr int
+      operator-=(BinaryOps) noexcept requires (OpId == 20)
+      { return OpId; }
+
+      constexpr int
+      operator*=(BinaryOps) noexcept requires (OpId == 21)
+      { return OpId; }
+
+      constexpr int
+      operator/=(BinaryOps) noexcept requires (OpId == 22)
+      { return OpId; }
+
+      constexpr int
+      operator%=(BinaryOps) noexcept requires (OpId == 23)
+      { return OpId; }
+
+      constexpr int
+      operator&=(BinaryOps) noexcept requires (OpId == 24)
+      { return OpId; }
+
+      constexpr int
+      operator|=(BinaryOps) noexcept requires (OpId == 25)
+      { return OpId; }
+
+      constexpr int
+      operator^=(BinaryOps) noexcept requires (OpId == 26)
+      { return OpId; }
+
+      constexpr int
+      operator<<=(BinaryOps) noexcept requires (OpId == 27)
+      { return OpId; }
+
+      constexpr int
+      operator>>=(BinaryOps) noexcept requires (OpId == 28)
+      { return OpId; }
+    };
+}
+
 constexpr size_t n_binary_ops = 29;
 
-template<template<int> typename Ops, int OpId>
+template<template<int> typename Ops, int EnabledId, int ActiveId = EnabledId>
   constexpr void
   test_binary_operator()
   {
-    auto cx = std::cw<Ops<OpId>{}>;
-    auto cy = std::cw<Ops<OpId>{}>;
+    auto cx = std::cw<Ops<EnabledId>{}>;
+    auto cy = std::cw<Ops<EnabledId>{}>;
 
-    auto check = [](auto c)
+    auto check = []<typename ResultT>(auto c, ResultT)
     {
-      VERIFY(c == OpId);
-      static_assert(std::same_as<decltype(c), std::constant_wrapper<OpId>>);
+      VERIFY(c == ResultT::value);
+      static_assert(std::same_as<decltype(c), ResultT>);
     };
 
-    if constexpr (OpId == 0)
-      check(cx + cy);
-    if constexpr (OpId == 1)
-      check(cx - cy);
-    if constexpr (OpId == 2)
-      check(cx * cy);
-    if constexpr (OpId == 3)
-      check(cx / cy);
-    if constexpr (OpId == 4)
-      check(cx % cy);
-    if constexpr (OpId == 5)
-      check(cx << cy);
-    if constexpr (OpId == 6)
-      check(cx >> cy);
-    if constexpr (OpId == 7)
-      check(cx & cy);
-    if constexpr (OpId == 8)
-      check(cx | cy);
-    if constexpr (OpId == 10)
-      check(cx && cy);
-    if constexpr (OpId == 11)
-      check(cx || cy);
-    if constexpr (OpId == 12)
-      check(cx <=> cy);
-    if constexpr (OpId == 13)
-      check(cx < cy);
-    if constexpr (OpId == 14)
-      check(cx <= cy);
-    if constexpr (OpId == 15)
-      check(cx == cy);
-    if constexpr (OpId == 16)
-      check(cx != cy);
-    if constexpr (OpId == 17)
-      check(cx > cy);
-    if constexpr (OpId == 18)
-      check(cx >= cy);
-    if constexpr (OpId == 19)
-      check(cx += cy);
-    if constexpr (OpId == 20)
-      check(cx -= cy);
-    if constexpr (OpId == 21)
-      check(cx *= cy);
-    if constexpr (OpId == 22)
-      check(cx /= cy);
-    if constexpr (OpId == 23)
-      check(cx %= cy);
-    if constexpr (OpId == 24)
-      check(cx &= cy);
-    if constexpr (OpId == 25)
-      check(cx |= cy);
-    if constexpr (OpId == 26)
-      check(cx ^= cy);
-    if constexpr (OpId == 27)
-      check(cx <<= cy);
-    if constexpr (OpId == 28)
-      check(cx >>= cy);
+#define CHECK_OP(Id, Op)            \
+    if constexpr (ActiveId == Id)   \
+      check(cx Op cy, std::cw<Id>); \
+    else                            \
+      static_assert(!requires { cx Op cy; })
+
+#define CHECK_OP_F(Id, Op, Fb)             \
+    if constexpr (ActiveId == Fb)          \
+      check(cx Op cy, std::cw<(Fb Op 0)>); \
+    else CHECK_OP(Id, Op)
+
+    CHECK_OP( 0, +);
+    CHECK_OP( 1, -);
+    CHECK_OP( 2, *);
+    CHECK_OP( 3, /);
+    CHECK_OP( 4, %);
+    CHECK_OP( 5, <<);
+    CHECK_OP( 6, >>);
+    CHECK_OP( 7, &);
+    CHECK_OP( 8, |);
+    CHECK_OP( 9, ^);
+    CHECK_OP(10, &&);
+    CHECK_OP(11, ||);
+    CHECK_OP(12, <=>);
+    CHECK_OP_F(13, <,  12);
+    CHECK_OP_F(14, <=, 12);
+    CHECK_OP_F(17, >,  12);
+    CHECK_OP_F(18, >=, 12);
+    CHECK_OP(15, ==);
+    CHECK_OP(16, !=);
+    CHECK_OP(19, +=);
+    CHECK_OP(20, -=);
+    CHECK_OP(21, *=);
+    CHECK_OP(22, /=);
+    CHECK_OP(23, %=);
+    CHECK_OP(24, &=);
+    CHECK_OP(25, |=);
+    CHECK_OP(26, ^=);
+    CHECK_OP(27, <<=);
+    CHECK_OP(28, >>=);
+#undef CHECK_OP_F
+#undef CHECK_OP
+
     static_assert(n_binary_ops == 29);
   }
 
@@ -476,74 +632,58 @@ template<template<int> typename Ops, int OpId>
     constexpr auto y = Ops<OpId>{};
     auto cy = std::cw<y>;
 
-    auto check = [](auto vc, auto cv)
+    auto check = []<typename ResT>(auto vc, auto cv, ResT res)
     {
-      auto impl = [](auto c)
-      {
-	VERIFY(c == OpId);
-	static_assert(std::same_as<decltype(c), int>);
-      };
+      VERIFY(vc == res);
+      static_assert(std::same_as<decltype(vc), ResT>);
 
-      impl(vc);
-      impl(cv);
+      VERIFY(cv == res);
+      static_assert(std::same_as<decltype(cv), ResT>);
     };
 
-    if constexpr (OpId == 0)
-      check(x + cy, cx + y);
-    if constexpr (OpId == 1)
-      check(x - cy, cx - y);
-    if constexpr (OpId == 2)
-      check(x * cy, cx * y);
-    if constexpr (OpId == 3)
-      check(x / cy, cx / y);
-    if constexpr (OpId == 4)
-      check(x % cy, cx % y);
-    if constexpr (OpId == 5)
-      check(x << cy, cx << y);
-    if constexpr (OpId == 6)
-      check(x >> cy, cx >> y);
-    if constexpr (OpId == 7)
-      check(x & cy, cx & y);
-    if constexpr (OpId == 8)
-      check(x | cy, cx | y);
-    if constexpr (OpId == 10)
-      check(x && cy, cx && y);
-    if constexpr (OpId == 11)
-      check(x || cy, cx || y);
-    if constexpr (OpId == 12)
-      check(x <=> cy, cx <=> y);
-    if constexpr (OpId == 13)
-      check(x < cy, cx < y);
-    if constexpr (OpId == 14)
-      check(x <= cy, cx <= y);
-    if constexpr (OpId == 15)
-      check(x == cy, cx == y);
-    if constexpr (OpId == 16)
-      check(x != cy, cx != y);
-    if constexpr (OpId == 17)
-      check(x > cy, cx > y);
-    if constexpr (OpId == 18)
-      check(x >= cy, cx >= y);
-    if constexpr (OpId == 19)
-      check(x += cy, cx += y);
-    if constexpr (OpId == 20)
-      check(x -= cy, cx -= y);
-    if constexpr (OpId == 21)
-      check(x *= cy, cx *= y);
-    if constexpr (OpId == 22)
-      check(x /= cy, cx /= y);
-    if constexpr (OpId == 23)
-      check(x %= cy, cx %= y);
-    if constexpr (OpId == 24)
-      check(x &= cy, cx &= y);
-    if constexpr (OpId == 25)
-      check(x |= cy, cx |= y);
-    if constexpr (OpId == 26)
-      check(x ^= cy, cx ^= y);
-    if constexpr (OpId == 27)
-      check(x <<= cy, cx <<= y);
-    if constexpr (OpId == 28)
-      check(x >>= cy, cx >>= y);
+#define CHECK_OP(Id, Op)           \
+    if constexpr (OpId == Id)      \
+      check(x Op cy, cx Op y, Id); \
+    else                           \
+      static_assert(!requires { x Op cy; } && !requires { cx Op y; })
+
+#define CHECK_OP_F(Id, Op, Fb)          \
+    if constexpr (OpId == Fb)           \
+      check(x Op cy, cx Op y, Id Op 0); \
+    else CHECK_OP(Id, Op)
+
+    CHECK_OP( 0, +);
+    CHECK_OP( 1, -);
+    CHECK_OP( 2, *);
+    CHECK_OP( 3, /);
+    CHECK_OP( 4, %);
+    CHECK_OP( 5, <<);
+    CHECK_OP( 6, >>);
+    CHECK_OP( 7, &);
+    CHECK_OP( 8, |);
+    CHECK_OP( 9, ^);
+    CHECK_OP(10, &&);
+    CHECK_OP(11, ||);
+    CHECK_OP(12, <=>);
+    CHECK_OP_F(13, <,  12);
+    CHECK_OP_F(14, <=, 12);
+    CHECK_OP_F(17, >,  12);
+    CHECK_OP_F(18, >=, 12);
+    CHECK_OP(15, ==);
+    CHECK_OP(16, !=);
+    CHECK_OP(19, +=);
+    CHECK_OP(20, -=);
+    CHECK_OP(21, *=);
+    CHECK_OP(22, /=);
+    CHECK_OP(23, %=);
+    CHECK_OP(24, &=);
+    CHECK_OP(25, |=);
+    CHECK_OP(26, ^=);
+    CHECK_OP(27, <<=);
+    CHECK_OP(28, >>=);
+#undef CHECK_OP_F
+#undef CHECK_OP
+
     static_assert(n_binary_ops == 29);
   }
 
@@ -555,6 +695,7 @@ test_binary_operators_all()
     (test_binary_operator<free_ops::BinaryOps, Idx>(), ...);
     (test_mixed_binary_operators<free_ops::BinaryOps, Idx>(), ...);
     (test_binary_operator<member_ops::BinaryOps, Idx>(), ...);
+    (test_binary_operator<mutable_ops::BinaryOps, Idx, -1>(), ...);
   };
   run(std::make_index_sequence<n_binary_ops>());
 }

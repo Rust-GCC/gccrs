@@ -264,6 +264,10 @@ enum {
   METAFN_KIND_MASK = (1 << METAFN_KIND_SHIFT) - 1
 };
 
+/* Get the metafn_kind_arg for argument ARGNO.  */
+#define METAFN_KIND_ARG(ARGNO) \
+  ((minfo->kind >> ((ARGNO + 1) * METAFN_KIND_SHIFT)) & METAFN_KIND_MASK)
+
 /* Possible return types of metafunctions.  */
 enum metafn_kind_ret {
   METAFN_KIND_RET_BOOL,

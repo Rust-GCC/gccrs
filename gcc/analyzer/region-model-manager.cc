@@ -683,7 +683,8 @@ region_model_manager::maybe_fold_binop (tree type, enum tree_code op,
       /* X + (-X) -> 0.  */
       if (const unaryop_svalue *unary_op = arg1->dyn_cast_unaryop_svalue ())
 	if (unary_op->get_op () == NEGATE_EXPR
-	    && unary_op->get_arg () == arg0)
+	    && unary_op->get_arg () == arg0
+	    && type && (INTEGRAL_TYPE_P (type) || POINTER_TYPE_P (type)))
 	  return get_or_create_int_cst (type, 0);
       /* X + (Y - X) -> Y.  */
       if (const binop_svalue *bin_op = arg1->dyn_cast_binop_svalue ())
@@ -790,6 +791,20 @@ region_model_manager::maybe_fold_binop (tree type, enum tree_code op,
 	    /* "(ARG0 && nonzero-cst)" -> "nonzero-cst".  */
 	    return get_or_create_cast (type, arg1);
 	}
+      break;
+
+    case TRUNC_DIV_EXPR:
+    case CEIL_DIV_EXPR:
+    case FLOOR_DIV_EXPR:
+    case ROUND_DIV_EXPR:
+    case TRUNC_MOD_EXPR:
+    case CEIL_MOD_EXPR:
+    case FLOOR_MOD_EXPR:
+    case ROUND_MOD_EXPR:
+    case RDIV_EXPR:
+    case EXACT_DIV_EXPR:
+      if (cst1 && zerop (cst1))
+	return get_or_create_unknown_svalue (type);
       break;
     }
 

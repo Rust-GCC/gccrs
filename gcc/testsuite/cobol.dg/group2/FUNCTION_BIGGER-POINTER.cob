@@ -1,7 +1,6 @@
        *> { dg-do run }
        *> { dg-options "-dialect ibm" }
        *> { dg-output-file "group2/FUNCTION_BIGGER-POINTER.out" }
-
        IDENTIFICATION   DIVISION.
        PROGRAM-ID.      prog.
        DATA             DIVISION.
@@ -11,10 +10,11 @@
        01  FILLER.
         05 X                PIC      A(4) VALUE "ABC".
         05 E REDEFINES X    PIC      A(1)  OCCURS 4.
+       01 stride binary-short.
        LINKAGE SECTION.
        77  B                PIC      A.
-
        PROCEDURE        DIVISION.
+           move function byte-length("A") to stride
            set P to address of E(1).
 
            display FUNCTION trim(x) '.'
@@ -22,7 +22,7 @@
            set address of B to p.
            perform until B = SPACE
              display B no advancing
-             set p up by 1
+             set p up by stride
              set address of B to p
            end-perform
            display '.'
@@ -31,7 +31,7 @@
            set address of B to p
            perform until B = SPACES
              display B no advancing
-             add 1 to N
+             add stride to N
              set address of B to p
            end-perform
            display '.'

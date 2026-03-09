@@ -25,6 +25,9 @@
 #include "options.h"
 
 #include "a68.h"
+#include "a68-pretty-print.h"
+
+#include <string>
 
 /* Give accurate error message.  */
 
@@ -230,19 +233,30 @@ a68_cannot_coerce (NODE_T *p, MOID_T *from, MOID_T *to, int context, int deflex,
 {
   const char *txt = a68_mode_error_text (p, from, to, context, deflex, 1);
 
+  a68_moid_format_token from1 (from);
+  a68_moid_format_token to1 (to);
+  a68_attr_format_token att1 ((a68_attribute) att);
+  a68_sort_format_token context1 (context);
+
   if (att == STOP)
     {
       if (strlen (txt) == 0)
-	a68_error (p, "M cannot be coerced to M in C context", from, to, context);
+	a68_error (p, "%e cannot be coerced to %e in %e context", &from1, &to1, &context1);
       else
-	a68_error (p, "Y in C context", txt, context);
+	{
+	  std::string fmt (txt);
+	  a68_error (p, (fmt + " in %e context").c_str (), &context1);
+	}
     }
   else
     {
       if (strlen (txt) == 0)
-	a68_error (p, "M cannot be coerced to M in C-A", from, to, context, att);
+	a68_error (p, "%e cannot be coerced to %e in %e-%e", &from1, &to1, &context1, &att1);
       else
-	a68_error (p, "Y in C-A", txt, context, att);
+	{
+	  std::string fmt (txt);
+	  a68_error (p, (fmt + " in %e-%e").c_str (), &context1, &att1);
+	}
     }
 }
 
@@ -255,12 +269,15 @@ a68_warn_for_voiding (NODE_T *p, SOID_T *x, SOID_T *y, int c)
 
   if (CAST (x) == false)
     {
-      if (MOID (x) == M_VOID && MOID (y) != M_ERROR && !(MOID (y) == M_VOID || !a68_is_nonproc (MOID (y))))
+      if (MOID (x) == M_VOID
+	  && MOID (y) != M_ERROR
+	  && !(MOID (y) == M_VOID || !a68_is_nonproc (MOID (y))))
 	{
-	  if (IS (p, FORMULA))
-	    a68_warning (p, OPT_Wvoiding, "value of M @ will be voided", MOID (y));
-	  else
-	    a68_warning (p, OPT_Wvoiding, "value of M @ will be voided", MOID (y));
+	  a68_moid_format_token m1 (MOID (y));
+	  a68_construct_format_token c1 (p);
+
+	  a68_warning (p, OPT_Wvoiding, "value of %e %e will be voided",
+		       &m1, &c1);
 	}
     }
 }
@@ -274,8 +291,15 @@ a68_semantic_pitfall (NODE_T *p, MOID_T *m, int c, int u)
                        REF INT i := LOC INT := 0, which should probably be
                        REF INT i = LOC INT := 0.  */
   if (IS (p, u))
-    a68_warning (p, 0, "possibly unintended M A in M A",
-		 MOID (p), u, m, c);
+    {
+      a68_moid_format_token m1 (MOID (p));
+      a68_moid_format_token m2 (m);
+      a68_construct_format_token u1 ((a68_attribute) u);
+      a68_construct_format_token c1 ((a68_attribute) c);
+
+      a68_warning (p, 0, "possibly unintended %e %e in %e %e",
+		   &m1, &u1, &m2, &c1);
+    }
   else if (a68_is_one_of (p, UNIT, TERTIARY, SECONDARY, PRIMARY, STOP))
     a68_semantic_pitfall (SUB (p), m, c, u);
 }

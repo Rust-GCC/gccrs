@@ -1,7 +1,7 @@
 /* { dg-additional-options "-fgimple -fdump-tree-optimized" } */
-/* { dg-require-effective-target vect_int} */
-/* { dg-require-effective-target vect_condition} */
-/* { dg-require-effective-target vect_shift} */
+/* { dg-require-effective-target vect_int } */
+/* { dg-require-effective-target vect_condition } */
+/* { dg-require-effective-target vect_shift } */
 
 
 

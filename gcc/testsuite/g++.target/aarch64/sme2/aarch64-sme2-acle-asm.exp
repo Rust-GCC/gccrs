@@ -34,7 +34,7 @@ dg-init
 if { [check_effective_target_aarch64_sme2] } {
     set sme2_flags ""
 } else {
-    set sme2_flags "-march=armv9-a+sme2"
+    set sme2_flags "-march=armv8-a+sme2"
 }
 
 # Turn off any codegen tweaks by default that may affect expected assembly.

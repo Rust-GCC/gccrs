@@ -8,9 +8,13 @@
 /* { dg-final { scan-assembler-times "foo\tr4" 8 { target { arm*-*-* } } } } */
 #elif defined (__i386__)
 # define GPR "{ecx}"
-/* { dg-final { scan-assembler-times "foo\t%cl" 2 { target { i?86-*-* } } } } */
-/* { dg-final { scan-assembler-times "foo\t%cx" 2 { target { i?86-*-* } } } } */
-/* { dg-final { scan-assembler-times "foo\t%ecx" 4 { target { i?86-*-* } } } } */
+#elif defined (__x86_64__)
+# define GPR "{rcx}"
+/* { dg-final { scan-assembler-times "foo\t%cl" 2 { target x86 } } } */
+/* { dg-final { scan-assembler-times "foo\t%cx" 2 { target x86 } } } */
+/* { dg-final { scan-assembler-times "foo\t%ecx" 4 { target { x86 && ilp32 } } } } */
+/* { dg-final { scan-assembler-times "foo\t%ecx" 2 { target { x86 && lp64 } } } } */
+/* { dg-final { scan-assembler-times "foo\t%rcx" 2 { target { x86 && lp64 } } } } */
 #elif defined (__powerpc__) || defined (__POWERPC__)
 # define GPR "{r5}"
 /* { dg-final { scan-assembler-times "foo\t5" 8 { target { powerpc*-*-* } } } } */
@@ -20,13 +24,6 @@
 #elif defined (__s390__)
 # define GPR "{r4}"
 /* { dg-final { scan-assembler-times "foo\t%r4" 8 { target { s390*-*-* } } } } */
-#elif defined (__x86_64__)
-# define GPR "{rcx}"
-/* { dg-final { scan-assembler-times "foo\t%cl" 2 { target { i?86-*-* x86_64-*-* } } } } */
-/* { dg-final { scan-assembler-times "foo\t%cx" 2 { target { i?86-*-* x86_64-*-* } } } } */
-/* { dg-final { scan-assembler-times "foo\t%ecx" 2 { target { { i?86-*-* x86_64-*-* } && lp64 } } } } */
-/* { dg-final { scan-assembler-times "foo\t%rcx" 2 { target { { i?86-*-* x86_64-*-* } && lp64 } } } } */
-/* { dg-final { scan-assembler-times "foo\t%ecx" 4 { target { { i?86-*-* x86_64-*-* } && { ! lp64 } } } } } */
 #endif
 
 char

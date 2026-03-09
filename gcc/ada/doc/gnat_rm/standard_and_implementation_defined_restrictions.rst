@@ -95,11 +95,12 @@ Max_Tasks
 ---------
 .. index:: Max_Tasks
 
-[RM D.7] Specifies the maximum number of task that may be created, not
+[RM D.7] Specifies the maximum number of tasks that may be created, not
 counting the creation of the environment task.  Violations of this
-restriction with a value of zero are detected at compile
-time. Violations of this restriction with values other than zero cause
-Storage_Error to be raised.
+restriction with a value of zero are detected at compile time in all
+contexts.  Violations of this restriction with a value greater than
+zero are detected for library-level tasks at compile time, but are
+not detected for local tasks at all.
 
 No_Abort_Statements
 -------------------

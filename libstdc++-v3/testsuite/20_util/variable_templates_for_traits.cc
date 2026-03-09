@@ -1,4 +1,4 @@
-// { dg-additional-options "-Wno-deprecated-declarations" { target c++2a } }
+// { dg-additional-options "-Wno-deprecated-declarations" { target c++20 } }
 // { dg-do compile { target c++17 } }
 // { dg-additional-options "-freflection" { target c++26 } }
 

@@ -57,5 +57,5 @@ contains
   end subroutine                ! { dg-warning ".mapped_tensor. is used uninitialized" }
 
 end
-! { dg-final { scan-tree-dump-times "Pdttensor_t_4.2.j = 42" 1 "original" } }
-! { dg-final { scan-tree-dump-times "struct Pdttensor_t_4 mt" 1 "original" } }
+! { dg-final { scan-tree-dump-times "PDTtensor_t_4.2.j = 42" 1 "original" } }
+! { dg-final { scan-tree-dump-times "struct PDTtensor_t_4 mt" 1 "original" } }

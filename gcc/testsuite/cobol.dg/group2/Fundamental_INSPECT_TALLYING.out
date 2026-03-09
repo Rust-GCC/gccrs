@@ -1,0 +1,11 @@
+AbcAbcXAbcAbcAbcYAbcAbcAbcAbc AbcAbcAbcAbcAbc
+All       "Abc" 014 (014)
+Leading   "Abc" 002 (002)
+X to Y    "Abc" 003 (003)
+Y to ' '  "Abc" 004 (004)
+Trailing  "Abc" 005 (005)
+"Abc" after "x" 012 (012)
+before space    009 (009)
+"Abc" after "b" 013 (013)
+before "b"      000 (000)
+

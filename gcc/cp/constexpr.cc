@@ -2314,6 +2314,151 @@ cxx_eval_cxa_builtin_fn (const constexpr_ctx *ctx, tree call,
     }
 }
 
+/* Variables and functions to manage constexpr call expansion context.
+   These do not need to be marked for PCH or GC.  */
+
+/* FIXME remember and print actual constant arguments.  */
+static vec<tree> call_stack;
+static int call_stack_tick;
+static int last_cx_error_tick;
+
+/* Attempt to evaluate T which represents a call to __builtin_constexpr_diag.
+   The arguments should be an integer (0 for inform, 1 for warning, 2 for
+   error) optionally with 16 ored in if it should use caller's caller location
+   instead of caller's location and 2 messages which are either a pointer to
+   a STRING_CST or class with data () and size () member functions like
+   string_view or u8string_view.  The first message is a tag, with "" passed
+   for no tag, data () should return const char *, the tag should only contain
+   alphanumeric letters or underscores.  The second message is the diagnostic
+   message, data () can be either const char * or const char8_t *.  size ()
+   should return the corresponding length of the strings in bytes as an
+   integer.  */
+
+static tree
+cxx_eval_constexpr_diag (const constexpr_ctx *ctx, tree t, bool *non_constant_p,
+			 bool *overflow_p, tree *jump_target)
+{
+  location_t loc = EXPR_LOCATION (t);
+  if (call_expr_nargs (t) != 3)
+    {
+      if (!ctx->quiet)
+	error_at (loc, "wrong number of arguments to %qs call",
+		  "__builtin_constexpr_diag");
+      *non_constant_p = true;
+      return t;
+    }
+  tree args[3];
+  for (int i = 0; i < 3; ++i)
+    {
+      tree arg = CALL_EXPR_ARG (t, i);
+      arg = cxx_eval_constant_expression (ctx, arg,
+					  (i == 0
+					   || POINTER_TYPE_P (TREE_TYPE (arg)))
+					  ? vc_prvalue : vc_glvalue,
+					  non_constant_p, overflow_p,
+					  jump_target);
+      if (*jump_target)
+	return NULL_TREE;
+      if (*non_constant_p)
+	return t;
+      args[i] = arg;
+    }
+  if (TREE_CODE (args[0]) != INTEGER_CST
+      || wi::to_widest (args[0]) < 0
+      || wi::to_widest (args[0]) > 18
+      || (wi::to_widest (args[0]) & 15) > 2)
+    {
+      if (!ctx->quiet)
+	error_at (loc, "first %qs call argument should be 0, 1, 2, 16, 17 or "
+		  "18", "__builtin_constexpr_diag");
+      *non_constant_p = true;
+      return t;
+    }
+  const char *msgs[2] = {};
+  int lens[3] = {};
+  cexpr_str cstrs[2];
+  diagnostics::kind kind = diagnostics::kind::error;
+  for (int i = 1; i < 3; ++i)
+    {
+      tree arg = args[i];
+      if (POINTER_TYPE_P (TREE_TYPE (arg)))
+	{
+	  tree str = arg;
+	  STRIP_NOPS (str);
+	  if (TREE_CODE (str) == ADDR_EXPR
+	      && TREE_CODE (TREE_OPERAND (str, 0)) == STRING_CST)
+	    {
+	      str = TREE_OPERAND (str, 0);
+	      tree eltype = TYPE_MAIN_VARIANT (TREE_TYPE (TREE_TYPE (str)));
+	      if (eltype == char_type_node
+		  || (i == 2 && eltype == char8_type_node))
+		arg = str;
+	    }
+	}
+      cstrs[i - 1].message = arg;
+      if (!cstrs[i - 1].type_check (loc, i == 2))
+	{
+	  *non_constant_p = true;
+	  return t;
+	}
+      if (!cstrs[i - 1].extract (loc, msgs[i - 1], lens[i - 1], ctx,
+				 non_constant_p, overflow_p, jump_target))
+	{
+	  if (*jump_target)
+	    return NULL_TREE;
+	  *non_constant_p = true;
+	  return t;
+	}
+    }
+  if (msgs[0])
+    {
+      for (int i = 0; i < lens[0]; ++i)
+	if (!ISALNUM (msgs[0][i]) && msgs[0][i] != '_')
+	  {
+	    if (!ctx->quiet)
+	      error_at (loc, "%qs tag string contains %qc character other than"
+			     " letters, digits or %<_%>",
+			"__builtin_constexpr_diag", msgs[0][i]);
+	    *non_constant_p = true;
+	    return t;
+	  }
+    }
+  if (ctx->manifestly_const_eval == mce_unknown)
+    {
+      *non_constant_p = true;
+      return t;
+    }
+  int arg0 = tree_to_uhwi (args[0]);
+  if (arg0 & 16)
+    {
+      arg0 &= 15;
+      if (!call_stack.is_empty ())
+	{
+	  tree call = call_stack.last ();
+	  if (EXPR_HAS_LOCATION (call))
+	    loc = EXPR_LOCATION (call);
+	}
+    }
+  if (arg0 == 0)
+    kind = diagnostics::kind::note;
+  else if (arg0 == 1)
+    kind = diagnostics::kind::warning;
+  if (lens[0])
+    {
+      const char *color = "error";
+      if (kind == diagnostics::kind::note)
+	color = "note";
+      else if (kind == diagnostics::kind::warning)
+	color = "warning";
+      emit_diagnostic (kind, loc, 0, "constexpr message: %.*s [%r%.*s%R]",
+		       lens[1], msgs[1], color, lens[0], msgs[0]);
+    }
+  else
+    emit_diagnostic (kind, loc, 0, "constexpr message: %.*s",
+		     lens[1], msgs[1]);
+  return void_node;
+}
+
 /* Attempt to evaluate T which represents a call to a builtin function.
    We assume here that all builtin functions evaluate to scalar types
    represented by _CST nodes.  */
@@ -2372,6 +2517,10 @@ cxx_eval_builtin_function_call (const constexpr_ctx *ctx, tree t, tree fun,
 			 BUILT_IN_FRONTEND))
     return cxx_eval_cxa_builtin_fn (ctx, t, BUILTIN_EH_PTR_ADJUST_REF,
 				    fun, non_constant_p, overflow_p,
+				    jump_target);
+
+  if (fndecl_built_in_p (fun, CP_BUILT_IN_CONSTEXPR_DIAG, BUILT_IN_FRONTEND))
+    return cxx_eval_constexpr_diag (ctx, t, non_constant_p, overflow_p,
 				    jump_target);
 
   int strops = 0;
@@ -2846,14 +2995,6 @@ cxx_bind_parameters_in_call (const constexpr_ctx *ctx, tree t, tree fun,
   return binds;
 }
 
-/* Variables and functions to manage constexpr call expansion context.
-   These do not need to be marked for PCH or GC.  */
-
-/* FIXME remember and print actual constant arguments.  */
-static vec<tree> call_stack;
-static int call_stack_tick;
-static int last_cx_error_tick;
-
 static int
 push_cx_call_context (tree call)
 {
@@ -2966,7 +3107,8 @@ diagnose_failing_condition (tree bad, location_t cloc, bool show_expr_p,
   else if (maybe_diagnose_standard_trait (cloc, bad))
     ;
   else if (COMPARISON_CLASS_P (bad)
-	   && ARITHMETIC_TYPE_P (TREE_TYPE (TREE_OPERAND (bad, 0))))
+	   && (ARITHMETIC_TYPE_P (TREE_TYPE (TREE_OPERAND (bad, 0)))
+	       || REFLECTION_TYPE_P (TREE_TYPE (TREE_OPERAND (bad, 0)))))
     {
       tree op0 = fold_operand (TREE_OPERAND (bad, 0), ctx);
       tree op1 = fold_operand (TREE_OPERAND (bad, 1), ctx);
@@ -9344,11 +9486,13 @@ cxx_eval_constant_expression (const constexpr_ctx *ctx, tree t,
 
 	/* Pass vc_prvalue because this indicates
 	   initialization of a temporary.  */
-	r = cxx_eval_constant_expression (ctx, TREE_OPERAND (t, 1), vc_prvalue,
-					  non_constant_p, overflow_p,
-					  jump_target);
+	r = cxx_eval_constant_expression (ctx, TARGET_EXPR_INITIAL (t),
+					  vc_prvalue, non_constant_p,
+					  overflow_p, jump_target);
 	if (*non_constant_p)
 	  break;
+	if (ctx->save_exprs)
+	  ctx->save_exprs->safe_push (slot);
 	if (*jump_target)
 	  return NULL_TREE;
 	if (!is_complex)
@@ -9367,8 +9511,6 @@ cxx_eval_constant_expression (const constexpr_ctx *ctx, tree t,
 	    if (CLEANUP_EH_ONLY (t))
 	      ctx->global->cleanups->safe_push (NULL_TREE);
 	  }
-	if (ctx->save_exprs)
-	  ctx->save_exprs->safe_push (slot);
 	if (lval)
 	  return slot;
 	if (is_complex)

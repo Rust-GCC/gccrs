@@ -91,6 +91,15 @@ void      get_binary_value( tree value,
                             cbl_field_t *field,
                             tree         field_offset,
                             tree         hilo = NULL);
+tree      get_binary_value_tree(tree return_type,
+                                tree rdigits,
+                                cbl_field_t *field,
+                                tree         field_offset,
+                                tree         hilo = NULL);
+tree      get_binary_value_tree(tree return_type,
+                                tree rdigits,
+                                const cbl_refer_t &refer,
+                                tree         hilo = NULL);
 tree      get_data_address( cbl_field_t *field,
                             tree         offset);
 
@@ -150,5 +159,6 @@ void      build_array_of_fourplets( int ngroup,
 void      get_depending_on_value_from_odo(tree retval, cbl_field_t *odo);
 uint64_t  get_time_nanoseconds();
 
+bool      is_pure_integer(const cbl_field_t *field);
 
 #endif

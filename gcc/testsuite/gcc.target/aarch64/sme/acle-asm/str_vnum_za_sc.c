@@ -9,7 +9,7 @@
 **	str	za\[\1, 0\], \[x1(?:, #0, mul vl)?\]
 **	ret
 */
-TEST_STORE_ZA (str_vnum_za_0_0,
+TEST_STORE_ZA_NOPRED (str_vnum_za_0_0,
 	       svstr_vnum_za (0, x1, 0),
 	       svstr_vnum_za (0, x1, 0))
 
@@ -19,7 +19,7 @@ TEST_STORE_ZA (str_vnum_za_0_0,
 **	str	za\[\1, 1\], \[x1(?:, #1, mul vl)?\]
 **	ret
 */
-TEST_STORE_ZA (str_vnum_za_0_1,
+TEST_STORE_ZA_NOPRED (str_vnum_za_0_1,
 	       svstr_vnum_za (0, x1, 1),
 	       svstr_vnum_za (0, x1, 1))
 
@@ -29,7 +29,7 @@ TEST_STORE_ZA (str_vnum_za_0_1,
 **	str	za\[\1, 0\], \[x1(?:, #0, mul vl)?\]
 **	ret
 */
-TEST_STORE_ZA (str_vnum_za_1_0,
+TEST_STORE_ZA_NOPRED (str_vnum_za_1_0,
 	       svstr_vnum_za (1, x1, 0),
 	       svstr_vnum_za (1, x1, 0))
 
@@ -39,7 +39,7 @@ TEST_STORE_ZA (str_vnum_za_1_0,
 **	str	za\[\1, 2\], \[x1(?:, #2, mul vl)?\]
 **	ret
 */
-TEST_STORE_ZA (str_vnum_za_1_2,
+TEST_STORE_ZA_NOPRED (str_vnum_za_1_2,
 	       svstr_vnum_za (1, x1, 2),
 	       svstr_vnum_za (1, x1, 2))
 
@@ -49,7 +49,7 @@ TEST_STORE_ZA (str_vnum_za_1_2,
 **	str	za\[\1, 0\], \[x1(?:, #0, mul vl)?\]
 **	ret
 */
-TEST_STORE_ZA (str_vnum_za_w0_0,
+TEST_STORE_ZA_NOPRED (str_vnum_za_w0_0,
 	       svstr_vnum_za (w0, x1, 0),
 	       svstr_vnum_za (w0, x1, 0))
 
@@ -59,7 +59,7 @@ TEST_STORE_ZA (str_vnum_za_w0_0,
 **	str	za\[\1, 1\], \[x1, #1, mul vl\]
 **	ret
 */
-TEST_STORE_ZA (str_vnum_za_w0_1,
+TEST_STORE_ZA_NOPRED (str_vnum_za_w0_1,
 	       svstr_vnum_za (w0, x1, 1),
 	       svstr_vnum_za (w0, x1, 1))
 
@@ -69,7 +69,7 @@ TEST_STORE_ZA (str_vnum_za_w0_1,
 **	str	za\[\1, 13\], \[x1, #13, mul vl\]
 **	ret
 */
-TEST_STORE_ZA (str_vnum_za_w0_13,
+TEST_STORE_ZA_NOPRED (str_vnum_za_w0_13,
 	       svstr_vnum_za (w0, x1, 13),
 	       svstr_vnum_za (w0, x1, 13))
 
@@ -79,7 +79,7 @@ TEST_STORE_ZA (str_vnum_za_w0_13,
 **	str	za\[\1, 15\], \[x1, #15, mul vl\]
 **	ret
 */
-TEST_STORE_ZA (str_vnum_za_w0_15,
+TEST_STORE_ZA_NOPRED (str_vnum_za_w0_15,
 	       svstr_vnum_za (w0, x1, 15),
 	       svstr_vnum_za (w0, x1, 15))
 
@@ -96,7 +96,7 @@ TEST_STORE_ZA (str_vnum_za_w0_15,
 ** )
 **	ret
 */
-TEST_STORE_ZA (str_vnum_za_w0_16,
+TEST_STORE_ZA_NOPRED (str_vnum_za_w0_16,
 	       svstr_vnum_za (w0, x1, 16),
 	       svstr_vnum_za (w0, x1, 16))
 
@@ -113,7 +113,7 @@ TEST_STORE_ZA (str_vnum_za_w0_16,
 ** )
 **	ret
 */
-TEST_STORE_ZA (str_vnum_za_w0_m1,
+TEST_STORE_ZA_NOPRED (str_vnum_za_w0_m1,
 	       svstr_vnum_za (w0, x1, -1),
 	       svstr_vnum_za (w0, x1, -1))
 
@@ -123,7 +123,7 @@ TEST_STORE_ZA (str_vnum_za_w0_m1,
 **	str	za\[\1, 0\], \[x1(?:, #0, mul vl)?\]
 **	ret
 */
-TEST_STORE_ZA (str_vnum_za_w0p1_0,
+TEST_STORE_ZA_NOPRED (str_vnum_za_w0p1_0,
 	       svstr_vnum_za (w0 + 1, x1, 0),
 	       svstr_vnum_za (w0 + 1, x1, 0))
 
@@ -133,7 +133,7 @@ TEST_STORE_ZA (str_vnum_za_w0p1_0,
 **	str	za\[\1, 1\], \[x1(?:, #1, mul vl)?\]
 **	ret
 */
-TEST_STORE_ZA (str_vnum_za_w0m1_1,
+TEST_STORE_ZA_NOPRED (str_vnum_za_w0m1_1,
 	       svstr_vnum_za (w0 - 1, x1, 1),
 	       svstr_vnum_za (w0 - 1, x1, 1))
 
@@ -143,6 +143,6 @@ TEST_STORE_ZA (str_vnum_za_w0m1_1,
 **	str	za\[\1, 3\], \[x1(?:, #3, mul vl)?\]
 **	ret
 */
-TEST_STORE_ZA (str_vnum_za_w0p2_3,
+TEST_STORE_ZA_NOPRED (str_vnum_za_w0p2_3,
 	       svstr_vnum_za (w0 + 2, x1, 3),
 	       svstr_vnum_za (w0 + 2, x1, 3))

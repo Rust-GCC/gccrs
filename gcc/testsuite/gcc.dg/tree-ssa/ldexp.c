@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-additional-options "-Ofast" } */
+/* { dg-additional-options "-std=c99 -Ofast" } */
 
 /* { dg-final { scan-assembler-not "\tfmul\t" } } */
 

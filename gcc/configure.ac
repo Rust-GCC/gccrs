@@ -2736,6 +2736,25 @@ gas_flag="$with_gnu_as",
    gas_flag=no
 fi])
 
+AC_MSG_CHECKING(Solaris assembler)
+case $target in
+  *-*-solaris2*)
+    if $gcc_cv_as -V 2>&1 | grep 'Compiler Common.*SunOS' > /dev/null; then
+      solaris_as=yes
+      gas_flag=no
+    elif $gcc_cv_as --version 2>/dev/null | grep GNU > /dev/null; then
+      gas_flag=yes
+    fi
+    ;;
+  *)
+    solaris_as=no
+    ;;
+esac
+AC_MSG_RESULT($solaris_as)
+solaris_as_bool=`if test $solaris_as = yes; then echo 1; else echo 0; fi`
+AC_DEFINE_UNQUOTED(HAVE_SOLARIS_AS, $solaris_as_bool,
+	[Define to 1 if using the Solaris assembler.])
+
 ORIGINAL_AS_FOR_TARGET=$gcc_cv_as
 AC_SUBST(ORIGINAL_AS_FOR_TARGET)
 case "$ORIGINAL_AS_FOR_TARGET" in
@@ -2818,6 +2837,25 @@ gnu_ld_flag="$with_gnu_ld",
  else
    gnu_ld_flag=no
  fi])
+
+AC_MSG_CHECKING(Solaris linker)
+case $target in
+  *-*-solaris2*)
+    if $gcc_cv_ld -V 2>/dev/null | grep 'Solaris Link Editors' > /dev/null; then
+      gnu_ld_flag=no
+      solaris_ld=yes
+    elif $gcc_cv_ld --version 2>/dev/null | grep GNU > /dev/null; then
+      gnu_ld_flag=yes
+    fi
+    ;;
+  *)
+    solaris_ld=no
+    ;;
+esac
+AC_MSG_RESULT($solaris_ld)
+solaris_ld_bool=`if test $solaris_ld = yes; then echo 1; else echo 0; fi`
+AC_DEFINE_UNQUOTED(HAVE_SOLARIS_LD, $solaris_ld_bool,
+	[Define to 1 if using the Solaris linker.])
 
 ORIGINAL_PLUGIN_LD_FOR_TARGET=$gcc_cv_ld
 PLUGIN_LD_SUFFIX=`basename $gcc_cv_ld | sed -e "s,$target_alias-,,"`
@@ -4744,62 +4782,6 @@ EOF
        [AC_DEFINE(HAVE_AS_OFFSETABLE_LO10, 1,
 	         [Define if your assembler supports offsetable %lo().])])
 
-    gcc_GAS_CHECK_FEATURE([FMAF, HPC, and VIS 3.0 instructions],
-      gcc_cv_as_sparc_fmaf,
-      [-xarch=v9d],
-      [.text
-       .register %g2, #scratch
-       .register %g3, #scratch
-       .align 4
-       fmaddd %f0, %f2, %f4, %f6
-       addxccc %g1, %g2, %g3
-       fsrl32 %f2, %f4, %f8
-       fnaddd %f10, %f12, %f14],,
-      [AC_DEFINE(HAVE_AS_FMAF_HPC_VIS3, 1,
-                [Define if your assembler supports FMAF, HPC, and VIS 3.0 instructions.])])
-
-    gcc_GAS_CHECK_FEATURE([SPARC4 instructions],
-      gcc_cv_as_sparc_sparc4,
-      [-xarch=sparc4],
-      [.text
-       .register %g2, #scratch
-       .register %g3, #scratch
-       .align 4
-       cxbe %g2, %g3, 1f
-1:     cwbneg %g2, %g3, 1f
-1:     sha1
-       md5
-       aes_kexpand0 %f4, %f6, %f8
-       des_round %f38, %f40, %f42, %f44
-       camellia_f %f54, %f56, %f58, %f60
-       kasumi_fi_xor %f46, %f48, %f50, %f52],,
-      [AC_DEFINE(HAVE_AS_SPARC4, 1,
-                [Define if your assembler supports SPARC4 instructions.])])
-
-    gcc_GAS_CHECK_FEATURE([SPARC5 and VIS 4.0 instructions],
-      gcc_cv_as_sparc_sparc5,
-      [-xarch=sparc5],
-      [.text
-       .register %g2, #scratch
-       .register %g3, #scratch
-       .align 4
-       subxc %g1, %g2, %g3
-       fpadd8 %f0, %f2, %f4],,
-      [AC_DEFINE(HAVE_AS_SPARC5_VIS4, 1,
-                [Define if your assembler supports SPARC5 and VIS 4.0 instructions.])])
-
-    gcc_GAS_CHECK_FEATURE([SPARC6 instructions],
-      gcc_cv_as_sparc_sparc6,
-      [-xarch=sparc6],
-      [.text
-       .register %g2, #scratch
-       .register %g3, #scratch
-       .align 4
-       rd %entropy, %g1
-       fpsll64x %f0, %f2, %f4],,
-      [AC_DEFINE(HAVE_AS_SPARC6, 1,
-                [Define if your assembler supports SPARC6 instructions.])])
-
     gcc_GAS_CHECK_FEATURE([LEON instructions],
       gcc_cv_as_sparc_leon,
       [-Aleon],
@@ -6599,15 +6581,6 @@ elif test x$gcc_cv_ld != x; then
       ;;
   esac
 fi
-case "$target" in
-  i?86-*-solaris2* | x86_64-*-solaris2*)
-    if echo "$ld_ver" | grep GNU > /dev/null; then
-      # Doesn't work with gld on Solaris/x86 due to PR ld/12320.
-      gcc_cv_ld_as_needed=no
-      gcc_cv_ld_use_as_needed_ldscript=no
-    fi
-    ;;
-esac
 ])
 if test x"$gcc_cv_ld_as_needed" = xyes; then
 	AC_DEFINE(HAVE_LD_AS_NEEDED, 1,

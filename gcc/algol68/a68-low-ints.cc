@@ -83,24 +83,6 @@ a68_int_minval (tree type)
   return fold_convert (type, TYPE_MIN_VALUE (type));
 }
 
-/* Given an integral type, build an INT with the number of decimal digits
-   required to represent a value of that typ, not including sign.  */
-
-tree
-a68_int_width (tree type)
-{
-  /* Note that log10 (2) is ~ 0.3.
-     Thanks to Andrew Pinski for suggesting using this expression.  */
-  return fold_build2 (PLUS_EXPR, a68_int_type,
-		      build_int_cst (a68_int_type, 1),
-		      fold_build2 (TRUNC_DIV_EXPR,
-				   a68_int_type,
-				   fold_build2 (MULT_EXPR, a68_int_type,
-						build_int_cst (a68_int_type, TYPE_PRECISION (type)),
-						build_int_cst (a68_int_type, 3)),
-				   build_int_cst (a68_int_type, 10)));
-}
-
 /* Given an integer value VAL, return -1 if it is less than zero, 0 if it is
    zero and +1 if it is bigger than zero.  The built value is always of mode
    M_INT.  */

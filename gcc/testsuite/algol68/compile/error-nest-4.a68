@@ -1,4 +1,4 @@
-begin string s =
+begin []string s =
          nest C "lala"; { dg-error "" }
       union(int,real) x =
          nest C "x"; { dg-error "" }

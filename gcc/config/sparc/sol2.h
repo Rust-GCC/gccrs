@@ -45,15 +45,10 @@ along with GCC; see the file COPYING3.  If not see
 
 /* Supposedly the same as vanilla sparc svr4, except for the stuff below: */
 
-/* If the assembler supports -xarch=sparc4, we switch to the explicit
-   word size selection mechanism available both in GNU as and Sun as,
-   for the Niagara4 and above configurations.  */
-#ifdef HAVE_AS_SPARC4
+/* We switch to the explicit word size selection mechanism available both in
+   GNU as and Sun as, for the Niagara4 and above configurations.  */
 
-#define AS_SPARC32_FLAG ""
-#define AS_SPARC64_FLAG ""
-
-#if !HAVE_GNU_AS
+#if HAVE_SOLARIS_AS
 #undef ASM_ARCH32_SPEC
 #define ASM_ARCH32_SPEC "-m32"
 #undef ASM_ARCH64_SPEC
@@ -64,37 +59,10 @@ along with GCC; see the file COPYING3.  If not see
 #undef ASM_SPEC
 #define ASM_SPEC ASM_SPEC_BASE " %(asm_arch)" ASM_PIC_SPEC
 
-#else /* HAVE_AS_SPARC4 */
-
-#define AS_SPARC32_FLAG "-xarch=v8plus"
-#define AS_SPARC64_FLAG "-xarch=v9"
-
-#undef AS_NIAGARA4_FLAG
-#define AS_NIAGARA4_FLAG AS_NIAGARA3_FLAG
-
-#undef ASM_ARCH32_SPEC
-#define ASM_ARCH32_SPEC ""
-
-#undef ASM_ARCH64_SPEC
-#define ASM_ARCH64_SPEC ""
-
-#undef ASM_ARCH_DEFAULT_SPEC
-#define ASM_ARCH_DEFAULT_SPEC ""
-
-#undef ASM_ARCH_SPEC
-#define ASM_ARCH_SPEC ""
-
-/* Both Sun as and GNU as understand -K PIC.  */
-#undef ASM_SPEC
-#define ASM_SPEC ASM_SPEC_BASE ASM_PIC_SPEC
-
-#endif /* HAVE_AS_SPARC4 */
-
-
 #undef ASM_CPU32_DEFAULT_SPEC
-#define ASM_CPU32_DEFAULT_SPEC	""
+#define ASM_CPU32_DEFAULT_SPEC ""
 #undef ASM_CPU64_DEFAULT_SPEC
-#define ASM_CPU64_DEFAULT_SPEC	"-xarch=v9"
+#define ASM_CPU64_DEFAULT_SPEC "-xarch=v9"
 
 #if TARGET_CPU_DEFAULT == TARGET_CPU_v9
 #undef CPP_CPU64_DEFAULT_SPEC
@@ -143,36 +111,36 @@ along with GCC; see the file COPYING3.  If not see
 #undef CPP_CPU64_DEFAULT_SPEC
 #define CPP_CPU64_DEFAULT_SPEC ""
 #undef ASM_CPU32_DEFAULT_SPEC
-#define ASM_CPU32_DEFAULT_SPEC "-xarch=v8plus" AS_NIAGARA3_FLAG
+#define ASM_CPU32_DEFAULT_SPEC "-xarch=v8plusd"
 #undef ASM_CPU64_DEFAULT_SPEC
-#define ASM_CPU64_DEFAULT_SPEC "-xarch=v9" AS_NIAGARA3_FLAG
+#define ASM_CPU64_DEFAULT_SPEC "-xarch=v9d"
 #endif
 
 #if TARGET_CPU_DEFAULT == TARGET_CPU_niagara4
 #undef CPP_CPU64_DEFAULT_SPEC
 #define CPP_CPU64_DEFAULT_SPEC ""
 #undef ASM_CPU32_DEFAULT_SPEC
-#define ASM_CPU32_DEFAULT_SPEC AS_SPARC32_FLAG AS_NIAGARA4_FLAG
+#define ASM_CPU32_DEFAULT_SPEC "-xarch=sparc4"
 #undef ASM_CPU64_DEFAULT_SPEC
-#define ASM_CPU64_DEFAULT_SPEC AS_SPARC64_FLAG AS_NIAGARA4_FLAG
+#define ASM_CPU64_DEFAULT_SPEC "-xarch=sparc4"
 #endif
 
 #if TARGET_CPU_DEFAULT == TARGET_CPU_niagara7
 #undef CPP_CPU64_DEFAULT_SPEC
 #define CPP_CPU64_DEFAULT_SPEC ""
 #undef ASM_CPU32_DEFAULT_SPEC
-#define ASM_CPU32_DEFAULT_SPEC AS_SPARC32_FLAG AS_NIAGARA7_FLAG
+#define ASM_CPU32_DEFAULT_SPEC "-xarch=sparc5"
 #undef ASM_CPU64_DEFAULT_SPEC
-#define ASM_CPU64_DEFAULT_SPEC AS_SPARC64_FLAG AS_NIAGARA7_FLAG
+#define ASM_CPU64_DEFAULT_SPEC "-xarch=sparc5"
 #endif
 
 #if TARGET_CPU_DEFAULT == TARGET_CPU_m8
 #undef CPP_CPU64_DEFAULT_SPEC
 #define CPP_CPU64_DEFAULT_SPEC ""
 #undef ASM_CPU32_DEFAULT_SPEC
-#define ASM_CPU32_DEFAULT_SPEC AS_SPARC32_FLAG AS_M8_FLAG
+#define ASM_CPU32_DEFAULT_SPEC "-xarch=sparc6"
 #undef ASM_CPU64_DEFAULT_SPEC
-#define ASM_CPU64_DEFAULT_SPEC AS_SPARC64_FLAG AS_M8_FLAG
+#define ASM_CPU64_DEFAULT_SPEC "-xarch=sparc6"
 #endif
 
 #undef CPP_CPU_SPEC
@@ -288,15 +256,15 @@ extern const char *host_detect_local_cpu (int argc, const char **argv);
 %{mcpu=ultrasparc3:" DEF_ARCH32_SPEC("-xarch=v8plusb") DEF_ARCH64_SPEC("-xarch=v9b") "} \
 %{mcpu=niagara:" DEF_ARCH32_SPEC("-xarch=v8plusb") DEF_ARCH64_SPEC("-xarch=v9b") "} \
 %{mcpu=niagara2:" DEF_ARCH32_SPEC("-xarch=v8plusb") DEF_ARCH64_SPEC("-xarch=v9b") "} \
-%{mcpu=niagara3:" DEF_ARCH32_SPEC("-xarch=v8plus" AS_NIAGARA3_FLAG) DEF_ARCH64_SPEC("-xarch=v9" AS_NIAGARA3_FLAG) "} \
-%{mcpu=niagara4:" DEF_ARCH32_SPEC(AS_SPARC32_FLAG AS_NIAGARA4_FLAG) DEF_ARCH64_SPEC(AS_SPARC64_FLAG AS_NIAGARA4_FLAG) "} \
-%{mcpu=niagara7:" DEF_ARCH32_SPEC(AS_SPARC32_FLAG AS_NIAGARA7_FLAG) DEF_ARCH64_SPEC(AS_SPARC64_FLAG AS_NIAGARA7_FLAG) "} \
-%{mcpu=m8:" DEF_ARCH32_SPEC(AS_SPARC32_FLAG AS_M8_FLAG) DEF_ARCH64_SPEC(AS_SPARC64_FLAG AS_M8_FLAG) "} \
+%{mcpu=niagara3:" DEF_ARCH32_SPEC("-xarch=v8plusd") DEF_ARCH64_SPEC("-xarch=v9d") "} \
+%{mcpu=niagara4:" DEF_ARCH32_SPEC("-xarch=sparc4") DEF_ARCH64_SPEC("-xarch=sparc4") "} \
+%{mcpu=niagara7:" DEF_ARCH32_SPEC("-xarch=sparc5") DEF_ARCH64_SPEC("-xarch=sparc5") "} \
+%{mcpu=m8:" DEF_ARCH32_SPEC("-xarch=sparc6") DEF_ARCH64_SPEC("-xarch=sparc6") "} \
 %{!mcpu=m8:%{!mcpu=niagara7:%{!mcpu=niagara4:%{!mcpu=niagara3:%{!mcpu=niagara2:%{!mcpu=niagara:%{!mcpu=ultrasparc3:%{!mcpu=ultrasparc:%{!mcpu=v9:%{mcpu*:" DEF_ARCH32_SPEC("-xarch=v8") DEF_ARCH64_SPEC("-xarch=v9") "}}}}}}}}}} \
 %{!mcpu*:%(asm_cpu_default)} \
 "
 
-#if HAVE_GNU_LD
+#if !HAVE_SOLARIS_LD
 #define ARCH32_EMULATION "elf32_sparc_sol2"
 #define ARCH64_EMULATION "elf64_sparc_sol2"
 #endif
@@ -369,7 +337,7 @@ extern const char *host_detect_local_cpu (int argc, const char **argv);
     }									\
   while (0)
 
-#if !HAVE_GNU_AS
+#if HAVE_SOLARIS_AS
 /* This is how to output an assembler line that says to advance
    the location counter to a multiple of 2**LOG bytes using the
    NOP instruction as padding.  The filler pattern doesn't work
@@ -385,10 +353,10 @@ extern const char *host_detect_local_cpu (int argc, const char **argv);
 /* Sun as requires doublequoted section names on SPARC.  While GNU as
    supports that, too, we prefer the standard variant.  */
 #define SECTION_NAME_FORMAT	"\"%s\""
-#endif /* !HAVE_GNU_AS */
+#endif /* HAVE_SOLARIS_AS */
 
 /* Undefine this so that attribute((init_priority)) works with GNU ld.  */
-#if HAVE_GNU_LD
+#if !HAVE_SOLARIS_LD
 #undef CTORS_SECTION_ASM_OP
 #undef DTORS_SECTION_ASM_OP
 #endif

@@ -15,6 +15,7 @@ template<typename T>
 using V = S<T*>;
 
 typedef int T;
+using W = decltype (sizeof (0));
 
 static_assert (!is_type_alias (^^S<int>));
 static_assert (is_type_alias (^^U));
@@ -22,7 +23,7 @@ static_assert (!is_type_alias (^^V));
 static_assert (is_type_alias (^^V<int>));
 static_assert (is_type_alias (^^T));
 static_assert (!is_type_alias (^^wchar_t));
-static_assert (is_type_alias (^^size_t));
+static_assert (is_type_alias (^^W));
 
 using A = void(int, int);
 static_assert (is_type_alias (^^A));

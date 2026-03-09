@@ -31,6 +31,7 @@
 #include "vec.h"
 
 #include "a68.h"
+#include "a68-pretty-print.h"
 
 /* A few forward references of static functions defined in this file.  */
 
@@ -1801,7 +1802,7 @@ string break character point"));
 				  }
 
 				SCAN_ERROR (c != ',', *start_l, *ref_s,
-					    "expected , or ) in string break");
+					    "expected %<,%> or %<)%> in string break");
 			      }
 			    else
 			      {
@@ -2271,9 +2272,12 @@ tokenise_source (NODE_T **root, int level, bool in_format,
 		TOP_NODE (&A68_JOB) = q;
 	      *root = q;
 	      if (trailing != NO_TEXT)
-		a68_warning (q, 0,
-			     "ignoring trailing character H in A",
-			     trailing, att);
+		{
+		  a68_attr_format_token a (att);
+		  a68_warning (q, 0,
+			       "ignoring trailing character %qs in %e",
+			       trailing, &a);
+		}
 	    }
 	  /* Redirection in tokenising formats. The scanner is a recursive-descent type as
 	     to know when it scans a format text and when not.  */

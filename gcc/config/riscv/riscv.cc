@@ -15008,8 +15008,8 @@ riscv_same_function_versions (string_slice v1, const_tree, string_slice v2,
 
   /* Invalid features should have already been rejected by this point so
      providing no location should be okay.  */
-  parse_features_for_version (v1, UNKNOWN_LOCATION, mask1, prio1);
-  parse_features_for_version (v2, UNKNOWN_LOCATION, mask2, prio2);
+  parse_features_for_version (v1, nullptr, mask1, prio1);
+  parse_features_for_version (v2, nullptr, mask2, prio2);
 
   return compare_fmv_features (mask1, mask2, prio1, prio2) == 0;
 }

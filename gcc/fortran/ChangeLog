@@ -1,3 +1,172 @@
+2026-02-27  Harald Anlauf  <anlauf@gmx.de>
+
+	PR fortran/78187
+	* trans-decl.cc (gfc_trans_deferred_vars): An initialization block
+	shall be generated for deferred-length character results even
+	when -fno-automatic is given.
+
+2026-02-26  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/88076
+	* invoke.texi: Use corrected english.
+
+2026-02-26  Andre Vehreschild  <vehre@gcc.gnu.org>
+
+	* trans-intrinsic.cc (conv_caf_send_to_remote): Fix treating constant
+	char arrays when used in coarray sends.
+
+2026-02-26  Andre Vehreschild  <vehre@gcc.gnu.org>
+
+	PR fortran/121360
+	* resolve.cc: Introduce temporary holding rhs when lhs is a
+	coarray expresssion.
+
+2026-02-26  Andre Vehreschild  <vehre@gcc.gnu.org>
+
+	* invoke.texi: Document new environment variable GFORTRAN_IMAGE_
+	RESTARTS_LIMIT.
+
+2026-02-26  Andre Vehreschild  <vehre@gcc.gnu.org>
+
+	PR fortran/88076
+	* invoke.texi: Add description for use.
+
+2026-02-26  Andre Vehreschild  <vehre@gcc.gnu.org>
+
+	* trans-expr.cc (get_scalar_to_descriptor_type): Fix coarray
+	generation.
+	(copy_coarray_desc_part): New function to copy coarray dimensions.
+	(gfc_class_array_data_assign): Use the new function.
+	(gfc_conv_derived_to_class): Same.
+
+2026-02-26  Andre Vehreschild  <vehre@gcc.gnu.org>
+
+	* check.cc (gfc_check_image_status): Fix argument index of team=
+	argument for correct error message.
+	* trans-intrinsic.cc (conv_intrinsic_image_status): Team=
+	argument is optional and is a pointer to the team handle.
+	* trans-stmt.cc (gfc_trans_sync): Make images argument also a
+	dereferencable pointer.  But treat errmsg as a pointer to a
+	char array like in all other functions.
+
+2026-02-26  Andre Vehreschild  <vehre@gcc.gnu.org>
+
+	* check.cc (gfc_check_failed_or_stopped_images): Support teams
+	argument and check for incorrect type.
+
+2026-02-25  Christopher Albert  <albert@tugraz.at>
+
+	PR fortran/124235
+	* trans-array.cc (generate_element_copy_wrapper): Use
+	cgraph_node::finalize_function with no_collect=true instead
+	of cgraph_node::add_new_function to avoid garbage collection
+	while caller frames hold unrooted tree nodes.
+
+2026-02-25  Christopher Albert  <albert@tugraz.at>
+
+	PR fortran/124208
+	* resolve.cc (gfc_max_forall_iterators_in_chain): Count
+	iterators in EXEC_BLOCK namespaces.
+
+2026-02-23  Gonzalo Silvalde Blanco  <gonzalo.silvalde@gmail.com>
+
+	PR fortran/80012
+	* symbol.cc (gfc_add_procedure): Split error into gfc_error and
+	inform using auto_diagnostic_group.
+
+2026-02-23  Paul-Antoine Arras  <parras@baylibre.com>
+
+	PR fortran/120505
+	* trans-openmp.cc (gfc_map_array_descriptor): New function.
+	(gfc_trans_omp_clauses): Emit map clauses for intermediate array
+	descriptors.
+
+2026-02-23  Christopher Albert  <albert@tugraz.at>
+
+	PR fortran/123949
+	* trans-array.cc (structure_alloc_comps): Add missing
+	gfc_init_se call in case ALLOCATE_PDT_COMP for scalar
+	component default initializer.
+
+2026-02-21  Harald Anlauf  <anlauf@gmx.de>
+
+	Revert:
+	2026-02-20  Gonzalo Silvalde Blanco  <gonzalo.silvalde@gmail.com>
+
+	PR fortran/80012
+	* symbol.cc (gfc_add_procedure): Split error into gfc_error and
+	inform using auto_diagnostic_group.
+
+2026-02-20  Gonzalo Silvalde Blanco  <gonzalo.silvalde@gmail.com>
+
+	PR fortran/80012
+	* symbol.cc (gfc_add_procedure): Split error into gfc_error and
+	inform using auto_diagnostic_group.
+
+2026-02-20  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/123949
+	* decl.cc (gfc_get_pdt_instance): Use full integer string encoding
+	for PDT instance naming rather than 32-bit extraction, which caused
+	ICEs for valid large KIND values.
+
+2026-02-19  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/122491
+	* decl.cc (gfc_match_end): Do not free current BLOCK namespace
+	during malformed END cleanup.
+
+2026-02-18  Tobias Burnus  <tburnus@baylibre.com>
+
+	* symbol.cc (gfc_check_conflict): Reject mixing OpenMP threadprivate
+	with groupprivate.
+	* trans-common.cc (build_common_decl): Remove warning when mixing
+	threadprivate with groupprivate.
+	* trans-decl.cc (add_attributes_to_decl): Likewise.
+
+2026-02-15  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/108663
+	* decl.cc (gfc_get_pdt_instance): Use PDT_PREFIX and
+	PDT_PREFIX_LEN.
+	* gfortran.h : Define PDT_PREFIX and PDT_PREFIX_LEN. Note that
+	PDT_PREFIX must have at least two upper case letters.
+	* module.cc (read_module): Use PDT_PREFIX and PDT_PREFIX_LEN.
+	* resolve.cc (resolve_typebound_procedure): Both pdt_template
+	and pdt_type resolve_bindings_derived dummies should be tested
+	for LEN type parameters being assumed.
+	* symbol.cc (gfc_pdt_is_instance_of): Update preceding comment
+	and use PDT_PREFIX_LEN.
+
+2026-02-14  Christopher Albert  <albert@tugraz.at>
+	    Harald Anlauf  <anlauf@gcc.gnu.org>
+
+	PR fortran/123943
+	* resolve.cc (gfc_max_forall_iterators_in_chain): New helper
+	function for factorization of iterator-depth counting.
+	(gfc_count_forall_iterators): Use it.
+
+2026-02-14  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/99250
+	* check.cc (gfc_check_coshape): New function.
+	* gfortran.h: Add GFC_ISYM_COSHAPE to gfc_isym_id.
+	* intrinsic.cc (add_functions): Add the coshape prototype and
+	its 'make_generic'.
+	* intrinsic.h: Add prototypes for gfc_check_coshape and
+	gfc_resolve_coshape.
+	* intrinsic.texi : Add entries for coshape.
+	* iresolve.cc (gfc_resolve_coshape): New function.
+	* trans-array.cc (gfc_conv_ss_startstride): Add 'case
+	GFC_ISYM_COSHAPE' in two places.
+	* trans-intrinsic.cc (conv_intrinsic_cobound): Modify assert in
+	scalarized section for lbound. Set bound to zero for scalar
+	case of coshape. Keep the lbound and use it together with the
+	scalarized ubound to obtain the coshape.
+	(gfc_conv_intrinsic_function, gfc_add_intrinsic_ss_code and
+	gfc_walk_intrinsic_function): Add 'case GFC_ISYM_COSHAPE' as
+	appropriate.
+
 2026-02-08  Harald Anlauf  <anlauf@gmx.de>
 
 	PR fortran/85547

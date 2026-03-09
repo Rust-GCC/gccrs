@@ -9,7 +9,7 @@
            03  XBYTE    PIC X.
            03  FILLER   PIC XXX.
        PROCEDURE        DIVISION.
-           MOVE X"0D"   TO XBYTE.
+           MOVE "a"   TO XBYTE.
            IF X ALPHABETIC-UPPER
               DISPLAY "Fail - Not alphabetic upper"
               END-DISPLAY

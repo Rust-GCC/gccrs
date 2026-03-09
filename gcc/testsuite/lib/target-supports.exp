@@ -6301,6 +6301,7 @@ foreach { armfunc armflag armdefs } {
 # flags).  See above for setting -march=.
 foreach { armfunc armflag armdefs } {
 	    xscale_arm "-mcpu=xscale -mtune=xscale -mfloat-abi=soft -marm" "__XSCALE__ && !__thumb__"
+	    cortex_a53 "-mcpu=cortex-a53 -mtune=cortex-a53" __ARM_ARCH_8A__
 	    cortex_a57 "-mcpu=cortex-a57 -mtune=cortex-a57" __ARM_ARCH_8A__
 	    cortex_m0 "-mcpu=cortex-m0 -mtune=cortex-m0 -mfloat-abi=soft -mthumb" "__ARM_ARCH_6M__ && __thumb__"
 	    cortex_m0_small "-mcpu=cortex-m0.small-multiply -mtune=cortex-m0.small-multiply -mfloat-abi=soft -mthumb" "__ARM_ARCH_6M__ && __thumb__"
@@ -13788,7 +13789,7 @@ proc check_effective_target_arm_v8_3a_complex_neon_ok_nocache { } {
     if { [istarget arm*-*-*] } {
 	set flag_opts {
 	    ""
-	    "-mcpu=unset -march=armv8.3-a+simd"
+	    "-mfpu=auto -mcpu=unset -march=armv8.3-a+simd"
 	    "-mfloat-abi=softfp -mfpu=auto -mcpu=unset -march=armv8.3-a+simd"
 	    "-mfloat-abi=hard -mfpu=auto -mcpu=unset -march=armv8.3-a+simd"
 	}
@@ -13891,7 +13892,7 @@ proc add_options_for_arm_v8_3a_fp16_complex_neon { flags } {
 
 proc check_effective_target_arm_v8_3a_complex_neon_hw { } {
     if { ![check_effective_target_arm_v8_3a_complex_neon_ok] } {
-	return 1;
+	return 0;
     }
     return [check_runtime arm_v8_3a_complex_neon_hw_available {
 	#include "arm_neon.h"
@@ -14143,10 +14144,13 @@ proc check_effective_target_movdir { } {
     } "-mmovdiri -mmovdir64b" ]
 }
 
-# Return 1 if the target does not support address sanitizer, 0 otherwise
+# Return 1 if the target does not support address sanitizer, 0 otherwise.
+# Note that this is usable only for compilation test cases.  (Otherwise, use a
+# proper 'asan.exp' file with 'asan_init'/'asan_finish' calls to set up linker
+# paths, etc.)
 
 proc check_effective_target_no_fsanitize_address {} {
-    if ![check_no_compiler_messages fsanitize_address executable {
+    if ![check_no_compiler_messages fsanitize_address assembly {
 	int main (void) { return 0; }
     } "-fsanitize=address" ] {
 	return 1;

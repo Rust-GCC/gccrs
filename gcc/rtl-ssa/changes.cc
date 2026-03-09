@@ -110,9 +110,10 @@ function_info::verify_insn_changes (array_slice<insn_change *const> changes)
 	// Make sure that the changes can be kept in their current order
 	// while honoring all of the move ranges.
 	min_insn = later_insn (min_insn, change->move_range.first);
-	while (min_insn != change->insn () && !can_insert_after (min_insn))
+	while (min_insn && min_insn != change->insn () && !can_insert_after (min_insn))
 	  min_insn = min_insn->next_nondebug_insn ();
-	if (*min_insn > *change->move_range.last)
+
+	if (!min_insn || *min_insn > *change->move_range.last)
 	  {
 	    if (dump_file && (dump_flags & TDF_DETAILS))
 	      fprintf (dump_file, "no viable insn position assignment\n");

@@ -57,30 +57,6 @@ enum binding_slots
  BINDING_SLOTS_FIXED = BINDING_SLOT_GLOBAL + 1
 };
 
-/* Create an overload suitable for recording an artificial TYPE_DECL
-   and another decl.  We use this machanism to implement the struct
-   stat hack.  */
-
-#define STAT_HACK_P(N) ((N) && TREE_CODE (N) == OVERLOAD && OVL_LOOKUP_P (N))
-#define STAT_TYPE_VISIBLE_P(N) TREE_USED (OVERLOAD_CHECK (N))
-#define STAT_TYPE(N) TREE_TYPE (N)
-#define STAT_DECL(N) OVL_FUNCTION (N)
-#define STAT_VISIBLE(N) OVL_CHAIN (N)
-#define MAYBE_STAT_DECL(N) (STAT_HACK_P (N) ? STAT_DECL (N) : N)
-#define MAYBE_STAT_TYPE(N) (STAT_HACK_P (N) ? STAT_TYPE (N) : NULL_TREE)
-
-/* When a STAT_HACK_P is true, OVL_USING_P and OVL_EXPORT_P are valid
-   and apply to the hacked type.  */
-
-/* For regular (maybe) overloaded functions, we have OVL_HIDDEN_P.
-   But we also need to indicate hiddenness on implicit type decls
-   (injected friend classes), and (coming soon) decls injected from
-   block-scope externs.  It is too awkward to press the existing
-   overload marking for that.  If we have a hidden non-function, we
-   always create a STAT_HACK, and use these two markers as needed.  */
-#define STAT_TYPE_HIDDEN_P(N) OVL_HIDDEN_P (N)
-#define STAT_DECL_HIDDEN_P(N) OVL_DEDUP_P (N)
-
 /* Create a STAT_HACK node with DECL as the value binding and TYPE as
    the type binding.  */
 
@@ -1893,6 +1869,11 @@ fields_linear_search (tree klass, tree name, bool want_type)
 	    continue;
 	}
 
+      if (TYPE_DECL_WAS_UNNAMED (decl))
+	/* Ignore DECL_NAME given to unnamed TYPE_DECLs named for linkage
+	   purposes.  */
+	continue;
+
       if (DECL_DECLARES_FUNCTION_P (decl))
 	/* Functions are found separately.  */
 	continue;
@@ -2369,7 +2350,13 @@ count_class_fields (tree klass)
 	     && ANON_AGGR_TYPE_P (TREE_TYPE (fields)))
       n_fields += count_class_fields (TREE_TYPE (fields));
     else if (DECL_NAME (fields))
-      n_fields += 1;
+      {
+	if (TYPE_DECL_WAS_UNNAMED (fields))
+	  /* Ignore DECL_NAME given to unnamed TYPE_DECLs named for linkage
+	     purposes.  */
+	  continue;
+	n_fields += 1;
+      }
 
   return n_fields;
 }
@@ -2393,6 +2380,10 @@ member_vec_append_class_fields (vec<tree, va_gc> *member_vec, tree klass)
 	if (TREE_CODE (field) == USING_DECL
 	    && IDENTIFIER_CONV_OP_P (DECL_NAME (field)))
 	  field = ovl_make (conv_op_marker, field);
+	else if (TYPE_DECL_WAS_UNNAMED (field))
+	  /* Ignore DECL_NAME given to unnamed TYPE_DECLs named for linkage
+	     purposes.  */
+	  continue;
 	member_vec->quick_push (field);
       }
 }
@@ -2724,7 +2715,9 @@ pop_local_binding (tree id, tree decl)
     binding->value = NULL_TREE;
   else if (binding->type == decl)
     binding->type = NULL_TREE;
-  else
+  /* Ignore DECL_NAME given to unnamed TYPE_DECLs named for linkage
+     purposes.  */
+  else if (!TYPE_DECL_WAS_UNNAMED (decl))
     {
       /* Name-independent variable was found after at least one declaration
 	 with the same name.  */

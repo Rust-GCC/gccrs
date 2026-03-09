@@ -1,0 +1,4 @@
+                 FOO is 1.
+Should have seen FOO is 1.
+Shouldn't see    FOO is 2.
+

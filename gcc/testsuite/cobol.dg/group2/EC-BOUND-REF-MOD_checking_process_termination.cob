@@ -1,5 +1,6 @@
        *> { dg-do run }
        *> { dg-xfail-run-if "" { *-*-* }  }
+       *> { dg-options "-Wno-any-length" }
        *> { dg-output-file "group2/EC-BOUND-REF-MOD_checking_process_termination.out" }
         identification   division.
         program-id.      caller.

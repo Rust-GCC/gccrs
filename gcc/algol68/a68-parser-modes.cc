@@ -24,6 +24,7 @@
 #include "coretypes.h"
 
 #include "a68.h"
+#include "a68-pretty-print.h"
 
 /*
  * Mode collection, equivalencing and derived modes.
@@ -518,7 +519,7 @@ get_mode_from_declarer (NODE_T *p)
 		  /* Position of definition tells indicants apart.  */
 		  TAG_T *y = a68_find_tag_global (TABLE (p), INDICANT, NSYMBOL (p));
 		  if (y == NO_TAG)
-		    a68_error ( p, "tag Z has not been declared properly", NSYMBOL (p));
+		    a68_error (p, "tag %qs has not been declared properly", NSYMBOL (p));
 		  else
 		    MOID (p) = a68_add_mode (&TOP_MOID (&A68_JOB), INDICANT, 0, NODE (y),
 					     NO_MOID, NO_PACK);
@@ -1217,7 +1218,10 @@ compute_derived_modes (MODULE_T *mod)
   for (z = TOP_MOID (mod); z != NO_MOID; FORWARD (z))
     {
       if (IS_FLEX (z) && !IS (SUB (z), ROW_SYMBOL))
-	a68_error (NODE (z), "M does not specify a well formed mode", z);
+	{
+	  a68_moid_format_token m (z);
+	  a68_error (NODE (z), "%e does not specify a well formed mode", &m);
+	}
     }
 
   /* Check on fields in structured modes f.i. STRUCT (REAL x, INT n, REAL x) is
@@ -1236,7 +1240,8 @@ compute_derived_modes (MODULE_T *mod)
 		{
 		  if (TEXT (s) == TEXT (t))
 		    {
-		      a68_error (NODE (z), "multiple declaration of field S");
+		      a68_symbol_format_token zs (NODE (z));
+		      a68_error (NODE (z), "multiple declaration of field %e", &zs);
 		      while (NEXT (s) != NO_PACK && TEXT (NEXT (s)) == TEXT (t))
 			FORWARD (s);
 		      x = false;
@@ -1254,7 +1259,10 @@ compute_derived_modes (MODULE_T *mod)
 	  PACK_T *s = PACK (z);
 	  /* Discard unions with one member.  */
 	  if (a68_count_pack_members (s) == 1)
-	    a68_error (NODE (z), "M must have at least two components", z);
+	    {
+	      a68_moid_format_token m (z);
+	      a68_error (NODE (z), "%e must have at least two components", &m);
+	    }
 	  /* Discard incestuous unions with firmly related modes.  */
 	  for (; s != NO_PACK; FORWARD (s))
 	    {
@@ -1265,7 +1273,10 @@ compute_derived_modes (MODULE_T *mod)
 		  if (MOID (t) != MOID (s))
 		    {
 		      if (a68_is_firm (MOID (s), MOID (t)))
-			a68_error (NODE (z), "M has firmly related components", z);
+			{
+			  a68_moid_format_token m (z);
+			  a68_error (NODE (z), "%e has firmly related components", &m);
+			}
 		    }
 		}
 	    }
@@ -1276,7 +1287,11 @@ compute_derived_modes (MODULE_T *mod)
 	      MOID_T *n = a68_depref_completely (MOID (s));
 
 	      if (IS (n, UNION_SYMBOL) && a68_is_subset (n, z, NO_DEFLEXING))
-		  a68_error (NODE (z), "M has firmly related subset M", z, n);
+		{
+		  a68_moid_format_token m1 (z);
+		  a68_moid_format_token m2 (n);
+		  a68_error (NODE (z), "%e has firmly related subset %e", &m1, &m2);
+		}
 	    }
 	}
     }
@@ -1321,7 +1336,8 @@ a68_make_moid_list (MODULE_T *mod)
 	{
 	  if (!is_well_formed (z, EQUIVALENT (z), false, false, true))
 	    {
-	      a68_error (NODE (z), "M does not specify a well formed mode", z);
+	      a68_moid_format_token m (z);
+	      a68_error (NODE (z), "%e does not specify a well formed mode", &m);
 	      cont = false;
 	    }
 	}
@@ -1334,7 +1350,10 @@ a68_make_moid_list (MODULE_T *mod)
       else if (NODE (z) != NO_NODE)
 	{
 	  if (!is_well_formed (NO_MOID, z, false, false, true))
-	    a68_error (NODE (z), "M does not specify a well formed mode", z);
+	    {
+	      a68_moid_format_token m (z);
+	      a68_error (NODE (z), "%e does not specify a well formed mode", &m);
+	    }
 	}
     }
 

@@ -57,12 +57,15 @@ get_hole_symbol (NODE_T *p, bool *addrp)
   gcc_assert (IS (str, ROW_CHAR_DENOTATION));
 
   const char *cstr = NSYMBOL (str);
-  if (strlen (cstr) > 0 && cstr[0] == '&' && addrp != NULL)
+  bool isaddr = false;
+  if (strlen (cstr) > 0 && cstr[0] == '&')
     {
-      *addrp = true;
+      isaddr = true;
       cstr = cstr + 1;
     }
 
+  if (addrp != NULL)
+    *addrp = isaddr;
   return a68_string_process_breaks (p, cstr);
 }
 
@@ -72,8 +75,9 @@ tree
 a68_wrap_formal_var_hole (NODE_T *p)
 {
   gcc_assert (!IS (MOID (p), PROC_SYMBOL));
-  const char *symbol = get_hole_symbol (p, NULL /* addrp */);
-  return a68_make_formal_hole_decl (p, symbol);
+  bool addrp;
+  const char *symbol = get_hole_symbol (p, &addrp);
+  return a68_make_formal_hole_decl (p, symbol, addrp);
 }
 
 /* Build the body for a wrapper to the formal hole in P, which is of a proc
@@ -101,9 +105,13 @@ a68_wrap_formal_proc_hole (NODE_T *p, tree wrapper)
       else
 	wrapped_nargs += 1;
     }
+  if (SUB (m) == M_STRING)
+    wrapped_nargs += 2;
 
   /* Now build the type of the wrapped function.  */
-
+  tree wrapper_ret_type = TREE_TYPE (TREE_TYPE (wrapper));
+  tree wrapped_ret_type = (SUB (m) == M_STRING || SUB (m) == M_VOID
+			   ? void_type_node : wrapper_ret_type);
   tree *wrapped_args_types = XALLOCAVEC (tree, wrapped_nargs);
   int nwrappedarg = 0;
   for (PACK_T *z = PACK (m); z != NO_PACK; FORWARD (z))
@@ -120,11 +128,18 @@ a68_wrap_formal_proc_hole (NODE_T *p, tree wrapper)
 	}
     }
 
-  tree wrapper_ret_type = TREE_TYPE (TREE_TYPE (wrapper));
-  tree wrapped_type = build_function_type_array (wrapper_ret_type,
+  if (SUB (m) == M_STRING)
+    {
+      wrapped_args_types[nwrappedarg++]
+	= build_pointer_type (build_pointer_type (a68_char_type));
+      wrapped_args_types[nwrappedarg++]
+	= build_pointer_type (size_type_node);
+    }
+
+  tree wrapped_type = build_function_type_array (wrapped_ret_type,
 						 wrapped_nargs,
 						 wrapped_args_types);
-      
+
   /* And a decl for the wrapped function.  */
   tree wrapped = build_decl (UNKNOWN_LOCATION,
 			     FUNCTION_DECL,
@@ -164,13 +179,65 @@ a68_wrap_formal_proc_hole (NODE_T *p, tree wrapper)
     }
   DECL_ARGUMENTS (wrapper) = nreverse (DECL_ARGUMENTS (wrapper));
 
+  tree body = NULL_TREE;
   a68_push_function_range (wrapper, wrapper_ret_type);
+  {
+    /* Note how we need a pointer to a function type for the call.  */
+    if (!POINTER_TYPE_P (TREE_TYPE (wrapped)))
+      wrapped = fold_build1 (ADDR_EXPR, build_pointer_type (TREE_TYPE (wrapped)),
+			     wrapped);
+    if (SUB (m) == M_STRING
+	|| (IS_REF (SUB (m)) && SUB (SUB (m)) == M_STRING))
+      {
+	a68_push_range (SUB (m));
+	tree ptrchar_type = build_pointer_type (a68_char_type);
+	tree r = a68_lower_tmpvar ("r%", ptrchar_type, build_int_cst (ptrchar_type, 0));
+	tree rlen = a68_lower_tmpvar ("rlen%", sizetype, size_int (0));
+	TREE_ADDRESSABLE (r) = 1;
+	TREE_ADDRESSABLE (rlen) = 1;
 
-  /* We need a pointer to a function type.  */
-  if (!POINTER_TYPE_P (TREE_TYPE (wrapped)))
-    wrapped = fold_build1 (ADDR_EXPR, build_pointer_type (TREE_TYPE (wrapped)),
-			   wrapped);
+	/* Add two additional arguments to the wrapped call if the wrapper
+	   returns a string.  */
+	wrapped_args->quick_push (fold_build1 (ADDR_EXPR,
+					       build_pointer_type (ptrchar_type), r));
+	wrapped_args->quick_push (fold_build1 (ADDR_EXPR,
+					       build_pointer_type (sizetype), rlen));
 
-  tree body = build_call_vec (TREE_TYPE (wrapped_type), wrapped, wrapped_args);
+	/* Call to the wrapped function.  */
+	tree call = build_call_vec (TREE_TYPE (wrapped_type), wrapped, wrapped_args);
+	a68_add_stmt (call);
+
+	/* Build the result string.  */
+	tree lower_bound = ssize_int (1);
+	tree upper_bound = fold_convert (ssizetype, rlen);
+	tree relems_size = fold_build2 (MULT_EXPR, sizetype,
+					rlen, size_in_bytes (a68_char_type));
+
+
+	if (SUB (m) == M_STRING)
+	  a68_add_stmt (a68_row_value (CTYPE (M_STRING), 1 /* dim */,
+				       r, relems_size, &lower_bound, &upper_bound));
+	else
+	  {
+	    /* Return a ref to string.  */
+	    gcc_assert (IS_REF (SUB (m)) && SUB (SUB (m)) == M_STRING);
+	    a68_add_stmt (a68_row_malloc (M_STRING, 1 /* dim */,
+					  r, relems_size,
+					  &lower_bound, &upper_bound));
+	  }
+	body = a68_pop_range ();
+      }
+    else if (SUB (m) == M_VOID)
+      {
+	a68_push_range (M_VOID);
+	a68_add_stmt (build_call_vec (TREE_TYPE (wrapped_type),
+				      wrapped,
+				      wrapped_args));
+	a68_add_stmt (a68_get_empty ());
+	body = a68_pop_range ();
+      }
+    else
+      body = build_call_vec (TREE_TYPE (wrapped_type), wrapped, wrapped_args);
+  }
   a68_pop_function_range (body);
 }

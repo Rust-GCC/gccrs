@@ -72,13 +72,15 @@ def skip_warning(filename, message):
             'm2/gm2-compiler-boot': ['-Wunused-'],
             # Rust peopel promised to clean these warnings too
             'rust/': ['-Wunused-private-field'],
-                 'libiberty/sha1.c': ['-Wc23-extensions'],
-            'avr-mmcu.texi': [''],
-            'gfortran.texi': [''],
-            'install.texi': [''],
-            'libgccjit.texi': [''],
+            # except perhaps for this one, see
+            # https://github.com/Rust-GCC/gccrs/issues/4441
+            'rust/ast/rust-fmt.h': ['-Wreturn-type-c-linkage'],
+            'libiberty/sha1.c': ['-Wc23-extensions'],
             'libtool': ['']
     }
+
+    if ".texi" in filename:
+        return True
 
     for name, ignore in ignores.items():
         for i in ignore:

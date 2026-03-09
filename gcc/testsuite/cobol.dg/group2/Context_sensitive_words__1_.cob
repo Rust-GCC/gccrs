@@ -7,8 +7,11 @@
        WORKING-STORAGE  SECTION.
        01  BYTE-LENGTH  PIC 9.
        01  X            CONSTANT AS BYTE-LENGTH OF BYTE-LENGTH.
+       01  stride       binary-short.
        PROCEDURE        DIVISION.
+           move function byte-length("A") to stride
            MOVE X TO BYTE-LENGTH.
+           compute byte-length = x / stride
            DISPLAY BYTE-LENGTH NO ADVANCING
            END-DISPLAY.
            STOP RUN.

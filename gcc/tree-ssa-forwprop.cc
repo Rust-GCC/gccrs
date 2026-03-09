@@ -1734,11 +1734,22 @@ optimize_agr_copyprop_return (gimple *defstmt, greturn *use,
       || is_gimple_min_invariant (rvalue)
       || TYPE_VOLATILE (TREE_TYPE (rvalue)))
     return;
+
+  /* `return <retval>;` is already the best it could be.
+     Likewise `return *<retval>_N(D)`.  */
+  if (TREE_CODE (rvalue) == RESULT_DECL
+      || (TREE_CODE (rvalue) == MEM_REF
+	  && TREE_CODE (TREE_OPERAND (rvalue, 0)) == SSA_NAME
+	  && TREE_CODE (SSA_NAME_VAR (TREE_OPERAND (rvalue, 0)))
+	       == RESULT_DECL))
+    return;
   tree newsrc = new_src_based_on_copy (rvalue, dest, src);
   if (!newsrc)
     return;
-  /* Currently only support decls, could support VCEs too? */
-  if (!DECL_P (newsrc))
+  /* Currently only support non-global vars.
+     See PR 124099 on enumtls not supporting expanding for GIMPLE_RETURN.
+     FIXME: could support VCEs too?  */
+  if (!VAR_P (newsrc) || is_global_var (newsrc))
     return;
   if (dump_file && (dump_flags & TDF_DETAILS))
     {
@@ -4069,7 +4080,7 @@ simplify_vector_constructor (gimple_stmt_iterator *gsi)
 		  == TYPE_PRECISION (TREE_TYPE (type)))
 	      && orig_elem_type[0]
 	      && useless_type_conversion_p (orig_elem_type[0],
-					    TREE_TYPE (type))
+					    TREE_TYPE (TREE_TYPE (orig[0])))
 	      && mode_for_vector (as_a <scalar_mode>
 				  (TYPE_MODE (TREE_TYPE (TREE_TYPE (orig[0])))),
 				  nelts * 2).exists ()
@@ -4111,7 +4122,7 @@ simplify_vector_constructor (gimple_stmt_iterator *gsi)
 		       == 2 * TYPE_PRECISION (TREE_TYPE (type)))
 		   && orig_elem_type[0]
 		   && useless_type_conversion_p (orig_elem_type[0],
-						 TREE_TYPE (type))
+						 TREE_TYPE (TREE_TYPE (orig[0])))
 		   && mode_for_vector (as_a <scalar_mode>
 				         (TYPE_MODE
 					   (TREE_TYPE (TREE_TYPE (orig[0])))),

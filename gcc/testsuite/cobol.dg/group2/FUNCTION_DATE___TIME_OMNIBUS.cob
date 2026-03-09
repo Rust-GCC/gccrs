@@ -1,8 +1,7 @@
        *> { dg-do run }
-       *> { dg-set-target-env-var TZ UTC0 }
 
         identification division.
-        program-id. test.
+        program-id. testy.
       *>  Tests all the DATE and TIME functions
       *>
       *>  The various functions are used to test each other.
@@ -84,7 +83,7 @@
         01 forced_date_v pic X(64) VALUE Z"1945/06/01 12:34:56".
 
         procedure division.
-        CALL "setenv" using forced_date_n, forced_date_v
+        set environment forced_date_n to forced_date_v
 
         move "SECONDS-PAST-MIDNIGHT" to checking
         move "45296" to should-be
@@ -331,5 +330,5 @@
                 move "+hh:mm" TO should-be(20:6)
                 end-if
         .
-        end program test.
+        end program testy.
 

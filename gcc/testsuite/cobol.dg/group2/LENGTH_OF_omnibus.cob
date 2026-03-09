@@ -23,75 +23,77 @@
         77      should-be pic zzzz9.
         77      but-is    pic zzzz9.
 
+        01 stride binary-short.
         procedure division.
+        move function byte-length("A") to stride
 
         display "using LENGTH OF"
 
         move    "Length of desc1" to msg
         move    50 to should-be
-        move    length of desc1 to but-is
+        compute but-is = length of desc1 / stride
         perform result-is
 
         move    "Length of desc1-entry" to msg
         move    5 to should-be
-        move    length of desc1-entry to but-is
+        compute but-is = length of desc1-entry / stride
         perform result-is
 
         move    "Length of desc1-entry(1)" to msg
         move    5 to should-be
-        move    length of desc1-entry(1) to but-is
+        compute but-is = length of desc1-entry(1) / stride
         perform result-is
 
         move    "Length of desc2" to msg
         move    50 to should-be
-        move    length of desc2 to but-is
+        compute but-is = length of desc2 / stride
         perform result-is
 
         move    "Length of desc2-table" to msg
         move    5 to should-be
-        move    length of desc2-table to but-is
+        compute but-is = length of desc2-table / stride
         perform result-is
 
         move    "Length of desc2-entry" to msg
         move    5 to should-be
-        move    length of desc2-entry to but-is
+        compute but-is = length of desc2-entry / stride
         perform result-is
 
         move    "Length of desc2-entry(1)" to msg
         move    5 to should-be
-        move    length of desc2-entry(1) to but-is
+        compute but-is = length of desc2-entry(1) / stride
         perform result-is
 
         move    5 to desc3-lim
 
         move    "Length of desc3" to msg
         move    750 to should-be
-        move    length of desc3 to but-is
+        compute but-is = length of desc3 / stride
         perform result-is
 
         move    "Length of desc3-outer" to msg
         move    150 to should-be
-        move    length of desc3-outer to but-is
+        compute but-is = length of desc3-outer / stride
         perform result-is
 
         move    "Length of desc3-outer(1)" to msg
         move    150 to should-be
-        move    length of desc3-outer(1) to but-is
+        compute but-is = length of desc3-outer(1) / stride
         perform result-is
 
         move    "Length of desc3-outer-txt" to msg
         move    7 to should-be
-        move    length of desc3-outer-txt to but-is
+        compute but-is = length of desc3-outer-txt / stride
         perform result-is
 
         move    "Length of desc3-inner" to msg
         move    13 to should-be
-        move    length of desc3-inner to but-is
+        compute but-is = length of desc3-inner / stride
         perform result-is
 
         move    "Length of desc3-inner(1)" to msg
         move    13 to should-be
-        move    length of desc3-inner(1) to but-is
+        compute but-is = length of desc3-inner(1) / stride
         perform result-is
 
         goback.

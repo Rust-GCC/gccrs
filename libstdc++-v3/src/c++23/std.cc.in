@@ -1915,8 +1915,8 @@ export namespace std
   using std::full_extent_t;
   using std::full_extent;
   using std::submdspan_mapping_result;
-  using std::submdspan_canonicalize_slices;
-  using std::submdspan_extents;
+  using std::canonical_slices;
+  using std::subextents;
   using std::submdspan;
 #endif
 }

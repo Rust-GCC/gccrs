@@ -3931,6 +3931,28 @@ fix = {
 };
 
 /*
+ * Solaris <sys/int_types.h> defines int8_t as char which violates C99.
+ * Same for int_fast8_t and int_least8_t.
+ */
+fix = {
+    hackname  = solaris_int8_t;
+    files     = sys/int_types.h;
+    mach      = '*-*-solaris2*';
+    bypass    = '_LEGACY_INT8_T';
+    c_fix     = format;
+    c_fix_arg = "#if !defined(_LEGACY_INT8_T)\n"
+                "typedef signed char int%18_t;\n"
+                "#else\n"
+                "%0\n"
+                "#endif";
+    select    = "^[ \t]*typedef[ \t]*char[ \t]*int(|_fast|_least)8_t.*";
+    test_text =
+    "typedef char int8_t;\n"
+    "typedef char int_fast8_t;\n"
+    "typedef char int_least8_t;";
+};
+
+/*
  * Some versions of Solaris 10+ <math.h> #undef libstdc++-internal macros.
  */
 fix = {

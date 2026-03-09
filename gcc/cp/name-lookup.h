@@ -41,6 +41,30 @@ struct cp_binding_level;
    value and type slots are both filled and both hidden.  */
 #define HIDDEN_TYPE_BINDING_P(NODE) ((NODE)->type_is_hidden)
 
+/* Create an overload suitable for recording an artificial TYPE_DECL
+   and another decl.  We use this machanism to implement the struct
+   stat hack.  */
+
+#define STAT_HACK_P(N) ((N) && TREE_CODE (N) == OVERLOAD && OVL_LOOKUP_P (N))
+#define STAT_TYPE_VISIBLE_P(N) TREE_USED (OVERLOAD_CHECK (N))
+#define STAT_TYPE(N) TREE_TYPE (N)
+#define STAT_DECL(N) OVL_FUNCTION (N)
+#define STAT_VISIBLE(N) OVL_CHAIN (N)
+#define MAYBE_STAT_DECL(N) (STAT_HACK_P (N) ? STAT_DECL (N) : N)
+#define MAYBE_STAT_TYPE(N) (STAT_HACK_P (N) ? STAT_TYPE (N) : NULL_TREE)
+
+/* When a STAT_HACK_P is true, OVL_USING_P and OVL_EXPORT_P are valid
+   and apply to the hacked type.  */
+
+/* For regular (maybe) overloaded functions, we have OVL_HIDDEN_P.
+   But we also need to indicate hiddenness on implicit type decls
+   (injected friend classes), and (coming soon) decls injected from
+   block-scope externs.  It is too awkward to press the existing
+   overload marking for that.  If we have a hidden non-function, we
+   always create a STAT_HACK, and use these two markers as needed.  */
+#define STAT_TYPE_HIDDEN_P(N) OVL_HIDDEN_P (N)
+#define STAT_DECL_HIDDEN_P(N) OVL_DEDUP_P (N)
+
 /* Datatype that represents binding established by a declaration between
    a name and a C++ entity.  */
 struct GTY(()) cxx_binding {

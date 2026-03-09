@@ -10165,7 +10165,13 @@ generate_element_copy_wrapper (gfc_symbol *der_type, tree comp_type,
 
   pop_cfun ();
 
-  cgraph_node::add_new_function (fndecl, false);
+  /* Use finalize_function with no_collect=true to skip the ggc_collect
+     call that add_new_function would trigger.  This function is called
+     during tree lowering of structure_alloc_comps where caller stack
+     frames hold locally-computed tree nodes (COMPONENT_REFs etc.) that
+     are not yet attached to any GC root.  A collection at this point
+     would free those nodes and cause segfaults.  PR124235.  */
+  cgraph_node::finalize_function (fndecl, true);
 
   return build1 (ADDR_EXPR, get_copy_helper_pointer_type (), fndecl);
 }
@@ -11136,6 +11142,7 @@ structure_alloc_comps (gfc_symbol * der_type, tree decl, tree dest,
 	    {
 	      gfc_se tse;
 	      gfc_expr *c_expr;
+	      gfc_init_se (&tse, NULL);
 	      c_expr = c->initializer;
 	      gfc_conv_expr_type (&tse, c_expr, TREE_TYPE (comp));
 	      gfc_add_block_to_block (&fnblock, &tse.pre);

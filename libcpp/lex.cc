@@ -3674,6 +3674,15 @@ cpp_maybe_module_directive (cpp_reader *pfile, cpp_token *result)
 		      peek->flags |= NO_DOT_COLON;
 		      break;
 		    }
+		  else if (peek->type == CPP_PRAGMA_EOL)
+		    {
+		      /* This is a broken module-directive; undo the clearing
+			 of in_deferred_pragma from _cpp_lex_direct so callers
+			 don't crash, and make sure we process the EOL again.  */
+		      pfile->state.in_deferred_pragma = true;
+		      eol = true;
+		      break;
+		    }
 		  else
 		    break;
 		}
@@ -3703,7 +3712,7 @@ cpp_maybe_module_directive (cpp_reader *pfile, cpp_token *result)
     {
       /* Put the peeked tokens back.  */
       _cpp_backup_tokens_direct (pfile, backup);
-      /* But if the last one was an EOL in the not_module case, forget it.  */
+      /* But if the last one was an EOL, forget it.  */
       if (eol)
 	pfile->lookaheads--;
     }

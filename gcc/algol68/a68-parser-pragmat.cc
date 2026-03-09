@@ -114,7 +114,7 @@ handle_access_in_pragmat (NODE_T *p, const char *pragmat, size_t pos)
       char *found;
       PARSE_WORD (pragmat, found);
       a68_error_in_pragmat (p, off,
-			    "in %<access%> pragmat, expected string, found Z",
+			    "in %<access%> pragmat, expected string, found %qs",
 			    found);
       return NULL;
     }
@@ -128,7 +128,7 @@ handle_access_in_pragmat (NODE_T *p, const char *pragmat, size_t pos)
   if (pmodule != NULL)
     {
       a68_error_in_pragmat (p, pos + pragmat - beginning,
-			    "module Z cannot appear in multiple %<access%> pragmats",
+			    "module %qs cannot appear in multiple %<access%> pragmats",
 			    module);
       return NULL;
     }
@@ -186,7 +186,7 @@ handle_pragmat (NODE_T *p)
 	  else
 	    {
 	      a68_error_in_pragmat (p, pragmat - NPRAGMAT (p),
-				    "unrecognized pragmat Z", word);
+				    "unrecognized pragmat %qs", word);
 	      break;
 	    }
 	}

@@ -302,6 +302,38 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	traits_type::assign(_M_data()[__n], _CharT());
     }
 
+#if __cplusplus >= 202302L
+  template<typename _CharT, typename _Traits, typename _Alloc>
+    constexpr void
+    basic_string<_CharT, _Traits, _Alloc>::
+    _M_construct(basic_string&& __str, size_type __pos,  size_type __n)
+    {
+      const _CharT* __start = __str._M_data() + __pos;
+      if (__n <= _S_local_capacity)
+	{
+	  _M_init_local_buf();
+	  traits_type::copy(_M_local_buf, __start, __n);
+	  _M_set_length(__n);
+	  return;
+	}
+
+      if constexpr (!allocator_traits<_Alloc>::is_always_equal::value)
+	if (get_allocator() != __str.get_allocator())
+	  {
+	    _M_construct<false>(__start, __n);
+	    return;
+	  }
+
+      _M_data(__str._M_data());
+      _M_capacity(__str._M_allocated_capacity);
+      __str._M_data(__str._M_use_local_data());
+      __str._M_set_length(0);
+
+      _S_move(_M_data(), _M_data() + __pos, __n);
+      _M_set_length(__n);
+    }
+#endif // C++23
+
   template<typename _CharT, typename _Traits, typename _Alloc>
     _GLIBCXX20_CONSTEXPR
     void

@@ -1,3 +1,59 @@
+2026-02-26  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/124232
+	* kf.cc (kf_putenv::impl_call_pre): Use base region when marking
+	pointer as having escaped.
+
+2026-02-24  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/124188
+	* region-model-manager.cc
+	(region_model_manager::maybe_fold_binop): Don't attempt to fold
+	X + (-X) to zero for vector types.
+
+2026-02-24  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/124195
+	* region-model-manager.cc
+	(region_model_manager::maybe_fold_binop): Bulletproof against
+	division by zero by returning "unknown".
+	* region-model.cc (region_model::get_gassign_result): Bail out for
+	division by zero.
+	* svalue.cc (svalue::maybe_get_value_range): Rename to...
+	(svalue::maybe_get_value_range_1): ...this.
+	(constant_svalue::maybe_get_value_range): Rename to...
+	(constant_svalue::maybe_get_value_range_1): ...this.
+	(unknown_svalue::maybe_get_value_range): Rename to...
+	(unknown_svalue::maybe_get_value_range_1): ...this.
+	(unaryop_svalue::maybe_get_value_range): Rename to...
+	(unaryop_svalue::maybe_get_value_range_1): ...this.
+	(binop_svalue::maybe_get_value_range): Rename to...
+	(binop_svalue::maybe_get_value_range_1): ...this.
+	* svalue.h (svalue::maybe_get_value_range): Reimplement inline,
+	asserting that if we get a result it is not undefined_p.  Use
+	maybe_get_value_range_1 for the vfunc.
+	(svalue::maybe_get_value_range_1): Rename from above.
+	(constant_svalue::maybe_get_value_range): Rename to...
+	(constant_svalue::maybe_get_value_range_1): ...this.
+	(unknown_svalue::maybe_get_value_range): Rename to...
+	(unknown_svalue::maybe_get_value_range_1): ...this.
+	(unaryop_svalue::maybe_get_value_range): Rename to...
+	(unaryop_svalue::maybe_get_value_range_1): ...this.
+	(binop_svalue::maybe_get_value_range): Rename to...
+	(binop_svalue::maybe_get_value_range_1): ...this.
+
+2026-02-17  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/124104
+	* svalue.cc (unaryop_svalue::maybe_get_value_range): Bail out for
+	incompatible types.
+
+2026-02-17  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/124139
+	* engine.cc (exploded_node::on_throw): Bail out if we can't get
+	the fndecl for the call.
+
 2026-02-12  David Malcolm  <dmalcolm@redhat.com>
 
 	PR analyzer/117369

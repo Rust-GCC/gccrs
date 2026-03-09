@@ -1,7 +1,6 @@
 /* { dg-do compile } */
 /* { dg-options "-O2 -ftree-vectorize -mno-movbe -msse2 -mno-avx" } */
-/* { dg-final { scan-assembler-times "bswap\[\t ]+" 2 { target { ! ia32 } } } } */
-/* { dg-final { scan-assembler-times "bswap\[\t ]+" 3 { target ia32 } } } */
+/* { dg-final { scan-assembler-times "bswap\[\t ]+" 3 } } */
 
 void
 foo1 (char* a, unsigned int* __restrict b)

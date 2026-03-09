@@ -1,4 +1,5 @@
        *> { dg-do run }
+       *> { dg-options "-Wno-any-length" }
        *> { dg-output-file "group2/FUNCTION_as_CALL_parameter_BY_CONTENT.out" }
 
        IDENTIFICATION DIVISION.

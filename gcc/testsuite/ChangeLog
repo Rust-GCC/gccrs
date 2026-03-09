@@ -1,3 +1,3005 @@
+2026-03-04  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/124368
+	* g++.dg/reflect/extent1.C: New test.
+
+2026-03-04  Thiago Jung Bauermann  <thiago.bauermann@linaro.org>
+
+	PR ipa/60674
+	* g++.dg/ipa/devirt-23.C: Remove xfail.
+
+2026-03-04  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/124229
+	* g++.dg/cpp26/expansion-stmt32.C: New test.
+	* g++.dg/reflect/expansion-stmt2.C: New test.
+
+2026-03-04  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/123866
+	* g++.dg/reflect/annotations11.C: New test.
+
+2026-03-04  Torbjörn SVENSSON  <torbjorn.svensson@foss.st.com>
+
+	PR testsuite/124359
+	PR testsuite/122961
+	* gcc.dg/vect/vect-reduc-pattern-2c.c: Drop xfail.
+
+2026-03-04  Torbjörn SVENSSON  <torbjorn.svensson@foss.st.com>
+
+	* gcc.target/arm/simd/vextQp64_1.c: Compile with -fno-ipa-cp.
+
+2026-03-04  Torbjörn SVENSSON  <torbjorn.svensson@foss.st.com>
+
+	PR testsuite/124320
+	* gcc.dg/lto/toplevel-extended-asm-1_0.c: Adjust inline
+	assembler for arm-none-eabi.
+
+2026-03-04  Robin Dapp  <rdapp@oss.qualcomm.com>
+
+	PR rtl-optimization/124041
+	* gcc.dg/torture/pr124041.c: New test.
+
+2026-03-04  Jakub Jelinek  <jakub@redhat.com>
+
+	PR target/124341
+	* gcc.target/i386/avx10_2-pr124341.c: New test.
+
+2026-03-04  Jakub Jelinek  <jakub@redhat.com>
+
+	PR target/124349
+	* gcc.target/i386/avx10_2-pr124349.c: New test.
+
+2026-03-04  Richard Biener  <rguenther@suse.de>
+
+	* gcc.dg/vect/vect-reduc-dot-s8b.c: Remove scan for
+	dot_prod pattern matching.
+
+2026-03-04  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	PR target/64835
+	* gcc.dg/ipa/iinline-attr.c (scan-ipa-dump): Restrict xfail to
+	32-bit SPARC.
+
+2026-03-04  liuhongt  <hongtao.liu@intel.com>
+
+	PR target/124335
+	* gcc.target/i386/avx512fp16-pr124335.c: Require target
+	avx512fp16 instead of avx512bw.
+
+2026-03-03  Martin Uecker  <uecker@tugraz.at>
+
+	PR c/122572
+	* gcc.dg/pr123356-2.c: New test.
+	* gcc.dg/struct-alias-2.c: New test.
+
+2026-03-03  Martin Uecker  <uecker@tugraz.at>
+
+	PR c/122572
+	* gcc.dg/pr122572.c: New test.
+	* gcc.dg/pr123356-1.c: New test.
+
+2026-03-03  Jakub Jelinek  <jakub@redhat.com>
+
+	PR target/124336
+	* gcc.target/i386/stack-check-11.c: Allow orb next to orl/orq.
+	* gcc.target/i386/stack-check-18.c: Likewise.
+	* gcc.target/i386/stack-check-19.c: Likewise.
+
+2026-03-03  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/124306
+	* g++.dg/reflect/parameters_of8.C: New test.
+
+2026-03-03  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/124324
+	* g++.dg/reflect/substitute6.C: New test.
+
+2026-03-03  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/124324
+	* g++.dg/reflect/extract11.C: New test.
+
+2026-03-03  Richard Biener  <rguenther@suse.de>
+
+	* gcc.dg/vect/complex/fast-math-complex-add-pattern-half-float.c:
+	Add --param vect-epilogues-nomask=0.
+
+2026-03-03  Richard Sandiford  <rdsandiford@googlemail.com>
+	    Artemiy Volkov  <artemiy.volkov@arm.com>
+
+	PR rtl-optimization/123786
+	* gcc.target/aarch64/pr123786.c: New test.
+
+2026-03-03  Jakub Jelinek  <jakub@redhat.com>
+
+	PR target/124315
+	* gcc.target/i386/avx512f-pr124315.c: New test.
+
+2026-03-03  Jakub Jelinek  <jakub@redhat.com>
+
+	PR target/124335
+	* gcc.target/i386/avx512fp16-pr124335.c: New test.
+
+2026-03-03  Richard Biener  <rguenther@suse.de>
+
+	PR testsuite/122961
+	* gcc.dg/vect/vect-reduc-dot-s8b.c: Remove XFAIL on
+	dot-prod pattern detection.
+
+2026-03-03  Patrick Palka  <ppalka@redhat.com>
+
+	* g++.dg/cpp2a/concepts-recursive-sat2.C: Verify that the
+	instantiated parameter mapping is printed.
+	* g++.dg/cpp2a/concepts-recursive-sat5.C: Likewise.
+
+2026-03-03  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/123665
+	PR c++/123408
+	* g++.dg/cpp2a/lambda-targ22.C: New test.
+	* g++.dg/cpp2a/lambda-targ22a.C: New test.
+	* g++.dg/cpp2a/lambda-targ23.C: New test.
+
+2026-03-02  Jakub Jelinek  <jakub@redhat.com>
+
+	PR tree-optimization/124288
+	* gcc.dg/torture/vec-cvt-1.c (FLTTEST): Use comma expression
+	to store into {flt,dbl}m{in,ax} and read from it again for
+	comparison.
+
+2026-03-02  Alfie Richards  <alfie.richards@arm.com>
+
+	PR target/124167
+	* gcc.target/aarch64/pr124167.c: New test.
+
+2026-03-02  Cupertino Miranda  <cupertino.miranda@oracle.com>
+
+	PR target/113453
+	* gcc.target/bpf/btfext-funcinfo.c: Adapt test.
+	* gcc.target/bpf/btfext-lineinfo.c: New test.
+
+2026-03-02  Jakub Jelinek  <jakub@redhat.com>
+
+	PR target/124294
+	* gcc.target/i386/avx10_2-pr124294.c: New test.
+
+2026-03-02  Tamar Christina  <tamar.christina@arm.com>
+
+	* gcc.target/i386/avx512fp16-xorsign-1.c: Update loop count.
+
+2026-03-02  Torbjörn SVENSSON  <torbjorn.svensson@foss.st.com>
+
+	* gcc.target/arm/addr-modes-int.c: Drop additional option
+	-march=armv7-a.
+
+2026-03-02  Torbjörn SVENSSON  <torbjorn.svensson@foss.st.com>
+
+	* gcc.misc-tests/gcov-30.c: Add require effective target
+	profile_update_atomic.
+
+2026-03-02  Torbjörn SVENSSON  <torbjorn.svensson@foss.st.com>
+
+	* gcc.target/arm/bfloat16_scalar_1_2.c: Adjust assembler to
+	match compiler.
+	* gcc.target/arm/bfloat16_scalar_2_2.c: Likewise.
+	* gcc.target/arm/bfloat16_scalar_3_2.c: Likewise.
+	* gcc.target/arm/bfloat16_simd_1_2.c: Likewise.
+	* gcc.target/arm/bfloat16_simd_2_2.c: Likewise.
+	* gcc.target/arm/bfloat16_simd_3_2.c: Likewise.
+
+2026-03-02  Torbjörn SVENSSON  <torbjorn.svensson@foss.st.com>
+
+	PR testsuite/123191
+	* c-c++-common/analyzer/coreutils-group_number.c: Add
+	-Wno-overflow.
+
+2026-03-02  Jakub Jelinek  <jakub@redhat.com>
+
+	* g++.dg/reflect/anon4.C (test): Use (double) 3.14 instead of 3.14 in
+	comparisons.
+
+2026-03-01  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	* g++.dg/reflect/diag5.C: New test.
+
+2026-03-01  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/123143
+	* g++.dg/cpp1y/var-templ88.C: New test.
+
+2026-03-01  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/123608
+	* g++.dg/reflect/defarg1.C: New test.
+
+2026-02-28  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gnat.dg/specs/unchecked_union3.ads: New test.
+
+2026-02-28  Jeff Law  <jeffrey.law@oss.qualcomm.com>
+
+	PR tree-optimization/90036
+	* gcc.dg/tree-ssa/pr90036.c: New test.
+	* gfortran.dg/unconstrained_commons.f: Drop useless DOM hash table
+	lookup check.
+
+2026-02-28  David Malcolm  <dmalcolm@redhat.com>
+
+	PR target/124094
+	* gcc.target/aarch64/aarch64-json-tunings/boolean-2.c: Add options
+	-fdiagnostics-show-caret -fdiagnostics-show-line-numbers.  Replace
+	dg-error with a pair of dg-regexps to verify that we report the
+	filename and JSON Pointer of where the error occurs, and then
+	the filename and location within the JSON file.  Verify that we
+	quote and underline the pertinent part of the JSON file.
+	* gcc.target/aarch64/aarch64-json-tunings/empty-brackets.c: Likewise.
+	* gcc.target/aarch64/aarch64-json-tunings/enum-2.c: Likewise.
+	* gcc.target/aarch64/aarch64-json-tunings/integer-2.c: Likewise.
+	* gcc.target/aarch64/aarch64-json-tunings/integer-3.c: Likewise.
+	* gcc.target/aarch64/aarch64-json-tunings/string-2.c: Likewise.
+	* gcc.target/aarch64/aarch64-json-tunings/unidentified-key.c: Likewise.
+	* gcc.target/aarch64/aarch64-json-tunings/unsigned-2.c: Likewise.
+	* gcc.target/aarch64/aarch64-json-tunings/unsigned-3.c: Likewise.
+	* gcc.target/aarch64/aarch64-json-tunings/malformed.c: New test,
+	to verify behavior on a malformed JSON input file.
+	* gcc.target/aarch64/aarch64-json-tunings/malformed.json: New
+	test file.  This is malformed JSON, due to a missing ':" between
+	key and value.
+
+2026-02-28  Kwok Cheung Yeung  <kcyeung@baylibre.com>
+
+	PR middle-end/113436
+	* g++.dg/gomp/pr113436.C: Rename to...
+	* g++.dg/gomp/pr113436-1.C: ... this.  Remove restriction on C++
+	dialect.
+	(f): Remove use of auto.
+	* g++.dg/gomp/pr113436-2.C: New.  Original renamed to...
+	* g++.dg/gomp/pr113436-5.C: ... this.  Add tests for alignment.
+	(f): Test references to VLAs of pointers.
+	* g++.dg/gomp/pr113436-3.C: New.
+	* g++.dg/gomp/pr113436-4.C: New.
+
+2026-02-27  Harald Anlauf  <anlauf@gmx.de>
+
+	PR fortran/78187
+	* gfortran.dg/deferred_character_40.f90: New test.
+
+2026-02-27  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gnat.dg/generic_inst18.adb: New test.
+
+2026-02-27  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gnat.dg/specs/mutably_tagged2.ads: New test.
+
+2026-02-27  Islam-Imad  <islamimad404@gmail.com>
+
+	* rust/compile/missing_constructor_fields.rs: update to match the new error message
+
+2026-02-27  Harishankar  <harishankarpp7@gmail.com>
+
+	* rust/compile/issue-4414.rs: New test.
+
+2026-02-27  jayant chauhan  <0001jayant@gmail.com>
+
+	* rust/compile/issue-4412.rs: New test.
+
+2026-02-27  Islam-Imad  <islamimad404@gmail.com>
+
+	* rust/compile/issue-3904.rs: refactor the testcase to match the new thrown error
+
+2026-02-27  jayant chauhan  <0001jayant@gmail.com>
+
+	* rust/compile/issue-4410.rs: New test.
+
+2026-02-27  Harishankar  <harishankarpp7@gmail.com>
+
+	* rust/compile/issue-4402.rs: New test.
+	* rust/compile/issue_4402_foo.rs: New test.
+	* rust/compile/compile.exp:Ignore issue_4402_foo.rs
+
+2026-02-27  Jayant Chauhan  <0001jayant@gmail.com>
+
+	* rust/compile/issue-4225.rs: New test.
+
+2026-02-27  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* rust/borrowck/position_dependant_outlives.rs: Enable `no_core` feature and
+	use `no_core` attribute.
+	* rust/borrowck/reference.rs: Likewise.
+	* rust/borrowck/return_ref_to_local.rs: Likewise.
+	* rust/borrowck/subset.rs: Likewise.
+	* rust/borrowck/test_move.rs: Likewise.
+	* rust/borrowck/test_move_behind_reference.rs: Likewise.
+	* rust/borrowck/test_move_conditional.rs: Likewise.
+	* rust/borrowck/tmp.rs: Likewise.
+	* rust/borrowck/use_while_mut.rs: Likewise.rs
+	* rust/borrowck/use_while_mut_fr.rs: Likewise.
+	* rust/borrowck/well_formed_function_inputs.rs: Likewise.
+	* rust/compile/abi-options1.rs: Likewise.
+	* rust/compile/abi-vardaic.rs: Likewise.
+	* rust/compile/additional-trait-bounds1.rs: Likewise.
+	* rust/compile/additional-trait-bounds2.rs: Likewise.
+	* rust/compile/additional-trait-bounds2nr2.rs: Likewise.
+	* rust/compile/all-cast.rs: Likewise.
+	* rust/compile/array3.rs: Likewise.
+	* rust/compile/array4.rs: Likewise.
+	* rust/compile/array_empty_list.rs: Likewise.
+	* rust/compile/arrays1.rs: Likewise.
+	* rust/compile/arrays2.rs: Likewise.
+	* rust/compile/assume.rs: Likewise.
+	* rust/compile/attr-macro.rs: Likewise.
+	* rust/compile/attr-mismatch-crate-name.rs: Likewise.
+	* rust/compile/attr_cold.rs: Likewise.
+	* rust/compile/attr_deprecated.rs: Likewise.
+	* rust/compile/attr_deprecated_2.rs: Likewise.
+	* rust/compile/attr_malformed_doc.rs: Likewise.
+	* rust/compile/attr_malformed_path.rs: Likewise.
+	* rust/compile/auto_trait.rs: Likewise.
+	* rust/compile/auto_trait_invalid.rs: Likewise.
+	* rust/compile/auto_trait_super_trait.rs: Likewise.
+	* rust/compile/auto_trait_valid.rs: Likewise.
+	* rust/compile/auto_traits1.rs: Likewise.
+	* rust/compile/auto_traits2.rs: Likewise.
+	* rust/compile/auto_traits4.rs: Likewise.
+	* rust/compile/bad-crate-name1.rs: Likewise.
+	* rust/compile/bad-crate-name2.rs: Likewise.
+	* rust/compile/bad-rpit1.rs: Likewise.
+	* rust/compile/bad=file-name.rs: Likewise.
+	* rust/compile/bad_as_bool_char.rs: Likewise.
+	* rust/compile/bad_file_name.txt.rs: Likewise.
+	* rust/compile/bad_inner_doc.rs: Likewise.
+	* rust/compile/bad_pub_enumitems.rs: Likewise.
+	* rust/compile/bad_stmt_enums.rs: Likewise.
+	* rust/compile/bad_toplevel_enums.rs: Likewise.
+	* rust/compile/bad_tuple_index.rs: Likewise.
+	* rust/compile/bad_type1.rs: Likewise.
+	* rust/compile/bad_type2.rs: Likewise.
+	* rust/compile/black_box.rs: Likewise.
+	* rust/compile/bounds.rs: Likewise.
+	* rust/compile/bounds1.rs: Likewise.
+	* rust/compile/box_syntax.rs: Likewise.
+	* rust/compile/box_syntax_feature_gate.rs: Likewise.
+	* rust/compile/braced_macro_arm.rs: Likewise.
+	* rust/compile/braced_macro_statements1.rs: Likewise.
+	* rust/compile/braced_macro_statements2.rs: Likewise.
+	* rust/compile/braced_macro_statements3.rs: Likewise.
+	* rust/compile/break-rust1.rs: Likewise.
+	* rust/compile/break-rust2.rs: Likewise.
+	* rust/compile/break-rust3.rs: Likewise.
+	* rust/compile/break1.rs: Likewise.
+	* rust/compile/break2.rs: Likewise.
+	* rust/compile/break_continue_outside_loop.rs: Likewise.
+	* rust/compile/break_with_value_inside_loop.rs: Likewise.
+	* rust/compile/bug-with-default-generic.rs: Likewise.
+	* rust/compile/bytecharstring.rs: Likewise.
+	* rust/compile/canonical_paths1.rs: Likewise.
+	* rust/compile/cast1.rs: Likewise.
+	* rust/compile/cast4.rs: Likewise.
+	* rust/compile/cast5.rs: Likewise.
+	* rust/compile/cast_float_as_integer.rs: Likewise.
+	* rust/compile/cast_generics.rs: Likewise.
+	* rust/compile/cfg-attr.rs: Likewise.
+	* rust/compile/cfg-core1.rs: Likewise.
+	* rust/compile/cfg-core2.rs: Likewise.
+	* rust/compile/cfg-test.rs: Likewise.
+	* rust/compile/cfg1.rs: Likewise.
+	* rust/compile/cfg2.rs: Likewise.
+	* rust/compile/cfg3.rs: Likewise.
+	* rust/compile/cfg4.rs: Likewise.
+	* rust/compile/cfg5.rs: Likewise.
+	* rust/compile/cfg6.rs: Likewise.
+	* rust/compile/changed_intrinsics.rs: Likewise.
+	* rust/compile/closure_in_closure.rs: Likewise.
+	* rust/compile/closure_move_expr.rs: Likewise.
+	* rust/compile/closure_no_type_anno.rs: Likewise.
+	* rust/compile/cmp1.rs: Likewise.
+	* rust/compile/complex-path1.rs: Likewise.
+	* rust/compile/complex_qualified_path_in_expr.rs: Likewise.
+	* rust/compile/const-issue1440.rs: Likewise.
+	* rust/compile/const1.rs: Likewise.
+	* rust/compile/const10.rs: Likewise.
+	* rust/compile/const2.rs: Likewise.
+	* rust/compile/const3.rs: Likewise.
+	* rust/compile/const4.rs: Likewise.
+	* rust/compile/const5.rs: Likewise.
+	* rust/compile/const6.rs: Likewise.
+	* rust/compile/const7.rs: Likewise.
+	* rust/compile/const8.rs: Likewise.
+	* rust/compile/const9.rs: Likewise.
+	* rust/compile/const_async_function.rs: Likewise.
+	* rust/compile/const_generics_1.rs: Likewise.
+	* rust/compile/const_generics_10.rs: Likewise.
+	* rust/compile/const_generics_11.rs: Likewise.
+	* rust/compile/const_generics_12.rs: Likewise.
+	* rust/compile/const_generics_13.rs: Likewise.
+	* rust/compile/const_generics_14.rs: Likewise.
+	* rust/compile/const_generics_15.rs: Likewise.
+	* rust/compile/const_generics_16.rs: Likewise.
+	* rust/compile/const_generics_17.rs: Likewise.
+	* rust/compile/const_generics_18.rs: Likewise.
+	* rust/compile/const_generics_19.rs: Likewise.
+	* rust/compile/const_generics_2.rs: Likewise.
+	* rust/compile/const_generics_3.rs: Likewise.
+	* rust/compile/const_generics_4.rs: Likewise.
+	* rust/compile/const_generics_5.rs: Likewise.
+	* rust/compile/const_generics_6.rs: Likewise.
+	* rust/compile/const_generics_7.rs: Likewise.
+	* rust/compile/const_generics_8.rs: Likewise.
+	* rust/compile/const_generics_9.rs: Likewise.
+	* rust/compile/const_trait_fn.rs: Likewise.
+	* rust/compile/continue1.rs: Likewise.
+	* rust/compile/crate-metavar1.rs: Likewise.
+	* rust/compile/deadcode_err1.rs: Likewise.
+	* rust/compile/deadcode_err2.rs: Likewise.
+	* rust/compile/debug-diagnostics-default.rs: Likewise.
+	* rust/compile/debug-diagnostics-off.rs: Likewise.
+	* rust/compile/debug-diagnostics-on.rs: Likewise.
+	* rust/compile/decl_macro1.rs: Likewise.
+	* rust/compile/decl_macro2.rs: Likewise.
+	* rust/compile/decl_macro3.rs: Likewise.
+	* rust/compile/decl_macro4.rs: Likewise.
+	* rust/compile/decl_macro5.rs: Likewise.
+	* rust/compile/decl_macro6.rs: Likewise.
+	* rust/compile/decl_macro7.rs: Likewise.
+	* rust/compile/default_not_a_kw.rs: Likewise.
+	* rust/compile/deferred_const_inference.rs: Likewise.
+	* rust/compile/deprecated-fn.rs: Likewise.
+	* rust/compile/derive-debug1.rs: Likewise.
+	* rust/compile/derive-partialeq1.rs: Likewise.
+	* rust/compile/derive_clone_enum1.rs: Likewise.
+	* rust/compile/derive_clone_enum2.rs: Likewise.
+	* rust/compile/derive_clone_enum3.rs: Likewise.
+	* rust/compile/derive_empty.rs: Likewise.
+	* rust/compile/derive_macro1.rs: Likewise.
+	* rust/compile/derive_macro3.rs: Likewise.
+	* rust/compile/derive_macro4.rs: Likewise.
+	* rust/compile/derive_macro6.rs: Likewise.
+	* rust/compile/derive_macro7.rs: Likewise.
+	* rust/compile/derive_macro8.rs: Likewise.
+	* rust/compile/derive_partial_ord1.rs: Likewise.
+	* rust/compile/diagnostic_underline.rs: Likewise.
+	* rust/compile/doc_isolated_cr_block_comment.rs: Likewise.
+	* rust/compile/doc_isolated_cr_inner_block_comment.rs: Likewise.
+	* rust/compile/doc_isolated_cr_inner_line_comment.rs: Likewise.
+	* rust/compile/doc_isolated_cr_line_comment.rs: Likewise.
+	* rust/compile/doc_macro.rs: Likewise.
+	* rust/compile/dropck_eyepatch_feature_gate.rs: Likewise.
+	* rust/compile/dup_fields.rs: Likewise.
+	* rust/compile/e0579-neg-float-fail.rs: Likewise.
+	* rust/compile/e0579-neg-float.rs: Likewise.
+	* rust/compile/empty_comment_before_match.rs: Likewise.
+	* rust/compile/empty_union.rs: Likewise.
+	* rust/compile/enum_discriminant1.rs: Likewise.
+	* rust/compile/enum_discriminant2.rs: Likewise.
+	* rust/compile/enum_discriminant3.rs: Likewise.
+	* rust/compile/enum_variant_name.rs: Likewise.
+	* rust/compile/exclusive_range_pattern.rs: Likewise.
+	* rust/compile/exclusive_range_pattern_feature_gate.rs: Likewise.
+	* rust/compile/exhaustiveness1.rs: Likewise.
+	* rust/compile/exhaustiveness2.rs: Likewise.
+	* rust/compile/exhaustiveness3.rs: Likewise.
+	* rust/compile/expand_macro_qual_path_in_type.rs: Likewise.
+	* rust/compile/expected_type_args2.rs: Likewise.
+	* rust/compile/expected_type_args3.rs: Likewise.
+	* rust/compile/export_name.rs: Likewise.
+	* rust/compile/extern_c_named_variadic.rs: Likewise.
+	* rust/compile/extern_func_with_body.rs: Likewise.
+	* rust/compile/extern_generics.rs: Likewise.
+	* rust/compile/extern_type_item.rs: Likewise.
+	* rust/compile/extern_type_item_missing_semi.rs: Likewise.
+	* rust/compile/feature.rs: Likewise.
+	* rust/compile/feature_extern_types.rs: Likewise.
+	* rust/compile/feature_intrinsics.rs: Likewise.
+	* rust/compile/feature_rust_attri0.rs: Likewise.
+	* rust/compile/feature_rust_attri1.rs: Likewise.
+	* rust/compile/for-loop1.rs: Likewise.
+	* rust/compile/for-loop2.rs: Likewise.
+	* rust/compile/for_expr.rs: Likewise.
+	* rust/compile/for_lifetimes.rs: Likewise.
+	* rust/compile/format_args_basic_expansion.rs: Likewise.
+	* rust/compile/format_args_concat.rs: Likewise.
+	* rust/compile/format_args_extra_comma.rs: Likewise.
+	* rust/compile/found_struct.rs: Likewise.
+	* rust/compile/frust-compile-until.rs: Likewise.
+	* rust/compile/func-const-unsafe.rs: Likewise.
+	* rust/compile/func1.rs: Likewise.
+	* rust/compile/func2.rs: Likewise.
+	* rust/compile/func3.rs: Likewise.
+	* rust/compile/func4.rs: Likewise.
+	* rust/compile/func5.rs: Likewise.
+	* rust/compile/functions_without_body.rs: Likewise.
+	* rust/compile/gat1.rs: Likewise.
+	* rust/compile/generic-default1.rs: Likewise.
+	* rust/compile/generic_auto_trait.rs: Likewise.
+	* rust/compile/generics1.rs: Likewise.
+	* rust/compile/generics10.rs: Likewise.
+	* rust/compile/generics11.rs: Likewise.
+	* rust/compile/generics12.rs: Likewise.
+	* rust/compile/generics13.rs: Likewise.
+	* rust/compile/generics14.rs: Likewise.
+	* rust/compile/generics2.rs: Likewise.
+	* rust/compile/generics3.rs: Likewise.
+	* rust/compile/generics4.rs: Likewise.
+	* rust/compile/generics5.rs: Likewise.
+	* rust/compile/generics6.rs: Likewise.
+	* rust/compile/generics7.rs: Likewise.
+	* rust/compile/generics8.rs: Likewise.
+	* rust/compile/generics9.rs: Likewise.
+	* rust/compile/glob_import_enum.rs: Likewise.
+	* rust/compile/global-path-array.rs: Likewise.
+	* rust/compile/if-without-else.rs: Likewise.
+	* rust/compile/if_let_expr.rs: Likewise.
+	* rust/compile/if_let_expr_simple.rs: Likewise.
+	* rust/compile/iflet.rs: Likewise.
+	* rust/compile/impl_fnptr.rs: Likewise.
+	* rust/compile/impl_trait_diag.rs: Likewise.
+	* rust/compile/impl_trait_generic_arg.rs: Likewise.
+	* rust/compile/implicit_returns_err1.rs: Likewise.
+	* rust/compile/implicit_returns_err2.rs: Likewise.
+	* rust/compile/implicit_returns_err3.rs: Likewise.
+	* rust/compile/implicit_returns_err4.rs: Likewise.
+	* rust/compile/import_wildcards.rs: Likewise.
+	* rust/compile/include_empty.rs: Likewise.
+	* rust/compile/infer-crate-name.rs: Likewise.
+	* rust/compile/inline_1.rs: Likewise.
+	* rust/compile/inline_2.rs: Likewise.
+	* rust/compile/inline_asm_compile_nop.rs: Likewise.
+	* rust/compile/inline_asm_faulty_clobber.rs: Likewise.
+	* rust/compile/inline_asm_ident_first.rs: Likewise.
+	* rust/compile/inline_asm_illegal_operands.rs: Likewise.
+	* rust/compile/inline_asm_illegal_options.rs: Likewise.
+	* rust/compile/inline_asm_legal_options.rs: Likewise.
+	* rust/compile/inline_asm_nop.rs: Likewise.
+	* rust/compile/inline_asm_outside_unsafe.rs: Likewise.
+	* rust/compile/inline_asm_parse_operand.rs: Likewise.
+	* rust/compile/inline_asm_parse_output_operand.rs: Likewise.
+	* rust/compile/inline_asm_typecheck.rs: Likewise.
+	* rust/compile/invalid_label_name.rs: Likewise.
+	* rust/compile/invalid_variadics.rs: Likewise.
+	* rust/compile/issue-1005.rs: Likewise.
+	* rust/compile/issue-1006.rs: Likewise.
+	* rust/compile/issue-1019.rs: Likewise.
+	* rust/compile/issue-1023.rs: Likewise.
+	* rust/compile/issue-1031.rs: Likewise.
+	* rust/compile/issue-1034.rs: Likewise.
+	* rust/compile/issue-1048.rs: Likewise.
+	* rust/compile/issue-1073.rs: Likewise.
+	* rust/compile/issue-1081.rs: Likewise.
+	* rust/compile/issue-1089.rs: Likewise.
+	* rust/compile/issue-1089/test_mod.rs: Likewise.
+	* rust/compile/issue-1128.rs: Likewise.
+	* rust/compile/issue-1129-1.rs: Likewise.
+	* rust/compile/issue-1129-2.rs: Likewise.
+	* rust/compile/issue-1130.rs: Likewise.
+	* rust/compile/issue-1131.rs: Likewise.
+	* rust/compile/issue-1152.rs: Likewise.
+	* rust/compile/issue-1165.rs: Likewise.
+	* rust/compile/issue-1173.rs: Likewise.
+	* rust/compile/issue-1210.rs: Likewise.
+	* rust/compile/issue-1226.rs: Likewise.
+	* rust/compile/issue-1234.rs: Likewise.
+	* rust/compile/issue-1235.rs: Likewise.
+	* rust/compile/issue-1237.rs: Likewise.
+	* rust/compile/issue-1251.rs: Likewise.
+	* rust/compile/issue-1271.rs: Likewise.
+	* rust/compile/issue-1272.rs: Likewise.
+	* rust/compile/issue-1289.rs: Likewise.
+	* rust/compile/issue-1323-1.rs: Likewise.
+	* rust/compile/issue-1323-2.rs: Likewise.
+	* rust/compile/issue-1361.rs: Likewise.
+	* rust/compile/issue-1383.rs: Likewise.
+	* rust/compile/issue-1393.rs: Likewise.
+	* rust/compile/issue-1422.rs: Likewise.
+	* rust/compile/issue-1446.rs: Likewise.
+	* rust/compile/issue-1447.rs: Likewise.
+	* rust/compile/issue-1483.rs: Likewise.
+	* rust/compile/issue-1485.rs: Likewise.
+	* rust/compile/issue-1487.rs: Likewise.
+	* rust/compile/issue-1524.rs: Likewise.
+	* rust/compile/issue-1525.rs: Likewise.
+	* rust/compile/issue-1589.rs: Likewise.
+	* rust/compile/issue-1725-1.rs: Likewise.
+	* rust/compile/issue-1725-2.rs: Likewise.
+	* rust/compile/issue-1773.rs: Likewise.
+	* rust/compile/issue-1786.rs: Likewise.
+	* rust/compile/issue-1807.rs: Likewise.
+	* rust/compile/issue-1813.rs: Likewise.
+	* rust/compile/issue-1830_bytes.rs: Likewise.
+	* rust/compile/issue-1830_str.rs: Likewise.
+	* rust/compile/issue-1893.rs: Likewise.
+	* rust/compile/issue-1901.rs: Likewise.
+	* rust/compile/issue-1930.rs: Likewise.
+	* rust/compile/issue-1981.rs: Likewise.
+	* rust/compile/issue-2015.rs: Likewise.
+	* rust/compile/issue-2019-1.rs: Likewise.
+	* rust/compile/issue-2019-2.rs: Likewise.
+	* rust/compile/issue-2019-3.rs: Likewise.
+	* rust/compile/issue-2029.rs: Likewise.
+	* rust/compile/issue-2035.rs: Likewise.
+	* rust/compile/issue-2036.rs: Likewise.
+	* rust/compile/issue-2037.rs: Likewise.
+	* rust/compile/issue-2039.rs: Likewise.
+	* rust/compile/issue-2040.rs: Likewise.
+	* rust/compile/issue-2042.rs: Likewise.
+	* rust/compile/issue-2043.rs: Likewise.
+	* rust/compile/issue-2070.rs: Likewise.
+	* rust/compile/issue-2105.rs: Likewise.
+	* rust/compile/issue-2106.rs: Likewise.
+	* rust/compile/issue-2125.rs: Likewise.
+	* rust/compile/issue-2135.rs: Likewise.
+	* rust/compile/issue-2136-1.rs: Likewise.
+	* rust/compile/issue-2136-2.rs: Likewise.
+	* rust/compile/issue-2139.rs: Likewise.
+	* rust/compile/issue-2142.rs: Likewise.
+	* rust/compile/issue-2165.rs: Likewise.
+	* rust/compile/issue-2166.rs: Likewise.
+	* rust/compile/issue-2178.rs: Likewise.
+	* rust/compile/issue-2187.rs: Likewise.
+	* rust/compile/issue-2188.rs: Likewise.
+	* rust/compile/issue-2189.rs: Likewise.
+	* rust/compile/issue-2190-1.rs: Likewise.
+	* rust/compile/issue-2190-2.rs: Likewise.
+	* rust/compile/issue-2195.rs: Likewise.
+	* rust/compile/issue-2203.rs: Likewise.
+	* rust/compile/issue-2207.rs: Likewise.
+	* rust/compile/issue-2225.rs: Likewise.
+	* rust/compile/issue-2238.rs: Likewise.
+	* rust/compile/issue-2304.rs: Likewise.
+	* rust/compile/issue-2323.rs: Likewise.
+	* rust/compile/issue-2324-1.rs: Likewise.
+	* rust/compile/issue-2324-2.rs: Likewise.
+	* rust/compile/issue-2330.rs: Likewise.
+	* rust/compile/issue-2369.rs: Likewise.
+	* rust/compile/issue-2375.rs: Likewise.
+	* rust/compile/issue-2391.rs: Likewise.
+	* rust/compile/issue-2394.rs: Likewise.
+	* rust/compile/issue-2421_str.rs: Likewise.
+	* rust/compile/issue-2423.rs: Likewise.
+	* rust/compile/issue-2431.rs: Likewise.
+	* rust/compile/issue-2477.rs: Likewise.
+	* rust/compile/issue-2478.rs: Likewise.
+	* rust/compile/issue-2479.rs: Likewise.
+	* rust/compile/issue-2499.rs: Likewise.
+	* rust/compile/issue-2514.rs: Likewise.
+	* rust/compile/issue-2567-1.rs: Likewise.
+	* rust/compile/issue-2567-2.rs: Likewise.
+	* rust/compile/issue-2567-3.rs: Likewise.
+	* rust/compile/issue-2645.rs: Likewise.
+	* rust/compile/issue-2650-1.rs: Likewise.
+	* rust/compile/issue-2650-2.rs: Likewise.
+	* rust/compile/issue-266.rs: Likewise.
+	* rust/compile/issue-2665.rs: Likewise.
+	* rust/compile/issue-2680.rs: Likewise.
+	* rust/compile/issue-2709.rs: Likewise.
+	* rust/compile/issue-2723-1.rs: Likewise.
+	* rust/compile/issue-2723-2.rs: Likewise.
+	* rust/compile/issue-2725.rs: Likewise.
+	* rust/compile/issue-2747.rs: Likewise.
+	* rust/compile/issue-2767.rs: Likewise.
+	* rust/compile/issue-2772-1.rs: Likewise.
+	* rust/compile/issue-2772-2.rs: Likewise.
+	* rust/compile/issue-2775.rs: Likewise.
+	* rust/compile/issue-2782.rs: Likewise.
+	* rust/compile/issue-2785.rs: Likewise.
+	* rust/compile/issue-2788.rs: Likewise.
+	* rust/compile/issue-2812.rs: Likewise.
+	* rust/compile/issue-2847-b.rs: Likewise.
+	* rust/compile/issue-2847.rs: Likewise.
+	* rust/compile/issue-2850.rs: Likewise.
+	* rust/compile/issue-2905-1.rs: Likewise.
+	* rust/compile/issue-2905-2.rs: Likewise.
+	* rust/compile/issue-2906.rs: Likewise.
+	* rust/compile/issue-2907.rs: Likewise.
+	* rust/compile/issue-2951.rs: Likewise.
+	* rust/compile/issue-2953-1.rs: Likewise.
+	* rust/compile/issue-2953-2.rs: Likewise.
+	* rust/compile/issue-2954.rs: Likewise.
+	* rust/compile/issue-2987.rs: Likewise.
+	* rust/compile/issue-3009.rs: Likewise.
+	* rust/compile/issue-3022.rs: Likewise.
+	* rust/compile/issue-3030.rs: Likewise.
+	* rust/compile/issue-3032-1.rs: Likewise.
+	* rust/compile/issue-3032-2.rs: Likewise.
+	* rust/compile/issue-3033.rs: Likewise.
+	* rust/compile/issue-3035.rs: Likewise.
+	* rust/compile/issue-3036.rs: Likewise.
+	* rust/compile/issue-3045-1.rs: Likewise.
+	* rust/compile/issue-3045-2.rs: Likewise.
+	* rust/compile/issue-3046.rs: Likewise.
+	* rust/compile/issue-3082.rs: Likewise.
+	* rust/compile/issue-3139-1.rs: Likewise.
+	* rust/compile/issue-3139-2.rs: Likewise.
+	* rust/compile/issue-3139-3.rs: Likewise.
+	* rust/compile/issue-3140.rs: Likewise.
+	* rust/compile/issue-3141.rs: Likewise.
+	* rust/compile/issue-3144.rs: Likewise.
+	* rust/compile/issue-3174.rs: Likewise.
+	* rust/compile/issue-3231.rs: Likewise.
+	* rust/compile/issue-3242.rs: Likewise.
+	* rust/compile/issue-3261.rs: Likewise.
+	* rust/compile/issue-3304.rs: Likewise.
+	* rust/compile/issue-3315-1.rs: Likewise.
+	* rust/compile/issue-3315-2.rs: Likewise.
+	* rust/compile/issue-3350.rs: Likewise.
+	* rust/compile/issue-3382.rs: Likewise.
+	* rust/compile/issue-3402-2.rs: Likewise.
+	* rust/compile/issue-3454.rs: Likewise.
+	* rust/compile/issue-3524.rs: Likewise.
+	* rust/compile/issue-3525.rs: Likewise.
+	* rust/compile/issue-3530-1.rs: Likewise.
+	* rust/compile/issue-3530-2.rs: Likewise.
+	* rust/compile/issue-3538.rs: Likewise.
+	* rust/compile/issue-3541-1.rs: Likewise.
+	* rust/compile/issue-3541-2.rs: Likewise.
+	* rust/compile/issue-3546.rs: Likewise.
+	* rust/compile/issue-3549.rs: Likewise.
+	* rust/compile/issue-3551.rs: Likewise.
+	* rust/compile/issue-3552.rs: Likewise.
+	* rust/compile/issue-3553.rs: Likewise.
+	* rust/compile/issue-3554-1.rs: Likewise.
+	* rust/compile/issue-3554-2.rs: Likewise.
+	* rust/compile/issue-3556.rs: Likewise.
+	* rust/compile/issue-3563.rs: Likewise.
+	* rust/compile/issue-3566-1.rs: Likewise.
+	* rust/compile/issue-3566-2.rs: Likewise.
+	* rust/compile/issue-3567.rs: Likewise.
+	* rust/compile/issue-3568.rs: Likewise.
+	* rust/compile/issue-3581-1.rs: Likewise.
+	* rust/compile/issue-3581-2.rs: Likewise.
+	* rust/compile/issue-3588.rs: Likewise.
+	* rust/compile/issue-3592.rs: Likewise.
+	* rust/compile/issue-3599.rs: Likewise.
+	* rust/compile/issue-3605.rs: Likewise.
+	* rust/compile/issue-3606.rs: Likewise.
+	* rust/compile/issue-3612.rs: Likewise.
+	* rust/compile/issue-3613.rs: Likewise.
+	* rust/compile/issue-3614.rs: Likewise.
+	* rust/compile/issue-3615.rs: Likewise.
+	* rust/compile/issue-3617.rs: Likewise.
+	* rust/compile/issue-3618.rs: Likewise.
+	* rust/compile/issue-3625.rs: Likewise.
+	* rust/compile/issue-3628.rs: Likewise.
+	* rust/compile/issue-3642.rs: Likewise.
+	* rust/compile/issue-3643.rs: Likewise.
+	* rust/compile/issue-3645.rs: Likewise.
+	* rust/compile/issue-3646.rs: Likewise.
+	* rust/compile/issue-3647.rs: Likewise.
+	* rust/compile/issue-3648.rs: Likewise.
+	* rust/compile/issue-3649.rs: Likewise.
+	* rust/compile/issue-3652.rs: Likewise.
+	* rust/compile/issue-3654.rs: Likewise.
+	* rust/compile/issue-3656.rs: Likewise.
+	* rust/compile/issue-3657.rs: Likewise.
+	* rust/compile/issue-3659.rs: Likewise.
+	* rust/compile/issue-3660.rs: Likewise.
+	* rust/compile/issue-3661.rs: Likewise.
+	* rust/compile/issue-3662.rs: Likewise.
+	* rust/compile/issue-3663.rs: Likewise.
+	* rust/compile/issue-3664.rs: Likewise.
+	* rust/compile/issue-3665.rs: Likewise.
+	* rust/compile/issue-3667.rs: Likewise.
+	* rust/compile/issue-3671.rs: Likewise.
+	* rust/compile/issue-3711.rs: Likewise.
+	* rust/compile/issue-3726.rs: Likewise.
+	* rust/compile/issue-3836.rs: Likewise.
+	* rust/compile/issue-3874.rs: Likewise.
+	* rust/compile/issue-3876.rs: Likewise.
+	* rust/compile/issue-3885.rs: Likewise.
+	* rust/compile/issue-3898.rs: Likewise.
+	* rust/compile/issue-3904.rs: Likewise.
+	* rust/compile/issue-3915.rs: Likewise.
+	* rust/compile/issue-3916.rs: Likewise.
+	* rust/compile/issue-3922.rs: Likewise.
+	* rust/compile/issue-3924.rs: Likewise.
+	* rust/compile/issue-3928.rs: Likewise.
+	* rust/compile/issue-3929-1.rs: Likewise.
+	* rust/compile/issue-3929-2.rs: Likewise.
+	* rust/compile/issue-3930.rs: Likewise.
+	* rust/compile/issue-3947.rs: Likewise.
+	* rust/compile/issue-3958.rs: Likewise.
+	* rust/compile/issue-3960.rs: Likewise.
+	* rust/compile/issue-3965-1.rs: Likewise.
+	* rust/compile/issue-3965-2.rs: Likewise.
+	* rust/compile/issue-3966.rs: Likewise.
+	* rust/compile/issue-3969.rs: Likewise.
+	* rust/compile/issue-3971.rs: Likewise.
+	* rust/compile/issue-3974.rs: Likewise.
+	* rust/compile/issue-3977.rs: Likewise.
+	* rust/compile/issue-3978.rs: Likewise.
+	* rust/compile/issue-4006.rs: Likewise.
+	* rust/compile/issue-402.rs: Likewise.
+	* rust/compile/issue-407-2.rs: Likewise.
+	* rust/compile/issue-407.rs: Likewise.
+	* rust/compile/issue-4090-1.rs: Likewise.
+	* rust/compile/issue-4090-2.rs: Likewise.
+	* rust/compile/issue-4139.rs: Likewise.
+	* rust/compile/issue-4140-1.rs: Likewise.
+	* rust/compile/issue-4140-2.rs: Likewise.
+	* rust/compile/issue-4145.rs: Likewise.
+	* rust/compile/issue-4146.rs: Likewise.
+	* rust/compile/issue-4148.rs: Likewise.
+	* rust/compile/issue-4155.rs: Likewise.
+	* rust/compile/issue-4162.rs: Likewise.
+	* rust/compile/issue-4163-2.rs: Likewise.
+	* rust/compile/issue-4163.rs: Likewise.
+	* rust/compile/issue-4165.rs: Likewise.
+	* rust/compile/issue-4166.rs: Likewise.
+	* rust/compile/issue-4168.rs: Likewise.
+	* rust/compile/issue-4188.rs: Likewise.
+	* rust/compile/issue-4212.rs: Likewise.
+	* rust/compile/issue-4213.rs: Likewise.
+	* rust/compile/issue-4219.rs: Likewise.
+	* rust/compile/issue-4222.rs: Likewise.
+	* rust/compile/issue-4226.rs: Likewise.
+	* rust/compile/issue-4231.rs: Likewise.
+	* rust/compile/issue-4232.rs: Likewise.
+	* rust/compile/issue-4234.rs: Likewise.
+	* rust/compile/issue-4235.rs: Likewise.
+	* rust/compile/issue-4242.rs: Likewise.
+	* rust/compile/issue-4245.rs: Likewise.
+	* rust/compile/issue-4260_0.rs: Likewise.
+	* rust/compile/issue-4261.rs: Likewise.
+	* rust/compile/issue-4262.rs: Likewise.
+	* rust/compile/issue-4267.rs: Likewise.
+	* rust/compile/issue-4301.rs: Likewise.
+	* rust/compile/issue-4375-ice-regression.rs: Likewise.
+	* rust/compile/issue-4375-multiple-errors.rs: Likewise.
+	* rust/compile/issue-4375-tuple-pattern.rs: Likewise.
+	* rust/compile/issue-4387.rs: Likewise.
+	* rust/compile/issue-4388.rs: Likewise.
+	* rust/compile/issue-557.rs: Likewise.
+	* rust/compile/issue-635-1.rs: Likewise.
+	* rust/compile/issue-635-2.rs: Likewise.
+	* rust/compile/issue-850.rs: Likewise.
+	* rust/compile/issue-852.rs: Likewise.
+	* rust/compile/issue-855.rs: Likewise.
+	* rust/compile/issue-867.rs: Likewise.
+	* rust/compile/issue-925.rs: Likewise.
+	* rust/compile/iterators1.rs: Likewise.
+	* rust/compile/lang-impl.rs: Likewise.
+	* rust/compile/lang_feature_gate.rs: Likewise.
+	* rust/compile/let_alt.rs: Likewise.
+	* rust/compile/lifetime_name_validation.rs: Likewise.
+	* rust/compile/link_name-malformed.rs: Likewise.
+	* rust/compile/link_section-malformed.rs: Likewise.
+	* rust/compile/lookup_err1.rs: Likewise.
+	* rust/compile/loop_constant_context.rs: Likewise.
+	* rust/compile/macros/builtin/builtin_macro.exp: Likewise.
+	* rust/compile/macros/builtin/compile_error.rs: Likewise.
+	* rust/compile/macros/builtin/concat.rs: Likewise.
+	* rust/compile/macros/builtin/eager1.rs: Likewise.
+	* rust/compile/macros/builtin/eager2.rs: Likewise.
+	* rust/compile/macros/builtin/eager3.rs: Likewise.
+	* rust/compile/macros/builtin/env.rs: Likewise.
+	* rust/compile/macros/builtin/include1.rs: Likewise.
+	* rust/compile/macros/builtin/include2.rs: Likewise.
+	* rust/compile/macros/builtin/include3.rs: Likewise.
+	* rust/compile/macros/builtin/include4.rs: Likewise.
+	* rust/compile/macros/builtin/include_bytes.rs: Likewise.
+	* rust/compile/macros/builtin/include_bytes_location_info.rs: Likewise.
+	* rust/compile/macros/builtin/include_str.rs: Likewise.
+	* rust/compile/macros/builtin/include_str_location_info.rs: Likewise.
+	* rust/compile/macros/builtin/invalid_utf8: Likewise.
+	* rust/compile/macros/builtin/not_found.rs: Likewise.
+	* rust/compile/macros/builtin/option_env1.rs: Likewise.
+	* rust/compile/macros/builtin/option_env2.rs: Likewise.
+	* rust/compile/macros/builtin/option_env3.rs: Likewise.
+	* rust/compile/macros/builtin/recurse2.rs: Likewise.
+	* rust/compile/macros/mbe/macro-delim.rs: Likewise.
+	* rust/compile/macros/mbe/macro-duplicate-binding.rs: Likewise.
+	* rust/compile/macros/mbe/macro-expand-module.rs: Likewise.
+	* rust/compile/macros/mbe/macro-issue1053-2.rs: Likewise.
+	* rust/compile/macros/mbe/macro-issue1053.rs: Likewise.
+	* rust/compile/macros/mbe/macro-issue1224.rs: Likewise.
+	* rust/compile/macros/mbe/macro-issue1233.rs: Likewise.
+	* rust/compile/macros/mbe/macro-issue1395-2.rs: Likewise.
+	* rust/compile/macros/mbe/macro-issue1395.rs: Likewise.
+	* rust/compile/macros/mbe/macro-issue1400-2.rs: Likewise.
+	* rust/compile/macros/mbe/macro-issue1400.rs: Likewise.
+	* rust/compile/macros/mbe/macro-issue2092.rs: Likewise.
+	* rust/compile/macros/mbe/macro-issue2192.rs: Likewise.
+	* rust/compile/macros/mbe/macro-issue2194.rs: Likewise.
+	* rust/compile/macros/mbe/macro-issue2229.rs: Likewise.
+	* rust/compile/macros/mbe/macro-issue2264.rs: Likewise.
+	* rust/compile/macros/mbe/macro-issue2268.rs: Likewise.
+	* rust/compile/macros/mbe/macro-issue2273.rs: Likewise.
+	* rust/compile/macros/mbe/macro-issue2653.rs: Likewise.
+	* rust/compile/macros/mbe/macro-issue2983_2984.rs: Likewise.
+	* rust/compile/macros/mbe/macro-issue3608.rs: Likewise.
+	* rust/compile/macros/mbe/macro-issue3693.rs: Likewise.
+	* rust/compile/macros/mbe/macro-issue3708.rs: Likewise.
+	* rust/compile/macros/mbe/macro-issue3709-1.rs: Likewise.
+	* rust/compile/macros/mbe/macro-issue3709-2.rs: Likewise.
+	* rust/compile/macros/mbe/macro-issue4054.rs: Likewise.
+	* rust/compile/macros/mbe/macro1.rs: Likewise.
+	* rust/compile/macros/mbe/macro10.rs: Likewise.
+	* rust/compile/macros/mbe/macro11.rs: Likewise.
+	* rust/compile/macros/mbe/macro12.rs: Likewise.
+	* rust/compile/macros/mbe/macro13.rs: Likewise.
+	* rust/compile/macros/mbe/macro14.rs: Likewise.
+	* rust/compile/macros/mbe/macro15.rs: Likewise.
+	* rust/compile/macros/mbe/macro16.rs: Likewise.
+	* rust/compile/macros/mbe/macro17.rs: Likewise.
+	* rust/compile/macros/mbe/macro18.rs: Likewise.
+	* rust/compile/macros/mbe/macro19.rs: Likewise.
+	* rust/compile/macros/mbe/macro2.rs: Likewise.
+	* rust/compile/macros/mbe/macro20.rs: Likewise.
+	* rust/compile/macros/mbe/macro21.rs: Likewise.
+	* rust/compile/macros/mbe/macro22.rs: Likewise.
+	* rust/compile/macros/mbe/macro23.rs: Likewise.
+	* rust/compile/macros/mbe/macro25.rs: Likewise.
+	* rust/compile/macros/mbe/macro26.rs: Likewise.
+	* rust/compile/macros/mbe/macro27.rs: Likewise.
+	* rust/compile/macros/mbe/macro28.rs: Likewise.
+	* rust/compile/macros/mbe/macro29.rs: Likewise.
+	* rust/compile/macros/mbe/macro3.rs: Likewise.
+	* rust/compile/macros/mbe/macro30.rs: Likewise.
+	* rust/compile/macros/mbe/macro31.rs: Likewise.
+	* rust/compile/macros/mbe/macro32.rs: Likewise.
+	* rust/compile/macros/mbe/macro33.rs: Likewise.
+	* rust/compile/macros/mbe/macro34.rs: Likewise.
+	* rust/compile/macros/mbe/macro35.rs: Likewise.
+	* rust/compile/macros/mbe/macro36.rs: Likewise.
+	* rust/compile/macros/mbe/macro37.rs: Likewise.
+	* rust/compile/macros/mbe/macro38.rs: Likewise.
+	* rust/compile/macros/mbe/macro39.rs: Likewise.
+	* rust/compile/macros/mbe/macro4.rs: Likewise.
+	* rust/compile/macros/mbe/macro40.rs: Likewise.
+	* rust/compile/macros/mbe/macro41.rs: Likewise.
+	* rust/compile/macros/mbe/macro42.rs: Likewise.
+	* rust/compile/macros/mbe/macro43.rs: Likewise.
+	* rust/compile/macros/mbe/macro44.rs: Likewise.
+	* rust/compile/macros/mbe/macro45.rs: Likewise.
+	* rust/compile/macros/mbe/macro46.rs: Likewise.
+	* rust/compile/macros/mbe/macro47.rs: Likewise.
+	* rust/compile/macros/mbe/macro48.rs: Likewise.
+	* rust/compile/macros/mbe/macro49.rs: Likewise.
+	* rust/compile/macros/mbe/macro5.rs: Likewise.
+	* rust/compile/macros/mbe/macro50.rs: Likewise.
+	* rust/compile/macros/mbe/macro51.rs: Likewise.
+	* rust/compile/macros/mbe/macro52.rs: Likewise.
+	* rust/compile/macros/mbe/macro53.rs: Likewise.
+	* rust/compile/macros/mbe/macro54.rs: Likewise.
+	* rust/compile/macros/mbe/macro55.rs: Likewise.
+	* rust/compile/macros/mbe/macro56.rs: Likewise.
+	* rust/compile/macros/mbe/macro57.rs: Likewise.
+	* rust/compile/macros/mbe/macro58.rs: Likewise.
+	* rust/compile/macros/mbe/macro6.rs: Likewise.
+	* rust/compile/macros/mbe/macro7.rs: Likewise.
+	* rust/compile/macros/mbe/macro8.rs: Likewise.
+	* rust/compile/macros/mbe/macro9.rs: Likewise.
+	* rust/compile/macros/mbe/macro_call_statement.rs: Likewise.
+	* rust/compile/macros/mbe/macro_export_1.rs: Likewise.
+	* rust/compile/macros/mbe/macro_return.rs: Likewise.
+	* rust/compile/macros/mbe/macro_rules_macro_rules.rs: Likewise.
+	* rust/compile/macros/mbe/macro_use1.rs: Likewise.
+	* rust/compile/macros/mbe/mbe_macro.exp: Likewise.
+	* rust/compile/macros/mbe/meta-param.rs: Likewise.
+	* rust/compile/macros/proc/attribute_crate_type.rs: Likewise.
+	* rust/compile/macros/proc/attribute_non_function.rs: Likewise.
+	* rust/compile/macros/proc/attribute_non_root_function.rs: Likewise.
+	* rust/compile/macros/proc/attribute_non_root_method.rs: Likewise.
+	* rust/compile/macros/proc/attribute_non_root_module.rs: Likewise.
+	* rust/compile/macros/proc/attribute_private.rs: Likewise.
+	* rust/compile/macros/proc/crate_type.rs: Likewise.
+	* rust/compile/macros/proc/derive_crate_type.rs: Likewise.
+	* rust/compile/macros/proc/derive_malformed.rs: Likewise.
+	* rust/compile/macros/proc/derive_non_function.rs: Likewise.
+	* rust/compile/macros/proc/derive_non_root_function.rs: Likewise.
+	* rust/compile/macros/proc/derive_non_root_module.rs: Likewise.
+	* rust/compile/macros/proc/derive_private.rs: Likewise.
+	* rust/compile/macros/proc/non_function.rs: Likewise.
+	* rust/compile/macros/proc/non_root_function.rs: Likewise.
+	* rust/compile/macros/proc/non_root_method.rs: Likewise.
+	* rust/compile/macros/proc/non_root_module.rs: Likewise.
+	* rust/compile/macros/proc/non_root_trait_method.rs: Likewise.
+	* rust/compile/macros/proc/private.rs: Likewise.
+	* rust/compile/macros/proc/proc_macro.exp: Likewise.
+	* rust/compile/macros/proc/pub_function.rs: Likewise.
+	* rust/compile/macros/proc/pub_module.rs: Likewise.
+	* rust/compile/match-identifierpattern-enum.rs: Likewise.
+	* rust/compile/match-identifierpattern.rs: Likewise.
+	* rust/compile/match-never-ltype.rs: Likewise.
+	* rust/compile/match-never-rtype.rs: Likewise.
+	* rust/compile/match-restpattern-tuple-1.rs: Likewise.
+	* rust/compile/match-restpattern-tuple-2.rs: Likewise.
+	* rust/compile/match-slicepattern-array.rs: Likewise.
+	* rust/compile/match-slicepattern-slice.rs: Likewise.
+	* rust/compile/match-struct-path.rs: Likewise.
+	* rust/compile/match-structpattern-tuplefield-err.rs: Likewise.
+	* rust/compile/match-structpattern-tuplefield.rs: Likewise.
+	* rust/compile/match-tuplestructpattern-err.rs: Likewise.
+	* rust/compile/match-tuplestructpattern-non-variant.rs: Likewise.
+	* rust/compile/match-tuplestructpattern-rest.rs: Likewise.
+	* rust/compile/match-tuplestructpattern.rs: Likewise.
+	* rust/compile/match1.rs: Likewise.
+	* rust/compile/match2.rs: Likewise.
+	* rust/compile/match3.rs: Likewise.
+	* rust/compile/match4.rs: Likewise.
+	* rust/compile/match5.rs: Likewise.
+	* rust/compile/match6.rs: Likewise.
+	* rust/compile/match7.rs: Likewise.
+	* rust/compile/match8.rs: Likewise.
+	* rust/compile/match9.rs: Likewise.
+	* rust/compile/match_break.rs: Likewise.
+	* rust/compile/may_dangle.rs: Likewise.
+	* rust/compile/method1.rs: Likewise.
+	* rust/compile/method2.rs: Likewise.
+	* rust/compile/min_specialization1.rs: Likewise.
+	* rust/compile/mismatch-crate-name.rs: Likewise.
+	* rust/compile/mismatched-types.rs: Likewise.
+	* rust/compile/missing_closing_paren.rs: Likewise.
+	* rust/compile/missing_constructor_fields.rs: Likewise.
+	* rust/compile/missing_return1.rs: Likewise.
+	* rust/compile/mod_missing_middle.rs: Likewise.
+	* rust/compile/mod_missing_middle/missing_middle/both_path.rs: Likewise.
+	* rust/compile/mod_missing_middle/missing_middle/explicit.not.rs: Likewise.
+	* rust/compile/mod_missing_middle/missing_middle/explicit.not/other.rs: Likewise.
+	* rust/compile/mod_missing_middle/missing_middle/inner_path.rs: Likewise.
+	* rust/compile/mod_missing_middle/missing_middle/outer_path.rs: Likewise.
+	* rust/compile/mod_missing_middle/missing_middle/sub/mod.rs: Likewise.
+	* rust/compile/multi_reference_type.rs: Likewise.
+	* rust/compile/multiline-string.rs: Likewise.
+	* rust/compile/multiple_bindings1.rs: Likewise.
+	* rust/compile/multiple_bindings2.rs: Likewise.
+	* rust/compile/mutability_checks1.rs: Likewise.
+	* rust/compile/name_resolution1.rs: Likewise.
+	* rust/compile/name_resolution10.rs: Likewise.
+	* rust/compile/name_resolution11.rs: Likewise.
+	* rust/compile/name_resolution12.rs: Likewise.
+	* rust/compile/name_resolution13.rs: Likewise.
+	* rust/compile/name_resolution14.rs: Likewise.
+	* rust/compile/name_resolution15.rs: Likewise.
+	* rust/compile/name_resolution16.rs: Likewise.
+	* rust/compile/name_resolution17.rs: Likewise.
+	* rust/compile/name_resolution18.rs: Likewise.
+	* rust/compile/name_resolution19.rs: Likewise.
+	* rust/compile/name_resolution2.rs: Likewise.
+	* rust/compile/name_resolution20.rs: Likewise.
+	* rust/compile/name_resolution22.rs: Likewise.
+	* rust/compile/name_resolution23.rs: Likewise.
+	* rust/compile/name_resolution24.rs: Likewise.
+	* rust/compile/name_resolution25.rs: Likewise.
+	* rust/compile/name_resolution3.rs: Likewise.
+	* rust/compile/name_resolution4.rs: Likewise.
+	* rust/compile/name_resolution5.rs: Likewise.
+	* rust/compile/name_resolution6.rs: Likewise.
+	* rust/compile/name_resolution7.rs: Likewise.
+	* rust/compile/name_resolution8.rs: Likewise.
+	* rust/compile/name_resolution9.rs: Likewise.
+	* rust/compile/negative_impls.rs: Likewise.
+	* rust/compile/negative_impls_2.rs: Likewise.
+	* rust/compile/nested_generic.rs: Likewise.
+	* rust/compile/nested_macro_definition.rs: Likewise.
+	* rust/compile/nested_macro_use1.rs: Likewise.
+	* rust/compile/nested_macro_use2.rs: Likewise.
+	* rust/compile/nested_macro_use3.rs: Likewise.
+	* rust/compile/never_type1.rs: Likewise.
+	* rust/compile/no-crate-level-outer-attr.rs: Likewise.
+	* rust/compile/no_mangle-malformed.rs: Likewise.
+	* rust/compile/non-snake-case_0.rs: Likewise.
+	* rust/compile/non-upper-case-globals_0.rs: Likewise.
+	* rust/compile/non_foreign_variadic_function.rs: Likewise.
+	* rust/compile/non_member_const.rs: Likewise.
+	* rust/compile/nonexistent-field.rs: Likewise.
+	* rust/compile/not_a_float_literal_tuple_index.rs: Likewise.
+	* rust/compile/not_find_value_in_scope.rs: Likewise.
+	* rust/compile/not_raw_ref_op.rs: Likewise.
+	* rust/compile/offset_of1.rs: Likewise.
+	* rust/compile/offset_of2.rs: Likewise.
+	* rust/compile/parse_associated_type_as_generic_arg.rs: Likewise.
+	* rust/compile/parse_associated_type_as_generic_arg2.rs: Likewise.
+	* rust/compile/parse_associated_type_as_generic_arg3.rs: Likewise.
+	* rust/compile/parse_closure_bind.rs: Likewise.
+	* rust/compile/parse_complex_generic_application.rs: Likewise.
+	* rust/compile/parse_complex_generic_application2.rs: Likewise.
+	* rust/compile/parse_empty_tuple_pattern.rs: Likewise.
+	* rust/compile/parse_float_dot.rs: Likewise.
+	* rust/compile/parse_generic_path_expr.rs: Likewise.
+	* rust/compile/parse_global_path_generic.rs: Likewise.
+	* rust/compile/parse_invalid_specialization.rs: Likewise.
+	* rust/compile/parse_item_default_macro.rs: Likewise.
+	* rust/compile/parse_pub_unit_type.rs: Likewise.
+	* rust/compile/parse_range.rs: Likewise.
+	* rust/compile/parse_simple_path_fail_1.rs: Likewise.
+	* rust/compile/parse_simple_path_fail_2.rs: Likewise.
+	* rust/compile/parse_specialization.rs: Likewise.
+	* rust/compile/parse_variadic_function.rs: Likewise.
+	* rust/compile/path_as_generic_arg.rs: Likewise.
+	* rust/compile/pattern-or.rs: Likewise.
+	* rust/compile/pattern-struct.rs: Likewise.
+	* rust/compile/pattern_variadic.rs: Likewise.
+	* rust/compile/prelude_import.rs: Likewise.
+	* rust/compile/primitive-import.rs: Likewise.
+	* rust/compile/privacy1.rs: Likewise.
+	* rust/compile/privacy2.rs: Likewise.
+	* rust/compile/privacy3.rs: Likewise.
+	* rust/compile/privacy4.rs: Likewise.
+	* rust/compile/privacy5.rs: Likewise.
+	* rust/compile/privacy6.rs: Likewise.
+	* rust/compile/privacy7.rs: Likewise.
+	* rust/compile/privacy8.rs: Likewise.
+	* rust/compile/privacy9.rs: Likewise.
+	* rust/compile/ptr_int_cast.rs: Likewise.
+	* rust/compile/pub_restricted_1.rs: Likewise.
+	* rust/compile/pub_restricted_2.rs: Likewise.
+	* rust/compile/pub_restricted_3.rs: Likewise.
+	* rust/compile/range_from_expr_for_loop.rs: Likewise.
+	* rust/compile/raw-byte-string-loc.rs: Likewise.
+	* rust/compile/raw-string-loc.rs: Likewise.
+	* rust/compile/raw_identifiers_bad_keywords.rs: Likewise.
+	* rust/compile/raw_identifiers_underscore.rs: Likewise.
+	* rust/compile/raw_ref_op.rs: Likewise.
+	* rust/compile/raw_ref_op_feature_gate.rs: Likewise.
+	* rust/compile/raw_ref_op_invalid.rs: Likewise.
+	* rust/compile/redef_error1.rs: Likewise.
+	* rust/compile/redef_error2.rs: Likewise.
+	* rust/compile/redef_error3.rs: Likewise.
+	* rust/compile/redef_error4.rs: Likewise.
+	* rust/compile/redef_error5.rs: Likewise.
+	* rust/compile/redef_error6.rs: Likewise.
+	* rust/compile/redundant-semicolons_0.rs: Likewise.
+	* rust/compile/ref_pattern_fn_param1.rs: Likewise.
+	* rust/compile/ref_pattern_fn_param2.rs: Likewise.
+	* rust/compile/reference1.rs: Likewise.
+	* rust/compile/repeated_constructor_fields.rs: Likewise.
+	* rust/compile/rust-const-blog-issue.rs: Likewise.
+	* rust/compile/rust_abi.rs: Likewise.
+	* rust/compile/rustc_attr1.rs: Likewise.
+	* rust/compile/rustc_const_stable.rs: Likewise.
+	* rust/compile/rustc_const_unstable.rs: Likewise.
+	* rust/compile/same_field_name.rs: Likewise.
+	* rust/compile/self-in-impl.rs: Likewise.
+	* rust/compile/self-path1.rs: Likewise.
+	* rust/compile/self-path2.rs: Likewise.
+	* rust/compile/self_const_ptr.rs: Likewise.
+	* rust/compile/self_import_namespace.rs: Likewise.
+	* rust/compile/self_mut_ptr.rs: Likewise.
+	* rust/compile/self_ptr.rs: Likewise.
+	* rust/compile/shadow1.rs: Likewise.
+	* rust/compile/silly-order-bug.rs: Likewise.
+	* rust/compile/sizeof-stray-infer-var-bug.rs: Likewise.
+	* rust/compile/slice_rest_pattern.rs: Likewise.
+	* rust/compile/slicepattern-size-mismatch.rs: Likewise.
+	* rust/compile/specify-crate-name.rs: Likewise.
+	* rust/compile/static_item_0.rs: Likewise.
+	* rust/compile/static_var1.rs: Likewise.
+	* rust/compile/stmt_with_block_dot.rs: Likewise.
+	* rust/compile/stmt_with_block_err1.rs: Likewise.
+	* rust/compile/stringify.rs: Likewise.
+	* rust/compile/struct-expr-parse.rs: Likewise.
+	* rust/compile/struct_align1.rs: Likewise.
+	* rust/compile/struct_align2.rs: Likewise.
+	* rust/compile/struct_expr_field_attributes.rs: Likewise.
+	* rust/compile/struct_init1.rs: Likewise.
+	* rust/compile/struct_pack1.rs: Likewise.
+	* rust/compile/struct_pack2.rs: Likewise.
+	* rust/compile/structural-eq-peq.rs: Likewise.
+	* rust/compile/syntax-only.rs: Likewise.
+	* rust/compile/target_feature-malformed-4233.rs: Likewise.
+	* rust/compile/template_function_0.rs: Likewise.
+	* rust/compile/torture/all_doc_comment_line_blocks.rs: Likewise.
+	* rust/compile/torture/all_doc_comment_line_blocks_crlf.rs: Likewise.
+	* rust/compile/torture/alt_patterns1.rs: Likewise.
+	* rust/compile/torture/arithmetic_expressions1.rs: Likewise.
+	* rust/compile/torture/array_const_fold_1.rs: Likewise.
+	* rust/compile/torture/array_const_fold_2.rs: Likewise.
+	* rust/compile/torture/array_function.rs: Likewise.
+	* rust/compile/torture/array_type_infer.rs: Likewise.
+	* rust/compile/torture/array_zero_length.rs: Likewise.
+	* rust/compile/torture/arrays1.rs: Likewise.
+	* rust/compile/torture/arrays2.rs: Likewise.
+	* rust/compile/torture/arrays3.rs: Likewise.
+	* rust/compile/torture/arrays4.rs: Likewise.
+	* rust/compile/torture/arrays5.rs: Likewise.
+	* rust/compile/torture/arrays6.rs: Likewise.
+	* rust/compile/torture/arrays_index1.rs: Likewise.
+	* rust/compile/torture/arrays_index2.rs: Likewise.
+	* rust/compile/torture/arrays_index3.rs: Likewise.
+	* rust/compile/torture/as_bool_char.rs: Likewise.
+	* rust/compile/torture/associated_types1.rs: Likewise.
+	* rust/compile/torture/autoderef1.rs: Likewise.
+	* rust/compile/torture/block_expr1.rs: Likewise.
+	* rust/compile/torture/block_expr2.rs: Likewise.
+	* rust/compile/torture/block_expr3.rs: Likewise.
+	* rust/compile/torture/block_expr4.rs: Likewise.
+	* rust/compile/torture/block_expr5.rs: Likewise.
+	* rust/compile/torture/block_expr_parser_bug.rs: Likewise.
+	* rust/compile/torture/bom.rs: Likewise.
+	* rust/compile/torture/bom_comment.rs: Likewise.
+	* rust/compile/torture/bom_shebang.rs: Likewise.
+	* rust/compile/torture/bom_whitespace.rs: Likewise.
+	* rust/compile/torture/bools_eq.rs: Likewise.
+	* rust/compile/torture/borrow1.rs: Likewise.
+	* rust/compile/torture/borrow_function.rs: Likewise.
+	* rust/compile/torture/break_function.rs: Likewise.
+	* rust/compile/torture/builtin_abort.rs: Likewise.
+	* rust/compile/torture/byte_char_str.rs: Likewise.
+	* rust/compile/torture/byte_str.rs: Likewise.
+	* rust/compile/torture/cast1.rs: Likewise.
+	* rust/compile/torture/cast2.rs: Likewise.
+	* rust/compile/torture/cast3.rs: Likewise.
+	* rust/compile/torture/cfg_attr.rs: Likewise.
+	* rust/compile/torture/char1.rs: Likewise.
+	* rust/compile/torture/check-doc-attr-string.rs: Likewise.
+	* rust/compile/torture/coercion1.rs: Likewise.
+	* rust/compile/torture/coercion2.rs: Likewise.
+	* rust/compile/torture/comparison_expr1.rs: Likewise.
+	* rust/compile/torture/compile.exp: Likewise.
+	* rust/compile/torture/compound_assignment_expr1.rs: Likewise.
+	* rust/compile/torture/conditional.rs: Likewise.
+	* rust/compile/torture/constant1.rs: Likewise.
+	* rust/compile/torture/constant2.rs: Likewise.
+	* rust/compile/torture/constant3.rs: Likewise.
+	* rust/compile/torture/deadcode1.rs: Likewise.
+	* rust/compile/torture/deadcode2.rs: Likewise.
+	* rust/compile/torture/deref1.rs: Likewise.
+	* rust/compile/torture/deref_function.rs: Likewise.
+	* rust/compile/torture/doc_comment.rs: Likewise.
+	* rust/compile/torture/enum1.rs: Likewise.
+	* rust/compile/torture/extern_mod1.rs: Likewise.
+	* rust/compile/torture/extern_mod1/modules/mod.rs: Likewise.
+	* rust/compile/torture/extern_mod2.rs: Likewise.
+	* rust/compile/torture/float1.rs: Likewise.
+	* rust/compile/torture/float_types.rs: Likewise.
+	* rust/compile/torture/forward_decl_1.rs: Likewise.
+	* rust/compile/torture/forward_decl_2.rs: Likewise.
+	* rust/compile/torture/forward_decl_3-unsafe.rs: Likewise.
+	* rust/compile/torture/forward_decl_3.rs: Likewise.
+	* rust/compile/torture/forward_decl_4.rs: Likewise.
+	* rust/compile/torture/forward_decl_5.rs: Likewise.
+	* rust/compile/torture/func1.rs: Likewise.
+	* rust/compile/torture/func2.rs: Likewise.
+	* rust/compile/torture/function_reference1.rs: Likewise.
+	* rust/compile/torture/function_reference2.rs: Likewise.
+	* rust/compile/torture/function_reference3.rs: Likewise.
+	* rust/compile/torture/function_reference4.rs: Likewise.
+	* rust/compile/torture/generics1.rs: Likewise.
+	* rust/compile/torture/generics10.rs: Likewise.
+	* rust/compile/torture/generics11.rs: Likewise.
+	* rust/compile/torture/generics12.rs: Likewise.
+	* rust/compile/torture/generics13.rs: Likewise.
+	* rust/compile/torture/generics14.rs: Likewise.
+	* rust/compile/torture/generics15.rs: Likewise.
+	* rust/compile/torture/generics16.rs: Likewise.
+	* rust/compile/torture/generics17.rs: Likewise.
+	* rust/compile/torture/generics18.rs: Likewise.
+	* rust/compile/torture/generics19.rs: Likewise.
+	* rust/compile/torture/generics2.rs: Likewise.
+	* rust/compile/torture/generics20.rs: Likewise.
+	* rust/compile/torture/generics21.rs: Likewise.
+	* rust/compile/torture/generics22.rs: Likewise.
+	* rust/compile/torture/generics23.rs: Likewise.
+	* rust/compile/torture/generics24.rs: Likewise.
+	* rust/compile/torture/generics25.rs: Likewise.
+	* rust/compile/torture/generics26.rs: Likewise.
+	* rust/compile/torture/generics27.rs: Likewise.
+	* rust/compile/torture/generics28.rs: Likewise.
+	* rust/compile/torture/generics29.rs: Likewise.
+	* rust/compile/torture/generics3.rs: Likewise.
+	* rust/compile/torture/generics30.rs: Likewise.
+	* rust/compile/torture/generics31.rs: Likewise.
+	* rust/compile/torture/generics32.rs: Likewise.
+	* rust/compile/torture/generics4.rs: Likewise.
+	* rust/compile/torture/generics5.rs: Likewise.
+	* rust/compile/torture/generics6.rs: Likewise.
+	* rust/compile/torture/generics7.rs: Likewise.
+	* rust/compile/torture/generics8.rs: Likewise.
+	* rust/compile/torture/generics9.rs: Likewise.
+	* rust/compile/torture/grouped_expr_function.rs: Likewise.
+	* rust/compile/torture/identifier-missing-impl-1.rs: Likewise.
+	* rust/compile/torture/if.rs: Likewise.
+	* rust/compile/torture/if_elif.rs: Likewise.
+	* rust/compile/torture/if_elif_else_expr1.rs: Likewise.
+	* rust/compile/torture/if_else.rs: Likewise.
+	* rust/compile/torture/ifunaryexpr.rs: Likewise.
+	* rust/compile/torture/impl_block1.rs: Likewise.
+	* rust/compile/torture/impl_block2.rs: Likewise.
+	* rust/compile/torture/impl_block3.rs: Likewise.
+	* rust/compile/torture/impl_block_unused.rs: Likewise.
+	* rust/compile/torture/implicit_returns1.rs: Likewise.
+	* rust/compile/torture/infer_type1.rs: Likewise.
+	* rust/compile/torture/inner_attributes.rs: Likewise.
+	* rust/compile/torture/integer_inference_var1.rs: Likewise.
+	* rust/compile/torture/integer_inference_var2.rs: Likewise.
+	* rust/compile/torture/integer_inference_var3.rs: Likewise.
+	* rust/compile/torture/integer_inference_var4.rs: Likewise.
+	* rust/compile/torture/integer_inference_var5.rs: Likewise.
+	* rust/compile/torture/integer_types.rs: Likewise.
+	* rust/compile/torture/intrinsics-2.rs: Likewise.
+	* rust/compile/torture/intrinsics-3.rs: Likewise.
+	* rust/compile/torture/intrinsics-4.rs: Likewise.
+	* rust/compile/torture/intrinsics-5.rs: Likewise.
+	* rust/compile/torture/intrinsics-6.rs: Likewise.
+	* rust/compile/torture/intrinsics-7.rs: Likewise.
+	* rust/compile/torture/intrinsics-8.rs: Likewise.
+	* rust/compile/torture/intrinsics-math.rs: Likewise.
+	* rust/compile/torture/isolated_cr_block_comment.rs: Likewise.
+	* rust/compile/torture/isolated_cr_line_comment.rs: Likewise.
+	* rust/compile/torture/issue-1024.rs: Likewise.
+	* rust/compile/torture/issue-1075.rs: Likewise.
+	* rust/compile/torture/issue-1432.rs: Likewise.
+	* rust/compile/torture/issue-1434.rs: Likewise.
+	* rust/compile/torture/issue-1506.rs: Likewise.
+	* rust/compile/torture/issue-1555.rs: Likewise.
+	* rust/compile/torture/issue-368.rs: Likewise.
+	* rust/compile/torture/issue-808.rs: Likewise.
+	* rust/compile/torture/issue-862.rs: Likewise.
+	* rust/compile/torture/issue-893-2.rs: Likewise.
+	* rust/compile/torture/issue-893.rs: Likewise.
+	* rust/compile/torture/lazybooleanexpr_function.rs: Likewise.
+	* rust/compile/torture/lifetime1.rs: Likewise.
+	* rust/compile/torture/literals1.rs: Likewise.
+	* rust/compile/torture/loop1.rs: Likewise.
+	* rust/compile/torture/loop2.rs: Likewise.
+	* rust/compile/torture/loop3.rs: Likewise.
+	* rust/compile/torture/loop4.rs: Likewise.
+	* rust/compile/torture/loop5.rs: Likewise.
+	* rust/compile/torture/loop6.rs: Likewise.
+	* rust/compile/torture/loop7.rs: Likewise.
+	* rust/compile/torture/loop8.rs: Likewise.
+	* rust/compile/torture/macro-issue1403.rs: Likewise.
+	* rust/compile/torture/macro_as_expr.rs: Likewise.
+	* rust/compile/torture/match1.rs: Likewise.
+	* rust/compile/torture/methods1.rs: Likewise.
+	* rust/compile/torture/methods2.rs: Likewise.
+	* rust/compile/torture/methods3.rs: Likewise.
+	* rust/compile/torture/mod-nameresolve.rs: Likewise.
+	* rust/compile/torture/mod1.rs: Likewise.
+	* rust/compile/torture/mod2.rs: Likewise.
+	* rust/compile/torture/mod3.rs: Likewise.
+	* rust/compile/torture/modules/valid_path.rs: Likewise.
+	* rust/compile/torture/must_use1.rs: Likewise.
+	* rust/compile/torture/must_use2.rs: Likewise.
+	* rust/compile/torture/name_resolve1.rs: Likewise.
+	* rust/compile/torture/negation_function.rs: Likewise.
+	* rust/compile/torture/nested_fn1.rs: Likewise.
+	* rust/compile/torture/nested_fn2.rs: Likewise.
+	* rust/compile/torture/nested_struct1.rs: Likewise.
+	* rust/compile/torture/never_type1.rs: Likewise.
+	* rust/compile/torture/not_shebang.rs: Likewise.
+	* rust/compile/torture/not_shebang_block_comment.rs: Likewise.
+	* rust/compile/torture/not_shebang_comment.rs: Likewise.
+	* rust/compile/torture/not_shebang_multiline_comment.rs: Likewise.
+	* rust/compile/torture/not_shebang_spaces.rs: Likewise.
+	* rust/compile/torture/parameter_usage1.rs: Likewise.
+	* rust/compile/torture/parens1.rs: Likewise.
+	* rust/compile/torture/phantom_data.rs: Likewise.
+	* rust/compile/torture/pointer1.rs: Likewise.
+	* rust/compile/torture/primconsts.rs: Likewise.
+	* rust/compile/torture/prims_struct_eq.rs: Likewise.
+	* rust/compile/torture/range-lang-item1.rs: Likewise.
+	* rust/compile/torture/raw_identifiers.rs: Likewise.
+	* rust/compile/torture/raw_identifiers_keywords.rs: Likewise.
+	* rust/compile/torture/recursive_fn1.rs: Likewise.
+	* rust/compile/torture/return_function.rs: Likewise.
+	* rust/compile/torture/scoping1.rs: Likewise.
+	* rust/compile/torture/self_type1.rs: Likewise.
+	* rust/compile/torture/shadow1.rs: Likewise.
+	* rust/compile/torture/shadow2.rs: Likewise.
+	* rust/compile/torture/shebang.rs: Likewise.
+	* rust/compile/torture/shebang_plus_attr.rs: Likewise.
+	* rust/compile/torture/shebang_plus_attr2.rs: Likewise.
+	* rust/compile/torture/static_function.rs: Likewise.
+	* rust/compile/torture/static_var1.rs: Likewise.
+	* rust/compile/torture/stmt_with_block1.rs: Likewise.
+	* rust/compile/torture/str1.rs: Likewise.
+	* rust/compile/torture/struct_access1.rs: Likewise.
+	* rust/compile/torture/struct_base_init_1.rs: Likewise.
+	* rust/compile/torture/struct_decl.rs: Likewise.
+	* rust/compile/torture/struct_init.rs: Likewise.
+	* rust/compile/torture/struct_init_10.rs: Likewise.
+	* rust/compile/torture/struct_init_11.rs: Likewise.
+	* rust/compile/torture/struct_init_2.rs: Likewise.
+	* rust/compile/torture/struct_init_3.rs: Likewise.
+	* rust/compile/torture/struct_init_4.rs: Likewise.
+	* rust/compile/torture/struct_init_5.rs: Likewise.
+	* rust/compile/torture/struct_init_6.rs: Likewise.
+	* rust/compile/torture/struct_init_7.rs: Likewise.
+	* rust/compile/torture/struct_init_8.rs: Likewise.
+	* rust/compile/torture/struct_init_9.rs: Likewise.
+	* rust/compile/torture/top_attr.rs: Likewise.
+	* rust/compile/torture/traits1.rs: Likewise.
+	* rust/compile/torture/traits10.rs: Likewise.
+	* rust/compile/torture/traits11.rs: Likewise.
+	* rust/compile/torture/traits12.rs: Likewise.
+	* rust/compile/torture/traits13.rs: Likewise.
+	* rust/compile/torture/traits14.rs: Likewise.
+	* rust/compile/torture/traits15.rs: Likewise.
+	* rust/compile/torture/traits16.rs: Likewise.
+	* rust/compile/torture/traits17.rs: Likewise.
+	* rust/compile/torture/traits18.rs: Likewise.
+	* rust/compile/torture/traits19.rs: Likewise.
+	* rust/compile/torture/traits2.rs: Likewise.
+	* rust/compile/torture/traits3.rs: Likewise.
+	* rust/compile/torture/traits4.rs: Likewise.
+	* rust/compile/torture/traits5.rs: Likewise.
+	* rust/compile/torture/traits6.rs: Likewise.
+	* rust/compile/torture/traits7.rs: Likewise.
+	* rust/compile/torture/traits8.rs: Likewise.
+	* rust/compile/torture/traits9.rs: Likewise.
+	* rust/compile/torture/transmute-size-check-1.rs: Likewise.
+	* rust/compile/torture/transmute1.rs: Likewise.
+	* rust/compile/torture/tuple1.rs: Likewise.
+	* rust/compile/torture/tuple2.rs: Likewise.
+	* rust/compile/torture/tuple3.rs: Likewise.
+	* rust/compile/torture/tuple_enum_variants.rs: Likewise.
+	* rust/compile/torture/tuple_field_access.rs: Likewise.
+	* rust/compile/torture/tuple_function.rs: Likewise.
+	* rust/compile/torture/tuple_index.rs: Likewise.
+	* rust/compile/torture/tuple_struct1.rs: Likewise.
+	* rust/compile/torture/tuple_struct2.rs: Likewise.
+	* rust/compile/torture/tuple_struct_unit.rs: Likewise.
+	* rust/compile/torture/tuple_struct_unused.rs: Likewise.
+	* rust/compile/torture/type-alias1.rs: Likewise.
+	* rust/compile/torture/type-alias2.rs: Likewise.
+	* rust/compile/torture/type_infer1.rs: Likewise.
+	* rust/compile/torture/type_infer2.rs: Likewise.
+	* rust/compile/torture/type_infer3.rs: Likewise.
+	* rust/compile/torture/type_infer4.rs: Likewise.
+	* rust/compile/torture/type_infer5.rs: Likewise.
+	* rust/compile/torture/type_infer6.rs: Likewise.
+	* rust/compile/torture/unary_operators.rs: Likewise.
+	* rust/compile/torture/undended-string-1.rs: Likewise.
+	* rust/compile/torture/undended-string-2.rs: Likewise.
+	* rust/compile/torture/underscore_id.rs: Likewise.
+	* rust/compile/torture/unended-raw-byte-string.rs: Likewise.
+	* rust/compile/torture/uninit-intrinsic-1.rs: Likewise.
+	* rust/compile/torture/union.rs: Likewise.
+	* rust/compile/torture/union_union.rs: Likewise.
+	* rust/compile/torture/unit_type1.rs: Likewise.
+	* rust/compile/torture/unit_type2.rs: Likewise.
+	* rust/compile/torture/unit_type3.rs: Likewise.
+	* rust/compile/torture/unit_type4.rs: Likewise.
+	* rust/compile/torture/unit_type5.rs: Likewise.
+	* rust/compile/torture/unsafe1.rs: Likewise.
+	* rust/compile/torture/unsafe2.rs: Likewise.
+	* rust/compile/torture/unsafe3.rs: Likewise.
+	* rust/compile/torture/unsafe4.rs: Likewise.
+	* rust/compile/torture/unused.rs: Likewise.
+	* rust/compile/torture/unused1.rs: Likewise.
+	* rust/compile/torture/unused_struct.rs: Likewise.
+	* rust/compile/torture/unused_struct_field.rs: Likewise.
+	* rust/compile/torture/usize1.rs: Likewise.
+	* rust/compile/torture/utf8_identifiers.rs: Likewise.
+	* rust/compile/torture/utf8_whitespaces.rs: Likewise.
+	* rust/compile/torture/while_function.rs: Likewise.
+	* rust/compile/track_caller.rs: Likewise.
+	* rust/compile/trait-cycle.rs: Likewise.
+	* rust/compile/trait13.rs: Likewise.
+	* rust/compile/trait14.rs: Likewise.
+	* rust/compile/trait_pub_type.rs: Likewise.
+	* rust/compile/traits1.rs: Likewise.
+	* rust/compile/traits10.rs: Likewise.
+	* rust/compile/traits11.rs: Likewise.
+	* rust/compile/traits12.rs: Likewise.
+	* rust/compile/traits2.rs: Likewise.
+	* rust/compile/traits3.rs: Likewise.
+	* rust/compile/traits4.rs: Likewise.
+	* rust/compile/traits5.rs: Likewise.
+	* rust/compile/traits6.rs: Likewise.
+	* rust/compile/traits7.rs: Likewise.
+	* rust/compile/traits8.rs: Likewise.
+	* rust/compile/traits9.rs: Likewise.
+	* rust/compile/try-catch-unwind-new.rs: Likewise.
+	* rust/compile/try-catch-unwind-old.rs: Likewise.
+	* rust/compile/try-expr1.rs: Likewise.
+	* rust/compile/try-trait.rs: Likewise.
+	* rust/compile/try_block1.rs: Likewise.
+	* rust/compile/tuple1.rs: Likewise.
+	* rust/compile/tuple_float_index.rs: Likewise.
+	* rust/compile/tuple_index_on_non_tuple.rs: Likewise.
+	* rust/compile/tuple_mismatch.rs: Likewise.
+	* rust/compile/tuple_struct1.rs: Likewise.
+	* rust/compile/tuple_struct2.rs: Likewise.
+	* rust/compile/tuple_struct3.rs: Likewise.
+	* rust/compile/tuplepattern-rest-readonly.rs: Likewise.
+	* rust/compile/tuplepattern-restpattern-typecheck-err.rs: Likewise.
+	* rust/compile/tupple_struct_pattern_tuple.rs: Likewise.
+	* rust/compile/type-alias1.rs: Likewise.
+	* rust/compile/type-bindings1.rs: Likewise.
+	* rust/compile/type-if.rs: Likewise.
+	* rust/compile/unary_negation.rs: Likewise.
+	* rust/compile/unary_not.rs: Likewise.
+	* rust/compile/unconstrained_type_param.rs: Likewise.
+	* rust/compile/undeclared_label.rs: Likewise.
+	* rust/compile/unicode_escape.rs: Likewise.
+	* rust/compile/unicode_norm1.rs: Likewise.
+	* rust/compile/unify-errors1.rs: Likewise.
+	* rust/compile/unknown-associated-item.rs: Likewise.
+	* rust/compile/unsafe1.rs: Likewise.
+	* rust/compile/unsafe10.rs: Likewise.
+	* rust/compile/unsafe11.rs: Likewise.
+	* rust/compile/unsafe2.rs: Likewise.
+	* rust/compile/unsafe3.rs: Likewise.
+	* rust/compile/unsafe4.rs: Likewise.
+	* rust/compile/unsafe5.rs: Likewise.
+	* rust/compile/unsafe6.rs: Likewise.
+	* rust/compile/unsafe7.rs: Likewise.
+	* rust/compile/unsafe8.rs: Likewise.
+	* rust/compile/unsafe9.rs: Likewise.
+	* rust/compile/unsafe_module.rs: Likewise.
+	* rust/compile/unstable-fn.rs: Likewise.
+	* rust/compile/unused-label_0.rs: Likewise.
+	* rust/compile/unused-mut-identifier_0.rs: Likewise.
+	* rust/compile/unused-mut-struct-field_0.rs: Likewise.
+	* rust/compile/use_1.rs: Likewise.
+	* rust/compile/use_2.rs: Likewise.
+	* rust/compile/use_3.rs: Likewise.
+	* rust/compile/use_self_alone.rs: Likewise.
+	* rust/compile/use_self_alone_in_list.rs: Likewise.
+	* rust/compile/usize1.rs: Likewise.
+	* rust/compile/v0-mangle1.rs: Likewise.
+	* rust/compile/v0-mangle2.rs: Likewise.
+	* rust/compile/variadic.rs: Likewise.
+	* rust/compile/while_break_expr.rs: Likewise.
+	* rust/compile/while_let1.rs: Likewise.
+	* rust/compile/while_let_expr.rs: Likewise.
+	* rust/compile/while_let_without_label.rs: Likewise.
+	* rust/compile/wrong_lhs_assignment.rs: Likewise.
+	* rust/compile/wrong_no_of_parameters.rs: Likewise.
+	* rust/compile/xfail/lifetime_param.rs: Likewise.
+	* rust/compile/xfail/name_resolution21.rs: Likewise.
+	* rust/compile/xfail/struct_field_vis.rs: Likewise.
+	* rust/compile/xfail/xfail.exp: Likewise.
+	* rust/compile/zero_sized_slice.rs: Likewise.
+	* rust/debug/chartype.rs: Likewise.
+	* rust/debug/custom_link_section.rs: Likewise.
+	* rust/debug/i8u8.rs: Likewise.
+	* rust/debug/lang.rs: Likewise.
+	* rust/debug/no_mangle.rs: Likewise.
+	* rust/debug/oldlang.rs: Likewise.
+	* rust/debug/tuple.rs: Likewise.
+	* rust/debug/win64-abi.rs: Likewise.
+	* rust/execute/black_box.rs: Likewise.
+	* rust/execute/crate-metavar1.rs: Likewise.
+	* rust/execute/inline_asm_inout_ident.rs: Likewise.
+	* rust/execute/inline_asm_inout_var.rs: Likewise.
+	* rust/execute/issue-1245.rs: Likewise.
+	* rust/execute/torture/arrays.rs: Likewise.
+	* rust/execute/torture/atomic_load.rs: Likewise.
+	* rust/execute/torture/atomic_store.rs: Likewise.
+	* rust/execute/torture/basic_partial_ord1.rs: Likewise.
+	* rust/execute/torture/basic_partial_ord2.rs: Likewise.
+	* rust/execute/torture/block_expr1.rs: Likewise.
+	* rust/execute/torture/builtin_abort.rs: Likewise.
+	* rust/execute/torture/builtin_macro_cfg.rs: Likewise.
+	* rust/execute/torture/builtin_macro_concat.rs: Likewise.
+	* rust/execute/torture/builtin_macro_env.rs: Likewise.
+	* rust/execute/torture/builtin_macro_include_bytes.rs: Likewise.
+	* rust/execute/torture/builtin_macro_include_str.rs: Likewise.
+	* rust/execute/torture/builtin_macro_line.rs: Likewise.
+	* rust/execute/torture/builtin_macro_option_env.rs: Likewise.
+	* rust/execute/torture/builtin_macro_stringify.rs: Likewise.
+	* rust/execute/torture/builtin_macros1.rs: Likewise.
+	* rust/execute/torture/builtin_macros3.rs: Likewise.
+	* rust/execute/torture/cfg-tail.rs: Likewise.
+	* rust/execute/torture/cfg1.rs: Likewise.
+	* rust/execute/torture/cfg2.rs: Likewise.
+	* rust/execute/torture/cfg3.rs: Likewise.
+	* rust/execute/torture/cfg4.rs: Likewise.
+	* rust/execute/torture/cfg5.rs: Likewise.
+	* rust/execute/torture/closure1.rs: Likewise.
+	* rust/execute/torture/closure2.rs: Likewise.
+	* rust/execute/torture/closure3.rs: Likewise.
+	* rust/execute/torture/closure4.rs: Likewise.
+	* rust/execute/torture/coercion1.rs: Likewise.
+	* rust/execute/torture/coercion2.rs: Likewise.
+	* rust/execute/torture/coercion3.rs: Likewise.
+	* rust/execute/torture/const-generics-1.rs: Likewise.
+	* rust/execute/torture/const-generics-2.rs: Likewise.
+	* rust/execute/torture/const-generics-3.rs: Likewise.
+	* rust/execute/torture/const-generics-4.rs: Likewise.
+	* rust/execute/torture/const-generics-5.rs: Likewise.
+	* rust/execute/torture/const-generics-6.rs: Likewise.
+	* rust/execute/torture/const-generics-7.rs: Likewise.
+	* rust/execute/torture/const_block1.rs: Likewise.
+	* rust/execute/torture/const_fold1.rs: Likewise.
+	* rust/execute/torture/const_fold2.rs: Likewise.
+	* rust/execute/torture/copy_nonoverlapping1.rs: Likewise.
+	* rust/execute/torture/decl_macro1.rs: Likewise.
+	* rust/execute/torture/decl_macro2.rs: Likewise.
+	* rust/execute/torture/decl_macro3.rs: Likewise.
+	* rust/execute/torture/decl_macro4.rs: Likewise.
+	* rust/execute/torture/derive-default1.rs: Likewise.
+	* rust/execute/torture/derive-partialeq1.rs: Likewise.
+	* rust/execute/torture/derive-partialeq2.rs: Likewise.
+	* rust/execute/torture/derive_clone_enum1.rs: Likewise.
+	* rust/execute/torture/derive_macro1.rs: Likewise.
+	* rust/execute/torture/derive_macro3.rs: Likewise.
+	* rust/execute/torture/derive_macro4.rs: Likewise.
+	* rust/execute/torture/empty_main.rs: Likewise.
+	* rust/execute/torture/enum_intrinsics1.rs: Likewise.
+	* rust/execute/torture/enum_intrinsics2.rs: Likewise.
+	* rust/execute/torture/exit_error.rs: Likewise.
+	* rust/execute/torture/extern_mod4.rs: Likewise.
+	* rust/execute/torture/extern_mod4/modules/mod.rs: Likewise.
+	* rust/execute/torture/for-loop1.rs: Likewise.
+	* rust/execute/torture/for-loop2.rs: Likewise.
+	* rust/execute/torture/func1.rs: Likewise.
+	* rust/execute/torture/gat1.rs: Likewise.
+	* rust/execute/torture/helloworld1.rs: Likewise.
+	* rust/execute/torture/helloworld2.rs: Likewise.
+	* rust/execute/torture/iflet.rs: Likewise.
+	* rust/execute/torture/impl_desugar-2.rs: Likewise.
+	* rust/execute/torture/impl_desugar.rs: Likewise.
+	* rust/execute/torture/impl_rpit1.rs: Likewise.
+	* rust/execute/torture/impl_rpit2.rs: Likewise.
+	* rust/execute/torture/impl_rpit3.rs: Likewise.
+	* rust/execute/torture/impl_trait1.rs: Likewise.
+	* rust/execute/torture/impl_trait2.rs: Likewise.
+	* rust/execute/torture/impl_trait3.rs: Likewise.
+	* rust/execute/torture/impl_trait4.rs: Likewise.
+	* rust/execute/torture/index1.rs: Likewise.
+	* rust/execute/torture/inline_asm_mov_x_5_ARM.rs: Likewise.
+	* rust/execute/torture/inline_asm_mov_x_5_x86_64.rs: Likewise.
+	* rust/execute/torture/issue-1120.rs: Likewise.
+	* rust/execute/torture/issue-1133.rs: Likewise.
+	* rust/execute/torture/issue-1198.rs: Likewise.
+	* rust/execute/torture/issue-1231.rs: Likewise.
+	* rust/execute/torture/issue-1232.rs: Likewise.
+	* rust/execute/torture/issue-1249.rs: Likewise.
+	* rust/execute/torture/issue-1436.rs: Likewise.
+	* rust/execute/torture/issue-1481.rs: Likewise.
+	* rust/execute/torture/issue-1482.rs: Likewise.
+	* rust/execute/torture/issue-1496.rs: Likewise.
+	* rust/execute/torture/issue-1720-2.rs: Likewise.
+	* rust/execute/torture/issue-1720.rs: Likewise.
+	* rust/execute/torture/issue-1852-1.rs: Likewise.
+	* rust/execute/torture/issue-1852.rs: Likewise.
+	* rust/execute/torture/issue-2005.rs: Likewise.
+	* rust/execute/torture/issue-2052.rs: Likewise.
+	* rust/execute/torture/issue-2080.rs: Likewise.
+	* rust/execute/torture/issue-2179.rs: Likewise.
+	* rust/execute/torture/issue-2180.rs: Likewise.
+	* rust/execute/torture/issue-2187.rs: Likewise.
+	* rust/execute/torture/issue-2236.rs: Likewise.
+	* rust/execute/torture/issue-2583.rs: Likewise.
+	* rust/execute/torture/issue-2906.rs: Likewise.
+	* rust/execute/torture/issue-3126.rs: Likewise.
+	* rust/execute/torture/issue-3381.rs: Likewise.
+	* rust/execute/torture/issue-3502.rs: Likewise.
+	* rust/execute/torture/issue-3836.rs: Likewise.
+	* rust/execute/torture/issue-4242.rs: Likewise.
+	* rust/execute/torture/issue-647.rs: Likewise.
+	* rust/execute/torture/issue-845.rs: Likewise.
+	* rust/execute/torture/issue-851.rs: Likewise.
+	* rust/execute/torture/issue-858.rs: Likewise.
+	* rust/execute/torture/issue-976.rs: Likewise.
+	* rust/execute/torture/issue-995.rs: Likewise.
+	* rust/execute/torture/iter1.rs: Likewise.
+	* rust/execute/torture/let-identifierpattern-subpattern.rs: Likewise.
+	* rust/execute/torture/let-pattern-1.rs: Likewise.
+	* rust/execute/torture/link-name.rs: Likewise.
+	* rust/execute/torture/literalpattern_neg.rs: Likewise.
+	* rust/execute/torture/loop-condition-eval.rs: Likewise.
+	* rust/execute/torture/macro-issue1426.rs: Likewise.
+	* rust/execute/torture/macro_use1.rs: Likewise.
+	* rust/execute/torture/macros1.rs: Likewise.
+	* rust/execute/torture/macros10.rs: Likewise.
+	* rust/execute/torture/macros11.rs: Likewise.
+	* rust/execute/torture/macros12.rs: Likewise.
+	* rust/execute/torture/macros13.rs: Likewise.
+	* rust/execute/torture/macros14.rs: Likewise.
+	* rust/execute/torture/macros16.rs: Likewise.
+	* rust/execute/torture/macros17.rs: Likewise.
+	* rust/execute/torture/macros18.rs: Likewise.
+	* rust/execute/torture/macros19.rs: Likewise.
+	* rust/execute/torture/macros2.rs: Likewise.
+	* rust/execute/torture/macros20.rs: Likewise.
+	* rust/execute/torture/macros21.rs: Likewise.
+	* rust/execute/torture/macros22.rs: Likewise.
+	* rust/execute/torture/macros23.rs: Likewise.
+	* rust/execute/torture/macros24.rs: Likewise.
+	* rust/execute/torture/macros25.rs: Likewise.
+	* rust/execute/torture/macros26.rs: Likewise.
+	* rust/execute/torture/macros27.rs: Likewise.
+	* rust/execute/torture/macros28.rs: Likewise.
+	* rust/execute/torture/macros29.rs: Likewise.
+	* rust/execute/torture/macros3.rs: Likewise.
+	* rust/execute/torture/macros30.rs: Likewise.
+	* rust/execute/torture/macros31.rs: Likewise.
+	* rust/execute/torture/macros4.rs: Likewise.
+	* rust/execute/torture/macros5.rs: Likewise.
+	* rust/execute/torture/macros6.rs: Likewise.
+	* rust/execute/torture/macros7.rs: Likewise.
+	* rust/execute/torture/macros8.rs: Likewise.
+	* rust/execute/torture/macros9.rs: Likewise.
+	* rust/execute/torture/match-identifierpattern.rs: Likewise.
+	* rust/execute/torture/match-restpattern-tuple.rs: Likewise.
+	* rust/execute/torture/match-slicepattern-array-1.rs: Likewise.
+	* rust/execute/torture/match-slicepattern-array-2.rs: Likewise.
+	* rust/execute/torture/match-slicepattern-slice-1.rs: Likewise.
+	* rust/execute/torture/match-slicepattern-slice-2.rs: Likewise.
+	* rust/execute/torture/match-structpattern-tuplefield.rs: Likewise.
+	* rust/execute/torture/match-tuplestructpattern-rest-1.rs: Likewise.
+	* rust/execute/torture/match-tuplestructpattern-rest-2.rs: Likewise.
+	* rust/execute/torture/match-tuplestructpattern.rs: Likewise.
+	* rust/execute/torture/match1.rs: Likewise.
+	* rust/execute/torture/match2.rs: Likewise.
+	* rust/execute/torture/match3.rs: Likewise.
+	* rust/execute/torture/match_bool1.rs: Likewise.
+	* rust/execute/torture/match_byte1.rs: Likewise.
+	* rust/execute/torture/match_char1.rs: Likewise.
+	* rust/execute/torture/match_int1.rs: Likewise.
+	* rust/execute/torture/match_loop1.rs: Likewise.
+	* rust/execute/torture/match_range1.rs: Likewise.
+	* rust/execute/torture/match_range2.rs: Likewise.
+	* rust/execute/torture/match_tuple1.rs: Likewise.
+	* rust/execute/torture/matches_macro.rs: Likewise.
+	* rust/execute/torture/method1.rs: Likewise.
+	* rust/execute/torture/method2.rs: Likewise.
+	* rust/execute/torture/method3.rs: Likewise.
+	* rust/execute/torture/method4.rs: Likewise.
+	* rust/execute/torture/min_specialization2.rs: Likewise.
+	* rust/execute/torture/min_specialization3.rs: Likewise.
+	* rust/execute/torture/mod1.rs: Likewise.
+	* rust/execute/torture/multiline-string.rs: Likewise.
+	* rust/execute/torture/name_resolution.rs: Likewise.
+	* rust/execute/torture/named_variadic.rs: Likewise.
+	* rust/execute/torture/offset_of1.rs: Likewise.
+	* rust/execute/torture/operator_overload_1.rs: Likewise.
+	* rust/execute/torture/operator_overload_10.rs: Likewise.
+	* rust/execute/torture/operator_overload_11.rs: Likewise.
+	* rust/execute/torture/operator_overload_12.rs: Likewise.
+	* rust/execute/torture/operator_overload_2.rs: Likewise.
+	* rust/execute/torture/operator_overload_3.rs: Likewise.
+	* rust/execute/torture/operator_overload_4.rs: Likewise.
+	* rust/execute/torture/operator_overload_5.rs: Likewise.
+	* rust/execute/torture/operator_overload_6.rs: Likewise.
+	* rust/execute/torture/operator_overload_7.rs: Likewise.
+	* rust/execute/torture/operator_overload_8.rs: Likewise.
+	* rust/execute/torture/operator_overload_9.rs: Likewise.
+	* rust/execute/torture/overflow1.rs: Likewise.
+	* rust/execute/torture/partial-eq-1.rs: Likewise.
+	* rust/execute/torture/partial-eq-2.rs: Likewise.
+	* rust/execute/torture/partial-eq-3.rs: Likewise.
+	* rust/execute/torture/partial-eq-4.rs: Likewise.
+	* rust/execute/torture/partial-ord-1.rs: Likewise.
+	* rust/execute/torture/partial-ord-2.rs: Likewise.
+	* rust/execute/torture/partial-ord-3.rs: Likewise.
+	* rust/execute/torture/partial-ord-4.rs: Likewise.
+	* rust/execute/torture/partial-ord-5.rs: Likewise.
+	* rust/execute/torture/partial-ord-6.rs: Likewise.
+	* rust/execute/torture/prefetch_data.rs: Likewise.
+	* rust/execute/torture/ref-pattern1.rs: Likewise.
+	* rust/execute/torture/ref-pattern2.rs: Likewise.
+	* rust/execute/torture/sip-hasher.rs: Likewise.
+	* rust/execute/torture/slice-magic.rs: Likewise.
+	* rust/execute/torture/slice-magic2.rs: Likewise.
+	* rust/execute/torture/slice1.rs: Likewise.
+	* rust/execute/torture/str-layout1.rs: Likewise.
+	* rust/execute/torture/str-zero.rs: Likewise.
+	* rust/execute/torture/struct-pattern-match.rs: Likewise.
+	* rust/execute/torture/struct_pattern1.rs: Likewise.
+	* rust/execute/torture/trait1.rs: Likewise.
+	* rust/execute/torture/trait10.rs: Likewise.
+	* rust/execute/torture/trait11.rs: Likewise.
+	* rust/execute/torture/trait12.rs: Likewise.
+	* rust/execute/torture/trait13.rs: Likewise.
+	* rust/execute/torture/trait14.rs: Likewise.
+	* rust/execute/torture/trait15.rs: Likewise.
+	* rust/execute/torture/trait16.rs: Likewise.
+	* rust/execute/torture/trait17.rs: Likewise.
+	* rust/execute/torture/trait18.rs: Likewise.
+	* rust/execute/torture/trait2.rs: Likewise.
+	* rust/execute/torture/trait3.rs: Likewise.
+	* rust/execute/torture/trait4.rs: Likewise.
+	* rust/execute/torture/trait5.rs: Likewise.
+	* rust/execute/torture/trait6.rs: Likewise.
+	* rust/execute/torture/trait7.rs: Likewise.
+	* rust/execute/torture/trait8.rs: Likewise.
+	* rust/execute/torture/trait9.rs: Likewise.
+	* rust/execute/torture/transmute1.rs: Likewise.
+	* rust/execute/torture/wrapping_op1.rs: Likewise.
+	* rust/execute/torture/wrapping_op2.rs: Likewise.
+	* rust/execute/xfail/macro1.rs: Likewise.
+	* rust/execute/xfail/match-identifierpattern-enum.rs: Likewise.
+	* rust/link/generic_function_0.rs: Likewise.
+	* rust/link/generic_function_1.rs: Likewise.
+	* rust/link/simple_function_0.rs: Likewise.
+	* rust/link/simple_function_1.rs: Likewise.
+	* rust/link/trait_import_0.rs: Likewise.
+	* rust/link/trait_import_1.rs: Likewise.
+
+2026-02-27  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* rust/compile/name_resolution26.rs: New test.
+	* rust/compile/derive-default1.rs: Add no_core attribute and fix the
+	testcase with a proper name usage which does not break name resolution
+	rules.
+	* rust/compile/derive-eq-invalid.rs: Likewise.
+	* rust/compile/derive-hash1.rs: Likewise.
+	* rust/compile/issue-2905-2.rs: Likewise.
+	* rust/compile/issue-3402-1.rs: Likewise.
+	* rust/compile/issue-3403.rs: Likewise.
+	* rust/compile/name_resolution18.rs: Likewise.
+	* rust/compile/privacy2.rs: Likewise.
+	* rust/execute/torture/derive-default1.rs: Likewise.
+	* rust/core/core.exp: Revert last compilation step to attribute check.
+
+2026-02-27  Owen Avery  <powerboat9.gamer@gmail.com>
+
+	* rust/compile/macros/mbe/macro-duplicate-binding.rs: New test.
+
+2026-02-27  Yap Zhi Heng  <yapzhhg@gmail.com>
+
+	* rust/compile/match-structpattern-tuplefield-err.rs: New file.
+	* rust/compile/match-structpattern-tuplefield.rs: New file.
+	* rust/execute/torture/match-structpattern-tuplefield.rs: New file.
+
+2026-02-27  Mason Pike  <m@sonpike.net>
+
+	* rust/compile/no-crate-level-outer-attr.rs: New file.
+
+2026-02-27  Mason Pike  <m@sonpike.net>
+
+	* rust/compile/issue-4232.rs: update expected error to include
+	the specific illegal attribute
+	* rust/compile/issue-4235.rs: New file.
+
+2026-02-27  lenny.chiadmi-delage  <lenny.chiadmi-delage@epita.fr>
+
+	* rust/compile/issue-4375-ice-regression.rs: New test.
+	* rust/compile/issue-4375-multiple-errors.rs: New test.
+	* rust/compile/issue-4375-tuple-pattern.rs: New test.
+
+2026-02-27  Jayant Chauhan  <0001jayant@gmail.com>
+
+	* rust/compile/issue-4388.rs: New test.
+
+2026-02-27  Jayant Chauhan  <0001jayant@gmail.com>
+
+	* rust/compile/issue-4387.rs: New test.
+
+2026-02-27  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* rust/compile/export_name.rs: New test.
+
+2026-02-27  Jayant Chauhan  <0001jayant@gmail.com>
+
+	* rust/compile/issue-4234.rs: New test.
+	* rust/compile/unsafe11.rs: Mark function as unsafe to
+	to satisfy new #[target_feature] restriction.
+
+2026-02-27  Lucas Ly Ba  <lucas.ly-ba@outlook.com>
+
+	* rust/compile/non-snake-case_0.rs: New test.
+
+2026-02-27  Lucas Ly Ba  <lucas.ly-ba@outlook.com>
+
+	* rust/compile/non-upper-case-globals_0.rs: New test.
+
+2026-02-27  lenny.chiadmi-delage  <lenny.chiadmi-delage@epita.fr>
+
+	* rust/compile/issue-1210.rs: New test.
+
+2026-02-27  Jayant Chauhan  <0001jayant@gmail.com>
+
+	* rust/compile/issue-4232.rs: New test.
+
+2026-02-27  lenny.chiadmi-delage  <lenny.chiadmi-delage@epita.fr>
+
+	* rust/compile/issue-1081.rs: New test.
+
+2026-02-27  lenny.chiadmi-delage  <lenny.chiadmi-delage@epita.fr>
+
+	* rust/execute/issue-1245.rs: New test.
+
+2026-02-27  Harishankar  <harishankarpp7@gmail.com>
+
+	* rust/compile/issue-4166.rs: New test.
+
+2026-02-27  Jayant Chauhan  <0001jayant@gmail.com>
+
+	* rust/compile/link_section-malformed.rs: New test.
+
+2026-02-27  James Bohl  <bohlj47@gmail.com>
+
+	* algol68/compile/error-denotation-2.a68: Check for no error on
+	minimum negative value.
+	* algol68/compile/error-denotation-3.a68: Likewise.
+
+2026-02-27  Tamar Christina  <tamar.christina@arm.com>
+
+	PR tree-optimization/124142
+	* gcc.dg/vect/tsvc/vect-tsvc-s481.c: Add -fno-trapping-math.
+	* gcc.dg/vect/tsvc/vect-tsvc-s332.c: Likewise.
+	* gcc.dg/vect/tsvc/vect-tsvc-s482.c: Likewise.
+	* gcc.dg/vect/vect-early-break_61.c: Likewise.
+	* gcc.target/aarch64/vect-early-break-cbranch_3.c: Likewise.
+	* gcc.dg/vect/vect-early-break_143-pr124142.c: New test
+
+2026-02-27  Marek Polacek  <polacek@redhat.com>
+
+	DR 3110
+	* g++.dg/DRs/dr3110.C: New test.
+
+2026-02-27  Xi Ruoyao  <xry111@xry111.site>
+
+	PR middle-end/124280
+	* gcc.c-torture/compile/pr124280.c: New test.
+
+2026-02-27  Martin Jambor  <mjambor@suse.cz>
+
+	PR ipa/123229
+	* g++.dg/ipa/pr123229.C: New test.
+
+2026-02-27  Soumya AR  <soumyaa@nvidia.com>
+
+	* gcc.target/aarch64/aarch64-json-tunings/nullptr-issue-info.c:
+	New test.
+	* gcc.target/aarch64/aarch64-json-tunings/nullptr-issue-info.json:
+	New test input.
+
+2026-02-27  Tamar Christina  <tamar.christina@arm.com>
+
+	PR target/124162
+	* gcc.target/aarch64/sve/vect-early-break-cbranch_16.c: New test.
+
+2026-02-27  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR tree-optimization/117935
+	* gcc.dg/predict-24.c: New test.
+	* gcc.dg/predict-25.c: New test.
+
+2026-02-27  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/123947
+	* gfortran.dg/pr123947_1.f90: New test.
+	* gfortran.dg/pr123947_2.f90: New test.
+
+2026-02-26  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gnat.dg/generic_inst17.adb: New test.
+
+2026-02-26  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/124204
+	* g++.dg/reflect/substitute5.C: New test.
+
+2026-02-26  Steve Kargl  <kargls@comcast.net>
+
+	PR fortran/88076
+	* gfortran.dg/coarray/caf.exp: If the target is a FreeBSD
+	system add -pthread when running tests.
+
+2026-02-26  Andre Vehreschild  <vehre@gcc.gnu.org>
+
+	* gfortran.dg/coarray/caf.exp: Only add caf_shmem to tests when
+	is build.
+
+2026-02-26  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/121360
+	* gfortran.dg/coarray/lock_3.f90: New test.
+
+2026-02-26  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/121429
+	* gfortran.dg/coarray/lock_1.f90: Updated.
+
+2026-02-26  Andre Vehreschild  <vehre@gcc.gnu.org>
+
+	PR fortran/121429
+	* gfortran.dg/coarray/deallocate_sync.f90: New test.
+
+2026-02-26  Andre Vehreschild  <vehre@gcc.gnu.org>
+
+	PR fortran/124071
+	* gfortran.dg/coarray/form_team_1.f90: New test.
+
+2026-02-26  Andre Vehreschild  <vehre@gcc.gnu.org>
+
+	PR fortran/88076
+	* gfortran.dg/coarray/alloc_comp_4.f90: Make multi image
+	compatible.
+	* gfortran.dg/coarray/atomic_2.f90: Same.
+	* gfortran.dg/coarray/caf.exp: Also test caf_shmem and choose
+	eight images as a default.
+	* gfortran.dg/coarray/coarray_allocated.f90: Add multi image
+	support.
+	* gfortran.dg/coarray/coindexed_1.f90: Same.
+	* gfortran.dg/coarray/coindexed_3.f08: Same.
+	* gfortran.dg/coarray/coindexed_5.f90: Same.
+	* gfortran.dg/coarray/dummy_3.f90: Same.
+	* gfortran.dg/coarray/event_1.f90: Same.
+	* gfortran.dg/coarray/event_3.f08: Same.
+	* gfortran.dg/coarray/event_4.f08: Same.
+	* gfortran.dg/coarray/failed_images_2.f08: Same.
+	* gfortran.dg/coarray/image_status_1.f08: Same.
+	* gfortran.dg/coarray/image_status_2.f08: Same.
+	* gfortran.dg/coarray/lock_2.f90: Same.
+	* gfortran.dg/coarray/poly_run_3.f90: Same.
+	* gfortran.dg/coarray/scalar_alloc_1.f90: Same.
+	* gfortran.dg/coarray/stopped_images_2.f08: Same.
+	* gfortran.dg/coarray/sync_1.f90: Same.
+	* gfortran.dg/coarray/sync_3.f90: Same.
+	* gfortran.dg/coarray/co_reduce_string.f90: New test.
+	* gfortran.dg/coarray/sync_team.f90: New test.
+
+2026-02-26  Andre Vehreschild  <vehre@gcc.gnu.org>
+
+	* gfortran.dg/coarray_sync_memory.f90: Adapt grep pattern for
+	msg being only &msg.
+
+2026-02-26  Andre Vehreschild  <vehre@gcc.gnu.org>
+
+	* gfortran.dg/coarray/failed_images_1.f08: Adapt check of error
+	message.
+	* gfortran.dg/coarray/stopped_images_1.f08: Same.
+
+2026-02-26  Matthieu Longo  <matthieu.longo@arm.com>
+
+	* gcc.target/aarch64/bti-1.c: Update.
+
+2026-02-26  Robin Dapp  <rdapp@oss.qualcomm.com>
+
+	PR target/122448
+	* g++.target/riscv/rvv/base/pr122448.C: New test.
+
+2026-02-26  Karl Meakin  <karl.meakin@arm.com>
+
+	* gcc.target/aarch64/cmpbr-3.c: `dg-do assemble` => `dg-do compile`.
+
+2026-02-26  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/123662
+	PR c++/123611
+	* g++.dg/reflect/reflect_constant_array5.C: New test.
+	* g++.dg/reflect/reflect_constant_array6.C: New test.
+
+2026-02-26  Xi Ruoyao  <xry111@xry111.site>
+
+	PR middle-end/124250
+	PR target/123807
+	* gcc.c-torture/compile/pr124250.c: New test.
+
+2026-02-26  Marek Polacek  <polacek@redhat.com>
+	    Jakub Jelinek   <jakub@redhat.com>
+
+	PR c++/124215
+	* g++.dg/reflect/members_of9.C: New test.
+
+2026-02-26  James Bohl  <bohlj47@gmail.com>
+
+	* algol68/compile/error-denotation-1.a68: New test.
+	* algol68/compile/error-denotation-2.a68: Likewise.
+	* algol68/compile/error-denotation-3.a68: Likewise.
+	* algol68/execute/plusab-1.a68: Fixed denotation overflow.
+
+2026-02-26  Roger Sayle  <roger@nextmovesoftware.com>
+
+	PR target/124194
+	* gcc.target/i386/pr124194.c: New test case.
+
+2026-02-26  Torbjörn SVENSSON  <torbjorn.svensson@foss.st.com>
+
+	* g++.dg/gcov/gcov-threads-1.C: Add require effective target
+	pthread.
+
+2026-02-26  Roger Sayle  <roger@nextmovesoftware.com>
+
+	PR c/119651
+	PR c/123472
+	* gcc.dg/pr119651.c: New test case.
+	* gcc.dg/pr123472.c: Likewise.
+
+2026-02-26  H.J. Lu  <hjl.tools@gmail.com>
+
+	PR target/119979
+	PR target/120888
+	* gcc.target/xtensa/pr120888-1.c: Removed to ...
+	* gcc.dg/zero-extend.c: This.  Enable for mcore and xtensa.
+	* gcc.target/xtensa/pr120888-2.c: Removed to ...
+	* gcc.dg/sign-extend.c: This.  Enable for mcore and xtensa.
+
+2026-02-26  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/124232
+	* gcc.dg/analyzer/putenv-ice-pr124232.c: New test.
+
+2026-02-25  Jose E. Marchesi  <jemarch@gnu.org>
+
+	* algol68/execute/trimmer-13.a68: New test.
+
+2026-02-25  Christopher Albert  <albert@tugraz.at>
+
+	PR fortran/124235
+	* gfortran.dg/pr124235.f90: New test.
+
+2026-02-25  Marek Polacek  <polacek@redhat.com>
+
+	* g++.dg/reflect/members_of5.C: Remove a FIXME and declaration.
+
+2026-02-25  Cupertino Miranda  <cupertino.miranda@oracle.com>
+
+	PR target/120241
+	* gcc.target/bpf/core-attr-3.c: Add attribute.
+	* gcc.target/bpf/core-attr-4.c: Add attribute.
+	* gcc.target/bpf/core-attr-5.c: Add attribute.
+	* gcc.target/bpf/core-attr-6.c: Add attribute.
+	* gcc.target/bpf/core-attr-7.c: New test.
+	* gcc.target/bpf/core-attr-calls.c: Adapt.
+
+2026-02-25  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR tree-optimization/110091
+	* gcc.dg/tree-ssa/pr110091-3.c: New test.
+	* gcc.dg/tree-ssa/pr110091-4.c: New test.
+
+2026-02-25  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR tree-optimization/110091
+	* gcc.dg/tree-ssa/pr110091-1.c: New test.
+	* gcc.dg/tree-ssa/pr110091-2.c: New test.
+
+2026-02-25  Marek Polacek  <polacek@redhat.com>
+
+	* g++.dg/reflect/compare9.C: Uncomment the commented out asserts.
+
+2026-02-25  Tamar Christina  <tamar.christina@arm.com>
+
+	PR target/124236
+	* lib/target-supports.exp
+	(check_effective_target_arm_v8_3a_complex_neon_hw): Fix default value.
+
+2026-02-25  Marek Polacek  <polacek@redhat.com>
+
+	* g++.dg/reflect/expr11.C: Test more if constexpr.
+	* g++.dg/reflect/expr12.C: Adjust test.
+
+2026-02-25  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/124227
+	* g++.dg/reflect/pr124227.C: New test.
+
+2026-02-25  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gnat.dg/protected_deref1.adb: New test.
+
+2026-02-25  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR target/123285
+	* gcc.target/aarch64/pr123285-1.c: New test.
+
+2026-02-25  Christopher Albert  <albert@tugraz.at>
+
+	PR fortran/124208
+	* gfortran.dg/pr124208.f90: New test.
+
+2026-02-25  Jonathan Yong  <10walls@gmail.com>
+
+	* gcc.dg/plugin/taint-pr112850-precise.c:
+	(__kernel_ulong_t): Change unsigned long to __UINTPTR_TYPE__.
+	(__kernel_size_t): Change __kernel_ulong_t to __kernel_size_t.
+	(copy_from_user): Change unsigned long n to size_t n.
+	(snd_rawmidi_ioctl): Change unsigned long arg to uintptr_t arg.
+	* gcc.dg/plugin/taint-pr112850-too-complex.c: Ditto.
+	* gcc.dg/plugin/taint-pr112850-unsanitized.c: Ditto.
+	* gcc.dg/plugin/taint-pr112850.c: Ditto.
+
+2026-02-24  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/124188
+	* c-c++-common/analyzer/vector-ice-pr124188.c: New test.
+
+2026-02-24  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/124195
+	* c-c++-common/analyzer/divide-by-zero-1.c: New test.
+	* c-c++-common/analyzer/divide-by-zero-pr124195-2.c: New test.
+	* gcc.dg/analyzer/divide-by-zero-pr124195-1.c: New test.
+
+2026-02-24  Robin Dapp  <rdapp@oss.qualcomm.com>
+
+	PR target/124147
+	* gcc.target/riscv/rvv/xtheadvector/pr124147.c: New test.
+
+2026-02-24  Robin Dapp  <rdapp@oss.qualcomm.com>
+
+	PR rtl-optimization/123381
+	* gcc.target/riscv/rvv/autovec/pr123381.c: New test.
+
+2026-02-24  Wilco Dijkstra  <wilco.dijkstra@arm.com>
+
+	PR target/121240
+	* gcc.target/aarch64/const_create_using_fmov.c: Fix test.
+	* gcc.target/aarch64/pr121240.c: Add new test.
+	* gcc.target/aarch64/vec-init-single-const.c: Fix test.
+	* gcc.target/aarch64/vect-cse-codegen.c: Fix test.
+
+2026-02-24  Torbjörn SVENSSON  <torbjorn.svensson@foss.st.com>
+
+	PR testsuite/124064
+	* g++.target/arm/bfloat_cpp_typecheck.C: Drop xfail.
+
+2026-02-24  Torbjörn SVENSSON  <torbjorn.svensson@foss.st.com>
+
+	* lib/target-supports.exp: Add -mfpu=auto to
+	arm_v8_3a_complex_neon. This aligns with
+	arm_v8_3a_fp16_complex_neon.
+
+2026-02-24  Eric Botcazou  <ebotcazou@adacore.com>
+	    Liam Powell  <liam@liampwll.com>
+
+	* gnat.dg/specs/aggr12.ads: New test.
+
+2026-02-24  Marek Polacek  <polacek@redhat.com>
+
+	* g++.dg/parse/typename6.C: Adjust dg-error.
+	* g++.dg/reflect/pr122634-2.C: Likewise.
+
+2026-02-23  Gonzalo Silvalde Blanco  <gonzalo.silvalde@gmail.com>
+
+	PR fortran/80012
+	* gfortran.dg/pr80012.f90: New test.
+
+2026-02-23  Paul-Antoine Arras  <parras@baylibre.com>
+
+	PR fortran/120505
+	* gfortran.dg/gomp/map-subarray-4.f90: Update scan dumps for -m32.
+
+2026-02-23  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/124150
+	* g++.dg/reflect/substitute4.C: New test.
+
+2026-02-23  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/123641
+	* g++.dg/reflect/members_of8.C: New test.
+
+2026-02-23  Paul-Antoine Arras  <parras@baylibre.com>
+
+	PR fortran/120505
+	* gfortran.dg/gomp/map-subarray-4.f90: New test.
+
+2026-02-23  Paul-Antoine Arras  <parras@baylibre.com>
+
+	PR fortran/120505
+	* gfortran.dg/gomp/map-subarray-3.f90: New test.
+	* gfortran.dg/gomp/map-subarray-5.f90: New test.
+
+2026-02-23  Alice Carlotti  <alice.carlotti@arm.com>
+
+	* g++.target/aarch64/sme/aarch64-sme-acle-asm.exp: Use
+	-march=armv8-a+sme when SME isn't already enabled.
+	* g++.target/aarch64/sme/aarch64-sme.exp: Ditto.
+	* g++.target/aarch64/sme2/aarch64-sme2-acle-asm.exp: Ditto.
+	* gcc.target/aarch64/sme/aarch64-sme-acle-asm.exp: Ditto.
+	* gcc.target/aarch64/sme/aarch64-sme.exp: Ditto.
+	* gcc.target/aarch64/sme2/aarch64-sme2-acle-asm.exp: Ditto.
+
+2026-02-23  Alice Carlotti  <alice.carlotti@arm.com>
+
+	* g++.target/aarch64/sme/exceptions_2.C: Add +sve pragma.
+	* g++.target/aarch64/sme/exceptions_2_nosve.C: New test.
+	* gcc.target/aarch64/sme/acle-asm/ldr_vnum_za_sc.c: Remove
+	svbool_t parameters.
+	* gcc.target/aarch64/sme/acle-asm/ldr_za_sc.c: Ditto.
+	* gcc.target/aarch64/sme/acle-asm/str_vnum_za_sc.c: Ditto.
+	* gcc.target/aarch64/sme/acle-asm/str_za_sc.c: Ditto.
+	* gcc.target/aarch64/sme/acle-asm/test_sme_acle.h
+	(TEST_LOAD_ZA_NOPRED, TEST_STORE_ZA_NOPRED): New macros.
+	* gcc.target/aarch64/sme/call_sm_switch_1.c: Add +sve pragma.
+	* gcc.target/aarch64/sme/call_sm_switch_1_nosve.c: New test.
+	* gcc.target/aarch64/sme/call_sm_switch_3.c: Add +sve pragma.
+	* gcc.target/aarch64/sme/call_sm_switch_3_nosve.c: New test.
+	* gcc.target/aarch64/sme/call_sm_switch_5.c: Add +sve pragma.
+	* gcc.target/aarch64/sme/call_sm_switch_6.c: Add +sve pragma.
+	* gcc.target/aarch64/sme/call_sm_switch_11.c: Add +sve pragma.
+	* gcc.target/aarch64/sme/call_sm_switch_11_nosve.c: New test.
+	* gcc.target/aarch64/sme/inlining_9.c: Add +sve pragma.
+	* gcc.target/aarch64/sme/inlining_10.c: Add +sve pragma.
+	* gcc.target/aarch64/sme/inlining_11.c: Add +sve pragma.
+	* gcc.target/aarch64/sme/locally_streaming_1.c:
+	* gcc.target/aarch64/sme/locally_streaming_1_nosve.c: New test.
+	* gcc.target/aarch64/sme/pr121028.c: Add +sve to pragma.
+	* gcc.target/aarch64/sme/vect-dotprod-twoway.c: Add -mtune.
+	* gcc.target/aarch64/sme2/acle-asm/ldr_zt.c: Use svcntsb instead
+	of svcntb.
+	* gcc.target/aarch64/sme2/acle-asm/str_zt.c: Ditto.
+
+2026-02-23  Alice Carlotti  <alice.carlotti@arm.com>
+
+	* gcc.target/aarch64/pragma_cpp_predefs_4.c: Remove unnecessary
+	uses of +sve2.
+	* gcc.target/aarch64/sve/acle/general-c/binary_int_opt_single_n_2.c:
+	Ditto.
+	* gcc.target/aarch64/sve/acle/general-c/binary_opt_single_n_2.c:
+	Ditto.
+	* gcc.target/aarch64/sve/acle/general-c/binary_single_1.c:
+	Ditto.
+	* gcc.target/aarch64/sve/acle/general-c/binary_za_slice_int_opt_single_1.c:
+	Ditto.
+	* gcc.target/aarch64/sve/acle/general-c/binary_za_slice_lane_1.c:
+	Ditto.
+	* gcc.target/aarch64/sve/acle/general-c/binary_za_slice_lane_2.c:
+	Ditto.
+	* gcc.target/aarch64/sve/acle/general-c/binary_za_slice_lane_3.c:
+	Ditto.
+	* gcc.target/aarch64/sve/acle/general-c/binary_za_slice_lane_4.c:
+	Ditto.
+	* gcc.target/aarch64/sve/acle/general-c/binary_za_slice_opt_single_1.c:
+	Ditto.
+	* gcc.target/aarch64/sve/acle/general-c/binary_za_slice_opt_single_2.c:
+	Ditto.
+	* gcc.target/aarch64/sve/acle/general-c/binary_za_slice_opt_single_3.c:
+	Ditto.
+	* gcc.target/aarch64/sve/acle/general-c/binary_za_slice_uint_opt_single_1.c:
+	Ditto.
+	* gcc.target/aarch64/sve/acle/general-c/binaryxn_2.c: Ditto.
+	* gcc.target/aarch64/sve/acle/general-c/clamp_1.c: Ditto.
+	* gcc.target/aarch64/sve/acle/general-c/compare_scalar_count_1.c:
+	Ditto.
+	* gcc.target/aarch64/sve/acle/general-c/dot_za_slice_int_lane_1.c:
+	Ditto.
+	* gcc.target/aarch64/sve/acle/general-c/dot_za_slice_lane_1.c:
+	Ditto.
+	* gcc.target/aarch64/sve/acle/general-c/dot_za_slice_lane_2.c:
+	Ditto.
+	* gcc.target/aarch64/sve/acle/general-c/dot_za_slice_uint_lane_1.c:
+	Ditto.
+	* gcc.target/aarch64/sve/acle/general-c/shift_right_imm_narrowxn_1.c:
+	Ditto.
+	* gcc.target/aarch64/sve/acle/general-c/storexn_1.c: Ditto.
+	* gcc.target/aarch64/sve/acle/general-c/ternary_mfloat8_lane_1.c:
+	Ditto.
+	* gcc.target/aarch64/sve/acle/general-c/ternary_mfloat8_lane_group_selection_1.c:
+	Ditto.
+	* gcc.target/aarch64/sve/acle/general-c/ternary_qq_or_011_lane_1.c:
+	Ditto.
+	* gcc.target/aarch64/sve/acle/general-c/unary_convertxn_1.c:
+	Ditto.
+	* gcc.target/aarch64/sve/acle/general-c/unary_convertxn_narrow_1.c:
+	Ditto.
+	* gcc.target/aarch64/sve/acle/general-c/unary_convertxn_narrowt_1.c:
+	Ditto.
+	* gcc.target/aarch64/sve/acle/general-c/unary_za_slice_1.c:
+	Ditto.
+	* gcc.target/aarch64/sve/acle/general-c/unaryxn_1.c: Ditto.
+	* gcc.target/aarch64/sve/acle/general-c/write_za_1.c: Ditto.
+	* gcc.target/aarch64/sve/acle/general-c/write_za_slice_1.c:
+	Ditto.
+
+2026-02-23  Alice Carlotti  <alice.carlotti@arm.com>
+
+	* gcc.target/aarch64/no-sve-with-sme-1.c: Removed.
+	* gcc.target/aarch64/no-sve-with-sme-2.c: Removed.
+	* gcc.target/aarch64/no-sve-with-sme-3.c: Removed.
+	* gcc.target/aarch64/no-sve-with-sme-4.c: Removed.
+
+2026-02-23  Alice Carlotti  <alice.carlotti@arm.com>
+
+	* lib/scanasm.exp (check_function_body): Log matching portion
+	of body_regexp separately.
+
+2026-02-23  Jose E. Marchesi  <jemarch@gnu.org>
+
+	* algol68/execute/char-in-string-1.a68: It is no longer need to
+	access Transput explicitly.
+
+2026-02-22  Roger Sayle  <roger@nextmovesoftware.com>
+
+	PR c/123716
+	* gcc.dg/pr123716.c: New test case.
+
+2026-02-22  Jose E. Marchesi  <jemarch@gnu.org>
+
+	* algol68/execute/trimmer-12.a68: New test.
+
+2026-02-22  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/124173
+	* g++.dg/cpp0x/pr124173.C: New test.
+
+2026-02-22  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/124184
+	* g++.dg/cpp26/expansion-stmt31.C: New test.
+
+2026-02-22  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	PR c++/124153
+	* g++.dg/modules/cpp-22.C: New test.
+
+2026-02-22  Valentyn Yukhymenko  <valentin.yukhymenko@gmail.com>
+
+	PR c++/123642
+	* g++.dg/reflect/member4.C: Remove expected error.
+	* g++.dg/reflect/anon4.C: New test based on original bug report.
+
+2026-02-22  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gnat.dg/asynch2.adb: New test.
+
+2026-02-22  Jose E. Marchesi  <jemarch@gnu.org>
+
+	* algol68/execute/trimmer-11.a68: New test.
+
+2026-02-21  Jose E. Marchesi  <jemarch@gnu.org>
+
+	* algol68/compile/warning-hidding-4.a68: Mention bitspack.
+
+2026-02-21  Jose E. Marchesi  <jemarch@gnu.org>
+
+	* lib/algol68.exp (algol68_init): Add -I options to
+	ALGOL68_UNDER_TEST so exports in libga68.{a,so} are found.
+	* algol68/compile/warning-hidding-6.a68: Likewise.
+	* algol68/compile/warning-hidding-5.a68: Use maxint instead of
+	getchar to trigger the warning.
+	* algol68/compile/error-nest-4.a68: Procedures yielding strings
+	are now on in C formal holes.
+
+2026-02-21  Jeff Law  <jeffrey.law@oss.qualcomm.com>
+
+	PR rtl-optimization/123994
+	* gcc.dg/torture/pr123994.c: New test.
+
+2026-02-21  Harald Anlauf  <anlauf@gmx.de>
+
+	Revert:
+	2026-02-21  Gonzalo Silvalde Blanco  <gonzalo.silvalde@gmail.com>
+
+	PR fortran/80012
+	* gfortran.dg/pr80012.f90: New test.
+
+2026-02-20  Gonzalo Silvalde Blanco  <gonzalo.silvalde@gmail.com>
+
+	PR fortran/80012
+	* gfortran.dg/pr80012.f90: New test.
+
+2026-02-20  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/123949
+	* gfortran.dg/pdt_85.f03: New test.
+	* gfortran.dg/pr123949.f90: New test.
+
+2026-02-20  Kwok Cheung Yeung  <kcyeung@baylibre.com>
+
+	PR middle-end/113436
+	* g++.dg/gomp/pr113436-2.C: New.
+
+2026-02-20  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/124068
+	* gcc.target/i386/vect-shift-1.c: New testcase.
+
+2026-02-20  Martin Jambor  <mjambor@suse.cz>
+
+	PR ipa/122856
+	* g++.dg/ipa/pr122856.C: New test.
+
+2026-02-20  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR tree-optimization/121103
+	* gcc.dg/torture/pr121103-1.c: New test.
+
+2026-02-20  Robert Dubner  <rdubner@symas.com>
+
+	* cobol.dg/group2/ALLOCATE_Rule_8_OPTION_INITIALIZE_with_figconst.cob: Updated.
+	* cobol.dg/group2/ALLOCATE_Rule_8_OPTION_INITIALIZE_with_figconst.out: Updated.
+	* cobol.dg/group2/ALPHABETIC-LOWER_test.cob: Updated.
+	* cobol.dg/group2/ALPHABETIC-UPPER_test.cob: Updated.
+	* cobol.dg/group2/ALPHABETIC_test.cob: Updated.
+	* cobol.dg/group2/Context_sensitive_words__1_.cob: Updated.
+	* cobol.dg/group2/DEBUG_Line.cob: Updated.
+	* cobol.dg/group2/DISPLAY__Sign_ASCII.cob: Updated.
+	* cobol.dg/group2/DISPLAY__Sign_ASCII.out: Updated.
+	* cobol.dg/group2/DISPLAY__Sign_ASCII__2_.cob: Updated.
+	* cobol.dg/group2/DISPLAY__Sign_ASCII__2_.out: Updated.
+	* cobol.dg/group2/EC-BOUND-REF-MOD_checking_process_termination.cob: Updated.
+	* cobol.dg/group2/FUNCTION_BIGGER-POINTER.cob: Updated.
+	* cobol.dg/group2/FUNCTION_BYTE-LENGTH.cob: Updated.
+	* cobol.dg/group2/FUNCTION_BYTE-LENGTH.out: Updated.
+	* cobol.dg/group2/FUNCTION_CHAR.cob: Updated.
+	* cobol.dg/group2/FUNCTION_DATE___TIME_OMNIBUS.cob: Updated.
+	* cobol.dg/group2/FUNCTION_HEX-OF.cob: Updated.
+	* cobol.dg/group2/FUNCTION_HEX-OF.out: Updated.
+	* cobol.dg/group2/FUNCTION_ORD.cob: Updated.
+	* cobol.dg/group2/FUNCTION_ORD.out: Updated.
+	* cobol.dg/group2/FUNCTION_TEST-DAY-YYYYDDD__2_.cob: Updated.
+	* cobol.dg/group2/FUNCTION_TEST-FORMATTED-DATETIME_additional.cob: Updated.
+	* cobol.dg/group2/FUNCTION_as_CALL_parameter_BY_CONTENT.cob: Updated.
+	* cobol.dg/group2/Hexadecimal_literal.cob: Updated.
+	* cobol.dg/group2/INSPECT_CONVERTING_TO_figurative_constants.cob: Updated.
+	* cobol.dg/group2/INSPECT_CONVERTING_TO_figurative_constants.out: Updated.
+	* cobol.dg/group2/LENGTH_OF_omnibus.cob: Updated.
+	* cobol.dg/group2/Non-numeric_data_in_numeric_items__2_.cob: Updated.
+	* cobol.dg/group2/PACKED-DECIMAL_dump.cob: Updated.
+	* cobol.dg/group2/PACKED-DECIMAL_dump.out: Updated.
+	* cobol.dg/group2/Refmod__comparisons_inside_numeric-display.cob: Updated.
+	* cobol.dg/group2/Refmod_sources_are_figurative_constants.cob: Updated.
+	* cobol.dg/group2/Refmod_sources_are_figurative_constants.out: Updated.
+	* cobol.dg/group2/debugging_lines__not_active_.cob: Updated.
+	* cobol.dg/group2/floating-point_SUBTRACT_FORMAT_2.out: Updated.
+	* cobol.dg/group2/floating-point_literals.out: Updated.
+	* cobol.dg/group2/37-digit_Initialization_of_fundamental_types.cob: New test.
+	* cobol.dg/group2/37-digit_Initialization_of_fundamental_types.out: New test.
+	* cobol.dg/group2/ACCEPT_FROM_ENVIRONMENT-NAME.cob: New test.
+	* cobol.dg/group2/ACCEPT_FROM_ENVIRONMENT-NAME.out: New test.
+	* cobol.dg/group2/ACCEPT_foo_FROM_COMMAND-LINE_1_.cob: New test.
+	* cobol.dg/group2/ADD_1_2_TO_3_GIVING_B.cob: New test.
+	* cobol.dg/group2/ALLOCATE_Rules_6_-_9._Without_OPTION_INITIALIZE_Without_-fdefaultbyte___ASCII_.cob:
+	New test.
+	* cobol.dg/group2/ALLOCATE_Rules_6_-_9._Without_OPTION_INITIALIZE_Without_-fdefaultbyte___ASCII_.out:
+	New test.
+	* cobol.dg/group2/ALLOCATE_Rules_6_-_9._Without_OPTION_INITIALIZE_Without_-fdefaultbyte___EBCDIC_.cob:
+	New test.
+	* cobol.dg/group2/ALLOCATE_Rules_6_-_9._Without_OPTION_INITIALIZE_Without_-fdefaultbyte___EBCDIC_.out:
+	New test.
+	* cobol.dg/group2/ALLOCATE_Rules_6_-_9_Without_OPTION_INITIALIZE_With_-fdefaultbyte___UTF16_.cob:
+	New test.
+	* cobol.dg/group2/ALLOCATE_Rules_6_-_9_Without_OPTION_INITIALIZE_With_-fdefaultbyte___UTF16_.out:
+	New test.
+	* cobol.dg/group2/ANY_LENGTH__7_.cob: New test.
+	* cobol.dg/group2/ANY_LENGTH__7_.out: New test.
+	* cobol.dg/group2/Assorted_SPECIAL-NAMES_CLASS.cob: New test.
+	* cobol.dg/group2/Assorted_SPECIAL-NAMES_CLASS.out: New test.
+	* cobol.dg/group2/BINARY_and_COMP-5.cob: New test.
+	* cobol.dg/group2/BINARY_and_COMP-5.out: New test.
+	* cobol.dg/group2/CDF2_-_DEFINE_FOO_AS_literal-1.cob: New test.
+	* cobol.dg/group2/CDF2_-_DEFINE_FOO_AS_literal-1.out: New test.
+	* cobol.dg/group2/CDF2_Trouble_with___IF__1_.cob: New test.
+	* cobol.dg/group2/CDF2_Trouble_with___IF__2_.cob: New test.
+	* cobol.dg/group2/CDF2_Trouble_with___IF__2_.out: New test.
+	* cobol.dg/group2/CDF4_.cob: New test.
+	* cobol.dg/group2/CDF4_.out: New test.
+	* cobol.dg/group2/CDF_Feature_.cob: New test.
+	* cobol.dg/group2/CDF_Feature_.out: New test.
+	* cobol.dg/group2/CDF_IS_NOT_DEFINED.cob: New test.
+	* cobol.dg/group2/CDF_IS_NOT_DEFINED.out: New test.
+	* cobol.dg/group2/CDF__1__IF____text_.cob: New test.
+	* cobol.dg/group2/CDF__1__IF____text_.out: New test.
+	* cobol.dg/group2/CDF__2__IF____number_.cob: New test.
+	* cobol.dg/group2/CDF__2__IF____number_.out: New test.
+	* cobol.dg/group2/CDF__3__ALL_NUMERIC_COMPARISONS.cob: New test.
+	* cobol.dg/group2/CDF__3__ALL_NUMERIC_COMPARISONS.out: New test.
+	* cobol.dg/group2/COMP-5_Sanity_Check_.cob: New test.
+	* cobol.dg/group2/Complex_HEX__VALUE_and_MOVE_-_ASCII_EBCDIC.cob: New test.
+	* cobol.dg/group2/Complex_HEX__VALUE_and_MOVE_-_ASCII_EBCDIC.out: New test.
+	* cobol.dg/group2/Complex_INITIALIZE_with_nested_tables__1_.cob: New test.
+	* cobol.dg/group2/Complex_INITIALIZE_with_nested_tables__1_.out: New test.
+	* cobol.dg/group2/Complex_INITIALIZE_with_nested_tables__2_.cob: New test.
+	* cobol.dg/group2/Complex_INITIALIZE_with_nested_tables__2_.out: New test.
+	* cobol.dg/group2/Default_Arithmetic__1_.cob: New test.
+	* cobol.dg/group2/Default_Arithmetic__1_.out: New test.
+	* cobol.dg/group2/ENTRY_statement.cob: New test.
+	* cobol.dg/group2/ENTRY_statement.out: New test.
+	* cobol.dg/group2/EVALUATE__A__OR__a_.cob: New test.
+	* cobol.dg/group2/EVALUATE__A__OR__a_.out: New test.
+	* cobol.dg/group2/EVALUATE_condition__1_.cob: New test.
+	* cobol.dg/group2/EVALUATE_condition__1_.out: New test.
+	* cobol.dg/group2/FIND-STRING__forward_.cob: New test.
+	* cobol.dg/group2/FIND-STRING__forward_.out: New test.
+	* cobol.dg/group2/FIND-STRING__reverse_.cob: New test.
+	* cobol.dg/group2/FIND-STRING__reverse_.out: New test.
+	* cobol.dg/group2/FIXED_FORMAT_data_in_cols_73_and_beyond.cob: New test.
+	* cobol.dg/group2/FIXED_FORMAT_data_in_cols_73_and_beyond.out: New test.
+	* cobol.dg/group2/FIXED_FORMAT_data_misplaced_asterisk.cob: New test.
+	* cobol.dg/group2/FUNCTION_CONVERT.cob: New test.
+	* cobol.dg/group2/FUNCTION_CONVERT.out: New test.
+	* cobol.dg/group2/Fundamental_INSPECT_BACKWARD_REPLACING.cob: New test.
+	* cobol.dg/group2/Fundamental_INSPECT_BACKWARD_REPLACING.out: New test.
+	* cobol.dg/group2/Fundamental_INSPECT_BACKWARD_TALLYING.cob: New test.
+	* cobol.dg/group2/Fundamental_INSPECT_BACKWARD_TALLYING.out: New test.
+	* cobol.dg/group2/Fundamental_INSPECT_REPLACING.cob: New test.
+	* cobol.dg/group2/Fundamental_INSPECT_REPLACING.out: New test.
+	* cobol.dg/group2/Fundamental_INSPECT_TALLYING.cob: New test.
+	* cobol.dg/group2/Fundamental_INSPECT_TALLYING.out: New test.
+	* cobol.dg/group2/INITIALIZE_OCCURS_with_SIGN_LEADING___TRAILING.cob: New test.
+	* cobol.dg/group2/INITIALIZE_OCCURS_with_SIGN_LEADING___TRAILING.out: New test.
+	* cobol.dg/group2/INITIALIZE_OCCURS_with_numeric_edited.cob: New test.
+	* cobol.dg/group2/INITIALIZE_complex_group__1_.cob: New test.
+	* cobol.dg/group2/INITIALIZE_complex_group__2_.cob: New test.
+	* cobol.dg/group2/INITIALIZE_complex_group__2_.out: New test.
+	* cobol.dg/group2/INITIALIZE_group_entry_with_OCCURS.cob: New test.
+	* cobol.dg/group2/INITIALIZE_of_EXTERNAL_data_items.cob: New test.
+	* cobol.dg/group2/INITIALIZE_with_-defaultbyte__ASCII_.cob: New test.
+	* cobol.dg/group2/INITIALIZE_with_-defaultbyte__ASCII_.out: New test.
+	* cobol.dg/group2/INITIALIZE_with_-defaultbyte__EBCDIC_.cob: New test.
+	* cobol.dg/group2/INITIALIZE_with_-defaultbyte__EBCDIC_.out: New test.
+	* cobol.dg/group2/INITIALIZE_with_FILLER.cob: New test.
+	* cobol.dg/group2/INITIALIZE_with_REDEFINES.cob: New test.
+	* cobol.dg/group2/INITIALIZE_with_reference_modification.cob: New test.
+	* cobol.dg/group2/Intrinsic_Function_ABS.cob: New test.
+	* cobol.dg/group2/Intrinsic_Function_ACOS.cob: New test.
+	* cobol.dg/group2/Intrinsic_Function_ANNUITY.cob: New test.
+	* cobol.dg/group2/Intrinsic_Function_DATE-YYYYMMDD.cob: New test.
+	* cobol.dg/group2/Intrinsic_Function_NUMVAL.cob: New test.
+	* cobol.dg/group2/Intrinsic_Function_NUMVAL.out: New test.
+	* cobol.dg/group2/Long_Division.cob: New test.
+	* cobol.dg/group2/Long_Division.out: New test.
+	* cobol.dg/group2/MOVE_X_000203_.cob: New test.
+	* cobol.dg/group2/MOVE_X_000203_.out: New test.
+	* cobol.dg/group2/MOVE_to_JUSTIFIED_items.cob: New test.
+	* cobol.dg/group2/MOVE_to_JUSTIFIED_items.out: New test.
+	* cobol.dg/group2/N-Queens_algorithm.cob: New test.
+	* cobol.dg/group2/N-Queens_algorithm.out: New test.
+	* cobol.dg/group2/Numeric_operations__6_.cob: New test.
+	* cobol.dg/group2/Numeric_operations__6_.out: New test.
+	* cobol.dg/group2/Preserve_collation_past_a_CALL.cob: New test.
+	* cobol.dg/group2/Preserve_collation_past_a_CALL.out: New test.
+	* cobol.dg/group2/RETURN-CODE_moving.cob: New test.
+	* cobol.dg/group2/RETURN-CODE_nested.cob: New test.
+	* cobol.dg/group2/SORT__table_sort__2___ASCII_.cob: New test.
+	* cobol.dg/group2/SORT__table_sort__2___ASCII_.out: New test.
+	* cobol.dg/group2/SORT__table_sort__2___EBCDIC_.cob: New test.
+	* cobol.dg/group2/SORT__table_sort__2___EBCDIC_.out: New test.
+	* cobol.dg/group2/Simple_DEBUG-ITEM.cob: New test.
+	* cobol.dg/group2/Simple_DEBUG-ITEM.out: New test.
+	* cobol.dg/group2/Simple_ENVIRONMENT-NAME_with_exception.cob: New test.
+	* cobol.dg/group2/Simple_ENVIRONMENT-NAME_with_exception.out: New test.
+	* cobol.dg/group2/UNSTRING_with_refmods.cob: New test.
+	* cobol.dg/group2/UNSTRING_with_refmods.out: New test.
+	* cobol.dg/group2/command-line.cob: New test.
+	* cobol.dg/group2/command-line.out: New test.
+	* cobol.dg/group2/floating-point_FORMAT_1.cob: New test.
+	* cobol.dg/group2/floating-point_FORMAT_1.out: New test.
+	* cobol.dg/group2/floating-point_FORMAT_2.cob: New test.
+	* cobol.dg/group2/floating-point_FORMAT_2.out: New test.
+	* cobol.dg/group2/procedure_division_using_by.cob: New test.
+	* cobol.dg/group2/repository.cob: New test.
+	* cobol.dg/group2/skipping_at_the_top.cob: New test.
+	* cobol.dg/group2/source-computer_object-computer_repository__2_.cob: New test.
+
+2026-02-19  Jeff Law  <jeffrey.law@oss.qualcomm.com>
+
+	* gcc.dg/torture/pr124108.c: Fix typo.
+
+2026-02-19  jlaw  <jeffreyalaw@gmail.com>
+
+	PR tree-optimization/124108
+	* gcc.dg/torture/pr124108.c: New test.
+
+2026-02-19  Thomas Schwinge  <tschwinge@baylibre.com>
+
+	* lib/target-supports.exp
+	(check_effective_target_no_fsanitize_address): Check 'assembly'
+	instead of 'executable'.
+
+2026-02-19  Thomas Schwinge  <tschwinge@baylibre.com>
+
+	PR rtl-optimization/116053
+	* gcc.dg/pr116053-1.c: 'dg-require-effective-target int128'.
+
+2026-02-19  Avinash Jayakar  <avinashd@linux.ibm.com>
+
+	PR target/123195
+	* gcc.dg/vect/pr104116-ceil-div-2.c: Add space.
+	* gcc.dg/vect/pr104116-ceil-div-pow2.c: Likewise.
+	* gcc.dg/vect/pr104116-ceil-div.c: Likewise.
+	* gcc.dg/vect/pr104116-ceil-mod-2.c: Likewise.
+	* gcc.dg/vect/pr104116-ceil-mod-pow2.c: Likewise.
+	* gcc.dg/vect/pr104116-ceil-mod.c: Likewise.
+	* gcc.dg/vect/pr104116-ceil-udiv-2.c: Likewise.
+	* gcc.dg/vect/pr104116-ceil-udiv-pow2.c: Likewise.
+	* gcc.dg/vect/pr104116-ceil-udiv.c: Likewise.
+	* gcc.dg/vect/pr104116-ceil-umod-2.c: Likewise.
+	* gcc.dg/vect/pr104116-ceil-umod-pow2.c: Likewise.
+	* gcc.dg/vect/pr104116-ceil-umod.c: Likewise.
+	* gcc.dg/vect/pr104116-floor-div-2.c: Likewise.
+	* gcc.dg/vect/pr104116-floor-div-pow2.c: Likewise.
+	* gcc.dg/vect/pr104116-floor-div.c: Likewise.
+	* gcc.dg/vect/pr104116-floor-mod-2.c: Likewise.
+	* gcc.dg/vect/pr104116-floor-mod-pow2.c: Likewise.
+	* gcc.dg/vect/pr104116-floor-mod.c: Likewise.
+	* gcc.dg/vect/pr104116-round-div-2.c: Likewise.
+	* gcc.dg/vect/pr104116-round-div-pow2.c: Likewise.
+	* gcc.dg/vect/pr104116-round-div.c: Likewise.
+	* gcc.dg/vect/pr104116-round-mod-2.c: Likewise.
+	* gcc.dg/vect/pr104116-round-mod-pow2.c: Likewise.
+	* gcc.dg/vect/pr104116-round-mod.c: Likewise.
+	* gcc.dg/vect/pr104116-round-udiv-2.c: Likewise.
+	* gcc.dg/vect/pr104116-round-udiv-pow2.c: Likewise.
+	* gcc.dg/vect/pr104116-round-udiv.c: Likewise.
+	* gcc.dg/vect/pr104116-round-umod-2.c: Likewise.
+	* gcc.dg/vect/pr104116-round-umod-pow2.c: Likewise.
+	* gcc.dg/vect/pr104116-round-umod.c: Likewise.
+
+2026-02-19  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/124070
+	* g++.dg/cpp26/pr124070.C: New test.
+	* g++.dg/reflect/parameters_of4.C: Expect different diagnostics.
+	* g++.dg/reflect/define_aggregate7.C: New test.
+	* g++.dg/reflect/define_aggregate8.C: New test.
+
+2026-02-19  Jakub Jelinek  <jakub@redhat.com>
+
+	* g++.dg/cpp26/expansion-stmt29.C: New test.
+	* g++.dg/cpp26/expansion-stmt30.C: New test.
+
+2026-02-19  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/108400
+	PR analyzer/124116
+	* c-c++-common/analyzer/null-deref-pr108400-SoftEtherVPN-WebUi.c:
+	Remove xfails; these false positives appears to have been fixed by
+	r16-7365-g498fb8a24516b1.
+
+2026-02-19  H.J. Lu  <hjl.tools@gmail.com>
+
+	PR target/120233
+	* gcc.target/i386/pr108938-3.c: Also scan 3 bswaps for x86-64.
+
+2026-02-18  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/123440
+	* g++.dg/reflect/extract10.C: New test.
+
+2026-02-18  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR rtl-optimization/116053
+	* gcc.dg/pr116053-1.c: New test.
+
+2026-02-18  Vladimir N. Makarov  <vmakarov@redhat.com>
+
+	PR rtl-optimization/120169
+	* gcc.target/m68k/pr120169.c: New.
+
+2026-02-18  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c/123365
+	* gcc.c-torture/compile/pr123365.c: New test.
+
+2026-02-18  Torbjörn SVENSSON  <torbjorn.svensson@foss.st.com>
+
+	* gcc.target/arm/aes-fuse-1.c: Use effective-target
+	arm_cpu_cortex_a53.
+	* gcc.target/arm/aes-fuse-2.c: Likewise.
+	* lib/target-supports.exp: Define effective-target
+	arm_cpu_cortex_a53.
+
+2026-02-18  Richard Biener  <rguenther@suse.de>
+
+	PR target/123137
+	* g++.dg/torture/pr124137.C: New testcase.
+
+2026-02-18  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/124096
+	* g++.dg/reflect/bit_cast.C: New test.
+
+2026-02-18  Victor Do Nascimento  <victor.donascimento@arm.com>
+
+	* gcc.dg/vect/vect-fncall-mask-math.c: Fix test.
+
+2026-02-18  Jakub Jelinek  <jakub@redhat.com>
+
+	PR target/124138
+	* gcc.dg/pr124138.c: New test.
+	* gcc.target/i386/avx512f-pr124138-1.c: New test.
+	* gcc.target/i386/avx512f-pr124138-2.c: New test.
+
+2026-02-18  Tobias Burnus  <tburnus@baylibre.com>
+
+	* gfortran.dg/gomp/groupprivate-1.f90: Update test.
+	* gfortran.dg/gomp/groupprivate-4.f90: Likewise.
+	* gfortran.dg/gomp/groupprivate-6.f90: Likewise.
+	* gfortran.dg/gomp/groupprivate-7.f90: Extend test.
+
+2026-02-18  H.J. Lu  <hjl.tools@gmail.com>
+
+	PR target/124098
+	* gcc.target/i386/pr124098.c: New test.
+
+2026-02-17  H.J. Lu  <hjl.tools@gmail.com>
+
+	PR target/124136
+	* g++.target/i386/pr124136.C: New file.
+
+2026-02-17  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/124104
+	* c-c++-common/analyzer/casts-3.c: New test.
+	* gcc.dg/analyzer/ice-pr124104.c: New test.
+
+2026-02-17  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/124139
+	* g++.dg/analyzer/exception-ice-pr124139.C: New test.
+
+2026-02-17  Richard Earnshaw  <rearnsha@arm.com>
+
+	PR target/124134
+	* gcc.target/arm/pr124134.c: New test.
+
+2026-02-17  Jakub Jelinek  <jakub@redhat.com>
+
+	PR rtl-optimization/123048
+	* gcc.dg/pr123048.c: New test.
+
+2026-02-17  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/121822
+	* g++.dg/cpp2a/concepts-decltype6.C: New test.
+
+2026-02-17  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/122318
+	PR c++/101670
+	* g++.dg/cpp2a/lambda-targ20.C: New test.
+	* g++.dg/cpp2a/lambda-targ21.C: New test.
+
+2026-02-17  Jakub Jelinek  <jakub@redhat.com>
+
+	* g++.dg/ext/constexpr-diag1.C: New test.
+	* g++.dg/ext/constexpr-diag2.C: New test.
+	* g++.dg/ext/constexpr-diag3.C: New test.
+	* g++.dg/ext/constexpr-diag4.C: New test.
+	* g++.dg/ext/constexpr-diag5.C: New test.
+	* g++.dg/ext/constexpr-diag6.C: New test.
+
+2026-02-17  Richard Biener  <rguenther@suse.de>
+
+	* gfortran.dg/vect/vect.exp: Remove special options
+	handling.  Glob all *.\[fF\]{,90,95,03,08} files.
+	* gfortran.dg/vect/O3-bb-slp-1.f: Add dg-additional-options.
+	* gfortran.dg/vect/O3-bb-slp-2.f: Likewise.
+	* gfortran.dg/vect/O3-pr36119.f90: Likewise.
+	* gfortran.dg/vect/O3-pr39595.f: Likewise.
+	* gfortran.dg/vect/O3-pr49957.f: Likewise.
+	* gfortran.dg/vect/Ofast-pr50414.f90: Likewise.
+	* gfortran.dg/vect/cost-model-pr34445.f: Likewise.
+	* gfortran.dg/vect/cost-model-pr34445a.f: Likewise.
+	* gfortran.dg/vect/fast-math-mgrid-resid.f: Likewise.
+	* gfortran.dg/vect/fast-math-pr33299.f90: Likewise.
+	* gfortran.dg/vect/fast-math-pr37021.f90: Likewise.
+	* gfortran.dg/vect/fast-math-pr38968.f90: Likewise.
+	* gfortran.dg/vect/fast-math-real8-pr40801.f90: Likewise.
+	* gfortran.dg/vect/fast-math-rnflow-trs2a2.f90: Likewise.
+	* gfortran.dg/vect/fast-math-vect-8.f90: Likewise.
+	* gfortran.dg/vect/no-fre-no-copy-prop-O3-pr51704.f90: Likewise.
+	* gfortran.dg/vect/no-vfa-pr32377.f90: Likewise.
+	* gfortran.dg/vect/no-vfa-pr32457.f90: Likewise.
+	* gfortran.dg/vect/mask-store-1.f90: Add missing dg-do.
+
+2026-02-17  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/124130
+	* g++.dg/torture/pr124130.C: New testcase.
+
+2026-02-17  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/124132
+	* gcc.dg/torture/pr124132.c: New testcase.
+
+2026-02-17  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* gcc.dg/hierarchical-discriminator-loop-version.c
+	(scan-assembler): Require gas.
+	* gcc.dg/hierarchical-discriminator-unroll.c: Likewise.
+	* gcc.dg/hierarchical-discriminator-vect-version.c: Likewise.
+
+2026-02-17  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* gcc.dg/asm-hard-reg-1.c: Simplify x86 target selectors.  Remove
+	duplicates.
+
+2026-02-17  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* gcc.dg/tree-ssa/ldexp.c (dg-additional-options): Add -std=c99.
+
+2026-02-17  Richard Biener  <rguenther@suse.de>
+
+	* gcc.dg/torture/ssa-fre-7.c: Properly use __SIZETYPE__
+	where required.
+
+2026-02-17  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* gcc.dg/ipa/pr122458.c: xfail without gas.
+
+2026-02-17  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/124119
+	* g++.dg/reflect/is_type_alias2.C (W): New type alias.
+	Assert is_type_alias (^^W).  Don't assert is_type_alias (^^size_t).
+
+2026-02-17  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/120685
+	* g++.dg/cpp23/auto-fncast19.C: New test.
+
+2026-02-17  Jakub Jelinek  <jakub@redhat.com>
+
+	* gcc.dg/tree-ssa/copy-prop-aggregate-return-1.c: Fix up target
+	selector.
+
+2026-02-17  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/123612
+	* g++.dg/reflect/pr123612.C: New test.
+
+2026-02-17  David Malcolm  <dmalcolm@redhat.com>
+
+	PR diagnostics/122001
+	* g++.dg/diagnostic/instantiation-context-pr122001-1.C: New test.
+	* g++.dg/diagnostic/instantiation-context-pr122001-2.C: New test.
+
+2026-02-17  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/121928
+	* g++.dg/analyzer/fanalyzer-show-events-in-system-headers-default.C:
+	Add -Wno-analyzer-too-complex.
+	* g++.dg/analyzer/fanalyzer-show-events-in-system-headers-no.C:
+	Likewise.
+	* g++.dg/analyzer/fanalyzer-show-events-in-system-headers.C:
+	Likewise.
+
+2026-02-16  Jose E. Marchesi  <jemarch@gnu.org>
+
+	PR algol68/124115
+	* algol68/compile/formal-hole-2.a68: New test.
+
+2026-02-16  Richard Biener  <rguenther@suse.de>
+
+	PR testsuite/103515
+	* gcc.target/powerpc/pr103515.c: Mark the loop in foo1
+	with #pramga GCC novector.
+
+2026-02-16  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gnat.dg/subpools2.adb: New test.
+
+2026-02-15  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/121500
+	* g++.dg/cpp23/explicit-obj-lambda20.C: New test.
+
+2026-02-15  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR tree-optimization/124099
+	* gcc.dg/torture/tls-return-1.c: New test.
+
+2026-02-15  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/108663
+	* gfortran.dg/pdt_15.f03: Modify tree dump test for new prefix.
+	* gfortran.dg/pdt_71.f03: Ditto.
+	* gfortran.dg/pdt_79.f03: Ditto.
+	* gfortran.dg/pdt_84.f03: New test.
+
+2026-02-15  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	* c-c++-common/torture/pr124086-1.c: Only enable
+	for power of 2 long double.
+
+2026-02-14  Kalvis Duckmanton  <kalvisd@gmail.com>
+
+	PR target/112400
+	* g++.dg/torture/pr112400.C: New file.
+
+2026-02-14  Christopher Albert  <albert@tugraz.at>
+	    Harald Anlauf  <anlauf@gcc.gnu.org>
+
+	PR fortran/123943
+	* gfortran.dg/pr123943.f90: New test.
+
+2026-02-14  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/99250
+	* gfortran.dg/coshape_1.f90: New test.
+
+2026-02-14  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR tree-optimization/124086
+	* c-c++-common/torture/pr124086-1.c: New test.
+	* g++.dg/torture/pr124086-1.C: New test.
+
+2026-02-14  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	* gcc.dg/tree-ssa/copy-prop-aggregate-return-1.c: Limit check to x86_64
+	and aarch64.
+
+2026-02-14  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	* g++.dg/warn/uninit-pr95825-1.C: Skip if no address sanitizer.
+
 2026-02-13  Vladimir N. Makarov  <vmakarov@redhat.com>
 
 	PR rtl-optimization/124079

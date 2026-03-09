@@ -1,3 +1,282 @@
+2026-03-04  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/124368
+	* reflect.cc (eval_extent): Convert the result to size_type_node.
+
+2026-03-04  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/124229
+	* pt.cc (in_expansion_stmt_p): New.
+	(tsubst): When reusing typedefs, do retrieve_local_specialization also
+	when in_expansion_stmt_p is true.
+
+2026-03-04  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/123866
+	* reflect.cc (eval_annotations_of): For type aliases look for
+	annotations in DECL_ATTRIBUTES (TYPE_NAME (r)).
+
+2026-03-03  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/124306
+	* pt.cc (regenerate_decl_from_template): Mark the old PARM_DECLs
+	replaced with tsubst_decl result with OLD_PARM_DECL_P flag.
+
+2026-03-03  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/124324
+	* reflect.cc (eval_substitute): Call resolve_nondeduced_context.
+
+2026-03-03  Patrick Palka  <ppalka@redhat.com>
+
+	* constraint.cc (struct sat_entry): New data member inst_entry.
+	(satisfaction_cache::satisfaction_cache): Initialize inst_entry.
+	(satisfaction_cache::get): Use it to prefer printing the
+	instantiated atom in case of constraint recursion.
+	(satisfy_atom): Set inst_entry of the first cache entry to point
+	to the second entry.
+
+2026-03-03  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/123665
+	PR c++/123408
+	* pt.cc (build_extra_args): If TREE_STATIC was set on the
+	arguments, keep it set.
+	(add_extra_args): Set TREE_STATIC on the resulting arguments
+	when substituting templated arguments into a full set of
+	deferred arguments.
+	(tsubst_lambda_expr): Always defer templated substitution if
+	LAMBDA_EXPR_EXTRA_ARGS was set.
+
+2026-03-01  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	* constexpr.cc (diagnose_failing_condition): Also decompose
+	comparisons of reflections.
+
+2026-03-01  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/123143
+	* pt.cc (tsubst_expr) <case COMPONENT_REF>: Check identifier_p
+	before doing lookup for a template function.
+
+2026-03-01  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/123608
+	* cp-tree.h (unevaluated_p): Include REFLECT_EXPR.
+	* reflect.cc (check_out_of_consteval_use_r): Don't give up early
+	on REFLECT_EXPR_P.
+
+2026-02-26  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/124204
+	* reflect.cc (eval_can_substitute): Call convert_from_reference.
+
+2026-02-26  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/123662
+	PR c++/123611
+	* cvt.cc (convert_to_void): Only call check_out_of_consteval_use
+	when stmts_are_full_exprs_p.
+
+2026-02-26  Marek Polacek  <polacek@redhat.com>
+	    Jakub Jelinek   <jakub@redhat.com>
+
+	PR c++/124215
+	* reflect.cc (class_members_of): Use TYPE_MAIN_VARIANT of R.
+
+2026-02-25  Marek Polacek  <polacek@redhat.com>
+
+	* reflect.cc (check_out_of_consteval_use_r): Walk BIND_EXPR_BODY.
+	For IF_STMT_CONSTEVAL_P, only walk the ELSE_CLAUSE.  For
+	IF_STMT_CONSTEXPR_P, only walk the THEN_ and ELSE_CLAUSE.
+
+2026-02-25  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/124227
+	* reflect.cc (consteval_only_p): Handle TREE_VEC.
+
+2026-02-24  Marek Polacek  <polacek@redhat.com>
+
+	* parser.cc (cp_parser_base_specifier): Use the same error for
+	a typename in a base-specifier outside of templates and inside.
+
+2026-02-23  Marek Polacek  <polacek@redhat.com>
+
+	* parser.cc (cp_parser_splice_expression): For dependent splices return
+	earlier.  Refactor.  For address_p, build an OFFSET_REF.  Don't pass
+	context to finish_id_expression.
+	* semantics.cc (finish_id_expression_1): Adjust an assert to also check
+	flag_reflection.
+
+2026-02-23  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/124150
+	* reflect.cc (eval_substitute): Add an OVERLOAD around
+	a DECL_FUNCTION_TEMPLATE_P.
+
+2026-02-23  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/123641
+	* name-lookup.cc: Move STAT_* and MAYBE_STAT_* macros from here to...
+	* name-lookup.h: ...here.
+	* reflect.cc (namespace_members_of): Use them.  Skip STAT_TYPE_HIDDEN_P.
+
+2026-02-22  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/124173
+	* pt.cc (convert_nontype_argument): For C++11/C++14 handle
+	NULLPTR_TYPE_P non-type arguments like TYPE_PTR_P.
+
+2026-02-22  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/124184
+	* parser.cc (cp_perform_range_for_lookup): If tf_error is
+	missing, call finish_call_expr after perform_koenig_lookup
+	calls immediately with tf_any_viable instead of twice, once
+	with tf_none and then with tf_any_viable.
+	* pt.cc (finish_expansion_stmt): Remove unneeded parens.
+
+2026-02-22  Valentyn Yukhymenko  <valentin.yukhymenko@gmail.com>
+
+	PR c++/123642
+	* typeck.cc (finish_class_member_access_expr): Change context lookup
+	to handle anon union members.
+
+2026-02-19  Marek Polacek  <polacek@redhat.com>
+
+	* metafns.gperf: Define METAFN_KIND_ARG.
+	* metafns.h: Regenerate.
+	* reflect.cc (process_metafunction): Use METAFN_KIND_ARG.
+
+2026-02-19  Jakub Jelinek  <jakub@redhat.com>
+
+	* pt.cc (convert_nontype_argument): Clarify return value in function
+	comment.
+
+2026-02-19  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/124070
+	* pt.cc (convert_nontype_argument): For NULLPTR_TYPE_P case
+	if expr is not integer_zerop and is not val_dep_p try harder,
+	for complain & tf_error use cxx_constant_value and return NULL_TREE
+	for error_mark_node, without tf_error return NULL_TREE.  Similarly
+	for REFLECTION_TYPE_P case if expr is not REFLECT_EXPR and is not
+	val_dep_p try harder like for NULLPTR_TYPE_P.
+
+2026-02-19  Jakub Jelinek  <jakub@redhat.com>
+
+	* cp-tree.h: Implement proposed CWG 3123 resolution.
+	(enum tsubst_flags): Add tf_any_viable enumerator.  Indent all
+	comments the same.
+	* call.cc (perform_overload_resolution): For tf_any_viable
+	return the first candidate instead of doing tourney.  Filter out
+	tf_any_viable flag from add_candidates call.
+	(build_new_function_call): For tf_any_viable return void_node
+	if any viable candidates are found rather than build_over_call.
+	Filter out tf_any_viable flag from resolve_args call.
+	* parser.cc (cp_perform_range_for_lookup): Pass COMPLAIN to
+	cp_range_for_member_function calls.  If not tf_error, for
+	successful ADL if one or both of finish_call_expr calls returns
+	error_mark_node, retry with tf_any_viable.  If both begin and
+	end expressions have a viable candidate or when member lookup
+	found both begin and end members, return NULL_TREE rather than
+	error_mark_node even when both *begin and *end are error_mark_node.
+	(cp_range_for_member_function): Add COMPLAIN argument, pass it
+	down to finish_class_member_access_expr and finish_call_expr.
+	* pt.cc (finish_expansion_stmt): Use esk_iterating if
+	cp_perform_range_for_lookup returned something other than
+	error_mark_node or if both begin_expr and end_expr are not
+	error_mark_node.
+	* semantics.cc (finish_call_expr): Filter out tf_any_viable
+	flag from all uses of complain except one build_new_function_call
+	call for the is_overloaded_fn case.
+
+2026-02-18  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/124096
+	* semantics.cc (cp_build_bit_cast): Check that neither argument is
+	consteval-only.
+
+2026-02-17  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/121822
+	* cvt.cc (convert_to_void): Don't evaluate a concept-id
+	in an unevaluated context.
+
+2026-02-17  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/122318
+	PR c++/101670
+	* pt.cc (unify) <default>: Accept LAMBDA_EXPR.
+
+2026-02-17  Jakub Jelinek  <jakub@redhat.com>
+
+	* cp-tree.h (enum cp_built_in_function): Add
+	CP_BUILT_IN_CONSTEXPR_DIAG.
+	(cexpr_str::cexpr_str): Add new default ctor.
+	(cexpr_str::type_check): Add optional allow_char8_t arg.
+	(cexpr_str::extract): Add optional ctx, non_constant_p, overflow_p
+	and jump_target arguments.
+	* cp-gimplify.cc (cp_gimplify_expr): Throw away
+	__builtin_constexpr_diag calls after gimplification of
+	their arguments.
+	* decl.cc (cxx_init_decl_processing): Create __builtin_constexpr_diag
+	FE builtin decl.
+	* constexpr.cc (call_stack, call_stack_tick, last_cx_error_tick):
+	Moved earlier.
+	(cxx_eval_constexpr_diag): New function.
+	(cxx_eval_builtin_function_call): Handle __builtin_constexpr_diag
+	calls.
+	* tree.cc (builtin_valid_in_constant_expr_p): Return true for
+	CP_BUILT_IN_CONSTEXPR_DIAG.
+	* semantics.cc (cexpr_str::type_check): Add allow_char8_t argument,
+	if true, allow data to return const char8_t *.
+	(cexpr_str::extract): Add ctx, non_constant_p, overflow_p and
+	jump_target arguments, if they are non-NULL, evalute expressions
+	in that context rather than using cxx_constant_value and translate
+	back to SOURCE_CHARSET even if message_data or message_sz are NULL.
+
+2026-02-17  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/120685
+	* typeck2.cc (build_functional_cast_1): For C++23 auto(x)
+	without tf_warning or tf_error return error_mark_node instead of
+	emitting pedwarn and handling it.
+	* semantics.cc (finish_compound_literal): Similarly for C++26
+	auto{x}.
+
+2026-02-17  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/123612
+	* cp-tree.h (DECL_HAS_DEFAULT_ARGUMENT_P): Define.
+	* decl.cc (merge_decl_arguments): For -freflection and
+	extern_alias set DECL_HAS_DEFAULT_ARGUMENT_P (oldarg)
+	if newdecl has a default argument for that parameter,
+	otherwise propagate the flag.
+	* reflect.cc (get_reflection): For DECL_LOCAL_DECL_P
+	use its DECL_LOCAL_DECL_ALIAS.
+	(eval_has_default_argument): Return boolean_true_node
+	also if DECL_HAS_DEFAULT_ARGUMENT_P flag is set.
+
+2026-02-17  David Malcolm  <dmalcolm@redhat.com>
+
+	PR diagnostics/122001
+	* error.cc (auto_context_line::auto_context_line): Initialize
+	m_nesting_level and m_location_printed.  Update the condition
+	for printing location in ctor to also do it at top-level
+	nesting level.  Record into m_location_printed if we did
+	print the location.
+	(auto_context_line::~auto_context_line): Don't call print_location
+	if we already printed it in the ctor.
+	(auto_context_line::m_nesting_level): New field.
+	(auto_context_line::m_location_printed): New field.
+
+2026-02-15  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/121500
+	* cp-gimplify.cc (cp_genericize_r): Walk DECL_VALUE_EXPR within
+	an xobj lambda.
+
 2026-02-13  Marek Polacek  <polacek@redhat.com>
 
 	* cp-tree.h (inform_tree_category): Declare.

@@ -4539,8 +4539,6 @@ update_indirect_edges_after_inlining (struct cgraph_edge *cs,
 
   ipa_check_create_edge_args ();
   class ipa_edge_args *top = ipa_edge_args_sum->get (cs);
-  if (!top)
-    return res;
   cgraph_node *new_root
     = cs->caller->inlined_to ? cs->caller->inlined_to : cs->caller;
   ipa_node_params *new_root_info = ipa_node_params_sum->get (new_root);
@@ -4552,7 +4550,8 @@ update_indirect_edges_after_inlining (struct cgraph_edge *cs,
     {
       next_ie = ie->next_callee;
 
-      if (ie->indirect_info->param_index < 0
+      if (!top
+	  || ie->indirect_info->param_index < 0
 	  || ie->indirect_info->param_index >= ipa_get_cs_argument_count (top))
 	{
 	  ie->indirect_info->param_index = -1;

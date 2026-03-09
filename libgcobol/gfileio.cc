@@ -4459,6 +4459,10 @@ __gg__file_reopen(cblc_file_t *file, int mode_char)
 
   done:
   file->prior_op = file_op_open;
+  // Call establish_status to raise exception if OPEN failed
+  // This ensures that if file->file_pointer is NULL, an exception is raised
+  // Patch by George Neill of data-axle.com
+  establish_status(file, -1);
   }
 
 static void

@@ -151,7 +151,7 @@ pointer::token::print (pretty_printer *pp) const
       break;
 
     case kind::array_index:
-      pp_scalar (pp, HOST_SIZE_T_PRINT_UNSIGNED, m_data.u_index);
+      pp_scalar (pp, HOST_SIZE_T_PRINT_UNSIGNED, (fmt_size_t) m_data.u_index);
       break;
     }
 }

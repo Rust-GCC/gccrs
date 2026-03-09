@@ -1097,6 +1097,7 @@ dom_valueize (tree t)
    additional equivalences that are valid on edge E.  */
 static void
 back_propagate_equivalences (tree lhs, edge e,
+			     class avail_exprs_stack *avail_exprs_stack,
 			     class const_and_copies *const_and_copies,
 			     bitmap domby)
 {
@@ -1149,6 +1150,20 @@ back_propagate_equivalences (tree lhs, edge e,
 						 no_follow_ssa_edges);
       if (res && (TREE_CODE (res) == SSA_NAME || is_gimple_min_invariant (res)))
 	record_equality (lhs2, res, const_and_copies);
+
+      /* It may also be the case that the value is in the hash table.  So
+	 try to look it up there too.  But restrict ourselves to cases where
+	 the hash lookup produced a constant rather than another SSA_NAME.
+	 That avoids infinite recursion issues.  */
+      res = avail_exprs_stack->lookup_avail_expr (use_stmt, false, false);
+      if (res && is_gimple_min_invariant (res))
+	{
+	  record_equality (lhs2, res, const_and_copies);
+
+	  /* And that in turn may trigger further propagation opportunities.  */
+	  back_propagate_equivalences (lhs2, e, avail_exprs_stack,
+				       const_and_copies, domby);
+	}
     }
 }
 
@@ -1173,7 +1188,25 @@ record_temporary_equivalences (edge e,
       /* If we have 0 = COND or 1 = COND equivalences, record them
 	 into our expression hash tables.  */
       for (i = 0; edge_info->cond_equivalences.iterate (i, &eq); ++i)
-	avail_exprs_stack->record_cond (eq);
+	{
+	  avail_exprs_stack->record_cond (eq);
+
+	  /* This is not a simple equivalence, but may still enable
+	     discovery of other equivalences.  This is fairly narrowly
+	     implemented and can likely be generalized further.
+
+	     Essentially we're looking for [0/1] = A cond [0/1] and try
+	     to derive equivalences at use points of A.  */
+	     if ((integer_zerop (eq->value) || integer_onep (eq->value))
+		 && eq->cond.kind == EXPR_BINARY
+		 && (eq->cond.ops.binary.op == EQ_EXPR
+		     || eq->cond.ops.binary.op == NE_EXPR)
+		 && TREE_CODE (eq->cond.ops.binary.opnd0) == SSA_NAME
+		 && TREE_CODE (eq->cond.ops.binary.opnd1) == INTEGER_CST)
+		back_propagate_equivalences (eq->cond.ops.binary.opnd0, e,
+					     avail_exprs_stack,
+					     const_and_copies, blocks_on_stack);
+	}
 
       edge_info::equiv_pair *seq;
       for (i = 0; edge_info->simple_equivalences.iterate (i, &seq); ++i)
@@ -1211,8 +1244,8 @@ record_temporary_equivalences (edge e,
 	  /* Any equivalence found for LHS may result in additional
 	     equivalences for other uses of LHS that we have already
 	     processed.  */
-	  back_propagate_equivalences (lhs, e, const_and_copies,
-				       blocks_on_stack);
+	  back_propagate_equivalences (lhs, e, avail_exprs_stack,
+				       const_and_copies, blocks_on_stack);
 	}
     }
 }

@@ -1,4 +1,5 @@
 ! { dg-do compile }
+! { dg-additional-options "-ffast-math -fdefault-real-8" }
 
 MODULE YOMPHY0
 REAL :: ECMNP

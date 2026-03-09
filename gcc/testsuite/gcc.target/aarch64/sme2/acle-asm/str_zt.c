@@ -29,8 +29,8 @@ PROTO (str_zt0_x0p64, void, (char *x0)) { svstr_zt (0, x0 + 64); }
 
 /*
 ** str_zt0_x0_vl1:
-**	incb	x0
+**	addsvl	x0, x0, #?1
 **	str	zt0, \[x0\]
 **	ret
 */
-PROTO (str_zt0_x0_vl1, void, (char *x0)) { svstr_zt (0, x0 + svcntb()); }
+PROTO (str_zt0_x0_vl1, void, (char *x0)) { svstr_zt (0, x0 + svcntsb()); }

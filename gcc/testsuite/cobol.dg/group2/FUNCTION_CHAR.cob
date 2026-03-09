@@ -1,5 +1,4 @@
        *> { dg-do run }
-
        IDENTIFICATION   DIVISION.
        PROGRAM-ID.      prog.
        DATA             DIVISION.
@@ -11,6 +10,8 @@
            05  TEST-UNSET PIC X VALUE '_'.
                88  VALID-UNSET  VALUE '_'.
        PROCEDURE        DIVISION.
+           *> Use ORD to make this routine ASCII/EBCDIC agnostic
+           MOVE function ORD('k') to X
            STRING FUNCTION CHAR ( X )
                   DELIMITED BY SIZE
                   INTO TEST-FLD

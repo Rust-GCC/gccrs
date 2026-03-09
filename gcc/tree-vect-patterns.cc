@@ -1036,6 +1036,17 @@ vect_reassociating_reduction_p (vec_info *vinfo,
   return true;
 }
 
+/* Return true iff the target has a vector optab implementing the operation
+   CODE on type VECTYPE with SUBTYPE.  */
+
+static bool
+target_has_vecop_for_code (tree_code code, tree vectype,
+			   enum optab_subtype subtype = optab_vector)
+{
+  optab voptab = optab_for_tree_code (code, vectype, subtype);
+  return voptab && can_implement_p (voptab, TYPE_MODE (vectype));
+}
+
 /* match.pd function to match
    (cond (cmp@3 a b) (convert@1 c) (convert@2 d))
    with conditions:
@@ -3160,14 +3171,34 @@ vect_recog_over_widening_pattern (vec_info *vinfo,
       && (code == PLUS_EXPR || code == MINUS_EXPR || code == MULT_EXPR))
     op_type = build_nonstandard_integer_type (new_precision, true);
 
-  /* We specifically don't check here whether the target supports the
-     new operation, since it might be something that a later pattern
-     wants to rewrite anyway.  If targets have a minimum element size
-     for some optabs, we should pattern-match smaller ops to larger ops
-     where beneficial.  */
   tree new_vectype = get_vectype_for_scalar_type (vinfo, new_type);
   tree op_vectype = get_vectype_for_scalar_type (vinfo, op_type);
   if (!new_vectype || !op_vectype)
+    return NULL;
+
+  /* Verify we can handle the new operation.  For shifts and rotates
+     apply heuristic of whether we are likely facing vector-vector or
+     vector-scalar operation.  Since we are eventually expecting that
+     a later pattern might eventually want to rewrite an unsupported
+     into a supported case error on that side in case the original
+     operation was not supported either or this is a binary operation
+     and the 2nd operand is constant.  */
+  if (code == RSHIFT_EXPR || code == LSHIFT_EXPR || code == RROTATE_EXPR)
+    {
+      if (!target_has_vecop_for_code (code, op_vectype, optab_vector)
+	  && ((unprom[1].dt != vect_external_def
+	       && unprom[1].dt != vect_constant_def)
+	      || !target_has_vecop_for_code (code, op_vectype, optab_scalar))
+	  && !(!target_has_vecop_for_code (code, *type_out, optab_vector)
+	       && ((unprom[1].dt != vect_external_def
+		    || unprom[1].dt != vect_constant_def)
+		   || !target_has_vecop_for_code (code, *type_out,
+						  optab_scalar))))
+	return NULL;
+    }
+  else if (!target_has_vecop_for_code (code, op_vectype, optab_vector)
+	   && (target_has_vecop_for_code (code, *type_out, optab_vector)
+	       && !(nops == 2 && unprom[1].dt == vect_constant_def)))
     return NULL;
 
   if (dump_enabled_p ())
@@ -4149,17 +4180,6 @@ vect_recog_vector_vector_shift_pattern (vec_info *vinfo,
   pattern_stmt = gimple_build_assign (var, rhs_code, oprnd0, def);
 
   return pattern_stmt;
-}
-
-/* Return true iff the target has a vector optab implementing the operation
-   CODE on type VECTYPE.  */
-
-static bool
-target_has_vecop_for_code (tree_code code, tree vectype)
-{
-  optab voptab = optab_for_tree_code (code, vectype, optab_vector);
-  return voptab
-	 && can_implement_p (voptab, TYPE_MODE (vectype));
 }
 
 /* Verify that the target has optabs of VECTYPE to perform all the steps

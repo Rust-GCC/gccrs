@@ -196,7 +196,7 @@ aarch64_update_cpp_builtins (cpp_reader *pfile)
 
   aarch64_def_or_undef (TARGET_AES && TARGET_SHA2, "__ARM_FEATURE_CRYPTO", pfile);
   aarch64_def_or_undef (TARGET_SIMD_RDMA, "__ARM_FEATURE_QRDMX", pfile);
-  aarch64_def_or_undef (TARGET_SVE, "__ARM_FEATURE_SVE", pfile);
+  aarch64_def_or_undef (AARCH64_HAVE_ISA (SVE), "__ARM_FEATURE_SVE", pfile);
   cpp_undef (pfile, "__ARM_FEATURE_SVE_BITS");
   cpp_undef (pfile, "__ARM_FEATURE_SVE_VECTOR_OPERATORS");
   cpp_undef (pfile, "__ARM_FEATURE_SVE_PREDICATE_OPERATORS");
@@ -221,9 +221,9 @@ aarch64_update_cpp_builtins (cpp_reader *pfile)
   aarch64_def_or_undef (TARGET_SVE_F64MM,
 			"__ARM_FEATURE_SVE_MATMUL_FP64", pfile);
   aarch64_def_or_undef (AARCH64_HAVE_ISA (SVE_B16B16)
-			&& (TARGET_SVE2 || TARGET_SME2),
+			&& (AARCH64_HAVE_ISA (SVE2) || TARGET_SME2),
 			"__ARM_FEATURE_SVE_B16B16", pfile);
-  aarch64_def_or_undef (TARGET_SVE2, "__ARM_FEATURE_SVE2", pfile);
+  aarch64_def_or_undef (AARCH64_HAVE_ISA (SVE2), "__ARM_FEATURE_SVE2", pfile);
   aarch64_def_or_undef (TARGET_SVE2_AES, "__ARM_FEATURE_SVE2_AES", pfile);
   aarch64_def_or_undef (TARGET_SVE2_BITPERM,
 			"__ARM_FEATURE_SVE2_BITPERM", pfile);

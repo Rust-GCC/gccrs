@@ -7874,7 +7874,7 @@ namespace views::__adaptor
       && (__detail::__is_integer_like<_Bound> || same_as<_Bound, unreachable_sentinel_t>)
   class repeat_view : public view_interface<repeat_view<_Tp, _Bound>>
   {
-    __detail::__box<_Tp> _M_value;
+    [[no_unique_address]] __detail::__box<_Tp> _M_value;
     [[no_unique_address]] _Bound _M_bound = _Bound();
 
     class _Iterator;

@@ -1,5 +1,5 @@
 ! { dg-do compile }
-! { dg-additional-options "-std=legacy" }
+! { dg-additional-options "-std=legacy -Ofast" }
 
       SUBROUTINE  SUB  (A,L,YMAX)
       DIMENSION A(L)

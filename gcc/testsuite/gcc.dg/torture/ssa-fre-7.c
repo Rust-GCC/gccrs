@@ -18,8 +18,8 @@ foo (int c)
 
   __BB(2):
   i_3 = 0;
-  _1 = (long unsigned int) i_3;
-  _2 = _1 * 4ul;
+  _1 = (__SIZETYPE__) i_3;
+  _2 = _1 * _Literal (__SIZETYPE__) 4;
   p_4 = _Literal (int *) &x + _2;
   _6 = _Literal (v4si) { c_5(D), c_5(D), c_5(D), c_5(D) };
   __MEM <v4si> ((v4si *)p_4) = _6;

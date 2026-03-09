@@ -3845,23 +3845,21 @@ ipa_devirt (void)
  	       with the speculation.  */
 	    if (e->speculative)
 	      {
-		bool found = false;
 		for (cgraph_node * likely_target: likely_targets)
 		  if (e->speculative_call_for_target (likely_target))
 		    {
-		      found = true;
-		      break;
+		      fprintf (dump_file,
+			       "We agree with speculation on target %s\n\n",
+			       likely_target->dump_name ());
+		      stats.nok++;
 		    }
-		if (found)
-		  {
-		    fprintf (dump_file, "We agree with speculation\n\n");
-		    stats.nok++;
-		  }
-		else
-		  {
-		    fprintf (dump_file, "We disagree with speculation\n\n");
-		    stats.nwrong++;
-		  }
+		  else
+		    {
+		      fprintf (dump_file,
+			       "We disagree with speculation on target %s\n\n",
+			       likely_target->dump_name ());
+		      stats.nwrong++;
+		    }
 		continue;
 	      }
 	    bool first = true;
@@ -3908,6 +3906,16 @@ ipa_devirt (void)
 	else if (cgraph_simple_indirect_info *sii
 		 = dyn_cast <cgraph_simple_indirect_info *> (e->indirect_info))
 	  {
+	    if (e->speculative)
+	      {
+		if (dump_file)
+		  fprintf (dump_file, "Call is already speculated\n\n");
+		stats.nspeculated++;
+
+		/* When dumping see if we agree with speculation.  */
+		if (!dump_file)
+		  continue;
+	      }
 	    if (!sii->fnptr_loaded_from_record
 		|| !opt_for_fn (n->decl,
 				flag_speculatively_call_stored_functions))
@@ -3929,6 +3937,20 @@ ipa_devirt (void)
 						    ->noninterposable_alias ());
 		    if (alias)
 		      likely_tgt_node = alias;
+		  }
+		if (e->speculative)
+		  {
+		    if (e->speculative_call_for_target (likely_tgt_node))
+		      {
+			fprintf (dump_file, "Simple call agree with speculation\n\n");
+			stats.nok++;
+		      }
+		    else
+		      {
+			fprintf (dump_file, "Simple call disagree with speculation\n\n");
+			stats.nwrong++;
+		      }
+		    continue;
 		  }
 
 		if (dump_enabled_p ())

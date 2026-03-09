@@ -1,6 +1,7 @@
        *> { dg-do run }
        *> { dg-output-file "group2/Refmod__comparisons_inside_numeric-display.out" }
         identification division.
+      * """"" (quotes reset the syntax highlighting
         program-id. prog.
         data division.
         working-storage section.

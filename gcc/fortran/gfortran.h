@@ -4310,6 +4310,8 @@ bool gfc_may_be_finalized (gfc_typespec);
 	(expr && expr->expr_type == EXPR_VARIABLE \
 	 && expr->symtree->n.sym->assoc \
 	 && expr->symtree->n.sym->assoc->inferred_type)
+#define PDT_PREFIX "PDT"
+#define PDT_PREFIX_LEN 3
 #define IS_PDT(sym) \
 	(sym != NULL && sym->ts.type == BT_DERIVED \
 	 && sym->ts.u.derived \

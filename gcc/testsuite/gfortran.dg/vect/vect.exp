@@ -53,62 +53,7 @@ dg-init
 
 # Main loop.
 et-dg-runtest gfortran-dg-runtest [lsort [glob -nocomplain \
-	$srcdir/$subdir/vect-*.\[fF\]{,90,95,03,08} ]] "" $DEFAULT_VECTCFLAGS
-et-dg-runtest gfortran-dg-runtest [lsort [glob -nocomplain \
-	$srcdir/$subdir/pr*.\[fF\]{,90,95,03,08} ]] "" $DEFAULT_VECTCFLAGS
-
-#### Tests with special options
-global SAVED_DEFAULT_VECTCFLAGS
-set SAVED_DEFAULT_VECTCFLAGS $DEFAULT_VECTCFLAGS
-
-# -ffast-math tests
-set DEFAULT_VECTCFLAGS $SAVED_DEFAULT_VECTCFLAGS
-lappend DEFAULT_VECTCFLAGS "-ffast-math"
-et-dg-runtest gfortran-dg-runtest [lsort [glob -nocomplain \
-	$srcdir/$subdir/fast-math-*.\[fF\]{,90,95,03,08} ]] \
-	"" $DEFAULT_VECTCFLAGS
-
-# -ffast-math tests
-set DEFAULT_VECTCFLAGS $SAVED_DEFAULT_VECTCFLAGS
-lappend DEFAULT_VECTCFLAGS "-ffast-math" "-fdefault-real-8"
-et-dg-runtest gfortran-dg-runtest [lsort [glob -nocomplain \
-	$srcdir/$subdir/fast-math-real8*.\[fF\]{,90,95,03,08} ]] \
-	"" $DEFAULT_VECTCFLAGS
-
-# -fvect-cost-model tests
-set DEFAULT_VECTCFLAGS $SAVED_DEFAULT_VECTCFLAGS
-lappend DEFAULT_VECTCFLAGS "-fvect-cost-model=dynamic"
-et-dg-runtest gfortran-dg-runtest [lsort [glob -nocomplain \
-	$srcdir/$subdir/cost-model-*.\[fF\]{,90,95,03,08} ]] \
-	"" $DEFAULT_VECTCFLAGS
-
-# --param vect-max-version-for-alias-checks=0 tests
-set DEFAULT_VECTCFLAGS $SAVED_DEFAULT_VECTCFLAGS
-lappend DEFAULT_VECTCFLAGS "--param" "vect-max-version-for-alias-checks=0"
-et-dg-runtest gfortran-dg-runtest [lsort [glob -nocomplain \
-	$srcdir/$subdir/no-vfa-*.\[fF\]{,90,95,03,08} ]] \
-	"" $DEFAULT_VECTCFLAGS
-
-# With -O3
-set DEFAULT_VECTCFLAGS $SAVED_DEFAULT_VECTCFLAGS
-lappend DEFAULT_VECTCFLAGS "-O3"
-et-dg-runtest gfortran-dg-runtest [lsort [glob -nocomplain \
-	$srcdir/$subdir/O3-*.\[fF\]{,90,95,03,08} ]] \
-	"" $DEFAULT_VECTCFLAGS
-
-# With -Ofast
-set DEFAULT_VECTCFLAGS $SAVED_DEFAULT_VECTCFLAGS
-lappend DEFAULT_VECTCFLAGS "-Ofast"
-et-dg-runtest gfortran-dg-runtest [lsort [glob -nocomplain \
-	$srcdir/$subdir/Ofast-*.\[fF\]{,90,95,03,08} ]] \
-	"" $DEFAULT_VECTCFLAGS
-
-# With -fno-tree-copy-prop -fno-tree-fre -O3
-set DEFAULT_VECTCFLAGS $SAVED_DEFAULT_VECTCFLAGS
-lappend DEFAULT_VECTCFLAGS "-fno-tree-copy-prop" "-fno-tree-fre" "-O3"
-et-dg-runtest gfortran-dg-runtest [lsort [glob -nocomplain \
-	$srcdir/$subdir/no-fre-no-copy-prop-O3-*.\[fF\]{,90,95,03,08} ]] \
-	"" $DEFAULT_VECTCFLAGS
+	$srcdir/$subdir/*.\[fF\]{,90,95,03,08} ]] "" $DEFAULT_VECTCFLAGS
 
 # Clean up.
 set dg-do-what-default ${save-dg-do-what-default}

@@ -5843,13 +5843,14 @@ read_module (void)
 	  /* Include pdt_types if their associated pdt_template is in a
 	     USE, ONLY list.  */
 	  if (p == NULL && name[0] == 'P'
-	      && startswith (name, "Pdt")
+	      && startswith (name, PDT_PREFIX)
 	      && module_list)
 	    {
 	      gfc_use_list *ml = module_list;
 	      for (; ml; ml = ml->next)
 		if (ml->rename
-		    && !strncmp (&name[3], ml->rename->use_name,
+		    && !strncmp (&name[PDT_PREFIX_LEN],
+				 ml->rename->use_name,
 				 strlen (ml->rename->use_name)))
 		  p = name;
 	    }

@@ -33,7 +33,7 @@ dg-init
 if { [check_effective_target_aarch64_sme] } {
     set sme_flags ""
 } else {
-    set sme_flags "-march=armv9-a+sme"
+    set sme_flags "-march=armv8-a+sme"
 }
 
 aarch64-with-arch-dg-options $sme_flags {

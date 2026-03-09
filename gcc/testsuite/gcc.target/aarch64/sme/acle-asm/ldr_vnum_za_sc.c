@@ -9,7 +9,7 @@
 **	ldr	za\[\1, 0\], \[x1(?:, #0, mul vl)?\]
 **	ret
 */
-TEST_LOAD_ZA (ldr_vnum_za_0_0,
+TEST_LOAD_ZA_NOPRED (ldr_vnum_za_0_0,
 	      svldr_vnum_za (0, x1, 0),
 	      svldr_vnum_za (0, x1, 0))
 
@@ -19,7 +19,7 @@ TEST_LOAD_ZA (ldr_vnum_za_0_0,
 **	ldr	za\[\1, 1\], \[x1(?:, #1, mul vl)?\]
 **	ret
 */
-TEST_LOAD_ZA (ldr_vnum_za_0_1,
+TEST_LOAD_ZA_NOPRED (ldr_vnum_za_0_1,
 	      svldr_vnum_za (0, x1, 1),
 	      svldr_vnum_za (0, x1, 1))
 
@@ -29,7 +29,7 @@ TEST_LOAD_ZA (ldr_vnum_za_0_1,
 **	ldr	za\[\1, 0\], \[x1(?:, #0, mul vl)?\]
 **	ret
 */
-TEST_LOAD_ZA (ldr_vnum_za_1_0,
+TEST_LOAD_ZA_NOPRED (ldr_vnum_za_1_0,
 	      svldr_vnum_za (1, x1, 0),
 	      svldr_vnum_za (1, x1, 0))
 
@@ -39,7 +39,7 @@ TEST_LOAD_ZA (ldr_vnum_za_1_0,
 **	ldr	za\[\1, 2\], \[x1(?:, #2, mul vl)?\]
 **	ret
 */
-TEST_LOAD_ZA (ldr_vnum_za_1_2,
+TEST_LOAD_ZA_NOPRED (ldr_vnum_za_1_2,
 	      svldr_vnum_za (1, x1, 2),
 	      svldr_vnum_za (1, x1, 2))
 
@@ -49,7 +49,7 @@ TEST_LOAD_ZA (ldr_vnum_za_1_2,
 **	ldr	za\[\1, 0\], \[x1(?:, #0, mul vl)?\]
 **	ret
 */
-TEST_LOAD_ZA (ldr_vnum_za_w0_0,
+TEST_LOAD_ZA_NOPRED (ldr_vnum_za_w0_0,
 	      svldr_vnum_za (w0, x1, 0),
 	      svldr_vnum_za (w0, x1, 0))
 
@@ -59,7 +59,7 @@ TEST_LOAD_ZA (ldr_vnum_za_w0_0,
 **	ldr	za\[\1, 1\], \[x1, #1, mul vl\]
 **	ret
 */
-TEST_LOAD_ZA (ldr_vnum_za_w0_1,
+TEST_LOAD_ZA_NOPRED (ldr_vnum_za_w0_1,
 	      svldr_vnum_za (w0, x1, 1),
 	      svldr_vnum_za (w0, x1, 1))
 
@@ -69,7 +69,7 @@ TEST_LOAD_ZA (ldr_vnum_za_w0_1,
 **	ldr	za\[\1, 13\], \[x1, #13, mul vl\]
 **	ret
 */
-TEST_LOAD_ZA (ldr_vnum_za_w0_13,
+TEST_LOAD_ZA_NOPRED (ldr_vnum_za_w0_13,
 	      svldr_vnum_za (w0, x1, 13),
 	      svldr_vnum_za (w0, x1, 13))
 
@@ -79,7 +79,7 @@ TEST_LOAD_ZA (ldr_vnum_za_w0_13,
 **	ldr	za\[\1, 15\], \[x1, #15, mul vl\]
 **	ret
 */
-TEST_LOAD_ZA (ldr_vnum_za_w0_15,
+TEST_LOAD_ZA_NOPRED (ldr_vnum_za_w0_15,
 	      svldr_vnum_za (w0, x1, 15),
 	      svldr_vnum_za (w0, x1, 15))
 
@@ -96,7 +96,7 @@ TEST_LOAD_ZA (ldr_vnum_za_w0_15,
 ** )
 **	ret
 */
-TEST_LOAD_ZA (ldr_vnum_za_w0_16,
+TEST_LOAD_ZA_NOPRED (ldr_vnum_za_w0_16,
 	      svldr_vnum_za (w0, x1, 16),
 	      svldr_vnum_za (w0, x1, 16))
 
@@ -113,7 +113,7 @@ TEST_LOAD_ZA (ldr_vnum_za_w0_16,
 ** )
 **	ret
 */
-TEST_LOAD_ZA (ldr_vnum_za_w0_m1,
+TEST_LOAD_ZA_NOPRED (ldr_vnum_za_w0_m1,
 	      svldr_vnum_za (w0, x1, -1),
 	      svldr_vnum_za (w0, x1, -1))
 
@@ -123,7 +123,7 @@ TEST_LOAD_ZA (ldr_vnum_za_w0_m1,
 **	ldr	za\[\1, 0\], \[x1(?:, #0, mul vl)?\]
 **	ret
 */
-TEST_LOAD_ZA (ldr_vnum_za_w0p1_0,
+TEST_LOAD_ZA_NOPRED (ldr_vnum_za_w0p1_0,
 	      svldr_vnum_za (w0 + 1, x1, 0),
 	      svldr_vnum_za (w0 + 1, x1, 0))
 
@@ -133,7 +133,7 @@ TEST_LOAD_ZA (ldr_vnum_za_w0p1_0,
 **	ldr	za\[\1, 1\], \[x1(?:, #1, mul vl)?\]
 **	ret
 */
-TEST_LOAD_ZA (ldr_vnum_za_w0m1_1,
+TEST_LOAD_ZA_NOPRED (ldr_vnum_za_w0m1_1,
 	      svldr_vnum_za (w0 - 1, x1, 1),
 	      svldr_vnum_za (w0 - 1, x1, 1))
 
@@ -143,6 +143,6 @@ TEST_LOAD_ZA (ldr_vnum_za_w0m1_1,
 **	ldr	za\[\1, 3\], \[x1(?:, #3, mul vl)?\]
 **	ret
 */
-TEST_LOAD_ZA (ldr_vnum_za_w0p2_3,
+TEST_LOAD_ZA_NOPRED (ldr_vnum_za_w0p2_3,
 	      svldr_vnum_za (w0 + 2, x1, 3),
 	      svldr_vnum_za (w0 + 2, x1, 3))

@@ -1,0 +1,4 @@
+                 FOO is on.
+Should have seen FOO is on.
+Shouldn't see    FOO is off.
+

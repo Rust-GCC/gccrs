@@ -1,3 +1,32 @@
+2026-02-28  Kwok Cheung Yeung  <kcyeung@baylibre.com>
+
+	PR middle-end/113436
+	* testsuite/libgomp.c++/pr113436-1.C (test_vla_by_ref): New.
+	(main): Add call to test_vla_by_ref.
+	* testsuite/libgomp.c++/pr113436-2.C (test_vla_by_ref): New.
+	(main): Add call to test_vla_by_ref.
+
+2026-02-23  Paul-Antoine Arras  <parras@baylibre.com>
+
+	PR fortran/120505
+	* testsuite/libgomp.fortran/map-subarray-16.f90: Enable test only for
+	offload device.
+
+2026-02-23  Paul-Antoine Arras  <parras@baylibre.com>
+
+	PR fortran/120505
+	* testsuite/libgomp.fortran/map-subarray-12.f90: New test.
+
+2026-02-23  Paul-Antoine Arras  <parras@baylibre.com>
+
+	PR fortran/120505
+	* testsuite/libgomp.fortran/map-subarray-11.f90: New test.
+	* testsuite/libgomp.fortran/map-subarray-13.f90: New test.
+	* testsuite/libgomp.fortran/map-subarray-14.f90: New test.
+	* testsuite/libgomp.fortran/map-subarray-15.f90: New test.
+	* testsuite/libgomp.fortran/map-subarray-16.f90: New test.
+	* testsuite/libgomp.fortran/map-alloc-present-2.f90: New file.
+
 2026-02-12  Kwok Cheung Yeung  <kcyeung@baylibre.com>
 
 	PR middle-end/113436

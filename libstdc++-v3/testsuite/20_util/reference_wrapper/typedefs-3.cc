@@ -1,5 +1,5 @@
 // { dg-do compile { target c++11 } }
-// { dg-skip-if "argument_type removed for C++20" { c++2a } }
+// { dg-skip-if "argument_type removed for C++20" { c++20 } }
 
 // Copyright (C) 2011-2026 Free Software Foundation, Inc.
 //

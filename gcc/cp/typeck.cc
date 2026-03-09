@@ -3600,7 +3600,7 @@ finish_class_member_access_expr (cp_expr object, tree name, bool template_p,
 		   || TREE_CODE (name) == CONST_DECL
 		   || TREE_CODE (name) == FUNCTION_DECL
 		   || DECL_FUNCTION_TEMPLATE_P (OVL_FIRST (name))))
-	scope = DECL_CONTEXT (OVL_FIRST (name));
+	scope = context_for_name_lookup (OVL_FIRST (name));
 
       if (TREE_CODE (name) == TEMPLATE_ID_EXPR)
 	{

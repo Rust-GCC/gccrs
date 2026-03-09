@@ -13,6 +13,7 @@ void
 foo1 ()
 {
   int i;
+#pragma GCC novector
   for (i = 0; i < n; i++)
     c1[i] += a1[i] + b1[i];
 }

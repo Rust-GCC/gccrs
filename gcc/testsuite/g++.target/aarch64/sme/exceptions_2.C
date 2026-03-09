@@ -1,6 +1,8 @@
 // { dg-options "-O -fno-optimize-sibling-calls" }
 // { dg-final { check-function-bodies "**" "" } }
 
+#pragma GCC target "+sve"
+
 void n_callee();
 void s_callee() __arm_streaming;
 void sc_callee() __arm_streaming_compatible;

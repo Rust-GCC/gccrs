@@ -3,6 +3,8 @@
 #include <arm_neon.h>
 #include <arm_sme.h>
 
+#pragma GCC target "+sve"
+
 uint8x16_t *neon;
 svint64_t *sve;
 int64_t *ptr;

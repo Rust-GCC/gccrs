@@ -25490,6 +25490,30 @@ fi
 fi
 
 
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking Solaris assembler" >&5
+$as_echo_n "checking Solaris assembler... " >&6; }
+case $target in
+  *-*-solaris2*)
+    if $gcc_cv_as -V 2>&1 | grep 'Compiler Common.*SunOS' > /dev/null; then
+      solaris_as=yes
+      gas_flag=no
+    elif $gcc_cv_as --version 2>/dev/null | grep GNU > /dev/null; then
+      gas_flag=yes
+    fi
+    ;;
+  *)
+    solaris_as=no
+    ;;
+esac
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $solaris_as" >&5
+$as_echo "$solaris_as" >&6; }
+solaris_as_bool=`if test $solaris_as = yes; then echo 1; else echo 0; fi`
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_SOLARIS_AS $solaris_as_bool
+_ACEOF
+
+
 ORIGINAL_AS_FOR_TARGET=$gcc_cv_as
 
 case "$ORIGINAL_AS_FOR_TARGET" in
@@ -25623,6 +25647,30 @@ else
    gnu_ld_flag=no
  fi
 fi
+
+
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking Solaris linker" >&5
+$as_echo_n "checking Solaris linker... " >&6; }
+case $target in
+  *-*-solaris2*)
+    if $gcc_cv_ld -V 2>/dev/null | grep 'Solaris Link Editors' > /dev/null; then
+      gnu_ld_flag=no
+      solaris_ld=yes
+    elif $gcc_cv_ld --version 2>/dev/null | grep GNU > /dev/null; then
+      gnu_ld_flag=yes
+    fi
+    ;;
+  *)
+    solaris_ld=no
+    ;;
+esac
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $solaris_ld" >&5
+$as_echo "$solaris_ld" >&6; }
+solaris_ld_bool=`if test $solaris_ld = yes; then echo 1; else echo 0; fi`
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_SOLARIS_LD $solaris_ld_bool
+_ACEOF
 
 
 ORIGINAL_PLUGIN_LD_FOR_TARGET=$gcc_cv_ld
@@ -29263,162 +29311,6 @@ $as_echo "$gcc_cv_as_sparc_offsetable_lo10" >&6; }
 if test $gcc_cv_as_sparc_offsetable_lo10 = yes; then
 
 $as_echo "#define HAVE_AS_OFFSETABLE_LO10 1" >>confdefs.h
-
-fi
-
-
-    { $as_echo "$as_me:${as_lineno-$LINENO}: checking assembler for FMAF, HPC, and VIS 3.0 instructions" >&5
-$as_echo_n "checking assembler for FMAF, HPC, and VIS 3.0 instructions... " >&6; }
-if ${gcc_cv_as_sparc_fmaf+:} false; then :
-  $as_echo_n "(cached) " >&6
-else
-  gcc_cv_as_sparc_fmaf=no
-  if test x"$gcc_cv_as" != x; then
-    $as_echo '.text
-       .register %g2, #scratch
-       .register %g3, #scratch
-       .align 4
-       fmaddd %f0, %f2, %f4, %f6
-       addxccc %g1, %g2, %g3
-       fsrl32 %f2, %f4, %f8
-       fnaddd %f10, %f12, %f14' > conftest.s
-    if { ac_try='$gcc_cv_as $gcc_cv_as_flags -xarch=v9d -o conftest.o conftest.s >&5'
-  { { eval echo "\"\$as_me\":${as_lineno-$LINENO}: \"$ac_try\""; } >&5
-  (eval $ac_try) 2>&5
-  ac_status=$?
-  $as_echo "$as_me:${as_lineno-$LINENO}: \$? = $ac_status" >&5
-  test $ac_status = 0; }; }
-    then
-	gcc_cv_as_sparc_fmaf=yes
-    else
-      echo "configure: failed program was" >&5
-      cat conftest.s >&5
-    fi
-    rm -f conftest.o conftest.s
-  fi
-fi
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $gcc_cv_as_sparc_fmaf" >&5
-$as_echo "$gcc_cv_as_sparc_fmaf" >&6; }
-if test $gcc_cv_as_sparc_fmaf = yes; then
-
-$as_echo "#define HAVE_AS_FMAF_HPC_VIS3 1" >>confdefs.h
-
-fi
-
-
-    { $as_echo "$as_me:${as_lineno-$LINENO}: checking assembler for SPARC4 instructions" >&5
-$as_echo_n "checking assembler for SPARC4 instructions... " >&6; }
-if ${gcc_cv_as_sparc_sparc4+:} false; then :
-  $as_echo_n "(cached) " >&6
-else
-  gcc_cv_as_sparc_sparc4=no
-  if test x"$gcc_cv_as" != x; then
-    $as_echo '.text
-       .register %g2, #scratch
-       .register %g3, #scratch
-       .align 4
-       cxbe %g2, %g3, 1f
-1:     cwbneg %g2, %g3, 1f
-1:     sha1
-       md5
-       aes_kexpand0 %f4, %f6, %f8
-       des_round %f38, %f40, %f42, %f44
-       camellia_f %f54, %f56, %f58, %f60
-       kasumi_fi_xor %f46, %f48, %f50, %f52' > conftest.s
-    if { ac_try='$gcc_cv_as $gcc_cv_as_flags -xarch=sparc4 -o conftest.o conftest.s >&5'
-  { { eval echo "\"\$as_me\":${as_lineno-$LINENO}: \"$ac_try\""; } >&5
-  (eval $ac_try) 2>&5
-  ac_status=$?
-  $as_echo "$as_me:${as_lineno-$LINENO}: \$? = $ac_status" >&5
-  test $ac_status = 0; }; }
-    then
-	gcc_cv_as_sparc_sparc4=yes
-    else
-      echo "configure: failed program was" >&5
-      cat conftest.s >&5
-    fi
-    rm -f conftest.o conftest.s
-  fi
-fi
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $gcc_cv_as_sparc_sparc4" >&5
-$as_echo "$gcc_cv_as_sparc_sparc4" >&6; }
-if test $gcc_cv_as_sparc_sparc4 = yes; then
-
-$as_echo "#define HAVE_AS_SPARC4 1" >>confdefs.h
-
-fi
-
-
-    { $as_echo "$as_me:${as_lineno-$LINENO}: checking assembler for SPARC5 and VIS 4.0 instructions" >&5
-$as_echo_n "checking assembler for SPARC5 and VIS 4.0 instructions... " >&6; }
-if ${gcc_cv_as_sparc_sparc5+:} false; then :
-  $as_echo_n "(cached) " >&6
-else
-  gcc_cv_as_sparc_sparc5=no
-  if test x"$gcc_cv_as" != x; then
-    $as_echo '.text
-       .register %g2, #scratch
-       .register %g3, #scratch
-       .align 4
-       subxc %g1, %g2, %g3
-       fpadd8 %f0, %f2, %f4' > conftest.s
-    if { ac_try='$gcc_cv_as $gcc_cv_as_flags -xarch=sparc5 -o conftest.o conftest.s >&5'
-  { { eval echo "\"\$as_me\":${as_lineno-$LINENO}: \"$ac_try\""; } >&5
-  (eval $ac_try) 2>&5
-  ac_status=$?
-  $as_echo "$as_me:${as_lineno-$LINENO}: \$? = $ac_status" >&5
-  test $ac_status = 0; }; }
-    then
-	gcc_cv_as_sparc_sparc5=yes
-    else
-      echo "configure: failed program was" >&5
-      cat conftest.s >&5
-    fi
-    rm -f conftest.o conftest.s
-  fi
-fi
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $gcc_cv_as_sparc_sparc5" >&5
-$as_echo "$gcc_cv_as_sparc_sparc5" >&6; }
-if test $gcc_cv_as_sparc_sparc5 = yes; then
-
-$as_echo "#define HAVE_AS_SPARC5_VIS4 1" >>confdefs.h
-
-fi
-
-
-    { $as_echo "$as_me:${as_lineno-$LINENO}: checking assembler for SPARC6 instructions" >&5
-$as_echo_n "checking assembler for SPARC6 instructions... " >&6; }
-if ${gcc_cv_as_sparc_sparc6+:} false; then :
-  $as_echo_n "(cached) " >&6
-else
-  gcc_cv_as_sparc_sparc6=no
-  if test x"$gcc_cv_as" != x; then
-    $as_echo '.text
-       .register %g2, #scratch
-       .register %g3, #scratch
-       .align 4
-       rd %entropy, %g1
-       fpsll64x %f0, %f2, %f4' > conftest.s
-    if { ac_try='$gcc_cv_as $gcc_cv_as_flags -xarch=sparc6 -o conftest.o conftest.s >&5'
-  { { eval echo "\"\$as_me\":${as_lineno-$LINENO}: \"$ac_try\""; } >&5
-  (eval $ac_try) 2>&5
-  ac_status=$?
-  $as_echo "$as_me:${as_lineno-$LINENO}: \$? = $ac_status" >&5
-  test $ac_status = 0; }; }
-    then
-	gcc_cv_as_sparc_sparc6=yes
-    else
-      echo "configure: failed program was" >&5
-      cat conftest.s >&5
-    fi
-    rm -f conftest.o conftest.s
-  fi
-fi
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $gcc_cv_as_sparc_sparc6" >&5
-$as_echo "$gcc_cv_as_sparc_sparc6" >&6; }
-if test $gcc_cv_as_sparc_sparc6 = yes; then
-
-$as_echo "#define HAVE_AS_SPARC6 1" >>confdefs.h
 
 fi
 
@@ -33376,15 +33268,6 @@ elif test x$gcc_cv_ld != x; then
       ;;
   esac
 fi
-case "$target" in
-  i?86-*-solaris2* | x86_64-*-solaris2*)
-    if echo "$ld_ver" | grep GNU > /dev/null; then
-      # Doesn't work with gld on Solaris/x86 due to PR ld/12320.
-      gcc_cv_ld_as_needed=no
-      gcc_cv_ld_use_as_needed_ldscript=no
-    fi
-    ;;
-esac
 
 fi
 { $as_echo "$as_me:${as_lineno-$LINENO}: result: $gcc_cv_ld_as_needed" >&5

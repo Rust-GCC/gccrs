@@ -1,5 +1,6 @@
 ! { dg-do compile }
 ! { dg-require-effective-target vect_float }
+! { dg-additional-options "--param vect-max-version-for-alias-checks=0" }
 
 SUBROUTINE KEEL(RBOUND)
   REAL, DIMENSION(0:100) :: RBOUND

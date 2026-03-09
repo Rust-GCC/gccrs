@@ -1501,7 +1501,8 @@ dse_optimize_stmt (function *fun, gimple_stmt_iterator *gsi, sbitmap live_bytes)
 
   /* We know we have virtual definitions.  We can handle assignments and
      some builtin calls.  */
-  if (gimple_call_builtin_p (stmt, BUILT_IN_NORMAL))
+  if (gimple_call_builtin_p (stmt, BUILT_IN_NORMAL)
+      && !gimple_call_ctrl_altering_p (stmt))
     {
       tree fndecl = gimple_call_fndecl (stmt);
       switch (DECL_FUNCTION_CODE (fndecl))

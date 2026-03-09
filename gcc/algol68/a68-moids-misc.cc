@@ -1207,7 +1207,11 @@ a68_is_c_mode (MOID_T *m, int level)
     return a68_is_c_mode (SUB (m), level + 1);
   else if (IS (m, PROC_SYMBOL))
     {
-      bool yielded_mode_valid = a68_is_c_mode (SUB (m));
+      bool yielded_mode_valid =
+	((level == 0
+	  && (SUB (m) == M_STRING
+	      || (IS_REF (SUB (m)) && SUB (SUB (m)) == M_STRING)))
+	 || a68_is_c_mode (SUB (m), level + 1));
       bool params_valid = true;
 
       for (PACK_T *z = PACK (m); z != NO_PACK; FORWARD (z))

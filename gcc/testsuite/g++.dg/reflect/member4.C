@@ -10,5 +10,5 @@ struct C {
 struct D { int i; };
 
 auto c = C{.i=2};
-auto v = c.[:^^C::i:];    // { dg-error "not a base" }
+auto v = c.[:^^C::i:];
 auto e = c.[: ^^D::i :];  // { dg-error "not a base" }

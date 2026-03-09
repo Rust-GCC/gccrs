@@ -1586,17 +1586,7 @@ add_attributes_to_decl (tree *decl_p, const gfc_symbol *sym)
     }
 
   /* Also check trans-common.cc when updating/removing the following;
-     also update f95.c's gfc_gnu_attributes.
-     For the warning, see also OpenMP spec issue 4663.  */
-  if (sym_attr.omp_groupprivate && sym_attr.threadprivate)
-    {
-      /* Unset this flag; implicit 'declare target local(...)' remains.  */
-      sym_attr.omp_groupprivate = 0;
-      gfc_warning (OPT_Wopenmp,
-		   "Ignoring the %<groupprivate%> attribute for "
-		   "%<threadprivate%> variable %qs declared at %L",
-		   sym->name, &sym->declared_at);
-    }
+     also update f95.c's gfc_gnu_attributes.  */
   if (sym_attr.omp_groupprivate)
     gfc_error ("Sorry, OMP GROUPPRIVATE not implemented, "
 	       "used by %qs declared at %L", sym->name, &sym->declared_at);
@@ -5230,7 +5220,13 @@ gfc_trans_deferred_vars (gfc_symbol * proc_sym, gfc_wrapped_block * block)
 		    || (sym->ts.type == BT_CLASS
 			&& CLASS_DATA (sym)->attr.allocatable)))
 	{
-	  if (!sym->attr.save && flag_max_stack_var_size != 0)
+	  /* Ensure that the initialization block may be generated also for
+	     dummy and result variables when -fno-automatic is specified, which
+	     sets flag_max_stack_var_size=0.  */
+	  if (!sym->attr.save
+	      && (flag_max_stack_var_size != 0
+		  || sym->attr.dummy
+		  || sym->attr.result))
 	    {
 	      tree descriptor = NULL_TREE;
 

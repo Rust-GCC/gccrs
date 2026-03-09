@@ -27,4 +27,4 @@ test_unroll (void)
    The exact values depend on what other passes have run, but all should be non-zero. */
 
 /* Check that unrolled iterations have non-zero discriminators on the asm statement line. */
-/* { dg-final { scan-assembler "\\.loc 1 17 7 is_stmt 0 discriminator (\[1-9\]\[0-9\]*|0x\[1-9a-fA-F\]\[0-9a-fA-F\]*)" } } */
+/* { dg-final { scan-assembler "\\.loc 1 17 7 is_stmt 0 discriminator (\[1-9\]\[0-9\]*|0x\[1-9a-fA-F\]\[0-9a-fA-F\]*)" { target gas } } } */

@@ -80,6 +80,9 @@ fcheck=
 Algol68 RejectNegative JoinedOrMissing
 -fcheck=[...]	Specify which runtime checks are to be performed.
 
+fbuilding-libga68
+Algol68 Undocumented Var(flag_building_libga68)
+
 fa68-dump-modes
 Algol68 Var(flag_a68_dump_modes)
 Dump Algol 68 modes after parsing.

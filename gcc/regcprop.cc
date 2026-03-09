@@ -862,7 +862,7 @@ copyprop_hardreg_forward_1 (basic_block bb, struct value_data *vd)
 	  && !side_effects_p (SET_DEST (set)))
 	{
 	  bool last = insn == BB_END (bb);
-	  delete_insn (insn);
+	  delete_insn_and_edges (insn);
 	  if (last)
 	    break;
 	  continue;

@@ -181,7 +181,8 @@ all-multi: $(libatomic_la_LIBADD)
 # from $gcc_objdir seems to fix the issue.
 
 gcc_objdir = `pwd`/$(MULTIBUILDTOP)../../gcc/
-all-local: libatomic.la
+all-local: stmp-libatomic
+stmp-libatomic: libatomic.la
 	$(LIBTOOL) --mode=install $(INSTALL_DATA) libatomic.la $(gcc_objdir)$(MULTISUBDIR)/
 if LIBAT_BUILD_ASNEEDED_SOLINK
 	cd $(gcc_objdir)$(MULTISUBDIR) || exit 1; \
@@ -193,6 +194,7 @@ if LIBAT_BUILD_ASNEEDED_SOLINK
 	$(LN_S) libatomic.a libatomic_asneeded.a; fi
 endif
 	rm $(gcc_objdir)$(MULTISUBDIR)/libatomic.la
+	touch $@
 
 if LIBAT_BUILD_ASNEEDED_SOLINK
 install-data-am: install-asneeded

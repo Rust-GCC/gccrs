@@ -4606,128 +4606,86 @@ template<typename _Ret, typename _Fn, typename... _Args>
     template<_ConstExprParam _Tp>
       constexpr auto
       operator++(this _Tp) noexcept
-      requires requires(_Tp::value_type __x) { ++__x; }
-      {
-	return constant_wrapper<
-	  [] { auto __x = _Tp::value; return ++__x; }()>{};
-      }
+ 	-> constant_wrapper<(++_Tp::value)>
+      { return {}; }
 
     template<_ConstExprParam _Tp>
       constexpr auto
       operator++(this _Tp, int) noexcept
-      requires requires(_Tp::value_type __x) { __x++; }
-      {
-	return constant_wrapper<
-	  [] { auto __x = _Tp::value; return __x++; }()>{};
-      }
+ 	-> constant_wrapper<(_Tp::value++)>
+      { return {}; }
 
     template<_ConstExprParam _Tp>
       constexpr auto
       operator--(this _Tp) noexcept
-      requires requires(_Tp::value_type __x) { --__x; }
-      {
-	return constant_wrapper<
-	  [] { auto __x = _Tp::value; return --__x; }()>{};
-      }
+ 	-> constant_wrapper<(--_Tp::value)>
+      { return {}; }
 
     template<_ConstExprParam _Tp>
       constexpr auto
       operator--(this _Tp, int) noexcept
-      requires requires(_Tp::value_type __x) { __x--; }
-      {
-	return constant_wrapper<
-	  [] { auto __x = _Tp::value; return __x--; }()>{};
-      }
+ 	-> constant_wrapper<(_Tp::value--)>
+      { return {}; }
 
     template<_ConstExprParam _Tp, _ConstExprParam _Right>
       constexpr auto
       operator+=(this _Tp, _Right) noexcept
-      requires requires(_Tp::value_type __x) { __x += _Right::value; }
-      {
-	return constant_wrapper<
-	  [] { auto __x = _Tp::value; return __x += _Right::value; }()>{};
-      }
+  	-> constant_wrapper<(_Tp::value += _Right::value)>
+      { return {}; }
 
     template<_ConstExprParam _Tp, _ConstExprParam _Right>
       constexpr auto
       operator-=(this _Tp, _Right) noexcept
-      requires requires(_Tp::value_type __x) { __x -= _Right::value; }
-      {
-	return constant_wrapper<
-	  [] { auto __x = _Tp::value; return __x -= _Right::value; }()>{};
-      }
+  	-> constant_wrapper<(_Tp::value -= _Right::value)>
+      { return {}; }
 
     template<_ConstExprParam _Tp, _ConstExprParam _Right>
       constexpr auto
       operator*=(this _Tp, _Right) noexcept
-      requires requires(_Tp::value_type __x) { __x *= _Right::value; }
-      {
-	return constant_wrapper<
-	  [] { auto __x = _Tp::value; return __x *= _Right::value; }()>{};
-      }
+  	-> constant_wrapper<(_Tp::value *= _Right::value)>
+      { return {}; }
 
     template<_ConstExprParam _Tp, _ConstExprParam _Right>
       constexpr auto
       operator/=(this _Tp, _Right) noexcept
-      requires requires(_Tp::value_type __x) { __x /= _Right::value; }
-      {
-	return constant_wrapper<
-	  [] { auto __x = _Tp::value; return __x /= _Right::value; }()>{};
-      }
+  	-> constant_wrapper<(_Tp::value /= _Right::value)>
+      { return {}; }
 
     template<_ConstExprParam _Tp, _ConstExprParam _Right>
       constexpr auto
       operator%=(this _Tp, _Right) noexcept
-      requires requires(_Tp::value_type __x) { __x %= _Right::value; }
-      {
-	return constant_wrapper<
-	  [] { auto __x = _Tp::value; return __x %= _Right::value; }()>{};
-      }
+  	-> constant_wrapper<(_Tp::value %= _Right::value)>
+      { return {}; }
 
     template<_ConstExprParam _Tp, _ConstExprParam _Right>
       constexpr auto
       operator&=(this _Tp, _Right) noexcept
-      requires requires(_Tp::value_type __x) { __x &= _Right::value; }
-      {
-	return constant_wrapper<
-	  [] { auto __x = _Tp::value; return __x &= _Right::value; }()>{};
-      }
+  	-> constant_wrapper<(_Tp::value &= _Right::value)>
+      { return {}; }
 
     template<_ConstExprParam _Tp, _ConstExprParam _Right>
       constexpr auto
       operator|=(this _Tp, _Right) noexcept
-      requires requires(_Tp::value_type __x) { __x |= _Right::value; }
-      {
-	return constant_wrapper<
-	  [] { auto __x = _Tp::value; return __x |= _Right::value; }()>{};
-      }
+  	-> constant_wrapper<(_Tp::value |= _Right::value)>
+      { return {}; }
 
     template<_ConstExprParam _Tp, _ConstExprParam _Right>
       constexpr auto
       operator^=(this _Tp, _Right) noexcept
-      requires requires(_Tp::value_type __x) { __x ^= _Right::value; }
-      {
-	return constant_wrapper<
-	  [] { auto __x = _Tp::value; return __x ^= _Right::value; }()>{};
-      }
+  	-> constant_wrapper<(_Tp::value ^= _Right::value)>
+      { return {}; }
 
     template<_ConstExprParam _Tp, _ConstExprParam _Right>
       constexpr auto
       operator<<=(this _Tp, _Right) noexcept
-      requires requires(_Tp::value_type __x) { __x <<= _Right::value; }
-      {
-	return constant_wrapper<
-	  [] { auto __x = _Tp::value; return __x <<= _Right::value; }()>{};
-      }
+  	-> constant_wrapper<(_Tp::value <<= _Right::value)>
+      { return {}; }
 
     template<_ConstExprParam _Tp, _ConstExprParam _Right>
       constexpr auto
       operator>>=(this _Tp, _Right) noexcept
-      requires requires(_Tp::value_type __x) { __x >>= _Right::value; }
-      {
-	return constant_wrapper<
-	  [] { auto __x = _Tp::value; return __x >>= _Right::value; }()>{};
-      }
+  	-> constant_wrapper<(_Tp::value >>= _Right::value)>
+      { return {}; }
   };
 
   template<_CwFixedValue _Xv, typename>
@@ -4740,11 +4698,8 @@ template<typename _Ret, typename _Fn, typename... _Args>
     template<_ConstExprParam _Right>
       constexpr auto
       operator=(_Right) const noexcept
-      requires requires(value_type __x) { __x = _Right::value; }
-      {
-	return constant_wrapper<
-	  [] { auto __x = value; return __x = _Right::value; }()>{};
-      }
+  	-> constant_wrapper<(value = _Right::value)>
+      { return {}; }
 
     constexpr
     operator decltype(value)() const noexcept

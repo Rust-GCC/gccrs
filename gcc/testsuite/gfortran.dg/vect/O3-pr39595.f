@@ -1,4 +1,5 @@
 ! { dg-do compile }
+! { dg-additional-options "-O3" }
       subroutine foo(a,c,i,m)
       real a(4,*),b(3,64),c(3,200),d(64)
       integer*8 i,j,k,l,m

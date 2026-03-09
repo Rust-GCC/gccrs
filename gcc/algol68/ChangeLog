@@ -1,3 +1,192 @@
+2026-02-27  James Bohl  <bohlj47@gmail.com>
+
+	* a68-low-prelude.cc (a68_lower_negate2): Annotate denotation
+	as being negated.
+	* a68-low-units.cc (a68_lower_denotation): Allow the full range
+	of negative values if the denotation is negated.
+	* a68-types.h (struct NODE_T): Add negated field.
+	(NEGATED): Define.
+	* a68-parser.cc (a68_new_node): Initialize NEGATED.
+
+2026-02-26  James Bohl  <bohlj47@gmail.com>
+
+	* a68-low-units.cc (a68_lower_denotation): Add error on
+	integral denotation overflow.
+
+2026-02-25  Jose E. Marchesi  <jemarch@gnu.org>
+
+	* a68-imports-archive.cc (Archive_file): Handle Darwin #1/NN
+	archive members.
+
+2026-02-25  Jose E. Marchesi  <jemarch@gnu.org>
+
+	* a68-low-units.cc (lower_subscript_for_trimmers): Do not revise
+	bounds if no trimscript.
+
+2026-02-23  Jose E. Marchesi  <jemarch@gnu.org>
+
+	* a68.h: Remove prototypes for *_width functions.
+	* a68-parser-prelude.cc (stand_prelude): Do not define *width
+	functions.
+	* a68-low-ints.cc (a68_int_width): Remove.
+	* a68-low-reals.cc (a68_real_width): Likewise.
+	(a68_real_exp_width): Likewise.
+	* a68-low-prelude.cc (a68_lower_longintwidth): Likewise.
+	(a68_lower_intwidth): Likewise.
+	(a68_lower_longlongintwidth): Likewise.
+	(a68_lower_shortintwidth): Likewise.
+	(a68_lower_shortshortintwidth): Likewise.
+	(a68_lower_realwidth): Likewise.
+	(a68_lower_longrealwidth): Likewise.
+	(a68_lower_longlongrealwidth): Likewise.
+	(a68_lower_expwidth): Likewise.
+	(a68_lower_longexpwidth): Likewise.
+	(a68_lower_longlongexpwidth): Likewise.
+
+2026-02-22  Jose E. Marchesi  <jemarch@gnu.org>
+
+	* a68-low-units.cc (lower_subscript_for_trimmers): Do not crash
+	with trimmers with implicit lower and upper bounds.
+
+2026-02-21  Jose E. Marchesi  <jemarch@gnu.org>
+
+	* a68-parser-bottom-up.cc (reduce_formal_holes): Fix error format
+	tag.
+	* a68-parser-taxes.cc (test_firmly_related_ops_local): Likewise.
+	(already_declared_hidden): Likewise.
+
+2026-02-21  Jose E. Marchesi  <jemarch@gnu.org>
+
+	* a68-imports-archive.cc (Archive_file::initialize_big_archive):
+	Fix formatting tag in call to a68_error.
+
+2026-02-21  Jose E. Marchesi  <jemarch@gnu.org>
+
+	* a68-moids-diagnostics.cc (a68_mode_error_text): Properly escape
+	%< and %> in snprintf calls.
+
+2026-02-21  Jose E. Marchesi  <jemarch@gnu.org>
+
+	* a68-pretty-print.h: New file.
+	* a68.h: Mark prototypes of diagnostic functions with
+	ATTRIBUTE_A68_DIAG.
+	* a68-diagnostics.cc (diagnostic): Do not translate upper-case
+	tags and pass a copy of the va_list `args' to diagnostic_set_info.
+	Mark with ATTRIBUTE_A68_DIAG.
+	* a68-imports-archive.cc: Convert to use standard error format
+	tags.
+	* a68-parser-victal.cc: Likewise.
+	* a68-parser-top-down.cc: Likewise.
+	* a68-parser-taxes.cc: Likewise.
+	* a68-parser-scanner.cc: Likeise.
+	* a68-parser-moids-check.cc: Likewise.
+	* a68-parser-modes.cc: Likewise.
+	* a68-parser-extract.cc: Likewise.
+	* a68-parser-pragmat.cc: Likewise.
+	* a68-parser-scope.cc: Likewise.
+	* a68-parser-brackets.cc: Likewise.
+	* a68-parser-bottom-up.cc: LIkewise.
+	* a68-moids-diagnostics.cc: Likewise.
+	* a68-imports.cc: Likewise.
+
+2026-02-21  Jose E. Marchesi  <jemarch@gnu.org>
+
+	* a68-low.cc (a68_make_formal_hole_decl): Get a boolean indicating
+	whether the declaration is for the address of the given symbol.
+	* a68.h: Update prototype of a68_make_formal_hole_decl.
+	* a68-low-holes.cc (a68_wrap_formal_var_hole): Pass a boolean to
+	a68_make_formal_hole_decl indicating whether an address is
+	required.
+
+2026-02-21  Jose E. Marchesi  <jemarch@gnu.org>
+
+	* a68-parser-prelude.cc (stand_prelude): Remove definitions for
+	bitpacks.
+
+2026-02-21  Jose E. Marchesi  <jemarch@gnu.org>
+
+	* a68-moids-misc.cc (a68_is_c_mode): Allow C formal holes for
+	routines yielding strings.
+	* a68-low-holes.cc (a68_wrap_formal_proc_hole): Support wrappers
+	that yield strings.
+	* a68.h: Remove a68_posix_* and a68_lower_posix* prototypes.
+	* a68-low-posix.cc: Remove.
+	* a68-imports.cc (a68_open_packet): Get argument filename.
+	* Make-lang.in (ALGOL68_OBJS): Remove algol68/a68-low-posix.o.
+	* a68-low-runtime.def: Remove POSIX_*.
+	* lang.opt (-fcheck): Add new undocumented option -fbuilding-libga68.
+	* a68-parser-prelude.cc (stand_transput): New function.
+	(posix_prelude): Remove hardcoded additions to the top-level
+	environment and use a68_extract_revelations instead.
+	* a68-parser-extract.cc (a68_extract_revelation): Renamed from
+	extract_revelation and made accessible externally.
+	* a68-low.cc (a68_make_formal_hole_decl): Remove unneeded check.
+	(lower_lude_decl): New function.
+	(lower_module_text): Add calls to preludes and postludes of
+	standard modules if not building libga68.
+	(a68_lower_particular_program): Likewise.
+	* a68-low-prelude.cc (a68_lower_posixargc): Remove.
+	(a68_lower_posixargv): Likewise.
+	(a68_lower_posixgetenv): Likewise.
+	(a68_lower_posixputchar): Likewise.
+	(a68_lower_posixputs): Likewise.
+	(a68_lower_posixfconnect): Likewise.
+	(a68_lower_posixfopen): Likewise.
+	(a68_lower_posixfcreate): Likewise.
+	(a68_lower_posixfclose): Likewise.
+	(a68_lower_posixfsize): Likewise.
+	(a68_lower_posixlseek): Likewise.
+	(a68_lower_posixseekcur): Likewise.
+	(a68_lower_posixseekend): Likewise.
+	(a68_lower_posixseekset): Likewise.
+	(a68_lower_posixstdinfiledes): Likewise.
+	(a68_lower_posixstdoutfiledes): Likewise.
+	(a68_lower_posixstderrfiledes): Likewise.
+	(a68_lower_posixfileodefault): Likewise.
+	(a68_lower_posixfileordwr): Likewise.
+	(a68_lower_posixfileordonly): Likewise.
+	(a68_lower_posixfileowronly): Likewise.
+	(a68_lower_posixfileotrunc): Likewise.
+	(a68_lower_posixerrno): Likewise.
+	(a68_lower_posixexit): Likewise.
+	(a68_lower_posixperror): Likewise.
+	(a68_lower_posixstrerror): Likewise.
+	(a68_lower_posixfputc): Likewise.
+	(a68_lower_posixfputs): Likewise.
+	(a68_lower_posixgetchar): Likewise.
+	(a68_lower_posixfgetc): Likewise.
+	(a68_lower_posixgets): Likewise.
+	(a68_lower_posixfgets): Likewise.
+
+2026-02-21  Jose E. Marchesi  <jemarch@gnu.org>
+
+	* a68-types.h (NO_LOWERER): Redefine as NULL.
+	(LOWERER_UNIMPL): Define.
+	* a68-parser-prelude.cc (a68_idf): Use LOWERER_UNIMPL instead of
+	NO_LOWERER.
+	(a68_prio): Likewise.
+	(a68_op): Likewise.
+	* a68-low-units.cc (a68_lower_identifier): Do not assume
+	declarations in A68_STANDENV all have lowerers.
+	(a68_lower_formula): Likewise.
+	(a68_lower_monadic_formula): Likewise.
+
+2026-02-21  Jose E. Marchesi  <jemarch@gnu.org>
+
+	* a68-imports.cc (a68_find_export_data): Make visible externally.
+	(a68_find_export_data): Try reading export data from an archive
+	file.
+	* a68.h: Adjust prototype of a68_find_export_data accordingly.
+	* a68-imports-archive.cc: New file.
+	* Make-lang.in (ALGOL68_OBJS): Build algol/a68-imports-archive.o.
+
+2026-02-16  Jose E. Marchesi  <jemarch@gnu.org>
+
+	PR algol68/124115
+	* a68-low-holes.cc (get_hole_symbol): Always set *addrp to avoid
+	uninitialized memory.
+	* a68-low.cc (a68_make_formal_hole_decl): Remove assert.
+
 2026-02-12  James Bohl  <bohlj47@gmail.com>
 
 	PR algol68/124049

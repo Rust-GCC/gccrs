@@ -1,5 +1,6 @@
 ! { dg-do compile }
 ! { dg-require-effective-target vect_float }
+! { dg-additional-options "--param vect-max-version-for-alias-checks=0" }
 
 subroutine s243(ntimes,ld,n,ctime,dtime,a,b,c,d,e,aa,bb,cc)
       

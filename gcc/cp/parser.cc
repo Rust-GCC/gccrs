@@ -2644,7 +2644,7 @@ static tree cp_parser_range_for
 static void do_range_for_auto_deduction
   (tree, tree, cp_decomp *, bool);
 static tree cp_range_for_member_function
-  (tree, tree);
+  (tree, tree, tsubst_flags_t);
 static tree cp_parser_expansion_statement
   (cp_parser *, bool *);
 static tree cp_parser_jump_statement
@@ -6313,6 +6313,7 @@ cp_parser_splice_expression (cp_parser *parser, bool template_p,
       SET_SPLICE_EXPR_EXPRESSION_P (t);
       SET_SPLICE_EXPR_MEMBER_ACCESS_P (t, member_access_p);
       SET_SPLICE_EXPR_ADDRESS_P (t, address_p);
+      return t;
     }
 
   if (error_operand_p (t))
@@ -6358,6 +6359,8 @@ cp_parser_splice_expression (cp_parser *parser, bool template_p,
     /* Were 'template' present, this would be valid code, so keep going.  */
     missing_template_diag (loc, diagnostics::kind::pedwarn);
 
+  cp_unevaluated u;
+
   /* When doing foo.[: bar :], cp_parser_postfix_dot_deref_expression wants
      to see an identifier or a TEMPLATE_ID_EXPR, if we have something like
      s.template [: ^^S::var :]<int> where S::var is a variable template.  */
@@ -6377,24 +6380,23 @@ cp_parser_splice_expression (cp_parser *parser, bool template_p,
 		  || TREE_CODE (t) == TREE_BINFO);
       /* ??? We're not setting *idk here.  */
     }
+  else if (address_p
+	   && (BASELINK_P (t) || DECL_NONSTATIC_MEMBER_P (t)))
+    {
+      /* CWG 3109 adjusted [class.protected] to say that checking access to
+	 protected non-static members is disabled for members designated by
+	 a splice-expression.  */
+      push_deferring_access_checks (dk_no_check);
+      tree type = (BASELINK_P (t)
+		   ? BINFO_TYPE (BASELINK_ACCESS_BINFO (t))
+		   : DECL_CONTEXT (t));
+      t = build_offset_ref (type, t, /*address_p=*/true, tf_warning_or_error);
+      pop_deferring_access_checks ();
+    }
   else
     {
-      /* We may have to instantiate; for instance, if we're dealing with
-	 a variable template.  For &[: ^^S::x :], we have to create an
-	 OFFSET_REF.  For a VAR_DECL, we need the convert_from_reference.  */
-      cp_unevaluated u;
-      /* CWG 3109 adjusted [class.protected] to say that checking access to
-	 protected non-static members is disabled for members designated by a
-	 splice-expression.  */
-      push_deferring_access_checks (dk_no_check);
       const char *error_msg;
-      /* We don't have the parser scope here, so figure out the context.  In
-	   struct S { static constexpr int i = 42; };
-	   constexpr auto r = ^^S::i;
-	   int i = [: r :];
-	 we need to pass down 'S'.  */
-      tree ctx = DECL_P (t) ? DECL_CONTEXT (t) : NULL_TREE;
-      t = finish_id_expression (t, t, ctx, idk,
+      t = finish_id_expression (t, t, NULL_TREE, idk,
 				/*integral_constant_expression_p=*/false,
 				/*allow_non_integral_constant_expr_p=*/true,
 				&parser->non_integral_constant_expression_p,
@@ -6406,7 +6408,6 @@ cp_parser_splice_expression (cp_parser *parser, bool template_p,
 				loc);
       if (error_msg)
 	cp_parser_error (parser, error_msg);
-      pop_deferring_access_checks ();
     }
 
   return t;
@@ -16178,7 +16179,13 @@ cp_convert_range_for (tree statement, tree range_decl, tree range_expr,
 /* Solves BEGIN_EXPR and END_EXPR as described in cp_convert_range_for.
    We need to solve both at the same time because the method used
    depends on the existence of members begin or end.
-   Returns the type deduced for the iterator expression.  */
+   Returns the type deduced for the iterator expression.
+   This function assumes that if COMPLAIN is not tf_warning_or_error,
+   it is tf_none and is called to find out if an expansion statement
+   is iterating (vs. destructruring) and behaves differently in that
+   case, in particular just checks if ADL looked up begin/end has
+   any viable candidates rather than doing full finish_call_expr
+   in that case.  */
 
 tree
 cp_perform_range_for_lookup (tree range, tree *begin, tree *end,
@@ -16229,8 +16236,8 @@ cp_perform_range_for_lookup (tree range, tree *begin, tree *end,
       if (member_begin != NULL_TREE && member_end != NULL_TREE)
 	{
 	  /* Use the member functions.  */
-	  *begin = cp_range_for_member_function (range, id_begin);
-	  *end = cp_range_for_member_function (range, id_end);
+	  *begin = cp_range_for_member_function (range, id_begin, complain);
+	  *end = cp_range_for_member_function (range, id_end, complain);
 	}
       else
 	{
@@ -16239,21 +16246,34 @@ cp_perform_range_for_lookup (tree range, tree *begin, tree *end,
 
 	  vec_safe_push (vec, range);
 
-	  member_begin = perform_koenig_lookup (id_begin, vec,
-						complain);
+	  member_begin = perform_koenig_lookup (id_begin, vec, complain);
 	  if ((complain & tf_error) == 0 && member_begin == id_begin)
 	    return error_mark_node;
 	  *begin = finish_call_expr (member_begin, &vec, false, true,
-				     complain);
-	  member_end = perform_koenig_lookup (id_end, vec,
-					      tf_warning_or_error);
+				     (complain & tf_error) ? complain
+				     : tf_any_viable);
+	  member_end = perform_koenig_lookup (id_end, vec, complain);
 	  if ((complain & tf_error) == 0 && member_end == id_end)
 	    {
 	      *begin = error_mark_node;
 	      return error_mark_node;
 	    }
 	  *end = finish_call_expr (member_end, &vec, false, true,
-				   complain);
+				   (complain & tf_error) ? complain
+				   : tf_any_viable);
+	  if ((complain & tf_error) == 0)
+	    {
+	      if (*begin == error_mark_node || *end == error_mark_node)
+		{
+		  *begin = *end = error_mark_node;
+		  /* Expansion stmt should be destructuring if no viable
+		     candidate was found.  */
+		  return error_mark_node;
+		}
+	      /* Otherwise both are viable, so make sure to return
+		 NULL_TREE and set *begin and *end to error_mark_node.  */
+	      *begin = error_mark_node;
+	    }
 	}
 
       /* Last common checks.  */
@@ -16261,6 +16281,13 @@ cp_perform_range_for_lookup (tree range, tree *begin, tree *end,
 	{
 	  /* If one of the expressions is an error do no more checks.  */
 	  *begin = *end = error_mark_node;
+	  /* But signal to finish_expansion_stmt whether this is
+	     destructuring (error_mark_node returned) or iterating
+	     (something else returned).  If we got here, range.begin and
+	     range.end members were found or begin (range) and end (range)
+	     found any viable candidates.  */
+	  if ((complain & tf_error) == 0)
+	    return NULL_TREE;
 	  return error_mark_node;
 	}
       else if (type_dependent_expression_p (*begin)
@@ -16298,20 +16325,20 @@ cp_perform_range_for_lookup (tree range, tree *begin, tree *end,
    Builds a tree for RANGE.IDENTIFIER().  */
 
 static tree
-cp_range_for_member_function (tree range, tree identifier)
+cp_range_for_member_function (tree range, tree identifier,
+			      tsubst_flags_t complain)
 {
   tree member, res;
 
   member = finish_class_member_access_expr (range, identifier,
-					    false, tf_warning_or_error);
+					    false, complain);
   if (member == error_mark_node)
     return error_mark_node;
 
   releasing_vec vec;
   res = finish_call_expr (member, &vec,
 			  /*disallow_virtual=*/false,
-			  /*koenig_p=*/false,
-			  tf_warning_or_error);
+			  /*koenig_p=*/false, complain);
   return res;
 }
 
@@ -31903,21 +31930,11 @@ cp_parser_base_specifier (cp_parser* parser)
   template_p = class_scope_p && cp_parser_optional_template_keyword (parser);
 
   if (typename_token && cp_lexer_peek_token (parser->lexer) != splice_token)
-    {
-      /* Emit deferred diagnostics for invalid typename keyword if
-	 cp_parser_nested_name_specifier_opt parsed splice-scope-specifier.  */
-      // TODO This error should be removed:
-      // struct A { struct B {}; };
-      // typename A::B b;
-      // is valid.
-      if (!processing_template_decl)
-	error_at (typename_token->location,
-		  "keyword %<typename%> not allowed outside of templates");
-      else
-	error_at (typename_token->location,
-		  "keyword %<typename%> not allowed in this context "
-		  "(the base class is implicitly a type)");
-    }
+    /* Emit deferred diagnostics for invalid typename keyword if
+       cp_parser_nested_name_specifier_opt parsed splice-scope-specifier.  */
+    error_at (typename_token->location,
+	      "keyword %<typename%> not allowed in this context "
+	      "(the base class is implicitly a type)");
 
   if (!parser->scope
       && cp_lexer_next_token_is_decltype (parser->lexer))

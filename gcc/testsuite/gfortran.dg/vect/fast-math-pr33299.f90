@@ -1,4 +1,5 @@
 ! { dg-require-effective-target vect_double }
+! { dg-additional-options "-ffast-math" }
 
 PROGRAM test
   REAL(8) :: f,dist(2)

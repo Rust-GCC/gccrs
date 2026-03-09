@@ -51,6 +51,9 @@
 #include <tuple>
 #endif
 
+#if __cplusplus > 202302L
+#include <bits/stdexcept_throw.h>
+#endif
 
 #ifdef __glibcxx_mdspan
 
@@ -2903,20 +2906,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     };
 #endif
 
-  namespace __mdspan
-  {
-    template<typename _Extents, typename _IndexType, size_t _Nm>
-      constexpr bool
-      __is_multi_index(const _Extents& __exts, span<_IndexType, _Nm> __indices)
-      {
-	static_assert(__exts.rank() == _Nm);
-	for (size_t __i = 0; __i < __exts.rank(); ++__i)
-	  if (__indices[__i] >= __exts.extent(__i))
-	    return false;
-	return true;
-      }
-  }
-
   template<typename _ElementType, typename _Extents,
 	   typename _LayoutPolicy = layout_right,
 	   typename _AccessorPolicy = default_accessor<_ElementType>>
@@ -3053,17 +3042,19 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	constexpr reference
 	operator[](_OIndexTypes... __indices) const
 	{
-	  auto __checked_call = [this](auto... __idxs) -> index_type
-	    {
-	      if constexpr (sizeof...(__idxs) > 0)
-		__glibcxx_assert(__mdspan::__is_multi_index(extents(),
-		  span<const index_type, sizeof...(__idxs)>({__idxs...})));
-	      return _M_mapping(__idxs...);
-	    };
+	  if constexpr (rank() == 0)
+	    return _M_accessor.access(_M_handle, _M_mapping());
+	  else if constexpr (!(is_same_v<_OIndexTypes, index_type> && ...))
+	    return operator[](
+	      __mdspan::__index_type_cast<index_type>(std::move(__indices))...);
+	  else
+	   {
+	     auto __is_multi_index = [&]<size_t... _Counts>(index_sequence<_Counts...>)
+	     { return ((__indices < extents().extent(_Counts)) && ...); };
 
-	  auto __index = __checked_call(
-	    static_cast<index_type>(std::move(__indices))...);
-	  return _M_accessor.access(_M_handle, __index);
+	     __glibcxx_assert(__is_multi_index(make_index_sequence<rank()>()));
+	     return _M_accessor.access(_M_handle, _M_mapping(__indices...));
+	   }
 	}
 
       template<typename _OIndexType>
@@ -3073,7 +3064,10 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	{
 	  auto __call = [&]<size_t... _Counts>(index_sequence<_Counts...>)
 	    -> reference
-	    { return (*this)[index_type(as_const(__indices[_Counts]))...]; };
+	    {
+	       return operator[](
+		 __mdspan::__index_type_cast<index_type>(as_const(__indices[_Counts]))...);
+	    };
 	  return __call(make_index_sequence<rank()>());
 	}
 
@@ -3081,7 +3075,63 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	requires __mdspan::__valid_index_type<const _OIndexType&, index_type>
 	constexpr reference
 	operator[](const array<_OIndexType, rank()>& __indices) const
-	{ return (*this)[span<const _OIndexType, rank()>(__indices)]; }
+	{ return operator[](span<const _OIndexType, rank()>(__indices)); }
+
+#if __cplusplus > 202302L
+      template<__mdspan::__valid_index_type<index_type>... _OIndexTypes>
+	requires (sizeof...(_OIndexTypes) == rank())
+	constexpr reference
+	at(_OIndexTypes... __indices) const
+	{
+	  if constexpr (rank() == 0)
+	    return _M_accessor.access(_M_handle, _M_mapping());
+	  else if constexpr (!(is_integral_v<_OIndexTypes> && ...))
+	    return at(__index_int_t<_OIndexTypes>(std::move(__indices))...);
+	  else
+	   {
+	     auto __check_bound = [&]<typename _OIntType>(size_t __dim, _OIntType __index)
+	     {
+	       if constexpr (is_signed_v<_OIntType>)
+		 if (__index < 0)
+		   std::__throw_out_of_range_fmt(
+		     __N("mdspan::at: %zuth index is negative"), __dim);
+
+	       const auto __ext = extents().extent(__dim);
+	       if (std::cmp_greater_equal(__index, __ext))
+		 std::__throw_out_of_range_fmt(
+		   __N("mdspan::at: %zuth index (which is %zu)"
+		       " >= extent(%zu) (which is %zu)"),
+		   __dim, size_t(__index), __dim, size_t(__ext));
+	     };
+	     auto __check_bounds = [&]<size_t... _Counts>(index_sequence<_Counts...>)
+	     { (__check_bound(_Counts, __indices), ...); };
+
+	     __check_bounds(make_index_sequence<rank()>());
+	     auto __index = _M_mapping(static_cast<index_type>(__indices)...);
+	     return _M_accessor.access(_M_handle, __index);
+	   }
+	}
+
+      template<typename _OIndexType>
+	requires __mdspan::__valid_index_type<const _OIndexType&, index_type>
+	constexpr reference
+	at(span<_OIndexType, rank()> __indices) const
+	{
+	  auto __call = [&]<size_t... _Counts>(index_sequence<_Counts...>)
+	    -> reference
+	    {
+	      return at(
+		__index_int_t<_OIndexType>(as_const(__indices[_Counts]))...);
+	    };
+	  return __call(make_index_sequence<rank()>());
+	}
+
+      template<typename _OIndexType>
+	requires __mdspan::__valid_index_type<const _OIndexType&, index_type>
+	constexpr reference
+	at(const array<_OIndexType, rank()>& __indices) const
+	{ return at(span<const _OIndexType, rank()>(__indices)); }
+#endif // C++26
 
       constexpr size_type
       size() const noexcept
@@ -3150,6 +3200,10 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       stride(rank_type __r) const { return _M_mapping.stride(__r); }
 
     private:
+      template<typename _OIndexType>
+	using __index_int_t = std::__conditional_t<
+	  is_integral_v<_OIndexType>, _OIndexType, index_type>;
+
       [[no_unique_address]] accessor_type _M_accessor = accessor_type();
       [[no_unique_address]] mapping_type _M_mapping = mapping_type();
       [[no_unique_address]] data_handle_type _M_handle = data_handle_type();
@@ -3348,8 +3402,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   template<typename _IndexType, size_t... _Extents, typename... _RawSlices>
     requires (sizeof...(_RawSlices) == sizeof...(_Extents))
     constexpr auto
-    submdspan_extents(const extents<_IndexType, _Extents...>& __exts,
-		      _RawSlices... __raw_slices)
+    subextents(const extents<_IndexType, _Extents...>& __exts,
+	       _RawSlices... __raw_slices)
     {
       auto __impl = [&__exts](auto... __slices)
       {
@@ -3362,8 +3416,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   template<typename _IndexType, size_t... _Extents, typename... _RawSlices>
     requires (sizeof...(_Extents) == sizeof...(_RawSlices))
     constexpr auto
-    submdspan_canonicalize_slices(const extents<_IndexType, _Extents...>& __exts,
-				  _RawSlices... __raw_slices)
+    canonical_slices(const extents<_IndexType, _Extents...>& __exts,
+		     _RawSlices... __raw_slices)
     {
       auto __impl = [&__exts](auto... __slices)
       {

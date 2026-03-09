@@ -1811,6 +1811,9 @@ exploded_node::on_throw (exploded_graph &eg,
   region_model *model = new_state->m_region_model;
   call_details cd (throw_call, model, ctxt);
 
+  if (!cd.get_fndecl_for_call ())
+    return;
+
   /* Create an enode and eedge for the "throw".  */
   tree type = NULL_TREE;
   if (is_rethrow)

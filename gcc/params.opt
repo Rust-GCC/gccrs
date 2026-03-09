@@ -76,7 +76,7 @@ Enable only function reordering with auto-profile.
 
 -param=cycle-accurate-model=
 Common Joined UInteger Var(param_cycle_accurate_model) Init(1) IntegerRange(0, 1) Param Optimization
-Whether the scheduling description is mostly a cycle-accurate model of the target processor and is likely to be spill aggressively to fill any pipeline bubbles.
+Whether the scheduling description is mostly a cycle-accurate model of the target processor and is likely to spill aggressively to fill any pipeline bubbles.
 
 -param=hwasan-instrument-stack=
 Common Joined UInteger Var(param_hwasan_instrument_stack) Init(1) IntegerRange(0, 1) Param Optimization
@@ -944,7 +944,7 @@ Maximum probability of the entry BB of split region (as a percentage relative to
 
 -param=phiopt-factor-max-stmts-live=
 Common Joined UInteger Var(param_phiopt_factor_max_stmts_live) Init(5) Optimization IntegerRange(0, 100) Param
-Maximum number of statements allowed inbetween the statement and the end to considered not extending the liferange.
+Maximum number of statements allowed between a defining statement and the end of the basic block before extending the live range is considered profitable.
 
 -param=predictable-branch-outcome=
 Common Joined UInteger Var(param_predictable_branch_outcome) Init(2) IntegerRange(0, 50) Param Optimization

@@ -19,4 +19,4 @@ struct s1 g()
   return f();
 }
 
-/* { dg-final { scan-tree-dump-times "after previous" 1 "forwprop1" { target { { x86_64_*-*-* i?86-*-* } && !ia32 } ||  { aarch64*-*-* } } } } */
+/* { dg-final { scan-tree-dump-times "after previous" 1 "forwprop1" { target { { x86_64*-*-* i?86-*-* } && { ! ia32 } } || { aarch64*-*-* } } } } */

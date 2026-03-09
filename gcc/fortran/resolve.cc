@@ -12449,6 +12449,13 @@ gfc_max_forall_iterators_in_chain (gfc_code *code)
 
       if (c->op == EXEC_FORALL || c->op == EXEC_DO_CONCURRENT)
 	sub_iters = gfc_count_forall_iterators (c);
+      else if (c->op == EXEC_BLOCK)
+	{
+	  /* BLOCK/ASSOCIATE bodies live in the block namespace code chain,
+	     not in the generic c->block arm list used by IF/SELECT.  */
+	  if (c->ext.block.ns && c->ext.block.ns->code)
+	    sub_iters = gfc_max_forall_iterators_in_chain (c->ext.block.ns->code);
+	}
       else if (c->block)
 	for (gfc_code *b = c->block; b; b = b->block)
 	  {
@@ -14264,10 +14271,33 @@ start:
 	      code->ext.actual = gfc_get_actual_arglist ();
 	      code->ext.actual->expr = code->expr1;
 	      code->ext.actual->next = gfc_get_actual_arglist ();
-	      code->ext.actual->next->expr = code->expr2;
+	      if (code->expr2->expr_type != EXPR_VARIABLE
+		  && code->expr2->expr_type != EXPR_CONSTANT)
+		{
+		  /* Convert assignments of expr1[...] = expr2 into
+			tvar = expr2
+			expr1[...] = tvar
+		     when expr2 is not trivial.  */
+		  gfc_expr *tvar = get_temp_from_expr (code->expr2, ns);
+		  gfc_code next_code = *code;
+		  gfc_code *rhs_code
+		    = build_assignment (EXEC_ASSIGN, tvar, code->expr2, NULL,
+					NULL, code->expr2->where);
+		  *code = *rhs_code;
+		  code->next = rhs_code;
+		  *rhs_code = next_code;
 
-	      code->expr1 = NULL;
-	      code->expr2 = NULL;
+		  rhs_code->ext.actual->next->expr = tvar;
+		  rhs_code->expr1 = NULL;
+		  rhs_code->expr2 = NULL;
+		}
+	      else
+		{
+		  code->ext.actual->next->expr = code->expr2;
+
+		  code->expr1 = NULL;
+		  code->expr2 = NULL;
+		}
 	      break;
 	    }
 
@@ -16701,9 +16731,10 @@ resolve_typebound_procedure (gfc_symtree* stree)
 	  goto error;
 	}
 
-      if (resolve_bindings_derived->attr.pdt_template
-	  && gfc_pdt_is_instance_of (resolve_bindings_derived,
-				     CLASS_DATA (me_arg)->ts.u.derived)
+      if (((resolve_bindings_derived->attr.pdt_template
+	    && gfc_pdt_is_instance_of (resolve_bindings_derived,
+				       CLASS_DATA (me_arg)->ts.u.derived))
+	   || resolve_bindings_derived->attr.pdt_type)
           && (me_arg->param_list != NULL)
           && (gfc_spec_list_type (me_arg->param_list,
 				  CLASS_DATA(me_arg)->ts.u.derived)

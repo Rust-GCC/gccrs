@@ -981,10 +981,38 @@ proc check_function_body { functions name body_regexp } {
     if { ![info exists up_functions($name)] } {
 	return 0
     }
-    set fn_res [regexp "^$body_regexp\$" $up_functions($name)]
+    set body $up_functions($name)
+    set fn_res [regexp "^$body_regexp\$" $body]
     if { !$fn_res } {
-      verbose -log "expected: $body_regexp"
-      verbose -log "found: $up_functions($name)"
+      # Find the longest initial set of lines in body_regexp that matches the
+      # function.  We can't just use a binary search here, because adding more
+      # lines to a broken regexp might make it start to match.
+      # Unfortunately this makes runtime quadratic in the number of lines, but
+      # failures in large check-function-body regexps are hopefully rare.
+      set ok_index [string length $body_regexp]
+      incr ok_index -1
+      while { $ok_index >= 0 } {
+	set short_regexp [string range $body_regexp 0 $ok_index]
+	set match_found 0
+	# Not all initial sets of lines are valid.  Ignore any broken regexps.
+	if { ![catch { regexp "^$short_regexp" $body } res] && $res } {
+	  break
+	}
+	set ok_index [string last "\n" $body_regexp $ok_index-1]
+      }
+      set head [string range $body_regexp 0 $ok_index]
+      set tail [string range $body_regexp $ok_index+1 end]
+      if { $ok_index == -1 } {
+	verbose -log "no initial matching lines"
+      } else {
+	verbose -log "initial matched regexp:\n$head"
+      }
+      if { [string length $tail] == 0 } {
+	verbose -log "excess lines found after matching regexp\n"
+      } else {
+	verbose -log "mismatch in remaining regexp:\n$tail"
+      }
+      verbose -log "compared against output:\n$body"
     }
     return $fn_res
 }

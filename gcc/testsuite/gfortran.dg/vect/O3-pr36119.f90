@@ -1,4 +1,5 @@
 ! { dg-do compile } 
+! { dg-additional-options "-O3" }
 
 SUBROUTINE check_dnucint_ana (dcore)
   IMPLICIT NONE
