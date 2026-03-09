@@ -11739,7 +11739,7 @@ gfc_trans_scalar_assign (gfc_se *lse, gfc_se *rse, gfc_typespec ts,
     }
   else if (gfc_bt_struct (ts.type)
 	   && (ts.u.derived->attr.alloc_comp
-		|| (deep_copy && ts.u.derived->attr.pdt_type)))
+	       || (deep_copy && has_parameterized_comps (ts.u.derived))))
     {
       tree tmp_var = NULL_TREE;
       cond = NULL_TREE;

@@ -4046,7 +4046,7 @@ gfc_expr* gfc_build_intrinsic_call (gfc_namespace *, gfc_isym_id, const char*,
 				    locus, unsigned, ...);
 bool gfc_check_vardef_context (gfc_expr*, bool, bool, bool, const char*);
 gfc_expr* gfc_pdt_find_component_copy_initializer (gfc_symbol *, const char *);
-
+bool has_parameterized_comps (gfc_symbol *);
 
 /* st.cc */
 extern gfc_code new_st;
