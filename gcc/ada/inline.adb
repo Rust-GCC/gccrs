@@ -50,6 +50,7 @@ with Sem_Util;       use Sem_Util;
 with Sinfo.Nodes;    use Sinfo.Nodes;
 with Sinfo.Utils;    use Sinfo.Utils;
 with Sinput;         use Sinput;
+with Sinput.L;       use Sinput.L;
 with Snames;         use Snames;
 with Stand;          use Stand;
 with Table;
@@ -4715,15 +4716,28 @@ package body Inline is
 
    procedure Inline_Static_Function_Call (N : Node_Id; Subp : Entity_Id) is
 
+      S_Adjustment : Sloc_Adjustment;
+
+      function Adjust_Sloc (Nod : Node_Id) return Traverse_Result;
+      --  Update the child node with the instantiation adjustment
+      --  information for error messages.
+
       function Replace_Formal (N : Node_Id) return Traverse_Result;
       --  Replace each occurrence of a formal with the
       --  corresponding actual, using the mapping created
       --  by Establish_Actual_Mapping_For_Inlined_Call.
 
-      function Reset_Sloc (Nod : Node_Id) return Traverse_Result;
-      --  Reset the Sloc of a node to that of the call itself, so that errors
-      --  will be flagged on the call to the static expression function itself
-      --  rather than on the expression of the function's declaration.
+      -----------------
+      -- Adjust_Sloc --
+      -----------------
+
+      function Adjust_Sloc (Nod : Node_Id) return Traverse_Result is
+      begin
+         Adjust_Instantiation_Sloc (Nod, S_Adjustment);
+         return OK;
+      end Adjust_Sloc;
+
+      procedure Adjust_Slocs is new Traverse_Proc (Adjust_Sloc);
 
       --------------------
       -- Replace_Formal --
@@ -4759,20 +4773,6 @@ package body Inline is
 
       procedure Replace_Formals is new Traverse_Proc (Replace_Formal);
 
-      ------------------
-      -- Process_Sloc --
-      ------------------
-
-      function Reset_Sloc (Nod : Node_Id) return Traverse_Result is
-      begin
-         Set_Sloc (Nod, Sloc (N));
-         Set_Comes_From_Source (Nod, False);
-
-         return OK;
-      end Reset_Sloc;
-
-      procedure Reset_Slocs is new Traverse_Proc (Reset_Sloc);
-
    --  Start of processing for Inline_Static_Function_Call
 
    begin
@@ -4790,6 +4790,11 @@ package body Inline is
 
          Establish_Actual_Mapping_For_Inlined_Call (N, Subp, Decls, Func_Expr);
 
+         --  Calculate the Adjustment for the inlined call
+
+         Create_Instantiation_Source
+           (N, Subp, S_Adjustment, Inlined_Body => True);
+
          --  Ensure that the copy has the same parent as the call (this seems
          --  to matter when GNATprove_Mode is set and there are nested static
          --  calls; prevents blowups in Insert_Actions, though it's not clear
@@ -4804,7 +4809,7 @@ package body Inline is
 
          Replace_Formals (Expr_Copy);
 
-         Reset_Slocs (Expr_Copy);
+         Adjust_Slocs (Expr_Copy);
 
          --  Apply a qualified expression with the function's result subtype,
          --  to ensure that we check the expression against any constraint
