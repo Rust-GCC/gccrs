@@ -833,6 +833,25 @@ private:
   tree m_var_decl; // could be NULL
 };
 
+class kf_atoi_family: public known_function
+{
+public:
+  bool matches_call_types_p (const call_details &cd) const final override
+  {
+    return (cd.num_args () == 1 && cd.arg_is_pointer_p (0));
+  }
+
+  void impl_call_pre (const call_details &cd) const final override
+  {
+    /* atoi expects a valid, null-terminated string. */
+    cd.check_for_null_terminated_string_arg (0, false, nullptr);
+    
+    /* atoi returns an integer, but we don't know what it is statically. 
+       Tell the analyzer to assume it returns a generic, unknown value. */
+    cd.set_any_lhs_with_defaults ();
+  }
+};
+
 /* Handler for calls to "putenv".
 
    In theory we could try to model the state of the environment variables
@@ -2289,6 +2308,10 @@ register_known_functions (known_function_manager &kfm,
   /* Known builtins and C standard library functions
      the analyzer has known functions for.  */
   {
+    kfm.add ("atoi", std::make_unique<kf_atoi_family> ());
+    kfm.add ("atol", std::make_unique<kf_atoi_family> ());
+    kfm.add ("atoll", std::make_unique<kf_atoi_family> ());
+
     kfm.add ("alloca", std::make_unique<kf_alloca> ());
     kfm.add ("__builtin_alloca", std::make_unique<kf_alloca> ());
     kfm.add ("calloc", std::make_unique<kf_calloc> ());
@@ -2388,6 +2411,10 @@ register_known_functions (known_function_manager &kfm,
      from <cstdlib> etc for the C spellings of these headers (e.g. <stdlib.h>),
      so we must match against these too.  */
   {
+    kfm.add_std_ns ("atoi", std::make_unique<kf_atoi_family> ());
+    kfm.add_std_ns ("atol", std::make_unique<kf_atoi_family> ());
+    kfm.add_std_ns ("atoll", std::make_unique<kf_atoi_family> ());
+
     kfm.add_std_ns ("malloc", std::make_unique<kf_malloc> ());
     kfm.add_std_ns ("free", std::make_unique<kf_free> ());
     kfm.add_std_ns ("realloc", std::make_unique<kf_realloc> ());
