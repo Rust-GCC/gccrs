@@ -902,7 +902,7 @@ Objective-C and Objective-C++ Dialects}.
 -moverride=@var{string}
 -mstack-protector-guard=@var{guard}  -mstack-protector-guard-reg=@var{sysreg}
 -mstack-protector-guard-offset=@var{offset}  -mtrack-speculation
--moutline-atomics  -mearly-ra  -mearly-ldp-fusion  -mlate-ldp-fusion
+-moutline-atomics  -mearly-ra  -mearly-ldp-fusion  -mlate-ldp-fusion -mnarrow-gp-writes
 -msve-vector-bits=@var{bits}}
 
 @emph{Adapteva Epiphany Options} (@ref{Adapteva Epiphany Options})
@@ -21688,6 +21688,13 @@ register allocation.  Enabled by default at @samp{-O} and above.
 @itemx -mno-late-ldp-fusion
 Enable the copy of the AArch64 load/store pair fusion pass that runs after
 register allocation.  Enabled by default at @samp{-O} and above.
+
+@opindex mnarrow-gp-writes
+@item -mnarrow-gp-writes
+Enable conversion of 64-bit general purpose register writes to equivalent 32-bit
+operations when the upper 32 bits are known to be zero.  This pass can be
+controlled with -mnarrow-gp-writes and is active at -O2 and above, but not
+enabled by default, except for @option{-mcpu=olympus}.
 
 @opindex msve-vector-bits
 @item -msve-vector-bits=@var{bits}

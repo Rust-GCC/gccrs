@@ -560,7 +560,8 @@ static struct tune_params olympus_tunings =
    | AARCH64_EXTRA_TUNE_CSE_SVE_VL_CONSTANTS
    | AARCH64_EXTRA_TUNE_MATCHED_VECTOR_THROUGHPUT
    | AARCH64_EXTRA_TUNE_AVOID_PRED_RMW
-   | AARCH64_EXTRA_TUNE_DISPATCH_SCHED),	/* tune_flags.  */
+   | AARCH64_EXTRA_TUNE_DISPATCH_SCHED
+   | AARCH64_EXTRA_TUNE_NARROW_GP_WRITES),	/* tune_flags.  */
   &olympus_prefetch_tune,
   AARCH64_LDP_STP_POLICY_ALWAYS,   /* ldp_policy_model.  */
   AARCH64_LDP_STP_POLICY_ALWAYS,   /* stp_policy_model.  */

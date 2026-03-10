@@ -103,6 +103,11 @@ mfix-cortex-a53-843419
 Target Var(aarch64_fix_a53_err843419) Init(2) Save
 Workaround for ARM Cortex-A53 Erratum number 843419.
 
+mnarrow-gp-writes
+Target Var(aarch64_narrow_gp_writes) Optimization Init(2) Save
+Enable narrowing of 64-bit general purpose register writes to 32-bit when
+upper 32 bits of the register are unused.
+
 mlittle-endian
 Target RejectNegative InverseMask(BIG_END)
 Assume target CPU is configured as little endian.

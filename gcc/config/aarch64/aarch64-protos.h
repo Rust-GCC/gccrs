@@ -1261,6 +1261,7 @@ rtl_opt_pass *make_pass_late_track_speculation (gcc::context *);
 rtl_opt_pass *make_pass_insert_bti (gcc::context *ctxt);
 rtl_opt_pass *make_pass_switch_pstate_sm (gcc::context *ctxt);
 rtl_opt_pass *make_pass_ldp_fusion (gcc::context *);
+rtl_opt_pass *make_pass_narrow_gp_writes (gcc::context *);
 
 poly_uint64 aarch64_regmode_natural_size (machine_mode);
 
