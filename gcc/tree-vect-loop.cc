@@ -3923,17 +3923,14 @@ vect_get_peel_iters_epilogue (loop_vec_info loop_vinfo, int peel_iters_prologue)
     }
 }
 
-/* Calculate cost of peeling the loop PEEL_ITERS_PROLOGUE times.  */
+/* Calculate cost of peeling the scalar loop PEEL_ITERS_PROLOGUE times for
+   a prologue and the corresponding times for the epilogue.  */
 int
-vect_get_known_peeling_cost (loop_vec_info loop_vinfo, int peel_iters_prologue,
-			     int *peel_iters_epilogue,
-			     stmt_vector_for_cost *scalar_cost_vec,
-			     stmt_vector_for_cost *prologue_cost_vec,
-			     stmt_vector_for_cost *epilogue_cost_vec)
+vect_get_known_peeling_cost (loop_vec_info loop_vinfo, int peel_iters_prologue)
 {
   int retval = 0;
 
-  *peel_iters_epilogue
+  int peel_iters_epilogue
     = vect_get_peel_iters_epilogue (loop_vinfo, peel_iters_prologue);
 
   if (!LOOP_VINFO_NITERS_KNOWN_P (loop_vinfo))
@@ -3941,27 +3938,21 @@ vect_get_known_peeling_cost (loop_vec_info loop_vinfo, int peel_iters_prologue,
       /* If peeled iterations are known but number of scalar loop
 	 iterations are unknown, count a taken branch per peeled loop.  */
       if (peel_iters_prologue > 0)
-	retval = record_stmt_cost (prologue_cost_vec, 1, cond_branch_taken,
-				   vect_prologue);
-      if (*peel_iters_epilogue > 0)
-	retval += record_stmt_cost (epilogue_cost_vec, 1, cond_branch_taken,
-				    vect_epilogue);
+	retval = builtin_vectorization_cost (cond_branch_taken, NULL_TREE, 0);
+      if (peel_iters_epilogue > 0)
+	retval += builtin_vectorization_cost (cond_branch_taken, NULL_TREE, 0);
     }
 
   stmt_info_for_cost *si;
   int j;
   if (peel_iters_prologue)
-    FOR_EACH_VEC_ELT (*scalar_cost_vec, j, si)
-      retval += record_stmt_cost (prologue_cost_vec,
-				  si->count * peel_iters_prologue,
-				  si->kind, si->stmt_info, si->misalign,
-				  vect_prologue);
-  if (*peel_iters_epilogue)
-    FOR_EACH_VEC_ELT (*scalar_cost_vec, j, si)
-      retval += record_stmt_cost (epilogue_cost_vec,
-				  si->count * *peel_iters_epilogue,
-				  si->kind, si->stmt_info, si->misalign,
-				  vect_epilogue);
+    FOR_EACH_VEC_ELT (LOOP_VINFO_SCALAR_ITERATION_COST (loop_vinfo), j, si)
+      retval += (builtin_vectorization_cost (si->kind, NULL_TREE, si->misalign)
+		 * peel_iters_prologue);
+  if (peel_iters_epilogue)
+    FOR_EACH_VEC_ELT (LOOP_VINFO_SCALAR_ITERATION_COST (loop_vinfo), j, si)
+      retval += (builtin_vectorization_cost (si->kind, NULL_TREE, si->misalign)
+		 * peel_iters_epilogue);
 
   return retval;
 }

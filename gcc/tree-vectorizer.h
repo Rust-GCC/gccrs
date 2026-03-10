@@ -2725,10 +2725,7 @@ extern bool vectorizable_early_exit (loop_vec_info, stmt_vec_info,
 extern bool vect_emulated_vector_p (tree);
 extern bool vect_can_vectorize_without_simd_p (tree_code);
 extern bool vect_can_vectorize_without_simd_p (code_helper);
-extern int vect_get_known_peeling_cost (loop_vec_info, int, int *,
-					stmt_vector_for_cost *,
-					stmt_vector_for_cost *,
-					stmt_vector_for_cost *);
+extern int vect_get_known_peeling_cost (loop_vec_info, int);
 extern tree cse_and_gimplify_to_preheader (loop_vec_info, tree);
 
 /* Nonlinear induction.  */

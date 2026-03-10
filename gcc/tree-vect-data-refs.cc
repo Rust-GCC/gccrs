@@ -2074,33 +2074,21 @@ vect_peeling_hash_get_lowest_cost (_vect_peel_info **slot,
 				   _vect_peel_extended_info *min)
 {
   vect_peel_info elem = *slot;
-  int dummy;
   unsigned int inside_cost = 0, outside_cost = 0;
   loop_vec_info loop_vinfo = dyn_cast <loop_vec_info> (min->vinfo);
-  stmt_vector_for_cost prologue_cost_vec, body_cost_vec,
-		       epilogue_cost_vec;
+  stmt_vector_for_cost prologue_cost_vec, body_cost_vec;
 
   prologue_cost_vec.create (2);
   body_cost_vec.create (2);
-  epilogue_cost_vec.create (2);
 
   vect_get_peeling_costs_all_drs (loop_vinfo, elem->dr_info, &inside_cost,
 				  &outside_cost, &body_cost_vec,
 				  &prologue_cost_vec, elem->npeel);
 
   body_cost_vec.release ();
-
-  outside_cost += vect_get_known_peeling_cost
-    (loop_vinfo, elem->npeel, &dummy,
-     &LOOP_VINFO_SCALAR_ITERATION_COST (loop_vinfo),
-     &prologue_cost_vec, &epilogue_cost_vec);
-
-  /* Prologue and epilogue costs are added to the target model later.
-     These costs depend only on the scalar iteration cost, the
-     number of peeling iterations finally chosen, and the number of
-     misaligned statements.  So discard the information found here.  */
   prologue_cost_vec.release ();
-  epilogue_cost_vec.release ();
+
+  outside_cost += vect_get_known_peeling_cost (loop_vinfo, elem->npeel);
 
   if (inside_cost < min->inside_cost
       || (inside_cost == min->inside_cost
@@ -2691,18 +2679,8 @@ vect_enhance_data_refs_alignment (loop_vec_info loop_vinfo)
 	  peel_for_unknown_alignment.outside_cost = load_outside_cost;
 	}
 
-      stmt_vector_for_cost prologue_cost_vec, epilogue_cost_vec;
-      prologue_cost_vec.create (2);
-      epilogue_cost_vec.create (2);
-
-      int dummy2;
-      peel_for_unknown_alignment.outside_cost += vect_get_known_peeling_cost
-	(loop_vinfo, estimated_npeels, &dummy2,
-	 &LOOP_VINFO_SCALAR_ITERATION_COST (loop_vinfo),
-	 &prologue_cost_vec, &epilogue_cost_vec);
-
-      prologue_cost_vec.release ();
-      epilogue_cost_vec.release ();
+      peel_for_unknown_alignment.outside_cost
+	+= vect_get_known_peeling_cost (loop_vinfo, estimated_npeels);
 
       peel_for_unknown_alignment.peel_info.count = dr0_same_align_drs + 1;
     }
@@ -2760,18 +2738,7 @@ vect_enhance_data_refs_alignment (loop_vec_info loop_vinfo)
 
       /* Add epilogue costs.  As we do not peel for alignment here, no prologue
 	 costs will be recorded.  */
-      stmt_vector_for_cost prologue_cost_vec, epilogue_cost_vec;
-      prologue_cost_vec.create (2);
-      epilogue_cost_vec.create (2);
-
-      int dummy2;
-      nopeel_outside_cost += vect_get_known_peeling_cost
-	(loop_vinfo, 0, &dummy2,
-	 &LOOP_VINFO_SCALAR_ITERATION_COST (loop_vinfo),
-	 &prologue_cost_vec, &epilogue_cost_vec);
-
-      prologue_cost_vec.release ();
-      epilogue_cost_vec.release ();
+      nopeel_outside_cost += vect_get_known_peeling_cost (loop_vinfo, 0);
 
       npeel = best_peel.peel_info.npeel;
       dr0_info = best_peel.peel_info.dr_info;
