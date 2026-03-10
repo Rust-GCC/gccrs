@@ -2,7 +2,7 @@
 /* { dg-options "-Os" } */
 /* { dg-add-options arm_arch_v7a_thumb } */
 /* { dg-final { scan-assembler "push\t\{r3" } } */
-/* { dg-final { scan-assembler-not "push\t[^\n]*r8" } } */
+/* { dg-final { scan-assembler-not "push\t.[^\n\]*r8" } } */
 
 extern char *pre_process_line (char*);
 extern char* x_strdup (const char*);
