@@ -3748,7 +3748,7 @@ namespace __format
       _Ptr_sink(_CharT* __ptr, size_t __n = _S_no_limit) noexcept
       : _Sink<_CharT>(_M_buf), _M_max(__n)
       {
-      	if (__n == 0)
+	if (__n == 0)
 	  return; // Only write to the internal buffer.
 	else if (__n != _S_no_limit)
 	  _M_rebuf(__ptr, __n);
@@ -5714,19 +5714,19 @@ namespace __format
 		    _Callback&& __call)
     {
       if constexpr (is_same_v<_Out, _Drop_iter<_CharT>>)
-        return __fc.out();
+	return __fc.out();
       else
-        {
-          // This is required to implement formatting with padding,
-          // as we need to format to temporary buffer, using the same iterator.
-          static_assert(is_same_v<_Out, _Sink_iter<_CharT>>);
+	{
+	  // This is required to implement formatting with padding,
+	  // as we need to format to temporary buffer, using the same iterator.
+	  static_assert(is_same_v<_Out, _Sink_iter<_CharT>>);
 
-         const size_t __padwidth = __spec._M_get_width(__fc);
-         if (__padwidth == 0)
+	 const size_t __padwidth = __spec._M_get_width(__fc);
+	 if (__padwidth == 0)
 	   return __call(__fc);
 
-         struct _Restore_out
-         {
+	 struct _Restore_out
+	 {
 	   _Restore_out(basic_format_context<_Sink_iter<_CharT>, _CharT>& __fc)
 	   : _M_ctx(std::addressof(__fc)), _M_out(__fc.out())
 	  { }
@@ -5741,18 +5741,18 @@ namespace __format
 	      _M_ctx->advance_to(_M_out);
 	  }
 
-        private:
+	private:
 	  basic_format_context<_Sink_iter<_CharT>, _CharT>* _M_ctx;
 	  _Sink_iter<_CharT> _M_out;
-        };
+	};
 
-        _Restore_out __restore(__fc);
-        _Padding_sink<_Sink_iter<_CharT>, _CharT> __sink(__fc.out(), __padwidth);
-        __fc.advance_to(__sink.out());
-        __call(__fc);
-        __fc.advance_to(__sink._M_finish(__spec._M_align, __spec._M_fill));
-        __restore._M_disarm();
-        return __fc.out();
+	_Restore_out __restore(__fc);
+	_Padding_sink<_Sink_iter<_CharT>, _CharT> __sink(__fc.out(), __padwidth);
+	__fc.advance_to(__sink.out());
+	__call(__fc);
+	__fc.advance_to(__sink._M_finish(__spec._M_align, __spec._M_fill));
+	__restore._M_disarm();
+	return __fc.out();
       }
     }
 
@@ -5965,7 +5965,7 @@ namespace __format
   template<typename _Fp, typename _Sp>
     constexpr bool enable_nonlocking_formatter_optimization<pair<_Fp, _Sp>>
       = enable_nonlocking_formatter_optimization<remove_cvref_t<_Fp>>
-        && enable_nonlocking_formatter_optimization<remove_cvref_t<_Sp>>;
+	&& enable_nonlocking_formatter_optimization<remove_cvref_t<_Sp>>;
 #endif
 
   template<__format::__char _CharT, formattable<_CharT>... _Tps>
