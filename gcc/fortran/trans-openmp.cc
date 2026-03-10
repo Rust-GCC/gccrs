@@ -4157,7 +4157,11 @@ gfc_trans_omp_clauses (stmtblock_t *block, gfc_omp_clauses *clauses,
 		{
 		  tree ptr;
 		  gfc_init_se (&se, NULL);
-		  if (n->expr->ref->u.ar.type == AR_ELEMENT)
+		  /* The first ref can be an element selection on the base
+		     object while the full expression still denotes an array,
+		     e.g. x(j)%a.  Pick the lowering path from the overall
+		     expression rank, not from the first REF_ARRAY.  */
+		  if (n->expr->rank == 0)
 		    {
 		      gfc_conv_expr_reference (&se, n->expr);
 		      ptr = se.expr;
@@ -7441,7 +7445,7 @@ gfc_trans_omp_depobj (gfc_code *code)
       else if (n->expr && n->expr->ref->u.ar.type != AR_FULL)
 	{
 	  gfc_init_se (&se, NULL);
-	  if (n->expr->ref->u.ar.type == AR_ELEMENT)
+	  if (n->expr->rank == 0)
 	    {
 	      gfc_conv_expr_reference (&se, n->expr);
 	      var = se.expr;
