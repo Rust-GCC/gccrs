@@ -1413,7 +1413,7 @@ vect_compute_single_scalar_iteration_cost (loop_vec_info loop_vinfo)
 	  /* We are using vect_prologue here to avoid scaling twice
 	     by the inner loop factor.  */
 	  record_stmt_cost (&LOOP_VINFO_SCALAR_ITERATION_COST (loop_vinfo),
-			    factor, kind, stmt_info, 0, vect_prologue);
+			    factor, kind, stmt_info, 0, vect_body);
         }
     }
 
