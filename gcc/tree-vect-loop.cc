@@ -4130,6 +4130,11 @@ vect_estimate_min_profitable_iters (loop_vec_info loop_vinfo,
 	epilogue_need_br_taken_cost = true;
     }
 
+  /* The way we cummulate peeling costs into the vector prologue/epilogue
+     cost is a bit awkward given we cannot reuse scalar_costs which is
+     already computed and also because it cannot take into account any
+     epilogue vectorization we'll carry out in the end.  */
+
   stmt_info_for_cost *si;
   int j;
   /* Add costs associated with peel_iters_prologue.  */
