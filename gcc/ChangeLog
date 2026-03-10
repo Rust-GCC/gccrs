@@ -1,3 +1,42 @@
+2026-03-09  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR translation/124422
+	* config/loongarch/loongarch-target-attr.cc
+	(loongarch_parse_fmv_features): Fix spelling in diagnostics.
+	* params.opt (max-devirt-targets): Fix typo in description.
+
+2026-03-09  Martin Jambor  <mjambor@suse.cz>
+
+	PR ipa/124291
+	* ipa-cp.cc (ipcp_val_replacement_ok_p): Allow more precise
+	contexts that what the clone was originally intended for.
+
+2026-03-09  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	PR gcov-profile/124075
+	* config/aarch64/gcc-auto-profile: Add "-o perf.data" to perf
+	record invocation.
+	* config/i386/gcc-auto-profile: Likewise.
+
+2026-03-09  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	PR gcov-profile/123923
+	* config/aarch64/gcc-auto-profile: Add --inherit to perf record flags.
+	* config/i386/gcc-auto-profile: Likewise.
+
+2026-03-09  Richard Sandiford  <rdsandiford@googlemail.com>
+
+	PR middle-end/118608
+	* rtlanal.cc (truncated_to_mode): Revert a change made on 2026-02-03.
+	* config/mips/mips.md (*extenddi_truncate<mode>): Likewise.
+
+2026-03-09  Takayuki 'January June' Suwa  <jjsuwa_sys3175@yahoo.co.jp>
+
+	* config/xtensa/xtensa.md (movdi_internal, movdf_internal, *btrue,
+	*ubtrue, movsicc_internal0, movsicc_internal1, movsfcc_internal0,
+	movsfcc_internal1):
+	Rewrite in compact syntax.
+
 2026-03-08  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
 
 	PR target/124403

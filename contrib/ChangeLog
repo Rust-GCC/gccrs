@@ -1,3 +1,8 @@
+2026-03-09  Martin Jambor  <mjambor@suse.cz>
+
+	* filter-clang-warnings.py (skip_warning): Also ingore
+	-Wimplicit-int-enum-cast in libiberty.
+
 2026-03-02  Jakub Jelinek  <jakub@redhat.com>
 
 	* gcc-changelog/git_update_version.py (ignored_commits): Add

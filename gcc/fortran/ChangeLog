@@ -1,3 +1,25 @@
+2026-03-09  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR translation/124422
+	* primary.cc (gfc_match_varspec): Fix spelling in diagnostic.
+
+2026-03-09  Andre Vehreschild  <vehre@gcc.gnu.org>
+
+	PR fortran/121043
+	* coarray.cc (check_add_new_component): Evaluate all functions
+	on the source image.
+	* trans-decl.cc (gfc_build_builtin_function_decls): The only
+	argument of team_number() is of type void* in the library ABI.
+
+2026-03-09  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/122902
+	* expr.cc (has_parameterized_comps): Moved from trans-array.cc.
+	* gfortran.h : Add prototype for has_parameterized_comps.
+	* trans-array.cc : Move has_parameterized_comps to expr.cc.
+	* trans-expr.cc (gfc_trans_scalar_assign): Don't deep copy PDTs
+	unless they have parameterized components.
+
 2026-02-27  Harald Anlauf  <anlauf@gmx.de>
 
 	PR fortran/78187

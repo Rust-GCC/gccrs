@@ -1,3 +1,20 @@
+2026-03-09  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/std/meta (exception::what, access_context::via): Use
+	__asm__ instead of asm keyword.
+
+2026-03-09  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/120527
+	* include/bits/atomic_wait.h [__FreeBSD__] (__platform_wait_t):
+	Define typedef.
+	[__FreeBSD__] (__platform_wait_uses_type): Define variable
+	template.
+	* src/c++20/atomic.cc (__platform_load): New function.
+	[__FreeBSD__] (_GLIBCXX_HAVE_PLATFORM_WAIT, __platform_wait)
+	(__platform_notify, __platform_wait_until): Define.
+	(__detail::__spin_impl): Use __platform_load.
+
 2026-03-07  François Dumont  <frs.dumont@gmail.com>
 
 	* include/debug/functions.h [__cplusplus >= 201103L]
