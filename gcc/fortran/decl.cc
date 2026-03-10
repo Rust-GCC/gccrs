@@ -117,6 +117,20 @@ static gfc_expr *saved_kind_expr = NULL;
 static gfc_actual_arglist *decl_type_param_list;
 static gfc_actual_arglist *type_param_spec_list;
 
+/* Drop an unattached gfc_charlen node from the current namespace.  This is
+   used when declaration processing created a length node for a symbol that is
+   rejected before the node is attached to any surviving symbol.  */
+static void
+discard_pending_charlen (gfc_charlen *cl)
+{
+  if (!cl || !gfc_current_ns || gfc_current_ns->cl_list != cl)
+    return;
+
+  gfc_current_ns->cl_list = cl->next;
+  gfc_free_expr (cl->length);
+  free (cl);
+}
+
 /********************* DATA statement subroutines *********************/
 
 static bool in_match_data = false;
@@ -1838,7 +1852,20 @@ build_sym (const char *name, int elem, gfc_charlen *cl, bool cl_deferred,
       && (sym->attr.implicit_type == 0
 	  || !gfc_compare_types (&sym->ts, &current_ts))
       && !gfc_add_type (sym, &current_ts, var_locus))
-    return false;
+    {
+      /* Duplicate-type rejection can leave a fresh CHARACTER length node on
+	 the namespace list before it is attached to any surviving symbol.
+	 Drop only that unattached node; shared constant charlen nodes are
+	 already reachable from earlier declarations.  PR82721.  */
+      if (current_ts.type == BT_CHARACTER && cl && elem == 1)
+	{
+	  discard_pending_charlen (cl);
+	  gfc_clear_ts (&current_ts);
+	}
+      else if (current_ts.type == BT_CHARACTER && cl && cl != current_ts.u.cl)
+	discard_pending_charlen (cl);
+      return false;
+    }
 
   if (sym->ts.type == BT_CHARACTER)
     {
