@@ -1975,6 +1975,9 @@ vect_analyze_loop_costing (loop_vec_info loop_vinfo,
   return 1;
 }
 
+/* Gather data references in LOOP with body BBS and store them into
+   *DATAREFS.  */
+
 static opt_result
 vect_get_datarefs_in_loop (loop_p loop, basic_block *bbs,
 			   vec<data_reference_p> *datarefs)
@@ -2172,7 +2175,7 @@ vect_analyze_loop_2 (loop_vec_info loop_vinfo, int masked_p, bool &fatal,
 
   loop_p loop = LOOP_VINFO_LOOP (loop_vinfo);
 
-  /* Gather the data references and count stmts in the loop.  */
+  /* Gather the data references.  */
   if (!LOOP_VINFO_DATAREFS (loop_vinfo).exists ())
     {
       opt_result res
