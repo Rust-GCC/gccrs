@@ -13100,10 +13100,11 @@ gfc_trans_assignment_1 (gfc_expr * expr1, gfc_expr * expr2, bool init_flag,
   tree string_length;
   int n;
   bool maybe_workshare = false, lhs_refs_comp = false, rhs_refs_comp = false;
-  symbol_attribute lhs_caf_attr, rhs_caf_attr, lhs_attr;
+  symbol_attribute lhs_caf_attr, rhs_caf_attr, lhs_attr, rhs_attr;
   bool is_poly_assign;
   bool realloc_flag;
   bool assoc_assign = false;
+  bool dummy_class_array_copy;
 
   /* Assignment of the form lhs = rhs.  */
   gfc_start_block (&block);
@@ -13159,6 +13160,17 @@ gfc_trans_assignment_1 (gfc_expr * expr1, gfc_expr * expr2, bool init_flag,
      needed at two locations, so do it once only before the information is
      needed.  */
   lhs_attr = gfc_expr_attr (expr1);
+  rhs_attr = gfc_expr_attr (expr2);
+  dummy_class_array_copy
+    = (expr2->expr_type == EXPR_VARIABLE
+       && expr2->rank > 0
+       && expr2->symtree != NULL
+       && expr2->symtree->n.sym->attr.dummy
+       && expr2->ts.type == BT_CLASS
+       && !rhs_attr.pointer
+       && !rhs_attr.allocatable
+       && !CLASS_DATA (expr2)->attr.class_pointer
+       && !CLASS_DATA (expr2)->attr.allocatable);
 
   is_poly_assign
     = (use_vptr_copy
@@ -13464,15 +13476,18 @@ gfc_trans_assignment_1 (gfc_expr * expr1, gfc_expr * expr2, bool init_flag,
 
       expr1->must_finalize = 0;
     }
-  else if (!is_poly_assign && expr2->must_finalize
+  else if (!is_poly_assign
 	   && expr1->ts.type == BT_CLASS
-	   && expr2->ts.type == BT_CLASS)
+	   && expr2->ts.type == BT_CLASS
+	   && (expr2->must_finalize || dummy_class_array_copy))
     {
       /* This case comes about when the scalarizer provides array element
-	 references. Use the vptr copy function, since this does a deep
-	 copy of allocatable components, without which the finalizer call
-	 will deallocate the components.  */
+	 references to class temporaries or nonpointer dummy arrays. Use the
+	 vptr copy function, since this does a deep copy of allocatable
+	 components.  */
       tmp = gfc_get_vptr_from_expr (rse.expr);
+      if (tmp == NULL_TREE && dummy_class_array_copy)
+	tmp = gfc_get_vptr_from_expr (gfc_get_class_from_gfc_expr (expr2));
       if (tmp != NULL_TREE)
 	{
 	  tree fcn = gfc_vptr_copy_get (tmp);
