@@ -2581,7 +2581,10 @@ package body Sem_Aggr is
                         Analyze (Choice);
 
                         if Is_Object_Reference (Choice)
-                          and then Is_Iterator (Etype (Choice))
+                          and then (Is_Iterator (Etype (Choice))
+                                     or else
+                                       Has_Aspect
+                                         (Etype (Choice), Aspect_Iterable))
                         then
                            Set_Iterator_Specification
                              (Assoc,
