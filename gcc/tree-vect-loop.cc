@@ -3943,16 +3943,10 @@ vect_get_known_peeling_cost (loop_vec_info loop_vinfo, int peel_iters_prologue)
 	retval += builtin_vectorization_cost (cond_branch_taken, NULL_TREE, 0);
     }
 
-  stmt_info_for_cost *si;
-  int j;
-  if (peel_iters_prologue)
-    FOR_EACH_VEC_ELT (LOOP_VINFO_SCALAR_ITERATION_COST (loop_vinfo), j, si)
-      retval += (builtin_vectorization_cost (si->kind, NULL_TREE, si->misalign)
-		 * peel_iters_prologue);
-  if (peel_iters_epilogue)
-    FOR_EACH_VEC_ELT (LOOP_VINFO_SCALAR_ITERATION_COST (loop_vinfo), j, si)
-      retval += (builtin_vectorization_cost (si->kind, NULL_TREE, si->misalign)
-		 * peel_iters_epilogue);
+  retval += ((peel_iters_prologue + peel_iters_epilogue)
+	     * loop_vinfo->scalar_costs->body_cost ());
+  retval += (((peel_iters_prologue != 0) + (peel_iters_epilogue != 0))
+	     * loop_vinfo->scalar_costs->outside_cost ());
 
   return retval;
 }
