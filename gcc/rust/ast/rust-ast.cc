@@ -243,6 +243,12 @@ Crate::inject_extern_crate (std::string name)
 		      {}, UNKNOWN_LOCATION)));
 }
 
+void
+Crate::inject_inner_attribute (Attribute attribute)
+{
+  inner_attrs.push_back (attribute);
+}
+
 std::string
 Attribute::as_string () const
 {
