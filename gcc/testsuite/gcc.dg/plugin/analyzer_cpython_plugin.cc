@@ -69,11 +69,14 @@ get_field_by_name (tree type, const char *name, bool complain = true)
 	      return field;
 	  }
 
-      /* Prior to python 3.11, ob_refcnt a field of PyObject.
+      /* Prior to python 3.11, ob_refcnt was a field of PyObject.
 	 In Python 3.11 ob_refcnt was moved to an anonymous union within
 	 PyObject (as part of PEP 683 "Immortal Objects, Using a
 	 Fixed Refcount").  */
-      if (0 == strcmp (name, "ob_refcnt"))
+      if (strcmp (name, "ob_refcnt") == 0
+	  && TREE_CODE (field) == FIELD_DECL
+	  && DECL_NAME (field) == NULL_TREE
+	  && RECORD_OR_UNION_TYPE_P (TREE_TYPE (field)))
 	if (tree subfield = get_field_by_name (TREE_TYPE (field), name, false))
 	  return subfield;
     }
