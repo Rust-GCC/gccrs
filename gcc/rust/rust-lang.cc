@@ -269,8 +269,7 @@ grs_langhook_getdecls (void)
 static bool
 grs_langhook_handle_option (
   size_t scode, const char *arg, HOST_WIDE_INT value, int kind ATTRIBUTE_UNUSED,
-  location_t loc ATTRIBUTE_UNUSED,
-  const struct cl_option_handlers *handlers ATTRIBUTE_UNUSED)
+  location_t loc, const struct cl_option_handlers *handlers ATTRIBUTE_UNUSED)
 {
   // Convert integer code to lang.opt enum codes with names.
   enum opt_code code = (enum opt_code) scode;

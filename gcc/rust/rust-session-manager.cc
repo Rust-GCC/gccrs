@@ -208,7 +208,7 @@ Session::init_options ()
 bool
 Session::handle_option (
   enum opt_code code, const char *arg, HOST_WIDE_INT value ATTRIBUTE_UNUSED,
-  int kind ATTRIBUTE_UNUSED, location_t loc ATTRIBUTE_UNUSED,
+  int kind ATTRIBUTE_UNUSED, location_t loc,
   const struct cl_option_handlers *handlers ATTRIBUTE_UNUSED)
 {
   // used to store whether results of various stuff are successful
@@ -252,6 +252,12 @@ Session::handle_option (
 	ret = false;
       break;
 
+    case OPT_frust_crate_attr_:
+      if (arg != nullptr)
+	{
+	  options.addional_attributes.emplace_back (arg, loc);
+	}
+      break;
     case OPT_frust_dump_:
       // enable dump and return whether this was successful
       if (arg != nullptr)
@@ -536,6 +542,36 @@ Session::handle_crate_name (const char *filename,
   mappings.set_current_crate (crate_num);
 }
 
+/** Parse additional attributes injected from the command line
+ *
+ */
+AST::AttrVec
+parse_cli_attributes (
+  std::vector<CompileOptions::CliAttributeContent> attributes)
+{
+  AST::AttrVec result;
+  result.reserve (attributes.size ());
+
+  for (auto attribute : attributes)
+    {
+      Session::get_instance ().linemap->start_file ("cli", 1);
+      Lexer lex (attribute.content, Session::get_instance ().linemap);
+      Parser<Lexer> parser (lex);
+
+      if (auto attr_body = parser.parse_attribute_body ())
+	{
+	  auto body = std::move (attr_body.value ());
+	  result.push_back (AST::Attribute (std::move (body.path),
+					    std::move (body.input), body.locus,
+					    true));
+	}
+
+      for (auto error : parser.get_errors ())
+	error.emit ();
+    }
+  return result;
+}
+
 // Parses a single file with filename filename.
 void
 Session::compile_crate (const char *filename)
@@ -587,6 +623,8 @@ Session::compile_crate (const char *filename)
       dump_lex_opt = dump_lex_stream;
     }
 
+  auto cli_attributes = parse_cli_attributes (options.addional_attributes);
+
   Lexer lex (filename, std::move (file_wrap), linemap, dump_lex_opt);
 
   if (!lex.input_source_is_valid_utf8 ())
@@ -627,6 +665,9 @@ Session::compile_crate (const char *filename)
   CrateNum current_crate = mappings.get_current_crate ();
   AST::Crate &parsed_crate
     = mappings.insert_ast_crate (std::move (ast_crate), current_crate);
+
+  for (auto attribute : cli_attributes)
+    parsed_crate.inject_inner_attribute (attribute);
 
   /* basic pipeline:
    *  - lex
