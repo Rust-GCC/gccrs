@@ -4442,6 +4442,14 @@ gfc_trans_omp_clauses (stmtblock_t *block, gfc_omp_clauses *clauses,
 				       != BT_VOID))))
 		    {
 		      tree orig_decl = decl;
+		      bool bare_attach_detach
+			= (openacc
+			   && (n->u.map.op == OMP_MAP_ATTACH
+			       || n->u.map.op == OMP_MAP_DETACH)
+			   && !GFC_DESCRIPTOR_TYPE_P (TREE_TYPE (decl))
+			   && !(POINTER_TYPE_P (TREE_TYPE (decl))
+				&& GFC_DESCRIPTOR_TYPE_P (TREE_TYPE
+							  (TREE_TYPE (decl)))));
 
 		      /* For nonallocatable, nonpointer arrays, a temporary
 			 variable is generated, but this one is only defined if
@@ -4465,6 +4473,18 @@ gfc_trans_omp_clauses (stmtblock_t *block, gfc_omp_clauses *clauses,
 							     void_type_node,
 							     cond, tmp,
 							     NULL_TREE));
+			}
+		      /* Bare OpenACC attach/detach on scalar pointer-like
+			 variables wants a single attach operation on the
+			 pointer itself, not a standalone pointer-mapping
+			 node.  Component and descriptor cases have dedicated
+			 handling below; this covers the plain scalar path.  */
+		      if (bare_attach_detach)
+			{
+			  decl = build_fold_indirect_ref (decl);
+			  OMP_CLAUSE_DECL (node) = build_fold_addr_expr (decl);
+			  OMP_CLAUSE_SIZE (node) = size_zero_node;
+			  goto finalize_map_clause;
 			}
 		      /* For descriptor types, the unmapping happens below.  */
 		      if (op != EXEC_OMP_TARGET_EXIT_DATA
