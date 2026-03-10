@@ -1563,8 +1563,10 @@ proc check_effective_target_pie { } {
 # Return true if the target supports -mpaired-single (as used on MIPS).
 
 proc check_effective_target_mpaired_single { args } {
-    return [check_no_compiler_messages mpaired_single object {
-	void foo (void) { }
+    return [check_no_compiler_messages "mpaired_single_$args" object {
+	void foo (void) {
+	    asm volatile ("pll.ps $f2,$f4,$f6");
+	}
     } "$args"]
 }
 
@@ -3100,7 +3102,7 @@ proc check_mpaired_single_hw_available { } {
 		asm volatile ("pll.ps $f2,$f4,$f6");
 		return 0;
 	      }
-	    } ""
+	    } "-mpaired-single"
 	}
     }]
 }
@@ -7665,7 +7667,7 @@ proc add_options_for_mips_loongson_mmi { flags } {
 # the Loongson vector modes.
 
 proc check_effective_target_mips_loongson_mmi { args } {
-    return [check_no_compiler_messages loongson assembly {
+    return [check_no_compiler_messages "loongson_$args" assembly {
 	#if !defined(__mips_loongson_mmi)
 	#error !__mips_loongson_mmi
 	#endif
@@ -7690,7 +7692,7 @@ proc check_effective_target_mips_msa { args } {
   if ![check_effective_target_nomips16] {
     return 0
   }
-  return [check_no_compiler_messages msa object {
+  return [check_no_compiler_messages "msa_$args" object {
     #if !defined(__mips_msa)
     #error "MSA NOT AVAIL"
     #else
