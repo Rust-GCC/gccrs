@@ -3800,6 +3800,7 @@ eval_annotations_of (location_t loc, const constexpr_ctx *ctx, tree r,
     }
   else if (TYPE_P (r))
     {
+      complete_type (r);
       if (typedef_variant_p (r))
 	r = DECL_ATTRIBUTES (TYPE_NAME (r));
       else
