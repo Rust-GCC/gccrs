@@ -336,8 +336,17 @@ package body Ch10 is
 
       Set_Keyword_Casing (Current_Source_File, Determine_Token_Casing);
 
-      if Style_Check then
-         Style.Check_Indentation;
+      --  For most column style checks, we only test that the first non-blank
+      --  character is on a column multiple of the indentation value. But here
+      --  the only reasonable choice seems to start at the first column, so we
+      --  test for that instead.
+
+      if RM_Column_Check
+         and then Token_Is_At_Start_Of_Line
+         and then Start_Column /= 0
+      then
+         Error_Msg_BC -- CODEFIX
+           ("(style) incorrect layout?l?");
       end if;
 
       --  Remaining processing depends on particular type of compilation unit
