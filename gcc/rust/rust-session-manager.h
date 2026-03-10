@@ -242,6 +242,24 @@ struct CompileOptions
   bool debug_assertions = false;
   std::string metadata_output_path;
 
+  /** Structure containing additional attributes to be injected within the
+   * compiled crate from the command line instead of the source code.
+   *
+   * To make things a bit easier with rustc, we're trying to use the same
+   * format accepted by -Zcrate-attr. This means the CLI accepts the text
+   * content of the attribute and not text of the whole attribute itself.
+   */
+  struct CliAttributeContent
+  {
+    CliAttributeContent (std::string content, location_t locus)
+      : content (content), locus (locus)
+    {}
+    /* Content of the attribute*/
+    std::string content;
+    location_t locus;
+  };
+  std::vector<CliAttributeContent> addional_attributes;
+
   enum class Edition
   {
     E2015 = 0,

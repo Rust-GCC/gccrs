@@ -62,6 +62,10 @@ frust-crate=
 Rust Joined RejectNegative
 -frust-crate=<name>             Set the crate name for the compilation.
 
+frust-crate-attr=
+Rust Joined RejectNegative
+-frust-crate-attr=<attr>        Inject an attribute within the current crate.
+
 frust-extern=
 Rust RejectNegative Joined
 -frust-extern=              Specify where an external library is located.
