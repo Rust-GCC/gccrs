@@ -116,4 +116,5 @@ main()
   test_at<ThrowingInt, false, false>();
   test_at<MutatingInt, true, false>();
   test_at<RValueInt, true, false>();
+  test_at<ConstLValueInt, false, true>();
 }

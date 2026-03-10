@@ -80,10 +80,13 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       return true;
     }
 
-    template<typename _IndexType, typename _OIndexType>
+    template<typename _IndexType, typename _OIndexTypeRef>
       constexpr _IndexType
-      __index_type_cast(_OIndexType&& __other)
+      __index_type_cast(_OIndexTypeRef&& __other)
       {
+	// _GLIBCXX_RESOLVE_LIB_DEFECTS
+	// 4020. extents::index-cast weirdness
+	using _OIndexType = std::remove_cvref_t<_OIndexTypeRef>;
 	if constexpr (std::is_integral_v<_OIndexType>)
 	  {
 	    constexpr _IndexType __index_type_max
@@ -100,7 +103,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	  }
 	else
 	  {
-	    auto __ret = static_cast<_IndexType>(std::move(__other));
+	    auto __ret = static_cast<_IndexType>(std::forward<_OIndexTypeRef>(__other));
 	    if constexpr (std::is_signed_v<_IndexType>)
 	      __glibcxx_assert(__ret >= 0);
 	    return __ret;
