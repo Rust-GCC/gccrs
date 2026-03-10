@@ -138,10 +138,17 @@ proc current_target_name { } {
 # the Tcl command ARGS and seeing if it returns true.
 
 proc check_cached_effective_target { prop args } {
+    global EFFECTIVE_TARGETS
+    global et_index
     global et_cache
 
+    if { [info exists et_index] } {
+	set et [lindex $EFFECTIVE_TARGETS $et_index]
+    } else {
+	set et "default"
+    }
     set target [current_target_name]
-    if {![info exists et_cache($prop,$target)]} {
+    if {![info exists et_cache($prop,$target,$et)]} {
 	verbose "check_cached_effective_target $prop: checking $target" 2
 	if {[string is true -strict $args] || [string is false -strict $args]} {
 	    error {check_cached_effective_target condition already evaluated; did you pass [...] instead of the expected {...}?}
@@ -150,10 +157,10 @@ proc check_cached_effective_target { prop args } {
 	    if {$code != 0 && $code != 2} {
 		return -code $code $result
 	    }
-	    set et_cache($prop,$target) $result
+	    set et_cache($prop,$target,$et) $result
 	}
     }
-    set value $et_cache($prop,$target)
+    set value $et_cache($prop,$target,$et)
     verbose "check_cached_effective_target $prop: returning $value for $target" 2
     return $value
 }
@@ -161,11 +168,7 @@ proc check_cached_effective_target { prop args } {
 # Implements a version of check_cached_effective_target that also takes et_index
 # into account when creating the key for the cache.
 proc check_cached_effective_target_indexed { prop args } {
-    global et_index
-    set key "$et_index $prop"
-    verbose "check_cached_effective_target_index $prop: returning $key" 2
-
-    return [check_cached_effective_target $key [list uplevel eval $args]]
+    return [check_cached_effective_target $prop [list uplevel eval $args]]
 }
 
 # Clear effective-target cache. This is useful after testing
@@ -10637,13 +10640,7 @@ proc check_effective_target_init_priority {} {
 # arguments with keywords that pass particular arguments.
 
 proc is-effective-target { arg } {
-    global et_index
     set selected 0
-    if { ![info exists et_index] } {
-	# Initialize the effective target index that is used in some
-	# check_effective_target_* procs.
-	set et_index 0
-    }
     if { [info procs check_effective_target_${arg}] != [list] } {
 	set selected [check_effective_target_${arg}]
     } else {
@@ -10725,9 +10722,9 @@ proc et-dg-runtest { runtest testcases flags default-extra-flags } {
 		set dg-do-what-default run
 	    }
 	    $runtest $testcases $target_flags ${default-extra-flags}
+	    unset et_index
 	}
     } else {
-	set et_index 0
 	$runtest $testcases $flags ${default-extra-flags}
     }
 }
@@ -10739,13 +10736,8 @@ proc et-is-effective-target { target } {
     global EFFECTIVE_TARGETS
     global et_index
 
-    if { [info exists EFFECTIVE_TARGETS] } {
-	if { [llength $EFFECTIVE_TARGETS] > $et_index
-	     && [lindex $EFFECTIVE_TARGETS $et_index] == $target } {
-	    return 1
-	} else {
-	    return 0
-	}
+    if { [info exists et_index] } {
+        return [string equal [lindex $EFFECTIVE_TARGETS $et_index] $target]
     } else {
 	return [check_effective_target_${target}]
     }
