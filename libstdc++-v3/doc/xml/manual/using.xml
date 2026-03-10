@@ -83,6 +83,8 @@
         is required for use of experimental C++ library features.
         This currently provides support for the C++23 types defined in the
         <filename class="headerfile">&lt;stacktrace&gt;</filename> header,
+	the C++23 functions defined in the
+	<filename class="headerfile">&lt;print&gt;</filename> header,
         the Filesystem library extensions defined in the
         <filename class="headerfile">&lt;experimental/filesystem&gt;</filename>
         header,
@@ -1361,6 +1363,19 @@ g++ -Winvalid-pch -I. -include stdc++.h -H -g -O2 hello.cc -o test.exe
 	<link xmlns:xlink="http://www.w3.org/1999/xlink"
 	xlink:href="https://gcc.gnu.org/bugzilla/show_bug.cgi?id=112591">PR112591</link>
 	in GCC-16. Has no impact for C++20 or later modes.
+      </para>
+    </listitem></varlistentry>
+    <varlistentry><term><code>_GLIBCXX_NO_INLINE_PRINT</code></term>
+    <listitem>
+      <para>
+	Undefined by default. When defined <code>std::print</code> and
+	<code>std::println</code> are not implemented using inline functions.
+	This means that code using those functions will compile faster,
+	but <option>-lstdc++exp</option> must be used when linking.
+	The non-inline definitions are compiled using
+	<option>-fexec-charset=UTF-8</option> so might give incorrect results
+	if called from a source file that uses a non-Unicode encoding,
+	especially for format strings using non-ASCII fill characters.
       </para>
     </listitem></varlistentry>
     </variablelist>

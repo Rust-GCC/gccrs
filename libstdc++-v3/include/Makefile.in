@@ -600,7 +600,9 @@ bits_freestanding = \
 @GLIBCXX_HOSTED_TRUE@	${bits_srcdir}/node_handle.h \
 @GLIBCXX_HOSTED_TRUE@	${bits_srcdir}/ostream.tcc \
 @GLIBCXX_HOSTED_TRUE@	${bits_srcdir}/ostream_insert.h \
+@GLIBCXX_HOSTED_TRUE@	${bits_srcdir}/ostream_print.h \
 @GLIBCXX_HOSTED_TRUE@	${bits_srcdir}/postypes.h \
+@GLIBCXX_HOSTED_TRUE@	${bits_srcdir}/print.h \
 @GLIBCXX_HOSTED_TRUE@	${bits_srcdir}/quoted_string.h \
 @GLIBCXX_HOSTED_TRUE@	${bits_srcdir}/random.h \
 @GLIBCXX_HOSTED_TRUE@	${bits_srcdir}/random.tcc \

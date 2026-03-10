@@ -244,7 +244,9 @@ bits_headers = \
 	${bits_srcdir}/node_handle.h \
 	${bits_srcdir}/ostream.tcc \
 	${bits_srcdir}/ostream_insert.h \
+	${bits_srcdir}/ostream_print.h \
 	${bits_srcdir}/postypes.h \
+	${bits_srcdir}/print.h \
 	${bits_srcdir}/quoted_string.h \
 	${bits_srcdir}/random.h \
 	${bits_srcdir}/random.tcc \

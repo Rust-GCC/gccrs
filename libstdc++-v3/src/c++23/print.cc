@@ -22,6 +22,13 @@
 // see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 // <http://www.gnu.org/licenses/>.
 
+// We want to emit symbols for the inline functions in bits/print.h here.
+#define _GLIBCXX_NO_INLINE_PRINT 1
+#include <ostream>
+#include <bits/ostream_print.h>
+#include <print>
+#include <bits/print.h>
+
 #include <span>
 #include <string>
 #include <streambuf>
