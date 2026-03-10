@@ -15045,16 +15045,29 @@ riscv_compare_version_priority (tree decl1, tree decl2)
 bool
 riscv_check_target_clone_version (string_slice str, location_t *loc_p)
 {
-  struct riscv_feature_bits mask;
-  int prio;
+  if (str == "default")
+    return true;
 
-  /* Currently it is not possible to parse without emitting errors on failure
-     so do not reject on a failed parse, as this would then emit two
-     diagnostics.  Instead let errors be emitted which will halt
-     compilation.  */
-  parse_features_for_version (str, loc_p, mask, prio);
+  struct cl_target_option cur_target;
+  cl_target_option_save (&cur_target, &global_options,
+			 &global_options_set);
 
-  return true;
+  struct cl_target_option *default_opts
+    = TREE_TARGET_OPTION (target_option_default_node);
+  cl_target_option_restore (&global_options, &global_options_set,
+			    default_opts);
+
+  bool ok = riscv_process_target_version_str (str, NULL);
+
+  cl_target_option_restore (&global_options, &global_options_set,
+			    &cur_target);
+
+  if (!ok && loc_p)
+    warning_at (*loc_p, OPT_Wattributes,
+		"invalid version %qB for %<target_clones%> attribute",
+		&str);
+
+  return ok;
 }
 
 /* Implement TARGET_MANGLE_DECL_ASSEMBLER_NAME, to add function multiversioning
