@@ -459,7 +459,7 @@ private:
   /* Injection pipeline stage. TODO maybe move to another object? Maybe have
    * some lint checks (in future, obviously), register builtin macros, crate
    * injection. */
-  void injection (AST::Crate &crate);
+  void injection (AST::Crate &crate, AST::AttrVec cli_attributes);
 
   /* Expansion pipeline stage. TODO maybe move to another object? Expands all
    * macros, maybe build test harness in future, AST validation, maybe create
