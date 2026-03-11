@@ -1075,6 +1075,8 @@ xtensa_expand_scc (rtx operands[4], machine_mode cmp_mode)
 void
 xtensa_split_operand_pair (rtx operands[4], machine_mode mode)
 {
+  rtx x;
+
   switch (GET_CODE (operands[1]))
     {
     case REG:
@@ -1085,6 +1087,17 @@ xtensa_split_operand_pair (rtx operands[4], machine_mode mode)
     case MEM:
       operands[3] = adjust_address (operands[1], mode, GET_MODE_SIZE (mode));
       operands[2] = adjust_address (operands[1], mode, 0);
+      /* Split the pool entry as well as the pooled values themselves,
+	 when non-debug optimizing.  This improves the chances that the
+	 entries will be shared and subject to further optimization
+	 opportunities.  */
+      if (optimize && !optimize_debug && constantpool_mem_p (operands[2]))
+	{
+	  x = avoid_constant_pool_reference (operands[2]);
+	  operands[2] = force_const_mem (mode, x);
+	  x = avoid_constant_pool_reference (operands[3]);
+	  operands[3] = force_const_mem (mode, x);
+	}
       break;
 
     case CONST_INT:
@@ -1110,6 +1123,12 @@ xtensa_split_operand_pair (rtx operands[4], machine_mode mode)
 
     default:
       gcc_unreachable ();
+    }
+
+  if (reg_overlap_mentioned_p (operands[0], operands[3]))
+    {
+      std::swap (operands[0], operands[1]);
+      std::swap (operands[2], operands[3]);
     }
 }
 
@@ -5630,9 +5649,9 @@ FPreg_neg_scaled_simm12b (rtx_insn *insn)
   return false;
 }
 
-/* Split DI/SF/DFmode constant assignments into pairs of SImode ones.  This
-   is also the pre-processing for constantsynth optimization that follows
-   immediately after.
+/* Convert SFmode constant assignments into SImode ones.  This is also the
+   pre-processing for constantsynth optimization that follows immediately
+   after.
 
    Note that all constant values and assignments are treated as SImode
    because:
@@ -5645,85 +5664,54 @@ FPreg_neg_scaled_simm12b (rtx_insn *insn)
    returned true (the current and default configuration).  */
 
 static bool
-split_DI_SF_DF_const (rtx_insn *insn)
+convert_SF_const (rtx_insn *insn)
 {
-  rtx pat, dest, src, dest0, dest1, src0, src1, src0c, src1c;
-  int regno;
-
-  if (GET_CODE (pat = PATTERN (insn)) != SET
-      || ! REG_P (dest = SET_DEST (pat)) || ! GP_REG_P (regno = REGNO (dest)))
-    return false;
+  rtx pat, dest, src, dest0, src0, src0c;
 
   /* It is more efficient to assign SFmode literal constants using their
      bit-equivalent SImode ones, thus we convert them so.  */
+  if (GET_CODE (pat = PATTERN (insn)) != SET
+      || ! REG_P (dest = SET_DEST (pat)) || ! GP_REG_P (REGNO (dest))
+      || GET_MODE (dest) != SFmode)
+    return false;
+
   src = avoid_constant_pool_reference (SET_SRC (pat));
-  if (GET_MODE (dest) == SFmode
-      && CONST_DOUBLE_P (src) && GET_MODE (src) == SFmode)
+  if (CONST_INT_P (src))
+    src0 = src;
+  else if (CONST_DOUBLE_P (src) && GET_MODE (src) == SFmode)
     {
       long l;
       REAL_VALUE_TO_TARGET_SINGLE (*CONST_DOUBLE_REAL_VALUE (src), l);
-      src0 = GEN_INT ((int32_t)l), dest0 = gen_rtx_REG (SImode, regno);
-      if (dump_file)
-	{
-	  fputs ("split_DI_SF_DF_const: ", dump_file);
-	  dump_value_slim (dump_file, src, 0);
-	  fprintf (dump_file,
-		   "f -> " HOST_WIDE_INT_PRINT_DEC " ("
-		   HOST_WIDE_INT_PRINT_HEX ")\n",
-		   INTVAL (src0), INTVAL (src0));
-	}
-      src0c = NULL_RTX;
-      if (!TARGET_CONST16 && !TARGET_AUTO_LITPOOLS
-	  && ! xtensa_simm12b (INTVAL (src0)))
-	src0c = src0, src0 = force_const_mem (SImode, src0);
-      remove_reg_equal_equiv_notes (insn);
-      validate_change (insn, &PATTERN (insn), gen_rtx_SET (dest0, src0), 0);
-      if (src0c)
-	add_reg_note (insn, REG_EQUIV, copy_rtx (src0c));
-      return true;
+      src0 = GEN_INT ((int32_t)l);
     }
+  else
+    return false;
 
-  /* Splitting a D[IF]mode literal constant into two with split_double()
-     results in a pair of CONST_INTs, so they are assigned in SImode
-     regardless of the original source mode.  */
-  if ((GET_MODE (dest) == DImode && CONST_INT_P (src))
-      || (GET_MODE (dest) == DFmode
-	  && CONST_DOUBLE_P (src) && GET_MODE (src) == DFmode))
+  dest0 = gen_rtx_REG (SImode, REGNO (dest));
+  if (dump_file)
     {
-      dest0 = gen_rtx_REG (SImode, regno);
-      dest1 = gen_rtx_REG (SImode, regno + 1);
-      split_double (src, &src0, &src1);
-      if (dump_file)
-	{
-	  fputs ("split_DI_SF_DF_const: ", dump_file);
-	  dump_value_slim (dump_file, src, 0);
-	  fprintf (dump_file,
-		   " -> " HOST_WIDE_INT_PRINT_DEC " ("
-		   HOST_WIDE_INT_PRINT_HEX "), "
-		   HOST_WIDE_INT_PRINT_DEC " ("
-		   HOST_WIDE_INT_PRINT_HEX ")\n",
-		   INTVAL (src0), INTVAL (src0),
-		   INTVAL (src1), INTVAL (src1));
-	}
-      src1c = src0c = NULL_RTX;
-      if (!TARGET_CONST16 && !TARGET_AUTO_LITPOOLS)
-	{
-	  if (! xtensa_simm12b (INTVAL (src0)))
-	    src0c = src0, src0 = force_const_mem (SImode, src0);
-	  if (! xtensa_simm12b (INTVAL (src1)))
-	    src1c = src1, src1 = force_const_mem (SImode, src1);
-	}
-      remove_reg_equal_equiv_notes (insn);
-      validate_change (insn, &PATTERN (insn), gen_rtx_SET (dest0, src0), 0);
-      if (src0c)
-	add_reg_note (insn, REG_EQUIV, copy_rtx (src0c));
-      insn = emit_insn_after (gen_rtx_SET (dest1, src1), insn);
-      if (src1c)
-	add_reg_note (insn, REG_EQUIV, copy_rtx (src1c));
-      return true;
+      fputs ("convert_SF_const: ", dump_file);
+      dump_value_slim (dump_file, src, 0);
+      if (CONST_DOUBLE_P (src))
+	fputc ('f', dump_file);
+      fprintf (dump_file,
+	       " -> " HOST_WIDE_INT_PRINT_DEC
+	       " (" HOST_WIDE_INT_PRINT_HEX ")\n",
+	       INTVAL (src0), INTVAL (src0));
+      dump_insn_slim (dump_file, insn);
     }
+  src0c = NULL_RTX;
+  if (!TARGET_CONST16 && !TARGET_AUTO_LITPOOLS
+      && ! xtensa_simm12b (INTVAL (src0)))
+    src0c = src0, src0 = force_const_mem (SImode, src0);
+  remove_reg_equal_equiv_notes (insn);
+  validate_change (insn, &PATTERN (insn), gen_rtx_SET (dest0, src0), 0);
+  if (src0c)
+    add_reg_note (insn, REG_EQUIV, copy_rtx (src0c));
+  if (dump_file)
+    dump_insn_slim (dump_file, insn);
 
-  return false;
+  return true;
 }
 
 /* The constant-synthesis optimization (constantsynth for short).
@@ -6259,8 +6247,8 @@ do_largeconst2 (void)
   rtx_insn *insn;
   constantsynth_info cs_info;
 
-  /* Verify the legitimacy of replacing constant assignments in
-     DI/SF/DFmode with those in SImode.  */
+  /* Verify the legitimacy of replacing constant assignments in SFmode
+     with those in SImode.  */
   gcc_assert (targetm.can_change_mode_class
 		== hook_bool_mode_mode_reg_class_t_true);
 
@@ -6273,10 +6261,10 @@ do_largeconst2 (void)
 	if (FPreg_neg_scaled_simm12b (insn))
 	  continue;
 
-	/* Split DI/SF/DFmode constant assignments into pairs of SImode
-	   ones.  This is also the pre-processing for constantsynth opti-
-	   mization that follows immediately after.  */
-	split_DI_SF_DF_const (insn);
+	/* Convert SFmode constant assignments into SImode ones.  This is
+	   also the pre-processing for constantsynth optimization that
+	   follows immediately after.  */
+	convert_SF_const (insn);
 
 	/* constantsynth pass 1.
 	   Detect and record large constant assignments within a function.  */

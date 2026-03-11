@@ -1237,11 +1237,6 @@
    (set (match_dup 1) (match_dup 3))]
 {
   xtensa_split_operand_pair (operands, SImode);
-  if (reg_overlap_mentioned_p (operands[0], operands[3]))
-    {
-      std::swap (operands[0], operands[1]);
-      std::swap (operands[2], operands[3]);
-    }
 }
   [(set_attr "mode" "DI")])
 
@@ -1525,11 +1520,6 @@
    (set (match_dup 1) (match_dup 3))]
 {
   xtensa_split_operand_pair (operands, SFmode);
-  if (reg_overlap_mentioned_p (operands[0], operands[3]))
-    {
-      std::swap (operands[0], operands[1]);
-      std::swap (operands[2], operands[3]);
-    }
 }
   [(set_attr "mode" "DF")])
 
