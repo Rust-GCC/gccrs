@@ -1,3 +1,15 @@
+2026-03-10  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/124399
+	* reflect.cc (compare_reflections): For REFLECT_ANNOTATION, compare
+	TREE_VALUE of lhs and rhs instead of lhs and rhs.
+
+2026-03-10  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/124399
+	* reflect.cc (eval_annotations_of): Call complete_type on r if it
+	is a type.
+
 2026-03-07  Jason Merrill  <jason@redhat.com>
 	     <mtxn@duck.com>
 

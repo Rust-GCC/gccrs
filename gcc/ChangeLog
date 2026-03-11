@@ -1,3 +1,22 @@
+2026-03-10  Yangyu Chen  <cyy@cyyself.name>
+
+	* config/riscv/riscv.cc (riscv_check_target_clone_version):
+	Fix TARGET_CHECK_TARGET_CLONE_VERSION implementation.
+
+2026-03-10  Richard Biener  <rguenther@suse.de>
+
+	* tree-vect-loop.cc (vect_get_datarefs_in_loop): Add function
+	level comment.
+	(vect_analyze_loop_2): Fix comment.
+
+2026-03-10  Jan Hubicka  <jh@suse.cz>
+	    Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR tree-optimization/120987
+	* ipa-modref.cc (ipa_merge_modref_summary_after_inlining): Mask
+	off non const/pure/novops related flags when combining of outer
+	functions.
+
 2026-03-09  Jonathan Wakely  <jwakely@redhat.com>
 
 	PR translation/124422

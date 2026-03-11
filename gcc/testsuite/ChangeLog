@@ -1,3 +1,104 @@
+2026-03-10  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/124399
+	* g++.dg/reflect/annotations12.C: Add further tests.
+
+2026-03-10  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/124399
+	* g++.dg/reflect/annotations3.C: Uncomment 3 test lines.
+	* g++.dg/reflect/annotations12.C: New test.
+	* g++.dg/reflect/constant_of5.C: Enable some commented out
+	or #if 0ed out tests.
+	* g++.dg/reflect/constant_of6.C: Remove dg-error directive.
+	* g++.dg/reflect/extract6.C: Remove 2 dg-error directives.
+
+2026-03-10  Jason Merrill  <jason@redhat.com>
+
+	* g++.dg/ext/constexpr-diag3.C: Skip if -fimplicit-constexpr.
+	* g++.dg/ext/constexpr-diag6.C: Likewise.
+	* g++.dg/reflect/annotations2.C: Handle -fimplicit-constexpr.
+	* g++.dg/reflect/p2996-21.C: Likewise.
+	* g++.dg/reflect/parm4.C: Likewise.
+
+2026-03-10  Richard Earnshaw  <rearnsha@arm.com>
+
+	* gcc.target/arm/pr45701-2.c: Fix typo in last commit.
+
+2026-03-10  Richard Earnshaw  <rearnsha@arm.com>
+
+	* gcc.target/arm/pr45701-2.c: Escape '[]' in scan-assembler.
+
+2026-03-10  Yangyu Chen  <cyy@cyyself.name>
+
+	* gcc.target/riscv/mvc-warning1.c: New test.
+
+2026-03-10  Richard Earnshaw  <rearnsha@arm.com>
+
+	* gcc.target/arm/pr45701-1.c: Don't match across lines.
+	* gcc.target/arm/pr45701-2.c: Likewise.
+	* gcc.target/arm/pr45701-3.c: Likewise.
+
+2026-03-10  Jakub Jelinek  <jakub@redhat.com>
+
+	PR testsuite/112520
+	* gcc.dg/plugin/analyzer_cpython_plugin.cc (get_field_by_name):
+	If name is "ob_refcnt", recurse only for types of FIELD_DECLs
+	with no DECL_NAME and record or union type.
+
+2026-03-10  Richard Sandiford  <rdsandiford@googlemail.com>
+
+	* gcc.target/mips/pr118608-2.c: Delete.
+	* gcc.target/mips/pr118608-4.c: Likewise.
+	* gcc.target/mips/pr123833.c: Remove -O* option.
+	* gcc.target/mips/pr118608-1.c: Likewise.
+	* gcc.target/mips/pr118608-3.c: Likewise, and rename to pr118608-2.c.
+
+2026-03-10  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR rtl-optimization/123094
+	* gcc.target/aarch64/pr123094-1.c: New test.
+
+2026-03-10  Richard Sandiford  <rdsandiford@googlemail.com>
+
+	PR testsuite/124066
+	* lib/target-supports.exp (check_cached_effective_target_indexed):
+	Remove.  Replace all uses with check_cached_effective_target.
+
+2026-03-10  Richard Sandiford  <rdsandiford@googlemail.com>
+
+	PR testsuite/124066
+	* lib/target-supports.exp (check_cached_effective_target): If
+	et_index is defined, add the associated EFFECTIVE_TARGETS element
+	to the cache key.
+	(check_cached_effective_target_indexed): Turn into a simple wrapper
+	around check_cached_effective_target.
+	(is-effective-target): Remove default-initialization of et_index.
+	(et-dg-runtest): Likewise.  Unset et_index after each
+	EFFECTIVE_TARGETS run.
+	(et-is-effective-target): Key off the existence of et_index rather
+	than EFFECTIVE_TARGETS.
+
+2026-03-10  Richard Sandiford  <rdsandiford@googlemail.com>
+
+	* lib/target-supports.exp (check_effective_target_mips_loongson_mmi)
+	(check_effective_target_mips_msa): Add the arguments to the cache
+	identifier.
+	(check_effective_target_mpaired_single): Likewise.  Use an asm
+	to test whether -mpaired-single is supported.
+	(check_mpaired_single_hw_available): Add -mpaired-single.
+
+2026-03-10  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR c/123461
+	* gcc.dg/pr123461-1.c: New test.
+
+2026-03-10  Jan Hubicka  <jh@suse.cz>
+	    Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR tree-optimization/120987
+	* g++.dg/torture/pr120987-1.C: New test.
+
 2026-03-09  Jonathan Wakely  <jwakely@redhat.com>
 
 	PR translation/124422

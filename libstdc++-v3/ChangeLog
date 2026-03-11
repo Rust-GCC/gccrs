@@ -1,3 +1,74 @@
+2026-03-10  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/std/chrono (hh_mm_ss): Add comment about LWG 4274.
+
+2026-03-10  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/bits/ranges_algo.h (__replace_fn, __replace_if_fn):
+	Change default template argument for type of new value, as per
+	LWG 4444.
+	* testsuite/25_algorithms/replace/lwg4444.cc: New test.
+	* testsuite/25_algorithms/replace_if/lwg4444.cc: New test.
+
+2026-03-10  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/std/span (as_bytes, as_writable_bytes): Add
+	constraints to disallow volatile elements, as per LWG 4243.
+	* testsuite/23_containers/span/lwg4243.cc: New test.
+
+2026-03-10  Nathan Myers  <ncm@cantrip.org>
+
+	PR libstdc++/118030
+	* include/bits/alloc_traits.h (allocate_at_least (2x)): Define.
+	* include/bits/allocator.h (allocate_at_least): Define.
+	* include/std/memory (__glibcxx_want_allocate_at_least): Define.
+	* include/bits/memoryfwd.h (allocation_result): Define, #include
+	<bits/version.h> first so that will work.
+	* include/bits/version.def (allocate_at_least): Add.
+	* include/bits/version.h: Regenerate.
+	* testsuite/20_util/allocator/allocate_at_least.cc: New test.
+	* testsuite/20_util/allocator/allocate_at_least_neg.cc: New test.
+
+2026-03-10  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/bits/basic_string.h: Check __glibcxx_to_string instead
+	of __cplusplus.
+
+2026-03-10  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* include/std/format (__format::_Ptr_sink, __format::__format_padded)
+	(std::enable_nonlocking_formatter_optimization<pair<_Fp, _Sp>>):
+	Replaced 8 spaces with tabs.
+
+2026-03-10  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* include/std/format (__format::_Ptr_sink): Reworked
+	from _Iter_sink specialization below.
+	(__format::_Iter_sink<_CharT, contiguous_iterator _OutIter>):
+	Renamed and reworked to _Ptr_sink.
+	(__format::__contiguous_char_iter, __format::__do_vformat_to_n):
+	Define.
+	(__format::__do_vformat_to): Use _Ptr_sink when appropriate,
+	and delegate to _Sink_iter specialization.
+	(std::format_to_n): Delegate to __do_vformat_to_n.
+	(__format::_Counting_sink): Use _Ptr_sink as base class.
+
+2026-03-10  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* include/std/format (__formatter_int::format): Handle transcoding
+	to _CharT before calling _M_format_int.
+	(__formatter_int::_M_format_int): Accept basic_string_view<_CharT>
+	and remove transcoding.
+	(__formatter_ptr::__formatter_ptr): Configure _M_spec member.
+	(__formatter_ptr::parse): Negate _M_alt for __spec and not _M_spec.
+	(__formatter_ptr::format): Delegate to __formatter_int.
+
+2026-03-10  François Dumont  <frs.dumont@gmail.com>
+
+	* include/debug/string
+	[__cplusplus >= 201103L](basic_string(_Ite, _Ite, const _Alloc&)): Add
+	std::_RequireInputIter<_Ite> template parameter.
+
 2026-03-09  Jonathan Wakely  <jwakely@redhat.com>
 
 	* include/std/meta (exception::what, access_context::via): Use

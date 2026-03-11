@@ -1,3 +1,9 @@
+2026-03-10  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR c/123461
+	* c-decl.cc (declspecs_add_type): Move mark_decl_used
+	call after the check for error mark node.
+
 2026-03-06  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
 
 	PR c/97991
