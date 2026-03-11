@@ -16,11 +16,10 @@ f ()
   static_assert(d.U::fn() == 2);
   static_assert(d.D::fn() == 2);
   static_assert(d.fn() == 2);
-  // FIXME PR124440
-  //static_assert(d.[:^^T::fn:]() == 2);
+  static_assert(d.[:^^T::fn:]() == 2);
   static_assert(d.[:^^T:]::fn() == 1);
   static_assert(d.T::fn() == 1);
-  //static_assert(d.[:^^B::fn:]() == 2);
+  static_assert(d.[:^^B::fn:]() == 2);
   static_assert(d.[:^^B:]::fn() == 1);
   static_assert(d.B::fn() == 1);
 }

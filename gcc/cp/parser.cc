@@ -9733,14 +9733,10 @@ cp_parser_postfix_dot_deref_expression (cp_parser *parser,
 	      parser->object_scope = NULL_TREE;
 	    }
 	  if ((parser->scope || splice_p) && name && BASELINK_P (name))
-	    adjust_result_of_qualified_name_lookup
-	      (name,
-	       /* For obj->[:^^R:] we won't have parser->scope, but we still
-		  have to perform this adjustment.  */
-	       (splice_p
-		? BINFO_TYPE (BASELINK_ACCESS_BINFO (name))
-		: parser->scope),
-	       scope);
+	    /* For obj->[:^^R:] we won't have parser->scope, but we still
+	       have to perform this adjustment.  */
+	    name = (adjust_result_of_qualified_name_lookup
+		    (name, parser->scope, scope));
 	  postfix_expression
 	    = finish_class_member_access_expr (postfix_expression, name,
 					       template_p,

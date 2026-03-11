@@ -22433,6 +22433,7 @@ tsubst_expr (tree t, tree args, tsubst_flags_t complain, tree in_decl)
 	object_type = TREE_TYPE (object);
 
 	member = TREE_OPERAND (t, 1);
+	const bool splice_p = dependent_splice_p (member);
 	if (BASELINK_P (member))
 	  member = tsubst_baselink (member,
 				    non_reference (TREE_TYPE (object)),
@@ -22528,6 +22529,12 @@ tsubst_expr (tree t, tree args, tsubst_flags_t complain, tree in_decl)
 	      }
 	    RETURN (error_mark_node);
 	  }
+	else if (splice_p && BASELINK_P (member))
+	  /* We need to call adjust_result_of_qualified_name_lookup when
+	     we have obj->[:^^T::fn:], but we don't set BASELINK_QUALIFIED_P
+	     so that we still get virtual function binding.  */
+	  member = (adjust_result_of_qualified_name_lookup
+		    (member, NULL_TREE, object_type));
 
 	r = finish_class_member_access_expr (object, member,
 					     /*template_p=*/false,
