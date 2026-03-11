@@ -4815,6 +4815,7 @@ package body Sem_Ch4 is
       begin
          if Warn_On_Suspicious_Contract
            and then not Is_Internal_Name (Chars (Loop_Id))
+           and then not Has_Junk_Name (Loop_Id)
          then
             if not Referenced (Loop_Id, Cond) then
                Error_Msg_N ("?.t?unused variable &", Loop_Id);
