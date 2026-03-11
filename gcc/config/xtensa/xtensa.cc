@@ -6006,17 +6006,19 @@ constantsynth_pass1 (rtx_insn *insn, constantsynth_info &info)
 
   if (xtensa_simm12b (INTVAL (src)))
     {
-      if (src != SET_SRC (pat))
+      if (! rtx_equal_p (src, SET_SRC (pat)))
 	{
 	  remove_reg_equal_equiv_notes (insn);
-	  validate_change (insn, &PATTERN (insn),
-			   gen_rtx_SET (dest, src), 0);
+	  validate_change (insn, &SET_SRC (pat), src, 0);
 	}
       if (dump_file)
-	fprintf (dump_file,
-		 "constantsynth_pass1: immediate, " HOST_WIDE_INT_PRINT_DEC
-		 " (" HOST_WIDE_INT_PRINT_HEX ")\n",
-		 INTVAL (src), INTVAL (src));
+	{
+	  fprintf (dump_file,
+		   "constantsynth_pass1: immediate, " HOST_WIDE_INT_PRINT_DEC
+		   " (" HOST_WIDE_INT_PRINT_HEX ")\n",
+		   INTVAL (src), INTVAL (src));
+	  dump_insn_slim (dump_file, insn);
+	}
     }
   else
     {
@@ -6119,7 +6121,7 @@ constantsynth_pass2 (constantsynth_info &info)
 				    "value mismatch, "
 				    "expected %wd (%wx) "
 				    "synthesized %wd (%wx)", name,
-				    v, v,INTVAL (cst), INTVAL (cst));
+				    v, v, INTVAL (cst), INTVAL (cst));
 		}
 
 	      for (last = min_seq; NEXT_INSN (last);
@@ -6133,10 +6135,10 @@ constantsynth_pass2 (constantsynth_info &info)
 			   HOST_WIDE_INT_PRINT_DEC " (",
 			   name, v);
 		  dump_value_slim (dump_file, src, 0);
-		  fprintf (dump_file, ")\n");
+		  fputs (")\n", dump_file);
 		  dump_insn_slim (dump_file, insn);
 		  fprintf (dump_file,
-			   "constantsynth_pass2: costs (%d,%d) -> (%d,%d)\n",
+			   "\t\t\treplacing, costs (%d,%d) -> (%d,%d)\n",
 			   info.costs.major (), info.costs.minor (),
 			   min_costs.major (), min_costs.minor ());
 		  dump_rtl_slim (dump_file, min_seq, NULL, -1, 0);
@@ -6148,13 +6150,16 @@ constantsynth_pass2 (constantsynth_info &info)
 	    }
 	}
 
-      /* Large constants that are not subject to synthesize are left in
-	 the literal pool.  */
+      /* Large constants that are not subject to synthesize are left as
+	 they are.  */
       if (dump_file)
-	fprintf (dump_file,
-		 "constantsynth_pass2: litpool, " HOST_WIDE_INT_PRINT_DEC
-		 " (" HOST_WIDE_INT_PRINT_HEX ")\n",
-		 v, v);
+	{
+	  fprintf (dump_file,
+		   "constantsynth_pass2: as-is, " HOST_WIDE_INT_PRINT_DEC
+		   " (" HOST_WIDE_INT_PRINT_HEX ")\n",
+		   v, v);
+	  dump_insn_slim (dump_file, insn);
+	}
     }
 
   if (dump_file)
