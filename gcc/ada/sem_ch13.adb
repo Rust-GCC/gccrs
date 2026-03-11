@@ -18057,7 +18057,7 @@ package body Sem_Ch13 is
                then
                   F1 := First_Formal (It.Nam);
 
-                  if Nam = Name_First then
+                  if Nam in Name_First | Name_Last then
                      if Etype (It.Nam) = Cursor
                        and then No (Next_Formal (F1))
                      then
@@ -18065,7 +18065,7 @@ package body Sem_Ch13 is
                         exit;
                      end if;
 
-                  elsif Nam = Name_Next then
+                  elsif Nam in Name_Next | Name_Previous then
                      F2 := Next_Formal (F1);
 
                      if Present (F2)
