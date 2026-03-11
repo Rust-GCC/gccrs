@@ -3517,18 +3517,9 @@ ParamType::is_implicit_self_trait () const
 static std::string
 generate_tree_str (tree value)
 {
-  char *buf = nullptr;
-  size_t size = 0;
-
-  FILE *stream = open_memstream (&buf, &size);
-  if (!stream)
-    return "<error>";
-
-  print_generic_stmt (stream, value, TDF_NONE);
-  fclose (stream);
-
-  std::string result = (buf ? std::string (buf, size) : "<error>");
-  free (buf);
+  pretty_printer pp;
+  dump_generic_node (&pp, value, 0, TDF_NONE, true);
+  std::string result = pp_formatted_text (&pp);
 
   if (!result.empty () && result.back () == '\n')
     result.pop_back ();
