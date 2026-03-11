@@ -24,7 +24,7 @@ bar ()
 {
   exception a (u8"\N{GRINNING FACE}\N{GRINNING FACE WITH SMILING EYES}\N{LEFT SPEECH BUBBLE}", ^^foo);
   const char *b = a.what ();	// { dg-message "in 'constexpr' expansion of 'a.std::meta::exception::what\\\(\\\)" }
-  return true;			// { dg-error "inline assembly is not a constant expression" "" { target *-*-* } 0 }
+  return true;			// { dg-error "constexpr message: std::meta::exception message could not be successfully transcoded from UTF-8 to ordinary literal encoding" "" { target *-*-* } 0 }
 }
 
 static_assert (foo ());
