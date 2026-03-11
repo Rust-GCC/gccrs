@@ -666,9 +666,6 @@ Session::compile_crate (const char *filename)
   AST::Crate &parsed_crate
     = mappings.insert_ast_crate (std::move (ast_crate), current_crate);
 
-  for (auto attribute : cli_attributes)
-    parsed_crate.inject_inner_attribute (attribute);
-
   /* basic pipeline:
    *  - lex
    *  - parse
@@ -699,7 +696,7 @@ Session::compile_crate (const char *filename)
     }
 
   // injection pipeline stage
-  injection (parsed_crate);
+  injection (parsed_crate, cli_attributes);
   rust_debug ("\033[0;31mSUCCESSFULLY FINISHED INJECTION \033[0m");
   if (options.dump_option_enabled (CompileOptions::INJECTION_DUMP))
     {
@@ -908,7 +905,7 @@ contains_name (const AST::AttrVec &attrs, std::string name)
 }
 
 void
-Session::injection (AST::Crate &crate)
+Session::injection (AST::Crate &crate, AST::AttrVec cli_attributes)
 {
   rust_debug ("started injection");
 
@@ -962,6 +959,9 @@ Session::injection (AST::Crate &crate)
   /* TODO: actually implement injection of these macros. In particular, derive
    * macros, cfg, and test should be prioritised since they seem to be used
    * the most. */
+
+  for (auto attribute : cli_attributes)
+    crate.inject_inner_attribute (attribute);
 
   // crate injection
   std::vector<std::string> names;
