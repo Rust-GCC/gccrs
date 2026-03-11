@@ -3782,9 +3782,9 @@ namespace __format
 	  if (__s.data() == _M_buf)
 	    {
 	      // Switched to internal buffer, so must have written _M_max.
-	      iter_difference_t<_OutIter> __max(_M_max);
+	      iter_difference_t<_OutIter> __m(_M_max);
 	      iter_difference_t<_OutIter> __count(_M_count + __s.size());
-	      return { __first + __max, __count };
+	      return { __first + __m, __count };
 	    }
 	  else // Not using internal buffer yet
 	    {
