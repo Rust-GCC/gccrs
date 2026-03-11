@@ -2461,6 +2461,8 @@ a larger priority number; the opposite relationship holds for destructors.
 So, if you have a constructor that
 allocates a resource and a destructor that deallocates the same
 resource, both functions typically have the same priority.
+Note without an argument, the @var{priority} argument is equivalent to
+65535.
 
 The order in which constructors for C++ objects with static storage
 duration are invoked relative to functions decorated with attribute
