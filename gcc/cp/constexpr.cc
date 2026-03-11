@@ -2350,7 +2350,7 @@ cxx_eval_constexpr_diag (const constexpr_ctx *ctx, tree t, bool *non_constant_p,
   tree args[3];
   for (int i = 0; i < 3; ++i)
     {
-      tree arg = CALL_EXPR_ARG (t, i);
+      tree arg = convert_from_reference (CALL_EXPR_ARG (t, i));
       arg = cxx_eval_constant_expression (ctx, arg,
 					  (i == 0
 					   || POINTER_TYPE_P (TREE_TYPE (arg)))
