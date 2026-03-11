@@ -47,7 +47,7 @@ pragma Assertion_Policy (Pre => Ignore);
 
 package Interfaces.C.Strings with
   SPARK_Mode     => On,
-  Abstract_State => (C_Memory),
+  Abstract_State => (C_Memory, (C_Addresses with Synchronous)),
   Initializes    => (C_Memory),
   Always_Terminates
 is
@@ -81,13 +81,13 @@ is
    function New_Char_Array (Chars : char_array) return chars_ptr with
      Volatile_Function,
      Post   => New_Char_Array'Result /= Null_Ptr,
-     Global => (Input => C_Memory);
+     Global => (Input => (C_Memory, C_Addresses));
    --  Copy the contents of Chars into a newly allocated chars_ptr
 
    function New_String (Str : String) return chars_ptr with
      Volatile_Function,
      Post   => New_String'Result /= Null_Ptr,
-     Global => (Input => C_Memory);
+     Global => (Input => (C_Memory, C_Addresses));
    --  Copy the contents of Str into a newly allocated chars_ptr
 
    procedure Free (Item : in out chars_ptr) with
