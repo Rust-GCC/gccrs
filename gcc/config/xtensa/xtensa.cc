@@ -5526,8 +5526,9 @@ FPreg_neg_scaled_simm12b_1 (const REAL_VALUE_TYPE *rval,
   REAL_VALUE_TYPE r;
   int shift;
 
-  /* Non-zero finite values can only be accepted.  */
-  if (! real_isfinite (rval) || rval->cl == rvc_zero)
+  /* Normal (i.e., neither zero, infinity nor NaN) values can only be
+     accepted.  */
+  if (rval->cl != rvc_normal)
     return false;
 
   /* Check whether the value multiplied by 32768 is an exact integer and
@@ -5563,15 +5564,14 @@ FPreg_neg_scaled_simm12b (rtx_insn *insn)
       && GET_MODE (dest) == SFmode
       && CONST_DOUBLE_P (src = avoid_constant_pool_reference (SET_SRC (pat)))
       && GET_MODE (src) == SFmode
-      && FPreg_neg_scaled_simm12b_1 (CONST_DOUBLE_REAL_VALUE (src),
-				     v, scale)
       && (next = next_nonnote_nondebug_insn (insn))
       && NONJUMP_INSN_P (next)
       && GET_CODE (pat_1 = PATTERN (next)) == SET
       && REG_P (dest_1 = SET_DEST (pat_1)) && FP_REG_P (REGNO (dest_1))
       && GET_MODE (dest_1) == SFmode
       && rtx_equal_p (SET_SRC (pat_1), dest)
-      && (note = find_reg_note (next, REG_DEAD, dest)))
+      && (note = find_reg_note (next, REG_DEAD, dest))
+      && FPreg_neg_scaled_simm12b_1 (CONST_DOUBLE_REAL_VALUE (src), v, scale))
     {
       /* Estimate the costs of two matching insns.  */
       xt_full_rtx_costs costs;
@@ -5617,7 +5617,7 @@ FPreg_neg_scaled_simm12b (rtx_insn *insn)
 	  if (dump_file)
 	    {
 	      fprintf (dump_file,
-		       "FPreg_neg_scaled_simm12b: costs (%d,%d) -> (%d,%d)\n",
+		       "\t\t\treplacing, costs (%d,%d) -> (%d,%d)\n",
 		       costs.major (), costs.minor (),
 		       costs_1.major (), costs_1.minor ());
 	      dump_insn_slim (dump_file, insn);
