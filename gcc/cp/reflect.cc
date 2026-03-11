@@ -929,13 +929,26 @@ get_info_vec (location_t loc, const constexpr_ctx *ctx, tree call, int n,
    and FROM is the info for from().  */
 
 static tree
-get_meta_exception_object (location_t loc, const char *what, tree from,
-			   bool *non_constant_p)
+get_meta_exception_object (location_t loc, const constexpr_ctx *ctx,
+			   const char *what, tree from, bool *non_constant_p)
 {
   /* Don't throw in a template.  */
-  // TODO For -fno-exceptions, report an error.
   if (processing_template_decl)
     {
+      *non_constant_p = true;
+      return NULL_TREE;
+    }
+
+  /* Don't try to throw exceptions with -fno-exceptions.  */
+  if (!flag_exceptions)
+    {
+      if (!cxx_constexpr_quiet_p (ctx))
+	{
+	  auto_diagnostic_group d;
+	  error_at (loc, "%qD should throw %qs; %<what()%>: %qs",
+		    from, "std::meta::exception", _(what));
+	  inform (loc, "exceptions are disabled, treating as non-constant");
+	}
       *non_constant_p = true;
       return NULL_TREE;
     }
@@ -984,7 +997,8 @@ static tree
 throw_exception (location_t loc, const constexpr_ctx *ctx, const char *msgid,
 		 tree from, bool *non_constant_p, tree *jump_target)
 {
-  if (tree obj = get_meta_exception_object (loc, msgid, from, non_constant_p))
+  if (tree obj = get_meta_exception_object (loc, ctx, msgid, from,
+					    non_constant_p))
     *jump_target = cxa_allocate_and_throw_exception (loc, ctx, obj);
   return NULL_TREE;
 }
