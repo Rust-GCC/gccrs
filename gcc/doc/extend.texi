@@ -2479,6 +2479,9 @@ supported is rejected with an error.  Only a few targets (typically
 those not using ELF object format, or the GNU linker) reject this
 usage.
 
+When multiple attributes of this type is supplied, the last one
+is what sets the priority.
+
 @atindex @code{copy}
 @item copy
 @itemx copy (@var{name})
