@@ -6180,8 +6180,9 @@ constantsynth_pass2 (constantsynth_info &info)
     }
 }
 
-/* Replace the source of [SH]Imode allocation whose value does not fit
-   into signed 12 bits with a reference to litpool entry.  */
+/* Replace both the sources of [SH]Imode assignments with values that do
+   not fit into a signed 12-bit, and DImode ones with arbitrary values,
+   with references to litpool entries.  */
 
 static bool
 litpool_set_src_1 (rtx_insn *insn, rtx set, bool in_group)
@@ -6189,10 +6190,10 @@ litpool_set_src_1 (rtx_insn *insn, rtx set, bool in_group)
   rtx dest, src;
   enum machine_mode mode;
 
-  if (REG_P (dest = SET_DEST (set))
-      && ((mode = GET_MODE (dest)) == SImode || mode == HImode)
-      && CONST_INT_P (src = SET_SRC (set))
-      && ! xtensa_simm12b (INTVAL (src)))
+  if (REG_P (dest = SET_DEST (set)) && CONST_INT_P (src = SET_SRC (set))
+      && ((((mode = GET_MODE (dest)) == SImode || mode == HImode)
+	   && ! xtensa_simm12b (INTVAL (src)))
+	  || mode == DImode))
     {
       remove_reg_equal_equiv_notes (insn);
       validate_change (insn, &SET_SRC (set),
@@ -6234,14 +6235,27 @@ litpool_set_src (rtx_insn *insn)
 }
 
 /* Replace all occurrences of large immediate values in assignment sources
-   that were permitted for convenience with their legitimate forms, or
-   more efficient representations if possible.  */
+   that were permitted for convenience with their legitimate forms.  */
 
 static void
-do_largeconst (void)
+do_largeconst1 (void)
 {
-  bool replacing_required = !TARGET_CONST16 && !TARGET_AUTO_LITPOOLS;
-  bool optimize_enabled = optimize && !optimize_debug;
+  rtx_insn *insn;
+
+  /* Replace both the sources of [SH]Imode assignments with values that do
+     not fit into a signed 12-bit, and DImode ones with arbitrary values,
+     with references to litpool entries.  */
+  for (insn = get_insns (); insn; insn = NEXT_INSN (insn))
+    if (NONJUMP_INSN_P (insn))
+      litpool_set_src (insn);
+}
+
+/* Replace large immediate values ​​in allocation sources with more efficient
+   representations if possible.  */
+
+static void
+do_largeconst2 (void)
+{
   rtx_insn *insn;
   constantsynth_info cs_info;
 
@@ -6253,17 +6267,11 @@ do_largeconst (void)
   for (insn = get_insns (); insn; insn = NEXT_INSN (insn))
     if (NONJUMP_INSN_P (insn))
       {
-	/* Optimize assignment of negatively scaled (up to the minus
-	   15th power of two) signed 12-bit immediate values to hardware
+	/* Optimize assignment of negatively scaled (up to the minus 15th
+	   power of two) signed 12-bit immediate values to hardware
 	   floating-point registers.  */
-	if (optimize_enabled
-	    && FPreg_neg_scaled_simm12b (insn))
+	if (FPreg_neg_scaled_simm12b (insn))
 	  continue;
-
-	/* Replace the source of [SH]Imode allocation whose value does not
-	   fit into signed 12 bits with a reference to litpool entry.  */
-	if (replacing_required)
-	  litpool_set_src (insn);
 
 	/* Split DI/SF/DFmode constant assignments into pairs of SImode
 	   ones.  This is also the pre-processing for constantsynth opti-
@@ -6272,22 +6280,20 @@ do_largeconst (void)
 
 	/* constantsynth pass 1.
 	   Detect and record large constant assignments within a function.  */
-	if (optimize_enabled)
-	  constantsynth_pass1 (insn, cs_info);
+	constantsynth_pass1 (insn, cs_info);
       }
 
   /* constantsynth pass 2.
      For each large constant value assignment collected in pass 1, try to
      find a more efficient way to derive the value than referencing a literal
      pool entry, and if found, replace the assignment with it.  */
-  if (optimize_enabled)
-    constantsynth_pass2 (cs_info);
+  constantsynth_pass2 (cs_info);
 }
 
 /* Convert assignments for large constants.  */
 
 static unsigned int
-rest_of_handle_largeconst (void)
+rest_of_handle_largeconst1 (void)
 {
   /* Until this flag becomes true, all RTL expressions that assign integer
      (not symbol nor floating-point) constants to [SH]Imode registers are
@@ -6321,23 +6327,39 @@ rest_of_handle_largeconst (void)
      is no longer needed, so such assignments must now be all converted
      back to references to literal pool entries (the original legitimate
      form) if neither TARGET_CONST16 nor TARGET_AUTO_LITPOOLS is enabled.
-     See the function do_largeconst() called below.  */
+     See the function do_largeconst1() called below.  */
   cfun->machine->postreload_completed = true;
 
-  df_set_flags (DF_DEFER_INSN_RESCAN);
-  df_note_add_problem ();
-  df_analyze ();
+  /* Do the process, only if the conditions are met.  */
+  if (!TARGET_CONST16 && !TARGET_AUTO_LITPOOLS)
+    {
+      df_set_flags (DF_DEFER_INSN_RESCAN);
 
-  /* Do the process.  */
-  do_largeconst ();
+      do_largeconst1 ();
+    }
 
   return 0;
 }
 
-const pass_data pass_data_xtensa_largeconst =
+static unsigned int
+rest_of_handle_largeconst2 (void)
+{
+  df_set_flags (DF_DEFER_INSN_RESCAN);
+
+  /* The latest reg-notes are required later.  */
+  df_note_add_problem ();
+  df_analyze ();
+
+  /* Do the process.  */
+  do_largeconst2 ();
+
+  return 0;
+}
+
+const pass_data pass_data_xtensa_largeconst1 =
 {
   RTL_PASS, /* type */
-  "xt_largeconst", /* name */
+  "xt_largeconst1", /* name */
   OPTGROUP_NONE, /* optinfo_flags */
   TV_MACH_DEP, /* tv_id */
   0, /* properties_required */
@@ -6347,27 +6369,67 @@ const pass_data pass_data_xtensa_largeconst =
   TODO_df_finish, /* todo_flags_finish */
 };
 
-class pass_xtensa_largeconst : public rtl_opt_pass
+class pass_xtensa_largeconst1 : public rtl_opt_pass
 {
 public:
-  pass_xtensa_largeconst (gcc::context *ctxt)
-    : rtl_opt_pass (pass_data_xtensa_largeconst, ctxt)
+  pass_xtensa_largeconst1 (gcc::context *ctxt)
+    : rtl_opt_pass (pass_data_xtensa_largeconst1, ctxt)
   {}
 
   /* opt_pass methods: */
   unsigned int execute (function *) final override
   {
-    return rest_of_handle_largeconst ();
+    return rest_of_handle_largeconst1 ();
   }
 
-};  // class pass_xtensa_largeconst
+};  // class pass_xtensa_largeconst1
+
+const pass_data pass_data_xtensa_largeconst2 =
+{
+  RTL_PASS, /* type */
+  "xt_largeconst2", /* name */
+  OPTGROUP_NONE, /* optinfo_flags */
+  TV_MACH_DEP, /* tv_id */
+  0, /* properties_required */
+  0, /* properties_provided */
+  0, /* properties_destroyed */
+  0, /* todo_flags_start */
+  TODO_df_finish, /* todo_flags_finish */
+};
+
+class pass_xtensa_largeconst2 : public rtl_opt_pass
+{
+public:
+  pass_xtensa_largeconst2 (gcc::context *ctxt)
+    : rtl_opt_pass (pass_data_xtensa_largeconst2, ctxt)
+  {}
+
+  /* opt_pass methods: */
+  bool gate (function *) final override
+  {
+    return optimize && !optimize_debug;
+  }
+
+  /* opt_pass methods: */
+  unsigned int execute (function *) final override
+  {
+    return rest_of_handle_largeconst2 ();
+  }
+
+};  // class pass_xtensa_largeconst2
 
 } // anon namespace
 
 rtl_opt_pass *
-make_pass_xtensa_largeconst (gcc::context *ctxt)
+make_pass_xtensa_largeconst1 (gcc::context *ctxt)
 {
-  return new pass_xtensa_largeconst (ctxt);
+  return new pass_xtensa_largeconst1 (ctxt);
+}
+
+rtl_opt_pass *
+make_pass_xtensa_largeconst2 (gcc::context *ctxt)
+{
+  return new pass_xtensa_largeconst2 (ctxt);
 }
 
 #include "gt-xtensa.h"
