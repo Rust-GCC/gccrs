@@ -45,6 +45,7 @@ GNAT Reference Manual
    gnat_rm/implementation_defined_attributes
    gnat_rm/standard_and_implementation_defined_restrictions
    gnat_rm/implementation_advice
+   gnat_rm/gnat_implementation_mode
    gnat_rm/implementation_defined_characteristics
    gnat_rm/intrinsic_subprograms
    gnat_rm/representation_clauses_and_pragmas

@@ -61,6 +61,9 @@ This reference manual contains the following chapters:
   follow since it cannot be provided on all systems, or which may be
   undesirable on some systems.
 
+* :ref:`GNAT_Implementation_Mode` details the features and restrictions that
+  are enabled while building the compiler and its runtime libraries.
+
 * :ref:`Implementation_Defined_Characteristics`, provides a guide to
   minimizing implementation dependent features.
 
