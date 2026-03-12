@@ -26,9 +26,8 @@ TEST_UNIFORM_Z (revd_s8_m_tied1, svint8_t,
 
 /*
 ** revd_s8_m_tied2:
-**	mov	(z[0-9]+)\.d, z0\.d
-**	movprfx	z0, z1
-**	revd	z0\.q, p0/m, \1\.q
+**	revd	z1\.q, p0/m, z0\.q
+**	mov	z0.d, z1.d
 **	ret
 */
 TEST_UNIFORM_Z (revd_s8_m_tied2, svint8_t,
@@ -37,8 +36,8 @@ TEST_UNIFORM_Z (revd_s8_m_tied2, svint8_t,
 
 /*
 ** revd_s8_m_untied:
-**	movprfx	z0, z2
-**	revd	z0\.q, p0/m, z1\.q
+**	revd	z2\.q, p0/m, z1\.q
+**	mov	z0.d, z2.d
 **	ret
 */
 TEST_UNIFORM_Z (revd_s8_m_untied, svint8_t,
@@ -71,8 +70,8 @@ TEST_UNIFORM_Z (revd_s8_x_tied1, svint8_t,
 
 /*
 ** revd_s8_x_untied:
-**	movprfx	z0, z1
-**	revd	z0\.q, p0/m, z1\.q
+**	revd	z1\.q, p0/m, z1\.q
+**	mov	z0.d, z1.d
 **	ret
 */
 TEST_UNIFORM_Z (revd_s8_x_untied, svint8_t,
