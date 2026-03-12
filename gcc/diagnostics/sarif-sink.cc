@@ -37,6 +37,7 @@ struct sockaddr_un {
 
 #define INCLUDE_LIST
 #define INCLUDE_MAP
+#define INCLUDE_SET
 #define INCLUDE_STRING
 #define INCLUDE_VECTOR
 #include "system.h"
@@ -1012,7 +1013,7 @@ private:
 		    sarif_artifact *> m_filename_to_artifact_map;
 
   bool m_seen_any_relative_paths;
-  hash_set <free_string_hash> m_rule_id_set;
+  std::set<std::string> m_rule_id_set;
   std::unique_ptr<json::array> m_rules_arr;
 
   /* The set of all CWE IDs we've seen, if any.  */
@@ -2067,25 +2068,24 @@ sarif_builder::make_result_object (const diagnostic_info &diagnostic,
 
   /* "ruleId" property (SARIF v2.1.0 section 3.27.5).  */
   /* Ideally we'd have an option_name for these.  */
-  if (char *option_text
-	= m_context.make_option_name (diagnostic.m_option_id,
-				      orig_diag_kind, diagnostic.m_kind))
+  label_text option_text
+    = m_context.get_option_name (diagnostic.m_option_id,
+				 orig_diag_kind, diagnostic.m_kind);
+  if (option_text.get ())
     {
       /* Lazily create reportingDescriptor objects for and add to m_rules_arr.
 	 Set ruleId referencing them.  */
-      result_obj->set_string ("ruleId", option_text);
-      if (m_rule_id_set.contains (option_text))
-	free (option_text);
-      else
+      result_obj->set_string ("ruleId", option_text.get ());
+      if (m_rule_id_set.find (option_text.get ()) == m_rule_id_set.end ())
 	{
 	  /* This is the first time we've seen this ruleId.  */
 	  /* Add to set, taking ownership.  */
-	  m_rule_id_set.add (option_text);
+	  m_rule_id_set.insert (option_text.get ());
 
 	  m_rules_arr->append<sarif_reporting_descriptor>
 	    (make_reporting_descriptor_object_for_warning (diagnostic,
 							   orig_diag_kind,
-							   option_text));
+							   option_text.get ()));
 	}
     }
   else
@@ -2191,11 +2191,9 @@ make_reporting_descriptor_object_for_warning (const diagnostic_info &diagnostic,
      it seems redundant compared to "id".  */
 
   /* "helpUri" property (SARIF v2.1.0 section 3.49.12).  */
-  if (char *option_url = m_context.make_option_url (diagnostic.m_option_id))
-    {
-      reporting_desc->set_string ("helpUri", option_url);
-      free (option_url);
-    }
+  label_text option_url = m_context.get_option_url (diagnostic.m_option_id);
+  if (option_url.get ())
+    reporting_desc->set_string ("helpUri", option_url.get ());
 
   return reporting_desc;
 }

@@ -1381,7 +1381,7 @@ init_num_threads (void)
 void
 print_lto_docs_link ()
 {
-  label_text url = label_text::take (global_dc->make_option_url (OPT_flto));
+  label_text url = global_dc->get_option_url (OPT_flto);
   inform (UNKNOWN_LOCATION,
 	  "see the %{%<-flto%> option documentation%} for more information",
 	  url.get ());
@@ -2282,11 +2282,12 @@ public:
   {
     return true;
   }
-  char *make_option_name (diagnostics::option_id,
-			  enum diagnostics::kind,
-			  enum diagnostics::kind) const final override
+  label_text
+  get_option_name (diagnostics::option_id,
+		   enum diagnostics::kind,
+		   enum diagnostics::kind) const final override
   {
-    return nullptr;
+    return label_text::borrow (nullptr);
   }
 };
 

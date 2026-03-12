@@ -137,15 +137,19 @@ public:
     /* Treat all options as disabled.  */
     return 0;
   }
-  char *make_option_name (diagnostics::option_id,
-			  enum kind,
-			  enum kind) const final override
+
+  label_text
+  get_option_name (diagnostics::option_id,
+		   enum kind,
+		   enum kind) const final override
   {
-    return nullptr;
+    return label_text ();
   }
-  char *make_option_url (diagnostics::option_id) const final override
+
+  label_text
+  get_option_url (diagnostics::option_id) const final override
   {
-    return nullptr;
+    return label_text ();
   }
 };
 

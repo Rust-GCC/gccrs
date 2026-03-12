@@ -485,22 +485,22 @@ public:
     return m_option_id_mgr->option_enabled_p (opt_id);
   }
 
-  inline char *make_option_name (option_id opt_id,
-				 enum kind orig_diag_kind,
-				 enum kind diag_kind) const
+  inline label_text get_option_name (option_id opt_id,
+				     enum kind orig_diag_kind,
+				     enum kind diag_kind) const
   {
     if (!m_option_id_mgr)
-      return nullptr;
-    return m_option_id_mgr->make_option_name (opt_id,
-					      orig_diag_kind,
-					      diag_kind);
+      return label_text ();
+    return m_option_id_mgr->get_option_name (opt_id,
+					     orig_diag_kind,
+					     diag_kind);
   }
 
-  inline char *make_option_url (option_id opt_id) const
+  inline label_text get_option_url (option_id opt_id) const
   {
     if (!m_option_id_mgr)
-      return nullptr;
-    return m_option_id_mgr->make_option_url (opt_id);
+      return label_text ();
+    return m_option_id_mgr->get_option_url (opt_id);
   }
 
   void
