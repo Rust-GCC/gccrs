@@ -8167,7 +8167,10 @@ check_out_of_consteval_use_r (tree *tp, int *walk_subtrees, void *pset)
 	 member initializers.  */
       || TREE_CODE (t) == INIT_EXPR
       /* And don't recurse on DECL_EXPRs.  */
-      || TREE_CODE (t) == DECL_EXPR)
+      || TREE_CODE (t) == DECL_EXPR
+      /* Blocks can appear in the TREE_VEC operand of OpenMP
+	 depend/affinity/map/to/from OMP_CLAUSEs when using iterators.  */
+      || TREE_CODE (t) == BLOCK)
     {
       *walk_subtrees = false;
       return NULL_TREE;
