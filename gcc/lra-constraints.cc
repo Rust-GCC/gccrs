@@ -4452,7 +4452,14 @@ curr_insn_transform (bool check_only_p)
 	  }
       }
 
-  /* Reload address registers and displacements.  We do it before
+  /* We process equivalences before ignoring postponed insns on the current
+     constraint sub-pass but before any reload insn generation for the
+     postponed insn.  */
+  if (! check_only_p
+      && bitmap_bit_p (&lra_postponed_insns, INSN_UID (curr_insn)))
+    return true;
+
+   /* Reload address registers and displacements.  We do it before
      finding an alternative because of memory constraints.  */
   before = after = NULL;
   for (i = 0; i < n_operands; i++)
@@ -4470,17 +4477,9 @@ curr_insn_transform (bool check_only_p)
        we chose previously may no longer be valid.  */
     lra_set_used_insn_alternative (curr_insn, LRA_UNKNOWN_ALT);
 
-  if (! check_only_p)
-    {
-      if (bitmap_bit_p (&lra_postponed_insns, INSN_UID (curr_insn)))
-	/* Processing insn constraints were postponed.  Do nothing, the insn
-	   will be processed on the next constraint sub-pass after assignment
-	   of reload pseudos in the insn.  */
-	return true;
-      if (curr_insn_set != NULL_RTX
-	  && check_and_process_move (&change_p, &sec_mem_p))
-	return change_p;
-    }
+  if (! check_only_p && curr_insn_set != NULL_RTX
+      && check_and_process_move (&change_p, &sec_mem_p))
+    return change_p;
 
  try_swapped:
 
