@@ -872,15 +872,26 @@ get_range_elts (location_t loc, const constexpr_ctx *ctx, tree call, int n,
       *non_constant_p = true;
       return NULL_TREE;
     }
-  // TODO: For REFLECT_CONSTANT_* handle proxy iterators.
   if (TYPE_MAIN_VARIANT (TREE_TYPE (deref)) != valuet)
     {
-      if (!cxx_constexpr_quiet_p (ctx))
-	error_at (loc, "unexpected type %qT of iterator dereference",
-		  TREE_TYPE (deref));
-      *non_constant_p = true;
-      return NULL_TREE;
+      deref = perform_implicit_conversion (valuet, deref, tf_warning_or_error);
+      if (error_operand_p (deref))
+	{
+	  *non_constant_p = true;
+	  return NULL_TREE;
+	}
+      if (CLASS_TYPE_P (valuet))
+	{
+	  deref = force_target_expr (valuet, deref, tf_warning_or_error);
+	  if (error_operand_p (deref))
+	    {
+	      *non_constant_p = true;
+	      return NULL_TREE;
+	    }
+	}
     }
+  deref = fold_build_cleanup_point_expr (TREE_TYPE (deref), deref);
+  inc = fold_build_cleanup_point_expr (void_type_node, inc);
   retvec.truncate (0);
   /* while (begin != end) { push (*begin); ++begin; }  */
   do
