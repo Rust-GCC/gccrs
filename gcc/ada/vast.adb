@@ -48,6 +48,7 @@ with Output;
 with Sem_Aux;
 with Sem_Util;
 with Sinfo.Nodes;    use Sinfo.Nodes;
+with Sinfo.Utils;    use Sinfo.Utils;
 with Sinput;
 with Table;
 with Types;          use Types;
@@ -74,6 +75,9 @@ package body VAST is
       --  Check that the Analyzed flag is True for all nodes.
       Check_Error_Nodes,
       --  Check that there are no Error nodes in the tree.
+      Check_Entity_Chain,
+      --  Check that the entity chain is consistent when traversed in both
+      --  directions (Next_Entity and Prev_Entity).
       Check_FE_Only,
       --  Check that front-end-only nodes (i.e. nodes that should not be passed
       --  to the back end) are not present.
@@ -110,6 +114,7 @@ package body VAST is
       Check_Sloc => Disabled,
       Check_Analyzed => Disabled,
       Check_Error_Nodes => Enabled,
+      Check_Entity_Chain => Print_And_Continue,
       Check_FE_Only => Disabled,
       Check_Sharing => Disabled,
       Check_Parent_Present => Enabled,
@@ -270,6 +275,11 @@ package body VAST is
    --  information about N. Returns No_Name if there is no interesting Name_Id.
    --  This is typically "Chars (N)" or "Chars (Defining_Identifier (N))" or
    --  similar.
+
+   procedure Check_Entity_Chain (E : Entity_Id);
+   --  Checks for all elements Elt of the entity chain starting from E that if
+   --  there is a next element for Elt in the chain, its Prev_Entity points at
+   --  Elt.
 
    procedure Check_Scope (N : Node_Id);
    --  Check that the Scope of N makes sense
@@ -521,6 +531,21 @@ package body VAST is
       end if;
    end Assert;
 
+   ------------------------
+   -- Check_Entity_Chain --
+   ------------------------
+   procedure Check_Entity_Chain (E : Entity_Id) is
+      Entity_It : Entity_Id := E;
+   begin
+      while Present (Entity_It) loop
+         if Present (Next_Entity (Entity_It)) then
+            Assert (Prev_Entity (Next_Entity (Entity_It))
+                    = Entity_It, Check_Entity_Chain);
+         end if;
+         Next_Entity (Entity_It);
+      end loop;
+   end Check_Entity_Chain;
+
    -----------------
    -- Check_Scope --
    -----------------
@@ -529,6 +554,8 @@ package body VAST is
       use Exp_Tss, Sem_Util;
    begin
       if Present (Scope (N)) then
+         Check_Entity_Chain (First_Entity (Scope (N)));
+
          if False then -- ????
             Assert (Enclosing_Declaration (Scope (N)) =
                     Enclosing_Declaration (Enclosing_Declaration (N)),
