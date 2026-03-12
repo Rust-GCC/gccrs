@@ -364,10 +364,20 @@ private:
   std::unique_ptr<AST::Function> parse_function (AST::Visibility vis,
 						 AST::AttrVec outer_attrs,
 						 bool is_external = false);
-  tl::expected<std::unique_ptr<AST::FunctionQualifiers>, Parse::Error::Node>
+  tl::expected<AST::FunctionQualifiers, Parse::Error::Node>
   parse_function_qualifiers ();
-  bool ensure_function_qualifier_order (location_t locus,
-					std::vector<TokenId> found_order);
+  tl::expected<std::pair<std::vector<TokenId>, std::string>, Parse::Error::Node>
+  parse_function_qualifiers_raw (location_t locus);
+  bool
+  ensure_function_qualifier_order (location_t locus,
+				   const std::vector<TokenId> &found_order);
+  tl::expected<AST::FunctionQualifiers, Parse::Error::Node>
+  function_qualifiers_from_keywords (location_t locus,
+				     std::vector<TokenId> keywords,
+				     std::string abi);
+  void emit_function_qualifier_order_error_msg (
+    location_t locus, const std::vector<TokenId> &found_order);
+
   std::vector<std::unique_ptr<AST::GenericParam>>
   parse_generic_params_in_angles ();
   template <typename EndTokenPred>
