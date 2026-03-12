@@ -4860,13 +4860,15 @@ package body Exp_Ch3 is
 
       --  Derived types that have no type extension can use the initialization
       --  procedure of their parent and do not need a procedure of their own.
+      --  Same for derivations of unchecked_union types.
       --  This is only correct if there are no representation clauses for the
       --  type or its parent, and if the parent has in fact been frozen so
       --  that its initialization procedure exists.
 
       if Is_Derived_Type (Rec_Type)
         and then not Is_Tagged_Type (Rec_Type)
-        and then not Is_Unchecked_Union (Rec_Type)
+        and then Is_Unchecked_Union (Rec_Type)
+                   = Is_Unchecked_Union (Etype (Rec_Type))
         and then not Has_New_Non_Standard_Rep (Rec_Type)
         and then not Parent_Subtype_Renaming_Discrims
         and then Present (Base_Init_Proc (Etype (Rec_Type)))

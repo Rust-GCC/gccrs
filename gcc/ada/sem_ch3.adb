@@ -10134,6 +10134,13 @@ package body Sem_Ch3 is
       Set_Has_Primitive_Operations
         (Derived_Type, Has_Primitive_Operations (Parent_Base));
 
+      if Ekind (Derived_Type) = E_Record_Type then
+         Set_Is_Unchecked_Union
+           (Derived_Type, Is_Unchecked_Union (Parent_Base));
+         Set_Has_Unchecked_Union
+           (Derived_Type, Has_Unchecked_Union (Parent_Base));
+      end if;
+
       --  Set fields for private derived types
 
       if Is_Private_Type (Derived_Type) then
@@ -20013,6 +20020,11 @@ package body Sem_Ch3 is
          if not Is_Tagged then
             Append_Elmt (Old_C, Assoc_List);
             Append_Elmt (New_C, Assoc_List);
+
+            if Plain_Discrim then
+               Append_Elmt (Discriminal (Old_C), Assoc_List);
+               Append_Elmt (Discriminal (New_C), Assoc_List);
+            end if;
          end if;
       end Inherit_Component;
 
