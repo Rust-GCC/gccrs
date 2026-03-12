@@ -747,6 +747,206 @@ kf_memset::impl_call_pre (const call_details &cd) const
   cd.maybe_set_lhs (dest_sval);
 }
 
+/* A subclass of pending_diagnostic for complaining about 'mkstemp'
+   called on a string literal.  */
+
+class mkstemp_of_string_literal : public undefined_function_behavior
+{
+public:
+  mkstemp_of_string_literal (const call_details &cd)
+      : undefined_function_behavior (cd)
+  {
+  }
+
+  int
+  get_controlling_option () const final override
+  {
+    return OPT_Wanalyzer_mkstemp_of_string_literal;
+  }
+
+  bool
+  emit (diagnostic_emission_context &ctxt) final override
+  {
+    auto_diagnostic_group d;
+
+    /* SEI CERT C Coding Standard: "STR30-C. Do not attempt to modify string
+       literals.  */
+    diagnostics::metadata::precanned_rule rule (
+      "STR30-C", "https://wiki.sei.cmu.edu/confluence/x/VtYxBQ");
+    ctxt.add_rule (rule);
+
+    bool warned = ctxt.warn ("%qE on a string literal", get_callee_fndecl ());
+    if (warned)
+      inform (ctxt.get_location (),
+	      "use a writable character array as the template argument,"
+	      " e.g. %<char tmpl[] = \"/tmp/fooXXXXXX\"%>");
+    return warned;
+  }
+
+  bool
+  describe_final_event (pretty_printer &pp,
+			const evdesc::final_event &) final override
+  {
+    pp_printf (&pp, "%qE on a string literal", get_callee_fndecl ());
+    return true;
+  }
+};
+
+/* A subclass of pending_diagnostic for complaining about 'mkstemp'
+   called with a template that does not end with "XXXXXX".  */
+
+class mkstemp_missing_suffix
+    : public pending_diagnostic_subclass<mkstemp_missing_suffix>
+{
+public:
+  mkstemp_missing_suffix (const call_details &cd)
+      : m_call_stmt (cd.get_call_stmt ()), m_fndecl (cd.get_fndecl_for_call ())
+  {
+    gcc_assert (m_fndecl);
+  }
+
+  const char *
+  get_kind () const final override
+  {
+    return "mkstemp_missing_suffix";
+  }
+
+  bool
+  operator== (const mkstemp_missing_suffix &other) const
+  {
+    return &m_call_stmt == &other.m_call_stmt;
+  }
+
+  int
+  get_controlling_option () const final override
+  {
+    return OPT_Wanalyzer_mkstemp_missing_suffix;
+  }
+
+  bool
+  emit (diagnostic_emission_context &ctxt) final override
+  {
+    return ctxt.warn ("%qE template string does not end with %qs", m_fndecl,
+		      "XXXXXX");
+  }
+
+  bool
+  describe_final_event (pretty_printer &pp,
+			const evdesc::final_event &) final override
+  {
+    pp_printf (&pp, "%qE template string does not end with %qs", m_fndecl,
+	       "XXXXXX");
+    return true;
+  }
+
+private:
+  const gimple &m_call_stmt;
+  tree m_fndecl; // non-NULL
+};
+
+/* Handler for calls to "mkstemp":
+
+     int mkstemp(char *template);
+
+   The template must not be a string constant, and its last six
+   characters must be "XXXXXX".  */
+
+class kf_mkstemp : public known_function
+{
+public:
+  bool
+  matches_call_types_p (const call_details &cd) const final override
+  {
+    return (cd.num_args () == 1 && cd.arg_is_pointer_p (0));
+  }
+
+  void
+  impl_call_pre (const call_details &cd) const final override
+  {
+    if (cd.get_ctxt ())
+      check_template (cd);
+
+    cd.set_any_lhs_with_defaults ();
+  }
+
+private:
+  static void
+  check_template (const call_details &cd)
+  {
+    region_model_context *ctxt = cd.get_ctxt ();
+    const svalue *ptr_sval = cd.get_arg_svalue (0);
+    region_model *model = cd.get_model ();
+
+    const svalue *strlen_sval
+      = model->check_for_null_terminated_string_arg (cd, 0, false, nullptr);
+    if (!strlen_sval)
+      return;
+
+    if (cd.get_arg_string_literal (0))
+      {
+	ctxt->warn (std::make_unique<mkstemp_of_string_literal> (cd));
+      }
+    else if (check_suffix (cd, ptr_sval, strlen_sval).is_false ())
+      {
+	ctxt->warn (std::make_unique<mkstemp_missing_suffix> (cd));
+      }
+  }
+
+  /* Return true if the template ends with "XXXXXX", false if it
+     definitely does not, or unknown if we can't determine.  */
+  static tristate
+  check_suffix (const call_details &cd, const svalue *ptr_sval,
+		const svalue *strlen_sval)
+  {
+    region_model *model = cd.get_model ();
+
+    const constant_svalue *len_cst = strlen_sval->dyn_cast_constant_svalue ();
+    if (!len_cst)
+      return tristate::TS_UNKNOWN;
+
+    byte_offset_t len = TREE_INT_CST_LOW (len_cst->get_constant ());
+    if (len < 6)
+      return tristate::TS_FALSE;
+
+    tree arg_tree = cd.get_arg_tree (0);
+    const region *reg
+      = model->deref_rvalue (ptr_sval, arg_tree, cd.get_ctxt ());
+
+    /* Find the byte offset of the pointed-to region. */
+    region_offset reg_offset = reg->get_offset (cd.get_manager ());
+    if (reg_offset.symbolic_p ())
+      return tristate::TS_UNKNOWN;
+    byte_offset_t ptr_byte_offset;
+    if (!reg_offset.get_concrete_byte_offset (&ptr_byte_offset))
+      return tristate::TS_UNKNOWN;
+
+    const region *base_reg = reg->get_base_region ();
+    const svalue *base_sval
+      = model->get_store_value (base_reg, cd.get_ctxt ());
+
+    const constant_svalue *cst_sval = base_sval->dyn_cast_constant_svalue ();
+    if (!cst_sval)
+      return tristate::TS_UNKNOWN;
+
+    tree cst = cst_sval->get_constant ();
+    if (TREE_CODE (cst) != STRING_CST)
+      return tristate::TS_UNKNOWN;
+
+    HOST_WIDE_INT str_len = len.to_shwi ();
+    HOST_WIDE_INT start = ptr_byte_offset.to_shwi ();
+
+    /* Ensure the range [start, start + str_len] fits. */
+    if (1 + start + str_len > TREE_STRING_LENGTH (cst))
+      return tristate::TS_UNKNOWN;
+
+    if (memcmp (TREE_STRING_POINTER (cst) + start + str_len - 6, "XXXXXX", 6)
+	!= 0)
+      return tristate::TS_FALSE;
+
+    return tristate::TS_TRUE;
+  }
+};
+
 /* A subclass of pending_diagnostic for complaining about 'putenv'
    called on an auto var.  */
 
@@ -2369,6 +2569,7 @@ register_known_functions (known_function_manager &kfm,
   /* Known POSIX functions, and some non-standard extensions.  */
   {
     kfm.add ("fopen", std::make_unique<kf_fopen> ());
+    kfm.add ("mkstemp", std::make_unique<kf_mkstemp> ());
     kfm.add ("putenv", std::make_unique<kf_putenv> ());
     kfm.add ("strtok", std::make_unique<kf_strtok> (rmm));
 

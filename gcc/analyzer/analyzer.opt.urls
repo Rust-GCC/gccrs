@@ -84,6 +84,12 @@ UrlSuffix(gcc/Static-Analyzer-Options.html#index-Wanalyzer-null-argument)
 Wanalyzer-null-dereference
 UrlSuffix(gcc/Static-Analyzer-Options.html#index-Wanalyzer-null-dereference)
 
+Wanalyzer-mkstemp-missing-suffix
+UrlSuffix(gcc/Static-Analyzer-Options.html#index-Wanalyzer-mkstemp-missing-suffix)
+
+Wanalyzer-mkstemp-of-string-literal
+UrlSuffix(gcc/Static-Analyzer-Options.html#index-Wanalyzer-mkstemp-of-string-literal)
+
 Wanalyzer-putenv-of-auto-var
 UrlSuffix(gcc/Static-Analyzer-Options.html#index-Wanalyzer-putenv-of-auto-var)
 

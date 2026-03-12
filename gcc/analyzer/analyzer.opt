@@ -182,6 +182,14 @@ Wanalyzer-null-dereference
 Common Var(warn_analyzer_null_dereference) Init(1) Warning
 Warn about code paths in which a NULL pointer is dereferenced.
 
+Wanalyzer-mkstemp-missing-suffix
+Common Var(warn_analyzer_mkstemp_missing_suffix) Init(1) Warning
+Warn about code paths in which mkstemp is called with a template not ending in \"XXXXXX\".
+
+Wanalyzer-mkstemp-of-string-literal
+Common Var(warn_analyzer_mkstemp_of_string_literal) Init(1) Warning
+Warn about code paths in which a string literal is passed to mkstemp.
+
 Wanalyzer-putenv-of-auto-var
 Common Var(warn_analyzer_putenv_of_auto_var) Init(1) Warning
 Warn about code paths in which an on-stack buffer is passed to putenv.
