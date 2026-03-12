@@ -502,7 +502,7 @@
 ;; Q registers and is equivalent to "simd".
 
 (define_enum "arches" [any rcpc8_4 fp fp_q base_simd nobase_simd
-		       simd nosimd sve fp16 sme cssc])
+		       simd nosimd sve fp16 sme cssc sve2p2_or_sme2p2])
 
 (define_enum_attr "arch" "arches" (const_string "any"))
 
@@ -581,7 +581,10 @@
 	     (match_test "TARGET_SVE"))
 
 	(and (eq_attr "arch" "sme")
-	     (match_test "TARGET_SME"))))
+	     (match_test "TARGET_SME"))
+
+	(and (eq_attr "arch" "sve2p2_or_sme2p2")
+	     (match_test "TARGET_SVE2p2_OR_SME2p2"))))
     (const_string "yes")
     (const_string "no")))
 
