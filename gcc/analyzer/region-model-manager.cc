@@ -405,6 +405,31 @@ region_model_manager::get_ptr_svalue (tree ptr_type, const region *pointee)
   return sval;
 }
 
+/* Subroutine of region_model_manager::maybe_fold_unaryop
+   when the arg is a binop_svalue.
+   Invert comparisons e.g. "!(x == y)" => "x != y".
+   Otherwise, return nullptr.  */
+
+const svalue *
+region_model_manager::
+maybe_invert_comparison_in_unaryop (tree result_type,
+				    const binop_svalue *binop)
+{
+  if (TREE_CODE_CLASS (binop->get_op ()) == tcc_comparison)
+    {
+      enum tree_code inv_op
+	= invert_tree_comparison (binop->get_op (),
+				  HONOR_NANS (binop->get_type ()));
+      if (inv_op != ERROR_MARK)
+	return get_or_create_cast
+	  (result_type,
+	   get_or_create_binop (binop->get_type (), inv_op,
+				binop->get_arg0 (),
+				binop->get_arg1 ()));
+    }
+  return nullptr;
+}
+
 /* Subroutine of region_model_manager::get_or_create_unaryop.
    Attempt to fold the inputs and return a simpler svalue *.
    Otherwise, return nullptr.  */
@@ -470,16 +495,9 @@ region_model_manager::maybe_fold_unaryop (tree type, enum tree_code op,
       {
 	/* Invert comparisons e.g. "!(x == y)" => "x != y".  */
 	if (const binop_svalue *binop = arg->dyn_cast_binop_svalue ())
-	  if (TREE_CODE_CLASS (binop->get_op ()) == tcc_comparison)
-	    {
-	      enum tree_code inv_op
-		= invert_tree_comparison (binop->get_op (),
-					  HONOR_NANS (binop->get_type ()));
-	      if (inv_op != ERROR_MARK)
-		return get_or_create_binop (binop->get_type (), inv_op,
-					    binop->get_arg0 (),
-					    binop->get_arg1 ());
-	    }
+	  if (const svalue *folded
+		= maybe_invert_comparison_in_unaryop (type, binop))
+	    return folded;
       }
       break;
     case NEGATE_EXPR:
@@ -491,6 +509,19 @@ region_model_manager::maybe_fold_unaryop (tree type, enum tree_code op,
 	      && type
 	      && INTEGRAL_TYPE_P (type))
 	    return unaryop->get_arg ();
+      }
+      break;
+    case BIT_NOT_EXPR:
+      {
+	/* Invert comparisons for e.g. "~(x == y)" => "x != y".  */
+	if (type
+	    && TREE_CODE (type) == BOOLEAN_TYPE
+	    && arg->get_type ()
+	    && TREE_CODE (arg->get_type ()) == BOOLEAN_TYPE)
+	  if (const binop_svalue *binop = arg->dyn_cast_binop_svalue ())
+	    if (const svalue *folded
+		= maybe_invert_comparison_in_unaryop (type, binop))
+	      return folded;
       }
       break;
     }
