@@ -54,7 +54,7 @@ public:
 
 private:
   void gate (Feature::Name name, location_t loc, const std::string &error_msg);
-  void check_no_core_attribute (const std::vector<AST::Attribute> &attributes);
+  void check_no_core_attribute (const AST::Attribute &attribute);
   void check_rustc_attri (const std::vector<AST::Attribute> &attributes);
   void
   check_may_dangle_attribute (const std::vector<AST::Attribute> &attributes);
