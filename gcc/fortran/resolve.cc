@@ -10447,6 +10447,23 @@ resolve_assoc_var (gfc_symbol* sym, bool resolve_target)
   gcc_assert (sym->assoc);
   gcc_assert (sym->attr.flavor == FL_VARIABLE);
 
+  if (sym->assoc->target
+      && sym->assoc->target->expr_type == EXPR_FUNCTION
+      && sym->assoc->target->symtree
+      && sym->assoc->target->symtree->n.sym
+      && sym->assoc->target->symtree->n.sym->attr.generic)
+    {
+      if (gfc_resolve_expr (sym->assoc->target))
+	sym->ts = sym->assoc->target->ts;
+      else
+	{
+	  gfc_error ("%s could not be resolved to a specific function at %L",
+		     sym->assoc->target->symtree->n.sym->name,
+		     &sym->assoc->target->where);
+	  return;
+	}
+    }
+
   /* If this is for SELECT TYPE, the target may not yet be set.  In that
      case, return.  Resolution will be called later manually again when
      this is done.  */
