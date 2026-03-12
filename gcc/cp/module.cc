@@ -21217,10 +21217,6 @@ module_state::read_initial (cpp_reader *reader)
   else if (!read_ordinary_maps (config.ordinary_locs, config.loc_range_bits))
     ok = false;
 
-  if (ok && have_locs && config.ordinary_locs
-      && !read_diagnostic_classification (global_dc))
-    ok = false;
-
   /* Allocate the REMAP vector.  */
   slurp->alloc_remap (config.num_imports);
 
@@ -21279,6 +21275,12 @@ module_state::read_initial (cpp_reader *reader)
   if (!(ok && have_locs && config.macro_locs))
     macro_locs.first = LINEMAPS_MACRO_LOWEST_LOCATION (line_table);
   else if (!read_macro_maps (config.macro_locs))
+    ok = false;
+
+  /* Diagnostic classification streaming needs to come after reading
+     macro maps to handle _Pragmas in macros.  */
+  if (ok && have_locs && config.ordinary_locs
+      && !read_diagnostic_classification (global_dc))
     ok = false;
 
   /* Note whether there's an active initializer.  */
