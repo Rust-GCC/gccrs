@@ -3637,7 +3637,9 @@ ipa_analyze_var_static_initializer (varpool_node *node)
 			    val)
     {
       if (TREE_CODE (val) != ADDR_EXPR
-	  || TREE_CODE (TREE_OPERAND (val, 0)) != FUNCTION_DECL)
+	  || TREE_CODE (TREE_OPERAND (val, 0)) != FUNCTION_DECL
+	  /* ObjC can produce constructor elements with NULL indices.  */
+	  || !index)
 	continue;
       HOST_WIDE_INT elt_offset = int_bit_position (index);
       if ((elt_offset % BITS_PER_UNIT) != 0)
