@@ -3799,6 +3799,14 @@ package body Sem_Res is
             then
                Accessibility_Error ("conversion");
 
+            elsif Ekind (Etype (Nam)) = E_Anonymous_Access_Type
+              and then Nkind (Parent (N)) = N_Assignment_Statement
+              and then Static_Accessibility_Level
+                         (Name (Parent (N)), Object_Decl_Level)
+                           < Static_Accessibility_Level (A, Object_Decl_Level)
+            then
+               Accessibility_Error ("assignment");
+
             elsif Nkind (Parent (N)) = N_Qualified_Expression
               and then Nkind (Parent (Parent (N))) = N_Allocator
               and then Type_Access_Level (Etype (Parent (Parent (N))))
@@ -3810,7 +3818,7 @@ package body Sem_Res is
               and then Comes_From_Source (N)
               and then Subprogram_Access_Level (Current_Subprogram)
                          < Static_Accessibility_Level
-                            (A, Object_Decl_Level, In_Return_Context => True)
+                             (A, Object_Decl_Level, In_Return_Context => True)
             then
                Accessibility_Error ("return");
             end if;
