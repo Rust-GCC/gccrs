@@ -1,3 +1,10 @@
+2026-03-11  Christopher Albert  <albert@tugraz.at>
+
+	PR fortran/95338
+	* trans-types.cc (gfc_get_entry_result_type): New helper to use the
+	ABI return type for mixed ENTRY union fields.
+	(gfc_get_mixed_entry_union): Use it for each entry result field.
+
 2026-03-09  Jonathan Wakely  <jwakely@redhat.com>
 
 	PR translation/124422

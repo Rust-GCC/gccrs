@@ -1,3 +1,111 @@
+2026-03-12  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/124397
+	* diagnostic.h (emitting_diagnostic_p): New.
+	* diagnostics/context.h (context::emitting_diagnostic_p): New.
+
+2026-03-11  Jakub Jelinek  <jakub@redhat.com>
+
+	PR target/124436
+	* genautomata.cc (output_dfa_insn_code_func): Use
+	MIN (INT_MAX, 2U * uid) instead of 2 * uid in dfa_insn_code_enlarge.
+
+2026-03-11  H.J. Lu  <hjl.tools@gmail.com>
+
+	PR target/124407
+	* config/i386/i386-features.cc (ix86_place_single_vector_set):
+	Handle non-int load with integer constant.
+	(ix86_broadcast_inner): Convert const0_rtx to non-int mode.
+
+2026-03-11  Richard Sandiford  <rdsandiford@googlemail.com>
+
+	PR middle-end/124435
+	* expr.cc (store_field_updates_msb_p): Use GET_MODE_BITSIZE
+	instead of GET_MODE_SIZE.  Handle the two endiannesses separately.
+
+2026-03-11  Jeff Law  <jeffrey.law@oss.qualcomm.com>
+
+	Revert:
+	2026-02-27  Jeff Law  <jeffrey.law@oss.qualcomm.com>
+
+	PR tree-optimization/90036
+	* tree-ssa-scopedtables.cc (avail_exprs_stack::record_cond): Always
+	record the new hash table entry.
+
+2026-03-11  Jeff Law  <jeffrey.law@oss.qualcomm.com>
+
+	Revert:
+	2026-02-28  Jeff Law  <jeffrey.law@oss.qualcomm.com>
+
+	PR tree-optimization/90036
+	* tree-ssa-dom.cc (back_propagate_equivalences): Accept new
+	argument for available expression stack.  Lookup equivalences
+	in the expression hash table too.  If an expression hash a
+	known constant value, record it and recurse.
+	(record_temporary_equivalences): Back propagate for a subset of
+	edge equivalences.
+
+2026-03-11  Richard Earnshaw  <rearnsha@arm.com>
+
+	PR target/123271
+	* config/arm/arm.md (subvsi3_intmin): Renamed to ...
+	(sub_cmpVsi3_intmin): ... this.
+	(subvsi3): Renamed to ...
+	(sub_cmpVsi3): ... this.
+	(subvsi3_imm1): Renamed to ...
+	(sub_cmpVsi3_imm1): ... this.
+	(usubvsi3_borrow): Renamed to ...
+	(usub_cmpVsi3_borrow): ... this.
+	(usubvsi3_borrow_imm): Renamed to ...
+	(usub_cmpVsi3_borrow_imm): ... this.
+	(subvsi3_borrow): Renamed to ...
+	(sub_cmpVsi3_borrow): ... this.
+	(subvsi3_borrow_imm): Renamed to ...
+	(sub_cmpVsi3_borrow_imm): ... this.
+
+2026-03-11  Arsen Arsenović  <aarsenovic@baylibre.com>
+
+	* config/gcn/gcn.cc (gcn_addr_space_convert): Use
+	SHARED_BASE_REG to find flat address space base of LDS.
+
+2026-03-11  Arsen Arsenović  <aarsenovic@baylibre.com>
+
+	PR target/124044
+	* config/gcn/gcn.cc (gcn_addr_space_resolve_default): New
+	function.  Converts from ADDR_SPACE_DEFAULT to
+	DEFAULT_ADDR_SPACE.
+	(gcn_addr_space_convert): Resolve from_type and to_type address
+	spaces.
+
+2026-03-11  Arsen Arsenović  <aarsenovic@baylibre.com>
+
+	* config/gcn/gcn.cc (gcn_regno_reg_class): Handle
+	MEMORY_APERTURE_REGS.
+	(gcn_hard_regno_rename_ok): Return false for memory aperture
+	regs.
+	(gcn_memory_move_cost): Handle memory aperture regs the same as
+	general registers.
+	(gcn_hard_regno_nregs): Handle MEMORY_APERTURE_REGS.
+	* config/gcn/gcn.h (SHARED_BASE_REG): Define.
+	(SHARED_LIMT_REG): Ditto.
+	(PRIVATE_BASE_REG): Ditto.
+	(PRIVATE_LIMT_REG): Ditto.
+	(MEMORY_APERTURE_REG_P): New macro.  Evaluates to non-zero if
+	parameter is one of the above registers.
+	(SSRC_REGNO_P): Also evaluate to non-zero for aperture regs, as
+	they can be sources to scalar instructions.
+	(enum reg_class): New class: MEMORY_APERTURE_REGS.
+	(REG_CLASS_NAMES): Provide name for that class.
+	(MEMORY_APERTURE_REGS_MASK): New helper macro.  Value of
+	NAMED_REG_MASK2 for each of the memory aperture regs.
+	(REG_CLASS_CONTENTS): Add the above registers to
+	MEMORY_APERTURE_REGS, SGPR_VOP_SRC_REGS, and SGPR_SRC_REGS.
+
+2026-03-11  Philipp Tomsich  <philipp.tomsich@vrull.eu>
+
+	* fold-mem-offsets.cc (do_check_validity): fix wrong mode
+	and rename arguments to avoid future confusion
+
 2026-03-10  Yangyu Chen  <cyy@cyyself.name>
 
 	* config/riscv/riscv.cc (riscv_check_target_clone_version):

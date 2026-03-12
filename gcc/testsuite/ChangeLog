@@ -1,3 +1,101 @@
+2026-03-12  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/124397
+	* g++.dg/cpp2a/lambda-uneval30.C: New test.
+
+2026-03-11  Christopher Albert  <albert@tugraz.at>
+
+	PR fortran/95338
+	* gfortran.dg/pr95338.f90: New test.
+
+2026-03-11  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/120285
+	* g++.dg/cpp1z/decomp68.C: New test.
+
+2026-03-11  Saurabh Jha  <saurabh.jha@arm.com>
+
+	* gcc.target/aarch64/mingw/variadic_hva.c: Deleted and created
+	three variants.
+	* gcc.target/aarch64/mingw/variadic_hva1.c: Derived from
+	variadic_hva.c and compiled with option -fno-section-anchors.
+	* gcc.target/aarch64/mingw/variadic_hva2.c: Derived from
+	variadic_hva.c and compiled with option -mcmodel=tiny.
+	* gcc.target/aarch64/mingw/variadic_hva3.c: Derived from
+	variadic_hva.c and compiled with option -mcmodel=small.
+
+2026-03-11  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/124331
+	* g++.dg/reflect/expr13.C: Uncomment the commented out assert.
+	* g++.dg/reflect/serialize2.C: Replace #if 0 with #ifdef.
+	* g++.dg/reflect/compare11.C: New test.
+	* g++.dg/reflect/member21.C: New test.
+	* g++.dg/reflect/serialize3.C: New test.
+
+2026-03-11  H.J. Lu  <hjl.tools@gmail.com>
+
+	PR target/124407
+	* gcc.target/i386/pr124407-1.c: New test.
+	* gcc.target/i386/pr124407-2.c: Likewise.
+
+2026-03-11  Richard Sandiford  <rdsandiford@googlemail.com>
+
+	PR middle-end/124435
+	* gcc.dg/torture/pr124435.c: New test.
+
+2026-03-11  Jeff Law  <jeffrey.law@oss.qualcomm.com>
+
+	Revert:
+	2026-03-11  Jeff Law  <jeffrey.law@oss.qualcomm.com>
+
+	PR tree-optimization/90036
+	* gcc.dg/tree-ssa/pr90036.c: New test.
+	* gfortran.dg/unconstrained_commons.f: Drop useless DOM hash table
+	lookup check.
+
+2026-03-11  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/124389
+	PR c++/122494
+	* g++.dg/cpp0x/static_assert18.C: New test.
+
+2026-03-11  Richard Earnshaw  <rearnsha@arm.com>
+
+	PR target/123271
+	* gcc.target/arm/pr123271.c: New test.
+
+2026-03-11  Arsen Arsenović  <aarsenovic@baylibre.com>
+
+	* gcc.target/gcn/addr-space-convert-1.c: New test.
+	* gcc.target/gcn/addr-space-convert-2.c: New test.
+
+2026-03-11  Arsen Arsenović  <aarsenovic@baylibre.com>
+
+	* gcc.target/gcn/pr124044.c: New test.
+
+2026-03-11  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/124118
+	* g++.dg/reflect/eh8.C (bar, c): Move second part of tests to ...
+	* g++.dg/reflect/eh10.C: ... here, new test.  Add dg-skip-if for
+	solaris.
+
+2026-03-11  Jakub Jelinek  <jakub@redhat.com>
+
+	* g++.dg/reflect/eh8.C: Expect different diagnostics.
+	* g++.dg/reflect/no-exceptions2.C: New test.
+
+2026-03-11  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/124417
+	* g++.dg/reflect/no-exceptions1.C: New test.
+
+2026-03-11  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/124404
+	* g++.dg/ext/constexpr-diag7.C: New test.
+
 2026-03-10  Jakub Jelinek  <jakub@redhat.com>
 
 	PR c++/124399

@@ -1,3 +1,11 @@
+2026-03-11  Jakub Jelinek  <jakub@redhat.com>
+
+	* include/std/meta (std::meta::exception::what()): Use
+	__builtin_constexpr_diag instead of __asm__("") if supported.
+	(std::meta::access_context::via(info)): Don't call is_class_type
+	if __cls is not a type.  Use __builtin_constexpr_diag instead of
+	__asm__("") if supported for -fno-exceptions.
+
 2026-03-10  Jonathan Wakely  <jwakely@redhat.com>
 
 	* include/std/chrono (hh_mm_ss): Add comment about LWG 4274.
