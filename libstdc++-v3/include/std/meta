@@ -657,8 +657,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	  return std::addressof(meta::extract<const _Up&>(__cst));
 	}
       else
-	return std::define_static_array(span<const _Up>(std::addressof(__t),
-							1)).data();
+	return std::define_static_array(span(std::addressof(__t), 1)).data();
     }
 
 _GLIBCXX_END_NAMESPACE_VERSION
