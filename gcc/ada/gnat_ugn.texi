@@ -16826,9 +16826,9 @@ char **gnat_argv;
 
 are declared in one of the GNAT library routines. These variables must
 be set from the actual @code{argc} and @code{argv} values passed to the
-main program. With no `n' present, @code{gnatbind}
+main program. With no @code{-n} present, @code{gnatbind}
 generates the C main program to automatically set these variables.
-If the `n' switch is used, there is no automatic way to
+If the @code{-n} switch is used, there is no automatic way to
 set these variables. If they are not set, the procedures in
 @code{Ada.Command_Line} will not be available, and any attempt to use
 them will raise @code{Constraint_Error}. If command line access is
@@ -30275,8 +30275,8 @@ to permit their use in free software.
 
 @printindex ge
 
-@anchor{gnat_ugn/gnat_utility_programs switches-related-to-project-files}@w{                              }
 @anchor{d2}@w{                              }
+@anchor{gnat_ugn/gnat_utility_programs switches-related-to-project-files}@w{                              }
 
 @c %**end of body
 @bye

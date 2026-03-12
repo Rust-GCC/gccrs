@@ -7345,9 +7345,9 @@ correctly, the two variables
 
 are declared in one of the GNAT library routines. These variables must
 be set from the actual ``argc`` and ``argv`` values passed to the
-main program. With no *n* present, ``gnatbind``
+main program. With no :switch:`-n` present, ``gnatbind``
 generates the C main program to automatically set these variables.
-If the *n* switch is used, there is no automatic way to
+If the :switch:`-n` switch is used, there is no automatic way to
 set these variables. If they are not set, the procedures in
 ``Ada.Command_Line`` will not be available, and any attempt to use
 them will raise ``Constraint_Error``. If command line access is
