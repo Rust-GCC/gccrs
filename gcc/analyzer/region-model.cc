@@ -5806,7 +5806,12 @@ region_model::add_constraint (tree lhs, enum tree_code op, tree rhs,
 {
   bool sat = add_constraint (lhs, op, rhs, ctxt);
   if (!sat && out)
-    *out = std::make_unique <rejected_op_constraint> (*this, lhs, op, rhs);
+    {
+      const svalue *lhs_sval = get_rvalue (lhs, nullptr);
+      const svalue *rhs_sval = get_rvalue (rhs, nullptr);
+      *out = std::make_unique <rejected_op_constraint> (*this,
+							lhs_sval, op, rhs_sval);
+    }
   return sat;
 }
 
@@ -7623,11 +7628,9 @@ void
 rejected_op_constraint::dump_to_pp (pretty_printer *pp) const
 {
   region_model m (m_model);
-  const svalue *lhs_sval = m.get_rvalue (m_lhs, nullptr);
-  const svalue *rhs_sval = m.get_rvalue (m_rhs, nullptr);
-  lhs_sval->dump_to_pp (pp, true);
+  m_lhs->dump_to_pp (pp, true);
   pp_printf (pp, " %s ", op_symbol_code (m_op));
-  rhs_sval->dump_to_pp (pp, true);
+  m_rhs->dump_to_pp (pp, true);
 }
 
 /* class rejected_default_case : public rejected_constraint.  */
