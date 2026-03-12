@@ -601,9 +601,45 @@ package body Errout is
       Sindex : Source_File_Index;
       --  Source index for flag location
 
+      Posting_Error_Loc : Source_Ptr;
+      --  Location of outer level instantiation in instantiation case, or
+      --  just a copy of Flag_Location in the normal case. This is the
+      --  location where all error messages will actually be posted.
+
+      Treat_As_Continuation_Msg : Boolean;
+      --  Used to label continuation lines in instantiation case with
+      --  proper Msg_Cont status.
+
       Orig_Loc : Source_Ptr;
       --  Original location of Flag_Location (i.e. location in original
       --  template in instantiation case, otherwise unchanged).
+
+      Save_Error_Msg_Sloc : Source_Ptr;
+
+      function Instantiation_Msg (X : Source_File_Index) return String;
+      --  Text used in an instantiation messages based on the error kind and
+      --  type of inlining or instantiation that was used in this location.
+
+      -----------------------
+      -- Instantiation_Msg --
+      -----------------------
+
+      function Instantiation_Msg (X : Source_File_Index) return String
+      is (if Inlined_Body (X)
+          then
+            (case Error_Msg_Kind is
+               when Info    => "info: in inlined body #",
+               when Warning => Warn_Insertion & "in inlined body #",
+               when Style   => "style: in inlined body #",
+               when others  => "error in inlined body #")
+          else
+            (case Error_Msg_Kind is
+               when Info    => "info: in instantiation #",
+               when Warning => Warn_Insertion & "in instantiation #",
+               when Style   => "style: in instantiation #",
+               when others  => "instantiation error #"));
+
+      --  Start of processing for Error_Msg
 
    begin
       --  Return if all errors are to be ignored
@@ -619,9 +655,7 @@ package body Errout is
       --  location is No_Location and we don't have any messages so far, but
       --  that is a real bug and a legitimate bomb, so we go ahead.
 
-      if Flag_Location = No_Location
-        and then Total_Errors_Detected > 0
-      then
+      if Flag_Location = No_Location and then Total_Errors_Detected > 0 then
          return;
       end if;
 
@@ -776,137 +810,52 @@ package body Errout is
       --  OK, here we have an instantiation error, and we need to generate the
       --  error on the instantiation, rather than on the template.
 
-      declare
-         Actual_Error_Loc : Source_Ptr;
-         --  Location of outer level instantiation in instantiation case, or
-         --  just a copy of Flag_Location in the normal case. This is the
-         --  location where all error messages will actually be posted.
+      Posting_Error_Loc := Top_Level_Location (Flag_Location);
 
-         Save_Error_Msg_Sloc : constant Source_Ptr := Error_Msg_Sloc;
-         --  Save possible location set for caller's message. We need to use
-         --  Error_Msg_Sloc for the location of the instantiation error but we
-         --  have to preserve a possible original value.
+      Save_Error_Msg_Sloc := Error_Msg_Sloc;
 
-         X : Source_File_Index;
+      --  Since we are generating the messages at the instantiation point in
+      --  any case, we do not want the references to the bad lines in the
+      --  instance to be annotated with the location of the instantiation.
 
-         Msg_Cont_Status : Boolean;
-         --  Used to label continuation lines in instantiation case with
-         --  proper Msg_Cont status.
+      Suppress_Instance_Location := True;
+      Treat_As_Continuation_Msg := False;
 
-      begin
-         --  Loop to find highest level instantiation, where all error
-         --  messages will be placed.
+      --  Loop to generate instantiation messages
 
-         X := Sindex;
-         loop
-            Actual_Error_Loc := Instantiation (X);
-            X := Get_Source_File_Index (Actual_Error_Loc);
-            exit when Instantiation (X) = No_Location;
-         end loop;
+      Error_Msg_Sloc := Flag_Location;
+      Sindex := Get_Source_File_Index (Flag_Location);
+      while Instantiation (Sindex) /= No_Location loop
 
-         --  Since we are generating the messages at the instantiation point in
-         --  any case, we do not want the references to the bad lines in the
-         --  instance to be annotated with the location of the instantiation.
+         --  Suppress instantiation message on continuation lines
 
-         Suppress_Instance_Location := True;
-         Msg_Cont_Status := False;
+         if Msg (Msg'First) /= '\' then
+            Error_Msg_Internal
+              (Msg      => Instantiation_Msg (Sindex),
+               Span     => To_Span (Posting_Error_Loc),
+               Opan     => Flag_Span,
+               Msg_Cont => Treat_As_Continuation_Msg);
+         end if;
 
-         --  Loop to generate instantiation messages
+         Error_Msg_Sloc := Instantiation (Sindex);
+         Sindex := Get_Source_File_Index (Error_Msg_Sloc);
+         Treat_As_Continuation_Msg := True;
+      end loop;
 
-         Error_Msg_Sloc := Flag_Location;
-         X := Get_Source_File_Index (Flag_Location);
-         while Instantiation (X) /= No_Location loop
+      Suppress_Instance_Location := False;
+      Error_Msg_Sloc := Save_Error_Msg_Sloc;
 
-            --  Suppress instantiation message on continuation lines
+      --  Here we output the original message on the outer instantiation
 
-            if Msg (Msg'First) /= '\' then
-
-               --  Case of inlined body
-
-               if Inlined_Body (X) then
-                  if Error_Msg_Kind = Info then
-                     Error_Msg_Internal
-                       (Msg      => "info: in inlined body #",
-                        Span     => To_Span (Actual_Error_Loc),
-                        Opan     => Flag_Span,
-                        Msg_Cont => Msg_Cont_Status);
-
-                  elsif Error_Msg_Kind = Warning then
-                     Error_Msg_Internal
-                       (Msg      => Warn_Insertion & "in inlined body #",
-                        Span     => To_Span (Actual_Error_Loc),
-                        Opan     => Flag_Span,
-                        Msg_Cont => Msg_Cont_Status);
-
-                  elsif Error_Msg_Kind = Style then
-                     Error_Msg_Internal
-                       (Msg      => "style: in inlined body #",
-                        Span     => To_Span (Actual_Error_Loc),
-                        Opan     => Flag_Span,
-                        Msg_Cont => Msg_Cont_Status);
-
-                  else
-                     Error_Msg_Internal
-                       (Msg      => "error in inlined body #",
-                        Span     => To_Span (Actual_Error_Loc),
-                        Opan     => Flag_Span,
-                        Msg_Cont => Msg_Cont_Status);
-                  end if;
-
-               --  Case of generic instantiation
-
-               else
-                  if Error_Msg_Kind = Info then
-                     Error_Msg_Internal
-                       (Msg      => "info: in instantiation #",
-                        Span     => To_Span (Actual_Error_Loc),
-                        Opan     => Flag_Span,
-                        Msg_Cont => Msg_Cont_Status);
-
-                  elsif Error_Msg_Kind = Warning then
-                     Error_Msg_Internal
-                       (Msg      => Warn_Insertion & "in instantiation #",
-                        Span     => To_Span (Actual_Error_Loc),
-                        Opan     => Flag_Span,
-                        Msg_Cont => Msg_Cont_Status);
-
-                  elsif Error_Msg_Kind = Style then
-                     Error_Msg_Internal
-                       (Msg      => "style: in instantiation #",
-                        Span     => To_Span (Actual_Error_Loc),
-                        Opan     => Flag_Span,
-                        Msg_Cont => Msg_Cont_Status);
-
-                  else
-                     Error_Msg_Internal
-                       (Msg      => "instantiation error #",
-                        Span     => To_Span (Actual_Error_Loc),
-                        Opan     => Flag_Span,
-                        Msg_Cont => Msg_Cont_Status);
-                  end if;
-               end if;
-            end if;
-
-            Error_Msg_Sloc := Instantiation (X);
-            X := Get_Source_File_Index (Error_Msg_Sloc);
-            Msg_Cont_Status := True;
-         end loop;
-
-         Suppress_Instance_Location := False;
-         Error_Msg_Sloc := Save_Error_Msg_Sloc;
-
-         --  Here we output the original message on the outer instantiation
-
-         Error_Msg_Internal
-           (Msg        => Msg,
-            Span       => To_Span (Actual_Error_Loc),
-            Opan       => Flag_Span,
-            Msg_Cont   => Msg_Cont_Status,
-            Error_Code => Error_Code,
-            Label      => Label,
-            Spans      => Spans,
-            Fixes      => Fixes);
-      end;
+      Error_Msg_Internal
+        (Msg        => Msg,
+         Span       => To_Span (Posting_Error_Loc),
+         Opan       => Flag_Span,
+         Msg_Cont   => Treat_As_Continuation_Msg,
+         Error_Code => Error_Code,
+         Label      => Label,
+         Spans      => Spans,
+         Fixes      => Fixes);
    end Error_Msg;
 
    ----------------------------------
