@@ -60,11 +60,19 @@ package Treepr is
    --  Prints the subtree consisting of the given element list and all its
    --  referenced descendants.
 
-   procedure Print_Entity_Chain (From : Entity_Id; Rev : Boolean := False);
-   --  Prints the entity chain From is on, starting from From. In other words,
-   --  prints From and then recursively follow the Next_Entity field. If Rev is
-   --  True, prints the chain backwards, i.e. follow the Last_Entity field
-   --  instead of Next_Entity.
+   procedure Print_Entity_Chain (
+     From : Entity_Id;
+     Rev : Boolean := False;
+     Only_Header : Boolean := False);
+   --  Prints the entity chain from From. In other words, prints From and then
+   --  recursively follow the Next_Entity field. If Rev is True, prints the
+   --  chain backwards, i.e. follow the Prev_Entity field instead of
+   --  Next_Entity. It also prints an extra line in case the
+   --  Next_Entity/Prev_Entity links are inconsistent. i.e.
+   --     Prev_Entity (Next_Entity (E)) /= E.
+   --
+   --  If Only_Header is True, only prints one line for each node instead of
+   --  printing the node and all its fields.
 
    --  The following debugging procedures are intended to be called from gdb.
    --  Note that in several cases there are synonyms which represent historical
@@ -113,8 +121,19 @@ package Treepr is
    pragma Export (Ada, pec);
    --  Print From and the entities that follow it on its entity chain
 
+   procedure pech (From : Entity_Id);
+   pragma Export (Ada, pech);
+   --  Print node header for From and the entities that follow it on its entity
+   --  chain.
+
    procedure rpec (From : Entity_Id);
    pragma Export (Ada, rpec);
    --  Like pec, but walk the entity chain backwards. The 'r' stands for
    --  "reverse".
+
+   procedure rpech (From : Entity_Id);
+   pragma Export (Ada, rpech);
+   --  Like pech, but walk the entity chain backwards. The 'r' stands for
+   --  "reverse".
+
 end Treepr;
