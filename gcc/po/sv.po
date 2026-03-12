@@ -32,7 +32,7 @@ msgstr ""
 "Project-Id-Version: gcc 16.1-b20260222\n"
 "Report-Msgid-Bugs-To: https://gcc.gnu.org/bugs/\n"
 "POT-Creation-Date: 2026-02-19 21:05+0000\n"
-"PO-Revision-Date: 2026-03-11 22:25+0100\n"
+"PO-Revision-Date: 2026-03-12 22:58+0100\n"
 "Last-Translator: Göran Uddeborg <goeran@uddeborg.se>\n"
 "Language-Team: Swedish <tp-sv@listor.tp-sv.se>\n"
 "Language: sv\n"
@@ -48985,18 +48985,16 @@ msgid "ISO C90 does not support %<long long%>"
 msgstr "ISO C90 stödjer inte %<long long%>"
 
 #: c/c-decl.cc:12229 c/c-decl.cc:12293 c/c-decl.cc:12518 c/c-decl.cc:12674
-#, fuzzy, gcc-internal-format
-#| msgid "two or more data types in declaration specifiers"
+#, gcc-internal-format
 msgid "both %qs and %<__int%d%> in declaration specifiers"
-msgstr "två eller fler datatyper i deklaration av specificerare"
+msgstr ""
 
 #: c/c-decl.cc:12249 c/c-decl.cc:12317 c/c-decl.cc:12373 c/c-decl.cc:12429
 #: c/c-decl.cc:12554 c/c-decl.cc:12855 c/c-decl.cc:12863 c/c-decl.cc:12871
 #: c/c-decl.cc:12879 c/c-decl.cc:12887
-#, fuzzy, gcc-internal-format
-#| msgid "multiple storage classes in declaration specifiers"
+#, gcc-internal-format
 msgid "both %qs and %<_Float%d%s%> in declaration specifiers"
-msgstr "flera lagringsklasser i deklarationsspecificerare"
+msgstr ""
 
 #: c/c-decl.cc:12461 c/c-parser.cc:12885
 #, gcc-internal-format
@@ -49029,10 +49027,9 @@ msgid "ISO C does not support %<__int%d%> types"
 msgstr "ISO C stödjer inte typen %<__int%d%>"
 
 #: c/c-decl.cc:12670 c/c-decl.cc:12678
-#, fuzzy, gcc-internal-format
-#| msgid "two or more data types in declaration specifiers"
+#, gcc-internal-format
 msgid "both %<__int%d%> and %qs in declaration specifiers"
-msgstr "två eller fler datatyper i deklaration av specificerare"
+msgstr "både %<__int%d%> och %qs i deklarationsspecificerare"
 
 #: c/c-decl.cc:12684
 #, gcc-internal-format
@@ -49338,10 +49335,9 @@ msgid "%qs without corresponding %qs"
 msgstr "%qs utan motsvarande %qs"
 
 #: c/c-parser.cc:2122 cp/semantics.cc:4068
-#, fuzzy, gcc-internal-format
-#| msgid "%<#pragma omp end declare target%> without corresponding %<#pragma omp declare target%> or %<#pragma omp begin declare target%>"
+#, gcc-internal-format
 msgid "%<omp begin declare variant%> without corresponding %<omp end declare variant%>"
-msgstr "%<#pragma omp end declare target%> utan en motsvarande %<#pragma omp declare target%> eller %<#pragma omp begin declare target%>"
+msgstr ""
 
 #: c/c-parser.cc:2226 c/c-parser.cc:14906
 #, gcc-internal-format
@@ -49502,16 +49498,14 @@ msgid "ISO C forbids nested functions"
 msgstr "ISO C förbjuder nästade funktioner"
 
 #: c/c-parser.cc:3366
-#, fuzzy, gcc-internal-format
-#| msgid "%<__RTL%> function cannot be compiled with %<-flto%>"
+#, gcc-internal-format
 msgid "%<__RTL%> function cannot be a nested function"
-msgstr "en %<__RTL%>-funktion kan inte kompileras med %<-flto%>"
+msgstr "en %<__RTL%>-funktion kan inte vara en nästad funktion"
 
 #: c/c-parser.cc:3368
-#, fuzzy, gcc-internal-format
-#| msgid "%<__RTL%> function cannot be compiled with %<-flto%>"
+#, gcc-internal-format
 msgid "%<__GIMPLE%> function cannot be a nested function"
-msgstr "en %<__RTL%>-funktion kan inte kompileras med %<-flto%>"
+msgstr "en %<__RTL%>-funktion kan inte vara en nästad funktion"
 
 #: c/c-parser.cc:3530 c/c-parser.cc:9828 c/c-parser.cc:16365
 #: c/c-parser.cc:21723 cp/parser.cc:46080
@@ -50017,34 +50011,29 @@ msgid "traditional C rejects the unary plus operator"
 msgstr "traditionell C tillåter inte operatorn unärt plus"
 
 #: c/c-parser.cc:10824
-#, fuzzy, gcc-internal-format
-#| msgid "ISO C does not support if declarations before C2Y"
+#, gcc-internal-format
 msgid "ISO C does not support static assertions in expressions before C2Y"
-msgstr "ISO C stödjer inte if-deklarationer före C2Y"
+msgstr "ISO C stödjer inte statiska försäkringar i uttryck före C2Y"
 
 #: c/c-parser.cc:10857
-#, fuzzy, gcc-internal-format
-#| msgid "ISO C does not support %qs before C23"
+#, gcc-internal-format
 msgid "ISO C does not support %qs before C2Y"
-msgstr "ISO C stödjer inte %qs före C23"
+msgstr "ISO C stödjer inte %qs före C2Y"
 
 #: c/c-parser.cc:10897
-#, fuzzy, gcc-internal-format
-#| msgid "storage class specifier in %qE"
+#, gcc-internal-format
 msgid "storage class specifier in %qs"
-msgstr "lagringsklasspecificerare i %qE"
+msgstr "lagringsklasspecificerare i %qs"
 
 #: c/c-parser.cc:10900 c/c-parser.cc:11086
-#, fuzzy, gcc-internal-format
-#| msgid "alignment specified for type name in %qE"
+#, gcc-internal-format
 msgid "alignment specified for type name in %qs"
-msgstr "minnesjustering angiven för typnamn i %qE"
+msgstr "minnesjustering angiven för typnamn i %qs"
 
 #: c/c-parser.cc:10927
-#, fuzzy, gcc-internal-format
-#| msgid "%<sizeof%> applied to a bit-field"
+#, gcc-internal-format
 msgid "%qs applied to a bit-field"
-msgstr "%<sizeof%> applicerat på ett bitfält"
+msgstr "%qs applicerat på ett bitfält"
 
 #: c/c-parser.cc:11003
 #, gcc-internal-format
@@ -50062,16 +50051,14 @@ msgid "ISO C does not allow %<%E (expression)%>"
 msgstr "ISO C tillåter inte %<%E (uttryck)%>"
 
 #: c/c-parser.cc:11058
-#, fuzzy, gcc-internal-format
-#| msgid "ISO C99 does not support %qE"
+#, gcc-internal-format
 msgid "ISO C does not support %qs"
-msgstr "ISO C99 stödjer inte %qE"
+msgstr "ISO C stödjer inte %qs"
 
 #: c/c-parser.cc:11071
-#, fuzzy, gcc-internal-format
-#| msgid "invalid application of %qs to a void type"
+#, gcc-internal-format
 msgid "invalid application of %qs to something not a type"
-msgstr "ogiltig användning av %qs på en void-typ"
+msgstr "ogiltig användning av %qs på något som inte är en typ"
 
 #: c/c-parser.cc:11244
 #, gcc-internal-format
@@ -50104,10 +50091,9 @@ msgid "ISO C does not support %<_Generic%> association with incomplete type befo
 msgstr "ISO C stödjer inte %<_Generic%>-associationer med ofullständig typ före C2Y"
 
 #: c/c-parser.cc:11455
-#, fuzzy, gcc-internal-format
-#| msgid "ISO C does not support %<_Generic%> association with incomplete type before C2Y"
+#, gcc-internal-format
 msgid "ISO C does not support %<_Generic%> association with variably-modified type before C2Y"
-msgstr "ISO C stödjer inte %<_Generic%>-associationer med ofullständig typ före C2Y"
+msgstr "ISO C stödjer inte %<_Generic%>-associationer med variabelmodifierad typ före C2Y"
 
 #: c/c-parser.cc:11497
 #, gcc-internal-format
@@ -50332,16 +50318,14 @@ msgid "wrong number of arguments to %<__builtin_counted_by_ref%>"
 msgstr "fel antal argument till %<__builtin_counted_by_ref%>"
 
 #: c/c-parser.cc:12923
-#, fuzzy, gcc-internal-format
-#| msgid "the argument to %<__builtin_counted_by_ref%> must be an array"
+#, gcc-internal-format
 msgid "the argument to %<__builtin_counted_by_ref%> must be an array or pointer"
-msgstr "argumentet till %<__builtin_counted_by_ref%> måste vara en vektor"
+msgstr "argumentet till %<__builtin_counted_by_ref%> måste vara en vektor eller pekare"
 
 #: c/c-parser.cc:12931
-#, fuzzy, gcc-internal-format
-#| msgid "the argument to %<__builtin_counted_by_ref%> must be an array"
+#, gcc-internal-format
 msgid "the argument to %<__builtin_counted_by_ref%> must be a field of a structure"
-msgstr "argumentet till %<__builtin_counted_by_ref%> måste vara en vektor"
+msgstr "argumentet till %<__builtin_counted_by_ref%> måste vara ett fält i en post"
 
 #: c/c-parser.cc:12982 c/c-parser.cc:13011 cp/parser.cc:8701
 #, gcc-internal-format
@@ -50574,10 +50558,9 @@ msgid "%<#pragma GCC unroll%> requires an assignment-expression that evaluates t
 msgstr "%<#pragma GCC unroll%> kräver ett tilldelningsuttryck som beräknas till en icke-negativ heltalskonstant mindre än %u"
 
 #: c/c-parser.cc:16006 cp/parser.cc:56966
-#, fuzzy, gcc-internal-format
-#| msgid "intervening code must not contain OpenMP directives"
+#, gcc-internal-format
 msgid "intervening code must not contain executable OpenMP directives"
-msgstr "mellanliggande kod får inte innehålla OpemMP-direktiv"
+msgstr "mellanliggande kod får inte innehålla körbara OpemMP-direktiv"
 
 #: c/c-parser.cc:16026 c/c-parser.cc:26701 c/c-parser.cc:27010
 #: c/c-parser.cc:27073 c/c-parser.cc:27183 cp/parser.cc:51253
@@ -50881,10 +50864,9 @@ msgid "%<allocate%> clause %<align%> modifier argument needs to be positive cons
 msgstr "argumentet till modifieraren %<align%> av klausulen %<allocate%> måste vara ett positivt konstant heltalsuttryck som är en exponent av två"
 
 #: c/c-parser.cc:19726
-#, fuzzy, gcc-internal-format
-#| msgid "expected %<class%> or %<typename%>"
+#, gcc-internal-format
 msgid "expected %<traits%> or %<memspace%>"
-msgstr "%<class%> eller %<typename%> förväntades"
+msgstr "%<traits%> eller %<memspace%> förväntades"
 
 #: c/c-parser.cc:19791
 #, gcc-internal-format
@@ -50897,10 +50879,9 @@ msgid "the specification of arguments to %<uses_allocators%> where each item is 
 msgstr ""
 
 #: c/c-parser.cc:19817 cp/parser.cc:44118
-#, fuzzy, gcc-internal-format
-#| msgid "%<uses_allocators%> clause with traits and memory spaces"
+#, gcc-internal-format
 msgid "%<uses_allocators%> clause only accepts a single allocator when using modifiers"
-msgstr "klausulen %<uses_allocators%> med egenskaper och minnesutrymmen"
+msgstr ""
 
 #: c/c-parser.cc:19951 cp/parser.cc:44328
 #, gcc-internal-format
@@ -50958,28 +50939,24 @@ msgid "invalid doacross kind"
 msgstr "felaktig doacross-sort"
 
 #: c/c-parser.cc:20629 cp/parser.cc:45231
-#, fuzzy, gcc-internal-format
-#| msgid "expected %<cancel%> %<if%> clause modifier"
+#, gcc-internal-format
 msgid "expected %<fallback%> modifier"
-msgstr "%<cancel%> %<if%>-klausulmodifierare förväntades"
+msgstr ""
 
 #: c/c-parser.cc:20646 cp/parser.cc:45255
-#, fuzzy, gcc-internal-format
-#| msgid "expected %<read%>, %<write%>, %<update%>, or %<capture%> clause"
+#, gcc-internal-format
 msgid "expected %<abort%>, %<default_mem%>, or %<null%> as fallback mode"
-msgstr "%<read%>-, %<write%>-, %<update%>- eller %<capture%>-klausul förväntades"
+msgstr ""
 
 #: c/c-parser.cc:20675 cp/semantics.cc:8473
-#, fuzzy, gcc-internal-format
-#| msgid "%<priority%> value must be non-negative"
+#, gcc-internal-format
 msgid "%<dyn_groupprivate%> value must be non-negative"
-msgstr "%<priority%>-värdet måste vara positivt"
+msgstr "%<dyn_groupprivate%>-värdet måste vara positivt"
 
 #: c/c-parser.cc:20783 cp/parser.cc:45371
-#, fuzzy, gcc-internal-format
-#| msgid "illegal operand "
+#, gcc-internal-format
 msgid "illegal comma"
-msgstr "ogiltig operand "
+msgstr "ogiltigt komma"
 
 #: c/c-parser.cc:20793 cp/parser.cc:45381
 #, gcc-internal-format
@@ -50993,16 +50970,14 @@ msgstr "för många %<close%>-modifierare"
 
 #: c/c-parser.cc:20815 c/c-parser.cc:21307 cp/parser.cc:45155
 #: cp/parser.cc:45409
-#, fuzzy, gcc-internal-format
-#| msgid "too many %<present%> modifiers"
+#, gcc-internal-format
 msgid "too many %<iterator%> modifiers"
-msgstr "för många %<present%>-modifierare"
+msgstr "för många %<iterator%>-modifierare"
 
 #: c/c-parser.cc:20831 cp/parser.cc:45429
-#, fuzzy, gcc-internal-format
-#| msgid "too many %<present%> modifiers"
+#, gcc-internal-format
 msgid "too many %<mapper%> modifiers"
-msgstr "för många %<present%>-modifierare"
+msgstr "för många %<mapper%>-modifierare"
 
 #: c/c-parser.cc:20851 cp/parser.cc:45455
 #, gcc-internal-format
@@ -51011,10 +50986,9 @@ msgstr ""
 
 #: c/c-parser.cc:20867 c/c-parser.cc:29130 cp/parser.cc:45472
 #: cp/parser.cc:55511
-#, fuzzy, gcc-internal-format
-#| msgid "expected identifier or %<(%>"
+#, gcc-internal-format
 msgid "expected identifier or %<default%>"
-msgstr "identifierare eller %<(%> förväntades"
+msgstr "identifierare eller %<default%> förväntades"
 
 #: c/c-parser.cc:20885 c/c-parser.cc:21296 cp/parser.cc:45141
 #: cp/parser.cc:45494
@@ -51023,10 +50997,9 @@ msgid "too many %<present%> modifiers"
 msgstr "för många %<present%>-modifierare"
 
 #: c/c-parser.cc:20894 cp/parser.cc:45506
-#, fuzzy, gcc-internal-format
-#| msgid "%<map%> clause with map-type modifier other than %<always%>, %<close%> or %<present%>"
+#, gcc-internal-format
 msgid "%<map%> clause with map-type modifier other than %<always%>, %<close%>, %<iterator%>, %<mapper%> or %<present%>"
-msgstr "en klausul %<map%> med en annan avbildningstypsmodifierare än %<always%>, %<close%> eller %<present%>"
+msgstr "en klausul %<map%> med en annan avbildningstypsmodifierare än %<always%>, %<close%>, %<iterator%>, %<mapper%> eller %<present%>"
 
 #: c/c-parser.cc:20906 cp/parser.cc:45521
 #, gcc-internal-format
@@ -51074,10 +51047,9 @@ msgid "expected %<host%>, %<nohost%> or %<any%>"
 msgstr "%<host%>, %<nohost%> eller %<any%> förväntades"
 
 #: c/c-parser.cc:21317 cp/parser.cc:45170
-#, fuzzy, gcc-internal-format
-#| msgid "%<map%> clause with map-type modifier other than %<always%>, %<close%> or %<present%>"
+#, gcc-internal-format
 msgid "%qs clause with modifier other than %<iterator%> or %<present%>"
-msgstr "en klausul %<map%> med en annan avbildningstypsmodifierare än %<always%>, %<close%> eller %<present%>"
+msgstr "en klausul %qs med en annan modifierare än %<iterator%> eller %<present%>"
 
 #: c/c-parser.cc:21413 cp/semantics.cc:10088 cp/semantics.cc:10106
 #, gcc-internal-format
@@ -51723,10 +51695,9 @@ msgid "variant %qD is a built-in"
 msgstr "varianten %qD är en inbyggd"
 
 #: c/c-parser.cc:28011 cp/decl.cc:9226
-#, fuzzy, gcc-internal-format
-#| msgid "variant %qD is not a function"
+#, gcc-internal-format
 msgid "variant %qD is the same as base function"
-msgstr "varianten %qD är inte en funktion"
+msgstr "varianten %qD är samma som basfunktionen"
 
 #: c/c-parser.cc:28065 cp/parser.cc:53629
 #, gcc-internal-format
@@ -51769,10 +51740,9 @@ msgid "expected %<interop%>"
 msgstr "%<interop%> förväntades"
 
 #: c/c-parser.cc:28245 cp/parser.cc:53838
-#, fuzzy, gcc-internal-format
-#| msgid "expected %<catch%>"
+#, gcc-internal-format
 msgid "expected %<match%> clause"
-msgstr "%<catch%> förväntades"
+msgstr ""
 
 #: c/c-parser.cc:28261
 #, gcc-internal-format
@@ -51780,16 +51750,14 @@ msgid "an %qs clause can only be specified if the %<dispatch%> selector of the %
 msgstr "en %qs-klausul kan endast anges om %<dispatch%>-väljaren i %<construct%>-väljarmängden förekommer i %<match%>-klausulen"
 
 #: c/c-parser.cc:28288
-#, fuzzy, gcc-internal-format
-#| msgid "%<requires%> selector is not supported yet"
+#, gcc-internal-format
 msgid "%<append_args%> with unprototyped base function is not supported yet"
-msgstr "selektorn %<requires%> stödjs inte ännu"
+msgstr ""
 
 #: c/c-parser.cc:28291
-#, fuzzy, gcc-internal-format
-#| msgid "built-in %qD declared here"
+#, gcc-internal-format
 msgid "base function %qD declared here"
-msgstr "den inbyggda %qD är deklarerad här"
+msgstr "basfunktionen %qD är deklarerad här"
 
 #: c/c-parser.cc:28326 cp/decl.cc:9286
 #, gcc-internal-format
@@ -51802,10 +51770,9 @@ msgid "%<append_args%> specified here"
 msgstr "%<append_args%> angivet här"
 
 #: c/c-parser.cc:28373
-#, fuzzy, gcc-internal-format
-#| msgid "variant %qD and base %qD have incompatible types"
+#, gcc-internal-format
 msgid "variant %qD and base %qD have incompatible types after %<append_args%> adjustment"
-msgstr "varianten %qD och basen %qD har inkompatibla typer"
+msgstr "varianten %qD och basen %qD har inkompatibla typer efter justeringen %<append_args%>"
 
 #: c/c-parser.cc:28392 cp/decl.cc:9295
 #, gcc-internal-format
@@ -51823,22 +51790,19 @@ msgid "%<#pragma omp declare %s%> not immediately followed by a single function 
 msgstr "%<#pragma omp declare %s%> som inte omedelbart följs av en ensam funktionsdeklaration eller -definition"
 
 #: c/c-parser.cc:28471
-#, fuzzy, gcc-internal-format
-#| msgid "%<#pragma omp declare %s%> must be followed by function declaration or definition"
+#, gcc-internal-format
 msgid "%<#pragma omp declare %s%> cannot be used with function multi-versioning"
-msgstr "%<#pragma omp declare %s%> måste följas av en funktionsdeklaration eller -definition"
+msgstr "%<#pragma omp declare %s%> får inte användas med en multiversionering av funktioner"
 
 #: c/c-parser.cc:28563
-#, fuzzy, gcc-internal-format
-#| msgid "implicit declaration of function %qE"
+#, gcc-internal-format
 msgid "no declaration of base function %qs"
-msgstr "implicit deklaration av funktionen %qE"
+msgstr "ingen deklaration av basfunktionen %qs"
 
 #: c/c-parser.cc:28571 cp/parser.cc:25655
-#, fuzzy, gcc-internal-format
-#| msgid "function definition does not declare parameters"
+#, gcc-internal-format
 msgid "variant function definition does not match declaration of %qE"
-msgstr "funktionsdefinition deklarerar inte parametrar"
+msgstr "variantfunktionsdefinitionen matchar inte deklarationen av %qE"
 
 #: c/c-parser.cc:28729 cp/parser.cc:54284
 #, gcc-internal-format
@@ -51866,22 +51830,19 @@ msgid "%<device_type%> clause must specify 'any' when used with an %<indirect%> 
 msgstr "klausulen %<device_type%> måste ange ”any” när den används med en %<indirect%>-klausul"
 
 #: c/c-parser.cc:28897 cp/parser.cc:54392
-#, fuzzy, gcc-internal-format
-#| msgid "expected %<catch%>"
+#, gcc-internal-format
 msgid "expected %<match%>"
-msgstr "%<catch%> förväntades"
+msgstr "%<match%> förväntades"
 
 #: c/c-parser.cc:28950 c/c-parser.cc:29052 cp/parser.cc:54445
-#, fuzzy, gcc-internal-format
-#| msgid "expected %<none%> or %<present%>"
+#, gcc-internal-format
 msgid "expected %<target%> or %<variant%>"
-msgstr "%<none%> eller %<present%> förväntades"
+msgstr ""
 
 #: c/c-parser.cc:28964 cp/parser.cc:54458
-#, fuzzy, gcc-internal-format
-#| msgid "expected %<declare target%> or %<assumes%>"
+#, gcc-internal-format
 msgid "expected %<declare target%>, %<declare variant%>, or %<assumes%>"
-msgstr "%<declare target%> eller %<assumes%> förväntades"
+msgstr "%<declare target%>, %<declare variant%> eller %<assumes%> förväntades"
 
 #: c/c-parser.cc:28997 cp/parser.cc:54496
 #, gcc-internal-format
@@ -51901,22 +51862,19 @@ msgid "%qs in pragma syntax terminated with %qs in attribute syntax"
 msgstr "%qs i pragma-syntax som avslutas med %qs i attributsyntax"
 
 #: c/c-parser.cc:29029 cp/parser.cc:54528
-#, fuzzy, gcc-internal-format
-#| msgid "%<#pragma omp end declare target%> without corresponding %<#pragma omp declare target%> or %<#pragma omp begin declare target%>"
+#, gcc-internal-format
 msgid "%<#pragma omp end declare variant%> without corresponding %<#pragma omp begin declare variant%>"
-msgstr "%<#pragma omp end declare target%> utan en motsvarande %<#pragma omp declare target%> eller %<#pragma omp begin declare target%>"
+msgstr ""
 
 #: c/c-parser.cc:29039 cp/parser.cc:54538
-#, fuzzy, gcc-internal-format
-#| msgid "%qs in attribute syntax terminated with %qs in pragma syntax"
+#, gcc-internal-format
 msgid "%<begin declare variant%> in attribute syntax terminated with %<end declare variant%> in pragma syntax"
-msgstr "%qs i attributsyntax som avslutas med %qs i pragma-syntax"
+msgstr "%<begin declare variant%> i attributsyntax som avslutas med %<end declare variant%> i pragma-syntax"
 
 #: c/c-parser.cc:29044 cp/parser.cc:54543
-#, fuzzy, gcc-internal-format
-#| msgid "%qs in pragma syntax terminated with %qs in attribute syntax"
+#, gcc-internal-format
 msgid "%<begin declare variant%> in pragma syntax terminated with %<end declare variant%> in attribute syntax"
-msgstr "%qs i pragma-syntax som avslutas med %qs i attributsyntax"
+msgstr "%<begom decöare variant%> i pragma-syntax som avslutas med %<end declare variant%> i attributsyntax"
 
 #: c/c-parser.cc:29086 cp/parser.cc:54585
 #, gcc-internal-format
@@ -51924,40 +51882,34 @@ msgid "expected %<declare%> or %<assumes%>"
 msgstr "%<declare%> eller %<assumes%> förväntades"
 
 #: c/c-parser.cc:29104
-#, fuzzy, gcc-internal-format
-#| msgid "%<#pragma omp declare reduction%> not at file or block scope"
+#, gcc-internal-format
 msgid "%<#pragma omp declare mapper%> not at file or block scope"
-msgstr "%<#pragma omp declare reduction%> inte med fil- eller blockräckvidd"
+msgstr "%<#pragma omp declare mapper%> inte med fil- eller blockräckvidd"
 
 #: c/c-parser.cc:29150
-#, fuzzy, gcc-internal-format
-#| msgid "const, volatile or restrict qualified type in %<#pragma omp declare reduction%>"
+#, gcc-internal-format
 msgid "%qT is not a struct or union type in %<#pragma omp declare mapper%>"
-msgstr "const-, volatile- eller restrict-kvalificerad typ i %<#pragma omp declare reduction%>"
+msgstr ""
 
 #: c/c-parser.cc:29158
-#, fuzzy, gcc-internal-format
-#| msgid "redeclaration of %qs %<#pragma omp declare reduction%> for type %qT"
+#, gcc-internal-format
 msgid "redeclaration of %qs %<#pragma omp declare mapper%> for type %qT"
-msgstr "omdeklaration av %qs %<#pragma omp declare reduction%> för typen %qT"
+msgstr "omdeklaration av %qs %<#pragma omp declare mapper%> för typen %qT"
 
 #: c/c-parser.cc:29166
-#, fuzzy, gcc-internal-format
-#| msgid "%q#T was previously declared here"
+#, gcc-internal-format
 msgid "%<#pragma omp declare mapper%> previously declared here"
-msgstr "%q#T deklarerades tidigare här"
+msgstr "%<#pragma omp declare mapper%> deklarerades tidigare här"
 
 #: c/c-parser.cc:29202 cp/parser.cc:55580
-#, fuzzy, gcc-internal-format
-#| msgid "expected class-key"
+#, gcc-internal-format
 msgid "unexpected clause"
-msgstr "klassnyckel förväntades"
+msgstr ""
 
 #: c/c-parser.cc:29210 cp/parser.cc:55591
-#, fuzzy, gcc-internal-format
-#| msgid "missing %<PHI%> def"
+#, gcc-internal-format
 msgid "missing %<map%> clause"
-msgstr "%<PHI%>-definition saknas"
+msgstr ""
 
 #: c/c-parser.cc:29258
 #, gcc-internal-format
@@ -51990,10 +51942,9 @@ msgid "redeclaration of %qs %<#pragma omp declare reduction%> for type %qT"
 msgstr "omdeklaration av %qs %<#pragma omp declare reduction%> för typen %qT"
 
 #: c/c-parser.cc:29362
-#, fuzzy, gcc-internal-format
-#| msgid "previous %<pragma omp declare reduction%> declaration"
+#, gcc-internal-format
 msgid "%<#pragma omp declare reduction%> previously declared here"
-msgstr "tidigare %<pragma omp declare reduction%>-deklaration"
+msgstr "%<#pragma omp declare reduction%> tidigare deklarerat här"
 
 #: c/c-parser.cc:29483
 #, gcc-internal-format
@@ -52081,10 +52032,9 @@ msgid "%<#pragma omp error%> with %<at(execution)%> clause may only be used in c
 msgstr "%<#pragma omp error%> med %<at(execution)%>-klausul får bara användas i sammansatta satser"
 
 #: c/c-parser.cc:30192 cp/parser.cc:56036
-#, fuzzy, gcc-internal-format
-#| msgid "%<#pragma omp error%> with %<at(execution)%> clause may only be used in compound statements"
+#, gcc-internal-format
 msgid "%<#pragma omp error%> with %<at(execution)%> clause may not be used in intervening code"
-msgstr "%<#pragma omp error%> med %<at(execution)%>-klausul får bara användas i sammansatta satser"
+msgstr "%<#pragma omp error%> med %<at(execution)%>-klausul får inte användas i mellanliggande kod"
 
 #: c/c-parser.cc:30219 cp/parser.cc:56067
 #, gcc-internal-format
@@ -71207,8 +71157,8 @@ msgstr[1] "%qs är inte ett fält, utan en %qs"
 #, gcc-internal-format
 msgid "%qT has %u field"
 msgid_plural "%qT has %u fields"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "%qT har %u fält"
+msgstr[1] "%qT har %u fält"
 
 #: cp/typeck.cc:2183
 #, gcc-internal-format
