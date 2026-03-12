@@ -332,6 +332,12 @@ AC_SUBST(GENINSRC)
 # Find default linker
 # -------------------
 
+# With GNU ld
+AC_ARG_WITH(gnu-ld,
+[AS_HELP_STRING([--with-gnu-ld], [arrange to work with GNU ld])],
+gnu_ld_flag="$with_gnu_ld",
+gnu_ld_flag=no)
+
 case $target in
     *darwin*)
 	ld64_flag=yes # Darwin can only use a ld64-compatible linker.
@@ -404,6 +410,12 @@ fi
 # ----------------------
 # Find default assembler
 # ----------------------
+
+# With GNU as
+AC_ARG_WITH(gnu-as,
+[AS_HELP_STRING([--with-gnu-as], [arrange to work with GNU as])],
+gas_flag="$with_gnu_as",
+gas_flag=no)
 
 AC_ARG_WITH(as,
 [AS_HELP_STRING([--with-as], [arrange to use the specified as (full pathname)])],
@@ -2726,16 +2738,6 @@ else
         AC_PATH_PROG(gcc_cv_as, $AS_FOR_TARGET)
 fi])
 
-# With GNU as
-AC_ARG_WITH(gnu-as,
-[AS_HELP_STRING([--with-gnu-as], [arrange to work with GNU as])],
-gas_flag="$with_gnu_as",
-[if $gcc_cv_as --version 2>/dev/null | grep GNU > /dev/null; then
-   gas_flag=yes
- else
-   gas_flag=no
-fi])
-
 AC_MSG_CHECKING(Solaris assembler)
 case $target in
   *-*-solaris2*)
@@ -2761,6 +2763,15 @@ case "$ORIGINAL_AS_FOR_TARGET" in
   ./as | ./as$build_exeext) ;;
   *) AC_CONFIG_FILES(as:exec-tool.in, [chmod +x as]) ;;
 esac 
+
+# Check if we are using GNU as if not already set.
+if test -z "$gas_flag"; then
+  if $gcc_cv_as --version 2>/dev/null | grep GNU > /dev/null; then
+    gas_flag=yes
+  else
+    gas_flag=no
+  fi
+fi
 
 if $gcc_cv_as --help 2>&1 | grep -- --fatal-warnings > /dev/null; then
   fw_as_opt=--fatal-warnings
@@ -2828,16 +2839,6 @@ else
         AC_PATH_PROG(gcc_cv_ld, $LD_FOR_TARGET)
 fi])
 
-# With GNU ld
-AC_ARG_WITH(gnu-ld,
-[AS_HELP_STRING([--with-gnu-ld], [arrange to work with GNU ld])],
-gnu_ld_flag="$with_gnu_ld",
-[if $gcc_cv_ld --version 2>/dev/null | grep GNU > /dev/null; then
-   gnu_ld_flag=yes
- else
-   gnu_ld_flag=no
- fi])
-
 AC_MSG_CHECKING(Solaris linker)
 case $target in
   *-*-solaris2*)
@@ -2873,6 +2874,15 @@ AC_ARG_WITH(plugin-ld,
  fi])
 AC_SUBST(ORIGINAL_PLUGIN_LD_FOR_TARGET)
 AC_DEFINE_UNQUOTED(PLUGIN_LD_SUFFIX, "$PLUGIN_LD_SUFFIX", [Specify plugin linker])
+
+# Check if we are using GNU ld if not already set.
+if test -z "$gnu_ld_flag"; then
+  if $gcc_cv_ld --version 2>/dev/null | grep GNU > /dev/null; then
+    gnu_ld_flag=yes
+  else
+    gnu_ld_flag=no
+  fi
+fi
 
 case "$target:$gnu_ld_flag" in
   *-*-solaris2*:no)
