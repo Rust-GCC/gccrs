@@ -83,6 +83,7 @@ public:
     = "rustc_layout_scalar_valid_range_start";
 
   static constexpr auto &COMPILER_BUILTINS = "compiler_builtins";
+  static constexpr auto &NO_BUILTINS = "no_builtins";
 
   static constexpr auto &MAY_DANGLE = "may_dangle";
   static constexpr auto &PRELUDE_IMPORT = "prelude_import";
