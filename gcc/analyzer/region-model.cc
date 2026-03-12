@@ -1365,8 +1365,9 @@ region_model::get_gassign_result (const gassign *assign,
 		|| op == RDIV_EXPR
 		|| op == EXACT_DIV_EXPR))
 	  {
-	    if (const tree rhs2_cst = rhs2_sval->maybe_get_constant ())
-	      if (zerop (rhs2_cst))
+	    value_range rhs_vr;
+	    if (rhs2_sval->maybe_get_value_range (rhs_vr))
+	      if (rhs_vr.zero_p ())
 		{
 		  /* Ideally we should issue a warning here;
 		     see PR analyzer/124217.  */

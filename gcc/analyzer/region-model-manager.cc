@@ -803,8 +803,12 @@ region_model_manager::maybe_fold_binop (tree type, enum tree_code op,
     case ROUND_MOD_EXPR:
     case RDIV_EXPR:
     case EXACT_DIV_EXPR:
-      if (cst1 && zerop (cst1))
-	return get_or_create_unknown_svalue (type);
+      {
+	value_range arg1_vr;
+	if (arg1->maybe_get_value_range (arg1_vr))
+	  if (arg1_vr.zero_p ())
+	    return get_or_create_unknown_svalue (type);
+      }
       break;
     }
 
