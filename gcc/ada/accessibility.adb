@@ -64,10 +64,13 @@ package body Accessibility is
 
    begin
       --  In an instance, this is a runtime check, but one we know will fail,
-      --  so generate an appropriate warning.
+      --  so generate an appropriate warning. As usual, this kind of warning
+      --  is an error in SPARK mode or if No_Dynamic_Accessibility_Checks.
 
       if In_Instance_Body then
-         Error_Msg_Warn := SPARK_Mode /= On;
+         Error_Msg_Warn := SPARK_Mode /= On
+                             and then not
+                               No_Dynamic_Accessibility_Checks_Enabled (P);
          Error_Msg_F
            ("non-local pointer cannot point to local object<<", P);
          Error_Msg_F ("\Program_Error [<<", P);
@@ -152,7 +155,7 @@ package body Accessibility is
       begin
          --  Locate the nearest enclosing node (by traversing Parents)
          --  that Defining_Entity can be applied to, and return the
-         --  depth of that entity's nearest enclosing scope.
+         --  depth of that entity's nearest enclosing dynamic scope.
 
          --  The RM 7.6.1(3) definition of "master" includes statements
          --  and conditions for loops among other things. Are these cases
@@ -162,19 +165,7 @@ package body Accessibility is
             Ent := Defining_Entity_Or_Empty (Node_Par);
 
             if Present (Ent) then
-               --  X'Old is nested within the current subprogram, so we do not
-               --  want Find_Enclosing_Scope of that subprogram. If this is an
-               --  allocator, then we're looking for the innermost master of
-               --  the call, so again we do not want Find_Enclosing_Scope.
-
-               if (Nkind (N) = N_Attribute_Reference
-                    and then Attribute_Name (N) = Name_Old)
-                 or else Nkind (N) = N_Allocator
-               then
-                  Encl_Scop := Ent;
-               else
-                  Encl_Scop := Find_Enclosing_Scope (Ent);
-               end if;
+               Encl_Scop := Nearest_Dynamic_Scope (Ent);
 
                --  Ignore transient scopes made during expansion while also
                --  taking into account certain expansions - like iterators
