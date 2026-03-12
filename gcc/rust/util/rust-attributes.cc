@@ -123,6 +123,7 @@ static const BuiltinAttrDefinition __definitions[]
      // TODO: be careful about calling functions marked with this?
      {Attrs::RUSTC_ARGS_REQUIRED_CONST, CODE_GENERATION},
      {Attrs::COMPILER_BUILTINS, CODE_GENERATION},
+     {Attrs::NO_BUILTINS, CODE_GENERATION},
      {Attrs::PRELUDE_IMPORT, NAME_RESOLUTION},
      {Attrs::RUSTC_DIAGNOSTIC_ITEM, STATIC_ANALYSIS},
      {Attrs::RUSTC_ON_UNIMPLEMENTED, STATIC_ANALYSIS},
