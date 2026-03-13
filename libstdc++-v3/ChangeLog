@@ -1,3 +1,27 @@
+2026-03-12  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	PR libstdc++/124290
+	* testsuite/23_containers/mdspan/submdspan/selections/left_padded.cc:
+	Use dg-timeout-factor 4.
+	* testsuite/23_containers/mdspan/submdspan/selections/left.cc:
+	* testsuite/23_containers/mdspan/submdspan/selections/right_padded.cc:
+	* testsuite/23_containers/mdspan/submdspan/selections/right.cc:
+	Likewise.
+	* testsuite/23_containers/mdspan/submdspan/selections/stride.cc:
+	Likewise.
+
+2026-03-12  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/std/format (__format::_Ptr_sink::_M_finish): Rename
+	__max variable to __m.
+	* testsuite/17_intro/names.cc (__max): Define function-like
+	macro.
+
+2026-03-12  Jakub Jelinek  <jakub@redhat.com>
+
+	PR libstdc++/124443
+	* include/std/meta (std::define_static_object): Use CTAD for span.
+
 2026-03-11  Jakub Jelinek  <jakub@redhat.com>
 
 	* include/std/meta (std::meta::exception::what()): Use

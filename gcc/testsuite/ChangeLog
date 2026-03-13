@@ -1,3 +1,213 @@
+2026-03-12  Christopher Albert  <albert@tugraz.at>
+
+	PR fortran/102596
+	* gfortran.dg/pr102596.f90: New test.
+
+2026-03-12  Nathaniel Shead  <nathanieloshead@gmail.com>
+	    Thomas Berger  <loki+gcc@loki.codes>
+
+	PR c++/124200
+	* g++.dg/modules/reflect-2_a.H: New test.
+	* g++.dg/modules/reflect-2_b.C: New test.
+	* g++.dg/modules/reflect-2_c.C: New test.
+	* g++.dg/modules/reflect-3_a.H: New test.
+	* g++.dg/modules/reflect-3_b.C: New test.
+	* g++.dg/modules/reflect-3_c.C: New test.
+
+2026-03-12  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	PR c++/124309
+	* g++.dg/modules/part-11_a.C: New test.
+	* g++.dg/modules/part-11_b.C: New test.
+	* g++.dg/modules/part-11_c.C: New test.
+	* g++.dg/modules/part-11_d.C: New test.
+	* g++.dg/modules/part-11_e.C: New test.
+
+2026-03-12  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR rtl-optimization/123822
+	* gcc.dg/torture/pr123822-1.c: New test.
+
+2026-03-12  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR testsuite/119930
+	* g++.dg/coroutines/torture/pr103953.C: Store the second
+	lambda into its own object to extend its lifeime.
+
+2026-03-12  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+	    Gilles Gouaillardet  <gilles.gouaillardet@gmail.com>
+
+	PR fortran/121743
+	* gfortran.dg/pr121743.f90: New test.
+
+2026-03-12  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	PR tree-optimization/80006
+	* gcc.dg/attr-alloc_size-11.c (dg-warning): Remove xfails.
+
+2026-03-12  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	PR middle-end/121159
+	* gcc.dg/plugin/must-tail-call-2.c (dg-additional-options): Add
+	-fdelayed-branch on SPARC.
+
+2026-03-12  Marek Polacek  <polacek@redhat.com>
+
+	* g++.dg/reflect/define_static_array5.C: New test.
+
+2026-03-12  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/124440
+	* g++.dg/reflect/member21.C: Uncomment the commented out asserts.
+
+2026-03-12  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/115316
+	* gfortran.dg/pdt_87.f03: New test.
+
+2026-03-12  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/122696
+	* gfortran.dg/pdt_89.f03: New test.
+
+2026-03-12  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* ada/acats-3/tests/c3/c3a0025.a: Tweak.
+	* ada/acats-4/tests/c3/c3a0025.a: Likewise.
+	* gnat.dg/access12.adb: New test.
+
+2026-03-12  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gnat.dg/aliased3.adb: New test.
+
+2026-03-12  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	PR c++/124459
+	* g++.dg/modules/warn-spec-4_a.C: New test.
+	* g++.dg/modules/warn-spec-4_b.C: New test.
+
+2026-03-12  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	PR c++/124311
+	* g++.dg/modules/imp-member-5_a.C: New test.
+	* g++.dg/modules/imp-member-5_b.C: New test.
+	* g++.dg/modules/imp-member-5_c.C: New test.
+
+2026-03-12  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	* g++.dg/modules/class-12_a.C: New test.
+	* g++.dg/modules/class-12_b.C: New test.
+	* g++.dg/modules/class-12_c.C: New test.
+
+2026-03-12  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/124154
+	* g++.dg/cpp23/explicit-obj-lambda21.C: New test.
+
+2026-03-12  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	* g++.dg/modules/class-13_a.C: New test.
+	* g++.dg/modules/class-13_b.C: New test.
+
+2026-03-12  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	PR c++/124390
+	* g++.dg/modules/friend-13.C: New test.
+
+2026-03-12  Jakub Jelinek  <jakub@redhat.com>
+
+	* g++.dg/reflect/omp_depend1.C: New test.
+
+2026-03-12  H.J. Lu  <hjl.tools@gmail.com>
+
+	PR target/122925
+	PR target/119979
+	* gcc.dg/pr122925.c: New test.
+
+2026-03-12  Jakub Jelinek  <jakub@redhat.com>
+
+	PR fortran/124450
+	* gfortran.dg/pr124450.f90: New test.
+
+2026-03-12  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/97818
+	* gfortran.dg/pdt_88.f03: New test.
+
+2026-03-12  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR middle-end/120030
+	* gcc.dg/constructor-2.c: New test.
+
+2026-03-12  Jakub Jelinek  <jakub@redhat.com>
+
+	* g++.dg/reflect/omp_taskwait1.C: New test.
+
+2026-03-12  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/124425
+	* g++.dg/reflect/define_static_array4.C: Enable commented out
+	static_asserts and fix up the first one.
+	(as_pair): Make sure to return std::pair <int, int>.
+	* g++.dg/reflect/reflect_constant_array4.C: Enable commented out
+	static_asserts and fix up the first one.
+	(as_pair): Make sure to return std::pair <int, int>.
+	* g++.dg/reflect/reflect_constant_array7.C: New test.
+	* g++.dg/reflect/reflect_constant_array8.C: New test.
+
+2026-03-12  Christopher Albert  <albert@tugraz.at>
+
+	PR fortran/102333
+	PR fortran/102333
+	* gfortran.dg/pr102333.f90: New test.
+
+2026-03-12  Christopher Albert  <albert@tugraz.at>
+
+	PR fortran/103139
+	PR fortran/103139
+	* gfortran.dg/pr103139.f90: New test.
+
+2026-03-12  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	PR c++/124431
+	* g++.dg/modules/merge-21_a.C: New test.
+	* g++.dg/modules/merge-21_b.C: New test.
+	* g++.dg/modules/merge-21_c.C: New test.
+	* g++.dg/modules/merge-21_d.C: New test.
+
+2026-03-12  Christopher Albert  <albert@tugraz.at>
+
+	PR fortran/82721
+	* gfortran.dg/pr82721.f90: New test.
+
+2026-03-12  Christopher Albert  <albert@tugraz.at>
+
+	PR fortran/106946
+	* gfortran.dg/pr106946.f90: Cover allocatable and pointer CLASS
+	declarations, including a valid component followed by a bad one.
+
+2026-03-12  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/124451
+	* gcc.dg/analyzer/conditionals-pr124451-_Bool.c: New test.
+	* gcc.dg/analyzer/conditionals-pr124451-enum.c: New test.
+
+2026-03-12  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/124375
+	* gcc.dg/analyzer/ice-pr124375-1.c: New test.
+	* gcc.dg/analyzer/ice-pr124375-2.c: New test.
+
+2026-03-12  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/124433
+	* gcc.dg/analyzer/divide-by-zero-ice-pr124433.c: New test.
+
+2026-03-12  Christopher Albert  <albert@tugraz.at>
+
+	PR fortran/110877
+	* gfortran.dg/pr110877.f90: New test.
+
 2026-03-12  Marek Polacek  <polacek@redhat.com>
 
 	PR c++/124397

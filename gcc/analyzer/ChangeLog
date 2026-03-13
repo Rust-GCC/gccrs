@@ -1,3 +1,35 @@
+2026-03-12  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/124451
+	* region-model-manager.cc
+	(region_model_manager::maybe_invert_comparison_in_unaryop): New,
+	adapted from...
+	(region_model_manager::maybe_fold_unaryop): ...here, splitting out
+	the comparison inversion case for TRUTH_NOT_EXPR.  Add a case for
+	BIT_NOT_EXPR, reusing the inversion logic when dealing with
+	boolean types.
+	* region-model-manager.h
+	(region_model_manager::maybe_invert_comparison_in_unaryop): New decl.
+
+2026-03-12  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/124375
+	* ops.cc (ggoto_edge_op::apply_constraints): Ensure that we write
+	back a rejected_constraint if the edge is infeasible.
+	* region-model.cc (region_model::add_constraint): Convert
+	rejected_op_constraint from tree to const svalue *.
+	(rejected_op_constraint::dump_to_pp): Likewise.
+	* region-model.h (class rejected_op_constraint): Likewise.
+
+2026-03-12  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/124433
+	* region-model-manager.cc
+	(region_model_manager::maybe_fold_binop): When checking for
+	division by zero, use the value range of the divisor, rather
+	than merely checking for constant 0.
+	* region-model.cc (region_model::get_gassign_result): Likewise.
+
 2026-03-06  David Malcolm  <dmalcolm@redhat.com>
 
 	PR testsuite/112520

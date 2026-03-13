@@ -1,3 +1,72 @@
+2026-03-12  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR rtl-optimization/123822
+	* simplify-rtx.cc (simplify_context::simplify_subreg): Check the
+	mode of the part to be non-VOIDmode before calling gen_rtx_SUBREG.
+
+2026-03-12  Vladimir N. Makarov  <vmakarov@redhat.com>
+
+	PR rtl-optimization/124452
+	* lra-constraints.cc (curr_insn_transform): Move return on the
+	postponed insn before any reload generation.
+
+2026-03-12  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	Revert:
+	2026-02-06  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* configure.ac (gnu_ld_flag): Move $gcc_cv_ld --version check into
+	AC_ARG_WITH(gnu-ld).
+	(gcc_cv_ld): Set before gnu_ld_flag.
+	(gas_flag): Move $gcc_cv_ld --version check into AC_ARG_WITH(gnu-ld).
+	(gcc_cv_as): Set before gas_flag.
+	* configure: Regenerate.
+
+2026-03-12  Martin Jambor  <mjambor@suse.cz>
+
+	PR objc/124260
+	* ipa-prop.cc (ipa_analyze_var_static_initializer): Skip a constructor
+	entry if its index is NULL.
+
+2026-03-12  Richard Biener  <rguenther@suse.de>
+
+	PR bootstrap/124406
+	* ipa-pure-const.cc (skip_function_for_local_pure_const):
+	Do not analyze interposable functions when LTO is enabled.
+
+2026-03-12  H.J. Lu  <hjl.tools@gmail.com>
+
+	PR target/122925
+	PR target/119979
+	* config/sh/sh.cc (TARGET_PROMOTE_PROTOTYPES): Removed.
+
+2026-03-12  Philipp Tomsich  <philipp.tomsich@vrull.eu>
+
+	* fold-mem-offsets.cc (do_analysis): Revise comment.
+
+2026-03-12  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR middle-end/120030
+	* symtab.cc (symtab_node::set_init_priority): Better
+	handle the case of setting the priority back to default.
+	(cgraph_node::set_fini_priority): Likewise.
+
+2026-03-12  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	* doc/extend.texi (constructor/destructor): Add documentation
+	about multiple attributes here.
+
+2026-03-12  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	* doc/extend.texi (constructor/destructor): Document
+	the priority when none is supplied.
+
+2026-03-12  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR target/124409
+	* doc/install.texi: Increment the required binutils for
+	riscv to 2.40.
+
 2026-03-12  Marek Polacek  <polacek@redhat.com>
 
 	PR c++/124397

@@ -1,3 +1,85 @@
+2026-03-12  Nathaniel Shead  <nathanieloshead@gmail.com>
+	    Thomas Berger  <loki+gcc@loki.codes>
+
+	PR c++/124200
+	* name-lookup.h (walk_namespace_bindings): Declare.
+	* name-lookup.cc (walk_namespace_bindings): New function.
+	* reflect.cc (namespace_members_of): Use it.
+
+2026-03-12  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	PR c++/124309
+	* module.cc (enum module_directness): Fix inconsistent
+	capitalisation.
+	(module_state::read_imports): Reparent module locations newly
+	seen as direct via partition.
+
+2026-03-12  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/124440
+	* parser.cc (cp_parser_postfix_dot_deref_expression): Pass
+	parser->scope to adjust_result_of_qualified_name_lookup even
+	when splice_p.  Assign the result of
+	adjust_result_of_qualified_name_lookup to name.
+	* pt.cc (tsubst_expr): Call adjust_result_of_qualified_name_lookup
+	for BASELINKs in splice-expressions.
+	* search.cc (adjust_result_of_qualified_name_lookup): Return early
+	if decl is not a BASELINK.  If qualifying_scope is null, use decl's
+	binfo.  Set BASELINK_QUALIFIED_P only if qualifying_scope wasn't
+	null.
+
+2026-03-12  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	PR c++/124459
+	* module.cc (module_state::read_initial): Move
+	read_diagnostic_classification after read_macro_maps.
+
+2026-03-12  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	PR c++/124311
+	* module.cc (trees_in::key_mergeable): Check DECL_DEFAULTED_FN
+	instead of DECL_ARTIFICIAL.
+
+2026-03-12  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	* decl.cc (start_decl): Check module_may_redeclare for members.
+	(grokfndecl): Likewise.
+
+2026-03-12  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	* semantics.cc (begin_class_definition): Move
+	module_may_redeclare check to...
+	* parser.cc (cp_parser_class_head): ...here.
+
+2026-03-12  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	PR c++/124390
+	* module.cc (depset::hash::add_binding_entity): Don't create
+	bindings for hidden friends.
+
+2026-03-12  Jakub Jelinek  <jakub@redhat.com>
+
+	* reflect.cc (check_out_of_consteval_use_r): Don't walk BLOCK
+	subtrees.
+
+2026-03-12  Jakub Jelinek  <jakub@redhat.com>
+
+	* parser.cc (cp_parser_omp_taskwait): Set TREE_TYPE of OMP_TASK
+	to void_type_node rather than void_node.
+	(cp_parser_omp_dispatch): Likewise.
+
+2026-03-12  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/124425
+	* reflect.cc (get_range_elts): Handle proxy iterators.  Call
+	fold_build_cleanup_point_expr on both deref and inc.
+
+2026-03-12  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	PR c++/124431
+	* module.cc (trees_in::key_mergeable): Allow merging members of
+	template specialisations.
+
 2026-03-12  Marek Polacek  <polacek@redhat.com>
 
 	PR c++/124397
