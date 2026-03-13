@@ -3629,7 +3629,14 @@ eval_display_string_of (location_t loc, const constexpr_ctx *ctx, tree r,
   else if (DECL_P (r) && (DECL_NAME (r) || TREE_CODE (r) == NAMESPACE_DECL))
     pp_printf (&pp, "%D", r);
   else if (TREE_CODE (r) == FIELD_DECL)
-    pp_printf (&pp, "%T::<unnamed bit-field>", DECL_CONTEXT (r));
+    {
+      if (DECL_UNNAMED_BIT_FIELD (r))
+	pp_printf (&pp, "%T::<unnamed bit-field>", DECL_CONTEXT (r));
+      else if (ANON_UNION_TYPE_P (TREE_TYPE (r)))
+	pp_printf (&pp, "%T::<anonymous union>", DECL_CONTEXT (r));
+      else
+	pp_printf (&pp, "%T::<unnamed member>", DECL_CONTEXT (r));
+    }
   else if (kind == REFLECT_BASE)
     {
       tree d = direct_base_derived (r);
