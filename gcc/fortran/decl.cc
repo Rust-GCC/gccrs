@@ -6994,7 +6994,13 @@ cleanup:
      later calls gfc_undo_symbols, the declaration state is rolled back but
      that helper symbol survives and leaves the component dangling.  Ordinary
      components do not create that extra helper symbol, so leave them in
-     place for the usual follow-up diagnostics.  PR106946.  */
+     place for the usual follow-up diagnostics.  PR106946.
+
+     CLASS containers are shared between components of the same class type
+     and attributes (gfc_build_class_symbol reuses existing containers).
+     We must not free a container that is still referenced by a previously
+     committed component.  Unlink and free the components first, then clean
+     up only orphaned containers.  PR124482.  */
   if (m == MATCH_ERROR && gfc_comp_struct (gfc_current_state ()))
     {
       gfc_symbol *block = gfc_current_block ();
@@ -7006,26 +7012,51 @@ cleanup:
 	  else
 	    prev = &block->components;
 
+	  /* Record the CLASS container from the removed components.
+	     Normally all components in one declaration share a single
+	     container, but per-variable array specs can produce
+	     additional ones; any beyond the first are harmlessly
+	     leaked until namespace destruction.  */
+	  gfc_symbol *fclass_container = NULL;
+
 	  while (*prev)
 	    {
 	      gfc_component *c = *prev;
 	      if (c->ts.type == BT_CLASS && c->ts.u.derived
 		  && c->ts.u.derived->attr.is_class)
 		{
-		  /* Unlink this CLASS component.  */
 		  *prev = c->next;
-
-		  /* Remove the CLASS container from the namespace.  */
-		  gfc_symbol *fclass = c->ts.u.derived;
-		  if (gfc_find_symtree (fclass->ns->sym_root, fclass->name))
-		    gfc_delete_symtree (&fclass->ns->sym_root, fclass->name);
-		  gfc_release_symbol (fclass);
-
-		  /* Free the component structure.  */
+		  if (!fclass_container)
+		    fclass_container = c->ts.u.derived;
+		  c->ts.u.derived = NULL;
 		  gfc_free_component (c);
 		}
 	      else
 		prev = &c->next;
+	    }
+
+	  /* Free the container only if no remaining component still
+	     references it.  CLASS containers are shared between
+	     components of the same class type and attributes
+	     (gfc_build_class_symbol reuses existing ones).  */
+	  if (fclass_container)
+	    {
+	      bool shared = false;
+	      for (gfc_component *q = block->components; q; q = q->next)
+		if (q->ts.type == BT_CLASS
+		    && q->ts.u.derived == fclass_container)
+		  {
+		    shared = true;
+		    break;
+		  }
+	      if (!shared)
+		{
+		  if (gfc_find_symtree (fclass_container->ns->sym_root,
+					fclass_container->name))
+		    gfc_delete_symtree (&fclass_container->ns->sym_root,
+					fclass_container->name);
+		  gfc_release_symbol (fclass_container);
+		}
 	    }
 	}
     }
