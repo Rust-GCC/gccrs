@@ -9179,6 +9179,21 @@ reflection_mangle_prefix (tree refl, char prefix[3])
       strcpy (prefix, "ds");
       return h;
     }
+  /* We don't have a metafunction for template template parameters.  */
+  if (DECL_TEMPLATE_TEMPLATE_PARM_P (h))
+    {
+      strcpy (prefix, "tt");
+      return h;
+    }
+  /* For ^^T::x, we can't say what the reflection is going to be.  Just say
+     it's something dependent.  This is at the end rather than the beginning
+     because potential_constant_expression_1 doesn't handle codes like
+     TREE_BINFO.  */
+  if (uses_template_parms (h))
+    {
+      strcpy (prefix, "de");
+      return h;
+    }
   gcc_unreachable ();
 }
 
