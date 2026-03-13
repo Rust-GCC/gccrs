@@ -17800,6 +17800,18 @@ tsubst (tree t, tree args, tsubst_flags_t complain, tree in_decl)
 	templ = tsubst_splice_expr (templ, args, complain, in_decl);
 	if (templ == error_mark_node)
 	  return error_mark_node;
+	if (!DECL_TYPE_TEMPLATE_P (templ)
+	    && !DECL_TEMPLATE_TEMPLATE_PARM_P (templ))
+	  {
+	    if (complain & tf_error)
+	      {
+		auto_diagnostic_group d;
+		error_at (cp_expr_loc_or_input_loc (TREE_OPERAND (t, 0)),
+			  "expected a reflection of a type template");
+		inform_tree_category (templ);
+	      }
+	    return error_mark_node;
+	  }
 	tree targs = TREE_OPERAND (t, 1);
 	if (targs)
 	  targs = tsubst_template_args (targs, args, complain, in_decl);
