@@ -5351,6 +5351,15 @@ package body Sem_Eval is
       then
          return False;
 
+      --  Under GNATprove mode, do not consider T2 in the range of Universal
+      --  Integer (since theoretically they are not); required because
+      --  Universal_Integer is implemented as a 128-bits type.
+
+      elsif GNATprove_Mode
+        and then T1 = Universal_Integer
+      then
+         return False;
+
       else
          L1 := Type_Low_Bound  (T1);
          H1 := Type_High_Bound (T1);
@@ -7387,6 +7396,14 @@ package body Sem_Eval is
 
       elsif Is_Universal_Numeric_Type (Typ) then
          return In_Range;
+
+      --  Under GNATprove mode, Universal type expressions are not in range
+      --  of subtype Typ.
+
+      elsif GNATprove_Mode
+        and then Is_Universal_Numeric_Type (Etype (N))
+      then
+         return Unknown;
 
       --  Never known if not scalar type. Don't know if this can actually
       --  happen, but our spec allows it, so we must check.
