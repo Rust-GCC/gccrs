@@ -40,6 +40,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "gimplify-me.h"
 #include "tree-cfg.h"
 #include "tree-ssa.h"
+#include "tree-ssa-ifcombine.h"
 #include "attribs.h"
 #include "asan.h"
 #include "bitmap.h"
@@ -95,10 +96,10 @@ known_succ_p (basic_block cond_bb)
    basic-blocks to make the pattern match.  If SUCCS_ANY, *THEN_BB and *ELSE_BB
    will not be filled in, and they will be found to match even if reversed.  */
 
-static bool
+bool
 recognize_if_then_else (basic_block cond_bb,
 			basic_block *then_bb, basic_block *else_bb,
-			bool succs_any = false)
+			bool succs_any)
 {
   edge t, e;
 
@@ -1142,7 +1143,7 @@ tree_ssa_ifcombine_bb_1 (basic_block inner_cond_bb, basic_block outer_cond_bb,
    if-conversion helper.  We start with BB as the innermost
    worker basic-block.  Returns true if a transformation was done.  */
 
-static bool
+bool
 tree_ssa_ifcombine_bb (basic_block inner_cond_bb)
 {
   bool ret = false;
