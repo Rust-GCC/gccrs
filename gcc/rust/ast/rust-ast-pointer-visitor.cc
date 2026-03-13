@@ -155,47 +155,6 @@ PointerVisitor::visit (AST::QualifiedPathType &path)
 }
 
 void
-PointerVisitor::visit (AST::QualifiedPathInType &path)
-{
-  visit (path.get_qualified_path_type ());
-  visit (path.get_associated_segment ());
-
-  for (auto &segment : path.get_segments ())
-    visit (segment);
-}
-
-void
-PointerVisitor::visit (AST::LiteralExpr &expr)
-{
-  visit_outer_attrs (expr);
-}
-
-void
-PointerVisitor::visit (AST::AttrInputLiteral &attr_input)
-{
-  visit (attr_input.get_literal ());
-}
-
-void
-PointerVisitor::visit (AST::AttrInputMacro &attr_input)
-{
-  visit (attr_input.get_macro ());
-}
-
-void
-PointerVisitor::visit (AST::MetaItemLitExpr &meta_item)
-{
-  visit (meta_item.get_literal ());
-}
-
-void
-PointerVisitor::visit (AST::SimplePath &path)
-{
-  for (auto &segment : path.get_segments ())
-    visit (segment);
-}
-
-void
 PointerVisitor::visit (AST::MetaItemPathExpr &meta_item)
 {
   visit (meta_item.get_path ());
@@ -333,18 +292,6 @@ PointerVisitor::visit (AST::TupleIndexExpr &expr)
 }
 
 void
-PointerVisitor::visit (AST::StructExprStruct &expr)
-{
-  visit_outer_attrs (expr);
-  visit_inner_attrs (expr);
-  visit (expr.get_struct_name ());
-}
-
-void
-PointerVisitor::visit (AST::StructExprFieldIdentifier &field)
-{}
-
-void
 PointerVisitor::visit (AST::StructExprFieldIdentifierValue &field)
 {
   reseat (field.get_value_ptr ());
@@ -360,27 +307,6 @@ void
 PointerVisitor::visit (AST::StructBase &base)
 {
   reseat (base.get_base_struct_ptr ());
-}
-
-void
-PointerVisitor::visit (AST::StructExprStructFields &expr)
-{
-  visit_outer_attrs (expr);
-  visit_inner_attrs (expr);
-  visit (expr.get_struct_name ());
-  if (expr.has_struct_base ())
-    visit (expr.get_struct_base ());
-  for (auto &field : expr.get_fields ())
-    visit (field);
-}
-
-void
-PointerVisitor::visit (AST::StructExprStructBase &expr)
-{
-  visit_outer_attrs (expr);
-  visit_inner_attrs (expr);
-  visit (expr.get_struct_name ());
-  visit (expr.get_struct_base ());
 }
 
 void
@@ -436,12 +362,6 @@ PointerVisitor::visit (AST::BlockExpr &expr)
 
   if (expr.has_tail_expr ())
     reseat (expr.get_tail_expr_ptr ());
-}
-
-void
-PointerVisitor::visit (AST::ConstBlock &expr)
-{
-  visit (expr.get_const_expr ());
 }
 
 void
@@ -513,10 +433,6 @@ PointerVisitor::visit (AST::RangeToExpr &expr)
 }
 
 void
-PointerVisitor::visit (AST::RangeFullExpr &expr)
-{}
-
-void
 PointerVisitor::visit (AST::RangeFromToInclExpr &expr)
 {
   reseat (expr.get_from_expr_ptr ());
@@ -556,12 +472,6 @@ PointerVisitor::visit (AST::UnsafeBlockExpr &expr)
 {
   visit_outer_attrs (expr);
   reseat (expr.get_block_expr_ptr ());
-}
-
-void
-PointerVisitor::visit (AST::LoopLabel &label)
-{
-  visit (label.get_lifetime ());
 }
 
 void
@@ -616,26 +526,12 @@ PointerVisitor::visit (AST::IfExpr &expr)
 }
 
 void
-PointerVisitor::visit (AST::IfExprConseqElse &expr)
-{
-  visit (reinterpret_cast<AST::IfExpr &> (expr));
-  visit (expr.get_else_block ());
-}
-
-void
 PointerVisitor::visit (AST::IfLetExpr &expr)
 {
   visit_outer_attrs (expr);
   reseat (expr.get_pattern ());
   reseat (expr.get_value_expr_ptr ());
   visit (expr.get_if_block ());
-}
-
-void
-PointerVisitor::visit (AST::IfLetExprConseqElse &expr)
-{
-  visit (reinterpret_cast<AST::IfLetExpr &> (expr));
-  visit (expr.get_else_block ());
 }
 
 void
@@ -750,14 +646,6 @@ PointerVisitor::visit (AST::TypeParam &param)
 }
 
 void
-PointerVisitor::visit (AST::LifetimeWhereClauseItem &item)
-{
-  visit (item.get_lifetime ());
-  for (auto &bound : item.get_lifetime_bounds ())
-    visit (bound);
-}
-
-void
 PointerVisitor::visit (AST::TypeBoundWhereClauseItem &item)
 {
   for (auto &lifetime : item.get_for_lifetimes ())
@@ -766,20 +654,6 @@ PointerVisitor::visit (AST::TypeBoundWhereClauseItem &item)
   // FIXME: Likewise?
   for (auto &param : item.get_type_param_bounds ())
     visit (param);
-}
-
-void
-PointerVisitor::visit (AST::Visibility &vis)
-{
-  if (vis.has_path ())
-    visit (vis.get_path ());
-}
-
-void
-PointerVisitor::visit (AST::WhereClause &where)
-{
-  for (auto &item : where.get_items ())
-    visit (item);
 }
 
 void
@@ -812,38 +686,6 @@ PointerVisitor::visit (AST::Module &module)
   visit_inner_attrs (module);
   for (auto &item : module.get_items ())
     reseat (item);
-}
-
-void
-PointerVisitor::visit (AST::ExternCrate &crate)
-{
-  visit_outer_attrs (crate);
-  visit (crate.get_visibility ());
-}
-
-void
-PointerVisitor::visit (AST::UseTreeGlob &use_tree)
-{
-  visit (use_tree.get_path ());
-}
-
-void
-PointerVisitor::visit (AST::UseTreeList &use_tree)
-{
-  visit (use_tree.get_path ());
-}
-
-void
-PointerVisitor::visit (AST::UseTreeRebind &use_tree)
-{
-  visit (use_tree.get_path ());
-}
-
-void
-PointerVisitor::visit (AST::UseDeclaration &use_decl)
-{
-  visit (use_decl.get_visibility ());
-  visit (use_decl.get_tree ());
 }
 
 void
@@ -893,19 +735,6 @@ PointerVisitor::visit (AST::StructField &field)
 }
 
 void
-PointerVisitor::visit (AST::StructStruct &struct_item)
-{
-  visit_outer_attrs (struct_item);
-  visit (struct_item.get_visibility ());
-  for (auto &generic : struct_item.get_generic_params ())
-    visit (generic);
-  if (struct_item.has_where_clause ())
-    visit (struct_item.get_where_clause ());
-  for (auto &field : struct_item.get_fields ())
-    visit (field);
-}
-
-void
 PointerVisitor::visit (AST::TupleField &field)
 {
   visit_outer_attrs (field);
@@ -914,72 +743,10 @@ PointerVisitor::visit (AST::TupleField &field)
 }
 
 void
-PointerVisitor::visit (AST::TupleStruct &tuple_struct)
-{
-  visit_outer_attrs (tuple_struct);
-  visit (tuple_struct.get_visibility ());
-  for (auto &generic : tuple_struct.get_generic_params ())
-    visit (generic);
-  if (tuple_struct.has_where_clause ())
-    visit (tuple_struct.get_where_clause ());
-  for (auto &field : tuple_struct.get_fields ())
-    visit (field);
-}
-
-void
-PointerVisitor::visit (AST::EnumItem &item)
-{
-  visit_outer_attrs (item);
-  visit (item.get_visibility ());
-}
-
-void
-PointerVisitor::visit (AST::EnumItemTuple &item)
-{
-  PointerVisitor::visit (static_cast<EnumItem &> (item));
-  for (auto &field : item.get_tuple_fields ())
-    visit (field);
-}
-
-void
-PointerVisitor::visit (AST::EnumItemStruct &item)
-{
-  PointerVisitor::visit (static_cast<EnumItem &> (item));
-  for (auto &field : item.get_struct_fields ())
-    visit (field);
-}
-
-void
 PointerVisitor::visit (AST::EnumItemDiscriminant &item)
 {
   PointerVisitor::visit (static_cast<EnumItem &> (item));
   reseat (item.get_expr_ptr ());
-}
-
-void
-PointerVisitor::visit (AST::Enum &enum_item)
-{
-  visit_outer_attrs (enum_item);
-  visit (enum_item.get_visibility ());
-  for (auto &generic : enum_item.get_generic_params ())
-    visit (generic);
-  if (enum_item.has_where_clause ())
-    visit (enum_item.get_where_clause ());
-  for (auto &item : enum_item.get_variants ())
-    visit (item);
-}
-
-void
-PointerVisitor::visit (AST::Union &union_item)
-{
-  visit_outer_attrs (union_item);
-  visit (union_item.get_visibility ());
-  for (auto &generic : union_item.get_generic_params ())
-    visit (generic);
-  if (union_item.has_where_clause ())
-    visit (union_item.get_where_clause ());
-  for (auto &variant : union_item.get_variants ())
-    visit (variant);
 }
 
 void
@@ -999,14 +766,6 @@ PointerVisitor::visit (AST::StaticItem &static_item)
   visit (static_item.get_visibility ());
   reseat (static_item.get_type_ptr ());
   reseat (static_item.get_expr_ptr ());
-}
-
-void
-PointerVisitor::visit (AST::TraitItemType &item)
-{
-  visit_outer_attrs (item);
-  for (auto &bound : item.get_type_param_bounds ())
-    visit (bound);
 }
 
 void
@@ -1066,13 +825,6 @@ PointerVisitor::visit (AST::TraitImpl &impl)
 }
 
 void
-PointerVisitor::visit (AST::ExternalTypeItem &item)
-{
-  visit_outer_attrs (item);
-  visit (item.get_visibility ());
-}
-
-void
 PointerVisitor::visit (AST::ExternalStaticItem &item)
 {
   visit_outer_attrs (item);
@@ -1091,103 +843,10 @@ PointerVisitor::visit (AST::ExternBlock &block)
 }
 
 void
-PointerVisitor::visit (AST::MacroMatchFragment &match)
-{}
-
-void
-PointerVisitor::visit (AST::MacroMatchRepetition &match)
-{
-  for (auto &m : match.get_matches ())
-    visit (m);
-}
-
-void
-PointerVisitor::visit (AST::MacroMatcher &matcher)
-{
-  for (auto &m : matcher.get_matches ())
-    visit (m);
-}
-
-void
-PointerVisitor::visit (AST::MacroTranscriber &transcriber)
-{
-  visit (transcriber.get_token_tree ());
-}
-
-void
-PointerVisitor::visit (AST::MacroRule &rule)
-{
-  visit (rule.get_matcher ());
-  visit (rule.get_transcriber ());
-}
-
-void
-PointerVisitor::visit (AST::MacroRulesDefinition &rules_def)
-{
-  visit_outer_attrs (rules_def);
-  for (auto &rule : rules_def.get_macro_rules ())
-    visit (rule);
-}
-
-void
-PointerVisitor::visit (AST::MacroInvocData &data)
-{
-  visit (data.get_path ());
-  visit (data.get_delim_tok_tree ());
-}
-
-void
-PointerVisitor::visit (AST::MacroInvocation &macro_invoc)
-{
-  visit_outer_attrs (macro_invoc);
-  visit (macro_invoc.get_invoc_data ());
-}
-
-void
-PointerVisitor::visit (AST::MetaItemPath &meta_item)
-{
-  visit (meta_item.get_path ());
-}
-
-void
-PointerVisitor::visit (AST::MetaItemSeq &meta_item)
-{
-  visit (meta_item.get_path ());
-  for (auto &inner : meta_item.get_seq ())
-    visit (inner);
-}
-
-void
-PointerVisitor::visit (AST::MetaListPaths &meta_item)
-{
-  for (auto &path : meta_item.get_paths ())
-    visit (path);
-}
-
-void
-PointerVisitor::visit (AST::MetaListNameValueStr &meta_item)
-{
-  for (auto &str : meta_item.get_values ())
-    visit (str);
-}
-
-void
 PointerVisitor::visit (AST::IdentifierPattern &pattern)
 {
   if (pattern.has_subpattern ())
     reseat (pattern.get_subpattern_ptr ());
-}
-
-void
-PointerVisitor::visit (AST::RangePatternBoundPath &bound)
-{
-  visit (bound.get_path ());
-}
-
-void
-PointerVisitor::visit (AST::RangePatternBoundQualPath &bound)
-{
-  visit (bound.get_qualified_path ());
 }
 
 void
@@ -1222,28 +881,6 @@ PointerVisitor::visit (AST::StructPatternFieldIdentPat &field)
 }
 
 void
-PointerVisitor::visit (AST::StructPatternFieldIdent &field)
-{
-  visit_outer_attrs (field);
-}
-
-void
-PointerVisitor::visit (AST::StructPatternElements &spe)
-{
-  for (auto &field : spe.get_struct_pattern_fields ())
-    visit (field);
-  for (auto &attribute : spe.get_etc_outer_attrs ())
-    visit (attribute);
-}
-
-void
-PointerVisitor::visit (AST::StructPattern &pattern)
-{
-  visit (pattern.get_path ());
-  visit (pattern.get_struct_pattern_elems ());
-}
-
-void
 PointerVisitor::visit (AST::TupleStructItemsNoRest &tuple_items)
 {
   for (auto &pattern : tuple_items.get_patterns ())
@@ -1260,13 +897,6 @@ PointerVisitor::visit (AST::TupleStructItemsHasRest &tuple_items)
 }
 
 void
-PointerVisitor::visit (AST::TupleStructPattern &pattern)
-{
-  visit (pattern.get_path ());
-  visit (pattern.get_items ());
-}
-
-void
 PointerVisitor::visit (AST::TuplePatternItemsNoRest &tuple_items)
 {
   for (auto &pattern : tuple_items.get_patterns ())
@@ -1280,12 +910,6 @@ PointerVisitor::visit (AST::TuplePatternItemsHasRest &tuple_items)
     reseat (lower);
   for (auto &upper : tuple_items.get_upper_patterns ())
     reseat (upper);
-}
-
-void
-PointerVisitor::visit (AST::TuplePattern &pattern)
-{
-  visit (pattern.get_items ());
 }
 
 void
@@ -1311,21 +935,11 @@ PointerVisitor::visit (AST::SlicePatternItemsHasRest &items)
 }
 
 void
-PointerVisitor::visit (AST::SlicePattern &pattern)
-{
-  visit (pattern.get_items ());
-}
-
-void
 PointerVisitor::visit (AST::AltPattern &pattern)
 {
   for (auto &alt : pattern.get_alts ())
     reseat (alt);
 }
-
-void
-PointerVisitor::visit (AST::EmptyStmt &stmt)
-{}
 
 void
 PointerVisitor::visit (AST::LetStmt &stmt)
@@ -1342,28 +956,6 @@ void
 PointerVisitor::visit (AST::ExprStmt &stmt)
 {
   reseat (stmt.get_expr_ptr ());
-}
-
-void
-PointerVisitor::visit (AST::TraitBound &bound)
-{
-  for (auto &lifetime : bound.get_for_lifetimes ())
-    visit (lifetime);
-  visit (bound.get_type_path ());
-}
-
-void
-PointerVisitor::visit (AST::ImplTraitType &type)
-{
-  for (auto &bound : type.get_type_param_bounds ())
-    visit (bound);
-}
-
-void
-PointerVisitor::visit (AST::TraitObjectType &type)
-{
-  for (auto &bound : type.get_type_param_bounds ())
-    visit (bound);
 }
 
 void
@@ -1394,10 +986,6 @@ PointerVisitor::visit (AST::TupleType &type)
 }
 
 void
-PointerVisitor::visit (AST::NeverType &type)
-{}
-
-void
 PointerVisitor::visit (AST::RawPointerType &type)
 {
   reseat (type.get_type_pointed_to_ptr ());
@@ -1422,10 +1010,6 @@ PointerVisitor::visit (AST::SliceType &type)
 {
   reseat (type.get_elem_type_ptr ());
 }
-
-void
-PointerVisitor::visit (AST::InferredType &type)
-{}
 
 void
 PointerVisitor::visit (AST::MaybeNamedParam &param)
