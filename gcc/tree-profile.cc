@@ -542,6 +542,8 @@ masking_vectors (conds_ctx& ctx, array_slice<basic_block> blocks,
 	for (edge e : b->preds)
 	  if (!(e->flags & EDGE_COMPLEX))
 	    ctx.edges.quick_push (contract_edge_up (e));
+	if (ctx.edges.length () < 2)
+	  continue;
 	ctx.edges.sort (topological_src_cmp, &ctx.top_index);
 
 	for (size_t i0 = 0, i1 = 1; i1 != ctx.edges.length (); ++i0, ++i1)
