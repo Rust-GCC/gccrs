@@ -123,7 +123,11 @@ foreach test [lsort [glob -nocomplain $srcdir/$subdir/*.\[fF\]{,90,95,03,08} ]] 
             if { [istarget *-*-freebsd*] } {
                 dg-test $test "-fcoarray=lib -pthread $flags -lcaf_shmem" {}
             } else {
-                dg-test $test "-fcoarray=lib $flags -lcaf_shmem" {}
+                if { [istarget *-linux*] } {
+                    dg-test $test "-fcoarray=lib -pthread $flags -lcaf_shmem -lrt" {}
+                } else {
+                    dg-test $test "-fcoarray=lib $flags -lcaf_shmem" {}
+                }
             }
             cleanup-modules ""
         }
