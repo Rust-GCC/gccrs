@@ -58,7 +58,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
 namespace __format
 {
-#if _GLIBCXX_USE_STDIO_LOCKING && _GLIBCXX_USE_GLIBC_STDIO_EXT
+#if _GLIBCXX_USE_STDIO_LOCKING && _GLIBCXX_USE_GLBC_STDIO_EXT
   // These are defined in <stdio_ext.h> but we don't want to include that.
   extern "C" int __fwritable(FILE*) noexcept;
   extern "C" int __flbf(FILE*) noexcept;
@@ -111,6 +111,8 @@ namespace __format
       }
 
       // Update the current position in the output buffer.
+      // __n is the number of characters written to the _M_write_buf() span,
+      // so will not exceed the size of the output buffer.
       void
       _M_bump(size_t __n) noexcept
       { _M_file->_IO_write_ptr += __n; }
@@ -160,12 +162,15 @@ namespace __format
 	this->_M_reset(_M_file._M_write_buf());
     }
 
+    // This calls I/O functions which are cancellation points, so they
+    // could exit with a __forced_unwind exception. The noexcept(false)
+    // allows that to propagate instead of terminating the process.
     ~_File_sink() noexcept(false)
     {
       auto __s = this->_M_used();
       if (__s.data() == this->_M_buf) // Unbuffered stream
 	{
-	  _File_sink::_M_overflow();
+	  _File_sink::_M_overflow(); // Transfer _M_buf to stream.
 	  if (_M_add_newline)
 	    ::putc_unlocked('\n', _M_file._M_file);
 	}
@@ -173,7 +178,7 @@ namespace __format
 	{
 	  _M_file._M_bump(__s.size());
 	  if (_M_add_newline)
-	    ::putc_unlocked('\n', _M_file._M_file);
+	    ::putc_unlocked('\n', _M_file._M_file); // '\n' triggers a flush
 	  else if (_M_file._M_line_buffered() && __s.size()
 		     && (__s.back() == '\n'
 			   || __builtin_memchr(__s.data(), '\n', __s.size())))
@@ -188,7 +193,13 @@ namespace __format
   // The file is locked on construction and written to using fwrite_unlocked.
   class _File_sink final : _Buf_sink<char>
   {
-    FILE* _M_file;
+    struct _File // RAII type to lock/unlock the file.
+    {
+      explicit _File(FILE* __f) : _M_file(__f) { ::flockfile(_M_file); }
+      ~_File() { ::funlockfile(_M_file); }
+      FILE* _M_file;
+    } _M_file;
+
     bool _M_add_newline;
 
     // Transfer buffer contents to the FILE, so buffer can be refilled.
@@ -197,13 +208,13 @@ namespace __format
     {
       auto __s = this->_M_used();
 #if _GLIBCXX_HAVE_FWRITE_UNLOCKED
-      auto __n = ::fwrite_unlocked(__s.data(), 1, __s.size(), _M_file);
+      auto __n = ::fwrite_unlocked(__s.data(), 1, __s.size(), _M_file._M_file);
       if (__n != __s.size())
 	__throw_system_error(errno);
 #else
       for (char __c : __s)
-	::putc_unlocked(__c, _M_file);
-      if (::ferror(_M_file))
+	::putc_unlocked(__c, _M_file._M_file);
+      if (::ferror(_M_file._M_file))
 	__throw_system_error(errno);
 #endif
       this->_M_reset(this->_M_buf);
@@ -212,14 +223,13 @@ namespace __format
   public:
     _File_sink(FILE* __f, bool __add_newline) noexcept
     : _Buf_sink<char>(), _M_file(__f), _M_add_newline(__add_newline)
-    { ::flockfile(__f); }
+    { }
 
-    ~_File_sink() noexcept(false)
+    ~_File_sink() noexcept(false) // See above for noexcept(false) rationale.
     {
       _File_sink::_M_overflow();
       if (_M_add_newline)
-	::putc_unlocked('\n', _M_file);
-      ::funlockfile(_M_file);
+	::putc_unlocked('\n', _M_file._M_file);
     }
 
     using _Sink<char>::out;
@@ -239,14 +249,14 @@ namespace __format
     : _M_file(__f), _M_add_newline(__add_newline)
     { }
 
-    ~_File_sink() noexcept(false)
+    ~_File_sink() noexcept(false) // See above for noexcept(false) rationale.
     {
       string __s = std::move(_M_sink).get();
       if (_M_add_newline)
 	__s += '\n';
       auto __n = std::fwrite(__s.data(), 1, __s.size(), _M_file);
       if (__n < __s.size())
-	__throw_system_error(EIO);
+	__throw_system_error(EIO); // Non-POSIX fwrite doesn't set errno.
     }
 
     auto out() { return _M_sink.out(); }
