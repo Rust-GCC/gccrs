@@ -1549,6 +1549,100 @@ _GLIBCXX_END_NAMESPACE_CONTAINER
       return __last2 != __first2;
     }
 
+#if __cplusplus >= 201103L
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wc++17-extensions" // if constexpr
+  template<typename _ITp, typename _IRef, typename _IPtr, typename _OTp,
+	   typename _Tp>
+    _GLIBCXX_STD_C::_Deque_iterator<_OTp, _OTp&, _OTp*>
+    __uninitialized_copy_a(
+      _GLIBCXX_STD_C::_Deque_iterator<_ITp, _IRef, _IPtr> __first,
+      _GLIBCXX_STD_C::_Deque_iterator<_ITp, _IRef, _IPtr> __last,
+      _GLIBCXX_STD_C::_Deque_iterator<_OTp, _OTp&, _OTp*> __result,
+      allocator<_Tp>&)
+    {
+      // In order to unwind all initialized elements, we just use the default
+      // implementation if construction can throw.
+      if constexpr (!__is_nothrow_constructible(_OTp, _IRef))
+	return std::__do_uninit_copy(__first, __last, __result);
+      else
+	while (__first != __last)
+	  {
+	    auto __from = __first._M_cur;
+	    ptrdiff_t __n;
+	    if (__first._M_node == __last._M_node)
+	      __n = __last._M_cur - __from;
+	    else
+	      __n = __first._M_last - __from;
+	    _OTp* __sres = __result._M_cur;
+	    __n = std::min<ptrdiff_t>(__n, __result._M_last - __result._M_cur);
+	    std::uninitialized_copy(__from, __from + __n, __result._M_cur);
+	    __first += __n;
+	    __result += __n;
+	  }
+      return __result;
+    }
+
+  template<typename _Iter, typename _OTp, typename _Tp>
+    __enable_if_t<__is_random_access_iter<_Iter>::value,
+		  _GLIBCXX_STD_C::_Deque_iterator<_OTp, _OTp&, _OTp*>>
+    __uninitialized_copy_a(_Iter __first, _Iter __last,
+      _GLIBCXX_STD_C::_Deque_iterator<_OTp, _OTp&, _OTp*> __result,
+      allocator<_Tp>&)
+    {
+      // In order to unwind all initialized elements, we just use the default
+      // implementation if construction can throw.
+      if constexpr (!__is_nothrow_constructible(_OTp, decltype(*__first)))
+	return std::__do_uninit_copy(__first, __last, __result);
+      else
+	while (__first != __last)
+	  {
+	    auto __n = std::min<ptrdiff_t>(__last - __first,
+					   __result._M_last - __result._M_cur);
+	    std::uninitialized_copy(__first, __first + __n, __result._M_cur);
+	    __first += __n;
+	    __result += __n;
+	  }
+      return __result;
+    }
+
+  template<typename _ITp, typename _IRef, typename _IPtr, typename _OTp,
+	   typename _Tp>
+    _GLIBCXX_STD_C::_Deque_iterator<_OTp, _OTp&, _OTp*>
+    __uninitialized_move_a(
+      _GLIBCXX_STD_C::_Deque_iterator<_ITp, _IRef, _IPtr> __first,
+      _GLIBCXX_STD_C::_Deque_iterator<_ITp, _IRef, _IPtr> __last,
+      _GLIBCXX_STD_C::_Deque_iterator<_OTp, _OTp&, _OTp*> __result,
+      allocator<_Tp>&)
+    {
+      // In order to unwind all initialized elements, we just use the default
+      // implementation if construction can throw.
+      if constexpr (!__is_nothrow_constructible(_OTp,
+						decltype(std::move(*__first))))
+	return std::uninitialized_copy(std::make_move_iterator(__first),
+				       std::make_move_iterator(__last),
+				       __result);
+      else
+	while (__first != __last)
+	  {
+	    auto __from = __first._M_cur;
+	    ptrdiff_t __n;
+	    if (__first._M_node == __last._M_node)
+	      __n = __last._M_cur - __from;
+	    else
+	      __n = __first._M_last - __from;
+	    __n = std::min<ptrdiff_t>(__n, __result._M_last - __result._M_cur);
+	    std::uninitialized_copy(std::make_move_iterator(__from),
+				    std::make_move_iterator(__from + __n),
+				    __result._M_cur);
+	    __first += __n;
+	    __result += __n;
+	  }
+      return __result;
+    }
+#pragma GCC diagnostic pop
+#endif // C++11
+
 _GLIBCXX_END_NAMESPACE_VERSION
 } // namespace std
 

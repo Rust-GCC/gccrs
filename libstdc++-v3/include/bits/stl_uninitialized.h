@@ -662,6 +662,33 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     }
 #endif
 
+#if __cplusplus >= 201103L
+  template<typename _ITp, typename _IRef, typename _IPtr, typename _OTp,
+	   typename _Tp>
+    _GLIBCXX_STD_C::_Deque_iterator<_OTp, _OTp&, _OTp*>
+    __uninitialized_copy_a(
+      _GLIBCXX_STD_C::_Deque_iterator<_ITp, _IRef, _IPtr> __first,
+      _GLIBCXX_STD_C::_Deque_iterator<_ITp, _IRef, _IPtr> __last,
+      _GLIBCXX_STD_C::_Deque_iterator<_OTp, _OTp&, _OTp*> __result,
+      allocator<_Tp>&);
+
+  template<typename _Iter, typename _OTp, typename _Tp>
+    __enable_if_t<__is_random_access_iter<_Iter>::value,
+		  _GLIBCXX_STD_C::_Deque_iterator<_OTp, _OTp&, _OTp*>>
+    __uninitialized_copy_a(_Iter __first, _Iter __last,
+      _GLIBCXX_STD_C::_Deque_iterator<_OTp, _OTp&, _OTp*> __result,
+      allocator<_Tp>&);
+
+  template<typename _ITp, typename _IRef, typename _IPtr, typename _OTp,
+	   typename _Tp>
+    _GLIBCXX_STD_C::_Deque_iterator<_OTp, _OTp&, _OTp*>
+    __uninitialized_move_a(
+      _GLIBCXX_STD_C::_Deque_iterator<_ITp, _IRef, _IPtr> __first,
+      _GLIBCXX_STD_C::_Deque_iterator<_ITp, _IRef, _IPtr> __last,
+      _GLIBCXX_STD_C::_Deque_iterator<_OTp, _OTp&, _OTp*> __result,
+      allocator<_Tp>&);
+#endif
+
   template<typename _InputIterator, typename _ForwardIterator,
 	   typename _Allocator>
     _GLIBCXX20_CONSTEXPR
