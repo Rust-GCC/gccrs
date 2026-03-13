@@ -4419,7 +4419,12 @@ curr_insn_transform (bool check_only_p)
 	    && !targetm.hard_regno_mode_ok (REGNO (subst), outer_mode))
 	  continue;
 
-	if (subst != old)
+	if (subst != old
+	    /* We don't want to change an out operand by constant or invariant
+	       which will require additional reloads, e.g. by putting a constant
+	       into memory.  */
+	    && (curr_static_id->operand[i].type == OP_IN || MEM_P (subst)
+		|| (GET_CODE (subst) == SUBREG && MEM_P (SUBREG_REG (subst)))))
 	  {
 	    equiv_substition_p[i] = true;
 	    rtx new_subst = copy_rtx (subst);
