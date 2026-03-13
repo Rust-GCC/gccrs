@@ -24,5 +24,7 @@ bar (int b, int x)
 
 /* We should see the partial redundant loads of f even though they
    are using different types (of the same size).  */
+/* XFAILed for dubious validity and PR122380 fix.  The testcase did
+   not work with -fno-strict-aliasing.  */
 
-/* { dg-final { scan-tree-dump-times "Replaced MEM" 3 "pre" } } */
+/* { dg-final { scan-tree-dump-times "Replaced MEM" 3 "pre" { xfail *-*-* } } } */

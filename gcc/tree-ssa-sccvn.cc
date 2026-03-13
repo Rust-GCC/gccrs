@@ -280,12 +280,22 @@ print_vn_reference_ops (FILE *outfile, const vec<vn_reference_op_s> ops)
 	      closebrace = true;
 	    }
 	}
+      if (vro->opcode == MEM_REF || vro->opcode == TARGET_MEM_REF)
+	fprintf (outfile, "(A%d)", TYPE_ALIGN (vro->type));
       if (vro->op0 || vro->opcode == CALL_EXPR)
 	{
 	  if (!vro->op0)
 	    fprintf (outfile, internal_fn_name ((internal_fn)vro->clique));
 	  else
-	    print_generic_expr (outfile, vro->op0);
+	    {
+	      if (vro->opcode == MEM_REF || vro->opcode == TARGET_MEM_REF)
+		{
+		  fprintf (outfile, "(");
+		  print_generic_expr (outfile, TREE_TYPE (vro->op0));
+		  fprintf (outfile, ")");
+		}
+	      print_generic_expr (outfile, vro->op0);
+	    }
 	  if (vro->op1)
 	    {
 	      fprintf (outfile, ",");
@@ -711,7 +721,7 @@ vn_reference_op_compute_hash (const vn_reference_op_t vro1, inchash::hash &hstat
 
 /* Compute a hash for the reference operation VR1 and return it.  */
 
-static hashval_t
+hashval_t
 vn_reference_compute_hash (const vn_reference_t vr1)
 {
   inchash::hash hstate;
@@ -764,10 +774,12 @@ vn_reference_compute_hash (const vn_reference_t vr1)
 }
 
 /* Return true if reference operations VR1 and VR2 are equivalent.  This
-   means they have the same set of operands and vuses.  */
+   means they have the same set of operands and vuses.  If LEXICAL
+   is true then the full access path has to be the same.  */
 
 bool
-vn_reference_eq (const_vn_reference_t const vr1, const_vn_reference_t const vr2)
+vn_reference_eq (const_vn_reference_t const vr1, const_vn_reference_t const vr2,
+		 bool lexical)
 {
   unsigned i, j;
 
@@ -864,7 +876,7 @@ vn_reference_eq (const_vn_reference_t const vr1, const_vn_reference_t const vr2)
 	  else if (vro1->opcode == VIEW_CONVERT_EXPR && vro1->reverse)
 	    return false;
 	  reverse1 |= vro1->reverse;
-	  if (known_eq (vro1->off, -1))
+	  if (lexical || known_eq (vro1->off, -1))
 	    break;
 	  off1 += vro1->off;
 	}
@@ -876,7 +888,7 @@ vn_reference_eq (const_vn_reference_t const vr1, const_vn_reference_t const vr2)
 	  else if (vro2->opcode == VIEW_CONVERT_EXPR && vro2->reverse)
 	    return false;
 	  reverse2 |= vro2->reverse;
-	  if (known_eq (vro2->off, -1))
+	  if (lexical || known_eq (vro2->off, -1))
 	    break;
 	  off2 += vro2->off;
 	}
@@ -904,6 +916,27 @@ vn_reference_eq (const_vn_reference_t const vr1, const_vn_reference_t const vr2)
 	return false;
       if (!vn_reference_op_eq (vro1, vro2))
 	return false;
+      /* Both alignment and alias set are not relevant for the produced
+	 value but need to be included when doing lexical comparison.
+	 We also need to make sure that the access path ends in an
+	 access of the same size as otherwise we might assume an access
+	 may not trap while in fact it might.  */
+      if (lexical
+	  && (vro1->opcode == MEM_REF
+	      || vro1->opcode == TARGET_MEM_REF)
+	  && (TYPE_ALIGN (vro1->type) != TYPE_ALIGN (vro2->type)
+	      || (TYPE_SIZE (vro1->type) != TYPE_SIZE (vro2->type)
+		  && (! TYPE_SIZE (vro1->type)
+		      || ! TYPE_SIZE (vro2->type)
+		      || ! operand_equal_p (TYPE_SIZE (vro1->type),
+					    TYPE_SIZE (vro2->type))))
+	      || (get_deref_alias_set (vro1->opcode == MEM_REF
+				       ? TREE_TYPE (vro1->op0)
+				       : TREE_TYPE (vro1->op2))
+		  != get_deref_alias_set (vro1->opcode == MEM_REF
+					  ? TREE_TYPE (vro2->op0)
+					  : TREE_TYPE (vro2->op2)))))
+	return false;
       ++j;
       ++i;
     }
@@ -916,7 +949,7 @@ vn_reference_eq (const_vn_reference_t const vr1, const_vn_reference_t const vr2)
 /* Copy the operations present in load/store REF into RESULT, a vector of
    vn_reference_op_s's.  */
 
-static void
+void
 copy_reference_ops_from_ref (tree ref, vec<vn_reference_op_s> *result)
 {
   /* For non-calls, store the information that makes up the address.  */
