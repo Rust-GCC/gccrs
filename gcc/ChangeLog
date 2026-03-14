@@ -1,3 +1,150 @@
+2026-03-13  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR rtl-optimization/124454
+	* regcprop.cc (pass_cprop_hardreg::execute): If something
+	changed and non-call exceptions is on, call purge_all_dead_edges
+	and cleanup_cfg.
+
+2026-03-13  Vladimir N. Makarov  <vmakarov@redhat.com>
+
+	PR target/117182
+	* lra-constraints.cc (curr_insn_transform): Don't change an output
+	operand by constant or invariant equivalence.
+
+2026-03-13  Andre Vieira  <andre.simoesdiasvieira@arm.com>
+
+	* config/arm/arm.cc (TARGET_C_BITINT_TYPE_INFO): New Macro.
+	(arm_return_in_memory): Return true for any _BitInt(N) where N > 64.
+	(arm_needs_doubleword_align): Return true for any _BitInt(N) where N > 32.
+	(arm_bitint_type_info): New.
+	* config/arm/arm-protos.h (arm_bitint_type_info): New declaration.
+
+2026-03-13  Saurabh Jha  <saurabh.jha@arm.com>
+
+	PR target/122953
+	* config/aarch64/aarch64-c.cc
+	(TARGET_AARCH64_MS_ABI): Explicitly set it to 0 if not on mingw.
+	(aarch64_define_unconditional_macros): Remove __ARM_PCS_AAPCS64
+	from here.
+	(aarch64_update_cpp_builtins): Define __ARM_PCS_AAPCS64 if not
+	on Windows ABI.
+	---
+	Hey,
+	Regression tested on aarch64-linux-gnu and found no regressions.
+	Built for arch64-w64-mingw32, ran target dependent tests, and
+	found no regressions.
+	Ok for master?
+	Thanks,
+	Saurabh
+
+2026-03-13  Jakub Jelinek  <jakub@redhat.com>
+
+	* tree-profile.cc (struct conds_ctx): Formatting fixes.
+	Rename B1, B2, G1, G2 and G3 members to b1, b2, g1, g2 and g3.
+	Adjust all uses.
+	(topological_cmp, topological_src_cmp, index_of, single_p,
+	single_edge, contract_edge_up): Formatting fixes.
+	(struct outcomes): Likewise.
+	(conditional_succs, condition_index, condition_uid,
+	masking_vectors, emit_assign, emit_bitwise_op): Likewise.
+	(make_top_index_visit, make_top_index): Likewise.  Rename
+	L argument to l.
+	(paths_between): Formatting fixes.
+	(struct condcov): Likewise.
+	(cov_length, cov_blocks, cov_masks, cov_maps, cov_free): Likewise.
+	(find_conditions): Likewise.  Don't start warning_at message with
+	uppercase letter.
+	(struct counters): Formatting fixes.
+	(find_counters, resolve_counter, resolve_counters,
+	instrument_decisions): Likewise.
+	(init_ic_make_global_vars): Comment formatting fixes.
+	(gimple_init_gcov_profiler): Formatting fixes.
+
+2026-03-13  Jørgen Kvalsvik  <j@lambda.is>
+
+	PR ipa/124462
+	* tree-profile.cc (masking_vectors): Skip blocks with less than
+	2 non-complex incoming edges.
+
+2026-03-13  Takayuki 'January June' Suwa  <jjsuwa_sys3175@yahoo.co.jp>
+
+	* config/xtensa/xtensa.cc (constantsynth_pass1):
+	Change the comparison between src and SET_SRC(pat) to be performed
+	using rtx_equal_p rather than between references (pointer values)
+	directly, and adjust the destination of changes in validate_change
+	to eliminate the need to call gen_rtx_SET.
+	(constantsynth_pass2):
+	Fill in missing spacing in one place and changes dump file output
+	slightly.
+
+2026-03-13  Takayuki 'January June' Suwa  <jjsuwa_sys3175@yahoo.co.jp>
+
+	* config/xtensa/xtensa.cc (xtensa_split_operand_pair)
+	Move the common code from the split part of movd[if]_internal
+	MD patterns into this function, since this function is only
+	called from the split part of that patterns.
+	Also, during non-debug optimization, re-register new literal
+	pool entries with the split values themselves instead of
+	splitting the memory reference of the source numeric constant
+	placed in the pool.
+	(split_DI_SF_DF_const):
+	Rename to convert_SF_const and remove the split function of
+	D[IF]mode constant assignment.
+	(do_largeconst2):
+	Change the call from split_DI_SF_DF_const to convert_SF_const.
+	* config/xtensa/xtensa.md (movdi_internal, movdf_internal):
+	Reduce their split parts to just a call to xtensa_split_operand_pair.
+
+2026-03-13  Takayuki 'January June' Suwa  <jjsuwa_sys3175@yahoo.co.jp>
+
+	* config/xtensa/xtensa.cc (FPreg_neg_scaled_simm12b_1):
+	Change the test to determine whether REAL_VALUE_TYPE is a non-
+	zero finite value to whether it is normal.
+	(FPreg_neg_scaled_simm12b):
+	Place the call to FPreg_neg_scaled_simm12b_1 last in the
+	expression to improve performance, and change the dump file
+	output slightly.
+
+2026-03-13  Takayuki 'January June' Suwa  <jjsuwa_sys3175@yahoo.co.jp>
+
+	* config/xtensa/xtensa-passes.def (pass_xtensa_largeconst):
+	Rename to pass_xtensa_largeconst1.
+	(pass_xtensa_largeconst2): New target-specific pass.
+	* config/xtensa/xtensa-protos.h (make_pass_xtensa_largeconst):
+	Rename to make_pass_xtensa_largeconst1.
+	(make_pass_xtensa_largeconst2): New function prototype.
+	* config/xtensa/xtensa.cc (litpool_set_src_1):
+	Change to process large numeric constant assignments to DImode
+	as well as [SH]Imode.
+	(do_largeconst):
+	Rename it to do_largeconst1 and leave only the mandatory insn
+	transformation process.
+	(do_largeconst2): New function that inherits the optional insn
+	transformation processes from the old do_largeconst.
+	(rest_of_handle_largeconst):
+	Rename to rest_of_handle_largeconst1 and change to call
+	do_largeconst1.
+	(rest_of_handle_largeconst2): New function that calls
+	do_largeconst2.
+	(pass_data_xtensa_largeconst)
+	Rename to pass_data_xtensa_largeconst1.
+	(pass_xtensa_largeconst):
+	Rename to pass_xtensa_largeconst1 and change to call
+	rest_of_handle_largeconst1.
+	(pass_data_xtensa_largeconst2): New opt_pass data.
+	(pass_xtensa_largeconst2):
+	New rtl_opt_pass that runs rest_of_handle_largeconst2 when non-
+	debug optimizations are enabled.
+	(make_pass_xtensa_largeconst):
+	Rename to make_pass_xtensa_largeconst1.
+	(make_pass_xtensa_largeconst2): New function definition.
+
+2026-03-13  Jakub Jelinek  <jakub@redhat.com>
+
+	PR target/124461
+	* config/i386/i386.md (movrs<mode>): Use <imodesuffix> only for
+	-masm=att, not for -masm=intel.
+
 2026-03-12  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
 
 	PR rtl-optimization/123822

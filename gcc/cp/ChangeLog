@@ -1,3 +1,14 @@
+2026-03-13  Jakub Jelinek  <jakub@redhat.com>
+
+	* Make-lang.in (check-c++-all): Also test c++26.
+
+2026-03-13  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/124388
+	* reflect.cc (eval_display_string_of): Only print <unnmamed bit-field>
+	for DECL_UNNAMED_BIT_FIELD, for anon union print <anonymous union>,
+	otherwise print <unnamed member>.
+
 2026-03-12  Nathaniel Shead  <nathanieloshead@gmail.com>
 	    Thomas Berger  <loki+gcc@loki.codes>
 

@@ -1,3 +1,11 @@
+2026-03-13  Christopher Albert  <albert@tugraz.at>
+
+	PR fortran/102459
+	* trans-openmp.cc (gfc_trans_omp_clauses): Choose the scalar
+	reference path from the full expression rank rather than the first
+	array reference.
+	(gfc_trans_omp_depobj): Likewise.
+
 2026-03-12  Christopher Albert  <albert@tugraz.at>
 
 	PR fortran/102596

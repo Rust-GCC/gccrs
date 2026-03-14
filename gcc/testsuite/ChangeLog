@@ -1,3 +1,54 @@
+2026-03-14  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	* gcc.c-torture/execute/pr17377.c: Mark global variable x
+	as volatile.
+
+2026-03-13  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR rtl-optimization/124454
+	* gcc.dg/pr124454-1.c: New test.
+
+2026-03-13  Marek Polacek  <polacek@redhat.com>
+
+	* g++.dg/reflect/expansion-stmt3.C: New test.
+
+2026-03-13  Andre Vehreschild  <vehre@gcc.gnu.org>
+
+	PR testsuite/124484
+	* gfortran.dg/coarray/caf.exp: Add -pthread and -lrt
+	for *-linux* targets for caf_shmem testing.
+
+2026-03-13  Jakub Jelinek  <jakub@redhat.com>
+
+	PR analyzer/124375
+	* gcc.dg/analyzer/ice-pr124375-1.c (__printf_buffer): Put the whole ?:
+	expression on a single line.
+
+2026-03-13  Jørgen Kvalsvik  <j@lambda.is>
+
+	PR ipa/124462
+	* g++.dg/gcov/pr124462.C: New test.
+
+2026-03-13  Jakub Jelinek  <jakub@redhat.com>
+
+	PR target/124461
+	* gcc.target/i386/movrs-pr124461.c: New test.
+
+2026-03-13  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/124388
+	* g++.dg/reflect/display_string_of1.C (S, NS5::S): Add
+	union { int a; }.  Add static_assertions that the unnamed non-static
+	data member is printed as <unnamed member>.
+	* g++.dg/reflect/u8display_string_of1.C (S, NS5::S): Add
+	union { int a; }.  Add static_assertions that the unnamed non-static
+	data member is printed as <unnamed member>.
+
+2026-03-13  Christopher Albert  <albert@tugraz.at>
+
+	PR fortran/102459
+	* gfortran.dg/pr102459.f90: New test.
+
 2026-03-12  Christopher Albert  <albert@tugraz.at>
 
 	PR fortran/102596

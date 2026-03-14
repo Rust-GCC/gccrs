@@ -1,3 +1,8 @@
+2026-03-13  Andre Vieira  <andre.simoesdiasvieira@arm.com>
+
+	* config/arm/libgcc-bpabi.ver: Add new symbols.
+	* config/arm/t-softfp: Enable use of floatbitinthf and pass necessary options to build fp16.
+
 2026-03-06  Saurabh Jha  <saurabh.jha@arm.com>
 	    Evgeny Karpov  <evgeny.karpov@arm.com>
 
