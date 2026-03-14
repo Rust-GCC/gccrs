@@ -13241,6 +13241,13 @@ trees_in::read_function_def (tree decl, tree maybe_template)
       DECL_INITIAL (decl) = initial;
       DECL_SAVED_TREE (decl) = saved;
 
+      /* Some entities (like anticipated builtins) were declared without
+	 DECL_ARGUMENTS, so update them now.  But don't do it if there's
+	 already an argument list, because we've already built the
+	 definition referencing those merged PARM_DECLs.  */
+      if (!DECL_ARGUMENTS (decl))
+	DECL_ARGUMENTS (decl) = DECL_ARGUMENTS (maybe_dup);
+
       if (context)
 	SET_DECL_FRIEND_CONTEXT (decl, context);
       if (cexpr.decl)
