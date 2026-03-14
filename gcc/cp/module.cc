@@ -22577,19 +22577,19 @@ lazy_load_binding (unsigned mod, tree ns, tree id, binding_slot *mslot)
 	    module->get_flatname ());
 }
 
-/* Load any pending entities keyed to the top-key of DECL.  */
+/* Load any pending entities keyed to NS and NAME.
+   Used to find pending types if we don't yet have a decl built.  */
 
 void
-lazy_load_pendings (tree decl)
+lazy_load_pendings (tree ns, tree name)
 {
   /* Make sure lazy loading from a template context behaves as if
      from a non-template context.  */
   processing_template_decl_sentinel ptds;
 
-  tree key_decl;
   pending_key key;
-  key.ns = find_pending_key (decl, &key_decl);
-  key.id = DECL_NAME (key_decl);
+  key.ns = ns;
+  key.id = name;
 
   auto *pending_vec = pending_table ? pending_table->get (key) : nullptr;
   if (!pending_vec)
@@ -22640,6 +22640,16 @@ lazy_load_pendings (tree decl)
   if (count != errorcount + warningcount)
     inform (input_location, "during load of pendings for %<%E%s%E%>",
 	    key.ns, &"::"[key.ns == global_namespace ? 2 : 0], key.id);
+}
+
+/* Load any pending entities keyed to the top-key of DECL.  */
+
+void
+lazy_load_pendings (tree decl)
+{
+  tree key_decl;
+  tree ns = find_pending_key (decl, &key_decl);
+  return lazy_load_pendings (ns, DECL_NAME (key_decl));
 }
 
 static void

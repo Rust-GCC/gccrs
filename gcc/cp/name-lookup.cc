@@ -8490,6 +8490,13 @@ lookup_elaborated_type (tree name, TAG_how how)
 
   /* Look in the innermost namespace.  */
   tree ns = b->this_entity;
+
+  /* If an import is going to provide a definition for this tag,
+     load it now so that we don't get confused later when processing
+     this tag's definition.  */
+  if (modules_p ())
+    lazy_load_pendings (ns, name);
+
   if (tree *slot = find_namespace_slot (ns, name))
     {
       tree bind = *slot;
@@ -8796,12 +8803,6 @@ pushtag (tree name, tree type, TAG_how how)
 	}
       else
 	{
-	  /* If an import is going to provide a definition for this tag,
-	     load it now so that we don't get confused later when processing
-	     this tag's definition.  */
-	  if (modules_p ())
-	    lazy_load_pendings (decl);
-
 	  decl = do_pushdecl_with_scope
 	    (decl, b, /*hiding=*/(how == TAG_how::HIDDEN_FRIEND));
 	  if (decl == error_mark_node)
