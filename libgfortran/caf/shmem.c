@@ -1,6 +1,6 @@
 /* Shared memory-multiple (process)-image implementation of GNU Fortran
    Coarray Library
-   Copyright (C) 2011-2025 Free Software Foundation, Inc.
+   Copyright (C) 2011-2026 Free Software Foundation, Inc.
    Based on single.c contributed by Tobias Burnus <burnus@net-b.de>
 
 This file is part of the GNU Fortran Coarray Runtime Library (libcaf).
