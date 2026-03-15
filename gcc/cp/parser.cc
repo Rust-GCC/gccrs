@@ -6158,7 +6158,7 @@ cp_parser_splice_specifier (cp_parser *parser, bool template_p = false,
      int q = A ().[: ^^x :];
      should be an error -- x is not a member-qualified name and isn't
      in scope.  */
-  parser->context->object_type = NULL;
+  parser->context->object_type = NULL_TREE;
   tree expr = cp_parser_constant_expression (parser,
 					     /*allow_non_constant_p=*/false,
 					     /*non_constant_p=*/nullptr,
@@ -6318,7 +6318,8 @@ cp_parser_splice_expression (cp_parser *parser, bool template_p,
 
   if (error_operand_p (t))
     {
-      gcc_assert (seen_error ());
+      gcc_assert (seen_error ()
+		  || cp_parser_uncommitted_to_tentative_parse_p (parser));
       return error_mark_node;
     }
 
