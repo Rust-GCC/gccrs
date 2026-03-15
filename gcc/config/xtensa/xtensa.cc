@@ -5777,6 +5777,31 @@ constantsynth_method_lshr_m1 (rtx dest, HOST_WIDE_INT v)
   return end_sequence ();
 }
 
+/* A method that generates two machine instructions to logically right-
+   shift a negative signed 12-bit value a certain number of bits to
+   synthesize a positive number with a bit sequence of 1s on the MSB
+   side (eg., 0x1FFFFF55).  */
+
+static rtx_insn *
+constantsynth_method_lshr_mi12b (rtx dest, HOST_WIDE_INT v)
+{
+  int i;
+  HOST_WIDE_INT v0;
+
+  /* HOST_WIDE_INT should be always 64 bits (see gcc/hwint.h), while
+     asserts just in case.  */
+  gcc_assert (HOST_BITS_PER_WIDE_INT == 64);
+
+  if (! IN_RANGE (i = clz_hwi (v) - 32, 1, 10)
+      || ! IN_RANGE (v0 = (int32_t)(v << i), -2048, -2))
+    return NULL;
+
+  start_sequence ();
+  emit_insn (gen_rtx_SET (dest, GEN_INT (v0)));
+  emit_insn (gen_lshrsi3 (dest, dest, GEN_INT (i)));
+  return end_sequence ();
+}
+
 /* Split the specified value between -34816 and 34559 into the two
    immediates for the MOVI and ADDMI instruction.  */
 
@@ -5951,6 +5976,7 @@ struct constantsynth_method_info
 static const struct constantsynth_method_info constantsynth_methods[] =
 {
   { constantsynth_method_lshr_m1, "lshr_m1" },
+  { constantsynth_method_lshr_mi12b, "lshr_mi12b" },
   { constantsynth_method_16bits, "16bits" },
   { constantsynth_method_32bits, "32bits" },
   { constantsynth_method_square, "square" },
