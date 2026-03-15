@@ -31830,7 +31830,7 @@ cp_parser_base_specifier (cp_parser* parser)
   tree std_attrs = cp_parser_std_attribute_spec_seq (parser);
   tree annotations = NULL_TREE;
 
-  if (std_attrs != NULL_TREE)
+  if (std_attrs != NULL_TREE && std_attrs != error_mark_node)
     {
       tree *pannotations = &annotations;
       for (tree attr = std_attrs; attr; attr = TREE_CHAIN (attr))
