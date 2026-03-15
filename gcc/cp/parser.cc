@@ -10053,7 +10053,6 @@ cp_parser_pseudo_destructor_name (cp_parser* parser,
 static tree
 cp_parser_reflection_name (cp_parser *parser)
 {
-  auto s = make_temp_override (cp_preserve_using_decl, true);
 
   /* Look for the optional `::' operator.  */
   bool global_scope_p
@@ -10077,6 +10076,7 @@ cp_parser_reflection_name (cp_parser *parser)
     cp_parser_error (parser, "%<template%> must follow a nested-name-"
 		     "specifier");
 
+  auto s = make_temp_override (cp_preserve_using_decl, true);
   /* Look for the identifier.  */
   location_t loc = cp_lexer_peek_token (parser->lexer)->location;
   tree name = cp_parser_identifier (parser);
