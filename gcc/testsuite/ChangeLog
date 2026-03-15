@@ -1,3 +1,41 @@
+2026-03-14  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/124399
+	* g++.dg/reflect/annotations12.C: Uncomment two tests, remove
+	temporary test added until that is fixed.
+	* g++.dg/reflect/annotations13.C: New test.
+
+2026-03-14  Jose E. Marchesi  <jemarch@gnu.org>
+
+	* algol68/execute/float-1.a68: New test.
+
+2026-03-14  Jose E. Marchesi  <jemarch@gnu.org>
+
+	* algol68/execute/mult-char-1.a68: Multiplying a char or string by
+	negative or zero factor results in the empty string.
+	* algol68/execute/mult-string-3.a68: Likewise.
+	* algol68/execute/mult-string-2.a68: Likewise.
+	* algol68/execute/mult-string-1.a68: Likewise.
+
+2026-03-14  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	PR c++/124485
+	* g++.dg/modules/class-8_b.C: Adjusted expected behaviour.
+	* g++.dg/modules/pr124485_a.C: New test.
+	* g++.dg/modules/pr124485_b.C: New test.
+
+2026-03-14  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/124456
+	* g++.dg/cpp26/decomp27.C: New test.
+
+2026-03-14  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	PR c++/124478
+	* g++.dg/modules/imp-member-6_a.C: New test.
+	* g++.dg/modules/imp-member-6_b.C: New test.
+	* g++.dg/modules/imp-member-6_c.C: New test.
+
 2026-03-14  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
 
 	* gcc.c-torture/execute/pr17377.c: Mark global variable x

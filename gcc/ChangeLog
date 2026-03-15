@@ -1,3 +1,9 @@
+2026-03-14  Jakub Jelinek  <jakub@redhat.com>
+
+	PR other/124508
+	* config/loongarch/genopts/gen-evolution.awk: Rename copyright_header
+	routine so that update-copyright.py isn't upset about it.
+
 2026-03-13  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
 
 	PR rtl-optimization/124454

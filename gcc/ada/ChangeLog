@@ -1,3 +1,10 @@
+2026-03-14  Matthias Klose  <doko@gcc.gnu.org>
+
+	PR ada/107475
+	* Makefile.rtl (s390% linux%): Define MISCLIB.
+	(arm% linux-gnueabi%): Likewise.
+	(%x32 linux%): Likewise.
+
 2026-03-12  Steve Baird  <baird@adacore.com>
 
 	PR ada/124016

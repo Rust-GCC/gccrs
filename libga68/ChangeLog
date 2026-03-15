@@ -1,3 +1,8 @@
+2026-03-14  Jose E. Marchesi  <jemarch@gnu.org>
+
+	* standard.a68.in (float): Fix typo from RR and handle short* int
+	arguments properly.
+
 2026-02-23  Jose E. Marchesi  <jemarch@gnu.org>
 
 	* transput.a68.in: Remove and move content to..

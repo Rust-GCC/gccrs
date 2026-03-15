@@ -1,3 +1,35 @@
+2026-03-14  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/124399
+	* decl.cc (grokdeclarator): If both *attrlist and
+	declarator->std_attributes list contain annotations, chainon
+	declarator->std_attributes to tail of copy_list (*attrlist)
+	rather than *attrlist to tail of declarator->std_attributes.
+
+2026-03-14  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	PR c++/124485
+	* cp-tree.h (lazy_load_pendings): Declare new overload.
+	* module.cc (lazy_load_pendings): Define it.
+	* name-lookup.cc (lookup_elaborated_type): Load pending entities
+	with given name before doing namespace-scope lookup.
+	(pushtag): Remove no-longer-needed pending load.
+
+2026-03-14  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/124456
+	* pt.cc (tsubst_pack_expansion): For structured binding pack
+	with type dependent pack set arg_pack to NULL_TREE.
+
+2026-03-14  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	PR c++/124478
+	* cp-tree.h (lazily_declare_fn): Make return type void.
+	* method.cc (is_lazy_special_member): New function.
+	(implicitly_declare_fn): Bail early if we lazy loaded the member
+	we're trying to declare.
+	(lazily_declare_fn): Likewise.
+
 2026-03-13  Jakub Jelinek  <jakub@redhat.com>
 
 	* Make-lang.in (check-c++-all): Also test c++26.

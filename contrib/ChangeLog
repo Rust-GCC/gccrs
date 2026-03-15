@@ -1,3 +1,8 @@
+2026-03-14  Jakub Jelinek  <jakub@redhat.com>
+
+	PR other/124508
+	* update-copyright.py: Add James Bohl. as another copyright.
+
 2026-03-09  Martin Jambor  <mjambor@suse.cz>
 
 	* filter-clang-warnings.py (skip_warning): Also ingore
