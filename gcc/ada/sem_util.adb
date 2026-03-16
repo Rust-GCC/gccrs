@@ -29435,13 +29435,21 @@ package body Sem_Util is
                return False;
             end if;
 
+            --  Reject for example subprogram calls in object notation
+
+            if Ekind (Entity (Selector_Name (N))) not in E_Component
+                                                       | E_Discriminant
+            then
+               return False;
+            end if;
+
             declare
                Comp : constant Entity_Id :=
                  Original_Record_Component (Entity (Selector_Name (N)));
             begin
-              --  AI12-0373 confirms that we should not call
-              --  Has_Discriminant_Dependent_Constraint here which would be
-              --  too strong.
+               --  AI12-0373 confirms that we should not call
+               --  Has_Discriminant_Dependent_Constraint here,
+               --  which would be too strong.
 
                if Is_Declared_Within_Variant (Comp) then
                   return False;
