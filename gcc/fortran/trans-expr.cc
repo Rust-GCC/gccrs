@@ -1317,13 +1317,12 @@ gfc_conv_class_to_class (gfc_se *parmse, gfc_expr *e, gfc_typespec class_ts,
   stmtblock_t block;
   bool full_array = false;
 
-  /* Class transformational function results are the data field of a class
-     temporary and so the class expression can be obtained directly.  */
-  if (e->expr_type == EXPR_FUNCTION
-      && e->value.function.isym
-      && e->value.function.isym->transformational
+  /* If this is the data field of a class temporary, the class expression
+     can be obtained and returned directly.  */
+  if (e->expr_type != EXPR_VARIABLE
       && TREE_CODE (parmse->expr) == COMPONENT_REF
-      && !GFC_CLASS_TYPE_P (TREE_TYPE (parmse->expr)))
+      && !GFC_CLASS_TYPE_P (TREE_TYPE (parmse->expr))
+      && GFC_CLASS_TYPE_P (TREE_TYPE (TREE_OPERAND (parmse->expr, 0))))
     {
       parmse->expr = TREE_OPERAND (parmse->expr, 0);
       if (!VAR_P (parmse->expr))
@@ -7789,6 +7788,16 @@ gfc_conv_procedure_call (gfc_se * se, gfc_symbol * sym,
 	      gfc_init_block (&class_se.pre);
 	      gfc_init_block (&class_se.post);
 
+	      if (e->expr_type != EXPR_VARIABLE)
+		{
+		  int n;
+		  /* Set the bounds and offset correctly.  */
+		  for (n = 0; n < e->rank; n++)
+		    gfc_conv_shift_descriptor_lbound (&class_se.pre,
+						      class_se.expr,
+						      n, gfc_index_one_node);
+		}
+
 	      /* The conversion does not repackage the reference to a class
 	         array - _data descriptor.  */
 	      gfc_conv_class_to_class (&class_se, e, fsym->ts, false,
@@ -12179,8 +12188,13 @@ gfc_trans_arrayfunc_assign (gfc_expr * expr1, gfc_expr * expr2)
   gfc_symbol *sym = expr1->symtree->n.sym;
   bool finalizable =  gfc_may_be_finalized (expr1->ts);
 
+  /* If the symbol is host associated and has not been referenced in its name
+     space, it might be lacking a backend_decl and vtable.  */
+  if (sym->backend_decl == NULL_TREE)
+    return NULL_TREE;
+
   if (arrayfunc_assign_needs_temporary (expr1, expr2))
-    return NULL;
+    return NULL_TREE;
 
   /* The frontend doesn't seem to bother filling in expr->symtree for intrinsic
      functions.  */
@@ -12190,7 +12204,7 @@ gfc_trans_arrayfunc_assign (gfc_expr * expr1, gfc_expr * expr2)
 	      || (comp && comp->attr.dimension)
 	      || (!comp && gfc_return_by_reference (expr2->value.function.esym)
 		  && expr2->value.function.esym->result->attr.dimension)))
-    return NULL;
+    return NULL_TREE;
 
   gfc_init_se (&se, NULL);
   gfc_start_block (&se.pre);
