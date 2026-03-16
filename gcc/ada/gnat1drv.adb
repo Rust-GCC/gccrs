@@ -527,12 +527,6 @@ procedure Gnat1drv is
                Warnsw.Warning_Doc_Switch,
              others => False));
 
-         --  Suppress the generation of name tables for enumerations, which are
-         --  not needed for formal verification, and fall outside the SPARK
-         --  subset (use of pointers).
-
-         Global_Discard_Names := True;
-
          --  Suppress the expansion of tagged types and dispatching calls,
          --  which lead to the generation of non-SPARK code (use of pointers),
          --  which is more complex to formally verify than the original source.
