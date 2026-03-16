@@ -2961,7 +2961,7 @@ is built, using an external build of the Boehm-Demers-Weiser garbage
 collector (@uref{https://www.hboehm.info/gc/}).
 
 This library needs to be available for each multilib variant, unless
-configured with @option{--enable-objc-gc=@samp{auto}} in which case
+configured with @option{--enable-algol68-gc=@samp{auto}} in which case
 the build of the additional runtime library is skipped when not
 available and the build continues.
 
