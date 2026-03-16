@@ -1,3 +1,10 @@
+2026-03-15  Christopher Albert  <albert@tugraz.at>
+
+	PR fortran/124482
+	* decl.cc (gfc_match_data_decl): Defer CLASS container cleanup
+	until after all failed components are unlinked.  Check remaining
+	component list before freeing a shared container.
+
 2026-03-13  Christopher Albert  <albert@tugraz.at>
 
 	PR fortran/102459

@@ -1,3 +1,11 @@
+2026-03-15  François Dumont  <frs.dumont@gmail.com>
+
+	PR libstdc++/124444
+	* include/debug/safe_sequence.h (_Safe_sequence::_M_invalidate_if_impl): New.
+	(_Safe_sequence::_M_invalidate_if): Call later if not __is_constant_evaluated.
+	* include/debug/safe_sequence.tcc: Rename _M_invalidate_if into
+	_M_invalidate_if_impl and remove C++20 constexpr.
+
 2026-03-14  Jonathan Wakely  <jwakely@redhat.com>
 
 	* include/std/text_encoding: Fix @since in Doxygen comment.
