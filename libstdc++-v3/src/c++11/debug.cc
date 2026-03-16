@@ -462,7 +462,7 @@ namespace __gnu_debug
     __it->_M_unlink();
     if (_M_const_iterators == __it)
       _M_const_iterators = __it->_M_next;
-    if (_M_iterators == __it)
+    else if (_M_iterators == __it)
       _M_iterators = __it->_M_next;
   }
 
@@ -711,7 +711,7 @@ namespace __gnu_debug
     __it->_M_unlink();
     if (_M_const_local_iterators == __it)
       _M_const_local_iterators = __it->_M_next;
-    if (_M_local_iterators == __it)
+    else if (_M_local_iterators == __it)
       _M_local_iterators = __it->_M_next;
   }
 
