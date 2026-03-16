@@ -2360,6 +2360,11 @@ package body Sprint is
 
             Sprint_Node (Discrete_Subtype_Definition (Node));
 
+            if Present (Iterator_Filter (Node)) then
+               Write_Str (" when ");
+               Sprint_Node (Iterator_Filter (Node));
+            end if;
+
          when N_Loop_Statement =>
             Write_Indent;
 
