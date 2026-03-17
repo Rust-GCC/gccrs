@@ -4721,9 +4721,10 @@ package body Inline is
       Expr_Copy    : constant Node_Id := New_Copy_Tree (Func_Expr);
       S_Adjustment : Sloc_Adjustment;
 
-      function Adjust_Sloc (Nod : Node_Id) return Traverse_Result;
-      --  Update the child node with the instantiation adjustment
-      --  information for error messages.
+      function Adjust_Node (Nod : Node_Id) return Traverse_Result;
+      --  Update the child node with the instantiation adjustment information
+      --  for error messages and mark the node as not coming from source to
+      --  avoid spurious resolution errors in inlined code.
 
       function Replace_Formal (N : Node_Id) return Traverse_Result;
       --  Replace each occurrence of a formal with the
@@ -4731,16 +4732,17 @@ package body Inline is
       --  by Establish_Actual_Mapping_For_Inlined_Call.
 
       -----------------
-      -- Adjust_Sloc --
+      -- Adjust_Node --
       -----------------
 
-      function Adjust_Sloc (Nod : Node_Id) return Traverse_Result is
+      function Adjust_Node (Nod : Node_Id) return Traverse_Result is
       begin
          Adjust_Instantiation_Sloc (Nod, S_Adjustment);
+         Set_Comes_From_Source (Nod, False);
          return OK;
-      end Adjust_Sloc;
+      end Adjust_Node;
 
-      procedure Adjust_Slocs is new Traverse_Proc (Adjust_Sloc);
+      procedure Adjust_Nodes is new Traverse_Proc (Adjust_Node);
 
       --------------------
       -- Replace_Formal --
@@ -4807,7 +4809,7 @@ package body Inline is
 
       Replace_Formals (Expr_Copy);
 
-      Adjust_Slocs (Expr_Copy);
+      Adjust_Nodes (Expr_Copy);
 
       --  Apply a qualified expression with the function's result subtype,
       --  to ensure that we check the expression against any constraint
