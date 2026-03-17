@@ -4308,6 +4308,10 @@ gomp_exit_data (struct gomp_device_descr *devicep, size_t mapnum,
       gomp_mutex_unlock (&devicep->lock);
       return;
     }
+  size_t *iterator_count = NULL;
+  bool iterators_p = false;
+  iterators_p = gomp_merge_iterator_maps (&mapnum, &hostaddrs, &sizes,
+					  (void**) &kinds, &iterator_count);
 
   for (i = 0; i < mapnum; i++)
     if ((kinds[i] & typemask) == GOMP_MAP_DETACH)
@@ -4407,6 +4411,14 @@ gomp_exit_data (struct gomp_device_descr *devicep, size_t mapnum,
     gomp_remove_var (devicep, remove_vars[i]);
 
   gomp_mutex_unlock (&devicep->lock);
+
+  if (iterators_p)
+    {
+      free (hostaddrs);
+      free (sizes);
+      free (kinds);
+      free (iterator_count);
+    }
 }
 
 void

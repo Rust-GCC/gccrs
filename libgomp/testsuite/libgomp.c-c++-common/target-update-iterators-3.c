@@ -63,5 +63,8 @@ int main (void)
     for (int j = 0; j < DIM2; j++)
       expected += x_new[i][j];
 
+  #pragma omp target exit data map(iterator(i=0:DIM1), release: x[i][ :DIM2])
+  #pragma omp target exit data map(release: x[ :DIM1])
+
   return sum - expected;
 }
