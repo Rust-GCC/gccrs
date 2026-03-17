@@ -1,5 +1,4 @@
 ! { dg-do run }
-! { dg-additional-options "-fopenmp" }
 !
 ! PR fortran/120286 - scalar class pointers in OpenMP private/firstprivate
 ! clauses must preserve association status without taking ownership.
