@@ -16,11 +16,14 @@
 // along with GCC; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
+#include "rust-compile-drop.h"
 #include "rust-compile-pattern.h"
 #include "rust-compile-stmt.h"
 #include "rust-compile-expr.h"
 #include "rust-compile-type.h"
 #include "rust-compile-var-decl.h"
+#include "rust-compile-datum.h"
+#include "rust-tyty.h"
 
 namespace Rust {
 namespace Compile {
@@ -40,7 +43,10 @@ CompileStmt::Compile (HIR::Stmt *stmt, Context *ctx)
 void
 CompileStmt::visit (HIR::ExprStmt &stmt)
 {
-  translated = CompileExpr::Compile (stmt.get_expr (), ctx);
+  Datum result = CompileExpr::CompileDatum (stmt.get_expr (), ctx);
+  result.add_clean_if_rvalue (ctx,
+			      stmt.get_expr ().get_mappings ().get_hirid ());
+  translated = result.raw_tree ();
 }
 
 void
@@ -57,26 +63,23 @@ CompileStmt::visit (HIR::LetStmt &stmt)
 			"failed to lookup variable declaration type");
       return;
     }
-
   rust_debug_loc (stmt.get_locus (), "   -> LetStmt %s",
 		  ty->as_string ().c_str ());
 
-  // setup var decl nodes
   fncontext fnctx = ctx->peek_fn ();
   tree fndecl = fnctx.fndecl;
   tree translated_type = TyTyResolveCompile::compile (ctx, ty);
   CompileVarDecl::compile (fndecl, translated_type, &stmt_pattern, ctx);
 
-  // nothing to do
   if (!stmt.has_init_expr ())
     return;
+  Datum init_datum = CompileExpr::CompileDatum (stmt.get_init_expr (), ctx);
+  tree init = init_datum.raw_tree ();
 
-  tree init = CompileExpr::Compile (stmt.get_init_expr (), ctx);
   // FIXME use error_mark_node, check that CompileExpr returns error_mark_node
   // on failure and make this an assertion
   if (init == nullptr)
     return;
-
   TyTy::BaseType *actual = nullptr;
   bool ok = ctx->get_tyctx ()->lookup_type (
     stmt.get_init_expr ().get_mappings ().get_hirid (), &actual);
@@ -88,7 +91,17 @@ CompileStmt::visit (HIR::LetStmt &stmt)
   init = coercion_site (stmt.get_mappings ().get_hirid (), init, actual,
 			expected, lvalue_locus, rvalue_locus);
 
+  DropContext *drop_ctx = DropContext::get (ctx);
+  init_datum.post_store (ctx);
   CompilePatternLet::Compile (&stmt_pattern, init, ty, rvalue_locus, ctx);
+  HirId var_hid = stmt_pattern.get_mappings ().get_hirid ();
+  DropPlace *var_dp = nullptr;
+  if (ctx->lookup_var_drop_place (var_hid, &var_dp) && var_dp != nullptr)
+    {
+      tree mark_init = drop_ctx->init (var_dp);
+      assert_node (mark_init, "mark_init is null or error_mark_node");
+      ctx->add_statement (mark_init);
+    }
 }
 
 } // namespace Compile

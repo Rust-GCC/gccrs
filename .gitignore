@@ -39,6 +39,7 @@ cscope.out
 .local.vimrc
 .lvimrc
 .vscode
+.zed
 
 .clang-format
 .clang-tidy

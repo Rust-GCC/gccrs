@@ -18,6 +18,9 @@
 
 #include "rust-compile-expr.h"
 #include "rust-backend.h"
+#include "rust-bir.h"
+#include "rust-compile-datum.h"
+#include "rust-compile-drop.h"
 #include "rust-compile-type.h"
 #include "rust-compile-struct-field-expr.h"
 #include "rust-compile-pattern.h"
@@ -33,6 +36,7 @@
 #include "convert.h"
 #include "print-tree.h"
 #include "rust-hir-expr.h"
+#include "rust-mapping-common.h"
 #include "rust-system.h"
 #include "rust-tree.h"
 #include "rust-tyty.h"
@@ -42,7 +46,7 @@ namespace Rust {
 namespace Compile {
 
 CompileExpr::CompileExpr (Context *ctx)
-  : HIRCompileBase (ctx), translated (error_mark_node)
+  : HIRCompileBase (ctx), translated (error_mark_node), translated_datum ()
 {}
 
 tree
@@ -53,13 +57,21 @@ CompileExpr::Compile (HIR::Expr &expr, Context *ctx)
   return compiler.translated;
 }
 
+Datum
+CompileExpr::CompileDatum (HIR::Expr &expr, Context *ctx)
+{
+  CompileExpr compiler (ctx);
+  expr.accept_vis (compiler);
+  return compiler.translated_datum;
+}
+
 void
 CompileExpr::visit (HIR::TupleIndexExpr &expr)
 {
   HIR::Expr &tuple_expr = expr.get_tuple_expr ();
   TupleIndex index = expr.get_tuple_index ();
 
-  tree receiver_ref = CompileExpr::Compile (tuple_expr, ctx);
+  Datum receiver_datum = CompileExpr::CompileDatum (tuple_expr, ctx);
 
   TyTy::BaseType *tuple_expr_ty = nullptr;
   bool ok
@@ -67,15 +79,28 @@ CompileExpr::visit (HIR::TupleIndexExpr &expr)
 				      &tuple_expr_ty);
   rust_assert (ok);
 
-  // do we need to add an indirect reference
+  TyTy::BaseType *expr_tyty = nullptr;
+  ctx->get_tyctx ()->lookup_type (expr.get_mappings ().get_hirid (),
+				  &expr_tyty);
+
   if (tuple_expr_ty->get_kind () == TyTy::TypeKind::REF)
     {
+      tree receiver_ref = receiver_datum.raw_tree ();
       tree indirect = indirect_expression (receiver_ref, expr.get_locus ());
-      receiver_ref = indirect;
-    }
+      tree field_expr
+	= Backend::struct_field_expression (indirect, index, expr.get_locus ());
 
-  translated
-    = Backend::struct_field_expression (receiver_ref, index, expr.get_locus ());
+      translated = field_expr;
+      set_datum (
+	Datum::new_lvalue (field_expr, expr_tyty, nullptr, expr.get_locus ()));
+      return;
+    }
+  receiver_datum
+    = receiver_datum.to_lvalue (ctx, tuple_expr.get_mappings ().get_hirid ());
+  Datum element_datum
+    = receiver_datum.get_field (ctx, index, expr.get_locus ());
+  assert (element_datum.ty != nullptr);
+  set_datum (element_datum);
 }
 
 void
@@ -84,6 +109,10 @@ CompileExpr::visit (HIR::TupleExpr &expr)
   if (expr.is_unit ())
     {
       translated = unit_expression (expr.get_locus ());
+      TyTy::BaseType *unit_ty = nullptr;
+      ctx->get_tyctx ()->lookup_type (expr.get_mappings ().get_hirid (),
+				      &unit_ty);
+      set_datum (Datum::new_rvalue (translated, unit_ty, expr.get_locus ()));
       return;
     }
 
@@ -109,11 +138,13 @@ CompileExpr::visit (HIR::TupleExpr &expr)
 
   translated = Backend::constructor_expression (tuple_type, false, vals, -1,
 						expr.get_locus ());
+  set_datum (Datum::new_rvalue (translated, tyty, expr.get_locus ()));
 }
 
 void
 CompileExpr::visit (HIR::ReturnExpr &expr)
 {
+  translated_datum.set_not_valid ();
   auto fncontext = ctx->peek_fn ();
 
   tree return_value = expr.has_return_expr ()
@@ -161,6 +192,9 @@ CompileExpr::visit (HIR::ArithmeticOrLogicalExpr &expr)
       translated = resolve_operator_overload (
 	lang_item_type, expr, lhs, rhs, expr.get_lhs (),
 	tl::optional<std::reference_wrapper<HIR::Expr>> (expr.get_rhs ()));
+      TyTy::BaseType *tyty = nullptr;
+      ctx->get_tyctx ()->lookup_type (expr.get_mappings ().get_hirid (), &tyty);
+      set_datum (Datum::new_rvalue (translated, tyty, expr.get_locus ()));
       return;
     }
 
@@ -171,6 +205,9 @@ CompileExpr::visit (HIR::ArithmeticOrLogicalExpr &expr)
       translated
 	= Backend::arithmetic_or_logical_expression (op, lhs, rhs,
 						     expr.get_locus ());
+      TyTy::BaseType *tyty = nullptr;
+      ctx->get_tyctx ()->lookup_type (expr.get_mappings ().get_hirid (), &tyty);
+      set_datum (Datum::new_rvalue (translated, tyty, expr.get_locus ()));
       return;
     }
 
@@ -186,14 +223,22 @@ CompileExpr::visit (HIR::ArithmeticOrLogicalExpr &expr)
 
   ctx->add_statement (check);
   translated = receiver->get_tree (expr.get_locus ());
+  TyTy::BaseType *tyty = nullptr;
+  ctx->get_tyctx ()->lookup_type (expr.get_mappings ().get_hirid (), &tyty);
+  set_datum (Datum::new_rvalue (translated, tyty, expr.get_locus ()));
 }
 
 void
 CompileExpr::visit (HIR::CompoundAssignmentExpr &expr)
 {
   auto op = expr.get_expr_type ();
-  auto lhs = CompileExpr::Compile (expr.get_lhs (), ctx);
-  auto rhs = CompileExpr::Compile (expr.get_rhs (), ctx);
+  auto lhsDatum = CompileExpr::CompileDatum (expr.get_lhs (), ctx);
+  auto rhsDatum = CompileExpr::CompileDatum (expr.get_rhs (), ctx);
+  auto lhs = lhsDatum.raw_tree ();
+  auto rhs = rhsDatum.raw_tree ();
+
+  TyTy::BaseType *tyty = nullptr;
+  ctx->get_tyctx ()->lookup_type (expr.get_mappings ().get_hirid (), &tyty);
 
   // this might be an operator overload situation lets check
   TyTy::FnType *fntype;
@@ -228,12 +273,14 @@ CompileExpr::visit (HIR::CompoundAssignmentExpr &expr)
 	= Backend::assignment_statement (lhs,
 					 receiver->get_tree (expr.get_locus ()),
 					 expr.get_locus ());
+      set_datum (Datum::new_rvalue (translated, tyty, expr.get_locus ()));
     }
   else
     {
       translated
 	= Backend::arithmetic_or_logical_expression (op, lhs, rhs,
 						     expr.get_locus ());
+      set_datum (Datum::new_rvalue (translated, tyty, expr.get_locus ()));
     }
 }
 
@@ -244,6 +291,8 @@ CompileExpr::visit (HIR::NegationExpr &expr)
 
   auto &literal_expr = expr.get_expr ();
 
+  TyTy::BaseType *tyty = nullptr;
+  ctx->get_tyctx ()->lookup_type (expr.get_mappings ().get_hirid (), &tyty);
   // If it's a negated integer/float literal, we can return early
   if (op == NegationOperator::NEGATE
       && literal_expr.get_expression_type () == HIR::Expr::ExprType::Lit)
@@ -255,6 +304,7 @@ CompileExpr::visit (HIR::NegationExpr &expr)
 	{
 	  new_literal_expr.set_negative ();
 	  translated = CompileExpr::Compile (literal_expr, ctx);
+	  set_datum (Datum::new_rvalue (translated, tyty, expr.get_locus ()));
 	  return;
 	}
     }
@@ -272,10 +322,12 @@ CompileExpr::visit (HIR::NegationExpr &expr)
       translated
 	= resolve_operator_overload (lang_item_type, expr, negated_expr,
 				     nullptr, expr.get_expr (), tl::nullopt);
+      set_datum (Datum::new_rvalue (translated, tyty, expr.get_locus ()));
       return;
     }
 
   translated = Backend::negation_expression (op, negated_expr, location);
+  set_datum (Datum::new_rvalue (translated, tyty, expr.get_locus ()));
 }
 
 void
@@ -286,6 +338,8 @@ CompileExpr::visit (HIR::ComparisonExpr &expr)
   auto rhs = CompileExpr::Compile (expr.get_rhs (), ctx);
   auto location = expr.get_locus ();
 
+  TyTy::BaseType *tyty = nullptr;
+  ctx->get_tyctx ()->lookup_type (expr.get_mappings ().get_hirid (), &tyty);
   // this might be an operator overload situation lets check
   TyTy::FnType *fntype;
   bool is_op_overload = ctx->get_tyctx ()->lookup_operator_overload (
@@ -303,10 +357,12 @@ CompileExpr::visit (HIR::ComparisonExpr &expr)
 	lang_item_type, expr, lhs, rhs, expr.get_lhs (),
 	tl::optional<std::reference_wrapper<HIR::Expr>> (expr.get_rhs ()),
 	segment);
+      set_datum (Datum::new_rvalue (translated, tyty, expr.get_locus ()));
       return;
     }
 
   translated = Backend::comparison_expression (op, lhs, rhs, location);
+  set_datum (Datum::new_rvalue (translated, tyty, expr.get_locus ()));
 }
 
 void
@@ -318,6 +374,10 @@ CompileExpr::visit (HIR::LazyBooleanExpr &expr)
   auto location = expr.get_locus ();
 
   translated = Backend::lazy_boolean_expression (op, lhs, rhs, location);
+  // TODO:
+  TyTy::BaseType *tyty = nullptr;
+  ctx->get_tyctx ()->lookup_type (expr.get_mappings ().get_hirid (), &tyty);
+  set_datum (Datum::new_rvalue (translated, tyty, expr.get_locus ()));
 }
 
 void
@@ -353,11 +413,14 @@ CompileExpr::visit (HIR::TypeCastExpr &expr)
 
   translated
     = type_cast_expression (type_to_cast_to, casted_expr, expr.get_locus ());
+  set_datum (
+    Datum::new_rvalue (translated, type_to_cast_to_ty, expr.get_locus ()));
 }
 
 void
 CompileExpr::visit (HIR::IfExpr &expr)
 {
+  translated_datum.set_not_valid ();
   auto stmt = CompileConditionalBlocks::compile (&expr, ctx, nullptr);
   ctx->add_statement (stmt);
 }
@@ -402,6 +465,7 @@ CompileExpr::visit (HIR::OffsetOf &expr)
   auto field_value = TREE_VALUE (field);
 
   translated = byte_position (field_value);
+  set_datum (Datum::new_rvalue (translated, type, expr.get_locus ()));
 }
 
 void
@@ -432,6 +496,7 @@ CompileExpr::visit (HIR::IfExprConseqElse &expr)
   ctx->add_statement (stmt);
 
   translated = Backend::var_expression (tmp, expr.get_locus ());
+  set_datum (Datum::new_rvalue (translated, if_type, expr.get_locus ()));
 }
 
 void
@@ -468,6 +533,7 @@ CompileExpr::visit (HIR::BlockExpr &expr)
   ctx->add_statement (block_stmt);
 
   translated = Backend::var_expression (tmp, expr.get_locus ());
+  set_datum (Datum::new_rvalue (translated, block_tyty, expr.get_locus ()));
 }
 
 void
@@ -519,6 +585,7 @@ CompileExpr::visit (HIR::StructExprStruct &struct_expr)
     }
 
   translated = unit_expression (struct_expr.get_locus ());
+  set_datum (Datum::new_rvalue (translated, tyty, struct_expr.get_locus ()));
 }
 
 void
@@ -635,6 +702,8 @@ CompileExpr::visit (HIR::StructExprStructFields &struct_expr)
 	= Backend::constructor_expression (compiled_adt_type, adt->is_enum (),
 					   arguments, union_disriminator,
 					   struct_expr.get_locus ());
+      set_datum (
+	Datum::new_rvalue (translated, tyty, struct_expr.get_locus ()));
       return;
     }
 
@@ -656,19 +725,21 @@ CompileExpr::visit (HIR::StructExprStructFields &struct_expr)
   translated
     = Backend::constructor_expression (compiled_adt_type, 0, ctor_arguments, -1,
 				       struct_expr.get_locus ());
+  set_datum (Datum::new_rvalue (translated, tyty, struct_expr.get_locus ()));
 }
 
 void
 CompileExpr::visit (HIR::GroupedExpr &expr)
 {
-  translated = CompileExpr::Compile (expr.get_expr_in_parens (), ctx);
+  Datum inner = CompileExpr::CompileDatum (expr.get_expr_in_parens (), ctx);
+  set_datum (inner);
 }
 
 void
 CompileExpr::visit (HIR::FieldAccessExpr &expr)
 {
   HIR::Expr &receiver_expr = expr.get_receiver_expr ();
-  tree receiver_ref = CompileExpr::Compile (receiver_expr, ctx);
+  Datum receiver_datum = CompileExpr::CompileDatum (receiver_expr, ctx);
 
   // resolve the receiver back to ADT type
   TyTy::BaseType *receiver = nullptr;
@@ -691,6 +762,13 @@ CompileExpr::visit (HIR::FieldAccessExpr &expr)
       bool ok = variant->lookup_field (expr.get_field_name ().as_string (),
 				       nullptr, &field_index);
       rust_assert (ok);
+      receiver_datum
+	= receiver_datum.to_lvalue (ctx,
+				    receiver_expr.get_mappings ().get_hirid ());
+      Datum field_datum
+	= receiver_datum.get_field (ctx, field_index, expr.get_locus ());
+      assert (field_datum.ty != nullptr);
+      set_datum (field_datum);
     }
   else if (receiver->get_kind () == TyTy::TypeKind::REF)
     {
@@ -707,24 +785,68 @@ CompileExpr::visit (HIR::FieldAccessExpr &expr)
 				       nullptr, &field_index);
       rust_assert (ok);
 
+      tree receiver_ref = receiver_datum.raw_tree ();
       tree indirect = indirect_expression (receiver_ref, expr.get_locus ());
-      receiver_ref = indirect;
-    }
 
-  translated = Backend::struct_field_expression (receiver_ref, field_index,
-						 expr.get_locus ());
+      tree field_expr = Backend::struct_field_expression (indirect, field_index,
+							  expr.get_locus ());
+      TyTy::BaseType *field_tyty = nullptr;
+      ctx->get_tyctx ()->lookup_type (expr.get_mappings ().get_hirid (),
+				      &field_tyty);
+
+      translated = field_expr;
+      set_datum (
+	Datum::new_lvalue (field_expr, field_tyty, nullptr, expr.get_locus ()));
+    }
+  else
+    {
+      receiver_datum
+	= receiver_datum.to_lvalue (ctx,
+				    receiver_expr.get_mappings ().get_hirid ());
+
+      Datum field_datum
+	= receiver_datum.get_field (ctx, field_index, expr.get_locus ());
+
+      assert (field_datum.ty != nullptr);
+      set_datum (field_datum);
+    }
 }
 
 void
 CompileExpr::visit (HIR::QualifiedPathInExpression &expr)
 {
   translated = ResolvePathRef::Compile (expr, ctx);
+  if (!check_node (translated))
+    return;
+  TyTy::BaseType *tyty = nullptr;
+  ctx->get_tyctx ()->lookup_type (expr.get_mappings ().get_hirid (), &tyty);
+  set_datum (Datum::new_rvalue (translated, tyty, expr.get_locus ()));
 }
 
 void
 CompileExpr::visit (HIR::PathInExpression &expr)
 {
   translated = ResolvePathRef::Compile (expr, ctx);
+  if (!check_node (translated))
+    return;
+  DropPlace *dp = nullptr;
+  TyTy::BaseType *tyty = nullptr;
+  if (!ctx->get_tyctx ()->lookup_type (expr.get_mappings ().get_hirid (),
+				       &tyty))
+    return;
+  auto &nr_ctx
+    = Resolver2_0::ImmutableNameResolutionContext::get ().resolver ();
+  auto resolved = nr_ctx.lookup (expr.get_mappings ().get_nodeid ());
+  if (resolved)
+    {
+      tl::optional<HirId> hid
+	= ctx->get_mappings ().lookup_node_to_hir (*resolved);
+      if (hid.has_value ())
+	{
+	  ctx->lookup_var_drop_place (hid.value (), &dp);
+	}
+    }
+  set_datum (Datum::new_lvalue (translated, tyty, dp, expr.get_locus ()));
 }
 
 void
@@ -787,11 +909,13 @@ CompileExpr::visit (HIR::LoopExpr &expr)
   translated = Backend::var_expression (tmp, expr.get_locus ());
 
   ctx->pop_loop_begin_label ();
+  set_datum (Datum::new_rvalue (translated, block_tyty, expr.get_locus ()));
 }
 
 void
 CompileExpr::visit (HIR::WhileLoopExpr &expr)
 {
+  translated_datum.set_not_valid ();
   fncontext fnctx = ctx->peek_fn ();
   if (expr.has_loop_label ())
     {
@@ -853,6 +977,7 @@ CompileExpr::visit (HIR::WhileLoopExpr &expr)
 void
 CompileExpr::visit (HIR::BreakExpr &expr)
 {
+  translated_datum.set_not_valid ();
   if (expr.has_break_expr ())
     {
       tree compiled_expr = CompileExpr::Compile (expr.get_expr (), ctx);
@@ -924,6 +1049,7 @@ CompileExpr::visit (HIR::BreakExpr &expr)
 void
 CompileExpr::visit (HIR::ContinueExpr &expr)
 {
+  translated_datum.set_not_valid ();
   translated = error_mark_node;
   if (!ctx->have_loop_context ())
     return;
@@ -972,20 +1098,24 @@ CompileExpr::visit (HIR::ContinueExpr &expr)
 void
 CompileExpr::visit (HIR::BorrowExpr &expr)
 {
-  tree main_expr = CompileExpr::Compile (expr.get_expr (), ctx);
-  if (RS_DST_FLAG_P (TREE_TYPE (main_expr)))
-    {
-      translated = main_expr;
-      return;
-    }
-
   TyTy::BaseType *tyty = nullptr;
   if (!ctx->get_tyctx ()->lookup_type (expr.get_mappings ().get_hirid (),
 				       &tyty))
     return;
 
+  Datum main = CompileExpr::CompileDatum (expr.get_expr (), ctx);
+  // main = main.to_lvalue (ctx, expr.get_mappings ().get_hirid ());
+  if (RS_DST_FLAG_P (TREE_TYPE (main.raw_tree ())))
+    {
+      translated = main.raw_tree ();
+      set_datum (Datum::new_rvalue (translated, tyty, expr.get_locus ()));
+      return;
+    }
+
   tree expected_type = TyTyResolveCompile::compile (ctx, tyty);
-  translated = address_expression (main_expr, expr.get_locus (), expected_type);
+  translated
+    = address_expression (main.raw_tree (), expr.get_locus (), expected_type);
+  set_datum (Datum::new_rvalue (translated, tyty, expr.get_locus ()));
 }
 
 void
@@ -1000,7 +1130,8 @@ CompileExpr::visit (HIR::DereferenceExpr &expr)
       return;
     }
 
-  tree main_expr = CompileExpr::Compile (expr.get_expr (), ctx);
+  Datum inner = CompileExpr::CompileDatum (expr.get_expr (), ctx);
+  tree main_expr = inner.raw_tree ();
 
   // this might be an operator overload situation lets check
   TyTy::FnType *fntype;
@@ -1022,10 +1153,12 @@ CompileExpr::visit (HIR::DereferenceExpr &expr)
   if (RS_DST_FLAG_P (TREE_TYPE (main_expr)) && RS_DST_FLAG_P (expected_type))
     {
       translated = main_expr;
+      set_datum (Datum::new_rvalue (translated, tyty, expr.get_locus ()));
       return;
     }
 
   translated = indirect_expression (main_expr, expr.get_locus ());
+  set_datum (Datum::new_lvalue (translated, tyty, nullptr, expr.get_locus ()));
 }
 
 void
@@ -1040,30 +1173,37 @@ CompileExpr::visit (HIR::LiteralExpr &expr)
     {
     case HIR::Literal::BOOL:
       translated = compile_bool_literal (expr, tyty);
+      set_datum (Datum::new_rvalue (translated, tyty, expr.get_locus ()));
       return;
 
     case HIR::Literal::INT:
       translated = compile_integer_literal (expr, tyty);
+      set_datum (Datum::new_rvalue (translated, tyty, expr.get_locus ()));
       return;
 
     case HIR::Literal::FLOAT:
       translated = compile_float_literal (expr, tyty);
+      set_datum (Datum::new_rvalue (translated, tyty, expr.get_locus ()));
       return;
 
     case HIR::Literal::CHAR:
       translated = compile_char_literal (expr, tyty);
+      set_datum (Datum::new_rvalue (translated, tyty, expr.get_locus ()));
       return;
 
     case HIR::Literal::BYTE:
       translated = compile_byte_literal (expr, tyty);
+      set_datum (Datum::new_rvalue (translated, tyty, expr.get_locus ()));
       return;
 
     case HIR::Literal::STRING:
       translated = compile_string_literal (expr, tyty);
+      set_datum (Datum::new_rvalue (translated, tyty, expr.get_locus ()));
       return;
 
     case HIR::Literal::BYTE_STRING:
       translated = compile_byte_string_literal (expr, tyty);
+      set_datum (Datum::new_rvalue (translated, tyty, expr.get_locus ()));
       return;
     }
 }
@@ -1071,10 +1211,9 @@ CompileExpr::visit (HIR::LiteralExpr &expr)
 void
 CompileExpr::visit (HIR::AssignmentExpr &expr)
 {
-  auto lvalue = CompileExpr::Compile (expr.get_lhs (), ctx);
-  auto rvalue = CompileExpr::Compile (expr.get_rhs (), ctx);
-
-  // assignments are coercion sites so lets convert the rvalue if necessary
+  Datum dst = CompileExpr::CompileDatum (expr.get_lhs (), ctx);
+  dst = dst.to_lvalue (ctx, expr.get_lhs ().get_mappings ().get_hirid ());
+  Datum src = CompileExpr::CompileDatum (expr.get_rhs (), ctx);
   TyTy::BaseType *expected = nullptr;
   TyTy::BaseType *actual = nullptr;
 
@@ -1087,18 +1226,31 @@ CompileExpr::visit (HIR::AssignmentExpr &expr)
     expr.get_rhs ().get_mappings ().get_hirid (), &actual);
   rust_assert (ok);
 
-  rvalue = coercion_site (expr.get_mappings ().get_hirid (), rvalue, actual,
-			  expected, expr.get_lhs ().get_locus (),
-			  expr.get_rhs ().get_locus ());
+  tree src_tree
+    = coercion_site (expr.get_mappings ().get_hirid (), src.raw_tree (), actual,
+		     expected, expr.get_lhs ().get_locus (),
+		     expr.get_rhs ().get_locus ());
+  src.val = src_tree;
 
-  // rust_debug_loc (expr.get_locus (), "XXXXXX assignment");
-  // debug_tree (rvalue);
-  // debug_tree (lvalue);
+  auto *drop_ctx = Compile::DropContext::get (ctx);
+  bool dst_needs_drop = dst.needs_drop (drop_ctx);
 
-  tree assignment
-    = Backend::assignment_statement (lvalue, rvalue, expr.get_locus ());
-
-  ctx->add_statement (assignment);
+  if (dst_needs_drop && dst.drop_place != nullptr)
+    {
+      Datum src_rv = src.to_rvalue (ctx);
+      tree drop_old = drop_ctx->drop (dst.drop_place);
+      assert_node (drop_old, "drop_old is null : assign");
+      ctx->add_statement (drop_old);
+      src_rv.store_to (ctx, dst.raw_tree ());
+      tree mark_init = drop_ctx->init (dst.drop_place);
+      assert_node (mark_init, "mark_init is null : assign");
+      ctx->add_statement (mark_init);
+    }
+  else
+    {
+      src.store_to (ctx, dst.raw_tree ());
+    }
+  translated_datum.set_not_valid ();
 }
 
 // Helper for CompileExpr::visit (HIR::MatchExpr).
@@ -1165,6 +1317,7 @@ CompileExpr::visit (HIR::MatchExpr &expr)
   if (!expr.has_match_arms () && expr_tyty->is<TyTy::NeverType> ())
     {
       translated = unit_expression (expr.get_locus ());
+      set_datum (Datum::new_rvalue (translated, expr_tyty, expr.get_locus ()));
       return;
     }
 
@@ -1269,11 +1422,16 @@ CompileExpr::visit (HIR::MatchExpr &expr)
   ctx->add_statement (end_label_decl_statement);
 
   translated = Backend::var_expression (tmp, expr.get_locus ());
+  set_datum (Datum::new_rvalue (translated, expr_tyty, expr.get_locus ()));
 }
 
 void
 CompileExpr::visit (HIR::CallExpr &expr)
 {
+  TyTy::BaseType *call_result_tyty = nullptr;
+  ctx->get_tyctx ()->lookup_type (expr.get_mappings ().get_hirid (),
+				  &call_result_tyty);
+
   TyTy::BaseType *tyty = nullptr;
   if (!ctx->get_tyctx ()->lookup_type (
 	expr.get_fnexpr ().get_mappings ().get_hirid (), &tyty))
@@ -1347,6 +1505,8 @@ CompileExpr::visit (HIR::CallExpr &expr)
 					       adt->is_enum (), arguments,
 					       union_disriminator,
 					       expr.get_locus ());
+	  set_datum (Datum::new_rvalue (translated, call_result_tyty,
+					expr.get_locus ()));
 	  return;
 	}
 
@@ -1367,7 +1527,9 @@ CompileExpr::visit (HIR::CallExpr &expr)
       translated = Backend::constructor_expression (compiled_adt_type, false,
 						    ctor_arguments, -1,
 						    expr.get_locus ());
-
+      // Enum variant constructor — Rvalue.
+      set_datum (
+	Datum::new_rvalue (translated, call_result_tyty, expr.get_locus ()));
       return;
     }
 
@@ -1421,7 +1583,11 @@ CompileExpr::visit (HIR::CallExpr &expr)
   bool possible_trait_call
     = generate_possible_fn_trait_call (expr, fn_address, &translated);
   if (possible_trait_call)
-    return;
+    {
+      set_datum (
+	Datum::new_rvalue (translated, call_result_tyty, expr.get_locus ()));
+      return;
+    }
 
   bool is_variadic = false;
   size_t required_num_args = expr.get_arguments ().size ();
@@ -1476,11 +1642,16 @@ CompileExpr::visit (HIR::CallExpr &expr)
   // must be a regular call to a function
   translated
     = Backend::call_expression (fn_address, args, nullptr, expr.get_locus ());
+  set_datum (
+    Datum::new_rvalue (translated, call_result_tyty, expr.get_locus ()));
 }
 
 void
 CompileExpr::visit (HIR::MethodCallExpr &expr)
 {
+  TyTy::BaseType *method_result_tyty = nullptr;
+  ctx->get_tyctx ()->lookup_type (expr.get_mappings ().get_hirid (),
+				  &method_result_tyty);
   // method receiver
   tree self = CompileExpr::Compile (expr.get_receiver (), ctx);
 
@@ -1564,6 +1735,8 @@ CompileExpr::visit (HIR::MethodCallExpr &expr)
 
   translated
     = Backend::call_expression (fn_expr, args, nullptr, expr.get_locus ());
+  set_datum (
+    Datum::new_rvalue (translated, method_result_tyty, expr.get_locus ()));
 }
 
 tree
@@ -1984,6 +2157,7 @@ CompileExpr::visit (HIR::ArrayExpr &expr)
 	  = static_cast<HIR::ArrayElemsValues &> (elements);
 	translated
 	  = array_value_expr (expr.get_locus (), array_tyty, array_type, elems);
+	set_datum (Datum::new_rvalue (translated, tyty, expr.get_locus ()));
       }
       return;
 
@@ -1992,6 +2166,7 @@ CompileExpr::visit (HIR::ArrayExpr &expr)
 	= static_cast<HIR::ArrayElemsCopied &> (elements);
       translated
 	= array_copied_expr (expr.get_locus (), array_tyty, array_type, elems);
+      set_datum (Datum::new_rvalue (translated, tyty, expr.get_locus ()));
     }
 }
 
@@ -2292,6 +2467,7 @@ CompileExpr::visit (HIR::RangeFromToExpr &expr)
   // make the constructor
   translated = Backend::constructor_expression (adt, false, {from, to}, -1,
 						expr.get_locus ());
+  set_datum (Datum::new_rvalue (translated, tyty, expr.get_locus ()));
 }
 
 void
@@ -2314,6 +2490,7 @@ CompileExpr::visit (HIR::RangeFromExpr &expr)
   // make the constructor
   translated = Backend::constructor_expression (adt, false, {from}, -1,
 						expr.get_locus ());
+  set_datum (Datum::new_rvalue (translated, tyty, expr.get_locus ()));
 }
 
 void
@@ -2336,6 +2513,7 @@ CompileExpr::visit (HIR::RangeToExpr &expr)
   // make the constructor
   translated
     = Backend::constructor_expression (adt, false, {to}, -1, expr.get_locus ());
+  set_datum (Datum::new_rvalue (translated, tyty, expr.get_locus ()));
 }
 
 void
@@ -2349,6 +2527,7 @@ CompileExpr::visit (HIR::RangeFullExpr &expr)
   tree adt = TyTyResolveCompile::compile (ctx, tyty);
   translated
     = Backend::constructor_expression (adt, false, {}, -1, expr.get_locus ());
+  set_datum (Datum::new_rvalue (translated, tyty, expr.get_locus ()));
 }
 
 void
@@ -2372,6 +2551,7 @@ CompileExpr::visit (HIR::RangeFromToInclExpr &expr)
   // make the constructor
   translated = Backend::constructor_expression (adt, false, {from, to}, -1,
 						expr.get_locus ());
+  set_datum (Datum::new_rvalue (translated, tyty, expr.get_locus ()));
 }
 
 void
@@ -2380,6 +2560,9 @@ CompileExpr::visit (HIR::ArrayIndexExpr &expr)
   tree array_reference = CompileExpr::Compile (expr.get_array_expr (), ctx);
   tree index = CompileExpr::Compile (expr.get_index_expr (), ctx);
 
+  TyTy::BaseType *elem_tyty = nullptr;
+  ctx->get_tyctx ()->lookup_type (expr.get_mappings ().get_hirid (),
+				  &elem_tyty);
   // this might be an core::ops::index lang item situation
   TyTy::FnType *fntype;
   bool is_op_overload = ctx->get_tyctx ()->lookup_operator_overload (
@@ -2398,13 +2581,15 @@ CompileExpr::visit (HIR::ArrayIndexExpr &expr)
 	{
 	  // nothing to do
 	  translated = operator_overload_call;
+	  set_datum (
+	    Datum::new_rvalue (translated, elem_tyty, expr.get_locus ()));
 	  return;
 	}
 
-      // rust deref always returns a reference from this overload then we can
-      // actually do the indirection
       translated
 	= indirect_expression (operator_overload_call, expr.get_locus ());
+      set_datum (
+	Datum::new_lvalue (translated, elem_tyty, nullptr, expr.get_locus ()));
       return;
     }
 
@@ -2424,6 +2609,8 @@ CompileExpr::visit (HIR::ArrayIndexExpr &expr)
 
   translated = Backend::array_index_expression (array_reference, index,
 						expr.get_locus ());
+  set_datum (
+    Datum::new_lvalue (translated, elem_tyty, nullptr, expr.get_locus ()));
 }
 
 void
@@ -2470,6 +2657,8 @@ CompileExpr::visit (HIR::ClosureExpr &expr)
 
   translated = Backend::constructor_expression (compiled_closure_tyty, false,
 						vals, -1, expr.get_locus ());
+  set_datum (
+    Datum::new_rvalue (translated, closure_expr_ty, expr.get_locus ()));
 }
 
 tree

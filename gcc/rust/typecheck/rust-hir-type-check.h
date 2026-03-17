@@ -255,6 +255,16 @@ public:
 						TyTy::BaseType *self,
 						HirId *mapping);
 
+  bool peek_associated_impl_mapping_for_self (
+    HirId trait_id, std::vector<std::pair<TyTy::BaseType *, HirId>> *ret) const
+  {
+    auto it = associated_traits_to_impls.find (trait_id);
+    if (it == associated_traits_to_impls.end ())
+      return false;
+    *ret = it->second;
+    return true;
+  }
+
   void insert_autoderef_mappings (HirId id,
 				  std::vector<Adjustment> &&adjustments);
   bool lookup_autoderef_mappings (HirId id,

@@ -19,6 +19,9 @@
 #ifndef RUST_COMPILE_CONTEXT
 #define RUST_COMPILE_CONTEXT
 
+#include "rust-compile-drop.h"
+#include "rust-compile-datum.h"
+#include "rust-location.h"
 #include "rust-system.h"
 #include "rust-hir-map.h"
 #include "rust-name-resolver.h"
@@ -28,6 +31,9 @@
 #include "rust-mangle.h"
 #include "rust-tree.h"
 #include "rust-immutable-name-resolution-context.h"
+#include "rust-tyty.h"
+#include <algorithm>
+#include <tuple>
 
 namespace Rust {
 namespace Compile {
@@ -101,6 +107,7 @@ public:
   {
     scope_stack.push_back (scope);
     statements.push_back ({});
+    cleanups.push_back ({});
   }
 
   tree pop_block ()
@@ -110,9 +117,17 @@ public:
 
     auto stmts = statements.back ();
     statements.pop_back ();
-
-    Backend::block_add_statements (block, stmts);
-
+    auto cls = cleanups.back ();
+    cleanups.pop_back ();
+    std::reverse (cls.begin (), cls.end ());
+    if (cls.empty ())
+      {
+	Backend::block_add_statements (block, stmts);
+      }
+    else
+      {
+	Backend::block_add_statements_with_cleanups (block, stmts, cls);
+      }
     return block;
   }
 
@@ -130,6 +145,7 @@ public:
   }
 
   void add_statement (tree stmt) { statements.back ().push_back (stmt); }
+  void add_cleanup (tree stmt) { cleanups.back ().push_back (stmt); }
 
   void insert_var_decl (HirId id, ::Bvariable *decl)
   {
@@ -143,6 +159,20 @@ public:
       return false;
 
     *decl = it->second;
+    return true;
+  }
+
+  void insert_var_drop_place (HirId id, DropPlace *dp)
+  {
+    var_drop_places[id] = dp;
+  }
+
+  bool lookup_var_drop_place (HirId id, DropPlace **dp)
+  {
+    auto it = var_drop_places.find (id);
+    if (it == var_drop_places.end ())
+      return false;
+    *dp = it->second;
     return true;
   }
 
@@ -417,7 +447,9 @@ private:
   std::map<HirId, tree> compiled_fn_map;
   std::map<HirId, tree> compiled_consts;
   std::map<HirId, tree> compiled_labels;
+  std::map<HirId, DropPlace *> var_drop_places;
   std::vector<::std::vector<tree>> statements;
+  std::vector<::std::vector<tree>> cleanups;
   std::vector<tree> scope_stack;
   std::vector<::Bvariable *> loop_value_stack;
   std::vector<tree> loop_begin_labels;

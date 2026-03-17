@@ -19,8 +19,15 @@
 #ifndef RUST_COMPILE_VAR_DECL
 #define RUST_COMPILE_VAR_DECL
 
+#include "rust-backend.h"
 #include "rust-compile-base.h"
+#include "rust-compile-drop.h"
 #include "rust-hir-visitor.h"
+#include "rust-location.h"
+#include "rust-tyty.h"
+#include "tree.h"
+
+#include <vector>
 
 namespace Rust {
 namespace Compile {
@@ -40,6 +47,11 @@ public:
 
   void visit (HIR::IdentifierPattern &pattern) override
   {
+    TyTy::BaseType *type = nullptr;
+    gcc_assert (
+      ctx->get_tyctx ()->lookup_type (pattern.get_mappings ().get_hirid (),
+				      &type));
+
     if (!pattern.is_mut ())
       translated_type = Backend::immutable_type (translated_type);
 
@@ -49,7 +61,6 @@ public:
       = build_decl (pattern.get_locus (), VAR_DECL,
 		    Backend::get_identifier_node (identifier), translated_type);
     DECL_CONTEXT (decl) = fndecl;
-
     gcc_assert (TREE_CODE (bind_tree) == BIND_EXPR);
     tree block_tree = BIND_EXPR_BLOCK (bind_tree);
     gcc_assert (TREE_CODE (block_tree) == BLOCK);
@@ -59,6 +70,25 @@ public:
 
     rust_preserve_from_gc (decl);
     Bvariable *var = new Bvariable (decl);
+
+    Compile::DropContext *drop_ctx = Compile::DropContext::get (ctx);
+    bool nd = drop_ctx->needs_drop (type);
+    if (nd)
+      {
+	DropPath drop_path;
+	drop_path.root = pattern.get_mappings ().get_hirid ();
+	drop_path.var_name = pattern.get_identifier ().as_string ();
+	tree var_expr = Backend::var_expression (var, UNDEF_LOCATION);
+	DropPlace *drop_place
+	  = drop_ctx->make_drop_place (var_expr, drop_path, type);
+	assert (drop_place != nullptr && "something wrong in var decl");
+	tree drop_expr = drop_ctx->drop (drop_place);
+	assert (drop_expr != NULL_TREE);
+	ctx->add_cleanup (drop_expr);
+	ctx->add_statement (drop_ctx->uninit (drop_place));
+	ctx->insert_var_drop_place (pattern.get_mappings ().get_hirid (),
+				    drop_place);
+      }
 
     HirId stmt_id = pattern.get_mappings ().get_hirid ();
     ctx->insert_var_decl (stmt_id, var);

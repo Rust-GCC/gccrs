@@ -19,7 +19,9 @@
 #ifndef RUST_COMPILE_EXPR
 #define RUST_COMPILE_EXPR
 
+#include "rust-system.h"
 #include "rust-compile-base.h"
+#include "rust-compile-datum.h"
 #include "rust-hir-visitor.h"
 
 namespace Rust {
@@ -30,6 +32,7 @@ class CompileExpr : private HIRCompileBase, protected HIR::HIRExpressionVisitor
 public:
   static tree Compile (HIR::Expr &expr, Context *ctx);
 
+  static Datum CompileDatum (HIR::Expr &expr, Context *ctx);
   void visit (HIR::TupleIndexExpr &expr) override;
   void visit (HIR::TupleExpr &expr) override;
   void visit (HIR::ReturnExpr &expr) override;
@@ -155,6 +158,12 @@ private:
   CompileExpr (Context *ctx);
 
   tree translated;
+  Datum translated_datum;
+  void set_datum (Datum d)
+  {
+    translated_datum = d;
+    translated = d.raw_tree ();
+  }
 };
 
 } // namespace Compile
