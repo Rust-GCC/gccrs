@@ -267,10 +267,10 @@ package Targparm is
    --
    --  This has some specific effects as follows
    --
-   --    The binder generates the gnat_argc/argv/envp variables in the
-   --    binder file instead of being imported from the run-time library.
-   --    If Command_Line_Args_On_Target is set to False, then the
-   --    generation of these variables is suppressed completely.
+   --    The binder generates the gnat_argc/argv variables in the binder file
+   --    instead of being imported from the run-time library. If
+   --    Command_Line_Args_On_Target is set to False, then the generation of
+   --    these variables is suppressed completely.
    --
    --    The routine __gnat_break_start is defined within the binder file
    --    instead of being imported from the run-time library.

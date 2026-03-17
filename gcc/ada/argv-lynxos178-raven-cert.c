@@ -48,13 +48,22 @@
 extern "C" {
 #endif
 
-/* argc and argv of the main program are saved under gnat_argc and gnat_argv,
-   envp of the main program is saved under gnat_envp.
-   While gnat_argc and gnat_envp are not needed, they are referenced from
-   the binder-generated file so they need to be defined here */
+/* argc and argv of the main program are saved under gnat_argc and gnat_argv.
+   While gnat_argc is not needed, it's referenced from the binder-generated
+   file so it needs to be defined here */
 
 int gnat_argc = 0;
 char **gnat_argv = NULL;
+
+/* It used to be the case that users were required to forward the envp
+   parameter of main to the variable below when using a non-Ada main. The
+   consequences for failing to meet the requirement was improper operation of
+   Ada.Command_Line.Environment.
+
+   Today, users are not required to do anything with gnat_envp and
+   Ada.Command_Line.Environment does not use it anymore. In fact it's not used
+   by anything, but we keep its definition so that programs that obey the old
+   requirement keep linking. */
 char **gnat_envp = NULL;
 
 int

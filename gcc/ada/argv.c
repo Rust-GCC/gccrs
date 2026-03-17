@@ -37,11 +37,6 @@
    gnat_argv are the values as modified by toplev, and these routines
    are accessed from the Osint package.  */
 
-/* Also routines for accessing the environment from the runtime library.
-   Gnat_envp is the original envp value as stored by the binder generated
-   main program, and these routines are accessed from the
-   Ada.Command_Line.Environment package.  */
-
 #ifdef IN_RTS
 #include "runtime.h"
 #include <stdlib.h>
@@ -55,24 +50,27 @@
 #include "adaint.h"
 #endif
 
+#include "env.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/* argc and argv of the main program are saved under gnat_argc and gnat_argv,
-   envp of the main program is saved under gnat_envp.  */
+/* argc and argv of the main program are saved under gnat_argc and gnat_argv */
 
 int gnat_argc = 0;
 char **gnat_argv = NULL;
-char **gnat_envp = NULL;
 
-#if defined (_WIN32) && !defined (RTX)
-/* Note that on Windows environment the environ point to a buffer that could
-   be reallocated if needed. It means that gnat_envp needs to be updated
-   before using gnat_envp to point to the right environment space */
-/* for the environ variable definition */
-#define gnat_envp (environ)
-#endif
+/* It used to be the case that users were required to forward the envp
+   parameter of main to the variable below when using a non-Ada main. The
+   consequences for failing to meet the requirement was improper operation of
+   Ada.Command_Line.Environment.
+
+   Today, users are not required to do anything with gnat_envp and
+   Ada.Command_Line.Environment does not use it anymore. In fact it's not used
+   by anything, but we keep its definition so that programs that obey the old
+   requirement keep linking. */
+char **gnat_envp = NULL;
 
 int
 __gnat_arg_count (void)
@@ -100,8 +98,9 @@ int
 __gnat_env_count (void)
 {
   int i;
+  char **envp = __gnat_environ();
 
-  for (i = 0; gnat_envp[i]; i++)
+  for (i = 0; envp[i]; i++)
     ;
   return i;
 }
@@ -109,8 +108,10 @@ __gnat_env_count (void)
 int
 __gnat_len_env (int env_num)
 {
-  if (gnat_envp != NULL)
-    return strlen (gnat_envp[env_num]);
+  char **envp = __gnat_environ();
+
+  if (envp != NULL)
+    return strlen (envp[env_num]);
   else
     return 0;
 }
@@ -118,8 +119,10 @@ __gnat_len_env (int env_num)
 void
 __gnat_fill_env (char *a, int i)
 {
-  if (gnat_envp != NULL)
-    memcpy (a, gnat_envp[i], strlen (gnat_envp[i]));
+  char **envp = __gnat_environ();
+
+  if (envp != NULL)
+    memcpy (a, envp[i], strlen (envp[i]));
 }
 
 #ifdef __cplusplus

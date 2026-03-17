@@ -100,14 +100,12 @@ package Ada.Command_Line is
    --  main program, and the following is an example of a complete C main
    --  program that stores the required information:
 
-   --    main(int argc, char **argv, char **envp)
+   --    main(int argc, char **argv)
    --    {
    --       extern int    gnat_argc;
    --       extern char **gnat_argv;
-   --       extern char **gnat_envp;
    --       gnat_argc = argc;
    --       gnat_argv = argv;
-   --       gnat_envp = envp;
 
    --       adainit();
    --       adamain();

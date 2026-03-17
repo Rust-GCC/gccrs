@@ -61,8 +61,8 @@ package body Bindgen is
    --  Flag indicating whether the unit Ada.Command_Line is in the closure of
    --  the partition. This is set by Resolve_Binder_Options, and is used to
    --  determine whether or not to import and use symbols defined in
-   --  Ada.Command_Line's support packages (gnat_argc, gnat_argv, gnat_envp
-   --  and gnat_exit_status). Conservatively, it is always set to True for
+   --  Ada.Command_Line's support packages (gnat_argc, gnat_argv and
+   --  gnat_exit_status). Conservatively, it is always set to True for
    --  non-configurable run-times as parts of the compiler and run-time assume
    --  these symbols are available and can be imported directly.
 
@@ -2021,8 +2021,7 @@ package body Bindgen is
       if Command_Line_Args_On_Target then
          Write_Statement_Buffer;
          WBI ("     (argc : Integer;");
-         WBI ("      argv : System.Address;");
-         WBI ("      envp : System.Address)");
+         WBI ("      argv : System.Address)");
 
          if Exit_Status_Supported_On_Target then
             WBI ("      return Integer");
@@ -2135,7 +2134,6 @@ package body Bindgen is
          WBI ("         gnat_argc := argc;");
          WBI ("         gnat_argv := argv;");
          WBI ("      end if;");
-         WBI ("      gnat_envp := envp;");
          WBI ("");
       end if;
 
@@ -2613,12 +2611,10 @@ package body Bindgen is
             WBI ("");
             WBI ("   gnat_argc : Integer;");
             WBI ("   gnat_argv : System.Address;");
-            WBI ("   gnat_envp : System.Address;");
 
             WBI ("");
             WBI ("   pragma Import (C, gnat_argc);");
             WBI ("   pragma Import (C, gnat_argv);");
-            WBI ("   pragma Import (C, gnat_envp);");
          end if;
 
          --  Define exit status if supported by the target. The exit status is
@@ -2723,9 +2719,8 @@ package body Bindgen is
          if Command_Line_Args_On_Target then
             Write_Statement_Buffer;
             WBI ("     (argc : Integer;");
-            WBI ("      argv : System.Address;");
             Set_String
-                ("      envp : System.Address)");
+                ("      argv : System.Address)");
 
             if Exit_Status_Supported_On_Target then
                Write_Statement_Buffer;

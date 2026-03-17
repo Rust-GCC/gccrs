@@ -29,12 +29,6 @@
 --                                                                          --
 ------------------------------------------------------------------------------
 
---  Note: Services offered by this package are guaranteed to be platform
---  independent as long as no call to GNAT.OS_Lib.Setenv or to C putenv
---  routine is done. On some platforms the services below will report new
---  environment variables (e.g. Windows) on some others it will not
---  (e.g. GNU/Linux and Solaris).
-
 package Ada.Command_Line.Environment is
 
    function Environment_Count return Natural;
