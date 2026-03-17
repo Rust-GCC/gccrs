@@ -11661,10 +11661,9 @@ package body Exp_Ch3 is
                 Null_Record_Present => True);
 
             --  GNATprove will use expression of an expression function as an
-            --  implicit postcondition. GNAT will also benefit from expression
-            --  function to avoid premature freezing, but would struggle if we
-            --  added an expression function to freezing actions, so we create
-            --  the expanded form directly.
+            --  implicit postcondition. GNAT will not benefit from expression
+            --  function (and would struggle if we add an expression function
+            --  to freezing actions).
 
             if GNATprove_Mode then
                Func_Body :=
@@ -11683,7 +11682,6 @@ package body Exp_Ch3 is
                        Statements => New_List (
                          Make_Simple_Return_Statement (Loc,
                            Expression => Ext_Aggr))));
-               Set_Was_Expression_Function (Func_Body);
             end if;
 
             Append_To (Body_List, Func_Body);

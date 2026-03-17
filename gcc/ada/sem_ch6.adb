@@ -3833,20 +3833,14 @@ package body Sem_Ch6 is
          --  In particular, extra formals for accessibility or build-in-place
          --  return purposes may still need to be generated. Freeze nodes are
          --  inserted before the body, and are necessary to ensure the proper
-         --  elaboration order in the code generator.
-
-         --  A further complication arises when the expression function is a
-         --  primitive operation of a tagged type: in that case the function
-         --  entity must be frozen before the dispatch table for the type is
-         --  built, but this freezing must not freeze the tagged type itself.
+         --  elaboration order in the code generator. But we do not freeze the
+         --  profile for them to avoid premature freezing of tagged types.
 
          if not Is_Frozen (Spec_Id) and then Serious_Errors_Detected = 0 then
             Set_Has_Delayed_Freeze (Spec_Id);
             Create_Extra_Formals (Spec_Id, Related_Nod => N);
             Freeze_Before (N, Spec_Id,
-              Do_Freeze_Profile => not
-                (From_Expression_Function
-                  and then Is_Dispatching_Operation (Spec_Id)));
+              Do_Freeze_Profile => not Is_Wrapper (Spec_Id));
          end if;
       end if;
 
