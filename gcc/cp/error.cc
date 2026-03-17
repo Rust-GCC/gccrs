@@ -4006,6 +4006,8 @@ inform_tree_category (tree t)
     inform (loc, "but %qE is a function template", t);
   else if (DECL_CLASS_TEMPLATE_P (t))
     inform (loc, "but %qE is a class template", t);
+  else if (variable_template_p (t))
+    inform (loc, "but %qE is a variable template", t);
   else if (TREE_CODE (t) == NAMESPACE_DECL)
     inform (loc, "but %qE is a namespace", t);
   else if (TREE_CODE (t) == CONST_DECL && !DECL_TEMPLATE_PARM_P (t))
