@@ -4454,14 +4454,13 @@ adjust_callers_for_value_intersection (vec<cgraph_edge *> &callers,
    is assumed their number is known and equal to CALLER_COUNT.  */
 
 template <typename valtype>
-static vec<cgraph_edge *>
+static auto_vec<cgraph_edge *>
 gather_edges_for_value (ipcp_value<valtype> *val, cgraph_node *dest,
 			int caller_count)
 {
   ipcp_value_source<valtype> *src;
-  vec<cgraph_edge *> ret;
+  auto_vec<cgraph_edge *> ret (caller_count);
 
-  ret.create (caller_count);
   for (src = val->sources; src; src = src->next)
     {
       struct cgraph_edge *cs = src->cs;
@@ -6005,8 +6004,8 @@ decide_about_value (struct cgraph_node *node, int index, HOST_WIDE_INT offset,
       fprintf (dump_file, " (caller_count: %i)\n", caller_count);
     }
 
-  vec<cgraph_edge *> callers;
-  callers = gather_edges_for_value (val, node, caller_count);
+  auto_vec<cgraph_edge *> callers
+    = gather_edges_for_value (val, node, caller_count);
   ipa_node_params *info = ipa_node_params_sum->get (node);
   ipa_auto_call_arg_values avals;
   avals.m_known_vals.safe_grow_cleared (ipa_get_param_count (info), true);
@@ -6085,7 +6084,6 @@ decide_about_value (struct cgraph_node *node, int index, HOST_WIDE_INT offset,
   else
     update_profiling_info (node, val->spec_node);
 
-  callers.release ();
   overall_size += val->local_size_cost;
   if (dump_file && (dump_flags & TDF_DETAILS))
     fprintf (dump_file, "     overall size reached %li\n",
