@@ -1,3 +1,52 @@
+2026-03-16  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/124496
+	* g++.dg/reflect/crash20.C: New test.
+	* g++.dg/reflect/crash21.C: New test.
+
+2026-03-16  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/123618
+	* g++.dg/reflect/annotations14.C: New test.
+
+2026-03-16  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR c++/124307
+	* g++.dg/cpp0x/alignas24.C: New test.
+
+2026-03-16  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/124489
+	* g++.dg/reflect/diag6.C: New test.
+
+2026-03-16  Alex Coplan  <alex.coplan@arm.com>
+
+	PR middle-end/124491
+	* gcc.target/aarch64/torture/pr124491.c: New test.
+
+2026-03-16  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/124528
+	* gcc.dg/tree-ssa/scev-17.c: New testcase.
+
+2026-03-16  Paul Thomas  <pault@gcc.gnu.org>
+	    Steve Kargl  <kargls@comcast.net>
+
+	PR fortran/93832
+	* gfortran.dg/pr93832.f90: New test.
+
+2026-03-16  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/105168
+	* gfortran.dg/pr105168.f90: New test.
+
+2026-03-16  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/120039
+	PR c++/122559
+	* g++.dg/cpp26/decomp28.C: New test.
+	* g++.dg/cpp26/decomp29.C: New test.
+
 2026-03-14  Jakub Jelinek  <jakub@redhat.com>
 
 	PR c++/124399

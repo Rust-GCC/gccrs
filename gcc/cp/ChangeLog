@@ -1,3 +1,38 @@
+2026-03-16  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/124496
+	* parser.cc (cp_parser_splice_specifier): Use NULL_TREE instead of
+	NULL.
+	(cp_parser_splice_expression): Don't assert seen_error() when not
+	committed to tentative parse.
+
+2026-03-16  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/123618
+	* tree.cc (handle_annotation_attribute): Reject annotations on void
+	parameters.
+
+2026-03-16  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR c++/124307
+	* parser.cc (cp_parser_base_specifier): Check for
+	error mark like checking for non-nullness on the
+	attribute.
+
+2026-03-16  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/124489
+	* error.cc (dump_type) <case NULLPTR_TYPE>: Use pp_cxx_ws_string
+	instead of pp_string.
+	<case META_TYPE>: Likewise.
+
+2026-03-16  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/120039
+	PR c++/122559
+	* pt.cc (tsubst_expr) <case VAR_DECL>: Don't call lookup_name on
+	DECL_NAME (t) if it is NULL_TREE.
+
 2026-03-14  Jakub Jelinek  <jakub@redhat.com>
 
 	PR c++/124399

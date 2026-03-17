@@ -1,3 +1,22 @@
+2026-03-16  Paul Thomas  <pault@gcc.gnu.org>
+	    Steve Kargl  <kargls@comcast.net>
+
+	PR fortran/93832
+	* array.cc (resolve_array_bound): Emit error and return false
+	if bound expression is derived type or class.
+	* primary.cc (gfc_convert_to_structure_constructor): Do not
+	dereference NULL in character component test. Define 'shorter'
+	and use it help cure one of several whitespace issues.
+
+2026-03-16  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/105168
+	* trans-expr.cc (gfc_conv_class_to_class): If the argument expr
+	is not a class type use the parent tree if that is a class.
+	(gfc_conv_procedure_call): If the argument expression is not a
+	variable, shift the bounds to give unity lbounds.
+	(gfc_trans_arrayfunc_assign): Return NULL_TREE instead of NULL.
+
 2026-03-15  Christopher Albert  <albert@tugraz.at>
 
 	PR fortran/124482

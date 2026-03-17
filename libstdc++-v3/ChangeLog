@@ -1,3 +1,39 @@
+2026-03-16  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/124268
+	* config/abi/pre/gnu.ver: Export symbols.
+	* src/Makefile.am: Add libmodulesconvenience.la to libstdc++
+	link.
+	* src/Makefile.in: Regenerate.
+	* src/c++23/Makefile.am: Create libmodulesconvenience.la
+	and populate it with std.o and std.compat.o interface units.
+	Add clean-local target.
+	* src/c++23/Makefile.in: Regenerate.
+
+2026-03-16  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/bits/ranges_base.h (distance(It&&, Sent)): Only decay
+	arrays to pointers when the type is actually an array, as per
+	LWG 4242.
+	* testsuite/24_iterators/range_operations/distance.cc: Add test
+	for LWG 4242.
+
+2026-03-16  Jonathan Wakely  <jwakely@redhat.com>
+
+	* testsuite/29_atomics/atomic/compare_exchange_padding.cc:
+	Rewrite to be robust against spurious failures of weak compare
+	exchange, and to check padding bits more directly.
+
+2026-03-16  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/bits/allocator.h (allocator::allocate): Use specific
+	feature test macro for constexpr allocate and deallocate. Make
+	consteval path a discarded statement if sizeof(T) is ill-formed.
+	* include/bits/new_allocator.h (__new_allocator::allocate): Use
+	requires-expression for static_cast. Make function body a
+	discarded stament if sizeof(T) is ill-formed. Use if-constexpr
+	for alignment checks.
+
 2026-03-15  François Dumont  <frs.dumont@gmail.com>
 
 	PR libstdc++/124444

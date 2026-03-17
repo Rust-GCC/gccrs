@@ -1,3 +1,26 @@
+2026-03-16  Jose E. Marchesi  <jemarch@gnu.org>
+
+	* doc/install.texi (Configuration): Fix copy pasto
+	--enable-objc-gc to --enable-algol68-gc.
+
+2026-03-16  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/124528
+	* tree-scalar-evolution.cc (scev_dfs::add_to_evolution):
+	Perform the negation in an unsigned type if we cannot make
+	sure it will not cause UB.
+
+2026-03-16  Kito Cheng  <kito.cheng@sifive.com>
+
+	* doc/invoke.texi: Add experimental warning for RISC-V
+	big-endian support.
+
+2026-03-16  Takayuki 'January June' Suwa  <jjsuwa_sys3175@yahoo.co.jp>
+
+	* config/xtensa/xtensa.cc
+	(constantsynth_method_lshr_mi12b): New.
+	(constantsynth_methods): Add constantsynth_method_lshr_mi12b.
+
 2026-03-14  Jakub Jelinek  <jakub@redhat.com>
 
 	PR other/124508
