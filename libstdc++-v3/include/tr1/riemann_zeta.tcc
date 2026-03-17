@@ -83,9 +83,9 @@ namespace tr1
       if (__s < _Tp(1))
         std::__throw_domain_error(__N("Bad argument in zeta sum."));
 
-      const unsigned int max_iter = 10000;
+      const unsigned int __max_iter = 10000;
       _Tp __zeta = _Tp(0);
-      for (unsigned int __k = 1; __k < max_iter; ++__k)
+      for (unsigned int __k = 1; __k < __max_iter; ++__k)
         {
           _Tp __term = std::pow(static_cast<_Tp>(__k), -__s);
           if (__term < std::numeric_limits<_Tp>::epsilon())

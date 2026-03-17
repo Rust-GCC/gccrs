@@ -1882,8 +1882,8 @@ namespace __format
 	   {
 	     using _Attoseconds = _ChronoData<_CharT>::_Attoseconds;
 	     using _CRep = common_type_t<_Rep, typename _Attoseconds::rep>;
-	     chrono::duration<_CRep, _Period> subs(__d.count());
-	     return chrono::duration_cast<_Attoseconds>(subs);
+	     chrono::duration<_CRep, _Period> __subs(__d.count());
+	     return chrono::duration_cast<_Attoseconds>(__subs);
 	   }
        }
 

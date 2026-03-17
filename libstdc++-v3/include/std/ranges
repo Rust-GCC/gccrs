@@ -5261,8 +5261,9 @@ namespace views::__adaptor
     { return _M_zip.size(); }
   };
 
-  template<class _Fp, class... Rs>
-    zip_transform_view(_Fp, Rs&&...) -> zip_transform_view<_Fp, views::all_t<Rs>...>;
+  template<class _Fp, class... _Rs>
+    zip_transform_view(_Fp, _Rs&&...)
+      -> zip_transform_view<_Fp, views::all_t<_Rs>...>;
 
   template<move_constructible _Fp, input_range... _Vs>
     requires (view<_Vs> && ...) && (sizeof...(_Vs) > 0) && is_object_v<_Fp>
@@ -8511,9 +8512,10 @@ namespace views::__adaptor
     template<typename... _Vs>
       concept __cartesian_product_is_sized = (sized_range<_Vs> && ...);
 
-    template<bool _Const, template<typename> class FirstSent, typename _First, typename... _Vs>
+    template<bool _Const, template<typename> class _FirstSent,
+	     typename _First, typename... _Vs>
       concept __cartesian_is_sized_sentinel
-	= (sized_sentinel_for<FirstSent<__maybe_const_t<_Const, _First>>,
+	= (sized_sentinel_for<_FirstSent<__maybe_const_t<_Const, _First>>,
 			      iterator_t<__maybe_const_t<_Const, _First>>>
 	   && ...
 	   && (sized_range<__maybe_const_t<_Const, _Vs>>
