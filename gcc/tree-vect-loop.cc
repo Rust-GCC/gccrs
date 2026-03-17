@@ -763,6 +763,7 @@ _loop_vec_info::_loop_vec_info (class loop *loop_in, vec_info_shared *shared)
     peeling_for_gaps (false),
     peeling_for_niter (false),
     early_breaks (false),
+    loop_iv_cond (NULL),
     user_unroll (false),
     no_data_dependencies (false),
     has_mask_store (false),
@@ -1693,7 +1694,7 @@ vect_create_loop_vinfo (class loop *loop, vec_info_shared *shared,
 
   unsigned cond_id = 0;
   if (!LOOP_VINFO_NITERS_UNCOUNTED_P (loop_vinfo))
-      LOOP_VINFO_LOOP_IV_COND (loop_vinfo) = info->conds[cond_id++];
+    LOOP_VINFO_LOOP_IV_COND (loop_vinfo) = info->conds[cond_id++];
 
   for (; cond_id < info->conds.length (); cond_id ++)
     LOOP_VINFO_LOOP_CONDS (loop_vinfo).safe_push (info->conds[cond_id]);
