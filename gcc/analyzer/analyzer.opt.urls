@@ -63,6 +63,15 @@ UrlSuffix(gcc/Static-Analyzer-Options.html#index-Wanalyzer-malloc-leak)
 Wanalyzer-mismatching-deallocation
 UrlSuffix(gcc/Static-Analyzer-Options.html#index-Wanalyzer-mismatching-deallocation)
 
+Wanalyzer-mkostemp-redundant-flags
+UrlSuffix(gcc/Static-Analyzer-Options.html#index-Wanalyzer-mkostemp-redundant-flags)
+
+Wanalyzer-mktemp-missing-placeholder
+UrlSuffix(gcc/Static-Analyzer-Options.html#index-Wanalyzer-mktemp-missing-placeholder)
+
+Wanalyzer-mktemp-of-string-literal
+UrlSuffix(gcc/Static-Analyzer-Options.html#index-Wanalyzer-mktemp-of-string-literal)
+
 Wanalyzer-out-of-bounds
 UrlSuffix(gcc/Static-Analyzer-Options.html#index-Wanalyzer-out-of-bounds)
 
@@ -83,12 +92,6 @@ UrlSuffix(gcc/Static-Analyzer-Options.html#index-Wanalyzer-null-argument)
 
 Wanalyzer-null-dereference
 UrlSuffix(gcc/Static-Analyzer-Options.html#index-Wanalyzer-null-dereference)
-
-Wanalyzer-mkstemp-missing-suffix
-UrlSuffix(gcc/Static-Analyzer-Options.html#index-Wanalyzer-mkstemp-missing-suffix)
-
-Wanalyzer-mkstemp-of-string-literal
-UrlSuffix(gcc/Static-Analyzer-Options.html#index-Wanalyzer-mkstemp-of-string-literal)
 
 Wanalyzer-putenv-of-auto-var
 UrlSuffix(gcc/Static-Analyzer-Options.html#index-Wanalyzer-putenv-of-auto-var)

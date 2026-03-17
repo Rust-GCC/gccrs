@@ -747,21 +747,21 @@ kf_memset::impl_call_pre (const call_details &cd) const
   cd.maybe_set_lhs (dest_sval);
 }
 
-/* A subclass of pending_diagnostic for complaining about 'mkstemp'
-   called on a string literal.  */
+/* A subclass of pending_diagnostic for complaining about functions on the
+   'mktemp' family called on a string literal.  */
 
-class mkstemp_of_string_literal : public undefined_function_behavior
+class mktemp_of_string_literal : public undefined_function_behavior
 {
 public:
-  mkstemp_of_string_literal (const call_details &cd)
-      : undefined_function_behavior (cd)
+  mktemp_of_string_literal (const call_details &cd)
+    : undefined_function_behavior (cd)
   {
   }
 
   int
   get_controlling_option () const final override
   {
-    return OPT_Wanalyzer_mkstemp_of_string_literal;
+    return OPT_Wanalyzer_mktemp_of_string_literal;
   }
 
   bool
@@ -792,15 +792,17 @@ public:
   }
 };
 
-/* A subclass of pending_diagnostic for complaining about 'mkstemp'
-   called with a template that does not end with "XXXXXX".  */
+/* A subclass of pending_diagnostic for complaining about functions in the
+   'mktemp' family called with a template that does not contain the expected
+   "XXXXXX" placeholder.  */
 
-class mkstemp_missing_suffix
-    : public pending_diagnostic_subclass<mkstemp_missing_suffix>
+class mktemp_missing_placeholder
+  : public pending_diagnostic_subclass<mktemp_missing_placeholder>
 {
 public:
-  mkstemp_missing_suffix (const call_details &cd)
-      : m_call_stmt (cd.get_call_stmt ()), m_fndecl (cd.get_fndecl_for_call ())
+  mktemp_missing_placeholder (const call_details &cd, size_t trailing_len)
+    : m_call_stmt (cd.get_call_stmt ()), m_fndecl (cd.get_fndecl_for_call ()),
+      m_trailing_len (trailing_len)
   {
     gcc_assert (m_fndecl);
   }
@@ -808,11 +810,11 @@ public:
   const char *
   get_kind () const final override
   {
-    return "mkstemp_missing_suffix";
+    return "mktemp_missing_placeholder";
   }
 
   bool
-  operator== (const mkstemp_missing_suffix &other) const
+  operator== (const mktemp_missing_placeholder &other) const
   {
     return &m_call_stmt == &other.m_call_stmt;
   }
@@ -820,22 +822,91 @@ public:
   int
   get_controlling_option () const final override
   {
-    return OPT_Wanalyzer_mkstemp_missing_suffix;
+    return OPT_Wanalyzer_mktemp_missing_placeholder;
   }
 
   bool
   emit (diagnostic_emission_context &ctxt) final override
   {
-    return ctxt.warn ("%qE template string does not end with %qs", m_fndecl,
-		      "XXXXXX");
+    if (m_trailing_len == 0)
+      return ctxt.warn ("%qE template string does not end with %qs", m_fndecl,
+			"XXXXXX");
+    else
+      return ctxt.warn ("%qE template string does not contain %qs"
+			" before a %zu-character suffix",
+			m_fndecl, "XXXXXX", m_trailing_len);
   }
 
   bool
   describe_final_event (pretty_printer &pp,
 			const evdesc::final_event &) final override
   {
-    pp_printf (&pp, "%qE template string does not end with %qs", m_fndecl,
-	       "XXXXXX");
+    if (m_trailing_len == 0)
+      pp_printf (&pp, "%qE template string does not end with %qs", m_fndecl,
+		 "XXXXXX");
+    else
+      pp_printf (&pp,
+		 "%qE template string does not contain %qs"
+		 " before a %zu-character suffix",
+		 m_fndecl, "XXXXXX", m_trailing_len);
+    return true;
+  }
+
+private:
+  const gimple &m_call_stmt;
+  tree m_fndecl; // non-NULL
+  size_t m_trailing_len;
+};
+
+/* A subclass of pending_diagnostic for complaining about 'mkostemp'
+   or 'mkostemps' called with flags that are already included
+   internally (O_CREAT, O_EXCL, O_RDWR).  */
+
+class mkostemp_redundant_flags
+  : public pending_diagnostic_subclass<mkostemp_redundant_flags>
+{
+public:
+  mkostemp_redundant_flags (const call_details &cd)
+    : m_call_stmt (cd.get_call_stmt ()), m_fndecl (cd.get_fndecl_for_call ())
+  {
+    gcc_assert (m_fndecl);
+  }
+
+  const char *
+  get_kind () const final override
+  {
+    return "mkostemp_redundant_flags";
+  }
+
+  bool
+  operator== (const mkostemp_redundant_flags &other) const
+  {
+    return &m_call_stmt == &other.m_call_stmt;
+  }
+
+  int
+  get_controlling_option () const final override
+  {
+    return OPT_Wanalyzer_mkostemp_redundant_flags;
+  }
+
+  bool
+  emit (diagnostic_emission_context &ctxt) final override
+  {
+    return ctxt.warn (
+      "%qE flags argument should not include %<O_RDWR%>, %<O_CREAT%>,"
+      " or %<O_EXCL%> as these are already implied",
+      m_fndecl);
+  }
+
+  bool
+  describe_final_event (pretty_printer &pp,
+			const evdesc::final_event &) final override
+  {
+    pp_printf (&pp,
+	       "%qE flags argument should not include %<O_RDWR%>, %<O_CREAT%>,"
+	       " or %<O_EXCL%> as these are already implied",
+	       m_fndecl);
     return true;
   }
 
@@ -844,14 +915,173 @@ private:
   tree m_fndecl; // non-NULL
 };
 
-/* Handler for calls to "mkstemp":
+class kf_mktemp_family : public known_function
+{
+protected:
+  /* Extract the suffixlen from the call argument at SUFFIXLEN_ARG_IDX
+     and check the template.  If the suffixlen is not a compile-time
+     constant, the check is skipped.  */
+  static void
+  check_template_with_suffixlen_arg (const call_details &cd,
+				     unsigned int suffixlen_arg_idx);
 
-     int mkstemp(char *template);
+  /* Check that the template argument (arg 0) is not a string literal
+     and contains the "XXXXXX" placeholder at the expected position.
+     TRAILING_LEN is the number of characters after the placeholder
+     (0 for mkstemp/mkdtemp/mktemp/mkostemp, or the suffixlen value
+     for mkstemps/mkostemps).  */
+  static void check_template (const call_details &cd, size_t trailing_len);
+
+  /* Check whether the flags argument at FLAGS_ARG_IDX contains any of
+     O_RDWR, O_CREAT, or O_EXCL, which are already included internally
+     by mkostemp/mkostemps.  */
+  static void check_flags (const call_details &cd, unsigned int flags_arg_idx);
+
+private:
+  static const int PLACEHOLDER_LEN = 6;
+
+  /* Return true if the placeholder is "XXXXXX", false if it definitely isn't,
+   or unknown if we can't determine.  */
+  static tristate check_placeholder (const call_details &cd,
+				     size_t trailing_len,
+				     const svalue *ptr_sval,
+				     const svalue *strlen_sval);
+};
+
+void
+kf_mktemp_family::check_template_with_suffixlen_arg (
+  const call_details &cd, unsigned int suffixlen_arg_idx)
+{
+  const svalue *suffixlen_sval = cd.get_arg_svalue (suffixlen_arg_idx);
+  const constant_svalue *cst_sval
+    = suffixlen_sval->dyn_cast_constant_svalue ();
+  if (!cst_sval)
+    {
+      /* Suffix length unknown, but we still need to check whether the template
+	 argument is a null-terminated string.  */
+      region_model *model = cd.get_model ();
+      model->check_for_null_terminated_string_arg (cd, 0, false, nullptr);
+      return;
+    }
+
+  tree cst = cst_sval->get_constant ();
+  /* TODO: Negative suffixlen is always wrong and potentially OOB, maybe add a
+     warning in the future?  */
+  if (tree_int_cst_sgn (cst) < 0)
+    return;
+
+  unsigned HOST_WIDE_INT suffixlen = TREE_INT_CST_LOW (cst);
+  check_template (cd, suffixlen);
+}
+
+void
+kf_mktemp_family::check_template (const call_details &cd, size_t trailing_len)
+{
+  region_model_context *ctxt = cd.get_ctxt ();
+  gcc_assert (ctxt);
+  const svalue *ptr_sval = cd.get_arg_svalue (0);
+  region_model *model = cd.get_model ();
+
+  const svalue *strlen_sval
+    = model->check_for_null_terminated_string_arg (cd, 0, false, nullptr);
+  if (!strlen_sval)
+    return;
+
+  if (cd.get_arg_string_literal (0))
+      ctxt->warn (std::make_unique<mktemp_of_string_literal> (cd));
+  else if (check_placeholder (cd, trailing_len, ptr_sval, strlen_sval)
+	     .is_false ())
+      ctxt->warn (
+	std::make_unique<mktemp_missing_placeholder> (cd, trailing_len));
+}
+
+void
+kf_mktemp_family::check_flags (const call_details &cd,
+			       unsigned int flags_arg_idx)
+{
+  region_model_context *ctxt = cd.get_ctxt ();
+  gcc_assert (ctxt);
+
+  const svalue *flags_sval = cd.get_arg_svalue (flags_arg_idx);
+  const constant_svalue *cst = flags_sval->dyn_cast_constant_svalue ();
+  if (!cst)
+    return;
+
+  unsigned HOST_WIDE_INT flags = TREE_INT_CST_LOW (cst->get_constant ());
+
+  /* Check whether any of the implicit flags are redundantly specified. */
+  unsigned HOST_WIDE_INT implicit_flags = 0;
+  for (const char *name : { "O_RDWR", "O_CREAT", "O_EXCL" })
+    if (tree cst_tree = get_stashed_constant_by_name (name))
+      implicit_flags |= TREE_INT_CST_LOW (cst_tree);
+
+  if (flags & implicit_flags)
+    ctxt->warn (std::make_unique<mkostemp_redundant_flags> (cd));
+}
+
+tristate
+kf_mktemp_family::check_placeholder (const call_details &cd,
+				     size_t trailing_len,
+				     const svalue *ptr_sval,
+				     const svalue *strlen_sval)
+{
+  region_model *model = cd.get_model ();
+
+  const constant_svalue *len_cst = strlen_sval->dyn_cast_constant_svalue ();
+  if (!len_cst)
+    return tristate::TS_UNKNOWN;
+
+  byte_offset_t len = TREE_INT_CST_LOW (len_cst->get_constant ());
+  if (len < PLACEHOLDER_LEN + trailing_len)
+    return tristate::TS_FALSE;
+
+  tree arg_tree = cd.get_arg_tree (0);
+  const region *reg = model->deref_rvalue (ptr_sval, arg_tree, cd.get_ctxt ());
+
+  /* Find the byte offset of the pointed-to region. */
+  region_offset reg_offset = reg->get_offset (cd.get_manager ());
+  if (reg_offset.symbolic_p ())
+    return tristate::TS_UNKNOWN;
+  byte_offset_t ptr_byte_offset;
+  if (!reg_offset.get_concrete_byte_offset (&ptr_byte_offset))
+    return tristate::TS_UNKNOWN;
+
+  const region *base_reg = reg->get_base_region ();
+  const svalue *base_sval = model->get_store_value (base_reg, cd.get_ctxt ());
+
+  const constant_svalue *cst_sval = base_sval->dyn_cast_constant_svalue ();
+  if (!cst_sval)
+    return tristate::TS_UNKNOWN;
+
+  tree cst = cst_sval->get_constant ();
+  if (TREE_CODE (cst) != STRING_CST)
+    return tristate::TS_UNKNOWN;
+
+  HOST_WIDE_INT str_len = len.to_shwi ();
+  HOST_WIDE_INT start = ptr_byte_offset.to_shwi ();
+
+  /* Ensure we can read up to and including the NUL terminator at position
+     [start + str_len - trailing_len] within the STRING_CST.  */
+  HOST_WIDE_INT range = start + str_len - trailing_len + 1;
+  if (range > TREE_STRING_LENGTH (cst))
+    return tristate::TS_UNKNOWN;
+
+  if (memcmp (TREE_STRING_POINTER (cst) + start + str_len - trailing_len
+		- PLACEHOLDER_LEN,
+	      "XXXXXX", PLACEHOLDER_LEN)
+      != 0)
+    return tristate::TS_FALSE;
+
+  return tristate::TS_TRUE;
+}
+
+/* Handler for calls to "mkdtemp", "mkstemp", and "mktemp", which all
+   take a single char * template argument.
 
    The template must not be a string constant, and its last six
    characters must be "XXXXXX".  */
 
-class kf_mkstemp : public known_function
+class kf_mktemp_simple : public kf_mktemp_family
 {
 public:
   bool
@@ -864,86 +1094,99 @@ public:
   impl_call_pre (const call_details &cd) const final override
   {
     if (cd.get_ctxt ())
-      check_template (cd);
+      check_template (cd, 0);
 
     cd.set_any_lhs_with_defaults ();
   }
+};
 
-private:
-  static void
-  check_template (const call_details &cd)
+/* Handler for calls to "mkostemp":
+
+     int mkostemp(char *template, int flags);
+
+   The template must not be a string constant, and its last six
+   characters must be "XXXXXX".  Warns when flags contains O_RDWR,
+   O_CREAT, or O_EXCL, which are already included internally.  */
+
+class kf_mkostemp : public kf_mktemp_family
+{
+public:
+  bool
+  matches_call_types_p (const call_details &cd) const final override
   {
-    region_model_context *ctxt = cd.get_ctxt ();
-    const svalue *ptr_sval = cd.get_arg_svalue (0);
-    region_model *model = cd.get_model ();
-
-    const svalue *strlen_sval
-      = model->check_for_null_terminated_string_arg (cd, 0, false, nullptr);
-    if (!strlen_sval)
-      return;
-
-    if (cd.get_arg_string_literal (0))
-      {
-	ctxt->warn (std::make_unique<mkstemp_of_string_literal> (cd));
-      }
-    else if (check_suffix (cd, ptr_sval, strlen_sval).is_false ())
-      {
-	ctxt->warn (std::make_unique<mkstemp_missing_suffix> (cd));
-      }
+    return (cd.num_args () == 2 && cd.arg_is_pointer_p (0)
+	    && cd.arg_is_integral_p (1));
   }
 
-  /* Return true if the template ends with "XXXXXX", false if it
-     definitely does not, or unknown if we can't determine.  */
-  static tristate
-  check_suffix (const call_details &cd, const svalue *ptr_sval,
-		const svalue *strlen_sval)
+  void
+  impl_call_pre (const call_details &cd) const final override
   {
-    region_model *model = cd.get_model ();
+    if (cd.get_ctxt ())
+      {
+	check_template (cd, 0);
+	check_flags (cd, 1);
+      }
 
-    const constant_svalue *len_cst = strlen_sval->dyn_cast_constant_svalue ();
-    if (!len_cst)
-      return tristate::TS_UNKNOWN;
+    cd.set_any_lhs_with_defaults ();
+  }
+};
 
-    byte_offset_t len = TREE_INT_CST_LOW (len_cst->get_constant ());
-    if (len < 6)
-      return tristate::TS_FALSE;
+/* Handler for calls to "mkostemps":
 
-    tree arg_tree = cd.get_arg_tree (0);
-    const region *reg
-      = model->deref_rvalue (ptr_sval, arg_tree, cd.get_ctxt ());
+     int mkostemps(char *template, int suffixlen, int flags);
 
-    /* Find the byte offset of the pointed-to region. */
-    region_offset reg_offset = reg->get_offset (cd.get_manager ());
-    if (reg_offset.symbolic_p ())
-      return tristate::TS_UNKNOWN;
-    byte_offset_t ptr_byte_offset;
-    if (!reg_offset.get_concrete_byte_offset (&ptr_byte_offset))
-      return tristate::TS_UNKNOWN;
+   The template must not be a string constant, and must contain
+   "XXXXXX" before a suffixlen-character suffix.  Warns when flags
+   contains O_RDWR, O_CREAT, or O_EXCL, which are already included
+   internally.  */
 
-    const region *base_reg = reg->get_base_region ();
-    const svalue *base_sval
-      = model->get_store_value (base_reg, cd.get_ctxt ());
+class kf_mkostemps : public kf_mktemp_family
+{
+public:
+  bool
+  matches_call_types_p (const call_details &cd) const final override
+  {
+    return (cd.num_args () == 3 && cd.arg_is_pointer_p (0)
+	    && cd.arg_is_integral_p (1) && cd.arg_is_integral_p (2));
+  }
 
-    const constant_svalue *cst_sval = base_sval->dyn_cast_constant_svalue ();
-    if (!cst_sval)
-      return tristate::TS_UNKNOWN;
+  void
+  impl_call_pre (const call_details &cd) const final override
+  {
+    if (cd.get_ctxt ())
+      {
+	check_template_with_suffixlen_arg (cd, 1);
+	check_flags (cd, 2);
+      }
 
-    tree cst = cst_sval->get_constant ();
-    if (TREE_CODE (cst) != STRING_CST)
-      return tristate::TS_UNKNOWN;
+    cd.set_any_lhs_with_defaults ();
+  }
+};
 
-    HOST_WIDE_INT str_len = len.to_shwi ();
-    HOST_WIDE_INT start = ptr_byte_offset.to_shwi ();
+/* Handler for calls to "mkstemps":
 
-    /* Ensure the range [start, start + str_len] fits. */
-    if (1 + start + str_len > TREE_STRING_LENGTH (cst))
-      return tristate::TS_UNKNOWN;
+     int mkstemps(char *template, int suffixlen);
 
-    if (memcmp (TREE_STRING_POINTER (cst) + start + str_len - 6, "XXXXXX", 6)
-	!= 0)
-      return tristate::TS_FALSE;
+   The template must not be a string constant, and must contain
+   "XXXXXX" before a suffixlen-character suffix.  */
 
-    return tristate::TS_TRUE;
+class kf_mkstemps : public kf_mktemp_family
+{
+public:
+  bool
+  matches_call_types_p (const call_details &cd) const final override
+  {
+    return (cd.num_args () == 2 && cd.arg_is_pointer_p (0)
+	    && cd.arg_is_integral_p (1));
+  }
+
+  void
+  impl_call_pre (const call_details &cd) const final override
+  {
+    if (cd.get_ctxt ())
+      check_template_with_suffixlen_arg (cd, 1);
+
+    cd.set_any_lhs_with_defaults ();
   }
 };
 
@@ -2569,7 +2812,14 @@ register_known_functions (known_function_manager &kfm,
   /* Known POSIX functions, and some non-standard extensions.  */
   {
     kfm.add ("fopen", std::make_unique<kf_fopen> ());
-    kfm.add ("mkstemp", std::make_unique<kf_mkstemp> ());
+    kfm.add ("mkdtemp", std::make_unique<kf_mktemp_simple> ());
+    kfm.add ("mkostemp", std::make_unique<kf_mkostemp> ());
+    kfm.add ("mkostemps", std::make_unique<kf_mkostemps> ());
+    kfm.add ("mkstemps", std::make_unique<kf_mkstemps> ());
+    kfm.add ("mkstemp", std::make_unique<kf_mktemp_simple> ());
+    /* TODO: Report mktemp as deprecated per MSC24-C
+       (https://wiki.sei.cmu.edu/confluence/x/hNYxBQ).  */
+    kfm.add ("mktemp", std::make_unique<kf_mktemp_simple> ());
     kfm.add ("putenv", std::make_unique<kf_putenv> ());
     kfm.add ("strtok", std::make_unique<kf_strtok> (rmm));
 

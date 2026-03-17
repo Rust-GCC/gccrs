@@ -77,6 +77,11 @@ stash_named_constants (logger *logger, const translation_unit &tu)
   maybe_stash_named_constant (logger, tu, "O_WRONLY");
   maybe_stash_named_constant (logger, tu, "SOCK_STREAM");
   maybe_stash_named_constant (logger, tu, "SOCK_DGRAM");
+
+  /* Stash named constants for use by kf.cc */
+  maybe_stash_named_constant (logger, tu, "O_CREAT");
+  maybe_stash_named_constant (logger, tu, "O_EXCL");
+  maybe_stash_named_constant (logger, tu, "O_RDWR");
 }
 
 /* Hook for frontend to call into analyzer when TU finishes.

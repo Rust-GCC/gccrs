@@ -526,8 +526,9 @@ Objective-C and Objective-C++ Dialects}.
 -Wno-analyzer-jump-through-null
 -Wno-analyzer-malloc-leak
 -Wno-analyzer-mismatching-deallocation
--Wno-analyzer-mkstemp-of-string-literal
--Wno-analyzer-mkstemp-missing-suffix
+-Wno-analyzer-mkostemp-redundant-flags
+-Wno-analyzer-mktemp-missing-placeholder
+-Wno-analyzer-mktemp-of-string-literal
 -Wno-analyzer-null-argument
 -Wno-analyzer-null-dereference
 -Wno-analyzer-out-of-bounds
@@ -11573,8 +11574,9 @@ Enabling this option effectively enables the following warnings:
 -Wanalyzer-jump-through-null
 -Wanalyzer-malloc-leak
 -Wanalyzer-mismatching-deallocation
--Wanalyzer-mkstemp-of-string-literal
--Wanalyzer-mkstemp-missing-suffix
+-Wanalyzer-mkostemp-redundant-flags
+-Wanalyzer-mktemp-missing-placeholder
+-Wanalyzer-mktemp-of-string-literal
 -Wanalyzer-null-argument
 -Wanalyzer-null-dereference
 -Wanalyzer-out-of-bounds
@@ -11951,27 +11953,6 @@ or a function marked with attribute @code{malloc}.
 
 See @uref{https://cwe.mitre.org/data/definitions/401.html, CWE-401: Missing Release of Memory after Effective Lifetime}.
 
-@opindex Wanalyzer-mkstemp-missing-suffix
-@opindex Wno-analyzer-mkstemp-missing-suffix
-@item -Wno-analyzer-mkstemp-missing-suffix
-This warning requires @option{-fanalyzer}, which enables it; use
-@option{-Wno-analyzer-mkstemp-missing-suffix} to disable it.
-
-This diagnostic warns for paths through the code in which the template
-string passed to @code{mkstemp} does not end with @samp{XXXXXX}.
-
-@opindex Wanalyzer-mkstemp-of-string-literal
-@opindex Wno-analyzer-mkstemp-of-string-literal
-@item -Wno-analyzer-mkstemp-of-string-literal
-This warning requires @option{-fanalyzer}, which enables it; use
-@option{-Wno-analyzer-mkstemp-of-string-literal} to disable it.
-
-This diagnostic warns for paths through the code in which @code{mkstemp}
-is called on a string literal.  Since @code{mkstemp} modifies its
-argument in place, passing a string literal leads to undefined behavior.
-
-See @uref{https://wiki.sei.cmu.edu/confluence/x/VtYxBQ, STR30-C. Do not attempt to modify string literals}.
-
 @opindex Wanalyzer-mismatching-deallocation
 @opindex Wno-analyzer-mismatching-deallocation
 @item -Wno-analyzer-mismatching-deallocation
@@ -11987,6 +11968,44 @@ and vector @code{delete[]}, and those marked as allocator/deallocator
 pairs using attribute @code{malloc}.
 
 See @uref{https://cwe.mitre.org/data/definitions/762.html, CWE-762: Mismatched Memory Management Routines}.
+
+@opindex Wanalyzer-mkostemp-redundant-flags
+@opindex Wno-analyzer-mkostemp-redundant-flags
+@item -Wno-analyzer-mkostemp-redundant-flags
+This warning requires @option{-fanalyzer}, which enables it; use
+@option{-Wno-analyzer-mkostemp-redundant-flags} to disable it.
+
+This diagnostic warns for paths through the code in which
+@code{mkostemp} or @code{mkostemps} is called with flags that include
+@code{O_RDWR}, @code{O_CREAT}, or @code{O_EXCL}.  These flags are
+already implied by the function and specifying them is unnecessary, and
+produces errors on some systems.
+
+@opindex Wanalyzer-mktemp-missing-placeholder
+@opindex Wno-analyzer-mktemp-missing-placeholder
+@item -Wno-analyzer-mktemp-missing-placeholder
+This warning requires @option{-fanalyzer}, which enables it; use
+@option{-Wno-analyzer-mktemp-missing-placeholder} to disable it.
+
+This diagnostic warns for paths through the code in which a function in
+the @code{mktemp} family (@code{mkstemp}, @code{mkostemp},
+@code{mkstemps}, @code{mkostemps}, @code{mkdtemp}, @code{mktemp}) is
+called with a template string that does not contain the placeholder
+@samp{XXXXXX} at the expected position.
+
+@opindex Wanalyzer-mktemp-of-string-literal
+@opindex Wno-analyzer-mktemp-of-string-literal
+@item -Wno-analyzer-mktemp-of-string-literal
+This warning requires @option{-fanalyzer}, which enables it; use
+@option{-Wno-analyzer-mktemp-of-string-literal} to disable it.
+
+This diagnostic warns for paths through the code in which a function in
+the @code{mktemp} family (@code{mkstemp}, @code{mkostemp},
+@code{mkstemps}, @code{mkostemps}, @code{mkdtemp}, @code{mktemp}) is
+called on a string literal.  Since these functions modify their argument
+in place, passing a string literal leads to undefined behavior.
+
+See @uref{https://wiki.sei.cmu.edu/confluence/x/VtYxBQ, STR30-C. Do not attempt to modify string literals}.
 
 @opindex Wanalyzer-out-of-bounds
 @opindex Wno-analyzer-out-of-bounds
