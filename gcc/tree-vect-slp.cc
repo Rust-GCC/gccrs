@@ -5739,7 +5739,10 @@ vect_analyze_slp (vec_info *vinfo, unsigned max_tree_size,
 				     slp_inst_kind_store, max_tree_size, &limit,
 				     force_single_lane)
 	&& loop_vinfo)
-      return opt_result::failure_at (vect_location, "SLP build failed.\n");
+      {
+	release_scalar_stmts_to_slp_tree_map (bst_map);
+	return opt_result::failure_at (vect_location, "SLP build failed.\n");
+      }
 
   /* For loops also start SLP discovery from non-grouped stores.  */
   if (loop_vinfo)
@@ -5760,8 +5763,11 @@ vect_analyze_slp (vec_info *vinfo, unsigned max_tree_size,
 	    if (! vect_build_slp_instance (vinfo, slp_inst_kind_store,
 					   stmts, roots, remain, max_tree_size,
 					   &limit, bst_map, force_single_lane))
-	      return opt_result::failure_at (vect_location,
-					     "SLP build failed.\n");
+	      {
+		release_scalar_stmts_to_slp_tree_map (bst_map);
+		return opt_result::failure_at (vect_location,
+					       "SLP build failed.\n");
+	      }
 	  }
 
       stmt_vec_info stmt_info;
@@ -5775,8 +5781,11 @@ vect_analyze_slp (vec_info *vinfo, unsigned max_tree_size,
 	  if (! vect_build_slp_instance (vinfo, slp_inst_kind_store,
 					 stmts, roots, remain, max_tree_size,
 					 &limit, bst_map, force_single_lane))
-	    return opt_result::failure_at (vect_location,
-					   "SLP build failed.\n");
+	    {
+	      release_scalar_stmts_to_slp_tree_map (bst_map);
+	      return opt_result::failure_at (vect_location,
+					     "SLP build failed.\n");
+	    }
 	}
     }
 
@@ -5807,7 +5816,10 @@ vect_analyze_slp (vec_info *vinfo, unsigned max_tree_size,
       /* Find SLP sequences starting from groups of reductions.  */
       if (!vect_analyze_slp_reductions (loop_vinfo, max_tree_size, &limit,
 					bst_map, force_single_lane))
-	return opt_result::failure_at (vect_location, "SLP build failed.\n");
+	{
+	  release_scalar_stmts_to_slp_tree_map (bst_map);
+	  return opt_result::failure_at (vect_location, "SLP build failed.\n");
+	}
 
       /* Make sure to vectorize only-live stmts, usually inductions.  */
       for (edge e : get_loop_exit_edges (LOOP_VINFO_LOOP (loop_vinfo)))
@@ -5836,8 +5848,11 @@ vect_analyze_slp (vec_info *vinfo, unsigned max_tree_size,
 					       stmts, roots, remain,
 					       max_tree_size, &limit,
 					       bst_map, force_single_lane))
-		  return opt_result::failure_at (vect_location,
-						 "SLP build failed.\n");
+		  {
+		    release_scalar_stmts_to_slp_tree_map (bst_map);
+		    return opt_result::failure_at (vect_location,
+						   "SLP build failed.\n");
+		  }
 	      }
 	  }
 
@@ -5860,6 +5875,7 @@ vect_analyze_slp (vec_info *vinfo, unsigned max_tree_size,
 	      || !integer_zerop (args1))
 	    {
 	      roots.release ();
+	      release_scalar_stmts_to_slp_tree_map (bst_map);
 	      return opt_result::failure_at (vect_location,
 					     "SLP build failed.\n");
 	    }
@@ -5881,6 +5897,7 @@ vect_analyze_slp (vec_info *vinfo, unsigned max_tree_size,
 					 bst_map, force_single_lane))
 	    {
 	      roots.release ();
+	      release_scalar_stmts_to_slp_tree_map (bst_map);
 	      return opt_result::failure_at (vect_location,
 					     "SLP build failed.\n");
 	    }
