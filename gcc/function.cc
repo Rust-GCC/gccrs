@@ -85,6 +85,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "value-range.h"
 #include "gimple-range.h"
 #include "insn-attr.h"
+#include "hierarchical_discriminator.h"
 
 /* So we can assign to cfun in this file.  */
 #undef cfun
@@ -217,6 +218,7 @@ free_after_compilation (struct function *f)
   f->cfg = NULL;
   f->curr_properties &= ~PROP_cfg;
   delete f->cond_uids;
+  free_copyid_allocator (f);
 
   regno_reg_rtx = NULL;
 }
