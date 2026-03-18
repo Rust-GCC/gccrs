@@ -113,12 +113,16 @@
 #define attributes (
 #define bin_op (
 #define clockid (
+#define ext (
 #define func (
+#define max_iter (
 #define max_val (
 #define min_val (
 #define object (
 #define ostr (
 #define policy (
+#define ret (
+#define subs (
 #define sz (
 #define tinfo (
 #define tmp (
@@ -126,6 +130,7 @@
 #define value_t (
 
 #if __cplusplus < 201103L
+#define mutex  (
 #define uses_allocator  (
 #endif
 
@@ -220,6 +225,8 @@
 #define Proj2			Proj2 is not a reserved name
 #define Ptr			Ptr is not a reserved name
 #define Reference		Reference is not a reserved name
+#define Rg			Rg is not a reserved name
+#define Rs			Rs is not a reserved name
 #define Seq			Seq is not a reserved name
 #define Seq_RAIter		Seq_RAIter is not a reserved name
 #define Series			Series is not a reserved name
