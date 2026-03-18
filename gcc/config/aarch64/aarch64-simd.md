@@ -3206,6 +3206,37 @@
   [(set_attr "type" "neon_int_to_fp_<VDQ_HSDI:stype><q>")]
 )
 
+;; V4DI -> V4SF is done as 2*V2DI->2*V2DF->2*V2SF and then combined together to
+;; form V4SF.
+;; Since there is an extra rounding step, unsafe math optimization needs to be
+;; on.
+
+(define_expand "vec_packs_float_v2di"
+  [(set (match_operand:V4SF 0 "register_operand" "=w")
+	(vec_concat:V4SF
+	  (float:V2SF (match_operand:V2DI 1 "register_operand" "w"))
+	  (float:V2SF (match_operand:V2DI 2 "register_operand" "w"))))]
+  "TARGET_SIMD && flag_unsafe_math_optimizations"
+  {
+    rtx tmp = gen_reg_rtx (V2DFmode);
+    rtx tmp1 = gen_reg_rtx (V2DFmode);
+    rtx tmp2 = gen_reg_rtx (V2SFmode);
+    rtx tmp3 = gen_reg_rtx (V2SFmode);
+    emit_insn (gen_floatv2div2df2 (tmp, operands[1]));
+    emit_insn (gen_floatv2div2df2 (tmp1, operands[2]));
+    emit_insn (gen_truncv2dfv2sf2 (tmp2, tmp));
+    emit_insn (gen_truncv2dfv2sf2 (tmp3, tmp1));
+    if (BYTES_BIG_ENDIAN)
+      std::swap (tmp2, tmp3);
+
+    rtx tmp4 = gen_reg_rtx (V2DImode);
+    emit_insn (gen_aarch64_zip1v2di_low (tmp4, gen_lowpart (DImode, tmp2),
+					 gen_lowpart (DImode, tmp3)));
+    emit_move_insn (operands[0], gen_lowpart (V4SFmode, tmp4));
+    DONE;
+  }
+)
+
 ;; ??? Note that the vectorizer usage of the vec_unpacks_[lo/hi] patterns
 ;; is inconsistent with vector ordering elsewhere in the compiler, in that
 ;; the meaning of HI and LO changes depending on the target endianness.
