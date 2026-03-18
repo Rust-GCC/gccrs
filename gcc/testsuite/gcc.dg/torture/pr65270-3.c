@@ -1,4 +1,5 @@
 /* { dg-do run } */
+/* { dg-additional-options "-Wno-psabi" } */
 
 typedef int v4si_unaligned __attribute__((vector_size(16),aligned(4)));
 typedef int v4si __attribute__((vector_size(16)));

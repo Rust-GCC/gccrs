@@ -1,5 +1,5 @@
 /* { dg-do run } */
-/* { dg-options "-O1 -fdump-tree-vect-details -fdump-tree-slp-details -fdump-tree-optimized" } */
+/* { dg-options "-O1 -fdump-tree-vect-details -fdump-tree-slp-details -fdump-tree-optimized -msse2" } */
 
 extern void abort (void);
 static void do_test (void);
