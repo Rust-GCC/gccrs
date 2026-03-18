@@ -1187,8 +1187,6 @@ partition_callchain (cgraph_node *node, locality_partition &partition,
   /* Aliases are added in the same partition as their targets.
      Aliases are not cloned and their callees are not processed separately.  */
   cgraph_node *cl_node = NULL;
-  if (partition->insns > partition_size)
-    partition = create_partition (npartitions);
 
   /* Iterate over all unique callees of NODE, direct callees and callees via
      inlined nodes.  This avoids calling partition_callchain () separately for
@@ -1205,10 +1203,13 @@ partition_callchain (cgraph_node *node, locality_partition &partition,
 	{
 	  if (!node_partitioned_p (n))
 	    {
+	      if (partition->insns > partition_size)
+		partition = create_partition (npartitions);
+
 	      add_node_to_partition (partition, n);
 	      if (dump_file)
-	      fprintf (dump_file, "Partitioned node: %s\n",
-		       n->dump_asm_name ());
+		fprintf (dump_file, "Partitioned node: %s\n",
+			 n->dump_asm_name ());
 	      partition_callchain (n, partition, cloning_model, freq_cutoff,
 				   size, cl_num, npartitions, partition_size,
 				   scheme);
