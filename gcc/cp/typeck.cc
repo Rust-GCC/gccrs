@@ -3599,8 +3599,21 @@ finish_class_member_access_expr (cp_expr object, tree name, bool template_p,
 		   || VAR_P (name)
 		   || TREE_CODE (name) == CONST_DECL
 		   || TREE_CODE (name) == FUNCTION_DECL
-		   || DECL_FUNCTION_TEMPLATE_P (OVL_FIRST (name))))
-	scope = context_for_name_lookup (OVL_FIRST (name));
+		   || DECL_FUNCTION_TEMPLATE_P (OVL_FIRST (name))
+		   || variable_template_p (name)))
+	{
+	  scope = context_for_name_lookup (OVL_FIRST (name));
+	  if (!CLASS_TYPE_P (scope))
+	    {
+	      if (complain & tf_error)
+		{
+		  auto_diagnostic_group d;
+		  error ("%q#D is not a member of %qT", name, object_type);
+		  inform (DECL_SOURCE_LOCATION (OVL_FIRST (name)), "declared here");
+		}
+	      return error_mark_node;
+	    }
+	}
 
       if (TREE_CODE (name) == TEMPLATE_ID_EXPR)
 	{

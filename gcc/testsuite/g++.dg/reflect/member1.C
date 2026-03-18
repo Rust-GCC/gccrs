@@ -92,8 +92,7 @@ f ()
   sp.[: ^^S::x :] = 2; // { dg-error "which is of pointer type" }
   c.[: ^^C<char>::x :] = 1; // { dg-error "is not a base of" }
   cp->[: ^^C<char>::x :] = 1; // { dg-error "is not a base of" }
-  s.template [: ^^S::N :].t;  // { dg-error "expected a reflection of a function template" }
-  // { dg-message "but .S::N. is a class template" "" { target *-*-* } 20 }
+  s.template [: ^^S::N :].t;  // { dg-error "invalid class member access of type template .S::N." }
   S::template [: ^^S::N<int> :] e1;  // { dg-error "expected unqualified-id" }
   C<int>::template [: ^^S::N<int> :] e2;  // { dg-error "expected unqualified-id" }
   s.template [: ^^S::var<int> :] = 1;  // { dg-error "expected a reflection of a function template" }

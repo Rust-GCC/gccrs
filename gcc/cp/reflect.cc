@@ -8884,6 +8884,15 @@ check_splice_expr (location_t loc, location_t start_loc, tree t,
 		  "through a splice", t);
       return false;
     }
+
+  /* One can't access a class template or alias template with . or ->.  */
+  if (member_access_p && DECL_TYPE_TEMPLATE_P (t))
+    {
+      if (complain_p)
+	error_at (loc, "invalid class member access of type template %qE", t);
+      return false;
+    }
+
   /* [expr.unary.op]/3.1 "If the operand [of unary &] is a qualified-id or
      splice-expression designating a non-static member m, other than an
      explicit object member function, m shall be a direct member of some
