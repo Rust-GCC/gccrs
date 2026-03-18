@@ -2562,7 +2562,7 @@ Report on memory allocation before interprocedural optimization.
 
 fpost-ipa-mem-report
 Common Var(post_ipa_mem_report)
-Report on memory allocation before interprocedural optimization.
+Report on memory allocation after interprocedural optimization.
 
 fpack-struct
 Common Var(flag_pack_struct) Optimization
