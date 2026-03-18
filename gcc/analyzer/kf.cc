@@ -1501,6 +1501,94 @@ public:
   }
 };
 
+/* Handler for calls to "getenv".
+     char *getenv (const char *name);
+
+   Returns either NULL (if the environment variable is not found),
+   or a pointer to the value string.  */
+
+class kf_getenv : public known_function
+{
+public:
+  bool matches_call_types_p (const call_details &cd) const final override
+  {
+    return (cd.num_args () == 1 && cd.arg_is_pointer_p (0));
+  }
+
+  void impl_call_pre (const call_details &cd) const final override
+  {
+    cd.check_for_null_terminated_string_arg (0);
+  }
+
+  void impl_call_post (const call_details &cd) const final override;
+};
+
+void
+kf_getenv::impl_call_post (const call_details &cd) const
+{
+  class getenv_call_info : public call_info
+  {
+  public:
+    getenv_call_info (const call_details &cd, bool found)
+    : call_info (cd), m_found (found)
+    {
+    }
+
+    void print_desc (pretty_printer &pp) const final override
+    {
+      if (m_found)
+	pp_printf (&pp,
+		   "when %qE returns non-NULL",
+		   get_fndecl ());
+      else
+	pp_printf (&pp,
+		   "when %qE returns NULL",
+		   get_fndecl ());
+    }
+
+    bool update_model (region_model *model,
+		       const exploded_edge *,
+		       region_model_context *ctxt) const final override
+    {
+      const call_details cd (get_call_details (model, ctxt));
+      if (tree lhs_type = cd.get_lhs_type ())
+	{
+	  region_model_manager *mgr = model->get_manager ();
+	  const svalue *result;
+	  if (m_found)
+	    {
+	      /* Return a conjured non-NULL pointer.  */
+	      result
+		= mgr->get_or_create_conjured_svalue (lhs_type,
+						       &cd.get_call_stmt (),
+						       cd.get_lhs_region (),
+						       conjured_purge (model,
+								       ctxt));
+	      const svalue *null_ptr
+		= mgr->get_or_create_int_cst (lhs_type, 0);
+	      model->add_constraint (result, NE_EXPR, null_ptr, ctxt);
+	    }
+	  else
+	    result = mgr->get_or_create_int_cst (lhs_type, 0);
+	  cd.maybe_set_lhs (result);
+	}
+      return true;
+    }
+  private:
+    bool m_found;
+  };
+
+  /* Body of kf_getenv::impl_call_post.  */
+  if (cd.get_ctxt ())
+    {
+      cd.get_ctxt ()->bifurcate
+	(std::make_unique<getenv_call_info> (cd, false));
+      cd.get_ctxt ()->bifurcate
+	(std::make_unique<getenv_call_info> (cd, true));
+      cd.get_ctxt ()->terminate_path ();
+    }
+}
+
 /* Handler for calls to "putenv".
 
    In theory we could try to model the state of the environment variables
@@ -3018,6 +3106,7 @@ register_known_functions (known_function_manager &kfm,
   /* Known POSIX functions, and some non-standard extensions.  */
   {
     kfm.add ("fopen", std::make_unique<kf_fopen> ());
+    kfm.add ("getenv", std::make_unique<kf_getenv> ());
     kfm.add ("mkdtemp", std::make_unique<kf_mktemp_simple> (
 			  kf_mktemp_family::outcome::null_ptr));
     kfm.add ("mkostemp", std::make_unique<kf_mkostemp> ());
