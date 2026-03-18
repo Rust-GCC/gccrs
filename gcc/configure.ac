@@ -336,7 +336,7 @@ AC_SUBST(GENINSRC)
 AC_ARG_WITH(gnu-ld,
 [AS_HELP_STRING([--with-gnu-ld], [arrange to work with GNU ld])],
 gnu_ld_flag="$with_gnu_ld",
-gnu_ld_flag=no)
+gnu_ld_flag=)
 
 case $target in
     *darwin*)
@@ -415,7 +415,7 @@ fi
 AC_ARG_WITH(gnu-as,
 [AS_HELP_STRING([--with-gnu-as], [arrange to work with GNU as])],
 gas_flag="$with_gnu_as",
-gas_flag=no)
+gas_flag=)
 
 AC_ARG_WITH(as,
 [AS_HELP_STRING([--with-as], [arrange to use the specified as (full pathname)])],
@@ -432,7 +432,7 @@ fi
 
 AC_MSG_CHECKING([whether a default assembler was specified])
 if test x"${DEFAULT_ASSEMBLER+set}" = x"set"; then
-  if test x"$gas_flag" = x"no"; then
+  if test x"$gas_flag" != x"yes"; then
     AC_MSG_RESULT([yes ($DEFAULT_ASSEMBLER)])
   else
     AC_MSG_RESULT([yes ($DEFAULT_ASSEMBLER - GNU as)])

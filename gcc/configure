@@ -3931,7 +3931,7 @@ fi
 if test "${with_gnu_ld+set}" = set; then :
   withval=$with_gnu_ld; gnu_ld_flag="$with_gnu_ld"
 else
-  gnu_ld_flag=no
+  gnu_ld_flag=
 fi
 
 
@@ -4037,7 +4037,7 @@ fi
 if test "${with_gnu_as+set}" = set; then :
   withval=$with_gnu_as; gas_flag="$with_gnu_as"
 else
-  gas_flag=no
+  gas_flag=
 fi
 
 
@@ -4063,7 +4063,7 @@ fi
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether a default assembler was specified" >&5
 $as_echo_n "checking whether a default assembler was specified... " >&6; }
 if test x"${DEFAULT_ASSEMBLER+set}" = x"set"; then
-  if test x"$gas_flag" = x"no"; then
+  if test x"$gas_flag" != x"yes"; then
     { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes ($DEFAULT_ASSEMBLER)" >&5
 $as_echo "yes ($DEFAULT_ASSEMBLER)" >&6; }
   else
