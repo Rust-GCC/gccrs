@@ -1,3 +1,70 @@
+2026-03-17  Alice Carlotti  <alice.carlotti@arm.com>
+
+	* config/aarch64/aarch64-sve2.md (@aarch64_pred_revd<mode>):
+	Remove movprfx alternative.
+	(@cond_revd<mode>): Likewise.
+
+2026-03-17  Philipp Tomsich  <philipp.tomsich@vrull.eu>
+
+	PR rtl-optimization/124476
+	* avoid-store-forwarding.cc
+	(store_forwarding_analyzer::process_store_forwarding): Replace
+	bitmap_all_bits_in_range_p with bitmap_any_bit_in_range_p and
+	return false on partial overlap.  Remove redundant-store vectors
+	and their associated removal, dump, and deletion logic.
+
+2026-03-17  Richard Biener  <rguenther@suse.de>
+
+	* tree-vect-slp.cc (vect_analyze_slp): Release BST map when
+	returning.
+
+2026-03-17  Richard Biener  <rguenther@suse.de>
+
+	* tree-vect-loop.cc (_loop_vec_info::_loop_vec_info):
+	Initialize loop_iv_cond given it's no longer always
+	initialized ...
+	(vect_create_loop_vinfo): ... here.  Fix formatting.
+
+2026-03-17  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/122380
+	* tree-ssa-sccvn.h (copy_reference_ops_from_ref): Declare.
+	(vn_reference_compute_hash): Likewise.
+	(vn_reference_eq): Add parameter indicating lexical equivalence,
+	defaulted to false.
+	* tree-ssa-sccvn.cc (vn_reference_eq): Likewise.
+	(print_vn_reference_ops): Print alias type and alignment.
+	(vn_reference_compute_hash): Export.
+	(copy_reference_ops_from_ref): Likewise.
+	* tree-ssa-pre.cc (pre_expr_d::equal): Use lexical equivalence.
+	(get_or_alloc_expr_for_reference): Also get value-id, upon
+	zero assign a new value-id if the expression is unknown.
+	(expr_cmp): New helper.
+	(prefer): Likewise.
+	(pre_expr_DFS): Get expression exclusion bitmap and honor it.
+	(sorted_array_from_bitmap_set): If done for insertion, do limited
+	canonexpr() via pairwise prefer on expression pairs with the same
+	value, populating an exclution bitmap.
+	(phi_translate_1): Do not use the VN hashtable expressions
+	or insert there.  Instead maintain a PRE view of expressions.
+	(clean): Adjust.
+	(do_hoist_insertion): Likewise.
+	(insert): Likewise.
+	(compute_avail): Use gimple_could_trap_p_1
+	on the original stmt rather than vn_reference_may_trap on
+	the VN leader.  Use the original stmt operands for the PRE
+	view of reference expressions, only use the value number from the VN
+	tables.  Remove no longer effective workarounds for semantically
+	different references with same value.
+	(fini_pre): Release operand vectors for PRE IL reference
+	expressions.
+
+2026-03-17  Yangyu Chen  <cyy@cyyself.name>
+
+	* config/i386/i386-features.cc (make_resolver_func): Use
+	symtab->change_decl_assembler_name instead of
+	SET_DECL_ASSEMBLER_NAME to properly update the symbol table.
+
 2026-03-16  Jose E. Marchesi  <jemarch@gnu.org>
 
 	* doc/install.texi (Configuration): Fix copy pasto

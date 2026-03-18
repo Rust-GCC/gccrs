@@ -1,3 +1,21 @@
+2026-03-17  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/124493
+	* error.cc (inform_tree_category): Handle variable templates.
+
+2026-03-17  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/124472
+	* parser.cc (cp_parser_reflection_name): Move the
+	cp_preserve_using_decl overriding below, before
+	cp_parser_lookup_name_simple.
+
+2026-03-17  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/124493
+	* pt.cc (tsubst) <case TEMPLATE_ID_EXPR>: Check that templ is
+	either DECL_TYPE_TEMPLATE_P or DECL_TEMPLATE_TEMPLATE_PARM_P.
+
 2026-03-16  Marek Polacek  <polacek@redhat.com>
 
 	PR c++/124496

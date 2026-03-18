@@ -1,3 +1,8 @@
+2026-03-17  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/120286
+	* testsuite/libgomp.fortran/pr120286.f90: New test.
+
 2026-02-28  Kwok Cheung Yeung  <kcyeung@baylibre.com>
 
 	PR middle-end/113436

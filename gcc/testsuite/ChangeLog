@@ -1,3 +1,99 @@
+2026-03-17  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/124493
+	* g++.dg/reflect/crash23.C: New test.
+
+2026-03-17  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/120286
+	* gfortran.dg/pr120286.f90: Removed.
+
+2026-03-17  Alice Carlotti  <alice.carlotti@arm.com>
+
+	* gcc.target/aarch64/sme/acle-asm/revd_bf16.c: Update checks.
+	* gcc.target/aarch64/sme/acle-asm/revd_f16.c: Likewise.
+	* gcc.target/aarch64/sme/acle-asm/revd_f32.c: Likewise.
+	* gcc.target/aarch64/sme/acle-asm/revd_f64.c: Likewise.
+	* gcc.target/aarch64/sme/acle-asm/revd_mf8.c: Likewise.
+	* gcc.target/aarch64/sme/acle-asm/revd_s16.c: Likewise.
+	* gcc.target/aarch64/sme/acle-asm/revd_s32.c: Likewise.
+	* gcc.target/aarch64/sme/acle-asm/revd_s64.c: Likewise.
+	* gcc.target/aarch64/sme/acle-asm/revd_s8.c: Likewise.
+	* gcc.target/aarch64/sme/acle-asm/revd_u16.c: Likewise.
+	* gcc.target/aarch64/sme/acle-asm/revd_u32.c: Likewise.
+	* gcc.target/aarch64/sme/acle-asm/revd_u64.c: Likewise.
+	* gcc.target/aarch64/sme/acle-asm/revd_u8.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/revd_bf16.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/revd_f16.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/revd_f32.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/revd_f64.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/revd_mf8.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/revd_s16.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/revd_s32.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/revd_s64.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/revd_s8.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/revd_u16.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/revd_u32.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/revd_u64.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/revd_u8.c: Likewise.
+
+2026-03-17  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/109521
+	* g++.dg/warn/Wuninitialized-35.C: New test.
+
+2026-03-17  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/115852
+	* g++.dg/cpp23/explicit-obj-lambda22.C: New test.
+
+2026-03-17  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/118482
+	* g++.dg/cpp2a/lambda-uneval31.C: New test.
+
+2026-03-17  Philipp Tomsich  <philipp.tomsich@vrull.eu>
+
+	PR rtl-optimization/124476
+	* gcc.dg/pr124476.c: New test.
+
+2026-03-17  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/124494
+	* g++.dg/reflect/decltype1.C: New test.
+
+2026-03-17  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/124472
+	* g++.dg/reflect/using2.C: New test.
+
+2026-03-17  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/124493
+	* g++.dg/reflect/crash19.C: New test.
+	* g++.dg/reflect/crash22.C: New test.
+
+2026-03-17  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/122380
+	* g++.dg/torture/pr122380.C: New testcase.
+	* gcc.dg/torture/pr65270-3.c: Likewise.
+	* gcc.dg/tree-ssa/ssa-pre-30.c: XFAIL.
+
+2026-03-17  Yangyu Chen  <cyy@cyyself.name>
+
+	* gcc.target/i386/tct-ipa-inline-ice.c: New test.
+
+2026-03-17  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/124489
+	* g++.dg/cpp0x/pr124489.C: New test.
+
+2026-03-17  Christopher Albert  <albert@tugraz.at>
+
+	PR fortran/120286
+	* gfortran.dg/pr120286.f90: New test.
+
 2026-03-16  Marek Polacek  <polacek@redhat.com>
 
 	PR c++/124496

@@ -1,3 +1,12 @@
+2026-03-17  Christopher Albert  <albert@tugraz.at>
+
+	PR fortran/120286
+	* trans-openmp.cc (gfc_is_class_pointer_type): New helper.
+	(gfc_omp_clause_copy_ctor): Unwrap saved descriptors before
+	deciding whether privatization should preserve only pointer
+	association.  Handle scalar class pointers on that path too.
+	(gfc_omp_clause_dtor): Likewise.
+
 2026-03-16  Paul Thomas  <pault@gcc.gnu.org>
 	    Steve Kargl  <kargls@comcast.net>
 

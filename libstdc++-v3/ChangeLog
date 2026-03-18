@@ -1,3 +1,53 @@
+2026-03-17  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/bits/chrono_io.h (__formatter_duration::_S_subseconds):
+	Uglify subs variable name.
+	* include/bits/fs_path.h (path::stem, path::extension)
+	(path::has_stem, path::has_extension): Uglify ext parameter
+	name.
+	* include/ext/concurrence.h (__cond::wait, __cond::wait_recursive):
+	Uglify mutex parameter names.
+	* include/pstl/glue_algorithm_defs.h (generate_n): Uglify count
+	parameter name.
+	* include/std/ranges (zip_transform_view): Uglify Rs template
+	parameter name.
+	(__cartesian_is_sized_sentinel): Uglify FirstSent template
+	parameter name.
+	* include/tr1/riemann_zeta.tcc: Uglify max_size variable name.
+
+2026-03-17  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/124463
+	* include/bits/deque.tcc (__uninitialized_copy_a): Define
+	overloads for input and output iterators being std::deque
+	iterators, and for only the output iterator being a std::deque
+	iterator.
+	(__uninitialized_move_a): Overload for input and output
+	iterators being std::deque iterators.
+	* include/bits/stl_uninitialized.h (__uninitialized_copy_a)
+	(__uninitialized_move_a): Declare overloads for std::deque
+	iterators.
+
+2026-03-17  Jonathan Wakely  <jwakely@redhat.com>
+
+	Revert:
+	2026-03-16  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/124268
+	* config/abi/pre/gnu.ver: Export symbols.
+	* src/Makefile.am: Add libmodulesconvenience.la to libstdc++
+	link.
+	* src/Makefile.in: Regenerate.
+	* src/c++23/Makefile.am: Create libmodulesconvenience.la
+	and populate it with std.o and std.compat.o interface units.
+	Add clean-local target.
+	* src/c++23/Makefile.in: Regenerate.
+
+2026-03-17  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* testsuite/23_containers/mdspan/extents/ctor_ints.cc: Updated
+	is_explicit, and added more test cases.
+
 2026-03-16  Jonathan Wakely  <jwakely@redhat.com>
 
 	PR libstdc++/124268
