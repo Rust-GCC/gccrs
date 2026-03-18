@@ -8246,6 +8246,17 @@ check_out_of_consteval_use_r (tree *tp, int *walk_subtrees, void *pset)
 	}
     }
 
+  /* Don't diagnose RETURN_EXPRs in cdtors on cdtor_returns_this
+     target.  Those don't exist on other targets.  */
+  if (TREE_CODE (t) == RETURN_EXPR
+      && targetm.cxx.cdtor_returns_this ()
+      && (DECL_CONSTRUCTOR_P (current_function_decl)
+	  || DECL_DESTRUCTOR_P (current_function_decl)))
+    {
+      *walk_subtrees = false;
+      return NULL_TREE;
+    }
+
   /* Now check the type to see if we are dealing with a consteval-only
      expression.  */
   if (!consteval_only_p (t))
