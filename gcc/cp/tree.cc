@@ -5920,31 +5920,37 @@ handle_annotation_attribute (tree *node, tree ARG_UNUSED (name),
       *no_add_attrs = true;
       return NULL_TREE;
     }
-  if (!type_dependent_expression_p (TREE_VALUE (args)))
+
+  /* Annotations are treated as late attributes so we shouldn't see
+     anything type-dependent now.  */
+  gcc_assert (!type_dependent_expression_p (TREE_VALUE (args)));
+  /* FIXME We should be using convert_reflect_constant_arg here to
+     implement std::meta::reflect_constant(constant-expression)
+     properly, but that introduces new crashes.  */
+  TREE_VALUE (args) = decay_conversion (TREE_VALUE (args), tf_warning_or_error);
+
+  if (!structural_type_p (TREE_TYPE (TREE_VALUE (args))))
     {
-      if (!structural_type_p (TREE_TYPE (TREE_VALUE (args))))
+      auto_diagnostic_group d;
+      error ("annotation does not have structural type");
+      structural_type_p (TREE_TYPE (TREE_VALUE (args)), true);
+      *no_add_attrs = true;
+      return NULL_TREE;
+    }
+  if (CLASS_TYPE_P (TREE_TYPE (TREE_VALUE (args))))
+    {
+      tree arg = make_tree_vec (1);
+      tree type = TREE_TYPE (TREE_VALUE (args));
+      TREE_VEC_ELT (arg, 0)
+	= build_stub_type (type, cp_type_quals (type) | TYPE_QUAL_CONST,
+			   /*rvalue=*/false);
+      if (!is_xible (INIT_EXPR, type, arg))
 	{
 	  auto_diagnostic_group d;
-	  error ("annotation does not have structural type");
-	  structural_type_p (TREE_TYPE (TREE_VALUE (args)), true);
+	  error ("annotation does not have copy constructible type");
+	  is_xible (INIT_EXPR, type, arg, /*explain=*/true);
 	  *no_add_attrs = true;
 	  return NULL_TREE;
-	}
-      if (CLASS_TYPE_P (TREE_TYPE (TREE_VALUE (args))))
-	{
-	  tree arg = make_tree_vec (1);
-	  tree type = TREE_TYPE (TREE_VALUE (args));
-	  TREE_VEC_ELT (arg, 0)
-	    = build_stub_type (type, cp_type_quals (type) | TYPE_QUAL_CONST,
-			       /*rvalue=*/false);
-	  if (!is_xible (INIT_EXPR, type, arg))
-	    {
-	      auto_diagnostic_group d;
-	      error ("annotation does not have copy constructible type");
-	      is_xible (INIT_EXPR, type, arg, /*explain=*/true);
-	      *no_add_attrs = true;
-	      return NULL_TREE;
-	    }
 	}
     }
   if (!processing_template_decl)
