@@ -2741,7 +2741,14 @@ process_alt_operands (int only_alternative)
 		  winreg = true;
 		  if (REG_P (op))
 		    {
+		      rtx orig_op = *curr_id->operand_loc[nop];
+		      if (GET_CODE (orig_op) == SUBREG && HARD_REGISTER_P (op)
+			  && !targetm.hard_regno_mode_ok (REGNO (op),
+							  GET_MODE(orig_op)))
+			break;
+
 		      tree decl;
+
 		      if (hard_regno[nop] >= 0
 			  && in_hard_reg_set_p (this_alternative_set,
 						mode, hard_regno[nop])
@@ -4402,22 +4409,11 @@ curr_insn_transform (bool check_only_p)
 	  continue;
 
 	old = op = *curr_id->operand_loc[i];
-	machine_mode outer_mode = GET_MODE (old);
-	bool subreg_p = false;
 	if (GET_CODE (old) == SUBREG)
-	  {
-	    old = SUBREG_REG (old);
-	    subreg_p = true;
-	  }
+	  old = SUBREG_REG (old);
 	subst = get_equiv_with_elimination (old, curr_insn);
 	original_subreg_reg_mode[i] = VOIDmode;
 	equiv_substition_p[i] = false;
-
-	/* If we are about to replace a register inside a subreg, check if
-	   the target can handle that.  */
-	if (subreg_p && REG_P (subst) && HARD_REGISTER_P (subst)
-	    && !targetm.hard_regno_mode_ok (REGNO (subst), outer_mode))
-	  continue;
 
 	if (subst != old
 	    /* We don't want to change an out operand by constant or invariant
