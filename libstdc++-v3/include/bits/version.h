@@ -1243,9 +1243,9 @@
 
 #if !defined(__cpp_lib_submdspan)
 # if (__cplusplus >  202302L) && (__glibcxx_constant_wrapper >= 202506L)
-#  define __glibcxx_submdspan 202411L
+#  define __glibcxx_submdspan 202603L
 #  if defined(__glibcxx_want_all) || defined(__glibcxx_want_submdspan)
-#   define __cpp_lib_submdspan 202411L
+#   define __cpp_lib_submdspan 202603L
 #  endif
 # endif
 #endif /* !defined(__cpp_lib_submdspan) */

@@ -73,47 +73,47 @@ static_assert(test_tuple_over<std::layout_stride>()); // { dg-error "expansion o
 
 template<typename Layout>
   constexpr bool
-  test_strided_slice_zero()
+  test_extent_slice_zero()
   {
-    check_slice_range<Layout>(1, std::strided_slice{1, 2, 0}, 2);  // { dg-error "expansion of" }
+    check_slice_range<Layout>(1, std::extent_slice{1, 2, 0}, 2);  // { dg-error "expansion of" }
     return true;
   }
-static_assert(test_strided_slice_zero<std::layout_left>());   // { dg-error "expansion of" }
-static_assert(test_strided_slice_zero<std::layout_right>());  // { dg-error "expansion of" }
-static_assert(test_strided_slice_zero<std::layout_stride>()); // { dg-error "expansion of" }
+static_assert(test_extent_slice_zero<std::layout_left>());   // { dg-error "expansion of" }
+static_assert(test_extent_slice_zero<std::layout_right>());  // { dg-error "expansion of" }
+static_assert(test_extent_slice_zero<std::layout_stride>()); // { dg-error "expansion of" }
 
 template<typename Layout>
   constexpr bool
-  test_strided_slice_offset_under()
+  test_extent_slice_offset_under()
   {
-    check_slice_range<Layout>(1, std::strided_slice{-1, 1, 1}, 2);   // { dg-error "expansion of" }
+    check_slice_range<Layout>(1, std::extent_slice{-1, 1, 1}, 2);   // { dg-error "expansion of" }
     return true;
   }
-static_assert(test_strided_slice_offset_under<std::layout_left>());   // { dg-error "expansion of" }
-static_assert(test_strided_slice_offset_under<std::layout_right>());  // { dg-error "expansion of" }
-static_assert(test_strided_slice_offset_under<std::layout_stride>()); // { dg-error "expansion of" }
+static_assert(test_extent_slice_offset_under<std::layout_left>());   // { dg-error "expansion of" }
+static_assert(test_extent_slice_offset_under<std::layout_right>());  // { dg-error "expansion of" }
+static_assert(test_extent_slice_offset_under<std::layout_stride>()); // { dg-error "expansion of" }
 
 template<typename Layout>
   constexpr bool
-  test_strided_slice_offset_over()
+  test_extent_slice_offset_over()
   {
-    check_slice_range<Layout>(1, std::strided_slice{6, 0, 1}, 2);    // { dg-error "expansion of" }
+    check_slice_range<Layout>(1, std::extent_slice{6, 0, 1}, 2);    // { dg-error "expansion of" }
     return true;
   }
-static_assert(test_strided_slice_offset_over<std::layout_left>());   // { dg-error "expansion of" }
-static_assert(test_strided_slice_offset_over<std::layout_right>());  // { dg-error "expansion of" }
-static_assert(test_strided_slice_offset_over<std::layout_stride>()); // { dg-error "expansion of" }
+static_assert(test_extent_slice_offset_over<std::layout_left>());   // { dg-error "expansion of" }
+static_assert(test_extent_slice_offset_over<std::layout_right>());  // { dg-error "expansion of" }
+static_assert(test_extent_slice_offset_over<std::layout_stride>()); // { dg-error "expansion of" }
 
 template<typename Layout>
   constexpr bool
-  test_strided_slice_extent_over()
+  test_extent_slice_extent_over()
   {
-    check_slice_range<Layout>(1, std::strided_slice{1, 5, 1}, 2);    // { dg-error "expansion of" }
+    check_slice_range<Layout>(1, std::extent_slice{1, 5, 1}, 2);    // { dg-error "expansion of" }
     return true;
   }
-static_assert(test_strided_slice_extent_over<std::layout_left>());   // { dg-error "expansion of" }
-static_assert(test_strided_slice_extent_over<std::layout_right>());  // { dg-error "expansion of" }
-static_assert(test_strided_slice_extent_over<std::layout_stride>()); // { dg-error "expansion of" }
+static_assert(test_extent_slice_extent_over<std::layout_left>());   // { dg-error "expansion of" }
+static_assert(test_extent_slice_extent_over<std::layout_right>());  // { dg-error "expansion of" }
+static_assert(test_extent_slice_extent_over<std::layout_stride>()); // { dg-error "expansion of" }
 
 // { dg-prune-output "static assertion failed" }
 // { dg-prune-output "__glibcxx_assert_fail" }

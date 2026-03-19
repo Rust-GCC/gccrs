@@ -1914,7 +1914,7 @@ export namespace std
   using std::layout_right_padded;
 #endif
 #if __glibcxx_submdspan
-  using std::strided_slice;
+  using std::extent_slice;
   using std::range_slice;
   using std::full_extent_t;
   using std::full_extent;

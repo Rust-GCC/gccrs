@@ -5,9 +5,9 @@
 #include <testsuite_hooks.h>
 
 constexpr void
-check_strided_slice(auto s, auto offset, auto extent, auto stride)
+check_extent_slice(auto s, auto offset, auto extent, auto stride)
 {
-  using slice_type = std::strided_slice<decltype(offset), decltype(extent),
+  using slice_type = std::extent_slice<decltype(offset), decltype(extent),
 					decltype(stride)>;
   static_assert(std::same_as<decltype(s), slice_type>);
   VERIFY(s.offset == offset);
@@ -20,12 +20,12 @@ test_initializers(auto offset, auto extent, auto stride)
 {
   auto check = [&](auto s)
   {
-    check_strided_slice(s, offset, extent, stride);
+    check_extent_slice(s, offset, extent, stride);
   };
 
-  check(std::strided_slice{.offset=offset, .extent=extent, .stride=stride});
-  check(std::strided_slice{offset, extent, stride});
-  check(std::strided_slice(offset, extent, stride));
+  check(std::extent_slice{.offset=offset, .extent=extent, .stride=stride});
+  check(std::extent_slice{offset, extent, stride});
+  check(std::extent_slice(offset, extent, stride));
 }
 
 constexpr bool

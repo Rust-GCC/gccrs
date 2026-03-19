@@ -1117,8 +1117,13 @@ ftms = {
 
 ftms = {
   name = submdspan;
+  // 202306 P2630R4 Submdspan
+  // 202403 P2642R6 Padded mdspan layouts
+  // 202411 P3355R1 Fix submdspan for C++26
+  // 202511 P3663R3 Future-proof submdspan-mapping  
+  // 202603 P3982R1 Split strided_slice into extent_slice and range_slice for C++26                                                          
   values = {
-    v = 202411;
+    v = 202603;
     cxxmin = 26;
     extra_cond = "__glibcxx_constant_wrapper >= 202506L";
   };

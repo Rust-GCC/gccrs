@@ -65,7 +65,7 @@ template<typename Offset, typename Extent, typename Stride, typename Extents>
   constexpr bool
   test_under2(Offset o, Extent e, Stride s, Extents exts)
   {
-    std::canonical_slices(exts, std::strided_slice{o, e, s});
+    std::canonical_slices(exts, std::extent_slice{o, e, s});
     return true;
   }
 
@@ -105,7 +105,7 @@ template<typename Offset, typename Extent, typename Stride, typename Extents>
   constexpr bool
   test_over2(Offset o, Extent e, Stride s, Extents exts)
   {
-    std::canonical_slices(exts, std::strided_slice{o, e, s});
+    std::canonical_slices(exts, std::extent_slice{o, e, s});
     return true;
   }
 
@@ -189,7 +189,7 @@ constexpr bool
 test_overflow1(auto o, auto e)
 {
   auto exts = std::extents<uint8_t, dyn>{255};
-  auto slice = std::strided_slice{o, e, 1};
+  auto slice = std::extent_slice{o, e, 1};
   std::canonical_slices(exts, slice);
   return true;
 }
@@ -224,7 +224,7 @@ constexpr bool
 test_invalid(auto e, auto s)
 {
   auto exts = std::extents(5);
-  auto slice = std::strided_slice(0, e, s);
+  auto slice = std::extent_slice(0, e, s);
   std::canonical_slices(exts, slice);
   return true;
 }

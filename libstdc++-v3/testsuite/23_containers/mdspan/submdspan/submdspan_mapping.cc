@@ -34,7 +34,7 @@ template<typename Layout>
 
     auto exts = Traits::make_extents(std::dims<5, int>(3, 5, 7, 11, 13));
     auto m = typename Layout::mapping(exts);
-    auto s251 = std::strided_slice{2, 5, std::cw<1>};
+    auto s251 = std::extent_slice{2, 5, std::cw<1>};
 
     {
       auto slices = std::tuple{0, 0, 0, 0, 0};
@@ -44,7 +44,7 @@ template<typename Layout>
     }
 
     {
-      auto s0 = std::strided_slice{1, 1, std::cw<1>};
+      auto s0 = std::extent_slice{1, 1, std::cw<1>};
       auto slices = std::tuple{s0, all, all, s251, 0};
       auto result = call_submdspan_mapping(m, Traits::make_tuple(slices));
       using layout_type = typename decltype(result.mapping)::layout_type;
@@ -52,7 +52,7 @@ template<typename Layout>
     }
 
     {
-      auto s0 = std::strided_slice{1, 2, std::cw<1>};
+      auto s0 = std::extent_slice{1, 2, std::cw<1>};
       auto slices = std::tuple{s0, all, all, s251, 0};
       auto result = call_submdspan_mapping(m, Traits::make_tuple(slices));
       using layout_type = typename decltype(result.mapping)::layout_type;
@@ -60,7 +60,7 @@ template<typename Layout>
     }
 
     {
-      auto s0 = std::strided_slice{1, 2, std::cw<1>};
+      auto s0 = std::extent_slice{1, 2, std::cw<1>};
       auto slices = std::tuple{s0, 0, all, s251, 0};
       auto result = call_submdspan_mapping(m, Traits::make_tuple(slices));
       using layout_type = typename decltype(result.mapping)::layout_type;
@@ -68,7 +68,7 @@ template<typename Layout>
     }
 
     {
-      auto s0 = std::strided_slice{1, 2, 1};
+      auto s0 = std::extent_slice{1, 2, 1};
       auto slices = std::tuple{s0, all, all, s251, 0};
       auto result = call_submdspan_mapping(m, Traits::make_tuple(slices));
       using layout_type = decltype(result.mapping)::layout_type;
@@ -83,7 +83,7 @@ template<typename Layout>
     }
 
     {
-      auto s3 = std::strided_slice{2, std::cw<7>, std::cw<2>};
+      auto s3 = std::extent_slice{2, std::cw<7>, std::cw<2>};
       auto slices = std::tuple{all, all, all, s3, 0};
       auto result = call_submdspan_mapping(m, Traits::make_tuple(slices));
       using layout_type = decltype(result.mapping)::layout_type;
@@ -101,7 +101,7 @@ template<typename Layout>
 
     auto exts = Traits::make_extents(std::dims<5, int>(3, 5, 7, 11, 13));
     auto m = typename Layout::mapping(exts);
-    auto s251 = std::strided_slice{2, 5, std::cw<1>};
+    auto s251 = std::extent_slice{2, 5, std::cw<1>};
 
     {
       auto slices = std::tuple{all, all, all, s251, 0};
@@ -121,7 +121,7 @@ template<typename Layout>
 
     auto exts = Traits::make_extents(std::dims<5, int>(3, 5, 7, 11, 13));
     auto m = typename Layout::mapping(exts);
-    auto s251 = std::strided_slice{2, 5, std::cw<1>};
+    auto s251 = std::extent_slice{2, 5, std::cw<1>};
 
     {
       auto slices = std::tuple{all, all, all, s251, 0};
@@ -140,7 +140,7 @@ template<typename Layout>
     }
 
     {
-      auto s121 = std::strided_slice{1, 2, std::cw<1>};
+      auto s121 = std::extent_slice{1, 2, std::cw<1>};
       auto slices = std::tuple{s121, 0, 0, 0, 0};
       auto result = call_submdspan_mapping(m, Traits::make_tuple(slices));
       using layout_type = typename decltype(result.mapping)::layout_type;
@@ -149,7 +149,7 @@ template<typename Layout>
     }
 
     {
-      auto s121 = std::strided_slice{1, 2, std::cw<1>};
+      auto s121 = std::extent_slice{1, 2, std::cw<1>};
       auto slices = std::tuple{0, s121, 0, 0, 0};
       auto result = call_submdspan_mapping(m, Traits::make_tuple(slices));
       using layout_type = typename decltype(result.mapping)::layout_type;
@@ -163,8 +163,8 @@ template<typename Layout>
   test_layout_unpadded_padding_value()
   {
     using Traits = LayoutTraits<DeducePaddingSide::from_typename<Layout>()>;
-    auto s0 = std::strided_slice{size_t(1), size_t(2), std::cw<size_t(1)>};
-    auto s3 = std::strided_slice{size_t(2), size_t(5), std::cw<size_t(1)>};
+    auto s0 = std::extent_slice{size_t(1), size_t(2), std::cw<size_t(1)>};
+    auto s3 = std::extent_slice{size_t(2), size_t(5), std::cw<size_t(1)>};
 
     auto check = [&](auto exts, size_t expected)
     {
@@ -196,8 +196,8 @@ template<typename Layout>
   test_layout_padded_padding_value()
   {
     using Traits = LayoutTraits<DeducePaddingSide::from_typename<Layout>()>;
-    auto s0 = std::strided_slice{size_t(1), size_t(2), std::cw<size_t(1)>};
-    auto s3 = std::strided_slice{size_t(2), size_t(5), std::cw<size_t(1)>};
+    auto s0 = std::extent_slice{size_t(1), size_t(2), std::cw<size_t(1)>};
+    auto s3 = std::extent_slice{size_t(2), size_t(5), std::cw<size_t(1)>};
 
     auto check = [&](auto exts, size_t expected)
     {
@@ -235,8 +235,8 @@ test_layout_stride_return_types()
   auto m = std::layout_stride::mapping(exts, std::array{2, 12});
 
   using index_type = decltype(exts)::index_type;
-  auto s1 = std::strided_slice{index_type(2), index_type(2),
-			       std::cw<index_type(2)>};
+  auto s1 = std::extent_slice{index_type(2), index_type(2),
+			      std::cw<index_type(2)>};
   auto result = submdspan_mapping(m, index_type(1), s1);
   using layout_type = decltype(result.mapping)::layout_type;
   static_assert(std::same_as<layout_type, std::layout_stride>);

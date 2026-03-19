@@ -7,7 +7,7 @@ template<typename OffsetType, typename ExtentType, typename StrideType>
   constexpr bool
   test_invalid()
   {
-    auto s1 = std::strided_slice(OffsetType{}, ExtentType{}, StrideType{}); // { dg-error "required from" }
+    auto s1 = std::extent_slice(OffsetType{}, ExtentType{}, StrideType{}); // { dg-error "required from" }
     return true;
   }
 

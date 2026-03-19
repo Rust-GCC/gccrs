@@ -356,7 +356,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   inline constexpr full_extent_t full_extent{};
 
   template<typename _OffsetType, typename _ExtentType, typename _StrideType>
-    struct strided_slice
+    struct extent_slice
     {
       static_assert(__is_signed_or_unsigned_integer<_OffsetType>::value
 	|| __detail::__integral_constant_like<_OffsetType>);
@@ -879,10 +879,10 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
 #ifdef __glibcxx_submdspan
     template<typename _Tp>
-      constexpr bool __is_strided_slice = false;
+      constexpr bool __is_extent_slice = false;
 
     template<typename _OffsetType, typename _ExtentType, typename _StrideType>
-      constexpr bool __is_strided_slice<strided_slice<_OffsetType,
+      constexpr bool __is_extent_slice<extent_slice<_OffsetType,
 	  _ExtentType, _StrideType>> = true;
 
     template<typename _Tp>
@@ -921,7 +921,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     template<typename _Slice, typename _IndexType>
       concept __acceptable_slice_type = same_as<_Slice, full_extent_t>
 	  || same_as<_Slice, _IndexType> || __is_constant_wrapper<_Slice>
-	  || __is_strided_slice<_Slice>;
+	  || __is_extent_slice<_Slice>;
 
     template<typename _IndexType, typename... _Slices>
       consteval auto
@@ -954,7 +954,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       {
 	if constexpr (same_as<_Slice, full_extent_t>)
 	  return 0;
-	else if constexpr (__is_strided_slice<_Slice>)
+	else if constexpr (__is_extent_slice<_Slice>)
 	  return __slice.offset;
 	else
 	  return __slice; // collapsing slice
@@ -1011,7 +1011,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       constexpr typename _Extents::index_type
       __dynamic_slice_extent(const _Extents& __exts, _Slice __slice)
       {
-	if constexpr (__is_strided_slice<_Slice>)
+	if constexpr (__is_extent_slice<_Slice>)
 	  return __slice.extent;
 	else
 	  return __exts.extent(_K);
@@ -1125,7 +1125,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	  {
 	    auto __stride = [&__mapping](size_t __k, auto __slice) -> _IndexType
 	    {
-	      if constexpr (__is_strided_slice<decltype(__slice)>)
+	      if constexpr (__is_extent_slice<decltype(__slice)>)
 		if (__slice.extent > 1)
 		  return __mapping.stride(__k) * __slice.stride;
 	      return __mapping.stride(__k);
@@ -1169,7 +1169,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 		  __stride *= _Trait::_S_padded_extent(__mapping, __i);
 
 		size_t __krev = _SubTrait::_S_idx(__k);
-		if constexpr (__is_strided_slice<decltype(__slice)>)
+		if constexpr (__is_extent_slice<decltype(__slice)>)
 		  {
 		    if (__slice.extent > 1)
 		      __ret[__krev] = __stride * __slice.stride;
@@ -1201,19 +1201,19 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       }
 
     template<typename _Slice>
-      concept __is_unit_stride_slice = (__mdspan::__is_strided_slice<_Slice>
+      concept __is_unit_stride_slice = (__mdspan::__is_extent_slice<_Slice>
 	  && __mdspan::__is_constant_wrapper<typename _Slice::stride_type>
 	  && _Slice::stride_type::value == 1)
 	|| std::same_as<_Slice, full_extent_t>;
 
     // These are (forced) exclusive categories:
     //  - full & collapsing: obvious,
-    //  - unit_strided_slice: strided_slice{a, b, cw<1>}, but not `full`,
-    //  - strided_slice: strided_slice{a, b, c} with c != cw<1>.
+    //  - unit_extent_slice: extent_slice{a, b, cw<1>}, but not `full`,
+    //  - extent_slice: extent_slice{a, b, c} with c != cw<1>.
     enum class _SliceKind
     {
-      __strided_slice,
-      __unit_strided_slice,
+      __extent_slice,
+      __unit_stride_slice,
       __full,
       __collapsing
     };
@@ -1224,12 +1224,12 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       {
 	if constexpr (std::same_as<_Slice, full_extent_t>)
 	  return _SliceKind::__full;
-	else if constexpr (__mdspan::__is_strided_slice<_Slice>)
+	else if constexpr (__mdspan::__is_extent_slice<_Slice>)
 	  {
 	    if constexpr (__mdspan::__is_unit_stride_slice<_Slice>)
-	      return _SliceKind::__unit_strided_slice;
+	      return _SliceKind::__unit_stride_slice;
 	    else
-	      return _SliceKind::__strided_slice;
+	      return _SliceKind::__extent_slice;
 	  }
 	else
 	  return _SliceKind::__collapsing;
@@ -1260,7 +1260,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
       auto __last = __slice_kinds[__block_size - 1];
       return __last == _SliceKind::__full
-	  || __last == _SliceKind::__unit_strided_slice;
+	  || __last == _SliceKind::__unit_stride_slice;
     }
 
     //                         __u              __u + __sub_rank-2
@@ -1270,7 +1270,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 				 size_t __sub_rank)
     {
       if (__slice_kinds[0] != _SliceKind::__full
-	  && __slice_kinds[0] != _SliceKind::__unit_strided_slice)
+	  && __slice_kinds[0] != _SliceKind::__unit_stride_slice)
 	return dynamic_extent;
       else if (__slice_kinds.size() == 1)
 	return dynamic_extent;
@@ -1361,7 +1361,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 				   size_t __sub_rank)
 	  {
 	    if (__sub_rank == 1)
-	      return __slice_kinds[0] == _SliceKind::__unit_strided_slice
+	      return __slice_kinds[0] == _SliceKind::__unit_stride_slice
 		|| __slice_kinds[0] == _SliceKind::__full;
 	    else
 	      return false;
@@ -1429,7 +1429,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 				   size_t __sub_rank)
 	  {
 	    if (__sub_rank == 1)
-	      return __slice_kinds[_Nm - 1] == _SliceKind::__unit_strided_slice
+	      return __slice_kinds[_Nm - 1] == _SliceKind::__unit_stride_slice
 		|| __slice_kinds[_Nm - 1] == _SliceKind::__full;
 	    else
 	      return false;
@@ -3299,7 +3299,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     {
       if constexpr (is_same_v<_SpanType, constant_wrapper<_IndexType(0)>>
 		    || is_same_v<_StrideType, constant_wrapper<_IndexType(1)>>)
-	return strided_slice{
+	return extent_slice{
 	  .offset = __offset,
 	  .extent = __span,
 	  .stride = cw<_IndexType(1)>
@@ -3308,20 +3308,20 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
         {
 	  static_assert(_StrideType::value > 0);
 	  if constexpr (__is_constant_wrapper<_SpanType>)
-	    return strided_slice{
+	    return extent_slice{
 	      .offset = __offset,
 	      .extent = cw<_IndexType(1 + (_SpanType::value - 1) / _StrideType::value)>,
 	      .stride = __stride
 	    };
 	  else
-	    return strided_slice{
+	    return extent_slice{
 	      .offset = __offset,
 	      .extent = _IndexType(__span > 0 ? 1 + (__span - 1) / _StrideType::value : 0),
 	      .stride = __stride
 	    };
         }
       else if (__span == 0 || __stride == 1)
-	return strided_slice{
+	return extent_slice{
 	  .offset = __offset,
 	  .extent = _IndexType(__span),
 	  .stride = _IndexType(1)
@@ -3329,7 +3329,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       else
         {
 	  __glibcxx_assert(__stride > 0);
-	  return strided_slice{
+	  return extent_slice{
 	    .offset = __offset,
 	    .extent = _IndexType(1 + (__span - 1) / __stride),
 	    .stride = __stride
@@ -3346,8 +3346,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	  return static_cast<full_extent_t>(std::move(__slice));
 	else if constexpr (is_convertible_v<_SliceType, _IndexType>)
 	  return __mdspan::__canonical_index<_IndexType>(std::move(__slice));
-	else if constexpr (__is_strided_slice<_SliceType>)
-	  return strided_slice{
+	else if constexpr (__is_extent_slice<_SliceType>)
+	  return extent_slice{
 	    .offset = __mdspan::__canonical_index<_IndexType>(std::move(__slice.offset)),
 	    .extent = __mdspan::__canonical_index<_IndexType>(std::move(__slice.extent)),
 	    .stride = __mdspan::__canonical_index<_IndexType>(std::move(__slice.stride))
@@ -3412,7 +3412,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       __check_valid_slice(const extents<_IndexType, _Extent>& __ext,
 			   const _Slice& __slice)
       {
-	if constexpr (__is_strided_slice<_Slice>)
+	if constexpr (__is_extent_slice<_Slice>)
 	  {
 	    __mdspan::__check_valid_index(__ext, __slice.extent);
 	    // DEVIATION: For empty slices, P3663r3 does not allow us to check
