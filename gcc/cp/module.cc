@@ -11358,6 +11358,19 @@ trees_in::fn_parms_init (tree fn)
 		 base_tag - ix, ix, parm, fn);
       if (!tree_node_vals (parm))
 	return 0;
+
+      /* Apply relevant attributes.
+	 FIXME should probably use cplus_decl_attributes for this,
+	 but it's not yet ready for modules.  */
+
+      /* TREE_USED is deliberately not streamed for most declarations,
+	 but needs to be set if we have the [[maybe_unused]] attribute.  */
+      if (lookup_attribute ("unused", DECL_ATTRIBUTES (parm))
+	  || lookup_attribute ("maybe_unused", DECL_ATTRIBUTES (parm)))
+	{
+	  TREE_USED (parm) = true;
+	  DECL_READ_P (parm) = true;
+	}
     }
 
   /* Reload references to contract functions, if any.  */
