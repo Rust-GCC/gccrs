@@ -1,0 +1,11 @@
+#![feature(no_core)]
+#![no_core]
+
+enum E {
+    A = {
+        enum F {  }
+        0
+    }
+}
+
+fn main() {}
