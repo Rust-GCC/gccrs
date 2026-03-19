@@ -734,7 +734,7 @@ gen_int_relational (enum rtx_code test_code, /* relational test (EQ, etc) */
     int unsignedp;		/* != 0 for unsigned comparisons.  */
   };
 
-  static struct cmp_info info[ (int)ITEST_MAX ] = {
+  static const struct cmp_info info[ (int)ITEST_MAX ] = {
 
     { EQ,	xtensa_b4const_or_zero,	0, 0, 0, 0, 0 },	/* EQ  */
     { NE,	xtensa_b4const_or_zero,	0, 0, 0, 0, 0 },	/* NE  */
@@ -752,7 +752,7 @@ gen_int_relational (enum rtx_code test_code, /* relational test (EQ, etc) */
 
   enum internal_test test;
   machine_mode mode;
-  struct cmp_info *p_info;
+  const struct cmp_info *p_info;
   int invert;
 
   test = map_test_to_internal_test (test_code);
