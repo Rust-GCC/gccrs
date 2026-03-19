@@ -2556,6 +2556,11 @@ export namespace std
   using std::uniform_random_bit_generator;
   using std::uniform_real_distribution;
   using std::weibull_distribution;
+#if __cpp_lib_philox_engine
+  using std::philox_engine;
+  using std::philox4x32;
+  using std::philox4x64;
+#endif
 }
 
 // <ranges>
