@@ -2055,6 +2055,9 @@ export namespace std
   using std::start_lifetime_as;
   using std::start_lifetime_as_array;
 #endif
+#ifdef __glibcxx_allocate_at_least
+  using std::allocation_result;
+#endif
 }
 
 // 20.4 <memory_resource>
