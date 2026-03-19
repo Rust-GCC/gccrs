@@ -1924,6 +1924,9 @@ UrlSuffix(gcc/Instrumentation-Options.html#index-pg)
 pipe
 UrlSuffix(gcc/Overall-Options.html#index-pipe)
 
+print-autofdo-gcov-version
+UrlSuffix(gcc/Developer-Options.html#index-print-autofdo-gcov-version)
+
 print-file-name=
 UrlSuffix(gcc/Developer-Options.html#index-print-file-name)
 
