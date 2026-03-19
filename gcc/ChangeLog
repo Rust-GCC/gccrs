@@ -1,3 +1,69 @@
+2026-03-18  Vladimir N. Makarov  <vmakarov@redhat.com>
+
+	PR rtl-optimization/124041
+	PR rtl-optimization/124439
+	* lra-constraints.cc (process_alt_operands): Check hard reg subreg
+	mode by hard_regno_mode_ok.
+	(curr_insn_transform): Always subsitute equivalence for hard reg
+	subreg.
+
+2026-03-18  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/124555
+	* match.pd ((A - B) >=/> 0 ? (A - B) : (B - A) -> abs (A - B)):
+	Guard the vector case with target_supports_op_p checks.
+	((A - B) <=/< 0 ? (A - B) : (B - A) -> -abs (A - B)): Likewise.
+	((type)A >=/> 0 ? A : -A -> abs (A)): Likewise.
+	((type)A <=/< 0 ? A : -A -> -abs (A)): Likewise.
+
+2026-03-18  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* Makefile.in (all.fda): Add `--print-autofdo-gcov-version` to
+	profile_merger invocation.
+	* auto-profile.cc (AUTO_PROFILE_VERSION): Move from here ...
+	* auto-profile.h (AUTO_PROFILE_VERSION): ... to here.
+	* common.opt: Add -print-autofdo-gcov-version and
+	--print-autofdo-gcov-version.
+	* doc/invoke.texi: Document the options.
+	* gcc.cc: Add include for auto-profile.h.
+	(driver_handle_option): Add OPT_print_autofdo_gcov_version.
+	(driver::maybe_print_and_exit): Handle the option.
+
+2026-03-18  Richard Biener  <rguenther@suse.de>
+
+	PR middle-end/124552
+	* function.cc (free_after_compilation): Free the copyid
+	allocator.
+
+2026-03-18  Jakub Jelinek  <jakub@redhat.com>
+
+	PR bootstrap/124547
+	* configure.ac (--with-gnu-ld): Set gnu_ld_flag= instead of
+	gnu_ld_flag=no if not explicitly specified.
+	(--with-gnu-as): Similarly for gas_flag.
+	(DEFAULT_ASSEMBLER): Use wording without GNU as whenever gas_flag
+	is not yes rather than when it is no.
+	* configure: Regenerate.
+
+2026-03-18  Richard Biener  <rguenther@suse.de>
+
+	* common.opt (fpost-ipa-mem-report): Fix typo.
+
+2026-03-18  Richard Biener  <rguenther@suse.de>
+
+	* ipa-cp.cc (gather_edges_for_value): Return an auto_vec.
+	(decide_about_value): Simplify, fixing leak of callers.
+
+2026-03-18  Prachi Godbole  <pgodbole@nvidia.com>
+
+	PR target/123749
+	* ipa-locality-cloning.cc (partition_callchain): Start new partition
+	if no. of insns exceeds size and if there are nodes to process.
+
+2026-03-18  Sebastian Huber  <sebastian.huber@embedded-brains.de>
+
+	* config/sparc/t-rtems: Add leon5 multilibs.
+
 2026-03-17  Alice Carlotti  <alice.carlotti@arm.com>
 
 	* config/aarch64/aarch64-sve2.md (@aarch64_pred_revd<mode>):

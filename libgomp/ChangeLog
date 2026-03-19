@@ -1,3 +1,25 @@
+2026-03-18  Arsen Arsenović  <aarsenovic@baylibre.com>
+
+	* plugin/plugin-gcn.c (struct kernel_dispatch): Add a field to
+	hold a pointer to the allocation cache node this dispatch is
+	holding for kernel arguments, replacing kernarg_address.
+	(print_kernel_dispatch): Print the allocation pointer from that
+	node as kernargs address.
+	(struct agent_info): Add in an allocation cache field.
+	(alloc_kernargs_on_agent): New function.  Pulls kernel arguments
+	from the cache, or, if no appropriate node is found, allocates
+	new ones.
+	(create_kernel_dispatch): Use alloc_kernargs_on_agent to
+	allocate kernargs.
+	(release_kernel_dispatch): Use release_alloc_cache_node to
+	release kernargs.
+	(run_kernel): Update usages of kernarg_address to use the kernel
+	arguments cache node.
+	(GOMP_OFFLOAD_fini_device): Clean up kernargs cache.
+	(GOMP_OFFLOAD_init_device): Initialize kernargs cache.
+	* alloc_cache.h: New file.
+	* testsuite/libgomp.c/alloc_cache-1.c: New test.
+
 2026-03-17  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
 
 	PR fortran/120286

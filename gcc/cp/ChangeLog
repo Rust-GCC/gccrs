@@ -1,3 +1,16 @@
+2026-03-18  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* Make-lang.in (cc1plus.fda): Add `--print-autofdo-gcov-version` to
+	profile_merger invocation.
+	(create_fdas_for_cc1plus): Add `--print-autofdo-gcov-version` to
+	create_gcov invocations.
+
+2026-03-18  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/124474
+	* reflect.cc (check_out_of_consteval_use_r): Don't walk subtrees
+	of RETURN_EXPR on cdtor_returns_this targets in cdtors.
+
 2026-03-17  Marek Polacek  <polacek@redhat.com>
 
 	PR c++/124493

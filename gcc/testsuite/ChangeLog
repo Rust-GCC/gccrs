@@ -1,3 +1,29 @@
+2026-03-18  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	PR d/124158
+	* gdc.test/runnable/dbitfieldsdm.d: Remove.
+
+2026-03-18  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/124555
+	* gcc.dg/torture/pr124555.c: New testcase.
+	* g++.dg/absvect.C: Restrict dump scan to x86-64 and force
+	-msse4 there.
+
+2026-03-18  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* lib/profopt.exp: Invoke $GCC_UNDER_TEST with
+	`--print-autofdo-gcov-version` before running create_gcov to get
+	the GCOV version.
+
+2026-03-18  Jakub Jelinek  <jakub@redhat.com>
+
+	* gcc.dg/tree-ssa/forwprop-42.c: Add -Wno-psabi to dg-options.
+	* gcc.dg/tree-ssa/forwprop-43.c: Likewise.  For ia32 add -msse2 as
+	dg-additional-options.
+	* gcc.dg/torture/pr65270-3.c: Add -Wno-psabi to dg-options.
+	* gcc.target/i386/part-vect-absnegbf.c: Add -msse2 to dg-options.
+
 2026-03-17  Marek Polacek  <polacek@redhat.com>
 
 	PR c++/124493

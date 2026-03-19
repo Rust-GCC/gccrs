@@ -1,3 +1,10 @@
+2026-03-18  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* Make-lang.in (cc1.fda): Add `--print-autofdo-gcov-version` to
+	profile_merger invocation.
+	(create_fdas_for_cc1): Add `--print-autofdo-gcov-version` to
+	create_gcov invocations.
+
 2026-03-10  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
 
 	PR c/123461

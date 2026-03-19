@@ -1,3 +1,31 @@
+2026-03-18  Jonathan Wakely  <jwakely@redhat.com>
+
+	* testsuite/17_intro/names.cc (ext, max_iter, ret, subs, Rg, Rs):
+	Define macros.
+	[__cplusplus < 201103] (mutex): Define macro.
+
+2026-03-18  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/experimental/bits/fs_path.h (path::stem)
+	(path::extension, path::has_stem, path::has_extension): Uglify
+	ext variable name.
+
+2026-03-18  Jakub Jelinek  <jakub@redhat.com>
+
+	* include/bits/regex_compiler.h (_Compiler::_M_pop): Uglify ret
+	variable name.
+
+2026-03-18  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* include/std/mdspan (__mdspan::__index_type_cast): Handle
+	forwarding referene and use forward for class types.
+	* testsuite/23_containers/mdspan/int_like.h (ConstLValueInt)
+	(CustomIndexKind::ConstLValue): Define.
+	(CustomIndexType): Handle CustomIndexKind::ConstLValue.
+	* testsuite/23_containers/mdspan/at.cc: Test with ConstLValueInt.
+	* testsuite/23_containers/mdspan/extents/custom_integer.cc: Likewise.
+	* testsuite/23_containers/mdspan/mdspan.cc: Likewise.
+
 2026-03-17  Jonathan Wakely  <jwakely@redhat.com>
 
 	* include/bits/chrono_io.h (__formatter_duration::_S_subseconds):
