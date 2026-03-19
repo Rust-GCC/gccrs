@@ -212,8 +212,14 @@ get_reflection (location_t loc, tree t, reflect_kind kind/*=REFLECT_UNDEF*/)
      overload resolution for the expression &S with no target shall
      select a unique function; R represents that function.  */
   else if (!processing_template_decl && t != unknown_type_node)
-    /* Resolve all TEMPLATE_ID_EXPRs here.  */
-    t = resolve_nondeduced_context_or_error (t, tf_warning_or_error);
+    {
+      /* Resolve all TEMPLATE_ID_EXPRs here.  */
+      t = resolve_nondeduced_context_or_error (t, tf_warning_or_error);
+      /* The argument could have a deduced return type, so we need to
+	 instantiate it now to find out its type.  */
+      if (!mark_used (t))
+	return error_mark_node;
+    }
 
   /* For injected-class-name, use the main variant so that comparing
      reflections works (cf. compare3.C).  */
@@ -5359,7 +5365,6 @@ eval_can_substitute (location_t loc, const constexpr_ctx *ctx,
 	return throw_exception (loc, ctx,
 				"invalid argument to can_substitute",
 				fun, non_constant_p, jump_target);
-      a = resolve_nondeduced_context (a, tf_warning_or_error);
       a = convert_from_reference (a);
       TREE_VEC_ELT (rvec, i) = a;
     }
@@ -5432,10 +5437,7 @@ eval_substitute (location_t loc, const constexpr_ctx *ctx,
       return get_reflection_raw (loc, ret, REFLECT_VALUE);
     }
   else if (variable_template_p (r))
-    {
-      ret = lookup_template_variable (r, rvec, tf_none);
-      ret = finish_template_variable (ret, tf_none);
-    }
+    ret = lookup_and_finish_template_variable (r, rvec, tf_none);
   else
     {
       if (DECL_FUNCTION_TEMPLATE_P (r))
