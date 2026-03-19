@@ -18913,8 +18913,8 @@ skip_interfaces:
 	  || (a->dummy && !a->pointer && a->intent == INTENT_OUT
 	      && sym->ns->proc_name->attr.if_source != IFSRC_IFBODY))
 	apply_default_init (sym);
-      else if (a->function && !a->pointer && !a->allocatable && !a->use_assoc
-	       && sym->result)
+      else if (a->function && !a->pointer && !a->allocatable
+	       && !a->use_assoc && !a->used_in_submodule && sym->result)
 	/* Default initialization for function results.  */
 	apply_default_init (sym->result);
       else if (a->function && sym->result && a->access != ACCESS_PRIVATE
