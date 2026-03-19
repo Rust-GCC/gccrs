@@ -4898,7 +4898,8 @@ As an extension, GCC allows exposures of internal variables and functions that
 were declared in the global module fragment.  This warning indicates when such
 an invalid exposure has occurred, and can be silenced using diagnostic pragmas
 either at the site of the exposure, or at the point of declaration of the
-internal declaration.
+internal declaration.  This also applies to @code{export using} declarations
+naming such entities.
 
 When combined with @option{-Wtemplate-names-tu-local}, GCC will also warn about
 non-exposure references to TU-local entities in template bodies. Such templates

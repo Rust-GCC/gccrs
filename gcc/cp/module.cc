@@ -14531,7 +14531,7 @@ instantiating_tu_local_entity (tree decl)
     return false;
 
   auto_diagnostic_group d;
-  warning (OPT_Wexpose_global_module_tu_local,
+  pedwarn (input_location, OPT_Wexpose_global_module_tu_local,
 	   "instantiation exposes TU-local entity %qD", decl);
   inform (DECL_SOURCE_LOCATION (decl), "declared here");
 
@@ -14972,7 +14972,8 @@ depset::hash::add_binding_entity (tree decl, WMB_Flags flags, void *data_)
 	return false;
 
       bool internal_decl = false;
-      if (!header_module_p () && is_tu_local_entity (decl))
+      if (!header_module_p () && is_tu_local_entity (decl)
+	  && !((flags & WMB_Using) && (flags & WMB_Export)))
 	{
 	  /* A TU-local entity.  For ADL we still need to create bindings
 	     for internal-linkage functions attached to a named module.  */
@@ -15996,6 +15997,11 @@ depset::hash::finalize_dependencies ()
       /* Otherwise, we'll check for bad internal refs.
 	 Don't complain about any references from TU-local entities.  */
       if (dep->is_tu_local ())
+	continue;
+
+      /* We already complained about usings of non-external entities in
+	 check_can_export_using_decl, don't do it again here.  */
+      if (dep->get_entity_kind () == EK_USING)
 	continue;
 
       if (dep->is_exposure ())

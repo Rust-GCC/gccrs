@@ -5496,18 +5496,42 @@ check_can_export_using_decl (tree binding)
 	  && !DECL_MODULE_EXPORT_P (not_tmpl)))
     {
       auto_diagnostic_group d;
-      error ("exporting %q#D that does not have external linkage",
-	     binding);
-      if (linkage == lk_none)
-	inform (DECL_SOURCE_LOCATION (entity),
-		"%q#D declared here with no linkage", entity);
-      else if (linkage == lk_internal)
-	inform (DECL_SOURCE_LOCATION (entity),
-		"%q#D declared here with internal linkage", entity);
+      bool diag = true;
+
+      /* As an extension, we'll allow exposing internal entities from
+	 the GMF, to aid in migration to modules.  For now, we only
+	 support this for functions and variables; see also 
+	 depset::is_tu_local.  */
+      bool relaxed = (VAR_OR_FUNCTION_DECL_P (not_tmpl)
+		      && !(DECL_LANG_SPECIFIC (not_tmpl)
+			   && DECL_MODULE_PURVIEW_P (not_tmpl)));
+      if (relaxed)
+	{
+	  gcc_checking_assert (linkage != lk_external);
+	  diag = (warning_enabled_at (DECL_SOURCE_LOCATION (entity),
+				      OPT_Wexpose_global_module_tu_local)
+		  && pedwarn (input_location,
+			      OPT_Wexpose_global_module_tu_local,
+			      "exporting %q#D that does not have "
+			      "external linkage", binding));
+	}
       else
-	inform (DECL_SOURCE_LOCATION (entity),
-		"%q#D declared here with module linkage", entity);
-      return false;
+	error ("exporting %q#D that does not have external linkage", binding);
+
+      if (diag)
+	{
+	  if (linkage == lk_none)
+	    inform (DECL_SOURCE_LOCATION (entity),
+		    "%q#D declared here with no linkage", entity);
+	  else if (linkage == lk_internal)
+	    inform (DECL_SOURCE_LOCATION (entity),
+		    "%q#D declared here with internal linkage", entity);
+	  else
+	    inform (DECL_SOURCE_LOCATION (entity),
+		    "%q#D declared here with module linkage", entity);
+	}
+
+      return relaxed;
     }
 
   return true;
