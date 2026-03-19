@@ -6564,6 +6564,7 @@ alpha_build_builtin_va_list (void)
   DECL_CHAIN (base) = ofs;
 
   TYPE_FIELDS (record) = base;
+  TREE_PUBLIC (type_decl) = 1;
   layout_type (record);
 
   va_list_gpr_counter_field = ofs;
