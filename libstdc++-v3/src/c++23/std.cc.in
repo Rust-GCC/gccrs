@@ -1384,6 +1384,9 @@ export namespace std
   using std::range_format;
   using std::range_formatter;
 #endif
+#if __glibcxx_print >= 202403L
+  using std::enable_nonlocking_formatter_optimization;
+#endif
 }
 
 // <forward_list>
