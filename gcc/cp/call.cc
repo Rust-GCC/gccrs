@@ -14351,6 +14351,10 @@ set_up_extended_ref_temp (tree decl, tree expr, vec<tree, va_gc> **cleanups,
   /* Any reference temp has a non-trivial initializer.  */
   DECL_NONTRIVIALLY_INITIALIZED_P (var) = true;
 
+  /* Don't output reflection variables.  */
+  if (consteval_only_p (var))
+    DECL_EXTERNAL (var) = true;
+
   /* If the initializer is constant, put it in DECL_INITIAL so we get
      static initialization and use in constant expressions.  */
   init = maybe_constant_init (expr, var, /*manifestly_const_eval=*/true);
