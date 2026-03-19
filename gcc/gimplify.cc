@@ -13629,6 +13629,14 @@ omp_instantiate_mapper (gimple_seq *pre_p,
 	  continue;
 	}
 
+      if (OMP_CLAUSE_HAS_ITERATORS (clause))
+	{
+	  sorry_at (OMP_CLAUSE_LOCATION (clause),
+		    "user-defined mapper that uses a %<map%> clause "
+		    "with %<iterator%>");
+	  continue;
+	}
+
       tree decl = OMP_CLAUSE_DECL (clause);
       tree unshared, type;
       bool nonunit_array_with_mapper = false;
