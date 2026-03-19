@@ -2787,6 +2787,9 @@ export namespace std
     using ranges::to_input_view;
     namespace views { using views::to_input; }
 #endif
+#ifdef __cpp_lib_ranges_indices // C++ >= 26
+    namespace views { using views::indices; }
+#endif
   }
 #if __glibcxx_ranges_to_container // C++ >= 23
   namespace ranges { using ranges::to; }
