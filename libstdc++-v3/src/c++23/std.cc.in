@@ -3560,6 +3560,14 @@ export namespace std
   using std::is_implicit_lifetime;
   using std::is_implicit_lifetime_v;
 #endif
+#if __cpp_impl_reflection >= 202506L
+  using std::is_reflection;
+  using std::is_reflection_v;
+#if _GLIBCXX_USE_BUILTIN_TRAIT(__builtin_is_consteval_only)
+  using std::is_consteval_only;
+  using std::is_consteval_only_v;
+#endif
+#endif
 }
 
 // <typeindex>
