@@ -275,43 +275,117 @@ package body Erroutc is
       end if;
    end Debug_Output;
 
+   -----------
+   -- dedit --
+   -----------
+
+   procedure dedit (Id : Edit_Id) is
+      E : Edit_Type renames Edits.Table (Id);
+   begin
+      w ("    Edit, Id = ", Int (Id));
+      w ("      Next          = ", Int (E.Next));
+      w ("      Text          = ",
+        (if E.Text /= null then E.Text.all else "<>"));
+      w ("      Span          = ", To_String (E.Span));
+   end dedit;
+
+   ----------
+   -- dfix --
+   ----------
+
+   procedure dfix (Id : Fix_Id) is
+      F : Fix_Type renames Fixes.Table (Id);
+      E_Id : Edit_Id := F.Edits;
+   begin
+      w ("  Fix, Id = ", Int (Id));
+      w ("    Next          = ", Int (F.Next));
+      w ("    Description   = ",
+        (if F.Description /= null then F.Description.all else "<>"));
+      while E_Id /= No_Edit loop
+         dedit (E_Id);
+         E_Id := Edits.Table (E_Id).Next;
+      end loop;
+   end dfix;
+
+   ----------
+   -- dloc --
+   ----------
+
+   procedure dloc (Id : Labeled_Span_Id) is
+      L : Labeled_Span_Type renames Locations.Table (Id);
+   begin
+      if L.Is_Primary then
+         w ("  Primary location, Id = ", Int (Id));
+      else
+         w ("  Secondary location, Id = ", Int (Id));
+      end if;
+      w ("    Label         = ",
+        (if L.Label /= null then L.Label.all else "<>"));
+      w ("    Span          = ", To_String (L.Span));
+      w ("    Is_Region     = ", L.Is_Region);
+      w ("    Next          = ", Int (L.Next));
+   end dloc;
+
    ----------
    -- dmsg --
    ----------
 
    procedure dmsg (Id : Error_Msg_Id) is
       E : Error_Msg_Object renames Errors.Table (Id);
+      Loc_Id : Labeled_Span_Id := E.Locations;
+      F_Id : Fix_Id := E.Fixes;
 
    begin
       w ("Dumping error message, Id = ", Int (Id));
-      w ("  Text               = ", E.Text.all);
-      w ("  Next               = ", Int (E.Next));
-      w ("  Prev               = ", Int (E.Prev));
-      w ("  Sfile              = ", Int (E.Sfile));
+      w ("  Text                = ", E.Text.all);
+      w ("  Next                = ", Int (E.Next));
+      w ("  Prev                = ", Int (E.Prev));
+      w ("  Sfile               = ", Int (E.Sfile));
 
       Write_Str
-        ("  Sptr               = ");
-      Write_Location (E.Sptr.Ptr);  --  ??? Do not write the full span for now
+        ("  Sptr                = ");
+      Write_Location (E.Sptr.Ptr);
       Write_Eol;
+      w ("  Span                = ", To_String (E.Sptr));
 
       Write_Str
-        ("  Optr               = ");
+        ("  Optr                = ");
       Write_Location (E.Optr.Ptr);
       Write_Eol;
+      w ("  Opan                = ", To_String (E.Optr));
 
       Write_Str
-        ("  Insertion_Sloc     = ");
+        ("  Insertion_Sloc      = ");
       Write_Location (E.Insertion_Sloc);
       Write_Eol;
 
-      w ("  Line               = ", Int (E.Line));
-      w ("  Col                = ", Int (E.Col));
-      w ("  Kind               = ", E.Kind'Img);
-      w ("  Warn_Err           = ", E.Warn_Err'Img);
-      w ("  Warn_Chr           = '" & E.Warn_Chr & ''');
-      w ("  Uncond             = ", E.Uncond);
-      w ("  Msg_Cont           = ", E.Msg_Cont);
-      w ("  Deleted            = ", E.Deleted);
+      while Loc_Id /= No_Labeled_Span loop
+         dloc (Loc_Id);
+         Loc_Id := Locations.Table (Loc_Id).Next;
+      end loop;
+
+      while Loc_Id /= No_Labeled_Span loop
+         dloc (Loc_Id);
+         Loc_Id := Locations.Table (Loc_Id).Next;
+      end loop;
+
+      while F_Id /= No_Fix loop
+         dfix (F_Id);
+         F_Id := Fixes.Table (F_Id).Next;
+      end loop;
+
+      w ("  Line                = ", Int (E.Line));
+      w ("  Col                 = ", Int (E.Col));
+      w ("  Kind                = ", E.Kind'Img);
+      w ("  Warn_Err            = ", E.Warn_Err'Img);
+      w ("  Warn_Chr            = '" & E.Warn_Chr & ''');
+      w ("  Uncond              = ", E.Uncond);
+      w ("  Compile_Time_Pragma = ", E.Compile_Time_Pragma);
+      w ("  Msg_Cont            = ", E.Msg_Cont);
+      w ("  Deleted             = ", E.Deleted);
+      w ("  Switch              = ", E.Switch'Img);
+      w ("  Diag_Id             = ", E.Id'Img);
+      w ("  Restriction         = ", E.Restriction'Img);
 
       Write_Eol;
    end dmsg;
@@ -2071,6 +2145,79 @@ package body Erroutc is
 
       return False;
    end Sloc_In_Range;
+
+   ------------------
+   -- To_File_Name --
+   ------------------
+
+   function To_File_Name (Sptr : Source_Ptr) return String is
+      Sfile    : constant Source_File_Index := Get_Source_File_Index (Sptr);
+      Ref_Name : constant File_Name_Type    :=
+        (if Full_Path_Name_For_Brief_Errors then Full_Ref_Name (Sfile)
+         else Reference_Name (Sfile));
+
+   begin
+      return Get_Name_String (Ref_Name);
+   end To_File_Name;
+
+   ---------------
+   -- To_String --
+   ---------------
+
+   function To_String (Sptr : Source_Ptr) return String is
+      function Line_To_String (Sptr : Source_Ptr) return String;
+      --  Converts the logical line number of the Sptr to a string.
+
+      function Column_To_String (Sptr : Source_Ptr) return String;
+      --  Converts the column number of the Sptr to a string. Column values
+      --  less than 10 are prefixed with a 0.
+
+      --------------------
+      -- Line_To_String --
+      --------------------
+
+      function Line_To_String (Sptr : Source_Ptr) return String is
+         Line    : constant Logical_Line_Number :=
+           Get_Logical_Line_Number (Sptr);
+         Img_Raw : constant String := Int'Image (Int (Line));
+
+      begin
+         return Img_Raw (Img_Raw'First + 1 .. Img_Raw'Last);
+      end Line_To_String;
+
+      ----------------------
+      -- Column_To_String --
+      ----------------------
+
+      function Column_To_String (Sptr : Source_Ptr) return String is
+         Col     : constant Column_Number := Get_Column_Number (Sptr);
+         Img_Raw : constant String := Int'Image (Int (Col));
+
+      begin
+         return
+           (if Col < 10 then "0" else "")
+           & Img_Raw (Img_Raw'First + 1 .. Img_Raw'Last);
+      end Column_To_String;
+
+      --  Start of processing for To_String
+   begin
+      return
+        To_File_Name (Sptr)
+        & ":"
+        & Line_To_String (Sptr)
+        & ":"
+        & Column_To_String (Sptr);
+   end To_String;
+
+   ---------------
+   -- To_String --
+   ---------------
+
+   function To_String (Span : Source_Span) return String is
+   begin
+      return
+        "[" & To_String (Span.First) & " .. " & To_String (Span.Last) & "]";
+   end To_String;
 
    -------------------------------------
    -- Warning_Specifically_Suppressed --

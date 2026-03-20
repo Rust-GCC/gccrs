@@ -23,7 +23,6 @@
 --                                                                          --
 ------------------------------------------------------------------------------
 
-with Namet;      use Namet;
 with Opt;        use Opt;
 with Output;     use Output;
 with Sinput;     use Sinput;
@@ -303,19 +302,6 @@ package body Erroutc.Pretty_Emitter is
 
    procedure Print_Sub_Diagnostic
      (Sub_Diag : Error_Msg_Object; Diag : Error_Msg_Object; Offset : Integer);
-
-   function To_String (Sptr : Source_Ptr) return String;
-   --  Convert the source pointer to a string of the form: "file:line:column"
-
-   function To_File_Name (Sptr : Source_Ptr) return String;
-   --  Converts the file name of the Sptr to a string.
-
-   function Line_To_String (Sptr : Source_Ptr) return String;
-   --  Converts the logical line number of the Sptr to a string.
-
-   function Column_To_String (Sptr : Source_Ptr) return String;
-   --  Converts the column number of the Sptr to a string. Column values less
-   --  than 10 are prefixed with a 0.
 
    -------------
    -- Destroy --
@@ -1355,56 +1341,5 @@ package body Erroutc.Pretty_Emitter is
 
       Set_Standard_Output;
    end Print_Error_Messages;
-
-   ------------------
-   -- To_File_Name --
-   ------------------
-
-   function To_File_Name (Sptr : Source_Ptr) return String is
-      Sfile    : constant Source_File_Index := Get_Source_File_Index (Sptr);
-      Ref_Name : constant File_Name_Type    :=
-        (if Full_Path_Name_For_Brief_Errors then Full_Ref_Name (Sfile)
-         else Reference_Name (Sfile));
-
-   begin
-      return Get_Name_String (Ref_Name);
-   end To_File_Name;
-
-   --------------------
-   -- Line_To_String --
-   --------------------
-
-   function Line_To_String (Sptr : Source_Ptr) return String is
-      Line    : constant Logical_Line_Number := Get_Logical_Line_Number (Sptr);
-      Img_Raw : constant String              := Int'Image (Int (Line));
-
-   begin
-      return Img_Raw (Img_Raw'First + 1 .. Img_Raw'Last);
-   end Line_To_String;
-
-   ----------------------
-   -- Column_To_String --
-   ----------------------
-
-   function Column_To_String (Sptr : Source_Ptr) return String is
-      Col     : constant Column_Number := Get_Column_Number (Sptr);
-      Img_Raw : constant String        := Int'Image (Int (Col));
-
-   begin
-      return
-        (if Col < 10 then "0" else "") &
-        Img_Raw (Img_Raw'First + 1 .. Img_Raw'Last);
-   end Column_To_String;
-
-   ---------------
-   -- To_String --
-   ---------------
-
-   function To_String (Sptr : Source_Ptr) return String is
-   begin
-      return
-        To_File_Name (Sptr) & ":" & Line_To_String (Sptr) & ":" &
-        Column_To_String (Sptr);
-   end To_String;
 
 end Erroutc.Pretty_Emitter;

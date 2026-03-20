@@ -617,6 +617,15 @@ package Erroutc is
    --  Returns true if errors have been detected, or warnings that are treated
    --  as errors.
 
+   procedure dedit (Id : Edit_Id);
+   --  Debugging routine to dump an edit. Used by dfix.
+
+   procedure dfix (Id : Fix_Id);
+   --  Debugging routine to dump a fix. Used by dmsg.
+
+   procedure dloc (Id : Labeled_Span_Id);
+   --  Debugging routine to dump a location. Used by dmsg.
+
    procedure dmsg (Id : Error_Msg_Id);
    --  Debugging routine to dump an error message
 
@@ -880,6 +889,14 @@ package Erroutc is
    --  Note: we have a null default for Tag to deal with calls from an old
    --  branch of gnat2why, which does not know about tags in the calls but
    --  which uses the latest version of erroutc.
+
+   function To_String (Span : Source_Span) return String;
+
+   function To_String (Sptr : Source_Ptr) return String;
+   --  Convert the source pointer to a string of the form: "file:line:column"
+
+   function To_File_Name (Sptr : Source_Ptr) return String;
+   --  Converts the file name of the Sptr to a string.
 
    function Warning_Treated_As_Error (Msg : String) return Boolean;
    --  Returns True if the warning message Msg matches any of the strings
