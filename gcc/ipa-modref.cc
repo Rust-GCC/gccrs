@@ -1590,7 +1590,7 @@ modref_access_analysis::process_fnspec (gcall *call)
 	      m_summary_lto->stores->insert (current_function_decl,
 					     0, 0, a, false);
 	  }
-      if (fnspec.errno_maybe_written_p () && flag_errno_math)
+      if (fnspec.errno_maybe_written_p ())
 	{
 	  if (m_summary)
 	    m_summary->writes_errno = true;

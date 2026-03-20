@@ -2788,7 +2788,6 @@ check_fnspec (gcall *call, ao_ref *ref, bool clobber)
 	      }
 	  if (clobber
 	      && fnspec.errno_maybe_written_p ()
-	      && flag_errno_math
 	      && targetm.ref_may_alias_errno (ref))
 	    return 1;
 	  return 0;
