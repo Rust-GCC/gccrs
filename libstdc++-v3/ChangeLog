@@ -1,3 +1,69 @@
+2026-03-19  François Dumont  <frs.dumont@gmail.com>
+
+	* src/c++11/debug.cc (_Safe_sequence_base::_M_detach_single): Do not
+	check if input iterator is equal to _M_iterators if already equals to
+	_M_const_iterators.
+	(_Safe_unordered_container_base::_M_detach_local_single): Do not check
+	if input local iterator is equal to _M_local_iterators if already equals
+	to _M_const_local_iterators.
+
+2026-03-19  Jakub Jelinek  <jakub@redhat.com>
+
+	PR libstdc++/121790
+	* src/c++23/std.cc.in: Add enable_nonlocking_formatter_optimization.
+
+2026-03-19  Jakub Jelinek  <jakub@redhat.com>
+
+	PR libstdc++/118030
+	* src/c++23/std.cc.in: Add allocation_result.
+
+2026-03-19  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/120775
+	* src/c++23/std.cc.in: Add is_reflection{,_v} and
+	is_consteval_only{,_v}.
+
+2026-03-19  Jakub Jelinek  <jakub@redhat.com>
+
+	PR libstdc++/119794
+	* src/c++23/std.cc.in: Add philox_engine and philox4x{32,64}.
+
+2026-03-19  Jakub Jelinek  <jakub@redhat.com>
+
+	* src/c++23/std.cc.in: Export views::indices.
+
+2026-03-19  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/124513
+	* src/c++20/tzdb.cc (operator>>(istream&, at_time::Indicator&)):
+	Do not peek at the next character if eofbit is already set.
+	(istream& operator>>(istream&, at_time&)): Skip whitespace
+	before the first character. Handle EOF when parsing "-" as time.
+	Do not peek for ":" or "." if eofbit already set.
+	* testsuite/std/time/time_zone/116110.cc (test_apia): Remove
+	offset of 24h now that the UNTIL time is parsed correctly.
+	* testsuite/std/time/time_zone/124513.cc: New test.
+
+2026-03-19  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/116110
+	* src/c++20/tzdb.cc (operator>>(istream&, ZoneInfo&)): Adjust
+	inf.m_until according to indicator suffix on AT time in UNTIL.
+	* testsuite/std/time/time_zone/116110.cc (test_kiritimati):
+	Remove FIXME now that the UNTIL time is adjusted for STDOFF.
+	(test_apia): Adjust FIXME now that UNTIL time is adusted for
+	STDOFF.
+	* testsuite/std/time/time_zone/get_info_sys.cc: Adjust expected
+	results to account for corrected logic.
+	* testsuite/std/time/zoned_time/1.cc: Likewise.
+
+2026-03-19  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/116110
+	* src/c++20/tzdb.cc (time_zone::_M_get_sys_info): Update
+	info.offset and info.save to values from the active rule.
+	* testsuite/std/time/time_zone/116110.cc: New test.
+
 2026-03-18  Jonathan Wakely  <jwakely@redhat.com>
 
 	* testsuite/17_intro/names.cc (ext, max_iter, ret, subs, Rg, Rs):

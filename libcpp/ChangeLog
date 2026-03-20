@@ -1,3 +1,9 @@
+2026-03-19  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	PR c++/124466
+	* line-map.cc (linemap_location_from_module_p): Resolve loc in
+	case it's a macro location.
+
 2026-03-13  Jakub Jelinek  <jakub@redhat.com>
 
 	PR preprocessor/105412

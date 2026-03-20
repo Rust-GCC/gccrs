@@ -1,3 +1,31 @@
+2026-03-19  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/124161
+	* gfortran.dg/pr124161.f90: New test.
+
+2026-03-19  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	PR c++/124466
+	* g++.dg/modules/warn-spec-5_a.C: New test.
+	* g++.dg/modules/warn-spec-5_b.C: New test.
+	* g++.dg/modules/warn-spec-5_c.C: New test.
+
+2026-03-19  feedable  <feedabl3@gmail.com>
+
+	* gcc.dg/weak/weak-1.c: Use a function to scan
+	for weak symbols instead of a regex.
+	* gcc.dg/weak/weak-10.c: Likewise.
+	* gcc.dg/weak/weak-11.c: Likewise.
+	* gcc.dg/weak/weak-12.c: Likewise.
+	* gcc.dg/weak/weak-15.c: Likewise.
+	* gcc.dg/weak/weak-16.c: Likewise.
+	* gcc.dg/weak/weak-2.c: Likewise.
+	* gcc.dg/weak/weak-3.c: Likewise.
+	* gcc.dg/weak/weak-4.c: Likewise.
+	* gcc.dg/weak/weak-5.c: Likewise.
+	* gcc.dg/weak/weak-9.c: Likewise.
+	* lib/scanasm.exp: Implement the weak-scanning function.
+
 2026-03-18  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
 
 	PR d/124158

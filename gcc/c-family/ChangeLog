@@ -1,3 +1,8 @@
+2026-03-19  Jason Merrill  <jason@redhat.com>
+
+	* c-opts.cc (c_common_post_options): Enable -fcontracts
+	in C++26 mode unless -fno-contracts was specified.
+
 2026-03-12  Marek Polacek  <polacek@redhat.com>
 
 	PR c++/124447

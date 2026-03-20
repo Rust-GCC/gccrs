@@ -1,3 +1,13 @@
+2026-03-19  Jakub Jelinek  <jakub@redhat.com>
+
+	PR target/124565
+	* config/alpha/alpha.cc (alpha_build_builtin_va_list): Set TREE_PUBLIC
+	on type_decl.
+
+2026-03-19  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* common.opt.urls: Added missing entry.
+
 2026-03-18  Vladimir N. Makarov  <vmakarov@redhat.com>
 
 	PR rtl-optimization/124041
