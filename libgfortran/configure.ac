@@ -351,6 +351,30 @@ AX_PTHREAD([
   ], [
   enable_caf_shmem=false
   ])
+# caf_shmem needs process-shared pthread primitives that are visible through
+# the default pthread headers.  AX_PTHREAD already established the baseline
+# pthread flags; this additional check only verifies that the specific
+# process-shared API surface is usable for caf/shmem/thread_support.c.
+if test x$enable_caf_shmem = xtrue; then
+  AC_MSG_CHECKING([for usable process-shared pthread support for caf_shmem])
+  save_CFLAGS="$CFLAGS"
+  CFLAGS="$CFLAGS $PTHREAD_CFLAGS"
+  AC_COMPILE_IFELSE(
+    [AC_LANG_PROGRAM(
+      [[#include <pthread.h>]],
+      [[pthread_mutexattr_t mattr;
+        pthread_condattr_t cattr;
+        (void) &pthread_mutexattr_setpshared;
+        (void) &pthread_condattr_setpshared;
+        return pthread_mutexattr_init (&mattr)
+          || pthread_condattr_init (&cattr)
+          || pthread_mutexattr_setpshared (&mattr, PTHREAD_PROCESS_SHARED)
+          || pthread_condattr_setpshared (&cattr, PTHREAD_PROCESS_SHARED);]])],
+    [AC_MSG_RESULT([yes])],
+    [AC_MSG_RESULT([no])
+     enable_caf_shmem=false])
+  CFLAGS="$save_CFLAGS"
+fi
 AM_CONDITIONAL([ENABLE_CAF_SHMEM], [test x$enable_caf_shmem = xtrue])
 
 # Check strerror_r, cannot be above as versions with two and three arguments exist

@@ -18414,6 +18414,44 @@ ac_link='$CC -o conftest$ac_exeext $CFLAGS $CPPFLAGS $LDFLAGS conftest.$ac_ext $
 ac_compiler_gnu=$ac_cv_c_compiler_gnu
 
 
+# caf_shmem needs process-shared pthread primitives that are visible through
+# the default pthread headers.  AX_PTHREAD already established the baseline
+# pthread flags; this additional check only verifies that the specific
+# process-shared API surface is usable for caf/shmem/thread_support.c.
+if test x$enable_caf_shmem = xtrue; then
+  { $as_echo "$as_me:${as_lineno-$LINENO}: checking for usable process-shared pthread support for caf_shmem" >&5
+$as_echo_n "checking for usable process-shared pthread support for caf_shmem... " >&6; }
+  save_CFLAGS="$CFLAGS"
+  CFLAGS="$CFLAGS $PTHREAD_CFLAGS"
+  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+#include <pthread.h>
+int
+main ()
+{
+pthread_mutexattr_t mattr;
+        pthread_condattr_t cattr;
+        (void) &pthread_mutexattr_setpshared;
+        (void) &pthread_condattr_setpshared;
+        return pthread_mutexattr_init (&mattr)
+          || pthread_condattr_init (&cattr)
+          || pthread_mutexattr_setpshared (&mattr, PTHREAD_PROCESS_SHARED)
+          || pthread_condattr_setpshared (&cattr, PTHREAD_PROCESS_SHARED);
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"; then :
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+$as_echo "yes" >&6; }
+else
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+$as_echo "no" >&6; }
+     enable_caf_shmem=false
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+  CFLAGS="$save_CFLAGS"
+fi
  if test x$enable_caf_shmem = xtrue; then
   ENABLE_CAF_SHMEM_TRUE=
   ENABLE_CAF_SHMEM_FALSE='#'

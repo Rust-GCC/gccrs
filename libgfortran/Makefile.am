@@ -61,7 +61,7 @@ libgfortran_la_DEPENDENCIES = $(version_dep) libgfortran.spec $(LIBQUADLIB_DEP)
 libcaf_shared_DEPS = caf/libcaf.h caf/caf_error.h
 libcaf_shared_SRCS = caf/caf_error.c
 
-cafexeclib_LTLIBRARIES = libcaf_single.la libcaf_shmem.la
+cafexeclib_LTLIBRARIES = libcaf_single.la
 cafexeclibdir = $(libdir)/gcc/$(target_alias)/$(gcc_version)$(MULTISUBDIR)
 libcaf_single_la_SOURCES = caf/single.c $(libcaf_shared_SRCS)
 libcaf_single_la_LDFLAGS = -static
@@ -69,6 +69,7 @@ libcaf_single_la_DEPENDENCIES = $(libcaf_shared_DEPS)
 libcaf_single_la_LINK = $(LINK) $(libcaf_single_la_LDFLAGS)
 
 if ENABLE_CAF_SHMEM
+cafexeclib_LTLIBRARIES += libcaf_shmem.la
 libcaf_shmem_la_CFLAGS = $(CAF_SHMEM_CFLAGS)
 libcaf_shmem_la_SOURCES = $(libcaf_shared_SRCS) \
 	caf/shmem.c caf/shmem/alloc.c caf/shmem/allocator.c \
