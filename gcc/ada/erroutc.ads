@@ -739,6 +739,9 @@ package Erroutc is
    --  Tag used at the end of warning messages that were converted by
    --  pragma Warning_As_Error.
 
+   procedure Delete_Error_Msg (E : Error_Msg_Id);
+   --  Delete an error msg if not already deleted and adjust message count
+
    procedure Purge_Messages (From : Source_Ptr; To : Source_Ptr);
    --  All error messages whose location is in the range From .. To (not
    --  including the end points) will be deleted from the error listing.

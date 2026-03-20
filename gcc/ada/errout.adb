@@ -395,19 +395,11 @@ package body Errout is
 
       Id := Msg;
       loop
-         declare
-            M : Error_Msg_Object renames Errors.Table (Id);
+         Delete_Error_Msg (Id);
 
-         begin
-            if not M.Deleted then
-               M.Deleted := True;
-               Decrease_Error_Msg_Count (M);
-            end if;
-
-            Id := M.Next;
-            exit when Id = No_Error_Msg;
-            exit when not Errors.Table (Id).Msg_Cont;
-         end;
+         Id := Errors.Table (Id).Next;
+         exit when Id = No_Error_Msg;
+         exit when not Errors.Table (Id).Msg_Cont;
       end loop;
    end Delete_Warning_And_Continuations;
 
@@ -1911,21 +1903,6 @@ package body Errout is
       Nxt : Error_Msg_Id;
       F   : Error_Msg_Id;
 
-      procedure Delete_Warning (E : Error_Msg_Id);
-      --  Delete a warning msg if not already deleted and adjust warning count
-
-      --------------------
-      -- Delete_Warning --
-      --------------------
-
-      procedure Delete_Warning (E : Error_Msg_Id) is
-      begin
-         if not Errors.Table (E).Deleted then
-            Errors.Table (E).Deleted := True;
-            Decrease_Error_Msg_Count (Errors.Table (E));
-         end if;
-      end Delete_Warning;
-
    --  Start of processing for Finalize
 
    begin
@@ -1975,7 +1952,7 @@ package body Errout is
                     Warning_Specifically_Suppressed (CE.Optr.Ptr, CE.Text, Tag)
                                                                 /= No_String)
             then
-               Delete_Warning (Cur);
+               Delete_Error_Msg (Cur);
 
                --  If this is a continuation, delete previous parts of message
 
@@ -1983,7 +1960,7 @@ package body Errout is
                while Errors.Table (F).Msg_Cont loop
                   F := Errors.Table (F).Prev;
                   exit when F = No_Error_Msg;
-                  Delete_Warning (F);
+                  Delete_Error_Msg (F);
                end loop;
 
                --  Delete any following continuations
@@ -1993,7 +1970,7 @@ package body Errout is
                   F := Errors.Table (F).Next;
                   exit when F = No_Error_Msg;
                   exit when not Errors.Table (F).Msg_Cont;
-                  Delete_Warning (F);
+                  Delete_Error_Msg (F);
                end loop;
             end if;
          end;
@@ -3405,8 +3382,6 @@ package body Errout is
 
                and then not Errors.Table (E).Uncond
             then
-               Decrease_Error_Msg_Count (Errors.Table (E));
-
                return True;
 
             --  No removal required
@@ -3419,7 +3394,11 @@ package body Errout is
       --  Start of processing for Check_For_Warnings
 
       begin
+         --  Remove the first messages from the error chain.
+         --  ??? Why not delete them like the others?
+
          while To_Be_Removed (First_Error_Msg) loop
+            Decrease_Error_Msg_Count (Errors.Table (First_Error_Msg));
             First_Error_Msg := Errors.Table (First_Error_Msg).Next;
          end loop;
 
@@ -3430,7 +3409,7 @@ package body Errout is
          E := First_Error_Msg;
          while E /= No_Error_Msg loop
             while To_Be_Removed (Errors.Table (E).Next) loop
-               Errors.Table (Errors.Table (E).Next).Deleted := True;
+               Delete_Error_Msg (Errors.Table (E).Next);
 
                Errors.Table (E).Next :=
                  Errors.Table (Errors.Table (E).Next).Next;

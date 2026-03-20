@@ -145,9 +145,7 @@ package body Erroutc is
          K := Keep;
 
          loop
-            Errors.Table (D).Deleted := True;
-
-            Decrease_Error_Msg_Count (Errors.Table (D));
+            Delete_Error_Msg (D);
 
             --  Substitute shorter of the two error messages
 
@@ -274,6 +272,18 @@ package body Erroutc is
          Write_Eol;
       end if;
    end Debug_Output;
+
+   ----------------------
+   -- Delete_Error_Msg --
+   ----------------------
+
+   procedure Delete_Error_Msg (E : Error_Msg_Id) is
+   begin
+      if not Errors.Table (E).Deleted then
+         Errors.Table (E).Deleted := True;
+         Decrease_Error_Msg_Count (Errors.Table (E));
+      end if;
+   end Delete_Error_Msg;
 
    -----------
    -- dedit --
@@ -1335,8 +1345,6 @@ package body Erroutc is
            and then Errors.Table (E).Sptr.Ptr > From
            and then Errors.Table (E).Sptr.Ptr < To
          then
-            Decrease_Error_Msg_Count (Errors.Table (E));
-
             return True;
 
          else
@@ -1347,14 +1355,18 @@ package body Erroutc is
    --  Start of processing for Purge_Messages
 
    begin
+      --  Remove the first messages from the error chain.
+      --  ??? Why not delete them like the others?
+
       while To_Be_Purged (First_Error_Msg) loop
+         Decrease_Error_Msg_Count (Errors.Table (First_Error_Msg));
          First_Error_Msg := Errors.Table (First_Error_Msg).Next;
       end loop;
 
       E := First_Error_Msg;
       while E /= No_Error_Msg loop
          while To_Be_Purged (Errors.Table (E).Next) loop
-            Errors.Table (Errors.Table (E).Next).Deleted := True;
+            Delete_Error_Msg (Errors.Table (E).Next);
 
             Errors.Table (E).Next :=
               Errors.Table (Errors.Table (E).Next).Next;
