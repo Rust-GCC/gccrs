@@ -16833,12 +16833,18 @@ tsubst_splice_expr (tree t, tree args, tsubst_flags_t complain, tree in_decl)
 	SET_SPLICE_EXPR_MEMBER_ACCESS_P (op, true);
       if (SPLICE_EXPR_ADDRESS_P (t))
 	SET_SPLICE_EXPR_ADDRESS_P (op, true);
+      if (SPLICE_EXPR_TEMPLATE_P (t))
+	SET_SPLICE_EXPR_TEMPLATE_P (op, true);
+      if (SPLICE_EXPR_TARGS_P (t))
+	SET_SPLICE_EXPR_TARGS_P (op, true);
       return op;
     }
   if (SPLICE_EXPR_EXPRESSION_P (t)
       && !check_splice_expr (input_location, UNKNOWN_LOCATION, op,
 			     SPLICE_EXPR_ADDRESS_P (t),
 			     SPLICE_EXPR_MEMBER_ACCESS_P (t),
+			     SPLICE_EXPR_TEMPLATE_P (t),
+			     SPLICE_EXPR_TARGS_P (t),
 			     (complain & tf_error)))
     return error_mark_node;
 

@@ -12,8 +12,8 @@ template<typename T, auto R>
 void
 g ()
 {
-  template [: R :]<int> c0; // { dg-error "not a function template|expected" }
-  template [: T::r :]<int> c1;  // { dg-error "not a function template|expected" }
+  template [: R :]<int> c0; // { dg-error "function or variable template|expected" }
+  template [: T::r :]<int> c1;  // { dg-error "function or variable template|expected" }
 }
 
 void

@@ -25,10 +25,9 @@ template <int N>
 void
 qux (S &s)
 {
-  // TODO: We don't reject this one.
-  template [: N == 0 ? ^^foo : ^^:: :] (0);	// { dg-error "reflection 'foo' not usable in a template splice" "" { xfail *-*-* } }
-  template [: N == 0 ? ^^bar : ^^:: :] (0);	// { dg-message "only function templates are allowed here" "" { xfail *-*-* } .-1 }
-  s.template [: N == 0 ? ^^S::foo : ^^:: :] (0); // { dg-error "reflection 'foo' not usable in a template splice" "" { xfail *-*-* } }
+  template [: N == 0 ? ^^foo : ^^:: :] (0);	// { dg-error "expected a reflection of a function template" }
+  template [: N == 0 ? ^^bar : ^^:: :] (0);
+  s.template [: N == 0 ? ^^S::foo : ^^:: :] (0); // { dg-error "expected a reflection of a function template" }
   s.template [: N == 0 ? ^^S::bar : ^^:: :] (0);
 }
 

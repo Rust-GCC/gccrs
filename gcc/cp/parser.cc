@@ -6318,6 +6318,8 @@ cp_parser_splice_expression (cp_parser *parser, bool template_p,
       SET_SPLICE_EXPR_EXPRESSION_P (t);
       SET_SPLICE_EXPR_MEMBER_ACCESS_P (t, member_access_p);
       SET_SPLICE_EXPR_ADDRESS_P (t, address_p);
+      SET_SPLICE_EXPR_TEMPLATE_P (t, template_p);
+      SET_SPLICE_EXPR_TARGS_P (t, targs_p);
       return t;
     }
 
@@ -6330,38 +6332,17 @@ cp_parser_splice_expression (cp_parser *parser, bool template_p,
 
   /* Make sure this splice-expression produces an expression.  */
   if (!check_splice_expr (loc, expr.get_start (), t, address_p,
-			  member_access_p, /*complain=*/true))
+			  member_access_p, template_p, targs_p,
+			  /*complain=*/true))
     return error_mark_node;
 
-  if (template_p)
-    {
-      /* [expr.prim.splice] For a splice-expression of the form template
-	 splice-specifier, the splice-specifier shall designate a function
-	 template.  */
-      if (!targs_p
-	  && !really_overloaded_fn (t)
-	  && !dependent_splice_p (t))
-	{
-	  auto_diagnostic_group d;
-	  error_at (loc, "expected a reflection of a function template");
-	  inform_tree_category (t);
-	  return error_mark_node;
-	}
-      /* [expr.prim.splice] For a splice-expression of the form
-	 template splice-specialization-specifier, the splice-specifier of the
-	 splice-specialization-specifier shall designate a template.  Since
-	 we would have already complained, just check that we have a template.  */
-      gcc_checking_assert (really_overloaded_fn (t)
-			   || get_template_info (t)
-			   || TREE_CODE (t) == TEMPLATE_ID_EXPR
-			   || dependent_splice_p (t));
-    }
-  else if (/* No 'template' but there were template arguments?  */
-	   (targs_p
-	    /* No 'template' but the splice-specifier designates a function
-	       template?  */
-	    || really_overloaded_fn (t))
-	   && warning_enabled_at (loc, OPT_Wmissing_template_keyword))
+  if (!template_p
+      /* No 'template' but there were template arguments?  */
+      && (targs_p
+	  /* No 'template' but the splice-specifier designates a function
+	     template?  */
+	  || really_overloaded_fn (t))
+      && warning_enabled_at (loc, OPT_Wmissing_template_keyword))
     /* Were 'template' present, this would be valid code, so keep going.  */
     missing_template_diag (loc, diagnostics::kind::pedwarn);
 

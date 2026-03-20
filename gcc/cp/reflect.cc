@@ -2752,6 +2752,8 @@ eval_constant_of (location_t loc, const constexpr_ctx *ctx, tree r,
   else if (!check_splice_expr (loc, UNKNOWN_LOCATION, r,
 			       /*address_p=*/false,
 			       /*member_access_p=*/false,
+			       /*template_p=*/false,
+			       /*targs_p=*/false,
 			       /*complain_p=*/false)
 	   /* One cannot query the value of a function template.
 	      ??? But if [:^^X:] where X is a template is OK, should we
@@ -8812,13 +8814,15 @@ check_consteval_only_fn (tree decl)
 
 /* Check if T is a valid result of splice-expression.  ADDRESS_P is true if
    we are taking the address of the splice.  MEMBER_ACCESS_P is true if this
-   splice is used in foo.[: bar :] or foo->[: bar :] context.  COMPLAIN_P is
-   true if any errors should be emitted.  Returns true is no problems are
-   found, false otherwise.  */
+   splice is used in foo.[: bar :] or foo->[: bar :] context.  TEMPLATE_P is
+   true if the splice-expression was preceded by 'template'.  TARGS_P is true
+   if there were template arguments.  COMPLAIN_P is true if any errors should
+   be emitted.  Returns true is no problems are found, false otherwise.  */
 
 bool
 check_splice_expr (location_t loc, location_t start_loc, tree t,
-		   bool address_p, bool member_access_p, bool complain_p)
+		   bool address_p, bool member_access_p, bool template_p,
+		   bool targs_p, bool complain_p)
 {
   /* We may not have gotten an expression.  */
   if (TREE_CODE (t) == TYPE_DECL
@@ -8947,6 +8951,47 @@ check_splice_expr (location_t loc, location_t start_loc, tree t,
 	error_at (loc, "cannot use a data member specification in a "
 		  "splice expression");
       return false;
+    }
+
+  if (template_p)
+    {
+      /* [expr.prim.splice] For a splice-expression of the form template
+	 splice-specifier, the splice-specifier shall designate a function
+	 template.  */
+      if (!targs_p)
+	{
+	  if (!really_overloaded_fn (t) && !dependent_splice_p (t))
+	    {
+	      if (complain_p)
+		{
+		  auto_diagnostic_group d;
+		  error_at (loc, "expected a reflection of a function "
+			    "template");
+		  inform_tree_category (t);
+		}
+	      return false;
+	    }
+	}
+      /* [expr.prim.splice] For a splice-expression of the form
+	 template splice-specialization-specifier, the splice-specifier of the
+	 splice-specialization-specifier shall designate a template.  The
+	 template should be a function template or a variable template.  */
+      else if (DECL_TYPE_TEMPLATE_P (t))
+	{
+	  if (complain_p)
+	    {
+	      auto_diagnostic_group d;
+	      error_at (loc, "expected a reflection of a function or variable "
+			"template");
+	      inform_tree_category (t);
+	    }
+	  return false;
+	}
+      gcc_checking_assert (really_overloaded_fn (t)
+			   || get_template_info (t)
+			   || TREE_CODE (t) == TEMPLATE_ID_EXPR
+			   || variable_template_p (t)
+			   || dependent_splice_p (t));
     }
 
   return true;
