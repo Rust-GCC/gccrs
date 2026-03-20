@@ -1,5 +1,6 @@
 // { dg-compile }
 // { dg-additional-options "-Wnull-dereference" }
+// { dg-add-options no_pch }
 
 #include <string>
 #include <sstream>
