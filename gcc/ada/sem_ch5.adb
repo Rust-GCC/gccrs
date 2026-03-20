@@ -455,8 +455,14 @@ package body Sem_Ch5 is
                Get_First_Interp (Lhs, I, It);
 
                while Present (It.Typ) loop
+                  --  AI22-0112 restores the Ada 95 rule that excludes limited
+                  --  types from consideration during resolution of the target
+                  --  variable in assignment statements.
+
                   if Is_Limited_Type (It.Typ) then
-                     Remove_Interp (I);
+                     if not Has_Implicit_Dereference (It.Typ) then
+                        Remove_Interp (I);
+                     end if;
                   elsif T1 = Any_Type then
                      T1 := It.Typ;
                   end if;
@@ -505,7 +511,9 @@ package body Sem_Ch5 is
                   --  variable in assignment statements.
 
                   if Is_Limited_Type (It.Typ) then
-                     Remove_Interp (I);
+                     if not Has_Implicit_Dereference (It.Typ) then
+                        Remove_Interp (I);
+                     end if;
 
                   elsif Has_Compatible_Type (Rhs, It.Typ) then
                      if T1 = Any_Type then

@@ -476,13 +476,19 @@ package body Sem_Type is
          then
             Add_Entry (Entity (Name (N)), Etype (N));
 
+         elsif Nkind (N) = N_Function_Call
+           and then Nkind (Name (N)) = N_Selected_Component
+           and then Is_Entity_Name (Selector_Name (Name (N)))
+         then
+            Add_Entry (Entity (Selector_Name (Name (N))), Etype (N));
+
          --  If this is an indirect call there will be no name associated
          --  with the previous entry. To make diagnostics clearer, save
          --  Subprogram_Type of first interpretation, so that the error will
          --  point to the anonymous access to subprogram, not to the result
          --  type of the call itself.
 
-         elsif (Nkind (N)) = N_Function_Call
+         elsif Nkind (N) = N_Function_Call
            and then Nkind (Name (N)) = N_Explicit_Dereference
            and then Is_Overloaded (Name (N))
          then
@@ -497,10 +503,17 @@ package body Sem_Type is
                Add_Entry (It.Nam, Etype (N));
             end;
 
-         else
-            --  Overloaded prefix in indexed or selected component, or call
-            --  whose name is an expression or another call.
+         --  If this is a generalized indexing, treat it as a function call
 
+         elsif Nkind (N) = N_Indexed_Component
+           and then Present (Generalized_Indexing (N))
+         then
+            Add_Entry (Entity (Name (Generalized_Indexing (N))), Etype (N));
+
+         --  An overloaded prefix in indexed or selected component, or a call
+         --  whose name is an expression or another call.
+
+         else
             Add_Entry (Etype (N), Etype (N));
          end if;
 

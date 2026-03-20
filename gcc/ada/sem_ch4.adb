@@ -2335,12 +2335,12 @@ package body Sem_Ch4 is
             while Present (It.Nam) loop
                T := It.Typ;
 
-               if Is_Access_Type (T)
-                 and then No (First_Formal (Base_Type (Designated_Type (T))))
-               then
-                  Set_Etype (P, T);
-               else
-                  Remove_Interp (I);
+               if Is_Access_Type (T) then
+                  if No (First_Formal (Base_Type (Designated_Type (T)))) then
+                     Set_Etype (P, T);
+                  else
+                     Remove_Interp (I);
+                  end if;
                end if;
 
                Get_Next_Interp (I, It);
@@ -3843,11 +3843,9 @@ package body Sem_Ch4 is
       procedure Indicate_Name_And_Type is
       begin
          Add_One_Interp (N, Nam, Etype (Nam));
-         Check_Implicit_Dereference (N, Etype (Nam));
-         Success := True;
 
-         --  If the prefix of the call is a name, indicate the entity
-         --  being called. If it is not a name, it is an expression that
+         --  If the prefix of the call is an entity name, indicate the entity
+         --  being called. If it is not such a name, it is an expression that
          --  denotes an access to subprogram or else an entry or family. In
          --  the latter case, the name is a selected component, and the entity
          --  being called is noted on the selector.
@@ -3861,6 +3859,11 @@ package body Sem_Ch4 is
                Set_Entity (Selector_Name (Name (N)),  Nam);
             end if;
          end if;
+
+         --  Now add an interpretation for the implicit dereference, if any
+
+         Check_Implicit_Dereference (N, Etype (Nam));
+         Success := True;
 
          if Debug_Flag_E and not Report then
             Write_Str (" Overloaded call ");

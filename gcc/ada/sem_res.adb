@@ -2287,6 +2287,7 @@ package body Sem_Res is
       I1        : Interp_Index := 0;  -- prevent junk warning
       It        : Interp;
       It1       : Interp;
+      Prev_It   : Interp := No_Interp;
       Seen      : Entity_Id := Empty; -- prevent junk warning
 
       function Comes_From_Predefined_Lib_Unit (Nod : Node_Id) return Boolean;
@@ -2858,86 +2859,59 @@ package body Sem_Res is
                --  We have a matching interpretation, Expr_Type is the type
                --  from this interpretation, and Seen is the entity.
 
-               --  For an operator, just set the entity name. The type will be
+               --  If this is an additional interpretation introduced by
+               --  Check_Implicit_Dereference, the actual interpretation
+               --  for N was the previous one. Resolve N and insert the
+               --  explicit dereference.
+
+               if Present (It.Nam)
+                 and then Ekind (It.Nam) = E_Discriminant
+                 and then Has_Implicit_Dereference (It.Nam)
+                 and then (Nkind (N) /= N_Indexed_Component
+                            or else No (Generalized_Indexing (N)))
+               then
+                  pragma Assert (Prev_It /= No_Interp);
+
+                  if Is_Entity_Name (N) then
+                     Set_Etype  (N, Prev_It.Typ);
+                     Set_Entity (N, Prev_It.Nam);
+                     Generate_Reference (Prev_It.Nam, N);
+
+                  elsif Nkind (N) in N_Subprogram_Call
+                    and then Is_Entity_Name (Name (N))
+                  then
+                     Set_Etype  (Name (N), Prev_It.Typ);
+                     Set_Entity (Name (N), Prev_It.Nam);
+                     Generate_Reference (Prev_It.Nam, Name (N));
+                     Set_Is_Overloaded (Name (N), False);
+                  end if;
+
+                  Build_Explicit_Dereference (N, It.Nam);
+
+               --  For an operator, just set the entity. The type will be
                --  set by the specific operator resolution routine.
 
-               if Nkind (N) in N_Op then
+               elsif Nkind (N) in N_Op then
                   Set_Entity (N, Seen);
                   Generate_Reference (Seen, N);
 
-               elsif Nkind (N) in N_Case_Expression
-                                | N_Character_Literal
-                                | N_Delta_Aggregate
-                                | N_If_Expression
-               then
-                  Set_Etype (N, Expr_Type);
+               --  For an entity name, set both the type and the entity
 
-               --  AI05-0139-2: Expression is overloaded because type has
-               --  implicit dereference. The context may be the one that
-               --  requires implicit dereferemce.
+               elsif Is_Entity_Name (N) then
+                  Set_Etype  (N, Expr_Type);
+                  Set_Entity (N, Seen);
+                  Generate_Reference (Seen, N);
 
-               elsif Has_Implicit_Dereference (Expr_Type) then
-                  Set_Etype (N, Expr_Type);
-                  Set_Is_Overloaded (N, False);
-
-               --  If the expression is an entity, generate a reference
-               --  to it, as this is not done for an overloaded construct
-               --  during analysis.
-
-                  if Is_Entity_Name (N)
-                    and then Comes_From_Source (N)
-                  then
-                     Generate_Reference (Entity (N), N);
-
-                     --  Examine access discriminants of entity type,
-                     --  to check whether one of them yields the
-                     --  expected type.
-
-                     declare
-                        Disc : Entity_Id :=
-                          First_Discriminant (Etype (Entity (N)));
-
-                     begin
-                        while Present (Disc) loop
-                           exit when Is_Access_Type (Etype (Disc))
-                             and then Has_Implicit_Dereference (Disc)
-                             and then Designated_Type (Etype (Disc)) = Typ;
-
-                           Next_Discriminant (Disc);
-                        end loop;
-
-                        if Present (Disc) then
-                           Build_Explicit_Dereference (N, Disc);
-                        end if;
-                     end;
-                  end if;
-
-                  exit Interp_Loop;
-
-               elsif Is_Overloaded (N)
-                 and then Present (It.Nam)
-                 and then Ekind (It.Nam) = E_Discriminant
-                 and then Has_Implicit_Dereference (It.Nam)
-               then
-                  --  If the node is a general indexing, the dereference is
-                  --  is inserted when resolving the rewritten form, else
-                  --  insert it now.
-
-                  if Nkind (N) /= N_Indexed_Component
-                    or else No (Generalized_Indexing (N))
-                  then
-                     Build_Explicit_Dereference (N, It.Nam);
-                  end if;
-
-               --  For an explicit dereference, attribute reference, range,
-               --  short-circuit form (which is not an operator node), or call
-               --  with a name that is an explicit dereference, there is
-               --  nothing to be done at this point.
+               --  For nodes other than calls, or calls with a name that is an
+               --  explicit dereference, there is nothing to be done.
 
                elsif Nkind (N) in N_Attribute_Reference
                                 | N_And_Then
+                                | N_Case_Expression
+                                | N_Character_Literal
+                                | N_Delta_Aggregate
                                 | N_Explicit_Dereference
-                                | N_Identifier
+                                | N_If_Expression
                                 | N_Indexed_Component
                                 | N_Or_Else
                                 | N_Range
@@ -2947,29 +2921,23 @@ package body Sem_Res is
                then
                   null;
 
-               --  For procedure or function calls, set the type of the name,
-               --  and also the entity pointer for the prefix.
+               --  For some calls, set the type and entity of the name
 
-               elsif Nkind (N) in N_Subprogram_Call
-                 and then Is_Entity_Name (Name (N))
-               then
+               elsif Is_Entity_Name (Name (N)) then
                   Set_Etype  (Name (N), Expr_Type);
                   Set_Entity (Name (N), Seen);
                   Generate_Reference (Seen, Name (N));
 
-               elsif Nkind (N) = N_Function_Call
-                 and then Nkind (Name (N)) = N_Selected_Component
-               then
+               elsif Nkind (Name (N)) = N_Selected_Component then
                   Set_Etype (Name (N), Expr_Type);
                   Set_Entity (Selector_Name (Name (N)), Seen);
                   Generate_Reference (Seen, Selector_Name (Name (N)));
 
-               --  For all other cases, just set the type of the Name
+               --  For other calls, just set the type of the Name
 
                else
                   Set_Etype (Name (N), Expr_Type);
                end if;
-
             end if;
 
             <<Continue>>
@@ -2977,6 +2945,8 @@ package body Sem_Res is
             --  Move to next interpretation
 
             exit Interp_Loop when No (It.Typ);
+
+            Prev_It := It;
 
             Get_Next_Interp (I, It);
          end loop Interp_Loop;
@@ -9324,19 +9294,19 @@ package body Sem_Res is
          Get_First_Interp (P, I, It);
 
          while Present (It.Typ) loop
-            if Is_Access_Type (It.Typ)
-              and then Covers (Typ, Designated_Type (It.Typ))
-            then
-               if No (P_Typ) then
-                  P_Typ := It.Typ;
+            if Is_Access_Type (It.Typ) then
+               if Covers (Typ, Designated_Type (It.Typ)) then
+                  if No (P_Typ) then
+                     P_Typ := It.Typ;
+                  end if;
+
+               --  Remove access types that do not match, but preserve access
+               --  to subprogram interpretations, in case a further dereference
+               --  is needed (see below).
+
+               elsif Ekind (It.Typ) /= E_Access_Subprogram_Type then
+                  Remove_Interp (I);
                end if;
-
-            --  Remove access types that do not match, but preserve access
-            --  to subprogram interpretations, in case a further dereference
-            --  is needed (see below).
-
-            elsif Ekind (It.Typ) /= E_Access_Subprogram_Type then
-               Remove_Interp (I);
             end if;
 
             Get_Next_Interp (I, It);
@@ -13767,6 +13737,17 @@ package body Sem_Res is
          end if;
 
          return True;
+      end if;
+
+      --  Skip the direct interpretation for a limited type that has implicit
+      --  dereference, since it cannot be used for operands of an assignment,
+      --  per AI22-0112 which restores the Ada 95 rule for all versions.
+
+      if Present (It.Typ)
+        and then Is_Limited_Type (It.Typ)
+        and then Has_Implicit_Dereference (It.Typ)
+      then
+         Get_Next_Interp (I, It);
       end if;
 
       I1  := I;
