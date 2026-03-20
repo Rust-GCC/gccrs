@@ -2231,6 +2231,14 @@ package body Erroutc is
         "[" & To_String (Span.First) & " .. " & To_String (Span.Last) & "]";
    end To_String;
 
+   ---------------------------
+   -- Warning_Is_Suppressed --
+   ---------------------------
+
+   function Warning_Is_Suppressed
+     (Loc : Source_Ptr; Msg : String_Ptr; Tag : String := "") return Boolean
+   is (Warning_Specifically_Suppressed (Loc, Msg, Tag) /= No_String);
+
    -------------------------------------
    -- Warning_Specifically_Suppressed --
    -------------------------------------

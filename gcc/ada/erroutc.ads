@@ -868,6 +868,10 @@ package Erroutc is
    --  Called in response to a pragma Warnings (On) to record the source
    --  location from which warnings are to be turned back on.
 
+   function Warning_Is_Suppressed
+     (Loc : Source_Ptr; Msg : String_Ptr; Tag : String := "") return Boolean;
+   --  Returns true if warning is specifically suppresed by a pragma.
+
    function Warnings_Suppressed (Loc : Source_Ptr) return String_Id;
    --  Determines if given location is covered by a warnings off suppression
    --  range in the warnings table (or is suppressed by compilation option,

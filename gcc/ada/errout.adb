@@ -1903,6 +1903,23 @@ package body Errout is
       Nxt : Error_Msg_Id;
       F   : Error_Msg_Id;
 
+      function Warning_Is_Suppressed (E : Error_Msg_Id) return Boolean;
+      --  Check if the warning is suppressed in either its posted or original
+      --  location.
+
+      ---------------------------
+      -- Warning_Is_Suppressed --
+      ---------------------------
+
+      function Warning_Is_Suppressed (E : Error_Msg_Id) return Boolean is
+         CE  : Error_Msg_Object renames Errors.Table (E);
+         Tag : constant String := Get_Warning_Tag (E);
+      begin
+         return
+           Warning_Is_Suppressed (CE.Sptr.Ptr, CE.Text, Tag)
+           or else Warning_Is_Suppressed (CE.Optr.Ptr, CE.Text, Tag);
+      end Warning_Is_Suppressed;
+
    --  Start of processing for Finalize
 
    begin
@@ -1938,42 +1955,31 @@ package body Errout is
 
       Cur := First_Error_Msg;
       while Cur /= No_Error_Msg loop
-         declare
-            CE  : Error_Msg_Object renames Errors.Table (Cur);
-            Tag : constant String := Get_Warning_Tag (Cur);
+         if Errors.Table (Cur).Kind = Warning
+            and then not Errors.Table (Cur).Deleted
+            and then Warning_Is_Suppressed (Cur)
+         then
+            Delete_Error_Msg (Cur);
 
-         begin
-            if CE.Kind = Warning
-              and then not CE.Deleted
-              and then
-                   (Warning_Specifically_Suppressed (CE.Sptr.Ptr, CE.Text, Tag)
-                                                                /= No_String
-                      or else
-                    Warning_Specifically_Suppressed (CE.Optr.Ptr, CE.Text, Tag)
-                                                                /= No_String)
-            then
-               Delete_Error_Msg (Cur);
+            --  If this is a continuation, delete previous parts of message
 
-               --  If this is a continuation, delete previous parts of message
+            F := Cur;
+            while Errors.Table (F).Msg_Cont loop
+               F := Errors.Table (F).Prev;
+               exit when F = No_Error_Msg;
+               Delete_Error_Msg (F);
+            end loop;
 
-               F := Cur;
-               while Errors.Table (F).Msg_Cont loop
-                  F := Errors.Table (F).Prev;
-                  exit when F = No_Error_Msg;
-                  Delete_Error_Msg (F);
-               end loop;
+            --  Delete any following continuations
 
-               --  Delete any following continuations
-
-               F := Cur;
-               loop
-                  F := Errors.Table (F).Next;
-                  exit when F = No_Error_Msg;
-                  exit when not Errors.Table (F).Msg_Cont;
-                  Delete_Error_Msg (F);
-               end loop;
-            end if;
-         end;
+            F := Cur;
+            loop
+               F := Errors.Table (F).Next;
+               exit when F = No_Error_Msg;
+               exit when not Errors.Table (F).Msg_Cont;
+               Delete_Error_Msg (F);
+            end loop;
+         end if;
 
          Cur := Errors.Table (Cur).Next;
       end loop;
