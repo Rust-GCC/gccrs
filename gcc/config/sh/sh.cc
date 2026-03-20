@@ -7555,6 +7555,7 @@ sh_build_builtin_va_list (void)
 
   TYPE_STUB_DECL (record) = type_decl;
   TYPE_NAME (record) = type_decl;
+  TREE_PUBLIC (type_decl) = 1;
   TYPE_FIELDS (record) = f_next_o;
   DECL_CHAIN (f_next_o) = f_next_o_limit;
   DECL_CHAIN (f_next_o_limit) = f_next_fp;
