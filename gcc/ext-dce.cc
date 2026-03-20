@@ -487,6 +487,52 @@ ext_dce_try_optimize_extension (rtx_insn *insn, rtx set)
   rtx src = SET_SRC (set);
   rtx inner = XEXP (src, 0);
 
+  /* For sign-extending loads from memory, try to replace with a
+     zero-extending load when the upper bits are dead.  E.g. on RISC-V
+     this turns lh+zext.h into just lhu.  */
+  if (MEM_P (inner) && GET_CODE (src) == SIGN_EXTEND)
+    {
+      if (dump_file)
+	{
+	  fprintf (dump_file, "Processing insn:\n");
+	  dump_insn_slim (dump_file, insn);
+	  fprintf (dump_file, "Trying to narrow sign_extend to zero_extend:\n");
+	  print_rtl_single (dump_file, SET_SRC (set));
+	}
+
+      if (!dbg_cnt (::ext_dce))
+	{
+	  if (dump_file)
+	    fprintf (dump_file, "Rejected due to debug counter.\n");
+	  return;
+	}
+
+      rtx new_pattern = gen_rtx_ZERO_EXTEND (GET_MODE (src), inner);
+      int ok = validate_change (insn, &SET_SRC (set), new_pattern, false);
+
+      rtx x = SET_DEST (set);
+      while (SUBREG_P (x) || GET_CODE (x) == ZERO_EXTRACT)
+	x = XEXP (x, 0);
+
+      gcc_assert (REG_P (x));
+      if (ok)
+	{
+	  bitmap_set_bit (changed_pseudos, REGNO (x));
+	  remove_reg_equal_equiv_notes (insn, false);
+	}
+
+      if (dump_file)
+	{
+	  if (ok)
+	    fprintf (dump_file, "Successfully transformed to:\n");
+	  else
+	    fprintf (dump_file, "Failed transformation to:\n");
+	  print_rtl_single (dump_file, new_pattern);
+	  fprintf (dump_file, "\n");
+	}
+      return;
+    }
+
   /* Avoid (subreg (mem)) and other constructs which may be valid RTL, but
      not useful for this optimization.  */
   if (!(REG_P (inner) || (SUBREG_P (inner) && REG_P (SUBREG_REG (inner)))))
