@@ -933,7 +933,7 @@ vn_reference_eq (const_vn_reference_t const vr1, const_vn_reference_t const vr2,
 	      || (get_deref_alias_set (vro1->opcode == MEM_REF
 				       ? TREE_TYPE (vro1->op0)
 				       : TREE_TYPE (vro1->op2))
-		  != get_deref_alias_set (vro1->opcode == MEM_REF
+		  != get_deref_alias_set (vro2->opcode == MEM_REF
 					  ? TREE_TYPE (vro2->op0)
 					  : TREE_TYPE (vro2->op2)))))
 	return false;
