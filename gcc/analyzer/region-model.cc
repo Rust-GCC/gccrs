@@ -1930,6 +1930,24 @@ region_model::update_for_zero_return (const call_details &cd,
   update_for_int_cst_return (cd, 0, unmergeable);
 }
 
+/* Update this model for an outcome of a call that returns a NULL
+   pointer.
+   If UNMERGEABLE, then make the result unmergeable, e.g. to prevent
+   the state-merger code from merging success and failure outcomes.  */
+
+void
+region_model::update_for_null_return (const call_details &cd, bool unmergeable)
+{
+  if (!cd.get_lhs_type ())
+    return;
+  if (!POINTER_TYPE_P (cd.get_lhs_type ()))
+    return;
+  const svalue *result = m_mgr->get_or_create_null_ptr (cd.get_lhs_type ());
+  if (unmergeable)
+    result = m_mgr->get_or_create_unmergeable (result);
+  set_value (cd.get_lhs_region (), result, cd.get_ctxt ());
+}
+
 /* Update this model for an outcome of a call that returns non-zero.
    Specifically, assign an svalue to the LHS, and add a constraint that
    that svalue is non-zero.  */

@@ -1,4 +1,5 @@
 /* { dg-additional-options "-Wno-analyzer-null-argument" } */
+/* { dg-prune-output "leak of file descriptor" } */
 
 #include <stdio.h>
 #include <stdlib.h>

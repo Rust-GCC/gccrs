@@ -7,6 +7,8 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <errno.h>
+#include "analyzer-decls.h"
 
 extern void populate (char *buf);
 
@@ -96,4 +98,28 @@ void test_populated_buf (void)
 void test_NULL (void)
 {
   mktemp (NULL); /* possibly -Wanalyzer-null-argument */
+}
+
+void test_errno_bad_template (void)
+{
+  errno = 0;
+  char tmpl[] = "/tmp/foo";
+  char *result = mktemp (tmpl); /* { dg-warning "'mktemp' template string does not end with 'XXXXXX'" } */
+  __analyzer_eval (errno > 0); /* { dg-warning "TRUE" } */
+}
+
+void test_failure_nul_byte (void)
+{
+  char tmpl[] = "/tmp/foo";
+  char *result = mktemp (tmpl); /* { dg-warning "'mktemp' template string does not end with 'XXXXXX'" } */
+  __analyzer_eval (result[0] == '\0'); /* { dg-warning "TRUE" } */
+  __analyzer_eval (result == tmpl); /* { dg-warning "TRUE" } */
+}
+
+void test_success_path (void)
+{
+  char tmpl[] = "/tmp/testXXXXXX";
+  char *result = mktemp (tmpl);
+  if (result[0] != '\0')
+    __analyzer_eval (result == tmpl); /* { dg-warning "TRUE" } */
 }

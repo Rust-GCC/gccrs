@@ -352,6 +352,8 @@ class region_model
 				  bool unmergeable);
   void update_for_zero_return (const call_details &cd,
 			       bool unmergeable);
+  void update_for_null_return (const call_details &cd,
+			       bool unmergeable);
   void update_for_nonzero_return (const call_details &cd);
 
   void handle_unrecognized_call (const gcall &call,

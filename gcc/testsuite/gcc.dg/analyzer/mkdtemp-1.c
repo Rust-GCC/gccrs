@@ -2,6 +2,8 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <errno.h>
+#include "analyzer-decls.h"
 
 extern void populate (char *buf);
 
@@ -84,4 +86,32 @@ void test_populated_buf (void)
 void test_NULL (void)
 {
   mkdtemp (NULL); /* possibly -Wanalyzer-null-argument */
+}
+
+void test_errno (char *s)
+{
+  errno = 0;
+  char *result = mkdtemp (s);
+  if (result == NULL)
+    {
+      __analyzer_eval (errno > 0); /* { dg-warning "TRUE" } */
+      return;
+    }
+  __analyzer_eval (errno == 0); /* { dg-warning "TRUE" } */
+}
+
+void test_success_non_null (void)
+{
+  char tmpl[] = "/var/tmp/dirXXXXXX";
+  char *result = mkdtemp (tmpl);
+  if (result != NULL)
+    {
+      __analyzer_eval (result == tmpl); /* { dg-warning "TRUE" } */
+      __analyzer_eval (result != NULL); /* { dg-warning "TRUE" } */
+    }
+}
+
+void test_no_lhs (char *s)
+{
+  mkdtemp (s); /* { dg-bogus "leak" } */
 }
