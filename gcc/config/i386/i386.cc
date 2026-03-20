@@ -4564,6 +4564,7 @@ ix86_build_builtin_va_list_64 (void)
   DECL_CHAIN (f_gpr) = f_fpr;
   DECL_CHAIN (f_fpr) = f_ovf;
   DECL_CHAIN (f_ovf) = f_sav;
+  TREE_PUBLIC (type_decl) = 1;
 
   layout_type (record);
 
