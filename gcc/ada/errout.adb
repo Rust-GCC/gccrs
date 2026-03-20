@@ -616,6 +616,10 @@ package body Errout is
 
       Save_Error_Msg_Sloc : Source_Ptr;
 
+      function In_Loop_With_Suppressed_Warnings (N : Node_Id) return Boolean;
+      --  Returns true if N is contained in a loop statement where warnings
+      --  have been suppressed.
+
       function Instantiation_Msg (X : Source_File_Index) return String;
       --  Text used in an instantiation messages based on the error kind and
       --  type of inlining or instantiation that was used in this location.
@@ -638,6 +642,26 @@ package body Errout is
                when Warning => Warn_Insertion & "in instantiation #",
                when Style   => "style: in instantiation #",
                when others  => "instantiation error #"));
+
+      --------------------------------------
+      -- In_Loop_With_Suppressed_Warnings --
+      --------------------------------------
+
+      function In_Loop_With_Suppressed_Warnings (N : Node_Id) return Boolean is
+         P : Node_Id;
+      begin
+         P := Parent (N);
+         while Present (P) loop
+            if Nkind (P) = N_Loop_Statement and then Suppress_Loop_Warnings (P)
+            then
+               return True;
+            end if;
+
+            P := Parent (P);
+         end loop;
+
+         return False;
+      end In_Loop_With_Suppressed_Warnings;
 
       --  Start of processing for Error_Msg
 
@@ -729,23 +753,11 @@ package body Errout is
       --  probably null (i.e. when loop executes only if invalid values
       --  present). In either case warnings in the loop are likely to be junk.
 
-      elsif Error_Msg_Kind = Warning and then Present (N) then
-
-         declare
-            P : Node_Id;
-
-         begin
-            P := Parent (N);
-            while Present (P) loop
-               if Nkind (P) = N_Loop_Statement
-                 and then Suppress_Loop_Warnings (P)
-               then
-                  return;
-               end if;
-
-               P := Parent (P);
-            end loop;
-         end;
+      elsif Error_Msg_Kind = Warning
+        and then Present (N)
+        and then In_Loop_With_Suppressed_Warnings (N)
+      then
+         return;
       end if;
 
       --  The idea at this stage is that we have two kinds of messages
