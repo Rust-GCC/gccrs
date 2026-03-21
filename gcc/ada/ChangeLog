@@ -1,3 +1,22 @@
+2026-03-20  Eric Botcazou  <ebotcazou@adacore.com>
+
+	PR ada/120669
+	* sem_ch4.adb (Analyze_Explicit_Dereference): Remove interpretations
+	of the prefix only if they are of access types.
+	(Analyze_One_Call.Indicate_Name_And_Type): Check for an implicit
+	dereference only after indicating the name and type of the call.
+	* sem_ch5.adb (Analyze_Assignment): Do not remove interpretations
+	for the LHS if they are for a type with implicit dereference.
+	* sem_res.adb (Resolve): Streamline the processing of overloaded
+	nodes once an interpretation is picked for them.  Add a specific
+	handling for additional interpretations for generalized references.
+	(Resolve_Explicit_Dereference): Remove interpretations of the prefix
+	only if they are of access types.
+	(Is_Ambiguous_Operand): Skip the direct interpretation for a limited
+	type that has implicit dereference.
+	* sem_type.adb (Add_One_Interp): Set the name of the first entry of
+	the table of interpretations in more cases.
+
 2026-03-14  Matthias Klose  <doko@gcc.gnu.org>
 
 	PR ada/107475

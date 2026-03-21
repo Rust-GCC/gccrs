@@ -1,3 +1,9 @@
+2026-03-20  Christopher Albert  <albert@tugraz.at>
+
+	PR fortran/120723
+	* trans-openmp.cc (gfc_trans_omp_clauses): Handle bare scalar
+	OpenACC attach/detach clauses without pointer-mapping nodes.
+
 2026-03-19  Paul Thomas  <pault@gcc.gnu.org>
 
 	PR fortran/124161

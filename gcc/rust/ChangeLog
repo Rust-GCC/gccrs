@@ -1,3 +1,441 @@
+2026-03-20  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* rust-session-manager.cc (Session::compile_crate): Use additional
+	cli attributes for the injection function. Move additional attribute
+	injection from here...
+	(Session::injection): ... to here.
+	* rust-session-manager.h: Update injection fonction prototype.
+
+2026-03-20  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* ast/rust-ast.cc (Crate::inject_inner_attribute): Add member function
+	to inject an inner attribute.
+	* ast/rust-ast.h: Add function prototype.
+	* lang.opt: Add frust-crate-attr argument to the compiler CLI.
+	* rust-lang.cc: Remove unused attribute on  option handler.
+	* rust-session-manager.cc (Session::handle_crate_name): Collect CLI
+	additional inner attributes.
+	(Session::compile_crate): Parse the additional inner attributes and
+	inject them.
+	* rust-session-manager.h (struct CompileOptions): Add collection of
+	additional inner attributes.
+
+2026-03-20  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* util/rust-attributes.cc: Add no_std to list of builtin attributes.
+
+2026-03-20  Enes Cevik  <nsvke@proton.me>
+
+	* backend/rust-compile-intrinsic.cc: Add bswap_handler.
+	* backend/rust-intrinsic-handlers.cc (bswap_handler): New function.
+	* backend/rust-intrinsic-handlers.h (bswap_handler): New declaration.
+
+2026-03-20  Mohamed Ali  <mohmedali1462005@gmail.com>
+
+	* checks/errors/feature/rust-feature-gate.cc (FeatureGate::visit): Call check_no_core_attri.
+	* checks/errors/feature/rust-feature-gate.h: Declare method check_no_core_attri.
+
+2026-03-20  Harishankar  <harishankarpp7@gmail.com>
+
+	* resolve/rust-early-name-resolver-2.0.cc (Early::finalize_rebind_import): Add ambiguity
+	check before calling get_node_id() on glob import definitions.
+
+2026-03-20  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* backend/rust-compile-intrinsic.cc: Use predefined values.
+	* checks/errors/rust-unsafe-checker.cc (is_safe_intrinsic): Likewise.
+	* util/rust-intrinsic-values.h: New file.
+
+2026-03-20  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* Make-lang.in: Add rust-intrinsic-handlers.cc.
+	* backend/rust-compile-intrinsic.cc (get_identifier): Move function
+	to handlers namespace.
+	(is_basic_integer_type): Likewise.
+	(check_for_basic_integer_type): Likewise.
+	(offset_handler): Likewise.
+	(sizeof_handler): Likewise.
+	(transmute_handler): Likewise.
+	(rotate_handler): Likewise.
+	(wrapping_op_handler_inner): Likewise.
+	(op_with_overflow_inner): Likewise.
+	(uninit_handler): Likewise.
+	(move_val_init_handler): Likewise.
+	(assume_handler): Likewise.
+	(discriminant_value_handler): Likewise.
+	(variant_count_handler): Likewise.
+	(enum class): Likewise.
+	(prefetch_data_handler): Likewise.
+	(rotate_left_handler): Likewise.
+	(rotate_right_handler): Likewise.
+	(std::function<tree): Likewise.
+	(wrapping_op_handler): Likewise.
+	(op_with_overflow): Likewise.
+	(prefetch_read_data): Likewise.
+	(prefetch_write_data): Likewise.
+	(atomic_store_handler_inner): Likewise.
+	(atomic_load_handler_inner): Likewise.
+	(atomic_store_handler): Likewise.
+	(atomic_load_handler): Likewise.
+	(unchecked_op_inner): Likewise.
+	(unchecked_op_handler): Likewise.
+	(copy_handler_inner): Likewise.
+	(copy_handler): Likewise.
+	(expect_handler_inner): Likewise.
+	(expect_handler): Likewise.
+	(try_handler_inner): Likewise.
+	(try_handler): Likewise.
+	(sorry_handler): Likewise.
+	(check_for_cached_intrinsic): Likewise.
+	(maybe_override_ctx): Likewise.
+	(compile_fn_params): Likewise.
+	(compile_intrinsic_function): Likewise.
+	(enter_intrinsic_block): Likewise.
+	(finalize_intrinsic_block): Likewise.
+	(make_unsigned_long_tree): Likewise.
+	(build_atomic_builtin_name): Likewise.
+	* backend/rust-intrinsic-handlers.cc: New file.
+	* backend/rust-intrinsic-handlers.h: New file.
+
+2026-03-20  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* parse/rust-parse-impl.hxx: Remove additional error message.
+
+2026-03-20  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* checks/lints/rust-lint-scan-deadcode.h: Add additional condition
+	to prevent warning emission. Check for underscore prefix.
+
+2026-03-20  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* parse/rust-parse-error.h (struct EnumVariant): Add error for enum
+	variant.
+	* parse/rust-parse-impl.hxx: Use new error type instead of nullptr.
+	* parse/rust-parse.h: Update function prototype.
+
+2026-03-20  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* checks/lints/rust-lint-unused-var.cc (starts_with_underscore): Add
+	function to detect underscore within symbol name.
+	(check_decl): Call new function for underscore checking.
+
+2026-03-20  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* resolve/rust-toplevel-name-resolver-2.0.cc(TopLevel::visit): Insert
+	constant item only if now wildcard.
+
+2026-03-20  Owen Avery  <powerboat9.gamer@gmail.com>
+
+	* resolve/rust-default-resolver.cc (DefaultResolver::visit):
+	Override MatchCase visiting function.
+	* resolve/rust-default-resolver.h (DefaultResolver::visit):
+	Likewise.
+
+2026-03-20  jayant chauhan  <0001jayant@gmail.com>
+
+	* expand/rust-derive.cc (DeriveVisitor::derive): Handle
+	`BuiltinMacro::RustcEncodable` and `BuiltinMacro::RustcDecodable`.
+
+2026-03-20  vibhatsu  <maulikbarot2915@gmail.com>
+
+	* ast/rust-macro.h: add initialization for ExternalItem base
+	class in full construtor and use node id inside ExternalItem
+	to populate memeber node id.
+
+2026-03-20  vibhatsu  <maulikbarot2915@gmail.com>
+
+	* ast/rust-macro.h: remove get_macro_node_id and propagate
+	MacroInvocation's node id through get_node_id for consistency
+	* util/rust-hir-map.cc (Mappings::insert_macro_invocation): replace
+	all get_macro_node_id calls with get_node_id calls
+	(Mappings::lookup_macro_invocation): likewise
+	(Mappings::insert_bang_proc_macro_invocation): likewise
+	(Mappings::lookup_bang_proc_macro_invocation): likewise
+
+2026-03-20  Jayant Chauhan  <0001jayant@gmail.com>
+
+	* ast/rust-path.h (GenericArgsBinding::reconstruct): New method.
+	(GenericArg::reconstruct): New method.
+	(GenericArgs::reconstruct): New method.
+	(PathExprSegment::reconstruct): New method.
+	(PathInExpression::reconstruct): New method.
+	(TypePathSegmentGeneric::reconstruct_impl): New method.
+	(TypePathFunction::reconstruct): New method.
+	(TypePathSegmentFunction::reconstruct_impl): New method.
+	(QualifiedPathType::reconstruct): New method.
+	(QualifiedPathInExpression::reconstruct): New method.
+	(QualifiedPathInType::reconstruct_impl): New method.
+	* expand/rust-derive-cmp-common.cc (EnumMatchBuilder::tuple): Use path.reconstruct().
+	(EnumMatchBuilder::strukt): Use path.reconstruct().
+
+2026-03-20  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* rust-session-manager.cc (Session::compile_crate): Inject std crate
+	when both no_std and no_core attributes are missing.
+	* util/rust-attribute-values.h: Add no_std attribute value.
+
+2026-03-20  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* resolve/rust-early-name-resolver-2.0.cc (Early::visit_derive_attribute):
+	Change from attribute locus to trait locus.
+	(Early::visit_attributes): Remove function.
+	(Early::visit): Remove functions.
+	* resolve/rust-early-name-resolver-2.0.h: Remove unused prototypes.
+
+2026-03-20  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* ast/rust-ast.cc (MetaItemPathExpr::to_attribute): Remove cast to
+	literal.
+	(AttrInputMetaItemContainer::separate_cfg_attrs): Remove PathExpr
+	specific code.
+	* expand/rust-cfg-strip.cc (expand_cfg_attrs): Remove the whole
+	attribute if condition's result is false.
+	* util/rust-attributes.cc (AttributeChecker::visit): Remove specific
+	code section for meta item container. Do not check input if
+	configuration does not match condition.
+
+2026-03-20  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* ast/rust-ast-collector.cc (TokenCollector::visit): Add visitor
+	implementation.
+	* ast/rust-ast-visitor.cc (DefaultASTVisitor::visit): Likewise.
+	* ast/rust-ast-collector.h: Add function prototype.
+	* ast/rust-ast-visitor.h: Likewise.
+	* expand/rust-derive.h: Likewise.
+	* hir/rust-ast-lower-base.h: Likewise.
+	* ast/rust-ast.cc (Attribute::get_traits_to_derive): Handle EXPR
+	variant.
+	(AttrInputExpr::AttrInputExpr): Add constructor.
+	(AttrInputExpr::operator=): Add assignment operator implementation.
+	(AttrInputExpr::as_string): Add a string conversion member function.
+	(AttrInputExpr::accept_vis): Add visitor function.
+	* ast/rust-ast.h: Add EXPR type variant to AttrInput.
+	* util/rust-attributes.cc (check_doc_attribute): Handle expr variant.
+	* ast/rust-expr.h (class AttrInputExpr): Add class definition with
+	member function prototypes.
+	* hir/rust-ast-lower-base.cc (ASTLoweringBase::visit): Add empty
+	visitor implementation.
+
+2026-03-20  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* ast/rust-ast-dump.cc (debug): Add debug function which calls debug
+	on every crate field.
+	* ast/rust-ast-dump.h (debug): Add function prototype.
+
+2026-03-20  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* util/rust-attributes.cc (AttributeChecker::visit): Rename function
+	and make call to ast default visitor.
+	(AttributeChecker::check_attribute): Remove function.
+	* util/rust-attributes.h: Add function prototype.
+
+2026-03-20  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* ast/rust-ast.h (class Attribute): Make visitable parent class public.
+
+2026-03-20  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* ast/rust-ast.h (class Attribute): Add a node id member.
+
+2026-03-20  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* ast/rust-ast-full-decls.h (struct Attribute): Change from here...
+	(class Attribute): ...to a class here.
+	* ast/rust-ast-visitor.cc (DefaultASTVisitor::visit): Add a default
+	visit function for the attributes.
+	* ast/rust-ast-visitor.h: Add a proper visit function declaration for
+	attributes.
+	* ast/rust-ast.cc (Attribute::accept_vis): Add a function to accept a
+	visitor within the attributes.
+	* ast/rust-ast.h (struct Attribute): Add the accept_vis function
+	prototype.
+	(class Attribute): Rename from struct to class.
+	* expand/rust-derive.h: Add an empty implementation for visits to
+	prevent the visitor from recursing into the attributes.
+	* hir/rust-ast-lower-base.cc (ASTLoweringBase::visit): Add missing
+	implementation for attribute visit function. Add a check for derive
+	attributes that would have slipped through the passes.
+	* hir/rust-ast-lower-base.h: Add function prototype.
+	* resolve/rust-early-name-resolver-2.0.cc (Early::visit_attributes):
+	Split the function into two halves.
+	(Early::visit_derive_attribute): Specialized function from
+	visit_attribute for derive attributes.
+	(Early::visit_non_builtin_attribute): Likewise for non builtin
+	attributes.
+	(Early::visit): Rename visit_attributes to visit.
+	* resolve/rust-early-name-resolver-2.0.h (class Early): Update function
+	prototypes.
+
+2026-03-20  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* util/rust-attributes.cc: Add "feature", "no_core", "doc",
+	"crate_name", "crate_type" and "may_dandle" to the list of builtin
+	attributes.
+
+2026-03-20  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* rust-session-manager.cc (Session::handle_crate_name): Use the new
+	constexpr instead of a raw string value.
+	* util/rust-attribute-values.h: Add crate_name and crate_type values.
+
+2026-03-20  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* Make-lang.in: Add new specific feature store file.
+	* checks/errors/feature/rust-feature-gate.cc (EarlyFeatureGateStore::get):
+	Move from here to rust-feature-store.cc.
+	(EarlyFeatureGateStore::add): Likewise.
+	(EarlyFeatureGateStore::get_error): Likewise.
+	(FeatureGate::check): Likewise.
+	* checks/errors/feature/rust-feature-gate.h (class EarlyFeatureGateStore):
+	Move class declaration to rust-feature-store.h header.
+	* parse/rust-parse.h: Change included header.
+	* checks/errors/feature/rust-feature-store.cc: New file.
+	* checks/errors/feature/rust-feature-store.h: New file.
+
+2026-03-20  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* checks/errors/feature/rust-feature-gate.cc (EarlyFeatureGateStore::get):
+	Add function to retrieve singleton instance.
+	(EarlyFeatureGateStore::add): New function to add an error and the
+	corresponding feature in the store.
+	(EarlyFeatureGateStore::get_error): Add new function to retrieve the
+	oldest error.
+	(FeatureGate::check): Update the function to retrieve the errors from
+	the store instead of getting it from the parameters.
+	* checks/errors/feature/rust-feature-gate.h (class EarlyFeatureGateStore):
+	Add a new class to collect all early feature gating errors.
+	* parse/rust-parse.h: Use store instead of keeping the errors within
+	the parser instance.
+	* rust-session-manager.cc (Session::compile_crate): Remove old early
+	error collection from the main parser.
+	* rust-system.h: Include queue header.
+
+2026-03-20  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* checks/errors/feature/rust-feature-gate.cc (FeatureGate::check):
+	Check all parse time errors.
+	* checks/errors/feature/rust-feature-gate.h: Update function prototype
+	with parse time errors.
+	* parse/rust-parse-impl-attribute.hxx: Collect potential gating error
+	with non literal attribute values. Remove error emission.
+	* parse/rust-parse.h: Add a function to gather potential feature gating
+	errors as well as a getter for collected errors.
+	* rust-session-manager.cc (Session::compile_crate): Retrieve potential
+	feature gating errors and check them later during the feature gating
+	step.
+	* util/rust-attributes.cc (check_export_name_attribute): Change
+	attribute checking error emission to prevent errors with macro inputs.
+
+2026-03-20  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* checks/errors/feature/contrib/fetch: Bump version from 1.49.0 to
+	1.50.0. Change brace expansion to explicit file fetch.
+	* checks/errors/feature/rust-feature-defs.h: Regenerate.
+	* checks/errors/feature/contrib/copyright-stub.h: Add rfl include
+	directive.
+	* checks/errors/feature/rust-feature-defs-rfl.h: New file.
+
+2026-03-20  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* Make-lang.in: Add rust-early-cfg-strip object file.
+	* expand/rust-cfg-strip.h (expand_cfg_attrs): Declare function prototype.
+	* rust-session-manager.cc (Session::compile_crate): Reorder feature
+	collection and add early cfg strip.
+	* expand/rust-early-cfg-strip.cc: New file.
+	* expand/rust-early-cfg-strip.h: New file.
+
+2026-03-20  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* expand/rust-cfg-strip.cc (CfgStrip::fails_cfg): Remove function.
+	* expand/rust-cfg-strip.h: Remove function prototype.
+
+2026-03-20  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* Make-lang.in: Add new feature collector file.
+	* checks/errors/feature/rust-feature-gate.cc (FeatureGate::visit):
+	Remove feature collection from gating visitor.
+	(FeatureGate::gate): Use features from the crate feature entity instead
+	of old class members.
+	* checks/errors/feature/rust-feature-gate.h: Get features from a
+	separate CrateFeatures struct instead of keeping them in the class.
+	* rust-session-manager.cc (Session::compile_crate): Collect features
+	before gating them.
+	* util/rust-attribute-values.h: Add feature attribute value.
+	* checks/errors/feature/rust-feature-collector.cc: New file.
+	* checks/errors/feature/rust-feature-collector.h: New file.
+
+2026-03-20  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* util/rust-attributes.cc (is_builtin): Rename from here ...
+	(identify_builtin): ... to here.
+	(is_proc_macro_type): Handle new return value.
+	(AttributeChecker::check_inner_attribute): Likewise.
+	(AttributeChecker::check_attribute): Likewise.
+	(AttributeChecker::visit): Likewise.
+	* util/rust-attributes.h (identify_builtin): Update function prototype.
+
+2026-03-20  jayant chauhan  <0001jayant@gmail.com>
+
+	* ast/rust-ast.cc (Attribute::get_traits_to_derive): Propagate location
+	info from MetaWord to SimplePath.
+
+2026-03-20  Owen Avery  <powerboat9.gamer@gmail.com>
+
+	* ast/rust-ast.h: Include "rust-cloneable.h".
+	(struct CloneableDelegate<std::unique_ptr<AST::Pattern>>): Add
+	specialization.
+	* ast/rust-pattern.cc (IdentifierPattern::as_string): Handle
+	field type changes.
+	(RangePattern::as_string): Likewise.
+	(ReferencePattern::as_string): Likewise.
+	(StructPatternFieldTuplePat::as_string): Likewise.
+	(StructPatternFieldIdentPat::as_string): Likewise.
+	(StructPatternElements::as_string): Likewise.
+	(TupleStructItemsNoRest::as_string): Likewise.
+	(TupleStructItemsHasRest::as_string): Likewise.
+	(TupleStructPattern::as_string): Likewise.
+	(TuplePatternItemsNoRest::as_string): Likewise.
+	(TuplePatternItemsHasRest::as_string): Likewise.
+	(TuplePattern::as_string): Likewise.
+	(SlicePatternItemsNoRest::as_string): Likewise.
+	(SlicePatternItemsHasRest::as_string): Likewise.
+	(SlicePattern::as_string): Likewise.
+	(AltPattern::as_string): Likewise.
+	* ast/rust-pattern.h: Include "rust-cloneable.h".
+	(class IdentifierPattern): Use Cloneable to simplify copying.
+	(class RangePattern): Likewise.
+	(class ReferencePattern): Likewise.
+	(class StructPatternFieldTuplePat): Likewise.
+	(class StructPatternFieldIdentPat): Likewise.
+	(class StructPatternElements): Likewise.
+	(class TupleStructItemsNoRest): Likewise.
+	(class TupleStructItemsHasRest): Likewise.
+	(class TupleStructPattern): Likewise.
+	(class TuplePatternItemsNoRest): Likewise.
+	(class TuplePatternItemsHasRest): Likewise.
+	(class TuplePattern): Likewise.
+	(class GroupedPattern): Likewise.
+	(class SlicePatternItemsNoRest): Likewise.
+	(class SlicePatternItemsHasRest): Likewise.
+	(class SlicePattern): Likewise.
+	(class AltPattern): Likewise.
+	(struct
+	CloneableDelegate<std::unique_ptr<AST::RangePatternBound>>): Add
+	specialization.
+	(struct
+	CloneableDelegate<std::unique_ptr<AST::TupleStructItems>>):
+	Likewise.
+	(struct
+	CloneableDelegate<std::unique_ptr<AST::TuplePatternItems>>):
+	Likewise.
+	(struct
+	CloneableDelegate<std::unique_ptr<AST::SlicePatternItems>>):
+	Likewise.
+	(struct
+	CloneableDelegate<std::unique_ptr<AST::StructPatternField>>):
+	Likewise.
+	* util/rust-cloneable.h: New file.
+
 2026-02-27  Islam-Imad  <islamimad404@gmail.com>
 
 	* typecheck/rust-hir-type-check-struct.cc: enhance missing fields error message

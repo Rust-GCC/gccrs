@@ -1,3 +1,57 @@
+2026-03-20  Tobias Burnus  <tburnus@baylibre.com>
+	    Sandra Loosemore  <sloosemore@baylibre.com>
+
+	PR c/122866
+	* gimplify.cc (omp_instantiate_mapper): Give a sorry if there are
+	iterators.
+
+2026-03-20  Kwok Cheung Yeung  <kcyeung@baylibre.com>
+	    Sandra Loosemore  <sloosemore@baylibre.com>
+
+	* gimplify.cc (gimplify_omp_workshare): Handle iterators in
+	"target data".
+
+2026-03-20  Kyrylo Tkachov  <ktkachov@nvidia.com>
+
+	* config/aarch64/tuning_models/olympus.h (olympus_tunings): Set
+	loop_align to 64:16.
+
+2026-03-20  Takayuki 'January June' Suwa  <jjsuwa_sys3175@yahoo.co.jp>
+
+	* config/xtensa/xtensa.cc (gen_int_relational):
+	Specify the table array "info" and the pointer to its elements
+	as const.
+
+2026-03-20  Jakub Jelinek  <jakub@redhat.com>
+
+	PR target/124565
+	* config/i386/i386.cc (ix86_build_builtin_va_list_64): Set TREE_PUBLIC
+	on type_decl.
+
+2026-03-20  Jakub Jelinek  <jakub@redhat.com>
+
+	PR target/124566
+	* config/sh/sh.cc (sh_build_builtin_va_list): Set TREE_PUBLIC
+	on type_decl.
+
+2026-03-20  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/124578
+	* tree-ssa-sccvn.cc (vn_reference_eq): Consistently check
+	fields from vro2.
+
+2026-03-20  Yangyu Chen  <cyy@cyyself.name>
+
+	* config/aarch64/aarch64.cc (aarch64_generate_version_dispatcher_body):
+	Check DECL_VIRTUAL_P for virtual functions for LTO handling.
+	* config/i386/i386-features.cc (ix86_generate_version_dispatcher_body):
+	Ditto.
+	* config/riscv/riscv.cc (riscv_generate_version_dispatcher_body): Ditto.
+	* config/rs6000/rs6000.cc (rs6000_generate_version_dispatcher_body):
+	Ditto.
+	* config/loongarch/loongarch.cc
+	(loongarch_generate_version_dispatcher_body): Ditto.
+
 2026-03-19  Jakub Jelinek  <jakub@redhat.com>
 
 	PR target/124565

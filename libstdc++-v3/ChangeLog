@@ -1,3 +1,30 @@
+2026-03-20  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/122567
+	* src/c++20/tzdb.cc (tzdb::current_zone): Loop over all trailing
+	components of /etc/localtime path. Use readlink instead of
+	std::filesystem::read_symlink.
+
+2026-03-20  Jonathan Wakely  <jwakely@redhat.com>
+
+	* src/c++20/tzdb.cc [_AIX]: Change #ifndef to #ifdef.
+
+2026-03-20  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/124568
+	* testsuite/24_iterators/istreambuf_iterator/105580.cc: Add
+	no_pch option.
+
+2026-03-20  Jonathan Wakely  <jwakely@redhat.com>
+
+	* src/c++17/fs_path.cc (path::operator+=): Use pointer
+	comparison to detect aliasing instead of a loop.
+
+2026-03-20  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/std/generator (_Stateless_alloc): Swap order of
+	constraints.
+
 2026-03-19  François Dumont  <frs.dumont@gmail.com>
 
 	* src/c++11/debug.cc (_Safe_sequence_base::_M_detach_single): Do not

@@ -1,3 +1,118 @@
+2026-03-20  Tobias Burnus  <tburnus@baylibre.com>
+	    Sandra Loosemore  <sloosemore@baylibre.com>
+
+	PR c/122866
+	* c-c++-common/gomp/pr122866.c: New.
+
+2026-03-20  Kwok Cheung Yeung  <kcyeung@baylibre.com>
+	    Sandra Loosemore  <sloosemore@baylibre.com>
+
+	* c-c++-common/gomp/target-map-iterators-6.c: New.
+
+2026-03-20  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gnat.dg/implicit_deref1.adb: New test.
+	* gnat.dg/implicit_deref2.adb: Likewise.
+	* gnat.dg/implicit_deref3.adb: Likewise.
+
+2026-03-20  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/124575
+	* g++.dg/reflect/expr16.C: New test.
+
+2026-03-20  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* rust/compile/cli_inner_attribute_injection.rs: New test.
+
+2026-03-20  Enes Cevik  <nsvke@proton.me>
+
+	* rust/compile/bswap.rs: New test.
+	* rust/execute/bswap.rs: New test.
+
+2026-03-20  Mohamed Ali  <mohmedali1462005@gmail.com>
+
+	* rust/compile/match-scope.rs: Fix test.
+	* rust/compile/no_core_feature_gate.rs: New test.
+
+2026-03-20  Harishankar  <harishankarpp7@gmail.com>
+
+	* rust/compile/issue-4411.rs: New test.
+
+2026-03-20  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* rust/compile/wildcard_items.rs: Move to...
+	* rust/compile/wildcard_const.rs: ...here.
+	* rust/compile/wildcard_enum.rs: New test.
+	* rust/compile/wildcard_enum_variant.rs: New test.
+	* rust/compile/wildcard_static.rs: New test.
+	* rust/compile/wildcard_struct.rs: New test.
+	* rust/compile/wildcard_variable.rs: New test.
+
+2026-03-20  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* rust/compile/issue-3947.rs: Do not expect a warning on this
+	underscore prefixed function.
+
+2026-03-20  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* rust/compile/wildcard_items.rs: New test.
+
+2026-03-20  Owen Avery  <powerboat9.gamer@gmail.com>
+
+	* rust/execute/torture/match-structpattern-tuplefield.rs: Fix
+	test.
+	* rust/compile/match-scope.rs: New test.
+
+2026-03-20  jayant chauhan  <0001jayant@gmail.com>
+
+	* rust/compile/issue-3951.rs: New test.
+
+2026-03-20  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* rust/compile/attr_malformed_path.rs: Filter existing test to x86_64
+	exclusively, add two new tests that appear when visiting the resulting
+	expression.
+
+2026-03-20  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* rust/compile/issue-4212.rs: Update test with the new errors.
+
+2026-03-20  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* rust/compile/issue-3661.rs: Add key_value_attribute feature to
+	prevent error on stringify macro.
+	* rust/compile/early_feature_gate_in_macro.rs: Add test to highlight
+	early feature gate error collection within macros.
+
+2026-03-20  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* rust/compile/doc_macro.rs: Enable feature to use a macro within an
+	attribute input.
+	* rust/compile/parse_time_feature_gate.rs: New test.
+
+2026-03-20  Harishankar  <harishankarpp7@gmail.com>
+
+	* rust/compile/issue-4413.rs: New test.
+
+2026-03-20  jayant chauhan  <0001jayant@gmail.com>
+
+	* rust/compile/issue-4433.rs: Update test to expect valid line numbers.
+
+2026-03-20  Yangyu Chen  <cyy@cyyself.name>
+
+	* g++.target/aarch64/virtual-lto.C: New test.
+
+2026-03-20  Christopher Albert  <albert@tugraz.at>
+
+	PR fortran/84779
+	PR fortran/84779
+	* gfortran.dg/pr84779.f90: New test.
+
+2026-03-20  Christopher Albert  <albert@tugraz.at>
+
+	PR fortran/120723
+	* gfortran.dg/goacc/pr120723.f90: New test.
+
 2026-03-19  Paul Thomas  <pault@gcc.gnu.org>
 
 	PR fortran/124161
