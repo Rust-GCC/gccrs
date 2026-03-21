@@ -1466,7 +1466,7 @@
 
 (define_insn "*movsicc_t_false"
   [(set (match_operand:SI 0 "arith_reg_dest" "=r,r")
-	(if_then_else (eq (reg:SI T_REG) (const_int 0))
+	(if_then_else:SI (eq (reg:SI T_REG) (const_int 0))
 		      (match_operand:SI 1 "general_movsrc_operand" "r,I08")
 		      (match_operand:SI 2 "arith_reg_operand" "0,0")))]
   "TARGET_PRETEND_CMOVE
@@ -1483,7 +1483,7 @@
 
 (define_insn "*movsicc_t_true"
   [(set (match_operand:SI 0 "arith_reg_dest" "=r,r")
-	(if_then_else (ne (reg:SI T_REG) (const_int 0))
+	(if_then_else:SI (ne (reg:SI T_REG) (const_int 0))
 		      (match_operand:SI 1 "general_movsrc_operand" "r,I08")
 		      (match_operand:SI 2 "arith_reg_operand" "0,0")))]
   "TARGET_PRETEND_CMOVE
@@ -4527,7 +4527,7 @@
 ;; instruction on SH4 202.
 (define_insn_and_split "negsi_cond"
   [(set (match_operand:SI 0 "arith_reg_dest" "=r,r")
-	(if_then_else
+	(if_then_else:SI
 	  (eq:SI (reg:SI T_REG) (match_operand:SI 3 "const_int_operand" "M,N"))
 	  (match_operand:SI 1 "arith_reg_operand" "0,0")
 	  (neg:SI (match_operand:SI 2 "arith_reg_operand" "r,r"))))]
@@ -4565,7 +4565,7 @@
 
 (define_insn_and_split "negdi_cond"
   [(set (match_operand:DI 0 "arith_reg_dest")
-	(if_then_else
+	(if_then_else:DI
 	  (eq:SI (reg:SI T_REG) (match_operand:SI 3 "const_int_operand"))
 	  (match_operand:DI 1 "arith_reg_operand")
 	  (neg:DI (match_operand:DI 2 "arith_reg_operand"))))
@@ -10316,7 +10316,7 @@
 ;;; Transfer the contents of the T bit to a specified bit of memory.
 (define_insn "bst_m2a"
   [(set (match_operand:QI 0 "bitwise_memory_operand" "+Sbw,m")
-	(if_then_else (eq (reg:SI T_REG) (const_int 0))
+	(if_then_else:QI (eq (reg:SI T_REG) (const_int 0))
 	    (and:QI
 		(not:QI (ashift:QI (const_int 1)
 			(match_operand:QI 1 "const_int_operand" "K03,K03")))
