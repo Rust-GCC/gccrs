@@ -41,6 +41,11 @@ void test_getenv_returns_nonnull (void)
   __analyzer_eval (p != NULL); /* { dg-warning "TRUE" } */
 }
 
+char *test_passthrough (const char *name)
+{
+  return getenv (name);
+}
+
 void test_unterminated (void)
 {
   char buf[3] = "abc";
