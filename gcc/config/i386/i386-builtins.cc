@@ -1348,8 +1348,13 @@ ix86_init_builtins_va_builtins_abi (void)
 
   if (!TARGET_64BIT)
     return;
-  fnattr_ms = build_tree_list (get_identifier ("ms_abi"), NULL_TREE);
-  fnattr_sysv = build_tree_list (get_identifier ("sysv_abi"), NULL_TREE);
+  /* The va builtins are both nothrow and leaf. */
+  tree fnattr = NULL_TREE;
+  fnattr = tree_cons (get_identifier ("nothrow"), NULL_TREE, fnattr);
+  fnattr = tree_cons (get_identifier ("leaf"), NULL_TREE, fnattr);
+
+  fnattr_ms = tree_cons (get_identifier ("ms_abi"), NULL_TREE, fnattr);
+  fnattr_sysv = tree_cons (get_identifier ("sysv_abi"), NULL_TREE, fnattr);
   ms_va_ref = build_reference_type (ms_va_list_type_node);
   sysv_va_ref = build_pointer_type (TREE_TYPE (sysv_va_list_type_node));
 
