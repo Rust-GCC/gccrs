@@ -290,6 +290,31 @@ package body Erroutc is
       end loop;
    end Filter_And_Delete_Errors;
 
+   -----------------------------
+   -- Delete_Duplicate_Errors --
+   -----------------------------
+
+   procedure Delete_Duplicate_Errors is
+      Cur : Error_Msg_Id;
+      Nxt : Error_Msg_Id;
+      F   : Error_Msg_Id;
+   begin
+      Cur := First_Error_Msg;
+      while Cur /= No_Error_Msg loop
+         Nxt := Errors.Table (Cur).Next;
+
+         F := Nxt;
+         while F /= No_Error_Msg
+           and then Errors.Table (F).Sptr.Ptr = Errors.Table (Cur).Sptr.Ptr
+         loop
+            Check_Duplicate_Message (Cur, F);
+            F := Errors.Table (F).Next;
+         end loop;
+
+         Cur := Nxt;
+      end loop;
+   end Delete_Duplicate_Errors;
+
    ----------------------
    -- Delete_Error_Msg --
    ----------------------
@@ -328,6 +353,35 @@ package body Erroutc is
    begin
       Delete_Errors;
    end Delete_Error_Msgs_In_Range;
+
+   ----------------------------------------
+   -- Delete_Error_And_Continuation_Msgs --
+   ----------------------------------------
+
+   procedure Delete_Error_And_Continuation_Msgs (E : Error_Msg_Id) is
+      F : Error_Msg_Id;
+   begin
+      Delete_Error_Msg (E);
+
+      --  If this is a continuation, delete previous parts of message
+
+      F := E;
+      while Errors.Table (F).Msg_Cont loop
+         F := Errors.Table (F).Prev;
+         exit when F = No_Error_Msg;
+         Delete_Error_Msg (F);
+      end loop;
+
+      --  Delete any following continuations
+
+      F := E;
+      loop
+         F := Errors.Table (F).Next;
+         exit when F = No_Error_Msg;
+         exit when not Errors.Table (F).Msg_Cont;
+         Delete_Error_Msg (F);
+      end loop;
+   end Delete_Error_And_Continuation_Msgs;
 
    -----------
    -- dedit --
@@ -2312,6 +2366,29 @@ package body Erroutc is
       end if;
    end Warnings_Suppressed;
 
+   --------------------------------------
+   -- Write_All_Errors_In_Brief_Format --
+   --------------------------------------
+
+   procedure Write_All_Errors_In_Brief_Format is
+      E : Error_Msg_Id;
+   begin
+      Set_Standard_Error;
+
+      E := First_Error_Msg;
+      while E /= No_Error_Msg loop
+         if not Errors.Table (E).Deleted then
+            Output_Msg_Location (E);
+            Output_Msg_Text (E);
+            Write_Eol;
+         end if;
+
+         E := Errors.Table (E).Next;
+      end loop;
+
+      Set_Standard_Output;
+   end Write_All_Errors_In_Brief_Format;
+
    -------------------------
    -- Write_Error_Summary --
    -------------------------
@@ -2405,5 +2482,29 @@ package body Erroutc is
       Write_Eol;
       Set_Standard_Output;
    end Write_Error_Summary;
+
+   ----------------------
+   -- Write_Max_Errors --
+   ----------------------
+
+   procedure Write_Max_Errors is
+   begin
+      if Maximum_Messages /= 0 then
+         if Warnings_Detected >= Maximum_Messages then
+            Set_Standard_Error;
+            Write_Line ("maximum number of warnings output");
+            Write_Line ("any further warnings suppressed");
+            Set_Standard_Output;
+         end if;
+
+         --  If too many errors print message
+
+         if Total_Errors_Detected >= Maximum_Messages then
+            Set_Standard_Error;
+            Write_Line ("fatal error: maximum number of errors detected");
+            Set_Standard_Output;
+         end if;
+      end if;
+   end Write_Max_Errors;
 
 end Erroutc;

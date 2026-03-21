@@ -101,6 +101,9 @@ package body Errout is
      (Printer : in out SARIF_Printer);
    --  Fill the printer with the unique diagnostic and switch id.
 
+   procedure Delete_Specifically_Suppressed_Warnings;
+   --  Mark any messages suppressed by specific warnings as Deleted
+
    procedure Error_Msg_Internal
      (Msg        : String;
       Span       : Source_Span;
@@ -177,6 +180,9 @@ package body Errout is
    --  in order to guard against cascaded errors. Note that this call has an
    --  effect for a serious error only.
 
+   procedure Set_Prev_Pointers;
+   --  Set previous pointers for all of the error messages in the error chain
+
    procedure Set_Qualification (N : Nat; E : Entity_Id);
    --  Outputs up to N levels of qualification for the given entity. For
    --  example, the entity A.B.C.D will output B.C. if N = 2.
@@ -220,6 +226,11 @@ package body Errout is
    --    "?"     returns "??"
    --    " "     returns "?"
    --    other   trimmed, prefixed and suffixed with "?".
+
+   procedure Write_All_Errors_In_Verbose_Format;
+   --  Emit all error messages in the errors table using the verbose format
+   --  activated by -gnatv where the error line is also printed along with the
+   --  error msg.
 
    -----------------------------------------
    -- Add_Unique_Diagnostics_And_Switches --
@@ -342,6 +353,45 @@ package body Errout is
       end loop;
    end Add_Unique_Diagnostics_And_Switches;
 
+   ---------------------------------------------
+   -- Delete_Specifically_Suppressed_Warnings --
+   ---------------------------------------------
+
+   procedure Delete_Specifically_Suppressed_Warnings is
+      function Warning_Is_Suppressed (E : Error_Msg_Id) return Boolean;
+      --  Check if the warning is suppressed in either its posted or original
+      --  location.
+
+      ---------------------------
+      -- Warning_Is_Suppressed --
+      ---------------------------
+
+      function Warning_Is_Suppressed (E : Error_Msg_Id) return Boolean is
+         CE  : Error_Msg_Object renames Errors.Table (E);
+         Tag : constant String := Get_Warning_Tag (E);
+      begin
+         return
+           Warning_Is_Suppressed (CE.Sptr.Ptr, CE.Text, Tag)
+           or else Warning_Is_Suppressed (CE.Optr.Ptr, CE.Text, Tag);
+      end Warning_Is_Suppressed;
+
+      Cur : Error_Msg_Id := First_Error_Msg;
+
+   --  Start of processing for Delete_Specifically_Suppressed_Warnings
+
+   begin
+      while Cur /= No_Error_Msg loop
+         if Errors.Table (Cur).Kind = Warning
+           and then not Errors.Table (Cur).Deleted
+           and then Warning_Is_Suppressed (Cur)
+         then
+            Delete_Error_And_Continuation_Msgs (Cur);
+         end if;
+
+         Cur := Errors.Table (Cur).Next;
+      end loop;
+   end Delete_Specifically_Suppressed_Warnings;
+
    -----------------------
    -- Change_Error_Text --
    -----------------------
@@ -388,19 +438,9 @@ package body Errout is
    --------------------------------------
 
    procedure Delete_Warning_And_Continuations (Msg : Error_Msg_Id) is
-      Id : Error_Msg_Id;
-
    begin
       pragma Assert (not Errors.Table (Msg).Msg_Cont);
-
-      Id := Msg;
-      loop
-         Delete_Error_Msg (Id);
-
-         Id := Errors.Table (Id).Next;
-         exit when Id = No_Error_Msg;
-         exit when not Errors.Table (Id).Msg_Cont;
-      end loop;
+      Delete_Error_And_Continuation_Msgs (Msg);
    end Delete_Warning_And_Continuations;
 
    ------------------
@@ -1899,91 +1939,10 @@ package body Errout is
    --------------
 
    procedure Finalize (Last_Call : Boolean) is
-      Cur : Error_Msg_Id;
-      Nxt : Error_Msg_Id;
-      F   : Error_Msg_Id;
-
-      function Warning_Is_Suppressed (E : Error_Msg_Id) return Boolean;
-      --  Check if the warning is suppressed in either its posted or original
-      --  location.
-
-      ---------------------------
-      -- Warning_Is_Suppressed --
-      ---------------------------
-
-      function Warning_Is_Suppressed (E : Error_Msg_Id) return Boolean is
-         CE  : Error_Msg_Object renames Errors.Table (E);
-         Tag : constant String := Get_Warning_Tag (E);
-      begin
-         return
-           Warning_Is_Suppressed (CE.Sptr.Ptr, CE.Text, Tag)
-           or else Warning_Is_Suppressed (CE.Optr.Ptr, CE.Text, Tag);
-      end Warning_Is_Suppressed;
-
-   --  Start of processing for Finalize
-
    begin
-      --  Set Prev pointers
-
-      Cur := First_Error_Msg;
-      while Cur /= No_Error_Msg loop
-         Nxt := Errors.Table (Cur).Next;
-         exit when Nxt = No_Error_Msg;
-         Errors.Table (Nxt).Prev := Cur;
-         Cur := Nxt;
-      end loop;
-
-      --  Eliminate any duplicated error messages from the list. This is
-      --  done after the fact to avoid problems with Change_Error_Text.
-
-      Cur := First_Error_Msg;
-      while Cur /= No_Error_Msg loop
-         Nxt := Errors.Table (Cur).Next;
-
-         F := Nxt;
-         while F /= No_Error_Msg
-           and then Errors.Table (F).Sptr.Ptr = Errors.Table (Cur).Sptr.Ptr
-         loop
-            Check_Duplicate_Message (Cur, F);
-            F := Errors.Table (F).Next;
-         end loop;
-
-         Cur := Nxt;
-      end loop;
-
-      --  Mark any messages suppressed by specific warnings as Deleted
-
-      Cur := First_Error_Msg;
-      while Cur /= No_Error_Msg loop
-         if Errors.Table (Cur).Kind = Warning
-            and then not Errors.Table (Cur).Deleted
-            and then Warning_Is_Suppressed (Cur)
-         then
-            Delete_Error_Msg (Cur);
-
-            --  If this is a continuation, delete previous parts of message
-
-            F := Cur;
-            while Errors.Table (F).Msg_Cont loop
-               F := Errors.Table (F).Prev;
-               exit when F = No_Error_Msg;
-               Delete_Error_Msg (F);
-            end loop;
-
-            --  Delete any following continuations
-
-            F := Cur;
-            loop
-               F := Errors.Table (F).Next;
-               exit when F = No_Error_Msg;
-               exit when not Errors.Table (F).Msg_Cont;
-               Delete_Error_Msg (F);
-            end loop;
-         end if;
-
-         Cur := Errors.Table (Cur).Next;
-      end loop;
-
+      Set_Prev_Pointers;
+      Delete_Duplicate_Errors;
+      Delete_Specifically_Suppressed_Warnings;
       Finalize_Called := True;
 
       --  Check consistency of specific warnings (may add warnings). We only
@@ -2805,38 +2764,8 @@ package body Errout is
 
       --  Local subprograms
 
-      procedure Emit_Error_Msgs;
-      --  Emit all error messages in the table use the pretty printed format if
-      --  -gnatdF is used otherwise use the brief format.
-
       procedure Write_Header (Sfile : Source_File_Index);
       --  Write header line (compiling or checking given file)
-
-      procedure Write_Max_Errors;
-      --  Write message if max errors reached
-
-      --------------------
-      -- Emit_Error_Msgs --
-      ---------------------
-
-      procedure Emit_Error_Msgs is
-         E : Error_Msg_Id;
-      begin
-         Set_Standard_Error;
-
-         E := First_Error_Msg;
-         while E /= No_Error_Msg loop
-            if not Errors.Table (E).Deleted then
-               Output_Msg_Location (E);
-               Output_Msg_Text (E);
-               Write_Eol;
-            end if;
-
-            E := Errors.Table (E).Next;
-         end loop;
-
-         Set_Standard_Output;
-      end Emit_Error_Msgs;
 
       ------------------
       -- Write_Header --
@@ -2864,30 +2793,6 @@ package body Errout is
             Write_Eol;
          end if;
       end Write_Header;
-
-      ----------------------
-      -- Write_Max_Errors --
-      ----------------------
-
-      procedure Write_Max_Errors is
-      begin
-         if Maximum_Messages /= 0 then
-            if Warnings_Detected >= Maximum_Messages then
-               Set_Standard_Error;
-               Write_Line ("maximum number of warnings output");
-               Write_Line ("any further warnings suppressed");
-               Set_Standard_Output;
-            end if;
-
-            --  If too many errors print message
-
-            if Total_Errors_Detected >= Maximum_Messages then
-               Set_Standard_Error;
-               Write_Line ("fatal error: maximum number of errors detected");
-               Set_Standard_Output;
-            end if;
-         end if;
-      end Write_Max_Errors;
 
       --  Local variables
 
@@ -2999,7 +2904,7 @@ package body Errout is
          elsif Debug_Flag_FF then
             Erroutc.Pretty_Emitter.Print_Error_Messages;
          else
-            Emit_Error_Msgs;
+            Write_All_Errors_In_Brief_Format;
          end if;
       end if;
 
@@ -3169,20 +3074,7 @@ package body Errout is
             Write_Header (Main_Source_File);
          end if;
 
-         E := First_Error_Msg;
-
-         --  Loop through error lines
-
-         while E /= No_Error_Msg loop
-            if Errors.Table (E).Deleted then
-               E := Errors.Table (E).Next;
-            else
-               Write_Eol;
-               Output_Source_Line
-                 (Errors.Table (E).Line, Errors.Table (E).Sfile, True);
-               Output_Error_Msgs (E);
-            end if;
-         end loop;
+         Write_All_Errors_In_Verbose_Format;
       end if;
 
       --  Output error summary if verbose or full list mode
@@ -4220,6 +4112,24 @@ package body Errout is
    end Set_Posted;
 
    -----------------------
+   -- Set_Prev_Pointers --
+   -----------------------
+
+   procedure Set_Prev_Pointers is
+      Cur : Error_Msg_Id;
+      Nxt : Error_Msg_Id;
+
+   begin
+      Cur := First_Error_Msg;
+      while Cur /= No_Error_Msg loop
+         Nxt := Errors.Table (Cur).Next;
+         exit when Nxt = No_Error_Msg;
+         Errors.Table (Nxt).Prev := Cur;
+         Cur := Nxt;
+      end loop;
+   end Set_Prev_Pointers;
+
+   -----------------------
    -- Set_Qualification --
    -----------------------
 
@@ -4535,5 +4445,28 @@ package body Errout is
          return '?' & Warning_Msg_Char & '?';
       end if;
    end Warn_Insertion;
+
+   ----------------------------------------
+   -- Write_All_Errors_In_Verbose_Format --
+   ----------------------------------------
+
+   procedure Write_All_Errors_In_Verbose_Format is
+      E : Error_Msg_Id;
+   begin
+      E := First_Error_Msg;
+
+      --  Loop through error lines
+
+      while E /= No_Error_Msg loop
+         if Errors.Table (E).Deleted then
+            E := Errors.Table (E).Next;
+         else
+            Write_Eol;
+            Output_Source_Line
+               (Errors.Table (E).Line, Errors.Table (E).Sfile, True);
+            Output_Error_Msgs (E);
+         end if;
+      end loop;
+   end Write_All_Errors_In_Verbose_Format;
 
 end Errout;

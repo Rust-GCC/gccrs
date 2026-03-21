@@ -739,6 +739,10 @@ package Erroutc is
    --  Tag used at the end of warning messages that were converted by
    --  pragma Warning_As_Error.
 
+   procedure Delete_Duplicate_Errors;
+   --  Delete dupleicate error messages from the list. This is
+   --  done after the fact to avoid problems with Change_Error_Text.
+
    procedure Delete_Error_Msg (E : Error_Msg_Id);
    --  Delete an error msg if not already deleted and adjust message count
 
@@ -746,6 +750,11 @@ package Erroutc is
    --  All error messages whose location is in the range From .. To (not
    --  including the end points) will be marked as deleted in the error
    --  listing.
+
+   procedure Delete_Error_And_Continuation_Msgs (E : Error_Msg_Id);
+   --  Delete E and all continuations following E and if E was a continuation
+   --  then all of the continuations before it and the non-continuation message
+   --  that it was attached to.
 
    generic
       with function Filter (E : Error_Msg_Id) return Boolean is <>;
@@ -922,7 +931,13 @@ package Erroutc is
    --  Returns true if a Warning_As_Error pragma matches either the error text
    --  or the warning tag of the message.
 
+   procedure Write_All_Errors_In_Brief_Format;
+   --  Emit all error messages in the errors table using the brief format
+
    procedure Write_Error_Summary;
    --  Write error summary
+
+   procedure Write_Max_Errors;
+   --  Write message if max errors reached
 
 end Erroutc;
