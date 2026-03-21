@@ -5346,7 +5346,7 @@ gimple_fold_builtin_stdarg (gimple_stmt_iterator *gsi, gcall *call)
 	}
       unlink_stmt_vdef (call);
       release_defs (call);
-      gsi_replace (gsi, gimple_build_nop (), true);
+      gsi_replace (gsi, gimple_build_nop (), false);
       return true;
 
     default:
