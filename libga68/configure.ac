@@ -175,7 +175,6 @@ LIBGA68_CHECK_ATTRIBUTE_VISIBILITY
 
 # Search for needed functions in host libraries.
 AC_SEARCH_LIBS([malloc], [c])
-AC_SEARCH_LIBS([cosf], [m])
 
 # Determine what GCC version number to use in filesystem paths.
 GCC_BASE_VER

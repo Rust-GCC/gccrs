@@ -129,6 +129,7 @@ libga68_la_SOURCES = libga68.c \
                      ga68-alloc.c \
                      ga68-error.c \
                      ga68-standenv.c \
+                     ga68-math.c \
                      ga68.h
 libga68_la_LIBTOOLFLAGS =
 libga68_la_CFLAGS = $(LIBGA68_GCFLAGS) $(LIBGA68_BOEHM_GC_INCLUDES)

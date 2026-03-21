@@ -173,7 +173,7 @@ am__DEPENDENCIES_1 =
 am_libga68_la_OBJECTS = libga68_la-libga68.lo \
 	libga68_la-ga68-unistr.lo libga68_la-ga68-posix.lo \
 	libga68_la-ga68-alloc.lo libga68_la-ga68-error.lo \
-	libga68_la-ga68-standenv.lo
+	libga68_la-ga68-standenv.lo libga68_la-ga68-math.lo
 libga68_la_OBJECTS = $(am_libga68_la_OBJECTS)
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
@@ -468,6 +468,7 @@ libga68_la_SOURCES = libga68.c \
                      ga68-alloc.c \
                      ga68-error.c \
                      ga68-standenv.c \
+                     ga68-math.c \
                      ga68.h
 
 libga68_la_LIBTOOLFLAGS = 
@@ -592,6 +593,7 @@ distclean-compile:
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libga68_la-ga68-alloc.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libga68_la-ga68-error.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libga68_la-ga68-math.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libga68_la-ga68-posix.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libga68_la-ga68-standenv.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libga68_la-ga68-unistr.Plo@am__quote@
@@ -659,6 +661,13 @@ libga68_la-ga68-standenv.lo: ga68-standenv.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='ga68-standenv.c' object='libga68_la-ga68-standenv.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(libga68_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libga68_la_CFLAGS) $(CFLAGS) -c -o libga68_la-ga68-standenv.lo `test -f 'ga68-standenv.c' || echo '$(srcdir)/'`ga68-standenv.c
+
+libga68_la-ga68-math.lo: ga68-math.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(libga68_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libga68_la_CFLAGS) $(CFLAGS) -MT libga68_la-ga68-math.lo -MD -MP -MF $(DEPDIR)/libga68_la-ga68-math.Tpo -c -o libga68_la-ga68-math.lo `test -f 'ga68-math.c' || echo '$(srcdir)/'`ga68-math.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libga68_la-ga68-math.Tpo $(DEPDIR)/libga68_la-ga68-math.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='ga68-math.c' object='libga68_la-ga68-math.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(libga68_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libga68_la_CFLAGS) $(CFLAGS) -c -o libga68_la-ga68-math.lo `test -f 'ga68-math.c' || echo '$(srcdir)/'`ga68-math.c
 
 mostlyclean-libtool:
 	-rm -f *.lo
