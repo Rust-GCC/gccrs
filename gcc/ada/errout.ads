@@ -907,8 +907,8 @@ package Errout is
    --  where the expression is parenthesized, an attempt is made to include
    --  the parentheses (i.e. to return the location of the final paren).
 
-   procedure Purge_Messages (From : Source_Ptr; To : Source_Ptr)
-     renames Erroutc.Purge_Messages;
+   procedure Delete_Error_Msgs_In_Range (From : Source_Ptr; To : Source_Ptr)
+   renames Erroutc.Delete_Error_Msgs_In_Range;
    --  All error messages whose location is in the range From .. To (not
    --  including the end points) will be deleted from the error listing.
 

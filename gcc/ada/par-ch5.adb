@@ -2137,7 +2137,8 @@ package body Ch5 is
             --  can cause a lot of havoc, and it is better not to dump these
             --  cascaded messages on the user.
 
-            Purge_Messages (Get_Location (Missing_Begin_Msg), Prev_Token_Ptr);
+            Delete_Error_Msgs_In_Range
+              (Get_Location (Missing_Begin_Msg), Prev_Token_Ptr);
          end if;
       end Missing_Begin;
 

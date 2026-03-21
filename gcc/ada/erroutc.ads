@@ -742,9 +742,17 @@ package Erroutc is
    procedure Delete_Error_Msg (E : Error_Msg_Id);
    --  Delete an error msg if not already deleted and adjust message count
 
-   procedure Purge_Messages (From : Source_Ptr; To : Source_Ptr);
+   procedure Delete_Error_Msgs_In_Range (From : Source_Ptr; To : Source_Ptr);
    --  All error messages whose location is in the range From .. To (not
-   --  including the end points) will be deleted from the error listing.
+   --  including the end points) will be marked as deleted in the error
+   --  listing.
+
+   generic
+      with function Filter (E : Error_Msg_Id) return Boolean is <>;
+   procedure Filter_And_Delete_Errors;
+   pragma Inline (Filter_And_Delete_Errors);
+   --  Iterate over all of the errors in the error chain and mark all messages
+   --  as deleted if they match the Filter.
 
    function Same_Error (M1, M2 : Error_Msg_Id) return Boolean;
    --  See if two messages have the same text. Returns true if the text of the

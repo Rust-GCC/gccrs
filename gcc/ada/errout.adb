@@ -3360,11 +3360,13 @@ package body Errout is
 
       function Check_For_Warning (N : Node_Id) return Traverse_Result is
          Loc : constant Source_Ptr := Sloc (N);
-         E   : Error_Msg_Id;
 
          function To_Be_Removed (E : Error_Msg_Id) return Boolean;
          --  Returns True for a message that is to be removed. Also adjusts
          --  warning count appropriately.
+
+         procedure Remove_Errors is new
+           Filter_And_Delete_Errors (To_Be_Removed);
 
          -------------------
          -- To_Be_Removed --
@@ -3400,33 +3402,7 @@ package body Errout is
       --  Start of processing for Check_For_Warnings
 
       begin
-         --  Remove the first messages from the error chain.
-         --  ??? Why not delete them like the others?
-
-         while To_Be_Removed (First_Error_Msg) loop
-            Decrease_Error_Msg_Count (Errors.Table (First_Error_Msg));
-            First_Error_Msg := Errors.Table (First_Error_Msg).Next;
-         end loop;
-
-         if First_Error_Msg = No_Error_Msg then
-            Last_Error_Msg := No_Error_Msg;
-         end if;
-
-         E := First_Error_Msg;
-         while E /= No_Error_Msg loop
-            while To_Be_Removed (Errors.Table (E).Next) loop
-               Delete_Error_Msg (Errors.Table (E).Next);
-
-               Errors.Table (E).Next :=
-                 Errors.Table (Errors.Table (E).Next).Next;
-
-               if Errors.Table (E).Next = No_Error_Msg then
-                  Last_Error_Msg := E;
-               end if;
-            end loop;
-
-            E := Errors.Table (E).Next;
-         end loop;
+         Remove_Errors;
 
          --  Warnings may have been posted on subexpressions of original tree
 

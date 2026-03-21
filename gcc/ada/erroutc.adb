@@ -273,6 +273,23 @@ package body Erroutc is
       end if;
    end Debug_Output;
 
+   ------------------------------
+   -- Filter_And_Delete_Errors --
+   ------------------------------
+
+   procedure Filter_And_Delete_Errors is
+      E : Error_Msg_Id;
+   begin
+      E := First_Error_Msg;
+      while E /= No_Error_Msg loop
+         if Filter (E) then
+            Delete_Error_Msg (E);
+         end if;
+
+         E := Errors.Table (E).Next;
+      end loop;
+   end Filter_And_Delete_Errors;
+
    ----------------------
    -- Delete_Error_Msg --
    ----------------------
@@ -284,6 +301,33 @@ package body Erroutc is
          Decrease_Error_Msg_Count (Errors.Table (E));
       end if;
    end Delete_Error_Msg;
+
+   --------------------------------
+   -- Delete_Error_Msgs_In_Range --
+   --------------------------------
+
+   procedure Delete_Error_Msgs_In_Range (From : Source_Ptr; To : Source_Ptr) is
+
+      function Error_in_Range (E : Error_Msg_Id) return Boolean;
+      --  Returns True for a message that is to be purged. Also adjusts
+      --  error counts appropriately.
+
+      procedure Delete_Errors is new Filter_And_Delete_Errors (Error_in_Range);
+
+      --------------------
+      -- Error_in_Range --
+      --------------------
+
+      function Error_in_Range (E : Error_Msg_Id) return Boolean
+      is (E /= No_Error_Msg
+          and then Errors.Table (E).Sptr.Ptr > From
+          and then Errors.Table (E).Sptr.Ptr < To);
+
+   --  Start of processing for Delete_Error_Msgs_In_Range
+
+   begin
+      Delete_Errors;
+   end Delete_Error_Msgs_In_Range;
 
    -----------
    -- dedit --
@@ -1323,58 +1367,6 @@ package body Erroutc is
          end if;
       end loop;
    end Prescan_Message;
-
-   --------------------
-   -- Purge_Messages --
-   --------------------
-
-   procedure Purge_Messages (From : Source_Ptr; To : Source_Ptr) is
-      E : Error_Msg_Id;
-
-      function To_Be_Purged (E : Error_Msg_Id) return Boolean;
-      --  Returns True for a message that is to be purged. Also adjusts
-      --  error counts appropriately.
-
-      ------------------
-      -- To_Be_Purged --
-      ------------------
-
-      function To_Be_Purged (E : Error_Msg_Id) return Boolean is
-      begin
-         if E /= No_Error_Msg
-           and then Errors.Table (E).Sptr.Ptr > From
-           and then Errors.Table (E).Sptr.Ptr < To
-         then
-            return True;
-
-         else
-            return False;
-         end if;
-      end To_Be_Purged;
-
-   --  Start of processing for Purge_Messages
-
-   begin
-      --  Remove the first messages from the error chain.
-      --  ??? Why not delete them like the others?
-
-      while To_Be_Purged (First_Error_Msg) loop
-         Decrease_Error_Msg_Count (Errors.Table (First_Error_Msg));
-         First_Error_Msg := Errors.Table (First_Error_Msg).Next;
-      end loop;
-
-      E := First_Error_Msg;
-      while E /= No_Error_Msg loop
-         while To_Be_Purged (Errors.Table (E).Next) loop
-            Delete_Error_Msg (Errors.Table (E).Next);
-
-            Errors.Table (E).Next :=
-              Errors.Table (Errors.Table (E).Next).Next;
-         end loop;
-
-         E := Errors.Table (E).Next;
-      end loop;
-   end Purge_Messages;
 
    ----------------
    -- Same_Error --
