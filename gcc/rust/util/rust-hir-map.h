@@ -353,6 +353,9 @@ public:
   void add_derived_node (NodeId node_id);
   bool is_derived_node (NodeId node_id);
 
+  void add_function_node (NodeId node_id);
+  bool is_function_node (NodeId node_id);
+
 private:
   Mappings ();
 
@@ -450,6 +453,8 @@ private:
   std::unordered_map<NodeId, std::vector<NodeId>> captures;
 
   std::set<NodeId> derived_nodes;
+
+  std::set<NodeId> function_nodes;
 };
 
 } // namespace Analysis

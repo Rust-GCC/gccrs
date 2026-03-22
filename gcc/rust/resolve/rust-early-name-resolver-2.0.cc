@@ -27,6 +27,7 @@
 #include "rust-attributes.h"
 #include "rust-finalize-imports-2.0.h"
 #include "rust-attribute-values.h"
+#include "rust-identifier-path.h"
 
 namespace Rust {
 namespace Resolver2_0 {
@@ -70,6 +71,9 @@ Early::go (AST::Crate &crate)
   visit (crate);
 
   textual_scope.pop ();
+
+  // handle IdentifierPattern vs PathInExpression disambiguation
+  IdentifierPathPass::go (crate, ctx, std::move (ident_path_to_convert));
 }
 
 bool
@@ -541,6 +545,30 @@ Early::visit (AST::UseTreeList &use_list)
 	}
     }
   DefaultResolver::visit (use_list);
+}
+
+void
+Early::visit (AST::IdentifierPattern &identifier)
+{
+  // check if this is *really* a path pattern
+  if (!identifier.get_is_ref () && !identifier.get_is_mut ()
+      && !identifier.has_subpattern ())
+    {
+      auto res = ctx.values.get (identifier.get_ident ());
+      if (res)
+	{
+	  if (res->is_ambiguous ())
+	    rust_error_at (identifier.get_locus (), ErrorCode::E0659,
+			   "%qs is ambiguous",
+			   identifier.get_ident ().as_string ().c_str ());
+	  else
+	    {
+	      // HACK: bail out if the definition is a function
+	      if (!ctx.mappings.is_function_node (res->get_node_id ()))
+		ident_path_to_convert.insert (identifier.get_node_id ());
+	    }
+	}
+    }
 }
 
 } // namespace Resolver2_0
