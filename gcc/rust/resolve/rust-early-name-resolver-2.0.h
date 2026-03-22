@@ -26,6 +26,7 @@
 #include "rust-default-resolver.h"
 #include "rust-rib.h"
 #include "rust-toplevel-name-resolver-2.0.h"
+#include "rust-pattern.h"
 
 namespace Rust {
 namespace Resolver2_0 {
@@ -66,6 +67,8 @@ public:
   void visit (AST::UseTreeList &) override;
 
   void visit (AST::Attribute &) override;
+
+  void visit (AST::IdentifierPattern &) override;
 
   struct ImportData
   {
@@ -266,6 +269,9 @@ private:
 			     const Early::ImportPair &mapping);
 
   void finalize_rebind_import (const Early::ImportPair &mapping);
+
+  /* used to help conversion from IdentifierPattern to PathInExpression */
+  std::set<NodeId> ident_path_to_convert;
 };
 
 } // namespace Resolver2_0
