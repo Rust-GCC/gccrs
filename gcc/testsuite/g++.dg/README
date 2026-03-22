@@ -15,6 +15,7 @@ inherit	 Tests for inheritance -- virtual functions, multiple inheritance, etc.
 init	 Tests for initialization semantics, constructors/destructors, etc.
 lookup	 Tests for lookup semantics, namespaces, using, etc.
 lto	 Tests for Link Time Optimization.
+modules  Tests for C++20 modules.
 opt	 Tests for fixes of bugs with particular optimizations.
 overload Tests for overload resolution and conversions.
 parse	 Tests for parsing.

@@ -49,14 +49,14 @@ namespace Detail  {
 
 #if __cpp_char8_t >= 201811
 template<unsigned I>
-constexpr char S2C (char8_t const (&s)[I])
+constexpr unsigned char S2C (char8_t const (&s)[I])
 {
   static_assert (I == 2, "only single octet strings may be converted");
   return s[0];
 }
 #else
 template<unsigned I>
-constexpr char S2C (char const (&s)[I])
+constexpr unsigned char S2C (char const (&s)[I])
 {
   static_assert (I == 2, "only single octet strings may be converted");
   return s[0];

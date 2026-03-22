@@ -30,7 +30,7 @@
 namespace Cody {
 namespace Detail {
 
-static const char CONTINUE = S2C(u8";");
+static const unsigned char CONTINUE = S2C(u8";");
 
 void MessageBuffer::BeginLine ()
 {
@@ -239,7 +239,7 @@ int MessageBuffer::Lex (std::vector<std::string> &result)
 
   for (std::string *word = nullptr;;)
     {
-      char c = *iter;
+      unsigned char c = *iter;
 
       ++iter;
       if (c == S2C(u8" ") || c == S2C(u8"\t"))
@@ -292,7 +292,7 @@ int MessageBuffer::Lex (std::vector<std::string> &result)
 		  return EINVAL;
 		}
 
-	      if (c < S2C(u8" ") || c >= 0x7f)
+	      if (c < S2C(u8" "))
 		goto malformed;
 
 	      ++iter;
