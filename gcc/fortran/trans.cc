@@ -1609,7 +1609,7 @@ gfc_assignment_finalizer_call (gfc_se *lse, gfc_expr *expr1, bool init_flag)
 
 void
 gfc_finalize_tree_expr (gfc_se *se, gfc_symbol *derived,
-			symbol_attribute attr, int rank)
+			const symbol_attribute &attr, int rank)
 {
   tree vptr, final_fndecl, desc, tmp, size, is_final;
   tree data_ptr, data_null, cond;

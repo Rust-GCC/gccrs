@@ -737,7 +737,7 @@ expr_to_char (gfc_expr *e, locus *loc,
    the union declaration.  */
 
 size_t
-gfc_merge_initializers (gfc_typespec ts, gfc_expr *e, locus *loc,
+gfc_merge_initializers (const gfc_typespec &ts, gfc_expr *e, locus *loc,
 			unsigned char *data,
 			unsigned char *chk, size_t length)
 {
