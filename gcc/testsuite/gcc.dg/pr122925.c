@@ -1,4 +1,4 @@
-/* { dg-do run } */
+/* { dg-do run { target int32plus } } */
 /* { dg-options "-O2" } */
 
 typedef __UINT64_TYPE__ uint64_t;
