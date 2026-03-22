@@ -1,3 +1,15 @@
+2026-03-21  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	PR c++/122786
+	* g++.dg/modules/attrib-5_a.C: New test.
+	* g++.dg/modules/attrib-5_b.C: New test.
+
+2026-03-21  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	PR c++/124483
+	* g++.dg/modules/attrib-4_a.C: New test.
+	* g++.dg/modules/attrib-4_b.C: New test.
+
 2026-03-20  Tobias Burnus  <tburnus@baylibre.com>
 	    Sandra Loosemore  <sloosemore@baylibre.com>
 

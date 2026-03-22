@@ -1,3 +1,13 @@
+2026-03-21  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR target/123852
+	* config/sh/sh.md (movsicc_t_false): Add the SImode
+	on the if_then_else.
+	(movsicc_t_true): Likewise.
+	(negsi_cond): Likewise.
+	(negdi_cond): Add the DImode on the if_then_else.
+	(bst_m2a): Add the QImode on the if_then_else.
+
 2026-03-20  Tobias Burnus  <tburnus@baylibre.com>
 	    Sandra Loosemore  <sloosemore@baylibre.com>
 

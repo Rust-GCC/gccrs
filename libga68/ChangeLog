@@ -1,3 +1,12 @@
+2026-03-21  Jose E. Marchesi  <jemarch@gnu.org>
+
+	* ga68-math.c: New file.
+	* floor.c: Imported from gnulib.
+	* configure.ac: Do not check for libm.
+	* Makefile.am (libga68_la_SOURCES): Add ga68-match.c.
+	* Makefile.in (am_libga68_la_OBJECTS): Regenerate.
+	* configure (ac_res): Likewise.
+
 2026-03-15  Jose E. Marchesi  <jemarch@gnu.org>
 
 	* ga68.map: Add public symbols from posix and standard preludes.

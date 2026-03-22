@@ -1,3 +1,48 @@
+2026-03-21  Matthias Kretz  <m.kretz@gsi.de>
+
+	* include/Makefile.am: Add simd headers.
+	* include/Makefile.in: Regenerate.
+	* include/bits/version.def (simd): New.
+	* include/bits/version.h: Regenerate.
+	* include/bits/simd_alg.h: New file.
+	* include/bits/simd_details.h: New file.
+	* include/bits/simd_flags.h: New file.
+	* include/bits/simd_iterator.h: New file.
+	* include/bits/simd_loadstore.h: New file.
+	* include/bits/simd_mask.h: New file.
+	* include/bits/simd_mask_reductions.h: New file.
+	* include/bits/simd_reductions.h: New file.
+	* include/bits/simd_vec.h: New file.
+	* include/bits/simd_x86.h: New file.
+	* include/bits/vec_ops.h: New file.
+	* include/std/simd: New file.
+	* testsuite/std/simd/arithmetic.cc: New test.
+	* testsuite/std/simd/arithmetic_expensive.cc: New test.
+	* testsuite/std/simd/create_tests.h: New file.
+	* testsuite/std/simd/creation.cc: New test.
+	* testsuite/std/simd/creation_expensive.cc: New test.
+	* testsuite/std/simd/loads.cc: New test.
+	* testsuite/std/simd/loads_expensive.cc: New test.
+	* testsuite/std/simd/mask2.cc: New test.
+	* testsuite/std/simd/mask2_expensive.cc: New test.
+	* testsuite/std/simd/mask.cc: New test.
+	* testsuite/std/simd/mask_expensive.cc: New test.
+	* testsuite/std/simd/reductions.cc: New test.
+	* testsuite/std/simd/reductions_expensive.cc: New test.
+	* testsuite/std/simd/shift_left.cc: New test.
+	* testsuite/std/simd/shift_left_expensive.cc: New test.
+	* testsuite/std/simd/shift_right.cc: New test.
+	* testsuite/std/simd/shift_right_expensive.cc: New test.
+	* testsuite/std/simd/simd_alg.cc: New test.
+	* testsuite/std/simd/simd_alg_expensive.cc: New test.
+	* testsuite/std/simd/sse_intrin.cc: New test.
+	* testsuite/std/simd/stores.cc: New test.
+	* testsuite/std/simd/stores_expensive.cc: New test.
+	* testsuite/std/simd/test_setup.h: New file.
+	* testsuite/std/simd/traits_common.cc: New test.
+	* testsuite/std/simd/traits_impl.cc: New test.
+	* testsuite/std/simd/traits_math.cc: New test.
+
 2026-03-20  Jonathan Wakely  <jwakely@redhat.com>
 
 	PR libstdc++/122567
