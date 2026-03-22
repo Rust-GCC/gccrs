@@ -774,6 +774,8 @@ skip_free_oacc_sentinel (locus start, locus old_loc)
       if ((c = next_char ()) == ' ' || c == '\t'
 	  || continue_flag)
 	{
+	  if (!continue_flag && (c == ' ' || c == '\t'))
+	    openmp_flag = 0;
 	  while (gfc_is_whitespace (c))
 	    c = next_char ();
 	  if (c != '\n' && c != '!')
@@ -814,6 +816,8 @@ skip_free_omp_sentinel (locus start, locus old_loc)
       if ((c = next_char ()) == ' ' || c == '\t'
 	  || continue_flag)
 	{
+	  if (!continue_flag && (c == ' ' || c == '\t'))
+	    openacc_flag = 0;
 	  while (gfc_is_whitespace (c))
 	    c = next_char ();
 	  if (c != '\n' && c != '!')
