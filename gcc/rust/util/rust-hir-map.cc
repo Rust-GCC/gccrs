@@ -1382,5 +1382,17 @@ Mappings::is_derived_node (NodeId node_id)
   return derived_nodes.find (node_id) != derived_nodes.end ();
 }
 
+void
+Mappings::add_function_node (NodeId node_id)
+{
+  function_nodes.insert (node_id);
+}
+
+bool
+Mappings::is_function_node (NodeId node_id)
+{
+  return function_nodes.find (node_id) != function_nodes.end ();
+}
+
 } // namespace Analysis
 } // namespace Rust

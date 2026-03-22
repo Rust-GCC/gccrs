@@ -241,6 +241,8 @@ TopLevel::visit (AST::Function &function)
   insert_or_error_out (function.get_function_name (), function,
 		       Namespace::Values);
 
+  Analysis::Mappings::get ().add_function_node (function.get_node_id ());
+
   DefaultResolver::visit (function);
 }
 
