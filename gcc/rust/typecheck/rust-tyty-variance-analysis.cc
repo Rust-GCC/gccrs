@@ -241,7 +241,8 @@ GenericTyVisitorCtx::process_type (ADTType &ty)
 
   for (const auto &variant : ty.get_variants ())
     {
-      if (variant->get_variant_type () != VariantDef::NUM)
+      if (variant->get_variant_type () != VariantDef::NUM
+	  && variant->get_variant_type () != VariantDef::UNIT)
 	{
 	  for (const auto &field : variant->get_fields ())
 	    add_constraints_from_ty (field->get_field_type (),

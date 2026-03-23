@@ -828,7 +828,8 @@ public:
   {
     NUM,
     TUPLE,
-    STRUCT
+    STRUCT,
+    UNIT
   };
 
   static std::string variant_type_string (VariantType type);

@@ -8,3 +8,9 @@ pub fn foo(v: S) {
         S => ()
     }
 }
+
+pub fn bar(v: S) {
+    match v {
+        crate::S => ()
+    }
+}
