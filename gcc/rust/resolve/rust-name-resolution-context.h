@@ -543,20 +543,20 @@ public:
     switch (ns)
       {
       case Namespace::Values:
-	resolved = values.resolve_path (path, mode, insert_segment_resolution,
-					collect_errors);
+	resolved = resolve_path (values, path, mode, insert_segment_resolution,
+				 collect_errors);
 	break;
       case Namespace::Types:
-	resolved = types.resolve_path (path, mode, insert_segment_resolution,
-				       collect_errors);
+	resolved = resolve_path (types, path, mode, insert_segment_resolution,
+				 collect_errors);
 	break;
       case Namespace::Macros:
-	resolved = macros.resolve_path (path, mode, insert_segment_resolution,
-					collect_errors);
+	resolved = resolve_path (macros, path, mode, insert_segment_resolution,
+				 collect_errors);
 	break;
       case Namespace::Labels:
-	resolved = labels.resolve_path (path, mode, insert_segment_resolution,
-					collect_errors);
+	resolved = resolve_path (labels, path, mode, insert_segment_resolution,
+				 collect_errors);
 	break;
       default:
 	rust_unreachable ();
@@ -569,17 +569,17 @@ public:
 	switch (ns)
 	  {
 	  case Namespace::Values:
-	    return values.resolve_path (path, mode, insert_segment_resolution,
-					collect_errors, *prelude);
+	    return resolve_path (values, path, mode, insert_segment_resolution,
+				 collect_errors, *prelude);
 	  case Namespace::Types:
-	    return types.resolve_path (path, mode, insert_segment_resolution,
-				       collect_errors, *prelude);
+	    return resolve_path (types, path, mode, insert_segment_resolution,
+				 collect_errors, *prelude);
 	  case Namespace::Macros:
-	    return macros.resolve_path (path, mode, insert_segment_resolution,
-					collect_errors, *prelude);
+	    return resolve_path (macros, path, mode, insert_segment_resolution,
+				 collect_errors, *prelude);
 	  case Namespace::Labels:
-	    return labels.resolve_path (path, mode, insert_segment_resolution,
-					collect_errors, *prelude);
+	    return resolve_path (labels, path, mode, insert_segment_resolution,
+				 collect_errors, *prelude);
 	  default:
 	    rust_unreachable ();
 	  }
@@ -774,6 +774,34 @@ public:
 			 std::forward<Args> (args)...);
   }
 
+  /**
+   * Resolve a path to its definition in the current `ForeverStack`
+   *
+   * // TODO: Add documentation for `segments`
+   *
+   * @return a valid option with the Definition if the path is present in the
+   *         current map, an empty one otherwise.
+   */
+  template <Namespace N>
+  tl::optional<Rib::Definition> resolve_path (
+    ForeverStack<N> &stack, const ResolutionPath &path, ResolutionMode mode,
+    std::function<void (Usage, Definition)> insert_segment_resolution,
+    std::vector<Error> &collect_errors);
+
+  template <Namespace N>
+  tl::optional<Rib::Definition> resolve_path (
+    ForeverStack<N> &stack, const ResolutionPath &path, ResolutionMode mode,
+    std::function<void (Usage, Definition)> insert_segment_resolution,
+    std::vector<Error> &collect_errors, NodeId starting_point_id);
+
+  /* TODO: Make private? */
+  template <Namespace N>
+  tl::optional<Rib::Definition> resolve_path (
+    ForeverStack<N> &stack, const ResolutionPath &path, ResolutionMode mode,
+    std::function<void (Usage, Definition)> insert_segment_resolution,
+    std::vector<Error> &collect_errors,
+    std::reference_wrapper<typename ForeverStack<N>::Node> starting_point);
+
   /* If declared with #[prelude_import], the current standard library module */
   tl::optional<NodeId> prelude;
 
@@ -784,5 +812,7 @@ private:
 
 } // namespace Resolver2_0
 } // namespace Rust
+
+#include "rust-name-resolution-context.hxx"
 
 #endif // ! RUST_NAME_RESOLVER_2_0_CTX_H
