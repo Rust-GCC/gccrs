@@ -9890,7 +9890,7 @@ package body Sem_Elab is
                --  The corresponding subunit was previously loaded
 
                if Present (Lib_Unit) then
-                  return Lib_Unit;
+                  return Proper_Body (Unit (Lib_Unit));
 
                --  Otherwise attempt to load the corresponding subunit
 
