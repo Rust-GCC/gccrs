@@ -936,7 +936,9 @@ PlaceInfo::specialize (const Constructor &c) const
 	      TyTy::VariantDef *variant
 		= adt->get_variants ().at (c.get_variant_index ());
 	      if (variant->get_variant_type ()
-		  == TyTy::VariantDef::VariantType::NUM)
+		    == TyTy::VariantDef::VariantType::NUM
+		  || variant->get_variant_type ()
+		       == TyTy::VariantDef::VariantType::UNIT)
 		return {};
 
 	      std::vector<PlaceInfo> new_place_infos;
@@ -1050,6 +1052,7 @@ WitnessPat::to_string () const
 
 	switch (variant->get_variant_type ())
 	  {
+	  case TyTy::VariantDef::VariantType::UNIT:
 	  case TyTy::VariantDef::VariantType::NUM:
 	    {
 	      return buf;
@@ -1145,7 +1148,8 @@ WitnessMatrix::apply_constructor (const Constructor &ctor,
 	    TyTy::ADTType *adt = static_cast<TyTy::ADTType *> (ty);
 	    TyTy::VariantDef *variant
 	      = adt->get_variants ().at (ctor.get_variant_index ());
-	    if (variant->get_variant_type () == TyTy::VariantDef::NUM)
+	    if (variant->get_variant_type () == TyTy::VariantDef::NUM
+		|| variant->get_variant_type () == TyTy::VariantDef::UNIT)
 	      arity = 0;
 	    else
 	      arity = variant->get_fields ().size ();

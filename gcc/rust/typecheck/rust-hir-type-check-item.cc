@@ -283,13 +283,15 @@ TypeCheckItem::visit (HIR::StructStruct &struct_decl)
   RustIdent ident{path, struct_decl.get_locus ()};
 
   // its a single variant ADT
+  auto variant_type = struct_decl.is_unit_struct ()
+			? TyTy::VariantDef::VariantType::UNIT
+			: TyTy::VariantDef::VariantType::STRUCT;
   std::vector<TyTy::VariantDef *> variants;
   variants.push_back (
     new TyTy::VariantDef (struct_decl.get_mappings ().get_hirid (),
 			  struct_decl.get_mappings ().get_defid (),
 			  struct_decl.get_identifier ().as_string (), ident,
-			  TyTy::VariantDef::VariantType::STRUCT, tl::nullopt,
-			  std::move (fields)));
+			  variant_type, tl::nullopt, std::move (fields)));
 
   // Process #[repr(X)] attribute, if any
   const AST::AttrVec &attrs = struct_decl.get_outer_attrs ();
