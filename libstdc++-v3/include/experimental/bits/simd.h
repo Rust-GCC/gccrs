@@ -2469,7 +2469,9 @@ template <>
 template <typename _Tp, size_t _Bytes>
   struct __intrinsic_type<_Tp, _Bytes, enable_if_t<__is_vectorizable_v<_Tp> && _Bytes <= 64>>
   {
-    static_assert(!is_same_v<_Tp, long double>,
+    // allow _Tp == long double with -mlong-double-64
+    static_assert(!(is_same_v<_Tp, long double>
+		    && sizeof(long double) > sizeof(double)),
 		  "no __intrinsic_type support for long double on x86");
 
     static constexpr size_t _S_VBytes = _Bytes <= 16 ? 16 : _Bytes <= 32 ? 32 : 64;
