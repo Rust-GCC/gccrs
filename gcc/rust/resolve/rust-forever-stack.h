@@ -749,23 +749,6 @@ public:
   tl::optional<Rib::Definition> get_from_prelude (NodeId prelude,
 						  const Identifier &name);
 
-  /**
-   * Resolve a path to its definition in the current `ForeverStack`
-   *
-   * // TODO: Add documentation for `segments`
-   *
-   * @return a valid option with the Definition if the path is present in the
-   *         current map, an empty one otherwise.
-   */
-  tl::optional<Rib::Definition> resolve_path (
-    const ResolutionPath &path, ResolutionMode mode,
-    std::function<void (Usage, Definition)> insert_segment_resolution,
-    std::vector<Error> &collect_errors);
-  tl::optional<Rib::Definition> resolve_path (
-    const ResolutionPath &path, ResolutionMode mode,
-    std::function<void (Usage, Definition)> insert_segment_resolution,
-    std::vector<Error> &collect_errors, NodeId starting_point_id);
-
   // FIXME: Documentation
   tl::optional<Rib &> to_rib (NodeId rib_id);
   tl::optional<const Rib &> to_rib (NodeId rib_id) const;
@@ -778,7 +761,6 @@ public:
    */
   bool is_module_descendant (NodeId parent, NodeId child) const;
 
-private:
   /**
    * A link between two Nodes in our trie data structure. This class represents
    * the edges of the graph
@@ -826,17 +808,7 @@ private:
     tl::optional<Node &> parent; // `None` only if the node is a root
   };
 
-  /**
-   * Private overloads which allow specifying a starting point
-   */
-
   tl::optional<Rib::Definition> get (Node &start, const Identifier &name);
-
-  tl::optional<Rib::Definition> resolve_path (
-    const ResolutionPath &path, ResolutionMode mode,
-    std::function<void (Usage, Definition)> insert_segment_resolution,
-    std::vector<Error> &collect_errors,
-    std::reference_wrapper<Node> starting_point);
 
   /* Should we keep going upon seeing a Rib? */
   enum class KeepGoing
@@ -859,6 +831,7 @@ private:
 
   Node &cursor ();
   const Node &cursor () const;
+
   void update_cursor (Node &new_cursor);
 
   /* The forever stack's actual nodes */
@@ -930,7 +903,6 @@ private:
   tl::optional<const Node &> dfs_node (const Node &starting_point,
 				       NodeId to_find) const;
 
-public:
   bool forward_declared (NodeId definition, NodeId usage)
   {
     if (peek ().kind != Rib::Kind::ForwardTypeParamBan)
