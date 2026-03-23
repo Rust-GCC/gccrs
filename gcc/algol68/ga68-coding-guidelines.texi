@@ -409,7 +409,7 @@ Use @code{`whatever'} to refer to any other source construct that is
 not a formal parameter.
 
 Use @code{@{@{} and @code{@}@}} delimiters for commenting out code.
-Remember comments in modern Algol 68 aren't nestable.
+Remember comments in modern Algol 68 are nestable.
 
 Examples:
 
