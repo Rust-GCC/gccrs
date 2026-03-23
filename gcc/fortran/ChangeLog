@@ -1,3 +1,13 @@
+2026-03-22  Harald Anlauf  <anlauf@gmx.de>
+
+	PR fortran/124259
+	* target-memory.cc (gfc_merge_initializers): Change struct
+	gfc_typespec argument into a const reference.
+	* target-memory.h (gfc_merge_initializers): Adjust prototype.
+	* trans.cc (gfc_finalize_tree_expr): Change struct symbol_attribute
+	argument into a const reference.
+	* trans.h (gfc_finalize_tree_expr): Adjust prototype.
+
 2026-03-20  Christopher Albert  <albert@tugraz.at>
 
 	PR fortran/120723

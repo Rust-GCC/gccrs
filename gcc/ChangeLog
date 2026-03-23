@@ -1,3 +1,15 @@
+2026-03-22  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR target/124597
+	* config/i386/i386-builtins.cc (ix86_init_builtins_va_builtins_abi):
+	Also add nothrow and leaf attributes to the va builtins.
+
+2026-03-22  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR tree-optimization/124597
+	* gimple-fold.cc (gimple_fold_builtin_stdarg): Correct the
+	eh_update argument to gsi_replace for the VA_END case.
+
 2026-03-21  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
 
 	PR target/123852

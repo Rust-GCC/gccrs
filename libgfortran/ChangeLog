@@ -1,3 +1,11 @@
+2026-03-22  Christopher Albert  <albert@tugraz.at>
+
+	PR fortran/124512
+	* Makefile.am: Adjust the dependencies.
+	* Makefile.in: Regenerate.
+	* configure: Regenerate.
+	* configure.ac: Add new check.
+
 2026-03-06  Andre Vehreschild  <vehre@gcc.gnu.org>
 
 	PR libfortran/124371
