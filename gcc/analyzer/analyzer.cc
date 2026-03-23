@@ -420,35 +420,6 @@ is_std_named_call_p (const_tree fndecl, const char *funcname,
   return true;
 }
 
-/* Return true if stmt is a setjmp or sigsetjmp call.  */
-
-bool
-is_setjmp_call_p (const gcall &call)
-{
-  if (is_special_named_call_p (call, "setjmp", 1)
-      || is_special_named_call_p (call, "sigsetjmp", 2))
-    /* region_model::on_setjmp requires a pointer.  */
-    if (POINTER_TYPE_P (TREE_TYPE (gimple_call_arg (&call, 0))))
-      return true;
-
-  return false;
-}
-
-/* Return true if stmt is a longjmp or siglongjmp call.  */
-
-bool
-is_longjmp_call_p (const gcall &call)
-{
-  if (is_special_named_call_p (call, "longjmp", 2)
-      || is_special_named_call_p (call, "siglongjmp", 2))
-    /* exploded_node::on_longjmp requires a pointer for the initial
-       argument.  */
-    if (POINTER_TYPE_P (TREE_TYPE (gimple_call_arg (&call, 0))))
-      return true;
-
-  return false;
-}
-
 bool
 is_cxa_throw_p (const gcall &call)
 {

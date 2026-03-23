@@ -1364,8 +1364,7 @@ poisoned_svalue::maybe_fold_bits_within (tree type,
   return mgr->get_or_create_poisoned_svalue (m_kind, type);
 }
 
-/* class setjmp_svalue's implementation is in engine.cc, so that it can use
-   the declaration of exploded_node.  */
+/* class setjmp_svalue's implementation is in setjmp-longjmp.cc.  */
 
 /* class initial_svalue : public svalue.  */
 
