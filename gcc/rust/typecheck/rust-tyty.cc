@@ -726,7 +726,9 @@ BaseType::contains_infer () const
 	{
 	  bool is_num_variant
 	    = variant->get_variant_type () == VariantDef::VariantType::NUM;
-	  if (is_num_variant)
+	  bool is_unit_variant
+	    = variant->get_variant_type () == VariantDef::VariantType::UNIT;
+	  if (is_num_variant || is_unit_variant)
 	    continue;
 
 	  for (auto &field : variant->get_fields ())
@@ -831,7 +833,9 @@ BaseType::is_concrete () const
 	{
 	  bool is_num_variant
 	    = variant->get_variant_type () == VariantDef::VariantType::NUM;
-	  if (is_num_variant)
+	  bool is_unit_variant
+	    = variant->get_variant_type () == VariantDef::VariantType::UNIT;
+	  if (is_num_variant || is_unit_variant)
 	    continue;
 
 	  for (auto &field : variant->get_fields ())
@@ -1508,6 +1512,8 @@ VariantDef::variant_type_string (VariantType type)
       return "tuple";
     case STRUCT:
       return "struct";
+    case UNIT:
+      return "unit struct";
     }
   rust_unreachable ();
   return "";
@@ -1532,7 +1538,8 @@ VariantDef::VariantDef (HirId id, DefId defid, std::string identifier,
     discriminant (std::move (discriminant)), fields (fields)
 {
   rust_assert ((type == VariantType::NUM && fields.empty ())
-	       || (type == VariantType::TUPLE || type == VariantType::STRUCT));
+	       || (type == VariantType::UNIT && fields.empty ())
+	       || type == VariantType::TUPLE || type == VariantType::STRUCT);
 }
 
 VariantDef &
