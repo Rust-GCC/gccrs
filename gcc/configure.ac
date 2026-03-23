@@ -2743,9 +2743,9 @@ case $target in
   *-*-solaris2*)
     if $gcc_cv_as -V 2>&1 | grep 'Compiler Common.*SunOS' > /dev/null; then
       solaris_as=yes
-      gas_flag=no
+      gas=no
     elif $gcc_cv_as --version 2>/dev/null | grep GNU > /dev/null; then
-      gas_flag=yes
+      gas=yes
     fi
     ;;
   *)
@@ -2765,11 +2765,11 @@ case "$ORIGINAL_AS_FOR_TARGET" in
 esac 
 
 # Check if we are using GNU as if not already set.
-if test -z "$gas_flag"; then
+if test -z "$gas"; then
   if $gcc_cv_as --version 2>/dev/null | grep GNU > /dev/null; then
-    gas_flag=yes
+    gas=yes
   else
-    gas_flag=no
+    gas=no
   fi
 fi
 
@@ -2843,10 +2843,10 @@ AC_MSG_CHECKING(Solaris linker)
 case $target in
   *-*-solaris2*)
     if $gcc_cv_ld -V 2>/dev/null | grep 'Solaris Link Editors' > /dev/null; then
-      gnu_ld_flag=no
+      gnu_ld=no
       solaris_ld=yes
     elif $gcc_cv_ld --version 2>/dev/null | grep GNU > /dev/null; then
-      gnu_ld_flag=yes
+      gnu_ld=yes
     fi
     ;;
   *)
@@ -2876,15 +2876,15 @@ AC_SUBST(ORIGINAL_PLUGIN_LD_FOR_TARGET)
 AC_DEFINE_UNQUOTED(PLUGIN_LD_SUFFIX, "$PLUGIN_LD_SUFFIX", [Specify plugin linker])
 
 # Check if we are using GNU ld if not already set.
-if test -z "$gnu_ld_flag"; then
+if test -z "$gnu_ld"; then
   if $gcc_cv_ld --version 2>/dev/null | grep GNU > /dev/null; then
-    gnu_ld_flag=yes
+    gnu_ld=yes
   else
-    gnu_ld_flag=no
+    gnu_ld=no
   fi
 fi
 
-case "$target:$gnu_ld_flag" in
+case "$target:$gnu_ld" in
   *-*-solaris2*:no)
     # While Solaris ld has -m32/-m64 it usually determines the ELF class
     # from the input objects.
@@ -3993,7 +3993,7 @@ foo:	.long	25
 .word foo(tlsldo)'
 	;;
   i?86-*-* | x86_64-*-*)
-    case "$target:$gas_flag" in
+    case "$target:$gas" in
       i?86-*-solaris2*:no | x86_64-*-solaris2*:no)
 	tls_section_flag=t
 changequote([,])dnl
@@ -4245,7 +4245,7 @@ foo:	.long	25
 	.long	foo@TPOFF'
 	;;
   sparc*-*-*)
-    case "$target:$gas_flag" in
+    case "$target:$gas" in
       sparc*-sun-solaris2.*:no)
 	conftest_s='
 	.section ".tdata",#alloc,#write,#tls'
@@ -4360,7 +4360,7 @@ elif test x$gcc_cv_ld != x; then
 	;;
       # HP-UX ld uses -a flags to select between shared and archive.
       *-*-hpux*)
-	if test x"$gnu_ld_flag" = xno; then
+	if test x"$gnu_ld" = xno; then
 	  gcc_cv_ld_static_dynamic=yes
 	  gcc_cv_ld_static_option="-aarchive_shared"
 	  gcc_cv_ld_dynamic_option="-adefault"
@@ -4386,7 +4386,7 @@ AC_MSG_RESULT($gcc_cv_ld_static_dynamic)
 AC_MSG_CHECKING(linker --version-script option)
 gcc_cv_ld_version_script=no
 ld_version_script_option=''
-if test $in_tree_ld = yes || test x"$gnu_ld_flag" = xyes; then
+if test $in_tree_ld = yes || test x"$gnu_ld" = xyes; then
   gcc_cv_ld_version_script=yes
   ld_version_script_option='--version-script'
 elif test x$gcc_cv_ld != x; then
@@ -4406,7 +4406,7 @@ AC_SUBST(ld_version_script_option)
 
 AC_MSG_CHECKING(linker soname option)
 gcc_cv_ld_soname=no
-if test $in_tree_ld = yes || test x"$gnu_ld_flag" = xyes; then
+if test $in_tree_ld = yes || test x"$gnu_ld" = xyes; then
   gcc_cv_ld_soname=yes
   ld_soname_option='-soname'
 elif test x$gcc_cv_ld != x; then
@@ -4434,7 +4434,7 @@ if test x"$demangler_in_ld" = xyes; then
     if test "$gcc_cv_gld_major_version" -eq 2 -a "$gcc_cv_gld_minor_version" -ge 14 -o "$gcc_cv_gld_major_version" -gt 2; then \
       gcc_cv_ld_demangle=yes
     fi
-  elif test x$gcc_cv_ld != x -a x"$gnu_ld_flag" = xyes; then
+  elif test x$gcc_cv_ld != x -a x"$gnu_ld" = xyes; then
     # Check if the GNU linker supports --demangle option
     if $gcc_cv_ld --help 2>&1 | grep no-demangle > /dev/null; then
       gcc_cv_ld_demangle=yes
@@ -5575,7 +5575,7 @@ esac
 
 case "$target" in
   mips*-*-* | loongarch*-*-* | *-*-hpux* )
-    if test x$gas_flag = xyes \
+    if test x$gas = xyes \
        || test x"$host" != x"$build" \
        || test ! -x "$gcc_cv_as" \
        || "$gcc_cv_as" -v < /dev/null 2>&1 | grep GNU > /dev/null; then
@@ -6347,7 +6347,7 @@ gcc_cv_ld_ctf=no
 # Check for Solaris ld 1.3315 introduced in Solaris 11.4 SRU 84.  ld -z ctf
 # already went in in SRU 81, but lacked GNU CTF to Solaris CTF conversion.
 if $gcc_cv_ld --help 2>&1 | grep -- '-z ctf' > /dev/null \
-  && test x$gnu_ld_flag = xno && test "$ld_vers_minor" -ge 3315; then
+  && test x$gnu_ld = xno && test "$ld_vers_minor" -ge 3315; then
   gcc_cv_ld_ctf=yes
   AC_DEFINE(HAVE_LD_CTF, 1, [Define if your linker supports -z ctf.])
 fi
@@ -6580,7 +6580,7 @@ elif test x$gcc_cv_ld != x; then
       gcc_cv_ld_no_as_needed_option='--pop-state'
     fi
   fi
-  case "$target:$gnu_ld_flag" in
+  case "$target:$gnu_ld" in
     *-*-solaris2*:no)
       # Solaris 2 ld always supports -z ignore/-z record.  Prefer the native
       # forms.

@@ -308,7 +308,7 @@ int (*fp) (void) __attribute__ ((section (".init_array"))) = foo;
 	    gcc_cv_initfini_array=yes
 	  fi
 	elif test x"$gcc_cv_as" != x -a x"$gcc_cv_ld" != x -a x"$gcc_cv_objdump" != x ; then
-	  case $target:$gas_flag in
+	  case $target:$gas in
 	    *:yes)
 	      sh_flags='"a"'
 	      sh_type='%progbits'
@@ -323,7 +323,7 @@ int (*fp) (void) __attribute__ ((section (".init_array"))) = foo;
 	      sh_quote='"'
 	      ;;
 	  esac
-	  case "$target:$gnu_ld_flag" in
+	  case "$target:$gnu_ld" in
 	    *:yes)
 	      cat > conftest.s <<EOF
 .section .dtors,$sh_flags,$sh_type
@@ -464,7 +464,7 @@ dnl # Used by gcc_GAS_CHECK_FEATURE
 dnl #
 AC_DEFUN([gcc_GAS_FLAGS],
 [AC_CACHE_CHECK([assembler flags], gcc_cv_as_flags,
-[ case "$target:$gas_flag" in
+[ case "$target:$gas" in
   *-*-darwin*:*)
     dnl Darwin with the native assembler uses -arch i386/x86_64/ppc/ppc64.
     dnl
