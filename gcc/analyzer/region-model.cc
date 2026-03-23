@@ -742,284 +742,6 @@ region_model::loop_replay_fixup (const region_model *dst_state)
   m_store.loop_replay_fixup (dst_state->get_store (), m_mgr);
 }
 
-/* A subclass of pending_diagnostic for complaining about uses of
-   poisoned values.  */
-
-class poisoned_value_diagnostic
-: public pending_diagnostic_subclass<poisoned_value_diagnostic>
-{
-public:
-  poisoned_value_diagnostic (tree expr, enum poison_kind pkind,
-			     const region *src_region,
-			     tree check_expr)
-  : m_expr (expr), m_pkind (pkind),
-    m_src_region (src_region),
-    m_check_expr (check_expr)
-  {}
-
-  const char *get_kind () const final override { return "poisoned_value_diagnostic"; }
-
-  bool use_of_uninit_p () const final override
-  {
-    return m_pkind == poison_kind::uninit;
-  }
-
-  bool operator== (const poisoned_value_diagnostic &other) const
-  {
-    return (m_expr == other.m_expr
-	    && m_pkind == other.m_pkind
-	    && m_src_region == other.m_src_region);
-  }
-
-  int get_controlling_option () const final override
-  {
-    switch (m_pkind)
-      {
-      default:
-	gcc_unreachable ();
-      case poison_kind::uninit:
-	return OPT_Wanalyzer_use_of_uninitialized_value;
-      case poison_kind::freed:
-      case poison_kind::deleted:
-	return OPT_Wanalyzer_use_after_free;
-      case poison_kind::popped_stack:
-	return OPT_Wanalyzer_use_of_pointer_in_stale_stack_frame;
-      }
-  }
-
-  bool terminate_path_p () const final override { return true; }
-
-  bool emit (diagnostic_emission_context &ctxt) final override
-  {
-    switch (m_pkind)
-      {
-      default:
-	gcc_unreachable ();
-      case poison_kind::uninit:
-	{
-	  ctxt.add_cwe (457); /* "CWE-457: Use of Uninitialized Variable".  */
-	  return ctxt.warn ("use of uninitialized value %qE",
-			    m_expr);
-	}
-	break;
-      case poison_kind::freed:
-	{
-	  ctxt.add_cwe (416); /* "CWE-416: Use After Free".  */
-	  return ctxt.warn ("use after %<free%> of %qE",
-			    m_expr);
-	}
-	break;
-      case poison_kind::deleted:
-	{
-	  ctxt.add_cwe (416); /* "CWE-416: Use After Free".  */
-	  return ctxt.warn ("use after %<delete%> of %qE",
-			    m_expr);
-	}
-	break;
-      case poison_kind::popped_stack:
-	{
-	  /* TODO: which CWE?  */
-	  return ctxt.warn
-	    ("dereferencing pointer %qE to within stale stack frame",
-	     m_expr);
-	}
-	break;
-      }
-  }
-
-  bool
-  describe_final_event (pretty_printer &pp,
-			const evdesc::final_event &) final override
-  {
-    switch (m_pkind)
-      {
-      default:
-	gcc_unreachable ();
-      case poison_kind::uninit:
-	{
-	  pp_printf (&pp,
-		     "use of uninitialized value %qE here",
-		     m_expr);
-	  return true;
-	}
-      case poison_kind::freed:
-	{
-	  pp_printf (&pp,
-		     "use after %<free%> of %qE here",
-		     m_expr);
-	  return true;
-	}
-      case poison_kind::deleted:
-	{
-	  pp_printf (&pp,
-		     "use after %<delete%> of %qE here",
-		     m_expr);
-	  return true;
-	}
-      case poison_kind::popped_stack:
-	{
-	  pp_printf (&pp,
-		     "dereferencing pointer %qE to within stale stack frame",
-		     m_expr);
-	  return true;
-	}
-      }
-  }
-
-  void mark_interesting_stuff (interesting_t *interest) final override
-  {
-    if (m_src_region)
-      interest->add_region_creation (m_src_region);
-  }
-
-  /* Attempt to suppress false positives.
-     Reject paths where the value of the underlying region isn't poisoned.
-     This can happen due to state merging when exploring the exploded graph,
-     where the more precise analysis during feasibility analysis finds that
-     the region is in fact valid.
-     To do this we need to get the value from the fgraph.  Unfortunately
-     we can't simply query the state of m_src_region (from the enode),
-     since it might be a different region in the fnode state (e.g. with
-     heap-allocated regions, the numbering could be different).
-     Hence we access m_check_expr, if available.  */
-
-  bool check_valid_fpath_p (const feasible_node &fnode)
-    const final override
-  {
-    if (!m_check_expr)
-      return true;
-    const svalue *fsval = fnode.get_model ().get_rvalue (m_check_expr, nullptr);
-    /* Check to see if the expr is also poisoned in FNODE (and in the
-       same way).  */
-    const poisoned_svalue * fspval = fsval->dyn_cast_poisoned_svalue ();
-    if (!fspval)
-      return false;
-    if (fspval->get_poison_kind () != m_pkind)
-      return false;
-    return true;
-  }
-
-  void
-  maybe_add_sarif_properties (diagnostics::sarif_object &result_obj)
-    const final override
-  {
-    auto &props = result_obj.get_or_create_properties ();
-#define PROPERTY_PREFIX "gcc/analyzer/poisoned_value_diagnostic/"
-    props.set (PROPERTY_PREFIX "expr", tree_to_json (m_expr));
-    props.set_string (PROPERTY_PREFIX "kind", poison_kind_to_str (m_pkind));
-    if (m_src_region)
-      props.set (PROPERTY_PREFIX "src_region", m_src_region->to_json ());
-    props.set (PROPERTY_PREFIX "check_expr", tree_to_json (m_check_expr));
-#undef PROPERTY_PREFIX
-  }
-
-private:
-  tree m_expr;
-  enum poison_kind m_pkind;
-  const region *m_src_region;
-  tree m_check_expr;
-};
-
-/* A subclass of pending_diagnostic for complaining about shifts
-   by negative counts.  */
-
-class shift_count_negative_diagnostic
-: public pending_diagnostic_subclass<shift_count_negative_diagnostic>
-{
-public:
-  shift_count_negative_diagnostic (const gassign *assign, tree count_cst)
-  : m_assign (assign), m_count_cst (count_cst)
-  {}
-
-  const char *get_kind () const final override
-  {
-    return "shift_count_negative_diagnostic";
-  }
-
-  bool operator== (const shift_count_negative_diagnostic &other) const
-  {
-    return (m_assign == other.m_assign
-	    && same_tree_p (m_count_cst, other.m_count_cst));
-  }
-
-  int get_controlling_option () const final override
-  {
-    return OPT_Wanalyzer_shift_count_negative;
-  }
-
-  bool emit (diagnostic_emission_context &ctxt) final override
-  {
-    return ctxt.warn ("shift by negative count (%qE)", m_count_cst);
-  }
-
-  bool
-  describe_final_event (pretty_printer &pp,
-			const evdesc::final_event &) final override
-  {
-    pp_printf (&pp,
-	       "shift by negative amount here (%qE)",
-	       m_count_cst);
-    return true;
-  }
-
-private:
-  const gassign *m_assign;
-  tree m_count_cst;
-};
-
-/* A subclass of pending_diagnostic for complaining about shifts
-   by counts >= the width of the operand type.  */
-
-class shift_count_overflow_diagnostic
-: public pending_diagnostic_subclass<shift_count_overflow_diagnostic>
-{
-public:
-  shift_count_overflow_diagnostic (const gassign *assign,
-				   int operand_precision,
-				   tree count_cst)
-  : m_assign (assign), m_operand_precision (operand_precision),
-    m_count_cst (count_cst)
-  {}
-
-  const char *get_kind () const final override
-  {
-    return "shift_count_overflow_diagnostic";
-  }
-
-  bool operator== (const shift_count_overflow_diagnostic &other) const
-  {
-    return (m_assign == other.m_assign
-	    && m_operand_precision == other.m_operand_precision
-	    && same_tree_p (m_count_cst, other.m_count_cst));
-  }
-
-  int get_controlling_option () const final override
-  {
-    return OPT_Wanalyzer_shift_count_overflow;
-  }
-
-  bool emit (diagnostic_emission_context &ctxt) final override
-  {
-    return ctxt.warn ("shift by count (%qE) >= precision of type (%qi)",
-		      m_count_cst, m_operand_precision);
-  }
-
-  bool
-  describe_final_event (pretty_printer &pp,
-			const evdesc::final_event &) final override
-  {
-    pp_printf (&pp,
-	       "shift by count %qE here",
-	       m_count_cst);
-    return true;
-  }
-
-private:
-  const gassign *m_assign;
-  int m_operand_precision;
-  tree m_count_cst;
-};
-
 /* A subclass of pending_diagnostic for complaining about pointer
    subtractions involving unrelated buffers.  */
 
@@ -1340,16 +1062,14 @@ region_model::get_gassign_result (const gassign *assign,
 		{
 		  if (tree_int_cst_sgn (rhs2_cst) < 0)
 		    ctxt->warn
-		      (std::make_unique<shift_count_negative_diagnostic>
-			 (assign, rhs2_cst));
+		      (make_shift_count_negative_diagnostic (assign, rhs2_cst));
 		  else if (compare_tree_int (rhs2_cst,
 					     TYPE_PRECISION (TREE_TYPE (rhs1)))
 			   >= 0)
-		    ctxt->warn
-		      (std::make_unique<shift_count_overflow_diagnostic>
-			 (assign,
-			  int (TYPE_PRECISION (TREE_TYPE (rhs1))),
-			  rhs2_cst));
+		    ctxt->warn (make_shift_count_overflow_diagnostic
+				(assign,
+				 int (TYPE_PRECISION (TREE_TYPE (rhs1))),
+				 rhs2_cst));
 		}
 	  }
 
@@ -1602,11 +1322,10 @@ region_model::check_for_poison (const svalue *sval,
 	check_expr = expr;
       else
 	check_expr = nullptr;
-      if (ctxt->warn
-	    (std::make_unique<poisoned_value_diagnostic> (diag_arg,
-							  pkind,
-							  src_region,
-							  check_expr)))
+      if (ctxt->warn (make_poisoned_value_diagnostic (diag_arg,
+						      pkind,
+						      src_region,
+						      check_expr)))
 	{
 	  /* We only want to report use of a poisoned value at the first
 	     place it gets used; return an unknown value to avoid generating
@@ -3487,7 +3206,7 @@ region_model::deref_rvalue (const svalue *ptr_sval, tree ptr_tree,
 		const poisoned_svalue *poisoned_sval
 		  = as_a <const poisoned_svalue *> (ptr_sval);
 		enum poison_kind pkind = poisoned_sval->get_poison_kind ();
-		ctxt->warn (std::make_unique<poisoned_value_diagnostic>
+		ctxt->warn (make_poisoned_value_diagnostic
 			      (ptr, pkind, nullptr, nullptr));
 	      }
 	  }
@@ -3514,131 +3233,6 @@ region_model::get_rvalue_for_bits (tree type,
   return m_mgr->get_or_create_bits_within (type, bits, sval);
 }
 
-/* A subclass of pending_diagnostic for complaining about writes to
-   constant regions of memory.  */
-
-class write_to_const_diagnostic
-: public pending_diagnostic_subclass<write_to_const_diagnostic>
-{
-public:
-  write_to_const_diagnostic (const region *reg, tree decl)
-  : m_reg (reg), m_decl (decl)
-  {}
-
-  const char *get_kind () const final override
-  {
-    return "write_to_const_diagnostic";
-  }
-
-  bool operator== (const write_to_const_diagnostic &other) const
-  {
-    return (m_reg == other.m_reg
-	    && m_decl == other.m_decl);
-  }
-
-  int get_controlling_option () const final override
-  {
-    return OPT_Wanalyzer_write_to_const;
-  }
-
-  bool emit (diagnostic_emission_context &ctxt) final override
-  {
-    auto_diagnostic_group d;
-    bool warned;
-    switch (m_reg->get_kind ())
-      {
-      default:
-	warned = ctxt.warn ("write to %<const%> object %qE", m_decl);
-	break;
-      case RK_FUNCTION:
-	warned = ctxt.warn ("write to function %qE", m_decl);
-	break;
-      case RK_LABEL:
-	warned = ctxt.warn ("write to label %qE", m_decl);
-	break;
-      }
-    if (warned)
-      inform (DECL_SOURCE_LOCATION (m_decl), "declared here");
-    return warned;
-  }
-
-  bool
-  describe_final_event (pretty_printer &pp,
-			const evdesc::final_event &) final override
-  {
-    switch (m_reg->get_kind ())
-      {
-      default:
-	{
-	  pp_printf (&pp,
-		     "write to %<const%> object %qE here", m_decl);
-	  return true;
-	}
-      case RK_FUNCTION:
-	{
-	  pp_printf (&pp,
-		     "write to function %qE here", m_decl);
-	  return true;
-	}
-      case RK_LABEL:
-	{
-	  pp_printf (&pp,
-		     "write to label %qE here", m_decl);
-	  return true;
-	}
-      }
-  }
-
-private:
-  const region *m_reg;
-  tree m_decl;
-};
-
-/* A subclass of pending_diagnostic for complaining about writes to
-   string literals.  */
-
-class write_to_string_literal_diagnostic
-: public pending_diagnostic_subclass<write_to_string_literal_diagnostic>
-{
-public:
-  write_to_string_literal_diagnostic (const region *reg)
-  : m_reg (reg)
-  {}
-
-  const char *get_kind () const final override
-  {
-    return "write_to_string_literal_diagnostic";
-  }
-
-  bool operator== (const write_to_string_literal_diagnostic &other) const
-  {
-    return m_reg == other.m_reg;
-  }
-
-  int get_controlling_option () const final override
-  {
-    return OPT_Wanalyzer_write_to_string_literal;
-  }
-
-  bool emit (diagnostic_emission_context &ctxt) final override
-  {
-    return ctxt.warn ("write to string literal");
-    /* Ideally we would show the location of the STRING_CST as well,
-       but it is not available at this point.  */
-  }
-
-  bool
-  describe_final_event (pretty_printer &pp,
-			const evdesc::final_event &) final override
-  {
-    pp_string (&pp, "write to string literal here");
-    return true;
-  }
-
-private:
-  const region *m_reg;
-};
-
 /* Use CTXT to warn If DEST_REG is a region that shouldn't be written to.  */
 
 void
@@ -3658,18 +3252,14 @@ region_model::check_for_writable_region (const region* dest_reg,
       {
 	const function_region *func_reg = as_a <const function_region *> (base_reg);
 	tree fndecl = func_reg->get_fndecl ();
-	ctxt->warn
-	  (std::make_unique<write_to_const_diagnostic>
-	     (func_reg, fndecl));
+	ctxt->warn (make_write_to_const_diagnostic (func_reg, fndecl));
       }
       break;
     case RK_LABEL:
       {
 	const label_region *label_reg = as_a <const label_region *> (base_reg);
 	tree label = label_reg->get_label ();
-	ctxt->warn
-	  (std::make_unique<write_to_const_diagnostic>
-	     (label_reg, label));
+	ctxt->warn (make_write_to_const_diagnostic (label_reg, label));
       }
       break;
     case RK_DECL:
@@ -3682,13 +3272,11 @@ region_model::check_for_writable_region (const region* dest_reg,
 	   "this" param is "T* const").  */
 	if (TREE_READONLY (decl)
 	    && is_global_var (decl))
-	  ctxt->warn
-	    (std::make_unique<write_to_const_diagnostic> (dest_reg, decl));
+	  ctxt->warn (make_write_to_const_diagnostic (dest_reg, decl));
       }
       break;
     case RK_STRING:
-      ctxt->warn
-	(std::make_unique<write_to_string_literal_diagnostic> (dest_reg));
+      ctxt->warn (make_write_to_string_literal_diagnostic (dest_reg));
       break;
     }
 }
