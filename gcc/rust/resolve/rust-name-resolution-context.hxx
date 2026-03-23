@@ -16,6 +16,7 @@
 // along with GCC; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
+#include "optional.h"
 #include "rust-name-resolution-context.h"
 
 /**
@@ -196,53 +197,72 @@ NameResolutionContext::resolve_path (
 	return tl::nullopt;
     }
 
-  return stack
-    .resolve_segments (starting_point.get (), segments, iterator,
-		       insert_segment_resolution, collect_errors)
-    .and_then ([&segments, &insert_segment_resolution,
-		&stack] (typename ForeverStack<N>::Node &final_node)
-		 -> tl::optional<Rib::Definition> {
-      // leave resolution within impl blocks to type checker
-      if (final_node.rib.kind == Rib::Kind::TraitOrImpl)
-	return tl::nullopt;
+  // We do the first part of path resolution exclusively in the types NS - this
+  // gives us a node in which to resolve the last segment of the path.
 
-      auto &seg = segments.back ();
-      std::string seg_name = seg.name;
+  // We take our starting point and then get the equivalent Node from the Types
+  // NS - since it existed in whatever namespace we are right now, we assume it
+  // exists in the types NS.
+  auto types_starting_point
+    = types.dfs_node (types.root, starting_point.get ().id);
 
-      tl::optional<Rib::Definition> res
-	= stack.resolve_final_segment (final_node, seg_name,
-				       seg.is_lower_self_seg ());
-      // Ok we didn't find it in the rib, Lets try the prelude...
-      if (!res)
-	res = stack.get_lang_prelude (seg_name);
+  // TODO: Add a method for converting a node between namespaces? Make all of
+  // the starting point stuff return a NodeId rather than a Node&? And take a
+  // NodeId as a starting point rather than a Node?
 
-      if (N == Namespace::Types && !res)
+  auto node
+    = types.resolve_segments (types_starting_point.value (), segments, iterator,
+			      insert_segment_resolution, collect_errors);
+
+  if (!node)
+    return tl::nullopt;
+
+  // This node now represents the Node which *should* contain the definition
+  // used by the last segment. We now get the equivalent Node from this
+  // namespace after finding it in the types NS.
+  auto final_node_id = node.value ().id;
+  auto final_node = stack.dfs_node (stack.root, final_node_id).value ();
+
+  // leave resolution within impl blocks to type checker
+  if (final_node.rib.kind == Rib::Kind::TraitOrImpl)
+    return tl::nullopt;
+
+  auto &seg = segments.back ();
+  std::string seg_name = seg.name;
+
+  tl::optional<Rib::Definition> res
+    = stack.resolve_final_segment (final_node, seg_name,
+				   seg.is_lower_self_seg ());
+  // Ok we didn't find it in the rib, Lets try the prelude...
+  if (!res)
+    res = stack.get_lang_prelude (seg_name);
+
+  if (N == Namespace::Types && !res)
+    {
+      // HACK: check for a module after we check the language prelude
+      for (auto &kv : final_node.children)
 	{
-	  // HACK: check for a module after we check the language prelude
-	  for (auto &kv : final_node.children)
-	    {
-	      auto &link = kv.first;
+	  auto &link = kv.first;
 
-	      if (link.path.map_or (
-		    [&seg_name] (Identifier path) {
-		      auto &path_str = path.as_string ();
-		      return path_str == seg_name;
-		    },
-		    false))
-		{
-		  insert_segment_resolution (Usage (seg.node_id),
-					     Definition (kv.second.id));
-		  return Rib::Definition::NonShadowable (kv.second.id);
-		}
+	  if (link.path.map_or (
+		[&seg_name] (Identifier path) {
+		  auto &path_str = path.as_string ();
+		  return path_str == seg_name;
+		},
+		false))
+	    {
+	      insert_segment_resolution (Usage (seg.node_id),
+					 Definition (kv.second.id));
+	      return Rib::Definition::NonShadowable (kv.second.id);
 	    }
 	}
+    }
 
-      if (res && !res->is_ambiguous ())
-	insert_segment_resolution (Usage (seg.node_id),
-				   Definition (res->get_node_id ()));
+  if (res && !res->is_ambiguous ())
+    insert_segment_resolution (Usage (seg.node_id),
+			       Definition (res->get_node_id ()));
 
-      return res;
-    });
+  return res;
 }
 
 } // namespace Resolver2_0
