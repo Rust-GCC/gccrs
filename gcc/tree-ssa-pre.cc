@@ -1772,7 +1772,10 @@ phi_translate_1 (bitmap_set_t dest,
 	      }
 
 	    if (newref)
-	      new_val_id = newref->value_id;
+	      {
+		new_val_id = newref->value_id;
+		newvuse = newref->vuse;
+	      }
 	    else
 	      {
 		if (changed || !same_valid)
@@ -4390,7 +4393,7 @@ compute_avail (function *fun)
 				      sizeof (vn_reference_s));
 		      memset (newref, 0, sizeof (vn_reference_s));
 		      newref->value_id = ref->value_id;
-		      newref->vuse = gimple_vuse (stmt);
+		      newref->vuse = ref->vuse;
 		      newref->operands = operands;
 		      newref->type = TREE_TYPE (rhs1);
 		      newref->set = set;
