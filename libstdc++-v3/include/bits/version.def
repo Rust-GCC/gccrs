@@ -817,7 +817,7 @@ ftms = {
 ftms = {
   name = atomic_ref;
   values = {
-    v = 202411;
+    v = 202603;
     cxxmin = 26;
   };
   values = {

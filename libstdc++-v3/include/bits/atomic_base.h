@@ -1649,6 +1649,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     {
     private:
       using _Vt = remove_cv_t<_Tp>;
+      using _Address_return_t = __conditional_t<is_volatile_v<_Tp>,
+						const volatile void*, const void*>;
 
       static consteval bool
       _S_is_always_lock_free()
@@ -1713,8 +1715,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       }
 #endif // __glibcxx_atomic_wait
 
-#if __glibcxx_atomic_ref >= 202411L
-      _GLIBCXX_ALWAYS_INLINE constexpr const _Tp*
+#if __glibcxx_atomic_ref >= 202603L
+      _GLIBCXX_ALWAYS_INLINE constexpr _Address_return_t
       address() const noexcept
       { return _M_ptr; }
 #endif // __glibcxx_atomic_ref >= 202411L
@@ -1727,6 +1729,10 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     struct __atomic_ref_base
       : __atomic_ref_base<const _Tp>
     {
+      using _Address_return_t = __conditional_t<is_volatile_v<_Tp>,
+						volatile void*, void*>;
+
+    public:
       using value_type = typename __atomic_ref_base<const _Tp>::value_type;
 
       explicit
@@ -1806,8 +1812,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       }
 #endif // __glibcxx_atomic_wait
 
-#if __glibcxx_atomic_ref >= 202411L
-      _GLIBCXX_ALWAYS_INLINE constexpr _Tp*
+#if __glibcxx_atomic_ref >= 202603L
+      _GLIBCXX_ALWAYS_INLINE constexpr _Address_return_t
       address() const noexcept
       { return this->_M_ptr; }
 #endif // __glibcxx_atomic_ref >= 202411L

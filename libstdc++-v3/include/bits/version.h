@@ -910,9 +910,9 @@
 
 #if !defined(__cpp_lib_atomic_ref)
 # if (__cplusplus >  202302L)
-#  define __glibcxx_atomic_ref 202411L
+#  define __glibcxx_atomic_ref 202603L
 #  if defined(__glibcxx_want_all) || defined(__glibcxx_want_atomic_ref)
-#   define __cpp_lib_atomic_ref 202411L
+#   define __cpp_lib_atomic_ref 202603L
 #  endif
 # elif (__cplusplus >= 202002L)
 #  define __glibcxx_atomic_ref 201806L
