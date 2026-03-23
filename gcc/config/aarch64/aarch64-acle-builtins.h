@@ -1,4 +1,4 @@
-/* ACLE support for AArch64 SVE
+/* ACLE support for AArch64 NEON and SVE
    Copyright (C) 2018-2026 Free Software Foundation, Inc.
 
    This file is part of GCC.
@@ -17,8 +17,8 @@
    along with GCC; see the file COPYING3.  If not see
    <http://www.gnu.org/licenses/>.  */
 
-#ifndef GCC_AARCH64_SVE_BUILTINS_H
-#define GCC_AARCH64_SVE_BUILTINS_H
+#ifndef GCC_AARCH64_ACLE_BUILTINS_H
+#define GCC_AARCH64_ACLE_BUILTINS_H
 
 #include "aarch64-builtins.h"
 
@@ -85,8 +85,7 @@
    Note that we've specifically chosen not to fold calls in the frontend,
    since SVE intrinsics will hardly ever fold a useful language-level
    constant.  */
-namespace aarch64_sve
-{
+namespace aarch64_acle {
 /* The maximum number of vectors in an ACLE tuple type.  */
 const unsigned int MAX_TUPLE_SIZE = 4;
 

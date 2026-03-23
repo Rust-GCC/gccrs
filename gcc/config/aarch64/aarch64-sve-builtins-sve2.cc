@@ -40,13 +40,13 @@
 #include "tree-vector-builder.h"
 #include "rtx-vector-builder.h"
 #include "vec-perm-indices.h"
-#include "aarch64-sve-builtins.h"
+#include "aarch64-acle-builtins.h"
 #include "aarch64-sve-builtins-shapes.h"
 #include "aarch64-sve-builtins-base.h"
 #include "aarch64-sve-builtins-sve2.h"
 #include "aarch64-sve-builtins-functions.h"
 
-using namespace aarch64_sve;
+using namespace aarch64_acle;
 
 namespace {
 
@@ -1019,7 +1019,7 @@ public:
 
 } /* end anonymous namespace */
 
-namespace aarch64_sve {
+namespace aarch64_acle {
 
 FUNCTION (svaba, svaba_impl,)
 FUNCTION (svabalb, unspec_based_add_function, (UNSPEC_SABDLB,
@@ -1317,4 +1317,4 @@ FUNCTION (svzipq2, svzipq_impl, (1))
 FUNCTION (svluti2_lane, svluti_lane_impl, (2))
 FUNCTION (svluti4_lane, svluti_lane_impl, (4))
 
-} /* end namespace aarch64_sve */
+}

@@ -37,13 +37,13 @@
 #include "gimplify.h"
 #include "explow.h"
 #include "emit-rtl.h"
-#include "aarch64-sve-builtins.h"
+#include "aarch64-acle-builtins.h"
 #include "aarch64-sve-builtins-shapes.h"
 #include "aarch64-sve-builtins-base.h"
 #include "aarch64-sve-builtins-sme.h"
 #include "aarch64-sve-builtins-functions.h"
 
-using namespace aarch64_sve;
+using namespace aarch64_acle;
 
 namespace {
 
@@ -609,7 +609,7 @@ public:
 
 } /* end anonymous namespace */
 
-namespace aarch64_sve {
+namespace aarch64_acle {
 
 FUNCTION (arm_has_sme, arm_has_sme_impl, )
 FUNCTION (arm_in_streaming_mode, arm_in_streaming_mode_impl, )
@@ -700,4 +700,4 @@ FUNCTION (svzero_mask_za, svzero_mask_za_impl, )
 FUNCTION (svzero_za, svzero_za_impl, )
 FUNCTION (svzero_zt, svzero_zt_impl, )
 
-} /* end namespace aarch64_sve */
+}

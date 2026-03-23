@@ -20,7 +20,7 @@
 #ifndef GCC_AARCH64_SVE_BUILTINS_FUNCTIONS_H
 #define GCC_AARCH64_SVE_BUILTINS_FUNCTIONS_H
 
-namespace aarch64_sve {
+namespace aarch64_acle {
 
 /* Wrap T, which is derived from function_base, and indicate that the
    function never has side effects.  It is only necessary to use this

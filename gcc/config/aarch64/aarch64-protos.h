@@ -1179,7 +1179,7 @@ namespace aarch64 {
   void report_not_enum (location_t, tree, unsigned int, HOST_WIDE_INT, tree);
 }
 
-namespace aarch64_sve {
+namespace aarch64_acle {
   void init_builtins ();
   void handle_arm_sve_h (bool);
   void handle_arm_sme_h (bool);

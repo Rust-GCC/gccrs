@@ -33,7 +33,6 @@
 #include "langhooks.h"
 #include "target.h"
 
-
 #define builtin_define(TXT) cpp_define (pfile, TXT)
 #define builtin_assert(TXT) cpp_assert (pfile, TXT)
 
@@ -413,15 +412,15 @@ aarch64_pragma_aarch64 (cpp_reader *)
 
   const char *name = TREE_STRING_POINTER (x);
   if (strcmp (name, "arm_sve.h") == 0)
-    aarch64_sve::handle_arm_sve_h (false);
+    aarch64_acle::handle_arm_sve_h (false);
   else if (strcmp (name, "arm_sme.h") == 0)
-    aarch64_sve::handle_arm_sme_h (false);
+    aarch64_acle::handle_arm_sme_h (false);
   else if (strcmp (name, "arm_neon.h") == 0)
     handle_arm_neon_h ();
   else if (strcmp (name, "arm_acle.h") == 0)
     handle_arm_acle_h ();
   else if (strcmp (name, "arm_neon_sve_bridge.h") == 0)
-    aarch64_sve::handle_arm_neon_sve_bridge_h (false);
+    aarch64_acle::handle_arm_neon_sve_bridge_h (false);
   else
     error ("unknown %<#pragma GCC aarch64%> option %qs", name);
 }
@@ -445,8 +444,8 @@ aarch64_resolve_overloaded_builtin (location_t location,
 							 uncast_arglist);
       break;
     case AARCH64_BUILTIN_SVE:
-      new_fndecl = aarch64_sve::resolve_overloaded_builtin (location, subcode,
-							    arglist);
+      new_fndecl = aarch64_acle::resolve_overloaded_builtin (location, subcode,
+							     arglist);
       break;
     }
   if (new_fndecl == NULL_TREE || new_fndecl == error_mark_node)
@@ -469,8 +468,8 @@ aarch64_check_builtin_call (location_t loc, vec<location_t> arg_loc,
       return aarch64_general_check_builtin_call (loc, arg_loc, subcode,
 						 orig_fndecl, nargs, args);
     case AARCH64_BUILTIN_SVE:
-      return aarch64_sve::check_builtin_call (loc, arg_loc, subcode,
-					      orig_fndecl, nargs, args);
+      return aarch64_acle::check_builtin_call (loc, arg_loc, subcode,
+					       orig_fndecl, nargs, args);
     }
   gcc_unreachable ();
 }

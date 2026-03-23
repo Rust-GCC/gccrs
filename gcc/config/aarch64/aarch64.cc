@@ -928,7 +928,7 @@ static const attribute_spec aarch64_gnu_attributes[] =
 			  aarch64_pcs_exclusions },
   { "indirect_return",    0, 0, false, true, true, true, NULL, NULL },
   { "arm_sve_vector_bits", 1, 1, false, true,  false, true,
-			  aarch64_sve::handle_arm_sve_vector_bits_attribute,
+			  aarch64_acle::handle_arm_sve_vector_bits_attribute,
 			  NULL },
   { "Advanced SIMD type", 1, 1, false, true,  false, true,  NULL, NULL },
   { "SVE type",		  3, 3, false, true,  false, true,  NULL, NULL },
@@ -1149,7 +1149,7 @@ pure_scalable_type_info::analyze (const_tree type)
 
   /* Check for SVTs, SPTs, and built-in tuple types that map to PSTs.  */
   piece p = {};
-  if (aarch64_sve::builtin_type_p (type, &p.num_zr, &p.num_pr))
+  if (aarch64_acle::builtin_type_p (type, &p.num_zr, &p.num_pr))
     {
       machine_mode mode = TYPE_MODE_RAW (type);
       gcc_assert (VECTOR_MODE_P (mode)
@@ -1323,7 +1323,7 @@ aarch64_some_values_include_pst_objects_p (const_tree type)
   if (TYPE_SIZE (type) && integer_zerop (TYPE_SIZE (type)))
     return false;
 
-  if (aarch64_sve::builtin_type_p (type))
+  if (aarch64_acle::builtin_type_p (type))
     return true;
 
   if (TREE_CODE (type) == ARRAY_TYPE || TREE_CODE (type) == COMPLEX_TYPE)
@@ -2779,8 +2779,8 @@ aarch64_call_switches_pstate_sm (aarch64_isa_mode callee_mode)
 static bool
 aarch64_compatible_vector_types_p (const_tree type1, const_tree type2)
 {
-  return (aarch64_sve::builtin_type_p (type1)
-	  == aarch64_sve::builtin_type_p (type2));
+  return (aarch64_acle::builtin_type_p (type1)
+	  == aarch64_acle::builtin_type_p (type2));
 }
 
 /* Return true if we should emit CFI for register REGNO.  */
@@ -16800,7 +16800,7 @@ static void
 aarch64_init_builtins ()
 {
   aarch64_general_init_builtins ();
-  aarch64_sve::init_builtins ();
+  aarch64_acle::init_builtins ();
   if (TARGET_AARCH64_MS_ABI)
     {
       aarch64_ms_variadic_abi_init_builtins ();
@@ -16844,7 +16844,7 @@ aarch64_gimple_fold_builtin (gimple_stmt_iterator *gsi)
       break;
 
     case AARCH64_BUILTIN_SVE:
-      new_stmt = aarch64_sve::gimple_fold_builtin (subcode, gsi, stmt);
+      new_stmt = aarch64_acle::gimple_fold_builtin (subcode, gsi, stmt);
       break;
     }
 
@@ -16868,7 +16868,7 @@ aarch64_expand_builtin (tree exp, rtx target, rtx, machine_mode, int ignore)
       return aarch64_general_expand_builtin (subcode, exp, target, ignore);
 
     case AARCH64_BUILTIN_SVE:
-      return aarch64_sve::expand_builtin (subcode, exp, target);
+      return aarch64_acle::expand_builtin (subcode, exp, target);
     }
   gcc_unreachable ();
 }
@@ -16884,7 +16884,7 @@ aarch64_builtin_decl (unsigned int code, bool initialize_p)
       return aarch64_general_builtin_decl (subcode, initialize_p);
 
     case AARCH64_BUILTIN_SVE:
-      return aarch64_sve::builtin_decl (subcode, initialize_p);
+      return aarch64_acle::builtin_decl (subcode, initialize_p);
     }
   gcc_unreachable ();
 }
@@ -23138,7 +23138,7 @@ aarch64_member_type_forces_blk (const_tree field_or_array, machine_mode mode)
      For structures, the "multiple" case is indicated by MODE being
      VOIDmode.  */
   unsigned int num_zr, num_pr;
-  if (aarch64_sve::builtin_type_p (type, &num_zr, &num_pr) && num_pr > 2)
+  if (aarch64_acle::builtin_type_p (type, &num_zr, &num_pr) && num_pr > 2)
     {
       if (TREE_CODE (field_or_array) == ARRAY_TYPE)
 	return !simple_cst_equal (TYPE_SIZE (field_or_array),
@@ -23190,7 +23190,7 @@ aapcs_vfp_sub_candidate (const_tree type, machine_mode *modep,
   machine_mode mode;
   HOST_WIDE_INT size;
 
-  if (aarch64_sve::builtin_type_p (type))
+  if (aarch64_acle::builtin_type_p (type))
     return -1;
 
   switch (TREE_CODE (type))
@@ -23414,7 +23414,7 @@ aarch64_short_vector_p (const_tree type,
 
   if (type && VECTOR_TYPE_P (type))
     {
-      if (aarch64_sve::builtin_type_p (type))
+      if (aarch64_acle::builtin_type_p (type))
 	return false;
       size = int_size_in_bytes (type);
     }
@@ -23910,7 +23910,7 @@ aarch64_mangle_type (const_tree type)
     {
       const char *res;
       if ((res = aarch64_general_mangle_builtin_type (type))
-	  || (res = aarch64_sve::mangle_builtin_type (type)))
+	  || (res = aarch64_acle::mangle_builtin_type (type)))
 	return res;
     }
 
@@ -23947,7 +23947,7 @@ static bool
 aarch64_verify_type_context (location_t loc, type_context_kind context,
 			     const_tree type, bool silent_p)
 {
-  return aarch64_sve::verify_type_context (loc, context, type, silent_p);
+  return aarch64_acle::verify_type_context (loc, context, type, silent_p);
 }
 
 /* Find the first rtx_insn before insn that will generate an assembly
@@ -31252,7 +31252,7 @@ simd_clone_adjust_sve_vector_type (tree type, bool is_mask, poly_uint64 simdlen)
      However, it doesn't seem worth trying to fix that until we have a
      way of handling implementations that operate on unpacked types.  */
   type = build_distinct_type_copy (type);
-  aarch64_sve::add_sve_type_attribute (type, num_zr, num_pr, NULL, NULL);
+  aarch64_acle::add_sve_type_attribute (type, num_zr, num_pr, NULL, NULL);
   return type;
 }
 
@@ -31493,7 +31493,7 @@ aarch64_invalid_unary_op (int op, const_tree type)
 {
   if (VECTOR_BOOLEAN_TYPE_P (type)
       && !TYPE_INDIVISIBLE_P (type)
-      && aarch64_sve::builtin_type_p (type))
+      && aarch64_acle::builtin_type_p (type))
     return aarch64_valid_vector_boolean_op (op);
 
   /* Reject all single-operand operations on __mfp8 except for &.  */
@@ -31517,12 +31517,12 @@ aarch64_invalid_binary_op (int op, const_tree type1,
       && !TYPE_INDIVISIBLE_P (type1)
       && !TYPE_INDIVISIBLE_P (type2))
     {
-      if ((aarch64_sve::builtin_type_p (type1)
-	  != aarch64_sve::builtin_type_p (type2)))
+      if ((aarch64_acle::builtin_type_p (type1)
+	   != aarch64_acle::builtin_type_p (type2)))
 	return N_("cannot combine GNU and SVE vectors in a binary operation");
 
-      if (aarch64_sve::builtin_type_p (type1)
-	  && aarch64_sve::builtin_type_p (type2)
+      if (aarch64_acle::builtin_type_p (type1)
+	  && aarch64_acle::builtin_type_p (type2)
 	  && VECTOR_BOOLEAN_TYPE_P (type1)
 	  && VECTOR_BOOLEAN_TYPE_P (type2))
 	return aarch64_valid_vector_boolean_op (op);

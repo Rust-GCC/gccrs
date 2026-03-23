@@ -49,7 +49,7 @@
 #include "attribs.h"
 #include "value-range.h"
 #include "tree-ssanames.h"
-#include "aarch64-sve-builtins.h"
+#include "aarch64-acle-builtins.h"
 #include "aarch64-sve-builtins-base.h"
 #include "aarch64-sve-builtins-sve2.h"
 #include "aarch64-sve-builtins-sme.h"
@@ -58,7 +58,7 @@
 
 using namespace aarch64;
 
-namespace aarch64_sve {
+namespace aarch64_acle {
 
 /* Static information about each single-predicate or single-vector
    ABI and ACLE type.  */
@@ -5333,7 +5333,7 @@ verify_type_context (location_t loc, type_context_kind context,
 
 }
 
-using namespace aarch64_sve;
+using namespace aarch64_acle;
 
 inline void
 gt_ggc_mx (function_instance *)
@@ -5350,4 +5350,4 @@ gt_pch_nx (function_instance *, gt_pointer_operator, void *)
 {
 }
 
-#include "gt-aarch64-sve-builtins.h"
+#include "gt-aarch64-acle-builtins.h"

@@ -20,7 +20,7 @@
 #ifndef GCC_AARCH64_SVE_BUILTINS_SVE2_H
 #define GCC_AARCH64_SVE_BUILTINS_SVE2_H
 
-namespace aarch64_sve
+namespace aarch64_acle
 {
   namespace functions
   {

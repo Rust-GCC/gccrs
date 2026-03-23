@@ -378,7 +378,7 @@ aarch64*-*-*)
 	extra_objs="${extra_objs} aarch64-builtins.o"
 	extra_objs="${extra_objs} aarch-common.o"
 	extra_objs="${extra_objs} aarch64-elf-metadata.o"
-	extra_objs="${extra_objs} aarch64-sve-builtins.o"
+	extra_objs="${extra_objs} aarch64-acle-builtins.o"
 	extra_objs="${extra_objs} aarch64-sve-builtins-shapes.o"
 	extra_objs="${extra_objs} aarch64-sve-builtins-base.o"
 	extra_objs="${extra_objs} aarch64-sve-builtins-sve2.o"
@@ -396,8 +396,8 @@ aarch64*-*-*)
 	target_gtfiles="${target_gtfiles} \$(srcdir)/config/aarch64/aarch64-protos.h"
 	target_gtfiles="${target_gtfiles} \$(srcdir)/config/aarch64/aarch64-builtins.h"
 	target_gtfiles="${target_gtfiles} \$(srcdir)/config/aarch64/aarch64-builtins.cc"
-	target_gtfiles="${target_gtfiles} \$(srcdir)/config/aarch64/aarch64-sve-builtins.h"
-	target_gtfiles="${target_gtfiles} \$(srcdir)/config/aarch64/aarch64-sve-builtins.cc"
+	target_gtfiles="${target_gtfiles} \$(srcdir)/config/aarch64/aarch64-acle-builtins.h"
+	target_gtfiles="${target_gtfiles} \$(srcdir)/config/aarch64/aarch64-acle-builtins.cc"
 
 	target_has_targetm_common=yes
 	;;

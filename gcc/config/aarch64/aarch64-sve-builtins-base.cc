@@ -40,7 +40,7 @@
 #include "tree-vector-builder.h"
 #include "rtx-vector-builder.h"
 #include "vec-perm-indices.h"
-#include "aarch64-sve-builtins.h"
+#include "aarch64-acle-builtins.h"
 #include "aarch64-sve-builtins-shapes.h"
 #include "aarch64-sve-builtins-base.h"
 #include "aarch64-sve-builtins-functions.h"
@@ -49,7 +49,7 @@
 #include "gimple-fold.h"
 #include "tree-ssa.h"
 
-using namespace aarch64_sve;
+using namespace aarch64_acle;
 
 namespace {
 
@@ -779,7 +779,7 @@ public:
       {
 	machine_mode mode0 = e.result_mode ();
 	machine_mode mode1 = GET_MODE (e.args[0]);
-	if (e.fpm_mode == aarch64_sve::FPM_set)
+	if (e.fpm_mode == aarch64_acle::FPM_set)
 	  icode = code_for_aarch64_sme2_fp8_cvt (mode1);
 	else
 	  {
@@ -945,7 +945,7 @@ public:
   expand (function_expander &e) const override
   {
     insn_code icode;
-    if (e.fpm_mode == aarch64_sve::FPM_set)
+    if (e.fpm_mode == aarch64_acle::FPM_set)
       icode = code_for_aarch64_sve_dot (e.result_mode ());
     else
       {
@@ -979,7 +979,7 @@ public:
     insn_code icode;
     machine_mode mode0 = GET_MODE (e.args[0]);
     machine_mode mode1 = GET_MODE (e.args[1]);
-    if (e.fpm_mode == aarch64_sve::FPM_set)
+    if (e.fpm_mode == aarch64_acle::FPM_set)
       {
 	icode = code_for_aarch64_sve_dot_lane (mode0);
       }
@@ -2339,7 +2339,7 @@ public:
        Unpredicated functions have only 2 arguments (rn, rm) so will cause the
        code below to crash.  Also skip if it does not operate on integers,
        since all the optimizations below are for integer multiplication.  */
-    if (!f.type_suffix (0).integer_p || f.pred == aarch64_sve::PRED_none)
+    if (!f.type_suffix (0).integer_p || f.pred == aarch64_acle::PRED_none)
       return nullptr;
 
     if (auto *res = f.fold_const_binary (MULT_EXPR))
@@ -3517,7 +3517,7 @@ public:
 
 } /* end anonymous namespace */
 
-namespace aarch64_sve {
+namespace aarch64_acle {
 
 FUNCTION (svabd, svabd_impl,)
 FUNCTION (svabs, quiet<rtx_code_function>, (ABS, ABS, UNSPEC_COND_FABS))
@@ -3820,4 +3820,4 @@ NEON_SVE_BRIDGE_FUNCTION (svget_neonq, svget_neonq_impl,)
 NEON_SVE_BRIDGE_FUNCTION (svset_neonq, svset_neonq_impl,)
 NEON_SVE_BRIDGE_FUNCTION (svdup_neonq, svdup_neonq_impl,)
 
-} /* end namespace aarch64_sve */
+}

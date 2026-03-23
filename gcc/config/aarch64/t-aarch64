@@ -67,7 +67,7 @@ aarch64-builtins.o: $(srcdir)/config/aarch64/aarch64-builtins.cc $(CONFIG_H) \
 	$(COMPILER) -c $(ALL_COMPILERFLAGS) $(ALL_CPPFLAGS) $(INCLUDES) \
 		$(srcdir)/config/aarch64/aarch64-builtins.cc
 
-aarch64-sve-builtins.o: $(srcdir)/config/aarch64/aarch64-sve-builtins.cc \
+aarch64-acle-builtins.o: $(srcdir)/config/aarch64/aarch64-acle-builtins.cc \
   $(srcdir)/config/aarch64/aarch64-sve-builtins.def \
   $(srcdir)/config/aarch64/aarch64-sve-builtins-base.def \
   $(srcdir)/config/aarch64/aarch64-sve-builtins-sve2.def \
@@ -78,19 +78,19 @@ aarch64-sve-builtins.o: $(srcdir)/config/aarch64/aarch64-sve-builtins.cc \
   gimple-iterator.h gimplify.h explow.h $(EMIT_RTL_H) tree-vector-builder.h \
   stor-layout.h alias.h gimple-fold.h langhooks.h \
   stringpool.h \
-  $(srcdir)/config/aarch64/aarch64-sve-builtins.h \
+  $(srcdir)/config/aarch64/aarch64-acle-builtins.h \
   $(srcdir)/config/aarch64/aarch64-sve-builtins-shapes.h \
   $(srcdir)/config/aarch64/aarch64-sve-builtins-base.h \
   $(srcdir)/config/aarch64/aarch64-sve-builtins-sve2.h \
   $(srcdir)/config/aarch64/aarch64-sve-builtins-sme.h
 	$(COMPILER) -c $(ALL_COMPILERFLAGS) $(ALL_CPPFLAGS) $(INCLUDES) \
-		$(srcdir)/config/aarch64/aarch64-sve-builtins.cc
+		$(srcdir)/config/aarch64/aarch64-acle-builtins.cc
 
 aarch64-sve-builtins-shapes.o: \
   $(srcdir)/config/aarch64/aarch64-sve-builtins-shapes.cc \
   $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H) $(TREE_H) $(RTL_H) \
   $(TM_P_H) memmodel.h insn-codes.h $(OPTABS_H) \
-  $(srcdir)/config/aarch64/aarch64-sve-builtins.h \
+  $(srcdir)/config/aarch64/aarch64-acle-builtins.h \
   $(srcdir)/config/aarch64/aarch64-sve-builtins-shapes.h
 	$(COMPILER) -c $(ALL_COMPILERFLAGS) $(ALL_CPPFLAGS) $(INCLUDES) \
 		$(srcdir)/config/aarch64/aarch64-sve-builtins-shapes.cc
@@ -102,7 +102,7 @@ aarch64-sve-builtins-base.o: \
   $(EXPR_H) $(BASIC_BLOCK_H) $(FUNCTION_H) fold-const.h $(GIMPLE_H) \
   gimple-iterator.h gimplify.h explow.h $(EMIT_RTL_H) tree-vector-builder.h \
   rtx-vector-builder.h vec-perm-indices.h \
-  $(srcdir)/config/aarch64/aarch64-sve-builtins.h \
+  $(srcdir)/config/aarch64/aarch64-acle-builtins.h \
   $(srcdir)/config/aarch64/aarch64-sve-builtins-shapes.h \
   $(srcdir)/config/aarch64/aarch64-sve-builtins-base.h \
   $(srcdir)/config/aarch64/aarch64-sve-builtins-functions.h
@@ -116,7 +116,7 @@ aarch64-sve-builtins-sve2.o: \
   $(EXPR_H) $(BASIC_BLOCK_H) $(FUNCTION_H) fold-const.h $(GIMPLE_H) \
   gimple-iterator.h gimplify.h explow.h $(EMIT_RTL_H) tree-vector-builder.h \
   rtx-vector-builder.h vec-perm-indices.h \
-  $(srcdir)/config/aarch64/aarch64-sve-builtins.h \
+  $(srcdir)/config/aarch64/aarch64-acle-builtins.h \
   $(srcdir)/config/aarch64/aarch64-sve-builtins-shapes.h \
   $(srcdir)/config/aarch64/aarch64-sve-builtins-sve2.h \
   $(srcdir)/config/aarch64/aarch64-sve-builtins-functions.h
@@ -129,7 +129,7 @@ aarch64-sve-builtins-sme.o: \
   $(TM_P_H) memmodel.h insn-codes.h $(OPTABS_H) $(RECOG_H) \
   $(EXPR_H) $(BASIC_BLOCK_H) $(FUNCTION_H) fold-const.h $(GIMPLE_H) \
   gimple-iterator.h gimplify.h explow.h $(EMIT_RTL_H) \
-  $(srcdir)/config/aarch64/aarch64-sve-builtins.h \
+  $(srcdir)/config/aarch64/aarch64-acle-builtins.h \
   $(srcdir)/config/aarch64/aarch64-sve-builtins-shapes.h \
   $(srcdir)/config/aarch64/aarch64-sve-builtins-sme.h \
   $(srcdir)/config/aarch64/aarch64-sve-builtins-functions.h

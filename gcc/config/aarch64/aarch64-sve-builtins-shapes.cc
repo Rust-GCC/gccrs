@@ -31,7 +31,7 @@
 #include "memmodel.h"
 #include "insn-codes.h"
 #include "optabs.h"
-#include "aarch64-sve-builtins.h"
+#include "aarch64-acle-builtins.h"
 #include "aarch64-sve-builtins-shapes.h"
 #include "aarch64-builtins.h"
 
@@ -48,7 +48,7 @@
    but this does not affect the prototype, which is always
    "svbool_t(svbool_t, svbool_t)".  */
 
-namespace aarch64_sve {
+namespace aarch64_acle {
 
 /* Return a representation of "const T *".  */
 static tree
