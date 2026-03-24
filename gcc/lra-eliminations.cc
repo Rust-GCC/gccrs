@@ -1544,8 +1544,19 @@ lra_eliminate (bool final_p, bool first_p)
   EXECUTE_IF_SET_IN_BITMAP (&insns_with_changed_offsets, 0, uid, bi)
     /* A dead insn can be deleted in process_insn_for_elimination.  */
     if (lra_insn_recog_data[uid] != NULL)
-      process_insn_for_elimination (lra_insn_recog_data[uid]->insn,
-				    final_p, first_p);
+      {
+	rtx_insn *insn = lra_insn_recog_data[uid]->insn;
+	start_sequence ();
+	process_insn_for_elimination (insn, final_p, first_p);
+	rtx_insn *first = get_insns ();
+	end_sequence ();
+	if (first != NULL)
+	  {
+	    lra_assert (!final_p);
+	    lra_process_new_insns (insn, first, NULL,
+				   "Inserting elimination insn", true);
+	  }
+      }
   bitmap_clear (&insns_with_changed_offsets);
 
 lra_eliminate_done:
