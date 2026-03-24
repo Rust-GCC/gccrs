@@ -868,16 +868,6 @@ public:
     std::function<void (Usage, Definition)> insert_segment_resolution,
     std::vector<Error> &collect_errors);
 
-  tl::optional<Node &> resolve_segments (
-    Node &starting_point, const std::vector<ResolutionPath::Segment> &segments,
-    SegIterator iterator,
-    std::function<void (Usage, Definition)> insert_segment_resolution,
-    std::vector<Error> &collect_errors);
-
-  tl::optional<Rib::Definition> resolve_final_segment (Node &final_node,
-						       std::string &seg_name,
-						       bool is_lower_self);
-
   /* Helper functions for forward resolution (to_canonical_path, to_rib...) */
   struct DfsResult
   {
