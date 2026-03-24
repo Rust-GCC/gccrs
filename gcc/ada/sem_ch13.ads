@@ -111,19 +111,6 @@ package Sem_Ch13 is
    --  at the point an object with an address clause is frozen, as well as for
    --  address clauses for tasks and entries.
 
-   procedure Check_Function_For_Indexing_Aspect
-     (ASN   : Node_Id;
-      Typ   : Entity_Id;
-      Subp  : Entity_Id;
-      Valid : out Boolean);
-   --  Check Subp to see whether it's a valid function for Typ's indexing
-   --  aspect ASN (as specified by the rules given in RM 4.1.6(1-3)), flagging
-   --  an error if Subp is not an eligible indexing function (unless Subp is
-   --  declared outside the scope of E, in which case it's simply ignored
-   --  rather than considered an error; see AI22-0084). If valid for indexing,
-   --  then Subp is added to ASN's Aspect_Subprograms list, and Valid is set
-   --  to True (otherwise False).
-
    procedure Check_Size
      (N      : Node_Id;
       T      : Entity_Id;

@@ -12508,6 +12508,7 @@ package body Sem_Ch6 is
             if Is_Dispatching_Operation (Alias (S)) then
                Check_Dispatching_Operation (S, Empty);
             end if;
+            Check_For_Primitive_Subprogram (Is_Primitive_Subp);
 
             return;
 

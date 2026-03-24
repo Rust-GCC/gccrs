@@ -168,6 +168,28 @@ package body Sem_Ch13 is
    --  node N for the given type (entity) of the aspect does not appear too
    --  late according to the rules in RM 13.1(9) and 13.1(10).
 
+   procedure Check_Function_For_Indexing_Aspect
+     (ASN                 : Node_Id;
+      Typ                 : Entity_Id;
+      Subp                : Entity_Id;
+      Valid               : out Boolean;
+      Has_Eligible_Func   : Boolean;
+      Error_On_Ineligible : Boolean);
+   --  Check Subp to see whether it's a valid function for Typ's indexing
+   --  aspect ASN (as specified by the rules given in RM 4.1.6(1-3)). If valid
+   --  for indexing, then Subp is added to ASN's Aspect_Subprograms list, and
+   --  Valid is set to True (otherwise False).
+   --
+   --  If Has_Eligible_Func is True, then it's known that the aspect has at
+   --  least one eligible function, which combined with Error_On_Ineligible
+   --  will determine whether ineligible functions are flagged as errors.
+   --
+   --  If Error_On_Ineligible is True, then an error will be issued when Subp
+   --  is ineligible for the indexing aspect; otherwise, only a warning may be
+   --  reported (except in cases that are likely to be false positives, such as
+   --  when Subp is not declared immediately within the same scope as the type,
+   --  or has a different type for its first formal).
+
    procedure Check_Iterator_Functions (Typ : Entity_Id; Expr : Node_Id);
    --  Check that there is a single function in the type's Default_Iterator
    --  aspect that has the proper type structure. Expr is the name given in
@@ -1027,7 +1049,10 @@ package body Sem_Ch13 is
       --  either type E or access E, then all denoted subprograms are
       --  primitive. If missing, Original is initialized with ASN and will not
       --  change during the recursive exploration of aggregate aspects; it is
-      --  used to improve the error message.
+      --  used to improve the error message. This procedure also checks rules
+      --  related to aspect inheritance as revised by AI22-0159, which prevent
+      --  derived types from differing from their parent type regarding
+      --  primitive and nonprimitive operations.
 
       procedure Make_Pragma_From_Boolean_Aspect (ASN : Node_Id);
       --  Given an aspect specification node ASN whose expression is an
@@ -1062,7 +1087,7 @@ package body Sem_Ch13 is
          Aspect : constant Aspect_Id := Get_Aspect_Id (ASN);
          Expr   : constant Node_Id   := Expression (ASN);
 
-         Indexing_Found : Boolean := False;
+         Indexing_Found      : Boolean   := False;
 
          procedure Check_Inherited_Indexing;
          --  For a derived type, check that the specification of an indexing
@@ -1131,17 +1156,18 @@ package body Sem_Ch13 is
       --  Start of processing for Check_Indexing_Functions
 
       begin
-         --  If the aspect specification was effectively inherited from the
-         --  parent type (so constructed anew by analysis), then no point
-         --  in validating.
+         --  When the aspect specification was effectively inherited from the
+         --  parent type (so constructed anew by analysis), we also validate
+         --  the aspect, since additional indexing functions can be given.
 
-         if not Comes_From_Source (ASN) then
-            return;
-         end if;
+         --  Check whether a single nonoverloaded entity is valid for use as
+         --  an indexing function.
 
          if not Is_Overloaded (Expr) then
             Check_Function_For_Indexing_Aspect
-              (ASN, E, Entity (Expr), Valid => Indexing_Found);
+              (ASN, E, Entity (Expr), Valid => Indexing_Found,
+               Has_Eligible_Func   => False,
+               Error_On_Ineligible => True);
 
          else
             declare
@@ -1154,17 +1180,23 @@ package body Sem_Ch13 is
                while Present (It.Nam) loop
 
                   --  Check that each interpretation is a function valid for
-                  --  use as an indexing function. (Note that the rules for
-                  --  indexing aspects are to be treated as legality rules,
-                  --  as per AI22-0084. If this is ever changed to treat these
-                  --  as resolution rules, then we'll have to keep track of
-                  --  whether there are further interpretations to be tested,
-                  --  and condition the error reporting within Illegal_Indexing
-                  --  on that.)
+                  --  use as an indexing function. Ineligible interpretations
+                  --  are not flagged on this call as errors, though in some
+                  --  cases a warning may be issued. For entities that are not
+                  --  eligible, an error may be reported further below, except
+                  --  for those that are excluded by the resolution rules, as
+                  --  per AI22-0154. On this loop we basicaly determine whether
+                  --  there's at least one eligible interpretation.
 
                   if Is_Overloadable (It.Nam) then
                      Check_Function_For_Indexing_Aspect
-                       (ASN, E, It.Nam, Valid);
+                       (ASN,
+                        E,
+                        It.Nam,
+                        Valid,
+                        Has_Eligible_Func   => False,
+                        Error_On_Ineligible => False);
+
                      Indexing_Found := Indexing_Found or Valid;
                   end if;
 
@@ -1173,10 +1205,34 @@ package body Sem_Ch13 is
             end;
          end if;
 
-         if not Indexing_Found and then not Error_Posted (ASN) then
-            Error_Msg_NE
-              ("indexing aspect requires a local function that applies to "
-               & "type&", Expr, E);
+         --  In the overloaded case, do another loop over interpretations
+         --  and only report errors on any ineligible interpretations if
+         --  no eligible one was found in the loop above (i.e., Indexing_Found
+         --  is False), and in any case on functions that have an appropriate
+         --  first formal but don't satisfy other eligibility requirements.
+         --  Implements the resolution and legality rules given in AI22-0154.
+
+         if Is_Overloaded (Expr) and then not Error_Posted (ASN) then
+            declare
+               Valid : Boolean;
+
+               I     : Interp_Index;
+               It    : Interp;
+
+            begin
+               Get_First_Interp (Expr, I, It);
+               while Present (It.Nam) loop
+                  Check_Function_For_Indexing_Aspect
+                    (ASN,
+                     E,
+                     It.Nam,
+                     Valid,
+                     Has_Eligible_Func   => Indexing_Found,
+                     Error_On_Ineligible => True);
+
+                  Get_Next_Interp (I, It);
+               end loop;
+            end;
          end if;
 
          --  ??? Is Is_Derived_Type the right test here? A derived type's
@@ -1184,11 +1240,13 @@ package body Sem_Ch13 is
          --  the derived type itself might or might not have an explicit
          --  aspect specification (as opposed to an aspect specification
          --  implicitly introduced by the compiler). So lots of cases to
-         --  consider.
+         --  consider. We only perform this checking when the aspect is
+         --  given explicitly (is "directly specified").
 
          if Is_Derived_Type (E)
            --  See comment re this debug flag in exp_ch5.adb
            and then not Debug_Flag_Dot_XX
+           and then Comes_From_Source (ASN)
          then
             Check_Inherited_Indexing;
          end if;
@@ -1287,13 +1345,11 @@ package body Sem_Ch13 is
       --  Start of processing for Check_Nonoverridable_Aspect_Subprograms
 
       begin
-         --  If the aspect specification was effectively inherited from the
-         --  parent type (so constructed anew by analysis), then no point
-         --  in validating.
-
-         if not Comes_From_Source (ASN) then
-            return;
-         end if;
+         --  Note that we perform the checking here even when the aspect is
+         --  inherited but not directly specified (Comes_From_Source (ASN)
+         --  is False), as in some cases additional operations can be added
+         --  (such as for the indexing aspects), and those must be checked
+         --  as well.
 
          --  If the expression is neither an aggregate nor a node denoting an
          --  entity, then also no point in validating.
@@ -1342,6 +1398,8 @@ package body Sem_Ch13 is
 
             declare
                Subp : constant Entity_Id := Entity (Expr);
+               ASN_Id  : constant Aspect_Id :=
+                           Get_Aspect_Id (Chars (Identifier (Original)));
             begin
 
                --  No point in validating a node that does not represent a
@@ -1351,55 +1409,126 @@ package body Sem_Ch13 is
                   return;
                end if;
 
+               --  Check restrictions of AI22-0159:
+               --
+               --  1) Derived types inheriting an aspect denoting primitives
+               --     must not declare nonprimitives eligible for that aspect.
+               --
+               --  2) Derived types inheriting an aspect denoting nonprimitives
+               --     are not allowed to directly specify the aspect (even when
+               --     it's a confirming aspect).
+               --
+               --  3) Derived types inheriting an aspect denoting nonprimitives
+               --     must not declare any new operations eligible for that
+               --     aspect.
+               --
+               --  We can exclude Aggregate aspects from this checking because
+               --  such an aspect's elements can only denote primitives. Note
+               --  also that it would be difficult to access the specific
+               --  elements of the parent's Aggregate aspect.
+
+               if ASN_Id /= Aspect_Aggregate
+                 and then Is_Derived_Type (E)
+               then
+                  declare
+                     Parent_Aspect_Value : constant Node_Id
+                       := (Find_Value_Of_Aspect (Etype (E), ASN_Id));
+                  begin
+                     if Present (Parent_Aspect_Value)
+                       and then Entity (Parent_Aspect_Value) /= Subp
+                     then
+                        if Is_Primitive (Entity (Parent_Aspect_Value)) then
+                           if not Is_Primitive (Subp) then
+                              Error_Msg_Name_1 := Chars (Subp);
+                              Error_Msg_Sloc := Sloc (Subp);
+
+                              Error_Msg_Name_2 :=
+                                Chars (Identifier (Original));
+
+                              Error_Msg_N
+                                ("nonprimitive operation % # not allowed "
+                                 & "for inherited aspect %", E);
+
+                              return;
+                           end if;
+
+                        --  If derived type inherits nonprimitive operations
+                        --  for the aspect, then an explicit aspect spec is
+                        --  disallowed (even a confirming one). See AI22-0159.
+
+                        elsif Comes_From_Source (ASN) then
+                           Error_Msg_Name_1 := Chars (Identifier (Original));
+
+                           Error_Msg_N
+                             ("explicit specification not allowed for aspect "
+                              & "% that inherits nonprimitive operation", ASN);
+
+                        --  Additionally, such a type is prohibited from adding
+                        --  any operations for the aspect. See AI22-0159.
+
+                        else
+                           Error_Msg_Name_1 := Chars (Subp);
+                           Error_Msg_Sloc := Sloc (Subp);
+
+                           Error_Msg_Name_2 := Chars (Identifier (Original));
+
+                           Error_Msg_N
+                             ("additional operation % # not allowed for "
+                              & "aspect % that inherits nonprimitive "
+                              & "operation", E);
+
+                           return;
+                        end if;
+                     end if;
+                  end;
+               end if;
+
                if not Is_Overloaded (Expr) then
                   Valid := (if Required_To_Be_Primitive (Subp)
                              then Is_Primitive (Subp));
 
                   Problem := Subp;
 
-               else
+               --  Currently the only cases where an aspect can resolve to
+               --  multiple subprograms are the indexing aspects. Other cases
+               --  where more than one subprogram is identified should have
+               --  already been flagged as errors. (Is that really true???)
+
+               elsif Nkind (ASN) = N_Aspect_Specification
+                 and then ASN_Id
+                   in Aspect_Constant_Indexing | Aspect_Variable_Indexing
+               then
                   declare
                      Found : Boolean := False;
-                     I     : Interp_Index;
-                     It    : Interp;
+                     Subp_Elmt : Elmt_Id :=
+                       First_Elmt (Aspect_Subprograms (ASN));
                   begin
-                     --  Check whether there is at least one interpretation
-                     --  that is required to be primitive. We iterate over all
-                     --  possible interpretations, as some may be removed.
+                     --  Check whether there is at least one subprogram that
+                     --  is required to be primitive.
 
-                     Get_First_Interp (Expr, I, It);
-                     while Present (It.Nam) loop
+                     while Present (Subp_Elmt) loop
+                        Found := Found
+                          or else Required_To_Be_Primitive (Node (Subp_Elmt));
 
-                        --  If the current interpretation is not declared
-                        --  within the scope of E, then it should not be
-                        --  considered, see RM 13.1.1(8/6).
-
-                        if not Within_Scope (It.Nam, Scope (E)) then
-                           Remove_Interp (I);
-
-                        else
-                           Found := Found
-                             or else Required_To_Be_Primitive (It.Nam);
-                        end if;
-
-                        Get_Next_Interp (I, It);
+                        Next_Elmt (Subp_Elmt);
                      end loop;
 
                      if Found then
 
-                        --  To satisfy the legality rule in RM 13.1.1(18.2/5),
-                        --  if there's at least one interpretation that's
-                        --  primitive, then all of them must be primitive;
-                        --  otherwise we emit an error.
+                        --  To satisfy the legality rule in RM 13.1.1(18.4/6),
+                        --  if at least one subprogram is primitive, then all
+                        --  of them must be primitive; otherwise we emit an
+                        --  error.
 
-                        Get_First_Interp (Expr, I, It);
+                        Subp_Elmt :=
+                          First_Elmt (Aspect_Subprograms (ASN));
+
                         pragma Warnings (Off, Valid); -- Valid not always True
-                        while Valid and then Present (It.Nam) loop
-
-                           Valid := Valid and then Is_Primitive (It.Nam);
-                           Problem := It.Nam;
-
-                           Get_Next_Interp (I, It);
+                        while Valid and then Present (Subp_Elmt) loop
+                           Valid :=
+                             Valid and then Is_Primitive (Node (Subp_Elmt));
+                           Problem := Node (Subp_Elmt);
+                           Next_Elmt (Subp_Elmt);
                         end loop;
                      end if;
                   end;
@@ -1421,7 +1550,11 @@ package body Sem_Ch13 is
                Error_Msg_N ("nonoverridable aspect % of type % requires % "
                             & Operation_Kind
                             & "# to be a primitive operation",
-                            Expr);
+
+                            --  When there's an explicit aspect spec, flag the
+                            --  name in the aspect; otherwise, flag the type.
+
+                            (if Comes_From_Source (ASN) then Expr else E));
             end;
          end if;
       end Check_Nonoverridable_Aspect_Subprograms;
@@ -1672,10 +1805,8 @@ package body Sem_Ch13 is
                   --  Ditto for iterator aspects, because the corresponding
                   --  attributes may not have been analyzed yet.
 
-                  when Aspect_Constant_Indexing
-                     | Aspect_Default_Iterator
+                  when Aspect_Default_Iterator
                      | Aspect_Iterator_Element
-                     | Aspect_Variable_Indexing
                   =>
                      Analyze (Expression (ASN));
 
@@ -1683,12 +1814,71 @@ package body Sem_Ch13 is
                         Error_Msg_NE
                           ("aspect must be fully defined before & is frozen",
                            ASN, E);
-
-                     elsif A_Id in Aspect_Constant_Indexing
-                                 | Aspect_Variable_Indexing
-                     then
-                        Check_Indexing_Functions (ASN);
                      end if;
+
+                  --  Indexing aspects require special treatment due to the
+                  --  possibility of inheriting from the parent and adding
+                  --  one or more new indexing functions for the derived type.
+
+                  when Aspect_Constant_Indexing
+                     | Aspect_Variable_Indexing
+                  =>
+                     declare
+                        Save_Entity : constant Entity_Id :=
+                                        Entity (Expression (ASN));
+                        Save_Etype  : constant Node_Id :=
+                                        Etype (Expression (ASN));
+                     begin
+                        --  If the aspect is inherited and is an expanded name,
+                        --  then change it to denote the selector, so that the
+                        --  preanalysis of the expression can locate functions
+                        --  added for the derived type (as otherwise we'd only
+                        --  locate the entity denoted by the expanded name when
+                        --  it's in another scope).
+
+                        if not Comes_From_Source (ASN)
+                          and then Nkind (Expression (ASN)) = N_Expanded_Name
+                        then
+                           Set_Expression
+                             (ASN, Selector_Name (Expression (ASN)));
+                        end if;
+
+                        --  Set the Entity and Etype to Empty to force
+                        --  analysis to look for added indexing functions
+                        --  that need to be checked for eligibility.
+
+                        Set_Entity (Expression (ASN), Empty);
+                        Set_Etype (Expression (ASN), Empty);
+
+                        --  We want to ignore errors if no new functions are
+                        --  found, which is OK when the aspect is inherited.
+
+                        Preanalyze_Without_Errors (Expression (ASN));
+
+                        if Etype (Expression (ASN)) = Any_Type then
+                           --  Restore the saved Entity and Etype values
+
+                           Set_Entity (Expression (ASN), Save_Entity);
+                           Set_Etype (Expression (ASN), Save_Etype);
+
+                           --  We report an error only if the type does not
+                           --  already have indexing functions inherited
+                           --  from an ancestor.
+
+                           if not Present (Aspect_Subprograms (ASN)) then
+                              Error_Msg_NE
+                                ("aspect must be fully defined before & is "
+                                   & "frozen", ASN, E);
+                           end if;
+
+                        --  If any candidates functions were found, then check
+                        --  them for eligibility as indexing functions and add
+                        --  the valid ones to the Aspect_Subprograms set.
+
+                        else
+                           Check_Indexing_Functions (ASN);
+                        end if;
+                     end;
 
                   when Aspect_Integer_Literal
                      | Aspect_Real_Literal
@@ -1766,7 +1956,7 @@ package body Sem_Ch13 is
                --  All nonoverriding aspects need further legality checks
 
                if A_Id in Nonoverridable_Aspect_Id
-                 and then Ada_Version >= Ada_2022
+                 and then Ada_Version >= Ada_2012
                then
                   Check_Nonoverridable_Aspect_Subprograms (ASN, E);
                end if;
@@ -12796,15 +12986,14 @@ package body Sem_Ch13 is
    ----------------------------------------
 
    procedure Check_Function_For_Indexing_Aspect
-     (ASN   : Node_Id;
-      Typ   : Entity_Id;
-      Subp  : Entity_Id;
-      Valid : out Boolean)
+     (ASN                 : Node_Id;
+      Typ                 : Entity_Id;
+      Subp                : Entity_Id;
+      Valid               : out Boolean;
+      Has_Eligible_Func   : Boolean;
+      Error_On_Ineligible : Boolean)
    is
       Aspect : constant Aspect_Id := Get_Aspect_Id (ASN);
-
-      procedure Illegal_Indexing (Msg : String);
-      --  Report error on illegal candidate for indexing function
 
       function Is_CW_Or_Access_To_CW
         (Param_Type    : Entity_Id;
@@ -12816,27 +13005,49 @@ package body Sem_Ch13 is
       --  For an appropriate access type, return designated type;
       --  otherwise return argument.
 
+      procedure Report_Ineligible_Indexing_Function (Msg : String);
+      --  Report an error or warning on an ineligible candidate for an indexing
+      --  function. Error messages are issued when Error_On_Ineligible is True;
+      --  otherwise, the message is reported as a warning (unless considered
+      --  likely to be a false-positive warning).
+
       function Subp_Is_Dispatching_Op_Of_Typ
         (Subp : Entity_Id;
          Typ  : Entity_Id) return Boolean;
       --  Is subprogram Subp is a dispatching operation of type Typ?
 
-      ----------------------
-      -- Illegal_Indexing --
-      ----------------------
+      -----------------------------------------
+      -- Report_Ineligible_Indexing_Function --
+      -----------------------------------------
 
-      --  NOTE: If the semantics of indexing aspects are ever changed
-      --  to be treated like resolution rules instead of legality rules,
-      --  then this procedure could be modified to only issue the error
-      --  if an appropriate function has not yet been found and there are
-      --  no further operations yet to be considered as interpretations
-      --  (i.e., return immediately without a message if Indexing_Found
-      --  or no further candidate functions are yet to be considered).
-
-      procedure Illegal_Indexing (Msg : String) is
+      procedure Report_Ineligible_Indexing_Function (Msg : String) is
       begin
+         --  Never issue a message on inherited subprograms. That can only
+         --  occur in warning cases, and would be too confusing. Also suppress
+         --  the warning if the first parameter is missing or doesn't match
+         --  the type with the indexing aspect, to limit false positives.
+
+         if not Error_On_Ineligible
+           and then
+             (not Comes_From_Source (Subp)
+                or else
+              not Present (First_Formal (Subp))
+                or else
+              Base_Type (Etype (First_Formal (Subp))) /= Typ)
+         then
+            return;
+         end if;
+
+         --  Set Error_Msg_Warn based on whether errors are wanted, so that
+         --  messages with "<<" will be reported appropriately as warnings
+         --  or errors.
+
+         Error_Msg_Warn := not Error_On_Ineligible;
          Error_Msg_NE (Msg, ASN, Typ);
-      end Illegal_Indexing;
+
+         Error_Msg_Sloc := Sloc (Subp);
+         Error_Msg_NE ("\ineligible operation & declared#", ASN, Subp);
+      end Report_Ineligible_Indexing_Function;
 
       ---------------------------
       -- Is_CW_Or_Access_To_CW --
@@ -12916,76 +13127,120 @@ package body Sem_Ch13 is
 
       Ret_Type : constant Entity_Id := Etype (Subp);
 
+      Has_Class_Wide_First_Formal : constant Boolean :=
+        Present (First_Formal (Subp))
+          and then
+            Is_CW_Or_Access_To_CW
+              (Param_Type    => Etype (First_Formal (Subp)),
+               Specific_Type => Typ);
+
    --  Start of processing for Check_Function_For_Indexing_Aspect
 
    begin
       Valid := False;
 
-      --  If the subprogram isn't declared in the same scope as the type
-      --  E, then it shouldn't be considered (see AI22-0084 as well as
-      --  RM 4.1.6(2/5-3/5), though the latter are apparently intended
-      --  as legality rules, not resolution rules).
+      --  If the aspect is already associated with the subprogram, such as in
+      --  the case of a class-wide operation of an inherited aspect coming from
+      --  the parent type, then no further checking needed.
 
-      if Scope (Subp) /= Scope (Typ) then
+      if Contains (Aspect_Subprograms (ASN), Subp) then
+         Valid := True;
+
+         return;
+      end if;
+
+      --  The name given in an indexing aspect usually denote primitives
+      --  that will be declared in the same scope as the type (by RM 4.1.6(2-3)
+      --  together with 13.1.1(18.4/6)), unless denoting a class-wide function,
+      --  in which case it could be in a nested package. We only want to issue
+      --  a message about a scope violation when errors are requested and there
+      --  is not at least one eligible function identified, as giving warnings
+      --  can result in reporting many false positives (such as on subprograms
+      --  in used packages).
+
+      if Scope (Subp) /= Scope (Typ)
+        and then not Has_Class_Wide_First_Formal
+      then
+         if not Has_Eligible_Func and then Error_On_Ineligible then
+            Report_Ineligible_Indexing_Function
+              ("indexing aspect requires function with same scope as type&");
+         end if;
+
          return;
 
+      --  Only flag an entity that is not a function when errors are
+      --  requested and there's not at least one eligible function
+      --  identified, and never issue a warning.
+
       elsif not Is_Overloadable (Subp) or else No (Ret_Type) then
-         Illegal_Indexing ("illegal indexing function for type&");
+         if not Has_Eligible_Func and then Error_On_Ineligible then
+            Report_Ineligible_Indexing_Function
+              ("illegal indexing function for type&");
+         end if;
+
          return;
 
       elsif No (First_Formal (Subp)) then
-         Illegal_Indexing
-           ("indexing aspect requires a function that applies to type&");
+         if not Has_Eligible_Func then
+            Report_Ineligible_Indexing_Function
+              ("indexing aspect requires a function that applies to type&<<");
+         end if;
+
+         return;
+
+      elsif not Subp_Is_Dispatching_Op_Of_Typ (Subp => Subp, Typ => Typ)
+        and then not Has_Class_Wide_First_Formal
+      then
+         if not Has_Eligible_Func then
+            Report_Ineligible_Indexing_Function
+              ("indexing aspect requires function with first formal "
+               & "applying to type& or its class-wide type<<");
+         end if;
          return;
 
       elsif No (Next_Formal (First_Formal (Subp))) then
-         Error_Msg_Sloc := Sloc (Subp);
-         Illegal_Indexing
-           ("at least two parameters required for indexing function "
-            & "defined #");
-         return;
-
-      elsif not Subp_Is_Dispatching_Op_Of_Typ
-                  (Subp => Subp, Typ => Typ)
-         and then not Is_CW_Or_Access_To_CW
-                        (Param_Type => Etype (First_Formal (Subp)),
-                         Specific_Type => Typ)
-      then
-         Illegal_Indexing
-           ("indexing aspect requires function with first formal "
-            & "applying to type& or its class-wide type");
-         return;
+         if not Has_Eligible_Func then
+            Report_Ineligible_Indexing_Function
+              ("at least two parameters required for indexing function<<");
+         end if;
 
       elsif Aspect = Aspect_Constant_Indexing
          and then Is_Anonymous_Access_Type (Etype (First_Formal (Subp)))
          and then not Is_Access_Constant (Etype (First_Formal (Subp)))
       then
-         Illegal_Indexing
+         Report_Ineligible_Indexing_Function
            ("Constant_Indexing must apply to function with "
-            & "access-to-constant formal");
+            & "access-to-constant formal<<");
          return;
-      end if;
 
       --  For variable_indexing the return type must be a reference type
 
-      if Aspect = Aspect_Variable_Indexing then
+      elsif Aspect = Aspect_Variable_Indexing then
          if not Has_Implicit_Dereference (Ret_Type) then
-            Illegal_Indexing
+            Report_Ineligible_Indexing_Function
               ("function for Variable_Indexing must return "
-               & "a reference type");
+               & "a reference type<<");
             return;
 
          elsif Is_Access_Constant
                  (Etype (First_Discriminant (Ret_Type)))
          then
-            Illegal_Indexing
+            Report_Ineligible_Indexing_Function
               ("function for Variable_Indexing must return an "
-               & "access-to-variable result");
+               & "access-to-variable result<<");
             return;
          end if;
       end if;
 
       Valid := True;
+
+      --  If errors are not requested, then return now, without adding this
+      --  eligible function to the indexing aspect's eligible subprograms list.
+      --  It will be added on a later call with Error_On_Ineligible set True.
+
+      if not Error_On_Ineligible then
+         return;
+      end if;
 
       --  Add the acceptable subprogram to the indexing aspect's list
       --  of subprograms.

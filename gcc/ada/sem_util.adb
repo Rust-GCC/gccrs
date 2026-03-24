@@ -15498,59 +15498,6 @@ package body Sem_Util is
                               Next_Elmt (Subp_Elmt);
                            end loop;
 
-                           --  Traverse the primitive operations of the type
-                           --  to locate any indexing functions that have been
-                           --  added to the type (i.e., that have been neither
-                           --  inherited, nor override any of the inherited
-                           --  indexing functions).
-
-                           --  ??? Note that this doesn't currently account for
-                           --  the possibility of added nonprimitive indexing
-                           --  functions (class-wide functions of the derived
-                           --  type). This presumably would require traversing
-                           --  all of the declarations of the immediately
-                           --  enclosing declaration list, which perhaps we
-                           --  should arguably be doing in any case, rather
-                           --  than separately gathering inherited, overriding,
-                           --  and new indexing functions (and which might also
-                           --  be more efficient). Perhaps this could/should be
-                           --  done in Analyze_Aspects_At_Freeze_Point, but
-                           --  experimenting with that led to difficulties.
-
-                           declare
-                              Prim_Ops   : constant Elist_Id :=
-                                Primitive_Operations (Typ);
-                              Prim_Elmt  : Elmt_Id := First_Elmt (Prim_Ops);
-                              Prim_Id    : Entity_Id;
-                              Valid_Func : Boolean;
-
-                           begin
-                              while Present (Prim_Elmt) loop
-                                 Prim_Id := Node (Prim_Elmt);
-
-                                 if Chars (Prim_Id) = Chars (Expression (Item))
-                                   and then
-                                     not Is_Inherited_Operation (Prim_Id)
-                                   and then
-                                     not Is_Overriding_Subprogram (Prim_Id)
-                                 then
-                                    --  Verify that the new primitive has
-                                    --  a correct profile to qualify as an
-                                    --  indexing function for Typ.
-
-                                    Check_Function_For_Indexing_Aspect
-                                      (New_Item, Typ, Prim_Id, Valid_Func);
-
-                                    if Valid_Func then
-                                       Append_New_Elmt
-                                         (Prim_Id, New_Indexing_Subps);
-                                    end if;
-                                 end if;
-
-                                 Next_Elmt (Prim_Elmt);
-                              end loop;
-                           end;
-
                            --  Save new list of indexing functions on aspect
 
                            Set_Aspect_Subprograms
