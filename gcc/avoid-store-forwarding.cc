@@ -435,22 +435,20 @@ store_forwarding_analyzer::avoid_store_forwarding (basic_block bb)
     return;
 
   auto_vec<store_fwd_info, 8> store_exprs;
-  auto_vec<rtx> store_exprs_del;
   rtx_insn *insn;
   unsigned int insn_cnt = 0;
 
-  /* We are iterating over the basic block's instructions detecting store
-     instructions.  Upon reaching a load instruction, we check if any of the
-     previously detected stores could result in store forwarding.  In that
-     case, we try to reorder the load and store instructions.
-     We skip this transformation when we encounter complex memory operations,
-     instructions that might throw an exception, instruction dependencies,
-     etc.  This is done by clearing the vector of detected stores, while
-     keeping the removed stores in another vector.  By doing so, we can check
-     if any of the removed stores operated on the load's address range, when
-     reaching a subsequent store that operates on the same address range,
-     as this would lead to incorrect values on the register that keeps the
-     loaded value.  */
+  /* Iterate over the basic block's instructions detecting store instructions.
+     Upon reaching a load instruction, check if any of the previously detected
+     stores could result in store forwarding.  In that case, try to reorder
+     the load and store instructions.  When we encounter instructions that
+     might throw an exception, instruction dependencies, etc., clear the
+     vector of detected stores and continue.
+
+     Invariant: dropping a candidate from store_exprs (via it->remove or
+     truncate) only removes it from the forwarding list; the store insn
+     stays in the IR so later loads read its effect from memory.  Only
+     process_store_forwarding may delete the original store.  */
   FOR_BB_INSNS (bb, insn)
     {
       if (!NONDEBUG_INSN_P (insn))
@@ -463,10 +461,6 @@ store_forwarding_analyzer::avoid_store_forwarding (basic_block bb)
 
       if (!set || insn_could_throw_p (insn))
 	{
-	  unsigned int i;
-	  store_fwd_info *it;
-	  FOR_EACH_VEC_ELT (store_exprs, i, it)
-	    store_exprs_del.safe_push (it->store_mem);
 	  store_exprs.truncate (0);
 	  continue;
 	}
@@ -490,10 +484,6 @@ store_forwarding_analyzer::avoid_store_forwarding (basic_block bb)
 	  || (load_mem && (!MEM_SIZE_KNOWN_P (load_mem)
 			   || !MEM_SIZE (load_mem).is_constant ())))
 	{
-	  unsigned int i;
-	  store_fwd_info *it;
-	  FOR_EACH_VEC_ELT (store_exprs, i, it)
-	    store_exprs_del.safe_push (it->store_mem);
 	  store_exprs.truncate (0);
 	  continue;
 	}
@@ -545,7 +535,6 @@ store_forwarding_analyzer::avoid_store_forwarding (basic_block bb)
 		    it->remove = true;
 		    removed_count++;
 		    remove_rest = true;
-		    store_exprs_del.safe_push (it->store_mem);
 		  }
 	      }
 	  }
@@ -589,42 +578,21 @@ store_forwarding_analyzer::avoid_store_forwarding (basic_block bb)
 		}
 	      else if (is_store_forwarding (store_mem, load_mem, &off_val))
 		{
-		  unsigned int j;
-		  rtx *del_it;
-		  bool same_range_as_removed = false;
-
-		  /* Check if another store in the load's address range has
-		     been deleted due to a constraint violation.  In this case
-		     we can't forward any other stores that operate in this
-		     range, as it would lead to partial update of the register
-		     that holds the loaded value.  */
-		  FOR_EACH_VEC_ELT (store_exprs_del, j, del_it)
-		    {
-		      rtx del_store_mem = *del_it;
-		      same_range_as_removed
-			= is_store_forwarding (del_store_mem, load_mem, NULL);
-		      if (same_range_as_removed)
-			break;
-		    }
-
 		  /* Check if moving this store after the load is legal.  */
 		  bool write_dep = false;
-		  if (!same_range_as_removed)
+		  unsigned int j = store_exprs.length () - 1;
+		  for (; j != i; j--)
 		    {
-		      unsigned int j = store_exprs.length () - 1;
-		      for (; j != i; j--)
+		      if (!store_exprs[j].forwarded
+			  && output_dependence (store_mem,
+						store_exprs[j].store_mem))
 			{
-			  if (!store_exprs[j].forwarded
-			      && output_dependence (store_mem,
-						    store_exprs[j].store_mem))
-			    {
-			      write_dep = true;
-			      break;
-			    }
+			  write_dep = true;
+			  break;
 			}
 		    }
 
-		  if (!same_range_as_removed && !write_dep)
+		  if (!write_dep)
 		    {
 		      it->forwarded = true;
 		      it->offset = off_val;
