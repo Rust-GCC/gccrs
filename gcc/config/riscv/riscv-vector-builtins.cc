@@ -3784,6 +3784,11 @@ rvv_switcher::rvv_switcher (bool pollute_flags)
       riscv_option_override ();
     }
 
+  /* Allow all vector modes during builtin registration so that
+     vector_mode_supported_p does not reject fractional LMUL modes
+     for xtheadvector.  */
+  riscv_registering_builtins = true;
+
   /* Set have_regs_of_mode before targetm.init_builtins ().  */
   memcpy (m_old_have_regs_of_mode, have_regs_of_mode,
 	  sizeof (have_regs_of_mode));
@@ -3803,6 +3808,8 @@ rvv_switcher::rvv_switcher (bool pollute_flags)
 
 rvv_switcher::~rvv_switcher ()
 {
+  riscv_registering_builtins = false;
+
   /* Recover back have_regs_of_mode.  */
   memcpy (have_regs_of_mode, m_old_have_regs_of_mode,
 	  sizeof (have_regs_of_mode));
