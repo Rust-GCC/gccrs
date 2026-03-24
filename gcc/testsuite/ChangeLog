@@ -1,3 +1,12 @@
+2026-03-23  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gnat.dg/generic_inst20.ads, gnat.dg/generic_inst20.adb: New test.
+	* gnat.dg/generic_inst20-sub.adb: New helper.
+
+2026-03-23  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gnat.dg/generic_inst19.adb: New test.
+
 2026-03-22  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
 
 	PR target/124597

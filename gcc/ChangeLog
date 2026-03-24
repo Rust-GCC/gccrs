@@ -1,3 +1,25 @@
+2026-03-23  Stefan Weigl-Bosker  <stefan@s00.xyz>
+
+	* omp-general.h: Fix typos.
+
+2026-03-23  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/124599
+	* tree-ssa-pre.cc (compute_avail): Make the VUSE in the
+	PRE reference expression part of the value again.
+	(phi_translate_1): Likewise.
+
+2026-03-23  Jakub Jelinek  <jakub@redhat.com>
+
+	PR bootstrap/124547
+	* configure.ac: After config.gcc inclusion use or set only gas instead
+	of gas_flag and gnu_ld instead of gnu_ld_flag.
+	* config.gcc: Document possibility of gas_flag or gnu_ld_flag being
+	empty.
+	* acinclude.m4 (gcc_GAS_FLAGS): Use gas instead of gas_flag.
+	(gcc_AC_INITFINI_ARRAY): Likewise.  Use gnu_ld instead of gnu_ld_flag.
+	* configure: Regenerate.
+
 2026-03-22  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
 
 	PR target/124597
