@@ -599,22 +599,19 @@ package body Exp_Unst is
                     (N : Node_Id) return Traverse_Result
                   is
                   begin
-                     --  Entity name case. Make sure that the entity is
-                     --  declared in a subprogram. This may not be the case for
-                     --  a type in a loop appearing in a precondition. Exclude
-                     --  explicitly discriminants (that can appear in bounds of
-                     --  discriminated components), enumeration literals and
-                     --  block.
+                     --  The main case is the name of an object entity declared
+                     --  in a subprogram.
 
                      if Is_Entity_Name (N) then
                         if Present (Entity (N))
                           and then not Is_Type (Entity (N))
-                          and then Present
-                            (Enclosing_Subprogram (Entity (N)))
                           and then
-                            Ekind (Entity (N))
-                              not in E_Discriminant | E_Enumeration_Literal
-                                | E_Block
+                            Ekind (Entity (N)) not in E_Block
+                                                    | E_Discriminant
+                                                    | E_Enumeration_Literal
+                                                    | E_Package
+                          and then
+                            Present (Enclosing_Subprogram (Entity (N)))
                         then
                            Note_Uplevel_Ref
                              (E      => Entity (N),
@@ -622,25 +619,22 @@ package body Exp_Unst is
                               Caller => Current_Subprogram,
                               Callee => Enclosing_Subprogram (Entity (N)));
                         end if;
-                     end if;
 
-                     --  N_Function_Call are handled later, don't touch them
-                     --  yet.
-                     if Nkind (N) in N_Function_Call
-                     then
+                     --  N_Function_Call is handled later
+
+                     elsif Nkind (N) = N_Function_Call then
                         return Skip;
 
-                     --  In N_Selected_Component and N_Expanded_Name, only the
-                     --  prefix may be referencing a uplevel entity.
+                     --  For N_Expanded_Name and N_Selected_Component, only the
+                     --  prefix may have an uplevel reference.
 
-                     elsif Nkind (N) in N_Selected_Component
-                         | N_Expanded_Name
+                     elsif Nkind (N) in N_Expanded_Name | N_Selected_Component
                      then
                         Do_Note_Uplevel_Bound (Prefix (N));
                         return Skip;
 
-                     --  The type of the prefix may be have an uplevel
-                     --  reference if this needs bounds.
+                     --  For an attribute, the type of the prefix may have an
+                     --  uplevel reference if it contains bounds.
 
                      elsif Nkind (N) = N_Attribute_Reference then
                         declare
@@ -649,10 +643,9 @@ package body Exp_Unst is
                            DT   : Boolean := False;
 
                         begin
-                           if Attr in
-                                Attribute_First
-                                | Attribute_Last
-                                | Attribute_Length
+                           if Attr in Attribute_First
+                                    | Attribute_Last
+                                    | Attribute_Length
                              and then Is_Constrained (Etype (Prefix (N)))
                            then
                               Check_Static_Type
@@ -663,6 +656,7 @@ package body Exp_Unst is
 
                      return OK;
                   end Note_Uplevel_Bound_Trav;
+
                begin
                   Do_Note_Uplevel_Bound (N);
                end Note_Uplevel_Bound;
