@@ -246,6 +246,17 @@
   const double __builtin_unpack_longdouble (long double, const int<1>);
     UNPACK_TF unpacktf {ibmld}
 
+; Builtins for ppc specific atomic compare exchange
+  bool __builtin_ppc_atomic_cas_local_qi (char *, char *, char *, const int, const int, const int);
+    PPC_ATOMIC_CAS_QI nothing {}
+  bool __builtin_ppc_atomic_cas_local_hi (short *, short *, short *, const int, const int, const int);
+    PPC_ATOMIC_CAS_HI nothing {}
+  bool __builtin_ppc_atomic_cas_local_si (int *, int *, int *, const int, const int, const int);
+    PPC_ATOMIC_CAS_SI nothing {}
+  bool __builtin_ppc_atomic_cas_local_di (long *, long *, long *, const int, const int, const int);
+    PPC_ATOMIC_CAS_DI nothing {}
+  bool __builtin_ppc_atomic_cas_local_ti (vsq *, vsq *, vsq *, const int, const int, const int);
+    PPC_ATOMIC_CAS_TI nothing {}
 
 ; Builtins that have been around just about forever, but not quite.
 [power5]

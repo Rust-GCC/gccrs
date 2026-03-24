@@ -3284,6 +3284,108 @@ rs6000_expand_builtin (tree exp, rtx target, rtx /* subtarget */,
       return expand_call (exp, target, ignore);
     }
 
+  if (fcode == RS6000_BIF_PPC_ATOMIC_CAS_QI
+      || fcode == RS6000_BIF_PPC_ATOMIC_CAS_HI
+      || fcode == RS6000_BIF_PPC_ATOMIC_CAS_SI
+      || fcode == RS6000_BIF_PPC_ATOMIC_CAS_DI
+      || fcode == RS6000_BIF_PPC_ATOMIC_CAS_TI)
+    {
+      machine_mode mode; // Get mode based on BIF ID (QImode, SImode, etc.)
+
+      switch (fcode)
+	{
+	case RS6000_BIF_PPC_ATOMIC_CAS_QI:
+	  mode = QImode;
+	  icode = CODE_FOR_atomic_compare_and_swap_localqi;
+	  break;
+	case RS6000_BIF_PPC_ATOMIC_CAS_HI:
+	  mode = HImode;
+	  icode = CODE_FOR_atomic_compare_and_swap_localhi;
+	  break;
+	case RS6000_BIF_PPC_ATOMIC_CAS_SI:
+	  mode = SImode;
+	  icode = CODE_FOR_atomic_compare_and_swap_localsi;
+	  break;
+	case RS6000_BIF_PPC_ATOMIC_CAS_DI:
+	  mode = DImode;
+	  icode = CODE_FOR_atomic_compare_and_swap_localdi;
+	  break;
+	case RS6000_BIF_PPC_ATOMIC_CAS_TI:
+	  mode = TImode;
+	  icode = CODE_FOR_atomic_compare_and_swap_localti;
+	  break;
+	default:
+	  gcc_unreachable ();
+	}
+
+      // Arg 0: ptr (pointer to data)
+      rtx ptr = expand_normal (CALL_EXPR_ARG (exp, 0));
+      rtx mem = gen_rtx_MEM (mode, force_reg (Pmode, ptr));
+
+      // Arg 1: expected (pointer to value) -> WE MUST DEREFERENCE THIS
+      rtx exp_ptr = expand_normal (CALL_EXPR_ARG (exp, 1));
+      rtx expected_val = gen_reg_rtx (mode);
+      emit_move_insn (expected_val, gen_rtx_MEM (mode,
+						 force_reg (Pmode, exp_ptr)));
+
+      // Arg 2: desired (value), dereference this as well
+      rtx desired_ptr = expand_normal (CALL_EXPR_ARG (exp, 2));
+      rtx desired_val = gen_reg_rtx (mode);
+      emit_move_insn (desired_val,
+		      gen_rtx_MEM (mode, force_reg (Pmode, desired_ptr)));
+
+      // Args 3, 4, 5: weak, succ, fail (constants)
+      rtx weak = expand_normal (CALL_EXPR_ARG (exp, 3));
+      rtx succ = expand_normal (CALL_EXPR_ARG (exp, 4));
+      rtx fail = expand_normal (CALL_EXPR_ARG (exp, 5));
+
+      // 0: Boolean return (Output)
+      struct expand_operand ops[8];
+      create_output_operand (&ops[0], target, SImode);
+
+      // 1: Old value return (Output)
+      rtx old_val = gen_reg_rtx (mode);
+      create_output_operand (&ops[1], old_val, mode);
+
+      // 2: The Memory (Fixed/Input - it's a MEM rtx)
+      // We use create_fixed_operand because it's a specific MEM location
+      create_fixed_operand (&ops[2], mem);
+
+      // 3: Expected Value (Input)
+      create_input_operand (&ops[3], expected_val, mode);
+
+      // 4: Desired Value (Input)
+      create_input_operand (&ops[4], desired_val, mode);
+
+      // 5, 6, 7: Weak, Success, Failure (Immediate/Constants)
+      create_input_operand (&ops[5], weak, SImode);
+      create_input_operand (&ops[6], succ, SImode);
+      create_input_operand (&ops[7], fail, SImode);
+
+      // Now call expand_insn with the ops array
+      if (!maybe_expand_insn (icode, 8, ops))
+	error ("invalid arguments to builtin");
+
+      // Create a label for the end of the function.
+      rtx done_label = gen_label_rtx ();
+
+      /* Standard Semantics: Update 'expected' ONLY on failure.
+	 If target (the boolean result) is NOT 0, the CAS succeeded.
+	 In the case of success, we jump straight to the end.  */
+
+      // If target != 0 (Success), skip the store.
+      emit_cmp_and_jump_insns (target, const0_rtx, NE, NULL_RTX,
+			       SImode, 1, done_label);
+
+      // FAILURE PATH: This code runs only if target == 0.
+      rtx expected_mem = gen_rtx_MEM (mode, force_reg (Pmode, exp_ptr));
+      emit_move_insn (expected_mem, old_val);
+
+      emit_label (done_label);
+
+      return target;
+    }
+
   if (bif_is_nosoft (*bifaddr)
       && rs6000_isa_flags & OPTION_MASK_SOFT_FLOAT)
     {
