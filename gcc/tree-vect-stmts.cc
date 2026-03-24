@@ -9890,6 +9890,14 @@ vectorizable_load (vec_info *vinfo,
 					     true, NULL, &ls.elsvals))
 	    return false;
 	}
+      else if (memory_access_type == VMAT_ELEMENTWISE
+	       || memory_access_type == VMAT_STRIDED_SLP)
+	{
+	  if (dump_enabled_p ())
+	    dump_printf_loc (MSG_MISSED_OPTIMIZATION, vect_location,
+			     "unsupported masked strided access.\n");
+	  return false;
+	}
       else if (memory_access_type != VMAT_LOAD_STORE_LANES
 	       && !mat_gather_scatter_p (memory_access_type))
 	{
@@ -9903,14 +9911,6 @@ vectorizable_load (vec_info *vinfo,
 	  if (dump_enabled_p ())
 	    dump_printf_loc (MSG_MISSED_OPTIMIZATION, vect_location,
 			     "unsupported masked emulated gather.\n");
-	  return false;
-	}
-      else if (memory_access_type == VMAT_ELEMENTWISE
-	       || memory_access_type == VMAT_STRIDED_SLP)
-	{
-	  if (dump_enabled_p ())
-	    dump_printf_loc (MSG_MISSED_OPTIMIZATION, vect_location,
-			     "unsupported masked strided access.\n");
 	  return false;
 	}
     }
