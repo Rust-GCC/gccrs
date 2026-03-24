@@ -18,6 +18,9 @@
 @c Likewise for parameters.
 @defcodeindex pa
 
+@c And for named patterns.
+@defcodeindex md
+
 @c Merge the standard indexes into a single one.
 @syncodeindex fn cp
 @syncodeindex vr cp
@@ -143,6 +146,7 @@ Additional tutorial information is linked to from
 * Option Index::    Index to command line options.
 * Parameter Index:: Index to parameters settable from the command line.
 * Concept Index::   Index of concepts and symbol names.
+* Named Pattern Index:: Index of standard pattern names.
 @end menu
 
 @include contribute.texi
@@ -211,6 +215,11 @@ form; it may sometimes be useful to look up both forms.
 @unnumbered Concept Index
 
 @printindex cp
+
+@node Named Pattern Index
+@unnumbered Named Pattern Index
+
+@printindex md
 
 @c ---------------------------------------------------------------------
 @c Epilogue
