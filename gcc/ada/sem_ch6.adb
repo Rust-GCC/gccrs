@@ -5637,9 +5637,8 @@ package body Sem_Ch6 is
       --  Checks whether corresponding subtypes named within a subprogram
       --  declaration and body originate from the same declaration, and returns
       --  True when they do. In the case of anonymous access-to-object types,
-      --  checks the designated types. Also returns True when GNAT_Mode is
-      --  enabled, or when the subprogram is marked Is_Internal or occurs
-      --  within a generic instantiation or internal unit (GNAT library unit).
+      --  checks the designated subtypes. Also returns True when the subprogram
+      --  is marked Is_Internal or occurs within a generic instantiation.
 
       -----------------------
       -- Conformance_Error --
@@ -5819,9 +5818,7 @@ package body Sem_Ch6 is
 
       begin
          if not In_Instance
-           and then not In_Internal_Unit (Subp)
            and then not Is_Internal (Subp)
-           and then not GNAT_Mode
            and then
              Ekind (Etype (Decl_Subtype)) not in Access_Subprogram_Kind
          then
