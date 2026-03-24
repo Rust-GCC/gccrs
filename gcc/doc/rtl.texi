@@ -4843,7 +4843,7 @@ definition of R by ebb4's phi instruction, with the input coming from A
 
 @itemize @bullet
 @item
-use of the ebb4's R phi definition of R by B
+use of ebb4's phi definition of R by D
 @end itemize
 @end itemize
 
