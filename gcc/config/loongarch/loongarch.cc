@@ -11507,7 +11507,7 @@ loongarch_process_target_version_attr (tree args, tree fndecl)
   if (str == "default")
     return true;
 
-  if (loongarch_parse_fmv_features (fndecl, str, NULL, NULL) == false)
+  if (loongarch_parse_fmv_features (loc, str, NULL, NULL) == false)
     return false;
 
   /* Get the attribute string and take out only the option part.
@@ -11729,8 +11729,22 @@ get_feature_mask_for_version (tree decl,
 
   string_slice version_string
     = TREE_STRING_POINTER (TREE_VALUE (TREE_VALUE (version_attr)));
-  loongarch_parse_fmv_features (decl, version_string, feature_mask,
-				feature_priority);
+  loongarch_parse_fmv_features (DECL_SOURCE_LOCATION (decl), version_string,
+				feature_mask, feature_priority);
+}
+
+/* Implement TARGET_CHECK_TARGET_CLONE_VERSION.  */
+
+bool
+loongarch_check_target_clone_version (string_slice str, location_t *loc)
+{
+  str = str.strip ();
+
+  if (str == "default")
+    return true;
+
+  return loongarch_parse_fmv_features (loc == NULL ? UNKNOWN_LOCATION : *loc,
+				       str, NULL, NULL);
 }
 
 /* This adds a condition to the basic_block NEW_BB in function FUNCTION_DECL
@@ -12088,9 +12102,9 @@ loongarch_option_same_function_versions (string_slice str1, const_tree,
 {
   loongarch_fmv_feature_mask feature_mask1;
   loongarch_fmv_feature_mask feature_mask2;
-  loongarch_parse_fmv_features (NULL, str1,
+  loongarch_parse_fmv_features (UNKNOWN_LOCATION, str1,
 				&feature_mask1, NULL);
-  loongarch_parse_fmv_features (NULL, str2,
+  loongarch_parse_fmv_features (UNKNOWN_LOCATION, str2,
 				&feature_mask2, NULL);
 
   return feature_mask1 == feature_mask2;
@@ -12394,6 +12408,10 @@ loongarch_option_same_function_versions (string_slice str1, const_tree,
 #undef TARGET_MANGLE_DECL_ASSEMBLER_NAME
 #define TARGET_MANGLE_DECL_ASSEMBLER_NAME \
   loongarch_mangle_decl_assembler_name
+
+#undef TARGET_CHECK_TARGET_CLONE_VERSION
+#define TARGET_CHECK_TARGET_CLONE_VERSION \
+  loongarch_check_target_clone_version
 
 #undef TARGET_GENERATE_VERSION_DISPATCHER_BODY
 #define TARGET_GENERATE_VERSION_DISPATCHER_BODY \
