@@ -774,37 +774,6 @@ public:
 			 std::forward<Args> (args)...);
   }
 
-  /**
-   * Resolve a path to its definition in the current `ForeverStack`
-   *
-   * // TODO: Add documentation for `segments`
-   *
-   * @return a valid option with the Definition if the path is present in the
-   *         current map, an empty one otherwise.
-   */
-  template <Namespace N>
-  tl::optional<Rib::Definition> resolve_path (
-    ForeverStack<N> &stack, const ResolutionPath &path, ResolutionMode mode,
-    std::function<void (Usage, Definition)> insert_segment_resolution,
-    std::vector<Error> &collect_errors);
-
-  template <Namespace N>
-  tl::optional<Rib::Definition> resolve_path (
-    ForeverStack<N> &stack, const ResolutionPath &path, ResolutionMode mode,
-    std::function<void (Usage, Definition)> insert_segment_resolution,
-    std::vector<Error> &collect_errors, NodeId starting_point_id);
-
-  /* TODO: Make private? */
-  template <Namespace N>
-  tl::optional<Rib::Definition> resolve_path (
-    ForeverStack<N> &stack, const ResolutionPath &path, ResolutionMode mode,
-    std::function<void (Usage, Definition)> insert_segment_resolution,
-    std::vector<Error> &collect_errors,
-    std::reference_wrapper<typename ForeverStack<N>::Node> starting_point);
-
-  /* If declared with #[prelude_import], the current standard library module */
-  tl::optional<NodeId> prelude;
-
   enum class LookupFinalizeError
   {
     // Impossible - we did not find any definition corresponding to a Usage.
@@ -838,7 +807,51 @@ public:
    */
   void flatten ();
 
+  /* If declared with #[prelude_import], the current standard library module */
+  tl::optional<NodeId> prelude;
+
 private:
+  /**
+   * Resolve a path to its definition
+   *
+   * // TODO: Add documentation for `segments`
+   *
+   * @return a valid option with the Definition if the path is present in the
+   *         current map, an empty one otherwise.
+   */
+  template <Namespace N>
+  tl::optional<Rib::Definition> resolve_path (
+    ForeverStack<N> &stack, const ResolutionPath &path, ResolutionMode mode,
+    std::function<void (Usage, Definition)> insert_segment_resolution,
+    std::vector<Error> &collect_errors);
+
+  template <Namespace N>
+  tl::optional<Rib::Definition> resolve_path (
+    ForeverStack<N> &stack, const ResolutionPath &path, ResolutionMode mode,
+    std::function<void (Usage, Definition)> insert_segment_resolution,
+    std::vector<Error> &collect_errors, NodeId starting_point_id);
+
+  template <Namespace N>
+  tl::optional<Rib::Definition> resolve_path (
+    ForeverStack<N> &stack, const ResolutionPath &path, ResolutionMode mode,
+    std::function<void (Usage, Definition)> insert_segment_resolution,
+    std::vector<Error> &collect_errors,
+    std::reference_wrapper<typename ForeverStack<N>::Node> starting_point);
+
+  template <Namespace N>
+  tl::optional<typename ForeverStack<N>::Node &> resolve_segments (
+    ForeverStack<N> &stack, typename ForeverStack<N>::Node &starting_point,
+    const std::vector<ResolutionPath::Segment> &segments,
+    typename ForeverStack<N>::SegIterator iterator,
+    std::function<void (Usage, Definition)> insert_segment_resolution,
+    std::vector<Error> &collect_errors);
+
+  template <Namespace N>
+  tl::optional<Rib::Definition>
+  resolve_final_segment (ForeverStack<N> &stack,
+			 typename ForeverStack<N>::Node &final_node,
+			 std::string &seg_name, bool is_lower_self);
+
   /* Map of "usage" nodes which have been resolved to a "definition" node */
   std::map<Usage, Definition> resolved_nodes;
 };
