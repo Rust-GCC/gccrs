@@ -650,7 +650,6 @@ Session::compile_crate (const char *filename)
     {
       options.target_data.dump_target_options ();
     }
-
   if (saw_errors ())
     return;
 
@@ -764,6 +763,9 @@ Session::compile_crate (const char *filename)
 
   if (last_step == CompileOptions::CompileStep::NameResolution)
     return;
+
+  // FIXME: Or run it within Late at the end?
+  name_resolution_ctx.flatten ();
 
   // resolution pipeline stage
   Resolver2_0::Late (name_resolution_ctx).go (parsed_crate);

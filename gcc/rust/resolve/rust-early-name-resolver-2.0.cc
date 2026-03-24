@@ -122,6 +122,42 @@ bool
 Early::resolve_rebind_import (NodeId use_dec_id,
 			      TopLevel::ImportKind &&rebind_import)
 {
+  NodeId import_id = UNKNOWN_NODEID;
+  auto &path = rebind_import.to_resolve;
+  auto &rebind = rebind_import.rebind.value ();
+
+  switch (rebind.get_new_bind_type ())
+    {
+    case AST::UseTreeRebind::NewBindType::IDENTIFIER:
+      // declared_name = rebind.get_identifier ().as_string ();
+      // locus = rebind.get_identifier ().get_locus ();
+      import_id = rebind.get_node_id ();
+      break;
+    case AST::UseTreeRebind::NewBindType::NONE:
+      {
+	const auto &segments = path.get_segments ();
+	// We don't want to insert `self` with `use module::self`
+	if (path.get_final_segment ().is_lower_self_seg ())
+	  {
+	    // Erroneous `self` or `{self}` use declaration
+	    if (segments.size () == 1)
+	      break;
+	    import_id = segments[segments.size () - 2].get_node_id ();
+	  }
+	else
+	  {
+	    import_id = path.get_final_segment ().get_node_id ();
+	  }
+	break;
+      }
+    case AST::UseTreeRebind::NewBindType::WILDCARD:
+      // nothing
+      break;
+    }
+
+  if (ctx.lookup (import_id))
+    return true;
+
   auto definitions = resolve_path_in_all_ns (rebind_import.to_resolve);
 
   // if we've found at least one definition, then we're good
@@ -406,15 +442,22 @@ Early::finalize_simple_import (const Early::ImportPair &mapping)
 {
   // FIXME: We probably need to store namespace information
 
-  auto locus = mapping.import_kind.to_resolve.get_locus ();
+  auto import = mapping.import_kind.to_resolve;
+  auto import_id = import.get_final_segment ().get_node_id ();
   auto data = mapping.data;
-  auto identifier
-    = mapping.import_kind.to_resolve.get_final_segment ().get_segment_name ();
+  auto identifier = import.get_final_segment ().get_segment_name ();
 
   for (auto &&definition : data.definitions ())
-    toplevel
-      .insert_or_error_out (
-	identifier, locus, definition.first.get_node_id (), definition.second /* TODO: This isn't clear - it would be better if it was called .ns or something */);
+    {
+      dirty = true;
+
+      ctx.map_usage (Usage (import_id),
+		     Definition (definition.first.get_node_id ()));
+
+      toplevel
+	.insert_or_error_out (identifier,
+			      import.get_locus (), import_id, definition.second /* TODO: This isn't clear - it would be better if it was called .ns or something */);
+    }
 }
 
 void
@@ -446,6 +489,7 @@ Early::finalize_rebind_import (const Early::ImportPair &mapping)
   auto &rebind = mapping.import_kind.rebind.value ();
   auto data = mapping.data;
 
+  NodeId import_id = UNKNOWN_NODEID;
   location_t locus = UNKNOWN_LOCATION;
   std::string declared_name;
 
@@ -455,6 +499,7 @@ Early::finalize_rebind_import (const Early::ImportPair &mapping)
     case AST::UseTreeRebind::NewBindType::IDENTIFIER:
       declared_name = rebind.get_identifier ().as_string ();
       locus = rebind.get_identifier ().get_locus ();
+      import_id = rebind.get_node_id ();
       break;
     case AST::UseTreeRebind::NewBindType::NONE:
       {
@@ -466,9 +511,13 @@ Early::finalize_rebind_import (const Early::ImportPair &mapping)
 	    if (segments.size () == 1)
 	      break;
 	    declared_name = segments[segments.size () - 2].as_string ();
+	    import_id = segments[segments.size () - 2].get_node_id ();
 	  }
 	else
-	  declared_name = path.get_final_segment ().as_string ();
+	  {
+	    declared_name = path.get_final_segment ().as_string ();
+	    import_id = path.get_final_segment ().get_node_id ();
+	  }
 	locus = path.get_final_segment ().get_locus ();
 	break;
       }
@@ -478,8 +527,16 @@ Early::finalize_rebind_import (const Early::ImportPair &mapping)
     }
 
   for (auto &&definition : data.definitions ())
-    toplevel.insert_or_error_out (
-      declared_name, locus, definition.first.get_node_id (), definition.second /* TODO: This isn't clear - it would be better if it was called .ns or something */);
+    {
+      dirty = true;
+
+      ctx.map_usage (Usage (import_id),
+		     Definition (definition.first.get_node_id ()));
+
+      toplevel
+	.insert_or_error_out (declared_name,
+			      path.get_locus (), import_id, definition.second /* TODO: This isn't clear - it would be better if it was called .ns or something */);
+    }
 }
 
 void
