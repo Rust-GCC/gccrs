@@ -1,5 +1,5 @@
 // { dg-do compile { target c++26 } }
-// { dg-additional-options "-freflection -O0" }
+// { dg-additional-options "-freflection -O0 -fno-short-enums" }
 
 #include <meta>
 #include <ranges>
