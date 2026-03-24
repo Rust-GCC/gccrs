@@ -536,6 +536,17 @@ Early::finalize_rebind_import (const Early::ImportPair &mapping)
       toplevel
 	.insert_or_error_out (declared_name,
 			      path.get_locus (), import_id, definition.second /* TODO: This isn't clear - it would be better if it was called .ns or something */);
+
+      // Map the import to the glob container if it exists - this is important
+      // for 2-stepped glob imports which refer to glob containers, e.g.
+      //
+      // enum Foo { ... }
+      // pub use Foo;
+      // use self::Foo::*;
+      auto &mappings = Analysis::Mappings::get ();
+      if (auto container
+	  = mappings.lookup_glob_container (definition.first.get_node_id ()))
+	mappings.insert_glob_container (import_id, container.value ());
     }
 }
 

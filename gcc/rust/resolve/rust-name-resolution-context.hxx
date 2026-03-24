@@ -349,17 +349,26 @@ NameResolutionContext::resolve_segments (
 		    .lookup_glob_container (rib_lookup->get_node_id ())
 		    .has_value ())
 		{
-		  child
-		    = stack.dfs_node (stack.root, rib_lookup->get_node_id ())
-			.value ();
+		  auto leaf_module
+		    = find_leaf_definition (rib_lookup->get_node_id ())
+			.value ()
+			.id;
+
+		  child = stack.dfs_node (stack.root, leaf_module).value ();
 		  break;
 		}
 	      else
 		{
+		  auto leaf_module
+		    = find_leaf_definition (rib_lookup->get_node_id ())
+			.value ()
+			.id;
+
 		  insert_segment_resolution (Usage (seg.node_id),
-					     Definition (
-					       rib_lookup->get_node_id ()));
-		  return tl::nullopt;
+					     Definition (leaf_module));
+
+		  child = stack.dfs_node (stack.root, leaf_module).value ();
+		  break;
 		}
 	    }
 
