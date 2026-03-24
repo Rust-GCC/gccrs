@@ -1,4 +1,5 @@
 /* { dg-do compile } */
+/* { dg-require-effective-target fopenmp } */
 /* { dg-additional-options "-O3 -fno-forward-propagate -fnon-call-exceptions -fno-dse -fprofile-generate -fopenmp -finstrument-functions" } */
 /* { dg-additional-options "-mno-outline-atomics" { target aarch64*-*-* } } */
 
