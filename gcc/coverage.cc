@@ -1343,7 +1343,7 @@ coverage_init (const char *filename)
   strcpy (da_file_name + prefix_len + len, GCOV_DATA_SUFFIX);
 
   bbg_file_stamp = local_tick;
-  if (flag_branch_probabilities)
+  if (flag_branch_probabilities && !flag_auto_profile)
     read_counts_file ();
 
   /* Name of bbg file.  */
