@@ -37,6 +37,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "analyzer/supergraph.h"
 #include "analyzer/program-state.h"
 #include "analyzer/exploded-graph.h"
+#include "analyzer/exploded-path.h"
 #include "analyzer/feasible-graph.h"
 
 #if ENABLE_ANALYZER

@@ -926,34 +926,6 @@ private:
   hash_set<function *> m_functions_with_enodes;
 };
 
-/* A path within an exploded_graph: a sequence of edges.  */
-
-class exploded_path
-{
-public:
-  exploded_path () : m_edges () {}
-  exploded_path (const exploded_path &other);
-
-  unsigned length () const { return m_edges.length (); }
-
-  bool find_stmt_backwards (const gimple *search_stmt,
-			    int *out_idx) const;
-
-  exploded_node *get_final_enode () const;
-
-  void dump_to_pp (pretty_printer *pp,
-		   const extrinsic_state *ext_state) const;
-  void dump (FILE *fp, const extrinsic_state *ext_state) const;
-  void dump (const extrinsic_state *ext_state = nullptr) const;
-  void dump_to_file (const char *filename,
-		     const extrinsic_state &ext_state) const;
-
-  bool feasible_p (logger *logger, std::unique_ptr<feasibility_problem> *out,
-		    engine *eng, const exploded_graph *eg) const;
-
-  auto_vec<const exploded_edge *> m_edges;
-};
-
 /* A reason why a particular exploded_path is infeasible.  */
 
 class feasibility_problem
@@ -1003,10 +975,6 @@ private:
   region_model m_model;
   auto_sbitmap m_snodes_visited;
 };
-
-/* Finding the shortest exploded_path within an exploded_graph.  */
-
-typedef shortest_paths<eg_traits, exploded_path> shortest_exploded_paths;
 
 // TODO: split the above up?
 
