@@ -1,6 +1,6 @@
 /* { dg-options "-march=armv8-a+crypto" } */
 
-#include <stdint-gcc.h>
+#include <stdint.h>
 int8_t crc8_data8 ()
 {
   return __builtin_crc8_data8 ('a', 0xff, 0x12);
