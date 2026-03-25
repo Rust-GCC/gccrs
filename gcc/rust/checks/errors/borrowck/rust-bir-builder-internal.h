@@ -26,7 +26,7 @@
 #include "rust-hir-visitor.h"
 #include "rust-bir.h"
 #include "rust-bir-free-region.h"
-#include "rust-immutable-name-resolution-context.h"
+#include "rust-finalized-name-resolution-context.h"
 #include "options.h"
 
 namespace Rust {
@@ -74,7 +74,7 @@ struct BuilderContext
 
   // External context.
   Resolver::TypeCheckContext &tyctx;
-  const Resolver2_0::NameResolutionContext &resolver;
+  const Resolver2_0::FinalizedNameResolutionContext &resolver;
 
   // BIR output
   BasicBlocks basic_blocks;
@@ -103,7 +103,7 @@ struct BuilderContext
 public:
   BuilderContext ()
     : tyctx (*Resolver::TypeCheckContext::get ()),
-      resolver (Resolver2_0::ImmutableNameResolutionContext::get ().resolver ())
+      resolver (Resolver2_0::FinalizedNameResolutionContext::get ())
   {
     basic_blocks.emplace_back (); // StartBB
   }
