@@ -2848,6 +2848,45 @@ region_model::impl_deallocation_call (const call_details &cd)
   kf.impl_call_post (cd);
 }
 
+/* Handler for "strcasecmp"   */
+
+class kf_strcasecmp : public builtin_known_function
+{
+public:
+  bool
+  matches_call_types_p (const call_details &cd) const final override
+  {
+    return (cd.num_args () == 2
+      && cd.arg_is_pointer_p (0)
+      && cd.arg_is_pointer_p (1));
+  }
+  void
+  impl_call_pre (const call_details &cd) const final override
+  {
+    cd.check_for_null_terminated_string_arg (0);
+    cd.check_for_null_terminated_string_arg (1);
+  }
+
+  enum built_in_function
+  builtin_code () const final override
+  {
+    return BUILT_IN_STRCASECMP;
+  }
+
+  void impl_call_post (const call_details &cd) const final override;
+};
+
+void
+kf_strcasecmp::impl_call_post (const call_details &cd) const
+{
+  if (tree lhs_type = cd.get_lhs_type ())
+    {
+      const svalue *result_val
+	= cd.get_or_create_conjured_svalue (cd.get_lhs_region ());
+      cd.maybe_set_lhs (result_val);
+    }
+}
+
 static void
 register_atomic_builtins (known_function_manager &kfm)
 {
@@ -3037,6 +3076,8 @@ register_known_functions (known_function_manager &kfm,
 
     kfm.add (BUILT_IN_EH_POINTER, std::make_unique<kf_eh_pointer> ());
 
+    kfm.add(BUILT_IN_STRCASECMP, std::make_unique<kf_strcasecmp>());
+
     register_atomic_builtins (kfm);
     register_sanitizer_builtins (kfm);
     register_varargs_builtins (kfm);
@@ -3101,6 +3142,8 @@ register_known_functions (known_function_manager &kfm,
     kfm.add ("__builtin_strlen", std::make_unique<kf_strlen> ());
     kfm.add ("strstr", std::make_unique<kf_strstr> ());
     kfm.add ("__builtin_strstr", std::make_unique<kf_strstr> ());
+    kfm.add("strcasecmp", std::make_unique<kf_strcasecmp>());
+    kfm.add("__builtin_strcasecmp", std::make_unique<kf_strcasecmp>());
   }
 
   /* Known POSIX functions, and some non-standard extensions.  */
