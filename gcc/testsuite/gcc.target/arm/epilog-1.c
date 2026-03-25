@@ -1,6 +1,6 @@
 /* Register liveness information from epilgoue enables peephole optimization. */
 /* { dg-do compile } */
-/* { dg-options "-mthumb -Os" } */
+/* { dg-options "-mthumb -Os -mno-long-calls" } */
 /* { dg-require-effective-target arm_thumb2_ok } */
 /* { dg-final { check-function-bodies "**" "" } } */
 
