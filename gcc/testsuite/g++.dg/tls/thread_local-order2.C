@@ -6,7 +6,7 @@
 // { dg-require-effective-target c++11 }
 // { dg-add-options tls }
 // { dg-require-effective-target tls_runtime }
-// { dg-xfail-run-if "" { { hppa*-*-hpux* *-*-solaris* } || { newlib } } }
+// { dg-xfail-run-if "" { { hppa*-*-hpux* *-*-solaris* *-*-vxworks* } || { newlib } } }
 
 extern "C" void abort();
 extern "C" int printf (const char *, ...);
