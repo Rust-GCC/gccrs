@@ -1,4 +1,5 @@
 /* { dg-do link } */
+/* { dg-skip-if "uses vxlink" { *-*-vxworks* } } */
 /* { dg-additional-options "-march=armv9-a -mfix-cortex-a53-843419 -###" } */
 
 int main()
