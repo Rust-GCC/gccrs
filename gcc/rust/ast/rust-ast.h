@@ -726,7 +726,6 @@ public:
   {
     EXPR,
     LITERAL,
-    MACRO,
     META_ITEM,
     TOKEN_TREE,
   };
