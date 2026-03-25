@@ -1,4 +1,5 @@
 /* { dg-do compile } */
+/* { dg-require-effective-target fpic } */
 /* { dg-options "-fPIE -mno-pic-data-is-text-relative -mlong-calls -ffunction-sections" } */
 
 struct c1 {
