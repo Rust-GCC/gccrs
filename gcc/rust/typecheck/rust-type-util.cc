@@ -28,7 +28,7 @@
 #include "rust-unify.h"
 #include "rust-coercion.h"
 #include "rust-hir-type-bounds.h"
-#include "rust-immutable-name-resolution-context.h"
+#include "rust-finalized-name-resolution-context.h"
 #include "options.h"
 
 namespace Rust {
@@ -103,8 +103,7 @@ query_type (HirId reference, TyTy::BaseType **result)
 	  NodeId ref_node_id = UNKNOWN_NODEID;
 	  NodeId ast_node_id = ty.get_mappings ().get_nodeid ();
 
-	  auto &nr_ctx
-	    = Resolver2_0::ImmutableNameResolutionContext::get ().resolver ();
+	  auto &nr_ctx = Resolver2_0::FinalizedNameResolutionContext::get ();
 
 	  // assign the ref_node_id if we've found something
 	  nr_ctx.lookup (ast_node_id).map ([&ref_node_id] (NodeId resolved) {

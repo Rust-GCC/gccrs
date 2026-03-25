@@ -22,14 +22,14 @@
 #include "rust-hir-stmt.h"
 #include "rust-hir-item.h"
 #include "rust-attribute-values.h"
-#include "rust-immutable-name-resolution-context.h"
+#include "rust-finalized-name-resolution-context.h"
 
 namespace Rust {
 namespace Privacy {
 
 PrivacyReporter::PrivacyReporter (
   Analysis::Mappings &mappings,
-  const Resolver2_0::NameResolutionContext &resolver,
+  const Resolver2_0::FinalizedNameResolutionContext &resolver,
   const Rust::Resolver::TypeCheckContext &ty_ctx)
   : mappings (mappings), resolver (resolver), ty_ctx (ty_ctx),
     current_module (tl::nullopt)
@@ -136,8 +136,8 @@ PrivacyReporter::check_for_privacy_violation (const NodeId &use_id,
 	// FIXME: This needs a LOT of TLC: hinting about the definition, a
 	// string to say if it's a module, function, type, etc...
 
-	if (!resolver.values.is_module_descendant (mod_node_id,
-						   current_module.value ()))
+	if (!resolver.get_underlying ().values.is_module_descendant (
+	      mod_node_id, current_module.value ()))
 	  valid = false;
       }
       break;
