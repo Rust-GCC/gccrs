@@ -770,6 +770,9 @@ Session::compile_crate (const char *filename)
   // resolution pipeline stage
   Resolver2_0::Late (name_resolution_ctx).go (parsed_crate);
 
+  // FIXME: Or run it within Late at the end?
+  name_resolution_ctx.flatten ();
+
   if (options.dump_option_enabled (CompileOptions::RESOLUTION_DUMP))
     dump_name_resolution (name_resolution_ctx);
 
