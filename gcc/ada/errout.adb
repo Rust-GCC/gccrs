@@ -125,6 +125,21 @@ package body Errout is
    --  the actual instantiation (i.e the line with the new). Msg_Cont is
    --  set true if this is a continuation message.
 
+   function Is_Before (M1, M2 : Error_Msg_Id) return Boolean;
+   --  Return True if M1 sorts before M2 in the error chain. Messages are
+   --  ordered first by source file (Sfile), then by flag location (Sptr),
+   --  then by original location (Optr) as a tiebreaker.
+
+   procedure Find_Msg_Insertion_Point
+     (Cur_Msg  : Error_Msg_Id;
+      Prev_Msg : out Error_Msg_Id;
+      Next_Msg : out Error_Msg_Id);
+   --  Determine the insertion point for Cur_Msg in the sorted error chain.
+   --  Sets Prev_Msg to the message preceding the insertion point and Next_Msg
+   --  to the message following it (No_Error_Msg if at the end of the chain).
+   --  Messages are ordered first by source file and then by source location
+   --  (Sptr, then Optr as a tiebreaker).
+
    function No_Warnings (N : Node_Or_Entity_Id) return Boolean;
    --  Determines if warnings should be suppressed for the given node
 
@@ -179,9 +194,6 @@ package body Errout is
    --  association, the flag is further propagated to its parent. This is done
    --  in order to guard against cascaded errors. Note that this call has an
    --  effect for a serious error only.
-
-   procedure Set_Prev_Pointers;
-   --  Set previous pointers for all of the error messages in the error chain
 
    procedure Set_Qualification (N : Nat; E : Entity_Id);
    --  Outputs up to N levels of qualification for the given entity. For
@@ -1593,44 +1605,7 @@ package body Errout is
       --  location (earlier flag location first in the chain).
 
       else
-         --  First a quick check, does this belong at the very end of the chain
-         --  of error messages. This saves a lot of time in the normal case if
-         --  there are lots of messages.
-
-         if Last_Error_Msg /= No_Error_Msg
-           and then Errors.Table (Cur_Msg).Sfile
-                    = Errors.Table (Last_Error_Msg).Sfile
-           and then (Sptr > Errors.Table (Last_Error_Msg).Sptr.Ptr
-                     or else (Sptr = Errors.Table (Last_Error_Msg).Sptr.Ptr
-                              and then Optr
-                                       > Errors.Table (Last_Error_Msg)
-                                           .Optr
-                                           .Ptr))
-         then
-            Prev_Msg := Last_Error_Msg;
-            Next_Msg := No_Error_Msg;
-
-         --  Otherwise do a full sequential search for the insertion point
-
-         else
-            Prev_Msg := No_Error_Msg;
-            Next_Msg := First_Error_Msg;
-            while Next_Msg /= No_Error_Msg loop
-               exit when
-                 Errors.Table (Cur_Msg).Sfile < Errors.Table (Next_Msg).Sfile;
-
-               if Errors.Table (Cur_Msg).Sfile = Errors.Table (Next_Msg).Sfile
-               then
-                  exit when
-                    Sptr < Errors.Table (Next_Msg).Sptr.Ptr
-                    or else (Sptr = Errors.Table (Next_Msg).Sptr.Ptr
-                             and then Optr < Errors.Table (Next_Msg).Optr.Ptr);
-               end if;
-
-               Prev_Msg := Next_Msg;
-               Next_Msg := Errors.Table (Next_Msg).Next;
-            end loop;
-         end if;
+         Find_Msg_Insertion_Point (Cur_Msg, Prev_Msg, Next_Msg);
 
          --  Now we insert the new message in the error chain.
 
@@ -1657,17 +1632,7 @@ package body Errout is
             Last_Killed := False;
          end if;
 
-         if Prev_Msg = No_Error_Msg then
-            First_Error_Msg := Cur_Msg;
-         else
-            Errors.Table (Prev_Msg).Next := Cur_Msg;
-         end if;
-
-         Errors.Table (Cur_Msg).Next := Next_Msg;
-
-         if Next_Msg = No_Error_Msg then
-            Last_Error_Msg := Cur_Msg;
-         end if;
+         Insert_Error_Msg (Cur_Msg, Prev_Msg, Next_Msg);
       end if;
 
       Increase_Error_Msg_Count (Errors.Table (Cur_Msg));
@@ -1940,7 +1905,6 @@ package body Errout is
 
    procedure Finalize (Last_Call : Boolean) is
    begin
-      Set_Prev_Pointers;
       Delete_Duplicate_Errors;
       Delete_Specifically_Suppressed_Warnings;
       Finalize_Called := True;
@@ -1952,6 +1916,41 @@ package body Errout is
          Validate_Specific_Warnings;
       end if;
    end Finalize;
+
+   ------------------------------
+   -- Find_Msg_Insertion_Point --
+   ------------------------------
+
+   procedure Find_Msg_Insertion_Point
+     (Cur_Msg  : Error_Msg_Id;
+      Prev_Msg : out Error_Msg_Id;
+      Next_Msg : out Error_Msg_Id)
+   is
+   begin
+      --  First a quick check, does this belong at the very end of the chain
+      --  of error messages. This saves a lot of time in the normal case if
+      --  there are lots of messages.
+
+      if Last_Error_Msg /= No_Error_Msg
+        and then
+          Errors.Table (Cur_Msg).Sfile = Errors.Table (Last_Error_Msg).Sfile
+        and then Is_Before (Last_Error_Msg, Cur_Msg)
+      then
+         Prev_Msg := Last_Error_Msg;
+         Next_Msg := No_Error_Msg;
+
+      --  Otherwise do a full sequential search for the insertion point
+
+      else
+         Prev_Msg := No_Error_Msg;
+         Next_Msg := First_Error_Msg;
+         while Next_Msg /= No_Error_Msg loop
+            exit when Is_Before (Cur_Msg, Next_Msg);
+            Prev_Msg := Next_Msg;
+            Next_Msg := Errors.Table (Next_Msg).Next;
+         end loop;
+      end if;
+   end Find_Msg_Insertion_Point;
 
    ----------------
    -- First_Node --
@@ -2191,6 +2190,23 @@ package body Errout is
       Warnings.Init;
       Specific_Warnings.Init;
    end Initialize;
+
+   ---------------
+   -- Is_Before --
+   ---------------
+
+   function Is_Before (M1, M2 : Error_Msg_Id) return Boolean is
+      E1 : Error_Msg_Object renames Errors.Table (M1);
+      E2 : Error_Msg_Object renames Errors.Table (M2);
+   begin
+      if E1.Sfile /= E2.Sfile then
+         return E1.Sfile < E2.Sfile;
+      elsif E1.Sptr.Ptr /= E2.Sptr.Ptr then
+         return E1.Sptr.Ptr < E2.Sptr.Ptr;
+      else
+         return E1.Optr.Ptr < E2.Optr.Ptr;
+      end if;
+   end Is_Before;
 
    -------------------------------
    -- Is_Size_Too_Small_Message --
@@ -4110,24 +4126,6 @@ package body Errout is
          end if;
       end if;
    end Set_Posted;
-
-   -----------------------
-   -- Set_Prev_Pointers --
-   -----------------------
-
-   procedure Set_Prev_Pointers is
-      Cur : Error_Msg_Id;
-      Nxt : Error_Msg_Id;
-
-   begin
-      Cur := First_Error_Msg;
-      while Cur /= No_Error_Msg loop
-         Nxt := Errors.Table (Cur).Next;
-         exit when Nxt = No_Error_Msg;
-         Errors.Table (Nxt).Prev := Cur;
-         Cur := Nxt;
-      end loop;
-   end Set_Prev_Pointers;
 
    -----------------------
    -- Set_Qualification --

@@ -388,6 +388,13 @@ package Erroutc is
    --  as the physically last entry in the error message table, since messages
    --  are not always inserted in sequence.
 
+   procedure Insert_Error_Msg
+     (Msg : Error_Msg_Id; Prev_Msg : Error_Msg_Id; Next_Msg : Error_Msg_Id);
+   --  Insert Msg into the error message chain between Prev_Msg and Next_Msg.
+   --  Sets the Next and Prev pointers on Msg, updates the Next pointer of
+   --  Prev_Msg and the Prev pointer of Next_Msg, and adjusts First_Error_Msg
+   --  and Last_Error_Msg when Prev_Msg or Next_Msg is No_Error_Msg.
+
    procedure Next_Error_Msg (E : in out Error_Msg_Id);
    --  Update E to point to the next error message in the list of error
    --  messages. Skip deleted and continuation messages.

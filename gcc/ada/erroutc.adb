@@ -697,6 +697,32 @@ package body Erroutc is
    end Next_Continuation_Msg;
 
    ----------------------
+   -- Insert_Error_Msg --
+   ----------------------
+
+   procedure Insert_Error_Msg
+     (Msg      : Error_Msg_Id;
+      Prev_Msg : Error_Msg_Id;
+      Next_Msg : Error_Msg_Id)
+   is
+   begin
+      Errors.Table (Msg).Prev := Prev_Msg;
+      Errors.Table (Msg).Next := Next_Msg;
+
+      if Prev_Msg = No_Error_Msg then
+         First_Error_Msg := Msg;
+      else
+         Errors.Table (Prev_Msg).Next := Msg;
+      end if;
+
+      if Next_Msg = No_Error_Msg then
+         Last_Error_Msg := Msg;
+      else
+         Errors.Table (Next_Msg).Prev := Msg;
+      end if;
+   end Insert_Error_Msg;
+
+   ----------------------
    -- Primary_Location --
    ----------------------
 
