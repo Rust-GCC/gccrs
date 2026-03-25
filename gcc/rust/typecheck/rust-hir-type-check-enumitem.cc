@@ -21,7 +21,7 @@
 #include "rust-hir-type-check-expr.h"
 #include "rust-hir-type-check-enumitem.h"
 #include "rust-type-util.h"
-#include "rust-immutable-name-resolution-context.h"
+#include "rust-finalized-name-resolution-context.h"
 
 namespace Rust {
 namespace Resolver {
@@ -76,8 +76,7 @@ TypeCheckEnumItem::visit (HIR::EnumItem &item)
   rust_assert (ok);
   context->insert_type (mapping, isize);
 
-  auto &nr_ctx
-    = Resolver2_0::ImmutableNameResolutionContext::get ().resolver ();
+  auto &nr_ctx = Resolver2_0::FinalizedNameResolutionContext::get ();
 
   CanonicalPath canonical_path
     = nr_ctx.to_canonical_path (item.get_mappings ().get_nodeid ());
@@ -108,8 +107,7 @@ TypeCheckEnumItem::visit (HIR::EnumItemDiscriminant &item)
 	      TyTy::TyWithLocation (expected_ty),
 	      TyTy::TyWithLocation (capacity_type), item.get_locus ());
 
-  auto &nr_ctx
-    = Resolver2_0::ImmutableNameResolutionContext::get ().resolver ();
+  auto &nr_ctx = Resolver2_0::FinalizedNameResolutionContext::get ();
 
   CanonicalPath canonical_path
     = nr_ctx.to_canonical_path (item.get_mappings ().get_nodeid ());
@@ -158,8 +156,7 @@ TypeCheckEnumItem::visit (HIR::EnumItemTuple &item)
   rust_assert (ok);
   context->insert_type (mapping, isize);
 
-  auto &nr_ctx
-    = Resolver2_0::ImmutableNameResolutionContext::get ().resolver ();
+  auto &nr_ctx = Resolver2_0::FinalizedNameResolutionContext::get ();
 
   CanonicalPath canonical_path
     = nr_ctx.to_canonical_path (item.get_mappings ().get_nodeid ());
@@ -206,8 +203,7 @@ TypeCheckEnumItem::visit (HIR::EnumItemStruct &item)
   rust_assert (ok);
   context->insert_type (mapping, isize);
 
-  auto &nr_ctx
-    = Resolver2_0::ImmutableNameResolutionContext::get ().resolver ();
+  auto &nr_ctx = Resolver2_0::FinalizedNameResolutionContext::get ();
 
   CanonicalPath canonical_path
     = nr_ctx.to_canonical_path (item.get_mappings ().get_nodeid ());

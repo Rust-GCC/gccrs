@@ -21,7 +21,7 @@
 #include "rust-hir-type-check-expr.h"
 #include "rust-token.h"
 #include "rust-type-util.h"
-#include "rust-immutable-name-resolution-context.h"
+#include "rust-finalized-name-resolution-context.h"
 #include "rust-tyty.h"
 #include "tree.h"
 
@@ -54,8 +54,7 @@ TypeCheckPattern::visit (HIR::PathInExpression &pattern)
   NodeId ref_node_id = UNKNOWN_NODEID;
   bool maybe_item = false;
 
-  auto &nr_ctx
-    = Resolver2_0::ImmutableNameResolutionContext::get ().resolver ();
+  auto &nr_ctx = Resolver2_0::FinalizedNameResolutionContext::get ();
 
   if (auto id = nr_ctx.lookup (pattern.get_mappings ().get_nodeid ()))
     {
