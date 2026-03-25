@@ -4842,6 +4842,23 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
 					: t, w);
 	   cst = build_uniform_cst (t, cst); }
     (convert (mult (convert:t @0) { cst; })))))
+
+/* (X * C1) + (X << C2) -> X * (C1 + (1 << C2))  */
+(simplify
+ (plus:c (nop_convert? (mult:s (nop_convert? @0) uniform_integer_cst_p@1))
+	 (lshift:s @0 INTEGER_CST@2))
+  (if (ANY_INTEGRAL_TYPE_P (TREE_TYPE (@0))
+       && tree_fits_uhwi_p (@2)
+       && tree_to_uhwi (@2) < element_precision (type))
+   (with { tree t = type;
+	   if (!TYPE_OVERFLOW_WRAPS (t)) t = unsigned_type_for (t);
+	   unsigned int prec = element_precision (type);
+	   wide_int w = wi::to_wide (uniform_integer_cst_p (@1));
+	   w += wi::set_bit_in_zero (tree_to_uhwi (@2), prec);
+	   tree cst = wide_int_to_tree (VECTOR_TYPE_P (t) ? TREE_TYPE (t)
+					: t, w);
+	   cst = build_uniform_cst (t, cst); }
+    (convert (mult (convert:t @0) { cst; })))))
 #endif
 
 /* Canonicalize (X*C1)|(X*C2) and (X*C1)^(X*C2) to (C1+C2)*X when
