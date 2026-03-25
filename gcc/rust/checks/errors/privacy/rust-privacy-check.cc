@@ -20,7 +20,7 @@
 #include "rust-reachability.h"
 #include "rust-hir-type-check.h"
 #include "rust-hir-map.h"
-#include "rust-immutable-name-resolution-context.h"
+#include "rust-finalized-name-resolution-context.h"
 #include "rust-visibility-resolver.h"
 #include "rust-pub-restricted-visitor.h"
 #include "rust-privacy-reporter.h"
@@ -35,8 +35,7 @@ Resolver::resolve (HIR::Crate &crate)
 {
   PrivacyContext ctx;
   auto &mappings = Analysis::Mappings::get ();
-  auto &resolver
-    = Resolver2_0::ImmutableNameResolutionContext::get ().resolver ();
+  auto &resolver = Resolver2_0::FinalizedNameResolutionContext::get ();
   auto ty_ctx = ::Rust::Resolver::TypeCheckContext::get ();
 
   VisibilityResolver (mappings, resolver).go (crate);

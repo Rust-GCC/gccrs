@@ -21,7 +21,7 @@
 #include "rust-compile-extern.h"
 #include "rust-substitution-mapper.h"
 #include "rust-type-util.h"
-#include "rust-immutable-name-resolution-context.h"
+#include "rust-finalized-name-resolution-context.h"
 
 namespace Rust {
 namespace Compile {
@@ -50,8 +50,7 @@ CompileItem::visit (HIR::StaticItem &var)
 
   tree type = TyTyResolveCompile::compile (ctx, resolved_type);
 
-  auto &nr_ctx
-    = Resolver2_0::ImmutableNameResolutionContext::get ().resolver ();
+  auto &nr_ctx = Resolver2_0::FinalizedNameResolutionContext::get ();
 
   Resolver::CanonicalPath canonical_path
     = nr_ctx.to_canonical_path (var.get_mappings ().get_nodeid ());
@@ -103,8 +102,7 @@ CompileItem::visit (HIR::ConstantItem &constant)
     const_value_expr.get_mappings ().get_hirid (), &expr_type);
   rust_assert (ok);
 
-  auto &nr_ctx
-    = Resolver2_0::ImmutableNameResolutionContext::get ().resolver ();
+  auto &nr_ctx = Resolver2_0::FinalizedNameResolutionContext::get ();
 
   // canonical path
   Resolver::CanonicalPath canonical_path
@@ -200,8 +198,7 @@ CompileItem::visit (HIR::Function &function)
 	}
     }
 
-  auto &nr_ctx
-    = Resolver2_0::ImmutableNameResolutionContext::get ().resolver ();
+  auto &nr_ctx = Resolver2_0::FinalizedNameResolutionContext::get ();
 
   Resolver::CanonicalPath canonical_path
     = nr_ctx.to_canonical_path (function.get_mappings ().get_nodeid ());

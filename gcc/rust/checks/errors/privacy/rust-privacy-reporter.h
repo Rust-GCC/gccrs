@@ -24,7 +24,7 @@
 #include "rust-hir-visitor.h"
 #include "rust-hir-type-check.h"
 #include "rust-mapping-common.h"
-#include "rust-name-resolution-context.h"
+#include "rust-finalized-name-resolution-context.h"
 
 namespace Rust {
 namespace Privacy {
@@ -39,7 +39,7 @@ class PrivacyReporter : public HIR::HIRExpressionVisitor,
 {
 public:
   PrivacyReporter (Analysis::Mappings &mappings,
-		   const Resolver2_0::NameResolutionContext &resolver,
+		   const Resolver2_0::FinalizedNameResolutionContext &resolver,
 		   const Rust::Resolver::TypeCheckContext &ty_ctx);
 
   /**
@@ -158,7 +158,7 @@ types
   virtual void visit (HIR::ExprStmt &stmt);
 
   Analysis::Mappings &mappings;
-  const Resolver2_0::NameResolutionContext &resolver;
+  const Resolver2_0::FinalizedNameResolutionContext &resolver;
   const Rust::Resolver::TypeCheckContext &ty_ctx;
 
   // `None` means we're in the root module - the crate

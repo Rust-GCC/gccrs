@@ -24,7 +24,7 @@
 #include "rust-hir-type-check-expr.h"
 #include "rust-hir-path-probe.h"
 #include "rust-hir-type-bounds.h"
-#include "rust-immutable-name-resolution-context.h"
+#include "rust-finalized-name-resolution-context.h"
 #include "rust-mapping-common.h"
 #include "rust-substitution-mapper.h"
 #include "rust-type-util.h"
@@ -343,8 +343,7 @@ TypeCheckType::resolve_root_path (HIR::TypePath &path, size_t *offset,
 	  seg->get_lang_item ());
       else
 	{
-	  auto &nr_ctx
-	    = Resolver2_0::ImmutableNameResolutionContext::get ().resolver ();
+	  auto &nr_ctx = Resolver2_0::FinalizedNameResolutionContext::get ();
 
 	  // assign the ref_node_id if we've found something
 	  nr_ctx.lookup (ast_node_id).map ([&ref_node_id] (NodeId resolved) {
@@ -1108,8 +1107,7 @@ ResolveWhereClauseItem::visit (HIR::TypeBoundWhereClauseItem &item)
   // then lookup the reference_node_id
   NodeId ref_node_id = UNKNOWN_NODEID;
 
-  auto &nr_ctx
-    = Resolver2_0::ImmutableNameResolutionContext::get ().resolver ();
+  auto &nr_ctx = Resolver2_0::FinalizedNameResolutionContext::get ();
 
   if (auto id = nr_ctx.lookup (ast_node_id))
     {

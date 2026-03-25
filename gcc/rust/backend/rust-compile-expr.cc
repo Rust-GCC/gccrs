@@ -875,8 +875,7 @@ CompileExpr::visit (HIR::BreakExpr &expr)
 
   if (expr.has_label ())
     {
-      auto &nr_ctx
-	= Resolver2_0::ImmutableNameResolutionContext::get ().resolver ();
+      auto &nr_ctx = Resolver2_0::FinalizedNameResolutionContext::get ();
 
       NodeId resolved_node_id;
       if (auto id
@@ -932,8 +931,7 @@ CompileExpr::visit (HIR::ContinueExpr &expr)
   tree label = ctx->peek_loop_begin_label ();
   if (expr.has_label ())
     {
-      auto &nr_ctx
-	= Resolver2_0::ImmutableNameResolutionContext::get ().resolver ();
+      auto &nr_ctx = Resolver2_0::FinalizedNameResolutionContext::get ();
 
       NodeId resolved_node_id;
       if (auto id
@@ -2584,10 +2582,10 @@ CompileExpr::generate_closure_function (HIR::ClosureExpr &expr,
   if (is_block_expr)
     {
       auto body_mappings = function_body.get_mappings ();
-      auto &nr_ctx
-	= Resolver2_0::ImmutableNameResolutionContext::get ().resolver ();
+      auto &nr_ctx = Resolver2_0::FinalizedNameResolutionContext::get ();
 
-      auto candidate = nr_ctx.values.to_rib (body_mappings.get_nodeid ());
+      auto candidate
+	= nr_ctx.get_underlying ().values.to_rib (body_mappings.get_nodeid ());
 
       rust_assert (candidate.has_value ());
     }

@@ -20,14 +20,14 @@
 #include "rust-ast.h"
 #include "rust-hir.h"
 #include "rust-hir-item.h"
-#include "rust-name-resolution-context.h"
+#include "rust-finalized-name-resolution-context.h"
 
 namespace Rust {
 namespace Privacy {
 
 VisibilityResolver::VisibilityResolver (
   Analysis::Mappings &mappings,
-  const Resolver2_0::NameResolutionContext &resolver)
+  const Resolver2_0::FinalizedNameResolutionContext &resolver)
   : mappings (mappings), resolver (resolver)
 {}
 

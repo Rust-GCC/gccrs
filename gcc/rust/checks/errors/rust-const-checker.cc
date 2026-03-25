@@ -22,13 +22,13 @@
 #include "rust-hir-stmt.h"
 #include "rust-hir-item.h"
 #include "rust-system.h"
-#include "rust-immutable-name-resolution-context.h"
+#include "rust-finalized-name-resolution-context.h"
 
 namespace Rust {
 namespace HIR {
 
 ConstChecker::ConstChecker ()
-  : resolver (Resolver2_0::ImmutableNameResolutionContext::get ().resolver ()),
+  : resolver (Resolver2_0::FinalizedNameResolutionContext::get ()),
     mappings (Analysis::Mappings::get ())
 {}
 

@@ -16,39 +16,54 @@
 // along with GCC; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
-#include "rust-immutable-name-resolution-context.h"
+#include "rust-finalized-name-resolution-context.h"
 
 namespace Rust {
 namespace Resolver2_0 {
 
-static ImmutableNameResolutionContext *instance = nullptr;
+static FinalizedNameResolutionContext *instance = nullptr;
 
-const ImmutableNameResolutionContext &
-ImmutableNameResolutionContext::init (const NameResolutionContext &ctx)
+const FinalizedNameResolutionContext &
+FinalizedNameResolutionContext::init (NameResolutionContext &ctx)
 {
   rust_assert (!instance);
 
-  instance = new ImmutableNameResolutionContext (ctx);
+  instance = new FinalizedNameResolutionContext (ctx);
 
   return *instance;
 }
 
-const ImmutableNameResolutionContext &
-ImmutableNameResolutionContext::get ()
+FinalizedNameResolutionContext &
+FinalizedNameResolutionContext::get ()
 {
   rust_assert (instance);
 
   return *instance;
 }
 
-const NameResolutionContext &
-ImmutableNameResolutionContext::resolver () const
+void
+FinalizedNameResolutionContext::map_usage (Usage usage, Definition definition)
 {
-  return ctx;
+  auto leaf_definition
+    = ctx.find_leaf_definition (definition.id).value_or (definition);
+
+  ctx.map_usage (usage, leaf_definition);
 }
 
-ImmutableNameResolutionContext::ImmutableNameResolutionContext (
-  const NameResolutionContext &ctx)
+tl::optional<NodeId>
+FinalizedNameResolutionContext::lookup (NodeId usage) const
+{
+  return ctx.lookup (usage);
+}
+
+Resolver::CanonicalPath
+FinalizedNameResolutionContext::to_canonical_path (NodeId id) const
+{
+  return ctx.canonical_ctx.get_path (id);
+}
+
+FinalizedNameResolutionContext::FinalizedNameResolutionContext (
+  NameResolutionContext &ctx)
   : ctx (ctx)
 {}
 

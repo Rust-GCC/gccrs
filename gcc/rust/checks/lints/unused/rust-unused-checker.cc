@@ -27,8 +27,7 @@
 namespace Rust {
 namespace Analysis {
 UnusedChecker::UnusedChecker ()
-  : nr_context (
-    Resolver2_0::ImmutableNameResolutionContext::get ().resolver ()),
+  : nr_context (Resolver2_0::FinalizedNameResolutionContext::get ()),
     mappings (Analysis::Mappings::get ()), unused_context (UnusedContext ())
 {}
 void
