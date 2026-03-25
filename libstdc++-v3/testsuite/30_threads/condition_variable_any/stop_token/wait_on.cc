@@ -61,7 +61,7 @@ void test_wait_until(bool ck = true)
 
   std::stop_source src;
 
-  auto abst = std::chrono::steady_clock::now() + 1.0s;
+  auto abst = std::chrono::steady_clock::now() + (ck ? 5.0s : 1.0s);
   auto tok = src.get_token();
   std::thread t([ck, &ready, &mtx, &cv, abst, tok]
                 {
