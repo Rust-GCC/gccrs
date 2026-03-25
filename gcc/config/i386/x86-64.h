@@ -89,3 +89,6 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 
 #undef TARGET_SECTION_TYPE_FLAGS
 #define TARGET_SECTION_TYPE_FLAGS  x86_64_elf_section_type_flags
+
+/* GNU as can identify large sections by name, but accepts "l".  */
+#define MACH_DEP_SECTION_ASM_FLAG 'l'

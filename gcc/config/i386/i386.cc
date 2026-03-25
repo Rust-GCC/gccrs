@@ -744,7 +744,10 @@ ix86_in_large_data_p (tree exp)
     {
       const char *section = DECL_SECTION_NAME (exp);
       if (strcmp (section, ".ldata") == 0
-	  || strcmp (section, ".lbss") == 0)
+	  || startswith (section, ".ldata.")
+	  || strcmp (section, ".lbss") == 0
+	  || startswith (section, ".lbss.")
+	  || startswith (section, ".gnu.linkonce.lb."))
 	return true;
       return false;
     }
@@ -852,7 +855,12 @@ x86_64_elf_section_type_flags (tree decl, const char *name, int reloc)
   if (strcmp (name, ".lbss") == 0
       || startswith (name, ".lbss.")
       || startswith (name, ".gnu.linkonce.lb."))
-    flags |= SECTION_BSS;
+    {
+      flags |= SECTION_BSS;
+      /* Clear SECTION_NOTYPE so .lbss etc. are marked @nobits in
+	 default_elf_asm_named_section.  */
+      flags &= ~SECTION_NOTYPE;
+    }
 
   return flags;
 }
