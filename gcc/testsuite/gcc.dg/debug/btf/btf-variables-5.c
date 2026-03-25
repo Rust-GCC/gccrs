@@ -14,7 +14,7 @@
 /* Expect 2 array types, one of which is unsized.  For BPF target, -gprune-btf
    is the default and will remove the unsized array type.  */
 /* { dg-final { scan-assembler-times "\[\t \]0x4\[\t \]+\[^\n\]*bta_nelems" 1 } } */
-/* { dg-final { scan-assembler-times "\[\t \]0\[\t \]+\[^\n\]*bta_nelems" 1 { target { !bpf-*-* } } } } */
+/* { dg-final { scan-assembler-times "\[\t \]0\[\t \]+\[^\n\]*bta_nelems" 1 { target { ! bpf-*-* } } } } */
 /* { dg-final { scan-assembler-times "\[\t \]0\[\t \]+\[^\n\]*bta_nelems" 0 { target { bpf-*-* } } } } */
 
 extern const char FOO[];

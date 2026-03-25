@@ -36,7 +36,7 @@ contains
     integer :: a, b
 
     ! At gimplification time, we can't decide yet which function to call.
-    ! { dg-final { scan-tree-dump-times "f04 \\\(x" 2 "gimple" { target { !aarch64*-*-* } } } }
+    ! { dg-final { scan-tree-dump-times "f04 \\\(x" 2 "gimple" { target { ! aarch64*-*-* } } } }
     ! After simd clones are created, the original non-clone test1 shall
     ! call f03 (score 6), the sse2/avx/avx2 clones too, but avx512f clones
     ! shall call f01 with score 8.
