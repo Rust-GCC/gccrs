@@ -129,7 +129,6 @@ private:
   // rust-expr.h
   void visit (AST::LiteralExpr &expr) override;
   void visit (AST::AttrInputLiteral &attr_input) override;
-  void visit (AST::AttrInputMacro &attr_input) override;
   void visit (AST::MetaItemLitExpr &meta_item) override;
   void visit (AST::MetaItemPathExpr &meta_item) override;
   void visit (AST::BorrowExpr &expr) override;
