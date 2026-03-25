@@ -2,6 +2,7 @@
 /* { dg-require-effective-target vect_early_break } */
 /* { dg-require-effective-target vect_int } */
 /* { dg-require-effective-target mmap } */
+/* { dg-require-effective-target sysconf } */
 
 /* { dg-final { scan-tree-dump "LOOP VECTORIZED" "vect" } } */
 

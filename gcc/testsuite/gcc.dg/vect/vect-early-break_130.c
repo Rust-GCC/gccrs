@@ -1,4 +1,5 @@
 /* { dg-require-effective-target mmap } */
+/* { dg-require-effective-target sysconf } */
 /* { dg-add-options vect_early_break } */
 
 #include <sys/mman.h>
