@@ -77,7 +77,6 @@ class QualifiedPathInType;
 class ExprWithBlock;
 class LiteralExpr;
 class AttrInputLiteral;
-class AttrInputMacro;
 class MetaItemLitExpr;
 class MetaItemPathExpr;
 class OperatorExpr;
