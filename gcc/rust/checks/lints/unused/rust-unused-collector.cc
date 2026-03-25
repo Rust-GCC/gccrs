@@ -22,13 +22,12 @@
 #include "rust-hir-item.h"
 #include "rust-hir-path.h"
 #include "rust-hir-pattern.h"
-#include "rust-immutable-name-resolution-context.h"
+#include "rust-finalized-name-resolution-context.h"
 
 namespace Rust {
 namespace Analysis {
 UnusedCollector::UnusedCollector (UnusedContext &context)
-  : nr_context (
-    Resolver2_0::ImmutableNameResolutionContext::get ().resolver ()),
+  : nr_context (Resolver2_0::FinalizedNameResolutionContext::get ()),
     mappings (Analysis::Mappings::get ()), unused_context (context)
 {}
 void

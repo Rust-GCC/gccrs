@@ -25,7 +25,7 @@
 #include "rust-hir-map.h"
 #include "rust-hir-path.h"
 #include "rust-name-resolver.h"
-#include "rust-immutable-name-resolution-context.h"
+#include "rust-finalized-name-resolution-context.h"
 #include "rust-system.h"
 
 namespace Rust {

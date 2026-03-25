@@ -26,7 +26,7 @@
 #include "rust-hir-type-check-pattern.h"
 #include "rust-type-util.h"
 #include "rust-tyty.h"
-#include "rust-immutable-name-resolution-context.h"
+#include "rust-finalized-name-resolution-context.h"
 
 namespace Rust {
 namespace Resolver {
@@ -339,8 +339,7 @@ TypeCheckImplItem::visit (HIR::Function &function)
 			   param_tyty);
     }
 
-  auto &nr_ctx
-    = Resolver2_0::ImmutableNameResolutionContext::get ().resolver ();
+  auto &nr_ctx = Resolver2_0::FinalizedNameResolutionContext::get ();
 
   CanonicalPath canonical_path
     = nr_ctx.to_canonical_path (function.get_mappings ().get_nodeid ());
@@ -400,8 +399,7 @@ TypeCheckImplItem::visit (HIR::ConstantItem &constant)
     }
 
   // special case when this is a generic constant
-  auto &nr_ctx
-    = Resolver2_0::ImmutableNameResolutionContext::get ().resolver ();
+  auto &nr_ctx = Resolver2_0::FinalizedNameResolutionContext::get ();
   CanonicalPath canonical_path
     = nr_ctx.to_canonical_path (constant.get_mappings ().get_nodeid ());
   RustIdent ident{canonical_path, constant.get_locus ()};

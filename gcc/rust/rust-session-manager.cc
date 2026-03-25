@@ -24,7 +24,7 @@
 #include "rust-diagnostics.h"
 #include "rust-expression-yeast.h"
 #include "rust-hir-pattern-analysis.h"
-#include "rust-immutable-name-resolution-context.h"
+#include "rust-finalized-name-resolution-context.h"
 #include "rust-location.h"
 #include "rust-unsafe-checker.h"
 #include "rust-lex.h"
@@ -800,7 +800,7 @@ Session::compile_crate (const char *filename)
     return;
 
   // name resolution is done, we now freeze the name resolver for type checking
-  Resolver2_0::ImmutableNameResolutionContext::init (name_resolution_ctx);
+  Resolver2_0::FinalizedNameResolutionContext::init (name_resolution_ctx);
 
   // type resolve
   Compile::Context *ctx = Compile::Context::get ();

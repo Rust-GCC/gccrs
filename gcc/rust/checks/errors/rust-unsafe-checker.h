@@ -20,7 +20,7 @@
 #define RUST_UNSAFE_CHECKER_H
 
 #include "rust-hir-visitor.h"
-#include "rust-name-resolution-context.h"
+#include "rust-finalized-name-resolution-context.h"
 #include "rust-hir-type-check.h"
 #include "rust-stacked-contexts.h"
 
@@ -54,7 +54,7 @@ private:
   StackedContexts<HirId> unsafe_context;
 
   Resolver::TypeCheckContext &context;
-  const Resolver2_0::NameResolutionContext &resolver;
+  const Resolver2_0::FinalizedNameResolutionContext &resolver;
   Analysis::Mappings &mappings;
 
   virtual void visit (Lifetime &lifetime) override;
