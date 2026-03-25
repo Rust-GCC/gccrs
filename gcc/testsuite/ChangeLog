@@ -1,3 +1,42 @@
+2026-03-24  Vladimir N. Makarov  <vmakarov@redhat.com>
+
+	PR rtl-optimization/124572
+	* gcc.target/aarch64/pr124572.c: New.
+
+2026-03-24  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	PR testsuite/124326
+	* g++.dg/coroutines/pr110872.C (dg-ice): Restrict to 64-bit
+	targets or Darwin.
+
+2026-03-24  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	PR testsuite/123135
+	* g++.dg/warn/Wstringop-overflow-6.C (dg-additional-options): Add
+	-Wno-unknown-pragmas on Solaris.
+
+2026-03-24  Torbjörn SVENSSON  <torbjorn.svensson@foss.st.com>
+
+	* g++.dg/reflect/mangle1.C: Add -fno-short-enums.
+
+2026-03-24  Torbjörn SVENSSON  <torbjorn.svensson@foss.st.com>
+
+	* g++.dg/modules/omp-4_a.C: Add missing require effective target
+	fopenmp.
+	* g++.dg/modules/omp-4_b.C: Likewise.
+
+2026-03-24  Torbjörn SVENSSON  <torbjorn.svensson@foss.st.com>
+
+	* gcc.dg/pr124454-1.c: Add missing require effective target
+	fopenmp.
+
+2026-03-24  Martin Uecker  <uecker@tugraz.at>
+
+	PR c/123424
+	* gcc.dg/gnu23-tag-composite-7.c: New test.
+	* gcc.dg/gnu23-varmod-3.c: New test.
+	* gcc.dg/pr123424.c: New test.
+
 2026-03-23  Eric Botcazou  <ebotcazou@adacore.com>
 
 	* gnat.dg/generic_inst20.ads, gnat.dg/generic_inst20.adb: New test.

@@ -1,3 +1,11 @@
+2026-03-24  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	PR libgomp/123177
+	* testsuite/libgomp.fortran/uses_allocators-7.f90: Change to
+	compile test.
+	(dg-message): Adjust line numbers.
+	(dg-bogus): Likewise.
+
 2026-03-20  Tobias Burnus  <tburnus@baylibre.com>
 	    Sandra Loosemore  <sloosemore@baylibre.com>
 

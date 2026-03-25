@@ -1,3 +1,18 @@
+2026-03-24  Vladimir N. Makarov  <vmakarov@redhat.com>
+
+	PR rtl-optimization/124572
+	* lra-eliminations.cc (lra_eliminate): Push new reload insns for
+	eliminations in insns.
+
+2026-03-24  Christopher Bazley  <chris.bazley@arm.com>
+
+	* doc/rtl.texi: Fix example of the SSA form.
+
+2026-03-24  Alfie Richards  <alfie.richards@arm.com>
+
+	* tree-vect-stmts.cc (vectorizable_load): Swap order of failure
+	message checks.
+
 2026-03-23  Stefan Weigl-Bosker  <stefan@s00.xyz>
 
 	* omp-general.h: Fix typos.

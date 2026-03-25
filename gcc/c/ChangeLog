@@ -1,3 +1,16 @@
+2026-03-24  Martin Uecker  <uecker@tugraz.at>
+
+	PR c/123424
+	* c-decl.cc (c_update_variably_modified): New function.
+	(finish_struct): Call c_update_variably_modified.
+	* c-tree.h (c_variably_modified_p): Recurse if necessary.
+	* c-typeck.cc (c_verify_type): Update.
+	(c_set_type_bits): Use c_variably_modified_p.
+	(mark_decl_used): Dito.
+	(build_function_call_vec): Dito.
+	(c_build_qualified_type): Dito.
+	* c-objc-common.cc (c_var_p): Dito.
+
 2026-03-18  Dhruv Chawla  <dhruvc@nvidia.com>
 
 	* Make-lang.in (cc1.fda): Add `--print-autofdo-gcov-version` to
