@@ -9,9 +9,10 @@ typedef void (*sfun) (void);
 extern sfun getfn (int);
 
 /* This distilled srunner setup/teardown functions in check-0.15.2.  The
-   combination of setjmp, optimization, and debug statements causes a problem
-   if the gimple statement iterator is not positioned correctely before adding
-   instrumentation code.  */
+   combination of sigsetjmp, optimization, and debug statements causes a
+   problem if the gimple statement iterator is not positioned correctely before
+   adding instrumentation code.  This was originally setjmp, but a sigjmp_buf
+   can't generally be passed to setjmp.  */
 
 extern void
 debug_after_labels (int *itr)
@@ -19,7 +20,7 @@ debug_after_labels (int *itr)
   for (; *itr; ++itr)
     {
       sfun fn = getfn (*itr);
-      if (setjmp (jmpbuf) == 0)
+      if (sigsetjmp (jmpbuf, 0) == 0)
 	fn ();
     }
 }
