@@ -1856,6 +1856,8 @@ tree_profiling (void)
 {
   struct cgraph_node *node;
 
+  coverage_init_file ();
+
   /* Verify whether we can utilize atomic update operations.  */
   bool can_support_atomic = targetm.have_libatomic;
   unsigned HOST_WIDE_INT gcov_type_size
@@ -2071,6 +2073,7 @@ tree_profiling (void)
 
   del_node_map ();
   end_branch_prob ();
+  coverage_finish_file ();
   return 0;
 }
 
