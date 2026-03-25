@@ -798,9 +798,9 @@ public:
    * FIXME: The documentation is wrong, this needs to also run after all usages
    * have been *resolved* so after Late as well!!!
    *
-   * TODO: Should this return something like the ImmutableNameResolutionCtx? Or
+   * TODO: Should this return something like the FinalizedNameResolutionCtx? Or
    * set it up at least? And instead of mutating the `resolved_nodes` map,
-   * create a new one for the ImmutableNameResolutionCtx?
+   * create a new one for the FinalizedNameResolutionCtx?
    * Actually, since Late uses the NRCtx directly we should mutate this. Most
    * later passes don't look at this map. So let's go for side-effects in a void
    * function, yipee.

@@ -23,7 +23,7 @@
 #include "rust-hir-map.h"
 #include "rust-lint-marklive-base.h"
 #include "rust-name-resolver.h"
-#include "rust-immutable-name-resolution-context.h"
+#include "rust-finalized-name-resolution-context.h"
 
 namespace Rust {
 namespace Analysis {
@@ -278,12 +278,11 @@ private:
   std::set<HirId> liveSymbols;
   std::set<HirId> scannedSymbols;
   Analysis::Mappings &mappings;
-  const Resolver2_0::NameResolutionContext &resolver;
+  const Resolver2_0::FinalizedNameResolutionContext &resolver;
   Resolver::TypeCheckContext *tyctx;
   MarkLive (std::vector<HirId> worklist)
     : worklist (worklist), mappings (Analysis::Mappings::get ()),
-      resolver (
-	Resolver2_0::ImmutableNameResolutionContext::get ().resolver ()),
+      resolver (Resolver2_0::FinalizedNameResolutionContext::get ()),
       tyctx (Resolver::TypeCheckContext::get ()){};
 
   void mark_hir_id (HirId);

@@ -21,7 +21,7 @@
 #include "rust-hir-pattern.h"
 #include "rust-hir-visitor.h"
 #include "rust-mapping-common.h"
-#include "rust-name-resolution-context.h"
+#include "rust-finalized-name-resolution-context.h"
 #include "rust-unused-context.h"
 
 namespace Rust {
@@ -33,7 +33,7 @@ public:
   void go (HIR::Crate &crate);
 
 private:
-  const Resolver2_0::NameResolutionContext &nr_context;
+  const Resolver2_0::FinalizedNameResolutionContext &nr_context;
   Analysis::Mappings &mappings;
   UnusedContext &unused_context;
 

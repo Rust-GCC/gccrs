@@ -19,6 +19,7 @@
 #include "optional.h"
 #include "rust-common.h"
 #include "rust-hir-expr.h"
+#include "rust-hir-map.h"
 #include "rust-system.h"
 #include "rust-tyty-call.h"
 #include "rust-hir-type-check-struct-field.h"
@@ -31,7 +32,7 @@
 #include "rust-hir-type-check-stmt.h"
 #include "rust-hir-type-check-item.h"
 #include "rust-type-util.h"
-#include "rust-immutable-name-resolution-context.h"
+#include "rust-finalized-name-resolution-context.h"
 #include "rust-compile-base.h"
 #include "rust-tyty-util.h"
 #include "rust-tyty.h"
@@ -1535,8 +1536,7 @@ TypeCheckExpr::visit (HIR::MethodCallExpr &expr)
   // store the expected fntype
   context->insert_type (expr.get_method_name ().get_mappings (), lookup);
 
-  auto &nr_ctx = const_cast<Resolver2_0::NameResolutionContext &> (
-    Resolver2_0::ImmutableNameResolutionContext::get ().resolver ());
+  auto &nr_ctx = Resolver2_0::FinalizedNameResolutionContext::get ();
 
   nr_ctx.map_usage (Resolver2_0::Usage (expr.get_mappings ().get_nodeid ()),
 		    Resolver2_0::Definition (resolved_node_id));
@@ -1885,10 +1885,9 @@ TypeCheckExpr::visit (HIR::ClosureExpr &expr)
   // Resolve closure captures
 
   std::set<NodeId> captures;
-  auto &nr_ctx = const_cast<Resolver2_0::NameResolutionContext &> (
-    Resolver2_0::ImmutableNameResolutionContext::get ().resolver ());
 
-  if (auto opt_cap = nr_ctx.mappings.lookup_captures (closure_node_id))
+  if (auto opt_cap
+      = Analysis::Mappings::get ().lookup_captures (closure_node_id))
     for (auto cap : opt_cap.value ())
       captures.insert (cap);
 
@@ -2180,8 +2179,7 @@ TypeCheckExpr::resolve_operator_overload (
   context->insert_operator_overload (expr.get_mappings ().get_hirid (), type);
 
   // set up the resolved name on the path
-  auto &nr_ctx = const_cast<Resolver2_0::NameResolutionContext &> (
-    Resolver2_0::ImmutableNameResolutionContext::get ().resolver ());
+  auto &nr_ctx = Resolver2_0::FinalizedNameResolutionContext::get ();
 
   nr_ctx.map_usage (Resolver2_0::Usage (expr.get_mappings ().get_nodeid ()),
 		    Resolver2_0::Definition (resolved_node_id));
@@ -2376,8 +2374,7 @@ TypeCheckExpr::resolve_fn_trait_call (HIR::CallExpr &expr,
   context->insert_operator_overload (expr.get_mappings ().get_hirid (), fn);
 
   // set up the resolved name on the path
-  auto &nr_ctx = const_cast<Resolver2_0::NameResolutionContext &> (
-    Resolver2_0::ImmutableNameResolutionContext::get ().resolver ());
+  auto &nr_ctx = Resolver2_0::FinalizedNameResolutionContext::get ();
 
   auto existing = nr_ctx.lookup (expr.get_mappings ().get_nodeid ());
   if (existing)
