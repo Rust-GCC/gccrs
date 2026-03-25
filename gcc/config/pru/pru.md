@@ -1220,6 +1220,82 @@
   "nop\;xin\\t0, %0, 4"
   [(set_attr "type" "alu")
    (set_attr "length" "8")])
+
+(define_insn "umulsidi3"
+  [(set (match_operand:DI 0 "pru_muldst_operand"	   "=Rmd0")
+	(mult:DI
+	  (zero_extend:DI
+	    (match_operand:SI 1 "pru_mulsrc0_operand"	   "%Rms0"))
+	  (zero_extend:DI
+	    (match_operand:SI 2 "pru_mulsrc1_operand"	   "Rms1"))))]
+  "TARGET_OPT_MUL"
+  "nop\;xin\\t0, %0, 8"
+  [(set_attr "type" "alu")
+   (set_attr "length" "8")])
+
+
+;; If optimizing for speed, prefer to inline 64-bit multiplication,
+;; in order to avoid the overhead of calling a library function.
+(define_expand "muldi3"
+  [(parallel [(set (match_operand:DI 0 "register_operand")
+	(mult:DI (match_operand:DI 1 "register_operand")
+		 (match_operand:DI 2 "register_operand")))
+		 (clobber (reg:DI MULDST_REGNUM))
+		 (clobber (reg:SI MULSRC0_REGNUM))
+		 (clobber (reg:SI MULSRC1_REGNUM))
+		 ])]
+  "TARGET_OPT_MUL && !optimize_size && can_create_pseudo_p ()"
+{
+  rtx op0_lo = simplify_gen_subreg (SImode, operands[0], DImode, 0);
+  rtx op0_hi = simplify_gen_subreg (SImode, operands[0], DImode, 4);
+  rtx op1_lo = simplify_gen_subreg (SImode, operands[1], DImode, 0);
+  rtx op1_hi = simplify_gen_subreg (SImode, operands[1], DImode, 4);
+  rtx op2_lo = simplify_gen_subreg (SImode, operands[2], DImode, 0);
+  rtx op2_hi = simplify_gen_subreg (SImode, operands[2], DImode, 4);
+
+  gcc_assert (!reload_completed);
+
+  rtx cross_product1 = gen_reg_rtx (SImode);
+  rtx cross_product2 = gen_reg_rtx (SImode);
+  rtx low_product = gen_reg_rtx (DImode);
+  rtx cross_scratch1_hi = gen_reg_rtx (SImode);
+
+  rtx reg_mulsrc0_si = gen_reg_rtx (SImode);
+  rtx reg_mulsrc1_si = gen_reg_rtx (SImode);
+  rtx reg_muldst_di = gen_reg_rtx (DImode);
+
+  /* (al + C * ah) * (bl + C * bh) =	al * bl
+					+ C * ah * bl
+					+ C * al * bh
+					+ C * C * ah * bh  -> discard, overflow
+      Where C=(1 << 32).  */
+
+  emit_move_insn (cross_product1,
+		  gen_rtx_MULT (SImode, op1_hi, op2_lo));
+  emit_move_insn (cross_product2,
+		  gen_rtx_MULT (SImode, op1_lo, op2_hi));
+
+  /* Calculate "al * bl".  */
+  emit_move_insn (reg_mulsrc0_si, op1_lo);
+  emit_move_insn (reg_mulsrc1_si, op2_lo);
+  emit_insn (gen_umulsidi3 (reg_muldst_di, reg_mulsrc0_si, reg_mulsrc1_si));
+  emit_move_insn (low_product, reg_muldst_di);
+
+  emit_move_insn (cross_scratch1_hi,
+		  gen_rtx_PLUS (SImode,
+				cross_product1,
+				cross_product2));
+  emit_move_insn (op0_lo,
+		  simplify_gen_subreg (SImode, low_product, DImode, 0));
+  emit_move_insn (op0_hi,
+		  gen_rtx_PLUS (SImode,
+				simplify_gen_subreg (SImode,
+						     low_product,
+						     DImode,
+						     4),
+				cross_scratch1_hi));
+  DONE;
+})
 
 ;; Prologue, Epilogue and Return
 

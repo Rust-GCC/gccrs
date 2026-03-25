@@ -53,7 +53,8 @@
 
 (define_register_constraint "Rmd0" "MULDST_REGS"
   "@internal
-  The multiply destination register.")
+  The multiply destination register."
+  "regno == MULDST_REGNUM")
 
 (define_register_constraint "Rms0" "MULSRC0_REGS"
   "@internal

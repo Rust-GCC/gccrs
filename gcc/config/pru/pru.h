@@ -246,7 +246,7 @@ enum reg_class
     /* NO_REGS	      */ { 0, 0, 0, 0, 0},			\
     /* SIB_REGS	      */ { 0xf, 0xff000000u, ~0u, 0xffffffu, 0},\
     /* LOOPCNTR_REGS  */ { 0, 0, 0, 0, 0xf},			\
-    /* MULDST_REGS    */ { 0, 0, 0, 0x00000f00u, 0},		\
+    /* MULDST_REGS    */ { 0, 0, 0, 0x0000ff00u, 0},		\
     /* MULSRC0_REGS   */ { 0, 0, 0, 0x000f0000u, 0},		\
     /* MULSRC1_REGS   */ { 0, 0, 0, 0x00f00000u, 0},		\
     /* REGIO_REGS     */ { 0, 0, 0, 0xff000000u, 0},		\
