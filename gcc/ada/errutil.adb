@@ -192,9 +192,7 @@ package body Errutil is
       --  Immediate return if warning message and warnings are suppressed.
       --  Note that style messages are not warnings for this purpose.
 
-      if Error_Msg_Kind = Warning
-        and then Warnings_Suppressed (Sptr) /= No_String
-      then
+      if Error_Msg_Kind = Warning and then Warnings_Suppressed (Sptr) then
          Cur_Msg := No_Error_Msg;
          return;
       end if;

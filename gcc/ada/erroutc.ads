@@ -906,6 +906,11 @@ package Erroutc is
    --  parameter from the pragma is returned (or the null string if no Reason
    --  parameter was present).
 
+   function Warnings_Suppressed (Loc : Source_Ptr) return Boolean
+   is (Warnings_Suppressed (Loc) /= No_String);
+   --  Returns true if there is a reason for the warnings to be suppressed at
+   --  this location.
+
    function Warning_Specifically_Suppressed
      (Loc : Source_Ptr;
       Msg : String_Ptr;
