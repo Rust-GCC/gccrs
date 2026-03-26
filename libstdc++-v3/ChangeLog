@@ -1,3 +1,8 @@
+2026-03-25  Alexandre Oliva  <oliva@adacore.com>
+
+	* testsuite/30_threads/condition_variable_any/stop_token/wait_on.cc
+	(test_wait_until): Extend the timeout for a stop request.
+
 2026-03-21  Matthias Kretz  <m.kretz@gsi.de>
 
 	* include/Makefile.am: Add simd headers.

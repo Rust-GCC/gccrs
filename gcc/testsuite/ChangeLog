@@ -1,3 +1,103 @@
+2026-03-25  Iain Sandoe  <iain@sandoe.co.uk>
+
+	* g++.dg/contracts/cpp26/basic.contract.eval.p11-observe.C: Skip
+	for non-hosted.
+	* g++.dg/contracts/cpp26/basic.contract.eval.p17-2.C: Likewise.
+	* g++.dg/contracts/cpp26/basic.contract.eval.p17-3.C: Likewise.
+	* g++.dg/contracts/cpp26/basic.contract.eval.p17-4.C: Likewise.
+	* g++.dg/contracts/cpp26/basic.contract.eval.p17-5.C: Likewise.
+	* g++.dg/contracts/cpp26/basic.contract.eval.p17-SMF-post.C: Likewise.
+	* g++.dg/contracts/cpp26/basic.contract.eval.p17-SMF-pre.C: Likewise.
+	* g++.dg/contracts/cpp26/basic.contract.eval.p17-SMF2.C: Likewise.
+	* g++.dg/contracts/cpp26/basic.contract.eval.p17-SMF3.C: Likewise.
+	* g++.dg/contracts/cpp26/basic.contract.eval.p17-SMF4.C: Likewise.
+	* g++.dg/contracts/cpp26/basic.contract.eval.p17.C: Likewise.
+	* g++.dg/contracts/cpp26/basic.contract.eval.p4.C: Likewise.
+	* g++.dg/contracts/cpp26/basic.contract.eval.p6.observe.C: Likewise.
+	* g++.dg/contracts/cpp26/callerside-checks/callerside-checks-all.C: Likewise.
+	* g++.dg/contracts/cpp26/callerside-checks/callerside-checks-none.C: Likewise.
+	* g++.dg/contracts/cpp26/callerside-checks/callerside-checks-pre.C: Likewise.
+	* g++.dg/contracts/cpp26/callerside-checks/freefunc-noexcept-post.C: Likewise.
+	* g++.dg/contracts/cpp26/callerside-checks/freefunc-noexcept-pre.C: Likewise.
+	* g++.dg/contracts/cpp26/contract-assert-run.C: Likewise.
+	* g++.dg/contracts/cpp26/contract-violation-noexcept2.C: Likewise.
+	* g++.dg/contracts/cpp26/debug-and-opt.C: Likewise.
+	* g++.dg/contracts/cpp26/deferred1.C: Likewise.
+	* g++.dg/contracts/cpp26/definition-checks/contract-assert-no-def-check.C: Likewise.
+	* g++.dg/contracts/cpp26/dependent_contract.C: Likewise.
+	* g++.dg/contracts/cpp26/empty-nt-param.C: Likewise.
+	* g++.dg/contracts/cpp26/expr.prim.id.unqual.p7-3.C: Likewise.
+	* g++.dg/contracts/cpp26/expr.prim.id.unqual.p7-4.C: Likewise.
+	* g++.dg/contracts/cpp26/function-contract-specifier-seq.C: Likewise.
+	* g++.dg/contracts/cpp26/name_mangling.C: Likewise.
+	* g++.dg/contracts/cpp26/outline-checks/freefunc-noexcept-post.C: Likewise.
+	* g++.dg/contracts/cpp26/outline-checks/freefunc-noexcept-pre.C: Likewise.
+	* g++.dg/contracts/cpp26/outline-checks/func-noexcept-assert.C: Likewise.
+	* g++.dg/contracts/cpp26/outline-checks/memberfunc-noexcept-post.C: Likewise.
+	* g++.dg/contracts/cpp26/outline-checks/memberfunc-noexcept-pre.C: Likewise.
+	* g++.dg/contracts/cpp26/src-loc-0.C: Likewise.
+	* g++.dg/contracts/cpp26/src-loc-1.C: Likewise.
+	* g++.dg/contracts/cpp26/src-loc-2.C: Likewise.
+	* g++.dg/contracts/cpp26/throwing-violation-handler.cc: Likewise.
+	* g++.dg/contracts/cpp26/vaargs.C: Likewise.
+
+2026-03-25  Harald Anlauf  <anlauf@gmx.de>
+
+	PR fortran/124567
+	* gfortran.dg/pr124567.f90: New test.
+	* gfortran.dg/proc_decl_30.f90: Likewise.
+
+2026-03-25  Alexandre Oliva  <oliva@adacore.com>
+
+	* gcc.misc-tests/gcov-32.c: Replace mismatched setjmp call
+	with sigsetjmp.
+
+2026-03-25  Alexandre Oliva  <oliva@adacore.com>
+
+	* g++.target/arm/pr115485.C: Require fpic.
+
+2026-03-25  Alexandre Oliva  <oliva@adacore.com>
+
+	* gcc.dg/pr111409.c: Allow non-strict dwarf.
+	* gcc.dg/pr115066.c: Likewise.
+
+2026-03-25  Alexandre Oliva  <oliva@adacore.com>
+
+	* gcc.target/arm/epilog-1.c: Add -mno-long-calls.
+
+2026-03-25  Alexandre Oliva  <oliva@adacore.com>
+
+	* gcc.dg/vect/slp-mask-store-1.c (foo): Fix iteration range.
+
+2026-03-25  Alexandre Oliva  <oliva@adacore.com>
+
+	* gcc.dg/vect/vect-early-break_109-pr113588.c: Require sysconf.
+	* gcc.dg/vect/vect-early-break_130.c: Likewise.
+
+2026-03-25  Alexandre Oliva  <oliva@adacore.com>
+
+	* gcc.dg/tree-ssa/gen-vect-11c.c: xfail the test for no
+	vectorization on powerpc*-*-* && lp64.
+
+2026-03-25  Alexandre Oliva  <oliva@adacore.com>
+
+	* gcc.dg/vect/vect-early-break_137-pr121190.c: Require sysconf.
+	Don't override vect.exp options.
+
+2026-03-25  Alexandre Oliva  <oliva@adacore.com>
+
+	* g++.dg/tls/thread_local-order2.C: XFAIL on VxWorks.
+
+2026-03-25  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/119273
+	* gfortran.dg/pr119273.f90: New test.
+
+2026-03-25  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* gcc.target/i386/pr61599-1.c (dg-options): Add -save-temps.
+	(scan-assembler-times): Check for @nobits.
+
 2026-03-24  Vladimir N. Makarov  <vmakarov@redhat.com>
 
 	PR rtl-optimization/124572

@@ -1,3 +1,40 @@
+2026-03-25  Richard Biener  <rguenther@suse.de>
+
+	PR gcov-profile/121074
+	* coverage.h (coverage_init_file): Declare.
+	(coverage_finish_file): Likewise.
+	* coverage.cc (coverage_init_file): New function, split
+	out actual file opening and writing from ...
+	(coverage_init): ... here.
+	(coverage_finish_file): Likewise for file closing, from ...
+	(coverage_finish): ... here.
+	* tree-profile.cc (tree_profiling): Call coverage_init_file
+	and coverage_finish_file here.
+
+2026-03-25  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/124627
+	* tree-inline.cc (copy_debug_stmts): Only copy debug
+	stmts that are still in the IL.
+
+2026-03-25  Alexandre Oliva  <oliva@adacore.com>
+
+	* gcc-diagnostic-spec.cc (nowarn_spec_t::nowarn_spec_t): Map
+	OPT_Wuse_after_free like OPT_Wuse_after_free_.
+
+2026-03-25  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* config/i386/i386.cc (ix86_in_large_data_p): Check for .lbss etc.
+	(x86_64_elf_section_type_flags): Clear SECTION_NOTYPE for .lbss etc.
+	* config/i386/x86-64.h (MACH_DEP_SECTION_ASM_FLAG): Define.
+	* config/i386/sol2.h [HAVE_SOLARIS_AS]
+	(MACH_DEP_SECTION_ASM_FLAG): Redefine as 'h'.
+
+2026-03-25  Kugan Vivekanandarajah  <kvivekananda@nvidia.com>
+
+	* cgraph.cc (cgraph_edge::get_next_speculative_id): Use
+	next_speculative_call_target in get_next_speculative_id.
+
 2026-03-24  Vladimir N. Makarov  <vmakarov@redhat.com>
 
 	PR rtl-optimization/124572

@@ -1,3 +1,9 @@
+2026-03-25  Alexandre Oliva  <oliva@adacore.com>
+
+	* config/gthr-vxworks.h (__GTHREAD_ALWAYS_INLINE,
+	__GTHREAD_INLINE): Copy from gthr-posix.h.  Replace static
+	inline with __GTHREAD_INLINE.
+
 2026-03-13  Andre Vieira  <andre.simoesdiasvieira@arm.com>
 
 	* config/arm/libgcc-bpabi.ver: Add new symbols.
