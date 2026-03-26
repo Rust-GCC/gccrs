@@ -832,13 +832,7 @@ void
 ASTLoweringBase::handle_doc_item_attribute (const ItemWrapper &,
 					    const AST::Attribute &attr)
 {
-  if (!attr.has_attr_input ())
-    {
-      rust_error_at (attr.get_locus (),
-		     "attribute must be of the form %qs or %qs",
-		     "#[doc(hidden|inline|...)]", "#[doc = string]");
-      return;
-    }
+  rust_assert (attr.has_attr_input ());
 
   auto simple_doc_comment = attr.get_attr_input ().get_attr_input_type ()
 			    == AST::AttrInput::AttrInputType::LITERAL;
