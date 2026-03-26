@@ -10960,8 +10960,6 @@ riscv_hard_regno_mode_ok (unsigned int regno, machine_mode mode)
   else if (VTYPE_REG_P (regno) || VL_REG_P (regno) || VXRM_REG_P (regno)
 	   || FRM_REG_P (regno))
     return true;
-  else
-    return false;
 
   /* Require same callee-savedness for all registers.  */
   for (unsigned i = 1; i < nregs; i++)
