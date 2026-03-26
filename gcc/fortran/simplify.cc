@@ -3004,6 +3004,7 @@ gfc_simplify_eoshift (gfc_expr *array, gfc_expr *shift, gfc_expr *boundary,
   /* Shut up compiler */
   len = 1;
   rsoffset = 1;
+  sstride[0] = 0;
 
   n = 0;
   for (d=0; d < array->rank; d++)
@@ -3073,7 +3074,7 @@ gfc_simplify_eoshift (gfc_expr *array, gfc_expr *shift, gfc_expr *boundary,
 	{
 	  while (n--)
 	    {
-	      *dest = gfc_copy_expr (bnd_ctor->expr);
+	      *dest = bnd_ctor->expr;
 	      dest += rsoffset;
 	    }
 	}
@@ -3081,7 +3082,7 @@ gfc_simplify_eoshift (gfc_expr *array, gfc_expr *shift, gfc_expr *boundary,
 	{
 	  while (n--)
 	    {
-	      *dest = gfc_copy_expr (bnd);
+	      *dest = bnd;
 	      dest += rsoffset;
 	    }
 	}
@@ -3121,6 +3122,9 @@ gfc_simplify_eoshift (gfc_expr *array, gfc_expr *shift, gfc_expr *boundary,
 				   gfc_copy_expr (resultvec[i]),
 				   NULL);
     }
+
+  free (arrayvec);
+  free (resultvec);
 
  final:
   if (temp_boundary)
