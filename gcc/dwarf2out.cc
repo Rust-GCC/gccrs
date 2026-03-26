@@ -23790,6 +23790,7 @@ dwarf2out_abstract_function (tree decl)
     }
 
   if (DECL_DECLARED_INLINE_P (decl)
+      && !DECL_ARTIFICIAL (decl)
       && lookup_attribute ("artificial", DECL_ATTRIBUTES (decl)))
     add_AT_flag (old_die, DW_AT_artificial, 1);
 
