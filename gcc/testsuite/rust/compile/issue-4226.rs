@@ -1,6 +1,6 @@
 #![feature(no_core)]
 #![no_core]
 
+// { dg-error "valid forms for the attribute are ...doc.hidden.inline....... and ...doc ... string ..." "" { target *-*-* } .+1 }
 #[doc]
-// { dg-error "attribute must be of the form ...doc.hidden.inline....... or ...doc = string.." "" { target *-*-* } .-1 }
-pub fn a(){}
+pub fn a() {}
