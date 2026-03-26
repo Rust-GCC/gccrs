@@ -14488,8 +14488,8 @@ riscv_check_target_clone_version (string_slice str, location_t *loc_p)
 
   if (!ok && loc_p)
     warning_at (*loc_p, OPT_Wattributes,
-		"invalid version %qB for %<target_clones%> attribute",
-		&str);
+		"invalid version %<%.*s%> for %<target_clones%> attribute",
+		(int) str.size (), str.begin ());
 
   return ok;
 }
