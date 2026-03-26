@@ -3931,14 +3931,13 @@ insert_parameter_exprs (gfc_expr* e, gfc_symbol* sym ATTRIBUTE_UNUSED,
       || (e->expr_type == EXPR_FUNCTION && e->symtree->n.sym))
     {
       for (param = type_param_spec_list; param; param = param->next)
-	if (strcmp (e->symtree->n.sym->name, param->name) == 0)
+	if (!strcmp (e->symtree->n.sym->name, param->name))
 	  break;
 
       if (param && param->expr)
 	{
 	  copy = gfc_copy_expr (param->expr);
-	  *e = *copy;
-	  free (copy);
+	  gfc_replace_expr (e, copy);
 	  /* Catch variables declared without a value expression.  */
 	  if (e->expr_type == EXPR_VARIABLE && e->ts.type == BT_PROCEDURE)
 	    e->ts = e->symtree->n.sym->ts;
@@ -4456,14 +4455,16 @@ gfc_get_pdt_instance (gfc_actual_arglist *param_list, gfc_symbol **sym,
 	      gfc_expr *e;
 	      e = gfc_copy_expr (c1->as->lower[i]);
 	      gfc_insert_kind_parameter_exprs (e);
-	      gfc_simplify_expr (e, 1);
-	      gfc_free_expr (c2->as->lower[i]);
-	      c2->as->lower[i] = e;
+	      if (gfc_simplify_expr (e, 1))
+		gfc_replace_expr (c2->as->lower[i], e);
+	      else
+		gfc_free_expr (e);
 	      e = gfc_copy_expr (c1->as->upper[i]);
 	      gfc_insert_kind_parameter_exprs (e);
-	      gfc_simplify_expr (e, 1);
-	      gfc_free_expr (c2->as->upper[i]);
-	      c2->as->upper[i] = e;
+	      if (gfc_simplify_expr (e, 1))
+		gfc_replace_expr (c2->as->upper[i], e);
+	      else
+		gfc_free_expr (e);
 	    }
 
 	  c2->attr.pdt_array = 1;
@@ -4483,9 +4484,10 @@ gfc_get_pdt_instance (gfc_actual_arglist *param_list, gfc_symbol **sym,
 	  gfc_expr *e;
 	  e = gfc_copy_expr (c1->ts.u.cl->length);
 	  gfc_insert_kind_parameter_exprs (e);
-	  gfc_simplify_expr (e, 1);
-	  gfc_free_expr (c2->ts.u.cl->length);
-	  c2->ts.u.cl->length = e;
+	  if (gfc_simplify_expr (e, 1))
+	    gfc_replace_expr (c2->ts.u.cl->length, e);
+	  else
+	    gfc_free_expr (e);
 	  c2->attr.pdt_string = 1;
 	}
 
@@ -4530,7 +4532,7 @@ gfc_get_pdt_instance (gfc_actual_arglist *param_list, gfc_symbol **sym,
 		  if (!s)
 		    gfc_insert_parameter_exprs (c2->initializer,
 						type_param_spec_list);
-		  gfc_simplify_expr (params->expr, 1);
+		  gfc_simplify_expr (c2->initializer, 1);
 		}
 	    }
 

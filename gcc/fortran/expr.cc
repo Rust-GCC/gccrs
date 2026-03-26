@@ -2506,6 +2506,9 @@ gfc_simplify_expr (gfc_expr *p, int type)
 	      start--;  /* Convert from one-based to zero-based.  */
 	    }
 
+	  if (start < 0)
+	    return false;
+
 	  end = p->value.character.length;
 	  if (p->ref && p->ref->u.ss.end)
 	    gfc_extract_hwi (p->ref->u.ss.end, &end);
