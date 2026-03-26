@@ -30,6 +30,13 @@ end_of_line = lf
 insert_final_newline = true
 tab_width = 8
 
+# Git commit messages
+[COMMIT_EDITMSG]
+indent_size = 8
+indent_style = tab
+max_line_length = 72
+trim_trailing_whitespace = true
+
 # EditorConfig files
 [.editorconfig]
 charset = utf-8
