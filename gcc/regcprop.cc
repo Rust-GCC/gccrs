@@ -431,6 +431,14 @@ maybe_mode_change (machine_mode orig_mode, machine_mode copy_mode,
 		   machine_mode new_mode, unsigned int regno,
 		   unsigned int copy_regno ATTRIBUTE_UNUSED)
 {
+  /* All three modes precision have to be ordered to each other,
+     otherwise partial_subreg_p won't work.  */
+  if (!ordered_p (GET_MODE_PRECISION (orig_mode),
+		  GET_MODE_PRECISION (copy_mode))
+      || !ordered_p (GET_MODE_PRECISION (copy_mode),
+		     GET_MODE_PRECISION (new_mode)))
+    return NULL_RTX;
+
   if (partial_subreg_p (copy_mode, orig_mode)
       && partial_subreg_p (copy_mode, new_mode))
     return NULL_RTX;
