@@ -932,9 +932,9 @@ package Aspects is
    --  To deal with the delayed aspect case, we use two flags. The first is
    --  set on the parent type if it has delayed representation aspects. This
    --  flag Has_Delayed_Rep_Aspects indicates that if we derive from this type
-   --  we have to worry about making sure we inherit any delayed aspects. The
-   --  second flag is set on a derived type: May_Inherit_Delayed_Rep_Aspects
-   --  is set if the parent type has Has_Delayed_Rep_Aspects set.
+   --  we have to make sure we inherit any delayed aspects. The second flag is
+   --  set on a derived type: May_Inherit_Delayed_Rep_Aspects is set if the
+   --  parent type has Has_Delayed_Rep_Aspects set.
 
    --  When we freeze a derived type, if the May_Inherit_Delayed_Rep_Aspects
    --  flag is set, then we call Sem_Ch13.Inherit_Delayed_Rep_Aspects when

@@ -1608,7 +1608,7 @@ package Einfo is
 
 --    Has_Delayed_Aspects
 --       Defined in all entities. Set if the Rep_Item chain for the entity has
---       one or more N_Aspect_Definition nodes chained which are not to be
+--       one or more N_Aspect_Definition nodes chained that are not to be
 --       evaluated till the freeze point. The aspect definition expression
 --       clause has been preanalyzed to get visibility at the point of use,
 --       but no other action has been taken.
