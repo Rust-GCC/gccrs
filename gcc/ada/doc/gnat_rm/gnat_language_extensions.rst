@@ -1828,7 +1828,8 @@ Destructors
 -----------
 
 The :ada:`Destructor` extension adds a new finalization mechanism that
-significantly differs standard Ada in how it interacts with type derivation.
+significantly differs from standard Ada in how it interacts with type
+derivation.
 
 New syntax is introduced to make it possible to define "destructors" for record
 types, tagged or untagged. Here's a simple example:
