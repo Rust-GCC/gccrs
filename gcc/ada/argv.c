@@ -50,8 +50,6 @@
 #include "adaint.h"
 #endif
 
-#include "env.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif
