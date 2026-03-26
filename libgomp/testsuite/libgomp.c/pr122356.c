@@ -9,6 +9,9 @@ unsigned full_data[NUM_THREADS] = {0};
 void
 test ()
 {
+  for (int i = 0; i < NUM_THREADS; i++)
+    full_data[i] = 0;
+
 #pragma omp parallel num_threads(8)
   {
 #pragma omp for
