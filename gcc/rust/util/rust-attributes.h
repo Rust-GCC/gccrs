@@ -29,6 +29,7 @@ class Attributes
 {
 public:
   static bool is_known (const std::string &attribute_path);
+  static bool valid_outer_attribute (const std::string &attribute_path);
   static tl::optional<std::string>
   extract_string_literal (const AST::Attribute &attr);
 };
@@ -109,7 +110,6 @@ private:
 
   // rust-ast.h
   void visit (AST::Attribute &attribute) override;
-  void visit (AST::Crate &crate) override;
   void visit (AST::Token &tok) override;
   void visit (AST::DelimTokenTree &delim_tok_tree) override;
   void visit (AST::IdentifierExpr &ident_expr) override;
@@ -277,7 +277,7 @@ private:
 };
 
 tl::optional<BuiltinAttrDefinition>
-identify_builtin (const AST::Attribute &attribute);
+lookup_builtin (const AST::Attribute &attribute);
 
 } // namespace Analysis
 } // namespace Rust
