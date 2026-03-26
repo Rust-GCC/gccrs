@@ -100,10 +100,11 @@ void
 __gnat_setenv (char *name, char *value)
 {
 #if (defined (__vxworks) && (defined (__RTP__) || _WRS_VXWORKS_MAJOR >= 7)) \
-    || defined (__APPLE__)
+    || defined (__APPLE__) \
+    || defined (__linux__)
   setenv (name, value, 1);
 
-#else
+#else /* Why don't we use setenv on all platforms where it's available??? */
   size_t size = strlen (name) + strlen (value) + 2;
   char *expression;
 
