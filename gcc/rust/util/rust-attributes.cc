@@ -29,40 +29,6 @@
 namespace Rust {
 namespace Analysis {
 
-bool
-Attributes::is_known (const std::string &attribute_path)
-{
-  const auto &lookup
-    = BuiltinAttributeMappings::get ()->lookup_builtin (attribute_path);
-
-  return !lookup.is_error ();
-}
-
-tl::optional<std::string>
-Attributes::extract_string_literal (const AST::Attribute &attr)
-{
-  if (!attr.has_attr_input ())
-    return tl::nullopt;
-
-  auto &attr_input = attr.get_attr_input ();
-
-  if (attr_input.get_attr_input_type ()
-      != AST::AttrInput::AttrInputType::LITERAL)
-    return tl::nullopt;
-
-  auto &literal_expr
-    = static_cast<AST::AttrInputLiteral &> (attr_input).get_literal ();
-
-  auto lit_type = literal_expr.get_lit_type ();
-
-  // TODO: bring escape sequence handling out of lexing?
-  if (lit_type != AST::Literal::LitType::STRING
-      && lit_type != AST::Literal::LitType::RAW_STRING)
-    return tl::nullopt;
-
-  return literal_expr.as_string ();
-}
-
 using Attrs = Values::Attributes;
 
 // https://doc.rust-lang.org/stable/nightly-rustc/src/rustc_feature/builtin_attrs.rs.html#248
@@ -151,6 +117,45 @@ static const std::set<std::string> __outer_attributes
      Attrs::LINK_NAME,
      Attrs::LINK_SECTION};
 
+bool
+Attributes::is_known (const std::string &attribute_path)
+{
+  const auto &lookup
+    = BuiltinAttributeMappings::get ()->lookup_builtin (attribute_path);
+
+  return !lookup.is_error ();
+}
+
+bool
+Attributes::valid_outer_attribute (const std::string &attribute_path)
+{
+  return __outer_attributes.find (attribute_path) != __outer_attributes.cend ();
+}
+
+tl::optional<std::string>
+Attributes::extract_string_literal (const AST::Attribute &attr)
+{
+  if (!attr.has_attr_input ())
+    return tl::nullopt;
+
+  auto &attr_input = attr.get_attr_input ();
+
+  if (attr_input.get_attr_input_type ()
+      != AST::AttrInput::AttrInputType::LITERAL)
+    return tl::nullopt;
+
+  auto &literal_expr
+    = static_cast<AST::AttrInputLiteral &> (attr_input).get_literal ();
+
+  auto lit_type = literal_expr.get_lit_type ();
+
+  // TODO: bring escape sequence handling out of lexing?
+  if (lit_type != AST::Literal::LitType::STRING
+      && lit_type != AST::Literal::LitType::RAW_STRING)
+    return tl::nullopt;
+
+  return literal_expr.as_string ();
+}
 BuiltinAttributeMappings *
 BuiltinAttributeMappings::get ()
 {
@@ -189,20 +194,8 @@ AttributeChecker::go (AST::Crate &crate)
   visit (crate);
 }
 
-void
-AttributeChecker::visit (AST::Crate &crate)
-{
-  for (auto &attr : crate.get_inner_attrs ())
-    {
-      check_inner_attribute (attr);
-    }
-
-  for (auto &item : crate.items)
-    item->accept_vis (*this);
-}
-
 tl::optional<BuiltinAttrDefinition>
-identify_builtin (const AST::Attribute &attribute)
+lookup_builtin (const AST::Attribute &attribute)
 {
   auto &segments = attribute.get_path ().get_segments ();
 
@@ -216,224 +209,10 @@ identify_builtin (const AST::Attribute &attribute)
     segments.at (0).get_segment_name ());
 }
 
-/**
- * Check that the string given to #[doc(alias = ...)] or #[doc(alias(...))] is
- * valid.
- *
- * This means no whitespace characters other than spaces and no quoting
- * characters.
- */
-static void
-check_doc_alias (const std::string &alias_input, const location_t locus)
-{
-  // FIXME: The locus here is for the whole attribute. Can we get the locus
-  // of the alias input instead?
-  for (auto c : alias_input)
-    if ((ISSPACE (c) && c != ' ') || c == '\'' || c == '\"')
-      {
-	auto to_print = std::string (1, c);
-	switch (c)
-	  {
-	  case '\n':
-	    to_print = "\\n";
-	    break;
-	  case '\t':
-	    to_print = "\\t";
-	    break;
-	  default:
-	    break;
-	  }
-	rust_error_at (locus,
-		       "invalid character used in %<#[doc(alias)]%> input: %qs",
-		       to_print.c_str ());
-      }
-
-  if (alias_input.empty ())
-    return;
-
-  if (alias_input.front () == ' ' || alias_input.back () == ' ')
-    rust_error_at (locus,
-		   "%<#[doc(alias)]%> input cannot start or end with a space");
-}
-
-static void
-check_doc_attribute (const AST::Attribute &attribute)
-{
-  if (!attribute.has_attr_input ())
-    {
-      rust_error_at (
-	attribute.get_locus (),
-	"valid forms for the attribute are "
-	"%<#[doc(hidden|inline|...)]%> and %<#[doc = \" string \"]%>");
-      return;
-    }
-
-  switch (attribute.get_attr_input ().get_attr_input_type ())
-    {
-    case AST::AttrInput::LITERAL:
-    case AST::AttrInput::META_ITEM:
-    case AST::AttrInput::EXPR:
-      break;
-      // FIXME: Handle them as well
-
-    case AST::AttrInput::TOKEN_TREE:
-      {
-	// FIXME: This doesn't check for #[doc(alias(...))]
-	const auto &option = static_cast<const AST::DelimTokenTree &> (
-	  attribute.get_attr_input ());
-	auto *meta_item = option.parse_to_meta_item ();
-
-	for (auto &item : meta_item->get_items ())
-	  {
-	    if (item->is_key_value_pair ())
-	      {
-		auto name_value
-		  = static_cast<AST::MetaNameValueStr *> (item.get ())
-		      ->get_name_value_pair ();
-
-		// FIXME: Check for other stuff than #[doc(alias = ...)]
-		if (name_value.first.as_string () == "alias")
-		  check_doc_alias (name_value.second, attribute.get_locus ());
-	      }
-	  }
-	break;
-      }
-    }
-}
-
-static void
-check_deprecated_attribute (const AST::Attribute &attribute)
-{
-  if (!attribute.has_attr_input ())
-    return;
-
-  const auto &input = attribute.get_attr_input ();
-
-  if (input.get_attr_input_type () != AST::AttrInput::META_ITEM)
-    return;
-
-  auto &meta = static_cast<const AST::AttrInputMetaItemContainer &> (input);
-
-  for (auto &current : meta.get_items ())
-    {
-      switch (current->get_kind ())
-	{
-	case AST::MetaItemInner::Kind::MetaItem:
-	  {
-	    auto *meta_item = static_cast<AST::MetaItem *> (current.get ());
-
-	    switch (meta_item->get_item_kind ())
-	      {
-	      case AST::MetaItem::ItemKind::NameValueStr:
-		{
-		  auto *nv = static_cast<AST::MetaNameValueStr *> (meta_item);
-
-		  const std::string key = nv->get_name ().as_string ();
-
-		  if (key != "since" && key != "note")
-		    {
-		      rust_error_at (nv->get_locus (), "unknown meta item %qs",
-				     key.c_str ());
-		      rust_inform (nv->get_locus (),
-				   "expected one of %<since%>, %<note%>");
-		    }
-		}
-		break;
-
-	      case AST::MetaItem::ItemKind::Path:
-		{
-		  // #[deprecated(a,a)]
-		  auto *p = static_cast<AST::MetaItemPath *> (meta_item);
-
-		  std::string ident = p->get_path ().as_string ();
-
-		  rust_error_at (p->get_locus (), "unknown meta item %qs",
-				 ident.c_str ());
-		  rust_inform (p->get_locus (),
-			       "expected one of %<since%>, %<note%>");
-		}
-		break;
-
-	      case AST::MetaItem::ItemKind::Word:
-		{
-		  // #[deprecated("a")]
-		  auto *w = static_cast<AST::MetaWord *> (meta_item);
-
-		  rust_error_at (
-		    w->get_locus (),
-		    "item in %<deprecated%> must be a key/value pair");
-		}
-		break;
-
-	      case AST::MetaItem::ItemKind::PathExpr:
-		{
-		  // #[deprecated(since=a)]
-		  auto *px = static_cast<AST::MetaItemPathExpr *> (meta_item);
-
-		  rust_error_at (
-		    px->get_locus (),
-		    "expected unsuffixed literal or identifier, found %qs",
-		    px->get_expr ().as_string ().c_str ());
-		}
-		break;
-
-	      case AST::MetaItem::ItemKind::Seq:
-	      case AST::MetaItem::ItemKind::ListPaths:
-	      case AST::MetaItem::ItemKind::ListNameValueStr:
-	      default:
-		gcc_unreachable ();
-		break;
-	      }
-	  }
-	  break;
-
-	case AST::MetaItemInner::Kind::LitExpr:
-	default:
-	  gcc_unreachable ();
-	  break;
-	}
-    }
-}
-
-/**
- * Emit an error when an attribute is attached
- * to an incompatable item type. e.g.:
- *
- * #[cold]
- * struct A(u8, u8);
- *
- * Note that "#[derive]" is handled
- * explicitly in rust-derive.cc
- */
-static void
-check_valid_attribute_for_item (const AST::Attribute &attr,
-				const AST::Item &item)
-{
-  if (item.get_item_kind () != AST::Item::Kind::Function
-      && (attr.get_path () == Values::Attributes::TARGET_FEATURE
-	  || attr.get_path () == Values::Attributes::COLD
-	  || attr.get_path () == Values::Attributes::INLINE))
-    {
-      rust_error_at (attr.get_locus (),
-		     "the %<#[%s]%> attribute may only be applied to functions",
-		     attr.get_path ().as_string ().c_str ());
-    }
-  else if (attr.get_path () == Values::Attributes::REPR
-	   && item.get_item_kind () != AST::Item::Kind::Enum
-	   && item.get_item_kind () != AST::Item::Kind::Union
-	   && item.get_item_kind () != AST::Item::Kind::Struct)
-    {
-      rust_error_at (attr.get_locus (),
-		     "the %<#[%s]%> attribute may only be applied "
-		     "to structs, enums and unions",
-		     attr.get_path ().as_string ().c_str ());
-    }
-}
-
 static bool
 is_proc_macro_type (const AST::Attribute &attribute)
 {
-  auto result_opt = identify_builtin (attribute);
+  auto result_opt = lookup_builtin (attribute);
   if (!result_opt.has_value ())
     return false;
   auto result = result_opt.value ();
@@ -470,77 +249,6 @@ check_proc_macro_non_root (const AST::Attribute &attr, location_t loc)
 }
 
 void
-AttributeChecker::check_inner_attribute (const AST::Attribute &attribute)
-{
-  auto result_opt = identify_builtin (attribute);
-  if (!result_opt.has_value ())
-    return;
-  auto result = result_opt.value ();
-
-  if (__outer_attributes.find (result.name) != __outer_attributes.end ())
-    rust_error_at (attribute.get_locus (),
-		   "attribute cannot be used at crate level");
-}
-
-static void
-check_link_section_attribute (const AST::Attribute &attribute)
-{
-  if (!attribute.has_attr_input ())
-    {
-      rust_error_at (attribute.get_locus (),
-		     "malformed %<link_section%> attribute input");
-      rust_inform (attribute.get_locus (),
-		   "must be of the form: %<#[link_section = \"name\"]%>");
-    }
-}
-
-static void
-check_export_name_attribute (const AST::Attribute &attribute)
-{
-  if (!attribute.has_attr_input ())
-    {
-      rust_error_at (attribute.get_locus (),
-		     "malformed %<export_name%> attribute input");
-      rust_inform (attribute.get_locus (),
-		   "must be of the form: %<#[export_name = \"name\"]%>");
-      return;
-    }
-
-  if (attribute.has_attr_input ())
-    {
-      auto &attr_input = attribute.get_attr_input ();
-      if (attr_input.get_attr_input_type ()
-	  == AST::AttrInput::AttrInputType::LITERAL)
-	{
-	  auto &literal_expr
-	    = static_cast<AST::AttrInputLiteral &> (attr_input).get_literal ();
-	  auto lit_type = literal_expr.get_lit_type ();
-	  switch (lit_type)
-	    {
-	    case AST::Literal::LitType::STRING:
-	    case AST::Literal::LitType::RAW_STRING:
-	    case AST::Literal::LitType::BYTE_STRING:
-	      return;
-	    default:
-	      break;
-	    }
-	}
-    }
-}
-
-static void
-check_lint_attribute (const AST::Attribute &attribute, const char *name)
-{
-  if (!attribute.has_attr_input ())
-    {
-      rust_error_at (attribute.get_locus (), "malformed %qs attribute input",
-		     name);
-      rust_inform (attribute.get_locus (),
-		   "must be of the form: %<#[%s(lint1, lint2, ...)]%>", name);
-    }
-}
-
-void
 AttributeChecker::visit (AST::Attribute &attribute)
 {
   auto &session = Session::get_instance ();
@@ -550,18 +258,6 @@ AttributeChecker::visit (AST::Attribute &attribute)
 	attribute.parse_attr_to_meta_item ();
       if (!attribute.check_cfg_predicate (session))
 	return; // Do not emit errors for attribute that'll get stripped.
-    }
-
-  if (auto builtin = identify_builtin (attribute))
-    {
-      auto result = builtin.value ();
-      // TODO: Add checks here for each builtin attribute
-      // TODO: Have an enum of builtins as well, switching on strings is
-      // annoying and costly
-      if (result.name == Attrs::DOC)
-	check_doc_attribute (attribute);
-      else if (result.name == Attrs::DEPRECATED)
-	check_deprecated_attribute (attribute);
     }
 
   AST::DefaultASTVisitor::visit (attribute);
@@ -870,10 +566,7 @@ void
 AttributeChecker::visit (AST::Module &module)
 {
   for (auto &attr : module.get_outer_attrs ())
-    {
-      check_valid_attribute_for_item (attr, module);
-      check_proc_macro_non_function (attr);
-    }
+    check_proc_macro_non_function (attr);
 
   for (auto &item : module.get_items ())
     for (auto &attr : item->get_outer_attrs ())
@@ -886,10 +579,7 @@ void
 AttributeChecker::visit (AST::ExternCrate &crate)
 {
   for (auto &attr : crate.get_outer_attrs ())
-    {
-      check_valid_attribute_for_item (attr, crate);
-      check_proc_macro_non_function (attr);
-    }
+    check_proc_macro_non_function (attr);
 }
 
 void
@@ -908,124 +598,12 @@ void
 AttributeChecker::visit (AST::UseDeclaration &declaration)
 {
   for (auto &attr : declaration.get_outer_attrs ())
-    {
-      check_valid_attribute_for_item (attr, declaration);
-      check_proc_macro_non_function (attr);
-    }
-}
-
-static void
-check_no_mangle_function (const AST::Attribute &attribute,
-			  const AST::Function &fun)
-{
-  if (attribute.has_attr_input ())
-    {
-      rust_error_at (attribute.get_locus (), ErrorCode::E0754,
-		     "malformed %<no_mangle%> attribute input");
-      rust_inform (attribute.get_locus (),
-		   "must be of the form: %<#[no_mangle]%>");
-    }
-  if (!is_ascii_only (fun.get_function_name ().as_string ()))
-    rust_error_at (fun.get_function_name ().get_locus (),
-		   "the %<#[no_mangle]%> attribute requires ASCII identifier");
+    check_proc_macro_non_function (attr);
 }
 
 void
 AttributeChecker::visit (AST::Function &fun)
 {
-  for (auto &attr : fun.get_outer_attrs ())
-    check_valid_attribute_for_item (attr, fun);
-
-  auto check_crate_type = [] (const char *name, AST::Attribute &attribute) {
-    if (!Session::get_instance ().options.is_proc_macro ())
-      rust_error_at (attribute.get_locus (),
-		     "the %<#[%s]%> attribute is only usable with crates of "
-		     "the %<proc-macro%> crate type",
-		     name);
-  };
-
-  BuiltinAttrDefinition result;
-  for (auto &attribute : fun.get_outer_attrs ())
-    {
-      auto result = identify_builtin (attribute);
-      if (!result)
-	return;
-
-      auto name = result->name.c_str ();
-
-      if (result->name == Attrs::PROC_MACRO_DERIVE)
-	{
-	  if (!attribute.has_attr_input ())
-	    {
-	      rust_error_at (attribute.get_locus (),
-			     "malformed %qs attribute input", name);
-	      rust_inform (
-		attribute.get_locus (),
-		"must be of the form: %<#[proc_macro_derive(TraitName, "
-		"/*opt*/ attributes(name1, name2, ...))]%>");
-	    }
-	  check_crate_type (name, attribute);
-	}
-      else if (result->name == Attrs::PROC_MACRO
-	       || result->name == Attrs::PROC_MACRO_ATTRIBUTE)
-	{
-	  check_crate_type (name, attribute);
-	}
-      else if (result->name == Attrs::TARGET_FEATURE)
-	{
-	  if (!attribute.has_attr_input ())
-	    {
-	      rust_error_at (attribute.get_locus (),
-			     "malformed %<target_feature%> attribute input");
-	      rust_inform (attribute.get_locus (),
-			   "must be of the form: %<#[target_feature(enable = "
-			   "\"name\")]%>");
-	    }
-	  else if (!fun.get_qualifiers ().is_unsafe ())
-	    {
-	      rust_error_at (
-		attribute.get_locus (),
-		"the %<#[target_feature]%> attribute can only be applied "
-		"to %<unsafe%> functions");
-	    }
-	}
-      else if (result->name == Attrs::NO_MANGLE)
-	{
-	  if (attribute.has_attr_input ())
-	    {
-	      rust_error_at (attribute.get_locus (),
-			     "malformed %<no_mangle%> attribute input");
-	      rust_inform (attribute.get_locus (),
-			   "must be of the form: %<#[no_mangle]%>");
-	    }
-	  else
-	    check_no_mangle_function (attribute, fun);
-	}
-      else if (result->name == Attrs::EXPORT_NAME)
-	{
-	  check_export_name_attribute (attribute);
-	}
-      else if (result->name == Attrs::ALLOW || result->name == "deny"
-	       || result->name == "warn" || result->name == "forbid")
-	{
-	  check_lint_attribute (attribute, name);
-	}
-      else if (result->name == Attrs::LINK_NAME)
-	{
-	  if (!attribute.has_attr_input ())
-	    {
-	      rust_error_at (attribute.get_locus (),
-			     "malformed %<link_name%> attribute input");
-	      rust_inform (attribute.get_locus (),
-			   "must be of the form: %<#[link_name = \"name\"]%>");
-	    }
-	}
-      else if (result->name == Attrs::LINK_SECTION)
-	{
-	  check_link_section_attribute (attribute);
-	}
-    }
-
   if (fun.has_body ())
     fun.get_definition ().value ()->accept_vis (*this);
 }
@@ -1034,10 +612,7 @@ void
 AttributeChecker::visit (AST::TypeAlias &alias)
 {
   for (auto &attr : alias.get_outer_attrs ())
-    {
-      check_valid_attribute_for_item (attr, alias);
-      check_proc_macro_non_function (attr);
-    }
+    check_proc_macro_non_function (attr);
 }
 
 void
@@ -1045,7 +620,6 @@ AttributeChecker::visit (AST::StructStruct &struct_item)
 {
   for (auto &attr : struct_item.get_outer_attrs ())
     {
-      check_valid_attribute_for_item (attr, struct_item);
       check_proc_macro_non_function (attr);
     }
 
@@ -1056,10 +630,7 @@ void
 AttributeChecker::visit (AST::TupleStruct &tuplestruct)
 {
   for (auto &attr : tuplestruct.get_outer_attrs ())
-    {
-      check_valid_attribute_for_item (attr, tuplestruct);
-      check_proc_macro_non_function (attr);
-    }
+    check_proc_macro_non_function (attr);
 }
 
 void
@@ -1082,48 +653,28 @@ void
 AttributeChecker::visit (AST::Enum &enumeration)
 {
   for (auto &attr : enumeration.get_outer_attrs ())
-    {
-      check_valid_attribute_for_item (attr, enumeration);
-      check_proc_macro_non_function (attr);
-    }
+    check_proc_macro_non_function (attr);
 }
 
 void
 AttributeChecker::visit (AST::Union &u)
 {
   for (auto &attr : u.get_outer_attrs ())
-    {
-      check_valid_attribute_for_item (attr, u);
-      check_proc_macro_non_function (attr);
-    }
+    check_proc_macro_non_function (attr);
 }
 
 void
 AttributeChecker::visit (AST::ConstantItem &item)
 {
   for (auto &attr : item.get_outer_attrs ())
-    {
-      check_valid_attribute_for_item (attr, item);
-      check_proc_macro_non_function (attr);
-    }
+    check_proc_macro_non_function (attr);
 }
 
 void
 AttributeChecker::visit (AST::StaticItem &item)
 {
   for (auto &attr : item.get_outer_attrs ())
-    {
-      check_valid_attribute_for_item (attr, item);
-      check_proc_macro_non_function (attr);
-
-      if (auto result = identify_builtin (attr))
-	{
-	  if (result->name == Attrs::LINK_SECTION)
-	    check_link_section_attribute (attr);
-	  else if (result->name == Attrs::EXPORT_NAME)
-	    check_export_name_attribute (attr);
-	}
-    }
+    check_proc_macro_non_function (attr);
 }
 
 void
@@ -1134,10 +685,8 @@ void
 AttributeChecker::visit (AST::Trait &trait)
 {
   for (auto &attr : trait.get_outer_attrs ())
-    {
-      check_valid_attribute_for_item (attr, trait);
-      check_proc_macro_non_function (attr);
-    }
+    check_proc_macro_non_function (attr);
+
   AST::DefaultASTVisitor::visit (trait);
 }
 
@@ -1145,10 +694,7 @@ void
 AttributeChecker::visit (AST::InherentImpl &impl)
 {
   for (auto &attr : impl.get_outer_attrs ())
-    {
-      check_valid_attribute_for_item (attr, impl);
-      check_proc_macro_non_function (attr);
-    }
+    check_proc_macro_non_function (attr);
 
   AST::DefaultASTVisitor::visit (impl);
 }
@@ -1157,10 +703,8 @@ void
 AttributeChecker::visit (AST::TraitImpl &impl)
 {
   for (auto &attr : impl.get_outer_attrs ())
-    {
-      check_valid_attribute_for_item (attr, impl);
-      check_proc_macro_non_function (attr);
-    }
+    check_proc_macro_non_function (attr);
+
   AST::DefaultASTVisitor::visit (impl);
 }
 
@@ -1176,10 +720,7 @@ void
 AttributeChecker::visit (AST::ExternBlock &block)
 {
   for (auto &attr : block.get_outer_attrs ())
-    {
-      check_valid_attribute_for_item (attr, block);
-      check_proc_macro_non_function (attr);
-    }
+    check_proc_macro_non_function (attr);
 }
 
 // rust-macro.h
