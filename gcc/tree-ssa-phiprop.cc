@@ -385,6 +385,10 @@ propagate_with_phi (basic_block bb, gphi *vphi, gphi *phi,
 	    && !gimple_has_volatile_ops (use_stmt)))
 	continue;
 
+      tree vuse = gimple_vuse (use_stmt);
+      if (!can_handle_load (use_stmt, bb, vphi, up_vuse))
+	continue;
+
       bool aggregate = false;
       if (!is_gimple_reg_type (TREE_TYPE (gimple_assign_lhs (use_stmt))))
 	aggregate = true;
@@ -411,10 +415,6 @@ propagate_with_phi (basic_block bb, gphi *vphi, gphi *phi,
 		    || flow_loop_nested_p (bb->loop_father,
 					   gimple_bb (use_stmt)->loop_father)))))
 	delay = true;
-
-      tree vuse = gimple_vuse (use_stmt);
-      if (!can_handle_load (use_stmt, bb, vphi, up_vuse))
-	goto next;
 
       /* Found a proper dereference with an aggregate copy.  Just
          insert aggregate copies on the edges instead.  */
