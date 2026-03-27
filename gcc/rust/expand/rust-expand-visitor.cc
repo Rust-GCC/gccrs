@@ -218,6 +218,7 @@ ExpandVisitor::expand_inner_items (
 		{
 		  if (is_builtin (current))
 		    {
+		      visit (*attr_it);
 		      attr_it++;
 		    }
 		  else
@@ -303,6 +304,7 @@ ExpandVisitor::expand_inner_stmts (AST::BlockExpr &expr)
 		{
 		  if (is_builtin (current))
 		    {
+		      visit (*attr_it);
 		      attr_it++;
 		    }
 		  else
@@ -586,7 +588,7 @@ ExpandVisitor::visit (AST::AttrInputLiteral &)
 void
 ExpandVisitor::visit (AST::AttrInputExpr &attr_input)
 {
-  reseat (attr_input.get_expr_ptr ());
+  maybe_expand_expr (attr_input.get_expr_ptr ());
 }
 
 void
