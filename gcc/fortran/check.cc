@@ -4082,7 +4082,7 @@ min_max_args (gfc_actual_arglist *args)
   /* Note: Having a keywordless argument after an "arg=" is checked before.  */
   nlabelless = 0;
   nlabels = XALLOCAVEC (int, nargs);
-  for (arg = args, i = 0; arg; arg = arg->next, i++)
+  for (arg = args, i = 0; arg; arg = arg->next)
     if (arg->name)
       {
 	int n;
@@ -4098,6 +4098,7 @@ min_max_args (gfc_actual_arglist *args)
 	if (n <= nlabelless)
 	  goto duplicate;
 	nlabels[i] = n;
+	i++;
 	if (n == 1)
 	  a1 = true;
 	if (n == 2)
