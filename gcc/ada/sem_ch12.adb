@@ -6426,30 +6426,44 @@ package body Sem_Ch12 is
       if Present (Ent) then
          Rewrite_As_Renaming (N, Ent);
          Analyze (N);
+         return;
 
       --  Otherwise, create it in the outermost possible scope
 
       else
+         Scop := Current_Scope;
+
          --  Depth.Global is the accessibility depth of the structural instance
          --  which is defined to be the depth of the outermost scope where the
          --  instantiation is possible. If the depth cannot be reached from the
          --  current scope, then the structural instance cannot be accessed out
-         --  of it and we would need to create a local instance instead.
+         --  of it and we need to create a local instance instead; currently we
+         --  do it only for subprogram instantiations.
 
          if Depth.Local > Depth.Global then
-            Structural_Instantiation_Error (N);
-            Error_Msg_N ("\local entity used in the instantiation", N);
-            return;
-         end if;
+            if Nkind (N) = N_Package_Instantiation then
+               Structural_Instantiation_Error (N);
+               Error_Msg_N ("\local entity used in the instantiation", N);
+               return;
+            end if;
 
-         Scop := Current_Scope;
+            Append_Entity_Name (Buf, Scop);
+            Nam := Name_Find (Buf);
+            Ent := Get_Name_Entity_Id (Nam);
+
+            if Present (Ent) then
+               Rewrite_As_Renaming (N, Ent);
+               Analyze (N);
+               return;
+            end if;
+         end if;
 
          --  If the current scope is too nested, analyze the instantiation
          --  relocated in the outermost possible scope, which will invoke
          --  us recursively with a matching scope depth this time.
 
-         if Scope_Depth (Scop) > Depth.Global then
-            while Scope_Depth (Scop) > Depth.Global loop
+         if Scope_Depth (Scop) > Depth.Local then
+            while Scope_Depth (Scop) > Depth.Local loop
                Scop := Scope (Scop);
             end loop;
 
@@ -6492,6 +6506,17 @@ package body Sem_Ch12 is
 
          else
             Ent := Make_Defining_Identifier (Loc, Chars => Nam);
+            case Nkind (N) is
+               when N_Function_Instantiation =>
+                  Mutate_Ekind (Ent, E_Function);
+               when N_Procedure_Instantiation =>
+                  Mutate_Ekind (Ent, E_Procedure);
+               when N_Package_Instantiation =>
+                  Mutate_Ekind (Ent, E_Package);
+               when others =>
+                  raise Program_Error;
+            end case;
+            Set_Scope (Ent, Scop);
             Set_Defining_Unit_Name (N, Ent);
          end if;
       end if;
