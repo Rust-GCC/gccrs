@@ -3274,11 +3274,6 @@ namespace __rb_tree
       }
 
 #ifdef __glibcxx_associative_heterogeneous_insertion  // C++26
-
-  // If __pos.second == &_M_impl._M_header, insert at root;
-  // else if __pos.first == __pos.second, insert at __pos.second._M_left;
-  // else insert at __pos.second._M_right, and rebalance.
-
   template <typename _Key, typename _Val, typename _KeyOfValue,
 	    typename _Compare, typename _Alloc>
     template <typename... _Args>
