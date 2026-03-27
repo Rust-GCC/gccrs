@@ -931,6 +931,18 @@ Mappings::lookup_macro_invocation (AST::MacroInvocation &invoc)
   return it->second;
 }
 
+bool
+Mappings::macro_is_invoked (const AST::MacroRulesDefinition &def) const
+{
+  for (const auto &invocation : macroInvocations)
+    {
+      if (invocation.second == &def)
+	return true;
+    }
+
+  return false;
+}
+
 void
 Mappings::insert_exported_macro (AST::MacroRulesDefinition &def)
 {

@@ -277,6 +277,7 @@ public:
 				AST::MacroRulesDefinition *def);
   tl::optional<AST::MacroRulesDefinition *>
   lookup_macro_invocation (AST::MacroInvocation &invoc);
+  bool macro_is_invoked (const AST::MacroRulesDefinition &def) const;
 
   void insert_exported_macro (AST::MacroRulesDefinition &def);
   std::vector<AST::MacroRulesDefinition> get_exported_macros ();
