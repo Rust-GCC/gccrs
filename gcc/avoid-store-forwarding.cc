@@ -691,30 +691,35 @@ store_forwarding_analyzer::avoid_store_forwarding (basic_block bb)
 	    process_store_forwarding (forwardings, insn, load_mem);
 	}
 
-	/* Abort in case that we encounter a memory read/write that is not a
-	   simple store/load, as we can't make safe assumptions about the
-	   side-effects of this.  */
-	if ((writes_mem && !is_simple_store)
-	     || (reads_mem && !is_simple_load))
-	  return;
+      /* If we encounter a memory read/write that is not a simple
+	 store/load, flush all pending store candidates and continue.
+	 We can't make safe assumptions about the side-effects, but
+	 store-forwarding opportunities later in the BB should still
+	 be analyzed.  */
+      if ((writes_mem && !is_simple_store)
+	  || (reads_mem && !is_simple_load))
+	{
+	  store_exprs.truncate (0);
+	  continue;
+	}
 
-	if (removed_count)
+      if (removed_count)
 	{
 	  unsigned int i, j;
 	  store_fwd_info *it;
 	  VEC_ORDERED_REMOVE_IF (store_exprs, i, j, it, it->remove);
 	}
 
-	/* Don't consider store forwarding if the RTL instruction distance is
-	   more than PARAM_STORE_FORWARDING_MAX_DISTANCE and the cost checks
-	   are not disabled.  */
-	const bool unlimited_cost = (param_store_forwarding_max_distance == 0);
-	if (!unlimited_cost && !store_exprs.is_empty ()
-	    && (store_exprs[0].insn_cnt
-		+ param_store_forwarding_max_distance <= insn_cnt))
-	  store_exprs.ordered_remove (0);
+      /* Don't consider store forwarding if the RTL instruction distance is
+	 more than PARAM_STORE_FORWARDING_MAX_DISTANCE and the cost checks
+	 are not disabled.  */
+      const bool unlimited_cost = (param_store_forwarding_max_distance == 0);
+      if (!unlimited_cost && !store_exprs.is_empty ()
+	  && (store_exprs[0].insn_cnt
+	      + param_store_forwarding_max_distance <= insn_cnt))
+	store_exprs.ordered_remove (0);
 
-	insn_cnt++;
+      insn_cnt++;
     }
 }
 
