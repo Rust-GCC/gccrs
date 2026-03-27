@@ -10190,6 +10190,8 @@ cp_parser_reflect_expression (cp_parser *parser)
 	&& variable_template_p (TREE_OPERAND (t, 0))
 	&& !concept_check_p (t))
       t = finish_template_variable (t);
+    else if (is_overloaded_fn (t))
+      t = baselink_for_fns (t);
     if (cp_parser_parse_definitely (parser))
       return get_reflection (loc, t);
   }
