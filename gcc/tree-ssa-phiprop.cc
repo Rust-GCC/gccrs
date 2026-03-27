@@ -385,7 +385,6 @@ propagate_with_phi (basic_block bb, gphi *vphi, gphi *phi,
 	    && !gimple_has_volatile_ops (use_stmt)))
 	continue;
 
-      tree vuse = gimple_vuse (use_stmt);
       if (!can_handle_load (use_stmt, bb, vphi, up_vuse))
 	continue;
 
@@ -437,6 +436,7 @@ propagate_with_phi (basic_block bb, gphi *vphi, gphi *phi,
 	  gimple *vuse_stmt;
 	  imm_use_iterator vui;
 	  use_operand_p vuse_p;
+	  tree vuse = gimple_vuse (use_stmt);
 	  /* In order to move the aggregate copies earlier, make sure
 	     there are no statements that could read from memory
 	     aliasing the lhs in between the start of bb and use_stmt.
@@ -491,6 +491,7 @@ propagate_with_phi (basic_block bb, gphi *vphi, gphi *phi,
 	 is the first load transformation.  */
       else
 	{
+	  tree vuse = gimple_vuse (use_stmt);
 	  res = phiprop_insert_phi (bb, phi, use_stmt, phivn, n, dce_ssa_names);
 	  type = TREE_TYPE (res);
 
