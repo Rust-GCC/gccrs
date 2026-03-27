@@ -394,7 +394,7 @@ getc_immediate_common (FILE *stream,
     || defined (__Lynx__) || defined (__FreeBSD__) || defined (__OpenBSD__) \
     || defined (__GLIBC__) || defined (__APPLE__) || defined (__DragonFly__) \
     || defined (__QNX__)
-  char c;
+  unsigned char c;
   int nread;
   int good_one = 0;
   int eof_ch = 4; /* Ctrl-D */
@@ -512,7 +512,7 @@ getc_immediate_common (FILE *stream,
   struct fd_set readFds;
   /* Timeout before select returns if nothing can be read.  */
   struct timeval timeOut;
-  char c;
+  unsigned char c;
   int fd = fileno (stream);
   int nread;
   int option;
