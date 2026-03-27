@@ -2122,18 +2122,9 @@ is not supported.
 @item @emph{Description}:
 This routine tests whether storage, identified by the host pointer @var{ptr}
 is mapped to the device specified by @var{device_num}.  If so, it returns
-a nonzero value and otherwise zero.
-
-In GCC, this includes self mapping such that @code{omp_target_is_present}
-returns @emph{true} when @var{device_num} specifies the host or when the host
-and the device share memory.  If @var{ptr} is a null pointer, @var{true} is
-returned and if @var{device_num} is an invalid device number, @var{false} is
-returned.
-
-If those conditions do not apply, @emph{true} is returned if the association has
-been established by an explicit or implicit @code{map} clause, the
-@code{declare target} directive or a call to the @code{omp_target_associate_ptr}
-routine.
+a nonzero value and otherwise zero.  In particular, it always returns zero
+for the null pointer and for invalid device numbers; for the host device,
+a nonzero value is returned for all non-null pointers.
 
 Running this routine in a @code{target} region except on the initial device
 is not supported.
@@ -2154,7 +2145,7 @@ is not supported.
 @end multitable
 
 @item @emph{See also}:
-@ref{omp_target_associate_ptr}
+@ref{omp_get_mapped_ptr}, @ref{omp_target_associate_ptr}, @ref{omp_target_is_accessible}
 
 @item @emph{Reference}:
 @uref{https://www.openmp.org, OpenMP specification v5.1}, Section 3.8.3
@@ -2204,7 +2195,7 @@ is not supported.
 @end multitable
 
 @item @emph{See also}:
-@ref{omp_target_associate_ptr}
+@ref{omp_target_is_present}
 
 @item @emph{Reference}:
 @uref{https://www.openmp.org, OpenMP specification v5.1}, Section 3.8.4
@@ -2599,7 +2590,8 @@ is not supported.
 
 @item @emph{See also}:
 @ref{omp_target_disassociate_ptr}, @ref{omp_target_is_present},
-@ref{omp_target_alloc}
+@ref{omp_get_mapped_ptr}, @ref{omp_target_alloc}
+
 
 @item @emph{Reference}:
 @uref{https://www.openmp.org, OpenMP specification v5.1}, Section 3.8.9
@@ -2657,12 +2649,19 @@ is not supported.
 @subsection @code{omp_get_mapped_ptr} -- Return device pointer to a host pointer
 @table @asis
 @item @emph{Description}:
-If the device number is refers to the initial device or to a device with
-memory accessible from the host (shared memory), the @code{omp_get_mapped_ptr}
-routines returns the value of the passed @var{ptr}.  Otherwise, if associated
+If the device number refers to the initial device, @code{omp_get_mapped_ptr}
+returns the value of the passed @var{ptr}.  Otherwise, if associated
 storage to the passed host pointer @var{ptr} exists on device associated with
 @var{device_num}, it returns that pointer. In all other cases and in cases of
 an error, a null pointer is returned.
+
+If the device number is not the initial device and the pointer points to a
+variable that is specified in a @code{declare target} directive: When
+requiring @code{unified_shared_memory} or @code{self_maps}, a null pointer is
+returned if the variable appears in a @code{link} or @code{enter} clause.
+Otherwise, the corresponding device memory is returned; with the @code{link}
+clause, GCC returns the address of the pointer-typed link variable on the device,
+not to the data that is mapped to that variable.
 
 The association of storage location is established either via an explicit or
 implicit @code{map} clause, the @code{declare target} directive or the
@@ -2685,7 +2684,7 @@ is not supported.
 @end multitable
 
 @item @emph{See also}:
-@ref{omp_target_associate_ptr}
+@ref{omp_target_is_present}, @ref{omp_target_associate_ptr}
 
 @item @emph{Reference}:
 @uref{https://www.openmp.org, OpenMP specification v5.1}, Section 3.8.11
@@ -4096,7 +4095,7 @@ The value can either be a predefined allocator or a predefined memory space
 or a predefined memory space followed by a colon and a comma-separated list
 of memory trait and value pairs, separated by @code{=}.
 
-See @ref{Memory allocation} for a list of supported prefedined allocators,
+See @ref{Memory allocation} for a list of supported predefined allocators,
 memory spaces, and traits.
 
 Note: The corresponding device environment variables are currently not

@@ -4874,9 +4874,24 @@ gomp_page_locked_host_free (void *ptr)
 		device->name);
 }
 
+/* Check whether corresponding storage exists on the device.
+   - NULL pointer or invalid device: return 0
+   - host device: return 1
+   - Has corresponding storage: return 1
+   - Otherwise: return 0
+
+   Note that for GOMP_OFFLOAD_CAP_SHARED_MEM self mapping is used and
+   omp_target_associate_ptr is disabled; the only corresponding storage
+   exists then for declare_target with other clauses than an explicit or
+   implicit 'link' clause.
+   However, the link cause with shared memory does not count as mapped.  */
+
 int
 omp_target_is_present (const void *ptr, int device_num)
 {
+  if (ptr == NULL)
+    return 0;
+
   if (device_num == omp_default_device)
     device_num = gomp_get_default_device ();
 
@@ -4888,13 +4903,8 @@ omp_target_is_present (const void *ptr, int device_num)
   if (devicep == NULL)
     return 0;
 
-  if (ptr == NULL)
-    return 1;
-
-  if (!(devicep->capabilities & GOMP_OFFLOAD_CAP_OPENMP_400)
-      || devicep->capabilities & GOMP_OFFLOAD_CAP_SHARED_MEM)
-    return 1;
-
+  bool is_shared = (!(devicep->capabilities & GOMP_OFFLOAD_CAP_OPENMP_400)
+		    || devicep->capabilities & GOMP_OFFLOAD_CAP_SHARED_MEM);
   gomp_mutex_lock (&devicep->lock);
   struct splay_tree_s *mem_map = &devicep->mem_map;
   struct splay_tree_key_s cur_node;
@@ -4902,7 +4912,7 @@ omp_target_is_present (const void *ptr, int device_num)
   cur_node.host_start = (uintptr_t) ptr;
   cur_node.host_end = cur_node.host_start;
   splay_tree_key n = gomp_map_0len_lookup (mem_map, &cur_node);
-  int ret = n != NULL;
+  int ret = n != NULL && (!is_shared || n->refcount != REFCOUNT_LINK);
   gomp_mutex_unlock (&devicep->lock);
   return ret;
 }
@@ -5570,7 +5580,8 @@ omp_get_mapped_ptr (const void *ptr, int device_num)
   if (device_num == omp_default_device)
     device_num = gomp_get_default_device ();
 
-  if (device_num == omp_initial_device
+  if (ptr == NULL
+      || device_num == omp_initial_device
       || device_num == omp_get_initial_device ())
     return (void *) ptr;
 
@@ -5578,10 +5589,8 @@ omp_get_mapped_ptr (const void *ptr, int device_num)
   if (devicep == NULL)
     return NULL;
 
-  if (!(devicep->capabilities & GOMP_OFFLOAD_CAP_OPENMP_400)
-      || devicep->capabilities & GOMP_OFFLOAD_CAP_SHARED_MEM)
-    return (void *) ptr;
-
+  bool is_shared = (!(devicep->capabilities & GOMP_OFFLOAD_CAP_OPENMP_400)
+		    || devicep->capabilities & GOMP_OFFLOAD_CAP_SHARED_MEM);
   gomp_mutex_lock (&devicep->lock);
 
   struct splay_tree_s *mem_map = &devicep->mem_map;
@@ -5596,6 +5605,8 @@ omp_get_mapped_ptr (const void *ptr, int device_num)
     {
       uintptr_t offset = cur_node.host_start - n->host_start;
       ret = (void *) (n->tgt->tgt_start + n->tgt_offset + offset);
+      if (is_shared && n->refcount == REFCOUNT_LINK)
+	ret = NULL;
     }
 
   gomp_mutex_unlock (&devicep->lock);
