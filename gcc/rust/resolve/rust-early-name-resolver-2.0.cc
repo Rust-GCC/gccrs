@@ -393,6 +393,8 @@ Early::visit (AST::Attribute &attr)
     {
       visit_non_builtin_attribute (attr, mappings, name);
     }
+
+  DefaultResolver::visit (attr);
 }
 
 void
