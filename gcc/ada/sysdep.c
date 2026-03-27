@@ -409,12 +409,7 @@ getc_immediate_common (FILE *stream,
       /* Set RAW mode, with no echo */
       termios_rec.c_lflag = termios_rec.c_lflag & ~ICANON & ~ECHO;
 
-#if defined (__linux__) || defined (__sun__) \
-    || defined (__MACHTEN__) || defined (__hpux__) \
-    || defined (_AIX) || (defined (__svr4__) && defined (__i386__)) \
-    || defined (__Lynx__) || defined (__FreeBSD__) || defined (__OpenBSD__) \
-    || defined (__GLIBC__) || defined (__APPLE__) || defined (__DragonFly__) \
-    || defined (__QNX__)
+#if !defined (__CYGWIN32__)
       eof_ch = termios_rec.c_cc[VEOF];
 
       /* If waiting (i.e. Get_Immediate (Char)), set MIN = 1 and wait for
