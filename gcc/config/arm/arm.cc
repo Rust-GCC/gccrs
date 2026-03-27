@@ -2453,7 +2453,7 @@ enum tls_reloc {
 inline static int
 arm_constant_limit (bool size_p)
 {
-  return size_p ? 1 : current_tune->constant_limit;
+  return size_p ? 1 : MAX (1, current_tune->constant_limit);
 }
 
 /* Emit an insn that's a simple single-set.  Both the operands must be known
