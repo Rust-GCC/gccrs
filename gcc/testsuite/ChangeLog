@@ -1,3 +1,26 @@
+2026-03-26  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/115315
+	* gfortran.dg/pdt_90.f03: New test.
+
+2026-03-26  Jakub Jelinek  <jakub@redhat.com>
+
+	* lib/mike-gcc.exp (postbase): Use switch instead of case for
+	TCL 9 compatibility.
+	* lib/mike-g++.exp (postbase): Likewise.
+
+2026-03-26  Michal Jires  <mjires@suse.cz>
+
+	* gcc.dg/lto/toplevel-extended-asm-2_0.c: Add padding to asm label.
+	* gcc.dg/lto/toplevel-extended-asm-2_1.c: Add padding to asm label.
+
+2026-03-26  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/123613
+	* g++.dg/reflect/json-parser.C: New test.
+	* g++.dg/reflect/substitute7.C: New test.
+	* g++.dg/reflect/test.json: New test.
+
 2026-03-25  Iain Sandoe  <iain@sandoe.co.uk>
 
 	* g++.dg/contracts/cpp26/basic.contract.eval.p11-observe.C: Skip

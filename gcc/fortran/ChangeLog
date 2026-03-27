@@ -1,3 +1,15 @@
+2026-03-26  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/115315
+	* decl.cc (insert_parameter_exprs): Make strcmp condition more
+	concise.
+	(gfc_get_pdt_instance): Use gf_replace_expr where possible and
+	use return value of gfc_simplify_expr. Correct error in which
+	params->expr was being simplified instead of c2->initializer.
+	* expr.cc (gfc_simplify_expr): If the substring 'start' value
+	is less than zero, it is clearly out of range and so return
+	false.
+
 2026-03-25  Harald Anlauf  <anlauf@gmx.de>
 
 	PR fortran/124567

@@ -1,3 +1,11 @@
+2026-03-26  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/123613
+	* reflect.cc (get_reflection): Call mark_used.
+	(eval_can_substitute): Don't resolve_nondeduced_context here.
+	(eval_substitute): Call lookup_and_finish_template_variable instead
+	of lookup_template_variable and finish_template_variable.
+
 2026-03-21  Nathaniel Shead  <nathanieloshead@gmail.com>
 
 	PR c++/122786

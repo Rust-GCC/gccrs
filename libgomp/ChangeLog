@@ -1,3 +1,10 @@
+2026-03-26  Prathamesh Kulkarni  <prathameshk@nvidia.com>
+
+	PR libgomp/124123
+	* testsuite/libgomp.c/pr122314.c (test): Initialize full_data
+	to 0.
+	* testsuite/libgomp.c/pr122356.c: Likewise.
+
 2026-03-24  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
 
 	PR libgomp/123177
