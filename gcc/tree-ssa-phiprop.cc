@@ -236,6 +236,35 @@ chk_uses (tree, tree *idx, void *data)
   return true;
 }
 
+/* Check if we can move the loads from LOAD_STMT.
+   This is when the virtual use is the same as the
+   one active at the start of BB which we know either
+   from its virtual PHI def (VPHI) or from the common
+   incoming VUSE (up_vuse).  If neither is present
+   make sure the def stmt of the virtual use is in a
+   different basic block dominating BB.  When the def
+   is an edge-inserted one we know it dominates us.  */
+static bool
+can_handle_load (gimple *load_stmt, basic_block bb,
+		 gphi *vphi, tree up_vuse)
+{
+  tree vuse = gimple_vuse (load_stmt);
+  if (vphi)
+    return vuse == gimple_phi_result (vphi);
+  if (up_vuse)
+    return vuse == up_vuse;
+  gimple *def_stmt = SSA_NAME_DEF_STMT (vuse);
+  /* If the load does not have a store beforehand,
+     then we can do the load in conditional. */
+  if (SSA_NAME_IS_DEFAULT_DEF (vuse))
+    return true;
+  if (gimple_bb (def_stmt) != bb
+      && !dominated_by_p (CDI_DOMINATORS,
+			  bb, gimple_bb (def_stmt)))
+    return true;
+  return false;
+}
+
 /* Propagate between the phi node arguments of PHI in BB and phi result
    users.  For now this matches
         # p_2 = PHI <&x, &y>
@@ -335,8 +364,6 @@ propagate_with_phi (basic_block bb, gphi *vphi, gphi *phi,
   auto_vec<gimple*> delayed_uses;
   FOR_EACH_IMM_USE_STMT (use_stmt, ui, ptr)
     {
-      gimple *def_stmt;
-      tree vuse;
       bool delay = false;
 
       /* Check whether this is a load of *ptr.  */
@@ -385,32 +412,9 @@ propagate_with_phi (basic_block bb, gphi *vphi, gphi *phi,
 					   gimple_bb (use_stmt)->loop_father)))))
 	delay = true;
 
-      /* Check if we can move the loads.  This is when the virtual use
-	 is the same as the one active at the start of BB which we know
-	 either from its virtual PHI def or from the common incoming
-	 VUSE.  If neither is present make sure the def stmt of the virtual
-	 use is in a different basic block dominating BB.  When the
-	 def is an edge-inserted one we know it dominates us.  */
-      vuse = gimple_vuse (use_stmt);
-      if (vphi)
-	{
-	  if (vuse != gimple_phi_result (vphi))
-	    goto next;
-	}
-      else if (up_vuse)
-	{
-	  if (vuse != up_vuse)
-	    goto next;
-	}
-      else
-	{
-	  def_stmt = SSA_NAME_DEF_STMT (vuse);
-	  if (!SSA_NAME_IS_DEFAULT_DEF (vuse)
-	      && (gimple_bb (def_stmt) == bb
-		  || !dominated_by_p (CDI_DOMINATORS,
-				      bb, gimple_bb (def_stmt))))
-	    goto next;
-	}
+      tree vuse = gimple_vuse (use_stmt);
+      if (!can_handle_load (use_stmt, bb, vphi, up_vuse))
+	goto next;
 
       /* Found a proper dereference with an aggregate copy.  Just
          insert aggregate copies on the edges instead.  */
