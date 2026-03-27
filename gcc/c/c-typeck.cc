@@ -548,8 +548,14 @@ c_reconstruct_complex_type (tree type, tree bottom)
     }
   else if (TREE_CODE (type) == ARRAY_TYPE)
     {
+      bool rso = TYPE_REVERSE_STORAGE_ORDER (type);
       inner = c_reconstruct_complex_type (TREE_TYPE (type), bottom);
       outer = c_build_array_type (inner, TYPE_DOMAIN (type));
+      if (rso)
+	{
+	  outer = build_distinct_type_copy (outer);
+	  TYPE_REVERSE_STORAGE_ORDER (outer) = 1;
+	}
 
       gcc_checking_assert (C_TYPE_VARIABLE_SIZE (type)
 			   == C_TYPE_VARIABLE_SIZE (outer));
