@@ -32373,7 +32373,7 @@ aarch64_mode_confluence (int entity, int mode1, int mode2)
 }
 
 /* Implement TARGET_MODE_BACKPROP for an entity that either stays
-   NO throughput, or makes one transition from NO to YES.  */
+   NO throughout, or makes one transition from NO to YES.  */
 
 static aarch64_tristate_mode
 aarch64_one_shot_backprop (aarch64_tristate_mode mode1,
