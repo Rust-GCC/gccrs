@@ -632,6 +632,11 @@ public:
 
   AttrInput &get_attr_input () const { return *attr_input; }
 
+  void set_attr_input (std::unique_ptr<AST::AttrInput> input)
+  {
+    attr_input = std::move (input);
+  }
+
   /* e.g.:
       #![crate_type = "lib"]
       #[test]
