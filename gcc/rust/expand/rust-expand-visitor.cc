@@ -336,6 +336,24 @@ ExpandVisitor::expand_inner_stmts (AST::BlockExpr &expr)
 }
 
 void
+ExpandVisitor::visit (AST::Attribute &attr)
+{
+  // An attribute input containing a macro may have been expanded to a literal
+  if (attr.has_attr_input ()
+      && attr.get_attr_input ().get_attr_input_type ()
+	   == AST::AttrInput::AttrInputType::EXPR)
+    {
+      auto &expr = static_cast<AST::AttrInputExpr &> (attr.get_attr_input ());
+      if (expr.get_expr ().is_literal ())
+	{
+	  auto &lit = static_cast<AST::LiteralExpr &> (expr.get_expr ());
+	  attr.set_attr_input (std::make_unique<AST::AttrInputLiteral> (lit));
+	}
+    }
+  AST::DefaultASTVisitor::visit (attr);
+}
+
+void
 ExpandVisitor::maybe_expand_expr (std::unique_ptr<AST::Expr> &expr)
 {
   NodeId old_expect = expr->get_node_id ();
