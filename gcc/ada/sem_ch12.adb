@@ -9235,15 +9235,19 @@ package body Sem_Ch12 is
            and then (not In_Open_Scopes (Scope (Typ))
                       or else Nkind (Parent (N)) = N_Subtype_Declaration)
          then
+            --  In the generic unit, only the private declaration was visible,
+            --  so restore the partial view of Typ when there was an explicit
+            --  declaration of its full view.
+
             declare
-               Assoc : constant Node_Id := Get_Associated_Node (N);
+               Priv_Typ : constant Entity_Id :=
+                 Incomplete_Or_Partial_View (Typ, Partial_Only => True);
 
             begin
-               --  In the generic, only the private declaration was visible
-
-               Prepend_Elmt (Typ, Exchanged_Views);
-               Exchange_Declarations
-                 (if Comparison then Compare_Type (Assoc) else Etype (Assoc));
+               if Present (Priv_Typ) then
+                  Prepend_Elmt (Typ, Exchanged_Views);
+                  Exchange_Declarations (Priv_Typ);
+               end if;
             end;
 
          --  Check that the available views of Typ match their respective flag.
@@ -18607,22 +18611,10 @@ package body Sem_Ch12 is
          elsif No (Full_View (Typ)) and then Typ /= Etype (Typ) then
             null;
 
-         --  Otherwise mark the type for flipping and set the full view on N2
-         --  when available, which is necessary for Check_Private_View to swap
-         --  back the views in case the full declaration of Typ is visible in
-         --  the instantiation context. Note that this will be problematic if
-         --  N2 is re-analyzed later, e.g. if it's a default value in a call.
+         --  Otherwise mark the node as seeing the private view
 
          else
             Set_Has_Private_View (N);
-
-            if Present (Full_View (Typ)) then
-               if Comparison then
-                  Set_Compare_Type (N2, Full_View (Typ));
-               else
-                  Set_Etype (N2, Full_View (Typ));
-               end if;
-            end if;
          end if;
 
          if Is_Floating_Point_Type (Typ)

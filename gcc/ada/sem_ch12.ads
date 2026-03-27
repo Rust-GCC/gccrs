@@ -64,6 +64,22 @@ package Sem_Ch12 is
    --  this call, then Parent_Installed is set True, otherwise Parent_Installed
    --  is unchanged by the call.
 
+   procedure Check_Private_View (N : Node_Id);
+   --  Check whether the type of a generic entity has a different view between
+   --  the point of generic analysis and the point of instantiation. If the
+   --  view has changed, then at the point of instantiation we restore the
+   --  correct view to perform semantic analysis of the instance, and reset
+   --  the current view after instantiation. The processing is driven by the
+   --  current private status of the type of the node, and Has_Private_View,
+   --  a flag that is set at the point of generic compilation. If view and
+   --  flag are inconsistent then the type is updated appropriately. A second
+   --  flag Has_Secondary_Private_View is used to update a second type related
+   --  to this type if need be.
+   --
+   --  This subprogram is used in Check_Generic_Actuals and Copy_Generic_Node,
+   --  and is exported here for the purpose of front-end inlining (see Exp_Ch6.
+   --  Expand_Inlined_Call.Process_Formals).
+
    function Copy_Generic_Node
      (N             : Node_Id;
       Parent_Id     : Node_Id;
@@ -227,21 +243,5 @@ package Sem_Ch12 is
 
    procedure Initialize;
    --  Initializes internal data structures
-
-   procedure Check_Private_View (N : Node_Id);
-   --  Check whether the type of a generic entity has a different view between
-   --  the point of generic analysis and the point of instantiation. If the
-   --  view has changed, then at the point of instantiation we restore the
-   --  correct view to perform semantic analysis of the instance, and reset
-   --  the current view after instantiation. The processing is driven by the
-   --  current private status of the type of the node, and Has_Private_View,
-   --  a flag that is set at the point of generic compilation. If view and
-   --  flag are inconsistent then the type is updated appropriately. A second
-   --  flag Has_Secondary_Private_View is used to update a second type related
-   --  to this type if need be.
-   --
-   --  This subprogram is used in Check_Generic_Actuals and Copy_Generic_Node,
-   --  and is exported here for the purpose of front-end inlining (see Exp_Ch6.
-   --  Expand_Inlined_Call.Process_Formals).
 
 end Sem_Ch12;
