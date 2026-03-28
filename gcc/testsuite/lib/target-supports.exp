@@ -11045,7 +11045,7 @@ proc check_effective_target_d_runtime_has_std_library { } {
 
 	extern(C) int main() {
 	    import std.math;
-	    real function(real) pcos = &cos;
+	    real function(real) pcos = &acos;
 	    return 0;
 	}
     }]
