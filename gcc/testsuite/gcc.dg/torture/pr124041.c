@@ -1,5 +1,6 @@
 /* { dg-compile } */
 /* { dg-additional-options "-O2  -fno-strict-aliasing -fstack-protector -ftrivial-auto-var-init=zero -fsanitize=thread -Wall" } */
+/* { dg-require-effective-target fstack_protector } */
 
 char *trick_compiler(void *);
 int do_usercopy_stack_callee_i;
