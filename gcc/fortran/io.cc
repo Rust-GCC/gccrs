@@ -213,7 +213,7 @@ next_char_not_space ()
   return c;
 }
 
-static int value = 0;
+static uint value = 0;
 
 /* Simple lexical analyzer for getting the next token in a FORMAT
    statement.  */
@@ -256,7 +256,7 @@ format_lex (void)
 	{
 	  c = next_char_not_space ();
 	  if (ISDIGIT (c))
-	    value = 10 * value + c - '0';
+	    value = 10 * value + (c - '0');
 	}
       while (ISDIGIT (c));
 
@@ -287,7 +287,7 @@ format_lex (void)
 	  c = next_char_not_space ();
 	  if (ISDIGIT (c))
 	    {
-	      value = 10 * value + c - '0';
+	      value = 10 * value + (c - '0');
 	      if (c != '0')
 		zflag = 0;
 	    }
