@@ -1,3 +1,37 @@
+2026-03-27  Vineet Gupta  <vineet.gupta@linux.dev>
+
+	PR target/124670
+	* config/bpf/bpf.md (zero_extendsidi2): Use 'W' in asm template.
+
+2026-03-27  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR rtl-optimization/124649
+	* regcprop.cc (maybe_mode_change): Return early
+	for unordered modes.
+
+2026-03-27  Robin Dapp  <rdapp@oss.qualcomm.com>
+
+	PR target/124613
+	* config/riscv/riscv-vector-builtins.cc (rvv_switcher::rvv_switcher):
+	Add riscv_registering_builtins.
+	(rvv_switcher::~rvv_switcher): Set riscv_registering_builtins to
+	false.
+	* config/riscv/riscv.cc (riscv_vector_mode_supported_p): Use
+	riscv_registering_builtins.
+	* config/riscv/riscv.h: Declare.
+
+2026-03-27  Richard Biener  <rguenther@suse.de>
+
+	PR debug/124644
+	* dwarf2out.cc (dwarf2out_abstract_function): Only
+	add DW_AT_artificial if the decl isn't DECL_ARTIFICIAL.
+
+2026-03-27  Torbjörn SVENSSON  <torbjorn.svensson@foss.st.com>
+
+	* Makefile.in: (PLUGIN_HEADERS): Add $(srcdir)/topics/*.h.
+	(install-plugin): Preserve directory structure for topics
+	headers.
+
 2026-03-25  Richard Biener  <rguenther@suse.de>
 
 	PR gcov-profile/121074

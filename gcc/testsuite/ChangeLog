@@ -1,3 +1,37 @@
+2026-03-27  Vineet Gupta  <vineet.gupta@linux.dev>
+
+	PR target/124670
+	* gcc.target/bpf/zero-ext.c: New test.
+
+2026-03-27  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/102619
+	* gfortran.dg/pr102619.f90: New test.
+
+2026-03-27  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gnat.dg/generic_inst21.adb: New test.
+
+2026-03-27  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR rtl-optimization/124649
+	* gcc.dg/torture/pr124649-1.c: New test.
+
+2026-03-27  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/114021
+	* gfortran.dg/pr114021.f90: New test.
+
+2026-03-27  Richard Biener  <rguenther@suse.de>
+
+	PR debug/124644
+	* g++.dg/debug/pr124644.C: New testcase.
+
+2026-03-27  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/101281
+	* gfortran.dg/pr101281.f90: New test.
+
 2026-03-26  Paul Thomas  <pault@gcc.gnu.org>
 
 	PR fortran/115315

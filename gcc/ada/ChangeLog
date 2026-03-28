@@ -1,3 +1,20 @@
+2026-03-27  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* sem_ch12.adb (Analyze_Structural_Associations): Create a local
+	instance instead of a structural instance when a local entity of
+	a library-level package is used in a subprogram instantiation.
+
+2026-03-27  Eric Botcazou  <ebotcazou@adacore.com>
+
+	PR ada/124596
+	* sem_ch12.ads (Check_Private_View): Move around.
+	* sem_ch12.adb (Check_Private_View): Retrieve the partial view
+	by means of a call to Incomplete_Or_Partial_View.
+	(Save_Global_References.Set_Global_Type): Do not force the full
+	view of a type when only the partial declaration is visible.
+	* sem_res.adb (Resolve_Actuals.Insert_Default): Remove obsolete
+	code coping with the above kludge.
+
 2026-03-23  Eric Botcazou  <ebotcazou@adacore.com>
 
 	PR ada/124607

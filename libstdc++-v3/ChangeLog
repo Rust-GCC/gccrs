@@ -1,3 +1,7 @@
+2026-03-27  Nathan Myers  <ncm@cantrip.org>
+
+	* include/bits/stl_tree.h: Delete comment.
+
 2026-03-25  Alexandre Oliva  <oliva@adacore.com>
 
 	* testsuite/30_threads/condition_variable_any/stop_token/wait_on.cc

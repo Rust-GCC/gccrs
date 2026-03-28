@@ -1,3 +1,14 @@
+2026-03-27  Tobias Burnus  <tburnus@baylibre.com>
+
+	* target.c (omp_target_is_present, omp_get_mapped_ptr): Update handling
+	for nullptr and shared-memory devices.
+	* libgomp.texi (omp_target_is_present, omp_get_mapped_ptr): Update
+	description, add see-also @refs.
+	(omp_target_is_accessible, omp_target_associate_ptr): Add see-also
+	@refs.
+	* testsuite/libgomp.c/omp_target_is_present.c: New test.
+	* testsuite/libgomp.c/omp_target_is_present-2.c: New test.
+
 2026-03-26  Prathamesh Kulkarni  <prathameshk@nvidia.com>
 
 	PR libgomp/124123
