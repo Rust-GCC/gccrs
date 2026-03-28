@@ -8191,7 +8191,11 @@ gfc_match_function_decl (void)
     sym = sym->result;
 
   if (current_attr.module_procedure)
-    sym->attr.module_procedure = 1;
+    {
+      sym->attr.module_procedure = 1;
+      if (gfc_current_state () == COMP_INTERFACE)
+	gfc_current_ns->has_import_set = 1;
+    }
 
   gfc_new_block = sym;
 
@@ -8687,7 +8691,11 @@ gfc_match_subroutine (void)
 					     &gfc_current_locus);
 
   if (current_attr.module_procedure)
-    sym->attr.module_procedure = 1;
+    {
+      sym->attr.module_procedure = 1;
+      if (gfc_current_state () == COMP_INTERFACE)
+	gfc_current_ns->has_import_set = 1;
+    }
 
   if (add_hidden_procptr_result (sym))
     sym = sym->result;
