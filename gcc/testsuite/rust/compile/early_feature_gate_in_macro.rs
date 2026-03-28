@@ -8,6 +8,11 @@ macro_rules! concat {
     () => {{}};
 }
 
+#[rustc_builtin_macro]
+macro_rules! stringify {
+    () => {{}};
+}
+
 macro_rules! prefix_symbol(
     ($prefix : tt, { $($ident: ident, )* }) => {
         $(
