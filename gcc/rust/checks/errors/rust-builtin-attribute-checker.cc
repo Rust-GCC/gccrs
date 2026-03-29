@@ -367,28 +367,19 @@ BuiltinAttributeChecker::visit (AST::Attribute &attribute)
 void
 BuiltinAttributeChecker::visit (AST::Module &module)
 {
-  for (auto &attr : module.get_outer_attrs ())
-    check_valid_attribute_for_item (attr, module);
-
-  AST::DefaultASTVisitor::visit (module);
+  default_outer_attribute_check (module);
 }
 
 void
-BuiltinAttributeChecker::visit (AST::ExternCrate &crate)
+BuiltinAttributeChecker::visit (AST::ExternCrate &extern_crate)
 {
-  for (auto &attr : crate.get_outer_attrs ())
-    check_valid_attribute_for_item (attr, crate);
-
-  AST::DefaultASTVisitor::visit (crate);
+  default_outer_attribute_check (extern_crate);
 }
 
 void
 BuiltinAttributeChecker::visit (AST::UseDeclaration &declaration)
 {
-  for (auto &attr : declaration.get_outer_attrs ())
-    check_valid_attribute_for_item (attr, declaration);
-
-  AST::DefaultASTVisitor::visit (declaration);
+  default_outer_attribute_check (declaration);
 }
 
 void
@@ -492,55 +483,37 @@ BuiltinAttributeChecker::visit (AST::Function &function)
 void
 BuiltinAttributeChecker::visit (AST::TypeAlias &alias)
 {
-  for (auto &attr : alias.get_outer_attrs ())
-    check_valid_attribute_for_item (attr, alias);
-
-  AST::DefaultASTVisitor::visit (alias);
+  default_outer_attribute_check (alias);
 }
 
 void
 BuiltinAttributeChecker::visit (AST::StructStruct &struct_item)
 {
-  for (auto &attr : struct_item.get_outer_attrs ())
-    check_valid_attribute_for_item (attr, struct_item);
-
-  AST::DefaultASTVisitor::visit (struct_item);
+  default_outer_attribute_check (struct_item);
 }
 
 void
 BuiltinAttributeChecker::visit (AST::TupleStruct &tuple_struct)
 {
-  for (auto &attr : tuple_struct.get_outer_attrs ())
-    check_valid_attribute_for_item (attr, tuple_struct);
-
-  AST::DefaultASTVisitor::visit (tuple_struct);
+  default_outer_attribute_check (tuple_struct);
 }
 
 void
 BuiltinAttributeChecker::visit (AST::Enum &enumeration)
 {
-  for (auto &attr : enumeration.get_outer_attrs ())
-    check_valid_attribute_for_item (attr, enumeration);
-
-  AST::DefaultASTVisitor::visit (enumeration);
+  default_outer_attribute_check (enumeration);
 }
 
 void
 BuiltinAttributeChecker::visit (AST::Union &u)
 {
-  for (auto &attr : u.get_outer_attrs ())
-    check_valid_attribute_for_item (attr, u);
-
-  AST::DefaultASTVisitor::visit (u);
+  default_outer_attribute_check (u);
 }
 
 void
 BuiltinAttributeChecker::visit (AST::ConstantItem &item)
 {
-  for (auto &attr : item.get_outer_attrs ())
-    check_valid_attribute_for_item (attr, item);
-
-  AST::DefaultASTVisitor::visit (item);
+  default_outer_attribute_check (item);
 }
 
 void
@@ -565,37 +538,25 @@ BuiltinAttributeChecker::visit (AST::StaticItem &item)
 void
 BuiltinAttributeChecker::visit (AST::Trait &trait)
 {
-  for (auto &attr : trait.get_outer_attrs ())
-    check_valid_attribute_for_item (attr, trait);
-
-  AST::DefaultASTVisitor::visit (trait);
+  default_outer_attribute_check (trait);
 }
 
 void
 BuiltinAttributeChecker::visit (AST::InherentImpl &impl)
 {
-  for (auto &attr : impl.get_outer_attrs ())
-    check_valid_attribute_for_item (attr, impl);
-
-  AST::DefaultASTVisitor::visit (impl);
+  default_outer_attribute_check (impl);
 }
 
 void
 BuiltinAttributeChecker::visit (AST::TraitImpl &impl)
 {
-  for (auto &attr : impl.get_outer_attrs ())
-    check_valid_attribute_for_item (attr, impl);
-
-  AST::DefaultASTVisitor::visit (impl);
+  default_outer_attribute_check (impl);
 }
 
 void
 BuiltinAttributeChecker::visit (AST::ExternBlock &block)
 {
-  for (auto &attr : block.get_outer_attrs ())
-    check_valid_attribute_for_item (attr, block);
-
-  AST::DefaultASTVisitor::visit (block);
+  default_outer_attribute_check (block);
 }
 
 } // namespace Analysis
