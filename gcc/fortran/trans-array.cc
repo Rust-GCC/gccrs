@@ -7098,6 +7098,15 @@ gfc_conv_array_initializer (tree type, gfc_expr * expr)
       && expr->symtree->n.sym->value)
     expr = expr->symtree->n.sym->value;
 
+  /* After parameter substitution the expression should be a constant, array
+     constructor, structure constructor, or NULL.  Anything else means the
+     frontend already diagnosed an error; return a zero-filled array.  */
+  if (expr->expr_type != EXPR_CONSTANT
+      && expr->expr_type != EXPR_STRUCTURE
+      && expr->expr_type != EXPR_ARRAY
+      && expr->expr_type != EXPR_NULL)
+    return build_constructor (type, NULL);
+
   switch (expr->expr_type)
     {
     case EXPR_CONSTANT:
