@@ -28,6 +28,13 @@ class BuiltinAttributeChecker : public AST::DefaultASTVisitor
 {
   using AST::DefaultASTVisitor::visit;
 
+  template <class I> void default_outer_attribute_check (I item)
+  {
+    for (auto &attr : item.get_outer_attrs ())
+      check_valid_attribute_for_item (attr, item);
+    AST::DefaultASTVisitor::visit (item);
+  }
+
 public:
   BuiltinAttributeChecker ();
   void go (AST::Crate &crate);
