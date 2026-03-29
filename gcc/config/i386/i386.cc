@@ -8781,19 +8781,15 @@ ix86_access_stack_p (unsigned int regno, basic_block bb,
   return false;
 }
 
-/* Helper function for ix86_symbolic_const_load_p.  */
+/* Return true if SET needs alignment > ALIGNMENT.  */
 
 static bool
-ix86_symbolic_const_load_p_1 (rtx set)
+ix86_need_alignment_p_1 (rtx set, unsigned int alignment)
 {
   rtx dest = SET_DEST (set);
 
-  if (!REG_P (dest))
-    return false;
-
-  /* Reject non-Pmode modes.  */
-  if (GET_MODE (dest) != Pmode)
-    return false;
+  if (MEM_P (dest))
+    return GET_MODE_ALIGNMENT (GET_MODE (dest)) > alignment;
 
   const_rtx src = SET_SRC (set);
 
@@ -8803,22 +8799,20 @@ ix86_symbolic_const_load_p_1 (rtx set)
       auto op = *iter;
 
       if (MEM_P (op))
-	iter.skip_subrtxes ();
-      else if (SYMBOLIC_CONST (op))
-	return true;
+	return GET_MODE_ALIGNMENT (GET_MODE (op)) > alignment;
     }
 
   return false;
 }
 
-/* Return true if INSN loads a symbolic constant into register REGNO.  */
+/* Return true if INSN needs alignment > ALIGNMENT.  */
 
 static bool
-ix86_symbolic_const_load_p (rtx_insn *insn, unsigned int regno)
+ix86_need_alignment_p (rtx_insn *insn, unsigned int alignment)
 {
   rtx set = single_set (insn);
   if (set)
-    return ix86_symbolic_const_load_p_1 (set);
+    return ix86_need_alignment_p_1 (set, alignment);
 
   rtx pat = PATTERN (insn);
   if (GET_CODE (pat) != PARALLEL)
@@ -8828,15 +8822,9 @@ ix86_symbolic_const_load_p (rtx_insn *insn, unsigned int regno)
     {
       rtx exp = XVECEXP (pat, 0, i);
 
-      if (GET_CODE (exp) == SET)
-	{
-	  rtx dest = SET_DEST (exp);
-	  if (REG_P (dest)
-	      && GET_MODE (dest) == Pmode
-	      && REGNO (dest) == regno
-	      && ix86_symbolic_const_load_p_1 (exp))
-	    return true;
-	}
+      if (GET_CODE (exp) == SET
+	  && ix86_need_alignment_p_1 (exp, alignment))
+	return true;
     }
 
   return false;
@@ -8902,8 +8890,6 @@ ix86_find_max_used_stack_alignment (unsigned int &stack_alignment,
       bitmap_set_bit (worklist, HARD_FRAME_POINTER_REGNUM);
     }
 
-  HARD_REG_SET hard_stack_slot_access = stack_slot_access;
-
   calculate_dominance_info (CDI_DOMINATORS);
 
   unsigned int regno;
@@ -8925,25 +8911,6 @@ ix86_find_max_used_stack_alignment (unsigned int &stack_alignment,
 
   EXECUTE_IF_SET_IN_HARD_REG_SET (stack_slot_access, 0, regno, hrsi)
     {
-      /* Set to true if there is a symbolic constant load into REGNO.  */
-      bool symbolic_const_load_p = false;
-
-      if (!TEST_HARD_REG_BIT (hard_stack_slot_access, regno))
-	for (df_ref def = DF_REG_DEF_CHAIN (regno);
-	     def;
-	     def = DF_REF_NEXT_REG (def))
-	  if (!DF_REF_IS_ARTIFICIAL (def)
-	      && !DF_REF_FLAGS_IS_SET (def, DF_REF_MAY_CLOBBER)
-	      && !DF_REF_FLAGS_IS_SET (def, DF_REF_MUST_CLOBBER))
-	    {
-	      rtx_insn *insn = DF_REF_INSN (def);
-	      if (ix86_symbolic_const_load_p (insn, regno))
-		{
-		  symbolic_const_load_p = true;
-		  break;
-		}
-	    }
-
       for (df_ref ref = DF_REG_USE_CHAIN (regno);
 	   ref != NULL;
 	   ref = DF_REF_NEXT_REG (ref))
@@ -8956,10 +8923,10 @@ ix86_find_max_used_stack_alignment (unsigned int &stack_alignment,
 	  if (!NONJUMP_INSN_P (insn))
 	    continue;
 
-	  /* If there is no symbolic constant load into the register,
-	     don't call ix86_access_stack_p.  */
-	  if (!symbolic_const_load_p
-	      || ix86_access_stack_p (regno, BLOCK_FOR_INSN (insn),
+	  /* Call ix86_access_stack_p only if INSN needs alignment >
+	     STACK_ALIGNMENT.  */
+	  if (ix86_need_alignment_p (insn, stack_alignment)
+	      && ix86_access_stack_p (regno, BLOCK_FOR_INSN (insn),
 				      set_up_by_prologue, prologue_used,
 				      reg_dominate_bbs_known,
 				      reg_dominate_bbs))
