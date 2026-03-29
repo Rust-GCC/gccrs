@@ -80,8 +80,15 @@ check_doc_alias (const std::string &alias_input, const location_t locus)
 		   "%<#[doc(alias)]%> input cannot start or end with a space");
 }
 
-static void
-check_doc_attribute (const AST::Attribute &attribute)
+// This namespace contains handlers for the builtin attribute checker,
+// those handlers must verify the attribute internal structure and emit the
+// appropriate error message if the structure is incorrect.
+//
+// They DO NOT check the attribute validity on the parent item.
+namespace handlers {
+
+void
+doc (const AST::Attribute &attribute)
 {
   if (!attribute.has_attr_input ())
     {
@@ -125,8 +132,8 @@ check_doc_attribute (const AST::Attribute &attribute)
     }
 }
 
-static void
-check_deprecated_attribute (const AST::Attribute &attribute)
+void
+deprecated (const AST::Attribute &attribute)
 {
   if (!attribute.has_attr_input ())
     return;
@@ -219,8 +226,8 @@ check_deprecated_attribute (const AST::Attribute &attribute)
     }
 }
 
-static void
-check_link_section_attribute (const AST::Attribute &attribute)
+void
+link_section (const AST::Attribute &attribute)
 {
   if (!attribute.has_attr_input ())
     {
@@ -231,8 +238,8 @@ check_link_section_attribute (const AST::Attribute &attribute)
     }
 }
 
-static void
-check_export_name_attribute (const AST::Attribute &attribute)
+void
+export_name (const AST::Attribute &attribute)
 {
   if (!attribute.has_attr_input ())
     {
@@ -264,9 +271,84 @@ check_export_name_attribute (const AST::Attribute &attribute)
   rust_error_at (attribute.get_locus (), "attribute must be a string literal");
 }
 
+void
+lint (const AST::Attribute &attribute)
+{
+  if (!attribute.has_attr_input ())
+    {
+      auto name = attribute.get_path ().as_string ();
+      rust_error_at (attribute.get_locus (), "malformed %qs attribute input",
+		     name.c_str ());
+      rust_inform (attribute.get_locus (),
+		   "must be of the form: %<#[%s(lint1, lint2, ...)]%>",
+		   name.c_str ());
+    }
+}
+
+void
+link_name (const AST::Attribute &attribute)
+{
+  if (!attribute.has_attr_input ())
+    {
+      rust_error_at (attribute.get_locus (),
+		     "malformed %<link_name%> attribute input");
+      rust_inform (attribute.get_locus (),
+		   "must be of the form: %<#[link_name = \"name\"]%>");
+    }
+}
+
+namespace {
+void
+check_crate_type (const AST::Attribute &attribute)
+{
+  if (!Session::get_instance ().options.is_proc_macro ())
+    {
+      auto name = attribute.get_path ().as_string ();
+
+      rust_error_at (attribute.get_locus (),
+		     "the %<#[%s]%> attribute is only usable with crates of "
+		     "the %<proc-macro%> crate type",
+		     name.c_str ());
+    }
+}
+} // namespace
+
 static void
-check_no_mangle_function (const AST::Attribute &attribute,
-			  const AST::Function &fun)
+proc_macro_derive (const AST::Attribute &attribute)
+{
+  if (!attribute.has_attr_input ())
+    {
+      auto name = attribute.get_path ().as_string ();
+      rust_error_at (attribute.get_locus (), "malformed %qs attribute input",
+		     name.c_str ());
+      rust_inform (attribute.get_locus (),
+		   "must be of the form: %<#[proc_macro_derive(TraitName, "
+		   "/*opt*/ attributes(name1, name2, ...))]%>");
+    }
+  check_crate_type (attribute);
+}
+
+static void
+proc_macro (const AST::Attribute &attribute)
+{
+  check_crate_type (attribute);
+}
+
+static void
+target_feature (const AST::Attribute &attribute)
+{
+  if (!attribute.has_attr_input ())
+    {
+      rust_error_at (attribute.get_locus (),
+		     "malformed %<target_feature%> attribute input");
+      rust_inform (attribute.get_locus (),
+		   "must be of the form: %<#[target_feature(enable = "
+		   "\"name\")]%>");
+    }
+}
+
+void
+no_mangle (const AST::Attribute &attribute)
 {
   if (attribute.has_attr_input ())
     {
@@ -275,21 +357,43 @@ check_no_mangle_function (const AST::Attribute &attribute,
       rust_inform (attribute.get_locus (),
 		   "must be of the form: %<#[no_mangle]%>");
     }
-  if (!is_ascii_only (fun.get_function_name ().as_string ()))
-    rust_error_at (fun.get_function_name ().get_locus (),
-		   "the %<#[no_mangle]%> attribute requires ASCII identifier");
+}
+
+} // namespace handlers
+
+const std::unordered_map<std::string, std::function<void (AST::Attribute &)>>
+  attribute_checking_handlers
+  = {{Attrs::DOC, handlers::doc},
+     {Attrs::DEPRECATED, handlers::deprecated},
+     {Attrs::LINK_SECTION, handlers::link_section},
+     {Attrs::EXPORT_NAME, handlers::export_name},
+     {Attrs::NO_MANGLE, handlers::no_mangle},
+     {Attrs::ALLOW, handlers::lint},
+     {"deny", handlers::lint},
+     {"warn", handlers::lint},
+     {"forbid", handlers::lint},
+     {Attrs::LINK_NAME, handlers::link_name},
+     {Attrs::PROC_MACRO_DERIVE, handlers::proc_macro_derive},
+     {Attrs::PROC_MACRO, handlers::proc_macro},
+     {Attrs::PROC_MACRO_ATTRIBUTE, handlers::proc_macro},
+     {Attrs::TARGET_FEATURE, handlers::target_feature}};
+
+tl::optional<std::function<void (AST::Attribute &)>>
+lookup_handler (std::string attr_name)
+{
+  auto res = attribute_checking_handlers.find (attr_name);
+  if (res != attribute_checking_handlers.cend ())
+    return res->second;
+  return tl::nullopt;
 }
 
 static void
-check_lint_attribute (const AST::Attribute &attribute, const char *name)
+check_no_mangle_function (const AST::Attribute &attribute,
+			  const AST::Function &fun)
 {
-  if (!attribute.has_attr_input ())
-    {
-      rust_error_at (attribute.get_locus (), "malformed %qs attribute input",
-		     name);
-      rust_inform (attribute.get_locus (),
-		   "must be of the form: %<#[%s(lint1, lint2, ...)]%>", name);
-    }
+  if (!is_ascii_only (fun.get_function_name ().as_string ()))
+    rust_error_at (fun.get_function_name ().get_locus (),
+		   "the %<#[no_mangle]%> attribute requires ASCII identifier");
 }
 
 /**
@@ -302,7 +406,7 @@ check_lint_attribute (const AST::Attribute &attribute, const char *name)
  * Note that "#[derive]" is handled
  * explicitly in rust-derive.cc
  */
-static void
+void
 check_valid_attribute_for_item (const AST::Attribute &attr,
 				const AST::Item &item)
 {
@@ -349,18 +453,9 @@ BuiltinAttributeChecker::visit (AST::Crate &crate)
 void
 BuiltinAttributeChecker::visit (AST::Attribute &attribute)
 {
-  if (auto builtin = lookup_builtin (attribute))
-    {
-      auto result = builtin.value ();
-      // TODO: Add checks here for each builtin attribute
-      // TODO: Have an enum of builtins as well, switching on strings is
-      // annoying and costly
-      if (result.name == Attrs::DOC)
-	check_doc_attribute (attribute);
-      else if (result.name == Attrs::DEPRECATED)
-	check_deprecated_attribute (attribute);
-    }
-
+  lookup_handler (attribute.get_path ().as_string ()).map ([&] (auto handler) {
+    handler (attribute);
+  });
   AST::DefaultASTVisitor::visit (attribute);
 }
 
@@ -385,14 +480,6 @@ BuiltinAttributeChecker::visit (AST::UseDeclaration &declaration)
 void
 BuiltinAttributeChecker::visit (AST::Function &function)
 {
-  auto check_crate_type = [] (const char *name, AST::Attribute &attribute) {
-    if (!Session::get_instance ().options.is_proc_macro ())
-      rust_error_at (attribute.get_locus (),
-		     "the %<#[%s]%> attribute is only usable with crates of "
-		     "the %<proc-macro%> crate type",
-		     name);
-  };
-
   BuiltinAttrDefinition result;
   for (auto &attribute : function.get_outer_attrs ())
     {
@@ -402,37 +489,9 @@ BuiltinAttributeChecker::visit (AST::Function &function)
       if (!result)
 	return;
 
-      auto name = result->name.c_str ();
-
-      if (result->name == Attrs::PROC_MACRO_DERIVE)
+      if (result->name == Attrs::TARGET_FEATURE)
 	{
-	  if (!attribute.has_attr_input ())
-	    {
-	      rust_error_at (attribute.get_locus (),
-			     "malformed %qs attribute input", name);
-	      rust_inform (
-		attribute.get_locus (),
-		"must be of the form: %<#[proc_macro_derive(TraitName, "
-		"/*opt*/ attributes(name1, name2, ...))]%>");
-	    }
-	  check_crate_type (name, attribute);
-	}
-      else if (result->name == Attrs::PROC_MACRO
-	       || result->name == Attrs::PROC_MACRO_ATTRIBUTE)
-	{
-	  check_crate_type (name, attribute);
-	}
-      else if (result->name == Attrs::TARGET_FEATURE)
-	{
-	  if (!attribute.has_attr_input ())
-	    {
-	      rust_error_at (attribute.get_locus (),
-			     "malformed %<target_feature%> attribute input");
-	      rust_inform (attribute.get_locus (),
-			   "must be of the form: %<#[target_feature(enable = "
-			   "\"name\")]%>");
-	    }
-	  else if (!function.get_qualifiers ().is_unsafe ())
+	  if (!function.get_qualifiers ().is_unsafe ())
 	    {
 	      rust_error_at (
 		attribute.get_locus (),
@@ -442,38 +501,7 @@ BuiltinAttributeChecker::visit (AST::Function &function)
 	}
       else if (result->name == Attrs::NO_MANGLE)
 	{
-	  if (attribute.has_attr_input ())
-	    {
-	      rust_error_at (attribute.get_locus (),
-			     "malformed %<no_mangle%> attribute input");
-	      rust_inform (attribute.get_locus (),
-			   "must be of the form: %<#[no_mangle]%>");
-	    }
-	  else
-	    check_no_mangle_function (attribute, function);
-	}
-      else if (result->name == Attrs::EXPORT_NAME)
-	{
-	  check_export_name_attribute (attribute);
-	}
-      else if (result->name == Attrs::ALLOW || result->name == "deny"
-	       || result->name == "warn" || result->name == "forbid")
-	{
-	  check_lint_attribute (attribute, name);
-	}
-      else if (result->name == Attrs::LINK_NAME)
-	{
-	  if (!attribute.has_attr_input ())
-	    {
-	      rust_error_at (attribute.get_locus (),
-			     "malformed %<link_name%> attribute input");
-	      rust_inform (attribute.get_locus (),
-			   "must be of the form: %<#[link_name = \"name\"]%>");
-	    }
-	}
-      else if (result->name == Attrs::LINK_SECTION)
-	{
-	  check_link_section_attribute (attribute);
+	  check_no_mangle_function (attribute, function);
 	}
     }
 
@@ -520,17 +548,7 @@ void
 BuiltinAttributeChecker::visit (AST::StaticItem &item)
 {
   for (auto &attr : item.get_outer_attrs ())
-    {
-      check_valid_attribute_for_item (attr, item);
-
-      if (auto result = lookup_builtin (attr))
-	{
-	  if (result->name == Attrs::LINK_SECTION)
-	    check_link_section_attribute (attr);
-	  else if (result->name == Attrs::EXPORT_NAME)
-	    check_export_name_attribute (attr);
-	}
-    }
+    check_valid_attribute_for_item (attr, item);
 
   AST::DefaultASTVisitor::visit (item);
 }
