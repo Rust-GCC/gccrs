@@ -24,6 +24,9 @@
 namespace Rust {
 namespace Analysis {
 
+void check_valid_attribute_for_item (const AST::Attribute &attr,
+				     const AST::Item &item);
+
 class BuiltinAttributeChecker : public AST::DefaultASTVisitor
 {
   using AST::DefaultASTVisitor::visit;
