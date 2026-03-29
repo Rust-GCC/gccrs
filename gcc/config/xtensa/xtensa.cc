@@ -366,9 +366,6 @@ static rtx_insn *xtensa_md_asm_adjust (vec<rtx> &, vec<rtx> &,
 #undef TARGET_MAX_ANCHOR_OFFSET
 #define TARGET_MAX_ANCHOR_OFFSET 1020
 
-#undef TARGET_DIFFERENT_ADDR_DISPLACEMENT_P
-#define TARGET_DIFFERENT_ADDR_DISPLACEMENT_P hook_bool_void_true
-
 #undef TARGET_IRA_CHANGE_PSEUDO_ALLOCNO_CLASS
 #define TARGET_IRA_CHANGE_PSEUDO_ALLOCNO_CLASS xtensa_ira_change_pseudo_allocno_class
 
