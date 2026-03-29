@@ -1,3 +1,10 @@
+2026-03-28  Alexandre Oliva  <oliva@adacore.com>
+
+	* config/gthr-vxworks-tls.c (TLS_DELETE_HOOK_ARG): Type-cast
+	NULL constant to avoid warning.
+	* config/t-vxworks (LIBGCC2_CFLAGS): Tolerate unused-parameter
+	and discarded-qualifiers errors.
+
 2026-03-25  Alexandre Oliva  <oliva@adacore.com>
 
 	* config/gthr-vxworks.h (__GTHREAD_ALWAYS_INLINE,
