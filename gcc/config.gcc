@@ -2672,8 +2672,8 @@ loongarch*-*-linux*)
 
 loongarch*-*-elf*)
 	tm_file="elfos.h newlib-stdint.h ${tm_file}"
-	tm_file="${tm_file} loongarch/elf.h loongarch/linux.h loongarch/loongarch-driver.h"
-	tmake_file="${tmake_file} loongarch/t-multilib loongarch/t-linux"
+	tm_file="${tm_file} loongarch/elf.h loongarch/loongarch-driver.h"
+	tmake_file="${tmake_file} loongarch/t-multilib"
 	gnu_ld=yes
 	gas=yes
 
