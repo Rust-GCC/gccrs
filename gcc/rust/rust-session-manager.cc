@@ -60,6 +60,7 @@
 #include "rust-borrow-checker.h"
 #include "rust-ast-validation.h"
 #include "rust-tyty-variance-analysis.h"
+#include "rust-attribute-checker.h"
 #include "rust-builtin-attribute-checker.h"
 
 #include "input.h"

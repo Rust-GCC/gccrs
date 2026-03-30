@@ -27,6 +27,18 @@ namespace Analysis {
 void check_valid_attribute_for_item (const AST::Attribute &attr,
 				     const AST::Item &item);
 
+/**
+ * Checks the validity of builtin attributes.
+ *
+ * The goal of this visitor is to  make sure that builtin attributes are
+ * correctly used by enforcing those rules:
+ *
+ * - Attributes are applied in allowed contexts, for example to make sure that
+ * #[inline] is only applied to functions and closures, as well as checking the
+ * "arguments"
+ *
+ * - input given to these attributes is appropriate and valid.
+ */
 class BuiltinAttributeChecker : public AST::DefaultASTVisitor
 {
   using AST::DefaultASTVisitor::visit;
