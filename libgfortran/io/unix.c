@@ -2046,7 +2046,7 @@ inquire_access (const char *string, gfc_charlen_type len, int mode)
   int res = access (path, mode);
   free (path);
   if (res == -1)
-    return no;
+    return unknown;
 
   return yes;
 }
