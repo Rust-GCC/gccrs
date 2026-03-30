@@ -60,6 +60,44 @@ operator== (const std::string &a, const Ident &b)
   return b == a;
 }
 
+class ChainList
+{
+  tree head;
+  tree *tail_cdr;
+
+public:
+  ChainList () : head (NULL_TREE), tail_cdr (&head) {}
+
+  ChainList (ChainList &&oth)
+  {
+    head = oth.head;
+    if (oth.tail_cdr == &oth.head)
+      tail_cdr = &oth.head;
+    else
+      tail_cdr = oth.tail_cdr;
+    oth.head = NULL_TREE;
+    oth.tail_cdr = &oth.head;
+  }
+
+  ChainList &operator= (ChainList &&oth)
+  {
+    this->~ChainList ();
+    new (this) ChainList (std::move (oth));
+    return *this;
+  }
+
+  tree get_head () const { return head; }
+
+  // TREE_CHAIN (ent) will be modified
+  // making ent a node in this list
+  // do not push a single tree to multiple ChainList objects
+  void push_back (tree ent)
+  {
+    *tail_cdr = ent;
+    tail_cdr = &TREE_CHAIN (ent);
+  }
+};
+
 } // namespace GGC
 
 } // namespace Rust
