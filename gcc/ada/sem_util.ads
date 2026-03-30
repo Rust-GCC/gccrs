@@ -3092,12 +3092,15 @@ package Sem_Util is
    --  with a special name to avoid being overridden (i.e. return true in case
    --  of entities with names "nameP" and "name" or vice versa).
 
-   function Private_Component (Type_Id : Entity_Id) return Entity_Id;
-   --  Returns some private component (if any) of the given Type_Id.
-   --  Used to enforce the rules on visibility of operations on composite
-   --  types, that depend on the full view of the component type. For a
-   --  record type there may be several such components, we just return
-   --  the first one.
+   function Partially_Visible_Subcomponent
+     (Type_Id : Entity_Id) return Entity_Id;
+   --  If there exist any subcomponents of Type_Id whose types are currently
+   --  only partially visible, returns one such subcomponent. Otherwise returns
+   --  Empty. Used to enforce the rules on visibility of operations on
+   --  composite types, that depend on the full view of the subcomponent types.
+   --
+   --  We say that a type is "partially visible" when it has a partial view
+   --  that is currently visible but no full view that is currently visible.
 
    procedure Process_End_Label
      (N   : Node_Id;

@@ -2222,7 +2222,7 @@ package body Sem_Ch3 is
       --  If this component is private (or depends on a private type), flag the
       --  record type to indicate that some operations are not available.
 
-      P := Private_Component (T);
+      P := Partially_Visible_Subcomponent (T);
 
       if Present (P) then
 
@@ -6814,7 +6814,7 @@ package body Sem_Ch3 is
          end if;
       end if;
 
-      Priv := Private_Component (Element_Type);
+      Priv := Partially_Visible_Subcomponent (Element_Type);
 
       if Present (Priv) then
 

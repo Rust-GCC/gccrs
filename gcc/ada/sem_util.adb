@@ -27240,11 +27240,13 @@ package body Sem_Util is
       end if;
    end Predicate_Tests_On_Arguments;
 
-   -----------------------
-   -- Private_Component --
-   -----------------------
+   ------------------------------------
+   -- Partially_Visible_Subcomponent --
+   ------------------------------------
 
-   function Private_Component (Type_Id : Entity_Id) return Entity_Id is
+   function Partially_Visible_Subcomponent
+     (Type_Id : Entity_Id) return Entity_Id
+   is
       Ancestor  : constant Entity_Id := Base_Type (Type_Id);
 
       function Trace_Components
@@ -27329,7 +27331,7 @@ package body Sem_Util is
 
    begin
       return Trace_Components (Type_Id, False);
-   end Private_Component;
+   end Partially_Visible_Subcomponent;
 
    ---------------------------
    -- Primitive_Names_Match --
