@@ -114,7 +114,7 @@ enum metafn_code {
   METAFN_IS_FUNCTION_PARAMETER,
   METAFN_IS_EXPLICIT_OBJECT_PARAMETER,
   METAFN_HAS_DEFAULT_ARGUMENT,
-  METAFN_HAS_ELLIPSIS_PARAMETER,
+  METAFN_IS_VARARG_FUNCTION,
   METAFN_IS_TEMPLATE,
   METAFN_IS_FUNCTION_TEMPLATE,
   METAFN_IS_VARIABLE_TEMPLATE,
@@ -511,7 +511,7 @@ metafn_lookup::hash (const char *str, size_t len)
       918, 918, 918, 918, 918,   5, 100, 145,  10,  45,
       165,   5,  55,  50,  72,  20, 248,   0,  55, 105,
         0, 205,   0,  45,  35,  55,  25, 195,   5, 199,
-       20, 311,  20, 918, 918, 918, 918, 918, 918, 918,
+       20, 311,  80, 918, 918, 918, 918, 918, 918, 918,
       918, 918, 918, 918, 918, 918, 918, 918, 918, 918,
       918, 918, 918, 918, 918, 918, 918, 918, 918, 918,
       918, 918, 918, 918, 918, 918, 918, 918, 918, 918,
@@ -630,12 +630,8 @@ metafn_lookup::find (const char *str, size_t len)
       {"is_nothrow_move_constructible_type", METAFN_IS_NOTHROW_MOVE_CONSTRUCTIBLE_TYPE, METAFN_KIND_BOOL_TINFO,},
 #line 527 "metafns.gperf"
       {"is_variable_template", METAFN_IS_VARIABLE_TEMPLATE, METAFN_KIND_BOOL_INFO,},
-#line 686 "metafns.gperf"
-      {"variant_size", METAFN_VARIANT_SIZE, METAFN_KIND_SIZE_T_TINFO,},
 #line 579 "metafns.gperf"
       {"is_null_pointer_type", METAFN_IS_NULL_POINTER_TYPE, METAFN_KIND_BOOL_TINFO,},
-#line 504 "metafns.gperf"
-      {"is_type", METAFN_IS_TYPE, METAFN_KIND_BOOL_INFO,},
 #line 472 "metafns.gperf"
       {"is_public", METAFN_IS_PUBLIC, METAFN_KIND_BOOL_INFO,},
 #line 484 "metafns.gperf"
@@ -690,6 +686,10 @@ metafn_lookup::find (const char *str, size_t len)
       {"symbol_of", METAFN_SYMBOL_OF, METAFN_KIND_STRING_VIEW_OPERATORS,},
 #line 617 "metafns.gperf"
       {"is_copy_constructible_type", METAFN_IS_COPY_CONSTRUCTIBLE_TYPE, METAFN_KIND_BOOL_TINFO,},
+#line 686 "metafns.gperf"
+      {"variant_size", METAFN_VARIANT_SIZE, METAFN_KIND_SIZE_T_TINFO,},
+#line 504 "metafns.gperf"
+      {"is_type", METAFN_IS_TYPE, METAFN_KIND_BOOL_INFO,},
 #line 615 "metafns.gperf"
       {"is_constructible_type", METAFN_IS_CONSTRUCTIBLE_TYPE, METAFN_KIND_BOOL_TINFO_REFLECTION_RANGET,},
 #line 495 "metafns.gperf"
@@ -698,8 +698,8 @@ metafn_lookup::find (const char *str, size_t len)
       {"is_copy_assignable_type", METAFN_IS_COPY_ASSIGNABLE_TYPE, METAFN_KIND_BOOL_TINFO,},
 #line 684 "metafns.gperf"
       {"tuple_size", METAFN_TUPLE_SIZE, METAFN_KIND_SIZE_T_TINFO,},
-#line 506 "metafns.gperf"
-      {"is_type_alias", METAFN_IS_TYPE_ALIAS, METAFN_KIND_BOOL_INFO,},
+#line 524 "metafns.gperf"
+      {"is_vararg_function", METAFN_IS_VARARG_FUNCTION, METAFN_KIND_BOOL_INFO,},
 #line 515 "metafns.gperf"
       {"is_copy_constructor", METAFN_IS_COPY_CONSTRUCTOR, METAFN_KIND_BOOL_INFO,},
 #line 551 "metafns.gperf"
@@ -754,8 +754,8 @@ metafn_lookup::find (const char *str, size_t len)
       {"is_member_pointer_type", METAFN_IS_MEMBER_POINTER_TYPE, METAFN_KIND_BOOL_TINFO,},
 #line 621 "metafns.gperf"
       {"is_move_assignable_type", METAFN_IS_MOVE_ASSIGNABLE_TYPE, METAFN_KIND_BOOL_TINFO,},
-#line 524 "metafns.gperf"
-      {"has_ellipsis_parameter", METAFN_HAS_ELLIPSIS_PARAMETER, METAFN_KIND_BOOL_INFO,},
+#line 506 "metafns.gperf"
+      {"is_type_alias", METAFN_IS_TYPE_ALIAS, METAFN_KIND_BOOL_INFO,},
 #line 516 "metafns.gperf"
       {"is_move_constructor", METAFN_IS_MOVE_CONSTRUCTOR, METAFN_KIND_BOOL_INFO,},
 #line 550 "metafns.gperf"
@@ -1042,8 +1042,6 @@ metafn_lookup::find (const char *str, size_t len)
       {"is_integral_type", METAFN_IS_INTEGRAL_TYPE, METAFN_KIND_BOOL_TINFO,},
 #line 560 "metafns.gperf"
       {"nonstatic_data_members_of", METAFN_NONSTATIC_DATA_MEMBERS_OF, METAFN_KIND_VECTOR_INFO_INFO_ACCESS_CONTEXT,},
-#line 677 "metafns.gperf"
-      {"decay", METAFN_DECAY, METAFN_KIND_INFO_TINFO,},
 #line 607 "metafns.gperf"
       {"is_final_type", METAFN_IS_FINAL_TYPE, METAFN_KIND_BOOL_TINFO,},
 #line 662 "metafns.gperf"
@@ -1056,6 +1054,8 @@ metafn_lookup::find (const char *str, size_t len)
       {"annotations_of_with_type", METAFN_ANNOTATIONS_OF_WITH_TYPE, METAFN_KIND_VECTOR_INFO_INFO_INFO,},
 #line 465 "metafns.gperf"
       {"u8identifier_of", METAFN_U8IDENTIFIER_OF, METAFN_KIND_U8STRING_VIEW_INFO,},
+#line 677 "metafns.gperf"
+      {"decay", METAFN_DECAY, METAFN_KIND_INFO_TINFO,},
 #line 689 "metafns.gperf"
       {"annotations_of", METAFN_ANNOTATIONS_OF, METAFN_KIND_VECTOR_INFO_INFO,},
 #line 589 "metafns.gperf"
@@ -1078,21 +1078,21 @@ metafn_lookup::find (const char *str, size_t len)
        -1,  -1,   1,  -1,  -1,   2,   3,  -1,   4,  -1,
        -1,  -1,   5,  -1,  -1,  -1,   6,   7,  -1,   8,
         9,  10,  11,  -1,  12,  13,  14,  -1,  -1,  15,
-       16,  -1,  17,  -1,  -1,  18,  -1,  19,  -1,  20,
-       -1,  21,  22,  -1,  23,  -1,  -1,  -1,  -1,  24,
-       25,  26,  27,  -1,  -1,  28,  29,  -1,  30,  -1,
-       31,  -1,  32,  33,  -1,  34,  -1,  -1,  -1,  -1,
-       35,  36,  37,  38,  39,  40,  -1,  -1,  -1,  -1,
-       -1,  41,  42,  -1,  43,  -1,  44,  -1,  -1,  45,
-       -1,  46,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,
+       16,  -1,  -1,  -1,  -1,  17,  -1,  -1,  -1,  18,
+       -1,  19,  20,  -1,  21,  -1,  -1,  -1,  -1,  22,
+       23,  24,  25,  -1,  -1,  26,  27,  -1,  28,  -1,
+       29,  -1,  30,  31,  -1,  32,  -1,  -1,  -1,  -1,
+       33,  34,  35,  36,  37,  38,  -1,  -1,  -1,  -1,
+       -1,  39,  40,  -1,  41,  -1,  42,  -1,  -1,  43,
+       -1,  44,  45,  -1,  -1,  -1,  -1,  46,  -1,  -1,
        -1,  -1,  -1,  -1,  -1,  -1,  47,  48,  49,  -1,
        50,  -1,  -1,  51,  52,  -1,  53,  54,  55,  56,
        57,  58,  -1,  59,  -1,  -1,  -1,  60,  -1,  -1,
        -1,  61,  -1,  62,  -1,  63,  64,  65,  66,  -1,
        -1,  67,  -1,  -1,  -1,  -1,  -1,  68,  -1,  -1,
        -1,  69,  70,  -1,  71,  -1,  -1,  72,  -1,  -1,
-       73,  -1,  74,  75,  -1,  76,  -1,  77,  78,  79,
-       -1,  -1,  -1,  -1,  80,  -1,  -1,  -1,  81,  -1,
+       73,  -1,  74,  75,  -1,  76,  -1,  77,  78,  -1,
+       -1,  -1,  -1,  79,  80,  -1,  -1,  -1,  81,  -1,
        -1,  -1,  82,  83,  -1,  -1,  -1,  -1,  84,  -1,
        85,  86,  -1,  87,  88,  89,  90,  -1,  91,  -1,
        -1,  92,  -1,  -1,  -1,  -1,  93,  94,  -1,  -1,
@@ -1135,13 +1135,13 @@ metafn_lookup::find (const char *str, size_t len)
        -1,  -1,  -1,  -1,  -1,  -1,  -1, 218,  -1,  -1,
        -1,  -1,  -1, 219,  -1,  -1,  -1, 220,  -1,  -1,
        -1,  -1, 221,  -1,  -1,  -1,  -1,  -1,  -1,  -1,
-      222,  -1,  -1,  -1,  -1,  -1, 223,  -1,  -1,  -1,
-       -1,  -1, 224,  -1,  -1,  -1,  -1,  -1,  -1, 225,
+      222,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,
+       -1,  -1, 223,  -1,  -1,  -1,  -1,  -1,  -1, 224,
        -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,
-       -1,  -1, 226,  -1,  -1,  -1,  -1,  -1, 227,  -1,
-       -1,  -1,  -1,  -1, 228,  -1,  -1,  -1,  -1,  -1,
-       -1,  -1,  -1,  -1,  -1, 229,  -1,  -1,  -1,  -1,
-       -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,
+       -1,  -1, 225,  -1,  -1,  -1,  -1,  -1, 226,  -1,
+       -1,  -1,  -1,  -1, 227,  -1,  -1,  -1,  -1,  -1,
+       -1,  -1,  -1,  -1,  -1, 228,  -1,  -1,  -1,  -1,
+       -1,  -1,  -1,  -1,  -1,  -1, 229,  -1,  -1,  -1,
        -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,
        -1,  -1,  -1,  -1, 230,  -1,  -1,  -1,  -1,  -1,
        -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,

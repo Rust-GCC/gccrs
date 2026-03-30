@@ -273,7 +273,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     consteval bool is_function_parameter(info);
     consteval bool is_explicit_object_parameter(info);
     consteval bool has_default_argument(info);
-    consteval bool has_ellipsis_parameter(info);
+    consteval bool is_vararg_function(info);
 
     consteval bool is_template(info);
     consteval bool is_function_template(info);

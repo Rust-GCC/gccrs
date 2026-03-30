@@ -2161,7 +2161,7 @@ export namespace std
     using std::meta::is_function_parameter;
     using std::meta::is_explicit_object_parameter;
     using std::meta::has_default_argument;
-    using std::meta::has_ellipsis_parameter;
+    using std::meta::is_vararg_function;
     using std::meta::is_template;
     using std::meta::is_function_template;
     using std::meta::is_variable_template;

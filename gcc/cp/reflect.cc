@@ -1759,12 +1759,12 @@ eval_has_default_argument (tree r, reflect_kind kind)
     return boolean_false_node;
 }
 
-/* Process std::meta::has_ellipsis_parameter.
-   Returns: true if r represents a function or function type that has an
-   ellipsis in its parameter-type-list.  Otherwise, false.  */
+/* Process std::meta::is_vararg_function.
+   Returns: true if r represents a function or function type that
+   is a vararg function.  Otherwise, false.  */
 
 static tree
-eval_has_ellipsis_parameter (tree r)
+eval_is_vararg_function (tree r)
 {
   r = MAYBE_BASELINK_FUNCTIONS (r);
   if (TREE_CODE (r) == FUNCTION_DECL)
@@ -7612,8 +7612,8 @@ process_metafunction (const constexpr_ctx *ctx, tree fun, tree call,
       return eval_is_explicit_object_parameter (h, kind);
     case METAFN_HAS_DEFAULT_ARGUMENT:
       return eval_has_default_argument (h, kind);
-    case METAFN_HAS_ELLIPSIS_PARAMETER:
-      return eval_has_ellipsis_parameter (h);
+    case METAFN_IS_VARARG_FUNCTION:
+      return eval_is_vararg_function (h);
     case METAFN_IS_TEMPLATE:
       return eval_is_template (h);
     case METAFN_IS_FUNCTION_TEMPLATE:
