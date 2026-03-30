@@ -1,3 +1,8 @@
+2026-03-29  Jeff Law  <jeffrey.law@oss.qualcomm.com>
+
+	PR target/124674
+	* gcc.target/riscv/pr124674.c: New test.
+
 2026-03-28  Iain Buclaw  <ibuclaw@gdcproject.org>
 
 	* lib/target-supports.exp

@@ -1,3 +1,8 @@
+2026-03-29  Jeff Law  <jeffrey.law@oss.qualcomm.com>
+
+	PR target/124674
+	* config/riscv/riscv-modes.def: Create OImode.
+
 2026-03-27  Vineet Gupta  <vineet.gupta@linux.dev>
 
 	PR target/124670
