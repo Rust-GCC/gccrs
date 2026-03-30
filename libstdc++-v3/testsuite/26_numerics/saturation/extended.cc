@@ -14,22 +14,22 @@ test()
   constexpr S smin = std::numeric_limits<S>::min();
   constexpr U umax = std::numeric_limits<U>::max();
 
-  static_assert( std::add_sat(smax, (S)1) == smax );
-  static_assert( std::add_sat(smin, (S)-2) == smin );
-  static_assert( std::add_sat(umax, (U)3) == umax );
+  static_assert( std::saturating_add(smax, (S)1) == smax );
+  static_assert( std::saturating_add(smin, (S)-2) == smin );
+  static_assert( std::saturating_add(umax, (U)3) == umax );
 
-  static_assert( std::sub_sat(smax, (S)-1) == smax );
-  static_assert( std::sub_sat(smin, (S)2) == smin );
-  static_assert( std::sub_sat((U)0, (U)3) == (U)0 );
+  static_assert( std::saturating_sub(smax, (S)-1) == smax );
+  static_assert( std::saturating_sub(smin, (S)2) == smin );
+  static_assert( std::saturating_sub((U)0, (U)3) == (U)0 );
 
-  static_assert( std::mul_sat((S)(smax >> 1), (S)3) == smax );
-  static_assert( std::mul_sat((S)(smin >> 1), (S)5) == smin );
-  static_assert( std::mul_sat((U)(umax >> 1), (U)7) == umax );
+  static_assert( std::saturating_mul((S)(smax >> 1), (S)3) == smax );
+  static_assert( std::saturating_mul((S)(smin >> 1), (S)5) == smin );
+  static_assert( std::saturating_mul((U)(umax >> 1), (U)7) == umax );
 
-  static_assert( std::div_sat(smax, (S)2) == (smax >> 1) );
-  static_assert( std::div_sat(smin, (S)4) == (smin >> 2) );
-  static_assert( std::div_sat(smin, (S)-1) == smax );
-  static_assert( std::div_sat(umax, (U)8) == (umax >> 3) );
+  static_assert( std::saturating_div(smax, (S)2) == (smax >> 1) );
+  static_assert( std::saturating_div(smin, (S)4) == (smin >> 2) );
+  static_assert( std::saturating_div(smin, (S)-1) == smax );
+  static_assert( std::saturating_div(umax, (U)8) == (umax >> 3) );
 
   return true;
 }

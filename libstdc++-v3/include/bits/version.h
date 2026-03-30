@@ -2418,9 +2418,9 @@
 
 #if !defined(__cpp_lib_saturation_arithmetic)
 # if (__cplusplus >  202302L)
-#  define __glibcxx_saturation_arithmetic 202311L
+#  define __glibcxx_saturation_arithmetic 202603L
 #  if defined(__glibcxx_want_all) || defined(__glibcxx_want_saturation_arithmetic)
-#   define __cpp_lib_saturation_arithmetic 202311L
+#   define __cpp_lib_saturation_arithmetic 202603L
 #  endif
 # endif
 #endif /* !defined(__cpp_lib_saturation_arithmetic) */

@@ -5,7 +5,7 @@
 
 #ifndef __cpp_lib_saturation_arithmetic
 # error "Feature test macro for saturation arithmetic is missing in <numeric>"
-#elif __cpp_lib_saturation_arithmetic < 202311L
+#elif __cpp_lib_saturation_arithmetic < 202603L
 # error "Feature test macro for saturation arithmetic has wrong value in <numeric>"
 #endif
 
@@ -14,6 +14,6 @@
 
 #ifndef __cpp_lib_saturation_arithmetic
 # error "Feature test macro for saturation arithmetic is missing in <version>"
-#elif __cpp_lib_saturation_arithmetic < 202311L
+#elif __cpp_lib_saturation_arithmetic < 202603L
 # error "Feature test macro for saturation arithmetic has wrong value in <version>"
 #endif
