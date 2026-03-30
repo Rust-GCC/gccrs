@@ -1321,8 +1321,9 @@ ftms = {
   // 202305 P2757R3 Type checking format args
   // 202306 P2637R3 Member visit
   // 202311 P2918R2 Runtime format strings II
+  // 202603 P3953R3 Rename std::runtime_format
   values = {
-    v = 202311;
+    v = 202603;
     cxxmin = 26;
     hosted = yes;
   };

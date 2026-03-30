@@ -352,7 +352,7 @@ namespace __format
 	(enable_nonlocking_formatter_optimization<remove_cvref_t<_Args>> && ...);
 
       // The standard wants us to call
-      // print(stream, runtime_format(string(fmt.get()) + '\n'), args...)
+      // print(stream, dynamic_format(string(fmt.get()) + '\n'), args...)
       // here, but we can avoid that string concatenation in most cases,
       // and we know what that would call, so we can call that directly.
 
