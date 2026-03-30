@@ -8863,7 +8863,13 @@ vectorizable_recurr (loop_vec_info loop_vinfo, stmt_vec_info stmt_info,
   edge le = loop_latch_edge (LOOP_VINFO_LOOP (loop_vinfo));
   gimple *latch_def = SSA_NAME_DEF_STMT (PHI_ARG_DEF_FROM_EDGE (phi, le));
   gimple_stmt_iterator gsi2 = gsi_for_stmt (latch_def);
-  gsi_next (&gsi2);
+  do
+    {
+      gsi_next (&gsi2);
+    }
+  /* Skip inserted vectorized stmts for the latch definition.  We have to
+     insert after those.  */
+  while (gimple_uid (gsi_stmt (gsi2)) == 0);
 
   for (unsigned i = 0; i < ncopies; ++i)
     {
