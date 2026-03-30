@@ -213,7 +213,7 @@ next_char_not_space ()
   return c;
 }
 
-static uint value = 0;
+static int value = 0;
 
 /* Simple lexical analyzer for getting the next token in a FORMAT
    statement.  */
