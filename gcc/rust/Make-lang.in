@@ -126,6 +126,7 @@ GRS_OBJS = \
     rust/rust-hir.o \
     rust/rust-hir-map.o \
     rust/rust-attributes.o \
+    rust/rust-attribute-checker.o \
     rust/rust-builtin-attribute-checker.o \
     rust/rust-keyword-values.o \
     rust/rust-abi.o \
