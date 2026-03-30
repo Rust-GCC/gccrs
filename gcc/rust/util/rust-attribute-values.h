@@ -32,6 +32,9 @@ public:
   static constexpr auto &DERIVE_ATTR = "derive";
   static constexpr auto &DEPRECATED = "deprecated";
   static constexpr auto &ALLOW = "allow";
+  static constexpr auto &DENY = "deny";
+  static constexpr auto &WARN = "warn";
+  static constexpr auto &FORBID = "forbid";
   static constexpr auto &ALLOW_INTERNAL_UNSTABLE = "allow_internal_unstable";
   static constexpr auto &DOC = "doc";
   static constexpr auto &MUST_USE = "must_use";
