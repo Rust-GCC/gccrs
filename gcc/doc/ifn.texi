@@ -1,0 +1,1539 @@
+@c Copyright (C) 1988-2026 Free Software Foundation, Inc.
+@c This is part of the GCC manual.
+@c For copying conditions, see the file gcc.texi.
+
+@node Internal Functions
+@chapter Internal Functions in GENERIC and GIMPLE
+@cindex internal functions
+@cindex @file{internal-fn.def}
+
+In addition to builtin functions specified in @file{builtins.def} and
+friends, the GENERIC and GIMPLE intermediate languages use calls with
+pre-defined semantics that are inline expanded to RTL rather than to
+calls or lowered at some point during optimization.
+
+Internal functions work like tree operation codes in that they are
+not strongly typed so there are no variants like @code{BUILT_IN_SIN}
+and @code{BUILT_IN_SINF}; just a single @code{IFN_SIN}.
+
+Internal functions are declared in @file{internal-fn.def}.
+
+@menu
+* Internal Function API:: How to operate on internal functions.
+* Table of Internal Functions::
+@end menu
+
+@node Internal Function API
+@section Internal Function API
+
+Internal functions and builtin functions can be operated on
+transparently via the @code{combined_fn} enumeration type and
+the following set of helper functions.
+
+FIXME: not documented yet.
+
+The following are internal function specific helpers working
+on the @code{internal_fn} enumeration type.
+
+FIXME: not documented yet.
+
+@node Table of Internal Functions
+@section Table of Internal Functions
+
+@menu
+* Direct Internal Functions::
+* Internal Functions Corresponding to Builtins::
+* Other Internal Functions::
+@end menu
+
+@node Direct Internal Functions
+@subsection Direct Internal Functions
+
+@table @asis
+
+@cindex @code{IFN_CRC} internal function
+@item @samp{IFN_CRC}
+The @code{IFN_CRC} internal function directly maps to the @code{crc}
+instruction pattern.
+
+@cindex @code{IFN_CRC_REV} internal function
+@item @samp{IFN_CRC_REV}
+The @code{IFN_CRC_REV} internal function directly maps to the @code{crc_rev}
+instruction pattern.
+
+@cindex @code{IFN_MASK_LOAD} internal function
+@item @samp{IFN_MASK_LOAD}
+The @code{IFN_MASK_LOAD} internal function directly maps to the @code{maskload}
+instruction pattern.
+
+@cindex @code{IFN_LOAD_LANES} internal function
+@item @samp{IFN_LOAD_LANES}
+The @code{IFN_LOAD_LANES} internal function directly maps to the
+@code{vec_load_lanes} instruction pattern.
+
+@cindex @code{IFN_MASK_LOAD_LANES} internal function
+@item @samp{IFN_MASK_LOAD_LANES}
+The @code{IFN_MASK_LOAD_LANES} internal function directly maps to the
+@code{vec_mask_load_lanes} instruction pattern.
+
+@cindex @code{IFN_MASK_LEN_LOAD_LANES} internal function
+@item @samp{IFN_MASK_LEN_LOAD_LANES}
+The @code{IFN_MASK_LEN_LOAD_LANES} internal function directly maps to the
+@code{vec_mask_len_load_lanes} instruction pattern.
+
+@cindex @code{IFN_GATHER_LOAD} internal function
+@item @samp{IFN_GATHER_LOAD}
+The @code{IFN_GATHER_LOAD} internal function directly maps to the
+@code{gather_load} instruction pattern.
+
+@cindex @code{IFN_MASK_GATHER_LOAD} internal function
+@item @samp{IFN_MASK_GATHER_LOAD}
+The @code{IFN_MASK_GATHER_LOAD} internal function directly maps to the
+@code{mask_gather_load} instruction pattern.
+
+@cindex @code{IFN_MASK_LEN_GATHER_LOAD} internal function
+@item @samp{IFN_MASK_LEN_GATHER_LOAD}
+The @code{IFN_MASK_LEN_GATHER_LOAD} internal function directly maps to the
+@code{mask_len_gather_load} instruction pattern.
+
+@cindex @code{IFN_MASK_LEN_STRIDED_LOAD} internal function
+@item @samp{IFN_MASK_LEN_STRIDED_LOAD}
+The @code{IFN_MASK_LEN_STRIDED_LOAD} internal function directly maps to the
+@code{mask_len_strided_load} instruction pattern.
+
+@cindex @code{IFN_LEN_LOAD} internal function
+@item @samp{IFN_LEN_LOAD}
+The @code{IFN_LEN_LOAD} internal function directly maps to the @code{len_load}
+instruction pattern.
+
+@cindex @code{IFN_MASK_LEN_LOAD} internal function
+@item @samp{IFN_MASK_LEN_LOAD}
+The @code{IFN_MASK_LEN_LOAD} internal function directly maps to the
+@code{mask_len_load} instruction pattern.
+
+@cindex @code{IFN_SCATTER_STORE} internal function
+@item @samp{IFN_SCATTER_STORE}
+The @code{IFN_SCATTER_STORE} internal function directly maps to the
+@code{scatter_store} instruction pattern.
+
+@cindex @code{IFN_MASK_SCATTER_STORE} internal function
+@item @samp{IFN_MASK_SCATTER_STORE}
+The @code{IFN_MASK_SCATTER_STORE} internal function directly maps to the
+@code{mask_scatter_store} instruction pattern.
+
+@cindex @code{IFN_MASK_LEN_SCATTER_STORE} internal function
+@item @samp{IFN_MASK_LEN_SCATTER_STORE}
+The @code{IFN_MASK_LEN_SCATTER_STORE} internal function directly maps to the
+@code{mask_len_scatter_store} instruction pattern.
+
+@cindex @code{IFN_MASK_LEN_STRIDED_STORE} internal function
+@item @samp{IFN_MASK_LEN_STRIDED_STORE}
+The @code{IFN_MASK_LEN_STRIDED_STORE} internal function directly maps to the
+@code{mask_len_strided_store} instruction pattern.
+
+@cindex @code{IFN_MASK_STORE} internal function
+@item @samp{IFN_MASK_STORE}
+The @code{IFN_MASK_STORE} internal function directly maps to the
+@code{maskstore} instruction pattern.
+
+@cindex @code{IFN_STORE_LANES} internal function
+@item @samp{IFN_STORE_LANES}
+The @code{IFN_STORE_LANES} internal function directly maps to the
+@code{vec_store_lanes} instruction pattern.
+
+@cindex @code{IFN_MASK_STORE_LANES} internal function
+@item @samp{IFN_MASK_STORE_LANES}
+The @code{IFN_MASK_STORE_LANES} internal function directly maps to the
+@code{vec_mask_store_lanes} instruction pattern.
+
+@cindex @code{IFN_MASK_LEN_STORE_LANES} internal function
+@item @samp{IFN_MASK_LEN_STORE_LANES}
+The @code{IFN_MASK_LEN_STORE_LANES} internal function directly maps to the
+@code{vec_mask_len_store_lanes} instruction pattern.
+
+@cindex @code{IFN_VCOND_MASK} internal function
+@item @samp{IFN_VCOND_MASK}
+The @code{IFN_VCOND_MASK} internal function directly maps to the
+@code{vcond_mask} instruction pattern.
+
+@cindex @code{IFN_VCOND_MASK_LEN} internal function
+@item @samp{IFN_VCOND_MASK_LEN}
+The @code{IFN_VCOND_MASK_LEN} internal function directly maps to the
+@code{vcond_mask_len} instruction pattern.
+
+@cindex @code{IFN_VEC_SET} internal function
+@item @samp{IFN_VEC_SET}
+The @code{IFN_VEC_SET} internal function directly maps to the @code{vec_set}
+instruction pattern.
+
+@cindex @code{IFN_VEC_EXTRACT} internal function
+@item @samp{IFN_VEC_EXTRACT}
+The @code{IFN_VEC_EXTRACT} internal function directly maps to the
+@code{vec_extract} instruction pattern.
+
+@cindex @code{IFN_LEN_STORE} internal function
+@item @samp{IFN_LEN_STORE}
+The @code{IFN_LEN_STORE} internal function directly maps to the
+@code{len_store} instruction pattern.
+
+@cindex @code{IFN_MASK_LEN_STORE} internal function
+@item @samp{IFN_MASK_LEN_STORE}
+The @code{IFN_MASK_LEN_STORE} internal function directly maps to the
+@code{mask_len_store} instruction pattern.
+
+@cindex @code{IFN_WHILE_ULT} internal function
+@item @samp{IFN_WHILE_ULT}
+The @code{IFN_WHILE_ULT} internal function directly maps to the
+@code{while_ult} instruction pattern.
+
+@cindex @code{IFN_SELECT_VL} internal function
+@item @samp{IFN_SELECT_VL}
+The @code{IFN_SELECT_VL} internal function directly maps to the
+@code{select_vl} instruction pattern.
+
+@cindex @code{IFN_CHECK_RAW_PTRS} internal function
+@item @samp{IFN_CHECK_RAW_PTRS}
+The @code{IFN_CHECK_RAW_PTRS} internal function directly maps to the
+@code{check_raw_ptrs} instruction pattern.
+
+@cindex @code{IFN_CHECK_WAR_PTRS} internal function
+@item @samp{IFN_CHECK_WAR_PTRS}
+The @code{IFN_CHECK_WAR_PTRS} internal function directly maps to the
+@code{check_war_ptrs} instruction pattern.
+
+@cindex @code{IFN_VEC_SHL_INSERT} internal function
+@item @samp{IFN_VEC_SHL_INSERT}
+The @code{IFN_VEC_SHL_INSERT} internal function directly maps to the
+@code{vec_shl_insert} instruction pattern.
+
+@cindex @code{IFN_DIV_POW2} internal function
+@item @samp{IFN_DIV_POW2}
+The @code{IFN_DIV_POW2} internal function directly maps to the @code{sdiv_pow2}
+instruction pattern.
+
+@cindex @code{IFN_FMS} internal function
+@item @samp{IFN_FMS}
+The @code{IFN_FMS} internal function directly maps to the @code{fms}
+instruction pattern.
+
+@cindex @code{IFN_FNMA} internal function
+@item @samp{IFN_FNMA}
+The @code{IFN_FNMA} internal function directly maps to the @code{fnma}
+instruction pattern.
+
+@cindex @code{IFN_FNMS} internal function
+@item @samp{IFN_FNMS}
+The @code{IFN_FNMS} internal function directly maps to the @code{fnms}
+instruction pattern.
+
+@cindex @code{IFN_COND_SQRT} internal function
+@item @samp{IFN_COND_SQRT}
+The @code{IFN_COND_SQRT} internal function directly maps to the
+@code{cond_sqrt} instruction pattern.
+
+@cindex @code{IFN_COND_LEN_SQRT} internal function
+@item @samp{IFN_COND_LEN_SQRT}
+The @code{IFN_COND_LEN_SQRT} internal function directly maps to the
+@code{cond_len_sqrt} instruction pattern.
+
+@cindex @code{IFN_COND_CEIL} internal function
+@item @samp{IFN_COND_CEIL}
+The @code{IFN_COND_CEIL} internal function directly maps to the
+@code{cond_ceil} instruction pattern.
+
+@cindex @code{IFN_COND_LEN_CEIL} internal function
+@item @samp{IFN_COND_LEN_CEIL}
+The @code{IFN_COND_LEN_CEIL} internal function directly maps to the
+@code{cond_len_ceil} instruction pattern.
+
+@cindex @code{IFN_COND_FLOOR} internal function
+@item @samp{IFN_COND_FLOOR}
+The @code{IFN_COND_FLOOR} internal function directly maps to the
+@code{cond_floor} instruction pattern.
+
+@cindex @code{IFN_COND_LEN_FLOOR} internal function
+@item @samp{IFN_COND_LEN_FLOOR}
+The @code{IFN_COND_LEN_FLOOR} internal function directly maps to the
+@code{cond_len_floor} instruction pattern.
+
+@cindex @code{IFN_COND_ROUND} internal function
+@item @samp{IFN_COND_ROUND}
+The @code{IFN_COND_ROUND} internal function directly maps to the
+@code{cond_round} instruction pattern.
+
+@cindex @code{IFN_COND_LEN_ROUND} internal function
+@item @samp{IFN_COND_LEN_ROUND}
+The @code{IFN_COND_LEN_ROUND} internal function directly maps to the
+@code{cond_len_round} instruction pattern.
+
+@cindex @code{IFN_COND_RINT} internal function
+@item @samp{IFN_COND_RINT}
+The @code{IFN_COND_RINT} internal function directly maps to the
+@code{cond_rint} instruction pattern.
+
+@cindex @code{IFN_COND_LEN_RINT} internal function
+@item @samp{IFN_COND_LEN_RINT}
+The @code{IFN_COND_LEN_RINT} internal function directly maps to the
+@code{cond_len_rint} instruction pattern.
+
+@cindex @code{IFN_COND_ADD} internal function
+@item @samp{IFN_COND_ADD}
+The @code{IFN_COND_ADD} internal function directly maps to the
+@code{cond_add} instruction pattern.
+
+@cindex @code{IFN_COND_LEN_ADD} internal function
+@item @samp{IFN_COND_LEN_ADD}
+The @code{IFN_COND_LEN_ADD} internal function directly maps to the
+@code{cond_len_add} instruction pattern.
+
+@cindex @code{IFN_COND_SUB} internal function
+@item @samp{IFN_COND_SUB}
+The @code{IFN_COND_SUB} internal function directly maps to the
+@code{cond_sub} instruction pattern.
+
+@cindex @code{IFN_COND_LEN_SUB} internal function
+@item @samp{IFN_COND_LEN_SUB}
+The @code{IFN_COND_LEN_SUB} internal function directly maps to the
+@code{cond_len_sub} instruction pattern.
+
+@cindex @code{IFN_COND_MUL} internal function
+@item @samp{IFN_COND_MUL}
+The @code{IFN_COND_MUL} internal function directly maps to the
+@code{cond_smul} instruction pattern.
+
+@cindex @code{IFN_COND_LEN_MUL} internal function
+@item @samp{IFN_COND_LEN_MUL}
+The @code{IFN_COND_LEN_MUL} internal function directly maps to the
+@code{cond_len_smul} instruction pattern.
+
+@cindex @code{IFN_COND_RDIV} internal function
+@item @samp{IFN_COND_RDIV}
+The @code{IFN_COND_RDIV} internal function directly maps to the
+@code{cond_sdiv} instruction pattern.
+
+@cindex @code{IFN_COND_LEN_RDIV} internal function
+@item @samp{IFN_COND_LEN_RDIV}
+The @code{IFN_COND_LEN_RDIV} internal function directly maps to the
+@code{cond_len_sdiv} instruction pattern.
+
+@cindex @code{IFN_COND_COPYSIGN} internal function
+@item @samp{IFN_COND_COPYSIGN}
+The @code{IFN_COND_COPYSIGN} internal function directly maps to the
+@code{cond_copysign} instruction pattern.
+
+@cindex @code{IFN_COND_LEN_COPYSIGN} internal function
+@item @samp{IFN_COND_LEN_COPYSIGN}
+The @code{IFN_COND_LEN_COPYSIGN} internal function directly maps to the
+@code{cond_len_copysign} instruction pattern.
+
+@cindex @code{IFN_COND_FMIN} internal function
+@item @samp{IFN_COND_FMIN}
+The @code{IFN_COND_FMIN} internal function directly maps to the
+@code{cond_fmin} instruction pattern.
+
+@cindex @code{IFN_COND_LEN_FMIN} internal function
+@item @samp{IFN_COND_LEN_FMIN}
+The @code{IFN_COND_LEN_FMIN} internal function directly maps to the
+@code{cond_len_fmin} instruction pattern.
+
+@cindex @code{IFN_COND_FMAX} internal function
+@item @samp{IFN_COND_FMAX}
+The @code{IFN_COND_FMAX} internal function directly maps to the
+@code{cond_fmax} instruction pattern.
+
+@cindex @code{IFN_COND_LEN_FMAX} internal function
+@item @samp{IFN_COND_LEN_FMAX}
+The @code{IFN_COND_LEN_FMAX} internal function directly maps to the
+@code{cond_len_fmax} instruction pattern.
+
+@cindex @code{IFN_COND_AND} internal function
+@item @samp{IFN_COND_AND}
+The @code{IFN_COND_AND} internal function directly maps to the
+@code{cond_and} instruction pattern.
+
+@cindex @code{IFN_COND_LEN_AND} internal function
+@item @samp{IFN_COND_LEN_AND}
+The @code{IFN_COND_LEN_AND} internal function directly maps to the
+@code{cond_len_and} instruction pattern.
+
+@cindex @code{IFN_COND_IOR} internal function
+@item @samp{IFN_COND_IOR}
+The @code{IFN_COND_IOR} internal function directly maps to the
+@code{cond_ior} instruction pattern.
+
+@cindex @code{IFN_COND_LEN_IOR} internal function
+@item @samp{IFN_COND_LEN_IOR}
+The @code{IFN_COND_LEN_IOR} internal function directly maps to the
+@code{cond_len_ior} instruction pattern.
+
+@cindex @code{IFN_COND_XOR} internal function
+@item @samp{IFN_COND_XOR}
+The @code{IFN_COND_XOR} internal function directly maps to the
+@code{cond_xor} instruction pattern.
+
+@cindex @code{IFN_COND_LEN_XOR} internal function
+@item @samp{IFN_COND_LEN_XOR}
+The @code{IFN_COND_LEN_XOR} internal function directly maps to the
+@code{cond_len_xor} instruction pattern.
+
+@cindex @code{IFN_COND_SHL} internal function
+@item @samp{IFN_COND_SHL}
+The @code{IFN_COND_SHL} internal function directly maps to the
+@code{cond_ashl} instruction pattern.
+
+@cindex @code{IFN_COND_LEN_SHL} internal function
+@item @samp{IFN_COND_LEN_SHL}
+The @code{IFN_COND_LEN_SHL} internal function directly maps to the
+@code{cond_len_ashl} instruction pattern.
+
+@cindex @code{IFN_COND_FMA} internal function
+@item @samp{IFN_COND_FMA}
+The @code{IFN_COND_FMA} internal function directly maps to the
+@code{cond_fma} instruction pattern.
+
+@cindex @code{IFN_COND_LEN_FMA} internal function
+@item @samp{IFN_COND_LEN_FMA}
+The @code{IFN_COND_LEN_FMA} internal function directly maps to the
+@code{cond_len_fma} instruction pattern.
+
+@cindex @code{IFN_COND_FMS} internal function
+@item @samp{IFN_COND_FMS}
+The @code{IFN_COND_FMS} internal function directly maps to the
+@code{cond_fms} instruction pattern.
+
+@cindex @code{IFN_COND_LEN_FMS} internal function
+@item @samp{IFN_COND_LEN_FMS}
+The @code{IFN_COND_LEN_FMS} internal function directly maps to the
+@code{cond_len_fms} instruction pattern.
+
+@cindex @code{IFN_COND_FNMA} internal function
+@item @samp{IFN_COND_FNMA}
+The @code{IFN_COND_FNMA} internal function directly maps to the
+@code{cond_fnma} instruction pattern.
+
+@cindex @code{IFN_COND_LEN_FNMA} internal function
+@item @samp{IFN_COND_LEN_FNMA}
+The @code{IFN_COND_LEN_FNMA} internal function directly maps to the
+@code{cond_len_fnma} instruction pattern.
+
+@cindex @code{IFN_COND_FNMS} internal function
+@item @samp{IFN_COND_FNMS}
+The @code{IFN_COND_FNMS} internal function directly maps to the
+@code{cond_fnms} instruction pattern.
+
+@cindex @code{IFN_COND_LEN_FNMS} internal function
+@item @samp{IFN_COND_LEN_FNMS}
+The @code{IFN_COND_LEN_FNMS} internal function directly maps to the
+@code{cond_len_fnms} instruction pattern.
+
+@cindex @code{IFN_COND_NEG} internal function
+@item @samp{IFN_COND_NEG}
+The @code{IFN_COND_NEG} internal function directly maps to the
+@code{cond_neg} instruction pattern.
+
+@cindex @code{IFN_COND_LEN_NEG} internal function
+@item @samp{IFN_COND_LEN_NEG}
+The @code{IFN_COND_LEN_NEG} internal function directly maps to the
+@code{cond_len_neg} instruction pattern.
+
+@cindex @code{IFN_COND_NOT} internal function
+@item @samp{IFN_COND_NOT}
+The @code{IFN_COND_NOT} internal function directly maps to the
+@code{cond_one_cmpl} instruction pattern.
+
+@cindex @code{IFN_COND_LEN_NOT} internal function
+@item @samp{IFN_COND_LEN_NOT}
+The @code{IFN_COND_LEN_NOT} internal function directly maps to the
+@code{cond_len_one_cmpl} instruction pattern.
+
+@cindex @code{IFN_RSQRT} internal function
+@item @samp{IFN_RSQRT}
+The @code{IFN_RSQRT} internal function directly maps to the @code{rsqrt}
+instruction pattern.
+
+@cindex @code{IFN_REDUC_PLUS} internal function
+@item @samp{IFN_REDUC_PLUS}
+The @code{IFN_REDUC_PLUS} internal function directly maps to the
+@code{reduc_plus_scal} instruction pattern.
+
+@cindex @code{IFN_REDUC_FMAX} internal function
+@item @samp{IFN_REDUC_FMAX}
+The @code{IFN_REDUC_FMAX} internal function directly maps to the
+@code{reduc_fmax_scal} instruction pattern.
+
+@cindex @code{IFN_REDUC_FMIN} internal function
+@item @samp{IFN_REDUC_FMIN}
+The @code{IFN_REDUC_FMIN} internal function directly maps to the
+@code{reduc_fmin_scal} instruction pattern.
+
+@cindex @code{IFN_REDUC_AND} internal function
+@item @samp{IFN_REDUC_AND}
+The @code{IFN_REDUC_AND} internal function directly maps to the
+@code{reduc_and_scal} instruction pattern.
+
+@cindex @code{IFN_REDUC_IOR} internal function
+@item @samp{IFN_REDUC_IOR}
+The @code{IFN_REDUC_IOR} internal function directly maps to the
+@code{reduc_ior_scal} instruction pattern.
+
+@cindex @code{IFN_REDUC_XOR} internal function
+@item @samp{IFN_REDUC_XOR}
+The @code{IFN_REDUC_XOR} internal function directly maps to the
+@code{reduc_xor_scal} instruction pattern.
+
+@cindex @code{IFN_REDUC_SBOOL_AND} internal function
+@item @samp{IFN_REDUC_SBOOL_AND}
+The @code{IFN_REDUC_SBOOL_AND} internal function directly maps to the
+@code{reduc_sbool_and_scal} instruction pattern.
+
+@cindex @code{IFN_REDUC_SBOOL_IOR} internal function
+@item @samp{IFN_REDUC_SBOOL_IOR}
+The @code{IFN_REDUC_SBOOL_IOR} internal function directly maps to the
+@code{reduc_sbool_ior_scal} instruction pattern.
+
+@cindex @code{IFN_REDUC_SBOOL_XOR} internal function
+@item @samp{IFN_REDUC_SBOOL_XOR}
+The @code{IFN_REDUC_SBOOL_XOR} internal function directly maps to the
+@code{reduc_sbool_xor_scal} instruction pattern.
+
+@cindex @code{IFN_EXTRACT_LAST} internal function
+@item @samp{IFN_EXTRACT_LAST}
+The @code{IFN_EXTRACT_LAST} internal function directly maps to the
+@code{extract_last} instruction pattern.
+
+@cindex @code{IFN_FOLD_EXTRACT_LAST} internal function
+@item @samp{IFN_FOLD_EXTRACT_LAST}
+The @code{IFN_FOLD_EXTRACT_LAST} internal function directly maps to the
+@code{fold_extract_last} instruction pattern.
+
+@cindex @code{IFN_LEN_FOLD_EXTRACT_LAST} internal function
+@item @samp{IFN_LEN_FOLD_EXTRACT_LAST}
+The @code{IFN_LEN_FOLD_EXTRACT_LAST} internal function directly maps to the
+@code{len_fold_extract_last} instruction pattern.
+
+@cindex @code{IFN_FOLD_LEFT_PLUS} internal function
+@item @samp{IFN_FOLD_LEFT_PLUS}
+The @code{IFN_FOLD_LEFT_PLUS} internal function directly maps to the
+@code{fold_left_plus} instruction pattern.
+
+@cindex @code{IFN_MASK_FOLD_LEFT_PLUS} internal function
+@item @samp{IFN_MASK_FOLD_LEFT_PLUS}
+The @code{IFN_MASK_FOLD_LEFT_PLUS} internal function directly maps to the
+@code{mask_fold_left_plus} instruction pattern.
+
+@cindex @code{IFN_MASK_LEN_FOLD_LEFT_PLUS} internal function
+@item @samp{IFN_MASK_LEN_FOLD_LEFT_PLUS}
+The @code{IFN_MASK_LEN_FOLD_LEFT_PLUS} internal function directly maps to
+the @code{mask_len_fold_left_plus} instruction pattern.
+
+@cindex @code{IFN_XORSIGN} internal function
+@item @samp{IFN_XORSIGN}
+The @code{IFN_XORSIGN} internal function directly maps to the
+@code{xorsign} instruction pattern.
+
+@cindex @code{IFN_COMPLEX_ADD_ROT90} internal function
+@item @samp{IFN_COMPLEX_ADD_ROT90}
+The @code{IFN_COMPLEX_ADD_ROT90} internal function directly maps to the
+@code{cadd90} instruction pattern.
+
+@cindex @code{IFN_COMPLEX_ADD_ROT270} internal function
+@item @samp{IFN_COMPLEX_ADD_ROT270}
+The @code{IFN_COMPLEX_ADD_ROT270} internal function directly maps to the
+@code{cadd270} instruction pattern.
+
+@cindex @code{IFN_COMPLEX_MUL} internal function
+@item @samp{IFN_COMPLEX_MUL}
+The @code{IFN_COMPLEX_MUL} internal function directly maps to the
+@code{cmul} instruction pattern.
+
+@cindex @code{IFN_COMPLEX_MUL_CONJ} internal function
+@item @samp{IFN_COMPLEX_MUL_CONJ}
+The @code{IFN_COMPLEX_MUL_CONJ} internal function directly maps to the
+@code{cmul_conj} instruction pattern.
+
+@cindex @code{IFN_VEC_ADDSUB} internal function
+@item @samp{IFN_VEC_ADDSUB}
+The @code{IFN_VEC_ADDSUB} internal function directly maps to the
+@code{vec_addsub} instruction pattern.
+
+@cindex @code{IFN_VEC_TRUNC_ADD_HIGH} internal function
+@item @samp{IFN_VEC_TRUNC_ADD_HIGH}
+The @code{IFN_VEC_TRUNC_ADD_HIGH} internal function directly maps to the
+@code{vec_trunc_add_high} instruction pattern.
+
+@cindex @code{IFN_VEC_FMADDSUB} internal function
+@item @samp{IFN_VEC_FMADDSUB}
+The @code{IFN_VEC_FMADDSUB} internal function directly maps to the
+@code{vec_fmaddsub} instruction pattern.
+
+@cindex @code{IFN_VEC_FMSUBADD} internal function
+@item @samp{IFN_VEC_FMSUBADD}
+The @code{IFN_VEC_FMSUBADD} internal function directly maps to the
+@code{vec_fmsubadd} instruction pattern.
+
+@cindex @code{IFN_COMPLEX_FMA} internal function
+@item @samp{IFN_COMPLEX_FMA}
+The @code{IFN_COMPLEX_FMA} internal function directly maps to the
+@code{cmla} instruction pattern.
+
+@cindex @code{IFN_COMPLEX_FMA_CONJ} internal function
+@item @samp{IFN_COMPLEX_FMA_CONJ}
+The @code{IFN_COMPLEX_FMA_CONJ} internal function directly maps to the
+@code{cmla_conj} instruction pattern.
+
+@cindex @code{IFN_COMPLEX_FMS} internal function
+@item @samp{IFN_COMPLEX_FMS}
+The @code{IFN_COMPLEX_FMS} internal function directly maps to the
+@code{cmls} instruction pattern.
+
+@cindex @code{IFN_COMPLEX_FMS_CONJ} internal function
+@item @samp{IFN_COMPLEX_FMS_CONJ}
+The @code{IFN_COMPLEX_FMS_CONJ} internal function directly maps to the
+@code{cmls_conj} instruction pattern.
+
+@cindex @code{IFN_BIT_ANDN} internal function
+@item @samp{IFN_BIT_ANDN}
+The @code{IFN_BIT_ANDN} internal function directly maps to the @code{andn}
+instruction pattern.
+
+@cindex @code{IFN_BIT_IORN} internal function
+@item @samp{IFN_BIT_IORN}
+The @code{IFN_BIT_IORN} internal function directly maps to the @code{iorn}
+instruction pattern.
+
+@cindex @code{IFN_ABD} internal function
+@item @samp{IFN_ABD}
+The @code{IFN_ABD} internal function directly maps to the @code{sabd}
+and @code{uabd} instruction patterns, depending on the sign of the
+first argument.
+
+@cindex @code{IFN_AVG_FLOOR} internal function
+@item @samp{IFN_AVG_FLOOR}
+The @code{IFN_AVG_FLOOR} internal function directly maps to the
+@code{savg_floor} and @code{uavg_floor} instruction patterns,
+depending on the sign of the first argument.
+
+@cindex @code{IFN_AVG_CEIL} internal function
+@item @samp{IFN_AVG_CEIL}
+The @code{IFN_AVG_CEIL} internal function directly maps to the @code{savg_ceil}
+and @code{uavg_ceil} instruction patterns, depending on the sign of
+the first argument.
+
+@cindex @code{IFN_MULH} internal function
+@item @samp{IFN_MULH}
+The @code{IFN_MULH} internal function directly maps to the @code{smul_highpart}
+and @code{umul_highpart} instruction patterns, depending on the sign of the
+first argument.
+
+@cindex @code{IFN_MULHS} internal function
+@item @samp{IFN_MULHS}
+The @code{IFN_MULHS} internal function directly maps to the @code{smulhs}
+and @code{umulhs} instruction patterns, depending on the sign of the
+first argument.
+
+@cindex @code{IFN_MULHRS} internal function
+@item @samp{IFN_MULHRS}
+The @code{IFN_MULHRS} internal function directly maps to the @code{smulhrs}
+and @code{umulhrs} instruction patterns, depending on the sign of the
+first argument.
+
+@cindex @code{IFN_SAT_ADD} internal function
+@item @samp{IFN_SAT_ADD}
+The @code{IFN_SAT_ADD} internal function directly maps to the
+@code{ssadd} and @code{usadd} instruction patterns, depending on the
+sign of the first argument.
+
+@cindex @code{IFN_SAT_SUB} internal function
+@item @samp{IFN_SAT_SUB}
+The @code{IFN_SAT_SUB} internal function directly maps to the
+@code{sssub} and @code{ussub} instruction patterns, depending on the
+sign of the first argument.
+
+@cindex @code{IFN_SAT_MUL} internal function
+@item @samp{IFN_SAT_MUL}
+The @code{IFN_SAT_MUL} internal function directly maps to the @code{ssmul}
+and @code{usmul} instruction patterns, depending on the sign of the first
+argument.
+
+@cindex @code{IFN_SAT_TRUNC} internal function
+@item @samp{IFN_SAT_TRUNC}
+The @code{IFN_SAT_TRUNC} internal function directly maps to the @code{sstrunc}
+and @code{ustrunc} instruction patterns, depending on the sign of the first
+argument.
+
+@cindex @code{IFN_COND_DIV} internal function
+@item @samp{IFN_COND_DIV}
+The @code{IFN_COND_DIV} internal function directly maps to the @code{cond_sdiv}
+and @code{cond_udiv} instruction patterns, depending on the sign of the first
+argument.
+
+@cindex @code{IFN_COND_LEN_DIV} internal function
+@item @samp{IFN_COND_LEN_DIV}
+The @code{IFN_COND_LEN_DIV} internal function directly maps to the
+@code{cond_len_sdiv} and @code{cond_len_udiv} instruction patterns, depending
+on the sign of the first argument.
+
+@cindex @code{IFN_COND_MOD} internal function
+@item @samp{IFN_COND_MOD}
+The @code{IFN_COND_MOD} internal function directly maps to the @code{cond_smod}
+and @code{cond_umod} instruction patterns, depending on the sign of the
+first argument.
+
+@cindex @code{IFN_COND_LEN_MOD} internal function
+@item @samp{IFN_COND_LEN_MOD}
+The @code{IFN_COND_LEN_MOD} internal function directly maps to the
+@code{cond_len_smod} and @code{cond_len_umod} instruction patterns, depending
+on the sign of the first argument.
+
+@cindex @code{IFN_COND_MIN} internal function
+@item @samp{IFN_COND_MIN}
+The @code{IFN_COND_MIN} internal function directly maps to the @code{cond_smin}
+and @code{cond_umin} instruction patterns, depending on the sign of the first
+argument.
+
+@cindex @code{IFN_COND_LEN_MIN} internal function
+@item @samp{IFN_COND_LEN_MIN}
+The @code{IFN_COND_LEN_MIN} internal function directly maps to the
+@code{cond_len_smin} and @code{cond_len_umin} instruction patterns,
+depending on the sign of the first argument.
+
+@cindex @code{IFN_COND_MAX} internal function
+@item @samp{IFN_COND_MAX}
+The @code{IFN_COND_MAX} internal function directly maps to the
+@code{cond_smax} and @code{cond_umax} instruction patterns, depending on
+the sign of the first argument.
+
+@cindex @code{IFN_COND_LEN_MAX} internal function
+@item @samp{IFN_COND_LEN_MAX}
+The @code{IFN_COND_LEN_MAX} internal function directly maps to the
+@code{cond_len_smax} and @code{cond_len_umax} instruction patterns,
+depending on the sign of the first argument.
+
+@cindex @code{IFN_COND_SHR} internal function
+@item @samp{IFN_COND_SHR}
+The @code{IFN_COND_SHR} internal function directly maps to the
+@code{cond_ashr} and @code{cond_lshr} instruction patterns,
+depending on the sign of the first argument.
+
+@cindex @code{IFN_COND_LEN_SHR} internal function
+@item @samp{IFN_COND_LEN_SHR}
+The @code{IFN_COND_LEN_SHR} internal function directly maps to the
+@code{cond_len_ashr} and @code{cond_len_lshr} instruction patterns,
+depending on the sign of the first argument.
+
+@cindex @code{IFN_REDUC_MAX} internal function
+@item @samp{IFN_REDUC_MAX}
+The @code{IFN_REDUC_MAX} internal function directly maps to the
+@code{reduc_smax_scal} and @code{reduc_umax_scal} instruction patterns,
+depending on the sign of the first argument.
+
+@cindex @code{IFN_REDUC_MIN} internal function
+@item @samp{IFN_REDUC_MIN}
+The @code{IFN_REDUC_MIN} internal function directly maps to the
+@code{reduc_smin_scal} and @code{reduc_umin_scal} instruction patterns,
+depending on the sign of the first argument.
+
+@cindex @code{IFN_VEC_WIDEN_PLUS} internal function
+@cindex @code{IFN_VEC_WIDEN_PLUS_LO} internal function
+@cindex @code{IFN_VEC_WIDEN_PLUS_HI} internal function
+@cindex @code{IFN_VEC_WIDEN_PLUS_EVEN} internal function
+@cindex @code{IFN_VEC_WIDEN_PLUS_ODD} internal function
+@item @samp{IFN_VEC_WIDEN_PLUS}
+The @code{IFN_VEC_WIDEN_PLUS} set of internal functions directly map to
+the @code{vec_widen_sadd} and @code{vec_widen_uadd} instruction patterns,
+depending on the sign of the first argument. The @code{IFN_VEC_WIDEN_PLUS_LO}
+and @code{IFN_VEC_WIDEN_PLUS_HI} work on the low and high parts of a vector,
+the @code{IFN_VEC_WIDEN_PLUS_EVEN} and @code {IFN_VEC_WIDEN_PLUS_ODD}
+functions work on the even and odd elements of a vector.
+
+@cindex @code{IFN_VEC_WIDEN_MINUS} internal function
+@cindex @code{IFN_VEC_WIDEN_MINUS_LO} internal function
+@cindex @code{IFN_VEC_WIDEN_MINUS_HI} internal function
+@cindex @code{IFN_VEC_WIDEN_MINUS_EVEN} internal function
+@cindex @code{IFN_VEC_WIDEN_MINUS_ODD} internal function
+@item @samp{IFN_VEC_WIDEN_MINUS}
+The @code{IFN_VEC_WIDEN_MINUS} set of internal functions directly map to the
+@code{vec_widen_ssub} and @code{vec_widen_usub} instruction patterns,
+depending on the sign of the first argument. The @code{IFN_VEC_WIDEN_MINUS_LO}
+and @code{IFN_VEC_WIDEN_MINUS_HI} work on the low and high parts of a vector,
+the @code{IFN_VEC_WIDEN_MINUS_EVEN} and @code {IFN_VEC_WIDEN_MINUS_ODD}
+functions work on the even and odd elements of a vector.
+
+@cindex @code{IFN_VEC_WIDEN_ABD} internal function
+@cindex @code{IFN_VEC_WIDEN_ABD_LO} internal function
+@cindex @code{IFN_VEC_WIDEN_ABD_HI} internal function
+@cindex @code{IFN_VEC_WIDEN_ABD_EVEN} internal function
+@cindex @code{IFN_VEC_WIDEN_ABD_ODD} internal function
+@item @samp{IFN_VEC_WIDEN_ABD}
+The @code{IFN_VEC_WIDEN_ABD} set of internal functions directly map to the
+@code{vec_widen_sabd} and @code{vec_widen_uabd} instruction patterns,
+depending on the sign of the first argument. The @code{IFN_VEC_WIDEN_ABD_LO}
+and @code{IFN_VEC_WIDEN_ABD_HI} work on the low and high parts of a vector,
+the @code{IFN_VEC_WIDEN_ABD_EVEN} and @code {IFN_VEC_WIDEN_ABD_ODD} functions
+work on the even and odd elements of a vector.
+
+@end table
+
+@node Internal Functions Corresponding to Builtins
+@subsection Internal Functions Corresponding to Builtins
+
+These group of internal functions extend the corresponding
+@code{BUILT_IN_@var{X}} builtins to a wider set of types.
+
+@table @asis
+
+@cindex @code{IFN_ACOS} internal function
+@item @samp{IFN_ACOS}
+The @code{IFN_ACOS} internal function directly maps to the @code{acos}
+instruction pattern for floating-point modes.
+
+@cindex @code{IFN_ACOSH} internal function
+@item @samp{IFN_ACOSH}
+The @code{IFN_ACOSH} internal function directly maps to the @code{acosh}
+instruction pattern for floating-point modes.
+
+@cindex @code{IFN_ASIN} internal function
+@item @samp{IFN_ASIN}
+The @code{IFN_ASIN} internal function directly maps to the @code{asin}
+instruction pattern for floating-point modes.
+
+@cindex @code{IFN_ASINH} internal function
+@item @samp{IFN_ASINH}
+The @code{IFN_ASINH} internal function directly maps to the @code{asinh}
+instruction pattern for floating-point modes.
+
+@cindex @code{IFN_ATAN} internal function
+@item @samp{IFN_ATAN}
+The @code{IFN_ATAN} internal function directly maps to the @code{atan}
+instruction pattern for floating-point modes.
+
+@cindex @code{IFN_ATANH} internal function
+@item @samp{IFN_ATANH}
+The @code{IFN_ATANH} internal function directly maps to the @code{atanh}
+instruction pattern for floating-point modes.
+
+@cindex @code{IFN_COS} internal function
+@item @samp{IFN_COS}
+The @code{IFN_COS} internal function directly maps to the @code{cos}
+instruction pattern for floating-point modes.
+
+@cindex @code{IFN_COSH} internal function
+@item @samp{IFN_COSH}
+The @code{IFN_COSH} internal function directly maps to the @code{cosh}
+instruction pattern for floating-point modes.
+
+@cindex @code{IFN_EXP} internal function
+@item @samp{IFN_EXP}
+The @code{IFN_EXP} internal function directly maps to the @code{exp}
+instruction pattern for floating-point modes.
+
+@cindex @code{IFN_EXP10} internal function
+@item @samp{IFN_EXP10}
+The @code{IFN_EXP10} internal function directly maps to the @code{exp10}
+instruction pattern for floating-point modes.
+
+@cindex @code{IFN_EXP2} internal function
+@item @samp{IFN_EXP2}
+The @code{IFN_EXP2} internal function directly maps to the @code{exp2}
+instruction pattern for floating-point modes.
+
+@cindex @code{IFN_EXPM1} internal function
+@item @samp{IFN_EXPM1}
+The @code{IFN_EXPM1} internal function directly maps to the @code{expm1}
+instruction pattern for floating-point modes.
+
+@cindex @code{IFN_LOG} internal function
+@item @samp{IFN_LOG}
+The @code{IFN_LOG} internal function directly maps to the @code{log}
+instruction pattern for floating-point modes.
+
+@cindex @code{IFN_LOG10} internal function
+@item @samp{IFN_LOG10}
+The @code{IFN_LOG10} internal function directly maps to the @code{log10}
+instruction pattern for floating-point modes.
+
+@cindex @code{IFN_LOG1P} internal function
+@item @samp{IFN_LOG1P}
+The @code{IFN_LOG1P} internal function directly maps to the @code{log1p}
+instruction pattern for floating-point modes.
+
+@cindex @code{IFN_LOG2} internal function
+@item @samp{IFN_LOG2}
+The @code{IFN_LOG2} internal function directly maps to the @code{log2}
+instruction pattern for floating-point modes.
+
+@cindex @code{IFN_LOGB} internal function
+@item @samp{IFN_LOGB}
+The @code{IFN_LOGB} internal function directly maps to the @code{logb}
+instruction pattern for floating-point modes.
+
+@cindex @code{IFN_SIGNBIT} internal function
+@item @samp{IFN_SIGNBIT}
+The @code{IFN_SIGNBIT} internal function directly maps to the @code{signbit}
+instruction pattern for floating-point modes.
+
+@cindex @code{IFN_SIGNIFICAND} internal function
+@item @samp{IFN_SIGNIFICAND}
+The @code{IFN_SIGNIFICAND} internal function directly maps to the
+@code{significand} instruction pattern for floating-point modes.
+
+@cindex @code{IFN_SIN} internal function
+@item @samp{IFN_SIN}
+The @code{IFN_SIN} internal function directly maps to the @code{sin}
+instruction pattern for floating-point modes.
+
+@cindex @code{IFN_SINH} internal function
+@item @samp{IFN_SINH}
+The @code{IFN_SINH} internal function directly maps to the @code{sinh}
+instruction pattern for floating-point modes.
+
+@cindex @code{IFN_SQRT} internal function
+@item @samp{IFN_SQRT}
+The @code{IFN_SQRT} internal function directly maps to the @code{sqrt}
+instruction pattern for floating-point modes including those for
+@code{_Float@var{n}}
+
+@cindex @code{IFN_TAN} internal function
+@item @samp{IFN_TAN}
+The @code{IFN_TAN} internal function directly maps to the @code{tan}
+instruction pattern for floating-point modes.
+
+@cindex @code{IFN_TANH} internal function
+@item @samp{IFN_TANH}
+The @code{IFN_TANH} internal function directly maps to the @code{tanh}
+instruction pattern for floating-point modes.
+
+@cindex @code{IFN_ICEIL} internal function
+@item @samp{IFN_ICEIL}
+The @code{IFN_ICEIL} internal function directly maps to the @code{lceil}
+instruction pattern for floating-point modes.
+
+@cindex @code{IFN_IFLOOR} internal function
+@item @samp{IFN_IFLOOR}
+The @code{IFN_IFLOOR} internal function directly maps to the @code{lfloor}
+instruction pattern for floating-point modes.
+
+@cindex @code{IFN_IRINT} internal function
+@item @samp{IFN_IRINT}
+The @code{IFN_IRINT} internal function directly maps to the @code{lrint}
+instruction pattern for floating-point modes.
+
+@cindex @code{IFN_IROUND} internal function
+@item @samp{IFN_IROUND}
+The @code{IFN_IROUND} internal function directly maps to the @code{lround}
+instruction pattern for floating-point modes.
+
+@cindex @code{IFN_LCEIL} internal function
+@item @samp{IFN_LCEIL}
+The @code{IFN_LCEIL} internal function directly maps to the @code{lceil}
+instruction pattern for floating-point modes.
+
+@cindex @code{IFN_LFLOOR} internal function
+@item @samp{IFN_LFLOOR}
+The @code{IFN_LFLOOR} internal function directly maps to the @code{lfloor}
+instruction pattern for floating-point modes.
+
+@cindex @code{IFN_LRINT} internal function
+@item @samp{IFN_LRINT}
+The @code{IFN_LRINT} internal function directly maps to the @code{lrint}
+instruction pattern for floating-point modes including those for
+@code{_Float@var{n}}
+
+@cindex @code{IFN_LROUND} internal function
+@item @samp{IFN_LROUND}
+The @code{IFN_LROUND} internal function directly maps to the @code{lround}
+instruction pattern for floating-point modes including those for
+@code{_Float@var{n}}
+
+@cindex @code{IFN_LLCEIL} internal function
+@item @samp{IFN_LLCEIL}
+The @code{IFN_LLCEIL} internal function directly maps to the @code{lceil}
+instruction pattern for floating-point modes.
+
+@cindex @code{IFN_LLFLOOR} internal function
+@item @samp{IFN_LLFLOOR}
+The @code{IFN_LLFLOOR} internal function directly maps to the @code{lfloor}
+instruction pattern for floating-point modes.
+
+@cindex @code{IFN_LLRINT} internal function
+@item @samp{IFN_LLRINT}
+The @code{IFN_LLRINT} internal function directly maps to the @code{lrint}
+instruction pattern for floating-point modes including those for
+@code{_Float@var{n}}
+
+@cindex @code{IFN_LLROUND} internal function
+@item @samp{IFN_LLROUND}
+The @code{IFN_LLROUND} internal function directly maps to the
+@code{lround} instruction pattern for floating-point modes including
+those for @code{_Float@var{n}}
+
+@cindex @code{IFN_CEIL} internal function
+@item @samp{IFN_CEIL}
+The @code{IFN_CEIL} internal function directly maps to the @code{ceil}
+instruction pattern for floating-point modes including those for
+@code{_Float@var{n}}
+
+@cindex @code{IFN_FLOOR} internal function
+@item @samp{IFN_FLOOR}
+The @code{IFN_FLOOR} internal function directly maps to the @code{floor}
+instruction pattern for floating-point modes including those for
+@code{_Float@var{n}}
+
+@cindex @code{IFN_NEARBYINT} internal function
+@item @samp{IFN_NEARBYINT}
+The @code{IFN_NEARBYINT} internal function directly maps to the
+@code{nearbyint} instruction pattern for floating-point modes including
+those for @code{_Float@var{n}}
+
+@cindex @code{IFN_RINT} internal function
+@item @samp{IFN_RINT}
+The @code{IFN_RINT} internal function directly maps to the @code{rint}
+instruction pattern for floating-point modes including those for
+@code{_Float@var{n}}
+
+@cindex @code{IFN_ROUND} internal function
+@item @samp{IFN_ROUND}
+The @code{IFN_ROUND} internal function directly maps to the @code{round}
+instruction pattern for floating-point modes including those for
+@code{_Float@var{n}}
+
+@cindex @code{IFN_ROUNDEVEN} internal function
+@item @samp{IFN_ROUNDEVEN}
+The @code{IFN_ROUNDEVEN} internal function directly maps to the
+@code{roundeven} instruction pattern for floating-point modes
+including those for @code{_Float@var{n}}
+
+@cindex @code{IFN_TRUNC} internal function
+@item @samp{IFN_TRUNC}
+The @code{IFN_TRUNC} internal function directly maps to the @code{btrunc}
+instruction pattern for floating-point modes including those for
+@code{_Float@var{n}}
+
+@cindex @code{IFN_ATAN2} internal function
+@item @samp{IFN_ATAN2}
+The @code{IFN_ATAN2} internal function directly maps to the @code{atan2}
+instruction pattern for floating-point modes.
+
+@cindex @code{IFN_COPYSIGN} internal function
+@item @samp{IFN_COPYSIGN}
+The @code{IFN_COPYSIGN} internal function directly maps to the
+@code{copysign} instruction pattern for floating-point modes including
+those for @code{_Float@var{n}}
+
+@cindex @code{IFN_FMOD} internal function
+@item @samp{IFN_FMOD}
+The @code{IFN_FMOD} internal function directly maps to the @code{fmod}
+instruction pattern for floating-point modes.
+
+@cindex @code{IFN_HYPOT} internal function
+@item @samp{IFN_HYPOT}
+The @code{IFN_HYPOT} internal function directly maps to the @code{hypot}
+instruction pattern for floating-point modes.
+
+@cindex @code{IFN_POW} internal function
+@item @samp{IFN_POW}
+The @code{IFN_POW} internal function directly maps to the @code{pow}
+instruction pattern for floating-point modes.
+
+@cindex @code{IFN_REMAINDER} internal function
+@item @samp{IFN_REMAINDER}
+The @code{IFN_REMAINDER} internal function directly maps to the
+@code{remainder} instruction pattern for floating-point modes.
+
+@cindex @code{IFN_SCALB} internal function
+@item @samp{IFN_SCALB}
+The @code{IFN_SCALB} internal function directly maps to the @code{scalb}
+instruction pattern for floating-point modes.
+
+@cindex @code{IFN_FMIN} internal function
+@item @samp{IFN_FMIN}
+The @code{IFN_FMIN} internal function directly maps to the @code{fmin}
+instruction pattern for floating-point modes including those for
+@code{_Float@var{n}}
+
+@cindex @code{IFN_FMAX} internal function
+@item @samp{IFN_FMAX}
+The @code{IFN_FMAX} internal function directly maps to the @code{fmax}
+instruction pattern for floating-point modes including those for
+@code{_Float@var{n}}
+
+@cindex @code{IFN_LDEXP} internal function
+@item @samp{IFN_LDEXP}
+The @code{IFN_LDEXP} internal function directly maps to the @code{ldexp}
+instruction pattern for floating-point modes including those for
+@code{_Float@var{n}}
+
+@cindex @code{IFN_FMA} internal function
+@item @samp{IFN_FMA}
+The @code{IFN_FMA} internal function directly maps to the @code{fma}
+instruction pattern for floating-point modes including those for
+@code{_Float@var{n}}
+
+@cindex @code{IFN_CLRSB} internal function
+@item @samp{IFN_CLRSB}
+The @code{IFN_CLRSB} internal function directly maps to the @code{clrsb}
+instruction pattern for integer and integer vector modes.
+
+@cindex @code{IFN_CLZ} internal function
+@item @samp{IFN_CLZ}
+The @code{IFN_CLZ} internal function directly maps to the @code{clz}
+instruction pattern for integer and integer vector modes.
+
+@cindex @code{IFN_CTZ} internal function
+@item @samp{IFN_CTZ}
+The @code{IFN_CTZ} internal function directly maps to the @code{ctz}
+instruction pattern for integer and integer vector modes.
+
+@cindex @code{IFN_FFS} internal function
+@item @samp{IFN_FFS}
+The @code{IFN_FFS} internal function directly maps to the @code{ffs}
+instruction pattern for integer and integer vector modes.
+
+@cindex @code{IFN_PARITY} internal function
+@item @samp{IFN_PARITY}
+The @code{IFN_PARITY} internal function directly maps to the @code{parity}
+instruction pattern for integer and integer vector modes.
+
+@cindex @code{IFN_POPCOUNT} internal function
+@item @samp{IFN_POPCOUNT}
+The @code{IFN_POPCOUNT} internal function directly maps to the @code{popcount}
+instruction pattern for integer and integer vector modes.
+
+@end table
+
+@node Other Internal Functions
+@subsection Other Internal Functions
+
+@table @asis
+
+@cindex @code{IFN_GOMP_TARGET_REV} internal function
+@item @samp{IFN_GOMP_TARGET_REV}
+The @code{IFN_GOMP_TARGET_REV} internal function is expanded by the
+@code{expand_GOMP_TARGET_REV} function.
+
+@cindex @code{IFN_GOMP_USE_SIMT} internal function
+@item @samp{IFN_GOMP_USE_SIMT}
+The @code{IFN_GOMP_USE_SIMT} internal function is expanded by the
+@code{expand_GOMP_USE_SIMT} function.
+
+@cindex @code{IFN_GOMP_SIMT_ENTER} internal function
+@item @samp{IFN_GOMP_SIMT_ENTER}
+The @code{IFN_GOMP_SIMT_ENTER} internal function is expanded by the
+@code{expand_GOMP_SIMT_ENTER} function.
+
+@cindex @code{IFN_GOMP_SIMT_ENTER_ALLOC} internal function
+@item @samp{IFN_GOMP_SIMT_ENTER_ALLOC}
+The @code{IFN_GOMP_SIMT_ENTER_ALLOC} internal function is expanded by
+the @code{expand_GOMP_SIMT_ENTER_ALLOC} function.
+
+@cindex @code{IFN_GOMP_SIMT_EXIT} internal function
+@item @samp{IFN_GOMP_SIMT_EXIT}
+The @code{IFN_GOMP_SIMT_EXIT} internal function is expanded by the
+@code{expand_GOMP_SIMT_EXIT} function.
+
+@cindex @code{IFN_GOMP_SIMT_LANE} internal function
+@item @samp{IFN_GOMP_SIMT_LANE}
+The @code{IFN_GOMP_SIMT_LANE} internal function is expanded by the
+@code{expand_GOMP_SIMT_LANE} function.
+
+@cindex @code{IFN_GOMP_SIMT_VF} internal function
+@item @samp{IFN_GOMP_SIMT_VF}
+The @code{IFN_GOMP_SIMT_VF} internal function is expanded by the
+@code{expand_GOMP_SIMT_VF} function.
+
+@cindex @code{IFN_GOMP_MAX_VF} internal function
+@item @samp{IFN_GOMP_MAX_VF}
+The @code{IFN_GOMP_MAX_VF} internal function is expanded by the
+@code{expand_GOMP_MAX_VF} function.
+
+@cindex @code{IFN_GOMP_SIMT_LAST_LANE} internal function
+@item @samp{IFN_GOMP_SIMT_LAST_LANE}
+The @code{IFN_GOMP_SIMT_LAST_LANE} internal function is expanded by the
+@code{expand_GOMP_SIMT_LAST_LANE} function.
+
+@cindex @code{IFN_GOMP_SIMT_ORDERED_PRED} internal function
+@item @samp{IFN_GOMP_SIMT_ORDERED_PRED}
+The @code{IFN_GOMP_SIMT_ORDERED_PRED} internal function is expanded by the
+@code{expand_GOMP_SIMT_ORDERED_PRED} function.
+
+@cindex @code{IFN_GOMP_SIMT_VOTE_ANY} internal function
+@item @samp{IFN_GOMP_SIMT_VOTE_ANY}
+The @code{IFN_GOMP_SIMT_VOTE_ANY} internal function is expanded by the
+@code{expand_GOMP_SIMT_VOTE_ANY} function.
+
+@cindex @code{IFN_GOMP_SIMT_XCHG_BFLY} internal function
+@item @samp{IFN_GOMP_SIMT_XCHG_BFLY}
+The @code{IFN_GOMP_SIMT_XCHG_BFLY} internal function is expanded by the
+@code{expand_GOMP_SIMT_XCHG_BFLY} function.
+
+@cindex @code{IFN_GOMP_SIMT_XCHG_IDX} internal function
+@item @samp{IFN_GOMP_SIMT_XCHG_IDX}
+The @code{IFN_GOMP_SIMT_XCHG_IDX} internal function is expanded by the
+@code{expand_GOMP_SIMT_XCHG_IDX} function.
+
+@cindex @code{IFN_GOMP_SIMD_LANE} internal function
+@item @samp{IFN_GOMP_SIMD_LANE}
+The @code{IFN_GOMP_SIMD_LANE} internal function is expanded by the
+@code{expand_GOMP_SIMD_LANE} function.
+
+@cindex @code{IFN_GOMP_SIMD_VF} internal function
+@item @samp{IFN_GOMP_SIMD_VF}
+The @code{IFN_GOMP_SIMD_VF} internal function is expanded by the
+@code{expand_GOMP_SIMD_VF} function.
+
+@cindex @code{IFN_GOMP_SIMD_LAST_LANE} internal function
+@item @samp{IFN_GOMP_SIMD_LAST_LANE}
+The @code{IFN_GOMP_SIMD_LAST_LANE} internal function is expanded by the
+@code{expand_GOMP_SIMD_LAST_LANE} function.
+
+@cindex @code{IFN_GOMP_SIMD_ORDERED_START} internal function
+@item @samp{IFN_GOMP_SIMD_ORDERED_START}
+The @code{IFN_GOMP_SIMD_ORDERED_START} internal function is expanded by the
+@code{expand_GOMP_SIMD_ORDERED_START} function.
+
+@cindex @code{IFN_GOMP_SIMD_ORDERED_END} internal function
+@item @samp{IFN_GOMP_SIMD_ORDERED_END}
+The @code{IFN_GOMP_SIMD_ORDERED_END} internal function is expanded by the
+@code{expand_GOMP_SIMD_ORDERED_END} function.
+
+@cindex @code{IFN_GOMP_DISPATCH} internal function
+@item @samp{IFN_GOMP_DISPATCH}
+The @code{IFN_GOMP_DISPATCH} internal function is expanded by the
+@code{expand_GOMP_DISPATCH} function.
+
+@cindex @code{IFN_LOOP_VECTORIZED} internal function
+@item @samp{IFN_LOOP_VECTORIZED}
+The @code{IFN_LOOP_VECTORIZED} internal function is expanded by the
+@code{expand_LOOP_VECTORIZED} function.
+
+@cindex @code{IFN_LOOP_DIST_ALIAS} internal function
+@item @samp{IFN_LOOP_DIST_ALIAS}
+The @code{IFN_LOOP_DIST_ALIAS} internal function is expanded by the
+@code{expand_LOOP_DIST_ALIAS} function.
+
+@cindex @code{IFN_ANNOTATE} internal function
+@item @samp{IFN_ANNOTATE}
+The @code{IFN_ANNOTATE} internal function is expanded by the
+@code{expand_ANNOTATE} function.
+
+@cindex @code{IFN_UBSAN_NULL} internal function
+@item @samp{IFN_UBSAN_NULL}
+The @code{IFN_UBSAN_NULL} internal function is expanded by the
+@code{expand_UBSAN_NULL} function.
+
+@cindex @code{IFN_UBSAN_BOUNDS} internal function
+@item @samp{IFN_UBSAN_BOUNDS}
+The @code{IFN_UBSAN_BOUNDS} internal function is expanded by the
+@code{expand_UBSAN_BOUNDS} function.
+
+@cindex @code{IFN_UBSAN_VPTR} internal function
+@item @samp{IFN_UBSAN_VPTR}
+The @code{IFN_UBSAN_VPTR} internal function is expanded by the
+@code{expand_UBSAN_VPTR} function.
+
+@cindex @code{IFN_UBSAN_CHECK_ADD} internal function
+@item @samp{IFN_UBSAN_CHECK_ADD}
+The @code{IFN_UBSAN_CHECK_ADD} internal function is expanded by the
+@code{expand_UBSAN_CHECK_ADD} function.
+
+@cindex @code{IFN_UBSAN_CHECK_SUB} internal function
+@item @samp{IFN_UBSAN_CHECK_SUB}
+The @code{IFN_UBSAN_CHECK_SUB} internal function is expanded by the
+@code{expand_UBSAN_CHECK_SUB} function.
+
+@cindex @code{IFN_UBSAN_CHECK_MUL} internal function
+@item @samp{IFN_UBSAN_CHECK_MUL}
+The @code{IFN_UBSAN_CHECK_MUL} internal function is expanded by the
+@code{expand_UBSAN_CHECK_MUL} function.
+
+@cindex @code{IFN_UBSAN_PTR} internal function
+@item @samp{IFN_UBSAN_PTR}
+The @code{IFN_UBSAN_PTR} internal function is expanded by the
+@code{expand_UBSAN_PTR} function.
+
+@cindex @code{IFN_UBSAN_OBJECT_SIZE} internal function
+@item @samp{IFN_UBSAN_OBJECT_SIZE}
+The @code{IFN_UBSAN_OBJECT_SIZE} internal function is expanded by the
+@code{expand_UBSAN_OBJECT_SIZE} function.
+
+@cindex @code{IFN_ABNORMAL_DISPATCHER} internal function
+@item @samp{IFN_ABNORMAL_DISPATCHER}
+The @code{IFN_ABNORMAL_DISPATCHER} internal function is expanded by the
+@code{expand_ABNORMAL_DISPATCHER} function.
+
+@cindex @code{IFN_BUILTIN_EXPECT} internal function
+@item @samp{IFN_BUILTIN_EXPECT}
+The @code{IFN_BUILTIN_EXPECT} internal function is expanded by the
+@code{expand_BUILTIN_EXPECT} function.
+
+@cindex @code{IFN_HWASAN_ALLOCA_POISON} internal function
+@item @samp{IFN_HWASAN_ALLOCA_POISON}
+The @code{IFN_HWASAN_ALLOCA_POISON} internal function is expanded by the
+@code{expand_HWASAN_ALLOCA_POISON} function.
+
+@cindex @code{IFN_HWASAN_ALLOCA_UNPOISON} internal function
+@item @samp{IFN_HWASAN_ALLOCA_UNPOISON}
+The @code{IFN_HWASAN_ALLOCA_UNPOISON} internal function is expanded by the
+@code{expand_HWASAN_ALLOCA_UNPOISON} function.
+
+@cindex @code{IFN_HWASAN_CHOOSE_TAG} internal function
+@item @samp{IFN_HWASAN_CHOOSE_TAG}
+The @code{IFN_HWASAN_CHOOSE_TAG} internal function is expanded by the
+@code{expand_HWASAN_CHOOSE_TAG} function.
+
+@cindex @code{IFN_HWASAN_CHECK} internal function
+@item @samp{IFN_HWASAN_CHECK}
+The @code{IFN_HWASAN_CHECK} internal function is expanded by the
+@code{expand_HWASAN_CHECK} function.
+
+@cindex @code{IFN_HWASAN_MARK} internal function
+@item @samp{IFN_HWASAN_MARK}
+The @code{IFN_HWASAN_MARK} internal function is expanded by the
+@code{expand_HWASAN_MARK} function.
+
+@cindex @code{IFN_HWASAN_SET_TAG} internal function
+@item @samp{IFN_HWASAN_SET_TAG}
+The @code{IFN_HWASAN_SET_TAG} internal function is expanded by the
+@code{expand_HWASAN_SET_TAG} function.
+
+@cindex @code{IFN_ASAN_CHECK} internal function
+@item @samp{IFN_ASAN_CHECK}
+The @code{IFN_ASAN_CHECK} internal function is expanded by the
+@code{expand_ASAN_CHECK} function.
+
+@cindex @code{IFN_ASAN_MARK} internal function
+@item @samp{IFN_ASAN_MARK}
+The @code{IFN_ASAN_MARK} internal function is expanded by the
+@code{expand_ASAN_MARK} function.
+
+@cindex @code{IFN_ASAN_POISON} internal function
+@item @samp{IFN_ASAN_POISON}
+The @code{IFN_ASAN_POISON} internal function is expanded by the
+@code{expand_ASAN_POISON} function.
+
+@cindex @code{IFN_ASAN_POISON_USE} internal function
+@item @samp{IFN_ASAN_POISON_USE}
+The @code{IFN_ASAN_POISON_USE} internal function is expanded by the
+@code{expand_ASAN_POISON_USE} function.
+
+@cindex @code{IFN_ADD_OVERFLOW} internal function
+@item @samp{IFN_ADD_OVERFLOW}
+The @code{IFN_ADD_OVERFLOW} internal function is expanded by the
+@code{expand_ADD_OVERFLOW} function.
+
+@cindex @code{IFN_SUB_OVERFLOW} internal function
+@item @samp{IFN_SUB_OVERFLOW}
+The @code{IFN_SUB_OVERFLOW} internal function is expanded by the
+@code{expand_SUB_OVERFLOW} function.
+
+@cindex @code{IFN_MUL_OVERFLOW} internal function
+@item @samp{IFN_MUL_OVERFLOW}
+The @code{IFN_MUL_OVERFLOW} internal function is expanded by the
+@code{expand_MUL_OVERFLOW} function.
+
+@cindex @code{IFN_UADDC} internal function
+@item @samp{IFN_UADDC}
+The @code{IFN_UADDC} internal function is expanded by the @code{expand_UADDC}
+function.
+
+@cindex @code{IFN_USUBC} internal function
+@item @samp{IFN_USUBC}
+The @code{IFN_USUBC} internal function is expanded by the @code{expand_USUBC} function.
+
+@cindex @code{IFN_TSAN_FUNC_EXIT} internal function
+@item @samp{IFN_TSAN_FUNC_EXIT}
+The @code{IFN_TSAN_FUNC_EXIT} internal function is expanded by the
+@code{expand_TSAN_FUNC_EXIT} function.
+
+@cindex @code{IFN_VA_ARG} internal function
+@item @samp{IFN_VA_ARG}
+The @code{IFN_VA_ARG} internal function is expanded by the
+@code{expand_VA_ARG} function.
+
+@cindex @code{IFN_VEC_CONVERT} internal function
+@item @samp{IFN_VEC_CONVERT}
+The @code{IFN_VEC_CONVERT} internal function is expanded by the
+@code{expand_VEC_CONVERT} function.
+
+@cindex @code{IFN_RAWMEMCHR} internal function
+@item @samp{IFN_RAWMEMCHR}
+The @code{IFN_RAWMEMCHR} internal function is expanded by the
+@code{expand_RAWMEMCHR} function.
+
+@cindex @code{IFN_UNIQUE} internal function
+@item @samp{IFN_UNIQUE}
+The @code{IFN_UNIQUE} internal function is expanded by the
+@code{expand_UNIQUE} function.
+
+@cindex @code{IFN_PHI} internal function
+@item @samp{IFN_PHI}
+The @code{IFN_PHI} internal function is used by the GIMPLE frontend and
+lowered to PHI nodes.
+
+@cindex @code{IFN_DEFERRED_INIT} internal function
+@item @samp{IFN_DEFERRED_INIT}
+The @code{IFN_DEFERRED_INIT} internal function is expanded by the
+@code{expand_DEFERRED_INIT} function.
+
+@cindex @code{IFN_ACCESS_WITH_SIZE} internal function
+@item @samp{IFN_ACCESS_WITH_SIZE}
+The @code{IFN_ACCESS_WITH_SIZE} internal function is expanded by the
+@code{expand_ACCESS_WITH_SIZE} function.
+
+@cindex @code{IFN_GOACC_DIM_SIZE} internal function
+@item @samp{IFN_GOACC_DIM_SIZE}
+The @code{IFN_GOACC_DIM_SIZE} internal function is expanded by the
+@code{expand_GOACC_DIM_SIZE} function.
+
+@cindex @code{IFN_GOACC_DIM_POS} internal function
+@item @samp{IFN_GOACC_DIM_POS}
+The @code{IFN_GOACC_DIM_POS} internal function is expanded by the
+@code{expand_GOACC_DIM_POS} function.
+
+@cindex @code{IFN_GOACC_LOOP} internal function
+@item @samp{IFN_GOACC_LOOP}
+The @code{IFN_GOACC_LOOP} internal function is expanded by the
+@code{expand_GOACC_LOOP} function.
+
+@cindex @code{IFN_GOACC_REDUCTION} internal function
+@item @samp{IFN_GOACC_REDUCTION}
+The @code{IFN_GOACC_REDUCTION} internal function is expanded by the
+@code{expand_GOACC_REDUCTION} function.
+
+@cindex @code{IFN_GOACC_TILE} internal function
+@item @samp{IFN_GOACC_TILE}
+The @code{IFN_GOACC_TILE} internal function is expanded by the
+@code{expand_GOACC_TILE} function.
+
+@cindex @code{IFN_SET_EDOM} internal function
+@item @samp{IFN_SET_EDOM}
+The @code{IFN_SET_EDOM} internal function is expanded by the
+@code{expand_SET_EDOM} function.
+
+@cindex @code{IFN_ATOMIC_BIT_TEST_AND_SET} internal function
+@item @samp{IFN_ATOMIC_BIT_TEST_AND_SET}
+The @code{IFN_ATOMIC_BIT_TEST_AND_SET} internal function is expanded by the
+@code{expand_ATOMIC_BIT_TEST_AND_SET} function.
+
+@cindex @code{IFN_ATOMIC_BIT_TEST_AND_COMPLEMENT} internal function
+@item @samp{IFN_ATOMIC_BIT_TEST_AND_COMPLEMENT}
+The @code{IFN_ATOMIC_BIT_TEST_AND_COMPLEMENT} internal function is expanded by
+the @code{expand_ATOMIC_BIT_TEST_AND_COMPLEMENT} function.
+
+@cindex @code{IFN_ATOMIC_BIT_TEST_AND_RESET} internal function
+@item @samp{IFN_ATOMIC_BIT_TEST_AND_RESET}
+The @code{IFN_ATOMIC_BIT_TEST_AND_RESET} internal function is expanded by
+the @code{expand_ATOMIC_BIT_TEST_AND_RESET} function.
+
+@cindex @code{IFN_ATOMIC_COMPARE_EXCHANGE} internal function
+@item @samp{IFN_ATOMIC_COMPARE_EXCHANGE}
+The @code{IFN_ATOMIC_COMPARE_EXCHANGE} internal function is expanded by the
+@code{expand_ATOMIC_COMPARE_EXCHANGE} function.
+
+@cindex @code{IFN_ATOMIC_ADD_FETCH_CMP_0} internal function
+@item @samp{IFN_ATOMIC_ADD_FETCH_CMP_0}
+The @code{IFN_ATOMIC_ADD_FETCH_CMP_0} internal function is expanded by the
+@code{expand_ATOMIC_ADD_FETCH_CMP_0} function.
+
+@cindex @code{IFN_ATOMIC_SUB_FETCH_CMP_0} internal function
+@item @samp{IFN_ATOMIC_SUB_FETCH_CMP_0}
+The @code{IFN_ATOMIC_SUB_FETCH_CMP_0} internal function is expanded by the
+@code{expand_ATOMIC_SUB_FETCH_CMP_0} function.
+
+@cindex @code{IFN_ATOMIC_AND_FETCH_CMP_0} internal function
+@item @samp{IFN_ATOMIC_AND_FETCH_CMP_0}
+The @code{IFN_ATOMIC_AND_FETCH_CMP_0} internal function is expanded by the
+@code{expand_ATOMIC_AND_FETCH_CMP_0} function.
+
+@cindex @code{IFN_ATOMIC_OR_FETCH_CMP_0} internal function
+@item @samp{IFN_ATOMIC_OR_FETCH_CMP_0}
+The @code{IFN_ATOMIC_OR_FETCH_CMP_0} internal function is expanded by the
+@code{expand_ATOMIC_OR_FETCH_CMP_0} function.
+
+@cindex @code{IFN_ATOMIC_XOR_FETCH_CMP_0} internal function
+@item @samp{IFN_ATOMIC_XOR_FETCH_CMP_0}
+The @code{IFN_ATOMIC_XOR_FETCH_CMP_0} internal function is expanded by the
+@code{expand_ATOMIC_XOR_FETCH_CMP_0} function.
+
+@cindex @code{IFN_FALLTHROUGH} internal function
+@item @samp{IFN_FALLTHROUGH}
+The @code{IFN_FALLTHROUGH} internal function is expanded by the
+@code{expand_FALLTHROUGH} function.
+
+@cindex @code{IFN_LAUNDER} internal function
+@item @samp{IFN_LAUNDER}
+The @code{IFN_LAUNDER} internal function is expanded by the
+@code{expand_LAUNDER} function.
+
+@cindex @code{IFN_DIVMOD} internal function
+@item @samp{IFN_DIVMOD}
+The @code{IFN_DIVMOD} internal function is expanded by the
+@code{expand_DIVMOD} function.
+
+@cindex @code{IFN_CO_ACTOR} internal function
+@item @samp{IFN_CO_ACTOR}
+The @code{IFN_CO_ACTOR} internal function is expanded by the
+@code{expand_CO_ACTOR} function.
+
+@cindex @code{IFN_CO_YIELD} internal function
+@item @samp{IFN_CO_YIELD}
+The @code{IFN_CO_YIELD} internal function is expanded by the
+@code{expand_CO_YIELD} function.
+
+@cindex @code{IFN_CO_SUSPN} internal function
+@item @samp{IFN_CO_SUSPN}
+The @code{IFN_CO_SUSPN} internal function is expanded by the
+@code{expand_CO_SUSPN} function.
+
+@cindex @code{IFN_CO_FRAME} internal function
+@item @samp{IFN_CO_FRAME}
+The @code{IFN_CO_FRAME} internal function is expanded by the
+@code{expand_CO_FRAME} function.
+
+@cindex @code{IFN_NOP} internal function
+@item @samp{IFN_NOP}
+The @code{IFN_NOP} internal function is expanded by the @code{expand_NOP}
+function.
+
+@cindex @code{IFN_SHUFFLEVECTOR} internal function
+@item @samp{IFN_SHUFFLEVECTOR}
+The @code{IFN_SHUFFLEVECTOR} internal function is expanded by the
+@code{expand_SHUFFLEVECTOR} function.
+
+@cindex @code{IFN_SPACESHIP} internal function
+@item @samp{IFN_SPACESHIP}
+The @code{IFN_SPACESHIP} internal function is expanded by the
+@code{expand_SPACESHIP} function.
+
+@cindex @code{IFN_ASSUME} internal function
+@item @samp{IFN_ASSUME}
+The @code{IFN_ASSUME} internal function is expanded by the
+@code{expand_ASSUME} function.
+
+@cindex @code{IFN_MASK_CALL} internal function
+@item @samp{IFN_MASK_CALL}
+The @code{IFN_MASK_CALL} internal function is expanded by the
+@code{expand_MASK_CALL} function.
+
+@cindex @code{IFN_MULBITINT} internal function
+@item @samp{IFN_MULBITINT}
+The @code{IFN_MULBITINT} internal function is expanded by the
+@code{expand_MULBITINT} function.
+
+@cindex @code{IFN_DIVMODBITINT} internal function
+@item @samp{IFN_DIVMODBITINT}
+The @code{IFN_DIVMODBITINT} internal function is expanded by the
+@code{expand_DIVMODBITINT} function.
+
+@cindex @code{IFN_FLOATTOBITINT} internal function
+@item @samp{IFN_FLOATTOBITINT}
+The @code{IFN_FLOATTOBITINT} internal function is expanded by the
+@code{expand_FLOATTOBITINT} function.
+
+@cindex @code{IFN_BITINTTOFLOAT} internal function
+@item @samp{IFN_BITINTTOFLOAT}
+The @code{IFN_BITINTTOFLOAT} internal function is expanded by the
+@code{expand_BITINTTOFLOAT} function.
+
+@end table
+
