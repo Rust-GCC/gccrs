@@ -3173,9 +3173,9 @@ eval_offset_of (location_t loc, const constexpr_ctx *ctx, tree r,
 }
 
 /* Process std::meta::size_of.
-   Returns: If r represents
-     -- a non-static data member of type T,
-     -- a data member description (T,N,A,W,NUA), or
+   Returns: If
+     -- r represents a non-static data member of type T or a data member
+	description (T,N,A,W,NUA) or
      -- dealias(r) represents a type T,
    then sizeof(T) if T is not a reference type and size_of(add_pointer(^^T))
    otherwise.  Otherwise, size_of(type_of(r)).
