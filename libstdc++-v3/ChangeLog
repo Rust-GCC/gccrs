@@ -1,3 +1,20 @@
+2026-03-30  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* include/bits/atomic_base.h (__atomic_ref_base::_Address_return_t):
+	Define.
+	(__atomic_ref_base::address): Change return type to _Address_return_t.
+	* include/bits/version.def (atomic_ref): Bump to 202603.
+	* include/bits/version.h: Regenerate.
+	* testsuite/29_atomics/atomic_ref/address.cc: Update check for
+	return type.
+
+2026-03-30  Jakub Jelinek  <jakub@redhat.com>
+
+	* include/std/meta (has_ellipsis_parameter): Rename to ...
+	(is_vararg_function): ... this.  New declaration.
+	* src/c++23/std.cc.in: Remove std::meta::has_ellipsis_parameter
+	export, add std::meta::is_vararg_function export.
+
 2026-03-28  Alexandre Oliva  <oliva@adacore.com>
 
 	* include/experimental/bits/simd.h (__intrinsic_type): Accept

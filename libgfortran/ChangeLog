@@ -1,3 +1,15 @@
+2026-03-30  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR libfortran/124543
+	* io/inquire.c (inquire_via_unit): Fix return value for
+	NAMED. Add check for ACTION. Fix return values for
+	ENCODING, PENDING, READ, WRITE, READWRITE.
+	(inquire_via_filename): Add checks for ACTION, DELIM,
+	ASYNCHRONOUS, and PENDING. Fix return value for
+	ENCODING.
+	* io/unix.c (inquire_access): Change return value from no
+	to unknown.
+
 2026-03-22  Christopher Albert  <albert@tugraz.at>
 
 	PR fortran/124512

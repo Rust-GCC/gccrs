@@ -1,3 +1,8 @@
+2026-03-30  Saurabh Jha  <saurabh.jha@arm.com>
+	    Evgeny Karpov  <evgeny.karpov@arm.com>
+
+	* config.host: Disable soft floating point.
+
 2026-03-28  Alexandre Oliva  <oliva@adacore.com>
 
 	* config/gthr-vxworks-tls.c (TLS_DELETE_HOOK_ARG): Type-cast

@@ -1,3 +1,15 @@
+2026-03-30  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/124666
+	* io.cc: Change uint value back to int.
+
+2026-03-30  Christopher Albert  <albert@tugraz.at>
+
+	* scanner.cc (skip_free_oacc_sentinel): Clear openmp_flag only for
+	fresh OpenACC directive lines.
+	(skip_free_omp_sentinel): Clear openacc_flag only for fresh OpenMP
+	directive lines.
+
 2026-03-28  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
 
 	PR fortran/124666

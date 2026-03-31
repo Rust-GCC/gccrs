@@ -1,3 +1,58 @@
+2026-03-30  H.J. Lu  <hjl.tools@gmail.com>
+	    Richard Biener  <rguenther@suse.de>
+
+	PR target/120839
+	PR middle-end/124671
+	* gcc.dg/pr124671.c: New test.
+	* gcc.target/i386/pr120839-1a.c: Likewise.
+	* gcc.target/i386/pr120839-1b.c: Likewise.
+	* gcc.target/i386/pr120839-2.c: Likewise.
+
+2026-03-30  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR libfortran/124543
+	* gfortran.dg/pr124543.f90: New test.
+
+2026-03-30  Vineet Gupta  <vineet.gupta@linux.dev>
+
+	* gcc.target/bpf/zero-ext.c: Add tests for {HI,QI}mode values.
+
+2026-03-30  Piyush Raj  <piyushraj92739@gmail.com>
+
+	* gcc.target/bpf/torture/bpf-torture.exp: New testsuite.
+	* gcc.target/bpf/torture/invalid-memory-access.c: New test.
+	* gcc.target/bpf/torture/memcpy.c: New test.
+	* gcc.target/bpf/torture/memmove.c: New test.
+	* gcc.target/bpf/torture/memset.c: New test.
+	* gcc.target/bpf/torture/naked.c: New test.
+	* gcc.target/bpf/torture/nop.c: New test.
+	* gcc.target/bpf/torture/trace_openat.c: New test.
+
+2026-03-30  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/124692
+	* gcc.dg/torture/pr124692.c: New testcase.
+
+2026-03-30  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/88576
+	* gcc.dg/pr88576.c: New testcase.
+
+2026-03-30  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/124677
+	* gcc.dg/vect/vect-pr124677.c: New testcase.
+
+2026-03-30  Christopher Albert  <albert@tugraz.at>
+
+	* gfortran.dg/goacc/omp-108382.f90: New test.
+
+2026-03-30  Jakub Jelinek  <jakub@redhat.com>
+
+	* g++.dg/reflect/has_ellipsis_parameter1.C: Rename to ...
+	* g++.dg/reflect/is_vararg_function1.C: this.  New test.  Rename
+	has_ellipsis_parameter to is_vararg_function everywhere.
+
 2026-03-29  Jeff Law  <jeffrey.law@oss.qualcomm.com>
 
 	PR target/124674

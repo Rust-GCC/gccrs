@@ -1,3 +1,60 @@
+2026-03-30  H.J. Lu  <hjl.tools@gmail.com>
+	    Richard Biener  <rguenther@suse.de>
+
+	PR target/120839
+	PR middle-end/124671
+	* function.cc (assign_parm_adjust_stack_rtl): Get the parameter
+	as argument.  Adjust alignment check forcing a local copy.
+	(assign_parms): Adjust.
+	* config/i386/i386.cc (ix86_argument_passed_on_stack_p): New.
+	(ix86_update_stack_alignment): Ignore argument passed on stack.
+
+2026-03-30  Vineet Gupta  <vineet.gupta@linux.dev>
+
+	* config/bpf/bpf.md (zero_extendhidi2): Add alternates for
+	alu32 and use 'W' for reg operands.
+	(zero_extendqidi2): Ditto.
+
+2026-03-30  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/124692
+	* tree-cfg.cc (replace_uses_by): Call update_stmt after
+	substitution and before folding.
+
+2026-03-30  Saurabh Jha  <saurabh.jha@arm.com>
+	    Evgeny Karpov  <evgeny.karpov@arm.com>
+
+	* config/aarch64/aarch64.cc
+	(aarch64_scalar_mode_supported_p): Only return true on TFmode if
+	TARGET_LONG_DOUBLE_128 is set.
+
+2026-03-30  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/88576
+	* tree-ssa-alias.cc (check_fnspec): Remove flag_errno_math check.
+	* ipa-modref.cc (modref_access_analysis::process_fnspec):
+	Likewise.
+
+2026-03-30  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/124677
+	* tree-vect-loop.cc (vectorizable_recurr): Skip vector
+	stmts for the def.
+
+2026-03-30  Francois-Xavier Coudert  <fxcoudert@gcc.gnu.org>
+
+	* config/aarch64/aarch64-cores.def (AARCH64_CORE): Add Apple M5
+	cores.
+	* config/aarch64/aarch64-tune.md: Regenerate.
+	* doc/invoke.texi: Add apple-m5 core to the ones listed
+	for arch and tune selections.
+
+2026-03-30  Torbjörn SVENSSON  <torbjorn.svensson@foss.st.com>
+
+	PR target/102309
+	* config/arm/arm.cc (arm_constant_limit): Allways allow at least
+	one insn when loading a constant.
+
 2026-03-29  Jeff Law  <jeffrey.law@oss.qualcomm.com>
 
 	PR target/124674

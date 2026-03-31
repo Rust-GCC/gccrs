@@ -1,3 +1,15 @@
+2026-03-30  Jakub Jelinek  <jakub@redhat.com>
+
+	* metafns.gperf (enum metafn_code): Remove
+	METAFN_HAS_ELLIPSIS_PARAMETER, add METAFN_IS_VARARG_FUNCTION.
+	(has_ellipsis_parameter): Remove.
+	(is_vararg_function): Add.
+	* reflect.cc (eval_has_ellipsis_parameter): Rename to ...
+	(eval_is_vararg_function): ... this.  Adjust function comment.
+	(process_metafunction): Handle METAFN_IS_VARARG_FUNCTION
+	instead of METAFN_HAS_ELLIPSIS_PARAMETER.
+	* metafns.h: Regenerate.
+
 2026-03-26  Marek Polacek  <polacek@redhat.com>
 
 	PR c++/123613
