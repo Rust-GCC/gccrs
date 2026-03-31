@@ -8,7 +8,7 @@ struct st
 
 int test_1 (struct st *p)
 {
-  fprintf (stderr, "str: %s\n", p->str); /* { dg-message "pointer 'p' is dereferenced here" } */
+  printf ("str: %s\n", p->str); /* { dg-message "pointer 'p' is dereferenced here" } */
   if (!p) /* { dg-warning "check of 'p' for NULL after already dereferencing it" } */
     return -1;
   return p->i;  
