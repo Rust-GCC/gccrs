@@ -743,7 +743,10 @@ BaseType::contains_infer () const
     }
   else if (auto arr = x->try_as<const ArrayType> ())
     {
-      return arr->get_element_type ()->contains_infer ();
+      auto type_infer = (arr->get_element_type ()->contains_infer ());
+      if (type_infer)
+	return type_infer;
+      return arr->get_capacity ()->contains_infer ();
     }
   else if (auto slice = x->try_as<const SliceType> ())
     {
@@ -777,6 +780,13 @@ BaseType::contains_infer () const
   else if (x->is<InferType> ())
     {
       return x;
+    }
+  else if (x->get_kind () == TyTy::TypeKind::CONST)
+    {
+      if (x->as_const_type ()->const_kind () == BaseConstType::Infer)
+	{
+	  return x;
+	}
     }
 
   return nullptr;
