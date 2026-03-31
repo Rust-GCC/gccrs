@@ -43,6 +43,8 @@ foo2 ()
 {
   struct AA aa;
   int i;
+#pragma GCC novector
+#pragma GCC unroll 0
   for (i = 0; i < 10; ++i)
     {
       aa.as.array[i] = i * (i-1) + i / 2;
@@ -154,4 +156,4 @@ void foo12 ()
   global3 ();
 }
 
-/* { dg-final { scan-assembler-times "stack_chk_fail" 11 } } */
+/* { dg-final { scan-assembler-times "stack_chk_fail" 12 } } */
