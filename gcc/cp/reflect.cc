@@ -5566,27 +5566,28 @@ eval_data_member_spec (location_t loc, const constexpr_ctx *ctx,
       *non_constant_p = true;
       return NULL_TREE;
     }
-  tree args[5] = { type, NULL_TREE, NULL_TREE, NULL_TREE, NULL_TREE };
+  enum { m_name = 1, m_alignment, m_bit_width, m_no_unique_address, n_args };
+  tree args[n_args] = { type, NULL_TREE, NULL_TREE, NULL_TREE, NULL_TREE };
   for (tree field = next_aggregate_field (TYPE_FIELDS (TREE_TYPE (opts)));
        field; field = next_aggregate_field (DECL_CHAIN (field)))
     if (tree name = DECL_NAME (field))
       {
 	if (id_equal (name, "name"))
-	  args[1] = field;
+	  args[m_name] = field;
 	else if (id_equal (name, "alignment"))
-	  args[2] = field;
+	  args[m_alignment] = field;
 	else if (id_equal (name, "bit_width"))
-	  args[3] = field;
+	  args[m_bit_width] = field;
 	else if (id_equal (name, "no_unique_address"))
-	  args[4] = field;
+	  args[m_no_unique_address] = field;
       }
-  for (int i = 1; i < 5; ++i)
+  for (int i = m_name; i < n_args; ++i)
     {
       if (args[i] == NULL_TREE)
 	goto fail;
       tree opt = build3 (COMPONENT_REF, TREE_TYPE (args[i]), opts, args[i],
 			 NULL_TREE);
-      if (i == 4)
+      if (i == m_no_unique_address)
 	{
 	  /* The no_unique_address handling is simple.  */
 	  if (TREE_CODE (TREE_TYPE (opt)) != BOOLEAN_TYPE)
@@ -5628,7 +5629,7 @@ eval_data_member_spec (location_t loc, const constexpr_ctx *ctx,
 				 NULL_TREE, tf_warning_or_error);
       if (error_operand_p (deref))
 	goto fail;
-      if (i != 1)
+      if (i != m_name)
 	{
 	  /* For alignment and bit_width otherwise it should be int.  */
 	  if (TYPE_MAIN_VARIANT (TREE_TYPE (deref)) != integer_type_node)
@@ -5646,27 +5647,29 @@ eval_data_member_spec (location_t loc, const constexpr_ctx *ctx,
       /* Otherwise it is a name.  */
       if (!CLASS_TYPE_P (TREE_TYPE (deref)))
 	goto fail;
-      tree fields[3] = { NULL_TREE, NULL_TREE, NULL_TREE };
+      enum { m_is_u8, m_u8s, m_s, n_fields };
+      tree fields[n_fields] = { NULL_TREE, NULL_TREE, NULL_TREE };
       for (tree field = next_aggregate_field (TYPE_FIELDS (TREE_TYPE (deref)));
 	   field; field = next_aggregate_field (DECL_CHAIN (field)))
 	if (tree name = DECL_NAME (field))
 	  {
 	    if (id_equal (name, "_M_is_u8"))
-	      fields[0] = field;
+	      fields[m_is_u8] = field;
 	    else if (id_equal (name, "_M_u8s"))
-	      fields[1] = field;
+	      fields[m_u8s] = field;
 	    else if (id_equal (name, "_M_s"))
-	      fields[2] = field;
+	      fields[m_s] = field;
 	  }
-      for (int j = 0; j < 3; ++j)
+      for (int j = 0; j < n_fields; ++j)
 	{
 	  if (fields[j] == NULL_TREE)
 	    goto fail;
-	  if (j && j == (fields[0] == boolean_true_node ? 2 : 1))
+	  if (j != m_is_u8
+	      && j == (fields[m_is_u8] == boolean_true_node ? m_s : m_u8s))
 	    continue;
 	  tree f = build3 (COMPONENT_REF, TREE_TYPE (fields[j]), deref,
 			   fields[j], NULL_TREE);
-	  if (j == 0)
+	  if (j == m_is_u8)
 	    {
 	      /* The _M_is_u8 handling is simple.  */
 	      if (TREE_CODE (TREE_TYPE (f)) != BOOLEAN_TYPE)
@@ -5679,9 +5682,9 @@ eval_data_member_spec (location_t loc, const constexpr_ctx *ctx,
 	      if (TREE_CODE (f) != INTEGER_CST)
 		goto fail;
 	      if (integer_zerop (f))
-		fields[0] = boolean_false_node;
+		fields[m_is_u8] = boolean_false_node;
 	      else
-		fields[0] = boolean_true_node;
+		fields[m_is_u8] = boolean_true_node;
 	      continue;
 	    }
 	  /* _M_u8s/_M_s handling is the same except for encoding.  */
@@ -5713,7 +5716,7 @@ eval_data_member_spec (location_t loc, const constexpr_ctx *ctx,
 	      || TREE_CODE (TREE_TYPE (f)) != ARRAY_TYPE)
 	    goto fail;
 	  tree eltt = TYPE_MAIN_VARIANT (TREE_TYPE (TREE_TYPE (f)));
-	  if (eltt != (j == 1 ? char8_type_node : char_type_node))
+	  if (eltt != (j == m_u8s ? char8_type_node : char_type_node))
 	    goto fail;
 	  tree field, value;
 	  unsigned k;
@@ -5794,12 +5797,12 @@ eval_data_member_spec (location_t loc, const constexpr_ctx *ctx,
 	  istr.len = strlen (namep) + 1;
 	  istr.text = (const unsigned char *) namep;
 	  if (!cpp_translate_string (parse_in, &istr, &ostr,
-				     j == 2 ? CPP_STRING : CPP_UTF8STRING,
+				     j == m_s ? CPP_STRING : CPP_UTF8STRING,
 				     true))
 	    {
 	      if (len >= 64)
 		XDELETEVEC (namep);
-	      if (j == 2)
+	      if (j == m_s)
 		return throw_exception (loc, ctx,
 					"conversion from ordinary literal "
 					"encoding to source charset "
@@ -5831,53 +5834,53 @@ eval_data_member_spec (location_t loc, const constexpr_ctx *ctx,
 	    }
 	}
     }
-  if (args[1] == NULL_TREE && args[3] == NULL_TREE)
+  if (args[m_name] == NULL_TREE && args[m_bit_width] == NULL_TREE)
     return throw_exception (loc, ctx,
 			    "neither name nor bit_width specified",
 			    fun, non_constant_p, jump_target);
-  if (args[3])
+  if (args[m_bit_width])
     {
       if (!CP_INTEGRAL_TYPE_P (type) && TREE_CODE (type) != ENUMERAL_TYPE)
 	return throw_exception (loc, ctx,
 				"bit_width specified with non-integral "
 				"and non-enumeration type",
 				fun, non_constant_p, jump_target);
-      if (args[2])
+      if (args[m_alignment])
 	return throw_exception (loc, ctx,
 				"both alignment and bit_width specified",
 				fun, non_constant_p, jump_target);
-      if (args[4] == boolean_true_node)
+      if (args[m_no_unique_address] == boolean_true_node)
 	return throw_exception (loc, ctx,
 				"bit_width specified with "
 				"no_unique_address true",
 				fun, non_constant_p, jump_target);
-      if (integer_zerop (args[3]) && args[1])
+      if (integer_zerop (args[m_bit_width]) && args[m_name])
 	return throw_exception (loc, ctx,
 				"bit_width 0 with specified name",
 				fun, non_constant_p, jump_target);
-      if (tree_int_cst_sgn (args[3]) < 0)
+      if (tree_int_cst_sgn (args[m_bit_width]) < 0)
 	return throw_exception (loc, ctx, "bit_width is negative",
 				fun, non_constant_p, jump_target);
     }
-  if (args[2])
+  if (args[m_alignment])
     {
-      if (!integer_pow2p (args[2]))
+      if (!integer_pow2p (args[m_alignment]))
 	return throw_exception (loc, ctx,
 				"alignment is not power of two",
 				fun, non_constant_p, jump_target);
-      if (tree_int_cst_sgn (args[2]) < 0)
+      if (tree_int_cst_sgn (args[m_alignment]) < 0)
 	return throw_exception (loc, ctx, "alignment is negative",
 				fun, non_constant_p, jump_target);
       tree al = cxx_sizeof_or_alignof_type (loc, type, ALIGNOF_EXPR, true,
 					    tf_none);
       if (TREE_CODE (al) == INTEGER_CST
-	  && wi::to_widest (al) > wi::to_widest (args[2]))
+	  && wi::to_widest (al) > wi::to_widest (args[m_alignment]))
 	return throw_exception (loc, ctx,
 				"alignment is smaller than alignment_of",
 				fun, non_constant_p, jump_target);
     }
-  tree ret = make_tree_vec (5);
-  for (int i = 0; i < 5; ++i)
+  tree ret = make_tree_vec (n_args);
+  for (int i = 0; i < n_args; ++i)
     TREE_VEC_ELT (ret, i) = args[i];
   return get_reflection_raw (loc, ret, REFLECT_DATA_MEMBER_SPEC);
 }
