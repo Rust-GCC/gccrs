@@ -21953,6 +21953,41 @@ Enable the SVE non-widening brain floating-point (@code{bf16}) extension.
 This only has an effect when @code{sve2} or @code{sme2} are also enabled.
 @item sve-bfscale
 Enable the SVE_BFSCALE extension.
+@item poe2
+Enable the Permission Overlays Extension 2.
+@item tev
+Enable the TIndex Exception-like Vector Extension.
+@item tlbid
+Enable the TLBI Domains Extension.
+@item gcie
+Enable the GICv5 (Generic Interrupt Controller) CPU Interface Extension.
+@item mpamv2
+Enable MPAMv2 system registers.
+@item lscp
+Enable the load acquire and store release pair extension.
+@item mops-go
+Enable tag only variants of MOPS instructions.  This also enables the
+instructions to accelerate memory operations and Armv8.5-a Memory
+Tagging Extensions.
+@item sve2p3
+Enable SVE2.3.  This also enables SVE2.2 instructions.
+@item sme2p3
+Enable SME2.3.  This also enables SME2.2 instructions.
+@item f16f32dot
+Enable Armv9.7-a f16f32dot instructions.  This also enables Advanced SIMD,
+floating-point instructions and Armv8.2-a FP16 instructions.
+@item sve-b16mm
+Enable the SVE B16MM Extension.  This also enables SVE instructions, Advanced
+SIMD and floating-point instructions.
+@item mtetc
+Enable Data cache tag block operations.  This also enables Armv8.5-a Memory
+Tagging Extensions.
+@item f16f32mm
+Enable Armv9.7-a f16f32mm instructions.  This also enables Advanced SIMD,
+floating-point instructions and Armv8.2-a FP16 instructions.
+@item f16mm
+Enable f16mm instructions.  This also enables Advanced SIMD,
+floating-point instructions and Armv8.2-a FP16 instructions.
 @end table
 
 Feature @option{crypto} implies @option{aes}, @option{sha2}, and @option{simd},
