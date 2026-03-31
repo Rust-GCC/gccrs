@@ -2612,12 +2612,11 @@ package body Sem_Util is
               ("premature usage of incomplete}", N, First_Subtype (T));
          end if;
 
-      --  The other case is a type with a private component (including itself)
-      --  that has not yet received a full declaration. But we exclude formal
+      --  The other case is an incompletely defined type. But we exclude formal
       --  types, as well as references in generic units to entities declared
       --  outside of them, and all references in spec expressions.
 
-      elsif Has_Private_Component (T)
+      elsif Is_Incompletely_Defined (T)
         and then not Is_Generic_Type (Root_Type (T))
         and then (not Is_Generic_Unit (Current_Scope)
                    or else Scope_Within_Or_Same (Scope (T), Current_Scope))
@@ -13750,67 +13749,6 @@ package body Sem_Util is
         N_Slice;
    end Has_Prefix;
 
-   ---------------------------
-   -- Has_Private_Component --
-   ---------------------------
-
-   function Has_Private_Component (Type_Id : Entity_Id) return Boolean is
-      Btype     : Entity_Id := Base_Type (Type_Id);
-      Component : Entity_Id;
-
-   begin
-      if Error_Posted (Type_Id)
-        or else Error_Posted (Btype)
-      then
-         return False;
-      end if;
-
-      if Is_Class_Wide_Type (Btype) then
-         Btype := Root_Type (Btype);
-      end if;
-
-      if Is_Private_Type (Btype) then
-         declare
-            UT : constant Entity_Id := Underlying_Type (Btype);
-         begin
-            if No (UT) then
-               if No (Full_View (Btype)) then
-                  return not Is_Generic_Type (Btype)
-                            and then
-                         not Is_Generic_Type (Root_Type (Btype));
-               else
-                  return not Is_Generic_Type (Root_Type (Full_View (Btype)));
-               end if;
-            else
-               return not Is_Frozen (UT) and then Has_Private_Component (UT);
-            end if;
-         end;
-
-      elsif Is_Array_Type (Btype) then
-         return Has_Private_Component (Component_Type (Btype));
-
-      elsif Is_Record_Type (Btype) then
-         Component := First_Component (Btype);
-         while Present (Component) loop
-            if Has_Private_Component (Etype (Component)) then
-               return True;
-            end if;
-
-            Next_Component (Component);
-         end loop;
-
-         return False;
-
-      elsif Is_Protected_Type (Btype)
-        and then Present (Corresponding_Record_Type (Btype))
-      then
-         return Has_Private_Component (Corresponding_Record_Type (Btype));
-
-      else
-         return False;
-      end if;
-   end Has_Private_Component;
-
    --------------------------------
    -- Has_Relaxed_Initialization --
    --------------------------------
@@ -18675,6 +18613,69 @@ package body Sem_Util is
 
       return False;
    end Is_In_Context_Clause;
+
+   -----------------------------
+   -- Is_Incompletely_Defined --
+   -----------------------------
+
+   function Is_Incompletely_Defined (Type_Id : Entity_Id) return Boolean is
+      Btype     : Entity_Id := Base_Type (Type_Id);
+      Component : Entity_Id;
+
+   begin
+      if Error_Posted (Type_Id)
+        or else Error_Posted (Btype)
+      then
+         return False;
+      end if;
+
+      if Is_Class_Wide_Type (Btype) then
+         Btype := Root_Type (Btype);
+      end if;
+
+      if Is_Private_Type (Btype) then
+         declare
+            UT : constant Entity_Id := Underlying_Type (Btype);
+         begin
+            if No (UT) then
+               if No (Full_View (Btype)) then
+                  return not Is_Generic_Type (Btype)
+                            and then
+                         not Is_Generic_Type (Root_Type (Btype));
+               else
+                  return not Is_Generic_Type (Root_Type (Full_View (Btype)));
+               end if;
+            else
+               return
+                 not Is_Frozen (UT) and then Is_Incompletely_Defined (UT);
+            end if;
+         end;
+
+      elsif Is_Array_Type (Btype) then
+         return Is_Incompletely_Defined (Component_Type (Btype));
+
+      elsif Is_Record_Type (Btype) then
+         Component := First_Component (Btype);
+         while Present (Component) loop
+            if Is_Incompletely_Defined (Etype (Component)) then
+               return True;
+            end if;
+
+            Next_Component (Component);
+         end loop;
+
+         return False;
+
+      elsif Is_Protected_Type (Btype)
+        and then Present (Corresponding_Record_Type (Btype))
+      then
+         return
+           Is_Incompletely_Defined (Corresponding_Record_Type (Btype));
+
+      else
+         return False;
+      end if;
+   end Is_Incompletely_Defined;
 
    ---------------------------
    -- Is_Independent_Object --

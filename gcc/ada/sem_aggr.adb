@@ -735,14 +735,14 @@ package body Sem_Aggr is
 
       Itype := Create_Itype (E_Array_Subtype, N);
 
-      Set_First_Rep_Item         (Itype, First_Rep_Item        (Typ));
-      Set_Convention             (Itype, Convention            (Typ));
-      Set_Depends_On_Private     (Itype, Has_Private_Component (Typ));
-      Set_Etype                  (Itype, Base_Type             (Typ));
-      Set_Has_Alignment_Clause   (Itype, Has_Alignment_Clause  (Typ));
-      Set_Is_Aliased             (Itype, Is_Aliased            (Typ));
-      Set_Is_Independent         (Itype, Is_Independent        (Typ));
-      Set_Depends_On_Private     (Itype, Depends_On_Private    (Typ));
+      Set_First_Rep_Item         (Itype, First_Rep_Item          (Typ));
+      Set_Convention             (Itype, Convention              (Typ));
+      Set_Depends_On_Private     (Itype, Is_Incompletely_Defined (Typ));
+      Set_Etype                  (Itype, Base_Type               (Typ));
+      Set_Has_Alignment_Clause   (Itype, Has_Alignment_Clause    (Typ));
+      Set_Is_Aliased             (Itype, Is_Aliased              (Typ));
+      Set_Is_Independent         (Itype, Is_Independent          (Typ));
+      Set_Depends_On_Private     (Itype, Depends_On_Private      (Typ));
 
       Copy_Suppress_Status (Index_Check,  Typ, Itype);
       Copy_Suppress_Status (Length_Check, Typ, Itype);

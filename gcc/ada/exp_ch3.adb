@@ -10109,10 +10109,10 @@ package body Exp_Ch3 is
                Build_Finalization_Collection (Def_Id);
 
             --  Also create a finalization collection when the designated type
-            --  contains a private component. It is assumed that the full view
+            --  is not completely defined. It is assumed that the full view
             --  will be controlled.
 
-            elsif Has_Private_Component (Desig_Type) then
+            elsif Is_Incompletely_Defined (Desig_Type) then
                Build_Finalization_Collection
                  (Typ            => Def_Id,
                   For_Private    => True,

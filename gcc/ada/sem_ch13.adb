@@ -16783,10 +16783,10 @@ package body Sem_Ch13 is
            ("representation item must be after full type declaration", N);
          return True;
 
-      --  If the type has incomplete components, a representation clause is
+      --  If the type is not completely defined, a representation clause is
       --  illegal but stream attributes and Convention pragmas are correct.
 
-      elsif Has_Private_Component (T) then
+      elsif Is_Incompletely_Defined (T) then
          if Nkind (N) = N_Pragma then
             return False;
 

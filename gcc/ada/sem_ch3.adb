@@ -904,7 +904,7 @@ package body Sem_Ch3 is
       --  set, as required by gigi. This is necessary in the case of the
       --  Task_Body_Procedure.
 
-      if not Has_Private_Component (Desig_Type) then
+      if not Is_Incompletely_Defined (Desig_Type) then
          Layout_Type (Anon_Type);
       end if;
 
@@ -3421,7 +3421,7 @@ package body Sem_Ch3 is
 
       --  Some common processing for all types
 
-      Set_Depends_On_Private (T, Has_Private_Component (T));
+      Set_Depends_On_Private (T, Is_Incompletely_Defined (T));
       Check_Ops_From_Incomplete_Type;
 
       --  Both the declared entity, and its anonymous base type if one was
@@ -6291,7 +6291,7 @@ package body Sem_Ch3 is
       T := Etype (Id);
 
       Set_Is_Immediately_Visible   (Id, True);
-      Set_Depends_On_Private       (Id, Has_Private_Component (T));
+      Set_Depends_On_Private       (Id, Is_Incompletely_Defined (T));
       Set_Is_Descendant_Of_Address (Id, Is_Descendant_Of_Address (T));
 
       if Is_Interface (T) then
@@ -7362,7 +7362,7 @@ package body Sem_Ch3 is
       Set_Size_Info          (Derived_Type, Parent_Type);
       Copy_RM_Size           (To => Derived_Type, From => Parent_Type);
       Set_Depends_On_Private (Derived_Type,
-                              Has_Private_Component (Derived_Type));
+                              Is_Incompletely_Defined (Derived_Type));
       Conditional_Delay      (Derived_Type, Subt);
 
       if Is_Access_Subprogram_Type (Derived_Type)
@@ -8504,7 +8504,7 @@ package body Sem_Ch3 is
          Set_Is_Frozen             (Full_Der, False);
          Set_Freeze_Node           (Full_Der, Empty);
          Set_Depends_On_Private
-           (Full_Der, Has_Private_Component (Full_Der));
+           (Full_Der, Is_Incompletely_Defined (Full_Der));
          Set_Is_Public             (Full_Der, Is_Public (Derived_Type));
          Set_Is_Implicit_Full_View (Full_Der);
 
@@ -13655,7 +13655,7 @@ package body Sem_Ch3 is
       end if;
 
       Set_First_Rep_Item     (Full, First_Rep_Item (Full_Base));
-      Set_Depends_On_Private (Full, Has_Private_Component (Full));
+      Set_Depends_On_Private (Full, Is_Incompletely_Defined (Full));
 
       --  When prefixed calls are enabled for untagged types, the subtype
       --  shares the primitive operations of its base type. Do this even
@@ -14324,7 +14324,8 @@ package body Sem_Ch3 is
       Set_Size_Info                (Def_Id, T);
       Set_Is_Constrained           (Def_Id, Constraint_OK);
       Set_Directly_Designated_Type (Def_Id, Desig_Subtype);
-      Set_Depends_On_Private       (Def_Id, Has_Private_Component (Def_Id));
+      Set_Depends_On_Private
+        (Def_Id, Is_Incompletely_Defined (Def_Id));
       Set_Is_Access_Constant       (Def_Id, Is_Access_Constant (T));
       Set_Can_Never_Be_Null        (Def_Id, Can_Never_Be_Null (T));
 
@@ -14493,7 +14494,7 @@ package body Sem_Ch3 is
                              (Def_Id, Is_FLB_Array_Subtype);
       Set_Is_Aliased         (Def_Id, Is_Aliased (T));
       Set_Is_Independent     (Def_Id, Is_Independent (T));
-      Set_Depends_On_Private (Def_Id, Has_Private_Component (Def_Id));
+      Set_Depends_On_Private (Def_Id, Is_Incompletely_Defined (Def_Id));
 
       Set_Is_Private_Composite (Def_Id, Is_Private_Composite (T));
       Set_Is_Limited_Composite (Def_Id, Is_Limited_Composite (T));
@@ -14618,7 +14619,7 @@ package body Sem_Ch3 is
             Set_Etype                    (Itype, Base_Type      (Old_Type));
             Set_Size_Info                (Itype,                (Old_Type));
             Set_Directly_Designated_Type (Itype, Desig_Subtype);
-            Set_Depends_On_Private       (Itype, Has_Private_Component
+            Set_Depends_On_Private       (Itype, Is_Incompletely_Defined
                                                                 (Old_Type));
             Set_Is_Access_Constant       (Itype, Is_Access_Constant
                                                                 (Old_Type));
@@ -14958,7 +14959,7 @@ package body Sem_Ch3 is
          Constrain_Discriminated_Type (Def_Id, SI, Related_Nod);
          Set_First_Private_Entity (Def_Id, First_Private_Entity (T_Ent));
 
-         Set_Depends_On_Private (Def_Id, Has_Private_Component (Def_Id));
+         Set_Depends_On_Private (Def_Id, Is_Incompletely_Defined (Def_Id));
          Set_Corresponding_Record_Type (Def_Id,
            Constrain_Corresponding_Record (Def_Id, T_Val, Related_Nod));
 
@@ -15011,7 +15012,7 @@ package body Sem_Ch3 is
            (T_Sub, Related_Nod, Corr_Rec, Discriminant_Constraint (T_Sub));
       end if;
 
-      Set_Depends_On_Private      (T_Sub, Has_Private_Component (T_Sub));
+      Set_Depends_On_Private      (T_Sub, Is_Incompletely_Defined (T_Sub));
 
       if Ekind (Scope (Prot_Subt)) /= E_Record_Type then
          Conditional_Delay (T_Sub, Corr_Rec);
@@ -15838,7 +15839,7 @@ package body Sem_Ch3 is
       Set_Is_Volatile_Full_Access (T1, Is_Volatile_Full_Access (T2));
       Set_Treat_As_Volatile       (T1, Treat_As_Volatile       (T2));
       Set_Is_Constrained          (T1, Is_Constrained          (T2));
-      Set_Depends_On_Private      (T1, Has_Private_Component   (T2));
+      Set_Depends_On_Private      (T1, Is_Incompletely_Defined (T2));
       Inherit_Rep_Item_Chain      (T1,                          T2);
       Set_Convention              (T1, Convention              (T2));
       Set_Is_Limited_Composite    (T1, Is_Limited_Composite    (T2));
@@ -18235,7 +18236,7 @@ package body Sem_Ch3 is
 
       elsif (Is_Incomplete_Or_Private_Type (Parent_Type)
               and then not Comes_From_Generic (Parent_Type))
-        or else Has_Private_Component (Parent_Type)
+        or else Is_Incompletely_Defined (Parent_Type)
       then
          --  The ancestor type of a formal type can be incomplete, in which
          --  case only the operations of the partial view are available in the
@@ -18247,7 +18248,7 @@ package body Sem_Ch3 is
             null;
 
          elsif No (Underlying_Type (Parent_Type))
-           or else Has_Private_Component (Parent_Type)
+           or else Is_Incompletely_Defined (Parent_Type)
          then
             Error_Msg_N
               ("premature derivation of derived or private type", Indic);

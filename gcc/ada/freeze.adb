@@ -9419,7 +9419,7 @@ package body Freeze is
             Check_Fully_Declared (Typ, N);
 
             if Error_Posted (N) then
-               if Has_Private_Component (Typ)
+               if Is_Incompletely_Defined (Typ)
                  and then not Is_Private_Type (Typ)
                then
                   Error_Msg_NE ("\\type& has private component", N, Typ);

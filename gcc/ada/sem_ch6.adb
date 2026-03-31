@@ -9471,7 +9471,7 @@ package body Sem_Ch6 is
               (Formal_Typ, Incomplete_View_From_Limited_With (Result_Subt));
             Set_Etype (Formal_Typ, Formal_Typ);
             Set_Depends_On_Private
-              (Formal_Typ, Has_Private_Component (Formal_Typ));
+              (Formal_Typ, Is_Incompletely_Defined (Formal_Typ));
             Set_Is_Public (Formal_Typ, Is_Public (Scope (Formal_Typ)));
             Set_Is_Access_Constant (Formal_Typ, False);
 

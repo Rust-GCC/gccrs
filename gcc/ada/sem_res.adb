@@ -1821,7 +1821,7 @@ package body Sem_Res is
                      Orig_Type := Type_In_P (Is_Composite_Type'Access);
 
                      if Present (Orig_Type) then
-                        if Has_Private_Component (Orig_Type) then
+                        if Is_Incompletely_Defined (Orig_Type) then
                            Orig_Type := Empty;
                         else
                            Set_Etype (Act1, Orig_Type);

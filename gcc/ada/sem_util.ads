@@ -1621,10 +1621,6 @@ package Sem_Util is
    function Has_Prefix (N : Node_Id) return Boolean;
    --  Return True if N has attribute Prefix
 
-   function Has_Private_Component (Type_Id : Entity_Id) return Boolean;
-   --  Check if a type has a (sub)component of a private type that has not
-   --  yet received a full declaration.
-
    function Has_Relaxed_Initialization (E : Entity_Id) return Boolean;
    --  Returns True iff entity E is subject to the Relaxed_Initialization
    --  aspect. Entity E can be either type, variable, constant, subprogram or
@@ -2258,6 +2254,11 @@ package Sem_Util is
    function Is_In_Context_Clause (N : Node_Id) return Boolean;
    --  Returns True if N appears within the context clause of a unit, and False
    --  for any other placement.
+
+   function Is_Incompletely_Defined (Type_Id : Entity_Id) return Boolean;
+   --  Returns True iff Type_Id is incompletely defined. See RM 3.11.1 (8) for
+   --  the definition of "completely defined". Note that "incompletely defined"
+   --  is also used in the Ada RM, for example in RM 12.5.1 (1/5).
 
    function Is_Independent_Object (N : Node_Id) return Boolean;
    --  Determine whether arbitrary node N denotes a reference to an independent

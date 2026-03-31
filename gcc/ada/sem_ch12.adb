@@ -15785,7 +15785,7 @@ package body Sem_Ch12 is
             Act_T := Full_View (Act_T);
             Set_Entity (Actual, Act_T);
 
-            if Has_Private_Component (Act_T) then
+            if Is_Incompletely_Defined (Act_T) then
                Error_Msg_N
                  ("premature use of type with private component", Actual);
             end if;
@@ -15803,7 +15803,7 @@ package body Sem_Ch12 is
          then
             Error_Msg_N ("premature use of private type", Actual);
 
-         elsif Has_Private_Component (Act_T) then
+         elsif Is_Incompletely_Defined (Act_T) then
             Error_Msg_N
               ("premature use of type with private component", Actual);
          end if;
