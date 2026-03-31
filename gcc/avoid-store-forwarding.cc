@@ -420,20 +420,34 @@ process_store_forwarding (vec<store_fwd_info> &stores, rtx_insn *load_insn,
       stores.ordered_remove (move_to_front);
     }
 
-  if (load_elim)
+  machine_mode outer_mode = GET_MODE (SET_DEST (load));
+  if (load_elim || outer_mode != load_mem_mode)
     {
-      machine_mode outer_mode = GET_MODE (SET_DEST (load));
-      rtx load_move;
-      rtx load_value = dest;
+      /* If the load is being eliminated, emit a move (with extension if
+	 needed) from the temp register to the original load destination.
+	 Otherwise, if the load has SIGN_EXTEND or ZERO_EXTEND wrapping
+	 the MEM, the bit insert sequence may have modified bits that
+	 affect the extension (e.g. the sign bit), so re-apply it.  */
+      rtx move_src;
       if (outer_mode != load_mem_mode)
 	{
-	  load_value = simplify_gen_unary (GET_CODE (SET_SRC (load)),
-					   outer_mode, dest, load_mem_mode);
+	  rtx ext_op = dest;
+	  if (!load_elim)
+	    {
+	      ext_op = lowpart_subreg (load_mem_mode, dest, outer_mode);
+	      if (!ext_op)
+		return false;
+	    }
+	  move_src = simplify_gen_unary (GET_CODE (SET_SRC (load)),
+					 outer_mode, ext_op, load_mem_mode);
 	}
-      load_move = gen_rtx_SET (SET_DEST (load), load_value);
+      else
+	move_src = dest;
+
+      rtx move = gen_rtx_SET (SET_DEST (load), move_src);
 
       start_sequence ();
-      rtx_insn *insn = emit_insn (load_move);
+      rtx_insn *insn = emit_insn (move);
       rtx_insn *seq = end_sequence ();
 
       if (recog_memoized (insn) < 0)
