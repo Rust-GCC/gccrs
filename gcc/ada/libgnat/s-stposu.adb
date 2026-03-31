@@ -41,8 +41,10 @@ use  System.Storage_Pools.Subpools.Finalization;
 
 package body System.Storage_Pools.Subpools is
 
-   procedure Attach (N : not null SP_Node_Ptr; L : not null SP_Node_Ptr);
-   --  Attach a subpool node to a pool
+   procedure Attach
+     (Subpool : not null Subpool_Handle;
+      Pool    : in out Root_Storage_Pool_With_Subpools'Class);
+   --  Attach a subpool to a pool
 
    -----------------------------------
    -- Adjust_Controlled_Dereference --
@@ -140,13 +142,10 @@ package body System.Storage_Pools.Subpools is
             Subpool := Named_Subpool;
          end if;
 
-         --  Ensure proper ownership and chaining of the subpool
+         --  Ensure proper ownership
 
          if Subpool.Owner /=
               Root_Storage_Pool_With_Subpools'Class (Pool)'Unchecked_Access
-           or else Subpool.Node = null
-           or else Subpool.Node.Prev = null
-           or else Subpool.Node.Next = null
          then
             raise Program_Error with "incorrect owner of subpool";
          end if;
@@ -258,18 +257,23 @@ package body System.Storage_Pools.Subpools is
    -- Attach --
    ------------
 
-   procedure Attach (N : not null SP_Node_Ptr; L : not null SP_Node_Ptr) is
+   procedure Attach
+     (Subpool : not null Subpool_Handle;
+      Pool    : in out Root_Storage_Pool_With_Subpools'Class)
+   is
    begin
-      --  Ensure that the node has not been attached already
+      --  Ensure that the subpool has not been attached already
 
-      pragma Assert (N.Prev = null and then N.Next = null);
+      pragma Assert (Subpool.Prev = null and then Subpool.Next = null);
 
       Lock_Task.all;
 
-      L.Next.Prev := N;
-      N.Next := L.Next;
-      L.Next := N;
-      N.Prev := L;
+      if Pool.Subpools /= null then
+         Pool.Subpools.Prev := Subpool;
+         Subpool.Next := Pool.Subpools;
+      end if;
+
+      Pool.Subpools := Subpool;
 
       Unlock_Task.all;
 
@@ -363,18 +367,25 @@ package body System.Storage_Pools.Subpools is
    -- Detach --
    ------------
 
-   procedure Detach (N : not null SP_Node_Ptr) is
+   procedure Detach
+     (Subpool : not null Subpool_Handle;
+      Pool    : in out Root_Storage_Pool_With_Subpools'Class)
+   is
    begin
-      --  Ensure that the node is attached to some list
-
-      pragma Assert (N.Next /= null and then N.Prev /= null);
-
       Lock_Task.all;
 
-      N.Prev.Next := N.Next;
-      N.Next.Prev := N.Prev;
-      N.Prev := null;
-      N.Next := null;
+      if Subpool.Prev /= null then
+         Subpool.Prev.Next := Subpool.Next;
+      else
+         Pool.Subpools := Subpool.Next;
+      end if;
+
+      if Subpool.Next /= null then
+         Subpool.Next.Prev := Subpool.Prev;
+      end if;
+
+      Subpool.Prev := null;
+      Subpool.Next := null;
 
       Unlock_Task.all;
 
@@ -396,22 +407,9 @@ package body System.Storage_Pools.Subpools is
    -------------------
 
    procedure Finalize_Pool (Pool : in out Root_Storage_Pool_With_Subpools) is
-      Curr_Ptr : SP_Node_Ptr;
       Ex_Occur : Exception_Occurrence;
-      Handle   : Subpool_Handle;
       Raised   : Boolean := False;
-
-      function Is_Empty_List (L : not null SP_Node_Ptr) return Boolean;
-      --  Determine whether a list contains only one element, the dummy head
-
-      -------------------
-      -- Is_Empty_List --
-      -------------------
-
-      function Is_Empty_List (L : not null SP_Node_Ptr) return Boolean is
-      begin
-         return L.Next = L and then L.Prev = L;
-      end Is_Empty_List;
+      Subpool  : Subpool_Handle;
 
    --  Start of processing for Finalize_Pool
 
@@ -430,16 +428,12 @@ package body System.Storage_Pools.Subpools is
 
       Pool.Finalization_Started := True;
 
-      while not Is_Empty_List (Pool.Subpools'Unchecked_Access) loop
-         Curr_Ptr := Pool.Subpools.Next;
-
-         --  Finalize and deallocate the subpool. Beware that the node pointed
-         --  to by Curr_Ptr will be deallocated so may not be passed as actual
-         --  in the call, since the formal parameter is In Out.
+      while Pool.Subpools /= null loop
+         --  Finalize and deallocate the subpool
 
          begin
-            Handle := Curr_Ptr.Subpool;
-            Finalize_And_Deallocate (Handle);
+            Subpool := Pool.Subpools;
+            Finalize_And_Deallocate (Subpool);
 
          exception
             when Fin_Occur : others =>
@@ -481,27 +475,6 @@ package body System.Storage_Pools.Subpools is
       end if;
    end Header_Size_With_Padding;
 
-   ----------------
-   -- Initialize --
-   ----------------
-
-   overriding procedure Initialize (Controller : in out Pool_Controller) is
-   begin
-      Initialize_Pool (Controller.Enclosing_Pool.all);
-   end Initialize;
-
-   ---------------------
-   -- Initialize_Pool --
-   ---------------------
-
-   procedure Initialize_Pool (Pool : in out Root_Storage_Pool_With_Subpools) is
-   begin
-      --  The dummy head must point to itself in both directions
-
-      Pool.Subpools.Next := Pool.Subpools'Unchecked_Access;
-      Pool.Subpools.Prev := Pool.Subpools'Unchecked_Access;
-   end Initialize_Pool;
-
    ---------------------
    -- Pool_Of_Subpool --
    ---------------------
@@ -519,100 +492,29 @@ package body System.Storage_Pools.Subpools is
    ----------------
 
    procedure Print_Pool (Pool : Root_Storage_Pool_With_Subpools) is
-      Head      : constant SP_Node_Ptr := Pool.Subpools'Unrestricted_Access;
-      Head_Seen : Boolean := False;
-      SP_Ptr    : SP_Node_Ptr;
-
    begin
       --  Output the contents of the pool
 
       --    Pool      : 0x123456789
       --    Subpools  : 0x123456789
       --    Fin_Start : TRUE <or> FALSE
-      --    Controller: OK <or> NOK
+      --    Controller: OK <or> ERROR
 
       Put ("Pool      : ");
       Put_Line (Address_Image (Pool'Address));
 
       Put ("Subpools  : ");
-      Put_Line (Address_Image (Pool.Subpools'Address));
+      Put_Line (Pool.Subpools'Img);
 
       Put ("Fin_Start : ");
       Put_Line (Pool.Finalization_Started'Img);
 
-      Put ("Controlled: ");
+      Put ("Controller: ");
       if Pool.Controller.Enclosing_Pool = Pool'Unrestricted_Access then
          Put_Line ("OK");
       else
-         Put_Line ("NOK (ERROR)");
+         Put_Line ("ERROR");
       end if;
-
-      SP_Ptr := Head;
-      while SP_Ptr /= null loop  --  Should never be null
-         Put_Line ("V");
-
-         --  We see the head initially; we want to exit when we see the head a
-         --  second time.
-
-         if SP_Ptr = Head then
-            exit when Head_Seen;
-
-            Head_Seen := True;
-         end if;
-
-         --  The current element is null. This should never happend since the
-         --  list is circular.
-
-         if SP_Ptr.Prev = null then
-            Put_Line ("null (ERROR)");
-
-         --  The current element points back to the correct element
-
-         elsif SP_Ptr.Prev.Next = SP_Ptr then
-            Put_Line ("^");
-
-         --  The current element points to an erroneous element
-
-         else
-            Put_Line ("? (ERROR)");
-         end if;
-
-         --  Output the contents of the node
-
-         Put ("|Header: ");
-         Put (Address_Image (SP_Ptr.all'Address));
-         if SP_Ptr = Head then
-            Put_Line (" (dummy head)");
-         else
-            Put_Line ("");
-         end if;
-
-         Put ("|  Prev: ");
-
-         if SP_Ptr.Prev = null then
-            Put_Line ("null");
-         else
-            Put_Line (Address_Image (SP_Ptr.Prev.all'Address));
-         end if;
-
-         Put ("|  Next: ");
-
-         if SP_Ptr.Next = null then
-            Put_Line ("null");
-         else
-            Put_Line (Address_Image (SP_Ptr.Next.all'Address));
-         end if;
-
-         Put ("|  Subp: ");
-
-         if SP_Ptr.Subpool = null then
-            Put_Line ("null");
-         else
-            Put_Line (Address_Image (SP_Ptr.Subpool.all'Address));
-         end if;
-
-         SP_Ptr := SP_Ptr.Next;
-      end loop;
    end Print_Pool;
 
    -------------------
@@ -630,30 +532,20 @@ package body System.Storage_Pools.Subpools is
 
       --    Owner     : 0x123456789
       --    Collection: 0x123456789
-      --    Node      : 0x123456789
+      --    Prev      : 0x123456789
+      --    Next      : 0x123456789
 
-      Put ("Owner : ");
-      if Subpool.Owner = null then
-         Put_Line ("null");
-      else
-         Put_Line (Address_Image (Subpool.Owner'Address));
-      end if;
+      Put ("Owner     : ");
+      Put_Line (Subpool.Owner'Img);
 
       Put ("Collection: ");
       Put_Line (Address_Image (Subpool.Collection'Address));
 
-      Put ("Node  : ");
-      if Subpool.Node = null then
-         Put ("null");
+      Put ("Prev      : ");
+      Put_Line (Subpool.Prev'Img);
 
-         if Subpool.Owner = null then
-            Put_Line (" OK");
-         else
-            Put_Line (" (ERROR)");
-         end if;
-      else
-         Put_Line (Address_Image (Subpool.Node'Address));
-      end if;
+      Put ("Next      : ");
+      Put_Line (Subpool.Next'Img);
    end Print_Subpool;
 
    -------------------------
@@ -664,8 +556,6 @@ package body System.Storage_Pools.Subpools is
      (Subpool : not null Subpool_Handle;
       To      : in out Root_Storage_Pool_With_Subpools'Class)
    is
-      N_Ptr : SP_Node_Ptr;
-
    begin
       --  If the subpool is already owned, raise Program_Error. This is a
       --  direct violation of the RM rules.
@@ -684,15 +574,7 @@ package body System.Storage_Pools.Subpools is
 
       Subpool.Owner := To'Unchecked_Access;
 
-      --  Create a subpool node and decorate it. Since this node is not
-      --  allocated on the owner's pool, it must be explicitly destroyed by
-      --  Finalize_And_Detach.
-
-      N_Ptr := new SP_Node;
-      N_Ptr.Subpool := Subpool;
-      Subpool.Node := N_Ptr;
-
-      Attach (N_Ptr, To.Subpools'Unchecked_Access);
+      Attach (Subpool, To);
    end Set_Pool_Of_Subpool;
 
    -------------------

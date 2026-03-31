@@ -75,10 +75,9 @@ package System.Storage_Pools.Subpools is
       Size_In_Storage_Elements : System.Storage_Elements.Storage_Count;
       Alignment                : System.Storage_Elements.Storage_Count;
       Subpool                  : not null Subpool_Handle) is abstract;
+   --  The precondition specified in the RM is illegal:
+   --  with Pre'Class => Pool_Of_Subpool (Subpool) = Pool'Access;
 
-   --  ??? This precondition causes errors in simple tests, disabled for now
-
-   --      with Pre'Class => Pool_Of_Subpool (Subpool) = Pool'Access;
    --  This routine requires implementation. Allocate an object described by
    --  Size_In_Storage_Elements and Alignment on a subpool.
 
@@ -99,7 +98,7 @@ package System.Storage_Pools.Subpools is
      (Pool    : in out Root_Storage_Pool_With_Subpools;
       Subpool : in out Subpool_Handle)
    is abstract;
-   --  This precondition causes errors in simple tests, disabled for now???
+   --  The precondition specified in the RM is illegal:
    --  with Pre'Class => Pool_Of_Subpool (Subpool) = Pool'Access;
 
    --  This routine requires implementation. Reclaim the storage a particular
@@ -144,9 +143,6 @@ package System.Storage_Pools.Subpools is
    --  of Ada.Containers.Bounded_Indefinite_Holders.
 
 private
-   --  SP_Nodes are created on the heap, while collection nodes and associated
-   --  objects are created on the pool_with_subpools.
-
    type Any_Storage_Pool_With_Subpools_Ptr
      is access all Root_Storage_Pool_With_Subpools'Class;
    for Any_Storage_Pool_With_Subpools_Ptr'Storage_Size use 0;
@@ -157,40 +153,12 @@ private
    type Pool_Controller (Enclosing_Pool : Any_Storage_Pool_With_Subpools_Ptr)
      is new Ada.Finalization.Limited_Controlled with null record;
 
-   --  Subpool list types. Each pool_with_subpools contains a list of subpools.
-   --  This is an indirect doubly linked list since subpools are not supposed
-   --  to be allocatable by language design.
-
-   type SP_Node;
-   type SP_Node_Ptr is access all SP_Node;
-
-   type SP_Node is record
-      Prev    : SP_Node_Ptr := null;
-      Next    : SP_Node_Ptr := null;
-      Subpool : Subpool_Handle := null;
-   end record;
-
-   --  Root_Storage_Pool_With_Subpools internal structure. The type uses a
-   --  special controller to perform initialization and finalization actions
-   --  on itself. This is necessary because the end user of this package may
-   --  decide to override Initialize and Finalize, thus disabling the desired
-   --  behavior.
-
-   --          Pool_With_Subpools     SP_Node    SP_Node    SP_Node
-   --    +-->+--------------------+   +-----+    +-----+    +-----+
-   --    |   |      Subpools -------->|  ------->|  ------->|  ------->
-   --    |   +--------------------+   +-----+    +-----+    +-----+
-   --    |   |Finalization_Started|   :     :    :     :    :     :
-   --    |   +--------------------+
-   --    +--- Controller.Encl_Pool|
-   --        +--------------------+
-   --        :       End-user     :
-   --        :      components    :
+   --  Root_Storage_Pool_With_Subpools internal structure
 
    type Root_Storage_Pool_With_Subpools is abstract
      new Root_Storage_Pool with
    record
-      Subpools : aliased SP_Node;
+      Subpools : Subpool_Handle := null;
       --  A doubly linked list of subpools
 
       Finalization_Started : Boolean := False;
@@ -205,32 +173,7 @@ private
       --  finalized at the appropriate places.
    end record;
 
-   --  A subpool is an abstraction layer which sits on top of a pool. It
-   --  contains links to all controlled objects allocated on a particular
-   --  subpool.
-
-   --             Pool_With_Subpools     SP_Node    SP_Node    SP_Node
-   --       +-->+--------------------+   +-----+    +-----+    +-----+
-   --       |   |      Subpools -------->|  ------->|  ------->|  ------->
-   --       |   +--------------------+   +-----+    +-----+    +-----+
-   --       |   |Finalization_Started|<------  |<-------  |<-------  |<---
-   --       |   +--------------------+   +-----+    +-----+    +-----+
-   --       +--- Controller.Encl_Pool|   | nul |    |  +  |    |  +  |
-   --       |   +--------------------+   +-----+    +--|--+    +--:--+
-   --       |   :                    :    Dummy        |  ^       :
-   --       |   :                    :                 |  |       :
-   --       |                            Root_Subpool  V  |
-   --       |                            +-------------+  |
-   --       +-------------------------------- Owner    |  |
-   --                Collection nodes    +-------------+  |
-   --               +-----+   +-----+<-- | Collection  |
-   --            <------  |<------  |    +-------------+  |
-   --               +-----+   +-----+    |    Node -------+
-   --               |  ------>|  ----->  +-------------+
-   --               +-----+   +-----+    :             :
-   --               |ctrl |    Dummy     :             :
-   --               | obj |
-   --               +-----+
+   --  Root_Subpool internal structure
 
    type Root_Subpool is abstract tagged limited record
       Owner : Any_Storage_Pool_With_Subpools_Ptr := null;
@@ -239,10 +182,40 @@ private
       Collection : aliased Finalization_Primitives.Finalization_Collection;
       --  A collection of controlled objects
 
-      Node : SP_Node_Ptr := null;
-      --  A link to the doubly linked list node which contains the subpool.
-      --  This back pointer is used in subpool deallocation.
+      Prev : Subpool_Handle := null;
+      Next : Subpool_Handle := null;
+      --  Links for the doubly linked list which contains the subpool
    end record;
+
+   --  The subpool is an abstraction layer that sits on top of a pool and
+   --  contains links to all controlled objects allocated on this subpool.
+   --
+   --             Pool_With_Subpools
+   --       +-->+--------------------+
+   --       |   |      Subpools ---------------+
+   --       |   +--------------------+         |
+   --       |   |Finalization_Started|         |
+   --       |   +--------------------+         |
+   --       +--- Controller.Encl_Pool|         |
+   --       |   +--------------------+         V
+   --       |   :                    :       Subpool           Subpool
+   --       |                            +-------------+   +-------------+
+   --       +--------------------------<----- Owner    | <----- Owner    |
+   --                                    +-------------+   +-------------+
+   --                  +---------------- | Collection  |   | Collection  |
+   --                  |                 +-------------+   +-------------+
+   --                  |                 |    Prev     | <----  Prev     |
+   --                  |                 |    Next ------> |    Next ------>
+   --                  V                 +-------------+   +-------------+
+   --                Node      Node      :             :   :             :
+   --               +-----+   +-----+
+   --            <------  |<------  |
+   --               +-----+   +-----+
+   --               |  ------>|  ----->
+   --               +-----+   +-----+
+   --                Dummy    |ctrl |
+   --                         | obj |
+   --                         +-----+
 
    procedure Adjust_Controlled_Dereference
      (Addr         : in out System.Address;
@@ -316,8 +289,10 @@ private
    --    * Is_Controlled - A flag which determines whether the allocated object
    --    is controlled. When set to True, the address must be displaced.
 
-   procedure Detach (N : not null SP_Node_Ptr);
-   --  Unhook a subpool node from an arbitrary subpool list
+   procedure Detach
+     (Subpool : not null Subpool_Handle;
+      Pool    : in out Root_Storage_Pool_With_Subpools'Class);
+   --  Detach a subpool from a pool
 
    overriding procedure Finalize (Controller : in out Pool_Controller);
    --  Buffer routine, calls Finalize_Pool
@@ -333,12 +308,6 @@ private
    --  Given an arbitrary alignment, calculate the size of the header which
    --  precedes a controlled object as the nearest multiple rounded up of the
    --  alignment.
-
-   overriding procedure Initialize (Controller : in out Pool_Controller);
-   --  Buffer routine, calls Initialize_Pool
-
-   procedure Initialize_Pool (Pool : in out Root_Storage_Pool_With_Subpools);
-   --  Setup the doubly linked list of subpools
 
    procedure Print_Pool (Pool : Root_Storage_Pool_With_Subpools);
    --  Debug routine, output the contents of a pool_with_subpools

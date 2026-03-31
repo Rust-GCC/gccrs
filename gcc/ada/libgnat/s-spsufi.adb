@@ -29,8 +29,6 @@
 --                                                                          --
 ------------------------------------------------------------------------------
 
-with Ada.Unchecked_Deallocation;
-
 with System.Finalization_Primitives; use System.Finalization_Primitives;
 
 package body System.Storage_Pools.Subpools.Finalization is
@@ -40,50 +38,35 @@ package body System.Storage_Pools.Subpools.Finalization is
    -----------------------------
 
    procedure Finalize_And_Deallocate (Subpool : in out Subpool_Handle) is
-      procedure Free is new Ada.Unchecked_Deallocation (SP_Node, SP_Node_Ptr);
-
    begin
       --  Do nothing if the subpool was never created or never used. The latter
       --  case may arise with an array of subpool implementations.
 
-      if Subpool = null
-        or else Subpool.Owner = null
-        or else Subpool.Node = null
-      then
+      if Subpool = null or else Subpool.Owner = null then
          return;
       end if;
 
-      --  Clean up all controlled objects chained on the subpool's collection
+      --  Finalize all the objects chained on the subpool's collection
 
       Finalize (Subpool.Collection);
 
       --  Remove the subpool from its owner's list of subpools
 
-      Detach (Subpool.Node);
+      Detach (Subpool, Subpool.Owner.all);
 
-      --  Destroy the associated doubly linked list node which was created in
-      --  Set_Pool_Of_Subpools.
+      --  Dispatch to the user-defined implementation of Deallocate_Subpool
 
-      Free (Subpool.Node);
+      Deallocate_Subpool (Subpool.Owner.all, Subpool);
 
-      --  Dispatch to the user-defined implementation of Deallocate_Subpool. It
-      --  is important to first set Subpool.Owner to null, because RM-13.11.5
-      --  requires that "The subpool no longer belongs to any pool" BEFORE
-      --  calling Deallocate_Subpool. The actual dispatching call required is:
-      --
-      --     Deallocate_Subpool(Pool_Of_Subpool(Subpool).all, Subpool);
-      --
-      --  but that can't be taken literally, because Pool_Of_Subpool will
-      --  return null.
+      --  The subpool ceases to belong to any pool. Note that ACATS cdb4001
+      --  sets Subpool to null on exit from Deallocate_Subpool, but it is also
+      --  possible for the designated subpool object to be reused and, then,
+      --  the next call to Set_Pool_Of_Subpool must succeed.
 
-      declare
-         Owner : constant Any_Storage_Pool_With_Subpools_Ptr := Subpool.Owner;
-      begin
+      if Subpool /= null then
          Subpool.Owner := null;
-         Deallocate_Subpool (Owner.all, Subpool);
-      end;
-
-      Subpool := null;
+         Subpool := null;
+      end if;
    end Finalize_And_Deallocate;
 
 end System.Storage_Pools.Subpools.Finalization;
