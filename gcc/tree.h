@@ -6001,6 +6001,9 @@ extern int get_range_pos_neg (tree, gimple * = NULL);
 /* Return true for a valid pair of new and delete operators.  */
 extern bool valid_new_delete_pair_p (tree, tree, bool * = NULL);
 
+/* Return whether the second argument is a subtree of the first one.  */
+extern bool find_tree (tree, tree);
+
 /* Return simplified tree code of type that is used for canonical type
    merging.  */
 inline enum tree_code

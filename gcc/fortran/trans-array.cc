@@ -3520,20 +3520,37 @@ save_ref (tree &code, tree &ref, vec<tree> &replacement_roots)
 }
 
 
+/* If REF isn't shared with code in PREVIOUS_CODE, replace it with a fresh
+   variable in all of REPLACEMENT_ROOTS, appending extra code to CODE.  */
+
+static void
+maybe_save_ref (tree &code, tree &ref, vec<tree> &replacement_roots,
+		stmtblock_t *previous_code)
+{
+  if (find_tree (previous_code->head, ref))
+    return;
+
+  save_ref (code, ref, replacement_roots);
+}
+
+
 /* Save the descriptor reference VALUE to storage pointed by DESC_PTR.  Before
-   that, try to factor subexpressions of VALUE to variables, adding extra code
-   to BLOCK.
+   that, try to create fresh variables to factor subexpressions of VALUE, if
+   those subexpressions aren't shared with code in PRELIMINARY_CODE.  Add any
+   necessary additional code (initialization of variables typically) to BLOCK.
 
    The candidate references to factoring are dereferenced pointers because they
    are cheap to copy and array descriptors because they are often the base of
    multiple subreferences.  */
 
 static void
-set_factored_descriptor_value (tree *desc_ptr, tree value, stmtblock_t *block)
+set_factored_descriptor_value (tree *desc_ptr, tree value, stmtblock_t *block,
+			       stmtblock_t *preliminary_code)
 {
   /* As the reference is processed from outer to inner, variable definitions
      will be generated in reversed order, so can't be put directly in BLOCK.
-     We use TMP_BLOCK instead.  */
+     We use temporary blocks instead, which we save in ACCUMULATED_CODE, and
+     only append to BLOCK at the end.  */
   tree accumulated_code = NULL_TREE;
 
   /* The current candidate to factoring.  */
@@ -3572,7 +3589,8 @@ set_factored_descriptor_value (tree *desc_ptr, tree value, stmtblock_t *block)
 		     previous reference to save wasn't the current one, do save
 		     it now.  Otherwise drop it as we prefer saving the
 		     pointer.  */
-		  save_ref (accumulated_code, saveable_ref, replacement_roots);
+		  maybe_save_ref (accumulated_code, saveable_ref,
+				  replacement_roots, preliminary_code);
 		}
 
 	      /* Don't evaluate the pointer to a variable yet; do it only if the
@@ -3602,7 +3620,8 @@ set_factored_descriptor_value (tree *desc_ptr, tree value, stmtblock_t *block)
 
 	  if (saveable_ref != NULL_TREE)
 	    /* We have seen a reference worth saving.  Do it now.  */
-	    save_ref (accumulated_code, saveable_ref, replacement_roots);
+	    maybe_save_ref (accumulated_code, saveable_ref, replacement_roots,
+			    preliminary_code);
 
 	  if (TREE_CODE (data_ref) != ARRAY_REF)
 	    break;
@@ -3635,8 +3654,12 @@ gfc_conv_ss_descriptor (stmtblock_t * block, gfc_ss * ss, int base)
   gfc_init_se (&se, NULL);
   se.descriptor_only = 1;
   gfc_conv_expr_lhs (&se, ss_info->expr);
+  stmtblock_t tmp_block;
+  gfc_init_block (&tmp_block);
+  set_factored_descriptor_value (&info->descriptor, se.expr, &tmp_block,
+				 &se.pre);
   gfc_add_block_to_block (block, &se.pre);
-  set_factored_descriptor_value (&info->descriptor, se.expr, block);
+  gfc_add_block_to_block (block, &tmp_block);
   ss_info->string_length = se.string_length;
   ss_info->class_container = se.class_container;
 

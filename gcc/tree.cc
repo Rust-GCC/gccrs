@@ -15298,6 +15298,26 @@ verify_type_context (location_t loc, type_context_kind context,
 	  || targetm.verify_type_context (loc, context, type, silent_p));
 }
 
+/* Callback of walk_tree telling whether the current tree pointed by TP is the
+   one provided as DATA.  */
+
+static tree
+find_tree_1 (tree *tp, int *walk_subtrees ATTRIBUTE_UNUSED, void *data)
+{
+  if (*tp == data)
+    return (tree) data;
+  else
+    return NULL;
+}
+
+/* Return whether SEARCH is a subtree of TOP.  */
+
+bool
+find_tree (tree top, tree search)
+{
+  return walk_tree_without_duplicates (&top, find_tree_1, search) != 0;
+}
+
 /* Return true if NEW_ASM and DELETE_ASM name a valid pair of new and
    delete operators.  Return false if they may or may not name such
    a pair and, when nonnull, set *PCERTAIN to true if they certainly
