@@ -2840,7 +2840,8 @@ assign_parm_adjust_stack_rtl (tree parm, struct assign_parm_data_one *data)
 						 MEM_ALIGN (stack_parm))))
 	  || (data->nominal_type
 	      && TYPE_ALIGN (data->nominal_type) > MEM_ALIGN (stack_parm)
-	      && (MEM_ALIGN (stack_parm) < PREFERRED_STACK_BOUNDARY
+	      && ((MEM_ALIGN (stack_parm)
+		   < MIN (BIGGEST_ALIGNMENT, MAX_SUPPORTED_STACK_ALIGNMENT))
 		  /* If its address is taken, make a local copy whose
 		     maximum alignment is MAX_SUPPORTED_STACK_ALIGNMENT.
 		   */
