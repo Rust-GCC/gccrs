@@ -13595,9 +13595,7 @@ package body Sem_Prag is
                                           & "in pragma % "
                                           & "must be static"),
                                        Expr);
-                                 end if;
-
-                                 if Is_False (Expr_Value (Expr)) then
+                                 elsif Is_False (Expr_Value (Expr)) then
                                     Is_Ghost := False;
 
                                     --  "Ghostness" cannot be turned off once
