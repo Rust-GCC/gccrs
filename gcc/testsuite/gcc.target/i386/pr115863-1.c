@@ -2,7 +2,7 @@
 /* { dg-do compile } */
 /* { dg-options "-O3 -fdump-rtl-expand-details" } */
 
-#include <stdint-gcc.h>
+#include <stdint.h>
 
 typedef struct z_stream_s {
     uint32_t     avail_out;
