@@ -423,8 +423,10 @@ compute_trims (ao_ref *ref, sbitmap live, int *trim_head, int *trim_tail,
      the bitmap extends through ref->max_size, so we know that in the original
      bitmap bits 0 .. ref->max_size were true.  But we need to check that this
      covers the bytes of REF exactly.  */
-  const unsigned int align = known_alignment (ref->offset);
-  if ((align > 0 && align < BITS_PER_UNIT)
+  const unsigned int offset_align = known_alignment (ref->offset);
+  const unsigned int size_align = known_alignment (ref->size);
+  if ((offset_align > 0 && offset_align < BITS_PER_UNIT)
+      || (size_align > 0 && size_align < BITS_PER_UNIT)
       || !known_eq (ref->size, ref->max_size))
     return;
 
