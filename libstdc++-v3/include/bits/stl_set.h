@@ -585,6 +585,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
        *  to the first is returned.
        *
        *  Insertion requires logarithmic time (if the hint is not taken).
+       *  @{
        */
       iterator
       insert(const_iterator __position, const value_type& __x)

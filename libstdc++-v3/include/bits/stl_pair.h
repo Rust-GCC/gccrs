@@ -101,9 +101,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   template<size_t...>
     struct _Index_tuple;
 
-  template<typename _Tp>
-    class complex;
-
   template<size_t _Int, class _Tp1, class _Tp2>
     constexpr typename tuple_element<_Int, pair<_Tp1, _Tp2>>::type&
     get(pair<_Tp1, _Tp2>& __in) noexcept;
@@ -153,6 +150,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     get(const array<_Tp, _Nm>&&) noexcept;
 
 #if __glibcxx_tuple_like >= 202311 // >= C++26
+  template<typename _Tp>
+    class complex;
+
   template<size_t _Int, typename _Tp>
     constexpr _Tp&
     get(complex<_Tp>&) noexcept;
@@ -233,7 +233,10 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       }
     };
 #endif // lib concepts
+  /// @endcond
 #endif // C++11
+
+  /// @cond undocumented
 
 #if __glibcxx_tuple_like // >= C++23
   template<typename _Tp>

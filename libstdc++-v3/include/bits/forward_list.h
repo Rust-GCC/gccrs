@@ -1461,7 +1461,7 @@ namespace __fwdlist
        *
        *  This function will insert copies of the data in the range
        *  `[ __first, __last)` into the %forward_list after the
-       *  location specified by `__pos.
+       *  location specified by `__pos`.
        *
        *  This operation is linear in the number of elements inserted and
        *  does not invalidate iterators and references.

@@ -1096,6 +1096,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
        *  is assigned from __obj.
        *
        *  Insertion requires logarithmic time.
+       *  @{
        */
       template <typename _Obj>
 	pair<iterator, bool>

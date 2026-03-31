@@ -2484,15 +2484,15 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     const size_t aligned_union<_Len, _Types...>::alignment_value;
 #pragma GCC diagnostic pop
 
-  /// @cond undocumented
-
+  // Decay trait for arrays and functions, used for perfect forwarding
+  // in make_pair, make_tuple, etc.
 #if _GLIBCXX_USE_BUILTIN_TRAIT(__decay)
   template<typename _Tp>
     struct decay
     { using type = __decay(_Tp); };
 #else
-  // Decay trait for arrays and functions, used for perfect forwarding
-  // in make_pair, make_tuple, etc.
+  /// @cond undocumented
+
   template<typename _Up>
     struct __decay_selector
     : __conditional_t<is_const<const _Up>::value, // false for functions
