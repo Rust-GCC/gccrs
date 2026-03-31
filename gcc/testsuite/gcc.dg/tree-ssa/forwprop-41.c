@@ -12,6 +12,6 @@ vector int g(vector int a, int c)
   return a;
 }
 
-/* { dg-final { scan-tree-dump-times "BIT_INSERT_EXPR" 1 "optimized" { xfail s390_mvx } } } Xfail PR114802 */
-/* { dg-final { scan-tree-dump-times "BIT_FIELD_REF" 0 "optimized" { xfail s390_mvx } } } Xfail PR114802 */
+/* { dg-final { scan-tree-dump-times "BIT_INSERT_EXPR" 1 "optimized" { xfail { arm_mve || s390_mvx } } } } Xfail PR114802 */
+/* { dg-final { scan-tree-dump-times "BIT_FIELD_REF" 0 "optimized" { xfail { arm_mve || s390_mvx } } } } Xfail PR114802 */
 /* { dg-final { scan-tree-dump-times "VEC_PERM_EXPR" 0 "optimized" } } */
