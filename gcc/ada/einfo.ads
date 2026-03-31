@@ -3041,10 +3041,10 @@ package Einfo is
 --       about them.
 
 --    Is_Limited_Composite
---       Defined in all entities. Set for composite types that have a limited
---       component. Used to enforce the rule that operations on the composite
---       type that depend on the full view of the component do not become
---       visible until the immediate scope of the composite type itself
+--       Defined in types and subtypes. Set for composite types that have a
+--       limited component. Used to enforce the rule that operations on the
+--       composite type that depend on the full view of the component do not
+--       become visible until the immediate scope of the composite type itself
 --       (RM 7.3.1 (5)).
 
 --    Is_Limited_Interface
