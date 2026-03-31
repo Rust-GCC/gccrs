@@ -5799,7 +5799,7 @@ eval_data_member_spec (location_t loc, const constexpr_ctx *ctx,
 	    {
 	      if (len >= 64)
 		XDELETEVEC (namep);
-	      if (j == 1)
+	      if (j == 2)
 		return throw_exception (loc, ctx,
 					"conversion from ordinary literal "
 					"encoding to source charset "
