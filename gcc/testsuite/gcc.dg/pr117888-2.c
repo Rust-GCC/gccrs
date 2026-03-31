@@ -1,5 +1,6 @@
 /* { dg-do compile } */
 /* { dg-options "-O3 -funroll-loops -fno-tree-vectorize -fdump-tree-cunroll-details" } */
+/* { dg-additional-options "-msse2" { target x86 } } */
 
 typedef struct {
   double real;
