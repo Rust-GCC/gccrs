@@ -4254,6 +4254,8 @@ write_reflection (tree refl)
       write_char ('_');
       if (integer_nonzerop (TREE_VEC_ELT (arg, 4)))
 	write_char ('n');
+      for (int i = 5; i < TREE_VEC_LENGTH (arg); ++i)
+	write_template_arg (REFLECT_EXPR_HANDLE (TREE_VEC_ELT (arg, i)));
     }
 }
 

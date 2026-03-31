@@ -63,6 +63,7 @@ namespace NS2 {
   };
   struct Z {
   };
+  struct AA { int a, b; };
 }
 
 constexpr auto ctx = std::meta::access_context::current ();
@@ -165,6 +166,11 @@ baz (int x)
   bar <332, data_member_spec (^^unsigned short, { .name = "b", .bit_width = 5 })> (); // data member description
   bar <333, data_member_spec (^^long, { .bit_width = 3 })> (); // data member description
   bar <334, data_member_spec (^^int, { .bit_width = 0 })> (); // data member description
+  bar <335, std::meta::data_member_spec (^^int,
+					 { .name = "_",
+					   .annotations = { std::meta::reflect_constant (42),
+							    std::meta::reflect_constant (43L),
+							    std::meta::reflect_constant (NS2::AA { 1, 2 }) } })> (); // data member description
   bar <340, ^^NS2::X::~X> (); // function
 }
 
@@ -250,4 +256,5 @@ baz (int x)
 // { dg-final { scan-assembler "_Z3barILi332ELDmdst_1b__5_EEvv" } }
 // { dg-final { scan-assembler "_Z3barILi333ELDmdsl___3_EEvv" } }
 // { dg-final { scan-assembler "_Z3barILi334ELDmdsi___0_EEvv" } }
+// { dg-final { scan-assembler "_Z3barILi335ELDmdsi_1____Li42ELl43EXtlN3NS22AAELi1ELi2EEEEEvv" } }
 // { dg-final { scan-assembler "_Z3barILi340ELDmfnN3NS21XD4EvEEvv" } }

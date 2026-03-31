@@ -427,6 +427,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       optional<int> alignment;
       optional<int> bit_width;
       bool no_unique_address = false;
+      vector<info> annotations;
     };
     consteval info data_member_spec(info, data_member_options);
     consteval bool is_data_member_spec(info);

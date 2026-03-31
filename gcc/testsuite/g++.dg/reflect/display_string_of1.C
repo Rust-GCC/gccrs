@@ -115,10 +115,11 @@ foo (int a, const long b, T c, int d[4], T &e)
   static_assert (display_string_of (^^NSAlias) == "NSAlias");
   static_assert (display_string_of (^^NS) == "NS");
   static_assert (display_string_of (bases_of (^^S, ctx)[0]) == "S: B");
-  static_assert (display_string_of (data_member_spec (^^int, { .name = "member", .alignment = 128, .no_unique_address = true })) == "(int, member, 128, , true)");
-  static_assert (display_string_of (data_member_spec (^^const int, { .name = "member", .bit_width = 6 })) == "(const int, member, , 6, false)");
-  static_assert (display_string_of (data_member_spec (^^int, { .bit_width = 0 })) == "(int, , , 0, false)");
-  static_assert (display_string_of (data_member_spec (^^long, { .bit_width = 5 })) == "(long int, , , 5, false)");
+  static_assert (display_string_of (data_member_spec (^^int, { .name = "member", .alignment = 128, .no_unique_address = true })) == "(int, member, 128, , true, {})");
+  static_assert (display_string_of (data_member_spec (^^const int, { .name = "member", .bit_width = 6 })) == "(const int, member, , 6, false, {})");
+  static_assert (display_string_of (data_member_spec (^^int, { .bit_width = 0 })) == "(int, , , 0, false, {})");
+  static_assert (display_string_of (data_member_spec (^^long, { .bit_width = 5 })) == "(long int, , , 5, false, {})");
+  static_assert (display_string_of (data_member_spec (^^int, { .name = "_", .annotations = { reflect_constant (42), reflect_constant (42.5) }})) == "(int, _, , , false, {42, 4.25e+1})");
   static_assert (display_string_of (annotations_of (^^bar)[0]) == "[[=1]]");
   static_assert (display_string_of (annotations_of (^^bar)[1]) == "[[=AN{1, 42, ' '}]]");
   static_assert (display_string_of (^^int) == "int");
