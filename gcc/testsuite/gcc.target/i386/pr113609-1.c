@@ -9,9 +9,9 @@
 /* { dg-final { scan-assembler-times "\[ \\t\]+sete" 1 { target { ia32 } } } } */
 /* { dg-final { scan-assembler-times "\[ \\t\]+setne" 1 { target { ia32 } } } } */
 /* { dg-final { scan-assembler-times "\[ \\t\]+je" 1 { target { ia32 } } } } */
-/* { dg-final { scan-assembler-times "\[ \\t\]+jne" 2 { target { ia32 } } } } */
+/* { dg-final { scan-assembler-times "\[ \\t\]+jne" 1 { target { ia32 } } } } */
 /* { dg-final { scan-assembler-times "kortest" 12 { target { ia32 } } } } */
-/* { dg-final { scan-assembler-times "kortest" 17 { target { ! ia32 } } } } */
+/* { dg-final { scan-assembler-times "kortest" 16 { target { ! ia32 } } } } */
 
 #include <immintrin.h>
 
