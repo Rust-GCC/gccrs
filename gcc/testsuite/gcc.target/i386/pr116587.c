@@ -1,4 +1,5 @@
 /* { dg-do compile } */
+/* { dg-require-effective-target fpic } */
 /* { dg-options "-O2 -fPIC -mstackrealign -mavx512f -fharden-control-flow-redundancy -fno-omit-frame-pointer -mbmi -fkeep-gc-roots-live" } */
 
 typedef __UINT64_TYPE__ a;
