@@ -71,3 +71,15 @@ namespace O
     return a;						// { dg-error "invalid initialization of reference of type" }
   }
 }
+
+struct X {
+  struct Y {
+    int foo ();
+  };
+};
+
+typename [: current_class () == ^^X ? ^^int : ^^:: :]	// { dg-error "uncaught exception of type 'std::meta::exception'; 'what\\\(\\\)': 'current scope does not represent a class nor a member function'" }
+X::Y::foo ()						// { dg-error "expected unqualified-id before 'typename'" "" { target *-*-* } .-1 }
+{
+  return 0;
+}

@@ -38,6 +38,11 @@ struct V : U
   info v = current_function ();
 };
 
+struct W : T
+{
+  info w = current_function ();
+};
+
 void
 bar ()
 {
@@ -45,6 +50,7 @@ bar ()
   static_assert (foo (^^foo) == ^^foo);
   static_assert (foo () == ^^bar);
   static_assert (T {}.t == ^^bar);
+  static_assert (is_constructor (T ().t) && parent_of (T ().t) == ^^T);
   consteval {
     static_assert (current_function () == ^^bar);
     consteval {
@@ -74,3 +80,14 @@ baz ()
 }
 
 static_assert (baz ());
+
+consteval void
+fred ()
+{
+  constexpr W w;
+  static_assert (is_constructor (w.t) && parent_of (w.t) == ^^T);
+  static_assert (is_constructor (w.w) && parent_of (w.w) == ^^W);
+  constexpr W wb {};
+  static_assert (wb.t == ^^fred);
+  static_assert (wb.w == ^^fred);
+}

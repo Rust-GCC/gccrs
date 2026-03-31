@@ -146,6 +146,8 @@ namespace O
   {
     return a;
   }
+  int bar ();
+  int baz ();
 }
 
 consteval bool
@@ -154,6 +156,18 @@ can_do_via (info r)
   try { access_context::current ().via (r); }
   catch (std::meta::exception &) { return false; }
   return true;
+}
+
+typename [: access_context::current ().scope () == ^^:: ? ^^int : ^^:: :]
+O::bar ()
+{
+  return 0;
+}
+
+auto
+O::baz () -> typename [: access_context::current ().scope () == ^^O ? ^^int : ^^:: :]
+{
+  return 0;
 }
 
 struct W;

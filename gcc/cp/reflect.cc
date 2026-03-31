@@ -6356,6 +6356,9 @@ reflect_current_scope (location_t loc, const constexpr_ctx *ctx, tree call,
 	}
       if (current_class_type)
 	scope = current_class_type;
+      /* If we have been pushed into a different namespace, use it.  */
+      else if (!vec_safe_is_empty (decl_namespace_list))
+	scope = decl_namespace_list->last ();
       else if (current_namespace)
 	scope = current_namespace;
       else

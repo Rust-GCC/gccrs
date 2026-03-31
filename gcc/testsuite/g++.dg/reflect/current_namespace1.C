@@ -90,4 +90,19 @@ namespace Q
   {
     return a;
   }
+
+  int bar ();
+  int baz ();
+}
+
+typename [: current_namespace () == ^^:: ? ^^int : ^^:: :]
+Q::bar ()
+{
+  return 0;
+}
+
+auto
+Q::baz () -> typename [: current_namespace () == ^^Q ? ^^int : ^^:: :]
+{
+  return 0;
 }

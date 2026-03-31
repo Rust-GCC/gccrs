@@ -68,3 +68,16 @@ bar ()
     static_assert (parent_of (current_class ()) == ^^bar);
   };
 }
+
+struct X {
+  struct Y {
+    int foo ();
+  };
+};
+
+auto
+X::Y::foo ()
+-> typename [: current_class () == ^^Y ? ^^int : ^^:: :]
+{
+  return 0;
+}
