@@ -3142,14 +3142,59 @@ build_entry_thunks (gfc_namespace * ns, bool global)
       tmp = build_int_cst (gfc_array_index_type, el->id);
       vec_safe_push (args, tmp);
 
-      if (thunk_sym->attr.function)
+      /* When the master returns by reference, pass the result reference
+	 and (for CHARACTER) the string length to the master call.  If the
+	 thunk itself also returns by reference these are forwarded from
+	 its own argument list; otherwise (bind(c) CHARACTER entry) we
+	 create local temporaries and load the value after the call.  */
+      tree result_ref = NULL_TREE;
+      if (thunk_sym->attr.function
+	  && gfc_return_by_reference (ns->proc_name))
 	{
-	  if (gfc_return_by_reference (ns->proc_name))
+	  if (gfc_return_by_reference (thunk_sym))
 	    {
 	      tree ref = DECL_ARGUMENTS (current_function_decl);
 	      vec_safe_push (args, ref);
 	      if (ns->proc_name->ts.type == BT_CHARACTER)
 		vec_safe_push (args, DECL_CHAIN (ref));
+	    }
+	  else
+	    {
+	      /* The thunk is bind(c) and returns CHARACTER by value, but
+		 the master returns by reference.  Create a local buffer
+		 and length to pass to the master call.  */
+	      tree chartype = gfc_get_char_type (thunk_sym->ts.kind);
+	      tree len;
+
+	      if (thunk_sym->ts.u.cl && thunk_sym->ts.u.cl->length)
+		{
+		  gfc_se se;
+		  gfc_init_se (&se, NULL);
+		  gfc_conv_expr (&se, thunk_sym->ts.u.cl->length);
+		  gfc_add_block_to_block (&body, &se.pre);
+		  len = se.expr;
+		  gfc_add_block_to_block (&body, &se.post);
+		}
+	      else
+		len = build_int_cst (gfc_charlen_type_node, 1);
+
+	      result_ref = build_decl (input_location, VAR_DECL,
+				       get_identifier ("__entry_result"),
+				       build_array_type (chartype,
+					 build_range_type (gfc_array_index_type,
+					   gfc_index_one_node,
+					   fold_convert (gfc_array_index_type,
+							 len))));
+	      DECL_ARTIFICIAL (result_ref) = 1;
+	      TREE_USED (result_ref) = 1;
+	      DECL_CONTEXT (result_ref) = current_function_decl;
+	      layout_decl (result_ref, 0);
+	      pushdecl (result_ref);
+
+	      vec_safe_push (args,
+			     build_fold_addr_expr_loc (input_location,
+						       result_ref));
+	      vec_safe_push (args, len);
 	    }
 	}
 
@@ -3197,7 +3242,24 @@ build_entry_thunks (gfc_namespace * ns, bool global)
       vec_safe_splice (args, string_args);
       tmp = ns->proc_name->backend_decl;
       tmp = build_call_expr_loc_vec (input_location, tmp, args);
-      if (ns->proc_name->attr.mixed_entry_master)
+      if (result_ref != NULL_TREE)
+	{
+	  /* The master returns by reference (void) but the bind(c) thunk
+	     returns CHARACTER by value.  Execute the master call, then
+	     load the first character from the local buffer.  */
+	  gfc_add_expr_to_block (&body, tmp);
+	  tmp = build4_loc (input_location, ARRAY_REF,
+			    TREE_TYPE (TREE_TYPE (result_ref)),
+			    result_ref, gfc_index_one_node,
+			    NULL_TREE, NULL_TREE);
+	  tmp = fold_convert (TREE_TYPE (DECL_RESULT (current_function_decl)),
+			      tmp);
+	  tmp = fold_build2_loc (input_location, MODIFY_EXPR,
+			     TREE_TYPE (DECL_RESULT (current_function_decl)),
+			     DECL_RESULT (current_function_decl), tmp);
+	  tmp = build1_v (RETURN_EXPR, tmp);
+	}
+      else if (ns->proc_name->attr.mixed_entry_master)
 	{
 	  tree union_decl, field;
 	  tree master_type = TREE_TYPE (ns->proc_name->backend_decl);
