@@ -2,7 +2,7 @@
 // { dg-do compile }
 // { dg-require-effective-target c++17 }
 // { dg-require-effective-target vect_double }
-// { dg-options "-O3 -fdump-tree-vect-all" }
+// { dg-additional-options "-O3 -fdump-tree-vect-all" }
 // { dg-skip-if "required hosted libstdc++ for cmath and iostream" { ! hostedlib } }
 
 #include <cstdlib>
