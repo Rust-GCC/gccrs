@@ -10155,6 +10155,15 @@ cp_parser_reflect_expression (cp_parser *parser)
 	 ^^B <int> is a type alias though.  */
       if (TYPE_P (t) && !type_alias_p)
 	t = strip_typedefs (t);
+      /* [expr.reflect] If the type-id designates a placeholder type, R is
+	 ill-formed.  This check is here rather than in get_reflection so
+	 that we don't wrongly error for a return-type-requirement which is
+	 represented as a constrained auto.  */
+      if (is_auto (t))
+	{
+	  error_at (loc, "%<^^%> cannot be applied to a placeholder type");
+	  return error_mark_node;
+	}
       return get_reflection (loc, t);
     }
   /* Try an id-expression.  */

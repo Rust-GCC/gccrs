@@ -123,16 +123,9 @@ get_reflection (location_t loc, tree t, reflect_kind kind/*=REFLECT_UNDEF*/)
 {
   STRIP_ANY_LOCATION_WRAPPER (t);
 
-  /* [expr.reflect] If the type-id designates a placeholder type, R is
-     ill-formed.  */
-  if (is_auto (t))
-    {
-      error_at (loc, "%<^^%> cannot be applied to a placeholder type");
-      return error_mark_node;
-    }
   /* Constant template parameters and pack-index-expressions cannot
      appear as operands of the reflection operator.  */
-  else if (PACK_INDEX_P (t))
+  if (PACK_INDEX_P (t))
     {
       error_at (loc, "%<^^%> cannot be applied to a pack index");
       return error_mark_node;
