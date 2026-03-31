@@ -29794,12 +29794,19 @@ value_dependent_expression_p (tree expression)
 	   is enclosed by a scope corresponding to a templated entity.  */
 	if (flag_reflection
 	    && fn
-	    && metafunction_p (fn)
-	    && id_equal (DECL_NAME (fn), "current")
-	    && DECL_CLASS_SCOPE_P (fn)
-	    && id_equal (TYPE_IDENTIFIER (DECL_CONTEXT (fn)),
-			 "access_context"))
-	  return true;
+	    && metafunction_p (fn))
+	  {
+	    if (id_equal (DECL_NAME (fn), "current")
+		&& DECL_CLASS_SCOPE_P (fn)
+		&& id_equal (TYPE_IDENTIFIER (DECL_CONTEXT (fn)),
+			     "access_context"))
+	      return true;
+	    /* Similarly for these 3 metafns.  */
+	    if (id_equal (DECL_NAME (fn), "current_function")
+		|| id_equal (DECL_NAME (fn), "current_class")
+		|| id_equal (DECL_NAME (fn), "current_namespace"))
+	      return true;
+	  }
 
 	return false;
       }

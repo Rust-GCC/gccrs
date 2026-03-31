@@ -342,6 +342,11 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     consteval bool has_inaccessible_bases(info, access_context);
     consteval bool has_inaccessible_subobjects(info, access_context);
 
+    // [meta.reflection.scope], scope identification
+    consteval info current_function();
+    consteval info current_class();
+    consteval info current_namespace();
+
     // [meta.reflection.member.queries], reflection member queries
     consteval vector<info> members_of(info, access_context);
     consteval vector<info> bases_of(info, access_context);

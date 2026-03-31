@@ -2195,6 +2195,9 @@ export namespace std
     using std::meta::has_inaccessible_nonstatic_data_members;
     using std::meta::has_inaccessible_bases;
     using std::meta::has_inaccessible_subobjects;
+    using std::meta::current_function;
+    using std::meta::current_class;
+    using std::meta::current_namespace;
     using std::meta::members_of;
     using std::meta::bases_of;
     using std::meta::static_data_members_of;

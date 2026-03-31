@@ -6239,11 +6239,11 @@ eval_reflect_constant_array (location_t loc, const constexpr_ctx *ctx,
   return get_reflection_raw (loc, decl);
 }
 
-/* Process std::meta::access_context::current.  */
+/* Return CURRENT-SCOPE(P).  */
 
 static tree
-eval_access_context_current (location_t loc, const constexpr_ctx *ctx,
-			     tree call, bool *non_constant_p)
+reflect_current_scope (location_t loc, const constexpr_ctx *ctx, tree call,
+		       bool *non_constant_p, const char *name)
 {
   tree scope = cxx_constexpr_caller (ctx);
   /* Ignore temporary current_function_decl changes caused by
@@ -6262,8 +6262,8 @@ eval_access_context_current (location_t loc, const constexpr_ctx *ctx,
 	  /* Outside of functions limit this to manifestly constant-evaluation
 	     so that we don't fold it prematurely.  */
 	  if (!cxx_constexpr_quiet_p (ctx))
-	    error_at (loc, "%<access_context::current%> used outside of "
-			   "manifestly constant-evaluation");
+	    error_at (loc, "%qs used outside of manifestly constant-evaluation",
+		      name);
 	  *non_constant_p = true;
 	  return call;
 	}
@@ -6279,6 +6279,63 @@ eval_access_context_current (location_t loc, const constexpr_ctx *ctx,
 	 && (lam = CLASSTYPE_LAMBDA_EXPR (CP_DECL_CONTEXT (scope)))
 	 && LAMBDA_EXPR_CONSTEVAL_BLOCK_P (lam))
     scope = CP_TYPE_CONTEXT (CP_DECL_CONTEXT (scope));
+  return scope;
+}
+
+/* Process std::meta::current_function.  */
+
+static tree
+eval_current_function (location_t loc, const constexpr_ctx *ctx,
+		       tree call, bool *non_constant_p, tree *jump_target,
+		       tree fun)
+{
+  tree scope = reflect_current_scope (loc, ctx, call, non_constant_p,
+				      "std::meta::current_function");
+  if (TREE_CODE (scope) != FUNCTION_DECL)
+    throw_exception (loc, ctx, "current scope does not represent a function",
+		     fun, non_constant_p, jump_target);
+  return get_reflection_raw (loc, scope);
+}
+
+/* Process std::meta::current_class.  */
+
+static tree
+eval_current_class (location_t loc, const constexpr_ctx *ctx,
+		    tree call, bool *non_constant_p, tree *jump_target,
+		    tree fun)
+{
+  tree scope = reflect_current_scope (loc, ctx, call, non_constant_p,
+				      "std::meta::current_class");
+  if (TREE_CODE (scope) == FUNCTION_DECL
+      && DECL_CONTEXT (scope)
+      && TYPE_P (DECL_CONTEXT (scope)))
+    scope = DECL_CONTEXT (scope);
+  if (!CLASS_TYPE_P (scope))
+    throw_exception (loc, ctx, "current scope does not represent a class"
+			       " nor a member function",
+		     fun, non_constant_p, jump_target);
+  return get_reflection_raw (loc, scope);
+}
+
+/* Process std::meta::current_namespace.  */
+
+static tree
+eval_current_namespace (location_t loc, const constexpr_ctx *ctx,
+			tree call, bool *non_constant_p)
+{
+  tree scope = reflect_current_scope (loc, ctx, call, non_constant_p,
+				      "std::meta::current_namespace");
+  return get_reflection_raw (loc, decl_namespace_context (scope));
+}
+
+/* Process std::meta::access_context::current.  */
+
+static tree
+eval_access_context_current (location_t loc, const constexpr_ctx *ctx,
+			     tree call, bool *non_constant_p)
+{
+  tree scope = reflect_current_scope (loc, ctx, call, non_constant_p,
+				      "std::meta::access_context::current");
   tree access_context = TREE_TYPE (call);
   if (TREE_CODE (access_context) != RECORD_TYPE)
     {
@@ -7693,6 +7750,14 @@ process_metafunction (const constexpr_ctx *ctx, tree fun, tree call,
       return eval_has_inaccessible_subobjects (loc, ctx, h, expr, call,
 					       non_constant_p, jump_target,
 					       fun);
+    case METAFN_CURRENT_FUNCTION:
+      return eval_current_function (loc, ctx, call, non_constant_p,
+				    jump_target, fun);
+    case METAFN_CURRENT_CLASS:
+      return eval_current_class (loc, ctx, call, non_constant_p,
+				 jump_target, fun);
+    case METAFN_CURRENT_NAMESPACE:
+      return eval_current_namespace (loc, ctx, call, non_constant_p);
     case METAFN_MEMBERS_OF:
       return eval_members_of (loc, ctx, h, expr, call, non_constant_p,
 			      jump_target, fun);
