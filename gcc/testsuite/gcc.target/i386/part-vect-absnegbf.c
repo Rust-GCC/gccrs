@@ -1,4 +1,4 @@
-/* { dg-do run } */
+/* { dg-do run { target sse2_runtime } } */
 /* { dg-options "-O1 -fdump-tree-vect-details -fdump-tree-slp-details -fdump-tree-optimized -msse2" } */
 
 extern void abort (void);
