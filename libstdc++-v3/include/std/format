@@ -195,7 +195,7 @@ namespace __format
       = basic_format_string<wchar_t, type_identity_t<_Args>...>;
 #endif
 
-#if __cpp_lib_format >= 202311L // >= C++26
+#if __cpp_lib_format >= 202603L // >= C++26
   [[__gnu__::__always_inline__]]
   inline __format::_Dynamic_format_string<char>
   dynamic_format(string_view __fmt) noexcept
