@@ -248,7 +248,6 @@ namespace __detail
    *  @brief A generalization of pointer arithmetic.
    *  @param  __i  An input iterator.
    *  @param  __n  The @a delta by which to change @p __i.
-   *  @return  Nothing.
    *
    *  This increments @p i by @p n.  For bidirectional and random access
    *  iterators, @p __n may be negative, in which case @p __i is decremented.

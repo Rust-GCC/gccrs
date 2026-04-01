@@ -403,7 +403,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
    *  @param  __first  A forward iterator.
    *  @param  __last   A forward iterator.
    *  @param  __x      The source value.
-   *  @return   Nothing.
    *
    *  Like std::fill, but does not require an initialized output range.
   */

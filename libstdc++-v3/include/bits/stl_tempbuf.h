@@ -159,7 +159,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   /**
    *  @brief The companion to get_temporary_buffer().
    *  @param  __p  A buffer previously allocated by get_temporary_buffer.
-   *  @return   None.
    *
    *  Frees the memory pointed to by __p.
    */

@@ -2531,7 +2531,6 @@ _GLIBCXX_END_INLINE_ABI_NAMESPACE(_V2)
    *  @param  __first   An iterator.
    *  @param  __middle  Another iterator.
    *  @param  __last    Another iterator.
-   *  @return  Nothing.
    *
    *  Merges two sorted and consecutive ranges, [__first,__middle) and
    *  [__middle,__last), and puts the result in [__first,__last).  The
@@ -2570,7 +2569,6 @@ _GLIBCXX_END_INLINE_ABI_NAMESPACE(_V2)
    *  @param  __middle  Another iterator.
    *  @param  __last    Another iterator.
    *  @param  __comp    A functor to use for comparisons.
-   *  @return  Nothing.
    *
    *  Merges two sorted and consecutive ranges, [__first,__middle) and
    *  [middle,last), and puts the result in [__first,__last).  The output will
@@ -3678,7 +3676,6 @@ _GLIBCXX_END_INLINE_ABI_NAMESPACE(_V2)
    *  @param  __first   A forward iterator.
    *  @param  __last    A forward iterator.
    *  @param  __g       A UniformRandomNumberGenerator (26.5.1.3).
-   *  @return  Nothing.
    *
    *  Reorders the elements in the range @p [__first,__last) using @p __g to
    *  provide random numbers.
@@ -4499,7 +4496,6 @@ _GLIBCXX_BEGIN_NAMESPACE_ALGO
    *  @ingroup mutating_algorithms
    *  @param  __first   A forward iterator.
    *  @param  __last    A forward iterator.
-   *  @return  Nothing.
    *
    *  Reorder the elements in the range `[__first, __last)` using a random
    *  distribution, so that every possible ordering of the sequence is
@@ -4565,7 +4561,6 @@ _GLIBCXX_BEGIN_NAMESPACE_ALGO
    *  @param  __first   A forward iterator.
    *  @param  __last    A forward iterator.
    *  @param  __rand    The RNG functor or function.
-   *  @return  Nothing.
    *
    *  Reorders the elements in the range `[__first, __last)` using `__rand`
    *  to provide a random distribution. Calling `__rand(N)` for a positive
@@ -4647,7 +4642,6 @@ _GLIBCXX_BEGIN_NAMESPACE_ALGO
    *  @param  __first   An iterator.
    *  @param  __middle  Another iterator.
    *  @param  __last    Another iterator.
-   *  @return  Nothing.
    *
    *  Sorts the smallest `(__middle - __first)` elements in the range
    *  `[first, last)` and moves them to the range `[__first, __middle)`. The
@@ -4686,7 +4680,6 @@ _GLIBCXX_BEGIN_NAMESPACE_ALGO
    *  @param  __middle  Another iterator.
    *  @param  __last    Another iterator.
    *  @param  __comp    A comparison functor.
-   *  @return  Nothing.
    *
    *  Sorts the smallest `(__middle - __first)` elements in the range
    *  `[__first, __last)` and moves them to the range `[__first, __middle)`.
@@ -4724,7 +4717,6 @@ _GLIBCXX_BEGIN_NAMESPACE_ALGO
    *  @param  __first   An iterator.
    *  @param  __nth     Another iterator.
    *  @param  __last    Another iterator.
-   *  @return  Nothing.
    *
    *  Rearranges the elements in the range `[__first, __last)` so that `*__nth`
    *  is the same element that would have been in that position had the
@@ -4764,7 +4756,6 @@ _GLIBCXX_BEGIN_NAMESPACE_ALGO
    *  @param  __nth     Another iterator.
    *  @param  __last    Another iterator.
    *  @param  __comp    A comparison functor.
-   *  @return  Nothing.
    *
    *  Rearranges the elements in the range `[__first, __last)` so that `*__nth`
    *  is the same element that would have been in that position had the
@@ -4802,7 +4793,6 @@ _GLIBCXX_BEGIN_NAMESPACE_ALGO
    *  @ingroup sorting_algorithms
    *  @param  __first   An iterator.
    *  @param  __last    Another iterator.
-   *  @return  Nothing.
    *
    *  Sorts the elements in the range `[__first, __last)` in ascending order,
    *  such that for each iterator `i` in the range `[__first, __last - 1)`,
@@ -4833,7 +4823,6 @@ _GLIBCXX_BEGIN_NAMESPACE_ALGO
    *  @param  __first   An iterator.
    *  @param  __last    Another iterator.
    *  @param  __comp    A comparison functor.
-   *  @return  Nothing.
    *
    *  Sorts the elements in the range `[__first, __last)` in ascending order,
    *  such that `__comp(*(i+1), *i)` is false for every iterator `i` in the
@@ -5028,7 +5017,6 @@ _GLIBCXX_BEGIN_NAMESPACE_ALGO
    *  @ingroup sorting_algorithms
    *  @param  __first   An iterator.
    *  @param  __last    Another iterator.
-   *  @return  Nothing.
    *
    *  Sorts the elements in the range @p [__first,__last) in ascending order,
    *  such that for each iterator @p i in the range @p [__first,__last-1),
@@ -5063,7 +5051,6 @@ _GLIBCXX_BEGIN_NAMESPACE_ALGO
    *  @param  __first   An iterator.
    *  @param  __last    Another iterator.
    *  @param  __comp    A comparison functor.
-   *  @return  Nothing.
    *
    *  Sorts the elements in the range @p [__first,__last) in ascending order,
    *  such that for each iterator @p i in the range @p [__first,__last-1),
