@@ -1,3 +1,7 @@
+@c Copyright (C) 1988-2026 Free Software Foundation, Inc.
+@c This is part of the GCC manual.
+@c For copying conditions, see the file gcc.texi.
+
 @node Spec Files
 @chapter Specifying Subprocesses and the Switches to Pass to Them
 @cindex Spec Files
