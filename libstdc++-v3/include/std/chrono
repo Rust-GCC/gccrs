@@ -301,12 +301,14 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	  { return utc_clock::to_sys(__t); }
       };
 
+    /// @cond undocumented
     template<typename _Tp, typename _Clock>
       inline constexpr bool __is_time_point_for_v = false;
 
     template<typename _Clock, typename _Duration>
       inline constexpr bool
        __is_time_point_for_v<time_point<_Clock, _Duration>, _Clock> = true;
+    /// @endcond
 
     // Conversions between system_clock and other clocks
 
@@ -517,6 +519,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
     inline constexpr last_spec last{};
 
+    /// @cond undocumented
     namespace __detail
     {
       // Helper to __add_modulo and __sub_modulo.
@@ -564,7 +567,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
       inline constexpr unsigned __days_per_month[12]
 	= { 31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
-    }
+    } // namespace __detail
+    /// @endcond
 
     // DAY
 
@@ -1438,6 +1442,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
     // YEAR_MONTH
 
+    /// @cond undocumented
     namespace __detail
     {
       // [time.cal.ym], [time.cal.ymd], etc constrain the 'months'-based
@@ -1454,6 +1459,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       // 'years'.
       using __months_years_conversion_disambiguator = void;
     }
+    /// @endcond
 
     class year_month
     {
@@ -2489,14 +2495,17 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
     // 12/24 HOURS FUNCTIONS
 
+    /// True if a `chrono::hours` value represents a time before midday.
     constexpr bool
     is_am(const hours& __h) noexcept
     { return 0h <= __h && __h <= 11h; }
 
+    /// True if a `chrono::hours` value represents a time after midday.
     constexpr bool
     is_pm(const hours& __h) noexcept
     { return 12h <= __h && __h <= 23h; }
 
+    /// Convert a 24-hour time into a 12-hour time.
     constexpr hours
     make12(const hours& __h) noexcept
     {
@@ -2507,6 +2516,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       return __h;
     }
 
+    /// Convert a 12-hour time and p.m. flag into a 24-hour time.
     constexpr hours
     make24(const hours& __h, bool __is_pm) noexcept
     {
@@ -2604,6 +2614,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	}
     };
 
+    /// @cond undocumented
     template<typename _Duration>
       [[noreturn]] void
       __throw_bad_local_time(const local_time<_Duration>& __tp,
@@ -2617,6 +2628,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	__builtin_abort();
 #endif
       }
+    /// @endcond
 
     enum class choose { earliest, latest };
 
@@ -3337,6 +3349,7 @@ namespace __detail
 
  namespace chrono {
 
+   /// @cond undocumented
    template<typename _T1, typename... _Ts>
      [[__gnu__::__always_inline__]]
      constexpr auto
@@ -3407,6 +3420,7 @@ namespace __detail
 	   return chrono::__int_hash(__res);
 	 }
      }
+   /// @endcond
  } // namespace chrono
 
   // duration
