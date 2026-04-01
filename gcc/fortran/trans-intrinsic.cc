@@ -9901,6 +9901,9 @@ conv_isocbinding_function (gfc_se *se, gfc_expr *expr)
   else if (expr->value.function.isym->id == GFC_ISYM_C_FUNLOC)
     {
       gfc_conv_expr_reference (se, arg->expr);
+      if (arg->expr->symtree->n.sym->attr.proc_pointer
+	  && arg->expr->symtree->n.sym->attr.dummy)
+	se->expr = build_fold_indirect_ref_loc (input_location, se->expr);
       /* The code below is necessary to create a reference from the calling
 	 subprogram to the argument of C_FUNLOC() in the call graph.
 	 Please see PR 117303 for more details. */
