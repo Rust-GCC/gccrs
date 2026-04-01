@@ -8884,7 +8884,7 @@ reflection_mangle_prefix (tree refl, char prefix[3])
     {
       if (h == global_namespace)
 	{
-	  strcpy (prefix, "ng");
+	  strcpy (prefix, "gs");
 	  return NULL_TREE;
 	}
       strcpy (prefix, "ns");

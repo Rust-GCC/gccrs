@@ -4145,11 +4145,11 @@ write_expression (tree expr)
 		  ::= co [ <prefix> ] <unqualified-name> # concept
 		  ::= na [ <prefix> ] <unqualified-name> # namespace alias
 		  ::= ns [ <prefix> ] <unqualified-name> # namespace
-		  ::= ng				# ^^::
+		  ::= gs				# ^^::
 		  ::= ba [ <nonnegative number> ] _ <type> # dir. base cls rel
 		  ::= ds <type> _ [ <unqualified-name> ] _
 		      [ <alignment number> ] _ [ <bit-width number> ] _
-		      [ n ]				# data member spec  */
+		      [ n ] [ <template-arg>* ]		# data member spec  */
 
 static void
 write_reflection (tree refl)

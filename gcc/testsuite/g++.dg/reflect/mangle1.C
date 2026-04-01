@@ -246,7 +246,7 @@ baz (int x)
 // { dg-final { scan-assembler "_Z3barILi291ELDmna3NS27NSAliasEEvv" } }
 // { dg-final { scan-assembler "_Z3barILi300ELDmns2NSEEvv" } }
 // { dg-final { scan-assembler "_Z3barILi301ELDmns3NS23NS3EEvv" } }
-// { dg-final { scan-assembler "_Z3barILi310ELDmngEEvv" } }
+// { dg-final { scan-assembler "_Z3barILi310ELDmgsEEvv" } }
 // { dg-final { scan-assembler "_Z3barILi320ELDmba_1SEEvv" } }
 // { dg-final { scan-assembler "_Z3barILi321ELDmba_N3NS21SEEEvv" } }
 // { dg-final { scan-assembler "_Z3barILi322ELDmba_N3NS21WIiEEEEvv" } }
