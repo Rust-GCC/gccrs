@@ -103,7 +103,7 @@ static const io_tag
 	tag_err		= {"ERR", " err =", " %l", BT_UNKNOWN},
 	tag_end		= {"END", " end =", " %l", BT_UNKNOWN},
 	tag_eor		= {"EOR", " eor =", " %l", BT_UNKNOWN},
-	tag_id		= {"ID", " id =", " %v", BT_INTEGER},
+	tag_id		= {"ID", " id =", " %e", BT_INTEGER},
 	tag_pending	= {"PENDING", " pending =", " %v", BT_LOGICAL},
 	tag_newunit	= {"NEWUNIT", " newunit =", " %v", BT_INTEGER},
 	tag_s_iqstream	= {"STREAM", " stream =", " %v", BT_CHARACTER};
@@ -4565,7 +4565,7 @@ match_inquire_element (gfc_inquire *inquire)
   RETM m = match_vtag (&tag_convert, &inquire->convert);
   RETM m = match_out_tag (&tag_strm_out, &inquire->strm_pos);
   RETM m = match_vtag (&tag_pending, &inquire->pending);
-  RETM m = match_vtag (&tag_id, &inquire->id);
+  RETM m = match_etag (&tag_id, &inquire->id);
   RETM m = match_vtag (&tag_s_iqstream, &inquire->iqstream);
   RETM m = match_dec_vtag (&tag_v_share, &inquire->share);
   RETM m = match_dec_vtag (&tag_v_cc, &inquire->cc);
