@@ -1996,6 +1996,7 @@ simplify_operand_subreg (int nop, machine_mode reg_mode)
 	   && REGNO (reg) >= FIRST_PSEUDO_REGISTER
 	   && paradoxical_subreg_p (operand)
 	   && (inner_hard_regno = lra_get_regno_hard_regno (REGNO (reg))) >= 0
+	   && hard_regno_nregs (inner_hard_regno, mode) > 1
 	   && ((hard_regno
 		= simplify_subreg_regno (inner_hard_regno, innermode,
 					 SUBREG_BYTE (operand), mode)) < 0
