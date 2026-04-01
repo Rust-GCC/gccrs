@@ -16234,8 +16234,24 @@ cost_plus:
     case GEU:
     case LE:
     case LEU:
-
-      return false; /* All arguments must be in registers.  */
+      {
+	op0 = XEXP (x, 0);
+	op1 = XEXP (x, 1);
+	machine_mode inner_mode = GET_MODE (op0);
+	*cost += rtx_cost (op0, inner_mode, code, 0, speed);
+	if (op1 != CONST0_RTX (inner_mode))
+	  {
+	    unsigned int vec_flags = aarch64_classify_vector_mode (mode);
+	    bool unsigned_p = code == LTU || code == LEU || code == GTU
+			      || code == GEU;
+	    if ((vec_flags & VEC_SVE_DATA) == 0
+		|| !aarch64_sve_cmp_immediate_p (op1, !unsigned_p))
+	      *cost += rtx_cost (op1, inner_mode, code, 1, speed);
+	    if (code == NE && (vec_flags & VEC_ADVSIMD))
+	      *cost += COSTS_N_INSNS (1);
+	  }
+	return true;
+      }
 
     case FMA:
       op0 = XEXP (x, 0);
