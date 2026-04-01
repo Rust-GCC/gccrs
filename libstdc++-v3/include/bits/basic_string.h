@@ -1331,7 +1331,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CXX11
       /**
        *  Equivalent to shrink_to_fit().
        */
-#if __cplusplus > 201703L
+#if __cplusplus >= 202002L
       [[deprecated("use shrink_to_fit() instead")]]
 #endif
       _GLIBCXX20_CONSTEXPR

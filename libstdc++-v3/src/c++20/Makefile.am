@@ -27,10 +27,19 @@ noinst_LTLIBRARIES = libc++20convenience.la
 
 headers =
 
+if ENABLE_DUAL_ABI
+extra_string_inst_sources = cow-string-inst.cc
+else
+extra_string_inst_sources =
+endif
+
+
 if ENABLE_EXTERN_TEMPLATE
 # XTEMPLATE_FLAGS = -fno-implicit-templates
 inst_sources = \
-	sstream-inst.cc
+	sstream-inst.cc \
+	string-inst.cc \
+	$(extra_string_inst_sources)
 else
 # XTEMPLATE_FLAGS =
 inst_sources =
@@ -39,6 +48,11 @@ endif
 sources = tzdb.cc format.cc atomic.cc clock.cc syncbuf.cc
 
 vpath % $(top_srcdir)/src/c++20
+
+if ENABLE_DUAL_ABI
+# These files should be rebuilt if the .cc prerequisite changes.
+cow-string-inst.lo cow-string-inst.o: string-inst.cc
+endif
 
 if USE_STATIC_TZDATA
 tzdata.zi.h: $(top_srcdir)/src/c++20/tzdata.zi

@@ -1080,7 +1080,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       reserve(size_type __res_arg);
 
       /// Equivalent to shrink_to_fit().
-#if __cplusplus > 201703L
+#if __cplusplus >= 202002L
       [[deprecated("use shrink_to_fit() instead")]]
 #endif
       void
@@ -3194,7 +3194,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	return __r;
       }
 
-#if __cplusplus > 201703L
+#if __cplusplus >= 202002L
       bool
       starts_with(basic_string_view<_CharT, _Traits> __x) const noexcept
       { return __sv_type(this->data(), this->size()).starts_with(__x); }
