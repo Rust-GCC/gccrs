@@ -1043,6 +1043,7 @@ INPUT                  = @srcdir@/doc/doxygen/doxygroups.cc \
                          include/concepts \
                          include/condition_variable \
                          include/deque \
+                         include/debugging \
                          include/expected \
                          include/filesystem \
                          include/flat_map \
@@ -1332,8 +1333,104 @@ EXCLUDE_PATTERNS       = stamp-* \
 
 # Note that the wildcards are matched against the file with absolute path, so to
 # exclude all test directories use the pattern */test/*
+# We exclude header guard macros, and all __glibcxx_want_feature_test_macro,
+# and a few other macros that we don't want documented.
+EXCLUDE_SYMBOLS        = \
+			 _GLIBCXX_GET_ENCODING_DATA \
+			 _GLIBCXX_CONSTEXPR_BAD_*_ACCESS \
+			 _GLIBCXX_GET_ENCODING_DATA \
+			 __glibcxx_want_* \
+			 _*_H \
+			 _*_TCC \
+			 __EXCEPTION__ \
+			 _COMPARE \
+			 _NEW \
+			 _TYPEINFO \
+			 _GLIBCXX_ALGORITHM \
+			 _GLIBCXX_ANY \
+			 _GLIBCXX_ARRAY \
+			 _GLIBCXX_ATOMIC \
+			 _GLIBCXX_BARRIER \
+			 _GLIBCXX_BIT \
+			 _GLIBCXX_BITSET \
+			 _GLIBCXX_CHARCONV \
+			 _GLIBCXX_CHRONO \
+			 _GLIBCXX_CODECVT \
+			 _GLIBCXX_COMPLEX \
+			 _GLIBCXX_CONCEPTS \
+			 _GLIBCXX_CONDITION_VARIABLE \
+			 _GLIBCXX_CONTRACTS \
+			 _GLIBCXX_COROUTINE \
+			 _GLIBCXX_DEBUGGING \
+			 _GLIBCXX_DEQUE \
+			 _GLIBCXX_EXECUTION \
+			 _GLIBCXX_EXPECTED \
+			 _GLIBCXX_FILESYSTEM \
+			 _GLIBCXX_FLAT_MAP \
+			 _GLIBCXX_FLAT_SET \
+			 _GLIBCXX_FORMAT \
+			 _GLIBCXX_FORWARD_LIST \
+			 _GLIBCXX_FSTREAM \
+			 _GLIBCXX_FUNCTIONAL \
+			 _GLIBCXX_FUTURE \
+			 _GLIBCXX_GENERATOR \
+			 _GLIBCXX_INPLACE_VECTOR \
+			 _GLIBCXX_IOMANIP \
+			 _GLIBCXX_IOS \
+			 _GLIBCXX_IOSFWD \
+			 _GLIBCXX_IOSTREAM \
+			 _GLIBCXX_ISTREAM \
+			 _GLIBCXX_ITERATOR \
+			 _GLIBCXX_LATCH \
+			 _GLIBCXX_NUMERIC_LIMITS \
+			 _GLIBCXX_LIST \
+			 _GLIBCXX_MAP \
+			 _GLIBCXX_MDSPAN \
+			 _GLIBCXX_MEMORY \
+			 _GLIBCXX_MEMORY_RESOURCE \
+			 _GLIBCXX_META \
+			 _GLIBCXX_MUTEX \
+			 _GLIBCXX_NUMBERS \
+			 _GLIBCXX_NUMERIC \
+			 _GLIBCXX_OPTIONAL \
+			 _GLIBCXX_OSTREAM \
+			 _GLIBCXX_PRINT \
+			 _GLIBCXX_QUEUE \
+			 _GLIBCXX_RANDOM \
+			 _GLIBCXX_RANGES \
+			 _GLIBCXX_RATIO \
+			 _GLIBCXX_REGEX \
+			 _SCOPED_ALLOCATOR \
+			 _GLIBCXX_SEMAPHORE \
+			 _GLIBCXX_SET \
+			 _GLIBCXX_SHARED_MUTEX \
+			 _GLIBCXX_SIMD \
+			 _GLIBCXX_SRCLOC \
+			 _GLIBCXX_SPAN \
+			 _GLIBCXX_SPANSTREAM \
+			 _GLIBCXX_SSTREAM \
+			 _GLIBCXX_STACK \
+			 _GLIBCXX_STACKTRACE \
+			 _GLIBCXX_STDEXCEPT \
+			 _GLIBCXX_STDFLOAT \
+			 _GLIBCXX_STOP_TOKEN \
+			 _GLIBXX_STREAMBUF \
+			 _GLIBCXX_STRING_VIEW \
+			 _GLIBCXX_SYNCSTREAM \
+			 _GLIBCXX_SYSTEM_ERROR \
+			 _GLIBCXX_TEXT_ENCODING \
+			 _GLIBCXX_THREAD \
+			 _GLIBCXX_TUPLE \
+			 _GLIBCXX_TYPE_TRAITS \
+			 _GLIBCXX_TYPEINDEX \
+			 _GLIBCXX_UNORDERED_MAP \
+			 _GLIBCXX_UNORDERED_SET \
+			 _GLIBCXX_UTILITY \
+			 _GLIBCXX_VALARRAY \
+			 _GLIBCXX_VARIANT \
+			 _GLIBCXX_VECTOR \
+			 _GLIBCXX_VERSION_INCLUDED \
 
-EXCLUDE_SYMBOLS        =
 
 # The EXAMPLE_PATH tag can be used to specify one or more files or directories
 # that contain example code fragments that are included (see the \include
@@ -2720,40 +2817,40 @@ INCLUDE_FILE_PATTERNS  =
 # recursively expanded use the := operator instead of the = operator.
 # This tag requires that the tag ENABLE_PREPROCESSING is set to YES.
 
-PREDEFINED             = __cplusplus=202002L \
+PREDEFINED             = __cplusplus=202603L \
                          __GTHREADS \
                          _GLIBCXX_HAS_GTHREADS \
                          _GTHREAD_USE_MUTEX_TIMEDLOCK \
                          _GLIBCXX_HAVE_TLS \
                          _GLIBCXX_INCLUDE_AS_CXX11 \
-                         "_GLIBCXX_PURE= " \
-                         "_GLIBCXX_CONST= " \
+                         "_GLIBCXX_PURE=" \
+                         "_GLIBCXX_CONST=" \
                          "_GLIBCXX_NODISCARD=[[nodiscard]]" \
-                         "_GLIBCXX_NORETURN= " \
-                         "_GLIBCXX_NOEXCEPT_PARM= " \
-                         "_GLIBCXX_NOEXCEPT_QUAL= " \
-                         "_GLIBCXX_STD_C= " \
-                         "_GLIBCXX_STD_A= " \
-                         "_GLIBCXX_TXN_SAFE_DYN= " \
-                         "_GLIBCXX_VISIBILITY(V)= " \
-                         "_GLIBCXX_BEGIN_NAMESPACE_VERSION= " \
-                         "_GLIBCXX_BEGIN_NAMESPACE_ALGO= " \
-                         "_GLIBCXX_BEGIN_NAMESPACE_CONTAINER= " \
-                         "_GLIBCXX_BEGIN_NAMESPACE_CXX11= " \
-                         "_GLIBCXX_BEGIN_NAMESPACE_LDBL= " \
-                         "_GLIBCXX_END_NAMESPACE_VERSION= " \
-                         "_GLIBCXX_END_NAMESPACE_ALGO= " \
-                         "_GLIBCXX_END_NAMESPACE_CONTAINER= " \
-                         "_GLIBCXX_END_NAMESPACE_CXX11= " \
-                         "_GLIBCXX_END_NAMESPACE_LDBL= " \
-			 "_GLIBCXX_BEGIN_INLINE_ABI_NAMESPACE(X)= " \
-			 "_GLIBCXX_END_INLINE_ABI_NAMESPACE(X)= " \
-                         "_GLIBCXX_TEMPLATE_ARGS=...  " \
-                         "_GLIBCXX_DEPRECATED= " \
-                         "_GLIBCXX_DEPRECATED_SUGGEST(E)= " \
+                         "_GLIBCXX_NORETURN=" \
+                         "_GLIBCXX_NOEXCEPT_PARM=" \
+                         "_GLIBCXX_NOEXCEPT_QUAL=" \
+                         "_GLIBCXX_STD_C=" \
+                         "_GLIBCXX_STD_A=" \
+                         "_GLIBCXX_TXN_SAFE_DYN=" \
+                         "_GLIBCXX_VISIBILITY(V)=" \
+                         "_GLIBCXX_BEGIN_NAMESPACE_VERSION=" \
+                         "_GLIBCXX_BEGIN_NAMESPACE_ALGO=" \
+                         "_GLIBCXX_BEGIN_NAMESPACE_CONTAINER=" \
+                         "_GLIBCXX_BEGIN_NAMESPACE_CXX11=" \
+                         "_GLIBCXX_BEGIN_NAMESPACE_LDBL=" \
+                         "_GLIBCXX_END_NAMESPACE_VERSION=" \
+                         "_GLIBCXX_END_NAMESPACE_ALGO=" \
+                         "_GLIBCXX_END_NAMESPACE_CONTAINER=" \
+                         "_GLIBCXX_END_NAMESPACE_CXX11=" \
+                         "_GLIBCXX_END_NAMESPACE_LDBL=" \
+			 "_GLIBCXX_BEGIN_INLINE_ABI_NAMESPACE(X)=" \
+			 "_GLIBCXX_END_INLINE_ABI_NAMESPACE(X)=" \
+                         "_GLIBCXX_TEMPLATE_ARGS=... " \
+                         "_GLIBCXX_DEPRECATED=" \
+                         "_GLIBCXX_DEPRECATED_SUGGEST(E)=" \
                          _GLIBCXX_CONSTEXPR=constexpr \
                          _GLIBCXX_USE_CONSTEXPR=constexpr \
-                         "_GLIBCXX_THROW(E)= " \
+                         "_GLIBCXX_THROW(E)=" \
                          _GLIBCXX_NOEXCEPT=noexcept \
                          "_GLIBCXX_NOEXCEPT_IF(C)=noexcept(/*conditional*/)" \
                          _GLIBCXX_NOTHROW=noexcept \
@@ -2780,29 +2877,30 @@ PREDEFINED             = __cplusplus=202002L \
                          ATOMIC_INT_LOCK_FREE=2 \
                          PB_DS_DATA_TRUE_INDICATOR \
                          PB_DS_STATIC_ASSERT=// \
-                         "_GLIBCXX_BEGIN_NAMESPACE_ALGO= " \
-                         "_GLIBCXX_END_NAMESPACE_ALGO= " \
+                         "_GLIBCXX_BEGIN_NAMESPACE_ALGO=" \
+                         "_GLIBCXX_END_NAMESPACE_ALGO=" \
                          __glibcxx_function_requires=// \
                          __glibcxx_class_requires=// \
                          __glibcxx_class_requires2=// \
                          __glibcxx_class_requires3=// \
                          __glibcxx_class_requires4=// \
-                         "__attribute__(X)= " \
+                         "__attribute__(X)=" \
                          _GLIBCXX14_CONSTEXPR=constexpr \
                          _GLIBCXX17_CONSTEXPR=constexpr \
                          _GLIBCXX20_CONSTEXPR=constexpr \
                          _GLIBCXX23_CONSTEXPR=constexpr \
-                         "_GLIBCXX11_DEPRECATED= " \
-                         "_GLIBCXX11_DEPRECATED_SUGGEST(E)= " \
-                         "_GLIBCXX17_DEPRECATED= " \
-                         "_GLIBCXX17_DEPRECATED_SUGGEST(E)= " \
-                         "_GLIBCXX20_DEPRECATED= " \
-                         "_GLIBCXX20_DEPRECATED_SUGGEST(E)= " \
-                         "_GLIBCXX23_DEPRECATED= " \
-                         "_GLIBCXX23_DEPRECATED_SUGGEST(E)= " \
+                         "_GLIBCXX11_DEPRECATED=" \
+                         "_GLIBCXX11_DEPRECATED_SUGGEST(E)=" \
+                         "_GLIBCXX17_DEPRECATED=" \
+                         "_GLIBCXX17_DEPRECATED_SUGGEST(E)=" \
+                         "_GLIBCXX20_DEPRECATED=" \
+                         "_GLIBCXX20_DEPRECATED_SUGGEST(E)=" \
+                         "_GLIBCXX23_DEPRECATED=" \
+                         "_GLIBCXX23_DEPRECATED_SUGGEST(E)=" \
                          _GLIBCXX17_INLINE=inline \
                          _GLIBCXX_CHRONO_INT64_T=int64_t \
                          _GLIBCXX_DEFAULT_ABI_TAG \
+			 _GLIBCXX_ABI_TAG_CXX11 \
                          _GLIBCXX_USE_DEPRECATED \
                          _GLIBCXX_HOSTED \
                          "__has_builtin(x)=1" \
@@ -2814,6 +2912,7 @@ PREDEFINED             = __cplusplus=202002L \
 			 _GLIBCXX_HAVE_ICONV=1 \
 			 "_GLIBCXX_DOXYGEN_ONLY(X)=X " \
 			 __exception_ptr=__unspecified__ \
+
 
 # If the MACRO_EXPANSION and EXPAND_ONLY_PREDEF tags are set to YES then this
 # tag can be used to specify a list of macro names that should be expanded. The
