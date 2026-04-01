@@ -292,10 +292,10 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   /// @endcond
 
  /**
-   *  @brief Struct holding two objects of arbitrary type.
+  *  @brief Struct holding two objects (or references) of arbitrary type.
    *
-   *  @tparam _T1  Type of first object.
-   *  @tparam _T2  Type of second object.
+   *  @tparam _T1  Type of the `first` member.
+   *  @tparam _T2  Type of the `second` member.
    *
    *  <https://gcc.gnu.org/onlinedocs/libstdc++/manual/utilities.html>
    *
