@@ -37,11 +37,9 @@ package Exp_Ch9 is
    --  protected subprogram.
 
    procedure Build_Activation_Chain_Entity (N : Node_Id);
-   --  Given a declaration N of an object that is a task, or contains tasks
-   --  (other than allocators to tasks) this routine ensures that an activation
-   --  chain has been declared in the appropriate scope, building the required
-   --  declaration for the chain variable if not. The name of this variable
-   --  is always _Chain and it is accessed by name.
+   --  Given a construct N that involves tasks (other than allocators to tasks)
+   --  create a _Chain entity in the appropriate scope to be used as activation
+   --  chain if there is not already one.
 
    function Build_Call_With_Task (N : Node_Id; E : Entity_Id) return Node_Id;
    --  N is a node representing the name of a task or an access to a task.
@@ -56,11 +54,11 @@ package Exp_Ch9 is
    --  For targets where tasks or tasking hierarchies are prohibited, generate:
    --      _Master : constant Integer := Library_Task_Level;
 
-   procedure Build_Master_Entity (Obj_Or_Typ : Entity_Id);
-   --  Given the name of an object or a type which is either a task, contains
-   --  tasks or designates tasks, create a _Master in the appropriate scope
-   --  which captures the value of Current_Master. Mark the nearest enclosing
-   --  body or block as being a task master.
+   procedure Build_Master_Entity (N : Node_Id);
+   --  Given a construct N that involves or designates tasks, create a _Master
+   --  entity in the appropriate scope if there is not already one, which will
+   --  capture the value of Current_Master. Mark the nearest enclosing body or
+   --  block as being a task master.
 
    function Build_Master_Renaming_Declaration
      (Ptr_Typ : Entity_Id;

@@ -6866,7 +6866,7 @@ package body Exp_Ch3 is
          --  for such a type.
 
          if Has_Task (Desig_Typ) then
-            Build_Master_Entity (Ptr_Typ);
+            Build_Master_Entity (N);
             Build_Master_Renaming (Ptr_Typ);
 
          --  Create a class-wide master because a Master_Id must be generated
@@ -6885,7 +6885,7 @@ package body Exp_Ch3 is
          elsif not Is_Param_Block_Component_Type (Ptr_Typ)
            and then Is_Limited_Class_Wide_Type (Desig_Typ)
          then
-            Build_Master_Entity (Ptr_Typ);
+            Build_Master_Entity (N);
             Build_Master_Renaming (Ptr_Typ);
          end if;
       end Build_Master;
@@ -6956,7 +6956,7 @@ package body Exp_Ch3 is
                   --  Ensure that the record or array type have a _master
 
                   if First then
-                     Build_Master_Entity (Def_Id);
+                     Build_Master_Entity (N);
                      Build_Master_Renaming (Typ);
                      M_Id := Master_Id (Typ);
 
@@ -7874,7 +7874,7 @@ package body Exp_Ch3 is
          Build_Activation_Chain_Entity (N);
 
          if Has_Task (Typ) or else Has_BIP_Init_Expr then
-            Build_Master_Entity (Def_Id);
+            Build_Master_Entity (N);
          end if;
       end if;
 
@@ -9567,7 +9567,7 @@ package body Exp_Ch3 is
          then
             --  Ensure that the designated type has a master
 
-            Build_Master_Entity (Def_Id);
+            Build_Master_Entity (Parent (Def_Id));
 
             --  Private and incomplete types complicate the insertion of master
             --  renamings because the access type may precede the full view of

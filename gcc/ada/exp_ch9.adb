@@ -3033,13 +3033,11 @@ package body Exp_Ch9 is
    -- Build_Master_Entity --
    -------------------------
 
-   procedure Build_Master_Entity (Obj_Or_Typ : Entity_Id) is
-      Loc        : constant Source_Ptr := Sloc (Obj_Or_Typ);
+   procedure Build_Master_Entity (N : Node_Id) is
       Context    : Node_Id;
       Context_Id : Entity_Id;
       Decl       : Node_Id;
       Decls      : List_Id;
-      Par        : Node_Id;
 
    begin
       --  No action needed if the run-time has no tasking support
@@ -3048,18 +3046,12 @@ package body Exp_Ch9 is
          return;
       end if;
 
-      if Is_Itype (Obj_Or_Typ) then
-         Par := Associated_Node_For_Itype (Obj_Or_Typ);
-      else
-         Par := Parent (Obj_Or_Typ);
-      end if;
-
       --  When creating a master for a record component which is either a task
       --  or access-to-task, the enclosing record is the master scope and the
       --  proper insertion point is the component list.
 
       if Is_Record_Type (Current_Scope) then
-         Context    := Par;
+         Context    := N;
          Context_Id := Current_Scope;
          Decls      := List_Containing (Context);
 
@@ -3068,7 +3060,7 @@ package body Exp_Ch9 is
       --  return statement.
 
       else
-         Find_Enclosing_Context (Par, Context, Context_Id, Decls);
+         Find_Enclosing_Context (N, Context, Context_Id, Decls);
       end if;
 
       pragma Assert (not Is_Finalizer (Context_Id));
@@ -3079,7 +3071,7 @@ package body Exp_Ch9 is
          return;
       end if;
 
-      Decl := Build_Master_Declaration (Loc);
+      Decl := Build_Master_Declaration (Sloc (N));
 
       --  The master is inserted at the start of the declarative list of the
       --  context.

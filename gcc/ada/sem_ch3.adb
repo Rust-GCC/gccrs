@@ -956,7 +956,7 @@ package body Sem_Ch3 is
          if Is_Limited_Record (Desig_Type)
            and then Is_Class_Wide_Type (Desig_Type)
          then
-            Build_Master_Entity (Defining_Identifier (Related_Nod));
+            Build_Master_Entity (Related_Nod);
             Build_Master_Renaming (Anon_Type);
 
          --  Similarly, if the type is an anonymous access that designates
@@ -965,7 +965,7 @@ package body Sem_Ch3 is
          elsif Has_Task (Desig_Type)
            and then Comes_From_Source (Related_Nod)
          then
-            Build_Master_Entity (Defining_Identifier (Related_Nod));
+            Build_Master_Entity (Related_Nod);
             Build_Master_Renaming (Anon_Type);
          end if;
       end if;
@@ -1385,7 +1385,7 @@ package body Sem_Ch3 is
             if From_Limited_With (Entity (S))
               and then not Is_Class_Wide_Type (Entity (S))
             then
-               Build_Master_Entity (T);
+               Build_Master_Entity (Def);
                Build_Master_Renaming (T);
             end if;
 

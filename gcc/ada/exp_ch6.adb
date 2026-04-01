@@ -8982,7 +8982,7 @@ package body Exp_Ch6 is
 
             if Has_Tasks then
                Build_Activation_Chain_Entity (Temp_Decl);
-               Build_Master_Entity (Temp_Id);
+               Build_Master_Entity (Temp_Decl);
             end if;
 
             Make_Build_In_Place_Call_In_Object_Declaration
@@ -9580,7 +9580,7 @@ package body Exp_Ch6 is
       Insert_Action (Allocator, Tmp_Decl);
       Expander_Mode_Restore;
 
-      Build_Master_Entity (Anon_Type);
+      Build_Master_Entity (Tmp_Decl);
       Build_Master_Renaming (Anon_Type);
 
       Make_Build_In_Place_Call_In_Allocator
@@ -9638,7 +9638,7 @@ package body Exp_Ch6 is
       Expander_Mode_Restore;
 
       Build_Activation_Chain_Entity (Tmp_Decl);
-      Build_Master_Entity (Tmp_Id);
+      Build_Master_Entity (Tmp_Decl);
 
       Make_Build_In_Place_Iface_Call_In_Object_Declaration
         (Obj_Decl      => Tmp_Decl,
