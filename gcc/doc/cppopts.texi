@@ -372,12 +372,16 @@ problems with encodings that do not fit exactly in @code{wchar_t}.
 @cindex character set, input
 @item -finput-charset=@var{charset}
 Set the input character set, used for translation from the character
-set of the input file to the source character set used by GCC@.  If the
-locale does not specify, or GCC cannot get this information from the
-locale, the default is UTF-8.  This can be overridden by either the locale
-or this command-line option.  Currently the command-line option takes
-precedence if there's a conflict.  @var{charset} can be any encoding
+set of the input file to the source character set used by GCC@.  The
+default is UTF-8.  @var{charset} can be any encoding
 supported by the system's @code{iconv} library routine.
+
+If the input character set is UTF-8, warnings about ill-formed code
+unit sequences are issued if @option{-Winvalid-utf8} is enabled.
+Otherwise no diagnostics are issued when the input character set
+matches the execution character set.  If they are different,
+ill-formed code unit sequences result in an error during transcoding
+to the execution character set.
 
 @ifclear cppmanual
 @opindex fpch-deps
