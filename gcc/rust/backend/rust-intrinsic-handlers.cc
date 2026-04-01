@@ -893,6 +893,136 @@ ctlz_handler (Context *ctx, TyTy::FnType *fntype, bool nonzero)
   return fndecl;
 }
 
+// Shared inner implementation for cttz and cttz_nonzero.
+//
+// nonzero=false → cttz: cttz(0) is well-defined in Rust and must return
+//   bit_size, but __builtin_ctz*(0) is undefined behaviour in C, so an
+//   explicit arg==0 guard is emitted.
+//
+// nonzero=true → cttz_nonzero: the caller guarantees arg != 0 (passing 0
+//   is immediate UB in Rust), so the zero guard is omitted entirely.
+static tree
+cttz_handler (Context *ctx, TyTy::FnType *fntype, bool nonzero)
+{
+  rust_assert (fntype->get_params ().size () == 1);
+
+  tree lookup = NULL_TREE;
+  if (check_for_cached_intrinsic (ctx, fntype, &lookup))
+    return lookup;
+
+  auto fndecl = compile_intrinsic_function (ctx, fntype);
+
+  std::vector<Bvariable *> param_vars;
+  compile_fn_params (ctx, fntype, fndecl, &param_vars);
+
+  auto arg_param = param_vars.at (0);
+  if (!Backend::function_set_parameters (fndecl, param_vars))
+    return error_mark_node;
+
+  rust_assert (fntype->get_num_substitutions () == 1);
+  auto *monomorphized_type
+    = fntype->get_substs ().at (0).get_param_ty ()->resolve ();
+  if (!check_for_basic_integer_type ("cttz", fntype->get_locus (),
+				     monomorphized_type))
+    return error_mark_node;
+
+  enter_intrinsic_block (ctx, fndecl);
+
+  // BUILTIN cttz FN BODY BEGIN
+  auto locus = fntype->get_locus ();
+  auto arg_expr = Backend::var_expression (arg_param, locus);
+  tree arg_type = TREE_TYPE (arg_expr);
+  unsigned bit_size = TYPE_PRECISION (arg_type);
+
+  // Convert signed types to their same-width unsigned equivalent before
+  // widening.  For cttz this is not strictly required for correctness (sign
+  // extension fills high bits with 1s, which does not alter the trailing-zero
+  // count at the low end), but it avoids relying on signed-integer
+  // representations and keeps the approach consistent with ctlz.
+  tree unsigned_type
+    = !TYPE_UNSIGNED (arg_type) ? unsigned_type_for (arg_type) : arg_type;
+  tree unsigned_arg = fold_convert (unsigned_type, arg_expr);
+
+  // Pick the narrowest GCC ctz builtin whose operand type is wide enough to
+  // hold bit_size bits.  Unlike ctlz, no diff adjustment is needed: widening
+  // a value zero-extends it (fills the added high bits with 0s), which does
+  // not introduce new trailing zeros at the low end.
+  //
+  // Example: cttz(0b00001000_u8) = 3
+  //   Widened to u32: 0x00000008.  __builtin_ctz(0x00000008) = 3.
+  //
+  // TODO: 128-bit integers are not yet handled.
+  unsigned int_prec = TYPE_PRECISION (unsigned_type_node);
+  unsigned long_prec = TYPE_PRECISION (long_unsigned_type_node);
+  unsigned longlong_prec = TYPE_PRECISION (long_long_unsigned_type_node);
+
+  const char *builtin_name = nullptr;
+  tree cast_type = NULL_TREE;
+
+  if (bit_size <= int_prec)
+    {
+      // Fits in unsigned int: covers 8/16/32-bit integers on most targets.
+      builtin_name = "__builtin_ctz";
+      cast_type = unsigned_type_node;
+    }
+  else if (bit_size <= long_prec)
+    {
+      // Fits in unsigned long but not unsigned int.
+      builtin_name = "__builtin_ctzl";
+      cast_type = long_unsigned_type_node;
+    }
+  else if (bit_size <= longlong_prec)
+    {
+      // Fits in unsigned long long but not unsigned long.
+      builtin_name = "__builtin_ctzll";
+      cast_type = long_long_unsigned_type_node;
+    }
+  else
+    {
+      rust_sorry_at (locus, "cttz for %u-bit integers is not yet implemented",
+		     bit_size);
+      return error_mark_node;
+    }
+
+  tree call_arg = fold_convert (cast_type, unsigned_arg);
+
+  tree builtin_decl = error_mark_node;
+  BuiltinsContext::get ().lookup_simple_builtin (builtin_name, &builtin_decl);
+  rust_assert (builtin_decl != error_mark_node);
+
+  tree builtin_fn = build_fold_addr_expr_loc (locus, builtin_decl);
+  tree ctz_expr
+    = Backend::call_expression (builtin_fn, {call_arg}, nullptr, locus);
+
+  ctz_expr = fold_convert (uint32_type_node, ctz_expr);
+
+  tree final_expr;
+  if (!nonzero)
+    {
+      // cttz(0) must return bit_size per the Rust reference.
+      // We cannot pass 0 to __builtin_ctz* (UB), so emit:
+      //   arg == 0 ? bit_size : ctz_expr
+      tree zero = build_int_cst (arg_type, 0);
+      tree cmp = fold_build2 (EQ_EXPR, boolean_type_node, arg_expr, zero);
+      tree width_cst = build_int_cst (uint32_type_node, bit_size);
+      final_expr
+	= fold_build3 (COND_EXPR, uint32_type_node, cmp, width_cst, ctz_expr);
+    }
+  else
+    {
+      // cttz_nonzero: arg != 0 is guaranteed by the caller, no guard needed.
+      final_expr = ctz_expr;
+    }
+
+  tree result = fold_convert (TREE_TYPE (DECL_RESULT (fndecl)), final_expr);
+  auto return_stmt = Backend::return_statement (fndecl, result, locus);
+  ctx->add_statement (return_stmt);
+  // BUILTIN cttz FN BODY END
+
+  finalize_intrinsic_block (ctx, fndecl);
+  return fndecl;
+}
+
 } // namespace inner
 
 const HandlerBuilder
@@ -1685,6 +1815,18 @@ tree
 ctlz_nonzero_handler (Context *ctx, TyTy::FnType *fntype)
 {
   return inner::ctlz_handler (ctx, fntype, true);
+}
+
+tree
+cttz_handler (Context *ctx, TyTy::FnType *fntype)
+{
+  return inner::cttz_handler (ctx, fntype, false);
+}
+
+tree
+cttz_nonzero_handler (Context *ctx, TyTy::FnType *fntype)
+{
+  return inner::cttz_handler (ctx, fntype, true);
 }
 
 } // namespace handlers
