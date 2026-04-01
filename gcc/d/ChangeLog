@@ -1,3 +1,12 @@
+2026-03-31  Iain Buclaw  <ibuclaw@gdcproject.org>
+
+	* dmd/MERGE: Merge upstream dmd e7c34c13de.
+	* d-codegen.cc (build_vthis): Update for new front-end interface.
+	(get_frameinfo): Likewise.
+	* d-lang.cc (d_post_options): Disable null pointer checks.
+	* decl.cc (DeclVisitor::visit (VarDeclaration *)): Ignore ref noreturn
+	variables.
+
 2026-02-08  Iain Buclaw  <ibuclaw@gdcproject.org>
 
 	* d-tree.h (build_libcall): New declaration.

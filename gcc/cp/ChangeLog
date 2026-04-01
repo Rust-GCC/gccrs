@@ -1,3 +1,59 @@
+2026-03-31  Jakub Jelinek  <jakub@redhat.com>
+
+	* reflect.cc (reflect_current_scope): Use decl_namespace_list->last ()
+	in preference to current_namespace.
+
+2026-03-31  Jakub Jelinek  <jakub@redhat.com>
+
+	* reflect.cc (get_range_elts): If N is negative, just use the tree
+	as object to extract range from instead of finding Nth argument
+	of a call.
+	(eval_is_bit_field, eval_type_of, eval_size_of, eval_alignment_of,
+	eval_bit_size_of, eval_has_identifier, eval_identifier_of): Adjust
+	function comments from P3795R2.
+	(eval_display_string_of): Handle annotations in
+	REFLECT_DATA_MEMBER_SPEC.
+	(eval_annotations_of): Adjust function comments from P3795R2.
+	(eval_data_member_spec): Likewise.  Read and diagnose annotations.
+	(eval_define_aggregate): Adjust function comments from P3795R2.
+	Create annotations.
+	(compare_reflections): Compare REFLECT_DATA_MEMBER_SPEC annotations.
+	* mangle.cc (write_reflection): Mangle REFLECT_DATA_MEMBER_SPEC
+	annotations.
+
+2026-03-31  Jakub Jelinek  <jakub@redhat.com>
+
+	* metafns.gperf (enum metafn_code): Add METAFN_CURRENT_FUNCTION,
+	METAFN_CURRENT_CLASS and METAFN_CURRENT_NAMESPACE.
+	(enum metafn_kind): Add METAFN_KIND_INFO_VOID.
+	(current_function, current_class, current_namespace): New
+	metafunctions.
+	* pt.cc (value_dependent_expression_p): Make current_function(),
+	current_class() and current_namespace() calls dependent if they
+	are inside of template.
+	* reflect.cc (reflect_current_scope, eval_current_function,
+	eval_current_class, eval_current_namespace): New functions.
+	(eval_access_context_current): Use reflect_current_scope.
+	(process_metafunction): Handle METAFN_CURRENT_FUNCTION,
+	METAFN_CURRENT_CLASS and METAFN_CURRENT_NAMESPACE.
+	* metafns.h: Regenerate.
+
+2026-03-31  Jakub Jelinek  <jakub@redhat.com>
+
+	* reflect.cc (eval_data_member_spec): Add anonymous enums for
+	fields in std::meta::data_member_options and
+	std::meta::data_member_options::_Name and use them instead of
+	hardcoded constants.
+
+2026-03-31  Marek Polacek  <polacek@redhat.com>
+
+	* reflect.cc (eval_offset_of): Update comment.
+
+2026-03-31  Jakub Jelinek  <jakub@redhat.com>
+
+	* reflect.cc (eval_data_member_spec): Fix up check for diagnostics
+	when reverse conversion fails.
+
 2026-03-30  Jakub Jelinek  <jakub@redhat.com>
 
 	* metafns.gperf (enum metafn_code): Remove

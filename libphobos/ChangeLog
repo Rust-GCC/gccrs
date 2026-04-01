@@ -1,3 +1,25 @@
+2026-03-31  Iain Buclaw  <ibuclaw@gdcproject.org>
+
+	* libdruntime/MERGE: Merge upstream druntime e7c34c13de.
+	* src/MERGE: Merge upstream phobos 0c5c9e984.
+	* testsuite/libphobos.phobos/std_algorithm_comparison.d: Regenerate.
+	* testsuite/libphobos.phobos/std_algorithm_iteration.d: Regenerate.
+	* testsuite/libphobos.phobos/std_algorithm_searching.d: Regenerate.
+	* testsuite/libphobos.phobos/std_array.d: Regenerate.
+	* testsuite/libphobos.phobos/std_concurrency.d: Regenerate.
+	* testsuite/libphobos.phobos/std_conv.d: Regenerate.
+	* testsuite/libphobos.phobos/std_datetime_date.d: Regenerate.
+	* testsuite/libphobos.phobos/std_datetime_systime.d: Regenerate.
+	* testsuite/libphobos.phobos/std_math_algebraic.d: Regenerate.
+	* testsuite/libphobos.phobos/std_meta.d: Regenerate.
+	* testsuite/libphobos.phobos/std_range_package.d: Regenerate.
+	* testsuite/libphobos.phobos/std_sumtype.d: Regenerate.
+	* testsuite/libphobos.phobos/std_traits.d: Regenerate.
+	* testsuite/libphobos.phobos/std_typecons.d: Regenerate.
+	* testsuite/libphobos.phobos/std_uuid.d: Regenerate.
+	* testsuite/libphobos.phobos/std_internal_entropy.d: New test.
+	* testsuite/libphobos.phobos/std_mathspecial.d: New test.
+
 2026-03-12  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
 
 	PR d/123202

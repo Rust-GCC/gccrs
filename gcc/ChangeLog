@@ -1,3 +1,71 @@
+2026-03-31  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* tree-ssa-dse.cc (compute_trims): Bail out if ref->size is not
+	byte aligned either.
+
+2026-03-31  Mikael Morin  <mikael@gcc.gnu.org>
+	    Christopher Albert  <albert@tugraz.at>
+
+	PR fortran/121185
+	PR fortran/124661
+	* tree-inline.cc (debug_find_tree, debug_find_tree_1): Move
+	and rename functions...
+	* tree.cc (find_tree, find_tree_1): ... here.
+	* tree-inline.h (debug_find_tree): Move renamed declaration...
+	* tree.h (find_tree): ... here.
+
+2026-03-31  H.J. Lu  <hjl.tools@gmail.com>
+
+	PR target/124165
+	PR target/124684
+	* config/i386/i386.cc (ix86_symbolic_const_load_p_1): Renamed to
+	...
+	(ix86_need_alignment_p_1): This.
+	(ix86_symbolic_const_load_p): Renamed to ...
+	(ix86_need_alignment_p): This.
+	(ix86_find_max_used_stack_alignment): Call ix86_access_stack_p
+	only if the INSN needs alignment > stack alignment.
+
+2026-03-31  Srinath Parvathaneni  <srinath.parvathaneni@arm.com>
+
+	* config/aarch64/aarch64-sys-regs.def: Copy from Binutils.
+
+2026-03-31  Srinath Parvathaneni  <srinath.parvathaneni@arm.com>
+
+	* config/aarch64/aarch64-option-extensions.def (poe2):
+	New CLI extension option.
+	(tev): Likewise.
+	(tlbid): Likewise.
+	(gcie): Likewise.
+	(mpamv2): Likewise.
+	(lscp): Likewise.
+	(mops-go): Likewise.
+	(sve2p3): Likewise.
+	(sme2p3): Likewise.
+	(f16f32dot): Likewise.
+	(sve-b16mm): Likewise.
+	(mtetc): Likewise.
+	(f16f32mm): Likewise.
+	(f16mm): Likewise.
+	* doc/invoke.texi (poe2): Document option.
+	(tev): Likewise.
+	(tlbid): Likewise.
+	(gcie): Likewise.
+	(mpamv2): Likewise.
+	(lscp): Likewise.
+	(mops-go): Likewise.
+	(sve2p3): Likewise.
+	(sme2p3): Likewise.
+	(f16f32dot): Likewise.
+	(sve-b16mm): Likewise.
+	(mtetc): Likewise.
+	(f16f32mm): Likewise.
+	(f16mm): Likewise.
+
+2026-03-31  Wu Haotian  <rigoligo03@gmail.com>
+
+	* config.gcc: removed linux.h and t-linux for loongarch*-*-elf* targets
+
 2026-03-30  H.J. Lu  <hjl.tools@gmail.com>
 	    Richard Biener  <rguenther@suse.de>
 

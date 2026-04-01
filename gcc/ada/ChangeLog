@@ -1,3 +1,10 @@
+2026-03-31  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* sem_attr.adb (Analyze_Attribute) <Attribute_Reduce>: Rewrite the
+	analysis of a non-overloaded reducer.  Moreover, when both actuals
+	are overloaded, compute the set of possible interpretations.
+	(Resolve_Attribute) <Attribute_Reduce>: Streamline the processing.
+
 2026-03-27  Eric Botcazou  <ebotcazou@adacore.com>
 
 	* sem_ch12.adb (Analyze_Structural_Associations): Create a local

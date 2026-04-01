@@ -1,3 +1,124 @@
+2026-03-31  Jakub Jelinek  <jakub@redhat.com>
+
+	* g++.dg/reflect/access_context1.C: Add new tests.
+	* g++.dg/reflect/current_function1.C: Likewise.
+	* g++.dg/reflect/current_class1.C: Likewise.
+	* g++.dg/reflect/current_class2.C: Likewise.
+	* g++.dg/reflect/current_namespace1.C: Likewise.
+
+2026-03-31  Jakub Jelinek  <jakub@redhat.com>
+
+	* g++.dg/reflect/data_member_spec5.C: New test.
+	* g++.dg/reflect/data_member_spec6.C: New test.
+	* g++.dg/reflect/display_string_of1.C: Expect extra ", {}" before
+	closing paren for empty annotations, otherwise a list of annotations.
+	* g++.dg/reflect/u8display_string_of1.C: Likewise.
+	* g++.dg/reflect/define_aggregate9.C: New test.
+	* g++.dg/reflect/mangle1.C: Test mangling of REFLECT_DATA_MEMBER_SPEC
+	annotations.
+
+2026-03-31  Jakub Jelinek  <jakub@redhat.com>
+
+	* g++.dg/reflect/current_function1.C: New test.
+	* g++.dg/reflect/current_function2.C: New test.
+	* g++.dg/reflect/current_class1.C: New test.
+	* g++.dg/reflect/current_class2.C: New test.
+	* g++.dg/reflect/current_namespace1.C: New test.
+
+2026-03-31  Dimitar Dimitrov  <dimitar@dinux.eu>
+
+	* gcc.dg/torture/pr124041.c: Require effective target
+	fstack_protector.
+
+2026-03-31  Dimitar Dimitrov  <dimitar@dinux.eu>
+
+	* gcc.dg/pr122925.c: Require int32plus effective target.
+
+2026-03-31  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gnat.dg/opt107.adb: New test.
+	* gnat.dg/opt107_pkg.ads: New helper.
+
+2026-03-31  Jakub Jelinek  <jakub@redhat.com>
+
+	* g++.dg/reflect/annotations16.C: New test.
+
+2026-03-31  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* gcc.dg/analyzer/null-deref-pr123981-1.c: Restrict to 64-bit x86.
+
+2026-03-31  Mikael Morin  <mikael@gcc.gnu.org>
+	    Christopher Albert  <albert@tugraz.at>
+
+	PR fortran/121185
+	PR fortran/124661
+	* gfortran.dg/bounds_check_28.f90: New test.
+
+2026-03-31  Torbjörn SVENSSON  <torbjorn.svensson@foss.st.com>
+
+	PR target/124712
+	* gcc.dg/vect/vect-fmax-2.c: Changed effective target vect_float
+	to vect_double.
+	* gcc.dg/vect/vect-fmax-3.c: Likewise.
+	* gcc.dg/vect/vect-fmin-2.c: Likewise.
+	* gcc.dg/vect/vect-fmin-3.c: Likewise.
+
+2026-03-31  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gnat.dg/reduce6.adb: New test.
+
+2026-03-31  Alexandre Oliva  <oliva@adacore.com>
+
+	* g++.dg/alias-checks.C: Rename to...
+	* g++.dg/vect/vect-alias-checks.C: ... this.  Don't override
+	vector options.
+
+2026-03-31  Alexandre Oliva  <oliva@adacore.com>
+
+	* gcc.target/i386/pr82142b.c: Add -fomit-frame-pointer.
+
+2026-03-31  Alexandre Oliva  <oliva@adacore.com>
+
+	* gcc.target/i386/pr115397.c: Require fpic.
+	* gcc.target/i386/pr118497.c: Likewise.
+
+2026-03-31  Alexandre Oliva  <oliva@adacore.com>
+
+	* gcc.target/i386/part-vect-absnegbf.c: Require sse2_runtime.
+
+2026-03-31  Alexandre Oliva  <oliva@adacore.com>
+
+	* gcc.dg/tree-ssa/pr83403-1.c: Bump
+	max-completely-peeled-insns on x86.
+	* gcc.dg/tree-ssa/pr83403-2.c: Likewise.
+
+2026-03-31  Alexandre Oliva  <oliva@adacore.com>
+
+	* gcc.dg/tree-ssa/pr32964.c: Select the SSE FPU on x86.
+
+2026-03-31  Alexandre Oliva  <oliva@adacore.com>
+
+	* gcc.dg/pr117888-2.c: Enable sse2.
+
+2026-03-31  Alexandre Oliva  <oliva@adacore.com>
+
+	* gcc.dg/fstack-protector-strong.c (foo2): Prevent loop
+	optimizations.  Expect stack protection again.
+
+2026-03-31  Alexandre Oliva  <oliva@adacore.com>
+
+	* gcc.target/i386/pr115863-1.c: Include stdint.h.
+
+2026-03-31  Alexandre Oliva  <oliva@adacore.com>
+
+	* gcc.target/i386/lea-4.c: Require fpic.
+	* gcc.target/i386/pr116587.c: Likewise.
+
+2026-03-31  Alexandre Oliva  <oliva@adacore.com>
+
+	* c-c++-common/analyzer/deref-before-check-2.c (test_1):
+	Drop stderr.
+
 2026-03-30  H.J. Lu  <hjl.tools@gmail.com>
 	    Richard Biener  <rguenther@suse.de>
 

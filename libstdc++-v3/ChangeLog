@@ -1,3 +1,15 @@
+2026-03-31  Jakub Jelinek  <jakub@redhat.com>
+
+	* include/std/meta (std::meta::data_member_options): Add annotations
+	member.
+
+2026-03-31  Jakub Jelinek  <jakub@redhat.com>
+
+	* include/std/meta (std::meta::current_function,
+	std::meta::current_class, std::meta::current_namespace): New
+	declarations.
+	* src/c++23/std.cc.in: Export those 3.
+
 2026-03-30  Tomasz Kamiński  <tkaminsk@redhat.com>
 
 	* include/bits/atomic_base.h (__atomic_ref_base::_Address_return_t):
