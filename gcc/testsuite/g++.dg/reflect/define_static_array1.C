@@ -22,6 +22,7 @@ constexpr auto h = std::define_static_array (fa.subspan (1, 4) | std::views::rev
 constexpr auto i = std::define_static_array (std::vector <V> { V { 1, 2, 3 }, V { 2, 3, 4 }, V { 3, 4, 5 } });
 constexpr auto j = std::define_static_array (std::vector <long long> {});
 constexpr auto k = std::define_static_array (std::meta::nonstatic_data_members_of (^^V, std::meta::access_context::current ()));
+constexpr auto l = std::define_static_array (std::array <int, 0> {});
 static_assert (a.data () == std::define_static_string ("abcd") && a.size () == 5);
 static_assert (b.data () == std::define_static_string (U"abcd\0ef\N{LATIN CAPITAL LETTER AE}")
 	       && b.size () == sizeof (U"abcd\0ef\N{LATIN CAPITAL LETTER AE}") / sizeof (char32_t));
@@ -40,6 +41,20 @@ static_assert (h.data () == std::define_static_array (std::vector <int> { 5, 4, 
 static_assert (i.size () == 3);
 static_assert (j.data () == nullptr && j.size () == 0);
 static_assert (k.size () == 3 && k[0] == ^^V::a && k[1] == ^^V::b && k[2] == ^^V::c);
+static_assert (l.data () == nullptr && l.size () == 0);
+// LWG4537 - Improve define_static_array
+static_assert (type_of (^^a) == ^^const std::span <const char, 5>);
+static_assert (type_of (^^b) == ^^const std::span <const char32_t, sizeof (U"abcd\0ef\N{LATIN CAPITAL LETTER AE}") / sizeof (char32_t)>);
+static_assert (type_of (^^c) == ^^const std::span <const char, std::dynamic_extent>);
+static_assert (type_of (^^d) == ^^const std::span <const int, 4>);
+static_assert (type_of (^^e) == ^^const std::span <const float, 6>);
+static_assert (type_of (^^f) == ^^const std::span <const int, std::dynamic_extent>);
+static_assert (type_of (^^g) == ^^const std::span <const int, std::dynamic_extent>);
+static_assert (type_of (^^h) == ^^const std::span <const int, std::dynamic_extent>);
+static_assert (type_of (^^i) == ^^const std::span <const V, std::dynamic_extent>);
+static_assert (type_of (^^j) == ^^const std::span <const long long, std::dynamic_extent>);
+static_assert (type_of (^^k) == ^^const std::span <const std::meta::info, std::dynamic_extent>);
+static_assert (type_of (^^l) == ^^const std::span <const int, 0>);
 
 int
 main ()

@@ -638,18 +638,41 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       return meta::extract<const ranges::range_value_t<_Rg>*>(__str);
     }
 
+  namespace __detail
+  {
+    template<typename _Rg>
+    concept __statically_sized
+      = requires(_Rg&& __r) {
+	static_cast<char(*)[static_cast<size_t>(ranges::size(__r))
+			    >= 0]>(nullptr);
+      };
+  } // namespace __detail
+
   template<ranges::input_range _Rg>
-    consteval span<const ranges::range_value_t<_Rg>>
+    consteval auto
     define_static_array(_Rg&& __r)
     {
       using _Tp = ranges::range_value_t<_Rg>;
       auto __array = meta::reflect_constant_array(__r);
       auto __type = meta::type_of(__array);
-      if (meta::is_array_type(__type))
-	return span<const _Tp>(meta::extract<const _Tp*>(__array),
-			       meta::extent(__type, 0U));
+      if constexpr (__detail::__statically_sized<_Rg>)
+	{
+	  constexpr size_t __extent = static_cast<size_t>(ranges::size(__r));
+	  if constexpr (__extent)
+	    return span<const _Tp,
+			__extent>(meta::extract<const _Tp*>(__array),
+				  meta::extent(__type, 0U));
+	  else
+	    return span<const _Tp, 0>();
+	}
       else
-	return span<const _Tp>();
+	{
+	  if (meta::is_array_type(__type))
+	    return span<const _Tp>(meta::extract<const _Tp*>(__array),
+				   meta::extent(__type, 0U));
+	  else
+	    return span<const _Tp>();
+	}
     }
 
   template<class _Tp>
