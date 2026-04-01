@@ -25,5 +25,5 @@
 using std::uses_allocator;
 using std::allocator;
 using std::promise;
-static_assert( uses_allocator<promise<int>, allocator<int>>::value,
-               "promise supports uses-allocator construction" );
+static_assert( ! uses_allocator<promise<int>, allocator<int>>::value,
+               "promise does not support uses-allocator construction" );

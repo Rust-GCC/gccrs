@@ -52,7 +52,6 @@
 #include <bits/shared_ptr.h>
 #include <bits/std_function.h>
 #include <bits/std_thread.h>
-#include <bits/uses_allocator.h>
 #include <ext/aligned_buffer.h>
 
 namespace std _GLIBCXX_VISIBILITY(default)
@@ -1112,22 +1111,16 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	_M_storage(new _Res_type())
       { }
 
-      promise(promise&& __rhs) noexcept
-      : _M_future(std::move(__rhs._M_future)),
-	_M_storage(std::move(__rhs._M_storage))
-      { }
-
       template<typename _Allocator>
 	promise(allocator_arg_t, const _Allocator& __a)
 	: _M_future(std::allocate_shared<_State>(__a)),
 	  _M_storage(__future_base::_S_allocate_result<_Res>(__a))
 	{ }
 
-      template<typename _Allocator>
-	promise(allocator_arg_t, const _Allocator&, promise&& __rhs)
-	: _M_future(std::move(__rhs._M_future)),
-	  _M_storage(std::move(__rhs._M_storage))
-	{ }
+      promise(promise&& __rhs) noexcept
+      : _M_future(std::move(__rhs._M_future)),
+	_M_storage(std::move(__rhs._M_storage))
+      { }
 
       promise(const promise&) = delete;
 
@@ -1207,11 +1200,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     swap(promise<_Res>& __x, promise<_Res>& __y) noexcept
     { __x.swap(__y); }
 
-  template<typename _Res, typename _Alloc>
-    struct uses_allocator<promise<_Res>, _Alloc>
-    : public true_type { };
-
-
   /// Partial specialization for promise<R&>
   template<typename _Res>
     class promise<_Res&>
@@ -1231,22 +1219,16 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	_M_storage(new _Res_type())
       { }
 
-      promise(promise&& __rhs) noexcept
-      : _M_future(std::move(__rhs._M_future)),
-	_M_storage(std::move(__rhs._M_storage))
-      { }
-
       template<typename _Allocator>
 	promise(allocator_arg_t, const _Allocator& __a)
 	: _M_future(std::allocate_shared<_State>(__a)),
 	  _M_storage(__future_base::_S_allocate_result<_Res&>(__a))
 	{ }
 
-      template<typename _Allocator>
-	promise(allocator_arg_t, const _Allocator&, promise&& __rhs)
-	: _M_future(std::move(__rhs._M_future)),
-	  _M_storage(std::move(__rhs._M_storage))
-	{ }
+      promise(promise&& __rhs) noexcept
+      : _M_future(std::move(__rhs._M_future)),
+	_M_storage(std::move(__rhs._M_storage))
+      { }
 
       promise(const promise&) = delete;
 
@@ -1329,24 +1311,16 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	_M_storage(new _Res_type())
       { }
 
-      promise(promise&& __rhs) noexcept
-      : _M_future(std::move(__rhs._M_future)),
-	_M_storage(std::move(__rhs._M_storage))
-      { }
-
       template<typename _Allocator>
 	promise(allocator_arg_t, const _Allocator& __a)
 	: _M_future(std::allocate_shared<_State>(__a)),
 	  _M_storage(__future_base::_S_allocate_result<void>(__a))
 	{ }
 
-      // _GLIBCXX_RESOLVE_LIB_DEFECTS
-      // 2095.  missing constructors needed for uses-allocator construction
-      template<typename _Allocator>
-	promise(allocator_arg_t, const _Allocator&, promise&& __rhs)
-	: _M_future(std::move(__rhs._M_future)),
-	  _M_storage(std::move(__rhs._M_storage))
-	{ }
+      promise(promise&& __rhs) noexcept
+      : _M_future(std::move(__rhs._M_future)),
+	_M_storage(std::move(__rhs._M_storage))
+      { }
 
       promise(const promise&) = delete;
 
@@ -1575,32 +1549,16 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	: _M_state(_Task_state<_Fn>::_S_create(std::forward<_Fn>(__fn), {}))
 	{ }
 
-#if __cplusplus < 201703L
       // _GLIBCXX_RESOLVE_LIB_DEFECTS
       // 2097. packaged_task constructors should be constrained
       // 2407. [this constructor should not be] explicit
       // 2921. packaged_task and type-erased allocators
+      // 3003. <future> still has type-erased allocators in promise
       template<typename _Fn, typename _Alloc, typename = __not_same<_Fn>>
 	packaged_task(allocator_arg_t, const _Alloc& __a, _Fn&& __fn)
 	: _M_state(_Task_state<_Fn, _Alloc>::_S_create(std::forward<_Fn>(__fn),
 						       __a))
 	{ }
-
-      // _GLIBCXX_RESOLVE_LIB_DEFECTS
-      // 2095.  missing constructors needed for uses-allocator construction
-      template<typename _Allocator>
-	packaged_task(allocator_arg_t, const _Allocator&) noexcept
-	{ }
-
-      template<typename _Allocator>
-	packaged_task(allocator_arg_t, const _Allocator&,
-		      const packaged_task&) = delete;
-
-      template<typename _Allocator>
-	packaged_task(allocator_arg_t, const _Allocator&,
-		      packaged_task&& __other) noexcept
-	{ this->swap(__other); }
-#endif
 
       ~packaged_task()
       {
@@ -1677,14 +1635,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     swap(packaged_task<_Res(_ArgTypes...)>& __x,
 	 packaged_task<_Res(_ArgTypes...)>& __y) noexcept
     { __x.swap(__y); }
-
-#if __cplusplus < 201703L
-  // _GLIBCXX_RESOLVE_LIB_DEFECTS
-  // 2976. Dangling uses_allocator specialization for packaged_task
-  template<typename _Res, typename _Alloc>
-    struct uses_allocator<packaged_task<_Res>, _Alloc>
-    : public true_type { };
-#endif
 
   /// @cond undocumented
 

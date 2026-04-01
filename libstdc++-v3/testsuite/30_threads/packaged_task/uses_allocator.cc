@@ -1,4 +1,4 @@
-// { dg-do compile { target { c++11_only || c++14_only } } }
+// { dg-do compile { target c++11 } }
 // { dg-require-gthreads "" }
 
 // Copyright (C) 2011-2026 Free Software Foundation, Inc.
@@ -25,5 +25,5 @@
 using std::uses_allocator;
 using std::allocator;
 using std::packaged_task;
-static_assert( uses_allocator<packaged_task<int()>, allocator<int>>::value,
-               "packaged_task supports uses-allocator construction" );
+static_assert( ! uses_allocator<packaged_task<int()>, allocator<int>>::value,
+               "packaged_task does not support uses-allocator construction" );

@@ -1164,4 +1164,12 @@ Made <code>std::is_integral_v&lt;__int128&gt;</code> true for strict
 </para>
 </section>
 
+<section xml:id="api.rel_17"><info><title><constant>17</constant></title></info>
+<para>
+Removed allocator-extended constructors and support for uses-allocator
+construction from <classname>std::promise</classname> and
+<classname>std::packaged_task</classname>.
+</para>
+</section>
+
 </section>
