@@ -33275,6 +33275,11 @@
   [(V16SF "") (V8SF "") (V4SF "")
    (V8DF "") (V4DF "{y}") (V2DF "{x}")])
 
+;; Pointer size override for ps2qq conversions: V2DI uses half-width (64-bit)
+;; source, needing %q for Intel syntax memory operand disambiguation.
+(define_mode_attr iptrps2qq
+  [(V8DI "") (V4DI "") (V2DI "q")])
+
 (define_insn "avx10_2_vcvtt<castmode>2<sat_cvt_sign_prefix>dqs<mode><mask_name><round_saeonly_name>"
  [(set (match_operand:<VEC_GATHER_IDXSI> 0 "register_operand" "=v")
        (unspec:<VEC_GATHER_IDXSI>
@@ -33303,7 +33308,7 @@
 	  [(match_operand:<vpckfloat_temp_mode> 1 "<round_saeonly_nimm_predicate>" "<round_saeonly_constraint>")]
 	  UNSPEC_SAT_CVT_DS_SIGN_ITER))]
  "TARGET_AVX10_2 && <round_saeonly_mode512bit_condition>"
- "vcvttps2<sat_cvt_sign_prefix>qqs\t{<round_saeonly_mask_op2>%1, %0<mask_operand2>|%0<mask_operand2>, %1<round_saeonly_mask_op2>}"
+ "vcvttps2<sat_cvt_sign_prefix>qqs\t{<round_saeonly_mask_op2>%1, %0<mask_operand2>|%0<mask_operand2>, %<iptrps2qq>1<round_saeonly_mask_op2>}"
  [(set_attr "type" "ssecvt")
   (set_attr "prefix" "evex")
   (set_attr "mode" "<sseinsnmode>")])
@@ -33316,7 +33321,7 @@
       (parallel [(const_int 0)]))]
     UNSPEC_SAT_CVT_DS_SIGN_ITER))]
  "TARGET_AVX10_2"
- "vcvttsd2<sat_cvt_sign_prefix>sis\t{<round_saeonly_op2>%1, %0|%0, %1<round_saeonly_op2>}"
+ "vcvttsd2<sat_cvt_sign_prefix>sis\t{<round_saeonly_op2>%1, %0|%0, %q1<round_saeonly_op2>}"
  [(set_attr "type" "ssecvt")
  (set_attr "prefix" "evex")
  (set_attr "mode" "<MODE>")])
@@ -33329,7 +33334,7 @@
       (parallel [(const_int 0)]))]
     UNSPEC_SAT_CVT_DS_SIGN_ITER))]
  "TARGET_AVX10_2"
- "vcvttss2<sat_cvt_sign_prefix>sis\t{<round_saeonly_op2>%1, %0|%0, %1<round_saeonly_op2>}"
+ "vcvttss2<sat_cvt_sign_prefix>sis\t{<round_saeonly_op2>%1, %0|%0, %k1<round_saeonly_op2>}"
  [(set_attr "type" "ssecvt")
  (set_attr "prefix" "evex")
  (set_attr "mode" "<MODE>")])
