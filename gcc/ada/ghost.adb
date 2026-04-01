@@ -1072,12 +1072,20 @@ package body Ghost is
    -----------------------------
 
    procedure Check_Ghost_Equality_Op (Eq_Op : Entity_Id; Typ : Entity_Id) is
+      Underlying : constant Entity_Id := Underlying_Type (Typ);
    begin
       if not Is_Ghost_Entity (Eq_Op) then
          return;
       end if;
 
-      if not Is_Record_Type (Typ) or else Is_Limited_Record (Typ) then
+      --  Look through any private view to get the underlying record type,
+      --  since a limited private type whose full view is a non-limited record
+      --  does not have "only limited views" and must be checked.
+
+      if No (Underlying)
+        or else not Is_Record_Type (Underlying)
+        or else Is_Limited_Record (Underlying)
+      then
          return;
       end if;
 

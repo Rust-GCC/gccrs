@@ -22515,6 +22515,27 @@ package body Sem_Ch3 is
            (Underlying_Full_View (Full_T), Priv_T);
       end if;
 
+      --  Now that the full view is known, check any primitive equality
+      --  operators declared in the visible part against SPARK RM 6.9(23).
+      --  This check is deferred from Check_For_Primitive_Subprogram because
+      --  the full view of a private type is not available when the operator
+      --  is declared in the visible part of the package.
+
+      if Has_Primitive_Operations (Priv_T) then
+         declare
+            Prim : Elmt_Id := First_Elmt (Primitive_Operations (Priv_T));
+            Op   : Entity_Id;
+         begin
+            while Present (Prim) loop
+               Op := Node (Prim);
+               if Chars (Op) = Name_Op_Eq then
+                  Check_Ghost_Equality_Op (Op, Priv_T);
+               end if;
+               Next_Elmt (Prim);
+            end loop;
+         end;
+      end if;
+
    <<Leave>>
       Restore_Ghost_Region (Saved_Ghost_Config);
    end Process_Full_View;
