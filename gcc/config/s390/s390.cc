@@ -8971,11 +8971,11 @@ print_operand (FILE *file, rtx x, int code)
 	}
       return;
     case 'C':
-      fprintf (file, s390_branch_condition_mnemonic (x, FALSE));
+      fputs (s390_branch_condition_mnemonic (x, FALSE), file);
       return;
 
     case 'D':
-      fprintf (file, s390_branch_condition_mnemonic (x, TRUE));
+      fputs (s390_branch_condition_mnemonic (x, TRUE), file);
       return;
 
     case 'E':
