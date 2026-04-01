@@ -12081,25 +12081,38 @@ vect_schedule_slp_node (vec_info *vinfo,
 	  si = gsi_for_stmt (last_stmt);
 	  gsi_next (&si);
 
-	  /* Avoid scheduling internal defs outside of the loop when
-	     we might have only implicitly tracked loop mask/len defs.  */
 	  if (auto loop_vinfo = dyn_cast <loop_vec_info> (vinfo))
-	    if (LOOP_VINFO_FULLY_MASKED_P (loop_vinfo)
-		|| LOOP_VINFO_FULLY_WITH_LENGTH_P (loop_vinfo))
-	      {
-		gimple_stmt_iterator si2
-		  = gsi_after_labels (LOOP_VINFO_LOOP (loop_vinfo)->header);
-		if ((gsi_end_p (si2)
-		     && (LOOP_VINFO_LOOP (loop_vinfo)->header
-			 != gimple_bb (last_stmt))
-		     && dominated_by_p (CDI_DOMINATORS,
-					LOOP_VINFO_LOOP (loop_vinfo)->header,
-					gimple_bb (last_stmt)))
-		    || (!gsi_end_p (si2)
-			&& last_stmt != *si2
-			&& vect_stmt_dominates_stmt_p (last_stmt, *si2)))
-		  si = si2;
-	      }
+	    {
+	      /* Avoid scheduling stmts to random places in the CFG, any
+		 stmt dominance check we performed is possibly wrong as UIDs
+		 are not initialized for all of the function for loop
+		 vectorization.  Instead append to the loop preheader.  */
+	      if ((LOOP_VINFO_LOOP (loop_vinfo)->header
+		   != gimple_bb (last_stmt))
+		  && dominated_by_p (CDI_DOMINATORS,
+				     LOOP_VINFO_LOOP (loop_vinfo)->header,
+				     gimple_bb (last_stmt)))
+		si = gsi_end_bb (loop_preheader_edge
+				   (LOOP_VINFO_LOOP (loop_vinfo))->src);
+	      /* Avoid scheduling internal defs outside of the loop when
+		 we might have only implicitly tracked loop mask/len defs.  */
+	      if (LOOP_VINFO_FULLY_MASKED_P (loop_vinfo)
+		  || LOOP_VINFO_FULLY_WITH_LENGTH_P (loop_vinfo))
+		{
+		  gimple_stmt_iterator si2
+		    = gsi_after_labels (LOOP_VINFO_LOOP (loop_vinfo)->header);
+		  if ((gsi_end_p (si2)
+		       && (LOOP_VINFO_LOOP (loop_vinfo)->header
+			   != gimple_bb (last_stmt))
+		       && dominated_by_p (CDI_DOMINATORS,
+					  LOOP_VINFO_LOOP (loop_vinfo)->header,
+					  gimple_bb (last_stmt)))
+		      || (!gsi_end_p (si2)
+			  && last_stmt != *si2
+			  && vect_stmt_dominates_stmt_p (last_stmt, *si2)))
+		    si = si2;
+		}
+	    }
 	}
     }
 
