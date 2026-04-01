@@ -9,7 +9,9 @@
 
 namespace simd = std::simd;
 
+#ifdef __STDCPP_FLOAT16_T__
 using std::float16_t;
+#endif
 using std::float32_t;
 using std::float64_t;
 
@@ -17,7 +19,11 @@ using namespace std::simd;
 
 void test()
 {
-  template for (auto t : {float(), double(), float16_t(), float32_t(), float64_t()})
+  template for (auto t : {float(), double(),
+#ifdef __STDCPP_FLOAT16_T__
+			  float16_t(),
+#endif
+			  float32_t(), float64_t()})
     {
       using T = decltype(t);
       static_assert(__vectorizable<T>);
@@ -25,7 +31,9 @@ void test()
 
   static_assert(!__vectorizable<const float>);
   static_assert(!__vectorizable<float&>);
+#ifdef __STDCPP_BFLOAT16_T__
   static_assert(!__vectorizable<std::bfloat16_t>);
+#endif
 
   template for (constexpr int N : {1, 2, 4, 8})
     {
@@ -82,8 +90,10 @@ void test()
   static_assert( __value_preserving_convertible_to<float, double>);
   static_assert(!__value_preserving_convertible_to<double, float>);
 
+#ifdef __STDCPP_FLOAT16_T__
   static_assert(__explicitly_convertible_to<float, float16_t>);
   static_assert(__explicitly_convertible_to<long, float16_t>);
+#endif
 
   static_assert(__constexpr_wrapper_like<std::constant_wrapper<2>>);
   static_assert(__constexpr_wrapper_like<std::integral_constant<int, 1>>);
@@ -95,7 +105,9 @@ void test()
   static_assert(!__broadcast_constructible<const int, float>);
 
   static_assert(__broadcast_constructible<decltype(std::cw<2>), float>);
+#ifdef __STDCPP_FLOAT16_T__
   static_assert(__broadcast_constructible<decltype(std::cw<0.f>), std::float16_t>);
+#endif
 
 
   static_assert(__higher_rank_than<long, int>);
@@ -112,7 +124,9 @@ void test()
   static_assert(__higher_rank_than<unsigned long, int>);
   static_assert(__higher_rank_than<unsigned long long, long>);
 
+#ifdef __STDCPP_FLOAT16_T__
   static_assert(__higher_rank_than<float, float16_t>);
+#endif
   static_assert(__higher_rank_than<float32_t, float>);
   static_assert(__higher_rank_than<double, float32_t>);
   static_assert(__higher_rank_than<double, float>);
