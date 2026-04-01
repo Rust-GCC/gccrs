@@ -913,8 +913,8 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 #ifdef __glibcxx_associative_heterogeneous_erasure // C++23
       template <__heterogeneous_hash_key<unordered_map> _Kt>
 	size_type
-	erase(_Kt&& __key)
-	{ return _M_h._M_erase_tr(__key); }
+	erase(_Kt&& __x)
+	{ return _M_h._M_erase_tr(__x); }
 #endif
       ///@}
 
