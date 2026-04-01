@@ -3690,6 +3690,22 @@ set_decl_context_in_fn (tree ctx, tree decl)
 void
 push_local_extern_decl_alias (tree decl)
 {
+  if (flag_reflection)
+    {
+      if (lookup_attribute ("internal ", "annotation ",
+			    DECL_ATTRIBUTES (decl)))
+	error_at (DECL_SOURCE_LOCATION (decl),
+		  "annotation applied to block scope extern %qD",
+		  decl);
+      if (TREE_CODE (decl) == FUNCTION_DECL)
+	for (tree arg = DECL_ARGUMENTS (decl); arg; arg = DECL_CHAIN (arg))
+	  if (lookup_attribute ("internal ", "annotation ",
+				DECL_ATTRIBUTES (arg)))
+	    error_at (DECL_SOURCE_LOCATION (arg),
+		      "annotation applied to parameter %qD of block scope "
+		      "extern", arg);
+    }
+
   if (dependent_type_p (TREE_TYPE (decl))
       || (processing_template_decl
 	  && VAR_P (decl)

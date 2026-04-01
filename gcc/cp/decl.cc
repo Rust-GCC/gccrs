@@ -16618,6 +16618,27 @@ grokdeclarator (const cp_declarator *declarator,
 
 	if (friendp)
 	  {
+	    if (flag_reflection && !funcdef_flag && decl)
+	      {
+		if (attrlist
+		    && lookup_attribute ("internal ", "annotation ",
+					 *attrlist))
+		  {
+		    /* Remove the annotations to avoid spurious warning
+		       below.  */
+		    *attrlist = remove_attribute ("internal ", "annotation ",
+						  *attrlist);
+		    error_at (id_loc, "annotation applied to non-defining "
+				      "friend declaration %qD", decl);
+		  }
+		for (tree arg = DECL_ARGUMENTS (decl);
+		     arg; arg = DECL_CHAIN (arg))
+		  if (lookup_attribute ("internal ", "annotation ",
+					DECL_ATTRIBUTES (arg)))
+		    error_at (DECL_SOURCE_LOCATION (arg),
+			      "annotation applied to parameter %qD of "
+			      "non-defining friend declaration", arg);
+	      }
 	    /* Packages tend to use GNU attributes on friends, so we only
 	       warn for standard attributes.  */
 	    if (attrlist
