@@ -830,6 +830,9 @@ install-ps:
 dvi:
 install-dvi:
 
+new-abi-baseline:
+	$(MAKE) -C testsuite $@
+
 # All the machinations with string instantiations messes up the
 # automake-generated TAGS rule. Make a simple one here.
 TAGS: tags-recursive $(LISP)
