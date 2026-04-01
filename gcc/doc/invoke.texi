@@ -37440,27 +37440,24 @@ GNU Compiler Collection (GCC) Internals}.
 @c @itemx LC_TIME
 @itemx LC_ALL
 These environment variables control the way that GCC uses
-localization information which allows GCC to work with different
-national conventions.  GCC inspects the locale categories
+localization information that allows GCC to work with different
+national conventions for diagnostic and informational output.
+GCC inspects the locale categories
 @env{LC_CTYPE} and @env{LC_MESSAGES} if it has been configured to do
 so.  These locale categories can be set to any value supported by your
 installation.  A typical value is @samp{en_GB.UTF-8} for English in the United
 Kingdom encoded in UTF-8.
-
-The @env{LC_CTYPE} environment variable specifies character
-classification.  GCC uses it to determine the character boundaries in
-a string; this is needed for some multibyte encodings that contain quote
-and escape characters that are otherwise interpreted as a string
-end or escape.
-
-The @env{LC_MESSAGES} environment variable specifies the language to
-use in diagnostic messages.
 
 If the @env{LC_ALL} environment variable is set, it overrides the value
 of @env{LC_CTYPE} and @env{LC_MESSAGES}; otherwise, @env{LC_CTYPE}
 and @env{LC_MESSAGES} default to the value of the @env{LANG}
 environment variable.  If none of these variables are set, GCC
 defaults to traditional C English behavior.
+
+These environment variables do not affect the encodings of input files
+and strings in output files produced by GCC, which are controlled by the
+@option{-finput-charset} and @option{-fexec-charset} options, respectively.
+@xref{Preprocessor Options}.
 
 @vindex TMPDIR
 @item TMPDIR
@@ -37537,28 +37534,6 @@ linker files, if it cannot find them using @env{GCC_EXEC_PREFIX}.  Linking
 using GCC also uses these directories when searching for ordinary
 libraries for the @option{-l} option (but directories specified with
 @option{-L} come first).
-
-@vindex LANG
-@cindex locale definition
-@item LANG
-This variable is used to pass locale information to the compiler.  One way in
-which this information is used is to determine the character set to be used
-when character literals, string literals and comments are parsed in C and C++.
-When the compiler is configured to allow multibyte characters,
-the following values for @env{LANG} are recognized:
-
-@table @samp
-@item C-JIS
-Recognize JIS characters.
-@item C-SJIS
-Recognize SJIS characters.
-@item C-EUCJP
-Recognize EUCJP characters.
-@end table
-
-If @env{LANG} is not defined, or if it has some other value, then the
-compiler uses @code{mblen} and @code{mbtowc} as defined by the default locale to
-recognize and translate multibyte characters.
 
 @vindex GCC_EXTRA_DIAGNOSTIC_OUTPUT
 @item GCC_EXTRA_DIAGNOSTIC_OUTPUT
