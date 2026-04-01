@@ -83,6 +83,7 @@ public:
   static constexpr auto &CTLZ = "ctlz";
   static constexpr auto &CTLZ_NONZERO = "ctlz_nonzero";
   static constexpr auto &CTTZ = "cttz";
+  static constexpr auto &CTTZ_NONZERO = "cttz_nonzero";
   static constexpr auto &BSWAP = "bswap";
   static constexpr auto &BITREVERSE = "bitreverse";
   static constexpr auto &TYPE_ID = "type_id";
