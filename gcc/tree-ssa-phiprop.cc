@@ -339,6 +339,25 @@ propagate_with_phi (basic_block bb, gphi *vphi, gphi *phi,
       tree vuse;
       bool delay = false;
 
+      /* Check whether this is a load of *ptr.  */
+      if (!(is_gimple_assign (use_stmt)
+	    && gimple_assign_rhs_code (use_stmt) == MEM_REF
+	    && TREE_OPERAND (gimple_assign_rhs1 (use_stmt), 0) == ptr
+	    && integer_zerop (TREE_OPERAND (gimple_assign_rhs1 (use_stmt), 1))
+	    && (!type
+		|| types_compatible_p
+		     (TREE_TYPE (gimple_assign_lhs (use_stmt)), type))
+	    /* We cannot replace a load that may throw or is volatile.
+	       For volatiles the transform can change the number of
+	       executions if the load is inside a loop but the address
+	       computations outside (PR91812).  We could relax this
+	       if we guard against that appropriately.  For loads that can
+	       throw we could relax things if the moved loads all are
+	       known to not throw.  */
+	    && !stmt_can_throw_internal (cfun, use_stmt)
+	    && !gimple_has_volatile_ops (use_stmt)))
+	continue;
+
       if (canpossible_trap
 	  && !dom_info_available_p (cfun, CDI_POST_DOMINATORS))
 	calculate_dominance_info (CDI_POST_DOMINATORS);
@@ -360,25 +379,6 @@ propagate_with_phi (basic_block bb, gphi *vphi, gphi *phi,
 		    || flow_loop_nested_p (bb->loop_father,
 					   gimple_bb (use_stmt)->loop_father)))))
 	delay = true;
-
-      /* Check whether this is a load of *ptr.  */
-      if (!(is_gimple_assign (use_stmt)
-	    && gimple_assign_rhs_code (use_stmt) == MEM_REF
-	    && TREE_OPERAND (gimple_assign_rhs1 (use_stmt), 0) == ptr
-	    && integer_zerop (TREE_OPERAND (gimple_assign_rhs1 (use_stmt), 1))
-	    && (!type
-		|| types_compatible_p
-		     (TREE_TYPE (gimple_assign_lhs (use_stmt)), type))
-	    /* We cannot replace a load that may throw or is volatile.
-	       For volatiles the transform can change the number of
-	       executions if the load is inside a loop but the address
-	       computations outside (PR91812).  We could relax this
-	       if we guard against that appropriately.  For loads that can
-	       throw we could relax things if the moved loads all are
-	       known to not throw.  */
-	    && !stmt_can_throw_internal (cfun, use_stmt)
-	    && !gimple_has_volatile_ops (use_stmt)))
-	continue;
 
       /* Check if we can move the loads.  This is when the virtual use
 	 is the same as the one active at the start of BB which we know
