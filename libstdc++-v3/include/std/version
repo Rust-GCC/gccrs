@@ -23,8 +23,42 @@
 // <http://www.gnu.org/licenses/>.
 
 /** @file version
- *  This is a Standard C++ Library file.  You should @c \#include this file
- *  in your programs, rather than any of the @a *.h implementation files.
+ *  This is a Standard C++ Library header.  You should `#include` this header
+ *  in your programs, rather than any of the `*.h` implementation files.
+ *
+ * The `<version>` header defines feature test macros that describe the
+ * supported features of the C++ standard library implementation being used.
+ * The macros that are defined, and their values, depend on compiler flags
+ * (usually `-std`, but others such as `-fcoroutines` and `-fno-aligned-new`
+ * can affect them).
+ *
+ * These macros can be used to conditionally enable or disable code:
+ *
+ * ```
+ * #include <version>
+ * #ifdef __cpp_lib_expected
+ *   // std::expected is supported
+ * #endif
+ * ```
+ *
+ * The macro values indicate different levels of support, for example
+ * `__cpp_lib_expected == 202202L` means only the original feature set of
+ * `std::expected` is supported, while `__cpp_lib_expected == 202211L` means
+ * that the monadic functions such as `std::expected::and_then` are also
+ * supported.
+ *
+ * The list of macros defined in `<version>` and their meanings is given in
+ * the C++ standard committee's SD-6 document:
+ * https://isocpp.org/std/standing-documents/sd-6-sg10-feature-test-recommendations
+ *
+ * `<version>` may also define non-standard, implementation-specific macros,
+ * such as libstdc++'s `_GLIBCXX_RELEASE`.  However, the standard feature
+ * test macros should be preferred over depending on specific versions of any
+ * particular implementation.
+ *
+ * The `<version>` header was introduced in C++20, but libstdc++ provides it
+ * unconditionally. As documented in SD-6, some macros correspond to features
+ * in C++17 and earlier standards.
  */
 
 #ifndef _GLIBCXX_VERSION_INCLUDED
