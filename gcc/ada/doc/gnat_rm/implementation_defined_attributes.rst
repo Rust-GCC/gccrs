@@ -873,6 +873,13 @@ range).  The result is static for static subtypes.  ``Range_Length``
 applied to the index subtype of a one dimensional array always gives the
 same result as ``Length`` applied to the array itself.
 
+Attribute Ref
+=============
+
+``System.Address'Ref`` (``Address`` is the only permissible prefix) is
+equivalent to ``System'To_Address``, provided for compatibility with other
+compilers.
+
 Attribute Restriction_Set
 =========================
 .. index:: Restriction_Set
