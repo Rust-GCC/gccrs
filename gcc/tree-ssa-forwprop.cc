@@ -1366,6 +1366,10 @@ optimize_aggr_zeroprop (gimple *stmt, bool full_walk)
       || !poly_int_tree_p (len))
     return;
 
+  /* Sometimes memset can have no vdef due to invalid declaration of memset (const, etc.).  */
+  if (!gimple_vdef (stmt))
+    return;
+
   /* This store needs to be on the byte boundary and pointing to an object.  */
   poly_int64 offset;
   tree dest_base = get_addr_base_and_unit_offset (dest, &offset);
