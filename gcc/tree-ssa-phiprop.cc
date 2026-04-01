@@ -358,13 +358,18 @@ propagate_with_phi (basic_block bb, gphi *vphi, gphi *phi,
 	    && !gimple_has_volatile_ops (use_stmt)))
 	continue;
 
-      if (canpossible_trap
+      bool aggregate = false;
+      if (!is_gimple_reg_type (TREE_TYPE (gimple_assign_lhs (use_stmt))))
+	aggregate = true;
+
+      if ((canpossible_trap || aggregate)
 	  && !dom_info_available_p (cfun, CDI_POST_DOMINATORS))
 	calculate_dominance_info (CDI_POST_DOMINATORS);
 
       /* Only replace loads in blocks that post-dominate the PHI node.  That
-	 makes sure we don't end up speculating trapping loads.  */
-      if (canpossible_trap
+	 makes sure we don't end up speculating trapping loads or
+	 aggregate stores won't happen speculating.  */
+      if ((canpossible_trap || aggregate)
 	  && !dominated_by_p (CDI_POST_DOMINATORS,
 			      bb, gimple_bb (use_stmt)))
 	delay = true;
@@ -409,7 +414,7 @@ propagate_with_phi (basic_block bb, gphi *vphi, gphi *phi,
 
       /* Found a proper dereference with an aggregate copy.  Just
          insert aggregate copies on the edges instead.  */
-      if (!is_gimple_reg_type (TREE_TYPE (gimple_assign_lhs (use_stmt))))
+      if (aggregate)
 	{
 	  /* aggregate copies are too hard to handled if delayed.  */
 	  if (delay)
