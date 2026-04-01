@@ -752,14 +752,6 @@ namespace ranges
       struct _Sentinel
       {
       private:
-	constexpr bool
-	_M_equal(const _Iterator& __x) const
-	{ return __x._M_value == _M_bound; }
-
-	constexpr auto
-	_M_distance_from(const _Iterator& __x) const
-	{ return _M_bound - __x._M_value; }
-
 	_Bound _M_bound = _Bound();
 
       public:
@@ -771,17 +763,17 @@ namespace ranges
 
 	friend constexpr bool
 	operator==(const _Iterator& __x, const _Sentinel& __y)
-	{ return __y._M_equal(__x); }
+	{ return __x._M_value == __y._M_bound; }
 
 	friend constexpr iter_difference_t<_Winc>
 	operator-(const _Iterator& __x, const _Sentinel& __y)
 	  requires sized_sentinel_for<_Bound, _Winc>
-	{ return -__y._M_distance_from(__x); }
+	{ return -(__y._M_bound - __x._M_value); }
 
 	friend constexpr iter_difference_t<_Winc>
 	operator-(const _Sentinel& __x, const _Iterator& __y)
 	  requires sized_sentinel_for<_Bound, _Winc>
-	{ return __x._M_distance_from(__y); }
+	{ return __x._M_bound - __y._M_value; }
 
 	friend iota_view;
       };
@@ -1006,14 +998,10 @@ namespace views
 
 	friend bool
 	operator==(const _Iterator& __x, default_sentinel_t)
-	{ return __x._M_at_end(); }
+	{ return !*__x._M_parent->_M_stream; }
 
       private:
 	basic_istream_view* _M_parent;
-
-	bool
-	_M_at_end() const
-	{ return !*_M_parent->_M_stream; }
       };
 
       friend _Iterator;
@@ -2246,16 +2234,6 @@ namespace views::__adaptor
 	  using _Parent = __detail::__maybe_const_t<_Const, transform_view>;
 	  using _Base = transform_view::_Base<_Const>;
 
-	  template<bool _Const2>
-	    constexpr auto
-	    __distance_from(const _Iterator<_Const2>& __i) const
-	    { return _M_end - __i._M_current; }
-
-	  template<bool _Const2>
-	    constexpr bool
-	    __equal(const _Iterator<_Const2>& __i) const
-	    { return __i._M_current == _M_end; }
-
 	  sentinel_t<_Base> _M_end = sentinel_t<_Base>();
 
 	public:
@@ -2282,21 +2260,21 @@ namespace views::__adaptor
 		       iterator_t<__detail::__maybe_const_t<_Const2, _Vp>>>
 	    friend constexpr bool
 	    operator==(const _Iterator<_Const2>& __x, const _Sentinel& __y)
-	    { return __y.__equal(__x); }
+	    { return __x._M_current == __y._M_end; }
 
 	  template<bool _Const2,
 		   typename _Base2 = __detail::__maybe_const_t<_Const2, _Vp>>
 	    requires sized_sentinel_for<sentinel_t<_Base>, iterator_t<_Base2>>
 	    friend constexpr range_difference_t<_Base2>
 	    operator-(const _Iterator<_Const2>& __x, const _Sentinel& __y)
-	    { return -__y.__distance_from(__x); }
+	    { return -(__y._M_end - __x._M_current); }
 
 	  template<bool _Const2,
 		   typename _Base2 = __detail::__maybe_const_t<_Const2, _Vp>>
 	    requires sized_sentinel_for<sentinel_t<_Base>, iterator_t<_Base2>>
 	    friend constexpr range_difference_t<_Base2>
 	    operator-(const _Sentinel& __y, const _Iterator<_Const2>& __x)
-	    { return __y.__distance_from(__x); }
+	    { return __y._M_end - __x._M_current; }
 
 	  friend _Sentinel<!_Const>;
 	};
@@ -3300,11 +3278,6 @@ namespace views::__adaptor
 	  using _Parent = __detail::__maybe_const_t<_Const, join_view>;
 	  using _Base = join_view::_Base<_Const>;
 
-	  template<bool _Const2>
-	    constexpr bool
-	    __equal(const _Iterator<_Const2>& __i) const
-	    { return __i._M_get_outer() == _M_end; }
-
 	  sentinel_t<_Base> _M_end = sentinel_t<_Base>();
 
 	public:
@@ -3326,7 +3299,7 @@ namespace views::__adaptor
 		       iterator_t<__detail::__maybe_const_t<_Const2, _Vp>>>
 	    friend constexpr bool
 	    operator==(const _Iterator<_Const2>& __x, const _Sentinel& __y)
-	    { return __y.__equal(__x); }
+	    { return __x._M_get_outer() == __y._M_end; }
 
 	  friend _Sentinel<!_Const>;
 	};
@@ -3501,10 +3474,6 @@ namespace views::__adaptor
 	  using _Parent = __detail::__maybe_const_t<_Const, lazy_split_view>;
 	  using _Base = lazy_split_view::_Base<_Const>;
 
-	  constexpr bool
-	  __at_end() const
-	  { return __current() == ranges::end(_M_parent->_M_base) && !_M_trailing_empty; }
-
 	  // [range.lazy.split.outer] p1
 	  //  Many of the following specifications refer to the notional member
 	  //  current of outer-iterator.  current is equivalent to current_ if
@@ -3657,7 +3626,10 @@ namespace views::__adaptor
 
 	  friend constexpr bool
 	  operator==(const _OuterIter& __x, default_sentinel_t)
-	  { return __x.__at_end(); };
+	  {
+	    return __x.__current() == ranges::end(__x._M_parent->_M_base)
+	      && !__x._M_trailing_empty;
+	  }
 
 	  friend _OuterIter<!_Const>;
 	  friend _InnerIter<_Const>;
@@ -4050,10 +4022,6 @@ namespace views::__adaptor
     private:
       sentinel_t<_Vp> _M_end = sentinel_t<_Vp>();
 
-      constexpr bool
-      _M_equal(const _Iterator& __x) const
-      { return __x._M_cur == _M_end && !__x._M_trailing_empty; }
-
     public:
       _Sentinel() = default;
 
@@ -4064,7 +4032,7 @@ namespace views::__adaptor
 
       friend constexpr bool
       operator==(const _Iterator& __x, const _Sentinel& __y)
-      { return __y._M_equal(__x); }
+      { return __x._M_cur == __y._M_end && !__x._M_trailing_empty; }
     };
   };
 
@@ -4671,16 +4639,6 @@ namespace views::__adaptor
 	struct _Sentinel
 	{
 	private:
-	  template<bool _Const2>
-	    constexpr bool
-	    _M_equal(const _Iterator<_Const2>& __x) const
-	    { return __x._M_current == _M_end; }
-
-	  template<bool _Const2>
-	    constexpr auto
-	    _M_distance_from(const _Iterator<_Const2>& __i) const
-	    { return _M_end - __i._M_current; }
-
 	  using _Base = elements_view::_Base<_Const>;
 	  sentinel_t<_Base> _M_end = sentinel_t<_Base>();
 
@@ -4708,21 +4666,21 @@ namespace views::__adaptor
 		       iterator_t<__detail::__maybe_const_t<_Const2, _Vp>>>
 	    friend constexpr bool
 	    operator==(const _Iterator<_Const2>& __x, const _Sentinel& __y)
-	    { return __y._M_equal(__x); }
+	    { return __x._M_current == __y._M_end; }
 
 	  template<bool _Const2,
 		   typename _Base2 = __detail::__maybe_const_t<_Const2, _Vp>>
 	    requires sized_sentinel_for<sentinel_t<_Base>, iterator_t<_Base2>>
 	    friend constexpr range_difference_t<_Base2>
 	    operator-(const _Iterator<_Const2>& __x, const _Sentinel& __y)
-	    { return -__y._M_distance_from(__x); }
+	    { return -(__y._M_end - __x._M_current); }
 
 	  template<bool _Const2,
 		   typename _Base2 = __detail::__maybe_const_t<_Const2, _Vp>>
 	    requires sized_sentinel_for<sentinel_t<_Base>, iterator_t<_Base2>>
 	    friend constexpr range_difference_t<_Base2>
 	    operator-(const _Sentinel& __x, const _Iterator<_Const2>& __y)
-	    { return __x._M_distance_from(__y); }
+	    { return __x._M_end - __y._M_current; }
 
 	  friend _Sentinel<!_Const>;
 	};
