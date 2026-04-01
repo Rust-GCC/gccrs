@@ -9121,7 +9121,7 @@ highest_pow2_factor_for_target (const_tree target, const_tree exp)
 /* Convert the tree comparison code TCODE to the rtl one where the
    signedness is UNSIGNEDP.  */
 
-static enum rtx_code
+enum rtx_code
 convert_tree_comp_to_rtx (enum tree_code tcode, int unsignedp)
 {
   enum rtx_code code;

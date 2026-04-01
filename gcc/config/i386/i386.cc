@@ -23163,36 +23163,71 @@ ix86_rtx_costs (rtx x, machine_mode mode, int outer_code_i, int opno,
       return false;
 
     case UNSPEC:
-      if (XINT (x, 1) == UNSPEC_TP)
-	*total = 0;
-      else if (XINT (x, 1) == UNSPEC_VTERNLOG)
+      switch (XINT (x, 1))
 	{
+	case UNSPEC_TP:
+	  *total = 0;
+	  break;
+
+	case UNSPEC_VTERNLOG:
 	  *total = cost->sse_op;
-	  *total += rtx_cost (XVECEXP (x, 0, 0), mode, code, 0, speed);
-	  *total += rtx_cost (XVECEXP (x, 0, 1), mode, code, 1, speed);
-	  *total += rtx_cost (XVECEXP (x, 0, 2), mode, code, 2, speed);
+	  if (!REG_P (XVECEXP (x, 0, 0)))
+	    *total += rtx_cost (XVECEXP (x, 0, 0), mode, code, 0, speed);
+	  if (!REG_P (XVECEXP (x, 0, 1)))
+	    *total += rtx_cost (XVECEXP (x, 0, 1), mode, code, 1, speed);
+	  if (!REG_P (XVECEXP (x, 0, 2)))
+	    *total += rtx_cost (XVECEXP (x, 0, 2), mode, code, 2, speed);
 	  return true;
-	}
-      else if (XINT (x, 1) == UNSPEC_PTEST)
-	{
+
+	case UNSPEC_PTEST:
+	  {
+	    *total = cost->sse_op;
+	    rtx test_op0 = XVECEXP (x, 0, 0);
+	    if (!rtx_equal_p (test_op0, XVECEXP (x, 0, 1)))
+	      return false;
+	    if (GET_CODE (test_op0) == AND)
+	      {
+		rtx and_op0 = XEXP (test_op0, 0);
+		if (GET_CODE (and_op0) == NOT)
+		  and_op0 = XEXP (and_op0, 0);
+		*total += rtx_cost (and_op0, GET_MODE (and_op0),
+				    AND, 0, speed)
+			  + rtx_cost (XEXP (test_op0, 1), GET_MODE (and_op0),
+				      AND, 1, speed);
+	     }
+	    else
+	      *total = rtx_cost (test_op0, GET_MODE (test_op0),
+				 UNSPEC, 0, speed);
+	  }
+	  return true;
+
+	case UNSPEC_BLENDV:
 	  *total = cost->sse_op;
-	  rtx test_op0 = XVECEXP (x, 0, 0);
-	  if (!rtx_equal_p (test_op0, XVECEXP (x, 0, 1)))
-	    return false;
-	  if (GET_CODE (test_op0) == AND)
+	  if (!REG_P (XVECEXP (x, 0, 0)))
+	    *total += rtx_cost (XVECEXP (x, 0, 0), mode, code, 0, speed);
+	  if (!REG_P (XVECEXP (x, 0, 1)))
+	    *total += rtx_cost (XVECEXP (x, 0, 1), mode, code, 1, speed);
+	  if (!REG_P (XVECEXP (x, 0, 2)))
 	    {
-	      rtx and_op0 = XEXP (test_op0, 0);
-	      if (GET_CODE (and_op0) == NOT)
-		and_op0 = XEXP (and_op0, 0);
-	      *total += rtx_cost (and_op0, GET_MODE (and_op0),
-				  AND, 0, speed)
-			+ rtx_cost (XEXP (test_op0, 1), GET_MODE (and_op0),
-				    AND, 1, speed);
+	      rtx cond = XVECEXP (x, 0, 2);
+	      if ((GET_CODE (cond) == LT || GET_CODE (cond) == GT)
+		  && CONST_VECTOR_P (XEXP (cond, 1)))
+		{
+		  /* avx2_blendvpd256_gt and friends.  */
+		  if (!REG_P (XEXP (cond, 0)))
+		    *total += rtx_cost (XEXP (cond, 0), mode, code, 2, speed);
+		}
+	      else
+		*total += rtx_cost (cond, mode, code, 2, speed);
 	    }
-	  else
-	    *total = rtx_cost (test_op0, GET_MODE (test_op0),
-			       UNSPEC, 0, speed);
 	  return true;
+
+	case UNSPEC_MOVMSK:
+	  *total = cost->sse_op;
+	  return true;
+
+	default:
+	  break;
 	}
       return false;
 
@@ -23405,6 +23440,70 @@ ix86_rtx_costs (rtx x, machine_mode mode, int outer_code_i, int opno,
 	    *total += rtx_cost (XEXP (x, 1), mode, code, 1, speed);
 	  if (!REG_P (XEXP (x, 2)))
 	    *total += rtx_cost (XEXP (x, 2), mode, code, 2, speed);
+	  return true;
+	}
+      return false;
+
+    case EQ:
+    case GT:
+    case GTU:
+    case LT:
+    case LTU:
+      if (TARGET_SSE2
+	  && GET_MODE_CLASS (mode) == MODE_VECTOR_INT
+	  && GET_MODE_SIZE (mode) >= 8)
+	{
+	  /* vpcmpeq */
+	  *total = speed ? COSTS_N_INSNS (1) : COSTS_N_BYTES (4);
+	  if (!REG_P (XEXP (x, 0)))
+	    *total += rtx_cost (XEXP (x, 0), mode, code, 0, speed);
+	  if (!REG_P (XEXP (x, 1)))
+	    *total += rtx_cost (XEXP (x, 1), mode, code, 1, speed);
+	  return true;
+	}
+      if (TARGET_XOP
+	  && GET_MODE_CLASS (mode) == MODE_VECTOR_INT
+	  && GET_MODE_SIZE (mode) <= 16)
+	{
+	  /* vpcomeq */
+	  *total = speed ? COSTS_N_INSNS (1) : COSTS_N_BYTES (6);
+	  if (!REG_P (XEXP (x, 0)))
+	    *total += rtx_cost (XEXP (x, 0), mode, code, 0, speed);
+	  if (!REG_P (XEXP (x, 1)))
+	    *total += rtx_cost (XEXP (x, 1), mode, code, 1, speed);
+	  return true;
+	}
+      return false;
+
+    case NE:
+    case GE:
+    case GEU:
+      if (TARGET_XOP
+	  && GET_MODE_CLASS (mode) == MODE_VECTOR_INT
+	  && GET_MODE_SIZE (mode) <= 16)
+	{
+	  /* vpcomneq */
+	  *total = speed ? COSTS_N_INSNS (1) : COSTS_N_BYTES (6);
+	  if (!REG_P (XEXP (x, 0)))
+	    *total += rtx_cost (XEXP (x, 0), mode, code, 0, speed);
+	  if (!REG_P (XEXP (x, 1)))
+	    *total += rtx_cost (XEXP (x, 1), mode, code, 1, speed);
+	  return true;
+	}
+      if (TARGET_SSE2
+	  && GET_MODE_CLASS (mode) == MODE_VECTOR_INT
+	  && GET_MODE_SIZE (mode) >= 8)
+	{
+	  if (TARGET_AVX512F && GET_MODE_SIZE (mode) >= 16)
+	    /* vpcmpeq + vpternlog */
+	    *total = speed ? COSTS_N_INSNS (2) : COSTS_N_BYTES (11);
+	  else
+	    /* vpcmpeq + pxor + vpcmpeq */
+	    *total = speed ? COSTS_N_INSNS (3) : COSTS_N_BYTES (12);
+	  if (!REG_P (XEXP (x, 0)))
+	    *total += rtx_cost (XEXP (x, 0), mode, code, 0, speed);
+	  if (!REG_P (XEXP (x, 1)))
+	    *total += rtx_cost (XEXP (x, 1), mode, code, 1, speed);
 	  return true;
 	}
       return false;

@@ -5282,11 +5282,17 @@ ix86_expand_int_vec_cmp (rtx operands[])
     return false;
 
   if (negate)
-    cmp = ix86_expand_int_sse_cmp (operands[0], EQ, cmp,
-				   CONST0_RTX (GET_MODE (cmp)),
-				   NULL, NULL, &negate);
-
-  gcc_assert (!negate);
+    {
+      if (TARGET_AVX512F && GET_MODE_SIZE (GET_MODE (cmp)) >= 16)
+	cmp = gen_rtx_XOR (GET_MODE (cmp), cmp, CONSTM1_RTX (GET_MODE (cmp)));
+      else
+	{
+	  cmp = ix86_expand_int_sse_cmp (operands[0], EQ, cmp,
+					 CONST0_RTX (GET_MODE (cmp)),
+					 NULL, NULL, &negate);
+	  gcc_assert (!negate);
+	}
+    }
 
   if (operands[0] != cmp)
     emit_move_insn (operands[0], cmp);
