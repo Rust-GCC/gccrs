@@ -456,7 +456,6 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 	emplace(_Args&&... __args)
 	{ return _M_h.emplace(std::forward<_Args>(__args)...); }
 
-      ///@{
       /**
        *  @brief Attempts to build and insert a std::pair into the
        *  %unordered_map.
@@ -617,7 +616,6 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 	  return _M_h.try_emplace(__hint, std::move(__k),
 				  std::forward<_Args>(__args)...).first;
 	}
-#endif // __glibcxx_unordered_map_try_emplace
 
 #ifdef __glibcxx_associative_heterogeneous_insertion  // C++26
       template <__heterogeneous_hash_key<unordered_map> _Kt, typename ..._Args>
@@ -629,6 +627,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 	}
 #endif
       ///@}
+#endif // __glibcxx_unordered_map_try_emplace
 
       ///@{
       /**

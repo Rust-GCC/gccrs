@@ -685,6 +685,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
        *
        *  For more information on function objects, see the
        *  documentation on @link functors functor base classes@endlink.
+       *
+       *  @{
        */
 #if __cplusplus < 201103L
       template<typename _InputIterator>
@@ -730,7 +732,10 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	  c.insert(c.end(), __first, __last);
 	  std::make_heap(c.begin(), c.end(), comp);
 	}
+#endif // C++11
+      /// @}
 
+#if __cplusplus >= 201103L
       // _GLIBCXX_RESOLVE_LIB_DEFECTS
       // 3506. Missing allocator-extended constructors for priority_queue
       template<typename _InputIterator, typename _Alloc,
@@ -773,7 +778,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	  c.insert(c.end(), __first, __last);
 	  std::make_heap(c.begin(), c.end(), comp);
 	}
-#endif
+#endif // C++11
 
 #if __glibcxx_containers_ranges // C++ >= 23
       /**
