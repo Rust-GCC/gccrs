@@ -870,6 +870,8 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
        *  to the first is returned.
        *
        *  Insertion requires logarithmic time (if the hint is not taken).
+       *
+       *  @{
        */
       template <typename... _Args>
 	iterator
@@ -906,7 +908,6 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 	    __i = iterator(__true_hint.first);
 	  return __i;
 	}
-#endif
 
 #ifdef __glibcxx_associative_heterogeneous_insertion  // C++26
       template <__heterogeneous_tree_key<map> _Kt, typename ..._Args>
@@ -927,6 +928,8 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 	  return __i;
 	}
 #endif
+      /// @}
+#endif // __glibcxx_map_try_emplace
 
       /**
        *  @brief Attempts to insert a std::pair into the %map.
@@ -1074,7 +1077,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 	insert(_InputIterator __first, _InputIterator __last)
 	{ _M_t._M_insert_range_unique(__first, __last); }
 
-#if __cplusplus > 201402L
+#ifdef __glibcxx_map_try_emplace // >= C++17 && HOSTED
       /**
        *  @brief Attempts to insert or assign a std::pair into the %map.
        *  @param __k    Key to use for finding a possibly existing pair in
@@ -1150,9 +1153,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 	}
 #endif
       ///@}
-#endif
 
-#if __cplusplus > 201402L
       ///@{
       /**
        *  @brief Attempts to insert or assign a std::pair into the %map.
@@ -1238,7 +1239,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 	}
 #endif
       ///@}
-#endif
+#endif // __glibcxx_map_try_emplace
 
 #if __cplusplus >= 201103L
       // _GLIBCXX_RESOLVE_LIB_DEFECTS
