@@ -3041,6 +3041,16 @@ package Sem_Util is
    --  of the corresponding formal entity, otherwise returns Empty. Also
    --  handles the case of references to renamings of formals.
 
+   function Partially_Visible_Subcomponent
+     (Type_Id : Entity_Id) return Entity_Id;
+   --  If there exist any subcomponents of Type_Id whose types are currently
+   --  only partially visible, returns one such subcomponent. Otherwise returns
+   --  Empty. Used to enforce the rules on visibility of operations on
+   --  composite types, that depend on the full view of the subcomponent types.
+   --
+   --  We say that a type is "partially visible" when it has a partial view
+   --  that is currently visible but no full view that is currently visible.
+
    function Policy_In_Effect
      (Policy : Name_Id;
       Level  : Name_Id := No_Name)
@@ -3092,16 +3102,6 @@ package Sem_Util is
    --  or both entities correspond with entities built by Derive_Subprogram
    --  with a special name to avoid being overridden (i.e. return true in case
    --  of entities with names "nameP" and "name" or vice versa).
-
-   function Partially_Visible_Subcomponent
-     (Type_Id : Entity_Id) return Entity_Id;
-   --  If there exist any subcomponents of Type_Id whose types are currently
-   --  only partially visible, returns one such subcomponent. Otherwise returns
-   --  Empty. Used to enforce the rules on visibility of operations on
-   --  composite types, that depend on the full view of the subcomponent types.
-   --
-   --  We say that a type is "partially visible" when it has a partial view
-   --  that is currently visible but no full view that is currently visible.
 
    procedure Process_End_Label
      (N   : Node_Id;
