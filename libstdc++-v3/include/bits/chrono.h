@@ -1035,8 +1035,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
      * returns the closest value that is less than the argument.
      *
      * @tparam _ToDur The `duration` type to use for the result.
-     * @param __t A time point.
-     * @return The value of `__d` converted to type `_ToDur`.
+     * @param __tp A time point.
+     * @return The value of `__tp` rounded down to the precision of `_ToDur`.
      * @since C++17
      */
     template<typename _ToDur, typename _Clock, typename _Dur>
@@ -1056,8 +1056,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
      * returns the closest value that is greater than the argument.
      *
      * @tparam _ToDur The `duration` type to use for the result.
-     * @param __t A time point.
-     * @return The value of `__d` converted to type `_ToDur`.
+     * @param __tp A time point.
+     * @return The value of `__tp` rounded up to the precision of `_ToDur`.
      * @since C++17
      */
     template<typename _ToDur, typename _Clock, typename _Dur>
@@ -1078,8 +1078,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
      *
      * @tparam _ToDur The `duration` type to use for the result,
      *                which must have a non-floating-point `rep` type.
-     * @param __t A time point.
-     * @return The value of `__d` converted to type `_ToDur`.
+     * @param __tp A time point.
+     * @return The value of `__tp` rounded to the precision `_ToDur`.
      * @since C++17
      */
     template<typename _ToDur, typename _Clock, typename _Dur>
