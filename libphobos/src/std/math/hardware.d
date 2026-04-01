@@ -63,6 +63,7 @@ else version (RISCV_Any) version = IeeeFlagsSupport;
 else version (MIPS_Any)  version = IeeeFlagsSupport;
 else version (LoongArch_Any) version = IeeeFlagsSupport;
 else version (ARM_Any)   version = IeeeFlagsSupport;
+else version (SPARC_Any) version = IeeeFlagsSupport;
 
 // Struct FloatingPointControl is only available if hardware FP units are available.
 version (D_HardFloat)
@@ -90,7 +91,7 @@ private:
     // The x87 FPU status register is 16 bits.
     // The Pentium SSE2 status register is 32 bits.
     // The ARM and PowerPC FPSCR is a 32-bit register.
-    // The SPARC FSR is a 32bit register (64 bits for SPARC 7 & 8, but high bits are uninteresting).
+    // The SPARC FSR is a 32-bit register (64 bits for SPARC V9, but high bits are uninteresting).
     // The RISC-V (32 & 64 bit) fcsr is 32-bit register.
     // THe LoongArch fcsr (fcsr0) is a 32-bit register.
     uint flags;
@@ -111,6 +112,36 @@ private:
         }
         // Don't bother about subnormals, they are not supported on most CPUs.
         //  SUBNORMAL_MASK = 0x02;
+    }
+    else version (Solaris)
+    {
+        // Solaris <fenv.h> uses hardware-incompatible floating-point status flags.
+        // Use the <sys/fsr.h> AEXC (Accrued EXCeption) bit field of fsr instead.
+        version (SPARC_Any)
+        {
+            enum : int
+            {
+                INEXACT_MASK    = 0x020,
+                UNDERFLOW_MASK  = 0x080,
+                OVERFLOW_MASK   = 0x100,
+                DIVBYZERO_MASK  = 0x040,
+                INVALID_MASK    = 0x200,
+                EXCEPTIONS_MASK = 0x3E0,
+            }
+        }
+        // Use the <sys/fp.h> masks for 80387 control word or SSE/SSE2 MXCSR instead.
+        else version (X86_Any)
+        {
+            enum : int
+            {
+                INEXACT_MASK    = 0x20,
+                UNDERFLOW_MASK  = 0x10,
+                OVERFLOW_MASK   = 0x08,
+                DIVBYZERO_MASK  = 0x04,
+                INVALID_MASK    = 0x01,
+                EXCEPTIONS_MASK = 0x3D,
+            }
+        }
     }
     else
     {
@@ -648,6 +679,36 @@ nothrow @nogc:
                              | roundUp | roundToZero,
         }
     }
+    else version (Solaris)
+    {
+        // Solaris <fenv.h> uses hardware-incompatible floating-point status flags.
+        // Use the <sys/fsr.h> RD (Rounding Direction) field of fsr instead.
+        version (SPARC_Any)
+        {
+            enum : RoundingMode
+            {
+                roundToNearest = 0x00000000,
+                roundDown      = 0xC0000000,
+                roundUp        = 0x80000000,
+                roundToZero    = 0x40000000,
+                roundingMask   = roundToNearest | roundDown
+                                 | roundUp | roundToZero,
+            }
+        }
+        // Use the <sys/fp.h> rounding options in control word instead.
+        else version (X86_Any)
+        {
+            enum : RoundingMode
+            {
+                roundToNearest = 0x000,
+                roundDown      = 0x400,
+                roundUp        = 0x800,
+                roundToZero    = 0xc00,
+                roundingMask   = roundToNearest | roundDown
+                                 | roundUp | roundToZero,
+            }
+        }
+    }
     else
     {
         enum : RoundingMode
@@ -878,6 +939,8 @@ nothrow @nogc:
             return true;
         else version (SPARC_Any)
             return true;
+        else version (SPARC_Any)
+            return true;
         else version (ARM_Any)
         {
             // The hasExceptionTraps_impl function is basically pure,
@@ -961,7 +1024,7 @@ private:
     }
     else version (SPARC_Any)
     {
-        alias ControlState = ulong;
+        alias ControlState = uint;
     }
     else version (IBMZ_Any)
     {

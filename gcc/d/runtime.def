@@ -66,25 +66,9 @@ DEF_D_RUNTIME (CALLFINALIZER, "_d_callfinalizer", RT(VOID), P1(VOIDPTR), 0)
 DEF_D_RUNTIME (CALLINTERFACEFINALIZER, "_d_callinterfacefinalizer", RT(VOID),
 	       P1(VOIDPTR), 0)
 
-/* Used for (array.length = n) expressions.  The `i' variant is for when the
-   initializer is nonzero.  */
-DEF_D_RUNTIME (ARRAYSETLENGTHT, "_d_arraysetlengthT", RT(ARRAY_VOID),
-	       P3(CONST_TYPEINFO, SIZE_T, ARRAYPTR_VOID), 0)
-DEF_D_RUNTIME (ARRAYSETLENGTHIT, "_d_arraysetlengthiT", RT(ARRAY_VOID),
-	       P3(CONST_TYPEINFO, SIZE_T, ARRAYPTR_VOID), 0)
-
 /* Used for allocating closures on the GC heap.  */
 DEF_D_RUNTIME (ALLOCMEMORY, "_d_allocmemory", RT(VOIDPTR), P1(SIZE_T),
 	       ECF_MALLOC)
-
-/* Used for copying an array into a slice, adds an enforcment that the source
-   and destination are equal in size and do not overlap.  */
-DEF_D_RUNTIME (ARRAYCOPY, "_d_arraycopy", RT(ARRAY_VOID),
-	       P3(SIZE_T, ARRAY_VOID, ARRAY_VOID), 0)
-
-/* Used for appending a single element to an array.  */
-DEF_D_RUNTIME (ARRAYAPPENDCTX, "_d_arrayappendcTX", RT(ARRAY_BYTE),
-	       P3(CONST_TYPEINFO, ARRAYPTR_BYTE, SIZE_T), 0)
 
 /* Same as appending a single element to an array, but specific for when the
    source is a UTF-32 character, and the destination is a UTF-8 or 16 array.  */

@@ -969,6 +969,19 @@ if (isConvertibleToString!RF || isConvertibleToString!RT)
     assert(t2.readText == "2");
 }
 
+
+@safe unittest
+{
+    import std.file;
+    import std.exception : assertThrown;
+
+    string f = null;
+
+    // Check if FileException is thrown for invalid rename
+    assertThrown!FileException(rename("", f));
+    assertThrown!FileException(rename(f, ""));
+}
+
 private void renameImpl(scope const(char)[] f, scope const(char)[] t,
                         scope const(FSChar)* fromz, scope const(FSChar)* toz) @trusted
 {
@@ -983,10 +996,10 @@ private void renameImpl(scope const(char)[] f, scope const(char)[] t,
             import std.conv : to, text;
 
             if (!f)
-                f = to!(typeof(f))(fromz[0 .. wcslen(fromz)]);
+                f = fromz ? to!(typeof(f))(fromz[0 .. wcslen(fromz)]) : "(null)";
 
             if (!t)
-                t = to!(typeof(t))(toz[0 .. wcslen(toz)]);
+                t = toz ? to!(typeof(t))(toz[0 .. wcslen(toz)]) : "(null)";
 
             enforce(false,
                 new FileException(

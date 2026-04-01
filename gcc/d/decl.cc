@@ -1053,7 +1053,7 @@ public:
 
 	if (d->isNRVO () && d->nrvo_var)
 	  var = get_symbol_decl (d->nrvo_var);
-	else if (d->vresult)
+	else if (d->vresult && !d->vresult->isRef ())
 	  var = get_symbol_decl (d->vresult);
 
 	if (var != NULL_TREE)

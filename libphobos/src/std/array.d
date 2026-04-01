@@ -1083,14 +1083,6 @@ if (isDynamicArray!T && allSatisfy!(isIntegral, I))
     }
 }
 
-// from rt/lifetime.d
-private extern(C) void[] _d_newarrayU(const TypeInfo ti, size_t length) pure nothrow;
-
-// from rt/tracegc.d
-version (D_ProfileGC)
-private extern (C) void[] _d_newarrayUTrace(string file, size_t line,
-    string funcname, const scope TypeInfo ti, size_t length) pure nothrow;
-
 private auto arrayAllocImpl(bool minimallyInitialized, T, I...)(I sizes) nothrow
 {
     static assert(I.length <= nDimensions!T,
@@ -1141,18 +1133,19 @@ private auto arrayAllocImpl(bool minimallyInitialized, T, I...)(I sizes) nothrow
               which will inform the GC how to destroy the items in the block
               when it gets collected.
 
-              _d_newarrayU returns a void[], but with the length set according
-              to E.sizeof.
+              _d_newarrayU returns a E[], with the length set according to
+              to the size parameter.
             +/
+            enum isShared = is (E == shared);
             version (D_ProfileGC)
             {
                 // FIXME: file, line, function should be propagated from the
                 // caller, not here.
-                *(cast(void[]*)&ret) = _d_newarrayUTrace(__FILE__, __LINE__,
-                    __FUNCTION__, typeid(E[]), size);
+                ret = _d_newarrayUTrace!E(size, isShared,
+                    __FILE__, __LINE__, __FUNCTION__);
             }
             else
-                *(cast(void[]*)&ret) = _d_newarrayU(typeid(E[]), size);
+                ret = _d_newarrayU!E(size, isShared);
             static if (minimallyInitialized && hasIndirections!E)
                 // _d_newarrayU would have asserted if the multiplication below
                 // had overflowed, so we don't have to check it again.
@@ -3581,11 +3574,18 @@ See_Also: $(LREF appender)
 struct Appender(A)
 if (isDynamicArray!A)
 {
-    import std.format.spec : FormatSpec;
+    import core.memory : GC;
 
     private alias T = ElementEncodingType!A;
 
-    InPlaceAppender!A* impl;
+    private struct Data
+    {
+        size_t capacity;
+        Unqual!T[] arr;
+        bool tryExtendBlock = false;
+    }
+
+    private Data* _data;
 
     /**
      * Constructs an `Appender` with a given array.  Note that this does not copy the
@@ -3593,17 +3593,27 @@ if (isDynamicArray!A)
      * it will be used by the appender.  After initializing an appender on an array,
      * appending to the original array will reallocate.
      */
-    this(A arr) @safe
+    this(A arr) @trusted
     {
-        impl = new InPlaceAppender!A(arr);
-    }
+        // initialize to a given array.
+        _data = new Data;
+        _data.arr = cast(Unqual!T[]) arr; //trusted
 
-    private void ensureInit() @safe
-    {
-        if (impl is null)
+        if (__ctfe)
+            return;
+
+        // We want to use up as much of the block the array is in as possible.
+        // if we consume all the block that we can, then array appending is
+        // safe WRT built-in append, and we can use the entire block.
+        // We only do this for mutable types that can be extended.
+        static if (isMutable!T && is(typeof(arr.length = size_t.max)))
         {
-            impl = new InPlaceAppender!A;
+            immutable cap = arr.capacity; //trusted
+            // Replace with "GC.setAttr( Not Appendable )" once pure (and fixed)
+            if (cap > arr.length)
+                arr.length = cap;
         }
+        _data.capacity = arr.length;
     }
 
     /**
@@ -3616,10 +3626,14 @@ if (isDynamicArray!A)
      */
     void reserve(size_t newCapacity)
     {
-        if (newCapacity != 0)
+        if (_data)
         {
-            ensureInit();
-            impl.reserve(newCapacity);
+            if (newCapacity > _data.capacity)
+                ensureAddable(newCapacity - _data.arr.length);
+        }
+        else
+        {
+            ensureAddable(newCapacity);
         }
     }
 
@@ -3630,11 +3644,11 @@ if (isDynamicArray!A)
      */
     @property size_t capacity() const
     {
-        return impl ? impl.capacity : 0;
+        return _data ? _data.capacity : 0;
     }
 
     /// Returns: The number of elements appended.
-    @property size_t length() const => (impl is null) ? 0 : impl.length;
+    @property size_t length() const => _data ? _data.arr.length : 0;
 
     /**
      * Use opSlice() from now on.
@@ -3642,219 +3656,29 @@ if (isDynamicArray!A)
      */
     @property inout(T)[] data() inout
     {
-        return opSlice();
+        return this[];
     }
 
     /**
      * Returns: The managed array.
      */
-    @property inout(T)[] opSlice() inout @safe
-    {
-        return impl ? impl.opSlice() : null;
-    }
-
-    /**
-     * Appends `item` to the managed array. Performs encoding for
-     * `char` types if `A` is a differently typed `char` array.
-     *
-     * Params:
-     *     item = the single item to append
-     */
-    void put(U)(U item)
-    if (InPlaceAppender!A.canPutItem!U)
-    {
-        ensureInit();
-        impl.put(item);
-    }
-
-    // Const fixing hack.
-    void put(Range)(Range items)
-    if (InPlaceAppender!A.canPutConstRange!Range)
-    {
-        if (!items.empty)
-        {
-            ensureInit();
-            impl.put(items);
-        }
-    }
-
-    /**
-     * Appends an entire range to the managed array. Performs encoding for
-     * `char` elements if `A` is a differently typed `char` array.
-     *
-     * Params:
-     *     items = the range of items to append
-     */
-    void put(Range)(Range items)
-    if (InPlaceAppender!A.canPutRange!Range)
-    {
-        if (!items.empty)
-        {
-            ensureInit();
-            impl.put(items);
-        }
-    }
-
-    /**
-     * Appends to the managed array.
-     *
-     * See_Also: $(LREF Appender.put)
-     */
-    alias opOpAssign(string op : "~") = put;
-
-
-    // only allow overwriting data on non-immutable and non-const data
-    static if (isMutable!T)
-    {
-        /**
-         * Clears the managed array.  This allows the elements of the array to be reused
-         * for appending.
-         *
-         * Note: clear is disabled for immutable or const element types, due to the
-         * possibility that `Appender` might overwrite immutable data.
-         */
-        void clear() @safe pure nothrow
-        {
-            if (impl)
-            {
-                impl.clear();
-            }
-        }
-
-        /**
-         * Shrinks the managed array to the given length.
-         *
-         * Throws: `Exception` if newlength is greater than the current array length.
-         * Note: shrinkTo is disabled for immutable or const element types.
-         */
-        void shrinkTo(size_t newlength) @safe pure
-        {
-            import std.exception : enforce;
-            if (impl)
-            {
-                impl.shrinkTo(newlength);
-            }
-            else
-            {
-                enforce(newlength == 0, "Attempting to shrink empty Appender with non-zero newlength");
-            }
-        }
-    }
-
-    /**
-     * Gives a string in the form of `Appender!(A)(data)`.
-     *
-     * Params:
-     *     w = A `char` accepting
-     *     $(REF_ALTTEXT output range, isOutputRange, std, range, primitives).
-     *     fmt = A $(REF FormatSpec, std, format) which controls how the array
-     *     is formatted.
-     * Returns:
-     *     A `string` if `writer` is not set; `void` otherwise.
-     */
-    string toString()() const
-    {
-        return InPlaceAppender!A.toStringImpl(Unqual!(typeof(this)).stringof, impl ? impl.data : null);
-    }
-
-    /// ditto
-    template toString(Writer)
-    if (isOutputRange!(Writer, char))
-    {
-        void toString(scope ref Writer w, scope const ref FormatSpec!char fmt) const
-        {
-            InPlaceAppender!A.toStringImpl(Unqual!(typeof(this)).stringof, impl ? impl.data : null, w, fmt);
-        }
-    }
-}
-
-///
-@safe pure nothrow unittest
-{
-    auto app = appender!string();
-    string b = "abcdefg";
-    foreach (char c; b)
-        app.put(c);
-    assert(app[] == "abcdefg");
-
-    int[] a = [ 1, 2 ];
-    auto app2 = appender(a);
-    app2.put(3);
-    app2.put([ 4, 5, 6 ]);
-    assert(app2[] == [ 1, 2, 3, 4, 5, 6 ]);
-}
-
-package(std) struct InPlaceAppender(A)
-if (isDynamicArray!A)
-{
-    import core.memory : GC;
-    import std.format.spec : FormatSpec;
-
-    private alias T = ElementEncodingType!A;
-
-    private
-    {
-        size_t _capacity;
-        Unqual!T[] arr;
-        bool tryExtendBlock = false;
-    }
-
-    @disable this(ref InPlaceAppender);
-
-    this(A arrIn) @trusted
-    {
-        arr = cast(Unqual!T[]) arrIn; //trusted
-
-        if (__ctfe)
-            return;
-
-        // We want to use up as much of the block the array is in as possible.
-        // if we consume all the block that we can, then array appending is
-        // safe WRT built-in append, and we can use the entire block.
-        // We only do this for mutable types that can be extended.
-        static if (isMutable!T && is(typeof(arrIn.length = size_t.max)))
-        {
-            immutable cap = arrIn.capacity; //trusted
-            // Replace with "GC.setAttr( Not Appendable )" once pure (and fixed)
-            if (cap > arrIn.length)
-                arrIn.length = cap;
-        }
-        _capacity = arrIn.length;
-    }
-
-    void reserve(size_t newCapacity)
-    {
-        if (newCapacity > _capacity)
-            ensureAddable(newCapacity - arr.length);
-    }
-
-    @property size_t capacity() const
-    {
-        return _capacity;
-    }
-
-    @property size_t length() const => arr.length;
-
-    @property inout(T)[] data() inout
-    {
-        return this[];
-    }
-
-    inout(T)[] opSlice() inout @trusted
+    @property inout(T)[] opSlice() inout @trusted
     {
         /* @trusted operation:
          * casting Unqual!T[] to inout(T)[]
          */
-        return cast(typeof(return)) arr;
+        return cast(typeof(return))(_data ? _data.arr : null);
     }
 
     // ensure we can add nelems elements, resizing as necessary
     private void ensureAddable(size_t nelems)
     {
-        immutable len = arr.length;
+        if (!_data)
+            _data = new Data;
+        immutable len = _data.arr.length;
         immutable reqlen = len + nelems;
 
-        if (_capacity >= reqlen)
+        if (_data.capacity >= reqlen)
             return;
 
         // need to increase capacity
@@ -3862,17 +3686,17 @@ if (isDynamicArray!A)
         {
             static if (__traits(compiles, new Unqual!T[1]))
             {
-                arr.length = reqlen;
+                _data.arr.length = reqlen;
             }
             else
             {
                 // avoid restriction of @disable this()
-                arr = arr[0 .. _capacity];
-                foreach (i; _capacity .. reqlen)
-                    arr ~= Unqual!T.init;
+                _data.arr = _data.arr[0 .. _data.capacity];
+                foreach (i; _data.capacity .. reqlen)
+                    _data.arr ~= Unqual!T.init;
             }
-            arr = arr[0 .. len];
-            _capacity = reqlen;
+            _data.arr = _data.arr[0 .. len];
+            _data.capacity = reqlen;
         }
         else
         {
@@ -3880,11 +3704,11 @@ if (isDynamicArray!A)
             // Time to reallocate.
             // We need to almost duplicate what's in druntime, except we
             // have better access to the capacity field.
-            auto newlen = appenderNewCapacity!(T.sizeof)(_capacity, reqlen);
+            auto newlen = appenderNewCapacity!(T.sizeof)(_data.capacity, reqlen);
             // first, try extending the current block
-            if (tryExtendBlock)
+            if (_data.tryExtendBlock)
             {
-                immutable u = (() @trusted => GC.extend(arr.ptr, nelems * T.sizeof, (newlen - len) * T.sizeof))();
+                immutable u = (() @trusted => GC.extend(_data.arr.ptr, nelems * T.sizeof, (newlen - len) * T.sizeof))();
                 if (u)
                 {
                     // extend worked, update the capacity
@@ -3893,10 +3717,11 @@ if (isDynamicArray!A)
                     // at large unused blocks.
                     static if (hasIndirections!T)
                     {
-                        immutable addedSize = u - (_capacity * T.sizeof);
-                        () @trusted { memset(arr.ptr + _capacity, 0, addedSize); }();
+                        immutable addedSize = u - (_data.capacity * T.sizeof);
+                        () @trusted { memset(_data.arr.ptr + _data.capacity, 0, addedSize); }();
                     }
-                    _capacity = u / T.sizeof;
+
+                    _data.capacity = u / T.sizeof;
                     return;
                 }
             }
@@ -3910,11 +3735,11 @@ if (isDynamicArray!A)
                     ~ "available pointer range");
 
             auto bi = (() @trusted => GC.qalloc(nbytes, blockAttribute!T))();
-            _capacity = bi.size / T.sizeof;
-            import core.stdc.string : memcpy;
+            _data.capacity = bi.size / T.sizeof;
             if (len)
-                () @trusted { memcpy(bi.base, arr.ptr, len * T.sizeof); }();
-            arr = (() @trusted => (cast(Unqual!T*) bi.base)[0 .. len])();
+                () @trusted { memcpy(bi.base, _data.arr.ptr, len * T.sizeof); }();
+
+            _data.arr = (() @trusted => (cast(Unqual!T*) bi.base)[0 .. len])();
 
             // we requested new bytes that are not in the existing
             // data. If T has pointers, then this new data could point at stale
@@ -3925,7 +3750,7 @@ if (isDynamicArray!A)
                     memset(bi.base + (len * T.sizeof), 0, (newlen - len) * T.sizeof);
                 }();
 
-            tryExtendBlock = true;
+            _data.tryExtendBlock = true;
             // leave the old data, for safety reasons
         }
     }
@@ -3941,13 +3766,13 @@ if (isDynamicArray!A)
         enum bool canPutConstRange =
             isInputRange!(Unqual!Range) &&
             !isInputRange!Range &&
-            is(typeof(InPlaceAppender.init.put(Range.init.front)));
+            is(typeof(Appender.init.put(Range.init.front)));
     }
     private template canPutRange(Range)
     {
         enum bool canPutRange =
             isInputRange!Range &&
-            is(typeof(InPlaceAppender.init.put(Range.init.front)));
+            is(typeof(Appender.init.put(Range.init.front)));
     }
 
     /**
@@ -3976,13 +3801,13 @@ if (isDynamicArray!A)
             import core.lifetime : emplace;
 
             ensureAddable(1);
-            immutable len = arr.length;
+            immutable len = _data.arr.length;
 
-            auto bigData = (() @trusted => arr.ptr[0 .. len + 1])();
+            auto bigData = (() @trusted => _data.arr.ptr[0 .. len + 1])();
             auto itemUnqual = (() @trusted => & cast() item)();
             emplace(&bigData[len], *itemUnqual);
             //We do this at the end, in case of exceptions
-            arr = bigData;
+            _data.arr = bigData;
         }
     }
 
@@ -4026,16 +3851,16 @@ if (isDynamicArray!A)
             auto bigDataFun(size_t extra)
             {
                 ensureAddable(extra);
-                return (() @trusted => arr.ptr[0 .. arr.length + extra])();
+                return (() @trusted => _data.arr.ptr[0 .. _data.arr.length + extra])();
             }
             auto bigData = bigDataFun(items.length);
 
-            immutable len = arr.length;
+            immutable len = _data.arr.length;
             immutable newlen = bigData.length;
 
             alias UT = Unqual!T;
 
-            static if (is(typeof(arr[] = items[])) &&
+            static if (is(typeof(_data.arr[] = items[])) &&
                 !hasElaborateAssign!UT && isAssignable!(UT, ElementEncodingType!Range))
             {
                 bigData[len .. newlen] = items[];
@@ -4051,7 +3876,7 @@ if (isDynamicArray!A)
             }
 
             //We do this at the end, in case of exceptions
-            arr = bigData;
+            _data.arr = bigData;
         }
         else static if (isSomeChar!T && isSomeChar!(ElementType!Range) &&
                         !is(immutable T == immutable ElementType!Range))
@@ -4094,7 +3919,10 @@ if (isDynamicArray!A)
          */
         void clear() @trusted pure nothrow
         {
-            arr = arr.ptr[0 .. 0];
+            if (_data)
+            {
+                _data.arr = _data.arr.ptr[0 .. 0];
+            }
         }
 
         /**
@@ -4106,8 +3934,13 @@ if (isDynamicArray!A)
         void shrinkTo(size_t newlength) @trusted pure
         {
             import std.exception : enforce;
-            enforce(newlength <= arr.length, "Attempting to shrink Appender with newlength > length");
-            arr = arr.ptr[0 .. newlength];
+            if (_data)
+            {
+                enforce(newlength <= _data.arr.length, "Attempting to shrink Appender with newlength > length");
+                _data.arr = _data.arr.ptr[0 .. newlength];
+            }
+            else
+                enforce(newlength == 0, "Attempting to shrink empty Appender with non-zero newlength");
         }
     }
 
@@ -4122,18 +3955,13 @@ if (isDynamicArray!A)
      * Returns:
      *     A `string` if `writer` is not set; `void` otherwise.
      */
-    auto toString() const
-    {
-        return toStringImpl(Unqual!(typeof(this)).stringof, data);
-    }
-
-    static auto toStringImpl(string typeName, const T[] arr)
+    string toString()() const
     {
         import std.format.spec : singleSpec;
 
-        InPlaceAppender!string app;
+        auto app = appender!string();
         auto spec = singleSpec("%s");
-        immutable len = arr.length;
+        immutable len = _data ? _data.arr.length : 0;
         // different reserve lengths because each element in a
         // non-string-like array uses two extra characters for `, `.
         static if (isSomeString!A)
@@ -4146,25 +3974,25 @@ if (isDynamicArray!A)
             // length, as it assumes each element is only one char
             app.reserve((len * 3) + 25);
         }
-        toStringImpl(typeName, arr, app, spec);
+        toString(app, spec);
         return app.data;
     }
 
-    void toString(Writer)(scope ref Writer w, scope const ref FormatSpec!char fmt) const
+    import std.format.spec : FormatSpec;
+
+    /// ditto
+    template toString(Writer)
     if (isOutputRange!(Writer, char))
     {
-        toStringImpl(Unqual!(typeof(this)).stringof, data, w, fmt);
-    }
-
-    static void toStringImpl(Writer)(string typeName, const T[] data, scope ref Writer w,
-                                     scope const ref FormatSpec!char fmt)
-    {
-        import std.format.write : formatValue;
-        import std.range.primitives : put;
-        put(w, typeName);
-        put(w, '(');
-        formatValue(w, data, fmt);
-        put(w, ')');
+        void toString(ref Writer w, scope const ref FormatSpec!char fmt) const
+        {
+            import std.format.write : formatValue;
+            import std.range.primitives : put;
+            put(w, Unqual!(typeof(this)).stringof);
+            put(w, '(');
+            formatValue(w, data, fmt);
+            put(w, ')');
+        }
     }
 }
 
@@ -4205,16 +4033,6 @@ if (isDynamicArray!A)
     spec = singleSpec("%(%04d, %)");
     app.toString(app3, spec);
     assert(app3[] == "Appender!(int[])(0001, 0002, 0003)");
-}
-
-@safe pure unittest
-{
-    auto app = appender!(char[])();
-    app ~= "hello";
-    app.clear;
-    // not a promise, just nothing else exercises capacity
-    // and this is the expected sort of behaviour
-    assert(app.capacity >= 5);
 }
 
 // https://issues.dlang.org/show_bug.cgi?id=17251
@@ -4347,6 +4165,25 @@ if (isDynamicArray!A)
         writeln("WARNING: test of Appender zeroing did not occur");
 }
 
+// https://github.com/dlang/phobos/issues/10747
+@system unittest
+{
+    static struct A10747
+    {
+        this(ref A10747 rhs) { }
+    }
+
+    static class R10747
+    {
+        A10747 front() { return A10747.init; }
+        void popFront() { }
+        bool empty = true;
+    }
+
+    auto a = new R10747();
+    a.array();
+}
+
 //Calculates an efficient growth scheme based on the old capacity
 //of data, and the minimum requested capacity.
 //arg curLen: The current length
@@ -4477,24 +4314,6 @@ unittest
 
     app2.reserve(5);
     assert(app2.capacity >= 5);
-}
-
-/++
-    Convenience function that returns a $(LREF InPlaceAppender) instance,
-    optionally initialized with `array`.
- +/
-package(std) InPlaceAppender!A inPlaceAppender(A)()
-if (isDynamicArray!A)
-{
-    return InPlaceAppender!A(null);
-}
-/// ditto
-package(std) InPlaceAppender!(E[]) inPlaceAppender(A : E[], E)(auto ref A array)
-{
-    static assert(!isStaticArray!A || __traits(isRef, array),
-        "Cannot create InPlaceAppender from an rvalue static array");
-
-    return InPlaceAppender!(E[])(array);
 }
 
 /++

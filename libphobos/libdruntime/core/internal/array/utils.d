@@ -151,10 +151,20 @@ void[] __arrayAlloc(T)(size_t arrSize) @trusted
     static if (!hasIndirections!T)
         attr |= BlkAttr.NO_SCAN;
 
-    auto ptr = GC.malloc(arrSize, attr, typeid(T));
+    version(D_TypeInfo)
+        auto ptr = GC.malloc(arrSize, attr, typeid(T));
+    else
+        auto ptr = GC.malloc(arrSize, attr, null);
     if (ptr)
         return ptr[0 .. arrSize];
     return null;
+}
+
+// https://github.com/dlang/dmd/issues/22517
+@system unittest
+{
+    auto arr = new void[10];
+    assert((GC.getAttr(&arr[0]) & BlkAttr.NO_SCAN) == 0);
 }
 
 /**

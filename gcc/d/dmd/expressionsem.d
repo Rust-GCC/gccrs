@@ -209,7 +209,14 @@ dinteger_t toInteger(Expression _this)
     // import dmd.hdrgen : EXPtoString;
     //printf("Expression %s\n", EXPtoString(op).ptr);
     if (!_this.type || !_this.type.isTypeError())
+    {
+        if (auto ide = _this.isIdentifierExp())
+        {
+            if (ide.ident == Id.dollar)
+                return 0;
+        }
         error(_this.loc, "integer constant expression expected instead of `%s`", _this.toChars());
+    }
     return 0;
 }
 
@@ -681,8 +688,19 @@ bool isLvalue(Expression _this)
         if (tf && tf.isRef)
         {
             if (auto dve = _this.e1.isDotVarExp())
+            {
                 if (dve.var.isCtorDeclaration())
-                    return false;
+                {
+                    // Allow taking the address of explicit constructor calls,
+                    // but not (__stmp = S(), __stmp).__ctor().
+
+                    auto ve = lastComma(dve.e1).isVarExp();
+                    if (ve && (ve.var.storage_class & STC.temp) != 0)
+                        return false;
+
+                    return isLvalue(dve.e1);
+                }
+            }
             return true; // function returns a reference
         }
         return false;
@@ -761,8 +779,13 @@ bool isLvalue(Expression _this)
  * Determine if copy elision is allowed when copying an expression to
  * a typed storage. This basically elides a restricted subset of so-called
  * "pure" rvalues, i.e. expressions with no reference semantics.
+ *
+ * Note: Please avoid using `checkMod` parameter because `canElideCopy()`
+ * essentially defines a value category and should eventually be merged with
+ * `isLvalue()` to return [isLvalue, allowEmplacement].
+ * Checking type compatibility here is only a stopgap measure.
  */
-bool canElideCopy(Expression e, Type to, bool checkMod = true)
+bool canElideCopy(Expression e, Type to, bool checkMod = false)
 {
     if (checkMod && !MODimplicitConv(e.type.mod, to.mod))
         return false;
@@ -770,8 +793,19 @@ bool canElideCopy(Expression e, Type to, bool checkMod = true)
     static bool visitCallExp(CallExp e)
     {
         if (auto dve = e.e1.isDotVarExp())
+        {
             if (dve.var.isCtorDeclaration())
-                return true;
+            {
+                // Allow (__stmp = S(), __stmp).__ctor() to be elided,
+                // but force a copy for (s2 = s1.__ctor()).
+
+                auto ve = lastComma(dve.e1).isVarExp();
+                if (ve && (ve.var.storage_class & STC.temp) != 0)
+                    return true;
+
+                return canElideCopy(dve.e1, e.type);
+            }
+        }
 
         auto tb = e.e1.type.toBasetype();
         if (tb.ty == Tdelegate || tb.ty == Tpointer)
@@ -791,7 +825,7 @@ bool canElideCopy(Expression e, Type to, bool checkMod = true)
             return false;
 
         // If an aggregate can be elided, so are its fields
-        return canElideCopy(e.e1, e.e1.type, false);
+        return canElideCopy(e.e1, e.e1.type);
     }
 
     switch (e.op)
@@ -808,8 +842,7 @@ bool canElideCopy(Expression e, Type to, bool checkMod = true)
         case EXP.dotVariable:
             return visitDotVarExp(e.isDotVarExp());
         case EXP.structLiteral:
-            auto sle = e.isStructLiteralExp();
-            return !(checkMod && sle.useStaticInit && to.isMutable());
+            return true;
         case EXP.variable:
             return (e.isVarExp().var.storage_class & STC.rvalue) != 0;
         default:
@@ -1921,7 +1954,7 @@ extern (D) Expression doCopyOrMove(Scope* sc, Expression e, Type t, bool nrvo, b
     {
         e = callCpCtor(sc, e, t, nrvo);
     }
-    else if (move && sd && sd.hasMoveCtor && !canElideCopy(e, t ? t : e.type, false))
+    else if (move && sd && sd.hasMoveCtor && !canElideCopy(e, t ? t : e.type))
     {
         // #move
         /* Rewrite as:
@@ -3378,20 +3411,30 @@ private bool checkSafety(FuncDeclaration f, ref Loc loc, Scope* sc, Expressions*
         return false;
     }
 
-    if (f.printf)
+    if (f.printf && (f.isSafe() || f.isTrusted()))
     {
         TypeFunction tf = f.type.isTypeFunction();
         assert(tf);
         const isVa_list = tf.parameterList.varargs == VarArg.none;
         const nparams = tf.parameterList.length;
         const nargs = arguments ? arguments.length : 0;
-        if (nparams == 1 && nargs)
+        assert(nparams && nargs); // should have been verified already
+        if (auto se = (*arguments)[nparams - 1 - isVa_list].isStringExp())
         {
-            if (auto se = (*arguments)[nparams - 1 - isVa_list].isStringExp())
+            if (!isFormatSafe(se.peekString()))
             {
-                if (isFormatSafe(se.peekString()))
-                    return false;
+                if (sc.setUnsafe(false, loc,
+                    "calling `pragma(printf)` function `%s` with format string `%s`", f, se))
+                    .errorSupplemental(f.loc, "`%s` is declared here", f.toPrettyChars());
+                return true;
             }
+        }
+        else
+        {
+            if (sc.setUnsafe(false, loc,
+                "calling `pragma(printf)` function `%s` with non-literal format string", f))
+                .errorSupplemental(f.loc, "`%s` is declared here", f.toPrettyChars());
+            return true;
         }
     }
 
@@ -5809,8 +5852,10 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
             {
                 arguments.push(makeTemplateItem(Id.InterpolatedExpression, str));
                 Expressions* mix = new Expressions(new StringExp(e.loc, str));
-                // FIXME: i'd rather not use MixinExp but idk how to do it lol
-                arguments.push(new MixinExp(e.loc, mix));
+                auto mixinExp = new MixinExp(e.loc, mix);
+                auto res = mixinExp.expressionSemantic(sc);
+                res = resolveProperties(sc, res);
+                arguments.push(res);
             }
         }
 
@@ -6959,8 +7004,11 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
 
             if (!global.params.useGC && sc.needsCodegen())
             {
-                error(exp.loc, "expression `%s` allocates with the GC and cannot be used with switch `-%s`", exp.toErrMsg(), SwitchVariadic.ptr);
-                return setError();
+                if (sc.func)
+                {
+                    sc.func.skipCodegen = true; // same net result as calling checkGC
+                    goto LskipNewArrayLowering; // not checked in sc.needsCodegen() !?
+                }
             }
 
             if (!sc.needsCodegen())
@@ -8483,7 +8531,7 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
             {
                 exp.type = tf.next;
                 auto casted_exp = exp.castTo(sc, t);
-                if (auto cex = casted_exp.isCastExp())
+                if (auto cex = lastComma(casted_exp).isCastExp())
                 {
                     lowerCastExp(cex, sc);
                 }
@@ -10900,7 +10948,7 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
             }
         }
 
-        if (auto cex = ex.isCastExp())
+        if (auto cex = lastComma(ex).isCastExp())
         {
             lowerCastExp(cex, sc);
         }
@@ -12398,7 +12446,7 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
                                 }
 
                                 /* Rewrite as:
-                                 *  (e1 = e2).postblit();
+                                 *  (e1 = e2).postblit(), e1;
                                  *
                                  * Blit assignment e1 = e2 returns a reference to the original e1,
                                  * then call the postblit on it.
@@ -12410,6 +12458,7 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
                                 e = new BlitExp(exp.loc, e, e2x);
                                 e = new DotVarExp(exp.loc, e, sd.postblit, false);
                                 e = new CallExp(exp.loc, e);
+                                e = new CommaExp(exp.loc, e, e1x);
                                 result = e.expressionSemantic(sc);
                                 return;
                             }
@@ -15045,12 +15094,14 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
             return;
         }
 
-        // When array comparison is not lowered to `__equals`, `memcmp` is used, but
-        // GC checks occur before the expression is lowered to `memcmp` in e2ir.d.
-        // Thus, we will consider the literal arrays as on-stack arrays to avoid issues
-        // during GC checks.
+        // Remaining array comparisons are trivially memcmp-able.
+        // Allocate array-literal operands on the stack, since they don't
+        // escape during the comparison; enabling @nogc for these.
         if (isArrayComparison)
         {
+            exp.e1 = exp.e1.optimize(WANTvalue);
+            exp.e2 = exp.e2.optimize(WANTvalue);
+
             if (auto ale1 = exp.e1.isArrayLiteralExp())
             {
                 ale1.onstack = true;
@@ -16642,6 +16693,8 @@ bool checkValue(Expression e)
  */
 bool checkSharedAccess(Expression e, Scope* sc, bool returnRef = false)
 {
+    Expression root = e;
+
     if (!sc ||
         !sc.previews.noSharedAccess ||
         sc.intypeof ||
@@ -16697,7 +16750,14 @@ bool checkSharedAccess(Expression e, Scope* sc, bool returnRef = false)
             if (e.placement)
                 check(e.placement, false);
             if (e.thisexp)
-                check(e.thisexp, false);
+            {
+                // In a shared constructor, accessing the current
+                // `this` is safe for nested allocation.
+                // See test_nosharedaccess_ctor_nested_new.d
+                if (!(sc.func && sc.func.isCtorDeclaration() && sc.func.type.isShared() &&
+                      e.thisexp.isThisExp()))
+                    check(e.thisexp, false);
+            }
             return false;
         }
 
@@ -16812,6 +16872,12 @@ bool checkSharedAccess(Expression e, Scope* sc, bool returnRef = false)
             case EXP.star:        return visitPtr(e.isPtrExp());
             case EXP.dotVariable: return visitDotVar(e.isDotVarExp());
             case EXP.index:       return visitIndex(e.isIndexExp());
+            case EXP.structLiteral:
+                // Allow constructing a shared struct literal as a value,
+                // but keep rejecting later accesses through that temporary.
+                if (e is root && e.type && e.type.isShared())
+                    return false;
+                return visit(e);
         }
     }
 
@@ -19696,12 +19762,12 @@ private Expression buildAAIndexRValueX(Type t, Expression eaa, Expression ekey, 
     auto call = new CallExp(loc, func, arguments);
     e0 = Expression.combine(e0, call);
 
-    if (arrayBoundsCheck(sc.func))
+    if (sc.func && arrayBoundsCheck(sc.func))
     {
         // __aaget = _d_aaGetRvalueX(aa, key), __aaget ? __aaget : onRangeError(__FILE__, __LINE__)
         auto ei = new ExpInitializer(loc, e0);
-        auto vartmp = Identifier.generateId("__aaget");
-        auto vardecl = new VarDeclaration(loc, null, vartmp, ei, STC.exptemp);
+        auto id = Identifier.generateId("__aaget");
+        auto vardecl = new VarDeclaration(loc, null, id, ei, STC.exptemp);
         auto declexp = new DeclarationExp(loc, vardecl);
 
         //Expression idrange = new IdentifierExp(loc, Identifier.idPool("_d_arraybounds"));
@@ -19711,9 +19777,9 @@ private Expression buildAAIndexRValueX(Type t, Expression eaa, Expression ekey, 
         auto locargs = new Expressions(new FileInitExp(loc, EXP.file), new LineInitExp(loc));
         auto ex = new CallExp(loc, idrange, locargs);
 
-        auto idvar1 = new IdentifierExp(loc, vartmp);
-        auto idvar2 = new IdentifierExp(loc, vartmp);
-        auto cond = new CondExp(loc, idvar1, idvar2, ex);
+        auto ve1 = new VarExp(loc, vardecl);
+        auto ve2 = new VarExp(loc, vardecl);
+        auto cond = new CondExp(loc, ve1, ve2, ex);
         auto comma = new CommaExp(loc, declexp, cond);
         return comma;
     }
@@ -19744,6 +19810,26 @@ Expression revertIndexAssignToRvalues(IndexExp ie, Scope* sc)
 
     assert(ie.modifiable);
     return lowerAAIndexRead(ie, sc);
+}
+
+// Ditto, but traverses DotVarExp from `alias this` rewrites.
+private Expression revertModifiableAAIndexReads(Expression e, Scope* sc)
+{
+    // Recurse through dot-accesses (alias this produces DotVarExp on an inner IndexExp)
+    if (auto dve = e.isDotVarExp())
+    {
+        dve.e1 = revertModifiableAAIndexReads(dve.e1, sc);
+        return e;
+    }
+    if (auto ie = e.isIndexExp())
+    {
+        // Recurse first to handle deeper nesting
+        ie.e1 = revertModifiableAAIndexReads(ie.e1, sc);
+        // Lower a modifiable AA IndexExp to an rvalue read
+        if (ie.modifiable && ie.e1.type.isTypeAArray())
+            return lowerAAIndexRead(ie, sc);
+    }
+    return e;
 }
 
 // helper for rewriteAAIndexAssign
@@ -19796,6 +19882,7 @@ private Expression rewriteAAIndexAssign(BinExp exp, Scope* sc, ref Type[2] alias
     // find the AA of multi dimensional access
     for (auto ieaa = ie.e1.isIndexExp(); ieaa && ieaa.e1.type.isTypeAArray(); ieaa = ieaa.e1.isIndexExp())
         eaa = ieaa.e1;
+    eaa = revertModifiableAAIndexReads(eaa, sc);
     eaa = extractSideEffect(sc, "__aatmp", e0, eaa);
     // collect all keys of multi dimensional access
     Expressions ekeys;
@@ -19834,7 +19921,7 @@ private Expression rewriteAAIndexAssign(BinExp exp, Scope* sc, ref Type[2] alias
         auto tiargs = new Objects(taa.index, taa.next);
         func = new DotTemplateInstanceExp(loc, func, hook, tiargs);
 
-        auto arguments = new Expressions(eaa, ekeys[i-1], new IdentifierExp(loc, idfound));
+        auto arguments = new Expressions(eaa, ekeys[i-1], new VarExp(loc, varfound));
         eaa = new CallExp(loc, func, arguments);
         if (i > 1)
         {
@@ -19891,7 +19978,7 @@ private Expression rewriteAAIndexAssign(BinExp exp, Scope* sc, ref Type[2] alias
                 ex = new CastExp(ex.loc, ex, Type.tvoid);
                 ey = new CastExp(ey.loc, ey, Type.tvoid);
             }
-            Expression condfound = new IdentifierExp(loc, idfound);
+            Expression condfound = new VarExp(loc, varfound);
             ex = new CondExp(loc, condfound, ex, ey);
             ex = Expression.combine(e0, ex);
             ex.isCommaExp().originalExp = exp;

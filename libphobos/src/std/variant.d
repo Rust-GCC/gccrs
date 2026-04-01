@@ -37,6 +37,7 @@ Source:    $(PHOBOSSRC std/variant.d)
 module std.variant;
 
 import std.meta, std.traits, std.typecons;
+import core.memory : GC;
 
 ///
 @system unittest
@@ -428,8 +429,8 @@ private:
                     }
                     else
                     {
-                        // object will be intialized later. Using ubyte buffer in case `this()` is disabled
-                        A* p = cast(A*) (new ubyte[A.sizeof]).ptr;
+                        // object will be intialized later. Using malloc in case `this()` is disabled
+                        A* p = cast(A*) GC.malloc(A.sizeof, 0, typeid(A));
                     }
                     *cast(A**)&target.store = p;
                 }
@@ -679,8 +680,8 @@ switchStmtTupAssign:
                         static if (is(A == U[n], U, size_t n))
                             auto p = cast(A*) (new U[n]).ptr;
                         else
-                            // object will be intialized later. Using ubyte buffer in case `this()` is disabled
-                            A* p = cast(A*) (new ubyte[A.sizeof]).ptr;
+                            // object will be intialized later. Using malloc in case `this()` is disabled
+                            A* p = cast(A*) GC.malloc(A.sizeof, 0, typeid(A));
                         // Emplace will run the postblit of `A` us, no need to do it manually, then
                         copyEmplace(*zis, *p);
                         *(cast(A**) pStore) = p;
@@ -789,8 +790,8 @@ public:
                 static if (is(T == U[n], U, size_t n))
                     T* p = cast(T*) (new U[n]).ptr;
                 else
-                    // object will be intialized later. Using ubyte buffer in case `this()` is disabled
-                    T* p = cast(T*) (new ubyte[T.sizeof]).ptr;
+                    // object will be intialized later. Using malloc in case `this()` is disabled
+                    T* p = cast(T*) GC.malloc(T.sizeof, 0, typeid(T));
                 copyEmplace(rhs, *p);
                 *(cast(T**) &store) = p;
             }
@@ -1274,7 +1275,7 @@ public:
             auto arr = get!(A[]);
             foreach (ref e; arr)
             {
-                if (dg(e)) return 1;
+                if (auto r = dg(e)) return r;
             }
         }
         else static if (is(A == VariantN))
@@ -1286,7 +1287,7 @@ public:
                 // Variant when in fact they are only changing tmp.
                 auto tmp = this[i];
                 debug scope(exit) assert(tmp == this[i]);
-                if (dg(tmp)) return 1;
+                if (auto r = dg(tmp)) return r;
             }
         }
         else

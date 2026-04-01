@@ -925,13 +925,10 @@ public:
 
 	for (ClassDeclaration *bcd = cd; bcd; bcd = bcd->baseClass)
 	  {
-	    if (!bcd->members)
-	      continue;
-
-	    for (size_t i = 0; i < bcd->members->length; i++)
+	    for (size_t i = 0; i < bcd->fields.length; i++)
 	      {
-		Dsymbol *sm = (*bcd->members)[i];
-		if (dmd::hasPointers (sm))
+		VarDeclaration *vd = bcd->fields[i];
+		if (dmd::hasPointers (vd))
 		  goto Lhaspointers;
 	      }
 	  }

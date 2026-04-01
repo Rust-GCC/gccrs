@@ -88,6 +88,14 @@ struct RBNode(V)
     private Node _right;
     private Node _parent;
 
+    private this(Node left, Node right, Node parent, V value)
+    {
+        this._left = left;
+        this._right = right;
+        this._parent = parent;
+        this.value = value;
+    }
+
     /**
      * The value held by this node
      */
@@ -747,7 +755,7 @@ private struct RBRange(N)
  * inserted after all existing duplicate elements.
  */
 final class RedBlackTree(T, alias less = "a < b", bool allowDuplicates = false)
-if (is(typeof((ref const T a) => binaryFun!less(a, a))))
+if (isSuitablePredicate!(less, T))
 {
     import std.meta : allSatisfy;
     import std.range : Take;
@@ -1995,7 +2003,9 @@ assert(equal(rbt[], [5]));
 }
 
 import std.range.primitives : isInputRange, ElementType;
-import std.traits : isArray, isSomeString;
+import std.traits : isArray, isSomeString, lvalueOf;
+
+private enum isSuitablePredicate(alias less, T) = is(typeof(binaryFun!less(lvalueOf!(const T), lvalueOf!(const T))));
 
 /++
     Convenience function for creating a `RedBlackTree!E` from a list of
@@ -2020,14 +2030,14 @@ auto redBlackTree(bool allowDuplicates, E)(E[] elems...)
 
 /++ Ditto +/
 auto redBlackTree(alias less, E)(E[] elems...)
-if (is(typeof(binaryFun!less(E.init, E.init))))
+if (isSuitablePredicate!(less, E))
 {
     return new RedBlackTree!(E, less)(elems);
 }
 
 /++ Ditto +/
 auto redBlackTree(alias less, bool allowDuplicates, E)(E[] elems...)
-if (is(typeof(binaryFun!less(E.init, E.init))))
+if (isSuitablePredicate!(less, E))
 {
     //We shouldn't need to instantiate less here, but for some reason,
     //dmd can't handle it if we don't (even though the template which
@@ -2051,7 +2061,7 @@ if (isInputRange!Stuff && !isArray!(Stuff))
 
 /++ Ditto +/
 auto redBlackTree(alias less, Stuff)(Stuff range)
-if ( is(typeof(binaryFun!less((ElementType!Stuff).init, (ElementType!Stuff).init)))
+if (isSuitablePredicate!(less, ElementType!Stuff)
     && isInputRange!Stuff && !isArray!(Stuff))
 {
     return new RedBlackTree!(ElementType!Stuff, less)(range);
@@ -2059,7 +2069,7 @@ if ( is(typeof(binaryFun!less((ElementType!Stuff).init, (ElementType!Stuff).init
 
 /++ Ditto +/
 auto redBlackTree(alias less, bool allowDuplicates, Stuff)(Stuff range)
-if ( is(typeof(binaryFun!less((ElementType!Stuff).init, (ElementType!Stuff).init)))
+if (isSuitablePredicate!(less, ElementType!Stuff)
     && isInputRange!Stuff && !isArray!(Stuff))
 {
     //We shouldn't need to instantiate less here, but for some reason,
@@ -2275,4 +2285,18 @@ if ( is(typeof(binaryFun!less((ElementType!Stuff).init, (ElementType!Stuff).init
     }
 
     cast(void) new RedBlackTree!(S, (ref const S a, ref const S b) => a.value > b.value);
+}
+
+// struct with move constructor
+@safe unittest
+{
+    static struct S {
+        int i;
+        this(S s) { this.i = s.i; }
+        this(int i) { this.i = i; }
+        int opCmp(ref const S other) const @safe nothrow  { return i - other.i; }
+    }
+
+    auto tree = new RedBlackTree!(S, "a.i < b.i", false);
+    tree.insert(S(0));
 }

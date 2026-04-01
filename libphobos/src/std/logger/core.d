@@ -13,6 +13,17 @@ import std.traits;
 
 import std.logger.filelogger;
 
+/+
+    Don’t forget to update the documentation of `std.logger` (`package.d`)
+    when changing this test. This is a copy of example code found in its
+    doc comment.
+ +/
+@system unittest
+{
+    assert(globalLogLevel == LogLevel.all);
+    assert((cast() sharedLog).logLevel == LogLevel.info);
+}
+
 /** This functions is used at runtime to determine if a `LogLevel` is
 active. The same previously defined version statements are used to disable
 certain levels. Again the version statements are associated with a compile

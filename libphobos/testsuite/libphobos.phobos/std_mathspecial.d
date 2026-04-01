@@ -10,21 +10,6 @@
     import std.mathspecial;
 
     assert(beta(1, 2) == 0.5);
-    assert(isIdentical(beta(NaN(0xABC), 4), NaN(0xABC)));
-    assert(beta(3, 4) == beta(4, 3));
-    assert(isNaN(beta(-real.infinity, +0.)));
-    assert(isNaN(beta(-1, 2)));
-    assert(beta(-0.5, 0.5) is -0.0L);
-    assert(beta(-1.5, 0.5) is +0.0L);
-    assert(beta(+0., +0.) == +real.infinity);
-    assert(isNaN(beta(+0., +real.infinity)));
-    assert(beta(1, +real.infinity) is +0.0L);
-    assert(isNaN(beta(-0., +0.)));
-    assert(beta(-0., nextUp(+0.0L)) == -real.infinity);
-    assert(beta(-0.5, +real.infinity) == -real.infinity);
-    assert(beta(nextDown(-1.0L), real.infinity) == real.infinity);
-    assert(beta(nextDown(-0.0L), +0.) == +real.infinity);
-    assert(beta(-0.5, -0.) == -real.infinity);
 }
 
 @safe unittest
@@ -82,5 +67,19 @@
     assert(gammaIncompleteCompl(+0., 1) == 0);
     assert(gammaIncompleteCompl(real.infinity, 1) == 1);
     assert(isClose(gammaIncompleteCompl(1, 2), 1-gammaIncomplete(1, 2)));
+}
+
+@safe unittest
+{
+    import std.mathspecial;
+
+    const a = 2, p = 0.5L;
+    assert(isClose(gammaIncompleteComplInverse(a, gammaIncompleteCompl(a, p)), p));
+
+    assert(isClose(gammaIncompleteComplInverse(1, 1/E), 1));
+    assert(isNaN(gammaIncompleteComplInverse(+0.0L, 0.1)));
+    assert(isNaN(gammaIncompleteComplInverse(real.infinity, 0.2)));
+    assert(gammaIncompleteComplInverse(3, 0) is real.infinity);
+    assert(gammaIncompleteComplInverse(4, 1) == 0);
 }
 

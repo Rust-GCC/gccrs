@@ -2608,6 +2608,8 @@ public:
 	    tree var = build_deref (e->sym);
 	    init = compound_expr (modify_expr (var, init), var);
 	  }
+	else if (e->type->isMutable ())
+	  init = force_target_expr (init);
 
 	this->result_ = init;
 	return;

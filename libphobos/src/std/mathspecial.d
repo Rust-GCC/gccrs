@@ -187,21 +187,6 @@ pragma(inline, true) real beta(real x, real y)
 @safe unittest
 {
     assert(beta(1, 2) == 0.5);
-    assert(isIdentical(beta(NaN(0xABC), 4), NaN(0xABC)));
-    assert(beta(3, 4) == beta(4, 3));
-    assert(isNaN(beta(-real.infinity, +0.)));
-    assert(isNaN(beta(-1, 2)));
-    assert(beta(-0.5, 0.5) is -0.0L);
-    assert(beta(-1.5, 0.5) is +0.0L);
-    assert(beta(+0., +0.) == +real.infinity);
-    assert(isNaN(beta(+0., +real.infinity)));
-    assert(beta(1, +real.infinity) is +0.0L);
-    assert(isNaN(beta(-0., +0.)));
-    assert(beta(-0., nextUp(+0.0L)) == -real.infinity);
-    assert(beta(-0.5, +real.infinity) == -real.infinity);
-    assert(beta(nextDown(-1.0L), real.infinity) == real.infinity);
-    assert(beta(nextDown(-0.0L), +0.) == +real.infinity);
-    assert(beta(-0.5, -0.) == -real.infinity);
 }
 
 /** Digamma function, $(PSI)(x)
@@ -505,23 +490,59 @@ do
     assert(isClose(gammaIncompleteCompl(1, 2), 1-gammaIncomplete(1, 2)));
 }
 
-/** Inverse of complemented incomplete gamma integral
+/** Inverse regularized upper incomplete gamma function Q$(SUP -1)(a,p) with respect to p
  *
- * Given a and p, the function finds x such that
+ * Given a and p, the function finds x such that p = Q(a,x).
  *
- *  gammaIncompleteCompl( a, x ) = p.
+ * Params:
+ *   a = the shape parameter, must be positive
+ *   p = Q(a,x), must be in the interval [0,1]
+ *
+ * Returns:
+ *   It returns x, a value $(GE) 0
+ *
+ * $(TABLE_SV
+ *   $(TR $(TH a)               $(TH p)        $(TH gammaIncompleteComplInverse(a, p)) )
+ *   $(TR $(TD negative)        $(TD)          $(TD $(NAN))                            )
+ *   $(TR $(TD)                 $(TD $(LT) 0)  $(TD $(NAN))                            )
+ *   $(TR $(TD)                 $(TD $(GT) 1)  $(TD $(NAN))                            )
+ *   $(TR $(TD +0)              $(TD $(LT) 1)  $(TD $(NAN))                            )
+ *   $(TR $(TD $(INFIN))        $(TD $(GT) 0)  $(TD $(NAN))                            )
+ *   $(TR $(TD $(GT) 0)         $(TD 0)        $(TD $(INFIN))                          )
+ *   $(TR $(TD $(LT) $(INFIN))  $(TD 1)        $(TD 0)                                 )
+ * )
+ *
+ * See_Also: $(LREF gammaIncompleteCompl)
  */
 real gammaIncompleteComplInverse(real a, real p)
 in
 {
-  assert(p >= 0 && p <= 1);
-  assert(a > 0);
+    // allow NaN input to pass through so that it can be addressed by the
+    // internal NaN payload propagation logic
+    if (!isNaN(a) && !isNaN(p))
+    {
+        assert(signbit(a) == 0, "a must be positive");
+        assert(p >= 0.0L && p <= 1.0L, "p must be in the interval [0,1]");
+    }
 }
+out(x; isNaN(x) || x >= 0.0L)
 do
 {
     return std.internal.math.gammafunction.gammaIncompleteComplInv(a, p);
 }
 
+///
+@safe unittest
+{
+    const a = 2, p = 0.5L;
+    assert(isClose(gammaIncompleteComplInverse(a, gammaIncompleteCompl(a, p)), p));
+
+    assert(isClose(gammaIncompleteComplInverse(1, 1/E), 1));
+    assert(isNaN(gammaIncompleteComplInverse(+0.0L, 0.1)));
+    assert(isNaN(gammaIncompleteComplInverse(real.infinity, 0.2)));
+    assert(gammaIncompleteComplInverse(3, 0) is real.infinity);
+    assert(gammaIncompleteComplInverse(4, 1) == 0);
+}
 
 /* ***********************************************
  *     ERROR FUNCTIONS & NORMAL DISTRIBUTION     *

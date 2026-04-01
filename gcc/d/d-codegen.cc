@@ -2349,7 +2349,8 @@ d_build_call (TypeFunction *tf, tree callable, tree object,
 		 - The ABI of the function expects the callee to destroy its
 		 arguments; when the caller is handles destruction, then `targ'
 		 has already been made into a temporary. */
-	      if (!can_elide_copy_p (arg)
+	      if (TREE_CODE (targ) != TARGET_EXPR
+		  && !can_elide_copy_p (arg)
 		  && (arg->op == EXP::structLiteral
 		      || (!sd->postblit && !sd->dtor)
 		      || target.isCalleeDestroyingArgs (tf)))

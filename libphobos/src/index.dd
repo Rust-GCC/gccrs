@@ -3,10 +3,13 @@ Ddoc
 $(P Phobos is the standard runtime library that comes with the D language
 compiler.)
 
-$(P Generally, the `std` namespace is used for the main modules in the
-Phobos standard library. The `etc` namespace is used for external C/C++
-library bindings. The `core` namespace is used for low-level D runtime
-functions.)
+- The `std` namespace is used for the main modules in the
+  Phobos standard library.
+- The $(LREF etc) namespace is used for external C/C++ library bindings.
+- The `core` namespace is mainly used for low-level D runtime functions.
+- $(RELATIVE_LINK2 stdc, `core.stdc`) wraps the C standard library.
+- $(RELATIVE_LINK2 stdcpp, `core.stdcpp`) wraps some of the C++ standard library.
+- `core.sys` wraps OS headers.
 
 $(P The following table is a quick reference guide for which Phobos modules to
 use for a given category of functionality. Note that some modules may appear in
@@ -130,7 +133,7 @@ $(BOOKTABLE ,
         $(TD Defines built-in exception types and low-level
             language hooks required by the compiler.)
     )
-    $(LEADINGROW External library bindings)
+    $(LEADINGROW $(LNAME2 etc, External library bindings))
     $(TR
         $(TDNW $(MREF etc,c,curl))
         $(TD Interface to libcurl C library.)
@@ -155,6 +158,14 @@ $(BOOKTABLE ,
     $(TR
         $(TDNW $(MREF etc,c,zlib))
         $(TD Interface to zlib C library.)
+    )
+    $(TR
+        $(TDNW $(MREF etc,linux,memoryerror))
+        $(TD Handle memory errors on Linux.)
+    )
+    $(TR
+        $(TDNW $(MREF etc,valgrind,valgrind))
+        $(TD Interface to $(LINK2 https://valgrind.org, Valgrind) for dynamic analysis.)
     )
     $(LEADINGROW I/O &amp; File system)
     $(TR
@@ -194,10 +205,29 @@ $(BOOKTABLE ,
             $(MREF core,stdc,wctype)$(BR)
         )
         $(TD
-            D bindings for standard C headers.$(BR)$(BR)
+            D bindings for $(LNAME2 stdc, standard C) headers.$(BR)$(BR)
             These are mostly undocumented, as documentation
             for the functions these declarations provide
             bindings to can be found on external resources.
+        )
+    )
+    $(TR
+        $(TDNW
+            $(MREF core,stdcpp,allocator)$(BR)
+            $(MREF core,stdcpp,array)$(BR)
+            $(MREF core,stdcpp,exception)$(BR)
+            $(MREF core,stdcpp,memory)$(BR)
+            $(MREF core,stdcpp,new_)$(BR)
+            $(MREF core,stdcpp,string)$(BR)
+            $(MREF core,stdcpp,string_view)$(BR)
+            $(MREF core,stdcpp,type_traits)$(BR)
+            $(MREF core,stdcpp,typeinfo)$(BR)
+            $(MREF core,stdcpp,utility)$(BR)
+            $(MREF core,stdcpp,vector)$(BR)
+            $(MREF core,stdcpp,xutility)$(BR)
+        )
+        $(TD
+            Partial D bindings for $(LNAME2 stdcpp, standard C++) headers.$(BR)$(BR)
         )
     )
     $(LEADINGROW Memory management)
@@ -307,8 +337,10 @@ $(BOOKTABLE ,
         $(TD An arbitrary-precision integer type.)
     )
     $(TR
-        $(TDNW $(MREF std,int128))
-        $(TDNW $(MREF core,int128))
+        $(TDNW
+            $(MREF std,int128)$(BR)
+            $(MREF core,int128)
+        )
         $(TD 128 bit-precision integer type.)
     )
     $(TR
