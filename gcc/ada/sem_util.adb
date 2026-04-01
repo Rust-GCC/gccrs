@@ -18628,14 +18628,23 @@ package body Sem_Util is
    -----------------------------
 
    function Is_Incompletely_Defined (Type_Id : Entity_Id) return Boolean is
+   begin
+      return Present (Not_Fully_Declared_Part (Type_Id));
+   end Is_Incompletely_Defined;
+
+   -----------------------------
+   -- Not_Fully_Declared_Part --
+   -----------------------------
+
+   function Not_Fully_Declared_Part
+     (Type_Id : Entity_Id) return Entity_Id
+   is
       Btype     : Entity_Id := Base_Type (Type_Id);
       Component : Entity_Id;
-
    begin
-      if Error_Posted (Type_Id)
-        or else Error_Posted (Btype)
+      if Error_Posted (Type_Id) or else Error_Posted (Btype)
       then
-         return False;
+         return Empty;
       end if;
 
       if Is_Class_Wide_Type (Btype) then
@@ -18648,43 +18657,60 @@ package body Sem_Util is
          begin
             if No (UT) then
                if No (Full_View (Btype)) then
-                  return not Is_Generic_Type (Btype)
-                            and then
-                         not Is_Generic_Type (Root_Type (Btype));
+                  if not Is_Generic_Type (Btype)
+                    and then
+                  not Is_Generic_Type (Root_Type (Btype))
+                  then
+                     return Btype;
+                  end if;
                else
-                  return not Is_Generic_Type (Root_Type (Full_View (Btype)));
+                  if not Is_Generic_Type (Root_Type (Full_View (Btype))) then
+                     return Btype;
+                  end if;
                end if;
             else
-               return
-                 not Is_Frozen (UT) and then Is_Incompletely_Defined (UT);
+               if not Is_Frozen (UT) then
+                  return Not_Fully_Declared_Part (UT);
+               end if;
             end if;
+            return Empty;
          end;
 
       elsif Is_Array_Type (Btype) then
-         return Is_Incompletely_Defined (Component_Type (Btype));
+         return Not_Fully_Declared_Part (Component_Type (Btype));
 
       elsif Is_Record_Type (Btype) then
          Component := First_Component (Btype);
-         while Present (Component) loop
-            if Is_Incompletely_Defined (Etype (Component)) then
-               return True;
-            end if;
+         declare
+            Inc_par : Entity_Id;
+         begin
+            while Present (Component) loop
+               Inc_par :=
+                 Not_Fully_Declared_Part (Etype (Component));
+               if Present (Inc_par) then
+                  if Is_Type (Inc_par) then
+                     return Component;
+                  else
+                     return Inc_par;
+                  end if;
+               end if;
 
-            Next_Component (Component);
-         end loop;
+               Next_Component (Component);
+            end loop;
 
-         return False;
-
+            return Empty;
+         end;
       elsif Is_Protected_Type (Btype)
         and then Present (Corresponding_Record_Type (Btype))
       then
          return
-           Is_Incompletely_Defined (Corresponding_Record_Type (Btype));
+           Not_Fully_Declared_Part
+             (Corresponding_Record_Type (Btype));
 
       else
-         return False;
+         return Empty;
       end if;
-   end Is_Incompletely_Defined;
+   end Not_Fully_Declared_Part;
 
    ---------------------------
    -- Is_Independent_Object --

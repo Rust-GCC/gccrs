@@ -2255,6 +2255,18 @@ package Sem_Util is
    --  Returns True if N appears within the context clause of a unit, and False
    --  for any other placement.
 
+   function Not_Fully_Declared_Part
+      (Type_Id : Entity_Id) return Entity_Id;
+   --  Given a type, returns the reason it is not "completely defined".
+   --  We say that a type is "completely defined" at a place that is after
+   --  its full type definition (if it has one) and after all of its
+   --  subcomponent types are completely defined (RM 3.11.1 (8)).
+   --  If the return value is not Empty, Type_Id is incompletely defined
+   --  and the returned value points to the responsible subcomponent.
+   --
+   --  Used to enforce the rules on type freezing (RM 13.14), which require
+   --  that a type must be completely defined before it is frozen.
+
    function Is_Incompletely_Defined (Type_Id : Entity_Id) return Boolean;
    --  Returns True iff Type_Id is incompletely defined. See RM 3.11.1 (8) for
    --  the definition of "completely defined". Note that "incompletely defined"

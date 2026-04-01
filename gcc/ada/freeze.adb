@@ -9422,7 +9422,7 @@ package body Freeze is
                if Is_Incompletely_Defined (Typ)
                  and then not Is_Private_Type (Typ)
                then
-                  Error_Msg_NE ("\\type& has private component", N, Typ);
+                  Error_Msg_NE ("\\type& is not completely defined", N, Typ);
                end if;
 
                Explain_Error;
