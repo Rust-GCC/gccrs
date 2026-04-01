@@ -2182,6 +2182,15 @@ ftms = {
 };
 
 ftms = {
+  name = ranges_filter;
+  values = {
+    // This is P3725R3, a C++26 change, but we treat it as a DR against C++20.
+    v = 202603;
+    cxxmin = 20;
+  };
+};
+
+ftms = {
   name = ranges_to_input;
   values = {
     v = 202502;

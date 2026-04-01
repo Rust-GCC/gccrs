@@ -65,6 +65,7 @@
 #define __glibcxx_want_ranges_chunk
 #define __glibcxx_want_ranges_chunk_by
 #define __glibcxx_want_ranges_enumerate
+#define __glibcxx_want_ranges_filter
 #define __glibcxx_want_ranges_indices
 #define __glibcxx_want_ranges_join_with
 #define __glibcxx_want_ranges_repeat
@@ -1738,15 +1739,19 @@ namespace views::__adaptor
     class filter_view : public view_interface<filter_view<_Vp, _Pred>>
     {
     private:
+      template<bool _Const>
       struct _Sentinel;
 
+      template<bool _Const>
       struct _Iterator : __detail::__filter_view_iter_cat<_Vp>
       {
       private:
 	static constexpr auto
 	_S_iter_concept()
 	{
-	  if constexpr (bidirectional_range<_Vp>)
+	  if constexpr (_Const)
+	    return input_iterator_tag{};
+	  else if constexpr (bidirectional_range<_Vp>)
 	    return bidirectional_iterator_tag{};
 	  else if constexpr (forward_range<_Vp>)
 	    return forward_iterator_tag{};
@@ -1755,42 +1760,52 @@ namespace views::__adaptor
 	}
 
 	friend filter_view;
+	friend _Iterator<!_Const>;
 
-	using _Vp_iter = iterator_t<_Vp>;
+	using _Parent = __maybe_const_t<_Const, filter_view>;
+	using _Base = __maybe_const_t<_Const, _Vp>;
+	using _Base_iter = iterator_t<_Base>;
 
-	_Vp_iter _M_current = _Vp_iter();
-	filter_view* _M_parent = nullptr;
+	_Base_iter _M_current = _Base_iter();
+	_Parent* _M_parent = nullptr;
 
       public:
 	using iterator_concept = decltype(_S_iter_concept());
 	// iterator_category defined in __filter_view_iter_cat
-	using value_type = range_value_t<_Vp>;
-	using difference_type = range_difference_t<_Vp>;
+	using value_type = range_value_t<_Base>;
+	using difference_type = range_difference_t<_Base>;
 
-	_Iterator() requires default_initializable<_Vp_iter> = default;
+	_Iterator() requires default_initializable<_Base_iter> = default;
 
 	constexpr
-	_Iterator(filter_view* __parent, _Vp_iter __current)
+	_Iterator(_Parent* __parent, _Base_iter __current)
 	  : _M_current(std::move(__current)),
 	    _M_parent(__parent)
 	{ }
 
-	constexpr const _Vp_iter&
+	constexpr
+	_Iterator(_Iterator<!_Const> __i)
+	  requires _Const && convertible_to<iterator_t<_Vp>, iterator_t<_Base>>
+	  : _M_current(std::move(__i._M_current)),
+	    _M_parent(std::move(__i._M_parent))
+	{ }
+
+	constexpr const _Base_iter&
 	base() const & noexcept
 	{ return _M_current; }
 
-	constexpr _Vp_iter
+	constexpr _Base_iter
 	base() &&
 	{ return std::move(_M_current); }
 
-	constexpr range_reference_t<_Vp>
+	constexpr range_reference_t<_Base>
 	operator*() const
 	{ return *_M_current; }
 
-	constexpr _Vp_iter
+	constexpr _Base_iter
 	operator->() const
-	  requires __detail::__has_arrow<_Vp_iter>
-	    && copyable<_Vp_iter>
+	  requires __detail::__has_arrow<_Base_iter>
+	    && copyable<_Base_iter>
 	{ return _M_current; }
 
 	constexpr _Iterator&
@@ -1807,7 +1822,7 @@ namespace views::__adaptor
 	{ ++*this; }
 
 	constexpr _Iterator
-	operator++(int) requires forward_range<_Vp>
+	operator++(int) requires forward_range<_Base>
 	{
 	  auto __tmp = *this;
 	  ++*this;
@@ -1815,7 +1830,7 @@ namespace views::__adaptor
 	}
 
 	constexpr _Iterator&
-	operator--() requires bidirectional_range<_Vp>
+	operator--() requires bidirectional_range<_Base>
 	{
 	  do
 	    --_M_current;
@@ -1824,7 +1839,7 @@ namespace views::__adaptor
 	}
 
 	constexpr _Iterator
-	operator--(int) requires bidirectional_range<_Vp>
+	operator--(int) requires bidirectional_range<_Base>
 	{
 	  auto __tmp = *this;
 	  --*this;
@@ -1833,10 +1848,10 @@ namespace views::__adaptor
 
 	friend constexpr bool
 	operator==(const _Iterator& __x, const _Iterator& __y)
-	  requires equality_comparable<_Vp_iter>
+	  requires equality_comparable<_Base_iter>
 	{ return __x._M_current == __y._M_current; }
 
-	friend constexpr range_rvalue_reference_t<_Vp>
+	friend constexpr range_rvalue_reference_t<_Base>
 	iter_move(const _Iterator& __i)
 	  noexcept(noexcept(ranges::iter_move(__i._M_current)))
 	{ return ranges::iter_move(__i._M_current); }
@@ -1844,34 +1859,44 @@ namespace views::__adaptor
 	friend constexpr void
 	iter_swap(const _Iterator& __x, const _Iterator& __y)
 	  noexcept(noexcept(ranges::iter_swap(__x._M_current, __y._M_current)))
-	  requires indirectly_swappable<_Vp_iter>
+	  requires indirectly_swappable<_Base_iter>
 	{ ranges::iter_swap(__x._M_current, __y._M_current); }
       };
 
+      template<bool _Const>
       struct _Sentinel
       {
       private:
-	sentinel_t<_Vp> _M_end = sentinel_t<_Vp>();
+	using _Parent = __maybe_const_t<_Const, filter_view>;
+	using _Base = __maybe_const_t<_Const, _Vp>;
+	sentinel_t<_Base> _M_end = sentinel_t<_Base>();
 
-	constexpr bool
-	__equal(const _Iterator& __i) const
-	{ return __i._M_current == _M_end; }
+	friend _Sentinel<!_Const>;
 
       public:
 	_Sentinel() = default;
 
 	constexpr explicit
-	_Sentinel(filter_view* __parent)
+	_Sentinel(_Parent* __parent)
 	  : _M_end(ranges::end(__parent->_M_base))
 	{ }
 
-	constexpr sentinel_t<_Vp>
+	constexpr
+	_Sentinel(_Sentinel<!_Const> __i)
+	  requires _Const && convertible_to<sentinel_t<_Vp>, sentinel_t<_Base>>
+	  : _M_end(std::move(__i._M_end))
+	{ }
+
+	constexpr sentinel_t<_Base>
 	base() const
 	{ return _M_end; }
 
-	friend constexpr bool
-	operator==(const _Iterator& __x, const _Sentinel& __y)
-	{ return __y.__equal(__x); }
+	template<bool _Const2>
+	  requires sentinel_for<sentinel_t<_Base>,
+		     iterator_t<__maybe_const_t<_Const2, _Vp>>>
+	  friend constexpr bool
+	  operator==(const _Iterator<_Const2>& __x, const _Sentinel& __y)
+	  { return __x._M_current == __y._M_end; }
       };
 
       _Vp _M_base = _Vp();
@@ -1900,7 +1925,7 @@ namespace views::__adaptor
       pred() const
       { return *_M_pred; }
 
-      constexpr _Iterator
+      constexpr _Iterator<false>
       begin()
       {
 	if (_M_cached_begin._M_has_value())
@@ -1914,14 +1939,32 @@ namespace views::__adaptor
 	return {this, std::move(__it)};
       }
 
+      constexpr _Iterator<true>
+      begin() const
+	requires (input_range<const _Vp> && !forward_range<const _Vp>
+		  && indirect_unary_predicate<const _Pred, iterator_t<const _Vp>>)
+      {
+	__glibcxx_assert(_M_pred.has_value());
+	auto __it = ranges::find_if(ranges::begin(_M_base),
+				    ranges::end(_M_base),
+				    std::ref(*_M_pred));
+	return {this, std::move(__it)};
+      }
+
       constexpr auto
       end()
       {
 	if constexpr (common_range<_Vp>)
-	  return _Iterator{this, ranges::end(_M_base)};
+	  return _Iterator<false>{this, ranges::end(_M_base)};
 	else
-	  return _Sentinel{this};
+	  return _Sentinel<false>{this};
       }
+
+      constexpr _Sentinel<true>
+      end() const
+	requires (input_range<const _Vp> && !forward_range<const _Vp>
+		  && indirect_unary_predicate<const _Pred, iterator_t<const _Vp>>)
+      { return _Sentinel<true>{this}; }
     };
 
   template<typename _Range, typename _Pred>
