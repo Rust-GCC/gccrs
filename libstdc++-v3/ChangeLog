@@ -1,3 +1,113 @@
+2026-04-01  Jakub Jelinek  <jakub@redhat.com>
+
+	* include/std/meta (std::meta::__detail::__statically_sized): New
+	concept.
+	(std::meta::define_static_array): Change return type to auto.  If
+	__statically_sized<_Rg>, return span with ranges::size(__r) as
+	second argument.
+
+2026-04-01  François Dumont  <frs.dumont@gmail.com>
+	    Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/bits/cow_string.h
+	(basic_string::replace(iterator, iterator, _InputIte, _InputIte)): Move
+	__glibcxx_requires_valid_range to...
+	(basic_string::_M_replace_dispatch(iterator, iterator, _InputIte,
+	_InputIte, __fase_type)): ...here.
+	* testsuite/21_strings/basic_string/debug/append_neg.cc: New test case.
+	* testsuite/21_strings/basic_string/debug/assign_neg.cc: New test case.
+	* testsuite/21_strings/basic_string/debug/construct_neg.cc: New test case.
+	* testsuite/21_strings/basic_string/debug/insert_neg.cc: New test case.
+	* testsuite/21_strings/basic_string/debug/replace_neg.cc: New test case.
+
+2026-04-01  Patrick Palka  <ppalka@redhat.com>
+
+	* include/std/ranges (iota_view::_Sentinel): Remove _M_equal and
+	_M_distance_from.  Inline logic into friend operators.
+	(basic_istream_view::_Iterator): Remove _M_at_end.  Inline logic
+	into operator==.
+	(transform_view::_Sentinel): Remove __distance_from and __equal.
+	Inline logic into friend operators.
+	(join_view::_Sentinel): Remove __equal.  Inline logic into operator==.
+	(lazy_split_view::_OuterIter): Remove __at_end.  Inline logic into
+	operator==.
+	(split_view::_Sentinel): Remove _M_equal.  Inline logic into operator==.
+	(elements_view::_Sentinel): Remove _M_equal and _M_distance_from.
+	Inline logic into friend operators.
+
+2026-04-01  Patrick Palka  <ppalka@redhat.com>
+
+	* include/bits/version.def (ranges_filter): Define for C++20.
+	* include/bits/version.h: Regenerate.
+	* include/std/ranges: Provide __cpp_lib_ranges_filter.
+	(filter_view::_Iterator): Add _Const template parameter.
+	(filter_view::_Iterator::_S_iter_concept): Return
+	input_iterator_tag if _Const.
+	(filter_view::_Iterator::_Parent): New.
+	(filter_view::_Iterator::_Base): New.
+	(filter_view::_Iterator::_Vp_iter): Replace with ...
+	(filter_view::_Iterator::_Base_iter): ... this.
+	(filter_view::_Iterator::_M_current): Adjust to consider _Const.
+	(filter_view::_Iterator::_M_parent): Likewise.
+	(filter_view::_Iterator::value_type): Likewise.
+	(filter_view::_Iterator::difference_type): Likewise.
+	(filter_view::_Iterator::_Iterator): Likewise.  Add
+	const-converting overload.
+	(filter_view::_Iterator::base): Adjust to consider _Const.
+	(filter_view::_Iterator::operator*): Likewise.
+	(filter_view::_Iterator::operator->): Likewise.
+	(filter_view::_Iterator::operator++): Likewise.
+	(filter_view::_Iterator::operator--): Likewise.
+	(filter_view::_Iterator::iter_move): Likewise.
+	(filter_view::_Iterator::iter_swap): Likewise.
+	(filter_view::_Sentinel): Add _Const template parameter.
+	(filter_view::_Sentinel::_Parent): New.
+	(filter_view::_Sentinel::_Base): New.
+	(filter_view::_Sentinel::_M_end): Adjust to consider _Const.
+	(filter_view::_Sentinel::_Sentinel): Likewise.  Add
+	const-converting overload.
+	(filter_view::_Sentinel::base): Adjust to consider _Const.
+	(filter_view::_Sentinel::operator==): Likewise.  Inline the
+	helper member function __equal.
+	(filter_view::begin): Adjust return type of non-const overload.
+	New const overload.
+	(filter_view::end): Likewise.
+	* testsuite/std/ranges/adaptors/filter.cc: Verify value of
+	__cpp_lib_ranges_filter.
+	(test08): New test.
+
+2026-04-01  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/bits/chrono_io.h (__formatter_chrono::_S_empty_fs)
+	(__formatter_chrono::_M_C_y_Y, __formatter_chrono::_M_D_x)
+	(__formatter_chrono::_M_F, __formatter_chrono::_M_subsecs)
+	(__formatter_chrono_info::_M_format_to): Use
+	_Dynamic_format_string instead of _Runtime_format_string.
+	* include/bits/version.def (format): Bump value.
+	* include/bits/version.h: Regenerate.
+	* include/std/format (_Runtime_format_string): Rename to
+	_Dynamic_format_string.
+	(runtime_format): Rename to dynamic_format.
+	* include/std/print (println): Adjust comment to refer to
+	dynamic_format instead of runtime_format.
+	* testsuite/std/format/runtime_format.cc: Move to...
+	* testsuite/std/format/dynamic_format.cc: ...here.
+
+2026-04-01  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/bits/sat_arith.h (add_sat, sub_sat, mul_sat, div_sat)
+	(saturate_cast): Rename to saturating_xxx as per P4052R0.
+	* include/bits/version.def (saturation_arithmetic): Bump value.
+	* include/bits/version.h: Regenerate.
+	* testsuite/26_numerics/saturation/add.cc: Use new name.
+	* testsuite/26_numerics/saturation/cast.cc: Likewise.
+	* testsuite/26_numerics/saturation/div.cc: Likewise.
+	* testsuite/26_numerics/saturation/extended.cc: Likewise.
+	* testsuite/26_numerics/saturation/mul.cc: Likewise.
+	* testsuite/26_numerics/saturation/sub.cc: Likewise.
+	* testsuite/26_numerics/saturation/version.cc: Check for updated
+	value.
+
 2026-03-31  Jakub Jelinek  <jakub@redhat.com>
 
 	* include/std/meta (std::meta::data_member_options): Add annotations

@@ -1,3 +1,15 @@
+2026-04-01  Iain Buclaw  <ibuclaw@gdcproject.org>
+
+	* libdruntime/MERGE: Merge upstream druntime 55e64690bc.
+	* src/MERGE: Merge upstream phobos 0c519ae39.
+	* src/Makefile.am (PHOBOS_DSOURCES): Add
+	std/internal/windows/bcrypt.d.
+	* src/Makefile.in: Regenerate.
+	* testsuite/libphobos.aa/test_aa.d: Update.
+	* testsuite/libphobos.phobos/std_array.d: Regenerate.
+	* testsuite/libphobos.phobos/std_mathspecial.d: Regenerate.
+	* src/std/internal/windows/bcrypt.d: New file.
+
 2026-03-31  Iain Buclaw  <ibuclaw@gdcproject.org>
 
 	* libdruntime/MERGE: Merge upstream druntime e7c34c13de.

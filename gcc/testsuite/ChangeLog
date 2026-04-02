@@ -1,3 +1,88 @@
+2026-04-01  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/124739
+	* gfortran.dg/pr124739.f90: Change 'run' to 'compile'.
+
+2026-04-01  Tamar Christina  <tamar.christina@arm.com>
+	    Roger Sayle  <roger@nextmovesoftware.com>
+
+	PR target/123238
+	* gcc.target/aarch64/pr123238.c: New test case.
+
+2026-04-01  Roger Sayle  <roger@nextmovesoftware.com>
+
+	PR target/123238
+	* gcc.target/i386/pr123238.c: Likewise.
+
+2026-04-01  Gonzalosilvalde  <gonzalo.silvalde@gmail.com>
+
+	PR fortran/79330
+	* gfortran.dg/bind_c_module_proc.f90: New test.
+
+2026-04-01  Vladimir N. Makarov  <vmakarov@redhat.com>
+
+	PR rtl-optimization/124696
+	* gcc.target/i386/pr124696.c: New.
+
+2026-04-01  Jakub Jelinek  <jakub@redhat.com>
+
+	* g++.dg/reflect/annotations17.C: New test.
+
+2026-04-01  Jakub Jelinek  <jakub@redhat.com>
+
+	* g++.dg/reflect/mangle1.C: Expect _Z3barILi310ELDmgsEEvv
+	rather than _Z3barILi310ELDmngEEvv.
+
+2026-04-01  Jakub Jelinek  <jakub@redhat.com>
+
+	* g++.dg/reflect/define_static_array1.C (l): Another variable
+	with define_static_array test from array<int, 0>.
+	Add static assertions for types of the define_static_array results.
+
+2026-04-01  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR tree-optimization/124742
+	* gcc.dg/torture/pr124742-1.c: New test.
+
+2026-04-01  H.J. Lu  <hjl.tools@gmail.com>
+
+	PR middle-end/124697
+	* gcc.target/i386/pr120839-1b.c: Adjusted.
+	* gcc.target/i386/pr124697-1a.c: New test.
+	* gcc.target/i386/pr124697-1b.c: Likewise.
+	* gcc.target/i386/pr124697-2a.c: Likewise.
+	* gcc.target/i386/pr124697-2b.c: Likewise.
+	* gcc.target/i386/pr124697-3a.c: Likewise.
+	* gcc.target/i386/pr124697-3b.c: Likewise.
+
+2026-04-01  Martin Uecker  <uecker@tugraz.at>
+
+	PR c/124635
+	* gcc.dg/pr124635.c: New test.
+
+2026-04-01  Torbjörn SVENSSON  <torbjorn.svensson@foss.st.com>
+
+	PR target/124705
+	* gcc.dg/tree-ssa/gen-vect-26.c: Disable loop peeling check for
+	arm-none-eabi.
+	* gcc.dg/tree-ssa/gen-vect-28.c: Likewise.
+
+2026-04-01  Torbjörn SVENSSON  <torbjorn.svensson@foss.st.com>
+
+	PR testsuite/93080
+	* gcc.dg/tree-ssa/forwprop-40.c: Xfail for arm_mve.
+	* gcc.dg/tree-ssa/forwprop-41.c: Likewise.
+
+2026-04-01  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/124739
+	* gfortran.dg/pr124739.f90: New test.
+
+2026-04-01  Christopher Albert  <albert@tugraz.at>
+
+	PR fortran/100194
+	* gfortran.dg/pr100194.f90: New test.
+
 2026-03-31  Jakub Jelinek  <jakub@redhat.com>
 
 	* g++.dg/reflect/access_context1.C: Add new tests.

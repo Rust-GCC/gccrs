@@ -1,3 +1,23 @@
+2026-04-01  Gonzalosilvalde  <gonzalo.silvalde@gmail.com>
+
+	PR fortran/79330
+	* decl.cc (gfc_match_subroutine): Set has_import_set when
+	matching a module procedure inside an interface block.
+	(gfc_match_function_decl): Likewise.
+
+2026-04-01  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/124739
+	* io.cc (match_inquire_element): Change tag_id from a
+	variable tag to an expression tag.
+
+2026-04-01  Christopher Albert  <albert@tugraz.at>
+
+	PR fortran/100194
+	* trans-expr.cc (gfc_conv_procedure_call): Skip
+	gfc_conv_subref_array_arg for assumed-rank actual arguments
+	(e->rank == -1) when the dummy is contiguous.
+
 2026-03-31  Mikael Morin  <mikael@gcc.gnu.org>
 	    Christopher Albert  <albert@tugraz.at>
 

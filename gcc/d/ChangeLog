@@ -1,3 +1,20 @@
+2026-04-01  Iain Buclaw  <ibuclaw@gdcproject.org>
+
+	* dmd/MERGE: Merge upstream dmd 55e64690bc.
+	* dmd/VERSION: Bump version to v2.113.0-beta.1.
+	* d-codegen.cc (d_build_call): Check if argument is already a
+	TARGET_EXPR.
+	* decl.cc (DeclVisitor::visit (FuncDeclaration *)): Don't use
+	`__result' decl as named return value if it's a ref type.
+	* expr.cc (ExprVisitor::visit (StructLiteralExp *)): Force TARGET_EXPR
+	if init symbol needs to be mutable.
+	* runtime.def (ARRAYSETLENGTHT): Remove.
+	(ARRAYSETLENGTHIT): Remove.
+	(ARRAYCOPY): Remove.
+	(ARRAYAPPENDCTX): Remove.
+	* typeinfo.cc (TypeInfoVisitor::visit (TypeInfoClassDeclaration *)):
+	Only scan class fields for pointer members.
+
 2026-03-31  Iain Buclaw  <ibuclaw@gdcproject.org>
 
 	* dmd/MERGE: Merge upstream dmd e7c34c13de.

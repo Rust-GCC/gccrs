@@ -1,3 +1,17 @@
+2026-04-01  Jakub Jelinek  <jakub@redhat.com>
+
+	* name-lookup.cc (push_local_extern_decl_alias): Diagnose annotations
+	on local externs and their arguments.
+	* decl.cc (grokdeclarator): Diagnose annotations on non-defining
+	friends and their arguments.
+
+2026-04-01  Jakub Jelinek  <jakub@redhat.com>
+
+	* mangle.cc (write_reflection): Change ^^:: mangling in grammar
+	from LDmngE to LDmgsE.
+	* reflect.cc (reflection_mangle_prefix): Set prefix to "gs" rather
+	than "ng" for global_namespace.
+
 2026-03-31  Jakub Jelinek  <jakub@redhat.com>
 
 	* reflect.cc (reflect_current_scope): Use decl_namespace_list->last ()

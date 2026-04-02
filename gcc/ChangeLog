@@ -1,3 +1,76 @@
+2026-04-01  Tamar Christina  <tamar.christina@arm.com>
+	    Roger Sayle  <roger@nextmovesoftware.com>
+
+	PR target/123238
+	* config/aarch64/aarch64.cc (aarch64_rtx_costs) <case NE/EQ>:
+	Provide improved costs for scalar and vector comparisons.
+
+2026-04-01  Roger Sayle  <roger@nextmovesoftware.com>
+
+	PR target/123238
+	* expr.cc (convert_tree_comp_to_rtx): Make global.
+	* expr.h (convert_tree_comp_to_rtx): Prototype here.
+	* internal-fn.cc (expand_vec_cond_mask_optab_fn): Use rtx_costs
+	to determine whether swapping operands would result in better
+	code.
+	* config/i386/i386-expand.cc (ix86_expand_int_vec_cmp): On
+	AVX512 targets use a ternlog instead of a comparison to negate
+	the mask (requires one instruction instead of two).
+	* config/i386/i386.cc (ix86_rtx_costs): Refactor code for UNSPEC.
+	Provide costs for UNSPEC_BLENDV and  UNSPEC_MOVMSK.  Provide
+	costs for comparison operators of integer vector modes.
+
+2026-04-01  Vladimir N. Makarov  <vmakarov@redhat.com>
+
+	PR rtl-optimization/124696
+	* lra-constraints.cc (simplify_operand_subreg): Reload
+	paradoxical subreg only if it requires more than one hard reg.
+
+2026-04-01  Stefan Schulze Frielinghaus  <stefansf@gcc.gnu.org>
+
+	* config/s390/s390.cc (print_operand): Use fputs instead of
+	fprintf.
+
+2026-04-01  Sandra Loosemore  <sloosemore@baylibre.com>
+
+	PR preprocessor/70917
+	* doc/invoke.texi (Environment Variables): Clarify that LC_ALL,
+	LC_CTYPE, LC_MESSAGES, and LANG affect only diagnostics and
+	informational output from GCC, not the encodings of input and
+	output files.	Remove separate bit-rotten entry for LANG.
+
+2026-04-01  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR tree-optimization/124742
+	* tree-ssa-forwprop.cc (optimize_aggr_zeroprop): Exit
+	if the vdef on the stmt is NULL.
+
+2026-04-01  H.J. Lu  <hjl.tools@gmail.com>
+
+	PR middle-end/124697
+	* function.cc (assign_parm_adjust_stack_rtl): Force a local copy
+	if the current alignment is less than the minimum of
+	BIGGEST_ALIGNMENT and MAX_SUPPORTED_STACK_ALIGNMENT.
+
+2026-04-01  Richard Biener  <rguenther@suse.de>
+	    Sandra Loosemore  <sloosemore@baylibre.com>
+
+	PR middle-end/124634
+	* doc/ifn.texi: New file.
+	* doc/gccint.texi: Include ifn.texi.
+	* Makefile.in (TEXI_GCCINT_FILES): Add ifn.texi.
+
+2026-04-01  Sandra Loosemore  <sloosemore@baylibre.com>
+
+	PR c/61896
+	* doc/cppopts.texi (-finput-charset=): Remove long-obsolete
+	locale discussion.  Document behavior about ill-formed inputs.
+
+2026-04-01  Sandra Loosemore  <sloosemore@baylibre.com>
+
+	* doc/poly-int.texi: Add copyright notice.
+	* doc/specs.texi: Likewise.
+
 2026-03-31  Eric Botcazou  <ebotcazou@adacore.com>
 
 	* tree-ssa-dse.cc (compute_trims): Bail out if ref->size is not
