@@ -1369,8 +1369,8 @@ export namespace std
   using std::formatter;
   using std::make_format_args;
   using std::make_wformat_args;
-#if __cpp_lib_format >= 202311L // >= C++26
-  using std::runtime_format;
+#if __cpp_lib_format >= 202603L // >= C++26
+  using std::dynamic_format;
 #endif
   using std::vformat;
   using std::vformat_to;
@@ -2449,11 +2449,11 @@ export namespace std
   }
 #endif
 #if __cpp_lib_saturation_arithmetic
-  using std::add_sat;
-  using std::sub_sat;
-  using std::mul_sat;
-  using std::div_sat;
-  using std::saturate_cast;
+  using std::saturating_add;
+  using std::saturating_sub;
+  using std::saturating_mul;
+  using std::saturating_div;
+  using std::saturatint_cast;
 #endif
 }
 
