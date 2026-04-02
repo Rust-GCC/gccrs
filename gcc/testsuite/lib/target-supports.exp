@@ -6375,6 +6375,22 @@ foreach { armfunc armflag armdefs } {
     }]
 }
 
+# Return 1 if current target supports both single- and double-precision FP
+proc check_effective_target_arm_mixed_fp { } {
+    if { ![istarget arm*-*-*] } {
+	return 0
+    }
+
+    return [check_no_compiler_messages arm_mixed_fp assembly {
+	#ifndef __ARM_FP
+	# error __ARM_FP not defined
+	#elif ((__ARM_FP & 0xc) == 0xc)
+	# error __ARM_FP indicates that both single- and double-precision FP are supported
+	#endif
+	int main (void) { return 0; }
+    } "" ]
+}
+
 # Return 1 if GCC was configured with --with-mode=
 proc check_effective_target_default_mode { } {
 
