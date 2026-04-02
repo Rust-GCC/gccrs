@@ -165,7 +165,6 @@ static reg_class_t xtensa_secondary_reload (bool, rtx, reg_class_t,
 					    machine_mode,
 					    struct secondary_reload_info *);
 
-static bool constantpool_address_p (const_rtx addr);
 static bool xtensa_legitimate_constant_p (machine_mode, rtx);
 static void xtensa_reorg (void);
 static bool xtensa_can_use_doloop_p (const widest_int &, const widest_int &,
@@ -563,32 +562,31 @@ xtensa_valid_move (machine_mode mode, rtx *operands)
 }
 
 
-int
-smalloffset_mem_p (rtx op)
+bool
+smalloffset_address_p (const_rtx addr)
 {
-  if (MEM_P (op))
-    {
-      rtx addr = XEXP (op, 0);
-      if (REG_P (addr))
-	return BASE_REG_P (addr, 0);
-      if (GET_CODE (addr) == PLUS)
-	{
-	  rtx offset = XEXP (addr, 0);
-	  HOST_WIDE_INT val;
-	  if (! CONST_INT_P (offset))
-	    offset = XEXP (addr, 1);
-	  if (! CONST_INT_P (offset))
-	    return FALSE;
+  if (REG_P (addr))
+    return BASE_REG_P (addr, 0);
 
-	  val = INTVAL (offset);
-	  return (val & 3) == 0 && IN_RANGE (val, 0, 60);
-	}
+  if (GET_CODE (addr) == PLUS)
+    {
+      rtx offset = XEXP (addr, 0);
+      HOST_WIDE_INT val;
+
+      if (! CONST_INT_P (offset))
+	offset = XEXP (addr, 1);
+      if (! CONST_INT_P (offset))
+	return false;
+
+      val = INTVAL (offset);
+      return (val & 3) == 0 && IN_RANGE (val, 0, 60);
     }
-  return FALSE;
+
+  return false;
 }
 
 
-static bool
+bool
 constantpool_address_p (const_rtx addr)
 {
   const_rtx sym = addr;

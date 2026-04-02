@@ -35,7 +35,8 @@ extern bool xtensa_mem_offset (unsigned, machine_mode);
 #ifdef RTX_CODE
 extern int xt_true_regnum (rtx);
 extern int xtensa_valid_move (machine_mode, rtx *);
-extern int smalloffset_mem_p (rtx);
+extern bool smalloffset_address_p (const_rtx);
+extern bool constantpool_address_p (const_rtx);
 extern int constantpool_mem_p (rtx);
 extern void xtensa_extend_reg (rtx, rtx);
 extern void xtensa_expand_conditional_branch (rtx *, machine_mode);
