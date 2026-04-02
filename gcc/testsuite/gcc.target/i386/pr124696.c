@@ -1,5 +1,5 @@
-/* { dg-do compile } */
-/* { dg-options "-O -w -mno-sse2 -mstringop-strategy=loop --param=hot-bb-frequency-fraction=0" } */
+/* { dg-do compile { target int128 } } */
+/* { dg-options "-O -mno-sse2 -mstringop-strategy=loop --param=hot-bb-frequency-fraction=0 -Wno-psabi" } */
 typedef char U __attribute__((__vector_size__ (64)));
 typedef __int128 V __attribute__((__vector_size__ (64)));
 typedef short W __attribute__((__vector_size__ (64)));
