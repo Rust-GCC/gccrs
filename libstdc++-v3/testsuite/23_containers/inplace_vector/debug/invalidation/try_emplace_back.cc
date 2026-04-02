@@ -13,7 +13,7 @@ void test01()
   auto last = v.end();
   auto end = last--;
 
-  VERIFY( v.try_emplace_back(42) != nullptr );
+  VERIFY( v.try_emplace_back(42).has_value() );
 
   VERIFY(before._M_dereferenceable());
   VERIFY(last._M_dereferenceable());

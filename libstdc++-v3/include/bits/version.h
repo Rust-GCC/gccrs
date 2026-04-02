@@ -2488,9 +2488,9 @@
 
 #if !defined(__cpp_lib_inplace_vector)
 # if (__cplusplus >  202302L)
-#  define __glibcxx_inplace_vector 202406L
+#  define __glibcxx_inplace_vector 202603L
 #  if defined(__glibcxx_want_all) || defined(__glibcxx_want_inplace_vector)
-#   define __cpp_lib_inplace_vector 202406L
+#   define __cpp_lib_inplace_vector 202603L
 #  endif
 # endif
 #endif /* !defined(__cpp_lib_inplace_vector) */

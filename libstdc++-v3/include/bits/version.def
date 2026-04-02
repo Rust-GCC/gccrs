@@ -2223,9 +2223,12 @@ ftms = {
 };
 
 ftms = {
+  // 202406 P0843R14 inplace_vector 
+  // 202603 P3981R2 Better return types in std::inplace_vector and std::exception_ptr_cast
+  //        P4022R0 Remove try_append_range from inplace_vector for now
   name = inplace_vector;
   values = {
-    v = 202406;
+    v = 202603;
     cxxmin = 26;
   };
 };

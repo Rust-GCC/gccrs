@@ -338,11 +338,12 @@ namespace __debug
       }
 
       template<typename... _Args>
-	constexpr _Tp*
+	constexpr optional<_Tp&>
 	try_emplace_back(_Args&&... __args)
 	{
 	  auto __end = _Base::cend();
-	  _Tp* __res = _Base::try_emplace_back(std::forward<_Args>(__args)...);
+	  optional<_Tp&> __res
+	    = _Base::try_emplace_back(std::forward<_Args>(__args)...);
 
 	  if (__res)
 	    this->_M_invalidate_if(_Equal(__end));
@@ -350,11 +351,11 @@ namespace __debug
 	  return __res;
 	}
 
-      constexpr _Tp*
+      constexpr optional<_Tp&>
       try_push_back(const _Tp& __x)
       {
 	const auto __end = _Base::cend();
-	_Tp* __res = _Base::try_push_back(__x);
+	optional<_Tp&> __res = _Base::try_push_back(__x);
 
 	if (__res)
 	  this->_M_invalidate_if(_Equal(__end));
@@ -362,30 +363,17 @@ namespace __debug
 	return __res;
       }
 
-      constexpr _Tp*
+      constexpr optional<_Tp&>
       try_push_back(_Tp&& __x)
       {
 	const auto __end = _Base::cend();
-	_Tp* __res = _Base::try_push_back(std::move(__x));
+	optional<_Tp&> __res = _Base::try_push_back(std::move(__x));
 
 	if (__res)
 	  this->_M_invalidate_if(_Equal(__end));
 
 	return __res;
       }
-
-      template<__detail::__container_compatible_range<_Tp> _Rg>
-	constexpr ranges::borrowed_iterator_t<_Rg>
-	try_append_range(_Rg&& __rg)
-	{
-	  const auto __size = size();
-	  const auto __end = _Base::cend();
-	  auto __res = _Base::try_append_range(__rg);
-	  if (size() != __size)
-	    this->_M_invalidate_if(_Equal(__end));
-
-	  return __res;
-	}
 
       template<typename... _Args>
 	constexpr _Tp&
