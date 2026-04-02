@@ -4617,7 +4617,9 @@ proc check_effective_target_vect_cmdline_needed { } {
 	     || ([istarget powerpc*-*-*]
 		 && [check_effective_target_powerpc_altivec])
 	     || ([istarget sparc*-*-*] && [check_effective_target_sparc_vis])
-	     || ([istarget arm*-*-*] && [check_effective_target_arm_neon])
+	     || ([istarget arm*-*-*] && ([check_effective_target_arm_neon]
+					 || [check_effective_target_arm_mve])
+		 )
 	     || [istarget aarch64*-*-*]
 	     || [istarget amdgcn*-*-*]
 	     || [istarget riscv*-*-*]
