@@ -1952,7 +1952,7 @@ static class current_t {
 
   bool new_program ( const YYLTYPE& loc, cbl_label_type_t type,
                      const char name[], const char os_name[],
-                     bool common, bool initial )
+                     bool common, bool initial, bool recursive )
   {
     size_t  parent = programs.empty()? 0 : programs.top().program_index;
     cbl_label_t label = {};
@@ -1961,6 +1961,7 @@ static class current_t {
     label.line = yylineno;
     label.common = common;
     label.initial = initial;
+    label.recursive = recursive;
     label.os_name = os_name;
     if( !namcpy(loc, label.name, name) ) { gcc_unreachable(); }
 
@@ -1987,14 +1988,19 @@ static class current_t {
     bool fOK = symbol_at(programs.top().program_index) + 1 == symbols_end();
     assert(fOK);
 
-    if( (L = symbol_program_local(name)) != NULL ) {
+    auto extant = symbol_program_local(name);
+    if( extant && extant != L ) {
       error_msg(loc, "program '%s' already defined on line %d",
-               L->name, L->line);
+               extant->name, extant->line);
       return false;
     }
 
     options_paragraph = cbl_options_t();
     first_statement = 0;
+
+    if( programs.size() == 1 ) {
+      symbol_registers_add();
+    }
 
     return fOK;
   }

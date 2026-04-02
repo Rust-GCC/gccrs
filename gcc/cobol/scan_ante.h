@@ -1279,55 +1279,47 @@ integer_of( const char input[], bool is_hex = false) {
  * whether to indicate a refmod to the parser with an LPAREN token, or not,
  * with a '(' token.  The input is known to have a first line that begins with
  * '('., includes ':', and ends with ')'.
+ *
+ * Single forward pass: track paren depth, require exactly one ':' at depth 1,
+ * skip quoted regions (doubled quote is escape).  Allows arithmetic and
+ * parentheses in the left part, e.g. ((LENGTH OF x/2) - (y/2)) : 1.
  */
 static bool
 is_refmod( const char input[], const char enput[] ) {
-  if( input == enput ) return false;
-  
-  switch(*input) {
-  case '(':
-    input = std::find( ++input, enput, ')');
-    if( input == enput ) return false;
-    return is_refmod(++input, enput);
-  case ':':
-    return is_refmod(++input, enput);
-  case ')':
-    if( ++input == enput ) return true;
-    return is_refmod(input, enput);
-  default:
-    if( ISSPACE(*input) ) {
-      input = std::find_if( ++input, enput,
-                         []( char ch ) {
-                           return ! ISSPACE(ch);
-                         } );
-      return is_refmod(input, enput);
-    }
-    break;
-  }
-  input = std::find_if( input, enput,
-                        [start = *input]( char ch ) {
-                          bool yes = false;
-                          if( ISDIGIT(start) ) {
-                            switch(ch) {
-                            case '+': case '-': case '*': case '/':
-                              yes = true; break;
-                            case '.': case ',':
-                              yes = true; break;
-                            default:
-                              yes = ISDIGIT(ch);
-                              break;
-                            }
-                          } else {
-                            assert(ISALNUM(start));
-                            switch(ch) {
-                            case '-':
-                              yes = true; break;
-                            default:
-                              yes = ISALNUM(ch);
-                              break;
-                            }
-                          }
-                          return !yes;
-                        } );
-  return is_refmod(input, enput);
+	if( input == enput || *input != '(' ) return false;
+	int depth = 0;
+	bool colon_at_depth1 = false;
+	const char *p = input;
+
+	while( p < enput ) {
+		char ch = *p++;
+		if( ch == '"' || ch == '\'' ) {
+			/* Skip quoted region; doubled quote is escape.  */
+			const char quote = ch;
+			while( p < enput ) {
+				ch = *p++;
+				if( ch == quote ) {
+					if( p < enput && *p == quote ) { p++; continue; }
+					break;
+				}
+			}
+			continue;
+		}
+		if( ch == '(' ) {
+			depth++;
+			continue;
+		}
+		if( ch == ')' ) {
+			depth--;
+			if( depth < 0 ) return false;
+			if( depth == 0 ) return colon_at_depth1;
+			continue;
+		}
+		if( ch == ':' && depth == 1 ) {
+			if( colon_at_depth1 ) return false;
+			colon_at_depth1 = true;
+			continue;
+		}
+	}
+	return false;
 }

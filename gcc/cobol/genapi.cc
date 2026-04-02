@@ -69,7 +69,16 @@ static tree label_list_out_label;
 static tree label_list_back_goto;
 static tree label_list_back_label;
 
+#ifdef ENABLE_HIJACKING
+#pragma message "HIJACKING IS ENABLED - It should be disabled for release"
+static bool hijacked = false;  // Indicates a DUBNER hijacking is in progress.
 static void hijack_for_development(const char *funcname);
+static void hijacker();
+#define RETURN_WHEN_HIJACKED do{if(hijacked){return;}}while(0);
+#else
+#define RETURN_WHEN_HIJACKED
+#define hijacked (false)
+#endif
 
 static size_t sv_data_name_counter = 1;
 
@@ -1110,8 +1119,8 @@ set_exception_environment( tree ecs, tree dcls )
   {
   gg_call(VOID,
           "__gg__set_exception_environment",
-          ecs  ? gg_get_address_of(ecs) : null_pointer_node,
-          dcls ? gg_get_address_of(dcls) : null_pointer_node,
+          ecs  ? gg_pointer_to_array(ecs) : null_pointer_node,
+          dcls ? gg_pointer_to_array(dcls) : null_pointer_node,
           NULL_TREE);
   }
 
@@ -1239,7 +1248,7 @@ parser_statement_end( const std::list<cbl_field_t*>&flist)
         TRACE1_TEXT(psz);
         free(psz);
         }
-        
+
       gg_free(member(field->var_decl_node, "data"));
       // Flag this guy as free:
       gg_assign(member(field->var_decl_node, "data"), gg_cast(UCHAR_P, null_pointer_node));
@@ -2681,6 +2690,11 @@ section_label(struct cbl_proc_t *procedure)
   free(psz2);
   // Needed so that GDB-COBOL can trap at a section name.
   insert_nop(101);
+
+  // Go see if there was an ALTER statement targeting this procedure
+  gg_append_statement(procedure->alter_switch_goto);
+  // Lay down the label we will return to if there is no ALTER in play
+  gg_append_statement(procedure->no_alter_label);
   }
 
 static void
@@ -2754,10 +2768,15 @@ paragraph_label(struct cbl_proc_t *procedure)
   // Yes, trying to understand this causes headaches for many people who read
   // this.  Take an aspirin.
   insert_nop(102);
+
+  // Go see if there was an ALTER statement targeting this procedure
+  gg_append_statement(procedure->alter_switch_goto);
+  // Lay down the label we will return to if there is no ALTER in play
+  gg_append_statement(procedure->no_alter_label);
   }
 
 static void
-pseudo_return_push(cbl_proc_t *procedure, tree return_addr)
+pseudo_return_push(cbl_proc_t *procedure, size_t index)
   {
   // Put the return address onto the stack:
   //gg_suppress_location(true);
@@ -2765,10 +2784,10 @@ pseudo_return_push(cbl_proc_t *procedure, tree return_addr)
   TRACE1
     {
     TRACE1_HEADER
-    gg_printf("%s %p %p",
+    gg_printf("%s %p %ld",
               gg_string_literal(procedure->label->name),
               gg_cast(SIZE_T, procedure->exit.addr),
-              return_addr,
+              build_int_cst_type(SIZE_T, index),
               NULL_TREE);
     TRACE1_END
     }
@@ -2776,17 +2795,13 @@ pseudo_return_push(cbl_proc_t *procedure, tree return_addr)
   gg_call(VOID,
           "__gg__pseudo_return_push",
           procedure->exit.addr,
-          return_addr,
+          build_int_cst_type(SIZE_T, index),
           NULL_TREE);
-
-  //gg_suppress_location(false);
   }
 
 static void
 pseudo_return_pop(cbl_proc_t *procedure)
   {
-  //gg_suppress_location(true);
-
   TRACE1
     {
     TRACE1_HEADER
@@ -2803,18 +2818,16 @@ pseudo_return_pop(cbl_proc_t *procedure)
     TRACE1
       {
       TRACE1_TEXT("Returning")
+      TRACE1_END
       }
     // The top of the stack is us!
 
-    // Pick up the return address from the pseudo_return stack:
+    // Pick up the return index from the pseudo_return stack:
     token_location_override(current_location_minus_one());
-    gg_assign(current_function->void_star_temp,
-              gg_call_expr( VOID_P,
-                            "__gg__pseudo_return_pop",
-                            NULL_TREE));
+
     // And do the return:
     token_location_override(current_location_minus_one());
-    gg_goto(current_function->void_star_temp);
+    gg_append_statement(procedure->dispatch_switch_goto);
     }
   ELSE
     {
@@ -2828,7 +2841,6 @@ pseudo_return_pop(cbl_proc_t *procedure)
     {
     TRACE1_END
     }
-  //gg_suppress_location(false);
   }
 
 static void
@@ -2955,11 +2967,9 @@ find_procedure(cbl_label_t *label)
 
   if( !retval )
     {
-    static int counter=1;
-
     // This is a new section or paragraph; we need to create its values:
-    retval = static_cast<struct cbl_proc_t *>
-                                          (xmalloc(sizeof(struct cbl_proc_t)));
+    //retval = static_cast<struct cbl_proc_t *>(xmalloc(sizeof(struct cbl_proc_t)));
+    retval = new struct cbl_proc_t;
     gcc_assert(retval);
     retval->label = label;
 
@@ -2969,31 +2979,30 @@ find_procedure(cbl_label_t *label)
                         &retval->top.decl);
     gg_create_goto_pair(&retval->exit.go_to,
                         &retval->exit.label,
-                        &retval->exit.addr
-                        );
+                        &retval->exit.addr);
     gg_create_goto_pair(&retval->bottom.go_to,
                         &retval->bottom.label,
-                        &retval->bottom.addr
-                        );
+                        &retval->bottom.addr);
 
-    // fprintf(stderr, "NewProcedure: (%p) %s %p %p %p %p %p %p\n",
-    // retval,
-    // retval->name,
-    // retval->top.go_to,
-    // retval->top.label,
-    // retval->exit.go_to,
-    // retval->exit.label,
-    // retval->bottom.go_to,
-    // retval->bottom.label);
+    // We need a goto/label pair for the location of the dispatch switch for
+    // this paragraph:
+    gg_create_goto_pair(&retval->dispatch_switch_goto,
+                        &retval->dispatch_switch_label);
 
-    // If this procedure is a paragraph, and it becomes the target of
-    // an ALTER statement, alter_location will be used to make that change
-    char *psz = xasprintf("_%s_alter_loc_%d", label->name, counter);
-    retval->alter_location = gg_define_void_star(psz, vs_static);
-    free(psz);
-    DECL_INITIAL(retval->alter_location) = null_pointer_node;
+    // We need goto/label pairs for the location of the dispatch switch for
+    // any potential ALTER to this paragraph
+    gg_create_goto_pair(&retval->alter_switch_goto,
+                        &retval->alter_switch_label);
+    gg_create_goto_pair(&retval->no_alter_goto,
+                        &retval->no_alter_label);
 
-    counter +=1 ;
+    // We can now add this procedure to the of paragraphs that might be
+    // performed:
+    current_function->list_of_procedures.push_back(retval);
+
+    // When this paragraph becomes the target of an ALTER statement, the index
+    // that will be used in the switch() statement goes here:
+    retval->alter_index = gg_define_variable(SIZE_T, NULL, vs_static, 0);
 
     label->structs.proc = retval;
     }
@@ -3005,6 +3014,9 @@ void
 parser_enter_section(cbl_label_t *label)
   {
   Analyze();
+
+  RETURN_WHEN_HIJACKED;
+
   // Do the leaving before the SHOW_PARSE; it makes the output more sensible
   // A new section ends the current paragraph:
   leave_paragraph_internal();
@@ -3044,6 +3056,9 @@ void
 parser_enter_paragraph(cbl_label_t *label)
   {
   Analyze();
+
+  RETURN_WHEN_HIJACKED;
+
   // Do the leaving before the SHOW_PARSE; the output makes more sense that way
   // A new paragraph ends the current paragraph:
   leave_paragraph_internal();
@@ -3060,6 +3075,7 @@ parser_enter_paragraph(cbl_label_t *label)
   CHECK_LABEL(label);
 
   struct cbl_proc_t *procedure = find_procedure(label);
+
   gg_append_statement(procedure->top.label);
   paragraph_label(procedure);
   current_function->current_paragraph = procedure;
@@ -3152,13 +3168,18 @@ parser_alter( cbl_perform_tgt_t *tgt )
   struct cbl_proc_t *altered_proc = find_procedure(altered);
   struct cbl_proc_t *proceed_to_proc = find_procedure(proceed_to);
 
-  gg_assign(  altered_proc->alter_location,
-              proceed_to_proc->top.addr);
+  // We add one to the size of the alter_decls list, because we use zero to
+  // indicate that alter_index hasn't been changed.
+  gg_assign(altered_proc->alter_index,
+            build_int_cst_type(SIZE_T,
+                               altered_proc->alter_decls.size()+1));
+  altered_proc->alter_decls.push_back(proceed_to_proc->top.addr);
   }
 
 void
 parser_goto( cbl_refer_t value_ref, size_t narg, cbl_label_t * const labels[] )
-  {
+  // This routine takes
+{
   // This is part of the Terrible Trio of parser_perform, parser_goto and
   // parser_enter_[procedure].  parser_goto has an easier time of it than
   // the other two, because it just has to jump from here to the entry point
@@ -3188,195 +3209,61 @@ parser_goto( cbl_refer_t value_ref, size_t narg, cbl_label_t * const labels[] )
 
   gcc_assert(narg >= 1);
 
-  // This is a computed GOTO.  It might have only one element, which is
-  // an ordinary GOTO without a DEPENDING ON clause.  We create that table
-  // anyway, because in the case of an ALTER statement, we will be replacing
-  // that sole element with the PROCEED TO element.
-
-  // We need to create a static array of pointers to locations:
-  static int comp_gotos = 1;
-  char *psz = xasprintf("_comp_goto_%d", comp_gotos++);
-  tree array_of_pointers_type = build_array_type_nelts(VOID_P, narg);
-  tree array_of_pointers = gg_define_variable(array_of_pointers_type, psz, vs_static);
-  free(psz);
-
-  // We have the array.  Now we need to build the constructor for it
-  tree constr = make_node(CONSTRUCTOR);
-  TREE_TYPE(constr) = array_of_pointers_type;
-  TREE_STATIC(constr)    = 1;
-  TREE_CONSTANT(constr)  = 1;
-
-  for(size_t i=0; i<narg; i++)
+  if( narg == 1 )
     {
-    CHECK_LABEL(labels[i]);
-    struct cbl_proc_t *procedure = find_procedure(labels[i]);
-    CONSTRUCTOR_APPEND_ELT( CONSTRUCTOR_ELTS(constr),
-                            build_int_cst_type(SIZE_T, i),
-                            procedure->top.addr );
+    // This is the simplest possible case -- no DEPENDING ON clause.
+    struct cbl_proc_t *procedure = find_procedure(labels[0]);
+    gg_append_statement(procedure->top.go_to);
     }
-  DECL_INITIAL(array_of_pointers) = constr;
-
-  // We need to pick up the value argument as an INT:
-  tree value   = gg_define_int();
-
-  if( value_ref.field )
+  else
     {
+    // We will implement the two or more fanout with a switch statement.
+
+    tree value = gg_define_int();
     get_binary_value( value,
                       NULL,
                       value_ref.field,
                       refer_offset(value_ref));
-    // Convert it from one-based to zero-based:
-    gg_decrement(value);
-    // Check to see if the value is in the range 0...narg-1:
-    IF( value, ge_op, integer_zero_node)
+
+    // value is properly 1 through nargs
+
+    tree switch_statement_list = make_node(STATEMENT_LIST);
+    TREE_TYPE(switch_statement_list) = void_type_node;
+
+    tree switchexpr = build2(SWITCH_EXPR,
+                             integer_type_node,
+                             value,
+                             switch_statement_list);
+    gg_append_statement(switchexpr);
+    current_function->statement_list_stack.push_back(switch_statement_list);
+
+    tree caselabel;
+    tree labeldecl;
+
+    for(size_t i = 0; i < narg; ++i)
       {
-      IF( value, lt_op, build_int_cst_type(INT, narg) )
-        {
-        // It is in the valid range, so we can do the goto:
-        Analyzer.ExitMessage();
-        gg_goto(gg_array_value(array_of_pointers, value));
-        }
-      ELSE
-        {
-        // Otherwise, just fall through
-        }
-        ENDIF
+      tree val = build_int_cst(INT, i+1);
+      labeldecl = create_artificial_label(UNKNOWN_LOCATION);
+      DECL_CONTEXT(labeldecl) = current_function->function_decl;
+      caselabel = build_case_label(val,
+                                   NULL_TREE,
+                                   labeldecl);
+      gg_append_statement(caselabel);
+
+      struct cbl_proc_t *procedure = find_procedure(labels[i]);
+      gg_append_statement(procedure->top.go_to);
       }
-    ELSE
-      ENDIF
-    }
-  else
-    {
-    // This is a simple GOTO.  Because it is a simple GO TO, there is the
-    // possibility that this paragraph was the target of an ALTER statement.
-    IF( current_function->current_paragraph->alter_location, ne_op, null_pointer_node )
-      {
-      // Somebody did an ALTER statement before we got here
-      gg_assign(current_function->void_star_temp, current_function->current_paragraph->alter_location);
-      }
-    ELSE
-      {
-      // This paragraph wasn't the target of an ALTER:
-      gg_assign(current_function->void_star_temp, gg_array_value(array_of_pointers, 0));
-      }
-      ENDIF
-    Analyzer.ExitMessage();
-    gg_goto(current_function->void_star_temp);
-    }
-  return;
-  }
 
-void
-parser_perform(cbl_label_t *label, bool suppress_nexting)
-  {
-  Analyze();
-  SHOW_PARSE
-    {
-    SHOW_PARSE_HEADER
-    SHOW_PARSE_LABEL(" ", label)
-    char ach[32];
-    sprintf(ach, " label is at %p", static_cast<void*>(label));
-    SHOW_PARSE_TEXT(ach)
-    if( label )
-      {
-      sprintf(ach,
-              " label->proc is %p",
-              static_cast<void*>(label->structs.proc));
-      }
-    SHOW_PARSE_TEXT(ach)
-    SHOW_PARSE_END
-    }
+    // Finish with a default case that just falls through
+    labeldecl = create_artificial_label(UNKNOWN_LOCATION);
+    DECL_CONTEXT(labeldecl) = current_function->function_decl;
 
-  TRACE1
-    {
-    TRACE1_HEADER
-    TRACE1_LABEL("", label, "")
-    TRACE1_END
-    }
+    caselabel = build_case_label(NULL_TREE,
+                                 NULL_TREE,
+                                 labeldecl);
+    gg_append_statement(caselabel);
 
-  CHECK_LABEL(label);
-  label->used = yylineno;
-
-  struct cbl_proc_t *procedure = find_procedure(label);
-
-  // We need to create the unnamed return address that we
-  // will instantiate right after the goto:
-  tree return_address_decl = build_decl(  UNKNOWN_LOCATION,
-                                          LABEL_DECL,
-                                          NULL_TREE,
-                                          void_type_node);
-  DECL_CONTEXT(return_address_decl) = current_function->function_decl;
-  TREE_USED(return_address_decl) = 1;
-
-  tree return_label_expr = build1(LABEL_EXPR,
-                                  void_type_node,
-                                  return_address_decl);
-  tree return_addr = gg_get_address_of(return_address_decl);
-
-//  cbl_parser_mod *parser_mod = new cbl_parser_mod;
-
-  // Put the return address onto the pseudo-return stack
-  pseudo_return_push(procedure, return_addr);
-
-  // Create the code that will launch the paragraph
-  // The following comment is, believe it or not, necessary.  The insertion
-  // includes a line number insertion that's needed because when the goto/label
-  // pairs were created, the locations of the goto instruction and the label
-  // were not known.
-
-  const char *para_name     = nullptr;
-  const char *sect_name     = nullptr;
-  const char *program_name  = current_function->our_unmangled_name;
-  size_t deconflictor = symbol_label_id(label);
-
-  char ach[256];
-  if( label->type == LblParagraph )
-    {
-    const cbl_label_t *sec_label = cbl_label_of(symbol_at(label->parent));
-    para_name = label->name;
-    sect_name = sec_label->name;
-    sprintf(ach,
-            "%s PERFORM %s of %s of %s (" HOST_SIZE_T_PRINT_DEC ")",
-            ASM_COMMENT_START,
-            para_name,
-            sect_name,
-            program_name,
-            (fmt_size_t)deconflictor);
-
-    gg_insert_into_assembler(ach);
-    }
-  else
-    {
-    sect_name = label->name;
-    sprintf(ach,
-            "%s PERFORM %s of %s (" HOST_SIZE_T_PRINT_DEC ")",
-            ASM_COMMENT_START,
-            sect_name,
-            program_name,
-            (fmt_size_t)deconflictor);
-    gg_insert_into_assembler(ach);
-    }
-
-  if( !suppress_nexting )
-    {
-    // Flag this source-code line as being a PERFORM statement.
-    perform_is_armed = CURRENT_LINE_NUMBER ;
-    }
-
-  // We do the indirect jump in order to prevent the compiler from complaining
-  // in the case where we are performing a USE GLOBAL DECLARATIVE.  Without the
-  // indirection, the compiler isn't able to handle the case where we are
-  // jumping to a location in our parent program-id; it can't find a matching
-  // local symbol, and crashes.
-  gg_goto(procedure->top.addr);
-
-  // And create the return address label:
-  gg_append_statement(return_label_expr);
-  TRACE1
-    {
-    TRACE1_HEADER
-    TRACE1_LABEL("back_from_performing ", label, "")
-    TRACE1_END
+    current_function->statement_list_stack.pop_back();
     }
   }
 
@@ -3464,12 +3351,13 @@ internal_perform_through( cbl_label_t *proc_1,
 
   if( !proc_2 )
     {
-    parser_perform(proc_1, suppress_nexting);
-    return;
+    proc_2 = proc_1;
     }
 
   struct cbl_proc_t *proc1 = find_procedure(proc_1);
   struct cbl_proc_t *proc2 = find_procedure(proc_2);
+
+  size_t dispatch_index = proc2->pseudo_return_decls.size();
 
   // We need to create the unnamed return address that we
   // will instantiate right after the goto:
@@ -3483,17 +3371,21 @@ internal_perform_through( cbl_label_t *proc_1,
   tree return_label_expr = build1(LABEL_EXPR,
                                   void_type_node,
                                   return_address_decl);
-  tree return_addr = gg_get_address_of(return_address_decl);
 
-  //cbl_parser_mod *parser_mod_proc1 = new cbl_parser_mod;
-  //cbl_parser_mod *parser_mod_proc2 = new cbl_parser_mod;
-
-  // Put the return address of the second procedure onto the stack:
-  pseudo_return_push(proc2, return_addr);
+  // Put the dispatch_index for this PERFORM onto the stack
+  pseudo_return_push(proc2, dispatch_index);
 
   // Create the code that will launch the first procedure
-  gg_insert_into_assemblerf("%s PERFORM %s THROUGH %s",
-                        ASM_COMMENT_START, proc_1->name, proc_2->name);
+  if( proc_1 != proc_2 )
+    {
+    gg_insert_into_assemblerf("%s PERFORM %s THROUGH %s",
+                          ASM_COMMENT_START, proc_1->name, proc_2->name);
+    }
+  else
+    {
+    gg_insert_into_assemblerf("%s PERFORM %s",
+                          ASM_COMMENT_START, proc_1->name);
+    }
 
   if( !suppress_nexting )
     {
@@ -3504,6 +3396,16 @@ internal_perform_through( cbl_label_t *proc_1,
 
   // And create the return address label:
   gg_append_statement(return_label_expr);
+
+  // Now we add the return location for the PERFORM to the vector of such
+  // locations for proc2:
+  proc2->pseudo_return_decls.push_back(return_address_decl);
+  }
+
+void
+parser_perform(cbl_label_t *label, bool suppress_nexting)
+  {
+  return internal_perform_through(label, NULL, suppress_nexting);
   }
 
 static void
@@ -3695,14 +3597,12 @@ parser_enter_file(const char *filename)
     SET_VAR_DECL(var_decl_rdigits                , INT    , "__gg__rdigits");
     SET_VAR_DECL(var_decl_unique_prog_id         , SIZE_T , "__gg__unique_prog_id");
 
-    SET_VAR_DECL(var_decl_entry_location         , VOID_P , "__gg__entry_pointer");
     SET_VAR_DECL(var_decl_exit_address           , VOID_P , "__gg__exit_address");
 
     SET_VAR_DECL(var_decl_call_parameter_signature , CHAR_P   , "__gg__call_parameter_signature");
     SET_VAR_DECL(var_decl_call_parameter_count     , INT      , "__gg__call_parameter_count");
     SET_VAR_DECL(var_decl_call_parameter_lengths   , build_array_type(SIZE_T, NULL),
                                                             "__gg__call_parameter_lengths");
-    SET_VAR_DECL(var_decl_return_code             , SHORT      , "__gg__data_return_code");
 
     SET_VAR_DECL(var_decl_arithmetic_rounds_size  , SIZE_T , "__gg__arithmetic_rounds_size");
     SET_VAR_DECL(var_decl_arithmetic_rounds       , INT_P  , "__gg__arithmetic_rounds");
@@ -3723,7 +3623,7 @@ parser_enter_file(const char *filename)
     SET_VAR_DECL(var_decl_treeplet_4s             , SIZE_T_P                , "__gg__treeplet_4s"     );
     SET_VAR_DECL(var_decl_nop                     , INT                     , "__gg__nop"             );
     SET_VAR_DECL(var_decl_main_called             , INT                     , "__gg__main_called"     );
-    SET_VAR_DECL(var_decl_entry_label             , VOID_P                  , "__gg__entry_label"     );
+    SET_VAR_DECL(var_decl_entry_index             , SIZE_T                  , "__gg__entry_index"     );
     }
   }
 
@@ -3750,54 +3650,57 @@ parser_leave_file()
     // We are leaving the top-level file, which means this compilation is
     // done, done, done.
 
-    // This is where we create the file-static table of PERFORM/FOLLOWING line
-    // number pairs so that the GDB-COBOL debugger can know where to "return"
-    // to after a NEXT is issued on a PERFORM statement.
-
-    // We need to create a file-static static array of 32-bit integers.  The
-    // array is terminated with a {0,0} pair:
-    tree array_of_int_type = build_array_type_nelts(INT, (perform_line_pairs.size()+1)*2);
-    tree array_of_int = gg_define_variable( array_of_int_type,
-                                            "_perform_line_pairs",
-                                            vs_file_static);
-    // We have the array.  Now we need to build the constructor for it
-    tree constr = make_node(CONSTRUCTOR);
-    TREE_TYPE(constr) = array_of_int_type;
-    TREE_STATIC(constr)    = 1;
-    TREE_CONSTANT(constr)  = 1;
-
-    // The first element of the array contains the number of elements to follow
-    size_t i = 0;
-    for(auto it : perform_line_pairs)
+    if( !hijacked )
       {
+      // This is where we create the file-static table of PERFORM/FOLLOWING line
+      // number pairs so that the GDB-COBOL debugger can know where to "return"
+      // to after a NEXT is issued on a PERFORM statement.
+
+      // We need to create a file-static static array of 32-bit integers.  The
+      // array is terminated with a {0,0} pair:
+      tree array_of_int_type = build_array_type_nelts(INT, (perform_line_pairs.size()+1)*2);
+      tree array_of_int = gg_define_variable( array_of_int_type,
+                                              "_perform_line_pairs",
+                                              vs_file_static);
+      // We have the array.  Now we need to build the constructor for it
+      tree constr = make_node(CONSTRUCTOR);
+      TREE_TYPE(constr) = array_of_int_type;
+      TREE_STATIC(constr)    = 1;
+      TREE_CONSTANT(constr)  = 1;
+
+      // The first element of the array contains the number of elements to follow
+      size_t i = 0;
+      for(auto it : perform_line_pairs)
+        {
+        CONSTRUCTOR_APPEND_ELT( CONSTRUCTOR_ELTS(constr),
+                                build_int_cst_type(SIZE_T, i++),
+                                build_int_cst_type(INT, it.first) );
+        CONSTRUCTOR_APPEND_ELT( CONSTRUCTOR_ELTS(constr),
+                                build_int_cst_type(SIZE_T, i++),
+                                build_int_cst_type(INT, it.second) );
+        }
       CONSTRUCTOR_APPEND_ELT( CONSTRUCTOR_ELTS(constr),
                               build_int_cst_type(SIZE_T, i++),
-                              build_int_cst_type(INT, it.first) );
+                              integer_zero_node );
       CONSTRUCTOR_APPEND_ELT( CONSTRUCTOR_ELTS(constr),
                               build_int_cst_type(SIZE_T, i++),
-                              build_int_cst_type(INT, it.second) );
-      }
-    CONSTRUCTOR_APPEND_ELT( CONSTRUCTOR_ELTS(constr),
-                            build_int_cst_type(SIZE_T, i++),
-                            integer_zero_node );
-    CONSTRUCTOR_APPEND_ELT( CONSTRUCTOR_ELTS(constr),
-                            build_int_cst_type(SIZE_T, i++),
-                            integer_zero_node );
-    DECL_INITIAL(array_of_int) = constr;
+                              integer_zero_node );
+      DECL_INITIAL(array_of_int) = constr;
 
-    // There is, however, one thing left to do.  If the command line says
-    // that this module needs a main entry point, then this is where
-    // we create a main() function.  We build it at the end, so that all of
-    // the .loc directives associated with it appear at the end of the
-    // source code.  We used to create the main() entry point at the beginning,
-    // but that created confusion for GDB when trying to debug the generated
-    // executable.
-    if( main_entry_point )
-      {
-      next_program_is_main = false;
-      build_main_that_calls_something(main_entry_point);
-      free(main_entry_point);
-      main_entry_point = NULL;
+      // There is, however, one thing left to do.  If the command line says
+      // that this module needs a main entry point, then this is where
+      // we create a main() function.  We build it at the end, so that all of
+      // the .loc directives associated with it appear at the end of the
+      // source code.  We used to create the main() entry point at the beginning,
+      // but that created confusion for GDB when trying to debug the generated
+      // executable.
+      if( main_entry_point )
+        {
+        next_program_is_main = false;
+        build_main_that_calls_something(main_entry_point);
+        free(main_entry_point);
+        main_entry_point = NULL;
+        }
       }
 
     gg_leaving_the_source_code_file();
@@ -3836,9 +3739,6 @@ enter_program_common(const char *funcname, const char *funcname_)
     ENDIF
 
   gg_assign(current_function->first_time_through, integer_zero_node);
-
-  // Establish variables that are function-wide in scope:
-  current_function->void_star_temp = gg_define_void_star("_void_star_temp");
 
   current_function->perform_exit_address
     = gg_define_void_star("_perform_exit_address");
@@ -3949,13 +3849,15 @@ parser_enter_program( const char *funcname_,
     *pretval = 1;
     }
 
+#ifdef ENABLE_HIJACKING
   if( strcmp(funcname, "dubner") == 0)
     {
-    // This should be enabled by an environment variable.
-    // But for now I am being cutesy
+    fprintf(stderr, "This is a DUBNER hijacking\n");
     hijack_for_development(funcname);
     return;
     }
+
+#endif
 
   enter_program_common(funcname, funcname_);
   current_function->is_function = is_function;
@@ -4002,6 +3904,275 @@ public:
   }
 } label_verify;
 
+static void
+build_dispatch_switch(const std::vector<tree> &label_decls)
+  {
+  // This routine accepts vector of LABEL_DECLs.  It creates a
+  // switch statement that's equivalent to
+  //      switch(N)
+  //         {
+  //         default:
+  //         case 0:
+  //             goto label[0];
+  //         case 1:
+  //             goto label[1];
+  //         ...
+  //         case N-1:
+  //             goto label[N-1];
+  //         }
+
+  // If the vector of label_decls is empty, there is no need to create the
+  // switch statement.
+
+  if( !label_decls.empty() )
+    {
+    tree switch_statement_list = make_node(STATEMENT_LIST);
+    TREE_TYPE(switch_statement_list) = void_type_node;
+
+    tree switchexpr = build2(SWITCH_EXPR,
+                             integer_type_node,
+                             gg_call_expr( SIZE_T,
+                                          "__gg__pseudo_return_pop",
+                                          NULL_TREE),
+                             switch_statement_list);
+
+
+    gg_append_statement(switchexpr);
+    current_function->statement_list_stack.push_back(switch_statement_list);
+
+    // Start off with a "default:" case
+    tree labeldecl = create_artificial_label(UNKNOWN_LOCATION);
+    DECL_CONTEXT(labeldecl) = current_function->function_decl;
+    TREE_USED(labeldecl) = 1;
+
+    tree caselabel;
+    caselabel = build_case_label(NULL_TREE,
+                                 NULL_TREE,
+                                 labeldecl);
+    gg_append_statement(caselabel);
+
+    for(size_t i = 0; i < label_decls.size(); ++i)
+      {
+      // Start with the case label for the pseudo-return location.
+      tree val = build_int_cst(SIZE_T, i);
+
+      labeldecl = create_artificial_label(UNKNOWN_LOCATION);
+      DECL_CONTEXT(labeldecl) = current_function->function_decl;
+
+      caselabel = build_case_label(val,
+                                   NULL_TREE,
+                                   labeldecl);
+      gg_append_statement(caselabel);
+
+      // And follow up with a goto expression for the pseudo-return location.
+      tree goto_expr  = build1( GOTO_EXPR,
+                                void_type_node,
+                                label_decls[i]);
+      gg_append_statement(goto_expr);
+      }
+
+    current_function->statement_list_stack.pop_back();
+    }
+  }
+
+static void
+build_alter_switch(cbl_proc_t *proc, const std::vector<tree> &label_decls)
+  {
+  // This routine accepts a vector of LABEL_DECLs.  It lays down code
+  // equivalent to
+  //    if( label_decls.size() )
+  //      {
+  //      switch(N)
+  //         {
+  //         case 0:
+  //             goto proc->no_alter_label;
+  //         case 1:
+  //             goto label[0];
+  //         ...
+  //         case N:
+  //             goto label[N-1];
+  //         default:
+  //         }
+  //       }
+  //     goto proc->no_alter_label;
+
+  if( !label_decls.empty() )
+    {
+    tree switch_statement_list = make_node(STATEMENT_LIST);
+    TREE_TYPE(switch_statement_list) = void_type_node;
+
+    tree switchexpr = build2(SWITCH_EXPR,
+                             integer_type_node,
+                             proc->alter_index,
+                             switch_statement_list);
+    gg_append_statement(switchexpr);
+    current_function->statement_list_stack.push_back(switch_statement_list);
+
+    tree caselabel;
+    tree labeldecl;
+
+    for(size_t i = 0; i < label_decls.size()+1; ++i)
+      {
+      // Start with the case label for the pseudo-return location.
+      tree val =
+            build_int_cst(TREE_TYPE(proc->alter_index), i);
+
+      labeldecl = create_artificial_label(UNKNOWN_LOCATION);
+      DECL_CONTEXT(labeldecl) = current_function->function_decl;
+
+      caselabel = build_case_label(val,
+                                   NULL_TREE,
+                                   labeldecl);
+      gg_append_statement(caselabel);
+
+      // And follow up with a goto expression for the pseudo-return location.
+      if( i == 0 )
+        {
+        gg_append_statement(proc->no_alter_goto);
+        }
+      else
+        {
+        tree goto_expr  = build1( GOTO_EXPR,
+                                  void_type_node,
+                                  label_decls[i-1]);
+        gg_append_statement(goto_expr);
+        }
+      }
+
+    // End with a fall-through with "default:" case
+    labeldecl = create_artificial_label(UNKNOWN_LOCATION);
+    DECL_CONTEXT(labeldecl) = current_function->function_decl;
+    caselabel = build_case_label(NULL_TREE,
+                                 NULL_TREE,
+                                 labeldecl);
+    gg_append_statement(caselabel);
+
+    current_function->statement_list_stack.pop_back();
+    }
+  gg_append_statement(proc->no_alter_goto);
+
+  }
+
+static void
+build_entry_switch(const std::vector<tree> &goto_expr)
+  {
+  // This routine accepts a vector of GOTO_EXPRs.  It lays down code
+  // equivalent to
+  //    if( goto_expr.size() )
+  //      {
+  //      switch(var_decl_entry_index)
+  //         {
+  //         case 1:
+  //            var_decl_entry_index = 0
+  //            goto goto_expr[0]
+  //         ...
+  //         case N:
+  //            var_decl_entry_index = 0
+  //            goto goto_expr[N-1];
+  //         default:
+  //            abort();
+  //         }
+  //       }
+
+  if( !goto_expr.empty() )
+    {
+    tree switch_statement_list = make_node(STATEMENT_LIST);
+    TREE_TYPE(switch_statement_list) = void_type_node;
+
+    tree switchexpr = build2(SWITCH_EXPR,
+                             integer_type_node,
+                             var_decl_entry_index,
+                             switch_statement_list);
+    gg_append_statement(switchexpr);
+    current_function->statement_list_stack.push_back(switch_statement_list);
+
+    tree caselabel;
+    tree labeldecl;
+
+    for(size_t i = 0; i < goto_expr.size(); ++i)
+      {
+      // Start with the case label for the pseudo-return location.
+      tree val = build_int_cst(SIZE_T, i+1);
+
+      labeldecl = create_artificial_label(UNKNOWN_LOCATION);
+      DECL_CONTEXT(labeldecl) = current_function->function_decl;
+
+      caselabel = build_case_label(val,
+                                   NULL_TREE,
+                                   labeldecl);
+      gg_append_statement(caselabel);
+
+      // Each case starts out by zeroing the global index:
+      gg_assign(var_decl_entry_index, size_t_zero_node);
+      // Followed by the goto
+      gg_append_statement(goto_expr[i]);
+      }
+
+    // End with a default: case specifying an abort();
+    labeldecl = create_artificial_label(UNKNOWN_LOCATION);
+    DECL_CONTEXT(labeldecl) = current_function->function_decl;
+    caselabel = build_case_label(NULL_TREE,
+                                 NULL_TREE,
+                                 labeldecl);
+    gg_append_statement(caselabel);
+    gg_abort();
+
+    current_function->statement_list_stack.pop_back();
+    }
+  }
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-function"
+static void
+build_perform_dispatcher()
+  {
+  // This routine lays down the dispatcher that handles the return from
+  // PERFORM <proc>
+
+  // We need to create an execution island.  The switch() statement will
+  // live on it.
+
+  // Create the GOTO and the LABEL for this island
+  tree island_goto;
+  tree island_label;
+  gg_create_goto_pair(&island_goto, &island_label);
+  // GOTO the far side of the island.
+  gg_append_statement(island_goto);
+
+  // We need to build N switch statements, one for each paragraph that was
+  // the target of a perform:
+
+  // The list is a vector<void *>
+  for( auto it : current_function->list_of_procedures )
+    {
+    cbl_proc_t *proc = static_cast<cbl_proc_t *>(it);
+    // Each switch statement is the target of a GOTO at the end of a
+    // paragraph.  In the case of a paragraph that was never called, the
+    // code targeting the label will never be executed; the GOTO will always
+    // be skipped by the end-of-paragraph code checking the top of the pseudo-
+    // return stack.  But we need the label anyway, because otherwise the
+    // middle-end Control Flow Graph CFG processing crashes.
+    gg_append_statement(proc->dispatch_switch_label);
+
+    // And after each such label, the switch statement:
+    build_dispatch_switch(proc->pseudo_return_decls);
+
+    // Do something similar for ALTER
+    gg_append_statement(proc->alter_switch_label);
+    // And after each such label, the switch statement:
+    build_alter_switch(proc, proc->alter_decls);
+    }
+  // Do something similar for ENTER
+  tree label = current_function->entry_switch_label;
+  gg_append_statement(label);
+  // And after each such label, the switch statement:
+  build_entry_switch(current_function->entry_goto_expressions);
+
+  // Lay down the label for jumping over the island.
+  gg_append_statement(island_label);
+  }
+#pragma GCC diagnostic pop
+
 void
 parser_end_program(const char *prog_name )
   {
@@ -4034,6 +4205,10 @@ parser_end_program(const char *prog_name )
     gcc_unreachable();
     }
 
+  if( !hijacked )
+    {
+    build_perform_dispatcher();
+    }
 
   if( gg_trans_unit.function_stack.size() )
     {
@@ -4139,6 +4314,8 @@ parser_init_list()
   {
   if( mode_syntax_only() ) return;
 
+  RETURN_WHEN_HIJACKED;
+
   char ach[48];
   sprintf(ach,
           "..variables_to_init_" HOST_SIZE_T_PRINT_DEC,
@@ -4146,7 +4323,7 @@ parser_init_list()
   tree array = gg_trans_unit_var_decl(ach);
   gg_call(VOID,
           "__gg__variables_to_init",
-          gg_get_address_of(array),
+          gg_pointer_to_array(array),
           wsclear() ? build_string_literal(
                                     1,
                                     reinterpret_cast<const char *>(wsclear()))
@@ -4361,6 +4538,7 @@ psa_FldLiteralN(struct cbl_field_t *field )
                                           vs_static);
   DECL_INITIAL(new_var_decl)  = wide_int_to_tree(var_type, value);
   TREE_CONSTANT(new_var_decl) = 1;
+  TREE_READONLY(new_var_decl) = 1;
 
   field->data_decl_node = new_var_decl;
 
@@ -5118,7 +5296,7 @@ parser_alphabet( const cbl_alphabet_t& alphabet )
               "__gg__alphabet_create",
               build_int_cst_type(INT, alphabet.encoding),
               build_int_cst_type(SIZE_T, alphabet_index),
-              gg_get_address_of(table256),
+              gg_pointer_to_array(table256),
               build_int_cst_type(INT, low_char),
               build_int_cst_type(INT, high_char),
               NULL_TREE );
@@ -5874,7 +6052,6 @@ parser_assign( size_t nC, cbl_num_result_t *C,
                     rounded,
                     check_for_error,
                     true);
-
         gg_assign(error_flag, gg_bitwise_or(error_flag, erf));
         IF(error_flag, ne_op, integer_zero_node)
           {
@@ -6429,6 +6606,21 @@ void
 program_end_stuff(cbl_refer_t refer,
                   ec_type_t ec)
   {
+  // Looking for hijack here puts the hijacked code just before the
+  // exit sequence
+#ifdef ENABLE_HIJACKING
+  static bool just_once = true;
+  // We need the just_once state because this routine can be called more than
+  // once.  Usually the parser handles it, but we have a "just-in-case" call
+  // in parser_end_program() that sometimes is necessary.
+  if(just_once && strcmp(current_function->our_name, "hijack") == 0)
+    {
+    just_once = false;
+    fprintf(stderr, "This is a HIJACK BEFORE EXIT scenario.\n");
+    hijacker();
+    }
+#endif
+
   // This is the moral equivalent of a C "return xyz;".
 
   // There cannot be both a non-zero exit status and an exception condition.
@@ -6491,11 +6683,12 @@ program_end_stuff(cbl_refer_t refer,
       tree array_type = build_array_type_nelts(UCHAR,
                                     returner->data.capacity());
       tree array     =  gg_define_variable(array_type, vs_static);
-      gg_memcpy(gg_get_address_of(array),
+      gg_memcpy(gg_pointer_to_array(array),
                 member(returner->var_decl_node, "data"),
                 member(returner->var_decl_node, "capacity"));
 
-      tree actual = gg_cast(COBOL_FUNCTION_RETURN_TYPE, gg_get_address_of(array));
+      tree actual = gg_cast(COBOL_FUNCTION_RETURN_TYPE,
+                            gg_pointer_to_array(array));
 
       restore_local_variables();
       gg_return(actual);
@@ -6503,12 +6696,19 @@ program_end_stuff(cbl_refer_t refer,
     }
   else
     {
-    // There is no explicit value.  This means, by default (according to)
-    // IBM), we return the value found in RETURN-CODE:
+    // There is no explicit value.  This means, by default (according to IBM),
+    // we return the value found in RETURN-CODE:
     tree value = gg_define_variable(COBOL_FUNCTION_RETURN_TYPE);
-    gg_assign(value,
-              gg_cast(COBOL_FUNCTION_RETURN_TYPE,
-                      var_decl_return_code));
+    if( !hijacked )
+      {
+      gg_assign(value,
+                gg_cast(COBOL_FUNCTION_RETURN_TYPE,
+                        current_function->var_decl_return));
+      }
+    else
+      {
+      gg_assign(value, gg_cast(COBOL_FUNCTION_RETURN_TYPE, integer_zero_node));
+      }
     restore_local_variables();
     gg_return(gg_cast(COBOL_FUNCTION_RETURN_TYPE, value));
     }
@@ -6544,6 +6744,30 @@ parser_exit( const cbl_refer_t& refer,
     {
     TRACE1_HEADER
     TRACE1_END
+    }
+
+  if( hijacked )
+    {
+    // We need just_once because parser_exit gets called an extra time at the
+    // end of file, just in case. That should be tracked down and handled so
+    // that it gets called only once.
+    static bool just_once = true;
+    if( just_once )
+      {
+      just_once = false;
+      tree function_type =
+                     TREE_TYPE(DECL_RESULT(current_function->function_decl));
+      tree operand = gg_define_variable(function_type);
+      gg_assign(operand, build_int_cst_type(function_type, 0));
+      tree modify = build2(   MODIFY_EXPR,
+                              function_type,
+                              DECL_RESULT(current_function->function_decl),
+                              gg_cast(function_type, operand));
+      tree stmt = build1(RETURN_EXPR, void_type_node, modify);
+      gg_append_statement(stmt);
+      }
+
+    return;
     }
 
   if( refer.prog_func )
@@ -6761,6 +6985,15 @@ label_fetch(struct cbl_label_t *label)
   return label->structs.goto_trees;
   }
 
+// This routine cloned from parse_ante.h
+static inline cbl_field_t *
+register_find( const char *name ) {
+  size_t iprog = current_program_index();
+  auto found = symbol_find( iprog, std::list<const char*>(1, name) );
+  gcc_assert(found.second);
+  return cbl_field_of(found.first);
+}
+
 void
 parser_xml_parse( cbl_label_t *instance,
                   cbl_refer_t input,
@@ -6828,6 +7061,11 @@ parser_xml_parse( cbl_label_t *instance,
   gg_return(0);
   gg_append_statement(island_label);
 
+  // We need the three xml special registers:
+  cbl_field_t *xml_event = register_find("XML-EVENT");
+  cbl_field_t *xml_code  = register_find("XML-CODE");
+  cbl_field_t *xml_text  = register_find("XML-TEXT");
+
   // With the callback in place, we are ready to call the library:
   tree pcallback = gg_get_function_address(VOID, ach);
 
@@ -6845,6 +7083,9 @@ parser_xml_parse( cbl_label_t *instance,
                                 : null_pointer_node,
                               build_int_cst_type(INT, returns_national),
                               pcallback,
+                              gg_get_address_of(xml_event->var_decl_node),
+                              gg_get_address_of(xml_code ->var_decl_node),
+                              gg_get_address_of(xml_text ->var_decl_node),
                               NULL_TREE));
   IF( erc, ne_op, integer_zero_node )
     {
@@ -7016,6 +7257,8 @@ static bool initialized_data = false;
 static void
 initialize_the_data()
   {
+  RETURN_WHEN_HIJACKED;
+
   if( initialized_data )
     {
     return;
@@ -7378,7 +7621,7 @@ establish_using(size_t nusing,
                                                   NULL,
                                                   vs_static);
         gg_assign( member(new_var->var_decl_node, "data"),
-                          gg_get_address_of(data_decl_node) );
+                          gg_pointer_to_array(data_decl_node) );
 
         // And then move it into place
         gg_call(VOID,
@@ -7493,77 +7736,99 @@ parser_division(cbl_division_t division,
     {
     Analyze();
 
-    // Do some symbol table index bookkeeping.  current_program_index() is valid
-    // at this point in time:
+    RETURN_WHEN_HIJACKED;
+
+    // Do some symbol table index bookkeeping.  current_program_index() is
+    // valid at this point in time:
     current_function->our_symbol_table_index = current_program_index();
+    const cbl_label_t *prog = cbl_label_of(symbol_at(current_program_index()));
+    current_function->has_initial   = prog->initial;
+    current_function->has_recursive = prog->recursive;
 
     // We have some housekeeping to do to keep track of the list of functions
-    // accessible by us:
+    // accessible by us.
 
     // For every procedure, we need a variable that points to the list of
     // available program names.
 
     // We need a pointer to the array of program names
     char ach[2*sizeof(cbl_name_t)];
-    sprintf(ach,
-            "..accessible_program_list_" HOST_SIZE_T_PRINT_DEC,
-            (fmt_size_t)current_function->our_symbol_table_index);
-    tree prog_list = gg_define_variable(build_pointer_type(CHAR_P),
-                                        ach, vs_file_static);
-
-    // Likewise, we need a pointer to the array of pointers to functions:
-    tree function_type =
-      build_varargs_function_type_array( SIZE_T,
-                                         0,     // No parameters yet
-                                         NULL); // And, hence, no types
-    tree pointer_type = build_pointer_type(function_type);
-    tree constructed_array_type = build_array_type_nelts(pointer_type, 1);
-    sprintf(ach,
-            "..accessible_program_pointers_" HOST_SIZE_T_PRINT_DEC,
-            (fmt_size_t)current_function->our_symbol_table_index);
-    tree prog_pointers = gg_define_variable(
-                                    build_pointer_type(constructed_array_type),
-                                    ach,
-                                    vs_file_static);
-    gg_call(VOID,
-            "__gg__set_program_list",
-            build_int_cst_type(INT, current_function->our_symbol_table_index),
-            gg_get_address_of(prog_list),
-            gg_get_address_of(prog_pointers),
-            NULL_TREE);
-
-    if( gg_trans_unit.function_stack.size() == 1 )
+    if( !current_function->initialized )
       {
-      gg_create_goto_pair(&label_list_out_goto,
-                          &label_list_out_label);
-      gg_create_goto_pair(&label_list_back_goto,
-                          &label_list_back_label);
-      gg_append_statement(label_list_out_goto);
-      gg_append_statement(label_list_back_label);
-      }
+      // Do some symbol table index bookkeeping.  current_program_index() is valid
+      // at this point in time:
+      current_function->our_symbol_table_index = current_program_index();
 
-    tree globals_are_initialized = gg_declare_variable( INT,
-                                                        "__gg__globals_are_initialized",
-                                                        NULL,
-                                                        vs_external_reference);
-    IF( globals_are_initialized, eq_op, integer_zero_node )
-      {
-      // one-time initialization happens here
+      gg_create_goto_pair(&current_function->entry_switch_goto,
+                          &current_function->entry_switch_label);
 
-      // We need to establish the initial value of the UPSI-1 switch register
-      // We are using IBM's conventions:
-      // https://www.ibm.com/docs/en/zvse/6.2?topic=SSB27H_6.2.0/fa2sf_communicate_appl_progs_via_job_control.html
-      // UPSI 10000110 means that bits 0, 5, and 6 are on, which means that
-      // SW-0, SW-5, and SW-6 are on.
+      // We have some housekeeping to do to keep track of the list of functions
+      // accessible by us:
+
+      // For every procedure, we need a variable that points to the list of
+      // available program names.
+
+      // We need a pointer to the array of program names
+      sprintf(ach,
+              "..accessible_program_list_" HOST_SIZE_T_PRINT_DEC,
+              (fmt_size_t)current_function->our_symbol_table_index);
+      tree prog_list = gg_define_variable(build_pointer_type(CHAR_P),
+                                          ach, vs_file_static);
+
+      // Likewise, we need a pointer to the array of pointers to functions:
+      tree function_type =
+        build_varargs_function_type_array( SIZE_T,
+                                           0,     // No parameters yet
+                                           NULL); // And, hence, no types
+      tree pointer_type = build_pointer_type(function_type);
+      tree constructed_array_type = build_array_type_nelts(pointer_type, 1);
+      sprintf(ach,
+              "..accessible_program_pointers_" HOST_SIZE_T_PRINT_DEC,
+              (fmt_size_t)current_function->our_symbol_table_index);
+      tree prog_pointers = gg_define_variable(
+                                      build_pointer_type(constructed_array_type),
+                                      ach,
+                                      vs_file_static);
       gg_call(VOID,
-              "__gg__onetime_initialization",
+              "__gg__set_program_list",
+              build_int_cst_type(INT, current_function->our_symbol_table_index),
+              gg_get_address_of(prog_list),
+              gg_get_address_of(prog_pointers),
               NULL_TREE);
 
-      // And then flag one-time initialization as having been done.
-      gg_assign(globals_are_initialized, integer_one_node);
+      if( gg_trans_unit.function_stack.size() == 1 )
+        {
+        gg_create_goto_pair(&label_list_out_goto,
+                            &label_list_out_label);
+        gg_create_goto_pair(&label_list_back_goto,
+                            &label_list_back_label);
+        gg_append_statement(label_list_out_goto);
+        gg_append_statement(label_list_back_label);
+        }
+
+      tree globals_are_initialized = gg_declare_variable( INT,
+                                                          "__gg__globals_are_initialized",
+                                                          NULL,
+                                                          vs_external_reference);
+      IF( globals_are_initialized, eq_op, integer_zero_node )
+        {
+        // one-time initialization happens here
+
+        // We need to establish the initial value of the UPSI-1 switch register
+        // We are using IBM's conventions:
+        // https://www.ibm.com/docs/en/zvse/6.2?topic=SSB27H_6.2.0/fa2sf_communicate_appl_progs_via_job_control.html
+        // UPSI 10000110 means that bits 0, 5, and 6 are on, which means that
+        // SW-0, SW-5, and SW-6 are on.
+        gg_call(VOID,
+                "__gg__onetime_initialization",
+                NULL_TREE);
+
+        // And then flag one-time initialization as having been done.
+        gg_assign(globals_are_initialized, integer_one_node);
+        }
+      ELSE
+        ENDIF
       }
-    ELSE
-      ENDIF
 
     gg_append_statement(current_function->skip_init_label);
     // This is where we check to see if somebody tried to cancel us
@@ -7582,7 +7847,6 @@ parser_division(cbl_division_t division,
       // gg_printf("Somebody wants to cancel %s\n",
                 // gg_string_literal(current_function->our_unmangled_name),
                 // NULL_TREE);
-      const cbl_label_t *prog = cbl_label_of(symbol_at(current_program_index()));
       size_t initializer_index = prog->initial_section;
       cbl_label_t *initializer = cbl_label_of(symbol_at(initializer_index));
       parser_perform(initializer, true);  // true means suppress nexting
@@ -7612,11 +7876,23 @@ parser_division(cbl_division_t division,
     // Stash the returning variables for use during parser_return()
     current_function->returning = returning;
 
+    current_function->var_decl_return =
+    gg_indirect(gg_cast(SHORT_P,
+        member(cbl_field_of(symbol_at(return_code_register()))->var_decl_node,
+               "data")));
+
     if( gg_trans_unit.function_stack.size() == 1 )
       {
-      // We are entering a new top-level program, so we need to set
-      // RETURN-CODE to zero
-      gg_assign(var_decl_return_code, build_int_cst_type(SHORT, 0));
+      // We are entering a new top-level program.
+
+      if( current_function->has_initial || current_function->has_recursive )
+        {
+        // According to the IBM COBOL Language Specification, there is a list
+        // of special registers that get cleared to zero or spaces when a
+        // program has the INITIAL or RECURSIVE attribute.
+        gg_assign(current_function->var_decl_return,
+                  build_int_cst_type(SHORT, 0));
+        }
       }
 
     // The parameters passed to this program might be 64 bits or 128 bits in
@@ -7677,21 +7953,24 @@ parser_division(cbl_division_t division,
     // It is at this point that we check to see if the call to this function
     // is a re-entry because of an ENTRY statement:
 
-    IF( var_decl_entry_label, ne_op, null_pointer_node )
+    IF(var_decl_entry_index, ne_op, size_t_zero_node)
       {
       // This is an ENTRY re-entry.  The processing of USING variables was
-      // done in parser_entry, so now we jump to the label
-      static tree loc = gg_define_variable(VOID_P, vs_static);
-      gg_assign(loc, var_decl_entry_label);
-      gg_assign(var_decl_entry_label, gg_cast(VOID_P, null_pointer_node));
-      gg_goto(loc);
+      // done in parser_entry, so now we jump to the switch statement
+      gg_append_statement(current_function->entry_switch_goto);
       }
     ELSE
       {
       }
-      ENDIF
+    ENDIF
 
+    current_function->pseudo_return_index =
+                gg_define_variable(SIZE_T, "_pseudo_return_index", vs_static);
+
+    // Establish the formal parameters from the USING clause.
     establish_using(nusing, args);
+
+    current_function->initialized = true;
     }
   }
 
@@ -8109,7 +8388,7 @@ parser_see_stop_run(struct cbl_refer_t exit_status,
     }
   else
     {
-    gg_assign(returned_value, gg_cast(INT, var_decl_return_code));
+    gg_assign(returned_value, gg_cast(INT, current_function->var_decl_return));
     TRACE1
       {
       gg_fprintf( trace_handle,
@@ -8157,6 +8436,8 @@ parser_label_label(struct cbl_label_t *label)
     TRACE1_END
     }
 
+  RETURN_WHEN_HIJACKED;
+
   CHECK_LABEL(label);
 
   label_verify.lay(label);
@@ -8197,6 +8478,8 @@ parser_label_goto(struct cbl_label_t *label)
     TRACE1_LABEL("GOTO label: ", label, "")
     TRACE1_END
     }
+
+  RETURN_WHEN_HIJACKED;
 
   CHECK_LABEL(label);
 
@@ -9455,10 +9738,6 @@ parser_perform_inline_times(struct cbl_perform_tgt_t *tgt,
 
   gcc_assert(tgt);
   cbl_field_t *count = how_many.field;
-  if( how_many.is_reference() )
-    {
-    cbl_internal_error("%s:%d: ignoring subscripts", __func__, __LINE__);
-    }
   CHECK_FIELD(count);
 
   // This has to be on the stack, because performs can be nested
@@ -9533,7 +9812,7 @@ parser_perform_inline_times(struct cbl_perform_tgt_t *tgt,
   get_binary_value( counter,
                     NULL,
                     count,
-                    size_t_zero_node);
+                    refer_offset(how_many));
 
   SHOW_PARSE
     {
@@ -10799,11 +11078,24 @@ inspect_tally(bool backward,
   build_array_of_treeplets(1, pcbl_index, pcbl_refers.data());
 
   // Do the actual call:
-  gg_call(VOID,
-          "__gg__inspect_format_1",
-          backward ? integer_one_node : integer_zero_node,
-          integers,
-          NULL_TREE);
+  charmap_t *charmap = __gg__get_charmap(identifier_1.field->codeset.encoding);
+  if( charmap->stride() == 1 && !charmap->is_like_utf8() )
+    {
+    // The variables are ASCII or EBCDIC
+    gg_call(VOID,
+            "__gg__inspect_format_1_sbc",
+            backward ? integer_one_node : integer_zero_node,
+            integers,
+            NULL_TREE);
+    }
+  else
+    {
+    gg_call(VOID,
+            "__gg__inspect_format_1",
+            backward ? integer_one_node : integer_zero_node,
+            integers,
+            NULL_TREE);
+    }
   }
 
 static void
@@ -13656,10 +13948,10 @@ create_and_call(size_t narg,
     }
   else
     {
-    // Because no explicit returning value is expected, we just call it.  We
-    // expect COBOL routines to set RETURN-CODE when they think it necessary.
+    // Because no explicit returning value is expected, we call the designated
+    // function and assign the return value to our RETURN-CODE
     push_program_state();
-    gg_append_statement(call_expr);
+    gg_assign(current_function->var_decl_return, gg_cast(SHORT, call_expr));
     pop_program_state();
     }
 
@@ -13868,10 +14160,6 @@ parser_entry_activate( size_t iprog, const cbl_label_t *declarative )
   assert(iprog == symbol_elem_of(declarative)->program);
   }
 
-static tree entry_goto;
-static tree entry_label;
-static tree entry_addr;
-
 void
 parser_entry( const cbl_field_t *name, size_t nusing, cbl_ffi_arg_t *args )
   {
@@ -13899,9 +14187,14 @@ parser_entry( const cbl_field_t *name, size_t nusing, cbl_ffi_arg_t *args )
   // Create a goto/label pair.  The label will be set up here; the goto will
   // be used when we re-enter the containing function:
 
+  tree entry_goto;
+  tree entry_label;
+
   gg_create_goto_pair(&entry_goto,
-                      &entry_label,
-                      &entry_addr);
+                      &entry_label);
+
+  size_t entry_index = current_function->entry_goto_expressions.size()+1;
+  current_function->entry_goto_expressions.push_back(entry_goto);
 
   // Start creating the ENTRY function.
   tree function_decl = gg_define_function( VOID,
@@ -13925,7 +14218,7 @@ parser_entry( const cbl_field_t *name, size_t nusing, cbl_ffi_arg_t *args )
 
   // Put the entry_label into the global variable that will be picked up
   // when the containing program-id is re-entered:
-  gg_assign(var_decl_entry_label, entry_addr);
+  gg_assign(var_decl_entry_index, build_int_cst_type(SIZE_T, entry_index));
 
   // Get the function address of the containing function.
   tree gfa = gg_get_function_address(VOID, name_of_parent);
@@ -13939,7 +14232,7 @@ parser_entry( const cbl_field_t *name, size_t nusing, cbl_ffi_arg_t *args )
   // We are done with the ENTRY function:
   gg_finalize_function();
 
-  // Lay down the address of the label that matches var_decl_entry_label;
+  // Lay down the address of the label that matches var_decl_entry_index;
   // the containing program-id will jump to this point.
   gg_append_statement(entry_label);
   }
@@ -14262,6 +14555,8 @@ parser_program_hierarchy( const cbl_prog_hier_t& hier )
     SHOW_PARSE_END
     }
 
+  RETURN_WHEN_HIJACKED;
+
   // This needs to be an island that doesn't execute in-line.  This is necessary
   // when there isn't a GOBACK or GOTO or STOP RUN at the point where a
   // [possibly implicit] PROGRAM END is encountered
@@ -14440,12 +14735,12 @@ parser_program_hierarchy( const cbl_prog_hier_t& hier )
         sprintf(ach, "..accessible_program_list_" HOST_SIZE_T_PRINT_DEC,
                 (fmt_size_t)caller);
         tree accessible_list_var_decl = gg_trans_unit_var_decl(ach);
-        gg_assign( accessible_list_var_decl, gg_get_address_of(the_names_table) );
+        gg_assign( accessible_list_var_decl, gg_pointer_to_array(the_names_table) );
 
         sprintf(ach, "..accessible_program_pointers_" HOST_SIZE_T_PRINT_DEC,
                 (fmt_size_t)caller);
         tree accessible_programs_decl = gg_trans_unit_var_decl(ach);
-        gg_assign( accessible_programs_decl, gg_get_address_of(the_constructed_table) );
+        gg_assign( accessible_programs_decl, gg_pointer_to_array(the_constructed_table) );
 
         callers.insert(caller);
         }
@@ -14660,48 +14955,172 @@ parser_file_stash( struct cbl_file_t *file )
     }
   }
 
-static void
-hijack_for_development(const char *funcname)
+#ifdef ENABLE_HIJACKING
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-function"
+static tree
+build_temporaryN(int N)
   {
-  /*
+  //  Creates a typical FldNumericBin5 intermediate.
+  char achName[32];
+  sprintf(achName,"_funky_%d", N);
+  char *pszdata = xasprintf("_funky%d_data", N);
+  size_t bytes_to_allocate = 16;
+  gg_variable_scope_t vs_scope = vs_stack;
+  tree array_type = build_array_type_nelts(UCHAR, bytes_to_allocate);
+  tree data_decl_node = gg_define_variable(
+                      array_type,
+                      pszdata,
+                      vs_scope);
+////  data_decl_node = null_pointer_node;
+  free(pszdata);
 
-  To make sure that things like global symbols and whatnot get initialized, you
-  should probably create a source file that looks like this:
-
-        identification division.
-        program-id. prog.
-        procedure division.
-        call "dubner".
-        end program prog.
-        identification division.
-        program-id. dubner.
-        procedure division.
-        goback.
-        end program dubner.
-
-  The first program will cause all of the parser_enter_program() and
-  parser_division(procedure_div_e) stuff to be initialized.  The second program,
-  named "dubner", will be hijacked and bring you here.  */
-
-  // Assume that funcname is lowercase with no hyphens
-  enter_program_common(funcname, funcname);
-  parser_display_literal("You have been hijacked by a program named \"dubner\"");
-  gg_insert_into_assemblerf("%s HIJACKED DUBNER CODE START", ASM_COMMENT_START);
-
-  for(int i=0; i<10; i++)
+  // This is the holy grail.  With the initializer set to gg_pointer_to_array,
+  // we get N-squared behavior.  Set to null_pointer_node, linear.
+  tree data_area = null_pointer_node;
+  if( data_decl_node != null_pointer_node )
     {
-    char ach[64];
-    sprintf(ach, "Hello, world - %d", i+1);
+    data_area = gg_pointer_to_array(data_decl_node);
+    }
 
+  char *psz = xasprintf("_funky%d", N);
+  tree cobfield = gg_define_variable(cblc_field_type_node, psz, vs_stack);
+  free(psz);
+
+  tree data = null_pointer_node;        //  UCHAR_P, "data",
+  tree capacity = build_int_cst_type(SIZE_T, 16);     //  SIZE_T,  "capacity",
+  tree allocated = build_int_cst_type(SIZE_T, 16);    //  SIZE_T,  "allocated",
+  tree offset = build_int_cst_type(SIZE_T, 0);       //  SIZE_T,  "offset",
+  tree name = gg_string_literal(achName);         //  CHAR_P,  "name",
+  tree picture = gg_string_literal("");      //  CHAR_P,  "picture",
+  tree initial = null_pointer_node;      //  CHAR_P,  "initial",
+  tree parent = null_pointer_node;       //  CHAR_P,  "parent",
+  tree occurs_lower = build_int_cst_type(SIZE_T, 0); //  SIZE_T,  "occurs_lower",
+  tree occurs_upper = build_int_cst_type(SIZE_T, 0); //  SIZE_T,  "occurs_upper");
+  tree attr = build_int_cst_type(SIZE_T, intermediate_e);         //  SIZE_T,  "attr",
+  tree type = build_int_cst_type(SCHAR, FldNumericBin5);         //  SCHAR,   "type",
+  tree level = build_int_cst_type(SCHAR, 0);        //  SCHAR,   "level",
+  tree digits = build_int_cst_type(SCHAR, 0);       //  SCHAR,   "digits",
+  tree rdigits = build_int_cst_type(SCHAR, 0);      //  SCHAR,   "rdigits",
+  tree tencoding = build_int_cst_type(INT, 111);    //  INT,     "encoding",
+  tree alphabet = build_int_cst_type(INT, 0);    //  INT,     "alphabet",
+
+  gg_structure_type_constructor(
+      cobfield,
+      data ,        //  UCHAR_P, "data",
+      capacity,     //  SIZE_T,  "capacity",
+      allocated,    //  SIZE_T,  "allocated",
+      offset,       //  SIZE_T,  "offset",
+      name,         //  CHAR_P,  "name",
+      picture,      //  CHAR_P,  "picture",
+      initial,      //  CHAR_P,  "initial",
+      parent,       //  CHAR_P,  "parent",
+      occurs_lower, //  SIZE_T,  "occurs_lower",
+      occurs_upper, //  SIZE_T,  "occurs_upper");
+      attr,         //  SIZE_T,  "attr",
+      type,         //  SCHAR,   "type",
+      level,        //  SCHAR,   "level",
+      digits,       //  SCHAR,   "digits",
+      rdigits,      //  SCHAR,   "rdigits",
+      tencoding,    //  INT,     "encoding",
+      alphabet);    //  INT,     "alphabet",
+
+  if( data_decl_node != null_pointer_node )
+    {
     gg_call(VOID,
-            "puts",
-            build_string_literal(strlen(ach)+1, ach),
+            "__gg__set_data_member",
+            gg_get_address_of(cobfield),
+            data_area,
             NULL_TREE);
     }
 
-  gg_insert_into_assemblerf("%s HIJACKED DUBNER CODE END", ASM_COMMENT_START);
-  gg_return(0);
+  return cobfield;
   }
+#pragma GCC diagnostic pop
+
+static void
+hijack_for_development(const char *funcname)
+  {
+  static const int N = 10000;
+  /* This routine is designed to allow the creation of a program-id program
+     without requiring the parser to supply parser_xxx calls.
+
+     When your source code is a "program-id. dubner.", this routine gets
+     generated instead of the one in the source.
+     */
+
+  hijacked = true;
+  funcname = "main";
+  // Assume that funcname is lowercase with no hyphens
+  gg_define_function(COBOL_FUNCTION_RETURN_TYPE,
+                     funcname,
+                     funcname,
+                     NULL_TREE);
+
+  parser_display_literal("You have been hijacked by a program named \"dubner\"");
+  gg_insert_into_assemblerf("%s HIJACKED CODE START", ASM_COMMENT_START);
+
+
+  tree xxx = gg_define_int("xxx");
+  tree yyy = gg_define_int("yyy");
+  tree zzz = gg_define_int("zzz");
+
+  fprintf(stderr, "N is %d\n", N);
+  for(int i=0; i<N; i++)
+    {
+    IF( gg_bitwise_and(xxx, integer_one_node), ne_op, integer_zero_node )
+      {
+      gg_assign(yyy, xxx);
+      }
+    ELSE
+      {
+      gg_assign(zzz, xxx);
+      }
+    ENDIF
+    }
+
+  gg_insert_into_assemblerf("%s HIJACKED CODE END", ASM_COMMENT_START);
+  }
+
+static void
+hijacker()
+  {
+  /* The code here is activated when the program-id is "hijack".  It's not
+     really a hijacking; all of the code in the "hijack" program gets laid
+     down.  The code here is injected just prior to the parser_exit() stuff
+     in the COBOL source code. */
+
+  parser_display_literal("You have been hijacked by a program named \"hijack\"");
+  gg_insert_into_assemblerf("%s HIJACKED CODE START", ASM_COMMENT_START);
+
+#if 0
+
+  cbl_field_t *faaa = register_find("aaa");
+  cbl_field_t *fbbb = register_find("bbb");
+  cbl_field_t *fddd = register_find("ddd");
+  cbl_field_t *fxxx = register_find("xxx");
+
+  cbl_refer_t aaa(faaa);
+  cbl_refer_t bbb(fbbb);
+  cbl_refer_t ddd(fddd);
+
+  fxxx->var_decl_node = build_temporaryN(0);
+
+  static const int N = 1000;
+  fprintf(stderr, "N is %d\n", N);
+  for(int i=0; i<N; i++)
+    {
+    parser_op(ddd,
+              aaa,
+              '+',
+              bbb,
+              NULL);
+    }
+#endif
+
+  gg_insert_into_assemblerf("%s HIJACKED CODE END", ASM_COMMENT_START);
+  }
+#endif
 
 static void
 conditional_abs(tree source, const cbl_field_t *field)
@@ -16612,134 +17031,37 @@ actually_create_the_static_field( cbl_field_t *new_var,
                                   tree immediate_parent,
                                   tree new_var_decl)
   {
-  tree constr = make_node(CONSTRUCTOR);
-  TREE_TYPE(constr) = cblc_field_type_node;
-  TREE_STATIC(constr)    = 1;
-  TREE_CONSTANT(constr)  = 1;
+  // There is a bug in the GCC compiler. For some optimizations and some
+  // settings of -fpie, pathological N-squared time in the middle end can
+  // happen when a structure on the stack has an initialized member pointing
+  // to another memory area on the stack.  In those cases, we are going to
+  // initialize the pointer to zero, and then call a function to initialize
+  // the data member.  That hides things from the compiler's optimization
+  // phases.
 
-  tree next_field = TYPE_FIELDS(cblc_field_type_node);
-  // We are going to create the constructors by walking the linked
-  // list of FIELD_DECLs.  We must do it in the same order as the
-  // structure creation code in create_cblc_field_t()
-
-  //  UCHAR_P, "data",
-  CONSTRUCTOR_APPEND_ELT( CONSTRUCTOR_ELTS(constr),
-                          next_field,
-                          data_area );
-  next_field = TREE_CHAIN(next_field);
-
-  //  SIZE_T,  "capacity",
-  CONSTRUCTOR_APPEND_ELT( CONSTRUCTOR_ELTS(constr),
-                          next_field,
-                          build_int_cst_type( SIZE_T,
-                                              new_var->data.capacity()) );
-  next_field = TREE_CHAIN(next_field);
-
-  //  SIZE_T,  "allocated",
-  if( data_area != null_pointer_node )
+  bool read_only = !!TREE_READONLY(new_var_decl);
+  if( new_var->type == FldLiteralN )
     {
-    CONSTRUCTOR_APPEND_ELT( CONSTRUCTOR_ELTS(constr),
-                            next_field,
-                            build_int_cst_type( SIZE_T,
-                                                new_var->data.capacity()) );
-    }
-  else
-    {
-    CONSTRUCTOR_APPEND_ELT( CONSTRUCTOR_ELTS(constr),
-                            next_field,
-                            build_int_cst_type( SIZE_T,
-                                                0) );
+    // For a FldLiteralN the new_var_decl is a number, not a
+    // a cblc_field_t.
+    read_only = true;
     }
 
-  next_field = TREE_CHAIN(next_field);
-
-  //  SIZE_T,  "offset",
-  CONSTRUCTOR_APPEND_ELT( CONSTRUCTOR_ELTS(constr),
-                            next_field,
-                            build_int_cst_type(SIZE_T, new_var->offset) );
-
-  next_field = TREE_CHAIN(next_field);
-
-  //  CHAR_P,  "name",
-  CONSTRUCTOR_APPEND_ELT( CONSTRUCTOR_ELTS(constr),
-                          next_field,
-                          gg_string_literal(new_var->name) );
-  next_field = TREE_CHAIN(next_field);
-
-  //  CHAR_P,  "picture",
-  CONSTRUCTOR_APPEND_ELT( CONSTRUCTOR_ELTS(constr),
-                          next_field,
-                          gg_string_literal(new_var->data.picture) );
-  next_field = TREE_CHAIN(next_field);
-
-  //  CHAR_P,  "initial",
-  if( length_of_initial_string == 0 || !new_var->data.has_initial_value() )
+  if( new_var->type == FldAlphanumeric && new_var->attr & intermediate_e )
     {
-    CONSTRUCTOR_APPEND_ELT( CONSTRUCTOR_ELTS(constr),
-                            next_field,
-                            null_pointer_node );
+    // We need not to mess with the intermediate malloc() logic.
+    read_only = true;
     }
-  else
+
+  if( new_var->attr & external_e )
     {
-    CONSTRUCTOR_APPEND_ELT( CONSTRUCTOR_ELTS(constr),
-                            next_field,
-                            build_string_literal(length_of_initial_string, new_initial) );
+    // We need not to mess with the intermediate malloc() logic.
+    read_only = true;
     }
-    next_field = TREE_CHAIN(next_field);
 
-  //  CHAR_P,  "parent",
-  CONSTRUCTOR_APPEND_ELT( CONSTRUCTOR_ELTS(constr),
-                          next_field,
-                          immediate_parent ? gg_get_address_of(immediate_parent) : null_pointer_node );
-  next_field = TREE_CHAIN(next_field);
-
-  //  SIZE_T,     "occurs_lower",
-  CONSTRUCTOR_APPEND_ELT( CONSTRUCTOR_ELTS(constr),
-                          next_field,
-                          build_int_cst_type(SIZE_T, new_var->occurs.bounds.lower) );
-  next_field = TREE_CHAIN(next_field);
-
-  //  SIZE_T,     "occurs_upper");
-  CONSTRUCTOR_APPEND_ELT( CONSTRUCTOR_ELTS(constr),
-                          next_field,
-                          build_int_cst_type(SIZE_T, new_var->occurs.bounds.upper) );
-  next_field = TREE_CHAIN(next_field);
-
-  //  SIZE_T,     "attr",
-  CONSTRUCTOR_APPEND_ELT( CONSTRUCTOR_ELTS(constr),
-                          next_field,
-                          build_int_cst_type(SIZE_T, new_var->attr) );
-  next_field = TREE_CHAIN(next_field);
-
-  //  SCHAR,     "type",
-  CONSTRUCTOR_APPEND_ELT( CONSTRUCTOR_ELTS(constr),
-                          next_field,
-                          build_int_cst_type(SCHAR, new_var->type) );
-  next_field = TREE_CHAIN(next_field);
-
-  //  SCHAR,     "level",
-  CONSTRUCTOR_APPEND_ELT( CONSTRUCTOR_ELTS(constr),
-                          next_field,
-                          build_int_cst_type(SCHAR, new_var->level) );
-  next_field = TREE_CHAIN(next_field);
-
-  //  SCHAR,     "digits",
-  CONSTRUCTOR_APPEND_ELT( CONSTRUCTOR_ELTS(constr),
-                          next_field,
-                          build_int_cst_type(SCHAR, new_var->data.digits) );
-  next_field = TREE_CHAIN(next_field);
-
-  //  SCHAR,     "rdigits",
-  CONSTRUCTOR_APPEND_ELT( CONSTRUCTOR_ELTS(constr),
-                          next_field,
-                          build_int_cst_type(SCHAR, new_var->data.rdigits) );
-  next_field = TREE_CHAIN(next_field);
-
-  //  INT,     "encoding",
   //  For FldLiteralN we force the encoding to be ASCII.
   //  See initial_from_initial() for an explanation.
   //  For FldClass, we force the encoding to be UTF32; see
-
   cbl_encoding_t encoding;
   if( new_var->type == FldLiteralN )
     {
@@ -16754,18 +17076,75 @@ actually_create_the_static_field( cbl_field_t *new_var,
     encoding = new_var->codeset.encoding;
     }
 
-  CONSTRUCTOR_APPEND_ELT(CONSTRUCTOR_ELTS(constr),
-                        next_field,
-                        build_int_cst_type(INT, encoding));
-  next_field = TREE_CHAIN(next_field);
+  tree data = data_area ;
+  tree capacity = build_int_cst_type( SIZE_T, new_var->data.capacity());
+  tree allocated;
+  if( data_area != null_pointer_node )
+    {
+    allocated = build_int_cst_type(SIZE_T, new_var->data.capacity());
+    }
+  else
+    {
+    allocated = build_int_cst_type(SIZE_T, 0) ;
+    }
+  tree offset = build_int_cst_type(SIZE_T, new_var->offset);
+  tree name = gg_string_literal(new_var->name);
+  tree picture = gg_string_literal(new_var->data.picture);
+  tree initial;
+  if( length_of_initial_string == 0 || !new_var->data.has_initial_value() )
+    {
+    initial = null_pointer_node;
+    }
+  else
+    {
+    initial = build_string_literal(length_of_initial_string, new_initial);
+    }
+  tree parent = immediate_parent ? gg_get_address_of(immediate_parent)
+                                 : null_pointer_node ;
+  tree occurs_lower = build_int_cst_type(SIZE_T, new_var->occurs.bounds.lower);
+  tree occurs_upper = build_int_cst_type(SIZE_T, new_var->occurs.bounds.upper);
+  tree attr = build_int_cst_type(SIZE_T, new_var->attr) ;
+  tree type = build_int_cst_type(SCHAR, new_var->type) ;
+  tree level = build_int_cst_type(SCHAR, new_var->level) ;
+  tree digits = build_int_cst_type(SCHAR, new_var->data.digits) ;
+  tree rdigits = build_int_cst_type(SCHAR, new_var->data.rdigits) ;
+  tree tencoding = build_int_cst_type(INT, encoding);
+  tree alphabet = build_int_cst_type(INT, new_var->codeset.alphabet);
 
-  //  INT,     "alphabet",
-  CONSTRUCTOR_APPEND_ELT(CONSTRUCTOR_ELTS(constr),
-                        next_field,
-                        build_int_cst_type(INT, new_var->codeset.alphabet));
-  next_field = TREE_CHAIN(next_field);
+  if( !read_only )
+    {
+    data = null_pointer_node;
+    }
 
-  DECL_INITIAL(new_var_decl) = constr;
+  gg_structure_type_constructor(
+      new_var_decl,
+      data ,        //  UCHAR_P, "data",
+      capacity,     //  SIZE_T,  "capacity",
+      allocated,    //  SIZE_T,  "allocated",
+      offset,       //  SIZE_T,  "offset",
+      name,         //  CHAR_P,  "name",
+      picture,      //  CHAR_P,  "picture",
+      initial,      //  CHAR_P,  "initial",
+      parent,       //  CHAR_P,  "parent",
+      occurs_lower, //  SIZE_T,  "occurs_lower",
+      occurs_upper, //  SIZE_T,  "occurs_upper");
+      attr,         //  SIZE_T,  "attr",
+      type,         //  SCHAR,   "type",
+      level,        //  SCHAR,   "level",
+      digits,       //  SCHAR,   "digits",
+      rdigits,      //  SCHAR,   "rdigits",
+      tencoding,    //  INT,     "encoding",
+      alphabet);    //  INT,     "alphabet",
+
+
+  if( !read_only && data_area != null_pointer_node )
+    {
+    gg_call(VOID,
+            "__gg__set_data_member",
+            gg_get_address_of(new_var_decl),
+            data_area,
+            NULL_TREE);
+    }
   }
 
 static void
@@ -16995,6 +17374,11 @@ psa_FldLiteralA(struct cbl_field_t *field )
   field->var_decl_node  = gg_define_variable( cblc_field_type_node,
                                               ach,
                                               vs_file_static);
+  TREE_READONLY(field->var_decl_node) = 1;
+  TREE_USED(field->var_decl_node) = 1;
+  TREE_STATIC(field->var_decl_node) = 1;
+  DECL_PRESERVE_P (field->var_decl_node) = 1;
+
   actually_create_the_static_field(
               field,
               converted,
@@ -17002,10 +17386,6 @@ psa_FldLiteralA(struct cbl_field_t *field )
               field->data.original(),
               NULL_TREE,
               field->var_decl_node);
-  TREE_READONLY(field->var_decl_node) = 1;
-  TREE_USED(field->var_decl_node) = 1;
-  TREE_STATIC(field->var_decl_node) = 1;
-  DECL_PRESERVE_P (field->var_decl_node) = 1;
   }
 
 void
@@ -17040,7 +17420,7 @@ parser_local_add(struct cbl_field_t *new_var )
                                                     NULL,
                                                     vs_stack);
     gg_assign( member(new_var->var_decl_node, "data"),
-                      gg_get_address_of(data_decl_node) );
+                      gg_pointer_to_array(data_decl_node) );
     }
   cbl_refer_t wrapper;
   wrapper.field = new_var;
@@ -17163,6 +17543,8 @@ parser_symbol_add(struct cbl_field_t *new_var )
       }
     SHOW_PARSE_END
     }
+
+  RETURN_WHEN_HIJACKED;
 
   if( new_var->level == 1  && new_var->occurs.bounds.upper )
     {
@@ -17536,7 +17918,7 @@ parser_symbol_add(struct cbl_field_t *new_var )
                           array_type,
                           achDataName,
                           vs_external);
-      data_area = gg_get_address_of(new_var->data_decl_node);
+      data_area = gg_pointer_to_array(new_var->data_decl_node);
       goto actual_allocate;
       }
 
@@ -17642,7 +18024,7 @@ parser_symbol_add(struct cbl_field_t *new_var )
                                   array_type,
                                   achDataName,
                                   vs_external);
-              data_area = gg_get_address_of(new_var->data_decl_node);
+              data_area = gg_pointer_to_array(new_var->data_decl_node);
               }
             else
               {
@@ -17653,7 +18035,7 @@ parser_symbol_add(struct cbl_field_t *new_var )
                                   array_type,
                                   achDataName,
                                   vs_scope);
-              data_area = gg_get_address_of(new_var->data_decl_node);
+              data_area = gg_pointer_to_array(new_var->data_decl_node);
               }
             }
           }

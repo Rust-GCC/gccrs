@@ -1430,27 +1430,6 @@ cbl_field_t::encode_numeric( const char input[], cbl_loc_t loc,
     data = build_real(float128_type_node, value);
     // Turn that back into a REAL_VALUE_TYPE with
     // REAL_VALUE_TYPE readback_value = TREE_REAL_CST(data.etc.value);
-
-#define FOR_JIM 0
-#if FOR_JIM
-    {
-    // When you know data.etc.value was created with build_real()
-    enum tree_code code = TREE_CODE(TREE_TYPE(data.etc.value));
-    // code will be REAL_TYPE
-
-    REAL_VALUE_TYPE readback_value = TREE_REAL_CST(data.etc.value);
-    char ach[48];
-    size_t number_of_digits = 33;
-    bool crop_trailing_zeroes = true;
-    real_to_decimal(ach,
-                    &readback_value,
-                    sizeof(ach),
-                    number_of_digits,
-                    crop_trailing_zeroes);
-    fprintf(stderr, "FOR_JIM: %s real_value: %s\n", get_tree_code_name(code), ach);
-    }
-#endif
-
     unsigned char *retval =
                         static_cast<unsigned char *>(xmalloc(data.capacity()));
     assert(retval);
@@ -1493,20 +1472,6 @@ cbl_field_t::encode_numeric( const char input[], cbl_loc_t loc,
     data = wide_int_to_tree(intTI_type_node, value);
     // turn that back into a FIXED_WIDE_INT with
     // wi::tree_to_wide_ref iii = wi::to_wide( data.etc.value );
-
-#if FOR_JIM
-    {
-    // When you know data.etc.value was created with wide_int_to_tree.
-    enum tree_code code = TREE_CODE(TREE_TYPE(data.etc.value));
-    // code will be INTEGER_TYPE
-
-    wi::tree_to_wide_ref iii = wi::to_wide( data.etc.value );
-    char ach[60];
-    print_dec(iii, ach, SIGNED);
-    fprintf(stderr, "FOR_JIM: %s fixed_value: %s\n", get_tree_code_name(code), ach);
-    }
-#endif
-
     if( data.capacity() == 0 )
       {
       // It falls to us to establish these parameters:

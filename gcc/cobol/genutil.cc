@@ -71,14 +71,11 @@ tree var_decl_default_compute_error;  // int         __gg__default_compute_error
 tree var_decl_rdigits;                // int         __gg__rdigits;
 tree var_decl_unique_prog_id;         // size_t      __gg__unique_prog_id;
 
-tree var_decl_entry_location;         // This is for managing ENTRY statements
 tree var_decl_exit_address;           // This is for implementing pseudo_return_pop
 
 tree var_decl_call_parameter_signature; // char   *__gg__call_parameter_signature
 tree var_decl_call_parameter_count;     // int __gg__call_parameter_count
 tree var_decl_call_parameter_lengths;   // size_t *__gg__call_parameter_count
-
-tree var_decl_return_code;             // short __gg__data_return_code
 
 tree var_decl_arithmetic_rounds_size;  // size_t __gg__arithmetic_rounds_size;
 tree var_decl_arithmetic_rounds;       // int*   __gg__arithmetic_rounds;
@@ -109,8 +106,8 @@ tree var_decl_nop;                // int         __gg__nop;
 // Indicates which routine main() called
 tree var_decl_main_called;        // int         __gg__main_called;
 
-// Indicates the target label for an ENTRY statement
-tree var_decl_entry_label; // void* __gg__entry_label
+// Indicates the target index of an ENTRY statement
+tree var_decl_entry_index; // void* __gg__entry_index
 
 #if 0
 #define REFER(a)

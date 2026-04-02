@@ -1601,7 +1601,9 @@ program_id:     PROGRAM_ID dot namestr[name] program_as program_attrs[attr] dot
                   }
                   if( !current.new_program(@name, LblProgram, name,
 		                           $program_as.data,
-                                           $attr.common, $attr.initial) ) {
+                                           $attr.common,
+                                           $attr.initial,
+                                           $attr.recursive) ) {
                     auto L = symbol_program(current_program_index(), name);
                     assert(L);
                     error_msg(@name, "PROGRAM-ID %s already defined on line %d",
@@ -1636,8 +1638,10 @@ function_id:    FUNCTION NAME program_as program_attrs[attr] '.'
                     symbol_table_init();
                   }
                   if( !current.new_program(@NAME, LblFunction, $NAME,
-		                      $program_as.data,
-                                      $attr.common, $attr.initial) ) {
+                                           $program_as.data,
+                                           $attr.common,
+                                           $attr.initial,
+                                           $attr.recursive) ) {
                     auto e = symbol_function(current_program_index(), $NAME);
                     auto L = cbl_label_of(e);
                     error_msg(@NAME, "FUNCTION %s already defined on line %d",
@@ -4991,21 +4995,21 @@ redefines_clause: REDEFINES NAME[orig]
                     error_msg(@2, "%s may not REDEFINE %s",
                             field->name, orig->name);
 		  }
-                  cbl_field_t *super = symbol_redefines(orig);
-                  if( super ) {
-                    error_msg(@2, "%s may not REDEFINE %s, "
-                            "which redefines %s",
-                            field->name, orig->name, super->name);
-                  }
-                  if( field->level != orig->level ) {
+                  // Resolve chained REDEFINES:
+                  //   treat "C REDEFINES B"
+                  //   with  "B REDEFINES A"
+                  // as "C" redefining the same storage as "A".
+
+                  cbl_field_t *root = symbol_redefines_root(orig);
+                  if( field->level != root->level ) {
                     error_msg(@2, "cannot redefine %s %s as %s %s "
                              "because they have different levels",
-			    orig->level_str(), name_of(orig),
+			    root->level_str(), name_of(root),
 			    field->level_str(), name_of(field));
                   }
 		  // ISO 13.18.44.3
-		  auto parent( symbol_index(e) );
-		  auto p = std::find_if( symbol_elem_of(orig) + 1,
+		  auto parent( symbol_index(symbol_elem_of(root)) );
+		  auto p = std::find_if( symbol_elem_of(root) + 1,
 					 symbol_elem_of(field),
 					 [parent, level = field->level]( const auto& elem ) {
 					   if( elem.type == SymField ) {
@@ -5020,17 +5024,17 @@ redefines_clause: REDEFINES NAME[orig]
 		    auto mid( cbl_field_of(p) );
                     error_msg(@2, "cannot redefine %s %s as %s %s "
 			    "because %s %s intervenes",
-			    orig->level_str(), name_of(orig),
+			    root->level_str(), name_of(root),
 			    field->level_str(), name_of(field),
 			    mid->level_str(), name_of(mid));
                   }
 
-                  if( valid_redefine(@2, field, orig) ) {
+                  if( valid_redefine(@2, field, root) ) {
                     /*
                      * Defer "inheriting" the parent's description until the
                      * redefine is complete.
                      */
-                    current_field()->parent = symbol_index(e);
+                    current_field()->parent = symbol_index(symbol_elem_of(root));
                   }
                 }
                 ;
@@ -13438,7 +13442,9 @@ initialize_one( cbl_num_result_t target, bool with_filler,
 {
   cbl_refer_t& tgt( target.refer );
   if( ! valid_target(tgt) ) return false;
-
+#if 0
+  if( field_index(target.refer.field) == return_code_register() ) return true;
+#endif
   // Rule 1 c: is valid for VALUE, REPLACING, or DEFAULT
   // If no VALUE (category none), set to blank/zero.
   if( value_category == data_category_none && replacements.empty() ) {

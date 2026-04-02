@@ -1174,7 +1174,24 @@ struct cbl_proc_t {
   struct cbl_proc_addresses_t top;
   struct cbl_proc_addresses_t exit;
   struct cbl_proc_addresses_t bottom;
-  tree alter_location;  // The altered value if this paragraph is the target of an ALTER
+
+  // The following members implement the return location for a PERFORM to this
+  // procedure.  The dispatch_switch_label is where the switch() statement for
+  // this procedure is found; the dispatch_switch_goto is how you get there.
+  // The switch statement itself is made up of GOTO statements built from the
+  // label_decls found in pseudo_return_decls.
+  tree dispatch_switch_goto;
+  tree dispatch_switch_label;
+  std::vector<tree> pseudo_return_decls;
+
+  // The following members do the analogous process for a paragraph that is
+  // the target of an ALTER statement
+  tree alter_switch_goto;
+  tree alter_switch_label;
+  tree no_alter_goto;
+  tree no_alter_label;
+  std::vector<tree> alter_decls;
+  tree alter_index;  // The integer index to the switch statement
 };
 
 struct cbl_label_addresses_t {
@@ -2278,6 +2295,7 @@ symbol_elem_of( const cbl_field_t *field ) {
 symbol_elem_t * symbols_begin( size_t first = 0 );
 symbol_elem_t * symbols_end(void);
 cbl_field_t   * symbol_redefines( const cbl_field_t *field );
+cbl_field_t   * symbol_redefines_root( const cbl_field_t *field );
 
 void build_symbol_map();
 bool update_symbol_map( symbol_elem_t *e );
@@ -2810,6 +2828,8 @@ symbol_elem_t * symbol_file_add( size_t program,
 symbol_elem_t * symbol_section_add( size_t program,
 				    cbl_section_t *section );
 
+void symbol_registers_add();
+
 void symbol_field_location( size_t ifield, const YYLTYPE& loc );
 YYLTYPE symbol_field_location( size_t ifield );
 
@@ -3093,5 +3113,16 @@ bool validate_numeric_edited(cbl_field_t *field);
 
 cbl_field_t *new_alphanumeric(const cbl_name_t name=nullptr,
                               cbl_encoding_t encoding=no_encoding_e );
+
+
+// ENABLE_HIJACKING allows for code generation to be "hijacked" when the
+// program-id is "dubner" or "hijack".  See the mainline code in genapi.cc.
+
+// To enable hijacking, use
+// 
+//     make ... CPPFLAGS=-DENABLE_HIJACKING
+//
+// taking care to recaptulate whatever CPPFLAGS were set when configure was
+// run.
 
 #endif

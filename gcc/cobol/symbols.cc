@@ -93,10 +93,10 @@ static struct symbol_table_t {
   size_t capacity, nelem;
   size_t first_program, procedures;
   struct registers_t {
-    size_t file_status, linage_counter, return_code,
+    size_t file_status, linage_counter,
            exception_condition, very_true, very_false;
     registers_t() {
-      file_status = linage_counter = return_code =
+      file_status = linage_counter = 
         exception_condition = very_true = very_false = 0;
     }
   } registers;
@@ -214,10 +214,18 @@ symbol_at( size_t index ) {
 static char decimal_point = '.';
 
 size_t file_status_register() { return symbols.registers.file_status; }
-size_t return_code_register() { return symbols.registers.return_code; }
 size_t very_true_register()   { return symbols.registers.very_true; }
 size_t very_false_register()  { return symbols.registers.very_false; }
 size_t ec_register() { return symbols.registers.exception_condition; }
+
+size_t return_code_register() {
+  // Every top-level program has a global return-code register.
+  auto iprog = current_program_index();
+  static const char name[] = "RETURN-CODE";
+  auto found = symbol_find( iprog, std::list<const char*>(1, name) );
+  gcc_assert(found.second);
+  return symbol_index(found.first);
+}
 
 cbl_refer_t *
 cbl_refer_t::empty() {
@@ -736,6 +744,15 @@ symbol_redefines( const struct cbl_field_t *field ) {
     return NULL;
   }
   return NULL;
+}
+
+cbl_field_t *
+symbol_redefines_root( const struct cbl_field_t *field ) {
+  cbl_field_t *root = const_cast<cbl_field_t *>(field);
+  cbl_field_t *r;
+  while( (r = symbol_redefines(root)) != NULL )
+    root = r;
+  return root;
 }
 
 static cbl_field_t *
@@ -1948,46 +1965,51 @@ symbols_update( size_t first, bool parsed_ok ) {
       }
     }
 
-    if( ! field->codeset.consistent() ) {
-      if( ! field->codeset.valid() ) {
-        switch(field->type) {
-        case FldForward:
-        case FldInvalid:
-          gcc_unreachable();
-        case FldAlphaEdited:
-        case FldAlphanumeric:
-        case FldDisplay:
-        case FldGroup:
-        case FldLiteralA:
-        case FldLiteralN:
-        case FldNumericDisplay:
-        case FldNumericEdited:
+    // This test is a little too broad, but avoids a special attribute bit for
+    // things like the XML registers.  The tests are only internal checks anyway. 
+    if( ! (is_numeric(field) ||
+           field->has_attr(register_e) ||
+           field->has_attr(global_e)) ) {
+      if( ! field->codeset.consistent() ) {
+        if( ! field->codeset.valid() ) {
+          switch(field->type) {
+          case FldForward:
+          case FldInvalid:
+            gcc_unreachable();
+          case FldAlphaEdited:
+          case FldAlphanumeric:
+          case FldDisplay:
+          case FldGroup:
+          case FldLiteralA:
+          case FldLiteralN:
+          case FldNumericDisplay:
+          case FldNumericEdited:
+            if( ! (field->has_attr(register_e) || field->has_attr(hex_encoded_e)) ) {
+              error_msg(symbol_field_location(field_index(field)),
+                        "internal: %qs encoding not defined", field->name);
+            }
+            break;
+          case FldClass:
+          case FldConditional:
+          case FldFloat:
+          case FldIndex:
+          case FldNumericBin5:
+          case FldNumericBinary:
+          case FldPacked:
+          case FldPointer:
+          case FldSwitch:
+            break;
+          }
+        } else {
           if( ! (field->has_attr(register_e) || field->has_attr(hex_encoded_e)) ) {
             error_msg(symbol_field_location(field_index(field)),
-                      "internal: %qs encoding not defined", field->name);
+                      "internal: %qs encoding %qs inconsistent",
+                      field->name,
+                      cbl_alphabet_t::encoding_str(field->codeset.encoding) );
           }
-          break;
-        case FldClass:
-        case FldConditional:
-        case FldFloat:
-        case FldIndex:
-        case FldNumericBin5:
-        case FldNumericBinary:
-        case FldPacked:
-        case FldPointer:
-        case FldSwitch:
-          break;
-        }
-      } else {
-        if( ! (field->has_attr(register_e) || field->has_attr(hex_encoded_e)) ) {
-          error_msg(symbol_field_location(field_index(field)),
-                    "internal: %qs encoding %qs inconsistent",
-                    field->name,
-                    cbl_alphabet_t::encoding_str(field->codeset.encoding) );
         }
       }
     }
-
     assert( ! field->is_typedef() );
 
     if( parsed_ok ) parser_symbol_add(field);
@@ -2175,6 +2197,9 @@ symbol_field_parent_set( cbl_field_t *field )
   const struct symbol_elem_t *first = symbols.elems + symbols.first_program;
 
   for( ; field->parent == 0 && e >= first; e-- ) {
+    if( e->type == SymDataSection ) {
+      return NULL; // parent cannot be in another section
+    }
     if( ! (e->type == SymField && cbl_field_of(e)->level > 0) ) {
       continue; // level 0 fields are not user-declared symbols
     }
@@ -2309,10 +2334,6 @@ symbol_table_init(void) {
       {1,1,0,0, "\"\0\xFF"}, 0, "QUOTES", cp1252 },
     { FldPointer, constq | register_e ,
       {8,8,0,0, zeroes_for_null_pointer}, 0, "NULLS", cp1252 },
-    // IBM defines TALLY
-    // 01  TALLY GLOBAL PICTURE 9(5) USAGE BINARY VALUE ZERO.
-    { FldNumericBin5, signable_e | register_e,
-      {16, 16, MAX_FIXED_POINT_DIGITS, 0, NULL}, 0, "_TALLY", cp1252 },
     // 01  ARGI is the current index into the argv array
     { FldNumericBin5, signable_e | register_e,
       {16, 16, MAX_FIXED_POINT_DIGITS, 0, NULL}, 0, "_ARGI", cp1252 },
@@ -2442,8 +2463,7 @@ symbol_table_init(void) {
   static cbl_field_t special_registers[] = {
     { FldNumericDisplay, register_e, {2,2,2,0, NULL}, 0, "_FILE_STATUS", cp1252 },
     { FldNumericBin5,    register_e, {2,2,4,0, NULL}, 0, "UPSI-0", cp1252 },
-    { FldNumericBin5,    signable_e|register_e, {2,2,4,0, NULL}, 0, "RETURN-CODE", cp1252 },
-    { FldNumericBin5,    register_e, {2,2,4,0, NULL}, 0, "LINAGE-COUNTER", cp1252 },
+    { FldNumericBin5,    global_e, {2,2,4,0, NULL}, 0, "LINAGE-COUNTER", cp1252 },
     { FldLiteralA,        register_e, {0,0,0,0, "/dev/stdin"}, 0, "_dev_stdin", cp1252 },
     { FldLiteralA, constq|register_e, {0,0,0,0, "/dev/stdout"}, 0, "_dev_stdout", cp1252 },
     { FldLiteralA, constq|register_e, {0,0,0,0, "/dev/stderr"}, 0, "_dev_stderr", cp1252 },
@@ -2456,27 +2476,6 @@ symbol_table_init(void) {
   p = std::transform(special_registers,
                      special_registers + COUNT_OF(special_registers),
                      p, elementize);
-  table.nelem = p - table.elems;
-  assert(table.nelem < table.capacity);
-
-  const static auto reg_based_any = cbl_field_attr_t(register_e | based_e | any_length_e);
-  // xml registers
-  static cbl_field_t xml_registers[] = {
-    { FldNumericBin5,  register_e, {4,4,9,0, "0"}, 1, "XML-CODE", cp1252 },
-    { FldAlphanumeric, register_e, {30,30,0,0, " "}, 1, "XML-EVENT", cp1252 },
-    { FldNumericBin5,  register_e, {4,4,9,0, "0"}, 1, "XML-INFORMATION", cp1252 },
-    { FldAlphanumeric, reg_based_any, {1,1,0,0, nullptr}, 1, "XML-NAMESPACE", cp1252 },
-    { FldAlphanumeric, reg_based_any, {1,1,0,0, nullptr}, 1, "XML-NNAMESPACE", cp1252 },
-    { FldAlphanumeric, reg_based_any, {1,1,0,0, nullptr}, 1, "XML-NAMESPACE-PREFIX", cp1252 },
-    { FldAlphanumeric, reg_based_any, {1,1,0,0, nullptr}, 1, "XML-NNAMESPACE-PREFIX", cp1252 },
-    { FldAlphanumeric, reg_based_any, {1,1,0,0, nullptr}, 1, "XML-TEXT", cp1252 },
-    { FldAlphanumeric, reg_based_any, {1,1,0,0, nullptr}, 1, "XML-NTEXT", cp1252 },
-  }, * const eoxml = xml_registers + COUNT_OF(xml_registers);
-
-  assert(table.nelem + COUNT_OF(xml_registers) < table.capacity);
-
-  p = table.elems + table.nelem;
-  p = std::transform(xml_registers, eoxml, p, elementize);
   table.nelem = p - table.elems;
   assert(table.nelem < table.capacity);
 
@@ -2513,7 +2512,6 @@ symbol_table_init(void) {
   symbols.registers.linage_counter = symbol_index(symbol_field(0,0,
                                                               "LINAGE-COUNTER"));
   symbols.registers.file_status = symbol_index(symbol_field(0,0, "_FILE_STATUS"));
-  symbols.registers.return_code = symbol_index(symbol_field(0,0, "RETURN-CODE"));
   symbols.registers.very_true   = symbol_index(symbol_field(0,0, "_VERY_TRUE"));
   symbols.registers.very_false  = symbol_index(symbol_field(0,0, "_VERY_FALSE"));
 }
@@ -2564,6 +2562,69 @@ symbol_append( const symbol_elem_t& elem ) {
   auto e = symbols.elems + symbols.nelem++;
   *e = elem;
   return e;
+}
+
+void
+symbol_registers_add() {
+  /*
+   * awk -F\\t '$5 == "X" {print $1 "\t" $7}' r
+   * IBM per-program "registers" are really implied working storage data items
+   * for top-level programs.
+   */
+  const static cbl_field_t::codeset_t cp1252(CP1252_e);
+  const static auto based_any = cbl_field_attr_t(global_e | based_e | any_length_e);
+  const static auto glosig    = cbl_field_attr_t(global_e | signable_e);
+  // The data.initial of these fields is used verbatim by parser_symbol_add.
+  const static char zero[4] = {0};
+        static char spc[160] = " ";
+
+  if( spc[1] != 0x20 ) {
+    std::fill( spc, spc + sizeof(spc), 0x20 );
+  }
+    
+  /* In the following table, the FldNumericBin5 initial values are strings with
+     NUL characters in them.  That's because this table bypasses the encode_numeric
+     function and the values are passed directly to parser_symbol_add(), which
+     for FldNumericBin5 expects the non-null .initial value to be exactly the
+     memory representation of the run-time variable.  */
+
+  static const cbl_field_t ibm_registers[] = {
+#if COBOL_JSON_READY    
+    { FldNumericBin5,  glosig,    {4,4,5,0, zero    }, 1, "JSON-CODE", cp1252 },
+    { FldNumericBin5,  glosig,    {4,4,5,0, zero    }, 1, "JSON-STATUS", cp1252 },
+#endif
+    { FldNumericBin5,  glosig,    {2,2,4,0, zero    }, 0, "RETURN-CODE", cp1252 },
+    { FldAlphanumeric, glosig,    {160,160,0,0, spc }, 1, "SORT-CONTROL", cp1252 },
+    { FldNumericBin5,  glosig,    {4,4,5,0, zero    }, 1, "SORT-CORE-SIZE", cp1252 },
+    { FldNumericBin5,  glosig,    {4,4,5,0, zero    }, 1, "SORT-FILE-SIZE", cp1252 },
+    { FldAlphanumeric, global_e,  {8,8,0,0, spc     }, 1, "SORT-MESSAGE", cp1252 },
+    { FldNumericBin5,  glosig,    {4,4,5,0, zero    }, 1, "SORT-MODE-SIZE", cp1252 },
+    { FldNumericBin5,  glosig,    {4,4,5,0, zero    }, 1, "SORT-RETURN", cp1252 },
+    // 01  TALLY GLOBAL PICTURE 9(5) USAGE BINARY VALUE ZERO.
+    { FldNumericBin5,  global_e,  {4,4,5,0, zero    }, 1, "_TALLY", cp1252 },
+    { FldAlphanumeric, global_e,  {16,16,0,0, spc   }, 1, "WHEN-COMPILED", cp1252 },
+    // xml registers
+    { FldNumericBin5,  glosig,    {4,4,9,0, zero    }, 1, "XML-CODE", cp1252 },
+    { FldAlphanumeric, global_e,  {30,30,0,0, spc   }, 1, "XML-EVENT", cp1252 },
+    { FldNumericBin5,  glosig,    {4,4,9,0, zero    }, 1, "XML-INFORMATION", cp1252 },
+    { FldAlphanumeric, based_any, {1,1,0,0, nullptr }, 1, "XML-NAMESPACE", cp1252 },
+    { FldAlphanumeric, based_any, {1,1,0,0, nullptr }, 1, "XML-NNAMESPACE", cp1252 },
+    { FldAlphanumeric, based_any, {1,1,0,0, nullptr }, 1, "XML-NAMESPACE-PREFIX", cp1252 },
+    { FldAlphanumeric, based_any, {1,1,0,0, nullptr }, 1, "XML-NNAMESPACE-PREFIX", cp1252 },
+    { FldAlphanumeric, based_any, {1,1,0,0, nullptr }, 1, "XML-TEXT", cp1252 },
+    { FldAlphanumeric, based_any, {1,1,0,0, nullptr }, 1, "XML-NTEXT", cp1252 },
+  };
+
+  size_t program = symbols.nelem - 1;
+  auto e = symbol_at(program);
+  const cbl_label_t *L = cbl_label_of(e);
+  assert(L->type == LblProgram || L->type == LblFunction);
+
+  for( auto field : ibm_registers ) {
+    auto elem = elementize(field);
+    elem.program = program;
+    update_symbol_map2( symbol_append(elem) );
+  }
 }
 
 cbl_label_t *
@@ -4149,7 +4210,6 @@ cbl_field_t::encode( size_t srclen, cbl_loc_t loc ) {
     if( erc == size_t(-1) ) {
       if( outbytesleft == 0 ) { // input doesn't fit
         gcc_assert(0 < inbytesleft);
-        gcc_assert(0 < level);
         if( loc.first_line == 0 )
           loc = symbol_field_location(field_index(this));
         if( type == FldNumericEdited ) {

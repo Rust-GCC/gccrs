@@ -51,14 +51,11 @@ extern tree var_decl_default_compute_error;  // int         __gg__default_comput
 extern tree var_decl_rdigits;                // int         __gg__rdigits;
 extern tree var_decl_unique_prog_id;         // size_t      __gg__unique_prog_id;
 
-extern tree var_decl_entry_location;         // This is for managing ENTRY statements
 extern tree var_decl_exit_address;           // This is for implementing pseudo_return_pop
 
 extern tree var_decl_call_parameter_signature; // char   *__gg__call_parameter_signature
 extern tree var_decl_call_parameter_count;     // int __gg__call_parameter_count
 extern tree var_decl_call_parameter_lengths;   // size_t *var_decl_call_parameter_lengths
-
-extern tree var_decl_return_code;            // short __gg__data_return_code
 
 extern tree var_decl_arithmetic_rounds_size;  // size_t __gg__arithmetic_rounds_size;
 extern tree var_decl_arithmetic_rounds;       // int*   __gg__arithmetic_rounds;
@@ -79,7 +76,7 @@ extern tree var_decl_treeplet_4o; // SIZE_T_P                , "__gg__treeplet_4
 extern tree var_decl_treeplet_4s; // SIZE_T_P                , "__gg__treeplet_4s"
 extern tree var_decl_nop;         // int __gg__nop
 extern tree var_decl_main_called; // int __gg__main_called
-extern tree var_decl_entry_label; // void* __gg__entry_label
+extern tree var_decl_entry_index; // void* __gg__entry_index
 
 int       get_scaled_rdigits(cbl_field_t *field);
 int       get_scaled_digits(cbl_field_t *field);

@@ -54,6 +54,7 @@ libgcobol_la_SOURCES =				\
 	constants.cc				\
 	gfileio.cc				\
 	gmath.cc				\
+	inspect.cc				\
 	intrinsic.cc				\
 	io.cc					\
 	libgcobol.cc				\

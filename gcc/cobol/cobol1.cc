@@ -647,6 +647,10 @@ cobol_langhook_handle_option (size_t scode,
           cobol_warning(SynFileCodeSet, file_code_set, warning_as_error);
           return true;
 
+        case OPT_Wrecording_mode:
+          cobol_warning(SynRecordingMode, recording_mode, warning_as_error);
+          return true;
+
         case OPT_Wset_locale_to:
           cobol_warning(SynSetLocaleTo, set_locale_to, warning_as_error);
           return true;

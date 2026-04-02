@@ -388,6 +388,50 @@ segment
 <number>
 .It
 .Sy VOLATILE
+.It
+Per-program Registers
+.Bl -tag -compact -width XML-NNAMESPACE-PREFIX
+.\" .It Sy JSON-CODE
+.\" S9(9)
+.\" .It Sy JSON-STATUS
+.\" S9(9)
+.It Sy RETURN-CODE
+S9(4)
+.It Sy SORT-CONTROL
+X(160)
+.It Sy SORT-CORE-SIZE
+S9(8)
+.It Sy SORT-FILE-SIZE
+S9(8)
+.It Sy SORT-MESSAGE
+X(8)
+.It Sy SORT-MODE-SIZE
+S9(5)
+.It Sy SORT-RETURN
+S9(4)
+.It Sy TALLY
+9(5)
+.It Sy WHEN-COMPILED
+X(16)
+.It Sy XML-CODE
+S9(9)
+.It Sy XML-EVENT
+X(30)
+.It Sy XML-INFORMATION
+S9(9)
+.It Sy XML-NAMESPACE
+X(0) to X(32,768)
+.It Sy XML-NNAMESPACE
+N(0) to N(16,384)
+.It Sy XML-NAMESPACE-PREFIX
+X(0) to X(4,096)
+.It Sy XML-NNAMESPACE-PREFIX
+N(0) to N(2,048)
+.It Sy XML-NTEXT
+N(0) to N(2,000,000)
+.It Sy XML-TEXT
+X(0) to X(2,147,483,646)
+.El
 .El
 .It gnu
 to indicate GnuCOBOL syntax, generally compatible with MicroFocus.

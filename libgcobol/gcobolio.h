@@ -131,7 +131,6 @@ typedef struct cblc_file_t
     cblc_file_prior_op_t prior_op;         // run-time type is INT
     cbl_encoding_t       encoding;         // We assume size int
     int                  alphabet;         // Actually cbl_encoding_t
-    int                  dummy;
     } cblc_file_t;
 
 

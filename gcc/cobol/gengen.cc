@@ -89,9 +89,11 @@
 #include "cobol-system.h"
 #include "coretypes.h"
 #include "tree.h"
+#include "langhooks.h"
 #include "tree-iterator.h"
 #include "stringpool.h"
 #include "cgraph.h"
+#include "stor-layout.h"
 #include "toplev.h"
 #include "function.h"
 #include "fold-const.h"
@@ -293,6 +295,13 @@ gg_append_statement(tree stmt)
   // ./libcpp/include/line-map.h
   // ./libcpp/location-example.txt
 
+#if 0
+  if( TREE_CODE(stmt) == GOTO_EXPR )
+    {
+    fprintf(stderr, "Laying down a GOTO\n");
+    }
+#endif
+
   gcc_assert(  gg_trans_unit.function_stack.size() );
 
   TREE_SIDE_EFFECTS(stmt) = 1;    // If an expression has no side effects,
@@ -355,6 +364,7 @@ adjust_for_type(tree type)
 char *
 gg_show_type(tree type)
   {
+  tree original_type = type;
   if( !type )
     {
     cbl_internal_error("The given type is NULL, and that is just not fair");
@@ -411,6 +421,16 @@ gg_show_type(tree type)
 
     default:
       cbl_internal_error("Unknown type %d", TREE_CODE(type));
+    }
+
+  if( DECL_P(original_type) && TREE_STATIC(original_type) )
+    {
+    strcat(ach, " static");
+    }
+
+  if( DECL_P(original_type) && TREE_READONLY(original_type) )
+    {
+    strcat(ach, " readonly");
     }
 
   return ach;
@@ -485,6 +505,111 @@ gg_assign(tree dest, const tree source)
   }
 
 tree
+gg_get_structure_type_decl(const char *type_name, ...)
+  {
+  tree record_type = make_node (RECORD_TYPE);
+
+  tree type_decl = build_decl(UNKNOWN_LOCATION,
+                              TYPE_DECL,
+                              get_identifier (type_name),
+                              record_type);
+  TYPE_NAME (record_type) = type_decl;
+  TYPE_STUB_DECL (record_type) = type_decl;
+  DECL_ARTIFICIAL (type_decl) = 1;
+
+  va_list ap;
+  va_start (ap, type_name);
+
+  tree first = NULL_TREE;
+  tree *link = &first;
+
+  for (;;)
+    {
+    tree arg_type = va_arg (ap, tree);
+    if (!arg_type)
+      {
+      break;
+      }
+
+    const char *member_name = va_arg (ap, const char *);
+
+    tree member_decl = build_decl (UNKNOWN_LOCATION,
+                                   FIELD_DECL,
+                                   get_identifier (member_name),
+                                   arg_type);
+
+    DECL_CONTEXT (member_decl) = record_type;
+    *link = member_decl;
+    link = &DECL_CHAIN (member_decl);
+    }
+  va_end (ap);
+
+  TYPE_FIELDS (record_type) = first;
+
+  layout_type (record_type);
+//  lang_hooks.decls.pushdecl (type_decl);
+
+  gcc_assert (TREE_CODE (record_type) == RECORD_TYPE);
+  gcc_assert (TYPE_NAME (record_type));
+  gcc_assert (TREE_CODE (TYPE_NAME (record_type)) == TYPE_DECL);
+  gcc_assert (TREE_TYPE (TYPE_NAME (record_type)) == record_type);
+
+  return record_type;
+  }
+
+void
+gg_structure_type_constructor(tree record_decl, ...)
+  {
+  // Given a record_decl and a NULL_TREE-terminated list of initial values, one
+  // for each member of the record_decl's type, this routine constructs and
+  // applies the constructor for it.
+
+  // Note that the NULL_TREE terminator is not actually accessed if the list
+  // of values equal to (or greater than) the number of elements in the
+  // record_type.  But it's there to allow an early termination.
+
+  // If the list is too short and is not terminated, then the behavior is
+  // unpredictable.
+  tree record_type = TREE_TYPE(record_decl);
+
+  int top_level_members = 0;
+  for(tree f = TYPE_FIELDS(record_type); f; f = TREE_CHAIN(f))
+    {
+    top_level_members += 1;
+    }
+
+  vec<constructor_elt, va_gc> *elts = NULL;
+  tree next_field = TYPE_FIELDS(record_type);
+
+  va_list ap;
+  va_start (ap, record_decl);
+
+  // We are going to create the constructors by walking the linked
+  // list of FIELD_DECLs.  We must do it in the same order as the
+  // structure creation code in create_cblc_field_t()
+
+  int index = 0;
+  while(index < top_level_members)
+    {
+    tree value = va_arg (ap, tree);
+    if( !value )
+      {
+      break;
+      }
+
+    CONSTRUCTOR_APPEND_ELT( elts,
+                            next_field,
+                            value );
+    next_field = DECL_CHAIN(next_field);
+    index += 1;
+    }
+  va_end (ap);
+
+  tree constr = build_constructor (record_type, elts);
+  DECL_INITIAL(record_decl) = constr;
+  }
+
+tree
 gg_find_field_in_struct(const tree base, const char *field_name)
   {
   // Finds and returns the field_decl for the named member.  'base' can be
@@ -531,303 +656,6 @@ gg_find_field_in_struct(const tree base, const char *field_name)
   return field_decl;
   }
 
-static tree
-gg_start_building_a_union(const char *type_name, tree type_context)
-  {
-  // type_context is current_function->function_decl for union local
-  // to a function.
-
-  // It is translation_unit_decl for unions common to all functions
-
-  // We want to return the type_decl for an empty union
-
-  // First, create the record_type whose values will eventually
-  // be the chain of of the struct's fields:
-
-  tree uniontype = make_node(UNION_TYPE);
-  TYPE_CONTEXT(uniontype) = type_context;
-  TYPE_SIZE_UNIT(uniontype) = integer_zero_node;
-  TYPE_SIZE(uniontype) = integer_zero_node;
-  TYPE_NAME(uniontype) = get_identifier(type_name);
-
-  TYPE_MODE_RAW(uniontype) = TYPE_MODE (intTI_type_node);
-
-  // We need a type_decl for the record_type:
-  tree typedecl = make_node(TYPE_DECL);
-
-  // The type of the type_decl is the record_type:
-  TREE_TYPE(typedecl) = uniontype;
-
-  SET_TYPE_ALIGN(uniontype, 16);
-
-  // The chain element of the record_type points back to the type_decl:
-  TREE_CHAIN(uniontype) = typedecl;
-
-  return typedecl;
-  }
-
-static tree
-gg_start_building_a_struct(const char *type_name, tree type_context)
-  {
-  // type_context is current_function->function_decl for structures local
-  // to a function.
-
-  // It is translation_unit_decl for structures common to all functions
-
-  // We want to return the type_decl for an empty struct
-
-  // First, create the record_type whose values will eventually
-  // be the chain of of the struct's fields:
-
-  tree recordtype = make_node(RECORD_TYPE);
-  TYPE_CONTEXT(recordtype) = type_context;
-  TYPE_SIZE_UNIT(recordtype) = integer_zero_node;
-  TYPE_SIZE(recordtype) = integer_zero_node;
-  TYPE_NAME(recordtype) = get_identifier(type_name);
-
-  TYPE_MODE_RAW(recordtype) = BLKmode;
-
-  // We need a type_decl for the record_type:
-  tree typedecl = make_node(TYPE_DECL);
-
-  // The type of the type_decl is the record_type:
-  TREE_TYPE(typedecl) = recordtype;
-
-  SET_TYPE_ALIGN(recordtype, 8);
-
-  // The chain element of the record_type points back to the type_decl:
-  TREE_CHAIN(recordtype) = typedecl;
-
-  return typedecl;
-  }
-
-static void
-gg_add_field_to_structure(const tree type_of_field, const char *name_of_field, tree struct_type_decl)
-  {
-  // We're given the struct_type_decl.
-  // Append the new field to that type_decl's record_type's chain:
-  tree struct_record_type = TREE_TYPE(struct_type_decl);
-
-  bool is_union = TREE_CODE((struct_record_type)) == UNION_TYPE;
-
-  tree id_of_field = get_identifier (name_of_field);
-
-  // Create the new field:
-  tree new_field_decl = build_decl(   gg_token_location(),
-                                      FIELD_DECL,
-                                      id_of_field,
-                                      type_of_field);
-
-  // Establish the machine mode for the field_decl:
-  SET_DECL_MODE(new_field_decl, TYPE_MODE(type_of_field));
-
-  // Establish the context of the new field as being the record_type
-  DECL_CONTEXT (new_field_decl) = struct_record_type;
-
-  // Establish the size of the new field as being the same as its prototype:
-  DECL_SIZE(new_field_decl) = TYPE_SIZE(type_of_field);            // This is in bits
-  DECL_SIZE_UNIT(new_field_decl) = TYPE_SIZE_UNIT(type_of_field);  // This is in bytes
-
-  // We need to establish the offset and bit offset of the new node.
-  // Empirically, this seems to be done on 16-bit boundaries, with DECL_FIELD_OFFSET
-  // in units of N*16 bytes, and FIELD_BIT_OFFSET being offsets in bits from the DECL_FIELD_OFFSET
-
-  // We calculate our desired offset in bits:
-
-  // Pick up the current size, in bytes, of the record_type:
-  long offset_in_bytes = TREE_INT_CST_LOW(TYPE_SIZE_UNIT(struct_record_type));
-
-  static const int MAGIC_NUMBER_SIXTEEN = 16 ;
-  static const int BITS_IN_A_BYTE = 8 ;
-
-  // We know the offset_in_bytes, which is the size, of the structure with
-  // its current members.
-
-  //long type_size  =  TREE_INT_CST_LOW(TYPE_SIZE_UNIT(type_of_field));
-  long type_align_in_bits  =  TYPE_ALIGN(type_of_field);
-  long type_align_in_bytes = type_align_in_bits/BITS_IN_A_BYTE;
-
-  // As per the Amd64 ABI, we need to set the structure's type alignment to be
-  // that of most strictly aligned component:
-  // This is the current restriction:
-  long struct_align_in_bits  =  TYPE_ALIGN(TREE_TYPE(struct_type_decl));
-  if( type_align_in_bits > struct_align_in_bits )
-    {
-    // The new one is the new champion
-    SET_TYPE_ALIGN(TREE_TYPE(struct_type_decl), type_align_in_bits );
-    }
-
-  // We know struct_type_decl is a record_type, so we can sneak through this comparison
-  if( type_of_field == TREE_TYPE(struct_type_decl) )
-    {
-    printf("   It is a record_type\n");
-    }
-
-  // Bump up the offset until we are aligned:
-  while( offset_in_bytes % type_align_in_bytes)
-    {
-    offset_in_bytes += 1;
-    }
-
-  if( is_union )
-    {
-    // Turn that into the bytes/bits offsets of the new field:
-    DECL_FIELD_OFFSET(new_field_decl) = build_int_cst_type (SIZE_T, 0);
-    DECL_FIELD_BIT_OFFSET(new_field_decl) = build_int_cst_type (bitsizetype, 0);
-
-    // The size of a union is the size of its largest member:
-    offset_in_bytes = std::max(offset_in_bytes, (long)TREE_INT_CST_LOW(DECL_SIZE_UNIT(new_field_decl)));
-    }
-  else
-    {
-    // Turn that into the bytes/bits offsets of the new field:
-    long field_offset = (offset_in_bytes/MAGIC_NUMBER_SIXTEEN)*MAGIC_NUMBER_SIXTEEN;
-    long field_bit_offset = (offset_in_bytes - field_offset) * BITS_IN_A_BYTE;
-    DECL_FIELD_OFFSET(new_field_decl) = build_int_cst_type (SIZE_T, field_offset);;
-    DECL_FIELD_BIT_OFFSET(new_field_decl) = build_int_cst_type (bitsizetype, field_bit_offset);
-
-    // This was done empirically to make our generated code match that of a C program
-    SET_DECL_OFFSET_ALIGN(new_field_decl, 128);
-
-    // And now we need to update the size of the record type:
-    offset_in_bytes += TREE_INT_CST_LOW(DECL_SIZE_UNIT(new_field_decl));
-    }
-
-  TYPE_SIZE_UNIT(struct_record_type) = build_int_cst_type (SIZE_T, offset_in_bytes);           // In bytes
-  TYPE_SIZE(struct_record_type) = build_int_cst_type (bitsizetype, offset_in_bytes*BITS_IN_A_BYTE); // In bits
-
-  if( !TYPE_FIELDS(struct_record_type) )
-    {
-    // This is the first variable of the chain:
-    TYPE_FIELDS(struct_record_type) = new_field_decl;
-    }
-  else
-    {
-    // We need to tack the new one onto an already existing chain:
-    chainon(TYPE_FIELDS(struct_record_type), new_field_decl);
-    }
-  }
-
-void
-gg_get_struct_type_decl(tree struct_type_decl, int count, va_list params)
-  {
-  while( count-- )
-    {
-    tree field_type = va_arg(params, tree);
-    const char *name = va_arg(params, const char *);
-    gg_add_field_to_structure(field_type, name, struct_type_decl);
-    }
-  // Note:  On 2022-02-18 I removed the call to gg_append_var_decl, which
-  // chains the type_decl on the function block.  I don't remember why I
-  // thought it was necessary.  It makes no difference for COBOL compilations.
-  //
-  // But I must have copied it from a C compilation example.
-  //
-  // I removed it so that I could create type_decls outside of a function.
-  // I know not what the long-term implications might be.
-  //
-  // You have been served notice.
-  //
-  // struct_type_decl is the type_decl for our structure.  We need to
-  // append it to the list of variables in order to use it:
-  // The following function call is misnamed.  It can take struct type_decls
-  //gg_append_var_decl(struct_type_decl);
-  }
-
-void
-gg_get_union_type_decl(tree union_type_decl, int count, va_list params)
-  {
-  while( count-- )
-    {
-    tree field_type = va_arg(params, tree);
-    const char *name = va_arg(params, const char *);
-    gg_add_field_to_structure(field_type, name, union_type_decl);
-    }
-  }
-
-tree
-gg_get_local_struct_type_decl(const char *type_name, int count, ...)
-  {
-  tree struct_type_decl = gg_start_building_a_struct(type_name, current_function->function_decl);
-
-  va_list params;
-  va_start(params, count);
-
-  gg_get_struct_type_decl(struct_type_decl, count, params);
-
-  va_end(params);
-
-  // To use the struct_type_decl, you'll need to execute
-  // the following to turn it into a var_decl:
-  //    tree var_decl = gg_define_variable( TREE_TYPE(struct_type_decl),
-  //                                        var_name,
-  //                                        vs_static);
-  return struct_type_decl;
-  }
-
-tree
-gg_get_filelevel_struct_type_decl(const char *type_name, int count, ...)
-  {
-  tree struct_type_decl = gg_start_building_a_struct(type_name, gg_trans_unit.trans_unit_decl);
-
-  va_list params;
-  va_start(params, count);
-
-  gg_get_struct_type_decl(struct_type_decl, count, params);
-
-  va_end(params);
-
-  // To use the struct_type_decl, you'll need to execute
-  // the following to turn it into a var_decl:
-  //    tree var_decl = gg_define_variable( TREE_TYPE(struct_type_decl),
-  //                                        var_name,
-  //                                        vs_static);
-  return struct_type_decl;
-  }
-
-tree
-gg_get_filelevel_union_type_decl(const char *type_name, int count, ...)
-  {
-  tree struct_type_decl = gg_start_building_a_union(type_name, gg_trans_unit.trans_unit_decl);
-
-  va_list params;
-  va_start(params, count);
-
-  gg_get_union_type_decl(struct_type_decl, count, params);
-
-  va_end(params);
-
-  // To use the struct_type_decl, you'll need to execute
-  // the following to turn it into a var_decl:
-  //    tree var_decl = gg_define_variable( TREE_TYPE(struct_type_decl),
-  //                                        var_name,
-  //                                        vs_static);
-  return struct_type_decl;
-  }
-
-tree
-gg_define_local_struct(const char *type_name, const char * var_name, int count, ...)
-  {
-  // Builds a structure, declares it as a static variable in the current function,
-  // and returns the var_decl for it.
-  tree struct_type_decl = gg_start_building_a_struct(type_name, current_function->function_decl);
-
-  va_list params;
-  va_start(params, count);
-
-  gg_get_struct_type_decl(struct_type_decl, count, params);
-
-  va_end(params);
-  // We now have a complete struct_type_decl, whose TREE_TYPE is the
-  // the type we need when declaring it.
-
-  // And with that done, we can actually define the storage:
-  tree var_decl = gg_define_variable( TREE_TYPE(struct_type_decl),
-                                      var_name,
-                                      vs_static);
-  return var_decl;
-  }
-
 tree
 gg_struct_field_ref(const tree base, const char *field)
   {
@@ -858,24 +686,6 @@ gg_struct_field_ref(const tree base, const char *field)
                     NULL_TREE);
     }
   return retval;
-  }
-
-tree
-gg_assign_to_structure(tree var_decl_struct, const char *field, const tree source)
-  {
-  // The C equivalent:  "struct.field = source"
-  tree component_ref = gg_struct_field_ref(var_decl_struct,field);
-  gg_assign(component_ref,source);
-  return component_ref;
-  }
-
-tree
-gg_assign_to_structure(tree var_decl_struct, const char *field, int N)
-  {
-  // The C equivalent:  "struct.field = N"
-  tree component_ref = gg_struct_field_ref(var_decl_struct,field);
-  gg_assign(component_ref,build_int_cst(integer_type_node, N));
-  return component_ref;
   }
 
 static tree
@@ -1440,7 +1250,10 @@ gg_define_array(tree type_decl, size_t size, gg_variable_scope_t scope)
   }
 
 extern tree
-gg_define_array(tree type_decl, const char *name, size_t size, gg_variable_scope_t scope)
+gg_define_array(tree type_decl,
+                const char *name,
+                size_t size,
+                gg_variable_scope_t scope)
   {
   tree array_type = build_array_type_nelts(type_decl, size);
   return gg_define_variable(array_type, name, scope);
@@ -1455,15 +1268,52 @@ gg_get_address_of(const tree var_decl)
 
   // In order to do that, this fellow's "addressable" bit has to be on, otherwise
   // the GIMPLE reducer creates a temporary variable, sets its value to var_decl's,
-  // and returns the pointer to the temp.  I suppose this has something to do with
-  // pass by reference and pass by value, but it makes my head hurt, and, frankly,
-  // I'll take the dangerous road.
+  // and returns the pointer to the temp.
+
+  tree type = TREE_TYPE (var_decl);
+  if( TREE_CODE (type) == ARRAY_TYPE )
+    {
+    cbl_internal_error("%s:%d: Must not call here with %s",
+                        __func__,
+                        __LINE__,
+                        "ARRAY_TYPE");
+    }
 
   TREE_ADDRESSABLE(var_decl) = 1;
   TREE_USED(var_decl) = 1;
-  return build1(  ADDR_EXPR,
-                  build_pointer_type (TREE_TYPE(var_decl)),
-                  var_decl);
+  return build_fold_addr_expr(var_decl);
+  }
+
+tree
+gg_pointer_to_array(tree expr)
+  {
+  tree type = TREE_TYPE (expr);
+
+  if (TREE_CODE (type) != ARRAY_TYPE)
+    {
+    cbl_internal_error("%s:%d: Must not call here with non-%s",
+                        __func__,
+                        __LINE__,
+                        "ARRAY_TYPE");
+    }
+
+  /* Arrays: produce &(expr[lower_bound]), i.e. pointer to first element,
+     not &expr, which would be pointer-to-array.  */
+  tree domain = TYPE_DOMAIN (type);
+  tree idx_type = domain ? TREE_TYPE (domain) : integer_type_node;
+  tree first_idx =
+      (domain && TYPE_MIN_VALUE (domain))
+          ? TYPE_MIN_VALUE (domain)
+          : build_int_cst (idx_type, 0);
+
+  tree elem_ref = build4 (ARRAY_REF,
+                          TREE_TYPE (type),   /* element type */
+                          expr,
+                          first_idx,
+                          NULL_TREE,
+                          NULL_TREE);
+
+  return build_fold_addr_expr (elem_ref);
   }
 
 tree
@@ -1926,12 +1776,20 @@ gg_create_goto_pair(tree *goto_expr, tree *label_expr, const char *name)
   *label_expr = build1(LABEL_EXPR, void_type_node, label_decl);
   }
 
-// Used for implementing SECTIONS and PARAGRAPHS.  When you have a
-// void *pointer = &&label, gg_goto is the same as
-//  goto *pointer
 void
 gg_goto(tree var_decl_pointer)
   {
+  // This routine takes a label_decl_node, and creates a GOTO expression to it.
+  // Currently it is unused, and one should be very wary of using it.  I used
+  // to use it for implementing things like computed gotos, and pseudo-returns
+  // from PERFORMs.  The trouble is that it leads to explosions in the Control
+  // Flow Graph, because the middle end basically has to assume that a
+  // JMP *PTR could reference any of all the symbols in the program.  So, when
+  // I did that, when any PERFORM returned through a JMP *PTR, it led to
+  // O(M*N) behavior, where M was the number of performs and N was the number
+  // of paragraph and section procedures.
+
+  // To speed things up, I learned how to create switch statements.
   tree go_to = build1_loc(gg_token_location(),
                           GOTO_EXPR,
                           void_type_node,

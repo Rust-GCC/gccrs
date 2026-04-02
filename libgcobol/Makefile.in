@@ -181,8 +181,8 @@ LTLIBRARIES = $(toolexeclib_LTLIBRARIES)
 am__dirstamp = $(am__leading_dot)dirstamp
 @BUILD_LIBGCOBOL_TRUE@am_libgcobol_la_OBJECTS = charmaps.lo \
 @BUILD_LIBGCOBOL_TRUE@	constants.lo gfileio.lo gmath.lo \
-@BUILD_LIBGCOBOL_TRUE@	intrinsic.lo io.lo libgcobol.lo \
-@BUILD_LIBGCOBOL_TRUE@	posix/shim/errno.lo \
+@BUILD_LIBGCOBOL_TRUE@	inspect.lo intrinsic.lo io.lo \
+@BUILD_LIBGCOBOL_TRUE@	libgcobol.lo posix/shim/errno.lo \
 @BUILD_LIBGCOBOL_TRUE@	posix/shim/localtime.lo \
 @BUILD_LIBGCOBOL_TRUE@	posix/shim/open.lo posix/shim/stat.lo \
 @BUILD_LIBGCOBOL_TRUE@	stringbin.lo valconv.lo xmlparse.lo
@@ -427,6 +427,7 @@ gcc_version := $(shell @get_gcc_base_ver@ $(top_srcdir)/../gcc/BASE-VER)
 @BUILD_LIBGCOBOL_TRUE@	constants.cc				\
 @BUILD_LIBGCOBOL_TRUE@	gfileio.cc				\
 @BUILD_LIBGCOBOL_TRUE@	gmath.cc				\
+@BUILD_LIBGCOBOL_TRUE@	inspect.cc				\
 @BUILD_LIBGCOBOL_TRUE@	intrinsic.cc				\
 @BUILD_LIBGCOBOL_TRUE@	io.cc					\
 @BUILD_LIBGCOBOL_TRUE@	libgcobol.cc				\
@@ -589,6 +590,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/constants.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/gfileio.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/gmath.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/inspect.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/intrinsic.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/io.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libgcobol.Plo@am__quote@
