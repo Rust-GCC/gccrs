@@ -2453,7 +2453,7 @@ export namespace std
   using std::saturating_sub;
   using std::saturating_mul;
   using std::saturating_div;
-  using std::saturatint_cast;
+  using std::saturating_cast;
 #endif
 }
 
