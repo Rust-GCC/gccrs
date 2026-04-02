@@ -4807,18 +4807,18 @@ namespace views::__adaptor
     constexpr auto
     size() requires (sized_range<_Vs> && ...)
     {
-      return std::apply([](auto... sizes) {
-	using _CT = __detail::__make_unsigned_like_t<common_type_t<decltype(sizes)...>>;
-	return ranges::min({_CT(sizes)...});
+      return std::apply([](auto... __sizes) {
+	using _CT = __detail::__make_unsigned_like_t<common_type_t<decltype(__sizes)...>>;
+	return ranges::min({_CT(__sizes)...});
       }, __detail::__tuple_transform(ranges::size, _M_views));
     }
 
     constexpr auto
     size() const requires (sized_range<const _Vs> && ...)
     {
-      return std::apply([](auto... sizes) {
-	using _CT = __detail::__make_unsigned_like_t<common_type_t<decltype(sizes)...>>;
-	return ranges::min({_CT(sizes)...});
+      return std::apply([](auto... __sizes) {
+	using _CT = __detail::__make_unsigned_like_t<common_type_t<decltype(__sizes)...>>;
+	return ranges::min({_CT(__sizes)...});
       }, __detail::__tuple_transform(ranges::size, _M_views));
     }
   };
