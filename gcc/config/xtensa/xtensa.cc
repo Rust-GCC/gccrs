@@ -2313,32 +2313,42 @@ xtensa_legitimize_address (rtx x,
 			   rtx oldx ATTRIBUTE_UNUSED,
 			   machine_mode mode)
 {
+  rtx plus0, plus1, temp;
+  HOST_WIDE_INT offset, mem_offset, addmi_offset;
+
   if (xtensa_tls_symbol_p (x))
     return xtensa_legitimize_tls_address (x);
 
-  if (GET_CODE (x) == PLUS)
+  if (GET_CODE (x) != PLUS)
+    return x;
+
+  plus0 = XEXP (x, 0), plus1 = XEXP (x, 1);
+  if (! REG_P (plus0) && REG_P (plus1))
+    std::swap (plus0, plus1);
+
+  /* Try to split up the offset to use up to two ADDMI instructions.  */
+  if (REG_P (plus0) && CONST_INT_P (plus1)
+      && ! xtensa_mem_offset (offset = INTVAL (plus1), mode)
+      && ! xtensa_simm8 (offset)
+      && xtensa_mem_offset (mem_offset = offset & 0xff, mode))
     {
-      rtx plus0 = XEXP (x, 0);
-      rtx plus1 = XEXP (x, 1);
+      /* The two ADDMIs are slightly more efficient than
+	 "L32R w/litpool + ADD" or "CONST16 pair + ADD", if applicable.  */
+      addmi_offset = offset & ~0xff;
+      if (addmi_offset > 32512)
+	offset = 32512, addmi_offset -= 32512;
+      else if (addmi_offset < -32768)
+	offset = -32768, addmi_offset += 32768;
+      else
+	offset = 0;
 
-      if (! REG_P (plus0) && REG_P (plus1))
+      if (xtensa_simm8x256 (addmi_offset))
 	{
-	  plus0 = XEXP (x, 1);
-	  plus1 = XEXP (x, 0);
-	}
-
-      /* Try to split up the offset to use an ADDMI instruction.  */
-      if (REG_P (plus0) && CONST_INT_P (plus1)
-	  && !xtensa_mem_offset (INTVAL (plus1), mode)
-	  && !xtensa_simm8 (INTVAL (plus1))
-	  && xtensa_mem_offset (INTVAL (plus1) & 0xff, mode)
-	  && xtensa_simm8x256 (INTVAL (plus1) & ~0xff))
-	{
-	  rtx temp = gen_reg_rtx (Pmode);
-	  rtx addmi_offset = GEN_INT (INTVAL (plus1) & ~0xff);
-	  emit_insn (gen_rtx_SET (temp, gen_rtx_PLUS (Pmode, plus0,
-						      addmi_offset)));
-	  return gen_rtx_PLUS (Pmode, temp, GEN_INT (INTVAL (plus1) & 0xff));
+	  emit_insn (gen_addsi3 (temp = gen_reg_rtx (Pmode),
+				 plus0, GEN_INT (addmi_offset)));
+	  if (offset)
+	    emit_insn (gen_addsi3 (temp, temp, GEN_INT (offset)));
+	  return gen_rtx_PLUS (Pmode, temp, GEN_INT (mem_offset));
 	}
     }
 
