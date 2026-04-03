@@ -181,7 +181,7 @@ private:
    * and it will not trigger assertions for already resolved invocations.
    */
   // TODO: Rename
-  void insert_once (AST::MacroInvocation &invocation, NodeId resolved);
+  void try_insert_once (AST::MacroInvocation &invocation, NodeId resolved);
   // TODO: Rename
   void insert_once (AST::MacroRulesDefinition &definition);
 
