@@ -693,15 +693,25 @@
   DONE;
 })
 
-(define_insn "negsf2"
+(define_insn_and_split "negsf2"
   [(set (match_operand:SF 0 "register_operand")
         (neg:SF (match_operand:SF 1 "register_operand")))
    (clobber (match_scratch:SI 2))]
   "TARGET_HARD_FLOAT"
   {@ [cons: =0, 1, =2; attrs: type, length]
-     [D, D, &a; arith , 7] movi.n\t%2, 1\;slli\t%2, %2, 31\;add.n\t%0, %1, %2
+     [D, D, &a; arith , 7] #
      [f, f,  X; farith, 3] neg.s\t%0, %1
   }
+  "&& reload_completed && REG_P (operands[2])"
+  [(set (match_dup 2)
+	(const_int 1))
+   (set (match_dup 2)
+	(ashift:SI (match_dup 2)
+		   (const_int 31)))
+   (set (subreg:SI (match_dup 0) 0)
+	(plus:SI (subreg:SI (match_dup 1) 0)
+		 (match_dup 2)))]
+  ""
   [(set_attr "mode" "SF")])
 
 
