@@ -1706,10 +1706,6 @@ FP_ASM_SPEC "\
    doesn't support 128-bit integers for MIPS32 currently.  */
 #define LONG_LONG_ACCUM_TYPE_SIZE (TARGET_64BIT ? 128 : 64)
 
-/* long double is not a fixed mode, but the idea is that, if we
-   support long double, we also want a 128-bit integer type.  */
-#define MAX_FIXED_MODE_SIZE MIPS_LONG_DOUBLE_TYPE_SIZE
-
 /* Width in bits of a pointer.  */
 #ifndef POINTER_SIZE
 #define POINTER_SIZE ((TARGET_LONG64 && TARGET_64BIT) ? 64 : 32)
