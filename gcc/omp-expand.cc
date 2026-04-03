@@ -7718,27 +7718,24 @@ expand_oacc_for (struct omp_region *region, struct omp_for_data *fd)
   basic_block bottom_bb = NULL;
 
   /* entry_bb has two successors; the branch edge is to the exit
-     block, fallthrough edge to body.  */
-  gcc_assert (EDGE_COUNT (entry_bb->succs) == 2
-	      && BRANCH_EDGE (entry_bb)->dest == exit_bb);
+     block (or to finalization blocks preceding it), fallthrough edge
+     to body.  */
+  gcc_assert (EDGE_COUNT (entry_bb->succs) == 2);
 
   /* If cont_bb non-NULL, it has 2 successors.  The branch successor is
      body_bb, or to a block whose only successor is the body_bb.  Its
      fallthrough successor is the final block (same as the branch
-     successor of the entry_bb).  */
+     successor of the entry_bb), possibly via finalization blocks.  */
   if (cont_bb)
     {
       basic_block body_bb = FALLTHRU_EDGE (entry_bb)->dest;
       basic_block bed = BRANCH_EDGE (cont_bb)->dest;
 
-      gcc_assert (FALLTHRU_EDGE (cont_bb)->dest == exit_bb);
+      gcc_assert (EDGE_COUNT (cont_bb->succs) == 2);
       gcc_assert (bed == body_bb || single_succ_edge (bed)->dest == body_bb);
     }
   else
     gcc_assert (!gimple_in_ssa_p (cfun));
-
-  /* The exit block only has entry_bb and cont_bb as predecessors.  */
-  gcc_assert (EDGE_COUNT (exit_bb->preds) == 1 + (cont_bb != NULL));
 
   tree chunk_no;
   tree chunk_max = NULL_TREE;
