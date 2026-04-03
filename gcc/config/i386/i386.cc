@@ -8781,6 +8781,29 @@ ix86_access_stack_p (unsigned int regno, basic_block bb,
   return false;
 }
 
+/* Return true if OP isn't a memory operand with SYMBOLIC_CONST and
+   needs alignment > ALIGNMENT.  */
+
+static bool
+ix86_need_alignment_p_2 (const_rtx op, unsigned int alignment)
+{
+  bool need_alignment = MEM_ALIGN (op) > alignment;
+  tree mem_expr = MEM_EXPR (op);
+  if (!mem_expr)
+    return need_alignment;
+
+  tree var = get_base_address (mem_expr);
+  if (!VAR_P (var) || !DECL_RTL_SET_P (var))
+    return need_alignment;
+
+  rtx x = DECL_RTL (var);
+  if (!MEM_P (x))
+    return need_alignment;
+
+  x = XEXP (x, 0);
+  return !SYMBOLIC_CONST (x) && need_alignment;
+}
+
 /* Return true if SET needs alignment > ALIGNMENT.  */
 
 static bool
@@ -8789,7 +8812,7 @@ ix86_need_alignment_p_1 (rtx set, unsigned int alignment)
   rtx dest = SET_DEST (set);
 
   if (MEM_P (dest))
-    return MEM_ALIGN (dest) > alignment;
+    return ix86_need_alignment_p_2 (dest, alignment);
 
   const_rtx src = SET_SRC (set);
 
@@ -8799,7 +8822,7 @@ ix86_need_alignment_p_1 (rtx set, unsigned int alignment)
       auto op = *iter;
 
       if (MEM_P (op))
-	return MEM_ALIGN (op) > alignment;
+	return ix86_need_alignment_p_2 (op, alignment);
     }
 
   return false;
@@ -8890,6 +8913,9 @@ ix86_find_max_used_stack_alignment (unsigned int &stack_alignment,
       bitmap_set_bit (worklist, HARD_FRAME_POINTER_REGNUM);
     }
 
+  /* Registers on HARD_STACK_SLOT_ACCESS always access stack.  */
+  HARD_REG_SET hard_stack_slot_access = stack_slot_access;
+
   calculate_dominance_info (CDI_DOMINATORS);
 
   unsigned int regno;
@@ -8926,10 +8952,12 @@ ix86_find_max_used_stack_alignment (unsigned int &stack_alignment,
 	  /* Call ix86_access_stack_p only if INSN needs alignment >
 	     STACK_ALIGNMENT.  */
 	  if (ix86_need_alignment_p (insn, stack_alignment)
-	      && ix86_access_stack_p (regno, BLOCK_FOR_INSN (insn),
-				      set_up_by_prologue, prologue_used,
-				      reg_dominate_bbs_known,
-				      reg_dominate_bbs))
+	      && (TEST_HARD_REG_BIT (hard_stack_slot_access, regno)
+		  || ix86_access_stack_p (regno, BLOCK_FOR_INSN (insn),
+					  set_up_by_prologue,
+					  prologue_used,
+					  reg_dominate_bbs_known,
+					  reg_dominate_bbs)))
 	    {
 	      /* Update stack alignment if REGNO is used for stack
 		 access.  */
