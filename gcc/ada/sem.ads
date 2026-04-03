@@ -394,9 +394,6 @@ package Sem is
       Check : Check_Id;
       --  Check which is set (can be All_Checks for the All_Checks case)
 
-      Suppress : Boolean;
-      --  Set True for Suppress, and False for Unsuppress
-
       Prev : Suppress_Stack_Entry_Ptr;
       --  Pointer to previous entry on stack
 
@@ -406,6 +403,9 @@ package Sem is
       --  field is used as a forward pointer (null ends the list). This is
       --  used to free all entries in Sem.Init (which will be important if
       --  we ever setup the compiler to be reused).
+
+      Suppress : Boolean;
+      --  Set True for Suppress, and False for Unsuppress
    end record;
 
    Suppress_Stack_Entries : Suppress_Stack_Entry_Ptr := null;
@@ -500,9 +500,36 @@ package Sem is
       Entity : Scope_Kind_Id;
       --  Entity representing the scope
 
+      First_Use_Clause : Node_Id;
+      --  Head of list of Use_Clauses in this scope. The list is built when
+      --  the declarations in the scope are processed. The list is traversed
+      --  on scope exit to undo the effect of the use clauses.
+
       Last_Subprogram_Name : String_Ptr;
       --  Pointer to name of last subprogram body in this scope. Used for
       --  testing proper alpha ordering of subprogram bodies in scope.
+
+      Node_To_Be_Wrapped : Node_Id;
+      --  Only used in transient scopes. Records the node that will be wrapped
+      --  by the transient block.
+
+      Actions_To_Be_Wrapped : Scope_Actions;
+      --  Actions that have to be inserted at the start, at the end, or as
+      --  cleanup actions of a transient block. Used to temporarily hold these
+      --  actions until the block is created, at which time the actions are
+      --  moved to the block.
+
+      Locked_Shared_Objects : Elist_Id;
+      --  List of shared passive protected objects that have been locked in
+      --  this transient scope (always No_Elist for non-transient scopes).
+
+      Pending_Freeze_Actions : List_Id;
+      --  Used to collect freeze entity nodes and associated actions that are
+      --  generated in an inner context but need to be analyzed outside, such
+      --  as records and initialization procedures. On exit from the scope,
+      --  this list of actions is inserted before the scope construct and
+      --  analyzed to generate the corresponding freeze processing and
+      --  elaboration of other associated actions.
 
       Save_Scope_Suppress : Suppress_Record;
       --  Save contents of Scope_Suppress on entry
@@ -521,20 +548,32 @@ package Sem is
       Save_Default_Storage_Pool : Node_Id;
       --  Save contents of Default_Storage_Pool on entry to restore on exit
 
-      Save_SPARK_Mode : SPARK_Mode_Type;
-      --  Setting of SPARK_Mode on entry to restore on exit
+      Save_No_Tagged_Streams : Node_Id;
+      --  Setting of No_Tagged_Streams to restore on exit
 
       Save_SPARK_Mode_Pragma : Node_Id;
       --  Setting of SPARK_Mode_Pragma on entry to restore on exit
 
-      Save_No_Tagged_Streams : Node_Id;
-      --  Setting of No_Tagged_Streams to restore on exit
+      Save_SPARK_Mode : SPARK_Mode_Type;
+      --  Setting of SPARK_Mode on entry to restore on exit
+
+      Component_Alignment_Default : Component_Alignment_Kind;
+      --  Component alignment to be applied to any record or array types that
+      --  are declared for which a specific component alignment pragma does not
+      --  set the alignment.
 
       Save_Default_SSO : Character;
       --  Setting of Default_SSO on entry to restore on exit
 
       Save_Uneval_Old : Character;
       --  Setting of Uneval_Old on entry to restore on exit
+
+      Is_Active_Stack_Base : Boolean;
+      --  Set to true only when entering the scope for Standard_Standard from
+      --  from within procedure Semantics. Indicates the base of the current
+      --  active set of scopes. Needed by In_Open_Scopes to handle cases where
+      --  Standard_Standard can be pushed anew on the scope stack to start a
+      --  new active section (see comment above).
 
       Is_Transient : Boolean;
       --  Marks transient scopes (see Exp_Ch7 body for details)
@@ -546,45 +585,6 @@ package Sem is
       --  typically needed when the context of a child unit requires
       --  compilation of a sibling. In other cases the flag is set to False.
       --  See Sem_Ch10 (Install_Parents, Remove_Parents).
-
-      Node_To_Be_Wrapped : Node_Id;
-      --  Only used in transient scopes. Records the node that will be wrapped
-      --  by the transient block.
-
-      Actions_To_Be_Wrapped : Scope_Actions;
-      --  Actions that have to be inserted at the start, at the end, or as
-      --  cleanup actions of a transient block. Used to temporarily hold these
-      --  actions until the block is created, at which time the actions are
-      --  moved to the block.
-
-      Pending_Freeze_Actions : List_Id;
-      --  Used to collect freeze entity nodes and associated actions that are
-      --  generated in an inner context but need to be analyzed outside, such
-      --  as records and initialization procedures. On exit from the scope,
-      --  this list of actions is inserted before the scope construct and
-      --  analyzed to generate the corresponding freeze processing and
-      --  elaboration of other associated actions.
-
-      First_Use_Clause : Node_Id;
-      --  Head of list of Use_Clauses in current scope. The list is built when
-      --  the declarations in the scope are processed. The list is traversed
-      --  on scope exit to undo the effect of the use clauses.
-
-      Component_Alignment_Default : Component_Alignment_Kind;
-      --  Component alignment to be applied to any record or array types that
-      --  are declared for which a specific component alignment pragma does not
-      --  set the alignment.
-
-      Is_Active_Stack_Base : Boolean;
-      --  Set to true only when entering the scope for Standard_Standard from
-      --  from within procedure Semantics. Indicates the base of the current
-      --  active set of scopes. Needed by In_Open_Scopes to handle cases where
-      --  Standard_Standard can be pushed anew on the scope stack to start a
-      --  new active section (see comment above).
-
-      Locked_Shared_Objects : Elist_Id;
-      --  List of shared passive protected objects that have been locked in
-      --  this transient scope (always No_Elist for non-transient scopes).
    end record;
 
    package Scope_Stack is new Table.Table (
