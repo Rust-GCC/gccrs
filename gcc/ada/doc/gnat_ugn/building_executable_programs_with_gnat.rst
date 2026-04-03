@@ -8003,16 +8003,7 @@ passed between C and Ada as simple as practical.
 
 GNAT LLVM currently provides limited support for debugging data. It
 provides full line number information for declarations and statements,
-but not sufficient debugging data to display all Ada data
-structures. GNAT LLVM outputs complete debugging data only for a
-subset of types: scalar types; records whose field offsets are known
-at compile time, including discriminated records fitting this
-description; and arrays. Records that have a field whose size or
-offset is only known at run time do not yet have correct debugging
-data. You will not be able to use ``gdb`` print commands to look at
-objects not of those types or to display components of those
-types. You can use low-level ``gdb`` commands that display memory to
-view such data provided you know how they're laid out.
+and complete debugging data for all types.
 
 In some situations, a name in the source may not be available.
 Renamings are not currently emitted into the debugging data. When
