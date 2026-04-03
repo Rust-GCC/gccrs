@@ -5123,7 +5123,9 @@ cp_coroutine_transform::build_ramp_function ()
   tree coro_frame_refcount
     = coro_build_and_push_artificial_var_with_dve (loc, coro_frame_refcount_id,
 						   short_unsigned_type_node,
-						   orig_fn_decl, NULL_TREE,
+						   orig_fn_decl,
+						   build_int_cst
+						   (short_unsigned_type_node, 0),
 						   deref_fp);
   /* Cleanup if both the ramp and the body have finished.  */
   tree cond
