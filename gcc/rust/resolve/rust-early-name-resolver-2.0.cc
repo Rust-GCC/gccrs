@@ -37,10 +37,17 @@ Early::Early (NameResolutionContext &ctx)
 {}
 
 void
-Early::insert_once (AST::MacroInvocation &invocation, NodeId resolved)
+Early::try_insert_once (AST::MacroInvocation &invocation, NodeId resolved)
 {
-  // TODO: Should we use `ctx.mark_resolved()`?
-  auto definition = ctx.mappings.lookup_macro_def (resolved);
+  auto leaf_macro = ctx.find_leaf_definition (resolved);
+
+  // Sometimes the import itself isn't resolved yet this turn of the fixed-point
+  if (!leaf_macro)
+    return;
+
+  // TODO: Should we use `ctx.map_usage()`?
+
+  auto definition = ctx.mappings.lookup_macro_def (leaf_macro->id);
 
   if (!ctx.mappings.lookup_macro_invocation (invocation))
     ctx.mappings.insert_macro_invocation (invocation, definition.value ());
@@ -49,7 +56,6 @@ Early::insert_once (AST::MacroInvocation &invocation, NodeId resolved)
 void
 Early::insert_once (AST::MacroRulesDefinition &def)
 {
-  // TODO: Should we use `ctx.mark_resolved()`?
   if (!ctx.mappings.lookup_macro_def (def.get_node_id ()))
     ctx.mappings.insert_macro_def (&def);
 }
@@ -64,6 +70,7 @@ Early::go (AST::Crate &crate)
   // us
 
   dirty = toplevel.is_dirty ();
+
   // We now proceed with resolving macros, which can be nested in almost any
   // items
   textual_scope.push ();
@@ -347,7 +354,7 @@ Early::visit (AST::MacroInvocation &invoc)
       return;
     }
 
-  insert_once (invoc, definition->get_node_id ());
+  try_insert_once (invoc, definition->get_node_id ());
 
   // now do we need to keep mappings or something? or insert "uses" into our
   // ForeverStack? can we do that? are mappings simpler?
@@ -449,7 +456,7 @@ Early::finalize_simple_import (const Early::ImportPair &mapping)
 
   for (auto &&definition : data.definitions ())
     {
-      dirty = true;
+      // dirty = true;
 
       ctx.map_usage (Usage (import_id),
 		     Definition (definition.first.get_node_id ()));
@@ -457,6 +464,8 @@ Early::finalize_simple_import (const Early::ImportPair &mapping)
       toplevel
 	.insert_or_error_out (identifier,
 			      import.get_locus (), import_id, definition.second /* TODO: This isn't clear - it would be better if it was called .ns or something */);
+
+      dirty = dirty || toplevel.is_dirty ();
     }
 }
 
@@ -528,7 +537,7 @@ Early::finalize_rebind_import (const Early::ImportPair &mapping)
 
   for (auto &&definition : data.definitions ())
     {
-      dirty = true;
+      // dirty = true;
 
       ctx.map_usage (Usage (import_id),
 		     Definition (definition.first.get_node_id ()));
@@ -536,6 +545,8 @@ Early::finalize_rebind_import (const Early::ImportPair &mapping)
       toplevel
 	.insert_or_error_out (declared_name,
 			      path.get_locus (), import_id, definition.second /* TODO: This isn't clear - it would be better if it was called .ns or something */);
+
+      dirty = dirty || toplevel.is_dirty ();
 
       // Map the import to the glob container if it exists - this is important
       // for 2-stepped glob imports which refer to glob containers, e.g.
