@@ -3,9 +3,9 @@
 
 mod inner {
     mod intrinsics {
-        fn unchecked_shl() {}
-        fn unchecked_snl() {}
-        fn unchecked_adult_swim() {}
+        pub fn unchecked_shl() {}
+        pub fn unchecked_snl() {}
+        pub fn unchecked_adult_swim() {}
     }
 }
 
