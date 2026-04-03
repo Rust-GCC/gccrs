@@ -1804,10 +1804,10 @@ enum cxa_builtin {
   CXA_BAD_CAST = 8,
   CXA_BAD_TYPEID = 9,
   CXA_THROW_BAD_ARRAY_NEW_LENGTH = 10,
-  STD_UNCAUGHT_EXCEPTIONS = 11,
-  STD_CURRENT_EXCEPTION = 12,
-  STD_RETHROW_EXCEPTION = 13,
-  BUILTIN_EH_PTR_ADJUST_REF = 14
+  STD_RETHROW_EXCEPTION = 11,
+  BUILTIN_EH_PTR_ADJUST_REF = 12,
+  BUILTIN_UNCAUGHT_EXCEPTIONS = 13,
+  BUILTIN_CURRENT_EXCEPTION = 14
 };
 
 /* Return cxa_builtin if FNDECL is a __cxa_* function handled as
@@ -1822,10 +1822,6 @@ cxx_cxa_builtin_fn_p (tree fndecl)
     {
       if (!decl_in_std_namespace_p (fndecl))
 	return CXA_NONE;
-      if (id_equal (DECL_NAME (fndecl), "uncaught_exceptions"))
-	return STD_UNCAUGHT_EXCEPTIONS;
-      if (id_equal (DECL_NAME (fndecl), "current_exception"))
-	return STD_CURRENT_EXCEPTION;
       if (id_equal (DECL_NAME (fndecl), "rethrow_exception"))
 	return STD_RETHROW_EXCEPTION;
       return CXA_NONE;
@@ -2186,7 +2182,7 @@ cxx_eval_cxa_builtin_fn (const constexpr_ctx *ctx, tree call,
 	  *jump_target = var;
 	}
       return void_node;
-    case STD_UNCAUGHT_EXCEPTIONS:
+    case BUILTIN_UNCAUGHT_EXCEPTIONS:
       if (nargs != 0)
 	goto invalid_nargs;
       /* Similarly to __builtin_is_constant_evaluated (), we don't
@@ -2202,7 +2198,7 @@ cxx_eval_cxa_builtin_fn (const constexpr_ctx *ctx, tree call,
 	}
       return build_int_cst (integer_type_node,
 			    ctx->global->uncaught_exceptions);
-    case STD_CURRENT_EXCEPTION:
+    case BUILTIN_CURRENT_EXCEPTION:
       if (nargs != 0)
 	goto invalid_nargs;
       else
@@ -2489,40 +2485,53 @@ cxx_eval_builtin_function_call (const constexpr_ctx *ctx, tree t, tree fun,
       return t;
     }
 
-  /* For __builtin_is_constant_evaluated, defer it if not
-     ctx->manifestly_const_eval (as sometimes we try to constant evaluate
-     without manifestly_const_eval even expressions or parts thereof which
-     will later be manifestly const_eval evaluated), otherwise fold it to
-     true.  */
-  if (fndecl_built_in_p (fun, CP_BUILT_IN_IS_CONSTANT_EVALUATED,
-			 BUILT_IN_FRONTEND))
-    {
-      if (ctx->manifestly_const_eval == mce_unknown)
+  if (fndecl_built_in_p (fun, BUILT_IN_FRONTEND))
+    switch (DECL_FE_FUNCTION_CODE (fun))
+      {
+      case CP_BUILT_IN_IS_CONSTANT_EVALUATED:
+	/* For __builtin_is_constant_evaluated, defer it if not
+	   ctx->manifestly_const_eval (as sometimes we try to constant evaluate
+	   without manifestly_const_eval even expressions or parts thereof
+	   which will later be manifestly const_eval evaluated), otherwise fold
+	   it to true.  */
+	if (ctx->manifestly_const_eval == mce_unknown)
+	  {
+	    *non_constant_p = true;
+	    return t;
+	  }
+	return constant_boolean_node (ctx->manifestly_const_eval == mce_true,
+				      boolean_type_node);
+
+      case CP_BUILT_IN_SOURCE_LOCATION:
 	{
-	  *non_constant_p = true;
-	  return t;
+	  temp_override<tree> ovr (current_function_decl);
+	  if (ctx->call && ctx->call->fundef)
+	    current_function_decl = ctx->call->fundef->decl;
+	  return fold_builtin_source_location (t);
 	}
-      return constant_boolean_node (ctx->manifestly_const_eval == mce_true,
-				    boolean_type_node);
-    }
 
-  if (fndecl_built_in_p (fun, CP_BUILT_IN_SOURCE_LOCATION, BUILT_IN_FRONTEND))
-    {
-      temp_override<tree> ovr (current_function_decl);
-      if (ctx->call && ctx->call->fundef)
-	current_function_decl = ctx->call->fundef->decl;
-      return fold_builtin_source_location (t);
-    }
+      case CP_BUILT_IN_EH_PTR_ADJUST_REF:
+	return cxx_eval_cxa_builtin_fn (ctx, t, BUILTIN_EH_PTR_ADJUST_REF,
+					fun, non_constant_p, overflow_p,
+					jump_target);
 
-  if (fndecl_built_in_p (fun, CP_BUILT_IN_EH_PTR_ADJUST_REF,
-			 BUILT_IN_FRONTEND))
-    return cxx_eval_cxa_builtin_fn (ctx, t, BUILTIN_EH_PTR_ADJUST_REF,
-				    fun, non_constant_p, overflow_p,
-				    jump_target);
+      case CP_BUILT_IN_CURRENT_EXCEPTION:
+	return cxx_eval_cxa_builtin_fn (ctx, t, BUILTIN_CURRENT_EXCEPTION,
+					fun, non_constant_p, overflow_p,
+					jump_target);
 
-  if (fndecl_built_in_p (fun, CP_BUILT_IN_CONSTEXPR_DIAG, BUILT_IN_FRONTEND))
-    return cxx_eval_constexpr_diag (ctx, t, non_constant_p, overflow_p,
-				    jump_target);
+      case CP_BUILT_IN_UNCAUGHT_EXCEPTIONS:
+	return cxx_eval_cxa_builtin_fn (ctx, t, BUILTIN_UNCAUGHT_EXCEPTIONS,
+					fun, non_constant_p, overflow_p,
+					jump_target);
+
+      case CP_BUILT_IN_CONSTEXPR_DIAG:
+	return cxx_eval_constexpr_diag (ctx, t, non_constant_p, overflow_p,
+					jump_target);
+
+      default:
+	break;
+      }
 
   int strops = 0;
   int strret = 0;

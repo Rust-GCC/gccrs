@@ -342,7 +342,11 @@ namespace std _GLIBCXX_VISIBILITY(default)
 	}
       catch(...)
 	{
+#if _GLIBCXX_USE_BUILTIN_TRAIT(__builtin_current_exception)
+	  return __builtin_current_exception();
+#else
 	  return current_exception();
+#endif
 	}
 #endif
       return exception_ptr();

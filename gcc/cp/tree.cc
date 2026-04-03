@@ -570,6 +570,8 @@ builtin_valid_in_constant_expr_p (const_tree decl)
 	  case CP_BUILT_IN_EH_PTR_ADJUST_REF:
 	  case CP_BUILT_IN_IS_STRING_LITERAL:
 	  case CP_BUILT_IN_CONSTEXPR_DIAG:
+	  case CP_BUILT_IN_CURRENT_EXCEPTION:
+	  case CP_BUILT_IN_UNCAUGHT_EXCEPTIONS:
 	    return true;
 	  default:
 	    break;
