@@ -2907,29 +2907,34 @@ declaration does not use either @code{signed} or @code{unsigned}.  By
 default, such a bit-field is signed, because this is consistent: the
 basic integer types such as @code{int} are signed types.
 
+@anchor{@code{char} type signedness}
+@cindex @code{char} type signedness
+@cindex signedness of @code{char} type
 @opindex fsigned-char
 @opindex fno-signed-char
+@opindex funsigned-char
+@opindex fno-unsigned-char
 @item -fsigned-char
-Let the type @code{char} be signed, like @code{signed char}.
+@itemx -funsigned-char
+@option{-fsigned-char} lets the type @code{char} be signed,
+like @code{signed char}, while @option{-funsigned-char} lets
+the type @code{char} be unsigned, like @code{unsigned char}.
 
-Note that this is equivalent to @option{-fno-unsigned-char}, which is
+Note that @option{-fsigned-char}
+is equivalent to @option{-fno-unsigned-char}, which is
 the negative form of @option{-funsigned-char}.  Likewise, the option
 @option{-fno-signed-char} is equivalent to @option{-funsigned-char}.
 
-@opindex funsigned-char
-@opindex fno-unsigned-char
-@item -funsigned-char
-Let the type @code{char} be unsigned, like @code{unsigned char}.
-
-Each kind of machine has a default for what @code{char} should
-be.  It is either like @code{unsigned char} by default or like
-@code{signed char} by default.
+Each target supported by GCC has a default for what @code{char} should
+be, which is typically specified in the processor-specific ABI
+document for that target.  It is either like @code{unsigned char} by
+default or like @code{signed char} by default.
 
 Ideally, a portable program should always use @code{signed char} or
 @code{unsigned char} when it depends on the signedness of an object.
 But many programs have been written to use plain @code{char} and
 expect it to be signed, or expect it to be unsigned, depending on the
-machines they were written for.  This option, and its inverse, let you
+machines they were written for.  These options let you
 make such a program work with the opposite default.
 
 The type @code{char} is always a distinct type from each of
@@ -7103,8 +7108,13 @@ Both diagnostics are also suppressed by @option{-fms-extensions}.
 @item -Wchar-subscripts
 Warn if an array subscript has type @code{char}.  This is a common cause
 of error, as programmers often forget that this type is signed on some
-machines.
-This warning is enabled by @option{-Wall}.
+machines.  @xref{Characters implementation}, and
+@ref{@code{char} type signedness}.
+
+This warning is enabled by @option{-Wall}.  When enabled, the warning
+is given regardless of whether @code{char} is unsigned by default on
+the target, and it is also not affected by the @option{-fsigned-char}
+or @option{-funsigned-char} options.
 
 @opindex Wno-coverage-mismatch
 @opindex Wcoverage-mismatch
