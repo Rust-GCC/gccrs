@@ -1,3 +1,218 @@
+2026-04-02  Patrick Palka  <ppalka@redhat.com>
+
+	* include/std/ranges (zip_view::size): Uglify 'sizes'
+	parameter.
+
+2026-04-02  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* include/bits/version.def (inplace_vector): Bump to 202603.
+	* include/bits/version.h: Regenerate.
+	* include/std/inplace_vector (inplace_vector::try_emplace_back)
+	(inplace_vector::try_push_back): Change return type to optional<_Tp&>
+	and adjust implementation accordingly.
+	(inplace_vector::try_append_range): Remove.
+	* include/debug/inplace_vector (inplace_vector::try_emplace_back)
+	(inplace_vector::try_push_back, inplace_vector::try_append_range):
+	Likewise.
+	* testsuite/23_containers/inplace_vector/modifiers/single_insert.cc:
+	Updated check for the optional<T&> return. Added test for type
+	convertible to optional<T&>
+	* testsuite/23_containers/inplace_vector/debug/invalidation/try_emplace_back.cc:
+	Use has_value() to check if engaged optional is returned.
+	* testsuite/23_containers/inplace_vector/debug/invalidation/try_push_back.cc:
+	Likewise.
+	* testsuite/23_containers/inplace_vector/modifiers/multi_insert.cc:
+	Remove try_append_range tests.
+	* testsuite/23_containers/inplace_vector/debug/invalidation/try_append_range.cc:
+	Removed.
+	* testsuite/23_containers/inplace_vector/version.cc: Updated expected
+	feature test macro value.
+
+2026-04-02  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/std/version: Add Doxygen documentation comment.
+
+2026-04-02  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/bits/regex_constants.h (format_default): Simplify
+	description of $n in Doxygen comment.
+
+2026-04-02  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/bits/stl_pair.h (pair): Adjust Doxygen comment.
+
+2026-04-02  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/bits/chrono.h (floor, ceil, round): Fix Doxygen
+	comments to use correct parameter name and describe return value
+	more accurately.
+
+2026-04-02  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/bits/unordered_map.h (unordered_map::erase(K&&)):
+	Change parameter name to __x.
+	* include/bits/unordered_set.h (unordered_set::erase(K&&))
+	(unordered_multiset::erase(K&&)): Likewise.
+
+2026-04-02  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/bits/ostream.h (operator<<): Do not include deleted
+	overloads in @{ group.
+	* include/bits/stl_queue.h (priority_queue): Add @{ group around
+	constructors.
+	* include/bits/unordered_map.h: Remove stray @{. Move #endif to
+	encompass @} that is within the #if group.
+
+2026-04-02  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/bits/move.h (swap): Remove @return from Doxygen
+	comment.
+	* include/bits/stl_algo.h (inplace_merge, shuffle)
+	(random_shuffle, partial_sort, nth_element, sort)
+	(stable_sort): Likewise.
+	* include/bits/stl_algobase.h (iter_swap, fill): Likewise.
+	* include/bits/stl_deque.h (_Deque_base::_M_initialize_map)
+	(deque::_M_range_initialize, deque::_M_fill_initialize):
+	Likewise.
+	* include/bits/stl_iterator_base_funcs.h (advance): Likewise.
+	* include/bits/stl_numeric.h (iota): Likewise.
+	* include/bits/stl_tempbuf.h (return_temporary_buffer):
+	Likewise.
+	* include/bits/stl_uninitialized.h (uninitialized_fill):
+	Likewise.
+
+2026-04-02  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/ext/pb_ds/detail/gp_hash_table_map_/find_no_store_hash_fn_imps.hpp:
+	Add missing #endif.
+
+2026-04-02  Jonathan Wakely  <jwakely@redhat.com>
+
+	* doc/doxygen/doxygroups.cc: Define variable_templates group.
+	* include/bits/binders.h: Fix @file name.
+	* include/bits/formatfwd.h: Add missing @cond
+	* include/bits/forward_list.h: Add closing backtick in comment.
+	* include/bits/out_ptr.h (out_ptr, inout_ptr): Fix names in
+	@param comments.
+	* include/bits/regex_constants.h: Escape backtick in comment.
+	* include/bits/stl_map.h: Add missing @{.
+	* include/bits/stl_set.h: Likewise.
+	* include/bits/stl_pair.h: Move declaration of complex into #if
+	group where it's used. Fix nesting of @cond and @endcond in #if
+	groups.
+	* include/std/functional: Move @cond inside #if group.
+	* include/std/type_traits: Likewise.
+	* libsupc++/exception: Fix typo'd backtick.
+
+2026-04-02  Jonathan Wakely  <jwakely@redhat.com>
+
+	* doc/doxygen/user.cfg.in (INPUT): Add <debugging> header.
+	(EXCLUDE_SYMBOLS): Exclude include guards and other internal
+	macros from generated documentation.
+	(PREDEFINED): Update __cplusplus to C++26 value. Remove
+	unnecessary spaces in macro expansions. Add missing
+	_GLIBCXX_ABI_TAG_CXX11 macro.
+
+2026-04-02  Jonathan Wakely  <jwakely@redhat.com>
+
+	* doc/doxygen/user.cfg.in: Update Doxygen config.
+
+2026-04-02  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/bits/stl_map.h (map::try_emplace): Move #endif and use
+	Doxygen's @{ to document all three overloads.
+	(map::insert_or_assign): Use relevant feature test macro.
+
+2026-04-02  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* include/bits/version.def (submdspan): Update to 202603,
+	and list all papers in comment.
+	* include/bits/version.h: Regenerate.
+	* include/std/mdspan: Replaced std::strided_stride to
+	std::extent_slice, __is_strided_slice to __is_extent_slice,
+	_SliceKind::__unit_strided_slice to __unit_stride_slice.
+	* src/c++23/std.cc.in (std::extent_slice): Replaced
+	std::strided_slice to std::extent_slice.
+	* testsuite/23_containers/mdspan/submdspan/canonical_slices.cc:
+	Replaced all occurences of strided_slice to extent_slice.
+	* testsuite/23_containers/mdspan/submdspan/canonical_slices_neg.cc:
+	Likewise.
+	* testsuite/23_containers/mdspan/submdspan/strided_slice.cc: Move to...
+	* testsuite/23_containers/mdspan/submdspan/extent_slice.cc: ...here
+	and handle rename.
+	* testsuite/23_containers/mdspan/submdspan/strided_slice_neg.cc: Move to...
+	* testsuite/23_containers/mdspan/submdspan/extent_slice_neg.cc: ...here
+	and handle rename.
+	* testsuite/23_containers/mdspan/submdspan/selections/testcases.h:
+	Replaced all occurences of strided_slice to extent_slice.
+	* testsuite/23_containers/mdspan/submdspan/subextents.cc: Likewise.
+	* testsuite/23_containers/mdspan/submdspan/subextents_neg.cc:
+	Likewise.
+	* testsuite/23_containers/mdspan/submdspan/submdspan_mapping.cc:
+	Likewise.
+	* testsuite/23_containers/mdspan/submdspan/submdspan_neg.cc: Likewise.
+
+2026-04-02  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* include/std/mdspan (__mdspan::__static_slice_extent)
+	(__mdspan::__dynamic_slice_extent): Return unmodified extent
+	value for strided_slice.
+	(__mdspan::__substrides_generic, __mdspan::__substrides_standardized):
+	Multipliy stride, if more than one element is requested.
+	(__mdspan::__canonical_range_slice): Define.
+	(__mdspan::__slice_cast): Use __canonical_range_slice for range_slice
+	and two elements tuples.
+	(__mdspan::__check_inrange_index): Define.
+	(__mdspan::__check_valid_slice): Validate if slice.offset +
+	(slice.extent - 1) * slice.stride fits into extent of given
+	dimension. Check stride if slice.extent > 1.
+	* testsuite/23_containers/mdspan/submdspan/canonical_slices.cc:
+	Add test for range_slice.
+	* testsuite/23_containers/mdspan/submdspan/canonical_slices_neg.cc:
+	Add tests validating new conditions.
+	* testsuite/23_containers/mdspan/submdspan/selections/testcases.h:
+	Adjusted for change of meaing of strided_slice::extent.
+	* testsuite/23_containers/mdspan/submdspan/subextents.cc:
+	Adjusted for change of meaing of strided_slice::extent. And expanded
+	range_slice tests.
+	* testsuite/23_containers/mdspan/submdspan/subextents_neg.cc:
+	Adjusted for change of meaing of strided_slice::extent.
+	* testsuite/23_containers/mdspan/submdspan/submdspan_neg.cc:
+	Adjust test for stride value.
+
+2026-04-02  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* src/c++23/std.cc.in (range_slice): Export.
+	* include/std/mdspan (range_slice, __mdspan::__is_range_slice):
+	Define.
+	(__mdspan::__slice_cast): Handle strided_slice.
+	* testsuite/23_containers/mdspan/submdspan/subextents.cc:
+	Sanity tests for range_slice.
+
+2026-04-02  Jonathan Wakely  <jwakely@redhat.com>
+
+	* Makefile.am (new-abi-baseline): New target.
+	* Makefile.in: Regenerate.
+
+2026-04-02  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/std/format (dynamic_format): Check new value for
+	feature test macro.
+
+2026-04-02  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* src/c++23/std.cc.in (std::saturatint_cast): Fixed typo...
+	(std::saturating_cast): ...by exporting this.
+
+2026-04-02  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* src/c++23/std.cc.in (std::runtime_format, std::add_sat)
+	(std::sub_sat, std::mul_sat, std::div_sat, std::saturate_cast):
+	Replace exports with...
+	(std::dynamic_format, std::saturating_add, std::saturating_sub)
+	(std::saturating_mul, std::saturating_div, std::saturating_cast):
+	...exports of new names.
+
 2026-04-01  Jakub Jelinek  <jakub@redhat.com>
 
 	* include/std/meta (std::meta::__detail::__statically_sized): New

@@ -1,3 +1,32 @@
+2026-04-02  Robert Dubner  <rdubner@symas.com>
+
+	* Makefile.am: Include new libgcobol/inspect.cc file.
+	* Makefile.in: Likewise.
+	* charmaps.h: Remove global RETURN-CODE
+	* constants.cc (struct cblc_field_t): Eliminate various globals.
+	* gcobolio.h: Eliminate cblc_field_t::dummy member.
+	* libgcobol.cc (funky_find): Moved to inspect.cc.
+	(funky_find_wide): Likewise.
+	(funky_find_backward): Likewise.
+	(funky_find_wide_backward): Likewise.
+	(normalize_id): Likewise.
+	(match_lengths): Likewise.
+	(the_alpha_and_omega): Likewise.
+	(the_alpha_and_omega_backward): Likewise.
+	(inspect_backward_format_1): Likewise.
+	(__gg__inspect_format_1): Likewise.
+	(inspect_backward_format_2): Likewise.
+	(__gg__inspect_format_2): Likewise.
+	(normalize_for_inspect_format_4): Likewise.
+	(__gg__inspect_format_4): Likewise.
+	(__gg__is_canceled): Simplify establishing the function return code.
+	(__gg__pseudo_return_push): Work with integer indexes rather than
+	addresses.
+	(__gg__set_data_member): New function.
+	* xmlparse.cc (xml_event): Use passed variables rather than globals.
+	(__gg__xml_parse): Likewise.
+	* inspect.cc: New file.
+
 2026-02-26  Robert Dubner  <rdubner@symas.com>
 
 	* intrinsic.cc (__gg__trim):  Rewritten to work properly, and avoid

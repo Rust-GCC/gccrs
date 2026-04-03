@@ -1,3 +1,27 @@
+2026-04-02  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR tree-optimization/124746
+	* tree-ssa-phiprop.cc (propagate_with_phi): Treat
+	and aggregate copy as it is a trapping load.
+
+2026-04-02  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	* tree-ssa-phiprop.cc (propagate_with_phi): Move the
+	check for load from ptr before the checks of domination.
+
+2026-04-02  Lulu Cheng  <chenglulu@loongson.cn>
+
+	* config/loongarch/loongarch-protos.h
+	(loongarch_parse_fmv_features): Modify parameter type.
+	* config/loongarch/loongarch-target-attr.cc
+	(loongarch_parse_fmv_features): Some errors have been
+	changed to warnings.
+	* config/loongarch/loongarch.cc
+	(loongarch_process_target_version_attr): Update parameters.
+	(loongarch_check_target_clone_version): Likewise.
+	(loongarch_option_same_function_versions): Likewise.
+	(TARGET_CHECK_TARGET_CLONE_VERSION): Define.
+
 2026-04-01  Tamar Christina  <tamar.christina@arm.com>
 	    Roger Sayle  <roger@nextmovesoftware.com>
 

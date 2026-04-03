@@ -1,3 +1,11 @@
+2026-04-02  Christopher Albert  <albert@tugraz.at>
+	    Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/124751
+	* trans-array.cc (gfc_conv_array_parameter): Build a packed
+	descriptor for assumed-rank actual arguments instead of reusing
+	stale metadata from the original descriptor.
+
 2026-04-01  Gonzalosilvalde  <gonzalo.silvalde@gmail.com>
 
 	PR fortran/79330

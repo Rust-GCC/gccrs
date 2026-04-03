@@ -1,3 +1,16 @@
+2026-04-02  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	PR c++/124477
+	* module.cc (trees_in::read_function_def): Set DECL_ARGUMENTS if
+	installing and otherwise missing.
+
+2026-04-02  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/124646
+	PR c++/124645
+	* call.cc (set_up_extended_ref_temp): Move setting DECL_EXTERNAL
+	to the !at_function_scope_p block.
+
 2026-04-01  Jakub Jelinek  <jakub@redhat.com>
 
 	* name-lookup.cc (push_local_extern_decl_alias): Diagnose annotations

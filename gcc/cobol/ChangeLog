@@ -1,3 +1,114 @@
+2026-04-02  Robert Dubner  <rdubner@symas.com>
+
+	* cobol1.cc (cobol_langhook_handle_option): Handle OPT_Wrecording_mode.
+	* gcobol.1: Documentation of pre-program registers.
+	* genapi.cc (hijacker): Define new function hijacked code generation.
+	(RETURN_WHEN_HIJACKED): Macro for wrapping if(hijacked)return;
+	(hijacked): Either a boolean or false depending on ENABLE_HIJACKING.
+	(set_exception_environment): Use gg_pointer_to_array instead of
+	gg_get_address_of.
+	(parser_statement_end): Formatting.
+	(section_label): Change ALTER STATEMENT processing.
+	(pseudo_return_push): Expand TRACE1 message.
+	(pseudo_return_pop): Expand TRACE1 message; improved PERFORM processing.
+	(find_procedure): Change how cbl_proc_t is allocated; improved PERFORM
+	processing.
+	(parser_enter_section): Changed ALTER statement processing.
+	(parser_enter_paragraph): Likewise.
+	(parser_goto): Use SWITCH_EXPR instead of indirect jump.
+	(parser_perform): Likewise.
+	(internal_perform_through): Likewise.
+	(parser_enter_file): Use SWITCH_EXPR for implementing ENTRY statement.
+	(parser_leave_file): Build table of values for the SWITCH_EXPR.
+	(enter_program_common): Remove unused JMP *ptr.
+	(parser_enter_program): Code to hijack code generation for a function
+	"dubner" when ENABLE_HIJACKING is defined.
+	(build_dispatch_switch): Generalize builder of SWITCH_EXPR.
+	(build_alter_switch): Uses build_dispatch_switch.
+	(build_entry_switch): Likewise.
+	(build_perform_dispatcher): Likewise.
+	(parser_end_program): Wrap build_perform_dispatcher() in if(!hijacked).
+	(parser_init_list): Use RETURN_WHEN_HIJACKED; use gg_pointer_to_array()
+	instead of gg_get_address_of().
+	(psa_FldLiteralN): Set TREE_READONLY(var_decl) = 1.
+	(parser_alphabet): use gg_pointer_to_array() instead of
+	gg_get_address_of().
+	(parser_assign): Formatting.
+	(program_end_stuff): Call hijacking() when ENABLE_HIJACKING and the
+	program-id is "hijack"; use gg_pointer_to_array().
+	(parser_exit): Handle if(hijacked);
+	(register_find): New static function to find XML-* COBOL variables.
+	(parser_xml_parse): Updated XML PARSE statement handling.
+	(initialize_the_data): Use RETURN_WHEN_HIJACKED.
+	(establish_using): Change first-time-through processing.
+	(parser_division): Change ENTRY statement processing.
+	(parser_see_stop_run): Changed RETURN-CODE per-function variable
+	processing.
+	(parser_label_label): Use RETURN_WHEN_HIJACKED.
+	(parser_label_goto): Likewise.
+	(parser_perform_inline_times): Honor cbl_field_t offset for the count
+	parameter.
+	(inspect_tally): Use __gg__inspect_format_1_sbc() for SBC characters.
+	(create_and_call): Use per-function RETURN-CODE.
+	(parser_entry_activate): Eliminate static tree variables.
+	(parser_entry): Use automatic tree variables.
+	(parser_program_hierarchy): Use RETURN_WHEN_HIJACKED and
+	gg_pointer_to_array().
+	(build_temporaryN): New function compiled when ENABLE_HIJACKING.
+	(hijack_for_development): Changed to generate minimal GENERIC.
+	(actually_create_the_static_field): Use gg_structure_type_constructor
+	to create the constructor for the static cblc_field_t VAR_DECL.
+	(psa_FldLiteralA): Move where TREE attributes are established.
+	(parser_local_add): Use gg_pointer_to_array().
+	(parser_symbol_add): Use RETURN_WHEN_HIJACKED(); use gg_pointer_to_array().
+	* gengen.cc (gg_append_statement): #if 0 around some debugging code.
+	(gg_show_type): Expanded to display "static" and "readonly".
+	(gg_find_field_in_struct): Moved and rewritten.
+	(gg_get_structure_type_decl): New function.
+	(gg_start_building_a_union): Eliminated.
+	(gg_start_building_a_struct): Eliminated.
+	(gg_add_field_to_structure): Eliminated.
+	(gg_structure_type_constructor): New function.
+	(gg_get_struct_type_decl): Eliminated.
+	(gg_get_union_type_decl): Eliminated.
+	(gg_get_local_struct_type_decl): Eliminated.
+	(gg_get_filelevel_struct_type_decl): Eliminated.
+	(gg_get_filelevel_union_type_decl): Eliminated.
+	(gg_define_local_struct): Eliminated.
+	(gg_assign_to_structure): Eliminated.
+	(gg_define_array): Formatting.
+	(gg_pointer_to_array): Returns ADDR_EXPR for &array[0];
+	(gg_goto): Comment reflecting why we aren't using it.
+	* gengen.h (SHORT_P): Alias for build_pointer_type(short_integer_type_node);
+	(struct gg_function_t): Changes mostly in support of SWITCH_EXPR.
+	(gg_get_local_struct_type_decl): Eliminated declaration.
+	(gg_get_filelevel_struct_type_decl): Likewise.
+	(gg_get_filelevel_union_type_decl): Likewise.
+	(gg_define_local_struct): Likewise.
+	(gg_get_structure_type_decl): New declaration.
+	(gg_structure_type_constructor): New declaration.
+	(gg_assign_to_structure): Eliminated declaration.
+	(gg_define_uchar_star): Changed declaration.
+	(gg_pointer_to_array): New declaration.
+	* genutil.cc: Removed unused globals; added var_decl_entry_index.
+	* genutil.h: Likewise.
+	* parse.y: Change program-id and REDEFINES handling.
+	* parse_ante.h: Likewise.
+	* scan_ante.h (is_refmod): Rewrite.
+	* structs.cc (create_cblc_field_t): Use gg_get_structure_type_decl().
+	* symbols.cc (return_code_register): Use per-program COBOL registers.
+	(symbol_redefines_root): New function.
+	(symbols_update): Use per-program COBOL registers.
+	(symbol_table_init): Implement per-program registers.
+	(symbol_registers_add): Likewise.
+	(cbl_field_t::encode): Loosen COBOL level requirement.
+	* symbols.h (struct cbl_proc_t): SWITCH_EXPR-based PERFORM returns.
+	(symbol_redefines_root): New declaration.
+	(symbol_registers_add): New declaration.
+	(new_alphanumeric): New comment.
+	* util.cc (FOR_JIM): Remove some unused demonstration code.
+	(cbl_field_t::encode_numeric): Likewise.
+
 2026-03-02  Robert Dubner  <rdubner@symas.com>
 
 	PR cobol/119456

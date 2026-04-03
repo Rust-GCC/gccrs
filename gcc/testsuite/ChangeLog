@@ -1,3 +1,54 @@
+2026-04-02  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	PR c++/124477
+	* g++.dg/modules/builtin-10_a.C: New test.
+	* g++.dg/modules/builtin-10_b.C: New test.
+
+2026-04-02  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR testsuite/124548
+	* g++.dg/coroutines/torture/func-params-07.C (main): Fix lifetime
+	issue of rvalue reference.
+
+2026-04-02  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/124646
+	PR c++/124645
+	* g++.dg/reflect/members_of11.C: New test.
+	* g++.dg/reflect/members_of12.C: New test.
+
+2026-04-02  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR tree-optimization/124746
+	* gcc.dg/tree-ssa/pr124746-1.c: New test.
+
+2026-04-02  Uros Bizjak  <ubizjak@gmail.com>
+
+	* gcc.target/i386/pr124696.c: Compile only for int128 targets.
+	(dg-options): Use -Wno-psabi instead of -w
+
+2026-04-02  Christophe Lyon  <christophe.lyon@arm.com>
+
+	PR target/124705
+	* gcc.dg/tree-ssa/gen-vect-26.c: Disable loop peeling check for
+	arm*-*-.
+	* gcc.dg/tree-ssa/gen-vect-28.c: Likewise.
+
+2026-04-02  Lulu Cheng  <chenglulu@loongson.cn>
+
+	* gcc.target/loongarch/attr-check-error-message8.c: Removed.
+	* gcc.target/loongarch/attr-check-error-message9.c: Removed.
+	* gcc.target/loongarch/attr-check-warning-message1.c: New test.
+	* gcc.target/loongarch/attr-check-warning-message2.c: New test.
+	* gcc.target/loongarch/attr-check-warning-message3.c: New test.
+
+2026-04-02  Christopher Albert  <albert@tugraz.at>
+	    Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/124751
+	* gfortran.dg/pr100194.f90: Run the testcase and add runtime
+	coverage for packed assumed-rank sections.
+
 2026-04-01  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
 
 	PR fortran/124739
