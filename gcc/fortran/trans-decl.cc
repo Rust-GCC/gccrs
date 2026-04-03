@@ -666,12 +666,25 @@ gfc_finish_var_decl (tree decl, gfc_symbol * sym)
 	  && (sym->ns->proc_name->backend_decl == current_function_decl
 	      || sym->result == sym))
 	gfc_add_decl_to_function (decl);
+      else if (sym->ns->omp_affinity_iterators)
+	{
+	  /* Iterator variables are block-local; other variables in the
+	     iterator namespace (e.g. implicitly typed host-associated
+	     ones used in locator expressions) belong in the enclosing
+	     function.  */
+	  gfc_symbol *iter;
+	  for (iter = sym->ns->omp_affinity_iterators; iter;
+	       iter = iter->tlink)
+	    if (iter == sym)
+	      break;
+	  if (iter)
+	    add_decl_as_local (decl);
+	  else
+	    gfc_add_decl_to_function (decl);
+	}
       else if (sym->ns->proc_name
 	       && sym->ns->proc_name->attr.flavor == FL_LABEL)
 	/* This is a BLOCK construct.  */
-	add_decl_as_local (decl);
-      else if (sym->ns->omp_affinity_iterators)
-	/* This is a block-local iterator.  */
 	add_decl_as_local (decl);
       else
 	gfc_add_decl_to_parent_function (decl);
