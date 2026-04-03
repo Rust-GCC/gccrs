@@ -44,6 +44,8 @@ set libphobos_skip_tests {
     { libphobos.phobos/static/std/net/curl.d { ! libcurl_available } }
     # Skip concurrency.d test: SEGVs or hangs on macOS 13+ (PR d/111628).
     { libphobos.phobos/static/std/concurrency.d { x86_64-apple-darwin2[2-9]* } }
+    # Skip math/hardware.d if missing necessary support (PR d/123202).
+    { libphobos.phobos/static/std/math/hardware.d { ! phobos_ieee_flags_support } }
 }
 
 # Initialize dg.
