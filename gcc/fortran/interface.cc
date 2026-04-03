@@ -4127,6 +4127,28 @@ gfc_compare_actual_formal (gfc_actual_arglist **ap, gfc_formal_arglist *formal,
 	  goto match;
 	}
 
+      /* C_LOC/C_FUNLOC from ISO_C_BINDING as actual argument can only be
+	 passed to a dummy argument of matching type C_PTR/C_FUNPTR.  */
+      if (a->expr->expr_type == EXPR_FUNCTION
+	  && a->expr->ts.type == BT_VOID
+	  && a->expr->symtree->n.sym
+	  && a->expr->symtree->n.sym->from_intmod == INTMOD_ISO_C_BINDING
+	  && (f->sym->ts.type != BT_DERIVED
+	      || f->sym->ts.u.derived->from_intmod != INTMOD_ISO_C_BINDING
+	      || !((a->expr->symtree->n.sym->intmod_sym_id == ISOCBINDING_FUNLOC
+		    && f->sym->ts.u.derived->intmod_sym_id == ISOCBINDING_FUNPTR)
+		   || (a->expr->symtree->n.sym->intmod_sym_id == ISOCBINDING_LOC
+		       && f->sym->ts.u.derived->intmod_sym_id == ISOCBINDING_PTR))))
+	{
+	  if (where)
+	    gfc_error ("ISO_C_BINDING function actual argument at %L "
+		       "requires dummy argument %qs to have a matching "
+		       "type from ISO_C_BINDING",
+		       &a->expr->where,f->sym->name);
+	  ok = false;
+	  goto match;
+	}
+
     match:
       if (a == actual)
 	na = i;
