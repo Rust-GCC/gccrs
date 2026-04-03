@@ -1888,16 +1888,25 @@ The generic unit shall not take a generic formal object of mode ``in out``.
 If the generic unit takes a generic formal object of mode ``in``, then the
 corresponding generic actual parameter shall be a static expression.
 
-A ``structural_generic_instance_name`` shall not be present in a library
-unit if the structural instance is also a library unit and has a semantic
-dependence on the former.
+A ``structural_generic_instance_name`` for a generic package shall not be
+present in a library unit if the structural instance is also a library unit
+and has a semantic dependence on the former.
+
+For a generic subprogram, if a local entity of the enclosing library-level
+package is used as an actual and the structural instance would have a semantic
+dependence on the package, the structural instantiation is automatically
+demoted to a local instantiation. In this case, several instances of the
+generic subprogram may be present in a single partition, unless
+whole-partition optimization is performed (e.g., via LTO).
 
 Static Semantics
 ^^^^^^^^^^^^^^^^
 
 A ``structural_generic_instance_name`` denotes the instance that is the
 product of the structural instantiation of a generic unit on the specified
-actual parameters. This instance is unique to a partition.
+actual parameters. This instance is unique to a partition, except when a
+generic subprogram instantiation is automatically demoted to a local
+instantiation as described under Legality Rules.
 
 Example:
 
@@ -1937,8 +1946,9 @@ Note that the following example is illegal:
 
 The reason is that ``Ada.Containers.Vectors``, ``Positive`` and ``Q.T`` being
 library-level entities, the structural instance ``Ada.Containers.Vectors(Positive,T)`` is a library unit with a dependence
-on ``Q`` and, therefore, cannot be referenced from within ``Q``. The simple
-way out is to declare a traditional instantiation in this case:
+on ``Q`` and, therefore, cannot be referenced from within ``Q``. This
+restriction applies to structural instantiations of generic packages. The
+simple way out is to declare a traditional instantiation in this case:
 
 .. code-block:: ada
 
@@ -1970,6 +1980,35 @@ But the following example is legal:
 
 because the structural instance ``Ada.Containers.Vectors(Positive,T)`` is
 not a library unit.
+
+For generic subprograms, the restriction does not apply: if a local entity of
+a library-level package is used as an actual, the structural instantiation is
+automatically demoted to a local instantiation. For example:
+
+.. code-block:: ada
+
+   with Ada.Unchecked_Deallocation;
+
+   package Q is
+      type T is record
+         I : Integer;
+      end record;
+
+      type T_Access is access T;
+   end Q;
+
+   package body Q is
+      procedure Free_T (X : in out T_Access) is
+      begin
+         Ada.Unchecked_Deallocation(T, T_Access)(X);
+      end Free_T;
+   end Q;
+
+is legal: since ``T`` and ``T_Access`` are local entities of ``Q``, the
+structural instantiation of ``Ada.Unchecked_Deallocation`` is demoted to a
+local instantiation rather than producing an error. Note that the uniqueness
+guarantee no longer holds in this case and several instances of the generic
+subprogram may be present in a single partition.
 
 The first example can be rewritten in a less verbose manner:
 
