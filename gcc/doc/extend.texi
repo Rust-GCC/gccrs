@@ -410,11 +410,12 @@ FPU.
 @cindex @code{DD} integer suffix
 @cindex @code{DL} integer suffix
 
-As an extension, GNU C supports decimal floating types as
-defined in the N1312 draft of ISO/IEC WDTR24732.  Support for decimal
-floating types in GCC will evolve as the draft technical report changes.
-Calling conventions for any target might also change.  Not all targets
-support decimal floating types.
+As an extension, GNU C supports decimal floating types as defined in
+the N1312 draft of ISO/IEC WDTR24732.  GCC does not yet implement the
+later specification of decimal floating point in the C23 standard,
+primarily due to problems with library support.  The N1312 draft
+support is available in all dialects of C, but not all targets support
+decimal floating types.
 
 The decimal floating types are @code{_Decimal32}, @code{_Decimal64}, and
 @code{_Decimal128}.  They use a radix of ten, unlike the floating types
