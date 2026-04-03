@@ -34,7 +34,9 @@ GLIBCXX_3.4 {
       std::basic_[a-e]*;
       std::basic_f[a-h]*;
 #     std::basic_filebuf;
-      std::basic_f[j-r]*;
+      std::basic_f[j-n]*;
+#     std::basic_format_context;
+      std::basic_f[p-r]*;
 #     std::basic_fstream;
       std::basic_f[t-z]*;
       std::basic_[g-h]*;
@@ -2605,6 +2607,10 @@ GLIBCXX_3.4.35 {
     _ZNSsC[12]EvQ26is_default_constructible_vIT1_E;
     _ZNSbIwSt11char_traitsIwESaIwEEC[12]EvQ26is_default_constructible_vIT1_E;
     _ZNSt7__cxx1112basic_stringI[cw]St11char_traitsI[cw]ESaI[cw]EEC[1-2]EvQ26is_default_constructible_vIT1_E;
+
+    # __format::__do_vformat_to<char, 1>(_Sink_iter<char>, string_view, format_context&);
+    # __format::__do_vformat_to<wchar_t, 1>(_Sink_iter<wchar_t>, wstring_view, format_context&);
+    _ZNSt8__format15__do_vformat_toI[cw]Lj1EEENS_10_Sink_iterIT_EES3_St17basic_string_viewIS2_St11char_traitsIS2_EERSt20basic_format_contextIS3_S2_E;
 
 #if defined (_WIN32) && !defined (__CYGWIN__)
     _ZSt19__get_once_callablev;

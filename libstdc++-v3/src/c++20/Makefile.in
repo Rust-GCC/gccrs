@@ -126,7 +126,8 @@ libc__20convenience_la_LIBADD =
 am__objects_1 = tzdb.lo format.lo atomic.lo clock.lo syncbuf.lo
 @ENABLE_DUAL_ABI_TRUE@am__objects_2 = cow-string-inst.lo
 @ENABLE_EXTERN_TEMPLATE_TRUE@am__objects_3 = sstream-inst.lo \
-@ENABLE_EXTERN_TEMPLATE_TRUE@	string-inst.lo $(am__objects_2)
+@ENABLE_EXTERN_TEMPLATE_TRUE@	format-inst.lo string-inst.lo \
+@ENABLE_EXTERN_TEMPLATE_TRUE@	$(am__objects_2)
 @GLIBCXX_HOSTED_TRUE@am_libc__20convenience_la_OBJECTS =  \
 @GLIBCXX_HOSTED_TRUE@	$(am__objects_1) $(am__objects_3)
 libc__20convenience_la_OBJECTS = $(am_libc__20convenience_la_OBJECTS)
@@ -438,6 +439,7 @@ headers =
 # XTEMPLATE_FLAGS = -fno-implicit-templates
 @ENABLE_EXTERN_TEMPLATE_TRUE@inst_sources = \
 @ENABLE_EXTERN_TEMPLATE_TRUE@	sstream-inst.cc \
+@ENABLE_EXTERN_TEMPLATE_TRUE@	format-inst.cc \
 @ENABLE_EXTERN_TEMPLATE_TRUE@	string-inst.cc \
 @ENABLE_EXTERN_TEMPLATE_TRUE@	$(extra_string_inst_sources)
 
@@ -772,6 +774,12 @@ format.lo: format.cc
 	$(LTCXXCOMPILE) -std=gnu++26 -fno-access-control -c $<
 format.o: format.cc
 	$(CXXCOMPILE) -std=gnu++26 -fno-access-control -c $<
+
+# The unicode literal version of formatters is exported, override the encoding accordingly
+@ENABLE_EXTERN_TEMPLATE_TRUE@format-inst.lo: format-inst.cc
+@ENABLE_EXTERN_TEMPLATE_TRUE@	$(LTCXXCOMPILE) -fexec-charset=UTF-8 -c $<
+@ENABLE_EXTERN_TEMPLATE_TRUE@format-inst.o: format-inst.cc
+@ENABLE_EXTERN_TEMPLATE_TRUE@	$(CXXCOMPILE) -fexec-charset=UTF-8 -c $<
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

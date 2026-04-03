@@ -5219,6 +5219,94 @@ namespace __format
 #endif
     };
 
+  template<typename _CharT, unsigned = __unicode::__literal_encoding_is_unicode<_CharT>()>
+    _Sink_iter<_CharT>
+    __do_vformat_to(_Sink_iter<_CharT> __out, basic_string_view<_CharT> __fmt,
+		    __format_context<_CharT>& __ctx)
+    {
+      if constexpr (is_same_v<_CharT, char>)
+	// Fast path for "{}" format strings and simple format arg types.
+	if (__fmt.size() == 2 && __fmt[0] == '{' && __fmt[1] == '}')
+	  {
+	    bool __done = false;
+	    __format::__visit_format_arg([&](auto& __arg) {
+	      using _Tp = remove_cvref_t<decltype(__arg)>;
+	      if constexpr (is_same_v<_Tp, bool>)
+		{
+		  size_t __len = 4 + !__arg;
+		  const char* __chars[] = { "false", "true" };
+		  if (auto __res = __out._M_reserve(__len))
+		    {
+		      __builtin_memcpy(__res.get(), __chars[__arg], __len);
+		      __res._M_bump(__len);
+		      __done = true;
+		    }
+		}
+	      else if constexpr (is_same_v<_Tp, char>)
+		{
+		  if (auto __res = __out._M_reserve(1))
+		    {
+		      *__res.get() = __arg;
+		      __res._M_bump(1);
+		      __done = true;
+		    }
+		}
+	      else if constexpr (is_integral_v<_Tp>)
+		{
+		  make_unsigned_t<_Tp> __uval;
+		  const bool __neg = __arg < 0;
+		  if (__neg)
+		    __uval = make_unsigned_t<_Tp>(~__arg) + 1u;
+		  else
+		    __uval = __arg;
+		  const auto __n = __detail::__to_chars_len(__uval);
+		  if (auto __res = __out._M_reserve(__n + __neg))
+		    {
+		      auto __ptr = __res.get();
+		      *__ptr = '-';
+		      __detail::__to_chars_10_impl(__ptr + (int)__neg, __n,
+						   __uval);
+		      __res._M_bump(__n + __neg);
+		      __done = true;
+		    }
+		}
+	      else if constexpr (is_convertible_v<_Tp, string_view>)
+		{
+		  string_view __sv = __arg;
+		  if (auto __res = __out._M_reserve(__sv.size()))
+		    {
+		      __builtin_memcpy(__res.get(), __sv.data(), __sv.size());
+		      __res._M_bump(__sv.size());
+		      __done = true;
+		    }
+		}
+	    }, __ctx.arg(0));
+
+	    if (__done)
+	      return __out;
+	  }
+
+      _Formatting_scanner<_Sink_iter<_CharT>, _CharT> __scanner(__ctx, __fmt);
+      __scanner._M_scan();
+      return __out;
+    }
+
+// The behavior of the formatters (interpretation of fill character) depends
+// on the literal encoding. As explicit instantiation of __do_vformat_to
+// instantiates formatters for types stored in basic_format_arg, we can
+// support only single encoding, in this case unicode. This should cover
+// most common use cases.
+#if __cplusplus <= 202002L && _GLIBCXX_EXTERN_TEMPLATE > 0
+    extern template _Sink_iter<char>
+      __do_vformat_to<char, 1>(_Sink_iter<char>, string_view,
+			       format_context&);
+# ifdef _GLIBCXX_USE_WCHAR_T
+    extern template _Sink_iter<wchar_t>
+      __do_vformat_to<wchar_t, 1>(_Sink_iter<wchar_t>, wstring_view,
+				  wformat_context&);
+# endif
+#endif
+
   template<typename _Out, typename _CharT, typename _Context>
     inline _Out
     __do_vformat_to(_Out __out, basic_string_view<_CharT> __fmt,
@@ -5227,74 +5315,10 @@ namespace __format
     {
       if constexpr (is_same_v<_Out, _Sink_iter<_CharT>>)
 	{
-	  if constexpr (is_same_v<_CharT, char>)
-	    // Fast path for "{}" format strings and simple format arg types.
-	    if (__fmt.size() == 2 && __fmt[0] == '{' && __fmt[1] == '}')
-	      {
-		bool __done = false;
-		__format::__visit_format_arg([&](auto& __arg) {
-		  using _Tp = remove_cvref_t<decltype(__arg)>;
-		  if constexpr (is_same_v<_Tp, bool>)
-		    {
-		      size_t __len = 4 + !__arg;
-		      const char* __chars[] = { "false", "true" };
-		      if (auto __res = __out._M_reserve(__len))
-			{
-			  __builtin_memcpy(__res.get(), __chars[__arg], __len);
-			  __res._M_bump(__len);
-			  __done = true;
-			}
-		    }
-		  else if constexpr (is_same_v<_Tp, char>)
-		    {
-		      if (auto __res = __out._M_reserve(1))
-			{
-			  *__res.get() = __arg;
-			  __res._M_bump(1);
-			  __done = true;
-			}
-		    }
-		  else if constexpr (is_integral_v<_Tp>)
-		    {
-		      make_unsigned_t<_Tp> __uval;
-		      const bool __neg = __arg < 0;
-		      if (__neg)
-			__uval = make_unsigned_t<_Tp>(~__arg) + 1u;
-		      else
-			__uval = __arg;
-		      const auto __n = __detail::__to_chars_len(__uval);
-		      if (auto __res = __out._M_reserve(__n + __neg))
-			{
-			  auto __ptr = __res.get();
-			  *__ptr = '-';
-			  __detail::__to_chars_10_impl(__ptr + (int)__neg, __n,
-						       __uval);
-			  __res._M_bump(__n + __neg);
-			  __done = true;
-			}
-		    }
-		  else if constexpr (is_convertible_v<_Tp, string_view>)
-		    {
-		      string_view __sv = __arg;
-		      if (auto __res = __out._M_reserve(__sv.size()))
-			{
-			  __builtin_memcpy(__res.get(), __sv.data(), __sv.size());
-			  __res._M_bump(__sv.size());
-			  __done = true;
-			}
-		    }
-		}, __args.get(0));
-
-		if (__done)
-		  return __out;
-	      }
-
 	  auto __ctx = __loc == nullptr
-			 ? _Context(__args, __out)
-			 : _Context(__args, __out, *__loc);
-	  _Formatting_scanner<_Sink_iter<_CharT>, _CharT> __scanner(__ctx, __fmt);
-	  __scanner._M_scan();
-	  return __out;
+		     ? _Context(__args, __out)
+		     : _Context(__args, __out, *__loc);
+	  return __format::__do_vformat_to(__out, __fmt, __ctx);
 	}
       else if constexpr (__contiguous_char_iter<_CharT, _Out>)
 	{
@@ -5311,7 +5335,7 @@ namespace __format
     }
 
   template<typename _Out, typename _CharT>
-    format_to_n_result<_Out>
+    inline format_to_n_result<_Out>
     __do_vformat_to_n(_Out __out, iter_difference_t<_Out> __n,
 		      basic_string_view<_CharT> __fmt,
 		      const type_identity_t<
