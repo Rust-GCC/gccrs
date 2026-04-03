@@ -86,6 +86,12 @@ static_assert (!valid_data_member_spec (^^Enum_class::A, { .name = "dms" }));
 static_assert (!valid_data_member_spec (^^decomp, { .name = "dms" }));
 static_assert (!valid_data_member_spec (^^decomp_ref, { .name = "dms" }));
 static_assert (!valid_data_member_spec (^^arr, { .name = "dms" }));
+// LWG4517 - data_member_spec should throw for cv-qualified unnamed bit-fields
+static_assert (!valid_data_member_spec (^^const int, { .bit_width = 3 }));
+static_assert (!valid_data_member_spec (^^volatile short, { .bit_width = 7 }));
+static_assert (!valid_data_member_spec (^^const int, { .bit_width = 0 }));
+static_assert (!valid_data_member_spec (^^volatile short, { .bit_width = 0 }));
+static_assert (!valid_data_member_spec (^^const volatile char, { .bit_width = 2 }));
 
 constexpr auto dms = data_member_spec (^^int, { .name = "dms" });
 static_assert (!valid_data_member_spec (dms, { .name = "dms" }));
