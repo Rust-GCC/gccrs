@@ -358,6 +358,7 @@ enum class StructExprField
 {
   MALFORMED,
   CHILD_ERROR,
+  STRUCT_BASE_ATTRIBUTES,
   // Not a hard error
   STRUCT_BASE,
 };
