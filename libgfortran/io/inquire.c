@@ -311,13 +311,13 @@ inquire_via_unit (st_parameter_inquire *iqp, gfc_unit *u)
 
       if ((cf2 & IOPARM_INQUIRE_HAS_ENCODING) != 0)
 	{
-	  if (u == NULL || u->flags.form != FORM_FORMATTED)
+	  if (u == NULL)
 	    p = "UNKNOWN";
-          else
+	  else if (u->flags.form == FORM_FORMATTED)
 	    switch (u->flags.encoding)
 	      {
 	      case ENCODING_DEFAULT:
-		p = "UNKNOWN";
+		p = "UNDEFINED";
 		break;
 	      case ENCODING_UTF8:
 		p = "UTF-8";
@@ -325,6 +325,8 @@ inquire_via_unit (st_parameter_inquire *iqp, gfc_unit *u)
 	      default:
 		internal_error (&iqp->common, "inquire_via_unit(): Bad encoding");
 	      }
+	    else
+	      p = "UNKNOWN";
 
 	  cf_strcpy (iqp->encoding, iqp->encoding_len, p);
 	}

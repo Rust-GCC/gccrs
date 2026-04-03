@@ -202,7 +202,7 @@ program inq_tests
   inquire (unit=lun, decimal=decimal, encoding=encoding, pos=pos,  &
       round=round, sign=signc, stream=stream, iostat=iostat)
   if  (decimal /= 'POINT' .or. (iostat /= 0)) stop 204
-  if  (encoding /= 'UNKNOWN') stop 205
+  if  (encoding /= 'UNDEFINED') stop 205
   if  (round /= 'PROCESSOR_DEFINED') stop 206
   if  (signc /= 'PROCESSOR_DEFINED') stop 207
   if  (stream /= 'NO') stop 208
@@ -284,7 +284,7 @@ program inq_tests
   inquire (unit=lun, decimal=decimal, encoding=encoding, pos=pos,  &
       round=round, sign=signc, stream=stream, iostat=iostat)
   if  (decimal /= 'UNDEFINED' .or. (iostat /= 0)) stop 286
-  if  (encoding /= 'UNKNOWN') stop 287
+  if  (encoding /= 'UNDEFINED') stop 287
   if  (round /= 'PROCESSOR_DEFINED') stop 288
   if  (signc /= 'PROCESSOR_DEFINED') stop 289
   if  (stream /= 'YES') stop 290
