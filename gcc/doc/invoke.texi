@@ -12920,6 +12920,12 @@ parts of the program that you don't plan to debug.  This includes
 descriptions of functions and external variables, and line number
 tables, but no information about local variables.
 
+Level 2 is the normal setting to produce debuggable code.  The debug output
+includes all the information from level 1, plus information about
+local variables and typedefs to allow stepping through code and examining
+its state.  For C++ code, additional information is also emitted to assist
+in debugging namespace, class, and template functions.
+
 Level 3 includes extra information, such as all the macro definitions
 present in the program.  Some debuggers support macro expansion when
 you use @option{-g3}.
