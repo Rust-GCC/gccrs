@@ -257,6 +257,9 @@ eval (int n)
     case 84:
       unwrap_ref_decay (^^n);
       break;
+    case 85:
+      is_structural_type (^^n);
+      break;
    default:
       break;
     }
@@ -353,3 +356,4 @@ static_assert (test (81));
 static_assert (test (82));
 static_assert (test (83));
 static_assert (test (84));
+static_assert (test (85));

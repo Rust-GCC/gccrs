@@ -2255,6 +2255,9 @@ export namespace std
     using std::meta::is_final_type;
     using std::meta::is_aggregate_type;
     using std::meta::is_consteval_only_type;
+#if __glibcxx_is_structural >= 202603L
+    using std::meta::is_structural_type;
+#endif
     using std::meta::is_signed_type;
     using std::meta::is_unsigned_type;
     using std::meta::is_bounded_array_type;
@@ -3577,6 +3580,10 @@ export namespace std
   using std::is_consteval_only;
   using std::is_consteval_only_v;
 #endif
+#endif
+#if __glibcxx_is_structural >= 202603L
+  using std::is_structural;
+  using std::is_structural_v;
 #endif
 }
 

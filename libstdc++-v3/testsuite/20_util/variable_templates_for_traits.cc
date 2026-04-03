@@ -340,6 +340,11 @@ static_assert(is_consteval_only_v<decltype(^^int)>
 static_assert(!is_consteval_only_v<int> && !is_consteval_only<int>::value, "");
 #endif
 
+#if __cpp_lib_is_structural >= 202603L
+static_assert(is_structural_v<int> && is_structural<int>::value, "");
+static_assert(!is_structural_v<int &&> && !is_structural<int &&>::value, "");
+#endif
+
 static_assert(negation_v<false_type>, "");
 static_assert(!negation_v<true_type>, "");
 static_assert(conjunction_v<>, "");

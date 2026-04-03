@@ -2364,6 +2364,15 @@ ftms = {
   };
 };
 
+ftms = {
+  name = is_structural;
+  values = {
+    v = 202603;
+    cxxmin = 26;
+    extra_cond = "__has_builtin(__builtin_is_structural)";
+  };
+};
+
 // Standard test specifications.
 stds[97] = ">= 199711L";
 stds[03] = ">= 199711L";

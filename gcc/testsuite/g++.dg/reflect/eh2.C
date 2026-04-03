@@ -89,3 +89,4 @@ static_assert ((is_swappable_type (^^i), true)); // { dg-error "non-constant|unc
 static_assert ((is_nothrow_swappable_type (^^i), true)); // { dg-error "non-constant|uncaught exception" }
 static_assert ((unwrap_reference (^^i), true)); // { dg-error "non-constant|uncaught exception" }
 static_assert ((unwrap_ref_decay (^^i), true)); // { dg-error "non-constant|uncaught exception" }
+static_assert ((is_structural_type (^^i), true)); // { dg-error "non-constant|uncaught exception" }

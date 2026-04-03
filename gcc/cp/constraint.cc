@@ -3357,6 +3357,10 @@ diagnose_trait_expr (location_t loc, tree expr, tree args)
     case CPTK_IS_CONSTEVAL_ONLY:
       inform (decl_loc, "%qT is not consteval-only", t1);
       break;
+    case CPTK_IS_STRUCTURAL:
+      inform (decl_loc, "%qT is not a structural type", t1);
+      structural_type_p (t1, /*explain=*/true);
+      break;
     case CPTK_RANK:
       inform (loc, "%qT cannot yield a rank", t1);
       break;

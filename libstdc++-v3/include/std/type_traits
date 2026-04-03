@@ -55,6 +55,7 @@
 #define __glibcxx_want_is_null_pointer
 #define __glibcxx_want_is_pointer_interconvertible
 #define __glibcxx_want_is_scoped_enum
+#define __glibcxx_want_is_structural
 #define __glibcxx_want_is_swappable
 #define __glibcxx_want_is_virtual_base_of
 #define __glibcxx_want_logical_traits
@@ -3922,6 +3923,23 @@ template<typename _Ret, typename _Fn, typename... _Args>
   template<typename _Tp>
     inline constexpr bool is_consteval_only_v
       = __builtin_is_consteval_only(_Tp);
+#endif
+
+#if __cpp_lib_is_structural >= 202603L // C++ >= 26
+  /// is_structural - true if the type is a structural type.
+  /// @since C++26
+  template<typename _Tp>
+    struct is_structural
+    : bool_constant<__builtin_is_structural(_Tp)>
+    { };
+
+  /** is_structural_v - true if the type is a structural only type.
+   *  @ingroup variable_templates
+   *  @since C++26
+   */
+  template<typename _Tp>
+    inline constexpr bool is_structural_v
+      = __builtin_is_structural(_Tp);
 #endif
 
   /** * Remove references and cv-qualifiers.

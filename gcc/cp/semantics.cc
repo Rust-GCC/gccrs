@@ -14173,6 +14173,9 @@ trait_expr_value (cp_trait_kind kind, tree type1, tree type2)
     case CPTK_IS_CONSTEVAL_ONLY:
       return consteval_only_p (type1);
 
+    case CPTK_IS_STRUCTURAL:
+      return structural_type_p (type1);
+
     /* __array_rank, __builtin_type_order and __builtin_structured_binding_size
        are handled in finish_trait_expr.  */
     case CPTK_RANK:
@@ -14354,6 +14357,7 @@ finish_trait_expr (location_t loc, cp_trait_kind kind, tree type1, tree type2)
     case CPTK_IS_TRIVIAL:
     case CPTK_IS_TRIVIALLY_COPYABLE:
     case CPTK_IS_CONSTEVAL_ONLY:
+    case CPTK_IS_STRUCTURAL:
     case CPTK_HAS_UNIQUE_OBJ_REPRESENTATIONS:
       if (!check_trait_type (type1, /* kind = */ 2))
 	return error_mark_node;
