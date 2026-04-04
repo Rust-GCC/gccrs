@@ -100,7 +100,7 @@ static_assert(  has_value_or_for<int(*)()> );
 int i;
 NonMovable nm;
 int arr[2];
-int foo();
+int foo() { return 1; }
 
 int main()
 {
