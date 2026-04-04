@@ -169,8 +169,8 @@ listing and explanation of the binary and decimal byte size prefixes.
                         and register usage.
 * Developer Options::   Printing GCC configuration info, statistics, and
                         debugging dumps.
-* Submodel Options::    Target-specific options, such as compiling for a
-                        specific processor variant.
+* Target-Specific Options:: Options specific to particular architectures or
+                            runtime environments.
 * Environment Variables:: Env vars that affect GCC.
 * Precompiled Headers:: Compiling a header once, and using it many times.
 * C++ Modules::		Experimental C++20 module system.
@@ -882,8 +882,8 @@ Objective-C and Objective-C++ Dialects}.
 --param @var{name}=@var{value}
 }
 
-@item Machine-Dependent Options
-@xref{Submodel Options,,Machine-Dependent Options}.
+@item Target-Specific Options
+@xref{Target-Specific Options}.
 @c This list is ordered alphanumerically by subsection name.
 @c Try and put the significant identifier (CPU or system) first,
 @c so users have a clue at guessing where the ones they want will be.
@@ -21194,27 +21194,30 @@ problems or, in some cases, to provide workarounds for compiler bugs.
 for documentation of these internal parameters.
 @end table
 
-@node Submodel Options
-@section Machine-Dependent Options
+@anchor{Submodel Options}
+@node Target-Specific Options
+@section Target-Specific Options
 @cindex submodel options
-@cindex specifying hardware config
-@cindex hardware models and configurations, specifying
-@cindex target-dependent options
-@cindex machine-dependent options
+@cindex hardware-specific options
+@cindex target-specific options
+@cindex machine-specific options
+@cindex architecture-specific options
+@cindex operating-system-specific options
 
 Each target machine supported by GCC can have its own options---for
 example, to allow you to compile for a particular processor variant or
-ABI, or to control optimizations specific to that machine.  By
-convention, the names of machine-specific options start with
-@samp{-m}.
+ABI, or to control optimizations specific to that machine.  Similarly,
+GCC also has options that are specific to particular operating systems
+or runtime environments on the target.
 
-Some configurations of the compiler also support additional target-specific
-options, usually for compatibility with other compilers on the same
-platform.
+By convention, the names of machine-specific options start with
+@samp{-m}.  Some configurations of the compiler also support
+additional target-specific options, usually for compatibility with
+other compilers on the same platform.
 
 @c This list is ordered alphanumerically by subsection name.
 @c It should be the same order and spelling as these options are listed
-@c in Machine Dependent Options
+@c in Target-Specific Options
 
 @menu
 * AArch64 Options::
@@ -37695,7 +37698,7 @@ a precompiled header built using @option{-g} can be used in a compilation
 when no debugging information is being output.
 
 @item The same @option{-m} options must generally be used when building
-and using the precompiled header.  @xref{Submodel Options},
+and using the precompiled header.  @xref{Target-Specific Options},
 for any cases where this rule is relaxed.
 
 @item Each of the following options must be the same when building and using

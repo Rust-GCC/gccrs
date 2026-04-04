@@ -4936,7 +4936,7 @@ command line.  The original target command-line options are ignored.
 One or more strings can be provided as arguments.
 Each string consists of one or more comma-separated suffixes to
 the @code{-m} prefix jointly forming the name of a machine-dependent
-option.  @xref{Submodel Options,,Machine-Dependent Options}.
+option.  @xref{Target-Specific Options}.
 
 The @code{target} attribute can be used for instance to have a function
 compiled with a different ISA (instruction set architecture) than the
