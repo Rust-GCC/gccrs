@@ -20,6 +20,7 @@
 #include "optional.h"
 #include "rust-canonical-path.h"
 #include "rust-diagnostics.h"
+#include "rust-drop-check.h"
 #include "rust-hir-item.h"
 #include "rust-hir-type-check-enumitem.h"
 #include "rust-hir-type-check-implitem.h"
@@ -530,6 +531,8 @@ TypeCheckItem::visit (HIR::Union &union_decl)
   context->insert_type (union_decl.get_mappings (), type);
   infered = type;
 
+  DropCheck::DropChecker::check_union (type);
+
   context->get_variance_analysis_ctx ().add_type_constraints (*type);
 }
 
@@ -663,6 +666,10 @@ TypeCheckItem::resolve_trait_impl_block (HIR::ImplBlock &impl_block)
   context->insert_associated_impl_mapping (
     trait_reference->get_mappings ().get_hirid (), self,
     impl_block.get_mappings ().get_hirid ());
+
+  DropCheck::DropChecker::check_copy_drop (
+    self, trait_reference->get_mappings ().get_hirid (),
+    impl_block.get_trait_ref ().get_locus ());
 }
 
 void
