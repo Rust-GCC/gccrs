@@ -25,6 +25,7 @@
 // include it here before tree.h includes it later.
 #include <gmp.h>
 
+#include "tree-core.h"
 #include "tree.h"
 #include "opts.h"
 #include "fold-const.h"
@@ -1870,6 +1871,32 @@ block_add_statements (tree bind_tree, const std::vector<tree> &statements)
 
   gcc_assert (TREE_CODE (bind_tree) == BIND_EXPR);
   BIND_EXPR_BODY (bind_tree) = stmt_list;
+}
+
+void
+block_add_statements_with_cleanups (tree bind_tree,
+				    const std::vector<tree> &statements,
+				    const std::vector<tree> &cleanups)
+{
+  tree stmt_list = NULL_TREE;
+  for (tree s : statements)
+    {
+      if (!error_operand_p (s))
+	append_to_statement_list (s, &stmt_list);
+    }
+
+  tree clean_list = NULL_TREE;
+  for (tree s : cleanups)
+    {
+      if (!error_operand_p (s))
+	append_to_statement_list (s, &clean_list);
+    }
+  location_t location = UNDEF_LOCATION;
+  tree do_and_clean
+    = exception_handler_statement (stmt_list, NULL_TREE, clean_list, location);
+
+  gcc_assert (TREE_CODE (bind_tree) == BIND_EXPR);
+  BIND_EXPR_BODY (bind_tree) = do_and_clean;
 }
 
 // This is not static because we declare it with GTY(()) in rust-c.h.

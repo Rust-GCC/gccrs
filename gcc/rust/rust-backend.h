@@ -312,6 +312,8 @@ tree block (tree function, tree enclosing, const std::vector<Bvariable *> &vars,
 // block.  This will called exactly once per block.  The vector may
 // be empty if there are no statements.
 void block_add_statements (tree, const std::vector<tree> &);
+void block_add_statements_with_cleanups (tree, const std::vector<tree> &,
+					 const std::vector<tree> &);
 
 // Variables.
 
