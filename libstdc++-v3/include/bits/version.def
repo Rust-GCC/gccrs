@@ -2359,7 +2359,7 @@ ftms = {
     cxxmin = 26;
     extra_cond = "__cpp_structured_bindings >= 202411L "
     "&& __cpp_expansion_statements >= 202411L "
-    "&& (__x86_64__ || __i386__)"; // TODO: lift initial restriction to x86
+    "&& __SSE2__"; // TODO: add more targets
     hosted = yes;
   };
 };

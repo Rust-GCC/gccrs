@@ -1,5 +1,6 @@
 // { dg-do compile { target c++26 } }
 // { dg-require-effective-target x86 }
+// { dg-additional-options "-msse2" }
 // { dg-timeout-factor 2 }
 
 #include <simd>

@@ -1,5 +1,6 @@
 // { dg-do run { target c++26 } }
 // { dg-require-effective-target x86 }
+// { dg-additional-options "-msse2" }
 
 #include "test_setup.h"
 #include <numeric>
