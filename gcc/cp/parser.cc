@@ -16606,6 +16606,8 @@ cp_parser_expansion_statement (cp_parser* parser, bool *if_p)
   /* A colon is used in expansion-statement.  */
   parser->colon_corrects_to_scope_p = false;
 
+  in_expansion_stmt = true;
+
   /* Parse the declaration.  */
   tree range_decl;
   cp_parser_simple_declaration (parser,
@@ -16614,6 +16616,7 @@ cp_parser_expansion_statement (cp_parser* parser, bool *if_p)
   if (range_decl == NULL_TREE)
     range_decl = error_mark_node;
   parser->colon_corrects_to_scope_p = saved_colon_corrects_to_scope_p;
+  in_expansion_stmt = save_in_expansion_stmt;
 
   cp_parser_require (parser, CPP_COLON, RT_COLON);
 
@@ -18254,7 +18257,7 @@ cp_parser_decomposition_declaration (cp_parser *parser,
 	if (cp_lexer_next_token_is (parser->lexer, CPP_ELLIPSIS))
 	  {
 	    location_t elloc = cp_lexer_peek_token (parser->lexer)->location;
-	    if (!processing_template_decl)
+	    if (!processing_template_decl && !in_expansion_stmt)
 	      error_at (elloc, "structured binding pack outside of template");
 	    else if (pack != -1)
 	      error_at (elloc,
