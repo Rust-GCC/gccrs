@@ -17,6 +17,7 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "rust-resolve-builtins.h"
+#include "optional.h"
 #include "rust-name-resolution-context.h"
 #include "rust-tyty.h"
 #include "rust-hir-type-check.h"
