@@ -2628,6 +2628,10 @@ GLIBCXX_3.4.36 {
 
     _ZNSt6chrono8__detail25__recent_leap_second_infoERNS_16leap_second_infoEj;
 
+    # basic_string::allocate_at_least
+    _ZNSt7__cxx1112basic_stringI[cw]St11char_traitsI[cw]ESaI[cw]EE*_S_allocate_*;
+    _ZNSt7__cxx1112basic_stringI[cw]St11char_traitsI[cw]ESaI[cw]EE*_M_create_*;
+
 } GLIBCXX_3.4.35;
 
 # Symbols in the support library (libsupc++) have their own tag.

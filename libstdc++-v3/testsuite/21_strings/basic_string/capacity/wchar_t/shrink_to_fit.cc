@@ -30,7 +30,12 @@ void test01()
   s.push_back(L'b');
   VERIFY( s.size() < s.capacity() );
   s.shrink_to_fit();
-  VERIFY( s.size() == s.capacity() );
+#ifdef __glibcxx_allocate_at_least
+  unsigned limit = __STDCPP_DEFAULT_NEW_ALIGNMENT__ / sizeof(wchar_t) - 1;
+#else
+  unsigned limit = 0;
+#endif
+  VERIFY( s.capacity() - s.size() <= limit );
 }
 
 int main()

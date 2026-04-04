@@ -32,7 +32,12 @@ void test01()
   v.reserve(100);
   VERIFY( v.size() < v.capacity() );
   v.shrink_to_fit();
-  VERIFY( v.size() == v.capacity() );
+#ifdef __glibcxx_allocate_at_least
+  unsigned limit = __STDCPP_DEFAULT_NEW_ALIGNMENT__ / sizeof(int);
+#else
+  unsigned limit = 0;
+#endif
+  VERIFY( v.capacity() - v.size() <= limit);
   VERIFY( v.get_allocator().get_personality() == alloc.get_personality() );
 }
 
@@ -45,7 +50,12 @@ void test02()
   v.reserve(100);
   VERIFY( v.size() < v.capacity() );
   v.shrink_to_fit();
-  VERIFY( v.size() == v.capacity() );
+#ifdef __glibcxx_allocate_at_least
+  unsigned limit = __STDCPP_DEFAULT_NEW_ALIGNMENT__ / sizeof(int);
+#else
+  unsigned limit = 0;
+#endif
+  VERIFY( v.capacity() - v.size() <= limit);
   VERIFY( v.get_allocator().get_personality() == alloc.get_personality() );
 }
 

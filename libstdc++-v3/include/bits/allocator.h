@@ -193,9 +193,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       constexpr _Tp*
       allocate(size_t __n)
       {
-#if __cpp_concepts
+# if __cpp_concepts
 	if constexpr (requires { sizeof(_Tp); })
-#endif
+# endif
 	if (std::__is_constant_evaluated())
 	  {
 	    if (__builtin_mul_overflow(__n, sizeof(_Tp), &__n))
@@ -205,7 +205,27 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
 	return __allocator_base<_Tp>::allocate(__n, 0);
       }
+#endif
 
+#ifdef __glibcxx_allocate_at_least  // C++23
+      [[nodiscard,__gnu__::__always_inline__]]
+      constexpr allocation_result<_Tp*, size_t>
+      allocate_at_least(size_t __n)
+      {
+	if consteval
+	  { return { allocate(__n), __n }; }
+	else
+	  {
+	    if constexpr (requires
+		   { __allocator_base<_Tp>::allocate_at_least(__n); })
+	      return __allocator_base<_Tp>::allocate_at_least(__n);
+	    else
+	      return { __allocator_base<_Tp>::allocate(__n), __n };
+	  }
+      }
+#endif
+
+#if __cpp_constexpr_dynamic_alloc // >= C++20
       [[__gnu__::__always_inline__]]
       constexpr void
       deallocate(_Tp* __p, size_t __n)
@@ -218,12 +238,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	__allocator_base<_Tp>::deallocate(__p, __n);
       }
 #endif // C++20
-
-#ifdef __glibcxx_allocate_at_least  // C++23
-      [[nodiscard]] constexpr allocation_result<_Tp*, size_t>
-      allocate_at_least(size_t __n)
-      { return { this->allocate(__n), __n }; }
-#endif
 
       friend __attribute__((__always_inline__)) _GLIBCXX20_CONSTEXPR
       bool

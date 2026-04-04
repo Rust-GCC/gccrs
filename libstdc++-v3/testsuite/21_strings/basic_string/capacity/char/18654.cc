@@ -58,7 +58,12 @@ void test01()
 #else
       str.shrink_to_fit(); // reserve is deprecated in C++20
 #endif
-      VERIFY( str.capacity() == i );
+#if __glibcxx_allocate_at_least
+      unsigned limit = __STDCPP_DEFAULT_NEW_ALIGNMENT__ - 1;
+#else
+      unsigned limit = 0;
+#endif
+      VERIFY( str.capacity() - i <= limit);
     }
 }
 

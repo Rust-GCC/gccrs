@@ -30,11 +30,12 @@ void test01()
   v.push_back(1);
   VERIFY( v.size() < v.capacity() );
   v.shrink_to_fit();
-#if __cpp_exceptions
-  VERIFY( v.size() == v.capacity() );
+#ifdef __glibcxx_allocate_at_least
+  unsigned limit = __STDCPP_DEFAULT_NEW_ALIGNMENT__ / sizeof(int);
 #else
-  VERIFY( v.size() < v.capacity() );
+  unsigned limit = 0;
 #endif
+  VERIFY(v.capacity() - v.size() <= limit);
 }
 
 int main()

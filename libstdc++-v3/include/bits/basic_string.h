@@ -135,20 +135,35 @@ _GLIBCXX_BEGIN_NAMESPACE_CXX11
 #endif
 
     private:
+      // For ABI reasons this must remain, though unused.
       static _GLIBCXX20_CONSTEXPR pointer
       _S_allocate(_Char_alloc_type& __a, size_type __n)
+      { return _Alloc_traits::allocate(__a, __n); }
+
+      struct _Alloc_result { pointer __ptr; size_type __count; };
+
+      static _GLIBCXX20_CONSTEXPR _Alloc_result
+      _S_allocate_at_least(_Char_alloc_type& __a, size_type __n)
       {
-	pointer __p = _Alloc_traits::allocate(__a, __n);
+	_Alloc_result __r;
+#ifdef __glibcxx_allocate_at_least  // C++23
+	auto [__ptr, __count] = _Alloc_traits::allocate_at_least(__a, __n);
+	__r.__ptr = __ptr;
+	__r.__count = __count;
+#else
+	__r.__ptr = _Alloc_traits::allocate(__a, __n);
+	__r.__count = __n;
+#endif
 #if __glibcxx_constexpr_string >= 201907L
 	// std::char_traits begins the lifetime of characters,
 	// but custom traits might not, so do it here.
 	if constexpr (!is_same_v<_Traits, char_traits<_CharT>>)
 	  if (std::__is_constant_evaluated())
 	    // Begin the lifetime of characters in allocated storage.
-	    for (size_type __i = 0; __i < __n; ++__i)
-	      std::construct_at(__builtin_addressof(__p[__i]));
+	    for (size_type __i = 0; __i < __r.__count; ++__i)
+	      std::construct_at(__builtin_addressof(__r.__ptr[__i]));
 #endif
-	return __p;
+	return __r;
       }
 
 #ifdef __glibcxx_string_view // >= C++17
@@ -286,6 +301,21 @@ _GLIBCXX_BEGIN_NAMESPACE_CXX11
       }
 
       // Create & Destroy
+      _GLIBCXX20_CONSTEXPR
+      _Alloc_result
+      _M_create_plus(size_type __new_capacity, size_type __old_capacity);
+
+      __attribute__((__always_inline__))
+      _GLIBCXX20_CONSTEXPR
+      void
+      _M_create_and_place(size_type __new_capacity, size_type __old_capacity)
+	{
+	  _Alloc_result __r = _M_create_plus(__new_capacity, __old_capacity);
+	  _M_data(__r.__ptr);
+	  _M_capacity(__r.__count - 1);  // Leave room for NUL.
+	}
+
+      // This must remain for ABI stability though unused.
       _GLIBCXX20_CONSTEXPR
       pointer
       _M_create(size_type&, size_type);
@@ -1782,10 +1812,10 @@ _GLIBCXX_BEGIN_NAMESPACE_CXX11
 		    const auto __len = __str.size();
 		    auto __alloc = __str._M_get_allocator();
 		    // If this allocation throws there are no effects:
-		    auto __ptr = _S_allocate(__alloc, __len + 1);
+		    auto __r = _S_allocate_at_least(__alloc, __len + 1);
 		    _M_destroy(_M_allocated_capacity);
-		    _M_data(__ptr);
-		    _M_capacity(__len);
+		    _M_data(__r.__ptr);
+		    _M_capacity(__r.__count - 1);
 		    _M_set_length(__len);
 		  }
 	      }

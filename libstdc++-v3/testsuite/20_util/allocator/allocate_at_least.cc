@@ -29,7 +29,7 @@ template <typename T>
       }
   };
 
-int main()
+void base()
 {
   std::allocator<X> native;
   auto a1 = native.allocate_at_least(100);
@@ -62,4 +62,110 @@ int main()
   VERIFY(a5.count == 100);
   VERIFY(a5.ptr == minimal.keep);
   minimal_traits::deallocate(minimal, a5.ptr, a5.count);
+}
+
+void extra()
+{
+  using SatC = std::allocator_traits<std::allocator<char>>;
+  std::allocator<char> satc;
+  {
+    auto [p, n] = SatC::allocate_at_least(satc, 1);
+    VERIFY(n == __STDCPP_DEFAULT_NEW_ALIGNMENT__);
+    SatC::deallocate(satc, p, n);
+  }
+  {
+    auto [p, n] = SatC::allocate_at_least(satc, 2);
+    VERIFY(n == __STDCPP_DEFAULT_NEW_ALIGNMENT__);
+    SatC::deallocate(satc, p, n);
+  }
+  {
+    auto [p, n] =
+      SatC::allocate_at_least(satc, __STDCPP_DEFAULT_NEW_ALIGNMENT__ - 1);
+    VERIFY(n == __STDCPP_DEFAULT_NEW_ALIGNMENT__);
+    SatC::deallocate(satc, p, n);
+  }
+  {
+    auto [p, n] = SatC::allocate_at_least(
+	satc, __STDCPP_DEFAULT_NEW_ALIGNMENT__);
+    VERIFY(n == __STDCPP_DEFAULT_NEW_ALIGNMENT__);
+    SatC::deallocate(satc, p, n);
+  }
+
+  using SatS = std::allocator_traits<std::allocator<short>>;
+  std::allocator<short> sats;
+  {
+    auto [p, n] = SatS::allocate_at_least(sats, 1);
+    VERIFY(n == __STDCPP_DEFAULT_NEW_ALIGNMENT__ / sizeof(short));
+    SatS::deallocate(sats, p, n);
+  }
+  {
+    auto [p, n] = SatS::allocate_at_least(sats, 2);
+    VERIFY(n == __STDCPP_DEFAULT_NEW_ALIGNMENT__ / sizeof(short));
+    SatS::deallocate(sats, p, n);
+  }
+  {
+    auto [p, n] = SatS::allocate_at_least(sats,
+	(__STDCPP_DEFAULT_NEW_ALIGNMENT__ - 1) / sizeof(short));
+    VERIFY(n == __STDCPP_DEFAULT_NEW_ALIGNMENT__ / sizeof(short));
+    SatS::deallocate(sats, p, n);
+  }
+  {
+    auto [p, n] = SatS::allocate_at_least(sats,
+	__STDCPP_DEFAULT_NEW_ALIGNMENT__ / sizeof(short));
+    VERIFY(n == __STDCPP_DEFAULT_NEW_ALIGNMENT__ / sizeof(short));
+    SatS::deallocate(sats, p, n);
+  }
+
+  struct A3 { char s[3]; };
+  using SatA3 = std::allocator_traits<std::allocator<A3>>;
+  std::allocator<A3> sata3;
+  {
+    auto [p, n] = SatA3::allocate_at_least(sata3, 1);
+    VERIFY(n == __STDCPP_DEFAULT_NEW_ALIGNMENT__ / sizeof(A3));
+    SatA3::deallocate(sata3, p, n);
+  }
+  {
+    auto [p, n] = SatA3::allocate_at_least(sata3, 2);
+    VERIFY(n == __STDCPP_DEFAULT_NEW_ALIGNMENT__ / sizeof(A3));
+    SatA3::deallocate(sata3, p, n);
+  }
+  {
+    auto [p, n] = SatA3::allocate_at_least(sata3,
+	(__STDCPP_DEFAULT_NEW_ALIGNMENT__ - 1) / sizeof(A3));
+    VERIFY(n == __STDCPP_DEFAULT_NEW_ALIGNMENT__ / sizeof(A3));
+    SatA3::deallocate(sata3, p, n);
+  }
+  {
+    auto [p, n] = SatA3::allocate_at_least(sata3,
+	__STDCPP_DEFAULT_NEW_ALIGNMENT__ / sizeof(A3));
+    VERIFY(n == __STDCPP_DEFAULT_NEW_ALIGNMENT__ / sizeof(A3));
+    SatA3::deallocate(sata3, p, n);
+  }
+
+  struct Anm1 { char s[__STDCPP_DEFAULT_NEW_ALIGNMENT__ - 1]; };
+  using SatAnm1 = std::allocator_traits<std::allocator<Anm1>>;
+  std::allocator<Anm1> satanm1;
+  {
+    auto [p, n] = SatAnm1::allocate_at_least(satanm1, 1);
+    VERIFY(n == 1);
+    SatAnm1::deallocate(satanm1, p, n);
+  }
+  {
+    auto [p, n] = SatAnm1::allocate_at_least(satanm1,
+	__STDCPP_DEFAULT_NEW_ALIGNMENT__);
+    VERIFY(n == __STDCPP_DEFAULT_NEW_ALIGNMENT__);
+    SatAnm1::deallocate(satanm1, p, n);
+  }
+  {
+    auto [p, n] = SatAnm1::allocate_at_least(satanm1,
+	__STDCPP_DEFAULT_NEW_ALIGNMENT__ - 1);
+    VERIFY(n == __STDCPP_DEFAULT_NEW_ALIGNMENT__);
+    SatAnm1::deallocate(satanm1, p, n);
+  }
+}
+
+int main()
+{
+  base();
+  extra();
 }

@@ -168,6 +168,16 @@ namespace __gnu_test
 	  : Alloc(alloc)
 	{ }
 
+#ifdef __glibcxx_allocate_at_least // C++23
+      std::allocation_result<pointer, size_type>
+      allocate_at_least(size_type n)
+      {
+	auto [p, c] = AllocTraits::allocate_at_least(*this, n);
+	counter_type::allocate(c * sizeof(T));
+	return { p, c };
+      }
+#endif
+
       pointer
       allocate(size_type n, const void* = 0)
       {
@@ -372,6 +382,32 @@ namespace __gnu_test
 
 	return p;
       }
+
+#ifdef __glibcxx_allocate_at_least
+      constexpr auto
+      allocate_at_least(size_type n)
+      -> std::allocation_result<Tp*, size_t>
+      {
+	auto r = AllocTraits::allocate_at_least(*this, n);
+
+	if consteval
+	  { return r; }
+	else
+	  {
+	    try
+	      {
+		get_map().insert(map_type::value_type(
+		      reinterpret_cast<void*>(r.ptr), personality));
+	      }
+	    catch(...)
+	      {
+		AllocTraits::deallocate(*this, r.ptr, r.count);
+		__throw_exception_again;
+	      }
+	    return r;
+	  }
+      }
+#endif
 
       _GLIBCXX14_CONSTEXPR
       void
@@ -631,6 +667,13 @@ namespace __gnu_test
       _GLIBCXX14_CONSTEXPR
       pointer allocate(std::size_t n, const_void_pointer = {})
       { return pointer(std::allocator<Tp>::allocate(n)); }
+
+#ifdef __glibcxx_allocate_at_least
+      _GLIBCXX14_CONSTEXPR
+      std::allocation_result<pointer, std::size_t>
+      allocate_at_least(std::size_t n)
+      { return { allocate(n), n }; }
+#endif
 
       _GLIBCXX14_CONSTEXPR
       void deallocate(pointer p, std::size_t n)

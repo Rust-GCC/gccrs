@@ -27,14 +27,21 @@
 void test02()
 {
   std::wstring str01 = L"twelve chars";
-  // str01 becomes shared
-  std::wstring str02 = str01;
+  str01.reserve(100);
 #if __cplusplus <= 201703L
   str01.reserve();
 #else
   str01.shrink_to_fit(); // reserve is deprecated in C++20
 #endif
-  VERIFY( str01.capacity() == 12 );
+  // These are not guaranteed to absolutely minimize storage.
+  // allocator<wchar_t>::allocate_at_least rounds up to what
+  // it knows ::op new delivers.
+#ifdef __glibcxx_allocate_at_least
+  unsigned limit = __STDCPP_DEFAULT_NEW_ALIGNMENT__ / sizeof(wchar_t) - 1;
+#else
+  unsigned limit = 0;
+#endif
+  VERIFY( str01.capacity() - str01.size() <= limit);
 }
 
 int main()
