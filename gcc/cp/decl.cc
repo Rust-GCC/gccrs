@@ -19081,7 +19081,7 @@ finish_enum_value_list (tree enumtype)
 
 	  /* Update the minimum and maximum values, if appropriate.  */
 	  value = DECL_INITIAL (decl);
-	  if (TREE_CODE (value) != INTEGER_CST)
+	  if (!value || TREE_CODE (value) != INTEGER_CST)
 	    value = integer_zero_node;
 	  /* Figure out what the minimum and maximum values of the
 	     enumerators are.  */
@@ -19234,6 +19234,8 @@ finish_enum_value_list (tree enumtype)
         value = perform_implicit_conversion (underlying_type,
                                              DECL_INITIAL (decl),
                                              tf_warning_or_error);
+      if (!value)
+	value = integer_zero_node;
       /* Do not clobber shared ints.  But do share identical enumerators.  */
       value = fold_convert (enumtype, value);
 
