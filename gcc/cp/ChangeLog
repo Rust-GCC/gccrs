@@ -1,3 +1,58 @@
+2026-04-03  Alexandre Oliva  <oliva@adacore.com>
+
+	* coroutines.cc (cp_coroutine_transform::build_ramp_function):
+	Zero-initialize refcount.
+
+2026-04-03  Jakub Jelinek  <jakub@redhat.com>
+
+	* cp-trait.def (__builtin_is_structural): New trait.
+	* semantics.cc (trait_expr_value): Handle CPTK_IS_STRUCTURAL.
+	(finish_trait_expr): Likewise.
+	* constraint.cc (diagnose_trait_expr): Likewise.
+	* metafns.gperf (enum metafn_code): Add METAFN_IS_STRUCTURAL_TYPE.
+	(is_structural_type): New metafn.
+	* metafns.h: Regenerate.
+	* reflect.cc (eval_is_structural_type): New function.
+	(process_metafunction): Handle METAFN_IS_STRUCTURAL_TYPE.
+
+2026-04-03  Jakub Jelinek  <jakub@redhat.com>
+
+	* cp-tree.h (enum cp_built_in_function): Add
+	CP_BUILT_IN_CURRENT_EXCEPTION and CP_BUILT_IN_UNCAUGHT_EXCEPTIONS.
+	* tree.cc (builtin_valid_in_constant_expr_p): Handle
+	those.
+	* decl.cc (cxx_init_decl_processing): Build
+	decls for CP_BUILT_IN_CURRENT_EXCEPTION and
+	CP_BUILT_IN_UNCAUGHT_EXCEPTIONS.
+	(require_deduced_type): Deduce CP_BUILT_IN_CURRENT_EXCEPTION
+	return type.
+	* cp-gimplify.cc (cp_gimplify_expr): Handle
+	CP_BUILT_IN_CURRENT_EXCEPTION and CP_BUILT_IN_UNCAUGHT_EXCEPTIONS.
+	* constexpr.cc (enum cxa_builtin): Remove STD_UNCAUGHT_EXCEPTIONS
+	and STD_CURRENT_EXCEPTION, add BUILTIN_UNCAUGHT_EXCEPTIONS and
+	BUILTIN_CURRENT_EXCEPTION, renumber some enumerators.
+	(cxx_cxa_builtin_fn_p): Don't check for std::uncaught_exceptions
+	nor std::current_exception.
+	(cxx_eval_cxa_builtin_fn): Handle BUILTIN_UNCAUGHT_EXCEPTIONS
+	and BUILTIN_CURRENT_EXCEPTION instead of STD_UNCAUGHT_EXCEPTIONS
+	and STD_CURRENT_EXCEPTION.
+	(cxx_eval_builtin_function_call): Handle
+	CP_BUILT_IN_CURRENT_EXCEPTION and CP_BUILT_IN_UNCAUGHT_EXCEPTIONS.
+	Do just one fndecl_builtin_p check for BUILT_IN_FRONTEND and
+	switch on DECL_FE_FUNCTION_CODE.
+
+2026-04-03  Jakub Jelinek  <jakub@redhat.com>
+
+	* reflect.cc (eval_data_member_spec): Implement C++26 LWG4517
+	- data_member_spec should throw for cv-qualified unnamed bit-fields.
+
+2026-04-03  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/124531
+	* init.cc (build_vec_init): Call braced_lists_to_strings for
+	array CONSTRUCTORs.  Handle RAW_DATA_CST and handle RANGE_EXPR
+	correctly.
+
 2026-04-02  Nathaniel Shead  <nathanieloshead@gmail.com>
 
 	PR c++/124477

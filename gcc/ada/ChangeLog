@@ -1,3 +1,9 @@
+2026-04-03  Tonu Naks  <naks@adacore.com>
+
+	* doc/gnat_rm/gnat_language_extensions.rst: Adjust rules for
+	structural generic instantiations.
+	* gnat_rm.texi: Regenerate.
+
 2026-03-31  Eric Botcazou  <ebotcazou@adacore.com>
 
 	* sem_attr.adb (Analyze_Attribute) <Attribute_Reduce>: Rewrite the

@@ -1,3 +1,36 @@
+2026-04-03  Sandra Loosemore  <sloosemore@baylibre.com>
+
+	PR c/123234
+	* doc/extend.texi (Decimal Float): Clarify that GCC really does
+	support only the older N1312 draft as documented here, not the
+	standard C23 functionality yet.
+
+2026-04-03  Jakub Jelinek  <jakub@redhat.com>
+
+	PR tree-optimization/124754
+	* tree-ssa-strlen.cc (strlen_pass::handle_builtin_strcpy): Make
+	sure both get_stridx calls are done before first get_strinfo call.
+	(strlen_pass::handle_builtin_memcpy): Likewise.
+	(strlen_pass::handle_builtin_strcat): Likewise.
+
+2026-04-03  Sandra Loosemore  <sloosemore@baylibre.com>
+
+	PR debug/94491
+	* doc/invoke.texi (Debugging Options): Explicitly document what
+	-g2 does instead of just saying it's the default.
+
+2026-04-03  Sandra Loosemore  <sloosemore@baylibre.com>
+
+	PR other/94182
+	* doc/implement-c.texi (Characters implementation): Add
+	cross-reference to more detailed discussion about signedness.
+	* doc/invoke.texi (C Dialect Options): Combine -fsigned-char
+	and -funsigned-char table entries since the following discussion
+	applies to both.  Add an anchor so other things can point at it.
+	(Warning Options): Add cross-references to the above two places.
+	Clarify that the warning is given regardless of whether char is
+	signed or unsigned.
+
 2026-04-02  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
 
 	PR tree-optimization/124746

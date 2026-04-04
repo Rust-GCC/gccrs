@@ -1,3 +1,20 @@
+2026-04-03  Harald Anlauf  <anlauf@gmx.de>
+
+	PR fortran/124652
+	* trans-expr.cc (gfc_conv_procedure_call): Do not clobber a
+	procedure pointer intent(out) argument.
+	* trans-intrinsic.cc (conv_isocbinding_function): When passing to
+	C_FUNLOC a procedure pointer that is a dummy, dereference it.
+
+2026-04-03  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/100155
+	* trans-expr.cc (gfc_add_interface_mapping): 'new_sym' dummy
+	attribute set to zero.
+	(gfc_conv_procedure_call): Deallocate allocatable components of
+	a class argument, enclosed in parentheses,wrap up the parmse
+	and proceed to the next argument.
+
 2026-04-02  Christopher Albert  <albert@tugraz.at>
 	    Paul Thomas  <pault@gcc.gnu.org>
 

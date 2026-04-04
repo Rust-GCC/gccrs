@@ -1,3 +1,31 @@
+2026-04-03  Jakub Jelinek  <jakub@redhat.com>
+
+	* include/bits/version.def (is_structural): New.
+	* include/bits/version.h: Regenerate.
+	* include/std/type_traits (__glibcxx_want_is_structural): Define.
+	(std::is_structural): New type trait.
+	(std::is_structural_v): New type trait variable template.
+	* include/std/meta (std::meta::is_structural_type): New declaration.
+	* src/c++23/std.cc.in: Export std::is_structural, std::is_structural_v
+	and std::meta::is_structural_type.
+	* testsuite/20_util/is_structural/requirements/explicit_instantiation.cc: New test.
+	* testsuite/20_util/is_structural/requirements/typedefs.cc: New test.
+	* testsuite/20_util/is_structural/value.cc: New test.
+	* testsuite/20_util/variable_templates_for_traits.cc: Test
+	is_structural_v.
+
+2026-04-03  Jakub Jelinek  <jakub@redhat.com>
+
+	* libsupc++/exception_ptr.h (std::make_exception_ptr): Use
+	__builtin_current_exception() instead of current_exception() if
+	the builtin exists.
+	* libsupc++/nested_exception.h: Revert 2026-01-07 and 2025-07-10
+	changes.
+	* testsuite/18_support/exception_ptr/exception_ptr_cast.cc (test01):
+	Use __builtin_current_exception instead of std::current_exception
+	if __has_builtin(__builtin_current_exception).  Otherwise don't
+	try to constant evaluate test01.
+
 2026-04-02  Patrick Palka  <ppalka@redhat.com>
 
 	* include/std/ranges (zip_view::size): Uglify 'sizes'

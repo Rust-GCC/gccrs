@@ -1,3 +1,70 @@
+2026-04-03  H.J. Lu  <hjl.tools@gmail.com>
+
+	PR target/123210
+	* gcc.target/i386/pr123210.c: New test.
+
+2026-04-03  Jakub Jelinek  <jakub@redhat.com>
+
+	PR tree-optimization/124754
+	* g++.dg/tree-ssa/strlenopt-3.C: New test.
+
+2026-04-03  Jakub Jelinek  <jakub@redhat.com>
+
+	* g++.dg/reflect/type_trait14.C: New test.
+	* g++.dg/reflect/eh1.C: Add test for is_structural_type.
+	* g++.dg/reflect/eh2.C: Likewise.
+
+2026-04-03  Jakub Jelinek  <jakub@redhat.com>
+
+	* g++.dg/cpp26/constexpr-eh3.C: Use __builtin_current_exception()
+	instead of std::current_exception() and
+	__builttin_uncaught_exceptions() instead of
+	std::uncaught_exceptions().  Remove nested_exception related parts
+	of the test.
+	* g++.dg/cpp26/constexpr-eh8.C: Use __builtin_current_exception()
+	instead of std::current_exception().
+
+2026-04-03  Harald Anlauf  <anlauf@gmx.de>
+
+	PR fortran/124652
+	* gfortran.dg/c_funloc_tests_10.f90: New test.
+
+2026-04-03  Christopher Albert  <albert@tugraz.at>
+
+	PR fortran/98203
+	PR fortran/98203
+	* gfortran.dg/gomp/pr98203.f90: New test.
+
+2026-04-03  Jakub Jelinek  <jakub@redhat.com>
+
+	* g++.dg/reflect/data_member_spec2.C: Add tests for unnamed bit-fields
+	with const and/or volatile types.
+
+2026-04-03  Jakub Jelinek  <jakub@redhat.com>
+
+	* g++.dg/reflect/define_aggregate10.C: New test.
+
+2026-04-03  Jakub Jelinek  <jakub@redhat.com>
+
+	* g++.dg/reflect/lwg4556.C: New test.
+
+2026-04-03  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/124531
+	* g++.dg/cpp/embed-29.C: New test.
+	* g++.dg/cpp0x/pr124531.C: New test.
+
+2026-04-03  Christopher Albert  <albert@tugraz.at>
+
+	PR fortran/95163
+	PR fortran/95163
+	* gfortran.dg/gomp/pr95163.f90: New test.
+
+2026-04-03  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/100155
+	* gfortran.dg/pr100155.f90: New test.
+
 2026-04-02  Nathaniel Shead  <nathanieloshead@gmail.com>
 
 	PR c++/124477
