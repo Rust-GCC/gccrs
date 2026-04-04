@@ -49,7 +49,7 @@ template<int N>
 int
 getT2 (auto... Ts)
 {
-  return Ts...[N]; // { dg-error "pack index '-1' is negative" }
+  return Ts...[N]; // { dg-error "pack index '\[0-9]*' is out of range for pack of length '1'" }
 }
 
 template<auto N, typename... Ts>
@@ -77,7 +77,7 @@ template<auto N, typename... Ts>
 void
 badtype4 ()
 {
-  Ts...[N] t; // { dg-error "pack index '-1' is negative" }
+  Ts...[N] t; // { dg-error "narrowing conversion of '-1' from 'int' to" }
 }
 
 int nonconst () { return 42; }

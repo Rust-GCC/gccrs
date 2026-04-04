@@ -14416,6 +14416,10 @@ tsubst_pack_index (tree t, tree args, tsubst_flags_t complain, tree in_decl)
   const bool parenthesized_p = (TREE_CODE (t) == PACK_INDEX_EXPR
 				&& PACK_INDEX_PARENTHESIZED_P (t));
   tree r;
+  if (!type_dependent_expression_p (index))
+    index = build_converted_constant_expr (size_type_node, index, complain);
+  if (error_operand_p (index))
+    return error_mark_node;
   if (!value_dependent_expression_p (index) && TREE_CODE (pack) == TREE_VEC)
     r = pack_index_element (index, pack, parenthesized_p, complain);
   else
