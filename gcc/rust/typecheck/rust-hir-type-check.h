@@ -251,6 +251,8 @@ public:
   void insert_associated_impl_mapping (HirId trait_id,
 				       TyTy::BaseType *impl_type,
 				       HirId impl_id);
+  bool peek_associated_impl_mapping_for_self (
+    HirId trait_id, std::vector<std::pair<TyTy::BaseType *, HirId>> *mappings);
   bool lookup_associated_impl_mapping_for_self (HirId trait_id,
 						TyTy::BaseType *self,
 						HirId *mapping);
