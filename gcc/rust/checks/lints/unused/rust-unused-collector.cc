@@ -106,5 +106,25 @@ UnusedCollector::visit (HIR::ContinueExpr &expr)
   walk (expr);
 }
 
+void
+UnusedCollector::visit (HIR::LazyBooleanExpr &expr)
+{
+  if (expr.get_lhs ().get_expression_type () == HIR::Expr::ExprType::Grouped)
+    mark_group_used (expr.get_lhs ());
+  if (expr.get_rhs ().get_expression_type () == HIR::Expr::ExprType::Grouped)
+    mark_group_used (expr.get_rhs ());
+  walk (expr);
+}
+
+void
+UnusedCollector::visit (HIR::ArithmeticOrLogicalExpr &expr)
+{
+  if (expr.get_lhs ().get_expression_type () == HIR::Expr::ExprType::Grouped)
+    mark_group_used (expr.get_lhs ());
+  if (expr.get_rhs ().get_expression_type () == HIR::Expr::ExprType::Grouped)
+    mark_group_used (expr.get_rhs ());
+  walk (expr);
+}
+
 } // namespace Analysis
 } // namespace Rust
