@@ -4,7 +4,7 @@
 
 template <int I, auto...Ts>
 decltype(Ts...[I])
-foo ()			      // { dg-bogus "sorry, unimplemented: mangling" "" { xfail *-*-* } }
+foo ()			      // { dg-bogus "sorry, unimplemented: mangling" }
 {
   return Ts...[I];
 }
