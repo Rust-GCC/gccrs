@@ -1,3 +1,5 @@
+-- { dg-options "-gnatws" }
+
 package body Aggr35_Pkg is
 
   procedure Proc1 is
