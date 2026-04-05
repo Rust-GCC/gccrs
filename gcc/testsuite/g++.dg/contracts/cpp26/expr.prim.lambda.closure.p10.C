@@ -43,11 +43,21 @@ foo ()
       return [=]{ return x; }();    // OK, #1 captures nothing.
     }()) {};
 
-// TODO: lambda captures in function contract specifiers are not yet
-// fully functional.
-#if 0
   bool y = true;
   auto f7 = [=]
-    pre([=]{ return y; }()); // error: outer capture of y is invalid.
-#endif
+    pre([=]{ return y; }()) {}; // TODO : 
+
+  int x = 4;
+  auto f8 = [&] 
+    pre (x > 0) { (void) x; };
+}
+
+int
+main()
+{
+  int x = 3;
+  auto lambda = [=] 
+	pre (x > 0) 
+	{ (void)x; };
+  lambda();
 }

@@ -1352,6 +1352,18 @@ maybe_apply_function_contracts (tree fndecl)
       DECL_SAVED_TREE (fndecl) = push_stmt_list ();
     }
 
+  /* If we have a lambda with captures, ensure that those captures are in-
+     scope for pre and post conditions.  */
+  if (LAMBDA_FUNCTION_P (fndecl)
+      && TREE_CODE (fnbody) == BIND_EXPR)
+    {
+      tree extract = BIND_EXPR_BODY (fnbody);
+      BIND_EXPR_BODY (fnbody) = NULL_TREE;
+      add_stmt (fnbody);
+      BIND_EXPR_BODY (fnbody) = push_stmt_list ();
+      fnbody = extract;
+    }
+
   /* Now add the pre and post conditions to the existing function body.
      This copies the approach used for function try blocks.  */
   tree compound_stmt = begin_compound_stmt (0);
