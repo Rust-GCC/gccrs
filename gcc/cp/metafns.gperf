@@ -268,10 +268,6 @@ enum {
   METAFN_KIND_MASK = (1 << METAFN_KIND_SHIFT) - 1
 };
 
-/* Get the metafn_kind_arg for argument ARGNO.  */
-#define METAFN_KIND_ARG(ARGNO) \
-  ((minfo->kind >> ((ARGNO + 1) * METAFN_KIND_SHIFT)) & METAFN_KIND_MASK)
-
 /* Possible return types of metafunctions.  */
 enum metafn_kind_ret {
   METAFN_KIND_RET_BOOL,
@@ -288,6 +284,10 @@ enum metafn_kind_ret {
   METAFN_KIND_RET_TEMPLATE_PARM,
 };
 static_assert (METAFN_KIND_RET_TEMPLATE_PARM <= (int) METAFN_KIND_MASK, "");
+
+/* Get the metafn_kind_ret.  */
+#define METAFN_KIND_RET(MINFO) \
+  ((metafn_kind_ret) (((int) (MINFO)->kind) & METAFN_KIND_MASK))
 
 /* Possible argument types of metafunctions.  */
 enum metafn_kind_arg {
@@ -308,6 +308,11 @@ enum metafn_kind_arg {
 };
 static_assert (METAFN_KIND_ARG_TEMPLATE_PARM_REF <= (int) METAFN_KIND_MASK,
 	       "");
+
+/* Get the metafn_kind_arg for argument ARGNO.  */
+#define METAFN_KIND_ARG(MINFO, ARGNO) \
+  ((metafn_kind_arg) (((MINFO)->kind >> ((ARGNO + 1) * METAFN_KIND_SHIFT)) \
+		      & METAFN_KIND_MASK))
 
 /* Possible sets of 0-3 arguments of metafunctions.  */
 enum metafn_kind_args {
@@ -382,6 +387,9 @@ enum metafn_kind {
   METAFN_KIND_INFO_REFLECTION_RANGET
     = (METAFN_KIND_ARGS_REFLECTION_RANGET << METAFN_KIND_SHIFT)
       | METAFN_KIND_RET_INFO,
+  METAFN_KIND_BOOL_INFO_REFLECTION_RANGE
+    = (METAFN_KIND_ARGS_INFO_REFLECTION_RANGE << METAFN_KIND_SHIFT)
+      | METAFN_KIND_RET_BOOL,
   METAFN_KIND_INFO_INFO_REFLECTION_RANGE
     = (METAFN_KIND_ARGS_INFO_REFLECTION_RANGE << METAFN_KIND_SHIFT)
       | METAFN_KIND_RET_INFO,
@@ -574,7 +582,7 @@ size_of, METAFN_SIZE_OF, METAFN_KIND_SIZE_T_INFO,
 alignment_of, METAFN_ALIGNMENT_OF, METAFN_KIND_SIZE_T_INFO,
 bit_size_of, METAFN_BIT_SIZE_OF, METAFN_KIND_SIZE_T_INFO,
 extract, METAFN_EXTRACT, METAFN_KIND_TEMPLATE_PARM_INFO,
-can_substitute, METAFN_CAN_SUBSTITUTE, METAFN_KIND_INFO_INFO_REFLECTION_RANGE,
+can_substitute, METAFN_CAN_SUBSTITUTE, METAFN_KIND_BOOL_INFO_REFLECTION_RANGE,
 substitute, METAFN_SUBSTITUTE, METAFN_KIND_INFO_INFO_REFLECTION_RANGE,
 reflect_constant, METAFN_REFLECT_CONSTANT, METAFN_KIND_INFO_TEMPLATE_PARM,
 reflect_object, METAFN_REFLECT_OBJECT, METAFN_KIND_INFO_TEMPLATE_PARM_REF,

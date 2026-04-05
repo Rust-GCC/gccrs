@@ -308,6 +308,22 @@ decl_in_std_meta_p (tree decl)
   return decl_namespace_context (decl) == std_meta_node;
 }
 
+/* True if CTX is an instance of std::meta::NAME class.  */
+
+static bool
+is_std_meta_class (tree ctx, const char *name)
+{
+  if (ctx == NULL_TREE || !CLASS_TYPE_P (ctx) || !TYPE_MAIN_DECL (ctx))
+    return false;
+
+  tree decl = TYPE_MAIN_DECL (ctx);
+  tree dname = DECL_NAME (decl);
+  if (dname == NULL_TREE || !id_equal (dname, name))
+    return false;
+
+  return decl_in_std_meta_p (decl);
+}
+
 /* Returns true if FNDECL, a FUNCTION_DECL, is a call to a metafunction
    declared in namespace std::meta.  */
 
@@ -340,12 +356,18 @@ metafunction_p (tree fndecl)
 /* Extract the N-th reflection argument from a metafunction call CALL.  */
 
 static tree
-get_info (const constexpr_ctx *ctx, tree call, int n, bool *non_constant_p,
-	  bool *overflow_p, tree *jump_target)
+get_info (location_t loc, const constexpr_ctx *ctx, tree call, int n,
+	  bool *non_constant_p, bool *overflow_p, tree *jump_target)
 {
   gcc_checking_assert (call_expr_nargs (call) > n);
   tree info = get_nth_callarg (call, n);
-  gcc_checking_assert (REFLECTION_TYPE_P (TREE_TYPE (info)));
+  if (!REFLECTION_TYPE_P (TREE_TYPE (info)))
+    {
+      error_at (loc, "incorrect %qT type of argument %d, expected %qT",
+		TREE_TYPE (info), n + 1, meta_info_type_node);
+      *non_constant_p = true;
+      return NULL_TREE;
+    }
   info = cxx_eval_constant_expression (ctx, info, vc_prvalue,
 				       non_constant_p, overflow_p,
 				       jump_target);
@@ -7546,6 +7568,146 @@ eval_extract (location_t loc, const constexpr_ctx *ctx, tree type, tree r,
     }
 }
 
+/* Diagnose incorrect type of metafn argument and return true in that
+   case.  */
+
+static bool
+check_metafn_arg_type (location_t loc, metafn_kind_arg kind, int n, tree type,
+		       bool *non_constant_p)
+{
+  tree expected = NULL_TREE;
+  const char *expected_str = NULL;
+  switch ((metafn_kind_arg) kind)
+    {
+    case METAFN_KIND_ARG_VOID:
+      break;
+    case METAFN_KIND_ARG_INFO:
+    case METAFN_KIND_ARG_TINFO:
+      if (!REFLECTION_TYPE_P (type))
+	expected = meta_info_type_node;
+      break;
+    case METAFN_KIND_ARG_REFLECTION_RANGE:
+    case METAFN_KIND_ARG_REFLECTION_RANGET:
+    case METAFN_KIND_ARG_INPUT_RANGE:
+      break;
+    case METAFN_KIND_ARG_SIZE_T:
+      if (!same_type_ignoring_top_level_qualifiers_p (type, size_type_node))
+	expected_str = "std::size_t";
+      break;
+    case METAFN_KIND_ARG_UNSIGNED:
+      if (!same_type_ignoring_top_level_qualifiers_p (type,
+						      unsigned_type_node))
+	expected = unsigned_type_node;
+      break;
+    case METAFN_KIND_ARG_OPERATORS:
+      if (TREE_CODE (type) != ENUMERAL_TYPE
+	  || TYPE_PRECISION (type) != TYPE_PRECISION (integer_type_node)
+	  || TYPE_CONTEXT (type) != std_meta_node)
+	expected_str = "std::meta::operators";
+      break;
+    case METAFN_KIND_ARG_ACCESS_CONTEXT:
+      if (TYPE_REF_P (type))
+	type = TREE_TYPE (type);
+      if (!is_std_meta_class (type, "access_context"))
+	expected_str = "std::meta::access_context";
+      break;
+    case METAFN_KIND_ARG_DATA_MEMBER_OPTIONS:
+      if (TYPE_REF_P (type))
+	type = TREE_TYPE (type);
+      if (!is_std_meta_class (type, "data_member_options"))
+	expected_str = "std::meta::data_member_options";
+      break;
+    case METAFN_KIND_ARG_TEMPLATE_PARM:
+    case METAFN_KIND_ARG_TEMPLATE_PARM_REF:
+      break;
+    }
+  if (expected || expected_str)
+    {
+      if (expected_str)
+	error_at (loc, "incorrect %qT type of argument %d, expected %qs",
+		  type, n + 1, expected_str);
+      else
+	error_at (loc, "incorrect %qT type of argument %d, expected %qT",
+		  type, n + 1, expected);
+      *non_constant_p = true;
+      return true;
+    }
+  return false;
+}
+
+/* Diagnose incorrect return type of metafn and return true in that case.  */
+
+static bool
+check_metafn_return_type (location_t loc, metafn_kind_ret kind, tree type,
+			  bool *non_constant_p)
+{
+  tree expected = NULL_TREE;
+  const char *expected_str = NULL;
+  switch (kind)
+    {
+    case METAFN_KIND_RET_BOOL:
+      if (TREE_CODE (type) != BOOLEAN_TYPE)
+	expected = boolean_type_node;
+      break;
+    case METAFN_KIND_RET_INFO:
+      if (!REFLECTION_TYPE_P (type))
+	expected = meta_info_type_node;
+      break;
+    case METAFN_KIND_RET_SIZE_T:
+      if (!same_type_ignoring_top_level_qualifiers_p (type, size_type_node))
+	expected_str = "std::size_t";
+      break;
+    case METAFN_KIND_RET_MEMBER_OFFSET:
+      if (!is_std_meta_class (type, "member_offset"))
+	expected_str = "std::meta::member_offset";
+      break;
+    case METAFN_KIND_RET_OPERATORS:
+      if (TREE_CODE (type) != ENUMERAL_TYPE
+	  || TYPE_PRECISION (type) != TYPE_PRECISION (integer_type_node)
+	  || TYPE_CONTEXT (type) != std_meta_node)
+	expected_str = "std::meta::operators";
+      break;
+    case METAFN_KIND_RET_SOURCE_LOCATION:
+      if (!is_std_class (type, "source_location"))
+	expected_str = "std::source_location";
+      break;
+    case METAFN_KIND_RET_STRING_VIEW:
+      if (!CLASS_TYPE_P (type))
+	expected_str = "std::string_view";
+      break;
+    case METAFN_KIND_RET_U8STRING_VIEW:
+      if (!CLASS_TYPE_P (type))
+	expected_str = "std::u8string_view";
+      break;
+    case METAFN_KIND_RET_STRONG_ORDERING:
+      if (!is_std_class (type, "strong_ordering"))
+	expected_str = "std::strong_ordering";
+      break;
+    case METAFN_KIND_RET_VECTOR_INFO:
+      if (!CLASS_TYPE_P (type))
+	expected_str = "std::vector<std::meta::info>";
+      break;
+    case METAFN_KIND_RET_ACCESS_CONTEXT:
+      if (!is_std_meta_class (type, "access_context"))
+	expected_str = "std::meta::access_context";
+      break;
+    case METAFN_KIND_RET_TEMPLATE_PARM:
+      break;
+    }
+  if (expected || expected_str)
+    {
+      if (expected_str)
+	error_at (loc, "incorrect %qT return type, expected %qs",
+		  type, expected_str);
+      else
+	error_at (loc, "incorrect %qT return type, expected %qT",
+		  type, expected);
+      *non_constant_p = true;
+      return true;
+    }
+  return false;
+}
+
 /* Expand a call to a metafunction FUN.  CALL is the CALL_EXPR.
    JUMP_TARGET is set if we are throwing std::meta::exception.  */
 
@@ -7569,20 +7731,28 @@ process_metafunction (const constexpr_ctx *ctx, tree fun, tree call,
   tree h = NULL_TREE, h1 = NULL_TREE, hvec = NULL_TREE, expr = NULL_TREE;
   tree type = NULL_TREE, ht, info;
   reflect_kind kind = REFLECT_UNDEF;
+  tree rettype;
+  if (TREE_CODE (call) == AGGR_INIT_EXPR)
+    rettype = TREE_TYPE (AGGR_INIT_EXPR_SLOT (call));
+  else
+    rettype = TREE_TYPE (call);
+  if (check_metafn_return_type (loc, METAFN_KIND_RET (minfo), rettype,
+				non_constant_p))
+    return NULL_TREE;
   for (int argno = 0; argno < 3; ++argno)
-    switch (METAFN_KIND_ARG (argno))
+    switch (METAFN_KIND_ARG (minfo, argno))
       {
       case METAFN_KIND_ARG_VOID:
 	break;
       case METAFN_KIND_ARG_INFO:
       case METAFN_KIND_ARG_TINFO:
 	gcc_assert (argno < 2);
-	info = get_info (ctx, call, argno, non_constant_p, overflow_p,
+	info = get_info (loc, ctx, call, argno, non_constant_p, overflow_p,
 			 jump_target);
 	if (*jump_target || *non_constant_p)
 	  return NULL_TREE;
 	ht = REFLECT_EXPR_HANDLE (info);
-	if (METAFN_KIND_ARG (argno) == METAFN_KIND_ARG_TINFO
+	if (METAFN_KIND_ARG (minfo, argno) == METAFN_KIND_ARG_TINFO
 	    && eval_is_type (ht) != boolean_true_node)
 	  return throw_exception_nontype (loc, ctx, fun, non_constant_p,
 					  jump_target);
@@ -7619,6 +7789,9 @@ process_metafunction (const constexpr_ctx *ctx, tree fun, tree call,
       case METAFN_KIND_ARG_OPERATORS:
 	gcc_assert (argno == 0);
 	expr = get_nth_callarg (call, 0);
+	if (check_metafn_arg_type (loc, METAFN_KIND_ARG (minfo, argno), 0,
+				   TREE_TYPE (expr), non_constant_p))
+	  return NULL_TREE;
 	expr = cxx_eval_constant_expression (ctx, expr, vc_prvalue,
 					     non_constant_p, overflow_p,
 					     jump_target);
@@ -7630,6 +7803,9 @@ process_metafunction (const constexpr_ctx *ctx, tree fun, tree call,
       case METAFN_KIND_ARG_DATA_MEMBER_OPTIONS:
 	gcc_assert (argno == 1);
 	expr = get_nth_callarg (call, argno);
+	if (check_metafn_arg_type (loc, METAFN_KIND_ARG (minfo, argno), 1,
+				   TREE_TYPE (expr), non_constant_p))
+	  return NULL_TREE;
 	expr = cxx_eval_constant_expression (ctx, expr, vc_prvalue,
 					     non_constant_p, overflow_p,
 					     jump_target);
@@ -7644,31 +7820,31 @@ process_metafunction (const constexpr_ctx *ctx, tree fun, tree call,
     {
     case METAFN_OPERATOR_OF:
       return eval_operator_of (loc, ctx, h, non_constant_p, jump_target,
-			       TREE_TYPE (call), fun);
+			       rettype, fun);
     case METAFN_SYMBOL_OF:
       return eval_symbol_of (loc, ctx, expr, non_constant_p, jump_target,
-			     char_type_node, TREE_TYPE (call), fun);
+			     char_type_node, rettype, fun);
     case METAFN_U8SYMBOL_OF:
       return eval_symbol_of (loc, ctx, expr, non_constant_p, jump_target,
-			     char8_type_node, TREE_TYPE (call), fun);
+			     char8_type_node, rettype, fun);
     case METAFN_HAS_IDENTIFIER:
       return eval_has_identifier (h, kind);
     case METAFN_IDENTIFIER_OF:
       return eval_identifier_of (loc, ctx, h, kind, non_constant_p, jump_target,
-				 char_type_node, TREE_TYPE (call), fun);
+				 char_type_node, rettype, fun);
     case METAFN_U8IDENTIFIER_OF:
       return eval_identifier_of (loc, ctx, h, kind, non_constant_p, jump_target,
-				 char8_type_node, TREE_TYPE (call), fun);
+				 char8_type_node, rettype, fun);
     case METAFN_DISPLAY_STRING_OF:
       return eval_display_string_of (loc, ctx, h, kind, non_constant_p,
 				     jump_target, char_type_node,
-				     TREE_TYPE (call), fun);
+				     rettype, fun);
     case METAFN_U8DISPLAY_STRING_OF:
       return eval_display_string_of (loc, ctx, h, kind, non_constant_p,
 				     jump_target, char8_type_node,
-				     TREE_TYPE (call), fun);
+				     rettype, fun);
     case METAFN_SOURCE_LOCATION_OF:
-      return eval_source_location_of (loc, h, kind, TREE_TYPE (call));
+      return eval_source_location_of (loc, h, kind, rettype);
     case METAFN_TYPE_OF:
       return eval_type_of (loc, ctx, h, kind, non_constant_p, jump_target, fun);
     case METAFN_OBJECT_OF:
@@ -7888,16 +8064,16 @@ process_metafunction (const constexpr_ctx *ctx, tree fun, tree call,
       return eval_enumerators_of (loc, ctx, h, non_constant_p, jump_target,
 				  fun);
     case METAFN_OFFSET_OF:
-      return eval_offset_of (loc, ctx, h, kind, TREE_TYPE (call),
+      return eval_offset_of (loc, ctx, h, kind, rettype,
 			     non_constant_p, jump_target, fun);
     case METAFN_SIZE_OF:
-      return eval_size_of (loc, ctx, h, kind, TREE_TYPE (call), non_constant_p,
+      return eval_size_of (loc, ctx, h, kind, rettype, non_constant_p,
 			   jump_target, fun);
     case METAFN_ALIGNMENT_OF:
-      return eval_alignment_of (loc, ctx, h, kind, TREE_TYPE (call),
+      return eval_alignment_of (loc, ctx, h, kind, rettype,
 				non_constant_p, jump_target, fun);
     case METAFN_BIT_SIZE_OF:
-      return eval_bit_size_of (loc, ctx, h, kind, TREE_TYPE (call),
+      return eval_bit_size_of (loc, ctx, h, kind, rettype,
 			       non_constant_p, jump_target, fun);
     case METAFN_EXTRACT:
       {
