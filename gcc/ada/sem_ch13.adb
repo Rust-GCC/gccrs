@@ -395,7 +395,6 @@ package body Sem_Ch13 is
 
    procedure Insert_Aitem
      (N           : Node_Id;
-      Ins_Node    : in out Node_Id;
       Aitem       : in out Node_Id;
       Is_Instance : Boolean);
    --  Aitem is a pragma or attribute definition clause generated from an
@@ -417,13 +416,10 @@ package body Sem_Ch13 is
 
    procedure Analyze_One_Aspect
      (N        : Node_Id;
-      Ins_Node : in out Node_Id;
       E        : N_Entity_Id;
       Aspect   : Node_Id);
    --  N and E are what was passed to Analyze_Aspect_Specifications.
    --  Aspect is one element of Aspect_Specifications (N).
-   --  Ins_Node is (in some cases) where to insert the Aitem; usually
-   --  equal to N.
 
    -----------------------------------------------------------
    --  Visibility of Discriminants in Aspect Specifications --
@@ -2118,7 +2114,6 @@ package body Sem_Ch13 is
 
    procedure Insert_Aitem
      (N           : Node_Id;
-      Ins_Node    : in out Node_Id;
       Aitem       : in out Node_Id;
       Is_Instance : Boolean)
    is
@@ -2128,6 +2123,28 @@ package body Sem_Ch13 is
       Decl  : Node_Id;
       Def   : Node_Id;
       Decls : List_Id; -- List on which to prepend Aitem, if any
+
+      function Insert_After_Place return Node_Id;
+      --  When we call Insert_After below, this is the node after which to
+      --  insert Aitem. This is normally N, except if Aitem is a pragma
+      --  Annotate, then we insert it after other pragmas Annotate.
+      --  ???This should not be necessary; order should not matter,
+      --  so we should always insert immediately after N.
+
+      function Insert_After_Place return Node_Id is
+      begin
+         return Result : Node_Id := N do
+            if Nkind (Aitem) = N_Pragma
+              and then Get_Pragma_Id (Aitem) = Pragma_Annotate
+            then
+               while Nkind (Next (Result)) = N_Pragma
+                 and then Get_Pragma_Id (Next (Result)) = Pragma_Annotate
+               loop
+                  Next (Result);
+               end loop;
+            end if;
+         end return;
+      end Insert_After_Place;
 
    begin
       --  ???Preelaborate in a package body is illegal, but older compilers
@@ -2234,32 +2251,17 @@ package body Sem_Ch13 is
       <<After>>
 
       --  Here we insert Aitem AFTER N. For a compilation unit, that means
-      --  in the Pragmas_After field. For anything else, after N in some
-      --  list.
+      --  at the end of the Pragmas_After list. For anything else, after N in
+      --  some list.
 
       if Nkind (Parent (N)) = N_Compilation_Unit then
          if No (Pragmas_After (Aux_Decls_Node (Parent (N)))) then
             Set_Pragmas_After (Aux_Decls_Node (Parent (N)), New_List);
          end if;
 
-         Prepend_To (Pragmas_After (Aux_Decls_Node (Parent (N))), Aitem);
-         --  ???Should this be Append_To?
+         Append_To (Pragmas_After (Aux_Decls_Node (Parent (N))), Aitem);
       else
-         Insert_After (Ins_Node, Aitem);
-
-         --  The order shouldn't matter, but for Annotate, some tests fail
-         --  in minor ways if we don't use Ins_Node to make the order of
-         --  pragmas match the order of aspects. For some other aspects,
-         --  such as Pre, some tests fail if we DO use Ins_Node.
-         --  ???Consider getting rid of Ins_Node, and just doing
-         --  "Insert_After (N, Aitem);" above. Or consider always
-         --  updating Ins_Node below.
-
-         if Nkind (Aitem) = N_Pragma
-           and then Get_Pragma_Id (Aitem) = Pragma_Annotate
-         then
-            Ins_Node := Aitem;
-         end if;
+         Insert_After (Insert_After_Place, Aitem);
       end if;
 
       <<Done>>
@@ -2285,7 +2287,6 @@ package body Sem_Ch13 is
 
    procedure Analyze_One_Aspect
      (N        : Node_Id;
-      Ins_Node : in out Node_Id;
       E        : N_Entity_Id;
       Aspect   : Node_Id)
    is
@@ -3795,7 +3796,7 @@ package body Sem_Ch13 is
       procedure Insert_Aitem (Is_Instance : Boolean := False) is
       begin
          Decorate_Aspect_Links (Aspect, Aitem);
-         Insert_Aitem (N, Ins_Node, Aitem, Is_Instance);
+         Insert_Aitem (N, Aitem, Is_Instance);
          Delay_Required := False;
       end Insert_Aitem;
 
@@ -5912,15 +5913,6 @@ package body Sem_Ch13 is
    procedure Analyze_Aspect_Specifications (N : Node_Id; E : N_Entity_Id) is
       pragma Assert (Present (E));
 
-      Aspect : Node_Id;
-
-      Ins_Node : Node_Id := N;
-      --  Used to (sometimes) preserve order of pragmas relative to the aspects
-      --  whence they came.
-
-   --  Start of processing for Analyze_Aspect_Specifications
-
-   begin
       --  The general processing involves building an attribute definition
       --  clause or a pragma node that corresponds to the aspect. Then in order
       --  to delay the evaluation of this aspect to the freeze point, we attach
@@ -5941,14 +5933,18 @@ package body Sem_Ch13 is
       --  deal with delay of visibility for the expression analysis. Thus, we
       --  just insert the pragma after the node N.
 
+      Aspect : Node_Id := First (Aspect_Specifications (N));
+
+   --  Start of processing for Analyze_Aspect_Specifications
+
+   begin
       --  Loop through aspects
 
-      Aspect := First (Aspect_Specifications (N));
       while Present (Aspect) loop
          --  Skip aspect if already analyzed, to avoid looping in some cases
 
          if not Analyzed (Aspect) then
-            Analyze_One_Aspect (N, Ins_Node, E, Aspect);
+            Analyze_One_Aspect (N, E, Aspect);
          end if;
 
          Next (Aspect);
