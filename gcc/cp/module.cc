@@ -14855,9 +14855,10 @@ depset::hash::add_dependency (depset *dep)
      details.  */
   if (writing_merge_key)
     {
-      dep->set_flag_bit<DB_MAYBE_RECURSIVE_BIT> ();
-      if (!current->is_maybe_recursive ())
+      if (!dep->is_maybe_recursive () && !current->is_maybe_recursive ())
 	current->set_flag_bit<DB_ENTRY_BIT> ();
+      dep->set_flag_bit<DB_MAYBE_RECURSIVE_BIT> ();
+      current->set_flag_bit<DB_MAYBE_RECURSIVE_BIT> ();
     }
 
   if (dep->is_unreached ())
