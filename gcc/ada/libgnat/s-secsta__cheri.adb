@@ -673,10 +673,11 @@ package body System.Secondary_Stack is
          --  calculated conservatively.
       end if;
 
-      --  It should not be possible to request an allocation of negative
-      --  size.
+      --  Raise Storage_Error if the size has overflowed
 
-      pragma Assert (Storage_Size >= 0);
+      if Storage_Size < 0 then
+         raise Storage_Error with "object too large";
+      end if;
 
       --  Round the requested size (plus the needed padding in case of
       --  over-alignment) to ensure that the CHERI bounds length will be

@@ -7404,7 +7404,7 @@ package body Exp_Ch6 is
       --
       --  into
       --
-      --    return _anonymous_ : <return_subtype> := <expression>
+      --    return _anonymous_ : constant <return_subtype> := <expression>
 
       --  The expansion produced by Expand_N_Extended_Return_Statement will
       --  contain simple return statements (for example, a block containing
@@ -7436,6 +7436,7 @@ package body Exp_Ch6 is
             Obj_Decl : constant Node_Id :=
                          Make_Object_Declaration (Loc,
                            Defining_Identifier => Make_Temporary (Loc, 'R'),
+                           Constant_Present    => True,
                            Object_Definition   => Subtype_Ind,
                            Expression          => Relocate_Node (Exp));
 
