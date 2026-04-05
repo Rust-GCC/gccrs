@@ -13219,7 +13219,8 @@ resolve_ordinary_assign (gfc_code *code, gfc_namespace *ns)
   /* Assign the 'data' of a class object to a derived type.  */
   if (lhs->ts.type == BT_DERIVED
       && rhs->ts.type == BT_CLASS
-      && rhs->expr_type != EXPR_ARRAY)
+      && (rhs->expr_type != EXPR_ARRAY
+	  && rhs->expr_type != EXPR_OP))
     gfc_add_data_component (rhs);
 
   /* Make sure there is a vtable and, in particular, a _copy for the

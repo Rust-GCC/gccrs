@@ -11777,6 +11777,7 @@ gfc_trans_scalar_assign (gfc_se *lse, gfc_se *rse, gfc_typespec ts,
   stmtblock_t block;
   tree tmp;
   tree cond;
+  int caf_mode;
 
   gfc_init_block (&block);
 
@@ -11865,7 +11866,7 @@ gfc_trans_scalar_assign (gfc_se *lse, gfc_se *rse, gfc_typespec ts,
 	 same as the lhs.  */
       if (deep_copy)
 	{
-	  int caf_mode = in_coarray ? (GFC_STRUCTURE_CAF_MODE_ENABLE_COARRAY
+	  caf_mode = in_coarray ? (GFC_STRUCTURE_CAF_MODE_ENABLE_COARRAY
 				       | GFC_STRUCTURE_CAF_MODE_IN_COARRAY) : 0;
 	  tmp = gfc_copy_alloc_comp (ts.u.derived, rse->expr, lse->expr, 0,
 				     caf_mode);
@@ -11892,12 +11893,30 @@ gfc_trans_scalar_assign (gfc_se *lse, gfc_se *rse, gfc_typespec ts,
 
       if (!trans_scalar_class_assign (&block, lse, rse))
 	{
-	  /* ...otherwise assignment suffices. Note the use of VIEW_CONVERT_EXPR
-	  for the lhs which ensures that class data rhs cast as a string assigns
-	  correctly.  */
+	  /* ..otherwise assignment suffices. Note the use of VIEW_CONVERT_EXPR
+	  for the lhs which ensures that class data rhs cast as a string
+	  assigns correctly.  */
 	  tmp = fold_build1_loc (input_location, VIEW_CONVERT_EXPR,
 				 TREE_TYPE (rse->expr), lse->expr);
 	  gfc_add_modify (&block, tmp, rse->expr);
+
+	  /* Copy allocatable components but guard against class pointer
+	     assign, which arrives here.  */
+#define DATA_DT ts.u.derived->components->ts.u.derived
+	  if (deep_copy
+	      && !(GFC_CLASS_TYPE_P (TREE_TYPE (lse->expr))
+		   && GFC_CLASS_TYPE_P (TREE_TYPE (rse->expr)))
+	      && ts.u.derived->components
+	      && DATA_DT && DATA_DT->attr.alloc_comp)
+	    {
+	      caf_mode = in_coarray ? (GFC_STRUCTURE_CAF_MODE_ENABLE_COARRAY
+				       | GFC_STRUCTURE_CAF_MODE_IN_COARRAY)
+				    : 0;
+	      tmp = gfc_copy_alloc_comp (DATA_DT, rse->expr, lse->expr, 0,
+					 caf_mode);
+	      gfc_add_expr_to_block (&block, tmp);
+	    }
+#undef DATA_DT
 	}
     }
   else if (ts.type != BT_CLASS)
