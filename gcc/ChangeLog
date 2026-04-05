@@ -1,3 +1,73 @@
+2026-04-04  Sandra Loosemore  <sloosemore@baylibre.com>
+
+	* doc/invoke.texi (Picolibc Options): Copy-edit for markup, use
+	of proper names, etc.
+
+2026-04-04  Sandra Loosemore  <sloosemore@baylibre.com>
+
+	* doc/invoke.texi (GCC Command Options): Move Picolibc Options
+	section to Target-Specific Options.
+	(Option Summary): Likewise.
+
+2026-04-04  Sandra Loosemore  <sloosemore@baylibre.com>
+
+	* doc/extend.texi (Common Attributes): Fix cross-reference for
+	renamed "Submodel Options" -> "Target-Specific Options".
+	* doc/invoke.texi (Invoking GCC): Likewise for the menu.
+	(Option Summary): Likewise for the use here.
+	(Submodel Options): Rename to Target-Specific Options.  Leave
+	an anchor with the old name.  Add better index entries.  Rewrite
+	introductory text.
+	(Precompiled Headers): Fix another cross-reference.
+
+2026-04-04  Sandra Loosemore  <sloosemore@baylibre.com>
+
+	PR target/107337
+	* doc/invoke.texi (x86 Options): Add CX16 feature to nocona,
+	alderlake, arrowlake, arrowlake-s, pantherlake, novalake,
+	bonnell, sierraforest, grandridge, clearwaterforest, and amdfam10
+	family processors.
+
+2026-04-04  Richard Biener  <rguenther@suse.de>
+
+	* doc/gccint.texi: Add named pattern index with @mdindex.
+	* doc/md.texi (Standard Pattern Names For Generation): Split
+	table into two using subsections, splitting out vectorizer
+	related standard patterns.  Use @mdindex for all standard
+	pattern names.
+
+2026-04-04  Takayuki 'January June' Suwa  <jjsuwa_sys3175@yahoo.co.jp>
+
+	* config/xtensa/xtensa.cc (xtensa_legitimize_address):
+	Add code to legitimize the displacement of 64 kilobytes before and
+	after using two ADDMI instructions.
+
+2026-04-04  Takayuki 'January June' Suwa  <jjsuwa_sys3175@yahoo.co.jp>
+
+	* config/xtensa/xtensa.md (negsf2):
+	Change define_insn to define_insn_and_split, and replace the
+	corresponding output template with the split pattern.
+
+2026-04-04  Takayuki 'January June' Suwa  <jjsuwa_sys3175@yahoo.co.jp>
+
+	* config/xtensa/xtensa.cc (TARGET_DIFFERENT_ADDR_DISPLACEMENT_P):
+	Remove.
+
+2026-04-04  Takayuki 'January June' Suwa  <jjsuwa_sys3175@yahoo.co.jp>
+
+	* config/xtensa/xtensa.cc (smalloffset_mem_p):
+	Rename it to smalloffset_address_p and remove the result check
+	of MEM_P().
+	(constantpool_address_p): Change from static scope to global.
+	* config/xtensa/xtensa-protos.h (smalloffset_mem_p):
+	Rename it to smalloffset_address_p.
+	(constantpool_address_p): New function prototype.
+	* config/xtensa/constraints.md (R):
+	Change the call in (match_test "...") from smalloffset_mem_p()
+	to smalloffset_address_p().
+	(T, U): Change the call in (match_test "...") from
+	constantpool_mem_p() to constantpool_address_p().
+
 2026-04-03  Sandra Loosemore  <sloosemore@baylibre.com>
 
 	PR c/123234

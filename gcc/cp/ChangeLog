@@ -1,3 +1,32 @@
+2026-04-04  Roger Sayle  <roger@nextmovesoftware.com>
+
+	PR c++/124573
+	* decl.cc (finish_enum_value_list): Defend against a DECL_INITIAL
+	being NULL during error recovery.
+
+2026-04-04  Jakub Jelinek  <jakub@redhat.com>
+
+	* parser.cc (cp_parser_expansion_statement): Temporarily set
+	in_expansion_stmt to true around cp_parser_simple_declaration
+	for range_decl.
+	(cp_parser_decomposition_declaration): Don't reject structured binding
+	packs if in_expansion_stmt is set.
+
+2026-04-04  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/124487
+	* mangle.cc (write_type) <case PACK_INDEX_TYPE>: Handle pack index
+	mangling unless (for now) PACK_INDEX_PACK is a TREE_VEC.
+	(write_expression): Handle PACK_INDEX_EXPR.
+
+2026-04-04  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/124198
+	* parser.cc (cp_parser_pack_index): If index is not type dependent,
+	call build_converted_constant_expr on it.  Return error_mark_node
+	if index is error_operand_p.
+	* pt.cc (tsubst_pack_index): Likewise.
+
 2026-04-03  Alexandre Oliva  <oliva@adacore.com>
 
 	* coroutines.cc (cp_coroutine_transform::build_ramp_function):

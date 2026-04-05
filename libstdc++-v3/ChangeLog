@@ -1,3 +1,14 @@
+2026-04-04  Matthias Kretz  <m.kretz@gsi.de>
+
+	PR libstdc++/124722
+	* testsuite/std/simd/traits_impl.cc: Add __STDCPP_FLOAT16_T__
+	and __STDCPP_BFLOAT16_T__ guards.
+
+2026-04-04  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* testsuite/20_util/optional/ref/access.cc: Provide
+	definition for foo().
+
 2026-04-03  Jakub Jelinek  <jakub@redhat.com>
 
 	* include/bits/version.def (is_structural): New.

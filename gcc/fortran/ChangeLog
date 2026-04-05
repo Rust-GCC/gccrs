@@ -1,3 +1,10 @@
+2026-04-04  Harald Anlauf  <anlauf@gmx.de>
+
+	PR fortran/66973
+	* interface.cc (gfc_compare_actual_formal): Check that C_LOC and
+	C_FUNLOC from ISO_C_BINDING as actual argument are passed to a
+	dummy argument of matching type C_PTR/C_FUNPTR.
+
 2026-04-03  Harald Anlauf  <anlauf@gmx.de>
 
 	PR fortran/124652
