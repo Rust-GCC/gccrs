@@ -3955,8 +3955,6 @@ information have to.
 @item
 @uref{#amdgcn-x-amdhsa,,amdgcn-*-amdhsa}
 @item
-@uref{#amd64-x-solaris2,,amd64-*-solaris2*}
-@item
 @uref{#arc-x-elf32,,arc-*-elf32}
 @item
 @uref{#arc-linux-uclibc,,arc-linux-uclibc}
@@ -3986,8 +3984,6 @@ information have to.
 @uref{#x-x-linux-gnu,,*-*-linux-gnu}
 @item
 @uref{#ix86-x-linux,,i?86-*-linux*}
-@item
-@uref{#ix86-x-solaris2,,i?86-*-solaris2*}
 @item
 @uref{#ia64-x-linux,,ia64-*-linux}
 @item
@@ -4071,13 +4067,7 @@ information have to.
 @item
 @uref{#sparc-x-x,,sparc*-*-*}
 @item
-@uref{#sparc-sun-solaris2,,sparc-sun-solaris2*}
-@item
 @uref{#sparc-x-linux,,sparc-*-linux*}
-@item
-@uref{#sparc64-x-solaris2,,sparc64-*-solaris2*}
-@item
-@uref{#sparcv9-x-solaris2,,sparcv9-*-solaris2*}
 @item
 @uref{#c6x-x-x,,c6x-*-*}
 @item
@@ -4086,8 +4076,6 @@ information have to.
 @uref{#x-x-vxworks,,*-*-vxworks*}
 @item
 @uref{#x86-64-x-x,,x86_64-*-*, amd64-*-*}
-@item
-@uref{#x86-64-x-solaris2,,x86_64-*-solaris2*}
 @item
 @uref{#xtensa-x-elf,,xtensa*-*-elf}
 @item
@@ -4147,13 +4135,6 @@ types of branch protections.  Conversely,
 @option{--disable-standard-branch-protection} will disable both the
 protections by default.  This mechanism is turned off by default if neither
 of the options are given at configure time.
-
-@html
-<hr />
-@end html
-@anchor{amd64-x-solaris2}
-@heading amd64-*-solaris2*
-This is a synonym for @samp{x86_64-*-solaris2*}.
 
 @html
 <hr />
@@ -4399,16 +4380,6 @@ libstdc++-v3 documentation.
 If you receive Signal 11 errors when building on GNU/Linux, then it is
 possible you have a hardware problem.  Further information on this can be
 found on @uref{https://www.bitwizard.nl/sig11/,,www.bitwizard.nl}.
-
-@html
-<hr />
-@end html
-@anchor{ix86-x-solaris2}
-@heading i?86-*-solaris2*
-Use this for Solaris 11.4 on x86 and x86-64 systems.  Starting
-with GCC 4.7, there is also a 64-bit @samp{amd64-*-solaris2*} or
-@samp{x86_64-*-solaris2*} configuration that corresponds to
-@samp{sparcv9-sun-solaris2*}.
 
 @html
 <hr />
@@ -5011,74 +4982,103 @@ supported as cross-compilation target only.
 @end html
 @anchor{x-x-solaris2}
 @heading *-*-solaris2*
-Support for Solaris 11.3 and earlier has been removed in GCC 15.
-Support for Solaris 10 has been removed in GCC 10.  Support for Solaris
-9 has been removed in GCC 5.  Support for Solaris 8 has been removed in
-GCC 4.8.  Support for Solaris 7 has been removed in GCC 4.6.
+GCC only supports Solaris 11.4.  Support for Solaris 11.3 and earlier
+has been removed in GCC 15.  Support for Solaris 10 has been removed
+in GCC 10.
 
-Solaris 11.4 provides one or more of GCC 5, 7, 9, 10, 11, 12, 13, 14,and 15.
+Solaris 11.4 bundles several versions of GCC installed in parallel.
+They can be found in @file{/usr/gcc/@var{majorvers}}, with the default
+in @file{/usr/bin}. The exact set depends on the update installed.  It
+includes a subset of the available languages: since SRU 39 this
+consists of C, C++, Objective-C, Ada, Fortran, and Go.
+@c Missing D, Modula-2.
+
+In order to build the GNU Ada compiler, GNAT, a working GNAT is
+needed.
+
+In order to build the GNU D compiler, GDC, a working GDC is needed
+which isn't included with the bundled GCC.  At least GDC 11.5.0 is
+required on both SPARC and x86.  However, the @samp{libphobos} library
+wasn't built by default in GCC 11 on SPARC, or on x86 when the Solaris
+assembler is used, but can be enabled by configuring with
+@option{--enable-libphobos}.
 
 You need to install the @code{system/header}, @code{system/linker}, and
 @code{developer/assembler} packages.
 
-Trying to use the compatibility tools in @file{/usr/ucb}, from the
-@code{compatibility/ucb} package, to install GCC has been observed to
-cause trouble.  The fix is to remove @file{/usr/ucb} from your
-@env{PATH}.
+The build process works more smoothly with the GNU tools, so place
+@file{/usr/gnu/bin} before @file{/usr/bin} in your @env{PATH}.
 
-@c FIXME: Still?  Prefer /usr/gnu/bin instead?
-The build process works more smoothly with the legacy Solaris tools so,
-if you have @file{/usr/xpg4/bin} in your @env{PATH}, we recommend that
-you place @file{/usr/bin} before @file{/usr/xpg4/bin} for the duration
-of the build.
+Unlike other systems, without special options a bi-arch compiler is
+built.  There are both 32-bit configurations which can also generate
+64-bit code with the @option{-m64} switch, and 64-bit configurations
+capable of 32-bit code generation with @option{-m32}.
 
-We recommend the use of the Solaris assembler or the GNU assembler, in
-conjunction with the Solaris linker.
+In both cases, the build compiler must match the target configuration.
+Configure with @samp{CC='gcc -m32' CXX='g++ -m32' GDC='gdc -m32'} for
+a 32-bit target, or @option{-m64} for a 64-bit target.  The target
+must always be specified explicitly with @option{--build=@var{target}}
+because @file{config.guess} misdetects the situation, which can cause
+build failures.
 
-The GNU @command{as} versions included in Solaris 11.4, from GNU
-binutils 2.30.1 or newer (in @file{/usr/bin/gas} and
-@file{/usr/gnu/bin/as}), are known to work.  This is the minimum
-supported version.  The version from GNU
-binutils 2.45 is known to work as well.  Recent versions of the Solaris
-assembler in @file{/usr/bin/as} work almost as well, though.  To use GNU
-@command{as}, configure with the options @option{--with-gnu-as
---with-as=@//usr/@/gnu/@/bin/@/as}.
+Use the following targets as appropriate:
 
-For linking, the Solaris linker is preferred.  If you want to use the
-GNU linker instead, the version in Solaris 11.4, from GNU Binutils
-2.30.1 or newer (in @file{/usr/gnu/bin/ld} and @file{/usr/bin/gld}),
-works.  However, it
-generally lacks platform specific features, so better stay with Solaris
-@command{ld}.  To use the LTO linker plugin
-(@option{-fuse-linker-plugin}) with GNU @command{ld}, GNU Binutils
-@emph{must} be configured with @option{--enable-largefile}.  To use
-Solaris @command{ld}, we recommend to configure with
-@option{--without-gnu-ld --with-ld=@//usr/@/bin/@/ld} to guarantee the
-right linker is found irrespective of the user's @env{PATH}.
+@table @asis
+@item 32-bit-default Solaris/x86
+@samp{i386-pc-solaris2.11}
+@item 64-bit-default Solaris/x86
+@samp{amd64-pc-solaris2.11} or @samp{x86_64-pc-solaris2.11}
+@item 32-bit-default Solaris/SPARC
+@samp{sparc-sun-solaris2.11}
+@item 64-bit-default Solaris/SPARC
+@samp{sparcv9-sun-solaris2.11} or @samp{sparc64-sun-solaris2.11}
+@end table
 
-Note that your mileage may vary if you use a combination of the GNU
-tools and the Solaris tools: while the combination GNU @command{as} and
-Solaris @command{ld} works well, the reverse combination Solaris
-@command{as} with GNU @command{ld} may fail to build or cause memory
-corruption at runtime in some cases for C++ programs.
-@c FIXME: still?
+GCC can use both the native Solaris assembler and linker and those
+from GNU Binutils, with 3 supported combinations.  One of those needs
+to be selected when configuring GCC.
+
+@itemize
+@item Solaris @command{as} and @command{ld}
+@item GNU @command{as} and Solaris @command{ld}
+@item GNU @command{as} and @command{ld}
+@end itemize
+
+However, the combination of Solaris @command{as} and GNU @command{ld}
+is broken and should be avoided.
+
+Solaris 11.4 includes GNU Binutils 2.30.1 or newer.  This is the
+minimum supported version.  Either the bundled version or newer ones
+are known to work well.  When building a 32-bit-default version of GCC
+with either or both GNU @command{as} or GNU @command{ld}, GNU Binutils
+must be built separately as 32-bit executables.
+
+Both the GNU assembler (in @file{/usr/bin/gas} and
+@file{/usr/gnu/bin/as}) and the Solaris assembler (in
+@file{/usr/bin/as}) work well.  Solaris @command{as} has support for
+for hardware capabilities, while GNU @command{as} supports newer x86
+ISAs.  With GNU @command{as}, the binaries produced are smaller than
+the ones produced using Solaris @command{as}; this difference can be
+quite significant for binaries containing debugging information.
+
+For linking, the Solaris linker (in @file{/usr/bin/ld}) is preferred.
+The GNU linker (in @file{/usr/bin/gld} and @file{/usr/gnu/bin/ld})
+works, too.  However, it generally lacks platform specific features.
+To use the LTO linker plugin (@option{-fuse-linker-plugin}) with GNU
+@command{ld} in a 32-bit-default configuration, GNU Binutils
+@emph{must} be configured with @option{--enable-largefile}.
+
+We @emph{strongly} recommend to specify both the assembler and linker
+with the @command{configure} options @option{--with-as=@var{pathname}}
+and @option{--with-ld=@var{pathname}} to guarantee the right tool is
+found irrespective of the user's @env{PATH}.
 
 To enable symbol versioning in @samp{libstdc++} and other runtime
-libraries with the Solaris linker, you need to have any version of GNU
+libraries with the Solaris linker, you need to have GNU
 @command{c++filt}, which is part of GNU Binutils.  Symbol versioning
 will be disabled if no appropriate version is found.  Solaris
 @command{c++filt} from the Solaris Studio compilers does @emph{not}
 work.
-
-In order to build the GNU Ada compiler, GNAT, a working GNAT is needed.
-Since Solaris 11.4 SRU 39, GNAT 11, 12, 13, 14, or 15 is bundled in the
-@code{developer/gcc/gcc-gnat} package.
-
-In order to build the GNU D compiler, GDC, a working @samp{libphobos} is
-needed.  That library wasn't built by default in GCC 9--11 on SPARC, or
-on x86 when the Solaris assembler is used, but can be enabled by
-configuring with @option{--enable-libphobos}.  Also, GDC 9.4.0 is
-required on x86, while GDC 9.3.0 is known to work on SPARC.
 
 The versions of the GNU Multiple Precision Library (GMP), the MPFR
 library and the MPC library bundled with Solaris 11.4 are
@@ -5102,61 +5102,8 @@ in @uref{prerequisites.html,,the prerequisites}.
 @html
 <hr />
 @end html
-@anchor{sparc-sun-solaris2}
-@heading sparc-sun-solaris2*
-When GCC is configured to use GNU Binutils 2.14 or later, the binaries
-produced are smaller than the ones produced using Solaris native tools;
-this difference is quite significant for binaries containing debugging
-information.
-
-Starting with Solaris 7, the operating system is capable of executing
-64-bit SPARC V9 binaries.  GCC 3.1 and later properly supports
-this; the @option{-m64} option enables 64-bit code generation.
-
-When configuring the GNU Multiple Precision Library (GMP), the MPFR
-library or the MPC library on Solaris, the canonical target triplet must
-be specified as the @command{build} parameter on the @command{configure}
-line.  This target triplet can be obtained by invoking
-@command{./config.guess} in the toplevel source directory of GCC (and
-not that of GMP or MPFR or MPC).  For example:
-
-@smallexample
-% @var{srcdir}/configure --build=sparc-sun-solaris2.11 --prefix=@var{dirname}
-@end smallexample
-
-@html
-<hr />
-@end html
 @anchor{sparc-x-linux}
 @heading sparc-*-linux*
-
-@html
-<hr />
-@end html
-@anchor{sparc64-x-solaris2}
-@heading sparc64-*-solaris2*
-This is a synonym for @samp{sparcv9-*-solaris2*}.
-
-@html
-<hr />
-@end html
-@anchor{sparcv9-x-solaris2}
-@heading sparcv9-*-solaris2*
-
-When configuring a 64-bit-default GCC on Solaris/SPARC, you must use a
-build compiler that generates 64-bit code, either by default or by
-specifying @samp{CC='gcc -m64' CXX='g++ -m64' GDC='gdc -m64'} to @command{configure}.
-Additionally, you @emph{must} pass @option{--build=sparcv9-sun-solaris2.11}
-or @option{--build=sparc64-sun-solaris2.11} because @file{config.guess}
-misdetects this situation, which can cause build failures.
-
-When configuring the GNU Multiple Precision Library (GMP), the MPFR
-library or the MPC library, the canonical target triplet must be specified
-as the @command{build} parameter on the @command{configure} line.  For example:
-
-@smallexample
-% @var{srcdir}/configure --build=sparcv9-sun-solaris2.11 --prefix=@var{dirname}
-@end smallexample
 
 @html
 <hr />
@@ -5218,20 +5165,6 @@ GCC supports the x86-64 architecture implemented by the AMD64 processor
 (amd64-*-* is an alias for x86_64-*-*) on GNU/Linux, FreeBSD and NetBSD@.
 On GNU/Linux the default is a bi-arch compiler which is able to generate
 both 64-bit x86-64 and 32-bit x86 code (via the @option{-m32} switch).
-
-@html
-<hr />
-@end html
-@anchor{x86-64-x-solaris2}
-@heading x86_64-*-solaris2*
-Unlike other systems, without special options a
-bi-arch compiler is built which generates 32-bit code by default, but
-can generate 64-bit x86-64 code with the @option{-m64} switch.  Since
-GCC 4.7, there is also a configuration that defaults to 64-bit code, but
-can generate 32-bit code with @option{-m32}.  To configure and build
-this way, you have to provide all support libraries like @file{libgmp}
-as 64-bit code, configure with @option{--target=x86_64-pc-solaris2.11}
-and @samp{CC=gcc -m64}.
 
 @html
 <hr />
