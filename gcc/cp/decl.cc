@@ -12218,7 +12218,28 @@ grokfndecl (tree ctype,
 
   DECL_ARGUMENTS (decl) = parms;
   for (t = parms; t; t = DECL_CHAIN (t))
-    DECL_CONTEXT (t) = decl;
+    {
+      DECL_CONTEXT (t) = decl;
+      if (flag_reflection
+	  && initialized == SD_INITIALIZED
+	  && DECL_ATTRIBUTES (t))
+	for (tree a = DECL_ATTRIBUTES (t);
+	     (a = lookup_attribute ("internal ", "annotation ", a));
+	     a = TREE_CHAIN (a))
+	  {
+	    gcc_checking_assert (TREE_CODE (TREE_VALUE (a)) == TREE_LIST);
+	    /* Mark TREE_PURPOSE of the value that it is an annotation
+	       on an argument of a function definition (rather than
+	       annotation from function declaration).  For function parameter
+	       reflection all annotations are listed, while for variable_of
+	       only those marked here.  Annotation is marked as coming from
+	       function definition's argument if it has TREE_PURPOSE
+	       void_node or INTEGER_CST with signed type.  */
+	    tree val = TREE_VALUE (a);
+	    gcc_assert (TREE_PURPOSE (val) == NULL_TREE);
+	    TREE_PURPOSE (val) = void_node;
+	  }
+    }
 
   /* Propagate volatile out from type to decl.  */
   if (TYPE_VOLATILE (type))

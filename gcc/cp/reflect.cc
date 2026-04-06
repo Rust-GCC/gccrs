@@ -3840,14 +3840,16 @@ eval_annotations_of (location_t loc, const constexpr_ctx *ctx, tree r,
 	|| eval_is_type_alias (r) == boolean_true_node
 	|| eval_is_variable (r, kind) == boolean_true_node
 	|| eval_is_function (r) == boolean_true_node
+	|| eval_is_function_parameter (r, kind) == boolean_true_node
 	|| eval_is_namespace (r) == boolean_true_node
 	|| eval_is_enumerator (r) == boolean_true_node
 	|| eval_is_base (r, kind) == boolean_true_node
 	|| eval_is_nonstatic_data_member (r) == boolean_true_node))
     return throw_exception (loc, ctx,
 			    "reflection does not represent a type,"
-			    " type alias, variable, function, namespace,"
-			    " enumerator, direct base class relationship,"
+			    " type alias, variable, function, function"
+			    " parameter, namespace, enumerator,"
+			    " direct base class relationship,"
 			    " or non-static data member",
 			    fun, non_constant_p, jump_target);
 
@@ -3864,6 +3866,7 @@ eval_annotations_of (location_t loc, const constexpr_ctx *ctx, tree r,
     }
 
   r = maybe_get_first_fn (r);
+  bool var_of = false;
   if (kind == REFLECT_BASE)
     {
       gcc_assert (TREE_CODE (r) == TREE_BINFO);
@@ -3888,7 +3891,11 @@ eval_annotations_of (location_t loc, const constexpr_ctx *ctx, tree r,
 	r = TYPE_ATTRIBUTES (r);
     }
   else if (DECL_P (r))
-    r = DECL_ATTRIBUTES (r);
+    {
+      if (TREE_CODE (r) == PARM_DECL && kind != REFLECT_PARM)
+	var_of = true;
+      r = DECL_ATTRIBUTES (r);
+    }
   else
     gcc_unreachable ();
   vec<constructor_elt, va_gc> *elts = nullptr;
@@ -3897,6 +3904,16 @@ eval_annotations_of (location_t loc, const constexpr_ctx *ctx, tree r,
     {
       gcc_checking_assert (TREE_CODE (TREE_VALUE (a)) == TREE_LIST);
       tree val = TREE_VALUE (TREE_VALUE (a));
+      tree purpose = TREE_PURPOSE (TREE_VALUE (a));
+      if (var_of
+	  && (purpose == NULL_TREE
+	      || (TREE_CODE (purpose) == INTEGER_CST
+		  && !TYPE_UNSIGNED (TREE_TYPE (purpose)))))
+	/* For ^^fnparm or variable_of (parameters_of (^^fn)[N])
+	   filter out annotations not specified on the function
+	   definition.  TREE_PURPOSE is set in grokfndecl and/or in
+	   reflection_mangle_prefix.  */
+	continue;
       if (type)
 	{
 	  tree at = TREE_TYPE (val);
@@ -9023,7 +9040,13 @@ reflection_mangle_prefix (tree refl, char prefix[3])
       strcpy (prefix, "an");
       if (TREE_PURPOSE (TREE_VALUE (h)) == NULL_TREE)
 	TREE_PURPOSE (TREE_VALUE (h))
-	  = build_int_cst (integer_type_node, annotation_idx++);
+	  = bitsize_int (annotation_idx++);
+      /* TREE_PURPOSE void_node or INTEGER_CST with signed type
+	 means it is annotation which should appear in
+	 variable_of list.  */
+      else if (TREE_PURPOSE (TREE_VALUE (h)) == void_node)
+	TREE_PURPOSE (TREE_VALUE (h))
+	  = sbitsize_int (annotation_idx++);
       return TREE_PURPOSE (TREE_VALUE (h));
     }
   if (eval_is_type_alias (h) == boolean_true_node)
