@@ -948,6 +948,19 @@ std::string extract_module_path (const AST::AttrVec &inner_attrs,
  */
 bool is_match_compatible (const AST::MacroMatch &last_match,
 			  const AST::MacroMatch &current_match);
+
+namespace LiteralResolve {
+
+// Converts a raw string to a decimal number string.
+std::string evaluate_integer_literal (const_TokenPtr token);
+
+// Converts a raw float string to a decimal float number string.
+std::string evaluate_float_literal (const_TokenPtr token);
+
+// Evaluates the suffix of the raw string, if it exists, and returns coretype.
+PrimitiveCoreType resolve_literal_suffix (const_TokenPtr token);
+
+} // namespace LiteralResolve
 } // namespace Rust
 
 #endif // RUST_PARSE_H

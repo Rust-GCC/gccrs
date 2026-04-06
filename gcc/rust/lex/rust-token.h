@@ -218,6 +218,17 @@ enum TokenId
 #undef RS_TOKEN
 };
 
+// Holds the base information for integer-literal tokens. For other tokens, its
+// value is 0.
+enum class IntegerLiteralBase : uint8_t
+{
+  None = 0,
+  Binary,
+  Octal,
+  Decimal,
+  Hex,
+};
+
 // dodgy "TokenPtr" declaration with Token forward declaration
 class Token;
 // A smart pointer (shared_ptr) to Token.
@@ -256,43 +267,69 @@ private:
    * for most tokens. */
   PrimitiveCoreType type_hint;
 
+  // Suffix start index if it exist. Otherwise has token str's length
+  uint16_t suffix_start;
+
+  // Base if it is an integer literal. Otherwise has LITERALBASE_NONE
+  IntegerLiteralBase integer_literal_base;
+
   // Token constructor from token id and location. Has a null string.
   Token (TokenId token_id, location_t location)
-    : token_id (token_id), locus (location), type_hint (CORETYPE_UNKNOWN)
+    : token_id (token_id), locus (location), type_hint (CORETYPE_UNKNOWN),
+      suffix_start (0), integer_literal_base (IntegerLiteralBase::None)
   {}
 
   // Token constructor from token id, location, and a string.
   Token (TokenId token_id, location_t location, std::string paramStr)
-    : token_id (token_id), locus (location), type_hint (CORETYPE_UNKNOWN)
+    : token_id (token_id), locus (location), type_hint (CORETYPE_UNKNOWN),
+      integer_literal_base (IntegerLiteralBase::None)
   {
     // Normalize identifier tokens
     str = nfc_normalize_token_string (location, token_id, std::move (paramStr));
+    suffix_start = str.length ();
   }
 
   // Token constructor from token id, location, and a char.
   Token (TokenId token_id, location_t location, char paramChar)
     : token_id (token_id), locus (location), str (1, paramChar),
-      type_hint (CORETYPE_UNKNOWN)
+      type_hint (CORETYPE_UNKNOWN), suffix_start (1),
+      integer_literal_base (IntegerLiteralBase::None)
   {
     // Do not need to normalize 1byte char
   }
 
   // Token constructor from token id, location, and a "codepoint".
   Token (TokenId token_id, location_t location, Codepoint paramCodepoint)
-    : token_id (token_id), locus (location), type_hint (CORETYPE_UNKNOWN)
+    : token_id (token_id), locus (location), type_hint (CORETYPE_UNKNOWN),
+      integer_literal_base (IntegerLiteralBase::None)
   {
     // Normalize identifier tokens
     str = nfc_normalize_token_string (location, token_id,
 				      paramCodepoint.as_string ());
+    suffix_start = str.length ();
   }
 
   // Token constructor from token id, location, a string, and type hint.
   Token (TokenId token_id, location_t location, std::string paramStr,
 	 PrimitiveCoreType parType)
-    : token_id (token_id), locus (location), type_hint (parType)
+    : token_id (token_id), locus (location), type_hint (parType),
+      integer_literal_base (IntegerLiteralBase::None)
   {
     // Normalize identifier tokens
     str = nfc_normalize_token_string (location, token_id, std::move (paramStr));
+    suffix_start = str.length ();
+  }
+
+  // Token constructor from token id, location, a string, a suffix start index,
+  // a integer base type and type hint.
+  Token (TokenId token_id, location_t location, std::string paramStr,
+	 PrimitiveCoreType parType, uint16_t suffix_start,
+	 IntegerLiteralBase base)
+    : token_id (token_id), locus (location), str (std::move (paramStr)),
+      type_hint (parType), suffix_start (suffix_start),
+      integer_literal_base (base)
+  {
+    // Do not need to normalize literal str
   }
 
 public:
@@ -329,20 +366,24 @@ public:
 
   // Makes and returns a new TokenPtr of type INT_LITERAL.
   static TokenPtr make_int (location_t locus, std::string str,
+			    uint16_t suffix_start, IntegerLiteralBase base,
 			    PrimitiveCoreType type_hint = CORETYPE_UNKNOWN)
   {
-    // return std::make_shared<Token> (INT_LITERAL, locus, str, type_hint);
-    return TokenPtr (
-      new Token (INT_LITERAL, locus, std::move (str), type_hint));
+    // return std::make_shared<Token> (INT_LITERAL, locus, str, type_hint,
+    // suffix_start, base);
+    return TokenPtr (new Token (INT_LITERAL, locus, std::move (str), type_hint,
+				suffix_start, base));
   }
 
   // Makes and returns a new TokenPtr of type FLOAT_LITERAL.
-  static TokenPtr make_float (location_t locus, std::string str,
-			      PrimitiveCoreType type_hint = CORETYPE_UNKNOWN)
+  static TokenPtr
+  make_float (location_t locus, std::string str, uint16_t suffix_start,
+	      PrimitiveCoreType type_hint = CORETYPE_UNKNOWN,
+	      IntegerLiteralBase base = IntegerLiteralBase::None)
   {
     // return std::make_shared<Token> (FLOAT_LITERAL, locus, str, type_hint);
-    return TokenPtr (
-      new Token (FLOAT_LITERAL, locus, std::move (str), type_hint));
+    return TokenPtr (new Token (FLOAT_LITERAL, locus, std::move (str),
+				type_hint, suffix_start, base));
   }
 
   // Makes and returns a new TokenPtr of type STRING_LITERAL.
@@ -428,6 +469,12 @@ public:
   {
     return type_hint == CORETYPE_PURE_DECIMAL ? CORETYPE_UNKNOWN : type_hint;
   }
+
+  // Gets suffix_start of the token
+  uint16_t get_suffix_start () const { return suffix_start; }
+
+  // Gets literal base of the token
+  IntegerLiteralBase get_literal_base () const { return integer_literal_base; }
 
   // diagnostics (error reporting)
   const char *get_token_description () const
