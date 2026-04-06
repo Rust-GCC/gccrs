@@ -1139,12 +1139,11 @@ Lexer::build_token ()
     }
 }
 
-// Parses in a type suffix.
-std::pair<PrimitiveCoreType, int>
-Lexer::parse_in_type_suffix ()
+// Parses in a suffix
+std::pair<std::string, int>
+Lexer::parse_in_suffix ()
 {
   std::string suffix;
-  suffix.reserve (5);
 
   int additional_length_offset = 0;
 
@@ -1152,17 +1151,6 @@ Lexer::parse_in_type_suffix ()
   while (ISALPHA (current_char.value) || ISDIGIT (current_char.value)
 	 || current_char == '_')
     {
-      if (current_char == '_')
-	{
-	  // don't add _ to suffix
-	  skip_input ();
-	  current_char = peek_input ();
-
-	  additional_length_offset++;
-
-	  continue;
-	}
-
       additional_length_offset++;
 
       suffix += current_char;
@@ -1170,74 +1158,7 @@ Lexer::parse_in_type_suffix ()
       current_char = peek_input ();
     }
 
-  if (suffix.empty ())
-    {
-      // no type suffix: do nothing but also no error
-      return std::make_pair (CORETYPE_UNKNOWN, additional_length_offset);
-    }
-  else if (suffix == "f32")
-    {
-      return std::make_pair (CORETYPE_F32, additional_length_offset);
-    }
-  else if (suffix == "f64")
-    {
-      return std::make_pair (CORETYPE_F64, additional_length_offset);
-    }
-  else if (suffix == "i8")
-    {
-      return std::make_pair (CORETYPE_I8, additional_length_offset);
-    }
-  else if (suffix == "i16")
-    {
-      return std::make_pair (CORETYPE_I16, additional_length_offset);
-    }
-  else if (suffix == "i32")
-    {
-      return std::make_pair (CORETYPE_I32, additional_length_offset);
-    }
-  else if (suffix == "i64")
-    {
-      return std::make_pair (CORETYPE_I64, additional_length_offset);
-    }
-  else if (suffix == "i128")
-    {
-      return std::make_pair (CORETYPE_I128, additional_length_offset);
-    }
-  else if (suffix == "isize")
-    {
-      return std::make_pair (CORETYPE_ISIZE, additional_length_offset);
-    }
-  else if (suffix == "u8")
-    {
-      return std::make_pair (CORETYPE_U8, additional_length_offset);
-    }
-  else if (suffix == "u16")
-    {
-      return std::make_pair (CORETYPE_U16, additional_length_offset);
-    }
-  else if (suffix == "u32")
-    {
-      return std::make_pair (CORETYPE_U32, additional_length_offset);
-    }
-  else if (suffix == "u64")
-    {
-      return std::make_pair (CORETYPE_U64, additional_length_offset);
-    }
-  else if (suffix == "u128")
-    {
-      return std::make_pair (CORETYPE_U128, additional_length_offset);
-    }
-  else if (suffix == "usize")
-    {
-      return std::make_pair (CORETYPE_USIZE, additional_length_offset);
-    }
-  else
-    {
-      rust_error_at (get_current_location (), "unknown number suffix %qs",
-		     suffix.c_str ());
-
-      return std::make_pair (CORETYPE_UNKNOWN, additional_length_offset);
-    }
+  return std::make_pair (std::move (suffix), additional_length_offset);
 }
 
 // Parses in the exponent part (if any) of a float literal.
@@ -1256,18 +1177,10 @@ Lexer::parse_in_exponent_part ()
       additional_length_offset++;
 
       // special - and + handling
-      if (current_char == '-')
+      if (current_char == '-' || current_char == '+')
 	{
-	  str += '-';
+	  str += current_char;
 
-	  skip_input ();
-	  current_char = peek_input ();
-
-	  additional_length_offset++;
-	}
-      else if (current_char == '+')
-	{
-	  // don't add + but still skip input
 	  skip_input ();
 	  current_char = peek_input ();
 
@@ -1295,15 +1208,7 @@ Lexer::parse_in_decimal ()
       if (current_char == '_')
 	{
 	  pure_decimal = false;
-	  // don't add _ to number
-	  skip_input ();
-	  current_char = peek_input ();
-
-	  additional_length_offset++;
-
-	  continue;
 	}
-
       additional_length_offset++;
 
       str += current_char;
@@ -2239,13 +2144,14 @@ Lexer::parse_raw_string (location_t loc, int initial_hash_count)
 template <typename IsDigitFunc>
 TokenPtr
 Lexer::parse_non_decimal_int_literal (location_t loc, IsDigitFunc is_digit_func,
-				      int base)
+				      IntegerLiteralBase base)
 {
-  std::string raw_str;
+  std::string raw_str = "0";
+  raw_str += current_char; // x, o, b
+  skip_input ();
 
   int length = 1;
 
-  skip_input ();
   current_char = peek_input ();
 
   length++;
@@ -2253,57 +2159,27 @@ Lexer::parse_non_decimal_int_literal (location_t loc, IsDigitFunc is_digit_func,
   // loop through to add entire number to string
   while (is_digit_func (current_char.value) || current_char == '_')
     {
-      if (current_char == '_')
-	{
-	  // don't add _ to number
-	  skip_input ();
-	  current_char = peek_input ();
-
-	  length++;
-
-	  continue;
-	}
-
       length++;
 
-      // add raw numbers
       raw_str += current_char;
       skip_input ();
       current_char = peek_input ();
     }
 
-  // convert value to decimal representation
-  mpz_t dec_num;
-  mpz_init (dec_num);
-  mpz_set_str (dec_num, raw_str.c_str (), base);
-  char *s = mpz_get_str (NULL, 10, dec_num);
-  std::string dec_str = s;
-  free (s);
-  mpz_clear (dec_num);
+  int suffix_start = raw_str.length ();
 
-  // parse in type suffix if it exists
-  auto type_suffix_pair = parse_in_type_suffix ();
-  PrimitiveCoreType type_hint = type_suffix_pair.first;
-  length += type_suffix_pair.second;
+  // parse in suffix if it exists
+  auto suffix_pair = parse_in_suffix ();
+  PrimitiveCoreType type_hint = CORETYPE_UNKNOWN;
+  raw_str += suffix_pair.first;
+  length += suffix_pair.second;
 
   current_column += length;
 
-  if (type_hint == CORETYPE_F32 || type_hint == CORETYPE_F64)
-    {
-      rust_error_at (get_current_location (),
-		     "invalid type suffix %qs for integer (%s) literal",
-		     get_type_hint_string (type_hint),
-		     base == 16
-		       ? "hex"
-		       : (base == 8 ? "octal"
-				    : (base == 2 ? "binary"
-						 : "<insert unknown base>")));
-      return nullptr;
-    }
-
   loc += length - 1;
 
-  return Token::make_int (loc, std::move (dec_str), type_hint);
+  return Token::make_int (loc, std::move (raw_str), suffix_start, base,
+			  type_hint);
 }
 
 // Parses a hex, binary or octal int literal.
@@ -2315,17 +2191,20 @@ Lexer::parse_non_decimal_int_literals (location_t loc)
   if (current_char == 'x')
     {
       // hex (integer only)
-      return parse_non_decimal_int_literal (loc, is_x_digit, 16);
+      return parse_non_decimal_int_literal (loc, is_x_digit,
+					    IntegerLiteralBase::Hex);
     }
   else if (current_char == 'o')
     {
       // octal (integer only)
-      return parse_non_decimal_int_literal (loc, is_octal_digit, 8);
+      return parse_non_decimal_int_literal (loc, is_octal_digit,
+					    IntegerLiteralBase::Octal);
     }
   else if (current_char == 'b')
     {
       // binary (integer only)
-      return parse_non_decimal_int_literal (loc, is_bin_digit, 2);
+      return parse_non_decimal_int_literal (loc, is_bin_digit,
+					    IntegerLiteralBase::Binary);
     }
   else
     {
@@ -2382,27 +2261,20 @@ Lexer::parse_decimal_int_or_float (location_t loc)
       str += exponent_pair.first;
       length += exponent_pair.second;
 
-      // parse in type suffix if it exists
-      auto type_suffix_pair = parse_in_type_suffix ();
-      PrimitiveCoreType type_hint = type_suffix_pair.first;
-      length += type_suffix_pair.second;
+      int suffix_start = str.length ();
 
-      if (type_hint != CORETYPE_F32 && type_hint != CORETYPE_F64
-	  && type_hint != CORETYPE_UNKNOWN)
-	{
-	  rust_error_at (get_current_location (),
-			 "invalid type suffix %qs for floating-point literal",
-			 get_type_hint_string (type_hint));
-	  // ignore invalid type suffix as everything else seems fine
-	  type_hint = CORETYPE_UNKNOWN;
-	}
+      // parse in type suffix if it exists
+      auto suffix_pair = parse_in_suffix ();
+      PrimitiveCoreType type_hint = CORETYPE_UNKNOWN;
+      str += suffix_pair.first;
+      length += suffix_pair.second;
 
       current_column += length;
 
       loc += length - 1;
 
       str.shrink_to_fit ();
-      return Token::make_float (loc, std::move (str), type_hint);
+      return Token::make_float (loc, std::move (str), suffix_start, type_hint);
     }
   else if (current_char == '.'
 	   && check_valid_float_dot_end (peek_input (1).value))
@@ -2422,7 +2294,8 @@ Lexer::parse_decimal_int_or_float (location_t loc)
       loc += length - 1;
 
       str.shrink_to_fit ();
-      return Token::make_float (loc, std::move (str), CORETYPE_UNKNOWN);
+      return Token::make_float (loc, std::move (str), str.length (),
+				CORETYPE_UNKNOWN);
     }
   else if (current_char == 'E' || current_char == 'e')
     {
@@ -2433,50 +2306,48 @@ Lexer::parse_decimal_int_or_float (location_t loc)
       str += exponent_pair.first;
       length += exponent_pair.second;
 
-      // parse in type suffix if it exists
-      auto type_suffix_pair = parse_in_type_suffix ();
-      PrimitiveCoreType type_hint = type_suffix_pair.first;
-      length += type_suffix_pair.second;
+      int suffix_start = str.length ();
 
-      if (type_hint != CORETYPE_F32 && type_hint != CORETYPE_F64
-	  && type_hint != CORETYPE_UNKNOWN)
-	{
-	  rust_error_at (get_current_location (),
-			 "invalid type suffix %qs for floating-point literal",
-			 get_type_hint_string (type_hint));
-	  // ignore invalid type suffix as everything else seems fine
-	  type_hint = CORETYPE_UNKNOWN;
-	}
+      // parse in type suffix if it exists
+      auto suffix_pair = parse_in_suffix ();
+      PrimitiveCoreType type_hint = CORETYPE_UNKNOWN;
+      str += suffix_pair.first;
+      length += suffix_pair.second;
 
       current_column += length;
 
       loc += length - 1;
 
       str.shrink_to_fit ();
-      return Token::make_float (loc, std::move (str), type_hint);
+      return Token::make_float (loc, std::move (str), suffix_start, type_hint);
     }
   else
     {
       // is an integer
 
+      int suffix_start = str.length ();
+
       // parse in type suffix if it exists
-      auto type_suffix_pair = parse_in_type_suffix ();
-      PrimitiveCoreType type_hint = type_suffix_pair.first;
+      auto suffix_pair = parse_in_suffix ();
+      str += suffix_pair.first;
+
+      PrimitiveCoreType type_hint = CORETYPE_UNKNOWN;
+
       /* A "real" pure decimal doesn't have a suffix and no zero prefix.  */
-      if (type_hint == CORETYPE_UNKNOWN)
-	{
-	  bool pure_decimal = std::get<2> (initial_decimal);
-	  if (pure_decimal && (!first_zero || str.size () == 1))
-	    type_hint = CORETYPE_PURE_DECIMAL;
-	}
-      length += type_suffix_pair.second;
+      bool pure_decimal = std::get<2> (initial_decimal);
+      if (pure_decimal && (!first_zero || suffix_start == 1)
+	  && suffix_pair.first.empty ())
+	type_hint = CORETYPE_PURE_DECIMAL;
+
+      length += suffix_pair.second;
 
       current_column += length;
 
       loc += length - 1;
 
       str.shrink_to_fit ();
-      return Token::make_int (loc, std::move (str), type_hint);
+      return Token::make_int (loc, std::move (str), suffix_start,
+			      IntegerLiteralBase::Decimal, type_hint);
     }
 }
 

@@ -297,7 +297,7 @@ from_literal (const ProcMacro::Literal &literal,
 {
   auto lookup = suffixes.lookup (literal.suffix.to_string ());
   auto loc = convert (literal.span);
-  auto suffix = lookup.value_or (CORETYPE_UNKNOWN);
+  auto type_hint = lookup.value_or (CORETYPE_UNKNOWN);
   // FIXME: Add spans instead of empty locations
   switch (literal.kind.tag)
     {
@@ -309,13 +309,66 @@ from_literal (const ProcMacro::Literal &literal,
       result.push_back (Token::make_char (loc, literal.text.to_string ()[0]));
       break;
     case ProcMacro::INTEGER:
-      result.push_back (
-	Token::make_int (loc, literal.text.to_string (), suffix));
-      break;
+      {
+	std::string text = literal.text.to_string ();
+	std::string suffix_str = literal.suffix.to_string ();
+	int suffix_start = text.length ();
+
+	if (!suffix_str.empty ())
+	  {
+	    bool ends_with_suffix
+	      = text.size () >= suffix_str.size ()
+		&& text.compare (text.size () - suffix_str.size (),
+				 suffix_str.size (), suffix_str)
+		     == 0;
+
+	    if (!ends_with_suffix)
+	      text += suffix_str;
+	    else
+	      suffix_start = text.length () - suffix_str.length ();
+	  }
+	auto base = IntegerLiteralBase::Decimal;
+	if (suffix_start >= 2 && text[0] == '0')
+	  {
+	    if (text[1] == 'x' || text[1] == 'X')
+	      base = Rust::IntegerLiteralBase::Hex;
+	    else if (text[1] == 'o' || text[1] == 'O')
+	      base = Rust::IntegerLiteralBase::Octal;
+	    else if (text[1] == 'b' || text[1] == 'B')
+	      base = Rust::IntegerLiteralBase::Binary;
+	  }
+
+	result.push_back (
+	  Token::make_int (loc, text, suffix_start, base, type_hint));
+	break;
+      }
     case ProcMacro::FLOAT:
-      result.push_back (
-	Token::make_float (loc, literal.text.to_string (), suffix));
-      break;
+      {
+	std::string text = literal.text.to_string ();
+	std::string suffix_str = literal.suffix.to_string ();
+	auto suffix_start = text.length ();
+	if (!suffix_str.empty ())
+	  {
+	    bool ends_with_suffix
+	      = text.size () >= suffix_str.size ()
+		&& text.compare (text.size () - suffix_str.size (),
+				 suffix_str.size (), suffix_str)
+		     == 0;
+
+	    if (!ends_with_suffix)
+	      {
+		text += suffix_str;
+	      }
+	    else
+	      {
+		suffix_start = text.length () - suffix_str.length ();
+	      }
+	  }
+
+	result.push_back (Token::make_float (loc, text, suffix_start, type_hint,
+					     IntegerLiteralBase::Decimal));
+	break;
+      }
     case ProcMacro::STR:
       result.push_back (Token::make_string (loc, literal.text.to_string ()));
       break;
@@ -357,8 +410,8 @@ from_punct (const ProcMacro::Punct &punct, std::vector<std::uint32_t> &acc,
 }
 
 /**
- * Iterate over a Group and append all inner tokens to a vector enclosed by its
- * delimiters.
+ * Iterate over a Group and append all inner tokens to a vector enclosed by
+ * its delimiters.
  *
  * @param g Reference to the Group to convert.
  * @param result Reference to the vector tokens should be appended to.
