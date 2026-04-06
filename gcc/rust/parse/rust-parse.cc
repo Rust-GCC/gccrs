@@ -374,4 +374,146 @@ is_match_compatible (const AST::MacroMatch &last_match,
   // FIXME: Does expansion depth/limit matter here?
   return is_match_compatible (*new_last, match);
 }
+
+namespace LiteralResolve {
+
+PrimitiveCoreType
+resolve_literal_suffix (const_TokenPtr token)
+{
+  const std::string &raw_str = token->get_str ();
+  uint16_t start = token->get_suffix_start ();
+
+  if (start >= raw_str.length ())
+    {
+      return token->is_pure_decimal () ? CORETYPE_PURE_DECIMAL
+				       : CORETYPE_UNKNOWN;
+    }
+
+  std::string suffix = raw_str.substr (start);
+
+  if (suffix == "f32" || suffix == "f64")
+    {
+      auto base = token->get_literal_base ();
+      if (base == IntegerLiteralBase::Hex || base == IntegerLiteralBase::Octal
+	  || base == IntegerLiteralBase::Binary)
+	{
+	  rust_error_at (token->get_locus (),
+			 "invalid type suffix %qs for integer (%s) literal",
+			 suffix.c_str (),
+			 base == IntegerLiteralBase::Hex
+			   ? "hex"
+			   : (base == IntegerLiteralBase::Octal
+				? "octal"
+				: (base == IntegerLiteralBase::Binary
+				     ? "binary"
+				     : "<insert unknown base>")));
+	  return CORETYPE_UNKNOWN;
+	}
+      return suffix == "f32" ? CORETYPE_F32 : CORETYPE_F64;
+    }
+  else if (suffix == "i8")
+    {
+      return CORETYPE_I8;
+    }
+  else if (suffix == "i16")
+    {
+      return CORETYPE_I16;
+    }
+  else if (suffix == "i32")
+    {
+      return CORETYPE_I32;
+    }
+  else if (suffix == "i64")
+    {
+      return CORETYPE_I64;
+    }
+  else if (suffix == "i128")
+    {
+      return CORETYPE_I128;
+    }
+  else if (suffix == "isize")
+    {
+      return CORETYPE_ISIZE;
+    }
+  else if (suffix == "u8")
+    {
+      return CORETYPE_U8;
+    }
+  else if (suffix == "u16")
+    {
+      return CORETYPE_U16;
+    }
+  else if (suffix == "u32")
+    {
+      return CORETYPE_U32;
+    }
+  else if (suffix == "u64")
+    {
+      return CORETYPE_U64;
+    }
+  else if (suffix == "u128")
+    {
+      return CORETYPE_U128;
+    }
+  else if (suffix == "usize")
+    {
+      return CORETYPE_USIZE;
+    }
+  else
+
+    rust_error_at (token->get_locus (), "invalid suffix %qs for number literal",
+		   suffix.c_str ());
+
+  return CORETYPE_UNKNOWN;
+}
+
+std::string
+evaluate_integer_literal (const_TokenPtr token)
+{
+  const std::string &raw_str = token->get_str ();
+  uint16_t suffix_start = token->get_suffix_start ();
+
+  std::string num_str = raw_str.substr (0, suffix_start);
+
+  num_str.erase (std::remove (num_str.begin (), num_str.end (), '_'),
+		 num_str.end ());
+
+  auto base = token->get_literal_base ();
+
+  if (base == IntegerLiteralBase::Decimal || base == IntegerLiteralBase::None)
+    return num_str;
+
+  num_str = num_str.substr (2);
+
+  int base_int = 10;
+  if (base == IntegerLiteralBase::Hex)
+    base_int = 16;
+  else if (base == IntegerLiteralBase::Octal)
+    base_int = 8;
+  else if (base == IntegerLiteralBase::Binary)
+    base_int = 2;
+
+  mpz_t dec_num;
+  mpz_init (dec_num);
+  mpz_set_str (dec_num, num_str.c_str (), base_int);
+  char *s = mpz_get_str (NULL, 10, dec_num);
+  std::string dec_str = s;
+  free (s);
+  mpz_clear (dec_num);
+
+  return dec_str;
+}
+
+std::string
+evaluate_float_literal (const_TokenPtr token)
+{
+  std::string raw_str
+    = token->get_str ().substr (0, token->get_suffix_start ());
+  raw_str.erase (std::remove (raw_str.begin (), raw_str.end (), '_'),
+		 raw_str.end ());
+
+  return raw_str;
+}
+
+} // namespace LiteralResolve
 } // namespace Rust
