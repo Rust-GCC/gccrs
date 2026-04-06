@@ -5180,7 +5180,7 @@ find_if_header (basic_block test_bb, int pass)
       && cond_exec_find_if_block (&ce_info))
     goto success;
 
-  if (targetm.have_trap ()
+  if (!reload_completed && targetm.have_trap ()
       && optab_handler (ctrap_optab, word_mode) != CODE_FOR_nothing
       && find_cond_trap (test_bb, then_edge, else_edge))
     goto success;
