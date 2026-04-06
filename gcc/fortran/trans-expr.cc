@@ -10528,7 +10528,9 @@ gfc_conv_structure (gfc_se * se, gfc_expr * expr, int init)
 	 components.  Although the latter have a default initializer
 	 of EXPR_NULL,... by default, the static nullify is not needed
 	 since this is done every time we come into scope.  */
-      if (!c->expr || (cm->attr.allocatable && cm->attr.flavor != FL_PROCEDURE))
+      if (!c->expr
+	  || (cm->attr.allocatable && cm->attr.flavor != FL_PROCEDURE)
+	  || (IS_PDT (cm) && has_parameterized_comps (cm->ts.u.derived)))
 	continue;
 
       if (cm->initializer && cm->initializer->expr_type != EXPR_NULL
