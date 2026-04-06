@@ -19776,6 +19776,11 @@ tsubst_stmt (tree t, tree args, tsubst_flags_t complain, tree in_decl)
 	      orig_decl = TREE_VEC_ELT (orig_decl, 0);
 	    tree decl = tsubst (orig_decl, args, complain, in_decl);
 	    maybe_push_decl (decl);
+	    if (VAR_P (decl))
+	      {
+		retrofit_lang_decl (decl);
+		SET_DECL_DEPENDENT_INIT_P (decl, 1);
+	      }
 
 	    cp_decomp decomp_d, *decomp = NULL;
 	    if (DECL_DECOMPOSITION_P (decl))

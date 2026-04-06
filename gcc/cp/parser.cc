@@ -16685,6 +16685,20 @@ cp_parser_expansion_statement (cp_parser* parser, bool *if_p)
   TEMPLATE_FOR_EXPR (r) = expansion_init;
   TEMPLATE_FOR_BODY (r) = do_pushlevel (sk_block);
 
+  /* We don't know yet if range_decl will be initialized by constant
+     expression or not.  */
+  if (VAR_P (range_decl))
+    {
+      DECL_INITIALIZED_BY_CONSTANT_EXPRESSION_P (range_decl) = 1;
+      if (decl_maybe_constant_var_p (range_decl)
+	  /* FIXME setting TREE_CONSTANT on refs breaks the back end.  */
+	  && !TYPE_REF_P (TREE_TYPE (range_decl)))
+	TREE_CONSTANT (range_decl) = true;
+      /* Make it value dependent.  */
+      retrofit_lang_decl (range_decl);
+      SET_DECL_DEPENDENT_INIT_P (range_decl, 1);
+    }
+
   /* Parse the body of the expansion-statement.  */
   parser->in_statement = IN_EXPANSION_STMT;
   bool prev = note_iteration_stmt_body_start ();
