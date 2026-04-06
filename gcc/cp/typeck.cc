@@ -7854,8 +7854,7 @@ cp_build_unary_op (enum tree_code code, tree xarg, bool noconvert,
       if (gnu_vector_type_p (TREE_TYPE (arg)))
 	return cp_build_binary_op (input_location, EQ_EXPR, arg,
 				   build_zero_cst (TREE_TYPE (arg)), complain);
-      arg = perform_implicit_conversion (boolean_type_node, arg,
-					 complain);
+      arg = contextual_conv_bool (arg, complain);
       if (arg != error_mark_node)
 	{
 	  if (processing_template_decl)
