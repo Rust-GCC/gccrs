@@ -422,9 +422,8 @@ proc check-flags { args } {
 # (possibly the default) prevails.
 
 proc dg-do-if { args } {
-    set args [lreplace $args 0 0]
     # Verify the number of arguments.
-    if { [llength $args] != 2 } {
+    if { [llength $args] != 3 } {
 	error "syntax error, need a single action and target selector"
     }
 
@@ -435,7 +434,7 @@ proc dg-do-if { args } {
     }
     
     # Evaluate selector, return if it does not match.
-    switch [dg-process-target-1 [lindex $args 1]] {
+    switch [dg-process-target-1 [lindex $args 2]] {
 	"N" { return }
 	"P" { return }
     }
