@@ -2246,6 +2246,9 @@ UrlSuffix(gcc/Link-Options.html#index-static-libstdc_002b_002b)
 static-libasan
 UrlSuffix(gcc/Link-Options.html#index-static-libasan)
 
+static-libhwasan
+UrlSuffix(gcc/Link-Options.html#index-static-libhwasan)
+
 static-libtsan
 UrlSuffix(gcc/Link-Options.html#index-static-libtsan)
 

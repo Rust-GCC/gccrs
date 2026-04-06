@@ -769,7 +769,8 @@ Objective-C and Objective-C++ Dialects}.
 -e @var{entry}
 -pie  -pthread  -r  -rdynamic
 -s  -static  -static-pie  -static-libgcc  -static-libstdc++
--static-libasan  -static-libtsan  -static-liblsan  -static-libubsan
+-static-libasan  -static-libhwasan  -static-liblsan
+-static-libtsan  -static-libubsan
 -shared  -shared-libgcc  -symbolic
 -T @var{script}  -Wl,@var{option}  -Xlinker @var{option}
 -u @var{symbol}
@@ -18699,14 +18700,14 @@ option is not used, then this links against the shared version of
 driver to link @file{libasan} statically, without necessarily linking
 other libraries statically.
 
-@opindex static-libtsan
-@item -static-libtsan
-When the @option{-fsanitize=thread} option is used to link a program,
-the GCC driver automatically links against @option{libtsan}.  If
-@file{libtsan} is available as a shared library, and the @option{-static}
+@opindex static-libhwasan
+@item -static-libhwasan
+When the @option{-fsanitize=hwaddress} option is used to link a program,
+the GCC driver automatically links against @option{libhwasan}.  If
+@file{libhwasan} is available as a shared library, and the @option{-static}
 option is not used, then this links against the shared version of
-@file{libtsan}.  The @option{-static-libtsan} option directs the GCC
-driver to link @file{libtsan} statically, without necessarily linking
+@file{libhwasan}.  The @option{-static-libhwasan} option directs the GCC
+driver to link @file{libhwasan} statically, without necessarily linking
 other libraries statically.
 
 @opindex static-liblsan
@@ -18717,6 +18718,16 @@ the GCC driver automatically links against @option{liblsan}.  If
 option is not used, then this links against the shared version of
 @file{liblsan}.  The @option{-static-liblsan} option directs the GCC
 driver to link @file{liblsan} statically, without necessarily linking
+other libraries statically.
+
+@opindex static-libtsan
+@item -static-libtsan
+When the @option{-fsanitize=thread} option is used to link a program,
+the GCC driver automatically links against @option{libtsan}.  If
+@file{libtsan} is available as a shared library, and the @option{-static}
+option is not used, then this links against the shared version of
+@file{libtsan}.  The @option{-static-libtsan} option directs the GCC
+driver to link @file{libtsan} statically, without necessarily linking
 other libraries statically.
 
 @opindex static-libubsan
