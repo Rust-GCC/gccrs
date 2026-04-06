@@ -1,3 +1,22 @@
+2026-04-05  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/124689
+	* g++.dg/reflect/pr124689.C: New test.
+
+2026-04-05  Christopher Albert  <albert@tugraz.at>
+
+	PR fortran/109788
+	* gfortran.dg/pr109788.f90: New test.
+
+2026-04-05  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gnat.dg/aggr35_pkg.adb: Pass -gnatws.
+
+2026-04-05  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gnat.dg/aggr35.adb: New test.
+	* gnat.dg/aggr35_pkg.ads, gnat.dg/aggr35_pkg.adb: New helper.
+
 2026-04-04  Roger Sayle  <roger@nextmovesoftware.com>
 
 	PR c++/124573

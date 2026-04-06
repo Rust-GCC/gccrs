@@ -1,3 +1,10 @@
+2026-04-05  Christopher Albert  <albert@tugraz.at>
+
+	PR fortran/109788
+	* iresolve.cc (copy_intrinsic_sym): New helper.
+	(gfc_resolve_spread): Copy the intrinsic descriptor before
+	specializing the character formal argument type.
+
 2026-04-04  Harald Anlauf  <anlauf@gmx.de>
 
 	PR fortran/66973

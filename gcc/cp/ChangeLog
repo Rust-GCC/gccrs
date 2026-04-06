@@ -1,3 +1,21 @@
+2026-04-05  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/124689
+	* metafns.gperf (enum metafn_kind): Add
+	METAFN_KIND_BOOL_INFO_REFLECTION_RANGE.
+	(can_substitute): Use METAFN_KIND_BOOL_INFO_REFLECTION_RANGE
+	instead of METAFN_KIND_INFO_INFO_REFLECTION_RANGE.
+	(METAFN_KIND_ARG): Add MINFO argument.
+	(METAFN_KIND_RET): Define.
+	* reflect.cc (is_std_meta_class): New function.
+	(get_info): Add LOC argument, diagnose invalid argument type instead
+	of failing assertion.
+	(check_metafn_arg_type): New function.
+	(check_metafn_return_type): New function.
+	(process_metafunction): Diagnose clearly invalid return
+	or argument types.  Use rettype variable instead of TREE_TYPE (call).
+	* metafns.h: Regenerate.
+
 2026-04-04  Roger Sayle  <roger@nextmovesoftware.com>
 
 	PR c++/124573
