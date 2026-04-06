@@ -1094,6 +1094,14 @@ Parser<ManagedTokenSource>::parse_literal_or_range_pattern ()
       return nullptr;
     }
 
+  std::string literal_value;
+  if (range_lower->get_id () == INT_LITERAL)
+    literal_value = LiteralResolve::evaluate_integer_literal (range_lower);
+  else if (range_lower->get_id () == FLOAT_LITERAL)
+    literal_value = LiteralResolve::evaluate_float_literal (range_lower);
+  else
+    literal_value = range_lower->get_str ();
+
   const_TokenPtr next = lexer.peek_token ();
   if (next->get_id () == DOT_DOT_EQ || next->get_id () == ELLIPSIS
       || next->get_id () == DOT_DOT)
@@ -1103,7 +1111,7 @@ Parser<ManagedTokenSource>::parse_literal_or_range_pattern ()
       lexer.skip_token ();
       std::unique_ptr<AST::RangePatternBound> lower (
 	new AST::RangePatternBoundLiteral (
-	  AST::Literal (range_lower->get_str (), type,
+	  AST::Literal (std::move (literal_value), type,
 			PrimitiveCoreType::CORETYPE_UNKNOWN),
 	  range_lower->get_locus (), has_minus));
 
@@ -1125,10 +1133,16 @@ Parser<ManagedTokenSource>::parse_literal_or_range_pattern ()
   else
     {
       // literal pattern
+
+      auto type_hint = (range_lower->get_id () == INT_LITERAL
+			|| range_lower->get_id () == FLOAT_LITERAL)
+			 ? LiteralResolve::resolve_literal_suffix (range_lower)
+			 : range_lower->get_type_hint ();
+
       return std::unique_ptr<AST::LiteralPattern> (
-	new AST::LiteralPattern (range_lower->get_str (), type,
-				 range_lower->get_locus (),
-				 range_lower->get_type_hint (), has_minus));
+	new AST::LiteralPattern (std::move (literal_value), type,
+				 range_lower->get_locus (), type_hint,
+				 has_minus));
     }
 }
 
@@ -1161,16 +1175,18 @@ Parser<ManagedTokenSource>::parse_range_pattern_bound ()
       lexer.skip_token ();
       return std::unique_ptr<AST::RangePatternBoundLiteral> (
 	new AST::RangePatternBoundLiteral (
-	  AST::Literal (range_lower->get_str (), AST::Literal::INT,
-			range_lower->get_type_hint ()),
+	  AST::Literal (LiteralResolve::evaluate_integer_literal (range_lower),
+			AST::Literal::INT,
+			LiteralResolve::resolve_literal_suffix (range_lower)),
 	  range_lower_locus));
     case FLOAT_LITERAL:
       lexer.skip_token ();
       rust_debug ("warning: used deprecated float range pattern bound");
       return std::unique_ptr<AST::RangePatternBoundLiteral> (
 	new AST::RangePatternBoundLiteral (
-	  AST::Literal (range_lower->get_str (), AST::Literal::FLOAT,
-			range_lower->get_type_hint ()),
+	  AST::Literal (LiteralResolve::evaluate_float_literal (range_lower),
+			AST::Literal::FLOAT,
+			LiteralResolve::resolve_literal_suffix (range_lower)),
 	  range_lower_locus));
     case MINUS:
       // branch on next token
@@ -1181,16 +1197,20 @@ Parser<ManagedTokenSource>::parse_range_pattern_bound ()
 	  lexer.skip_token (1);
 	  return std::unique_ptr<AST::RangePatternBoundLiteral> (
 	    new AST::RangePatternBoundLiteral (
-	      AST::Literal (range_lower->get_str (), AST::Literal::INT,
-			    range_lower->get_type_hint ()),
+	      AST::Literal (
+		LiteralResolve::evaluate_integer_literal (range_lower),
+		AST::Literal::INT,
+		LiteralResolve::resolve_literal_suffix (range_lower)),
 	      range_lower_locus, true));
 	case FLOAT_LITERAL:
 	  lexer.skip_token (1);
 	  rust_debug ("warning: used deprecated float range pattern bound");
 	  return std::unique_ptr<AST::RangePatternBoundLiteral> (
 	    new AST::RangePatternBoundLiteral (
-	      AST::Literal (range_lower->get_str (), AST::Literal::FLOAT,
-			    range_lower->get_type_hint ()),
+	      AST::Literal (
+		LiteralResolve::evaluate_float_literal (range_lower),
+		AST::Literal::FLOAT,
+		LiteralResolve::resolve_literal_suffix (range_lower)),
 	      range_lower_locus, true));
 	default:
 	  add_error (Error (range_lower->get_locus (),
