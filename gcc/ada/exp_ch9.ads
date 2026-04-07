@@ -109,11 +109,10 @@ package Exp_Ch9 is
 
    function Build_Task_Allocate_Block
      (N          : Node_Id;
-      Init_Stmts : List_Id) return List_Id;
+      Init_Stmts : List_Id) return Node_Id;
    --  This function is used for allocators where the designated type is a task
    --  or contains tasks. In this case, the initialization call is replaced by:
    --
-   --    blockname : label;
    --    blockname : declare
    --       _Chain  : Activation_Chain;
    --

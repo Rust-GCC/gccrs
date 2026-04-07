@@ -3727,7 +3727,7 @@ package body Exp_Aggr is
 
          begin
             if Has_Task (Typ) then
-               Insert_Actions (N, Build_Task_Allocate_Block (Aggr, Stmts));
+               Insert_Action (N, Build_Task_Allocate_Block (Aggr, Stmts));
             else
                Insert_Actions (N, Stmts);
             end if;

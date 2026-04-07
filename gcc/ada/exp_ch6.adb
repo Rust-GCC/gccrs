@@ -175,20 +175,19 @@ package body Exp_Ch6 is
    procedure Add_Task_Actuals_To_Build_In_Place_Call
      (Function_Call : Node_Id;
       Function_Id   : Entity_Id;
-      Master_Actual : Node_Id;
-      Chain         : Node_Id := Empty);
+      Master_Actual : Node_Id := Empty;
+      Chain_Actual  : Node_Id := Empty);
    --  Ada 2005 (AI-318-02): For a build-in-place call, if the result type
-   --  contains tasks, add two actual parameters: the master, and a pointer to
-   --  the caller's activation chain. Master_Actual is the actual parameter
+   --  contains tasks, add two actual parameters: the master, and a pointer
+   --  to the activation chain to pass. Master_Actual is the actual parameter
    --  expression to pass for the master. In most cases, this is the current
-   --  master (_master). The two exceptions are: If the function call is the
+   --  master (_master). The two exceptions are: if the function call is the
    --  initialization expression for an allocator, we pass the master of the
-   --  access type. If the function call is the initialization expression for a
-   --  return object, we pass along the master passed in by the caller. In most
-   --  contexts, the activation chain to pass is the local one, which is
-   --  indicated by No (Chain). However, in an allocator, the caller passes in
-   --  the activation Chain. Note: Master_Actual can be Empty, but only if
-   --  there are no tasks.
+   --  access type; if the function call is the initialization expression for
+   --  a return object, we pass along the master passed in by the caller. And
+   --  Chain_Actual is the reference to the activation chain to pass. In most
+   --  cases, the activation chain to pass is the local one (_chain). However,
+   --  in an allocator, it's the activation chain of the task allocation block.
 
    function Caller_Known_Size
      (Func_Call   : Node_Id;
@@ -628,18 +627,17 @@ package body Exp_Ch6 is
    procedure Add_Task_Actuals_To_Build_In_Place_Call
      (Function_Call : Node_Id;
       Function_Id   : Entity_Id;
-      Master_Actual : Node_Id;
-      Chain         : Node_Id := Empty)
+      Master_Actual : Node_Id := Empty;
+      Chain_Actual  : Node_Id := Empty)
    is
-      Loc           : constant Source_Ptr := Sloc (Function_Call);
+      Loc : constant Source_Ptr := Sloc (Function_Call);
+
       Actual        : Node_Id;
-      Chain_Actual  : Node_Id;
       Chain_Formal  : Node_Id;
       Master_Formal : Node_Id;
 
    begin
-      pragma Assert (Ekind (Function_Id) in E_Function
-                                          | E_Subprogram_Type);
+      pragma Assert (Ekind (Function_Id) in E_Function | E_Subprogram_Type);
 
       --  No such extra parameters are needed if there are no tasks
 
@@ -661,27 +659,22 @@ package body Exp_Ch6 is
 
             Chain_Formal :=
               Build_In_Place_Formal (Function_Id, BIP_Activation_Chain);
-            Chain_Actual := Make_Null (Loc);
-            Analyze_And_Resolve (Chain_Actual, Etype (Chain_Formal));
-            Add_Extra_Actual_To_Call
-              (Function_Call, Chain_Formal, Chain_Actual);
+            Actual := Make_Null (Loc);
+            Analyze_And_Resolve (Actual, Etype (Chain_Formal));
+            Add_Extra_Actual_To_Call (Function_Call, Chain_Formal, Actual);
          end if;
 
          return;
       end if;
 
-      Actual := Master_Actual;
-
       --  Use a dummy _master actual in case of No_Task_Hierarchy
 
       if Restriction_Active (No_Task_Hierarchy) then
          Actual := Make_Integer_Literal (Loc, Library_Task_Level);
-
-      --  In the case where we use the master associated with an access type,
-      --  the actual is an entity and requires an explicit reference.
-
-      elsif Nkind (Actual) = N_Defining_Identifier then
-         Actual := New_Occurrence_Of (Actual, Loc);
+      elsif Present (Master_Actual) then
+         Actual := Master_Actual;
+      else
+         Actual := Make_Identifier (Loc, Name_uMaster);
       end if;
 
       --  Locate the implicit master parameter in the called function
@@ -702,29 +695,25 @@ package body Exp_Ch6 is
       --  Create the actual which is a pointer to the current activation chain
 
       if Restriction_Active (No_Task_Hierarchy) then
-         Chain_Actual := Make_Null (Loc);
-
-      elsif No (Chain) then
-         Chain_Actual :=
+         Actual := Make_Null (Loc);
+      elsif Present (Chain_Actual) then
+         Actual :=
+           Make_Attribute_Reference (Loc,
+             Prefix         => Chain_Actual,
+             Attribute_Name => Name_Unrestricted_Access);
+      else
+         Actual :=
            Make_Attribute_Reference (Loc,
              Prefix         => Make_Identifier (Loc, Name_uChain),
              Attribute_Name => Name_Unrestricted_Access);
-
-      --  Allocator case; make a reference to the Chain passed in by the caller
-
-      else
-         Chain_Actual :=
-           Make_Attribute_Reference (Loc,
-             Prefix         => New_Occurrence_Of (Chain, Loc),
-             Attribute_Name => Name_Unrestricted_Access);
       end if;
 
-      Analyze_And_Resolve (Chain_Actual, Etype (Chain_Formal));
+      Analyze_And_Resolve (Actual, Etype (Chain_Formal));
 
       --  Build the parameter association for the new actual and add it to the
       --  end of the function's actuals.
 
-      Add_Extra_Actual_To_Call (Function_Call, Chain_Formal, Chain_Actual);
+      Add_Extra_Actual_To_Call (Function_Call, Chain_Formal, Actual);
    end Add_Task_Actuals_To_Build_In_Place_Call;
 
    -----------------------
@@ -8670,15 +8659,18 @@ package body Exp_Ch6 is
       Func_Call   : constant Node_Id    := Unqual_Conv (Function_Call);
       Func_Id     : constant Entity_Id  := Get_Function_Entity (Func_Call);
       Result_Subt : constant Entity_Id  := Available_View (Etype (Func_Id));
+      Has_Tasks   : constant Boolean    := Might_Have_Tasks (Result_Subt);
 
-      Ref_Func_Call     : Node_Id;
-      New_Allocator     : Node_Id;
-      Return_Obj_Access : Entity_Id; -- temp for function result
-      Temp_Init         : Node_Id; -- initial value of Return_Obj_Access
       Alloc_Form        : BIP_Allocation_Form;
+      Assign            : Node_Id;
+      Chain             : Node_Id; -- activation chain, in case of tasks
+      Master            : Node_Id; -- master, in case of tasks
+      New_Allocator     : Node_Id;
       Pool_Actual       : Node_Id; -- Present if Alloc_Form = User_Storage_Pool
+      Ref_Func_Call     : Node_Id;
+      Return_Obj_Access : Entity_Id; -- temp for function result
       Return_Obj_Actual : Node_Id; -- the temp.all, in caller-allocates case
-      Chain             : Entity_Id; -- activation chain, in case of tasks
+      Temp_Init         : Node_Id; -- initial value of Return_Obj_Access
 
    begin
       --  Mark the call as processed as a build-in-place call
@@ -8821,58 +8813,54 @@ package body Exp_Ch6 is
       --  that the full types will be compatible, but the types not visibly
       --  compatible.
 
-      elsif Nkind (Function_Call)
-              in N_Type_Conversion | N_Unchecked_Type_Conversion
+      elsif Nkind (Function_Call) in N_Type_Conversion
+                                   | N_Unchecked_Type_Conversion
       then
          Ref_Func_Call := Unchecked_Convert_To (Acc_Type, Ref_Func_Call);
       end if;
 
-      declare
-         Assign : constant Node_Id :=
-                    Make_Assignment_Statement (Loc,
-                      Name       => New_Occurrence_Of (Return_Obj_Access, Loc),
-                      Expression => Ref_Func_Call);
-         --  Assign the result of the function call into the temp. In the
-         --  caller-allocates case, this is overwriting the temp with its
-         --  initial value, which has no effect. In the callee-allocates case,
-         --  this is setting the temp to point to the object allocated by the
-         --  callee. Unchecked_Convert is needed for T'Input where T is derived
-         --  from a controlled type.
+      --  Assign the result of the function call into the temporary. In the
+      --  caller-allocates case, this is overwriting the temporary with its
+      --  initial value, which has no effect. In the callee-allocates case,
+      --  this is setting the temporary to point to the object allocated by
+      --  the callee.
 
-         Actions : List_Id;
-         --  Actions to be inserted. If there are no tasks, this is just the
-         --  assignment statement. If the allocated object has tasks, we need
-         --  to wrap the assignment in a block that activates them. The
-         --  activation chain of that block must be passed to the function,
-         --  rather than some outer chain.
+      Assign :=
+        Make_Assignment_Statement (Loc,
+          Name       => New_Occurrence_Of (Return_Obj_Access, Loc),
+          Expression => Ref_Func_Call);
 
-      begin
-         if Might_Have_Tasks (Result_Subt) then
-            Actions :=
-              Build_Task_Allocate_Block (Allocator, New_List (Assign));
-            Chain   := Activation_Chain_Entity (Last (Actions));
-         else
-            Actions := New_List (Assign);
-            Chain   := Empty;
-         end if;
+      --  If the allocated object has tasks, we need to wrap the assignment in
+      --  a block that activates them. The activation chain of that block must
+      --  be passed to the function rather than some outer chain.
 
-         --  See the Needs_Cleanup predicate in Expand_Allocator_Expression
+      if Has_Tasks then
+         Assign := Build_Task_Allocate_Block (Allocator, New_List (Assign));
+         Master := New_Occurrence_Of (Master_Id (Acc_Type), Loc);
+         Chain  :=
+           New_Occurrence_Of (
+             Defining_Identifier (First (Declarations (Assign))), Loc);
+      else
+         Master := Empty;
+         Chain  := Empty;
+      end if;
 
-         if Alloc_Form = Caller_Allocation
-           and then not For_Special_Return_Object (Allocator)
-           and then not (Is_Entity_Name (Name (Func_Call))
-                          and then No_Raise (Entity (Name (Func_Call))))
-           and then not Restriction_Active (No_Exception_Propagation)
-           and then RTE_Available (RE_Free)
-           and then not Debug_Flag_QQ
-         then
-            Insert_Action (Allocator,
-              Build_Cleanup_For_Allocator (Loc,
-                Return_Obj_Access, Storage_Pool (Allocator), Actions));
-         else
-            Insert_Actions (Allocator, Actions);
-         end if;
-      end;
+      --  See the Needs_Cleanup predicate in Expand_Allocator_Expression
+
+      if Alloc_Form = Caller_Allocation
+        and then not For_Special_Return_Object (Allocator)
+        and then not (Is_Entity_Name (Name (Func_Call))
+                       and then No_Raise (Entity (Name (Func_Call))))
+        and then not Restriction_Active (No_Exception_Propagation)
+        and then RTE_Available (RE_Free)
+        and then not Debug_Flag_QQ
+      then
+         Insert_Action (Allocator,
+           Build_Cleanup_For_Allocator (Loc,
+             Return_Obj_Access, Storage_Pool (Allocator), New_List (Assign)));
+      else
+         Insert_Action (Allocator, Assign);
+      end if;
 
       --  Add implicit actuals for the BIP formal parameters, if any
 
@@ -8886,10 +8874,7 @@ package body Exp_Ch6 is
         (Func_Call, Func_Id, Ptr_Typ => Acc_Type);
 
       Add_Task_Actuals_To_Build_In_Place_Call
-        (Func_Call,
-         Func_Id,
-         Master_Actual => Master_Id (Acc_Type),
-         Chain => Chain);
+        (Func_Call, Func_Id, Master_Actual => Master, Chain_Actual => Chain);
 
       --  Add an implicit actual to the function call that provides access
       --  to the allocated object. An unchecked conversion to the (specific)
@@ -9008,7 +8993,7 @@ package body Exp_Ch6 is
            (Func_Call, Func_Id);
 
          Add_Task_Actuals_To_Build_In_Place_Call
-           (Func_Call, Func_Id, Make_Identifier (Loc, Name_uMaster));
+           (Func_Call, Func_Id);
 
          --  Pass a null value to the function since no return object is
          --  available on the caller side.
@@ -9069,7 +9054,7 @@ package body Exp_Ch6 is
         (Func_Call, Func_Id);
 
       Add_Task_Actuals_To_Build_In_Place_Call
-        (Func_Call, Func_Id, Make_Identifier (Loc, Name_uMaster));
+        (Func_Call, Func_Id);
 
       --  Add an implicit actual to the function call that provides access to
       --  the caller's return object.
@@ -9401,7 +9386,7 @@ package body Exp_Ch6 is
 
       else
          Add_Task_Actuals_To_Build_In_Place_Call
-           (Func_Call, Func_Id, Make_Identifier (Loc, Name_uMaster));
+           (Func_Call, Func_Id);
       end if;
 
       Add_Access_Actual_To_Build_In_Place_Call

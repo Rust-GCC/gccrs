@@ -1450,7 +1450,7 @@ package body Exp_Ch7 is
                New_Occurrence_Of
                  (RTE (RE_Expunge_Unactivated_Tasks), Loc),
              Parameter_Associations => New_List (
-               New_Occurrence_Of (Activation_Chain_Entity (N), Loc))));
+               Make_Identifier (Loc, Name_uChain))));
 
       --  Attempt to cancel an asynchronous entry call whenever the block which
       --  contains the abortable part is exited.

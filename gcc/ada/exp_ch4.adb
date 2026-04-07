@@ -5089,7 +5089,7 @@ package body Exp_Ch4 is
                --  create a specific block to activate the created tasks.
 
                if Has_Task (Etyp) then
-                  Insert_Actions (N,
+                  Insert_Action (N,
                     Build_Task_Allocate_Block (N, Init_Stmts),
                     Suppress => All_Checks);
                else

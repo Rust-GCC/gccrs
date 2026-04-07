@@ -4565,15 +4565,18 @@ package body Exp_Ch9 is
 
    function Build_Task_Allocate_Block
      (N          : Node_Id;
-      Init_Stmts : List_Id) return List_Id
+      Init_Stmts : List_Id) return Node_Id
    is
       Loc    : constant Source_Ptr := Sloc (N);
       Chain  : constant Entity_Id  :=
                  Make_Defining_Identifier (Loc, Name_uChain);
-      Blkent : constant Entity_Id  := Make_Temporary (Loc, 'A');
+      Blkent : constant Entity_Id  :=
+        New_Internal_Entity (E_Block, Current_Scope, Loc, 'B');
       Block  : Node_Id;
 
    begin
+      Set_Etype (Blkent, Standard_Void_Type);
+
       Append_To (Init_Stmts,
         Make_Procedure_Call_Statement (Loc,
           Name => New_Occurrence_Of (RTE (RE_Activate_Tasks), Loc),
@@ -4603,11 +4606,7 @@ package body Exp_Ch9 is
 
       Set_Activation_Chain_Entity (Block, Chain);
 
-      return New_List (
-        Make_Implicit_Label_Declaration (Loc,
-          Defining_Identifier => Blkent,
-          Label_Construct     => Block),
-        Block);
+      return Block;
    end Build_Task_Allocate_Block;
 
    -----------------------------------
