@@ -131,6 +131,16 @@ def _inspect_ordering(arr):
 
     return arr, req_ordering
 
+def _get_predictable_ordered_array(arr):
+    if not arr:
+        return arr
+
+    # Convert to list of string to get predictable order.
+    # Using set() here causes issue with complex arrays
+    arr = [json.dumps(x) for x in arr]
+    arr.sort()
+    return [json.loads(x) for x in arr]
+
 
 def compare_json(path, actual, expect):
     actual_type = type(actual)
@@ -146,8 +156,8 @@ def compare_json(path, actual, expect):
     elif actual_type == list:
         expect, req_ordering = _inspect_ordering(expect)
         if not req_ordering:
-            actual = set(actual)
-            expect = set(expect)
+            actual = _get_predictable_ordered_array(actual)
+            expect = _get_predictable_ordered_array(expect)
         is_ok = _compare_array(path, actual, expect)
     elif actual_type == str:
         is_ok = _compare_string(path, actual, expect)
