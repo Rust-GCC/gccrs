@@ -1,12 +1,12 @@
 # Simplified Chinese translation for gcc.
-# Copyright (C) 2005 Free Software Foundation, Inc.
+# Copyright (C) 2026 Free Software Foundation, Inc.
 # This file is distributed under the same license as the gcc package.
 # Meng Jie <zuxy.meng@gmail.com>, 2005-2014.
 # Jeff Bai <jeffbai@aosc.xyz>, 2015.
 # Mingye Wang (Arthur2e5) <arthur200126@gmail.com>, 2015, 2016.
 # Boyuan Yang <073plan@gmail.com>, 2019, 2023-2025.
 # Zixing Zhou <zixingzhou@foxmail.com>, 2023.
-# Zhanhaoxiang Zhang <zzhx2006@outlook.com>, 2024.
+# Zhanhaoxiang Zhang <zzhx2006@outlook.com>, 2024, 2026.
 #
 # Fellow translatiors:
 # Many of the fuzzy strings are caused by an addition of a period (".")
@@ -33,11 +33,11 @@
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: gcc 15.1.0\n"
+"Project-Id-Version: gcc-16.1-b20260329\n"
 "Report-Msgid-Bugs-To: https://gcc.gnu.org/bugs/\n"
 "POT-Creation-Date: 2026-03-26 15:06+0000\n"
-"PO-Revision-Date: 2025-05-15 13:53-0400\n"
-"Last-Translator: Boyuan Yang <073plan@gmail.com>\n"
+"PO-Revision-Date: 2026-04-07 21:27+0800\n"
+"Last-Translator: Zhanhaoxiang Zhang <zzhx2006@outlook.com>\n"
 "Language-Team: Chinese (simplified) <i18n-zh@googlegroups.com>\n"
 "Language: zh_CN\n"
 "MIME-Version: 1.0\n"
@@ -45,7 +45,7 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 "X-Bugs: Report translation errors to the Language-Team address.\n"
-"X-Generator: Poedit 3.6\n"
+"X-Generator: Poedit 3.8\n"
 
 #: cif-code.def:39
 msgid "function not considered for inlining"
@@ -18466,10 +18466,9 @@ msgid "Enable lifetime extension of range based for temporaries."
 msgstr ""
 
 #: c-family/c.opt:2362
-#, fuzzy, no-c-format
-#| msgid "Enable experimental Fortran 202y features."
+#, no-c-format
 msgid "Enable experimental C++26 Reflection."
-msgstr "启用实验性的 Fortuan 202y 特性。"
+msgstr "启用实验性的C++26 Reflection特性。"
 
 #: c-family/c.opt:2366
 #, fuzzy, no-c-format
@@ -23927,9 +23926,8 @@ msgid "<unparsed>"
 msgstr "<未解析>"
 
 #: cp/error.cc:3251
-#, fuzzy
 msgid "<lambda>"
-msgstr "<lambda"
+msgstr "<lambda>"
 
 #: cp/error.cc:3289
 msgid "*this"
@@ -23948,109 +23946,84 @@ msgid "At global scope:"
 msgstr "在全局域："
 
 #: cp/reflect.cc:565
-#, fuzzy
-#| msgid "accumulator is not a constant integer"
 msgid "array element not a constant integer"
-msgstr "累加数不是一个整常量"
+msgstr "数组元素不是整型常量"
 
 #: cp/reflect.cc:573 cp/reflect.cc:3906
-#, fuzzy
-#| msgid "expected initializer"
 msgid "reflect_constant failed"
-msgstr "需要初始值设定"
+msgstr "reflect_constant失败"
 
 #: cp/reflect.cc:1031
-#, fuzzy
-#| msgid "function does not return string type"
 msgid "reflection does not represent a type"
-msgstr "函数不返回字符串类型"
+msgstr "反射不代表一个类型"
 
 #: cp/reflect.cc:1043
-#, fuzzy
-#| msgid "redeclaration of friend %q#D may not have default template arguments"
 msgid "reflection does not have template arguments"
-msgstr "友元%q#D的重声明不能有默认模板参数"
+msgstr "反射没有模板参数"
 
 #: cp/reflect.cc:1054
-#, fuzzy
 msgid "reflection does not represent a function or function type"
-msgstr "被调用的对象%qE不是一个函数"
+msgstr "反射未代表一个函数或函数类型"
 
 #: cp/reflect.cc:2355
 msgid "reflection does not represent an operator function or operator function template"
-msgstr ""
+msgstr "反射未代表一个运算符函数或运算符函数模板"
 
 #: cp/reflect.cc:2405
-#, fuzzy
-#| msgid "%qs is not valid for %qs"
 msgid "operators argument is not a valid operator"
-msgstr "%qs对%qs而言无效"
+msgstr "运算符参数不是一个有效的运算符"
 
 #: cp/reflect.cc:2536
-#, fuzzy
-#| msgid "%qE does not name a type"
 msgid "reflection does not have a type"
-msgstr "%qE不是一个类型名"
+msgstr "反射没有一个类型"
 
 #: cp/reflect.cc:2652
 msgid "reflection does not represent an object with static storage duration, or a reference to such an object"
-msgstr ""
+msgstr "反射未代表一个具有静态存储期的对象，或对这样一个对象的引用"
 
 #: cp/reflect.cc:2733
 msgid "reflection does not represent an annotation or a valid argument to a splice-expression"
-msgstr ""
+msgstr "反射未代表一个注解(annotation)，或一个拼接表达式(splice-expression)的有效参数"
 
 #: cp/reflect.cc:2953
-#, fuzzy
-#| msgid "function does not return string type"
 msgid "reflection does not represent an entity with parent"
-msgstr "函数不返回字符串类型"
+msgstr "反射未代表一个带有父实体的实体"
 
 #: cp/reflect.cc:3076
-#, fuzzy
-#| msgid "friend declaration does not name a class or function"
 msgid "reflection does not represent parameter of current function"
-msgstr "友元声明没有指定类或函数名"
+msgstr "反射未代表当前函数的参数"
 
 #: cp/reflect.cc:3097
-#, fuzzy
 msgid "reflection does not represent a function or function type with a return type"
-msgstr "被调用的对象%qE不是一个函数"
+msgstr "反射未代表一个带有返回类型的函数或函数类型"
 
 #: cp/reflect.cc:3128
 msgid "reflection of virtual direct base relationship with abstract derived class"
-msgstr ""
+msgstr "对具有抽象派生类的虚直接基类关系(virtual direct base relationship)的反射"
 
 #: cp/reflect.cc:3134
 msgid "reflection unsuitable for offset_of"
-msgstr ""
+msgstr "反射不适用于offset_of"
 
 #: cp/reflect.cc:3139
-#, fuzzy
-#| msgid "non-constant condition for static assertion"
 msgid "non-constant offset for offset_of"
-msgstr "静态断言中出现非常量条件"
+msgstr "offset_of的偏移量非常量"
 
 #: cp/reflect.cc:3203
 msgid "reflection not suitable for size_of"
-msgstr ""
+msgstr "反射不适用于size_of"
 
 #: cp/reflect.cc:3222
-#, fuzzy
 msgid "reflection with incomplete type in size_of"
-msgstr "指向不完全类型%qT的指针不能自减"
+msgstr "size_of中反射带有不完整的类型"
 
 #: cp/reflect.cc:3258
-#, fuzzy
-#| msgid "Do not tune writable data alignment"
 msgid "reflection not suitable for alignment_of"
-msgstr "不调整可写数据对齐"
+msgstr "反射不适用于alignment_of"
 
 #: cp/reflect.cc:3294
-#, fuzzy
-#| msgid "assignment of function %qD"
 msgid "alignment_of on function type"
-msgstr "向函数%qD赋值"
+msgstr "应用于函数类型的alignment_of"
 
 #: cp/reflect.cc:3303
 #, fuzzy
@@ -68612,34 +68585,34 @@ msgid "making multiple clones of %qD"
 msgstr "%qD做了多次复本"
 
 #: cp/parser.cc:1168
-#, fuzzy, gcc-internal-format
+#, gcc-internal-format
 msgid "identifier %qE is a keyword in C++11"
-msgstr "标识符%qE与 C++ 关键字冲突"
+msgstr "标识符%qE是C++11中的关键字"
 
 #: cp/parser.cc:1182
-#, fuzzy, gcc-internal-format
+#, gcc-internal-format
 msgid "identifier %qE is a keyword in C++20"
-msgstr "标识符%qE与 C++ 关键字冲突"
+msgstr "标识符%qE是C++20中的关键字"
 
 #: cp/parser.cc:1196
-#, fuzzy, gcc-internal-format
+#, gcc-internal-format
 msgid "identifier %qE is a keyword in C++26"
-msgstr "标识符%qE与 C++ 关键字冲突"
+msgstr "标识符%qE是C++11中的关键字"
 
 #: cp/parser.cc:1746 cp/parser.cc:1759
 #, gcc-internal-format
 msgid "%<LEXER_DEBUGGING_ENABLED_P%> is not set to true"
-msgstr ""
+msgstr "%<LEXER_DEBUGGING_ENABLED_P%>未设置为true"
 
 #: cp/parser.cc:1784 cp/parser.cc:52812
-#, fuzzy, gcc-internal-format
+#, gcc-internal-format
 msgid "%<#pragma omp declare %s%> not immediately followed by function declaration or definition"
-msgstr "%<#pragma align%>必须出现在 %D 的声明之前，忽略"
+msgstr "%<#pragma omp declare %s%> 后面未紧跟函数声明或定义"
 
 #: cp/parser.cc:1824
-#, fuzzy, gcc-internal-format
+#, gcc-internal-format
 msgid "%<declare %s%> directive not immediately followed by function declaration or definition"
-msgstr "%<#pragma align%>必须出现在 %D 的声明之前，忽略"
+msgstr "%<declare %s%> 指令后面未紧跟函数声明或定义"
 
 #: cp/parser.cc:3423
 #, gcc-internal-format
@@ -68647,21 +68620,19 @@ msgid "%<#pragma%> is not allowed here"
 msgstr "在这里不允许使用%<#pragma%>"
 
 #: cp/parser.cc:3431
-#, fuzzy, gcc-internal-format
-#| msgid "expected function"
+#, gcc-internal-format
 msgid "unexpected module directive"
-msgstr "需要函数"
+msgstr "未预期的模块指令"
 
 #: cp/parser.cc:3433
 #, gcc-internal-format
 msgid "perhaps insert a line break after %qs, or other disambiguation, to prevent this being considered a module control-line"
-msgstr ""
+msgstr "或许在%qs之后插入一个换行符，或进行其他消歧，以防止这被视为模块控制行"
 
 #: cp/parser.cc:3578
-#, fuzzy, gcc-internal-format
-#| msgid "%<::%D%> has not been declared"
+#, gcc-internal-format
 msgid "%<%E::%E%> has not been declared; did you mean %<%E::%s%>?"
-msgstr "%<::%D%>未被声明"
+msgstr "%<%E::%E%>尚未声明；你是说%<%E::%s%>吗？"
 
 #: cp/parser.cc:3584
 #, gcc-internal-format
@@ -68684,10 +68655,9 @@ msgid "%<%T::%E%> has not been declared"
 msgstr "%<%T::%E%>尚未声明"
 
 #: cp/parser.cc:3606
-#, fuzzy, gcc-internal-format
-#| msgid "%<::%D%> has not been declared"
+#, gcc-internal-format
 msgid "%qE has not been declared; did you mean %qs?"
-msgstr "%<::%D%>未被声明"
+msgstr "%qE尚未声明；你是说%qs吗？"
 
 #: cp/parser.cc:3618
 #, gcc-internal-format
@@ -68745,9 +68715,9 @@ msgid "(perhaps a semicolon is missing after the definition of %qT)"
 msgstr "(%qT的定义末尾可能缺少一个分号)"
 
 #: cp/parser.cc:3761
-#, fuzzy, gcc-internal-format
+#, gcc-internal-format
 msgid "%qE is not a class template"
-msgstr "需要一个类模板，却给出了%qE"
+msgstr "%qE不是一个类模板"
 
 #: cp/parser.cc:3763 cp/parser.cc:21305
 #, gcc-internal-format
@@ -68760,10 +68730,9 @@ msgid "invalid template-id"
 msgstr "无效的模板 ID"
 
 #: cp/parser.cc:3800
-#, fuzzy, gcc-internal-format
-#| msgid "floating-point literal cannot appear in a constant-expression"
+#, gcc-internal-format
 msgid "ISO C++ forbids using a floating-point literal in a constant-expression"
-msgstr "浮点字面量不能出现在常量表达式中"
+msgstr "ISO C++禁止在常量表达式中使用浮点字面量"
 
 #: cp/parser.cc:3804
 #, gcc-internal-format
@@ -68771,14 +68740,14 @@ msgid "a cast to a type other than an integral or enumeration type cannot appear
 msgstr "常量表达式中不能出现目标不是整型或枚举型的类型转换"
 
 #: cp/parser.cc:3809
-#, fuzzy, gcc-internal-format
+#, gcc-internal-format
 msgid "%<typeid%> operator cannot appear in a constant-expression"
-msgstr "自增不能出现在常量表达式中"
+msgstr "%<typeid%>运算符不能出现在常量表达式中"
 
 #: cp/parser.cc:3813
-#, fuzzy, gcc-internal-format
+#, gcc-internal-format
 msgid "non-constant compound literals cannot appear in a constant-expression"
-msgstr "%qD不能出现在常量表达式中"
+msgstr "非常量复合字面值不能出现在常量表达式中"
 
 #: cp/parser.cc:3817
 #, gcc-internal-format
@@ -68791,55 +68760,54 @@ msgid "an increment cannot appear in a constant-expression"
 msgstr "自增不能出现在常量表达式中"
 
 #: cp/parser.cc:3825
-#, fuzzy, gcc-internal-format
-#| msgid "an decrement cannot appear in a constant-expression"
+#, gcc-internal-format
 msgid "a decrement cannot appear in a constant-expression"
-msgstr "自减不能出现在常量表达式中"
+msgstr "常量表达式中不能出现递减操作"
 
 #: cp/parser.cc:3829
-#, fuzzy, gcc-internal-format
+#, gcc-internal-format
 msgid "an array reference cannot appear in a constant-expression"
-msgstr "自增不能出现在常量表达式中"
+msgstr "数组引用不能出现在常量表达式中"
 
 #: cp/parser.cc:3833
-#, fuzzy, gcc-internal-format
+#, gcc-internal-format
 msgid "the address of a label cannot appear in a constant-expression"
-msgstr "自增不能出现在常量表达式中"
+msgstr "标签的地址不能出现在常量表达式中"
 
 #: cp/parser.cc:3837
-#, fuzzy, gcc-internal-format
+#, gcc-internal-format
 msgid "calls to overloaded operators cannot appear in a constant-expression"
-msgstr "%qD不能出现在常量表达式中"
+msgstr "对重载运算符的调用不能出现在常量表达式中"
 
 #: cp/parser.cc:3841
-#, fuzzy, gcc-internal-format
+#, gcc-internal-format
 msgid "an assignment cannot appear in a constant-expression"
-msgstr "自增不能出现在常量表达式中"
+msgstr "赋值不能出现在常量表达式中"
 
 #: cp/parser.cc:3844
-#, fuzzy, gcc-internal-format
+#, gcc-internal-format
 msgid "a comma operator cannot appear in a constant-expression"
-msgstr "自增不能出现在常量表达式中"
+msgstr "逗号运算符不能出现在常量表达式中"
 
 #: cp/parser.cc:3848
-#, fuzzy, gcc-internal-format
+#, gcc-internal-format
 msgid "a call to a constructor cannot appear in a constant-expression"
-msgstr "函数调用不能出现在常量表达式中"
+msgstr "对构造函数的调用不能出现在常量表达式中"
 
 #: cp/parser.cc:3852
-#, fuzzy, gcc-internal-format
+#, gcc-internal-format
 msgid "a transaction expression cannot appear in a constant-expression"
-msgstr "自增不能出现在常量表达式中"
+msgstr "事务表达式不能出现在常量表达式中"
 
 #: cp/parser.cc:3898
-#, fuzzy, gcc-internal-format
+#, gcc-internal-format
 msgid "%qs cannot appear in a constant-expression"
-msgstr "自减不能出现在常量表达式中"
+msgstr "%qs不能出现在常量表达式中"
 
 #: cp/parser.cc:3935
-#, fuzzy, gcc-internal-format
+#, gcc-internal-format
 msgid "class template argument deduction is only available with %<-std=c++17%> or %<-std=gnu++17%>"
-msgstr "可变参数模板只在 -std=c++0x 或 -std=gnu++0x 下可用"
+msgstr "类模板参数推导仅在%<-std=c++17%>或%<-std=gnu++17%>下可用"
 
 #: cp/parser.cc:3940
 #, gcc-internal-format
@@ -68853,10 +68821,9 @@ msgid "invalid combination of multiple type-specifiers"
 msgstr "无效的类型限定符组合"
 
 #: cp/parser.cc:3956
-#, fuzzy, gcc-internal-format
-#| msgid "%qE does not name a type"
+#, gcc-internal-format
 msgid "%qE does not name a type; did you mean %qs?"
-msgstr "%qE不是一个类型名"
+msgstr "%qE不是一个类型名；你是说%qs吗？"
 
 #: cp/parser.cc:3960
 #, gcc-internal-format
@@ -68864,46 +68831,44 @@ msgid "%qE does not name a type"
 msgstr "%qE不是一个类型名"
 
 #: cp/parser.cc:3969
-#, fuzzy, gcc-internal-format
+#, gcc-internal-format
 msgid "C++11 %<constexpr%> only available with %<-std=c++11%> or %<-std=gnu++11%>"
-msgstr "C++0x %<constexpr%>只在 -std=c++0x 或 -std=gnu++0x 下可用"
+msgstr "C++11 %<constexpr%>仅在使用%<-std=c++11%>或%<-std=gnu++11%>时可用"
 
 #: cp/parser.cc:3972
-#, fuzzy, gcc-internal-format
+#, gcc-internal-format
 msgid "C++11 %<noexcept%> only available with %<-std=c++11%> or %<-std=gnu++11%>"
-msgstr "C++0x %<constexpr%>只在 -std=c++0x 或 -std=gnu++0x 下可用"
+msgstr "C++11 %<noexcept%>仅在使用%<-std=c++11%>或%<-std=gnu++11%>时可用"
 
 #: cp/parser.cc:3978
-#, fuzzy, gcc-internal-format
-#| msgid "%qE is an unrecognized format function type"
+#, gcc-internal-format
 msgid "%qE is not recognized as a module control-line"
-msgstr "%qE是一个无法识别的格式字符串函数类型"
+msgstr "%qE未被识别为模块控制行"
 
 #: cp/parser.cc:3981
-#, fuzzy, gcc-internal-format
+#, gcc-internal-format
 msgid "C++20 %qE only available with %<-fmodules%>"
-msgstr "带作用域的枚举只在 -std=c++0x 或 -std=gnu++0x 下可用"
+msgstr "C++20 %qE仅在使用%<-fmodules%>时可用"
 
 #: cp/parser.cc:3984
-#, fuzzy, gcc-internal-format
-#| msgid "C++20 %qE only available with %<-fmodules-ts%>, which is not yet enabled with %<-std=c++20%>"
+#, gcc-internal-format
 msgid "C++20 %qE only available with %<-fmodules%>, which is not yet enabled with %<-std=c++20%>"
-msgstr "C++20 %qE 仅在 %<-fmodules-ts%> 下可用，但目前尚未通过 %<-std=c++20%> 启用"
+msgstr "C++20 %qE仅在使用%<-fmodules%>时可用，而%<-std=c++20%>尚未启用"
 
 #: cp/parser.cc:3990
-#, fuzzy, gcc-internal-format
+#, gcc-internal-format
 msgid "C++11 %<thread_local%> only available with %<-std=c++11%> or %<-std=gnu++11%>"
-msgstr "C++0x %<constexpr%>只在 -std=c++0x 或 -std=gnu++0x 下可用"
+msgstr "C++11 %<thread_local%>仅在使用%<-std=c++11%>或%<-std=gnu++11%>时可用"
 
 #: cp/parser.cc:3993
-#, fuzzy, gcc-internal-format
+#, gcc-internal-format
 msgid "C++20 %<constinit%> only available with %<-std=c++20%> or %<-std=gnu++20%>"
-msgstr "C++0x %<constexpr%>只在 -std=c++0x 或 -std=gnu++0x 下可用"
+msgstr "C++20 %<constinit%>仅在使用%<-std=c++20%>或%<-std=gnu++20%>时可用"
 
 #: cp/parser.cc:3996
-#, fuzzy, gcc-internal-format
+#, gcc-internal-format
 msgid "%<concept%> only available with %<-std=c++20%> or %<-fconcepts%>"
-msgstr "C++0x %<constexpr%>只在 -std=c++0x 或 -std=gnu++0x 下可用"
+msgstr "%<concept%>仅在使用%<-std=c++20%>或%<-fconcepts%>时可用"
 
 #: cp/parser.cc:4021
 #, gcc-internal-format
@@ -68911,20 +68876,19 @@ msgid "(perhaps %<typename %T::%E%> was intended)"
 msgstr "(也许您本意是想用%<typename %T::%E%>)"
 
 #: cp/parser.cc:4049 cp/parser.cc:4061
-#, fuzzy, gcc-internal-format
+#, gcc-internal-format
 msgid "%qE in namespace %qE does not name a template type; did you mean %qs?"
-msgstr "%qE不是命名空间%qE中的一个类型名"
+msgstr "%qE在命名空间%qE中不是一个模板类型名；你是说%qs吗？"
 
 #: cp/parser.cc:4054 cp/parser.cc:4066
-#, fuzzy, gcc-internal-format
+#, gcc-internal-format
 msgid "%qE in namespace %qE does not name a template type"
-msgstr "%qE不是命名空间%qE中的一个类型名"
+msgstr "%qE在命名空间%qE中不是一个模板类型名"
 
 #: cp/parser.cc:4074
-#, fuzzy, gcc-internal-format
-#| msgid "%qE in namespace %qE does not name a type"
+#, gcc-internal-format
 msgid "%qE in namespace %qE does not name a type; did you mean %qs?"
-msgstr "%qE不是命名空间%qE中的一个类型名"
+msgstr "%qE在命名空间%qE中不是一个类型名；你是说%qs吗？"
 
 #: cp/parser.cc:4079
 #, gcc-internal-format
@@ -68942,10 +68906,9 @@ msgid "and %qT has no template constructors"
 msgstr "且%qT没有模板构造函数"
 
 #: cp/parser.cc:4103
-#, fuzzy, gcc-internal-format
-#| msgid "need %<typename%> before %<%T::%E%> because %qT is a dependent scope"
+#, gcc-internal-format
 msgid "need %<typename%> before %<%T::%D::%E%> because %<%T::%D%> is a dependent scope"
-msgstr "%<%T::%E%>之前需要%<typename%>，因为%qT是一个有依赖的作用域"
+msgstr "在%<%T::%D::%E%>前需要%<typename%>因为%<%T::%D%>是依赖作用域"
 
 #: cp/parser.cc:4111
 #, gcc-internal-format
@@ -68953,14 +68916,14 @@ msgid "need %<typename%> before %<%T::%E%> because %qT is a dependent scope"
 msgstr "%<%T::%E%>之前需要%<typename%>，因为%qT是一个有依赖的作用域"
 
 #: cp/parser.cc:4124 cp/parser.cc:4128
-#, fuzzy, gcc-internal-format
+#, gcc-internal-format
 msgid "%qE in %q#T does not name a template type"
-msgstr "%qE不是类%qT中的一个类型名"
+msgstr "%qE在%q#T中不是一个模板类型名"
 
 #: cp/parser.cc:4132
-#, fuzzy, gcc-internal-format
+#, gcc-internal-format
 msgid "%qE in %q#T does not name a type"
-msgstr "%qE不是一个类型名"
+msgstr "%qE在%q#T中不是一个类型名"
 
 #: cp/parser.cc:4887
 #, gcc-internal-format

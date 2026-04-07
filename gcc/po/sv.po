@@ -29,10 +29,10 @@
 # thunk			snutt
 msgid ""
 msgstr ""
-"Project-Id-Version: gcc 16.1-b20260222\n"
+"Project-Id-Version: gcc 16.1-b20260329\n"
 "Report-Msgid-Bugs-To: https://gcc.gnu.org/bugs/\n"
 "POT-Creation-Date: 2026-03-26 15:06+0000\n"
-"PO-Revision-Date: 2026-03-22 09:36+0100\n"
+"PO-Revision-Date: 2026-04-05 17:10+0200\n"
 "Last-Translator: Göran Uddeborg <goeran@uddeborg.se>\n"
 "Language-Team: Swedish <tp-sv@listor.tp-sv.se>\n"
 "Language: sv\n"
@@ -2482,10 +2482,9 @@ msgid "-minline-memops-threshold=<number> Maximum size of memset/memmove/memcpy 
 msgstr "-minline-memops-threshold=<tal> Maximal storlek på memset/memmove/memcpy för att inline:a, större storlek kommer använda ett biblioteksanrop."
 
 #: config/bpf/bpf.opt:118
-#, fuzzy, no-c-format
-#| msgid "Warn when the field in a struct is not aligned."
+#, no-c-format
 msgid "Warn when CO-RE support is not guaranteed."
-msgstr "Varna när fältet i en strukt inte är justerat."
+msgstr "Varna när stöd för CO-RE inte är garanterat."
 
 #: config/lm32/lm32.opt:24
 #, no-c-format
@@ -9891,8 +9890,7 @@ msgid "Enable only function reordering with auto-profile."
 msgstr "Aktivera endast omflyttning av funktioner med auto-profil."
 
 #: params.opt:79
-#, fuzzy, no-c-format
-#| msgid "Whether the scheduling description is mostly a cycle-accurate model of the target processor and is likely to be spill aggressively to fill any pipeline bubbles."
+#, no-c-format
 msgid "Whether the scheduling description is mostly a cycle-accurate model of the target processor and is likely to spill aggressively to fill any pipeline bubbles."
 msgstr "Huruvida schemaläggningsbeskrivningen är huvudsakligen en modell med cykelnoggrannhet av målprocessorn och troligen kommer att spilla över aggressivt för att fylla eventuella pipeline-bubblor."
 
@@ -10488,8 +10486,7 @@ msgid "Maximum number of active local stores in RTL dead store elimination."
 msgstr "Maximalt antal aktiva lokala lagringar i RTL vid eliminering av döda lagringar."
 
 #: params.opt:591
-#, fuzzy, no-c-format
-#| msgid "Maximum number of targets to devirutalize."
+#, no-c-format
 msgid "Maximum number of targets to devirtualize."
 msgstr "Maximalt antal mål att devirtualisera."
 
@@ -10875,10 +10872,9 @@ msgid "Maximum probability of the entry BB of split region (as a percentage rela
 msgstr "Maximala sannolikheten för ingång i GB av delad region (som en procentsats i förhållande till ingång i GB av funktionen) för att partiell inlining skall ske."
 
 #: params.opt:947
-#, fuzzy, no-c-format
-#| msgid "Maximum number of statements allowed inbetween the statement and the end to considered not extending the liferange."
+#, no-c-format
 msgid "Maximum number of statements allowed between a defining statement and the end of the basic block before extending the live range is considered profitable."
-msgstr "Maximalt antal satser som tillåts mellan satsen och slutet för att anses inte utöka livsintervallet."
+msgstr "Maximalt antal satser som tillåts mellan en definierande sats och slutet på grundblocket före en utökning av livsintervallet övervägs."
 
 #: params.opt:951
 #, no-c-format
@@ -11328,7 +11324,7 @@ msgstr "Det maximala antalet omöjliga bågar att förkasta före ett diagnostik
 #: analyzer/analyzer.opt:43
 #, no-c-format
 msgid "The maximum number of times a callsite can appear in a call stack within the analyzer, before terminating analysis of a call that would recurse deeper."
-msgstr "Det maximala antalet gånger en anropssajt kan förekomma i en anropsstack inom analyseraren, före analysen avslutas av ett anrop som skulle göra en djupare rekursion."
+msgstr "Det maximala antalet gånger en anropsplats kan förekomma i en anropsstack inom analyseraren, före analysen avslutas av ett anrop som skulle göra en djupare rekursion."
 
 #: analyzer/analyzer.opt:47
 #, no-c-format
@@ -13490,13 +13486,12 @@ msgstr "Utför partiell inline:ing."
 #: common.opt:2564
 #, no-c-format
 msgid "Report on memory allocation before interprocedural optimization."
-msgstr "Rapportera minnesallokering för interprocedurella optimeringar."
+msgstr "Rapportera minnesallokering före interprocedurella optimeringar."
 
 #: common.opt:2568
-#, fuzzy, no-c-format
-#| msgid "Report on memory allocation before interprocedural optimization."
+#, no-c-format
 msgid "Report on memory allocation after interprocedural optimization."
-msgstr "Rapportera minnesallokering för interprocedurella optimeringar."
+msgstr "Rapportera minnesallokering efter interprocedurella optimeringar."
 
 #: common.opt:2572
 #, no-c-format
@@ -14851,7 +14846,7 @@ msgstr "-frust-crate=<namn>             Sätt lårnamn (crate) för kompileringe
 #: rust/lang.opt:67
 #, no-c-format
 msgid "-frust-crate-attr=<attr>        Inject an attribute within the current crate."
-msgstr ""
+msgstr "-frust-crate-attr=<attr>        Skjut in ett attribut i den aktuella låren."
 
 #: rust/lang.opt:71
 #, no-c-format
@@ -17578,17 +17573,17 @@ msgid "Warn if COMPUTATIONAL-6 is used."
 msgstr "Varna om COMPUTATIONAL-6 används."
 
 #: cobol/lang.opt:119
-#, fuzzy, no-c-format
+#, no-c-format
 msgid "Warn if COMPUTATIONAL is used with PICTURE X."
 msgstr "Varna om COMPUTATIONAL används med PICTURE X."
 
 #: cobol/lang.opt:124
-#, fuzzy, no-c-format
+#, no-c-format
 msgid "Warn if INSPECT ... TRAILING is used."
-msgstr "Varna om INSPECT ... TRAILING används."
+msgstr "Varna om INSPECT … TRAILING används."
 
 #: cobol/lang.opt:129
-#, fuzzy, no-c-format
+#, no-c-format
 msgid "Warn if Level 01 is used with OCCURS."
 msgstr "Varna om nivå 01 används med OCCURS."
 
@@ -17603,22 +17598,22 @@ msgid "Warn if ANY LENGTH is used in outermost program."
 msgstr "Varna om ANY LENGTH används i det yttersta programmet."
 
 #: cobol/lang.opt:144
-#, fuzzy, no-c-format
+#, no-c-format
 msgid "Warn if MOVE INDEX is used."
 msgstr "Varna om MOVE INDEX används."
 
 #: cobol/lang.opt:149
-#, fuzzy, no-c-format
+#, no-c-format
 msgid "Warn if MOVE POINTER is used."
 msgstr "Varna om MOVE POINTER används."
 
 #: cobol/lang.opt:154
-#, fuzzy, no-c-format
+#, no-c-format
 msgid "Warn if RETURNING <number> is used."
 msgstr "Varna om RETURNING <nummer> används."
 
 #: cobol/lang.opt:159
-#, fuzzy, no-c-format
+#, no-c-format
 msgid "Warn if USAGE IS TYPENAME is used."
 msgstr "Varna om USAGE IS TYPENAME används."
 
@@ -17638,17 +17633,17 @@ msgid "Warn if referenced CDF name is not defined."
 msgstr "Varna om ett refererat CDF-namn inte är definierat."
 
 #: cobol/lang.opt:179
-#, fuzzy, no-c-format
+#, no-c-format
 msgid "Print message when copybook is processed."
-msgstr "Skriv ut meddelande när copybook bearbetas."
+msgstr "Skriv ut ett meddelande när en kopiebok bearbetas."
 
 #: cobol/lang.opt:184
-#, fuzzy, no-c-format
+#, no-c-format
 msgid "Warn if unimplemented/unknown exception condition is referenced."
-msgstr "Warn if unimplemented/unknown exception condition is referenced."
+msgstr "Varna om ett oimplementerat/okänt undantagsvillkor refereras."
 
 #: cobol/lang.opt:189
-#, fuzzy, no-c-format
+#, no-c-format
 msgid "Print message when ENTRY CONVENTION is specified."
 msgstr "Skriv ut meddelande när ENTRY CONVENTION anges."
 
@@ -17663,122 +17658,122 @@ msgid "Warn if concatenated literals use different encodings."
 msgstr "Varna om sammanslagna litteraler använder olika kodningar."
 
 #: cobol/lang.opt:204
-#, fuzzy, no-c-format
+#, no-c-format
 msgid "Warn if locale(3) fails."
 msgstr "Varna om locale(3) misslyckas."
 
 #: cobol/lang.opt:209
-#, fuzzy, no-c-format
+#, no-c-format
 msgid "Warn if COBOL MOVE has no corresponding fields."
 msgstr "Varna om COBOL MOVE inte har några motsvarande fält."
 
 #: cobol/lang.opt:214
-#, fuzzy, no-c-format
+#, no-c-format
 msgid "Warn if nlanglanginfo(3) fails."
 msgstr "Varna om nlanglanginfo(3) misslyckas."
 
 #: cobol/lang.opt:219
-#, fuzzy, no-c-format
+#, no-c-format
 msgid "Warn if LENGTH OF is used."
 msgstr "Varna om LENGTH OF används."
 
 #: cobol/lang.opt:224
-#, fuzzy, no-c-format
+#, no-c-format
 msgid "Warn if PROCEDURE POINTER is used."
-msgstr "Varna om PROCEDURSPECKER används."
+msgstr "Varna om PROCEDURE POINTER används."
 
 #: cobol/lang.opt:229
-#, fuzzy, no-c-format
+#, no-c-format
 msgid "Warn if SECTION segments are used."
 msgstr "Varna om SECTION-segment används."
 
 #: cobol/lang.opt:234
-#, fuzzy, no-c-format
+#, no-c-format
 msgid "Warn if resume is used (instead of error for IBM)."
-msgstr "Varna om CV används (istället för fel för IBM)."
+msgstr "Varna om återupptagande används (istället för fel för IBM)."
 
 #: cobol/lang.opt:241
-#, fuzzy, no-c-format
+#, no-c-format
 msgid "Warn if APPLY COMMIT is used."
 msgstr "Varna om APPLY COMMIT används."
 
 #: cobol/lang.opt:246
-#, fuzzy, no-c-format
+#, no-c-format
 msgid "Warn if HIGH-ORDER-LEFT HIGH-ORDER-RIGHT is used."
 msgstr "Varna om HIGH-ORDER-LEFT HIGH-ORDER-RIGHT används."
 
 #: cobol/lang.opt:251
-#, fuzzy, no-c-format
+#, no-c-format
 msgid "Warn if FILE CODE SET is used."
 msgstr "Varna om FILE CODE SET används."
 
 #: cobol/lang.opt:256
-#, fuzzy, no-c-format
+#, no-c-format
 msgid "Warn if RECORDING MODE is used."
 msgstr "Varna om RECORDING MODE används."
 
 #: cobol/lang.opt:261
-#, fuzzy, no-c-format
+#, no-c-format
 msgid "Warn if SET LOCALE ... TO is used."
-msgstr "Varna om SET LOCALE ... TO används."
+msgstr "Varna om SET LOCALE … TO används."
 
 #: cobol/lang.opt:266
-#, fuzzy, no-c-format
+#, no-c-format
 msgid "Warn if SET ... TO LOCALE is used."
-msgstr "Varna om SET ... TO LOCALE används."
+msgstr "Varna om SET … TO LOCALE används."
 
 #: cobol/lang.opt:273
-#, fuzzy, no-c-format
+#, no-c-format
 msgid "Warn if a line directive is malformed (instead of error)."
-msgstr "Varna om ett linjedirektiv är felaktigt (istället för fel)."
+msgstr "Varna om ett raddirektiv är felaktigt (istället för fel)."
 
 #: cobol/lang.opt:278
-#, fuzzy, no-c-format
+#, no-c-format
 msgid "Warn if EQUAL used as assignment operator (instead of error)."
 msgstr "Varna om EQUAL används som tilldelningsoperatör (istället för fel)."
 
 #: cobol/lang.opt:283
-#, fuzzy, no-c-format
+#, no-c-format
 msgid "Warn if iconv(3) cannot convert between encodings (instead of error)."
 msgstr "Varna om iconv(3) inte kan konvertera mellan kodningar (istället för fel)."
 
 #: cobol/lang.opt:288
-#, fuzzy, no-c-format
+#, no-c-format
 msgid "Warn if include file is not found (instead of error)."
 msgstr "Varna om inkluderingsfilen inte hittas (istället för fel)."
 
 #: cobol/lang.opt:293
-#, fuzzy, no-c-format
+#, no-c-format
 msgid "Warn if a preprocessor fails (instead of error)."
 msgstr "Varna om en förprocessor misslyckas (istället för fel)."
 
 #: cobol/lang.opt:298
-#, fuzzy, no-c-format
+#, no-c-format
 msgid "Warn if a referenced procedure is not found (instead of error)."
-msgstr "Varna om en refererad procedur inte hittas (istället för fel)."
+msgstr "Varna om en refererad procedur inte finns (istället för fel)."
 
 #: cobol/lang.opt:303
-#, fuzzy, no-c-format
+#, no-c-format
 msgid "Warn if REPLACE cannot be processed (instead of error)."
 msgstr "Varna om REPLACE inte kan bearbetas (istället för fel)."
 
 #: cobol/lang.opt:308
-#, fuzzy, no-c-format
+#, no-c-format
 msgid "Warn if a SEGMENT section is invalid (instead of error)."
 msgstr "Varna om ett SEGMENT-avsnitt är ogiltigt (istället för fel)."
 
 #: cobol/lang.opt:313
-#, fuzzy, no-c-format
+#, no-c-format
 msgid "Warn if a SEGMENT range is negative (instead of error)."
 msgstr "Varna om ett SEGMENT-intervall är negativt (istället för fel)."
 
 #: cobol/lang.opt:318
-#, fuzzy, no-c-format
+#, no-c-format
 msgid "Warn if indicator column has no recognized meaning (instead of error)."
-msgstr "Varna om indikatorkolumnen inte har någon erkänd betydelse (istället för fel)."
+msgstr "Varna om indikatorkolumnen inte har någon känd betydelse (istället för fel)."
 
 #: cobol/lang.opt:323
-#, fuzzy, no-c-format
+#, no-c-format
 msgid "Warn if relational operator not followed by space (instead of error)."
 msgstr "Varna om relationsoperatorn inte följs av mellanslag (istället för fel)."
 
@@ -17793,9 +17788,9 @@ msgid "Warn if IBM-style STOP <number> is used (instead of error)."
 msgstr "Varna om STOP <nummer> i IBM-stil används (istället för fel)."
 
 #: cobol/lang.opt:338
-#, fuzzy, no-c-format
+#, no-c-format
 msgid "Warn if VOLATILE is used (instead of error if -dialect ibm)."
-msgstr "Varna om VOLATILE används (istället för error if -dialect ibm)."
+msgstr "Varna om VOLATILE används (istället för fel om -dialect ibm)."
 
 #: cobol/lang.opt:344
 #, no-c-format
@@ -18289,27 +18284,24 @@ msgid "collect2 version %s\n"
 msgstr "collect2 version %s\n"
 
 #: collect2.cc:1671
-#, fuzzy, c-format
-#| msgid "%d constructor found\n"
+#, c-format
 msgid "%d constructor found\n"
 msgid_plural "%d constructors found\n"
-msgstr[0] "%d konstruerare hittade\n"
+msgstr[0] "%d konstruerare hittad\n"
 msgstr[1] "%d konstruerare hittade\n"
 
 #: collect2.cc:1675
-#, fuzzy, c-format
-#| msgid "%d destructor found\n"
+#, c-format
 msgid "%d destructor found\n"
 msgid_plural "%d destructors found\n"
-msgstr[0] "%d destruerare hittade\n"
+msgstr[0] "%d destruerare hittad\n"
 msgstr[1] "%d destruerare hittade\n"
 
 #: collect2.cc:1679
-#, fuzzy, c-format
-#| msgid "%d frame table found\n"
+#, c-format
 msgid "%d frame table found\n"
 msgid_plural "%d frame tables found\n"
-msgstr[0] "%d ramtabeller hittade\n"
+msgstr[0] "%d ramtabeller hittad\n"
 msgstr[1] "%d ramtabeller hittade\n"
 
 #: collect2.cc:1834
@@ -19553,21 +19545,19 @@ msgid "'"
 msgstr "”"
 
 #: json-diagnostic.cc:236
-#, fuzzy, c-format
+#, c-format
 msgid "In JSON value %e"
-msgstr "I JSON-värdet %qs"
+msgstr "I JSON-värdet %e"
 
 #: json-diagnostic.cc:239
-#, fuzzy, c-format
-#| msgid "In JSON object %qs"
+#, c-format
 msgid "In JSON object %e"
-msgstr "I JSON-objekt %qs"
+msgstr "I JSON-objekt %e"
 
 #: json-diagnostic.cc:242
-#, fuzzy, c-format
-#| msgid "In JSON array %qs"
+#, c-format
 msgid "In JSON array %e"
-msgstr "I JSON-vektor %qs"
+msgstr "I JSON-vektorn %e"
 
 #: langhooks.cc:389
 msgid "At top level:"
@@ -19644,7 +19634,6 @@ msgid "In processing instruction %qs"
 msgstr "I bearbetningsinstruktionen %qs"
 
 #: libgdiagnostics.cc:1529
-#, fuzzy
 msgid "In DTD %qs"
 msgstr "I DTD %qs"
 
@@ -19662,17 +19651,15 @@ msgid "In JSON array %qs"
 msgstr "I JSON-vektor %qs"
 
 #: libgdiagnostics.cc:1537
-#, fuzzy
 msgid "In JSON property %qs"
 msgstr "I JSON-egenskapen %qs"
 
 #: libgdiagnostics.cc:1538
-#, fuzzy
 msgid "In JSON value %qs"
 msgstr "I JSON-värdet %qs"
 
 #: libgdiagnostics.cc:1685
-#, fuzzy, c-format
+#, c-format
 msgid "%e"
 msgstr "%e"
 
@@ -20409,9 +20396,8 @@ msgid "shift operation not permitted on svbool_t"
 msgstr "åtgärden skifta är inte tillåten på svbool_t"
 
 #: config/aarch64/aarch64.cc:31142
-#, fuzzy
 msgid "only == and != operations permitted on svbool_t"
-msgstr "endast == och != operationer tillåtna på svbool_t"
+msgstr "endast operationerna == och != tillåts på svbool_t"
 
 #: config/aarch64/aarch64.cc:31144
 msgid "subscript operation not supported on svbool_t"
@@ -22166,11 +22152,9 @@ msgid "  after user-defined conversion:"
 msgstr "  efter användardefinierad konvertering:"
 
 #: cp/call.cc:8800 cp/pt.cc:27736
-#, fuzzy
-#| msgid "candidate is:"
 msgid "candidate is:"
 msgid_plural "candidates are:"
-msgstr[0] "kandidater är:"
+msgstr[0] "kandidat är:"
 msgstr[1] "kandidater är:"
 
 #: cp/call.cc:13469 cp/call.cc:13921
@@ -22327,9 +22311,8 @@ msgid "reflection does not represent a function or function type"
 msgstr "reflektionen representerar inte en funktion eller funktionstyp"
 
 #: cp/reflect.cc:2355
-#, fuzzy
 msgid "reflection does not represent an operator function or operator function template"
-msgstr "reflektion representerar inte en operatörsfunktion eller operatörsfunktionsmall"
+msgstr "reflektionen representerar inte en operatorfunktion eller operatorfunktionsmall"
 
 #: cp/reflect.cc:2405
 msgid "operators argument is not a valid operator"
@@ -22340,14 +22323,12 @@ msgid "reflection does not have a type"
 msgstr "reflektionen har inte en typ"
 
 #: cp/reflect.cc:2652
-#, fuzzy
 msgid "reflection does not represent an object with static storage duration, or a reference to such an object"
-msgstr "reflektion representerar inte ett objekt med statisk lagringstid, eller en referens till ett sådant objekt"
+msgstr "reflektionen representerar inte ett objekt med statisk lagringstid, eller en referens till ett sådant objekt"
 
 #: cp/reflect.cc:2733
-#, fuzzy
 msgid "reflection does not represent an annotation or a valid argument to a splice-expression"
-msgstr "reflektion representerar inte en anteckning eller ett giltigt argument till ett splitsningsuttryck"
+msgstr "reflektionen representerar inte en annotering eller ett giltigt argument till ett spliice-uttryck"
 
 #: cp/reflect.cc:2953
 msgid "reflection does not represent an entity with parent"
@@ -22362,23 +22343,20 @@ msgid "reflection does not represent a function or function type with a return t
 msgstr "reflektionen representerar inte en funktion eller funktionstyp med en returtyp"
 
 #: cp/reflect.cc:3128
-#, fuzzy
 msgid "reflection of virtual direct base relationship with abstract derived class"
-msgstr "reflektion av virtuell direkt basrelation med abstrakt härledd klass"
+msgstr "reflektion av en virtuell direkt basrelation med abstrakt härledd klass"
 
 #: cp/reflect.cc:3134
-#, fuzzy
 msgid "reflection unsuitable for offset_of"
-msgstr "reflektion olämplig för offset_of"
+msgstr "reflektionen passar inte offset_of"
 
 #: cp/reflect.cc:3139
 msgid "non-constant offset for offset_of"
 msgstr "icke-konstant avstånd för offset_of"
 
 #: cp/reflect.cc:3203
-#, fuzzy
 msgid "reflection not suitable for size_of"
-msgstr "reflektion inte lämplig för size_of"
+msgstr "reflektionen passar inte size_of"
 
 #: cp/reflect.cc:3222
 msgid "reflection with incomplete type in size_of"
@@ -22397,41 +22375,34 @@ msgid "reflection with incomplete type in alignment_of"
 msgstr "reflektion med en ofullständig typ i alignment_of"
 
 #: cp/reflect.cc:3338
-#, fuzzy
 msgid "reflection not suitable for bit_size_of"
-msgstr "reflektion inte lämplig för bit_size_of"
+msgstr "reflektion passar inte bit_size_of"
 
 #: cp/reflect.cc:3362
-#, fuzzy
 msgid "reflection with incomplete type in bit_size_of"
 msgstr "reflektion med ofullständig typ i bit_size_of"
 
 #: cp/reflect.cc:3538
-#, fuzzy
 msgid "reflection with has_identifier false"
-msgstr "reflektion med has_identifier false"
+msgstr "reflektion med has_identifier falskt"
 
 #: cp/reflect.cc:3578 cp/reflect.cc:3668
-#, fuzzy
 msgid "identifier_of not representable in ordinary literal encoding"
 msgstr "identifier_of kan inte representeras i vanlig bokstavlig kodning"
 
 #: cp/reflect.cc:3582 cp/reflect.cc:3672
-#, fuzzy
 msgid "u8identifier_of not representable in UTF-8"
 msgstr "u8identifier_of kan inte representeras i UTF-8"
 
 #: cp/reflect.cc:3805
-#, fuzzy
 msgid "reflection does not represent a type, type alias, variable, function, namespace, enumerator, direct base class relationship, or non-static data member"
-msgstr "reflektion representerar inte en typ, ett typalias, en variabel, funktion, namnutrymme, enumerator, direkt basklassrelation eller icke-statisk datamedlem"
+msgstr "reflektionen representerar inte en typ, typalias, en variabel, funktion, namnutrymme, uppräknare, direkt basklassrelation eller icke-statisk datamedlem"
 
 #: cp/reflect.cc:3817
 msgid "reflection does not represent a complete type or type alias"
 msgstr "reflektionen representerar inte en fullständig typ eller typalias"
 
 #: cp/reflect.cc:3930
-#, fuzzy
 msgid "reflect_object failed"
 msgstr "reflect_object misslyckades"
 
@@ -22448,7 +22419,6 @@ msgid "unexpected value of value member"
 msgstr "oväntat värde på värdemedlem"
 
 #: cp/reflect.cc:4967
-#, fuzzy
 msgid "type member missing"
 msgstr "typmedlem saknas"
 
@@ -22473,7 +22443,6 @@ msgid "invalid argument to can_substitute"
 msgstr "ogiltigt argument till can_substitute"
 
 #: cp/reflect.cc:5428
-#, fuzzy
 msgid "can_substitute returned false"
 msgstr "can_substitute returnerade falskt"
 
@@ -22482,7 +22451,6 @@ msgid "type is not object or reference type"
 msgstr "typen är inte en objekt- eller referenstyp"
 
 #: cp/reflect.cc:5804
-#, fuzzy
 msgid "conversion from ordinary literal encoding to source charset failed"
 msgstr "konvertering från vanlig bokstavlig kodning till källteckenuppsättning misslyckades"
 
@@ -22495,9 +22463,8 @@ msgid "name is not a valid identifier"
 msgstr "namnet är inte en giltig identifierare"
 
 #: cp/reflect.cc:5824
-#, fuzzy
 msgid "name is a keyword"
-msgstr "namn är ett nyckelord"
+msgstr "namnet är ett nyckelord"
 
 #: cp/reflect.cc:5827
 msgid "name is a built-in trait"
@@ -22508,18 +22475,16 @@ msgid "neither name nor bit_width specified"
 msgstr "varken namnet eller bit_width angivet"
 
 #: cp/reflect.cc:5842
-#, fuzzy
 msgid "bit_width specified with non-integral and non-enumeration type"
-msgstr "bit_width specificerad med icke-integral och icke-uppräkningstyp"
+msgstr "bit_width specificerad med en typ som inte är ett heltal eller en uppräkningstyp"
 
 #: cp/reflect.cc:5847
 msgid "both alignment and bit_width specified"
 msgstr "både justering och bit_width angivet"
 
 #: cp/reflect.cc:5851
-#, fuzzy
 msgid "bit_width specified with no_unique_address true"
-msgstr "bit_width specificerad med no_unique_address true"
+msgstr "bit_width specificerad med no_unique_address sant"
 
 #: cp/reflect.cc:5856
 msgid "bit_width 0 with specified name"
@@ -22555,9 +22520,8 @@ msgid "not a complete class type"
 msgstr "inte en fullständig klasstyp"
 
 #: cp/reflect.cc:7012
-#, fuzzy
 msgid "closure type"
-msgstr "stängningstyp"
+msgstr "höljestyp (closure)"
 
 #: cp/reflect.cc:7188 cp/reflect.cc:7247 cp/reflect.cc:7321
 msgid "value cannot be extracted"
@@ -24044,9 +24008,9 @@ msgid "%s:%d: invalid %<symbol_type_t%> %d"
 msgstr "%s:%d: felaktig %<symbol_type_t%> %d"
 
 #: cobol/parse_ante.h:3259
-#, fuzzy, gcc-internal-format
+#, gcc-internal-format
 msgid "SET identifier-11 TO LOCALE"
-msgstr "STÄLL in identifierare-11 TILL LOKAL"
+msgstr "SET identifierare-11 TO LOKALE"
 
 #: cobol/parse_util.h:455
 #, gcc-internal-format
@@ -24588,9 +24552,9 @@ msgid "argument no. %d is not an address of a function"
 msgstr "argument nr. %d är inte en adress till en funktion"
 
 #: attr-callback.cc:275
-#, fuzzy, gcc-internal-format, gfc-internal-format
+#, gcc-internal-format, gfc-internal-format
 msgid "argument number mismatch, %d expected, got %d"
-msgstr "argumentnummer stämmer inte överens, %d förväntat, fick %d"
+msgstr "argumentantalet stämmer inte, %d förväntades, fick %d"
 
 #: attr-callback.cc:293
 #, gcc-internal-format, gfc-internal-format
@@ -24608,9 +24572,9 @@ msgid "argument type at index %d is not compatible with callback argument type a
 msgstr "argumenttypen vid index %d är inte kompatibelt med återanropsargumentets typ vid index %d"
 
 #: attr-callback.cc:339
-#, fuzzy, gcc-internal-format, gfc-internal-format
+#, gcc-internal-format, gfc-internal-format
 msgid "function declaration has multiple callback attributes describing argument no. %d"
-msgstr "funktionsdeklarationen har flera callback-attribut som beskriver argument nr. %d"
+msgstr "funktionsdeklarationen har flera återanropsattribut som beskriver argument nr. %d"
 
 #: attribs.cc:245 attribs.cc:268 attribs.cc:281
 #, gcc-internal-format
@@ -24820,11 +24784,9 @@ msgid "%qE implies default visibility, but %qD has already been declared with a 
 msgstr "%qE implicerar standardsynlighet, men %qD har redan deklarerats med annan synlighet"
 
 #: attribs.cc:2370
-#, fuzzy
-#| msgid "%qD specifies more restrictive attribute than its target %qD: %e"
 msgid "%qD specifies more restrictive attribute than its target %qD: %e"
 msgid_plural "%qD specifies more restrictive attributes than its target %qD: %e"
-msgstr[0] "%qD anger mer restriktiva attribut än sitt mål %qD: %e"
+msgstr[0] "%qD anger ett mer restriktivt attribut än sitt mål %qD: %e"
 msgstr[1] "%qD anger mer restriktiva attribut än sitt mål %qD: %e"
 
 #: attribs.cc:2376 attribs.cc:2398
@@ -24833,17 +24795,15 @@ msgid "%qD target declared here"
 msgstr "%qD målet deklarerades här"
 
 #: attribs.cc:2392
-#, fuzzy
-#| msgid "%qD specifies less restrictive attribute than its target %qD: %e"
 msgid "%qD specifies less restrictive attribute than its target %qD: %e"
 msgid_plural "%qD specifies less restrictive attributes than its target %qD: %e"
-msgstr[0] "%qD anger mindre restriktiva attribut än sitt mål %qD: %e"
+msgstr[0] "%qD anger ett mindre restriktivt attribut än sitt mål %qD: %e"
 msgstr[1] "%qD anger mindre restriktiva attribut än sitt mål %qD: %e"
 
 #: auto-profile.cc:822
-#, fuzzy, gcc-internal-format, gfc-internal-format
+#, gcc-internal-format, gfc-internal-format
 msgid "auto-profile cannot encode offset %i that exceeds 16 bytes"
-msgstr "auto-profilen kan inte koda offset %i som överstiger 16 byte"
+msgstr "autoprofilen kan inte koda avståndet %i som överstiger 16 byte"
 
 #: auto-profile.cc:826
 #, gcc-internal-format
@@ -24851,9 +24811,9 @@ msgid "location offset is related to"
 msgstr "platsavståndet är relaterat till"
 
 #: auto-profile.cc:829
-#, fuzzy, gcc-internal-format
+#, gcc-internal-format
 msgid "auto-profile cannot encode discriminators that exceeds 16 bytes"
-msgstr "auto-profile kan inte koda diskriminatorer som överstiger 16 byte"
+msgstr "autoprofile kan inte koda diskriminatorer som överstiger 16 byte"
 
 #: auto-profile.cc:865
 #, gcc-internal-format
@@ -24861,19 +24821,19 @@ msgid "auto-profile is not supported for targets with user label prefix"
 msgstr "autoprofilering stödjs inte för mål med användaretikettsprefix"
 
 #: auto-profile.cc:1085
-#, fuzzy, gcc-internal-format, gfc-internal-format
+#, gcc-internal-format, gfc-internal-format
 msgid "auto-profile contains invalid symbol name index %d"
-msgstr "auto-profilen innehåller ogiltigt symbolnamn index %d"
+msgstr "autoprofilen innehåller ett ogiltigt symbolnamnsindex %d"
 
 #: auto-profile.cc:1101
-#, fuzzy, gcc-internal-format, gfc-internal-format
+#, gcc-internal-format, gfc-internal-format
 msgid "auto-profile contains invalid filename index %d"
-msgstr "auto-profilen innehåller ogiltigt filnamnsindex %d"
+msgstr "autoprofilen innehåller ett ogiltigt filnamnsindex %d"
 
 #: auto-profile.cc:1603
-#, fuzzy, gcc-internal-format
+#, gcc-internal-format
 msgid "auto-profile of %q+F contains inlined function with symbol name %s instead of symbol name %s"
-msgstr "auto-profilen för %q+F innehåller infogad funktion med symbolnamn %s istället för symbolnamn %s"
+msgstr "autoprofilen för %q+F innehåller en inline:ad funktion med symbolnamnet %s istället för symbolnamnet %s"
 
 #: auto-profile.cc:1606 auto-profile.cc:1832 auto-profile.cc:1841
 #: auto-profile.cc:1883
@@ -24882,9 +24842,9 @@ msgid "corresponding call"
 msgstr "motsvarande anrop"
 
 #: auto-profile.cc:1651
-#, fuzzy, gcc-internal-format
+#, gcc-internal-format
 msgid "duplicated count information in auto-profile of %q+F with relative location %i discriminator %i"
-msgstr "duplicerad räkningsinformation i autoprofilen för %q+F med relativ plats %i diskriminator %i"
+msgstr "duplicerad antalsinformation i autoprofilen för %q+F med relativ plats %i diskriminator %i"
 
 #: auto-profile.cc:1656
 #, gcc-internal-format
@@ -24892,34 +24852,34 @@ msgid "corresponding source location"
 msgstr "motsvarande källplats"
 
 #: auto-profile.cc:1827
-#, fuzzy, gcc-internal-format
+#, gcc-internal-format
 msgid "duplicated callsite in auto-profile of %q+F with relative location %i, discriminator %i"
-msgstr "duplicerad callsite i autoprofilen %q+F med relativ plats %i, diskriminator %i"
+msgstr "duplicerad anropsplats i autoprofilen för %q+F med relativ plats %i, diskriminator %i"
 
 #: auto-profile.cc:1835
-#, fuzzy, gcc-internal-format
+#, gcc-internal-format
 msgid "both call targets and inline callsite information is present in auto-profile of function %q+F with relative location %i, discriminator %i"
-msgstr "både samtalsmål och inline samtalsplatsinformation finns i autoprofilen för funktionen %q+F med relativ plats %i, diskriminator %i"
+msgstr "information om både anropsmål och inline:ad anropsplats finns i autoprofilen för funktionen %q+F med relativ plats %i, diskriminator %i"
 
 #: auto-profile.cc:1875
-#, fuzzy, gcc-internal-format
+#, gcc-internal-format
 msgid "auto-profile of %q+F seem to contain lost discriminator %i for call of %s at relative location %i"
 msgstr "autoprofilen för %q+F verkar innehålla förlorad diskriminator %i för anrop av %s på relativ plats %i"
 
 #: auto-profile.cc:1919
-#, fuzzy, gcc-internal-format
+#, gcc-internal-format
 msgid "auto-profile of %q+F contains multiple targets for a direct call with relative location %i, discriminator %i"
-msgstr "autoprofilen för %q+F innehåller flera mål för ett direktsamtal med relativ plats %i, diskriminator %i"
+msgstr "autoprofilen för %q+F innehåller flera mål för ett direkt anrop med relativ plats %i, diskriminator %i"
 
 #: auto-profile.cc:1935
-#, fuzzy, gcc-internal-format, gfc-internal-format
+#, gcc-internal-format, gfc-internal-format
 msgid "function contains two calls of the same relative location +%i, discriminator %i, that leads to lost auto-profile"
 msgstr "funktionen innehåller två anrop med samma relativa plats +%i, diskriminator %i, som leder till förlorad autoprofil"
 
 #: auto-profile.cc:1943
-#, fuzzy, gcc-internal-format
+#, gcc-internal-format
 msgid "location of the first call"
-msgstr "plats för det första samtalet"
+msgstr "platsen för det första anropet"
 
 #: auto-profile.cc:1945
 #, gcc-internal-format
@@ -24927,32 +24887,32 @@ msgid "location of the second call"
 msgstr "platsen för den det andra anropet"
 
 #: auto-profile.cc:1999
-#, fuzzy, gcc-internal-format
+#, gcc-internal-format
 msgid "auto-profile of %q+F contains indirect call targets not associated with an indirect call statement"
-msgstr "autoprofilen för %q+F innehåller indirekta samtalsmål som inte är associerade med en indirekt samtalssats"
+msgstr "autoprofilen för %q+F innehåller indirekta anropmål som inte är associerade med en indirekt anropssats"
 
 #: auto-profile.cc:2004 auto-profile.cc:2051
-#, fuzzy, gcc-internal-format
+#, gcc-internal-format
 msgid "count %<PRIu64> with relative location +%i, discriminator %i"
-msgstr "räkna %<PRIu64> med relativ plats +%i, diskriminator %i"
+msgstr "räknare %<PRIu64> med relativ plats +%i, diskriminator %i"
 
 #: auto-profile.cc:2047
-#, fuzzy, gcc-internal-format
+#, gcc-internal-format
 msgid "auto-profile of %q+F contains extra statements"
 msgstr "autoprofilen för %q+F innehåller extra satser"
 
 #: auto-profile.cc:2057 auto-profile.cc:2098
-#, fuzzy, gcc-internal-format
+#, gcc-internal-format
 msgid "location is after end of function"
-msgstr "platsen är efter avslutad funktion"
+msgstr "platsen är efter slutet på funktion"
 
 #: auto-profile.cc:2086
-#, fuzzy, gcc-internal-format
+#, gcc-internal-format
 msgid "auto-profile of %q+F contains extra callsites"
-msgstr "auto-profilen för %q+F innehåller extra callsites"
+msgstr "auto-profilen för %q+F innehåller extra anropsplatser"
 
 #: auto-profile.cc:2091
-#, fuzzy, gcc-internal-format
+#, gcc-internal-format
 msgid "call of %s with total count %<PRId64>, relative location +%i, discriminator %i"
 msgstr "anrop av %s med totalt antal %<PRId64>, relativ plats +%i, diskriminator %i"
 
@@ -24962,9 +24922,9 @@ msgid "Not expected TAG."
 msgstr "Ej förväntades TAGG."
 
 #: auto-profile.cc:3048
-#, fuzzy, gcc-internal-format, gfc-internal-format
+#, gcc-internal-format, gfc-internal-format
 msgid "auto-profile contains duplicated function instance %s"
-msgstr "auto-profilen innehåller duplicerad funktionsinstans %s"
+msgstr "auto-profilen innehåller en duplicerad funktionsinstans %s"
 
 #: auto-profile.cc:3210
 #, gcc-internal-format, gfc-internal-format
@@ -26117,9 +26077,9 @@ msgid "reference to dead statement"
 msgstr "referens till död sats"
 
 #: cgraph.cc:4385
-#, fuzzy, gcc-internal-format
+#, gcc-internal-format
 msgid "non-callback edge has callback_id set"
-msgstr "non-callback edge har callback_id inställt"
+msgstr "en båge som inte är ett återanrop har callback_id satt"
 
 #: cgraph.cc:4391
 #, gcc-internal-format
@@ -26127,19 +26087,19 @@ msgid "edge has both callback and has_callback set"
 msgstr "bågen har både callback och has_callback satta"
 
 #: cgraph.cc:4399
-#, fuzzy, gcc-internal-format, gfc-internal-format
+#, gcc-internal-format, gfc-internal-format
 msgid "callback edge %s->%s has no callback-carrying"
-msgstr "återuppringningskant %s->%s har ingen återuppringningsbärande"
+msgstr "återanopsbågen %s→%s har ingen återanropsbärare"
 
 #: cgraph.cc:4427
-#, fuzzy, gcc-internal-format, gfc-internal-format
+#, gcc-internal-format, gfc-internal-format
 msgid "callback edge %s->%s callback edge count mismatch, expected at most %d, found %d"
-msgstr "callback edge %s->%s callback edge count missmatch, förväntad som mest %d, hittade %d"
+msgstr "återanropsbågen %s→%s har räknare för återanropsbåge som inte stämmer, förväntade högst %d, hittade %d"
 
 #: cgraph.cc:4440
-#, fuzzy, gcc-internal-format, gfc-internal-format
+#, gcc-internal-format, gfc-internal-format
 msgid "callback-carrying edge is pointing towards __builtin_unreachable, but its callback edge %s -> %s is not"
-msgstr "den återuppringningsbärande kanten pekar mot __builtin_unreachable, men dess återuppringningskant %s -> %s är inte"
+msgstr "återanropsbärande bågen pekar mot __builtin_unreachable, men dess återanropsbåge %s → %s gör inte det"
 
 #: cgraph.cc:4447
 #, gcc-internal-format, gfc-internal-format
@@ -27719,24 +27679,21 @@ msgid "%qE writing a terminating nul past the end of the destination"
 msgstr "%qE skriver en avslutande nolla efter slutet på destinationen"
 
 #: gimple-ssa-sprintf.cc:2855
-#, fuzzy, gcc-internal-format
-#| msgid "%<%.*s%> directive writing %wu byte into a region of size %wu"
+#, gcc-internal-format
 msgid "%<%.*s%> directive writing %wu byte into a region of size %wu"
 msgid_plural "%<%.*s%> directive writing %wu bytes into a region of size %wu"
 msgstr[0] "direktivet %<%.*s%> skrev %wu byte till en region av storlek %wu"
 msgstr[1] "direktivet %<%.*s%> skrev %wu byte till en region av storlek %wu"
 
 #: gimple-ssa-sprintf.cc:2862
-#, fuzzy, gcc-internal-format
-#| msgid "%<%.*s%> directive output may be truncated writing %wu byte into a region of size %wu"
+#, gcc-internal-format
 msgid "%<%.*s%> directive output may be truncated writing %wu byte into a region of size %wu"
 msgid_plural "%<%.*s%> directive output may be truncated writing %wu bytes into a region of size %wu"
 msgstr[0] "utdata från direktivet %<%.*s%> kan ha huggits av när %wu byte skrevs till en region av storlek %wu"
 msgstr[1] "utdata från direktivet %<%.*s%> kan ha huggits av när %wu byte skrevs till en region av storlek %wu"
 
 #: gimple-ssa-sprintf.cc:2869
-#, fuzzy, gcc-internal-format
-#| msgid "%<%.*s%> directive output truncated writing %wu byte into a region of size %wu"
+#, gcc-internal-format
 msgid "%<%.*s%> directive output truncated writing %wu byte into a region of size %wu"
 msgid_plural "%<%.*s%> directive output truncated writing %wu bytes into a region of size %wu"
 msgstr[0] "utdata från direktivet %<%.*s%> avhugget när %wu byte skrevs till en region av storlek %wu"
@@ -27803,24 +27760,21 @@ msgid "%<%.*s%> directive writing %wu or more bytes into a region of size %wu"
 msgstr "direktivet %<%.*s%> skrev %wu eller fler byte till en region av storlek %wu"
 
 #: gimple-ssa-sprintf.cc:2974
-#, fuzzy, gcc-internal-format
-#| msgid "%<%.*s%> directive writing %wu byte into a region of size between %wu and %wu"
+#, gcc-internal-format
 msgid "%<%.*s%> directive writing %wu byte into a region of size between %wu and %wu"
 msgid_plural "%<%.*s%> directive writing %wu bytes into a region of size between %wu and %wu"
 msgstr[0] "direktivet %<%.*s%> skrev %wu byte till en region av storlek mellan %wu och %wu"
 msgstr[1] "direktivet %<%.*s%> skrev %wu byte till en region av storlek mellan %wu och %wu"
 
 #: gimple-ssa-sprintf.cc:2981
-#, fuzzy, gcc-internal-format
-#| msgid "%<%.*s%> directive output may be truncated writing %wu byte into a region of size between %wu and %wu"
+#, gcc-internal-format
 msgid "%<%.*s%> directive output may be truncated writing %wu byte into a region of size between %wu and %wu"
 msgid_plural "%<%.*s%> directive output may be truncated writing %wu bytes into a region of size between %wu and %wu"
 msgstr[0] "utdata från direktivet %<%.*s%> kan ha huggits av när %wu byte skrevs till en region av storlek mellan %wu och %wu"
 msgstr[1] "utdata från direktivet %<%.*s%> kan ha huggits av när %wu byte skrevs till en region av storlek mellan %wu och %wu"
 
 #: gimple-ssa-sprintf.cc:2989
-#, fuzzy, gcc-internal-format
-#| msgid "%<%.*s%> directive output truncated writing %wu byte into a region of size between %wu and %wu"
+#, gcc-internal-format
 msgid "%<%.*s%> directive output truncated writing %wu byte into a region of size between %wu and %wu"
 msgid_plural "%<%.*s%> directive output truncated writing %wu bytes into a region of size between %wu and %wu"
 msgstr[0] "utdata från direktivet %<%.*s%> avhugget när %wu byte skrevs till en region av storlek mellan %wu och %wu"
@@ -27942,8 +27896,7 @@ msgid "referenced argument declared here"
 msgstr "det refererade argumentet deklarerades här"
 
 #: gimple-ssa-sprintf.cc:3357
-#, fuzzy, gcc-internal-format
-#| msgid "assuming directive output of %wu byte"
+#, gcc-internal-format
 msgid "assuming directive output of %wu byte"
 msgid_plural "assuming directive output of %wu bytes"
 msgstr[0] "antar direktivutdata på %wu byte"
@@ -27965,8 +27918,7 @@ msgid "using the range [%E, %E] for directive argument"
 msgstr "använder intervallet [%E, %E] som direktivargument"
 
 #: gimple-ssa-sprintf.cc:3390
-#, fuzzy, gcc-internal-format
-#| msgid "%qE output %wu byte into a destination of size %wu"
+#, gcc-internal-format
 msgid "%qE output %wu byte into a destination of size %wu"
 msgid_plural "%qE output %wu bytes into a destination of size %wu"
 msgstr[0] "%qE-utdata på %wu byte in i en destination med storlek %wu"
@@ -27988,8 +27940,7 @@ msgid "%qE output %wu or more bytes into a destination of size %wu"
 msgstr "%qE-utdata på %wu eller fler byte in i en destination med storlek %wu"
 
 #: gimple-ssa-sprintf.cc:3416
-#, fuzzy, gcc-internal-format
-#| msgid "%qE output %wu byte"
+#, gcc-internal-format
 msgid "%qE output %wu byte"
 msgid_plural "%qE output %wu bytes"
 msgstr[0] "%qE-utdata %wu byte"
@@ -28025,16 +27976,12 @@ msgid "%qE arguments %Z and maybe %Z overlap destination object %qE"
 msgstr "argumentet %qE %Z och kanske %Z överlappar destinationsobjektet %qE"
 
 #: gimple-ssa-sprintf.cc:3991
-#, fuzzy
-#| msgid "%qE argument %Z overlaps destination object %qE"
 msgid "%qE argument %Z overlaps destination object %qE"
 msgid_plural "%qE arguments %Z overlap destination object %qE"
 msgstr[0] "%qE:s argument %Z överlappar destinationsobjektet %qE"
 msgstr[1] "%qE:s argument %Z överlappar destinationsobjektet %qE"
 
 #: gimple-ssa-sprintf.cc:4002
-#, fuzzy
-#| msgid "%qE argument %Z may overlap destination object %qE"
 msgid "%qE argument %Z may overlap destination object %qE"
 msgid_plural "%qE arguments %Z may overlap destination object %qE"
 msgstr[0] "%qE:s argument %Z kan överlappa destinationsobjektet %qE"
@@ -28551,16 +28498,14 @@ msgid "reading between %E and %E bytes from a region of size %E"
 msgstr "läser mellan %E och %E byte från en region av storlek %E"
 
 #: gimple-ssa-warn-access.cc:1165
-#, fuzzy, gcc-internal-format
-#| msgid "%qD expecting %E byte in a region of size %E"
+#, gcc-internal-format
 msgid "%qD expecting %E byte in a region of size %E"
 msgid_plural "%qD expecting %E bytes in a region of size %E"
 msgstr[0] "%qD förväntar sig %E byte i en region av storlek %E"
 msgstr[1] "%qD förväntar sig %E byte i en region av storlek %E"
 
 #: gimple-ssa-warn-access.cc:1170
-#, fuzzy, gcc-internal-format
-#| msgid "expecting %E byte in a region of size %E"
+#, gcc-internal-format
 msgid "expecting %E byte in a region of size %E"
 msgid_plural "expecting %E bytes in a region of size %E"
 msgstr[0] "förväntar sig %E byte från en region av storlek %E"
@@ -28944,24 +28889,21 @@ msgid "%qD accessing %wu bytes at offsets %s and %s overlaps %wu bytes at offset
 msgstr "%qD åtkomst av %wu byte på avstånden %s och %s överlappar %wu byte på avståndet %s"
 
 #: gimple-ssa-warn-restrict.cc:1528
-#, fuzzy, gcc-internal-format
-#| msgid "%qD accessing %wu byte at offsets %s and %s overlaps between %wu and %wu bytes at offset %s"
+#, gcc-internal-format
 msgid "%qD accessing %wu byte at offsets %s and %s overlaps between %wu and %wu bytes at offset %s"
 msgid_plural "%qD accessing %wu bytes at offsets %s and %s overlaps between %wu and %wu bytes at offset %s"
 msgstr[0] "%qD åtkomst av %wu byte på avstånden %s och %s överlappar mellan %wu och %wu byte på avståndet %s"
 msgstr[1] "%qD åtkomst av %wu byte på avstånden %s och %s överlappar mellan %wu och %wu byte på avståndet %s"
 
 #: gimple-ssa-warn-restrict.cc:1538
-#, fuzzy, gcc-internal-format
-#| msgid "%qD accessing %wu byte at offsets %s and %s overlaps %wu or more bytes at offset %s"
+#, gcc-internal-format
 msgid "%qD accessing %wu byte at offsets %s and %s overlaps %wu or more bytes at offset %s"
 msgid_plural "%qD accessing %wu bytes at offsets %s and %s overlaps %wu or more bytes at offset %s"
 msgstr[0] "%qD åtkomst av %wu byte på avstånden %s och %s överlappar %wu eller fler byte på avståndet %s"
 msgstr[1] "%qD åtkomst av %wu byte på avstånden %s och %s överlappar %wu eller fler byte på avståndet %s"
 
 #: gimple-ssa-warn-restrict.cc:1551
-#, fuzzy, gcc-internal-format
-#| msgid "%qD accessing between %wu and %wu bytes at offsets %s and %s overlaps %wu byte at offset %s"
+#, gcc-internal-format
 msgid "%qD accessing between %wu and %wu bytes at offsets %s and %s overlaps %wu byte at offset %s"
 msgid_plural "%qD accessing between %wu and %wu bytes at offsets %s and %s overlaps %wu bytes at offset %s"
 msgstr[0] "%qD åtkomst mellan %wu och %wu byte på avstånden %s och %s överlappar %wu byte på avståndet %s"
@@ -28978,8 +28920,7 @@ msgid "%qD accessing between %wu and %wu bytes at offsets %s and %s overlaps %wu
 msgstr "%qD åtkomst av mellan %wu och %wu byte på avstånden %s och %s överlappar %wu eller fler byte på avståndet %s"
 
 #: gimple-ssa-warn-restrict.cc:1582
-#, fuzzy, gcc-internal-format
-#| msgid "%qD accessing %wu or more bytes at offsets %s and %s overlaps %wu byte at offset %s"
+#, gcc-internal-format
 msgid "%qD accessing %wu or more bytes at offsets %s and %s overlaps %wu byte at offset %s"
 msgid_plural "%qD accessing %wu or more bytes at offsets %s and %s overlaps %wu bytes at offset %s"
 msgstr[0] "%qD åtkomst av %wu eller fler byte på avstånden %s och %s överlappar %wu byte på avståndet %s"
@@ -28996,48 +28937,42 @@ msgid "%qD accessing %wu or more bytes at offsets %s and %s overlaps %wu or more
 msgstr "%qD åtkomst av %wu eller fler byte på avstånden %s och %s överlappar %wu eller fler byte på avståndet %s"
 
 #: gimple-ssa-warn-restrict.cc:1625
-#, fuzzy, gcc-internal-format
-#| msgid "%qD accessing %wu byte may overlap %wu byte"
+#, gcc-internal-format
 msgid "%qD accessing %wu byte may overlap %wu byte"
 msgid_plural "%qD accessing %wu bytes may overlap %wu byte"
 msgstr[0] "%qD åtkomst av %wu byte kan överlappa %wu byte"
 msgstr[1] "%qD åtkomst av %wu byte kan överlappa %wu byte"
 
 #: gimple-ssa-warn-restrict.cc:1632
-#, fuzzy, gcc-internal-format
-#| msgid "%qD accessing %wu byte at offsets %s and %s may overlap %wu byte at offset %s"
+#, gcc-internal-format
 msgid "%qD accessing %wu byte at offsets %s and %s may overlap %wu byte at offset %s"
 msgid_plural "%qD accessing %wu bytes at offsets %s and %s may overlap %wu byte at offset %s"
 msgstr[0] "%qD åtkomst av %wu byte på avstånden %s och %s kan överlappa %wu byte på avståndet %s"
 msgstr[1] "%qD åtkomst av %wu byte på avstånden %s och %s kan överlappa %wu byte på avståndet %s"
 
 #: gimple-ssa-warn-restrict.cc:1643
-#, fuzzy, gcc-internal-format
-#| msgid "%qD accessing %wu byte may overlap up to %wu bytes"
+#, gcc-internal-format
 msgid "%qD accessing %wu byte may overlap up to %wu bytes"
 msgid_plural "%qD accessing %wu bytes may overlap up to %wu bytes"
 msgstr[0] "%qD åtkomst av %wu byte kan överlappa upp till %wu byte"
 msgstr[1] "%qD åtkomst av %wu byte kan överlappa upp till %wu byte"
 
 #: gimple-ssa-warn-restrict.cc:1650
-#, fuzzy, gcc-internal-format
-#| msgid "%qD accessing %wu byte at offsets %s and %s may overlap up to %wu bytes at offset %s"
+#, gcc-internal-format
 msgid "%qD accessing %wu byte at offsets %s and %s may overlap up to %wu bytes at offset %s"
 msgid_plural "%qD accessing %wu bytes at offsets %s and %s may overlap up to %wu bytes at offset %s"
 msgstr[0] "%qD åtkomst av %wu byte på avstånden %s och %s kan överlappa upp till %wu byte på avståndet %s"
 msgstr[1] "%qD åtkomst av %wu byte på avstånden %s och %s kan överlappa upp till %wu byte på avståndet %s"
 
 #: gimple-ssa-warn-restrict.cc:1663
-#, fuzzy, gcc-internal-format
-#| msgid "%qD accessing between %wu and %wu bytes may overlap %wu byte"
+#, gcc-internal-format
 msgid "%qD accessing between %wu and %wu bytes may overlap %wu byte"
 msgid_plural "%qD accessing between %wu and %wu bytes may overlap up to %wu bytes"
 msgstr[0] "%qD åtkomst mellan %wu och %wu byte kan överlappa %wu byte"
 msgstr[1] "%qD åtkomst mellan %wu och %wu byte kan överlappa %wu byte"
 
 #: gimple-ssa-warn-restrict.cc:1670
-#, fuzzy, gcc-internal-format
-#| msgid "%qD accessing between %wu and %wu bytes at offsets %s and %s may overlap %wu byte at offset %s"
+#, gcc-internal-format
 msgid "%qD accessing between %wu and %wu bytes at offsets %s and %s may overlap %wu byte at offset %s"
 msgid_plural "%qD accessing between %wu and %wu bytes at offsets %s and %s may overlap up to %wu bytes at offset %s"
 msgstr[0] "%qD åtkomst mellan %wu och %wu byte på avstånden %s och %s kan överlappa %wu byte på avståndet %s"
@@ -29403,7 +29338,7 @@ msgstr "avbildningsfältet %qE med variabel längds post"
 #: gimplify.cc:13635
 #, gcc-internal-format
 msgid "user-defined mapper that uses a %<map%> clause with %<iterator%>"
-msgstr ""
+msgstr "användardefinierad avbildare som använder en %<map%>-klausul med %<iterator%>"
 
 #: gimplify.cc:13685 c-family/c-omp.cc:4459 c-family/c-omp.cc:4559
 #, fuzzy, gcc-internal-format
@@ -40162,7 +40097,7 @@ msgstr "statisk lagringskonflikt - flera pekare av samma typ kan inte analyseras
 #: config/aarch64/aarch64-json-tunings-parser.cc:134
 #, gcc-internal-format
 msgid "JSON tuning overrides an unspecified structure in the base tuning; fields not provided in JSON will default to 0"
-msgstr ""
+msgstr "JSON-trimning åsidosätter en ospecificerad post i bastrimningen; fälten som inte finns i JSON kommer få standardvärdet 0"
 
 #: config/aarch64/aarch64-json-tunings-parser.cc:152
 #, fuzzy, gcc-internal-format
@@ -40173,7 +40108,7 @@ msgstr "%qT är inte en objekttyp"
 #: config/aarch64/aarch64-json-tunings-parser.cc:155
 #, gcc-internal-format
 msgid "...but got an array instead"
-msgstr ""
+msgstr "… men fick en vektor istället"
 
 #: config/aarch64/aarch64-json-tunings-parser.cc:158
 #, fuzzy, gcc-internal-format
@@ -40190,7 +40125,7 @@ msgstr "%q#T använt där ett flyttalsvärde förväntades"
 #: config/aarch64/aarch64-json-tunings-parser.cc:164
 #, gcc-internal-format
 msgid "...but got a string instead"
-msgstr ""
+msgstr "… men fick en sträng istället"
 
 #: config/aarch64/aarch64-json-tunings-parser.cc:167
 #: config/aarch64/aarch64-json-tunings-parser.cc:170
@@ -42578,7 +42513,7 @@ msgstr "kunde int inline:a anropet av %<__builtin_memset%>: för många byte, an
 #: config/bpf/core-builtins.cc:1796
 #, gcc-internal-format
 msgid "Access through packed struct may not be possible to patch for CO-RE"
-msgstr ""
+msgstr "Åtkomst via en packad post är kanske inte möjlig att uppdatera för CO-RE"
 
 #: config/c6x/c6x.cc:245
 #, gcc-internal-format
@@ -69487,12 +69422,12 @@ msgstr "felaktig typ %qT av %<std::ranges::end(arg)%>"
 #: cp/reflect.cc:965
 #, gcc-internal-format
 msgid "%qD should throw %qs; %<what()%>: %qs"
-msgstr ""
+msgstr "%qD skall kasta %qs; %<what()%>: %qs"
 
 #: cp/reflect.cc:967
 #, gcc-internal-format
 msgid "exceptions are disabled, treating as non-constant"
-msgstr ""
+msgstr "undantag är avaktiverade, hanteras som en icke-konstant"
 
 #: cp/reflect.cc:977
 #, fuzzy, gcc-internal-format
@@ -88420,7 +88355,7 @@ msgstr "Postkonstrueraren vid %L har avslutats. Denna funktion togs bart av f08/
 #: fortran/trans-array.cc:4023
 #, gcc-internal-format
 msgid "Bounds checking of the elemental index at %L will cause two calls to %qs, which is not declared to be PURE or is not implicitly pure."
-msgstr ""
+msgstr "Kontroll av gränser för elementindex vid %L kommer orsaka två anrop av %qs, vilken inte är declarerad PURE och inte är implicit ren."
 
 #. Problems occur when we get something like
 #. integer :: a(lots) = (/(i, i=1, lots)/)
