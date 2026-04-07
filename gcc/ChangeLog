@@ -1,3 +1,17 @@
+2026-04-06  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	PR libstdc++/124268
+	* doc/invoke.texi: Note that -Wexpose-global-module-tu-local
+	also applies to 'export using' declarations.
+
+2026-04-06  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* doc/install.texi (Specific, amd64-*-solaris2*, i?86-*-solaris2*)
+	(sparc-sun-solaris2*, sparc64-*-solaris2*, sparcv9-*-solaris2*)
+	(x86_64-*-solaris2*): Remove.  Fold into ...
+	(Specific, *-*-solaris2*): ... this.
+	Rewrite.
+
 2026-04-04  Sandra Loosemore  <sloosemore@baylibre.com>
 
 	* doc/invoke.texi (Picolibc Options): Copy-edit for markup, use

@@ -1,3 +1,60 @@
+2026-04-06  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	PR libstdc++/124268
+	* g++.dg/modules/using-34_a.C: New test.
+	* g++.dg/modules/using-34_b.C: New test.
+
+2026-04-06  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	PR c++/124735
+	* g++.dg/modules/auto-8_a.H: New test.
+	* g++.dg/modules/auto-8_b.C: New test.
+
+2026-04-06  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	PR c++/124781
+	* g++.dg/modules/export-7.C: New test.
+
+2026-04-06  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	PR c++/124785
+	* g++.dg/modules/noexcept-5.h: New test.
+	* g++.dg/modules/noexcept-5_a.C: New test.
+	* g++.dg/modules/noexcept-5_b.C: New test.
+	* g++.dg/modules/noexcept-5_c.C: New test.
+
+2026-04-06  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	PR c++/118630
+	* g++.dg/modules/late-ret-5.h: New test.
+	* g++.dg/modules/late-ret-5_a.H: New test.
+	* g++.dg/modules/late-ret-5_b.C: New test.
+
+2026-04-06  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/124488
+	* g++.dg/cpp26/expansion-stmt33.C: New test.
+
+2026-04-06  Jakub Jelinek  <jakub@redhat.com>
+
+	* g++.dg/reflect/annotations15.C: New test.
+
+2026-04-06  Christopher Albert  <albert@tugraz.at>
+
+	PR fortran/79524
+	PR fortran/79524
+	* gfortran.dg/pr79524.f90: New test.
+
+2026-04-06  Eczbek  <eczbek.void@gmail.com>
+
+	PR c++/123087
+	* g++.dg/DRs/dr1423.C: Additonal test.
+
+2026-04-06  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* lib/target-supports-dg.exp (dg-do-if): Don't strip line number
+	from args.
+
 2026-04-05  Jakub Jelinek  <jakub@redhat.com>
 
 	PR c++/124689

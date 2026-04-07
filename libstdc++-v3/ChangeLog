@@ -1,3 +1,32 @@
+2026-04-06  Matthias Kretz  <m.kretz@gsi.de>
+
+	PR libstdc++/124722
+	* include/bits/version.def: Check for __SSE2__ rather than x86.
+	* include/bits/version.h: Regenerate.
+	* testsuite/std/simd/arithmetic.cc: Build with -msse2.
+	* testsuite/std/simd/arithmetic_expensive.cc: Likewise.
+	* testsuite/std/simd/creation.cc: Likewise.
+	* testsuite/std/simd/creation_expensive.cc: Likewise.
+	* testsuite/std/simd/loads.cc: Likewise.
+	* testsuite/std/simd/loads_expensive.cc: Likewise.
+	* testsuite/std/simd/mask.cc: Likewise.
+	* testsuite/std/simd/mask2.cc: Likewise.
+	* testsuite/std/simd/mask2_expensive.cc: Likewise.
+	* testsuite/std/simd/mask_expensive.cc: Likewise.
+	* testsuite/std/simd/reductions.cc: Likewise.
+	* testsuite/std/simd/reductions_expensive.cc: Likewise.
+	* testsuite/std/simd/shift_left.cc: Likewise.
+	* testsuite/std/simd/shift_left_expensive.cc: Likewise.
+	* testsuite/std/simd/shift_right.cc: Likewise.
+	* testsuite/std/simd/shift_right_expensive.cc: Likewise.
+	* testsuite/std/simd/simd_alg.cc: Likewise.
+	* testsuite/std/simd/simd_alg_expensive.cc: Likewise.
+	* testsuite/std/simd/sse_intrin.cc: Likewise.
+	* testsuite/std/simd/stores.cc: Likewise.
+	* testsuite/std/simd/stores_expensive.cc: Likewise.
+	* testsuite/std/simd/traits_common.cc: Likewise.
+	* testsuite/std/simd/traits_math.cc: Likewise.
+
 2026-04-04  Matthias Kretz  <m.kretz@gsi.de>
 
 	PR libstdc++/124722

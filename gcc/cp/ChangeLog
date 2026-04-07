@@ -1,3 +1,69 @@
+2026-04-06  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	PR libstdc++/124268
+	* module.cc (instantiating_tu_local_entity): Use pedwarn instead
+	of warning.
+	(depset::hash::add_binding_entity): Don't skip exported
+	using-decls as TU-local entities.
+	(depset::hash::finalize_dependencies): Don't attempt to complain
+	again about using-decls referencing TU-local entities.
+	* name-lookup.cc (check_can_export_using_decl): Demote the error
+	to a warning for using-decls of GMF vars or functions.
+
+2026-04-06  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	PR c++/124735
+	* module.cc (trees_in::is_matching_decl): Handle importing
+	undeduced auto when existing is already deduced.
+
+2026-04-06  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	PR c++/124781
+	* module.cc (set_originating_module): Add a function comment,
+	only set attachment/exporting for entities with non-NULL
+	DECL_CONTEXT.
+	(check_module_decl_linkage): Use decl_anon_ns_mem_p instead of
+	decl_internal_context_p.
+
+2026-04-06  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	PR c++/124785
+	* module.cc (trees_in::is_matching_decl): Narrow condition for
+	when noexcept propagation occurs; assert that we don't propagate
+	noexcept-specs for TEMPLATE_DECLs.
+
+2026-04-06  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	PR c++/118630
+	* module.cc (depset::hash::add_dependency): Correct entry point
+	corection for recursive clusters.
+
+2026-04-06  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/124488
+	* parser.cc (cp_parser_expansion_statement): Set
+	DECL_INITIALIZED_BY_CONSTANT_EXPRESSION_P, DECL_DEPENDENT_INIT_P and
+	if maybe constant non-reference TREE_CONSTANT on range_decl.
+	* pt.cc (tsubst_stmt) <case TEMPLATE_FOR_STMT>: Set
+	DECL_DEPENDENT_INIT_P on decl.
+
+2026-04-06  Jakub Jelinek  <jakub@redhat.com>
+
+	* decl.cc (grokfndecl): For -freflection mark annotations of
+	PARM_DECLs in a function definition.
+	* reflect.cc (eval_annotations_of): Allow annotations_of on
+	function parameters.  For r which is a PARM_DECL without REFLECT_PARM,
+	filter out annotations not marked by grokfndecl.
+	(reflection_mangle_prefix): Preserve the grokfndecl marking of
+	annotations during mangling.
+
+2026-04-06  Eczbek  <eczbek.void@gmail.com>
+
+	PR c++/123087
+	* typeck.cc (cp_build_unary_op): For TRUTH_NOT_EXPR, replace
+	call to perform_implicit_conversion with call to
+	contextual_conv_bool.
+
 2026-04-05  Jakub Jelinek  <jakub@redhat.com>
 
 	PR c++/124689
