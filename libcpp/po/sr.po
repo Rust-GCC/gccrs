@@ -1,14 +1,13 @@
 # Serbian translation of cpplib.
 # Copyright © 2020 Free Software Foundation, Inc.
 # This file is distributed under the same license as the gcc package.
-# Мирослав Николић <miroslavnikolic@rocketmail.com>, 2012-2025.
-#
+# Мирослав Николић <miroslavnikolic@rocketmail.com>, 2012-2026.
 msgid ""
 msgstr ""
-"Project-Id-Version: cpplib-15.1-b20250316\n"
+"Project-Id-Version: cpplib-16.1-b20260222\n"
 "Report-Msgid-Bugs-To: https://gcc.gnu.org/bugs/\n"
 "POT-Creation-Date: 2026-02-19 21:05+0000\n"
-"PO-Revision-Date: 2025-07-18 09:21+0200\n"
+"PO-Revision-Date: 2026-04-04 12:16+0200\n"
 "Last-Translator: Мирослав Николић <miroslavnikolic@rocketmail.com>\n"
 "Language-Team: Serbian <(nothing)>\n"
 "Language: sr\n"
@@ -16,8 +15,8 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
+"X-Generator: Virtaal 0.7.1\n"
 "X-Bugs: Report translation errors to the Language-Team address.\n"
-"X-Generator: Poedit 3.5\n"
 
 #: charset.cc:759
 #, gcc-internal-format, gfc-internal-format
@@ -372,10 +371,9 @@ msgid "macro names must be identifiers"
 msgstr "називи макроа морају бити одредници"
 
 #: directives.cc:752 directives.cc:755
-#, fuzzy, gcc-internal-format
-#| msgid "undefining %qs"
+#, gcc-internal-format
 msgid "undefining keyword %qs"
-msgstr "неодређујем „%qs“"
+msgstr "неодређујем кључну реч „%qs“"
 
 #: directives.cc:767 directives.cc:772 directives.cc:784
 #, gcc-internal-format
@@ -1315,7 +1313,7 @@ msgstr "„__COUNTER__“ је проширен у директиви са „-f
 #: macro.cc:738
 #, gcc-internal-format
 msgid "%<__COUNTER__%> expanded more than 2147483648 times"
-msgstr ""
+msgstr "%<__COUNTER__%> је раширен више од 2147483648 пута"
 
 #: macro.cc:763
 #, gcc-internal-format
@@ -1328,10 +1326,9 @@ msgid "invalid string literal, ignoring final %<\\%>"
 msgstr "неисправна словност ниске, занемарујем завршну „\\“"
 
 #: macro.cc:1077
-#, fuzzy, gcc-internal-format
-#| msgid "pasting \"%.*s\" and \"%.*s\" does not give a valid preprocessing token"
+#, gcc-internal-format
 msgid "pasting %<%.*s%> and %<%.*s%> does not give a valid preprocessing token"
-msgstr "убацивање „%.*s“ и „%.*s“ не даје исправну скупину предобраде"
+msgstr "убацивање „<%.*s“ и „%.*s“ не даје исправну скупину предобраде"
 
 #: macro.cc:1209
 #, gcc-internal-format
@@ -1451,10 +1448,9 @@ msgid "%<#%> is not followed by a macro parameter"
 msgstr "за „#“ не следи параметар макроа"
 
 #: macro.cc:3976 macro.cc:3980
-#, fuzzy, gcc-internal-format
-#| msgid "macro %qs defined here"
+#, gcc-internal-format
 msgid "keyword %qs defined as macro"
-msgstr "макро „%qs“ је дефинисан овде"
+msgstr "кључна реч „%qs“ је дефинисана као макро"
 
 #: macro.cc:3996
 #, gcc-internal-format
@@ -1466,10 +1462,9 @@ msgid "this is the location of the previous definition"
 msgstr "ово је место претходне одреднице"
 
 #: macro.cc:4009
-#, fuzzy, gcc-internal-format
-#| msgid "%qs redefined"
+#, gcc-internal-format
 msgid "%qs defined"
-msgstr "„%qs“ је поново одређено"
+msgstr "„%qs“ је одређено"
 
 #: macro.cc:4143
 #, gcc-internal-format
