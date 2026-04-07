@@ -1,5 +1,4 @@
 // { dg-do run { target c++26 } }
-#include <type_traits>
 #include <utility>
 #include <string_view>
 

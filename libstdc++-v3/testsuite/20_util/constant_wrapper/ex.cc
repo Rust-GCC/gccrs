@@ -1,5 +1,5 @@
 // { dg-do compile { target c++26 } }
-#include <type_traits>
+#include <utility>
 #include <iostream>
 
 #include <testsuite_hooks.h>

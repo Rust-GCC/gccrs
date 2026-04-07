@@ -1,5 +1,5 @@
 // { dg-do compile { target c++26 } }
-#include <type_traits>
+#include <utility>
 
 constexpr void
 test_comma_same_types()
