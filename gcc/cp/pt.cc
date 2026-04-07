@@ -6872,6 +6872,14 @@ dependent_alias_template_spec_p (const_tree t, bool transparent_typedefs)
 bool
 dependent_opaque_alias_p (const_tree t)
 {
+  auto any_lambda_targ_p = [] (tree args)
+    {
+      for (tree arg : tree_vec_range (args))
+	if (TREE_CODE (arg) == LAMBDA_EXPR)
+	  return true;
+      return false;
+    };
+
   return (TYPE_P (t)
 	  && typedef_variant_p (t)
 	  && (any_dependent_type_attributes_p (DECL_ATTRIBUTES
@@ -6882,7 +6890,17 @@ dependent_opaque_alias_p (const_tree t)
 		 alias would incorrectly yield a distinct lambda type.  */
 	      || (TREE_CODE (t) == DECLTYPE_TYPE
 		  && TREE_CODE (DECLTYPE_TYPE_EXPR (t)) == LAMBDA_EXPR
-		  && !typedef_variant_p (DECL_ORIGINAL_TYPE (TYPE_NAME (t))))));
+		  && !typedef_variant_p (DECL_ORIGINAL_TYPE (TYPE_NAME (t))))
+	      /* Also treat an alias to A<lambda> as opaque so that it doesn't
+		 "leak" into a deeper template context which would cause us to
+		 over substitute into the lambda.  */
+	      /* FIXME These lambda checks don't recognize deeply nested lambda
+		 subexpressions, and we can't use walk_tree here because it's
+		 slow.  Maybe a tree flag indicating typedef opaqueness?  */
+	      || (TYPE_TEMPLATE_INFO (t)
+		  && PRIMARY_TEMPLATE_P (TYPE_TI_TEMPLATE (t))
+		  && any_lambda_targ_p (INNERMOST_TEMPLATE_ARGS
+					(TYPE_TI_ARGS (t))))));
 }
 
 /* Return the number of innermost template parameters in TMPL.  */
