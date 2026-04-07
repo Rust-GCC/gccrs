@@ -17,6 +17,7 @@ using std::float64_t;
 
 using namespace std::simd;
 
+template <int = 0>
 void test()
 {
   template for (auto t : {float(), double(),
@@ -146,6 +147,8 @@ void test()
   static_assert(__highest_bit(0b1000u) == 3);
   static_assert(__highest_bit(0b10000001000ull) == 10);
 }
+
+template void test<>();
 
 consteval bool
 throws(auto f)
