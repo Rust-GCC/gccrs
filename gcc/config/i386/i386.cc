@@ -8789,7 +8789,7 @@ ix86_need_alignment_p_1 (rtx set, unsigned int alignment)
   rtx dest = SET_DEST (set);
 
   if (MEM_P (dest))
-    return GET_MODE_ALIGNMENT (GET_MODE (dest)) > alignment;
+    return MEM_ALIGN (dest) > alignment;
 
   const_rtx src = SET_SRC (set);
 
@@ -8799,7 +8799,7 @@ ix86_need_alignment_p_1 (rtx set, unsigned int alignment)
       auto op = *iter;
 
       if (MEM_P (op))
-	return GET_MODE_ALIGNMENT (GET_MODE (op)) > alignment;
+	return MEM_ALIGN (op) > alignment;
     }
 
   return false;
