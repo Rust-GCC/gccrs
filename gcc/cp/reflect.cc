@@ -219,6 +219,10 @@ get_reflection (location_t loc, tree t, reflect_kind kind/*=REFLECT_UNDEF*/)
 	 instantiate it now to find out its type.  */
       if (!mark_used (t))
 	return error_mark_node;
+      /* Avoid -Wunused-but-set* warnings when a variable or parameter
+	 is just set and reflected.  */
+      if (VAR_P (t) || TREE_CODE (t) == PARM_DECL)
+	mark_exp_read (t);
     }
 
   /* For injected-class-name, use the main variant so that comparing
