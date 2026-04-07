@@ -5,7 +5,7 @@
 
 #ifndef __cpp_lib_constant_wrapper
 #error "Feature test macro __cpp_lib_constant_wrapper is missing for <utility>"
-#if __cpp_lib_constant_wrapper < 202506L
+#if __cpp_lib_constant_wrapper < 202603L
 #error "Feature test macro __cpp_lib_constant_wrapper has the wrong value"
 #endif
 #endif

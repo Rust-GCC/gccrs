@@ -447,9 +447,9 @@
 
 #if !defined(__cpp_lib_constant_wrapper)
 # if (__cplusplus >  202302L)
-#  define __glibcxx_constant_wrapper 202506L
+#  define __glibcxx_constant_wrapper 202603L
 #  if defined(__glibcxx_want_all) || defined(__glibcxx_want_constant_wrapper)
-#   define __cpp_lib_constant_wrapper 202506L
+#   define __cpp_lib_constant_wrapper 202603L
 #  endif
 # endif
 #endif /* !defined(__cpp_lib_constant_wrapper) */

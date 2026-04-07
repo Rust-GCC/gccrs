@@ -41,6 +41,9 @@
 
 #include <type_traits>
 #include <bits/move.h>
+#ifdef __glibcxx_constant_wrapper // C++ >= 26
+#  include <bits/invoke.h>
+#endif
 
 namespace std _GLIBCXX_VISIBILITY(default)
 {
@@ -342,19 +345,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	-> constant_wrapper<_Left::value->*(_Right::value)>
       { return {}; }
 
-    template<_ConstExprParam _Tp, _ConstExprParam... _Args>
-      constexpr auto
-      operator()(this _Tp, _Args...) noexcept
-      requires
-	requires(_Args...) { constant_wrapper<_Tp::value(_Args::value...)>(); }
-      { return constant_wrapper<_Tp::value(_Args::value...)>{}; }
-
-    template<_ConstExprParam _Tp, _ConstExprParam... _Args>
-      constexpr auto
-      operator[](this _Tp, _Args...) noexcept
-	-> constant_wrapper<(_Tp::value[_Args::value...])>
-      { return {}; }
-
     template<_ConstExprParam _Tp>
       constexpr auto
       operator++(this _Tp) noexcept
@@ -452,6 +442,42 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       operator=(_Right) const noexcept
   	-> constant_wrapper<(value = _Right::value)>
       { return {}; }
+
+    template<typename... _Args,
+	     bool _ConstExprInvocable = requires {
+	       requires (_ConstExprParam<remove_cvref_t<_Args>> && ...);
+	       typename constant_wrapper<std::__invoke(value, remove_cvref_t<_Args>::value...)>;
+	     }>
+      requires _ConstExprInvocable || is_invocable_v<const value_type&, _Args...>
+      static constexpr decltype(auto)
+      operator()(_Args&&... __args)
+      noexcept(requires {
+	requires _ConstExprInvocable || is_nothrow_invocable_v<const value_type&, _Args...>;
+      })
+      {
+	if constexpr (_ConstExprInvocable)
+	  return constant_wrapper<std::__invoke(value, remove_cvref_t<_Args>::value...)>{};
+	else
+	  return std::__invoke(value, std::forward<_Args>(__args)...);
+      }
+
+    template<typename... _Args,
+	     bool _ConstExprSubscriptable = requires {
+	       requires (_ConstExprParam<remove_cvref_t<_Args>> && ...);
+	       typename constant_wrapper<value[remove_cvref_t<_Args>::value...]>;
+	     }>
+      requires _ConstExprSubscriptable || requires { value[std::declval<_Args>()...]; }
+      static constexpr decltype(auto)
+      operator[](_Args&&... __args)
+      noexcept(requires {
+	requires _ConstExprSubscriptable || noexcept(value[std::declval<_Args>()...]);
+      })
+      {
+	if constexpr (_ConstExprSubscriptable)
+	  return constant_wrapper<value[remove_cvref_t<_Args>::value...]>{};
+	else
+	  return value[std::forward<_Args>(__args)...];
+      }
 
     constexpr
     operator decltype(value)() const noexcept

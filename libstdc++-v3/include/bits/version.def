@@ -408,8 +408,10 @@ ftms = {
 
 ftms = {
   name = constant_wrapper;
+  // 202506 P2781R9 std::constexpr_wrapper 
+  // 202603 P3978R3 constant_wrapper should unwrap on call and subscript
   values = {
-    v = 202506;
+    v = 202603;
     cxxmin = 26;
   };
 };

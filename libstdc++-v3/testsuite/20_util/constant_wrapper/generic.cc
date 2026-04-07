@@ -1,6 +1,8 @@
 // { dg-do run { target c++26 } }
+#include <functional>
 #include <utility>
 #include <string_view>
+#include <stdexcept>
 
 #include <testsuite_hooks.h>
 
@@ -20,9 +22,9 @@ test_c_arrays()
   auto access = [](auto x, size_t i)
   { return x[i]; };
 
-  check_same(access(std::cw<x>, 0), x[0]);
-  check_same(access(std::cw<x>, 1), x[1]);
-  check_same(access(std::cw<x>, 2), x[2]);
+  check_same(std::cw<x>[0], x[0]);
+  check_same(std::cw<x>[1], x[1]);
+  check_same(std::cw<x>[2], x[2]);
 
   check_same(cx[std::cw<0>], std::cw<x[0]>);
   check_same(cx[std::cw<1>], std::cw<x[1]>);
@@ -96,76 +98,302 @@ constexpr int
 add(int i, int j)
 { return i + j; }
 
-struct Add
+template<bool Noexcept>
+struct CAdd
 {
   constexpr int
-  operator()(int i, int j) const noexcept
+  operator()(int i, int j) const noexcept(Noexcept)
   { return i + j; }
 };
+
+template<bool Noexcept>
+struct RAdd
+{
+  int
+  operator()(int i, int j) const noexcept(Noexcept)
+  { return i + j; }
+};
+
+struct CMixedAdd
+{
+  static constexpr int
+  operator()(int i, int j)
+  { return i + j; }
+
+  template <auto N1, auto N2>
+    static constexpr int operator()
+    (std::constant_wrapper<N1, int> i, std::constant_wrapper<N2, int> j)
+    { return 100 + i + j; }
+};
+
+struct RMixedAdd
+{
+  static int
+  operator()(int i, int j)
+  { return i + j; }
+
+  template <auto N1, auto N2>
+    static int operator()
+    (std::constant_wrapper<N1, int> i, std::constant_wrapper<N2, int> j)
+    { return 100 + i + j; }
+};
+
+template<typename T1, typename T2>
+struct AtLeastOneInt
+{
+  static_assert(std::is_same_v<T1, int> || std::is_same_v<T2, int>);
+  using type = int;
+};
+
+struct PoisonedAdd
+{
+  template<typename T1, typename T2>
+  constexpr static
+  typename AtLeastOneInt<T1, T2>::type 
+  operator()(T1 i, T2 j) noexcept
+  { return i + j; }
+};
+
+struct MoveOnly
+{
+  constexpr explicit
+  MoveOnly(int p) : v(p)
+  { }
+
+  MoveOnly(MoveOnly&&) = default;
+
+  int v;
+};
+
+struct MoveArgFunc
+{
+  constexpr int
+  operator()(MoveOnly arg) const
+  { return arg.v; }
+};
+
+struct ThrowFunc
+{
+  static constexpr int
+  operator()(int i, int j)
+  {
+    if (i < 0 || j < 0)
+      throw std::invalid_argument("negative");
+    return i + j;
+  }
+};
+
+template<bool Constexpr, auto functor>
+  constexpr void
+  check_invoke()
+  {
+    auto ci = std::cw<2>;
+    auto cj = std::cw<3>;
+    auto cfo = std::cw<functor>;
+
+    if constexpr (Constexpr)
+      check_same(cfo(ci, cj), std::cw<5>);
+    else
+      check_same(cfo(ci, cj), 5);
+
+    check_same(cfo(2, cj), 5);
+    check_same(cfo(2, 3), 5);
+
+    constexpr bool Noexcept = noexcept(functor(2, 3));
+    static_assert(noexcept(cfo(ci, cj)) == Constexpr || Noexcept);
+    static_assert(noexcept(cfo(2, cj)) == Noexcept);
+    static_assert(noexcept(cfo(2, 3)) == Noexcept);
+  }
 
 constexpr void
 test_function_object()
 {
-  auto check = [](auto cfo)
-  {
-    auto ci = std::cw<2>;
-    auto cj = std::cw<3>;
+  check_invoke<true, CAdd<true>{}>();
+  check_invoke<true, CAdd<false>{}>();
+  check_invoke<true, [](int i, int j) { return i + j; }>();
+  check_invoke<true, [](auto i, auto j) noexcept { return i + j; }>();
+  if !consteval {
+    check_invoke<false, RAdd<true>{}>();
+    check_invoke<false, RAdd<false>{}>();
+  }
 
-    VERIFY(cfo(ci, cj) == 5);
-    static_assert(std::same_as<decltype(cfo(ci, cj)), std::constant_wrapper<5>>);
+  // Check if constant_wrappers are not passed to value,
+  // if they can be unwrapped.
+  check_invoke<true, PoisonedAdd{}>();
 
-    static_assert(std::invocable<decltype(cfo), decltype(ci), decltype(cj)>);
-    static_assert(!std::invocable<decltype(cfo), int, decltype(cj)>);
-    static_assert(!std::invocable<decltype(cfo), int, int>);
-  };
+  // Prefer unwrapping constant_wrappers, so calls (int, int)
+  check_same(CMixedAdd{}(2, 3), 5);
+  check_same(CMixedAdd{}(std::cw<2>, std::cw<3>), 105);
+  check_same(std::cw<CMixedAdd{}>(std::cw<2>, std::cw<3>), std::cw<5>);
+  check_invoke<true, CMixedAdd{}>();
+  if !consteval {
+    // Cannot return value wrapped in constant_wrapper because operator
+    // is not constexpr, fallbacks to runtime call, that selects
+    // (constant_wrapper, constant_wrapper) overload
+    check_same(RMixedAdd{}(2, 3), 5);
+    check_same(RMixedAdd{}(std::cw<2>, std::cw<3>), 105);
+    check_same(std::cw<RMixedAdd{}>(std::cw<2>, std::cw<3>), 105);
+    check_same(std::cw<RMixedAdd{}>(std::cw<2>, 3), 5);
+    check_same(std::cw<RMixedAdd{}>(2, 3), 5);
+  }
 
-  check(std::cw<Add{}>);
-  check(std::cw<[](int i, int j){ return i + j; }>);
-  check(std::cw<[](auto i, auto j){ return i + j; }>);
+  // Test if arguments are fowarded
+  std::cw<MoveArgFunc{}>(MoveOnly{10});
+
+  // For positive arguments call do not throw, constant_wrapper type is valid.
+  check_invoke<true, ThrowFunc{}>();
+  // For negative arguments, the call exits via exception, and constant_wrapper 
+  // type is invalid, so we fallback to runtime.
+  static_assert(std::is_same_v<int, decltype(std::cw<ThrowFunc{}>(std::cw<-1>, std::cw<1>))>);
+  static_assert(!noexcept(std::cw<ThrowFunc{}>(std::cw<-1>, std::cw<1>)));
+  try {
+    std::cw<ThrowFunc{}>(std::cw<-1>, std::cw<1>);
+    VERIFY(false);
+  } catch (const std::invalid_argument&) {
+    VERIFY(true);
+  }
 }
 
 constexpr void
 test_function_pointer()
 {
-  auto cptr = std::cw<add>;
-  auto ci = std::cw<2>;
-  auto cj = std::cw<3>;
-
-  VERIFY(cptr(ci, cj) == 5);
-  static_assert(std::same_as<decltype(cptr(ci, cj)), std::constant_wrapper<5>>);
-
-  VERIFY(cptr(2, cj) == 5);
-  static_assert(std::same_as<decltype(cptr(2, cj)), int>);
-
-  VERIFY(cptr(2, 3) == 5);
-  static_assert(std::same_as<decltype(cptr(2, 3)), int>);
+  check_invoke<true, add>();
 }
 
-struct Indexable1
+template<bool Noexcept>
+struct CIndex
 {
   constexpr int
-  operator[](int i, int j) const noexcept
+  operator[](int i, int j) const noexcept(Noexcept)
   { return i*j; }
 };
 
-template<typename Obj, typename... Args>
-  concept indexable = requires (Obj obj, Args... args)
+template<bool Noexcept>
+struct RIndex
+{
+  int
+  operator[](int i, int j) const noexcept(Noexcept)
+  { return i*j; }
+};
+
+struct CMixedIndex
+{
+  static constexpr int
+  operator[](int i, int j)
+  { return i * j; }
+
+  template <auto N1, auto N2>
+    static constexpr int operator[]
+    (std::constant_wrapper<N1, int> i, std::constant_wrapper<N2, int> j)
+    { return 100 + i * j; }
+};
+
+struct RMixedIndex
+{
+  static int
+  operator[](int i, int j)
+  { return i * j; }
+
+  template <auto N1, auto N2>
+    static int operator[]
+    (std::constant_wrapper<N1, int> i, std::constant_wrapper<N2, int> j)
+    { return 100 + i * j; }
+};
+
+struct PoisonedIndex
+{
+  template<typename T1, typename T2>
+  constexpr static
+  typename AtLeastOneInt<T1, T2>::type 
+  operator[](T1 i, T2 j) noexcept
+  { return i * j; }
+};
+
+struct MoveArgIndex
+{
+  constexpr int
+  operator[](MoveOnly arg) const
+  { return arg.v; }
+};
+
+struct ThrowIndex
+{
+  static constexpr int
+  operator[](int i, int j)
   {
-    obj[args...];
-  };
+    if (i < 0 || j < 0)
+      throw std::invalid_argument("negative");
+    return i * j;
+  }
+};
+
+template<bool Constexpr, auto index>
+  constexpr void
+  check_subscript()
+  {
+    auto ci = std::cw<2>;
+    auto cj = std::cw<3>;
+    auto cio = std::cw<index>;
+
+    if constexpr (Constexpr)
+      check_same(cio[ci, cj], std::cw<6>);
+    else
+      check_same(cio[ci, cj], 6);
+
+    check_same(cio[2, cj], 6);
+    check_same(cio[2, 3], 6);
+
+    constexpr bool Noexcept = noexcept(index[2, 3]);
+    static_assert(noexcept(cio[ci, cj]) == Constexpr || Noexcept);
+    static_assert(noexcept(cio[2, cj]) == Noexcept);
+    static_assert(noexcept(cio[2, 3]) == Noexcept);
+  }
 
 constexpr void
 test_indexable1()
 {
-  auto cind = std::cw<Indexable1{}>;
-  auto ci = std::cw<2>;
-  auto cj = std::cw<3>;
-  VERIFY(cind[ci, cj] == ci*cj);
-  static_assert(std::same_as<decltype(cind[ci, cj]), std::constant_wrapper<6>>);
+  check_subscript<true, CIndex<true>{}>();
+  check_subscript<true, CIndex<false>{}>();
+  if !consteval {
+    check_subscript<false, RIndex<true>{}>();
+    check_subscript<false, RIndex<false>{}>();
+  }
 
-  static_assert(indexable<decltype(cind), decltype(ci), decltype(cj)>);
-  static_assert(!indexable<decltype(cind), int, decltype(cj)>);
-  static_assert(!indexable<decltype(cind), int, int>);
+  // Check if constant_wrappers are not passed to value,
+  // if they can be unwrapped.
+  check_subscript<true, PoisonedIndex{}>();
+
+  // Prefer unwrapping constant_wrappers, so calls (int, int)
+  check_same(CMixedIndex{}[2, 3], 6);
+  check_same(CMixedIndex{}[std::cw<2>, std::cw<3>], 106);
+  check_same(std::cw<CMixedIndex{}>[std::cw<2>, std::cw<3>], std::cw<6>);
+  check_subscript<true, CMixedIndex{}>();
+  if !consteval {
+    // Cannot return value wrapped in constant_wrapper because operator
+    // is not constexpr, fallbacks to runtime call, that selects
+    // (constant_wrapper, constant_wrapper) overload
+    check_same(RMixedIndex{}[2, 3], 6);
+    check_same(RMixedIndex{}[std::cw<2>, std::cw<3>], 106);
+    check_same(std::cw<RMixedIndex{}>[std::cw<2>, std::cw<3>], 106);
+    check_same(std::cw<RMixedIndex{}>[std::cw<2>, 3], 6);
+    check_same(std::cw<RMixedIndex{}>[2, 3], 6);
+  }
+
+  // Test if arguments are fowarded
+  std::cw<MoveArgIndex{}>[MoveOnly{10}];
+
+  // For positive arguments subscript do not throw, constant_wrapper type is valid.
+  check_subscript<true, ThrowIndex{}>();
+  // For negative arguments, the subscript exits via exception, and constant_wrapper 
+  // type is invalid, so we fallback to runtime.
+  static_assert(std::is_same_v<int, decltype(std::cw<ThrowIndex{}>[std::cw<-1>, std::cw<1>])>);
+  static_assert(!noexcept(std::cw<ThrowIndex{}>[std::cw<-1>, std::cw<1>]));
+  try {
+    std::cw<ThrowIndex{}>[std::cw<-1>, std::cw<1>];
+    VERIFY(false);
+  } catch (const std::invalid_argument&) {
+    VERIFY(true);
+  }
 }
 
 struct Indexable2
@@ -182,12 +410,9 @@ test_indexable2()
   auto cind = std::cw<Indexable2{}>;
   auto ci = std::cw<2>;
   auto cj = std::cw<3>;
-  VERIFY(cind[ci, cj] == ci*cj);
-  static_assert(std::same_as<decltype(cind[ci, cj]), std::constant_wrapper<6>>);
-
-  static_assert(indexable<decltype(cind), decltype(ci), decltype(cj)>);
-  static_assert(!indexable<decltype(cind), int, decltype(cj)>);
-  static_assert(!indexable<decltype(cind), int, int>);
+  check_same(cind[ci, cj], std::cw<6>);
+  check_same(cind[ci, 3], 6);
+  check_same(cind[2, 3], 6);
 }
 
 struct Indexable3
@@ -234,10 +459,21 @@ test_member_pointer()
   check_same((&co)->*(&Divide::value), nom);
   check_same(&(co.value)->*cvalue, nom);
 
-  auto expect_unwrapped = nom / denom;
-  check_same(((&co)->*(&Divide::divide))(denom), expect_unwrapped);
-  check_same((&(co.value)->*cdiv)(denom), expect_unwrapped);
-  check_same(((&decltype(co)::value)->*cdiv)(denom), expect_unwrapped);
+  check_same(cvalue(co), std::cw<nom>);
+  check_same(cvalue(co.value), nom);
+  check_same(cvalue(&co.value), nom);
+  check_same(cvalue(std::ref(co.value)), nom);
+
+  auto cresult = std::cw<nom / denom>;
+  check_same(((&co)->*(&Divide::divide))(denom), cresult.value);
+  check_same((&(co.value)->*cdiv)(denom), cresult.value);
+  check_same(((&decltype(co)::value)->*cdiv)(denom), cresult.value);
+
+  check_same(cdiv(co, std::cw<denom>), cresult); 
+  check_same(cdiv(co.value, std::cw<denom>), cresult.value); 
+  check_same(cdiv(co.value, denom), cresult.value); 
+  check_same(cdiv(&co.value, denom), cresult.value); 
+  check_same(cdiv(std::ref(co.value), denom), cresult.value); 
 }
 
 struct Truthy
