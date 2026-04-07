@@ -2745,16 +2745,19 @@ write_type (tree type)
 
 	    case PACK_INDEX_TYPE:
 	      /* https://github.com/itanium-cxx-abi/cxx-abi/issues/175.  */
+	      write_string ("Dy");
 	      if (TREE_CODE (PACK_INDEX_PACK (type)) == TREE_VEC)
 		{
-		  /* TODO: How should this be mangled when the pack is already
-		     expanded?  */
-		  sorry ("mangling type pack index");
-		  break;
+		  write_char ('J');
+		  for (int i = 0; i < TREE_VEC_LENGTH (PACK_INDEX_PACK (type));
+		       ++i)
+		    write_template_arg (TREE_VEC_ELT (PACK_INDEX_PACK (type),
+						      i));
+		  write_char ('E');
 		}
-	      write_string ("Dy");
-	      /* Dy rather than DyDp.  */
-	      write_type (PACK_EXPANSION_PATTERN (PACK_INDEX_PACK (type)));
+	      else
+		/* Dy rather than DyDp.  */
+		write_type (PACK_EXPANSION_PATTERN (PACK_INDEX_PACK (type)));
 	      write_expression (PACK_INDEX_INDEX (type));
 	      break;
 
@@ -3614,17 +3617,19 @@ write_expression (tree expr)
   else if (code == PACK_INDEX_EXPR)
     {
       /* https://github.com/itanium-cxx-abi/cxx-abi/issues/175.  */
+      write_string ("sy");
       if (TREE_CODE (PACK_INDEX_PACK (expr)) == TREE_VEC)
-	/* TODO: How should this be mangled when the pack is already
-	   expanded?  */
-	sorry ("mangling type pack index");
-      else
 	{
-	  write_string ("sy");
-	  /* sy rather than sysp.  */
-	  write_expression (PACK_EXPANSION_PATTERN (PACK_INDEX_PACK (expr)));
-	  write_expression (PACK_INDEX_INDEX (expr));
+	  write_char ('J');
+	  for (int i = 0; i < TREE_VEC_LENGTH (PACK_INDEX_PACK (expr));
+	       ++i)
+	    write_template_arg (TREE_VEC_ELT (PACK_INDEX_PACK (expr), i));
+	  write_char ('E');
 	}
+      else
+	/* sy rather than sysp.  */
+	write_expression (PACK_EXPANSION_PATTERN (PACK_INDEX_PACK (expr)));
+      write_expression (PACK_INDEX_INDEX (expr));
     }
   else if (TREE_CODE (expr) == ALIGNOF_EXPR)
     {
