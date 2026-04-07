@@ -14334,37 +14334,43 @@ proc check_effective_target___OPTIMIZE__ {} {
 # Return 1 if python3 (>= 3.6) is available.
 
 proc check_effective_target_recent_python3 { } {
-    set result [remote_exec host "python3 -c \"import sys; assert sys.version_info >= (3, 6)\""]
-    set status [lindex $result 0]
-    if { $status == 0 } then {
-	return 1;
-    } else {
-	return 0;
-    }
+    return [check_cached_effective_target recent_python3 {
+	set result [remote_exec host "python3 -c \"import sys; assert sys.version_info >= (3, 6)\""]
+	set status [lindex $result 0]
+	if { $status == 0 } then {
+	    return 1;
+	} else {
+	    return 0;
+	}
+    }]
 }
 
 # Return 1 if python3 contains a module
 
 proc check_effective_target_python3_module { module } {
-    set result [remote_exec host "python3 -c \"import $module\""]
-    set status [lindex $result 0]
-    if { $status == 0 } then {
-	return 1;
-    } else {
-	return 0;
-    }
+    return [check_cached_effective_target python3_module_$module {
+	set result [remote_exec host "python3 -c \"import $module\""]
+	set status [lindex $result 0]
+	if { $status == 0 } then {
+	    return 1;
+	} else {
+	    return 0;
+	}
+    }]
 }
 
 # Return 1 if pytest module is available for python3.
 
 proc check_effective_target_pytest3 { } {
-    set result [remote_exec host "python3 -m pytest --color=no -rap -s --tb=no --version"]
-    set status [lindex $result 0]
-    if { $status == 0 } then {
-	return 1;
-    } else {
-	return 0;
-    }
+    return [check_cached_effective_target pytest3 {
+	set result [remote_exec host "python3 -m pytest --color=no -rap -s --tb=no --version"]
+	set status [lindex $result 0]
+	if { $status == 0 } then {
+	    return 1;
+	} else {
+	    return 0;
+	}
+    }]
 }
 
 proc check_effective_target_property_1_needed { } {
