@@ -30,6 +30,11 @@
 --  content of entities in the tree, so this package is used for routines that
 --  require more than minimal semantic knowledge.
 
+--  However, this package is in the closure of the binder executable. If you're
+--  looking for the home of a new helper function that uses significant
+--  semantic knowledge, Sem_Util, which is not in the closure of the binder
+--  executable, will be a more convenient place.
+
 with Alloc;
 with Einfo.Entities; use Einfo.Entities;
 with Namet; use Namet;
