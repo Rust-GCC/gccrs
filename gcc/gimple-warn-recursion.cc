@@ -82,81 +82,99 @@ pass_warn_recursion::pass_warn_recursion (gcc::context *ctxt)
    there is no (recursive) call to M_FUNC.  */
 
 bool
-pass_warn_recursion::find_function_exit (basic_block bb)
+pass_warn_recursion::find_function_exit (basic_block bb_start)
 {
-  if (!bitmap_set_bit (m_visited, bb->index))
-    return false;
+  /* work item list of BB's, presized with average size.  */
+  auto_vec<basic_block, 3> worklist;
+  worklist.safe_push (bb_start);
 
-  if (bb == EXIT_BLOCK_PTR_FOR_FN (m_func))
-    return true;
-
-  /* Iterate over statements in BB, looking for a call to FNDECL.  */
-  for (auto si = gsi_start_bb (bb); !gsi_end_p (si); gsi_next_nondebug (&si))
+  while (!worklist.is_empty ())
     {
-      gimple *stmt = gsi_stmt (si);
-      if (!is_gimple_call (stmt))
+      const auto &bb = worklist.pop ();
+      bool nextBB = false;
+      if (!bitmap_set_bit (m_visited, bb->index))
 	continue;
 
-      if (gimple_call_builtin_p (stmt, BUILT_IN_LONGJMP))
-	/* A longjmp breaks infinite recursion.  */
+      if (bb == EXIT_BLOCK_PTR_FOR_FN (m_func))
 	return true;
 
-      if (tree fndecl = gimple_call_fndecl (stmt))
+      /* Iterate over statements in BB, looking for a call to FNDECL.  */
+      for (auto si = gsi_start_bb (bb); !gsi_end_p (si);
+	   gsi_next_nondebug (&si))
 	{
-	  /* A throw statement breaks infinite recursion.  */
-	  tree id = DECL_NAME (fndecl);
-	  const char *name = IDENTIFIER_POINTER (id);
-	  if (startswith (name, "__cxa_throw"))
-	    return true;
-	  /* As does a call to POSIX siglongjmp.  */
-	  if (!strcmp (name, "siglongjmp"))
+	  gimple *stmt = gsi_stmt (si);
+	  if (!is_gimple_call (stmt))
+	    continue;
+
+	  if (gimple_call_builtin_p (stmt, BUILT_IN_LONGJMP))
+	    /* A longjmp breaks infinite recursion.  */
 	    return true;
 
-	  if (m_built_in
-	      && gimple_call_builtin_p (stmt, BUILT_IN_NORMAL)
-	      && m_built_in == DECL_FUNCTION_CODE (fndecl))
+	  if (tree fndecl = gimple_call_fndecl (stmt))
 	    {
-	      const char *cname
-		= IDENTIFIER_POINTER (DECL_NAME (current_function_decl));
-	      /* Don't warn about gnu_inline extern inline function
-		 like strcpy calling __builtin_strcpy, that is fine,
-		 if some call is made (the builtin isn't expanded inline),
-		 a call is made to the external definition.  */
-	      if (!(DECL_DECLARED_INLINE_P (current_function_decl)
-		    && DECL_EXTERNAL (current_function_decl))
-		  || strcmp (name, cname) == 0)
+	      /* A throw statement breaks infinite recursion.  */
+	      tree id = DECL_NAME (fndecl);
+	      const char *name = IDENTIFIER_POINTER (id);
+	      if (startswith (name, "__cxa_throw"))
+		return true;
+	      /* As does a call to POSIX siglongjmp.  */
+	      if (!strcmp (name, "siglongjmp"))
+		return true;
+
+	      if (m_built_in
+		  && gimple_call_builtin_p (stmt, BUILT_IN_NORMAL)
+		  && m_built_in == DECL_FUNCTION_CODE (fndecl))
 		{
-		  /* The call is being made from the definition of a built-in
-		     (e.g., in a replacement of one) to itself.  */
-		  m_calls->safe_push (stmt);
-		  return false;
+		  const char *cname
+		    = IDENTIFIER_POINTER (DECL_NAME (current_function_decl));
+		  /* Don't warn about gnu_inline extern inline function
+		       like strcpy calling __builtin_strcpy, that is fine,
+		       if some call is made (the builtin isn't expanded inline),
+		       a call is made to the external definition.  */
+		  if (!(DECL_DECLARED_INLINE_P (current_function_decl)
+		      && DECL_EXTERNAL (current_function_decl))
+		      || strcmp (name, cname) == 0)
+		    {
+		      /* The call is being made from the definition of a
+			   built-in (e.g., in a replacement of one) to itself.
+		       */
+		      m_calls->safe_push (stmt);
+		      nextBB = true;
+		      break;
+		    }
 		}
 	    }
+
+	  if (noreturn_p)
+	    {
+	      /* A noreturn call breaks infinite recursion.  */
+	      int flags = gimple_call_flags (stmt);
+	      if (flags & ECF_NORETURN)
+		return true;
+	    }
+
+	  tree callee = gimple_call_fndecl (stmt);
+	  if (!callee || m_func->decl != callee)
+	    continue;
+
+	  /* Add the recursive call to the vector and return false.  */
+	  m_calls->safe_push (stmt);
+	  nextBB = true;
+	  break;
 	}
+	if (nextBB)
+	  continue;
 
-      if (noreturn_p)
-	{
-	  /* A noreturn call breaks infinite recursion.  */
-	  int flags = gimple_call_flags (stmt);
-	  if (flags & ECF_NORETURN)
-	    return true;
-	}
+	/* If no call to FNDECL has been found search all BB's successors.  */
+	/* Add more BB's to check for on demand.  */
+	edge e;
+	edge_iterator ei;
 
-      tree callee = gimple_call_fndecl (stmt);
-      if (!callee || m_func->decl != callee)
-	continue;
+	FOR_EACH_EDGE (e, ei, bb->succs)
+	  if (!bitmap_bit_p (m_visited, e->dest->index))
+	    worklist.safe_push (e->dest);
 
-      /* Add the recursive call to the vector and return false.  */
-      m_calls->safe_push (stmt);
-      return false;
     }
-
-  /* If no call to FNDECL has been found search all BB's successors.  */
-  edge e;
-  edge_iterator ei;
-  FOR_EACH_EDGE (e, ei, bb->succs)
-    if (find_function_exit (e->dest))
-      return true;
 
   return false;
 }
