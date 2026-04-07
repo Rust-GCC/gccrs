@@ -302,6 +302,7 @@ static inline bool
 vect_match_expression_p (slp_tree node, code_helper code)
 {
   if (!node
+      || SLP_TREE_PERMUTE_P (node)
       || !SLP_TREE_REPRESENTATIVE (node))
     return false;
 
