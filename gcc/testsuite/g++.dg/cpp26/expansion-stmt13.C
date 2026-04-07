@@ -1,5 +1,6 @@
 // C++26 P1306R5 - Expansion statements
-// { dg-do run { target c++11 } }
+// { dg-do run { target c++14 } }
+// { dg-do compile { target c++11_only } }
 // { dg-options "" }
 
 namespace std {
@@ -11,7 +12,7 @@ struct S { int s; };
 constexpr S c[] = { { 3 }, { 4 }, { 5 }, { 6 }, { 7 } };
 struct U {
   constexpr const S *begin () const { return &c[0]; }
-  constexpr const S *end () const { return &c[s]; }
+  constexpr const S *end () const { return &c[s]; }	// { dg-error "is not usable in a constant expression" "" { target c++11_down } }
   int s;
 };
 constexpr U u1 = { 3 }, u2 = { 0 };
@@ -45,7 +46,7 @@ foo ()
   template for (auto h = 2; constexpr auto g : u1)	// { dg-warning "'template for' only available with" "" { target c++23_down } }
     r += g.s + h;
   template for (long long h = ++r; auto g : u2)		// { dg-warning "'template for' only available with" "" { target c++23_down } }
-    __builtin_abort ();
+    __builtin_abort ();					// { dg-message "was not declared 'constexpr'" "" { target c++11_down } }
   return r;
 }
 

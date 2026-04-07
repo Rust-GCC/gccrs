@@ -30,7 +30,7 @@ foo ()
   for (auto i : N::S {})		// { dg-error "call of overloaded 'begin\\\(N::S\\\&\\\)' is ambiguous" }
     ;
   template for (auto i : N::S {})
-    ;					// { dg-error "call of overloaded 'begin\\\(const N::S\\\&\\\)' is ambiguous" }
+    ;					// { dg-error "call of overloaded 'begin\\\(N::S\\\&\\\)' is ambiguous" }
   template for (auto i : V {})
     ;					// { dg-error "cannot be used as a function" }
   template for (auto i : O::B {})

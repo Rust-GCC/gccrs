@@ -15854,16 +15854,17 @@ cp_parser_range_for (cp_parser *parser, tree scope, tree init, tree range_decl,
    builds up the range temporary.  */
 
 tree
-build_range_temp (tree range_expr, bool expansion_stmt_p /* = false */)
+build_range_temp (tree range_expr, tree expansion_stmt_decl /* = NULL_TREE */)
 {
   tree range_type, auto_node;
 
-  if (expansion_stmt_p)
+  if (expansion_stmt_decl)
     {
       /* Build const decltype(auto) __range = range_expr;
 	 - range_expr provided by the caller already is (range_expr).  */
-      auto_node = make_decltype_auto ();
-      range_type = cp_build_qualified_type (auto_node, TYPE_QUAL_CONST);
+      range_type = auto_node = make_decltype_auto ();
+      if (DECL_DECLARED_CONSTEXPR_P (expansion_stmt_decl))
+	range_type = cp_build_qualified_type (auto_node, TYPE_QUAL_CONST);
     }
   else
     {
@@ -16007,11 +16008,13 @@ warn_for_range_copy (tree decl, tree expr)
 
 /* Helper function for cp_convert_range_for and finish_expansion_stmt.
    Build the __range, __begin and __end declarations.  Return the
-   __begin VAR_DECL, set *END_P to the __end VAR_DECL.  */
+   __begin VAR_DECL, set *END_P to the __end VAR_DECL.  If
+   EXPANSION_STMT_DECL, don't create __end and instead store
+   begin_expr to END_P[0] and end_expr to END_P[1].  */
 
 tree
 cp_build_range_for_decls (location_t loc, tree range_expr, tree *end_p,
-			  bool expansion_stmt_p)
+			  tree expansion_stmt_decl)
 {
   tree iter_type, begin_expr, end_expr;
 
@@ -16023,30 +16026,34 @@ cp_build_range_for_decls (location_t loc, tree range_expr, tree *end_p,
     {
       tree range_temp;
 
-      if (!expansion_stmt_p
+      if (!expansion_stmt_decl
 	  && VAR_P (range_expr)
 	  && array_of_runtime_bound_p (TREE_TYPE (range_expr)))
 	/* Can't bind a reference to an array of runtime bound.  */
 	range_temp = range_expr;
       else
 	{
-	  if (expansion_stmt_p)
+	  if (expansion_stmt_decl)
 	    {
 	      /* Build constexpr decltype(auto) __for_range = (range_expr);  */
 	      location_t range_loc = cp_expr_loc_or_loc (range_expr, loc);
 	      range_expr
 		= finish_parenthesized_expr (cp_expr (range_expr, range_loc));
-	      range_temp = build_range_temp (range_expr, true);
+	      range_temp = build_range_temp (range_expr, expansion_stmt_decl);
 
 	      /* When P2686R4 is fully implemented, these 3 sets of TREE_STATIC
 		 (on range_temp, begin and end) should be removed as per
-		 CWG3044.  */
-	      TREE_STATIC (range_temp) = 1;
-	      TREE_PUBLIC (range_temp) = 0;
-	      DECL_COMMON (range_temp) = 0;
-	      DECL_INTERFACE_KNOWN (range_temp) = 1;
-	      DECL_DECLARED_CONSTEXPR_P (range_temp) = 1;
-	      TREE_READONLY (range_temp) = 1;
+		 CWG3044.  If expansion_stmt_decl is not constexpr, we don't
+		 need the static though.  */
+	      if (DECL_DECLARED_CONSTEXPR_P (expansion_stmt_decl))
+		{
+		  TREE_STATIC (range_temp) = 1;
+		  TREE_PUBLIC (range_temp) = 0;
+		  DECL_COMMON (range_temp) = 0;
+		  DECL_INTERFACE_KNOWN (range_temp) = 1;
+		  DECL_DECLARED_CONSTEXPR_P (range_temp) = 1;
+		  TREE_READONLY (range_temp) = 1;
+		}
 	    }
 	  else
 	    /* Build auto &&__for_range = range_expr;  */
@@ -16063,12 +16070,14 @@ cp_build_range_for_decls (location_t loc, tree range_expr, tree *end_p,
     }
 
   /* The new for initialization statement.  */
-  if (expansion_stmt_p && !TYPE_REF_P (iter_type))
+  if (expansion_stmt_decl
+      && DECL_DECLARED_CONSTEXPR_P (expansion_stmt_decl)
+      && !TYPE_REF_P (iter_type))
     iter_type = cp_build_qualified_type (iter_type, TYPE_QUAL_CONST);
   tree begin = build_decl (loc, VAR_DECL, for_begin__identifier, iter_type);
   TREE_USED (begin) = 1;
   DECL_ARTIFICIAL (begin) = 1;
-  if (expansion_stmt_p)
+  if (expansion_stmt_decl && DECL_DECLARED_CONSTEXPR_P (expansion_stmt_decl))
     {
       TREE_STATIC (begin) = 1;
       DECL_DECLARED_CONSTEXPR_P (begin) = 1;
@@ -16079,21 +16088,18 @@ cp_build_range_for_decls (location_t loc, tree range_expr, tree *end_p,
 		  /*is_constant_init*/false, NULL_TREE,
 		  LOOKUP_ONLYCONVERTING);
 
-  if (cxx_dialect >= cxx17)
+  if (expansion_stmt_decl)
     {
-      iter_type = cv_unqualified (TREE_TYPE (end_expr));
-      if (expansion_stmt_p && !TYPE_REF_P (iter_type))
-	iter_type = cp_build_qualified_type (iter_type, TYPE_QUAL_CONST);
+      end_p[0] = begin_expr;
+      end_p[1] = end_expr;
+      return begin;
     }
+
+  if (cxx_dialect >= cxx17)
+    iter_type = cv_unqualified (TREE_TYPE (end_expr));
   tree end = build_decl (loc, VAR_DECL, for_end__identifier, iter_type);
   TREE_USED (end) = 1;
   DECL_ARTIFICIAL (end) = 1;
-  if (expansion_stmt_p)
-    {
-      TREE_STATIC (end) = 1;
-      DECL_DECLARED_CONSTEXPR_P (end) = 1;
-      TREE_READONLY (end) = 1;
-    }
   pushdecl (end);
   cp_finish_decl (end, end_expr,
 		  /*is_constant_init*/false, NULL_TREE,
@@ -16149,7 +16155,7 @@ cp_convert_range_for (tree statement, tree range_decl, tree range_expr,
   if (range_decl == error_mark_node)
     range_expr = error_mark_node;
   tree begin
-    = cp_build_range_for_decls (input_location, range_expr, &end, false);
+    = cp_build_range_for_decls (input_location, range_expr, &end, NULL_TREE);
 
   finish_init_stmt (statement);
 

@@ -22,6 +22,8 @@ namespace N
 void
 foo ()
 {
-  template for (auto i : N::B {})				// { dg-warning "'template for' only available with" "" { target c++23_down } }
+  template for (constexpr auto i : N::B {})			// { dg-warning "'template for' only available with" "" { target c++23_down } }
     ;								// { dg-error "no match for 'operator-' in '__for_begin  - __for_begin ' \\\(operand types are 'const A' and 'const A'\\\)" "" { target *-*-* } .-1 }
+  template for (auto i : N::B {})				// { dg-warning "'template for' only available with" "" { target c++23_down } }
+    ;								// { dg-error "no match for 'operator-' in '__for_begin  - __for_begin ' \\\(operand types are 'A' and 'A'\\\)" "" { target *-*-* } .-1 }
 }

@@ -33334,34 +33334,52 @@ finish_expansion_stmt (tree expansion_stmt, tree args,
   if (kind == esk_iterating)
     {
       /* Iterating expansion statements.  */
-      tree end;
-      begin = cp_build_range_for_decls (loc, expansion_init, &end, true);
-      if (!error_operand_p (begin) && !error_operand_p (end))
+      tree exprs[2];
+      begin = cp_build_range_for_decls (loc, expansion_init, exprs, range_decl);
+      if (!error_operand_p (begin)
+	  && !error_operand_p (exprs[0])
+	  && !error_operand_p (exprs[1]))
 	{
 	  /* In the standard this is all evaluated inside of a consteval
 	     lambda.  So, force in_immediate_context () around this.  */
 	  in_consteval_if_p_temp_override icip;
 	  in_consteval_if_p = true;
-	  tree i
-	    = build_target_expr_with_type (begin,
-					   cv_unqualified (TREE_TYPE (begin)),
-					   tf_warning_or_error);
+	  tree b = exprs[0], e = exprs[1];
+	  /* The begin-expr and end-expr expressions will be usually wrapped
+	     in TARGET_EXPR if they return a class iterator.  The b
+	     and e artificial variables need to have cv-unqualified type
+	     so that e.g. b can be incremented, so unwrap the TARGET_EXPRs
+	     and force TARGET_EXPR with the cv-unqualified type which is
+	     a hack replacement for a VAR_DECL in a lambda.  */
+	  if (TREE_CODE (b) == TARGET_EXPR)
+	    b = TARGET_EXPR_INITIAL (b);
+	  if (TREE_CODE (e) == TARGET_EXPR)
+	    e = TARGET_EXPR_INITIAL (e);
+	  b = force_target_expr (cv_unqualified (TREE_TYPE (b)), b,
+				 tf_warning_or_error);
+	  e = force_target_expr (cv_unqualified (TREE_TYPE (e)), e,
+				 tf_warning_or_error);
 	  tree w = build_stmt (loc, WHILE_STMT, NULL_TREE, NULL_TREE,
 			       NULL_TREE, NULL_TREE, NULL_TREE);
 	  tree r = get_target_expr (build_zero_cst (ptrdiff_type_node));
-	  tree iinc = build_x_unary_op (loc, PREINCREMENT_EXPR,
-					TARGET_EXPR_SLOT (i), NULL_TREE,
+	  tree binc = build_x_unary_op (loc, PREINCREMENT_EXPR,
+					TARGET_EXPR_SLOT (b), NULL_TREE,
 					tf_warning_or_error);
 	  tree rinc = build2 (PREINCREMENT_EXPR, ptrdiff_type_node,
 			      TARGET_EXPR_SLOT (r),
 			      build_int_cst (ptrdiff_type_node, 1));
-	  WHILE_BODY (w) = build_compound_expr (loc, iinc, rinc);
-	  WHILE_COND (w) = build_x_binary_op (loc, NE_EXPR, i, ERROR_MARK,
-					      end, ERROR_MARK, NULL_TREE, NULL,
+	  WHILE_BODY (w) = build_compound_expr (loc, binc, rinc);
+	  WHILE_COND (w) = build_x_binary_op (loc, NE_EXPR, b, ERROR_MARK,
+					      e, ERROR_MARK, NULL_TREE, NULL,
 					      tf_warning_or_error);
-	  tree e = build_compound_expr (loc, r, i);
-	  e = build_compound_expr (loc, e, w);
-	  e = build_compound_expr (loc, e, TARGET_EXPR_SLOT (r));
+	  {
+	    warning_sentinel wur (warn_unused_result);
+	    e = build_compound_expr (loc, b, e);
+	    e = build_compound_expr (loc, r, e);
+	    e = build_compound_expr (loc, e, w);
+	    e = build_compound_expr (loc, e, TARGET_EXPR_SLOT (r));
+	  }
+	  e = fold_build_cleanup_point_expr (TREE_TYPE (e), e);
 	  e = cxx_constant_value (e);
 	  if (tree_fits_uhwi_p (e))
 	    n = tree_to_uhwi (e);
@@ -33486,13 +33504,18 @@ finish_expansion_stmt (tree expansion_stmt, tree args,
 				 tf_warning_or_error);
 	  auto_node = make_auto ();
 	  iter_type = do_auto_deduction (auto_node, iter_init, auto_node);
-	  if (!TYPE_REF_P (iter_type))
+	  if (DECL_DECLARED_CONSTEXPR_P (range_decl)
+	      && !TYPE_REF_P (iter_type))
 	    iter_type = cp_build_qualified_type (iter_type, TYPE_QUAL_CONST);
 	  iter = build_decl (loc, VAR_DECL, NULL_TREE, iter_type);
 	  TREE_USED (iter) = 1;
 	  DECL_ARTIFICIAL (iter) = 1;
-	  TREE_STATIC (iter) = 1;
-	  DECL_DECLARED_CONSTEXPR_P (iter) = 1;
+	  if (DECL_DECLARED_CONSTEXPR_P (range_decl))
+	    {
+	      TREE_STATIC (iter) = 1;
+	      DECL_DECLARED_CONSTEXPR_P (iter) = 1;
+	      TREE_READONLY (iter) = 1;
+	    }
 	  pushdecl (iter);
 	  cp_finish_decl (iter, iter_init, /*is_constant_init*/false,
 			  NULL_TREE, LOOKUP_ONLYCONVERTING);

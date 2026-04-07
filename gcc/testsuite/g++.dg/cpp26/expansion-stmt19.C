@@ -1,5 +1,6 @@
 // C++26 P1306R5 - Expansion statements
-// { dg-do run { target c++11 } }
+// { dg-do run { target c++14 } }
+// { dg-do compile { target c++11_only } }
 // { dg-options "" }
 
 namespace std {
@@ -18,7 +19,7 @@ template<int I> struct std::tuple_element <I, V> { using type = int; };
 constexpr V c[] = { { 3, 4 }, { 4, 5 }, { 5, 6 }, { 6, 7 }, { 7, 8 } };
 struct U {
   constexpr const V *begin () const { return &c[0]; }
-  constexpr const V *end () const { return &c[s]; }
+  constexpr const V *end () const { return &c[s]; }	// { dg-error "is not usable in a constant expression" "" { target c++11_down } }
   int s;
 };
 constexpr U u1 = { 3 }, u2 = { 0 };
@@ -51,6 +52,7 @@ foo ()
   template for (long long h = ++r; auto [...i, j] : u2)	// { dg-warning "'template for' only available with" "" { target c++23_down } }
     __builtin_abort ();					// { dg-warning "structured bindings only available with" "" { target c++14_down } .-1 }
 							// { dg-warning "structured binding packs only available with" "" { target { c++17 && c++23_down } } .-2 }
+							// { dg-message "was not declared 'constexpr'" "" { target c++11_down } .-3 }
   return r;
 }
 

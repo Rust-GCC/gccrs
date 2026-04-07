@@ -49,12 +49,11 @@ foo ()
   template for (constexpr auto g : d)	// { dg-warning "'template for' only available with" "" { target c++23_down } }
     ;					// { dg-error "'d' is not a constant expression" "" { target c++14 } .-1 }
 					// { dg-error "call to non-'constexpr' function 'const A\\\* C::begin\\\(\\\) const'" "" { target c++11_down } .-1 }
-					// { dg-error "call to non-'constexpr' function 'const A\\\* C::end\\\(\\\) const'" "" { target c++11_down } .-2 }
-					// { dg-error "the type 'const C' of 'constexpr' variable '__for_range ' is not literal" "" { target c++11_down } .-3 }
+					// { dg-error "the type 'const C' of 'constexpr' variable '__for_range ' is not literal" "" { target c++11_down } .-2 }
   constexpr D e = { 3 };
   template for (constexpr auto g : e)	// { dg-warning "'template for' only available with" "" { target c++23_down } }
     ;					// { dg-error "'e' is not a constant expression" "" { target c++14 } .-1 }
-					// { dg-error "call to non-'constexpr' function 'const A\\\* D::end\\\(\\\) const'" "" { target *-*-* } .-1 }
+					// { dg-error "call to non-'constexpr' function 'const A\\\* D::end\\\(\\\) const'" "" { target c++11_down } .-1 }
   constexpr E f = { 3 };
   template for (constexpr auto g : f)	// { dg-warning "'template for' only available with" "" { target c++23_down } }
     ;					// { dg-error "'f' is not a constant expression" "" { target c++14 } .-1 }

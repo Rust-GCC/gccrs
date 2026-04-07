@@ -8028,10 +8028,10 @@ extern tree clone_attrs				(tree);
 extern bool maybe_clone_body			(tree);
 
 /* In parser.cc */
-extern tree cp_build_range_for_decls (location_t, tree, tree *, bool);
+extern tree cp_build_range_for_decls (location_t, tree, tree *, tree);
 extern tree cp_convert_range_for (tree, tree, tree, cp_decomp *, bool,
 				  tree, bool);
-extern tree build_range_temp (tree, bool = false);
+extern tree build_range_temp (tree, tree = NULL_TREE);
 extern tree cp_perform_range_for_lookup	(tree, tree *, tree *,
 					 tsubst_flags_t = tf_warning_or_error);
 extern void cp_convert_omp_range_for (tree &, tree &, tree &,
