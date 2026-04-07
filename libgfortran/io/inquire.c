@@ -317,7 +317,7 @@ inquire_via_unit (st_parameter_inquire *iqp, gfc_unit *u)
 	    switch (u->flags.encoding)
 	      {
 	      case ENCODING_DEFAULT:
-		p = "UNDEFINED";
+		p = "DEFAULT";
 		break;
 	      case ENCODING_UTF8:
 		p = "UTF-8";
@@ -325,8 +325,8 @@ inquire_via_unit (st_parameter_inquire *iqp, gfc_unit *u)
 	      default:
 		internal_error (&iqp->common, "inquire_via_unit(): Bad encoding");
 	      }
-	    else
-	      p = "UNKNOWN";
+	  else
+	    p = "UNDEFINED";
 
 	  cf_strcpy (iqp->encoding, iqp->encoding_len, p);
 	}

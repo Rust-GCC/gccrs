@@ -1,5 +1,5 @@
-! { dg-do run )
-
+! { dg-do run }
+! { dg-options "-O0" }
 ! PR124543, test case derived from that in the PR with several
 ! corrections. Some of the logic which was inverted. Some INQUIRE
 ! statements were missing the EXISTS. Segfaults now fixed.
@@ -164,7 +164,7 @@ program inq_tests
   inquire (file=lfn, decimal=decimal, encoding=encoding, pos=pos,  &
       round=round, sign=signc, stream=stream, iostat=iostat)
   if  (decimal /= 'POINT' .or. (iostat /= 0)) stop 166
-  if  (encoding /= 'UNKNOWN') stop 167
+  if  (encoding /= 'DEFAULT') stop 167
   if  (round /= 'PROCESSOR_DEFINED') stop 168
   if  (signc /= 'PROCESSOR_DEFINED') stop 169
   if  (stream /= 'NO') stop 170
@@ -202,7 +202,7 @@ program inq_tests
   inquire (unit=lun, decimal=decimal, encoding=encoding, pos=pos,  &
       round=round, sign=signc, stream=stream, iostat=iostat)
   if  (decimal /= 'POINT' .or. (iostat /= 0)) stop 204
-  if  (encoding /= 'UNDEFINED') stop 205
+  if  (encoding /= 'DEFAULT') stop 205
   if  (round /= 'PROCESSOR_DEFINED') stop 206
   if  (signc /= 'PROCESSOR_DEFINED') stop 207
   if  (stream /= 'NO') stop 208
@@ -246,7 +246,7 @@ program inq_tests
   inquire (file=lfn, decimal=decimal, encoding=encoding, pos=pos,  &
       round=round, sign=signc, stream=stream, recl=recl, iostat=iostat)
   if  (decimal /= 'UNDEFINED' .or. (iostat /= 0)) stop 248
-  if  (encoding /= 'UNKNOWN') stop 249
+  if  (encoding /= 'UNDEFINED') stop 249
   if  (round /= 'PROCESSOR_DEFINED') stop 250
   if  (signc /= 'PROCESSOR_DEFINED') stop 251
   if  (stream /= 'YES') stop 252
