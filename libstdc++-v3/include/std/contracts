@@ -33,6 +33,7 @@
 #pragma GCC system_header
 
 #define __glibcxx_want_contracts
+#define __glibcxx_want_replaceable_contract_violation_handler
 #include <bits/version.h>
 
 #ifdef __cpp_lib_contracts

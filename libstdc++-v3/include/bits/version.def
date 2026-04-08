@@ -2350,6 +2350,21 @@ ftms = {
 };
 
 ftms = {
+  name = replaceable_contract_violation_handler;
+  values = {
+    v = 202603;
+    cxxmin = 26;
+    extra_cond = "__cpp_contracts >= 202502L "
+    "&& __ELF__";
+  };
+  values = {
+    v = 0;
+    cxxmin = 26;
+    extra_cond = "__cpp_contracts >= 202502L";
+  };
+};
+
+ftms = {
   name = simd;
   values = {
     no_stdname = true; // TODO: change once complete
