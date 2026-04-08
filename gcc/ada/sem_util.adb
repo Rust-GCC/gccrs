@@ -25981,7 +25981,19 @@ package body Sem_Util is
 
          if Reporting then
             if Is_Entity_Name (Name (N)) then
-               Error_Msg_N ("too many arguments in call to&", Name (N));
+               if Ekind (S) = E_Enumeration_Literal then
+                  Error_Msg_N ("cannot index enumeration literal &", Name (N));
+                  if Present (Homonym (S))
+                    and then Sloc (Homonym (S)) = Standard_Location
+                  then
+                     Error_Msg_NE
+                       ("\\did you mean & in Standard'?",
+                        Name (N),
+                        Homonym (S));
+                  end if;
+               else
+                  Error_Msg_N ("too many arguments in call to&", Name (N));
+               end if;
             else
                Error_Msg_N ("too many arguments in call", N);
             end if;
