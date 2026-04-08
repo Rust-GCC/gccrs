@@ -6434,8 +6434,9 @@ eval_current_function (location_t loc, const constexpr_ctx *ctx,
   tree scope = reflect_current_scope (loc, ctx, call, non_constant_p,
 				      "std::meta::current_function");
   if (TREE_CODE (scope) != FUNCTION_DECL)
-    throw_exception (loc, ctx, "current scope does not represent a function",
-		     fun, non_constant_p, jump_target);
+    return throw_exception (loc, ctx,
+			    "current scope does not represent a function",
+			    fun, non_constant_p, jump_target);
   return get_reflection_raw (loc, scope);
 }
 
@@ -6453,9 +6454,10 @@ eval_current_class (location_t loc, const constexpr_ctx *ctx,
       && TYPE_P (DECL_CONTEXT (scope)))
     scope = DECL_CONTEXT (scope);
   if (!CLASS_TYPE_P (scope))
-    throw_exception (loc, ctx, "current scope does not represent a class"
-			       " nor a member function",
-		     fun, non_constant_p, jump_target);
+    return throw_exception (loc, ctx,
+			    "current scope does not represent a class"
+			    " nor a member function",
+			    fun, non_constant_p, jump_target);
   return get_reflection_raw (loc, scope);
 }
 
