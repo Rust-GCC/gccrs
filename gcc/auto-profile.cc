@@ -1372,7 +1372,9 @@ function_instance::merge (function_instance *other,
     head_count_ += other->head_count_;
 
   /* While merging timestamps, set the one that occurs earlier.  */
-  if (other->timestamp () < timestamp ())
+  if (timestamp () == 0
+      || (other->timestamp () > 0
+	  && other->timestamp () < timestamp ()))
     set_timestamp (other->timestamp ());
 
   bool changed = true;
