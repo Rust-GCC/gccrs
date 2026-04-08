@@ -312,6 +312,8 @@ proc filter_libphobos_unittests { list } {
 proc libphobos_skipped_test_p { test } {
     global libphobos_skip_tests
 
+    # Extract test name.
+    set test [lindex $test 0]
     set row [lsearch -inline -index 0 $libphobos_skip_tests $test]
     if { $row eq "" } {
 	return ""
