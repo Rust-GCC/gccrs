@@ -11025,7 +11025,8 @@ cp_finish_decomp (tree decl, cp_decomp *decomp, bool test_p)
 		  maybe_push_decl (t);
 		  /* Save the decltype away before reference collapse.  */
 		  hash_map_safe_put<hm_ggc> (decomp_type_table, t, eltype);
-		  eltype = cp_build_reference_type (eltype, !lvalue_p (init));
+		  if (glvalue_p (init))
+		    eltype = cp_build_reference_type (eltype, !lvalue_p (init));
 		  TREE_TYPE (t) = eltype;
 		  layout_decl (t, 0);
 		  DECL_HAS_VALUE_EXPR_P (t) = 0;
@@ -11070,7 +11071,8 @@ cp_finish_decomp (tree decl, cp_decomp *decomp, bool test_p)
 	    }
 	  /* Save the decltype away before reference collapse.  */
 	  hash_map_safe_put<hm_ggc> (decomp_type_table, v[i], eltype);
-	  eltype = cp_build_reference_type (eltype, !lvalue_p (init));
+	  if (glvalue_p (init))
+	    eltype = cp_build_reference_type (eltype, !lvalue_p (init));
 	  TREE_TYPE (v[i]) = eltype;
 	  layout_decl (v[i], 0);
 	  if (DECL_HAS_VALUE_EXPR_P (v[i]))
