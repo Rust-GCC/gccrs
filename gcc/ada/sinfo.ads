@@ -749,20 +749,6 @@ package Sinfo is
    --    how this field is used, as well as the description of the specific use
    --    for a particular node type.
 
-   --  Activation_Chain_Entity
-   --    This is used in tree nodes representing task activators (blocks,
-   --    subprogram bodies, package declarations, and task bodies). It is
-   --    initially Empty, and then gets set to point to the entity for the
-   --    declared Activation_Chain variable when the first task is declared.
-   --    When tasks are declared in the corresponding declarative region this
-   --    entity is located by name (its name is always _Chain) and the declared
-   --    tasks are added to the chain. Note that N_Extended_Return_Statement
-   --    also has this attribute, although it is not really a task activator:
-   --    this chain is only used to store the tasks temporarily, and is not
-   --    used for activating them. On successful completion of the return
-   --    statement, the tasks are moved to the caller's chain, and the caller
-   --    activates them.
-
    --  Acts_As_Spec
    --    A flag set in the N_Subprogram_Body node for a subprogram body which
    --    is acting as its own spec. In the case of a library-level subprogram
@@ -5199,7 +5185,6 @@ package Sinfo is
       --  Identifier block direct name (set to Empty if not present)
       --  Declarations (set to No_List if no DECLARE part)
       --  Handled_Statement_Sequence
-      --  Activation_Chain_Entity
       --  Cleanup_Actions
       --  At_End_Proc (set to Empty if no clean up procedure)
       --  Exception_Junk
@@ -5498,7 +5483,6 @@ package Sinfo is
       --  Specification
       --  Declarations
       --  Handled_Statement_Sequence
-      --  Activation_Chain_Entity
       --  Corresponding_Spec
       --  At_End_Proc (set to Empty if no clean up procedure)
       --  Acts_As_Spec
@@ -5695,7 +5679,6 @@ package Sinfo is
       --  Specification
       --  Corresponding_Body
       --  Parent_Spec
-      --  Activation_Chain_Entity
 
       --------------------------------
       -- 7.1  Package Specification --
@@ -6034,7 +6017,6 @@ package Sinfo is
       --  Declarations
       --  Handled_Statement_Sequence
       --  Is_Task_Master
-      --  Activation_Chain_Entity
       --  Corresponding_Spec
       --  Was_Originally_Stub
 
@@ -6218,7 +6200,6 @@ package Sinfo is
       --  Entry_Body_Formal_Part
       --  Declarations
       --  Handled_Statement_Sequence
-      --  Activation_Chain_Entity
       --  Corresponding_Spec
       --  At_End_Proc (set to Empty if no clean up procedure)
 

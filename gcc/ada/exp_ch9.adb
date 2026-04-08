@@ -995,7 +995,7 @@ package body Exp_Ch9 is
 
       --  If activation chain entity has not been declared already, create one
 
-      if No (Activation_Chain_Entity (Context)) then
+      if not Has_Activation_Chain_Entity (Context_Id) then
          declare
             Loc   : constant Source_Ptr := Sloc (Context);
             Chain : Entity_Id;
@@ -1003,8 +1003,6 @@ package body Exp_Ch9 is
 
          begin
             Chain := Make_Defining_Identifier (Sloc (N), Name_uChain);
-
-            Set_Activation_Chain_Entity (Context, Chain);
 
             Decl :=
               Make_Object_Declaration (Loc,
@@ -1024,6 +1022,8 @@ package body Exp_Ch9 is
             else
                Analyze (Decl);
             end if;
+
+            Set_Has_Activation_Chain_Entity (Context_Id);
          end;
       end if;
    end Build_Activation_Chain_Entity;
@@ -4395,6 +4395,9 @@ package body Exp_Ch9 is
       function Activation_Call_Loc return Source_Ptr;
       --  Find a suitable source location for the activation call
 
+      function Activation_Chain_Entity (N : Node_Id) return Entity_Id;
+      --  Return the entity of the activation chain associated with N
+
       -------------------------
       -- Activation_Call_Loc --
       -------------------------
@@ -4415,13 +4418,60 @@ package body Exp_Ch9 is
          end if;
       end Activation_Call_Loc;
 
+      -----------------------------
+      -- Activation_Chain_Entity --
+      -----------------------------
+
+      function Activation_Chain_Entity (N : Node_Id) return Entity_Id is
+         K      : constant Node_Kind := Nkind (N);
+         Def_Id : constant Entity_Id :=
+           (if K = N_Subprogram_Body and then Is_Task_Body_Procedure (N)
+            then Corresponding_Spec (Original_Node (N))
+            else Unique_Defining_Entity (N));
+         --  For task body procedures, the entity is chained on the task spec
+
+         E : Entity_Id;
+
+      begin
+         if not Has_Activation_Chain_Entity (Def_Id) then
+            return Empty;
+         end if;
+
+         E := First_Entity (Def_Id);
+         while Present (E) loop
+            exit when Chars (E) = Name_uChain;
+            Next_Entity (E);
+         end loop;
+
+         --  For package and subprogram bodies, entities first chained on the
+         --  spec may subsequently be moved to the body when they are created
+         --  during the analysis of the body, see the manipulation at the end
+         --  of Analyze_{Package,Subprogram}_Body_Helper.
+
+         if No (E)
+           and then K in N_Package_Body | N_Subprogram_Body
+           and then Present (Corresponding_Spec (N))
+         then
+            E := First_Entity (Defining_Entity (N));
+            while Present (E) loop
+               exit when Chars (E) = Name_uChain;
+               Next_Entity (E);
+            end loop;
+         end if;
+
+         --  The entity must be present if the flag is set
+
+         pragma Assert (Present (E));
+
+         return E;
+      end Activation_Chain_Entity;
+
       --  Local variables
 
       Chain : Entity_Id;
       Call  : Node_Id;
       Loc   : Source_Ptr;
       Name  : Node_Id;
-      Owner : Node_Id;
       Stmt  : Node_Id;
 
    --  Start of processing for Build_Task_Activation_Call
@@ -4443,25 +4493,16 @@ package body Exp_Ch9 is
          return;
       end if;
 
-      --  Obtain the activation chain entity. Block statements, entry bodies,
-      --  subprogram bodies, and task bodies keep the entity in their nodes.
-      --  Package bodies on the other hand store it in the declaration of the
-      --  corresponding package spec.
-
-      Owner := N;
-
-      if Nkind (Owner) = N_Package_Body then
-         Owner := Unit_Declaration_Node (Corresponding_Spec (Owner));
-      end if;
-
       --  An extended return statement is not really a task activator, but it
       --  does have an activation chain on which to store tasks temporarily.
       --  On successful return, the tasks on this chain are moved to the chain
       --  passed in by the caller.
 
-      pragma Assert (Nkind (Owner) /= N_Extended_Return_Statement);
+      pragma Assert (Nkind (N) /= N_Extended_Return_Statement);
 
-      Chain := Activation_Chain_Entity (Owner);
+      --  Obtain the activation chain entity
+
+      Chain := Activation_Chain_Entity (N);
 
       --  Nothing to do when there are no tasks to activate. This is indicated
       --  by a missing activation chain entity; also skip generating it when
@@ -4604,7 +4645,7 @@ package body Exp_Ch9 is
           Has_Created_Identifier   => True,
           Is_Task_Allocation_Block => True);
 
-      Set_Activation_Chain_Entity (Block, Chain);
+      Set_Has_Activation_Chain_Entity (Blkent);
 
       return Block;
    end Build_Task_Allocate_Block;
@@ -11334,16 +11375,15 @@ package body Exp_Ch9 is
    --  callings sequence is identical.
 
    procedure Expand_N_Task_Body (N : Node_Id) is
-      Loc   : constant Source_Ptr := Sloc (N);
-      Ttyp  : constant Entity_Id  := Corresponding_Spec (N);
-      Call  : Node_Id;
-      New_N : Node_Id;
+      Loc  : constant Source_Ptr := Sloc (N);
+      Ttyp : constant Entity_Id  := Corresponding_Spec (N);
 
+      Call       : Node_Id;
       Insert_Nod : Node_Id;
-      --  Used to determine the proper location of wrapper body insertions
+      New_N      : Node_Id;
 
    begin
-      --  if no task body procedure, means we had an error in configurable
+      --  If no task body procedure, means we had an error in configurable
       --  run-time mode, and there is no point in proceeding further.
 
       if No (Task_Body_Procedure (Ttyp)) then
@@ -11386,14 +11426,16 @@ package body Exp_Ch9 is
       Set_At_End_Proc (New_N, At_End_Proc (N));
 
       --  If the task contains generic instantiations, cleanup actions are
-      --  delayed until after instantiation. Transfer the activation chain to
-      --  the subprogram, to insure that the activation call is properly
-      --  generated. It the task body contains inner tasks, indicate that the
-      --  subprogram is a task master.
+      --  delayed until after instantiation. Propagate the activation chain
+      --  to the subprogram, to ensure that the activation call is properly
+      --  generated, and indicate that the subprogram body is a task master.
 
       if Delay_Cleanups (Ttyp) then
-         Set_Activation_Chain_Entity (New_N, Activation_Chain_Entity (N));
-         Set_Is_Task_Master  (New_N, Is_Task_Master (N));
+         Set_Has_Activation_Chain_Entity
+           (Task_Body_Procedure (Ttyp), Has_Activation_Chain_Entity (Ttyp));
+         Set_Has_Master_Entity
+           (Task_Body_Procedure (Ttyp), Has_Master_Entity (Ttyp));
+         Set_Is_Task_Master (New_N, Is_Task_Master (N));
       end if;
 
       Rewrite (N, New_N);
@@ -13051,7 +13093,7 @@ package body Exp_Ch9 is
             end if;
 
          elsif Nkind (Context) = N_Entry_Body then
-            Context_Id := Defining_Identifier (Context);
+            Context_Id := Corresponding_Spec (Context);
 
          elsif Nkind (Context) = N_Subprogram_Body then
             if Present (Corresponding_Spec (Context)) then

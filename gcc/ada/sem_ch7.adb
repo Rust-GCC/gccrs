@@ -2717,7 +2717,7 @@ package body Sem_Ch7 is
    begin
       if not Has_Completion (E)
         and then Nkind (P) = N_Package_Declaration
-        and then (Present (Activation_Chain_Entity (P)) or else Has_RACW (E))
+        and then (Has_Activation_Chain_Entity (E) or else Has_RACW (E))
       then
          B :=
            Make_Package_Body (Sloc (E),

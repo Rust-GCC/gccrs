@@ -1488,6 +1488,17 @@ package Einfo is
 --       for Ghost entities without an assertion level, or a user-defined
 --       assertion level.
 
+--    Has_Activation_Chain_Entity
+--       Defined in entities that can appear in the scope stack (see spec
+--       of Sem). It is set if an activation chain entity (_chain) has been
+--       declared and initialized in the corresponding scope.
+
+--       Note that E_Return_Statement also has this attribute, although it is
+--       not really a task activator: this chain is only used to store the
+--       tasks temporarily, and is not used for activating them. On successful
+--       completion of the return statement, the created tasks are moved onto
+--       the caller's chain, and the caller activates them.
+
 --    Has_Aliased_Components [implementation base type only]
 --       Defined in array type entities. Indicates that the component type
 --       of the array is aliased. Should this also be set for records to
@@ -5320,6 +5331,7 @@ package Einfo is
    --    Contains_Ignored_Ghost_Code
    --    Delay_Cleanups
    --    Discard_Names
+   --    Has_Activation_Chain_Entity
    --    Has_Master_Entity
    --    Has_Nested_Block_With_Handler
    --    Is_Exception_Handler
@@ -5632,6 +5644,7 @@ package Einfo is
    --    Delay_Cleanups
    --    Discard_Names
    --    Elaboration_Entity_Required
+   --    Has_Activation_Chain_Entity
    --    Has_Completion
    --    Has_Controlling_Result
    --    Has_Expanded_Contract                (non-generic case only)
@@ -5773,6 +5786,7 @@ package Einfo is
 
    --  E_Loop
    --    First_Exit_Statement
+   --    Has_Activation_Chain_Entity
    --    Has_Exit
    --    Has_Loop_Entry_Attributes
    --    Has_Master_Entity
@@ -5887,6 +5901,7 @@ package Einfo is
    --    Elaborate_Body_Desirable             (non-generic case only)
    --    Elaboration_Entity_Required
    --    From_Limited_With
+   --    Has_Activation_Chain_Entity
    --    Has_All_Calls_Remote
    --    Has_Completion
    --    Has_Forward_Instantiation
@@ -5998,6 +6013,7 @@ package Einfo is
    --    Default_Expressions_Processed
    --    Delay_Cleanups
    --    Discard_Names
+   --    Has_Activation_Chain_Entity
    --    Has_Completion
    --    Has_Expanded_Contract                (non-generic case only)
    --    Has_Master_Entity
@@ -6169,6 +6185,7 @@ package Einfo is
    --    Return_Applies_To
    --    First_Entity $$$
    --    Last_Entity $$$
+   --    Has_Activation_Chain_Entity
 
    --  E_Signed_Integer_Type
    --  E_Signed_Integer_Subtype
@@ -6254,6 +6271,7 @@ package Einfo is
    --    Contract
    --    SPARK_Aux_Pragma
    --    Delay_Cleanups
+   --    Has_Activation_Chain_Entity
    --    Has_Master_Entity
    --    Has_Storage_Size_Clause              (base type only)
    --    Ignore_SPARK_Mode_Pragmas

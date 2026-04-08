@@ -64,6 +64,7 @@ begin -- Gen_IL.Gen.Gen_Entities
         Sm (Freeze_Node, Node_Id),
         Sm (From_Limited_With, Flag),
         Sm (Ghost_Assertion_Level, Node_Id),
+        Sm (Has_Activation_Chain_Entity, Flag),
         Sm (Has_Aliased_Components, Flag, Impl_Base_Type_Only),
         Sm (Has_Alignment_Clause, Flag),
         Sm (Has_All_Calls_Remote, Flag),
