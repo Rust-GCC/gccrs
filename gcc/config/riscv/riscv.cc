@@ -15919,7 +15919,7 @@ synthesize_ior_xor (rtx_code code, rtx operands[3])
 {
   /* Trivial cases that don't need synthesis.  */
   if (SMALL_OPERAND (INTVAL (operands[2]))
-     || ((TARGET_ZBS || TARGET_ZBKB)
+     || (TARGET_ZBS
 	 && single_bit_mask_operand (operands[2], word_mode)))
     return false;
 
