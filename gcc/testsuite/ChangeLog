@@ -1,3 +1,128 @@
+2026-04-07  Christopher Albert  <albert@tugraz.at>
+
+	PR fortran/102430
+	* gfortran.dg/gomp/pr102430.f90: New test.
+
+2026-04-07  H.J. Lu  <hjl.tools@gmail.com>
+
+	PR target/124759
+	PR target/124789
+	* gcc.target/i386/pr124759.c: New test.
+
+2026-04-07  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR libfortran/124543
+	* gfortran.dg/pr124543.f90: Add the dg-options "-O0" to
+	reduce testing time. Adjust test for the change above.
+
+2026-04-07  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/124802
+	* gcc.dg/vect/vect-pr124802.c: New testcase.
+
+2026-04-07  Christopher Albert  <albert@tugraz.at>
+
+	PR fortran/103367
+	* gfortran.dg/pr103367.f90: New test.
+
+2026-04-07  Christopher Albert  <albert@tugraz.at>
+
+	PR fortran/104827
+	PR fortran/104827
+	* gfortran.dg/gomp/pr104827.f90: New test.
+
+2026-04-07  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/123700
+	* g++.dg/cpp2a/lambda-targ24.C: New test.
+	* g++.dg/cpp2a/lambda-targ24a.C: New test.
+
+2026-04-07  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/123529
+	PR c++/98930
+	* g++.dg/cpp1z/nontype9.C: New test.
+
+2026-04-07  Jakub Jelinek  <jakub@redhat.com>
+
+	* g++.dg/cpp26/expansion-stmt11.C: Expect some extra diagnostics for
+	C++11.
+	* g++.dg/cpp26/expansion-stmt13.C: Likewise.  Make it dg-do compile
+	test for c++11_only and dg-do run only for c++14 and above.
+	* g++.dg/cpp26/expansion-stmt16.C: Adjust expected diagnostics.
+	* g++.dg/cpp26/expansion-stmt19.C: Expect some extra diagnostics for
+	C++11.  Make it dg-do compile test for c++11_only and dg-do run only
+	for c++14 and above.
+	* g++.dg/cpp26/expansion-stmt25.C (foo): Test both constexpr
+	range-for-decl and non-constexpr, adjust expected diagnostics.
+	* g++.dg/cpp26/expansion-stmt30.C: Adjust expected diagnostics.
+	* g++.dg/cpp26/expansion-stmt35.C: New test.
+	* g++.dg/cpp26/expansion-stmt36.C: New test.
+	* g++.dg/cpp26/expansion-stmt37.C: New test.
+	* g++.dg/cpp26/expansion-stmt38.C: New test.
+
+2026-04-07  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/124487
+	* g++.dg/cpp26/pack-indexing9.C: Remove dg-sorry/dg-bogus, add
+	tests for mangled names and further test coverage.
+
+2026-04-07  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/124790
+	* g++.dg/reflect/pr124790.C: New test.
+
+2026-04-07  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/85352
+	* gfortran.dg/pr85352.f90: New test.
+
+2026-04-07  Torbjörn SVENSSON  <torbjorn.svensson@foss.st.com>
+
+	* lib/target-supports.exp
+	(check_effective_target_recent_python3): Cache result of check.
+	(check_effective_target_python3_module): Likewise.
+	(check_effective_target_pytest3): Likewise.
+
+2026-04-07  Christophe Lyon  <christophe.lyon@arm.com>
+
+	PR target/124704
+	* lib/target-supports.exp
+	(check_effective_target_vect_cmdline_neeed): Handle arm_mve
+	similarly to arm_neon.
+
+2026-04-07  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/124743
+	* gcc.dg/vect/vect-pr124743.c: New testcase.
+
+2026-04-07  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/107425
+	* gfortran.dg/gomp/pr107425.f90: New test.
+
+2026-04-07  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/124780
+	* gfortran.dg/pr124780.f90: New test.
+
+2026-04-07  Torbjörn SVENSSON  <torbjorn.svensson@foss.st.com>
+
+	* lib/target-supports.exp (check_fork_runtime): New function to
+	check that target has a working fork() implementation.
+	* lib/target-supports-dg.exp (dg-require-fork): When test is
+	"run", then call check_fork_runtime, else check_fork_available.
+
+2026-04-07  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/124598
+	* gfortran.dg/pdt_91.f03: New test.
+
+2026-04-07  Avinash Jayakar  <avinashd@linux.ibm.com>
+	    Surya Kumari Jangala  <jskumari@linux.ibm.com>
+
+	* gcc.target/powerpc/acmp-tst.c: New test.
+
 2026-04-06  Nathaniel Shead  <nathanieloshead@gmail.com>
 
 	PR libstdc++/124268

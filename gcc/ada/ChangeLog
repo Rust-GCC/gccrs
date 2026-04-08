@@ -1,3 +1,8 @@
+2026-04-07  Sandra Loosemore  <sloosemore@baylibre.com>
+
+	PR other/124784
+	* gcc-interface/lang.opt.urls: Regenerated.
+
 2026-04-05  Eric Botcazou  <ebotcazou@adacore.com>
 
 	* exp_ch6.adb (Expand_Simple_Function_Return): Use a constant return

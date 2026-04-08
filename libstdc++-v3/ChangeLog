@@ -1,3 +1,27 @@
+2026-04-07  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* config/abi/pre/gnu.ver (GLIBCXX_3.4): Make string exports
+	less greedy.
+	(GLIBCXX_3.4.35): Export basic_string default constructor and
+	starts_with and ends_with members.
+	* include/bits/basic_string.h: Update __cpluplus checks for C++20.
+	* include/bits/cow_string.h: Likewise.
+	* include/bits/basic_string.tcc: Declare explicit instantiations
+	for C++20 as well as earlier dialects.
+	* src/c++20/Makefile.am: Add cow-string-inst.cc and
+	string-inst.cc source files.
+	* src/c++20/Makefile.in: Regenerate.
+	* src/c++20/string-inst.cc: New file defining explicit
+	instantiations for basic_string default constructor and starts_with,
+	ends_with methods added in C++20
+	* src/c++20/cow-string-inst.cc: Version of above for cow-stings.
+
+2026-04-07  Matthias Kretz  <m.kretz@gsi.de>
+
+	PR libstdc++/124722
+	* testsuite/std/simd/traits_impl.cc (test): Make test() a
+	function template and instantiate it.
+
 2026-04-06  Matthias Kretz  <m.kretz@gsi.de>
 
 	PR libstdc++/124722

@@ -1,3 +1,81 @@
+2026-04-07  H.J. Lu  <hjl.tools@gmail.com>
+
+	PR target/124759
+	PR target/124789
+	* config/i386/i386.cc (ix86_need_alignment_p_2): New function.
+	Exclude memory with SYMBOLIC_CONST.
+	(ix86_need_alignment_p_1): Call ix86_need_alignment_p_2.
+	(ix86_find_max_used_stack_alignment): Restore
+	hard_stack_slot_access handling.
+
+2026-04-07  H.J. Lu  <hjl.tools@gmail.com>
+
+	* config/i386/i386.cc (ix86_need_alignment_p_1): Replace
+	GET_MODE_ALIGNMENT with MEM_ALIGN.
+
+2026-04-07  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/124802
+	* tree-vect-slp-patterns.cc (vect_match_expression_p): Fail
+	for SLP_TREE_PERMUTE_P.
+
+2026-04-07  Sandra Loosemore  <sloosemore@baylibre.com>
+
+	PR sanitizer/124170
+	* doc/invoke.texi (Option Summary) <Linker Options>: Add
+	-static-libhwasan and fix alphabetization of similar options.
+	(Link Options): Likewise.
+	* common.opt.urls: Regenerated.
+
+2026-04-07  Sandra Loosemore  <sloosemore@baylibre.com>
+
+	PR other/124784
+	* regenerate-opt-urls.py (canonicalize_option_name):  Remove one
+	of the dashes from option names starting with two dashes.
+	(test_parse_option_index): Add a self-test for this.
+	* common.opt.urls: Regenerated.
+	* config/picolibc.opt.urls: Regenerated.
+
+2026-04-07  Peter Damianov  <peter0x44@disroot.org>
+
+	* config/mingw/t-cygming: Remove obsolete STMP_FIXINC
+	override.
+
+2026-04-07  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/124743
+	* tree-vect-slp.cc (vect_schedule_slp_node): Schedule
+	loop invariant operations in the loop preheader.
+
+2026-04-07  Avinash Jayakar  <avinashd@linux.ibm.com>
+	    Surya Kumari Jangala  <jskumari@linux.ibm.com>
+
+	* config/rs6000/rs6000-builtin.cc (rs6000_expand_builtin): Add
+	logic to handle __builtin_ppc_atomic_cas_local.
+	* config/rs6000/rs6000-builtins.def: New builtins for
+	__builtin_ppc_atomic_cas_local with types.
+	* config/rs6000/rs6000-c.cc (altivec_build_resolved_builtin):
+	Handle builtins with up to 6 arguments.
+	* config/rs6000/rs6000-overload.def: Overload builtin for
+	signed/unsiged char, short, int, long, __int128.
+	* config/rs6000/rs6000-protos.h (rs6000_expand_atomic_compare_and_swap):
+	Add additional parameter 'local' to the prototype.
+	* config/rs6000/rs6000.cc (emit_load_locked): Add new parameter. Pass
+	new parameter to generate load-locked instruction.
+	(rs6000_expand_atomic_compare_and_swap): Add new parameter. Call
+	emit_load_locked() with additional parameter value of EH bit.
+	(rs6000_expand_atomic_exchange): Pass EH value 0 to emit_load_locked().
+	(rs6000_expand_atomic_op): Likewise.
+	* config/rs6000/sync.md (load_locked<mode>): Add new operand in RTL
+	template. Specify EH bit in the larx instruction.
+	(load_locked<QHI:mode>_si): Likewise.
+	(load_lockedpti): Likewise.
+	(load_lockedti): Add new operand in RTL template. Pass EH bit to
+	gen_load_lockedpti().
+	(atomic_compare_and_swap<mode>): Pass new parameter 'false' to
+	rs6000_expand_atomic_compare_and_swap.
+	(atomic_compare_and_swap_local<mode>): New define_expand.
+
 2026-04-06  Nathaniel Shead  <nathanieloshead@gmail.com>
 
 	PR libstdc++/124268

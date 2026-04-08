@@ -1,3 +1,54 @@
+2026-04-07  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/123700
+	* pt.cc (dependent_opaque_alias_p): Return true for a
+	template-id typedef with a lambda targ.
+
+2026-04-07  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/123529
+	PR c++/98930
+	* pt.cc (has_value_dependent_address): Correct context
+	dependence check for a static local variable.
+
+2026-04-07  Jakub Jelinek  <jakub@redhat.com>
+
+	* cp-tree.h: Implement C++26 CWG3140 - Allowing expansion over
+	non-constant std::array.
+	(cp_build_range_for_decls): Change last argument from bool to tree.
+	(build_range_temp): Likewise and default it to NULL_TREE rather than
+	false.
+	* parser.cc (build_range_temp): Remove expansion_stmt_p
+	argument, add expansion_stmt_decl.  Don't call cp_build_qualified_type
+	if expansion_stmt_decl was not declared constexpr.
+	(cp_build_range_for_decls): Remove expansion_stmt_p argument, add
+	expansion_stmt_decl.  Pass expansion_stmt_decl to build_range_temp.
+	Don't set TREE_STATIC, TREE_PUBLIC, DECL_COMMON, DECL_INTERFACE_KNOWN,
+	DECL_DECLARED_CONSTEXPR_P and TREE_READONLY on range_temp if
+	expansion_stmt_decl was not declared constexpr.  Don't call
+	cp_build_qualified_type on begin type nor set TREE_STATIC etc. on begin
+	if expansion_stmt_decl was not declared constexpr.  If
+	expansion_stmt_decl is non-NULL, don't build end at all, instead pass
+	begin_expr and end_expr in end_p[0] and end_p[1] to the caller.
+	(cp_convert_range_for): Adjust cp_build_range_for_decls caller.
+	* pt.cc (finish_expansion_stmt): Likewise.  Use begin_expr and end_expr
+	instead of begin and end variables from cp_build_range_for_decls,
+	make them non-constant and avoid spurious -Wunused-result/nodiscard
+	diagnostics.
+
+2026-04-07  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/124487
+	* mangle.cc (write_type) <case PACK_INDEX_TYPE>: Handle even
+	the case of partially substituted pack.
+	(write_expression): Similarly for PACK_INDEX_EXPR.
+
+2026-04-07  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/124790
+	* reflect.cc (get_reflection): When reflecting VAR_DECL or PARM_DECL,
+	call mark_exp_read on it.
+
 2026-04-06  Nathaniel Shead  <nathanieloshead@gmail.com>
 
 	PR libstdc++/124268
