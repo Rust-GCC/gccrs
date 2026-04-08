@@ -33582,9 +33582,7 @@ cp_parser_late_contract_condition (cp_parser *parser, tree fn, tree contract)
 
   /* If we have a current class object, we need to consider
      it const when processing the contract condition.  */
-  tree current_class_ref_copy = current_class_ref;
-  if (flag_contracts && current_class_ref_copy)
-    current_class_ref = view_as_const (current_class_ref_copy);
+  current_class_ref = view_as_const (current_class_ref);
 
   /* Parse the condition, ensuring that parameters or the return variable
      aren't flagged for use outside the body of a function.  */
@@ -33691,8 +33689,7 @@ cp_parser_contract_assert (cp_parser *parser, cp_token *token)
   /* If we have a current class object, see if we need to consider
      it const when processing the contract condition.  */
   tree current_class_ref_copy = current_class_ref;
-  if (current_class_ref_copy)
-    current_class_ref = view_as_const (current_class_ref_copy);
+  current_class_ref = view_as_const (current_class_ref);
 
   /* Parse the condition.  */
   begin_scope (sk_contract, current_function_decl);
@@ -33857,8 +33854,7 @@ cp_parser_function_contract_specifier (cp_parser *parser)
       /* If we have a current class object, see if we need to consider
        it const when processing the contract condition.  */
       tree current_class_ref_copy = current_class_ref;
-      if (current_class_ref_copy)
-      current_class_ref = view_as_const (current_class_ref_copy);
+      current_class_ref = view_as_const (current_class_ref);
 
       /* Parse the condition, ensuring that parameters or the return variable
        aren't flagged for use outside the body of a function.  */

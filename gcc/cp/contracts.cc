@@ -482,8 +482,10 @@ finish_contract_condition (cp_expr condition)
 tree
 view_as_const (tree decl)
 {
-  if (!contract_const_wrapper_p (decl))
+  if (decl
+      && !CP_TYPE_CONST_P (TREE_TYPE (decl)))
     {
+      gcc_checking_assert (!contract_const_wrapper_p (decl));
       tree ctype = TREE_TYPE (decl);
       location_t loc =
 	  EXPR_P (decl) ? EXPR_LOCATION (decl) : DECL_SOURCE_LOCATION (decl);
