@@ -138,7 +138,7 @@ static_assert(std::is_trivially_copy_assignable_v<std::inplace_vector<Z, 0>>);
 
 template<typename T, size_t N>
 constexpr bool
-eq(const std::inplace_vector<T, N>& s, std::span<const T> o)
+eq(const std::inplace_vector<T, N>& s, std::initializer_list<std::type_identity_t<T>> o)
 { return std::ranges::equal(s, o); }
 
 constexpr void
