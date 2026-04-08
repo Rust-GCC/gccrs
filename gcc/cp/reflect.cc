@@ -3706,13 +3706,14 @@ eval_display_string_of (location_t loc, const constexpr_ctx *ctx, tree r,
   if (str == NULL_TREE)
     {
       if (elt_type == char_type_node)
-	return throw_exception (loc, ctx, "identifier_of not representable"
+	return throw_exception (loc, ctx, "display_string_of not representable"
 					  " in ordinary literal encoding",
 				fun, non_constant_p, jump_target);
       else
-	return throw_exception (loc, ctx, "u8identifier_of not representable"
-					  " in UTF-8", fun, non_constant_p,
-					  jump_target);
+	return throw_exception (loc, ctx,
+				"u8display_string_of not representable"
+				" in UTF-8",
+				fun, non_constant_p, jump_target);
     }
   releasing_vec args (make_tree_vector_single (str));
   tree ret = build_special_member_call (NULL_TREE, complete_ctor_identifier,
