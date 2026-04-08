@@ -1061,23 +1061,36 @@ static void
 fix_loop_placements (class loop *loop, bool *irred_invalidated,
 		     bitmap loop_closed_ssa_invalidated)
 {
-  class loop *outer;
+  if (!loop_outer (loop))
+    return;
 
+  auto_vec<edge> exits = get_loop_exit_edges (loop);
+  unsigned i;
+  edge e;
+
+  /* We might need to only re-parent an outer loop, but as the constraint
+     is that we removed an exit from LOOP, we have a limit for what level
+     of outer loop we eventually have to re-parent to.  */
+  class loop *outermost = loop;
+  FOR_EACH_VEC_ELT (exits, i, e)
+    outermost = find_common_loop (outermost, e->dest->loop_father);
+
+  class loop *outer;
   while (loop_outer (loop))
     {
       outer = loop_outer (loop);
-      if (!fix_loop_placement (loop, irred_invalidated,
-			       loop_closed_ssa_invalidated))
-	break;
-
-      /* Changing the placement of a loop in the loop tree may alter the
-	 validity of condition 2) of the description of fix_bb_placement
-	 for its preheader, because the successor is the header and belongs
-	 to the loop.  So call fix_bb_placements to fix up the placement
-	 of the preheader and (possibly) of its predecessors.  */
-      fix_bb_placements (loop_preheader_edge (loop)->src,
-			 irred_invalidated, loop_closed_ssa_invalidated);
+      if (fix_loop_placement (loop, irred_invalidated,
+			      loop_closed_ssa_invalidated))
+	/* Changing the placement of a loop in the loop tree may alter the
+	   validity of condition 2) of the description of fix_bb_placement
+	   for its preheader, because the successor is the header and belongs
+	   to the loop.  So call fix_bb_placements to fix up the placement
+	   of the preheader and (possibly) of its predecessors.  */
+	fix_bb_placements (loop_preheader_edge (loop)->src,
+			   irred_invalidated, loop_closed_ssa_invalidated);
       loop = outer;
+      if (outer == outermost)
+	break;
     }
 }
 
