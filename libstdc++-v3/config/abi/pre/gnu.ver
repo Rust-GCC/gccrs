@@ -270,7 +270,6 @@ GLIBCXX_3.4 {
     _ZNKSs[5-9][a-b]*;
     _ZNKSs[0-8][d-e]*;
     _ZNKSs[0-9][g-z]*;
-    _ZNKSs11_[MS]_*;
     _ZNKSs1[2-8][a-z]*;
     _ZNKSs[2-9][0-9][a-z]*;
     _ZNKSs4find*;
@@ -343,7 +342,6 @@ GLIBCXX_3.4 {
     _ZNKSbIwSt11char_traitsIwESaIwEE[5-9][a-b]*;
     _ZNKSbIwSt11char_traitsIwESaIwEE[0-8][d-e]*;
     _ZNKSbIwSt11char_traitsIwESaIwEE[0-9][g-z]*;
-    _ZNKSbIwSt11char_traitsIwESaIwEE11_[MS]_*;
     _ZNKSbIwSt11char_traitsIwESaIwEE1[2-8][a-z]*;
     _ZNKSbIwSt11char_traitsIwESaIwEE[2-9][0-9][a-z]*;
     _ZNKSbIwSt11char_traitsIwESaIwEE[abd-z]*;
