@@ -692,15 +692,10 @@ is
 
       Nanos_In_56_Years : constant := (14 * 366 + 42 * 365) * Nanos_In_Day;
 
-      type int_Pointer  is access all Interfaces.C.int;
-      type long_Pointer is access all Interfaces.C.long;
-
-      type OS_Time_Pointer is access all System.OS_Lib.OS_Time;
-
       procedure localtime_tzoff
-        (timer       : OS_Time_Pointer;
-         is_historic : int_Pointer;
-         off         : long_Pointer);
+        (timer       : System.OS_Lib.OS_Time;
+         is_historic : Interfaces.C.int;
+         off         : out Interfaces.C.long);
       pragma Import (C, localtime_tzoff, "__gnat_localtime_tzoff");
       --  This routine is a interfacing wrapper around the library function
       --  __gnat_localtime_tzoff. Parameter 'timer' represents a Unix-based
@@ -713,9 +708,9 @@ is
 
       Adj_Cent : Integer;
       Date_N   : Time_Rep;
-      Flag     : aliased Interfaces.C.int;
-      Offset   : aliased Interfaces.C.long;
-      Secs_T   : aliased System.OS_Lib.OS_Time;
+      Flag     : Interfaces.C.int;
+      Offset   : Interfaces.C.long;
+      Secs_T   : System.OS_Lib.OS_Time;
 
    --  Start of processing for UTC_Time_Offset
 
@@ -759,11 +754,7 @@ is
 
       Flag := (if Is_Historic then 1 else 0);
 
-      localtime_tzoff
-        (Secs_T'Unchecked_Access,
-         Flag'Unchecked_Access,
-         Offset'Unchecked_Access);
-      pragma Annotate (CodePeer, Modified, Offset);
+      localtime_tzoff (Secs_T, Flag, Offset);
 
       return Long_Integer (Offset);
    end UTC_Time_Offset;

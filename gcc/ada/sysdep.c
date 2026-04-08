@@ -654,16 +654,17 @@ long __gnat_invalid_tzoff = 259273;
 
 /* Definition of __gnat_localtime_r used by a-calend.adb */
 
+extern void
+__gnat_localtime_tzoff (OS_Time, int, long *);
+
 #if defined (__MINGW32__)
 
 /* Reentrant localtime for Windows. */
 
-extern void
-__gnat_localtime_tzoff (const OS_Time *, const int *, long *);
-
 static const unsigned long long w32_epoch_offset = 11644473600ULL;
+
 void
-__gnat_localtime_tzoff (const OS_Time *timer, const int *is_historic, long *off)
+__gnat_localtime_tzoff (OS_Time timer, int is_historic, long *off)
 {
   TIME_ZONE_INFORMATION tzi;
 
@@ -676,7 +677,7 @@ __gnat_localtime_tzoff (const OS_Time *timer, const int *is_historic, long *off)
      signifies that the date is NOT historic, see the
      body of Ada.Calendar.UTC_Time_Offset. */
 
-  if (*is_historic == 0) {
+  if (is_historic == 0) {
     *off = tzi.Bias;
 
     /* The system is operating in the range covered by the StandardDate
@@ -707,7 +708,7 @@ __gnat_localtime_tzoff (const OS_Time *timer, const int *is_historic, long *off)
     BOOL status;
 
     /* First convert unix time_t structure to windows FILETIME format.  */
-    utc_time.ull_time = ((unsigned long long) *timer + w32_epoch_offset)
+    utc_time.ull_time = ((unsigned long long) timer + w32_epoch_offset)
                         * 10000000ULL;
 
     /* If GetTimeZoneInformation does not return a value between 0 and 2 then
@@ -752,11 +753,8 @@ __gnat_localtime_tzoff (const OS_Time *timer, const int *is_historic, long *off)
    spec is required. Only use when ___THREADS_POSIX4ad4__ is defined,
    the Lynx convention when building against the legacy API. */
 
-extern void
-__gnat_localtime_tzoff (const OS_Time *, const int *, long *);
-
 void
-__gnat_localtime_tzoff (const OS_Time *timer, const int *is_historic, long *off)
+__gnat_localtime_tzoff (OS_Time timer, int is_historic, long *off)
 {
   *off = 0;
 }
@@ -771,16 +769,13 @@ extern void (*Lock_Task) (void);
 #define Unlock_Task system__soft_links__unlock_task
 extern void (*Unlock_Task) (void);
 
-extern void
-__gnat_localtime_tzoff (const OS_Time *, const int *, long *);
-
 void
-__gnat_localtime_tzoff (const OS_Time *timer ATTRIBUTE_UNUSED,
-			const int *is_historic ATTRIBUTE_UNUSED,
+__gnat_localtime_tzoff (OS_Time timer ATTRIBUTE_UNUSED,
+			int is_historic ATTRIBUTE_UNUSED,
 			long *off ATTRIBUTE_UNUSED)
 {
   struct tm tp ATTRIBUTE_UNUSED;
-  const time_t time = (time_t) *timer;
+  const time_t time = (time_t) timer;
 
 /* AIX, HPUX, Sun Solaris */
 #if defined (_AIX) || defined (__hpux__) || defined (__sun__)
