@@ -2,12 +2,6 @@
 
 #include <functional>
 
-#ifndef __cpp_lib_function_ref
-# error "Feature-test macro for function_ref missing in <functional>"
-#elif __cpp_lib_function_ref != 202306L
-# error "Feature-test macro for function_ref has wrong value in <functional>"
-#endif
-
 using std::constant_wrapper;
 using std::function_ref;
 

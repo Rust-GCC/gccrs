@@ -2183,9 +2183,9 @@
 
 #if !defined(__cpp_lib_function_ref)
 # if (__cplusplus >  202302L)
-#  define __glibcxx_function_ref 202306L
+#  define __glibcxx_function_ref 202603L
 #  if defined(__glibcxx_want_all) || defined(__glibcxx_want_function_ref)
-#   define __cpp_lib_function_ref 202306L
+#   define __cpp_lib_function_ref 202603L
 #  endif
 # endif
 #endif /* !defined(__cpp_lib_function_ref) */

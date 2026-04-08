@@ -1959,9 +1959,12 @@ ftms = {
 };
 
 ftms = {
+  // 202306 P0792R14 function_ref: a non-owning reference to a Callable
+  // 202511 P3774R1  Rename std::nontype, and make it broadly useful
+  // 202603 P3948R1  constant_wrapper is the only tool needed for passing...
   name = function_ref;
   values = {
-    v = 202306;
+    v = 202603;
     cxxmin = 26;
   };
 };
