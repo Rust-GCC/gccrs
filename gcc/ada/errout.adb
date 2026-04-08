@@ -4129,7 +4129,10 @@ package body Errout is
 
    procedure Set_Qualification (N : Nat; E : Entity_Id) is
    begin
-      if N /= 0 and then Scope (E) /= Standard_Standard then
+      if N /= 0
+        and then
+          (Scope (E) /= Standard_Standard or else Error_Msg_Qual_For_Standard)
+      then
          Set_Qualification (N - 1, Scope (E));
          Set_Msg_Node (Scope (E));
          Set_Msg_Char ('.');

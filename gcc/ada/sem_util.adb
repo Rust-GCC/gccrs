@@ -25986,10 +25986,12 @@ package body Sem_Util is
                   if Present (Homonym (S))
                     and then Sloc (Homonym (S)) = Standard_Location
                   then
+                     Error_Msg_Qual_For_Standard := True;
+                     Error_Msg_Qual_Level := 1;
                      Error_Msg_NE
-                       ("\\did you mean & in Standard'?",
-                        Name (N),
-                        Homonym (S));
+                       ("\\did you mean &'?", Name (N), Homonym (S));
+                     Error_Msg_Qual_For_Standard := False;
+                     Error_Msg_Qual_Level := 0;
                   end if;
                else
                   Error_Msg_N ("too many arguments in call to&", Name (N));
