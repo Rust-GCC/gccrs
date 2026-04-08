@@ -22367,7 +22367,7 @@ tsubst_expr (tree t, tree args, tsubst_flags_t complain, tree in_decl)
 						 complain);
 	else if (concept_check_p (function))
 	  /* Calls to concepts should have been previously diagnosed.  */
-	  gcc_assert (false);
+	  gcc_unreachable ();
 	else
 	  ret = finish_call_expr (function, &call_args,
 				  /*disallow_virtual=*/qualified_p,

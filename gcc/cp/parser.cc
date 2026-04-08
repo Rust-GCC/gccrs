@@ -21337,7 +21337,7 @@ cp_parser_template_id (cp_parser *parser,
 	  return error_mark_node;
 	}
       else
-	gcc_assert (false);
+	gcc_unreachable ();
 
       template_id = lookup_template_function (templ, arguments);
       if (TREE_CODE (template_id) == TEMPLATE_ID_EXPR)

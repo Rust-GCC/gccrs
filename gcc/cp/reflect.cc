@@ -2912,7 +2912,7 @@ eval_template_of (location_t loc, const constexpr_ctx *ctx, tree r,
   else if (VAR_OR_FUNCTION_DECL_P (r) && DECL_TEMPLATE_INFO (r))
     r = DECL_TI_TEMPLATE (r);
   else
-    gcc_assert (false);
+    gcc_unreachable ();
 
   gcc_assert (TREE_CODE (r) == TEMPLATE_DECL);
   return get_reflection_raw (loc, r);
