@@ -7099,13 +7099,17 @@ gfc_conv_array_initializer (tree type, gfc_expr * expr)
     expr = expr->symtree->n.sym->value;
 
   /* After parameter substitution the expression should be a constant, array
-     constructor, structure constructor, or NULL.  Anything else means the
-     frontend already diagnosed an error; return a zero-filled array.  */
+     constructor, structure constructor, or NULL.  Anything else is invalid
+     and must not ICE later in lowering.  */
   if (expr->expr_type != EXPR_CONSTANT
       && expr->expr_type != EXPR_STRUCTURE
       && expr->expr_type != EXPR_ARRAY
       && expr->expr_type != EXPR_NULL)
-    return build_constructor (type, NULL);
+    {
+      gfc_error ("Array initializer at %L does not reduce to a constant "
+		 "expression", &expr->where);
+      return build_constructor (type, NULL);
+    }
 
   switch (expr->expr_type)
     {
