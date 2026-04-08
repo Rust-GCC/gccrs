@@ -49523,7 +49523,7 @@ cp_parser_omp_loop_nest (cp_parser *parser, bool *if_p)
 	  TREE_VEC_ELT (omp_for_parse_state->condv, depth) = NULL_TREE;
 	  TREE_VEC_ELT (omp_for_parse_state->incrv, depth) = NULL_TREE;
 	  if (omp_for_parse_state->orig_declv)
-	    TREE_VEC_ELT (omp_for_parse_state->incrv, depth) = NULL_TREE;
+	    TREE_VEC_ELT (omp_for_parse_state->orig_declv, depth) = NULL_TREE;
 	  vec_safe_push (omp_for_parse_state->init_blockv, NULL_TREE);
 	  vec_safe_push (omp_for_parse_state->body_blockv, NULL_TREE);
 	  vec_safe_push (omp_for_parse_state->init_placeholderv, NULL_TREE);
