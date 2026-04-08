@@ -335,9 +335,6 @@ static_assert(!is_convertible_v<const int&, int&>
 static_assert(is_reflection_v<decltype(^^int)>
 	      && is_reflection<decltype(^^int)>::value, "");
 static_assert(!is_reflection_v<int> && !is_reflection<int>::value, "");
-static_assert(is_consteval_only_v<decltype(^^int)>
-	      && is_consteval_only<decltype(^^int)>::value, "");
-static_assert(!is_consteval_only_v<int> && !is_consteval_only<int>::value, "");
 #endif
 
 #if __cpp_lib_is_structural >= 202603L

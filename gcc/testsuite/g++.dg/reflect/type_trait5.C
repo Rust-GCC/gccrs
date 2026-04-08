@@ -207,13 +207,6 @@ namespace N
   void foo ();
 }
 
-int v = 1;
-struct S1 { decltype (^^long) a; };
-union U2 { int a; decltype (^^N::foo) b; };
-struct S3 { const decltype (^^N) *c; };
-struct S4 : public S3 {};
-struct S5 { int a; long *b; };
-
 static_assert (is_const_type (^^const int));
 static_assert (is_const_type (^^const volatile int));
 static_assert (is_const_type (^^cClassType));
@@ -338,17 +331,6 @@ static_assert (!is_aggregate_type (^^double));
 static_assert (!is_aggregate_type (^^EnumType));
 static_assert (!is_aggregate_type (^^void));
 static_assert (!is_aggregate_type (^^NoexceptMoveAssignClass));
-
-static_assert (is_consteval_only_type (^^decltype (^^long)));
-static_assert (is_consteval_only_type (^^const decltype (^^N::foo)));
-static_assert (is_consteval_only_type (^^volatile decltype (^^N)));
-static_assert (is_consteval_only_type (^^const volatile decltype (^^v)));
-static_assert (is_consteval_only_type (^^const S1));
-static_assert (is_consteval_only_type (^^U2));
-static_assert (is_consteval_only_type (^^S3));
-static_assert (is_consteval_only_type (^^S4));
-static_assert (!is_consteval_only_type (^^int));
-static_assert (!is_consteval_only_type (^^S5));
 
 static_assert (!is_signed_type (^^void));
 static_assert (char (-1) < char (0) ? is_signed_type (^^char) : !is_signed_type (^^char));

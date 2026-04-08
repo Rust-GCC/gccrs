@@ -2254,7 +2254,6 @@ export namespace std
     using std::meta::is_abstract_type;
     using std::meta::is_final_type;
     using std::meta::is_aggregate_type;
-    using std::meta::is_consteval_only_type;
 #if __glibcxx_is_structural >= 202603L
     using std::meta::is_structural_type;
 #endif
@@ -3576,10 +3575,6 @@ export namespace std
 #if __cpp_impl_reflection >= 202506L
   using std::is_reflection;
   using std::is_reflection_v;
-#if _GLIBCXX_USE_BUILTIN_TRAIT(__builtin_is_consteval_only)
-  using std::is_consteval_only;
-  using std::is_consteval_only_v;
-#endif
 #endif
 #if __glibcxx_is_structural >= 202603L
   using std::is_structural;

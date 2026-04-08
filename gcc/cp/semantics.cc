@@ -14170,9 +14170,6 @@ trait_expr_value (cp_trait_kind kind, tree type1, tree type2)
     case CPTK_IS_DEDUCIBLE:
       return type_targs_deducible_from (type1, type2);
 
-    case CPTK_IS_CONSTEVAL_ONLY:
-      return consteval_only_p (type1);
-
     case CPTK_IS_STRUCTURAL:
       return structural_type_p (type1);
 
@@ -14356,7 +14353,6 @@ finish_trait_expr (location_t loc, cp_trait_kind kind, tree type1, tree type2)
     case CPTK_IS_STD_LAYOUT:
     case CPTK_IS_TRIVIAL:
     case CPTK_IS_TRIVIALLY_COPYABLE:
-    case CPTK_IS_CONSTEVAL_ONLY:
     case CPTK_IS_STRUCTURAL:
     case CPTK_HAS_UNIQUE_OBJ_REPRESENTATIONS:
       if (!check_trait_type (type1, /* kind = */ 2))

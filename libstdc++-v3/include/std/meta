@@ -470,7 +470,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     consteval bool is_abstract_type(info);
     consteval bool is_final_type(info);
     consteval bool is_aggregate_type(info);
-    consteval bool is_consteval_only_type(info);
 #if __glibcxx_is_structural >= 202603L
     consteval bool is_structural_type(info);
 #endif

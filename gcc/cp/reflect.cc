@@ -4384,17 +4384,6 @@ eval_is_aggregate_type (tree type)
     return boolean_false_node;
 }
 
-/* Process std::meta::is_consteval_only_type.  */
-
-static tree
-eval_is_consteval_only_type (tree type)
-{
-  if (consteval_only_p (type))
-    return boolean_true_node;
-  else
-    return boolean_false_node;
-}
-
 /* Process std::meta::is_structural_type.  */
 
 static tree
@@ -8192,8 +8181,6 @@ process_metafunction (const constexpr_ctx *ctx, tree fun, tree call,
       return eval_is_final_type (loc, h);
     case METAFN_IS_AGGREGATE_TYPE:
       return eval_is_aggregate_type (h);
-    case METAFN_IS_CONSTEVAL_ONLY_TYPE:
-      return eval_is_consteval_only_type (h);
     case METAFN_IS_STRUCTURAL_TYPE:
       return eval_is_structural_type (loc, h);
     case METAFN_IS_SIGNED_TYPE:
