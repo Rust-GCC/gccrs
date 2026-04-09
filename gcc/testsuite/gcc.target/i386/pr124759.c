@@ -1,4 +1,4 @@
-/* { dg-do run { target avx_runtime } } */
+/* { dg-do run { target { avx_runtime && { *-*-linux* *-*-gnu* } } } } */
 /* { dg-options "-fhardened -O3 -mavx" } */
 
 struct a {
