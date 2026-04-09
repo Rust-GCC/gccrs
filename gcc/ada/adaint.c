@@ -2176,6 +2176,13 @@ __gnat_is_executable_file_attr (char* name, struct file_attributes* attr)
    if (attr->executable == ATTR_UNSET)
      {
 #if defined (_WIN32)
+       __gnat_is_regular_file_attr (name, attr);
+       if (!attr->regular)
+	 {
+	   attr->executable = 0;
+	   return 0;
+	 }
+
        TCHAR wname [GNAT_MAX_PATH_LEN + 2];
        GENERIC_MAPPING GenericMapping;
 
@@ -2198,9 +2205,7 @@ __gnat_is_executable_file_attr (char* name, struct file_attributes* attr)
 	     while ((l = _tcsstr(last+1, _T(".exe"))))
 	       last = l;
 
-	   attr->executable =
-	     GetFileAttributes (wname) != INVALID_FILE_ATTRIBUTES
-	     && (last - wname) == (int) (_tcslen (wname) - 4);
+	   attr->executable = (last - wname) == (int)(_tcslen (wname) - 4);
 	 }
 #else
        __gnat_stat_to_attr (-1, name, attr);
