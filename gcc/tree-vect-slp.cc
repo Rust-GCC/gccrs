@@ -187,16 +187,6 @@ vect_free_slp_tree (slp_tree node)
     if (child)
       vect_free_slp_tree (child);
 
-  /* If the node defines any SLP only patterns then those patterns are no
-     longer valid and should be removed.  */
-  stmt_vec_info rep_stmt_info = SLP_TREE_REPRESENTATIVE (node);
-  if (rep_stmt_info && STMT_VINFO_SLP_VECT_ONLY_PATTERN (rep_stmt_info))
-    {
-      stmt_vec_info stmt_info = vect_orig_stmt (rep_stmt_info);
-      STMT_VINFO_IN_PATTERN_P (stmt_info) = false;
-      STMT_SLP_TYPE (stmt_info) = STMT_SLP_TYPE (rep_stmt_info);
-    }
-
   delete node;
 }
 

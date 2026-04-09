@@ -2702,20 +2702,6 @@ again:
 		= STMT_VINFO_DEF_TYPE (stmt_info);
 	    }
 	}
-      for (gimple_stmt_iterator si = gsi_start_bb (bb);
-	   !gsi_end_p (si); gsi_next (&si))
-	{
-	  if (is_gimple_debug (gsi_stmt (si)))
-	    continue;
-	  stmt_vec_info stmt_info = loop_vinfo->lookup_stmt (gsi_stmt (si));
-	  if (STMT_VINFO_IN_PATTERN_P (stmt_info))
-	    {
-	      stmt_vec_info pattern_stmt_info
-		= STMT_VINFO_RELATED_STMT (stmt_info);
-	      if (STMT_VINFO_SLP_VECT_ONLY_PATTERN (pattern_stmt_info))
-		STMT_VINFO_IN_PATTERN_P (stmt_info) = false;
-	    }
-	}
     }
   /* Free optimized alias test DDRS.  */
   LOOP_VINFO_LOWER_BOUNDS (loop_vinfo).truncate (0);

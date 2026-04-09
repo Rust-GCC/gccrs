@@ -579,7 +579,6 @@ complex_pattern::build (vec_info *vinfo)
 
       gimple_set_bb (call_stmt, gimple_bb (stmt_info->stmt));
       STMT_VINFO_VECTYPE (call_stmt_info) = SLP_TREE_VECTYPE (node);
-      STMT_VINFO_SLP_VECT_ONLY_PATTERN (call_stmt_info) = true;
 
       /* Since we are replacing all the statements in the group with the same
 	 thing it doesn't really matter.  So just set it every time a new stmt
@@ -1625,7 +1624,6 @@ addsub_pattern::build (vec_info *vinfo)
 	STMT_VINFO_RELEVANT (new_rep) = vect_used_in_scope;
 	STMT_SLP_TYPE (new_rep) = pure_slp;
 	STMT_VINFO_VECTYPE (new_rep) = SLP_TREE_VECTYPE (node);
-	STMT_VINFO_SLP_VECT_ONLY_PATTERN (new_rep) = true;
 	SLP_TREE_CODE (node) = ERROR_MARK;
 	SLP_TREE_LANE_PERMUTATION (node).release ();
 
@@ -1691,7 +1689,6 @@ addsub_pattern::build (vec_info *vinfo)
 	STMT_VINFO_RELEVANT (new_rep) = vect_used_in_scope;
 	STMT_SLP_TYPE (new_rep) = pure_slp;
 	STMT_VINFO_VECTYPE (new_rep) = SLP_TREE_VECTYPE (node);
-	STMT_VINFO_SLP_VECT_ONLY_PATTERN (new_rep) = true;
 	SLP_TREE_CODE (node) = ERROR_MARK;
 	SLP_TREE_LANE_PERMUTATION (node).release ();
 
