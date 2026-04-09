@@ -2999,16 +2999,16 @@ get_non_trapping (void)
    JOIN_BB:
      some more
 
-   We check that MIDDLE_BB contains only one store, that that store
+   ASSIGN is a store in MIDDLE_BB which is the candidate for cselim.  We check
+   that MIDDLE_BB contains only one store (i.e., ASSIGN), that that store
    doesn't trap (not via NOTRAP, but via checking if an access to the same
-   memory location dominates us, or the store is to a local addressable
-   object) and that the store has a "simple" RHS.  */
+   memory location dominates us, or the store is to a local addressable object)
+   and that the store has a "simple" RHS.  */
 
 static bool
-cond_store_replacement (basic_block middle_bb, basic_block join_bb,
-			edge e0, edge e1, hash_set<tree> *nontrap)
+cond_store_replacement (basic_block middle_bb, basic_block join_bb, edge e0,
+			edge e1, gimple *assign, hash_set<tree> *nontrap)
 {
-  gimple *assign = last_and_only_stmt (middle_bb);
   tree lhs, rhs, name, name2;
   gphi *newphi;
   gassign *new_stmt;
@@ -3021,11 +3021,6 @@ cond_store_replacement (basic_block middle_bb, basic_block join_bb,
       || gimple_has_volatile_ops (assign))
     return false;
 
-  /* And no PHI nodes so all uses in the single stmt are also
-     available where we insert to.  */
-  if (!gimple_seq_empty_p (phi_nodes (middle_bb)))
-    return false;
-
   locus = gimple_location (assign);
   lhs = gimple_assign_lhs (assign);
   rhs = gimple_assign_rhs1 (assign);
@@ -3033,6 +3028,20 @@ cond_store_replacement (basic_block middle_bb, basic_block join_bb,
        && !DECL_P (lhs))
       || !is_gimple_reg_type (TREE_TYPE (lhs)))
     return false;
+
+  /* Make sure all uses (except the rhs) in the single stmt are also available
+     where we insert to.  */
+  ssa_op_iter iter;
+  tree use;
+  FOR_EACH_SSA_TREE_OPERAND (use, assign, iter, SSA_OP_USE)
+    {
+      if (use == rhs)
+	continue;
+
+      gimple *stmt = SSA_NAME_DEF_STMT (use);
+      if (stmt && gimple_bb (stmt) == middle_bb)
+	return false;
+    }
 
   /* Prove that we can move the store down.  We could also check
      TREE_THIS_NOTRAP here, but in that case we also could move stores,
@@ -3295,6 +3304,20 @@ trailing_store_in_bb (basic_block bb, tree vdef, gphi *vphi, bool onlyonestore)
     return NULL;
 
   return store;
+}
+
+/* Return the only store in MIDDLE_BB as the candidate store for cselim.  Return
+   NULL if no candidate can be found.  */
+
+static gimple *
+cselim_candidate (basic_block middle_bb, basic_block join_bb, edge e0)
+{
+  gphi *vphi = get_virtual_phi (join_bb);
+  if (!vphi)
+    return NULL;
+
+  tree middle_vdef = PHI_ARG_DEF_FROM_EDGE (vphi, e0);
+  return trailing_store_in_bb (middle_bb, middle_vdef, vphi, true);
 }
 
 /* Limited Conditional store replacement.  We already know
@@ -4268,7 +4291,9 @@ pass_cselim::execute (function *)
 	 optimization if the join block has more than two predecessors.  */
       if (EDGE_COUNT (bb2->preds) > 2)
 	return;
-      if (cond_store_replacement (bb1, bb2, e1, e2, nontrap))
+
+      gimple *assign = cselim_candidate (bb1, bb2, e1);
+      if (cond_store_replacement (bb1, bb2, e1, e2, assign, nontrap))
 	cfgchanged = true;
     };
 
