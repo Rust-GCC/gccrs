@@ -1,3 +1,60 @@
+2026-04-08  Matthias Kretz  <m.kretz@gsi.de>
+	    Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* include/bits/funcref_impl.h (function_ref::function_ref):
+	Change nontype_t parameter to constant_wrapper, and adjust
+	accordingly. Add static_assert detecting ambigous semantics.
+	(function_ref::operator=): Detect constant_wrapper rather than
+	nontype_t.
+	* include/bits/funcwrap.h (function_ref): Change nontype_t
+	parameter to constant_wrapper in deduction guides.
+	* include/bits/utility.h (std::nontype_t, std::nontype)
+	(std::__is_nontype_v): Remove.
+	(std::__is_constant_wrapper_v): Define.
+	* src/c++23/std.cc.in (std::nontype_t, std::nontype):
+	Remove exports.
+	* testsuite/20_util/function_ref/cw_cons_neg.cc: New tests
+	for ambiguity check.
+	* testsuite/20_util/function_ref/assign.cc: Replace nontype_t
+	with constant_wrapper and nontype with std::cw.
+	* testsuite/20_util/function_ref/call.cc: Likewise.
+	* testsuite/20_util/function_ref/cons.cc: Likewise.
+	* testsuite/20_util/function_ref/cons_neg.cc: Likewise.
+	* testsuite/20_util/function_ref/dangling.cc: Likewise.
+	* testsuite/20_util/function_ref/deduction.cc: Likewise.
+	* testsuite/20_util/function_ref/mutation.cc: Likewise.
+
+2026-04-08  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* include/bits/utility.h (std::_CwFixedValue, std::_ConstExprParam)
+	(std::_CwOperators, std::constant_wrapper): Moved from...
+	* include/std/type_traits (std::_CwFixedValue, std::_ConstExprParam)
+	(std::_CwOperators, std::constant_wrapper): Moved to bits/utility.h.
+	Disable __cpp_lib_constant_wrapper defintion.
+	* include/std/utility: Define __cpp_lib_constant_wrapper.
+	* testsuite/20_util/constant_wrapper/adl.cc: Updated header includes.
+	* testsuite/20_util/constant_wrapper/ex.cc: Likewise.
+	* testsuite/20_util/constant_wrapper/generic.cc: Likewise.
+	* testsuite/20_util/constant_wrapper/instantiate.cc: Likewise.
+	* testsuite/20_util/constant_wrapper/op_comma_neg.cc: Likewise.
+	* testsuite/20_util/constant_wrapper/other_wrappers.cc: Likewise.
+	* testsuite/20_util/constant_wrapper/version.cc: Likewise.
+
+2026-04-08  Jakub Jelinek  <jakub@redhat.com>
+
+	* include/std/type_traits (std::is_consteval_only,
+	std::is_consteval_only_v): Remove.
+	* include/std/meta (std::meta::is_consteval_only_type): Remove.
+	* src/c++23/std.cc.in: Don't export std::is_consteval_only,
+	std::is_consteval_only_v and std::meta::is_consteval_only_type.
+	* testsuite/20_util/is_consteval_only/requirements/explicit_instantiation.cc:
+	Remove.
+	* testsuite/20_util/is_consteval_only/requirements/typedefs.cc:
+	Remove.
+	* testsuite/20_util/is_consteval_only/value.cc: Remove.
+	* testsuite/20_util/variable_templates_for_traits.cc: Remove
+	is_consteval_only_v tests.
+
 2026-04-07  Tomasz Kamiński  <tkaminsk@redhat.com>
 
 	* config/abi/pre/gnu.ver (GLIBCXX_3.4): Make string exports

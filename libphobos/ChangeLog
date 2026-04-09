@@ -1,3 +1,21 @@
+2026-04-08  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	PR d/88150
+	* testsuite/lib/libphobos.exp (libphobos_skipped_test_p): Extract
+	filename from $test.
+	* testsuite/libphobos.shared/shared.exp (libphobos_skip_tests):
+	Skip libphobos.shared/finalize.d etc. on Solaris.
+
+2026-04-08  Iain Buclaw  <ibuclaw@gdcproject.org>
+
+	PR d/123202
+	* testsuite/lib/libphobos.exp
+	(check_effective_target_phobos_ieee_flags_support): New proc.
+	* testsuite/libphobos.phobos/phobos.exp: Skip math/hardware.d tests if
+	target does not have phobos_iee_flags_support.
+	* testsuite/libphobos.phobos/shared/phobos-shared.exp: Likewise.
+	* testsuite/libphobos.phobos/static/phobos-static.exp: Likewise.
+
 2026-04-01  Iain Buclaw  <ibuclaw@gdcproject.org>
 
 	* libdruntime/MERGE: Merge upstream druntime 55e64690bc.

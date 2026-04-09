@@ -1,3 +1,77 @@
+2026-04-08  Marek Polacek  <polacek@redhat.com>
+	    Boris Staletic  <boris.staletic@protonmail.com>
+
+	PR c++/123726
+	* reflect.cc (check_splice_expr): Detect accessing a class template
+	or alias template with . or ->.
+	* typeck.cc (finish_class_member_access_expr): Check if the scope of
+	the spliced entity in a member access expression is of a class type.
+	Allow variable_template_p for context_for_name_lookup.
+
+2026-04-08  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/124457
+	* parser.cc (cp_parser_reflect_expression): Check is_auto here
+	instead of...
+	* reflect.cc (get_reflection): ...here.
+
+2026-04-08  Marek Polacek  <polacek@redhat.com>
+	    Boris Staletic  <boris.staletic@protonmail.com>
+
+	PR c++/124177
+	* tree.cc (handle_annotation_attribute): Decay annotation
+	values.  Turn if !type_dependent_expression_p into an assert.
+
+2026-04-08  Yang Kun  <yangkun@disroot.org>
+
+	* pt.cc (tsubst_expr): Use gcc_unreachable, not gcc_assert.
+	* parser.cc (cp_parser_template_id): Likewise.
+	* reflect.cc (eval_template_of): Likewise.
+
+2026-04-08  Yang Kun  <yangkun@disroot.org>
+
+	* reflect.cc (eval_current_function): Add missing return.
+	(eval_current_class): Likewise.
+
+2026-04-08  Yang Kun  <yangkun@disroot.org>
+
+	* reflect.cc (eval_display_string_of): Fix copy-paste error in exception
+	messages.
+
+2026-04-08  Jakub Jelinek  <jakub@redhat.com>
+
+	* parser.cc (cp_parser_omp_loop_nest): Write orig_declv, not incrv.
+
+2026-04-08  Yang Kun  <yangkun@disroot.org>
+
+	* parser.cc (cp_parser_omp_clause_proc_bind): Fix error message
+	(cp_parser_omp_clause_device_type): Likewise.
+
+2026-04-08  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/124617
+	* parser.cc (cp_parser_reflect_expression): Call baselink_for_fns.
+
+2026-04-08  Jakub Jelinek  <jakub@redhat.com>
+
+	* constraint.cc (diagnose_trait_expr): Remove CPTK_IS_CONSTEVAL_ONLY
+	handling.
+	* metafns.gperf (enum metafn_code): Remove
+	METAFN_IS_CONSTEVAL_ONLY_TYPE.
+	(is_consteval_only_type): Remove.
+	* semantics.cc (trait_expr_value, finish_trait_expr): Remove
+	CPTK_IS_CONSTEVAL_ONLY handling.
+	* cp-trait.def (__builtin_is_consteval_only): Remove.
+	* metafns.h: Regenerate.
+	* reflect.cc (eval_is_consteval_only_type): Remove.
+	(process_metafunction): Don't handle METAFN_IS_CONSTEVAL_ONLY_TYPE.
+
+2026-04-08  Jakub Jelinek  <jakub@redhat.com>
+
+	* decl.cc (cp_finish_decomp): Implement CWG3135 - constexpr structured
+	bindings with prvalues from tuples (as a DR).  Don't call
+	cp_build_reference_type if init is prvalue.
+
 2026-04-07  Patrick Palka  <ppalka@redhat.com>
 
 	PR c++/123700

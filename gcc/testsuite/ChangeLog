@@ -1,3 +1,59 @@
+2026-04-08  Christopher Albert  <albert@tugraz.at>
+
+	PR fortran/96986
+	* gfortran.dg/pr96986.f90: New test.
+
+2026-04-08  Marek Polacek  <polacek@redhat.com>
+	    Boris Staletic  <boris.staletic@protonmail.com>
+
+	PR c++/123726
+	* g++.dg/reflect/member1.C: Adjust dg-error.
+	* g++.dg/reflect/member22.C: New test.
+
+2026-04-08  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/124457
+	* g++.dg/reflect/concept1.C: New test.
+
+2026-04-08  Marek Polacek  <polacek@redhat.com>
+	    Boris Staletic  <boris.staletic@protonmail.com>
+
+	PR c++/124177
+	* g++.dg/reflect/annotations18.C: New test.
+
+2026-04-08  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/124617
+	* g++.dg/reflect/dep12.C: New test.
+	* g++.dg/reflect/dep13.C: New test.
+
+2026-04-08  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/124810
+	* gcc.dg/torture/pr124810.c: New testcase.
+
+2026-04-08  Torbjörn SVENSSON  <torbjorn.svensson@foss.st.com>
+
+	* g++.dg/modules/modules.exp: Use "@nul" for Windows,
+	"@/dev/null" for other environments.
+
+2026-04-08  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/93715
+	* gfortran.dg/pr93715.f90: New test.
+
+2026-04-08  Jakub Jelinek  <jakub@redhat.com>
+
+	* g++.dg/reflect/is_consteval_only1.C: Remove.
+	* g++.dg/reflect/eh1.C: Remove is_consteval_only_type tests.
+	* g++.dg/reflect/eh2.C: Likewise.
+	* g++.dg/reflect/type_trait5.C: Likewise.
+
+2026-04-08  Jakub Jelinek  <jakub@redhat.com>
+
+	* g++.dg/cpp26/decomp30.C: New test.
+	* g++.dg/gomp/pr108503.C: Adjust expected diagnostic locations.
+
 2026-04-07  Christopher Albert  <albert@tugraz.at>
 
 	PR fortran/102430

@@ -1,3 +1,15 @@
+2026-04-08  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/124810
+	* cfgloopmanip.cc (fix_loop_placements): Do not stop
+	iterating when an inner loop didn't get re-parented.
+	Compute the outermost loop we have to consider re-parenting.
+
+2026-04-08  Prathamesh Kulkarni  <prathameshk@nvidia.com>
+
+	* auto-profile.cc (function_instance::merge): Set other->timestamp() if it's
+	lesser than timestamp() and greater than zero or if timestamp() is zero.
+
 2026-04-07  H.J. Lu  <hjl.tools@gmail.com>
 
 	PR target/124759
