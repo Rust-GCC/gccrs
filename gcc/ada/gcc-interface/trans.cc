@@ -7993,13 +7993,17 @@ gnat_to_gnu (Node_Id gnat_node)
       break;
 
     case N_Exit_Statement:
-      gnu_result
-	= build2 (EXIT_STMT, void_type_node,
-		  (Present (Condition (gnat_node))
-		   ? gnat_to_gnu (Condition (gnat_node)) : NULL_TREE),
-		  (Present (Name (gnat_node))
-		   ? get_gnu_tree (Entity (Name (gnat_node)))
-		   : LOOP_STMT_LABEL (gnu_loop_stack->last ()->stmt)));
+      {
+	tree end_loop_label = Present (Name (gnat_node))
+	  ? get_gnu_tree (Entity (Name (gnat_node)))
+	  : LOOP_STMT_LABEL (gnu_loop_stack->last ()->stmt);
+	gnu_result
+	  = build2 (EXIT_STMT, void_type_node,
+	      (Present (Condition (gnat_node))
+		? gnat_to_gnu (Condition (gnat_node)) : NULL_TREE),
+		end_loop_label);
+	TREE_USED (end_loop_label) = 1;
+      }
       break;
 
     case N_Simple_Return_Statement:
@@ -9532,6 +9536,8 @@ gnat_gimplify_stmt (tree *stmt_p)
 	    gnu_cond
 	      = build3 (COND_EXPR, void_type_node, gnu_cond, NULL_TREE,
 			build1 (GOTO_EXPR, void_type_node, gnu_end_label));
+
+            TREE_USED (gnu_end_label) = 1;
 	  }
 
 	/* Set to emit the statements of the loop.  */
@@ -9541,8 +9547,9 @@ gnat_gimplify_stmt (tree *stmt_p)
 	   end label if there's a top condition, then the update if it's at
 	   the top, then the body of the loop, then a conditional jump to
 	   the end label if there's a bottom condition, then the update if
-	   it's at the bottom, and finally a jump to the start label and the
-	   definition of the end label.  */
+	   it's at the bottom, and finally a jump to the start label and if
+	   there's a top or bottom condition, the definition of the end
+	   label.  */
 	append_to_statement_list (build1 (LABEL_EXPR, void_type_node,
 					  gnu_start_label),
 				  stmt_p);
@@ -9565,9 +9572,10 @@ gnat_gimplify_stmt (tree *stmt_p)
 	SET_EXPR_LOCATION (t, DECL_SOURCE_LOCATION (gnu_end_label));
 	append_to_statement_list (t, stmt_p);
 
-	append_to_statement_list (build1 (LABEL_EXPR, void_type_node,
-					  gnu_end_label),
-				  stmt_p);
+	if (TREE_USED (gnu_end_label))
+	  append_to_statement_list (build1 (LABEL_EXPR, void_type_node,
+					    gnu_end_label),
+				    stmt_p);
 	return GS_OK;
       }
 
