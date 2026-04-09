@@ -72,7 +72,7 @@
 #define __glibcxx_want_ranges_slide
 #define __glibcxx_want_ranges_stride
 #define __glibcxx_want_ranges_to_container
-#define __glibcxx_want_ranges_to_input
+#define __glibcxx_want_ranges_as_input
 #define __glibcxx_want_ranges_zip
 #include <bits/version.h>
 
@@ -10537,12 +10537,12 @@ namespace ranges
 } // namespace ranges
 #endif // __cpp_lib_ranges_cache_latest
 
-#if __cpp_lib_ranges_to_input // C++ >= 26
+#if __cpp_lib_ranges_as_input // C++ >= 26
 namespace ranges
 {
   template<input_range _Vp>
     requires view<_Vp>
-  class to_input_view : public view_interface<to_input_view<_Vp>>
+  class as_input_view : public view_interface<as_input_view<_Vp>>
   {
     _Vp _M_base = _Vp();
 
@@ -10550,10 +10550,10 @@ namespace ranges
     class _Iterator;
 
   public:
-    to_input_view() requires default_initializable<_Vp> = default;
+    as_input_view() requires default_initializable<_Vp> = default;
 
     constexpr explicit
-    to_input_view(_Vp __base)
+    as_input_view(_Vp __base)
     : _M_base(std::move(__base))
     { }
 
@@ -10591,12 +10591,12 @@ namespace ranges
   };
 
   template<typename _Range>
-    to_input_view(_Range&&) -> to_input_view<views::all_t<_Range>>;
+    as_input_view(_Range&&) -> as_input_view<views::all_t<_Range>>;
 
   template<input_range _Vp>
     requires view<_Vp>
   template<bool _Const>
-  class to_input_view<_Vp>::_Iterator
+  class as_input_view<_Vp>::_Iterator
   {
     using _Base = __maybe_const_t<_Const, _Vp>;
 
@@ -10607,7 +10607,7 @@ namespace ranges
     : _M_current(std::move(__current))
     { }
 
-    friend to_input_view;
+    friend as_input_view;
     friend _Iterator<!_Const>;
 
   public:
@@ -10680,13 +10680,13 @@ namespace ranges
     namespace __detail
     {
       template<typename _Tp>
-	concept __can_to_input = requires { to_input_view(std::declval<_Tp>()); };
+	concept __can_as_input = requires { as_input_view(std::declval<_Tp>()); };
     }
 
-    struct _ToInput : __adaptor::_RangeAdaptorClosure<_ToInput>
+    struct _AsInput : __adaptor::_RangeAdaptorClosure<_AsInput>
     {
       template<viewable_range _Range>
-	requires __detail::__can_to_input<_Range>
+	requires __detail::__can_as_input<_Range>
 	constexpr auto
 	operator() [[nodiscard]] (_Range&& __r) const
 	{
@@ -10695,16 +10695,16 @@ namespace ranges
 			&& !forward_range<_Range>)
 	    return views::all(std::forward<_Range>(__r));
 	  else
-	    return to_input_view(std::forward<_Range>(__r));
+	    return as_input_view(std::forward<_Range>(__r));
 	}
 
       static constexpr bool _S_has_simple_call_op = true;
     };
 
-    inline constexpr _ToInput to_input;
+    inline constexpr _AsInput as_input;
   }
 } // namespace ranges
-#endif // __cpp_lib_ranges_to_input
+#endif // __cpp_lib_ranges_as_input
 
 _GLIBCXX_END_NAMESPACE_VERSION
 } // namespace std

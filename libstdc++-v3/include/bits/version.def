@@ -2191,7 +2191,7 @@ ftms = {
 };
 
 ftms = {
-  name = ranges_to_input;
+  name = ranges_as_input;
   values = {
     v = 202502;
     cxxmin = 26;

@@ -45,7 +45,7 @@ test_type_range(Rg&& rg)
 constexpr info vt[] = {^^int, ^^int, ^^float, ^^int, ^^float, ^^double};
 static_assert (test_type_range (vt | std::views::filter (is_integral_type))); // bidirectional
 static_assert (test_type_range (vt | std::views::take_while (is_integral_type))); // non-common
-static_assert (test_type_range (vt | std::views::to_input)); // input
+static_assert (test_type_range (vt | std::views::as_input)); // input
 static_assert (test_type_range (vt | std::views::cache_latest)); // input, move-only
 
 template<typename Rg>
@@ -74,7 +74,7 @@ constexpr bool not_digit(char c) {
 
 static_assert (test_value_range (vv | std::views::filter (not_digit))); // bidirectional
 static_assert (test_value_range (vv | std::views::take_while (not_digit))); // non-common
-static_assert (test_value_range (vv | std::views::to_input)); // input
+static_assert (test_value_range (vv | std::views::as_input)); // input
 static_assert (test_value_range (vv | std::views::cache_latest)); // input, move-only
 								 
 template<int> struct Aggr;
@@ -91,6 +91,6 @@ consteval bool of_int_type(info dm) {
 consteval {
   define_aggregate (^^Aggr<0>, dmt | std::views::filter (of_int_type)); // bidirectional
   define_aggregate (^^Aggr<1>, dmt | std::views::take_while (of_int_type)); // non-common
-  define_aggregate (^^Aggr<2>, dmt | std::views::to_input); // input
+  define_aggregate (^^Aggr<2>, dmt | std::views::as_input); // input
   define_aggregate (^^Aggr<3>, dmt | std::views::cache_latest); // input, move-only
 }

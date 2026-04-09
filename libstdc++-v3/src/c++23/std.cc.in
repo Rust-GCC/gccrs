@@ -2800,9 +2800,9 @@ export namespace std
     using ranges::cache_latest_view;
     namespace views { using views::cache_latest; }
 #endif
-#if __glibcxx_ranges_to_input // C++ >= 26
-    using ranges::to_input_view;
-    namespace views { using views::to_input; }
+#if __glibcxx_ranges_as_input // C++ >= 26
+    using ranges::as_input_view;
+    namespace views { using views::as_input; }
 #endif
 #ifdef __cpp_lib_ranges_indices // C++ >= 26
     namespace views { using views::indices; }

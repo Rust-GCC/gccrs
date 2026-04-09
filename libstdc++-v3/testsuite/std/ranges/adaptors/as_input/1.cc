@@ -2,8 +2,8 @@
 
 #include <ranges>
 
-#if __cpp_lib_ranges_to_input != 202502L
-# error "Feature-test macro __cpp_lib_ranges_to_input has wrong value in <ranges>"
+#if __cpp_lib_ranges_as_input != 202502L
+# error "Feature-test macro __cpp_lib_ranges_as_input has wrong value in <ranges>"
 #endif
 
 #include <algorithm>
@@ -18,7 +18,7 @@ void
 test01()
 {
   std::vector<int> r{1,2,3};
-  auto v = r | views::to_input;
+  auto v = r | views::as_input;
   using type = decltype(v);
   static_assert( ranges::input_range<type> && !ranges::forward_range<type> );
 
@@ -45,10 +45,10 @@ test02()
   int x[] = {1,2,3};
   __gnu_test::test_input_range<int> rx(x);
   static_assert( !ranges::common_range<decltype(rx)> );
-  auto v = rx | views::to_input;
+  auto v = rx | views::as_input;
   static_assert( std::same_as<decltype(v), decltype(views::all(rx))> );
-  static_assert( std::same_as<decltype(x | views::to_input),
-			      decltype(x | views::to_input | views::to_input)> );
+  static_assert( std::same_as<decltype(x | views::as_input),
+			      decltype(x | views::as_input | views::as_input)> );
 }
 
 int
