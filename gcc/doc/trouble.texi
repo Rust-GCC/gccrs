@@ -638,6 +638,7 @@ give rise to questions of this sort.
 * Name lookup::         Name lookup, templates, and accessing members of base classes
 * Temporaries::         Temporaries may vanish before you expect
 * Copy Assignment::     Copy Assignment operators copy virtual bases twice
+* Linkage in Anonymous Namespaces::  Names have internal linkage
 @end menu
 
 @node Static Definitions
@@ -911,6 +912,21 @@ If application code relies on copy-assignment, a user-defined
 copy-assignment operator removes any uncertainties.  With such an
 operator, the application can define whether and how the virtual base
 subobject is assigned.
+
+@node Linkage in Anonymous Namespaces
+@subsection Linkage in Anonymous Namespaces
+
+The C++11 standard changed the linkage of anonymous namespaces from
+external (using a unique generated name) to internal.  That means that
+names declared in such a namespace now also have internal linkage, and
+@code{extern "C"} has no effect.  GCC implemented this change in
+behavior starting with the GCC 15 release; code using this idiom that
+worked in earlier versions of GCC, or with @option{-std=} options
+prior to C++11, may encounter unexpected linker issues due to changes
+in name mangling.
+
+For more information about the change to the C++ standard, see
+@uref{https://cplusplus.github.io/CWG/issues/2772.html}.
 
 @node Non-bugs
 @section Certain Changes We Don't Want to Make
