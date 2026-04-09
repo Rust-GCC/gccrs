@@ -19387,10 +19387,19 @@ cp_parser_decltype_expr (cp_parser *parser,
       /* [dcl.type.decltype] "if E is an unparenthesized splice-expression,
 	 decltype(E) is the type of the entity, object, or value designated
 	 by the splice-specifier of E"  */
-      if (cp_parser_nth_token_starts_splice_without_nns_p (parser, 1))
+      const bool unparenthesized_splice_expr_p = [&] {
+	if (!flag_reflection)
+	  return false;
+	/* Skip to the end of the ':]' and see if the closing ')' follows.  */
+	saved_token_sentinel toks (parser->lexer, STS_ROLLBACK);
+	return (cp_parser_skip_entire_splice_expr (parser)
+		&& cp_lexer_next_token_is (parser->lexer, CPP_CLOSE_PAREN));
+      } ();
+      if (unparenthesized_splice_expr_p)
 	{
 	  cp_id_kind idk;
-	  expr = cp_parser_splice_expression (parser, /*template_p=*/false,
+	  const bool template_p = cp_parser_optional_template_keyword (parser);
+	  expr = cp_parser_splice_expression (parser, template_p,
 					      /*address_p=*/false,
 					      /*template_arg_p=*/false,
 					      /*member_access_p=*/false, &idk);
