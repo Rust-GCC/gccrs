@@ -9792,8 +9792,7 @@ vect_bb_vectorization_profitable_p (bb_vec_info bb_vinfo,
       while (si < li_scalar_costs.length ()
 	     && li_scalar_costs[si].first == sl);
       scalar_target_cost_data->finish_cost (nullptr);
-      scalar_cost = (scalar_target_cost_data->body_cost ()
-		     * param_vect_scalar_cost_multiplier) / 100;
+      scalar_cost = scalar_target_cost_data->body_cost ();
 
       /* Complete the target-specific vector cost calculation.  */
       class vector_costs *vect_target_cost_data = init_cost (bb_vinfo, false);
@@ -10352,6 +10351,7 @@ vect_slp_region (vec<basic_block> bbs, vec<data_reference_p> datarefs,
 	      dump_user_location_t saved_vect_location = vect_location;
 	      vect_location = instance->location ();
 	      if (!unlimited_cost_model (NULL)
+		  && !param_vect_allow_possibly_not_worthwhile_vectorizations
 		  && !vect_bb_vectorization_profitable_p
 			(bb_vinfo, instance->subgraph_entries, orig_loop))
 		{

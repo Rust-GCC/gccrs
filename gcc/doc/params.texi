@@ -1658,11 +1658,10 @@ this parameter.  The default value of this parameter is 50.
 @item vect-induction-float
 Enable loop vectorization of floating-point inductions.
 
-@paindex vect-scalar-cost-multiplier
-@item vect-scalar-cost-multiplier
-Apply the given multiplier percentage to scalar loop costing during
-vectorization.
-Increasing the cost multiplier makes vector loops more profitable.
+@paindex vect_allow_possibly_not_worthwhile_vectorizations
+@item vect_allow_possibly_not_worthwhile_vectorizations
+Enable vectorization of loops that may not be profitable according to the cost
+model but still perform costing between vector modes.
 
 @paindex vrp-block-limit
 @item vrp-block-limit

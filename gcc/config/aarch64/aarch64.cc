@@ -19844,11 +19844,11 @@ aarch64_override_options_internal (struct gcc_options *opts)
       & AARCH64_EXTRA_TUNE_DISPATCH_SCHED)
     gcc_assert (aarch64_tune_params.dispatch_constraints != NULL);
 
-  /* Set scalar costing to a high value such that we always pick
-     vectorization.  Increase scalar costing by 10000%.  */
+  /* Enable possible unprofitable vectorization.  */
   if (opts->x_flag_aarch64_max_vectorization)
     SET_OPTION_IF_UNSET (opts, &global_options_set,
-			 param_vect_scalar_cost_multiplier, 10000);
+			 param_vect_allow_possibly_not_worthwhile_vectorizations,
+			 1);
 
   /* Synchronize the -mautovec-preference and aarch64_autovec_preference using
      whichever one is not default.  If both are set then prefer the param flag

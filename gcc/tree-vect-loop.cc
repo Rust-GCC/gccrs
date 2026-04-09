@@ -2550,7 +2550,7 @@ start_over:
 
   /* Check the costings of the loop make vectorizing worthwhile.  */
   res = vect_analyze_loop_costing (loop_vinfo, suggested_unroll_factor);
-  if (res < 0)
+  if (res < 0 && !param_vect_allow_possibly_not_worthwhile_vectorizations)
     {
       ok = opt_result::failure_at (vect_location,
 				   "Loop costings may not be worthwhile.\n");
@@ -4089,8 +4089,7 @@ vect_estimate_min_profitable_iters (loop_vec_info loop_vinfo,
      TODO: Consider assigning different costs to different scalar
      statements.  */
 
-  scalar_single_iter_cost = (loop_vinfo->scalar_costs->total_cost ()
-			     * param_vect_scalar_cost_multiplier) / 100;
+  scalar_single_iter_cost = loop_vinfo->scalar_costs->total_cost ();
 
   /* Add additional cost for the peeled instructions in prologue and epilogue
      loop.  (For fully-masked loops there will be no peeling.)
