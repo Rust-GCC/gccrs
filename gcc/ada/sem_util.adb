@@ -11517,20 +11517,20 @@ package body Sem_Util is
 
          Choice := First (Choices (Assoc));
 
-         if Nkind (Choice) = N_Identifier then
-            return Present (Get_Assertion_Level (Chars (Choice)));
+         if Nkind (Choice) /= N_Identifier then
+            return False;
          end if;
 
-         return False;
+         return Present (Get_Assertion_Level (Chars (Choice)));
       else
          pragma Assert (Nkind (N) = N_Pragma);
          Assocs := Pragma_Argument_Associations (N);
          Assoc := First (Assocs);
-         if Present (Assoc) and then Chars (Assoc) /= No_Name then
-            return Present (Get_Assertion_Level (Chars (Assoc)));
+         if No (Assoc) or else Chars (Assoc) = No_Name then
+            return False;
          end if;
 
-         return False;
+         return Present (Get_Assertion_Level (Chars (Assoc)));
       end if;
    end Has_Assertion_Level_Argument;
 
