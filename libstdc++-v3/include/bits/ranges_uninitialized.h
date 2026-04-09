@@ -458,7 +458,8 @@ namespace ranges
   struct __uninitialized_fill_fn
   {
     template<__detail::__nothrow_forward_iterator _Iter,
-	     __detail::__nothrow_sentinel<_Iter> _Sent, typename _Tp>
+	     __detail::__nothrow_sentinel<_Iter> _Sent,
+	     typename _Tp _GLIBCXX26_DEF_VAL_T(iter_value_t<_Iter>)>
       requires constructible_from<iter_value_t<_Iter>, const _Tp&>
       _GLIBCXX26_CONSTEXPR
       _Iter
@@ -478,7 +479,8 @@ namespace ranges
 	  }
       }
 
-    template<__detail::__nothrow_forward_range _Range, typename _Tp>
+    template<__detail::__nothrow_forward_range _Range,
+	     typename _Tp _GLIBCXX26_DEF_VAL_T(range_value_t<_Range>)>
       requires constructible_from<range_value_t<_Range>, const _Tp&>
       _GLIBCXX26_CONSTEXPR
       borrowed_iterator_t<_Range>
@@ -492,7 +494,8 @@ namespace ranges
 
   struct __uninitialized_fill_n_fn
   {
-    template<__detail::__nothrow_forward_iterator _Iter, typename _Tp>
+    template<__detail::__nothrow_forward_iterator _Iter,
+	     typename _Tp _GLIBCXX26_DEF_VAL_T(iter_value_t<_Iter>)>
       requires constructible_from<iter_value_t<_Iter>, const _Tp&>
       _GLIBCXX26_CONSTEXPR
       _Iter

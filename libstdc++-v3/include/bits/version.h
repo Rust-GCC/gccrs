@@ -2328,9 +2328,9 @@
 
 #if !defined(__cpp_lib_algorithm_default_value_type)
 # if (__cplusplus >  202302L)
-#  define __glibcxx_algorithm_default_value_type 202403L
+#  define __glibcxx_algorithm_default_value_type 202603L
 #  if defined(__glibcxx_want_all) || defined(__glibcxx_want_algorithm_default_value_type)
-#   define __cpp_lib_algorithm_default_value_type 202403L
+#   define __cpp_lib_algorithm_default_value_type 202603L
 #  endif
 # endif
 #endif /* !defined(__cpp_lib_algorithm_default_value_type) */

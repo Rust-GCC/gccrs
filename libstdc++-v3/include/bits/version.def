@@ -2086,8 +2086,11 @@ ftms = {
 
 ftms = {
   name = algorithm_default_value_type;
+  // 202403 P2248R8 Enabling list-initialization for algorithms
+  //        P3787R2 Adjoints to "Enabling ...": find_last
+  // 202603 P3787R2 Adjoints to "Enabling ...": uninitialized_fill
   values = {
-    v = 202403;
+    v = 202603;
     cxxmin = 26;
   };
 };
