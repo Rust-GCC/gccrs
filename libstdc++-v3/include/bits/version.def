@@ -185,6 +185,11 @@ ftms = {
 ftms = {
   name = integer_sequence;
   values = {
+    v = 202511;
+    cxxmin = 26;
+    extra_cond = "__cpp_pack_indexing";
+  };
+  values = {
     v = 201304;
     cxxmin = 14;
   };

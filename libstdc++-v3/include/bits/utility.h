@@ -481,6 +481,42 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       static constexpr size_t size() noexcept { return sizeof...(_Idx); }
     };
 
+#if __glibcxx_integer_sequence >= 202511L // C++ >= 26
+  /** @brief Structured binding support for `integer_sequence`
+
+    * @since C++26
+    * @{
+    */
+  /// Structured binding support
+  template<typename _Tp, _Tp... _Idx>
+    struct tuple_size<integer_sequence<_Tp, _Idx...>>
+    : integral_constant<size_t, sizeof...(_Idx)> { };
+
+  template<size_t __i, class _Tp, _Tp... _Idx>
+    struct tuple_element<__i, integer_sequence<_Tp, _Idx...>>
+    {
+      static_assert(__i < sizeof...(_Idx));
+      using type = _Tp;
+    };
+
+  template<size_t __i, class _Tp, _Tp... _Idx>
+    struct tuple_element<__i, const integer_sequence<_Tp, _Idx...>>
+    {
+      static_assert(__i < sizeof...(_Idx));
+      using type = _Tp;
+    };
+
+  template<size_t __i, class _Tp, _Tp... _Idx>
+    [[nodiscard]]
+    constexpr _Tp
+    get(integer_sequence<_Tp, _Idx...>) noexcept
+    {
+      static_assert(__i < sizeof...(_Idx));
+      return _Idx...[__i];
+    }
+    /// @}
+#endif // __glibcxx_integer_sequence >= 202511L
+
   /// Alias template make_integer_sequence
   template<typename _Tp, _Tp _Num>
     using make_integer_sequence
