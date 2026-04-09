@@ -197,6 +197,19 @@ package body Util is
       end if;
    end Check_Bad_Layout;
 
+   -------------------------
+   -- Check_Bad_Layout_At --
+   -------------------------
+
+   procedure Check_Bad_Layout_At (Scan_State : Saved_Scan_State) is
+      S : Saved_Scan_State;
+   begin
+      Save_Scan_State (S);
+      Restore_Scan_State (Scan_State);
+      Check_Bad_Layout;
+      Restore_Scan_State (S);
+   end Check_Bad_Layout_At;
+
    --------------------------
    -- Check_Future_Keyword --
    --------------------------

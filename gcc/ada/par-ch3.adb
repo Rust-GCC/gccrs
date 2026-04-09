@@ -4613,7 +4613,7 @@ package body Ch3 is
             Append (P_Generic, Decls);
 
          when Tok_Identifier =>
-            Check_Bad_Layout;
+            Save_Scan_State (Scan_State);
 
             --  Special check for misuse of overriding not in Ada 2005 mode
 
@@ -4630,6 +4630,10 @@ package body Ch3 is
 
             else
                P_Identifier_Declarations (Decls, Done, In_Spec, In_Statements);
+            end if;
+
+            if not Done then
+               Check_Bad_Layout_At (Scan_State);
             end if;
 
          when Tok_Package =>

@@ -497,8 +497,6 @@ package body Ch5 is
                --  Cases of statements starting with an identifier
 
                when Tok_Identifier =>
-                  Check_Bad_Layout;
-
                   --  Save scan pointers and line number in case block label
 
                   Id_Node := Token_Node;
@@ -801,6 +799,8 @@ package body Ch5 is
 
                      end if;
                   end if;
+
+                  Check_Bad_Layout_At (Scan_State_Label);
 
                --  Statement starting with operator symbol. This could be
                --  a call, a name starting an assignment, or a qualified

@@ -1324,6 +1324,9 @@ function Par (Configuration_Pragmas : Boolean) return List_Id is
       --  is exdented from the current expected end column, and if so an
       --  error message is generated.
 
+      procedure Check_Bad_Layout_At (Scan_State : Saved_Scan_State);
+      --  Same as Check_Bad_Layout with Scan_State as the current scan state
+
       procedure Check_Misspelling_Of (T : Token_Type);
       pragma Inline (Check_Misspelling_Of);
       --  This is similar to the function above, except that it does not
