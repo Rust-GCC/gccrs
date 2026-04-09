@@ -11510,6 +11510,11 @@ package body Sem_Util is
          end if;
 
          Assoc := First (Assocs);
+
+         if Nkind (Assoc) /= N_Component_Association then
+            return False;
+         end if;
+
          Choice := First (Choices (Assoc));
 
          if Nkind (Choice) = N_Identifier then
