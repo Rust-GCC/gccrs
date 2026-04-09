@@ -3,7 +3,7 @@
 
 int main () {
 
-#if __riscv_v_intrinsic != 12000
+#if __riscv_v_intrinsic != 1000000
 #error "__riscv_v_intrinsic"
 #endif
 

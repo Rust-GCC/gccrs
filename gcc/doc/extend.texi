@@ -27150,9 +27150,10 @@ temporarily paused or slowed down.
 @node RISC-V Vector Intrinsics
 @subsection RISC-V Vector Intrinsics
 
-GCC supports vector intrinsics as specified in version 0.11 of the RISC-V
-vector intrinsic specification, which is available at the following link:
-@uref{https://github.com/riscv-non-isa/rvv-intrinsic-doc/tree/v0.11.x}.
+GCC supports vector intrinsics as specified in the ratified version 1.0 of the
+RISC-V vector intrinsic specification, which is available from the repository's
+release page:
+@uref{https://github.com/riscv-non-isa/rvv-intrinsic-doc/releases/tag/v1.0-ratified}.
 All of these functions are declared in the include file @file{riscv_vector.h}.
 
 @node CORE-V Built-in Functions

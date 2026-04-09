@@ -11,9 +11,8 @@ test (vuint16m1_t val, size_t shift, size_t vl)
   return __riscv_vnclipu (val, shift, vl);
 #endif
 
-#if __riscv_v_intrinsic == 12000
-  #warning "RVV Intrinsics v0.12" /* { dg-warning "RVV Intrinsics v0.12" } */
+#if __riscv_v_intrinsic == 1000000
+  #warning "RVV Intrinsics v1.0" /* { dg-warning "RVV Intrinsics v1.0" } */
   return __riscv_vnclipu (val, shift, 0, vl);
 #endif
 }
-
