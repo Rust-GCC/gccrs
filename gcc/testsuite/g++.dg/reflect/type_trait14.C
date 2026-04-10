@@ -25,8 +25,9 @@ struct NLType {
   NLType () : _M_i(0) { }
   constexpr NLType (int __i) : _M_i(__i) { }
   NLType (const NLType &__other) : _M_i(__other._M_i) { }
-  ~NLType () { _M_i = 0; }
+  ~NLType ();
 };
+NLType::~NLType () { _M_i = 0; }
 
 static_assert (is_structural_type (^^int));
 static_assert (is_structural_type (^^float));
