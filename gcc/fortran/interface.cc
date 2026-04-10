@@ -4053,10 +4053,19 @@ gfc_compare_actual_formal (gfc_actual_arglist **ap, gfc_formal_arglist *formal,
 	    }
 	}
 
+      /* F2023: 15.5.2.5 Ordinary dummy variables:
+	 "(21) If the procedure is nonelemental, the dummy argument does not
+	 have the VALUE attribute, and the actual argument is an array section
+	 having a vector subscript, the dummy argument is not definable and
+	 shall not have the ASYNCHRONOUS, INTENT (OUT), INTENT (INOUT), or
+	 VOLATILE attributes."
+       */
       if ((f->sym->attr.intent == INTENT_OUT
 	   || f->sym->attr.intent == INTENT_INOUT
 	   || f->sym->attr.volatile_
 	   || f->sym->attr.asynchronous)
+	  && !f->sym->attr.value
+	  && !is_elemental
 	  && gfc_has_vector_subscript (a->expr))
 	{
 	  if (where)
