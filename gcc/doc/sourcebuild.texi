@@ -2351,6 +2351,11 @@ ARM target supporting @code{-mbranch-protection=standard}.
 @item arm_pacbti_hw
 Test system supports for executing non nop pacbti instructions.
 
+@item arm_mixed_fp
+On Arm targets, true when the target uses hardware instructions for
+single-precision floatint-point values, but software emulation for
+double-precision values.
+
 @end table
 
 @subsubsection AArch64-specific attributes
