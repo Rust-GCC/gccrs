@@ -6755,6 +6755,24 @@ namespace_members_of (location_t loc, tree ns)
 	  return;
 	}
 
+      if (TREE_CODE (b) == CONST_DECL
+	  && enum_with_enumerator_for_linkage_p (CP_DECL_CONTEXT (b))
+	  && members_of_representable_p (data->ns, CP_DECL_CONTEXT (b)))
+	{
+	  /* TODO: This doesn't handle namespace N { enum {}; }
+	     but we pedwarn on that because it violates [dcl.pre]/6, so
+	     perhaps it doesn't need to be handled.  */
+	  tree type = CP_DECL_CONTEXT (b);
+	  if (!data->seen)
+	    data->seen = new hash_set<tree>;
+	  if (!data->seen->add (type))
+	    {
+	      CONSTRUCTOR_APPEND_ELT (data->elts, NULL_TREE,
+				      get_reflection_raw (data->loc, type));
+	      return;
+	    }
+	}
+
       if (TREE_CODE (b) == TYPE_DECL)
 	m = TREE_TYPE (b);
 
