@@ -910,13 +910,13 @@ begin -- Gen_IL.Gen.Gen_Nodes
         Sy (Handled_Statement_Sequence, Node_Id, Default_Empty),
         Sy (Has_Created_Identifier, Flag),
         Sy (Is_Asynchronous_Call_Block, Flag),
-        Sy (Is_Task_Allocation_Block, Flag),
         Sy (At_End_Proc, Node_Id, Default_Empty),
         Sm (Cleanup_Actions, List_Id),
         Sm (Exception_Junk, Flag),
         Sm (Is_Abort_Block, Flag),
         Sm (Is_Expanded_Dispatching_Call, Flag),
         Sm (Is_Initialization_Block, Flag),
+        Sm (Is_Task_Allocation_Block, Flag),
         Sm (Is_Task_Master, Flag)));
 
    Cc (N_Case_Statement, N_Statement_Other_Than_Procedure_Call,

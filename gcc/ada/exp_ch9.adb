@@ -454,6 +454,11 @@ package body Exp_Ch9 is
    --  Determine whether Id is a function or a procedure and is marked as a
    --  private primitive.
 
+   function Make_Task_Activation_Call
+     (Loc   : Source_Ptr;
+      Chain : Entity_Id) return Node_Id;
+   --  Build a call to Activate_Tasks with Chain as the single parameter
+
    function Make_Unlock_Statement
      (Prot_Type : E_Protected_Type_Id;
       Op_Spec   : N_Subprogram_Specification_Id;
@@ -971,9 +976,10 @@ package body Exp_Ch9 is
    -----------------------------------
 
    procedure Build_Activation_Chain_Entity (N : Node_Id) is
-      Context    : Node_Id;
-      Context_Id : Entity_Id;
-      Decls      : List_Id;
+      Context       : Node_Id;
+      Context_Id    : Entity_Id;
+      Context_Decls : List_Id;
+      Decl          : Node_Id;
 
    --  Start of processing for Build_Activation_Chain_Entity
 
@@ -991,41 +997,35 @@ package body Exp_Ch9 is
          return;
       end if;
 
-      Find_Enclosing_Context (N, Context, Context_Id, Decls);
+      Find_Enclosing_Context (N, Context, Context_Id, Context_Decls);
 
-      --  If activation chain entity has not been declared already, create one
+      --  Nothing to do if the context already has an activation chain entity
 
-      if not Has_Activation_Chain_Entity (Context_Id) then
-         declare
-            Loc   : constant Source_Ptr := Sloc (Context);
-            Chain : Entity_Id;
-            Decl  : Node_Id;
-
-         begin
-            Chain := Make_Defining_Identifier (Sloc (N), Name_uChain);
-
-            Decl :=
-              Make_Object_Declaration (Loc,
-                Defining_Identifier => Chain,
-                Aliased_Present     => True,
-                Object_Definition   =>
-                  New_Occurrence_Of (RTE (RE_Activation_Chain), Loc));
-
-            Prepend_To (Decls, Decl);
-
-            --  Ensure that _chain appears in the proper scope of the context
-
-            if Context_Id /= Current_Scope then
-               Push_Scope (Context_Id);
-               Analyze (Decl);
-               Pop_Scope;
-            else
-               Analyze (Decl);
-            end if;
-
-            Set_Has_Activation_Chain_Entity (Context_Id);
-         end;
+      if Has_Activation_Chain_Entity (Context_Id) then
+         return;
       end if;
+
+      Decl :=
+        Make_Object_Declaration (Sloc (N),
+          Defining_Identifier =>
+            Make_Defining_Identifier (Sloc (N), Name_uChain),
+          Aliased_Present     => True,
+          Object_Definition   =>
+            New_Occurrence_Of (RTE (RE_Activation_Chain), Sloc (N)));
+
+      Prepend_To (Context_Decls, Decl);
+
+      --  Ensure that _chain appears in the proper scope of the context
+
+      if Context_Id /= Current_Scope then
+         Push_Scope (Context_Id);
+         Analyze (Decl);
+         Pop_Scope;
+      else
+         Analyze (Decl);
+      end if;
+
+      Set_Has_Activation_Chain_Entity (Context_Id);
    end Build_Activation_Chain_Entity;
 
    ----------------------------
@@ -3034,10 +3034,10 @@ package body Exp_Ch9 is
    -------------------------
 
    procedure Build_Master_Entity (N : Node_Id) is
-      Context    : Node_Id;
-      Context_Id : Entity_Id;
-      Decl       : Node_Id;
-      Decls      : List_Id;
+      Context       : Node_Id;
+      Context_Id    : Entity_Id;
+      Context_Decls : List_Id;
+      Decl          : Node_Id;
 
    begin
       --  No action needed if the run-time has no tasking support
@@ -3051,16 +3051,16 @@ package body Exp_Ch9 is
       --  proper insertion point is the component list.
 
       if Is_Record_Type (Current_Scope) then
-         Context    := N;
+         Context := N;
          Context_Id := Current_Scope;
-         Decls      := List_Containing (Context);
+         Context_Decls := List_Containing (Context);
 
       --  Default case for object declarations and access types. Note that the
       --  context is updated to the nearest enclosing body, block, package, or
       --  return statement.
 
       else
-         Find_Enclosing_Context (N, Context, Context_Id, Decls);
+         Find_Enclosing_Context (N, Context, Context_Id, Context_Decls);
       end if;
 
       pragma Assert (not Is_Finalizer (Context_Id));
@@ -3076,7 +3076,7 @@ package body Exp_Ch9 is
       --  The master is inserted at the start of the declarative list of the
       --  context.
 
-      Prepend_To (Decls, Decl);
+      Prepend_To (Context_Decls, Decl);
 
       --  In certain cases where transient scopes are involved, the immediate
       --  scope is not always the proper master scope. Ensure that the master
@@ -4471,7 +4471,6 @@ package body Exp_Ch9 is
       Chain : Entity_Id;
       Call  : Node_Id;
       Loc   : Source_Ptr;
-      Name  : Node_Id;
       Stmt  : Node_Id;
 
    --  Start of processing for Build_Task_Activation_Call
@@ -4530,19 +4529,7 @@ package body Exp_Ch9 is
 
       Loc := Activation_Call_Loc;
 
-      if Restricted_Profile then
-         Name := New_Occurrence_Of (RTE (RE_Activate_Restricted_Tasks), Loc);
-      else
-         Name := New_Occurrence_Of (RTE (RE_Activate_Tasks), Loc);
-      end if;
-
-      Call :=
-        Make_Procedure_Call_Statement (Loc,
-          Name                   => Name,
-          Parameter_Associations =>
-            New_List (Make_Attribute_Reference (Loc,
-              Prefix         => New_Occurrence_Of (Chain, Loc),
-              Attribute_Name => Name_Unchecked_Access)));
+      Call := Make_Task_Activation_Call (Loc, Chain);
 
       if Nkind (N) = N_Package_Declaration then
          if Present (Private_Declarations (Specification (N))) then
@@ -4617,14 +4604,9 @@ package body Exp_Ch9 is
 
    begin
       Set_Etype (Blkent, Standard_Void_Type);
+      Set_Has_Activation_Chain_Entity (Blkent);
 
-      Append_To (Init_Stmts,
-        Make_Procedure_Call_Statement (Loc,
-          Name => New_Occurrence_Of (RTE (RE_Activate_Tasks), Loc),
-          Parameter_Associations => New_List (
-            Make_Attribute_Reference (Loc,
-              Prefix         => New_Occurrence_Of (Chain, Loc),
-              Attribute_Name => Name_Unchecked_Access))));
+      Append_To (Init_Stmts, Make_Task_Activation_Call (Loc, Chain));
 
       Block :=
         Make_Block_Statement (Loc,
@@ -4642,10 +4624,9 @@ package body Exp_Ch9 is
           Handled_Statement_Sequence =>
             Make_Handled_Sequence_Of_Statements (Loc, Init_Stmts),
 
-          Has_Created_Identifier   => True,
-          Is_Task_Allocation_Block => True);
+          Has_Created_Identifier => True);
 
-      Set_Has_Activation_Chain_Entity (Blkent);
+      Set_Is_Task_Allocation_Block (Block);
 
       return Block;
    end Build_Task_Allocate_Block;
@@ -14019,6 +14000,32 @@ package body Exp_Ch9 is
 
       return L;
    end Make_Initialize_Protection;
+
+   -------------------------------
+   -- Make_Task_Activation_Call --
+   -------------------------------
+
+   function Make_Task_Activation_Call
+     (Loc   : Source_Ptr;
+      Chain : Entity_Id) return Node_Id
+    is
+      Name : Node_Id;
+
+   begin
+      if Restricted_Profile then
+         Name := New_Occurrence_Of (RTE (RE_Activate_Restricted_Tasks), Loc);
+      else
+         Name := New_Occurrence_Of (RTE (RE_Activate_Tasks), Loc);
+      end if;
+
+      return
+        Make_Procedure_Call_Statement (Loc,
+          Name                   => Name,
+          Parameter_Associations =>
+            New_List (Make_Attribute_Reference (Loc,
+              Prefix         => New_Occurrence_Of (Chain, Loc),
+              Attribute_Name => Name_Unchecked_Access)));
+   end Make_Task_Activation_Call;
 
    ---------------------------
    -- Make_Task_Create_Call --
