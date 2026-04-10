@@ -308,6 +308,11 @@ package Exp_Ch9 is
    --  All the above declarations are inserted in the order shown to the front
    --  of Decls.
 
+   function Make_Task_Activation_Call
+     (Loc   : Source_Ptr;
+      Chain : Entity_Id) return Node_Id;
+   --  Build a call to Activate_Tasks with Chain as the single parameter
+
    function Make_Task_Create_Call (Task_Rec : Entity_Id) return Node_Id;
    --  Given the entity of the record type created for a task type, build
    --  the call to Create_Task

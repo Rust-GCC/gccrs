@@ -255,7 +255,8 @@ package body Exp_Ch4 is
    --  case expressions. Inspect and process actions list Stmts of expression
    --  Expr for transient objects. If such objects are found, the routine will
    --  generate code to finalize them when the enclosing context is elaborated
-   --  or evaluated.
+   --  or evaluated. Moreover, if the declaration of a _Chain entity is found,
+   --  the routine will append a call to Activate_Tasks on the entity to Stmts.
 
    --  This specific processing is required for these expressions because the
    --  management of transient objects for expressions implemented in Exp_Ch7
@@ -15226,10 +15227,15 @@ package body Exp_Ch4 is
 
       Decl := First (Stmts);
       while Present (Decl) loop
-         if Nkind (Decl) = N_Object_Declaration
-           and then Is_Finalizable_Transient (Decl, Expr)
-         then
-            Process_Transient_In_Expression (Decl);
+         if Nkind (Decl) = N_Object_Declaration then
+            if Is_Finalizable_Transient (Decl, Expr) then
+               Process_Transient_In_Expression (Decl);
+
+            elsif Chars (Defining_Identifier (Decl)) = Name_uChain then
+               Insert_After_And_Analyze (Last (Stmts),
+                 Make_Task_Activation_Call
+                   (Sloc (Decl), Defining_Identifier (Decl)));
+            end if;
          end if;
 
          Next (Decl);

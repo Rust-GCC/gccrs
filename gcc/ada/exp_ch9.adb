@@ -34,6 +34,7 @@ with Elists;         use Elists;
 with Errout;         use Errout;
 with Exp_Ch3;        use Exp_Ch3;
 with Exp_Ch6;        use Exp_Ch6;
+with Exp_Ch7;        use Exp_Ch7;
 with Exp_Ch11;       use Exp_Ch11;
 with Exp_Dbug;       use Exp_Dbug;
 with Exp_Sel;        use Exp_Sel;
@@ -427,10 +428,12 @@ package body Exp_Ch9 is
       Context_Decls : out List_Id);
    --  Subsidiary routine to procedures Build_Activation_Chain_Entity and
    --  Build_Master_Entity. Given an arbitrary node in the tree, find the
-   --  nearest enclosing body, block, package, or return statement and return
-   --  its constituents. Context is the enclosing construct, Context_Id is
-   --  the scope of Context_Id and Context_Decls is the declarative list of
-   --  Context.
+   --  enclosing body, block, package, or return statement and return its
+   --  constituents. Context is the enclosing construct, Context_Id is the
+   --  scope of Context and Context_Decls is the list of declarations of
+   --  Context. When the current scope is transient and will give rise to
+   --  a block, Context is the node to be wrapped, Context_Id is the scope
+   --  and Context_Decls is No_List.
 
    function First_Protected_Operation (D : List_Id) return Node_Id;
    --  Given the declarations list for a protected body, find the
@@ -453,11 +456,6 @@ package body Exp_Ch9 is
    function Is_Private_Primitive_Subprogram (Id : Entity_Id) return Boolean;
    --  Determine whether Id is a function or a procedure and is marked as a
    --  private primitive.
-
-   function Make_Task_Activation_Call
-     (Loc   : Source_Ptr;
-      Chain : Entity_Id) return Node_Id;
-   --  Build a call to Activate_Tasks with Chain as the single parameter
 
    function Make_Unlock_Statement
      (Prot_Type : E_Protected_Type_Id;
@@ -1013,16 +1011,21 @@ package body Exp_Ch9 is
           Object_Definition   =>
             New_Occurrence_Of (RTE (RE_Activation_Chain), Sloc (N)));
 
-      Prepend_To (Context_Decls, Decl);
+      if Present (Context_Decls) then
+         Prepend_To (Context_Decls, Decl);
 
-      --  Ensure that _chain appears in the proper scope of the context
+         --  Ensure that _Chain appears in the proper scope of the context
 
-      if Context_Id /= Current_Scope then
-         Push_Scope (Context_Id);
-         Analyze (Decl);
-         Pop_Scope;
+         if Context_Id /= Current_Scope then
+            Push_Scope (Context_Id);
+            Analyze (Decl);
+            Pop_Scope;
+         else
+            Analyze (Decl);
+         end if;
+
       else
-         Analyze (Decl);
+         Insert_Action (N, Decl);
       end if;
 
       Set_Has_Activation_Chain_Entity (Context_Id);
@@ -3073,32 +3076,35 @@ package body Exp_Ch9 is
 
       Decl := Build_Master_Declaration (Sloc (N));
 
-      --  The master is inserted at the start of the declarative list of the
-      --  context.
+      if Present (Context_Decls) then
+         --  The master is inserted at the start of the declarative list of the
+         --  context.
 
-      Prepend_To (Context_Decls, Decl);
+         Prepend_To (Context_Decls, Decl);
 
-      --  In certain cases where transient scopes are involved, the immediate
-      --  scope is not always the proper master scope. Ensure that the master
-      --  declaration and entity appear in the same context.
+         --  Ensure that _Master appears in the proper scope of the context
 
-      if Context_Id /= Current_Scope then
-         Push_Scope (Context_Id);
-         Analyze (Decl);
-         Pop_Scope;
+         if Context_Id /= Current_Scope then
+            Push_Scope (Context_Id);
+            Analyze (Decl);
+            Pop_Scope;
+         else
+            Analyze (Decl);
+         end if;
+
+         --  Mark its associated construct as being a task master, but masters
+         --  associated with return statements are already marked at this stage
+         --  (see Analyze_Subprogram_Body_Helper).
+
+         if Nkind (Context) /= N_Extended_Return_Statement then
+            Mark_Construct_As_Task_Master (Context);
+         end if;
+
       else
-         Analyze (Decl);
+         Insert_Action (N, Decl);
       end if;
 
       Set_Has_Master_Entity (Context_Id);
-
-      --  Mark its associated construct as being a task master, but masters
-      --  associated with return statements are already marked at this stage
-      --  (see Analyze_Subprogram_Body_Helper).
-
-      if Nkind (Context) /= N_Extended_Return_Statement then
-         Mark_Construct_As_Task_Master (Context);
-      end if;
    end Build_Master_Entity;
 
    ---------------------------------------
@@ -13008,6 +13014,18 @@ package body Exp_Ch9 is
       Context_Decls : out List_Id)
    is
    begin
+      --  First deal with a transient scope that will give rise to a block
+
+      if Scope_Is_Transient
+        and then Nkind (Node_To_Be_Wrapped) not in N_Declaration
+                                                 | N_Renaming_Declaration
+      then
+         Context := Node_To_Be_Wrapped;
+         Context_Id := Current_Scope;
+         Context_Decls := No_List;
+         return;
+      end if;
+
       --  Traverse the parent chain looking for an enclosing body, block,
       --  package or return statement.
 

@@ -6762,7 +6762,10 @@ package body Sem_Util is
 
       elsif Scope_Is_Transient then
          while Present (E) loop
-            exit when Scope (E) = CS or else Scope (E) = Scope (CS);
+            exit when Scope (E) = CS
+              or else (Scope (E) = Scope (CS)
+                        and then N /= Name_uChain
+                        and then N /= Name_uMaster);
 
             E := Homonym (E);
          end loop;

@@ -8932,20 +8932,21 @@ package body Exp_Ch6 is
 
       Warn_BIP (Func_Call);
 
-      --  If the build-in-place function returns a controlled object, then the
-      --  object needs to be finalized immediately after the context is exited,
-      --  which requires the creation of a transient scope and a named object.
-
       --  If the build-in-place function returns a definite subtype, then an
-      --  object also needs to be created and an access value designating it
-      --  passed as an actual.
+      --  object needs to be created and an access value designating it needs
+      --  to be passed as an actual.
+
+      --  If the build-in-place function returns either a controlled object or
+      --  an object that contains tasks, then the object needs to be finalized
+      --  immediately after the context is exited, which requires the creation
+      --  of a transient scope and a named object.
 
       --  Insert a temporary before the call initialized with function call to
       --  reuse the BIP machinery which takes care of adding the extra build-in
       --  place actuals.
 
-      if Needs_Fin or else Known_Size or else Has_Tasks then
-         if Needs_Fin then
+      if Known_Size or else Needs_Fin or else Has_Tasks then
+         if Needs_Fin or else Has_Tasks then
             Establish_Transient_Scope
               (Func_Call, Manage_Sec_Stack => not Known_Size);
          end if;

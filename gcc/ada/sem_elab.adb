@@ -2936,6 +2936,14 @@ package body Sem_Elab is
                  (List      => Private_Declarations (Context),
                   Task_Objs => Task_Objs);
 
+            --  Process all task objects in the actions when the activation
+            --  call appears in an EWA node.
+
+            elsif Nkind (Context) = N_Expression_With_Actions then
+               Traverse_List
+                 (List      => Actions (Context),
+                  Task_Objs => Task_Objs);
+
             --  Otherwise the context must be a block or a body. Process all
             --  task objects found in the declarations.
 
