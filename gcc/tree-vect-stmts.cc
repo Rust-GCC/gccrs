@@ -1750,7 +1750,7 @@ vect_use_grouped_gather (dr_vec_info *dr_info, tree vectype,
   tree tmp;
   unsigned int pieces;
   if (!can_div_trunc_p (TYPE_VECTOR_SUBPARTS (vectype), nelts, &pieces)
-      || !pieces)
+      || pieces <= 1)
     return false;
 
   *pun_vectype = vector_vector_composition_type (vectype, pieces, &tmp, true);
