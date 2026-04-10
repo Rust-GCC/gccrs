@@ -730,11 +730,6 @@ package Einfo is
 --    Component_Type [implementation base type only]
 --       Defined in array types and string types. References component type.
 
---    Contains_Ignored_Ghost_Code
---       Defined in blocks, packages and their bodies, subprograms and their
---       bodies. Set if the entity contains any ignored Ghost code in the form
---       of declaration, procedure call, assignment statement or pragma.
-
 --    Continue_Mark
 --       Defined in loop entities. It points to the loop's statement after
 --       which the label for continue statements must be inserted if one is
