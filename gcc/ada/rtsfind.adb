@@ -1284,10 +1284,10 @@ package body Rtsfind is
       --  for this unit to the current compilation unit.
 
       declare
-         LibUnit  : constant Node_Id         := Unit (Cunit (U.Unum));
-         Saved_GM : constant Ghost_Mode_Type := Ghost_Config.Ghost_Mode;
-         Clause   : Node_Id;
-         Withn    : Node_Id;
+         LibUnit : constant Node_Id := Unit (Cunit (U.Unum));
+         Clause  : Node_Id;
+         Withn   : Node_Id;
+         Orig    : Node_Id;
 
       begin
          Clause := U.First_Implicit_With;
@@ -1296,21 +1296,29 @@ package body Rtsfind is
                return;
             end if;
 
+            --  RTE can be accessed after ignored ghost code has been removed.
+            --  Use the Orignal_Node to iterate over the implicit with clause
+            --  chain.
+
+            while Nkind (Clause) /= N_With_Clause loop
+               Orig := Original_Node (Clause);
+
+               --  Break out of an infinite loop if something has gone horribly
+               --  wrong.
+
+               exit when Orig = Clause;
+               Clause := Orig;
+            end loop;
+            pragma Assert (Nkind (Clause) = N_With_Clause);
+
             Clause := Next_Implicit_With (Clause);
          end loop;
 
-         --  We want to make sure that the "with" we create below isn't
-         --  marked as ignored ghost code because this list may be walked
-         --  later, after ignored ghost code is converted to a null
-         --  statement.
-
-         Ghost_Config.Ghost_Mode := None;
          Withn :=
            Make_With_Clause (Standard_Location,
              Name =>
                Make_Unit_Name
                  (U, Defining_Unit_Name (Specification (LibUnit))));
-         Ghost_Config.Ghost_Mode := Saved_GM;
 
          Set_Corresponding_Spec  (Withn, U.Entity);
          Set_First_Name          (Withn);
@@ -1322,7 +1330,13 @@ package body Rtsfind is
 
          Mark_Rewrite_Insertion (Withn);
          Append (Withn, Context_Items (Cunit (Current_Sem_Unit)));
-         Check_Restriction_No_Dependence (Name (Withn), Current_Error_Node);
+
+         --  We can add the dependency now for analysis but the with clause was
+         --  generated in an ignored context, meaning it will be removed later.
+
+         if Ghost_Config.Ghost_Mode /= Ignore then
+            Check_Restriction_No_Dependence (Name (Withn), Current_Error_Node);
+         end if;
       end;
    end Maybe_Add_With;
 
