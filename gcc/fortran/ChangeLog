@@ -1,3 +1,10 @@
+2026-04-09  Christopher Albert  <albert@tugraz.at>
+
+	PR fortran/103367
+	* trans-array.cc (gfc_conv_array_initializer): Emit an error for
+	invalid residual initializer expressions before returning a safe
+	empty constructor.
+
 2026-04-08  Christopher Albert  <albert@tugraz.at>
 
 	PR fortran/96986

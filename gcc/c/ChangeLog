@@ -1,3 +1,9 @@
+2026-04-09  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* Make-lang.in (create_fdas_for_cc1): Use $(AFDO_PROFILER) when passing
+	--profiler to create_gcov. Ensure that perf.data contains profile for
+	cc1. Make the console output more useful.
+
 2026-04-01  Martin Uecker  <uecker@tugraz.at>
 
 	PR c/124635

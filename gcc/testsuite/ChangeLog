@@ -1,3 +1,52 @@
+2026-04-09  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/123998
+	* g++.dg/reflect/crash11.C: Adjust dg-error.
+	* g++.dg/reflect/splice5.C: Likewise.
+
+2026-04-09  Christopher Albert  <albert@tugraz.at>
+
+	PR fortran/103367
+	* gfortran.dg/pr103367.f90: Expect a constant-expression error and
+	prune the legacy-extension warning.
+
+2026-04-09  Torbjörn SVENSSON  <torbjorn.svensson@foss.st.com>
+
+	PR testsuite/113276
+	* gcc.dg/torture/fp-double-convert-float-1.c: Xfail test for arm*
+	unless single- and double-precision FP.
+	* lib/target-supports.exp (check_effective_target_arm_mixed_fp):
+	New function.
+
+2026-04-09  Torbjörn SVENSSON  <torbjorn.svensson@foss.st.com>
+
+	PR testsuite/124326
+	* g++.dg/coroutines/pr110872.C (dg-ice): Add arm*-*-*.
+
+2026-04-09  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* lib/profopt.exp (profopt-execute): Add support for profiler type
+	detection.
+
+2026-04-09  Christoph Müllner  <christoph.muellner@vrull.eu>
+
+	PR target/124818
+	* gcc.target/riscv/pr124818.c: New test.
+
+2026-04-09  Tamar Christina  <tamar.christina@arm.com>
+
+	* gcc.target/aarch64/sve/cost_model_16.c: Updated.
+	* gcc.target/aarch64/sve/cost_model_19.c: New test.
+
+2026-04-09  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* gcc.target/i386/pr124759.c (dg-do): Restrict to Linux.
+
+2026-04-09  Xi Ruoyao  <xry111@xry111.site>
+
+	PR target/105192
+	* gcc.c-torture/compile/pr105192.c: New test.
+
 2026-04-08  Christopher Albert  <albert@tugraz.at>
 
 	PR fortran/96986

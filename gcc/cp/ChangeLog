@@ -1,3 +1,30 @@
+2026-04-09  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/123998
+	* cp-tree.h (SPLICE_EXPR_TEMPLATE_P): Define.
+	(SET_SPLICE_EXPR_TEMPLATE_P): Define.
+	(SPLICE_EXPR_TARGS_P): Define.
+	(SET_SPLICE_EXPR_TARGS_P): Define.
+	(check_splice_expr): Adjust.
+	* parser.cc (cp_parser_splice_expression): Do
+	SET_SPLICE_EXPR_TEMPLATE_P and SET_SPLICE_EXPR_TARGS_P.  Adjust
+	the call to check_splice_expr.  Move the template_p checking into
+	check_splice_expr.
+	* pt.cc (tsubst_splice_expr): Do SET_SPLICE_EXPR_TEMPLATE_P and
+	SET_SPLICE_EXPR_TARGS_P.  Adjust the call to check_splice_expr.
+	* reflect.cc (eval_constant_of): Adjust the call to
+	check_splice_expr.
+	(check_splice_expr): Two new bool parameters.  Add the template_p
+	checking from cp_parser_splice_expression.  Allow
+	variable_template_p in the assert.  Add a check for
+	DECL_TYPE_TEMPLATE_P.
+
+2026-04-09  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* Make-lang.in (create_fdas_for_cc1plus): Use $(AFDO_PROFILER) when
+	passing --profiler to create_gcov. Ensure that perf.data contains
+	profile for cc1plus. Make the console output more useful.
+
 2026-04-08  Marek Polacek  <polacek@redhat.com>
 	    Boris Staletic  <boris.staletic@protonmail.com>
 

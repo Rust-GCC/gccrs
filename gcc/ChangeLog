@@ -1,3 +1,54 @@
+2026-04-09  Sandra Loosemore  <sloosemore@baylibre.com>
+
+	PR c++/124773
+	* doc/trouble.texi (Linkage in Anonymous Namespaces): New section.
+
+2026-04-09  Alex Coplan  <alex.coplan@arm.com>
+
+	PR target/122483
+	* config/aarch64/t-aarch64: Replace instances of TM_H with
+	TARGET_H where appropriate, add missing dependency on TARGET_H
+	for aarch64-early-ra.cc.
+
+2026-04-09  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* Makefile.in (AFDO_PROFILER): New variable.
+	(PERF): Likewise.
+	* config/aarch64/gcc-auto-profile: Detect and use ARM SPE events when
+	invoking perf record.
+	* configure: Regenerate.
+	* configure.ac: Detect whether build has perf utility available and
+	check for ARM SPE-based profiling support when building on AArch64.
+
+2026-04-09  Richard Biener  <rguenther@suse.de>
+
+	* coverage.cc (coverage_init): Do not call read_counts_file
+	if flag_auto_profile.
+
+2026-04-09  Christoph Müllner  <christoph.muellner@vrull.eu>
+
+	PR target/124818
+	* config/riscv/riscv.cc (synthesize_ior_xor): Do not treat
+	TARGET_ZBKB as sufficient for single-bit immediate IOR/XOR.
+
+2026-04-09  Tamar Christina  <tamar.christina@arm.com>
+
+	* doc/params.texi: Replace param_vect_scalar_cost_multiplier with
+	param_vect_allow_possibly_not_worthwhile_vectorizations
+	* params.opt: Likewise.
+	* config/aarch64/aarch64.cc (aarch64_override_options_internal):
+	Likewise.
+	* config/riscv/riscv.cc (riscv_override_options_internal): Likewise.
+	* tree-vect-loop.cc (vect_estimate_min_profitable_iters): Likewise.
+	* tree-vect-slp.cc (vect_bb_vectorization_profitable_p): Likewise.
+	(vect_slp_region): Likewise.
+
+2026-04-09  Xi Ruoyao  <xry111@xry111.site>
+
+	PR target/105192
+	* ifcvt.cc (find_if_header): Don't attempt to use ctrap expander
+	after reload.
+
 2026-04-08  Richard Biener  <rguenther@suse.de>
 
 	PR tree-optimization/124810
