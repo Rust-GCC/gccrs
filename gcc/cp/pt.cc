@@ -7551,6 +7551,8 @@ get_template_parm_object (tree expr, tree name, bool check_init/*=true*/)
   DECL_NAME (decl) = name;
   SET_DECL_ASSEMBLER_NAME (decl, name);
   comdat_linkage (decl);
+  if (check_init)
+    expr = unshare_expr_without_location (expr);
 
   if (!zero_init_p (type))
     {
