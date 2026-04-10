@@ -1194,6 +1194,23 @@ begin
 
       if Compilation_Errors then
          Ecode := E_Errors;
+
+         if GNATprove_Mode then
+            Atree.Lock;
+            Elists.Lock;
+            Fname.UF.Lock;
+            Ghost.Lock;
+            Inline.Lock;
+            Lib.Lock;
+            Namet.Lock;
+            Nlists.Lock;
+            Sem.Lock;
+            Sinput.Lock;
+            Stringt.Lock;
+
+            Back_End.Call_Back_End (Declarations_Only);
+         end if;
+
          Treepr.Tree_Dump;
          Errout.Finalize (Last_Call => True);
          Errout.Output_Messages (Ecode);
