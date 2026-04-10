@@ -3807,8 +3807,12 @@ namespace views::__adaptor
 	  }
       }
 
+      // _GLIBCXX_RESOLVE_LIB_DEFECTS
+      // 3599. The const overload of lazy_split_view::begin should be
+      // constrained by const Pattern
       constexpr auto
       begin() const requires forward_range<_Vp> && forward_range<const _Vp>
+	&& forward_range<const _Pattern>
       {
 	return _OuterIter<true>{this, ranges::begin(_M_base)};
       }
@@ -3826,7 +3830,8 @@ namespace views::__adaptor
       {
 	if constexpr (forward_range<_Vp>
 		      && forward_range<const _Vp>
-		      && common_range<const _Vp>)
+		      && common_range<const _Vp>
+		      && forward_range<const _Pattern>)
 	  return _OuterIter<true>{this, ranges::end(_M_base)};
 	else
 	  return default_sentinel;
