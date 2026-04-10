@@ -2940,7 +2940,6 @@ memmodel_name (unsigned HOST_WIDE_INT val)
 /* Indices of valid MEMORY_MODELS above for corresponding atomic operations.  */
 static const unsigned char load_models[] = { 0, 1, 2, 3, UCHAR_MAX };
 static const unsigned char store_models[] = { 0, 1, 4, UCHAR_MAX };
-static const unsigned char xchg_models[] = { 0, 1, 3, 4, 5, UCHAR_MAX };
 static const unsigned char flag_clr_models[] = { 0, 1, 4, UCHAR_MAX };
 static const unsigned char all_models[] = { 0, 1, 2, 3, 4, 5, UCHAR_MAX };
 
@@ -3097,7 +3096,7 @@ pass_waccess::check_atomic_builtin (gcall *stmt)
   switch (DECL_FUNCTION_CODE (callee))
     {
 #define BUILTIN_ACCESS_SIZE_FNSPEC(N)			\
-      BUILT_IN_SYNC_FETCH_AND_ADD_ ## N:		\
+	 BUILT_IN_SYNC_FETCH_AND_ADD_ ## N:		\
     case BUILT_IN_SYNC_FETCH_AND_SUB_ ## N:		\
     case BUILT_IN_SYNC_FETCH_AND_OR_ ## N:		\
     case BUILT_IN_SYNC_FETCH_AND_AND_ ## N:		\
@@ -3135,23 +3134,23 @@ pass_waccess::check_atomic_builtin (gcall *stmt)
     case BUILT_IN_ATOMIC_FETCH_NAND_ ## N:		\
     case BUILT_IN_ATOMIC_FETCH_OR_ ## N:		\
     case BUILT_IN_ATOMIC_FETCH_XOR_ ## N:		\
-	bytes = N;					\
-	if (sucs_arg == UINT_MAX)			\
-	  sucs_arg = 2;					\
-	if (!pvalid_models)				\
-	  pvalid_models = all_models;			\
-	break;						\
-    case BUILT_IN_ATOMIC_EXCHANGE_ ## N:		\
-	bytes = N;					\
-	sucs_arg = 3;					\
-	pvalid_models = xchg_models;			\
-	break;						\
-    case BUILT_IN_ATOMIC_COMPARE_EXCHANGE_ ## N:	\
-	bytes = N;					\
-	sucs_arg = 4;					\
-	fail_arg = 5;					\
+      bytes = N;					\
+      if (sucs_arg == UINT_MAX)				\
+	sucs_arg = 2;					\
+      if (!pvalid_models)				\
 	pvalid_models = all_models;			\
-	arg2 = 1
+      break;						\
+    case BUILT_IN_ATOMIC_EXCHANGE_ ## N:		\
+      bytes = N;					\
+      sucs_arg = 2;					\
+      pvalid_models = all_models;			\
+      break;						\
+    case BUILT_IN_ATOMIC_COMPARE_EXCHANGE_ ## N:	\
+      bytes = N;					\
+      sucs_arg = 4;					\
+      fail_arg = 5;					\
+      pvalid_models = all_models;			\
+      arg2 = 1
 
     case BUILTIN_ACCESS_SIZE_FNSPEC (1);
       break;
@@ -3167,6 +3166,55 @@ pass_waccess::check_atomic_builtin (gcall *stmt)
     case BUILT_IN_ATOMIC_CLEAR:
       sucs_arg = 1;
       pvalid_models = flag_clr_models;
+      break;
+
+#define BUILTIN_TSAN_ACCESS_SIZE_FNSPEC(N)		\
+	 BUILT_IN_TSAN_ATOMIC ## N ##_LOAD:		\
+      pvalid_models = load_models;			\
+      sucs_arg = 1;					\
+      /* FALLTHROUGH */					\
+    case BUILT_IN_TSAN_ATOMIC ## N ##_STORE:		\
+      if (!pvalid_models)				\
+	pvalid_models = store_models;			\
+      /* FALLTHROUGH */					\
+    case BUILT_IN_TSAN_ATOMIC ## N ##_FETCH_ADD:	\
+    case BUILT_IN_TSAN_ATOMIC ## N ##_FETCH_SUB:	\
+    case BUILT_IN_TSAN_ATOMIC ## N ##_FETCH_AND:	\
+    case BUILT_IN_TSAN_ATOMIC ## N ##_FETCH_NAND:	\
+    case BUILT_IN_TSAN_ATOMIC ## N ##_FETCH_OR:		\
+    case BUILT_IN_TSAN_ATOMIC ## N ##_FETCH_XOR:	\
+      bytes = N / 8;					\
+      if (sucs_arg == UINT_MAX)				\
+	sucs_arg = 2;					\
+      if (!pvalid_models)				\
+	pvalid_models = all_models;			\
+      break;						\
+    case BUILT_IN_TSAN_ATOMIC ## N ##_EXCHANGE:		\
+      bytes = N / 8;					\
+      sucs_arg = 2;					\
+      pvalid_models = all_models;			\
+      break;						\
+    case BUILT_IN_TSAN_ATOMIC ## N ##_COMPARE_EXCHANGE_STRONG:	\
+    case BUILT_IN_TSAN_ATOMIC ## N ##_COMPARE_EXCHANGE_WEAK:	\
+      bytes = N / 8;					\
+      sucs_arg = 3;					\
+      fail_arg = 4;					\
+      pvalid_models = all_models;			\
+      arg2 = 1
+
+    case BUILTIN_TSAN_ACCESS_SIZE_FNSPEC (8);
+      break;
+
+    case BUILTIN_TSAN_ACCESS_SIZE_FNSPEC (16);
+      break;
+
+    case BUILTIN_TSAN_ACCESS_SIZE_FNSPEC (32);
+      break;
+
+    case BUILTIN_TSAN_ACCESS_SIZE_FNSPEC (64);
+      break;
+
+    case BUILTIN_TSAN_ACCESS_SIZE_FNSPEC (128);
       break;
 
     default:
