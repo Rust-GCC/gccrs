@@ -180,6 +180,9 @@ void check_routines (int dev)
   else if (ptr2 == &gLocal || ptr2 == nullptr)
     __builtin_abort ();
 
+  if (!!omp_target_disassociate_ptr (&B, dev)
+      != (self_mapping || initial_dev || invalid_dev))
+    __builtin_abort ();
   if (!invalid_dev)
     {
       omp_target_free (ptr, dev);
