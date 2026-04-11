@@ -504,7 +504,9 @@ flatten_glob (const AST::UseTreeGlob &glob, std::vector<AST::SimplePath> &paths,
   if (glob.has_path ())
     paths.emplace_back (glob.get_path ());
   else
-    paths.emplace_back (AST::SimplePath ({}, false, glob.get_locus ()));
+    paths.emplace_back (AST::SimplePath (
+      {}, glob.get_glob_type () == AST::UseTreeGlob::PathType::GLOBAL,
+      glob.get_locus ()));
 }
 
 static bool

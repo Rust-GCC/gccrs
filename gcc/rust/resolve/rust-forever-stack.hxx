@@ -729,21 +729,24 @@ ForeverStack<N>::resolve_path (
     }
   else
     {
-      rust_assert (!path.get_segments ().empty ());
+      switch (mode)
+	{
+	case ResolutionMode::Normal:
+	  break; // default
+	case ResolutionMode::FromRoot:
+	  starting_point = root;
+	  break;
+	case ResolutionMode::FromExtern:
+	  starting_point = extern_prelude;
+	  break;
+	default:
+	  rust_unreachable ();
+	}
     }
 
-  switch (mode)
+  if (path.get_segments ().empty ())
     {
-    case ResolutionMode::Normal:
-      break; // default
-    case ResolutionMode::FromRoot:
-      starting_point = root;
-      break;
-    case ResolutionMode::FromExtern:
-      starting_point = extern_prelude;
-      break;
-    default:
-      rust_unreachable ();
+      return Rib::Definition::NonShadowable (starting_point.get ().id);
     }
 
   auto &segments = path.get_segments ();
