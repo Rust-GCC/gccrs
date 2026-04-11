@@ -5251,6 +5251,12 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
 	&& expr_no_side_effects_p (@1))
    @2)))
 
+/* x != CST1 ? x + CST2 : 0 -> x + CST2 when CST1 == -CST2.  */
+(simplify
+ (cond (ne @0 INTEGER_CST@2) (plus@1 @0 INTEGER_CST@3) integer_zerop)
+ (if (wi::to_wide (@2) == -wi::to_wide (@3))
+  @1))
+
 /* Simplifications of shift and rotates.  */
 
 (for rotate (lrotate rrotate)
