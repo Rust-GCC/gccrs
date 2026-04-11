@@ -1078,7 +1078,7 @@ public:
 
   void accept_vis (ASTVisitor &vis) override;
 
-  PathType get_glob_type () { return glob_type; }
+  PathType get_glob_type () const { return glob_type; }
 
   Kind get_kind () const override { return Glob; }
 
