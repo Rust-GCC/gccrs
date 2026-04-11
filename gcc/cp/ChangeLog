@@ -1,3 +1,16 @@
+2026-04-10  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/124831
+	* reflect.cc (namespace_members_of): Append reflection of anon unions
+	when we see it first time as CP_DECL_CONTEXT of some CONST_DECL in
+	the namespace.
+
+2026-04-10  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/124792
+	* pt.cc (get_template_parm_object): Call unshare_expr_without_location
+	on expr if check_init.
+
 2026-04-09  Marek Polacek  <polacek@redhat.com>
 
 	PR c++/123998

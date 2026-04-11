@@ -1,3 +1,57 @@
+2026-04-10  Patrick Palka  <ppalka@redhat.com>
+
+	* include/std/ranges (lazy_split_view::begin): Add
+	const _Pattern constraint on const overload as per LWG 3599.
+	(lazy_split_view::end): Likewise.
+	* testsuite/std/ranges/adaptors/lazy_split.cc (test14): New
+	test.
+
+2026-04-10  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* include/bits/version.def (ranges_to_input): Rename to...
+	(ranges_as_input): Rename from ranges_as_input.
+	* include/bits/version.h: Regenerate.
+	* include/std/ranges (ranges::to_input_view, views::to_input)
+	(__detail::__can_to_input, views::_ToInput): Rename to...
+	(ranges::as_input_view, views::as_input, __detail::__can_as_input)
+	(views::_AsInput): Rename from above...
+	* src/c++23/std.cc.in: Rename views::to_input and to_input_view
+	export.
+	* testsuite/25_algorithms/contains/1.cc: Replace views::to_input
+	with views::as_input.
+	* testsuite/std/ranges/adaptors/to_input/1.cc: Move to...
+	* testsuite/std/ranges/adaptors/as_input/1.cc: ...here, and replace
+	views::to_input with views::as_input.
+
+2026-04-10  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* include/bits/version.def (span_initializer_list): Remove.
+	* include/bits/version.h: Regenerate.
+	* include/std/span (span::span(initializer_list<value_type>)):
+	Remove.
+	* testsuite/23_containers/span/init_list_cons.cc: Removed.
+	* testsuite/23_containers/span/init_list_cons_neg.cc: Removed.
+	* testsuite/23_containers/inplace_vector/copy.cc: Replace span
+	with initializer_list in eq helper.
+	* testsuite/23_containers/inplace_vector/erasure.cc: Likewise.
+	* testsuite/23_containers/inplace_vector/move.cc: Likewise.
+
+2026-04-10  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* include/bits/ranges_uninitialized.h
+	(__uninitialized_fill_fn::operator())
+	(__uninitialized_fill_fn_n::operator()): Add default argument
+	for _Tp parameter.
+	* include/bits/stl_uninitialized.h (std::unitialized_fill)
+	(std::unitialized_fill_n): Likewise.
+	* include/pstl/glue_memory_defs.h (std::unitialized_fill)
+	(std::unitialized_fill_n): Likewise.
+	* include/bits/version.def (algorithm_default_value_type):
+	Bump to 202603.
+	* include/bits/version.h: Regenerate.
+	* testsuite/25_algorithms/default_template_value.cc:
+	Test for new algorithms.
+
 2026-04-08  Matthias Kretz  <m.kretz@gsi.de>
 	    Tomasz Kamiński  <tkaminsk@redhat.com>
 

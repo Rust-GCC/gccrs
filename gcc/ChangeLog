@@ -1,3 +1,22 @@
+2026-04-10  Jakub Jelinek  <jakub@redhat.com>
+
+	PR middle-end/124827
+	* gimple-ssa-warn-access.cc (xchg_models): Remove.
+	(pass_waccess::check_atomic_builtin): Fix up sucs_arg for
+	BUILT_IN_ATOMIC_EXCHAGE_* and use all_models instead of xchg_models.
+	Handle BUILT_IN_TSAN_ATOMIC*.  Formatting fixes.
+
+2026-04-10  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* configure: Regenerate.
+
+2026-04-10  Christoph Müllner  <christoph.muellner@vrull.eu>
+
+	* config/riscv/riscv-c.cc (riscv_cpu_cpp_builtins): Set
+	__riscv_v_intrinsic to v1.0.
+	* doc/extend.texi (RISC-V Vector Intrinsics): Document the
+	ratified v1.0 RVV intrinsic specification and update the link.
+
 2026-04-09  Sandra Loosemore  <sloosemore@baylibre.com>
 
 	PR c++/124773

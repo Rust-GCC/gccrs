@@ -1,3 +1,8 @@
+2026-04-10  Gaius Mulley  <gaiusmod2@gmail.com>
+
+	PR modula2/124840
+	* gm2-libs/BinDict.mod (Key): Return field key.
+
 2026-04-07  Sandra Loosemore  <sloosemore@baylibre.com>
 
 	PR other/124784

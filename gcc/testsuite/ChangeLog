@@ -1,3 +1,47 @@
+2026-04-10  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/124844
+	* g++.dg/reflect/type_trait14.C (NLType::~NLType): Move definition out
+	of the class.
+
+2026-04-10  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/124831
+	* g++.dg/reflect/members_of13.C: New test.
+
+2026-04-10  Christopher Albert  <albert@tugraz.at>
+
+	PR fortran/94978
+	* gfortran.dg/pr94978.f90: New test.
+
+2026-04-10  Jakub Jelinek  <jakub@redhat.com>
+
+	PR middle-end/124827
+	* gcc.dg/tsan/atomic-invalid.c: New test.
+
+2026-04-10  Jakub Jelinek  <jakub@redhat.com>
+
+	PR lto/124828
+	* g++.dg/lto/20091022-2_0.C (_GLIBCXX_SYSHDR): Define before including
+	<string>.
+
+2026-04-10  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/124792
+	* g++.dg/reflect/pr124792.C: New test.
+
+2026-04-10  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* g++.dg/reflect/range_args.C: Replace views::to_input with
+	views::as_input.
+
+2026-04-10  Christoph Müllner  <christoph.muellner@vrull.eu>
+
+	* gcc.target/riscv/predef-__riscv_v_intrinsic.c: Update expected
+	__riscv_v_intrinsic value.
+	* gcc.target/riscv/rvv/base/pr114017-1.c: Update version check and
+	expected warning text to v1.0.
+
 2026-04-09  Marek Polacek  <polacek@redhat.com>
 
 	PR c++/123998
