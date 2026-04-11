@@ -1,3 +1,6 @@
+/* { dg-do run }
+   { dg-require-effective-target c99_runtime } */
+
 /*
   Program to test complex divide for correct results on selected values.
   Checking known failure points.

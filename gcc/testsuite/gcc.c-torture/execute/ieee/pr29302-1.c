@@ -1,3 +1,5 @@
+/* { dg-do run }
+   { dg-xfail-if "" { tic6x-*-* && ti_c67x } } */
 extern void abort (void);
 
 int main (void)

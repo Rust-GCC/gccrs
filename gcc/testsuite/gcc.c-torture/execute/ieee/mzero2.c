@@ -1,3 +1,5 @@
+/* { dg-do run }
+   { dg-xfail-if "" { "i?86-*-freebsd*\[123\]\.*" } } */
 /* Test IEEE +0/-0 rules */
 
 void abort (void);

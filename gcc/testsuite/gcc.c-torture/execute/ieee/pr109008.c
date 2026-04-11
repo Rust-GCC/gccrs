@@ -1,3 +1,4 @@
+/* { dg-do run } */
 /* PR tree-optimization/109008 */
 
 __attribute__((noipa)) double

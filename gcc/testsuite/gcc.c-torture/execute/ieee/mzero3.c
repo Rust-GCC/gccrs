@@ -1,3 +1,4 @@
+/* { dg-do run } */
 /* Copyright (C) 2002  Free Software Foundation.
    by Hans-Peter Nilsson  <hp@bitrange.com>, derived from mzero2.c
 

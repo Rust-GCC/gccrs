@@ -1,3 +1,8 @@
+/* { dg-do run }
+
+   # AVR doubles are floats
+   { dg-skip-if "AVR doubles are floats" { avr-*-* } }
+   { dg-skip-if "AVR doubles are floats" { d10v-*-* } { "*" } { "*-mdouble64*" } } */
 #if defined(__i386__) && defined(__FreeBSD__)
 #include <ieeefp.h>
 #endif

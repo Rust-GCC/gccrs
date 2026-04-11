@@ -1,3 +1,4 @@
+/* { dg-do run } */
 /* PR target/36332 */
 
 int

@@ -1,3 +1,6 @@
+/* { dg-do run }
+   { dg-xfail-if "" { *-*-vxworks* } }
+   { dg-xfail-if "" { tic6x-*-* && ti_c67x } } */
 #include <math.h>
 
 void abort (void);

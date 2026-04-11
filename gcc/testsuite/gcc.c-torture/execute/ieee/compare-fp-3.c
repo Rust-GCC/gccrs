@@ -1,3 +1,6 @@
+/* { dg-do run }
+   { dg-additional-options "-fno-trapping-math" } */
+
 /* Copyright (C) 2004 Free Software Foundation.
 
    Test for composite comparison always true/false optimization.

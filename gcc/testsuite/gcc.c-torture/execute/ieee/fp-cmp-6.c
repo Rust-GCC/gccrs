@@ -1,3 +1,9 @@
+/* { dg-do run }
+
+   # The ARM VxWorks kernel uses an external floating-point library in
+   # which routines like __ledf2 are just aliases for __cmpdf2.  These
+   # routines therefore don't handle NaNs correctly.
+   { dg-xfail-if "" { arm*-*-vxworks* } } */
 
 const double dnan = 1.0/0.0 - 1.0/0.0;
 double x = 1.0;

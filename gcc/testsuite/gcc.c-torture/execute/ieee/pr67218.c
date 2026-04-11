@@ -1,3 +1,4 @@
+/* { dg-do run } */
 extern void abort (void) __attribute__ ((noreturn));
 
 double __attribute__ ((noinline, noclone))

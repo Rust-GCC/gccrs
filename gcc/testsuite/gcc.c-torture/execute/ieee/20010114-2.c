@@ -1,3 +1,4 @@
+/* { dg-do run } */
 extern void exit (int);
 extern void abort (void);
 

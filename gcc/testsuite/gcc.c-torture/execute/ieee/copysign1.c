@@ -1,3 +1,4 @@
+/* { dg-do run } */
 #include <string.h>
 #include <stdlib.h>
 #include <float.h>

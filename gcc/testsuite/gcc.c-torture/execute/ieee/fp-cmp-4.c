@@ -1,3 +1,6 @@
+/* { dg-do run }
+   { dg-additional-options "-std=gnu17" } */
+
 void abort (void);
 void exit (int);
 

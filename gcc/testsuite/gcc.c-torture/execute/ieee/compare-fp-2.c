@@ -1,3 +1,4 @@
+/* { dg-do run } */
 /* Copyright (C) 2004 Free Software Foundation.
 
    Ensure that the composite comparison optimization doesn't misfire

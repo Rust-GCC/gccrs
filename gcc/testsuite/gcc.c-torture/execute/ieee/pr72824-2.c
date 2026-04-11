@@ -1,3 +1,4 @@
+/* { dg-do run } */
 /* PR tree-optimization/72824 */
 
 typedef float V __attribute__((vector_size (4 * sizeof (float))));

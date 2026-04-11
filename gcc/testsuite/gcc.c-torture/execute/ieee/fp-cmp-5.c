@@ -1,3 +1,4 @@
+/* { dg-do run } */
 /* Like fp-cmp-4.c, but test that the setcc patterns are correct.  */
 
 void abort (void);

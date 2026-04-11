@@ -1,3 +1,4 @@
+/* { dg-do run } */
 #include <float.h>
 
 void abort (void);

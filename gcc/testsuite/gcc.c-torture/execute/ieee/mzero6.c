@@ -1,3 +1,4 @@
+/* { dg-do run } */
 /* Tail call optimizations would convert func() into the moral equivalent of:
 
        double acc = 0.0;

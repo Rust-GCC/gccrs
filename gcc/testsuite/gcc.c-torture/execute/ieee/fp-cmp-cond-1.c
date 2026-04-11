@@ -1,3 +1,4 @@
+/* { dg-do run } */
 /* PR tree-optimization/111109 */
 
 /*

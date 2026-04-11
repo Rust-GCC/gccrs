@@ -1,3 +1,18 @@
+/* { dg-do run }
+   # C6X floating point hardware turns denormals to zero in multiplications.
+   { dg-xfail-if "" { tic6x-*-* && ti_c67x } }
+
+   # ColdFire FPUs require software handling of subnormals.  We are
+   # not aware of any system that has this.
+   { dg-xfail-if "" { m68k-*-* && coldfire_fpu } }
+
+   # The C-SKY hardware FPU only supports flush-to-zero mode.
+   { dg-xfail-if "" { csky-*-* && hard_float } }
+
+   # The Epiphany single-precision floating point format does not
+   # support subnormals.
+   { dg-skip-if "" { epiphany-*-* } } */
+
 /* Check that certain subnormal numbers (formerly known as denormalized
    numbers) are rounded to within 0.5 ulp.  PR other/14354.  */
 

@@ -1,3 +1,6 @@
+/* { dg-do run }
+   { dg-additional-options "-fno-trapping-math" } */
+
 extern void link_error ();
 
 void foo(double x)

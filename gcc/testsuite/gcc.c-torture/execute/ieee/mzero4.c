@@ -1,3 +1,4 @@
+/* { dg-do run } */
 /* Copyright (C) 2003  Free Software Foundation.
    by Roger Sayle <roger@eyesopen.com>, derived from mzero3.c
 
