@@ -1839,9 +1839,39 @@ gfc_omp_finish_clause (tree c, gimple_seq *pre_p, bool openacc)
   else
     {
       if (OMP_CLAUSE_SIZE (c) == NULL_TREE)
-	OMP_CLAUSE_SIZE (c)
-	  = DECL_P (decl) ? DECL_SIZE_UNIT (decl)
-			  : TYPE_SIZE_UNIT (TREE_TYPE (decl));
+	{
+	  if (DECL_P (decl))
+	    OMP_CLAUSE_SIZE (c) = DECL_SIZE_UNIT (decl);
+	  else
+	    {
+	      tree type = TREE_TYPE (decl);
+	      tree size = TYPE_SIZE_UNIT (type);
+	      /* For variable-length character types, TYPE_SIZE_UNIT is a
+		 SAVE_EXPR.  Gimplifying the SAVE_EXPR (here or elsewhere)
+		 resolves it in place, embedding a gimple temporary that
+		 later causes an ICE in remap_type during inlining because
+		 the temporary is not in scope (PR101760, PR102314).
+		 Compute the size from the array domain and element size
+		 to decouple completely from the type's SAVE_EXPRs.  */
+	      if (size
+		  && TREE_CODE (type) == ARRAY_TYPE
+		  && TYPE_DOMAIN (type)
+		  && TYPE_MAX_VALUE (TYPE_DOMAIN (type))
+		  && !TREE_CONSTANT (TYPE_MAX_VALUE (TYPE_DOMAIN (type))))
+		{
+		  tree len = TYPE_MAX_VALUE (TYPE_DOMAIN (type));
+		  tree lb = TYPE_MIN_VALUE (TYPE_DOMAIN (type));
+		  tree eltsz = TYPE_SIZE_UNIT (TREE_TYPE (type));
+		  len = fold_build2 (MINUS_EXPR, TREE_TYPE (len), len, lb);
+		  len = fold_build2 (PLUS_EXPR, TREE_TYPE (len), len,
+				     build_one_cst (TREE_TYPE (len)));
+		  size = fold_build2 (MULT_EXPR, sizetype,
+				      fold_convert (sizetype, len),
+				      fold_convert (sizetype, eltsz));
+		}
+	      OMP_CLAUSE_SIZE (c) = size;
+	    }
+	}
 
       tree type = TREE_TYPE (decl);
       if (POINTER_TYPE_P (type) && POINTER_TYPE_P (TREE_TYPE (type)))
