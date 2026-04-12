@@ -1,3 +1,10 @@
+2026-04-11  Christopher Albert  <albert@tugraz.at>
+
+	PR fortran/93554
+	* omp-expand.cc (expand_oacc_for): Relax entry_bb and cont_bb
+	assertions to allow intermediate blocks from finalization code.
+	Remove exit_bb predecessor count assertion.
+
 2026-04-10  Jakub Jelinek  <jakub@redhat.com>
 
 	PR middle-end/124827

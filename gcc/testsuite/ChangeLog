@@ -1,3 +1,24 @@
+2026-04-11  Christopher Albert  <albert@tugraz.at>
+
+	PR fortran/93554
+	* gfortran.dg/goacc/pr93554.f90: New test.
+
+2026-04-11  Christopher Albert  <albert@tugraz.at>
+
+	PR fortran/93814
+	* gfortran.dg/pr93814.f90: New test.
+
+2026-04-11  Harald Anlauf  <anlauf@gmx.de>
+	    Mikael Morin  <mikael@gcc.gnu.org>
+
+	PR fortran/120140
+	* gfortran.dg/defined_assignment_13.f90: New test.
+
+2026-04-11  H.J. Lu  <hjl.tools@gmail.com>
+
+	PR testsuite/124849
+	* lib/profopt.exp (profopt-execute): Pass --no-pager to perf.
+
 2026-04-10  Jakub Jelinek  <jakub@redhat.com>
 
 	PR c++/124844

@@ -1,3 +1,21 @@
+2026-04-11  Christopher Albert  <albert@tugraz.at>
+
+	PR fortran/93814
+	* trans-decl.cc (build_entry_thunks): Create local result buffer
+	and length temporaries for bind(c) CHARACTER entry thunks when the
+	master returns by reference but the thunk returns by value.
+
+2026-04-11  Harald Anlauf  <anlauf@gmx.de>
+	    Mikael Morin  <mikael@gcc.gnu.org>
+
+	PR fortran/120140
+	* dependency.cc (gfc_check_argument_var_dependency): For elemental
+	subroutines skip the dependency check for array references.
+	Correct description of function return value.
+	* interface.cc (gfc_compare_actual_formal): Allow array sections
+	with vector subscripts as actual arguments to elemental procedures
+	in accordance with the Fortran standard.
+
 2026-04-10  Christopher Albert  <albert@tugraz.at>
 
 	PR fortran/94978
