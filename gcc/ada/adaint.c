@@ -350,11 +350,7 @@ const char *__gnat_library_template = GNAT_LIBRARY_TEMPLATE;
 
 #else
 
-#if defined (__MINGW32__)
-#include "mingw32.h"
-#else
 #include <sys/param.h>
-#endif
 
 #ifdef MAXPATHLEN
 #define GNAT_MAX_PATH_LEN MAXPATHLEN
