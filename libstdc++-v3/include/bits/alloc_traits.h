@@ -670,7 +670,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
        *  Returns `a.allocate_at_least(n)`.
       */
       [[nodiscard]] static constexpr auto
-      allocate_at_least(allocator_type __a, size_type __n)
+      allocate_at_least(allocator_type& __a, size_type __n)
 	-> allocation_result<pointer, size_type>
       { return __a.allocate_at_least(__n); }
 #endif
