@@ -13,4 +13,5 @@ void bar(char c[])
         c[i] = c[i] == 'a' ? 'c' : 'e';
 }
 
-/* { dg-final { scan-assembler-not "not" } } */
+/* { dg-final { scan-assembler-not "\tnot\t" } } */
+/* { dg-final { scan-assembler-times "\tcmeq\t" 2 } } */
