@@ -641,7 +641,8 @@ handle_return_addr_local_phi_arg (basic_block bb, basic_block duplicate,
       if (!return_stmt)
 	continue;
 
-      if (gimple_return_retval (return_stmt) != lhs)
+      if (gimple_return_retval (return_stmt) != lhs
+	  || !dominated_by_p (CDI_DOMINATORS, gimple_bb (use_stmt), bb))
 	continue;
 
       /* Add an entry for the return statement and the locations
@@ -715,16 +716,11 @@ find_implicit_erroneous_behavior (void)
  	 is then dereferenced within BB.  This is somewhat overly
 	 conservative, but probably catches most of the interesting
 	 cases.   */
+      basic_block duplicate = NULL;
       for (si = gsi_start_phis (bb); !gsi_end_p (si); gsi_next (&si))
 	{
 	  gphi *phi = si.phi ();
 	  tree lhs = gimple_phi_result (phi);
-
-	  /* Initial number of PHI arguments.  The result may change
-	     from one iteration of the loop below to the next in
-	     response to changes to the CFG but only the initial
-	     value is stored below for use by diagnostics.  */
-	  unsigned nargs = gimple_phi_num_args (phi);
 
 	  /* PHI produces a pointer result.  See if any of the PHI's
 	     arguments are NULL.
@@ -732,7 +728,6 @@ find_implicit_erroneous_behavior (void)
 	     When we remove an edge, we want to reprocess the current
 	     index since the argument at that index will have been
 	     removed, hence the ugly way we update I for each iteration.  */
-	  basic_block duplicate = NULL;
 	  for (unsigned i = 0, next_i = 0;
 	       i < gimple_phi_num_args (phi); i = next_i)
 	    {
@@ -742,15 +737,6 @@ find_implicit_erroneous_behavior (void)
 	      /* Advance the argument index unless a path involving
 		 the current argument has been isolated.  */
 	      next_i = i + 1;
-	      bool isolated = false;
-	      duplicate = handle_return_addr_local_phi_arg (bb, duplicate, lhs,
-							    arg, e, locmap,
-							    nargs, &isolated);
-	      if (isolated)
-		{
-		  cfg_altered = true;
-		  next_i = i;
-		}
 
 	      if (!integer_zerop (arg))
 		continue;
@@ -794,6 +780,48 @@ find_implicit_erroneous_behavior (void)
 		}
 	    }
 	}
+
+      /* Then look for a PHI which have addresses of locals that
+	 are then returned.  */
+      duplicate = NULL;
+      for (si = gsi_start_phis (bb); !gsi_end_p (si); gsi_next (&si))
+	{
+	  gphi *phi = si.phi ();
+	  tree lhs = gimple_phi_result (phi);
+
+	  /* Initial number of PHI arguments.  The result may change
+	     from one iteration of the loop below to the next in
+	     response to changes to the CFG but only the initial
+	     value is stored below for use by diagnostics.  */
+	  unsigned nargs = gimple_phi_num_args (phi);
+
+	  /* PHI produces a pointer result.  See if any of the PHI's
+	     arguments are NULL.
+
+	     When we remove an edge, we want to reprocess the current
+	     index since the argument at that index will have been
+	     removed, hence the ugly way we update I for each iteration.  */
+	  for (unsigned i = 0, next_i = 0;
+	       i < gimple_phi_num_args (phi); i = next_i)
+	    {
+	      tree arg = gimple_phi_arg_def (phi, i);
+	      edge e = gimple_phi_arg_edge (phi, i);
+
+	      /* Advance the argument index unless a path involving
+		 the current argument has been isolated.  */
+	      next_i = i + 1;
+	      bool isolated = false;
+	      duplicate = handle_return_addr_local_phi_arg (bb, duplicate, lhs,
+							    arg, e, locmap,
+							    nargs, &isolated);
+	      if (isolated)
+		{
+		  cfg_altered = true;
+		  next_i = i;
+		}
+	    }
+	}
+
     }
 
   diag_returned_locals (false, locmap);
