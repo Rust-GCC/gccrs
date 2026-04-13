@@ -697,7 +697,7 @@ package body Sem_Ch7 is
             if Is_Type (Id)
               and then (Is_Limited_Composite (Id)
                          or else Is_Private_Composite (Id))
-              and then No (Partially_Visible_Subcomponent (Id))
+              and then No (Partially_Visible_Part (Id))
             then
                Set_Is_Limited_Composite (Id, False);
                Set_Is_Private_Composite (Id, False);

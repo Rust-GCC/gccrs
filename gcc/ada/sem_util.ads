@@ -3041,12 +3041,13 @@ package Sem_Util is
    --  of the corresponding formal entity, otherwise returns Empty. Also
    --  handles the case of references to renamings of formals.
 
-   function Partially_Visible_Subcomponent
-     (Type_Id : Entity_Id) return Entity_Id;
-   --  If there exist any subcomponents of Type_Id whose types are currently
-   --  only partially visible, returns one such subcomponent. Otherwise returns
-   --  Empty. Used to enforce the rules on visibility of operations on
-   --  composite types, that depend on the full view of the subcomponent types.
+   function Partially_Visible_Part (Type_Id : Entity_Id) return Entity_Id;
+   --  If Type_Id is currently only partially visible, return Type_Id.
+   --  Otherwise, if there exist any subcomponents of Type_Id whose types are
+   --  currently only partially visible, returns the type of one such
+   --  subcomponent. Otherwise returns Empty. Used to enforce the rules on
+   --  visibility of operations on composite types, that depend on the full
+   --  view of the subcomponent types.
    --
    --  We say that a type is "partially visible" when it has a partial view
    --  that is currently visible but no full view that is currently visible.

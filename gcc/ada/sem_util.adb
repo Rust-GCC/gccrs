@@ -27004,10 +27004,8 @@ package body Sem_Util is
    -- Partially_Visible_Subcomponent --
    ------------------------------------
 
-   function Partially_Visible_Subcomponent
-     (Type_Id : Entity_Id) return Entity_Id
-   is
-      Ancestor  : constant Entity_Id := Base_Type (Type_Id);
+   function Partially_Visible_Part (Type_Id : Entity_Id) return Entity_Id is
+      Ancestor : constant Entity_Id := Base_Type (Type_Id);
 
       function Trace_Components
         (T     : Entity_Id;
@@ -27091,7 +27089,7 @@ package body Sem_Util is
 
    begin
       return Trace_Components (Type_Id, False);
-   end Partially_Visible_Subcomponent;
+   end Partially_Visible_Part;
 
    ----------------------
    -- Policy_In_Effect --
