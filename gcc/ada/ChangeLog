@@ -1,3 +1,9 @@
+2026-04-12  Eric Botcazou  <ebotcazou@adacore.com>
+
+	PR ada/124836
+	* adaint.c [__MINGW32__]: Do not include mingw32.h twice, and also
+	include sys/param.h.
+
 2026-04-07  Sandra Loosemore  <sloosemore@baylibre.com>
 
 	PR other/124784
