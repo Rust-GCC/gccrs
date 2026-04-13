@@ -801,6 +801,13 @@ set_uids_in_ptset (bitmap into, bitmap from, struct pt_solution *pt,
 		  && ! auto_var_in_fn_p (vi->decl, fndecl)))
 	    pt->vars_contains_nonlocal = true;
 
+	  /* If the variable is an automatic in the local stack frame, record
+	     that.  Note this does not include PARM_DECL and RESULT_DECL which
+	     are managed by the caller.  */
+	  if (VAR_P (vi->decl)
+	      && auto_var_in_fn_p (vi->decl, fndecl))
+	    pt->vars_contains_auto = true;
+
 	  /* If we have a variable that is interposable record that fact
 	     for pointer comparison simplification.  */
 	  if (VAR_P (vi->decl)
@@ -1119,6 +1126,27 @@ pt_solution_includes_global (struct pt_solution *pt, bool escaped_local_p)
 
   return false;
 }
+
+/* Return true if the points-to solution *PT includes local automatic
+   storage.  */
+
+bool
+pt_solution_includes_auto (struct pt_solution *pt)
+{
+  if (pt->anything
+      || pt->vars_contains_auto)
+    return true;
+
+  /* 'escaped' is also a placeholder so we have to look into it.  */
+  if (pt->escaped)
+    return pt_solution_includes_auto (&cfun->gimple_df->escaped);
+
+  if (pt->ipa_escaped)
+    return pt_solution_includes_auto (&ipa_escaped_pt);
+
+  return false;
+}
+
 
 /* Return true if the points-to solution *PT includes the variable
    declaration DECL.  */
@@ -1803,7 +1831,7 @@ make_pass_build_ealias (gcc::context *ctxt)
 /* IPA PTA solutions for ESCAPED.  */
 struct pt_solution ipa_escaped_pt
   = { true, false, false, false, false, false,
-      false, false, false, false, false, NULL };
+      false, false, false, false, false, false, NULL };
 
 
 /* Execute the driver for IPA PTA.  */

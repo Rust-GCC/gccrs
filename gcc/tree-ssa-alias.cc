@@ -238,6 +238,30 @@ ptr_deref_may_alias_global_p (tree ptr, bool escaped_local_p)
   return pt_solution_includes_global (&pi->pt, escaped_local_p);
 }
 
+/* Return true, if dereferencing PTR may alias with a local automatic
+   variable.  */
+
+bool
+ptr_deref_may_alias_auto_p (tree ptr)
+{
+  struct ptr_info_def *pi;
+
+  /* If we end up with a pointer constant here that may point
+     to local stack memory.  */
+  if (TREE_CODE (ptr) != SSA_NAME)
+    return true;
+
+  pi = SSA_NAME_PTR_INFO (ptr);
+
+  /* If we do not have points-to information for this variable,
+     we have to punt.  */
+  if (!pi)
+    return true;
+
+  return pt_solution_includes_auto (&pi->pt);
+}
+
+
 /* Return true if dereferencing PTR may alias DECL.
    The caller is responsible for applying TBAA to see if PTR
    may access DECL at all.  */
