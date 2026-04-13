@@ -1275,8 +1275,9 @@ package body System.Perfect_Hash_Generators is
    --------------
 
    function New_Word (S : String) return Word_Type is
+      subtype Word_String is String (1 .. S'Length);
    begin
-      return new String'(S);
+      return new String'(Word_String (S));
    end New_Word;
 
    ------------------------------
