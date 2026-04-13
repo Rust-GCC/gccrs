@@ -3626,6 +3626,16 @@ cgraph_node::only_called_directly_p (void)
 				       NULL, true);
 }
 
+/* Returns TRUE iff THIS is a descendant of N in the clone tree.  */
+
+bool
+cgraph_node::is_clone_of (cgraph_node *n) const
+{
+  for (cgraph_node *walker = clone_of; walker; walker = walker->clone_of)
+    if (walker == n)
+      return true;
+  return false;
+}
 
 /* Collect all callers of NODE.  Worker for collect_callers_of_node.  */
 

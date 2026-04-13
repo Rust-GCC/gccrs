@@ -1294,6 +1294,9 @@ struct GTY((tag ("SYMTAB_FUNCTION"))) cgraph_node : public symtab_node
      it is not used in any other non-standard way.  */
   bool only_called_directly_p (void);
 
+  /* Returns TRUE iff THIS is a descendant of N in the clone tree.  */
+  bool is_clone_of (cgraph_node *n) const;
+
   /* Turn profile to global0.  Walk into inlined functions.  */
   void make_profile_local ();
 
