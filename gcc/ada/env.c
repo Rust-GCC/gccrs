@@ -99,12 +99,16 @@ __gnat_getenv (char *name, int *len, char **value)
 void
 __gnat_setenv (char *name, char *value)
 {
+/* We use setenv on a few operating systems where we are sure it's available,
+   plus on all platforms that claim to support a POSIX version where setenv is
+   mandatory */
 #if (defined (__vxworks) && (defined (__RTP__) || _WRS_VXWORKS_MAJOR >= 7)) \
     || defined (__APPLE__) \
-    || defined (__linux__)
+    || defined (__linux__) \
+    || _POSIX_VERSION >= 200112L
   setenv (name, value, 1);
 
-#else /* Why don't we use setenv on all platforms where it's available??? */
+#else
   size_t size = strlen (name) + strlen (value) + 2;
   char *expression;
 
