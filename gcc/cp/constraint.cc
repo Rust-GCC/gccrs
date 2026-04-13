@@ -2826,7 +2826,12 @@ satisfy_declaration_constraints (tree t, tree args, sat_info info)
       tree pattern = DECL_TEMPLATE_RESULT (t);
       push_to_top_level ();
       push_access_scope (pattern);
-      result = satisfy_normalized_constraints (norm, args, info);
+      {
+	/* For reconstruct_lambda_capture_pack.  */
+	local_specialization_stack lss (LAMBDA_FUNCTION_P (t)
+					? lss_blank : lss_nop);
+	result = satisfy_normalized_constraints (norm, args, info);
+      }
       pop_access_scope (pattern);
       pop_from_top_level ();
       pop_tinst_level ();
