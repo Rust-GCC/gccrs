@@ -97,6 +97,7 @@ void adjust_equivalence_range (vrange &range);
 class relation_oracle
 {
 public:
+  relation_oracle () { m_lhs_equiv_set_p = NULL; }
   virtual ~relation_oracle () { }
 
   // register a relation between 2 ssa names.
@@ -128,6 +129,8 @@ protected:
   virtual relation_kind query (basic_block, const_bitmap, const_bitmap)
     { return VREL_VARYING; }
   friend class path_oracle;
+  // Used to Avoid registering multiple eqiuvalences from the same statement.
+  bitmap m_lhs_equiv_set_p;
 };
 
 // Instance with no storage used for default queries with no active oracle.
