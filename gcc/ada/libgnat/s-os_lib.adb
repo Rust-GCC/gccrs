@@ -1304,16 +1304,15 @@ package body System.OS_Lib is
       Second : out Second_Type)
    is
       procedure To_GM_Time
-        (P_OS_Time : Address;
-         P_Year    : Address;
-         P_Month   : Address;
-         P_Day     : Address;
-         P_Hours   : Address;
-         P_Mins    : Address;
-         P_Secs    : Address);
+        (Date    : OS_Time;
+         P_Year  : out Integer;
+         P_Month : out Integer;
+         P_Day   : out Integer;
+         P_Hours : out Integer;
+         P_Mins  : out Integer;
+         P_Secs  : out Integer);
       pragma Import (C, To_GM_Time, "__gnat_to_gm_time");
 
-      T  : OS_Time := Date;
       Y  : Integer;
       Mo : Integer;
       D  : Integer;
@@ -1342,13 +1341,13 @@ package body System.OS_Lib is
       Locked_Processing : begin
          SSL.Lock_Task.all;
          To_GM_Time
-           (P_OS_Time => T'Address,
-            P_Year    => Y'Address,
-            P_Month   => Mo'Address,
-            P_Day     => D'Address,
-            P_Hours   => H'Address,
-            P_Mins    => Mn'Address,
-            P_Secs    => S'Address);
+           (Date    => Date,
+            P_Year  => Y,
+            P_Month => Mo,
+            P_Day   => D,
+            P_Hours => H,
+            P_Mins  => Mn,
+            P_Secs  => S);
          SSL.Unlock_Task.all;
 
       exception

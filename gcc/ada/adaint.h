@@ -146,7 +146,7 @@ extern int  __gnat_in_child_after_fork;
 
 extern OS_Time __gnat_current_time		   (void);
 extern void   __gnat_current_time_string           (char *);
-extern void   __gnat_to_gm_time			   (OS_Time *, int *, int *,
+extern void   __gnat_to_gm_time			   (OS_Time, int *, int *,
 				                    int *, int *,
 				                    int *, int *);
 extern void   __gnat_to_os_time                    (OS_Time *, int, int, int,

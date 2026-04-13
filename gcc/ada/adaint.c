@@ -444,11 +444,11 @@ __gnat_current_time_string (char *result)
 }
 
 void
-__gnat_to_gm_time (OS_Time *p_time, int *p_year, int *p_month, int *p_day,
+__gnat_to_gm_time (OS_Time date, int *p_year, int *p_month, int *p_day,
 		   int *p_hours, int *p_mins, int *p_secs)
 {
   struct tm *res;
-  time_t time = (time_t) *p_time;
+  time_t time = (time_t) date;
 
   res = gmtime (&time);
   if (res)
