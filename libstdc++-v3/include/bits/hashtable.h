@@ -1716,7 +1716,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	       _Hash, _RangeHash, _Unused, _RehashPolicy, _Traits>::
     _M_move_assign(_Hashtable&& __ht, true_type)
     {
-      if (__builtin_expect(std::__addressof(__ht) == this, false))
+      if (__builtin_expect(std::addressof(__ht) == this, false))
 	return;
 
       this->_M_deallocate_nodes(_M_begin());
@@ -2345,7 +2345,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	    if constexpr (__is_key_type<_Args...>)
 	      {
 		const auto& __key = _ExtractKey{}(__args...);
-		__kp = std::__addressof(__key);
+		__kp = std::addressof(__key);
 	      }
 	  }
 	else if constexpr (sizeof...(_Args) == 2)
@@ -2354,7 +2354,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	      {
 		pair<const _Args&...> __refs(__args...);
 		const auto& __key = _ExtractKey{}(__refs);
-		__kp = std::__addressof(__key);
+		__kp = std::addressof(__key);
 	      }
 	  }
 
@@ -2368,7 +2368,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	    __node._M_node
 		  = this->_M_allocate_node(std::forward<_Args>(__args)...);
 	    const key_type& __key = _ExtractKey{}(__node._M_node->_M_v());
-	    __kp = std::__addressof(__key);
+	    __kp = std::addressof(__key);
 	  }
 
 	if (auto __loc = _M_locate(*__kp))

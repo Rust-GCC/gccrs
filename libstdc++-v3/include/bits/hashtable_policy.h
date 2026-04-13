@@ -777,7 +777,7 @@ namespace __detail
       typename _RehashPolicy::_State _M_prev_state;
 
       _RehashStateGuard(_RehashPolicy& __policy)
-      : _M_guarded_obj(std::__addressof(__policy))
+      : _M_guarded_obj(std::addressof(__policy))
       , _M_prev_state(__policy._M_state())
       { }
       _RehashStateGuard(const _RehashStateGuard&) = delete;
@@ -1252,7 +1252,7 @@ namespace __detail
 
       void
       _M_init(const _Hash& __h)
-      { std::_Construct(std::__addressof(__hash_obj_storage::_M_u._M_h), __h); }
+      { std::_Construct(std::addressof(__hash_obj_storage::_M_u._M_h), __h); }
 
       void
       _M_destroy() { __hash_obj_storage::_M_u._M_h.~_Hash(); }
