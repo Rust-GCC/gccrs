@@ -6378,6 +6378,13 @@ push_template_decl (tree decl, bool is_friend)
       if (DECL_TEMPLATE_INFO (tmpl))
 	args = add_outermost_template_args (DECL_TI_ARGS (tmpl), args);
 
+      /* Bug c++/103901.  Let's sorry now rather than ICE later.  */
+      if (TREE_VEC_LENGTH (args) == 0
+	  && ctx && LAMBDA_FUNCTION_P (ctx)
+	  && DECL_IMPLICIT_TYPEDEF_P (decl)
+	  && CLASS_TYPE_P (TREE_TYPE (decl)))
+	sorry ("local class in lambda in template parameter list");
+
       tree info = build_template_info (tmpl, args);
 
       if (DECL_IMPLICIT_TYPEDEF_P (decl))
