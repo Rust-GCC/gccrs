@@ -57,6 +57,10 @@ package body GNAT.Heap_Sort_A is
       --  entry are irrelevant. This is just a minor optimization to avoid
       --  what would otherwise be two junk moves in phase two of the sort.
 
+      ----------
+      -- Sift --
+      ----------
+
       procedure Sift (S : Positive) is
          C      : Positive := S;
          Son    : Positive;
@@ -76,11 +80,16 @@ package body GNAT.Heap_Sort_A is
          --  Loop to pull up larger sons
 
          loop
-            Son := 2 * C;
-            exit when Son > Max;
+            exit when C > Positive'Last / 2;
 
-            if Son < Max and then Lt (Son, Son + 1) then
-               Son := Son + 1;
+            Son := 2 * C;
+
+            if Son < Max then
+               if Lt (Son, Son + 1) then
+                  Son := Son + 1;
+               end if;
+            elsif Son > Max then
+               exit;
             end if;
 
             Move (Son, C);
@@ -126,7 +135,6 @@ package body GNAT.Heap_Sort_A is
          Max := Max - 1;
          Sift (1);
       end loop;
-
    end Sort;
 
 end GNAT.Heap_Sort_A;
