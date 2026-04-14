@@ -236,7 +236,7 @@ FROM m2statement IMPORT BuildAsm, BuildProcedureCallTree, BuildParam, BuildFunct
                         BuildGoto, BuildCall2, BuildCall3,
                         BuildStart, BuildEnd, BuildCallInner, BuildStartFunctionCode,
                         BuildEndFunctionCode,
-                        BuildAssignmentTree, DeclareLabel,
+                        DeclareLabel,
                         BuildFunctionCallTree,
                         BuildAssignmentStatement,
                         BuildIndirectProcedureCallTree,
@@ -248,7 +248,8 @@ FROM m2statement IMPORT BuildAsm, BuildProcedureCallTree, BuildParam, BuildFunct
 			GetParamTree, BuildCleanUp,
 			BuildTryFinally,
 			GetLastFunction, SetLastFunction,
-                        SetBeginLocation, SetEndLocation ;
+                        SetBeginLocation, SetEndLocation,
+			CopyMemcpy ;
 
 FROM m2type IMPORT ChainOnParamValue, GetPointerType, GetIntegerType, AddStatement,
                    GetCardinalType, GetWordType, GetM2ZType, GetM2RType, GetM2CType,
@@ -3526,7 +3527,7 @@ BEGIN
    exprtree := FoldConstBecomes (virtpos, des, expr) ;
    IF IsVar (des) AND IsVariableSSA (des)
    THEN
-      Replace (des, exprtree)
+	Replace (des, exprtree)
    ELSIF IsGccStrictTypeEquivalent (destree, exprtree)
    THEN
       BuildAssignmentStatement (location, destree, exprtree)
@@ -3534,6 +3535,25 @@ BEGIN
       CopyByField (location, destree, exprtree)
    END
 END PerformCodeBecomes ;
+
+
+(*
+   IsSystemTypeBecomes - return TRUE if expr should be copied using
+                         memcpy into des.   If des or expr are generic
+                         system types and expr is not constant then
+                         this is true.
+*)
+
+PROCEDURE IsSystemTypeBecomes (des, expr: CARDINAL) : BOOLEAN ;
+BEGIN
+   RETURN (((IsGenericSystemType (SkipType (GetType (des))) #
+             IsGenericSystemType (SkipType (GetType (expr)))) OR
+            (IsUnbounded (SkipType (GetType (des))) AND
+             IsUnbounded (SkipType (GetType (expr))) AND
+             (IsGenericSystemType (SkipType (GetType (GetType (des)))) #
+              IsGenericSystemType (SkipType (GetType (GetType (expr))))))) AND
+	   (NOT IsConstant (expr)))
+END IsSystemTypeBecomes ;
 
 
 (*
@@ -3592,26 +3612,13 @@ BEGIN
                            'string constant {%1Ea} is too large to be assigned to the array {%2ad}',
                            expr, des, TRUE)
       END ;
-      AddStatement (location,
-                    MaybeDebugBuiltinMemcpy (location,
-                                             BuildAddr (location, Mod2Gcc (des), FALSE),
-                                             BuildAddr (location, exprt, FALSE),
-                                             length))
+      CopyMemcpy (location, Mod2Gcc (des), exprt, FindSize (virtpos, des))
    ELSE
-      IF ((IsGenericSystemType(SkipType(GetType(des))) #
-           IsGenericSystemType(SkipType(GetType(expr)))) OR
-          (IsUnbounded(SkipType(GetType(des))) AND
-           IsUnbounded(SkipType(GetType(expr))) AND
-           (IsGenericSystemType(SkipType(GetType(GetType(des)))) #
-            IsGenericSystemType(SkipType(GetType(GetType(expr))))))) AND
-         (NOT IsConstant(expr))
+      IF IsSystemTypeBecomes (des, expr)
       THEN
          checkDeclare (des) ;
-         AddStatement (location,
-                       MaybeDebugBuiltinMemcpy (location,
-                                                BuildAddr(location, Mod2Gcc (des), FALSE),
-                                                BuildAddr(location, Mod2Gcc (expr), FALSE),
-                                                BuildSize(location, Mod2Gcc (des), FALSE)))
+	 CopyMemcpy (location, Mod2Gcc (des), Mod2Gcc (expr),
+		     FindSize (virtpos, des))
       ELSE
          IF checkBecomes (des, expr, virtpos, despos, exprpos)
          THEN

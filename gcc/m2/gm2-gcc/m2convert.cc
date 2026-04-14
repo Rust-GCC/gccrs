@@ -563,7 +563,9 @@ const_to_ISO_aggregate_type (location_t location, tree expr, tree iso_type)
       expr = m2expr_BuildDivFloor (location, expr,
                                    m2decl_BuildIntegerConstant (256), false);
     }
-
+  /* Array contents must be in indice order.  */
+  if (BYTES_BIG_ENDIAN)
+    m2type_ReverseArrayConstructorElements (c);
   return m2type_BuildEndArrayConstructor (c);
 }
 

@@ -72,14 +72,6 @@ PROCEDURE BuildPopFunctionContext ;
 
 
 (*
-   BuildAssignmentTree - builds the assignment of, des, and, expr.
-                         It returns, des.
-*)
-
-PROCEDURE BuildAssignmentTree (location: location_t; des, expr: tree) : tree ;
-
-
-(*
    BuildAssignmentStatement builds the assignment of, des, and, expr.
 *)
 
@@ -311,6 +303,13 @@ PROCEDURE BuildBuiltinCallTree (func: tree) : tree ;
 *)
 
 PROCEDURE CopyByField (location: location_t; des, expr: tree) ;
+
+
+(*
+   CopyMemcpy - copy bytes from src into dest using builtin_memcpy.
+*)
+
+PROCEDURE CopyMemcpy (location: location_t; dest, src, bytes: tree) ;
 
 
 (*

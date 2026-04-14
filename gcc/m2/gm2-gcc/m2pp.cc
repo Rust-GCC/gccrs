@@ -334,6 +334,19 @@ m2pp_decl_bool (pretty *s, tree t)
     m2pp_print (s, "in bind expr, ");
 }
 
+/* Print statement stmt.  */
+
+void
+ps (tree stmt)
+{
+  if (stmt)
+    {
+      pretty *state = initPretty (M2PP_DUMP_STDOUT, 0);
+      m2pp_statement (state, stmt);
+      killPretty (state);
+    }
+}
+
 void
 pv (tree t)
 {

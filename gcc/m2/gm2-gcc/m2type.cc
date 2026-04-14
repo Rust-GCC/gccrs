@@ -2477,6 +2477,19 @@ m2type_BuildArrayConstructorElement (void *p, tree value, tree indice)
   vec_safe_push (c->constructor_elements, celt);
 }
 
+/* ReverseArrayConstructorElements reverse the list containing the
+   constant array elements.  */
+
+void
+m2type_ReverseArrayConstructorElements (void *p)
+{
+  struct struct_constructor *c = (struct struct_constructor *)p;
+  unsigned len = vec_safe_length (c->constructor_elements);
+  constructor_elt *ptr = c->constructor_elements->address ();
+  for (unsigned i = 0; i < len / 2; i++)
+    std::swap (ptr[i], ptr[len - i - 1]);
+}
+
 /* BuildArrayStringConstructor creates an array constructor for,
    arrayType, consisting of the character elements defined by, str,
    of, length, characters.  */

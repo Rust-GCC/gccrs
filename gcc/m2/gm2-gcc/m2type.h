@@ -215,6 +215,7 @@ EXTERN tree m2type_GetCardinalAddressType (void);
 EXTERN bool m2type_SameRealType (tree a, tree b);
 EXTERN bool m2type_IsGccStrictTypeEquivalent (tree left, tree right);
 EXTERN tree m2type_GetBooleanEnumList (location_t location);
+EXTERN void m2type_ReverseArrayConstructorElements (void *p);
 
 #undef EXTERN
 #endif /* m2type_h  */

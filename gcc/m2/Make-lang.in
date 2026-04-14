@@ -902,7 +902,6 @@ GM2-COMP-BOOT-MODS = \
    M2SymInit.mod \
    M2System.mod \
    NameKey.mod \
-   NameKey.mod \
    ObjectFiles.mod \
    Output.mod \
    P0SymBuild.mod \
