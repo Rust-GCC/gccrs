@@ -7,6 +7,22 @@ foo (void)
 }
 
 /* { dg-final { scan-assembler "vzeroall" } } */
+/* { dg-final { scan-assembler "vpxord\[ \t\]+%zmm16, %zmm16, %zmm16" { target { ! ia32 } } } } */
+/* { dg-final { scan-assembler "vpxord\[ \t\]+%zmm17, %zmm17, %zmm17" { target { ! ia32 } } } } */
+/* { dg-final { scan-assembler "vpxord\[ \t\]+%zmm18, %zmm18, %zmm18" { target { ! ia32 } } } } */
+/* { dg-final { scan-assembler "vpxord\[ \t\]+%zmm19, %zmm19, %zmm19" { target { ! ia32 } } } } */
+/* { dg-final { scan-assembler "vpxord\[ \t\]+%zmm20, %zmm20, %zmm20" { target { ! ia32 } } } } */
+/* { dg-final { scan-assembler "vpxord\[ \t\]+%zmm21, %zmm21, %zmm21" { target { ! ia32 } } } } */
+/* { dg-final { scan-assembler "vpxord\[ \t\]+%zmm22, %zmm22, %zmm22" { target { ! ia32 } } } } */
+/* { dg-final { scan-assembler "vpxord\[ \t\]+%zmm23, %zmm23, %zmm23" { target { ! ia32 } } } } */
+/* { dg-final { scan-assembler "vpxord\[ \t\]+%zmm24, %zmm24, %zmm24" { target { ! ia32 } } } } */
+/* { dg-final { scan-assembler "vpxord\[ \t\]+%zmm25, %zmm25, %zmm25" { target { ! ia32 } } } } */
+/* { dg-final { scan-assembler "vpxord\[ \t\]+%zmm26, %zmm26, %zmm26" { target { ! ia32 } } } } */
+/* { dg-final { scan-assembler "vpxord\[ \t\]+%zmm27, %zmm27, %zmm27" { target { ! ia32 } } } } */
+/* { dg-final { scan-assembler "vpxord\[ \t\]+%zmm28, %zmm28, %zmm28" { target { ! ia32 } } } } */
+/* { dg-final { scan-assembler "vpxord\[ \t\]+%zmm29, %zmm29, %zmm29" { target { ! ia32 } } } } */
+/* { dg-final { scan-assembler "vpxord\[ \t\]+%zmm30, %zmm30, %zmm30" { target { ! ia32 } } } } */
+/* { dg-final { scan-assembler "vpxord\[ \t\]+%zmm31, %zmm31, %zmm31" { target { ! ia32 } } } } */
 /* { dg-final { scan-assembler-times "fldz" 8 } } */
 /* { dg-final { scan-assembler-times "fstp\[ \t\]+%st\\(0\\)" 8 } } */
 /* { dg-final { scan-assembler-not "%xmm" } } */
