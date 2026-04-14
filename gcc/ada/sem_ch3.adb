@@ -5480,10 +5480,9 @@ package body Sem_Ch3 is
 
       Check_Eliminated (Id);
 
-      --  Deal with setting In_Package_Body and In_Private_Part flags
+      --  Deal with setting In_Private_Part flag
 
       if Ekind (Scope (Id)) = E_Package then
-         Set_In_Package_Body (Id, In_Package_Body (Scope (Id)));
          Set_In_Private_Part (Id, In_Private_Part (Scope (Id)));
       end if;
 

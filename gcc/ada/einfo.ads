@@ -833,6 +833,14 @@ package Einfo is
 --       to the renamed entity. See Exp_Dbug.Debug_Renaming_Declaration for
 --       details of the use of this field.
 
+--    Declared_In_Package_Body
+--       Defined in all entities. Set if the declaration of the entity is
+--       immediately enclosed by a package body. This is (perhaps
+--       unfortunately) not the same thing as "Ekind (Scope (E)) =
+--       E_Package_Body": an entity declared in a package body has its Scope
+--       field pointing to the corresponding package spec (of Ekind
+--       E_Package).
+
 --    Declaration_Node (synthesized)
 --       Applies to all entities. Returns the tree node for the construct that
 --       declared the entity. Normally this is just the Parent of the entity.
@@ -2300,12 +2308,14 @@ package Einfo is
 --       to multiple subprogram entities).
 
 --    In_Package_Body
---       Defined in all entities. Can be set only in package entities, objects
---       and overloadable entities. For package entities, this flag is set to
---       indicate that the body of the package is being analyzed. The flag is
---       reset at the end of the package body. For objects and overloadable
---       entities, indicates that the declaration of the entity occurs in the
---       body of a package.
+--       Defined in all entities. Can only be set in package entities. This
+--       flag is set to indicate that the body of the package is being
+--       analyzed. The flag is reset at the end of the package body. The reason
+--       why In_Package_Body is defined in all entities and not just packages
+--       is so In_Package_Body (E) is a convenient abbreviation of
+--          Ekind (E) in E_Package | E_Generic_Package and then
+--            In_Package_Body (E)
+--       .
 
 --    In_Private_Part
 --       Defined in all entities. Can be set only in package entities, objects
@@ -3149,10 +3159,6 @@ package Einfo is
 --    Is_Ordinary_Fixed_Point_Type (synthesized)
 --       Applies to all entities, true for ordinary fixed point types and
 --       subtypes.
-
---    Is_Package_Body_Entity
---       Defined in all entities. Set for entities defined at the top level
---       of a package body. Used to control externally generated names.
 
 --    Is_Package_Or_Generic_Package (synthesized)
 --       Applies to all entities. True for packages and generic packages.
@@ -5047,7 +5053,6 @@ package Einfo is
    --    Is_Link_Once
    --    Is_Loop_Parameter
    --    Is_Obsolescent
-   --    Is_Package_Body_Entity
    --    Is_Packed_Array_Impl_Type
    --    Is_Not_Self_Hidden
    --    Is_Potentially_Use_Visible

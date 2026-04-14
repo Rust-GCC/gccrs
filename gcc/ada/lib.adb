@@ -30,6 +30,7 @@ pragma Style_Checks (All_Checks);
 with Atree;          use Atree;
 with Csets;          use Csets;
 with Einfo.Entities; use Einfo.Entities;
+with Einfo.Utils;    use Einfo.Utils;
 with Nlists;         use Nlists;
 with Opt;            use Opt;
 with Output;         use Output;

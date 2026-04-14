@@ -9703,10 +9703,9 @@ package body Sem_Ch6 is
          Append_Entity (S, Scope (S));
       end if;
 
-      --  Deal with setting In_Package_Body and In_Private_Part flags
+      --  Deal with setting In_Private_Part flag
 
       if Ekind (Scope (S)) = E_Package then
-         Set_In_Package_Body (S, In_Package_Body (Scope (S)));
          Set_In_Private_Part (S, In_Private_Part (Scope (S)));
       end if;
 

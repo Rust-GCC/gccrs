@@ -1324,7 +1324,7 @@ package body Exp_Dbug is
 
       function Is_BNPE (S : Entity_Id) return Boolean is
       begin
-         return Ekind (S) = E_Package and then Is_Package_Body_Entity (S);
+         return Ekind (S) = E_Package and then Declared_In_Package_Body (S);
       end Is_BNPE;
 
       --------------------

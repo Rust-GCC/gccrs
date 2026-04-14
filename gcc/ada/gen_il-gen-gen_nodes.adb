@@ -135,7 +135,7 @@ begin -- Gen_IL.Gen.Gen_Nodes
    Ab (N_Entity, N_Has_Etype,
        (Sy (Chars, Name_Id, Default_No_Name),
         Sm (Next_Entity, Node_Id),
-        Sm (Scope, Node_Id)));
+        Sm (Scope_Raw, Node_Id)));
 
    Cc (N_Defining_Character_Literal, N_Entity);
    Cc (N_Defining_Identifier, N_Entity);

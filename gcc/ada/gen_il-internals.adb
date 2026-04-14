@@ -341,6 +341,8 @@ package body Gen_IL.Internals is
             return "SCIL_Tag_Value";
          when SCIL_Target_Prim =>
             return "SCIL_Target_Prim";
+         when Scope_Raw =>
+            return "Scope_Raw";
          when Shift_Count_OK =>
             return "Shift_Count_OK";
          when SPARK_Aux_Pragma =>

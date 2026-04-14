@@ -270,7 +270,7 @@ package body Treepr is
    begin
       case F is
          --  We special case the following; otherwise the compiler will use
-         --  the usual Mixed_Case convention.
+         --  the usual Mixed_Case convention or we override the name entirely.
 
          when F_Assignment_OK =>
             return "Assignment_OK";
@@ -300,6 +300,8 @@ package body Treepr is
             return "SCIL_Tag_Value";
          when F_SCIL_Target_Prim =>
             return "SCIL_Target_Prim";
+         when F_Scope_Raw =>
+            return "Scope";
          when F_Shift_Count_OK =>
             return "Shift_Count_OK";
          when F_TSS_Elist =>

@@ -5891,7 +5891,8 @@ package body Sem_Util is
             --  predefined "=" operator.
 
             if Is_Overloadable (Id)
-              and then ((Is_Type_In_Pkg and then not In_Package_Body (Id))
+              and then ((Is_Type_In_Pkg
+                           and then not Declared_In_Package_Body (Id))
                          or else Is_Primitive (Id)
                          or else not Comes_From_Source (Id))
 
@@ -8260,7 +8261,7 @@ package body Sem_Util is
          --  parent spec, and body entities are not visible.
 
          elsif Is_Child_Unit (Def_Id)
-           and then Is_Package_Body_Entity (E)
+           and then Declared_In_Package_Body (E)
            and then not In_Package_Body (Current_Scope)
          then
             null;

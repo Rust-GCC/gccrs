@@ -535,6 +535,9 @@ extern Node_Id Renamed_Entity (N Node);
 #define Renamed_Object einfo__entities__renamed_or_alias
 extern Node_Id Renamed_Object (N Node);
 
+#define Scope sinfo__nodes__scope_raw
+extern Node_Id Scope (N Node);
+
 #ifdef __cplusplus
 }
 #endif

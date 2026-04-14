@@ -8506,7 +8506,7 @@ package body Sem_Ch12 is
                if Curr = Outer then
                   return True;
 
-               elsif Is_Package_Body_Entity (Curr) then
+               elsif Declared_In_Package_Body (Curr) then
                   Curr := Scope (Curr);
 
                else

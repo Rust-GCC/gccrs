@@ -3201,6 +3201,22 @@ package body Einfo.Utils is
       end if;
    end Set_Is_Volatile;
 
+   ----------------
+   --  Set_Scope --
+   ----------------
+
+   procedure Set_Scope (N : N_Entity_Id; Val : Node_Id) is
+   begin
+      Set_Scope_Raw (N, Val);
+
+     --  Child units may appear on the entity list (e.g. if they appear
+     --  in the context of a subunit) but they are not body entities.
+
+      if Present (Val) and then not Is_Child_Unit (N) then
+         Set_Declared_In_Package_Body (N, In_Package_Body (Val));
+      end if;
+   end Set_Scope;
+
    -----------------------
    -- Write_Entity_Info --
    -----------------------

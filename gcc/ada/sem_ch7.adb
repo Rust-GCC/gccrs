@@ -1084,14 +1084,6 @@ package body Sem_Ch7 is
             Set_Is_Immediately_Visible (E, False);
             Set_Is_Potentially_Use_Visible (E, False);
             Set_Is_Hidden (E);
-
-            --  Child units may appear on the entity list (e.g. if they appear
-            --  in the context of a subunit) but they are not body entities.
-
-            if not Is_Child_Unit (E) then
-               Set_Is_Package_Body_Entity (E);
-            end if;
-
             Next_Entity (E);
          end loop;
       end;

@@ -2872,7 +2872,7 @@ package body Sem_Warn is
       S : Entity_Id;
 
    begin
-      if Is_Package_Body_Entity (E) then
+      if Declared_In_Package_Body (E) then
          return False;
 
       else

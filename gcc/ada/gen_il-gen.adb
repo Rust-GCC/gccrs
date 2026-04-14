@@ -1212,8 +1212,8 @@ package body Gen_IL.Gen is
          pragma Assert (Field_Table (Is_Potentially_Use_Visible).Offset = 18);
          Choose_Offset (Is_Generic_Instance);
          pragma Assert (Field_Table (Is_Generic_Instance).Offset = 19);
-         Choose_Offset (Scope);
-         pragma Assert (Field_Table (Scope).Offset = 2);
+         Choose_Offset (Scope_Raw);
+         pragma Assert (Field_Table (Scope_Raw).Offset = 2);
 
          --  Then loop through them all, skipping the ones we did above
 
