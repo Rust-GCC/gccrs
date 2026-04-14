@@ -8978,7 +8978,7 @@ check_splice_expr (location_t loc, location_t start_loc, tree t,
 	 template.  */
       if (!targs_p)
 	{
-	  if (!really_overloaded_fn (t) && !dependent_splice_p (t))
+	  if (!reflection_function_template_p (t) && !dependent_splice_p (t))
 	    {
 	      if (complain_p)
 		{
@@ -9005,7 +9005,7 @@ check_splice_expr (location_t loc, location_t start_loc, tree t,
 	    }
 	  return false;
 	}
-      gcc_checking_assert (really_overloaded_fn (t)
+      gcc_checking_assert (reflection_function_template_p (t)
 			   || get_template_info (t)
 			   || TREE_CODE (t) == TEMPLATE_ID_EXPR
 			   || variable_template_p (t)
@@ -9195,6 +9195,14 @@ reflection_mangle_prefix (tree refl, char prefix[3])
       return h;
     }
   gcc_unreachable ();
+}
+
+/* Returns true iff X is a reflection of a function template.  */
+
+bool
+reflection_function_template_p (tree x)
+{
+  return really_overloaded_fn (x);
 }
 
 #include "gt-cp-reflect.h"

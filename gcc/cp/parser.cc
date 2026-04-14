@@ -6341,7 +6341,7 @@ cp_parser_splice_expression (cp_parser *parser, bool template_p,
       && (targs_p
 	  /* No 'template' but the splice-specifier designates a function
 	     template?  */
-	  || really_overloaded_fn (t))
+	  || reflection_function_template_p (t))
       && warning_enabled_at (loc, OPT_Wmissing_template_keyword))
     /* Were 'template' present, this would be valid code, so keep going.  */
     missing_template_diag (loc, diagnostics::kind::pedwarn);

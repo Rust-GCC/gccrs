@@ -9442,6 +9442,7 @@ extern tree make_splice_scope (tree, bool);
 extern bool dependent_splice_p (const_tree) ATTRIBUTE_PURE;
 extern tree reflection_mangle_prefix (tree, char [3]);
 extern void check_consteval_only_fn (tree);
+extern bool reflection_function_template_p (tree) ATTRIBUTE_PURE;
 
 /* Inline bodies.  */
 
