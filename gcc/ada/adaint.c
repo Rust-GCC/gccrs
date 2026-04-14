@@ -315,36 +315,6 @@ char __gnat_dir_separator = DIR_SEPARATOR;
 
 char __gnat_path_separator = PATH_SEPARATOR;
 
-/* The GNAT_LIBRARY_TEMPLATE contains a list of expressions that define
-   the base filenames that libraries specified with -lsomelib options
-   may have. This is used by GNATMAKE to check whether an executable
-   is up-to-date or not. The syntax is
-
-     library_template ::= { pattern ; } pattern NUL
-     pattern          ::= [ prefix ] * [ postfix ]
-
-   These should only specify names of static libraries as it makes
-   no sense to determine at link time if dynamic-link libraries are
-   up to date or not. Any libraries that are not found are supposed
-   to be up-to-date:
-
-     * if they are needed but not present, the link
-       will fail,
-
-     * otherwise they are libraries in the system paths and so
-       they are considered part of the system and not checked
-       for that reason.
-
-   ??? This should be part of a GNAT host-specific compiler
-       file instead of being included in all user applications
-       as well. This is only a temporary work-around for 3.11b.  */
-
-#ifndef GNAT_LIBRARY_TEMPLATE
-#define GNAT_LIBRARY_TEMPLATE "lib*.a"
-#endif
-
-const char *__gnat_library_template = GNAT_LIBRARY_TEMPLATE;
-
 #if defined (__vxworks)
 #define GNAT_MAX_PATH_LEN PATH_MAX
 

@@ -1433,12 +1433,6 @@ package body Make is
       --  on the name specified with the -l linker option, using the
       --  Ada object path. Return No_File if no such file can be found.
 
-      type Char_Array is array (Natural) of Character;
-      type Char_Array_Access is access constant Char_Array;
-
-      Template : Char_Array_Access;
-      pragma Import (C, Template, "__gnat_library_template");
-
       ----------------
       -- Check_File --
       ----------------
@@ -1512,41 +1506,10 @@ package body Make is
       -- Get_Library_Name --
       ----------------------
 
-      --  See comments in a-adaint.c about template syntax
-
       function Get_Library_File (Name : String) return File_Name_Type is
-         File : File_Name_Type := No_File;
-
+         Library_Name : constant String := "lib" & Name & ".a";
       begin
-         Name_Len := 0;
-
-         for Ptr in Template'Range loop
-            case Template (Ptr) is
-               when '*' =>
-                  Add_Str_To_Name_Buffer (Name);
-
-               when ';' =>
-                  File := Full_Lib_File_Name (Name_Find);
-                  exit when File /= No_File;
-                  Name_Len := 0;
-
-               when NUL =>
-                  exit;
-
-               when others =>
-                  Add_Char_To_Name_Buffer (Template (Ptr));
-            end case;
-         end loop;
-
-         --  The for loop exited because the end of the template
-         --  was reached. File contains the last possible file name
-         --  for the library.
-
-         if File = No_File and then Name_Len > 0 then
-            File := Full_Lib_File_Name (Name_Find);
-         end if;
-
-         return File;
+         return Full_Lib_File_Name (Name_Find (Library_Name));
       end Get_Library_File;
 
    --  Start of processing for Check_Linker_Options
