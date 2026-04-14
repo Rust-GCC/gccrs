@@ -2155,6 +2155,11 @@ strip_typedefs_expr (tree t, bool *remove_attributes, unsigned int flags)
     case STMT_EXPR:
       return t;
 
+    case REFLECT_EXPR:
+      /* ^^alias represents the alias itself, not the underlying type.  */
+      if (TYPE_P (REFLECT_EXPR_HANDLE (t)))
+	return t;
+
     default:
       break;
     }
@@ -4510,10 +4515,20 @@ cp_tree_equal (tree t1, tree t2)
       return true;
 
     case REFLECT_EXPR:
-      if (!cp_tree_equal (REFLECT_EXPR_HANDLE (t1), REFLECT_EXPR_HANDLE (t2))
-	  || REFLECT_EXPR_KIND (t1) != REFLECT_EXPR_KIND (t2))
-	return false;
-      return true;
+      {
+	if (REFLECT_EXPR_KIND (t1) != REFLECT_EXPR_KIND (t2))
+	  return false;
+	tree h1 = REFLECT_EXPR_HANDLE (t1);
+	tree h2 = REFLECT_EXPR_HANDLE (t2);
+	if (!cp_tree_equal (h1, h2))
+	  return false;
+	/* ^^alias represents the alias itself, not the underlying type.  */
+	if (TYPE_P (h1)
+	    && (typedef_variant_p (h1) || typedef_variant_p (h2))
+	    && TYPE_NAME (h1) != TYPE_NAME (h2))
+	  return false;
+	return true;
+      }
 
     default:
       break;
