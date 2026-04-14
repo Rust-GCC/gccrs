@@ -2,7 +2,6 @@
 #include <functional>
 #include <utility>
 #include <string_view>
-#include <stdexcept>
 
 #include <testsuite_hooks.h>
 
@@ -172,13 +171,15 @@ struct MoveArgFunc
   { return arg.v; }
 };
 
+struct NegativeArgument {};
+
 struct ThrowFunc
 {
   static constexpr int
   operator()(int i, int j)
   {
     if (i < 0 || j < 0)
-      throw std::invalid_argument("negative");
+      throw NegativeArgument();
     return i + j;
   }
 };
@@ -249,7 +250,7 @@ test_function_object()
   try {
     std::cw<ThrowFunc{}>(std::cw<-1>, std::cw<1>);
     VERIFY(false);
-  } catch (const std::invalid_argument&) {
+  } catch (const NegativeArgument&) {
     VERIFY(true);
   }
 }
@@ -322,7 +323,7 @@ struct ThrowIndex
   operator[](int i, int j)
   {
     if (i < 0 || j < 0)
-      throw std::invalid_argument("negative");
+      throw NegativeArgument();
     return i * j;
   }
 };
@@ -391,7 +392,7 @@ test_indexable1()
   try {
     std::cw<ThrowIndex{}>[std::cw<-1>, std::cw<1>];
     VERIFY(false);
-  } catch (const std::invalid_argument&) {
+  } catch (const NegativeArgument&) {
     VERIFY(true);
   }
 }
