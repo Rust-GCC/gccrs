@@ -900,7 +900,7 @@ altivec_build_resolved_builtin (tree *args, int n, tree fntype, tree ret_type,
 
   /* If the number of arguments to an overloaded function increases,
      we must expand this switch.  */
-  gcc_assert (MAX_OVLD_ARGS <= 6);
+  gcc_assert (MAX_OVLD_ARGS <= 4);
 
   tree call;
   switch (n)
@@ -919,14 +919,6 @@ altivec_build_resolved_builtin (tree *args, int n, tree fntype, tree ret_type,
       break;
     case 4:
       call = build_call_expr (fndecl, 4, args[0], args[1], args[2], args[3]);
-      break;
-    case 5:
-      call = build_call_expr (fndecl, 5, args[0], args[1], args[2], args[3],
-			      args[4]);
-      break;
-    case 6:
-      call = build_call_expr (fndecl, 6, args[0], args[1], args[2], args[3],
-			      args[4], args[5]);
       break;
     default:
       gcc_unreachable ();

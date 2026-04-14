@@ -79,28 +79,6 @@
 ; a semicolon are also treated as blank lines.
 
 
-[PPC_ATOMIC_CAS, SKIP, __builtin_ppc_atomic_cas_local]
-  bool __builtin_ppc_atomic_cas_local (signed char *, signed char *, signed char *, const int, const int, const int);
-    PPC_ATOMIC_CAS_QI PPC_ATOMIC_CAS_SQI
-  bool __builtin_ppc_atomic_cas_local (unsigned char *, unsigned char *, unsigned char *, const int, const int, const int);
-    PPC_ATOMIC_CAS_QI PPC_ATOMIC_CAS_UQI
-  bool __builtin_ppc_atomic_cas_local (signed short *, signed short *, signed short *, const int, const int, const int);
-    PPC_ATOMIC_CAS_HI PPC_ATOMIC_CAS_SHI
-  bool __builtin_ppc_atomic_cas_local (unsigned short *, unsigned short *, unsigned short *, const int, const int, const int);
-    PPC_ATOMIC_CAS_HI PPC_ATOMIC_CAS_UHI
-  bool __builtin_ppc_atomic_cas_local (signed int *, signed int *, signed int *, const int, const int, const int);
-    PPC_ATOMIC_CAS_SI PPC_ATOMIC_CAS_SSI
-  bool __builtin_ppc_atomic_cas_local (unsigned int *, unsigned int *, unsigned int *, const int, const int, const int);
-    PPC_ATOMIC_CAS_SI PPC_ATOMIC_CAS_USI
-  bool __builtin_ppc_atomic_cas_local (signed long *, signed long *, signed long *, const int, const int, const int);
-    PPC_ATOMIC_CAS_DI PPC_ATOMIC_CAS_SDI
-  bool __builtin_ppc_atomic_cas_local (unsigned long *, unsigned long *, unsigned long *, const int, const int, const int);
-    PPC_ATOMIC_CAS_DI PPC_ATOMIC_CAS_UDI
-  bool __builtin_ppc_atomic_cas_local (vsq *, vsq *, vsq *, const int, const int, const int);
-    PPC_ATOMIC_CAS_TI PPC_ATOMIC_CAS_STI
-  bool __builtin_ppc_atomic_cas_local (vuq *, vuq *, vuq *, const int, const int, const int);
-    PPC_ATOMIC_CAS_TI PPC_ATOMIC_CAS_UTI
-
 [BCDADD, __builtin_bcdadd, __builtin_vec_bcdadd]
   vsq __builtin_vec_bcdadd (vsq, vsq, const int);
     BCDADD_V1TI

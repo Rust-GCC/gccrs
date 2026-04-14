@@ -278,19 +278,17 @@
 (define_insn "load_locked<mode>"
   [(set (match_operand:ATOMIC 0 "int_reg_operand" "=r")
 	(unspec_volatile:ATOMIC
-	  [(match_operand:ATOMIC 1 "memory_operand" "Z")
-	   (match_operand:QI 2 "u1bit_cint_operand" "n")] UNSPECV_LL))]
+         [(match_operand:ATOMIC 1 "memory_operand" "Z")] UNSPECV_LL))]
   ""
-  "<larx> %0,%y1,%2"
+  "<larx> %0,%y1"
   [(set_attr "type" "load_l")])
 
 (define_insn "load_locked<QHI:mode>_si"
   [(set (match_operand:SI 0 "int_reg_operand" "=r")
 	(unspec_volatile:SI
-	  [(match_operand:QHI 1 "memory_operand" "Z")
-	   (match_operand:QI 2 "u1bit_cint_operand" "n")] UNSPECV_LL))]
+	  [(match_operand:QHI 1 "memory_operand" "Z")] UNSPECV_LL))]
   "TARGET_SYNC_HI_QI"
-  "<QHI:larx> %0,%y1,%2"
+  "<QHI:larx> %0,%y1"
   [(set_attr "type" "load_l")])
 
 ;; Use PTImode to get even/odd register pairs.
@@ -304,8 +302,7 @@
 
 (define_expand "load_lockedti"
   [(use (match_operand:TI 0 "quad_int_reg_operand"))
-   (use (match_operand:TI 1 "memory_operand"))
-   (use (match_operand:QI 2 "u1bit_cint_operand"))]
+   (use (match_operand:TI 1 "memory_operand"))]
   "TARGET_SYNC_TI"
 {
   rtx op0 = operands[0];
@@ -319,7 +316,7 @@
       operands[1] = op1 = change_address (op1, TImode, new_addr);
     }
 
-  emit_insn (gen_load_lockedpti (pti, op1, operands[2]));
+  emit_insn (gen_load_lockedpti (pti, op1));
   if (WORDS_BIG_ENDIAN)
     emit_move_insn (op0, gen_lowpart (TImode, pti));
   else
@@ -333,12 +330,11 @@
 (define_insn "load_lockedpti"
   [(set (match_operand:PTI 0 "quad_int_reg_operand" "=&r")
 	(unspec_volatile:PTI
-	  [(match_operand:TI 1 "indexed_or_indirect_operand" "Z")
-	   (match_operand:QI 2 "u1bit_cint_operand" "n")] UNSPECV_LL))]
+         [(match_operand:TI 1 "indexed_or_indirect_operand" "Z")] UNSPECV_LL))]
   "TARGET_SYNC_TI
    && !reg_mentioned_p (operands[0], operands[1])
    && quad_int_reg_operand (operands[0], PTImode)"
-  "lqarx %0,%y1,%2"
+  "lqarx %0,%y1"
   [(set_attr "type" "load_l")
    (set_attr "size" "128")])
 
@@ -415,22 +411,7 @@
    (match_operand:SI 7 "const_int_operand")]		;; model fail
   ""
 {
-  rs6000_expand_atomic_compare_and_swap (operands, false);
-  DONE;
-})
-
-(define_expand "atomic_compare_and_swap_local<mode>"
-  [(match_operand:SI 0 "int_reg_operand")		;; bool out
-   (match_operand:AINT 1 "int_reg_operand")		;; val out
-   (match_operand:AINT 2 "memory_operand")		;; memory
-   (match_operand:AINT 3 "reg_or_short_operand")	;; expected
-   (match_operand:AINT 4 "int_reg_operand")		;; desired
-   (match_operand:SI 5 "const_int_operand")		;; is_weak
-   (match_operand:SI 6 "const_int_operand")		;; model succ
-   (match_operand:SI 7 "const_int_operand")]		;; model fail
-  ""
-{
-  rs6000_expand_atomic_compare_and_swap (operands, true);
+  rs6000_expand_atomic_compare_and_swap (operands);
   DONE;
 })
 
