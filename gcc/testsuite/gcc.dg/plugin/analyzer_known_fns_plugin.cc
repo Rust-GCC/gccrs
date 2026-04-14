@@ -119,7 +119,7 @@ public:
     }
   };
 
-  bool matches_call_types_p (const call_details &cd) const
+  bool matches_call_types_p (const call_details &cd) const override
   {
     return cd.num_args () == 3;
   }
