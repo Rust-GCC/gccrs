@@ -9885,8 +9885,7 @@ cp_finish_decl (tree decl, tree init, bool init_const_expr_p,
 	 variable.  */
       if (DECL_FUNCTION_SCOPE_P (decl)
 	  && TREE_STATIC (decl)
-	  && !DECL_ARTIFICIAL (decl)
-	  && !consteval_only_p (decl))
+	  && !DECL_ARTIFICIAL (decl))
 	{
 	  /* The variable holding an anonymous union will have had its
 	     discriminator set in finish_anon_union, after which it's
@@ -9904,9 +9903,10 @@ cp_finish_decl (tree decl, tree init, bool init_const_expr_p,
 	      walk_tree (&init, notice_forced_label_r, NULL, NULL);
 	      add_local_decl (cfun, decl);
 	    }
-	  /* And make sure it's in the symbol table for
-	     c_parse_final_cleanups to find.  */
-	  varpool_node::get_create (decl);
+	  if (!consteval_only_p (decl))
+	    /* And make sure it's in the symbol table for
+	       c_parse_final_cleanups to find.  */
+	    varpool_node::get_create (decl);
 	}
 
       if (flag_openmp
