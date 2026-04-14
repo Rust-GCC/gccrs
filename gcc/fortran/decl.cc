@@ -2264,7 +2264,7 @@ add_init_expr_to_sym (const char *name, gfc_expr **initp, locus *var_locus,
 
       /* If sym is implied-shape, set its upper bounds from init.  */
       if (sym->attr.flavor == FL_PARAMETER && sym->attr.dimension
-	  && sym->as->type == AS_IMPLIED_SHAPE)
+	  && sym->as && sym->as->type == AS_IMPLIED_SHAPE)
 	{
 	  int dim;
 
@@ -2333,7 +2333,7 @@ add_init_expr_to_sym (const char *name, gfc_expr **initp, locus *var_locus,
 
       /* Ensure that explicit bounds are simplified.  */
       if (sym->attr.flavor == FL_PARAMETER && sym->attr.dimension
-	  && sym->as->type == AS_EXPLICIT)
+	  && sym->as && sym->as->type == AS_EXPLICIT)
 	{
 	  for (int dim = 0; dim < sym->as->rank; ++dim)
 	    {
