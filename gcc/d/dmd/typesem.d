@@ -466,15 +466,15 @@ void check(Type _this)
  */
 private void fixTo(Type _this, Type t)
 {
-    // If fixing this: immutable(T*) by t: immutable(T)*,
-    // cache t to this.xto won't break transitivity.
     Type mto = null;            // the naked type of `t`
-    Type tn = _this.nextOf();
     if (_this.mod || t.mod)
     {
         _this.getMcache();
         t.getMcache();
     }
+    // If fixing this: immutable(T*) by t: immutable(T)*,
+    // cache t to this.xto won't break transitivity.
+    Type tn = _this.nextOf();
     if (!tn || _this.ty != Tsarray && tn.mod == t.nextOf().mod)
     {
         switch (t.mod)
@@ -8529,6 +8529,15 @@ Type immutableOf(Type type)
 
 /********************************
  * Make type mutable.
+ *      0            => 0
+ *      const        => 0
+ *      immutable    => 0
+ *      shared       => shared
+ *      shared const => shared
+ *      wild         => 0
+ *      wild const   => 0
+ *      shared wild  => shared
+ *      shared wild const => shared
  */
 Type mutableOf(Type type)
 {
