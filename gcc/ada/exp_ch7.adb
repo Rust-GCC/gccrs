@@ -2430,6 +2430,14 @@ package body Exp_Ch7 is
             Strict       : Boolean := False)
          is
          begin
+            --  No need to process ignored ghost declarations as they will be
+            --  removed later and therefore do not need finalization
+            --  primitives.
+
+            if Is_Ignored_Ghost_Node (Decl) then
+               return;
+            end if;
+
             --  Library-level tagged type
 
             if Nkind (Decl) = N_Full_Type_Declaration then
