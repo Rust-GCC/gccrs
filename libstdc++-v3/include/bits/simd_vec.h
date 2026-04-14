@@ -2264,9 +2264,9 @@ namespace simd
     -> basic_vec<ranges::range_value_t<_Rg>,
 		 __deduce_abi_t<ranges::range_value_t<_Rg>,
 #if 0 // PR117849
-				ranges::size(__r)>>;
+				static_cast<__simd_size_type>(ranges::size(__r))>>;
 #else
-				decltype(std::span(__r))::extent>>;
+				static_cast<__simd_size_type>(decltype(std::span(__r))::extent)>>;
 #endif
 
   template <size_t _Bytes, typename _Ap>
