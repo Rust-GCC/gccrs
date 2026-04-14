@@ -836,25 +836,57 @@ prefer (pre_expr a, pre_expr b)
 {
   if (a->kind == REFERENCE && b->kind == REFERENCE)
     {
-      auto &oprsa = PRE_EXPR_REFERENCE (a)->operands;
-      auto &oprsb = PRE_EXPR_REFERENCE (b)->operands;
+      auto refa = PRE_EXPR_REFERENCE (a);
+      auto refb = PRE_EXPR_REFERENCE (b);
+      auto &oprsa = refa->operands;
+      auto &oprsb = refb->operands;
+      pre_expr palias = NULL;
+      if (refa->set == refb->set
+	  && refa->base_set == refb->base_set)
+	;
+      else if ((refb->set == refa->set
+		|| alias_set_subset_of (refb->set, refa->set))
+	       && (refb->base_set == refa->base_set
+		   || alias_set_subset_of (refb->base_set, refa->base_set)))
+	palias = a;
+      else if ((refa->set == refb->set
+		|| alias_set_subset_of (refa->set, refb->set))
+	       && (refa->base_set == refb->base_set
+		   || alias_set_subset_of (refa->base_set, refb->base_set)))
+	palias = b;
+      else
+	/* We have to chose an expression representation that can stand
+	   in for all others - there can be none, in which case we have
+	   to drop this PRE/hoisting opportunity.
+	   ???  Previously we've arranged for alias-set zero being used
+	   as fallback, but we do not really want to allocate a new expression
+	   here unless it proves to be absolutely necessary.  */
+	return NULL;
+      pre_expr p = palias;
       if (oprsa.length () > 1 && oprsb.length () > 1)
 	{
 	  vn_reference_op_t vroa = &oprsa[oprsa.length () - 2];
 	  vn_reference_op_t vrob = &oprsb[oprsb.length () - 2];
 	  if (vroa->opcode == MEM_REF && vrob->opcode == MEM_REF)
 	    {
-	      pre_expr palign = NULL, psize = NULL;
 	      /* We have to canonicalize to the more conservative alignment.
 		 gcc.dg/torture/pr65270-?.c.*/
+	      pre_expr palign = NULL;
 	      if (TYPE_ALIGN (vroa->type) < TYPE_ALIGN (vrob->type))
 		palign = a;
 	      else if (TYPE_ALIGN (vroa->type) > TYPE_ALIGN (vrob->type))
 		palign = b;
+	      if (palign)
+		{
+		  if (p && p != palign)
+		    return NULL;
+		  p = palign;
+		}
 	      /* We have to canonicalize to the more conservative (smaller)
 		 innermost object access size.  gcc.dg/torture/pr110799.c.  */
 	      if (TYPE_SIZE (vroa->type) != TYPE_SIZE (vrob->type))
 		{
+		  pre_expr psize = NULL;
 		  if (!TYPE_SIZE (vroa->type))
 		    psize = a;
 		  else if (!TYPE_SIZE (vrob->type))
@@ -870,15 +902,19 @@ prefer (pre_expr a, pre_expr b)
 			psize = b;
 		    }
 		  /* ???  What about non-constant sizes?  */
+		  if (psize)
+		    {
+		      if (p && p != psize)
+			return NULL;
+		      p = psize;
+		    }
 		}
-	      if (palign && psize)
-		return NULL;
-	      /* Note we cannot leave it undecided because when having
-		 more than two expressions we have to keep doing
-		 pariwise reduction.  */
-	      return palign ? palign : (psize ? psize : b);
 	    }
 	}
+      /* Note we cannot leave it undecided because when having
+	 more than two expressions we have to keep doing
+	 pariwise reduction.  */
+      return p ? p : b;
     }
   /* Always prefer an non-REFERENCE, avoiding the above mess.  */
   else if (a->kind == REFERENCE)
@@ -1028,12 +1064,12 @@ sorted_array_from_bitmap_set (bitmap_set_t set, bool for_insertion)
 		    break;
 		for (k = j;; ++k)
 		  {
-		    if (k == result.length () - 1
-			|| result[k + 1]->value_id != result[i]->value_id)
-		      break;
 		    if (result[k]->kind == REFERENCE)
 		      bitmap_set_bit (exclusions,
 				      get_expression_id (result[k]));
+		    if (k == result.length () - 1
+			|| result[k + 1]->value_id != result[i]->value_id)
+		      break;
 		  }
 		i = k;
 	      }
