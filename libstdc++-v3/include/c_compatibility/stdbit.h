@@ -29,7 +29,11 @@
 #ifndef _GLIBCXX_STDBIT_H
 #define _GLIBCXX_STDBIT_H
 
-#if __cplusplus > 202302L
+#define __glibcxx_want_stdbit_h
+#include <bits/version.h>
+
+#ifdef __cpp_lib_stdbit_h // C++ >= 26
+
 #include <bit>
 
 #define __STDC_VERSION_STDBIT_H__ 202311L
@@ -577,6 +581,6 @@ _GLIBCXX_STDBIT_FUNC(stdc_bit_floor);
 _GLIBCXX_STDBIT_FUNC(stdc_bit_ceil);
 #undef _GLIBCXX_STDBIT_FUNC
 #endif // !DOXYGEN
-#endif // C++26
+#endif // __cpp_lib_stdbit_h
 
 #endif // _GLIBCXX_STDBIT_H

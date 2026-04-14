@@ -1872,6 +1872,22 @@ ftms = {
 };
 
 ftms = {
+  name = stdbit_h;
+  values = {
+    v = 202603;
+    cxxmin = 26;
+  };
+};
+
+ftms = {
+  name = stdckdint_h;
+  values = {
+    v = 202603;
+    cxxmin = 26;
+  };
+};
+
+ftms = {
   name = adaptor_iterator_pair_constructor;
   values = {
     v = 202106;
