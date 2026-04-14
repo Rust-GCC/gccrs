@@ -323,6 +323,7 @@ bool ipa_vr_operation_and_type_effects (vrange &dst_vr,
 					const ipa_vr &src_vr,
 					enum tree_code operation,
 					tree dst_type, tree src_type);
+tree ipacp_value_safe_for_type (tree param_type, tree value);
 
 
 
