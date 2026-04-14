@@ -4078,7 +4078,8 @@ control passing certain arguments in registers.
 @deftypefn {Target Hook} bool TARGET_PROMOTE_PROTOTYPES (const_tree @var{fntype})
 This target hook returns @code{true} if an argument declared in a
 prototype as an integral type smaller than @code{int} should actually be
-passed as an @code{int}.  In addition to avoiding errors in certain
+passed as an @code{int}.  This also applies to the type of the first member
++in a transparent union argument.  In addition to avoiding errors in certain
 cases of mismatch, it also makes for better code on certain machines.
 The default is to not promote prototypes.
 @end deftypefn

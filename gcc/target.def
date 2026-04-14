@@ -4910,7 +4910,8 @@ DEFHOOK
 (promote_prototypes,
  "This target hook returns @code{true} if an argument declared in a\n\
 prototype as an integral type smaller than @code{int} should actually be\n\
-passed as an @code{int}.  In addition to avoiding errors in certain\n\
+passed as an @code{int}.  This also applies to the type of the first member\n\
++in a transparent union argument.  In addition to avoiding errors in certain\n\
 cases of mismatch, it also makes for better code on certain machines.\n\
 The default is to not promote prototypes.",
  bool, (const_tree fntype),
