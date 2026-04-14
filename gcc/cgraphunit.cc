@@ -739,7 +739,7 @@ process_symver_attribute (symtab_node *n)
 
   for (; value != NULL; value = TREE_CHAIN (value))
     {
-      /* Starting from bintuils 2.35 gas supports:
+      /* Starting from binutils 2.35 gas supports:
 	  # Assign foo to bar@V1 and baz@V2.
 	  .symver foo, bar@V1
 	  .symver foo, baz@V2
