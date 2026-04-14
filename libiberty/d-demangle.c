@@ -175,8 +175,33 @@ struct dlang_info
 {
   /* The string we are demangling.  */
   const char *s;
+
+  /* The options passed to the demangler.  */
+  int options;
+
   /* The index of the last back reference.  */
   int last_backref;
+
+  /* The total number of back referenced types, including nested back
+     referenced types.  This is reset to zero each time a back
+     reference is processed at the "top level" (i.e. not a nested back
+     reference).
+
+     Cases have been encountered where a back reference type includes
+     references to other back reference types, which include further
+     back references.  This was observed to a depth of 57.  If each
+     layer only references the layer before twice then the innermost
+     string will be duplicated 2^57 times!
+
+     We count the number of nested back references and compare this to
+     the recursion limit, even though this isn't strictly recursion.  */
+  int num_backrefs;
+
+  /* Track the depth of back references.  Depth 0 is considered the
+     top level.  When we encounter a back reference at this depth the
+     NUM_BACKREFS field is reset to 0.  At greater depths,
+     NUM_BACKREFS will be incremented.  */
+  int backref_depth;
 };
 
 /* Pass as the LEN to dlang_parse_template if symbol length is not known.  */
@@ -411,6 +436,24 @@ dlang_type_backref (string *decl, const char *mangled, struct dlang_info *info,
   if (mangled - info->s >= info->last_backref)
     return NULL;
 
+  /* A back reference might point to a type that itself contains back
+     references, which might themselves contain back references.
+     There might not be recursion going on, but we can run into
+     problems of exponential growth caused by the inner type appearing
+     to be referenced 10s of millions of times.  */
+  if (info->backref_depth > 0)
+    {
+      if ((info->options & DMGL_NO_RECURSE_LIMIT) == 0
+	  && info->num_backrefs > DEMANGLE_RECURSION_LIMIT)
+	return NULL;
+
+      info->num_backrefs++;
+    }
+  else
+    info->num_backrefs = 0;
+
+  info->backref_depth++;
+
   int save_refpos = info->last_backref;
   info->last_backref = mangled - info->s;
 
@@ -424,6 +467,7 @@ dlang_type_backref (string *decl, const char *mangled, struct dlang_info *info,
     backref = dlang_type (decl, backref, info);
 
   info->last_backref = save_refpos;
+  info->backref_depth--;
 
   if (backref == NULL)
     return NULL;
@@ -1931,17 +1975,20 @@ dlang_parse_template (string *decl, const char *mangled,
 /* Initialize the information structure we use to pass around information.  */
 static void
 dlang_demangle_init_info (const char *mangled, int last_backref,
-			  struct dlang_info *info)
+			  int options, struct dlang_info *info)
 {
   info->s = mangled;
+  info->options = options;
   info->last_backref = last_backref;
+  info->num_backrefs = 0;
+  info->backref_depth = 0;
 }
 
 /* Extract and demangle the symbol in MANGLED.  Returns the demangled
    signature on success or NULL on failure.  */
 
 char *
-dlang_demangle (const char *mangled, int option ATTRIBUTE_UNUSED)
+dlang_demangle (const char *mangled, int options)
 {
   string decl;
   char *demangled = NULL;
@@ -1962,7 +2009,7 @@ dlang_demangle (const char *mangled, int option ATTRIBUTE_UNUSED)
     {
       struct dlang_info info;
 
-      dlang_demangle_init_info (mangled, strlen (mangled), &info);
+      dlang_demangle_init_info (mangled, strlen (mangled), options, &info);
       mangled = dlang_parse_mangle (&decl, mangled, &info);
 
       /* Check that the entire symbol was successfully demangled.  */
