@@ -481,12 +481,13 @@ example_4 ()
 	      gimple *stmt = gsi_stmt (gsi);
 	      event_location_t *evloc = NULL;
 	      gcall *call = NULL;
-	      if (call = check_for_named_call (stmt, "acquire_lock_a", 0))
+	      if ((call = check_for_named_call (stmt, "acquire_lock_a", 0)) !=
+		  NULL)
 		evloc = (in_foo
 			 ? &call_to_acquire_lock_a_in_foo
 			 : &call_to_acquire_lock_a_in_bar);
-	      else if (call
-		       = check_for_named_call (stmt, "acquire_lock_b", 0))
+	      else if ((call = check_for_named_call (stmt, "acquire_lock_b",
+						     0)) != NULL)
 		evloc = (in_foo
 			 ? &call_to_acquire_lock_b_in_foo
 			 : &call_to_acquire_lock_b_in_bar);
