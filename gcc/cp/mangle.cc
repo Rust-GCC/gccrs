@@ -768,13 +768,13 @@ unmangled_name_p (const tree decl)
     }
   else if (VAR_P (decl))
     {
+      /* extern "C" declarations aren't mangled.  */
+      if (DECL_NAMESPACE_SCOPE_P (decl) && DECL_EXTERN_C_P (decl))
+	return true;
+
       /* static variables are mangled.  */
       if (!DECL_EXTERNAL_LINKAGE_P (decl))
 	return false;
-
-      /* extern "C" declarations aren't mangled.  */
-      if (DECL_EXTERN_C_P (decl))
-	return true;
 
       /* Other variables at non-global scope are mangled.  */
       if (CP_DECL_CONTEXT (decl) != global_namespace)
