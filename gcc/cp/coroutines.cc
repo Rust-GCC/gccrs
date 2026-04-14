@@ -1471,6 +1471,9 @@ build_co_await (location_t loc, tree a, suspend_point_kind suspend_kind,
       3. a coroutine handle, we execute the handle.resume() call.  */
   tree awsp_func = NULL_TREE;
   tree h_proxy = get_coroutine_self_handle_proxy (current_function_decl);
+  /* expand_one_await_expression will replace the argument with a prvalue call
+     to from_address, so pass an rvalue now as well.  */
+  h_proxy = move (h_proxy);
   vec<tree, va_gc> *args = make_tree_vector_single (h_proxy);
   tree awsp_call
     = build_new_method_call (e_proxy, awsp_meth, &args, NULL_TREE,
@@ -2237,7 +2240,18 @@ expand_one_await_expression (tree *expr, tree *await_expr, void *d)
     build_new_method_call (dummy_ch, data->hfa_m, &args, NULL_TREE,
 			   LOOKUP_NORMAL, NULL, tf_warning_or_error));
   release_tree_vector (args);
-  CALL_EXPR_ARG (susp_call, call_expr_nargs (susp_call) - 1) = hfa;
+  {
+    tree fn = get_callee_fndecl (susp_call);
+    int argno = 0 + DECL_OBJECT_MEMBER_FUNCTION_P (fn);
+    tree &arg = CALL_EXPR_ARG (susp_call, argno);
+    /* Handle await_suspend taking an unusual type (c++/123975).  */
+    tree type = TYPE_ARG_TYPES (TREE_TYPE (fn));
+    type = TREE_VALUE (chain_index (argno, type));
+    hfa = perform_implicit_conversion (type, hfa, tf_warning_or_error);
+    hfa = convert_for_arg_passing (type, hfa, tf_warning_or_error);
+    gcc_checking_assert (same_type_p (TREE_TYPE (arg), TREE_TYPE (hfa)));
+    arg = hfa;
+  }
 
   bool is_cont = false;
   /* NOTE: final suspend can't resume; the "resume" label in that case
