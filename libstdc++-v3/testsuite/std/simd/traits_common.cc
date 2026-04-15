@@ -59,7 +59,7 @@ namespace test02
   // ensure 'true ? int : vec<float>' doesn't work
   template <typename T>
     concept has_type_member = requires { typename T::type; };
-  static_assert(has_type_member<common_type<int, simd::vec<float>>>);
+  static_assert(!has_type_member<common_type<int, simd::vec<float>>>);
 }
 
 #if defined __AVX__ && !defined __AVX2__
@@ -90,7 +90,7 @@ static_assert( std::convertible_to<Ic<1>, simd::vec<float>>);
 static_assert(!std::convertible_to<Ic<1.1>, simd::vec<float>>);
 static_assert(!std::convertible_to<simd::vec<int, 4>, simd::vec<float, 4>>);
 static_assert(!std::convertible_to<simd::vec<float, 4>, simd::vec<int, 4>>);
-static_assert( std::convertible_to<int, simd::vec<float>>);
+static_assert(!std::convertible_to<int, simd::vec<float>>);
 static_assert( std::convertible_to<simd::vec<int, 4>, simd::vec<double, 4>>);
 
 template <typename V>

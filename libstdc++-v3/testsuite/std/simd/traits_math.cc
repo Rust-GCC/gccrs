@@ -25,7 +25,7 @@ namespace math_tests
     concept has_deduced_vec = requires { typename simd::__deduced_vec_t<T>; };
 
   static_assert(!has_common_type<vf2, vf4>);
-  static_assert( has_common_type<int, vf2>);
+  static_assert(!has_common_type<int, vf2>);
 
   template <typename T, bool Strict = false>
     struct holder

@@ -54,14 +54,14 @@ template <typename V>
 		   return i % 13 == 0 || i % 7 == 0;
       })},
       [](auto& t, const M k, const M tr, const M fa, const M k2) {
-	t.verify_equal(V(+tr), V(1));
+	t.verify_equal(V(+tr), T(1));
 	t.verify_equal(V(+fa), V());
 	t.verify_equal(V(+k), init_vec<V, 0, 1>);
 
 	if constexpr (std::is_integral_v<T>)
 	  {
-	    t.verify_equal(V(~tr), ~V(1));
-	    t.verify_equal(V(~fa), ~V(0));
+	    t.verify_equal(V(~tr), ~V(std::cw<1>));
+	    t.verify_equal(V(~fa), ~V());
 	    t.verify_equal(V(~k), ~init_vec<V, 0, 1>);
 	  }
 

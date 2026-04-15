@@ -13,8 +13,7 @@ template <typename V>
     using M = typename V::mask_type;
 
     using pair = std::pair<V, V>;
-    static constexpr std::conditional_t<std::is_floating_point_v<T>, short, T> x_max
-      = test_iota_max<V, 1>;
+    static constexpr T x_max = test_iota_max<V, 1>;
     static constexpr int x_max_int = static_cast<int>(x_max);
 
     static constexpr V
@@ -26,7 +25,7 @@ template <typename V>
 	  return static_cast<V>(std::to_underlying(x_max) - static_cast<Vu>(x));
 	}
       else
-	return x_max - x;
+	return std::cw<x_max> - x;
     }
 
     ADD_TEST(Select) {

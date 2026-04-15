@@ -1241,15 +1241,6 @@ namespace simd
       return static_cast<_To>(__x);
     }
 
-  template <typename _From, typename _To>
-    concept __simd_vec_bcast_consteval
-      = __explicitly_convertible_to<_From, _To>
-	  && is_arithmetic_v<remove_cvref_t<_From>> && convertible_to<_From, _To>
-	  && !__value_preserving_convertible_to<remove_cvref_t<_From>, _To>
-	  && (is_same_v<common_type_t<_From, _To>, _To>
-		|| (is_same_v<remove_cvref_t<_From>, int> && is_integral_v<_To>)
-		|| (is_same_v<remove_cvref_t<_From>, unsigned> && unsigned_integral<_To>));
-
   /** @internal
    * std::pair is not trivially copyable, this one is
    */

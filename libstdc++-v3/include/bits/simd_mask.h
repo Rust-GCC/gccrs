@@ -865,11 +865,12 @@ namespace simd
 		using _Ip = typename _VecType::value_type;
 		_VecType __v0 = _Ip(__val);
 		constexpr int __bits_per_element = sizeof(_Ip) * __CHAR_BIT__;
-		constexpr _VecType __pow2 = _VecType(1) << (__iota<_VecType> % __bits_per_element);
+		constexpr _VecType __pow2 = _VecType(cw<1>)
+					      << (__iota<_VecType> % cw<__bits_per_element>);
 		if constexpr (_S_size < __bits_per_element)
-		  return ((__v0 & __pow2) > 0)._M_concat_data();
+		  return ((__v0 & __pow2) > cw<0>)._M_concat_data();
 		else if constexpr (_S_size == __bits_per_element)
-		  return ((__v0 & __pow2) != 0)._M_concat_data();
+		  return ((__v0 & __pow2) != cw<0>)._M_concat_data();
 		else
 		  {
 		    static_assert(_Bytes == 1);
@@ -886,7 +887,7 @@ namespace simd
 			};
 			__v1 *= 0x0101'0101'0101'0101ull;
 			__v0 = __builtin_bit_cast(_VecType, __v1);
-			return ((__v0 & __pow2) != 0)._M_data;
+			return ((__v0 & __pow2) != cw<0>)._M_data;
 		      }
 		    else
 		      {
@@ -895,7 +896,7 @@ namespace simd
 			__v0 = _VecType::_S_static_permute(__v1, [](int __i) {
 				 return __i / __CHAR_BIT__;
 			       });
-			return ((__v0 & __pow2) != 0)._M_data;
+			return ((__v0 & __pow2) != cw<0>)._M_data;
 		      }
 		  }
 	      }
@@ -991,7 +992,7 @@ namespace simd
 	  else
 	    {
 	      using _UV = basic_vec<_Up, _UAbi>;
-	      return __select_impl(static_cast<_UV::mask_type>(*this), _UV(1), _UV(0));
+	      return __select_impl(static_cast<_UV::mask_type>(*this), _Up(1), _UV());
 	    }
 	}
 
@@ -1066,7 +1067,7 @@ namespace simd
 	      constexpr int __n = _IV::size();
 	      if constexpr (_Bytes * __CHAR_BIT__ >= __n) // '1 << __iota' cannot overflow
 		{ // reduce(select(k, powers_of_2, 0))
-		  constexpr _IV __pow2 = _IV(1) << __iota<_IV>;
+		  constexpr _IV __pow2 = _IV(cw<1>) << __iota<_IV>;
 		  return _Ur(_U0(__select_impl(__k, __pow2, _IV())
 				   ._M_reduce(bit_or<>()))) << _Offset;
 		}
@@ -1079,7 +1080,7 @@ namespace simd
 		}
 	      else
 		{ // limit powers_of_2 to 1, 2, 4, ..., 128
-		  constexpr _IV __pow2 = _IV(1) << (__iota<_IV> % _IV(__CHAR_BIT__));
+		  constexpr _IV __pow2 = _IV(cw<1>) << (__iota<_IV> % _IV(cw<__CHAR_BIT__>));
 		  _IV __x = __select_impl(__k, __pow2, _IV());
 		  // partial reductions of 8 neighboring elements
 		  __x |= _IV::_S_static_permute(__x, _SwapNeighbors<4>());
