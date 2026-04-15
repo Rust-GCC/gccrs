@@ -945,7 +945,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	{
 	  __type __uh
 	    = (static_cast<__type>(_M_x[1]) << __w)
-		| (static_cast<__type>(_M_x[0]) + 1);
+		| static_cast<__type>(_M_x[0]);
+	  ++__uh;
 	  __type __lh
 	    = (static_cast<__type>(_M_x[3]) << __w)
 		| static_cast<__type>(_M_x[2]);
@@ -963,9 +964,10 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	}
       else
 	{
-	  __type __num =
-		  (static_cast<__type>(_M_x[1]) << __w)
-		  | (static_cast<__type>(_M_x[0]) + 1);
+	  __type __num
+	    = (static_cast<__type>(_M_x[1]) << __w)
+		| static_cast<__type>(_M_x[0]);
+	  ++__num;
 	  _M_x[0] = static_cast<_UIntType>(__num & max());
 	  _M_x[1] = static_cast<_UIntType>((__num >> __w) & max());
 	}
