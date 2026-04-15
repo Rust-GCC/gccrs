@@ -3337,6 +3337,13 @@ dump_expr (cxx_pretty_printer *pp, tree t, int flags)
 	  dump_decl (pp, h, flags);
 	else if (TYPE_P (h))
 	  dump_type (pp, h, flags);
+	else if (TREE_CODE (h) == TREE_VEC)
+	  {
+	    pp_format_decoder (pp) = cp_printer;
+	    pp->set_format_postprocessor
+	      (std::make_unique<cxx_format_postprocessor> ());
+	    dump_data_member_spec (pp, h);
+	  }
 	else
 	  dump_expr (pp, h, flags);
 	break;

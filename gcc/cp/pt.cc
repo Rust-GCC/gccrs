@@ -16969,15 +16969,7 @@ tsubst_splice_expr (tree t, tree args, tsubst_flags_t complain, tree in_decl)
      cp_parser_postfix_dot_deref_expression wants to see only
      certain kind of entities.  */
   if (SPLICE_EXPR_MEMBER_ACCESS_P (t))
-    gcc_assert (TREE_CODE (op) == FIELD_DECL
-		|| VAR_P (op)
-		|| TREE_CODE (op) == CONST_DECL
-		|| TREE_CODE (op) == FUNCTION_DECL
-		|| DECL_FUNCTION_TEMPLATE_P (OVL_FIRST (op))
-		|| variable_template_p (op)
-		|| BASELINK_P (op)
-		|| TREE_CODE (op) == TEMPLATE_ID_EXPR
-		|| TREE_CODE (op) == TREE_BINFO);
+    gcc_assert (valid_splice_for_member_access_p (op, /*decls_only_p=*/false));
 
   return op;
 }

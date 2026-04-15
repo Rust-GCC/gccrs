@@ -3679,6 +3679,21 @@ eval_identifier_of (location_t loc, const constexpr_ctx *ctx, tree r,
   return build_cplus_new (ret_type, ret, tf_warning_or_error);
 }
 
+/* Display R, which is a data member description.  */
+
+void
+dump_data_member_spec (pretty_printer *pp, tree r)
+{
+  pp_printf (pp, "(%T, %E, %E, %E, %s, {", TREE_VEC_ELT (r, 0),
+	     TREE_VEC_ELT (r, 1), TREE_VEC_ELT (r, 2), TREE_VEC_ELT (r, 3),
+	     TREE_VEC_ELT (r, 4) == boolean_true_node
+	     ? "true" : "false");
+  for (int i = 5; i < TREE_VEC_LENGTH (r); ++i)
+    pp_printf (pp, "%s%E", i == 5 ? "" : ", ",
+	       REFLECT_EXPR_HANDLE (TREE_VEC_ELT (r, i)));
+  pp_printf (pp, "})");
+}
+
 /* Process std::meta::{,u8}display_string_of.
    Returns: An implementation-defined string_view or u8string_view,
    respectively.
@@ -3738,16 +3753,7 @@ eval_display_string_of (location_t loc, const constexpr_ctx *ctx, tree r,
       pp_printf (&pp, "%T: %T", d, BINFO_TYPE (r));
     }
   else if (kind == REFLECT_DATA_MEMBER_SPEC)
-    {
-      pp_printf (&pp, "(%T, %E, %E, %E, %s, {", TREE_VEC_ELT (r, 0),
-		 TREE_VEC_ELT (r, 1), TREE_VEC_ELT (r, 2), TREE_VEC_ELT (r, 3),
-		 TREE_VEC_ELT (r, 4) == boolean_true_node
-		 ? "true" : "false");
-      for (int i = 5; i < TREE_VEC_LENGTH (r); ++i)
-	pp_printf (&pp, "%s%E", i == 5 ? "" : ", ",
-		   REFLECT_EXPR_HANDLE (TREE_VEC_ELT (r, i)));
-      pp_printf (&pp, "})");
-    }
+    dump_data_member_spec (&pp, r);
   else if (eval_is_annotation (r, kind) == boolean_true_node)
     pp_printf (&pp, "[[=%E]]",
 	       tree_strip_any_location_wrapper (TREE_VALUE (TREE_VALUE (r))));
@@ -8874,6 +8880,28 @@ valid_splice_scope_p (const_tree t)
 	  || TREE_CODE (t) == NAMESPACE_DECL);
 }
 
+/* Return true if T is a valid result of the splice in a class member access,
+   as in obj.[:R:].  If DECLS_ONLY_P, only certain decls are OK.  */
+
+bool
+valid_splice_for_member_access_p (const_tree t, bool decls_only_p/*=true*/)
+{
+  if (TREE_CODE (t) == FIELD_DECL
+      || VAR_P (t)
+      || TREE_CODE (t) == CONST_DECL
+      || TREE_CODE (t) == FUNCTION_DECL
+      || DECL_FUNCTION_TEMPLATE_P (OVL_FIRST (const_cast<tree> (t)))
+      || variable_template_p (const_cast<tree> (t)))
+    return true;
+
+  if (decls_only_p)
+    return false;
+
+  return (BASELINK_P (t)
+	  || TREE_CODE (t) == TEMPLATE_ID_EXPR
+	  || TREE_CODE (t) == TREE_BINFO);
+}
+
 /* Check a function DECL for CWG 3115: Every function of consteval-only
    type shall be an immediate function.  */
 
@@ -8971,6 +8999,14 @@ check_splice_expr (location_t loc, location_t start_loc, tree t,
     {
       if (complain_p)
 	error_at (loc, "invalid class member access of type template %qE", t);
+      return false;
+    }
+
+  if (member_access_p
+      && !valid_splice_for_member_access_p (t, /*decls_only_p=*/false))
+    {
+      if (complain_p)
+	error_at (loc, "cannot use %qE to access a class member", t);
       return false;
     }
 

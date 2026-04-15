@@ -3594,13 +3594,7 @@ finish_class_member_access_expr (cp_expr object, tree name, bool template_p,
 	      return error_mark_node;
 	    }
 	}
-      else if (splice_p
-	       && (TREE_CODE (name) == FIELD_DECL
-		   || VAR_P (name)
-		   || TREE_CODE (name) == CONST_DECL
-		   || TREE_CODE (name) == FUNCTION_DECL
-		   || DECL_FUNCTION_TEMPLATE_P (OVL_FIRST (name))
-		   || variable_template_p (name)))
+      else if (splice_p && valid_splice_for_member_access_p (name))
 	{
 	  scope = context_for_name_lookup (OVL_FIRST (name));
 	  if (!CLASS_TYPE_P (scope))
@@ -3664,14 +3658,7 @@ finish_class_member_access_expr (cp_expr object, tree name, bool template_p,
 	  gcc_assert (CLASS_TYPE_P (scope));
 	  gcc_assert (identifier_p (name)
 		      || TREE_CODE (name) == BIT_NOT_EXPR
-		      || (splice_p
-			  && (TREE_CODE (name) == FIELD_DECL
-			      || VAR_P (name)
-			      || TREE_CODE (name) == CONST_DECL
-			      || TREE_CODE (name) == FUNCTION_DECL
-			      || DECL_FUNCTION_TEMPLATE_P
-						(OVL_FIRST (name))
-			      || variable_template_p (name))));
+		      || (splice_p && valid_splice_for_member_access_p (name)));
 
 	  if (constructor_name_p (name, scope))
 	    {
@@ -3723,12 +3710,7 @@ finish_class_member_access_expr (cp_expr object, tree name, bool template_p,
 	    goto dependent;
 	  member = lookup_destructor (object, scope, name, complain);
 	}
-      else if (splice_p && (TREE_CODE (name) == FIELD_DECL
-			    || VAR_P (name)
-			    || TREE_CODE (name) == CONST_DECL
-			    || TREE_CODE (name) == FUNCTION_DECL
-			    || DECL_FUNCTION_TEMPLATE_P (OVL_FIRST (name))
-			    || variable_template_p (name)))
+      else if (splice_p && valid_splice_for_member_access_p (name))
 	{
 	  member = name;
 	  name = OVL_FIRST (name);

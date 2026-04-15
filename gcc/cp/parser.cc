@@ -6355,16 +6355,7 @@ cp_parser_splice_expression (cp_parser *parser, bool template_p,
     {
       /* Grab the unresolved expression then.  */
       t = unresolved;
-      gcc_assert (TREE_CODE (t) == FIELD_DECL
-		  || VAR_P (t)
-		  || TREE_CODE (t) == CONST_DECL
-		  || TREE_CODE (t) == FUNCTION_DECL
-		  || DECL_FUNCTION_TEMPLATE_P (OVL_FIRST (t))
-		  || variable_template_p (t)
-		  || BASELINK_P (t)
-		  || TREE_CODE (t) == SPLICE_EXPR
-		  || TREE_CODE (t) == TEMPLATE_ID_EXPR
-		  || TREE_CODE (t) == TREE_BINFO);
+      gcc_assert (valid_splice_for_member_access_p (t, /*decls_only_p=*/false));
       /* ??? We're not setting *idk here.  */
     }
   else if (address_p

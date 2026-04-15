@@ -9444,6 +9444,8 @@ extern bool consteval_only_p (tree) ATTRIBUTE_PURE;
 extern bool compare_reflections (tree, tree) ATTRIBUTE_PURE;
 extern bool valid_splice_type_p (const_tree) ATTRIBUTE_PURE;
 extern bool valid_splice_scope_p (const_tree) ATTRIBUTE_PURE;
+extern bool valid_splice_for_member_access_p (const_tree, bool = true)
+  ATTRIBUTE_PURE;
 extern bool check_splice_expr (location_t, location_t, tree, bool, bool, bool,
 			       bool, bool) ATTRIBUTE_PURE;
 extern tree make_splice_scope (tree, bool);
@@ -9451,6 +9453,7 @@ extern bool dependent_splice_p (const_tree) ATTRIBUTE_PURE;
 extern tree reflection_mangle_prefix (tree, char [3]);
 extern void check_consteval_only_fn (tree);
 extern bool reflection_function_template_p (tree) ATTRIBUTE_PURE;
+extern void dump_data_member_spec (pretty_printer *, tree);
 
 /* Inline bodies.  */
 
