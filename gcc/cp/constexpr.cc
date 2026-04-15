@@ -9504,7 +9504,16 @@ cxx_eval_constant_expression (const constexpr_ctx *ctx, tree t,
 	if (ctx->save_exprs)
 	  ctx->save_exprs->safe_push (slot);
 	if (*jump_target)
-	  return NULL_TREE;
+	  {
+	    if (!is_complex
+		&& !(AGGREGATE_TYPE_P (type) || VECTOR_TYPE_P (type)))
+	      /* If TARGET_EXPR_INITIAL throws exception and slot's value
+		 has not been changed yet, CLEANUP_POINT_EXPR handling
+		 could see there void_node from a previous evaluation
+		 and complain.  */
+	      ctx->global->put_value (slot, NULL_TREE);
+	    return NULL_TREE;
+	  }
 	if (!is_complex)
 	  {
 	    r = unshare_constructor (r);
