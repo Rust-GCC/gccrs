@@ -4181,7 +4181,8 @@ write_expression (tree expr)
 		  ::= pa [ <nonnegative number> ] _ <encoding>	# fn param
 		  ::= en <prefix> <unqualified-name>	# enumerator
 		  ::= an [ <nonnegative number> ] _	# annotation
-		  ::= ta <alias prefix>			# type alias
+		  ::= ta <alias prefix> <alias unqualified-name>
+		      [ <alias template-args> ] _ <type> # type alias
 		  ::= ty <type>				# type
 		  ::= dm <prefix> <unqualified-name>	# ns data member
 		  ::= un <prefix> [ <nonnegative number> ] _ # unnamed bitfld
@@ -4238,7 +4239,17 @@ write_reflection (tree refl)
   else if (strcmp (prefix, "ta") == 0)
     {
       arg = TYPE_NAME (arg);
-      write_prefix (arg);
+      /* Can't use write_prefix (arg) here instead of
+	 write_prefix + write_unqualified_name + optional
+	 write_template_args, it shouldn't be
+	 remembered among substitutions.  */
+      write_prefix (decl_mangling_context (arg));
+      write_unqualified_name (arg);
+      tree template_info = maybe_template_info (arg);
+      if (template_info)
+	write_template_args (TI_ARGS (template_info));
+      write_char ('_');
+      write_type (DECL_ORIGINAL_TYPE (arg));
     }
   else if (strcmp (prefix, "ty") == 0)
     write_type (arg);

@@ -212,10 +212,10 @@ baz (int x)
 // { dg-final { scan-assembler "_Z3barILi181ELDmen3NS24Enum1AEEvv" } }
 // { dg-final { scan-assembler "_Z3barILi182ELDmen3NS2Uej1C1CEEvv" } }
 // { dg-final { scan-assembler "_Z3barILi190ELDman_EEvv" } }
-// { dg-final { scan-assembler "_Z3barILi200ELDmta5AliasEEvv" } }
-// { dg-final { scan-assembler "_Z3barILi201ELDmta3NS25AliasEEvv" } }
-// { dg-final { scan-assembler "_Z3barILi202ELDmta6TAliasILi42EEEEvv" } }
-// { dg-final { scan-assembler "_Z3barILi203ELDmta3NS26TAliasILj0EEEEvv" } }
+// { dg-final { scan-assembler "_Z3barILi200ELDmta5Alias_iEEvv" } }
+// { dg-final { scan-assembler "_Z3barILi201ELDmta3NS25Alias_DmEEvv" } }
+// { dg-final { scan-assembler "_Z3barILi202ELDmta6TAliasILi42EE_4TClsILi42EEEEvv" } }
+// { dg-final { scan-assembler "_Z3barILi203ELDmta3NS26TAliasILj0EE_NS0_4TClsILj0EEEEEvv" } }
 // { dg-final { scan-assembler "_Z3barILi210ELDmty1SEEvv" } }
 // { dg-final { scan-assembler "_Z3barILi211ELDmtyN3NS21SEEEvv" } }
 // { dg-final { scan-assembler "_Z3barILi212ELDmtyKiEEvv" } }
