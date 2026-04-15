@@ -1,5 +1,3 @@
-! { dg-do compile }
-! { dg-additional-options "-fopenmp" }
       SUBROUTINE ICHI
       INTEGER :: ARGC
       ARGC = COMMAND_ARGUMENT_COUNT ()
