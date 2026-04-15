@@ -1,6 +1,4 @@
 ! PR fortran/93463
-! { dg-do compile { target fopenmp } }
-! { dg-additional-options "-fopenmp" }
 
 program pr93463
    integer :: i, x, y, z
