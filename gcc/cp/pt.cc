@@ -33468,6 +33468,7 @@ finish_expansion_stmt (tree expansion_stmt, tree args,
   location_t loc = DECL_SOURCE_LOCATION (range_decl);
   tree begin = NULL_TREE, begin_minus_begin_type = NULL_TREE;
   auto_vec<tree, 8> destruct_decls;
+  bool is_lvalue = false;
   if (BRACE_ENCLOSED_INITIALIZER_P (expansion_init))
     {
       /* Enumerating expansion statements.  */
@@ -33548,6 +33549,7 @@ finish_expansion_stmt (tree expansion_stmt, tree args,
       if (sz < 0)
 	return;
       n = sz;
+      is_lvalue = lvalue_p (expansion_init);
       tree auto_node = make_auto ();
       tree decomp_type = cp_build_reference_type (auto_node, true);
       decomp_type = do_auto_deduction (decomp_type, expansion_init, auto_node);
@@ -33679,6 +33681,18 @@ finish_expansion_stmt (tree expansion_stmt, tree args,
 	  break;
 	case esk_destructuring:
 	  init = convert_from_reference (destruct_decls[i]);
+	  if (!is_lvalue)
+	    {
+	      tree ctype;
+	      if (DECL_HAS_VALUE_EXPR_P (destruct_decls[i]))
+		ctype = unlowered_expr_type (destruct_decls[i]);
+	      else
+		ctype = lookup_decomp_type (destruct_decls[i]);
+	      ctype = cp_build_reference_type (ctype, /*rval=*/true);
+	      init = build_static_cast (loc, ctype, init,
+					tf_warning_or_error);
+	      init = convert_from_reference (init);
+	    }
 	  break;
 	default:
 	  gcc_unreachable ();
