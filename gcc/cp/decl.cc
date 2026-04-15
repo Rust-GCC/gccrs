@@ -9649,7 +9649,7 @@ cp_finish_decl (tree decl, tree init, bool init_const_expr_p,
 	      /* [basic.start.main]/3: A program that defines main as deleted
 		 is ill-formed.  */
 	      error ("%<::main%> cannot be deleted");
-	      DECL_INITIAL (decl) = NULL_TREE;
+	      DECL_INITIAL (decl) = error_mark_node;
 	    }
 	  else
 	    {
