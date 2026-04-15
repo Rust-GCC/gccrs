@@ -2026,6 +2026,16 @@ package body Exp_Aggr is
          end;
       end if;
 
+      --  Set Referenced_As_LHS if appropriate. We are neither interested
+      --  in compiler-generated aggregates, nor in references outside the
+      --  extended main source unit.
+
+      if Comes_From_Source (N)
+        and then In_Extended_Main_Source_Unit (Into)
+      then
+         Set_Referenced_Modified (Into, Out_Param => False);
+      end if;
+
       --  First before we start, a special case. If we have a bit packed
       --  array represented as a modular type, then clear the value to
       --  zero first, to ensure that unused bits are properly cleared.
