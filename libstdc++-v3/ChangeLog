@@ -1,3 +1,88 @@
+2026-04-15  Matthias Kretz  <m.kretz@gsi.de>
+
+	* include/bits/simd_vec.h (basic_vec deduction guide): Explicit
+	cast to simd-size-type from range size type.
+
+2026-04-15  Jakub Jelinek  <jakub@redhat.com>
+
+	* include/std/meta (define_static_object): Adjust for LWG4483 changes
+	- handle unions and arrays differently.
+
+2026-04-14  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* include/bits/version.def (stdbit_h, stdckdint_h): Define.
+	* include/bits/version.h: Regenerate.
+	* include/c_compatibility/stdbit.h (__cpp_lib_stdbit_h): Define
+	and use it in guards.
+	* include/c_compatibility/stdckdint.h (__cpp_lib_stdckdint_h):
+	Define and use it in guards.
+
+2026-04-14  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* testsuite/std/format/fill.cc: New test.
+	* testsuite/std/format/fill_nonunicode.cc: New test.
+
+2026-04-14  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* testsuite/20_util/constant_wrapper/generic.cc: Replace
+	std::std::invalid_argument with NegativeArgument and
+	removed <stdexcept> include.
+
+2026-04-14  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* include/bits/version.def (constant_wrapped): Updated to 202603L.
+	* include/bits/version.h: Regenerate.
+	* include/bits/utility.h (_CwOperators::operator())
+	(_CwOperators:operator[]): Delete, they are now provided by...
+	(constant_wrapper::operator(), constant_wrapper::operator[]):
+	Define.
+	* testsuite/20_util/constant_wrapper/generic.cc: Add additional
+	test cases for invoke and subscript.
+	* testsuite/20_util/constant_wrapper/version.cc: Update tested
+	value.
+
+2026-04-14  Matthias Wippich  <mfwippich@gmail.com>
+	    Ivan Lazaric  <ivan.lazaric1@gmail.com>
+
+	* include/bits/utility.h (std::tuple_size, std::tuple_element):
+	Add partial specializations for integer_sequence.
+	(std::get(integer_sequence<_Tp, _Idx...>)): Define.
+	* include/bits/version.def (integer_sequence): Bump to 202511L.
+	* include/bits/version.h: Regenerate.
+	* testsuite/20_util/integer_sequence/tuple_access.cc: New test.
+	* testsuite/20_util/integer_sequence/tuple_access_neg.cc: New test.
+	* testsuite/experimental/feat-cxx14.cc: Updated check for
+	__cpp_lib_integer_sequence value.
+
+2026-04-13  François Dumont  <frs.dumont@gmail.com>
+
+	* include/bits/hashtable.h: Replace usages of std::__addressof with
+	std::addressof.
+	* include/bits/hashtable_policy.h: Likewise.
+
+2026-04-13  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* include/bits/version.def (replaceable_contract_violation_handler)
+	[(__cplusplus > 202302L) && (__cpp_contracts >= 202502L)]:
+	Define to 202603 for ELF targets, and 0 otherwise.
+	* include/bits/version.h: Regenerate.
+	* include/std/contracts: Define
+	__cpp_lib_replaceable_contract_violation_handler.
+
+2026-04-13  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* config/abi/pre/gnu.ver (GLIBCXX_3.4): Remove _ZNKSs11_[MS]_*
+	and _ZNKSbIwSt11char_traitsIwESaIwEE11_[MS]_* patterns.
+
+2026-04-13  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* include/bits/version.def (function_ref): Bump to 202603L.
+	* include/bits/version.h: Regenerate.
+	* testsuite/20_util/function_ref/assign.cc: Remove repeated
+	check for feature test macro.
+	* testsuite/20_util/function_ref/cons.cc: Updated checked
+	value.
+
 2026-04-10  Patrick Palka  <ppalka@redhat.com>
 
 	* include/std/ranges (lazy_split_view::begin): Add

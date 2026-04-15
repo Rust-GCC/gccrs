@@ -1,3 +1,15 @@
+2026-04-13  Eric Botcazou  <ebotcazou@adacore.com>
+
+	PR ada/95452
+	* libgnat/g-heasor.adb (Sort.Sift): Add guard against overflow.
+	* libgnat/g-hesorg.adb (Sort.Sift): Likewise.
+	* libgnat/g-hesora.adb (Sort.Sift): Likewise.  Restore consistency.
+
+2026-04-13  Eric Botcazou  <ebotcazou@adacore.com>
+
+	PR ada/77535
+	* libgnat/s-pehage.adb (New_Word): Rebase the input.
+
 2026-04-12  Eric Botcazou  <ebotcazou@adacore.com>
 
 	PR ada/124836

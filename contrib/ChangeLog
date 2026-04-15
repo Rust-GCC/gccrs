@@ -1,3 +1,19 @@
+2026-04-15  Jakub Jelinek  <jakub@redhat.com>
+
+	* gcc-changelog/git_update_version.py: Add
+	9df40f1f4bec855da864f535e242308ceb1cd5ad and
+	d5fb79718b22207253d62c92dcf8b1c16e1ea370 to ignored_commits.
+
+2026-04-15  Jakub Jelinek  <jakub@redhat.com>
+
+	* gcc-changelog/git_update_version.py: Add
+	eec8da328cf1f91db302ab4cee803e269e68ad33 to ignored_commits.
+
+2026-04-15  Jakub Jelinek  <jakub@redhat.com>
+
+	* gcc-changelog/git_update_version.py: Add
+	69a2c243dd2cf9f77150c0eb86dfbc0931876bc1 to ignored_commits.
+
 2026-03-14  Jakub Jelinek  <jakub@redhat.com>
 
 	PR other/124508

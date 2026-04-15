@@ -1,3 +1,39 @@
+2026-04-14  Gaius Mulley  <gaiusmod2@gmail.com>
+
+	PR modula2/105408
+	* Make-lang.in (GM2-COMP-BOOT-MODS): Remove duplicate NameKey.mod.
+	* gm2-compiler/M2GenGCC.mod (import): Remove BuildAssignmentTree.
+	Add CopyMemcpy.
+	(IsSystemTypeBecomes): New procedure function.
+	(CodeAssignment): Rewrite using CopyMemcpy and IsSystemTypeBecomes.
+	* gm2-gcc/m2convert.cc (const_to_ISO_aggregate_type): Reverse
+	array elements if BYTES_BIG_ENDIAN.
+	* gm2-gcc/m2pp.cc (ps): New function.
+	* gm2-gcc/m2pp.h (pf): Added comment.
+	(pe): Ditto.
+	(pt): Ditto.
+	(ptl): Ditto.
+	(pv): Ditto.
+	(ptcl): Ditto.
+	* gm2-gcc/m2statement.cc (copy_memcpy): Replace with ...
+	(m2statement_CopyMemcpy): ... this.
+	(CopyByField_Lower): Call m2statement_CopyMemcpy instead of copy_memcpy.
+	(m2statement_BuildAssignmentTree): Tidied up comment.
+	Add test for ARRAY_TYPE CONSTRUCTOR expr and use
+	m2statement_CopyMemcpy.
+	Return type changed to void.
+	* gm2-gcc/m2statement.def (BuildAssignmentTree): Rewrite declaration.
+	(CopyMemcpy): New procedure declaration.
+	* gm2-gcc/m2statement.h (m2statement_BuildAssignmentTree): Replace
+	return type with void.
+	(m2statement_CopyMemcpy): New function declaration.
+	* gm2-gcc/m2type.cc (m2type_ReverseArrayConstructorElements): New
+	function.
+	* gm2-gcc/m2type.def (ReverseArrayConstructorElements): New
+	procedure function declaration.
+	* gm2-gcc/m2type.h (m2type_ReverseArrayConstructorElements): New
+	function declaration.
+
 2026-04-10  Gaius Mulley  <gaiusmod2@gmail.com>
 
 	PR modula2/124840

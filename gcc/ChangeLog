@@ -1,3 +1,121 @@
+2026-04-15  H.J. Lu  <hjl.tools@gmail.com>
+
+	* config/i386/i386.cc
+	(x86_64_preserve_none_int_parameter_registers): Replace
+	ix86_function_value_regno_p with ix86_function_arg_regno_p in
+	comments.
+
+2026-04-14  Tamar Christina  <tamar.christina@arm.com>
+
+	* config/aarch64/aarch64-cores.def (armagicpu): New.
+	* config/aarch64/aarch64-tune.md: Renegerate
+	* doc/invoke.texi: Document it.
+
+2026-04-14  Andrew MacLeod  <amacleod@redhat.com>
+
+	PR tree-optimization/124809
+	* value-relation.cc (equiv_oracle::equiv_oracle): Allocate lhs
+	equivalence bitmap.
+	(relation_oracle::record): Check if LHS has already created an
+	equivalence record.
+	* value-relation.h (relation_oracle::relation_oracle): New.
+	(relation_oracle::m_lhs_equiv_set_p): New.
+
+2026-04-14  Richard Earnshaw  <rearnsha@arm.com>
+
+	PR target/123102
+	* config/arm/arm.md (*cmp_ite0): Apply stricter checks on the
+	comparison mode.
+	(*cmp_ite1, *cmp_and, *cmp_ior): Likewise.
+
+2026-04-14  Martin Jambor  <mjambor@suse.cz>
+
+	PR ipa/124777
+	* ipa-cp.h (ipacp_value_safe_for_type): Declare.
+	* ipa-cp.cc (ipacp_value_safe_for_type): Make public.
+	* ipa-prop.cc (ipa_set_jf_cst_copy): Fix comment.
+	(ipa_convert_prop_cst_jf): New function.
+	(update_jump_functions_after_inlining): Handle the constant to
+	pass-through case by calling ipa_convert_prop_cst_jf.
+
+2026-04-14  Soumya AR  <soumyaa@nvidia.com>
+
+	* config/aarch64/aarch64.opt.urls: Regenerate.
+
+2026-04-14  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/124875
+	* tree-ssa-pre.cc (prefer): Also compare TBAA set and base_set.
+	Refactor computing the final prefered expression, do early outs
+	and allow same prefered expressions.
+	(sorted_array_from_bitmap_set): Fix thinko that prevented
+	the last expression in the set of being excluded.
+
+2026-04-14  Soumya AR  <soumyaa@nvidia.com>
+	    Kyrylo Tkachov  <ktkachov@nvidia.com>
+
+	* config.gcc: Add aarch64-narrow-gp-writes.o.
+	* config/aarch64/aarch64-passes.def (INSERT_PASS_BEFORE): Insert
+	pass_narrow_gp_writes before pass_cleanup_barriers.
+	* config/aarch64/aarch64-protos.h (make_pass_narrow_gp_writes): Declare.
+	* config/aarch64/aarch64-tuning-flags.def
+	(AARCH64_EXTRA_TUNING_OPTION): Add NARROW_GP_WRITES.
+	* config/aarch64/aarch64.opt (mnarrow-gp-writes): New option.
+	* config/aarch64/t-aarch64: Add aarch64-narrow-gp-writes.o rule.
+	* config/aarch64/tuning_models/olympus.h: Add
+	AARCH64_EXTRA_TUNE_NARROW_GP_WRITES to tune_flags.
+	* doc/invoke.texi: Document -mnarrow-gp-writes.
+	* config/aarch64/aarch64-narrow-gp-writes.cc: New file.
+
+2026-04-14  Jakub Jelinek  <jakub@redhat.com>
+
+	PR tree-optimization/124826
+	* gimple-lower-bitint.cc (bitint_large_huge::handle_load): Look through
+	BIT_FIELD_REF with zero bit offset.
+
+2026-04-14  Jakub Jelinek  <jakub@redhat.com>
+
+	* cgraphunit.cc (process_symver_attribute): Fix comment typo,
+	bintuils -> binutils.
+
+2026-04-14  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/124868
+	* gimple-ssa-isolate-paths.cc (handle_return_addr_local_phi_arg):
+	Do not diagnose returns in blocks not dominated by the PHI.
+	(find_implicit_erroneous_behavior): Do two sweeps over PHIs,
+	first for NULL dereferences and then for local address returns.
+
+2026-04-14  H.J. Lu  <hjl.tools@gmail.com>
+
+	PR target/124876
+	* config/i386/i386.cc (ix86_zero_call_used_regs): Zero ZMM16-31
+	if needed.
+
+2026-04-13  Josef Melcr  <josef.melcr@suse.com>
+
+	PR ipa/124700
+	* cgraph.cc (cgraph_node::is_clone_of): New method, determines
+	whether a node is a descendant of another in the clone tree.
+	* cgraph.h (struct cgraph_node): Add decl of is_clone_of.
+	* cgraphbuild.cc (mark_address): Fix reference creation for
+	cloned callback functions.
+
+2026-04-13  Hu, Lin1  <lin1.hu@intel.com>
+
+	PR target/124710
+	* config/i386/sse.md (iptrps2qq): New mode attribute for
+	ps2qq Intel syntax memory operand size override.
+	(avx10_2_vcvttps2<sat_cvt_sign_prefix>qqs<mode><mask_name><round_saeonly_name>):
+	Use %<iptrps2qq>1 in Intel syntax to emit qword ptr for V2DI (128-bit)
+	memory operands.
+	(avx10_2_vcvttsd2<sat_cvt_sign_prefix>sis<mode><round_saeonly_name>):
+	Use %q1 in Intel syntax to emit qword ptr for scalar double memory
+	operands.
+	(avx10_2_vcvttss2<sat_cvt_sign_prefix>sis<mode><round_saeonly_name>):
+	Use %k1 in Intel syntax to emit dword ptr for scalar single memory
+	operands.
+
 2026-04-11  Christopher Albert  <albert@tugraz.at>
 
 	PR fortran/93554

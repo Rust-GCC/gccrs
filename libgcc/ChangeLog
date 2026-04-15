@@ -1,3 +1,8 @@
+2026-04-15  Torbjörn SVENSSON  <torbjorn.svensson@foss.st.com>
+
+	* libgcov-driver-system.c (gcov_exit_open_gcda_file): Handle
+	potential NULL value from malloc.
+
 2026-03-30  Saurabh Jha  <saurabh.jha@arm.com>
 	    Evgeny Karpov  <evgeny.karpov@arm.com>
 

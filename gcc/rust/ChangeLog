@@ -1,3 +1,505 @@
+2026-04-14  jayant chauhan  <0001jayant@gmail.com>
+
+	* backend/rust-compile-item.cc (CompileItem::visit): Do not insert
+	const_expr into the context if it is an error_mark_node.
+	* backend/rust-compile-implitem.cc (CompileTraitItem::visit): Likewise.
+
+2026-04-14  AhmedSaid3617  <said.ahmed3617@gmail.com>
+
+	* ast/rust-item.h:(PathType::get_glob_type): Added const qualifier to allow
+	function call from const objects.
+	* resolve/rust-forever-stack.hxx:
+	(ForeverStack<N>::resolve_path): Check for empty segments vector and
+	return starting point.
+	* resolve/rust-toplevel-name-resolver-2.0.cc (flatten_glob): Preserve the
+	opening scope resolution property of the use statement.
+
+2026-04-14  Islam-Imad  <islamimad404@gmail.com>
+
+	* backend/rust-compile-expr.cc (CompileExpr::visit): set unit type.
+
+2026-04-14  Mohamed Ali  <mohmedali1462005@gmail.com>
+
+	* backend/rust-compile-intrinsic.cc: Register cttz and cttz_nonzero intrinsics.
+	* backend/rust-intrinsic-handlers.cc (cttz_handler): Implemnt cttz_handler.
+	(cttz_nonzero_handler): Implemnt cttz_nonzero_handler.
+	* backend/rust-intrinsic-handlers.h (cttz_handler): Add decl for cttz_handler.
+	(cttz_nonzero_handler): Add decl for cttz_handler.
+	* util/rust-intrinsic-values.h: map cttz_nonzero to its name.
+
+2026-04-14  Owen Avery  <powerboat9.gamer@gmail.com>
+
+	* backend/rust-compile-asm.cc: Include "rust-ggc.h".
+	(chain_asm_operand): Use GGC::ChainList.
+	(CompileAsm::asm_construct_outputs): Likewise.
+	(CompileAsm::asm_construct_inputs): Likewise.
+	(CompileLlvmAsm::construct_operands): Likewise.
+	(CompileLlvmAsm::construct_clobbers): Likewise.
+	* util/rust-ggc.h (class ChainList): New class.
+
+2026-04-14  Philipp Gesang  <phg@phi-gamma.net>
+
+	* parse/rust-parse-impl.hxx: Refactor qualifier parsing
+	* parse/rust-parse.h: (parse_function_qualifiers) Likewise
+
+2026-04-14  Philipp Gesang  <phg@phi-gamma.net>
+
+	* parse/rust-parse-impl.hxx (parse_function_qualifiers)
+	Collect qualifiers into vector before generating the
+	error message
+	* parse/rust-parse.h: (parse_function_qualifiers) Make
+	function fallible
+
+2026-04-14  Kushal Pal  <kushalpal109@gmail.com>
+
+	* checks/errors/rust-ast-validation.cc (ASTValidation::visit):
+	Add error for functions with `default` qualifier outside of impl
+	blocks.
+	* parse/rust-parse-impl.hxx (Parser::parse_item):
+	Allow parsing of functions with `default` qualifier.
+	(Parser::parse_vis_item): Likewise.
+
+2026-04-14  Kushal Pal  <kushalpal109@gmail.com>
+
+	* ast/rust-ast-builder.cc (AstBuilder::fn_qualifiers):
+	Add new parameter.
+	* ast/rust-ast-builder.h: Likewise.
+	* ast/rust-ast.cc (Function::Function):
+	Remove current default parameter.
+	(Function::operator=):
+	Remove current default parameter.
+	* ast/rust-item.h (class FunctionQualifiers):
+	Add data member to represent defaultness of a function.
+	(class Function):
+	Remove current default parameter.
+	* parse/rust-parse-impl.hxx (Parser::parse_function_qualifiers):
+	Parse function qualifiers in order.
+	* util/rust-common.h (enum class): Create enum to represent
+	defaultness of a function.
+
+2026-04-14  Yap Zhi Heng  <yapzhhg@gmail.com>
+
+	* typecheck/rust-hir-type-check-base.cc (TypeCheckBase::parse_repr_options):
+	Allow parsing of AttrInputMetaItemContainer.
+
+2026-04-14  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* Make-lang.in: Add a new rust-attribute-checker file.
+	* checks/errors/rust-builtin-attribute-checker.h (check_valid_attribute_for_item):
+	Change BuiltinAttributeChecker doc comment.
+	* rust-session-manager.cc: Include the new rust-attribute-checker
+	header.
+	* util/rust-attributes.cc (AttributeChecker::AttributeChecker): Move to
+	rust-attribute-checker.cc.
+	(AttributeChecker::go): Likewise.
+	(is_proc_macro_type): Likewise.
+	(check_proc_macro_non_function): Likewise.
+	(check_proc_macro_non_root): Likewise.
+	(AttributeChecker::visit): Likewise.
+	* util/rust-attributes.h (class AttributeChecker): Move to
+	rust-attribute-checker.h.
+	* checks/errors/rust-attribute-checker.cc: New file.
+	* checks/errors/rust-attribute-checker.h: New file.
+
+2026-04-14  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* checks/errors/rust-builtin-attribute-checker.cc (std::function<void):
+	Use the new attribute value variables instead of raw values.
+	* util/rust-attribute-values.h: Add deny, warn and forbid values.
+
+2026-04-14  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* checks/errors/rust-builtin-attribute-checker.cc (check_doc_attribute):
+	Move from here...
+	(doc): ...to here.
+	(check_deprecated_attribute): Move from here...
+	(deprecated): ...to here.
+	(check_link_section_attribute): Move from here...
+	(link_section): ... to here.
+	(check_export_name_attribute): Move from here...
+	(export_name): ... to here.
+	(check_no_mangle_function): Remove internal structure checking and move
+	it to no_mangle handler.
+	(check_lint_attribute): Move from here...
+	(lint): ... to here.
+	(link_name): Likewise with link_name.
+	(check_crate_type): Move to anonymous namespace within the handler
+	namespace.
+	(proc_macro_derive): Add proc macro specific handler.
+	(proc_macro): Likewise.
+	(target_feature): Likewise.
+	(no_mangle): Add specific handler for no_mangler attribute internal
+	structure checking.
+	(std::function<void): Add map with attribute name to handler matching.
+	(tl::optional<std::function<void): Likewise.
+	(lookup_handler): Add an helper function to retrieve the handler of any
+	builtin attribute.
+	(BuiltinAttributeChecker::visit): Change attribute visitor call with
+	new handler call.
+	* checks/errors/rust-builtin-attribute-checker.h (check_valid_attribute_for_item):
+	Add prototype.
+
+2026-04-14  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* checks/errors/rust-builtin-attribute-checker.cc (BuiltinAttributeChecker::visit):
+	Deduplicate lines using the new templated function within the visitor
+	functions.
+	* checks/errors/rust-builtin-attribute-checker.h (class BuiltinAttributeChecker):
+	Create a new templated function that achieves the default attribute
+	checking operations.
+
+2026-04-14  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* expand/rust-expand-visitor.cc (ExpandVisitor::visit): Flatten
+	AttrInputExpr containing a literal to an AttrInputLiteral.
+	* expand/rust-expand-visitor.h: Add function prototype.
+
+2026-04-14  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* ast/rust-ast.h: Add helper to set a new attribute input.
+	* expand/rust-expand-visitor.cc (ExpandVisitor::expand_inner_stmts):
+	Visit builtin attributes.
+	(ExpandVisitor::visit): Likewise.
+	* resolve/rust-early-name-resolver-2.0.cc (Early::visit): Expand
+	attribute input expr.
+
+2026-04-14  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* Make-lang.in: Add file for builtin attribute checking.
+	* hir/rust-ast-lower-base.cc (ASTLoweringBase::handle_doc_item_attribute):
+	Remove error emission and replace it with an assert. The error message
+	will now be emitted from the builtin attribute checking pass.
+	* rust-session-manager.cc (Session::compile_crate): Add builtin
+	attribute checking step after expansion.
+	* util/rust-attributes.cc (Attributes::is_known): Move down.
+	(Attributes::extract_string_literal): Likewise.
+	(Attributes::valid_outer_attribute): Add a function to retrieve outer/
+	inner status for a given builtin attribute value.
+	(AttributeChecker::visit): Move some checking to builtin attribute
+	checker.
+	(identify_builtin): Rename function from here ...
+	(lookup_builtin): ... to here.
+	(check_doc_alias): Move to builtin attribute checker.
+	(check_doc_attribute): Likewise.
+	(check_deprecated_attribute): Likewise.
+	(check_valid_attribute_for_item): Likewise.
+	(AttributeChecker::check_inner_attribute): Likewise.
+	(check_link_section_attribute): Likewise.
+	(check_export_name_attribute): Likewise.
+	(check_lint_attribute): Likewise.
+	(check_no_mangle_function): Likewise.
+	(is_proc_macro_type): Update function call name.
+	* util/rust-attributes.h (identify_builtin): Update prototype.
+	(lookup_builtin): Likewise.
+	* checks/errors/rust-builtin-attribute-checker.cc: New file.
+	* checks/errors/rust-builtin-attribute-checker.h: New file.
+
+2026-04-14  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* ast/rust-ast-collector.cc (TokenCollector::visit): Remove
+	AttrInputMacro handling.
+	* ast/rust-ast-collector.h: Remove function prototype.
+	* ast/rust-ast-full-decls.h (class AttrInputMacro): Remove forward
+	declaration.
+	* ast/rust-ast-visitor.cc (DefaultASTVisitor::visit): Remove function.
+	* ast/rust-ast-visitor.h: Remove function prototypes.
+	* ast/rust-ast.cc (Attribute::get_traits_to_derive): Remove handling of
+	macros.
+	(AttrInputMacro::as_string): Remove function.
+	(AttrInputMacro::AttrInputMacro): Likewise.
+	(AttrInputMacro::operator=): Likewise.
+	(AttrInputMacro::accept_vis): Likewise.
+	* ast/rust-ast.h: Remove MACRO kind.
+	* ast/rust-expr.h (class AttrInputMacro): Add getter for expr pointer.
+	Remove AttrInputMacro class.
+	* expand/rust-derive.h: Remove function prototype.
+	* expand/rust-expand-visitor.cc (ExpandVisitor::visit): Change function
+	to AttrInputExpr.
+	* expand/rust-expand-visitor.h: Update prototype.
+	* hir/rust-ast-lower-base.cc (ASTLoweringBase::visit): Remove function.
+	* hir/rust-ast-lower-base.h: Remove function prototype.
+	* parse/rust-parse-impl-attribute.hxx: Parse the attribute content as
+	AttrInputExpr instead.
+	* util/rust-attributes.cc (check_doc_attribute): Remove MACRO kind
+	handling.
+	(check_export_name_attribute): Remove switch and only handle literals.
+	(AttributeChecker::visit): Remove function.
+	* util/rust-attributes.h: Remove function prototype.
+
+2026-04-14  Egas Ribeiro  <egas.g.ribeiro@tecnico.ulisboa.pt>
+
+	* hir/rust-ast-lower-item.cc (ASTLoweringItem::visit): added
+	refutable pattern checks for function params.
+
+2026-04-14  Owen Avery  <powerboat9.gamer@gmail.com>
+
+	* Make-lang.in (GRS_OBJS): Add rust-identifier-path.o.
+	* resolve/rust-early-name-resolver-2.0.cc: Include
+	"rust-identifier-path.h".
+	(Early::go): Use IdentifierPathPass.
+	(Early::visit): Handle identifier patterns which should be path
+	patterns.
+	* resolve/rust-early-name-resolver-2.0.h: Include
+	"rust-pattern.h".
+	(Early::visit): Add visiting function declaration for
+	IdentifierPattern.
+	(Early::ident_path_to_convert): New member variable.
+	* resolve/rust-toplevel-name-resolver-2.0.cc (TopLevel::visit):
+	Call Mappings::add_function_node.
+	* util/rust-hir-map.cc (Mappings::add_function_node): New
+	member function definition.
+	(Mappings::is_function_node): Likewise.
+	* util/rust-hir-map.h (Mappings::add_function_node): New
+	member function declaration.
+	(Mappings::is_function_node): Likewise.
+	(Mappings::function_nodes): New member variable.
+	* resolve/rust-identifier-path.cc: New file.
+	* resolve/rust-identifier-path.h: New file.
+
+2026-04-14  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* ast/rust-ast-pointer-visitor.cc (PointerVisitor::visit): Remove
+	duplicated functions.
+	* ast/rust-ast-pointer-visitor.h: Remove duplicated function
+	prototypes.
+
+2026-04-14  Owen Avery  <powerboat9.gamer@gmail.com>
+
+	* expand/rust-macro-expand.cc (MacroExpander::expand_crate):
+	Remove usage of Resolver::get_macro_scope.
+	* resolve/rust-name-resolver.cc (Resolver::Resolver): Handle
+	removal of member variables.
+	(Resolver::push_new_name_rib): Remove function definition.
+	(Resolver::push_new_type_rib): Likewise.
+	(Resolver::push_new_label_rib): Likewise.
+	(Resolver::push_new_macro_rib): Likewise.
+	(Resolver::find_name_rib): Likewise.
+	(Resolver::find_type_rib): Likewise.
+	(Resolver::find_macro_rib): Likewise.
+	(Resolver::insert_builtin_types): Likewise.
+	(Resolver::get_builtin_types): Likewise.
+	(Resolver::generate_builtins): Likewise.
+	(Resolver::setup_builtin): Likewise.
+	(Resolver::insert_resolved_label): Likewise.
+	(Resolver::lookup_resolved_label): Likewise.
+	(Resolver::insert_resolved_macro): Likewise.
+	(Resolver::lookup_resolved_macro): Likewise.
+	(Resolver::push_closure_context): Likewise.
+	(Resolver::pop_closure_context): Likewise.
+	(Resolver::insert_captured_item): Likewise.
+	(Resolver::decl_needs_capture): Likewise.
+	(Resolver::get_captures): Likewise.
+	(Resolver::insert_resolved_name): Replace function
+	implementation with rust_unreachable call.
+	(Resolver::lookup_resolved_name): Likewise.
+	(Resolver::insert_resolved_type): Likewise.
+	(Resolver::lookup_resolved_type): Likewise.
+	(Resolver::insert_resolved_misc): Likewise.
+	(Resolver::lookup_resolved_misc): Likewise.
+	* resolve/rust-name-resolver.h (Resolver::insert_builtin_types):
+	Remove member function declaration.
+	(Resolver::get_builtin_types): Likewise.
+	(Resolver::push_new_name_rib): Likewise.
+	(Resolver::push_new_type_rib): Likewise.
+	(Resolver::push_new_label_rib): Likewise.
+	(Resolver::push_new_macro_rib): Likewise.
+	(Resolver::find_name_rib): Likewise.
+	(Resolver::find_type_rib): Likewise.
+	(Resolver::find_label_rib): Likewise.
+	(Resolver::find_macro_rib): Likewise.
+	(Resolver::insert_resolved_label): Likewise.
+	(Resolver::lookup_resolved_label): Likewise.
+	(Resolver::insert_resolved_macro): Likewise.
+	(Resolver::lookup_resolved_macro): Likewise.
+	(Resolver::get_name_scope): Likewise.
+	(Resolver::get_type_scope): Likewise.
+	(Resolver::get_label_scope): Likewise.
+	(Resolver::get_macro_scope): Likewise.
+	(Resolver::get_global_type_node_id): Likewise.
+	(Resolver::set_unit_type_node_id): Likewise.
+	(Resolver::get_unit_type_node_id): Likewise.
+	(Resolver::set_never_type_node_id): Likewise.
+	(Resolver::get_never_type_node_id): Likewise.
+	(Resolver::push_new_module_scope): Likewise.
+	(Resolver::pop_module_scope): Likewise.
+	(Resolver::peek_current_module_scope): Likewise.
+	(Resolver::peek_crate_module_scope): Likewise.
+	(Resolver::peek_parent_module_scope): Likewise.
+	(Resolver::push_closure_context): Likewise.
+	(Resolver::pop_closure_context): Likewise.
+	(Resolver::insert_captured_item): Likewise.
+	(Resolver::get_captures): Likewise.
+	(Resolver::as_debug_string): Likewise.
+	(Resolver::decl_needs_capture): Likewise.
+	(Resolver::generate_builtins): Likewise.
+	(Resolver::setup_builtin): Likewise.
+	(Resolver::mappings): Remove member variable.
+	(Resolver::tyctx): Likewise.
+	(Resolver::builtins): Likewise.
+	(Resolver::name_scope): Likewise.
+	(Resolver::type_scope): Likewise.
+	(Resolver::label_scope): Likewise.
+	(Resolver::macro_scope): Likewise.
+	(Resolver::global_type_node_id): Likewise.
+	(Resolver::unit_ty_node_id): Likewise.
+	(Resolver::never_ty_node_id): Likewise.
+	(Resolver::name_ribs): Likewise.
+	(Resolver::type_ribs): Likewise.
+	(Resolver::label_ribs): Likewise.
+	(Resolver::macro_ribs): Likewise.
+	(Resolver::resolved_names): Likewise.
+	(Resolver::resolved_types): Likewise.
+	(Resolver::resolved_labels): Likewise.
+	(Resolver::resolved_macros): Likewise.
+	(Resolver::misc_resolved_items): Likewise.
+	(Resolver::current_module_stack): Likewise.
+	(Resolver::closure_context): Likewise.
+	(Resolver::closures_capture_mappings): Likewise.
+
+2026-04-14  Owen Avery  <powerboat9.gamer@gmail.com>
+
+	* checks/errors/rust-const-checker.cc: Remove inclusion of
+	"options.h".
+	(ConstChecker::ConstChecker): Initialize 2.0 resolver.
+	(ConstChecker::visit): Assume nr2.0 is enabled.
+	* checks/errors/rust-const-checker.h: Adjust includes.
+	(ConstChecker::resolver): Change type to 2.0 resolver.
+	* checks/errors/rust-unsafe-checker.cc: Remove inclusion of
+	"options.h".
+	(UnsafeChecker::UnsafeChecker): Initialize 2.0 resolver.
+	(UnsafeChecker::visit): Assume nr2.0 is enabled.
+	* checks/errors/rust-unsafe-checker.h: Adjust includes.
+	(UnsafeChecker::resolver): Change type to 2.0 resolver.
+	* checks/lints/rust-lint-marklive.cc
+	(MarkLive::visit_path_segment): Assume nr2.0 is enabled.
+	(MarkLive::visit): Likewise.
+	(MarkLive::find_ref_node_id): Likewise.
+	* checks/lints/rust-lint-marklive.h: Include
+	"rust-immutable-name-resolution-context.h".
+	(MarkLive::resolver): Change type to 2.0 resolver, as a
+	reference instead of a pointer.
+	(MarkLive::MarkLive): Initialize 2.0 resolver.
+
+2026-04-14  Owen Avery  <powerboat9.gamer@gmail.com>
+
+	* expand/rust-expand-visitor.cc (ExpandVisitor::visit): Remove
+	some redundant function overloads.
+	* expand/rust-expand-visitor.h (ExpandVisitor::visit): Likewise.
+
+2026-04-14  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* util/rust-attribute-values.h: Add "no_builtins"
+	attribute value.
+	* util/rust-attributes.cc: Add "no_builtins" to
+	the list of builtin attributes.
+
+2026-04-14  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* checks/errors/feature/rust-feature-gate.cc (FeatureGate::visit):
+	Rework visit to avoid multiple iterations. Add check for
+	"compiler_builtins" attribute.
+	(FeatureGate::check_no_core_attribute): Remove loop.
+	* checks/errors/feature/rust-feature-gate.h: Update function prototype.
+	* util/rust-attribute-values.h: Add "compiler_builtins" attribute
+	value.
+	* util/rust-attributes.cc: Add "compiler_builtins" to the list of
+	builtin attributes.
+
+2026-04-14  Mohamed Ali  <mohmedali1462005@gmail.com>
+
+	* backend/rust-compile-intrinsic.cc: Register ctlz and ctlz_nonzero intrinsics.
+	* backend/rust-intrinsic-handlers.cc (ctlz_handler): Implement ctlz_handler.
+	(ctlz_nonzero_handler): Implement ctlz_nonzero_handler.
+	* backend/rust-intrinsic-handlers.h (ctlz_handler): Add decl for ctlz_handler.
+	(ctlz_nonzero_handler): Add decl for ctlz_nonzero_handler.
+	* util/rust-intrinsic-values.h: map ctlz_nonzero to its name.
+
+2026-04-14  Enes Cevik  <nsvke@proton.me>
+
+	* lex/rust-lex.cc (Lexer::parse_non_decimal_int_literal): Use GMP
+	for base conversion to support 128-bit literals. Remove existent_str
+	parameter.
+	(Lexer::parse_non_decimal_int_literals): Remove prefix string
+	initialization and update function calls.
+	* lex/rust-lex.h (Lexer::parse_non_decimal_int_literal): Update
+	function signature to remove existent_str.
+
+2026-04-14  Owen Avery  <powerboat9.gamer@gmail.com>
+
+	* checks/errors/rust-hir-pattern-analysis.cc
+	(PlaceInfo::specialize): Handle VariantType::UNIT.
+	(WitnessPat::to_string): Likewise.
+	(WitnessMatrix::apply_constructor): Likewise.
+	* typecheck/rust-hir-type-check-item.cc (TypeCheckItem::visit):
+	Conditionally create VariantType::UNIT variants.
+	* typecheck/rust-hir-type-check-pattern.cc
+	(TypeCheckPattern::visit): Fix typo, handle VariantType::UNIT.
+	* typecheck/rust-tyty-variance-analysis.cc
+	(GenericTyVisitorCtx::process_type): Handle VariantType::UNIT.
+	* typecheck/rust-tyty.cc (BaseType::contains_infer): Likewise.
+	(BaseType::is_concrete): Likewise.
+	(VariantDef::variant_type_string): Likewise.
+	(VariantDef::VariantDef): Likewise.
+	* typecheck/rust-tyty.h (VariantDef::VariantType::UNIT): New
+	enumerator.
+
+2026-04-14  Owen Avery  <powerboat9.gamer@gmail.com>
+
+	* resolve/rust-finalize-imports-2.0.cc
+	(GlobbingVisitor::visit_enum_container): Conditionally insert
+	into value namespace as well.
+	* resolve/rust-forever-stack.hxx (ForeverStack::insert_variant):
+	Add template specialization for value namespace.
+	* resolve/rust-name-resolution-context.cc
+	(NameResolutionContext::insert_variant): Allow insertion into
+	value namespace.
+	* resolve/rust-name-resolution-context.h
+	(NameResolutionContext::insert_variant): Likewise.
+	* resolve/rust-toplevel-name-resolver-2.0.cc
+	(TopLevel::insert_enum_variant_or_error_out): Likewise.
+	(TopLevel::visit): Use tweaked insert_enum_variant_or_error_out
+	properly for all enum item kinds.
+	* resolve/rust-toplevel-name-resolver-2.0.h
+	(TopLevel::insert_enum_variant_or_error_out): Tweak function
+	signature.
+
+2026-04-14  Owen Avery  <powerboat9.gamer@gmail.com>
+
+	* typecheck/rust-hir-type-check-pattern.cc
+	(TypeCheckPattern::visit): Fix typo "constatnt".
+
+2026-04-14  hriztam  <hritamstark05@gmail.com>
+
+	* ast/rust-fmt.h: Explicitly instantiate FFIVec<Piece>.
+
+2026-04-14  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	* typecheck/rust-tyty.cc (generate_tree_str): Remove opem_memstream
+	and print_generic_stmt call with call to dump_generic_node.
+
+2026-04-14  Owen Avery  <powerboat9.gamer@gmail.com>
+
+	* resolve/rust-forever-stack.h: Include more headers.
+	(class ResolutionPath): New class for representing paths.
+	(ForeverStack::resolve_path): Change function signature.
+	(ForeverStack::find_starting_point): Likewise.
+	(ForeverStack::resolve_segments): Likewise.
+	(ForeverStack::SegIterator): Change type alias.
+	* resolve/rust-forever-stack.hxx (check_leading_kw_at_start):
+	Change function signature.
+	(ForeverStack::find_starting_point): Likewise.
+	(ForeverStack::resolve_segments): Likewise.
+	(ForeverStack::resolve_path): Likewise.
+	* resolve/rust-name-resolution-context.h: Tweak include guard,
+	include "rust-name-resolution.h".
+	(NameResolutionContext::resolve_path): Use ResolutionPath and
+	ResolutionBuilder.
+	(class NameResolutionContext::ResolutionBuilder): New class.
+	(class Usage): Move this...
+	(class Definition): ...and this...
+	* resolve/rust-name-resolution.h: ...to new file.
+	* util/rust-unwrap-segment.h: Add include guard.
+
 2026-03-20  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
 
 	* rust-session-manager.cc (Session::compile_crate): Use additional

@@ -1,3 +1,99 @@
+2026-04-15  Jakub Jelinek  <jakub@redhat.com>
+
+	* pt.cc (finish_expansion_stmt): Implement CWG3149 - Rvalues in
+	destructuring expansion statements.  For esk_destructuring, if
+	expansion_init is not lvalue_p, wrap init into a static_cast
+	to decltype of destruct_decls[i].
+
+2026-04-15  Jakub Jelinek  <jakub@redhat.com>
+
+	* mangle.cc (write_reflection): Adjust grammar for type alias
+	reflections.  Don't use write_prefix on arg, instead
+	write_prefix its mangling context, write_unqualified_name of
+	the alias, optionally write_template_args, append underscore
+	and write_type the original type.
+
+2026-04-15  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/124862
+	* decl.cc (cp_decomp_size): If btype is different from type,
+	check if it is accessible.
+
+2026-04-15  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/124850
+	* typeck.cc (cxx_mark_addressable): For DECL_ANON_UNION_VAR_P vars
+	also mark their DECL_VALUE_EXPR.
+
+2026-04-15  Jakub Jelinek  <jakub@redhat.com>
+
+	* reflect.cc (adjust_array_elt): New function.
+	(get_range_elts): Implement LWG4483 - Multidimensional arrays are not
+	supported by meta::reflect_constant_array and related functions.
+	Handle ARRAY_TYPE valuet.  Don't unshare_expr in the class valuet case,
+	get_template_param_object will unshare.
+
+2026-04-14  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/124544
+	* tree.cc (strip_typedefs_expr) <case REFLECT_EXPR>: Don't
+	recurse into a type operand.
+	(cp_tree_equal) <case REFLECT_EXPR>: For a reflection of an
+	alias, also compare TYPE_NAMEs directly.
+
+2026-04-14  Marek Polacek  <polacek@redhat.com>
+
+	* cp-tree.h (reflection_function_template_p): Declare.
+	* parser.cc (cp_parser_splice_expression): Use
+	reflection_function_template_p instead of really_overloaded_fn.
+	* reflect.cc (check_splice_expr): Likewise.
+	(reflection_function_template_p): New.
+
+2026-04-13  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/123237
+	PR c++/124771
+	PR c++/124842
+	* mangle.cc (write_splice): New.
+	(write_prefix): Call write_splice for SPLICE_SCOPE.
+	(write_type): Likewise.
+	(write_expression): Call write_splice for dependent_splice_p.
+	(write_reflection): Handle the "tt" and "de" prefixes.
+	* reflect.cc (reflection_mangle_prefix): For
+	DECL_TEMPLATE_TEMPLATE_PARM_P, use the prefix "tt".  For
+	dependent reflections, use "de".
+
+2026-04-13  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/124835
+	* parser.cc (cp_parser_decltype_expr): Check that [: :] is
+	followed by a close paren before declaring it an unparenthesized
+	splice-expression.
+
+2026-04-13  Jason Merrill  <jason@redhat.com>
+
+	PR c++/103901
+	PR c++/123566
+	* pt.cc (push_template_decl): Sorry on local class in lambda in
+	template parm list.
+
+2026-04-13  Jason Merrill  <jason@redhat.com>
+
+	PR c++/122632
+	* pt.cc (tsubst_exception_specification): Add cp_unevaluated.
+
+2026-04-13  Jason Merrill  <jason@redhat.com>
+
+	PR c++/122884
+	* pt.cc (reconstruct_lambda_capture_pack): New.
+	(tsubst_pack_expansion): Use it.
+	(tsubst_decl): Handle capture proxy.
+	(tsubst): Handle lambda closure.
+	(tsubst_expr): Handle closure field.
+	(tsubst_lambda_expr): Copy closure location.
+	* constraint.cc (satisfy_declaration_constraints): Set up
+	local_specializations for a lambda.
+
 2026-04-10  Jakub Jelinek  <jakub@redhat.com>
 
 	PR c++/124831

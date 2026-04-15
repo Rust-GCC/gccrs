@@ -1,3 +1,295 @@
+2026-04-15  Jakub Jelinek  <jakub@redhat.com>
+
+	* g++.dg/reflect/mangle2.C: Expect \[jmy] instead of just m for size_t
+	mangling.
+	* g++.dg/reflect/mangle3.C: Expect \[ilx] instead of just l for
+	ptrdiff_t mangling.
+
+2026-04-15  Jakub Jelinek  <jakub@redhat.com>
+
+	* gcc.dg/bitint-31.c: Require hard_float effective target, add
+	-frounding-math to dg-options.
+
+2026-04-15  Jakub Jelinek  <jakub@redhat.com>
+
+	* g++.dg/cpp26/expansion-stmt39.C: New test.
+	* g++.dg/reflect/cwg3149.C: New test.
+
+2026-04-15  Jakub Jelinek  <jakub@redhat.com>
+
+	* g++.dg/reflect/mangle1.C: Adjust expected mangling of type
+	aliases.
+
+2026-04-15  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/124862
+	* g++.dg/ext/builtin-structured-binding-size5.C: New test.
+	* g++.dg/ext/builtin-structured-binding-size6.C: New test.
+
+2026-04-15  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/124850
+	* g++.dg/other/anon-union8.C: New test.
+
+2026-04-15  Jakub Jelinek  <jakub@redhat.com>
+
+	* g++.dg/reflect/reflect_constant_array9.C: New test.
+	* g++.dg/reflect/reflect_constant_array10.C: New test.
+	* g++.dg/reflect/reflect_constant_array11.C: New test.
+	* g++.dg/reflect/define_static_array6.C: New test.
+	* g++.dg/reflect/define_static_object2.C: Uncomment older tests and
+	fix them, add tests for unions.
+
+2026-04-15  Torbjörn SVENSSON  <torbjorn.svensson@foss.st.com>
+
+	* gcc.dg/plugin/analyzer_known_fns_plugin.cc: Add missing
+	override to member function.
+
+2026-04-15  Torbjörn SVENSSON  <torbjorn.svensson@foss.st.com>
+
+	* gcc.dg/plugin/diagnostic_plugin_test_paths.cc: Compare with
+	NULL in if statement.
+
+2026-04-14  jayant chauhan  <0001jayant@gmail.com>
+
+	* rust/compile/issue-3910.rs: New test.
+
+2026-04-14  AhmedSaid3617  <said.ahmed3617@gmail.com>
+
+	* rust/compile/glob-import-all.rs: New test.
+
+2026-04-14  Islam-Imad  <islamimad404@gmail.com>
+
+	* rust/compile/issue-4517.rs: New test.
+
+2026-04-14  Mohamed Ali  <mohmedali1462005@gmail.com>
+
+	* rust/compile/cttz.rs: New test.
+	* rust/compile/cttz_nonzero.rs: New test.
+	* rust/execute/torture/cttz.rs: New test.
+	* rust/execute/torture/cttz_nonzero.rs: New test.
+
+2026-04-14  Philipp Gesang  <phg@phi-gamma.net>
+
+	* rust/compile/func-qualifier-default.rs:
+	Adapt to change in compiler messages
+	* rust/compile/func-qualifier-order.rs: Renamed existing
+	test file for clarity (from)
+	* rust/compile/func-qualifier-order-1.rs: Renamed existing
+	test file (to)
+	* rust/compile/func-qualifier-order-2.rs: New test file
+	* rust/compile/func-qualifier-order-3.rs: New test file
+
+2026-04-14  Philipp Gesang  <phg@phi-gamma.net>
+
+	* rust/compile/func-qualifier-order.rs: New test file
+	* rust/compile/func-qualifier-default.rs: New test file
+
+2026-04-14  Yap Zhi Heng  <yapzhhg@gmail.com>
+
+	* rust/compile/issue-3550.rs: New file.
+
+2026-04-14  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* rust/compile/doc_macro.rs: Add macro_export on macro.
+
+2026-04-14  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* rust/compile/doc_macro.rs: Add concat builtin macro definition.
+	* rust/compile/early_feature_gate_in_macro.rs: Add stringify builtin
+	macro definition.
+	* rust/compile/issue-3661.rs: Likewise.
+	* rust/compile/parse_time_feature_gate.rs: Add concat and stringify
+	builtin macro definition.
+
+2026-04-14  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* rust/compile/issue-4226.rs: Update text to match error message from
+	attribute checking pass that was not triggered before.
+
+2026-04-14  Egas Ribeiro  <egas.g.ribeiro@tecnico.ulisboa.pt>
+
+	* rust/compile/issue-3919-ice-func-parms.rs: New test.
+
+2026-04-14  Owen Avery  <powerboat9.gamer@gmail.com>
+
+	* rust/execute/ident_pat_vs_path_1.rs: New test.
+	* rust/execute/ident_pat_vs_path_2.rs: New test.
+
+2026-04-14  Jayant Chauhan  <0001jayant@gmail.com>
+
+	* rust/compile/issue-3875.rs: New test.
+
+2026-04-14  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* rust/compile/compiler_builtins_gate.rs: New test.
+
+2026-04-14  Mohamed Ali  <mohmedali1462005@gmail.com>
+
+	* rust/execute/torture/ctlz_i16.rs: New test.
+	* rust/execute/torture/ctlz_i32.rs: New test.
+	* rust/execute/torture/ctlz_i64.rs: New test.
+	* rust/execute/torture/ctlz_i8.rs: New test.
+	* rust/execute/torture/ctlz_nonzero_i16.rs: New test.
+	* rust/execute/torture/ctlz_nonzero_i32.rs: New test.
+	* rust/execute/torture/ctlz_nonzero_i64.rs: New test.
+	* rust/execute/torture/ctlz_nonzero_i8.rs: New test.
+	* rust/execute/torture/ctlz_nonzero_u16.rs: New test.
+	* rust/execute/torture/ctlz_nonzero_u32.rs: New test.
+	* rust/execute/torture/ctlz_nonzero_u64.rs: New test.
+	* rust/execute/torture/ctlz_nonzero_u8.rs: New test.
+	* rust/execute/torture/ctlz_u16.rs: New test.
+	* rust/execute/torture/ctlz_u32.rs: New test.
+	* rust/execute/torture/ctlz_u64.rs: New test.
+	* rust/execute/torture/ctlz_u8.rs: New test.
+
+2026-04-14  Mohamed Ali  <mohmedali1462005@gmail.com>
+
+	* rust/compile/ctlz.rs: New test.
+	* rust/compile/ctlz_nonzero.rs: New test.
+	* rust/execute/torture/ctlz.rs: New test.
+	* rust/execute/torture/ctlz_nonzero.rs: New test.
+
+2026-04-14  Enes Cevik  <nsvke@proton.me>
+
+	* rust/execute/non_decimal_128_saturation.rs: New test.
+
+2026-04-14  Owen Avery  <powerboat9.gamer@gmail.com>
+
+	* rust/compile/match-struct-path.rs: Increase test coverage.
+
+2026-04-14  Yap Zhi Heng  <yapzhhg@gmail.com>
+
+	* rust/compile/issue-3555.rs: New test case.
+	* rust/compile/issue-3591.rs: New test case.
+	* rust/compile/issue-3597.rs: New test case.
+	* rust/compile/issue-3651.rs: New test case.
+	* rust/compile/issue-3670.rs: New test case.
+	* rust/compile/issue-3672.rs: New test case.
+
+2026-04-14  Harishankar  <harishankarpp7@gmail.com>
+
+	* rust/compile/issue-3931.rs: New test.
+
+2026-04-14  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/124544
+	* g++.dg/reflect/alias1.C: New test.
+	* g++.dg/reflect/alias2.C: New test.
+
+2026-04-14  Andrew MacLeod  <amacleod@redhat.com>
+
+	PR tree-optimization/124809
+	* gcc.dg/pr124809.c: New.
+
+2026-04-14  Martin Jambor  <mjambor@suse.cz>
+
+	PR ipa/124777
+	* gcc.dg/ipa/pr124777.c: New test.
+
+2026-04-14  Gaius Mulley  <gaiusmod2@gmail.com>
+
+	PR modula2/105408
+	* gm2/iso/run/pass/testgeneric.mod: Corrected printf arguments.
+	* gm2/iso/run/pass/printsize.mod: New test.
+	* gm2/iso/run/pass/testgeneric2.mod: New test.
+	* gm2/iso/run/pass/testgeneric3.mod: New test.
+	* gm2/iso/run/pass/testgeneric4.mod: New test.
+	* gm2/iso/run/pass/testgeneric5.mod: New test.
+
+2026-04-14  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/124875
+	* g++.dg/torture/pr124875.C: New testcase.
+
+2026-04-14  Soumya AR  <soumyaa@nvidia.com>
+	    Kyrylo Tkachov  <ktkachov@nvidia.com>
+
+	* gcc.target/aarch64/narrow-gp-writes-1.c: New test.
+	* gcc.target/aarch64/narrow-gp-writes-2.c: New test.
+	* gcc.target/aarch64/narrow-gp-writes-3.c: New test.
+	* gcc.target/aarch64/narrow-gp-writes-4.c: New test.
+	* gcc.target/aarch64/narrow-gp-writes-5.c: New test.
+	* gcc.target/aarch64/narrow-gp-writes-6.c: New test.
+	* gcc.target/aarch64/narrow-gp-writes-7.c: New test.
+
+2026-04-14  Jakub Jelinek  <jakub@redhat.com>
+
+	PR tree-optimization/124826
+	* gcc.dg/bitint-128.c: New test.
+
+2026-04-14  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/124868
+	* gcc.dg/torture/pr124868.c: New testcase.
+
+2026-04-14  H.J. Lu  <hjl.tools@gmail.com>
+
+	PR target/124876
+	* gcc.target/i386/zero-scratch-regs-23.c: Scan vpxord on ZMM16-31.
+	* gcc.target/i386/zero-scratch-regs-33.c: New test.
+
+2026-04-13  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/123237
+	PR c++/124771
+	PR c++/124842
+	* g++.dg/reflect/mangle2.C: New test.
+	* g++.dg/reflect/mangle3.C: New test.
+	* g++.dg/reflect/mangle4.C: New test.
+	* g++.dg/reflect/mangle5.C: New test.
+
+2026-04-13  Christopher Albert  <albert@tugraz.at>
+
+	PR fortran/101760
+	PR fortran/102314
+	* gfortran.dg/gomp/pr101760.f90: New test.
+	* gfortran.dg/gomp/pr102314.f90: New test.
+
+2026-04-13  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/124835
+	* g++.dg/reflect/decltype2.C: New test.
+
+2026-04-13  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR target/123238
+	* gcc.target/aarch64/pr123238.c:
+
+2026-04-13  Jason Merrill  <jason@redhat.com>
+
+	PR c++/103901
+	PR c++/123566
+	* g++.dg/cpp2a/lambda-targ25.C: New test.
+
+2026-04-13  Jason Merrill  <jason@redhat.com>
+
+	PR c++/122632
+	* g++.dg/cpp23/lambda-scope11.C: New test.
+
+2026-04-13  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/124246
+	* g++.dg/reflect/type_trait13.C: Uncomment commented out is_swappable_type and
+	is_nothrow_swappable_type assertions with std::priority_queue.
+
+2026-04-13  Josef Melcr  <josef.melcr@suse.com>
+
+	PR ipa/124700
+	* g++.dg/gomp/pr124700.C: New test.
+
+2026-04-13  Hu, Lin1  <lin1.hu@intel.com>
+
+	PR target/124710
+	* gcc.target/i386/pr124710-1.c: New test.
+	* gcc.target/i386/pr124710-2.c: Ditto.
+
+2026-04-13  Jason Merrill  <jason@redhat.com>
+
+	PR c++/122884
+	* g++.dg/cpp23/lambda-scope10.C: New test.
+	* g++.dg/cpp23/lambda-scope10a.C: New test.
+
 2026-04-11  Christopher Albert  <albert@tugraz.at>
 
 	PR fortran/93554
