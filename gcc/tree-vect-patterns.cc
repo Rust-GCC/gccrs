@@ -6129,6 +6129,20 @@ vect_recog_bool_pattern (vec_info *vinfo,
 
       return pattern_stmt;
     }
+  else if (rhs_code == BIT_NOT_EXPR
+	   && !vect_use_mask_type_p (stmt_vinfo))
+    {
+      /* When we have a bool data inversion rewrite that to an XOR to
+	 cope with the fact that we'll use a wider vector element type.  */
+      lhs = vect_recog_temp_ssa_var (TREE_TYPE (lhs), NULL);
+      pattern_stmt
+	= gimple_build_assign (lhs, BIT_XOR_EXPR, var,
+			       build_all_ones_cst (TREE_TYPE (var)));
+      *type_out = NULL_TREE;
+      vect_pattern_detected ("vect_recog_bool_pattern", last_stmt);
+
+      return pattern_stmt;
+    }
   else if ((rhs_code == BIT_XOR_EXPR
 	    || rhs_code == BIT_AND_EXPR
 	    || rhs_code == BIT_IOR_EXPR)
