@@ -2326,6 +2326,11 @@ path_comparable_for_same_access (tree expr)
     {
       if (!zerop (TREE_OPERAND (expr, 1)))
 	return false;
+      gcc_assert (TREE_CODE (TREE_OPERAND (expr, 0)) == ADDR_EXPR
+		  && DECL_P (TREE_OPERAND (TREE_OPERAND (expr, 0), 0)));
+      if (TYPE_MAIN_VARIANT (TREE_TYPE (expr))
+	  != TYPE_MAIN_VARIANT (TREE_TYPE (TREE_OPERAND (TREE_OPERAND (expr, 0), 0))))
+	return false;
     }
   else
     gcc_assert (DECL_P (expr));
