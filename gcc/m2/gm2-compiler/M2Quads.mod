@@ -12469,6 +12469,20 @@ END BuildEmptySet ;
 
 
 (*
+   SafeCheckWithField - only call CheckWithReference if the top of stack
+                        contains a record field.
+*)
+
+PROCEDURE SafeCheckWithField ;
+BEGIN
+   IF IsRecordField (OperandT (1))
+   THEN
+      CheckWithReference
+   END
+END SafeCheckWithField ;
+
+
+(*
    BuildInclRange - includes a set range with a set.
 
 
@@ -12496,7 +12510,9 @@ VAR
    value   : CARDINAL ;
 BEGIN
    PopT(el2) ;
+   SafeCheckWithField ;
    PopT(el1) ;
+   SafeCheckWithField ;
    PopT(value) ;
    IF NOT IsConstSet(value)
    THEN
@@ -12545,6 +12561,7 @@ VAR
    tok         : CARDINAL ;
    el, value, t: CARDINAL ;
 BEGIN
+   SafeCheckWithField ;
    PopT(el) ;
    PopT(value) ;
    tok := GetTokenNo () ;
@@ -12562,15 +12579,15 @@ BEGIN
          doIndrX(tok, t, el) ;
          el := t
       END ;
-      IF IsConst(value)
+      IF IsConst (value)
       THEN
-         (* move constant into a variable to achieve the include *)
-         t := MakeTemporary(tok, RightValue) ;
-         PutVar(t, GetSType(value)) ;
-         GenQuad(BecomesOp, t, NulSym, value) ;
+         (* Move constant or record field into a variable to achieve the include.  *)
+         t := MakeTemporary (tok, RightValue) ;
+         PutVar (t, GetSType(value)) ;
+         GenQuad (BecomesOp, t, NulSym, value) ;
          value := t
       END ;
-      GenQuad(InclOp, value, NulSym, el)
+      GenQuad (InclOp, value, NulSym, el)
    END ;
    PushT(value)
 END BuildInclBit ;
@@ -12751,24 +12768,25 @@ END BuildConstructorEnd ;
 
 
 (*
-   AddFieldTo - adds field, e, to, value.
+   AddFieldTo - adds field to value.
 *)
 
-PROCEDURE AddFieldTo (value, e: CARDINAL) : CARDINAL ;
+PROCEDURE AddFieldTo (value, field: CARDINAL;
+                      valuetok, fieldtok: CARDINAL) : CARDINAL ;
 BEGIN
-   IF IsSet(GetDType(value))
+   IF IsSet (GetDType (value))
    THEN
-      PutConstSet(value) ;
-      PushT(value) ;
-      PushT(e) ;
+      PutConstSet (value) ;
+      PushTtok (value, valuetok) ;
+      PushTtok (field, fieldtok) ;
       BuildInclBit ;
-      PopT(value)
+      PopT (value)
    ELSE
-      PushValue(value) ;
-      AddField(GetTokenNo(), e) ;
-      PopValue(value)
+      PushValue (value) ;
+      AddField (fieldtok, field) ;
+      PopValue (value)
    END ;
-   RETURN( value )
+   RETURN value
 END AddFieldTo ;
 
 
@@ -12787,6 +12805,10 @@ END AddFieldTo ;
 
 PROCEDURE BuildComponentValue ;
 VAR
+   e1tok,
+   e2tok,
+   consttok,
+   virtpos  : CARDINAL ;
    const,
    e1, e2   : CARDINAL ;
    nuldotdot,
@@ -12796,37 +12818,44 @@ BEGIN
    IF nulby=NulTok
    THEN
       PopT(nuldotdot) ;
-      IF nuldotdot=NulTok
+      IF nuldotdot = NulTok
       THEN
-         PopT(e1) ;
-         PopT(const) ;
-         PushT(AddFieldTo(const, e1))
+         PopTtok (e1, e1tok) ;
+         PopTtok (const, consttok) ;
+         const := AddFieldTo (const, e1, consttok, e1tok) ;
+         PushTFrwtok (const, GetSType (const), NulSym,
+                      MakeVirtual2Tok (consttok, e1tok))
       ELSE
-         PopT(e2) ;
-         PopT(e1) ;
-         PopT(const) ;
-         PushValue(const) ;
-         AddBitRange(GetTokenNo(), e1, e2) ;
-         PopValue(const) ;
-         PushT(const)
+         PopTtok (e2, e2tok) ;
+         PopTtok (e1, e1tok) ;
+         PopTtok (const, consttok) ;
+         PushValue (const) ;
+         AddBitRange (MakeVirtual2Tok (e1tok, e2tok), e1, e2) ;
+         PopValue (const) ;
+         PushTFrwtok (const, GetSType (const), NulSym,
+                      MakeVirtual2Tok (consttok, e2tok))
       END
    ELSE
-      PopT(e1) ;
-      PopT(nuldotdot) ;
-      IF nuldotdot=NulTok
+      PopTtok (e1, e1tok) ;
+      PopT (nuldotdot) ;
+      IF nuldotdot = NulTok
       THEN
-         PopT(e2) ;
-         PopT(const) ;
-         PushValue(const) ;
-         AddElements(GetTokenNo(), e2, e1) ;
-         PopValue(const) ;
-         PushT(const)
+         PopTtok (e2, e2tok) ;
+         PopTtok (const, consttok) ;
+         PushValue (const) ;
+         AddElements (MakeVirtual2Tok (e1tok, e2tok), e2, e1) ;
+         PopValue (const) ;
+         PushTFrwtok (const, GetSType (const), NulSym,
+                      MakeVirtual2Tok (consttok, e2tok))
       ELSE
-         PopT(e2) ;
-         PopT(e1) ;
-         PopT(const) ;
-         WriteFormat0('the constant must be either an array constructor or a set constructor') ;
-         PushT(const)
+         PopTtok (e2, e2tok) ;
+         PopTtok (e1, e1tok) ;
+         PopTtok (const, consttok) ;
+         consttok := MakeVirtual2Tok (consttok, e2tok) ;
+         MetaErrorT1 (consttok,
+                      'the constant {%E1a} must be either an array constructor or a set constructor',
+                      const) ;
+         PushTFrwtok (const, GetSType (const), NulSym, consttok)
       END
    END
 END BuildComponentValue ;
