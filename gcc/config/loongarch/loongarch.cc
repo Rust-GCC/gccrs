@@ -11391,7 +11391,7 @@ loongarch_bitint_type_info (int n, struct bitint_info *info)
     info->abi_limb_mode = TImode;
 
   info->big_endian = false;
-  info->extended = true;
+  info->extended = bitint_ext_partial;
   return true;
 }
 

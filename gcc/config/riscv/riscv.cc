@@ -14926,7 +14926,7 @@ riscv_bitint_type_info (int n, struct bitint_info *info)
     info->abi_limb_mode = DImode;
 
   info->big_endian = TARGET_BIG_ENDIAN;
-  info->extended = true;
+  info->extended = bitint_ext_full;
   return true;
 }
 

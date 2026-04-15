@@ -18851,7 +18851,7 @@ s390_bitint_type_info (int n, struct bitint_info *info)
     info->limb_mode = DImode;
   info->abi_limb_mode = info->limb_mode;
   info->big_endian = true;
-  info->extended = true;
+  info->extended = bitint_ext_full;
   return true;
 }
 

@@ -68,13 +68,22 @@ union cumulative_args_t { void *p; };
 
 #endif /* !CHECKING_P */
 
+/* Values for bitint_info::extended below.  */
+
+enum bitint_ext { bitint_ext_undef, bitint_ext_partial, bitint_ext_full };
+
 /* Target properties of _BitInt(N) type.  _BitInt(N) is to be represented
    as series of abi_limb_mode CEIL (N, GET_MODE_PRECISION (abi_limb_mode))
    limbs, ordered from least significant to most significant if !big_endian,
    otherwise from most significant to least significant.  If extended is
-   false, the bits above or equal to N are undefined when stored in a register
-   or memory, otherwise they are zero or sign extended depending on if
-   it is unsigned _BitInt(N) or _BitInt(N) / signed _BitInt(N).
+   bitint_ext_undef, the bits above or equal to N are undefined when stored in
+   a register or memory, if extended is bitint_ext_full, they are zero or sign
+   extended depending on if it is unsigned _BitInt(N) or
+   _BitInt(N) / signed _BitInt(N), if extended is bitint_ext_partial, then bits
+   above or equal to N and below
+   M = CEIL (N, GET_MODE_PRECISION (limb_mode)) * GET_MODE_PRECISION (limb_mode)
+   are zero or sign extended as specified above and bits above or equal to M
+   are undefined.
    limb_mode is either the same as abi_limb_mode, or some narrower mode
    in which _BitInt lowering should actually perform operations in and
    what libgcc _BitInt helpers should use.
@@ -87,7 +96,7 @@ union cumulative_args_t { void *p; };
 struct bitint_info {
   machine_mode abi_limb_mode, limb_mode;
   bool big_endian;
-  bool extended;
+  enum bitint_ext extended;
 };
 
 /* Types of memory operation understood by the "by_pieces" infrastructure.
