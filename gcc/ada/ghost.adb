@@ -2907,6 +2907,8 @@ package body Ghost is
          else
             if Is_Checked (N) then
                Install_Ghost_Region (Check, N, Level);
+            elsif Is_Ignored (N) then
+               Install_Ghost_Region (Ignore, N, Level);
             else
                Install_Ghost_Region (None, N, Level);
             end if;

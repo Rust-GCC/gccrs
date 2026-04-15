@@ -15672,6 +15672,12 @@ package body Sem_Prag is
             --  warning when we delete the if statement.
 
             if Expander_Active and Is_Ignored_In_Codegen (N) then
+
+               --  Mark pragma as ignored ghost to reuse the same removal
+               --  process.
+
+               Mark_Ghost_Pragma (N, Opt.Ignore);
+
                Eloc := Sloc (Arg_Check);
 
                Rewrite (N,
