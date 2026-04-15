@@ -904,11 +904,15 @@ impl_region_model_context::on_unexpected_tree_code (tree t,
 {
   logger * const logger = get_logger ();
   if (logger)
-    logger->log ("unhandled tree code: %qs in %qs at %s:%i",
-		 get_tree_code_name (TREE_CODE (t)),
-		 loc.get_impl_location ().m_function,
-		 loc.get_impl_location ().m_file,
-		 loc.get_impl_location ().m_line);
+    {
+      const dump_impl_location_t &impl_loc = loc.get_impl_location ();
+      const char *unknown = "<unknown>";
+      logger->log ("unhandled tree code: %qs in %qs at %s:%i",
+		   get_tree_code_name (TREE_CODE (t)),
+		   impl_loc.m_function ? impl_loc.m_function : unknown,
+		   impl_loc.m_file ? impl_loc.m_file : unknown,
+		   impl_loc.m_line);
+    }
   if (m_new_state)
     m_new_state->m_valid = false;
 }
