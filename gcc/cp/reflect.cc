@@ -394,6 +394,40 @@ replace_parm_r (tree *tp, int *walk_subtrees, void *data)
 static tree throw_exception (location_t, const constexpr_ctx *, const char *,
 			     tree, bool *, tree *);
 
+/* Helper function for get_range_elts, handle adjustment of ARRAY_TYPE elts
+   of a retvec.  */
+
+static tree
+adjust_array_elt (location_t loc, const constexpr_ctx *ctx, tree valuet,
+		  tree expr, tree fun, bool *non_constant_p, tree *jump_target)
+{
+  if (TREE_CODE (valuet) == ARRAY_TYPE)
+    {
+      if (TREE_CODE (expr) != CONSTRUCTOR
+	  || TREE_CODE (TREE_TYPE (expr)) != ARRAY_TYPE)
+	return throw_exception (loc, ctx, "reflect_constant_array failed",
+				fun, non_constant_p, jump_target);
+      unsigned int i;
+      tree val;
+      FOR_EACH_CONSTRUCTOR_VALUE (CONSTRUCTOR_ELTS (expr), i, val)
+	{
+	  CONSTRUCTOR_ELT (expr, i)->value
+	    = adjust_array_elt (loc, ctx, TREE_TYPE (valuet), val, fun,
+				non_constant_p, jump_target);
+	  if (*jump_target || *non_constant_p)
+	    return NULL_TREE;
+	}
+      return expr;
+    }
+  expr = convert_reflect_constant_arg (valuet, expr);
+  if (expr == error_mark_node)
+    return throw_exception (loc, ctx, "reflect_constant failed",
+			    fun, non_constant_p, jump_target);
+  if (VAR_P (expr))
+    expr = DECL_INITIAL (expr);
+  return expr;
+}
+
 /* Kinds for get_range_elts.  */
 
 enum get_range_elts_kind {
@@ -513,23 +547,24 @@ get_range_elts (location_t loc, const constexpr_ctx *ctx, tree call, int n,
 	}
       if (kind == REFLECT_CONSTANT_ARRAY)
 	{
-	  if (!structural_type_p (valuet))
+	  tree valuete = strip_array_types (valuet);
+	  if (!structural_type_p (valuete))
 	    {
 	      if (!cxx_constexpr_quiet_p (ctx))
 		{
 		  auto_diagnostic_group d;
 		  error_at (loc, "%<reflect_constant_array%> argument with "
 				 "%qT which is not a structural type", inst);
-		  structural_type_p (valuet, true);
+		  structural_type_p (valuete, true);
 		}
 	      *non_constant_p = true;
 	      return NULL_TREE;
 	    }
 	  TREE_VEC_ELT (args, 0)
-	    = build_stub_type (valuet,
-			       cp_type_quals (valuet) | TYPE_QUAL_CONST,
+	    = build_stub_type (valuete,
+			       cp_type_quals (valuete) | TYPE_QUAL_CONST,
 			       false);
-	  if (!is_xible (INIT_EXPR, valuet, args))
+	  if (!is_xible (INIT_EXPR, valuete, args))
 	    {
 	      if (!cxx_constexpr_quiet_p (ctx))
 		error_at (loc, "%<reflect_constant_array%> argument with %qT "
@@ -551,7 +586,21 @@ get_range_elts (location_t loc, const constexpr_ctx *ctx, tree call, int n,
 	    }
 	  tree referencet = TYPE_MAIN_VARIANT (instr);
 	  TREE_VEC_ELT (args, 0) = referencet;
-	  if (!is_xible (INIT_EXPR, valuet, args))
+	  if (valuete != valuet)
+	    {
+	      tree rt = non_reference (referencet);
+	      if (!same_type_ignoring_top_level_qualifiers_p (valuet, rt))
+		{
+		  if (!cxx_constexpr_quiet_p (ctx))
+		    error_at (loc, "%<reflect_constant_array%> argument with "
+				   "%qT which is not compatible with %qT "
+				   "%<std::ranges::range_reference_t%>",
+			      inst, referencet);
+		  *non_constant_p = true;
+		  return NULL_TREE;
+		}
+	    }
+	  else if (!is_xible (INIT_EXPR, valuet, args))
 	    {
 	      if (!cxx_constexpr_quiet_p (ctx))
 		error_at (loc, "%<reflect_constant_array%> argument with %qT "
@@ -595,12 +644,22 @@ get_range_elts (location_t loc, const constexpr_ctx *ctx, tree call, int n,
 	else
 	  {
 	    gcc_assert (kind == REFLECT_CONSTANT_ARRAY);
+	    if (TREE_CODE (valuet) == ARRAY_TYPE)
+	      {
+		retvec[i]
+		  = adjust_array_elt (loc, ctx, valuet,
+				      unshare_expr (retvec[i]), fun,
+				      non_constant_p, jump_target);
+		if (*jump_target || *non_constant_p)
+		  return NULL_TREE;
+		continue;
+	      }
 	    tree expr = convert_reflect_constant_arg (valuet, retvec[i]);
 	    if (expr == error_mark_node)
 	      return throw_exception (loc, ctx, "reflect_constant failed",
 				      fun, non_constant_p, jump_target);
 	    if (VAR_P (expr))
-	      expr = unshare_expr (DECL_INITIAL (expr));
+	      expr = DECL_INITIAL (expr);
 	    retvec[i] = expr;
 	  }
       }

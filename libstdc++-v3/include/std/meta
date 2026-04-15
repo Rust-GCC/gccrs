@@ -682,9 +682,14 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     define_static_object(_Tp&& __t)
     {
       using _Up = remove_cvref_t<_Tp>;
-      if constexpr (meta::is_class_type(^^_Up))
+      if constexpr (meta::is_class_type(^^_Up) || meta::is_union_type(^^_Up))
 	{
 	  auto __cst = meta::reflect_constant(std::forward<_Tp>(__t));
+	  return std::addressof(meta::extract<const _Up&>(__cst));
+	}
+      else if constexpr (meta::is_array_type(^^_Up))
+	{
+	  auto __cst = meta::reflect_constant_array(std::forward<_Tp>(__t));
 	  return std::addressof(meta::extract<const _Up&>(__cst));
 	}
       else
