@@ -1,6 +1,3 @@
-! { dg-do compile } 
-! { dg-additional-options "-fopenmp" } 
-
 module test
 contains
   subroutine ichi
