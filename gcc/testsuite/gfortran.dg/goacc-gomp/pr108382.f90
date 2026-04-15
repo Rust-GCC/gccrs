@@ -1,6 +1,3 @@
-! { dg-do compile }
-! { dg-additional-options "-fopenmp" }
-
 module m_108382_a
   implicit none
   integer :: x, y
