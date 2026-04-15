@@ -10671,6 +10671,12 @@ cp_decomp_size (location_t loc, tree type, tsubst_flags_t complain)
 	return -1;
       else if (btype == NULL_TREE)
 	return 0;
+      if (btype != type)
+	{
+	  tree binfo = lookup_base (type, btype, ba_check, NULL, complain);
+	  if (binfo == NULL_TREE || binfo == error_mark_node)
+	    return -1;
+	}
       for (tree field = TYPE_FIELDS (btype); field; field = TREE_CHAIN (field))
 	if (TREE_CODE (field) != FIELD_DECL
 	    || DECL_ARTIFICIAL (field)
