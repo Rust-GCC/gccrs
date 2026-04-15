@@ -526,13 +526,13 @@ ForeverStack<N>::find_starting_point (
   return iterator;
 }
 
-template <Namespace N>
-tl::optional<typename ForeverStack<N>::Node &>
-ForeverStack<N>::resolve_segments (
+template <>
+inline tl::optional<typename ForeverStack<Namespace::Types>::Node &>
+ForeverStack<Namespace::Types>::resolve_segments (
   Node &starting_point, const std::vector<ResolutionPath::Segment> &segments,
   typename std::vector<ResolutionPath::Segment>::const_iterator iterator,
   std::function<void (Usage, Definition)> insert_segment_resolution,
-  std::vector<Error> &collect_errors)
+  std::vector<Error> &collect_errors, ForeverStack<Namespace::Types> &)
 {
   Node *current_node = &starting_point;
   for (; !is_last (iterator, segments); iterator++)
@@ -647,6 +647,28 @@ ForeverStack<N>::resolve_segments (
   return *current_node;
 }
 
+template <Namespace N>
+tl::optional<typename ForeverStack<N>::Node &>
+ForeverStack<N>::resolve_segments (
+  Node &starting_point, const std::vector<ResolutionPath::Segment> &segments,
+  typename std::vector<ResolutionPath::Segment>::const_iterator iterator,
+  std::function<void (Usage, Definition)> insert_segment_resolution,
+  std::vector<Error> &collect_errors,
+  ForeverStack<Namespace::Types> &type_stack)
+{
+  ForeverStack<Namespace::Types>::Node &true_starting_point
+    = type_stack.dfs_node (type_stack.root, starting_point.id).value ();
+
+  auto ret
+    = type_stack.resolve_segments (true_starting_point, segments, iterator,
+				   std::move (insert_segment_resolution),
+				   collect_errors, type_stack);
+  if (!ret.has_value ())
+    return tl::nullopt;
+
+  return dfs_node (root, ret->id).value ();
+}
+
 template <>
 inline tl::optional<Rib::Definition>
 ForeverStack<Namespace::Types>::resolve_final_segment (Node &final_node,
@@ -672,7 +694,8 @@ tl::optional<Rib::Definition>
 ForeverStack<N>::resolve_path (
   const ResolutionPath &path, ResolutionMode mode,
   std::function<void (Usage, Definition)> insert_segment_resolution,
-  std::vector<Error> &collect_errors, NodeId starting_point_id)
+  std::vector<Error> &collect_errors, NodeId starting_point_id,
+  ForeverStack<Namespace::Types> &type_stack)
 {
   auto starting_point = dfs_node (root, starting_point_id);
 
@@ -682,20 +705,7 @@ ForeverStack<N>::resolve_path (
     return tl::nullopt;
 
   return resolve_path (path, mode, insert_segment_resolution, collect_errors,
-		       *starting_point);
-}
-
-template <Namespace N>
-tl::optional<Rib::Definition>
-ForeverStack<N>::resolve_path (
-  const ResolutionPath &path, ResolutionMode mode,
-  std::function<void (Usage, Definition)> insert_segment_resolution,
-  std::vector<Error> &collect_errors)
-{
-  std::reference_wrapper<Node> starting_point = cursor ();
-
-  return resolve_path (path, mode, insert_segment_resolution, collect_errors,
-		       starting_point);
+		       *starting_point, type_stack);
 }
 
 template <Namespace N>
@@ -704,7 +714,22 @@ ForeverStack<N>::resolve_path (
   const ResolutionPath &path, ResolutionMode mode,
   std::function<void (Usage, Definition)> insert_segment_resolution,
   std::vector<Error> &collect_errors,
-  std::reference_wrapper<Node> starting_point)
+  ForeverStack<Namespace::Types> &type_stack)
+{
+  std::reference_wrapper<Node> starting_point = cursor ();
+
+  return resolve_path (path, mode, insert_segment_resolution, collect_errors,
+		       starting_point, type_stack);
+}
+
+template <Namespace N>
+tl::optional<Rib::Definition>
+ForeverStack<N>::resolve_path (
+  const ResolutionPath &path, ResolutionMode mode,
+  std::function<void (Usage, Definition)> insert_segment_resolution,
+  std::vector<Error> &collect_errors,
+  std::reference_wrapper<Node> starting_point,
+  ForeverStack<Namespace::Types> &type_stack)
 {
   bool can_descend = true;
 
@@ -835,7 +860,8 @@ ForeverStack<N>::resolve_path (
     }
 
   return resolve_segments (starting_point.get (), segments, iterator,
-			   insert_segment_resolution, collect_errors)
+			   insert_segment_resolution, collect_errors,
+			   type_stack)
     .and_then ([this, &segments, &insert_segment_resolution] (
 		 Node &final_node) -> tl::optional<Rib::Definition> {
       // leave resolution within impl blocks to type checker

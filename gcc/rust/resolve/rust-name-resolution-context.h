@@ -544,19 +544,19 @@ public:
       {
       case Namespace::Values:
 	resolved = values.resolve_path (path, mode, insert_segment_resolution,
-					collect_errors);
+					collect_errors, types);
 	break;
       case Namespace::Types:
 	resolved = types.resolve_path (path, mode, insert_segment_resolution,
-				       collect_errors);
+				       collect_errors, types);
 	break;
       case Namespace::Macros:
 	resolved = macros.resolve_path (path, mode, insert_segment_resolution,
-					collect_errors);
+					collect_errors, types);
 	break;
       case Namespace::Labels:
 	resolved = labels.resolve_path (path, mode, insert_segment_resolution,
-					collect_errors);
+					collect_errors, types);
 	break;
       default:
 	rust_unreachable ();
@@ -570,16 +570,16 @@ public:
 	  {
 	  case Namespace::Values:
 	    return values.resolve_path (path, mode, insert_segment_resolution,
-					collect_errors, *prelude);
+					collect_errors, *prelude, types);
 	  case Namespace::Types:
 	    return types.resolve_path (path, mode, insert_segment_resolution,
-				       collect_errors, *prelude);
+				       collect_errors, *prelude, types);
 	  case Namespace::Macros:
 	    return macros.resolve_path (path, mode, insert_segment_resolution,
-					collect_errors, *prelude);
+					collect_errors, *prelude, types);
 	  case Namespace::Labels:
 	    return labels.resolve_path (path, mode, insert_segment_resolution,
-					collect_errors, *prelude);
+					collect_errors, *prelude, types);
 	  default:
 	    rust_unreachable ();
 	  }
