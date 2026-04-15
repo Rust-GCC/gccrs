@@ -1,6 +1,5 @@
 ! PR fortran/93329
-! { dg-do compile { target fopenmp } }
-! { dg-additional-options "-fopenmp -Wno-deprecated-openmp" }
+! { dg-additional-options -Wno-deprecated-openmp }
 
   integer :: x, y, z
   integer :: a(32)
