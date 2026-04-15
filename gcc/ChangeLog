@@ -86,11 +86,55 @@
 	(find_implicit_erroneous_behavior): Do two sweeps over PHIs,
 	first for NULL dereferences and then for local address returns.
 
+2026-04-14  Avinash Jayakar  <avinashd@linux.ibm.com>
+
+	Revert:
+	2026-04-07  Avinash Jayakar  <avinashd@linux.ibm.com>
+		    Surya Kumari Jangala  <jskumari@linux.ibm.com>
+
+	* config/rs6000/rs6000-builtin.cc (rs6000_expand_builtin): Add
+	logic to handle __builtin_ppc_atomic_cas_local.
+	* config/rs6000/rs6000-builtins.def: New builtins for
+	__builtin_ppc_atomic_cas_local with types.
+	* config/rs6000/rs6000-c.cc (altivec_build_resolved_builtin):
+	Handle builtins with up to 6 arguments.
+	* config/rs6000/rs6000-overload.def: Overload builtin for
+	signed/unsiged char, short, int, long, __int128.
+	* config/rs6000/rs6000-protos.h (rs6000_expand_atomic_compare_and_swap):
+	Add additional parameter 'local' to the prototype.
+	* config/rs6000/rs6000.cc (emit_load_locked): Add new parameter. Pass
+	new parameter to generate load-locked instruction.
+	(rs6000_expand_atomic_compare_and_swap): Add new parameter. Call
+	emit_load_locked() with additional parameter value of EH bit.
+	(rs6000_expand_atomic_exchange): Pass EH value 0 to emit_load_locked().
+	(rs6000_expand_atomic_op): Likewise.
+	* config/rs6000/sync.md (load_locked<mode>): Add new operand in RTL
+	template. Specify EH bit in the larx instruction.
+	(load_locked<QHI:mode>_si): Likewise.
+	(load_lockedpti): Likewise.
+	(load_lockedti): Add new operand in RTL template. Pass EH bit to
+	gen_load_lockedpti().
+	(atomic_compare_and_swap<mode>): Pass new parameter 'false' to
+	rs6000_expand_atomic_compare_and_swap.
+	(atomic_compare_and_swap_local<mode>): New define_expand.
+
 2026-04-14  H.J. Lu  <hjl.tools@gmail.com>
 
 	PR target/124876
 	* config/i386/i386.cc (ix86_zero_call_used_regs): Zero ZMM16-31
 	if needed.
+
+2026-04-13  Surya Kumari Jangala  <jskumari@linux.ibm.com>
+
+	Revert:
+	2025-06-30  Peter Bergner  <bergner@linux.ibm.com>
+
+	PR target/109116
+	* config/rs6000/mma.md (unspec): Delete UNSPEC_MMA_EXTRACT.
+	(vsx_disassemble_pair): Expand into a vector register sized subreg.
+	(mma_disassemble_acc): Likewise.
+	(*vsx_disassemble_pair): Delete.
+	(*mma_disassemble_acc): Likewise.
 
 2026-04-13  Josef Melcr  <josef.melcr@suse.com>
 
