@@ -729,8 +729,19 @@ add_capture (tree lambda, tree id, tree orig_init, bool by_reference_p,
       && current_class_type == LAMBDA_EXPR_CLOSURE (lambda))
     {
       if (COMPLETE_TYPE_P (current_class_type))
-	internal_error ("trying to capture %qD in instantiation of "
-			"generic lambda", id);
+	{
+	  /* This can happen for code like [&]<auto e> { [:e:]; } where
+	     we can't figure out what the splice will designate while parsing;
+	     we'll only know it after we've substituted the splice, but then
+	     it's too late to capture anything.  This code is ill-formed as
+	     per [expr.prim.splice]/2.1.4.1: The expression is ill-formed if
+	     S is ... a local entity such that ... there is a lambda scope that
+	     intervenes between the expression and the point at which S was
+	     introduced and the expression would be potentially evaluated.  */
+	  error ("trying to capture %qD in instantiation of generic lambda",
+		 id);
+	  return error_mark_node;
+	}
       finish_member_declaration (member);
     }
 
