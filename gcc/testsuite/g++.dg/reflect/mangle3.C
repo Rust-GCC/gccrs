@@ -174,7 +174,7 @@ g (int p)
   f5<std::meta::reflect_constant (42)>();
 // { dg-final { scan-assembler "_Z2f5ILDmvlLi42EEEDtDST_EEv" } }
   f5<std::meta::reflect_object (arr[1])>();
-// { dg-final { scan-assembler "_Z2f5ILDmobixL_Z3arrELl1EEEDtDST_EEv" } }
+// { dg-final { scan-assembler "_Z2f5ILDmobixL_Z3arrEL\[ilx]1EEEDtDST_EEv" } }
   f5<parameters_of (^^g)[0]>();
 // { dg-final { scan-assembler "_Z2f5ILDmpa_1giEEDtDST_EEv" } }
   f5<bases_of (^^S, ctx)[0]>();

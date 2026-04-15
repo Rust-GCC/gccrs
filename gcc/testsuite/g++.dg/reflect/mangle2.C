@@ -45,4 +45,4 @@ g ()
 
 // { dg-final { scan-assembler "_ZZ1gvENKUlTyQrqXtlDSLDmtyT_EEEEvE_clIiEEDav" } }
 // { dg-final { scan-assembler "_ZZ1gvENKUlTyQrqXtlNDSclL_ZNSt4meta9parent_ofEDmELDmtyT_EEE1BEEEvE0_clIN1N1SEEEDav" } }
-// { dg-final { scan-assembler "_ZZ1gvENKUlTyQrqXtlDtdtcvT__EDScldtclL_ZNSt4meta25nonstatic_data_members_ofEDmNS0_14access_contextEELDmtyS_EclL_ZNS1_9uncheckedEvEEEL_ZNSt6vectorIDmSaIDmEEixEmELi0EEEEEEvE1_clI1CEEDav" } }
+// { dg-final { scan-assembler "_ZZ1gvENKUlTyQrqXtlDtdtcvT__EDScldtclL_ZNSt4meta25nonstatic_data_members_ofEDmNS0_14access_contextEELDmtyS_EclL_ZNS1_9uncheckedEvEEEL_ZNSt6vectorIDmSaIDmEEixE\[jmy]ELi0EEEEEEvE1_clI1CEEDav" } }
