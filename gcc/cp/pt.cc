@@ -33664,7 +33664,8 @@ finish_expansion_stmt (tree expansion_stmt, tree args,
 	  if (DECL_DECLARED_CONSTEXPR_P (range_decl)
 	      && !TYPE_REF_P (iter_type))
 	    iter_type = cp_build_qualified_type (iter_type, TYPE_QUAL_CONST);
-	  iter = build_decl (loc, VAR_DECL, NULL_TREE, iter_type);
+	  iter = build_decl (loc, VAR_DECL, get_identifier ("__for_iter "),
+			     iter_type);
 	  TREE_USED (iter) = 1;
 	  DECL_ARTIFICIAL (iter) = 1;
 	  if (DECL_DECLARED_CONSTEXPR_P (range_decl))
