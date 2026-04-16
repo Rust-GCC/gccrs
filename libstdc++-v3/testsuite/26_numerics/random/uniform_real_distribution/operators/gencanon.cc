@@ -201,11 +201,13 @@ test00()
     VERIFY(skips == 0);
   }
   { // long double
+#if __LDBL_MANT_DIG__ != 106 // disable this for IBM double double
     int skips{};
     auto rng2{rng};
     auto rng3{rng};
     test01<long double>(rng2, rng3, skips);
     VERIFY(skips == 0);
+#endif
   }
 #ifndef _GLIBCXX_GENERATE_CANONICAL_STRICT
 #  ifdef __SIZEOF_FLOAT128__
