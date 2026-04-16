@@ -1430,6 +1430,7 @@ xstormy16_build_builtin_va_list (void)
   TYPE_NAME (record) = type_decl;
   TYPE_FIELDS (record) = f_1;
   DECL_CHAIN (f_1) = f_2;
+  TREE_PUBLIC (type_decl) = 1;
 
   layout_type (record);
 

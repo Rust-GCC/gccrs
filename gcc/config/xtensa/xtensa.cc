@@ -3842,6 +3842,7 @@ xtensa_build_builtin_va_list (void)
   TYPE_FIELDS (record) = f_stk;
   DECL_CHAIN (f_stk) = f_reg;
   DECL_CHAIN (f_reg) = f_ndx;
+  TREE_PUBLIC (type_decl) = 1;
 
   layout_type (record);
   return record;
