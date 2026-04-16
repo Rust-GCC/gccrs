@@ -698,51 +698,18 @@ __gnat_get_current_dir (char *dir, int *length)
    dir[*length] = '\0';
 }
 
-/* Return the suffix for object files.  */
+/* Suffix for object files.  */
 
-void
-__gnat_get_object_suffix_ptr (int *len, const char **value)
-{
-  *value = HOST_OBJECT_SUFFIX;
+const char *__gnat_object_suffix = HOST_OBJECT_SUFFIX;
 
-  if (*value == 0)
-    *len = 0;
-  else
-    *len = strlen (*value);
+/* Suffix for executable files.  */
 
-  return;
-}
+const char *__gnat_executable_suffix = HOST_EXECUTABLE_SUFFIX;
 
-/* Return the suffix for executable files.  */
-
-void
-__gnat_get_executable_suffix_ptr (int *len, const char **value)
-{
-  *value = HOST_EXECUTABLE_SUFFIX;
-
-  if (!*value)
-    *len = 0;
-  else
-    *len = strlen (*value);
-
-  return;
-}
-
-/* Return the suffix for debuggable files. Usually this is the same as the
+/* Suffix for debuggable files. Usually this is the same as the
    executable extension.  */
 
-void
-__gnat_get_debuggable_suffix_ptr (int *len, const char **value)
-{
-  *value = HOST_EXECUTABLE_SUFFIX;
-
-  if (*value == 0)
-    *len = 0;
-  else
-    *len = strlen (*value);
-
-  return;
-}
+const char *__gnat_debuggable_suffix = HOST_EXECUTABLE_SUFFIX;
 
 /* Returns the OS filename and corresponding encoding.  */
 
