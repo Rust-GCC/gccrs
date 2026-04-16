@@ -4129,6 +4129,55 @@ check_import_status (gfc_expr *e)
 }
 
 
+/* If an elemental call has an INTENT_IN argument that has a dependency on an
+   argument which is not INTENT_IN and requires a temporary, build a temporary
+   for the INTENT_IN actual argument as well.  */
+
+static void
+add_temp_assign_before_call (gfc_code *, gfc_namespace *, gfc_expr **);
+
+static void
+resolve_elemental_dependencies (gfc_code *c)
+{
+  gfc_actual_arglist *arg1 = c->ext.actual;
+  gfc_actual_arglist *arg2 = NULL;
+  gfc_formal_arglist *formal1 = c->resolved_sym->formal;
+  gfc_formal_arglist *formal2 = NULL;
+  gfc_expr *expr1;
+  gfc_expr **expr2;
+
+  for (; arg1 && formal1; arg1 = arg1->next, formal1 = formal1->next)
+    {
+      if (formal1->sym
+	  && (formal1->sym->attr.intent == INTENT_IN
+	      || formal1->sym->attr.value))
+	continue;
+
+      if (!arg1->expr || arg1->expr->expr_type != EXPR_VARIABLE)
+	continue;
+
+      arg2 = c->ext.actual;
+      formal2 = c->resolved_sym->formal;
+      for (; arg2 && formal2; arg2 = arg2->next, formal2 = formal2->next)
+	{
+	  if (arg2 == arg1 || !arg2->expr
+	      || !(formal2->sym && formal2->sym->attr.intent == INTENT_IN))
+	    continue;
+
+	  expr1 = arg1->expr;
+	  expr2 = &arg2->expr;
+
+	  /* If the arg1 has something horrible like a vector index and
+	     there is a dependency between arg1 and arg2, build a
+	     temporary from arg2, assign the arg2 to it and use the
+	     temporary in the call expression.  */
+	  if (expr1->rank && gfc_ref_needs_temporary_p (expr1->ref)
+	      && gfc_check_dependency (expr1, *expr2, false))
+	    add_temp_assign_before_call (c, gfc_current_ns, expr2);
+	}
+    }
+}
+
 /* Resolve a subroutine call.  Although it was tempting to use the same code
    for functions, subroutines and functions are stored differently and this
    makes things awkward.  */
@@ -4288,6 +4337,11 @@ resolve_call (gfc_code *c)
   /* Some checks of elemental subroutine actual arguments.  */
   if (!resolve_elemental_actual (NULL, c))
     return false;
+
+  /* Deal with complicated dependencies that the scalarizer cannot handle.  */
+  if (c->resolved_sym && c->resolved_sym->attr.elemental && !no_formal_args
+      && c->ext.actual && c->ext.actual->next)
+    resolve_elemental_dependencies (c);
 
   if (!c->expr1)
     update_current_proc_array_outer_dependency (csym);
@@ -13308,10 +13362,12 @@ build_assignment (gfc_exec_op op, gfc_expr *expr1, gfc_expr *expr2,
 
 
 /* Makes a temporary variable expression based on the characteristics of
-   a given variable expression.  */
+   a given variable expression.  If allocatable is set, the temporary is
+   unconditionally allocatable*/
 
 static gfc_expr*
-get_temp_from_expr (gfc_expr *e, gfc_namespace *ns)
+get_temp_from_expr (gfc_expr *e, gfc_namespace *ns,
+		    bool allocatable = false)
 {
   static int serial = 0;
   char name[GFC_MAX_SYMBOL_LEN];
@@ -13365,7 +13421,7 @@ get_temp_from_expr (gfc_expr *e, gfc_namespace *ns)
   tmp->n.sym->attr.intent = INTENT_UNKNOWN;
 
 
-  if (as)
+  if (as && !allocatable)
     {
       tmp->n.sym->as = gfc_copy_array_spec (as);
       if (!ref)
@@ -13375,7 +13431,7 @@ get_temp_from_expr (gfc_expr *e, gfc_namespace *ns)
     }
   else if ((e->rank || e->corank)
 	   && (e->expr_type == EXPR_ARRAY || e->expr_type == EXPR_FUNCTION
-	       || e->expr_type == EXPR_OP))
+	       || e->expr_type == EXPR_OP || allocatable))
     {
       tmp->n.sym->as = gfc_get_array_spec ();
       tmp->n.sym->as->type = AS_DEFERRED;
@@ -13394,12 +13450,51 @@ get_temp_from_expr (gfc_expr *e, gfc_namespace *ns)
 
   /* Should the lhs be a section, use its array ref for the
      temporary expression.  */
-  if (aref && aref->type != AR_FULL)
+  if (aref && aref->type != AR_FULL && !allocatable)
     {
       gfc_free_ref_list (e->ref);
       e->ref = gfc_copy_ref (ref);
     }
   return e;
+}
+
+
+/* Helper function to take an argument in a subroutine call with a dependency
+   on another argument, copy it to an allocatable temporary and use the
+   temporary in the call expression. The new code is embedded in a block to
+   ensure local, automatic deallocation.  */
+
+static void
+add_temp_assign_before_call (gfc_code *code, gfc_namespace *ns,
+			     gfc_expr **rhsptr)
+{
+  gfc_namespace *block_ns;
+  gfc_expr *tmp_var;
+
+  /* Wrap the new code in a block so that the temporary is deallocated.  */
+  block_ns = gfc_build_block_ns (ns);
+
+  /* As it stands, the block_ns does not not stand up to resolution because the
+     the assignment would be converted to a call and, in any case, the modified
+     call fails in gfc_check_conformance.  */
+  block_ns->resolved = 1;
+
+  /* Assign the original expression to the temporary.  */
+  tmp_var = get_temp_from_expr (*rhsptr, block_ns, true);
+  block_ns->code = build_assignment (EXEC_ASSIGN, tmp_var, *rhsptr,
+				     NULL, NULL, (*rhsptr)->where);
+
+  /* Transfer the call to the block and terminate block code.  */
+  *rhsptr = gfc_copy_expr (tmp_var);
+  block_ns->code->next = gfc_get_code (EXEC_NOP);
+  *(block_ns->code->next) = *code;
+  block_ns->code->next->next = NULL;
+
+  /* Convert the original code to execute the block.  */
+  code->op = EXEC_BLOCK;
+  code->ext.block.ns = block_ns;
+  code->ext.block.assoc = NULL;
+  code->expr1 = code->expr2 = NULL;
 }
 
 

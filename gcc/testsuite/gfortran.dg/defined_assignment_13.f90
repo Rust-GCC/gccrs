@@ -119,6 +119,12 @@ contains
     x%i = y%i + 42
   end subroutine sub2
 
+  impure elemental function f1 (x)
+    type(t1), intent(in) :: x
+    type(t1) :: f1
+    f1%i = x%i + 99
+  end function f1
+
   subroutine extra_tests ()
     integer :: j
     type(t1) :: p1(4), q1(4) = [(t1(j),j=1,4)]
@@ -127,6 +133,7 @@ contains
     integer  :: iperm(2) = [1,2]
     integer  :: expect1(4) = [25,24,0,0]
     integer  :: expect2(4) = [44,43,0,0]
+    integer  :: expect3(4) = [123,124,3,4]
 
     !-----------------------------------
     ! (1) l.h.s. not depending on r.h.s.
@@ -259,23 +266,30 @@ contains
     call check (p2%i, expect2, 64)
 
     ! l.h.s. vector indices, r.h.s. array section
-    ! (this part currently disabled because the temporary for the l.h.s.
-    ! is not yet implemented properly)
-!   p1%i       = q1%i
-!   p1([2,1])  = p1(1:2)
-!   call check (p1%i, expect1, 71)
-!
-!   p2%i       = q2%i
-!   p2([2,1])  = p2(1:2)
-!   call check (p2%i, expect2, 73)
+    p1%i       = q1%i
+    p1([2,1])  = p1(1:2)
+    call check (p1%i, expect1, 71)
 
-!   p1%i       = q1%i
-!   call sub1  (p1([2,1]), (p1(1:2)))
-!   call check (p1%i, expect1, 72)
-!
-!   p2%i       = q2%i
-!   call sub2  (p2([2,1]), (p2(1:2)))
-!   call check (p2%i, expect2, 74)
+    p2%i       = q2%i
+    p2([2,1])  = p2(1:2)
+    call check (p2%i, expect2, 72)
+
+    p1%i       = q1%i
+    call sub1  (p1([2,1]), (p1(1:2)))
+    call check (p1%i, expect1, 73)
+
+    p2%i       = q2%i
+    call sub2  (p2([2,1]), (p2(1:2)))
+    call check (p2%i, expect2, 74)
+
+    ! l.h.s. vector indices, r.h.s. array section as a function arg.
+    p1%i = q1%i
+    p1([2,1]) = f1 (p1([2,1]))
+    call check (p1%i, expect3, 75)
+
+    p1%i = q1%i
+    call sub1(p1([2,1]), f1 (p1([2,1])))
+    call check (p1%i, expect3, 76)
 
   end subroutine extra_tests
 
