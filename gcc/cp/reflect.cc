@@ -3684,6 +3684,11 @@ eval_identifier_of (location_t loc, const constexpr_ctx *ctx, tree r,
 void
 dump_data_member_spec (pretty_printer *pp, tree r)
 {
+#if __GNUC__ >= 10
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat"
+#pragma GCC diagnostic ignored "-Wformat-diag"
+#endif
   pp_printf (pp, "(%T, %E, %E, %E, %s, {", TREE_VEC_ELT (r, 0),
 	     TREE_VEC_ELT (r, 1), TREE_VEC_ELT (r, 2), TREE_VEC_ELT (r, 3),
 	     TREE_VEC_ELT (r, 4) == boolean_true_node
@@ -3692,6 +3697,9 @@ dump_data_member_spec (pretty_printer *pp, tree r)
     pp_printf (pp, "%s%E", i == 5 ? "" : ", ",
 	       REFLECT_EXPR_HANDLE (TREE_VEC_ELT (r, i)));
   pp_printf (pp, "})");
+#if __GNUC__ >= 10
+#pragma GCC diagnostic pop
+#endif
 }
 
 /* Process std::meta::{,u8}display_string_of.
