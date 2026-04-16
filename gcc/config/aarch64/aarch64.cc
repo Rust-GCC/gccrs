@@ -31951,7 +31951,8 @@ aarch64_mode_emit_local_sme_state (aarch64_local_sme_state mode,
       emit_insn (gen_aarch64_tpidr2_save ());
       emit_insn (gen_aarch64_clear_tpidr2 ());
       if (mode == aarch64_local_sme_state::ACTIVE_LIVE
-	  || mode == aarch64_local_sme_state::ACTIVE_DEAD)
+	  || mode == aarch64_local_sme_state::ACTIVE_DEAD
+	  || mode == aarch64_local_sme_state::INACTIVE_LOCAL)
 	{
 	  if (aarch64_cfun_has_state ("za"))
 	    emit_insn (gen_aarch64_initial_zero_za ());
@@ -32033,6 +32034,16 @@ aarch64_mode_emit_local_sme_state (aarch64_local_sme_state mode,
 
   if (mode == aarch64_local_sme_state::INACTIVE_LOCAL)
     {
+      if (prev_mode == aarch64_local_sme_state::INACTIVE_CALLER)
+	/* Enable ZA (if it wasn't already enabled on entry).  Enabling ZA has
+	   the side-effect of zeroing ZA.
+
+	   A functionally correct alternative would be to leave TPIDR2_EL0 null
+	   and zero the save buffer.  However, zeroing the save buffer would require
+	   more code and would optimize for the case in which a callee also
+	   initialises private ZA state (which should be a rare event).  */
+	emit_insn (gen_aarch64_smstart_za ());
+
       if (prev_mode == aarch64_local_sme_state::ACTIVE_LIVE
 	  || prev_mode == aarch64_local_sme_state::ACTIVE_DEAD
 	  || prev_mode == aarch64_local_sme_state::INACTIVE_CALLER)
