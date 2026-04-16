@@ -1,3 +1,51 @@
+2026-04-15  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/120338
+	* decl.cc (cp_finish_decl): Set DECL_INITIAL to error_mark_node
+	instead of NULL_TREE for deleted main.
+
+2026-04-15  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/123783
+	* lambda.cc (add_capture): When trying to capture something in
+	an instantiation of generic lambda, give an error instead of an ICE.
+
+2026-04-15  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/124824
+	* decl.cc (cp_finish_decl): Sink !consteval_only_p check to
+	only guard the varpool_node::get_create call.
+
+2026-04-15  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/124755
+	* constexpr.cc (cxx_eval_constant_expression): If TARGET_EXPR_INITIAL
+	throws and !is_complex and type is neither aggregate nor vector,
+	call ctx->global->put_value (slot, NULL) before returning.
+
+2026-04-15  Jason Merrill  <jason@redhat.com>
+
+	PR c++/117133
+	PR c++/124768
+	PR c++/124773
+	* mangle.cc (unmangled_name_p): Don't mangle internal extern "C"
+	variables.
+
+2026-04-15  Jason Merrill  <jason@redhat.com>
+
+	PR c++/121643
+	PR c++/123975
+	* coroutines.cc (build_co_await): Pass rvalue to await_suspend.
+	(expand_one_await_expression): Fix await_suspend surgery.
+
+2026-04-15  Jason Merrill  <jason@redhat.com>
+
+	PR c++/121961
+	* coroutines.cc (build_actor_fn): Move the delete label before
+	the refcount handling.
+	(cp_coroutine_transform::build_ramp_function): Decrement refcount
+	after destroying gro.
+
 2026-04-15  Jakub Jelinek  <jakub@redhat.com>
 
 	* pt.cc (finish_expansion_stmt): Implement CWG3149 - Rvalues in

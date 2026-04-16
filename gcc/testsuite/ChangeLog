@@ -1,3 +1,77 @@
+2026-04-15  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/120338
+	* g++.dg/cpp0x/deleted19.C: New test.
+
+2026-04-15  Jakub Jelinek  <jakub@redhat.com>
+
+	* go.test/go-test.exp (errchk): Use -translation binary instead of
+	-encoding binary for TCL 9 compatibility.
+
+2026-04-15  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gnat.dg/warn36.adb: New test.
+
+2026-04-15  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gnat.dg/warn35.adb: New test.
+
+2026-04-15  Gaius Mulley  <gaiusmod2@gmail.com>
+
+	PR modula2/124081
+	* gm2/iso/run/pass/setcons.mod: New test.
+	* gm2/iso/run/pass/setcons2.mod: New test.
+	* gm2/iso/run/pass/setcons3.mod: New test.
+	* gm2/iso/run/pass/setcons4.mod: New test.
+	* gm2/iso/run/pass/setcons5.mod: New test.
+
+2026-04-15  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/123783
+	* g++.dg/reflect/dep14.C: New test.
+
+2026-04-15  Martin Jambor  <mjambor@suse.cz>
+
+	PR tree-optimization/122976
+	* gcc.dg/tree-ssa/pr122976.c: New test.
+
+2026-04-15  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/124824
+	* g++.dg/reflect/mangle6.C: New test.
+
+2026-04-15  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/124755
+	* g++.dg/cpp26/constexpr-eh19.C: New test.
+
+2026-04-15  Jakub Jelinek  <jakub@redhat.com>
+
+	PR middle-end/123635
+	* gcc.dg/bitintext.h: Handle __riscv__ like __arm__.
+	* gcc.dg/torture/bitint-86.c: New test.
+	* gcc.dg/torture/bitint-87.c: New test.
+
+2026-04-15  Jason Merrill  <jason@redhat.com>
+
+	PR c++/117133
+	PR c++/124768
+	PR c++/124773
+	* g++.dg/abi/mangle84.C: New test.
+
+2026-04-15  Jason Merrill  <jason@redhat.com>
+
+	PR c++/121643
+	PR c++/123975
+	* g++.dg/coroutines/pr105287.C: Add dg-excess-errors.
+	* g++.dg/coroutines/pr121643.C: New test.
+	* g++.dg/coroutines/pr123975.C: New test.
+
+2026-04-15  Jason Merrill  <jason@redhat.com>
+
+	PR c++/121961
+	* g++.dg/asan/coroutines1.C: New test.
+
 2026-04-15  Jakub Jelinek  <jakub@redhat.com>
 
 	* g++.dg/reflect/mangle2.C: Expect \[jmy] instead of just m for size_t

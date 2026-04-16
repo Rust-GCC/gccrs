@@ -1,3 +1,45 @@
+2026-04-15  Martin Jambor  <mjambor@suse.cz>
+
+	PR tree-optimization/122976
+	* tree-sra.cc (path_comparable_for_same_access): Return false if the
+	base is a MEM_REF with a different underlying type.
+
+2026-04-15  Jakub Jelinek  <jakub@redhat.com>
+
+	PR middle-end/123635
+	* target.h (enum bitint_ext): New.
+	(struct bitint_info): Change extend type from bool to enum bitint_ext
+	and document it.
+	* gimple-lower-bitint.cc (bitint_extended): Change type from bool
+	to enum bitint_ext.
+	(bitint_precision_kind): Change bitint_extended to bitint_ext_partial
+	from bitint_ext_full if limb_mode is the same as abi_limb_mode.
+	(bitint_large_huge::limb_access_type): For
+	bitint_extended == bitint_ext_full allow access to the most
+	significant limb solely with padding bits if present.
+	(bitint_large_huge::lower_mergeable_stmt): Handle
+	bitint_extended == bitint_ext_full extension if needed.
+	(bitint_large_huge::lower_muldiv_stmt): Likewise.
+	(bitint_large_huge::lower_float_conv_stmt): Likewise.
+	* config/aarch64/aarch64.cc (aarch64_bitint_type_info): Set
+	info->extended to bitint_ext_undef rather than false.
+	* config/arm/arm.cc (arm_bitint_type_info): Set
+	info->extended to bitint_ext_full rather than true.
+	* config/i386/i386.cc (ix86_bitint_type_info): Set
+	info->extended to bitint_ext_undef rather than false.
+	* config/loongarch/loongarch.cc (loongarch_bitint_type_info): Set
+	info->extended to bitint_ext_partial rather than true.
+	* config/riscv/riscv.cc (riscv_bitint_type_info): Set
+	info->extended to bitint_ext_full rather than true.
+	* config/s390/s390.cc (s390_bitint_type_info): Likewise.
+
+2026-04-15  Jason Merrill  <jason@redhat.com>
+
+	PR c++/117133
+	PR c++/124768
+	PR c++/124773
+	* doc/trouble.texi (Linkage in Anonymous Namespaces): Remove.
+
 2026-04-15  H.J. Lu  <hjl.tools@gmail.com>
 
 	* config/i386/i386.cc

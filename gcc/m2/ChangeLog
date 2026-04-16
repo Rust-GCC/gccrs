@@ -1,3 +1,11 @@
+2026-04-15  Gaius Mulley  <gaiusmod2@gmail.com>
+
+	PR modula2/124081
+	* gm2-compiler/M2Quads.mod (SafeCheckWithField): New procedure.
+	(BuildInclRange): Reimplement.
+	(AddFieldTo): Ditto.
+	(BuildComponentValue): Ditto.
+
 2026-04-14  Gaius Mulley  <gaiusmod2@gmail.com>
 
 	PR modula2/105408

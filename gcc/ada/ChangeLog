@@ -1,3 +1,15 @@
+2026-04-15  Eric Botcazou  <ebotcazou@adacore.com>
+
+	PR ada/105212
+	* exp_aggr.adb (Build_Array_Aggr_Code): If the aggregate comes from
+	source, call Set_Referenced_Modified on the target.
+
+2026-04-15  Eric Botcazou  <ebotcazou@adacore.com>
+
+	PR ada/87170
+	* sem_res.adb (Resolve_String_Literal): Copy Comes_From_Source from
+	the string literal to the character literals.
+
 2026-04-13  Eric Botcazou  <ebotcazou@adacore.com>
 
 	PR ada/95452

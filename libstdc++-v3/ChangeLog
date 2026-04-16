@@ -1,3 +1,15 @@
+2026-04-15  Elena Tyuleneva  <elena.tyuleneva@intel.com>
+
+	* include/bits/random.tcc (philox_engine::_M_transtiion): Fix
+	counter increment to propagate carry correctly.
+	* testsuite/26_numerics/random/philox_engine/operators/counter_carry.cc:
+	New test.
+
+2026-04-15  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/bits/random.tcc (philox_engine::_M_transition): Cast
+	intermediate values to result_type for n=2 case.
+
 2026-04-15  Matthias Kretz  <m.kretz@gsi.de>
 
 	* include/bits/simd_vec.h (basic_vec deduction guide): Explicit
