@@ -266,6 +266,8 @@ ptx_version_to_string (enum ptx_version v)
     {
     case PTX_VERSION_3_1:
       return "3.1";
+    case PTX_VERSION_4_0:
+      return "4.0";
     case PTX_VERSION_4_1:
       return "4.1";
     case PTX_VERSION_4_2:
@@ -294,6 +296,8 @@ ptx_version_to_number (enum ptx_version v, bool major_p)
     {
     case PTX_VERSION_3_1:
       return major_p ? 3 : 1;
+    case PTX_VERSION_4_0:
+      return major_p ? 4 : 0;
     case PTX_VERSION_4_1:
       return major_p ? 4 : 1;
     case PTX_VERSION_4_2:
