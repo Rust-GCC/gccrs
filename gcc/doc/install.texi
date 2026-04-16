@@ -4165,7 +4165,7 @@ a linker error.
 By default, multilib support is built for @code{gfx908}, @code{gfx90a},
 @code{gfx9-generic}, @code{gfx9-4-generic}, @code{gfx10-3-generic}, and
 @code{gfx11-generic}, which covers all supported archs.  The default multilib
-configuration requires LLVM 19 or newer.  LLVM 13.0.1 or LLVM 14 can be used by
+configuration requires LLVM 20 or newer.  LLVM 13.0.1 or LLVM 14 can be used by
 specifying a @code{--with-multilib-list=} that only lists GFX9 or GFX10-3
 devices, while LLVM 15 is required for GFX 11 device and @code{gfx1036}.
 At least LLVM 16 is required for @code{gfx1150} and @code{gfx1151},
