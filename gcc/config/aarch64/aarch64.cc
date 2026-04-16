@@ -12212,7 +12212,8 @@ aarch64_start_call_args (cumulative_args_t ca_v)
     emit_insn (gen_aarch64_start_private_za_call ());
 
   /* If this is a call to a shared-ZA function that doesn't share ZT0,
-     save and restore ZT0 around the call.  */
+     save and restore ZT0 around the call.  If ZA is not shared, then the
+     save/restore is instead emitted by aarch64_mode_emit_local_sme_state.  */
   if (aarch64_cfun_has_state ("zt0")
       && (ca->isa_mode & AARCH64_ISA_MODE_ZA_ON)
       && ca->shared_zt0_flags == 0)
