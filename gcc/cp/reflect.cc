@@ -8919,7 +8919,7 @@ valid_splice_for_member_access_p (const_tree t, bool decls_only_p/*=true*/)
       || VAR_P (t)
       || TREE_CODE (t) == CONST_DECL
       || TREE_CODE (t) == FUNCTION_DECL
-      || DECL_FUNCTION_TEMPLATE_P (OVL_FIRST (const_cast<tree> (t)))
+      || reflection_function_template_p (t)
       || variable_template_p (const_cast<tree> (t)))
     return true;
 
@@ -9324,9 +9324,10 @@ reflection_mangle_prefix (tree refl, char prefix[3])
 /* Returns true iff X is a reflection of a function template.  */
 
 bool
-reflection_function_template_p (tree x)
+reflection_function_template_p (const_tree x)
 {
-  return really_overloaded_fn (x);
+  return (DECL_FUNCTION_TEMPLATE_P
+	  (OVL_FIRST (MAYBE_BASELINK_FUNCTIONS (const_cast<tree> (x)))));
 }
 
 #include "gt-cp-reflect.h"
