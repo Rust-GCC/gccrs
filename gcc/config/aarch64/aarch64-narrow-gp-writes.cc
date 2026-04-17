@@ -192,13 +192,12 @@ narrow_dimode_src (rtx x)
 {
   rtx op = lowpart_subreg (SImode, x, DImode);
   rtx_code code = GET_CODE (op);
+
   /* If the generic lowpart logic simplifies it then use that.
      If it just results in wrapping X in a subreg or truncate then try harder
      below.  */
-  if (GET_CODE (op) != SUBREG && GET_CODE (op) != TRUNCATE)
-    return op;
-
-  if (subreg_lowpart_p (op) && GET_MODE (SUBREG_REG (op)) == DImode)
+  if (code == SUBREG && subreg_lowpart_p (op)
+      && GET_MODE (SUBREG_REG (op)) == DImode)
     op = SUBREG_REG (op);
   else if (code == TRUNCATE && GET_MODE (XEXP (op, 0)) == DImode)
     op = XEXP (op, 0);
@@ -215,6 +214,8 @@ narrow_dimode_src (rtx x)
       {
 	rtx op0 = narrow_dimode_src (XEXP (op, 0));
 	rtx op1 = narrow_dimode_src (XEXP (op, 1));
+	if (GET_MODE (op0) == DImode || GET_MODE (op1) == DImode)
+	  return op;
 	return simplify_gen_binary (code, SImode, op0, op1);
       }
 
@@ -222,6 +223,8 @@ narrow_dimode_src (rtx x)
       {
 	rtx trueop = narrow_dimode_src (XEXP (op, 1));
 	rtx falseop = narrow_dimode_src (XEXP (op, 2));
+	if (GET_MODE (trueop) == DImode || GET_MODE (falseop) == DImode)
+	  return op;
 	return simplify_gen_ternary (code, SImode, GET_MODE (XEXP (op, 0)),
 				     XEXP (op, 0), trueop, falseop);
       }
@@ -383,7 +386,8 @@ narrow_gp_writes::optimize_compare_arith_insn (insn_info *insn)
   if (mask & ~allowed_mask)
     {
       if (dump_file)
-	fprintf (dump_file, "Cannot narrow insn %d: mask %lx\n",
+	fprintf (dump_file,
+		 "Cannot narrow insn %d: mask " HOST_WIDE_INT_PRINT_HEX "\n",
 		 INSN_UID (insn->rtl ()), mask);
       return NULL_RTX;
     }
@@ -451,7 +455,8 @@ narrow_gp_writes::optimize_single_set_insn (insn_info *insn, rtx set)
   if (~GET_MODE_MASK (SImode) & mask)
     {
       if (dump_file)
-	fprintf (dump_file, "Cannot narrow insn %d: mask %lx\n",
+	fprintf (dump_file,
+		 "Cannot narrow insn %d: mask " HOST_WIDE_INT_PRINT_HEX "\n",
 		 INSN_UID (insn->rtl ()), mask);
       return NULL_RTX;
     }
