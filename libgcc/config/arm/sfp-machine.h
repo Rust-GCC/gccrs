@@ -7,6 +7,36 @@
    match `__libgcc_cmp_return__' in GCC for the target.  */
 typedef int __gcc_CMPtype __attribute__ ((mode (__libgcc_cmp_return__)));
 #define CMPtype __gcc_CMPtype
+#if __ARM_FP
+#define FP_EX_INVALID	0x01
+#define FP_EX_DIVZERO	0x02
+#define FP_EX_OVERFLOW	0x04
+#define FP_EX_UNDERFLOW	0x08
+#define FP_EX_INEXACT	0x10
+void __sfp_handle_exceptions (int);
+#define FP_HANDLE_EXCEPTIONS			\
+  do {						\
+    if (__builtin_expect (_fex, 0))		\
+      __sfp_handle_exceptions (_fex);		\
+  } while (0)
+
+#define FP_RND_NEAREST		0x000000
+#define FP_RND_PINF		0x400000
+#define FP_RND_MINF		0x800000
+#define FP_RND_ZERO		0xc00000
+#define FP_RND_MASK		0xc00000
+
+#define _FP_DECL_EX \
+  unsigned long int _fpcr __attribute__ ((unused)) = FP_RND_NEAREST
+
+#define FP_INIT_ROUNDMODE			\
+  do {						\
+    _fpcr = __builtin_arm_get_fpscr ();		\
+  } while (0)
+
+#define FP_ROUNDMODE (_fpcr & FP_RND_MASK)
+#endif
+
 
 #define _FP_MUL_MEAT_S(R,X,Y)				\
   _FP_MUL_MEAT_1_wide(_FP_WFRACBITS_S,R,X,Y,umul_ppmm)
