@@ -1,3 +1,17 @@
+2026-04-16  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* config/abi/pre/gnu.ver (GLIBCXX_3.4): Exclude exports
+	of std::basic_fo* (matching basic_format_context).
+	(GLIBCXX_3.4.35): Export __format::__do_vformat_to
+	specializations for _Sink_iter and char/wchar_t.
+	* include/std/format: (__format::__do_vformat_to):
+	Extract overload accepting _Sink_iter and provide extern
+	explicit specialization for char/wchar_t in C++20 mode.
+	* src/c++20/Makefile.am: Add format-inst.cc.
+	* src/c++20/Makefile.in: Regenerate.
+	* src/c++20/format-inst.cc: New file defining explicit
+	instantiation.
+
 2026-04-15  Elena Tyuleneva  <elena.tyuleneva@intel.com>
 
 	* include/bits/random.tcc (philox_engine::_M_transtiion): Fix

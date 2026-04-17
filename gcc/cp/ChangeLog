@@ -1,3 +1,62 @@
+2026-04-16  Jakub Jelinek  <jakub@redhat.com>
+
+	* reflect.cc (dump_data_member_spec): Temporarily ignore
+	-Wformat and -Wformat-diag warnings.
+
+2026-04-16  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/124614
+	* cp-tree.h (valid_splice_for_member_access_p): Declare.
+	(dump_data_member_spec): Declare.
+	* error.cc (dump_expr) <case REFLECT_EXPR>: Print a data member
+	description.
+	* parser.cc (cp_parser_splice_expression): Use
+	valid_splice_for_member_access_p.
+	* pt.cc (tsubst_splice_expr): Likewise.
+	* reflect.cc (dump_data_member_spec): New.
+	(eval_display_string_of): Use it.
+	(valid_splice_for_member_access_p): New.
+	(check_splice_expr): Check that we got
+	valid_splice_for_member_access_p for a member access.
+	* typeck.cc (finish_class_member_access_expr): Use
+	valid_splice_for_member_access_p.
+
+2026-04-16  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/124120
+	* pt.cc (finish_expansion_stmt): Give iter variable an artificial
+	name.
+
+2026-04-16  Egas Ribeiro  <egas.g.ribeiro@gmail.com>
+	    Jason Merrill  <jason@redhat.com>
+
+	PR c++/123346
+	* constexpr.cc (init_subob_ctx): Do initialize new_ctx.ctor
+	for an empty union member.
+
+2026-04-16  Iain Sandoe  <iains.gcc@gmail.com>
+	    Jason Merrill  <jason@redhat.com>
+
+	PR c++/124648
+	* cp-tree.h (DECL_CONTRACT_CAPTURE_P): New.
+	* parser.cc (cp_parser_lambda_body): Scan the captures for
+	ones were only added in contract assertion scopes.  Issue
+	errors for those found.
+	* semantics.cc (process_outer_var_ref): Mark implicit
+	captures that occur in contract assertion scopes.  Clear
+	the mark if the entity is subsequently captured 'normally'.
+	(set_contract_capture_flag): New.
+
+2026-04-16  Iain Sandoe  <iains.gcc@gmail.com>
+	    Jason Merrill  <jason@redhat.com>
+
+	* contracts.cc (view_as_const): Check for const-qualified
+	class pointer before wrapping it.
+	* parser.cc (cp_parser_late_contract_condition): Use revised
+	handling of const-ification of class pointers.
+	(cp_parser_contract_assert): Likewise.
+	(cp_parser_function_contract_specifier): Likewise.
+
 2026-04-15  Marek Polacek  <polacek@redhat.com>
 
 	PR c++/120338

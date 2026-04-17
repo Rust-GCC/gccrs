@@ -1,3 +1,8 @@
+2026-04-16  Torbjörn SVENSSON  <torbjorn.svensson@foss.st.com>
+
+	* engine.cc (impl_region_model_context::on_unexpected_tree_code): Print
+	"<unknown>" when m_file or m_function is NULL.
+
 2026-03-12  David Malcolm  <dmalcolm@redhat.com>
 
 	PR analyzer/124451

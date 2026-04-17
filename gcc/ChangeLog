@@ -1,3 +1,47 @@
+2026-04-16  Richard Earnshaw  <rearnsha@arm.com>
+
+	* config/arm/arm-cpus.in (cortex-m85): Allow +cdecp<n>.
+	* doc/invoke.texi: Document this
+
+2026-04-16  Jakub Jelinek  <jakub@redhat.com>
+
+	PR target/124565
+	* config/stormy16/stormy16.cc (xstormy16_build_builtin_va_list): Set
+	TREE_PUBLIC on type_decl.
+	* config/xtensa/xtensa.cc (xtensa_build_builtin_va_list): Likewise.
+
+2026-04-16  Tobias Burnus  <tburnus@baylibre.com>
+
+	PR target/124897
+	* doc/install.texi (amdgcn-amdhsa): Fix required LLVM version for
+	default multilib.
+
+2026-04-16  Richard Biener  <rguenther@suse.de>
+
+	PR middle-end/124877
+	* calls.cc (initialize_argument_information): Compute
+	signedness of the formal argument type before applying
+	PROMOTE_PROTOTYPES promotion.  Also apply promotion to
+	a smaller than int integer first member type of a
+	transparent union.
+	* target.def (promote_prototypes): Update documentation.
+	* doc/tm.texi: Re-generate.
+
+2026-04-16  Jakub Jelinek  <jakub@redhat.com>
+
+	PR target/124892
+	* config/i386/i386.md (clz<mode>2_lzcnt_nf,
+	<lt_zcnt>_<mode>_nf, popcount<mode>2_nf): Emit explicit
+	set of (match_dup 0) to (const_int 0) without flags clobber instead of
+	using ix86_expand_clear.
+
+2026-04-16  Jakub Jelinek  <jakub@redhat.com>
+
+	PR tree-optimization/124891
+	* tree-ssa-propagate.cc
+	(substitute_and_fold_dom_walker::before_dom_children): Call update_stmt
+	in the did_replace case before calling fold_stmt.
+
 2026-04-15  Martin Jambor  <mjambor@suse.cz>
 
 	PR tree-optimization/122976

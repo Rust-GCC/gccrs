@@ -1,3 +1,61 @@
+2026-04-16  Richard Earnshaw  <rearnsha@arm.com>
+
+	* gcc.target/arm/multilib.exp: Test CDE options on cortex-m85.
+
+2026-04-16  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/124614
+	* g++.dg/reflect/member23.C: New test.
+
+2026-04-16  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/124120
+	* g++.dg/cpp26/expansion-stmt40.C: New test.
+
+2026-04-16  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/123352
+	* gfortran.dg/defined_assignment_13.f90: Add previously failing
+	tests.
+
+2026-04-16  Uros Bizjak  <ubizjak@gmail.com>
+
+	* gcc.target/i386/pr90178.c: Scan for 2 `ret` instructions.
+
+2026-04-16  Richard Biener  <rguenther@suse.de>
+
+	PR middle-end/124877
+	* gcc.target/i386/pr124877-1.c: New testcase.
+	* gcc.target/i386/pr124877-2.c: Likewise.
+	* gcc.target/i386/pr124877-3.c: Likewise.
+
+2026-04-16  Jakub Jelinek  <jakub@redhat.com>
+
+	PR target/124892
+	* gcc.target/i386/apx-pr124892.c: New test.
+
+2026-04-16  Jakub Jelinek  <jakub@redhat.com>
+
+	PR tree-optimization/124891
+	* gcc.dg/torture/pr124891.c: New test.
+
+2026-04-16  Alexandre Oliva  <oliva@adacore.com>
+
+	* gcc.target/aarch64/sve/acle/asm/test_sve_acle.h
+	(__STDC_LIMIT_MACROS): Define.
+
+2026-04-16  Egas Ribeiro  <egas.g.ribeiro@gmail.com>
+	    Jason Merrill  <jason@redhat.com>
+
+	PR c++/123346
+	* g++.dg/cpp2a/constexpr-union10.C: New test.
+
+2026-04-16  Iain Sandoe  <iains.gcc@gmail.com>
+	    Jason Merrill  <jason@redhat.com>
+
+	PR c++/124648
+	* g++.dg/contracts/cpp26/expr.prim.lambda.closure.p10.C: New test.
+
 2026-04-15  Marek Polacek  <polacek@redhat.com>
 
 	PR c++/120338
