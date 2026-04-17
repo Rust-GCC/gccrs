@@ -5800,6 +5800,8 @@ package body Sem_Ch3 is
          Set_Treat_As_Volatile (Id, Treat_As_Volatile (T));
          Set_Is_Generic_Type (Id, Is_Generic_Type (Base_Type (T)));
          Set_Convention (Id, Convention (T));
+         Set_Linker_Section_Pragma
+           (Id, Linker_Section_Pragma (Base_Type (T)));
       end Copy_Parent_Attributes;
 
    --  Start of processing for Analyze_Subtype_Declaration
