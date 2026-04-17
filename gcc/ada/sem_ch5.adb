@@ -2724,15 +2724,25 @@ package body Sem_Ch5 is
          if Of_Present (N) then
             if Has_Aspect (Typ, Aspect_Iterable) then
                declare
-                  Elt : constant Entity_Id :=
+                  Elt     : constant Entity_Id :=
                           Get_Iterable_Type_Primitive (Typ, Name_Element);
+                  Cst_Ref : constant Entity_Id :=
+                          Get_Iterable_Type_Primitive
+                            (Typ, Name_Constant_Reference);
                begin
-                  if No (Elt) then
-                     Error_Msg_N
-                       ("missing Element primitive for iteration", N);
-                  else
+                  if Present (Elt) then
                      Set_Etype (Def_Id, Etype (Elt));
                      Check_Reverse_Iteration (Typ);
+
+                  elsif Present (Cst_Ref) then
+                     Set_Etype
+                       (Def_Id, Directly_Designated_Type (Etype (Cst_Ref)));
+                     Check_Reverse_Iteration (Typ);
+
+                  else
+                     Error_Msg_N
+                       ("missing Element or Constant_Reference primitive for "
+                          & "iteration", N);
                   end if;
                end;
 

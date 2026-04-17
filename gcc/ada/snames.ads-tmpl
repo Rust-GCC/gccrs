@@ -1413,6 +1413,7 @@ package Snames is
 
    --  Names used to implement iterators over predefined containers
 
+   Name_Constant_Reference               : constant Name_Id := N + $;
    Name_Cursor                           : constant Name_Id := N + $;
    Name_Element                          : constant Name_Id := N + $;
    Name_Has_Element                      : constant Name_Id := N + $;

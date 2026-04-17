@@ -11030,7 +11030,8 @@ package body Sem_Util is
       pragma Assert
         (Is_Type (Typ)
          and then
-           Nam in Name_Element
+           Nam in Name_Constant_Reference
+                | Name_Element
                 | Name_First
                 | Name_Has_Element
                 | Name_Last

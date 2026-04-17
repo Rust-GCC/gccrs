@@ -4650,22 +4650,40 @@ package body Exp_Ch5 is
       Element_Op : constant Entity_Id :=
                      Get_Iterable_Type_Primitive (Container_Typ, Name_Element);
 
+      Constant_Reference_Op : constant Entity_Id :=
+                     Get_Iterable_Type_Primitive
+                       (Container_Typ, Name_Constant_Reference);
+
       Advance   : Node_Id;
       Init      : Node_Id;
       New_Loop  : Node_Id;
       Block     : Node_Id;
 
    begin
-      --  For an element iterator, the Element aspect must be present,
-      --  (this is checked during analysis).
+      --  For an element iterator, either the Element or the Constant_Reference
+      --  aspect must be present, (this is checked during analysis).
 
-      --  We create a block to hold a variable declaration initialized with
-      --  a call to Element, and generate:
+      --  If Element is present, we create a block to hold a variable
+      --  declaration initialized with a call to Element, and generate:
 
       --    Cursor : Cursor_Type := First (Container);
       --    while Has_Element (Cursor, Container) loop
       --       declare
       --          Elmt : Element_Type := Element (Container, Cursor);
+      --       begin
+      --          <original loop statements>
+      --          Cursor := Next (Container, Cursor);
+      --       end;
+      --    end loop;
+
+      --  If Constant_Reference is present, we introduce a constant and a
+      --  renaming, and generate:
+
+      --    Cursor : Cursor_Type := First (Container);
+      --    while Has_Element (Cursor, Container) loop
+      --       declare
+      --          Elmt : Element_Type renames
+      --             Constant_Reference (Container, Cursor).all;
       --       begin
       --          <original loop statements>
       --          Cursor := Next (Container, Cursor);
@@ -4686,17 +4704,36 @@ package body Exp_Ch5 is
 
       --  Declaration for Element
 
-      Elmt_Decl :=
-        Make_Object_Declaration (Loc,
-          Defining_Identifier => Element,
-          Object_Definition   => New_Occurrence_Of (Etype (Element_Op), Loc));
+      if Present (Element_Op) then
+         Elmt_Decl :=
+           Make_Object_Declaration (Loc,
+             Defining_Identifier => Element,
+             Object_Definition   =>
+                New_Occurrence_Of (Etype (Element_Op), Loc));
 
-      Set_Expression (Elmt_Decl,
-        Make_Function_Call (Loc,
-          Name                   => New_Occurrence_Of (Element_Op, Loc),
-          Parameter_Associations => New_List (
-            Convert_To_Iterable_Type (Container, Loc),
-            New_Occurrence_Of (Cursor, Loc))));
+         Set_Expression (Elmt_Decl,
+           Make_Function_Call (Loc,
+             Name                   => New_Occurrence_Of (Element_Op, Loc),
+             Parameter_Associations => New_List (
+               Convert_To_Iterable_Type (Container, Loc),
+               New_Occurrence_Of (Cursor, Loc))));
+      else
+         Elmt_Decl :=
+           Make_Object_Renaming_Declaration (Loc,
+             Defining_Identifier => Element,
+             Subtype_Mark        =>
+               New_Occurrence_Of
+                 (Directly_Designated_Type
+                    (Etype (Constant_Reference_Op)), Loc),
+             Name                =>
+               Make_Explicit_Dereference (Loc,
+                 Prefix => Make_Function_Call (Loc,
+                    Name                   =>
+                      New_Occurrence_Of (Constant_Reference_Op, Loc),
+                    Parameter_Associations => New_List (
+                      Convert_To_Iterable_Type (Container, Loc),
+                      New_Occurrence_Of (Cursor, Loc)))));
+      end if;
 
       Block :=
         Make_Block_Statement (Loc,

@@ -18094,6 +18094,26 @@ package body Sem_Ch13 is
                Error_Msg_N ("no match for Element iterable primitive", N);
             end if;
 
+         elsif Nam = Name_Constant_Reference then
+
+            --  Constant_Reference (Container, Cursor) =>
+            --    not null access constant Element_Type;
+
+            if No (F2)
+              or else Etype (F2) /= Cursor
+              or else Present (Next_Formal (F2))
+              or else not (Is_Anonymous_Access_Type (Etype (Ent))
+                           and then Is_Access_Constant (Etype (Ent)))
+            then
+               Error_Msg_N
+                 ("no match for Constant_Reference iterable primitive", N);
+
+            elsif not Can_Never_Be_Null (Etype (Ent)) then
+               Error_Msg_N
+                 ("return type of primitive for Constant_Reference must have "
+                  & "null exclusion", N);
+            end if;
+
          else
             raise Program_Error;
          end if;
@@ -18157,6 +18177,26 @@ package body Sem_Ch13 is
                        and then Etype (F2) = Cursor
                      then
                         Set_Entity (N, It.Nam);
+                        exit;
+                     end if;
+
+                  elsif Nam = Name_Constant_Reference then
+                     F2 := Next_Formal (F1);
+
+                     if Present (F2)
+                       and then No (Next_Formal (F2))
+                       and then Etype (F2) = Cursor
+                       and then Is_Anonymous_Access_Type (Etype (It.Nam))
+                       and then Is_Access_Constant (Etype (It.Nam))
+                     then
+                        Set_Entity (N, It.Nam);
+
+                        if not Can_Never_Be_Null (Etype (It.Nam)) then
+                           Error_Msg_N
+                             ("return type of primitive for "
+                              & "Constant_Reference must have null exclusion",
+                              N);
+                        end if;
                         exit;
                      end if;
                   end if;
@@ -19364,11 +19404,12 @@ package body Sem_Ch13 is
       Prim   : Node_Id;
       Cursor : Entity_Id;
 
-      First_Id       : Entity_Id := Empty;
-      Last_Id        : Entity_Id := Empty;
-      Next_Id        : Entity_Id := Empty;
-      Has_Element_Id : Entity_Id := Empty;
-      Element_Id     : Entity_Id := Empty;
+      First_Id              : Entity_Id := Empty;
+      Last_Id               : Entity_Id := Empty;
+      Next_Id               : Entity_Id := Empty;
+      Has_Element_Id        : Entity_Id := Empty;
+      Element_Id            : Entity_Id := Empty;
+      Constant_Reference_Id : Entity_Id := Empty;
 
    begin
       if Nkind (Aggr) /= N_Aggregate then
@@ -19425,6 +19466,11 @@ package body Sem_Ch13 is
             Resolve_Iterable_Operation (Expr, Cursor, Typ, Name_Element);
             Element_Id := Entity (Expr);
 
+         elsif Chars (Prim) = Name_Constant_Reference then
+            Resolve_Iterable_Operation
+              (Expr, Cursor, Typ, Name_Constant_Reference);
+            Constant_Reference_Id := Entity (Expr);
+
          else
             Error_Msg_N ("invalid name for iterable function", Prim);
          end if;
@@ -19441,7 +19487,14 @@ package body Sem_Ch13 is
       elsif No (Has_Element_Id) then
          Error_Msg_N ("match for Has_Element primitive not found", ASN);
 
-      elsif No (Element_Id) or else No (Last_Id) then
+      elsif Present (Element_Id) and then Present (Constant_Reference_Id) then
+         Error_Msg_N ("cannot provide both Element and Constant_Reference "
+                        & "primitives", ASN);
+
+      elsif No (Element_Id)
+        or else No (Constant_Reference_Id)
+        or else No (Last_Id)
+      then
          null;  --  optional
       end if;
    end Validate_Iterable_Aspect;
