@@ -243,7 +243,8 @@ spread_scalar_r10 (gfc_array_r10 *ret, const GFC_REAL_10 *source,
 
   if (ret->base_addr == NULL)
     {
-      ret->base_addr = xmallocarray (ncopies, sizeof (GFC_REAL_10));
+      ret->base_addr = xmallocarray (ncopies > 0 ? ncopies : 0,
+				     sizeof (GFC_REAL_10));
       ret->offset = 0;
       GFC_DIMENSION_SET(ret->dim[0], 0, ncopies - 1, 1);
     }

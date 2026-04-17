@@ -244,7 +244,8 @@ spread_scalar_'rtype_code` ('rtype` *ret, const 'rtype_name` *source,
 
   if (ret->base_addr == NULL)
     {
-      ret->base_addr = xmallocarray (ncopies, sizeof ('rtype_name`));
+      ret->base_addr = xmallocarray (ncopies > 0 ? ncopies : 0,
+				     sizeof ('rtype_name`));
       ret->offset = 0;
       GFC_DIMENSION_SET(ret->dim[0], 0, ncopies - 1, 1);
     }
