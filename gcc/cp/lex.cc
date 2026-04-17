@@ -421,7 +421,10 @@ cxx_init (void)
       if (cxx_dialect >= cxx26)
 	{
 	  if (flag_contracts)
-	    cpp_warn (parse_in, "contract_assert");
+	    {
+	      cpp_warn (parse_in, "pre");
+	      cpp_warn (parse_in, "post");
+	    }
 	  cpp_warn (parse_in, "indeterminate");
 	}
     }

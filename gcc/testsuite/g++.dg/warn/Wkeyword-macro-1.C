@@ -93,8 +93,8 @@
 #define import 1			// { dg-error "keyword 'import' defined as macro" "" { target c++26 } }
 #define module 1			// { dg-error "keyword 'module' defined as macro" "" { target c++26 } }
 #define override 1			// { dg-error "keyword 'override' defined as macro" "" { target c++26 } }
-#define post 1
-#define pre 1
+#define post 1				// { dg-error "keyword 'post' defined as macro" "" { target c++26 } }
+#define pre 1				// { dg-error "keyword 'pre' defined as macro" "" { target c++26 } }
 #define replaceable_if_eligible
 #define trivially_relocatable_if_eligible
 

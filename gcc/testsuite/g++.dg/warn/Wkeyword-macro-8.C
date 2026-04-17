@@ -3,7 +3,6 @@
 // { dg-do preprocess }
 // { dg-options "-Wkeyword-macro" }
 // { dg-additional-options "-fmodules" { target c++20 } }
-// { dg-additional-options "-fcontracts" { target c++26 } }
 
 // [lex.key]
 #undef alignas				// { dg-warning "undefining keyword 'alignas'" "" { target c++11 } }
@@ -94,8 +93,8 @@
 #undef import				// { dg-warning "undefining keyword 'import'" "" { target c++20 } }
 #undef module				// { dg-warning "undefining keyword 'module'" "" { target c++20 } }
 #undef override				// { dg-warning "undefining keyword 'override'" "" { target c++11 } }
-#undef post
-#undef pre
+#undef post				// { dg-warning "undefining keyword 'post'" "" { target c++26 } }
+#undef pre				// { dg-warning "undefining keyword 'pre'" "" { target c++26 } }
 #undef replaceable_if_eligible
 #undef trivially_relocatable_if_eligible
 

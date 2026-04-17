@@ -3,7 +3,6 @@
 // { dg-do preprocess }
 // { dg-options "-Wkeyword-macro" }
 // { dg-additional-options "-fmodules" { target c++20 } }
-// { dg-additional-options "-fcontracts" { target c++26 } }
 
 // [lex.key]
 #define alignas 1			// { dg-warning "keyword 'alignas' defined as macro" "" { target c++11 } }
@@ -94,8 +93,8 @@
 #define import 1			// { dg-warning "keyword 'import' defined as macro" "" { target c++20 } }
 #define module 1			// { dg-warning "keyword 'module' defined as macro" "" { target c++20 } }
 #define override 1			// { dg-warning "keyword 'override' defined as macro" "" { target c++11 } }
-#define post 1
-#define pre 1
+#define post 1				// { dg-warning "keyword 'post' defined as macro" "" { target c++26 } }
+#define pre 1				// { dg-warning "keyword 'pre' defined as macro" "" { target c++26 } }
 #define replaceable_if_eligible
 #define trivially_relocatable_if_eligible
 

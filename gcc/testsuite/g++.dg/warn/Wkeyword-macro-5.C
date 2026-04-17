@@ -93,8 +93,8 @@
 #undef import 				// { dg-warning "undefining keyword 'import'" "" { target c++26 } }
 #undef module 				// { dg-warning "undefining keyword 'module'" "" { target c++26 } }
 #undef override 			// { dg-warning "undefining keyword 'override'" "" { target c++26 } }
-#undef post
-#undef pre
+#undef post	 			// { dg-warning "undefining keyword 'post'" "" { target c++26 } }
+#undef pre	 			// { dg-warning "undefining keyword 'pre'" "" { target c++26 } }
 #undef replaceable_if_eligible
 #undef trivially_relocatable_if_eligible
 
