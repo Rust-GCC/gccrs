@@ -1,6 +1,6 @@
 /* PR tree-optimization/124037 */
 /* { dg-require-effective-target mmap } */
-/* { dg-require-effective-target vect_early_break } */
+
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>

@@ -1,6 +1,4 @@
 /* PR tree-optimization/124037 */
-/* { dg-require-effective-target mmap } */
-/* { dg-require-effective-target vect_early_break } */
 /* { dg-additional-options "-std=c++11" } */
 
 struct Token
