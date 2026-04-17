@@ -58,7 +58,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
 namespace __format
 {
-#if _GLIBCXX_USE_STDIO_LOCKING && _GLIBCXX_USE_GLBC_STDIO_EXT
+#if _GLIBCXX_USE_STDIO_LOCKING && _GLIBCXX_USE_GLIBC_STDIO_EXT
   // These are defined in <stdio_ext.h> but we don't want to include that.
   extern "C" int __fwritable(FILE*) noexcept;
   extern "C" int __flbf(FILE*) noexcept;
