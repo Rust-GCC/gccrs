@@ -3,6 +3,7 @@
 // { dg-additional-options "-freflection" }
 
 #include <meta>
+#include <ranges>
 
 namespace __impl {
   template<auto... vals>
@@ -30,7 +31,7 @@ int func(int counter, float factor) {
     std::array<void *, parameters_of(^^func).size()> args;
 
     std::size_t i = 0;
-    [:expand(parameters_of(^^func)):] >> [&i, &counter, &factor, &args]<auto e>
+    [:expand(parameters_of(^^func) | std::views::transform(std::meta::variable_of)):] >> [&i, &counter, &factor, &args]<auto e>
     {
         args[i++] = &[:e:]; // { dg-error "use of local variable" }
     };
@@ -38,10 +39,10 @@ int func(int counter, float factor) {
 }
 
 int func2(int counter, float factor) {
-    std::array<void *, parameters_of(^^func).size()> args;
+    std::array<void *, parameters_of(^^func2).size()> args;
 
     std::size_t i = 0;
-    [:expand(parameters_of(^^func)):] >> [&]<auto e>
+    [:expand(parameters_of(^^func2) | std::views::transform(std::meta::variable_of)):] >> [&]<auto e>
     {
         args[i++] = &[:e:]; // { dg-error "use of local variable|trying to capture \[^\n\r]* in instantiation of generic lambda" }
     };

@@ -8517,10 +8517,25 @@ splice (tree refl)
       gcc_checking_assert (seen_error ());
       return error_mark_node;
     }
+  location_t loc = cp_expr_loc_or_input_loc (refl);
   if (!REFLECT_EXPR_P (refl))
     {
-      error_at (cp_expr_loc_or_input_loc (refl), "splice argument must be an "
+      error_at (loc, "splice argument must be an "
 		"expression of type %qs", "std::meta::info");
+      return error_mark_node;
+    }
+
+  /* This isn't checked in check_splice_expr, because reflect_kind isn't
+     available there and variable_of (parameters_of (...)[...]) can be
+     spliced.  */
+  if (REFLECT_EXPR_KIND (refl) == REFLECT_PARM)
+    {
+      auto_diagnostic_group d;
+      error_at (loc, "cannot use %qD function parameter reflection in a "
+		"splice expression", REFLECT_EXPR_HANDLE (refl));
+      if (DECL_CONTEXT (REFLECT_EXPR_HANDLE (refl)) == current_function_decl)
+	inform (loc,
+		"apply %<std::meta::variable_of%> on it before splicing");
       return error_mark_node;
     }
 

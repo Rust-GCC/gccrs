@@ -175,8 +175,6 @@ g (int p)
 // { dg-final { scan-assembler "_Z2f5ILDmvlLi42EEEDtDST_EEv" } }
   f5<std::meta::reflect_object (arr[1])>();
 // { dg-final { scan-assembler "_Z2f5ILDmobixL_Z3arrEL\[ilx]1EEEDtDST_EEv" } }
-  f5<parameters_of (^^g)[0]>();
-// { dg-final { scan-assembler "_Z2f5ILDmpa_1giEEDtDST_EEv" } }
   f5<bases_of (^^S, ctx)[0]>();
 // { dg-final { scan-assembler "_Z2f5ILDmba_1SEEDtDST_EEv" } }
   f6<Y>(Y{42});
