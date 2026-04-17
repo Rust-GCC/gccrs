@@ -4395,6 +4395,16 @@ cxx_eval_call_expression (const constexpr_ctx *ctx, tree t,
 	      *entry = new_call;
 	      entry->result (ctx->manifestly_const_eval) = unknown_type_node;
 	      fb.preserve ();
+
+	      /* Unshare args going into the hash table to separate them
+		 from the caller's context, for better GC and to avoid
+		 problems with verify_gimple.  */
+	      tree bound = new_call.bindings;
+	      for (int i = 0; i < TREE_VEC_LENGTH (bound); ++i)
+		{
+		  tree &arg = TREE_VEC_ELT (bound, i);
+		  arg = unshare_expr_without_location (arg);
+		}
 	    }
 	}
       /* Calls that are in progress have their result set to unknown_type_node,
@@ -4453,13 +4463,7 @@ cxx_eval_call_expression (const constexpr_ctx *ctx, tree t,
 	      tree arg = TREE_VEC_ELT (bound, i);
 	      if (entry)
 		{
-		  /* Unshare args going into the hash table to separate them
-		     from the caller's context, for better GC and to avoid
-		     problems with verify_gimple.  */
-		  arg = unshare_expr_without_location (arg);
-		  TREE_VEC_ELT (bound, i) = arg;
-
-		  /* And then unshare again so the callee doesn't change the
+		  /* Unshare again so the callee doesn't change the
 		     argument values in the hash table. XXX Could we unshare
 		     lazily in cxx_eval_store_expression?  */
 		  arg = unshare_constructor (arg);
