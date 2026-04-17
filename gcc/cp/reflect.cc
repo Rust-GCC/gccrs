@@ -8525,6 +8525,12 @@ splice (tree refl)
       return error_mark_node;
     }
 
+  if (compare_reflections (refl, get_null_reflection ()))
+    {
+      error_at (loc, "cannot splice a null reflection");
+      return error_mark_node;
+    }
+
   /* This isn't checked in check_splice_expr, because reflect_kind isn't
      available there and variable_of (parameters_of (...)[...]) can be
      spliced.  */
