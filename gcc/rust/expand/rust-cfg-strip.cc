@@ -828,9 +828,13 @@ CfgStrip::visit (AST::ArrayIndexExpr &expr)
 
   const auto &array_expr = expr.get_array_expr ();
   if (array_expr.is_marked_for_strip ())
-    rust_error_at (array_expr.get_locus (),
-		   "cannot strip expression in this position - outer "
-		   "attributes not allowed");
+    {
+      rust_error_at (array_expr.get_locus (),
+		     "cannot strip expression in this position - outer "
+		     "attributes not allowed");
+      expr.mark_for_strip ();
+      return;
+    }
 
   const auto &index_expr = expr.get_index_expr ();
   if (index_expr.is_marked_for_strip ())
@@ -1044,9 +1048,13 @@ CfgStrip::visit (AST::CallExpr &expr)
 
   auto &function = expr.get_function_expr ();
   if (function.is_marked_for_strip ())
-    rust_error_at (function.get_locus (),
-		   "cannot strip expression in this position - outer "
-		   "attributes not allowed");
+    {
+      rust_error_at (function.get_locus (),
+		     "cannot strip expression in this position - outer "
+		     "attributes not allowed");
+      expr.mark_for_strip ();
+      return;
+    }
 
   /* spec says outer attributes are specifically allowed for elements
    * of call expressions, so full stripping possible */
