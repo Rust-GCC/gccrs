@@ -173,7 +173,13 @@ package body Urealp is
 
          begin
             if Val.Rbase = 10 then
-               E := UI_To_Int (Val.Den);
+               if UI_Is_In_Int_Range (Val.Den) then
+                  E := UI_To_Int (Val.Den);
+               elsif Val.Den < 0 then
+                  return Int'Last; -- Saturation to highest exponent
+               else
+                  E := Int'Last; -- High estimate
+               end if;
 
             else
                E := Equivalent_Decimal_Exponent (Val);
@@ -226,7 +232,13 @@ package body Urealp is
 
          begin
             if Val.Rbase = 10 then
-               E := UI_To_Int (Val.Den);
+               if UI_Is_In_Int_Range (Val.Den) then
+                  E := UI_To_Int (Val.Den);
+               elsif Val.Den < 0 then
+                  return Int'Last; -- Low estimate
+               else
+                  return Int'First; -- Saturation to lowest exponent
+               end if;
 
             else
                E := Equivalent_Decimal_Exponent (Val);
