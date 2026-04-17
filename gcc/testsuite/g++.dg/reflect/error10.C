@@ -39,8 +39,7 @@ template<int>
 struct S {};
 
 void
-fn5 (int, typename [: ^^S :] i) // { dg-error "expected a reflection of a type|declared" }
-// { dg-message "but .S. is a class template" "" { target *-*-* } 39 }
+fn5 (int, typename [: ^^S :] i) // { dg-error "template placeholder not permitted in parameter" }
 {
 }
 
@@ -49,6 +48,6 @@ void bar ();
 
 void
 fn6 (int, typename [: ^^bar :] i) // { dg-error "expected a reflection of a type|declared" }
-// { dg-message "but .bar. is a function template" "" { target *-*-* } 48 }
+// { dg-message "but .bar. is a function template" "" { target *-*-* } 47 }
 {
 }

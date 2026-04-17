@@ -16901,6 +16901,8 @@ tsubst_splice_scope (tree t, tree args, tsubst_flags_t complain, tree in_decl)
     return r;
   if (dependent_splice_p (r))
     return make_splice_scope (r, SPLICE_SCOPE_TYPE_P (t));
+  if (SPLICE_SCOPE_TYPE_P (t) && ctad_template_p (r))
+    r = make_template_placeholder (r);
   if (SPLICE_SCOPE_TYPE_P (t)
       ? !valid_splice_type_p (r)
       : !valid_splice_scope_p (r))

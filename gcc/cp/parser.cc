@@ -6258,6 +6258,12 @@ cp_parser_splice_type_specifier (cp_parser *parser)
   if (dependent_splice_p (type))
     return make_splice_scope (type, /*type_p=*/true);
 
+  /* [dcl.type.simple]/3: A type-specifier is a placeholder for a deduced
+     class type if [...] it is of the form typename[opt] splice-specifier and
+     the splice-specifier designates a class template or alias template.  */
+  if (ctad_template_p (type))
+    type = make_template_placeholder (type);
+
   if (!valid_splice_type_p (type))
     {
       if (!cp_parser_simulate_error (parser))

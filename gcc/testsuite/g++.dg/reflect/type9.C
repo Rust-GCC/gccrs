@@ -32,7 +32,7 @@ template<info R> void fn9 () { int n = typename [:R:](42); } // { dg-error "not 
 template<info R> void fn10 () { int n = typename [:R:](42); } // { dg-error "not usable in a splice type" }
 template<info R> void fn11 () { int n = typename [:R:](42); } // { dg-error "not usable in a splice type" }
 template<info R> void fn12 () { int n = typename [:R:](42); } // { dg-error "not usable in a splice type" }
-template<info R> void fn13 () { int n = typename [:R:](42); } // { dg-error "not usable in a splice type" }
+template<info R> void fn13 () { int n = typename [:R:](42); } // { dg-error "class template argument deduction failed|no matching" }
 
 template void fn1<^^foo<int>>();  // { dg-message "required from here" }
 template void fn2<^^foo>();	  // { dg-message "required from here" }
