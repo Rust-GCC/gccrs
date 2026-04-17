@@ -39,5 +39,7 @@ TEST_OP_CST (ne, !=, -2)
 TEST_OP (eq, ==)
 TEST_OP (ne, !=)
 
-/* { dg-final { scan-tree-dump-times "return 0;" 6 optimized } } */
-/* { dg-final { scan-tree-dump-times "return 1;" 6 optimized } } */
+/* { dg-final { scan-tree-dump-times "return 0;" 6 optimized { target { ! short_enums } } } } */
+/* { dg-final { scan-tree-dump-times "return 1;" 6 optimized { target { ! short_enums } } } } */
+/* { dg-final { scan-tree-dump-times "return 0;" 4 optimized { target { short_enums } } } } */
+/* { dg-final { scan-tree-dump-times "return 1;" 4 optimized { target { short_enums } } } } */
