@@ -17603,6 +17603,10 @@ GNAT LLVM doesn’t support Convention C++, which provides so-called
 ‘name mangling’ by encoding parameter and return datatypes into a
 function name.
 
+The inline assembler in GNAT LLVM is not yet feature complete. For example, it
+can’t handle more than one output variable, and it doesn’t support all
+constraints.
+
 
 We provide two options that you can use to build code with GNAT LLVM:
 
@@ -30266,8 +30270,8 @@ to permit their use in free software.
 
 @printindex ge
 
-@anchor{d2}@w{                              }
 @anchor{gnat_ugn/gnat_utility_programs switches-related-to-project-files}@w{                              }
+@anchor{d2}@w{                              }
 
 @c %**end of body
 @bye

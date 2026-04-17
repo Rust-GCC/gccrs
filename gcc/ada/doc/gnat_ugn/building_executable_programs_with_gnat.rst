@@ -8037,6 +8037,10 @@ GNAT LLVM doesn't support Convention C++, which provides so-called
 'name mangling' by encoding parameter and return datatypes into a
 function name.
 
+The inline assembler in GNAT LLVM is not yet feature complete. For example, it
+can't handle more than one output variable, and it doesn't support all
+constraints.
+
 .. only:: PRO
 
     Unlike the GCC versions of GNAT, GNAT LLVM doesn't include any
