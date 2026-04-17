@@ -8623,6 +8623,10 @@ consteval_only_p (tree t)
       return false;
     }
 
+  /* For dependent types we can't be sure if this type is consteval-only.  */
+  if (dependent_type_p (t))
+    return false;
+
   /* We need the complete type otherwise we'd have no fields for class
      templates and thus come up with zilch for things like
        template<typename T>
