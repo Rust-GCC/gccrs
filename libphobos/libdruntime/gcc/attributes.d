@@ -629,6 +629,9 @@ auto allocSize(A...)(A arguments)
  */
 alias assumeUsed = used;
 
+/// This attribute is ignored.
+auto callingConvention(string) => false;
+
 /// This attribute has no effect.
 enum dynamicCompile = false;
 
