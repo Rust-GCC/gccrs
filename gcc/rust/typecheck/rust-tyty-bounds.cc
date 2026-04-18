@@ -426,7 +426,8 @@ TypeBoundPredicate::TypeBoundPredicate (const TypeBoundPredicate &other)
     }
 
   used_arguments
-    = SubstitutionArgumentMappings (copied_arg_mappings, {},
+    = SubstitutionArgumentMappings (copied_arg_mappings,
+				    other.used_arguments.get_binding_args (),
 				    other.used_arguments.get_regions (),
 				    other.used_arguments.get_locus ());
 }
@@ -467,7 +468,8 @@ TypeBoundPredicate::operator= (const TypeBoundPredicate &other)
     }
 
   used_arguments
-    = SubstitutionArgumentMappings (copied_arg_mappings, {},
+    = SubstitutionArgumentMappings (copied_arg_mappings,
+				    other.used_arguments.get_binding_args (),
 				    other.used_arguments.get_regions (),
 				    other.used_arguments.get_locus ());
   super_traits = other.super_traits;
