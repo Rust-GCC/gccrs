@@ -22,6 +22,7 @@
 #include "rust-hir-visitor.h"
 #include "rust-mapping-common.h"
 #include "rust-finalized-name-resolution-context.h"
+#include "rust-rib.h"
 #include "rust-unused-context.h"
 
 namespace Rust {
@@ -55,24 +56,25 @@ private:
   virtual void visit (HIR::BreakExpr &expr) override;
   virtual void visit (HIR::ContinueExpr &expr) override;
 
-  template <typename T> HirId get_def_id (T &path_expr)
+  template <typename T>
+  HirId get_def_id (T &path_expr, Resolver2_0::Namespace ns)
   {
     NodeId ast_node_id = path_expr.get_mappings ().get_nodeid ();
-    NodeId id = nr_context.lookup (ast_node_id).value ();
+    NodeId id = nr_context.lookup (ast_node_id, ns).value ();
     HirId def_id = mappings.lookup_node_to_hir (id).value ();
     return def_id;
   }
 
   template <typename T> void mark_path_used (T &path_expr)
   {
-    auto def_id = get_def_id (path_expr);
+    auto def_id = get_def_id (path_expr, Resolver2_0::Namespace::Values);
     unused_context.add_variable (def_id);
     unused_context.remove_assign (def_id);
   }
 
   template <typename T> void mark_label_used (T &path_expr)
   {
-    auto def_id = get_def_id (path_expr);
+    auto def_id = get_def_id (path_expr, Resolver2_0::Namespace::Labels);
     unused_context.add_label (def_id);
   }
 };

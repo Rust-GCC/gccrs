@@ -23,6 +23,7 @@
 #include "rust-diagnostics.h"
 #include "rust-hir-map.h"
 #include "rust-item.h"
+#include "rust-rib.h"
 #include "rust-toplevel-name-resolver-2.0.h"
 #include "rust-attributes.h"
 #include "rust-finalize-imports-2.0.h"
@@ -162,7 +163,7 @@ Early::resolve_rebind_import (NodeId use_dec_id,
       break;
     }
 
-  if (ctx.lookup (import_id))
+  if (ctx.lookup (import_id, Namespace::Types))
     return true;
 
   auto definitions = resolve_path_in_all_ns (rebind_import.to_resolve);
@@ -459,7 +460,8 @@ Early::finalize_simple_import (const Early::ImportPair &mapping)
       // dirty = true;
 
       ctx.map_usage (Usage (import_id),
-		     Definition (definition.first.get_node_id ()));
+		     Definition (definition.first.get_node_id ()),
+		     definition.second);
 
       toplevel
 	.insert_or_error_out (identifier,
@@ -540,7 +542,8 @@ Early::finalize_rebind_import (const Early::ImportPair &mapping)
       // dirty = true;
 
       ctx.map_usage (Usage (import_id),
-		     Definition (definition.first.get_node_id ()));
+		     Definition (definition.first.get_node_id ()),
+		     definition.second);
 
       toplevel
 	.insert_or_error_out (declared_name,

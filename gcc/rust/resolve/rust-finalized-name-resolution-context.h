@@ -20,6 +20,7 @@
 #define RUST_FINALIZED_NRCTX_H
 
 #include "rust-name-resolution-context.h"
+#include "rust-rib.h"
 
 namespace Rust {
 namespace Resolver2_0 {
@@ -45,17 +46,17 @@ public:
    * resolution stage, every import chain has been resolved, and can be followed
    * to an actual definition instead of an import definition
    */
-  void map_usage (Usage usage, Definition definition);
+  void map_usage (Usage usage, Definition definition, Namespace ns);
 
   /**
    * Same as NameResolutionContext::lookup
    */
-  tl::optional<NodeId> lookup (NodeId usage) const;
+  tl::optional<NodeId> lookup (NodeId usage, Namespace ns) const;
 
   /**
    * Same as NameResolutionContext::to_canonical_path
    */
-  Resolver::CanonicalPath to_canonical_path (NodeId id) const;
+  Resolver::CanonicalPath to_canonical_path (NodeId id, Namespace ns) const;
 
   /**
    * Avoid using these and prefer adding wrapper methods to this class instead.
@@ -75,6 +76,7 @@ private:
 };
 
 } // namespace Resolver2_0
+
 } // namespace Rust
 
 #endif //! RUST_FINALIZED_NRCTX_H
