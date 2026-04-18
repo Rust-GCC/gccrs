@@ -162,7 +162,7 @@
     ;; actual contents of ZA and PSTATE.ZA with the current function's
     ;; ZA_REGNUM and SME_STATE_REGNUM.  Conceptually, these extra writes
     ;; do not change the value of SME_STATE_REGNUM.  They simply act as
-    ;; sequencing points.  They means that all direct accesses to ZA can
+    ;; sequencing points.  They mean that all direct accesses to ZA can
     ;; depend only on ZA_REGNUM and SME_STATE_REGNUM, rather than also
     ;; depending on ZA_SAVED_REGNUM etc.
     (SME_STATE_REGNUM 89)
