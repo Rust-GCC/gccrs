@@ -1,3 +1,23 @@
+2026-04-17  Steven G. Kargl  <kargl@gcc.gnu.org>
+
+	PR libfortran/120431
+	* m4/spread.m4: Fix scalar source case with ncopies < 0.
+	* generated/spread_c10.c: Regenerated.
+	* generated/spread_c16.c: Ditto.
+	* generated/spread_c17.c: Ditto.
+	* generated/spread_c4.c: Ditto.
+	* generated/spread_c8.c: Ditto.
+	* generated/spread_i1.c: Ditto.
+	* generated/spread_i16.c: Ditto.
+	* generated/spread_i2.c: Ditto.
+	* generated/spread_i4.c: Ditto.
+	* generated/spread_i8.c: Ditto.
+	* generated/spread_r10.c: Ditto.
+	* generated/spread_r16.c: Ditto.
+	* generated/spread_r17.c: Ditto.
+	* generated/spread_r4.c: Ditto.
+	* generated/spread_r8.c: Ditto.
+
 2026-04-07  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
 
 	PR libfortran/124543

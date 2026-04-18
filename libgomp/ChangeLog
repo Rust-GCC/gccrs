@@ -1,3 +1,21 @@
+2026-04-17  Thomas Schwinge  <tschwinge@baylibre.com>
+
+	* testsuite/libgomp.c/declare-variant-3-sm50.c: New.
+	* testsuite/libgomp.c/declare-variant-3.h: Adjust.
+
+2026-04-17  Thomas Schwinge  <tschwinge@baylibre.com>
+
+	PR middle-end/95551
+	* testsuite/libgomp.fortran/target-var.f90: Rename to...
+	* testsuite/libgomp.fortran/pr95551-1.f90: ... this, and fix up the
+	OpenACC.
+	* testsuite/libgomp.oacc-fortran/pr95551-1.f90: New.
+
+2026-04-17  Thomas Schwinge  <tschwinge@baylibre.com>
+
+	* testsuite/libgomp.c/omp_target_is_present.c (check_routines):
+	'omp_target_disassociate_ptr' after 'omp_target_associate_ptr'.
+
 2026-03-27  Tobias Burnus  <tburnus@baylibre.com>
 
 	* target.c (omp_target_is_present, omp_get_mapped_ptr): Update handling

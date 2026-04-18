@@ -1,3 +1,57 @@
+2026-04-17  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR c/84717
+	* doc/extend.texi (Decimal Float): Document d and D suffixes.
+	Fix index entries for decimal float suffixes.
+
+2026-04-17  Jan Hubicka  <hubicka@ucw.cz>
+
+	PR ipa/120098
+	* ipa-polymorphic-call.cc (polymorphic_ctor_dtor_p): Remove
+	check for pure/const flags
+
+2026-04-17  Jan Hubicka  <hubicka@ucw.cz>
+
+	PR ipa/120098
+	* ipa-devirt.cc (odr_type_p): Add no_derived_construction_vtables
+	(odr_types_ptr): Move ahead in file.
+	(odr_types): Move ahead in file.
+	(anonymous_construction_vtable_p): New function.
+	(mark_derived_construction_vtables): New function.
+	(construction_vtable_hook): New function.
+	(type_possibly_instantiated_p): Watch for construction vtables.
+
+2026-04-17  Thomas Schwinge  <tschwinge@baylibre.com>
+
+	* config/nvptx/nvptx-sm.def: Add '50'.
+	* config/nvptx/nvptx-gen.h: Regenerate.
+	* config/nvptx/nvptx-gen.opt: Likewise.
+	* config/nvptx/nvptx.cc (first_ptx_version_supporting_sm): Adjust.
+	* config/nvptx/nvptx.opt (-march-map=sm_50): Likewise.
+	* config.gcc: Likewise.
+	* doc/invoke.texi (Nvidia PTX Options): Document '-march=sm_50'.
+	* config/nvptx/gen-multilib-matches-tests: Extend.
+
+2026-04-17  Thomas Schwinge  <tschwinge@baylibre.com>
+
+	* config/nvptx/nvptx-opts.h (enum ptx_version): Add
+	'PTX_VERSION_4_0'.
+	* config/nvptx/nvptx.cc (ptx_version_to_string)
+	(ptx_version_to_number): Adjust.
+	* config/nvptx/nvptx.h (TARGET_PTX_4_0): New.
+	* config/nvptx/nvptx.opt (Enum(ptx_version)): Add 'EnumValue'
+	'4.0' for 'PTX_VERSION_4_0'.
+	* doc/invoke.texi (Nvidia PTX Options): Document '-mptx=4.0'.
+
+2026-04-17  Tamar Christina  <tamar.christina@arm.com>
+
+	PR middle-end/124900
+	* gimple-crc-optimization.cc (crc_optimization::optimize_crc_loop): Do
+	not expand to table when compiling for size.
+	(class crc_optimization): Update prototype of optimize_crc_loop to
+	include loop.
+	(crc_optimization::execute): Pass loop to optimize_crc_loop.
+
 2026-04-16  Richard Earnshaw  <rearnsha@arm.com>
 
 	* config/arm/arm-cpus.in (cortex-m85): Allow +cdecp<n>.

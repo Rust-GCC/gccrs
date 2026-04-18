@@ -1,3 +1,124 @@
+2026-04-17  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gnat.dg/specs/float_literal2.ads: New test.
+
+2026-04-17  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gnat.dg/specs/float_literal1.ads: New test.
+
+2026-04-17  Jan Hubicka  <hubicka@ucw.cz>
+
+	PR ipa/120098
+	* g++.dg/torture/pr120098.C: New test.
+
+2026-04-17  Thomas Schwinge  <tschwinge@baylibre.com>
+
+	PR fortran/108382
+	* gfortran.dg/goacc/omp-108382.f90: Move...
+	* gfortran.dg/goacc-gomp/pr108382.f90: ... here, and adjust.
+
+2026-04-17  Thomas Schwinge  <tschwinge@baylibre.com>
+
+	PR fortran/93463
+	* gfortran.dg/goacc/pr93463.f90: Move...
+	* gfortran.dg/goacc-gomp/pr93463.f90: ... here, and adjust.
+
+2026-04-17  Thomas Schwinge  <tschwinge@baylibre.com>
+
+	PR fortran/93329
+	* gfortran.dg/goacc/pr93329.f90: Move...
+	* gfortran.dg/goacc-gomp/pr93329.f90: ... here, and adjust.
+
+2026-04-17  Thomas Schwinge  <tschwinge@baylibre.com>
+
+	PR fortran/63858
+	* gfortran.dg/goacc/omp-fixed.f: Move...
+	* gfortran.dg/goacc-gomp/pr63858.f: ... here, and adjust.
+
+2026-04-17  Thomas Schwinge  <tschwinge@baylibre.com>
+
+	* gfortran.dg/goacc/omp.f95: Move...
+	* gfortran.dg/goacc-gomp/nesting-fail-1.f95: ... here, and adjust.
+
+2026-04-17  Steven G. Kargl  <kargl@gcc.gnu.org>
+	    Steven G. Kargl  <kargl@gcc.gnu.org>
+
+	PR libfortran/120431
+	PR fortran/120431
+	* gfortran.dg/spread_scalar_zerosize.f90: New testcase.
+
+2026-04-17  Marek Polacek  <polacek@redhat.com>
+
+	* g++.dg/reflect/null6.C: New test.
+
+2026-04-17  Thomas Schwinge  <tschwinge@baylibre.com>
+
+	* gcc.target/nvptx/march-map=sm_50.c: Adjust.
+	* gcc.target/nvptx/march=sm_50.c: New.
+
+2026-04-17  Thomas Schwinge  <tschwinge@baylibre.com>
+
+	* gcc.target/nvptx/mptx=4.0.c: New.
+
+2026-04-17  Thomas Schwinge  <tschwinge@baylibre.com>
+
+	* rust/compile/macros/builtin/builtin_macro.exp: Revert previous change.
+	* rust/compile/macros/mbe/mbe_macro.exp: Likewise.
+	* rust/compile/macros/proc/proc_macro.exp: Likewise.
+	* rust/compile/torture/compile.exp: Likewise.
+	* rust/compile/xfail/xfail.exp: Likewise.
+
+2026-04-17  Thomas Schwinge  <tschwinge@baylibre.com>
+
+	* rust/compile/compile.exp: Revert previous change.
+	* rust/compile/issue_4402_foo.rs: 'dg-skip-if' for '*-*-*'.
+
+2026-04-17  Thomas Schwinge  <tschwinge@baylibre.com>
+
+	PR cobol/119818
+	* cobol.dg/group2/FUNCTION_DATE___TIME_OMNIBUS.cob:
+	'dg-set-target-env-var TZ UTC0' (take 2).
+
+2026-04-17  Thomas Schwinge  <tschwinge@baylibre.com>
+
+	PR tree-optimization/124037
+	* g++.dg/vect/vect-pr124037.cc: Unrestrict.
+	* gcc.dg/vect/vect-pr124037.c: Likewise.
+
+2026-04-17  Tamar Christina  <tamar.christina@arm.com>
+
+	PR middle-end/124900
+	* gcc.target/aarch64/crc-1.c: New test.
+	* gcc.target/aarch64/crc-2.c: New test.
+	* gcc.target/aarch64/crc-3.c: New test.
+	* gcc.target/aarch64/crc-4.c: New test.
+
+2026-04-17  Jakub Jelinek  <jakub@redhat.com>
+
+	* g++.dg/warn/Wkeyword-macro-1.C: Expect error for pre/post for C++26.
+	* g++.dg/warn/Wkeyword-macro-2.C: Expect warning for pre/post for
+	C++26.
+	* g++.dg/warn/Wkeyword-macro-4.C: Expect error for pre/post for C++26.
+	* g++.dg/warn/Wkeyword-macro-5.C: Expect warning for pre/post for
+	C++26.
+	* g++.dg/warn/Wkeyword-macro-7.C: Likewise.
+	* g++.dg/warn/Wkeyword-macro-8.C: Likewise.
+
+2026-04-17  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/123783
+	* g++.dg/reflect/mangle3.C: Remove f5<parameters_of (^^g)[0]>()
+	case.
+	* g++.dg/reflect/dep14.C: Include <ranges>.
+	(func): Apply variable_of to each vector member.
+	(func2): Likewise.  Use ^^func2 instead of ^^func.
+	* g++.dg/reflect/splice12.C: New test.
+
+2026-04-17  Jason Merrill  <jason@redhat.com>
+
+	PR c++/124632
+	* g++.dg/cpp23/explicit-obj-lambda2.C: Do strict GC and -Wall.
+
 2026-04-16  Richard Earnshaw  <rearnsha@arm.com>
 
 	* gcc.target/arm/multilib.exp: Test CDE options on cortex-m85.

@@ -1,3 +1,91 @@
+2026-04-17  Patrick Palka  <ppalka@redhat.com>
+
+	PR libstdc++/124890
+	PR libstdc++/119714
+	PR libstdc++/112490
+	* include/bits/indirect.h (indirect::operator==): Replace
+	non-dependent std::indirect function parameter with a
+	dependent one of type indirect<_Vp> where _Vp matches _Tp.
+	* testsuite/std/memory/indirect/124890.cc: New test.
+
+2026-04-17  Jakub Jelinek  <jakub@redhat.com>
+
+	* config/abi/post/ia64-linux-gnu/baseline_symbols.txt: Update.
+	* config/abi/post/m68k-linux-gnu/baseline_symbols.txt: Update.
+	* config/abi/post/powerpc64-linux-gnu/32/baseline_symbols.txt: Update.
+	* config/abi/post/powerpc-linux-gnu/baseline_symbols.txt: Update.
+	* config/abi/post/sparc64-linux-gnu/32/baseline_symbols.txt: Update.
+	* config/abi/post/sparc64-linux-gnu/baseline_symbols.txt: Update.
+	* config/abi/post/x86_64-linux-gnu/x32/baseline_symbols.txt: Update.
+
+2026-04-17  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/bits/print.h (_File_sink): Add comments.
+
+2026-04-17  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/124410
+	* doc/html/*: Regenerate.
+	* doc/xml/manual/using.xml (_GLIBCXX_NO_INLINE_PRINT): Document
+	macro.
+	* include/Makefile.am: Add bits/print.h and bits/ostream_print.h
+	headers.
+	* include/Makefile.in: Regenerate.
+	* include/std/ostream (vprint_nonunicode, vprint_unicode): Move
+	definitions to new bits/ostream_print.h header.
+	* include/std/print (__format::_File_sink, vprint_nonunicode)
+	(vprint_nonunicode_buffered, vprint_unicode)
+	(vprint_unicode_buffered): Move definitions to new bits/print.h
+	header.
+	* src/c++23/print.cc: Include new headers to define symbols for
+	inline print functions.
+	* include/bits/ostream_print.h: New file.
+	* include/bits/print.h: New file.
+
+2026-04-17  Jonathan Wakely  <jwakely@redhat.com>
+
+	* config/abi/post/i386-solaris/baseline_symbols.txt: Regenerate.
+	* config/abi/post/i386-solaris/amd64/baseline_symbols.txt:
+	Likewise.
+	* config/abi/post/sparc-solaris/baseline_symbols.txt: Likewise.
+	* config/abi/post/sparc-solaris/sparcv9/baseline_symbols.txt:
+	Likewise.
+
+2026-04-17  Jakub Jelinek  <jakub@redhat.com>
+
+	* config/abi/post/x86_64-linux-gnu/baseline_symbols.txt: Update.
+	* config/abi/post/x86_64-linux-gnu/32/baseline_symbols.txt: Update.
+	* config/abi/post/i386-linux-gnu/baseline_symbols.txt: Update.
+	* config/abi/post/i486-linux-gnu/baseline_symbols.txt: Update.
+	* config/abi/post/aarch64-linux-gnu/baseline_symbols.txt: Update.
+	* config/abi/post/s390x-linux-gnu/baseline_symbols.txt: Update.
+	* config/abi/post/powerpc64-linux-gnu/baseline_symbols.txt: Update.
+	* config/abi/post/powerpc64le-linux-gnu/baseline_symbols.txt: Update.
+	* config/abi/post/riscv64-linux-gnu/baseline_symbols.txt: Update.
+
+2026-04-17  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/std/chrono: Improve Doxygen comments.
+
+2026-04-17  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/124268
+	* config/abi/pre/gnu.ver: Export symbols.
+	* src/Makefile.am: Add libmodulesconvenience.la to libstdc++
+	link.
+	* src/Makefile.in: Regenerate.
+	* src/c++23/Makefile.am: Create libmodulesconvenience.la
+	and populate it with std.o and std.compat.o interface units,
+	with empty fallback objects if compiling the interface units
+	fails. Add clean-local target.
+	* src/c++23/Makefile.in: Regenerate.
+
+2026-04-17  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/124540
+	* testsuite/26_numerics/random/uniform_real_distribution/operators/gencanon.cc:
+	Skip long double tests for IBM long double format.
+
 2026-04-16  Tomasz Kamiński  <tkaminsk@redhat.com>
 
 	* config/abi/pre/gnu.ver (GLIBCXX_3.4): Exclude exports

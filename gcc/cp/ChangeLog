@@ -1,3 +1,33 @@
+2026-04-17  Marek Polacek  <polacek@redhat.com>
+
+	* cp-tree.h (reflection_function_template_p): Change the
+	parameter to const_tree.
+	* reflect.cc (valid_splice_for_member_access_p): Use
+	reflection_function_template_p.
+	(reflection_function_template_p): Check DECL_FUNCTION_TEMPLATE_P
+	instead of really_overloaded_fn.  Unwrap BASELINKs and OVERLOADs.
+	Adjust the parameter type.
+
+2026-04-17  Marek Polacek  <polacek@redhat.com>
+
+	* reflect.cc (splice): Detect a null reflection.
+
+2026-04-17  Jakub Jelinek  <jakub@redhat.com>
+
+	* lex.cc (cxx_init): Don't call cpp_warn on contract_assert,
+	instead call it on pre and post.
+
+2026-04-17  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/123783
+	* reflect.cc (splice): Reject splicing of function parameters.
+
+2026-04-17  Jason Merrill  <jason@redhat.com>
+
+	PR c++/124632
+	* constexpr.cc (cxx_eval_call_expression): Unshare bindings
+	sooner.
+
 2026-04-16  Jakub Jelinek  <jakub@redhat.com>
 
 	* reflect.cc (dump_data_member_spec): Temporarily ignore

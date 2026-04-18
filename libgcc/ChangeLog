@@ -1,3 +1,11 @@
+2026-04-17  Andre Vieira  <andre.simoesdiasvieira@arm.com>
+
+	* config/arm/sfp-exceptions.c: New file.
+	* config/arm/sfp-machine.h: Define FP_HANDLE_EXCEPTIONS, FP_EX_*
+	MACROs, _FP_DECL_EX, FP_ROUNDMODE, FP_INIT_ROUNDMODE, FP_RND_* MACROs
+	and declare __sfp_handle_exceptions.
+	* config/arm/t-softfp: Add sfp-exceptions.c to LIB2ADD.
+
 2026-04-15  Torbjörn SVENSSON  <torbjorn.svensson@foss.st.com>
 
 	* libgcov-driver-system.c (gcov_exit_open_gcda_file): Handle
