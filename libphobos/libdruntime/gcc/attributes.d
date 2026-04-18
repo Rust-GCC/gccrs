@@ -698,6 +698,19 @@ enum naked = attribute("naked");
 alias noSanitize = no_sanitize;
 
 /**
+ * Disables split-stack instrumentation for this function, overriding the
+ * `-fsplit-stack` commandline function.
+ *
+ * Examples:
+ * ---
+ * import gcc.attributes;
+ *
+ * @noSplitStack int user_function() { return 1; }
+ * ---
+ */
+enum noSplitStack = attribute("no_split_stack");
+
+/**
  * Sets the optimization strategy for a function.
  * Valid strategies are "none", "optsize", "minsize". The strategies are
  * mutually exclusive.
