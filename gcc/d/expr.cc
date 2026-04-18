@@ -1783,13 +1783,12 @@ public:
     else if (global.params.useAssert == CHECKENABLEon && checkaction_trap_p ())
       {
 	/* Generate: __builtin_trap()  */
-	tree fn = builtin_decl_explicit (BUILT_IN_TRAP);
-	assert_fail = build_call_expr (fn, 0);
+	assert_fail = build_trap_call ();
       }
     else
       {
 	/* Assert contracts are turned off.  */
-	this->result_ = void_node;
+	this->result_ = build_zero_cst (build_ctype (e->type));
 	return;
       }
 
@@ -1905,8 +1904,7 @@ public:
   void visit (HaltExp *) final override
   {
     /* Should we use trap() or abort()?  */
-    tree ttrap = builtin_decl_explicit (BUILT_IN_TRAP);
-    this->result_ = build_call_expr (ttrap, 0);
+    this->result_ = build_trap_call ();
   }
 
   /* Build a symbol pointer offset expression.  */
