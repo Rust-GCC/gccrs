@@ -312,6 +312,12 @@ LangUrlSuffix_Fortran(gfortran/Code-Gen-Options.html#index-fcheck-array-temporar
 fcray-pointer
 LangUrlSuffix_Fortran(gfortran/Fortran-Dialect-Options.html#index-fcray-pointer)
 
+fc-prototypes
+LangUrlSuffix_Fortran(gfortran/Interoperability-Options.html#index-fc-prototypes)
+
+fc-prototypes-external
+LangUrlSuffix_Fortran(gfortran/Interoperability-Options.html#index-fc-prototypes-external)
+
 fd-lines-as-code
 LangUrlSuffix_Fortran(gfortran/Fortran-Dialect-Options.html#index-fd-lines-as-code)
 

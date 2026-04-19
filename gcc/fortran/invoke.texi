@@ -2238,7 +2238,7 @@ shared by @command{gfortran}, @command{gcc}, and other GNU compilers.
 
 @table @gcctabopt
 
-@opindex c-prototypes
+@opindex fc-prototypes
 @cindex Generating C prototypes from Fortran BIND(C) enteties
 @item -fc-prototypes
 This option generates C prototypes from @code{BIND(C)} variable
@@ -2261,7 +2261,7 @@ $ gfortran -fc-prototypes -fsyntax-only foo.f90 > foo.h
 where the C code intended for interoperating with the Fortran code
 then uses @code{#include "foo.h"}.
 
-@opindex c-prototypes-external
+@opindex fc-prototypes-external
 @cindex Generating C prototypes from external procedures
 @item -fc-prototypes-external
 This option generates C prototypes from external functions and
