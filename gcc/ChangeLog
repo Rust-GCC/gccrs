@@ -1,3 +1,12 @@
+2026-04-18  Richard Sandiford  <rdsandiford@googlemail.com>
+
+	* config/aarch64/aarch64.md (SME_STATE_REGNUM): Fix a comment typo.
+
+2026-04-18  Gopi Kumar Bulusu  <gopi@sankhya.com>
+
+	PR target/103383
+	* config/microblaze/microblaze.md: bswaphi2: (set_attr length 8)
+
 2026-04-17  Jonathan Wakely  <jwakely@redhat.com>
 
 	PR c/84717

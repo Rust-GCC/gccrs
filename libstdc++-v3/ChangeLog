@@ -1,3 +1,12 @@
+2026-04-18  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/124910
+	* include/std/optional (_Optional_payload_base::_M_destroy)
+	[__cpp_lib_optional >= 202106L]: During constant evaluation,
+	after invoking destructor of _M_value, use construct_at to
+	activate _M_empty.
+	* testsuite/20_util/optional/constexpr/124910.cc: New test.
+
 2026-04-17  Patrick Palka  <ppalka@redhat.com>
 
 	PR libstdc++/124890

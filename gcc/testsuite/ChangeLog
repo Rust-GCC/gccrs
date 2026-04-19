@@ -1,3 +1,13 @@
+2026-04-18  Iain Buclaw  <ibuclaw@gdcproject.org>
+
+	PR d/124922
+	* gdc.dg/pr124922.d: New test.
+
+2026-04-18  Gopi Kumar Bulusu  <gopi@sankhya.com>
+
+	PR target/103383
+	* gcc.target/microblaze/isa/pr103383.c: New test.
+
 2026-04-17  Eric Botcazou  <ebotcazou@adacore.com>
 
 	* gnat.dg/specs/float_literal2.ads: New test.

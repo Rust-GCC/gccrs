@@ -1,3 +1,16 @@
+2026-04-18  Iain Buclaw  <ibuclaw@gdcproject.org>
+
+	PR d/124922
+	* d-codegen.cc (build_trap_call): New function.
+	(build_array_bounds_call): Use it.
+	(build_bounds_index_condition): Likewise.
+	(build_bounds_slice_condition): Likewise.
+	(d_build_call): Likewise.
+	* expr.cc (ExprVisitor::visit (HaltExp *)): Likewise.
+	(ExprVisitor::visit (AssertExp *)): Likewise.  Return zero instead of
+	void_node when assert contracts are disabled.
+	* d-tree.h (build_trap_call): New prototype.
+
 2026-04-14  Iain Buclaw  <ibuclaw@gdcproject.org>
 
 	* dmd/MERGE: Merge upstream dmd e145b91245.
