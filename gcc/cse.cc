@@ -2847,6 +2847,24 @@ canon_reg (rtx x, rtx_insn *insn)
     case ADDR_DIFF_VEC:
       return x;
 
+    case SUBREG:
+      {
+	rtx inner = canon_reg (SUBREG_REG (x), insn);
+	if (inner != SUBREG_REG (x))
+	  {
+	    rtx newx = simplify_subreg (GET_MODE (x), inner,
+					GET_MODE (SUBREG_REG (x)),
+					SUBREG_BYTE (x));
+	    if (newx)
+	      return newx;
+
+	    if (validate_subreg (GET_MODE (x), GET_MODE (inner),
+				 inner, SUBREG_BYTE (x)))
+	      validate_change (insn, &SUBREG_REG (x), inner, 1);
+	  }
+	return x;
+      }
+
     case REG:
       {
 	int first;
