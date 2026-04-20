@@ -2580,7 +2580,14 @@ public:
 
     /* Generate: _d_assocarrayliteralTX (ti, keys, vals);  */
     gcc_assert (e->lowering);
-    this->result_ = build_expr (e->lowering);
+    tree mem = build_expr (e->lowering);
+
+    /* Return an associative array pointed to by MEM.  */
+    tree type = build_ctype (e->type);
+    vec <constructor_elt, va_gc> *ce = NULL;
+    CONSTRUCTOR_APPEND_ELT (ce, TYPE_FIELDS (type), mem);
+
+    this->result_ = build_padded_constructor (type, ce);
   }
 
   /* Build a struct literal.  */
