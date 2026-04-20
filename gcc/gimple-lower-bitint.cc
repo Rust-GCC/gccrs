@@ -3798,6 +3798,7 @@ bitint_large_huge::lower_shift_stmt (tree obj, gimple *stmt)
 			       bitint_big_endian
 			       ? size_int (-1) : size_one_node);
       insert_before (g);
+      tree p2 = p;
       if (bitint_big_endian)
 	{
 	  tree new_idx = gimple_assign_lhs (g);
@@ -3807,8 +3808,13 @@ bitint_large_huge::lower_shift_stmt (tree obj, gimple *stmt)
 	}
       else
 	{
+	  if (bitint_extended == bitint_ext_full
+	      && abi_limb_prec > limb_prec)
+	    p2 = build_int_cst (sizetype,
+				CEIL (prec, abi_limb_prec)
+				* abi_limb_prec / limb_prec - 1);
 	  idx = gimple_assign_lhs (g);
-	  g = gimple_build_cond (LE_EXPR, idx, p, NULL_TREE, NULL_TREE);
+	  g = gimple_build_cond (LE_EXPR, idx, p2, NULL_TREE, NULL_TREE);
 	}
       if_then (g, profile_probability::likely (), edge_true, edge_false);
       idx = create_loop (idx, &idx_next);
@@ -3822,16 +3828,8 @@ bitint_large_huge::lower_shift_stmt (tree obj, gimple *stmt)
       if (bitint_big_endian)
 	g = gimple_build_cond (NE_EXPR, idx, size_zero_node,
 			       NULL_TREE, NULL_TREE);
-      else if (bitint_extended == bitint_ext_full
-	       && abi_limb_prec > limb_prec)
-	{
-	  tree p2 = build_int_cst (sizetype,
-				   CEIL (prec, abi_limb_prec)
-				   * abi_limb_prec / limb_prec - 1);
-	  g = gimple_build_cond (LE_EXPR, idx_next, p2, NULL_TREE, NULL_TREE);
-	}
       else
-	g = gimple_build_cond (LE_EXPR, idx_next, p, NULL_TREE, NULL_TREE);
+	g = gimple_build_cond (LE_EXPR, idx_next, p2, NULL_TREE, NULL_TREE);
       insert_before (g);
     }
   else
@@ -4028,12 +4026,13 @@ bitint_large_huge::lower_shift_stmt (tree obj, gimple *stmt)
 		v = build_zero_cst (m_limb_type);
 	      else
 		{
-		  g = gimple_build_assign (make_ssa_name (m_limb_type),
+		  v = add_cast (signed_type_for (m_limb_type), v);
+		  g = gimple_build_assign (make_ssa_name (TREE_TYPE (v)),
 					   RSHIFT_EXPR, v,
 					   build_int_cst (unsigned_type_node,
 							  limb_prec - 1));
-		  v = gimple_assign_lhs (g);
 		  insert_before (g);
+		  v = add_cast (m_limb_type, gimple_assign_lhs (g));
 		}
 	      l = limb_access (TREE_TYPE (lhs), obj, p2, true);
 	      g = gimple_build_assign (l, v);
@@ -4058,12 +4057,13 @@ bitint_large_huge::lower_shift_stmt (tree obj, gimple *stmt)
 	      v = make_ssa_name (m_limb_type);
 	      g = gimple_build_assign (v, l);
 	      insert_before (g);
-	      g = gimple_build_assign (make_ssa_name (m_limb_type),
+	      v = add_cast (signed_type_for (m_limb_type), v);
+	      g = gimple_build_assign (make_ssa_name (TREE_TYPE (v)),
 				       RSHIFT_EXPR, v,
 				       build_int_cst (unsigned_type_node,
 						      limb_prec - 1));
-	      v = gimple_assign_lhs (g);
 	      insert_before (g);
+	      v = add_cast (m_limb_type, gimple_assign_lhs (g));
 	    }
 	  tree l = limb_access (TREE_TYPE (lhs), obj, p2, true);
 	  g = gimple_build_assign (l, v);
@@ -4166,6 +4166,26 @@ bitint_large_huge::lower_muldiv_stmt (tree obj, gimple *stmt)
 	  add_eh_edge (e2->src, e1);
 	}
     }
+  if (bitint_extended
+      && rhs_code == MULT_EXPR
+      && TYPE_UNSIGNED (type)
+      && (prec % limb_prec) != 0)
+    {
+      /* Unsigned multiplication wraps, but libgcc function will return the
+	 bits beyond prec within the top limb as another limb of the full
+	 multiplication.  So, clear the padding bits here.  */
+      tree idx = size_int (bitint_big_endian ? 0 : prec / limb_prec);
+      tree l = limb_access (type, obj, idx, true);
+      tree ctype = limb_access_type (type, idx);
+      tree v = make_ssa_name (m_limb_type);
+      g = gimple_build_assign (v, l);
+      insert_before (g);
+      v = add_cast (ctype, v);
+      l = limb_access (type, obj, idx, true);
+      v = add_cast (m_limb_type, v);
+      g = gimple_build_assign (l, v);
+      insert_before (g);
+    }
   if (zero_ms_limb)
     {
       unsigned int i = CEIL (prec, abi_limb_prec) * abi_limb_prec / limb_prec;
@@ -4242,12 +4262,14 @@ bitint_large_huge::lower_float_conv_stmt (tree obj, gimple *stmt)
 						    size_int (i - 2),
 						    true));
 	      insert_before (g);
-	      g = gimple_build_assign (make_ssa_name (m_limb_type),
-				       RSHIFT_EXPR, gimple_assign_lhs (g),
+	      val = add_cast (signed_type_for (m_limb_type),
+			      gimple_assign_lhs (g));
+	      g = gimple_build_assign (make_ssa_name (TREE_TYPE (val)),
+				       RSHIFT_EXPR, val,
 				       build_int_cst (unsigned_type_node,
 						      limb_prec - 1));
 	      insert_before (g);
-	      val = gimple_assign_lhs (g);
+	      val = add_cast (m_limb_type, gimple_assign_lhs (g));
 	    }
 	  else
 	    val = build_zero_cst (m_limb_type);
