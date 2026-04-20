@@ -8,16 +8,16 @@ typedef __attribute__((__vector_size__ (8))) int v64s32;
 typedef __attribute__((__vector_size__ (16))) char v128s8;
 typedef __attribute__((__vector_size__ (16))) short v128s16;
 typedef __attribute__((__vector_size__ (16))) int v128s32;
-typedef __attribute__((__vector_size__ (16))) long v128s64;
+typedef __attribute__((__vector_size__ (16))) long long v128s64;
 typedef __attribute__((__vector_size__ (32))) char v256s8;
 typedef __attribute__((__vector_size__ (32))) short v256s16;
 typedef __attribute__((__vector_size__ (32))) int v256s32;
-typedef __attribute__((__vector_size__ (32))) long v256s64;
+typedef __attribute__((__vector_size__ (32))) long long v256s64;
 typedef __attribute__((__vector_size__ (32))) __int128 v256s128;
 typedef __attribute__((__vector_size__ (64))) char v512s8;
 typedef __attribute__((__vector_size__ (64))) short v512s16;
 typedef __attribute__((__vector_size__ (64))) int v512s32;
-typedef __attribute__((__vector_size__ (64))) long v512s64;
+typedef __attribute__((__vector_size__ (64))) long long v512s64;
 typedef __attribute__((__vector_size__ (64))) __int128 v512s128;
 
 #if __BITINT_MAXWIDTH__ >= 60692
@@ -30,8 +30,8 @@ foo0 (int, int, int, int,
       _BitInt (5), _BitInt (5), short, short, char,
       short, short, char, int,
       int, int, int, int, char,
-      long, long, long, long, long,
-      long, char, char, char, __int128,
+      long long, long long, long long, long long, long long,
+      long long, char, char, char, __int128,
       __int128, __int128, __int128, __int128,
       __int128, char, _BitInt (129), _BitInt (129),
       _BitInt (255), _BitInt (255), _BitInt (256), _BitInt (256),
@@ -42,8 +42,8 @@ foo0 (int, int, int, int,
       _BitInt (331), _BitInt (412), _BitInt (412), _BitInt (985),
       _BitInt (985), _BitInt (60692), _BitInt (60692), char, char,
       char, char, short, short, char, char, short, short, unsigned,
-      int, v64s8, v64s8, v64s16, v64s16, v64s32, v64s32, long, long,
-      v128s8, v128s8, short, v128s16, int, v128s32, long, v128s64,
+      int, v64s8, v64s8, v64s16, v64s16, v64s32, v64s32, long long, long long,
+      v128s8, v128s8, short, v128s16, int, v128s32, long long, v128s64,
       __int128, __int128, v256s8, v256s8, v256s16, v256s16, v256s32,
       v256s32, v256s64, v256s64, v256s128, v256s128, v512s8, v512s8,
       v512s16, v512s16, v512s32, v512s32, v512s64, v512s64,
