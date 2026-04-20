@@ -841,9 +841,9 @@ _cpp_destroy_iconv (cpp_reader *pfile)
       if (pfile->wide_cset_desc.func == convert_using_iconv)
 	iconv_close (pfile->wide_cset_desc.cd);
       if (pfile->reverse_narrow_cset_desc.func == convert_using_iconv)
-	iconv_close (pfile->narrow_cset_desc.cd);
+	iconv_close (pfile->reverse_narrow_cset_desc.cd);
       if (pfile->reverse_utf8_cset_desc.func == convert_using_iconv)
-	iconv_close (pfile->utf8_cset_desc.cd);
+	iconv_close (pfile->reverse_utf8_cset_desc.cd);
     }
 }
 
