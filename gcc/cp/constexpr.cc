@@ -8207,6 +8207,16 @@ cxx_eval_store_expression (const constexpr_ctx *ctx, tree t,
 	  no_zero_init = true;
 	}
 
+      /* Ending the lifetime of the active union member means the union no
+	 longer has an active member.  */
+      if (code == UNION_TYPE && refs->is_empty ()
+	  && TREE_CLOBBER_P (init)
+	  && CLOBBER_KIND (init) >= CLOBBER_OBJECT_END)
+	{
+	  vec_safe_truncate (CONSTRUCTOR_ELTS (*valp), 0);
+	  return void_node;
+	}
+
       ctors.safe_push (valp);
       vec_safe_push (indexes, index);
 
