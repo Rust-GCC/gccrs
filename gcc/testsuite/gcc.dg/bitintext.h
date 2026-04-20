@@ -16,7 +16,7 @@ do_copy (void *p, const void *q, __SIZE_TYPE__ r)
 #define CEIL(x,y) (((x) + (y) - 1) / (y))
 
 /* Promote a _BitInt type to include its padding bits.  */
-#if defined (__s390x__) || defined(__arm__) || defined(__riscv__)
+#if defined (__s390x__) || defined(__arm__) || defined(__riscv)
 #define PROMOTED_SIZE(x) sizeof (x)
 #elif defined(__loongarch__)
 #define PROMOTED_SIZE(x) (sizeof (x) > 8 ? CEIL (S (x), 64) * 8 : sizeof (x))
@@ -25,7 +25,7 @@ do_copy (void *p, const void *q, __SIZE_TYPE__ r)
 /* Macro to test whether (on targets where psABI requires it) _BitInt
    with padding bits have those filled with sign or zero extension.  */
 #if defined(__s390x__) || defined(__arm__) || defined(__loongarch__) \
-    || defined(__riscv__)
+    || defined(__riscv)
 #define BEXTC1(x, uns) \
   do {							  \
     uns _BitInt(PROMOTED_SIZE (x) * __CHAR_BIT__) __x;	  \

@@ -5,10 +5,10 @@
 /* { dg-skip-if "" { ! run_expensive_tests } { "-flto" } { "" } } */
 
 #if __BITINT_MAXWIDTH__ >= 1025
-_BitInt(513) a, b, c, d;
-unsigned _BitInt(513) e, f, g, h;
-_BitInt(1025) i, j, k, l;
-unsigned _BitInt(1025) m, n, o, p;
+unsigned _BitInt(513) a, b, c, d;
+_BitInt(513) e, f, g, h;
+unsigned _BitInt(1025) i, j, k, l;
+_BitInt(1025) m, n, o, p;
 #endif
 
 #include "../bitintext.h"
