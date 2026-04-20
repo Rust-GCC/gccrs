@@ -1,3 +1,9 @@
+2026-04-19  Thomas Koenig  <tkoenig@gcc.gnu.org>
+
+	* invoke.texi (fc-prototypes): Correct spelling for opindex.
+	(fc-prototypes-external): Likewise.
+	* lang.opt.urls: Regenerate.
+
 2026-04-16  Paul Thomas  <pault@gcc.gnu.org>
 
 	PR fortran/120140

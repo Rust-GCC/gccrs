@@ -1,3 +1,12 @@
+2026-04-19  Richard Sandiford  <rdsandiford@googlemail.com>
+
+	PR rtl-optimization/124643
+	* gcc.c-torture/compile/pr124643.c: New test.
+
+2026-04-19  Iain Buclaw  <ibuclaw@gdcproject.org>
+
+	* gdc.dg/attr_no_split_stack.d: New test.
+
 2026-04-18  Iain Buclaw  <ibuclaw@gdcproject.org>
 
 	PR d/124922

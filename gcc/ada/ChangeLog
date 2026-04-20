@@ -1,3 +1,16 @@
+2026-04-19  Eric Botcazou  <ebotcazou@adacore.com>
+
+	PR ada/124918
+	* gcc-interface/Makefile.in (TGT_LIB): Move up.
+	(LIBBACKTRACE): Likewise.
+	(LIBIBERTY): Likewise.
+	(LIBGNAT): Likewise.
+	(LIBS): Likewise.
+	(TOOLS_LIBS): Use $(LIBS).
+	(TOOLS1_LIBS): Delete.
+	(../../gnatmake$(exeext)): Do not link with $(TOOLS1_LIBS).
+	(../../gnatlink$(exeext)): Likewise.
+
 2026-04-17  Eric Botcazou  <ebotcazou@adacore.com>
 
 	PR ada/107392

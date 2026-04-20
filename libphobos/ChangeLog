@@ -1,3 +1,11 @@
+2026-04-19  Iain Buclaw  <ibuclaw@gdcproject.org>
+
+	* libdruntime/gcc/attributes.d (callingConvention): New UDA.
+
+2026-04-19  Iain Buclaw  <ibuclaw@gdcproject.org>
+
+	* libdruntime/gcc/attributes.d (noSplitStack): New UDA.
+
 2026-04-14  Iain Buclaw  <ibuclaw@gdcproject.org>
 
 	* libdruntime/MERGE: Merge upstream druntime e145b91245.
