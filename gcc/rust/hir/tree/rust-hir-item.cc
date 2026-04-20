@@ -630,7 +630,8 @@ TraitFunctionDecl::TraitFunctionDecl (
 TraitFunctionDecl::TraitFunctionDecl (TraitFunctionDecl const &other)
   : qualifiers (other.qualifiers), function_name (other.function_name),
     function_params (other.function_params),
-    return_type (other.return_type->clone_type ()),
+    return_type (other.return_type != nullptr ? other.return_type->clone_type ()
+					      : nullptr),
     where_clause (other.where_clause), self (other.self)
 {
   generic_params.reserve (other.generic_params.size ());
@@ -644,7 +645,9 @@ TraitFunctionDecl::operator= (TraitFunctionDecl const &other)
   function_name = other.function_name;
   qualifiers = other.qualifiers;
   function_params = other.function_params;
-  return_type = other.return_type->clone_type ();
+  return_type
+    = other.return_type != nullptr ? other.return_type->clone_type () : nullptr;
+
   where_clause = other.where_clause;
   self = other.self;
 
