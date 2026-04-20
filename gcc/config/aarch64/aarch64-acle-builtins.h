@@ -1855,6 +1855,70 @@ function_expander::result_mode () const
   S (p16), S (s16), S (u16), S (f16), \
 	   S (s32), S (u32), S (f32)
 
+/* vreinterpret intrinsics are defined for any pair of element types.
+   { _mf8		 }   { _mf8		   }
+   {     _bf16		 }   {     _bf16	   }
+   {      _f16 _f32 _f64 }   {      _f16 _f32 _f64 }
+   { _s8  _s16 _s32 _s64 } x { _s8  _s16 _s32 _s64 }
+   { _u8  _u16 _u32 _u64 }   { _u8  _u16 _u32 _u64 }
+   { _p8  _p16      _p64 }   { _p8  _p16      _p64 }.  */
+#define TYPES_neon_reinterpret1(D, A) \
+  D (A, mf8), \
+	     D (A, bf16), \
+	     D (A, f16), D (A, f32), D (A, f64), \
+  D (A, s8), D (A, s16), D (A, s32), D (A, s64), \
+  D (A, u8), D (A, u16), D (A, u32), D (A, u64), \
+  D (A, p8), D (A, p16)		   , D (A, p64)
+#define TYPES_neon_reinterpret(S, D, T) \
+  TYPES_neon_reinterpret1 (D, mf8), \
+  TYPES_neon_reinterpret1 (D, bf16), \
+  TYPES_neon_reinterpret1 (D, f16), \
+  TYPES_neon_reinterpret1 (D, f32), \
+  TYPES_neon_reinterpret1 (D, f64), \
+  TYPES_neon_reinterpret1 (D, s8), \
+  TYPES_neon_reinterpret1 (D, s16), \
+  TYPES_neon_reinterpret1 (D, s32), \
+  TYPES_neon_reinterpret1 (D, s64), \
+  TYPES_neon_reinterpret1 (D, u8), \
+  TYPES_neon_reinterpret1 (D, u16), \
+  TYPES_neon_reinterpret1 (D, u32), \
+  TYPES_neon_reinterpret1 (D, u64), \
+  TYPES_neon_reinterpret1 (D, p8), \
+  TYPES_neon_reinterpret1 (D, p16), \
+  TYPES_neon_reinterpret1 (D, p64)
+
+/* vreinterpretq intrinsics are additionally defined for p128.
+   {     _bf16		       }   {     _bf16		       }
+   {      _f16 _f32 _f64       }   {      _f16 _f32 _f64       }
+   { _mf8		       }   { _mf8		       }
+   { _s8  _s16 _s32 _s64       } x { _s8  _s16 _s32 _s64       }
+   { _u8  _u16 _u32 _u64       }   { _u8  _u16 _u32 _u64       }
+   { _p8  _p16      _p64 _p128 }   { _p8  _p16      _p64 _p128 }.  */
+#define TYPES_neon_reinterpretq1(D, A) \
+  D (A, mf8), \
+	     D (A, bf16), \
+	     D (A, f16), D (A, f32), D (A, f64), \
+  D (A, s8), D (A, s16), D (A, s32), D (A, s64), \
+  D (A, u8), D (A, u16), D (A, u32), D (A, u64), \
+  D (A, p8), D (A, p16)		   , D (A, p64), D (A, p128)
+#define TYPES_neon_reinterpretq(S, D, T) \
+  TYPES_neon_reinterpretq1 (D, mf8), \
+  TYPES_neon_reinterpretq1 (D, bf16), \
+  TYPES_neon_reinterpretq1 (D, f16), \
+  TYPES_neon_reinterpretq1 (D, f32), \
+  TYPES_neon_reinterpretq1 (D, f64), \
+  TYPES_neon_reinterpretq1 (D, s8), \
+  TYPES_neon_reinterpretq1 (D, s16), \
+  TYPES_neon_reinterpretq1 (D, s32), \
+  TYPES_neon_reinterpretq1 (D, s64), \
+  TYPES_neon_reinterpretq1 (D, u8), \
+  TYPES_neon_reinterpretq1 (D, u16), \
+  TYPES_neon_reinterpretq1 (D, u32), \
+  TYPES_neon_reinterpretq1 (D, u64), \
+  TYPES_neon_reinterpretq1 (D, p8), \
+  TYPES_neon_reinterpretq1 (D, p16), \
+  TYPES_neon_reinterpretq1 (D, p64), \
+  TYPES_neon_reinterpretq1 (D, p128)
 
 /* Describe a tuple of type suffixes in which only the first is used.  */
 #define DEF_VECTOR_TYPE(X) \
@@ -2005,6 +2069,8 @@ DEF_SVE_TYPES_ARRAY (neon_copy_lane);
 DEF_SVE_TYPES_ARRAY (neon_rev16);
 DEF_SVE_TYPES_ARRAY (neon_rev32);
 DEF_SVE_TYPES_ARRAY (neon_rev64);
+DEF_SVE_TYPES_ARRAY (neon_reinterpret);
+DEF_SVE_TYPES_ARRAY (neon_reinterpretq);
 
 static const group_suffix_index groups_none[] = {
   GROUP_none, NUM_GROUP_SUFFIXES

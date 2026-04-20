@@ -709,6 +709,21 @@ zip_mask (gimple_folder &f)
   return builder.build ();
 }
 
+struct gimple_reinterpret : public gimple_function_base
+{
+  gimple *fold (gimple_folder &f) const override
+  {
+    auto input = gimple_call_arg (f.call, 0);
+    auto ret_type = TREE_TYPE (f.lhs);
+    auto reinterpret = fold_build1 (VIEW_CONVERT_EXPR, ret_type, input);
+    return gimple_build_assign (f.lhs, reinterpret);
+  }
+};
+
+// Reinterpret
+NEON_FUNCTION (vreinterpret,  gimple_reinterpret,)
+NEON_FUNCTION (vreinterpretq, gimple_reinterpret,)
+
 // Lane get/set
 NEON_FUNCTION (vget_lane,    gimple_get_lane,)
 NEON_FUNCTION (vgetq_lane,   gimple_get_lane,)

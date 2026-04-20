@@ -17,6 +17,12 @@
    along with GCC; see the file COPYING3.  If not see
    <http://www.gnu.org/licenses/>.  */
 
+// Reinterpret
+#define REQUIRED_EXTENSIONS nonstreaming_only (AARCH64_FL_SIMD)
+DEF_NEON_FUNCTION (vreinterpret,  neon_reinterpret,  ("D0,D1"))
+DEF_NEON_FUNCTION (vreinterpretq, neon_reinterpretq, ("Q0,Q1"))
+#undef REQUIRED_EXTENSIONS
+
 // Lane manipulation
 #define REQUIRED_EXTENSIONS nonstreaming_only (AARCH64_FL_SIMD)
 DEF_NEON_FUNCTION (vcreate,     all_neon,  ("D0,su64"))
