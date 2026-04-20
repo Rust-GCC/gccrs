@@ -1250,10 +1250,11 @@ package Sinfo is
    --    temporary for them.
 
    --  Expression_Copy
-   --    Present in N_Pragma_Argument_Association nodes. Contains a copy of the
-   --    original expression. This field is best used to store pragma-dependent
-   --    modifications performed on the original expression such as replacement
-   --    of the current type instance or substitutions of primitives.
+   --    Present in N_Pragma_Argument_Association and N_Aspect_Specification
+   --    nodes. Contains a copy of the original expression. This field is best
+   --    used to store pragma-dependent modifications performed on the original
+   --    expression such as replacement of the current type instance or
+   --    substitutions of primitives.
 
    --  File_Index
    --    Present in N_External_Initializer nodes. Contains a Source_File_Index
@@ -7606,6 +7607,7 @@ package Sinfo is
       --  Next_Rep_Item
       --  Class_Present Set if 'Class present
       --  Is_Ignored
+      --  Expression_Copy
       --  Is_Checked
       --  Is_Delayed_Aspect
       --  Is_Disabled
