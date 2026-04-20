@@ -4746,10 +4746,9 @@ reduced_constant_expression_p (tree t, tree sz /* = NULL_TREE */)
 	  else if (cxx_dialect >= cxx20
 		   && TREE_CODE (TREE_TYPE (t)) == UNION_TYPE)
 	    {
-	      if (CONSTRUCTOR_NELTS (t) == 0)
-		/* An initialized union has a constructor element.  */
-		return false;
-	      /* And it only initializes one member.  */
+	      /* A union can have at most one active member.  A union with no
+		 active member has no constituent values, so all constituent
+		 values are constant.  */
 	      field = NULL_TREE;
 	    }
 	  else
