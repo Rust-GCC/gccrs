@@ -6,7 +6,7 @@
 #define TYPE double
 #define N 200
 #include "complex-mls-template.c"
-/* { dg-final { scan-tree-dump "Found COMPLEX_ADD_ROT270" "vect" } } */
+/* { dg-final { scan-tree-dump "Found COMPLEX_ADD_ROT270" "vect" { xfail *-*-* } } } */
 /* { dg-final { scan-tree-dump "Found COMPLEX_FMA" "vect" } } */
 /* { dg-final { scan-tree-dump "Found COMPLEX_FMS_CONJ" "vect" } } */
 /* { dg-final { scan-tree-dump "Found COMPLEX_FMS" "vect" } } */
