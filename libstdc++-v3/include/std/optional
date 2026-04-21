@@ -321,10 +321,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       {
 	_M_engaged = false;
 	_M_payload._M_value.~_Stored_type();
-#if __cpp_lib_optional >= 202106L // full constexpr support
+#if defined(__clang__) && __cpp_lib_optional >= 202106L // full constexpr support
 	if (std::is_constant_evaluated())
-	  // Ensure union _M_payload always has an active member, for sake
-	  // of the core constant expression requirements.
+	  // Work around PR124910 for Clang.
 	  std::construct_at(std::__addressof(_M_payload._M_empty));
 #endif
       }
