@@ -1,6 +1,6 @@
 /* m2rts.h provides a C interface to M2RTS.mod.
 
-Copyright (C) 2019-2022 Free Software Foundation, Inc.
+Copyright (C) 2019-2026 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius.mulley@southwales.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -26,6 +26,10 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 
 
 #define str(X)  #X
+/* DEFAULT_RUNTIME_MODULE_OVERRIDE must match the m2 declaration in
+   gcc/m2/gm2-compiler/M2Options.mod.  */
+
+#define DEFAULT_RUNTIME_MODULE_OVERRIDE "m2iso:RTentity,m2iso:Storage,m2iso:SYSTEM,m2iso:M2RTS,m2iso:RTExceptions,m2iso:IOLink"
 
 typedef void (*proc_con) (int, char **, char **);
 typedef void (*proc_dep) (void);

@@ -2329,19 +2329,15 @@ libtool --tag=CC --mode=link gcc -g a.lo b.lo c.lo \
 At this point the shared library @file{libabc.so} will have been
 created inside the directory @file{.libs}.
 
-This library can be called from C using the following technique.
-The define @code{INIT_ORDER} should not be changed as it defines the
-initialization order of the core base modules.
+This library can be called from C++ using the following technique.
 The define @code{USER_LIB} is the name of the library dialect and
 maybe changed if required.
+The @code{DEFAULT_RUNTIME_MODULE_OVERRIDE} is a predefined string
+containing the default base core module initialization order.
 
 @example
 #include <stdio.h>
 #include <m2rts.h>
-
-#define INIT_ORDER "m2iso:RTentity,m2iso:Storage," \
-                   "m2iso:SYSTEM,m2iso:M2RTS," \
-                   "m2iso:RTExceptions,m2iso:IOLink"
 
 #define USER_LIB NULL
 
@@ -2373,7 +2369,8 @@ construct_scaffold (int argc, char *argv[], char *envp[])
   m2iso_M2RTS_RegisterModule (__FILE__, USER_LIB,
                               init, fini, dep);
   m2iso_M2RTS_ConstructModules (__FILE__, USER_LIB,
-                                INIT_ORDER, argc, argv, envp);
+                                DEFAULT_RUNTIME_MODULE_OVERRIDE,
+                                argc, argv, envp);
 @}
 
 void
