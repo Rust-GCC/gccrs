@@ -18,6 +18,7 @@
 
 #include "rust-compile-expr.h"
 #include "rust-backend.h"
+#include "rust-compile-context.h"
 #include "rust-compile-type.h"
 #include "rust-compile-struct-field-expr.h"
 #include "rust-compile-pattern.h"
@@ -32,6 +33,7 @@
 #include "realmpfr.h"
 #include "convert.h"
 #include "print-tree.h"
+#include "rust-hir-bound.h"
 #include "rust-hir-expr.h"
 #include "rust-system.h"
 #include "rust-tree.h"
@@ -436,12 +438,6 @@ CompileExpr::visit (HIR::IfExprConseqElse &expr)
 void
 CompileExpr::visit (HIR::BlockExpr &expr)
 {
-  if (expr.has_label ())
-    {
-      rust_error_at (expr.get_locus (), "labeled blocks are not supported");
-      return;
-    }
-
   TyTy::BaseType *block_tyty = nullptr;
   if (!ctx->get_tyctx ()->lookup_type (expr.get_mappings ().get_hirid (),
 				       &block_tyty))
@@ -454,18 +450,31 @@ CompileExpr::visit (HIR::BlockExpr &expr)
   fncontext fnctx = ctx->peek_fn ();
   tree enclosing_scope = ctx->peek_enclosing_scope ();
   tree block_type = TyTyResolveCompile::compile (ctx, block_tyty);
+  tree block_label = NULL_TREE;
 
   bool is_address_taken = false;
   tree ret_var_stmt = nullptr;
   tmp = Backend::temporary_variable (fnctx.fndecl, enclosing_scope, block_type,
 				     NULL, is_address_taken, expr.get_locus (),
 				     &ret_var_stmt);
+
   ctx->add_statement (ret_var_stmt);
+
+  if (expr.has_label ())
+    {
+      ctx->insert_var_decl (
+	expr.get_label ().get_lifetime ().get_mappings ().get_hirid (), tmp);
+      block_label = construct_block_label (expr);
+    }
 
   auto block_stmt = CompileBlock::compile (expr, ctx, tmp);
   rust_assert (TREE_CODE (block_stmt) == BIND_EXPR);
   ctx->add_statement (block_stmt);
 
+  if (block_label != NULL_TREE)
+    {
+      ctx->add_statement (block_label);
+    }
   translated = Backend::var_expression (tmp, expr.get_locus ());
 }
 
@@ -853,11 +862,25 @@ CompileExpr::visit (HIR::WhileLoopExpr &expr)
 void
 CompileExpr::visit (HIR::BreakExpr &expr)
 {
+  if (expr.has_break_expr () && expr.has_label ())
+    {
+      HIR::Lifetime &label = expr.get_label ();
+      auto tvar = lookup_temp_var (label.get_mappings ().get_nodeid ());
+      tree value = CompileExpr::Compile (expr.get_expr (), ctx);
+      tree assign
+	= Backend::assignment_statement (tvar->get_tree (label.get_locus ()),
+					 value, label.get_locus ());
+      tree block_label = lookup_label (label.get_mappings ().get_nodeid ());
+      tree go_to = Backend::goto_statement (block_label, label.get_locus ());
+      ctx->add_statement (assign);
+      ctx->add_statement (go_to);
+      return;
+    }
   if (expr.has_break_expr ())
     {
       tree compiled_expr = CompileExpr::Compile (expr.get_expr (), ctx);
-
       translated = error_mark_node;
+
       if (!ctx->have_loop_context ())
 	return;
 
@@ -891,7 +914,6 @@ CompileExpr::visit (HIR::BreakExpr &expr)
 	    expr.get_label ().get_mappings ().as_string ().c_str ());
 	  return;
 	}
-
       tl::optional<HirId> hid
 	= ctx->get_mappings ().lookup_node_to_hir (resolved_node_id);
       if (!hid.has_value ())
@@ -2756,6 +2778,58 @@ CompileExpr::generate_possible_fn_trait_call (HIR::CallExpr &expr,
     = Backend::call_expression (call_address, args, nullptr /* static chain ?*/,
 				expr.get_locus ());
   return true;
+}
+
+tree
+CompileExpr::construct_block_label (HIR::BlockExpr &expr)
+{
+  if (expr.has_label ())
+    {
+      fncontext fnctx = ctx->peek_fn ();
+      HIR::LoopLabel &label = expr.get_label ();
+      std::string label_name = label.get_lifetime ().get_name ();
+      HirId label_id = label.get_lifetime ().get_mappings ().get_hirid ();
+      tree label_decl
+	= Backend::label (fnctx.fndecl, label_name, label.get_locus ());
+      tree label_expr = Backend::label_definition_statement (label_decl);
+      ctx->insert_label_decl (label_id, label_decl);
+      return label_expr;
+    }
+  return NULL_TREE;
+}
+
+tree
+CompileExpr::lookup_label (NodeId to_be_resolved)
+{
+  HirId ref = resolve_NodeId (to_be_resolved);
+  tree label = NULL_TREE;
+  rust_assert (ctx->lookup_label_decl (ref, &label)
+	       && "failed to lookup a label");
+  return label;
+}
+
+Bvariable *
+CompileExpr::lookup_temp_var (NodeId to_be_resolved)
+{
+  HirId ref = resolve_NodeId (to_be_resolved);
+  Bvariable *ltemp = nullptr;
+  rust_assert (ctx->lookup_var_decl (ref, &ltemp)
+	       && "failed to lookup a temp var");
+  return ltemp;
+}
+
+HirId
+CompileExpr::resolve_NodeId (NodeId to_be_resolved)
+{
+  auto &nr_ctx
+    = Resolver2_0::ImmutableNameResolutionContext::get ().resolver ();
+
+  NodeId resolved_node_id;
+  resolved_node_id = nr_ctx.lookup (to_be_resolved).value ();
+
+  HirId ref
+    = ctx->get_mappings ().lookup_node_to_hir (resolved_node_id).value ();
+  return ref;
 }
 
 } // namespace Compile
