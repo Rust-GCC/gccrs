@@ -5382,6 +5382,11 @@ may_eliminate_iv (struct ivopts_data *data,
   aff_tree bnd;
   class tree_niter_desc *desc = NULL;
 
+  /* If the IV candidate involves undefs do not attempt to use it to
+     express a condition.  */
+  if (cand->involves_undefs)
+    return false;
+
   if (TREE_CODE (cand->iv->step) != INTEGER_CST)
     return false;
 
