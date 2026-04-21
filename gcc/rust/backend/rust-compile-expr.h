@@ -20,6 +20,8 @@
 #define RUST_COMPILE_EXPR
 
 #include "rust-compile-base.h"
+#include "rust-gcc.h"
+#include "rust-hir-expr.h"
 #include "rust-hir-visitor.h"
 
 namespace Rust {
@@ -150,6 +152,11 @@ protected:
 
   bool generate_possible_fn_trait_call (HIR::CallExpr &expr, tree receiver,
 					tree *result);
+
+  tree construct_block_label (HIR::BlockExpr &expr);
+  tree lookup_label (NodeId to_be_resolved);
+  Bvariable *lookup_temp_var (NodeId to_be_resolved);
+  HirId resolve_NodeId (NodeId to_be_resolved);
 
 private:
   CompileExpr (Context *ctx);
