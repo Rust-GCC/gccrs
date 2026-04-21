@@ -467,15 +467,13 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   {
     // _GLIBCXX_RESOLVE_LIB_DEFECTS
     // 4351. integral-constant-like needs more remove_cvref_t
+    // 4486. integral-constant-like and constexpr-wrapper-like exposition-only
+    //       concept duplication
     template<typename _Tp>
       concept __integral_constant_like =
 	is_integral_v<remove_cvref_t<decltype(_Tp::value)>>
 	&& !is_same_v<bool, remove_cvref_t<decltype(_Tp::value)>>
-	&& convertible_to<_Tp, decltype(_Tp::value)>
-	&& equality_comparable_with<_Tp, decltype(_Tp::value)>
-	&& bool_constant<_Tp() == _Tp::value>::value
-	&& bool_constant<static_cast<decltype(_Tp::value)>(_Tp()) == _Tp::value>
-	     ::value;
+	&& __constexpr_wrapper_like<_Tp>;
 
     template<typename _Tp>
       constexpr size_t __maybe_static_ext = dynamic_extent;

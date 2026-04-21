@@ -16,6 +16,7 @@ using std::float32_t;
 using std::float64_t;
 
 using namespace std::simd;
+using std::__constexpr_wrapper_like;
 
 template <int = 0>
 void test()

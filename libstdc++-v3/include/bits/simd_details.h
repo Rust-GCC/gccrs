@@ -1030,13 +1030,6 @@ namespace simd
   /** @internal
    * C++26 [simd.expos]
    */
-  template<typename _Tp>
-    concept __constexpr_wrapper_like
-      = convertible_to<_Tp, decltype(_Tp::value)>
-	  && equality_comparable_with<_Tp, decltype(_Tp::value)>
-	  && bool_constant<_Tp() == _Tp::value>::value
-	  && bool_constant<static_cast<decltype(_Tp::value)>(_Tp()) == _Tp::value>::value;
-
   // [simd.ctor] explicit(...) of broadcast ctor
   template <auto _From, typename _To>
     concept __non_narrowing_constexpr_conversion
