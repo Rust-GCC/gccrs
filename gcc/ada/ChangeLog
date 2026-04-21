@@ -1,3 +1,10 @@
+2026-04-20  Eric Botcazou  <ebotcazou@adacore.com>
+
+	PR ada/124918
+	* gcc-interface/Makefile.in (TOOLS1_LIBS): Restore.
+	(../../gnatmake$(exeext)): Link with $(TOOLS1_LIBS).
+	(../../gnatlink$(exeext)): Likewise.
+
 2026-04-19  Eric Botcazou  <ebotcazou@adacore.com>
 
 	PR ada/124918

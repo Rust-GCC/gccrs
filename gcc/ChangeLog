@@ -1,3 +1,37 @@
+2026-04-20  Jakub Jelinek  <jakub@redhat.com>
+
+	PR middle-end/123635
+	* gimple-lower-bitint.cc (bitint_large_huge::lower_shift_stmt): In the
+	RSHIFT_EXPR case, use p2 in two LE_EXPR conditions rather than just
+	one.  In LSHIFT_EXPR case, use signed RSHIFT_EXPR instead of unsigned.
+	(bitint_large_huge::lower_muldiv_stmt): For unsigned MULT_EXPR with
+	bitint_extended if prec is not multiple of limb_prec, clear padding
+	bits after libgcc call.
+	(bitint_large_huge::lower_float_conv_stmt): Use signed RSHIFT_EXPR
+	instead of unsigned.
+
+2026-04-20  Jakub Jelinek  <jakub@redhat.com>
+
+	PR middle-end/123635
+	* gimple-lower-bitint.cc (bitint_precision_kind): Assert the current
+	assumptions, that bitint_ext_full for abi_limb_prec > limb_prec is
+	supported only when abi_limb_prec is limb_Prec * 2 and it is not
+	big endian in that case.
+	(bitint_large_huge::lower_mergeable_stmt): Don't set separate_ext
+	fir bitint_ext_full for bit-field stores.  Guard the condition
+	on an extra limb of padding bits to be extended rather than including
+	earlier extensions in that too.  If already sign extending before
+	and type is unsigned, set zero_ms_limb instead and later handle it.
+	(bitint_large_huge::lower_shift_stmt): Handle bitint_ext_full.
+
+2026-04-20  Soumya AR  <soumyaa@nvidia.com>
+
+	* config/aarch64/aarch64-narrow-gp-writes.cc (narrow_dimode_src): Remove
+	redundant checks. Don't recurse when an operand remains DImode.
+	(narrow_gp_writes::optimize_compare_arith_insn): Use
+	HOST_WIDE_INT_PRINT_HEX.
+	(narrow_gp_writes::optimize_single_set_insn): Likewise.
+
 2026-04-19  Richard Sandiford  <rdsandiford@googlemail.com>
 
 	PR rtl-optimization/124643

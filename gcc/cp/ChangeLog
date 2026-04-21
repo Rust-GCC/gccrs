@@ -1,3 +1,29 @@
+2026-04-20  Jason Merrill  <jason@redhat.com>
+
+	PR c++/124910
+	* constexpr.cc (cxx_eval_store_expression): Ending the
+	lifetime of the active member means no active member.
+
+2026-04-20  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/124706
+	* parser.cc (cp_parser_splice_type_specifier): For ctad_template_p
+	call make_template_placeholder.
+	* pt.cc (tsubst_splice_scope): Likewise.
+
+2026-04-20  Iain Sandoe  <iain@sandoe.co.uk>
+
+	PR c++/124648
+	* contracts.cc (maybe_apply_function_contracts): Nest pre and
+	post conditions inside the outer bind expression of a lambda
+	with captures.
+
+2026-04-20  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/124855
+	* reflect.cc (consteval_only_p): Return false if the type is
+	dependent.
+
 2026-04-17  Marek Polacek  <polacek@redhat.com>
 
 	* cp-tree.h (reflection_function_template_p): Change the

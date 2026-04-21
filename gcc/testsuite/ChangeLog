@@ -1,3 +1,52 @@
+2026-04-20  Iain Buclaw  <ibuclaw@gdcproject.org>
+
+	PR d/123411
+	* gdc.dg/pr123411.d: New test.
+
+2026-04-20  Jason Merrill  <jason@redhat.com>
+
+	PR c++/124910
+	* g++.dg/cpp2a/constexpr-union11.C: New test.
+
+2026-04-20  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/124706
+	* g++.dg/reflect/error10.C: Adjust dg-error.
+	* g++.dg/reflect/type9.C: Likewise.
+	* g++.dg/reflect/ctad1.C: New test.
+	* g++.dg/reflect/ctad2.C: New test.
+
+2026-04-20  Iain Sandoe  <iain@sandoe.co.uk>
+
+	PR c++/124648
+	* g++.dg/contracts/cpp26/expr.prim.lambda.closure.p10.C: Update
+	to include tests of conditions seen in PR124648.
+
+2026-04-20  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/124855
+	* g++.dg/reflect/type11.C: New test.
+
+2026-04-20  Jakub Jelinek  <jakub@redhat.com>
+
+	PR middle-end/122021
+	* gcc.target/i386/pr122021-0.c: Remove -m32 from dg-options.
+
+2026-04-20  H.J. Lu  <hjl.tools@gmail.com>
+
+	PR testsuite/124939
+	* gcc.dg/torture/pr121649.c: Replace long with long long.
+
+2026-04-20  Jakub Jelinek  <jakub@redhat.com>
+
+	PR middle-end/123635
+	* gcc.dg/bitintext.h: Use __riscv macro instead of __riscv__.
+	* gcc.dg/torture/bitint-86.c: Remove bogus sync_char_short
+	effective target.
+	* gcc.dg/torture/bitint-87.c: Likewise.
+	* gcc.dg/torture/bitint-88.c: New test.
+	* gcc.dg/torture/bitint-89.c: New test.
+
 2026-04-19  Richard Sandiford  <rdsandiford@googlemail.com>
 
 	PR rtl-optimization/124643
