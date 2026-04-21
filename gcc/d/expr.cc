@@ -2368,25 +2368,53 @@ public:
       }
     else
       {
-	/* Copy the string contents to a null terminated STRING_CST.  */
 	dinteger_t length = (e->len * e->sz);
-	char *string = XALLOCAVEC (char, length + e->sz);
-	memset (string, 0, length + e->sz);
-	if (length > 0)
-	  memcpy (string, e->string, length);
+	tree value;
+	tree value_type;
 
-	/* String value and type includes the null terminator.  */
-	tree value = build_string (length + e->sz, string);
 	if (e->sz <= 4)
-	  TREE_TYPE (value) = make_array_type (tb->nextOf (), length + 1);
+	  value_type = make_array_type (tb->nextOf (), length + 1);
 	else
 	  {
 	    /* Hexadecimal literal strings with an 8-byte character type are
 	       just an alternative way to store an array of `ulong'.
 	       Treat it as if it were a `uint[]' array instead.  */
 	    dinteger_t resize = e->sz / 4;
-	    TREE_TYPE (value) = make_array_type (Type::tuns32,
-						 (length * resize) + resize);
+	    value_type = make_array_type (Type::tuns32,
+					  (length * resize) + resize);
+	  }
+
+	if (tb->nextOf ()->isMutable ())
+	  {
+	    /* From CTFE, a mutable `char[]' might be initialized with a
+	       StringExp, don't use STRING_CST then.  */
+	    vec <constructor_elt, va_gc> *elms = NULL;
+	    vec_safe_reserve (elms, e->len);
+	    tree etype = TREE_TYPE (value_type);
+
+	    for (size_t i = 0; i < e->len; i++)
+	      {
+		tree value = build_integer_cst (e->getIndex (i), etype);
+		CONSTRUCTOR_APPEND_ELT (elms, size_int (i), value);
+	      }
+
+	    value = build_padded_constructor (value_type, elms);
+	    value = build_artificial_decl (TREE_TYPE (value), value, "A");
+
+	    d_pushdecl (value);
+	    rest_of_decl_compilation (value, 1, 0);
+	  }
+	else
+	  {
+	    /* Copy the string contents to a null terminated STRING_CST.  */
+	    char *string = XALLOCAVEC (char, length + e->sz);
+	    memset (string, 0, length + e->sz);
+	    if (length > 0)
+	      memcpy (string, e->string, length);
+
+	    /* String value and type includes the null terminator.  */
+	    value = build_string (length + e->sz, string);
+	    TREE_TYPE (value) = value_type;
 	  }
 
 	value = build_address (value);
