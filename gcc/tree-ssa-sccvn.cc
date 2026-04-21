@@ -3284,8 +3284,14 @@ vn_reference_lookup_3 (ao_ref *ref, tree vuse, void *data_,
 		     covering the whole access size.  */
 		  if (INTEGRAL_TYPE_P (vr->type)
 		      && maxsizei != TYPE_PRECISION (vr->type))
-		    type = build_nonstandard_integer_type (maxsizei,
-							   TYPE_UNSIGNED (type));
+		    {
+		      bool uns = TYPE_UNSIGNED (type);
+		      if (TREE_CODE (vr->type) == BITINT_TYPE
+			  && maxsizei > MAX_FIXED_MODE_SIZE)
+			type = build_bitint_type (maxsizei, uns);
+		      else
+			type = build_nonstandard_integer_type (maxsizei, uns);
+		    }
 		  if (BYTES_BIG_ENDIAN)
 		    {
 		      /* For big-endian native_encode_expr stored the rhs
