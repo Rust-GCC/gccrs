@@ -4085,7 +4085,8 @@ bitint_large_huge::lower_muldiv_stmt (tree obj, gimple *stmt)
   gcc_assert (TREE_CODE (type) == BITINT_TYPE
 	      && bitint_precision_kind (type) >= bitint_prec_large);
   int prec = TYPE_PRECISION (type), prec1, prec2;
-  bool zero_ms_limb = false;
+  bool ext_ms_limb = false;
+  bool do_ext = false;
   rhs1 = handle_operand_addr (rhs1, stmt, NULL, &prec1);
   rhs2 = handle_operand_addr (rhs2, stmt, NULL, &prec2);
   if (obj == NULL_TREE)
@@ -4101,15 +4102,26 @@ bitint_large_huge::lower_muldiv_stmt (tree obj, gimple *stmt)
       lhs = force_gimple_operand_gsi (&m_gsi, lhs, true,
 				      NULL_TREE, true, GSI_SAME_STMT);
     }
+  if (bitint_extended && TYPE_OVERFLOW_WRAPS (type))
+    {
+      if (rhs_code == MULT_EXPR)
+	do_ext = true;
+      /* For signed division with -fwrapv, minimum negative / -1 needs
+	 is minimum negative and the padding bits above it should be all
+	 set.  */
+      else if (!TYPE_UNSIGNED (type)
+	       && (rhs_code == TRUNC_DIV_EXPR || rhs_code == EXACT_DIV_EXPR))
+	do_ext = true;
+    }
   if (bitint_extended == bitint_ext_full
       && abi_limb_prec > limb_prec
       && (CEIL (prec, abi_limb_prec) * abi_limb_prec
 	  > CEIL (prec, limb_prec) * limb_prec))
     {
       /* unsigned multiplication needs to wrap around, so we can't
-	 increase prec.  */
-      if (rhs_code == MULT_EXPR && TYPE_UNSIGNED (type))
-	zero_ms_limb = true;
+	 increase prec.  Similarly for -fwrapv.  */
+      if (do_ext)
+	ext_ms_limb = true;
       else
 	prec = CEIL (prec, abi_limb_prec) * abi_limb_prec;
     }
@@ -4166,10 +4178,8 @@ bitint_large_huge::lower_muldiv_stmt (tree obj, gimple *stmt)
 	  add_eh_edge (e2->src, e1);
 	}
     }
-  if (bitint_extended
-      && rhs_code == MULT_EXPR
-      && TYPE_UNSIGNED (type)
-      && (prec % limb_prec) != 0)
+  if (do_ext
+      && ((prec % limb_prec) != 0 || (ext_ms_limb && !TYPE_UNSIGNED (type))))
     {
       /* Unsigned multiplication wraps, but libgcc function will return the
 	 bits beyond prec within the top limb as another limb of the full
@@ -4180,13 +4190,33 @@ bitint_large_huge::lower_muldiv_stmt (tree obj, gimple *stmt)
       tree v = make_ssa_name (m_limb_type);
       g = gimple_build_assign (v, l);
       insert_before (g);
-      v = add_cast (ctype, v);
-      l = limb_access (type, obj, idx, true);
-      v = add_cast (m_limb_type, v);
-      g = gimple_build_assign (l, v);
-      insert_before (g);
+      tree v2 = v;
+      if ((prec % limb_prec) != 0)
+	{
+	  v = add_cast (ctype, v);
+	  l = limb_access (type, obj, idx, true);
+	  v = add_cast (m_limb_type, v);
+	  v2 = v;
+	  g = gimple_build_assign (l, v);
+	  insert_before (g);
+	}
+      if (ext_ms_limb && !TYPE_UNSIGNED (type))
+	{
+	  v2 = add_cast (signed_type_for (m_limb_type), v2);
+	  tree lpm1 = build_int_cst (unsigned_type_node, limb_prec - 1);
+	  v = make_ssa_name (TREE_TYPE (v2));
+	  g = gimple_build_assign (v, RSHIFT_EXPR, v2, lpm1);
+	  insert_before (g);
+	  unsigned int i
+	    = CEIL (prec, abi_limb_prec) * abi_limb_prec / limb_prec;
+	  v = add_cast (m_limb_type, v);
+	  g = gimple_build_assign (limb_access (type, obj, size_int (i - 1),
+						true), v);
+	  insert_before (g);
+	  ext_ms_limb = false;
+	}
     }
-  if (zero_ms_limb)
+  if (ext_ms_limb)
     {
       unsigned int i = CEIL (prec, abi_limb_prec) * abi_limb_prec / limb_prec;
       g = gimple_build_assign (limb_access (type, obj, size_int (i - 1), true),
