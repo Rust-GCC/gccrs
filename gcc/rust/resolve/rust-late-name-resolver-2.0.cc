@@ -246,7 +246,8 @@ Late::visit (AST::StructPatternFieldIdent &field)
   if (auto resolved = ctx.resolve_path (path, Namespace::Types))
     {
       ctx.map_usage (Usage (field.get_node_id ()),
-		     Definition (resolved->get_node_id ()), Namespace::Types);
+		     Definition (resolved->definition.get_node_id ()),
+		     Namespace::Types);
       return;
     }
 
@@ -533,7 +534,8 @@ resolve_type_path_like (NameResolutionContext &ctx, bool block_big_self,
     }
 
   ctx.map_usage (Usage (type.get_node_id ()),
-		 Definition (resolved->definition.get_node_id ()));
+		 Definition (resolved->definition.get_node_id ()),
+		 Namespace::Types);
 }
 
 void
@@ -590,14 +592,15 @@ Late::visit (AST::Visibility &vis)
     }
 
   // TODO: is this possible?
-  if (res->is_ambiguous ())
+  if (res->definition.is_ambiguous ())
     {
       rust_error_at (path.get_locus (), ErrorCode::E0659, "%qs is ambiguous",
 		     path.as_string ().c_str ());
       return;
     }
 
-  ctx.map_usage (Usage (path.get_node_id ()), Definition (res->get_node_id ()));
+  ctx.map_usage (Usage (path.get_node_id ()),
+		 Definition (res->definition.get_node_id ()), res->ns);
 }
 
 void
@@ -608,7 +611,7 @@ Late::visit (AST::Trait &trait)
   // which is then resolved to the node id of trait
   // we set up the latter mapping here
   ctx.map_usage (Usage (trait.get_implicit_self ().get_node_id ()),
-		 Definition (trait.get_node_id ()));
+		 Definition (trait.get_node_id ()), Namespace::Types);
 
   DefaultResolver::visit (trait);
 }
@@ -658,7 +661,8 @@ Late::visit (AST::StructExprStructFields &s)
     }
 
   ctx.map_usage (Usage (path.get_node_id ()),
-		 Definition (resolved->get_node_id ()));
+		 Definition (resolved->definition.get_node_id ()),
+		 Namespace::Types);
 }
 
 // needed because Late::visit (AST::GenericArg &) is non-virtual

@@ -19,6 +19,7 @@
 #include "rust-hir-type-check-pattern.h"
 #include "rust-hir-pattern.h"
 #include "rust-hir-type-check-expr.h"
+#include "rust-rib.h"
 #include "rust-token.h"
 #include "rust-type-util.h"
 #include "rust-finalized-name-resolution-context.h"
@@ -48,7 +49,7 @@ TypeCheckPattern::Resolve (HIR::Pattern &pattern, TyTy::BaseType *parent)
 void
 TypeCheckPattern::visit (HIR::PathInExpression &pattern)
 {
-  // Pattern must be enum variants, sturcts, constants, or associated constansts
+  // Pattern must be enum variants, structs, constants, or associated constansts
   TyTy::BaseType *pattern_ty = TypeCheckExpr::Resolve (pattern);
 
   NodeId ref_node_id = UNKNOWN_NODEID;
@@ -56,7 +57,9 @@ TypeCheckPattern::visit (HIR::PathInExpression &pattern)
 
   auto &nr_ctx = Resolver2_0::FinalizedNameResolutionContext::get ();
 
-  if (auto id = nr_ctx.lookup (pattern.get_mappings ().get_nodeid ()))
+  // FIXME: Not sure if this is enough to look up enum variants
+  if (auto id = nr_ctx.lookup (pattern.get_mappings ().get_nodeid (),
+			       Resolver2_0::Namespace::Values))
     {
       ref_node_id = *id;
       maybe_item = true;

@@ -33,6 +33,7 @@
 #include "convert.h"
 #include "print-tree.h"
 #include "rust-hir-expr.h"
+#include "rust-rib.h"
 #include "rust-system.h"
 #include "rust-tree.h"
 #include "rust-tyty.h"
@@ -879,7 +880,8 @@ CompileExpr::visit (HIR::BreakExpr &expr)
 
       NodeId resolved_node_id;
       if (auto id
-	  = nr_ctx.lookup (expr.get_label ().get_mappings ().get_nodeid ()))
+	  = nr_ctx.lookup (expr.get_label ().get_mappings ().get_nodeid (),
+			   Resolver2_0::Namespace::Labels))
 	{
 	  resolved_node_id = *id;
 	}
@@ -935,7 +937,8 @@ CompileExpr::visit (HIR::ContinueExpr &expr)
 
       NodeId resolved_node_id;
       if (auto id
-	  = nr_ctx.lookup (expr.get_label ().get_mappings ().get_nodeid ()))
+	  = nr_ctx.lookup (expr.get_label ().get_mappings ().get_nodeid (),
+			   Resolver2_0::Namespace::Labels))
 	{
 	  resolved_node_id = *id;
 	}

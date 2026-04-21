@@ -23,6 +23,7 @@
 #include "rust-hir-map.h"
 #include "rust-hir-pattern.h"
 #include "rust-mapping-common.h"
+#include "rust-rib.h"
 #include "rust-system.h"
 #include "rust-finalized-name-resolution-context.h"
 #include "rust-tyty.h"
@@ -64,7 +65,7 @@ ReadonlyChecker::visit (PathInExpression &expr)
   NodeId def_id;
 
   auto &nr_ctx = Resolver2_0::FinalizedNameResolutionContext::get ();
-  if (auto id = nr_ctx.lookup (ast_node_id))
+  if (auto id = nr_ctx.lookup (ast_node_id, Resolver2_0::Namespace::Values))
     def_id = *id;
   else
     return;

@@ -20,6 +20,7 @@
 #include "rust-hir-type-check-type.h"
 #include "rust-hir-type-check-expr.h"
 #include "rust-hir-type-check-enumitem.h"
+#include "rust-rib.h"
 #include "rust-type-util.h"
 #include "rust-finalized-name-resolution-context.h"
 
@@ -79,7 +80,8 @@ TypeCheckEnumItem::visit (HIR::EnumItem &item)
   auto &nr_ctx = Resolver2_0::FinalizedNameResolutionContext::get ();
 
   CanonicalPath canonical_path
-    = nr_ctx.to_canonical_path (item.get_mappings ().get_nodeid ());
+    = nr_ctx.to_canonical_path (item.get_mappings ().get_nodeid (),
+				Resolver2_0::Namespace::Types);
 
   RustIdent ident{canonical_path, item.get_locus ()};
   variant = new TyTy::VariantDef (item.get_mappings ().get_hirid (),
@@ -110,7 +112,8 @@ TypeCheckEnumItem::visit (HIR::EnumItemDiscriminant &item)
   auto &nr_ctx = Resolver2_0::FinalizedNameResolutionContext::get ();
 
   CanonicalPath canonical_path
-    = nr_ctx.to_canonical_path (item.get_mappings ().get_nodeid ());
+    = nr_ctx.to_canonical_path (item.get_mappings ().get_nodeid (),
+				Resolver2_0::Namespace::Types);
 
   RustIdent ident{canonical_path, item.get_locus ()};
   variant
@@ -159,7 +162,8 @@ TypeCheckEnumItem::visit (HIR::EnumItemTuple &item)
   auto &nr_ctx = Resolver2_0::FinalizedNameResolutionContext::get ();
 
   CanonicalPath canonical_path
-    = nr_ctx.to_canonical_path (item.get_mappings ().get_nodeid ());
+    = nr_ctx.to_canonical_path (item.get_mappings ().get_nodeid (),
+				Resolver2_0::Namespace::Types);
 
   RustIdent ident{canonical_path, item.get_locus ()};
   variant = new TyTy::VariantDef (item.get_mappings ().get_hirid (),
@@ -206,7 +210,8 @@ TypeCheckEnumItem::visit (HIR::EnumItemStruct &item)
   auto &nr_ctx = Resolver2_0::FinalizedNameResolutionContext::get ();
 
   CanonicalPath canonical_path
-    = nr_ctx.to_canonical_path (item.get_mappings ().get_nodeid ());
+    = nr_ctx.to_canonical_path (item.get_mappings ().get_nodeid (),
+				Resolver2_0::Namespace::Types);
 
   RustIdent ident{canonical_path, item.get_locus ()};
   variant = new TyTy::VariantDef (item.get_mappings ().get_hirid (),

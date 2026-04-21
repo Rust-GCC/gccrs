@@ -23,6 +23,7 @@
 #include "rust-diagnostics.h"
 #include "rust-hir-map.h"
 #include "rust-item.h"
+#include "rust-name-resolution-context.h"
 #include "rust-rib.h"
 #include "rust-toplevel-name-resolver-2.0.h"
 #include "rust-attributes.h"
@@ -92,7 +93,7 @@ Early::resolve_glob_import (NodeId use_dec_id, TopLevel::ImportKind &&glob)
     return false;
 
   auto result = Analysis::Mappings::get ().lookup_glob_container (
-    resolved->get_node_id ());
+    resolved->definition.get_node_id ());
 
   if (!result)
     return false;
@@ -100,10 +101,11 @@ Early::resolve_glob_import (NodeId use_dec_id, TopLevel::ImportKind &&glob)
   // here, we insert the module's NodeId into the import_mappings and will look
   // up the module proper in `FinalizeImports`
   // The namespace does not matter here since we are dealing with a glob
+  // FIXME: Does the namespace not matter? Is that valid?
   // TODO: Ugly
   import_mappings.insert (use_dec_id,
 			  ImportPair (std::move (glob),
-				      ImportData::Glob (*resolved)));
+				      ImportData::Glob (resolved->definition)));
 
   return true;
 }
@@ -173,7 +175,7 @@ Early::resolve_rebind_import (NodeId use_dec_id,
     return false;
   for (const auto &def : definitions)
     {
-      if (def.first.is_ambiguous ())
+      if (def.definition.is_ambiguous ())
 	{
 	  rich_location rich_locus (line_table,
 				    rebind_import.to_resolve.get_locus ());
@@ -333,20 +335,23 @@ Early::visit (AST::MacroInvocation &invoc)
 
   // https://doc.rust-lang.org/reference/macros-by-example.html#path-based-scope
 
-  tl::optional<Rib::Definition> definition = tl::nullopt;
+  tl::optional<NameResolutionContext::NamespacedDefinition> ns_def
+    = tl::nullopt;
   if (path.get_segments ().size () == 1)
-    definition
-      = textual_scope.get (path.get_final_segment ().as_string ())
-	  .map ([] (NodeId id) { return Rib::Definition::NonShadowable (id); });
+    ns_def = textual_scope.get (path.get_final_segment ().as_string ())
+	       .map ([] (NodeId id) {
+		 return NameResolutionContext::NamespacedDefinition (
+		   Rib::Definition::NonShadowable (id), Namespace::Macros);
+	       });
 
   // we won't have changed `definition` from `nullopt` if there are more
   // than one segments in our path
-  if (!definition.has_value ())
-    definition = ctx.resolve_path (path, Namespace::Macros);
+  if (!ns_def.has_value ())
+    ns_def = ctx.resolve_path (path, Namespace::Macros);
 
   // if the definition still does not have a value, then it's an error - unless
   // we should automatically resolve offset_of!() calls
-  if (!definition.has_value ())
+  if (!ns_def.has_value ())
     {
       if (!resolve_offset_of)
 	collect_error (Error (invoc.get_locus (), ErrorCode::E0433,
@@ -355,12 +360,13 @@ Early::visit (AST::MacroInvocation &invoc)
       return;
     }
 
-  try_insert_once (invoc, definition->get_node_id ());
+  try_insert_once (invoc, ns_def->definition.get_node_id ());
 
   // now do we need to keep mappings or something? or insert "uses" into our
   // ForeverStack? can we do that? are mappings simpler?
   auto &mappings = Analysis::Mappings::get ();
-  auto rules_def = mappings.lookup_macro_def (definition->get_node_id ());
+  auto rules_def
+    = mappings.lookup_macro_def (ns_def->definition.get_node_id ());
 
   // Macro definition not found, maybe it is not expanded yet.
   if (!rules_def)
@@ -379,8 +385,8 @@ Early::visit_derive_attribute (AST::Attribute &attr,
   auto traits = attr.get_traits_to_derive ();
   for (auto &trait : traits)
     {
-      auto definition = ctx.resolve_path (trait.get (), Namespace::Macros);
-      if (!definition.has_value ())
+      auto ns_def = ctx.resolve_path (trait.get (), Namespace::Macros);
+      if (!ns_def.has_value ())
 	{
 	  // FIXME: Change to proper error message
 	  collect_error (Error (trait.get ().get_locus (),
@@ -389,8 +395,8 @@ Early::visit_derive_attribute (AST::Attribute &attr,
 	  continue;
 	}
 
-      auto pm_def
-	= mappings.lookup_derive_proc_macro_def (definition->get_node_id ());
+      auto pm_def = mappings.lookup_derive_proc_macro_def (
+	ns_def->definition.get_node_id ());
 
       if (pm_def.has_value ())
 	mappings.insert_derive_proc_macro_invocation (trait, pm_def.value ());
@@ -402,8 +408,8 @@ Early::visit_non_builtin_attribute (AST::Attribute &attr,
 				    Analysis::Mappings &mappings,
 				    std::string &name)
 {
-  auto definition = ctx.resolve_path (attr.get_path (), Namespace::Macros);
-  if (!definition.has_value ())
+  auto ns_def = ctx.resolve_path (attr.get_path (), Namespace::Macros);
+  if (!ns_def.has_value ())
     {
       // FIXME: Change to proper error message
       collect_error (Error (attr.get_locus (),
@@ -411,8 +417,8 @@ Early::visit_non_builtin_attribute (AST::Attribute &attr,
 			    name.c_str ()));
       return;
     }
-  auto pm_def
-    = mappings.lookup_attribute_proc_macro_def (definition->get_node_id ());
+  auto pm_def = mappings.lookup_attribute_proc_macro_def (
+    ns_def->definition.get_node_id ());
 
   if (!pm_def.has_value ())
     return;
@@ -460,12 +466,11 @@ Early::finalize_simple_import (const Early::ImportPair &mapping)
       // dirty = true;
 
       ctx.map_usage (Usage (import_id),
-		     Definition (definition.first.get_node_id ()),
-		     definition.second);
+		     Definition (definition.definition.get_node_id ()),
+		     definition.ns);
 
-      toplevel
-	.insert_or_error_out (identifier,
-			      import.get_locus (), import_id, definition.second /* TODO: This isn't clear - it would be better if it was called .ns or something */);
+      toplevel.insert_or_error_out (identifier, import.get_locus (), import_id,
+				    definition.ns);
 
       dirty = dirty || toplevel.is_dirty ();
     }
@@ -542,12 +547,11 @@ Early::finalize_rebind_import (const Early::ImportPair &mapping)
       // dirty = true;
 
       ctx.map_usage (Usage (import_id),
-		     Definition (definition.first.get_node_id ()),
-		     definition.second);
+		     Definition (definition.definition.get_node_id ()),
+		     definition.ns);
 
-      toplevel
-	.insert_or_error_out (declared_name,
-			      path.get_locus (), import_id, definition.second /* TODO: This isn't clear - it would be better if it was called .ns or something */);
+      toplevel.insert_or_error_out (declared_name, path.get_locus (), import_id,
+				    definition.ns);
 
       dirty = dirty || toplevel.is_dirty ();
 
@@ -558,8 +562,8 @@ Early::finalize_rebind_import (const Early::ImportPair &mapping)
       // pub use Foo;
       // use self::Foo::*;
       auto &mappings = Analysis::Mappings::get ();
-      if (auto container
-	  = mappings.lookup_glob_container (definition.first.get_node_id ()))
+      if (auto container = mappings.lookup_glob_container (
+	    definition.definition.get_node_id ()))
 	mappings.insert_glob_container (import_id, container.value ());
     }
 }

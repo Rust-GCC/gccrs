@@ -26,6 +26,7 @@
 #include "rust-hir-path.h"
 #include "rust-name-resolver.h"
 #include "rust-finalized-name-resolution-context.h"
+#include "rust-rib.h"
 #include "rust-system.h"
 
 namespace Rust {
@@ -115,7 +116,7 @@ MarkLive::visit (HIR::PathInExpression &expr)
     ref_node_id
       = Analysis::Mappings::get ().get_lang_item_node (expr.get_lang_item ());
   else
-    find_ref_node_id (ast_node_id, ref_node_id);
+    find_value_definition (ast_node_id, ref_node_id);
 
   // node back to HIR
   tl::optional<HirId> hid = mappings.lookup_node_to_hir (ref_node_id);
@@ -140,7 +141,7 @@ MarkLive::visit (HIR::MethodCallExpr &expr)
   // Trying to find the method definition and mark it alive.
   NodeId ast_node_id = expr.get_mappings ().get_nodeid ();
   NodeId ref_node_id = UNKNOWN_NODEID;
-  find_ref_node_id (ast_node_id, ref_node_id);
+  find_value_definition (ast_node_id, ref_node_id);
 
   // node back to HIR
   if (auto hid = mappings.lookup_node_to_hir (ref_node_id))
@@ -163,7 +164,8 @@ MarkLive::visit_path_segment (HIR::PathExprSegment seg)
   //
   // We should mark them alive all and ignoring other kind of segments.
   // If the segment we dont care then just return false is fine
-  if (auto id = resolver.lookup (ast_node_id))
+  // TODO: Should we look that up in all namespaces?
+  if (auto id = resolver.lookup (ast_node_id, Resolver2_0::Namespace::Values))
     ref_node_id = *id;
   else
     return false;
@@ -242,7 +244,8 @@ MarkLive::visit (HIR::TypeAlias &alias)
   NodeId ast_node_id;
 
   if (auto id = resolver.lookup (
-	alias.get_type_aliased ().get_mappings ().get_nodeid ()))
+	alias.get_type_aliased ().get_mappings ().get_nodeid (),
+	Resolver2_0::Namespace::Types))
     ast_node_id = *id;
   else
     rust_unreachable ();
@@ -264,9 +267,9 @@ MarkLive::mark_hir_id (HirId id)
 }
 
 void
-MarkLive::find_ref_node_id (NodeId ast_node_id, NodeId &ref_node_id)
+MarkLive::find_value_definition (NodeId ast_node_id, NodeId &ref_node_id)
 {
-  auto resolved = resolver.lookup (ast_node_id);
+  auto resolved = resolver.lookup (ast_node_id, Resolver2_0::Namespace::Values);
   rust_assert (resolved.has_value ());
   ref_node_id = resolved.value ();
 }

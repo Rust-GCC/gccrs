@@ -23,6 +23,7 @@
 #include "rust-hir-type-check-type.h"
 #include "rust-hir-type-check-item.h"
 #include "rust-hir-trait-resolve.h"
+#include "rust-rib.h"
 #include "rust-substitution-mapper.h"
 #include "rust-hir-path-probe.h"
 #include "rust-type-util.h"
@@ -160,7 +161,8 @@ TypeCheckExpr::visit (HIR::QualifiedPathInExpression &expr)
       auto &nr_ctx = Resolver2_0::FinalizedNameResolutionContext::get ();
 
       nr_ctx.map_usage (Resolver2_0::Usage (expr.get_mappings ().get_nodeid ()),
-			Resolver2_0::Definition (root_resolved_node_id));
+			Resolver2_0::Definition (root_resolved_node_id),
+			Resolver2_0::Namespace::Values);
       return;
     }
 
@@ -258,7 +260,7 @@ TypeCheckExpr::resolve_root_path (HIR::PathInExpression &expr, size_t *offset,
 
       // lookup the reference_node_id
       NodeId ref_node_id;
-      if (auto res = nr_ctx.lookup (ast_node_id))
+      if (auto res = nr_ctx.lookup (ast_node_id, Resolver2_0::Namespace::Types))
 	{
 	  ref_node_id = *res;
 	}
@@ -545,7 +547,8 @@ TypeCheckExpr::resolve_segments (NodeId root_resolved_node_id,
   auto &nr_ctx = Resolver2_0::FinalizedNameResolutionContext::get ();
 
   nr_ctx.map_usage (Resolver2_0::Usage (expr_mappings.get_nodeid ()),
-		    Resolver2_0::Definition (resolved_node_id));
+		    Resolver2_0::Definition (resolved_node_id),
+		    Resolver2_0::Namespace::Values);
 
   infered = tyseg;
 }
