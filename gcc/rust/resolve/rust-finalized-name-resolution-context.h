@@ -52,6 +52,8 @@ public:
    * Same as NameResolutionContext::lookup
    */
   tl::optional<NodeId> lookup (NodeId usage, Namespace ns) const;
+  tl::optional<NameResolutionContext::NSLookup>
+  lookup (NodeId usage, Namespace ns1, Namespace ns2) const;
 
   /**
    * Same as NameResolutionContext::to_canonical_path

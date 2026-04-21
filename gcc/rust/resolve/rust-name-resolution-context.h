@@ -524,10 +524,35 @@ public:
 
   CanonicalPathCtx canonical_ctx;
 
+  /**
+   * The result type for a multi-namespace call to
+   * NameResolutionContext::lookup()
+   */
+  struct NSLookup
+  {
+    NodeId id;
+    Namespace ns;
+
+    NSLookup (NodeId id, Namespace ns) : id (id), ns (ns) {}
+  };
+
+  /**
+   * These functions are mostly useful for the FinalizedNameResolutionContext
+   * and used in later passes of the pipeline. They don't need to know as much
+   * about a definition, hence why they don't use the NamespacedDefinition which
+   * returns a Rib::Definition.
+   */
   void map_usage (Usage usage, Definition definition, Namespace ns);
   tl::optional<NodeId> lookup (NodeId usage, Namespace ns) const;
-  tl::optional<NodeId> lookup (NodeId usage, Namespace ns1,
-			       Namespace ns2) const;
+
+  /**
+   * The order of namespaces is important - if the usage resolves in the first
+   * namespace, then it will be returned. Collisions are not guarded against and
+   * should NOT happen. This is for looking up usages once name resolution is
+   * done and we are in later stages of the pipeline.
+   */
+  tl::optional<NSLookup> lookup (NodeId usage, Namespace ns1,
+				 Namespace ns2) const;
 
   Resolver::CanonicalPath to_canonical_path (NodeId id, Namespace ns) const
   {

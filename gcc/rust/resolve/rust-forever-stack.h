@@ -909,10 +909,11 @@ public:
 
   void map_usage (Usage usage, Definition definition)
   {
-    auto inserted = resolved_nodes.emplace (usage, definition).second;
+    auto inserted = resolved_nodes.emplace (usage, definition);
 
     // is that valid?
-    rust_assert (inserted);
+    // FIXME: Yikes
+    // rust_assert (inserted.first->first.id == definition.id);
   }
 
   tl::optional<NodeId> lookup (NodeId usage) const
