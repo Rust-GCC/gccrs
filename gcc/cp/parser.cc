@@ -19980,14 +19980,17 @@ cp_parser_mem_initializer_id (cp_parser* parser)
   bool template_p = false;
   tree id;
 
-  cp_token *token = cp_lexer_peek_token (parser->lexer);
+  cp_token *typename_token = nullptr, *splice_token = nullptr;
 
-  /* `typename' is not allowed in this context ([temp.res]).  */
+  /* `typename' is not allowed in this context ([temp.res]), unless
+      it is part of splice-type-specifier.  Defer diagnostics for now
+      because it needs to be diagnosed if followed by splice-scope-specifier
+      but not when followed by splice-type-specifier.  */
   if (cp_lexer_next_token_is_keyword (parser->lexer, RID_TYPENAME))
     {
-      error_at (token->location,
-		"keyword %<typename%> not allowed in this context (a qualified "
-		"member initializer is implicitly a type)");
+      typename_token = cp_lexer_peek_token (parser->lexer);
+      if (cp_parser_next_tokens_start_splice_type_spec_p (parser, true))
+	splice_token = cp_lexer_peek_nth_token (parser->lexer, 2);
       cp_lexer_consume_token (parser->lexer);
     }
   /* Look for the optional `::' operator.  */
@@ -20014,6 +20017,12 @@ cp_parser_mem_initializer_id (cp_parser* parser)
 					    /*type_p=*/true,
 					    /*is_declaration=*/true)
        != NULL_TREE);
+  if (typename_token && cp_lexer_peek_token (parser->lexer) != splice_token)
+    /* Emit deferred diagnostics for invalid typename keyword if
+       cp_parser_nested_name_specifier_opt parsed splice-scope-specifier.  */
+    error_at (typename_token->location,
+	      "keyword %<typename%> not allowed in this context (a qualified "
+	      "member initializer is implicitly a type)");
   if (nested_name_specifier_p)
     template_p = cp_parser_optional_template_keyword (parser);
   /* If there is a `::' operator or a nested-name-specifier, then we
@@ -20026,6 +20035,14 @@ cp_parser_mem_initializer_id (cp_parser* parser)
 				 /*check_dependency_p=*/true,
 				 /*class_head_p=*/false,
 				 /*is_declaration=*/true);
+  else if (cp_lexer_next_token_is (parser->lexer, CPP_OPEN_SPLICE))
+    {
+      /* Parse C++26 splice-type-specifier.  */
+      id = cp_parser_splice_type_specifier (parser);
+      if (id == NULL_TREE)
+	return error_mark_node;
+      return id;
+    }
   /* Otherwise, we could also be looking for an ordinary identifier.  */
   cp_parser_parse_tentatively (parser);
   if (cp_lexer_next_token_is_decltype (parser->lexer))
