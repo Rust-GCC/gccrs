@@ -30,7 +30,9 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 typedef void (*proc_con) (int, char **, char **);
 typedef void (*proc_dep) (void);
 
-extern "C" void m2iso_M2RTS_RequestDependant (const char *modulename, const char *libname, const char *dependancy);
+extern "C" void m2iso_M2RTS_RequestDependant (const char *modulename, const char *libname,
+					      const char *dependantmodule,
+					      const char *dependantlibname);
 extern "C" void m2iso_M2RTS_RegisterModule (const char *modulename, const char *libname,
 					    proc_con init, proc_con fini, proc_dep dependencies);
 extern "C" void m2pim_M2RTS_RegisterModule (const char *modulename, const char *libname,
@@ -40,9 +42,11 @@ extern "C" void M2RTS_RegisterModule (const char *modulename, const char *libnam
 extern "C" void m2iso_M2_M2RTS_init (void);
 
 extern "C" void m2iso_M2RTS_ConstructModules (const char *modulename, const char *libname,
+					      const char *overrideliborder,
 					      int argc, char *argv[], char *envp[]);
 extern "C" void m2iso_M2RTS_Terminate (void);
-extern "C" void m2iso_M2RTS_DeconstructModules (void);
+extern "C" void m2iso_M2RTS_DeconstructModules (const char *modulename, const char *libname,
+						int argc, char *argv[], char *envp[]);
 
 extern "C" void m2iso_M2RTS_HaltC (const char *desc, const char *filename,
 				   const char *functionname, int line) __attribute__ ((noreturn));

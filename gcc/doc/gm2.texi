@@ -2304,8 +2304,8 @@ intersect.
 
 This section describes building a tiny shared library implemented in
 Modula-2 and built with @file{libtool}.  Suppose a project consists of
-two definition modules and two implementation modules and a program
-module @file{a.def}, @file{a.mod}, @file{b.def}, @file{b.mod} and
+three definition modules and three implementation modules
+@file{a.def}, @file{a.mod}, @file{b.def}, @file{b.mod} and
 @file{c.mod}.  The first step is to compile the modules using position
 independent code.  This can be achieved by the following three
 commands:
@@ -2316,27 +2316,110 @@ libtool --tag=CC --mode=compile gm2 -g -c b.mod -o b.lo
 libtool --tag=CC --mode=compile gm2 -g -c c.mod -o c.lo
 @end example
 
-The second step is to generate the shared library initialization and
-finalization routines.  We can do this by asking gm2 to generate a
-list of dependent modules and then use this to generate the scaffold.
-We also must compile the scaffold.
+The second step is to link these objects into a shared library.
 
 @example
-gm2 -c -g -fmakelist c.mod
-gm2 -c -g -fmakeinit -fshared c.mod
-libtool --tag=CC --mode=compile g++ -g -c c_m2.cpp -o c_m2.lo
-@end example
+export LIBDIR=$(gm2 -print-file-name=)../../../../lib64
 
-The third step is to link all these @file{.lo} files.
-
-@example
-libtool --mode=link gcc -g c_m2.lo a.lo b.lo c.lo \
-        -L$(prefix)/lib64 \
-        -rpath `pwd` -lgm2 -lstdc++ -lm -o libabc.la
+libtool --tag=CC --mode=link gcc -g a.lo b.lo c.lo \
+  -L$@{LIBDIR@} -rpath `pwd` -lm2pim -lm2iso -lstdc++ \
+  -lm -o libabc.la
 @end example
 
 At this point the shared library @file{libabc.so} will have been
 created inside the directory @file{.libs}.
+
+This library can be called from C using the following technique.
+The define @code{INIT_ORDER} should not be changed as it defines the
+initialization order of the core base modules.
+The define @code{USER_LIB} is the name of the library dialect and
+maybe changed if required.
+
+@example
+#include <stdio.h>
+#include <m2rts.h>
+
+#define INIT_ORDER "m2iso:RTentity,m2iso:Storage," \
+                   "m2iso:SYSTEM,m2iso:M2RTS," \
+                   "m2iso:RTExceptions,m2iso:IOLink"
+
+#define USER_LIB NULL
+
+/* Add the runtime dependency for this file on modules a, b and c.  */
+
+void
+dep (void)
+@{
+  m2iso_M2RTS_RequestDependant (__FILE__, USER_LIB, "c", USER_LIB);
+  m2iso_M2RTS_RequestDependant (__FILE__, USER_LIB, "b", USER_LIB);
+  m2iso_M2RTS_RequestDependant (__FILE__, USER_LIB, "a", USER_LIB);
+@}
+
+void
+init (int, char *[], char *[])
+@{
+  printf ("test.c:init\n");
+@}
+
+void
+fini (int, char *[], char *[])
+@{
+  printf ("test.c:fini\n");
+@}
+
+void
+construct_scaffold (int argc, char *argv[], char *envp[])
+@{
+  m2iso_M2RTS_RegisterModule (__FILE__, USER_LIB,
+                              init, fini, dep);
+  m2iso_M2RTS_ConstructModules (__FILE__, USER_LIB,
+                                INIT_ORDER, argc, argv, envp);
+@}
+
+void
+deconstruct_scaffold (int argc, char *argv[], char *envp[])
+@{
+  m2iso_M2RTS_DeconstructModules (__FILE__, USER_LIB,
+                                  argc, argv, envp);
+@}
+
+int
+main (int argc, char *argv[], char *envp[])
+@{
+  printf ("main starts\n");
+  construct_scaffold (argc, argv, envp);
+  printf ("main application goes here\n");
+  deconstruct_scaffold (argc, argv, envp);
+  printf ("main tidying up\n");
+  return 0;
+@}
+@end example
+
+This source file can be compiled and linked using the following
+command:
+
+@example
+export INCLUDE=$(gm2 -print-file-name=)/m2/m2iso
+g++ -I$@{INCLUDE@} -g test.c -L. -l:.libs/libabc.so -L$@{LIBDIR@} -lm2iso
+@end example
+
+and finally run using:
+
+@example
+LD_LIBRARY_PATH=.libs:$@{LIBDIR@} ./a.out
+
+main starts
+init: module a
+init: module b
+init: module c
+test.c:init
+main application goes here
+test.c:fini
+finish: module c
+finish: module b
+finish: module a
+main tidying up
+@end example
 
 @node Interface for Python, Producing a Python module, Building a shared library, Using
 @section How to produce swig interface files
