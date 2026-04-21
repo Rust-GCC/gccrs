@@ -33501,14 +33501,14 @@ finish_expansion_stmt (tree expansion_stmt, tree args,
 	     so that e.g. b can be incremented, so unwrap the TARGET_EXPRs
 	     and force TARGET_EXPR with the cv-unqualified type which is
 	     a hack replacement for a VAR_DECL in a lambda.  */
+	  tree btype = cv_unqualified (TREE_TYPE (b));
+	  tree etype = cv_unqualified (TREE_TYPE (e));
 	  if (TREE_CODE (b) == TARGET_EXPR)
 	    b = TARGET_EXPR_INITIAL (b);
 	  if (TREE_CODE (e) == TARGET_EXPR)
 	    e = TARGET_EXPR_INITIAL (e);
-	  b = force_target_expr (cv_unqualified (TREE_TYPE (b)), b,
-				 tf_warning_or_error);
-	  e = force_target_expr (cv_unqualified (TREE_TYPE (e)), e,
-				 tf_warning_or_error);
+	  b = force_target_expr (btype, b, tf_warning_or_error);
+	  e = force_target_expr (etype, e, tf_warning_or_error);
 	  tree w = build_stmt (loc, WHILE_STMT, NULL_TREE, NULL_TREE,
 			       NULL_TREE, NULL_TREE, NULL_TREE);
 	  tree r = get_target_expr (build_zero_cst (ptrdiff_type_node));
