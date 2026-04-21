@@ -279,10 +279,10 @@ algol68.install-info: $(DESTDIR)$(infodir)/ga68.info \
                       $(DESTDIR)$(infodir)/ga68-coding-guidelines.info
 
 algol68.install-html: $(build_htmldir)/ga68 $(build_htmldir)/ga68-internals \
-                      $(build_htmldir)/ga68-coding-guidelines.info
+                      $(build_htmldir)/ga68-coding-guidelines
 	@$(NORMAL_INSTALL)
 	test -z "$(htmldir)" || $(mkinstalldirs) "$(DESTDIR)$(htmldir)"
-	@for p in $(build_htmldir)/ga68; do \
+	@for p in $(build_htmldir)/ga68 $(build_htmldir)/ga68-internals $(build_htmldir)/ga68-coding-guidelines; do \
 	  if test -f "$$p" || test -d "$$p"; then d=""; else d="$(srcdir)/"; fi; \
 	  f=$(html__strip_dir) \
 	  if test -d "$$d$$p"; then \
