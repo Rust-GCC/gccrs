@@ -1,3 +1,5 @@
+/* { dg-do assemble { target aarch64_asm_sme-lutv2_ok } } */
+/* { dg-do compile { target { ! aarch64_asm_sme-lutv2_ok } } } */
 /* { dg-final { check-function-bodies "**" "" "-DCHECK_ASM" } }  */
 
 /* MOVT (vector to table)
