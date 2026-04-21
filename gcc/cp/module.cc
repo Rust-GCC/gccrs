@@ -23131,13 +23131,22 @@ maybe_translate_include (cpp_reader *reader, line_maps *lmaps, location_t loc,
       /* Redirect importable <name> to <bits/stdc++.h>.  */
       /* ??? Generalize to use a .json.  */
       expanded_location eloc = expand_location (loc);
+      auto indir = [](const char *f, const char *d)
+      {
+	if (!filename_ncmp (f, d, strlen (d))) return true;
+	/* Also check canonical paths (c++/123879).  */
+	auto cf = lrealpath (f); auto cd = lrealpath (d);
+	bool r = cf && cd && !filename_ncmp (cf, cd, strlen (cd));
+	free (cf); free (cd);
+	return r;
+      };
       if (angle && is_importable_header (fname)
 	  /* Exclude <version> which often goes with import std.  */
 	  && strcmp (fname, "version") != 0
 	  /* Don't redirect #includes between headers under the same include
 	     path directory (i.e. between library headers); if the import
 	     brings in the current file we then get redefinition errors.  */
-	  && !strstr (eloc.file, _cpp_get_file_dir (file)->name)
+	  && !indir (eloc.file, _cpp_get_file_dir (file)->name)
 	  /* ??? These are needed when running a toolchain from the build
 	     directory, because libsupc++ headers aren't linked into
 	     libstdc++-v3/include with the other headers.  */
