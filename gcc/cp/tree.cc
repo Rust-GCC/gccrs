@@ -48,6 +48,8 @@ static tree handle_init_priority_attribute (tree *, tree, tree, int, bool *);
 static tree handle_abi_tag_attribute (tree *, tree, tree, int, bool *);
 static tree handle_no_dangling_attribute (tree *, tree, tree, int, bool *);
 static tree handle_annotation_attribute (tree *, tree, tree, int, bool *);
+static tree handle_trivial_abi_attribute (tree *, tree, tree, int, bool *);
+static tree handle_gnu_trivial_abi_attribute (tree *, tree, tree, int, bool *);
 
 /* If REF is an lvalue, returns the kind of lvalue that REF is.
    Otherwise, returns clk_none.  */
@@ -5570,6 +5572,7 @@ handle_indeterminate_attribute (tree *node, tree name, tree, int,
 }
 
 /* Table of valid C++ attributes.  */
+// clang-format off
 static const attribute_spec cxx_gnu_attributes[] =
 {
   /* { name, min_len, max_len, decl_req, type_req, fn_type_req,
@@ -5580,7 +5583,10 @@ static const attribute_spec cxx_gnu_attributes[] =
     handle_abi_tag_attribute, NULL },
   { "no_dangling", 0, 1, false, true, false, false,
     handle_no_dangling_attribute, NULL },
+  { "trivial_abi", 0, 0, false, true, false, true,
+    handle_gnu_trivial_abi_attribute, NULL },
 };
+// clang-format on
 
 const scoped_attribute_specs cxx_gnu_attribute_table =
 {
@@ -5630,6 +5636,20 @@ const scoped_attribute_specs internal_attribute_table =
 {
   "internal ", { internal_attributes }
 };
+
+/* Table of C++ attributes also recognized in the clang:: namespace.  */
+// clang-format off
+static const attribute_spec cxx_clang_attributes[] =
+{
+  { "trivial_abi", 0, 0, false, true, false, true,
+    handle_trivial_abi_attribute, NULL },
+};
+
+const scoped_attribute_specs cxx_clang_attribute_table =
+{
+  "clang", { cxx_clang_attributes }
+};
+// clang-format on
 
 /* Handle an "init_priority" attribute; arguments as in
    struct attribute_spec.handler.  */
@@ -5982,6 +6002,142 @@ handle_annotation_attribute (tree *node, tree ARG_UNUSED (name),
   return NULL_TREE;
 }
 
+/* Handle a "trivial_abi" attribute applied via [[gnu::trivial_abi]].
+   We reject that spelling; suggest [[clang::trivial_abi]] or
+   __attribute__((trivial_abi)) instead.  */
+
+static tree
+handle_gnu_trivial_abi_attribute (tree *node, tree name, tree args, int flags,
+				  bool *no_add_attrs)
+{
+  if (flags & ATTR_FLAG_CXX11)
+    {
+      warning (OPT_Wattributes,
+	       "%<[[gnu::trivial_abi]]%> is not supported; use "
+	       "%<[[clang::trivial_abi]]%> or "
+	       "%<__attribute__((trivial_abi))%> instead");
+      *no_add_attrs = true;
+      return NULL_TREE;
+    }
+  return handle_trivial_abi_attribute (node, name, args, flags, no_add_attrs);
+}
+
+/* Handle a "trivial_abi" attribute.  */
+
+static tree
+handle_trivial_abi_attribute (tree *node, tree name, tree, int,
+			      bool *no_add_attrs)
+{
+  tree type = *node;
+
+  /* Only allow on class types (struct, class, union) */
+  if (TREE_CODE (type) != RECORD_TYPE && TREE_CODE (type) != UNION_TYPE)
+    {
+      warning (OPT_Wattributes, "%qE attribute only applies to classes", name);
+      *no_add_attrs = true;
+      return NULL_TREE;
+    }
+
+  return NULL_TREE;
+}
+
+/* Return true if TYPE has the trivial_abi attribute.  */
+
+bool
+has_trivial_abi_attribute (tree type)
+{
+  if (type == NULL_TREE || !TYPE_P (type))
+    return false;
+  return lookup_attribute ("trivial_abi", TYPE_ATTRIBUTES (type));
+}
+
+/* Validate the trivial_abi attribute on a completed class type.
+   Called from finish_struct after the class is complete.  */
+
+void
+validate_trivial_abi_attribute (tree type)
+{
+  if (!has_trivial_abi_attribute (type))
+    return;
+
+  gcc_assert (COMPLETE_TYPE_P (type));
+
+  /* Check for virtual bases.  */
+  if (CLASSTYPE_VBASECLASSES (type))
+    {
+      if (warning (OPT_Wattributes, "%<trivial_abi%> cannot be applied to %qT",
+		   type))
+	inform (input_location, "has a virtual base");
+      TYPE_ATTRIBUTES (type)
+	= remove_attribute ("trivial_abi", TYPE_ATTRIBUTES (type));
+      return;
+    }
+
+  /* Check for virtual member functions.  */
+  if (TYPE_POLYMORPHIC_P (type))
+    {
+      if (warning (OPT_Wattributes, "%<trivial_abi%> cannot be applied to %qT",
+		   type))
+	inform (input_location, "is polymorphic");
+      TYPE_ATTRIBUTES (type)
+	= remove_attribute ("trivial_abi", TYPE_ATTRIBUTES (type));
+      return;
+    }
+
+  /* Check for non-trivial base classes.  */
+  if (TYPE_BINFO (type))
+    {
+      unsigned int n_bases = BINFO_N_BASE_BINFOS (TYPE_BINFO (type));
+      for (unsigned int i = 0; i < n_bases; ++i)
+	{
+	  tree base_binfo = BINFO_BASE_BINFO (TYPE_BINFO (type), i);
+	  tree base_type = BINFO_TYPE (base_binfo);
+
+	  if (TREE_ADDRESSABLE (base_type))
+	    {
+	      if (warning (OPT_Wattributes,
+			   "%<trivial_abi%> cannot be applied to %qT", type))
+		inform (input_location, "has a non-trivial base class %qT",
+			base_type);
+	      TYPE_ATTRIBUTES (type)
+		= remove_attribute ("trivial_abi", TYPE_ATTRIBUTES (type));
+	      return;
+	    }
+	}
+    }
+
+  /* Check for non-trivial member types.  */
+  for (tree field = TYPE_FIELDS (type); field; field = DECL_CHAIN (field))
+    {
+      if (TREE_CODE (field) == FIELD_DECL && !DECL_ARTIFICIAL (field))
+	{
+	  tree field_type = strip_array_types (TREE_TYPE (field));
+
+	  if (CLASS_TYPE_P (field_type) && TREE_ADDRESSABLE (field_type))
+	    {
+	      if (warning (OPT_Wattributes,
+			   "%<trivial_abi%> cannot be applied to %qT", type))
+		inform (input_location, "has a non-static data member "
+			"of non-trivial type %qT", field_type);
+	      TYPE_ATTRIBUTES (type)
+		= remove_attribute ("trivial_abi", TYPE_ATTRIBUTES (type));
+	      return;
+	    }
+	}
+    }
+
+  /* Check that not all copy/move constructors are deleted.  */
+  if (!classtype_has_non_deleted_copy_or_move_ctor (type))
+    {
+      if (warning (OPT_Wattributes, "%<trivial_abi%> cannot be applied to %qT",
+		   type))
+	inform (input_location,
+		"copy constructors and move constructors are all deleted");
+      TYPE_ATTRIBUTES (type)
+	= remove_attribute ("trivial_abi", TYPE_ATTRIBUTES (type));
+      return;
+    }
+}
 /* Return a new PTRMEM_CST of the indicated TYPE.  The MEMBER is the
    thing pointed to by the constant.  */
 

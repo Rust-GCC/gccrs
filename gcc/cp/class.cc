@@ -2420,8 +2420,9 @@ finish_struct_bits (tree t)
      mode to be BLKmode, and force its TREE_ADDRESSABLE bit to be
      nonzero.  This will cause it to be passed by invisible reference
      and prevent it from being returned in a register.  */
-  if (type_has_nontrivial_copy_init (t)
-      || TYPE_HAS_NONTRIVIAL_DESTRUCTOR (t))
+  if (!has_trivial_abi_attribute (t)
+      && (type_has_nontrivial_copy_init (t)
+	  || TYPE_HAS_NONTRIVIAL_DESTRUCTOR (t)))
     {
       SET_DECL_MODE (TYPE_MAIN_DECL (t), BLKmode);
       SET_TYPE_MODE (t, BLKmode);
@@ -6086,6 +6087,24 @@ classtype_has_non_deleted_move_ctor (tree t)
   return false;
 }
 
+/* True iff T has a copy or move constructor that is not deleted.  */
+
+bool
+classtype_has_non_deleted_copy_or_move_ctor (tree t)
+{
+  if (CLASSTYPE_LAZY_COPY_CTOR (t))
+    lazily_declare_fn (sfk_copy_constructor, t);
+  if (CLASSTYPE_LAZY_MOVE_CTOR (t))
+    lazily_declare_fn (sfk_move_constructor, t);
+  for (ovl_iterator iter (CLASSTYPE_CONSTRUCTORS (t)); iter; ++iter)
+    {
+      tree fn = *iter;
+      if ((copy_fn_p (fn) || move_fn_p (fn)) && !DECL_DELETED_FN (fn))
+	return true;
+    }
+  return false;
+}
+
 /* If T, a class, has a user-provided copy constructor, copy assignment
    operator, or destructor, returns that function.  Otherwise, null.  */
 
@@ -8084,6 +8103,8 @@ finish_struct_1 (tree t)
 	    DECL_VINDEX (fndecl) = build_int_cst (NULL_TREE, vindex);
 	}
     }
+
+  validate_trivial_abi_attribute (t);
 
   finish_struct_bits (t);
 

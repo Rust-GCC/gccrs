@@ -20273,6 +20273,23 @@ store_parm_decls (tree current_function_parms)
      DECL_ARGUMENTS is not modified.  */
   current_binding_level->names = chainon (nonparms, DECL_ARGUMENTS (fndecl));
 
+  /* Register cleanups for parameters with trivial_abi attribute, the cleanup
+     of which is the callee's responsibility.  */
+  for (tree parm = DECL_ARGUMENTS (fndecl); parm; parm = DECL_CHAIN (parm))
+    {
+      if (TREE_CODE (parm) == PARM_DECL)
+	{
+	  tree parm_type = TREE_TYPE (parm);
+	  if (has_trivial_abi_attribute (parm_type))
+	    {
+	      tree cleanup
+		= cxx_maybe_build_cleanup (parm, tf_warning_or_error);
+	      if (cleanup && cleanup != error_mark_node)
+		finish_decl_cleanup (parm, cleanup);
+	    }
+	}
+    }
+
   if (use_eh_spec_block (current_function_decl))
     current_eh_spec_block = begin_eh_spec_block ();
 }
