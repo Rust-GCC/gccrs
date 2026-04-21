@@ -260,9 +260,10 @@ TypeCheckExpr::resolve_root_path (HIR::PathInExpression &expr, size_t *offset,
 
       // lookup the reference_node_id
       NodeId ref_node_id;
-      if (auto res = nr_ctx.lookup (ast_node_id, Resolver2_0::Namespace::Types))
+      if (auto res = nr_ctx.lookup (ast_node_id, Resolver2_0::Namespace::Types,
+				    Resolver2_0::Namespace::Values))
 	{
-	  ref_node_id = *res;
+	  ref_node_id = res->id;
 	}
       else
 	{

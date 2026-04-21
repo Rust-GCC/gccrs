@@ -304,13 +304,15 @@ NameResolutionContext::lookup (NodeId usage, Namespace ns) const
     }
 }
 
-tl::optional<NodeId>
+tl::optional<NameResolutionContext::NSLookup>
 NameResolutionContext::lookup (NodeId usage, Namespace ns1, Namespace ns2) const
 {
   if (auto result = lookup (usage, ns1))
-    return result;
+    return NSLookup (*result, ns1);
 
-  return lookup (usage, ns2);
+  return lookup (usage, ns2).map ([&ns2] (NodeId id) {
+    return NSLookup (id, ns2);
+  });
 }
 
 void

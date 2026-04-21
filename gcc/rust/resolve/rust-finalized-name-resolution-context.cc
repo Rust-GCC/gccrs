@@ -57,6 +57,13 @@ FinalizedNameResolutionContext::lookup (NodeId usage, Namespace ns) const
   return ctx.lookup (usage, ns);
 }
 
+tl::optional<NameResolutionContext::NSLookup>
+FinalizedNameResolutionContext::lookup (NodeId usage, Namespace ns1,
+					Namespace ns2) const
+{
+  return ctx.lookup (usage, ns1, ns2);
+}
+
 Resolver::CanonicalPath
 FinalizedNameResolutionContext::to_canonical_path (NodeId id,
 						   Namespace ns) const
