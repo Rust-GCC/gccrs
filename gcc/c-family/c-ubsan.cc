@@ -741,7 +741,11 @@ get_index_from_pointer_addr_expr (tree pointer, tree *index_p, int *index_n)
   /* Get the pointee type of the call to .ACCESS_WITH_SIZE.
      This should be the element type of the pointer array.  */
   tree pointee_type = TREE_TYPE (TREE_TYPE (call));
-  tree pointee_size = TYPE_SIZE_UNIT (pointee_type);
+  if (!COMPLETE_OR_VOID_TYPE_P (pointee_type))
+    return NULL_TREE;
+  tree pointee_size
+    = (VOID_TYPE_P (pointee_type)
+       ? size_one_node : TYPE_SIZE_UNIT (pointee_type));
 
   tree index_exp = TREE_OPERAND (pointer, 1);
   *index_p = pointer;
@@ -750,7 +754,7 @@ get_index_from_pointer_addr_expr (tree pointer, tree *index_p, int *index_n)
   if (!(TREE_CODE (index_exp) != MULT_EXPR
 	&& tree_int_cst_equal (pointee_size, integer_one_node)))
     {
-      while (CONVERT_EXPR_CODE_P (TREE_CODE (index_exp)))
+      while (CONVERT_EXPR_P (index_exp))
 	{
 	  *index_p = index_exp;
 	  *index_n = 0;
@@ -760,10 +764,10 @@ get_index_from_pointer_addr_expr (tree pointer, tree *index_p, int *index_n)
 					 index_n, pointee_size);
 
       if (!index_exp)
-      return NULL_TREE;
+	return NULL_TREE;
     }
 
-  while (CONVERT_EXPR_CODE_P (TREE_CODE (index_exp)))
+  while (CONVERT_EXPR_P (index_exp))
     {
       *index_p = index_exp;
       *index_n = 0;
