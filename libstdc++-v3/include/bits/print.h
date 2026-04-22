@@ -282,6 +282,8 @@ namespace __format
   vprint_nonunicode_buffered(FILE* __stream, string_view __fmt,
 			     format_args __args)
   {
+    // _GLIBCXX_RESOLVE_LIB_DEFECTS
+    // 4549. vprint_nonunicode_buffered ignores its stream parameter
     __format::_Str_sink<char> __buf;
     std::vformat_to(__buf.out(), __fmt, __args);
     auto __out = __buf.view();

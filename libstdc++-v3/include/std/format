@@ -1718,6 +1718,8 @@ namespace __format
 	    {
 	      _CharT __wbuf[__buf_size];
 	      size_t __n = __narrow_str.size();
+	      // _GLIBCXX_RESOLVE_LIB_DEFECTS
+	      // 4522. Clarify that `std::format` transcodes for `std::wformat_strings`
 	      std::__to_wstring_numeric(__narrow_str.data(), __n, __wbuf);
 	      return _M_format_int(basic_string_view<_CharT>(__wbuf, __n),
 				   __prefix_len, __fc);
@@ -2304,6 +2306,8 @@ namespace __format
 #ifdef _GLIBCXX_USE_WCHAR_T
 	  else
 	    {
+	      // _GLIBCXX_RESOLVE_LIB_DEFECTS
+	      // 4522. Clarify that `std::format` transcodes for `std::wformat_strings`
 	      __wstr = std::__to_wstring_numeric(__narrow_str);
 	      __str = __wstr;
 	    }

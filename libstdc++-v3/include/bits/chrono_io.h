@@ -1313,6 +1313,8 @@ namespace __format
 
 	  int __yi = (int)__y;
 	  const bool __is_neg = __yi < 0;
+	  // _GLIBCXX_RESOLVE_LIB_DEFECTS
+	  // 3831. Two-digit formatting of negative year is ambiguous
 	  __yi = __builtin_abs(__yi);
 	  int __ci = __yi / 100;
 	  // For floored division -123//100 is -2 and -100//100 is -1
