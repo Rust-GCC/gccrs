@@ -1717,7 +1717,8 @@ cp_fold_r (tree *stmt_p, int *walk_subtrees, void *data_)
       break;
 
     case TARGET_EXPR:
-      if (!flag_no_inline)
+      if (!flag_no_inline
+	  && (data->flags && ff_genericize))
 	if (tree &init = TARGET_EXPR_INITIAL (stmt))
 	  {
 	    tree folded = maybe_constant_init (init, TARGET_EXPR_SLOT (stmt),
@@ -3769,6 +3770,7 @@ cp_fold (tree x, fold_flags_t flags)
 	if ((OPTION_SET_P (flag_fold_simple_inlines)
 	     ? flag_fold_simple_inlines
 	     : !flag_no_inline)
+	    && !(flags & ff_only_non_odr)
 	    && call_expr_nargs (x) == 1
 	    && decl_in_std_namespace_p (callee)
 	    && DECL_NAME (callee) != NULL_TREE
@@ -3881,6 +3883,7 @@ cp_fold (tree x, fold_flags_t flags)
 	   Do constexpr expansion of expressions where the call itself is not
 	   constant, but the call followed by an INDIRECT_REF is.  */
 	if (callee && DECL_DECLARED_CONSTEXPR_P (callee)
+	    && !(flags & ff_only_non_odr)
 	    && (!flag_no_inline
 		|| lookup_attribute ("always_inline",
 				     DECL_ATTRIBUTES (callee))))
