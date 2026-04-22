@@ -228,27 +228,36 @@ package body Ada.Directories is
       if not Is_Valid_Path_Name (Name) then
          raise Name_Error with "invalid path name """ & Name & '"';
 
+      --  Second, If Name indicates a root directory, raise Use_Error, because
+      --  it has no containing directory.
+
+      elsif Is_Parent_Directory_Name (Name)
+        or else Is_Current_Directory_Name (Name)
+        or else Is_Root_Directory_Name (Name)
+      then
+         raise Use_Error with
+          "directory """ & Name & """ has no containing directory";
+
+      --  Otherwise, the common case
+
       else
          declare
             Last_DS : constant Natural :=
               Strings.Fixed.Index (Name, Dir_Seps, Going => Strings.Backward);
 
          begin
-            --  If Name indicates a root directory, raise Use_Error, because
-            --  it has no containing directory.
+            --  If there is no directory separator, return ".", representing
+            --  the current working directory.
 
-            if Is_Parent_Directory_Name (Name)
-              or else Is_Current_Directory_Name (Name)
-              or else Is_Root_Directory_Name (Name)
-            then
-               raise Use_Error with
-                 "directory """ & Name & """ has no containing directory";
-
-            elsif Last_DS = 0 then
-               --  There is no directory separator, so return ".", representing
-               --  the current working directory.
-
+            if Last_DS = 0 then
                return ".";
+
+            --  If the directory separator is last, then Name is a directory
+            --  and we recurse after stripping the separator.
+
+            elsif Last_DS = Name'Last then
+               return
+                 Containing_Directory (Name (Name'First .. Name'Last - 1));
 
             else
                declare
