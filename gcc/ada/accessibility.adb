@@ -1169,7 +1169,8 @@ package body Accessibility is
          Insert_Action (N,
            Make_Implicit_If_Statement (N,
              Condition       => Cond,
-             Then_Statements => Stmts));
+             Then_Statements => Stmts),
+           Suppress => All_Checks);
       end if;
    end Apply_Accessibility_Check_For_Allocator;
 

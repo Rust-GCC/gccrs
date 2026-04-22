@@ -2564,8 +2564,7 @@ package body Exp_Ch3 is
             Append_To (Args, Make_Integer_Literal (Loc, Library_Task_Level));
          elsif Present (Target_Ref) then
             Append_To (Args,
-              New_Occurrence_Of
-                (Master_Id (Base_Type (Root_Type (Etype (Target_Ref)))), Loc));
+              New_Occurrence_Of (Master_Id (Etype (Target_Ref)), Loc));
          else
             Append_To (Args, Make_Identifier (Loc, Name_uMaster));
          end if;
@@ -6882,8 +6881,8 @@ package body Exp_Ch3 is
          --  but testing Comes_From_Source may be too general in this case
          --  (affects some test output)???
 
-         elsif not Is_Param_Block_Component_Type (Ptr_Typ)
-           and then Is_Limited_Class_Wide_Type (Desig_Typ)
+         elsif Is_Limited_Class_Wide_Type (Desig_Typ)
+           and then not Is_Param_Block_Component_Type (Ptr_Typ)
          then
             Build_Master_Entity (N);
             Build_Master_Renaming (Ptr_Typ);
@@ -6901,7 +6900,9 @@ package body Exp_Ch3 is
 
    begin
       if Is_Access_Type (Def_Id) then
-         Build_Master (Def_Id);
+         if Nkind (Type_Definition (N)) /= N_Derived_Type_Definition then
+            Build_Master (Def_Id);
+         end if;
 
          if Ekind (Def_Id) = E_Access_Protected_Subprogram_Type then
             Expand_Access_Protected_Subprogram_Type (N);

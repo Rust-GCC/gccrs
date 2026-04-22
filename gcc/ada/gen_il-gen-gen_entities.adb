@@ -652,7 +652,7 @@ begin -- Gen_IL.Gen.Gen_Entities
         Sm (Is_Local_Anonymous_Access, Flag),
         Sm (Is_Param_Block_Component_Type, Flag, Base_Type_Only),
         Sm (Is_Pure_Unit_Access_Type, Flag),
-        Sm (Master_Id, Node_Id),
+        Sm (Master_Id, Node_Id, Root_Type_Only),
         Sm (No_Pool_Assigned, Flag, Root_Type_Only),
         Sm (No_Strict_Aliasing, Flag, Base_Type_Only),
         Sm (Storage_Size_Variable, Node_Id, Impl_Base_Type_Only)));

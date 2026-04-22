@@ -4513,51 +4513,47 @@ package body Sem_Res is
                   end if;
                end if;
 
-               --  (Ada 2005: AI-251): If the actual is an allocator whose
-               --  directly designated type is a class-wide interface, we build
-               --  an anonymous access type to use it as the type of the
-               --  allocator. Later, when the subprogram call is expanded, if
-               --  the interface has a secondary dispatch table the expander
-               --  will add a type conversion to force the correct displacement
-               --  of the pointer.
-
                if Nkind (A) = N_Allocator then
                   declare
                      DDT : constant Entity_Id :=
                              Directly_Designated_Type (Base_Type (Etype (F)));
 
                   begin
-                     --  Displace the pointer to the object to reference its
-                     --  secondary dispatch table.
+                     --  Ada 2005, AI-251: If the actual is an allocator whose
+                     --  directly designated type is a class-wide interface, we
+                     --  build a type conversion to force the displacement of
+                     --  the pointer to reference the secondary dispatch table.
+                     --  Note that we need to resolve the allocator explicitly,
+                     --  otherwise its E_Allocator_Type will never be replaced,
+                     --  since it's now the operand of a type conversion.
 
                      if Is_Class_Wide_Type (DDT)
                        and then Is_Interface (DDT)
                      then
-                        Rewrite (A, Convert_To (Etype (F), Relocate_Node (A)));
+                        Convert_To_And_Rewrite (Etype (F), A);
                         Flag_Interface_Pointer_Displacement (A);
-
-                        Analyze_And_Resolve (A, Etype (F),
-                          Suppress => Access_Check);
+                        Resolve (Expression (A), Etype (F));
+                        Analyze_And_Resolve
+                          (A, Etype (F), Suppress => Access_Check);
                      end if;
 
-                     --  Ada 2005, AI-162:If the actual is an allocator, the
-                     --  innermost enclosing statement is the master of the
-                     --  created object. This needs to be done with expansion
-                     --  enabled only, otherwise the transient scope will not
-                     --  be removed in the expansion of the wrapped construct.
+                     --  Ada 2005, AI-162: If the actual of an access parameter
+                     --  is an allocator, the innermost enclosing statement is
+                     --  the master of the created object. When the expander is
+                     --  active, establish a transient scope to embody it.
 
-                     if Expander_Active
-                       and then (Needs_Finalization (DDT)
-                                  or else Has_Task (DDT))
-                     then
-                        Establish_Transient_Scope
-                          (A, Manage_Sec_Stack => False);
+                     if Ekind (Etype (F)) = E_Anonymous_Access_Type then
+                        Check_Restriction (No_Access_Parameter_Allocators, A);
+
+                        if Expander_Active
+                          and then (Needs_Finalization (DDT)
+                                     or else Might_Have_Tasks (DDT))
+                        then
+                           Establish_Transient_Scope
+                             (A, Manage_Sec_Stack => False);
+                        end if;
                      end if;
                   end;
-
-                  if Ekind (Etype (F)) = E_Anonymous_Access_Type then
-                     Check_Restriction (No_Access_Parameter_Allocators, A);
-                  end if;
                end if;
 
                --  (Ada 2005): The call may be to a primitive operation of a

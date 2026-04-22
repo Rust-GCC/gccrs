@@ -4976,7 +4976,7 @@ package body Exp_Ch4 is
             --  created when expanding the function declaration.
 
             if Has_Task (Etyp) then
-               if No (Master_Id (Base_Type (PtrT))) then
+               if No (Master_Id (PtrT)) then
                   --  The designated type was an incomplete type, and the
                   --  access type did not get expanded. Salvage it now.
 

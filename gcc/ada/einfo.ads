@@ -3688,7 +3688,7 @@ package Einfo is
 --       having Has_Machine_Radix_Clause True. This happens when a type is
 --       derived from a type with a clause present.
 
---    Master_Id
+--    Master_Id [root type only]
 --       Defined in access types and subtypes. Empty unless Has_Task is set for
 --       the designated type, in which case it points to the entity for the
 --       Master_Id for the access type master. Also set for access-to-limited-
@@ -5252,7 +5252,7 @@ package Einfo is
    --  E_Access_Type
    --  E_Access_Subtype
    --    Direct_Primitive_Operations $$$ type
-   --    Master_Id
+   --    Master_Id                             (root type only)
    --    Directly_Designated_Type
    --    Associated_Storage_Pool               (root type only)
    --    Finalization_Collection               (root type only)
@@ -5704,7 +5704,7 @@ package Einfo is
    --  E_General_Access_Type
    --    First_Entity $$$
    --    Renamed_Entity $$$
-   --    Master_Id
+   --    Master_Id                            (root type only)
    --    Directly_Designated_Type
    --    Associated_Storage_Pool              (root type only)
    --    Finalization_Collection              (root type only)
