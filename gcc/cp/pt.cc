@@ -18238,12 +18238,12 @@ tsubst_baselink (tree baselink, tree object_type,
    true if the qualified-id will be a postfix-expression in-and-of
    itself; false if more of the postfix-expression follows the
    QUALIFIED_ID.  ADDRESS_P is true if the qualified-id is the operand
-   of "&".  NAME_LOOKUP_P is true if we intend to perform name lookup.  */
+   of "&".  REFLECTING_P is true if this SCOPE_REF is an operand of ^^.  */
 
 static tree
 tsubst_qualified_id (tree qualified_id, tree args,
 		     tsubst_flags_t complain, tree in_decl,
-		     bool done, bool address_p, bool name_lookup_p = true)
+		     bool done, bool address_p, bool reflecting_p = false)
 {
   tree expr;
   tree scope;
@@ -18322,7 +18322,9 @@ tsubst_qualified_id (tree qualified_id, tree args,
       else
 	expr = lookup_qualified_name (scope, expr, LOOK_want::NORMAL, false);
       if (TREE_CODE (TREE_CODE (expr) == TEMPLATE_DECL
-		     ? DECL_TEMPLATE_RESULT (expr) : expr) == TYPE_DECL)
+		     ? DECL_TEMPLATE_RESULT (expr) : expr) == TYPE_DECL
+	  /* For ^^T::X, we'll take both types and non-types.  */
+	  && !reflecting_p)
 	{
 	  if (complain & tf_error)
 	    {
@@ -18368,7 +18370,7 @@ tsubst_qualified_id (tree qualified_id, tree args,
 				 expr, input_location);
   /* For ^^S::mem, we do not want to create the dummy object that
      finish_non_static_data_member would give us.  */
-  else if (TYPE_P (scope) && name_lookup_p)
+  else if (TYPE_P (scope) && !reflecting_p)
     {
       expr = (adjust_result_of_qualified_name_lookup
 	      (expr, scope, current_nonlambda_class_type ()));
@@ -23355,7 +23357,7 @@ tsubst_expr (tree t, tree args, tsubst_flags_t complain, tree in_decl)
 	else if (TREE_CODE (h) == SCOPE_REF)
 	  h = tsubst_qualified_id (h, args, complain, in_decl,
 				   /*done=*/true, /*address_p=*/false,
-				   /*name_lookup_p=*/false);
+				   /*reflecting_p=*/true);
 	else
 	  {
 	    /* [expr.reflect] The id-expression of a reflect-expression is
