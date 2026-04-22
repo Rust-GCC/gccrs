@@ -16,7 +16,9 @@
 // along with GCC; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
+#include "input.h"
 #include "optional.h"
+#include "rust-diagnostics.h"
 #include "rust-forever-stack.h"
 #include "rust-name-resolution-context.h"
 
@@ -359,16 +361,28 @@ NameResolutionContext::resolve_segments (
 		}
 	      else
 		{
+		  insert_segment_resolution (Usage (seg.node_id),
+					     Definition (
+					       rib_lookup->get_node_id ()));
+
+		  return tl::nullopt;
+
 		  auto leaf_module
 		    = find_leaf_definition (rib_lookup->get_node_id ())
-			.value ()
-			.id;
+			.value_or (Definition (rib_lookup->get_node_id ()));
 
-		  insert_segment_resolution (Usage (seg.node_id),
-					     Definition (leaf_module));
+		  insert_segment_resolution (Usage (seg.node_id), leaf_module);
 
-		  child = stack.dfs_node (stack.root, leaf_module).value ();
-		  break;
+		  if (auto new_child
+		      = stack.dfs_node (stack.root, leaf_module.id))
+		    {
+		      child = new_child.value ();
+		      break;
+		    }
+		  else
+		    {
+		      return tl::nullopt;
+		    }
 		}
 	    }
 
