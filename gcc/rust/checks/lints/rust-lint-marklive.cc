@@ -269,9 +269,11 @@ MarkLive::mark_hir_id (HirId id)
 void
 MarkLive::find_value_definition (NodeId ast_node_id, NodeId &ref_node_id)
 {
-  auto resolved = resolver.lookup (ast_node_id, Resolver2_0::Namespace::Values);
+  auto resolved = resolver.lookup (ast_node_id, Resolver2_0::Namespace::Values,
+				   Resolver2_0::Namespace::Types);
   rust_assert (resolved.has_value ());
-  ref_node_id = resolved.value ();
+
+  ref_node_id = resolved->id;
 }
 
 } // namespace Analysis
