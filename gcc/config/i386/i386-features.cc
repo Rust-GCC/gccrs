@@ -4318,9 +4318,7 @@ public:
   /* opt_pass methods: */
   bool gate (function *fun) final override
     {
-      return (TARGET_SSE2
-	      && optimize
-	      && optimize_function_for_speed_p (fun));
+      return optimize && optimize_function_for_speed_p (fun);
     }
 
   unsigned int execute (function *) final override
