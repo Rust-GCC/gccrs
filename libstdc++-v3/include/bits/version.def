@@ -2337,9 +2337,9 @@ ftms = {
 ftms = {
   name = reflection;
   values = {
-    v = 202506;
+    v = 202603;
     cxxmin = 26;
-    extra_cond = "__cpp_impl_reflection >= 202506L";
+    extra_cond = "__cpp_impl_reflection >= 202603L";
     cxx11abi = yes;
   };
 };

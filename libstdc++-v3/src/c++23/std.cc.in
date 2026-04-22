@@ -2083,7 +2083,7 @@ export namespace std::pmr
 }
 
 // <meta>
-#if __glibcxx_reflection >= 202506L
+#if __glibcxx_reflection >= 202603L
 export namespace std
 {
 #if __has_builtin(__builtin_is_string_literal)

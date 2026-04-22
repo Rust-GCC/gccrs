@@ -2602,10 +2602,10 @@
 #undef __glibcxx_want_philox_engine
 
 #if !defined(__cpp_lib_reflection)
-# if (__cplusplus >  202302L) && _GLIBCXX_USE_CXX11_ABI && (__cpp_impl_reflection >= 202506L)
-#  define __glibcxx_reflection 202506L
+# if (__cplusplus >  202302L) && _GLIBCXX_USE_CXX11_ABI && (__cpp_impl_reflection >= 202603L)
+#  define __glibcxx_reflection 202603L
 #  if defined(__glibcxx_want_all) || defined(__glibcxx_want_reflection)
-#   define __cpp_lib_reflection 202506L
+#   define __cpp_lib_reflection 202603L
 #  endif
 # endif
 #endif /* !defined(__cpp_lib_reflection) */

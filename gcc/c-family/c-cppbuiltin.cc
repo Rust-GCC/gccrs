@@ -1119,7 +1119,7 @@ c_cpp_builtins (cpp_reader *pfile)
 	  cpp_define (pfile, "__cpp_constexpr_virtual_inheritance=202506L");
 	  cpp_define (pfile, "__cpp_expansion_statements=202506L");
 	  if (flag_reflection)
-	    cpp_define (pfile, "__cpp_impl_reflection=202506L");
+	    cpp_define (pfile, "__cpp_impl_reflection=202603L");
 	  else
 	    cpp_warn (pfile, "__cpp_impl_reflection");
 	}

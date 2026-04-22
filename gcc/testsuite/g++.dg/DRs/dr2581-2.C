@@ -64,7 +64,7 @@
 #define __cpp_impl_coroutine 201902L		// { dg-error "'__cpp_impl_coroutine' redefined" "" { target c++20 } }
 #define __cpp_impl_destroying_delete 201806L	// { dg-error "'__cpp_impl_destroying_delete' redefined" "" { target c++20 } }
 #define __cpp_impl_three_way_comparison 201907L	// { dg-error "'__cpp_impl_three_way_comparison' redefined" "" { target c++20 } }
-#define __cpp_impl_reflection 202506L		// { dg-error "'__cpp_impl_reflection' redefined" "" { target c++26 } }
+#define __cpp_impl_reflection 202603L		// { dg-error "'__cpp_impl_reflection' redefined" "" { target c++26 } }
 #define __cpp_implicit_move 202207L		// { dg-error "'__cpp_implicit_move' redefined" "" { target c++23 } }
 #define __cpp_inheriting_constructors 201511L	// { dg-error "'__cpp_inheriting_constructors' redefined" "" { target c++20 } }
 #define __cpp_init_captures 201803L		// { dg-error "'__cpp_init_captures' redefined" "" { target c++14 } }
