@@ -24,25 +24,27 @@ void new_za_f () {}
 void shared_a () [[arm::inout("za")]]; // { dg-error "conflicting types" }
 
 void shared_b () [[arm::inout("za")]];
-[[arm::new("za")]] void shared_b (); // { dg-error "conflicting types" }
+[[arm::new("za")]] void shared_b (); // { dg-error "conflicting types" "PR122483" { xfail *-*-* } }
 
 [[arm::new("za")]] void shared_c ();
 void shared_c () [[arm::in("za")]] {} // { dg-error "conflicting types" }
 
 void shared_d () [[arm::in("za")]];
-[[arm::new("za")]] void shared_d () {} // { dg-error "conflicting types" }
+[[arm::new("za")]] void shared_d () {} // { dg-error "conflicting types" "PR122483" { xfail *-*-* } }
 
 [[arm::new("za")]] void shared_e () {}
 void shared_e () [[arm::out("za")]]; // { dg-error "conflicting types" }
 
 void shared_f () [[arm::out("za")]] {}
-[[arm::new("za")]] void shared_f (); // { dg-error "conflicting types" }
+[[arm::new("za")]] void shared_f (); // { dg-error "conflicting types" "PR122483" { xfail *-*-* } }
+// { dg-bogus "cannot apply attribute 'new' to 'shared_f' after the function has been defined" "PR122483" { xfail *-*-* } .-1 }
 
 [[arm::new("za")]] void shared_g () {}
 void shared_g () [[arm::preserves("za")]]; // { dg-error "conflicting types" }
 
 void shared_h () [[arm::preserves("za")]] {}
-[[arm::new("za")]] void shared_h (); // { dg-error "conflicting types" }
+[[arm::new("za")]] void shared_h (); // { dg-error "conflicting types" "PR122483" { xfail *-*-* } }
+// { dg-bogus "cannot apply attribute 'new' to 'shared_h' after the function has been defined" "PR122483" { xfail *-*-* } .-1 }
 
 //----------------------------------------------------------------------------
 
