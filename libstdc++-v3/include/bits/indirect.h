@@ -336,7 +336,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	requires requires (const _Tp& __t, const _Up& __u) { __t == __u; }
 	friend constexpr bool
 	operator==(const indirect& __lhs, const indirect<_Up, _Alloc2>& __rhs)
-	noexcept(noexcept(*__lhs == *__rhs))
+	noexcept(noexcept(bool(*__lhs == *__rhs)))
 	{
 	  if (!__lhs._M_objp || !__rhs._M_objp)
 	    return bool(__lhs._M_objp) == bool(__rhs._M_objp);
@@ -349,7 +349,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	  && requires (const _Tp& __t, const _Up& __u) { __t == __u; }
 	friend constexpr bool
 	operator==(const indirect<_Vp, _Alloc>& __lhs, const _Up& __rhs)
-	noexcept(noexcept(*__lhs == __rhs))
+	noexcept(noexcept(bool(*__lhs == __rhs)))
 	{
 	  if (!__lhs._M_objp)
 	    return false;
