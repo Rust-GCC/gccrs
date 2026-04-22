@@ -1,3 +1,61 @@
+2026-04-21  Nathan Myers  <ncm@cantrip.org>
+
+	* include/bits/alloc_traits.h (allocate_at_least):
+	Take allocator argument by reference, per Standard.
+
+2026-04-21  Jonathan Wakely  <jwakely@redhat.com>
+
+	* src/c++23/print.cc (__open_terminal): Fix comment.
+
+2026-04-21  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/124950
+	* include/std/meta (std::meta::data_member_options): Initialize
+	alignment, bit_width, and annotations members.
+
+2026-04-21  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/120527
+	* include/bits/atomic_wait.h [__OpenBSD__ || __DragonFly]: Use
+	unsigned int for __platform_wait_t.
+
+2026-04-21  Jonathan Wakely  <jwakely@redhat.com>
+	    Iain Sandoe  <iain@sandoe.co.uk>
+
+	PR libstdc++/120527
+	* include/bits/atomic_wait.h:
+	* src/c++20/atomic.cc (__ulock_wait): Enable supported Darwin versions.
+	(__ulock_wake): Likewise.
+	(UL_COMPARE_AND_WAIT): New.
+	(UL_COMPARE_AND_WAIT64): New.
+	(ULF_WAKE_ALL): New.
+	(_GLIBCXX_HAVE_PLATFORM_WAIT): Enable for suppported Darwin versions.
+
+2026-04-21  Matthias Kretz  <m.kretz@gsi.de>
+
+	* include/bits/simd_details.h (__value_preserving_cast): Remove.
+	* include/bits/simd_mask.h (basic_mask): Replace plain 0 and 1
+	literals with cw<0> and cw<1>. Replace explicit basic_vec
+	construction from 0 and 1 with default init and broadcast from
+	_Up(1).
+	(_M_to_uint): Replace 1 with cw<1>.
+	* include/bits/simd_vec.h (basic_vec): Remove consteval
+	broadcast overload. Remove explicit broadcast from
+	non-value-preserving types.
+	* testsuite/std/simd/arithmetic.cc: Replace ill-formed integer
+	literals with explicit cast to T or use cw.
+	* testsuite/std/simd/mask.cc: Likewise.
+	* testsuite/std/simd/simd_alg.cc: Likewise.
+	* testsuite/std/simd/traits_common.cc: Adjust for resulting
+	traits changes.
+	* testsuite/std/simd/traits_math.cc: Likewise.
+
+2026-04-21  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/124910
+	* include/std/optional (_Optional_payload_base::_M_destroy):
+	Restrict r16-8748 workaround to Clang, and adjust comment.
+
 2026-04-20  Jonathan Wakely  <jwakely@redhat.com>
 
 	* include/bits/print.h: Fix spelling of macro.

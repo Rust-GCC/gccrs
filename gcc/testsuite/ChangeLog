@@ -1,3 +1,55 @@
+2026-04-21  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/124944
+	* g++.dg/reflect/splice13.C: New test.
+	* g++.dg/reflect/splice14.C: New test.
+
+2026-04-21  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/124927
+	* g++.dg/cpp26/expansion-stmt41.C: New test.
+
+2026-04-21  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/124950
+	* g++.dg/reflect/data_member_spec7.C: New test.
+
+2026-04-21  Jakub Jelinek  <jakub@redhat.com>
+
+	PR testsuite/124682
+	* gcc.dg/torture/builtin-math-6.c (TESTIT_COMPLEX_R2_ISZ): Define.
+	(TESTIT_COMPLEX_R2_ALLNEG): Use TESTIT_COMPLEX_R2_ISZ instead of
+	TESTIT_COMPLEX_R2.
+
+2026-04-21  Jakub Jelinek  <jakub@redhat.com>
+
+	PR middle-end/123635
+	* gcc.dg/torture/bitint-90.c: New test.
+
+2026-04-21  Jakub Jelinek  <jakub@redhat.com>
+
+	PR tree-optimization/124941
+	* gcc.dg/bitint-129.c: New test.
+
+2026-04-21  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/117077
+	* gfortran.dg/pr117077.f90: New test.
+
+2026-04-21  Alexandre Oliva  <oliva@adacore.com>
+
+	PR tree-optimization/113524
+	* gcc.dg/torture/pr113026-1.c: Revert 2026-01-21's
+	XFAIL of bogus warning on various 32-bit targets.
+
+2026-04-21  Alexandre Oliva  <oliva@adacore.com>
+
+	PR tree-optimization/116463
+	* gcc.dg/vect/complex/fast-math-complex-mls-float.c:
+	Don't expect COMPLEX_ADD_ROT270.
+	* gcc.dg/vect/complex/fast-math-complex-mls-double.c:
+	Likewise.
+
 2026-04-20  Iain Buclaw  <ibuclaw@gdcproject.org>
 
 	PR d/123411

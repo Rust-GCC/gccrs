@@ -1,3 +1,28 @@
+2026-04-21  Gaius Mulley  <gaiusmod2@gmail.com>
+
+	PR modula2/120189
+	* doc/gm2.texi (Building a shared library): Replace
+	constant string with DEFAULT_RUNTIME_MODULE_OVERRIDE.
+
+2026-04-21  Jakub Jelinek  <jakub@redhat.com>
+
+	PR middle-end/123635
+	* gimple-lower-bitint.cc (bitint_large_huge::lower_muldiv_stmt):
+	Extend the padding bits not just for unsigned MULT_EXPR but for any
+	TYPE_OVERFLOW_WRAPS MULT_EXPR and signed TYPE_OVERFLOW_WRAPS division.
+
+2026-04-21  Jakub Jelinek  <jakub@redhat.com>
+
+	PR tree-optimization/124941
+	* tree-ssa-sccvn.cc (vn_reference_lookup_3): Use build_bitint_type
+	rather than build_nonstandard_integer_type for
+	maxsizei larger than MAX_FIXED_MODE_SIZE.
+
+2026-04-21  Gaius Mulley  <gaiusmod2@gmail.com>
+
+	PR modula2/120189
+	* doc/gm2.texi (Building a shared library): Rewrite.
+
 2026-04-20  Jakub Jelinek  <jakub@redhat.com>
 
 	PR middle-end/123635

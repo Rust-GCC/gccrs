@@ -1,3 +1,9 @@
+2026-04-21  Gaius Mulley  <gaiusmod2@gmail.com>
+
+	PR modula2/120189
+	* gm2-compiler/M2Options.mod (DefaultRuntimeModuleOverride): Add
+	reference comment to libgm2/libm2iso/m2rts.h.
+
 2026-04-15  Gaius Mulley  <gaiusmod2@gmail.com>
 
 	PR modula2/124081

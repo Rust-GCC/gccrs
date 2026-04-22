@@ -1,3 +1,10 @@
+2026-04-21  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/117077
+	* trans-expr.cc (gfc_trans_scalar_assign): If the lhs and rhs
+	TYPE_MAIN_VARIANTs are not the same, convert the rhs to the lhs
+	type via a VIEW_CONVERT_EXPR.
+
 2026-04-19  Thomas Koenig  <tkoenig@gcc.gnu.org>
 
 	* invoke.texi (fc-prototypes): Correct spelling for opindex.
