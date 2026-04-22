@@ -16957,12 +16957,14 @@ tsubst_splice_expr (tree t, tree args, tsubst_flags_t complain, tree in_decl)
 
   if (SPLICE_EXPR_ADDRESS_P (t))
     {
+      push_deferring_access_checks (dk_no_check);
       if (BASELINK_P (op))
 	op = build_offset_ref (BINFO_TYPE (BASELINK_ACCESS_BINFO (op)), op,
 			       /*address_p=*/true, complain);
       else if (DECL_NONSTATIC_MEMBER_P (op))
 	op = build_offset_ref (DECL_CONTEXT (op), op,
 			       /*address_p=*/true, complain);
+      pop_deferring_access_checks ();
     }
 
   if (outer_automatic_var_p (op))
