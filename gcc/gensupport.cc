@@ -1016,7 +1016,7 @@ convert_syntax (rtx x, file_location loc)
 	{
 	  templ += 2;
 	  /* Glob till newline or end of string.  */
-	  while (*templ != '\n' || *templ != '\0')
+	  while (*templ != '\n' && *templ != '\0')
 	    templ++;
 
 	  /* Skip any newlines or whitespaces needed.  */
