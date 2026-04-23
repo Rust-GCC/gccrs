@@ -3321,7 +3321,16 @@ ix86_place_single_vector_set (rtx dest, rtx src, bitmap bbs,
 	}
     }
 
-  if (load && load->kind == X86_CSE_VEC_DUP)
+  /* CONST_VECTOR load no larger than integer register
+
+     (set (reg:V2QI 294)
+	  (const_vector:V2QI [(const_int 0 [0]) repeated x2]))
+
+     can use integer load.  */
+  if (load
+      && load->kind == X86_CSE_VEC_DUP
+      && (!CONST_VECTOR_P (src)
+	  || GET_MODE_SIZE (GET_MODE (dest)) > UNITS_PER_WORD))
     {
       /* Get the source from LOAD as (reg:SI 99) in
 
@@ -3758,7 +3767,10 @@ ix86_broadcast_inner (rtx op, machine_mode mode,
 	  if (!rtx_equal_p (tmp, first))
 	    return nullptr;
 	}
-      *scalar_mode_p = GET_MODE (first);
+      /* Use the inner mode to handle
+	   (const_vector:V2QI [(const_int 0 [0]) repeated x2])
+       */
+      *scalar_mode_p = GET_MODE_INNER (mode);
       *insn_p = nullptr;
       return first;
     }
@@ -4731,8 +4743,23 @@ pass_x86_cse::x86_cse (void)
 		  broadcast_source = CONSTM1_RTX (mode);
 		  break;
 		case X86_CSE_VEC_DUP:
-		  reg = gen_reg_rtx (load->mode);
-		  broadcast_source = gen_rtx_VEC_DUPLICATE (mode, reg);
+		  if (CONST_INT_P (load->val)
+		      && GET_MODE_SIZE (mode) <= UNITS_PER_WORD)
+		    {
+		      /* CONST_VECTOR load no larger than integer
+			 register size can use integer load.  */
+		      int nunits = GET_MODE_NUNITS (mode);
+		      rtvec v = rtvec_alloc (nunits);
+		      for (int j = 0; j < nunits ; j++)
+			RTVEC_ELT (v, j) = load->val;
+		      broadcast_source = gen_rtx_CONST_VECTOR (mode, v);
+		    }
+		  else
+		    {
+		      reg = gen_reg_rtx (load->mode);
+		      broadcast_source = gen_rtx_VEC_DUPLICATE (mode,
+								reg);
+		    }
 		  break;
 		default:
 		  gcc_unreachable ();
