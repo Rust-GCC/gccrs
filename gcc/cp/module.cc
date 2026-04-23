@@ -6872,6 +6872,8 @@ trees_out::core_vals (tree t)
 
     case PTRMEM_CST:
       WT (((lang_tree_node *)t)->ptrmem.member);
+      if (state)
+	state->write_location (*this, ((lang_tree_node *)t)->ptrmem.locus);
       break;
 
     case STATIC_ASSERT:
@@ -6933,6 +6935,9 @@ trees_out::core_vals (tree t)
     case TRAIT_EXPR:
       WT (((lang_tree_node *)t)->trait_expression.type1);
       WT (((lang_tree_node *)t)->trait_expression.type2);
+      if (state)
+	state->write_location
+	  (*this, ((lang_tree_node *)t)->trait_expression.locus);
       if (streaming_p ())
 	WU (((lang_tree_node *)t)->trait_expression.kind);
       break;
@@ -7444,6 +7449,7 @@ trees_in::core_vals (tree t)
 
     case PTRMEM_CST:
       RTU (((lang_tree_node *)t)->ptrmem.member);
+      ((lang_tree_node *)t)->ptrmem.locus = state->read_location (*this);
       break;
 
     case STATIC_ASSERT:
@@ -7493,6 +7499,8 @@ trees_in::core_vals (tree t)
     case TRAIT_EXPR:
       RT (((lang_tree_node *)t)->trait_expression.type1);
       RT (((lang_tree_node *)t)->trait_expression.type2);
+      ((lang_tree_node *)t)->trait_expression.locus
+	= state->read_location (*this);
       RUC (cp_trait_kind, ((lang_tree_node *)t)->trait_expression.kind);
       break;
 
