@@ -877,17 +877,13 @@ get_string_length (strinfo *si)
 	  gimple_set_vuse (lenstmt, gimple_vuse (stmt));
 	  gsi_insert_before (&gsi, lenstmt, GSI_SAME_STMT);
 	  tem = gimple_call_arg (stmt, 0);
-          if (!ptrofftype_p (TREE_TYPE (lhs)))
-            {
-              lhs = convert_to_ptrofftype (lhs);
-              lhs = force_gimple_operand_gsi (&gsi, lhs, true, NULL_TREE,
-                                              true, GSI_SAME_STMT);
-            }
-	  lenstmt = gimple_build_assign
-			(make_ssa_name (TREE_TYPE (gimple_call_arg (stmt, 0))),
-			 POINTER_PLUS_EXPR,tem, lhs);
-	  gsi_insert_before (&gsi, lenstmt, GSI_SAME_STMT);
-	  gimple_call_set_arg (stmt, 0, gimple_assign_lhs (lenstmt));
+	  lhs = gimple_convert_to_ptrofftype (&gsi, true, GSI_SAME_STMT,
+					      gimple_location (stmt), lhs);
+	  tem = gimple_build (&gsi, true, GSI_SAME_STMT,
+			      gimple_location (stmt), POINTER_PLUS_EXPR,
+			      TREE_TYPE (gimple_call_arg (stmt, 0)),
+			      tem, lhs);
+	  gimple_call_set_arg (stmt, 0, tem);
 	  lhs = NULL_TREE;
 	  /* FALLTHRU */
 	case BUILT_IN_STRCPY:
