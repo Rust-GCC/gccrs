@@ -36,7 +36,7 @@ SHLIB_LINK = $(LN_S) -f $(SHLIB_MAP) $(SHLIB_MAP).def && \
 		mkdir $(SHLIB_DIR); \
 	else true; fi && \
 	$(CC) $(LIBGCC2_CFLAGS) $(SHLIB_PTHREAD_CFLAG) \
-	-shared -nodefaultlibs \
+	-shared -nodefaultlibs $(LDFLAGS) \
 	$(SHLIB_MAP).def \
 	-Wl,--out-implib,$(SHLIB_DIR)/$(SHLIB_IMPLIB).tmp \
 	-o $(SHLIB_DIR)/$(SHLIB_SONAME).tmp @multilib_flags@ \
