@@ -8005,11 +8005,8 @@ GNAT LLVM currently provides limited support for debugging data. It
 provides full line number information for declarations and statements,
 and complete debugging data for all types.
 
-In some situations, a name in the source may not be available.
-Renamings are not currently emitted into the debugging data. When
-debugging a nested function, variables from enclosing scopes will not
-be available. You will have to examine those variables in their
-hosting frame.
+In some situations, a name in the source may not be available.  For
+example, renamings are not currently emitted into the debugging data.
 
 In addition, debugging information may be confusing if you have
 ``out`` parameters to subprograms. If you have a procedure with only
