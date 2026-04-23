@@ -772,6 +772,8 @@ struct gomp_target_task
   struct gomp_team *team;
   /* Device-specific target arguments.  */
   void **args;
+  /* Pointer to the offload session for this task.  */
+  struct gomp_offload_session *offload_session;
   void *hostaddrs[];
 };
 
@@ -1465,6 +1467,15 @@ struct gomp_device_descr
   __typeof (GOMP_OFFLOAD_memcpy2d) *memcpy2d_func;
   __typeof (GOMP_OFFLOAD_memcpy3d) *memcpy3d_func;
   __typeof (GOMP_OFFLOAD_memset) *memset_func;
+  struct {
+    __typeof (GOMP_OFFLOAD_session_start) *start_func;
+    __typeof (GOMP_OFFLOAD_session_allocate_target_var_table) *alloc_tvt_func;
+    __typeof (GOMP_OFFLOAD_session_set_target_var_table) *set_tvt_func;
+
+    /* Size of a single gomp_offload_session object, as returned by
+       GOMP_OFFLOAD_session_size.  */
+    size_t size;
+  } session;
   __typeof (GOMP_OFFLOAD_can_run) *can_run_func;
   __typeof (GOMP_OFFLOAD_run) *run_func;
   __typeof (GOMP_OFFLOAD_async_run) *async_run_func;
@@ -1490,6 +1501,16 @@ struct gomp_device_descr
   /* This is mutable because of its mutable target_data member.  */
   acc_dispatch_t openacc;
 };
+
+/* Allocate an offload session for the gomp_device_descr DEVICEP using ALLOC,
+   and initialize it.  Provided as a macro, so that 'alloca' can be used as
+   ALLOC. */
+#define gomp_offload_session_new(devicep, alloc)		\
+  ({								\
+    void *session = alloc (devicep->session.size);	\
+    devicep->session.start_func (session, devicep->target_id);	\
+    session;							\
+  })
 
 /* Kind of the pragma, for which gomp_map_vars () is called.  */
 enum gomp_map_vars_kind
@@ -1524,7 +1545,8 @@ extern struct target_mem_desc *goacc_map_vars (struct gomp_device_descr *,
 					       struct goacc_asyncqueue *,
 					       size_t, void **, void **,
 					       size_t *, void *, bool,
-					       enum gomp_map_vars_kind);
+					       enum gomp_map_vars_kind,
+					       struct gomp_offload_session *);
 extern void goacc_unmap_vars (struct target_mem_desc *, bool,
 			      struct goacc_asyncqueue *);
 extern void gomp_init_device (struct gomp_device_descr *);

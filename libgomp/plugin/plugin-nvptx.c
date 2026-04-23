@@ -828,6 +828,33 @@ link_ptx (CUmodule *module, const struct targ_ptx_obj *ptx_objs,
   return true;
 }
 
+/* The NVPTX plugin can't make much use of this abstraction, so it has the bare
+   minimum possible.  */
+struct gomp_offload_session
+{
+  int device;
+  void **target_var_table;
+};
+GOMP_OFFLOAD_session_boilerplate();
+
+void
+GOMP_OFFLOAD_session_start (struct gomp_offload_session *session, int device)
+{
+  assert ((((uintptr_t) session) % __BIGGEST_ALIGNMENT__) == 0);
+  *session = (struct gomp_offload_session) {
+    .device = device,
+    .target_var_table = NULL,
+  };
+}
+
+void
+GOMP_OFFLOAD_session_set_target_var_table (struct gomp_offload_session *session,
+					   void **table)
+{
+  assert (!session->target_var_table);
+  session->target_var_table = table;
+}
+
 static void
 nvptx_exec (void (*fn), unsigned *dims, void *targ_mem_desc,
 	    CUdeviceptr dp, CUstream stream)
@@ -1991,15 +2018,15 @@ GOMP_OFFLOAD_page_locked_host_free (void *ptr)
 }
 
 void
-GOMP_OFFLOAD_openacc_exec (void (*fn) (void *),
+GOMP_OFFLOAD_openacc_exec (struct gomp_offload_session *session,
+			   void (*fn) (void *),
 			   size_t mapnum  __attribute__((unused)),
 			   void **hostaddrs __attribute__((unused)),
-			   void **devaddrs,
 			   unsigned *dims, void *targ_mem_desc)
 {
   GOMP_PLUGIN_debug (0, "nvptx %s\n", __FUNCTION__);
 
-  CUdeviceptr dp = (CUdeviceptr) devaddrs;
+  CUdeviceptr dp = (CUdeviceptr) session->target_var_table;
   nvptx_exec (fn, dims, targ_mem_desc, dp, NULL);
 
   CUresult r = CUDA_CALL_NOCHECK (cuStreamSynchronize, NULL);
@@ -2012,16 +2039,16 @@ GOMP_OFFLOAD_openacc_exec (void (*fn) (void *),
 }
 
 void
-GOMP_OFFLOAD_openacc_async_exec (void (*fn) (void *),
+GOMP_OFFLOAD_openacc_async_exec (struct gomp_offload_session *session,
+				 void (*fn) (void *),
 				 size_t mapnum __attribute__((unused)),
 				 void **hostaddrs __attribute__((unused)),
-				 void **devaddrs,
 				 unsigned *dims, void *targ_mem_desc,
 				 struct goacc_asyncqueue *aq)
 {
   GOMP_PLUGIN_debug (0, "nvptx %s\n", __FUNCTION__);
 
-  CUdeviceptr dp = (CUdeviceptr) devaddrs;
+  CUdeviceptr dp = (CUdeviceptr) session->target_var_table;
   nvptx_exec (fn, dims, targ_mem_desc, dp, aq->cuda_stream);
 }
 
@@ -2957,7 +2984,7 @@ GOMP_OFFLOAD_get_interop_type_desc (struct interop_obj_t *obj,
 }
 
 void
-GOMP_OFFLOAD_run (int ord, void *tgt_fn, void *tgt_vars, void **args)
+GOMP_OFFLOAD_run (struct gomp_offload_session *session, void *tgt_fn, void **args)
 {
   struct targ_fn_descriptor *tgt_fn_desc
     = (struct targ_fn_descriptor *) tgt_fn;
@@ -2965,7 +2992,7 @@ GOMP_OFFLOAD_run (int ord, void *tgt_fn, void *tgt_vars, void **args)
   const struct targ_fn_launch *launch = tgt_fn_desc->launch;
   const char *fn_name = launch->fn;
   CUresult r;
-  struct ptx_device *ptx_dev = ptx_devices[ord];
+  struct ptx_device *ptx_dev = ptx_devices[session->device];
   const char *maybe_abort_msg = "(perhaps abort was called)";
   int teams = 0, threads = 0;
 
@@ -3003,7 +3030,7 @@ GOMP_OFFLOAD_run (int ord, void *tgt_fn, void *tgt_vars, void **args)
 
   pthread_mutex_lock (&ptx_dev->omp_stacks.lock);
   void *stacks = nvptx_stacks_acquire (ptx_dev, stack_size, teams * threads);
-  void *fn_args[] = {tgt_vars, stacks, (void *) stack_size};
+  void *fn_args[] = {session->target_var_table, stacks, (void *) stack_size};
   size_t fn_args_size = sizeof fn_args;
   void *config[] = {
     CU_LAUNCH_PARAM_BUFFER_POINTER, fn_args,

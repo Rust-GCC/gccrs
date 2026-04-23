@@ -30,8 +30,20 @@
 #include "oacc-int.h"
 #include "gomp-constants.h"
 
+#include <assert.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <string.h>
+
+/* Defined under a name other than gomp_offload_session to make debugging with
+   GDB easier.  If this struct was called gomp_offload_session, GDB would
+   frequently ignore the plugin-specific definition.  */
+struct host_offload_session
+{
+  void *vars;
+};
+_Static_assert (_Alignof (struct host_offload_session) <= __BIGGEST_ALIGNMENT__,
+		"gomp_offload_session requires too high alignment");
 
 static struct gomp_device_descr host_dispatch;
 
@@ -128,19 +140,41 @@ host_host2dev (int n __attribute__ ((unused)),
 }
 
 static void
-host_run (int n __attribute__ ((unused)), void *fn_ptr, void *vars,
-	  void **args __attribute__((unused)))
+host_session_start (struct gomp_offload_session *osession, int dev)
 {
-  void (*fn)(void *) = (void (*)(void *)) fn_ptr;
-
-  fn (vars);
+  (void) dev;
+  struct host_offload_session *session;
+  memcpy (&session, &osession, sizeof (session));
+  *session = (struct host_offload_session) {
+    .vars = NULL,
+  };
 }
 
 static void
-host_openacc_exec (void (*fn) (void *),
+host_session_set_target_var_table (struct gomp_offload_session *osession,
+				   void **table)
+{
+  struct host_offload_session *session;
+  memcpy (&session, &osession, sizeof (session));
+  assert (!session->vars);
+  session->vars = table;
+}
+
+static void
+host_run (struct gomp_offload_session *osession, void *fn_ptr, void **args)
+{
+  struct host_offload_session *session;
+  memcpy (&session, &osession, sizeof (session));
+  void (*fn)(void *) = (void (*)(void *)) fn_ptr;
+
+  fn (session->vars);
+}
+
+static void
+host_openacc_exec (struct gomp_offload_session *session __attribute__((unused)),
+		   void (*fn) (void *),
 		   size_t mapnum __attribute__ ((unused)),
 		   void **hostaddrs,
-		   void **devaddrs __attribute__ ((unused)),
 		   unsigned *dims __attribute__ ((unused)),
 		   void *targ_mem_desc __attribute__ ((unused)))
 {
@@ -148,10 +182,10 @@ host_openacc_exec (void (*fn) (void *),
 }
 
 static void
-host_openacc_async_exec (void (*fn) (void *),
+host_openacc_async_exec (struct gomp_offload_session *session __attribute__((unused)),
+			 void (*fn) (void *),
 			 size_t mapnum __attribute__ ((unused)),
 			 void **hostaddrs,
-			 void **devaddrs __attribute__ ((unused)),
 			 unsigned *dims __attribute__ ((unused)),
 			 void *targ_mem_desc __attribute__ ((unused)),
 			 struct goacc_asyncqueue *aq __attribute__ ((unused)))
@@ -287,6 +321,12 @@ static struct gomp_device_descr host_dispatch =
     .memcpy2d_func = NULL,
     .memcpy3d_func = NULL,
     .run_func = host_run,
+
+    .session = {
+      .start_func = host_session_start,
+      .set_tvt_func = host_session_set_target_var_table,
+      .size = sizeof (struct host_offload_session),
+    },
 
     .mem_map = { NULL },
     .mem_map_rev = { NULL },

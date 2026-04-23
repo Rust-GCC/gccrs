@@ -291,9 +291,14 @@ GOACC_parallel_keyed (int flags_m, void (*fn) (void *),
 
   goacc_aq aq = get_goacc_asyncqueue (async);
 
+  /* Prepare an offload session.  */
+  struct gomp_offload_session *session
+    = (aq ? gomp_offload_session_new (acc_dev, gomp_malloc)
+       : gomp_offload_session_new (acc_dev, alloca));
+
   struct target_mem_desc *tgt
     = goacc_map_vars (acc_dev, aq, mapnum, hostaddrs, NULL, sizes, kinds, true,
-		      GOMP_MAP_VARS_TARGET);
+		      GOMP_MAP_VARS_TARGET, session);
 
   if (profiling_p)
     {
@@ -304,13 +309,11 @@ GOACC_parallel_keyed (int flags_m, void (*fn) (void *),
 				&api_info);
     }
 
-  void **devaddrs = (void **) tgt->tgt_start;
   if (aq == NULL)
-    acc_dev->openacc.exec_func (tgt_fn, mapnum, hostaddrs, devaddrs, dims,
-				tgt);
+    acc_dev->openacc.exec_func (session, tgt_fn, mapnum, hostaddrs, dims, tgt);
   else
-    acc_dev->openacc.async.exec_func (tgt_fn, mapnum, hostaddrs, devaddrs,
-				      dims, tgt, aq);
+    acc_dev->openacc.async.exec_func (session, tgt_fn, mapnum, hostaddrs, dims,
+				      tgt, aq);
 
   if (profiling_p)
     {
@@ -323,6 +326,11 @@ GOACC_parallel_keyed (int flags_m, void (*fn) (void *),
 
   /* If running synchronously (aq == NULL), this will unmap immediately.  */
   goacc_unmap_vars (tgt, true, aq);
+
+  if (aq)
+    /* We need to clean up the above-allocated session later if executing
+       asynchronously. */
+    acc_dev->openacc.async.queue_callback_func (aq, free, session);
 
   if (profiling_p)
     {
@@ -454,7 +462,7 @@ GOACC_data_start (int flags_m, size_t mapnum,
     {
       prof_info.device_type = acc_device_host;
       api_info.device_type = prof_info.device_type;
-      tgt = goacc_map_vars (NULL, NULL, 0, NULL, NULL, NULL, NULL, true, 0);
+      tgt = goacc_map_vars (NULL, NULL, 0, NULL, NULL, NULL, NULL, true, 0, NULL);
       tgt->prev = thr->mapped_data;
       thr->mapped_data = tgt;
 
@@ -463,7 +471,7 @@ GOACC_data_start (int flags_m, size_t mapnum,
 
   gomp_debug (0, "  %s: prepare mappings\n", __FUNCTION__);
   tgt = goacc_map_vars (acc_dev, NULL, mapnum, hostaddrs, NULL, sizes, kinds,
-			true, 0);
+			true, 0, NULL);
   gomp_debug (0, "  %s: mappings prepared\n", __FUNCTION__);
   tgt->prev = thr->mapped_data;
   thr->mapped_data = tgt;

@@ -1173,14 +1173,27 @@ gomp_present_fatal (void *addr, size_t size, struct gomp_device_descr *devicep)
 #endif
 }
 
+/* Get size of region required for target variable table for MAPNUM
+   mappings.  */
+
+static inline size_t
+gomp_get_tvt_size (size_t mapnum)
+{
+  return mapnum * sizeof (void *);
+}
+
 static inline __attribute__((always_inline)) struct target_mem_desc *
 gomp_map_vars_internal (struct gomp_device_descr *devicep,
 			struct goacc_asyncqueue *aq, size_t mapnum,
 			void **hostaddrs, void **devaddrs, size_t *sizes,
 			void *kinds, bool short_mapkind,
 			htab_t *refcount_set,
-			enum gomp_map_vars_kind pragma_kind)
+			enum gomp_map_vars_kind pragma_kind,
+			struct gomp_offload_session *session)
 {
+  bool target_p = pragma_kind & GOMP_MAP_VARS_TARGET;
+  assert (/* SESSION must be present iff doing target offload.  */
+	  !!session == target_p);
   size_t i, tgt_align, tgt_size, not_found_cnt = 0;
   bool has_firstprivate = false;
   bool has_always_ptrset = false;
@@ -1206,30 +1219,10 @@ gomp_map_vars_internal (struct gomp_device_descr *devicep,
     {
       tgt->tgt_start = 0;
       tgt->tgt_end = 0;
+      if (session)
+	/* We promise to always call either set_tvt or alloc_tvt.  */
+	devicep->session.set_tvt_func (session, NULL);
       return tgt;
-    }
-
-  tgt_align = sizeof (void *);
-  tgt_size = 0;
-  cbuf.chunks = NULL;
-  cbuf.chunk_cnt = -1;
-  cbuf.use_cnt = 0;
-  cbuf.buf = NULL;
-  if (mapnum > 1 || (pragma_kind & GOMP_MAP_VARS_TARGET))
-    {
-      size_t chunks_size = (mapnum + 1) * sizeof (struct gomp_coalesce_chunk);
-      cbuf.chunks = (struct gomp_coalesce_chunk *) gomp_alloca (chunks_size);
-      cbuf.chunk_cnt = 0;
-    }
-  if (pragma_kind & GOMP_MAP_VARS_TARGET)
-    {
-      size_t align = 4 * sizeof (void *);
-      tgt_align = align;
-      tgt_size = mapnum * sizeof (void *);
-      cbuf.chunk_cnt = 1;
-      cbuf.use_cnt = 1 + (mapnum > 1);
-      cbuf.chunks[0].start = 0;
-      cbuf.chunks[0].end = tgt_size;
     }
 
   gomp_mutex_lock (&devicep->lock);
@@ -1238,6 +1231,48 @@ gomp_map_vars_internal (struct gomp_device_descr *devicep,
       gomp_mutex_unlock (&devicep->lock);
       free (tgt);
       return NULL;
+    }
+
+  /* Target variable table in host memory.  If we're doing target offloading,
+     we'll let the plugin attempt to allocate it..  */
+  void **host_tvt = NULL;
+  if (target_p && devicep->session.alloc_tvt_func)
+    {
+      host_tvt = (devicep->session.alloc_tvt_func
+		  (session, gomp_get_tvt_size (mapnum)));
+      assert ((((uintptr_t)host_tvt) % __BIGGEST_ALIGNMENT__) == 0);
+    }
+
+  /* True if we need to allocate the target var table, i.e. when doing
+     offloading and when we fail to allocate it above.  */
+  bool need_tvt_alloc = !host_tvt && target_p;
+
+  /* Initialize size tracking variables.  */
+  tgt_align = sizeof (void *);
+  tgt_size = 0;
+
+  /* Prepare coalesce buffer.  */
+  cbuf.chunks = NULL;
+  cbuf.chunk_cnt = -1;
+  cbuf.use_cnt = 0;
+  cbuf.buf = NULL;
+  if (mapnum > 1 || !host_tvt)
+    {
+      size_t chunks_size = (mapnum + 1) * sizeof (struct gomp_coalesce_chunk);
+      cbuf.chunks = (struct gomp_coalesce_chunk *) gomp_alloca (chunks_size);
+      cbuf.chunk_cnt = 0;
+    }
+
+  if (need_tvt_alloc)
+    {
+      /* Prepare for allocating the target variable table.  */
+      size_t align = 4 * sizeof (void *);
+      tgt_align = align;
+      tgt_size = gomp_get_tvt_size (mapnum);
+      cbuf.chunk_cnt = 1;
+      cbuf.use_cnt = 1 + (mapnum > 1);
+      cbuf.chunks[0].start = 0;
+      cbuf.chunks[0].end = tgt_size;
     }
 
   for (i = 0; i < mapnum; i++)
@@ -1496,7 +1531,7 @@ gomp_map_vars_internal (struct gomp_device_descr *devicep,
       tgt->tgt_start = (uintptr_t) tgt->to_free;
       tgt->tgt_end = tgt->tgt_start + sizes[0];
     }
-  else if (not_found_cnt || (pragma_kind & GOMP_MAP_VARS_TARGET))
+  else if (not_found_cnt || need_tvt_alloc || has_firstprivate)
     {
       /* Allocate tgt_align aligned tgt_size block of memory.  */
       /* FIXME: Perhaps change interface to allocate properly aligned
@@ -1534,8 +1569,8 @@ gomp_map_vars_internal (struct gomp_device_descr *devicep,
     }
 
   tgt_size = 0;
-  if (pragma_kind & GOMP_MAP_VARS_TARGET)
-    tgt_size = mapnum * sizeof (void *);
+  if (need_tvt_alloc)
+    tgt_size = gomp_get_tvt_size (mapnum);
 
   tgt->array = NULL;
   if (not_found_cnt || has_firstprivate || has_always_ptrset)
@@ -2068,7 +2103,7 @@ gomp_map_vars_internal (struct gomp_device_descr *devicep,
 	  }
     }
 
-  if (pragma_kind & GOMP_MAP_VARS_TARGET)
+  if (target_p)
     {
       /* The target variables table is constructed with maps using iterators
 	 unexpanded. Now that the iterator maps are expanded, we will need to
@@ -2080,12 +2115,24 @@ gomp_map_vars_internal (struct gomp_device_descr *devicep,
 	if (!iterator_count || iterator_count[i] <= 1)
 	  {
 	    cur_node.tgt_offset = gomp_map_val (tgt, hostaddrs, i);
-	    gomp_copy_host2dev (devicep, aq,
-				(void *) (tgt->tgt_start + map_num * sizeof (void *)),
-				(void *) &cur_node.tgt_offset, sizeof (void *),
-				true, cbufp);
+	    if (host_tvt)
+	      /* In this case, it's on the host.  */
+	      memcpy (&host_tvt[map_num], &cur_node.tgt_offset,
+		      sizeof (void *));
+	    else
+	      /* Otherwise, the table is on the device.  */
+	      gomp_copy_host2dev (devicep, aq,
+				  (void *) (tgt->tgt_start + map_num * sizeof (void *)),
+				  (void *) &cur_node.tgt_offset, sizeof (void *),
+				  true, cbufp);
 	    map_num++;
 	  }
+
+      if (!host_tvt)
+	/* The call to GOMP_OFFLOAD_session_allocate_target_var_table failed,
+	   so we must inform the session about the target var table we
+	   allocated.  */
+	devicep->session.set_tvt_func (session, (void **) tgt->tgt_start);
     }
 
   if (cbufp)
@@ -2133,7 +2180,8 @@ static struct target_mem_desc *
 gomp_map_vars (struct gomp_device_descr *devicep, size_t mapnum,
 	       void **hostaddrs, void **devaddrs, size_t *sizes, void *kinds,
 	       bool short_mapkind, htab_t *refcount_set,
-	       enum gomp_map_vars_kind pragma_kind)
+	       enum gomp_map_vars_kind pragma_kind,
+	       struct gomp_offload_session *session)
 {
   /* This management of a local refcount_set is for convenience of callers
      who do not share a refcount_set over multiple map/unmap uses.  */
@@ -2147,7 +2195,7 @@ gomp_map_vars (struct gomp_device_descr *devicep, size_t mapnum,
   struct target_mem_desc *tgt;
   tgt = gomp_map_vars_internal (devicep, NULL, mapnum, hostaddrs, devaddrs,
 				sizes, kinds, short_mapkind, refcount_set,
-				pragma_kind);
+				pragma_kind, session);
   if (local_refcount_set)
     htab_free (local_refcount_set);
 
@@ -2159,11 +2207,13 @@ goacc_map_vars (struct gomp_device_descr *devicep,
 		struct goacc_asyncqueue *aq, size_t mapnum,
 		void **hostaddrs, void **devaddrs, size_t *sizes,
 		void *kinds, bool short_mapkind,
-		enum gomp_map_vars_kind pragma_kind)
+		enum gomp_map_vars_kind pragma_kind,
+		struct gomp_offload_session *session)
 {
   return gomp_map_vars_internal (devicep, aq, mapnum, hostaddrs, devaddrs,
 				 sizes, kinds, short_mapkind, NULL,
-				 GOMP_MAP_VARS_OPENACC | pragma_kind);
+				 GOMP_MAP_VARS_OPENACC | pragma_kind,
+				 session);
 }
 
 static void
@@ -3200,12 +3250,14 @@ GOMP_target (int device, void (*fn) (void *), const void *unused,
       || !(fn_addr = gomp_get_target_fn_addr (devicep, fn)))
     return gomp_target_fallback (fn, hostaddrs, devicep, NULL);
 
+  struct gomp_offload_session *session
+    = gomp_offload_session_new (devicep, alloca);
+
   htab_t refcount_set = htab_create (mapnum);
   struct target_mem_desc *tgt_vars
     = gomp_map_vars (devicep, mapnum, hostaddrs, NULL, sizes, kinds, false,
-		     &refcount_set, GOMP_MAP_VARS_TARGET);
-  devicep->run_func (devicep->target_id, fn_addr, (void *) tgt_vars->tgt_start,
-		     NULL);
+		     &refcount_set, GOMP_MAP_VARS_TARGET, session);
+  devicep->run_func (session, fn_addr, NULL);
   htab_clear (refcount_set);
   gomp_unmap_vars (tgt_vars, true, &refcount_set);
   htab_free (refcount_set);
@@ -3524,6 +3576,9 @@ GOMP_target_ext (int device, void (*fn) (void *), size_t mapnum,
   struct target_mem_desc *tgt_vars;
   htab_t refcount_set = NULL;
 
+  struct gomp_offload_session *session
+    = gomp_offload_session_new (devicep, alloca);
+
   if (devicep->capabilities & GOMP_OFFLOAD_CAP_SHARED_MEM)
     {
       if (!fpc_done)
@@ -3538,16 +3593,16 @@ GOMP_target_ext (int device, void (*fn) (void *), size_t mapnum,
 	    }
 	}
       tgt_vars = NULL;
+      devicep->session.set_tvt_func (session, hostaddrs);
     }
   else
     {
       refcount_set = htab_create (mapnum);
       tgt_vars = gomp_map_vars (devicep, mapnum, hostaddrs, NULL, sizes, kinds,
-				true, &refcount_set, GOMP_MAP_VARS_TARGET);
+				true, &refcount_set, GOMP_MAP_VARS_TARGET,
+				session);
     }
-  devicep->run_func (devicep->target_id, fn_addr,
-		     tgt_vars ? (void *) tgt_vars->tgt_start : hostaddrs,
-		     new_args);
+  devicep->run_func (session, fn_addr, new_args);
   if (tgt_vars)
     {
       htab_clear (refcount_set);
@@ -4146,7 +4201,7 @@ gomp_target_data_fallback (struct gomp_device_descr *devicep)
          would get out of sync.  */
       struct target_mem_desc *tgt
 	= gomp_map_vars (NULL, 0, NULL, NULL, NULL, NULL, false,
-			 NULL, GOMP_MAP_VARS_DATA);
+			 NULL, GOMP_MAP_VARS_DATA, NULL);
       tgt->prev = icv->target_data;
       icv->target_data = tgt;
     }
@@ -4165,7 +4220,7 @@ GOMP_target_data (int device, const void *unused, size_t mapnum,
 
   struct target_mem_desc *tgt
     = gomp_map_vars (devicep, mapnum, hostaddrs, NULL, sizes, kinds, false,
-		     NULL, GOMP_MAP_VARS_DATA);
+		     NULL, GOMP_MAP_VARS_DATA, NULL);
   struct gomp_task_icv *icv = gomp_icv (true);
   tgt->prev = icv->target_data;
   icv->target_data = tgt;
@@ -4184,7 +4239,7 @@ GOMP_target_data_ext (int device, size_t mapnum, void **hostaddrs,
 
   struct target_mem_desc *tgt
     = gomp_map_vars (devicep, mapnum, hostaddrs, NULL, sizes, kinds, true,
-		     NULL, GOMP_MAP_VARS_DATA);
+		     NULL, GOMP_MAP_VARS_DATA, NULL);
   struct gomp_task_icv *icv = gomp_icv (true);
   tgt->prev = icv->target_data;
   icv->target_data = tgt;
@@ -4509,7 +4564,7 @@ GOMP_target_enter_exit_data (int device, size_t mapnum, void **hostaddrs,
 	{
 	  gomp_map_vars (devicep, sizes[i] + 1, &hostaddrs[i], NULL, &sizes[i],
 			 &kinds[i], true, &refcount_set,
-			 GOMP_MAP_VARS_ENTER_DATA);
+			 GOMP_MAP_VARS_ENTER_DATA, NULL);
 	  i += sizes[i];
 	}
       else if ((kinds[i] & 0xff) == GOMP_MAP_TO_PSET)
@@ -4520,7 +4575,7 @@ GOMP_target_enter_exit_data (int device, size_t mapnum, void **hostaddrs,
 	      break;
 	  gomp_map_vars (devicep, j-i, &hostaddrs[i], NULL, &sizes[i],
 			 &kinds[i], true, &refcount_set,
-			 GOMP_MAP_VARS_ENTER_DATA);
+			 GOMP_MAP_VARS_ENTER_DATA, NULL);
 	  i += j - i - 1;
 	}
       else if (i + 1 < mapnum
@@ -4531,12 +4586,12 @@ GOMP_target_enter_exit_data (int device, size_t mapnum, void **hostaddrs,
 	  /* An attach operation must be processed together with the mapped
 	     base-pointer list item.  */
 	  gomp_map_vars (devicep, 2, &hostaddrs[i], NULL, &sizes[i], &kinds[i],
-			 true, &refcount_set, GOMP_MAP_VARS_ENTER_DATA);
+			 true, &refcount_set, GOMP_MAP_VARS_ENTER_DATA, NULL);
 	  i += 1;
 	}
       else
 	gomp_map_vars (devicep, 1, &hostaddrs[i], NULL, &sizes[i], &kinds[i],
-		       true, &refcount_set, GOMP_MAP_VARS_ENTER_DATA);
+		       true, &refcount_set, GOMP_MAP_VARS_ENTER_DATA, NULL);
   else
     gomp_exit_data (devicep, mapnum, hostaddrs, sizes, kinds, &refcount_set);
   htab_free (refcount_set);
@@ -4569,24 +4624,23 @@ gomp_target_task_fn (void *data)
 	  return false;
 	}
 
-      void *actual_arguments;
+      struct gomp_offload_session *session = ttask->offload_session;
+      devicep->session.start_func (session, devicep->target_id);
+
       if (devicep->capabilities & GOMP_OFFLOAD_CAP_SHARED_MEM)
 	{
 	  ttask->tgt = NULL;
-	  actual_arguments = ttask->hostaddrs;
+	  devicep->session.set_tvt_func (session, ttask->hostaddrs);
 	}
       else
-	{
-	  ttask->tgt = gomp_map_vars (devicep, ttask->mapnum, ttask->hostaddrs,
-				      NULL, ttask->sizes, ttask->kinds, true,
-				      NULL, GOMP_MAP_VARS_TARGET);
-	  actual_arguments = (void *) ttask->tgt->tgt_start;
-	}
+	ttask->tgt = gomp_map_vars (devicep, ttask->mapnum, ttask->hostaddrs,
+				    NULL, ttask->sizes, ttask->kinds, true,
+				    NULL, GOMP_MAP_VARS_TARGET,
+				    session);
       ttask->state = GOMP_TARGET_TASK_READY_TO_RUN;
 
       assert (devicep->async_run_func);
-      devicep->async_run_func (devicep->target_id, fn_addr, actual_arguments,
-			       ttask->args, (void *) ttask);
+      devicep->async_run_func (session, fn_addr, ttask->args, (void *) ttask);
       return true;
     }
   else if (devicep == NULL
@@ -4608,13 +4662,13 @@ gomp_target_task_fn (void *data)
 	    {
 	      gomp_map_vars (devicep, ttask->sizes[i] + 1, &ttask->hostaddrs[i],
 			     NULL, &ttask->sizes[i], &ttask->kinds[i], true,
-			     &refcount_set, GOMP_MAP_VARS_ENTER_DATA);
+			     &refcount_set, GOMP_MAP_VARS_ENTER_DATA, NULL);
 	      i += ttask->sizes[i];
 	    }
 	  else
 	    gomp_map_vars (devicep, 1, &ttask->hostaddrs[i], NULL, &ttask->sizes[i],
 			   &ttask->kinds[i], true, &refcount_set,
-			   GOMP_MAP_VARS_ENTER_DATA);
+			   GOMP_MAP_VARS_ENTER_DATA, NULL);
       else
 	gomp_exit_data (devicep, ttask->mapnum, ttask->hostaddrs, ttask->sizes,
 			ttask->kinds, &refcount_set);
@@ -6020,8 +6074,9 @@ gomp_load_plugin_for_device (struct gomp_device_descr *device,
   /* Check if all required functions are available in the plugin and store
      their handlers.  None of the symbols can legitimately be NULL,
      so we don't need to check dlerror all the time.  */
-#define DLSYM(f)							\
-  if (!(device->f##_func = dlsym (plugin_handle, "GOMP_OFFLOAD_" #f)))	\
+#define DLSYM(f) DLSYM2(f, f)
+#define DLSYM2(f, n)							\
+  if (!(device->f##_func = dlsym (plugin_handle, "GOMP_OFFLOAD_" #n)))	\
     goto dl_fail
   /* Similar, but missing functions are not an error.  Return false if
      failed, true otherwise.  */
@@ -6065,8 +6120,16 @@ gomp_load_plugin_for_device (struct gomp_device_descr *device,
     }
 
   device->capabilities = device->get_caps_func ();
+  device->session.size = 0;
   if (device->capabilities & GOMP_OFFLOAD_CAP_OPENMP_400)
     {
+      __typeof (GOMP_OFFLOAD_session_size) *size_func
+	= dlsym (plugin_handle, "GOMP_OFFLOAD_session_size");
+      device->session.size = size_func ();
+      DLSYM2 (session.start, session_start);
+      DLSYM_OPT (session.alloc_tvt, session_allocate_target_var_table);
+      DLSYM2 (session.set_tvt, session_set_target_var_table);
+
       DLSYM (run);
       DLSYM_OPT (async_run, async_run);
       DLSYM_OPT (can_run, can_run);
@@ -6114,6 +6177,7 @@ gomp_load_plugin_for_device (struct gomp_device_descr *device,
 	}
     }
 #undef DLSYM
+#undef DLSYM2
 #undef DLSYM_OPT
 
   return 1;
