@@ -14026,13 +14026,8 @@ asm_insn_p (rtx_insn *insn)
 static bool
 vxrm_unknown_p (rtx_insn *insn)
 {
-  /* Return true if there is a definition of VXRM.  */
+  /* Return true if VXRM is set or clobbered.  */
   if (reg_set_p (gen_rtx_REG (SImode, VXRM_REGNUM), insn))
-    return true;
-
-  /* A CALL function may contain an instruction that modifies the VXRM,
-     return true in this situation.  */
-  if (CALL_P (insn))
     return true;
 
   /* Return true for all assembly since users may hardcode a assembly
