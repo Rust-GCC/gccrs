@@ -466,6 +466,8 @@ do {						\
 /* Static stack checking is supported by means of probes.  */
 #define STACK_CHECK_STATIC_BUILTIN 1
 
+#define STACK_CHECK_PROTECT (TARGET_64BIT ? 20 * 1024 : 12 * 1024)
+
 #ifndef HAVE_GAS_ALIGNED_COMM
 # define HAVE_GAS_ALIGNED_COMM 0
 #endif
