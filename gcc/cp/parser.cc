@@ -18327,7 +18327,7 @@ cp_parser_decomposition_declaration (cp_parser *parser,
 	      attr = NULL_TREE;
 	    if (attr && first_attr == -1)
 	      first_attr = v.length ();
-	    if (lookup_attribute ("internal ", "annotation ", attr))
+	    if (lookup_annotation (attr))
 	      error ("annotation on structured binding");
 	  }
 	v.safe_push (e);

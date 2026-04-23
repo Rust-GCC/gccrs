@@ -8808,6 +8808,7 @@ extern tree cxx_copy_lang_qualifiers		(const_tree, const_tree);
 extern void cxx_print_statistics		(void);
 extern bool maybe_warn_zero_as_null_pointer_constant (tree, location_t);
 extern bool annotation_p			(tree) ATTRIBUTE_PURE;
+extern tree lookup_annotation			(tree);
 
 /* in ptree.cc */
 extern void cxx_print_xnode			(FILE *, tree, int);

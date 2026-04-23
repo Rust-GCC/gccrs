@@ -3966,7 +3966,8 @@ eval_annotations_of (location_t loc, const constexpr_ctx *ctx, tree r,
   else
     gcc_unreachable ();
   vec<constructor_elt, va_gc> *elts = nullptr;
-  for (tree a = r; (a = lookup_attribute ("internal ", "annotation ", a));
+  for (tree a = r;
+       (a = lookup_annotation (a));
        a = TREE_CHAIN (a))
     {
       gcc_checking_assert (TREE_CODE (TREE_VALUE (a)) == TREE_LIST);

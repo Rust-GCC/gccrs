@@ -7086,6 +7086,14 @@ annotation_p (tree attr)
   return is_attribute_p ("annotation ", get_attribute_name (attr));
 }
 
+/* Lookup the annotation in ATTR, if present.  */
+
+tree
+lookup_annotation (tree attr)
+{
+  return lookup_attribute ("internal ", "annotation ", attr);
+}
+
 
 /* Release memory we no longer need after parsing.  */
 void

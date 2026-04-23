@@ -3692,15 +3692,13 @@ push_local_extern_decl_alias (tree decl)
 {
   if (flag_reflection)
     {
-      if (lookup_attribute ("internal ", "annotation ",
-			    DECL_ATTRIBUTES (decl)))
+      if (lookup_annotation (DECL_ATTRIBUTES (decl)))
 	error_at (DECL_SOURCE_LOCATION (decl),
 		  "annotation applied to block scope extern %qD",
 		  decl);
       if (TREE_CODE (decl) == FUNCTION_DECL)
 	for (tree arg = DECL_ARGUMENTS (decl); arg; arg = DECL_CHAIN (arg))
-	  if (lookup_attribute ("internal ", "annotation ",
-				DECL_ATTRIBUTES (arg)))
+	  if (lookup_annotation (DECL_ATTRIBUTES (arg)))
 	    error_at (DECL_SOURCE_LOCATION (arg),
 		      "annotation applied to parameter %qD of block scope "
 		      "extern", arg);
