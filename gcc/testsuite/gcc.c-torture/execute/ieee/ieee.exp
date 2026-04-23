@@ -31,43 +31,43 @@ dg-init
 # Disable tests on machines with no hardware support for IEEE arithmetic.
 if { [istarget "vax-*-*"] || [ istarget "powerpc-*-*spe"] || [istarget "pdp11-*-*"] } { return }
 
-
 # If a testcase doesn't have special options, use these.
-global DEFAULT_CFLAGS
-set MY_CFLAGS ""
-if [info exists DEFAULT_CFLAGS] then {
-    set MY_CFLAGS $DEFAULT_CFLAGS
+global DEFAULT_IEEE_CFLAGS
+if ![info exists DEFAULT_IEEE_CFLAGS] then {
+  set DEFAULT_IEEE_CFLAGS "-w -fno-inline"
 }
 
-lappend MY_CFLAGS "-w"
-lappend MY_CFLAGS "-fno-inline"
+set IEEE_CFLAGS $DEFAULT_IEEE_CFLAGS
+
+# The following flags are target-specific
 
 # We must use -ffloat-store/-mieee to ensure that excess precision on some
 # machines does not cause problems
 if { ([istarget "i?86-*-*"] || [istarget "x86_64-*-*"])
-     && [check_effective_target_ia32] } then {
-  lappend MY_CFLAGS -ffloat-store
+    && [check_effective_target_ia32] } then {
+    lappend IEEE_CFLAGS -ffloat-store
 }
 if [istarget "m68k-*-*"] then {
-  lappend MY_CFLAGS -ffloat-store
+  lappend IEEE_CFLAGS -ffloat-store
 }
-if { [istarget "alpha*-*-*"]
-     || [istarget "sh*-*-*"] } then {
-  lappend MY_CFLAGS -mieee
+if { [istarget "alpha*-*-*"] || [istarget "sh*-*-*"] } then {
+  lappend IEEE_CFLAGS -mieee
 }
 if [istarget rx-*-*] then {
-  lappend MY_CFLAGS -mnofpu
+  lappend IEEE_CFLAGS -mnofpu
 }
 
+# These flags are not target-specific, always set them
+
 if { ![check_effective_target_signal] } {
-  lappend MY_CFLAGS -DSIGNAL_SUPPRESS
+  lappend IEEE_CFLAGS -DSIGNAL_SUPPRESS
 }
 
 
 # main test loop
 set saved-dg-do-what-default ${dg-do-what-default}
 set dg-do-what-default "run"
-gcc-dg-runtest [lsort [glob -nocomplain $srcdir/$subdir/*.\[cS\]]] "" $MY_CFLAGS
+gcc-dg-runtest [lsort [glob -nocomplain $srcdir/$subdir/*.\[cS\]]] "" $IEEE_CFLAGS
 set dg-do-what-default ${saved-dg-do-what-default}
 
 # All done.
