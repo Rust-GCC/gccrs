@@ -14823,6 +14823,17 @@ proc check_effective_target_alarm { } {
     }]
 }
 
+# Return true if sleep is supported on the target.
+
+proc check_effective_target_sleep { } {
+    return [check_no_compiler_messages sleep executable {
+	#include <unistd.h>
+	int main (void) {
+	  sleep (1);
+	}
+    }]
+}
+
 # Return true if a speculation barrier is defined on the target.
 proc check_effective_target_speculation_barrier_defined { } {
     return [check_no_compiler_messages speculation_barrier_defined assembly {

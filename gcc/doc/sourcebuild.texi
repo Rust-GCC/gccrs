@@ -2936,6 +2936,9 @@ Target can compile using @code{pthread.h} with no errors or warnings.
 @item pthread_h
 Target has @code{pthread.h}.
 
+@item sleep
+Target supports @code{sleep}.
+
 @item sockets
 Target can compile using @code{sys/socket.h} with no errors or warnings.
 
