@@ -1,3 +1,254 @@
+2026-04-22  Jason Merrill  <jason@redhat.com>
+
+	PR c++/124973
+	PR c++/120502
+	PR c++/120005
+	* g++.dg/modules/consteval-1_a.C: New test.
+	* g++.dg/modules/consteval-1_b.C: New test.
+
+2026-04-22  feedable  <feedabl3@gmail.com>
+
+	* c-c++-common/Wdangling-pointer-9.c: Reqiure label_values.
+	* c-c++-common/analyzer/computed-goto-1.c: Likewise.
+	* c-c++-common/analyzer/pr102695.c: Likewise.
+	* c-c++-common/attr-used-7.c: Likewise.
+	* c-c++-common/attr-used-8.c: Likewise.
+	* c-c++-common/attr-used-9.c: Likewise.
+	* gcc.dg/analyzer/boxed-malloc-1.c: Likewise.
+	* gcc.dg/analyzer/computed-goto-pr110529.c: Likewise.
+	* gcc.dg/analyzer/malloc-1.c: Likewise.
+	* gcc.dg/pr106421.c: Likewise.
+	* gcc.dg/pr110506.c: Likewise.
+	* gcc.dg/pr122773.c: Likewise.
+	* gcc.dg/torture/pr108076.c: Likewise.
+	* gcc.c-torture/compile/pr120250.c: Likewise.
+	* c-c++-common/analyzer/feasibility-3.c: Require named_sections.
+	* c-c++-common/attr-used-5.c: Likewise.
+	* c-c++-common/attr-used-6.c: Likewise.
+	* g++.dg/charset/attribute1.c: Likewise.
+	* gcc.dg/charset/attribute1.c: Likewise.
+	* gcc.dg/pr116887.c: Likewise.
+	* gcc.dg/pr83100-2.c: Likewise.
+	* gcc.dg/pr83100-3.c: Likewise.
+	* gcc.dg/pr87793.c: Likewise.
+	* gcc.dg/special/gcsec-1.c: Likewise.
+	* gcc.dg/tls/data-sections-1.c: Likewise.
+	* c-c++-common/analyzer/infinite-recursion-5.c: Require
+	nonlocal_goto.
+	* gcc.dg/Winfinite-recursion-2.c: Likewise.
+	* gcc.dg/Winfinite-recursion.c: Likewise.
+	* gcc.dg/pr97986-1.c: Likewise.
+	* gcc.dg/pr101156.c: Likewise.
+	* gcc.dg/callgraph-info-1.c: Require alias.
+	* gcc.dg/plugin/diagnostic-test-paths-4.c: Require signal.
+
+2026-04-22  feedable  <feedabl3@gmail.com>
+
+	* gcc.dg/torture/fp-double-convert-float-1.c: Move declaration
+	before the #ifdef
+
+2026-04-22  feedable  <feedabl3@gmail.com>
+
+	* gcc.dg/torture/builtin-issignaling-1.c: Move to...
+	* gcc.c-torture/execute/ieee/builtin-issignaling-1.c: ...here.
+	* gcc.dg/torture/bfloat16-builtin-issignaling-1.c: Move to...
+	* gcc.c-torture/execute/ieee/bfloat16-builtin-issignaling-1.c: ...here.
+	* gcc.dg/torture/float128-builtin-issignaling-1.c: Move to...
+	* gcc.c-torture/execute/ieee/float128-builtin-issignaling-1.c: ...here.
+	* gcc.dg/torture/float128x-builtin-issignaling-1.c: Move to...
+	* gcc.c-torture/execute/ieee/float128x-builtin-issignaling-1.c: ...here.
+	* gcc.dg/torture/float16-builtin-issignaling-1.c: Move to...
+	* gcc.c-torture/execute/ieee/float16-builtin-issignaling-1.c: ...here.
+	* gcc.dg/torture/float32-builtin-issignaling-1.c: Move to...
+	* gcc.c-torture/execute/ieee/float32-builtin-issignaling-1.c: ...here.
+	* gcc.dg/torture/float32x-builtin-issignaling-1.c: Move to...
+	* gcc.c-torture/execute/ieee/float32x-builtin-issignaling-1.c: ...here.
+	* gcc.dg/torture/float64-builtin-issignaling-1.c: Move to...
+	* gcc.c-torture/execute/ieee/float64-builtin-issignaling-1.c: ...here.
+	* gcc.dg/torture/float64x-builtin-issignaling-1.c: Move to...
+	* gcc.c-torture/execute/ieee/float64x-builtin-issignaling-1.c: ...here.
+
+2026-04-22  feedable  <feedabl3@gmail.com>
+
+	* gcc.c-torture/execute/ieee/ieee.exp: Replace with slightly adapted copy of
+	execute/execute.exp.
+	* gcc.c-torture/execute/ieee/20000320-1.c: Port to the new format.
+	* gcc.c-torture/execute/ieee/20001122-1.c: Likewise.
+	* gcc.c-torture/execute/ieee/20010114-2.c: Likewise.
+	* gcc.c-torture/execute/ieee/20010226-1.c: Likewise.
+	* gcc.c-torture/execute/ieee/20011123-1.c: Likewise.
+	* gcc.c-torture/execute/ieee/20030331-1.c: Likewise.
+	* gcc.c-torture/execute/ieee/20041213-1.c: Likewise.
+	* gcc.c-torture/execute/ieee/920518-1.c: Likewise.
+	* gcc.c-torture/execute/ieee/920810-1.c: Likewise.
+	* gcc.c-torture/execute/ieee/930529-1.c: Likewise.
+	* gcc.c-torture/execute/ieee/980619-1.c: Likewise.
+	* gcc.c-torture/execute/ieee/acc1.c: Likewise.
+	* gcc.c-torture/execute/ieee/acc2.c: Likewise.
+	* gcc.c-torture/execute/ieee/builtin-nan-1.c: Likewise.
+	* gcc.c-torture/execute/ieee/cdivchkd.c: Likewise.
+	* gcc.c-torture/execute/ieee/cdivchkf.c: Likewise.
+	* gcc.c-torture/execute/ieee/cdivchkld.c: Likewise.
+	* gcc.c-torture/execute/ieee/compare-fp-1.c: Likewise.
+	* gcc.c-torture/execute/ieee/compare-fp-2.c: Likewise.
+	* gcc.c-torture/execute/ieee/compare-fp-3.c: Likewise.
+	* gcc.c-torture/execute/ieee/compare-fp-4.c: Likewise.
+	* gcc.c-torture/execute/ieee/copysign1.c: Likewise.
+	* gcc.c-torture/execute/ieee/copysign2.c: Likewise.
+	* gcc.c-torture/execute/ieee/fp-cmp-1.c: Likewise.
+	* gcc.c-torture/execute/ieee/fp-cmp-2.c: Likewise.
+	* gcc.c-torture/execute/ieee/fp-cmp-3.c: Likewise.
+	* gcc.c-torture/execute/ieee/fp-cmp-4.c: Likewise.
+	* gcc.c-torture/execute/ieee/fp-cmp-4e.c: Likewise.
+	* gcc.c-torture/execute/ieee/fp-cmp-4f.c: Likewise.
+	* gcc.c-torture/execute/ieee/fp-cmp-4l.c: Likewise.
+	* gcc.c-torture/execute/ieee/fp-cmp-5.c: Likewise.
+	* gcc.c-torture/execute/ieee/fp-cmp-6.c: Likewise.
+	* gcc.c-torture/execute/ieee/fp-cmp-7.c: Likewise.
+	* gcc.c-torture/execute/ieee/fp-cmp-8.c: Likewise.
+	* gcc.c-torture/execute/ieee/fp-cmp-8e.c: Likewise.
+	* gcc.c-torture/execute/ieee/fp-cmp-8f.c: Likewise.
+	* gcc.c-torture/execute/ieee/fp-cmp-8l.c: Likewise.
+	* gcc.c-torture/execute/ieee/fp-cmp-9.c: Likewise.
+	* gcc.c-torture/execute/ieee/fp-cmp-cond-1.c: Likewise.
+	* gcc.c-torture/execute/ieee/hugeval.c: Likewise.
+	* gcc.c-torture/execute/ieee/inf-1.c: Likewise.
+	* gcc.c-torture/execute/ieee/inf-2.c: Likewise.
+	* gcc.c-torture/execute/ieee/inf-3.c: Likewise.
+	* gcc.c-torture/execute/ieee/inf-4.c: Likewise.
+	* gcc.c-torture/execute/ieee/minuszero.c: Likewise.
+	* gcc.c-torture/execute/ieee/mul-subnormal-single-1.c: Likewise.
+	* gcc.c-torture/execute/ieee/mzero2.c: Likewise.
+	* gcc.c-torture/execute/ieee/mzero3.c: Likewise.
+	* gcc.c-torture/execute/ieee/mzero4.c: Likewise.
+	* gcc.c-torture/execute/ieee/mzero5.c: Likewise.
+	* gcc.c-torture/execute/ieee/mzero6.c: Likewise.
+	* gcc.c-torture/execute/ieee/pr108540-1.c: Likewise.
+	* gcc.c-torture/execute/ieee/pr108540-2.c: Likewise.
+	* gcc.c-torture/execute/ieee/pr109008.c: Likewise.
+	* gcc.c-torture/execute/ieee/pr109386.c: Likewise.
+	* gcc.c-torture/execute/ieee/pr119002.c: Likewise.
+	* gcc.c-torture/execute/ieee/pr28634.c: Likewise.
+	* gcc.c-torture/execute/ieee/pr29302-1.c: Likewise.
+	* gcc.c-torture/execute/ieee/pr30704.c: Likewise.
+	* gcc.c-torture/execute/ieee/pr36332.c: Likewise.
+	* gcc.c-torture/execute/ieee/pr38016.c: Likewise.
+	* gcc.c-torture/execute/ieee/pr50310.c: Likewise.
+	* gcc.c-torture/execute/ieee/pr67218.c: Likewise.
+	* gcc.c-torture/execute/ieee/pr72824-2.c: Likewise.
+	* gcc.c-torture/execute/ieee/pr72824.c: Likewise.
+	* gcc.c-torture/execute/ieee/pr84235.c: Likewise.
+	* gcc.c-torture/execute/ieee/rbug.c: Likewise.
+	* gcc.c-torture/execute/ieee/unsafe-fp-assoc-1.c: Likewise.
+	* gcc.c-torture/execute/ieee/unsafe-fp-assoc.c: Likewise.
+	* gcc.c-torture/execute/ieee/20000320-1.x: Removed.
+	* gcc.c-torture/execute/ieee/920810-1.x: Removed.
+	* gcc.c-torture/execute/ieee/980619-1.x: Removed.
+	* gcc.c-torture/execute/ieee/cdivchkd.x: Removed.
+	* gcc.c-torture/execute/ieee/cdivchkf.x: Removed.
+	* gcc.c-torture/execute/ieee/cdivchkld.x: Removed.
+	* gcc.c-torture/execute/ieee/compare-fp-3.x: Removed.
+	* gcc.c-torture/execute/ieee/compare-fp-4.x: Removed.
+	* gcc.c-torture/execute/ieee/fp-cmp-1.x: Removed.
+	* gcc.c-torture/execute/ieee/fp-cmp-2.x: Removed.
+	* gcc.c-torture/execute/ieee/fp-cmp-3.x: Removed.
+	* gcc.c-torture/execute/ieee/fp-cmp-4.x: Removed.
+	* gcc.c-torture/execute/ieee/fp-cmp-4f.x: Removed.
+	* gcc.c-torture/execute/ieee/fp-cmp-4l.x: Removed.
+	* gcc.c-torture/execute/ieee/fp-cmp-6.x: Removed.
+	* gcc.c-torture/execute/ieee/fp-cmp-7.x: Removed.
+	* gcc.c-torture/execute/ieee/fp-cmp-9.x: Removed.
+	* gcc.c-torture/execute/ieee/hugeval.x: Removed.
+	* gcc.c-torture/execute/ieee/mul-subnormal-single-1.x: Removed.
+	* gcc.c-torture/execute/ieee/mzero2.x: Removed.
+	* gcc.c-torture/execute/ieee/pr108540-1.x: Removed.
+	* gcc.c-torture/execute/ieee/pr29302-1.x: Removed.
+	* gcc.c-torture/execute/ieee/pr30704.x: Removed.
+	* gcc.c-torture/execute/ieee/pr38016.x: Removed.
+	* gcc.c-torture/execute/ieee/rbug.x: Removed.
+	* gcc.c-torture/execute/ieee/unsafe-fp-assoc-1.x: Removed.
+
+2026-04-22  Alice Carlotti  <alice.carlotti@arm.com>
+
+	* lib/target-supports.exp: Merge exts_sve2 handling into exts.
+
+2026-04-22  Alice Carlotti  <alice.carlotti@arm.com>
+
+	* gcc.target/aarch64/sme2/acle-asm/svluti4_zt_1.c: Add dg-do.
+	* gcc.target/aarch64/sme2/acle-asm/svwrite_lane_zt_1.c: Ditto.
+	* gcc.target/aarch64/sme2/acle-asm/svwrite_zt_1.c: Ditto.
+	* lib/target-supports.exp: Add sme-lutv2 to exts_sve2.
+
+2026-04-22  Alice Carlotti  <alice.carlotti@arm.com>
+
+	PR target/119210
+	* gcc.target/aarch64/sme/za_state_8.c: New test.
+
+2026-04-22  Alice Carlotti  <alice.carlotti@arm.com>
+
+	* gcc.target/aarch64/sme/zt0_state_8.c: New test.
+
+2026-04-22  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gnat.dg/directory1.adb: New test.
+
+2026-04-22  Kyrylo Tkachov  <ktkachov@nvidia.com>
+
+	PR target/124908
+	* gcc.target/aarch64/sve/acle/general/ld1rq_2.c: New test.
+
+2026-04-22  Jakub Jelinek  <jakub@redhat.com>
+
+	* g++.dg/DRs/dr2581-2.C: Adjust for __cpp_impl_reflection bump from
+	202506L to 202603L.
+	* g++.dg/reflect/feat1.C: Likewise.  Also adjust for
+	__cpp_lib_reflection bump from 202506L to 202603L.
+	* g++.dg/reflect/feat2.C: Likewise.
+	* g++.dg/reflect/feat3.C: Likewise.
+
+2026-04-22  Richard Earnshaw  <rearnsha@arm.com>
+
+	PR tree-optimization/124909
+	* gcc.dg/match-shift-cmp-3.c:  Adjust expected results for
+	target short_enums.
+
+2026-04-22  Richard Earnshaw  <rearnsha@arm.com>
+
+	PR target/124933
+	* lib/target-supports.exp (v8_1m_main_fp_hard): New arm
+	architecture variant.
+	* gcc.target/arm/pr124933.c: New test.
+	* gcc.target/arm/armv8_2-fp16-move-1.c: Update expected output.
+
+2026-04-22  Jakub Jelinek  <jakub@redhat.com>
+
+	PR sanitizer/124969
+	* gcc.dg/ubsan/pr124969-2.c: New test.
+
+2026-04-22  Jakub Jelinek  <jakub@redhat.com>
+
+	PR sanitizer/124969
+	* gcc.dg/ubsan/pr124969-1.c: New test.
+
+2026-04-22  Jakub Jelinek  <jakub@redhat.com>
+
+	PR target/122483
+	* gcc.target/aarch64/sme/streaming_mode_1.c: Xfail errors for
+	sc_a, sc_c, sc_e, s_a, s_c, s_e and keyword_contradiction_1.
+	* gcc.target/aarch64/sme/za_state_1.c: Xfail errors for shared_a,
+	shared_c, shared_e, preserved_a, preserved_c, preserved_e and
+	keyword_conflict_1.
+	* gcc.target/aarch64/sme/za_state_2.c: Xfail errors for shared_b,
+	shared_d, shared_f and shared_h.  Add xfailed dg-bogus for
+	extra diagnostics on shared_f and shared_h.
+
+2026-04-22  Hans-Peter Nilsson  <hp@axis.com>
+
+	PR target/124959
+	* gcc.dg/hoist-register-pressure-1.c,
+	gcc.dg/hoist-register-pressure-2.c,
+	gcc.dg/hoist-register-pressure-3.c: Exclude cris-*-*.
+
 2026-04-21  Jakub Jelinek  <jakub@redhat.com>
 
 	PR c++/124944

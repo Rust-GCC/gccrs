@@ -1,3 +1,8 @@
+2026-04-22  Jakub Jelinek  <jakub@redhat.com>
+
+	* crontab: Snapshots from trunk are now GCC 17 related.
+	Add GCC 16 snapshots from the respective branch.
+
 2026-01-26  Pietro Monteiro  <pietro@sociotechnical.xyz>
 
 	* update_web_docs_git (MANUALS): Add ga68-coding-guidelines.

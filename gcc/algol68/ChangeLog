@@ -1,3 +1,8 @@
+2026-04-22  Thiago Jung Bauermann  <thiago.bauermann@linaro.org>
+
+	* Make-lang.in (algol68.install-html): Fix
+	ga68-coding-guidelines dependency.  Install all dependencies.
+
 2026-03-23  Jose E. Marchesi  <jemarch@gnu.org>
 
 	* ga68-coding-guidelines.texi (Comments): Fix typo.

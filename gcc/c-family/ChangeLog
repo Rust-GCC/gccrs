@@ -1,3 +1,17 @@
+2026-04-22  Jakub Jelinek  <jakub@redhat.com>
+
+	* c-cppbuiltin.cc (c_cpp_builtins): Bump __cpp_impl_reflection value
+	from 202506L to 202603L.
+
+2026-04-22  Jakub Jelinek  <jakub@redhat.com>
+
+	PR sanitizer/124969
+	* c-ubsan.cc (get_index_from_pointer_addr_expr): For
+	VOID_TYPE_P (pointee_type) use size_one_node instead of
+	TYPE_SIZE_UNIT (pointee_type) as pointee_size.  Punt for
+	!COMPLETE_OR_VOID_TYPE_P (pointee_type).  Formatting fix.  Use
+	CONVERT_EXPR_P (x) instead of CONVERT_EXPR_CODE_P (TREE_CODE (x)).
+
 2026-04-07  Sandra Loosemore  <sloosemore@baylibre.com>
 
 	PR other/124784

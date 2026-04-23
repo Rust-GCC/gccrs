@@ -1,3 +1,13 @@
+2026-04-22  Eric Botcazou  <ebotcazou@adacore.com>
+
+	PR ada/85766
+	* libgnat/a-direct.adb (Containing_Directory): Streamline and strip
+	a trailing directory separator from the name.
+
+2026-04-22  Jakub Jelinek  <jakub@redhat.com>
+
+	* gnatvsn.ads: Bump Library_Version to 17.  Bump Current_Year to 2026.
+
 2026-04-20  Eric Botcazou  <ebotcazou@adacore.com>
 
 	PR ada/124918

@@ -1,3 +1,10 @@
+2026-04-22  Jakub Jelinek  <jakub@redhat.com>
+
+	PR sanitizer/124969
+	* c-typeck.cc (build_access_with_size_for_counted_by): Use
+	size_one_node instead of build_one_cst (size_type_node).  Punt
+	if element_size is NULL_TREE.
+
 2026-04-09  Dhruv Chawla  <dhruvc@nvidia.com>
 
 	* Make-lang.in (create_fdas_for_cc1): Use $(AFDO_PROFILER) when passing

@@ -1,3 +1,7 @@
+2026-04-22  Sam James  <sam@gentoo.org>
+
+	* lto-symtab.cc (lto_varpool_replace_node): Fix spelling of 'warning'.
+
 2026-04-09  Dhruv Chawla  <dhruvc@nvidia.com>
 
 	* Make-lang.in (create_fdas_for_lto1): Use $(AFDO_PROFILER) when passing

@@ -1,3 +1,13 @@
+2026-04-22  Jason Merrill  <jason@redhat.com>
+
+	PR c++/124973
+	PR c++/120502
+	PR c++/120005
+	* cp-gimplify.cc (cp_fold_r) <case TARGET_EXPR>: Only
+	do optimization folding when ff_genericize.
+	(cp_fold) <case CALL_EXPR>: Don't do
+	optimization folding when ff_only_non_odr.
+
 2026-04-21  Jason Merrill  <jason@redhat.com>
 
 	PR c++/123879

@@ -1,3 +1,121 @@
+2026-04-22  Sam James  <sam@gentoo.org>
+
+	* ipa-prop.cc (param_type_may_change_p): Fix comment typo.
+
+2026-04-22  Sam James  <sam@gentoo.org>
+
+	* config/i386/i386.cc (ix86_get_callcvt): Say 'regparm' in comment,
+	not 'regparam'.
+
+2026-04-22  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	* cfghooks.cc (make_forwarder_block): New data argument,
+	pass it down to redirect_edge_p.
+	* cfghooks.h (make_forwarder_block): Add void* argument.
+	* cfgloop.cc (mfb_reis_set): Remove.
+	(mfb_redirect_edges_in_set): Add new data argument.
+	Use it instead of mfb_reis_set.
+	(form_subloop): Create a local variable instead of
+	mfb_areis_set. Update call to make_forwarder_block.
+	(merge_latch_edges): Likewise.
+	* cfgloopmanip.cc (mfb_kj_edge): Remove.
+	(mfb_keep_just):  Add new data argument.
+	Use it instead of mfb_kj_edge.
+	(create_preheader): Use local variable instead of
+	mfb_kj_edge. Update call to make_forwarder_block.
+	* cfgloopmanip.h (mfb_keep_just): Add void* argument.
+	* tree-cfgcleanup.cc (mfb_keep_latches): Add unused void* arugment.
+	(cleanup_tree_cfg_noloop): Update call to make_forwarder_block.
+	* tree-ssa-threadupdate.cc
+	(fwd_jt_path_registry::thread_through_loop_header): Use local
+	variable instead of mfb_kj_edge. Update call to make_forwarder_block.
+
+2026-04-22  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	* cfghooks.cc (make_forwarder_block): Remove new_bb_cbk argument.
+	* cfghooks.h (make_forwarder_block): Remove last argument.
+	* cfgloop.cc (form_subloop): Update call to make_forwarder_block.
+	(merge_latch_edges): Likewise.
+	* cfgloopmanip.cc (create_preheader): Likewise.
+	* tree-cfgcleanup.cc (cleanup_tree_cfg_noloop): Likewise.
+	* tree-ssa-threadupdate.cc
+	(fwd_jt_path_registry::thread_through_loop_header): Likewise.
+
+2026-04-22  Sam James  <sam@gentoo.org>
+
+	* doc/invoke.texi (-ffunction-cse): Add missing full stop.
+
+2026-04-22  Sam James  <sam@gentoo.org>
+
+	* doc/invoke.texi (-Wduplicate-decl-specifier): Say 'a duplicate'.
+
+2026-04-22  Sam James  <sam@gentoo.org>
+
+	* doc/invoke.texi (-Waddress): Drop unnecessary 'warning'.
+
+2026-04-22  Sam James  <sam@gentoo.org>
+
+	* doc/invoke.texi: Fix whitespace.
+
+2026-04-22  Sam James  <sam@gentoo.org>
+
+	* doc/invoke.texi: Write 'In C,' and 'In C++,' with a comma
+	consistently.
+
+2026-04-22  Sam James  <sam@gentoo.org>
+
+	* doc/invoke.texi (-Walloca): Simplify phrasing.
+	(-Walloca-larger-than=-): Ditto.
+
+2026-04-22  Alice Carlotti  <alice.carlotti@arm.com>
+
+	* mode-switching.cc (optimize_mode_switching): Add dump output.
+
+2026-04-22  Alice Carlotti  <alice.carlotti@arm.com>
+
+	* config/aarch64/aarch64.cc (aarch64_start_call_args): Extend
+	comment.
+
+2026-04-22  Alice Carlotti  <alice.carlotti@arm.com>
+
+	* config/aarch64/aarch64.cc (aarch64_mode_confluence): Fix
+	comment typo.
+	* target.def (mode_switching): Fix incorrect variable names in
+	documentation.
+	* doc/tm.texi: Regenerate.
+
+2026-04-22  Alice Carlotti  <alice.carlotti@arm.com>
+
+	PR target/119210
+	* config/aarch64/aarch64.cc (aarch64_mode_emit_local_sme_state):
+	Add PSTATE.ZA enablement, and zero it if already enabled.
+
+2026-04-22  Alice Carlotti  <alice.carlotti@arm.com>
+
+	* config/aarch64/aarch64-sme.md (aarch64_sme_write_zt): Add
+	ZTO_REGNUM use and make unspec non-volatile.
+
+2026-04-22  Kyrylo Tkachov  <ktkachov@nvidia.com>
+
+	PR target/124908
+	* config/aarch64/aarch64-sve-builtins-base.cc
+	(svld1rq_impl::fold): When the SVE vector length equals the
+	quadword width, emit VIEW_CONVERT_EXPR instead of VEC_PERM_EXPR.
+
+2026-04-22  Richard Earnshaw  <rearnsha@arm.com>
+
+	PR target/124933
+	* config/arm/constraints.md (Uj): Allow offset addressing for
+	all targets, only allow Neon addressing when we have both Neon
+	and FP16INST.
+	* config/arm/vfp.md (mov<mode>_vfp_<mode>16): Only use vld1/vst1
+	when the pattern needs address write-back.
+
+2026-04-22  Jakub Jelinek  <jakub@redhat.com>
+
+	PR middle-end/124971
+	* gensupport.cc (convert_syntax): Fix up // comment handling.
+
 2026-04-21  Gaius Mulley  <gaiusmod2@gmail.com>
 
 	PR modula2/120189

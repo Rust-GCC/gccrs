@@ -1,3 +1,34 @@
+2026-04-22  Jakub Jelinek  <jakub@redhat.com>
+
+	* include/bits/version.def (reflection): Bump 202506L to 202603L
+	for both v and in extra_cond.
+	* include/bits/version.h: Regenerate.
+	* include/std/meta: Compare __glibcxx_reflection against
+	202603L rather than 202506L.
+	* src/c++23/std.cc.in: Likewise.
+
+2026-04-22  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* include/bits/align.h (is_sufficiently_aligned): Mandate
+	that _Align is power of two.
+	* testsuite/20_util/is_sufficiently_aligned/2_neg.cc: New test.
+
+2026-04-22  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* include/std/mdspan (mdspan): Remove reference from
+	_AccessorType::data_handle_type parameteter of deduction
+	guide.
+	* testsuite/23_containers/mdspan/mdspan.cc: New test.
+
+2026-04-22  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* include/bits/chrono_io.h: Add comment for LWG3831.
+	* include/bits/print.h: Add comment for LWG4549.
+	* include/std/condition_variable: Add comment for LWG3504.
+	* include/std/format: Add comments for LWG4522.
+	* include/std/mdspan: Add comment for LWG4314.
+	* include/std/optional: Add comment for LWG2746.
+
 2026-04-21  Nathan Myers  <ncm@cantrip.org>
 
 	* include/bits/alloc_traits.h (allocate_at_least):
