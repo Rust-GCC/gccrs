@@ -7664,13 +7664,11 @@ package body Sem_Util is
 
    begin
       while Present (Decl)
-        and then not (Nkind (Decl) in N_Declaration
-                        or else
-                      Nkind (Decl) in N_Later_Decl_Item
-                        or else
-                      Nkind (Decl) in N_Renaming_Declaration
-                        or else
-                      Nkind (Decl) = N_Number_Declaration)
+            and then not (Nkind (Decl) in
+              N_Declaration
+              | N_Later_Decl_Item
+              | N_Renaming_Declaration
+              | N_Number_Declaration)
       loop
          Decl := Parent (Decl);
       end loop;
