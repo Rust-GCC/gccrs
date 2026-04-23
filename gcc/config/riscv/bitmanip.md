@@ -541,7 +541,10 @@
       operands[1] = force_reg (DImode, gen_rtx_SIGN_EXTEND (DImode, operands[1]));
       operands[2] = force_reg (DImode, gen_rtx_SIGN_EXTEND (DImode, operands[2]));
       emit_insn (gen_<bitmanip_optab>di3 (t, operands[1], operands[2]));
-      emit_move_insn (operands[0], gen_lowpart (SImode, t));
+      t = gen_lowpart (SImode, t);
+      SUBREG_PROMOTED_VAR_P (t) = 1;
+      SUBREG_PROMOTED_SET (t, SRP_SIGNED);
+      emit_move_insn (operands[0], t);
       DONE;
     }
 })
