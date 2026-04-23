@@ -1718,7 +1718,7 @@ cp_fold_r (tree *stmt_p, int *walk_subtrees, void *data_)
 
     case TARGET_EXPR:
       if (!flag_no_inline
-	  && (data->flags && ff_genericize))
+	  && (data->flags & ff_genericize))
 	if (tree &init = TARGET_EXPR_INITIAL (stmt))
 	  {
 	    tree folded = maybe_constant_init (init, TARGET_EXPR_SLOT (stmt),
