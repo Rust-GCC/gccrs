@@ -1,4 +1,4 @@
-! { dg-do run }
+! { dg-do run { target sleep } }
 
 program test_image_status_2
   use iso_fortran_env
