@@ -301,7 +301,7 @@ public:
 
   void intern_and_insert_lifetime (const HIR::Lifetime &lifetime);
 
-  WARN_UNUSED_RESULT std::vector<TyTy::Region>
+  WARN_UNUSED_RESULT tl::optional<std::vector<TyTy::Region>>
   regions_from_generic_args (const HIR::GenericArgs &args) const;
 
   void compute_inference_variables (bool emit_error);
