@@ -4478,6 +4478,65 @@ bitint_large_huge::finish_arith_overflow (tree var, tree obj, tree type,
     {
       unsigned HOST_WIDE_INT obj_nelts = 0;
       tree atype = NULL_TREE;
+      if (bitint_extended && (var || obj))
+	{
+	  unsigned prec = TYPE_PRECISION (type);
+	  unsigned prec_limbs = CEIL (prec, limb_prec);
+	  bool ext_ms_limb
+	    = (bitint_extended == bitint_ext_full
+	       && abi_limb_prec > limb_prec
+	       && (CEIL (prec, abi_limb_prec) * abi_limb_prec
+		   > CEIL (prec, limb_prec) * limb_prec));
+	  /* For .{ADD,SUB}_OVERFLOW the partial limb if any is
+	     already extended in lower_addsub_overflow.  */
+	  if ((code == MULT_EXPR && (prec % limb_prec) != 0)
+	      || (ext_ms_limb && !TYPE_UNSIGNED (type)))
+	    {
+	      tree plm1idx = size_int (bitint_big_endian ? 0 : prec_limbs - 1);
+	      tree plm1type = limb_access_type (type, plm1idx);
+	      tree l = limb_access (type, var ? var : obj, plm1idx, true);
+	      tree rhs = make_ssa_name (TREE_TYPE (l));
+	      g = gimple_build_assign (rhs, l);
+	      insert_before (g);
+	      if (code == MULT_EXPR && (prec % limb_prec) != 0)
+		{
+		  if (!useless_type_conversion_p (plm1type, TREE_TYPE (rhs)))
+		    rhs = add_cast (plm1type, rhs);
+		  if (!useless_type_conversion_p (TREE_TYPE (l),
+						  TREE_TYPE (rhs)))
+		    rhs = add_cast (TREE_TYPE (l), rhs);
+		  l = limb_access (type, var ? var : obj, plm1idx, true);
+		  g = gimple_build_assign (l, rhs);
+		  insert_before (g);
+		}
+	      if (ext_ms_limb && !TYPE_UNSIGNED (type))
+		{
+		  rhs = add_cast (signed_type_for (m_limb_type), rhs);
+		  tree lpm1 = build_int_cst (unsigned_type_node,
+					     limb_prec - 1);
+		  tree v = make_ssa_name (TREE_TYPE (rhs));
+		  g = gimple_build_assign (v, RSHIFT_EXPR, rhs, lpm1);
+		  insert_before (g);
+		  unsigned int i
+		    = CEIL (prec, abi_limb_prec) * abi_limb_prec / limb_prec;
+		  v = add_cast (m_limb_type, v);
+		  g = gimple_build_assign (limb_access (type, var ? var : obj,
+							size_int (i - 1),
+							true), v);
+		  insert_before (g);
+		  ext_ms_limb = false;
+		}
+	    }
+	  if (ext_ms_limb)
+	    {
+	      unsigned int i
+		= CEIL (prec, abi_limb_prec) * abi_limb_prec / limb_prec;
+	      g = gimple_build_assign (limb_access (type, var ? var : obj,
+						    size_int (i - 1), true),
+				       build_zero_cst (m_limb_type));
+	      insert_before (g);
+	    }
+	}
       if (obj)
 	{
 	  obj_nelts = tree_to_uhwi (TYPE_SIZE (TREE_TYPE (obj))) / limb_prec;
@@ -4673,7 +4732,7 @@ bitint_large_huge::lower_addsub_overflow (tree obj, gimple *stmt)
   int prec0 = range_to_prec (arg0, stmt);
   int prec1 = range_to_prec (arg1, stmt);
   /* If PREC0 >= 0 && PREC1 >= 0 and CODE is not MINUS_EXPR, PREC2 is
-     the be minimum unsigned precision of any possible operation's
+     the minimum unsigned precision of any possible operation's
      result, otherwise it is minimum signed precision.
      Some examples:
      If PREC0 or PREC1 is 8, it means that argument is [0, 0xff],
@@ -5149,6 +5208,12 @@ bitint_large_huge::lower_addsub_overflow (tree obj, gimple *stmt)
 		    }
 		}
 	      tree l = limb_access (type, var ? var : obj, idxl, true);
+	      if (bitint_extended && tree_fits_uhwi_p (idxl))
+		{
+		  tree atype = limb_access_type (type, idxl);
+		  if (!useless_type_conversion_p (atype, TREE_TYPE (rhs)))
+		    rhs = add_cast (atype, rhs);
+		}
 	      if (!useless_type_conversion_p (TREE_TYPE (l), TREE_TYPE (rhs)))
 		rhs = add_cast (TREE_TYPE (l), rhs);
 	      g = gimple_build_assign (l, rhs);
