@@ -40,10 +40,10 @@ test01()
   VERIFY( ss.str() == "121s 122s 123s 124s 125s 126s 127s " );
 
   ss.str("");
-  ss << std::hex << std::uppercase << duration<const char>(0x1A) << ' ';
-  ss << std::hex << std::uppercase << duration<const wchar_t>(0x2A) << ' ';
+  ss << std::hex << std::uppercase << duration<char>(0x1A) << ' ';
+  ss << std::hex << std::uppercase << duration<wchar_t>(0x2A) << ' ';
   ss << std::hex << std::uppercase << duration<signed char>(0x3A) << ' ';
-  ss << std::scientific << duration<const double>(4.5) << ' ';
+  ss << std::scientific << duration<double>(4.5) << ' ';
   VERIFY( ss.str() == "1As 2As 3As 4.500000E+00s " );
 }
 
@@ -79,10 +79,10 @@ test02()
   VERIFY( ss.str() == L"121s 122s 123s 124s 125s 126s 127s " );
 
   ss.str(L"");
-  ss << std::hex << std::uppercase << duration<const char>(0x1A) << ' ';
-  ss << std::hex << std::uppercase << duration<const wchar_t>(0x2A) << ' ';
+  ss << std::hex << std::uppercase << duration<char>(0x1A) << ' ';
+  ss << std::hex << std::uppercase << duration<wchar_t>(0x2A) << ' ';
   ss << std::hex << std::uppercase << duration<signed char>(0x3A) << ' ';
-  ss << std::scientific << duration<const double>(4.5) << ' ';
+  ss << std::scientific << duration<double>(4.5) << ' ';
   VERIFY( ss.str() == L"1As 2As 3As 4.500000E+00s " );
 #endif
 }
