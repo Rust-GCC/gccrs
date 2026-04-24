@@ -41,7 +41,7 @@
 #include <optional>
 #include <bits/stdexcept_throw.h>
 #include <bits/range_access.h>
-#include <bits/ranges_base.h> // borrowed_iterator_t, __detail::__container_compatible_range
+#include <bits/ranges_base.h> // borrowed_iterator_t, __detail::__container_compatible_range, __static_sized_range
 #include <bits/ranges_util.h> // subrange
 #include <bits/ranges_uninitialized.h>
 #include <bits/stl_construct.h>
@@ -120,7 +120,14 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 	constexpr
 	inplace_vector(from_range_t, _Rg&& __rg)
 	: inplace_vector()
-	{ append_range(__rg); }
+	{ 
+	  // _GLIBCXX_RESOLVE_LIB_DEFECTS
+	  // 4396. Improve inplace_vector(from_range_t, R&& rg)
+	  if constexpr (ranges::__static_sized_range<_Rg>)
+	    static_assert(ranges::size(__rg) <= _Nm);
+
+	  append_range(__rg);
+	}
 
       constexpr
       inplace_vector(initializer_list<_Tp> __il)
@@ -934,6 +941,11 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 	constexpr
 	inplace_vector(from_range_t, _Rg&& __rg)
 	{
+	  // _GLIBCXX_RESOLVE_LIB_DEFECTS
+	  // 4396. Improve inplace_vector(from_range_t, R&& rg)
+	  if constexpr (ranges::__static_sized_range<_Rg>)
+	    static_assert(ranges::size(__rg) == 0);
+
 	  if (ranges::begin(__rg) != ranges::end(__rg))
 	    __throw_bad_alloc();
 	}
