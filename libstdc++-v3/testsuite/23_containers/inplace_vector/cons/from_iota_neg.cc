@@ -33,14 +33,12 @@ test_all()
   std::inplace_vector<int, 15> tr1(std::from_range, ref_view(m12));
 
   std::inplace_vector<int, 10> tm2(std::from_range, m12); // { dg-error "(from here|expansion of)" }
-  // ref_view is not statically sized due pointer dereference
-  std::inplace_vector<int, 10> tr2(std::from_range, ref_view(m12));
+  std::inplace_vector<int, 10> tr2(std::from_range, ref_view(m12)); // { dg-error "(from here|expansion of)" }
 
   StaticIota<__int128, 0> mm;
 
   std::inplace_vector<int, 10> tm3(std::from_range, mm); // { dg-error "(from here|expansion of)" }
-  // ref_view is not statically sized due pointer dereference
-  std::inplace_vector<int, 10> tr3(std::from_range, ref_view(mm));
+  std::inplace_vector<int, 10> tr3(std::from_range, ref_view(mm)); // { dg-error "(from here|expansion of)" }
 }
 
 // { dg-error "static assertion failed" "" { target *-*-* } 0 }

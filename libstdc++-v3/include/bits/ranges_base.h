@@ -562,6 +562,20 @@ namespace ranges
   template<typename _Tp>
     concept __static_sized_range = sized_range<_Tp> && requires (_Tp& __t)
       { static_cast<char(*)[size_t(ranges::size(__t) >= 0)]>(nullptr); };
+
+  template<__static_sized_range _Range>
+    consteval range_size_t<_Range>
+    __static_size()
+    {
+      auto __conjure = [](_Range& __r)
+      {
+	if constexpr (ranges::size(__r) <= size_t(-1))
+	  return integral_constant<size_t, size_t(ranges::size(__r))>{};
+	else
+	  return integral_constant<range_size_t<_Range>, ranges::size(__r)>{};
+      };
+      return range_size_t<_Range>(decltype(__conjure(std::declval<_Range&>()))::value);
+    }
 #endif // C++26
 
   template<typename _Derived>
