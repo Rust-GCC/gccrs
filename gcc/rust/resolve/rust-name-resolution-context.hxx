@@ -34,7 +34,7 @@ template <Namespace N>
 tl::optional<Rib::Definition>
 NameResolutionContext::resolve_path (
   ForeverStack<N> &stack, const ResolutionPath &path, ResolutionMode mode,
-  std::function<void (Usage, Definition)> insert_segment_resolution,
+  std::function<void (Usage, Definition, Namespace)> insert_segment_resolution,
   std::vector<Error> &collect_errors)
 {
   std::reference_wrapper<typename ForeverStack<N>::Node> starting_point
@@ -49,7 +49,7 @@ template <Namespace N>
 tl::optional<Rib::Definition>
 NameResolutionContext::resolve_path (
   ForeverStack<N> &stack, const ResolutionPath &path, ResolutionMode mode,
-  std::function<void (Usage, Definition)> insert_segment_resolution,
+  std::function<void (Usage, Definition, Namespace)> insert_segment_resolution,
   std::vector<Error> &collect_errors, NodeId starting_point_id)
 
 {
@@ -69,7 +69,7 @@ template <Namespace N>
 tl::optional<Rib::Definition>
 NameResolutionContext::resolve_path (
   ForeverStack<N> &stack, const ResolutionPath &path, ResolutionMode mode,
-  std::function<void (Usage, Definition)> insert_segment_resolution,
+  std::function<void (Usage, Definition, Namespace)> insert_segment_resolution,
   std::vector<Error> &collect_errors,
   std::reference_wrapper<typename ForeverStack<N>::Node> starting_point)
 {
@@ -82,8 +82,8 @@ NameResolutionContext::resolve_path (
       NodeId seg_id
 	= Analysis::Mappings::get ().get_lang_item_node (lang_item->first);
 
-      insert_segment_resolution (Usage (lang_item->second),
-				 Definition (seg_id));
+      insert_segment_resolution (Usage (lang_item->second), Definition (seg_id),
+				 N);
 
       if (path.get_segments ().empty ())
 	return Rib::Definition::NonShadowable (seg_id);
@@ -132,14 +132,15 @@ NameResolutionContext::resolve_path (
 	  if (seg.is_crate_path_seg ())
 	    {
 	      insert_segment_resolution (Usage (seg.node_id),
-					 Definition (stack.root.id));
+					 Definition (stack.root.id), N);
 	      // TODO: does NonShadowable matter?
 	      return Rib::Definition::NonShadowable (stack.root.id);
 	    }
 	  else if (seg.is_lower_self_seg ())
 	    {
 	      NodeId id = stack.find_closest_module (starting_point.get ()).id;
-	      insert_segment_resolution (Usage (seg.node_id), Definition (id));
+	      insert_segment_resolution (Usage (seg.node_id), Definition (id),
+					 N);
 	      // TODO: does NonShadowable matter?
 	      return Rib::Definition::NonShadowable (id);
 	    }
@@ -156,7 +157,8 @@ NameResolutionContext::resolve_path (
 
 	      NodeId id
 		= stack.find_closest_module (closest_module.parent.value ()).id;
-	      insert_segment_resolution (Usage (seg.node_id), Definition (id));
+	      insert_segment_resolution (Usage (seg.node_id), Definition (id),
+					 N);
 	      // TODO: does NonShadowable matter?
 	      return Rib::Definition::NonShadowable (id);
 	    }
@@ -175,17 +177,19 @@ NameResolutionContext::resolve_path (
 			},
 			false))
 		    {
+		      // FIXME: Is the NS to insert_segment_resolution valid?
 		      insert_segment_resolution (Usage (seg.node_id),
-						 Definition (kv.second.id));
+						 Definition (kv.second.id), N);
 		      return Rib::Definition::NonShadowable (kv.second.id);
 		    }
 		}
 	    }
 	}
 
+      // FIXME: Is the NS to insert_segment_resolution valid?
       if (res && !res->is_ambiguous ())
 	insert_segment_resolution (Usage (seg.node_id),
-				   Definition (res->get_node_id ()));
+				   Definition (res->get_node_id ()), N);
       return res;
     }
 
@@ -255,7 +259,7 @@ NameResolutionContext::resolve_path (
 		false))
 	    {
 	      insert_segment_resolution (Usage (seg.node_id),
-					 Definition (kv.second.id));
+					 Definition (kv.second.id), N);
 	      return Rib::Definition::NonShadowable (kv.second.id);
 	    }
 	}
@@ -263,7 +267,7 @@ NameResolutionContext::resolve_path (
 
   if (res && !res->is_ambiguous ())
     insert_segment_resolution (Usage (seg.node_id),
-			       Definition (res->get_node_id ()));
+			       Definition (res->get_node_id ()), N);
 
   return res;
 }
@@ -274,7 +278,7 @@ NameResolutionContext::resolve_segments (
   ForeverStack<N> &stack, typename ForeverStack<N>::Node &starting_point,
   const std::vector<ResolutionPath::Segment> &segments,
   typename ForeverStack<N>::SegIterator iterator,
-  std::function<void (Usage, Definition)> insert_segment_resolution,
+  std::function<void (Usage, Definition, Namespace)> insert_segment_resolution,
   std::vector<Error> &collect_errors)
 {
   auto *current_node = &starting_point;
@@ -352,7 +356,7 @@ NameResolutionContext::resolve_segments (
 		    .has_value ())
 		{
 		  auto leaf_module
-		    = find_leaf_definition (rib_lookup->get_node_id ())
+		    = stack.find_leaf_definition (rib_lookup->get_node_id ())
 			.value ()
 			.id;
 
@@ -361,17 +365,23 @@ NameResolutionContext::resolve_segments (
 		}
 	      else
 		{
+		  // FIXME: Resolve segments always resolves in the Types NS
+		  // correct? If so, we should remove the template parameter for
+		  // this function - and use NS::Types directly here instead of
+		  // N
 		  insert_segment_resolution (Usage (seg.node_id),
 					     Definition (
-					       rib_lookup->get_node_id ()));
+					       rib_lookup->get_node_id ()),
+					     N);
 
 		  return tl::nullopt;
 
 		  auto leaf_module
-		    = find_leaf_definition (rib_lookup->get_node_id ())
+		    = stack.find_leaf_definition (rib_lookup->get_node_id ())
 			.value_or (Definition (rib_lookup->get_node_id ()));
 
-		  insert_segment_resolution (Usage (seg.node_id), leaf_module);
+		  insert_segment_resolution (Usage (seg.node_id), leaf_module,
+					     N);
 
 		  if (auto new_child
 		      = stack.dfs_node (stack.root, leaf_module.id))
@@ -407,7 +417,7 @@ NameResolutionContext::resolve_segments (
       // the while loop above would have returned or kept looping
       current_node = &child->get ();
       insert_segment_resolution (Usage (seg.node_id),
-				 Definition (current_node->id));
+				 Definition (current_node->id), N);
     }
 
   return *current_node;

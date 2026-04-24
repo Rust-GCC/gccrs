@@ -462,7 +462,7 @@ tl::optional<typename std::vector<ResolutionPath::Segment>::const_iterator>
 ForeverStack<N>::find_starting_point (
   const std::vector<ResolutionPath::Segment> &segments,
   std::reference_wrapper<Node> &starting_point,
-  std::function<void (Usage, Definition)> insert_segment_resolution,
+  std::function<void (Usage, Definition, Namespace)> insert_segment_resolution,
   std::vector<Error> &collect_errors)
 {
   auto iterator = segments.begin ();
@@ -485,7 +485,7 @@ ForeverStack<N>::find_starting_point (
 	{
 	  starting_point = root;
 	  insert_segment_resolution (Usage (seg.node_id),
-				     Definition (starting_point.get ().id));
+				     Definition (starting_point.get ().id), N);
 	  iterator++;
 	  break;
 	}
@@ -494,7 +494,7 @@ ForeverStack<N>::find_starting_point (
 	  // insert segment resolution and exit
 	  starting_point = find_closest_module (starting_point);
 	  insert_segment_resolution (Usage (seg.node_id),
-				     Definition (starting_point.get ().id));
+				     Definition (starting_point.get ().id), N);
 	  iterator++;
 	  break;
 	}
@@ -513,7 +513,7 @@ ForeverStack<N>::find_starting_point (
 	    = find_closest_module (starting_point.get ().parent.value ());
 
 	  insert_segment_resolution (Usage (seg.node_id),
-				     Definition (starting_point.get ().id));
+				     Definition (starting_point.get ().id), N);
 	  continue;
 	}
 
@@ -731,6 +731,76 @@ bool
 ForeverStack<N>::is_module_descendant (NodeId parent, NodeId child) const
 {
   return dfs_node (dfs_node (root, parent).value (), child).has_value ();
+}
+
+static tl::expected<Definition, LookupFinalizeError>
+find_leaf_definition_inner (const Usage &key,
+			    const std::map<Usage, Definition> &resolved_nodes,
+			    std::set<Usage> &keys_seen)
+{
+  auto original_definition = resolved_nodes.find (key);
+  auto possible_import = Usage (original_definition->second.id);
+
+  if (original_definition == resolved_nodes.end ())
+    return tl::make_unexpected (LookupFinalizeError::NoDefinition);
+
+  if (!keys_seen.insert (key).second)
+    return tl::make_unexpected (LookupFinalizeError::Loop);
+
+  if (resolved_nodes.find (possible_import) == resolved_nodes.end ())
+    return original_definition->second;
+
+  // We're dealing with an import - a reference to another
+  // definition. Go through the chain and update the original key's
+  // corresponding definition.
+  return find_leaf_definition_inner (possible_import, resolved_nodes,
+				     keys_seen);
+}
+
+template <Namespace N>
+tl::expected<Definition, LookupFinalizeError>
+ForeverStack<N>::find_leaf_definition (const NodeId &key) const
+{
+  std::set<Usage> keys_seen;
+
+  return find_leaf_definition_inner (Usage (key), resolved_nodes, keys_seen);
+}
+
+template <Namespace N>
+void
+ForeverStack<N>::flatten ()
+{
+  rust_debug ("[ARTHUR] FINALIZING EARLY NR!!!!");
+
+  for (auto &kv : resolved_nodes)
+    rust_debug ("[ARTHUR] [resolved_nodes]: %d -> %d", kv.first.id,
+		kv.second.id);
+
+  for (auto &k_v : resolved_nodes)
+    {
+      // Loop detection
+      auto keys_seen = std::set<Usage> ();
+
+      auto result
+	= find_leaf_definition_inner (k_v.first, resolved_nodes, keys_seen);
+
+      if (!result)
+	{
+	  // Trigger an ICE if we haven't found a definition because that's
+	  // really weird
+	  rust_assert (result.error () != LookupFinalizeError::NoDefinition);
+
+	  rust_error_at (UNDEF_LOCATION, "import loop");
+	  continue;
+	}
+
+      // Replace the Definition for this Usage in the map. This may be a no-op.
+      k_v.second = result.value ();
+    }
+
+  for (auto &kv : resolved_nodes)
+    rust_debug ("[ARTHUR] [resolved_nodes]: %d -> %d", kv.first.id,
+		kv.second.id);
 }
 
 // FIXME: Can we add selftests?

@@ -585,10 +585,9 @@ public:
   resolve_path (const ResolutionPath &path, ResolutionMode mode,
 		std::vector<Error> &collect_errors, Namespace ns)
   {
-    std::function<void (Usage, Definition)> insert_segment_resolution
-      = [this, ns] (Usage seg_id, Definition id) {
-	  if (resolved_nodes.find (seg_id) == resolved_nodes.end ())
-	    map_usage (seg_id, id, ns);
+    std::function<void (Usage, Definition, Namespace)> insert_segment_resolution
+      = [this] (Usage seg_id, Definition id, Namespace ns) {
+	  map_usage (seg_id, id, ns);
 	};
 
     tl::optional<NamespacedDefinition> resolved = tl::nullopt;
@@ -843,20 +842,6 @@ public:
 			 std::forward<Args> (args)...);
   }
 
-  enum class LookupFinalizeError
-  {
-    // Impossible - we did not find any definition corresponding to a Usage.
-    // This is an internal compiler error
-    NoDefinition,
-    // There was a loop in the map, such as an import resolving to another
-    // import which eventually resolved to the original import. Report the
-    // error and stop the pipeline
-    Loop,
-  };
-
-  tl::expected<Definition, LookupFinalizeError>
-  find_leaf_definition (const NodeId &key) const;
-
   /**
    * We've now collected every definition and import, and errored out when
    * necessary if multiple definitions are colliding. Do a final flattening of
@@ -890,31 +875,38 @@ private:
    *         current map, an empty one otherwise.
    */
   template <Namespace N>
-  tl::optional<Rib::Definition> resolve_path (
-    ForeverStack<N> &stack, const ResolutionPath &path, ResolutionMode mode,
-    std::function<void (Usage, Definition)> insert_segment_resolution,
-    std::vector<Error> &collect_errors);
+  tl::optional<Rib::Definition>
+  resolve_path (ForeverStack<N> &stack, const ResolutionPath &path,
+		ResolutionMode mode,
+		std::function<void (Usage, Definition, Namespace)>
+		  insert_segment_resolution,
+		std::vector<Error> &collect_errors);
+
+  template <Namespace N>
+  tl::optional<Rib::Definition>
+  resolve_path (ForeverStack<N> &stack, const ResolutionPath &path,
+		ResolutionMode mode,
+		std::function<void (Usage, Definition, Namespace)>
+		  insert_segment_resolution,
+		std::vector<Error> &collect_errors, NodeId starting_point_id);
 
   template <Namespace N>
   tl::optional<Rib::Definition> resolve_path (
     ForeverStack<N> &stack, const ResolutionPath &path, ResolutionMode mode,
-    std::function<void (Usage, Definition)> insert_segment_resolution,
-    std::vector<Error> &collect_errors, NodeId starting_point_id);
-
-  template <Namespace N>
-  tl::optional<Rib::Definition> resolve_path (
-    ForeverStack<N> &stack, const ResolutionPath &path, ResolutionMode mode,
-    std::function<void (Usage, Definition)> insert_segment_resolution,
+    std::function<void (Usage, Definition, Namespace)>
+      insert_segment_resolution,
     std::vector<Error> &collect_errors,
     std::reference_wrapper<typename ForeverStack<N>::Node> starting_point);
 
   template <Namespace N>
-  tl::optional<typename ForeverStack<N>::Node &> resolve_segments (
-    ForeverStack<N> &stack, typename ForeverStack<N>::Node &starting_point,
-    const std::vector<ResolutionPath::Segment> &segments,
-    typename ForeverStack<N>::SegIterator iterator,
-    std::function<void (Usage, Definition)> insert_segment_resolution,
-    std::vector<Error> &collect_errors);
+  tl::optional<typename ForeverStack<N>::Node &>
+  resolve_segments (ForeverStack<N> &stack,
+		    typename ForeverStack<N>::Node &starting_point,
+		    const std::vector<ResolutionPath::Segment> &segments,
+		    typename ForeverStack<N>::SegIterator iterator,
+		    std::function<void (Usage, Definition, Namespace)>
+		      insert_segment_resolution,
+		    std::vector<Error> &collect_errors);
 
   template <Namespace N>
   tl::optional<Rib::Definition>
@@ -923,7 +915,7 @@ private:
 			 std::string &seg_name, bool is_lower_self);
 
   /* Map of "usage" nodes which have been resolved to a "definition" node */
-  std::map<Usage, Definition> resolved_nodes;
+  // std::map<Usage, Definition> resolved_nodes;
 };
 
 } // namespace Resolver2_0

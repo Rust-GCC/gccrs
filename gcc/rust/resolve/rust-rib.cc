@@ -179,6 +179,10 @@ Rib::get (const std::string &name)
 {
   auto it = values.find (name);
 
+  for (const auto &value : values)
+    rust_debug ("[ARTHUR] %s: %d", value.first.c_str (),
+		value.second.get_node_id ());
+
   if (it == values.end ())
     return tl::nullopt;
 
