@@ -238,9 +238,14 @@ get_reflection (location_t loc, tree t, reflect_kind kind/*=REFLECT_UNDEF*/)
 	t = dtor;
     }
 
-  /* Look through block scope externs.  */
+  /* Block-scope externs are invalid here as per the proposed resolution
+     of CWG 3065.  */
   if (VAR_OR_FUNCTION_DECL_P (t) && DECL_LOCAL_DECL_P (t))
-    t = DECL_LOCAL_DECL_ALIAS (t);
+    {
+      error_at (loc, "cannot take the reflection of a block-scope extern %qE",
+		t);
+      return error_mark_node;
+    }
 
   if (t == error_mark_node)
     return error_mark_node;

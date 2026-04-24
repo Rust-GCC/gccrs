@@ -4,6 +4,7 @@
 // Test std::meta::identifier_of.
 
 #include <meta>
+using namespace std::meta;
 
 void foo (int, int x, int y, int z);
 
@@ -38,10 +39,10 @@ baz ()
   void foo (int w, int, int v, int z);
   int bar (int, int, int v, int z, int u);
   void qux (int, int x, int y, int z);
-  constexpr auto qux1 = parameters_of (^^qux)[0];
-  constexpr auto qux2 = parameters_of (^^qux)[1];
-  constexpr auto qux3 = parameters_of (^^qux)[2];
-  constexpr auto qux4 = parameters_of (^^qux)[3];
+  constexpr auto qux1 = parameters_of (^^qux)[0]; // { dg-error "cannot take the reflection of a block-scope extern .qux." }
+  constexpr auto qux2 = parameters_of (^^qux)[1]; // { dg-error "cannot take the reflection of a block-scope extern .qux." }
+  constexpr auto qux3 = parameters_of (^^qux)[2]; // { dg-error "cannot take the reflection of a block-scope extern .qux." }
+  constexpr auto qux4 = parameters_of (^^qux)[3]; // { dg-error "cannot take the reflection of a block-scope extern .qux." }
   static_assert (!has_identifier (qux1));
   static_assert (identifier_of (qux2) == std::string_view ("x"));
   static_assert (identifier_of (qux3) == std::string_view ("y"));
@@ -62,10 +63,10 @@ void
 fred ()
 {
   void qux (int w, int, int v, int z);
-  constexpr auto qux1 = parameters_of (^^qux)[0];
-  constexpr auto qux2 = parameters_of (^^qux)[1];
-  constexpr auto qux3 = parameters_of (^^qux)[2];
-  constexpr auto qux4 = parameters_of (^^qux)[3];
+  constexpr auto qux1 = parameters_of (^^qux)[0]; // { dg-error "cannot take the reflection of a block-scope extern .qux." }
+  constexpr auto qux2 = parameters_of (^^qux)[1]; // { dg-error "cannot take the reflection of a block-scope extern .qux." }
+  constexpr auto qux3 = parameters_of (^^qux)[2]; // { dg-error "cannot take the reflection of a block-scope extern .qux." }
+  constexpr auto qux4 = parameters_of (^^qux)[3]; // { dg-error "cannot take the reflection of a block-scope extern .qux." }
   static_assert (identifier_of (qux1) == std::string_view ("w"));
   static_assert (identifier_of (qux2) == std::string_view ("x"));
   static_assert (!has_identifier (qux3));
