@@ -986,18 +986,11 @@ namespace simd
     using mask = basic_mask<sizeof(_Tp), __deduce_abi_t<_Tp, _Np>>;
 
   // [simd.ctor] load constructor constraints
-  template <typename _Tp, size_t _Np = -1uz>
-    concept __static_sized_range
-      = ranges::sized_range<_Tp> && requires(_Tp&& __r) {
-	typename integral_constant<size_t, ranges::size(__r)>;
-	requires (_Np == -1uz || ranges::size(__r) == _Np);
-      };
-
   template <typename _Rg>
     consteval size_t
     __static_range_size(_Rg& __r)
     {
-      if constexpr (requires { typename integral_constant<size_t, ranges::size(__r)>; })
+      if constexpr (ranges::__static_sized_range<_Rg>)
 	return ranges::size(__r);
       else
 	return dynamic_extent;

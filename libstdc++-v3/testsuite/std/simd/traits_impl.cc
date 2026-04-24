@@ -83,10 +83,6 @@ void test()
   static_assert(!__streq_to_1("0"));
   static_assert(!__streq_to_1("1 "));
 
-  static_assert(__static_sized_range<int[4]>);
-  static_assert(__static_sized_range<int[4], 4>);
-  static_assert(__static_sized_range<std::array<int, 4>, 4>);
-
   static_assert( __value_preserving_convertible_to<int, double>);
   static_assert(!__value_preserving_convertible_to<int, float>);
   static_assert( __value_preserving_convertible_to<float, double>);

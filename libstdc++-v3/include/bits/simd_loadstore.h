@@ -75,7 +75,7 @@ namespace simd
       constexpr bool __allow_out_of_bounds = __f._S_test(__allow_partial_loadstore);
       constexpr size_t __static_size = __static_range_size(__r);
 
-      if constexpr (!__allow_out_of_bounds && __static_sized_range<_Rg>)
+      if constexpr (!__allow_out_of_bounds && ranges::__static_sized_range<_Rg>)
 	static_assert(ranges::size(__r) >= _RV::size(), "given range must have sufficient size");
 
       const auto* __ptr = __f.template _S_adjust_pointer<_RV>(ranges::data(__r));
@@ -121,7 +121,7 @@ namespace simd
       constexpr bool __allow_out_of_bounds = __f._S_test(__allow_partial_loadstore);
       constexpr auto __static_size = __static_range_size(__r);
 
-      if constexpr (!__allow_out_of_bounds && __static_sized_range<_Rg>)
+      if constexpr (!__allow_out_of_bounds && ranges::__static_sized_range<_Rg>)
 	static_assert(ranges::size(__r) >= _RV::size(), "given range must have sufficient size");
 
       const auto* __ptr = __f.template _S_adjust_pointer<_RV>(ranges::data(__r));
@@ -248,7 +248,7 @@ namespace simd
 		    "'flag_convert' must be used for conversions that are not value-preserving");
 
       constexpr bool __allow_out_of_bounds = __f._S_test(__allow_partial_loadstore);
-      if constexpr (!__allow_out_of_bounds && __static_sized_range<_Rg>)
+      if constexpr (!__allow_out_of_bounds && ranges::__static_sized_range<_Rg>)
 	static_assert(ranges::size(__r) >= _TV::size(), "given range must have sufficient size");
 
       auto* __ptr = __f.template _S_adjust_pointer<_TV>(ranges::data(__r));
@@ -285,7 +285,7 @@ namespace simd
 		    "'flag_convert' must be used for conversions that are not value-preserving");
 
       constexpr bool __allow_out_of_bounds = __f._S_test(__allow_partial_loadstore);
-      if constexpr (!__allow_out_of_bounds && __static_sized_range<_Rg>)
+      if constexpr (!__allow_out_of_bounds && ranges::__static_sized_range<_Rg>)
 	static_assert(ranges::size(__r) >= _TV::size(), "given range must have sufficient size");
 
       auto* __ptr = __f.template _S_adjust_pointer<_TV>(ranges::data(__r));

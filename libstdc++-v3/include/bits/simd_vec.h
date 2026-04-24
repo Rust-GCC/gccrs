@@ -1207,14 +1207,15 @@ namespace simd
 	}
 
       template <ranges::contiguous_range _Rg, typename... _Flags>
-	requires __static_sized_range<_Rg, _S_size>
+	requires ranges::__static_sized_range<_Rg>
 	  && __vectorizable<ranges::range_value_t<_Rg>>
 	  && __explicitly_convertible_to<ranges::range_value_t<_Rg>, value_type>
 	[[__gnu__::__always_inline__]]
 	constexpr
 	basic_vec(_Rg&& __range, flags<_Flags...> __flags = {})
-	  : basic_vec(_LoadCtorTag(), __flags.template _S_adjust_pointer<basic_vec>(
-					ranges::data(__range)))
+	requires (ranges::size(__range) == _S_size)
+	: basic_vec(_LoadCtorTag(), __flags.template _S_adjust_pointer<basic_vec>(
+				      ranges::data(__range)))
 	{
 	  static_assert(__loadstore_convertible_to<ranges::range_value_t<_Rg>, value_type,
 						   _Flags...>);
@@ -2072,11 +2073,12 @@ namespace simd
 	{}
 
       template <ranges::contiguous_range _Rg, typename... _Flags>
-	requires __static_sized_range<_Rg, _S_size>
+	requires ranges::__static_sized_range<_Rg>
 	  && __vectorizable<ranges::range_value_t<_Rg>>
 	  && __explicitly_convertible_to<ranges::range_value_t<_Rg>, value_type>
 	constexpr
 	basic_vec(_Rg&& __range, flags<_Flags...> __flags = {})
+	requires (ranges::size(__range) == _S_size)
 	: basic_vec(_LoadCtorTag(),
 		    __flags.template _S_adjust_pointer<basic_vec>(ranges::data(__range)))
 	{
@@ -2245,7 +2247,7 @@ namespace simd
 
   // [simd.overview] deduction guide ------------------------------------------
   template <ranges::contiguous_range _Rg, typename... _Ts>
-    requires __static_sized_range<_Rg>
+    requires ranges::__static_sized_range<_Rg>
     basic_vec(_Rg&& __r, _Ts...)
     -> basic_vec<ranges::range_value_t<_Rg>,
 		 __deduce_abi_t<ranges::range_value_t<_Rg>,

@@ -558,6 +558,12 @@ namespace ranges
   template<sized_range _Range>
     using range_size_t = decltype(ranges::size(std::declval<_Range&>()));
 
+#if __cplusplus > 202302L
+  template<typename _Tp>
+    concept __static_sized_range = sized_range<_Tp> && requires (_Tp& __t)
+      { static_cast<char(*)[size_t(ranges::size(__t) >= 0)]>(nullptr); };
+#endif // C++26
+
   template<typename _Derived>
     requires is_class_v<_Derived> && same_as<_Derived, remove_cv_t<_Derived>>
     class view_interface; // defined in <bits/ranges_util.h>
