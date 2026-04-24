@@ -274,8 +274,11 @@ struct GOMP_kernel_launch_attributes
   uint32_t wdims[3];
 };
 
-/* Collection of information needed for a dispatch of a kernel from a
-   kernel.  */
+/* Collection of information needed for a dispatch of a kernel from a kernel.
+   Redundant with parts of hsa_kernel_dispatch_packet_t.  It is maintained
+   separately because the contents of the aforementioned packet become
+   unspecified after dispatch, so, we can't re-read back pointers we wrote into
+   the dispatch packet in order to clean them up.  */
 
 struct kernel_dispatch
 {
@@ -285,7 +288,7 @@ struct kernel_dispatch
   /* Kernel object.  */
   uint64_t object;
   /* Synchronization signal used for dispatch synchronization.  */
-  uint64_t signal;
+  hsa_signal_t signal;
   /* Private segment size.  */
   uint32_t private_segment_size;
   /* Group segment size.  */
@@ -2136,13 +2139,12 @@ alloc_by_agent (struct agent_info *agent, size_t size)
 /* Create kernel dispatch data structure for given KERNEL, along with
    the necessary device signals and memory allocations.  */
 
-static struct kernel_dispatch *
-create_kernel_dispatch (struct kernel_info *kernel, int num_teams,
-			int num_threads, struct kernargs *kernargs)
+static inline void
+prepare_kernel_dispatch (struct kernel_dispatch *shadow,
+			 struct kernel_info *kernel, int num_teams,
+			 int num_threads, struct kernargs *kernargs)
 {
   struct agent_info *agent = kernel->agent;
-  struct kernel_dispatch *shadow
-    = GOMP_PLUGIN_malloc_cleared (sizeof (struct kernel_dispatch));
 
   shadow->agent = kernel->agent;
   shadow->object = kernel->object;
@@ -2152,7 +2154,7 @@ create_kernel_dispatch (struct kernel_info *kernel, int num_teams,
   if (status != HSA_STATUS_SUCCESS)
     hsa_fatal ("Error creating the GCN sync signal", status);
 
-  shadow->signal = sync_signal.handle;
+  shadow->signal = sync_signal;
   shadow->private_segment_size = kernel->private_segment_size;
 
   if (lowlat_size < 0)
@@ -2180,7 +2182,7 @@ create_kernel_dispatch (struct kernel_info *kernel, int num_teams,
   if (kernel->kernarg_segment_size > 8)
     {
       GOMP_PLUGIN_fatal ("Unexpectedly large kernargs segment requested");
-      return NULL;
+      return;
     }
 
   /* Zero-initialize the output_data (minimum needed).  */
@@ -2201,8 +2203,19 @@ create_kernel_dispatch (struct kernel_info *kernel, int num_teams,
 
   /* Ensure we can recognize unset return values.  */
   kernargs->output_data.return_value = 0xcafe0000;
+}
 
-  return shadow;
+/* Copy information from DISPATCH into PACKET, to get it ready for
+   dispatching.  */
+
+static inline void
+populate_packet_from_dispatch (hsa_kernel_dispatch_packet_t *packet,
+			       struct kernel_dispatch *shadow)
+{
+  packet->private_segment_size = shadow->private_segment_size;
+  packet->group_segment_size = shadow->group_segment_size;
+  packet->kernel_object = shadow->object;
+  packet->completion_signal = shadow->signal;
 }
 
 static void
@@ -2276,7 +2289,7 @@ console_output (struct kernel_info *kernel, struct kernargs *kernargs,
    and clean up the signal and memory allocations.  */
 
 static inline void
-release_kernel_dispatch (struct kernel_dispatch *shadow,
+cleanup_kernel_dispatch (struct kernel_dispatch *shadow,
 			 struct kernargs *kernargs)
 {
   GCN_DEBUG ("Released kernel dispatch: %p\n", shadow);
@@ -2286,11 +2299,7 @@ release_kernel_dispatch (struct kernel_dispatch *shadow,
     addr = (void *)kernargs->abi.stack_ptr;
   release_ephemeral_memories (shadow->agent, addr);
 
-  hsa_signal_t s;
-  s.handle = shadow->signal;
-  hsa_fns.hsa_signal_destroy_fn (s);
-
-  free (shadow);
+  hsa_fns.hsa_signal_destroy_fn (shadow->signal);
 }
 
 /* Extract the properties from a kernel binary.  */
@@ -2516,23 +2525,20 @@ run_kernel (struct gomp_offload_session *session,
 	     packet->workgroup_size_x, packet->workgroup_size_y,
 	     packet->workgroup_size_z);
 
-  struct kernel_dispatch *shadow
-    = create_kernel_dispatch (kernel, packet->grid_size_x,
-			      packet->grid_size_z, kernargs);
-  shadow->queue = command_q;
+  struct kernel_dispatch shadow;
+  prepare_kernel_dispatch (&shadow, kernel, packet->grid_size_x,
+			   packet->grid_size_z, kernargs);
+  shadow.queue = command_q;
 
   if (debug)
     {
       fprintf (stderr, "\nKernel has following dependencies:\n");
-      print_kernel_dispatch (shadow, 2, kernargs);
+      print_kernel_dispatch (&shadow, 2, kernargs);
     }
 
-  packet->private_segment_size = shadow->private_segment_size;
-  packet->group_segment_size = shadow->group_segment_size;
-  packet->kernel_object = shadow->object;
-  hsa_signal_t s;
-  s.handle = shadow->signal;
-  packet->completion_signal = s;
+  populate_packet_from_dispatch (packet, &shadow);
+
+  hsa_signal_t s = shadow.signal;
   hsa_fns.hsa_signal_store_relaxed_fn (s, 1);
 
   GCN_DEBUG ("Copying kernel runtime pointer %p to kernarg_address\n", session->target_var_table);
@@ -2566,7 +2572,7 @@ run_kernel (struct gomp_offload_session *session,
 
   unsigned int return_value = (unsigned int)kernargs->output_data.return_value;
 
-  release_kernel_dispatch (shadow, kernargs);
+  cleanup_kernel_dispatch (&shadow, kernargs);
   release_session (session);
 
   if (!module_locked && pthread_rwlock_unlock (&agent->module_rwlock))
