@@ -593,6 +593,9 @@ goacc_enter_datum (void **hostaddrs, size_t *sizes, void *kinds, int async)
       assert (n);
       assert (n->refcount == 1);
       assert (n->dynamic_refcount == 0);
+      assert (/* This is only reached if we're mapping a new, singular
+		 variable, and so, its offset ought to be zero.  */
+	      n->tgt_offset == 0);
       n->dynamic_refcount++;
 
       d = (void *) tgt->tgt_start;
