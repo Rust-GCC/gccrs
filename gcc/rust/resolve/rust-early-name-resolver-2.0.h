@@ -232,9 +232,14 @@ private:
     std::vector<Error> type_errors;
     std::vector<Error> macro_errors;
 
-    ctx.resolve_path (path, value_errors, Namespace::Values);
-    ctx.resolve_path (path, type_errors, Namespace::Types);
-    ctx.resolve_path (path, macro_errors, Namespace::Macros);
+    auto resolved_fn
+      = [&resolved] (NameResolutionContext::NamespacedDefinition new_def) {
+	  resolved.emplace_back (new_def);
+	};
+
+    ctx.resolve_path (path, value_errors, Namespace::Values).map (resolved_fn);
+    ctx.resolve_path (path, type_errors, Namespace::Types).map (resolved_fn);
+    ctx.resolve_path (path, macro_errors, Namespace::Macros).map (resolved_fn);
 
     if (!value_errors.empty () && !type_errors.empty ()
 	&& !macro_errors.empty ())
