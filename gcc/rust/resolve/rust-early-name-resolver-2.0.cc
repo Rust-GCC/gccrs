@@ -41,7 +41,7 @@ Early::Early (NameResolutionContext &ctx)
 void
 Early::try_insert_once (AST::MacroInvocation &invocation, NodeId resolved)
 {
-  auto leaf_macro = ctx.find_leaf_definition (resolved);
+  auto leaf_macro = ctx.macros.find_leaf_definition (resolved);
 
   // Sometimes the import itself isn't resolved yet this turn of the fixed-point
   if (!leaf_macro)
