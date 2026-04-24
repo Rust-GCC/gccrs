@@ -29,6 +29,7 @@ test01()
   else
     {
       using Wrapped = std::basic_const_iterator<Iter>;
+      static_assert( std::same_as<typename Wrapped::iterator_type, Iter> );
 
       static_assert( std::same_as<std::const_iterator<Iter>, Wrapped> );
       static_assert( std::same_as<std::const_sentinel<Iter>, Wrapped> );
@@ -64,6 +65,7 @@ test02()
     {
       static_assert( !ranges::constant_range<Range> );
       using Wrapped = std::basic_const_iterator<ranges::iterator_t<Range>>;
+      static_assert( std::same_as<typename Wrapped::iterator_type, ranges::iterator_t<Range>> );
 
       if constexpr (Constable)
 	{
