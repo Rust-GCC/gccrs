@@ -1,3 +1,96 @@
+2026-04-23  Patrick Palka  <ppalka@redhat.com>
+
+	* module.cc (trees_out::core_vals) <case PTRMEM_CST>:
+	Stream PTRMEM_CST_LOCATION.
+	<case TRAIT_EXPR>: Stream TRAIT_EXPR_LOCATION.
+	(trees_in::core_vals): As in trees_out::core_vals.
+
+2026-04-23  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/124981
+	* module.cc (trees_in::core_vals) <case PTRMEM_CST>: Use RTU
+	instead of RT to stream PTRMEM_CST_MEMBER.
+
+2026-04-23  Marek Polacek  <polacek@redhat.com>
+
+	* cp-tree.h (lookup_annotation): Declare.
+	* decl.cc (grokfndecl): Use lookup_annotation.
+	(grokdeclarator): Likewise.
+	* name-lookup.cc (push_local_extern_decl_alias): Likewise.
+	* parser.cc (cp_parser_decomposition_declaration): Likewise.
+	* reflect.cc (eval_annotations_of): Likewise.
+	* tree.cc (lookup_annotation): New.
+
+2026-04-23  Marek Polacek  <polacek@redhat.com>
+
+	* cp-tree.h (enum linkage_kind): Add lk_module.
+	* module.cc (check_module_decl_linkage): Use DECL_EXTERNAL_LINKAGE_P.
+	* name-lookup.cc (check_can_export_using_decl): Don't check for
+	attachment.
+	* parser.cc (cp_parser_template_argument): Check that linkage isn't
+	lk_module.
+	* reflect.cc (eval_has_module_linkage): Check lk_module.
+	(eval_has_external_linkage): Use DECL_EXTERNAL_LINKAGE_P.
+	* tree.cc (decl_linkage): Return lk_module if appropriate.
+
+2026-04-23  Marek Polacek  <polacek@redhat.com>
+
+	DR 2229
+	PR c++/123935
+	* decl2.cc (grokbitfield): Add pedwarn for cv-qualified unnamed
+	bit-fields.
+
+2026-04-23  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/124989
+	* pt.cc (tsubst_splice_expr): Turn off access checking for the
+	build_offset_ref call.
+
+2026-04-23  Ben Wu  <soggysocks206@gmail.com>
+
+	PR c++/118374
+	PR c++/41127
+	* parser.cc (cp_parser_enum_specifier): Parse definitely
+	before cp_parser_type_specifier_seq.
+
+2026-04-23  Yuxuan Chen  <i@yuxuan.ch>
+
+	PR c++/107187
+	* cp-tree.h (has_trivial_abi_attribute): New function.
+	(validate_trivial_abi_attribute): Declare.
+	(classtype_has_non_deleted_copy_or_move_ctor): Declare.
+	(cxx_clang_attribute_table): Declare.
+	* tree.cc (handle_trivial_abi_attribute): New function.
+	(handle_gnu_trivial_abi_attribute): New function.
+	(classtype_has_trivial_abi): New function.
+	(validate_trivial_abi_attribute): New function.
+	(cxx_gnu_attributes): Add trivial_abi entry.
+	(cxx_clang_attributes): New table for [[clang::trivial_abi]].
+	* class.cc (finish_struct_bits): Skip BLKmode for types with
+	trivial_abi attribute.
+	(classtype_has_non_deleted_copy_or_move_ctor): New function.
+	(finish_struct_1): Call validate_trivial_abi_attribute before
+	finish_struct_bits.
+	* cp-objcp-common.h (cp_objcp_attribute_table): Register
+	cxx_clang_attribute_table.
+	* decl.cc (store_parm_decls): Register cleanups for trivial_abi
+	parameters.
+
+2026-04-23  Jason Merrill  <jason@redhat.com>
+
+	PR c++/124973
+	* cp-gimplify.cc (cp_fold_r): Fix typo.
+
+2026-04-23  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/124926
+	* pt.cc (tsubst_qualified_id): Rename name_lookup_p parameter to
+	reflecting_p.  Check !reflecting_p instead of name_lookup_p.  Do
+	not give the "instantiation yields a type" error when reflecting_p
+	is true.
+	(tsubst_expr) <case REFLECT_EXPR>: Adjust the call to
+	tsubst_qualified_id.
+
 2026-04-22  Jason Merrill  <jason@redhat.com>
 
 	PR c++/124973

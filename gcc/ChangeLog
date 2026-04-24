@@ -1,3 +1,36 @@
+2026-04-23  Michiel Derhaeg  <Michiel.Derhaeg@synopsys.com>
+
+	* config/riscv/pipeline-checker: Filter tuneless insn types.
+
+2026-04-23  Yuxuan Chen  <i@yuxuan.ch>
+
+	PR c++/107187
+	* doc/extend.texi: Document __attribute__((trivial_abi)).
+
+2026-04-23  Philipp Tomsich  <philipp.tomsich@vrull.eu>
+
+	* config/riscv/bitmanip.md (<bitmanip_optab>si3): Add
+	SUBREG_PROMOTED annotation to lowpart result.
+
+2026-04-23  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR target/124029
+	* config/riscv/riscv.cc (riscv_rtx_costs): Improve costing of COMPARE
+	nodes.
+
+2026-04-23  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* config/i386/cygming.h (STACK_CHECK_PROTECT): Define.
+
+2026-04-23  H.J. Lu  <hjl.tools@gmail.com>
+
+	PR target/124994
+	* config/i386/i386-features.cc (x86_cse::gate): Drop TARGET_SSE2.
+
+2026-04-23  Bohan Lei  <garthlei@linux.alibaba.com>
+
+	* config/riscv/riscv.cc (vxrm_unknown_p): Remove `CALL_P` check
+
 2026-04-22  Sam James  <sam@gentoo.org>
 
 	* ipa-prop.cc (param_type_may_change_p): Fix comment typo.

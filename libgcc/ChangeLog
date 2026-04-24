@@ -1,3 +1,7 @@
+2026-04-23  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* config/i386/t-slibgcc-cygming (SHLIB_LINK): Add $(LDFLAGS).
+
 2026-04-17  Andre Vieira  <andre.simoesdiasvieira@arm.com>
 
 	* config/arm/sfp-exceptions.c: New file.

@@ -1,3 +1,21 @@
+2026-04-23  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* include/bits/indirect.h (indirect::operator==): Adjust
+	noexcept specification.
+	* testsuite/std/memory/indirect/relops.cc: New test for noexcept
+	specification.
+
+2026-04-23  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* include/bits/simd_details.h (simd::__constexpr_wrapper_like):
+	Move to...
+	* include/std/concepts (std::__constexpr_wrapper_like): Moved
+	from bits/simd_details.h.
+	* include/std/span (std::__integral_constant_like): Define in
+	terms of __constexpr_wrapper_like.
+	* testsuite/std/simd/traits_impl.cc: Added using declaration
+	for std::__constexpr_wrapper_like.
+
 2026-04-22  Jakub Jelinek  <jakub@redhat.com>
 
 	* include/bits/version.def (reflection): Bump 202506L to 202603L

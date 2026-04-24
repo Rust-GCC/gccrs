@@ -1,3 +1,75 @@
+2026-04-23  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/124981
+	* g++.dg/modules/ptrmem-1_a.C: New test.
+	* g++.dg/modules/ptrmem-1_b.C: New test.
+
+2026-04-23  Marek Polacek  <polacek@redhat.com>
+
+	DR 2229
+	PR c++/123935
+	* g++.dg/DRs/dr2229.C: New test.
+
+2026-04-23  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/124989
+	* g++.dg/reflect/member24.C: New test.
+
+2026-04-23  Ben Wu  <soggysocks206@gmail.com>
+
+	PR c++/118374
+	PR c++/41127
+	* g++.dg/cpp0x/enum1.C: Update test.
+	* g++.dg/parse/enum5.C: Expect error with bitfield width
+	and enum-key in member.
+	* g++.dg/cpp0x/enum45.C: New test.
+
+2026-04-23  Yuxuan Chen  <i@yuxuan.ch>
+
+	PR c++/107187
+	* g++.dg/abi/invisiref3.C: New file.
+	* g++.dg/abi/invisiref3a.C: New file.
+	* g++.dg/cpp0x/attr-trivial_abi1.C: New file.
+	* g++.dg/cpp0x/attr-trivial_abi2.C: New file.
+	* g++.dg/cpp0x/attr-trivial_abi3.C: New file.
+	* g++.dg/cpp0x/attr-trivial_abi4.C: New file.
+	* g++.dg/cpp0x/attr-trivial_abi5.C: New file.
+	* g++.dg/cpp0x/attr-trivial_abi6.C: New file.
+	* g++.dg/cpp0x/attr-trivial_abi_syntax.C: New file.
+
+2026-04-23  Jason Merrill  <jason@redhat.com>
+
+	PR c++/124973
+	* g++.dg/modules/consteval-1_b.C: Add -O.
+
+2026-04-23  Philipp Tomsich  <philipp.tomsich@vrull.eu>
+
+	* gcc.target/riscv/zbb-min-max-05.c: New test.
+	* gcc.target/riscv/zbb-min-max-06.c: New test.
+	* gcc.target/riscv/zbb-min-max-07-run.c: New test.
+
+2026-04-23  Co-authored-by: Jeff Law  <jeffrey.law@oss.qualcomm.com>
+
+	PR target/124029
+	* gcc.target/riscv/pr124029.c: New test.
+	* gcc.target/riscv/rvv/autovec/struct/struct_vect-2.c: Adjust
+	expected output.
+
+2026-04-23  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/124926
+	* g++.dg/reflect/dep15.C: New test.
+
+2026-04-23  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* gcc.misc-tests/options.exp (check_for_all_options): Check for
+	configured assembler.
+
+2026-04-23  H.J. Lu  <hjl.tools@gmail.com>
+
+	PR target/124994
+	* gcc.target/i386/pr124994.c: New test.
+
 2026-04-22  Jason Merrill  <jason@redhat.com>
 
 	PR c++/124973
