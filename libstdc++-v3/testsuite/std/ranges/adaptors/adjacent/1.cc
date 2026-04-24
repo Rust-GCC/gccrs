@@ -9,6 +9,13 @@
 namespace ranges = std::ranges;
 namespace views = std::views;
 
+template<typename Range>
+concept can_adjacent0 = requires (Range& rg)
+{ views::adjacent<0>(rg); };
+
+static_assert( !can_adjacent0<__gnu_test::test_input_range<int>> );
+static_assert( can_adjacent0<__gnu_test::test_forward_range<int>> );
+
 constexpr bool
 test01()
 {

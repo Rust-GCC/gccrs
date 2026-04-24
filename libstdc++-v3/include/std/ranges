@@ -5859,8 +5859,11 @@ namespace views::__adaptor
     template<size_t _Nm>
       struct _Adjacent : __adaptor::_RangeAdaptorClosure<_Adjacent<_Nm>>
       {
+	// _GLIBCXX_RESOLVE_LIB_DEFECTS
+	// 4098. views::adjacent<0> should reject non-forward ranges
 	template<viewable_range _Range>
-	  requires (_Nm == 0) || __detail::__can_adjacent_view<_Nm, _Range>
+	  requires ((_Nm == 0) && forward_range<_Range>)
+		   || __detail::__can_adjacent_view<_Nm, _Range>
 	  constexpr auto
 	  operator() [[nodiscard]] (_Range&& __r) const
 	  {
@@ -6197,8 +6200,11 @@ namespace views::__adaptor
     template<size_t _Nm>
       struct _AdjacentTransform : __adaptor::_RangeAdaptor<_AdjacentTransform<_Nm>>
       {
+	// _GLIBCXX_RESOLVE_LIB_DEFECTS
+	// 4098. views::adjacent<0> should reject non-forward ranges
 	template<viewable_range _Range, typename _Fp>
-	  requires (_Nm == 0) || __detail::__can_adjacent_transform_view<_Nm, _Range, _Fp>
+	  requires ((_Nm == 0) && forward_range<_Range>)
+		   || __detail::__can_adjacent_transform_view<_Nm, _Range, _Fp>
 	  constexpr auto
 	  operator() [[nodiscard]] (_Range&& __r, _Fp&& __f) const
 	  {
