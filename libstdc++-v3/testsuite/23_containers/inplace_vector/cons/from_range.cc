@@ -2,6 +2,7 @@
 
 #include <inplace_vector>
 
+#include <ranges>
 #include <span>
 #include <testsuite_hooks.h>
 #include <testsuite_iterators.h>
@@ -77,7 +78,7 @@ test_iterators()
   do_test_it<int, input_iterator_wrapper>();
   do_test_it<int, forward_iterator_wrapper>();
   do_test_it<int, random_access_iterator_wrapper>();
-  
+
   do_test_it<short, forward_iterator_wrapper>();
   return true;
 }
@@ -108,7 +109,7 @@ do_test_r()
     return;
   }
 #endif
-  
+
   try
   {
     std::inplace_vector<V, 5> v9(std::from_range, Range(a, a+9));
@@ -161,11 +162,65 @@ test_ranges()
   return true;
 }
 
+template<typename T>
+constexpr void
+test_iota()
+{
+  T a[]{1,2,3,4,5,6,7,8,9,10};
+
+  std::inplace_vector<T, 10> v1(
+    std::from_range, std::views::iota(T(1), T(11)));
+  VERIFY( eq<T>(v1, {a, a+10}) );
+
+  std::inplace_vector<T, 10> v2(
+    std::from_range,
+    std::views::iota(T(1))
+    | std::views::as_input
+    | std::views::take_while([](T t) { return t <= 10; }));
+  VERIFY( eq<T>(v2, {a, a+10}) );
+
+#ifdef __cpp_exceptions
+#ifndef __cpp_lib_constexpr_exceptions
+  if consteval {
+    return;
+  }
+#endif
+  constexpr T max = std::numeric_limits<T>::max();
+  try
+  {
+    std::inplace_vector<T, 10> v(
+      std::from_range, std::views::iota(T(0), max));
+    VERIFY(false);
+  }
+  catch (std::bad_alloc const&)
+  {
+  }
+
+  try
+  {
+    std::inplace_vector<T, 10> v(
+      std::from_range,
+      std::views::iota(T(0))
+      | std::views::as_input
+      | std::views::take_while([](T t) { return t < 15; }));
+    VERIFY(false);
+  }
+  catch (std::bad_alloc const&)
+  {
+  }
+#endif
+}
+
 int main()
 {
   auto test_all = [] {
     test_iterators();
     test_ranges();
+
+    test_iota<long long>();
+#ifdef __SIZEOF_INT128__
+    test_iota<__int128>();
+#endif
     return true;
   };
 

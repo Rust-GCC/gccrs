@@ -2,6 +2,7 @@
 
 #include <inplace_vector>
 
+#include <ranges>
 #include <span>
 #include <testsuite_hooks.h>
 #include <testsuite_iterators.h>
@@ -353,6 +354,53 @@ test_assigns()
   test_resize<T>();
 }
 
+template<typename T>
+constexpr void
+test_iota()
+{
+  T a[]{1,2,3,4,5,6,7,8,9,10};
+
+  std::inplace_vector<T, 10> v;
+  v.assign_range(std::views::iota(T(1), T(11)));
+  VERIFY( eq<T>(v, {a, a+10}) );
+
+  v.assign_range(
+    std::views::iota(T(1))
+    | std::views::as_input
+    | std::views::take_while([](T t) { return t <= 10; }));
+  VERIFY( eq<T>(v, {a, a+10}) );
+
+#ifdef __cpp_exceptions
+#ifndef __cpp_lib_constexpr_exceptions
+  if consteval {
+    return;
+  }
+#endif
+  constexpr T max = std::numeric_limits<T>::max();
+  try
+  {
+    v.assign_range(std::views::iota(T(0), max));
+    VERIFY(false);
+  }
+  catch (std::bad_alloc const&)
+  {
+  }
+  VERIFY( eq<T>(v, {a, 10}) );
+
+  try
+  {
+    v.assign_range(
+      std::views::iota(T(0))
+      | std::views::as_input
+      | std::views::take_while([](T t) { return t < 15; }));
+    VERIFY(false);
+  }
+  catch (std::bad_alloc const&)
+  {
+  }
+#endif
+}
+
 int main()
 {
   auto test_all = [] {
@@ -368,9 +416,14 @@ int main()
       test_assign_empty<2, X>();
       test_assigns<X>();
     }
+
+    test_iota<long long>();
+#ifdef __SIZEOF_INT128__
+    test_iota<__int128>();
+#endif
+
     return true;
   };
-
 
   test_all();
   static_assert(test_all());

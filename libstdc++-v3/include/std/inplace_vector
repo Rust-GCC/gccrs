@@ -248,9 +248,11 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 	{
 	  if constexpr (ranges::forward_range<_Rg> || ranges::sized_range<_Rg>)
 	    {
-	      const auto __sz = ranges::distance(__rg);
-	      if (__sz > _Nm)
+	      const auto __len = ranges::distance(__rg);
+	      if (__len > _Nm)
 		__throw_bad_alloc();
+
+	      const size_t __sz = size_t(__len);
 	      if (__sz <= size())
 		{
 		  ranges::copy_n(ranges::begin(__rg), __sz, data());
@@ -523,9 +525,11 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 	{
 	  if constexpr (ranges::forward_range<_Rg> || ranges::sized_range<_Rg>)
 	    {
-	      const auto __sz = ranges::distance(__rg);
-	      if (__sz > (_Nm - size()))
+	      const auto __len = ranges::distance(__rg);
+	      if (__len > (_Nm - size()))
 		__throw_bad_alloc();
+
+	      const size_t __sz = size_t(__len);
 	      // Bounded on output range due PR121143
 	      ranges::uninitialized_copy(
 		ranges::begin(__rg), unreachable_sentinel,
