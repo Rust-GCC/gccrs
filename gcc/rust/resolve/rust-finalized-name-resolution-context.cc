@@ -17,6 +17,9 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "rust-finalized-name-resolution-context.h"
+#include "expected.h"
+#include "optional.h"
+#include "rust-forever-stack.h"
 
 namespace Rust {
 namespace Resolver2_0 {
@@ -45,10 +48,26 @@ void
 FinalizedNameResolutionContext::map_usage (Usage usage, Definition definition,
 					   Namespace ns)
 {
-  auto leaf_definition
-    = ctx.find_leaf_definition (definition.id).value_or (definition);
+  tl::expected<Definition, LookupFinalizeError> leaf_result
+    = tl::make_unexpected (LookupFinalizeError::NoDefinition);
 
-  ctx.map_usage (usage, leaf_definition, ns);
+  switch (ns)
+    {
+    case Namespace::Values:
+      leaf_result = ctx.values.find_leaf_definition (definition.id);
+      break;
+    case Namespace::Types:
+      leaf_result = ctx.types.find_leaf_definition (definition.id);
+      break;
+    case Namespace::Labels:
+      leaf_result = ctx.labels.find_leaf_definition (definition.id);
+      break;
+    case Namespace::Macros:
+      leaf_result = ctx.macros.find_leaf_definition (definition.id);
+      break;
+    }
+
+  ctx.map_usage (usage, leaf_result.value_or (definition), ns);
 }
 
 tl::optional<NodeId>
