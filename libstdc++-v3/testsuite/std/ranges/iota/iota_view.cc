@@ -22,6 +22,17 @@
 #include <vector>
 #include <testsuite_hooks.h>
 
+template<typename Inc>
+concept can_iota = requires (Inc&& __inc)
+{ std::views::iota(__inc); };
+
+static_assert( can_iota<int> );
+static_assert( can_iota<int*> );
+static_assert( !can_iota<std::ranges::iota_view<int>> );
+static_assert( !can_iota<const std::ranges::iota_view<int>> );
+static_assert( !can_iota<std::ranges::iota_view<int>&> );
+static_assert( !can_iota<const std::ranges::iota_view<int>&> );
+
 void
 test01()
 {

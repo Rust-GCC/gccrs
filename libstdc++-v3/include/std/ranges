@@ -900,10 +900,12 @@ namespace views
 
   struct _Iota
   {
+    // _GLIBCXX_RESOLVE_LIB_DEFECTS
+    // 4096. views::iota(views::iota(0)) should be rejected
     template<__detail::__can_iota_view _Tp>
-      constexpr auto
+      constexpr iota_view<decay_t<_Tp>>
       operator() [[nodiscard]] (_Tp&& __e) const
-      { return iota_view(std::forward<_Tp>(__e)); }
+      { return iota_view<decay_t<_Tp>>(std::forward<_Tp>(__e)); }
 
     template<typename _Tp, typename _Up>
       requires __detail::__can_iota_view<_Tp, _Up>
