@@ -27,6 +27,22 @@
 namespace ranges = std::ranges;
 namespace views = ranges::views;
 
+template<size_t N, typename Rg>
+concept can_elements = requires (Rg&& rg)
+{ views::elements<0>(rg); };
+
+static_assert( !can_elements<0, std::vector<int>> );
+static_assert( can_elements<0, std::tuple<int>[4]> );
+static_assert( can_elements<1, std::vector<std::pair<int, int>>> );
+
+// Test LWG 3797. elements_view insufficiently constrained
+using move_only_iter_range = __gnu_test::test_input_range_nocopy<int>;
+using move_only_iter_subrange = ranges::subrange<
+  ranges::iterator_t<move_only_iter_range>,
+  ranges::sentinel_t<move_only_iter_range>>;
+static_assert( can_elements<0, std::vector<ranges::subrange<int*>>> );
+static_assert( !can_elements<0, std::vector<move_only_iter_subrange>> );
+
 void
 test01()
 {

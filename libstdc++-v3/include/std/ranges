@@ -4355,8 +4355,15 @@ namespace views::__adaptor
   namespace __detail
   {
 #if __cpp_lib_tuple_like // >= C++23
+    // _GLIBCXX_RESOLVE_LIB_DEFECTS
+    // 3797. elements_view insufficiently constrained
     template<typename _Tp, size_t _Nm>
-    concept __has_tuple_element = __tuple_like<_Tp> && _Nm < tuple_size_v<_Tp>;
+    concept __has_tuple_element = __tuple_like<_Tp> && _Nm < tuple_size_v<_Tp>
+      && requires(_Tp __t)
+	 {
+	   { std::get<_Nm>(__t) }
+	     -> convertible_to<const tuple_element_t<_Nm, _Tp>&>;
+	 };
 #else
     template<typename _Tp, size_t _Nm>
     concept __has_tuple_element = requires(_Tp __t)
