@@ -11847,8 +11847,12 @@ static int
 riscv_sched_adjust_cost (rtx_insn *, int, rtx_insn *insn, int cost,
 			 unsigned int)
 {
-  /* Only do adjustments for the generic out-of-order scheduling model.  */
-  if (!TARGET_VECTOR || riscv_microarchitecture != generic_ooo)
+
+  /* Only do adjustments for the generic out-of-order and spacemit_x60
+     scheduling model.  */
+  if (!TARGET_VECTOR
+      || (riscv_microarchitecture != generic_ooo
+	  && riscv_microarchitecture != spacemit_x60))
     return cost;
 
   if (recog_memoized (insn) < 0)
@@ -12289,6 +12293,8 @@ riscv_override_options_internal (struct gcc_options *opts)
   const char *tune_string = get_tune_str (opts);
   cpu = riscv_parse_tune (tune_string, false);
   riscv_microarchitecture = cpu->microarchitecture;
+  if (riscv_microarchitecture == spacemit_x60)
+    opts->x_TARGET_ADJUST_LMUL_COST = 1;
   tune_param = opts->x_optimize_size
 		 ? &optimize_size_tune_info
 		 : cpu->tune_param;
