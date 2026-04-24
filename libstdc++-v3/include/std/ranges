@@ -9093,6 +9093,9 @@ namespace views::__adaptor
 	constexpr auto
 	operator() [[nodiscard]] (_Range&& __r) const
 	{
+	  // _GLIBCXX_RESOLVE_LIB_DEFECTS
+	  // 4083. views::as_rvalue should reject non-input ranges
+	  // input_range<_Range> is implied by __detail::__can_as_rvalue_view<_Range>
 	  if constexpr (same_as<range_rvalue_reference_t<_Range>,
 				range_reference_t<_Range>>)
 	    return views::all(std::forward<_Range>(__r));
