@@ -250,14 +250,12 @@ narrow_gp_writes::narrow_gp_writes ()
   df_analyze ();
   crtl->ssa = new rtl_ssa::function_info (cfun);
   rtl_hooks = narrow_gp_writes_rtl_hooks;
-  m_curr_insn = nullptr;
   instance = this;
 }
 
 narrow_gp_writes::~narrow_gp_writes ()
 {
   instance = nullptr;
-  m_curr_insn = nullptr;
   rtl_hooks = general_rtl_hooks;
   crtl->ssa->perform_pending_updates ();
   delete crtl->ssa;
