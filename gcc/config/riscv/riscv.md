@@ -4995,6 +4995,48 @@
   { operands[3] = GEN_INT (BITS_PER_WORD
 			   - exact_log2 (INTVAL (operands[3]) + 1)); })
 
+;; If a shift count is BITS_PER_WORD - 1 - N, then we can exploit the identity
+;; that -x = ~x + 1 which is equivalent to (-1 - x) = ~x.  When shifting only
+;; low bits of X matter (5 for SI, 6 for DI).  So 31/63 are equivalent to -1
+;; for SI/DI shifts.
+;;
+;; Strangely, even for rv64, the shift computation is done in SI, presumably
+;; something narrowed the arithmetic prior to gimple->rtl expansion.
+;; Ultimately it gets wrapped with a SUBREG narrowing to QI.
+(define_split
+  [(set (match_operand:X 0 "register_operand")
+	(any_shift_rotate:X
+	  (match_operand:X 1 "register_operand")
+	  (subreg:QI (minus:SI (match_operand 2 "bitpos_mask_operand")
+			       (match_operand:SI 3 "register_operand")) 0)))
+    (clobber (match_operand:X 4 "register_operand"))]
+  ""
+  [(set (match_dup 4) (not:X (match_dup 6)))
+   (set (match_dup 0) (any_shift_rotate:X (match_dup 1) (match_dup 5)))]
+ {
+   operands[5] = gen_lowpart (QImode, operands[4]);
+   operands[6] = gen_lowpart (word_mode, operands[3]);
+ })
+
+;; This is the same thing as the prior pattern, but for 32 bit shifts on rv64.
+(define_split
+  [(set (match_operand:DI 0 "register_operand")
+	(sign_extend:DI
+	 (any_shift_rotate:SI
+	  (match_operand:SI 1 "register_operand")
+	  (subreg:QI (minus:SI (const_int 31)
+			       (match_operand:SI 2 "register_operand")) 0))))
+    (clobber (match_operand:DI 3 "register_operand"))]
+  "TARGET_64BIT"
+  [(set (match_dup 3) (not:DI (match_dup 2)))
+   (set (match_dup 0)
+	(sign_extend:DI (any_shift_rotate:SI (match_dup 1)
+					     (match_dup 4))))]
+ {
+   operands[2] = gen_lowpart (DImode, operands[2]);
+   operands[4] = gen_lowpart (QImode, operands[3]);
+ })
+
 ;; Standard extensions and pattern for optimization
 (include "bitmanip.md")
 (include "crypto.md")
