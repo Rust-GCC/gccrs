@@ -25,12 +25,12 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 
 #if defined(__x86_64__) && defined(__SSE2__)
 
-/* These macros currently support GNU/Linux, Solaris and Darwin.  */
+/* These macros currently support GNU/Linux, Solaris, FreeBSD, and Darwin.  */
 
 #ifdef __ELF__
 # define FN_TYPE(fn) .type fn,@function
 # define FN_SIZE(fn) .size fn,.-fn
-# ifdef __linux__
+# if defined(__linux__) || defined (__FreeBSD__)
 	.section	.note.GNU-stack,"",@progbits
 # endif
 #else

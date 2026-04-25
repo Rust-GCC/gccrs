@@ -79,6 +79,6 @@ snapshot_ret:
 	.comm	ymm_regs,512,32
 	.comm	x87_regs,128,32
 	.comm   volatile_var,8,8
-#ifdef __linux__
+#if defined(__linux__) || defined (__FreeBSD__)
 	.section	.note.GNU-stack,"",@progbits
 #endif
