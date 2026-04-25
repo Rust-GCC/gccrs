@@ -5037,6 +5037,36 @@
    operands[4] = gen_lowpart (QImode, operands[3]);
  })
 
+;; This is similar using a shift triplet to implement a logical AND when
+;; the mask is a consecutive_bits_operand.
+;;
+;; The difference is we have a left shift in the input RTL and we verify
+;; that clears the appropriate low bits.  So we can get away with just
+;; two shifts.
+(define_split
+  [(set (match_operand:X 0 "register_operand")
+	(and:X (ashift:X (match_operand:X 1 "register_operand")
+			 (match_operand 2 "const_int_operand"))
+		(match_operand 3 "consecutive_bits_operand")))
+   (clobber (match_operand:X 4 "register_operand"))]
+  "(ctz_hwi (INTVAL (operands[3]) & GET_MODE_MASK (word_mode))
+    == INTVAL (operands[2]))"
+  [(set (match_dup 4) (ashift:X (match_dup 1) (match_dup 5)))
+   (set (match_dup 0) (lshiftrt:X (match_dup 4) (match_dup 6)))]
+"{
+  /* We want to left shift by the number of leading zeros in the mask,
+     plus the number of bits shifted left by the pattern.  Remember that
+     a HOST_WIDE_INT may be 64 bits, so clz on that value can count bits
+     we don't care about for rv32.  */
+  HOST_WIDE_INT lshift
+    = clz_hwi (UINTVAL (operands[3])) % BITS_PER_WORD + INTVAL (operands[2]);
+  operands[5] = gen_int_mode (lshift, QImode);
+
+  /* And then we right shift things back into position.  */
+  HOST_WIDE_INT rshift = lshift - INTVAL (operands[2]);
+  operands[6] = gen_int_mode (rshift, QImode);
+}")
+
 ;; Standard extensions and pattern for optimization
 (include "bitmanip.md")
 (include "crypto.md")
