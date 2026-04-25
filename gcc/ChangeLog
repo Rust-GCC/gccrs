@@ -1,3 +1,143 @@
+2026-04-24  Hans-Peter Nilsson  <hp@axis.com>
+
+	* doc/sourcebuild.texi (Effective-Target Keywords): Document 'sleep'.
+
+2026-04-24  Jeff Law  <jeffrey.law@oss.qualcomm.com>
+
+	PR rtl-optimization/80770
+	* config/riscv/riscv.md (zero_extendqi<SUPERQI:mode>2): Always extend
+	out to a word and use a subreg lowpart extraction to get the right bits.
+	(extend<SHORT:mode><SUPERQI:mode>2): Similarly.
+
+2026-04-24  Carter Rennick  <carter.rennick@gmail.com>
+
+	PR target/120144
+	* config/mips/mips.h (MAX_FIXED_MODE_SIZE): Remove.
+
+2026-04-24  Eikansh Gupta  <eikansh.gupta@oss.qualcomm.com>
+
+	PR tree-optimization/123966
+	* tree-ssa-dce.cc (mark_stmt_if_obviously_necessary):
+	Don't mark a relaxed atomic load with no LHS as necessary.
+
+2026-04-24  Milan Tripkovic  <Milan.Tripkovic@rt-rk.com>
+
+	* config/riscv/riscv.cc (riscv_sched_adjust_cost):Enable
+	TARGET_ADJUST_LMUL_COST for spacemit_x60.
+	* config/riscv/spacemit-x60.md: Add vector pipeline model
+	for Spacemit-X60.
+	Co-authored-by: Dusan Stojkovic <Dusan.Stojkovic@rt-rk.com>
+	Co-authored-by: Nikola Ratkovac <Nikola.Ratkovac@rt-rk.com>
+
+2026-04-24  Richard Biener  <rguenther@suse.de>
+
+	* tree-vect-slp.cc (vect_create_new_slp_node): Assert that 'code'
+	is either ERROR_MARK or VEC_PERM_EXPR.  Document properly.
+	* tree-vect-slp-patterns.cc (vect_build_swap_evenodd_node):
+	Use lane_permutation_t.
+	(vect_build_combine_node): Likewise.  Pass VEC_PERM_EXPR
+	as code.
+
+2026-04-24  Richard Biener  <rguenther@suse.de>
+
+	* tree-vect-slp.cc (vect_bb_slp_scalar_cost): Do not pass
+	vector type to costing.
+
+2026-04-24  Raphael Zinsly  <rzinsly@qti.qualcomm.com>
+
+	PR target/123839
+	* config/riscv/riscv-v.cc (shuffle_slide_patterns): Use a
+	vslideup+vslidedown pair rather than a vcompressed based
+	sequence.
+
+2026-04-24  Jakub Jelinek  <jakub@redhat.com>
+
+	PR target/124133
+	* config/rs6000/rs6000-c.cc (c_fold_convert): New function.
+	(c_fold_build2_loc): Likewise.
+	(fully_fold_convert): Use c_fold_convert instead of fold_convert.
+	(altivec_build_resolved_builtin): Likewise.  Use c_fold_build2_loc
+	instead of fold_build2.
+	(resolve_vec_mul, resolve_vec_adde_sube, resolve_vec_addec_subec):
+	Use c_fold_build2_loc instead of fold_build2_loc.
+	(resolve_vec_splats, resolve_vec_extract): Use c_fold_convert instead
+	of fold_convert.
+	(resolve_vec_insert): Use c_fold_build2_loc instead of fold_build2.
+	(altivec_resolve_overloaded_builtin): Use c_fold_convert instead
+	of fold_convert.
+
+2026-04-24  Jakub Jelinek  <jakub@redhat.com>
+
+	PR middle-end/123635
+	PR tree-optimization/124988
+	* gimple-lower-bitint.cc (bitint_large_huge::finish_arith_overflow):
+	Handle bitint_extend.
+	(bitint_large_huge::lower_addsub_overflow): Fix up comment spelling.
+	For bitint_extended extend the partial limb if any.
+
+2026-04-24  H.J. Lu  <hjl.tools@gmail.com>
+
+	PR target/125009
+	* config/i386/i386-features.cc (ix86_place_single_vector_set):
+	Support CONST_VECTOR load no larger than integer register.
+	(ix86_broadcast_inner): Use inner mode as the scalar mode for
+	CONST_VECTOR load source.
+	(pass_x86_cse::x86_cse): Generate CONST_VECTOR broadcast source
+	for CONST_VECTOR load no larger than integer register.
+
+2026-04-24  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/124843
+	* tree-vect-patterns.cc (vect_recog_bool_pattern): Recognize
+	BIT_NOT_EXPR of scalar bools and rewrite with BIT_XOR_EXPR.
+
+2026-04-24  Richard Biener  <rguenther@suse.de>
+
+	* tree-vect-data-refs.cc (vect_duplicate_ssa_name_ptr_info):
+	Create points-to info from decl-based accesses.
+	(vect_create_addr_base_for_vector_ref): Adjust.
+	(vect_create_data_ref_ptr): Likewise.
+	(bump_vector_ptr): Likewise.
+
+2026-04-24  Richard Biener  <rguenther@suse.de>
+
+	* tree-vectorizer.h (_stmt_vec_info::slp_vect_pattern_only_p):
+	Remove.
+	(STMT_VINFO_SLP_VECT_ONLY_PATTERN): Likewise.
+	* tree-vectorizer.cc (vec_info::new_stmt_vec_info): Do not
+	initialize STMT_VINFO_SLP_VECT_ONLY_PATTERN.
+	* tree-vect-loop.cc (vect_analyze_loop_2): Nothing to do
+	for SLP pattern stmts that are not reachable from scalar
+	stmts anyway.  Remove dead code.
+	* tree-vect-slp-patterns.cc (complex_pattern::build): Do not
+	set STMT_VINFO_SLP_VECT_ONLY_PATTERN.
+	(addsub_pattern::build): Likewise.
+	* tree-vect-slp.cc (vect_free_slp_tree): Remove dead code.
+
+2026-04-24  Richard Biener  <rguenther@suse.de>
+
+	* tree-vect-slp-patterns.cc (complex_pattern::build):
+	Add pattern for the original stmt, do not set
+	STMT_VINFO_REDUC_DEF.
+	(addsub_pattern::build): Likewise.
+
+2026-04-24  Netanel Komm  <netanelkomm@gmail.com>
+
+	PR tree-optimization/122996
+	* match.pd (x != CST1 ? x + CST2 : 0 -> x + CST2): New pattern.
+
+2026-04-24  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/124947
+	* tree-ssa-loop-ivopts.cc (may_eliminate_iv): Do not use
+	a candidate that involves undefs.
+
+2026-04-24  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/124946
+	* tree-vect-loop.cc (vect_emulate_mixed_dot_prod): Perform the
+	constant biasing in an unsigned type.
+
 2026-04-23  Michiel Derhaeg  <Michiel.Derhaeg@synopsys.com>
 
 	* config/riscv/pipeline-checker: Filter tuneless insn types.

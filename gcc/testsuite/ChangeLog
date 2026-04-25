@@ -1,3 +1,73 @@
+2026-04-24  Hans-Peter Nilsson  <hp@axis.com>
+
+	* lib/target-supports.exp (check_effective_target_sleep): New.
+
+2026-04-24  Jeff Law  <jeffrey.law@oss.qualcomm.com>
+
+	PR rtl-optimization/80770
+	* gcc.target/riscv/rvv/base/vwaddsub-1.c: Adjust expected output.
+
+2026-04-24  Carter Rennick  <carter.rennick@gmail.com>
+
+	PR target/120144
+	* gcc.dg/torture/pr120144.c: New test.
+
+2026-04-24  Eikansh Gupta  <eikansh.gupta@oss.qualcomm.com>
+
+	PR tree-optimization/123966
+	* gcc.dg/tree-ssa/pr123966.c: New test.
+
+2026-04-24  Raphael Zinsly  <rzinsly@qti.qualcomm.com>
+
+	PR target/123839
+	* gcc.target/riscv/rvv/autovec/binop/vcompress-avlprop-1.c: Adjust
+	expected output.
+	* gcc.target/riscv/rvv/autovec/pr123839.c: New test.
+
+2026-04-24  Jakub Jelinek  <jakub@redhat.com>
+
+	PR target/124133
+	* g++.target/powerpc/pr124133-1.C: New test.
+	* g++.target/powerpc/pr124133-2.C: New test.
+
+2026-04-24  Jakub Jelinek  <jakub@redhat.com>
+
+	PR middle-end/123635
+	PR tree-optimization/124988
+	* gcc.dg/torture/bitint-91.c: New test.
+	* gcc.dg/torture/bitint-92.c: New test.
+	* gcc.dg/torture/bitint-93.c: New test.
+	* gcc.dg/torture/bitint-94.c: New test.
+	* gcc.dg/torture/bitint-95.c: New test.
+
+2026-04-24  H.J. Lu  <hjl.tools@gmail.com>
+
+	PR target/125009
+	* g++.target/i386/pr125009.C: New test.
+	* gcc.target/i386/pr125009.c: Likewise.
+
+2026-04-24  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/124843
+	* gcc.dg/vect/vect-bool-4.c: New testcase.
+
+2026-04-24  feedable  <feedabl3@gmail.com>
+	    Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR testsuite/125003
+	* gcc.c-torture/execute/ieee/ieee.exp: Rewrite the default flags
+	and set DEFAULT_IEEE_CFLAGS if not already set.
+
+2026-04-24  Netanel Komm  <netanelkomm@gmail.com>
+
+	PR tree-optimization/122996
+	* gcc.dg/tree-ssa/pr122996.c: New test.
+
+2026-04-24  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/124947
+	* gcc.dg/pr124947.c: New testcase.
+
 2026-04-23  Patrick Palka  <ppalka@redhat.com>
 
 	PR c++/124981

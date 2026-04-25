@@ -1,3 +1,54 @@
+2026-04-24  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* include/bits/chrono.h: Add static_assert requiring cv-unqualified
+	non-reference type.
+	* testsuite/20_util/duration/io.cc: Remove const-qualifier in
+	stream manipluators tests.
+	* testsuite/20_util/duration/requirements/typedefs_neg4.cc:
+	New test.
+
+2026-04-24  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* include/std/ranges (__detail::__has_tuple_element): Check
+	if std::get<_Nm>(__t) returns referenceable type also for C++23
+	and later.
+	* testsuite/std/ranges/adaptors/elements.cc: Add test covering
+	vector of ranges::subrange with move-only iterator.
+
+2026-04-24  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* include/std/ranges (_Iota::operator()(_Tp&&)): Replace
+	auto return type and CTAD with iota_view<decay_t<_Tp>>.
+	* testsuite/std/ranges/iota/iota_view.cc: Tests if
+	views::iota(iota_view) is rejected.
+
+2026-04-24  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* include/std/ranges (_AdjacentTransform::operator())
+	(_Adjacent::operator()): Require forward_range for N == 0.
+	* testsuite/std/ranges/adaptors/adjacent/1.cc: Test if input_ranges
+	are rejected.
+	* testsuite/std/ranges/adaptors/adjacent_transform/1.cc: Likewise.
+
+2026-04-24  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* include/std/ranges: Add comment for LWG4083.
+
+2026-04-24  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* include/bits/stl_iterator.h (basic_const_iterator::iterator_type):
+	Define.
+	* testsuite/24_iterators/const_iterator/1.cc: Tests for
+	iterator_type.
+
+2026-04-24  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/std/chrono (chrono::__detail::__get_leap_second_info):
+	Update expiry date for leap seconds list.
+	* src/c++20/tzdb.cc (tzdb_list::_Node::_S_read_leap_seconds):
+	Likewise.
+	* src/c++20/tzdata.zi: Import new file from 2026a release.
+
 2026-04-23  Tomasz Kamiński  <tkaminsk@redhat.com>
 
 	* include/bits/indirect.h (indirect::operator==): Adjust
