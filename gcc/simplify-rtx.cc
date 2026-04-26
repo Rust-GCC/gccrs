@@ -5347,6 +5347,7 @@ simplify_ashift:
 	  rtx op0_subop1 = XEXP (trueop0, 1);
 	  gcc_assert (GET_CODE (op0_subop1) == PARALLEL);
 	  gcc_assert (known_eq (XVECLEN (trueop1, 0), GET_MODE_NUNITS (mode)));
+	  bool identical_p = true;
 
 	  /* Apply the outer ordering vector to the inner one.  (The inner
 	     ordering vector is expressly permitted to be of a different
@@ -5358,10 +5359,25 @@ simplify_ashift:
 	      if (!CONST_INT_P (x))
 		return 0;
 	      rtx y = XVECEXP (op0_subop1, 0, INTVAL (x));
-	      if (!CONST_INT_P (y) || i != INTVAL (y))
+	      if (!CONST_INT_P (y))
 		return 0;
+	      if (i != INTVAL (y))
+		identical_p = false;
 	    }
-	  return XEXP (trueop0, 0);
+	  if (identical_p)
+	    return XEXP (trueop0, 0);
+
+	  /* Otherwise a permutation of a permutation is a permutation.  */
+	  int len = XVECLEN (trueop1, 0);
+	  rtvec vec = rtvec_alloc (len);
+	  for (int i = 0; i < len; ++i)
+	    {
+	      rtx x = XVECEXP (trueop1, 0, i);
+	      rtx y = XVECEXP (op0_subop1, 0, INTVAL (x));
+	      RTVEC_ELT (vec, i) = y;
+	    }
+	  return gen_rtx_fmt_ee (code, mode, XEXP (trueop0, 0),
+				 gen_rtx_PARALLEL (VOIDmode, vec));
 	}
 
       return 0;
