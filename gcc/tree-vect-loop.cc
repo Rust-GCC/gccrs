@@ -8862,7 +8862,7 @@ vectorizable_recurr (loop_vec_info loop_vinfo, stmt_vec_info stmt_info,
     }
   /* Skip inserted vectorized stmts for the latch definition.  We have to
      insert after those.  */
-  while (gimple_uid (gsi_stmt (gsi2)) == 0);
+  while (gsi_stmt (gsi2) && gimple_uid (gsi_stmt (gsi2)) == 0);
 
   for (unsigned i = 0; i < ncopies; ++i)
     {
