@@ -1,3 +1,84 @@
+2026-04-26  Jeff Law  <jeffrey.law@oss.qualcomm.com>
+
+	PR rtl-optimization/56096
+	* gcc.target/riscv/pr56096.c: New test.
+
+2026-04-25  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR tree-optimization/124061
+	* g++.dg/opt/enum-loop-1.C: New test.
+	* gcc.dg/tree-ssa/bitint-loop-opt-1.c: New test.
+
+2026-04-25  Jeff Law  <jeffrey.law@oss.qualcomm.com>
+
+	PR target/123904
+	* gcc.target/riscv/pr123904.c: New test.
+
+2026-04-25  Jeff Law  <jeffrey.law@oss.qualcomm.com>
+
+	PR target/123838
+	* gcc.target/riscv/pr123838.c: New test.
+	Co-authored-by:  Austin Law <austinklaw@gmail.com>
+
+2026-04-25  Martin Uecker  <uecker@tugraz.at>
+
+	PR c/124303
+	* gcc.dg/pr124303.c: New test.
+
+2026-04-25  Pan Li  <pan2.li@intel.com>
+
+	* gcc.target/riscv/rvv/autovec/vx_vf/vx-1-i16.c: Add asm check
+	for vmsle.vx.
+	* gcc.target/riscv/rvv/autovec/vx_vf/vx-1-i32.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vx_vf/vx-1-i64.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vx_vf/vx-1-i8.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vx_vf/vx-2-i16.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vx_vf/vx-2-i32.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vx_vf/vx-2-i64.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vx_vf/vx-2-i8.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vx_vf/vx-3-i16.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vx_vf/vx-3-i32.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vx_vf/vx-3-i64.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vx_vf/vx-3-i8.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vx_vf/vx_binary.h: Add test
+	helper macros.
+	* gcc.target/riscv/rvv/autovec/vx_vf/vx_binary_data.h: Add test
+	data for run test.
+	* gcc.target/riscv/rvv/autovec/vx_vf/vx_vmsle-run-1-i16.c: New test.
+	* gcc.target/riscv/rvv/autovec/vx_vf/vx_vmsle-run-1-i32.c: New test.
+	* gcc.target/riscv/rvv/autovec/vx_vf/vx_vmsle-run-1-i64.c: New test.
+	* gcc.target/riscv/rvv/autovec/vx_vf/vx_vmsle-run-1-i8.c: New test.
+
+2026-04-25  Daniel Barboza  <daniel.barboza@oss.qualcomm.com>
+
+	PR tree-optimization/64567
+	* gcc.dg/tree-ssa/pr64567-2.c: New test.
+	* gcc.dg/tree-ssa/pr64567.c: New test.
+
+2026-04-25  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* gcc.target/x86_64/abi/asm-support.S: Use .note.GNU-stack on
+	FreeBSD, too.
+	* gcc.target/x86_64/abi/avx/asm-support.S: Likewise.
+	* gcc.target/x86_64/abi/avx512f/asm-support.S: Likewise.
+	* gcc.target/x86_64/abi/avx512fp16/asm-support.S: Likewise.
+	* gcc.target/x86_64/abi/avx512fp16/m256h/asm-support.S: Likewise.
+	* gcc.target/x86_64/abi/avx512fp16/m512h/asm-support.S: Likewise.
+	* gcc.target/x86_64/abi/bf16/asm-support.S: Likewise.
+	* gcc.target/x86_64/abi/bf16/m256bf16/asm-support.S: Likewise.
+	* gcc.target/x86_64/abi/bf16/m512bf16/asm-support.S: Likewise.
+	* gcc.target/x86_64/abi/ms-sysv/do-test.S: Likewise.
+	Update comment.
+	* gcc.target/x86_64/abi/ms-sysv/ms-sysv.exp (runtest_ms_sysv): Add
+	--omit-rbp-clobbers on FreeBSD.
+	* gcc.target/x86_64/abi/callabi/leaf-2.c (dg-options): Add
+	-fomit-frame-pointer.
+
+2026-04-25  Jeff Law  <jeffrey.law@oss.qualcomm.com>
+
+	PR target/124984
+	* gcc.target/riscv/pr124984.c: New test.
+
 2026-04-24  Hans-Peter Nilsson  <hp@axis.com>
 
 	* lib/target-supports.exp (check_effective_target_sleep): New.

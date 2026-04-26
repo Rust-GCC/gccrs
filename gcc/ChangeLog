@@ -1,3 +1,58 @@
+2026-04-26  Jeff Law  <jeffrey.law@oss.qualcomm.com>
+
+	PR rtl-optimization/56096
+	* config/riscv/riscv.md: Add new patterns to optimize certain cases with
+	a logical AND feeding an equality test against zero.
+
+2026-04-25  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR tree-optimization/124061
+	* tree-scalar-evolution.cc (interpret_rhs_expr): Use
+	INTEGRAL_NB_TYPE_P instead of comparing the code to INTEGER_TYPE.
+	* tree-ssa-loop-niter.cc (number_of_iterations_ne): Likewise.
+	(number_of_iterations_cltz): Likewise.
+	(number_of_iterations_exit_assumptions): Likewise.
+	* tree.h (INTEGRAL_NB_TYPE_P): New macro.
+
+2026-04-25  Jeff Law  <jeffrey.law@oss.qualcomm.com>
+
+	PR target/123904
+	* config/riscv/riscv.md (masking shifted value): New splitter to
+	optimize certain masking operations on shifted values.
+
+2026-04-25  Jeff Law  <jeffrey.law@oss.qualcomm.com>
+
+	PR target/123838
+	* config/riscv/riscv.md: Use splitters to simplify shifts where
+	the shift count is 31-N or 63-N.
+
+2026-04-25  Pan Li  <pan2.li@intel.com>
+
+	* config/riscv/predicates.md: Add ge to the swappable
+	cmp operator iterator.
+	* config/riscv/riscv-v.cc (get_swapped_cmp_rtx_code): Take
+	care of the swapped rtx code as well.
+
+2026-04-25  Daniel Barboza  <daniel.barboza@oss.qualcomm.com>
+
+	PR tree-optimization/64567
+	* match.pd (`cond (bit_and A IMM) (bit_or A IMM) A`): New
+	pattern.
+	(`cond (bit_and A IMM) (bit_and A ~IMM) A`): New pattern.
+
+2026-04-25  Avinal Kumar  <avinal.xlvii@gmail.com>
+
+	PR tree-optimization/122989
+	* tree-ssa-strlen.cc (get_string_length): Use
+	gimple_convert_to_ptrofftype and gimple_build instead of
+	convert_to_ptrofftype/force_gimple_operand_gsi/gimple_build_assign.
+
+2026-04-25  Jeff Law  <jeffrey.law@oss.qualcomm.com>
+
+	PR target/124984
+	* config/riscv/thead.cc (th_memidx_classify_address_index): Extract
+	constant multiplicand value from the right object.
+
 2026-04-24  Hans-Peter Nilsson  <hp@axis.com>
 
 	* doc/sourcebuild.texi (Effective-Target Keywords): Document 'sleep'.
