@@ -385,7 +385,7 @@ Necessary in some circumstances, optional in others.  See the
 host/target specific instructions for your platform for the exact
 requirements.
 
-Note binutils 2.35 or newer is required for LTO to work correctly
+Binutils 2.35 or newer is required for LTO to work correctly
 with GNU libtool that includes doing a bootstrap with LTO enabled.
 
 @item gzip version 1.2.4 (or later) or
@@ -695,11 +695,11 @@ language front end and shared components, and language-specific
 distributions including the language front end and the language
 runtime (where appropriate).
 
-If you also intend to build binutils (either to upgrade an existing
+If you also intend to build Binutils (either to upgrade an existing
 installation or for use in place of the corresponding tools of your
-OS), unpack the binutils distribution either in the same directory or
+OS), unpack the Binutils distribution either in the same directory or
 a separate one.  In the latter case, add symbolic links to any
-components of the binutils you intend to build alongside the compiler
+components of the Binutils you intend to build alongside the compiler
 (@file{bfd}, @file{binutils}, @file{gas}, @file{gprof}, @file{ld},
 @file{opcodes}, @dots{}) to the directory containing the GCC sources.
 
@@ -2227,7 +2227,7 @@ code.  Typically, the corresponding 32-bit target, e.g.@:
 powerpc-linux for powerpc64-linux, only generates 32-bit code.  This
 option enables the 32-bit target to be a bi-arch compiler, which is
 useful when you want a bi-arch compiler that defaults to 32-bit, and
-you are building a bi-arch or multi-arch binutils in a combined tree.
+you are building a bi-arch or multi-arch Binutils in a combined tree.
 On mips-linux, this will build a tri-arch compiler (ABI o32/n32/64),
 defaulted to o32.
 Currently, this option only affects sparc-linux, powerpc-linux, x86-linux,
@@ -2700,7 +2700,7 @@ to add @option{-fcf-protection} and, if needed, other target
 specific options to a set of building options.
 
 @code{--enable-cet=auto} is default.  CET is enabled on Linux/x86 if
-target binutils supports @code{Intel CET} instructions and disabled
+target Binutils supports @code{Intel CET} instructions and disabled
 otherwise.  In this case, the target libraries are configured to get
 additional @option{-fcf-protection} option.
 
@@ -2720,7 +2720,7 @@ Generate RISC-V attribute by default, in order to record extra build
 information in object.
 
 The option is disabled by default. It is enabled on RISC-V/ELF (bare-metal)
-target if target binutils supported.
+target if target Binutils supported.
 
 @item --enable-s390-excess-float-precision
 @itemx --disable-s390-excess-float-precision
@@ -3170,7 +3170,7 @@ Build tools necessary to build the compiler.
 
 @item
 Perform a 3-stage bootstrap of the compiler.  This includes building
-three times the target tools for use by the compiler such as binutils
+three times the target tools for use by the compiler such as Binutils
 (bfd, binutils, gas, gprof, ld, and opcodes) if they have been
 individually linked or moved into the top level GCC source tree before
 configuring.
@@ -3389,7 +3389,7 @@ following steps:
 Build host tools necessary to build the compiler.
 
 @item
-Build target tools for use by the compiler such as binutils (bfd,
+Build target tools for use by the compiler such as Binutils (bfd,
 binutils, gas, gprof, ld, and opcodes)
 if they have been individually linked or moved into the top level GCC source
 tree before configuring.
@@ -3778,7 +3778,7 @@ are not only installed into @file{@var{bindir}}, that
 is, @file{@var{exec-prefix}/bin}, but additionally into
 @file{@var{exec-prefix}/@var{target-alias}/bin}, if that directory
 exists.  Typically, such @dfn{tooldirs} hold target-specific
-binutils, including assembler and linker.
+Binutils, including assembler and linker.
 
 Installation into a temporary staging area or into a @command{chroot}
 jail can be achieved with the command
@@ -4260,7 +4260,7 @@ Collection (GCC)},
 See ``Blackfin Options'' in the main manual
 @end ifhtml
 
-More information, and a version of binutils with support for this processor,
+More information, and a version of Binutils with support for this processor,
 are available at @uref{https://sourceforge.net/projects/adi-toolchain/}.
 
 @html
@@ -4661,7 +4661,7 @@ be a @option{-mcpu} argument or one of the following values:
 @samp{m68000}, @samp{m68010}, @samp{m68020}, @samp{m68030},
 @samp{m68040}, @samp{m68060}, @samp{m68020-40} and @samp{m68020-60}.
 
-GCC requires at least binutils version 2.17 on these targets.
+GCC requires at least Binutils 2.17 on these targets.
 
 @html
 <hr />
@@ -4921,7 +4921,7 @@ This configuration is intended for embedded systems.
 @heading riscv32-*-elf
 The RISC-V RV32 instruction set.
 This configuration is intended for embedded systems.
-This (and all other RISC-V) targets require the binutils 2.40 release.
+This (and all other RISC-V) targets require the Binutils 2.40 release.
 
 @html
 <hr />
@@ -4929,7 +4929,7 @@ This (and all other RISC-V) targets require the binutils 2.40 release.
 @anchor{riscv32-x-linux}
 @heading riscv32-*-linux
 The RISC-V RV32 instruction set running GNU/Linux.
-This (and all other RISC-V) targets require the binutils 2.40 release.
+This (and all other RISC-V) targets require the Binutils 2.40 release.
 
 @html
 <hr />
@@ -4938,7 +4938,7 @@ This (and all other RISC-V) targets require the binutils 2.40 release.
 @heading riscv64-*-elf
 The RISC-V RV64 instruction set.
 This configuration is intended for embedded systems.
-This (and all other RISC-V) targets require the binutils 2.40 release.
+This (and all other RISC-V) targets require the Binutils 2.40 release.
 
 @html
 <hr />
@@ -4946,7 +4946,7 @@ This (and all other RISC-V) targets require the binutils 2.40 release.
 @anchor{riscv64-x-linux}
 @heading riscv64-*-linux
 The RISC-V RV64 instruction set running GNU/Linux.
-This (and all other RISC-V) targets require the binutils 2.40 release.
+This (and all other RISC-V) targets require the Binutils 2.40 release.
 
 @html
 <hr />
@@ -5110,7 +5110,7 @@ in @uref{prerequisites.html,,the prerequisites}.
 @end html
 @anchor{c6x-x-x}
 @heading c6x-*-*
-The C6X family of processors. This port requires binutils 2.22 or newer.
+The C6X family of processors. This port requires Binutils 2.22 or newer.
 
 @html
 <hr />
@@ -5248,7 +5248,7 @@ with Microsoft's C++ compiler and there are no plans to make it do so.
 
 The Cygwin native compiler can be configured to target any 32-bit x86
 cpu architecture desired; the default is i686-pc-cygwin.  It should be
-used with as up-to-date a version of binutils as possible; use either
+used with as up-to-date a version of Binutils as possible; use either
 the latest official GNU Binutils release in the Cygwin distribution,
 or version 2.20 or above if building your own.
 
