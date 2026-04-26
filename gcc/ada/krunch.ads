@@ -23,13 +23,13 @@
 --                                                                          --
 ------------------------------------------------------------------------------
 
---  This procedure implements file name crunching
+--  This procedure implements file name crunching:
 
 --    First, the name is divided into segments separated by minus signs and
 --    underscores, then all minus signs and underscores are eliminated. If
 --    this leaves the name short enough, we are done.
 
---    If not, then the longest segment is located (left-most if there are
+--    If not, then the longest segment is located (leftmost if there are
 --    two of equal length), and shortened by dropping its last character.
 --    This is repeated until the name is short enough.
 
@@ -50,7 +50,7 @@
 --      ou  st      wi   fix         9
 --      ou  st      wi   fi          8
 
---      Final file name: OUSTWIFX.ADB
+--      Final file name: OUSTWIFI.ADB
 
 --    A special rule applies for children of System, Ada, Gnat, and Interfaces.
 --    In these cases, the following special prefix replacements occur:
@@ -81,7 +81,7 @@
 --      a-  st      wi   fix         9
 --      a-  st      wi   fi          8
 
---      Final file name: A-STWIFX.ADB
+--      Final file name: A-STWIFI.ADB
 
 --  Since children of units named A, G, I or S might conflict with the names
 --  of predefined units, the naming rule in that case is that the first hyphen
