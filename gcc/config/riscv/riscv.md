@@ -3201,6 +3201,62 @@
   [(set_attr "type" "shift")
    (set_attr "mode" "DI")])
 
+;; Handle logical AND feeding an equality test against zero where an operand
+;; to the AND is a constant requiring synthesis.  Because we only care about
+;; zero/nonzero state afte the AND, we may be able to shift both operands
+;; of the AND to the right and eliminate the need for constant synthesis.
+;;
+;; Once mvconst_internal goes away, this likely turns into a simple splitter.
+(define_insn_and_split ""
+  [(set (match_operand:X 0 "register_operand" "=r")
+	(any_eq:X (and:X (match_operand:X 1 "register_operand" "r")
+			 (match_operand 2 "shifted_const_arith_operand"))
+		  (const_int 0)))
+   (clobber (match_scratch:X 3 "=&r"))]
+  "!SMALL_OPERAND (INTVAL (operands[2]))"
+  "#"
+  "&& reload_completed"
+  [(set (match_dup 3) (ashiftrt:X (match_dup 1) (match_dup 4)))
+   (set (match_dup 3) (and:X (match_dup 3) (match_dup 2)))
+   (set (match_dup 0) (any_eq:X (match_dup 3) (const_int 0)))]
+{
+  HOST_WIDE_INT shift = ctz_hwi (INTVAL (operands[2]));
+  operands[4] = gen_int_mode (shift, QImode);
+  operands[2] = gen_int_mode (INTVAL (operands[2]) >> shift, word_mode);
+}
+  [(set_attr "type" "shift")])
+
+;; The pattern above is a bridge to this pattern.  Essentially a select
+;; between 0 and 2^n based on the zero/nonzero status of the AND.
+;;
+;; It's no fewer instructions, but the resulting code has fewer data
+;; dependencies and may compress better depending on 2^n.
+(define_insn_and_split ""
+  [(set (match_operand:X 0 "register_operand" "=r")
+	(ashift:X (any_eq:X
+		    (and:X (match_operand:X 1 "register_operand" "r")
+			   (match_operand 2 "shifted_const_arith_operand"))
+		    (const_int 0))
+		  (match_operand 3 "const_int_operand")))
+   (clobber (match_scratch:X 4 "=&r"))
+   (clobber (match_scratch:X 5 "=&r"))]
+  "TARGET_ZICOND && TARGET_ZBS"
+  "#"
+  "&& reload_completed"
+  [(set (match_dup 4) (ashiftrt:X (match_dup 1) (match_dup 6)))
+   (set (match_dup 4) (and:X (match_dup 4) (match_dup 2)))
+   (set (match_dup 5) (match_dup 3))
+   (set (match_dup 0) (if_then_else:X (any_eq:X (match_dup 4) (const_int 0))
+				      (match_dup 5)
+				      (const_int 0)))]
+{
+  HOST_WIDE_INT shift = ctz_hwi (INTVAL (operands[2]));
+  operands[3] = gen_int_mode (HOST_WIDE_INT_1U << INTVAL (operands[3]), word_mode);
+  operands[6] = gen_int_mode (shift, QImode);
+  operands[2] = gen_int_mode (INTVAL (operands[2]) >> shift, word_mode);
+}
+  [(set_attr "type" "shift")])
+
 ;;
 ;;  ....................
 ;;
