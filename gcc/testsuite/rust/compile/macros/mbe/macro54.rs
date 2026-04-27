@@ -22,6 +22,7 @@ impl Number for u32 {
     const VALUE: u32 = foo!(number);
 }
 
+#[lang = "u32"]
 impl u32 {
     pub const TWELVE: u32 = foo!(number);
 }
