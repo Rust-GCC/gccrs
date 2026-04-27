@@ -226,10 +226,10 @@ Quoted text
 
       #ifdef LIBDIAGNOSTICS_HAVE_diagnostic_message_buffer
 
-.. function:: void diagnostic_message_buffer_end_url (diagnostic_message_buffer *msg_buf)
+.. function:: void diagnostic_message_buffer_end_quote (diagnostic_message_buffer *msg_buf)
 
-   This function ends a run of text within the buffer started with
-   :func:`diagnostic_message_buffer_begin_url`.
+   This function ends a run of text started with
+   :func:`diagnostic_message_buffer_begin_quote`.
 
    ``msg_buf`` must be non-NULL.
 
