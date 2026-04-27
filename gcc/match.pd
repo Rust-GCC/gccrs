@@ -5268,11 +5268,20 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
 	&& expr_no_side_effects_p (@1))
    @2)))
 
-/* x != CST1 ? x + CST2 : 0 -> x + CST2 when CST1 == -CST2.  */
-(simplify
- (cond (ne @0 INTEGER_CST@2) (plus@1 @0 INTEGER_CST@3) integer_zerop)
- (if (wi::to_wide (@2) == -wi::to_wide (@3))
-  @1))
+/* x != CST1 ? x + CST2 : CST3 -> x + CST2 when CST1 + CST2 == CST3.
+   This handles both scalars and uniform vectors.  */
+(for cnd (cond vec_cond)
+ (simplify
+  (cnd (ne @0 uniform_integer_cst_p@1)
+       (plus@2 @0 uniform_integer_cst_p@3)
+       uniform_integer_cst_p@4)
+  (with {
+    tree cst1 = uniform_integer_cst_p (@1);
+    tree cst2 = uniform_integer_cst_p (@3);
+    tree cst3 = uniform_integer_cst_p (@4);
+  }
+  (if (wi::to_wide (cst1) + wi::to_wide (cst2) == wi::to_wide (cst3))
+   @2))))
 
 /* Simplifications of shift and rotates.  */
 
