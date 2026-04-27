@@ -28,7 +28,7 @@ void test_memcpy (void)
 
 void test_mempcpy (void)
 {
-  mempcpy (d, s, range ());   /* { dg-warning ".mempcpy. writing 4 or more bytes into a region of size 3 overflows the destination" } */
+  mempcpy (d, s, range ());   /* { dg-warning ".memcpy. writing 4 or more bytes into a region of size 3 overflows the destination" } */
 }
 
 void test_memmove (void)

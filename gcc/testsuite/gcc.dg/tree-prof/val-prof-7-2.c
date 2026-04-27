@@ -16,7 +16,7 @@ void memcpy_test_ ## N (int len) \
 __attribute__((noinline)) \
 void mempcpy_test_ ## N (int len) \
 { \
-  __builtin_mempcpy (buffer1, buffer2, len); \
+  void * volatile res = __builtin_mempcpy (buffer1, buffer2, len); \
 } \
  \
 __attribute__((noinline)) \

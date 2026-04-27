@@ -13,13 +13,15 @@
 #define UNIQUE_FUNCNAME(func, line) test_ ## func ## _ ## line
 #define FUNCNAME(func, line)        UNIQUE_FUNCNAME (func, line)
 
+void *sink;
+
 #define AR(func, type, min, max, val)					\
   void __attribute__ ((noclone, noinline))				\
   FUNCNAME (func, __LINE__) (char *d, const char *s, type n)		\
   {									\
     if ((type)min <= n && n <= (type)max)				\
       n = val;								\
-    __builtin_ ## func (d, s, n);					\
+    sink = __builtin_ ## func (d, s, n);					\
   } typedef void DummyType
 
 AR (memcpy, short, SHRT_MIN, 0, 1);
@@ -38,5 +40,6 @@ AR (memmove, int,   2, INT_MAX, 1);
 AR (mempcpy, short, 2, SHRT_MAX, 1);
 AR (mempcpy, int,   2, INT_MAX, 1);
 
-/* { dg-final { scan-tree-dump-times "builtin_memcpy" 10 "optimized" } }
-   { dg-final { scan-tree-dump-times "builtin_memmove" 2 "optimized" } }  */
+/* { dg-final { scan-tree-dump-times "builtin_memcpy" 8 "optimized" } }
+   { dg-final { scan-tree-dump-times "builtin_memmove" 2 "optimized" } }
+   { dg-final { scan-tree-dump-times "builtin_mempcpy" 2 "optimized" } }  */

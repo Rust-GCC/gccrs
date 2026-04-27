@@ -3339,6 +3339,32 @@ gimple_fold_builtin_stpcpy (gimple_stmt_iterator *gsi)
   return true;
 }
 
+/* Simplify mempcpy call stmt at GSI, returning true if simplified.
+   Currently only handling mempcpy -> memcpy when the return value
+   is ignored.  */
+
+static bool
+gimple_fold_builtin_mempcpy (gimple_stmt_iterator *gsi)
+{
+  gcall *stmt = as_a <gcall *> (gsi_stmt (*gsi));
+
+  if (gimple_call_lhs (stmt) != NULL_TREE)
+    return false;
+
+  tree fn = builtin_decl_explicit (BUILT_IN_MEMCPY);
+  if (!fn)
+    return false;
+
+  tree dest = gimple_call_arg (stmt, 0);
+  tree src = gimple_call_arg (stmt, 1);
+  tree n = gimple_call_arg (stmt, 2);
+
+  gcall *repl = gimple_build_call (fn, 3, dest, src, n);
+  replace_call_with_call_and_fold (gsi, repl);
+
+  return true;
+}
+
 /* Fold a call EXP to {,v}snprintf having NARGS passed as ARGS.  Return
    NULL_TREE if a normal call should be emitted rather than expanding
    the function inline.  FCODE is either BUILT_IN_SNPRINTF_CHK or
@@ -5387,8 +5413,12 @@ gimple_fold_builtin (gimple_stmt_iterator *gsi)
       return gimple_fold_builtin_memset (gsi,
 					 gimple_call_arg (stmt, 1),
 					 gimple_call_arg (stmt, 2));
-    case BUILT_IN_MEMCPY:
     case BUILT_IN_MEMPCPY:
+      if (gimple_fold_builtin_memory_op (gsi, gimple_call_arg (stmt, 0),
+					    gimple_call_arg (stmt, 1), fcode))
+	return true;
+      return gimple_fold_builtin_mempcpy (gsi);
+    case BUILT_IN_MEMCPY:
     case BUILT_IN_MEMMOVE:
       return gimple_fold_builtin_memory_op (gsi, gimple_call_arg (stmt, 0),
 					    gimple_call_arg (stmt, 1), fcode);
