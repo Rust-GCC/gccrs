@@ -106,8 +106,6 @@ private:
 
    Implemented:
    - message text
-
-   Known limitations/missing functionality:
    - title for page
    - file/line/column
    - error vs warning
@@ -115,6 +113,9 @@ private:
    - rules
    - fix-it hints
    - paths
+
+   Known limitations/missing functionality:
+   - disclosure widgets for expanding/collapsing hierarchy
 */
 
 class html_builder
