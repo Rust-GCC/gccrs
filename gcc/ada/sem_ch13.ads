@@ -28,6 +28,7 @@ with Types; use Types;
 with Sem_Disp; use Sem_Disp;
 with Sinfo.Nodes; use Sinfo.Nodes;
 with Uintp; use Uintp;
+with Namet; use Namet;
 
 package Sem_Ch13 is
    function All_Membership_Choices_Static (Expr : Node_Id) return Boolean;
@@ -385,5 +386,37 @@ package Sem_Ch13 is
 
    procedure Uninstall_Discriminants (E : Entity_Id);
    --  Remove visibility to the discriminants of type entity E
+
+   function Is_Predicate_Static
+     (Expr : Node_Id; Nam : Name_Id; Warn : Boolean := True) return Boolean;
+   --  Given predicate expression Expr, tests if Expr is predicate-static in
+   --  the sense of the rules in (RM 3.2.4 (15-24)). Occurrences of the type
+   --  name in the predicate expression have been replaced by references to
+   --  an identifier whose Chars field is Nam. This name is unique, so any
+   --  identifier with Chars matching Nam must be a reference to the type.
+   --  Returns True if the expression is predicate-static and False otherwise,
+   --  but is not in the business of setting flags or issuing error messages.
+   --
+   --  Only scalar types can have static predicates, so False is always
+   --  returned for non-scalar types.
+   --
+   --  Note: the RM seems to suggest that string types can also have static
+   --  predicates. But that really makes little sense as very few useful
+   --  predicates can be constructed for strings. Remember that:
+   --
+   --     "ABC" < "DEF"
+   --
+   --  is not a static expression. So even though the clearly faulty RM wording
+   --  allows the following:
+   --
+   --     subtype S is String with Static_Predicate => S < "DEF"
+   --
+   --  We can't allow this, otherwise we have predicate-static applying to a
+   --  larger class than static expressions, which was never intended.
+   --
+   --  The Warn parameter is True iff this is not a recursive call. This
+   --  parameter is used to avoid generating warnings for subexpressions and
+   --  for cases where the predicate expression (as originally written by
+   --  the user, before any transformations) is a Boolean literal.
 
 end Sem_Ch13;

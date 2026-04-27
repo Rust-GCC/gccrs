@@ -45,7 +45,6 @@ with Ghost;            use Ghost;
 with Lib;              use Lib;
 with Lib.Xref;         use Lib.Xref;
 with Mutably_Tagged;   use Mutably_Tagged;
-with Namet;            use Namet;
 with Nlists;           use Nlists;
 with Nmake;            use Nmake;
 with Opt;              use Opt;
@@ -234,40 +233,6 @@ package body Sem_Ch13 is
    function Is_Type_Related_Rep_Item (N : Node_Id) return Boolean;
    --  Returns True for a representation clause/pragma that specifies a
    --  type-related representation (as opposed to operational) aspect.
-
-   function Is_Predicate_Static
-     (Expr : Node_Id;
-      Nam  : Name_Id;
-      Warn : Boolean := True) return Boolean;
-   --  Given predicate expression Expr, tests if Expr is predicate-static in
-   --  the sense of the rules in (RM 3.2.4 (15-24)). Occurrences of the type
-   --  name in the predicate expression have been replaced by references to
-   --  an identifier whose Chars field is Nam. This name is unique, so any
-   --  identifier with Chars matching Nam must be a reference to the type.
-   --  Returns True if the expression is predicate-static and False otherwise,
-   --  but is not in the business of setting flags or issuing error messages.
-   --
-   --  Only scalar types can have static predicates, so False is always
-   --  returned for non-scalar types.
-   --
-   --  Note: the RM seems to suggest that string types can also have static
-   --  predicates. But that really makes little sense as very few useful
-   --  predicates can be constructed for strings. Remember that:
-   --
-   --     "ABC" < "DEF"
-   --
-   --  is not a static expression. So even though the clearly faulty RM wording
-   --  allows the following:
-   --
-   --     subtype S is String with Static_Predicate => S < "DEF"
-   --
-   --  We can't allow this, otherwise we have predicate-static applying to a
-   --  larger class than static expressions, which was never intended.
-   --
-   --  The Warn parameter is True iff this is not a recursive call. This
-   --  parameter is used to avoid generating warnings for subexpressions and
-   --  for cases where the predicate expression (as originally written by
-   --  the user, before any transformations) is a Boolean literal.
 
    procedure New_Put_Image_Subprogram
      (N    : Node_Id;

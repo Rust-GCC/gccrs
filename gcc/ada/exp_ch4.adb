@@ -5291,7 +5291,7 @@ package body Exp_Ch4 is
 
       --  If the case expression is a predicate specification, do not expand
       --  because it will need to be recognized and converted to the canonical
-      --  predicate form later if it it happens to be static.
+      --  predicate form later if it happens to be static.
 
       if Ekind (Scop) in E_Function | E_Procedure
         and then Is_Predicate_Function (Scop)
@@ -5299,6 +5299,8 @@ package body Exp_Ch4 is
         and then Entity (Expression (N)) = First_Entity (Scop)
         and then (Is_Scalar_Type (Etype (Expression (N)))
                    or else Is_String_Type (Etype (Expression (N))))
+        and then Is_Predicate_Static
+            (Expr => N, Nam => Chars (First_Entity (Scop)), Warn => False)
         and then not Has_Dynamic_Predicate_Aspect (Etype (Expression (N)))
       then
          return;
