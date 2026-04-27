@@ -13253,7 +13253,7 @@ finish_decltype_type (tree expr, bool id_expression_or_member_access_p,
 	 is T , and decltype((r)) is const T&."  */
       expr = strip_contract_const_wrapper (expr);
 
-      if (INDIRECT_REF_P (expr)
+      if (REFERENCE_REF_P (expr)
 	  || TREE_CODE (expr) == VIEW_CONVERT_EXPR)
         /* This can happen when the expression is, e.g., "a.b". Just
            look at the underlying operand.  */
