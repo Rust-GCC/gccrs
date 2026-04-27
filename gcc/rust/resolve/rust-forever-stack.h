@@ -622,6 +622,8 @@ private:
 
 template <Namespace N> class ForeverStack
 {
+  template <Namespace N2> friend class ForeverStack;
+
 public:
   ForeverStack ()
     : root (Node (Rib (Rib::Kind::Normal), UNKNOWN_NODEID)),
@@ -760,11 +762,13 @@ public:
   tl::optional<Rib::Definition> resolve_path (
     const ResolutionPath &path, ResolutionMode mode,
     std::function<void (Usage, Definition)> insert_segment_resolution,
-    std::vector<Error> &collect_errors);
+    std::vector<Error> &collect_errors,
+    ForeverStack<Namespace::Types> &type_stack);
   tl::optional<Rib::Definition> resolve_path (
     const ResolutionPath &path, ResolutionMode mode,
     std::function<void (Usage, Definition)> insert_segment_resolution,
-    std::vector<Error> &collect_errors, NodeId starting_point_id);
+    std::vector<Error> &collect_errors, NodeId starting_point_id,
+    ForeverStack<Namespace::Types> &type_stack);
 
   // FIXME: Documentation
   tl::optional<Rib &> to_rib (NodeId rib_id);
@@ -836,7 +840,8 @@ private:
     const ResolutionPath &path, ResolutionMode mode,
     std::function<void (Usage, Definition)> insert_segment_resolution,
     std::vector<Error> &collect_errors,
-    std::reference_wrapper<Node> starting_point);
+    std::reference_wrapper<Node> starting_point,
+    ForeverStack<Namespace::Types> &type_stack);
 
   /* Should we keep going upon seeing a Rib? */
   enum class KeepGoing
@@ -899,7 +904,8 @@ private:
     Node &starting_point, const std::vector<ResolutionPath::Segment> &segments,
     SegIterator iterator,
     std::function<void (Usage, Definition)> insert_segment_resolution,
-    std::vector<Error> &collect_errors);
+    std::vector<Error> &collect_errors,
+    ForeverStack<Namespace::Types> &type_stack);
 
   tl::optional<Rib::Definition> resolve_final_segment (Node &final_node,
 						       std::string &seg_name,
