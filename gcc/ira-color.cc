@@ -505,8 +505,6 @@ print_hard_reg_set (FILE *f, HARD_REG_SET set, bool new_line_p)
 	{
 	  if (start == end)
 	    fprintf (f, " %d", start);
-	  else if (start == end + 1)
-	    fprintf (f, " %d %d", start, end);
 	  else
 	    fprintf (f, " %d-%d", start, end);
 	  start = -1;

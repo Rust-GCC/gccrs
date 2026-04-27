@@ -1251,8 +1251,6 @@ match_reload (signed char out, signed char *ins, signed char *outs,
 	= (! early_clobber_p && ins[1] < 0 && REG_P (in_rtx)
 	   && (int) REGNO (in_rtx) < lra_new_regno_start
 	   && find_regno_note (curr_insn, REG_DEAD, REGNO (in_rtx))
-	   && (! early_clobber_p
-	       || check_conflict_input_operands (REGNO (in_rtx), ins))
 	   && (out < 0
 	       || regno_val_use_in (REGNO (in_rtx), out_rtx) == NULL_RTX)
 	   && !out_conflict
@@ -7969,9 +7967,9 @@ undo_optional_reloads (void)
 		 we remove the inheritance pseudo and the optional
 		 reload.  */
 	    }
-	  if (GET_CODE (PATTERN (insn)) == CLOBBER
-	      && REG_P (SET_DEST (insn))
-	      && get_regno (SET_DEST (insn)) == (int) regno)
+	  rtx pat = PATTERN (insn);
+	  if (GET_CODE (pat) == CLOBBER && REG_P (SET_DEST (pat))
+	      && get_regno (SET_DEST (pat)) == (int) regno)
 	    /* Refuse to remap clobbers to preexisting pseudos.  */
 	    gcc_unreachable ();
 	  lra_substitute_pseudo_within_insn
