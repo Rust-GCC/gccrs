@@ -1,3 +1,20 @@
+2026-04-26  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR tree-optimization/110262
+	* gcc.dg/pr110262-1.c: New test.
+	* gcc.dg/tree-ssa/phi-opt-46.c: New test.
+	* gcc.dg/tree-ssa/phi-opt-47.c: New test.
+
+2026-04-26  Roger Sayle  <roger@nextmovesoftware.com>
+
+	* gcc.target/i386/sse2-pshufd-2.c: New test case.
+
+2026-04-26  Roger Sayle  <roger@nextmovesoftware.com>
+
+	PR tree-optimization/124715
+	* gcc.dg/no-math-errno-5.c: New test case.
+	* gcc.dg/no-math-errno-6.c: Likewise.
+
 2026-04-26  Jeff Law  <jeffrey.law@oss.qualcomm.com>
 
 	PR rtl-optimization/56096

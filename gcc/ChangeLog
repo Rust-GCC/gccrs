@@ -1,3 +1,40 @@
+2026-04-26  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR tree-optimization/110262
+	* match.pd (`signed < 0 ? positive : min<signed, positive>`): New
+	pattern.
+
+2026-04-26  Gerald Pfeifer  <gerald@pfeifer.com>
+
+	* doc/install.texi (Prerequisites): Use Binutils over binutils to
+	refer to that project.
+	(Downloading the source): Ditto.
+	(Configuration): Ditto.
+	(Building): Ditto.
+	(Specific): Ditto.
+
+2026-04-26  Roger Sayle  <roger@nextmovesoftware.com>
+
+	* simplify-rtx.cc (simplify_context::simplify_binary_operation_1)
+	<case VEC_SELECT>: Simplify a (non-identity) vec_select of a
+	vec_select.
+
+2026-04-26  Roger Sayle  <roger@nextmovesoftware.com>
+
+	PR tree-optimization/124715
+	* match.pd (simpify pows): Check flag_errno_math before simplifying
+	pow(x,-1) -> 1/x when x could be zero.
+
+2026-04-26  Roger Sayle  <roger@nextmovesoftware.com>
+
+	* config/i386/sse.md
+	(<avx512>_cmp<mode>3<mask_scalar_merge_name><round_saeonly_name>):
+	Change mode iterator from V48H_AVX512VL to VFH_AVX512VL and op3's
+	predicate from <cmp_imm_predicate> to const_0_to_31_operand.
+	(<avx512>_cmp<mode>3<mask_scalar_merge_name>): Change mode
+	iterator from VI12_AVX512VL to VI1248_AVX512VLBW.
+	(<avx512>_ucmp<mode>3<mask_scalar_merge_name>): Likewise.
+
 2026-04-26  Jeff Law  <jeffrey.law@oss.qualcomm.com>
 
 	PR rtl-optimization/56096
