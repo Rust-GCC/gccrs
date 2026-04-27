@@ -915,23 +915,21 @@ proc lto-execute { src1 sid } {
     initialize_prune_notes
 }
 
-# Call pass if object readelf is ok, otherwise fail.
-# example: /* { dg-final { object-readelf Tag_ABI_enum_size int} } */
-proc object-readelf { args } {
+proc object-readelf { option is_negative directive args } {
     global readelf
     global base_dir
-    upvar 2 execname execname
+    upvar 3 execname execname
 
-    if { [llength $args] < 2 } {
-	error "object-readelf: too few arguments"
+    if { [llength $args] < 1 } {
+	error "$directive: too few arguments"
 	return
     }
-    if { [llength $args] > 3 } {
-	error "object-readelf: too many arguments"
+    if { [llength $args] > 2 } {
+	error "$directive: too many arguments"
 	return
     }
-    if { [llength $args] >= 3 } {
-	switch [dg-process-target [lindex $args 2]] {
+    if { [llength $args] >= 2 } {
+	switch [dg-process-target [lindex $args 1]] {
 	    "S" { }
 	    "N" { return }
 	    "F" { setup_xfail "*-*-*" }
@@ -939,7 +937,7 @@ proc object-readelf { args } {
 	}
     }
 
-    # Find size like we find g++ in g++.exp.
+    # Find readelf like we find g++ in g++.exp.
     if ![info exists readelf]  {
 	set readelf [findfile $base_dir/../../../binutils/readelf \
 		$base_dir/../../../binutils/readelf \
@@ -949,47 +947,52 @@ proc object-readelf { args } {
 	verbose -log "readelf is $readelf"
     }
 
-    set what [lindex $args 0]
-    set with [lindex $args 1]
+    set regex [lindex $args 0]
 
     if ![file_on_host exists $execname] {
 	verbose -log "$execname does not exist"
-	unresolved "object-readelf $what "
+	unresolved "$directive $regex "
 	return
     }
 
-    set output [remote_exec host "$readelf -A" "$execname"]
+    set output [remote_exec host "$readelf $option" "$execname"]
     set status [lindex $output 0]
     if { $status != 0 } {
-	verbose -log "object-readelf: $readelf failed"
-	unresolved "object-readelf $what $execname"
+	verbose -log "$directive: $readelf failed"
+	unresolved "$directive $regex $execname"
 	return
     }
 
     set text [lindex $output 1]
-    set lines [split $text "\n"]
+    set match [regexp -- $regex $text]
 
-    set done 0
-    set i 0
-    while { !$done } {
-	set line_tex [lindex $lines $i]
-	if { [llength ${line_tex}] > 1} {
-	    incr i
-	    if [regexp -- $what $line_tex] {
-	        set match [regexp -- $with $line_tex]
-		set done 1
-	    }
-	} else {
-	    set done 1
-	}
-    }
-
-    verbose -log "$what size is $with;"
-    if { $match == 1 } {
-	pass "object-readelf $what size is correct."
+    if { ($is_negative && $match == 0) || (!$is_negative && $match == 1) } {
+	pass "$directive $regex pattern is correct."
     } else {
-	fail "object-readelf $what size is incorrect."
+	fail "$directive $regex pattern is incorrect."
     }
 }
 
+# Call pass if regex ($args 0) matches readelf -A output, otherwise fail.
+# example: /* { dg-final { object-readelf-attributes {Tag_ABI_enum_size:\s+int} } } */
+proc object-readelf-attributes { args } {
+    object-readelf "-A" 0 object-readelf-attributes {*}$args
+}
 
+# Call pass if regex ($args 0) does not match readelf -A output, otherwise fail.
+# example: /* { dg-final { object-readelf-attributes {Tag_ABI_enum_size:\s+int} } } */
+proc object-readelf-attributes-not { args } {
+    object-readelf "-A" 1 object-readelf-attributes-not {*}$args
+}
+
+# Call pass if regex ($args 0) matches readelf -n output, otherwise fail.
+# example: /* { dg-final { object-readelf-notes {AArch64 feature:\s+BTI,\s+PAC,\s+GCS} } } */
+proc object-readelf-notes { args } {
+    object-readelf "-n" 0 object-readelf-notes {*}$args
+}
+
+# Call pass if regex ($args 0) does not readelf -n output, otherwise fail.
+# example: /* { dg-final { object-readelf-notes-not {AArch64 feature:\s+BTI,\s+PAC,\s+GCS} } } */
+proc object-readelf-notes-not { args } {
+    object-readelf "-n" 1 object-readelf-notes-not {*}$args
+}
