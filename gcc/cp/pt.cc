@@ -7582,6 +7582,9 @@ get_template_parm_object (tree expr, tree name, bool check_init/*=true*/)
       /* FIXME setting TREE_CONSTANT on refs breaks the back end.  */
       if (!TYPE_REF_P (type))
 	TREE_CONSTANT (decl) = true;
+      pushdecl_top_level (decl);
+      /* The caller must call cp_finish_decl to complete its processing.  */
+      return decl;
     }
 
   pushdecl_top_level_and_finish (decl, expr);

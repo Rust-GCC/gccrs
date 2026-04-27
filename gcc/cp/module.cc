@@ -10872,6 +10872,7 @@ trees_in::tree_node (bool is_use)
 	    int tag = insert (res);
 	    dump (dumper::TREE)
 	      && dump ("Created nttp object:%d %N", tag, name);
+	    vec_safe_push (post_load_decls, res);
 	  }
       }
       break;
@@ -20517,6 +20518,17 @@ post_load_processing ()
       tree decl = post_load_decls->pop ();
 
       dump () && dump ("Post-load processing of %N", decl);
+
+      if (VAR_P (decl) && DECL_NTTP_OBJECT_P (decl))
+	{
+	  if (!DECL_SIZE (decl))
+	    {
+	      push_to_top_level ();
+	      cp_finish_decl (decl, DECL_INITIAL (decl), false, NULL_TREE, 0);
+	      pop_from_top_level ();
+	    }
+	  continue;
+	}
 
       gcc_checking_assert (DECL_MAYBE_IN_CHARGE_CDTOR_P (decl));
       expand_or_defer_fn (decl);
