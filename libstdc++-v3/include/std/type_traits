@@ -871,7 +871,11 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   template<typename _Tp>
     struct is_scalar
     : public __or_<is_arithmetic<_Tp>, is_enum<_Tp>, is_pointer<_Tp>,
-                   is_member_pointer<_Tp>, is_null_pointer<_Tp>>::type
+                   is_member_pointer<_Tp>, is_null_pointer<_Tp>
+#if __cpp_impl_reflection >= 202506L
+		   , is_reflection<_Tp>
+#endif
+		   >::type
     { };
 
   /// is_compound
