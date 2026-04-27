@@ -3743,9 +3743,14 @@ package body Sem_Ch6 is
       --  user entities, as internally generated entitities might still need
       --  to be expanded (e.g. those generated for types).
 
+      --  Do not disable expansion if the body comes from an expression
+      --  function as they are often the first freezing point of entities and
+      --  expansion is needed to freeze them properly.
+
       if not CodePeer_Mode
         and then Present (Ghost_Config.Ignored_Ghost_Region)
         and then Comes_From_Source (Body_Id)
+        and then not From_Expression_Function
       then
          Expander_Active := False;
       end if;
