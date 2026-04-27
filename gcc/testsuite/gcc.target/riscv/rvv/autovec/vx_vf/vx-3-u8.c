@@ -30,3 +30,4 @@ TEST_TERNARY_VX_UNSIGNED_0(T)
 /* { dg-final { scan-assembler-not {vmsne.vx} } } */
 /* { dg-final { scan-assembler-not {vmsltu.vx} } } */
 /* { dg-final { scan-assembler-not {vmsleu.vx} } } */
+/* { dg-final { scan-assembler-not {vmsgtu.vx} } } */
