@@ -6073,6 +6073,8 @@ get_swapped_cmp_rtx_code (rtx_code code)
       return LEU;
     case GE:
       return LE;
+    case LTU:
+      return GTU;
     default:
       gcc_unreachable ();
     }
