@@ -993,10 +993,10 @@ record_reg_classes (int n_alts, int n_ops, rtx *ops,
 		      else if (op_class == NO_REGS)
 			alt_cost
 			  += ((out_p
-			       ? ira_memory_move_cost[mode][pref_class][1]
+			       ? ira_memory_move_cost[mode][pref_class][0]
 			       : 0)
 			      + (in_p
-				 ? ira_memory_move_cost[mode][pref_class][0]
+				 ? ira_memory_move_cost[mode][pref_class][1]
 				 : 0));
 		      else if (ira_reg_class_intersect[pref_class][op_class]
 			       == NO_REGS)

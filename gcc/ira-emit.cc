@@ -962,7 +962,7 @@ emit_move_list (move_t list, int freq)
 	{
 	  if (ALLOCNO_HARD_REGNO (list->to) >= 0)
 	    {
-	      cost = ira_memory_move_cost[mode][aclass][0] * freq;
+	      cost = ira_memory_move_cost[mode][aclass][1] * freq;
 	      ira_load_cost += cost;
 	    }
 	}
