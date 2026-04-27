@@ -5783,7 +5783,7 @@ add_iv_candidate_for_doloop (struct ivopts_data *data)
 
   tree niter = niter_desc->niter;
   tree ntype = TREE_TYPE (niter);
-  gcc_assert (TREE_CODE (ntype) == INTEGER_TYPE);
+  gcc_assert (INTEGRAL_NB_TYPE_P (ntype));
 
   tree may_be_zero = niter_desc->may_be_zero;
   if (may_be_zero && integer_zerop (may_be_zero))
@@ -5815,6 +5815,15 @@ add_iv_candidate_for_doloop (struct ivopts_data *data)
     base = fold_build2 (PLUS_EXPR, ntype, unshare_expr (niter),
 			build_int_cst (ntype, 1));
 
+  /* For non integer types or non-mode precision types,
+     convert directly to an integer type. */
+  if (TREE_CODE (ntype) != INTEGER_TYPE
+      || !type_has_mode_precision_p (ntype))
+    {
+      ntype = lang_hooks.types.type_for_mode (TYPE_MODE (ntype),
+					      TYPE_UNSIGNED (ntype));
+      base = fold_convert (ntype, base);
+    }
 
   add_candidate (data, base, build_int_cst (ntype, -1), true, NULL, NULL, true);
 }
