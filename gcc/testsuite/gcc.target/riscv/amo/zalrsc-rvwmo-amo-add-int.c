@@ -4,6 +4,7 @@
 /* { dg-add-options riscv_zalrsc } */
 /* { dg-remove-options riscv_zaamo } */
 /* { dg-remove-options riscv_ztso } */
+/* { dg-remove-options riscv_zalasr } */
 /* { dg-skip-if "" { *-*-* } { "-g" "-flto"} } */
 /* { dg-final { check-function-bodies "**" "" } } */
 

@@ -3,6 +3,7 @@
    mapping.  */
 /* { dg-options "-O3" } */
 /* { dg-remove-options riscv_ztso } */
+/* { dg-remove-options riscv_zalasr } */
 /* { dg-skip-if "" { *-*-* } { "-g" "-flto"} } */
 /* { dg-final { check-function-bodies "**" "" } } */
 

@@ -3,6 +3,7 @@
 /* { dg-options "-Wno-address-of-packed-member" } */
 /* { dg-add-options riscv_zabha } */
 /* { dg-remove-options riscv_ztso } */
+/* { dg-remove-options riscv_zalasr } */
 /* { dg-final { scan-assembler "\tamoadd.b" } } */
 /* { dg-final { scan-assembler "\tamoadd.b.aq" } } */
 /* { dg-final { scan-assembler "\tamoadd.b.rl" } } */

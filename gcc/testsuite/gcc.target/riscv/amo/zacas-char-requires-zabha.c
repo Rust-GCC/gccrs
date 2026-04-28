@@ -5,6 +5,7 @@
 /* { dg-add-options riscv_zacas } */
 /* { dg-remove-options riscv_zabha } */
 /* { dg-remove-options riscv_zalrsc } */
+/* { dg-remove-options riscv_zalasr } */
 /* { dg-final { scan-assembler "\tcall\t" } } */
 /* { dg-final { scan-assembler-not "\tlr\.w" } } */
 /* { dg-final { scan-assembler-not "\tsc\.w" } } */

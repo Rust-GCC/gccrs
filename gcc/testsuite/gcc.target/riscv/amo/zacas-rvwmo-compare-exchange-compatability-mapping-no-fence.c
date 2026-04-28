@@ -7,6 +7,7 @@
 /* { dg-options "-O3" } */
 /* { dg-add-options riscv_zacas } */
 /* { dg-remove-options riscv_ztso } */
+/* { dg-remove-options riscv_zalasr } */
 /* { dg-final { scan-assembler-not "\tfence" } } */
 
 void atomic_compare_exchange_weak_int_seq_cst_relaxed (int *bar, int *baz, int qux)
