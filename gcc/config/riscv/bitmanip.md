@@ -1426,3 +1426,18 @@
   [(set (match_dup 2) (plus:X (match_dup 1) (const_int -1)))
    (set (match_dup 0) (and:X (not:X (match_dup 1)) (match_dup 2)))])
 
+(define_split
+  [(set (match_operand:DI 0 "register_operand")
+	(sign_extend:DI (plus:SI (plus:SI (ashift:SI (match_operand:SI 1 "register_operand")
+						     (match_operand 2 "imm123_operand"))
+					  (match_operand:SI 3 "register_operand"))
+				 (match_operand:SI 4 "arith_operand"))))
+   (clobber (match_operand:DI 5 "register_operand"))]
+  "TARGET_64BIT && TARGET_ZBA"
+  [(set (match_dup 5) (plus:DI (ashift:DI (match_dup 1) (match_dup 2)) (match_dup 3)))
+   (set (match_dup 0) (sign_extend:DI (plus:SI (match_dup 6) (match_dup 4))))]
+  {
+    operands[1] = gen_lowpart (DImode, operands[1]);
+    operands[3] = gen_lowpart (DImode, operands[3]);
+    operands[6] = gen_lowpart (SImode, operands[5]);
+  })
