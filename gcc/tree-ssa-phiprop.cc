@@ -259,8 +259,8 @@ can_handle_load (gimple *load_stmt, basic_block bb,
   if (SSA_NAME_IS_DEFAULT_DEF (vuse))
     return true;
   if (gimple_bb (def_stmt) != bb
-      && !dominated_by_p (CDI_DOMINATORS,
-			  bb, gimple_bb (def_stmt)))
+      && dominated_by_p (CDI_DOMINATORS,
+			 bb, gimple_bb (def_stmt)))
     return true;
   return false;
 }
