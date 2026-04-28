@@ -1,3 +1,116 @@
+2026-04-27  Jeff Law  <jeffrey.law@oss.qualcomm.com>
+
+	PR tree-optimization/57650
+	* config/riscv/zicond.md: Generalize patterns which identify
+	a logical AND of an equality test and some other sCC insn to
+	handle more cases.
+
+2026-04-27  Soumya AR  <soumyaa@nvidia.com>
+
+	* config/aarch64/aarch64-narrow-gp-writes.cc
+	(narrow_gp_writes::narrow_gp_writes): Remove redundant m_curr_insn
+	initialization.
+	(narrow_gp_writes::~narrow_gp_writes): Remove redundant m_curr_insn
+	de-initialization.
+
+2026-04-27  Philipp Tomsich  <philipp.tomsich@vrull.eu>
+
+	* ext-dce.cc (promotion_candidate_info): New struct.
+	(copy_info): New struct.
+	(promotion_candidates, promotable_dests): New file-scope variables.
+	(consumed_by_candidate, promotion_copies): Likewise.
+	(ext_dce_try_promote_operation): New function to promote
+	sign/zero-extended arithmetic to wider mode.
+	(ext_dce_record_promotion_candidate): New function to record
+	promotion candidates for deferred chain analysis.
+	(ext_dce_promote_chained_candidates): New function to promote
+	only chained candidates.
+	(ext_dce_process_uses): Record candidates instead of promoting
+	immediately; propagate chain info through optimized copies.
+	(ext_dce_process_bb): Call ext_dce_promote_chained_candidates
+	after processing all insns in a block.
+	(ext_dce_init): Allocate chain detection bitmaps.
+	(ext_dce_finish): Free chain detection data structures.
+
+2026-04-27  Philipp Tomsich  <philipp.tomsich@vrull.eu>
+
+	* ext-dce.cc (ext_dce_try_optimize_extension): Only remove
+	REG_EQUAL/EQUIV notes when validate_change succeeds.
+
+2026-04-27  Soumya AR  <soumyaa@nvidia.com>
+
+	* config/aarch64/tuning_models/generic.h: Update br_mispredict_factor
+	to 7.
+
+2026-04-27  Philipp Tomsich  <philipp.tomsich@vrull.eu>
+
+	* match.pd: Relax single_use for eq/ne when folded constant
+	is zero.
+
+2026-04-27  Vladimir N. Makarov  <vmakarov@redhat.com>
+
+	* lra-lives.cc (clear_sparseset_regnos, regnos_in_sparseset_p):
+	Use set instead of dead_set.
+
+2026-04-27  Vladimir N. Makarov  <vmakarov@redhat.com>
+
+	* ira-costs.cc (record_reg_classes): When calculating alt_cost use
+	the right cost of memory-reg move.
+	* ira-emit.cc (emit_move_list): Use load cost instead of store for
+	moving memory to reg.
+
+2026-04-27  Vladimir N. Makarov  <vmakarov@redhat.com>
+
+	* ira-build.cc (add_to_conflicts): Use sizeof(ira_object_p)
+	instead of sizeof(ira_allocno_t) for allocations.
+	* ira-color.cc (print_hard_reg_set): Fix printing hard reg set.
+	* ira-emit.cc (allocno_last_set, allocno_last_set_check): Remove
+	unused static variables.
+	* ira.cc (combine_and_move_insns): Fix dead note recognition.
+	(ira_remove_insn_scratches): Use dump_file instead of
+	ira_dump_file.
+	* lra-constraints.cc (match_reload): Remove always true condition.
+	(undo_optional_reloads): Fix recognition of clobber for assertion.
+
+2026-04-27  Pengxuan Zheng  <pengxuan.zheng@oss.qualcomm.com>
+
+	PR tree-optimization/124886
+	* match.pd ((X * C1) + (X << C2) -> X * (C1 + (1 << C2))): New pattern.
+
+2026-04-27  Jeff Law  <jeffrey.law@oss.qualcomm.com>
+
+	PR target/121268
+	* config/riscv/bitmanip.md: Add splitters to exploit identities
+	that relate subtraction and bitwise negation on 2's complement
+	arithmetic.
+
+2026-04-27  Muhammad Kamran  <muhammad.kamran@arm.com>
+
+	* doc/sourcebuild.texi (Scan object metadata with readelf): Document
+	object-readelf-attributes, object-readelf-attributes-not,
+	object-readelf-notes, and object-readelf-notes-not as regex-based
+	checks with optional target/xfail selectors.
+
+2026-04-27  Netanel Komm  <netanelkomm@gmail.com>
+
+	PR tree-optimization/93556
+	* gimple-fold.cc (gimple_fold_builtin_mempcpy): New function.
+	(gimple_fold_builtin): Handle BUILT_IN_MEMPCPY.
+
+2026-04-27  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/125025
+	* tree-ssa-loop-niter.cc (number_of_iterations_ne): Avoid
+	negation of most negative signed integer.
+	(number_of_iterations_lt): Likewise.
+
+2026-04-27  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/125019
+	* tree-vect-loop.cc (vectorizable_recurr): Properly guard
+	against hitting last stmt when searching for the insertion
+	place.
+
 2026-04-26  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
 
 	PR tree-optimization/110262

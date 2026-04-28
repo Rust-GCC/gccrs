@@ -1,3 +1,27 @@
+2026-04-27  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/124978
+	PR c++/115314
+	* semantics.cc (finish_decltype_type): Check REFERENCE_REF_P
+	instead of INDIRECT_REF_P before stripping implicit dereferences.
+
+2026-04-27  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/124953
+	* module.cc (trees_in::tree_node) <tt_nttp_var>: Push the result
+	of get_template_parm_object to post_load_decls.
+	(post_load_processing): Call cp_finish_decl on any not yet
+	completed NTTP objects.
+	* pt.cc (get_template_parm_object): Don't call cp_finish_decl
+	when !check_init.
+
+2026-04-27  Jason Merrill  <jason@redhat.com>
+
+	PR c++/124910
+	DR 2658
+	* constexpr.cc (reduced_constant_expression_p): Allow a union
+	with no active member.
+
 2026-04-23  Patrick Palka  <ppalka@redhat.com>
 
 	* module.cc (trees_out::core_vals) <case PTRMEM_CST>:

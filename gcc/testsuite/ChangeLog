@@ -1,3 +1,114 @@
+2026-04-27  Jeff Law  <jeffrey.law@oss.qualcomm.com>
+
+	PR tree-optimization/57650
+	* gcc.target/riscv/pr57650.c: New test.
+
+2026-04-27  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/124978
+	PR c++/115314
+	* g++.dg/cpp2a/nontype-class74.C: New test.
+
+2026-04-27  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/124953
+	* g++.dg/modules/tpl-nttp-3_a.H: New test.
+	* g++.dg/modules/tpl-nttp-3_b.C: New test.
+
+2026-04-27  Philipp Tomsich  <philipp.tomsich@vrull.eu>
+
+	* gcc.target/riscv/ext-dce-promote-2.c: Update to verify both
+	chain promotions (sh1add, sh3add) and standalone skipping.
+	* gcc.target/riscv/ext-dce-promote-1.c: New file.
+
+2026-04-27  Philipp Tomsich  <philipp.tomsich@vrull.eu>
+
+	* gcc.dg/tree-ssa/forwprop-pre-incr-cmp.c: New test.
+
+2026-04-27  Jason Merrill  <jason@redhat.com>
+
+	PR c++/124910
+	DR 2658
+	* g++.dg/cpp2a/constexpr-union12.C: New test.
+
+2026-04-27  Pengxuan Zheng  <pengxuan.zheng@oss.qualcomm.com>
+
+	PR tree-optimization/124886
+	* gcc.dg/tree-ssa/pr124886.c: New test.
+
+2026-04-27  Jeff Law  <jeffrey.law@oss.qualcomm.com>
+
+	PR target/121268
+	* gcc.target/riscv/pr121268.c: New test.
+
+2026-04-27  Muhammad Kamran  <muhammad.kamran@arm.com>
+
+	PR target/124365
+	* gcc.target/aarch64/lto/lto.exp: New DejaGnu test driver for LTO tests
+	for aarch64. Copied from gcc/testsuite/gcc.target/arm/lto/lto.exp with
+	minor changes.
+	* gcc.target/aarch64/lto/pr124365-build-attributes-1_0.c: New test
+	for build attributes with branch protection.
+	* gcc.target/aarch64/lto/pr124365-build-attributes-1_1.c: Companion
+	source file for the LTO test.
+	* gcc.target/aarch64/lto/pr124365-build-attributes-2_0.c: New test
+	for build attributes without branch protection.
+	* gcc.target/aarch64/lto/pr124365-build-attributes-2_1.c: Companion
+	source file for the LTO test with branch protection enabled.
+	* gcc.target/aarch64/lto/pr124365-gnu-property-1_0.c: New test for
+	`.note.gnu.property` with branch protection.
+	* gcc.target/aarch64/lto/pr124365-gnu-property-1_1.c: Companion
+	source file for the LTO test.
+	* gcc.target/aarch64/lto/pr124365-gnu-property-2_0.c: New test for
+	`.note.gnu.property` without branch protection.
+	* gcc.target/aarch64/lto/pr124365-gnu-property-2_1.c: Companion
+	source file for the LTO test with branch protection enabled.
+
+2026-04-27  Muhammad Kamran  <muhammad.kamran@arm.com>
+
+	* lib/lto.exp (object-readelf): Accept a readelf option and a single
+	regex; match against full readelf output. Keep positive/negative
+	behaviour via wrappers.
+	(object-readelf-attributes, object-readelf-attributes-not,
+	object-readelf-notes, object-readelf-notes-not): Implement as wrappers
+	over the generic matcher.
+	* gcc.dg-selftests/dg-final.exp (dg_final_directive_check_num_args):
+	Update for object-readelf-* wrappers to regex-style arguments (1..3).
+	* gcc.target/arm/lto/pr61123-enum-size_0.c: Update to use
+	object-readelf-attributes with a single regex.
+
+2026-04-27  Netanel Komm  <netanelkomm@gmail.com>
+
+	PR tree-optimization/93556
+	* gcc.dg/pr79223.c: Rename to gcc.dg/pr79223-1.c and update scans.
+	* gcc.dg/tree-prof/val-prof-7.c: Rename to
+	gcc.dg/tree-prof/val-prof-7-1.c and update scans.
+	* gcc.dg/tree-ssa/builtins-folding-gimple-3.c: Update scans.
+	* gcc.dg/builtin-mempcpy-1.c: New test.
+	* gcc.dg/builtin-mempcpy-2.c: New test.
+	* gcc.dg/pr79223-2.c: New test.
+	* gcc.dg/tree-prof/val-prof-7-2.c: New test.
+	* gcc.dg/tree-ssa/builtins-folding-gimple-4.c: New test.
+	* gcc.dg/pr79223-1.c: New file.
+	* gcc.dg/tree-prof/val-prof-7-1.c: New file.
+
+2026-04-27  Jakub Jelinek  <jakub@redhat.com>
+
+	PR tree-optimization/124988
+	* gcc.dg/torture/bitint-95.c: Add bitint effective targets and
+	guard parts of test which need _BitInt(192) support with
+	__BITINT_MAXWIDTH__ >= 192.
+
+2026-04-27  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/125025
+	* gcc.dg/torture/pr125025.c: New testcase.
+
+2026-04-27  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/125019
+	* gcc.dg/pr125019.c: New testcase.
+
 2026-04-26  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
 
 	PR tree-optimization/110262
