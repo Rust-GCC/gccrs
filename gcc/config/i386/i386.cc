@@ -2745,7 +2745,7 @@ classify_argument (machine_mode mode, const_tree type,
    class.  Return true iff parameter should be passed in memory.  */
 
 static bool
-examine_argument (machine_mode mode, const_tree type, int in_return,
+examine_argument (machine_mode mode, const_tree type, bool in_return,
 		  int *int_nregs, int *sse_nregs)
 {
   enum x86_64_reg_class regclass[MAX_CLASSES];
@@ -2790,8 +2790,8 @@ examine_argument (machine_mode mode, const_tree type, int in_return,
 
 static rtx
 construct_container (machine_mode mode, machine_mode orig_mode,
-		     const_tree type, int in_return, int nintregs, int nsseregs,
-		     const int *intreg, int sse_regno)
+		     const_tree type, bool in_return, int nintregs,
+		     int nsseregs, const int *intreg, int sse_regno)
 {
   /* The following variables hold the static issued_error state.  */
   static bool issued_sse_arg_error;
@@ -2809,12 +2809,10 @@ construct_container (machine_mode mode, machine_mode orig_mode,
   rtx exp[MAX_CLASSES];
   rtx ret;
 
-  n = classify_argument (mode, type, regclass, 0);
-  if (!n)
-    return NULL;
   if (examine_argument (mode, type, in_return, &needed_intregs,
 			&needed_sseregs))
     return NULL;
+
   if (needed_intregs > nintregs || needed_sseregs > nsseregs)
     return NULL;
 
@@ -2848,6 +2846,9 @@ construct_container (machine_mode mode, machine_mode orig_mode,
 	}
       return NULL;
     }
+
+  n = classify_argument (mode, type, regclass, 0);
+  gcc_assert (n);
 
   /* Likewise, error if the ABI requires us to return values in the
      x87 registers and the user specified -mno-80387.  */
@@ -3211,7 +3212,7 @@ function_arg_advance_64 (CUMULATIVE_ARGS *cum, machine_mode mode,
 		 || VALID_AVX256_REG_MODE (mode)))
     return 0;
 
-  if (!examine_argument (mode, type, 0, &int_nregs, &sse_nregs)
+  if (!examine_argument (mode, type, false, &int_nregs, &sse_nregs)
       && sse_nregs <= cum->sse_nregs && int_nregs <= cum->nregs)
     {
       cum->nregs -= int_nregs;
@@ -3491,8 +3492,8 @@ function_arg_64 (const CUMULATIVE_ARGS *cum, machine_mode mode,
   else
     parm_regs = x86_64_int_parameter_registers;
 
-  return construct_container (mode, orig_mode, type, 0, cum->nregs,
-			      cum->sse_nregs,
+  return construct_container (mode, orig_mode, type, false,
+			      cum->nregs, cum->sse_nregs,
 			      &parm_regs[cum->regno],
 			      cum->sse_regno);
 }
@@ -4308,7 +4309,7 @@ function_value_64 (machine_mode orig_mode, machine_mode mode,
       mode = word_mode;
     }
 
-  ret = construct_container (mode, orig_mode, valtype, 1,
+  ret = construct_container (mode, orig_mode, valtype, true,
 			     X86_64_REGPARM_MAX, X86_64_SSE_REGPARM_MAX,
 			     x86_64_int_return_registers, 0);
 
@@ -4475,7 +4476,7 @@ ix86_return_in_memory (const_tree type, const_tree fntype ATTRIBUTE_UNUSED)
 	{
 	  int needed_intregs, needed_sseregs;
 
-	  return examine_argument (mode, type, 1,
+	  return examine_argument (mode, type, true,
 				   &needed_intregs, &needed_sseregs);
 	}
     }
@@ -5005,9 +5006,8 @@ ix86_gimplify_va_arg (tree valist, tree type, gimple_seq *pre_p,
 
     default:
       container = construct_container (nat_mode, TYPE_MODE (type),
-				       type, 0, X86_64_REGPARM_MAX,
-				       X86_64_SSE_REGPARM_MAX, intreg,
-				       0);
+				       type, false, X86_64_REGPARM_MAX,
+				       X86_64_SSE_REGPARM_MAX, intreg, 0);
       break;
     }
 
@@ -5025,7 +5025,8 @@ ix86_gimplify_va_arg (tree valist, tree type, gimple_seq *pre_p,
       lab_false = create_artificial_label (UNKNOWN_LOCATION);
       lab_over = create_artificial_label (UNKNOWN_LOCATION);
 
-      examine_argument (nat_mode, type, 0, &needed_intregs, &needed_sseregs);
+      examine_argument (nat_mode, type, false,
+			&needed_intregs, &needed_sseregs);
 
       bool container_in_reg = false;
       if (REG_P (container))
