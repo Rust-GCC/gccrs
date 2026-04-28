@@ -36,6 +36,7 @@
 #include <memory>     // atomic<shared_ptr<T>>
 #include <mutex>      // mutex
 #include <iomanip>    // quoted
+#include <span>
 #if defined __GTHREADS && ! defined _GLIBCXX_HAS_GTHREADS
 # include <ext/concurrence.h> // __gnu_cxx::__mutex
 #endif
@@ -196,6 +197,9 @@ namespace std::chrono
     static const tzdb& _S_replace_head(shared_ptr<_Node>, shared_ptr<_Node>);
 
     static pair<vector<leap_second>, bool> _S_read_leap_seconds();
+
+    // This is here because _Node is a friend so can call private constructor.
+    static const leap_second fixed_leaps[];
   };
 
   // Implementation of the private constructor used for the singleton object.
@@ -1251,56 +1255,168 @@ namespace std::chrono
   }
 #endif // TZDB_DISABLED
 
+// These are the same values as the array in the <chrono> header, but might
+// contain additional leap seconds if the libstdc++.so used at runtime is
+// newer than the <chrono> header used to compile parts of the application.
+constexpr leap_second tzdb_list::_Node::fixed_leaps[] {
+#define LS leap_second
+  LS(  78796800), // 1 Jul 1972
+  LS(  94694400), // 1 Jan 1973
+  LS( 126230400), // 1 Jan 1974
+  LS( 157766400), // 1 Jan 1975
+  LS( 189302400), // 1 Jan 1976
+  LS( 220924800), // 1 Jan 1977
+  LS( 252460800), // 1 Jan 1978
+  LS( 283996800), // 1 Jan 1979
+  LS( 315532800), // 1 Jan 1980
+  LS( 362793600), // 1 Jul 1981
+  LS( 394329600), // 1 Jul 1982
+  LS( 425865600), // 1 Jul 1983
+  LS( 489024000), // 1 Jul 1985
+  LS( 567993600), // 1 Jan 1988
+  LS( 631152000), // 1 Jan 1990
+  LS( 662688000), // 1 Jan 1991
+  LS( 709948800), // 1 Jul 1992
+  LS( 741484800), // 1 Jul 1993
+  LS( 773020800), // 1 Jul 1994
+  LS( 820454400), // 1 Jan 1996
+  LS( 867715200), // 1 Jul 1997
+  LS( 915148800), // 1 Jan 1999
+  LS(1136073600), // 1 Jan 2006
+  LS(1230768000), // 1 Jan 2009
+  LS(1341100800), // 1 Jul 2012
+  LS(1435708800), // 1 Jul 2015
+  LS(1483228800), // 1 Jan 2017
+  // If new leap seconds get defined they should be added here.
+  // Negative leap seconds are represented as -1 * timestamp.
+#undef LS
+};
+
+namespace
+{
+  // The expiry date corresponding to the list above.
+  // tzdata 2026a leapseconds list expires at 2026-12-28 00:00:00 UTC
+  constexpr seconds fixed_expiry{1798416000u};
+
+  // This holds the most up-to-date number of leap seconds known at runtime.
+  // Initially zero, updated when _S_read_leap_seconds() is called.
+  constinit atomic<unsigned> num_leap_seconds{0};
+}
+
+  namespace __detail
+  {
+    // Called by chrono::__detail::__get_leap_second_info in <chrono>
+    // to get leap_second_info for times after the expiry date in the header.
+    // The caller provides the time being queried in `info.elapsed` and
+    // whether that is a UTC time in `info.is_leap_second`.
+    // If it returns true, this function did the lookup and updated `info`.
+    // If this returns false, it means the hardcoded list of leap seconds
+    // in the header should be used for the lookup.
+    bool
+    __recent_leap_second_info(leap_second_info& info,
+			      unsigned num_positive_leaps)
+    {
+      // Extract the input args from info:
+      const auto [is_utc, secs] = info;
+      // And then reuse info for the output result:
+      info.is_leap_second = false;
+      info.elapsed = seconds(num_positive_leaps);
+
+      auto update_info = [&](span<const leap_second> leaps)
+      {
+	if (leaps.size() == num_positive_leaps)
+	  return false; // No new leap seconds, use the array in the header.
+
+	// info.elapsed already contains the first N leap seconds,
+	// so we only search the end of the span.
+	auto first = leaps.begin() + num_positive_leaps;
+	auto pos = std::upper_bound(first, leaps.end(), sys_seconds(secs));
+	for (auto i = first; i != pos; ++i)
+	  info.elapsed += i->value();
+
+	if (is_utc)
+	  {
+	    // This should never happen, but check it so that pos[-1] is valid:
+	    if (num_positive_leaps == 0) [[unlikely]]
+	      return false;
+
+	    // Convert utc_time to sys_time:
+	    sys_seconds ss(secs - info.elapsed);
+	    // See if that sys_time is before (or during) previous leap sec:
+	    if (ss < pos[-1])
+	      {
+		if ((ss + 1s) >= pos[-1])
+		  info.is_leap_second = true;
+		else
+		  info.elapsed -= pos[-1].value();
+	      }
+	  }
+	return true;
+      };
+
+      using _Node = tzdb_list::_Node;
+
+      // If the caller was compiled using an older GCC with an older expiry
+      // time in the header than the `fixed_expiry` defined above, we might
+      // be able to answer the query easily using the static `fixed_leaps`.
+      if (secs <= fixed_expiry)
+	return update_info(_Node::fixed_leaps);
+
+      constexpr auto num_fixed_leaps = std::size(_Node::fixed_leaps);
+
+      auto num_leaps = num_leap_seconds.load(memory_order::relaxed);
+      if (num_leaps == num_fixed_leaps)
+	// A leapseconds file has been read and has no new leap seconds:
+	return update_info(_Node::fixed_leaps);
+      else if (num_leaps != 0)
+	// The tzdb_list has been initialized and contains a tzdb object
+	// with new leap seconds, which we want to use here.
+	// The relaxed load above does not synchronize with anything, so to
+	// ensure that the get_tzdb_list() below will see a tzdb object set
+	// by _S_replace_head, we load num_leap_seconds again with acquire
+	// ordering:
+	(void) num_leap_seconds.load(memory_order::acquire);
+      else
+	{
+	  // The tzdb_list has not been initialized yet, so we don't know
+	  // the correct number of leap seconds.
+	  // We use _S_read_leap_seconds() to read the leapseconds file.
+	  // If that tells us there are no new leapseconds, we don't need
+	  // to parse all of tzdata.zi and initialize a whole tzdb object.
+	  if (_Node::_S_read_leap_seconds().first.size() == num_fixed_leaps)
+	    {
+	      // There are no new leap seconds. remember that so that the next
+	      // call to this function can just use fixed_leaps.
+	      num_leap_seconds.compare_exchange_strong(num_leaps,
+						       num_fixed_leaps,
+						       memory_order::relaxed);
+	      return update_info(_Node::fixed_leaps);
+	    }
+	  // else there are new leap seconds. We init tzdb_list so that the
+	  // new leap seconds are persisted in a tzdb object.
+	}
+
+      // Use updated leap_seconds from tzdb.
+      return update_info(get_tzdb_list().begin()->leap_seconds);
+    }
+  }
+
   // Return leap_second values, and a bool indicating whether the values are
   // current (true), or potentially out of date (false).
   pair<vector<leap_second>, bool>
   tzdb_list::_Node::_S_read_leap_seconds()
   {
-    // This list is valid until at least 2026-12-28 00:00:00 UTC.
-    constexpr auto expires = sys_days{2026y/12/28};
-    vector<leap_second> leaps
-    {
-      (leap_second)  78796800, // 1 Jul 1972
-      (leap_second)  94694400, // 1 Jan 1973
-      (leap_second) 126230400, // 1 Jan 1974
-      (leap_second) 157766400, // 1 Jan 1975
-      (leap_second) 189302400, // 1 Jan 1976
-      (leap_second) 220924800, // 1 Jan 1977
-      (leap_second) 252460800, // 1 Jan 1978
-      (leap_second) 283996800, // 1 Jan 1979
-      (leap_second) 315532800, // 1 Jan 1980
-      (leap_second) 362793600, // 1 Jul 1981
-      (leap_second) 394329600, // 1 Jul 1982
-      (leap_second) 425865600, // 1 Jul 1983
-      (leap_second) 489024000, // 1 Jul 1985
-      (leap_second) 567993600, // 1 Jan 1988
-      (leap_second) 631152000, // 1 Jan 1990
-      (leap_second) 662688000, // 1 Jan 1991
-      (leap_second) 709948800, // 1 Jul 1992
-      (leap_second) 741484800, // 1 Jul 1993
-      (leap_second) 773020800, // 1 Jul 1994
-      (leap_second) 820454400, // 1 Jan 1996
-      (leap_second) 867715200, // 1 Jul 1997
-      (leap_second) 915148800, // 1 Jan 1999
-      (leap_second)1136073600, // 1 Jan 2006
-      (leap_second)1230768000, // 1 Jan 2009
-      (leap_second)1341100800, // 1 Jul 2012
-      (leap_second)1435708800, // 1 Jul 2015
-      (leap_second)1483228800, // 1 Jan 2017
-    };
+    // Populate the vector with the leap seconds we already know about:
+    vector<leap_second> leaps(fixed_leaps, std::end(fixed_leaps));
 
-#if 0
-    // This optimization isn't valid if the file has additional leap seconds
-    // defined since the library was compiled, but the system clock has been
-    // set to a time before the hardcoded expiration date.
-    if (system_clock::now() < expires)
-      return {std::move(leaps), true};
-#endif
+    bool read_leaps_file = false;
 
 #ifndef TZDB_DISABLED
     if (ifstream ls{zoneinfo_file(leaps_file)})
       {
-	auto exp_year = year_month_day(expires).year();
+	constexpr year exp_year
+	  = year_month_day(sys_days(duration_cast<days>(fixed_expiry))).year();
+
 	std::string s, w;
 	s.reserve(80); // Avoid later reallocations.
 	while (std::getline(ls, s))
@@ -1309,6 +1425,7 @@ namespace std::chrono
 
 	    if (!s.starts_with("Leap"))
 	      continue;
+
 	    istringstream li(std::move(s));
 	    li.exceptions(ios::failbit);
 	    li.ignore(4);
@@ -1339,12 +1456,14 @@ namespace std::chrono
 		      leaps.push_back(ls);
 		  }
 	      }
-	    s = std::move(li).str(); // return storage to s
+	    s = std::move(li).str(); // give allocated storage back to s
 	  }
-	return {std::move(leaps), true};
+
+	read_leaps_file = true;
       }
 #endif
-    return {std::move(leaps), false};
+
+    return {std::move(leaps), read_leaps_file};
   }
 
 #ifndef TZDB_DISABLED
@@ -1413,6 +1532,13 @@ namespace std::chrono
     _S_head_owner = std::move(new_head);
 #endif
     _S_cache_list_head(new_head_ptr);
+
+    // This allows __recent_leap_second_info() to know that it can use
+    // get_tzdb_list()->begin()->leap_seconds to get new leap seconds.
+    // The release op here synchronizes with the acquire op there.
+    num_leap_seconds.store(new_head_ptr->db.leap_seconds.size(),
+			   memory_order::release);
+
     return new_head_ptr->db;
   }
 

@@ -2623,6 +2623,13 @@ GLIBCXX_3.4.35 {
 
 } GLIBCXX_3.4.34;
 
+# GCC 17.1.0
+GLIBCXX_3.4.36 {
+
+    _ZNSt6chrono8__detail25__recent_leap_second_infoERNS_16leap_second_infoEj;
+
+} GLIBCXX_3.4.35;
+
 # Symbols in the support library (libsupc++) have their own tag.
 CXXABI_1.3 {
 
