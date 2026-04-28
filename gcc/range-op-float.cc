@@ -759,6 +759,9 @@ operator_not_equal::fold_range (irange &r, tree type,
       // Avoid frelop_early_resolve() below as it could fold to FALSE
       // without regards to NANs.  This would be incorrect if trying
       // to fold x_5 != x_5 without prior knowledge of NANs.
+      // Still, if either operand is undefined, return VARYING.
+      if (empty_range_varying (r, type, op1, op2))
+	return true;
     }
   else if (frelop_early_resolve (r, type, op1, op2, trio, VREL_NE))
     return true;
