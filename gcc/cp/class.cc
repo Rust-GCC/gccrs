@@ -167,6 +167,7 @@ static int maybe_indent_hierarchy (FILE *, int, int);
 static tree dump_class_hierarchy_r (FILE *, dump_flags_t, tree, tree, int);
 static void dump_class_hierarchy (tree);
 static void dump_class_hierarchy_1 (FILE *, dump_flags_t, tree);
+static void dump_vtable_entry (FILE *, tree);
 static void dump_array (FILE *, tree);
 static void dump_vtable (tree, tree, tree);
 static void dump_vtt (tree, tree);
@@ -9762,7 +9763,7 @@ dump_class_hierarchy_r (FILE *stream,
   tree base_binfo;
   int i;
 
-  fprintf (stream, "%s (0x" HOST_WIDE_INT_PRINT_HEX ") ",
+  fprintf (stream, "%s (" HOST_WIDE_INT_PRINT_HEX ") ",
 	   type_as_string (BINFO_TYPE (binfo), TFF_PLAIN_IDENTIFIER),
 	   (HOST_WIDE_INT) (uintptr_t) binfo);
   if (binfo != igo)
@@ -9785,7 +9786,7 @@ dump_class_hierarchy_r (FILE *stream,
   if (BINFO_PRIMARY_P (binfo))
     {
       indented = maybe_indent_hierarchy (stream, indent + 3, indented);
-      fprintf (stream, " primary-for %s (0x" HOST_WIDE_INT_PRINT_HEX ")",
+      fprintf (stream, " primary-for %s (" HOST_WIDE_INT_PRINT_HEX ")",
 	       type_as_string (BINFO_TYPE (BINFO_INHERITANCE_CHAIN (binfo)),
 			       TFF_PLAIN_IDENTIFIER),
 	       (HOST_WIDE_INT) (uintptr_t) BINFO_INHERITANCE_CHAIN (binfo));
@@ -9878,6 +9879,23 @@ dump_class_hierarchy (tree t)
     }
 }
 
+/* Dump VALUE, a vtable entry, to STREAM.  Print integer offsets as signed
+   values.  */
+
+static void
+dump_vtable_entry (FILE *stream, tree value)
+{
+  /* Vtable offset entries are stored in the pointer-sized vtable entry
+     type, but should be displayed as signed ptrdiff_t values.  */
+  tree cst = value;
+  STRIP_NOPS (cst);
+
+  if (TREE_CODE (cst) == INTEGER_CST)
+    print_decs (wi::to_wide (cst), stream);
+  else
+    fprintf (stream, "%s", expr_as_string (value, TFF_PLAIN_IDENTIFIER));
+}
+
 static void
 dump_array (FILE * stream, tree decl)
 {
@@ -9896,8 +9914,11 @@ dump_array (FILE * stream, tree decl)
 
   FOR_EACH_CONSTRUCTOR_VALUE (CONSTRUCTOR_ELTS (DECL_INITIAL (decl)),
 			      ix, value)
-    fprintf (stream, "%-4ld  %s\n", (long)(ix * elt),
-	     expr_as_string (value, TFF_PLAIN_IDENTIFIER));
+    {
+      fprintf (stream, "%-4ld  ", (long)(ix * elt));
+      dump_vtable_entry (stream, value);
+      fprintf (stream, "\n");
+    }
 }
 
 static void
@@ -9919,7 +9940,7 @@ dump_vtable (tree t, tree binfo, tree vtable)
       if (ctor_vtbl_p)
 	{
 	  if (!BINFO_VIRTUAL_P (binfo))
-	    fprintf (stream, " (0x" HOST_WIDE_INT_PRINT_HEX " instance)",
+	    fprintf (stream, " (" HOST_WIDE_INT_PRINT_HEX " instance)",
 		     (HOST_WIDE_INT) (uintptr_t) binfo);
 	  fprintf (stream, " in %s", type_as_string (t, TFF_PLAIN_IDENTIFIER));
 	}
