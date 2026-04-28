@@ -12558,6 +12558,12 @@ riscv_option_override (void)
 		       param_cycle_accurate_model,
 		       0);
 
+  /* Disable fold-mem-offsets when optimizing for size with compressed
+     instructions, as it conflicts with the shorten-memrefs pass.  */
+  if (optimize_size && (TARGET_RVC || TARGET_ZCA))
+    SET_OPTION_IF_UNSET (&global_options, &global_options_set,
+			 flag_fold_mem_offsets, 0);
+
   /* Function to allocate machine-dependent function status.  */
   init_machine_status = &riscv_init_machine_status;
 

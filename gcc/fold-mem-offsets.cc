@@ -878,12 +878,6 @@ pass_fold_mem_offsets::execute (function *fn)
   rtx_insn *insn;
   FOR_ALL_BB_FN (bb, fn)
     {
-      /* There is a conflict between this pass and RISCV's shorten-memrefs
-	 pass.  For now disable folding if optimizing for size because
-	 otherwise this cancels the effects of shorten-memrefs.  */
-      if (optimize_bb_for_size_p (bb))
-	continue;
-
       fold_info_map fold_info;
 
       bitmap_clear (&can_fold_insns);
