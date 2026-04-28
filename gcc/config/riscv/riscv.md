@@ -5130,6 +5130,48 @@
   operands[6] = gen_int_mode (rshift, QImode);
 }")
 
+;; EQ/NE of a sign bit splat against zero is just GE/LT 0, so we can
+;; recognize it directly.  Note there may be a subreg expression buried
+;; in there
+(define_insn "*sign_bit_splat_equality_test"
+  [(set (pc)
+	(if_then_else
+	 (any_eq
+	  (subreg:SI (ashiftrt:DI (match_operand:DI 1 "register_operand" "r")
+				  (const_int 63)) 0)
+	  (const_int 0))
+	 (label_ref (match_operand 0 "" ""))
+	 (pc)))]
+  "TARGET_64BIT"
+{
+  rtx x = PATTERN (insn);
+
+  /* We'll always have a SET, so it's safe to extract the source.  */
+  x = SET_SRC (x);
+
+  /* Get the condition of the IF_THEN_ELSE.  */
+  x = XEXP (x, 0);
+
+  if (GET_CODE (x) == EQ)
+    {
+      if (get_attr_length (insn) == 12)
+	return "blt\t%1,zero,1f; jump\t%l0,ra; 1:";
+      return "bge\t%1,zero,%l0";
+    }
+  else if (GET_CODE (x) == NE)
+    {
+      if (get_attr_length (insn) == 12)
+	return "bge\t%1,zero,1f; jump\t%l0,ra; 1:";
+      return "blt\t%1,zero,%l0";
+    }
+  else
+    gcc_unreachable ();
+}
+  [(set_attr "type" "branch")
+   (set_attr "mode" "none")])
+					
+	
+
 ;; Standard extensions and pattern for optimization
 (include "bitmanip.md")
 (include "crypto.md")
