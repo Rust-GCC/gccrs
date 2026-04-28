@@ -4715,7 +4715,7 @@ curr_insn_transform (bool check_only_p)
 	char c;
 	rtx op = *curr_id->operand_loc[i];
 	rtx subreg = NULL_RTX;
-	machine_mode mode = curr_operand_mode[i];
+	machine_mode op_mode = curr_operand_mode[i], mode = op_mode;
 
 	if (GET_CODE (op) == SUBREG)
 	  {
@@ -4733,7 +4733,7 @@ curr_insn_transform (bool check_only_p)
 
 	    change_p = true;
 	    if (subreg != NULL_RTX)
-	      tem = gen_rtx_SUBREG (mode, tem, SUBREG_BYTE (subreg));
+	      tem = gen_rtx_SUBREG (op_mode, tem, SUBREG_BYTE (subreg));
 
 	    *curr_id->operand_loc[i] = tem;
 	    lra_update_dup (curr_id, i);
