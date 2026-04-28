@@ -2819,8 +2819,8 @@ c_common_signed_or_unsigned_type (int unsignedp, tree type)
     return type;
 
   if (TREE_CODE (type) == BITINT_TYPE
-      /* signed _BitInt(1) is invalid, avoid creating that.  */
-      && (unsignedp || TYPE_PRECISION (type) > 1))
+      /* signed _BitInt(1) is invalid before C2Y, avoid creating that.  */
+      && (unsignedp || flag_isoc2y || TYPE_PRECISION (type) > 1))
     return build_bitint_type (TYPE_PRECISION (type), unsignedp);
 
 #define TYPE_OK(node)							    \
@@ -3961,8 +3961,10 @@ c_common_get_alias_set (tree t)
 	 TYPE_ALIAS_SET_KNOWN_P.  */
       if (TYPE_UNSIGNED (t))
 	{
-	  /* There is no signed _BitInt(1).  */
-	  if (TREE_CODE (t) == BITINT_TYPE && TYPE_PRECISION (t) == 1)
+	  /* There is no signed _BitInt(1) before C2Y.  */
+	  if (TREE_CODE (t) == BITINT_TYPE
+	      && !flag_isoc2y
+	      && TYPE_PRECISION (t) == 1)
 	    return -1;
 	  tree t1 = c_common_signed_type (t);
 	  gcc_checking_assert (t != t1);

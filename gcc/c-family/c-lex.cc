@@ -1076,7 +1076,7 @@ interpret_integer (const cpp_token *token, unsigned int flags,
 	}
 
       prec = wi::min_precision (wval, UNSIGNED);
-      if (prec == 0)
+      if (prec == 0 && ((flags & CPP_N_UNSIGNED) != 0 || !flag_isoc2y))
 	prec = 1;
       if ((flags & CPP_N_UNSIGNED) == 0)
 	++prec;

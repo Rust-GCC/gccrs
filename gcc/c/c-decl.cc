@@ -13651,10 +13651,11 @@ finish_declspecs (struct c_declspecs *specs)
     case cts_bitint:
       gcc_assert (!specs->long_p && !specs->short_p
 		  && !specs->complex_p);
-      if (!specs->unsigned_p && specs->u.bitint_prec == 1)
+      if (!specs->unsigned_p && specs->u.bitint_prec == 1 && !flag_isoc2y)
 	{
 	  error_at (specs->locations[cdw_typespec],
-		    "%<signed _BitInt%> argument must be at least 2");
+		    "%<signed _BitInt%> argument must be at least 2 "
+		    "before C2Y");
 	  specs->type = integer_type_node;
 	  break;
 	}
