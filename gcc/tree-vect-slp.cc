@@ -1799,7 +1799,8 @@ dt_sort_cmp (const void *op1_, const void *op2_, void *)
    filling CHAIN with the result and using WORKLIST as intermediate storage.
    CODE_STMT and ALT_CODE_STMT are filled with the first stmt using CODE
    or MINUS_EXPR.  *CHAIN_STMTS if not NULL is filled with all computation
-   stmts, starting with START.  */
+   stmts, starting with START.  When ALLOW_ALT_CODE is false, do not
+   follow into MINUS_EXPR when building a PLUS chain (treat MINUS as leaf).  */
 
 static void
 vect_slp_linearize_chain (vec_info *vinfo,
@@ -1807,7 +1808,8 @@ vect_slp_linearize_chain (vec_info *vinfo,
 			  vec<chain_op_t> &chain,
 			  enum tree_code code, gimple *start,
 			  gimple *&code_stmt, gimple *&alt_code_stmt,
-			  vec<gimple *> *chain_stmts)
+			  vec<gimple *> *chain_stmts,
+			  bool allow_alt_code = true)
 {
   /* For each lane linearize the addition/subtraction (or other
      uniform associatable operation) expression tree.  */
@@ -1843,7 +1845,8 @@ vect_slp_linearize_chain (vec_info *vinfo,
 	      && single_imm_use (op, &use_p, &use_stmt)
 	      && is_gimple_assign (def_stmt_info->stmt)
 	      && (gimple_assign_rhs_code (def_stmt_info->stmt) == code
-		  || (code == PLUS_EXPR
+		  || (allow_alt_code
+		      && code == PLUS_EXPR
 		      && (gimple_assign_rhs_code (def_stmt_info->stmt)
 			  == MINUS_EXPR))))
 	    {
@@ -9900,7 +9903,8 @@ vect_slp_check_for_roots (bb_vec_info bb_vinfo)
 	    continue;
 	  vect_slp_linearize_chain (bb_vinfo, worklist, chain, code, assign,
 				    /* ??? */
-				    code_stmt, alt_code_stmt, &chain_stmts);
+				    code_stmt, alt_code_stmt, &chain_stmts,
+				    false);
 	  if (chain.length () > 1)
 	    {
 	      /* Sort the chain according to def_type and operation.  */
