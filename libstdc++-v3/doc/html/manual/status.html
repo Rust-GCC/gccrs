@@ -1976,11 +1976,11 @@ or any notes about the implementation.
         <a class="link" href="https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2021/p2432r1.pdf" target="_top">
         P2432R1
         </a>
-      </td><td align="center"> 12.1 </td><td align="left"> </td></tr><tr bgcolor="#C8B0B0"><td align="left"> <code class="code">starts_with</code> and <code class="code">ends_with</code> </td><td align="left">
+      </td><td align="center"> 12.1 </td><td align="left"> </td></tr><tr><td align="left"> <code class="code">starts_with</code> and <code class="code">ends_with</code> </td><td align="left">
         <a class="link" href="https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2021/p1659r3.html" target="_top">
         P1659R3
         </a>
-      </td><td align="center"> </td><td align="left"> <code class="code">__cpp_lib_ranges_starts_ends_with &gt;= 202106L</code> </td></tr><tr><td align="left"> <code class="code">zip</code> </td><td align="left">
+      </td><td align="center"> 16.1 </td><td align="left"> <code class="code">__cpp_lib_ranges_starts_ends_with &gt;= 202106L</code> </td></tr><tr><td align="left"> <code class="code">zip</code> </td><td align="left">
         <a class="link" href="https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2021/p2321r2.html" target="_top">
         P2321R2
         </a>
@@ -2037,11 +2037,11 @@ or any notes about the implementation.
       </td><td align="left">
 	<code class="code">__cpp_lib_ranges_to_container &gt;= 202202L</code>,
 	<code class="code">__cpp_lib_containers_ranges &gt;= 202202L</code>
-      </td></tr><tr bgcolor="#C8B0B0"><td align="left"> Ranges iterators as inputs to non-Ranges algorithms </td><td align="left">
+      </td></tr><tr><td align="left"> Ranges iterators as inputs to non-Ranges algorithms </td><td align="left">
         <a class="link" href="https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2022/p2408r5.html" target="_top">
         P2408R5
         </a>
-      </td><td align="center"> </td><td align="left">
+      </td><td align="center"> 16.1 </td><td align="left">
 	<code class="code">__cpp_lib_algorithm_iterator_requirements &gt;= 202207L</code>
       </td></tr><tr><td align="left"> Pipe support for user-defined range adaptors </td><td align="left">
         <a class="link" href="https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2021/p2387r3.html" target="_top">
@@ -2050,14 +2050,16 @@ or any notes about the implementation.
       </td><td align="center"> 13.1 </td><td align="left">
 	<code class="code">__cpp_lib_bind_pack &gt;= 202202L</code>,
 	<code class="code">__cpp_lib_ranges &gt;= 202202L</code>
-      </td></tr><tr bgcolor="#B0B0B0"><td align="left">
+      </td></tr><tr><td align="left">
 	<code class="code">ranges::iota</code>, <code class="code">ranges::shift_left</code>,
         and <code class="code">ranges::shift_right</code>
       </td><td align="left">
         <a class="link" href="https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2021/p2440r1.html" target="_top">
         P2440R1
         </a>
-      </td><td align="center"> 13.1 (<code class="code">ranges::iota</code>) </td><td align="left">
+      </td><td align="center">
+	<div class="informaltable"><table class="informaltable" border="0"><colgroup><col /></colgroup><tbody><tr><td> 13.1 (<code class="code">ranges::iota</code>) </td></tr><tr><td> 16.1 (shift algos) </td></tr></tbody></table></div>
+      </td><td align="left">
 	<code class="code">__cpp_lib_ranges_iota &gt;= 202202L</code>,
 	<code class="code">__cpp_lib_shift &gt;= 202202L</code>
       </td></tr><tr><td align="left"> <code class="code">ranges::find_last</code> </td><td align="left">
@@ -2068,11 +2070,11 @@ or any notes about the implementation.
         <a class="link" href="https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2022/p2302r4.html" target="_top">
         P2302R4
         </a>
-      </td><td align="center"> 13.1 </td><td align="left"> <code class="code">__cpp_lib_ranges_contains &gt;= 202207L</code> </td></tr><tr bgcolor="#C8B0B0"><td align="left"> Making multi-param constructors of views explicit </td><td align="left">
+      </td><td align="center"> 13.1 </td><td align="left"> <code class="code">__cpp_lib_ranges_contains &gt;= 202207L</code> </td></tr><tr><td align="left"> Making multi-param constructors of views explicit </td><td align="left">
         <a class="link" href="https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2022/p2711r1.html" target="_top">
         P2711R1
         </a>
-      </td><td align="center"> </td><td align="left"> </td></tr><tr><td align="left"> <code class="code">ranges::fold</code> </td><td align="left">
+      </td><td align="center"> 16.1 </td><td align="left"> </td></tr><tr><td align="left"> <code class="code">ranges::fold</code> </td><td align="left">
         <a class="link" href="https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2022/p2322r6.html" target="_top">
         P2322R6
         </a>
@@ -2120,25 +2122,25 @@ or any notes about the implementation.
         </a>
       </td><td align="center">
 	<div class="informaltable"><table class="informaltable" border="0"><colgroup><col /></colgroup><tbody><tr><td> 13.1 (missing changes to <code class="code">std::tuple</code>) </td></tr><tr><td> 14.1 (complete) </td></tr></tbody></table></div>
-      </td><td align="left"> <code class="code">__cpp_lib_reference_from_temporary &gt;= 202202L</code> </td></tr><tr bgcolor="#C8B0B0"><td align="left">
+      </td><td align="left"> <code class="code">__cpp_lib_reference_from_temporary &gt;= 202202L</code> </td></tr><tr><td align="left">
         Move-only types for equality_comparable_with, totally_ordered_with,
 	and three_way_comparable_with
       </td><td align="left">
         <a class="link" href="https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2022/p2404r3.pdf" target="_top">
         P2404R3
         </a>
-      </td><td align="center"> </td><td align="left"> <code class="code">__cpp_lib_concepts &gt;= 202207L</code> </td></tr><tr bgcolor="#C8B0B0"><td align="left"> A trait for implicit lifetime types </td><td align="left">
+      </td><td align="center"> 16.1 </td><td align="left"> <code class="code">__cpp_lib_concepts &gt;= 202207L</code> </td></tr><tr><td align="left"> A trait for implicit lifetime types </td><td align="left">
         <a class="link" href="https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2022/p2674r1.pdf" target="_top">
         P2674R1
         </a>
-      </td><td align="center"> </td><td align="left"> <code class="code">__cpp_lib_is_implicit_lifetime &gt;= 202302L</code> </td></tr><tr bgcolor="#C8B0B0"><td align="left">
+      </td><td align="center"> 16.1 </td><td align="left"> <code class="code">__cpp_lib_is_implicit_lifetime &gt;= 202302L</code> </td></tr><tr><td align="left">
 	<code class="code">common_reference_t</code> of <code class="code">reference_wrapper</code>
 	Should Be a Reference Type
       </td><td align="left">
         <a class="link" href="https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2023/p2655r3.html" target="_top">
         P2655R3
         </a>
-      </td><td align="center"> </td><td align="left"> <code class="code">__cpp_lib_common_reference &gt;= 202302L</code> </td></tr><tr bgcolor="#C8B0B0"><td align="left"> Deprecate <code class="code">numeric_limits::has_denorm</code> </td><td align="left">
+      </td><td align="center"> 15.3 </td><td align="left"> <code class="code">__cpp_lib_common_reference &gt;= 202302L</code> </td></tr><tr bgcolor="#C8B0B0"><td align="left"> Deprecate <code class="code">numeric_limits::has_denorm</code> </td><td align="left">
         <a class="link" href="https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2022/p2614r2.pdf" target="_top">
         P2614R2
         </a>
@@ -2152,11 +2154,11 @@ or any notes about the implementation.
         <a class="link" href="https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2021/p1518r2.html" target="_top">
         P1518R2
         </a>
-      </td><td align="center"> 12.1 </td><td align="left"> </td></tr><tr bgcolor="#C8B0B0"><td align="left"> Heterogeneous erasure overloads for associative containers </td><td align="left">
+      </td><td align="center"> 12.1 </td><td align="left"> </td></tr><tr><td align="left"> Heterogeneous erasure overloads for associative containers </td><td align="left">
         <a class="link" href="https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2021/p2077r3.html" target="_top">
         P2077R3
         </a>
-      </td><td align="center"> </td><td align="left"> <code class="code">__cpp_lib_associative_heterogeneous_erasure &gt;= 202110L</code> </td></tr><tr><td align="left"> <code class="code">&lt;flat_map&gt;</code> </td><td align="left">
+      </td><td align="center"> 16.1 </td><td align="left"> <code class="code">__cpp_lib_associative_heterogeneous_erasure &gt;= 202110L</code> </td></tr><tr><td align="left"> <code class="code">&lt;flat_map&gt;</code> </td><td align="left">
         <a class="link" href="https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2022/p0429r9.pdf" target="_top">
         P0429R9
         </a>
@@ -2164,35 +2166,35 @@ or any notes about the implementation.
         <a class="link" href="https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2022/p1222r4.pdf" target="_top">
         P1222R4
         </a>
-      </td><td align="center"> 15.1 </td><td align="left"> <code class="code">__cpp_lib_flat_set &gt;= 202207L</code> </td></tr><tr bgcolor="#C8B0B0"><td align="left"> <code class="code">mdspan</code> </td><td align="left">
+      </td><td align="center"> 15.1 </td><td align="left"> <code class="code">__cpp_lib_flat_set &gt;= 202207L</code> </td></tr><tr><td align="left"> <code class="code">mdspan</code> </td><td align="left">
         <a class="link" href="https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2022/p0009r18.html" target="_top">
         P0009R18
         </a>
-      </td><td align="center"> </td><td align="left"> <code class="code">__cpp_lib_mdspan &gt;= 202207L</code> </td></tr><tr bgcolor="#C8B0B0"><td align="left">
+      </td><td align="center"> 16.1 </td><td align="left"> <code class="code">__cpp_lib_mdspan &gt;= 202207L</code> </td></tr><tr><td align="left">
 	<code class="code">index_type</code> &amp; <code class="code">size_type</code>
 	in <code class="code">mdspan</code>
       </td><td align="left">
         <a class="link" href="https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2022/p2599r2.pdf" target="_top">
         P2599R2
         </a>
-      </td><td align="center"> </td><td align="left"> <code class="code">__cpp_lib_mdspan &gt;= 202207L</code> </td></tr><tr bgcolor="#C8B0B0"><td align="left">
+      </td><td align="center"> 16.1 </td><td align="left"> <code class="code">__cpp_lib_mdspan &gt;= 202207L</code> </td></tr><tr><td align="left">
 	<code class="code">mdspan</code>: rename <code class="code">pointer</code> and
 	<code class="code">contiguous</code>
       </td><td align="left">
         <a class="link" href="https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2022/p2604r0.html" target="_top">
         P2604R0
         </a>
-      </td><td align="center"> </td><td align="left"> <code class="code">__cpp_lib_mdspan &gt;= 202207L</code> </td></tr><tr bgcolor="#C8B0B0"><td align="left"> Add the missing <code class="code">empty</code> to <code class="code">mdspan</code> </td><td align="left">
+      </td><td align="center"> 16.1 </td><td align="left"> <code class="code">__cpp_lib_mdspan &gt;= 202207L</code> </td></tr><tr><td align="left"> Add the missing <code class="code">empty</code> to <code class="code">mdspan</code> </td><td align="left">
         <a class="link" href="https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2022/p2613r1.html" target="_top">
         P2613R1
         </a>
-      </td><td align="center"> </td><td align="left"> <code class="code">__cpp_lib_mdspan &gt;= 202207L</code> </td></tr><tr bgcolor="#C8B0B0"><td align="left">
+      </td><td align="center"> 16.1 </td><td align="left"> <code class="code">__cpp_lib_mdspan &gt;= 202207L</code> </td></tr><tr><td align="left">
 	<code class="code">layout_stride</code> static extents default constructor fix
       </td><td align="left">
         <a class="link" href="https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2023/p2763r1.html" target="_top">
         P2763R1
         </a>
-      </td><td align="center"> </td><td align="left"> </td></tr><tr><td colspan="4" align="left">
+      </td><td align="center"> 16.1 </td><td align="left"> </td></tr><tr><td colspan="4" align="left">
         <span class="bold"><strong>Strings and text</strong></span>
       </td></tr><tr><td align="left"> string contains function </td><td align="left">
         <a class="link" href="https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2020/p1679r3.html" target="_top">
@@ -2210,7 +2212,7 @@ or any notes about the implementation.
         <a class="link" href="https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2021/p0448r4.pdf" target="_top">
         P0448R4
         </a>
-      </td><td align="center"> 12.1 </td><td align="left"> <code class="code">__cpp_lib_spanstream &gt;= 202106L</code> </td></tr><tr bgcolor="#C8B0B0"><td align="left"> <code class="code"> std::string::substr() &amp;&amp; </code> </td><td align="left">
+      </td><td align="center"> 12.1 </td><td align="left"> <code class="code">__cpp_lib_spanstream &gt;= 202106L</code> </td></tr><tr><td align="left"> <code class="code"> std::string::substr() &amp;&amp; </code> </td><td align="left">
         <a class="link" href="https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2022/p2438r2.html" target="_top">
         P2438R2
         </a>
@@ -2368,28 +2370,28 @@ or any notes about the implementation.
         <a class="link" href="https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2022/p1642r11.html" target="_top">
         P1642R11
         </a>
-      </td><td align="center"> 13.1 </td><td align="left"> </td></tr><tr bgcolor="#C8B0B0"><td align="left"> Providing size feedback in the Allocator interface </td><td align="left">
+      </td><td align="center"> 13.1 </td><td align="left"> </td></tr><tr><td align="left"> Providing size feedback in the Allocator interface </td><td align="left">
         <a class="link" href="https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2021/p0401r6.html" target="_top">
         P0401R6
         </a>
-      </td><td align="center"> </td><td align="left"> <code class="code">__cpp_lib_allocate_at_least &gt;= 202306L</code> </td></tr><tr bgcolor="#C8B0B0"><td align="left">
+      </td><td align="center"> 16.1 </td><td align="left"> <code class="code">__cpp_lib_allocate_at_least &gt;= 202306L</code> </td></tr><tr bgcolor="#C8B0B0"><td align="left">
 	Disallow User Specialization of <code class="code">allocator_traits</code>
       </td><td align="left">
         <a class="link" href="https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2023/p2652r2.html" target="_top">
         P2652R2
         </a>
-      </td><td align="center"> </td><td align="left"> </td></tr><tr bgcolor="#C8B0B0"><td align="left"> Explicit lifetime management </td><td align="left">
+      </td><td align="center"> </td><td align="left"> </td></tr><tr><td align="left"> Explicit lifetime management </td><td align="left">
         <a class="link" href="https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2022/p2590r2.pdf" target="_top">
         P2590R2
         </a>
-      </td><td align="center"> </td><td align="left"> <code class="code">__cpp_lib_start_lifetime_as &gt;= 202207L</code> </td></tr><tr bgcolor="#C8B0B0"><td align="left">
+      </td><td align="center"> 16.1 </td><td align="left"> <code class="code">__cpp_lib_start_lifetime_as &gt;= 202207L</code> </td></tr><tr><td align="left">
 	Fixing <code class="code">std::start_lifetime_as</code> and
 	<code class="code">std::start_lifetime_as_array</code>
       </td><td align="left">
         <a class="link" href="https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2023/p2679r2.pdf" target="_top">
         P2679R2
         </a>
-      </td><td align="center"> </td><td align="left"> </td></tr><tr><td align="left"> out_ptr - a scalable output pointer abstraction </td><td align="left">
+      </td><td align="center"> 16.1 </td><td align="left"> </td></tr><tr><td align="left"> out_ptr - a scalable output pointer abstraction </td><td align="left">
         <a class="link" href="https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2021/p1132r8.html" target="_top">
         P1132R8
         </a>
