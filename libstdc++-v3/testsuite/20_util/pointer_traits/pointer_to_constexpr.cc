@@ -24,3 +24,17 @@ static_assert( std::pointer_traits<int*>::pointer_to(i) == &i );
 
 struct X { } x;
 static_assert( std::pointer_traits<X*>::pointer_to(x) == &x );
+
+template<typename T>
+struct Ptr
+{
+  T* value;
+
+  constexpr static Ptr
+  pointer_to(T& t) { return Ptr{&t}; }
+
+  friend bool operator==(Ptr, Ptr) = default;
+};
+
+static_assert( std::pointer_traits<Ptr<int>>::pointer_to(i) == Ptr<int>{&i} );
+static_assert( std::pointer_traits<Ptr<X>>::pointer_to(x) == Ptr<X>{&x} );

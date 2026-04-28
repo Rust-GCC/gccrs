@@ -97,13 +97,15 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       using pointer = _Ptr;
       using element_type = _Elt;
 
+      // _GLIBCXX_RESOLVE_LIB_DEFECTS
+      // 3454. pointer_traits::pointer_to should be constexpr
       /**
        *  @brief  Obtain a pointer to an object
        *  @param  __r  A reference to an object of type `element_type`
        *  @return `pointer::pointer_to(__r)`
        *  @pre `pointer::pointer_to(__r)` is a valid expression.
       */
-      static pointer
+      static _GLIBCXX20_CONSTEXPR pointer
       pointer_to(element_type& __r)
 #if __cpp_lib_concepts
       requires requires {
