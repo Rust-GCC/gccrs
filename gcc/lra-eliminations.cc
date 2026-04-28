@@ -801,7 +801,7 @@ mark_not_eliminable (rtx x, machine_mode mem_mode)
 	    curr_sp_change += offset;
 	}
       else if (REG_P (XEXP (x, 0))
-	       && REGNO (XEXP (x, 0)) >= FIRST_PSEUDO_REGISTER)
+	       && REGNO (XEXP (x, 0)) < FIRST_PSEUDO_REGISTER)
 	{
 	  /* If we modify the source of an elimination rule, disable
 	     it.  Do the same if it is the destination and not the
