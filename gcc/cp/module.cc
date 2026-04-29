@@ -12159,6 +12159,20 @@ check_mergeable_decl (merge_kind mk, tree decl, tree ovl, merge_key const &key)
 			   == key.ret))
 		found = match;
 	    }
+	  /* With -freflection, typedef struct { } A is now represented the same
+	     as typedef struct A_ { } A except the TYPE_DECL for A_ is invisible
+	     to name lookup, so we won't be able to find and match it directly.
+	     But we will find the in-TU A (m_inner), through which we can obtain
+	     the in-TU A_ when d_inner is the streamed-in A_.  */
+	  else if (flag_reflection
+		   && TYPE_DECL_WAS_UNNAMED (d_inner)
+		   && DECL_ORIGINAL_TYPE (m_inner))
+	    {
+	      tree orig = TYPE_NAME (DECL_ORIGINAL_TYPE (m_inner));
+	      if (TYPE_DECL_WAS_UNNAMED (orig)
+		  && DECL_NAME (orig) == DECL_NAME (d_inner))
+		found = orig;
+	    }
 	  break;
 
 	default:
