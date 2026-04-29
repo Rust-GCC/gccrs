@@ -148,4 +148,16 @@ namespace std {
       return ao;
     }
   };
+  void sed (int __ap) {
+    auto __aq = [] (int ar) {};		// { dg-message "note: non-uglified name 'ar'" }
+    auto __as = [at = __ap] () {};	// { dg-message "note: non-uglified name 'at'" }
+  }
+  template <typename _Tp>
+  concept eiusmod = requires (_Tp au) {	// { dg-message "note: non-uglified name 'au'" }
+    au++;
+  };
+  template <typename ..._Tp>
+  requires ((requires (const _Tp av) {	// { dg-message "note: non-uglified name 'av'" }
+    av++; }) && ...)
+  void tempor (_Tp ...aw) {}		// { dg-message "note: non-uglified name 'aw'" }
 }

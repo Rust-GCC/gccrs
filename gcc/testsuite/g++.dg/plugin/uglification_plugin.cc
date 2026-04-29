@@ -89,6 +89,9 @@ plugin_check_tree (tree *tp, int */*walk_subtrees*/, void */*data*/)
       plugin_check_decl (var);
   if (TREE_CODE (*tp) == DECL_EXPR)
     plugin_check_decl (DECL_EXPR_DECL (*tp));
+  if (TREE_CODE (*tp) == REQUIRES_EXPR)
+    for (tree parm = REQUIRES_EXPR_PARMS (*tp); parm; parm = DECL_CHAIN (parm))
+      plugin_check_decl (parm);
   return NULL_TREE;
 }
 
@@ -153,6 +156,10 @@ plugin_walk_decl (tree decl)
       tree parms = DECL_INNERMOST_TEMPLATE_PARMS (decl);
       for (tree node : tree_vec_range (parms))
 	plugin_check_decl (TREE_VALUE (node));
+      if (tree constr
+	  = TEMPLATE_PARMS_CONSTRAINTS (DECL_TEMPLATE_PARMS (decl)))
+        cp_walk_tree_without_duplicates (&constr, plugin_check_tree,
+					 NULL);
     }
 
   if (DECL_FUNCTION_TEMPLATE_P (decl))
@@ -161,6 +168,10 @@ plugin_walk_decl (tree decl)
 	   && DECL_LANG_SPECIFIC (decl)
 	   && DECL_TEMPLATE_INFO (decl))
     plugin_check_fn (decl);
+
+  if (TREE_CODE (STRIP_TEMPLATE (decl)) == CONCEPT_DECL)
+    cp_walk_tree_without_duplicates (&DECL_INITIAL (STRIP_TEMPLATE (decl)),
+				     plugin_check_tree, NULL);
 
   if (DECL_CLASS_TEMPLATE_P (decl))
     decl = DECL_TEMPLATE_RESULT (decl);
