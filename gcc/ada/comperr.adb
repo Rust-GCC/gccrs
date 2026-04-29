@@ -296,7 +296,17 @@ package body Comperr is
             --  Otherwise we use the standard fixed text
 
             else
-               if Is_FSF_Version then
+               if Is_FSF_Version and then GNATprove_Mode then
+                  Write_Str
+                    ("| Please submit a bug report at the SPARK issue" &
+                     " tracker:");
+                  End_Line;
+
+                  Write_Str
+                    ("| https://github.com/AdaCore/spark2014 .");
+                  End_Line;
+
+               elsif Is_FSF_Version then
                   Write_Str
                     ("| Please submit a bug report; see" &
                      " https://gcc.gnu.org/bugs/ .");
