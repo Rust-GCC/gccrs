@@ -39,8 +39,10 @@ MacroBuiltin::column_handler (location_t invoc_locus, AST::MacroInvocData &,
 {
   auto current_column = LOCATION_COLUMN (invoc_locus);
 
+  auto str = std::to_string (current_column);
+  auto str_len = str.length ();
   auto column_tok = make_token (
-    Token::make_int (invoc_locus, std::to_string (current_column)));
+    Token::make_int (invoc_locus, str, str_len, IntegerLiteralBase::Decimal));
   auto column_no = AST::SingleASTNode (std::unique_ptr<AST::Expr> (
     new AST::LiteralExpr (std::to_string (current_column), AST::Literal::INT,
 			  PrimitiveCoreType::CORETYPE_U32, {}, invoc_locus)));
@@ -57,8 +59,10 @@ MacroBuiltin::line_handler (location_t invoc_locus, AST::MacroInvocData &,
   auto line_no = AST::SingleASTNode (std::unique_ptr<AST::Expr> (
     new AST::LiteralExpr (std::to_string (current_line), AST::Literal::INT,
 			  PrimitiveCoreType::CORETYPE_U32, {}, invoc_locus)));
-  auto tok
-    = make_token (Token::make_int (invoc_locus, std::to_string (current_line)));
+  auto str = std::to_string (current_line);
+  auto str_len = str.length ();
+  auto tok = make_token (
+    Token::make_int (invoc_locus, str, str_len, IntegerLiteralBase::Decimal));
 
   return AST::Fragment ({line_no}, std::move (tok));
 }

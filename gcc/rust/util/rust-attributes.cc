@@ -35,6 +35,8 @@ static const BuiltinAttrDefinition __definitions[]
      {Attrs::DERIVE_ATTR, EXPANSION},
      {Attrs::DEPRECATED, STATIC_ANALYSIS},
      {Attrs::ALLOW, STATIC_ANALYSIS},
+     {Attrs::WARN, STATIC_ANALYSIS},
+     {Attrs::DENY, STATIC_ANALYSIS},
      {Attrs::ALLOW_INTERNAL_UNSTABLE, STATIC_ANALYSIS},
      {Attrs::DOC, HIR_LOWERING},
      {Attrs::MUST_USE, STATIC_ANALYSIS},

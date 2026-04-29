@@ -19,9 +19,6 @@
 #include "rust-name-resolver.h"
 #include "rust-ast-full.h"
 
-// for flag_name_resolution_2_0
-#include "options.h"
-
 namespace Rust {
 namespace Resolver {
 
