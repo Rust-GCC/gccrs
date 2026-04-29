@@ -1073,11 +1073,17 @@ do_remat (void)
       CLEAR_HARD_REG_SET (live_hard_regs);
       EXECUTE_IF_SET_IN_BITMAP (df_get_live_in (bb), 0, regno, bi)
 	{
-	  int hard_regno = regno < FIRST_PSEUDO_REGISTER
-			   ? regno
-			   : reg_renumber[regno];
-	  if (hard_regno >= 0)
-	    SET_HARD_REG_BIT (live_hard_regs, hard_regno);
+	  int nregs = 1;
+	  int hard_regno = regno;
+	  if (regno >= FIRST_PSEUDO_REGISTER)
+	    {
+	      hard_regno = reg_renumber[regno];
+	      if (hard_regno < 0)
+		continue;
+	      nregs = hard_regno_nregs (hard_regno, PSEUDO_REGNO_MODE (regno));
+	    }
+	  for (int i = 0; i < nregs; i++)
+	    SET_HARD_REG_BIT (live_hard_regs, hard_regno + i);
 	}
       bitmap_and (avail_cands, &get_remat_bb_data (bb)->avin_cands,
 		  &get_remat_bb_data (bb)->livein_cands);
