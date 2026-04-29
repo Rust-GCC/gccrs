@@ -7487,7 +7487,7 @@ package body Sem_Res is
                --  -gnatd_f is set.
 
                else
-                  if Debug_Flag_Underscore_F then
+                  if GNATprove_Inline_Success_Msg then
                      Error_Msg_NE
                        ("info: analyzing call to & in context?", N, Nam_UA);
                   end if;

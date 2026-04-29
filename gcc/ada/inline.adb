@@ -2161,7 +2161,6 @@ package body Inline is
       Suppress_Info : Boolean := False)
    is
       Inline_Prefix : constant String := "cannot inline";
-
       function Starts_With (S, Prefix : String) return Boolean is
         (S (S'First .. S'First + Prefix'Length - 1) = Prefix);
 
@@ -2207,7 +2206,8 @@ package body Inline is
          elsif GNATprove_Mode then
             Set_Is_Inlined_Always (Subp, False);
 
-            if Debug_Flag_Underscore_F and not Suppress_Info then
+            if GNATprove_Inline_Failure_Msg and not Suppress_Info
+            then
                Error_Msg_NE (Msg, N, Subp);
             end if;
 

@@ -50,6 +50,13 @@ with Warnsw;   use Warnsw;
 
 package Inline is
 
+   GNATprove_Inline_Success_Msg : Boolean := False;
+   --  Emit info messages for successful contextual analysis in GNATprove mode
+
+   GNATprove_Inline_Failure_Msg : Boolean := False;
+   --  Emit info messages when contextual analysis cannot be performed in
+   --  GNATprove mode.
+
    --------------------------------
    -- Generic Body Instantiation --
    --------------------------------

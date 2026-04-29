@@ -143,7 +143,7 @@ package body Debug is
    --  d_c  CUDA compilation : compile for the host
    --  d_d  CUDA compilation : compile for the device
    --  d_e  Ignore entry calls and requeue statements for elaboration
-   --  d_f  Issue info messages related to GNATprove usage
+   --  d_f
    --  d_g  Disable large static aggregates
    --  d_h  Disable the use of (perfect) hash functions for enumeration Value
    --  d_i  Ignore activations and calls to instances for elaboration
