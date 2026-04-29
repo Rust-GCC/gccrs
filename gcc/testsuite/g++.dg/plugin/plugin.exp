@@ -78,6 +78,15 @@ set plugin_test_list [list \
     	  show-template-tree-color-no-highlight-colors.C \
     	  show-template-tree-color-labels.C \
     	  show-template-tree-color-no-elide-type.C } \
+    { uglification_plugin.cc \
+	  uglification.C \
+    	  uglification-c++98.C \
+    	  uglification-c++11.C \
+    	  uglification-c++14.C \
+    	  uglification-c++17.C \
+    	  uglification-c++20.C \
+    	  uglification-c++23.C \
+    	  uglification-c++26.C } \
     { comment_plugin.cc comments-1.C } \
 ]
 
