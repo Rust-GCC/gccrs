@@ -6468,12 +6468,18 @@ handle_optimize_attribute (tree *node, tree name, tree args,
   else
     {
       struct cl_optimization cur_opts;
+      struct cl_target_option cur_target;
       tree old_opts = DECL_FUNCTION_SPECIFIC_OPTIMIZATION (*node);
+      tree old_target = DECL_FUNCTION_SPECIFIC_TARGET (*node);
 
       /* Save current options.  */
       cl_optimization_save (&cur_opts, &global_options, &global_options_set);
-      tree prev_target_node = build_target_option_node (&global_options,
-							&global_options_set);
+      cl_target_option_save (&cur_target, &global_options, &global_options_set);
+
+      tree prev_target_node
+	= old_target
+	    ? old_target
+	    : build_target_option_node (&global_options, &global_options_set);
 
       /* If we previously had some optimization options, use them as the
 	 default.  */
@@ -6492,6 +6498,10 @@ handle_optimize_attribute (tree *node, tree name, tree args,
 	cl_optimization_restore (&global_options, &global_options_set,
 				 TREE_OPTIMIZATION (old_opts));
 
+      if (old_target)
+	cl_target_option_restore (&global_options, &global_options_set,
+				  TREE_TARGET_OPTION (old_target));
+
       /* Parse options, and update the vector.  */
       parse_optimize_options (args, true);
       DECL_FUNCTION_SPECIFIC_OPTIMIZATION (*node)
@@ -6509,7 +6519,7 @@ handle_optimize_attribute (tree *node, tree name, tree args,
       cl_optimization_restore (&global_options, &global_options_set,
 			       &cur_opts);
       cl_target_option_restore (&global_options, &global_options_set,
-				TREE_TARGET_OPTION (prev_target_node));
+				&cur_target);
 
       if (saved_global_options != NULL)
 	{
