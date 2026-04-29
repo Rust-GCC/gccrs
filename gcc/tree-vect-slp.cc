@@ -3525,7 +3525,8 @@ vect_bb_slp_mark_stmts_vectorized (bb_vec_info vinfo)
   for (auto instance : BB_VINFO_SLP_INSTANCES (vinfo))
     {
       for (auto stmt : SLP_INSTANCE_ROOT_STMTS (instance))
-	STMT_SLP_TYPE (stmt) = pure_slp;
+	if (!scalar_stmts_in_externs.contains (stmt))
+	  STMT_SLP_TYPE (stmt) = pure_slp;
       auto_vec<stmt_vec_info> worklist;
       for (auto stmt : SLP_TREE_SCALAR_STMTS (SLP_INSTANCE_TREE (instance)))
 	{
