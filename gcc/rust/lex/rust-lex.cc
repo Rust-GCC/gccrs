@@ -2150,15 +2150,22 @@ Lexer::parse_non_decimal_int_literal (location_t loc, IsDigitFunc is_digit_func,
   raw_str += current_char; // x, o, b
   skip_input ();
 
-  int length = 1;
+  int length = 2;
+  bool has_valid_digit = false;
 
   current_char = peek_input ();
 
-  length++;
-
   // loop through to add entire number to string
-  while (is_digit_func (current_char.value) || current_char == '_')
+  while (true)
     {
+      if (is_digit_func (current_char.value))
+	{
+	  has_valid_digit = true;
+	}
+      else if (current_char != '_')
+	{
+	  break;
+	}
       length++;
 
       raw_str += current_char;
@@ -2175,6 +2182,11 @@ Lexer::parse_non_decimal_int_literal (location_t loc, IsDigitFunc is_digit_func,
   length += suffix_pair.second;
 
   current_column += length;
+
+  if (!has_valid_digit)
+    {
+      rust_error_at (loc, ErrorCode::E0768, "no valid digits found for number");
+    }
 
   loc += length - 1;
 
