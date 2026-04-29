@@ -306,6 +306,11 @@ maybe_fold_reference (tree expr)
 {
   tree result = NULL_TREE;
 
+  /* Avoid expensive fold_const_aggregate_ref early on aggregate loads
+     and esp. replacing STRING_CSTs inline.  */
+  if (!is_gimple_reg_type (TREE_TYPE (expr)))
+    return NULL_TREE;
+
   if ((TREE_CODE (expr) == VIEW_CONVERT_EXPR
        || TREE_CODE (expr) == REALPART_EXPR
        || TREE_CODE (expr) == IMAGPART_EXPR)
