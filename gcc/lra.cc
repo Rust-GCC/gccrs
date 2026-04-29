@@ -1373,6 +1373,7 @@ initialize_lra_reg_info_element (int i)
   lra_reg_info[i].val = get_new_reg_value ();
   lra_reg_info[i].offset = 0;
   lra_reg_info[i].copies = NULL;
+  lra_reg_info[i].dependent_filters = vNULL;
 }
 
 /* Initialize common reg info and copies.  */
@@ -1398,7 +1399,10 @@ finish_reg_info (void)
   int i;
 
   for (i = 0; i < reg_info_size; i++)
-    bitmap_clear (&lra_reg_info[i].insn_bitmap);
+    {
+      bitmap_clear (&lra_reg_info[i].insn_bitmap);
+      lra_reg_info[i].dependent_filters.release ();
+    }
   free (lra_reg_info);
   reg_info_size = 0;
 }
@@ -2453,6 +2457,9 @@ lra (FILE *f, int verbose)
 
   setup_reg_spill_flag ();
 
+  /* Reset the dependent-filter hash table.  */
+  lra_reset_dependent_filters ();
+
   /* Function remove_scratches can creates new pseudos for clobbers --
      so set up lra_constraint_new_regno_start before its call to
      permit changing reg classes for pseudos created by this
@@ -2698,6 +2705,7 @@ void
 lra_init_once (void)
 {
   init_insn_code_data_once ();
+  lra_init_dependent_filter_cache ();
 }
 
 /* Called once per compiler to finish LRA data which are initialize
@@ -2706,4 +2714,5 @@ void
 lra_finish_once (void)
 {
   finish_insn_code_data_once ();
+  lra_finish_dependent_filter_cache ();
 }

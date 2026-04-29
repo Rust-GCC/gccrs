@@ -2174,6 +2174,219 @@ print_curr_insn_alt (int alt_number)
     }
 }
 
+struct dependent_filter_cache_hasher
+  : free_ptr_hash <dependent_filter_entry>
+{
+  static inline hashval_t hash (const dependent_filter_entry *e)
+  {
+    hashval_t h = (hashval_t) e->id;
+    h = iterative_hash_hashval_t ((hashval_t) e->mode, h);
+    h = iterative_hash_hashval_t ((hashval_t) e->partner_mode, h);
+    h = iterative_hash_hashval_t (e->partner_regno, h);
+    h = iterative_hash_hashval_t ((hashval_t) e->is_ref, h);
+    return h;
+  }
+  static inline bool equal (const dependent_filter_entry *a,
+			    const dependent_filter_entry *b)
+  {
+    return (a->id == b->id && a->mode == b->mode
+	    && a->partner_mode == b->partner_mode
+	    && a->partner_regno == b->partner_regno
+	    && a->is_ref == b->is_ref);
+  }
+};
+
+static hash_table<dependent_filter_cache_hasher> *dependent_filter_htab;
+
+/* Allocate the dependent-filter cache.  */
+
+void
+lra_init_dependent_filter_cache (void)
+{
+  gcc_assert (!dependent_filter_htab);
+  dependent_filter_htab = new hash_table<dependent_filter_cache_hasher> (16);
+}
+
+/* Release the dependent-filter cache.  */
+
+void
+lra_finish_dependent_filter_cache (void)
+{
+  delete dependent_filter_htab;
+  dependent_filter_htab = nullptr;
+}
+
+/* Reset the dependent-filter cache.  */
+
+void
+lra_reset_dependent_filters (void)
+{
+  if (dependent_filter_htab)
+    dependent_filter_htab->empty ();
+}
+
+/* Return the set of hardregs allowed by dependent filter ID for an operand
+   of mode MODE when the referenced operand has PARTNER_REGNO in
+   PARTNER_MODE.  That is when IS_REF is false.  If it is true, the roles are
+   reversed and PARTNER_REGNO as well as PARTNER_MODE refer to the dependent
+   operand.
+
+   We fill the set for all hardregs and add the resulting regset to
+   a hash table if it doesn't already exist in it.  */
+
+const HARD_REG_SET *
+lra_get_dependent_filter (int id, machine_mode mode,
+			  unsigned int partner_regno,
+			  machine_mode partner_mode, bool is_ref)
+{
+  dependent_filter_entry key;
+  key.id = id;
+  key.mode = mode;
+  key.partner_mode = partner_mode;
+  key.partner_regno = partner_regno;
+  key.is_ref = is_ref;
+
+  dependent_filter_entry **slot
+    = dependent_filter_htab->find_slot (&key, INSERT);
+  if (*slot)
+    return &(*slot)->allowed;
+
+  auto *e = XCNEW (dependent_filter_entry);
+  e->id = id;
+  e->mode = mode;
+  e->partner_mode = partner_mode;
+  e->partner_regno = partner_regno;
+  e->is_ref = is_ref;
+
+  /* ??? Should we restrict ourselves to a register class here?  */
+  for (unsigned regno = 0; regno < FIRST_PSEUDO_REGISTER; ++regno)
+    {
+      bool ok;
+      if (is_ref)
+	ok = eval_dependent_filter (id, partner_regno, partner_mode,
+				    regno, mode);
+      else
+	ok = eval_dependent_filter (id, regno, mode,
+				    partner_regno, partner_mode);
+      if (ok)
+	SET_HARD_REG_BIT (e->allowed, regno);
+    }
+  *slot = e;
+  return &e->allowed;
+}
+
+/* Add the dependent filter ID to REGNO's dependent filters with
+   referenced PARTNER_REGNO and PARTNER_MODE if IS_REF is false.
+   If IS_REF is true, the roles are reversed.  We need both
+   directions in case the referenced op is assigned a hardreg first.  */
+
+void
+lra_add_dependent_filter (int regno, int id, machine_mode mode,
+			  int partner_regno, machine_mode partner_mode,
+			  bool is_ref)
+{
+  /* Only meaningful for pseudo partners.  */
+  if (partner_regno < FIRST_PSEUDO_REGISTER)
+    return;
+
+  vec<dependent_filter> &filters = lra_reg_info[regno].dependent_filters;
+  unsigned int i;
+  dependent_filter *filter;
+
+  /* If this filter already exists, do nothing.  */
+  FOR_EACH_VEC_ELT (filters, i, filter)
+    if (filter->id == id
+	&& filter->partner_regno == (unsigned int) partner_regno
+	&& filter->mode == mode && filter->partner_mode == partner_mode
+	&& filter->is_ref == is_ref)
+      return;
+
+  /* Otherwise, create a new filter.  */
+  dependent_filter new_filter;
+  new_filter.id = id;
+  new_filter.mode = mode;
+  new_filter.partner_mode = partner_mode;
+  new_filter.partner_regno = (unsigned int) partner_regno;
+  new_filter.is_ref = is_ref;
+  filters.safe_push (new_filter);
+}
+
+/* Return the set of hardregs for the constraint CN in MODE,
+   allowed by its dependent filter.
+   If there is no dependent filter or the involved registers are no
+   hardregs, return NULL.  */
+
+static const HARD_REG_SET *
+get_dependent_filter (constraint_num cn, machine_mode mode)
+{
+  int id = get_dependent_filter_id (cn);
+  if (id < 0)
+    return nullptr;
+
+  gcc_assert (reg_class_for_constraint (cn) != NO_REGS);
+
+  int ref_opno = get_dependent_filter_ref (id);
+  gcc_assert (ref_opno >= 0 && ref_opno < curr_static_id->n_operands);
+
+  rtx ref_op = *curr_id->operand_loc[ref_opno];
+  if (!REG_P (ref_op))
+    return nullptr;
+  unsigned int ref_regno = REGNO (ref_op);
+  if (ref_regno >= FIRST_PSEUDO_REGISTER)
+    {
+      int ref_hard_regno = reg_renumber[ref_regno];
+      if (ref_hard_regno < 0)
+	return nullptr;
+      ref_regno = (unsigned int) ref_hard_regno;
+    }
+
+  return lra_get_dependent_filter (id, mode, ref_regno, GET_MODE (ref_op),
+				   false);
+}
+
+/* Go through all operands and their constraints, looking for a dependent
+   filter.  If we find one, add it to the respective reg_info's
+   dependent-filter list.  After assigning a hardreg to either the dependent
+   or the referenced op, this allows us to filter the other's regset.  */
+
+static void
+process_dependent_filters (void)
+{
+  int n_operands = curr_static_id->n_operands;
+  for (int i = 0; i < n_operands; i++)
+    {
+      rtx op = *curr_id->operand_loc[i];
+      if (!REG_P (op) || HARD_REGISTER_P (op))
+	continue;
+      const char *constraint
+	= curr_static_id->operand_alternative
+	    [goal_alt_number * n_operands + i].constraint;
+      for (const char *p = constraint;
+	   *p && *p != ',' && *p != '#';
+	   p += CONSTRAINT_LEN (*p, p))
+	{
+	  enum constraint_num cn = lookup_constraint (p);
+	  int id = get_dependent_filter_id (cn);
+	  if (id < 0)
+	    continue;
+	  if (reg_class_for_constraint (cn) == NO_REGS)
+	    continue;
+	  int ref_opno = get_dependent_filter_ref (id);
+	  if (ref_opno < 0 || ref_opno >= n_operands)
+	    continue;
+	  rtx ref_op = *curr_id->operand_loc[ref_opno];
+	  if (!REG_P (ref_op) || HARD_REGISTER_P (ref_op))
+	    continue;
+	  machine_mode mode = curr_operand_mode[i];
+	  lra_add_dependent_filter (REGNO (op), id, mode,
+				    REGNO (ref_op), GET_MODE (ref_op),
+				    false);
+	  lra_add_dependent_filter (REGNO (ref_op), id, GET_MODE (ref_op),
+				    REGNO (op), mode, true);
+	}
+    }
+}
+
 /* Major function to choose the current insn alternative and what
    operands should be reloaded and how.	 If ONLY_ALTERNATIVE is not
    negative we should consider only this alternative.  Return false if
@@ -2356,6 +2569,7 @@ process_alt_operands (int only_alternative)
 
 	  win = did_match = winreg = offmemok = constmemok = false;
 	  badop = true;
+	  const HARD_REG_SET *cl_dep_filter = nullptr;
 
 	  early_clobber_p = false;
 	  p = curr_static_id->operand_alternative[opalt_num].constraint;
@@ -2617,6 +2831,7 @@ process_alt_operands (int only_alternative)
 		    }
 		  cl = GENERAL_REGS;
 		  cl_filter = nullptr;
+		  cl_dep_filter = nullptr;
 		  goto reg;
 
 		case '{':
@@ -2630,6 +2845,7 @@ process_alt_operands (int only_alternative)
 		      CLEAR_HARD_REG_SET (hard_reg_constraint);
 		      SET_HARD_REG_BIT (hard_reg_constraint, regno);
 		      cl_filter = &hard_reg_constraint;
+		      cl_dep_filter = nullptr;
 		      goto reg;
 		    }
 
@@ -2642,6 +2858,7 @@ process_alt_operands (int only_alternative)
 		      if (cl != NO_REGS)
 			{
 			  cl_filter = get_register_filter (cn);
+			  cl_dep_filter = get_dependent_filter (cn, mode);
 			  goto reg;
 			}
 		      break;
@@ -2688,6 +2905,7 @@ process_alt_operands (int only_alternative)
 		      cl = base_reg_class (VOIDmode, ADDR_SPACE_GENERIC,
 					   ADDRESS, SCRATCH);
 		      cl_filter = nullptr;
+		      cl_dep_filter = nullptr;
 		      badop = false;
 		      goto reg;
 
@@ -2723,6 +2941,8 @@ process_alt_operands (int only_alternative)
 		  this_alternative_set |= reg_class_contents[cl];
 		  if (cl_filter)
 		    this_alternative_exclude_start_hard_regs |= ~*cl_filter;
+		  if (cl_dep_filter)
+		    this_alternative_exclude_start_hard_regs |= ~*cl_dep_filter;
 		  if (costly_p)
 		    {
 		      this_costly_alternative
@@ -2745,6 +2965,9 @@ process_alt_operands (int only_alternative)
 						mode, hard_regno[nop])
 			  && (!cl_filter
 			      || TEST_HARD_REG_BIT (*cl_filter,
+						    hard_regno[nop]))
+			  && (!cl_dep_filter
+			      || TEST_HARD_REG_BIT (*cl_dep_filter,
 						    hard_regno[nop]))
 			  && ((REG_ATTRS (op) && (decl = REG_EXPR (op)) != NULL
 			       && VAR_P (decl) && DECL_HARD_REGISTER (decl))
@@ -5135,6 +5358,10 @@ curr_insn_transform (bool check_only_p)
 		     REGNO (op), regno);
 	}
     }
+
+  /* After the dust has settled, collect and attach dependent filters.  */
+  process_dependent_filters ();
+
   if (before != NULL_RTX || after != NULL_RTX
       || max_regno_before != max_reg_num ())
     change_p = true;

@@ -30,6 +30,26 @@ along with GCC; see the file COPYING3.	If not see
 
 typedef struct lra_live_range *lra_live_range_t;
 
+struct dependent_filter
+{
+  int id;
+  machine_mode mode;
+  unsigned int partner_regno;
+  machine_mode partner_mode;
+  bool is_ref;
+};
+
+/* Cache entry of a dependent filter.  The same fields as above, just with
+   a hard-reg set of allowed hardregs.  */
+
+struct dependent_filter_entry : dependent_filter
+{
+  HARD_REG_SET allowed;
+};
+
+extern void lra_init_dependent_filter_cache (void);
+extern void lra_finish_dependent_filter_cache (void);
+
 /* The structure describes program points where a given pseudo lives.
    The live ranges can be used to find conflicts with other pseudos.
    If the live ranges of two pseudos are intersected, the pseudos are
@@ -113,6 +133,8 @@ public:
   /* This member is set up in lra-lives.cc for subsequent
      assignments.  */
   lra_copy_t copies;
+  /* Dependent filters for this reg.  */
+  vec<dependent_filter> dependent_filters;
 };
 
 /* References to the common info about each register.  */

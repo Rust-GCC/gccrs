@@ -38,5 +38,8 @@ extern rtx lra_eliminate_regs (rtx, machine_mode, rtx);
 extern void lra (FILE *, int);
 extern void lra_init_once (void);
 extern void lra_finish_once (void);
+extern const HARD_REG_SET *lra_get_dependent_filter
+  (int, machine_mode, unsigned int, machine_mode, bool);
+extern void lra_reset_dependent_filters (void);
 
 #endif /* GCC_LRA_H */
