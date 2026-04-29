@@ -583,7 +583,7 @@ build_object_conflicts (ira_object_t obj)
 			      OBJECT_MIN (obj), OBJECT_MAX (obj), i, asi)
     {
       ira_object_t another_obj = ira_object_id_map[i];
-      ira_allocno_t another_a = OBJECT_ALLOCNO (obj);
+      ira_allocno_t another_a = OBJECT_ALLOCNO (another_obj);
 
       ira_assert (ira_reg_classes_intersect_p
 		  [ALLOCNO_CLASS (a)][ALLOCNO_CLASS (another_a)]);
