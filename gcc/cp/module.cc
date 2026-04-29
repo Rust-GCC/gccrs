@@ -2970,6 +2970,8 @@ static char const *const merge_kind_name[MK_hwm] =
 struct merge_key {
   cp_ref_qualifier ref_q : 2;
   unsigned coro_disc : 2;  /* Discriminator for coroutine transforms.  */
+  unsigned iobj_p : 1;
+  unsigned xobj_p : 1;
   unsigned index;
 
   tree ret;  /* Return type, if appropriate.  */
@@ -2978,7 +2980,7 @@ struct merge_key {
   tree constraints;  /* Constraints.  */
 
   merge_key ()
-    :ref_q (REF_QUAL_NONE), coro_disc (0), index (0),
+    :ref_q (REF_QUAL_NONE), coro_disc (0), iobj_p (0), xobj_p (0), index (0),
      ret (NULL_TREE), args (NULL_TREE),
      constraints (NULL_TREE)
   {
@@ -11898,6 +11900,8 @@ trees_out::key_mergeable (int tag, merge_kind mk, tree decl, tree inner,
 
 	      key.ref_q = type_memfn_rqual (fn_type);
 	      key.coro_disc = get_coroutine_discriminator (inner);
+	      key.iobj_p = DECL_IOBJ_MEMBER_FUNCTION_P (inner);
+	      key.xobj_p = DECL_XOBJ_MEMBER_FUNCTION_P (inner);
 	      key.args = TYPE_ARG_TYPES (fn_type);
 
 	      if (tree reqs = get_constraints (inner))
@@ -12035,11 +12039,13 @@ trees_out::key_mergeable (int tag, merge_kind mk, tree decl, tree inner,
       if (streaming_p ())
 	{
 	  /* Check we have enough bits for the index.  */
-	  gcc_checking_assert (key.index < (1u << (sizeof (unsigned) * 8 - 4)));
+	  gcc_checking_assert (key.index < (1u << (sizeof (unsigned) * 8 - 6)));
 
 	  unsigned code = ((key.ref_q << 0)
 			   | (key.coro_disc << 2)
-			   | (key.index << 4));
+			   | (key.iobj_p << 4)
+			   | (key.xobj_p << 5)
+			   | (key.index << 6));
 	  u (code);
 	}
 
@@ -12118,6 +12124,8 @@ check_mergeable_decl (merge_kind mk, tree decl, tree ovl, merge_key const &key)
 	    if ((!key.ret
 		 || same_type_p (key.ret, fndecl_declared_return_type (m_inner)))
 		&& type_memfn_rqual (m_type) == key.ref_q
+		&& key.iobj_p == DECL_IOBJ_MEMBER_FUNCTION_P (m_inner)
+		&& key.xobj_p == DECL_XOBJ_MEMBER_FUNCTION_P (m_inner)
 		&& compparms (key.args, TYPE_ARG_TYPES (m_type))
 		&& get_coroutine_discriminator (m_inner) == key.coro_disc
 		/* Reject if old is a "C" builtin and new is not "C".
@@ -12257,7 +12265,9 @@ trees_in::key_mergeable (int tag, merge_kind mk, tree decl, tree inner,
       unsigned code = u ();
       key.ref_q = cp_ref_qualifier ((code >> 0) & 3);
       key.coro_disc = (code >> 2) & 3;
-      key.index = code >> 4;
+      key.iobj_p = (code >> 4) & 1;
+      key.xobj_p = (code >> 5) & 1;
+      key.index = code >> 6;
 
       if (mk == MK_enum)
 	key.ret = tree_node ();
