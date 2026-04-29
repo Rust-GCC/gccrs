@@ -4478,6 +4478,13 @@ bitint_large_huge::finish_arith_overflow (tree var, tree obj, tree type,
     {
       unsigned HOST_WIDE_INT obj_nelts = 0;
       tree atype = NULL_TREE;
+      if (obj)
+	{
+	  obj_nelts = tree_to_uhwi (TYPE_SIZE (TREE_TYPE (obj))) / limb_prec;
+	  if (orig_obj == NULL_TREE)
+	    obj_nelts >>= 1;
+	  atype = build_array_type_nelts (m_limb_type, obj_nelts);
+	}
       if (bitint_extended && (var || obj))
 	{
 	  unsigned prec = TYPE_PRECISION (type);
@@ -4492,9 +4499,13 @@ bitint_large_huge::finish_arith_overflow (tree var, tree obj, tree type,
 	  if ((code == MULT_EXPR && (prec % limb_prec) != 0)
 	      || (ext_ms_limb && !TYPE_UNSIGNED (type)))
 	    {
-	      tree plm1idx = size_int (bitint_big_endian ? 0 : prec_limbs - 1);
-	      tree plm1type = limb_access_type (type, plm1idx);
-	      tree l = limb_access (type, var ? var : obj, plm1idx, true);
+	      tree plm1idx = size_int (bitint_big_endian
+				       ? nelts - obj_nelts : prec_limbs - 1);
+	      tree plm1type
+		= limb_access_type (type, bitint_big_endian
+					  ? size_zero_node : plm1idx);
+	      tree l = limb_access (bitint_big_endian ? NULL_TREE : type,
+				    var ? var : obj, plm1idx, true);
 	      tree rhs = make_ssa_name (TREE_TYPE (l));
 	      g = gimple_build_assign (rhs, l);
 	      insert_before (g);
@@ -4505,7 +4516,8 @@ bitint_large_huge::finish_arith_overflow (tree var, tree obj, tree type,
 		  if (!useless_type_conversion_p (TREE_TYPE (l),
 						  TREE_TYPE (rhs)))
 		    rhs = add_cast (TREE_TYPE (l), rhs);
-		  l = limb_access (type, var ? var : obj, plm1idx, true);
+		  l = limb_access (bitint_big_endian ? NULL_TREE : type,
+				   var ? var : obj, plm1idx, true);
 		  g = gimple_build_assign (l, rhs);
 		  insert_before (g);
 		}
@@ -4536,13 +4548,6 @@ bitint_large_huge::finish_arith_overflow (tree var, tree obj, tree type,
 				       build_zero_cst (m_limb_type));
 	      insert_before (g);
 	    }
-	}
-      if (obj)
-	{
-	  obj_nelts = tree_to_uhwi (TYPE_SIZE (TREE_TYPE (obj))) / limb_prec;
-	  if (orig_obj == NULL_TREE)
-	    obj_nelts >>= 1;
-	  atype = build_array_type_nelts (m_limb_type, obj_nelts);
 	}
       if (var && obj)
 	{
