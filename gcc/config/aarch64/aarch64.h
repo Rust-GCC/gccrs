@@ -1500,16 +1500,6 @@ typedef struct
 
 extern enum aarch64_code_model aarch64_cmodel;
 
-/* When using the tiny addressing model conditional and unconditional branches
-   can span the whole of the available address space (1MB).  */
-#define HAS_LONG_COND_BRANCH				\
-  (aarch64_cmodel == AARCH64_CMODEL_TINY		\
-   || aarch64_cmodel == AARCH64_CMODEL_TINY_PIC)
-
-#define HAS_LONG_UNCOND_BRANCH				\
-  (aarch64_cmodel == AARCH64_CMODEL_TINY		\
-   || aarch64_cmodel == AARCH64_CMODEL_TINY_PIC)
-
 #define TARGET_HAS_FMV_TARGET_ATTRIBUTE 0
 
 #define TARGET_SUPPORTS_WIDE_INT 1

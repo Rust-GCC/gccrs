@@ -181,11 +181,9 @@ aarch64_update_cpp_builtins (cpp_reader *pfile)
   switch (aarch64_cmodel)
     {
       case AARCH64_CMODEL_TINY:
-      case AARCH64_CMODEL_TINY_PIC:
 	builtin_define ("__AARCH64_CMODEL_TINY__");
 	break;
       case AARCH64_CMODEL_SMALL:
-      case AARCH64_CMODEL_SMALL_PIC:
 	builtin_define ("__AARCH64_CMODEL_SMALL__");
 	break;
       case AARCH64_CMODEL_LARGE:

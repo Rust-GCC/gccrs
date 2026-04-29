@@ -370,6 +370,7 @@ static bool aarch64_builtin_support_vector_misalignment (machine_mode mode,
 static machine_mode aarch64_simd_container_mode (scalar_mode, poly_int64);
 static bool aarch64_print_address_internal (FILE*, machine_mode, rtx,
 					    aarch64_addr_query_type);
+bool aarch64_use_pseudo_pic_reg (void);
 
 /* The processor for which instructions should be scheduled.  */
 enum aarch64_cpu aarch64_tune = AARCH64_CPU_cortexa53;
@@ -16110,22 +16111,20 @@ cost_plus:
     case SYMBOL_REF:
 
       if (aarch64_cmodel == AARCH64_CMODEL_LARGE
-	  || aarch64_cmodel == AARCH64_CMODEL_SMALL_SPIC)
+	  || aarch64_use_pseudo_pic_reg ())
 	{
 	  /* LDR.  */
 	  if (speed)
 	    *cost += extra_cost->ldst.load;
 	}
-      else if (aarch64_cmodel == AARCH64_CMODEL_SMALL
-	       || aarch64_cmodel == AARCH64_CMODEL_SMALL_PIC)
+      else if (aarch64_cmodel == AARCH64_CMODEL_SMALL)
 	{
 	  /* ADRP, followed by ADD.  */
 	  *cost += COSTS_N_INSNS (1);
 	  if (speed)
 	    *cost += 2 * extra_cost->alu.arith;
 	}
-      else if (aarch64_cmodel == AARCH64_CMODEL_TINY
-	       || aarch64_cmodel == AARCH64_CMODEL_TINY_PIC)
+      else if (aarch64_cmodel == AARCH64_CMODEL_TINY)
 	{
 	  /* ADR.  */
 	  if (speed)
@@ -19587,8 +19586,7 @@ aarch64_override_options_after_change_1 (struct gcc_options *opts)
 
   /* In the tiny memory model it makes no sense to disallow PC relative
      literal pool loads.  */
-  if (aarch64_cmodel == AARCH64_CMODEL_TINY
-      || aarch64_cmodel == AARCH64_CMODEL_TINY_PIC)
+  if (aarch64_cmodel == AARCH64_CMODEL_TINY)
     aarch64_pcrelative_literal_loads = true;
 
   /* When enabling the lower precision Newton series for the square root, also
@@ -20212,35 +20210,13 @@ static void
 initialize_aarch64_code_model (struct gcc_options *opts)
 {
   aarch64_cmodel = opts->x_aarch64_cmodel_var;
-  switch (opts->x_aarch64_cmodel_var)
+  if (aarch64_cmodel == AARCH64_CMODEL_LARGE)
     {
-    case AARCH64_CMODEL_TINY:
-      if (opts->x_flag_pic)
-	aarch64_cmodel = AARCH64_CMODEL_TINY_PIC;
-      break;
-    case AARCH64_CMODEL_SMALL:
-      if (opts->x_flag_pic)
-	{
-#ifdef HAVE_AS_SMALL_PIC_RELOCS
-	  aarch64_cmodel = (flag_pic == 2
-			    ? AARCH64_CMODEL_SMALL_PIC
-			    : AARCH64_CMODEL_SMALL_SPIC);
-#else
-	  aarch64_cmodel = AARCH64_CMODEL_SMALL_PIC;
-#endif
-	}
-      break;
-    case AARCH64_CMODEL_LARGE:
       if (opts->x_flag_pic)
 	sorry ("code model %qs with %<-f%s%>", "large",
 	       opts->x_flag_pic > 1 ? "PIC" : "pic");
       if (opts->x_aarch64_abi == AARCH64_ABI_ILP32)
 	sorry ("code model %qs not supported in ilp32 mode", "large");
-      break;
-    case AARCH64_CMODEL_TINY_PIC:
-    case AARCH64_CMODEL_SMALL_PIC:
-    case AARCH64_CMODEL_SMALL_SPIC:
-      gcc_unreachable ();
     }
 }
 
@@ -22125,23 +22101,16 @@ aarch64_tls_symbol_p (rtx x)
 enum aarch64_symbol_type
 aarch64_classify_tls_symbol (rtx x)
 {
-  enum tls_model tls_kind = tls_symbolic_operand_type (x);
-
-  switch (tls_kind)
+  switch (tls_symbolic_operand_type (x))
     {
     case TLS_MODEL_GLOBAL_DYNAMIC:
     case TLS_MODEL_LOCAL_DYNAMIC:
       return TARGET_TLS_DESC ? SYMBOL_SMALL_TLSDESC : SYMBOL_SMALL_TLSGD;
 
     case TLS_MODEL_INITIAL_EXEC:
-      switch (aarch64_cmodel)
-	{
-	case AARCH64_CMODEL_TINY:
-	case AARCH64_CMODEL_TINY_PIC:
-	  return SYMBOL_TINY_TLSIE;
-	default:
-	  return SYMBOL_SMALL_TLSIE;
-	}
+      if (aarch64_cmodel == AARCH64_CMODEL_TINY)
+	return SYMBOL_TINY_TLSIE;
+      return SYMBOL_SMALL_TLSIE;
 
     case TLS_MODEL_LOCAL_EXEC:
       if (aarch64_tls_size == 12)
@@ -22154,10 +22123,6 @@ aarch64_classify_tls_symbol (rtx x)
 	return SYMBOL_TLSLE48;
       else
 	gcc_unreachable ();
-
-    case TLS_MODEL_EMULATED:
-    case TLS_MODEL_NONE:
-      return SYMBOL_FORCE_TO_MEM;
 
     default:
       gcc_unreachable ();
@@ -22174,23 +22139,13 @@ aarch64_classify_symbol (rtx x, HOST_WIDE_INT offset)
 
   if (LABEL_REF_P (x))
     {
-      switch (aarch64_cmodel)
-	{
-	case AARCH64_CMODEL_LARGE:
-	  return SYMBOL_FORCE_TO_MEM;
+      if (aarch64_cmodel == AARCH64_CMODEL_TINY)
+	return SYMBOL_TINY_ABSOLUTE;
 
-	case AARCH64_CMODEL_TINY_PIC:
-	case AARCH64_CMODEL_TINY:
-	  return SYMBOL_TINY_ABSOLUTE;
+      if (aarch64_cmodel == AARCH64_CMODEL_LARGE)
+	return SYMBOL_FORCE_TO_MEM;
 
-	case AARCH64_CMODEL_SMALL_SPIC:
-	case AARCH64_CMODEL_SMALL_PIC:
-	case AARCH64_CMODEL_SMALL:
-	  return SYMBOL_SMALL_ABSOLUTE;
-
-	default:
-	  gcc_unreachable ();
-	}
+      return SYMBOL_SMALL_ABSOLUTE;
     }
 
   if (SYMBOL_REF_P (x))
@@ -22198,17 +22153,22 @@ aarch64_classify_symbol (rtx x, HOST_WIDE_INT offset)
       if (aarch64_tls_symbol_p (x))
 	return aarch64_classify_tls_symbol (x);
 
+      /* With -fPIC non-local symbols use the GOT.  For orthogonality
+	 always use the GOT for extern weak symbols.  */
+      if (!TARGET_PECOFF
+	  && (flag_pic || SYMBOL_REF_WEAK (x))
+	  && !aarch64_symbol_binds_local_p (x))
+	{
+	  if (aarch64_cmodel == AARCH64_CMODEL_TINY)
+	    return SYMBOL_TINY_GOT;
+	  if (aarch64_use_pseudo_pic_reg ())
+	    return SYMBOL_SMALL_GOT_28K;
+	  return SYMBOL_SMALL_GOT_4G;
+	}
+
       switch (aarch64_cmodel)
 	{
-	case AARCH64_CMODEL_TINY_PIC:
 	case AARCH64_CMODEL_TINY:
-	  /* With -fPIC non-local symbols use the GOT.  For orthogonality
-	     always use the GOT for extern weak symbols.  */
-	  if (!TARGET_PECOFF
-	      && (flag_pic || SYMBOL_REF_WEAK (x))
-	      && !aarch64_symbol_binds_local_p (x))
-	    return SYMBOL_TINY_GOT;
-
 	  /* When we retrieve symbol + offset address, we have to make sure
 	     the offset does not cause overflow of the final address.  But
 	     we have no way of knowing the address of symbol at compile time
@@ -22224,15 +22184,7 @@ aarch64_classify_symbol (rtx x, HOST_WIDE_INT offset)
 	  return SYMBOL_TINY_ABSOLUTE;
 
 
-	case AARCH64_CMODEL_SMALL_SPIC:
-	case AARCH64_CMODEL_SMALL_PIC:
 	case AARCH64_CMODEL_SMALL:
-	  if (!TARGET_PECOFF
-	      && (flag_pic || SYMBOL_REF_WEAK (x))
-	      && !aarch64_symbol_binds_local_p (x))
-	    return aarch64_cmodel == AARCH64_CMODEL_SMALL_SPIC
-		    ? SYMBOL_SMALL_GOT_28K : SYMBOL_SMALL_GOT_4G;
-
 	  /* Same reasoning as the tiny code model, but the offset cap here is
 	     1MB, allowing +/-3.9GB for the offset to the symbol.  */
 	  if (!(IN_RANGE (offset, -0x100000, 0x100000)
@@ -26229,10 +26181,7 @@ aarch64_asm_preferred_eh_data_format (int code ATTRIBUTE_UNUSED, int global)
    switch (aarch64_cmodel)
      {
      case AARCH64_CMODEL_TINY:
-     case AARCH64_CMODEL_TINY_PIC:
      case AARCH64_CMODEL_SMALL:
-     case AARCH64_CMODEL_SMALL_PIC:
-     case AARCH64_CMODEL_SMALL_SPIC:
        /* text+got+data < 4Gb.  4-byte signed relocs are sufficient
 	  for everything.  */
        type = DW_EH_PE_sdata4;
@@ -30252,13 +30201,17 @@ aarch64_empty_mask_is_expensive (unsigned)
   return false;
 }
 
-/* Return 1 if pseudo register should be created and used to hold
-   GOT address for PIC code.  */
+/* Return true if a pseudo register should be created and used to hold the
+   GOT address for -fpic.  */
 
 bool
 aarch64_use_pseudo_pic_reg (void)
 {
-  return aarch64_cmodel == AARCH64_CMODEL_SMALL_SPIC;
+#ifdef HAVE_AS_SMALL_PIC_RELOCS
+  return flag_pic == 1 && aarch64_cmodel == AARCH64_CMODEL_SMALL;
+#else
+  return false;
+#endif
 }
 
 /* Implement TARGET_UNSPEC_MAY_TRAP_P.  */
