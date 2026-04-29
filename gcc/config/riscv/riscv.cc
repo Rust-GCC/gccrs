@@ -11217,6 +11217,43 @@ riscv_hard_regno_nregs (unsigned int regno, machine_mode mode)
   return (GET_MODE_SIZE (mode).to_constant () + UNITS_PER_WORD - 1) / UNITS_PER_WORD;
 }
 
+/* Return true if REGNO in MODE can be used as source in a widening
+   instruction with destination WIDE_REGNO in WIDE_MODE.
+   This is true if either there is no overlap at all, or the overlap
+   is in the highest-numbered part of the destination group.  */
+
+bool
+riscv_widen_overlap_ok (unsigned int regno, machine_mode mode,
+			unsigned int wide_regno, machine_mode wide_mode)
+{
+  /* If the referenced regno is no hard reg, allow everything.  */
+  if (wide_regno == INVALID_REGNUM)
+    return true;
+
+  if (!V_REG_P (regno) || !V_REG_P (wide_regno))
+    return false;
+
+  gcc_checking_assert (riscv_vector_mode_p (mode)
+		       && riscv_vector_mode_p (wide_mode));
+
+  unsigned int wide_nregs = riscv_hard_regno_nregs (wide_regno, wide_mode);
+  unsigned int nregs = riscv_hard_regno_nregs (regno, mode);
+
+  /* Overlap is only allowed in the highest-numbered part of the wider
+     destination.  */
+  if (regno == wide_regno)
+    return false;
+
+  if (regno >= wide_regno + (wide_nregs - nregs))
+    return true;
+
+  /* No overlap is OK.  */
+  if (regno < wide_regno)
+    return true;
+
+  return false;
+}
+
 /* Implement TARGET_HARD_REGNO_MODE_OK.  */
 
 static bool

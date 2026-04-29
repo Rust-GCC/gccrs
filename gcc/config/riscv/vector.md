@@ -4090,19 +4090,19 @@
 
 ;; Vector Double-Widening Sign-extend and Zero-extend.
 (define_insn "@pred_<optab><mode>_vf2"
-  [(set (match_operand:VWEXTI 0 "register_operand"            "=&vr,&vr")
+  [(set (match_operand:VWEXTI 0 "register_operand"		 "=vr, vr, vd, vd")
 	(if_then_else:VWEXTI
 	  (unspec:<VM>
-	    [(match_operand:<VM> 1 "vector_mask_operand"         "vmWc1,vmWc1")
-	     (match_operand 4 "vector_length_operand"            "  rvl,  rvl")
-	     (match_operand 5 "const_int_operand"                "    i,    i")
-	     (match_operand 6 "const_int_operand"                "    i,    i")
-	     (match_operand 7 "const_int_operand"                "    i,    i")
+	    [(match_operand:<VM> 1 "vector_mask_operand"         "Wc1,Wc1, vm, vm")
+	     (match_operand 4 "vector_length_operand"            "rvl,rvl,rvl,rvl")
+	     (match_operand 5 "const_int_operand"                "  i,  i,  i,  i")
+	     (match_operand 6 "const_int_operand"                "  i,  i,  i,  i")
+	     (match_operand 7 "const_int_operand"                "  i,  i,  i,  i")
 	     (reg:SI VL_REGNUM)
 	     (reg:SI VTYPE_REGNUM)] UNSPEC_VPREDICATE)
 	  (any_extend:VWEXTI
-	    (match_operand:<V_DOUBLE_TRUNC> 3 "register_operand" "   vr,   vr"))
-	  (match_operand:VWEXTI 2 "vector_merge_operand"         "   vu,    0")))]
+	    (match_operand:<V_DOUBLE_TRUNC> 3 "register_operand" "Wtt,Wtt,Wtt,Wtt"))
+	  (match_operand:VWEXTI 2 "vector_merge_operand"         " vu,  0, vu,  0")))]
   "TARGET_VECTOR && !TARGET_XTHEADVECTOR"
   "v<sz>ext.vf2\t%0,%3%p1"
   [(set_attr "type" "vext")
