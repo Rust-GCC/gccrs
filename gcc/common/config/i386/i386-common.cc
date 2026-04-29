@@ -2205,7 +2205,10 @@ const char *const processor_names[] =
   "znver3",
   "znver4",
   "znver5",
-  "znver6"
+  "znver6",
+  "c86-4g-m4",
+  "c86-4g-m6",
+  "c86-4g-m7"
 };
 
 /* Guarantee that the array is aligned with enum processor_type.  */
@@ -2473,6 +2476,15 @@ const pta processor_alias_table[] =
   {"btver2", PROCESSOR_BTVER2, CPU_BTVER2,
     PTA_BTVER2,
     M_CPU_TYPE (AMD_BTVER2), P_PROC_BMI},
+  {"c86-4g-m4", PROCESSOR_C86_4G_M4, CPU_C86_4G_M4,
+    PTA_C86_4G_M4,
+    M_CPU_SUBTYPE (HYGONFAM18H_C86_4G_M4), P_PROC_AVX2},
+  {"c86-4g-m6", PROCESSOR_C86_4G_M6, CPU_C86_4G_M6,
+    PTA_C86_4G_M6,
+    M_CPU_SUBTYPE (HYGONFAM18H_C86_4G_M6), P_PROC_AVX2},
+  {"c86-4g-m7", PROCESSOR_C86_4G_M7, CPU_C86_4G_M7,
+    PTA_C86_4G_M7,
+    M_CPU_SUBTYPE (HYGONFAM18H_C86_4G_M7), P_PROC_AVX512F},
 
   {"generic", PROCESSOR_GENERIC, CPU_GENERIC,
     PTA_64BIT
@@ -2493,10 +2505,14 @@ const pta processor_alias_table[] =
     M_CPU_SUBTYPE (AMDFAM10H_SHANGHAI), P_NONE},
   {"istanbul", PROCESSOR_GENERIC, CPU_GENERIC, 0,
     M_CPU_SUBTYPE (AMDFAM10H_ISTANBUL), P_NONE},
+  {"hygon", PROCESSOR_GENERIC, CPU_GENERIC, 0,
+    M_VENDOR (VENDOR_HYGON), P_NONE},
+  {"hygonfam18h", PROCESSOR_GENERIC, CPU_GENERIC, 0,
+    M_CPU_TYPE (HYGONFAM18H), P_NONE},
 };
 
 /* NB: processor_alias_table stops at the "generic" entry.  */
-unsigned int const pta_size = ARRAY_SIZE (processor_alias_table) - 7;
+unsigned int const pta_size = ARRAY_SIZE (processor_alias_table) - 9;
 unsigned int const num_arch_names = ARRAY_SIZE (processor_alias_table);
 
 /* Provide valid option values for -march and -mtune options.  */

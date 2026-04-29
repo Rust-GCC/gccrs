@@ -501,6 +501,16 @@ const char *host_detect_local_cpu (int argc, const char **argv)
       else
 	processor = PROCESSOR_PENTIUM;
     }
+  else if (vendor == VENDOR_HYGON)
+    {
+      processor = PROCESSOR_GENERIC;
+      if (model == 4)
+	processor = PROCESSOR_C86_4G_M4;
+      else if (model == 6)
+	processor = PROCESSOR_C86_4G_M6;
+      else if (model >= 7)
+	processor = PROCESSOR_C86_4G_M7;
+    }
   else if (vendor == VENDOR_CENTAUR)
     {
       processor = PROCESSOR_GENERIC;
@@ -849,6 +859,15 @@ const char *host_detect_local_cpu (int argc, const char **argv)
       break;
     case PROCESSOR_SHIJIDADAO:
       cpu = "shijidadao";
+      break;
+    case PROCESSOR_C86_4G_M4:
+      cpu = "c86-4g-m4";
+      break;
+    case PROCESSOR_C86_4G_M6:
+      cpu = "c86-4g-m6";
+      break;
+    case PROCESSOR_C86_4G_M7:
+      cpu = "c86-4g-m7";
       break;
 
     default:

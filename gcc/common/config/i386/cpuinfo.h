@@ -349,6 +349,48 @@ get_amd_cpu (struct __processor_model *cpu_model,
   return cpu;
 }
 
+/* Get the specific type of HYGON CPU and return HYGON CPU name.  Return
+   NULL for unknown HYGON CPU.  */
+
+static inline const char *
+get_hygon_cpu (struct __processor_model *cpu_model,
+	       struct __processor_model2 *cpu_model2,
+	       unsigned int *cpu_features2 __attribute__((unused)))
+{
+  const char *cpu = NULL;
+  unsigned int family = cpu_model2->__cpu_family;
+  unsigned int model = cpu_model2->__cpu_model;
+
+  switch (family)
+    {
+    case 0x18:
+      cpu_model->__cpu_type = HYGONFAM18H;
+      if (model == 0x4)
+	{
+	  cpu = "c86-4g-m4";
+	  CHECK___builtin_cpu_is ("c86-4g-m4");
+	  cpu_model->__cpu_subtype = HYGONFAM18H_C86_4G_M4;
+	}
+      else if (model == 0x6)
+	{
+	  cpu = "c86-4g-m6";
+	  CHECK___builtin_cpu_is ("c86-4g-m6");
+	  cpu_model->__cpu_subtype = HYGONFAM18H_C86_4G_M6;
+	}
+      else if (model == 0x7)
+	{
+	  cpu = "c86-4g-m7";
+	  CHECK___builtin_cpu_is ("c86-4g-m7");
+	  cpu_model->__cpu_subtype = HYGONFAM18H_C86_4G_M7;
+	}
+      break;
+    default:
+      break;
+    }
+
+  return cpu;
+}
+
 /* Get the specific type of Intel CPU and return Intel CPU name.  Return
    NULL for unknown Intel CPU.  */
 
@@ -1259,6 +1301,21 @@ cpu_indicator_init (struct __processor_model *cpu_model,
     cpu_model->__cpu_vendor = VENDOR_CYRIX;
   else if (vendor == signature_NSC_ebx)
     cpu_model->__cpu_vendor = VENDOR_NSC;
+  else if (vendor == signature_HYGON_ebx)
+    {
+      /* Adjust model and family for HYGON CPUS.  */
+      if (family == 0x0f)
+	{
+	  family += extended_family;
+	  model += extended_model;
+	}
+      cpu_model2->__cpu_family = family;
+      cpu_model2->__cpu_model = model;
+
+      /* Get CPU type.  */
+      get_hygon_cpu (cpu_model, cpu_model2, cpu_features2);
+      cpu_model->__cpu_vendor = VENDOR_HYGON;
+    }
   else
     cpu_model->__cpu_vendor = VENDOR_OTHER;
 

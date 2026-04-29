@@ -29051,6 +29051,18 @@ AMD Family 1ah Zen version 5.
 
 @item znver6
 AMD Family 1ah Zen version 6.
+
+@item hygonfam18h
+HYGON Family 18h CPU.
+
+@item c86-4g-m4
+HYGON Family 18h model 4 dharma CPU.
+
+@item c86-4g-m6
+HYGON Family 18h model 6 shanghai CPU.
+
+@item c86-4g-m7
+HYGON Family 18h model 7 chengdu CPU.
 @end table
 
 Here is an example:

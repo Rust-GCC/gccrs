@@ -91,6 +91,9 @@ ix86_issue_rate (void)
        is limits of the decoders.  */
     case PROCESSOR_ZNVER5:
     case PROCESSOR_ZNVER6:
+    case PROCESSOR_C86_4G_M4:
+    case PROCESSOR_C86_4G_M6:
+    case PROCESSOR_C86_4G_M7:
       return 4;
 
     case PROCESSOR_ICELAKE_CLIENT:
@@ -440,6 +443,9 @@ ix86_adjust_cost (rtx_insn *insn, int dep_type, rtx_insn *dep_insn, int cost,
     case PROCESSOR_ZNVER4:
     case PROCESSOR_ZNVER5:
     case PROCESSOR_ZNVER6:
+    case PROCESSOR_C86_4G_M4:
+    case PROCESSOR_C86_4G_M6:
+    case PROCESSOR_C86_4G_M7:
       /* Stack engine allows to execute push&pop instructions in parall.  */
       if ((insn_type == TYPE_PUSH || insn_type == TYPE_POP)
 	  && (dep_insn_type == TYPE_PUSH || dep_insn_type == TYPE_POP))
