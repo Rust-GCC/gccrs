@@ -697,7 +697,7 @@ reg_overlap_for_remat_p (lra_insn_reg *reg, rtx_insn *insn)
 	if (regno2 >= FIRST_PSEUDO_REGISTER)
 	  nregs2 = 1;
 	else
-	  nregs2 = hard_regno_nregs (regno2, reg->biggest_mode);
+	  nregs2 = hard_regno_nregs (regno2, reg2->biggest_mode);
 
 	if ((regno2 + nregs2 - 1 >= regno && regno2 < regno + nregs)
 	    || (regno + nregs - 1 >= regno2 && regno < regno2 + nregs2))
