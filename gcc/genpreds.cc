@@ -678,6 +678,9 @@ public:
   const char *regclass;  /* for register constraints */
   rtx exp;               /* for other constraints */
   const char *filter;    /* the register filter condition, or null if none */
+  /* The operand a dependent filter depends on (references), or -1 if this
+     constraint has no dependent filter.  */
+  int dependent_filter_ref_opno;
   unsigned int is_register	: 1;
   unsigned int is_const_int	: 1;
   unsigned int is_const_dbl	: 1;
@@ -689,6 +692,10 @@ public:
   unsigned int maybe_allows_reg : 1;
   unsigned int maybe_allows_mem : 1;
 };
+
+/* List of dependent filters.  A dependent filter ID is an index of this
+   list.  */
+static vec<class constraint_data *> dependent_filters;
 
 /* Overview of all constraints beginning with a given letter.  */
 
@@ -779,7 +786,7 @@ static void
 add_constraint (const char *name, const char *regclass,
 		rtx exp, bool is_memory, bool is_special_memory,
 		bool is_relaxed_memory, bool is_address, file_location loc,
-		const char *filter = nullptr)
+		const char *filter, int ref_opno)
 {
   class constraint_data *c, **iter, **slot;
   const char *p;
@@ -913,6 +920,9 @@ add_constraint (const char *name, const char *regclass,
   c->regclass = regclass;
   c->exp = exp;
   c->filter = filter;
+  c->dependent_filter_ref_opno = ref_opno;
+  if (ref_opno >= 0)
+    dependent_filters.safe_push (c);
   c->is_register = regclass != 0;
   c->is_const_int = is_const_int;
   c->is_const_dbl = is_const_dbl;
@@ -962,16 +972,44 @@ process_define_constraint (md_rtx_info *info)
 		  GET_CODE (info->def) == DEFINE_SPECIAL_MEMORY_CONSTRAINT,
 		  GET_CODE (info->def) == DEFINE_RELAXED_MEMORY_CONSTRAINT,
 		  GET_CODE (info->def) == DEFINE_ADDRESS_CONSTRAINT,
-		  info->loc);
+		  info->loc, nullptr, -1);
 }
 
 /* Process a DEFINE_REGISTER_CONSTRAINT expression, C.  */
 static void
 process_define_register_constraint (md_rtx_info *info)
 {
+  /* Get the optional reference operand number the filter is
+     dependent on.  */
+  const char *ref_str = XSTR (info->def, 4);
+  int ref_opno = -1;
+
+  if (ref_str && !XSTR (info->def, 3))
+    {
+      error_at (info->loc, "reference operand specified without"
+		" a filter expression");
+      return;
+    }
+
+  /* Parse it.  */
+  if (ref_str)
+    {
+      char *end;
+      long n = strtol (ref_str, &end, 10);
+      /* MAX_RECOG_OPERANDS = 30 is defined in insn-config.h
+	 but is not available here.  */
+      if (*ref_str == '\0' || *end != '\0' || n < 0 || n >= 30)
+	{
+	  error_at (info->loc, "reference operand index '%s' must be a"
+		    " non-negative integer less than 30", ref_str);
+	  return;
+	}
+      ref_opno = (int) n;
+    }
+
   add_constraint (XSTR (info->def, 0), XSTR (info->def, 1),
 		  0, false, false, false, false, info->loc,
-		  XSTR (info->def, 3));
+		  XSTR (info->def, 3), ref_opno);
 }
 
 /* Put the constraints into enum order.  We want to keep constraints
@@ -1456,7 +1494,7 @@ write_get_register_filter ()
 	  register_filters.is_empty () ? "" : " c");
   printf ("{\n");
   FOR_ALL_CONSTRAINTS (c)
-    if (c->is_register && c->filter)
+    if (c->is_register && c->filter && c->dependent_filter_ref_opno < 0)
       {
 	printf ("  if (c == CONSTRAINT_%s)\n", c->c_name);
 	printf ("    return &this_target_constraints->register_filters[%d];\n",
@@ -1481,12 +1519,125 @@ write_get_register_filter_id ()
 	  register_filters.is_empty () ? "" : " c");
   printf ("{\n");
   FOR_ALL_CONSTRAINTS (c)
-    if (c->is_register && c->filter)
+    if (c->is_register && c->filter && c->dependent_filter_ref_opno < 0)
       {
 	printf ("  if (c == CONSTRAINT_%s)\n", c->c_name);
 	printf ("    return %d;\n", get_register_filter_id (c->filter));
       }
   printf ("  return -1;\n"
+	  "}\n");
+}
+
+/* Print the get_dependent_filter_id, get_dependent_filter_ref functions,
+   and a forward declaration for the eval_dependent_filter function.
+   The first function maps a constraint to a dependent filter id or
+   returns -1.
+   The second function returns the referenced opno for a given filter
+   id, and the third function evaluates a dynamic filter
+   (again indexed by id) to true or false for a given regno, mode,
+   referenced regno and referenced mode.  */
+
+static void
+write_dependent_filter_helpers_h ()
+{
+  bool empty_p = dependent_filters.is_empty ();
+
+  printf ("\n"
+	  "static inline int\n"
+	  "get_dependent_filter_id (constraint_num%s)\n"
+	  "{\n",
+	  empty_p ? "" : " c");
+  if (empty_p)
+    printf ("  return -1;\n");
+  else
+    {
+      for (unsigned i = 0; i < dependent_filters.length (); ++i)
+	printf ("  if (c == CONSTRAINT_%s) return %u;\n",
+		dependent_filters[i]->c_name, i);
+      printf ("  return -1;\n");
+    }
+  printf ("}\n");
+
+  printf ("\n"
+	  "static inline int\n"
+	  "get_dependent_filter_ref (int id)\n"
+	  "{\n");
+  if (empty_p)
+    printf ("  (void) id;\n  return -1;\n");
+  else
+    {
+      printf ("  switch (id)\n    {\n");
+      for (unsigned i = 0; i < dependent_filters.length (); ++i)
+	printf ("    case %u: return %d;\n",
+		i, dependent_filters[i]->dependent_filter_ref_opno);
+      printf ("    default: return -1;\n    }\n");
+    }
+  printf ("}\n");
+
+  printf ("\n"
+	  "extern bool\n"
+	  "eval_dependent_filter (int id, unsigned int regno,\n"
+	  "                       machine_mode mode,\n"
+	  "                       unsigned int ref_regno,\n"
+	  "                       machine_mode ref_mode);\n");
+}
+
+/* Print the eval_dependent_filter dispatcher function, and
+   eval_dependent_filter_0, 1,... functions that the dispatcher calls.
+   An eval_dependent_filter_0 calls a target-specified function
+   that determines whether a given regno, mode, referenced regno, and
+   referenced mode combination is valid for this particular constraint,
+   returning true or false.  */
+
+static void
+write_dependent_filter_functions_c ()
+{
+  if (dependent_filters.is_empty ())
+    {
+      printf ("\n"
+	      "bool\n"
+	      "eval_dependent_filter (int, unsigned int, machine_mode,\n"
+	      "                       unsigned int, machine_mode)\n"
+	      "{\n"
+	      "  return true;\n"
+	      "}\n");
+      return;
+    }
+
+  for (unsigned id = 0; id < dependent_filters.length (); ++id)
+    {
+      const char *filter = dependent_filters[id]->filter;
+      printf ("\n"
+	      "/* Dependent filter id=%u.  */\n"
+	      "static inline bool\n"
+	      "dependent_filter_%u (unsigned int regno, machine_mode mode,\n"
+	      "                    unsigned int ref_regno,\n"
+	      "                    machine_mode ref_mode)\n"
+	      "{\n"
+	      "  (void) regno; (void) mode;\n"
+	      "  (void) ref_regno; (void) ref_mode;\n"
+	      "  return ",
+	      id, id);
+      rtx_reader_ptr->print_c_condition (stdout, filter);
+      printf (";\n}\n");
+    }
+
+  printf ("\n"
+	  "bool\n"
+	  "eval_dependent_filter (int id, unsigned int regno,\n"
+	  "                       machine_mode mode, unsigned int ref_regno,\n"
+	  "                       machine_mode ref_mode)\n"
+	  "{\n"
+	  "  switch (id)\n"
+	  "    {\n");
+  for (unsigned id = 0; id < dependent_filters.length (); ++id)
+    printf ("    case %u:\n"
+	    "      return dependent_filter_%u (regno, mode,\n"
+	    "                                  ref_regno, ref_mode);\n",
+	    id, id);
+  printf ("    default:\n"
+	  "      return true;\n"
+	  "    }\n"
 	  "}\n");
 }
 
@@ -1679,6 +1830,7 @@ write_tm_preds_h (void)
 
   write_get_register_filter ();
   write_get_register_filter_id ();
+  write_dependent_filter_helpers_h ();
 
   puts ("#endif /* tm-preds.h */");
 }
@@ -1749,6 +1901,8 @@ write_insn_preds_c (void)
     write_insn_const_int_ok_for_constraint ();
 
   write_init_reg_class_start_regs ();
+
+  write_dependent_filter_functions_c ();
 }
 
 /* Argument parsing.  */
@@ -1806,6 +1960,8 @@ main (int argc, const char **argv)
       default:
 	break;
       }
+
+  gcc_assert (dependent_filters.length () == num_dependent_filters);
 
   choose_enum_order ();
 

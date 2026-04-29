@@ -1018,8 +1018,14 @@ DEF_RTL_EXPR(DEFINE_SPECIAL_PREDICATE, "define_special_predicate", "ses", RTX_EX
       used, in future will be incorporated into the manual's list of
       machine-specific operand constraints.
    3: A C expression that evaluates to true if "regno" is a valid
-      start register.  */
-DEF_RTL_EXPR(DEFINE_REGISTER_CONSTRAINT, "define_register_constraint", "sssS", RTX_EXTRA)
+      start register.  When the constraint has a dependent filter
+      (see operand 4), the expression can also reference "ref_regno"
+      and "ref_mode" of the operand it depends on.
+   4: Optional operand index for a dependent, dynamic filter.
+      When specified, the C expression of operand 3 is evaluated at
+      runtime with the additional "ref_regno" and "ref_mode" of the
+      referenced operand.  */
+DEF_RTL_EXPR(DEFINE_REGISTER_CONSTRAINT, "define_register_constraint", "sssSS", RTX_EXTRA)
 
 /* Definition of a non-register operand constraint.  These look at the
    operand and decide whether it fits the constraint.

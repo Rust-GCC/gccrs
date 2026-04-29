@@ -407,6 +407,8 @@ static hash_map<nofree_string_hash, unsigned int> register_filter_map;
 /* All register filter conditions, indexed by identifier.  */
 vec<const char *> register_filters;
 
+unsigned int num_dependent_filters;
+
 /* Return the unique identifier for filter condition FILTER.  Identifiers
    are assigned automatically when the define_register_constraint is
    parsed.  */
@@ -424,19 +426,30 @@ get_register_filter_id (const char *filter)
 static void
 process_define_register_constraint (rtx desc, file_location loc)
 {
-  /* Assign identifiers to each unique register filter condition.  */
-  if (const char *filter = XSTR (desc, 3))
+  const char *filter = XSTR (desc, 3);
+  if (!filter)
+    return;
+
+  const char *reference_op = XSTR (desc, 4);
+
+  if (reference_op)
     {
-      bool existed = false;
-      unsigned int &id = register_filter_map.get_or_insert (filter, &existed);
-      if (!existed)
-	{
-	  id = register_filters.length ();
-	  if (id == 32)
-	    fatal_at (loc, "too many distinct register filters, maximum"
-		      " is 32");
-	  register_filters.safe_push (filter);
-	}
+      /* Nothing to do here, genpreds, handles dependent filter building.
+	 genconfig needs to know the number of dependent filters, so at
+	 least count them.  */
+      num_dependent_filters++;
+      return;
+    }
+
+  bool existed = false;
+  unsigned int &id = register_filter_map.get_or_insert (filter, &existed);
+  if (!existed)
+    {
+      id = register_filters.length ();
+      if (id == 32)
+	fatal_at (loc, "too many distinct register filters, maximum"
+		  " is 32");
+      register_filters.safe_push (filter);
     }
 }
 

@@ -276,7 +276,10 @@ main (int argc, const char **argv)
   puts ("#ifndef GCC_INSN_CONFIG_H");
   puts ("#define GCC_INSN_CONFIG_H\n");
 
-  /* Allow at least 30 operands for the sake of asm constructs.  */
+  /* Allow at least 30 operands for the sake of asm constructs.
+     This magic number is also used in genpreds to determine
+     validity of a referenced operand when parsing dynamic register
+     filters.  */
   /* ??? We *really* ought to reorganize things such that there
      is no fixed upper bound.  */
   max_recog_operands = 29;  /* We will add 1 later.  */
@@ -361,6 +364,7 @@ main (int argc, const char **argv)
     }
 
   printf ("#define NUM_REGISTER_FILTERS %d\n", register_filters.length ());
+  printf ("#define NUM_DEPENDENT_FILTERS %u\n", num_dependent_filters);
 
   puts ("\n#endif /* GCC_INSN_CONFIG_H */");
 

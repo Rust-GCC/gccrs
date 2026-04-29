@@ -111,6 +111,8 @@ extern unsigned int num_optabs;
 extern vec<const char *> register_filters;
 extern unsigned int get_register_filter_id (const char *);
 
+extern unsigned int num_dependent_filters;
+
 /* Information about an instruction name that matches an optab pattern.  */
 struct optab_pattern
 {

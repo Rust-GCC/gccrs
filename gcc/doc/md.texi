@@ -4384,7 +4384,7 @@ Register constraints correspond directly to register classes.
 @xref{Register Classes}.  There is thus not much flexibility in their
 definitions.
 
-@deffn {MD Expression} define_register_constraint name regclass docstring [filter]
+@deffn {MD Expression} define_register_constraint name regclass docstring [filter] [opno]
 All arguments are string constants.
 @var{name} is the name of the constraint, as it will appear in
 @code{match_operand} expressions.  If @var{name} is a multi-letter
@@ -4433,6 +4433,49 @@ calculate an offset relative to the start of the class.  If it is
 sometimes necessary for a register of class @var{c} to be aligned
 to @var{n}, the first register in @var{c} should itself by divisible
 by @var{n}.
+
+If even more fine-grained control is needed, the optional @var{opno}
+can be specified.  It indicates that the constraint is dependent on
+another operand (a ``referenced'' operand) indicated by @var{opno}.
+When it is specified, a @var{filter} must be specified as well.
+The filter function will then be called with the current regno and mode
+of the operand the constraint refers to, as well as ref_regno and ref_mode
+of the operand @var{opno} the filter depends on additionally.
+
+As such dependent filters are dynamic and cannot be precomputed, it is
+advisable to use them very sparingly.  Register allocation is a very
+compile-time sensitive part of GCC, and too many, or too complicated
+dynamic filters may increase the compile time significantly.
+
+As an example, the riscv port must ensure that for widening vector
+instructions, the destination register group either does not overlap
+or only overlaps specific parts of the source.  A dynamic register
+constraint would then be:
+
+@smallexample
+(define_register_constraint "Wtt" "V_REGS" "..." "riscv_widen_overlap_ok (regno, mode, ref_regno, ref_mode)" "0")
+@end smallexample
+
+and the accompanying target-code function @var{riscv_widen_overlap_ok} might
+do:
+@smallexample
+unsigned int wide_nregs = riscv_hard_regno_nregs (wide_regno, wide_mode);
+unsigned int nregs = riscv_hard_regno_nregs (regno, mode);
+
+/* Overlap is only allowed in the highest-numbered part of the wider
+   destination.  */
+if (regno == wide_regno)
+  return false;
+
+if (regno >= wide_regno + (wide_nregs - nregs))
+  return true;
+
+/* No overlap is OK.  */
+if (regno < wide_regno)
+  return true;
+
+return false;
+@end smallexample
 
 @var{docstring} is a sentence documenting the meaning of the
 constraint.  Docstrings are explained further below.

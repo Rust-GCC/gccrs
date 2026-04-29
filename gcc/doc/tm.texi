@@ -2490,6 +2490,9 @@ Therefore, register classes cannot be used to enforce a requirement for
 a register pair to start with an even-numbered register.  The way to
 specify this requirement is with @code{TARGET_HARD_REGNO_MODE_OK},
 or with a filter expression in a @code{define_register_constraint}.
+An operand's constraint that is dependent on another operand's register
+or mode can be expressed using a dependent register constraint with
+an additional operand index in @code{define_register_constraint}.
 
 Register classes used for input-operands of bitwise-and or shift
 instructions have a special requirement: each such class must have, for
