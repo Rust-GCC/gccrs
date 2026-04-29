@@ -2477,7 +2477,8 @@ template <typename _Tp, size_t _Bytes>
     static constexpr size_t _S_VBytes = _Bytes <= 16 ? 16 : _Bytes <= 32 ? 32 : 64;
 
     using type [[__gnu__::__vector_size__(_S_VBytes)]]
-      = conditional_t<is_integral_v<_Tp>, long long int, _Tp>;
+      = conditional_t<is_integral_v<_Tp>, long long int,
+		      conditional_t<is_same_v<_Tp, long double>, double, _Tp> >;
   };
 #endif // _GLIBCXX_SIMD_HAVE_SSE
 
