@@ -2948,6 +2948,7 @@ preprocess_constraints (int n_operands, int n_alternatives,
 	{
 	  op_alt[i].cl = NO_REGS;
 	  op_alt[i].register_filters = 0;
+	  op_alt[i].dependent_filters = 0;
 	  op_alt[i].constraint = p;
 	  op_alt[i].matches = -1;
 	  op_alt[i].matched = -1;
@@ -3015,6 +3016,9 @@ preprocess_constraints (int n_operands, int n_alternatives,
 			  auto filter_id = get_register_filter_id (cn);
 			  if (filter_id >= 0)
 			    op_alt[i].register_filters |= 1U << filter_id;
+			  auto dep_filter_id = get_dependent_filter_id (cn);
+			  if (dep_filter_id >= 0)
+			    op_alt[i].dependent_filters |= 1U << dep_filter_id;
 			}
 		      break;
 
@@ -3137,6 +3141,29 @@ struct funny_match
 {
   int this_op, other;
 };
+
+/* For a register constraint CN with a dependent filter, return true if
+   the respective filter allows REGNO (OP) + OFFSET given the ref-operand
+   in recog_data.operand or false if it doesn't.
+   If the filter cannot be evaluated, for example when no hard reg
+   has been chosen yet, return true.  */
+
+static bool
+test_dependent_filter (constraint_num cn, rtx op, int offset,
+		       machine_mode mode)
+{
+  int id = get_dependent_filter_id (cn);
+  if (id < 0 || !REG_P (op))
+    return true;
+  int ref_opno = get_dependent_filter_ref (id);
+  if (ref_opno < 0 || ref_opno >= recog_data.n_operands)
+    return true;
+  rtx ref_op = recog_data.operand[ref_opno];
+  if (!REG_P (ref_op))
+    return true;
+  return eval_dependent_filter (id, REGNO (op) + offset, mode,
+				REGNO (ref_op), GET_MODE (ref_op));
+}
 
 bool
 constrain_operands (int strict, alternative_mask alternatives)
@@ -3339,7 +3366,10 @@ constrain_operands (int strict, alternative_mask alternatives)
 			      && reg_fits_class_p (op, cl, offset, mode)
 			      && (!filter
 				  || TEST_HARD_REG_BIT (*filter,
-							REGNO (op) + offset))))
+							REGNO (op) + offset))
+			      && (strict <= 0
+				  || test_dependent_filter (cn, op, offset,
+							    mode))))
 			win = true;
 		    }
 

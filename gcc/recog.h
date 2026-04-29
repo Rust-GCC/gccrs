@@ -68,6 +68,10 @@ struct operand_alternative
      to test whether REGNO is a valid start register for the operand.  */
   unsigned int register_filters : MAX (NUM_REGISTER_FILTERS, 1);
 
+  /* Bit ID is set if the constraint string includes a dependent
+     register constraint with dependent-filter id ID.  */
+  unsigned int dependent_filters : MAX (NUM_DEPENDENT_FILTERS, 1);
+
   /* Nonzero if '&' was found in the constraint string.  */
   unsigned int earlyclobber : 1;
   /* Nonzero if TARGET_MEM_CONSTRAINT was found in the constraint
@@ -98,6 +102,18 @@ alternative_register_filters (const operand_alternative *alt, int i)
   return (alt[i].matches >= 0
 	  ? alt[alt[i].matches].register_filters
 	  : alt[i].register_filters);
+}
+
+/* Return the mask of dynamic register filters that should be applied to
+   operand I of alternative ALT, taking matching constraints into
+   account.  */
+
+inline unsigned int
+alternative_dependent_filters (const operand_alternative *alt, int i)
+{
+  return (alt[i].matches >= 0
+	  ? alt[alt[i].matches].dependent_filters
+	  : alt[i].dependent_filters);
 }
 #endif
 
