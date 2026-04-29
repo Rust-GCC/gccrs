@@ -8872,6 +8872,8 @@ compare_reflections (tree lhs, tree rhs)
     }
   else if (lkind == REFLECT_ANNOTATION)
     return TREE_VALUE (lhs) == TREE_VALUE (rhs);
+  else if (lkind == REFLECT_BASE)
+    return lhs == rhs;
   else if (TYPE_P (lhs) && TYPE_P (rhs))
     {
       /* Given "using A = int;", "^^int != ^^A" should hold.  */
