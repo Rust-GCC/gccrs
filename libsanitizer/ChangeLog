@@ -1,3 +1,7 @@
+2026-04-28  Maximilian Ciric  <max.ciric@gmail.com>
+
+	* configure.tgt: Enable HWASAN support for RISC-V target.
+
 2026-04-21  Marian Buschsieweke  <maribu@users.noreply.github.com>
 
 	PR sanitizer/124248

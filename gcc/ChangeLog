@@ -1,3 +1,393 @@
+2026-04-28  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/124217
+	* doc/invoke.texi: Add -Wanalyzer-div-by-zero.
+
+2026-04-28  David Malcolm  <dmalcolm@redhat.com>
+
+	* Makefile.in (ANALYZER_OBJS): Add analyzer/exploded-path.o.
+
+2026-04-28  David Malcolm  <dmalcolm@redhat.com>
+
+	* Makefile.in (ANALYZER_OBJS): Add analyzer/setjmp-longjmp.o.
+
+2026-04-28  David Malcolm  <dmalcolm@redhat.com>
+
+	* Makefile.in (ANALYZER_OBJS): Add
+	analyzer/poisoned-value-diagnostic.o,
+	analyzer/shift-diagnostics.o, and
+	analyzer/write-to-const-diagnostics.o.
+
+2026-04-28  Tomás Ortín Fernández  <quanrong@mailbox.org>
+
+	PR analyzer/105890
+	* doc/invoke.texi: Rename -Wanalyzer-mkstemp-missing-suffix to
+	-Wanalyzer-mktemp-missing-placeholder and
+	-Wanalyzer-mkstemp-of-string-literal to
+	-Wanalyzer-mktemp-of-string-literal.  Add
+	-Wanalyzer-mkostemp-redundant-flags.  Fix alphabetical ordering
+	of detailed descriptions.
+
+2026-04-28  Tomás Ortín Fernández  <quanrong@mailbox.org>
+
+	PR analyzer/105890
+	* doc/invoke.texi: Add -Wanalyzer-mkstemp-missing-suffix and
+	-Wanalyzer-mkstemp-of-string-literal.
+
+2026-04-28  David Malcolm  <dmalcolm@redhat.com>
+
+	* diagnostics/html-sink.cc: Update status comment.
+
+2026-04-28  David Malcolm  <dmalcolm@redhat.com>
+
+	* doc/libgdiagnostics/topics/execution-paths.rst
+	(diagnostic_execution_path_add_event_via_msg_buf): Fix
+	indentation.
+	* doc/libgdiagnostics/topics/message-buffers.rst: Replace
+	duplicate entry for diagnostic_message_buffer_end_url with entry
+	for diagnostic_message_buffer_end_quote.
+
+2026-04-28  David Malcolm  <dmalcolm@redhat.com>
+
+	* diagnostics/context.h (diagnostics::context::make_option_name):
+	Convert return type from char * to label_text, and rename to...
+	(diagnostics::context::get_option_name): ...this.
+	(diagnostics::context::make_option_url): Likewise, renaming to...
+	(diagnostics::context::get_option_url): ...this.
+	* diagnostics/html-sink.cc
+	(html_builder::make_element_for_diagnostic): Update for above
+	changes.
+	* diagnostics/lazy-paths.cc (selftest::all_warnings_disabled):
+	Update for above changes.
+	* diagnostics/option-id-manager.h
+	(diagnostics::option_id_manager::make_option_name): Convert return
+	type from char * to label_text, and rename to...
+	(diagnostics::option_id_manager::get_option_name): ...this.
+	(diagnostics::option_id_manager::make_option_url): Likewise,
+	renaming to...
+	(diagnostics::option_id_manager::get_option_url): ...this.
+	* diagnostics/sarif-sink.cc: Add #define INCLUDE_SET.
+	(sarif_builder::m_rule_id_set): Convert from
+	hash_set <free_string_hash> to std::set<std::string>.
+	(sarif_builder::make_result_object): Update for above changes,
+	removing manual memory management.
+	(sarif_builder::make_reporting_descriptor_object_for_warning):
+	Likewise.
+	* diagnostics/text-sink.cc (text_sink::print_option_information):
+	Likewise.
+	* lto-wrapper.cc (print_lto_docs_link): Likewise.
+	(lto_diagnostic_option_id_manager::make_option_name): Convert
+	return type from char * to label_text, and rename to...
+	(lto_diagnostic_option_id_manager::get_option_name): ...this.
+	* opts-diagnostic.h (gcc_diagnostic_option_id_manager): Update for
+	above changes.
+	* opts.cc
+	(compiler_diagnostic_option_id_manager::make_option_name): Update
+	as above, renaming to...
+	(compiler_diagnostic_option_id_manager::get_option_name): ...this.
+	(gcc_diagnostic_option_id_manager::make_option_url): Likewise,
+	renaming to...
+	(gcc_diagnostic_option_id_manager::get_option_url): ...this.
+
+2026-04-28  David Malcolm  <dmalcolm@redhat.com>
+
+	PR sarif-replay/123056
+	* libsarifreplay.cc: Include "json-pointer-parsing.h".
+	(sarif_replayer::sarif_replayer): Initialize m_root_val.
+	(sarif_replayer::m_root_val): New field.
+	(sarif_replayer::replay_file): Store m_root_val.
+	(sarif_replayer::append_embeddded_link): Add message_obj param.
+	Attempt to decode intra-sarif links, turning them into event IDs.
+	(sarif_replayer::decode_link_within_sarif): New.
+	(sarif_replayer::make_plain_text_within_result_message): Pass
+	message_obj to append_embeddded_link.
+
+2026-04-28  David Malcolm  <dmalcolm@redhat.com>
+
+	* Makefile.in (OBJS-libcommon): Add json-pointer-parsing.o.
+	* json-pointer-parsing.cc: New file.
+	* json-pointer-parsing.h: New file.
+	* json.cc (json::object::set_string): Return a borrowed pointer to
+	the new json::value.
+	(json::object::set_integer): Likewise.
+	(json::array::append_string): Likewise.
+	* json.h (json::object::set_string): Likewise.
+	(json::object::set_integer): Likewise.
+	(json::array::append_string): Likewise.
+	* selftest-run-tests.cc (selftest::run_tests): Call
+	selftest::json_pointer_parsing_cc_tests.
+	* selftest.h (selftest::json_pointer_parsing_cc_tests): New decl.
+
+2026-04-28  David Malcolm  <dmalcolm@redhat.com>
+
+	* Makefile.in (OBJS-libcommon): Add pretty-print-token-buffer.o.
+	* libgdiagnostics.cc: Drop include of "auto-obstack.h".
+	Include "pretty-print-token-buffer.h".
+	(class copying_token_printer): Move to
+	pretty-print-token-buffer.cc.
+	(struct diagnostic_message_buffer): Reimplement as a subclass of
+	pretty_print_token_buffer.
+	(diagnostic_message_buffer::to_string): Rename to
+	pretty_print_token_buffer::to_string and move to
+	pretty-print-token-buffer.cc.
+	* pretty-print-token-buffer.cc: New file, based on material from
+	libgdiagnostics.cc.
+	* pretty-print-token-buffer.h: New file, based on material from
+	libgdiagnostics.h.
+	* selftest-run-tests.cc (selftest::run_tests): Call
+	selftest::pretty_print_token_buffer_cc_tests.
+	* selftest.h (selftest::pretty_print_token_buffer_cc_tests): New
+	decl.
+
+2026-04-28  David Malcolm  <dmalcolm@redhat.com>
+
+	* json-diagnostic.cc: Include "pretty-print-markup-json.h".
+	(class pp_markup::quoted_json_pointer): Move to...
+	* pretty-print-markup-json.h: ...this new file.
+
+2026-04-28  Jeff Law  <jeffrey.law@oss.qualcomm.com>
+
+	PR target/124760
+	* config/riscv/bitmanip.md (SI->DI promoting shadd pattern): Promote
+	intermediate SI ops to DI ops when there's a final extending op.
+
+2026-04-28  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR tree-optimization/125067
+	* tree-ssa-phiprop.cc (can_handle_load): Fix copy and pasto
+	on dominated_by_p.
+
+2026-04-28  Vladimir N. Makarov  <vmakarov@redhat.com>
+
+	* lra-eliminations.cc (mark_not_eliminable): Fix condition to
+	consider hard regs instead of pseudos for INC/DEC/MODIFY operands.
+
+2026-04-28  Vladimir N. Makarov  <vmakarov@redhat.com>
+
+	* lra-constraints.cc (curr_insn_transform): When recreating subreg
+	of a const put in pool, use the original subreg mode.
+
+2026-04-28  Vladimir N. Makarov  <vmakarov@redhat.com>
+
+	* ira-lives.cc (ira_implicitly_set_insn_hard_regs): Use the same
+	start prefered for all operand.
+
+2026-04-28  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	* tree-ssa-phiprop.cc (propagate_with_phi): Move vuse variable
+	declaration right before its use.
+
+2026-04-28  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	* tree-ssa-phiprop.cc (propagate_with_phi): Move vuse checks
+	before the dominator tests.
+
+2026-04-28  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	* tree-ssa-phiprop.cc (propagate_with_phi): Factor out
+	checking the load for vdef to ....
+	(can_move_into_conditional): Here.
+
+2026-04-28  Philipp Tomsich  <philipp.tomsich@vrull.eu>
+
+	* fold-mem-offsets.cc (pass_fold_mem_offsets::execute): Remove
+	optimize_bb_for_size_p check.
+	* config/riscv/riscv.cc (riscv_option_override): Disable
+	flag_fold_mem_offsets when optimizing for size with compressed
+	instructions.
+
+2026-04-28  Jiawei  <jiawei@iscas.ac.cn>
+	    Edwin Lu  <ewlu@rivosinc.com>
+
+	* config/riscv/riscv-ext.def: New extension.
+	* config/riscv/riscv-ext.opt: Ditto.
+	* config/riscv/sync-rvwmo.md: Add check for zalasr.
+	* config/riscv/sync-ztso.md: Ditto.
+	* doc/riscv-ext.texi: New extension.
+
+2026-04-28  Maximilian Ciric  <max.ciric@gmail.com>
+
+	* config/riscv/riscv.cc (riscv_can_tag_addresses): New function.
+	(RISCV_HWASAN_TAG_SIZE): New definition.
+	(riscv_memtag_tag_bitsize): New function.
+	(TARGET_MEMTAG_CAN_TAG_ADDRESSES): New definition.
+	(TARGET_MEMTAG_TAG_BITSIZE): Likewise.
+
+2026-04-28  Dimitar Dimitrov  <dimitar@dinux.eu>
+
+	* config/pru/pru.h (ASM_SPEC): Define.
+
+2026-04-28  Jeff Law  <jeffrey.law@oss.qualcomm.com>
+
+	PR tree-optimization/94892
+	* config/riscv/riscv.md (sign_bit_splat_equality_test): New pattern.
+
+2026-04-28  Richard Biener  <rguenther@suse.de>
+
+	* tree-vect-slp.cc (vect_bb_slp_mark_live_stmts): Do not
+	attempt to live code-generate defs that are kept in scalar
+	form anyway.
+	* tree-vect-loop.cc (vectorizable_live_operation): Update
+	comment.
+
+2026-04-28  Richard Biener  <rguenther@suse.de>
+
+	* tree-vectorizer.h (_slp_tree::live_lanes): New vector.
+	(SLP_TREE_LIVE_LANES): New.
+	* tree-vect-loop.cc (vectorizable_live_operation): Append
+	to SLP_TREE_LIVE_LANES.
+	* tree-vect-slp.cc (_slp_tree::_slp_tree): Initialize
+	SLP_TREE_LIVE_LANES.
+	(_slp_tree::~_slp_tree): Release SLP_TREE_LIVE_LANES.
+	(vect_print_slp_tree): Adjust live lane dumping, indicating
+	the SLP node a lane is code generated from.
+	(vect_bb_slp_mark_live_stmts): No longer verify we can
+	code-generate from all SLP nodes but at least one, picking
+	the first.
+	* tree-vect-stmts.cc (vect_transform_stmt): Iterate over
+	SLP_TREE_LIVE_LANES.
+	(vect_analyze_stmt): Also analyze reductions for live
+	lanes.
+
+2026-04-28  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/124222
+	* tree-vect-slp.cc (vect_slp_gather_vectorized_scalar_stmts): Remove.
+	(vect_bb_slp_scalar_cost): Simplify by using SLP_TREE_TYPE and
+	a use-def walk of the scalar stmts SSA uses.
+	(vect_bb_vectorization_profitable_p): Simplify.
+
+2026-04-28  Richard Biener  <rguenther@suse.de>
+
+	* tree-vect-slp.cc (vec_slp_has_scalar_use): Remove.
+	(vect_bb_slp_mark_live_stmts): Simplify.
+
+2026-04-28  Richard Biener  <rguenther@suse.de>
+
+	* tree-vect-slp.cc (vect_slp_analyze_bb_1): Split out pure_slp
+	marking into ...
+	(vect_bb_slp_mark_stmts_vectorized): ... new function.  Compute
+	full scalar stmt coverage of the SLP graph.
+	(vect_slp_gather_extern_scalar_stmts): New helper.
+	(vect_bb_slp_mark_live_stmts): Adjust.
+	* tree-vect-loop.cc (vectorizable_live_operation): Likewise.
+
+2026-04-28  Richard Biener  <rguenther@suse.de>
+
+	* tree-vect-slp.cc (struct slp_oprnds): New.
+
+2026-04-28  Richard Biener  <rguenther@suse.de>
+
+	* tree-vect-slp.cc (vect_slp_analyze_operations): Move
+	vect_bb_slp_mark_live_stmts call ...
+	(vect_slp_analyze_bb_1): ... here.  Move SLP stmt marking
+	right before it.
+	(vect_mark_slp_stmts): Remove unused overload.
+
+2026-04-28  Richard Biener  <rguenther@suse.de>
+
+	* tree-vectorizer.h (vect_slp_child_index_for_operand): Get
+	a stmt_vec_info, elide gather-scatter flag.
+	* tree-vect-stmts.cc (vect_check_store_rhs): Adjust.
+	(vectorizable_simd_clone_call): Likewise.
+	(vectorizable_store): Likewise.
+	(vectorizable_load): Likewise.
+	* tree-vect-slp.cc (vect_get_operand_map): New overload
+	with a stmt_vec_info argument.
+	(vect_slp_child_index_for_operand): Adjust.
+	(vect_get_and_check_slp_defs): Likewise.
+	(compatible_calls_p): Likewise.
+	(vect_build_slp_tree_2): Likewise.
+
+2026-04-28  Richard Biener  <rguenther@suse.de>
+
+	* tree-vect-slp.cc (vect_get_operand_map): Put operand map
+	data here.  Handle VIEW_CONVERT_EXPR, use else if, factor
+	out assertion.
+	(vect_get_and_check_slp_defs): Remove explicit VIEW_CONVERT_EXPR
+	handling here.
+
+2026-04-28  Uros Bizjak  <ubizjak@gmail.com>
+
+	* config/i386/i386.cc (construct_container): Remove redundant
+	early call to classify_argument. Recompute the classification
+	only when needed and assert that it succeeds.
+	(examine_argument): Change in_return parameter type to bool.
+	(function_arg_advance_64): Update call to examine_argument.
+	(function_arg_64): Update call to construct_container.
+	(function_value_64): Likewise.
+	(ix86_return_in_memory): Update call to examine_argument.
+	(ix86_gimplify_va_arg): Update calls to construct_container
+	and examine_argument.
+
+2026-04-28  Bohan Lei  <garthlei@linux.alibaba.com>
+
+	* config/riscv/riscv.h (OPTION_DEFAULT_SPECS): Specify -mcpu
+	instead of -march when --with-cpu is used.
+
+2026-04-28  Bohan Lei  <garthlei@linux.alibaba.com>
+
+	* simplify-rtx.cc (simplify_context::simplify_relational_operation_1):
+	Add simplifications for `(cmp (and/ior x C1) C2)`.
+
+2026-04-28  Richard Biener  <rguenther@suse.de>
+
+	* tree-vect-loop.cc (vect_estimate_min_profitable_iters):
+	Add comment about costing of prologue/epilogue.
+
+2026-04-28  Richard Biener  <rguenther@suse.de>
+
+	* tree-vect-loop.cc (vect_get_known_peeling_cost): Use
+	scalar_costs instead of guesstimating it.
+
+2026-04-28  Richard Biener  <rguenther@suse.de>
+
+	* tree-vect-loop.cc (vect_compute_single_scalar_iteration_cost):
+	Record stmt cost to vect_body.
+
+2026-04-28  Richard Biener  <rguenther@suse.de>
+
+	* tree-vectorizer.h (vect_get_known_peeling_cost): Simplify API.
+	* tree-vect-loop.cc (vect_get_known_peeling_cost): Avoid
+	all the overhead of record_stmt_cost as we only are interested
+	in the overall sum of the included builtin_vectorization_cost
+	calls.
+	* tree-vect-data-refs.cc (vect_peeling_hash_get_lowest_cost):
+	Adjust.
+	(vect_enhance_data_refs_alignment): Likewise.
+
+2026-04-28  Netanel Komm  <netanelkomm@gmail.com>
+
+	PR tree-optimization/112659
+	PR tree-optimization/122996
+	* match.pd: Extend conditional addition pattern to handle
+	a third constant and uniform vectors.
+
+2026-04-28  Monk Chiang  <monk.chiang@sifive.com>
+
+	* config/riscv/riscv.md (length attribute): Check CROSSING_JUMP_P
+	for jump instructions and use length 8 for crossing jumps.
+	(jump): Update comment to explain when long form is used.
+
+2026-04-28  Jakub Jelinek  <jakub@redhat.com>
+
+	PR tree-optimization/125039
+	* range-op-float.cc (operator_not_equal::fold_range): Call
+	empty_range_varying when not calling frelop_early_resolve.
+
+2026-04-28  Jakub Jelinek  <jakub@redhat.com>
+
+	* tree.cc (build_bitint_type): Allow build_bitint_type (1, 0).
+	(signed_or_unsigned_type_for): Call that for !unsignedp case
+	of BITINT_TYPE with bits 1.
+
+2026-04-28  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR tree-optimization/125036
+	* tree-ssa-loop-ivopts.cc (add_iv_candidate_for_doloop): Don't
+	assert on niniter being integer type. Convert to a full mode
+	integer type if non integer or non-full mode integer type.
+
 2026-04-27  Jeff Law  <jeffrey.law@oss.qualcomm.com>
 
 	PR tree-optimization/57650

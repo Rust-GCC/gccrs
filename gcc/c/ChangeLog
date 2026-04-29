@@ -1,3 +1,9 @@
+2026-04-28  Jakub Jelinek  <jakub@redhat.com>
+
+	* c-decl.cc (finish_declspecs) <case cts_bitint>: Implement
+	C2Y N3747 - Integer Sets, v5.  Allow signed _BitInt(1) for
+	flag_isoc2y.
+
 2026-04-25  Martin Uecker  <uecker@tugraz.at>
 
 	PR c/124303

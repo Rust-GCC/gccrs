@@ -1,3 +1,13 @@
+2026-04-28  Jakub Jelinek  <jakub@redhat.com>
+
+	* c-common.cc (c_common_signed_or_unsigned_type): Use
+	build_bitint_type for TREE_CODE (type) == BITINT_TYPE whenever
+	flag_isoc2y even when precision is 1.
+	(c_common_get_alias_set): Don't special case BITINT_TYPE
+	with precision 1 for flag_isoc2y.
+	* c-lex.cc (interpret_integer): Use _BitInt(1) type for 0wb
+	if flag_isoc2y, rather than _BitInt(2).
+
 2026-04-22  Jakub Jelinek  <jakub@redhat.com>
 
 	* c-cppbuiltin.cc (c_cpp_builtins): Bump __cpp_impl_reflection value

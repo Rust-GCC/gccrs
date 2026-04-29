@@ -1,3 +1,8 @@
+2026-04-28  Tobias Burnus  <tburnus@baylibre.com>
+
+	* testsuite/libgomp.fortran/map-subarray-6.f90: Fix, extend, and
+	robustify.
+
 2026-04-17  Thomas Schwinge  <tschwinge@baylibre.com>
 
 	* testsuite/libgomp.c/declare-variant-3-sm50.c: New.

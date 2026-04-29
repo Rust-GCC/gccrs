@@ -1,3 +1,255 @@
+2026-04-28  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/124217
+	* c-c++-common/analyzer/divide-by-zero-1.c: Update to expect
+	-Wanalyzer-div-by-zero.
+	* c-c++-common/analyzer/divide-by-zero-pr124195-2.c: Likewise.
+	* gcc.dg/analyzer/data-model-1.c (test_21): Split out division by
+	zero cases into...
+	(test_21_division_by_zero): ...this, and...
+	(test_21_modulus_by_zero): ...this, updating these to expect
+	-Wanalyzer-div-by-zero warnings.
+	* gcc.dg/analyzer/divide-by-zero-float.c: New test.
+	* gcc.dg/analyzer/divide-by-zero-ice-pr124433.c: Update to expect
+	-Wanalyzer-div-by-zero.
+	* gcc.dg/analyzer/divide-by-zero-pr124195-1.c: Likewise.
+
+2026-04-28  Virginia Kodsy  <virginiahany9@gmail.com>
+
+	* gcc.dg/analyzer/strcasecmp-1.c: New test.
+
+2026-04-28  Ridham Khurana  <khurana.ridham222@gmail.com>
+
+	* gcc.dg/analyzer/getenv-1.c (test_passthrough): New test.
+
+2026-04-28  Ridham Khurana  <khurana.ridham222@gmail.com>
+
+	* gcc.dg/analyzer/getenv-1.c: New test.
+
+2026-04-28  Tomás Ortín Fernández  <quanrong@mailbox.org>
+
+	PR analyzer/105890
+	* gcc.dg/analyzer/mkdtemp-1.c: Add tests for errno on
+	success/failure, non-null return identity, and no-lhs call.
+	* gcc.dg/analyzer/mkostemp-1.c: Prune fd leak warnings.
+	* gcc.dg/analyzer/mkostemps-1.c: Likewise.
+	* gcc.dg/analyzer/mkstemp-1.c: Likewise.
+	* gcc.dg/analyzer/mkstemps-1.c: Likewise.
+	* gcc.dg/analyzer/mktemp-1.c: Add errno, failure, and success
+	path tests.
+	* gcc.dg/analyzer/fd-mktemp-family.c: New test.
+
+2026-04-28  Tomás Ortín Fernández  <quanrong@mailbox.org>
+
+	PR analyzer/105890
+	* gcc.dg/analyzer/mkstemp-1.c: Update terminology from "suffix"
+	to "placeholder".
+	* gcc.dg/analyzer/mkdtemp-1.c: New test.
+	* gcc.dg/analyzer/mkostemp-1.c: New test.
+	* gcc.dg/analyzer/mkostemps-1.c: New test.
+	* gcc.dg/analyzer/mkstemps-1.c: New test.
+	* gcc.dg/analyzer/mktemp-1.c: New test.
+
+2026-04-28  Tomás Ortín Fernández  <quanrong@mailbox.org>
+
+	PR analyzer/105890
+	* gcc.dg/analyzer/mkstemp-1.c: New test.
+
+2026-04-28  Saksham Gupta  <io.sakshamgupta@gmail.com>
+
+	* gcc.dg/analyzer/atoi-1.c: Update test coverage.
+
+2026-04-28  David Malcolm  <dmalcolm@redhat.com>
+
+	PR sarif-replay/123056
+	* sarif-replay.dg/2.1.0-invalid/3.10.3-bad-json-pointer.sarif: New
+	test.
+	* sarif-replay.dg/2.1.0-valid/embedded-links-pr123056-check-sarif-roundtrip.py
+	(test_roundtrip_of_url_in_generated_sarif): Update expected
+	result, to expect the URL for the event.
+
+2026-04-28  David Malcolm  <dmalcolm@redhat.com>
+
+	* selftests/json-pointer.json: New support file, taken directly
+	from RFC 6901.
+
+2026-04-28  Jeff Law  <jeffrey.law@oss.qualcomm.com>
+
+	PR target/124760
+	* gcc.target/riscv/pr124760.c: New test.
+
+2026-04-28  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/124756
+	* g++.dg/reflect/identifier_of3.C: Add dg-error.
+	* g++.dg/reflect/pr123612.C: Likewise.
+	* g++.dg/reflect/error13.C: New test.
+
+2026-04-28  Marek Polacek  <polacek@redhat.com>
+
+	* g++.dg/reflect/ns5.C: Adjust expected diagnostics.
+	* g++.dg/reflect/type9.C: Likewise.
+
+2026-04-28  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR tree-optimization/116823
+	* g++.dg/tree-ssa/phiprop-1.C: New test.
+
+2026-04-28  Jiawei  <jiawei@iscas.ac.cn>
+	    Edwin Lu  <ewlu@rivosinc.com>
+
+	* gcc.target/riscv/amo/a-rvwmo-fence.c: Disable zalasr from -march.
+	* gcc.target/riscv/amo/a-rvwmo-load-acquire.c: Ditto.
+	* gcc.target/riscv/amo/a-rvwmo-load-relaxed.c: Ditto.
+	* gcc.target/riscv/amo/a-rvwmo-load-seq-cst.c: Ditto.
+	* gcc.target/riscv/amo/a-rvwmo-store-compat-seq-cst.c: Ditto.
+	* gcc.target/riscv/amo/a-rvwmo-store-relaxed.c: Ditto.
+	* gcc.target/riscv/amo/a-rvwmo-store-release.c: Ditto.
+	* gcc.target/riscv/amo/a-ztso-fence.c: Ditto.
+	* gcc.target/riscv/amo/a-ztso-load-acquire.c: Ditto.
+	* gcc.target/riscv/amo/a-ztso-load-relaxed.c: Ditto.
+	* gcc.target/riscv/amo/a-ztso-load-seq-cst.c: Ditto.
+	* gcc.target/riscv/amo/a-ztso-store-compat-seq-cst.c: Ditto.
+	* gcc.target/riscv/amo/a-ztso-store-relaxed.c: Ditto.
+	* gcc.target/riscv/amo/a-ztso-store-release.c: Ditto.
+	* gcc.target/riscv/amo/zaamo-preferred-over-zalrsc.c: Ditto.
+	* gcc.target/riscv/amo/zaamo-rvwmo-amo-add-int.c: Ditto.
+	* gcc.target/riscv/amo/zaamo-ztso-amo-add-int.c: Ditto.
+	* gcc.target/riscv/amo/zabha-rvwmo-all-amo-ops-char.c: Ditto.
+	* gcc.target/riscv/amo/zabha-rvwmo-all-amo-ops-short.c: Ditto.
+	* gcc.target/riscv/amo/zabha-rvwmo-amo-add-char.c: Ditto.
+	* gcc.target/riscv/amo/zabha-rvwmo-amo-add-short.c: Ditto.
+	* gcc.target/riscv/amo/zabha-zacas-atomic-cas.c: Ditto.
+	* gcc.target/riscv/amo/zabha-zacas-preferred-over-zalrsc.c: Ditto.
+	* gcc.target/riscv/amo/zabha-ztso-amo-add-char.c: Ditto.
+	* gcc.target/riscv/amo/zabha-ztso-amo-add-short.c: Ditto.
+	* gcc.target/riscv/amo/zacas-char-requires-zabha.c: Ditto.
+	* gcc.target/riscv/amo/zacas-char-requires-zacas.c: Ditto.
+	* gcc.target/riscv/amo/zacas-preferred-over-zalrsc.c: Ditto.
+	* gcc.target/riscv/amo/zacas-rvwmo-compare-exchange-char-acq-rel.c: Ditto.
+	* gcc.target/riscv/amo/zacas-rvwmo-compare-exchange-char-acquire.c: Ditto.
+	* gcc.target/riscv/amo/zacas-rvwmo-compare-exchange-char-relaxed.c: Ditto.
+	* gcc.target/riscv/amo/zacas-rvwmo-compare-exchange-char-release.c: Ditto.
+	* gcc.target/riscv/amo/zacas-rvwmo-compare-exchange-char-seq-cst.c: Ditto.
+	* gcc.target/riscv/amo/zacas-rvwmo-compare-exchange-compatability-mapping-no-fence.c: Ditto.
+	* gcc.target/riscv/amo/zacas-rvwmo-compare-exchange-compatability-mapping.cc: Ditto.
+	* gcc.target/riscv/amo/zacas-rvwmo-compare-exchange-int-acq-rel.c: Ditto.
+	* gcc.target/riscv/amo/zacas-rvwmo-compare-exchange-int-acquire.c: Ditto.
+	* gcc.target/riscv/amo/zacas-rvwmo-compare-exchange-int-relaxed.c: Ditto.
+	* gcc.target/riscv/amo/zacas-rvwmo-compare-exchange-int-release.c: Ditto.
+	* gcc.target/riscv/amo/zacas-rvwmo-compare-exchange-int-seq-cst.c: Ditto.
+	* gcc.target/riscv/amo/zacas-rvwmo-compare-exchange-short-acq-rel.c: Ditto.
+	* gcc.target/riscv/amo/zacas-rvwmo-compare-exchange-short-acquire.c: Ditto.
+	* gcc.target/riscv/amo/zacas-rvwmo-compare-exchange-short-relaxed.c: Ditto.
+	* gcc.target/riscv/amo/zacas-rvwmo-compare-exchange-short-release.c: Ditto.
+	* gcc.target/riscv/amo/zacas-rvwmo-compare-exchange-short-seq-cst.c: Ditto.
+	* gcc.target/riscv/amo/zacas-ztso-compare-exchange-char.c: Ditto.
+	* gcc.target/riscv/amo/zacas-ztso-compare-exchange-compatability-mapping-no-fence.c: Ditto.
+	* gcc.target/riscv/amo/zacas-ztso-compare-exchange-compatability-mapping.cc: Ditto.
+	* gcc.target/riscv/amo/zacas-ztso-compare-exchange-int-seq-cst.c: Ditto.
+	* gcc.target/riscv/amo/zacas-ztso-compare-exchange-int.c: Ditto.
+	* gcc.target/riscv/amo/zacas-ztso-compare-exchange-short-seq-cst.c: Ditto.
+	* gcc.target/riscv/amo/zacas-ztso-compare-exchange-short.c: Ditto.
+	* gcc.target/riscv/amo/zalrsc-rvwmo-amo-add-int.c: Ditto.
+	* gcc.target/riscv/amo/zalrsc-rvwmo-compare-exchange-int-acquire-release.c: Ditto.
+	* gcc.target/riscv/amo/zalrsc-rvwmo-compare-exchange-int-acquire.c: Ditto.
+	* gcc.target/riscv/amo/zalrsc-rvwmo-compare-exchange-int-consume.c: Ditto.
+	* gcc.target/riscv/amo/zalrsc-rvwmo-compare-exchange-int-relaxed.c: Ditto.
+	* gcc.target/riscv/amo/zalrsc-rvwmo-compare-exchange-int-release.c: Ditto.
+	* gcc.target/riscv/amo/zalrsc-rvwmo-compare-exchange-int-seq-cst-relaxed.c: Ditto.
+	* gcc.target/riscv/amo/zalrsc-rvwmo-compare-exchange-int-seq-cst.c: Ditto.
+	* gcc.target/riscv/amo/zalrsc-rvwmo-subword-amo-add-char-acq-rel.c: Ditto.
+	* gcc.target/riscv/amo/zalrsc-rvwmo-subword-amo-add-char-acquire.c: Ditto.
+	* gcc.target/riscv/amo/zalrsc-rvwmo-subword-amo-add-char-relaxed.c: Ditto.
+	* gcc.target/riscv/amo/zalrsc-rvwmo-subword-amo-add-char-release.c: Ditto.
+	* gcc.target/riscv/amo/zalrsc-rvwmo-subword-amo-add-char-seq-cst.c: Ditto.
+	* gcc.target/riscv/amo/zalrsc-ztso-amo-add-int.c: Ditto.
+	* gcc.target/riscv/amo/zalrsc-ztso-compare-exchange-int-acquire-release.c: Ditto.
+	* gcc.target/riscv/amo/zalrsc-ztso-compare-exchange-int-acquire.c: Ditto.
+	* gcc.target/riscv/amo/zalrsc-ztso-compare-exchange-int-consume.c: Ditto.
+	* gcc.target/riscv/amo/zalrsc-ztso-compare-exchange-int-relaxed.c: Ditto.
+	* gcc.target/riscv/amo/zalrsc-ztso-compare-exchange-int-release.c: Ditto.
+	* gcc.target/riscv/amo/zalrsc-ztso-compare-exchange-int-seq-cst-relaxed.c: Ditto.
+	* gcc.target/riscv/amo/zalrsc-ztso-compare-exchange-int-seq-cst.c: Ditto.
+	* gcc.target/riscv/amo/zalrsc-ztso-subword-amo-add-char-acq-rel.c: Ditto.
+	* gcc.target/riscv/amo/zalrsc-ztso-subword-amo-add-char-acquire.c: Ditto.
+	* gcc.target/riscv/amo/zalrsc-ztso-subword-amo-add-char-relaxed.c: Ditto.
+	* gcc.target/riscv/amo/zalrsc-ztso-subword-amo-add-char-release.c: Ditto.
+	* gcc.target/riscv/amo/zalrsc-ztso-subword-amo-add-char-seq-cst.c: Ditto.
+	* lib/target-supports.exp: Add zalasr checks.
+	* gcc.target/riscv/amo/zalasr-rvwmo-load-acquire.c: New test.
+	* gcc.target/riscv/amo/zalasr-rvwmo-load-relaxed.c: New test.
+	* gcc.target/riscv/amo/zalasr-rvwmo-load-seq-cst.c: New test.
+	* gcc.target/riscv/amo/zalasr-rvwmo-store-compat-seq-cst.c: New test.
+	* gcc.target/riscv/amo/zalasr-rvwmo-store-relaxed.c: New test.
+	* gcc.target/riscv/amo/zalasr-rvwmo-store-release.c: New test.
+	* gcc.target/riscv/amo/zalasr-ztso-load-acquire.c: New test.
+	* gcc.target/riscv/amo/zalasr-ztso-load-relaxed.c: New test.
+	* gcc.target/riscv/amo/zalasr-ztso-load-seq-cst.c: New test.
+	* gcc.target/riscv/amo/zalasr-ztso-store-compat-seq-cst.c: New test.
+	* gcc.target/riscv/amo/zalasr-ztso-store-relaxed.c: New test.
+	* gcc.target/riscv/amo/zalasr-ztso-store-release.c: New test.
+	Co-Authored-by: Edwin Lu <ewlu@rivosinc.com>
+
+2026-04-28  Jeff Law  <jeffrey.law@oss.qualcomm.com>
+
+	PR tree-optimization/94892
+	* gcc.target/riscv/pr94892.c: New test.
+
+2026-04-28  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* g++.dg/cpp26/type-order1.C: Add tests for more type.
+
+2026-04-28  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/124222
+	* gcc.dg/vect/costmodel/x86_64/costmodel-pr124222.c: New testcase.
+
+2026-04-28  Bohan Lei  <garthlei@linux.alibaba.com>
+
+	* gcc.target/i386/pr113609-1.c: Change assembly check after
+	optimization.
+	* gcc.target/riscv/zbs-if_then_else-02.c: New test.
+
+2026-04-28  Netanel Komm  <netanelkomm@gmail.com>
+
+	PR tree-optimization/112659
+	PR tree-optimization/122996
+	* g++.dg/tree-ssa/cond-add-vec-1.C: New test (positive cases).
+	* g++.dg/tree-ssa/cond-add-vec-2.C: New test (negative cases).
+	* gcc.dg/tree-ssa/cond-add-1.c: New test (positive cases).
+	* gcc.dg/tree-ssa/cond-add-2.c: New test (negative cases).
+
+2026-04-28  Monk Chiang  <monk.chiang@sifive.com>
+
+	* gcc.target/riscv/pr-crossing-jump-1.c: New test.
+	* gcc.target/riscv/pr-crossing-jump-2.c: New test.
+	* gcc.target/riscv/pr-crossing-jump-3.c: New test.
+
+2026-04-28  Jakub Jelinek  <jakub@redhat.com>
+
+	PR tree-optimization/125039
+	* gcc.c-torture/compile/pr125039.c: New test.
+
+2026-04-28  Jakub Jelinek  <jakub@redhat.com>
+
+	* gcc.dg/torture/bitint-96.c: New test.
+	* gcc.dg/torture/bitint-97.c: New test.
+	* gcc.dg/torture/bitint-98.c: New test.
+	* gcc.dg/bitint-130.c: New test.
+	* gcc.dg/bitint-131.c: New test.
+	* gcc.dg/bitint-132.c: New test.
+
+2026-04-28  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR tree-optimization/125036
+	* gcc.dg/torture/pr125036-1.c: New test.
+
+2026-04-28  Jason Merrill  <jason@redhat.com>
+
+	PR c++/125022
+	* g++.dg/cpp0x/attr-trivial_abi7.C: New test.
+
 2026-04-27  Jeff Law  <jeffrey.law@oss.qualcomm.com>
 
 	PR tree-optimization/57650

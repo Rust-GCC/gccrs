@@ -1,3 +1,22 @@
+2026-04-28  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/124756
+	* reflect.cc (get_reflection): Give an error when taking the
+	reflection of a block-scope extern.
+
+2026-04-28  Marek Polacek  <polacek@redhat.com>
+
+	* error.cc (inform_tree_category): Also print concept and alias
+	template.
+	* pt.cc (tsubst_splice_scope): Reword the diagnostic messages.
+	Call inform_tree_category.
+
+2026-04-28  Jason Merrill  <jason@redhat.com>
+
+	PR c++/125022
+	* decl.cc (store_parm_decls): Only do trivial_abi stuff when
+	!processing_template_decl.
+
 2026-04-27  Patrick Palka  <ppalka@redhat.com>
 
 	PR c++/124978

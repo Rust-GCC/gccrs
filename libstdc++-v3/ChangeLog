@@ -1,3 +1,26 @@
+2026-04-28  Jonathan Wakely  <jwakely@redhat.com>
+
+	* doc/xml/manual/status_cxx2023.xml: Update status table.
+	* doc/html/manual/status.html: Regenerate.
+
+2026-04-28  Jonathan Wakely  <jwakely@redhat.com>
+
+	* doc/xml/manual/using.xml (Flags): Update description of
+	default value for -std option.
+	* doc/html/manual/using.html: Regenerate.
+
+2026-04-28  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* include/bits/ptr_traits.h (__ptr_traits_ptr_to::pointer_to):
+	Define as constexpr since C++20.
+	* testsuite/20_util/pointer_traits/pointer_to_constexpr.cc:
+	New test for custom pointer-like type.
+
+2026-04-28  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* testsuite/18_support/comparisons/type_order/1.cc: Add tests
+	for more type.
+
 2026-04-27  Jakub Jelinek  <jakub@redhat.com>
 
 	PR libstdc++/125024
