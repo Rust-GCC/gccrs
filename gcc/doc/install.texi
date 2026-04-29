@@ -4351,9 +4351,6 @@ It may be helpful to configure GCC with the
 @uref{./configure.html#with-gnu-as,,@option{--with-gnu-as}} and
 @option{--with-as=@dots{}} options to ensure that GCC can find GAS@.
 
-Only the HP linker is supported.  Thus, it is best to explicitly
-configure the target with the @option{--with-ld=@dots{}} option.
-
 The DCE thread library is not supported, so @option{--enable-threads=dce}
 does not work.
 
