@@ -1168,6 +1168,18 @@ Mappings::insert_glob_container (NodeId id, AST::GlobContainer *container)
     glob_containers[id] = container;
 }
 
+void
+Mappings::insert_module_id (NodeId id)
+{
+  module_ids.insert (id);
+}
+
+bool
+Mappings::is_module (NodeId id)
+{
+  return module_ids.find (id) != module_ids.end ();
+}
+
 tl::optional<AST::GlobContainer *>
 Mappings::lookup_glob_container (NodeId id)
 {
