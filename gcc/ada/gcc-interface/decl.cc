@@ -814,12 +814,8 @@ gnat_to_gnu_entity (Entity_Id gnat_entity, tree gnu_expr, bool definition)
 	  }
 
 	/* If an alignment is specified, use it if valid.  Note that exceptions
-	   are objects but don't have an alignment and there is also no point in
-	   setting it for an address clause, since the final type of the object
-	   will be a reference type.  */
-	if (Known_Alignment (gnat_entity)
-	    && kind != E_Exception
-	    && No (Address_Clause (gnat_entity)))
+	   are objects but don't have an alignment.  */
+	if (Known_Alignment (gnat_entity) && kind != E_Exception)
 	  align = validate_alignment (Alignment (gnat_entity), gnat_entity,
 				      TYPE_ALIGN (gnu_type));
 
