@@ -4562,13 +4562,14 @@ package body Exp_Ch4 is
          Error_Msg_N ("?_a?use of an anonymous access type allocator", N);
       end if;
 
-      --  Here we set no initialization on types with constructors since we
-      --  generate initialization for the separately.
+      --  Suppress default initialization on internally generated allocators
+      --  since they are initialized separately.
 
-      if Needs_Construction (Directly_Designated_Type (PtrT))
+      if not Comes_From_Source (Parent (N))
+        and then Needs_Construction (Directly_Designated_Type (PtrT))
         and then Nkind (Expression (N)) = N_Identifier
       then
-         Set_No_Initialization (N, False);
+         Set_No_Initialization (N);
       end if;
 
       --  RM E.2.2(17). We enforce that the expected type of an allocator

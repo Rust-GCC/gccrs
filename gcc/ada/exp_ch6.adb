@@ -5924,353 +5924,361 @@ package body Exp_Ch6 is
       procedure Prepend_Constructor_Procedure_Prologue
         (Spec_Id : Entity_Id; Body_Id : Entity_Id; L : List_Id)
       is
+         function Init_From_Initialize_Expression
+           (Component : Entity_Id) return Node_Id;
+         --  If the Initialize aspect for the constructor procedure contains
+         --  the given component or the default others, then return the
+         --  initial value expression specified there. Otherwise, return
+         --  Empty.
 
-         function First_Param_Type return Entity_Id is
-           (Implementation_Base_Type (Etype (First_Formal (Spec_Id))));
+         function Init_From_Default_Or_Constructor
+           (Component : Entity_Id) return Node_Id;
+         --  If the component declaration includes a default initial value
+         --  expression or its type has a parameterless constructor
+         --  available, then return that expression (or a corresponding Make
+         --  call in the constructor case). Otherwise, return Empty.
 
-      begin
-         if not (Nkind (Specification (N)) = N_Procedure_Specification
-                  and then Is_Constructor (Spec_Id))
-         then
-            return; -- the usual case
-         end if;
+         function Make_Init_Proc_Call
+           (Component      : Entity_Id;
+            Component_Name : Node_Id) return Node_Id;
+         --  Build and return a call to the init proc for the type of the
+         --  component to initialize it.
 
-         Push_Scope (Spec_Id);
+         function Make_Parent_Constructor_Call
+           (Parent_Type : Entity_Id) return Node_Id;
+         --  Builds and returns a call to the appropriate constructor procedure
+         --  of the parent type. This function is called only in the case of a
+         --  Constructor procedure for a type extension.
 
-         --  Initialize the first parameter.
-         --  First_Param_Type is a record type (tagged or untagged) or
-         --  a type extension. If it is a type extension, then we begin by
-         --  calling the appropriate constructor procedure for the _parent
-         --  part. In the absence of a Super aspect specification, the
-         --  "appropriate" constructor is the one that takes only a single
-         --  parameter (the object being initialized). Additional actual
-         --  parameters for the constructor call may be provided via a
-         --  Super aspect specification, in which case a different
-         --  constructor procedure will be invoked.
-         --
-         --  For each remaining component we first check to see if it
-         --  is mentioned in the Initialize aspect specification (if any) for
-         --  Body_Id. If so, then evaluate the expression given for that
-         --  component in the aspect specification and assign it to the
-         --  given component of the first parameter. If not, and if an
-         --  explicit default initial value is provided for the given component
-         --  in the type declaration, then do the same thing with that
-         --  expression instead. Otherwise perform normal default
-         --  initialization for the component - invoke the init proc for the
-         --  component's type if one exists, and otherwise do nothing.
+         --------------------------------
+         -- From_Initialize_Expression --
+         --------------------------------
 
-         --  We do not perform tag initialization here. That is dealt with
-         --  elsewhere. The init proc for a tagged type is
-         --  passed an extra parameter indicating whether to perform
-         --  tag initialization.
-
-         --  In the case of a type (tagged or untagged) that is not
-         --  an extension, we could just generate a single assignment,
-         --  taking the RHS from the Initialize aspect value (which is an
-         --  N_Aggregate node). But that gets complicated in the case of
-         --  an extension, so we handle all cases one component at a time.
-
-         declare
-            Initialize_Aspect : constant Node_Id :=
+         function Init_From_Initialize_Expression
+           (Component : Entity_Id) return Node_Id
+         is
+            Initialize_Aspect           : constant Node_Id :=
               Find_Aspect (Body_Id, Aspect_Initialize);
-
             First_Initialize_Comp_Assoc : constant Node_Id :=
               (if Present (Initialize_Aspect)
                then First (Component_Associations
                              (Expression (Initialize_Aspect)))
                else Empty);
+            Component_Cursor  : Node_Id := First_Initialize_Comp_Assoc;
+            Choice            : Node_Id;
+            Others_Expression : Node_Id := Empty;
 
-            Component : Entity_Id := First_Entity (First_Param_Type);
-            Comp_List, Initialize_List, Tag_List, Parent_List :
-              constant List_Id := New_List;
-            --  Comp_List contains the list of default initializations, init
-            --  procedure calls, or constructor calls for components;
-            --  Initialize_List contains the list of component initializations
-            --  coming from the Initialize aspect;
-            --  Tag_List contains the initialization for the tag;
-            --  Parent_List contains the parent constructor call.
+            --  ??? Technically, this is quadratic (linear search called
+            --  a linear number of times). When/if we see performance
+            --  problems with hundreds of components mentioned in one
+            --  Initialize aspect specification, we can revisit this.
+         begin
+            while Present (Component_Cursor) loop
+               Choice := First (Choices (Component_Cursor));
 
-            function Init_From_Initialize_Expression
-              (Component : Entity_Id) return Node_Id;
-            --  If the Initialize aspect for the constructor procedure contains
-            --  the given component or the default others, then return the
-            --  initial value expression specified there. Otherwise, return
-            --  Empty.
+               while Present (Choice) loop
+                  --  The others expression is used in case there is no
+                  --  explicit component association for the given one.
 
-            function Init_From_Default_Or_Constructor
-              (Component : Entity_Id) return Node_Id;
-            --  If the component declaration includes a default initial value
-            --  expression or its type has a parameterless constructor
-            --  available, then return that expression (or a corresponding Make
-            --  call in the constructor case). Otherwise, return Empty.
+                  if Nkind (Choice) = N_Others_Choice
+                    and then Comes_From_Source (Choice)
+                  then
+                     Others_Expression := Expression (Component_Cursor);
 
-            function Make_Init_Proc_Call (Component      : Entity_Id;
-                                          Component_Name : Node_Id)
-              return Node_Id;
-            --  Builds and returns a call to the init proc for the type of
-            --  the component in order to initialize the given component.
-            --  The init proc must exist.
-
-            function Make_Parent_Constructor_Call (Parent_Type : Entity_Id)
-              return Node_Id;
-            --  Builds and returns a call to the appropriate constructor
-            --  procedure of the parent type.
-            --  This function is called only in the case of a
-            --  Constructor procedure for a type extension.
-
-            --------------------------------
-            -- From_Initialize_Expression --
-            --------------------------------
-
-            function Init_From_Initialize_Expression (Component : Entity_Id)
-              return Node_Id
-            is
-               Component_Cursor  : Node_Id := First_Initialize_Comp_Assoc;
-               Choice            : Node_Id;
-               Others_Expression : Node_Id := Empty;
-
-               --  ??? Technically, this is quadratic (linear search called
-               --  a linear number of times). When/if we see performance
-               --  problems with hundreds of components mentioned in one
-               --  Initialize aspect specification, we can revisit this.
-            begin
-               while Present (Component_Cursor) loop
-                  Choice := First (Choices (Component_Cursor));
-
-                  while Present (Choice) loop
-                     --  The others expression is used in case there is no
-                     --  explicit component association for the given one.
-
-                     if Nkind (Choice) = N_Others_Choice
-                       and then Comes_From_Source (Choice)
-                     then
-                        Others_Expression := Expression (Component_Cursor);
-
-                     elsif Nkind (Choice) = N_Identifier
-                       and then Chars (Choice) = Chars (Component)
-                     then
-                        return Expression (Component_Cursor);
-                     end if;
-                     Next (Choice);
-                  end loop;
-
-                  Next (Component_Cursor);
+                  elsif Nkind (Choice) = N_Identifier
+                    and then Chars (Choice) = Chars (Component)
+                  then
+                     return Expression (Component_Cursor);
+                  end if;
+                  Next (Choice);
                end loop;
 
-               return Others_Expression;
-            end Init_From_Initialize_Expression;
-
-            --------------------------------------
-            -- Init_From_Default_Or_Constructor --
-            --------------------------------------
-
-            function Init_From_Default_Or_Constructor (Component : Entity_Id)
-              return Node_Id is
-            begin
-               if Present (Expression (Parent (Component))) then
-                  return Expression (Parent (Component));
-               end if;
-
-               --  In case the type needs construction and a parameterless
-               --  constructor is present, then it can be implicitly used it
-               --  here.
-
-               if Needs_Construction (Etype (Component))
-                 and then Has_Parameterless_Constructor (Etype (Component))
-               then
-                  return Make_Attribute_Reference (Loc,
-                           Prefix         =>
-                             New_Occurrence_Of (Etype (Component), Loc),
-                           Attribute_Name => Name_Make);
-               end if;
-
-               return Empty;
-            end Init_From_Default_Or_Constructor;
-
-            -------------------------
-            -- Make_Init_Proc_Call --
-            -------------------------
-
-            function Make_Init_Proc_Call (Component      : Entity_Id;
-                                          Component_Name : Node_Id)
-              return Node_Id
-            is
-               Params    : constant List_Id := New_List (Component_Name);
-               Init_Proc : constant Entity_Id :=
-                 Base_Init_Proc (Etype (Component));
-            begin
-               if Is_Tagged_Type (Etype (Component)) then
-                  Append (Make_Mode_Literal (Loc, Full_Init), Params);
-               end if;
-
-               return Init_Proc_Call : constant Node_Id :=
-                 Make_Procedure_Call_Statement (Loc,
-                   Name => New_Occurrence_Of (Init_Proc, Loc),
-                   Parameter_Associations => Params)
-               do
-                  pragma Assert (Check_Number_Of_Actuals
-                                   (Subp_Call => Init_Proc_Call,
-                                    Subp_Id   => Init_Proc));
-               end return;
-            end Make_Init_Proc_Call;
-
-            ----------------------------------
-            -- Make_Parent_Constructor_Call --
-            ----------------------------------
-
-            function Make_Parent_Constructor_Call (Parent_Type : Entity_Id)
-              return Node_Id
-            is
-               Actual_Parameters : List_Id := No_List;
-               Super_Aspect      : constant Node_Id :=
-                 Find_Aspect (Body_Id, Aspect_Super);
-
-               --  Do not confuse the Super aspect with the Super attribute.
-               --  Both are referenced here, but they are not related as
-               --  closely as some aspect/attribute homonym pairs are.
-               --  The attribute takes an object as a prefix. The aspect
-               --  can be specified for the body of a constructor procedure.
-            begin
-               if Present (Super_Aspect) then
-                  declare
-                     Super_Expr : constant Node_Id :=
-                       Expression (Super_Aspect);
-                     Expr       : Node_Id;
-                  begin
-                     --  Super without expression is a call to the parent
-                     --  parameterless constructor.
-
-                     if No (Super_Expr) then
-                        Actual_Parameters := No_List;
-
-                     elsif Nkind (Super_Expr) /= N_Aggregate then
-                        Expr := New_Copy_Tree (Super_Expr);
-                        Set_Paren_Count (Expr, 0);
-                        Actual_Parameters := New_List (Expr);
-
-                     else
-                        --  Interpret this "aggregate" as a list of
-                        --  actual parameter expressions.
-
-                        Actual_Parameters := New_List;
-                        Expr := First (Expressions (Super_Expr));
-                        while Present (Expr) loop
-                           Append (New_Copy_Tree (Expr), Actual_Parameters);
-                           Next (Expr);
-                        end loop;
-                     end if;
-                  end;
-               end if;
-
-               return Make_Assignment_Statement (Loc,
-                 Name       =>
-                   Make_Attribute_Reference (Loc,
-                     Prefix         =>
-                       New_Occurrence_Of (First_Formal (Spec_Id), Loc),
-                     Attribute_Name => Name_Super),
-                 Expression =>
-                   Make_Attribute_Reference (Loc,
-                     Prefix         =>
-                       New_Occurrence_Of (Parent_Type, Loc),
-                     Attribute_Name => Name_Make,
-                     Expressions    => Actual_Parameters));
-            end Make_Parent_Constructor_Call;
-
-         begin
-            while Present (Component) loop
-
-               --  Skip if not a component, this may happen when initialization
-               --  expressions contain strings.
-
-               if Ekind (Component) /= E_Component then
-                  goto Next_Component;
-               end if;
-
-               if Chars (Component) = Name_uTag then
-                  Append_To (Tag_List,
-                    Make_Tag_Assignment_From_Type (Loc,
-                      Target => New_Occurrence_Of
-                                  (First_Formal (Spec_Id), Loc),
-                      Typ    => First_Param_Type));
-
-               elsif Chars (Component) = Name_uParent
-                 and then Needs_Construction (Etype (Component))
-               then
-                  Append_To (Parent_List,
-                    Make_Parent_Constructor_Call
-                      (Parent_Type => Etype (Component)));
-
-               else
-                  declare
-                     Maybe_Initialize             : constant Node_Id :=
-                       Init_From_Initialize_Expression (Component);
-                     Maybe_Default_Or_Constructor : constant Node_Id :=
-                       Init_From_Default_Or_Constructor (Component);
-
-                     function Make_Component_Name return Node_Id is
-                       (Make_Selected_Component (Loc,
-                          Prefix        =>
-                            New_Occurrence_Of (First_Formal (Spec_Id), Loc),
-                          Selector_Name =>
-                            Make_Identifier (Loc, Chars (Component))));
-                  begin
-                     --  Handle case where initial value for this component is
-                     --  specified either in an Initialize aspect specification
-                     --  or as part of the component declaration.
-
-                     if Present (Maybe_Initialize)
-                       or else Present (Maybe_Default_Or_Constructor)
-                     then
-                        declare
-                           Init : Node_Id;
-                           List : List_Id;
-                        begin
-                           if Present (Maybe_Initialize) then
-                              Init := Maybe_Initialize;
-                              List := Initialize_List;
-                           else
-                              Init := Maybe_Default_Or_Constructor;
-                              List := Comp_List;
-                           end if;
-                           Append_List_To (List,
-                             Build_Component_Assignment (Loc,
-                               Prefix       =>
-                                 New_Occurrence_Of
-                                   (First_Formal (Spec_Id), Loc),
-                               Prefix_Type  => First_Param_Type,
-                               Proc_Id      => Body_Id,
-                               Component_Id => Component,
-                               Default_Expr =>
-                                 New_Copy_Tree (Init, New_Scope => Body_Id)));
-                        end;
-
-                     --  Handle case where component's type has an init proc
-                     elsif Has_Non_Null_Base_Init_Proc (Etype (Component)) then
-                        Append_To (Comp_List,
-                                   Make_Init_Proc_Call (
-                                    Component      => Component,
-                                    Component_Name => Make_Component_Name));
-                     else
-                        pragma Assert (not Is_Tagged_Type (Etype (Component)));
-                     end if;
-                  end;
-               end if;
-
-               <<Next_Component>>
-               Next_Entity (Component);
+               Next (Component_Cursor);
             end loop;
 
-            --  First, use default value initializations and init procedures,
-            --  then call the parent constructor (if any), then initialize all
-            --  other components through the Initialize aspect, last the tag.
+            return Others_Expression;
+         end Init_From_Initialize_Expression;
 
-            Append_List (Tag_List, Initialize_List);
-            Append_List (Initialize_List, Parent_List);
-            Append_List (Parent_List, Comp_List);
-            Insert_List_Before_And_Analyze (First (L), Comp_List);
-         end;
+         --------------------------------------
+         -- Init_From_Default_Or_Constructor --
+         --------------------------------------
 
-         Pop_Scope;
+         function Init_From_Default_Or_Constructor
+           (Component : Entity_Id) return Node_Id is
+         begin
+            if Present (Expression (Parent (Component))) then
+               return Expression (Parent (Component));
+            end if;
+
+            --  In case the type needs construction and a parameterless
+            --  constructor is present, then it can be implicitly used it
+            --  here.
+
+            if Needs_Construction (Etype (Component))
+              and then Has_Parameterless_Constructor (Etype (Component))
+            then
+               return Make_Attribute_Reference (Loc,
+                        Prefix         =>
+                          New_Occurrence_Of (Etype (Component), Loc),
+                        Attribute_Name => Name_Make);
+            end if;
+
+            return Empty;
+         end Init_From_Default_Or_Constructor;
+
+         -------------------------
+         -- Make_Init_Proc_Call --
+         -------------------------
+
+         function Make_Init_Proc_Call
+           (Component      : Entity_Id;
+            Component_Name : Node_Id) return Node_Id
+         is
+            Params    : constant List_Id   := New_List (Component_Name);
+            Init_Proc : constant Entity_Id := Base_Init_Proc
+                                                (Etype (Component));
+         begin
+            pragma Assert (Present (Init_Proc));
+
+            if Is_Tagged_Type (Etype (Component)) then
+               Append (Make_Mode_Literal (Loc, Full_Init), Params);
+            end if;
+
+            return Init_Proc_Call : constant Node_Id :=
+              Make_Procedure_Call_Statement (Loc,
+                Name => New_Occurrence_Of (Init_Proc, Loc),
+                Parameter_Associations => Params)
+            do
+               pragma Assert (Check_Number_Of_Actuals
+                                (Subp_Call => Init_Proc_Call,
+                                 Subp_Id   => Init_Proc));
+            end return;
+         end Make_Init_Proc_Call;
+
+         ----------------------------------
+         -- Make_Parent_Constructor_Call --
+         ----------------------------------
+
+         function Make_Parent_Constructor_Call
+           (Parent_Type : Entity_Id) return Node_Id
+         is
+            Actual_Parameters : List_Id := No_List;
+            Lhs               : Node_Id;
+            Super_Aspect      : constant Node_Id :=
+                                  Find_Aspect (Body_Id, Aspect_Super);
+
+            --  Do not confuse the Super aspect with the Super attribute.
+            --  Both are referenced here, but they are not related as
+            --  closely as some aspect/attribute homonym pairs are.
+            --  The attribute takes an object as a prefix. The aspect
+            --  can be specified for the body of a constructor procedure.
+         begin
+            if Present (Super_Aspect) then
+               declare
+                  Super_Expr : constant Node_Id := Expression (Super_Aspect);
+                  Expr       : Node_Id;
+
+               begin
+                  --  Super without expression is a call to the parent
+                  --  parameterless constructor.
+
+                  if No (Super_Expr) then
+                     Actual_Parameters := No_List;
+
+                  elsif Nkind (Super_Expr) /= N_Aggregate then
+                     Expr := New_Copy_Tree (Super_Expr);
+                     Set_Paren_Count (Expr, 0);
+                     Actual_Parameters := New_List (Expr);
+
+                  else
+                     --  Interpret this "aggregate" as a list of actual
+                     --  parameter expressions.
+
+                     Actual_Parameters := New_List;
+                     Expr := First (Expressions (Super_Expr));
+                     while Present (Expr) loop
+                        Append (New_Copy_Tree (Expr), Actual_Parameters);
+                        Next (Expr);
+                     end loop;
+                  end if;
+               end;
+            end if;
+
+            Lhs :=
+              Make_Attribute_Reference (Loc,
+                Prefix         =>
+                  New_Occurrence_Of (First_Formal (Spec_Id), Loc),
+                Attribute_Name => Name_Super);
+            Set_Assignment_OK (Lhs);
+
+            return Make_Assignment_Statement (Loc,
+              Name       => Lhs,
+              Expression =>
+                Make_Attribute_Reference (Loc,
+                  Prefix         => New_Occurrence_Of (Parent_Type, Loc),
+                  Attribute_Name => Name_Make,
+                  Expressions    => Actual_Parameters));
+         end Make_Parent_Constructor_Call;
+
+         --  Local variables
+
+         First_Param_Type : constant Entity_Id :=
+                              Implementation_Base_Type
+                                (Etype (First_Formal (Spec_Id)));
+         Component        : Entity_Id;
+
+         Comp_List        : constant List_Id := New_List;
+         Initialize_List  : constant List_Id := New_List;
+         Tag_List         : constant List_Id := New_List;
+         Parent_List      : constant List_Id := New_List;
+         --  Comp_List contains the list of default initializations, init
+         --  procedure calls, or constructor calls for components;
+         --  Initialize_List contains the list of component initializations
+         --  coming from the Initialize aspect;
+         --  Tag_List contains the initialization for the tag;
+         --  Parent_List contains the parent constructor call.
+
+      --  Start of processing for Prepend_Constructor_Procedure_Prologue
+
+      begin
+         pragma Assert (Is_Constructor (Spec_Id));
+
+         Install_Formals (Spec_Id);
+         Push_Scope (Spec_Id);
+
+         --  First_Param_Type is a record type (tagged or untagged) or a type
+         --  extension. If it is a type extension, then we begin by calling the
+         --  appropriate constructor procedure for the _parent part. In the
+         --  absence of a Super aspect specification, the "appropriate"
+         --  constructor is the one that takes only a single parameter (the
+         --  object being initialized). Additional actual parameters for the
+         --  constructor call may be provided via a Super aspect specification,
+         --  in which case a different constructor procedure will be invoked.
+         --
+         --  For each remaining component we first check to see if it is
+         --  mentioned in the Initialize aspect specification (if any) for
+         --  Body_Id. If so, then evaluate the expression given for that
+         --  component in the aspect specification and assign it to the given
+         --  component of the first parameter. If not, and if an explicit
+         --  default initial value is provided for the given component in the
+         --  type declaration, then do the same thing with that expression
+         --  instead. Otherwise perform normal default initialization for the
+         --  component - invoke the init proc for the component's type if one
+         --  exists, and otherwise do nothing.
+
+         --  In the case of a type (tagged or untagged) that is not an
+         --  extension, we could just generate a single assignment, taking the
+         --  RHS from the Initialize aspect value (which is an N_Aggregate
+         --  node). But that gets complicated in the case of an extension, so
+         --  we handle all cases one component at a time.
+
+         Component := First_Entity (First_Param_Type);
+         while Present (Component) loop
+
+            --  Skip if not a component, this may happen when initialization
+            --  expressions contain strings.
+
+            if Ekind (Component) /= E_Component then
+               goto Next_Component;
+            end if;
+
+            if Chars (Component) = Name_uTag then
+               Append_To (Tag_List,
+                 Make_Tag_Assignment_From_Type (Loc,
+                   Target => New_Occurrence_Of (First_Formal (Spec_Id), Loc),
+                   Typ    => First_Param_Type));
+
+            elsif Chars (Component) = Name_uParent
+              and then Needs_Construction (Etype (Component))
+            then
+               Append_To (Parent_List,
+                 Make_Parent_Constructor_Call
+                   (Parent_Type => Etype (Component)));
+
+            else
+               declare
+                  Maybe_Initialize             : constant Node_Id :=
+                    Init_From_Initialize_Expression (Component);
+                  Maybe_Default_Or_Constructor : constant Node_Id :=
+                    Init_From_Default_Or_Constructor (Component);
+
+                  function Make_Component_Name return Node_Id
+                  is (Make_Selected_Component (Loc,
+                       Prefix        =>
+                         New_Occurrence_Of (First_Formal (Spec_Id), Loc),
+                       Selector_Name =>
+                         Make_Identifier (Loc, Chars (Component))));
+               begin
+                  --  Handle case where initial value for this component is
+                  --  specified either in an Initialize aspect specification
+                  --  or as part of the component declaration.
+
+                  if Present (Maybe_Initialize)
+                    or else Present (Maybe_Default_Or_Constructor)
+                  then
+                     declare
+                        Init : Node_Id;
+                        List : List_Id;
+
+                     begin
+                        if Present (Maybe_Initialize) then
+                           Init := Maybe_Initialize;
+                           List := Initialize_List;
+                        else
+                           Init := Maybe_Default_Or_Constructor;
+                           List := Comp_List;
+                        end if;
+
+                        Append_List_To (List,
+                          Build_Component_Assignment (Loc,
+                            Prefix       =>
+                              New_Occurrence_Of (First_Formal (Spec_Id), Loc),
+                            Prefix_Type  => First_Param_Type,
+                            Proc_Id      => Body_Id,
+                            Component_Id => Component,
+                            Default_Expr => New_Copy_Tree (Init,
+                                              New_Scope => Body_Id)));
+                     end;
+
+                  --  Handle case where component's type has an init proc
+
+                  elsif Has_Non_Null_Base_Init_Proc (Etype (Component)) then
+
+                     if not Has_Discriminants (Etype (Component)) then
+                        Append_To (Comp_List,
+                          Make_Init_Proc_Call (
+                            Component      => Component,
+                            Component_Name => Make_Component_Name));
+                     else
+                        Append_List_To (Comp_List,
+                          Build_Initialization_Call
+                            (N            => Parent (Component),
+                             Id_Ref       => Make_Component_Name,
+                             Typ          => Etype (Component),
+                             In_Init_Proc => True,
+                             Enclos_Type  => First_Param_Type));
+                     end if;
+
+                  else
+                     pragma Assert (not Is_Tagged_Type (Etype (Component)));
+                  end if;
+               end;
+            end if;
+
+            <<Next_Component>>
+            Next_Entity (Component);
+         end loop;
+
+         --  First, use default value initializations and init procedures,
+         --  then call the parent constructor (if any), then initialize all
+         --  other components through the Initialize aspect, last the tag.
+
+         Append_List (Tag_List, Initialize_List);
+         Append_List (Initialize_List, Parent_List);
+         Append_List (Parent_List, Comp_List);
+         Insert_List_Before_And_Analyze (First (L), Comp_List);
+
+         End_Scope;
       end Prepend_Constructor_Procedure_Prologue;
 
       --  Local variables
@@ -6508,8 +6516,12 @@ package body Exp_Ch6 is
       --  If the subprogram is a constructor procedure then prepend
       --  and analyze initialization code.
 
-      Prepend_Constructor_Procedure_Prologue
-        (Spec_Id => Spec_Id, Body_Id => Body_Id, L => L);
+      if Nkind (Specification (N)) = N_Procedure_Specification
+        and then Is_Constructor (Spec_Id)
+      then
+         Prepend_Constructor_Procedure_Prologue
+           (Spec_Id => Spec_Id, Body_Id => Body_Id, L => L);
+      end if;
 
       --  Set to encode entity names in package body before gigi is called
 

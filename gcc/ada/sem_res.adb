@@ -4808,9 +4808,16 @@ package body Sem_Res is
                --  component may initialize a nested component of a constant
                --  designated object. In this context the object is variable.
 
+               --  Similarly, a constructor may be invoked to initialize a
+               --  constant variable, and this is allowed.
+
                if not Is_OK_Variable_For_Out_Formal (A)
-                 and then not Is_Init_Proc (Nam)
-                 and then not Is_Expanded_Constructor_Call (N)
+                 and then not
+                   (A = First_Actual (N)
+                      and then
+                        (Is_Init_Proc (Nam)
+                           or else Is_Constructor (Nam)
+                           or else Is_Expanded_Constructor_Call (N)))
                then
                   Error_Msg_NE ("actual for& must be a variable", A, F);
 

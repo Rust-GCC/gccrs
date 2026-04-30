@@ -5278,11 +5278,13 @@ package body Sem_Ch6 is
 
          Att_N    : constant Node_Id := Original_Node (N);
          Prefix_E : constant Entity_Id :=
-           Get_Name_Entity_Id (Chars (Prefix (Defining_Unit_Name (Att_N))));
+           Get_Full_View
+             (Current_Entity (Prefix (Defining_Unit_Name (Att_N))));
          Att_Name : constant Name_Id :=
            Attribute_Name (Defining_Unit_Name (Att_N));
 
-         --  Start of processing for Analyze_Direct_Attribute_Definition
+      --  Start of processing for Analyze_Direct_Attribute_Definition
+
       begin
          pragma Assert (N /= Att_N);
 

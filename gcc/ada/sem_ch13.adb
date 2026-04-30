@@ -6059,22 +6059,19 @@ package body Sem_Ch13 is
             elsif Asp_Nam = Name_Post then
                Misplaced_Aspect_Error (Asp, Name_Refined_Post);
 
+            --  Likely a misspelling of Initialize aspect (singular) that can
+            --  be used in stubs.
+
+            elsif Asp_Nam = Name_Initializes then
+               Error_Msg_Name_1 := Name_Initialize;
+               Error_Msg_N ("\possible misspelling of%", Asp);
+
             --  Otherwise a language-defined aspect is misplaced
 
             else
                Error_Msg_N
                  ("aspect specification must appear on initial declaration",
                   Asp);
-
-               --  Improve the error message for likely misspelling since the
-               --  Initialize aspect (singular) can be used in stubs but the
-               --  Initializes aspect (plural) cannot and would raise a
-               --  misleading error here.
-
-               if Asp_Nam = Name_Initializes then
-                  Error_Msg_Name_1 := Name_Initialize;
-                  Error_Msg_N ("\possible misspelling of%", Asp);
-               end if;
             end if;
 
             Next (Asp);

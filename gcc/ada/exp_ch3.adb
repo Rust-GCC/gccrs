@@ -1406,6 +1406,9 @@ package body Exp_Ch3 is
               and then Comes_From_Source (N)
               and then Needs_Construction (Typ)
             then
+               --  If the parameterless constructor is not available, the
+               --  constructor call will cause reporting an error later.
+
                return
                  Make_Attribute_Reference (Loc,
                    Prefix         => New_Occurrence_Of (Typ, Loc),
@@ -1790,6 +1793,7 @@ package body Exp_Ch3 is
       Body_Stmts, Parameters, Aspect_Specs : List_Id;
       Spec_Node, Stmt                      : Node_Id;
       Self, From                           : Entity_Id;
+
    begin
       --  Only build copy constructor for user-defined non-limited tagged
       --  record types that needs construction without having declared a copy
@@ -1997,6 +2001,7 @@ package body Exp_Ch3 is
       Loc            : constant Source_Ptr := Sloc (Typ);
       Constructor_Id : Entity_Id;
       Spec_Node      : Node_Id;
+
    begin
       --  The implicit parameterless constructor doesn't need to do anything.
       --  In fact, during subprogram expansion, prepending the prologue of
@@ -2038,6 +2043,8 @@ package body Exp_Ch3 is
           Parameter_Type      => New_Occurrence_Of (Typ, Loc))));
 
       Freeze_Extra_Formals (Constructor_Id);
+
+      --  Aspect Initialize enables default initialization
 
       declare
          Ignore             : Node_Id;

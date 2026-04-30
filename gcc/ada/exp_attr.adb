@@ -5433,26 +5433,11 @@ package body Exp_Attr is
       when Attribute_Make =>
          declare
             Constructor_Params : List_Id := New_Copy_List (Expressions (N));
-            Constructor_Rhs    : Node_Id;
-            Result_Decl        : Node_Id;
-            Result_Id          : constant Entity_Id :=
-              Make_Temporary (Loc, 'D', N);
+
          begin
             if Is_Empty_List (Constructor_Params) then
                Constructor_Params := New_List;
             end if;
-
-            Result_Decl := Make_Object_Declaration (Loc,
-                             Defining_Identifier => Result_Id,
-                             Object_Definition   =>
-                               New_Occurrence_Of (Typ, Loc));
-
-            --  Suppress default initialization for result object.
-            --  Default init (except for tag, if tagged) will instead be
-            --  performed in the constructor procedure.
-
-            Mutate_Ekind (Result_Id, E_Variable);
-            Set_Suppress_Initialization (Result_Id);
 
             --  A call to the copy constructor can be a special case. Even if
             --  no copy constructor is declared (both explicitly by the user or
@@ -5462,44 +5447,167 @@ package body Exp_Attr is
             if Is_Copy_Constructor_Call (N)
               and then not Has_Copy_Constructor (Entity (Pref))
             then
-               if Nkind (First (Exprs)) = N_Parameter_Association
-               then
-                  Constructor_Rhs :=
-                    Relocate_Node (Explicit_Actual_Parameter (First (Exprs)));
+               if Nkind (First (Exprs)) = N_Parameter_Association then
+                  Rewrite (N,
+                    Relocate_Node
+                      (Explicit_Actual_Parameter (First (Exprs))));
                else
-                  Constructor_Rhs := Relocate_Node (First (Exprs));
+                  Rewrite (N, Relocate_Node (First (Exprs)));
                end if;
+
+               Analyze_And_Resolve (N, Typ);
 
             --  Otherwise build a prefixed-notation call
 
             else
                declare
-                  Constructor_Name : constant Node_Id :=
-                    Make_Selected_Component (Loc,
-                      Prefix        => New_Occurrence_Of (Result_Id, Loc),
-                      Selector_Name => Make_Identifier (Loc,
-                                         Direct_Attribute_Definition_Name
-                                           (Typ, Name_Constructor)));
                   Constructor_Call : Node_Id;
-               begin
-                  Set_Is_Prefixed_Call (Constructor_Name);
-                  Constructor_Call :=
-                    Make_Procedure_Call_Statement (Loc,
-                      Parameter_Associations => Constructor_Params,
-                      Name                   => Constructor_Name);
-                  Set_Is_Expanded_Constructor_Call (Constructor_Call, True);
+                  Constructor_Name : Node_Id;
+                  Result_Decl      : Node_Id;
+                  Result_Id        : Entity_Id;
 
-                  Constructor_Rhs :=
-                    Make_Expression_With_Actions (Loc,
-                      Actions => New_List (Result_Decl, Constructor_Call),
-                      Expression => New_Occurrence_Of (Result_Id, Loc));
+               begin
+                  --  Expand Lhs := T'Make (...) into:
+
+                  --    Lhs.<Type>_constructor_Att (...)
+
+                  if Nkind (Parent (N)) = N_Assignment_Statement then
+                     Constructor_Name :=
+                       Make_Selected_Component (Loc,
+                         Prefix        =>
+                           New_Copy_Tree (Name (Parent (N))),
+                         Selector_Name =>
+                           Make_Identifier (Loc,
+                             Direct_Attribute_Definition_Name (Typ,
+                               Name_Constructor)));
+
+                     Constructor_Call :=
+                       Make_Procedure_Call_Statement (Loc,
+                         Parameter_Associations => Constructor_Params,
+                         Name                   => Constructor_Name);
+
+                     Rewrite (Parent (N), Constructor_Call);
+                     Analyze (Parent (N));
+
+                  --  Expand Obj : <Type> := T'Make (...), where <Type> T is a
+                  --  limited type, into:
+
+                  --     Obj : <Type>;
+                  --     Obj.<Type>_constructor_Att (...)
+
+                  elsif Nkind (Parent (N)) = N_Object_Declaration
+                    and then Is_Limited_Type (Ptyp)
+                  then
+                     Result_Decl := Parent (N);
+                     Result_Id   := Defining_Identifier (Result_Decl);
+
+                     Set_Suppress_Initialization (Result_Id);
+
+                     --  For class-wide type object declarations we add a
+                     --  view conversion as the prefixed-call prefix so that
+                     --  analysis resolves to the specific type constructor.
+
+                     if Is_Class_Wide_Type (Etype (Result_Id)) then
+                        Constructor_Name :=
+                          Make_Selected_Component (Loc,
+                            Prefix        =>
+                              Make_Type_Conversion (Loc,
+                                Subtype_Mark =>
+                                  New_Occurrence_Of (Ptyp, Loc),
+                                Expression  =>
+                                  New_Occurrence_Of (Result_Id, Loc)),
+                            Selector_Name =>
+                              Make_Identifier (Loc,
+                                Direct_Attribute_Definition_Name (Typ,
+                                  Name_Constructor)));
+                     else
+                        Constructor_Name :=
+                          Make_Selected_Component (Loc,
+                            Prefix        =>
+                              New_Occurrence_Of (Result_Id, Loc),
+                            Selector_Name =>
+                              Make_Identifier (Loc,
+                                Direct_Attribute_Definition_Name (Typ,
+                                  Name_Constructor)));
+                     end if;
+
+                     Constructor_Call :=
+                       Make_Procedure_Call_Statement (Loc,
+                         Parameter_Associations => Constructor_Params,
+                         Name                   => Constructor_Name);
+
+                     --  Clear Comes_From_Source so that the expansion of the
+                     --  object declaration is not handled as a source-level
+                     --  construct and generates a redundant initialization
+                     --  call.
+
+                     Set_Comes_From_Source (Parent (N), False);
+
+                     Set_Has_Init_Expression (Parent (N), False);
+                     Set_Expression (Parent (N), Empty);
+                     Insert_After (Parent (N), Constructor_Call);
+
+                     declare
+                        Errors : constant Nat := Serious_Errors_Detected;
+
+                     begin
+                        Analyze (Constructor_Call);
+
+                        --  If the analysis of the call reported errors (for
+                        --  example, because of a missing argument in the
+                        --  source code) then prevent Analyze_Declarations
+                        --  from re-analyzing this call: Transform_Object_
+                        --  Operation modifies the actuals in place, and a
+                        --  second pass would produce spurious errors.
+
+                        if Serious_Errors_Detected > Errors then
+                           Set_Analyzed (Constructor_Call);
+                        end if;
+                     end;
+
+                  --  Expand T'Make (...) into:
+
+                  --    do
+                  --       tmp : <Type>;
+                  --       tmp.<Type>_constructor_Att (...)
+                  --    in tmp end
+
+                  else
+                     Result_Id := Make_Temporary (Loc, 'D', N);
+                     Mutate_Ekind (Result_Id, E_Variable);
+
+                     Result_Decl :=
+                       Make_Object_Declaration (Loc,
+                         Defining_Identifier => Result_Id,
+                         Object_Definition   => New_Occurrence_Of (Typ, Loc));
+                     Set_Suppress_Initialization (Result_Id);
+
+                     Constructor_Name :=
+                       Make_Selected_Component (Loc,
+                         Prefix        =>
+                           New_Occurrence_Of (Result_Id, Loc),
+                         Selector_Name =>
+                           Make_Identifier (Loc,
+                             Direct_Attribute_Definition_Name (Typ,
+                               Name_Constructor)));
+
+                     Constructor_Call :=
+                       Make_Procedure_Call_Statement (Loc,
+                         Parameter_Associations => Constructor_Params,
+                         Name                   => Constructor_Name);
+
+                     Rewrite (N,
+                       Make_Expression_With_Actions (Loc,
+                         Actions    =>
+                           New_List (Result_Decl, Constructor_Call),
+                         Expression =>
+                           New_Occurrence_Of (Result_Id, Loc)));
+
+                     Analyze_And_Resolve (N, Typ);
+                  end if;
                end;
             end if;
-
-            Rewrite (N, Constructor_Rhs);
          end;
-
-         Analyze_And_Resolve (N, Typ);
 
       --------------
       -- Mantissa --

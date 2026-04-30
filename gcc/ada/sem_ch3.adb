@@ -21124,8 +21124,12 @@ package body Sem_Ch3 is
          --  attribute will be changed to a call, but the attribute by itself
          --  can occur with -gnatc.
 
+         --  Similarly, T'Make (GNAT-specific constructor attribute) is also
+         --  allowed because it is semantically equivalent to a function call.
+
          when N_Attribute_Reference =>
-            return Attribute_Name (Original_Node (Exp)) = Name_Input;
+            return Attribute_Name (Original_Node (Exp)) in Name_Input
+                                                         | Name_Make;
 
          --  "return raise ..." is OK
 
