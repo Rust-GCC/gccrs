@@ -499,6 +499,7 @@ ira_create_allocno (int regno, bool cap_p,
   ALLOCNO_FREQ (a) = 0;
   ALLOCNO_MIGHT_CONFLICT_WITH_PARENT_P (a) = false;
   ALLOCNO_SET_REGISTER_FILTERS (a, 0);
+  ALLOCNO_DEPENDENT_FILTERS (a) = NULL;
   ALLOCNO_HARD_REGNO (a) = -1;
   ALLOCNO_CALL_FREQ (a) = 0;
   ALLOCNO_CALLS_CROSSED_NUM (a) = 0;
@@ -874,6 +875,19 @@ ira_print_expanded_allocno (ira_allocno_t a)
   fprintf (ira_dump_file, ")");
 }
 
+/* Copy SRC's dependent-filter list to DST's.  */
+
+static void
+copy_dependent_filters (ira_allocno_t dst, ira_allocno_t src)
+{
+  for (auto *filter = ALLOCNO_DEPENDENT_FILTERS (src);
+       filter;
+       filter = filter->next)
+    ira_add_dependent_filter (dst, filter->id, filter->mode,
+			      filter->ref_allocno, filter->ref_hard_regno,
+			      filter->ref_mode);
+}
+
 /* Create and return the cap representing allocno A in the
    parent loop.  */
 static ira_allocno_t
@@ -904,6 +918,8 @@ create_cap_allocno (ira_allocno_t a)
   ALLOCNO_FREQ (cap) = ALLOCNO_FREQ (a);
   ALLOCNO_CALL_FREQ (cap) = ALLOCNO_CALL_FREQ (a);
   ALLOCNO_SET_REGISTER_FILTERS (cap, ALLOCNO_REGISTER_FILTERS (a));
+  ALLOCNO_DEPENDENT_FILTERS (cap) = NULL;
+  copy_dependent_filters (cap, a);
 
   merge_hard_reg_conflicts (a, cap, false);
 
@@ -1144,6 +1160,13 @@ ira_free_allocno_costs (ira_allocno_t a)
 static void
 finish_allocno (ira_allocno_t a)
 {
+  auto *filter = ALLOCNO_DEPENDENT_FILTERS (a);
+  while (filter)
+    {
+      auto *next = filter->next;
+      ira_free (filter);
+      filter = next;
+    }
   ira_free_allocno_costs (a);
   allocno_pool.remove (a);
 }
@@ -2070,6 +2093,7 @@ propagate_allocno_info (void)
 	  ALLOCNO_SET_REGISTER_FILTERS (parent_a,
 					ALLOCNO_REGISTER_FILTERS (parent_a)
 					| ALLOCNO_REGISTER_FILTERS (a));
+	  copy_dependent_filters (parent_a, a);
 
 	  /* If A's allocation can differ from PARENT_A's, we can if necessary
 	     spill PARENT_A on entry to A's loop and restore it afterwards.
@@ -2474,6 +2498,7 @@ propagate_some_info_from_allocno (ira_allocno_t a, ira_allocno_t from_a)
   ALLOCNO_SET_REGISTER_FILTERS (a,
 				ALLOCNO_REGISTER_FILTERS (from_a)
 				| ALLOCNO_REGISTER_FILTERS (a));
+  copy_dependent_filters (a, from_a);
 
   ALLOCNO_EXCESS_PRESSURE_POINTS_NUM (a)
     += ALLOCNO_EXCESS_PRESSURE_POINTS_NUM (from_a);

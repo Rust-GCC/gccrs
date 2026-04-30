@@ -384,6 +384,47 @@ process_regs_for_copy (rtx reg1, rtx reg2, bool constraint_p, rtx_insn *insn,
   return true;
 }
 
+/* Go through all of OP's dependent filters, check if they reference
+   REF, and if so, check for all eligible hard regs in its class
+   whether the filter allows the same regno for both (dependent) operand,
+   as well as referenced operand.  Return true if all filters allow that,
+   or false otherwise.  */
+
+static bool
+dependent_filter_same_reg_ok_p (const operand_alternative *op_alt,
+				int op, int ref)
+{
+  unsigned mask = alternative_dependent_filters (op_alt, op);
+  if (!mask)
+    return true;
+
+  enum reg_class cl
+    = ira_reg_class_intersect[op_alt[op].cl][op_alt[ref].cl];
+
+  machine_mode mode = recog_data.operand_mode[op];
+  machine_mode ref_mode = recog_data.operand_mode[ref];
+
+  for (int id = 0; id < NUM_DEPENDENT_FILTERS; ++id)
+    {
+      if (!(mask & (1U << id)))
+	continue;
+      if (get_dependent_filter_ref (id) != ref)
+	continue;
+
+      bool ok = false;
+      for (int i = 0; i < ira_class_hard_regs_num[cl]; ++i)
+	{
+	  unsigned regno = ira_class_hard_regs[cl][i];
+	  ok = eval_dependent_filter (id, regno, mode, regno, ref_mode);
+	  if (ok)
+	    break;
+	}
+      if (!ok)
+	return false;
+    }
+  return true;
+}
+
 /* Return true if output operand OUTPUT and input operand INPUT of
    INSN can use the same register class for at least one alternative.
    INSN is already described in recog_data and recog_op_alt.  */
@@ -405,8 +446,15 @@ can_use_same_reg_p (rtx_insn *insn, int output, int input)
 	continue;
 
       if (ira_reg_class_intersect[op_alt[input].cl][op_alt[output].cl]
-	  != NO_REGS)
-	return true;
+	  == NO_REGS)
+	continue;
+
+      if (NUM_DEPENDENT_FILTERS
+	  && (!dependent_filter_same_reg_ok_p (op_alt, input, output)
+	      || !dependent_filter_same_reg_ok_p (op_alt, output, input)))
+	continue;
+
+      return true;
     }
   return false;
 }

@@ -264,6 +264,23 @@ struct ira_object
   unsigned int conflict_vec_p : 1;
 };
 
+
+/* Filter that restricts an allocno's hard regnos by referencing
+   another allocno.  */
+struct ira_dependent_filter
+{
+  /* Filter ID and MODE of this (dependent) op.  */
+  int id;
+  ENUM_BITFIELD (machine_mode) mode : MACHINE_MODE_BITSIZE;
+
+  /* Allocno, hard regno and mode of the referenced op.  */
+  ira_allocno_t ref_allocno;
+  unsigned int ref_hard_regno;
+  ENUM_BITFIELD (machine_mode) ref_mode : MACHINE_MODE_BITSIZE;
+
+  struct ira_dependent_filter *next;
+};
+
 /* A structure representing an allocno (allocation entity).  Allocno
    represents a pseudo-register in an allocation region.  If
    pseudo-register does not live in a region but it lives in the
@@ -335,6 +352,8 @@ struct ira_allocno
      alternatives that accept class ACLASS.  */
   unsigned int register_filters : NUM_REGISTER_FILTERS;
 #endif
+  /* List of dependent filters.  */
+  struct ira_dependent_filter *dependent_filters;
   /* Accumulated usage references of the allocno.  Here and below,
      word 'accumulated' means info for given region and all nested
      subregions.  In this case, 'accumulated' means sum of references
@@ -446,6 +465,7 @@ struct ira_allocno
 #define ALLOCNO_REGISTER_FILTERS(A) 0
 #define ALLOCNO_SET_REGISTER_FILTERS(A, X) ((void) (A), gcc_assert ((X) == 0))
 #endif
+#define ALLOCNO_DEPENDENT_FILTERS(A) ((A)->dependent_filters)
 #define ALLOCNO_HARD_REGNO(A) ((A)->hard_regno)
 #define ALLOCNO_CALL_FREQ(A) ((A)->call_freq)
 #define ALLOCNO_CALLS_CROSSED_NUM(A) ((A)->calls_crossed_num)
@@ -1081,6 +1101,9 @@ extern void ira_compress_allocno_live_ranges (void);
 extern void ira_finish_allocno_live_ranges (void);
 extern void ira_implicitly_set_insn_hard_regs (HARD_REG_SET *,
 					       alternative_mask);
+extern void ira_add_dependent_filter (ira_allocno_t, int,
+				      machine_mode, ira_allocno_t,
+				      unsigned int, machine_mode);
 
 /* ira-conflicts.cc */
 extern void ira_debug_conflicts (bool);

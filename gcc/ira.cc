@@ -5680,6 +5680,7 @@ ira (FILE *f)
   bool output_jump_reload_p = false;
 
   setup_hard_regno_nrefs ();
+  lra_reset_dependent_filters ();
   if (ira_use_lra_p)
     {
       /* First put potential jump output reloads on the output edges

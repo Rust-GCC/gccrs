@@ -35,11 +35,50 @@ along with GCC; see the file COPYING3.  If not see
 #include "ira-int.h"
 #include "reload.h"
 #include "cfgloop.h"
+#include "lra.h"
 
 /* To prevent soft conflict detection becoming quadratic in the
    loop depth.  Only for very pathological cases, so it hardly
    seems worth a --param.  */
 const int max_soft_conflict_loop_depth = 64;
+
+/* Return the regset for allocno A that represents all registers
+   allowed by A's dependent filters.  */
+
+static HARD_REG_SET
+ira_dependent_filter (ira_allocno_t a)
+{
+  HARD_REG_SET allowed;
+  SET_HARD_REG_SET (allowed);
+
+  for (auto *dep_filter = ALLOCNO_DEPENDENT_FILTERS (a);
+       dep_filter;
+       dep_filter = dep_filter->next)
+    {
+      unsigned int ref_regno;
+      /* Nothing to filter if the referenced allocno didn't get a
+	 hardreg.  */
+      if (dep_filter->ref_allocno)
+	{
+	  int hr = ALLOCNO_HARD_REGNO (dep_filter->ref_allocno);
+	  if (hr < 0)
+	    continue;
+	  ref_regno = (unsigned int) hr;
+	}
+      else
+	{
+	  ref_regno = dep_filter->ref_hard_regno;
+	  if (ref_regno >= FIRST_PSEUDO_REGISTER)
+	    continue;
+	}
+      const HARD_REG_SET *filter
+	= lra_get_dependent_filter (dep_filter->id, dep_filter->mode,
+				    ref_regno, dep_filter->ref_mode,
+				    false);
+      allowed &= *filter;
+    }
+  return allowed;
+}
 
 typedef struct allocno_hard_regs *allocno_hard_regs_t;
 
@@ -1968,12 +2007,13 @@ spill_soft_conflicts (ira_allocno_t a, bitmap allocnos_to_spill,
 static bool
 assign_hard_reg (ira_allocno_t a, bool retry_p)
 {
-  HARD_REG_SET conflicting_regs[2], profitable_hard_regs;
+  HARD_REG_SET conflicting_regs[2], profitable_hard_regs, dep_allowed;
   int i, j, hard_regno, best_hard_regno, class_size;
   int cost, mem_cost, min_cost, full_cost, min_full_cost, nwords, word;
   int *a_costs;
   enum reg_class aclass;
   machine_mode mode;
+  bool dep_filter_p;
   static int costs[FIRST_PSEUDO_REGISTER], full_costs[FIRST_PSEUDO_REGISTER];
   int saved_nregs;
   enum reg_class rclass;
@@ -2194,6 +2234,9 @@ assign_hard_reg (ira_allocno_t a, bool retry_p)
      allocated first (it is usual practice to put them first in
      REG_ALLOC_ORDER).  */
   mode = ALLOCNO_MODE (a);
+  dep_filter_p = NUM_DEPENDENT_FILTERS && ALLOCNO_DEPENDENT_FILTERS (a);
+  if (dep_filter_p)
+    dep_allowed = ira_dependent_filter (a);
   for (i = 0; i < class_size; i++)
     {
       hard_regno = ira_class_hard_regs[aclass][i];
@@ -2207,6 +2250,8 @@ assign_hard_reg (ira_allocno_t a, bool retry_p)
 	continue;
       if (NUM_REGISTER_FILTERS
 	  && !test_register_filters (ALLOCNO_REGISTER_FILTERS (a), hard_regno))
+	continue;
+      if (dep_filter_p && !TEST_HARD_REG_BIT (dep_allowed, hard_regno))
 	continue;
       cost = costs[i];
       full_cost = full_costs[i];
@@ -3266,6 +3311,11 @@ improve_allocation (void)
 					      &profitable_hard_regs);
       class_size = ira_class_hard_regs_num[aclass];
       mode = ALLOCNO_MODE (a);
+      HARD_REG_SET dep_filter_allowed;
+      bool dep_filter_p
+	= NUM_DEPENDENT_FILTERS && ALLOCNO_DEPENDENT_FILTERS (a);
+      if (dep_filter_p)
+	dep_filter_allowed = ira_dependent_filter (a);
       /* Set up cost improvement for usage of each profitable hard
 	 register for allocno A.  */
       for (j = 0; j < class_size; j++)
@@ -3276,6 +3326,8 @@ improve_allocation (void)
 	    continue;
 	  if (NUM_REGISTER_FILTERS
 	      && !test_register_filters (ALLOCNO_REGISTER_FILTERS (a), hregno))
+	    continue;
+	  if (dep_filter_p && !TEST_HARD_REG_BIT (dep_filter_allowed, hregno))
 	    continue;
 	  ira_assert (ira_class_hard_reg_index[aclass][hregno] == j);
 	  k = allocno_costs == NULL ? 0 : j;
@@ -3370,6 +3422,8 @@ improve_allocation (void)
 	  hregno = ira_class_hard_regs[aclass][j];
 	  if (NUM_REGISTER_FILTERS
 	      && !test_register_filters (ALLOCNO_REGISTER_FILTERS (a), hregno))
+	    continue;
+	  if (dep_filter_p && !TEST_HARD_REG_BIT (dep_filter_allowed, hregno))
 	    continue;
 	  if (check_hard_reg_p (a, hregno,
 				conflicting_regs, profitable_hard_regs)
