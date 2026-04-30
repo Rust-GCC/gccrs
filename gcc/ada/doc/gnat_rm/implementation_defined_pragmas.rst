@@ -6638,8 +6638,7 @@ the implementation-defined ``Subprogram_Variant`` aspect, and shares its
 restrictions and semantics.
 
 This is an assertion kind pragma that can associate a set of its arguments
-with an assertion level. See SPARK 2014 Reference Manual, section
-11.4.2.
+with an assertion level. See SPARK 2014 Reference Manual, section 11.4.2.
 
 Pragma Subtitle
 ===============

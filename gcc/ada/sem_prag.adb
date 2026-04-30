@@ -2603,7 +2603,7 @@ package body Sem_Prag is
       Exceptional_Contract : Node_Id;
       Restore_Scope        : Boolean := False;
 
-   --  Start of processing for Analyze_Subprogram_Variant_In_Decl_Part
+   --  Start of processing for Analyze_Exceptional_Cases_In_Decl_Part
 
    begin
       --  Do not analyze the pragma multiple times

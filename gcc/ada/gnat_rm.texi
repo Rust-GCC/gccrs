@@ -19,7 +19,7 @@
 
 @copying
 @quotation
-GNAT Reference Manual , Jun 04, 2026
+GNAT Reference Manual , Jun 18, 2026
 
 AdaCore
 
@@ -8303,8 +8303,7 @@ the implementation-defined @code{Subprogram_Variant} aspect, and shares its
 restrictions and semantics.
 
 This is an assertion kind pragma that can associate a set of its arguments
-with an assertion level. See SPARK 2014 Reference Manual, section
-11.4.2.
+with an assertion level. See SPARK 2014 Reference Manual, section 11.4.2.
 
 @node Pragma Subtitle,Pragma Suppress,Pragma Subprogram_Variant,Implementation Defined Pragmas
 @anchor{gnat_rm/implementation_defined_pragmas pragma-subtitle}@anchor{100}
