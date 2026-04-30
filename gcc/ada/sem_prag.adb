@@ -15698,7 +15698,33 @@ package body Sem_Prag is
                --  Now go ahead and analyze the if statement
 
                In_Assertion_Expr := In_Assertion_Expr + 1;
-               Analyze (N);
+
+               --  One rather special treatment. If we are now in Eliminated
+               --  overflow mode, then suppress overflow checking since we do
+               --  not want to drag in the bignum stuff if we are in Ignore
+               --  mode anyway. This is particularly important if we are using
+               --  a configurable run time that does not support bignum ops.
+
+               if Scope_Suppress.Overflow_Mode_Assertions = Eliminated then
+                  declare
+                     Svo : constant Boolean :=
+                             Scope_Suppress.Suppress (Overflow_Check);
+                  begin
+                     Scope_Suppress.Overflow_Mode_Assertions  := Strict;
+                     Scope_Suppress.Suppress (Overflow_Check) := True;
+                     Analyze (N);
+                     Scope_Suppress.Suppress (Overflow_Check) := Svo;
+                     Scope_Suppress.Overflow_Mode_Assertions  := Eliminated;
+                  end;
+
+               --  Not that special case
+
+               else
+                  Analyze (N);
+               end if;
+
+               --  All done with this check
+
                In_Assertion_Expr := In_Assertion_Expr - 1;
 
             --  Check is active or expansion not active. In these cases we can
