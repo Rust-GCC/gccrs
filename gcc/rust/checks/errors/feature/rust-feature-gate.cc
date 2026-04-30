@@ -234,6 +234,16 @@ FeatureGate::visit (AST::Function &function)
   if (!function.is_external ())
     check_rustc_attri (function.get_outer_attrs ());
 
+  for (const AST::Attribute &attr : function.get_outer_attrs ())
+    {
+      if (attr.get_path ().as_string () == "rustc_const_stable")
+	{
+	  gate (Feature::Name::STAGED_API, attr.get_locus (),
+		"stability attributes may not be used outside of the standard "
+		"library");
+	}
+    }
+
   check_lang_item_attribute (function.get_outer_attrs ());
 
   note_stability_attribute (function.get_outer_attrs ());

@@ -1,8 +1,8 @@
 // { dg-output "loop\r*\nloop\r*\n" }
 #![feature(no_core)]
 #![no_core]
-
 #![feature(intrinsics, lang_items)]
+#![feature(staged_api)]
 
 pub use option::Option::{self, None, Some};
 pub use result::Result::{self, Err, Ok};
