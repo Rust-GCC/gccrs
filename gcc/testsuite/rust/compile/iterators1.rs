@@ -1,7 +1,6 @@
 #![feature(no_core)]
 #![no_core]
-
-#![feature(intrinsics, lang_items)]
+#![feature(intrinsics, lang_items, staged_api)]
 
 pub use option::Option::{self, None, Some};
 pub use result::Result::{self, Err, Ok};
