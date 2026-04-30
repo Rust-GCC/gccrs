@@ -141,42 +141,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 #endif
 
 #ifdef __glibcxx_constant_wrapper // C++ >= 26
-  template<typename _Tp>
-    struct _CwFixedValue
-    {
-      using __type = _Tp;
-
-      constexpr
-      _CwFixedValue(__type __v) noexcept
-      : _M_data(__v) { }
-
-      __type _M_data;
-    };
-
-  template<typename _Tp, size_t _Extent>
-    struct _CwFixedValue<_Tp[_Extent]>
-    {
-      using __type = _Tp[_Extent];
-
-      constexpr
-      _CwFixedValue(_Tp (&__arr)[_Extent]) noexcept
-        : _CwFixedValue(__arr, typename _Build_index_tuple<_Extent>::__type())
-      { }
-
-      template<size_t... _Indices>
-	constexpr
-	_CwFixedValue(_Tp (&__arr)[_Extent], _Index_tuple<_Indices...>) noexcept
-	  : _M_data{__arr[_Indices]...}
-	{ }
-
-      _Tp _M_data[_Extent];
-    };
-
-  template<typename _Tp, size_t _Extent>
-    _CwFixedValue(_Tp (&)[_Extent]) -> _CwFixedValue<_Tp[_Extent]>;
-
-  template<_CwFixedValue _Xv,
-	   typename = typename decltype(_CwFixedValue(_Xv))::__type>
+  // remove_cvref_t needed due PR115314
+  template<auto _Xv, typename _Vt = remove_cvref_t<decltype(_Xv)>>
     struct constant_wrapper;
 
   template<typename _Tp>
@@ -430,12 +396,14 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       { return {}; }
   };
 
-  template<_CwFixedValue _Xv, typename>
+  template<auto _Xv, typename _Vt>
   struct constant_wrapper : _CwOperators
   {
-    static constexpr const auto& value = _Xv._M_data;
+    // Use decltype((_Xv)) instead of decltype(auto) due PR125188
+    static constexpr decltype((_Xv)) value = (_Xv);
     using type = constant_wrapper;
-    using value_type = typename decltype(_Xv)::__type;
+    using value_type = decltype(_Xv);
+    static_assert(is_same_v<value_type, _Vt>);
 
     template<_ConstExprParam _Right>
       constexpr auto
@@ -490,8 +458,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   template<auto __cw, typename _Fn>
     constexpr bool __is_constant_wrapper_v<constant_wrapper<__cw, _Fn>> = true;
 
-  template<_CwFixedValue _Tp>
-    constexpr auto cw = constant_wrapper<_Tp>{};
+  template<auto _Xv>
+    constexpr auto cw = constant_wrapper<_Xv>{};
 #endif
 
 #ifdef __glibcxx_integer_sequence // C++ >= 14

@@ -410,9 +410,10 @@ ftms = {
   name = constant_wrapper;
   // 202506 P2781R9 std::constexpr_wrapper 
   // 202603 P3978R3 constant_wrapper should unwrap on call and subscript
+  // 202606 P4206R0 Revert string support in std::constant_wrapper
   values = {
-    v = 202603;
-    cxxmin = 26;
+    v = 202606;
+    cxxmin = 26; // P4206R0 accepted as DR for C++26
   };
 };
 

@@ -31,19 +31,6 @@ test_mix_integer_constant()
 }
 
 constexpr void
-test_array()
-{
-  constexpr double x[] = {1.1, 2.2, 3.3};
-  auto cx = std::cw<x>;
-  auto i2 = std::integral_constant<int, 2>{};
-  auto w2 = ConstWrapper<int, 2>{};
-
-  check_same(x[i2], x[2]);
-  check_same(cx[i2], std::cw<x[2]>);
-  check_same(cx[w2], std::cw<x[2]>);
-}
-
-constexpr void
 test_function_object()
 {
   auto cadd = std::cw<[](int i, int j) { return i + j; }>;
@@ -61,7 +48,6 @@ constexpr bool
 test_all()
 {
   test_mix_integer_constant();
-  test_array();
   test_function_object();
   return true;
 }

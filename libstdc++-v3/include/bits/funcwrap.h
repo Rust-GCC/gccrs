@@ -592,16 +592,16 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     requires is_function_v<_Fn>
     function_ref(_Fn*) -> function_ref<_Fn>;
 
-  template<auto __cwfn, typename _Fn>
+  template<auto __fn, typename _Fn>
     requires is_function_v<remove_pointer_t<_Fn>>
-    function_ref(constant_wrapper<__cwfn, _Fn>)
+    function_ref(constant_wrapper<__fn, _Fn>)
       -> function_ref<remove_pointer_t<_Fn>>;
 
-  template<auto __cwfn, typename _Fn, typename _Tp,
+  template<auto __fn, typename _Fn, typename _Tp,
 	   typename _SignaturePtr =
 	     decltype(__polyfunc::__deduce_funcref<_Fn, _Tp&>())>
     requires (!is_void_v<_SignaturePtr>)
-    function_ref(constant_wrapper<__cwfn, _Fn>, _Tp&&)
+    function_ref(constant_wrapper<__fn, _Fn>, _Tp&&)
       -> function_ref<remove_pointer_t<_SignaturePtr>>;
 
   /// @cond undocumented

@@ -12,54 +12,6 @@ check_same(auto actual, auto expected)
   static_assert(std::same_as<decltype(actual), decltype(expected)>);
 };
 
-
-constexpr void
-test_c_arrays()
-{
-  constexpr double x[] = {1.1, 2.2, 3.3};
-  auto cx = std::cw<x>;
-  auto access = [](auto x, size_t i)
-  { return x[i]; };
-
-  check_same(std::cw<x>[0], x[0]);
-  check_same(std::cw<x>[1], x[1]);
-  check_same(std::cw<x>[2], x[2]);
-
-  check_same(cx[std::cw<0>], std::cw<x[0]>);
-  check_same(cx[std::cw<1>], std::cw<x[1]>);
-  check_same(cx[std::cw<2>], std::cw<x[2]>);
-}
-
-constexpr size_t
-deduce_cstr_size(auto str)
-{
-  size_t sz = 0;
-  while(str[sz++] != '\0') { }
-  return sz;
-}
-
-constexpr void
-test_string_literals()
-{
-  auto foo = std::cw<"foo">;
-  constexpr const typename decltype(foo)::value_type & cstr = foo;
-  constexpr size_t N = std::size(cstr);
-  constexpr auto foo_view = std::string_view(cstr, N-1);
-
-  constexpr const char (&cstr1)[deduce_cstr_size(foo)] = foo;
-  constexpr size_t N1 = std::size(cstr);
-
-  static_assert(static_cast<char const*>(cstr) ==
-		static_cast<char const*>(cstr1));
-  static_assert(N1 == N);
-
-  static_assert(foo[0] == 'f');
-  static_assert(foo[1] == 'o');
-  static_assert(foo[2] == 'o');
-  static_assert(foo[3] == '\0');
-  static_assert(static_cast<char const *>(foo) == foo_view);
-}
-
 constexpr bool
 convert_constexpr(auto c)
 {
@@ -91,6 +43,27 @@ test_ints()
 
   VERIFY(two == std::cw<2>);
   VERIFY(two + 3 == std::cw<5>);
+}
+
+constexpr void
+test_objects()
+{
+  if consteval {
+    return;
+  }
+
+  auto check = []<auto V>
+  {
+    VERIFY(&V == &std::constant_wrapper<V>::value);
+    std::constant_wrapper<V> cw;
+    VERIFY(&V == &cw.value);
+  };
+
+  struct Obj
+  { int x; };
+
+  check.operator()<Obj{10}>();
+  check.operator()<Obj{20}>();
 }
 
 constexpr int
@@ -586,12 +559,11 @@ test_assignment()
 	     std::cw<ConstAssignable{2}>);
 }
 
-
 constexpr bool
 test_all()
 {
-  test_c_arrays();
   test_ints();
+  test_objects();
   test_function_object();
   test_function_pointer();
   test_indexable1();
