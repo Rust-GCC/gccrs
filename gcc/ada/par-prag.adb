@@ -1490,6 +1490,7 @@ begin
          | Pragma_Interrupt_Handler
          | Pragma_Interrupt_Priority
          | Pragma_Interrupt_State
+         | Pragma_Interrupts_System_By_Default
          | Pragma_Invariant
          | Pragma_Keep_Names
          | Pragma_License
@@ -1519,7 +1520,6 @@ begin
          | Pragma_No_Raise
          | Pragma_No_Return
          | Pragma_No_Run_Time
-         | Pragma_Interrupts_System_By_Default
          | Pragma_No_Strict_Aliasing
          | Pragma_No_Tagged_Streams
          | Pragma_Normalize_Scalars
