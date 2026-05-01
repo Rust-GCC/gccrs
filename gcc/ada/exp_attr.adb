@@ -2082,7 +2082,19 @@ package body Exp_Attr is
          Subp     : out Entity_Id;
          Attr_Ref : Node_Id)
       is
+         Ancestor        : Node_Id := Attr_Ref;
+         Insertion_Scope : Entity_Id := Empty;
+         Insertion_Point : Node_Id := Empty;
+         Insert_Before   : Boolean := False;
+         First_Typ       : constant Entity_Id := First_Subtype (Typ);
+         Typ_Comp_Unit   : Node_Id := Enclosing_Comp_Unit_Node (First_Typ);
+
          procedure Build;
+         --  Call Build_Type_Attr_Subprogram with appropriate parameters.
+
+         procedure Skip_Non_Source_Subps;
+         --  Refine Insertion_Point choice (see comment inside procedure).
+
          procedure Build is
          begin
             Build_Type_Attr_Subprogram
@@ -2091,12 +2103,49 @@ package body Exp_Attr is
                Subp => Subp);
          end Build;
 
-         Ancestor        : Node_Id := Attr_Ref;
-         Insertion_Scope : Entity_Id := Empty;
-         Insertion_Point : Node_Id := Empty;
-         Insert_Before   : Boolean := False;
-         First_Typ       : constant Entity_Id := First_Subtype (Typ);
-         Typ_Comp_Unit   : Node_Id := Enclosing_Comp_Unit_Node (First_Typ);
+         procedure Skip_Non_Source_Subps is
+            --  A hazard to avoid is use-before-definition
+            --  errors that can result when we have two of these
+            --  subprograms where one calls the other (e.g., given
+            --  Put_Image procedures for a composite type and
+            --  for a component type, the former will often call
+            --  the latter). At the time a subprogram is inserted,
+            --  we know that the one and only call to it is
+            --  somewhere in the subtree rooted at Ancestor.
+            --  So that placement constraint is easy to satisfy.
+            --  But if we construct another subprogram later and
+            --  if that second subprogram calls the first one,
+            --  then we need to be careful not to place the
+            --  second one ahead of the first one. That is the goal
+            --  of this loop. This may need to be revised if it turns
+            --  out that other stuff is being inserted on the list,
+            --  so that the "skip" loop terminates too early.
+
+            --  On the other hand, inserting things earlier might
+            --  offer more opportunities for sharing.
+            --  If Ancestor occurs in the statement list of a
+            --  subprogram body (ignore the HSS node for now),
+            --  then perhaps we should look for an insertion site
+            --  in the decl list of the subprogram body and only
+            --  look in the statement list if the decl list is empty.
+            --  Similarly if Ancestor occurs in the private decls list
+            --  for a package spec that has a non-empty visible
+            --  decls list. No examples where this would result in more
+            --  sharing and less duplication have been observed, so this
+            --  is just speculation.
+         begin
+            while Insertion_Point /= Ancestor
+              and then Nkind (Insertion_Point) = N_Subprogram_Body
+              and then not Comes_From_Source (Insertion_Point)
+              and then Present (Next (Insertion_Point))
+            loop
+               Next (Insertion_Point);
+            end loop;
+            pragma Assert (Present (Insertion_Point));
+         end Skip_Non_Source_Subps;
+
+      --  Start of processing for Build_And_Insert_Type_Attr_Subp
+
       begin
          --  handle no-enclosing-comp-unit cases
          if No (Typ_Comp_Unit) then
@@ -2128,45 +2177,29 @@ package body Exp_Attr is
             while Present (Ancestor) loop
                if Is_List_Member (Ancestor) then
                   Insertion_Point := First (List_Containing (Ancestor));
+                  Skip_Non_Source_Subps;
 
-                  --  A hazard to avoid here is use-before-definition
-                  --  errors that can result when we have two of these
-                  --  subprograms where one calls the other (e.g., given
-                  --  Put_Image procedures for a composite type and
-                  --  for a component type, the former will often call
-                  --  the latter). At the time a subprogram is inserted,
-                  --  we know that the one and only call to it is
-                  --  somewhere in the subtree rooted at Ancestor.
-                  --  So that placement constraint is easy to satisfy.
-                  --  But if we construct another subprogram later and
-                  --  if that second subprogram calls the first one,
-                  --  then we need to be careful not to place the
-                  --  second one ahead of the first one. That is the goal
-                  --  of this loop. This may need to be revised if it turns
-                  --  out that other stuff is being inserted on the list,
-                  --  so that the loop terminates too early.
+               --  A subprogram body usually occurs in a declaration list
+               --  (so we will take the preceding Is_List_Member = True path),
+               --  but not always. For a library unit subprogram, we want an
+               --  insertion point in the subprogram's declaration list
+               --  because later on we may need to see the inserted
+               --  declaration from within the declaration list. In the
+               --  preceding non-library-unit case, this visibility issue is
+               --  dealt with by choosing an insertion point outside of the
+               --  subprogram body, but that's not an option here. So if
+               --  Insertion_Point is currently a member of, for example, the
+               --  subprogram's statement list then it needs to be corrected.
 
-                  --  On the other hand, it seems like inserting things
-                  --  earlier offers more opportunities for sharing.
-                  --  If Ancestor occurs in the statement list of a
-                  --  subprogram body (ignore the HSS node for now),
-                  --  then perhaps we should look for an insertion site
-                  --  in the decl list of the subprogram body and only
-                  --  look in the statement list if the decl list is empty.
-                  --  Similarly if Ancestor occors in the private decls list
-                  --  for a package spec that has a non-empty visible
-                  --  decls list. No examples where this would result in more
-                  --  sharing and less duplication have been observed, so this
-                  --  is just speculation.
-
-                  while Insertion_Point /= Ancestor
-                    and then Nkind (Insertion_Point) = N_Subprogram_Body
-                    and then not Comes_From_Source (Insertion_Point)
-                  loop
-                     Next (Insertion_Point);
-                  end loop;
-
-                  pragma Assert (Present (Insertion_Point));
+               elsif Nkind (Ancestor) = N_Subprogram_Body
+                 and then Present (Declarations (Ancestor))
+                 and then
+                   (No (Insertion_Point)
+                     or else List_Containing (Insertion_Point) /=
+                       Declarations (Ancestor))
+               then
+                  Insertion_Point := First (Declarations (Ancestor));
+                  Skip_Non_Source_Subps;
                end if;
 
                if Nkind (Ancestor) = N_Subunit then
