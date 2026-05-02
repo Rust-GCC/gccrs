@@ -131,20 +131,13 @@ package body Exp_Attr is
    --  Build a call to Disp_Get_Task_Id, passing Actual as actual parameter
 
    function Build_Record_VS_Func
-     (Attr       : Node_Id;
+     (N          : Node_Id;
       Formal_Typ : Entity_Id;
       Rec_Typ    : Entity_Id) return Entity_Id;
-   --  Validate the components, discriminants, and variants of a record type by
-   --  means of a function. Return the entity of the validation function. The
-   --  parameters are as follows:
-   --
-   --    * Attr - the 'Valid_Scalars attribute for which the function is
-   --      generated.
-   --
-   --    * Formal_Typ - the type of the generated function's only formal
-   --      parameter.
-   --
-   --    * Rec_Typ - the record type whose internals are to be validated
+   --  Insert before N the body of a function implementing the validation of
+   --  the components, discriminants, and variants of record type Rec_Type.
+   --  Formal_Typ is the type of the generated function's formal parameter.
+   --  Return the entity of the validation function.
 
    function Default_Streaming_Unavailable (Typ : Entity_Id) return Boolean;
    --  In most cases, references to unavailable streaming attributes
@@ -677,7 +670,7 @@ package body Exp_Attr is
    --------------------------
 
    function Build_Record_VS_Func
-     (Attr       : Node_Id;
+     (N          : Node_Id;
       Formal_Typ : Entity_Id;
       Rec_Typ    : Entity_Id) return Entity_Id
    is
@@ -688,7 +681,7 @@ package body Exp_Attr is
       --  NOTE: The routines within Build_Record_VS_Func are intentionally
       --  unnested to avoid deep indentation of code.
 
-      Loc : constant Source_Ptr := Sloc (Attr);
+      Loc : constant Source_Ptr := Sloc (N);
 
       procedure Validate_Component_List
         (Obj_Id    : Entity_Id;
@@ -714,6 +707,13 @@ package body Exp_Attr is
       --  Process component declarations or discriminant specifications in list
       --  Fields. Obj_Id denotes the entity of the validation parameter. All
       --  new code is added to list Stmts.
+
+      procedure Validate_Record
+        (Obj_Id : Entity_Id;
+         Typ    : Entity_Id;
+         Stmts  : in out List_Id);
+      --  Process record type Typ. Obj_Id denotes the entity of the validation
+      --  parameter. All new code is added to list Stmts.
 
       procedure Validate_Variant
         (Obj_Id : Entity_Id;
@@ -852,13 +852,70 @@ package body Exp_Attr is
 
          if Present (Cond) then
             Append_New_To (Stmts,
-              Make_Implicit_If_Statement (Attr,
+              Make_Implicit_If_Statement (N,
                 Condition       => Cond,
                 Then_Statements => New_List (
                   Make_Simple_Return_Statement (Loc,
                     Expression => New_Occurrence_Of (Standard_False, Loc)))));
          end if;
       end Validate_Fields;
+
+      ---------------------
+      -- Validate_Record --
+      ---------------------
+
+      procedure Validate_Record
+        (Obj_Id : Entity_Id;
+         Typ    : Entity_Id;
+         Stmts  : in out List_Id)
+      is
+         Typ_Decl : constant Node_Id := Declaration_Node (Typ);
+         Typ_Def  : constant Node_Id := Type_Definition (Typ_Decl);
+
+         Comps   : Node_Id;
+         Typ_Ext : Node_Id;
+
+      begin
+         --  The components of a derived type are located in the extension part
+
+         if Nkind (Typ_Def) = N_Derived_Type_Definition then
+            Typ_Ext := Record_Extension_Part (Typ_Def);
+
+            if Present (Typ_Ext) then
+               Comps := Component_List (Typ_Ext);
+            else
+               Comps := Empty;
+            end if;
+
+         --  Otherwise the components are available in the definition
+
+         else
+            Comps := Component_List (Typ_Def);
+         end if;
+
+         --  Validate the discriminants
+
+         if not Is_Unchecked_Union (Typ) then
+            Validate_Fields
+              (Obj_Id => Obj_Id,
+               Fields => Discriminant_Specifications (Typ_Decl),
+               Stmts  => Stmts);
+         end if;
+
+         --  Validate the components and variant parts
+
+         Validate_Component_List
+           (Obj_Id    => Obj_Id,
+            Comp_List => Comps,
+            Stmts     => Stmts);
+
+         --  Recurse on the parent subtype, if any
+
+         if Present (Parent_Subtype (Typ)) then
+            Validate_Record
+              (Obj_Id, Validated_View (Parent_Subtype (Typ)), Stmts);
+         end if;
+      end Validate_Record;
 
       ----------------------
       -- Validate_Variant --
@@ -960,15 +1017,12 @@ package body Exp_Attr is
 
       --  Local variables
 
-      Func_Id  : constant Entity_Id := Make_Temporary (Loc, 'V',
-                                         Related_Node => Attr);
+      Func_Id  : constant Entity_Id :=
+                   Make_Temporary (Loc, 'V', Related_Node => N);
       Obj_Id   : constant Entity_Id := Make_Temporary (Loc, 'R');
-      Comps    : Node_Id;
-      Stmts    : List_Id;
-      Typ      : Entity_Id;
-      Typ_Decl : Node_Id;
-      Typ_Def  : Node_Id;
-      Typ_Ext  : Node_Id;
+
+      Stmts : List_Id;
+      Typ   : Entity_Id;
 
    --  Start of processing for Build_Record_VS_Func
 
@@ -979,26 +1033,6 @@ package body Exp_Attr is
 
       if Is_Class_Wide_Type (Typ) then
          Typ := Validated_View (Root_Type (Typ));
-      end if;
-
-      Typ_Decl := Declaration_Node (Typ);
-      Typ_Def  := Type_Definition (Typ_Decl);
-
-      --  The components of a derived type are located in the extension part
-
-      if Nkind (Typ_Def) = N_Derived_Type_Definition then
-         Typ_Ext := Record_Extension_Part (Typ_Def);
-
-         if Present (Typ_Ext) then
-            Comps := Component_List (Typ_Ext);
-         else
-            Comps := Empty;
-         end if;
-
-      --  Otherwise the components are available in the definition
-
-      else
-         Comps := Component_List (Typ_Def);
       end if;
 
       --  The code generated by this routine is as follows:
@@ -1039,21 +1073,7 @@ package body Exp_Attr is
 
       Stmts := No_List;
 
-      --  Validate the discriminants
-
-      if not Is_Unchecked_Union (Rec_Typ) then
-         Validate_Fields
-           (Obj_Id => Obj_Id,
-            Fields => Discriminant_Specifications (Typ_Decl),
-            Stmts  => Stmts);
-      end if;
-
-      --  Validate the components and variant parts
-
-      Validate_Component_List
-        (Obj_Id    => Obj_Id,
-         Comp_List => Comps,
-         Stmts     => Stmts);
+      Validate_Record (Obj_Id, Typ, Stmts);
 
       --  Generate:
       --    return True;
@@ -1076,7 +1096,7 @@ package body Exp_Attr is
          Set_Debug_Info_Off (Func_Id);
       end if;
 
-      Insert_Action (Attr,
+      Insert_Action (N,
         Make_Subprogram_Body (Loc,
           Specification =>
             Make_Function_Specification (Loc,
@@ -8583,7 +8603,12 @@ package body Exp_Attr is
          --  Attribute 'Valid_Scalars is not supported on private tagged types;
          --  see a detailed explanation where this attribute is analyzed.
 
-         if Is_Private_Type (Ptyp) and then Is_Tagged_Type (Ptyp) then
+         if Is_Tagged_Type (Ptyp) and then Is_Private_Type (Ptyp) then
+            null;
+
+         elsif Is_Class_Wide_Type (Ptyp)
+           and then Is_Private_Type (Root_Type (Ptyp))
+         then
             null;
 
          --  Attribute 'Valid_Scalars evaluates to True when the type lacks
@@ -8634,7 +8659,7 @@ package body Exp_Attr is
                 Name                   =>
                   New_Occurrence_Of
                     (Build_Record_VS_Func
-                      (Attr       => N,
+                      (N          => N,
                        Formal_Typ => Ptyp,
                        Rec_Typ    => Val_Typ),
                     Loc),

@@ -5396,18 +5396,19 @@ package body Sem_Ch4 is
 
          --  Another special case: the type is an extension of a private
          --  type T, either is an actual in an instance or is immediately
-         --  visible, and we are in the body of the instance, which means
-         --  the generic body had a full view of the type declaration for
-         --  T or some ancestor that defines the component in question.
+         --  visible, and we are in an instance, which means the generic
+         --  unit had a full view of the type declaration of T or some
+         --  ancestor that defines the component in question.
+
          --  This happens because Is_Visible_Component returned False on
          --  this component, as T or the ancestor is still private since
          --  the Has_Private_View mechanism is bypassed because T or the
-         --  ancestor is not directly referenced in the generic body.
+         --  ancestor is not directly referenced in the generic unit.
 
          if Is_Derived_Type (Typ)
            and then (Used_As_Generic_Actual (Base_Type (Typ))
                       or else Is_Immediately_Visible (Typ))
-           and then In_Instance_Body
+           and then In_Instance
            and then Present (Parent_Subtype (Typ))
          then
             Find_Component_In_Instance (Parent_Subtype (Typ));

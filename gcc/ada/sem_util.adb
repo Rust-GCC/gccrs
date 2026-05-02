@@ -30483,7 +30483,7 @@ package body Sem_Util is
             return Typ;
          end if;
 
-      elsif Is_Derived_Type (Typ) then
+      elsif Is_Derived_Type (Typ) and then not Is_Tagged_Type (Typ) then
          return Validated_View (Etype (Typ));
 
       elsif Is_Private_Type (Typ) then

@@ -3564,7 +3564,7 @@ package Sem_Util is
    --  Obtain the "validated view" of arbitrary type Typ which is suitable for
    --  verification by attribute 'Valid_Scalars. This view is the type itself
    --  or its full view or nonlimited view, while stripping away concurrency,
-   --  derivations, and privacy.
+   --  untagged derivation, and privacy.
 
    function Visible_Ancestors (Typ : Entity_Id) return Elist_Id;
    --  [Ada 2012:AI-0125-1]: Collect all the visible parents and progenitors

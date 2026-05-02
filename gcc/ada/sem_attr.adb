@@ -7839,8 +7839,10 @@ package body Sem_Attr is
             --  Do not emit any diagnostics related to private types to avoid
             --  disclosing the structure of the type.
 
-            elsif Is_Private_Type (P_Type) then
-
+            elsif Is_Private_Type (P_Type)
+              or else (Is_Class_Wide_Type (P_Type)
+                        and then Is_Private_Type (Root_Type (P_Type)))
+            then
                --  Attribute 'Valid_Scalars is not supported on private tagged
                --  types due to a code generation issue. Is_Visible_Component
                --  does not allow for a component of a private tagged type to
