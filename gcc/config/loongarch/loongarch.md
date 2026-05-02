@@ -3823,6 +3823,47 @@
   [(set_attr "type" "slt")
    (set_attr "mode" "<X:MODE>")])
 
+(define_expand "spaceship<mode>4"
+  [(match_operand:SI   0 "register_operand")
+   (match_operand:QHWD 1 "register_operand")
+   (match_operand:QHWD 2 "reg_or_0_operand")
+   (match_operand:SI   3 "const_int_operand")]
+  ""
+{
+  gcc_assert (operands[3] == const1_rtx || operands[3] == constm1_rtx);
+
+  if (GET_MODE_SIZE (<MODE>mode) < GET_MODE_SIZE (word_mode))
+    {
+      auto extend = (operands[3] == const1_rtx ? ZERO_EXTEND
+					       : SIGN_EXTEND);
+      for (int i: {1, 2})
+	if (operands[i] != const0_rtx)
+	  operands[i] = force_reg (word_mode,
+				   gen_rtx_fmt_e (extend, word_mode,
+						  operands[i]));
+    }
+
+  auto lt_code = (operands[3] == const1_rtx ? LTU : LT);
+  auto gt_code = (operands[3] == const1_rtx ? GTU : GT);
+  rtx lt = gen_rtx_fmt_ee (lt_code, word_mode, operands[1], operands[2]);
+  rtx gt = gen_rtx_fmt_ee (gt_code, word_mode, operands[1], operands[2]);
+
+  gt = force_reg (word_mode, gt);
+  lt = force_reg (word_mode, lt);
+
+  rtx diff = gen_rtx_MINUS (word_mode, gt, lt);
+  if (TARGET_64BIT)
+    {
+      diff = force_reg (DImode, diff);
+      diff = gen_lowpart (SImode, diff);
+      SUBREG_PROMOTED_VAR_P (diff) = 1;
+      SUBREG_PROMOTED_SET (diff, SRP_SIGNED);
+    }
+
+  emit_move_insn (operands[0], diff);
+  DONE;
+})
+
 
 ;;
 ;;  ....................
