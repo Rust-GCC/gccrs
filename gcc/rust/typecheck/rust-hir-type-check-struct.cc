@@ -235,23 +235,6 @@ TypeCheckStructExpr::resolve (HIR::StructExprStructFields &struct_expr)
 	}
       rust_assert (struct_expr.union_index != -1);
     }
-  else
-    {
-      // everything is ok, now we need to ensure all field values are ordered
-      // correctly. The GIMPLE backend uses a simple algorithm that assumes each
-      // assigned field in the constructor is in the same order as the field in
-      // the type
-      for (auto &field : struct_expr.get_fields ())
-	field.release ();
-
-      std::vector<std::unique_ptr<HIR::StructExprField> > ordered_fields;
-      ordered_fields.reserve (adtFieldIndexToField.size ());
-
-      for (size_t i = 0; i < adtFieldIndexToField.size (); i++)
-	ordered_fields.emplace_back (adtFieldIndexToField[i]);
-
-      struct_expr.set_fields_as_owner (std::move (ordered_fields));
-    }
 
   resolved = struct_def;
 }
