@@ -146,12 +146,12 @@ public:
       (bbitmap_element_or<uint64_t>, *this, other);
   }
 
-  bbitmap<N> operator|=(const bbitmap<N> other)
+  bbitmap<N> &operator|=(const bbitmap<N> other)
   {
     for (int i = 0; i < N; i++)
       val[i] |= other.val[i];
 
-    return this;
+    return *this;
   }
 
   constexpr bbitmap<N> operator&(const bbitmap<N> other) const
@@ -160,12 +160,12 @@ public:
       (bbitmap_element_and<uint64_t>, *this, other);
   }
 
-  bbitmap<N> operator&=(const bbitmap<N> other)
+  bbitmap<N> &operator&=(const bbitmap<N> other)
   {
     for (int i = 0; i < N; i++)
       val[i] &= other.val[i];
 
-    return this;
+    return *this;
   }
 
   constexpr bbitmap<N> operator^(const bbitmap<N> other) const
@@ -174,12 +174,12 @@ public:
       (bbitmap_element_xor<uint64_t>, *this, other);
   }
 
-  bbitmap<N> operator^=(const bbitmap<N> other)
+  bbitmap<N> &operator^=(const bbitmap<N> other)
   {
     for (int i = 0; i < N; i++)
       val[i] ^= other.val[i];
 
-    return this;
+    return *this;
   }
 
   constexpr bbitmap<N> operator~() const
