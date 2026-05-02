@@ -1671,6 +1671,13 @@ package body Accessibility is
          return;
       end if;
 
+      --  No checks are needed for the return synthesized in a function whose
+      --  body has been wrapped in a nested _Wrapped_Statements function.
+
+      if Present (Wrapped_Statements (Func)) then
+         return;
+      end if;
+
       --  Ada 2005 (AI95-344): If the result type is class-wide, then insert
       --  a check that the level of the return expression's underlying type
       --  is not deeper than the level of the master enclosing the function.
