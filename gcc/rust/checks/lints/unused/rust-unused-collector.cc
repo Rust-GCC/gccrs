@@ -62,10 +62,13 @@ UnusedCollector::visit (HIR::StructExprFieldIdentifier &ident)
 void
 UnusedCollector::visit (HIR::AssignmentExpr &expr)
 {
-  auto def_id = get_def_id (expr.get_lhs (), Resolver2_0::Namespace::Values);
-  HirId id = expr.get_lhs ().get_mappings ().get_hirid ();
-  unused_context.remove_mut (def_id);
-  unused_context.add_assign (def_id, id);
+  if (auto def_id
+      = get_def_id (expr.get_lhs (), Resolver2_0::Namespace::Values))
+    {
+      HirId id = expr.get_lhs ().get_mappings ().get_hirid ();
+      unused_context.remove_mut (*def_id);
+      unused_context.add_assign (*def_id, id);
+    }
   visit_outer_attrs (expr);
   expr.get_rhs ().accept_vis (*this);
 }
