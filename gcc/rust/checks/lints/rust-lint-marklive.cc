@@ -165,8 +165,11 @@ MarkLive::visit_path_segment (HIR::PathExprSegment seg)
   // We should mark them alive all and ignoring other kind of segments.
   // If the segment we dont care then just return false is fine
   // TODO: Should we look that up in all namespaces?
-  if (auto id = resolver.lookup (ast_node_id, Resolver2_0::Namespace::Values))
-    ref_node_id = *id;
+
+  if (auto nslookup
+      = resolver.lookup (ast_node_id, Resolver2_0::Namespace::Values,
+			 Resolver2_0::Namespace::Types))
+    ref_node_id = nslookup->id;
   else
     return false;
   if (auto hid = mappings.lookup_node_to_hir (ref_node_id))
