@@ -469,7 +469,8 @@ Early::finalize_simple_import (const Early::ImportPair &mapping)
 		     Definition (definition.definition.get_node_id ()),
 		     definition.ns);
 
-      toplevel.insert_or_error_out (identifier, import.get_locus (), import_id,
+      toplevel.insert_or_error_out (identifier, import.get_locus (),
+				    definition.definition.get_node_id (),
 				    definition.ns);
 
       dirty = dirty || toplevel.is_dirty ();
@@ -525,7 +526,7 @@ Early::finalize_rebind_import (const Early::ImportPair &mapping)
 	  {
 	    // Erroneous `self` or `{self}` use declaration
 	    if (segments.size () == 1)
-	      break;
+	      return;
 	    declared_name = segments[segments.size () - 2].as_string ();
 	    import_id = segments[segments.size () - 2].get_node_id ();
 	  }
@@ -550,7 +551,8 @@ Early::finalize_rebind_import (const Early::ImportPair &mapping)
 		     Definition (definition.definition.get_node_id ()),
 		     definition.ns);
 
-      toplevel.insert_or_error_out (declared_name, path.get_locus (), import_id,
+      toplevel.insert_or_error_out (declared_name, path.get_locus (),
+				    definition.definition.get_node_id (),
 				    definition.ns);
 
       dirty = dirty || toplevel.is_dirty ();

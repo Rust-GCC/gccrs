@@ -355,13 +355,20 @@ NameResolutionContext::resolve_segments (
 		    .lookup_glob_container (rib_lookup->get_node_id ())
 		    .has_value ())
 		{
-		  auto leaf_module
+		  NodeId leaf_module
 		    = stack.find_leaf_definition (rib_lookup->get_node_id ())
-			.value ()
+			.value_or (Definition (rib_lookup->get_node_id ()))
 			.id;
 
-		  child = stack.dfs_node (stack.root, leaf_module).value ();
-		  break;
+		  if (auto new_child = stack.dfs_node (stack.root, leaf_module))
+		    {
+		      child = new_child.value ();
+		      break;
+		    }
+		  else
+		    {
+		      return tl::nullopt;
+		    }
 		}
 	      else
 		{

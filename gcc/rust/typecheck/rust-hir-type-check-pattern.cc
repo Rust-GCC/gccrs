@@ -57,11 +57,11 @@ TypeCheckPattern::visit (HIR::PathInExpression &pattern)
 
   auto &nr_ctx = Resolver2_0::FinalizedNameResolutionContext::get ();
 
-  // FIXME: Not sure if this is enough to look up enum variants
-  if (auto id = nr_ctx.lookup (pattern.get_mappings ().get_nodeid (),
-			       Resolver2_0::Namespace::Values))
+  if (auto nslookup = nr_ctx.lookup (pattern.get_mappings ().get_nodeid (),
+				     Resolver2_0::Namespace::Values,
+				     Resolver2_0::Namespace::Types))
     {
-      ref_node_id = *id;
+      ref_node_id = nslookup->id;
       maybe_item = true;
     }
 

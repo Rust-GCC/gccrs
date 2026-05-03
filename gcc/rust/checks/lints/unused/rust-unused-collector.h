@@ -57,25 +57,55 @@ private:
   virtual void visit (HIR::ContinueExpr &expr) override;
 
   template <typename T>
-  HirId get_def_id (T &path_expr, Resolver2_0::Namespace ns)
+  tl::optional<HirId> get_def_id (T &path_expr, Resolver2_0::Namespace ns)
   {
     NodeId ast_node_id = path_expr.get_mappings ().get_nodeid ();
-    NodeId id = nr_context.lookup (ast_node_id, ns).value ();
-    HirId def_id = mappings.lookup_node_to_hir (id).value ();
-    return def_id;
+
+    if (auto id = nr_context.lookup (ast_node_id, ns))
+      {
+	if (auto def_id = mappings.lookup_node_to_hir (*id))
+	  {
+	    return *def_id;
+	  }
+      }
+    return tl::nullopt;
+  }
+
+  template <typename T>
+  tl::optional<HirId> get_def_id (T &path_expr, Resolver2_0::Namespace ns1,
+				  Resolver2_0::Namespace ns2)
+  {
+    NodeId ast_node_id = path_expr.get_mappings ().get_nodeid ();
+
+    if (auto nslookup = nr_context.lookup (ast_node_id, ns1, ns2))
+      {
+	NodeId id = nslookup->id;
+
+	if (auto def_id = mappings.lookup_node_to_hir (id))
+	  {
+	    return *def_id;
+	  }
+      }
+
+    return tl::nullopt;
   }
 
   template <typename T> void mark_path_used (T &path_expr)
   {
-    auto def_id = get_def_id (path_expr, Resolver2_0::Namespace::Values);
-    unused_context.add_variable (def_id);
-    unused_context.remove_assign (def_id);
+    if (auto def_id = get_def_id (path_expr, Resolver2_0::Namespace::Values,
+				  Resolver2_0::Namespace::Types))
+      {
+	unused_context.add_variable (*def_id);
+	unused_context.remove_assign (*def_id);
+      }
   }
 
   template <typename T> void mark_label_used (T &path_expr)
   {
-    auto def_id = get_def_id (path_expr, Resolver2_0::Namespace::Labels);
-    unused_context.add_label (def_id);
+    if (auto def_id = get_def_id (path_expr, Resolver2_0::Namespace::Labels))
+      {
+	unused_context.add_label (*def_id);
+      }
   }
 };
 } // namespace Analysis
