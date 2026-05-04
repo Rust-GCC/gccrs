@@ -10167,6 +10167,9 @@ package body Sem_Ch13 is
                      Next (Alt);
                   end loop;
 
+                  if Is_Empty_List (Choices) then
+                     return False_Range;
+                  end if;
                   return Membership_Entries (First (Choices), Static);
                end;
 
