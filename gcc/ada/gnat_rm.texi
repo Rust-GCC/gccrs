@@ -19,7 +19,7 @@
 
 @copying
 @quotation
-GNAT Reference Manual , May 19, 2026
+GNAT Reference Manual , Jun 04, 2026
 
 AdaCore
 
@@ -10192,24 +10192,28 @@ that it is separately controllable using pragma @code{Assertion_Policy}.
 This aspect provides a light-weight mechanism for loops and quantified
 expressions over container types, without the overhead imposed by the tampering
 checks of standard Ada 2012 iterators. The value of the aspect is an aggregate
-with six named components, of which the last three are optional: @code{First},
-@code{Next}, @code{Has_Element}, @code{Element}, @code{Last}, and @code{Previous}.
+with six named components, of which the last four are optional: @code{First},
+@code{Next}, @code{Has_Element}, @code{Element}, @code{Constant_Reference}, @code{Last}, and
+@code{Previous}.
 When only the first three components are specified, only the
-@code{for .. in} form of iteration over cursors is available. When @code{Element}
-is specified, both this form and the @code{for .. of} form of iteration over
-elements are available. If the last two components are specified, reverse
+@code{for .. in} form of iteration over cursors is available. When either
+@code{Element} or @code{Constant_Reference} is specified, both this form and the
+@code{for .. of} form of iteration over elements are available. @code{Element}
+and @code{Constant_Reference} cannot be specified together.
+If the last two components are specified, reverse
 iterations over the container can be specified (analogous to what can be done
 over predefined containers that support the @code{Reverse_Iterator} interface).
 The following is a typical example of use:
 
 @example
 type List is private with
-    Iterable => (First       => First_Cursor,
-                 Next        => Advance,
-                 Has_Element => Cursor_Has_Element
-               [,Element     => Get_Element]
-               [,Last        => Last_Cursor]
-               [,Previous    => Retreat]);
+    Iterable => (First              => First_Cursor,
+                 Next               => Advance,
+                 Has_Element        => Cursor_Has_Element
+               [,Element            => Get_Element]
+               [,Constant_Reference => Element_Constant_Access]
+               [,Last               => Last_Cursor]
+               [,Previous           => Retreat]);
 @end example
 
 
@@ -10262,6 +10266,21 @@ be a type declared in the container package or visible from it. For example:
 
 @example
 function Get_Element (Cont : Container; Position : Cursor) return Element_Type;
+@end example
+
+
+@itemize *
+
+@item 
+The value of @code{Constant_Reference} is a primitive operation of the container
+type that
+takes both a container and a cursor and yields an anonymous access-to-constant
+type designating @code{Element_Type} with null exclusion, which must
+be a type declared in the container package or visible from it. For example:
+@end itemize
+
+@example
+function Element_Constant_Access (Cont : Container; Position : Cursor) return not null access constant Element_Type;
 @end example
 
 This aspect is used in the GNAT-defined formal container packages.
@@ -12078,7 +12097,7 @@ If the opposite storage order is specified, then whenever the value of
 a scalar component of an object of type @code{S} is read, the storage
 elements of the enclosing machine scalar are first reversed (before
 retrieving the component value, possibly applying some shift and mask
-operatings on the enclosing machine scalar), and the opposite operation
+operations on the enclosing machine scalar), and the opposite operation
 is done for writes.
 
 In that case, the restrictions set forth in 13.5.1(10.3/2) for scalar components

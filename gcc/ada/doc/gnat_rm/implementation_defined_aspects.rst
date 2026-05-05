@@ -425,12 +425,15 @@ Aspect Iterable
 This aspect provides a light-weight mechanism for loops and quantified
 expressions over container types, without the overhead imposed by the tampering
 checks of standard Ada 2012 iterators. The value of the aspect is an aggregate
-with six named components, of which the last three are optional: ``First``,
-``Next``, ``Has_Element``, ``Element``, ``Last``, and ``Previous``.
+with six named components, of which the last four are optional: ``First``,
+``Next``, ``Has_Element``, ``Element``, ``Constant_Reference``, ``Last``, and
+``Previous``.
 When only the first three components are specified, only the
-``for .. in`` form of iteration over cursors is available. When ``Element``
-is specified, both this form and the ``for .. of`` form of iteration over
-elements are available. If the last two components are specified, reverse
+``for .. in`` form of iteration over cursors is available. When either
+``Element`` or ``Constant_Reference`` is specified, both this form and the
+``for .. of`` form of iteration over elements are available. ``Element``
+and ``Constant_Reference`` cannot be specified together.
+If the last two components are specified, reverse
 iterations over the container can be specified (analogous to what can be done
 over predefined containers that support the ``Reverse_Iterator`` interface).
 The following is a typical example of use:
@@ -438,12 +441,13 @@ The following is a typical example of use:
 .. code-block:: ada
 
   type List is private with
-      Iterable => (First       => First_Cursor,
-                   Next        => Advance,
-                   Has_Element => Cursor_Has_Element
-                 [,Element     => Get_Element]
-                 [,Last        => Last_Cursor]
-                 [,Previous    => Retreat]);
+      Iterable => (First              => First_Cursor,
+                   Next               => Advance,
+                   Has_Element        => Cursor_Has_Element
+                 [,Element            => Get_Element]
+                 [,Constant_Reference => Element_Constant_Access]
+                 [,Last               => Last_Cursor]
+                 [,Previous           => Retreat]);
 
 * The values of ``First`` and ``Last`` are primitive operations of the
   container type that return a ``Cursor``, which must be a type declared in
@@ -476,6 +480,16 @@ The following is a typical example of use:
 .. code-block:: ada
 
   function Get_Element (Cont : Container; Position : Cursor) return Element_Type;
+
+* The value of ``Constant_Reference`` is a primitive operation of the container
+  type that
+  takes both a container and a cursor and yields an anonymous access-to-constant
+  type designating ``Element_Type`` with null exclusion, which must
+  be a type declared in the container package or visible from it. For example:
+
+.. code-block:: ada
+
+  function Element_Constant_Access (Cont : Container; Position : Cursor) return not null access constant Element_Type;
 
 This aspect is used in the GNAT-defined formal container packages.
 
