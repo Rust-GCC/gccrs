@@ -1438,17 +1438,17 @@ namespace __format
 	{
 	  using _Range = remove_reference_t<_Rg>;
 	  using _String_view = basic_string_view<_CharT>;
-	  if constexpr (!is_lvalue_reference_v<_Rg>)
-	    return _M_format_range<_Range&>(__rg, __fc);
-	  else if constexpr (!is_const_v<_Range>
-			       && __simply_formattable_range<_Range, _CharT>)
-	    return _M_format_range<const _Range&>(__rg, __fc);
-	  else if constexpr (ranges::contiguous_range<_Rg>)
+	  if constexpr (ranges::contiguous_range<_Rg>)
 	    {
 	      _String_view __str(ranges::data(__rg),
 				 size_t(ranges::distance(__rg)));
 	      return format(__str, __fc);
 	    }
+	  else if constexpr (!is_const_v<_Range>
+			        && __simply_formattable_range<_Range, _CharT>)
+	    return _M_format_range<const _Range&>(__rg, __fc);
+	  else if constexpr (!is_lvalue_reference_v<_Rg>)
+	    return _M_format_range<_Range&>(__rg, __fc);
 	  else
 	    {
 	      auto __handle_debug = [this, &__rg]<typename _NOut>(_NOut __nout)
