@@ -1756,8 +1756,8 @@ package Sem_Util is
    --  result of the enclosing function.
 
    function In_Reverse_Storage_Order_Object (N : Node_Id) return Boolean;
-   --  Returns True if N denotes a component or subcomponent in a record or
-   --  array that has Reverse_Storage_Order.
+   --  Returns True if N denotes a component in an array or a record that has
+   --  Reverse_Storage_Order.
 
    function In_Same_Declarative_Part
      (Context : Node_Id;

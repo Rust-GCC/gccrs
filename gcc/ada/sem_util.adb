@@ -14885,34 +14885,20 @@ package body Sem_Util is
 
    function In_Reverse_Storage_Order_Object (N : Node_Id) return Boolean is
       Pref : Node_Id;
-      Btyp : Entity_Id := Empty;
+      Btyp : Entity_Id;
 
    begin
-      --  Climb up indexed components
-
-      Pref := N;
-      loop
-         case Nkind (Pref) is
-            when N_Selected_Component =>
-               Pref := Prefix (Pref);
-               exit;
-
-            when N_Indexed_Component =>
-               Pref := Prefix (Pref);
-
-            when others =>
-               Pref := Empty;
-               exit;
-         end case;
-      end loop;
-
-      if Present (Pref) then
+      if Nkind (N) in N_Indexed_Component | N_Selected_Component then
+         Pref := Prefix (N);
          Btyp := Base_Type (Etype (Pref));
-      end if;
 
-      return Present (Btyp)
-        and then (Is_Record_Type (Btyp) or else Is_Array_Type (Btyp))
-        and then Reverse_Storage_Order (Btyp);
+         return Present (Btyp)
+           and then (Is_Record_Type (Btyp) or else Is_Array_Type (Btyp))
+           and then Reverse_Storage_Order (Btyp);
+
+      else
+         return False;
+      end if;
    end In_Reverse_Storage_Order_Object;
 
    ------------------------------
