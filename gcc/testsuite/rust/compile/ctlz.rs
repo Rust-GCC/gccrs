@@ -9,9 +9,9 @@ pub trait Sized {}
 pub trait Copy {}
 
 extern "rust-intrinsic" {
-    pub fn ctlz<T>(x: T) -> u32; // { dg-error "ctlz intrinsics can only be used with basic integer types .got 'bool'." }
+    pub fn ctlz<T>(x: T) -> u32;
 }
 
 fn main() {
-    let _ = ctlz(true);
+    let _ = ctlz(true); // { dg-error "ctlz intrinsic can only be used with basic integer types .got .bool.." }
 }

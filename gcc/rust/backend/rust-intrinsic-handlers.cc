@@ -80,7 +80,7 @@ check_for_basic_integer_type (const std::string &intrinsic_str,
     {
       rust_error_at (
 	locus,
-	"%s intrinsics can only be used with basic integer types (got %qs)",
+	"%s intrinsic can only be used with basic integer types (got %qs)",
 	intrinsic_str.c_str (), type->get_name ().c_str ());
     }
 
@@ -218,7 +218,7 @@ build_atomic_builtin_name (const std::string &prefix, location_t locus,
 
   auto type_size_str = allowed_types.find (type_name);
 
-  if (!check_for_basic_integer_type ("atomic", locus, operand_type))
+  if (!check_for_basic_integer_type ("atomic operation", locus, operand_type))
     return "";
 
   result += type_size_str->second;
@@ -255,7 +255,8 @@ unchecked_op (Context *ctx, TyTy::FnType *fntype, tree_code op)
   auto *monomorphized_type
     = fntype->get_substs ().at (0).get_param_ty ()->resolve ();
 
-  check_for_basic_integer_type ("unchecked operation", fntype->get_locus (),
+  auto call_locus = ctx->get_mappings ().lookup_location (fntype->get_ref ());
+  check_for_basic_integer_type ("unchecked operation", call_locus,
 				monomorphized_type);
 
   auto expr = build2 (op, TREE_TYPE (x), x, y);
@@ -660,9 +661,9 @@ atomic_store (Context *ctx, TyTy::FnType *fntype, int ordering)
   auto monomorphized_type
     = fntype->get_substs ()[0].get_param_ty ()->resolve ();
 
-  auto builtin_name
-    = build_atomic_builtin_name ("atomic_store_", fntype->get_locus (),
-				 monomorphized_type);
+  auto call_locus = ctx->get_mappings ().lookup_location (fntype->get_ref ());
+  auto builtin_name = build_atomic_builtin_name ("atomic_store_", call_locus,
+						 monomorphized_type);
   if (builtin_name.empty ())
     return error_mark_node;
 
@@ -777,8 +778,8 @@ ctlz_handler (Context *ctx, TyTy::FnType *fntype, bool nonzero)
   rust_assert (fntype->get_num_substitutions () == 1);
   auto *monomorphized_type
     = fntype->get_substs ().at (0).get_param_ty ()->resolve ();
-  if (!check_for_basic_integer_type ("ctlz", fntype->get_locus (),
-				     monomorphized_type))
+  auto call_locus = ctx->get_mappings ().lookup_location (fntype->get_ref ());
+  if (!check_for_basic_integer_type ("ctlz", call_locus, monomorphized_type))
     return error_mark_node;
 
   enter_intrinsic_block (ctx, fndecl);
@@ -1672,8 +1673,8 @@ bswap_handler (Context *ctx, TyTy::FnType *fntype)
   auto *monomorphized_type
     = fntype->get_substs ().at (0).get_param_ty ()->resolve ();
 
-  check_for_basic_integer_type ("bswap", fntype->get_locus (),
-				monomorphized_type);
+  auto call_locus = ctx->get_mappings ().lookup_location (fntype->get_ref ());
+  check_for_basic_integer_type ("bswap", call_locus, monomorphized_type);
 
   tree template_parameter_type
     = TyTyResolveCompile::compile (ctx, monomorphized_type);

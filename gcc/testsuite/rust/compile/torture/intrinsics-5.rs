@@ -65,8 +65,6 @@ mod copy_impls {
 
 extern "rust-intrinsic" {
     pub fn atomic_store_seqcst<T: Copy>(dst: *mut T, value: T);
-    // { dg-error "atomic intrinsics can only be used with basic integer types .got .VeryLargeType.." "" { target *-*-* } .-1 }
-    // { dg-error "atomic intrinsics can only be used with basic integer types .got .bool.." "" { target *-*-* } .-2 }
 }
 
 struct VeryLargeType {
@@ -100,6 +98,8 @@ fn main() {
 
     unsafe {
         atomic_store_seqcst(&mut dst, VeryLargeType::new(1));
+        // { dg-error "atomic operation intrinsic can only be used with basic integer types .got .VeryLargeType.." "" { target *-*-* } .-1 }
         atomic_store_seqcst(&mut b, true);
+        // { dg-error "atomic operation intrinsic can only be used with basic integer types .got .bool.." "" { target *-*-* } .-1 }
     }
 }
