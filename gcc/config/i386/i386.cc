@@ -26591,20 +26591,32 @@ ix86_vector_costs::add_stmt_cost (int count, vect_cost_for_stmt kind,
   if ((kind == vector_stmt || kind == scalar_stmt)
       && stmt_info
       && stmt_info->stmt
-      && (cfn = gimple_call_combined_fn (stmt_info->stmt)) != CFN_LAST)
-    switch (cfn)
-      {
-      case CFN_FMA:
-	stmt_cost = ix86_vec_cost (mode,
-				   mode == SFmode ? ix86_cost->fmass
-				   : ix86_cost->fmasd);
-	break;
-      case CFN_MULH:
-	stmt_cost = ix86_multiplication_cost (ix86_cost, mode);
-	break;
-      default:
-	break;
-      }
+      && is_gimple_call (stmt_info->stmt))
+    {
+      tree fndecl = gimple_call_fndecl (stmt_info->stmt);
+      cgraph_node *node;
+      if ((fndecl
+	   && (node = cgraph_node::get (fndecl))
+	   && node->simd_clones)
+	  || gimple_call_internal_p (stmt_info->stmt, IFN_MASK_CALL))
+	stmt_cost = 10 * ix86_vec_cost (mode,
+					mode == SFmode ? ix86_cost->fmass
+					: ix86_cost->fmasd);
+      else if ((cfn = gimple_call_combined_fn (stmt_info->stmt)) != CFN_LAST)
+	switch (cfn)
+	  {
+	  case CFN_FMA:
+	    stmt_cost = ix86_vec_cost (mode,
+				       mode == SFmode ? ix86_cost->fmass
+				       : ix86_cost->fmasd);
+	    break;
+	  case CFN_MULH:
+	    stmt_cost = ix86_multiplication_cost (ix86_cost, mode);
+	    break;
+	  default:
+	    break;
+	  }
+    }
 
   if (kind == vec_promote_demote)
     {
