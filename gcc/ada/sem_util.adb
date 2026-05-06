@@ -26724,7 +26724,7 @@ package body Sem_Util is
          Item_Nam :=
            Chars (Original_Node (Pragma_Identifier (Original_Node (Item))));
 
-         if Item_Nam = Name_Check then
+         if Item_Nam = Name_Check and then not Comes_From_Source (Item) then
             --  Pragma "Check" preserves the original pragma name as its first
             --  argument.
             Item_Nam :=

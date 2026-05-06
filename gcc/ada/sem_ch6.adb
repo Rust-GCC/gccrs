@@ -7118,9 +7118,10 @@ package body Sem_Ch6 is
             end loop;
          end if;
 
-         --  Don't count pragmas
+         --  Don't count pragmas, unless they are assertions that expect to
+         --  fail.
 
-         while Nkind (Last_Stm) = N_Pragma
+         while (Nkind (Last_Stm) = N_Pragma and then not Assert_False)
 
            --  Don't count call to SS_Release (can happen after
            --  Raise_Exception).

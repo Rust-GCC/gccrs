@@ -35,7 +35,6 @@ with Opt;            use Opt;
 with Restrict;       use Restrict;
 with Rident;         use Rident;
 with Sinfo.Utils;    use Sinfo.Utils;
-with Sem_Util;       use Sem_Util;
 with Snames;         use Snames;
 with Stand;          use Stand;
 with Stringt;        use Stringt;
@@ -328,33 +327,12 @@ package body Tbuild is
       Has_Created_Identifier : Boolean := False;
       End_Label              : Node_Id := Empty) return Node_Id
    is
-      P                  : Node_Id;
-      Check_Restrictions : Boolean := True;
+      --  Avoid constraint checks in ignored ghost regions that are going to be
+      --  removed later.
+
+      Check_Restrictions : constant Boolean :=
+        Ghost_Config.Ghost_Mode /= Ignore;
    begin
-      --  Do not check restrictions if the implicit loop statement is part
-      --  of a dead branch: False and then ...
-      --  This will occur in particular as part of the expansion of pragma
-      --  Assert when assertions are disabled.
-
-      P := Parent (Node);
-      while Present (P) loop
-         if Nkind (P) = N_And_Then then
-            if Nkind (Left_Opnd (P)) = N_Identifier
-              and then Entity (Left_Opnd (P)) = Standard_False
-            then
-               Check_Restrictions := False;
-               exit;
-            end if;
-
-         --  Prevent the search from going too far
-
-         elsif Is_Body_Or_Package_Declaration (P) then
-            exit;
-         end if;
-
-         P := Parent (P);
-      end loop;
-
       if Check_Restrictions then
          Check_Restriction (No_Implicit_Loops, Node);
 

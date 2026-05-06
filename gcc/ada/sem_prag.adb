@@ -15483,6 +15483,10 @@ package body Sem_Prag is
          --  restore the Ghost mode.
 
          when Pragma_Check => Check : declare
+            procedure Check_Assertion_Failure (Arg_Check : Node_Id);
+            --  Check whether an Assert or a Check pragma evaluates to False,
+            --  except when the condition was explicitly set to False, and emit
+            --  a warning.
 
             procedure Handle_Dynamic_Predicate_Check;
             --  Enable or ignore the pragma depending on whether dynamic
@@ -15526,6 +15530,52 @@ package body Sem_Prag is
                end if;
             end Handle_Dynamic_Predicate_Check;
 
+            -----------------------------
+            -- Check_Assertion_Failure --
+            -----------------------------
+
+            procedure Check_Assertion_Failure (Arg_Check : Node_Id) is
+               Orig_Check : Node_Id;
+            begin
+               if not Warn_On_Assertion_Failure
+                  or else not Is_Entity_Name (Arg_Check)
+                  or else not (Entity (Arg_Check) = Standard_False)
+               then
+                  return;
+               end if;
+
+               Orig_Check := Original_Node (Arg_Check);
+
+               --  Don't warn if original condition is explicit False, since
+               --  obviously the failure is expected in this case.
+
+               if Is_Entity_Name (Orig_Check)
+                 and then Entity (Orig_Check) = Standard_False
+               then
+                  return;
+               end if;
+
+               case Pname is
+                  when Name_Assert =>
+                     --  Note: Use Error_Msg_F here rather than Error_Msg_N.
+                     --  The source location of the expression is not usually
+                     --  the best choice here. For example, it gets located on
+                     --  the last AND keyword in a chain of boolean expressiond
+                     --  AND'ed together. It is best to put the message on the
+                     --  first character of the assertion, which is the effect
+                     --  of the First_Node call here.
+
+                     Error_Msg_F
+                        ("?.a?assertion would fail at run time!", Arg_Check);
+
+                  when Name_Check  =>
+                     Error_Msg_F
+                        ("?.a?check would fail at run time!", Arg_Check);
+                  when others =>
+                     null;
+               end case;
+            end Check_Assertion_Failure;
+
             --  Local variables
 
             Saved_Ghost_Config : constant Ghost_Config_Type := Ghost_Config;
@@ -15540,7 +15590,6 @@ package body Sem_Prag is
             Arg_Message : Node_Id renames Args (3);
 
             Cname : Name_Id;
-            Eloc  : Source_Ptr;
 
          --  Start of processing for Pragma_Check
 
@@ -15646,54 +15695,29 @@ package body Sem_Prag is
                Preanalyze_And_Resolve (Arg_Message, Standard_String);
             end if;
 
-            --  Now you might think we could just do the same with the Boolean
-            --  expression if checks are off (and expansion is on) and then
-            --  rewrite the check as a null statement. This would work but we
-            --  would lose the useful warnings about an assertion being bound
-            --  to fail even if assertions are turned off.
-
-            --  So instead we wrap the boolean expression in an if statement
-            --  that looks like:
-
-            --    if False and then condition then
-            --       null;
-            --    end if;
-
-            --  The reason we do this rewriting during semantic analysis rather
-            --  than as part of normal expansion is that we cannot analyze and
-            --  expand the code for the boolean expression directly, or it may
-            --  cause insertion of actions that would escape the attempt to
-            --  suppress the check code.
-
-            --  Note that the Sloc for the if statement corresponds to the
-            --  argument condition, not the pragma itself. The reason for
-            --  this is that we may generate a warning if the condition is
-            --  False at compile time, and we do not want to delete this
-            --  warning when we delete the if statement.
-
             if Expander_Active and Is_Ignored_In_Codegen (N) then
 
-               --  Mark pragma as ignored ghost to reuse the same removal
-               --  process.
+               --  Even though technically ignored assertions are not ghost
+               --  code they should behave the same way. Meaning that they
+               --  should be analyzed but they should not affect the generated
+               --  code. Use the ignored ghost mechanism here to ensure that
+               --  the original pragma and any expanded code is also removed.
+               --  Ideally these two cases should be separated in the
+               --  implementation ???
 
                Mark_Ghost_Pragma (N, Opt.Ignore);
 
-               Eloc := Sloc (Arg_Check);
-
-               Rewrite (N,
-                 Make_If_Statement (Eloc,
-                   Condition =>
-                     Make_And_Then (Eloc,
-                       Left_Opnd  => Make_Identifier (Eloc, Name_False),
-                       Right_Opnd => Arg_Check),
-                   Then_Statements => New_List (
-                     Make_Null_Statement (Eloc))));
-
-               --  Now go ahead and analyze the if statement
-
                In_Assertion_Expr := In_Assertion_Expr + 1;
-               Analyze (N);
+               Analyze_And_Resolve (Arg_Check, Any_Boolean);
                In_Assertion_Expr := In_Assertion_Expr - 1;
+
+               --  Suppress any warnings on the condition we might get
+
+               Kill_Dead_Code (Arg_Check);
+
+               --  Warn if the condition is known to fail statically
+
+               Check_Assertion_Failure (Arg_Check);
 
             --  Check is active or expansion not active. In these cases we can
             --  just go ahead and analyze the boolean with no worries.

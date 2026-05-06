@@ -11665,7 +11665,6 @@ package body Sem_Res is
       B_Typ : constant Entity_Id := Base_Type (Typ);
       L     : constant Node_Id   := Left_Opnd  (N);
       R     : constant Node_Id   := Right_Opnd (N);
-
    begin
       --  Ensure all actions associated with the left operand (e.g.
       --  finalization of transient objects) are fully evaluated locally within
@@ -11693,101 +11692,6 @@ package body Sem_Res is
 
       Resolve (L, B_Typ);
       Resolve (R, B_Typ);
-
-      --  Check for issuing warning for always False assert/check, this happens
-      --  when assertions are turned off, in which case the pragma Assert/Check
-      --  was transformed into:
-
-      --     if False and then <condition> then ...
-
-      --  and we detect this pattern
-
-      if Warn_On_Assertion_Failure
-        and then Is_Entity_Name (R)
-        and then Entity (R) = Standard_False
-        and then Nkind (Parent (N)) = N_If_Statement
-        and then Nkind (N) = N_And_Then
-        and then Is_Entity_Name (L)
-        and then Entity (L) = Standard_False
-      then
-         declare
-            Orig : constant Node_Id := Original_Node (Parent (N));
-
-         begin
-            --  Special handling of Asssert pragma
-
-            if Nkind (Orig) = N_Pragma
-              and then Pragma_Name (Orig) = Name_Assert
-            then
-               declare
-                  Expr : constant Node_Id :=
-                           Original_Node
-                             (Expression
-                               (First (Pragma_Argument_Associations (Orig))));
-
-               begin
-                  --  Don't warn if original condition is explicit False,
-                  --  since obviously the failure is expected in this case.
-
-                  if Is_Entity_Name (Expr)
-                    and then Entity (Expr) = Standard_False
-                  then
-                     null;
-
-                  --  Issue warning. We do not want the deletion of the
-                  --  IF/AND-THEN to take this message with it. We achieve this
-                  --  by making sure that the expanded code points to the Sloc
-                  --  of the expression, not the original pragma.
-
-                  else
-                     --  Note: Use Error_Msg_F here rather than Error_Msg_N.
-                     --  The source location of the expression is not usually
-                     --  the best choice here. For example, it gets located on
-                     --  the last AND keyword in a chain of boolean expressiond
-                     --  AND'ed together. It is best to put the message on the
-                     --  first character of the assertion, which is the effect
-                     --  of the First_Node call here.
-
-                     Error_Msg_F
-                       ("?.a?assertion would fail at run time!",
-                        Expression
-                          (First (Pragma_Argument_Associations (Orig))));
-                  end if;
-               end;
-
-            --  Similar processing for Check pragma
-
-            elsif Nkind (Orig) = N_Pragma
-              and then Pragma_Name (Orig) = Name_Check
-            then
-               --  Don't want to warn if original condition is explicit False
-
-               declare
-                  Expr : constant Node_Id :=
-                    Original_Node
-                      (Expression
-                        (Next (First (Pragma_Argument_Associations (Orig)))));
-               begin
-                  if Is_Entity_Name (Expr)
-                    and then Entity (Expr) = Standard_False
-                  then
-                     null;
-
-                  --  Post warning
-
-                  else
-                     --  Again use Error_Msg_F rather than Error_Msg_N, see
-                     --  comment above for an explanation of why we do this.
-
-                     Error_Msg_F
-                       ("?.a?check would fail at run time!",
-                        Expression
-                          (Last (Pragma_Argument_Associations (Orig))));
-                  end if;
-               end;
-            end if;
-         end;
-      end if;
 
       --  Continue with processing of short circuit
 
