@@ -194,6 +194,7 @@ GRS_OBJS = \
     rust/rust-hir-generic-param.o \
     rust/rust-type-util.o \
     rust/rust-coercion.o \
+    rust/rust-drop-check.o \
     rust/rust-casts.o \
     rust/rust-unify.o \
     rust/rust-hir-type-check-base.o \

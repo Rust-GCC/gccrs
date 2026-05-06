@@ -36,6 +36,7 @@
 #include "rust-tyty-util.h"
 #include "rust-tyty.h"
 #include "tree.h"
+#include "rust-drop-check.h"
 
 namespace Rust {
 namespace Resolver {
@@ -1477,6 +1478,13 @@ TypeCheckExpr::visit (HIR::MethodCallExpr &expr)
       infer_arguments.get_mut_regions ()
 	= fn->get_used_arguments ().get_regions ();
       HIR::ImplBlock &impl = *resolved_candidate.item.impl.parent;
+      if (impl.has_trait_ref ())
+	{
+	  HIR::TypePath &ref = impl.get_trait_ref ();
+	  TraitReference *trait_reference = TraitResolver::Resolve (ref);
+	  DropCheck::DropChecker::check_drop_call (
+	    trait_reference->get_mappings ().get_hirid (), expr.get_locus ());
+	}
       TyTy::BaseType *impl_self_infer
 	= TypeCheckItem::ResolveImplBlockSelfWithInference (impl,
 							    expr.get_locus (),
