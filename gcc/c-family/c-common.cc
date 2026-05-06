@@ -4920,11 +4920,6 @@ c_common_nodes_and_builtins (void)
 	}
     }
 
-  /* Call the target stack_protect_guard hook if the stack protection
-     guard is declared as a global symbol.  */
-  if (targetm.stack_protect_guard_symbol_p ())
-    lang_hooks.decls.pushdecl (targetm.stack_protect_guard ());
-
   if (TREE_CODE (va_list_type_node) == ARRAY_TYPE)
     {
       va_list_arg_type_node = va_list_ref_type_node =

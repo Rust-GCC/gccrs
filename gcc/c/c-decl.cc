@@ -1495,6 +1495,15 @@ push_file_scope (void)
   if (file_scope)
     return;
 
+  /* Call the target stack_protect_guard hook if the stack protection
+     guard is declared as a global symbol.  */
+  if (targetm.stack_protect_guard_symbol_p ())
+    {
+      tree decl = targetm.stack_protect_guard ();
+      DECL_CHAIN (decl) = visible_builtins;
+      visible_builtins = decl;
+    }
+
   push_scope ();
   file_scope = current_scope;
 

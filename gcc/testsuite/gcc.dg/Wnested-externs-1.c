@@ -2,6 +2,7 @@
 /* Origin: Joseph Myers <joseph@codesourcery.com> */
 /* { dg-do compile } */
 /* { dg-options "-Wnested-externs" } */
+/* { dg-additional-options "-mstack-protector-guard=global" { target x86_64-*-* i?86-*-* } } */
 
 int a;
 static int b;

@@ -5588,6 +5588,11 @@ cxx_init_decl_processing (void)
 
   c_common_nodes_and_builtins ();
 
+  /* Call the target stack_protect_guard hook if the stack protection
+     guard is declared as a global symbol.  */
+  if (targetm.stack_protect_guard_symbol_p ())
+    pushdecl (targetm.stack_protect_guard ());
+
   tree bool_ftype = build_function_type_list (boolean_type_node, NULL_TREE);
   tree decl
     = add_builtin_function ("__builtin_is_constant_evaluated",
