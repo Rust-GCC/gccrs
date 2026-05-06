@@ -26,7 +26,11 @@ along with GCC; see the file COPYING3.  If not see
 #define PREFERRED_DEBUGGING_TYPE DWARF2_DEBUG
 
 #undef TARGET_SEH
-#define TARGET_SEH  (TARGET_64BIT_MS_ABI && flag_unwind_tables)
+/* Win64 uses SEH unwind metadata regardless of whether an individual
+  function is compiled with the default MS ABI or with sysv_abi.  Keep
+  SEH enabled for all 64-bit Windows functions whenever unwind tables are
+  requested so .seh_proc state stays consistent with EH emission.  */
+#define TARGET_SEH  (TARGET_64BIT && flag_unwind_tables)
 
 #undef PREFERRED_STACK_BOUNDARY_DEFAULT
 #define PREFERRED_STACK_BOUNDARY_DEFAULT \
