@@ -4722,3 +4722,25 @@ debug (gfc_array_ref *ar)
   fputc ('\n', dumpfile);
   dumpfile = tmp;
 }
+
+/* Dump OpenMP data structures.  */
+
+DEBUG_FUNCTION void
+debug (gfc_omp_namelist *n)
+{
+  FILE *tmp = dumpfile;
+  dumpfile = stderr;
+  show_omp_namelist (OMP_LIST_MAP, n);
+  fputc ('\n', dumpfile);
+  dumpfile = tmp;
+}
+
+DEBUG_FUNCTION void
+debug (gfc_omp_clauses *clauses)
+{
+  FILE *tmp = dumpfile;
+  dumpfile = stderr;
+  show_omp_clauses (clauses);
+  fputc ('\n', dumpfile);
+  dumpfile = tmp;
+}
