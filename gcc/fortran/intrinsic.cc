@@ -1840,6 +1840,14 @@ add_functions (void)
 
   make_generic ("cosh", GFC_ISYM_COSH, GFC_STD_F77);
 
+  add_sym_2 ("coshape", GFC_ISYM_COSHAPE, CLASS_INQUIRY, ACTUAL_NO,
+	     BT_INTEGER, di, GFC_STD_F2018,
+	     gfc_check_coshape, NULL , gfc_resolve_coshape,
+	     ca, BT_REAL, dr, REQUIRED,
+	     kind, BT_INTEGER, di, OPTIONAL);
+
+  make_generic ("coshape", GFC_ISYM_COSHAPE, GFC_STD_F2018);
+
   add_sym_3 ("count", GFC_ISYM_COUNT, CLASS_TRANSFORMATIONAL, ACTUAL_NO,
 	     BT_INTEGER, di, GFC_STD_F95,
 	     gfc_check_count, gfc_simplify_count, gfc_resolve_count,

@@ -24,6 +24,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "rust-diagnostics.h"
 #include "rust-parse-error.h"
 #include "rust-parse-utils.h"
+#include "rust-feature.h"
+#include "rust-feature-store.h"
 
 #include "expected.h"
 
@@ -362,7 +364,20 @@ private:
   std::unique_ptr<AST::Function> parse_function (AST::Visibility vis,
 						 AST::AttrVec outer_attrs,
 						 bool is_external = false);
-  AST::FunctionQualifiers parse_function_qualifiers ();
+  tl::expected<AST::FunctionQualifiers, Parse::Error::Node>
+  parse_function_qualifiers ();
+  tl::expected<std::pair<std::vector<TokenId>, std::string>, Parse::Error::Node>
+  parse_function_qualifiers_raw (location_t locus);
+  bool
+  ensure_function_qualifier_order (location_t locus,
+				   const std::vector<TokenId> &found_order);
+  tl::expected<AST::FunctionQualifiers, Parse::Error::Node>
+  function_qualifiers_from_keywords (location_t locus,
+				     std::vector<TokenId> keywords,
+				     std::string abi);
+  void emit_function_qualifier_order_error_msg (
+    location_t locus, const std::vector<TokenId> &found_order);
+
   std::vector<std::unique_ptr<AST::GenericParam>>
   parse_generic_params_in_angles ();
   template <typename EndTokenPred>
@@ -436,7 +451,8 @@ private:
   template <typename EndTokenPred>
   std::vector<std::unique_ptr<AST::EnumItem>>
   parse_enum_items (EndTokenPred is_end_token);
-  std::unique_ptr<AST::EnumItem> parse_enum_item ();
+  tl::expected<std::unique_ptr<AST::EnumItem>, Parse::Error::EnumVariant>
+  parse_enum_item ();
   std::unique_ptr<AST::Union> parse_union (AST::Visibility vis,
 					   AST::AttrVec outer_attrs);
   std::unique_ptr<AST::ConstantItem>
@@ -852,6 +868,11 @@ private:
 
   void add_error (Error error) { error_table.push_back (std::move (error)); }
 
+  void collect_potential_gating_error (Feature::Name feature, Error error)
+  {
+    Features::EarlyFeatureGateStore::get ().add (feature, error);
+  }
+
 public:
   // Construct parser with specified "managed" token source.
   Parser (ManagedTokenSource &tokenSource) : lexer (tokenSource) {}
@@ -874,6 +895,12 @@ public:
   // Get a reference to the list of errors encountered
   std::vector<Error> &get_errors () { return error_table; }
 
+  std::vector<std::pair<Feature::Name, Error>> &
+  get_potential_feature_gate_errors ()
+  {
+    return gating_errors;
+  }
+
   const ManagedTokenSource &get_token_source () const { return lexer; }
 
   const_TokenPtr peek_current_token () { return lexer.peek_token (0); }
@@ -884,6 +911,8 @@ private:
   ManagedTokenSource &lexer;
   // The error list.
   std::vector<Error> error_table;
+
+  std::vector<std::pair<Feature::Name, Error>> gating_errors;
   // The names of inline modules while parsing.
   std::vector<std::string> inline_module_stack;
 
@@ -919,6 +948,19 @@ std::string extract_module_path (const AST::AttrVec &inner_attrs,
  */
 bool is_match_compatible (const AST::MacroMatch &last_match,
 			  const AST::MacroMatch &current_match);
+
+namespace LiteralResolve {
+
+// Converts a raw string to a decimal number string.
+std::string evaluate_integer_literal (const_TokenPtr token);
+
+// Converts a raw float string to a decimal float number string.
+std::string evaluate_float_literal (const_TokenPtr token);
+
+// Evaluates the suffix of the raw string, if it exists, and returns coretype.
+PrimitiveCoreType resolve_literal_suffix (const_TokenPtr token);
+
+} // namespace LiteralResolve
 } // namespace Rust
 
 #endif // RUST_PARSE_H

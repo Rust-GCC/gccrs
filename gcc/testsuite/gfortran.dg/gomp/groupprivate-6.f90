@@ -21,14 +21,14 @@ end
 subroutine dupl
   integer :: a,b,c,d
   integer :: u,v,w,x
-  common /b_a/ a
-  common /b_b/ b
+  common /b_a/ a ! { dg-error "THREADPRIVATE attribute conflicts with OpenMP GROUPPRIVATE attribute in 'a'" }
+  common /b_b/ b ! { dg-error "THREADPRIVATE attribute conflicts with OpenMP GROUPPRIVATE attribute in 'b'" }
   common /b_c/ c
   common /b_d/ d
 
   !$omp groupprivate(/b_a/,u,/b_a/) ! { dg-error "Duplicate OpenMP GROUPPRIVATE attribute specified" }
   !$omp groupprivate(v,/b_b/,v) ! { dg-error "Duplicate OpenMP GROUPPRIVATE attribute specified" }
 
-  !$omp threadprivate(/b_a/,u,/b_a/) ! { dg-error "Duplicate THREADPRIVATE attribute specified" }
-  !$omp threadprivate(v,/b_b/,v) ! { dg-error "Duplicate THREADPRIVATE attribute specified" }
+  !$omp threadprivate(/b_a/,u,/b_a/) ! { dg-error "THREADPRIVATE attribute conflicts with OpenMP GROUPPRIVATE attribute in 'a'" }
+  !$omp threadprivate(v,/b_b/,v) ! { dg-error "THREADPRIVATE attribute conflicts with OpenMP GROUPPRIVATE attribute in 'b'" }
 end

@@ -1,0 +1,16 @@
+--- COMP-1 FORMAT 1 ---
+add      17
+subtract 3
+multiply 70
+divide   1.428571463
+--- COMP-2 FORMAT 1 ---
+add      17
+subtract 3
+multiply 70
+divide   1.4285714285714286
+--- FLOAT-EXTENDED FORMAT 1 ---
+add      17
+subtract 3
+multiply 70
+divide   1.428571428571428571428571428571428599
+

@@ -328,8 +328,9 @@ extern void lra_asm_insn_error (rtx_insn *insn);
 extern void lra_dump_insns (FILE *f);
 extern void lra_dump_insns_if_possible (const char *title);
 
-extern void lra_process_new_insns (rtx_insn *, rtx_insn *, rtx_insn *,
-				   const char *);
+extern void lra_process_new_insns (rtx_insn *insn, rtx_insn *before,
+				   rtx_insn *after, const char *title,
+				   bool fixup_reg_args_size = false);
 
 extern bool lra_substitute_pseudo (rtx *, int, rtx, bool, bool);
 extern bool lra_substitute_pseudo_within_insn (rtx_insn *, int, rtx, bool);
@@ -355,10 +356,14 @@ extern bitmap_head lra_inheritance_pseudos;
 extern bitmap_head lra_split_regs;
 extern bitmap_head lra_subreg_reload_pseudos;
 extern bitmap_head lra_optional_reload_pseudos;
+extern bitmap_head lra_postponed_insns;
 
 /* lra-constraints.cc: */
 
 extern void lra_init_equiv (void);
+extern void lra_pointer_equiv_set_add (rtx);
+extern bool lra_pointer_equiv_set_in (rtx);
+extern void lra_finish_equiv (void);
 extern int lra_constraint_offset (int, machine_mode);
 
 extern int lra_constraint_iter;

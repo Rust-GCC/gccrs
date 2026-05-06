@@ -113,12 +113,16 @@
 #define attributes (
 #define bin_op (
 #define clockid (
+#define ext (
 #define func (
+#define max_iter (
 #define max_val (
 #define min_val (
 #define object (
 #define ostr (
 #define policy (
+#define ret (
+#define subs (
 #define sz (
 #define tinfo (
 #define tmp (
@@ -126,6 +130,7 @@
 #define value_t (
 
 #if __cplusplus < 201103L
+#define mutex  (
 #define uses_allocator  (
 #endif
 
@@ -152,6 +157,10 @@
 # define __packed		cannot be used as an identifier
 # define __unused		cannot be used as an identifier
 # define __used			cannot be used as an identifier
+
+// These are function-like macros in mingw stdlib.h
+#define __min(A,B)              cannot use __min with parentheses
+#define __max(A,B)              cannot use __max with parentheses
 
 #ifndef __APPLE__
 #define __weak   predefined qualifier on darwin
@@ -216,6 +225,8 @@
 #define Proj2			Proj2 is not a reserved name
 #define Ptr			Ptr is not a reserved name
 #define Reference		Reference is not a reserved name
+#define Rg			Rg is not a reserved name
+#define Rs			Rs is not a reserved name
 #define Seq			Seq is not a reserved name
 #define Seq_RAIter		Seq_RAIter is not a reserved name
 #define Series			Series is not a reserved name
@@ -303,7 +314,7 @@
 #if defined (__linux__) || defined (__gnu_hurd__)
 #if __has_include(<features.h>)
 #include <features.h>
-#if __GLIBC__ == 2 && __GLIBC_MINOR__ < 19
+#if __GLIBC__ == 2 && (__GLIBC_MINOR__ < 19 || __GLIBC_MINOR__ == 43)
 // Glibc defines this prior to 2.19
 #undef __unused
 #endif

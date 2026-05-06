@@ -247,7 +247,7 @@ insert_unit (int n)
 #else
   __GTHREAD_MUTEX_INIT_FUNCTION (&u->lock);
 #endif
-  LOCK (&u->lock);
+  LOCK_UNIT (u);
   u->priority = pseudo_random ();
   unit_root = insert (u, unit_root);
   return u;
@@ -324,8 +324,7 @@ delete_unit (gfc_unit *old)
 }
 
 /* get_gfc_unit_from_root()-- Given an integer, return a pointer
-   to the unit structure. Returns NULL if the unit does not exist,
-   otherwise returns a locked unit. */
+   to the unit structure. Returns NULL if the unit does not exist.  */
 
 static inline gfc_unit *
 get_gfc_unit_from_unit_root (int n)
@@ -344,6 +343,42 @@ get_gfc_unit_from_unit_root (int n)
         break;
     }
   return p;
+}
+
+/* Recursive I/O is not allowed. Check to see if the UNIT exists and if
+   so, check if the UNIT is locked already.  This check does not apply
+   to DTIO.  */
+
+void
+check_for_recursive (st_parameter_dt *dtp)
+{
+  gfc_unit *p;
+
+  p = get_gfc_unit_from_unit_root(dtp->common.unit);
+  if (p != NULL)
+    {
+      if (!(dtp->common.flags & IOPARM_DT_HAS_INTERNAL_UNIT))
+      /* The unit p is external.  */
+	{
+	  /* Check if this is a parent I/O.  */
+	  if (p->child_dtio == 0)
+	    {
+	      if (TRYLOCK_UNIT(p))
+		{
+		  /* The lock failed.  This unit is locked either our own
+		     thread, which is illegal recursive I/O, or somebody by
+		     else, in which case we are doing OpenMP or similar; this
+		     is harmless and permitted.  When threading is not active, or
+		     there is no thread system, we fake the ID to be 1.  */
+		  if (__atomic_load_n (&p->self, __ATOMIC_RELAXED) == OWN_THREAD_ID)
+		    generate_error (&dtp->common, LIBERROR_RECURSIVE_IO, NULL);
+		  return;
+		}
+	      else
+		UNLOCK(&p->lock);
+	    }
+	}
+    }
 }
 
 /* get_gfc_unit()-- Given an integer, return a pointer to the unit
@@ -412,7 +447,7 @@ found:
   if (p != NULL && (p->child_dtio == 0))
     {
       /* Fast path.  */
-      if (! TRYLOCK (&p->lock))
+      if (! TRYLOCK_UNIT (p))
 	{
 	  /* assert (p->closed == 0); */
 	  RWUNLOCK (&unit_rwlock);
@@ -427,11 +462,11 @@ found:
 
   if (p != NULL && (p->child_dtio == 0))
     {
-      LOCK (&p->lock);
+      LOCK_UNIT (p);
       if (p->closed)
 	{
 	  WRLOCK (&unit_rwlock);
-	  UNLOCK (&p->lock);
+	  UNLOCK_UNIT (p);
 	  if (predec_waiting_locked (p) == 0)
 	    destroy_unit_mutex (p);
 	  goto retry;
@@ -678,7 +713,7 @@ init_units (void)
 
       fbuf_init (u, 0);
 
-      UNLOCK (&u->lock);
+      UNLOCK_UNIT (u);
     }
 
   if (options.stdout_unit >= 0)
@@ -709,7 +744,7 @@ init_units (void)
 
       fbuf_init (u, 0);
 
-      UNLOCK (&u->lock);
+      UNLOCK_UNIT (u);
     }
 
   if (options.stderr_unit >= 0)
@@ -740,13 +775,13 @@ init_units (void)
       fbuf_init (u, 256);  /* 256 bytes should be enough, probably not doing
                               any kind of exotic formatting to stderr.  */
 
-      UNLOCK (&u->lock);
+      UNLOCK_UNIT (u);
     }
   /* The default internal units.  */
   u = insert_unit (GFC_INTERNAL_UNIT);
-  UNLOCK (&u->lock);
+  UNLOCK_UNIT (u);
   u = insert_unit (GFC_INTERNAL_UNIT4);
-  UNLOCK (&u->lock);
+  UNLOCK_UNIT (u);
 }
 
 
@@ -785,7 +820,7 @@ close_unit_1 (gfc_unit *u, int locked)
     newunit_free (u->unit_number);
 
   if (!locked)
-    UNLOCK (&u->lock);
+    UNLOCK_UNIT (u);
 
   /* If there are any threads waiting in find_unit for this unit,
      avoid freeing the memory, the last such thread will free it
@@ -805,7 +840,7 @@ unlock_unit (gfc_unit *u)
   if (u)
     {
       NOTE ("unlock_unit = %d", u->unit_number);
-      UNLOCK (&u->lock);
+      UNLOCK_UNIT (u);
       NOTE ("unlock_unit done");
     }
 }

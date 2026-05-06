@@ -1,6 +1,6 @@
 // This file is included in both the libgcobol and gcc/cobol compilations
 /*
- * Copyright (c) 2021-2025 Symas Corporation
+ * Copyright (c) 2021-2026 Symas Corporation
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -226,12 +226,15 @@ __gg__string_to_numeric_edited( char * const dest,
   // We need to expand the picture string.  We assume that the caller left
   // enough room in dest to take the expanded picture string.
 
+  // Note that we do not put on a nul terminator, so if you need one, it's
+  // your job to put it there.
+
   int dlength = expand_picture(dest, picture);
 
-  // At the present time, I am taking a liberty. In principle, a 'V'
-  // character is supposed to be logical decimal place rather than a physical
-  // one.  In practice, I am not sure what that would mean in a numeric edited
-  // value.  So, I am treating V as a decimal point.
+  // We need to treat 'V' as a decimal point in order to handle
+  //    01 foo pic 999v999 BLANK WHEN ZERO.
+  // The "BLANK WHEN ZERO" turns the field into a numeric-edited type, but the
+  // 'V' is still in the picture string.
 
   for(int i=0; i<dlength; i++)
     {

@@ -54,6 +54,10 @@ check_detailed ()
       assert (__builtin_cpu_is ("amd"));
       get_amd_cpu (&cpu_model, &cpu_model2, cpu_features2);
       break;
+    case VENDOR_HYGON:
+      assert (__builtin_cpu_is ("hygon"));
+      get_hygon_cpu (&cpu_model, &cpu_model2, cpu_features2);
+      break;
     default:
       break;
     }
@@ -126,6 +130,8 @@ quick_check ()
   assert (__builtin_cpu_is ("bdver1") >= 0);
 
   assert (__builtin_cpu_is ("bdver2") >= 0);
+
+  assert (__builtin_cpu_is ("c86-4g-m4") >= 0);
 
   return 0;
 }

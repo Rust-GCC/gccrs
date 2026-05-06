@@ -22,3 +22,7 @@ GCC_14.0 {
   __arm_tpidr2_save
   __arm_za_disable
 }
+
+GCC_16.0 {
+  __arm_get_current_vg
+}

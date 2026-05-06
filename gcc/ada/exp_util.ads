@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2026, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -29,7 +29,6 @@ with Einfo.Utils;    use Einfo.Utils;
 with Exp_Tss;        use Exp_Tss;
 with Namet;          use Namet;
 with Rtsfind;        use Rtsfind;
-with Sinfo;          use Sinfo;
 with Sinfo.Nodes;    use Sinfo.Nodes;
 with Snames;         use Snames;
 with Types;          use Types;
@@ -644,6 +643,13 @@ package Exp_Util is
    --  Same as Find_Prim_Op but for the three controlled primitive operations,
    --  and returns Empty if not found.
 
+   function Find_Master_Context (N : Node_Id) return Node_Id;
+   --  Determine a suitable node on which to attach actions related to N that
+   --  need to be performed immediately after the execution of N is complete.
+   --  In general this is the topmost expression or statement of which N is a
+   --  subexpression, but note that object declarations may be returned here,
+   --  although they are not master constructs in the language.
+
    function Find_Optional_Prim_Op
      (T : Entity_Id; Name : Name_Id) return Entity_Id;
    function Find_Optional_Prim_Op
@@ -672,13 +678,6 @@ package Exp_Util is
    --  aspect Storage_Model_Type, returns Empty when no operation is found,
    --  indicating that the operation is defaulted in the aspect (can occur in
    --  the case where the storage-model address type is System.Address).
-
-   function Find_Hook_Context (N : Node_Id) return Node_Id;
-   --  Determine a suitable node on which to attach actions related to N that
-   --  need to be elaborated unconditionally. In general this is the topmost
-   --  expression of which N is a subexpression, which in turn may or may not
-   --  be evaluated, for example if N is the right operand of a short circuit
-   --  operator.
 
    procedure Flag_Interface_Pointer_Displacement (N : Node_Id);
    --  If N is an N_Type_Conversion node then flag N to indicate that this

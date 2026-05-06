@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2025 Symas Corporation
+ * Copyright (c) 2021-2026 Symas Corporation
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -93,6 +93,14 @@ PICTURE   [^[:space:]]+
 
 DOTSEP    [.]+[[:space:]]
 DOTEOL    [[:blank:]]*[.]{BLANK_EOL}
+
+	  /*
+	   * "If the symbol ',' or the symbol '.' is the last symbol of
+	   *  character-string-1, the PICTURE clause shall be the last clause
+	   *  of the data description entry and shall be followed immediately
+	   *  (without an intervening separator space) by the separator period."
+	   */
+NONPIC	  [,]{DOTSEP} 
 
 SKIP	  [[:blank:]]*SKIP[123][[:blank:]]*[.]?{BLANK_EOL}
 TITLE	  [[:blank:]]*TITLE($|[.]|[^\n]*)
@@ -305,6 +313,59 @@ PROCEDURE{SPC}DIVISION	{ yy_push_state(procedure_div);
 }
 
 <INITIAL,procedure_div,cdf_state>{
+  (IS{SPC})?"<"         { return '<'; }
+  (IS{SPC})?"<="        { return LE;  }
+  (IS{SPC})?"="         { static char eq[] = "=";
+			  ydflval.string = yylval.string = eq;
+  			  return EQ; }
+  (IS{SPC})?"<>"        { return NE;  }
+  (IS{SPC})?">="        { return GE;  }
+  (IS{SPC})?">"         { return '>'; }
+
+  {LESS_THAN} 		{ return '<'; }
+  {LESS_THAN}{SPC}{OR_EQUAL}/[[:space:]]	{ return LE; }
+  (IS{SPC})?EQUALS?({SPC}TO)?/[[:space:]] {
+		  static char eq[] = "EQUAL";
+		  ydflval.string = yylval.string = eq;
+		  return EQ; }
+  {GREATER_THAN}{SPC}{OR_EQUAL}/[[:space:]]	{ return GE; }
+  {GREATER_THAN}				{ return '>'; }
+
+  {ISNT}{OSPC}">="        { verify_ws(yytext[yyleng - 3]); return '<'; }
+  {ISNT}{OSPC}">"         { verify_ws(yytext[yyleng - 2]); return LE;  }
+  {ISNT}{OSPC}"="         { verify_ws(yytext[yyleng - 2]); return NE;  }
+  {ISNT}{OSPC}"<"         { verify_ws(yytext[yyleng - 2]); return GE;  }
+  {ISNT}{OSPC}"<="        { verify_ws(yytext[yyleng - 3]); return '>'; }
+
+  {ISNT}{SPC}GREATER{SPC}(THAN)?{SPC}{OR_EQUAL}/[[:space:]] { return '<'; }
+  {ISNT}{SPC}GREATER{SPC}(THAN)?	{ return LE; }
+  {ISNT}{SPC}EQUALS?{SPC}(TO)?		{ return NE; }
+  {ISNT}{SPC}LESS{SPC}(THAN)?		{ return GE; }
+  {ISNT}{SPC}LESS{SPC}(THAN)?{SPC}{OR_EQUAL}/[[:space:]] { return '>'; }
+
+  [*]{2}	{ return POW; }
+
+  /* 
+   * "A boolean operator specifies the type of boolean operation to be performed
+   *  on one or two operands, for a unary operator or binary operator,
+   *  respectively."
+   * Binary boolean operators
+   *  B-AND B-OR B-XOR
+   * Unary boolean operator
+   *  B-NOT
+   * Boolean shift operators
+   *  B-SHIFT-L B-SHIFT-LC B-SHIFT-R B-SHIFT-RC
+   */
+  /****
+B-AND
+B-OR
+B-XOR
+B-NOT
+B-SHIFT-L
+B-SHIFT-LC
+B-SHIFT-R
+B-SHIFT-RC
+  ****/
 
 	/* unused Context Words */
 ARITHMETIC			{ return ARITHMETIC; }
@@ -316,6 +377,7 @@ BACKGROUND-COLOR		{ return BACKGROUND_COLOR; }
 BELL				{ return BELL; }
 BINARY-ENCODING			{ return BINARY_ENCODING; }
 BLINK				{ return BLINK; }
+BYTE				{ return BYTE; }
 CAPACITY			{ return CAPACITY; }
 
 CENTER		{
@@ -1030,8 +1092,7 @@ USE({SPC}FOR)?		{ return USE; }
 
   INDEX				{ return INDEX; }
   MESSAGE-TAG			{ not_implemented("USAGE type: MESSAGE-TAG"); }
-  NATIONAL			{ not_implemented("USAGE type: NATIONAL");
-				  return NATIONAL; }
+  NATIONAL			{ return NATIONAL; }
   OBJECT{SPC}REFERENCE		{ not_implemented("USAGE type: OBJECT REFERENCE"); }
 
   PACKED-DECIMAL		{ return PACKED_DECIMAL; }
@@ -1081,6 +1142,7 @@ USE({SPC}FOR)?		{ return USE; }
   DEPENDING		{ return DEPENDING; }
   DESCENDING		{ return DESCENDING; }
   DISPLAY		{ return DISPLAY; }
+  EBCDIC		{ return EBCDIC; }
   EJECT{DOTEOL}?  	{
 			  dialect_ok(yylloc, IbmEjectE, "EJECT"); 
 			  auto len = yyleng - 1;
@@ -1099,6 +1161,8 @@ USE({SPC}FOR)?		{ return USE; }
   LEADING		{ return LEADING; }
   LEFT    		{ return LEFT; }
   MODE			{ return MODE; }
+  NATIVE		{ return NATIVE; }
+  NO			{ return NO; }
   OCCURS/{SPC}{NAME} 	{ return OCCURS; }
   OCCURS		{ yy_push_state(integer_count);  return OCCURS; }
   OF			{ return OF; }
@@ -1118,6 +1182,7 @@ USE({SPC}FOR)?		{ return USE; }
   SIGN			{ return SIGN; }
   SIZE			{ return SIZE; }
   STANDARD		{ return STANDARD; }
+  STANDARD{SPC}ALPHABET		{ return STANDARD_ALPHABET; }
   STRONG		{ return STRONG; }
   SYNC(HRONIZED)?	{ return SYNCHRONIZED; }
   TIMES			{ return TIMES; }
@@ -1130,6 +1195,7 @@ USE({SPC}FOR)?		{ return USE; }
   VARYING		{ return VARYING; }
   VOLATILE    		{ return VOLATILE; }
   WHEN    		{ return WHEN; }
+  WITH			{ return WITH; }
 
   COPY			{
                 	  yy_push_state(copy_state);
@@ -1242,7 +1308,7 @@ USE({SPC}FOR)?		{ return USE; }
                          yylval.string = xstrdup(yytext); return picset(ALNUM); }
   {ALNUM}/[(]{NAME}[)] { yy_push_state(picture_count);
                          yylval.string = xstrdup(yytext); return picset(ALNUM); }
-  {ALNUM}              { yylval.string = xstrdup(yytext); return picset(ALNUM); }
+  {ALNUM}/{NONPIC}?    { yylval.string = xstrdup(yytext); return picset(ALNUM); }
 
   {ALPHED}             { yylval.string = xstrdup(yytext); return picset(ALPHED); }
   {NUMEDITED}          { yylval.string = xstrdup(yytext); return picset(NUMED); }
@@ -1496,62 +1562,6 @@ USE({SPC}FOR)?		{ return USE; }
 			     }
 }
 
-<cdf_state,procedure_div>{
-  (IS{SPC})?"<"         { return '<'; }
-  (IS{SPC})?"<="        { return LE;  }
-  (IS{SPC})?"="         { static char eq[] = "=";
-			  ydflval.string = yylval.string = eq;
-  			  return EQ; }
-  (IS{SPC})?"<>"        { return NE;  }
-  (IS{SPC})?">="        { return GE;  }
-  (IS{SPC})?">"         { return '>'; }
-
-  {LESS_THAN} 		{ return '<'; }
-  {LESS_THAN}{SPC}{OR_EQUAL}/[[:space:]]	{ return LE; }
-  (IS{SPC})?EQUALS?({SPC}TO)?/[[:space:]] {
-		  static char eq[] = "EQUAL";
-		  ydflval.string = yylval.string = eq;
-		  return EQ; }
-  {GREATER_THAN}{SPC}{OR_EQUAL}/[[:space:]]	{ return GE; }
-  {GREATER_THAN}				{ return '>'; }
-
-  {ISNT}{OSPC}">="        { verify_ws(yytext[yyleng - 3]); return '<'; }
-  {ISNT}{OSPC}">"         { verify_ws(yytext[yyleng - 2]); return LE;  }
-  {ISNT}{OSPC}"="         { verify_ws(yytext[yyleng - 2]); return NE;  }
-  {ISNT}{OSPC}"<"         { verify_ws(yytext[yyleng - 2]); return GE;  }
-  {ISNT}{OSPC}"<="        { verify_ws(yytext[yyleng - 3]); return '>'; }
-
-  {ISNT}{SPC}GREATER{SPC}(THAN)?{SPC}{OR_EQUAL}/[[:space:]] { return '<'; }
-  {ISNT}{SPC}GREATER{SPC}(THAN)?	{ return LE; }
-  {ISNT}{SPC}EQUALS?{SPC}(TO)?		{ return NE; }
-  {ISNT}{SPC}LESS{SPC}(THAN)?		{ return GE; }
-  {ISNT}{SPC}LESS{SPC}(THAN)?{SPC}{OR_EQUAL}/[[:space:]] { return '>'; }
-
-  [*]{2}	{ return POW; }
-
-  /* 
-   * "A boolean operator specifies the type of boolean operation to be performed
-   *  on one or two operands, for a unary operator or binary operator,
-   *  respectively."
-   * Binary boolean operators
-   *  B-AND B-OR B-XOR
-   * Unary boolean operator
-   *  B-NOT
-   * Boolean shift operators
-   *  B-SHIFT-L B-SHIFT-LC B-SHIFT-R B-SHIFT-RC
-   */
-
-B-AND
-B-OR
-B-XOR
-B-NOT
-B-SHIFT-L
-B-SHIFT-LC
-B-SHIFT-R
-B-SHIFT-RC
-
-}
-
 <procedure_div>{
   (ID|IDENTIFICATION|ENVIRONMENT|DATA|PROCEDURE){SPC}DIVISION  {
 			          myless(0); BEGIN(INITIAL); }
@@ -1581,8 +1591,16 @@ B-SHIFT-RC
   {ISNT}{SPC}NEGATIVE/[[:space:]] { yylval.number = NOT; return NEGATIVE; }
   {ISNT}{SPC}ZERO/[[:space:]]     { yylval.number = NOT; return ZERO; }
 
+  {ISNT}{SPC}/OMITTED { return NOT; }
+
   [(:)] 			{ return *yytext; }
   [(]/[^(:)""'']*[:][^)]*[)] 	{ return LPAREN; /* parentheses around a colon */ }
+  [(][^:""''\n]*[:][^)]*[)] 	{ // does not match foo(bar)\n:  :-(  
+                                  int tok = is_refmod(yytext, yytext + yyleng)?
+                                      int(LPAREN) : '(';
+                                  myless(1);
+                                  return tok; 
+                                }
 
   FILLER			{ return FILLER_kw; }
   INVALID			{ yylval.number = INVALID; return INVALID; }
@@ -1830,6 +1848,7 @@ B-SHIFT-RC
   BIT-OF/{NONWORD}			{ pop_return BIT_OF; }
   BIT-TO-CHAR/{NONWORD}			{ pop_return BIT_TO_CHAR; }
   BOOLEAN-OF-INTEGER/{NONWORD}		{ pop_return BOOLEAN_OF_INTEGER; }
+  BYTE/{NONWORD}			{ pop_return BYTE; }
   BYTE-LENGTH/{NONWORD}			{ pop_return BYTE_LENGTH; }
   CHAR-NATIONAL/{NONWORD}		{ pop_return CHAR_NATIONAL; }
   CHAR/{NONWORD}			{ pop_return CHAR; }
@@ -2166,8 +2185,9 @@ BASIS		{ yy_push_state(basis); return BASIS; }
 
   {POP_FILE}	 	{
 			  yy_set_bol(true);
+			  yylineno = input_file_status.pending().lineno;
 			  input_file_status.leave();
-			  yylineno = cobol_lineno();
+                          dbgmsg("banged yylineno to %d", yylineno);
 			}
 
   {LINE_DIRECTIVE} 	{

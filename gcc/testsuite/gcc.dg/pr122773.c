@@ -1,5 +1,6 @@
 /* PR middle-end/122773 */
 /* { dg-do compile } */
+/* { dg-require-effective-target label_values } */
 /* { dg-options "-Wimplicit-fallthrough -O2 -ftrivial-auto-var-init=zero" } */
 
 void *l;

@@ -55,7 +55,11 @@ proc check_for_all_options {language gcc_options compiler_pattern as_pattern ld_
 	fail "$test (compiler options)"
 	return
     }
-    if {![regexp -- " *as(\\.exe)? .*$as_pattern" $gcc_output]} {
+    # Match configured assembler name.
+    set as_options [list "additional_flags=-print-prog-name=as"]
+    set as_prog [lindex [gcc_target_compile "" "" "none" $as_options] 0]
+    if {![regexp -line -- " ${as_prog}(\\.exe)? .*$as_pattern" $gcc_output]} {
+
 	fail "$test (assembler options)"
 	return
     }

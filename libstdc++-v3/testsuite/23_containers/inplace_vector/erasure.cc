@@ -1,18 +1,13 @@
 // { dg-do run { target c++26 } }
 
 #include <inplace_vector>
+#include <ranges>
 #include <testsuite_hooks.h>
-#include <span>
 
 template<typename T, size_t N>
 constexpr bool
-eq(const std::inplace_vector<T, N>& l, std::span<const T> r) {
-  if (l.size() != r.size())
-    return false;
-  for (auto i = 0u; i < l.size(); ++i)
-    if (l[i] != r[i])
-      return false;
-  return true;
+eq(const std::inplace_vector<T, N>& l, std::initializer_list<std::type_identity_t<T>> r) {
+  return std::ranges::equal(l, r);
 };
 
 constexpr void

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2026, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -27,7 +27,6 @@ with Aspects;        use Aspects;
 with Atree;          use Atree;
 with Alloc;
 with Debug;          use Debug;
-with Einfo;          use Einfo;
 with Einfo.Entities; use Einfo.Entities;
 with Einfo.Utils;    use Einfo.Utils;
 with Elists;         use Elists;
@@ -46,7 +45,6 @@ with Sem_Disp;       use Sem_Disp;
 with Sem_Dist;       use Sem_Dist;
 with Sem_Util;       use Sem_Util;
 with Stand;          use Stand;
-with Sinfo;          use Sinfo;
 with Sinfo.Nodes;    use Sinfo.Nodes;
 with Sinfo.Utils;    use Sinfo.Utils;
 with Snames;         use Snames;
@@ -478,13 +476,19 @@ package body Sem_Type is
          then
             Add_Entry (Entity (Name (N)), Etype (N));
 
+         elsif Nkind (N) = N_Function_Call
+           and then Nkind (Name (N)) = N_Selected_Component
+           and then Is_Entity_Name (Selector_Name (Name (N)))
+         then
+            Add_Entry (Entity (Selector_Name (Name (N))), Etype (N));
+
          --  If this is an indirect call there will be no name associated
          --  with the previous entry. To make diagnostics clearer, save
          --  Subprogram_Type of first interpretation, so that the error will
          --  point to the anonymous access to subprogram, not to the result
          --  type of the call itself.
 
-         elsif (Nkind (N)) = N_Function_Call
+         elsif Nkind (N) = N_Function_Call
            and then Nkind (Name (N)) = N_Explicit_Dereference
            and then Is_Overloaded (Name (N))
          then
@@ -499,10 +503,17 @@ package body Sem_Type is
                Add_Entry (It.Nam, Etype (N));
             end;
 
-         else
-            --  Overloaded prefix in indexed or selected component, or call
-            --  whose name is an expression or another call.
+         --  If this is a generalized indexing, treat it as a function call
 
+         elsif Nkind (N) = N_Indexed_Component
+           and then Present (Generalized_Indexing (N))
+         then
+            Add_Entry (Entity (Name (Generalized_Indexing (N))), Etype (N));
+
+         --  An overloaded prefix in indexed or selected component, or a call
+         --  whose name is an expression or another call.
+
+         else
             Add_Entry (Etype (N), Etype (N));
          end if;
 
@@ -1015,8 +1026,8 @@ package body Sem_Type is
       elsif T2 = Any_Composite and then Is_Aggregate_Type (T1) then
          return True;
 
-      --  In Ada_2022, an aggregate is compatible with the type that
-      --  as the corresponding aspect.
+      --  In Ada 2022, an aggregate is compatible with the type that
+      --  has the corresponding aspect.
 
       elsif Ada_Version >= Ada_2022
         and then T2 = Any_Composite
@@ -3379,6 +3390,9 @@ package body Sem_Type is
         or else (T1 = Any_Character     and then Is_Character_Type (T2))
         or else (T1 = Any_String        and then Is_String_Type (T2))
         or else (T1 = Any_Composite     and then Is_Aggregate_Type (T2))
+        or else (Ada_Version >= Ada_2022
+                  and then T1 = Any_Composite
+                  and then Has_Aspect (T2, Aspect_Aggregate))
       then
          return B2;
 
@@ -3399,6 +3413,9 @@ package body Sem_Type is
         or else (T2 = Any_Character     and then Is_Character_Type (T1))
         or else (T2 = Any_String        and then Is_String_Type (T1))
         or else (T2 = Any_Composite     and then Is_Aggregate_Type (T1))
+        or else (Ada_Version >= Ada_2022
+                  and then T2 = Any_Composite
+                  and then Has_Aspect (T1, Aspect_Aggregate))
       then
          return B1;
 

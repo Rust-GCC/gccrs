@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-O2 -fdump-tree-forwprop1" } */
+/* { dg-options "-O2 -fdump-tree-forwprop1 -Wno-psabi" } */
 
 typedef unsigned int vec2 __attribute__ ((vector_size (2 * sizeof (unsigned int))));
 typedef unsigned int vec1 __attribute__ ((vector_size (sizeof (unsigned int))));

@@ -1,4 +1,5 @@
 /* { dg-do link } */
+/* { dg-require-effective-target label_values } */
 
 static void *j;
 int v, g;

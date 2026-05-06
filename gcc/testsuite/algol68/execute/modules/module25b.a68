@@ -1,0 +1,10 @@
+module Module_25b =
+def
+    pub mode Union_b = union (real,int);
+    pub proc union_b_string = (Union_b x) string:
+        case x
+        in (int): "int",
+           (real): "real"
+        esac;
+    skip
+fed

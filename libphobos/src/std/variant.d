@@ -37,6 +37,7 @@ Source:    $(PHOBOSSRC std/variant.d)
 module std.variant;
 
 import std.meta, std.traits, std.typecons;
+import core.memory : GC;
 
 ///
 @system unittest
@@ -144,6 +145,13 @@ if (isTypeTuple!U)
         enum maxVariantAlignment = maxAlignment!(U);
 }
 
+// Each internal operation is encoded with an identifier. See
+// the "handler" function below.
+private enum OpID { getTypeInfo, get, compare, equals, testConversion, toString,
+        index, indexAssign, catAssign, copyOut, length,
+        apply, postblit, destruct }
+
+
 /**
  * Back-end type seldom used directly by user
  * code. Two commonly-used types using `VariantN` are:
@@ -179,6 +187,7 @@ struct VariantN(size_t maxDataSize, AllowedTypesParam...)
     alias AllowedTypes = This2Variant!(VariantN, AllowedTypesParam);
 
 private:
+
     // Compute the largest practical size from maxDataSize
     struct SizeChecker
     {
@@ -200,11 +209,11 @@ private:
             (AllowedTypes.length == 0 || staticIndexOf!(T, AllowedTypes) >= 0);
     }
 
-    // Each internal operation is encoded with an identifier. See
-    // the "handler" function below.
-    enum OpID { getTypeInfo, get, compare, equals, testConversion, toString,
-            index, indexAssign, catAssign, copyOut, length,
-            apply, postblit, destruct }
+    enum biggerThanSize(alias T) = T.sizeof > size;
+    enum needsPostblit = !AllowedTypes.length
+            || anySatisfy!(hasElaborateCopyConstructor, AllowedTypes)
+            // if bigger than size, its stored by ref and needs to be copied
+            || anySatisfy!(biggerThanSize, AllowedTypes);
 
     // state
     union
@@ -420,7 +429,8 @@ private:
                     }
                     else
                     {
-                        A* p = new A;
+                        // object will be intialized later. Using malloc in case `this()` is disabled
+                        A* p = cast(A*) GC.malloc(A.sizeof, 0, typeid(A));
                     }
                     *cast(A**)&target.store = p;
                 }
@@ -517,6 +527,24 @@ private:
                 *result = (*zis)[index];
                 break;
             }
+            else static if (isInstanceOf!(Tuple, A))
+            {
+                size_t index = result.convertsTo!(int)
+                    ? result.get!(int) : result.get!(size_t);
+switchStmtTupIndex:
+                switch (index)
+                {
+                    static foreach (i; 0 .. A.length)
+                    {
+                        case i:
+                            *result = (*zis)[i];
+                            break switchStmtTupIndex;
+                    }
+                    default:
+                        throw new VariantException("Tuple index out of range");
+                }
+                break;
+            }
             else static if (isAssociativeArray!(A))
             {
                 *result = (*zis)[result.get!(typeof(A.init.keys[0]))];
@@ -535,6 +563,24 @@ private:
                 size_t index = args[1].convertsTo!(int)
                     ? args[1].get!(int) : args[1].get!(size_t);
                 (*zis)[index] = args[0].get!(typeof((*zis)[0]));
+                break;
+            }
+            else static if (isInstanceOf!(Tuple, A))
+            {
+                size_t index = args[1].convertsTo!(int)
+                    ? args[1].get!(int) : args[1].get!(size_t);
+switchStmtTupAssign:
+                switch (index)
+                {
+                    static foreach (i; 0 .. A.length)
+                    {
+                        case i:
+                            (*zis)[i] = args[0].get!(typeof((*zis)[i]));
+                            break switchStmtTupAssign;
+                    }
+                    default:
+                        throw new VariantException("Tuple index out of range");
+                }
                 break;
             }
             else static if (isAssociativeArray!(A) && is(typeof((*zis)[A.init.keys[0]] = A.init.values[0])))
@@ -625,12 +671,30 @@ private:
             }
             break;
 
-        case OpID.postblit:
-            static if (hasElaborateCopyConstructor!A)
+            static if (needsPostblit)
             {
-                zis.__xpostblit();
+                case OpID.postblit:
+                    if (A.sizeof > size)
+                    {
+                        import core.lifetime : copyEmplace;
+                        static if (is(A == U[n], U, size_t n))
+                            auto p = cast(A*) (new U[n]).ptr;
+                        else
+                            // object will be intialized later. Using malloc in case `this()` is disabled
+                            A* p = cast(A*) GC.malloc(A.sizeof, 0, typeid(A));
+                        // Emplace will run the postblit of `A` us, no need to do it manually, then
+                        copyEmplace(*zis, *p);
+                        *(cast(A**) pStore) = p;
+                    }
+                    else
+                    {
+                        static if (hasElaborateCopyConstructor!A)
+                        {
+                            zis.__xpostblit();
+                        }
+                    }
+                    break;
             }
-            break;
 
         case OpID.destruct:
             static if (hasElaborateDestructor!A)
@@ -663,7 +727,10 @@ public:
         opAssign(value);
     }
 
-    static if (!AllowedTypes.length || anySatisfy!(hasElaborateCopyConstructor, AllowedTypes))
+    /** If a type is bigger than size, it is saved via pointer on the heap.
+     * This means we must copy it in the postblit to preserve value semantics
+     */
+    static if (needsPostblit)
     {
         this(this)
         {
@@ -721,9 +788,10 @@ public:
             else
             {
                 static if (is(T == U[n], U, size_t n))
-                    auto p = cast(T*) (new U[n]).ptr;
+                    T* p = cast(T*) (new U[n]).ptr;
                 else
-                    auto p = new T;
+                    // object will be intialized later. Using malloc in case `this()` is disabled
+                    T* p = cast(T*) GC.malloc(T.sizeof, 0, typeid(T));
                 copyEmplace(rhs, *p);
                 *(cast(T**) &store) = p;
             }
@@ -850,7 +918,14 @@ public:
      */
     @property inout(T) get(T)() inout
     {
-        inout(T) result = void;
+        static union SupressDestructor {
+            T val;
+        }
+
+        /* If this function fails and it throws, copy elision will not run and the destructor might be called.
+         * But since this value is void initialized, this is undesireable.
+         */
+        inout(SupressDestructor) result = void;
         static if (is(T == shared))
             alias R = shared Unqual!T;
         else
@@ -861,7 +936,7 @@ public:
         {
             throw new VariantException(type, typeid(T));
         }
-        return result;
+        return result.val;
     }
 
     /// Ditto
@@ -1200,7 +1275,7 @@ public:
             auto arr = get!(A[]);
             foreach (ref e; arr)
             {
-                if (dg(e)) return 1;
+                if (auto r = dg(e)) return r;
             }
         }
         else static if (is(A == VariantN))
@@ -1212,7 +1287,7 @@ public:
                 // Variant when in fact they are only changing tmp.
                 auto tmp = this[i];
                 debug scope(exit) assert(tmp == this[i]);
-                if (dg(tmp)) return 1;
+                if (auto r = dg(tmp)) return r;
             }
         }
         else
@@ -3254,4 +3329,147 @@ if (isAlgebraic!VariantType && Handler.length > 0)
 {
     immutable aa = ["0": 0];
     auto v = Variant(aa); // compile error
+}
+
+// https://github.com/dlang/phobos/issues/9585
+// Verify that alignment is respected
+@safe unittest
+{
+    static struct Foo { double x; }
+    alias AFoo1 = Algebraic!(Foo);
+    static assert(AFoo1.alignof >= double.alignof);
+
+    // Algebraic using a function pointer is an implementation detail. If test fails, this is safe to change
+    enum FP_SIZE = (int function()).sizeof;
+    static assert(AFoo1.sizeof >= double.sizeof + FP_SIZE);
+}
+
+// https://github.com/dlang/phobos/issues/10518
+@system unittest
+{
+    import std.exception : assertThrown;
+
+    struct Huge {
+        real a, b, c, d, e, f, g;
+    }
+    Huge h = {1,1,1,1,1,1,1};
+    Variant variant = Variant([
+            "one": Variant(1),
+    ]);
+    // Testing that this doesn't segfault. Future work might make enable this
+    assertThrown!VariantException(variant["three"] = 3);
+    assertThrown!VariantException(variant["four"] = Variant(4));
+    /* Storing huge works too, value will moved to the heap
+    * Testing this as a regression test here as the AA handling code is still somewhat brittle and might add changes
+    * that depend payload size in the future
+    */
+    assertThrown!VariantException(variant["huge"] = Variant(h));
+    /+
+    assert(variant["one"] == Variant(1));
+    assert(variant["three"] == Variant(3));
+    assert(variant["three"] == 3);
+    assert(variant["huge"] == Variant(h));
+    +/
+}
+
+// https://github.com/dlang/phobos/issues/10429
+@system unittest
+{
+    Variant test = tuple(1,2);
+    assert(test[0] == 1);
+    test[1] = 10;
+    assert(test[1] == 10);
+}
+
+// https://github.com/dlang/phobos/issues/10062
+// https://github.com/dlang/phobos/issues/9783
+@system
+unittest
+{
+    static struct S(size_t padding, bool withPostblit)
+    {
+        int* p;
+        ubyte[padding] _;
+
+        this(int* a)
+        {
+            p = a;
+        }
+
+        static if (withPostblit)
+        {
+            this(this)
+            {
+                p = new int(*p);
+            }
+
+            // Running destructor without postblit makes no sense, as all copies of the struct have a pointer to the same memory location
+            ~this()
+            {
+                // We can't assume that destructor runs exactly once, sometimes the GC will also run it
+                // assert(*p != 42);
+                *p = 42;
+            }
+        }
+    }
+
+    static void testPostblit(T)()
+    {
+        alias V = VariantN!(32, T);
+        int buf = 1;
+        auto v = V(T(&buf));
+        {
+            // Copy v: Must run postblit of Variant AND T
+            V v2 = v;
+            *(v2.peek!T.p) = 2;
+            assert(v.peek!T.p !is null);
+            assert(*(v.peek!T.p) == 1);
+        }
+        // Verify that destructor ran
+        assert(buf == 42);
+    }
+
+    static void testValueSemantics(alias S, ulong size, bool withPostblit)()
+    {
+        alias T = S!(size, withPostblit);
+        alias V = VariantN!(32, T);
+        assert(__traits(hasPostblit, V) == (withPostblit || (size > 32)));
+        int buf = 1;
+        auto v = V(T(&buf));
+        {
+            int buf2 = 2;
+            // copy: We care that at least postblit of Variant run. Thus we change the *pointer*, not the int pointed to it here
+            V v2 = v;
+            v2.peek!T.p = &buf;
+            assert(v.peek!T.p !is null);
+            assert(v.peek!T.p != &buf2);
+            assert(*(v.peek!T.p) == 1);
+        }
+    }
+
+    testPostblit!(S!(1, true)); // S!1 fits in the `store`. This already used to work before this bugfix
+    testPostblit!(S!(100, true)); // S!100 object will be put on the heap and is special case
+
+    // OpID.postblit has different handling for big (heap) and small payloads as well as whether these have a postblit or not, so just cover all cases to be sure
+    static foreach (size; AliasSeq!(1,100))
+        static foreach (withPostblit; AliasSeq!(false, true))
+            testValueSemantics!(S, size, withPostblit);
+}
+
+@system
+unittest
+{
+    static struct S
+    {
+        int i;
+        ubyte[100] padding; // Variant must heap allocate this
+        @disable this();
+        this(int i)
+        {
+            this.i = i;
+        }
+    }
+
+    VariantN!32 v = VariantN!32(S(10));
+    v = VariantN!32(S(9));
 }

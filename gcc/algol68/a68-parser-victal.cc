@@ -34,7 +34,7 @@ static void
 victal_check_generator (NODE_T * p)
 {
   if (!victal_check_declarer (NEXT (p), ACTUAL_DECLARER_MARK))
-    a68_error (p, "Y expected", "actual declarer");
+    a68_error (p, "actual declarer expected");
 }
 
 /* Check formal pack.  */
@@ -71,11 +71,11 @@ victal_check_operator_dec (NODE_T *p)
       bool z = true;
       victal_check_formal_pack (NEXT (p), FORMAL_DECLARER_MARK, &z);
       if (!z)
-	a68_error (p, "Y expected", "formal declarers");
+	a68_error (p, "formal declarers expected");
       FORWARD (p);
   }
   if (!victal_check_declarer (NEXT (p), FORMAL_DECLARER_MARK))
-    a68_error (p, "Y expected", "formal declarer");
+    a68_error (p, "formal declarer expected");
 }
 
 /* Check mode declaration.  */
@@ -102,7 +102,7 @@ victal_check_mode_dec (NODE_T *p)
       else if (IS (p, DECLARER))
 	{
 	  if (!victal_check_declarer (p, ACTUAL_DECLARER_MARK))
-	    a68_error (p, "Y expected", "actual declarer");
+	    a68_error (p, "actual declarer expected");
 	}
     }
 }
@@ -135,7 +135,7 @@ victal_check_variable_dec (NODE_T *p)
 	  else if (IS (p, DECLARER))
 	    {
 	      if (!victal_check_declarer (p, ACTUAL_DECLARER_MARK))
-		a68_error (p, "Y expected", "actual declarer");
+		a68_error (p, "actual declarer expected");
 	      victal_check_variable_dec (NEXT (p));
 	    }
 	}
@@ -162,7 +162,7 @@ victal_check_identity_dec (NODE_T * p)
       else if (IS (p, DECLARER))
 	{
 	  if (!victal_check_declarer (p, FORMAL_DECLARER_MARK))
-	    a68_error (p, "Y expected", "formal declarer");
+	    a68_error (p, "formal declarer expected");
 	  victal_check_identity_dec (NEXT (p));
 	}
     }
@@ -199,11 +199,11 @@ victal_check_routine_text (NODE_T *p)
       bool z = true;
       victal_check_routine_pack (p, FORMAL_DECLARER_MARK, &z);
       if (!z)
-	a68_error (p, "Y expected", "formal declarers");
+	a68_error (p, "formal declarers expected");
       FORWARD (p);
     }
   if (!victal_check_declarer (p, FORMAL_DECLARER_MARK))
-    a68_error (p, "Y expected", "formal declarer");
+    a68_error (p, "formal declarer expected");
   a68_victal_checker (NEXT (p));
 }
 
@@ -274,13 +274,13 @@ victal_check_declarer (NODE_T *p, int x)
       a68_victal_checker (SUB (p));
       if (x == FORMAL_DECLARER_MARK)
 	{
-	  a68_error (p, "Y expected", "formal bounds");
+	  a68_error (p, "formal bounds expected");
 	  (void) victal_check_declarer (NEXT (p), x);
 	  return true;
 	}
       else if (x == VIRTUAL_DECLARER_MARK)
 	{
-	  a68_error (p, "Y expected", "virtual bounds");
+	  a68_error (p, "virtual bounds expected");
 	  (void) victal_check_declarer (NEXT (p), x);
 	  return true;
 	}
@@ -292,7 +292,7 @@ victal_check_declarer (NODE_T *p, int x)
       a68_victal_checker (SUB (p));
       if (x == ACTUAL_DECLARER_MARK)
 	{
-	  a68_error (p, "Y expected", "actual bounds");
+	  a68_error (p, "actual bounds expected");
 	  (void) victal_check_declarer (NEXT (p), x);
 	  return true;
 	}
@@ -310,7 +310,7 @@ victal_check_declarer (NODE_T *p, int x)
       bool z = true;
       victal_check_union_pack (NEXT (p), FORMAL_DECLARER_MARK, &z);
       if (!z)
-	a68_error (p, "Y expected", "formal declarer pack");
+	a68_error (p, "formal declarer pack expected");
       return true;
     }
   else if (IS (p, PROC_SYMBOL))
@@ -320,11 +320,11 @@ victal_check_declarer (NODE_T *p, int x)
 	  bool z = true;
 	  victal_check_formal_pack (NEXT (p), FORMAL_DECLARER_MARK, &z);
 	  if (!z)
-	    a68_error (p, "Y expected", "formal declarer");
+	    a68_error (p, "formal declarer expected");
 	  FORWARD (p);
 	}
       if (!victal_check_declarer (NEXT (p), FORMAL_DECLARER_MARK))
-	a68_error (p, "Y expected", "formal declarer");
+	a68_error (p, "formal declarer expected");
       return true;
     }
   else
@@ -338,7 +338,7 @@ victal_check_cast (NODE_T *p)
 {
   if (!victal_check_declarer (p, FORMAL_DECLARER_MARK))
     {
-      a68_error (p, "Y expected", "formal declarer");
+      a68_error (p, "formal declarer expected");
       a68_victal_checker (NEXT (p));
     }
 }

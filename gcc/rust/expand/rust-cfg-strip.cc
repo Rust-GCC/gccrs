@@ -28,27 +28,6 @@ namespace Rust {
 
 /**
  * Determines whether any cfg predicate is false and hence item with attributes
- * should be stripped. Note that attributes must be expanded before calling.
- */
-bool
-CfgStrip::fails_cfg (const AST::AttrVec &attrs) const
-{
-  auto &session = Session::get_instance ();
-
-  for (const auto &attr : attrs)
-    {
-      if (attr.get_path () == Values::Attributes::CFG
-	  && !attr.check_cfg_predicate (session))
-	return true;
-      else if (!expansion_cfg.should_test
-	       && attr.get_path () == Values::Attributes::TEST)
-	return true;
-    }
-  return false;
-}
-
-/**
- * Determines whether any cfg predicate is false and hence item with attributes
  * should be stripped. Will expand attributes as well.
  */
 bool
@@ -114,6 +93,9 @@ expand_cfg_attrs (AST::AttrVec &attrs)
 
 	  if (attr.check_cfg_predicate (session))
 	    {
+	      // Key has been found we need to remove the conditional part of
+	      // the attribute and insert the content back
+
 	      // split off cfg_attr
 	      AST::AttrVec new_attrs = attr.separate_cfg_attrs ();
 
@@ -129,6 +111,12 @@ expand_cfg_attrs (AST::AttrVec &attrs)
 	       * position i, allowing us to reprocess the newly inserted
 	       * attribute (in case it's also a cfg_attr that needs expansion)
 	       */
+	      i--;
+	    }
+	  else
+	    {
+	      // Key has not been found, remove the whole attribute
+	      attrs.erase (attrs.begin () + i);
 	      i--;
 	    }
 
@@ -840,9 +828,13 @@ CfgStrip::visit (AST::ArrayIndexExpr &expr)
 
   const auto &array_expr = expr.get_array_expr ();
   if (array_expr.is_marked_for_strip ())
-    rust_error_at (array_expr.get_locus (),
-		   "cannot strip expression in this position - outer "
-		   "attributes not allowed");
+    {
+      rust_error_at (array_expr.get_locus (),
+		     "cannot strip expression in this position - outer "
+		     "attributes not allowed");
+      expr.mark_for_strip ();
+      return;
+    }
 
   const auto &index_expr = expr.get_index_expr ();
   if (index_expr.is_marked_for_strip ())
@@ -1056,9 +1048,13 @@ CfgStrip::visit (AST::CallExpr &expr)
 
   auto &function = expr.get_function_expr ();
   if (function.is_marked_for_strip ())
-    rust_error_at (function.get_locus (),
-		   "cannot strip expression in this position - outer "
-		   "attributes not allowed");
+    {
+      rust_error_at (function.get_locus (),
+		     "cannot strip expression in this position - outer "
+		     "attributes not allowed");
+      expr.mark_for_strip ();
+      return;
+    }
 
   /* spec says outer attributes are specifically allowed for elements
    * of call expressions, so full stripping possible */

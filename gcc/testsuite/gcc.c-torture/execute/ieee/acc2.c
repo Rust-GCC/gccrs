@@ -1,3 +1,4 @@
+/* { dg-do run } */
 /* Tail call optimizations would reverse the order of multiplications
    in func().  */
 

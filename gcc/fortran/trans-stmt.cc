@@ -1362,7 +1362,8 @@ gfc_trans_sync (gfc_code *code, gfc_exec_op type)
     {
       gfc_init_se (&argse, NULL);
       gfc_conv_expr_val (&argse, code->expr1);
-      images = argse.expr;
+      images = gfc_trans_force_lval (&argse.pre, argse.expr);
+      gfc_add_block_to_block (&se.pre, &argse.pre);
     }
 
   if (code->expr2)
@@ -1372,6 +1373,7 @@ gfc_trans_sync (gfc_code *code, gfc_exec_op type)
       gfc_init_se (&argse, NULL);
       gfc_conv_expr_val (&argse, code->expr2);
       stat = argse.expr;
+      gfc_add_block_to_block (&se.pre, &argse.pre);
     }
   else
     stat = null_pointer_node;
@@ -1384,8 +1386,9 @@ gfc_trans_sync (gfc_code *code, gfc_exec_op type)
       argse.want_pointer = 1;
       gfc_conv_expr (&argse, code->expr3);
       gfc_conv_string_parameter (&argse);
-      errmsg = gfc_build_addr_expr (NULL, argse.expr);
+      errmsg = argse.expr;
       errmsglen = fold_convert (size_type_node, argse.string_length);
+      gfc_add_block_to_block (&se.pre, &argse.pre);
     }
   else if (flag_coarray == GFC_FCOARRAY_LIB)
     {
@@ -2195,10 +2198,7 @@ trans_associate_var (gfc_symbol *sym, gfc_wrapped_block *block)
 					      dim, gfc_index_one_node);
 	}
 
-      if (e->expr_type == EXPR_FUNCTION
-	  && sym->ts.type == BT_DERIVED
-	  && sym->ts.u.derived
-	  && sym->ts.u.derived->attr.pdt_type)
+      if (e->expr_type == EXPR_FUNCTION && IS_PDT (e))
 	{
 	  tmp = gfc_deallocate_pdt_comp (sym->ts.u.derived, se.expr,
 					 sym->as->rank);
@@ -2516,18 +2516,12 @@ trans_associate_var (gfc_symbol *sym, gfc_wrapped_block *block)
 	}
 
       tmp = sym->backend_decl;
-      if (e->expr_type == EXPR_FUNCTION
-	  && sym->ts.type == BT_DERIVED
-	  && sym->ts.u.derived
-	  && sym->ts.u.derived->attr.pdt_type)
+      if (e->expr_type == EXPR_FUNCTION && IS_PDT (sym))
 	{
 	  tmp = gfc_deallocate_pdt_comp (sym->ts.u.derived, tmp,
 					 0);
 	}
-      else if (e->expr_type == EXPR_FUNCTION
-	       && sym->ts.type == BT_CLASS
-	       && CLASS_DATA (sym)->ts.u.derived
-	       && CLASS_DATA (sym)->ts.u.derived->attr.pdt_type)
+      else if (e->expr_type == EXPR_FUNCTION && IS_CLASS_PDT (sym))
 	{
 	  tmp = gfc_class_data_get (tmp);
 	  tmp = gfc_deallocate_pdt_comp (CLASS_DATA (sym)->ts.u.derived,
@@ -6926,8 +6920,10 @@ gfc_trans_allocate (gfc_code * code, gfc_omp_namelist *omp_allocate)
       if ((code->expr3->ts.type == BT_DERIVED
 	   || code->expr3->ts.type == BT_CLASS)
 	  && (code->expr3->expr_type != EXPR_VARIABLE || temp_obj_created)
-	  && code->expr3->ts.u.derived->attr.alloc_comp
+	  && (code->expr3->ts.u.derived->attr.alloc_comp
+	      || code->expr3->ts.u.derived->attr.pdt_type)
 	  && !code->expr3->must_finalize
+	  && !gfc_expr_attr (code->expr3).pointer
 	  && !code->ext.alloc.expr3_not_explicit)
 	{
 	  tmp = gfc_deallocate_alloc_comp (code->expr3->ts.u.derived,
@@ -7091,11 +7087,16 @@ gfc_trans_allocate (gfc_code * code, gfc_omp_namelist *omp_allocate)
 	  /* Build a temporary symtree and symbol.  Do not add it to the current
 	     namespace to prevent accidentaly modifying a colliding
 	     symbol's as.  */
-	  newsym = XCNEW (gfc_symtree);
 	  /* The name of the symtree should be unique, because gfc_create_var ()
 	     took care about generating the identifier.  */
-	  newsym->name
-	    = gfc_get_string ("%s", IDENTIFIER_POINTER (DECL_NAME (expr3)));
+	  if (DECL_NAME (expr3) && IDENTIFIER_POINTER (DECL_NAME (expr3)))
+	    {
+	      const char *name = IDENTIFIER_POINTER (DECL_NAME (expr3));
+	      newsym = XCNEW (gfc_symtree);
+	      newsym->name = gfc_get_string ("%s", name);
+	    }
+	  else
+	    newsym = gfc_get_unique_symtree (NULL);
 	  newsym->n.sym = gfc_new_symbol (newsym->name, NULL);
 	  /* The backend_decl is known.  It is expr3, which is inserted
 	     here.  */
@@ -7686,8 +7687,7 @@ gfc_trans_allocate (gfc_code * code, gfc_omp_namelist *omp_allocate)
 	}
       /* Set KIND and LEN PDT components and allocate those that are
          parameterized.  */
-      else if (expr->ts.type == BT_DERIVED
-	       && expr->ts.u.derived->attr.pdt_type)
+      else if (IS_PDT (expr))
 	{
 	  if (code->expr3 && code->expr3->param_list)
 	    param_list = code->expr3->param_list;
@@ -7700,8 +7700,7 @@ gfc_trans_allocate (gfc_code * code, gfc_omp_namelist *omp_allocate)
 	  gfc_add_expr_to_block (&block, tmp);
 	}
       /* Ditto for CLASS expressions.  */
-      else if (expr->ts.type == BT_CLASS
-	       && CLASS_DATA (expr)->ts.u.derived->attr.pdt_type)
+      else if (IS_CLASS_PDT (expr))
 	{
 	  if (code->expr3 && code->expr3->param_list)
 	    param_list = code->expr3->param_list;
@@ -7960,22 +7959,19 @@ gfc_trans_deallocate (gfc_code *code)
 	param_list = expr->symtree->n.sym->param_list;
       for (ref = expr->ref; ref; ref = ref->next)
 	if (ref->type ==  REF_COMPONENT
-	    && ref->u.c.component->ts.type == BT_DERIVED
-	    && ref->u.c.component->ts.u.derived->attr.pdt_type
+	    && IS_PDT (ref->u.c.component)
 	    && ref->u.c.component->param_list)
 	  param_list = ref->u.c.component->param_list;
       if (expr->ts.type == BT_DERIVED
 	  && ((expr->ts.u.derived->attr.pdt_type && param_list)
 	      || expr->ts.u.derived->attr.pdt_comp))
 	tmp = gfc_deallocate_pdt_comp (expr->ts.u.derived, se.expr, expr->rank);
-      else if (expr->ts.type == BT_CLASS
-	       && CLASS_DATA (expr)->ts.u.derived->attr.pdt_type
-	       && expr->symtree->n.sym->param_list)
+      else if (IS_CLASS_PDT (expr) && expr->symtree->n.sym->param_list)
 	tmp = gfc_deallocate_pdt_comp (CLASS_DATA (expr)->ts.u.derived,
 				       se.expr, expr->rank);
 
       if (tmp)
-	gfc_add_expr_to_block (&block, tmp);
+	gfc_add_expr_to_block (&se.pre, tmp);
 
       if (flag_coarray == GFC_FCOARRAY_LIB
 	  || flag_coarray == GFC_FCOARRAY_SINGLE)

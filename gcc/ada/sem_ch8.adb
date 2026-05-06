@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2026, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -25,7 +25,6 @@
 
 with Atree;          use Atree;
 with Debug;          use Debug;
-with Einfo;          use Einfo;
 with Einfo.Utils;    use Einfo.Utils;
 with Elists;         use Elists;
 with Errout;         use Errout;
@@ -68,7 +67,6 @@ with Sem_Res;        use Sem_Res;
 with Sem_Util;       use Sem_Util;
 with Sem_Type;       use Sem_Type;
 with Stand;          use Stand;
-with Sinfo;          use Sinfo;
 with Sinfo.Nodes;    use Sinfo.Nodes;
 with Sinfo.Utils;    use Sinfo.Utils;
 with Sinfo.CN;       use Sinfo.CN;
@@ -5518,19 +5516,14 @@ package body Sem_Ch8 is
          elsif In_Open_Scopes (Scope (Base_Type (T))) then
             null;
 
-         --  Turn off the use_type_clause on the type unless the clause is
-         --  redundant, or there's a previous use_type_clause. (The case where
-         --  a use_type_clause without "all" is followed by one with "all" in
-         --  a more nested scope is not considered redundant, necessitating
-         --  the test for a previous clause. One might expect the latter test
-         --  to suffice, but it turns out there are cases where Redundant_Use
-         --  is set, but Prev_Use_Clause is not set. ???)
+         --  Reinstate a previous use_type_clause (if any) on the type unless
+         --  the current use_type_clause is redundant.
 
-         elsif not Redundant_Use (Id) and then No (Prev_Use_Clause (N)) then
-            Set_In_Use (T, False);
-            Set_In_Use (Base_Type (T), False);
-            Set_Current_Use_Clause (T, Empty);
-            Set_Current_Use_Clause (Base_Type (T), Empty);
+         elsif not Redundant_Use (Id) then
+            Set_In_Use (T, Present (Prev_Use_Clause (N)));
+            Set_In_Use (Base_Type (T), Present (Prev_Use_Clause (N)));
+            Set_Current_Use_Clause (T, Prev_Use_Clause (N));
+            Set_Current_Use_Clause (Base_Type (T), Prev_Use_Clause (N));
 
             --  See Use_One_Type for the rationale. This is a bit on the naive
             --  side, but should be good enough in practice.
@@ -8585,8 +8578,7 @@ package body Sem_Ch8 is
                   if Ekind (P_Name) /= E_Function
                     and then not Is_Overloaded (P)
                   then
-                     Error_Msg_NE
-                       ("invalid prefix& in selected component", N, P_Name);
+                     Error_Msg_N ("invalid prefix& in selected component", P);
                      Diagnose_Call;
                      return;
 
@@ -8711,7 +8703,7 @@ package body Sem_Ch8 is
                   end if;
                end;
 
-               Error_Msg_N ("invalid prefix in selected component&", P);
+               Error_Msg_N ("invalid prefix& in selected component", P);
 
                if Is_Incomplete_Type (P_Type)
                  and then Is_Access_Type (Etype (P))
@@ -8722,7 +8714,7 @@ package body Sem_Ch8 is
                end if;
 
             else
-               Error_Msg_N ("invalid prefix in selected component", P);
+               Error_Msg_N ("invalid prefix& in selected component", P);
             end if;
          end if;
       else
@@ -9580,26 +9572,17 @@ package body Sem_Ch8 is
             return;
          end if;
 
+         --  We need to mark the previous use clauses as effective, but each
+         --  use clause may in turn render other use clauses effective.
+
          Curr := Current_Use_Clause (Pak);
          while Present (Curr)
            and then not Is_Effective_Use_Clause (Curr)
          loop
-            --  We need to mark the previous use clauses as effective, but
-            --  each use clause may in turn render other use_package_clauses
-            --  effective. Additionally, it is possible to have a parent
-            --  package renamed as a child of itself so we must check the
-            --  prefix entity is not the same as the package we are marking.
+            --  It is possible to have a child package without a prefix that
+            --  relies on a previous use clause.
 
-            if Nkind (Name (Curr)) /= N_Identifier
-              and then Present (Prefix (Name (Curr)))
-              and then Entity (Prefix (Name (Curr))) /= Pak
-            then
-               Mark_Use_Package (Entity (Prefix (Name (Curr))));
-
-            --  It is also possible to have a child package without a prefix
-            --  that relies on a previous use_package_clause.
-
-            elsif Nkind (Name (Curr)) = N_Identifier
+            if Nkind (Name (Curr)) = N_Identifier
               and then Is_Child_Unit (Entity (Name (Curr)))
             then
                Mark_Use_Package (Scope (Entity (Name (Curr))));

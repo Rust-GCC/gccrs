@@ -1,6 +1,5 @@
-
 /* Compiler implementation of the D programming language
- * Copyright (C) 1999-2025 by The D Language Foundation, All Rights Reserved
+ * Copyright (C) 1999-2026 by The D Language Foundation, All Rights Reserved
  * written by Walter Bright
  * https://www.digitalmars.com
  * Distributed under the Boost Software License, Version 1.0.
@@ -65,6 +64,13 @@ enum JsonFieldFlags
     buildInfo    = (1 << 1),
     modules      = (1 << 2),
     semantics    = (1 << 3)
+};
+
+enum class Edition : uint16_t
+{
+    v2023 = 2023,
+    v2024,
+    v2025,
 };
 
 enum CppStdRevision
@@ -159,9 +165,17 @@ struct Verbose
 struct ImportPathInfo
 {
     const char* path;
+    d_bool isOutOfBinary;
 
-    ImportPathInfo() : path(NULL) { }
-    ImportPathInfo(const char* p) : path(p) { }
+    ImportPathInfo() :
+        path(),
+        isOutOfBinary()
+    {
+    }
+    ImportPathInfo(const char* path, d_bool isOutOfBinary = false) :
+        path(path),
+        isOutOfBinary(isOutOfBinary)
+        {}
 };
 
 // Put command line switches in here
@@ -191,10 +205,14 @@ struct Param
     d_bool addMain;       // add a default main() function
     d_bool allInst;       // generate code for all template instantiations
     d_bool bitfields;         // support C style bit fields
+    d_bool nothrowOptimizations;
     CppStdRevision cplusplus;  // version of C++ name mangling to support
 
     Help help;
     Verbose v;
+
+    Edition edition;             // edition year
+    void* editionFiles;          // Edition corresponding to a filespec
 
     // Options for `-preview=/-revert=`
     FeatureState useDIP25;       // implement https://wiki.dlang.org/DIP25
@@ -221,11 +239,13 @@ struct Param
     FeatureState dtorFields;     // destruct fields of partially constructed objects
                                  // https://issues.dlang.org/show_bug.cgi?id=14246
     FeatureState systemVariables; // limit access to variables marked @system from @safe code
+    d_bool useFastDFA;             // Use fast data flow analysis engine
 
     CHECKENABLE useInvariants;     // generate class invariant checks
     CHECKENABLE useIn;             // generate precondition checks
     CHECKENABLE useOut;            // generate postcondition checks
     CHECKENABLE useArrayBounds;    // when to generate code for array bounds checks
+    CHECKENABLE useNullCheck;      // when to generate code for null dereference checks
     CHECKENABLE useAssert;         // when to generate code for assert()'s
     CHECKENABLE useSwitchError;    // check for switches without a default
     CHECKENABLE boundscheck;       // state of -boundscheck switch
@@ -278,9 +298,10 @@ struct Param
 
 struct structalign_t
 {
-    unsigned short value;
-    d_bool pack;
-
+private:
+    uint16_t value;
+    uint8_t flags;
+public:
     bool isDefault() const;
     void setDefault();
     bool isUnknown() const;
@@ -288,7 +309,9 @@ struct structalign_t
     void set(unsigned value);
     unsigned get() const;
     bool isPack() const;
-    void setPack(bool pack);
+    void setPack();
+    bool fromAlignas() const;
+    void setAlignas();
 };
 
 // magic value means "match whatever the underlying C compiler does"
@@ -314,6 +337,7 @@ struct CompileEnv
     d_bool transitionIn;
     d_bool ddocOutput;
     d_bool masm;
+    DString switchPrefix;
     IdentifierCharLookup cCharLookupTable;
     IdentifierCharLookup dCharLookupTable;
 };
@@ -337,7 +361,7 @@ struct Global
     unsigned warnings;       // number of warnings reported so far
     unsigned gag;            // !=0 means gag reporting of errors & warnings
     unsigned gaggedErrors;   // number of errors reported while gagged
-    unsigned gaggedWarnings; // number of warnings reported while gagged
+    unsigned gaggedDeprecations; // number of deprecations reported while gagged
 
     void* console;         // opaque pointer to console for controlling text attributes
 

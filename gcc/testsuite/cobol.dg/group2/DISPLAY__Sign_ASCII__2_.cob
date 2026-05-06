@@ -1,6 +1,5 @@
        *> { dg-do run }
        *> { dg-output-file "group2/DISPLAY__Sign_ASCII__2_.out" }
-
        IDENTIFICATION   DIVISION.
        PROGRAM-ID.      prog.
        DATA             DIVISION.
@@ -20,8 +19,7 @@
            MOVE 7 TO X-S9(8).
            MOVE 8 TO X-S9(9).
            MOVE 9 TO X-S9(10).
-           DISPLAY X NO ADVANCING
-           END-DISPLAY.
+           DISPLAY X
            MOVE -10 TO X-S99. MOVE X(2:1) TO X(1:1).
            MOVE -1 TO X-S9(2).
            MOVE -2 TO X-S9(3).
@@ -32,7 +30,11 @@
            MOVE -7 TO X-S9(8).
            MOVE -8 TO X-S9(9).
            MOVE -9 TO X-S9(10).
-           DISPLAY X NO ADVANCING
-           END-DISPLAY.
+           *> Let's be tolerant of our ECDIC friends:
+           if x equal "}JKLMNOPQR" or "pqrstuvwxy" then 
+                display "It's properly either pqrstuvwxy or }JKLMNOPQR"
+                else
+                display "It's wrong: " """" X """"
+                end-if
            STOP RUN.
 

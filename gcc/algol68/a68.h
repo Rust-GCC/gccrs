@@ -270,13 +270,13 @@ MOID_T *a68_type_moid (tree type);
 
 /* a68-diagnostics.cc  */
 
-void a68_error (NODE_T *p, const char *loc_str, ...);
+void a68_error (NODE_T *p, const char *loc_str, ...) ATTRIBUTE_A68_DIAG(2,3);
 void a68_error_in_pragmat (NODE_T *p, size_t off,
-			   const char *loc_str, ...);
-bool a68_warning (NODE_T *p, int opt, const char *loc_str, ...);
-void a68_inform (NODE_T *p, const char *loc_str, ...);
-void a68_fatal (NODE_T *p, const char *loc_str, ...);
-void a68_scan_error (LINE_T *u, char *v, const char *txt, ...);
+			   const char *loc_str, ...) ATTRIBUTE_A68_DIAG(3,4);
+bool a68_warning (NODE_T *p, int opt, const char *loc_str, ...)  ATTRIBUTE_A68_DIAG(3,4);
+void a68_inform (NODE_T *p, const char *loc_str, ...)  ATTRIBUTE_A68_DIAG(2,3);
+void a68_fatal (NODE_T *p, const char *loc_str, ...)  ATTRIBUTE_A68_DIAG(2,3);
+void a68_scan_error (LINE_T *u, char *v, const char *txt, ...)  ATTRIBUTE_A68_DIAG(3,4);
 
 /* a68-parser-scanner.cc  */
 
@@ -338,6 +338,10 @@ void a68_extract_operators (NODE_T *p);
 void a68_extract_labels (NODE_T *p, int expect);
 void a68_extract_declarations (NODE_T *p);
 void a68_elaborate_bold_tags (NODE_T *p);
+void a68_extract_revelation (NODE_T *q, const char *module,
+			     const char *filename, TAG_T *tag = NO_TAG);
+void a68_extract_revelation (TABLE_T *t, LINE_T *l, const char *module,
+			     const char *filename, TAG_T *tag = NO_TAG);
 
 /* a68-parser-keywords.cc  */
 
@@ -476,11 +480,16 @@ void a68_make_soid (SOID_T *s, int sort, MOID_T *type, int attribute);
 void a68_make_strong (NODE_T *n, MOID_T *p, MOID_T *q);
 void a68_make_uniting_coercion (NODE_T *n, MOID_T *q);
 void a68_make_void (NODE_T *p, MOID_T *q);
+bool a68_is_c_mode (MOID_T *m, int level = 0);
 
 #define A68_DEPREF true
 #define A68_NO_DEPREF false
 
 #define A68_IF_MODE_IS_WELL(n) (! ((n) == M_ERROR || (n) == M_UNDEFINED))
+
+/* a68-moids-sorting.cc */
+
+void a68_sort_union_packs (MOID_T* m);
 
 /* a68-parser-scope.cc  */
 
@@ -533,9 +542,12 @@ tree a68_bits_ior (tree bits1, tree bits2);
 tree a68_bits_xor (tree bits1, tree bits2);
 tree a68_bits_elem (NODE_T *p, tree pos, tree bits);
 tree a68_bits_subset (tree bits1, tree bits2);
-tree a68_bits_shift (tree shift, tree bits);
+tree a68_bits_shift (NODE_T *p, tree shift, tree bits);
 tree a68_bits_eq (tree a, tree b, location_t loc = UNKNOWN_LOCATION);
 tree a68_bits_ne (tree a, tree b, location_t loc = UNKNOWN_LOCATION);
+tree a68_bits_set (MOID_T *m, tree bits, tree numbit, location_t loc = UNKNOWN_LOCATION);
+tree a68_bits_clear (MOID_T *m, tree bits, tree numbit, location_t loc = UNKNOWN_LOCATION);
+tree a68_bits_test (tree bits, tree numbit, location_t loc = UNKNOWN_LOCATION);
 
 /* a68-low_bools.cc  */
 
@@ -549,7 +561,6 @@ tree a68_bool_ne (tree a, tree b, location_t loc = UNKNOWN_LOCATION);
 tree a68_get_int_skip_tree (MOID_T *m);
 tree a68_int_maxval (tree type);
 tree a68_int_minval (tree type);
-tree a68_int_width (tree type);
 tree a68_int_sign (tree val);
 tree a68_int_abs (tree val);
 tree a68_int_shorten (MOID_T *to_mode, MOID_T *from_mode, tree val);
@@ -576,30 +587,6 @@ tree a68_complex_im (tree z);
 tree a68_complex_conj (MOID_T *mode, tree z);
 tree a68_complex_widen_from_real (MOID_T *mode, tree r);
 
-/* a68-low-posix.cc  */
-
-tree a68_posix_setexitstatus (void);
-tree a68_posix_argc (void);
-tree a68_posix_argv (void);
-tree a68_posix_getenv (void);
-tree a68_posix_putchar (void);
-tree a68_posix_puts (void);
-tree a68_posix_fconnect (void);
-tree a68_posix_fcreate (void);
-tree a68_posix_fopen (void);
-tree a68_posix_fclose (void);
-tree a68_posix_fsize (void);
-tree a68_posix_lseek (void);
-tree a68_posix_errno (void);
-tree a68_posix_perror (void);
-tree a68_posix_strerror (void);
-tree a68_posix_getchar (void);
-tree a68_posix_fgetc (void);
-tree a68_posix_fputc (void);
-tree a68_posix_fputs (void);
-tree a68_posix_gets (void);
-tree a68_posix_fgets (void);
-
 /* a68-low-reals.cc  */
 
 tree a68_get_real_skip_tree (MOID_T *m);
@@ -607,8 +594,6 @@ tree a68_real_pi (tree type);
 tree a68_real_maxval (tree type);
 tree a68_real_minval (tree type);
 tree a68_real_smallval (tree type);
-tree a68_real_width (tree type);
-tree a68_real_exp_width (tree type);
 tree a68_real_sign (tree val);
 tree a68_real_abs (tree val);
 tree a68_real_sqrt (tree val);
@@ -699,9 +684,9 @@ tree a68_row_value (tree type, size_t dim,
 		    tree *lower_bound, tree *upper_bound);
 tree a68_row_value_raw (tree type, tree descriptor,
 			tree elements, tree elements_size);
-tree a68_row_malloc (tree type, int dim,
+tree a68_row_malloc (MOID_T *m, int dim,
 		    tree elements, tree elements_size,
-		    tree *lower_bound, tree *upper_bound);		     
+		    tree *lower_bound, tree *upper_bound);
 tree a68_multiple_slice (NODE_T *p, tree multiple, bool slicing_name,
 			 int num_indexes, tree *indexes);
 tree a68_multiple_copy_elems (MOID_T *to_mode, tree to, tree from);
@@ -810,13 +795,14 @@ tree a68_make_variable_declaration_decl (NODE_T *identifier, const char *module_
 tree a68_make_proc_identity_declaration_decl (NODE_T *identifier, const char *module_name = NULL,
 					      bool indicant = false, bool external = false,
 					      const char *extern_symbol = NULL);
+tree a68_make_formal_hole_decl (NODE_T *p, const char *extern_symbol, bool addrp);
 tree a68_make_anonymous_routine_decl (MOID_T *mode);
 tree a68_get_skip_tree (MOID_T *m);
 tree a68_get_empty (void);
 void a68_ref_counts (tree exp, MOID_T *m, int *num_refs, int *num_pointers);
 tree a68_consolidate_ref (MOID_T *m, tree expr);
-tree a68_lower_alloca (tree type, tree size);
-tree a68_lower_malloc (tree type, tree size);
+tree a68_lower_alloca (MOID_T *m, tree size);
+tree a68_lower_malloc (MOID_T *m, tree size);
 tree a68_checked_indirect_ref (NODE_T *p, tree exp, MOID_T *exp_mode);
 tree a68_low_deref (tree exp, NODE_T *p);
 tree a68_low_dup (tree exp, bool use_heap = false);
@@ -851,6 +837,11 @@ tree a68_union_value (MOID_T *mode, tree exp, MOID_T *exp_mode);
 tree a68_union_translate_overhead (MOID_T *from, tree from_overhead, MOID_T *to);
 bool a68_union_contains_mode (MOID_T *p, MOID_T *q);
 
+/* a68-low-holes.cc */
+
+tree a68_wrap_formal_var_hole (NODE_T *p);
+void a68_wrap_formal_proc_hole (NODE_T *p, tree fndecl);
+
 /* a68-low-units.cc  */
 
 tree a68_lower_identifier (NODE_T *p, LOW_CTX_T ctx);
@@ -873,6 +864,7 @@ tree a68_lower_assignation (NODE_T *p, LOW_CTX_T ctx);
 tree a68_lower_routine_text (NODE_T *p, LOW_CTX_T ctx);
 tree a68_lower_generator (NODE_T *p, LOW_CTX_T ctx);
 tree a68_lower_call (NODE_T *p, LOW_CTX_T ctx);
+tree a68_lower_formal_hole (NODE_T *p, LOW_CTX_T ctx);
 tree a68_lower_unit (NODE_T *p, LOW_CTX_T ctx);
 
 /* a68-low-generator.c  */
@@ -993,17 +985,6 @@ tree a68_lower_longbitswidth (NODE_T *p, LOW_CTX_T ctx);
 tree a68_lower_longlongbitswidth (NODE_T *p, LOW_CTX_T ctx);
 tree a68_lower_shortbitswidth (NODE_T *p, LOW_CTX_T ctx);
 tree a68_lower_shortshortbitswidth (NODE_T *p, LOW_CTX_T ctx);
-tree a68_lower_intwidth (NODE_T *p, LOW_CTX_T ctx);
-tree a68_lower_longintwidth (NODE_T *p, LOW_CTX_T ctx);
-tree a68_lower_longlongintwidth (NODE_T *p, LOW_CTX_T ctx);
-tree a68_lower_shortintwidth (NODE_T *p, LOW_CTX_T ctx);
-tree a68_lower_shortshortintwidth (NODE_T *p, LOW_CTX_T ctx);
-tree a68_lower_realwidth (NODE_T *p, LOW_CTX_T ctx);
-tree a68_lower_longrealwidth (NODE_T *p, LOW_CTX_T ctx);
-tree a68_lower_longlongrealwidth (NODE_T *p, LOW_CTX_T ctx);
-tree a68_lower_expwidth (NODE_T *p, LOW_CTX_T ctx);
-tree a68_lower_longexpwidth (NODE_T *p, LOW_CTX_T ctx);
-tree a68_lower_longlongexpwidth (NODE_T *p, LOW_CTX_T ctx);
 tree a68_lower_pi (NODE_T *p, LOW_CTX_T ctx);
 tree a68_lower_nullcharacter (NODE_T *p, LOW_CTX_T ctx);
 tree a68_lower_flip (NODE_T *p, LOW_CTX_T ctx);
@@ -1067,38 +1048,9 @@ tree a68_lower_shortenreal2 (NODE_T *p, LOW_CTX_T ctx);
 tree a68_lower_random (NODE_T *p, LOW_CTX_T ctx);
 tree a68_lower_longrandom (NODE_T *p, LOW_CTX_T ctx);
 tree a68_lower_longlongrandom (NODE_T *p, LOW_CTX_T ctx);
-tree a68_lower_setexitstatus (NODE_T *p, LOW_CTX_T ctx);
-tree a68_lower_posixargc (NODE_T *p, LOW_CTX_T ctx);
-tree a68_lower_posixargv (NODE_T *p, LOW_CTX_T ctx);
-tree a68_lower_posixputchar (NODE_T *p, LOW_CTX_T ctx);
-tree a68_lower_posixputs (NODE_T *p, LOW_CTX_T ctx);
-tree a68_lower_posixfputc (NODE_T *p, LOW_CTX_T ctx);
-tree a68_lower_posixfputs (NODE_T *p, LOW_CTX_T ctx);
-tree a68_lower_posixgetenv (NODE_T *p, LOW_CTX_T ctx);
-tree a68_lower_posixfconnect (NODE_T *p, LOW_CTX_T ctx);
-tree a68_lower_posixfopen (NODE_T *p, LOW_CTX_T ctx);
-tree a68_lower_posixfcreate (NODE_T *p, LOW_CTX_T ctx);
-tree a68_lower_posixfclose (NODE_T *p, LOW_CTX_T ctx);
-tree a68_lower_posixfsize (NODE_T *p, LOW_CTX_T ctx);
-tree a68_lower_posixlseek (NODE_T *p, LOW_CTX_T ctx);
-tree a68_lower_posixseekcur (NODE_T *p, LOW_CTX_T ctx);
-tree a68_lower_posixseekend (NODE_T *p, LOW_CTX_T ctx);
-tree a68_lower_posixseekset (NODE_T *p, LOW_CTX_T ctx);
-tree a68_lower_posixstdinfiledes (NODE_T *p, LOW_CTX_T ctx);
-tree a68_lower_posixstdoutfiledes (NODE_T *p, LOW_CTX_T ctx);
-tree a68_lower_posixstderrfiledes (NODE_T *p, LOW_CTX_T ctx);
-tree a68_lower_posixfileodefault (NODE_T *p, LOW_CTX_T ctx);
-tree a68_lower_posixfileordwr (NODE_T *p, LOW_CTX_T ctx);
-tree a68_lower_posixfileordonly (NODE_T *p, LOW_CTX_T ctx);
-tree a68_lower_posixfileowronly (NODE_T *p, LOW_CTX_T ctx);
-tree a68_lower_posixfileotrunc (NODE_T *p, LOW_CTX_T ctx);
-tree a68_lower_posixerrno (NODE_T *p, LOW_CTX_T ctx);
-tree a68_lower_posixperror (NODE_T *p, LOW_CTX_T ctx);
-tree a68_lower_posixstrerror (NODE_T *p, LOW_CTX_T ctx);
-tree a68_lower_posixgetchar (NODE_T *p, LOW_CTX_T ctx);
-tree a68_lower_posixfgetc (NODE_T *p, LOW_CTX_T ctx);
-tree a68_lower_posixgets (NODE_T *p, LOW_CTX_T ctx);
-tree a68_lower_posixfgets (NODE_T *p, LOW_CTX_T ctx);
+tree a68_lower_set3 (NODE_T *p, LOW_CTX_T ctx);
+tree a68_lower_clear3 (NODE_T *p, LOW_CTX_T ctx);
+tree a68_lower_test3 (NODE_T *p, LOW_CTX_T ctx);
 
 /* a68-exports.cc  */
 
@@ -1108,8 +1060,15 @@ void a68_do_exports (NODE_T *p);
 
 /* a68-imports.cc  */
 
-MOIF_T *a68_open_packet (const char *module);
+MOIF_T *a68_open_packet (const char *module, const char *filename = NULL);
 bool a68_process_module_map (const char *map, const char **errmsg);
+char *a68_find_object_export_data (const std::string &filename,
+				   int fd, off_t offset, size_t *size);
+
+/* a68-imports-archive.cc  */
+
+bool a68_is_archive_magic (const char *bytes);
+char *a68_find_archive_export_data (const char *filename, int fd, size_t *size);
 
 /* a68-parser-debug.cc  */
 

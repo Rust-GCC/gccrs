@@ -24,6 +24,7 @@ LIB2ADD += $(srcdir)/config/aarch64/cpuinfo.c
 # Add sme runtime to shared libgcc
 LIB2ADDEH += \
 	$(srcdir)/config/aarch64/__aarch64_have_sme.c \
+	$(srcdir)/config/aarch64/__arm_get_current_vg.S \
 	$(srcdir)/config/aarch64/__arm_sme_state.S \
 	$(srcdir)/config/aarch64/__arm_tpidr2_restore.S \
 	$(srcdir)/config/aarch64/__arm_tpidr2_save.S \

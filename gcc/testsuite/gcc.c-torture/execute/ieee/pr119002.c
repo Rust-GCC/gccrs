@@ -1,3 +1,4 @@
+/* { dg-do run } */
 /* PR rtl-optimization/119002 */
 
 __attribute__((noipa)) unsigned int

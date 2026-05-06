@@ -620,7 +620,7 @@ check_add_new_comp_handle_array (gfc_expr *e, gfc_symbol *type,
 	  c->expr2->ref->u.ar.codimen = 1;
 	  c->expr2->ref->u.ar.dimen_type[0] = DIMEN_ELEMENT;
 	  caller_image
-	    = gfc_find_symtree_in_proc ("caller_image", add_data->ns);
+	    = gfc_find_symtree_in_proc ("__caller_image", add_data->ns);
 	  gcc_assert (caller_image);
 	  c->expr2->ref->u.ar.start[0] = gfc_get_variable_expr (caller_image);
 	  c->expr2->ref->u.ar.start[0]->where = e->where;
@@ -696,21 +696,11 @@ check_add_new_component (gfc_symbol *type, gfc_expr *e, gfc_symbol *add_data)
 	    check_add_new_component (type, actual->expr, add_data);
 	  break;
 	case EXPR_FUNCTION:
-	  if (!e->symtree->n.sym->attr.pure
-	      && !e->symtree->n.sym->attr.elemental
-	      && !(e->value.function.isym
-		   && (e->value.function.isym->pure
-		       || e->value.function.isym->elemental)))
-	    /* Treat non-pure/non-elemental functions.  */
-	    check_add_new_comp_handle_array (e, type, add_data);
-	  else
-	    for (gfc_actual_arglist *actual = e->value.function.actual; actual;
-		 actual = actual->next)
-	      check_add_new_component (type, actual->expr, add_data);
+	  check_add_new_comp_handle_array (e, type, add_data);
 	  break;
 	case EXPR_VARIABLE:
-	    check_add_new_comp_handle_array (e, type, add_data);
-	    break;
+	  check_add_new_comp_handle_array (e, type, add_data);
+	  break;
 	case EXPR_ARRAY:
 	case EXPR_PPC:
 	case EXPR_STRUCTURE:
@@ -876,16 +866,16 @@ create_get_callback (gfc_expr *expr)
   (*argptr)->sym = nsym;                                                       \
   argptr = &(*argptr)->next
 
-  name = xasprintf ("add_data_%s_%s_%d", mname, tname, caf_sym_cnt);
+  name = xasprintf ("__add_data_%s_%s_%d", mname, tname, caf_sym_cnt);
   ADD_ARG (name, get_data, BT_DERIVED, 0, INTENT_IN);
   gfc_commit_symbol (get_data);
   free (name);
 
-  ADD_ARG ("caller_image", caller_image, BT_INTEGER, gfc_default_integer_kind,
+  ADD_ARG ("__caller_image", caller_image, BT_INTEGER, gfc_default_integer_kind,
 	   INTENT_IN);
   gfc_commit_symbol (caller_image);
 
-  ADD_ARG ("buffer", buffer, expr->ts.type, expr->ts.kind, INTENT_INOUT);
+  ADD_ARG ("__buffer", buffer, expr->ts.type, expr->ts.kind, INTENT_INOUT);
   buffer->ts = expr->ts;
   if (expr_rank)
     {
@@ -925,7 +915,7 @@ create_get_callback (gfc_expr *expr)
     }
   gfc_commit_symbol (buffer);
 
-  ADD_ARG ("free_buffer", free_buffer, BT_LOGICAL, gfc_default_logical_kind,
+  ADD_ARG ("__free_buffer", free_buffer, BT_LOGICAL, gfc_default_logical_kind,
 	   INTENT_OUT);
   gfc_commit_symbol (free_buffer);
 
@@ -1125,15 +1115,16 @@ create_allocated_callback (gfc_expr *expr)
   (*argptr)->sym = nsym;                                                       \
   argptr = &(*argptr)->next
 
-  name = xasprintf ("add_data_%s_%s_%d", mname, tname, ++caf_sym_cnt);
+  name = xasprintf ("__add_data_%s_%s_%d", mname, tname, ++caf_sym_cnt);
   ADD_ARG (name, add_data, BT_DERIVED, 0, INTENT_IN);
   gfc_commit_symbol (add_data);
   free (name);
-  ADD_ARG ("caller_image", caller_image, BT_INTEGER, gfc_default_integer_kind,
+  ADD_ARG ("__caller_image", caller_image, BT_INTEGER, gfc_default_integer_kind,
 	   INTENT_IN);
   gfc_commit_symbol (caller_image);
 
-  ADD_ARG ("result", result, BT_LOGICAL, gfc_default_logical_kind, INTENT_OUT);
+  ADD_ARG ("__result", result, BT_LOGICAL, gfc_default_logical_kind,
+	   INTENT_OUT);
   gfc_commit_symbol (result);
 
   // ADD_ARG (expr->symtree->name, base, BT_VOID, INTENT_IN);
@@ -1270,12 +1261,12 @@ create_send_callback (gfc_expr *expr, gfc_expr *rhs)
   (*argptr)->sym = nsym;                                                       \
   argptr = &(*argptr)->next
 
-  name = xasprintf ("add_send_data_%s_%s_%d", mname, tname, caf_sym_cnt);
+  name = xasprintf ("__add_send_data_%s_%s_%d", mname, tname, caf_sym_cnt);
   ADD_ARG (name, send_data, BT_DERIVED, 0, INTENT_IN);
   gfc_commit_symbol (send_data);
   free (name);
 
-  ADD_ARG ("caller_image", caller_image, BT_INTEGER, gfc_default_integer_kind,
+  ADD_ARG ("__caller_image", caller_image, BT_INTEGER, gfc_default_integer_kind,
 	   INTENT_IN);
   gfc_commit_symbol (caller_image);
 
@@ -1289,7 +1280,7 @@ create_send_callback (gfc_expr *expr, gfc_expr *rhs)
   argptr = &(*argptr)->next;
   gfc_commit_symbol (base);
 
-  ADD_ARG ("buffer", buffer, rhs->ts.type, rhs->ts.kind, INTENT_IN);
+  ADD_ARG ("__buffer", buffer, rhs->ts.type, rhs->ts.kind, INTENT_IN);
   buffer->ts = rhs->ts;
   if (rhs->rank)
     {

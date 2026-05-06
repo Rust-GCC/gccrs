@@ -1,7 +1,12 @@
-/* Definitions for C++ contract levels.  Implements functionality described in
-   the N4820 working draft version of contracts, P1290, P1332, and P1429.
+/* Definitions for C++26 contracts.
+
    Copyright (C) 2020-2026 Free Software Foundation, Inc.
-   Contributed by Jeff Chapman II (jchapman@lock3software.com)
+   Originally by Jeff Chapman II (jchapman@lock3software.com) for proposed
+   C++20 contracts.
+   Rewritten for C++26 contracts by:
+     Nina Ranns (dinka.ranns@googlemail.com)
+     Iain Sandoe (iain@sandoe.co.uk)
+     Ville Voutilainen (ville.voutilainen@gmail.com).
 
 This file is part of GCC.
 
@@ -22,135 +27,42 @@ along with GCC; see the file COPYING3.  If not see
 #ifndef GCC_CP_CONTRACT_H
 #define GCC_CP_CONTRACT_H
 
-/* Contract levels approximate the complexity of the expression.  */
+#include <cstdint>
 
-enum contract_level
-{
-  CONTRACT_INVALID,
-  CONTRACT_DEFAULT,
-  CONTRACT_AUDIT,
-  CONTRACT_AXIOM
+/* Contract assertion kind */
+/* Must match relevant enums in <contracts> header  */
+
+enum contract_assertion_kind : uint16_t {
+  CAK_INVALID = 0 ,
+  CAK_PRE = 1 ,
+  CAK_POST = 2 ,
+  CAK_ASSERT = 3,
 };
 
-/* The concrete semantics determine the behavior of a contract.  */
-
-enum contract_semantic
-{
-  CCS_INVALID,
-  CCS_IGNORE,
-  CCS_ASSUME,
-  CCS_NEVER,
-  CCS_MAYBE
+/* Per P2900R14 + D3290R3 + extensions.  */
+enum contract_evaluation_semantic : uint16_t {
+  CES_INVALID = 0,
+  CES_IGNORE = 1,
+  CES_OBSERVE = 2,
+  CES_ENFORCE = 3,
+  CES_QUICK = 4,
 };
 
-/* True if the contract is unchecked.  */
-
-inline bool
-unchecked_contract_p (contract_semantic cs)
-{
-  return cs == CCS_IGNORE || cs == CCS_ASSUME;
-}
-
-/* True if the contract is checked.  */
-
-inline bool
-checked_contract_p (contract_semantic cs)
-{
-  return cs >= CCS_NEVER;
-}
-
-/* Must match std::contract_violation_continuation_mode in <contract>.  */
-enum contract_continuation
-{
-  NEVER_CONTINUE,
-  MAYBE_CONTINUE
+enum detection_mode : uint16_t {
+  CDM_UNSPECIFIED = 0,
+  CDM_PREDICATE_FALSE = 1,
+  CDM_EVAL_EXCEPTION = 2
 };
 
-/* Assertion role info.  */
-struct contract_role
-{
-  const char *name;
-  contract_semantic default_semantic;
-  contract_semantic audit_semantic;
-  contract_semantic axiom_semantic;
-};
+/* Contract evaluation_semantic */
+#define CONTRACT_EVALUATION_SEMANTIC(NODE) \
+  (TREE_OPERAND (CONTRACT_CHECK (NODE), 0))
 
-/* Information for configured contract semantics.  */
+#define CONTRACT_ASSERTION_KIND(NODE) \
+  (TREE_OPERAND (CONTRACT_CHECK (NODE), 1))
 
-struct contract_configuration
-{
-  contract_level level;
-  contract_role* role;
-};
-
-/* A contract mode contains information used to derive the checking
-   and assumption semantics of a contract. This is either a dynamic
-   configuration, meaning it derives from the build mode, or it is
-   explicitly specified.  */
-
-struct contract_mode
-{
-  contract_mode () : kind(cm_invalid) {}
-  contract_mode (contract_level level, contract_role *role = NULL)
-    : kind(cm_dynamic)
-  {
-    contract_configuration cc;
-    cc.level = level;
-    cc.role = role;
-    u.config = cc;
-  }
-  contract_mode (contract_semantic semantic) : kind(cm_explicit)
-  {
-    u.semantic = semantic;
-  }
-
-  contract_level get_level () const
-  {
-    gcc_assert (kind == cm_dynamic);
-    return u.config.level;
-  }
-
-  contract_role *get_role () const
-  {
-    gcc_assert (kind == cm_dynamic);
-    return u.config.role;
-  }
-
-  contract_semantic get_semantic () const
-  {
-    gcc_assert (kind == cm_explicit);
-    return u.semantic;
-  }
-
-  enum { cm_invalid, cm_dynamic, cm_explicit } kind;
-
-  union
-  {
-    contract_configuration config;
-    contract_semantic semantic;
-  } u;
-};
-
-/* Map a source level semantic or level name to its value, or invalid.  */
-extern contract_semantic map_contract_semantic	(const char *);
-extern contract_level map_contract_level	(const char *);
-
-/* Check if an attribute is a cxx contract attribute.  */
-extern bool cxx_contract_attribute_p		(const_tree);
-extern bool cp_contract_assertion_p		(const_tree);
-
-/* Handle various command line arguments related to semantic mapping.  */
-extern void handle_OPT_fcontract_build_level_	(const char *);
-extern void handle_OPT_fcontract_assumption_mode_ (const char *);
-extern void handle_OPT_fcontract_continuation_mode_ (const char *);
-extern void handle_OPT_fcontract_role_		(const char *);
-extern void handle_OPT_fcontract_semantic_	(const char *);
-
-enum contract_matching_context
-{
-  cmc_declaration,
-  cmc_override
-};
+#define CONTRACT_CHECK(NODE) \
+  (TREE_CHECK3 (NODE, ASSERTION_STMT, PRECONDITION_STMT, POSTCONDITION_STMT))
 
 /* True if NODE is any kind of contract.  */
 #define CONTRACT_P(NODE)			\
@@ -171,21 +83,9 @@ enum contract_matching_context
 #define POSTCONDITION_P(NODE)          \
   (TREE_CODE (NODE) == POSTCONDITION_STMT)
 
-#define CONTRACT_CHECK(NODE) \
-  (TREE_CHECK3 (NODE, ASSERTION_STMT, PRECONDITION_STMT, POSTCONDITION_STMT))
-
 /* True iff the FUNCTION_DECL NODE currently has any contracts.  */
 #define DECL_HAS_CONTRACTS_P(NODE) \
-  (DECL_CONTRACTS (NODE) != NULL_TREE)
-
-/* For a FUNCTION_DECL of a guarded function, this points to a list of the pre
-   and post contracts of the first decl of NODE in original order. */
-#define DECL_CONTRACTS(NODE) \
-  (find_contract (DECL_ATTRIBUTES (NODE)))
-
-/* The next contract (if any) after this one in an attribute list.  */
-#define CONTRACT_CHAIN(NODE) \
-  (find_contract (TREE_CHAIN (NODE)))
+  (get_fn_contract_specifiers (NODE) != NULL_TREE)
 
 /* The wrapper of the original source location of a list of contracts.  */
 #define CONTRACT_SOURCE_LOCATION_WRAPPER(NODE) \
@@ -195,38 +95,13 @@ enum contract_matching_context
 #define CONTRACT_SOURCE_LOCATION(NODE) \
   (EXPR_LOCATION (CONTRACT_SOURCE_LOCATION_WRAPPER (NODE)))
 
-/* The actual code _STMT for a contract attribute.  */
+/* The actual code _STMT for a contract specifier.  */
 #define CONTRACT_STATEMENT(NODE) \
   (TREE_VALUE (TREE_VALUE (NODE)))
 
-/* True if the contract semantic was specified literally. If true, the
-   contract mode is an identifier containing the semantic. Otherwise,
-   it is a TREE_LIST whose TREE_VALUE is the level and whose TREE_PURPOSE
-   is the role.  */
-#define CONTRACT_LITERAL_MODE_P(NODE) \
-  (CONTRACT_MODE (NODE) != NULL_TREE \
-   && TREE_CODE (CONTRACT_MODE (NODE)) == IDENTIFIER_NODE)
-
-/* The identifier denoting the literal semantic of the contract.  */
-#define CONTRACT_LITERAL_SEMANTIC(NODE) \
-  (TREE_OPERAND (NODE, 0))
-
-/* The written "mode" of the contract. Either an IDENTIFIER with the
-   literal semantic or a TREE_LIST containing the level and role.  */
-#define CONTRACT_MODE(NODE) \
-  (TREE_OPERAND (CONTRACT_CHECK (NODE), 0))
-
-/* The identifier denoting the build level of the contract. */
-#define CONTRACT_LEVEL(NODE)		\
-  (TREE_VALUE (CONTRACT_MODE (NODE)))
-
-/* The identifier denoting the role of the contract */
-#define CONTRACT_ROLE(NODE)		\
-  (TREE_PURPOSE (CONTRACT_MODE (NODE)))
-
 /* The parsed condition of the contract.  */
 #define CONTRACT_CONDITION(NODE) \
-  (TREE_OPERAND (CONTRACT_CHECK (NODE), 1))
+  (TREE_OPERAND (CONTRACT_CHECK (NODE), 2))
 
 /* True iff the condition of the contract NODE is not yet parsed.  */
 #define CONTRACT_CONDITION_DEFERRED_P(NODE) \
@@ -234,12 +109,16 @@ enum contract_matching_context
 
 /* The raw comment of the contract.  */
 #define CONTRACT_COMMENT(NODE) \
-  (TREE_OPERAND (CONTRACT_CHECK (NODE), 2))
+  (TREE_OPERAND (CONTRACT_CHECK (NODE), 3))
+
+/* A std::source_location, if provided.  */
+#define CONTRACT_STD_SOURCE_LOC(NODE) \
+  (TREE_OPERAND (CONTRACT_CHECK (NODE), 4))
 
 /* The VAR_DECL of a postcondition result. For deferred contracts, this
    is an IDENTIFIER.  */
 #define POSTCONDITION_IDENTIFIER(NODE) \
-  (TREE_OPERAND (POSTCONDITION_STMT_CHECK (NODE), 3))
+  (TREE_OPERAND (POSTCONDITION_STMT_CHECK (NODE), 5))
 
 /* For a FUNCTION_DECL of a guarded function, this holds the function decl
    where pre contract checks are emitted.  */
@@ -253,93 +132,104 @@ enum contract_matching_context
 
 /* True iff the FUNCTION_DECL is the pre function for a guarded function.  */
 #define DECL_IS_PRE_FN_P(NODE) \
-  (DECL_ABSTRACT_ORIGIN (NODE) && DECL_PRE_FN (DECL_ABSTRACT_ORIGIN (NODE)) == NODE)
+  (DECL_DECLARES_FUNCTION_P (NODE) && DECL_LANG_SPECIFIC (NODE) \
+   && CONTRACT_HELPER (NODE) == ldf_contract_pre)
 
 /* True iff the FUNCTION_DECL is the post function for a guarded function.  */
 #define DECL_IS_POST_FN_P(NODE) \
-  (DECL_ABSTRACT_ORIGIN (NODE) && DECL_POST_FN (DECL_ABSTRACT_ORIGIN (NODE)) == NODE)
+  (DECL_DECLARES_FUNCTION_P (NODE) && DECL_LANG_SPECIFIC (NODE) \
+   && CONTRACT_HELPER (NODE) == ldf_contract_post)
+
+#define DECL_IS_WRAPPER_FN_P(NODE) \
+  (DECL_DECLARES_FUNCTION_P (NODE) && DECL_LANG_SPECIFIC (NODE) && \
+   DECL_CONTRACT_WRAPPER (NODE))
+
+/* Allow specifying a sub-set of contract kinds to copy.  */
+enum contract_match_kind
+{
+  cmk_all,
+  cmk_pre,
+  cmk_post
+};
 
 /* contracts.cc */
-extern void emit_assertion			(tree);
 
-extern void remove_contract_attributes		(tree);
-extern bool all_attributes_are_contracts_p	(tree);
-extern tree finish_contract_attribute		(tree, tree);
-extern void copy_contract_attributes		(tree, tree);
-extern bool diagnose_misapplied_contracts	(tree);
-extern void remap_contracts			(tree, tree, tree, bool);
-extern tree splice_out_contracts		(tree);
-extern void inherit_base_contracts		(tree, tree);
+extern void init_contracts			(void);
+
+extern tree grok_contract			(tree, tree, tree, cp_expr, location_t);
+extern tree finish_contract_specifier 		(tree, tree);
+extern tree finish_contract_condition		(cp_expr);
+extern void update_late_contract		(tree, tree, cp_expr);
+extern void check_redecl_contract		(tree, tree);
+extern tree invalidate_contract			(tree);
+extern tree copy_and_remap_contracts		(tree, tree, contract_match_kind = cmk_all);
+extern tree constify_contract_access		(tree);
+extern tree view_as_const			(tree);
+
+extern void set_fn_contract_specifiers		(tree, tree);
+extern void update_fn_contract_specifiers	(tree, tree);
+extern tree get_fn_contract_specifiers		(tree);
+extern void remove_decl_with_fn_contracts_specifiers (tree);
+extern void remove_fn_contract_specifiers	(tree);
+extern void update_contract_arguments		(tree, tree);
 
 extern tree make_postcondition_variable		(cp_expr);
 extern tree make_postcondition_variable		(cp_expr, tree);
+extern void check_param_in_postcondition	(tree, location_t);
+extern void check_postconditions_in_redecl	(tree, tree);
 extern void maybe_update_postconditions		(tree);
 extern void rebuild_postconditions		(tree);
 extern bool check_postcondition_result		(tree, tree, location_t);
 
-extern tree grok_contract			(tree, tree, tree, cp_expr,
-						 location_t);
-extern tree finish_contract_condition		(cp_expr);
-extern void update_late_contract		(tree, tree, tree);
-extern tree invalidate_contract			(tree);
-extern void duplicate_contracts			(tree, tree);
-
-extern void match_deferred_contracts		(tree);
-extern void defer_guarded_contract_match	(tree, tree, tree);
+extern bool contract_any_deferred_p 		(tree);
 
 extern tree get_precondition_function		(tree);
 extern tree get_postcondition_function		(tree);
+extern tree get_orig_for_outlined		(tree);
+
 extern void start_function_contracts		(tree);
 extern void maybe_apply_function_contracts	(tree);
-extern void finish_function_contracts		(tree);
+extern void finish_function_outlined_contracts	(tree);
 extern void set_contract_functions		(tree, tree, tree);
+
+extern tree maybe_contract_wrap_call		(tree, tree);
+extern bool emit_contract_wrapper_func		(bool);
+extern void maybe_emit_violation_handler_wrappers (void);
 
 extern tree build_contract_check		(tree);
 
-/* Return the first contract in ATTRS, or NULL_TREE if there are none.  */
+/* Test if EXP is a contract const wrapper node.  */
+
+inline bool
+contract_const_wrapper_p (const_tree exp)
+{
+  /* A wrapper node has code VIEW_CONVERT_EXPR, and the flag base.private_flag
+     is set. The wrapper node is used to used to constify entities inside
+     contract assertions.  */
+  return ((TREE_CODE (exp) == VIEW_CONVERT_EXPR) && CONST_WRAPPER_P (exp));
+}
+
+/* If EXP is a contract_const_wrapper_p, return the wrapped expression.
+   Otherwise, do nothing. */
 
 inline tree
-find_contract (tree attrs)
+strip_contract_const_wrapper (tree exp)
 {
-  while (attrs && !cxx_contract_attribute_p (attrs))
-    attrs = TREE_CHAIN (attrs);
-  return attrs;
+  if (contract_const_wrapper_p (exp))
+    return TREE_OPERAND (exp, 0);
+  else
+    return exp;
 }
 
-inline void
-set_decl_contracts (tree decl, tree contract_attrs)
-{
-  remove_contract_attributes (decl);
-  DECL_ATTRIBUTES (decl) = chainon (DECL_ATTRIBUTES (decl), contract_attrs);
-}
-
-/* Returns the computed semantic of the node.  */
-
-inline contract_semantic
-get_contract_semantic (const_tree t)
-{
-  return (contract_semantic) (TREE_LANG_FLAG_3 (CONTRACT_CHECK (t))
-      | (TREE_LANG_FLAG_2 (t) << 1)
-      | (TREE_LANG_FLAG_0 ((t)) << 2));
-}
-
-/* Sets the computed semantic of the node.  */
-
-inline void
-set_contract_semantic (tree t, contract_semantic semantic)
-{
-  TREE_LANG_FLAG_3 (CONTRACT_CHECK (t)) = semantic & 0x01;
-  TREE_LANG_FLAG_2 (t) = (semantic & 0x02) >> 1;
-  TREE_LANG_FLAG_0 (t) = (semantic & 0x04) >> 2;
-}
-
+/* TODO : decide if we should push the tests into contracts.cc  */
+extern contract_evaluation_semantic get_evaluation_semantic (const_tree);
 
 /* Will this contract be ignored.  */
 
 inline bool
 contract_ignored_p (const_tree contract)
 {
-  return (get_contract_semantic (contract) <= CCS_IGNORE);
+  return (get_evaluation_semantic (contract) <= CES_IGNORE);
 }
 
 /* Will this contract be evaluated?  */
@@ -347,6 +237,16 @@ contract_ignored_p (const_tree contract)
 inline bool
 contract_evaluated_p (const_tree contract)
 {
-  return (get_contract_semantic (contract) >= CCS_NEVER);
+  return (get_evaluation_semantic (contract) >= CES_OBSERVE);
 }
+
+/* Is the contract terminating?  */
+
+inline bool
+contract_terminating_p (const_tree contract)
+{
+  return (get_evaluation_semantic (contract) == CES_ENFORCE
+	  || get_evaluation_semantic (contract) == CES_QUICK);
+}
+
 #endif /* ! GCC_CP_CONTRACT_H */

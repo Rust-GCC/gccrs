@@ -68,11 +68,83 @@ test_hash()
   (void)std::hash<std::indirect<Obj>>{}(i);
 }
 
+template<bool Noexcept>
+struct BoolConv
+{
+  bool b;
+
+  constexpr BoolConv(bool p) noexcept
+  : b(p)
+  { }
+
+  constexpr operator bool() const noexcept(Noexcept)
+  { return b; }
+};
+
+template<bool Noexcept, typename EqRet = bool>
+struct Comp
+{
+  friend constexpr EqRet
+  operator==(const Comp&, const Comp&) noexcept(Noexcept)
+  { return true; }
+
+  friend constexpr std::strong_ordering
+  operator<=>(const Comp&, const Comp&) noexcept(Noexcept)
+  { return std::strong_ordering::equal; }
+};
+
+template<bool Noexcept, typename T>
+void test_noexcept_eq(T t)
+{
+  std::indirect<T> i(t);
+  static_assert(noexcept(i == t) == Noexcept);
+  static_assert(noexcept(i != t) == Noexcept);
+  static_assert(noexcept(i == i) == Noexcept);
+  static_assert(noexcept(i != i) == Noexcept);
+}
+
+template<bool Noexcept, typename T>
+void test_noexcept_rel(T t)
+{
+  std::indirect<T> i(t);
+  static_assert(noexcept(i < t) == Noexcept);
+  static_assert(noexcept(i > t) == Noexcept);
+  static_assert(noexcept(i <= t) == Noexcept);
+  static_assert(noexcept(i >= t) == Noexcept);
+  static_assert(noexcept(i <=> t) == Noexcept);
+
+  static_assert(noexcept(t < i) == Noexcept);
+  static_assert(noexcept(t > i) == Noexcept);
+  static_assert(noexcept(t <= i) == Noexcept);
+  static_assert(noexcept(t >= i) == Noexcept);
+  static_assert(noexcept(t <=> i) == Noexcept);
+
+  static_assert(noexcept(i < i) == Noexcept);
+  static_assert(noexcept(i > i) == Noexcept);
+  static_assert(noexcept(i <= i) == Noexcept);
+  static_assert(noexcept(i >= i) == Noexcept);
+  static_assert(noexcept(i <=> i) == Noexcept);
+}
+
+void test_noexcept()
+{
+  test_noexcept_eq<true>(Comp<true>());
+  test_noexcept_eq<false>(Comp<false>());
+  test_noexcept_rel<true>(Comp<true>());
+  test_noexcept_rel<false>(Comp<false>());
+
+  test_noexcept_eq<true>(Comp<true, BoolConv<true>>());
+  test_noexcept_eq<false>(Comp<true, BoolConv<false>>());
+  test_noexcept_eq<false>(Comp<false, BoolConv<true>>());
+  test_noexcept_eq<false>(Comp<false, BoolConv<false>>());
+}
+
 int main()
 {
   test_relops();
   test_comp_with_t();
   test_hash();
+  test_noexcept();
 
   static_assert([] {
     test_relops();

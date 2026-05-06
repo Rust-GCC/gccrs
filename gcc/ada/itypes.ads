@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2026, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -25,7 +25,6 @@
 
 --  This package contains declarations for handling of implicit types
 
-with Einfo;          use Einfo;
 with Einfo.Entities; use Einfo.Entities;
 with Sem_Util;       use Sem_Util;
 with Types;          use Types;

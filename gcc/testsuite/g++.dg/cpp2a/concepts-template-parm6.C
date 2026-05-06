@@ -40,5 +40,5 @@ template<Int... Ts> struct S3 { }; // requires (C<Ts> && ...)
 S3<int, int, char> x0; // { dg-error "template constraint failure" }
 
 template<Int auto... Xs> struct S4 { }; // requires (C<X> && ...) with each X deduced
-S4<0, 1, 2, 'a'> x1; // { dg-error "placeholder constraints not satisfied" }
+S4<0, 1, 2, 'a'> x1; // { dg-error "template constraint failure" }
 

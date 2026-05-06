@@ -2029,6 +2029,9 @@ gimple_expand_builtin_pow (gimple_stmt_iterator *gsi, location_t loc,
 	  || REAL_VALUE_ISSIGNALING_NAN (TREE_REAL_CST (arg1))))
     return NULL_TREE;
 
+  if (flag_errno_math)
+    return NULL_TREE;
+
   /* If the exponent is equivalent to an integer, expand to an optimal
      multiplication sequence when profitable.  */
   c = TREE_REAL_CST (arg1);
@@ -2979,6 +2982,11 @@ convert_plusminus_to_widen (gimple_stmt_iterator *gsi, gimple *stmt,
   if (to_mode == from_mode)
     return false;
 
+  /* For fixed point types, the mode classes could be different
+     so reject that case. */
+  if (GET_MODE_CLASS (from_mode) != GET_MODE_CLASS (to_mode))
+    return false;
+
   from_unsigned1 = TYPE_UNSIGNED (type1);
   from_unsigned2 = TYPE_UNSIGNED (type2);
   optype = type1;
@@ -3105,7 +3113,6 @@ convert_plusminus_to_widen (gimple_stmt_iterator *gsi, gimple *stmt,
 static void
 convert_mult_to_fma_1 (tree mul_result, tree op1, tree op2)
 {
-  tree type = TREE_TYPE (mul_result);
   gimple *use_stmt;
   imm_use_iterator imm_iter;
   gcall *fma_stmt;
@@ -3119,6 +3126,26 @@ convert_mult_to_fma_1 (tree mul_result, tree op1, tree op2)
 
       if (is_gimple_debug (use_stmt))
 	continue;
+
+      /* If the use is a type convert, look further into it if the operations
+	 are the same under two's complement.  */
+      tree lhs_type;
+      if (gimple_assign_cast_p (use_stmt)
+	  && (lhs_type = TREE_TYPE (gimple_get_lhs (use_stmt)))
+	  && tree_nop_conversion_p (lhs_type, TREE_TYPE (op1)))
+	{
+	  tree cast_lhs = gimple_get_lhs (use_stmt);
+	  gimple *tmp_use;
+	  use_operand_p tmp_use_p;
+	  if (single_imm_use (cast_lhs, &tmp_use_p, &tmp_use))
+	    {
+	      release_defs (use_stmt);
+	      use_stmt = tmp_use;
+	      result = cast_lhs;
+	      gsi_remove (&gsi, true);
+	      gsi = gsi_for_stmt (use_stmt);
+	    }
+	}
 
       if (is_gimple_assign (use_stmt)
 	  && gimple_assign_rhs_code (use_stmt) == NEGATE_EXPR)
@@ -3147,17 +3174,24 @@ convert_mult_to_fma_1 (tree mul_result, tree op1, tree op2)
 	{
 	  if (ops[0] == result)
 	    /* a * b - c -> a * b + (-c)  */
-	    addop = gimple_build (&seq, NEGATE_EXPR, type, addop);
+	    addop = gimple_build (&seq, NEGATE_EXPR, TREE_TYPE (addop), addop);
 	  else
 	    /* a - b * c -> (-b) * c + a */
 	    negate_p = !negate_p;
 	}
 
       if (negate_p)
-	mulop1 = gimple_build (&seq, NEGATE_EXPR, type, mulop1);
+	mulop1 = gimple_build (&seq, NEGATE_EXPR, TREE_TYPE (mulop1), mulop1);
 
       if (seq)
 	gsi_insert_seq_before (&gsi, seq, GSI_SAME_STMT);
+
+      /* Ensure all the operands are of the same type.  Use the type of the
+	 addend as that's the statement being replaced.  */
+      op2 = gimple_convert (&gsi, true, GSI_SAME_STMT,
+			    UNKNOWN_LOCATION, TREE_TYPE (addop), op2);
+      mulop1 = gimple_convert (&gsi, true, GSI_SAME_STMT,
+			       UNKNOWN_LOCATION, TREE_TYPE (addop), mulop1);
 
       if (len)
 	fma_stmt
@@ -3419,6 +3453,21 @@ convert_mult_to_fma (gimple *mul_stmt, tree op1, tree op2,
       if (is_gimple_debug (use_stmt))
 	continue;
 
+      /* If the use is a type convert, look further into it if the operations
+	 are the same under two's complement.  */
+      tree lhs_type;
+      if (gimple_assign_cast_p (use_stmt)
+	  && (lhs_type = TREE_TYPE (gimple_get_lhs (use_stmt)))
+	  && tree_nop_conversion_p (lhs_type, TREE_TYPE (op1)))
+	{
+	  tree cast_lhs = gimple_get_lhs (use_stmt);
+	  gimple *tmp_use;
+	  use_operand_p tmp_use_p;
+	  if (single_imm_use (cast_lhs, &tmp_use_p, &tmp_use))
+	    use_stmt = tmp_use;
+	  result = cast_lhs;
+	}
+
       /* For now restrict this operations to single basic blocks.  In theory
 	 we would want to support sinking the multiplication in
 	 m = a*b;
@@ -3469,6 +3518,10 @@ convert_mult_to_fma (gimple *mul_stmt, tree op1, tree op2,
       tree_code code;
       if (!can_interpret_as_conditional_op_p (use_stmt, &cond, &code, ops,
 					      &else_value, &len, &bias))
+	return false;
+
+      /* The multiplication result must be one of the addition operands.  */
+      if (ops[0] != result && ops[1] != result)
 	return false;
 
       switch (code)
@@ -4083,7 +4136,7 @@ build_saturation_binary_arith_call_and_replace (gimple_stmt_iterator *gsi,
 						internal_fn fn, tree lhs,
 						tree op_0, tree op_1)
 {
-  if (direct_internal_fn_supported_p (fn, TREE_TYPE (lhs), OPTIMIZE_FOR_BOTH))
+  if (direct_internal_fn_supported_p (fn, TREE_TYPE (op_0), OPTIMIZE_FOR_BOTH))
     {
       gcall *call = gimple_build_call_internal (fn, 2, op_0, op_1);
       gimple_call_set_lhs (call, lhs);
@@ -5370,7 +5423,11 @@ match_uaddc_usubc (gimple_stmt_iterator *gsi, gimple *stmt, tree_code code)
 			TYPE_MODE (type)) == CODE_FOR_nothing
       || (rhs[2]
 	  && optab_handler (code == PLUS_EXPR ? uaddc5_optab : usubc5_optab,
-			    TYPE_MODE (type)) == CODE_FOR_nothing))
+			    TYPE_MODE (type)) == CODE_FOR_nothing)
+      || !types_compatible_p (type,
+			      TREE_TYPE (TREE_TYPE (gimple_call_lhs (ovf1))))
+      || !types_compatible_p (type,
+			      TREE_TYPE (TREE_TYPE (gimple_call_lhs (ovf2)))))
     return false;
   tree arg1, arg2, arg3 = NULL_TREE;
   gimple *re1 = NULL, *re2 = NULL;
@@ -6550,25 +6607,6 @@ math_opts_dom_walker::after_dom_children (basic_block bb)
 	{
 	  switch (gimple_call_combined_fn (stmt))
 	    {
-	    CASE_CFN_POW:
-	      if (gimple_call_lhs (stmt)
-		  && TREE_CODE (gimple_call_arg (stmt, 1)) == REAL_CST
-		  && real_equal (&TREE_REAL_CST (gimple_call_arg (stmt, 1)),
-				 &dconst2)
-		  && convert_mult_to_fma (stmt,
-					  gimple_call_arg (stmt, 0),
-					  gimple_call_arg (stmt, 0),
-					  &fma_state))
-		{
-		  unlink_stmt_vdef (stmt);
-		  if (gsi_remove (&gsi, true)
-		      && gimple_purge_dead_eh_edges (bb))
-		    *m_cfg_changed_p = true;
-		  release_defs (stmt);
-		  continue;
-		}
-	      break;
-
 	    case CFN_COND_MUL:
 	      if (convert_mult_to_fma (stmt,
 				       gimple_call_arg (stmt, 1),

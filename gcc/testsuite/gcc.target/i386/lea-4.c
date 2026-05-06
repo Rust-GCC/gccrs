@@ -1,4 +1,5 @@
 /* { dg-do compile } */
+/* { dg-require-effective-target fpic } */
 /* { dg-options "-O2 -fPIE" } */
 /* Same as lea-3.c, but with -fPIE.  On ia32, that requires setting up the PIC
    register, which requires an addl instruction.  */

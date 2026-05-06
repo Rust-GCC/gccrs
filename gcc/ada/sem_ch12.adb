@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2026, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -27,14 +27,12 @@ with Aspects;        use Aspects;
 with Atree;          use Atree;
 with Contracts;      use Contracts;
 with Debug;          use Debug;
-with Einfo;          use Einfo;
 with Einfo.Entities; use Einfo.Entities;
 with Einfo.Utils;    use Einfo.Utils;
 with Elists;         use Elists;
 with Errout;         use Errout;
 with Expander;       use Expander;
 with Exp_Dbug;       use Exp_Dbug;
-with Fname;          use Fname;
 with Fname.UF;       use Fname.UF;
 with Freeze;         use Freeze;
 with Ghost;          use Ghost;
@@ -70,7 +68,6 @@ with Sem_Type;       use Sem_Type;
 with Sem_Util;       use Sem_Util;
 with Sem_Warn;       use Sem_Warn;
 with Stand;          use Stand;
-with Sinfo;          use Sinfo;
 with Sinfo.Nodes;    use Sinfo.Nodes;
 with Sinfo.Utils;    use Sinfo.Utils;
 with Sinfo.CN;       use Sinfo.CN;
@@ -642,14 +639,14 @@ package body Sem_Ch12 is
    --  of freeze nodes for instance bodies that may depend on other instances.
 
    function Find_Actual_Type
-     (Typ      : Entity_Id;
-      Gen_Type : Entity_Id;
-      Typ_Ref  : Node_Id) return Entity_Id;
+     (Typ     : Entity_Id;
+      Gen_Typ : Entity_Id;
+      Typ_Ref : Node_Id) return Entity_Id;
    --  When validating the actual types of a child instance, check whether
    --  the formal is a formal type of the parent unit, and retrieve the current
    --  actual for it. Typ is the entity in the analyzed formal type declaration
    --  (component or index type of an array type, or designated type of an
-   --  access formal) and Gen_Type is the enclosing analyzed formal array
+   --  access formal) and Gen_Typ is the enclosing analyzed formal array
    --  or access type. The desired actual may be a formal of a parent, or may
    --  be declared in a formal package of a parent. In both cases it is a
    --  generic actual type because it appears within a visible instance.
@@ -2657,20 +2654,9 @@ package body Sem_Ch12 is
                if Ekind (Etype (Match)) /= E_Void
                  and then Is_Mutably_Tagged_Type (Etype (Match))
                then
-                  --  The declaration of the CW-equivalent type of a mutably
-                  --  tagged type is analyzed when the tagged type is frozen.
-
-                  if Nkind (N) /= N_Formal_Package_Declaration
-                    and then Ekind (Defining_Identifier (Assoc.An_Formal)) /=
-                                                              E_Incomplete_Type
-                  then
-                     Freeze_Before (N, Root_Type (Etype (Match)));
-                  end if;
-
                   Rewrite (Match, New_Occurrence_Of
                     (Class_Wide_Equivalent_Type
                       (Etype (Match)), Sloc (Match)));
-
                   Analyze (Match);
                end if;
 
@@ -6440,30 +6426,44 @@ package body Sem_Ch12 is
       if Present (Ent) then
          Rewrite_As_Renaming (N, Ent);
          Analyze (N);
+         return;
 
       --  Otherwise, create it in the outermost possible scope
 
       else
+         Scop := Current_Scope;
+
          --  Depth.Global is the accessibility depth of the structural instance
          --  which is defined to be the depth of the outermost scope where the
          --  instantiation is possible. If the depth cannot be reached from the
          --  current scope, then the structural instance cannot be accessed out
-         --  of it and we would need to create a local instance instead.
+         --  of it and we need to create a local instance instead; currently we
+         --  do it only for subprogram instantiations.
 
          if Depth.Local > Depth.Global then
-            Structural_Instantiation_Error (N);
-            Error_Msg_N ("\local entity used in the instantiation", N);
-            return;
-         end if;
+            if Nkind (N) = N_Package_Instantiation then
+               Structural_Instantiation_Error (N);
+               Error_Msg_N ("\local entity used in the instantiation", N);
+               return;
+            end if;
 
-         Scop := Current_Scope;
+            Append_Entity_Name (Buf, Scop);
+            Nam := Name_Find (Buf);
+            Ent := Get_Name_Entity_Id (Nam);
+
+            if Present (Ent) then
+               Rewrite_As_Renaming (N, Ent);
+               Analyze (N);
+               return;
+            end if;
+         end if;
 
          --  If the current scope is too nested, analyze the instantiation
          --  relocated in the outermost possible scope, which will invoke
          --  us recursively with a matching scope depth this time.
 
-         if Scope_Depth (Scop) > Depth.Global then
-            while Scope_Depth (Scop) > Depth.Global loop
+         if Scope_Depth (Scop) > Depth.Local then
+            while Scope_Depth (Scop) > Depth.Local loop
                Scop := Scope (Scop);
             end loop;
 
@@ -6506,6 +6506,17 @@ package body Sem_Ch12 is
 
          else
             Ent := Make_Defining_Identifier (Loc, Chars => Nam);
+            case Nkind (N) is
+               when N_Function_Instantiation =>
+                  Mutate_Ekind (Ent, E_Function);
+               when N_Procedure_Instantiation =>
+                  Mutate_Ekind (Ent, E_Procedure);
+               when N_Package_Instantiation =>
+                  Mutate_Ekind (Ent, E_Package);
+               when others =>
+                  raise Program_Error;
+            end case;
+            Set_Scope (Ent, Scop);
             Set_Defining_Unit_Name (N, Ent);
          end if;
       end if;
@@ -9249,15 +9260,19 @@ package body Sem_Ch12 is
            and then (not In_Open_Scopes (Scope (Typ))
                       or else Nkind (Parent (N)) = N_Subtype_Declaration)
          then
+            --  In the generic unit, only the private declaration was visible,
+            --  so restore the partial view of Typ when there was an explicit
+            --  declaration of its full view.
+
             declare
-               Assoc : constant Node_Id := Get_Associated_Node (N);
+               Priv_Typ : constant Entity_Id :=
+                 Incomplete_Or_Partial_View (Typ, Partial_Only => True);
 
             begin
-               --  In the generic, only the private declaration was visible
-
-               Prepend_Elmt (Typ, Exchanged_Views);
-               Exchange_Declarations
-                 (if Comparison then Compare_Type (Assoc) else Etype (Assoc));
+               if Present (Priv_Typ) then
+                  Prepend_Elmt (Typ, Exchanged_Views);
+                  Exchange_Declarations (Priv_Typ);
+               end if;
             end;
 
          --  Check that the available views of Typ match their respective flag.
@@ -10455,11 +10470,11 @@ package body Sem_Ch12 is
    ----------------------
 
    function Find_Actual_Type
-     (Typ      : Entity_Id;
-      Gen_Type : Entity_Id;
-      Typ_Ref  : Node_Id) return Entity_Id
+     (Typ     : Entity_Id;
+      Gen_Typ : Entity_Id;
+      Typ_Ref : Node_Id) return Entity_Id
    is
-      Gen_Scope : constant Entity_Id := Scope (Gen_Type);
+      Gen_Scope : constant Entity_Id := Scope (Gen_Typ);
 
    begin
       --  Special processing only applies to child units
@@ -16460,10 +16475,6 @@ package body Sem_Ch12 is
                   Set_Instance_Of (Class_Wide_Type (E1), Class_Wide_Type (E2));
                end if;
 
-               if Is_Constrained (E1) then
-                  Set_Instance_Of (Base_Type (E1), Base_Type (E2));
-               end if;
-
                if Ekind (E1) = E_Package and then No (Renamed_Entity (E1)) then
                   Map_Formal_Package_Entities (E1, E2);
                end if;
@@ -18625,22 +18636,10 @@ package body Sem_Ch12 is
          elsif No (Full_View (Typ)) and then Typ /= Etype (Typ) then
             null;
 
-         --  Otherwise mark the type for flipping and set the full view on N2
-         --  when available, which is necessary for Check_Private_View to swap
-         --  back the views in case the full declaration of Typ is visible in
-         --  the instantiation context. Note that this will be problematic if
-         --  N2 is re-analyzed later, e.g. if it's a default value in a call.
+         --  Otherwise mark the node as seeing the private view
 
          else
             Set_Has_Private_View (N);
-
-            if Present (Full_View (Typ)) then
-               if Comparison then
-                  Set_Compare_Type (N2, Full_View (Typ));
-               else
-                  Set_Etype (N2, Full_View (Typ));
-               end if;
-            end if;
          end if;
 
          if Is_Floating_Point_Type (Typ)
@@ -18667,27 +18666,6 @@ package body Sem_Ch12 is
 
       Save_References (Templ);
    end Save_Global_References;
-
-   ---------------------------------------
-   -- Save_Global_References_In_Aspects --
-   ---------------------------------------
-
-   procedure Save_Global_References_In_Aspects (N : Node_Id) is
-      Asp  : Node_Id;
-      Expr : Node_Id;
-
-   begin
-      Asp := First (Aspect_Specifications (N));
-      while Present (Asp) loop
-         Expr := Expression (Asp);
-
-         if Present (Expr) then
-            Save_Global_References (Expr);
-         end if;
-
-         Next (Asp);
-      end loop;
-   end Save_Global_References_In_Aspects;
 
    ------------------------------------------
    -- Set_Copied_Sloc_For_Inherited_Pragma --

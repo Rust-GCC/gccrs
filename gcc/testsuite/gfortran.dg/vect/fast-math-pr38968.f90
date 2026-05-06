@@ -4,6 +4,7 @@
 ! { dg-skip-if "" { ia64-*-* sparc*-*-* } }
 ! It can be slow on some x86 CPUs.
 ! { dg-timeout-factor 2 }
+! { dg-additional-options "-ffast-math" }
 program mymatmul
   implicit none
   integer, parameter :: kp = 4

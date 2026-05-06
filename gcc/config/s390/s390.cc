@@ -1385,6 +1385,9 @@ s390_scalar_mode_supported_p (scalar_mode mode)
   if (DECIMAL_FLOAT_MODE_P (mode))
     return default_decimal_float_supported_p ();
 
+  if (TARGET_64BIT && TARGET_Z10 && mode == HFmode)
+    return true;
+
   return default_scalar_mode_supported_p (mode);
 }
 
@@ -1408,6 +1411,7 @@ s390_vector_mode_supported_p (machine_mode mode)
     case E_SImode:
     case E_DImode:
     case E_TImode:
+    case E_HFmode:
     case E_SFmode:
     case E_DFmode:
     case E_TFmode:
@@ -3054,9 +3058,19 @@ s390_logical_operator_ok_p (rtx *operands)
   /* If the destination operand is in memory, it needs to coincide
      with one of the source operands.  After reload, it has to be
      the first source operand.  */
-  if (GET_CODE (operands[0]) == MEM)
-    return rtx_equal_p (operands[0], operands[1])
-	   || (!reload_completed && rtx_equal_p (operands[0], operands[2]));
+  if (MEM_P (operands[0]))
+    {
+      /* Volatile loads/stores must be implemented via a single access of the
+	 entire object.  Therefore, do not fold operations into instructions
+	 like NI or NC.  */
+      if (GET_MODE (operands[0]) != QImode
+	  && (MEM_VOLATILE_P (operands[0])
+	      || (MEM_P (operands[1]) && MEM_VOLATILE_P (operands[1]))
+	      || (MEM_P (operands[2]) && MEM_VOLATILE_P (operands[2]))))
+	return false;
+      return rtx_equal_p (operands[0], operands[1])
+	     || (!reload_completed && rtx_equal_p (operands[0], operands[2]));
+    }
 
   return true;
 }
@@ -3700,7 +3714,7 @@ s390_mem_constraint (const char *str, rtx op)
     {
     case 'A':
       /* Check for offsettable variants of memory constraints.  */
-      if (!MEM_P (op) || MEM_VOLATILE_P (op))
+      if (!MEM_P (op))
 	return 0;
       if ((reload_completed || reload_in_progress)
 	  ? !offsettable_memref_p (op) : !offsettable_nonstrict_memref_p (op))
@@ -3877,8 +3891,12 @@ s390_register_move_cost (machine_mode mode,
     }
 
   /* Without vector extensions it still becomes somewhat faster having
-     ldgr/lgdr.  */
-  if (TARGET_Z10 && GET_MODE_SIZE (mode) == 8)
+     ldgr/lgdr.
+
+     Although, a GPR<->FPR load for 16-bit values involves a shift, use lower
+     costs since otherwise unnecessarily many reloads via memory are emitted.
+     Limit this quirk to HF mode only.  */
+  if (TARGET_Z10 && (GET_MODE_SIZE (mode) == 8 || mode == HFmode))
     {
       /* ldgr is single cycle. */
       if (reg_classes_intersect_p (from, GENERAL_REGS)
@@ -4499,6 +4517,9 @@ s390_legitimate_constant_p (machine_mode mode, rtx op)
 	return 0;
     }
 
+  if (mode == HFmode)
+    return satisfies_constraint_j00 (op);
+
   /* Accept all non-symbolic constants.  */
   if (!SYMBOLIC_CONST (op))
     return 1;
@@ -4913,6 +4934,22 @@ s390_secondary_reload (bool in_p, rtx x, reg_class_t rclass_i,
   if (reg_classes_intersect_p (CC_REGS, rclass))
     return GENERAL_REGS;
 
+  /* A 2-byte GPR-to-FPR move requires a scratch register if no vector
+     extensions are available but instruction ldgr.  */
+  if (TARGET_Z10 && !TARGET_VX && GET_MODE_SIZE (mode) == 2
+      && ((in_p && true_regnum (x) >= 0
+	   && reg_classes_intersect_p (rclass, FP_REGS))
+	  || (!in_p && FP_REGNO_P (true_regnum (x))
+	      && reg_classes_intersect_p (rclass, GENERAL_REGS))))
+    {
+      sri->icode = CODE_FOR_reload_half_gprtofpr_z10;
+      return NO_REGS;
+    }
+
+  if (TARGET_Z10 && !TARGET_VX && GET_MODE_SIZE (mode) == 2
+      && MEM_P (x) && reg_classes_intersect_p (rclass, FP_REGS))
+    return GENERAL_REGS;
+
   if (TARGET_VX)
     {
       /* The vst/vl vector move instructions allow only for short
@@ -4979,6 +5016,7 @@ s390_secondary_reload (bool in_p, rtx x, reg_class_t rclass_i,
 	      __SECONDARY_RELOAD_CASE (SI, si);
 	      __SECONDARY_RELOAD_CASE (DI, di);
 	      __SECONDARY_RELOAD_CASE (TI, ti);
+	      __SECONDARY_RELOAD_CASE (HF, hf);
 	      __SECONDARY_RELOAD_CASE (SF, sf);
 	      __SECONDARY_RELOAD_CASE (DF, df);
 	      __SECONDARY_RELOAD_CASE (TF, tf);
@@ -5085,6 +5123,16 @@ static bool
 s390_secondary_memory_needed (machine_mode mode,
 			      reg_class_t class1, reg_class_t class2)
 {
+  /* A 2-byte GPR<->FPR move is implemented for 64-bit targets and z10 which is
+     realized via ldgr/lgdr in conjunction with shifts in order satisfy
+     alignment requirements, or via vector loads.  Thus, there is no secondary
+     memory needed.  */
+  if (TARGET_64BIT && TARGET_Z10 && GET_MODE_SIZE (mode) == 2
+      && ((reg_classes_intersect_p (class1, VEC_REGS)
+	   && reg_classes_intersect_p (class2, GENERAL_REGS))
+	  || (reg_classes_intersect_p (class2, VEC_REGS)
+	      && reg_classes_intersect_p (class1, GENERAL_REGS))))
+    return false;
   return (((reg_classes_intersect_p (class1, VEC_REGS)
 	    && reg_classes_intersect_p (class2, GENERAL_REGS))
 	   || (reg_classes_intersect_p (class1, GENERAL_REGS)
@@ -8441,6 +8489,13 @@ s390_mangle_type (const_tree type)
 }
 #endif
 
+static bool
+s390_libgcc_floating_mode_supported_p (scalar_float_mode mode)
+{
+  return (TARGET_64BIT && TARGET_Z10 && mode == HFmode)
+	 || default_libgcc_floating_mode_supported_p (mode);
+}
+
 /* In the name of slightly smaller debug output, and to cater to
    general assembler lossage, recognize various UNSPEC sequences
    and turn them back into a direct symbol reference.  */
@@ -8885,7 +8940,6 @@ print_operand_address (FILE *file, rtx addr)
 	 operand).
 
     'b': print integer X as if it's an unsigned byte.
-    'c': print integer X as if it's an signed byte.
     'e': "end" contiguous bitmask X in either DImode or vector inner mode.
     'f': "end" contiguous bitmask X in SImode.
     'h': print integer X as if it's a signed halfword.
@@ -8917,11 +8971,11 @@ print_operand (FILE *file, rtx x, int code)
 	}
       return;
     case 'C':
-      fprintf (file, s390_branch_condition_mnemonic (x, FALSE));
+      fputs (s390_branch_condition_mnemonic (x, FALSE), file);
       return;
 
     case 'D':
-      fprintf (file, s390_branch_condition_mnemonic (x, TRUE));
+      fputs (s390_branch_condition_mnemonic (x, TRUE), file);
       return;
 
     case 'E':
@@ -9180,12 +9234,10 @@ print_operand (FILE *file, rtx x, int code)
       switch (code)
 	{
 	case 0:
+	case 'c':
 	  break;
 	case 'b':
 	  ival &= 0xff;
-	  break;
-	case 'c':
-	  ival = ((ival & 0xff) ^ 0x80) - 0x80;
 	  break;
 	case 'x':
 	  ival &= 0xffff;
@@ -9692,7 +9744,7 @@ static machine_mode constant_modes[] =
   V8QImode, V4HImode, V2SImode, V1DImode, V2SFmode, V1DFmode,
   SFmode, SImode, SDmode,
   V4QImode, V2HImode, V1SImode,  V1SFmode,
-  HImode,
+  HImode, HFmode,
   V2QImode, V1HImode,
   QImode,
   V1QImode
@@ -11397,6 +11449,7 @@ s390_hard_regno_mode_ok (unsigned int regno, machine_mode mode)
 	       && s390_class_max_nregs (VEC_REGS, mode) == 1)
 	      || mode == DFmode
 	      || (TARGET_VXE && mode == SFmode)
+	      || mode == HFmode
 	      || s390_vector_mode_supported_p (mode));
       break;
     case FP_REGS:
@@ -13298,7 +13351,8 @@ s390_function_arg_float (machine_mode mode, const_tree type)
 
   /* No type info available for some library calls ...  */
   if (!type)
-    return mode == SFmode || mode == DFmode || mode == SDmode || mode == DDmode;
+    return mode == HFmode || mode == SFmode || mode == DFmode
+	   || mode == SDmode || mode == DDmode;
 
   if (!s390_single_field_struct_p (REAL_TYPE, type, false))
     return false;
@@ -17681,12 +17735,27 @@ s390_excess_precision (enum excess_precision_type type)
 	   float is evaluated to the range and precision of double.  */
 	return FLT_EVAL_METHOD_PROMOTE_TO_DOUBLE;
       case EXCESS_PRECISION_TYPE_FLOAT16:
-	error ("%<-fexcess-precision=16%> is not supported on this target");
-	break;
+	return FLT_EVAL_METHOD_PROMOTE_TO_FLOAT16;
       default:
 	gcc_unreachable ();
     }
   return FLT_EVAL_METHOD_UNPREDICTABLE;
+}
+#else
+static enum flt_eval_method
+s390_excess_precision (enum excess_precision_type type)
+{
+  /* As time of writing this, there is no hardware support for _Float16 on
+     s390.  Therefore, operations have to be extended and truncated.  In case
+     of EXCESS_PRECISION_TYPE_FLOAT16, this can happen on tree or rtl level.
+     The former might lead to cases were _Float16 operations cannot be folded
+     anymore by tree passes as e.g. FRE due to extends/truncates.  Therefore,
+     return FLT_EVAL_METHOD_PROMOTE_TO_FLOAT16 in this case in order to stay in
+     _Float16 for as long as possible.  */
+  if (type == EXCESS_PRECISION_TYPE_FLOAT16)
+    return FLT_EVAL_METHOD_PROMOTE_TO_FLOAT16;
+
+  return default_excess_precision (type);
 }
 #endif
 
@@ -18782,7 +18851,7 @@ s390_bitint_type_info (int n, struct bitint_info *info)
     info->limb_mode = DImode;
   info->abi_limb_mode = info->limb_mode;
   info->big_endian = true;
-  info->extended = true;
+  info->extended = bitint_ext_full;
   return true;
 }
 
@@ -18846,12 +18915,8 @@ s390_bitint_type_info (int n, struct bitint_info *info)
 #undef TARGET_ASM_CAN_OUTPUT_MI_THUNK
 #define TARGET_ASM_CAN_OUTPUT_MI_THUNK hook_bool_const_tree_hwi_hwi_const_tree_true
 
-#if ENABLE_S390_EXCESS_FLOAT_PRECISION == 1
-/* This hook is only needed to maintain the historic behavior with glibc
-   versions that typedef float_t to double. */
 #undef TARGET_C_EXCESS_PRECISION
 #define TARGET_C_EXCESS_PRECISION s390_excess_precision
-#endif
 
 #undef  TARGET_SCHED_ADJUST_PRIORITY
 #define TARGET_SCHED_ADJUST_PRIORITY s390_adjust_priority
@@ -19109,6 +19174,10 @@ s390_bitint_type_info (int n, struct bitint_info *info)
 
 #undef TARGET_C_BITINT_TYPE_INFO
 #define TARGET_C_BITINT_TYPE_INFO s390_bitint_type_info
+
+#undef TARGET_LIBGCC_FLOATING_MODE_SUPPORTED_P
+#define TARGET_LIBGCC_FLOATING_MODE_SUPPORTED_P	\
+  s390_libgcc_floating_mode_supported_p
 
 struct gcc_target targetm = TARGET_INITIALIZER;
 

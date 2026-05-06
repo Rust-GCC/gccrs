@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2026, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -1514,8 +1514,8 @@ package body Ch6 is
                Append (Def_Ids, P_Defining_Identifier (C_Comma_Colon));
             end loop Ident_Loop;
 
-            --  Fall through the loop on encountering a colon, or deciding
-            --  that there is a missing colon.
+            --  We exited from the above loop upon encountering a colon or
+            --  deciding that there is a missing colon.
 
             T_Colon;
 

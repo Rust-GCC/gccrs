@@ -280,12 +280,22 @@ print_vn_reference_ops (FILE *outfile, const vec<vn_reference_op_s> ops)
 	      closebrace = true;
 	    }
 	}
+      if (vro->opcode == MEM_REF || vro->opcode == TARGET_MEM_REF)
+	fprintf (outfile, "(A%d)", TYPE_ALIGN (vro->type));
       if (vro->op0 || vro->opcode == CALL_EXPR)
 	{
 	  if (!vro->op0)
 	    fprintf (outfile, internal_fn_name ((internal_fn)vro->clique));
 	  else
-	    print_generic_expr (outfile, vro->op0);
+	    {
+	      if (vro->opcode == MEM_REF || vro->opcode == TARGET_MEM_REF)
+		{
+		  fprintf (outfile, "(");
+		  print_generic_expr (outfile, TREE_TYPE (vro->op0));
+		  fprintf (outfile, ")");
+		}
+	      print_generic_expr (outfile, vro->op0);
+	    }
 	  if (vro->op1)
 	    {
 	      fprintf (outfile, ",");
@@ -369,6 +379,7 @@ static vn_tables_t valid_info;
 /* Global RPO state for access from hooks.  */
 static class eliminate_dom_walker *rpo_avail;
 basic_block vn_context_bb;
+int *vn_bb_to_rpo;
 
 
 /* Valueization hook for simplify_replace_tree.  Valueize NAME if it is
@@ -710,7 +721,7 @@ vn_reference_op_compute_hash (const vn_reference_op_t vro1, inchash::hash &hstat
 
 /* Compute a hash for the reference operation VR1 and return it.  */
 
-static hashval_t
+hashval_t
 vn_reference_compute_hash (const vn_reference_t vr1)
 {
   inchash::hash hstate;
@@ -763,10 +774,12 @@ vn_reference_compute_hash (const vn_reference_t vr1)
 }
 
 /* Return true if reference operations VR1 and VR2 are equivalent.  This
-   means they have the same set of operands and vuses.  */
+   means they have the same set of operands and vuses.  If LEXICAL
+   is true then the full access path has to be the same.  */
 
 bool
-vn_reference_eq (const_vn_reference_t const vr1, const_vn_reference_t const vr2)
+vn_reference_eq (const_vn_reference_t const vr1, const_vn_reference_t const vr2,
+		 bool lexical)
 {
   unsigned i, j;
 
@@ -863,7 +876,7 @@ vn_reference_eq (const_vn_reference_t const vr1, const_vn_reference_t const vr2)
 	  else if (vro1->opcode == VIEW_CONVERT_EXPR && vro1->reverse)
 	    return false;
 	  reverse1 |= vro1->reverse;
-	  if (known_eq (vro1->off, -1))
+	  if (lexical || known_eq (vro1->off, -1))
 	    break;
 	  off1 += vro1->off;
 	}
@@ -875,7 +888,7 @@ vn_reference_eq (const_vn_reference_t const vr1, const_vn_reference_t const vr2)
 	  else if (vro2->opcode == VIEW_CONVERT_EXPR && vro2->reverse)
 	    return false;
 	  reverse2 |= vro2->reverse;
-	  if (known_eq (vro2->off, -1))
+	  if (lexical || known_eq (vro2->off, -1))
 	    break;
 	  off2 += vro2->off;
 	}
@@ -903,6 +916,27 @@ vn_reference_eq (const_vn_reference_t const vr1, const_vn_reference_t const vr2)
 	return false;
       if (!vn_reference_op_eq (vro1, vro2))
 	return false;
+      /* Both alignment and alias set are not relevant for the produced
+	 value but need to be included when doing lexical comparison.
+	 We also need to make sure that the access path ends in an
+	 access of the same size as otherwise we might assume an access
+	 may not trap while in fact it might.  */
+      if (lexical
+	  && (vro1->opcode == MEM_REF
+	      || vro1->opcode == TARGET_MEM_REF)
+	  && (TYPE_ALIGN (vro1->type) != TYPE_ALIGN (vro2->type)
+	      || (TYPE_SIZE (vro1->type) != TYPE_SIZE (vro2->type)
+		  && (! TYPE_SIZE (vro1->type)
+		      || ! TYPE_SIZE (vro2->type)
+		      || ! operand_equal_p (TYPE_SIZE (vro1->type),
+					    TYPE_SIZE (vro2->type))))
+	      || (get_deref_alias_set (vro1->opcode == MEM_REF
+				       ? TREE_TYPE (vro1->op0)
+				       : TREE_TYPE (vro1->op2))
+		  != get_deref_alias_set (vro2->opcode == MEM_REF
+					  ? TREE_TYPE (vro2->op0)
+					  : TREE_TYPE (vro2->op2)))))
+	return false;
       ++j;
       ++i;
     }
@@ -915,7 +949,7 @@ vn_reference_eq (const_vn_reference_t const vr1, const_vn_reference_t const vr2)
 /* Copy the operations present in load/store REF into RESULT, a vector of
    vn_reference_op_s's.  */
 
-static void
+void
 copy_reference_ops_from_ref (tree ref, vec<vn_reference_op_s> *result)
 {
   /* For non-calls, store the information that makes up the address.  */
@@ -2315,7 +2349,13 @@ vn_walk_cb_data::push_partial_def (pd_data pd,
   /* Make sure to interpret in a type that has a range covering the whole
      access size.  */
   if (INTEGRAL_TYPE_P (vr->type) && maxsizei != TYPE_PRECISION (vr->type))
-    type = build_nonstandard_integer_type (maxsizei, TYPE_UNSIGNED (type));
+    {
+      if (TREE_CODE (vr->type) == BITINT_TYPE
+	  && maxsizei > MAX_FIXED_MODE_SIZE)
+	type = build_bitint_type (maxsizei, TYPE_UNSIGNED (type));
+      else
+	type = build_nonstandard_integer_type (maxsizei, TYPE_UNSIGNED (type));
+    }
   tree val;
   if (BYTES_BIG_ENDIAN)
     {
@@ -3244,8 +3284,14 @@ vn_reference_lookup_3 (ao_ref *ref, tree vuse, void *data_,
 		     covering the whole access size.  */
 		  if (INTEGRAL_TYPE_P (vr->type)
 		      && maxsizei != TYPE_PRECISION (vr->type))
-		    type = build_nonstandard_integer_type (maxsizei,
-							   TYPE_UNSIGNED (type));
+		    {
+		      bool uns = TYPE_UNSIGNED (type);
+		      if (TREE_CODE (vr->type) == BITINT_TYPE
+			  && maxsizei > MAX_FIXED_MODE_SIZE)
+			type = build_bitint_type (maxsizei, uns);
+		      else
+			type = build_nonstandard_integer_type (maxsizei, uns);
+		    }
 		  if (BYTES_BIG_ENDIAN)
 		    {
 		      /* For big-endian native_encode_expr stored the rhs
@@ -3614,7 +3660,7 @@ vn_reference_lookup_3 (ao_ref *ref, tree vuse, void *data_,
 	  if (i > 0)
 	    {
 	      int temi = i - 1;
-	      extra_off = vr->operands[i].off;
+	      poly_int64 tem_extra_off = extra_off + vr->operands[i].off;
 	      while (temi >= 0
 		     && known_ne (vr->operands[temi].off, -1))
 		{
@@ -3626,20 +3672,21 @@ vn_reference_lookup_3 (ao_ref *ref, tree vuse, void *data_,
 		      i = temi;
 		      /* Strip the component that was type matched to
 			 the MEM_REF.  */
-		      extra_off += vr->operands[i].off - lhs_ops[j].off;
+		      extra_off = (tem_extra_off
+				   + vr->operands[i].off - lhs_ops[j].off);
 		      i--, j--;
 		      /* Strip further equal components.  */
 		      found = true;
 		      break;
 		    }
-		  extra_off += vr->operands[temi].off;
+		  tem_extra_off += vr->operands[temi].off;
 		  temi--;
 		}
 	    }
 	  if (!found && j > 0)
 	    {
 	      int temj = j - 1;
-	      extra_off = -lhs_ops[j].off;
+	      poly_int64 tem_extra_off = extra_off - lhs_ops[j].off;
 	      while (temj >= 0
 		     && known_ne (lhs_ops[temj].off, -1))
 		{
@@ -3651,24 +3698,43 @@ vn_reference_lookup_3 (ao_ref *ref, tree vuse, void *data_,
 		      j = temj;
 		      /* Strip the component that was type matched to
 			 the MEM_REF.  */
-		      extra_off += vr->operands[i].off - lhs_ops[j].off;
+		      extra_off = (tem_extra_off
+				   + vr->operands[i].off - lhs_ops[j].off);
 		      i--, j--;
 		      /* Strip further equal components.  */
 		      found = true;
 		      break;
 		    }
-		  extra_off += -lhs_ops[temj].off;
+		  tem_extra_off += -lhs_ops[temj].off;
 		  temj--;
 		}
 	    }
-	  /* When the LHS is already at the outermost level simply
-	     adjust for any offset difference.  Further lookups
-	     will fail when there's too gross of a type compatibility
-	     issue.  */
-	  if (!found && j == 0)
+	  /* When we cannot find a common base to reconstruct the full
+	     reference instead try to reduce the lookup to the new
+	     base plus a constant offset.  */
+	  if (!found)
 	    {
-	      extra_off = vr->operands[i].off - lhs_ops[j].off;
-	      i--, j--;
+	      while (j >= 0
+		     && known_ne (lhs_ops[j].off, -1))
+		{
+		  extra_off += -lhs_ops[j].off;
+		  j--;
+		}
+	      if (j != -1)
+		return (void *)-1;
+	      while (i >= 0
+		     && known_ne (vr->operands[i].off, -1))
+		{
+		  /* Punt if the additional ops contain a storage order
+		     barrier.  */
+		  if (vr->operands[i].opcode == VIEW_CONVERT_EXPR
+		      && vr->operands[i].reverse)
+		    break;
+		  extra_off += vr->operands[i].off;
+		  i--;
+		}
+	      if (i != -1)
+		return (void *)-1;
 	      found = true;
 	    }
 	  /* If we did find a match we'd eventually append a MEM_REF
@@ -3685,17 +3751,6 @@ vn_reference_lookup_3 (ao_ref *ref, tree vuse, void *data_,
 	     && vn_reference_op_eq (&vr->operands[i], &lhs_ops[j]))
 	{
 	  i--;
-	  j--;
-	}
-
-      /* When we still didn't manage to strip off all components from
-	 lhs_op, opportunistically continue for those we can handle
-	 via extra_off.  Note this is an attempt to fixup secondary
-	 copies after we hit the !found && j == 0 case above.  */
-      while (j != -1
-	     && known_ne (lhs_ops[j].off, -1U))
-	{
-	  extra_off += -lhs_ops[j].off;
 	  j--;
 	}
 
@@ -4023,6 +4078,16 @@ vn_reference_lookup_3 (ao_ref *ref, tree vuse, void *data_,
   return (void *)-1;
 }
 
+/* Return true if E is a backedge with respect to our CFG walk order.  */
+
+static bool
+vn_is_backedge (edge e, void *)
+{
+  /* During PRE elimination we no longer have access to this info.  */
+  return (!vn_bb_to_rpo
+	  || vn_bb_to_rpo[e->dest->index] <= vn_bb_to_rpo[e->src->index]);
+}
+
 /* Return a reference op vector from OP that can be used for
    vn_reference_lookup_pieces.  The caller is responsible for releasing
    the vector.  */
@@ -4104,8 +4169,8 @@ vn_reference_lookup_pieces (tree vuse, alias_set_type set,
 	*vnresult
 	  = ((vn_reference_t)
 	     walk_non_aliased_vuses (&r, vr1.vuse, true, vn_reference_lookup_2,
-				     vn_reference_lookup_3, vuse_valueize,
-				     limit, &data));
+				     vn_reference_lookup_3, vn_is_backedge,
+				     vuse_valueize, limit, &data));
       if (ops_for_ref != shared_lookup_references)
 	ops_for_ref.release ();
       gcc_checking_assert (vr1.operands == shared_lookup_references);
@@ -4250,8 +4315,8 @@ vn_reference_lookup (tree op, tree vuse, vn_lookup_kind kind,
       wvnresult
 	= ((vn_reference_t)
 	   walk_non_aliased_vuses (&r, vr1.vuse, tbaa_p, vn_reference_lookup_2,
-				   vn_reference_lookup_3, vuse_valueize, limit,
-				   &data));
+				   vn_reference_lookup_3, vn_is_backedge,
+				   vuse_valueize, limit, &data));
       gcc_checking_assert (vr1.operands == shared_lookup_references);
       if (wvnresult)
 	{
@@ -8749,6 +8814,7 @@ do_rpo_vn_1 (function *fn, edge entry, bitmap exit_bbs,
   int *bb_to_rpo = XNEWVEC (int, last_basic_block_for_fn (fn));
   for (int i = 0; i < n; ++i)
     bb_to_rpo[rpo[i]] = i;
+  vn_bb_to_rpo = bb_to_rpo;
 
   unwind_state *rpo_state = XNEWVEC (unwind_state, n);
 
@@ -9106,6 +9172,7 @@ do_rpo_vn_1 (function *fn, edge entry, bitmap exit_bbs,
 
   vn_valueize = NULL;
   rpo_avail = NULL;
+  vn_bb_to_rpo = NULL;
 
   XDELETEVEC (bb_to_rpo);
   XDELETEVEC (rpo);

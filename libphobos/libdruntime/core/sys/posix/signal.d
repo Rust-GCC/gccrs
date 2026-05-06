@@ -108,14 +108,14 @@ int raise(int sig);                    (defined in core.stdc.signal)
 
 //sig_atomic_t (defined in core.stdc.signal)
 
-private alias void function(int) sigfn_t;
-private alias void function(int, siginfo_t*, void*) sigactfn_t;
+private alias sigfn_t = void function(int);
+private alias sigactfn_t = void function(int, siginfo_t*, void*);
 
 // nothrow versions
 nothrow @nogc
 {
-    private alias void function(int) sigfn_t2;
-    private alias void function(int, siginfo_t*, void*) sigactfn_t2;
+    private alias sigfn_t2 = void function(int);
+    private alias sigactfn_t2 = void function(int, siginfo_t*, void*);
 }
 
 enum
@@ -133,9 +133,8 @@ union sigval
 
 version (Solaris)
 {
-    import core.sys.posix.unistd;
-
     @property int SIGRTMIN() nothrow @nogc {
+        import core.sys.posix.unistd : sysconf, _SC_SIGRT_MIN;
         __gshared int sig = -1;
         if (sig == -1) {
             sig = cast(int)sysconf(_SC_SIGRT_MIN);
@@ -144,6 +143,7 @@ version (Solaris)
     }
 
     @property int SIGRTMAX() nothrow @nogc {
+        import core.sys.posix.unistd : sysconf, _SC_SIGRT_MAX;
         __gshared int sig = -1;
         if (sig == -1) {
             sig = cast(int)sysconf(_SC_SIGRT_MAX);
@@ -179,7 +179,7 @@ else version (linux)
         int __libc_current_sigrtmax();
     }
 
-    @property int SIGRTMIN() nothrow @nogc {
+    @property int SIGRTMIN()() nothrow @nogc {
         __gshared int sig = -1;
         if (sig == -1) {
             sig = __libc_current_sigrtmin();
@@ -187,7 +187,7 @@ else version (linux)
         return sig;
     }
 
-    @property int SIGRTMAX() nothrow @nogc {
+    @property int SIGRTMAX()() nothrow @nogc {
         __gshared int sig = -1;
         if (sig == -1) {
             sig = __libc_current_sigrtmax();
@@ -391,6 +391,30 @@ version (linux)
         enum SIGURG     = 23;
     }
     else version (LoongArch64)
+    {
+        //SIGABRT (defined in core.stdc.signal)
+        enum SIGALRM    = 14;
+        enum SIGBUS     = 7;
+        enum SIGCHLD    = 17;
+        enum SIGCONT    = 18;
+        //SIGFPE (defined in core.stdc.signal)
+        enum SIGHUP     = 1;
+        //SIGILL (defined in core.stdc.signal)
+        //SIGINT (defined in core.stdc.signal)
+        enum SIGKILL    = 9;
+        enum SIGPIPE    = 13;
+        enum SIGQUIT    = 3;
+        //SIGSEGV (defined in core.stdc.signal)
+        enum SIGSTOP    = 19;
+        //SIGTERM (defined in core.stdc.signal)
+        enum SIGTSTP    = 20;
+        enum SIGTTIN    = 21;
+        enum SIGTTOU    = 22;
+        enum SIGUSR1    = 10;
+        enum SIGUSR2    = 12;
+        enum SIGURG     = 23;
+    }
+    else version (Emscripten)
     {
         //SIGABRT (defined in core.stdc.signal)
         enum SIGALRM    = 14;
@@ -1012,12 +1036,12 @@ version (linux)
         } _sifields_t _sifields;
 
     nothrow @nogc:
-        @property ref pid_t si_pid() return { return _sifields._kill.si_pid; }
-        @property ref uid_t si_uid() return { return _sifields._kill.si_uid; }
-        @property ref void* si_addr() return { return _sifields._sigfault.si_addr; }
-        @property ref int si_status() return { return _sifields._sigchld.si_status; }
-        @property ref c_long si_band() return { return _sifields._sigpoll.si_band; }
-        @property ref sigval si_value() return { return _sifields._rt.si_sigval; }
+        @property ref pid_t si_pid()() { return _sifields._kill.si_pid; }
+        @property ref uid_t si_uid()() { return _sifields._kill.si_uid; }
+        @property ref void* si_addr()() { return _sifields._sigfault.si_addr; }
+        @property ref int si_status()() { return _sifields._sigchld.si_status; }
+        @property ref c_long si_band()() { return _sifields._sigpoll.si_band; }
+        @property ref sigval si_value()() { return _sifields._rt.si_sigval; }
     }
 
     enum
@@ -1037,7 +1061,7 @@ else version (Darwin)
 {
     enum SIG_HOLD = cast(sigfn_t2) 5;
 
-    alias uint sigset_t;
+    alias sigset_t = uint;
 
     enum SA_NOCLDSTOP = 8; // (CX|XSI)
 
@@ -1492,15 +1516,15 @@ else version (NetBSD)
     int __sigsuspend14(const scope sigset_t*);
     int sigwait(const scope sigset_t*, int*);
 
-    alias __sigaction14 sigaction;
-    alias __sigaddset14 sigaddset;
-    alias __sigdelset14 sigdelset;
-    alias __sigemptyset14 sigemptyset;
-    alias __sigfillset14 sigfillset;
-    alias __sigismember14 sigismember;
-    alias __sigpending14 sigpending;
-    alias __sigprocmask14 sigprocmask;
-    alias __sigsuspend14 sigsuspend;
+    alias sigaction = __sigaction14;
+    alias sigaddset = __sigaddset14;
+    alias sigdelset = __sigdelset14;
+    alias sigemptyset = __sigemptyset14;
+    alias sigfillset = __sigfillset14;
+    alias sigismember = __sigismember14;
+    alias sigpending = __sigpending14;
+    alias sigprocmask = __sigprocmask14;
+    alias sigsuspend = __sigsuspend14;
 }
 else version (OpenBSD)
 {
@@ -1775,6 +1799,16 @@ version (linux)
         enum SIGXFSZ    = 25;
     }
     else version (LoongArch64)
+    {
+        enum SIGPOLL    = 29;
+        enum SIGPROF    = 27;
+        enum SIGSYS     = 31;
+        enum SIGTRAP    = 5;
+        enum SIGVTALRM  = 26;
+        enum SIGXCPU    = 24;
+        enum SIGXFSZ    = 25;
+    }
+    else version (Emscripten)
     {
         enum SIGPOLL    = 29;
         enum SIGPROF    = 27;
@@ -2763,6 +2797,16 @@ else version (CRuntime_Musl)
         enum MINSIGSTKSZ = 4096;
         enum SIGSTKSZ    = 16384;
     }
+    else version (RISCV64)
+    {
+        enum MINSIGSTKSZ = 2048;
+        enum SIGSTKSZ    = 8192;
+    }
+    else version (Emscripten)
+    {
+        enum MINSIGSTKSZ = 2048;
+        enum SIGSTKSZ    = 8192;
+    }
     else
         static assert(0, "unimplemented");
 
@@ -3014,6 +3058,7 @@ else version (FreeBSD)
 else version (NetBSD)
 {
     int sigqueue(pid_t, int, const sigval);
+    pragma(mangle, "__sigtimedwait50")
     int sigtimedwait(const scope sigset_t*, siginfo_t*, const scope timespec*);
     int sigwaitinfo(const scope sigset_t*, siginfo_t*);
 }

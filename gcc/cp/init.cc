@@ -178,6 +178,10 @@ build_zero_init_1 (tree type, tree nelts, bool static_storage_p,
 
   if (type == error_mark_node)
     ;
+  else if (REFLECTION_TYPE_P (type))
+    /* [dcl.init.general]: "if T is std::meta::info, the object is initialized
+       to a null reflection value".  */
+    init = get_null_reflection ();
   else if (static_storage_p && zero_init_p (type))
     /* In order to save space, we do not explicitly build initializers
        for items that do not need them.  GCC's semantics are that
@@ -991,6 +995,9 @@ perform_member_init (tree member, tree init, hash_set<tree> &uninitialized)
     init = get_nsdmi (member, /*ctor*/true, tf_warning_or_error);
 
   if (init == error_mark_node)
+    return;
+
+  if (check_out_of_consteval_use (init))
     return;
 
   /* Effective C++ rule 12 requires that all data members be
@@ -3430,7 +3437,7 @@ build_new_1 (vec<tree, va_gc> **placement, tree type, tree nelts,
 	    {
 	      auto_diagnostic_group d;
 	      error ("request for member %qD is ambiguous", fnname);
-	      print_candidates (fns);
+	      print_candidates (input_location, fns);
 	    }
 	  return error_mark_node;
 	}
@@ -3698,7 +3705,7 @@ build_new_1 (vec<tree, va_gc> **placement, tree type, tree nelts,
 	    {
 	      tree dom
 		= compute_array_index_type (NULL_TREE,
-					    CONST_CAST_TREE (cst_outer_nelts),
+					    const_cast<tree> (cst_outer_nelts),
 					    complain);
 	      ttype = build_cplus_array_type (type, dom);
 	      tree ptype = build_pointer_type (ttype);
@@ -4855,6 +4862,23 @@ build_vec_init (tree base, tree maxindex, tree init,
      some are non-constant.  */
   bool do_static_init = (DECL_P (obase) && TREE_STATIC (obase));
 
+  if (init
+      && TREE_CODE (init) == CONSTRUCTOR
+      && TREE_CODE (TREE_TYPE (init)) == ARRAY_TYPE
+      && INTEGRAL_TYPE_P (type)
+      && same_type_p (type, TREE_TYPE (TREE_TYPE (init))))
+    {
+      /* If RAW_DATA_CST is in the CONSTRUCTOR, we want to optimize
+	 INTEGER_CST, RAW_DATA_CST, INTEGER_CST into just
+	 RAW_DATA_CST larger by 2 chars if possible.  But at least
+	 for now punt if braced_lists_to_strings instead turns it
+	 into a STRING_CST in the try_const case, as the STRING_CST
+	 case doesn't handle try_const.  */
+      tree new_init = braced_lists_to_strings (TREE_TYPE (init), init);
+      if (!try_const || TREE_CODE (new_init) == CONSTRUCTOR)
+	init = new_init;
+    }
+
   bool empty_list = false;
   if (init && BRACE_ENCLOSED_INITIALIZER_P (init)
       && CONSTRUCTOR_NELTS (init) == 0)
@@ -4868,6 +4892,11 @@ build_vec_init (tree base, tree maxindex, tree init,
       /* Do non-default initialization of non-trivial arrays resulting from
 	 brace-enclosed initializers.  */
       unsigned HOST_WIDE_INT idx;
+      /* Used in RAW_DATA_CST handling below if we need to expand it
+	 (not digested char-sized integer type).  It is -1 when not peeling
+	 off such RAW_DATA_CST, otherwise indicates which index from
+	 the RAW_DATA_CST has been handled most recently.  */
+      unsigned int raw_idx = -1;
       tree field, elt;
       /* If the constructor already has the array type, it's been through
 	 digest_init, so we shouldn't try to do anything more.  */
@@ -4885,13 +4914,76 @@ build_vec_init (tree base, tree maxindex, tree init,
 
       FOR_EACH_CONSTRUCTOR_ELT (CONSTRUCTOR_ELTS (init), idx, field, elt)
 	{
-	  tree baseref = build1 (INDIRECT_REF, type, base);
 	  tree one_init;
 
-	  if (field && TREE_CODE (field) == RANGE_EXPR)
-	    num_initialized_elts += range_expr_nelts (field);
-	  else
-	    num_initialized_elts++;
+	  if (TREE_CODE (elt) == RAW_DATA_CST)
+	    {
+	      if (digested
+		  && (TREE_CODE (type) == INTEGER_TYPE
+		      || is_byte_access_type (type))
+		  && TYPE_PRECISION (type) == CHAR_BIT)
+		{
+		  /* If possible, handle RAW_DATA_CST as ARRAY_TYPE
+		     copy from ctor to MEM_REF.  */
+		  tree atype
+		    = build_array_of_n_type (type, RAW_DATA_LENGTH (elt));
+		  tree alias_set
+		    = build_int_cst (build_pointer_type (type), 0);
+		  tree lhs = build2 (MEM_REF, atype, base, alias_set);
+		  tree ctor
+		    = build_constructor_single (atype, bitsize_zero_node,
+						copy_node (elt));
+		  one_init = build2 (MODIFY_EXPR, void_type_node, lhs, ctor);
+
+		  if (try_const)
+		    {
+		      if (!field)
+			field = size_int (num_initialized_elts);
+		      CONSTRUCTOR_APPEND_ELT (const_vec, field, elt);
+		      if (do_static_init)
+			one_init = NULL_TREE;
+		    }
+
+		  if (one_init)
+		    finish_expr_stmt (one_init);
+
+		  /* Adjust the counter and pointer.  */
+		  tree length = build_int_cst (ptrdiff_type_node,
+					       RAW_DATA_LENGTH (elt));
+		  one_init = cp_build_binary_op (loc, MINUS_EXPR, iterator,
+						 length, complain);
+		  gcc_assert (one_init != error_mark_node);
+		  one_init = build2 (MODIFY_EXPR, void_type_node, iterator,
+				     one_init);
+		  finish_expr_stmt (one_init);
+
+		  one_init = cp_build_binary_op (loc, PLUS_EXPR, base, length,
+						 complain);
+		  gcc_assert (one_init != error_mark_node);
+		  one_init = build2 (MODIFY_EXPR, void_type_node, base,
+				     one_init);
+		  finish_expr_stmt (one_init);
+
+		  num_initialized_elts += RAW_DATA_LENGTH (elt);
+		  continue;
+		}
+	      else
+		{
+		  /* Otherwise peel it off into separate constants.  */
+		  tree orig_elt = elt;
+		  elt = build_int_cst (TREE_TYPE (elt),
+				       RAW_DATA_UCHAR_ELT (elt, ++raw_idx));
+		  if (raw_idx && field)
+		    field = size_binop (PLUS_EXPR, field,
+					bitsize_int (raw_idx));
+		  if (raw_idx + 1 == (unsigned) RAW_DATA_LENGTH (orig_elt))
+		    raw_idx = -1;
+		  else
+		    --idx;
+		}
+	    }
+
+	  tree baseref = build1 (INDIRECT_REF, type, base);
 
 	  /* We need to see sub-array TARGET_EXPR before cp_fold_r so we can
 	     handle cleanup flags properly.  */
@@ -4912,7 +5004,7 @@ build_vec_init (tree base, tree maxindex, tree init,
 	  if (try_const)
 	    {
 	      if (!field)
-		field = size_int (idx);
+		field = size_int (num_initialized_elts);
 	      tree e = maybe_constant_init (one_init);
 	      if (reduced_constant_expression_p (e))
 		{
@@ -4935,6 +5027,21 @@ build_vec_init (tree base, tree maxindex, tree init,
 		}
 	    }
 
+	  tree end = NULL_TREE, body = NULL_TREE;
+	  if (field && TREE_CODE (field) == RANGE_EXPR)
+	    {
+	      tree sub
+		= cp_build_binary_op (loc, MINUS_EXPR, iterator,
+				      build_int_cst (TREE_TYPE (iterator),
+						     range_expr_nelts (field)),
+				     complain);
+	      gcc_assert (sub != error_mark_node);
+	      end = get_internal_target_expr (sub);
+	      add_stmt (end);
+
+	      body = push_stmt_list ();
+	    }
+
 	  if (one_init)
 	    {
 	      /* Only create one std::allocator temporary.  */
@@ -4955,6 +5062,20 @@ build_vec_init (tree base, tree maxindex, tree init,
 	    errors = true;
 	  else
 	    finish_expr_stmt (one_init);
+
+	  if (field && TREE_CODE (field) == RANGE_EXPR)
+	    {
+	      tree exit = build1 (EXIT_EXPR, void_type_node,
+				  build2 (EQ_EXPR, boolean_type_node,
+					  iterator, TARGET_EXPR_SLOT (end)));
+	      add_stmt (exit);
+	      body = pop_stmt_list (body);
+	      tree loop = build1 (LOOP_EXPR, void_type_node, body);
+	      add_stmt (loop);
+	      num_initialized_elts += range_expr_nelts (field);
+	    }
+	  else
+	    num_initialized_elts++;
 	}
 
       /* Any elements without explicit initializers get T{}.  */
@@ -5072,11 +5193,17 @@ build_vec_init (tree base, tree maxindex, tree init,
 		from = move (from);
 	      if (direct_init)
 		{
-		  /* Wrap the initializer in a CONSTRUCTOR so that
-		     build_vec_init recognizes it as direct-initialization.  */
-		  from = build_constructor_single (init_list_type_node,
-						   NULL_TREE, from);
-		  CONSTRUCTOR_IS_DIRECT_INIT (from) = true;
+		  if (TREE_CODE (type) == ARRAY_TYPE)
+		    {
+		      /* Wrap the initializer in a CONSTRUCTOR so that
+			 build_vec_init recognizes it as
+			 direct-initialization.  */
+		      from = build_constructor_single (init_list_type_node,
+						       NULL_TREE, from);
+		      CONSTRUCTOR_IS_DIRECT_INIT (from) = true;
+		    }
+		  else
+		    from = build_tree_list (NULL_TREE, from);
 		}
 	    }
 	  else

@@ -190,6 +190,19 @@ public:
 
   tree maybe_get_type_from_typeinfo () const;
 
+  /* If we can get a value_range for this svalue, write it to OUT
+     and return true.  Otherwise return false.  */
+  bool
+  maybe_get_value_range (value_range &out) const
+  {
+    if (maybe_get_value_range_1 (out))
+      {
+	gcc_assert (!out.undefined_p ());
+	return true;
+      }
+    return false;
+  }
+
  protected:
   svalue (complexity c, symbol::id_t id, tree type)
   : symbol (c, id), m_type (type)
@@ -203,6 +216,8 @@ public:
   virtual void
   add_dump_widget_children (text_art::tree_widget &,
 			    const dump_widget_info &dwi) const = 0;
+  virtual bool
+  maybe_get_value_range_1 (value_range &out) const;
 
   tree m_type;
 };
@@ -366,6 +381,8 @@ public:
 
   bool all_zeroes_p () const final override;
 
+  bool maybe_get_value_range_1 (value_range &out) const final override;
+
  private:
   tree m_cst_expr;
 };
@@ -416,6 +433,8 @@ public:
   maybe_fold_bits_within (tree type,
 			  const bit_range &subrange,
 			  region_model_manager *mgr) const final override;
+
+  bool maybe_get_value_range_1 (value_range &out) const final override;
 
   /* Unknown values are singletons per-type, so can't have state.  */
   bool can_have_associated_state_p () const final override { return false; }
@@ -763,6 +782,8 @@ public:
 			  const bit_range &subrange,
 			  region_model_manager *mgr) const final override;
 
+  bool maybe_get_value_range_1 (value_range &out) const final override;
+
  private:
   enum tree_code m_op;
   const svalue *m_arg;
@@ -858,6 +879,8 @@ public:
   void accept (visitor *v) const final override;
   bool implicitly_live_p (const svalue_set *,
 			  const region_model *) const final override;
+
+  bool maybe_get_value_range_1 (value_range &out) const final override;
 
   enum tree_code get_op () const { return m_op; }
   const svalue *get_arg0 () const { return m_arg0; }
@@ -1379,14 +1402,12 @@ template <> struct default_hash_traits<widening_svalue::key_t>
 namespace ana {
 
 /* Concrete subclass of svalue representing a mapping of bit-ranges
-   to svalues, analogous to a cluster within the store.
+   to svalues, analogous to a cluster within the store, but without
+   symbolic keys.
 
    This is for use in places where we want to represent a store-like
    mapping, but are required to use an svalue, such as when handling
    compound assignments and compound return values.
-
-   All keys within the underlying binding_map are required to be concrete,
-   not symbolic.
 
    Instances of this class shouldn't be bound as-is into the store;
    instead they should be unpacked.  Similarly, they should not be
@@ -1395,15 +1416,15 @@ namespace ana {
 class compound_svalue : public svalue
 {
 public:
-  typedef binding_map::const_iterator_t const_iterator_t;
-  typedef binding_map::iterator_t iterator_t;
+  typedef concrete_binding_map::const_iterator const_iterator_t;
+  typedef concrete_binding_map::iterator iterator_t;
 
   /* A support class for uniquifying instances of compound_svalue.
-     Note that to avoid copies, keys store pointers to binding_maps,
-     rather than the maps themselves.  */
+     Note that to avoid copies, keys store pointers to
+     concrete_binding_map, rather than the maps themselves.  */
   struct key_t
   {
-    key_t (tree type, const binding_map *map_ptr)
+    key_t (tree type, const concrete_binding_map *map_ptr)
     : m_type (type), m_map_ptr (map_ptr)
     {}
 
@@ -1427,10 +1448,11 @@ public:
     bool is_empty () const { return m_type == reinterpret_cast<tree> (2); }
 
     tree m_type;
-    const binding_map *m_map_ptr;
+    const concrete_binding_map *m_map_ptr;
   };
 
-  compound_svalue (symbol::id_t id, tree type, const binding_map &map);
+  compound_svalue (symbol::id_t id, tree type, concrete_binding_map &&map);
+  compound_svalue (symbol::id_t id, tree type, const concrete_binding_map &map);
 
   enum svalue_kind get_kind () const final override { return SK_COMPOUND; }
   const compound_svalue *dyn_cast_compound_svalue () const final override
@@ -1448,7 +1470,8 @@ public:
 
   void accept (visitor *v) const final override;
 
-  const binding_map &get_map () const { return m_map; }
+  const concrete_binding_map &
+  get_concrete_bindings () const { return m_map; }
 
   const_iterator_t begin () const { return m_map.begin (); }
   const_iterator_t end () const { return m_map.end (); }
@@ -1466,9 +1489,7 @@ public:
 			  region_model_manager *mgr) const final override;
 
  private:
-  static complexity calc_complexity (const binding_map &map);
-
-  binding_map m_map;
+  concrete_binding_map m_map;
 };
 
 } // namespace ana

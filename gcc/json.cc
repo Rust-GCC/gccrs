@@ -120,6 +120,42 @@ pointer::token::operator= (pointer::token &&other)
   return *this;
 }
 
+/* Print this to PP as an RFC 6901 section 3 reference-token.  */
+
+void
+pointer::token::print (pretty_printer *pp) const
+{
+  switch (m_kind)
+    {
+    case kind::root_value:
+      break;
+
+    case kind::object_member:
+      {
+	for (const char *ch = m_data.u_member; *ch; ++ch)
+	  {
+	    switch (*ch)
+	      {
+	      case '~':
+		pp_string (pp, "~0");
+		break;
+	      case '/':
+		pp_string (pp, "~1");
+		break;
+	      default:
+		pp_character (pp, *ch);
+		break;
+	      }
+	  }
+      }
+      break;
+
+    case kind::array_index:
+      pp_scalar (pp, HOST_SIZE_T_PRINT_UNSIGNED, (fmt_size_t) m_data.u_index);
+      break;
+    }
+}
+
 /* class json::value.  */
 
 /* Dump this json::value tree to OUTF.
@@ -231,6 +267,29 @@ value::compare (const value &val_a, const value &val_b)
       /* All instances of literals compare equal to instances
 	 of the same literal.  */
       return 0;
+    }
+}
+
+/* Print this value's JSON Pointer to PP.  */
+
+void
+value::print_pointer (pretty_printer *pp) const
+{
+  /* Get path from this value to root.  */
+  auto_vec<const pointer::token *> ancestry;
+  for (auto *iter = this; iter; iter = iter->m_pointer_token.m_parent)
+    ancestry.safe_push (&iter->m_pointer_token);
+
+  /* Walk backward, going from root to this value.  */
+  ancestry.reverse ();
+  bool first = true;
+  for (auto iter : ancestry)
+    {
+      if (first)
+	first = false;
+      else
+	pp_character (pp, '/');
+      iter->print (pp);
     }
 }
 
@@ -359,21 +418,27 @@ object::get (const char *key) const
 }
 
 /* Set value of KEY within this object to a JSON
-   string value based on UTF8_VALUE.  */
+   string value based on UTF8_VALUE.
+   Return a borrowed ptr to the new json::string.  */
 
-void
+const json::string *
 object::set_string (const char *key, const char *utf8_value)
 {
-  set (key, new json::string (utf8_value));
+  json::string *str = new json::string (utf8_value);
+  set (key, str);
+  return str;
 }
 
 /* Set value of KEY within this object to a JSON
-   integer value based on V.  */
+   integer value based on V.
+   Return a borrowed ptr to the new json::integer_number.  */
 
-void
+const json::integer_number *
 object::set_integer (const char *key, long v)
 {
-  set (key, new json::integer_number (v));
+  json::integer_number *js_int = new json::integer_number (v);
+  set (key, js_int);
+  return js_int;
 }
 
 /* Set value of KEY within this object to a JSON
@@ -513,11 +578,16 @@ array::append (value *v)
   m_elements.safe_push (v);
 }
 
-void
+/* Append UTF8_VALUE to this array, returning a borrowed pointer to the
+   new json::string.  */
+
+const json::string *
 array::append_string (const char *utf8_value)
 {
   gcc_assert (utf8_value);
-  append (new json::string (utf8_value));
+  auto js_str = new json::string (utf8_value);
+  append (js_str);
+  return js_str;
 }
 
 /* class json::float_number, a subclass of json::value, wrapping a double.  */

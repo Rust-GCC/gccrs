@@ -1,3 +1,4 @@
+/* { dg-do run } */
 void abort (void);
 void exit (int);
 

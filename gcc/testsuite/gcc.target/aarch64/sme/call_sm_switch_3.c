@@ -1,6 +1,8 @@
 // { dg-options "-O -fomit-frame-pointer -fno-optimize-sibling-calls -funwind-tables" }
 // { dg-final { check-function-bodies "**" "" } }
 
+#pragma GCC target "+sve"
+
 __attribute__((aarch64_vector_pcs)) void ns_callee ();
 __attribute__((aarch64_vector_pcs)) void s_callee () [[arm::streaming]];
 __attribute__((aarch64_vector_pcs)) void sc_callee () [[arm::streaming_compatible]];

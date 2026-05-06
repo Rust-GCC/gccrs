@@ -653,6 +653,9 @@ else
   endif
 endif
 
+# Multilib control
+with_multi_buildlist = @with_multi_buildlist@
+
 # ------------------------
 # Installation directories
 # ------------------------
@@ -1130,7 +1133,7 @@ ALL_LINKERFLAGS = $(ALL_CXXFLAGS) $(LD_PICFLAG)
 
 # Use the "pic" build of libiberty if --enable-host-shared or --enable-host-pie,
 # unless we are building for mingw.
-LIBIBERTY_PICDIR=$(if $(findstring mingw,$(target)),,pic)
+LIBIBERTY_PICDIR=$(if $(findstring mingw,$(host)),,pic)
 ifneq ($(enable_host_shared)$(enable_host_pie),)
 LIBIBERTY = ../libiberty/$(LIBIBERTY_PICDIR)/libiberty.a
 else
@@ -1350,6 +1353,7 @@ ANALYZER_OBJS = \
 	analyzer/constraint-manager.o \
 	analyzer/diagnostic-manager.o \
 	analyzer/engine.o \
+	analyzer/exploded-path.o \
 	analyzer/feasible-graph.o \
 	analyzer/function-set.o \
 	analyzer/infinite-loop.o \
@@ -1360,6 +1364,7 @@ ANALYZER_OBJS = \
 	analyzer/known-function-manager.o \
 	analyzer/ops.o \
 	analyzer/pending-diagnostic.o \
+	analyzer/poisoned-value-diagnostic.o \
 	analyzer/program-point.o \
 	analyzer/program-state.o \
 	analyzer/ranges.o \
@@ -1369,6 +1374,8 @@ ANALYZER_OBJS = \
 	analyzer/region-model-asm.o \
 	analyzer/region-model-manager.o \
 	analyzer/region-model-reachability.o \
+	analyzer/setjmp-longjmp.o \
+	analyzer/shift-diagnostics.o \
 	analyzer/sm.o \
 	analyzer/sm-file.o \
 	analyzer/sm-fd.o \
@@ -1386,7 +1393,8 @@ ANALYZER_OBJS = \
 	analyzer/svalue.o \
 	analyzer/symbol.o \
 	analyzer/trimmed-graph.o \
-	analyzer/varargs.o
+	analyzer/varargs.o \
+	analyzer/write-to-const-diagnostics.o \
 
 # Language-independent object files.
 # We put the *-match.o and insn-*.o files first so that a parallel make
@@ -1413,6 +1421,7 @@ OBJS = \
 	adjust-alignment.o \
 	alias.o \
 	alloc-pool.o \
+	asm-toplevel.o \
 	auto-inc-dec.o \
 	auto-profile.o \
 	bb-reorder.o \
@@ -1460,6 +1469,7 @@ OBJS = \
 	dce.o \
 	ddg.o \
 	debug.o \
+	hierarchical_discriminator.o \
 	dep-fusion.o \
 	df-core.o \
 	df-problems.o \
@@ -1746,6 +1756,7 @@ OBJS = \
 	tree-data-ref.o \
 	tree-dfa.o \
 	tree-diagnostic.o \
+	tree-diagnostic-cfg.o \
 	tree-diagnostic-client-data-hooks.o \
 	tree-dump.o \
 	tree-eh.o \
@@ -1866,6 +1877,7 @@ OBJS = \
 # Objects in libcommon.a, potentially used by all host binaries and with
 # no target dependencies.
 OBJS-libcommon = \
+	custom-sarif-properties/cfg.o \
 	custom-sarif-properties/digraphs.o \
 	custom-sarif-properties/state-graphs.o \
 	diagnostic-global-context.o \
@@ -1875,6 +1887,8 @@ OBJS-libcommon = \
 	diagnostics/context.o \
 	diagnostics/digraphs.o \
 	diagnostics/dumping.o \
+	diagnostics/digraphs-to-dot.o \
+	diagnostics/digraphs-to-dot-from-cfg.o \
 	diagnostics/file-cache.o \
 	diagnostics/output-spec.o \
 	diagnostics/html-sink.o \
@@ -1886,6 +1900,7 @@ OBJS-libcommon = \
 	diagnostics/option-classifier.o \
 	diagnostics/paths.o \
 	diagnostics/paths-output.o \
+	diagnostics/physical-location-maker.o \
 	diagnostics/source-printing.o \
 	diagnostics/state-graphs-to-dot.o \
 	diagnostics/selftest-context.o \
@@ -1894,8 +1909,9 @@ OBJS-libcommon = \
 	diagnostics/diagnostics-selftests.o \
 	gcc-diagnostic-spec.o \
 	graphviz.o pex.o \
-	pretty-print.o intl.o \
-	json.o json-parsing.o \
+	pretty-print.o pretty-print-token-buffer.o intl.o \
+	json.o json-parsing.o json-diagnostic.o json-pointer-parsing.o \
+	pub-sub.o \
 	xml.o \
 	sbitmap.o \
 	vec.o input.o hash-table.o ggc-none.o memory-block.o \
@@ -1939,6 +1955,12 @@ ifeq ($(if $(wildcard ../stage_current),$(shell cat \
 $(ALL_HOST_BACKEND_OBJS): ALL_COMPILERFLAGS += -fauto-profile=all.fda
 $(ALL_HOST_BACKEND_OBJS): all.fda
 endif
+
+# Path to the perf utility
+PERF = @PERF@
+
+# The profiler to be used by autoprofiledbootstrap
+AFDO_PROFILER = @AFDO_PROFILER@
 
 # This lists all host object files, whether they are included in this
 # compilation or not.
@@ -2363,7 +2385,7 @@ LIBGDIAGNOSTICS_VERSION_NUM = 0
 LIBGDIAGNOSTICS_MINOR_NUM = 0
 LIBGDIAGNOSTICS_RELEASE_NUM = 1
 
-ifneq (,$(findstring mingw,$(target)))
+ifneq (,$(findstring mingw,$(host)))
 LIBGDIAGNOSTICS_FILENAME = libgdiagnostics-$(LIBGDIAGNOSTICS_VERSION_NUM).dll
 LIBGDIAGNOSTICS_IMPORT_LIB = libgdiagnostics.dll.a
 
@@ -2436,7 +2458,7 @@ libgdiagnostics.serial = $(LIBGDIAGNOSTICS_FILENAME)
 # Tell GNU make to ignore these if they exist.
 .PHONY: libgdiagnostics
 
-ifneq (,$(findstring mingw,$(target)))
+ifneq (,$(findstring mingw,$(host)))
 # Create import library
 LIBGDIAGNOSTICS_EXTRA_OPTS = -Wl,--out-implib,$(LIBGDIAGNOSTICS_IMPORT_LIB)
 else
@@ -2464,7 +2486,7 @@ $(LIBGDIAGNOSTICS_FILENAME): $(libgdiagnostics_OBJS) $(CPPLIB) $(EXTRA_GCC_LIBS)
 	@$(call LINK_PROGRESS,$(INDEX.libgdiagnostics),end)
 
 # Create symlinks when not building for Windows
-ifeq (,$(findstring mingw,$(target)))
+ifeq (,$(findstring mingw,$(host)))
 
 ifeq (,$(findstring darwin,$(host)))
 # but only one level for Darwin, version info is embedded.
@@ -2528,11 +2550,12 @@ s-mlib: $(srcdir)/genmultilib Makefile
 	    "$(MULTILIB_REQUIRED)" \
 	    "$(if $(MULTILIB_OSDIRNAMES),,$(MULTIARCH_DIRNAME))" \
 	    "$(MULTILIB_REUSE)" \
+	    "$(if $(with_multi_buildlist),true,false)" \
 	    "@enable_multilib@" \
 	    > tmp-mlib.h; \
 	else \
 	  $(SHELL) $(srcdir)/genmultilib '' '' '' '' '' '' '' '' \
-	    "$(MULTIARCH_DIRNAME)" '' no \
+	    "$(MULTIARCH_DIRNAME)" '' 'false' no \
 	    > tmp-mlib.h; \
 	fi
 	$(SHELL) $(srcdir)/../move-if-change tmp-mlib.h multilib.h
@@ -3631,10 +3654,23 @@ fixinc_list: s-fixinc_list; @true
 s-fixinc_list : $(GCC_PASSES)
 # Build up a list of multilib directories and corresponding sysroot
 # suffixes, in form sysroot;multilib.
+# Use a filtered multilib list if requested.
 	if $(GCC_FOR_TARGET) -print-sysroot-headers-suffix > /dev/null 2>&1; then \
 	  set -e; for ml in `$(GCC_FOR_TARGET) -print-multi-lib`; do \
 	    multi_dir=`echo $${ml} | sed -e 's/;.*$$//'`; \
 	    flags=`echo $${ml} | sed -e 's/^[^;]*;//' -e 's/@/ -/g'`; \
+	    if [ x$(with_multi_buildlist) != x ]; then \
+	      if [ ! -f $(with_multi_buildlist) ]; then \
+		echo "fixinc_list: Failed to find $(with_multi_buildlist)"; \
+		exit 1; \
+	      fi; \
+	      set +e; \
+	      found=`grep "^$${multi_dir}$$" $(with_multi_buildlist)`; \
+	      set -e; \
+	      if [ -z "$$found" ]; then \
+		continue; \
+	      fi; \
+	    fi; \
 	    sfx=`$(GCC_FOR_TARGET) $${flags} -print-sysroot-headers-suffix`; \
 	    if [ "$${multi_dir}" = "." ]; \
 	      then multi_dir=""; \
@@ -3783,7 +3819,8 @@ TEXI_GCCINT_FILES = gccint.texi gcc-common.texi gcc-vers.texi		\
 	 gnu.texi gpl_v3.texi fdl.texi contrib.texi languages.texi	\
 	 sourcebuild.texi gty.texi libgcc.texi cfg.texi tree-ssa.texi	\
 	 loop.texi generic.texi gimple.texi plugins.texi optinfo.texi   \
-	 match-and-simplify.texi analyzer.texi ux.texi poly-int.texi
+	 match-and-simplify.texi analyzer.texi ux.texi poly-int.texi	\
+	 params.texi specs.texi ifn.texi
 
 TEXI_GCCINSTALL_FILES = install.texi fdl.texi		\
 	 gcc-common.texi gcc-vers.texi
@@ -3913,7 +3950,7 @@ regenerate-opt-urls-unit-test: $(OPT_URLS_HTML_DEPS)
 
 # Regenerate attr-urls.def from the generated html.
 .PHONY: regenerate-attr-urls
-ATTR_URLS_HTML_DEPS = $(build_htmldir)/gcc/Concept-and-Symbol-Index.html
+ATTR_URLS_HTML_DEPS = $(build_htmldir)/gcc/Attribute-Index.html
 
 regenerate-attr-urls: $(srcdir)/regenerate-attr-urls.py $(ATTR_URLS_HTML_DEPS)
 	$(srcdir)/regenerate-attr-urls.py $(build_htmldir) $(shell dirname $(srcdir))
@@ -4141,7 +4178,7 @@ PLUGIN_HEADERS = $(TREE_H) $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H) \
   lcm.h cfgloopmanip.h file-prefix-map.h builtins.def $(INSN_ATTR_H) \
   pass-instances.def params.list $(srcdir)/../include/gomp-constants.h \
   $(EXPR_H) $(srcdir)/analyzer/*.h $(srcdir)/diagnostics/*.h \
-  $(srcdir)/text-art/*.h
+  $(srcdir)/text-art/*.h $(srcdir)/topics/*.h
 
 # generate the 'build fragment' b-header-vars
 s-header-vars: Makefile
@@ -4181,6 +4218,7 @@ install-plugin: installdirs lang.install-plugin s-header-vars install-gengtype
 	  "$(srcdir)"/analyzer/* \
 	  | "$(srcdir)"/diagnostics/* \
 	  | "$(srcdir)"/text-art/* \
+	  | "$(srcdir)"/topics/* \
 	  | "$(srcdir)"/config/* | "$(srcdir)"/common/config/* \
 	  | "$(srcdir)"/c-family/* | "$(srcdir)"/*.def ) \
 	    base=`echo "$$path" | sed -e "s|$$srcdirstrip/||"`;; \
@@ -4268,7 +4306,7 @@ libgdiagnostics.install-headers: installdirs
 	$(INSTALL_DATA) $(srcdir)/libgdiagnostics++.h \
 	  $(DESTDIR)$(includedir)/libgdiagnostics++.h
 
-ifneq (,$(findstring mingw,$(target)))
+ifneq (,$(findstring mingw,$(host)))
 libgdiagnostics.install-common: installdirs libgdiagnostics.install-headers
 # Install import library
 	$(INSTALL_PROGRAM) $(LIBGDIAGNOSTICS_IMPORT_LIB) \
@@ -4793,7 +4831,7 @@ paranoia: paranoia.o real.o $(LIBIBERTY)
 	g++ -o $@ paranoia.o real.o $(LIBIBERTY)
 
 all.fda: $(ALL_FDAS)
-	$(PROFILE_MERGER) $(ALL_FDAS) --output_file all.fda -gcov_version 2
+	$(PROFILE_MERGER) $(ALL_FDAS) --output_file all.fda -gcov_version `../stage1-gcc/xgcc$(exeext) --print-autofdo-gcov-version`
 
 # These exist for maintenance purposes.
 

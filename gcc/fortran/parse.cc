@@ -6435,7 +6435,7 @@ parse_omp_structured_block (gfc_statement omp_st, bool workshare_stmts_only)
 			 new_st.ext.omp_name) != 0))
 	gfc_error ("Name after !$omp critical and !$omp end critical does "
 		   "not match at %C");
-      free (CONST_CAST (char *, new_st.ext.omp_name));
+      free (const_cast<char *> (new_st.ext.omp_name));
       new_st.ext.omp_name = NULL;
       break;
     case EXEC_OMP_END_SINGLE:
@@ -6853,6 +6853,28 @@ parse_executable (gfc_statement st)
 }
 
 
+/* Update statement function formal argument lists that reference OLD_SYM
+   to point to NEW_SYM instead.  This prevents use-after-free when
+   gfc_fixup_sibling_symbols replaces and frees a symbol that is also
+   used as a statement function dummy argument (PR95879).  */
+
+static void
+fixup_st_func_formals (gfc_symtree *st, gfc_symbol *old_sym,
+		       gfc_symbol *new_sym)
+{
+  if (st == NULL)
+    return;
+
+  fixup_st_func_formals (st->left, old_sym, new_sym);
+  fixup_st_func_formals (st->right, old_sym, new_sym);
+
+  if (st->n.sym && st->n.sym->attr.proc == PROC_ST_FUNCTION)
+    for (gfc_formal_arglist *fa = st->n.sym->formal; fa; fa = fa->next)
+      if (fa->sym == old_sym)
+	fa->sym = new_sym;
+}
+
+
 /* Fix the symbols for sibling functions.  These are incorrectly added to
    the child namespace as the parser didn't know about this procedure.  */
 
@@ -6907,6 +6929,11 @@ gfc_fixup_sibling_symbols (gfc_symbol *sym, gfc_namespace *siblings)
 	  sym->refs++;
 	  if (imported)
 	    sym->attr.imported = 1;
+
+	  /* Update statement function formal argument lists that still
+	     reference old_sym before releasing it (PR95879).  */
+	  fixup_st_func_formals (ns->sym_root, old_sym, sym);
+
 	  gfc_release_symbol (old_sym);
 	}
 

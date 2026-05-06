@@ -988,8 +988,8 @@ number_of_iterations_ne (class loop *loop, tree type, affine_iv *iv,
      if BNDS->below in the result is nonnegative.  */
   if (tree_int_cst_sign_bit (iv->step))
     {
-      s = fold_convert (niter_type,
-			fold_build1 (NEGATE_EXPR, type, iv->step));
+      s = fold_build1 (NEGATE_EXPR, niter_type,
+		       fold_convert (niter_type, iv->step));
       c = fold_build2 (MINUS_EXPR, niter_type,
 		       fold_convert (niter_type, iv->base),
 		       fold_convert (niter_type, final));
@@ -1054,7 +1054,7 @@ number_of_iterations_ne (class loop *loop, tree type, affine_iv *iv,
       if (tree_int_cst_sign_bit (iv->step))
 	{
 	  cond = fold_build2 (GE_EXPR, boolean_type_node, iv->base, final);
-	  if (TREE_CODE (type) == INTEGER_TYPE)
+	  if (INTEGRAL_NB_TYPE_P (type))
 	    {
 	      /* Only when base - step doesn't overflow.  */
 	      t = TYPE_MAX_VALUE (type);
@@ -1071,7 +1071,7 @@ number_of_iterations_ne (class loop *loop, tree type, affine_iv *iv,
       else
 	{
 	  cond = fold_build2 (LE_EXPR, boolean_type_node, iv->base, final);
-	  if (TREE_CODE (type) == INTEGER_TYPE)
+	  if (INTEGRAL_NB_TYPE_P (type))
 	    {
 	      /* Only when base - step doesn't underflow.  */
 	      t = TYPE_MIN_VALUE (type);
@@ -1218,7 +1218,7 @@ number_of_iterations_lt_to_ne (tree type, affine_iv *iv0, affine_iv *iv1,
     }
 
   /* IV0 < IV1 does not loop if IV0->base >= IV1->base.  */
-  if (mpz_cmp (mmod, bnds->below) < 0)
+  if (fv_comp_no_overflow && mpz_cmp (mmod, bnds->below) < 0)
     noloop = boolean_false_node;
   else
     noloop = fold_build2 (GE_EXPR, boolean_type_node,
@@ -1633,8 +1633,8 @@ number_of_iterations_lt (class loop *loop, tree type, affine_iv *iv0,
   if (integer_nonzerop (iv0->step))
     step = fold_convert (niter_type, iv0->step);
   else
-    step = fold_convert (niter_type,
-			 fold_build1 (NEGATE_EXPR, type, iv1->step));
+    step = fold_build1 (NEGATE_EXPR, niter_type,
+			fold_convert (niter_type, iv1->step));
 
   /* If we can determine the final value of the control iv exactly, we can
      transform the condition to != comparison.  In particular, this will be
@@ -2439,7 +2439,7 @@ number_of_iterations_cltz (loop_p loop, edge exit,
 	  iv_2 = gimple_assign_rhs1 (test_value_stmt);
 	  tree rhs_type = TREE_TYPE (iv_2);
 	  if (TREE_CODE (iv_2) != SSA_NAME
-	      || TREE_CODE (rhs_type) != INTEGER_TYPE
+	      || !INTEGRAL_NB_TYPE_P (rhs_type)
 	      || (TYPE_PRECISION (rhs_type)
 		  != TYPE_PRECISION (test_value_type)))
 	    return false;
@@ -3275,7 +3275,7 @@ number_of_iterations_exit_assumptions (class loop *loop, edge exit,
   op1 = gimple_cond_rhs (stmt);
   type = TREE_TYPE (op0);
 
-  if (TREE_CODE (type) != INTEGER_TYPE
+  if (!INTEGRAL_NB_TYPE_P (type)
       && !POINTER_TYPE_P (type))
     return false;
 

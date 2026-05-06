@@ -57,7 +57,7 @@ $(srcdir)/config/aarch64/aarch64-generate-json-tuning-routines.py
 s-mddeps: s-aarch64-tune-md
 
 aarch64-builtins.o: $(srcdir)/config/aarch64/aarch64-builtins.cc $(CONFIG_H) \
-  $(SYSTEM_H) coretypes.h $(TM_H) $(REGS_H) \
+  $(SYSTEM_H) coretypes.h $(TARGET_H) $(REGS_H) \
   $(RTL_H) $(TREE_H) expr.h $(TM_P_H) $(RECOG_H) langhooks.h \
   $(DIAGNOSTIC_CORE_H) $(OPTABS_H) \
   $(srcdir)/config/aarch64/aarch64-simd-builtins.def \
@@ -72,7 +72,7 @@ aarch64-sve-builtins.o: $(srcdir)/config/aarch64/aarch64-sve-builtins.cc \
   $(srcdir)/config/aarch64/aarch64-sve-builtins-base.def \
   $(srcdir)/config/aarch64/aarch64-sve-builtins-sve2.def \
   $(srcdir)/config/aarch64/aarch64-sve-builtins-sme.def \
-  $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H) $(TREE_H) $(RTL_H) \
+  $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TARGET_H) $(TREE_H) $(RTL_H) \
   $(TM_P_H) memmodel.h insn-codes.h $(OPTABS_H) $(RECOG_H) $(DIAGNOSTIC_H) \
   $(EXPR_H) $(BASIC_BLOCK_H) $(FUNCTION_H) fold-const.h $(GIMPLE_H) \
   gimple-iterator.h gimplify.h explow.h $(EMIT_RTL_H) tree-vector-builder.h \
@@ -97,7 +97,7 @@ aarch64-sve-builtins-shapes.o: \
 
 aarch64-sve-builtins-base.o: \
   $(srcdir)/config/aarch64/aarch64-sve-builtins-base.cc \
-  $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H) $(TREE_H) $(RTL_H) \
+  $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TARGET_H) $(TREE_H) $(RTL_H) \
   $(TM_P_H) memmodel.h insn-codes.h $(OPTABS_H) $(RECOG_H) \
   $(EXPR_H) $(BASIC_BLOCK_H) $(FUNCTION_H) fold-const.h $(GIMPLE_H) \
   gimple-iterator.h gimplify.h explow.h $(EMIT_RTL_H) tree-vector-builder.h \
@@ -111,7 +111,7 @@ aarch64-sve-builtins-base.o: \
 
 aarch64-sve-builtins-sve2.o: \
   $(srcdir)/config/aarch64/aarch64-sve-builtins-sve2.cc \
-  $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H) $(TREE_H) $(RTL_H) \
+  $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TARGET_H) $(TREE_H) $(RTL_H) \
   $(TM_P_H) memmodel.h insn-codes.h $(OPTABS_H) $(RECOG_H) \
   $(EXPR_H) $(BASIC_BLOCK_H) $(FUNCTION_H) fold-const.h $(GIMPLE_H) \
   gimple-iterator.h gimplify.h explow.h $(EMIT_RTL_H) tree-vector-builder.h \
@@ -125,7 +125,7 @@ aarch64-sve-builtins-sve2.o: \
 
 aarch64-sve-builtins-sme.o: \
   $(srcdir)/config/aarch64/aarch64-sve-builtins-sme.cc \
-  $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H) $(TREE_H) $(RTL_H) \
+  $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TARGET_H) $(TREE_H) $(RTL_H) \
   $(TM_P_H) memmodel.h insn-codes.h $(OPTABS_H) $(RECOG_H) \
   $(EXPR_H) $(BASIC_BLOCK_H) $(FUNCTION_H) fold-const.h $(GIMPLE_H) \
   gimple-iterator.h gimplify.h explow.h $(EMIT_RTL_H) \
@@ -199,7 +199,7 @@ aarch-bti-insert.o: $(srcdir)/config/arm/aarch-bti-insert.cc \
 
 aarch64-early-ra.o: $(srcdir)/config/aarch64/aarch64-early-ra.cc \
     $(CONFIG_H) $(SYSTEM_H) $(CORETYPES_H) $(BACKEND_H) $(RTL_H) $(DF_H) \
-    $(RTL_SSA_H) tree-pass.h
+    $(RTL_SSA_H) $(TARGET_H) tree-pass.h
 	$(COMPILER) -c $(ALL_COMPILERFLAGS) $(ALL_CPPFLAGS) $(INCLUDES) \
 		$(srcdir)/config/aarch64/aarch64-early-ra.cc
 
@@ -238,6 +238,11 @@ aarch64-json-tunings-parser.o: $(srcdir)/config/aarch64/aarch64-json-tunings-par
 	$(COMPILER) -c $(ALL_COMPILERFLAGS) $(ALL_CPPFLAGS) $(INCLUDES) \
 		$(srcdir)/config/aarch64/aarch64-json-tunings-parser.cc
 
+aarch64-narrow-gp-writes.o: $(srcdir)/config/aarch64/aarch64-narrow-gp-writes.cc \
+    $(CONFIG_H) $(SYSTEM_H) $(CORETYPES_H) $(BACKEND_H) $(RTL_H) $(DF_H) \
+    $(RTL_SSA_H) tree-pass.h
+	$(COMPILER) -c $(ALL_COMPILERFLAGS) $(ALL_CPPFLAGS) $(INCLUDES) \
+		$(srcdir)/config/aarch64/aarch64-narrow-gp-writes.cc
 comma=,
 MULTILIB_OPTIONS    = $(subst $(comma),/, $(patsubst %, mabi=%, $(subst $(comma),$(comma)mabi=,$(TM_MULTILIB_CONFIG))))
 MULTILIB_DIRNAMES   = $(subst $(comma), ,$(TM_MULTILIB_CONFIG))

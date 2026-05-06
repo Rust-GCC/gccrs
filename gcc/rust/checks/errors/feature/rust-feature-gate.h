@@ -20,14 +20,14 @@
 #define RUST_FEATURE_GATE_H
 
 #include "rust-ast-visitor.h"
-#include "rust-feature.h"
+#include "rust-feature-collector.h"
 
 namespace Rust {
 
 class FeatureGate : public AST::DefaultASTVisitor
 {
 public:
-  FeatureGate () {}
+  FeatureGate (Features::CrateFeatures &features) : features (features) {}
 
   using AST::DefaultASTVisitor::visit;
 
@@ -54,6 +54,7 @@ public:
 
 private:
   void gate (Feature::Name name, location_t loc, const std::string &error_msg);
+  void check_no_core_attribute (const AST::Attribute &attribute);
   void check_rustc_attri (const std::vector<AST::Attribute> &attributes);
   void
   check_may_dangle_attribute (const std::vector<AST::Attribute> &attributes);
@@ -61,8 +62,7 @@ private:
   check_lang_item_attribute (const std::vector<AST::Attribute> &attributes);
   void note_stability_attribute (const std::vector<AST::Attribute> &attributes);
 
-  std::set<Feature::Name> valid_lang_features;
-  std::map<std::string, location_t> valid_lib_features;
+  Features::CrateFeatures &features;
 
   enum class Stability
   {

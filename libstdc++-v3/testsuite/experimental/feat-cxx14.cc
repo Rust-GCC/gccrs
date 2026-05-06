@@ -18,8 +18,8 @@
 
 #ifndef  __cpp_lib_integer_sequence
 #  error "__cpp_lib_integer_sequence"
-#elif  __cpp_lib_integer_sequence != 201304
-#  error "__cpp_lib_integer_sequence != 201304"
+#elif  __cpp_lib_integer_sequence < 201304
+#  error "__cpp_lib_integer_sequence < 201304"
 #endif
 
 #ifndef  __cpp_lib_exchange_function

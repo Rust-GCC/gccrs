@@ -428,9 +428,10 @@ force_expand_binop (machine_mode mode, optab binoptab,
   return true;
 }
 
-/* Create a new vector value in VMODE with all elements set to OP.  The
-   mode of OP must be the element mode of VMODE.  If OP is a constant,
-   then the return value will be a constant.  */
+/* Create a new vector value in VMODE with all elements set to OP.  If OP
+   is not a constant, the mode of it must be the element mode of VMODE
+   (if the element is BImode, additionally OP is allowed to be in QImode).
+   If OP is a constant, then the return value will be a constant.  */
 
 rtx
 expand_vector_broadcast (machine_mode vmode, rtx op)
@@ -439,6 +440,10 @@ expand_vector_broadcast (machine_mode vmode, rtx op)
   rtvec vec;
 
   gcc_checking_assert (VECTOR_MODE_P (vmode));
+  gcc_checking_assert (CONST_INT_P (op)
+		       || GET_MODE_INNER (vmode) == GET_MODE (op)
+		       || (GET_MODE_INNER (vmode) == BImode
+			   && GET_MODE (op) == QImode));
 
   if (valid_for_const_vector_p (vmode, op))
     return gen_const_vec_duplicate (vmode, op);
@@ -1629,15 +1634,25 @@ expand_binop (machine_mode mode, optab binoptab, rtx op0, rtx op1,
       if (otheroptab
 	  && (icode = optab_handler (otheroptab, mode)) != CODE_FOR_nothing)
 	{
-	  /* The scalar may have been extended to be too wide.  Truncate
-	     it back to the proper size to fit in the broadcast vector.  */
+	  /* The scalar may be wider or narrower than the vector element.
+	     Truncate or extend it to the proper size to fit in the
+	     broadcast vector.  */
 	  scalar_mode inner_mode = GET_MODE_INNER (mode);
-	  if (!CONST_INT_P (op1)
-	      && (GET_MODE_BITSIZE (as_a <scalar_int_mode> (GET_MODE (op1)))
-		  > GET_MODE_BITSIZE (inner_mode)))
-	    op1 = force_reg (inner_mode,
-			     simplify_gen_unary (TRUNCATE, inner_mode, op1,
-						 GET_MODE (op1)));
+	  if (!CONST_INT_P (op1))
+	    {
+	      auto mode1 = as_a <scalar_int_mode> (GET_MODE (op1));
+	      int size1 = GET_MODE_BITSIZE (mode1);
+	      int inner_size = GET_MODE_BITSIZE (inner_mode);
+
+	      if (size1 != inner_size)
+		{
+		  auto unary = size1 > inner_size ? TRUNCATE : ZERO_EXTEND;
+		  op1 = force_reg (inner_mode,
+				   simplify_gen_unary (unary, inner_mode,
+						       op1, mode1));
+		}
+	    }
+
 	  rtx vop1 = expand_vector_broadcast (mode, op1);
 	  if (vop1)
 	    {
@@ -3376,6 +3391,39 @@ expand_unop (machine_mode mode, optab unoptab, rtx op0, rtx target,
       goto try_libcall;
     }
 
+  /* Neg should be tried via expand_absneg_bit before widening.  */
+  if (optab_to_code (unoptab) == NEG)
+    {
+      /* Try negating floating point values by flipping the sign bit.  */
+      if (is_a <scalar_float_mode> (GET_MODE_INNER (mode), &float_mode))
+	{
+	  temp = expand_absneg_bit (NEG, mode, float_mode, op0, target);
+	  if (temp)
+	    return temp;
+	}
+
+      /* If there is no negation pattern, and we have no negative zero,
+	 try subtracting from zero.  */
+      if (!HONOR_SIGNED_ZEROS (mode))
+	{
+	  temp = expand_binop (mode, (unoptab == negv_optab
+				      ? subv_optab : sub_optab),
+			       CONST0_RTX (mode), op0, target,
+			       unsignedp, OPTAB_DIRECT);
+	  if (temp)
+	    return temp;
+	}
+    }
+
+  /* ABS also needs to be handled similarly.  */
+  if (optab_to_code (unoptab) == ABS
+      && is_a <scalar_float_mode> (GET_MODE_INNER (mode), &float_mode))
+    {
+      temp = expand_absneg_bit (ABS, mode, float_mode, op0, target);
+      if (temp)
+	return temp;
+    }
+
   if (CLASS_HAS_WIDER_MODES_P (mclass))
     FOR_EACH_WIDER_MODE (wider_mode, mode)
       {
@@ -3458,29 +3506,6 @@ expand_unop (machine_mode mode, optab unoptab, rtx op0, rtx target,
 			   target, unsignedp, OPTAB_DIRECT);
       if (temp)
 	return temp;
-    }
-
-  if (optab_to_code (unoptab) == NEG)
-    {
-      /* Try negating floating point values by flipping the sign bit.  */
-      if (is_a <scalar_float_mode> (GET_MODE_INNER (mode), &float_mode))
-	{
-	  temp = expand_absneg_bit (NEG, mode, float_mode, op0, target);
-	  if (temp)
-	    return temp;
-	}
-
-      /* If there is no negation pattern, and we have no negative zero,
-	 try subtracting from zero.  */
-      if (!HONOR_SIGNED_ZEROS (mode))
-	{
-	  temp = expand_binop (mode, (unoptab == negv_optab
-				      ? subv_optab : sub_optab),
-			       CONST0_RTX (mode), op0, target,
-			       unsignedp, OPTAB_DIRECT);
-	  if (temp)
-	    return temp;
-	}
     }
 
   /* Try calculating parity (x) as popcount (x) % 2.  */
@@ -3679,15 +3704,6 @@ expand_abs_nojump (machine_mode mode, rtx op0, rtx target,
                       op0, target, 0);
   if (temp != 0)
     return temp;
-
-  /* For floating point modes, try clearing the sign bit.  */
-  scalar_float_mode float_mode;
-  if (is_a <scalar_float_mode> (GET_MODE_INNER (mode), &float_mode))
-    {
-      temp = expand_absneg_bit (ABS, mode, float_mode, op0, target);
-      if (temp)
-	return temp;
-    }
 
   /* If we have a MAX insn, we can do this as MAX (x, -x).  */
   if (optab_handler (smax_optab, mode) != CODE_FOR_nothing
@@ -6731,7 +6747,7 @@ expand_vec_perm_const (machine_mode mode, rtx v0, rtx v1,
     v1 = v0;
   v1 = force_reg (mode, v1);
 
-  /* Otherwise expand as a fully variable permuation.  */
+  /* Otherwise expand as a fully variable permutation.  */
 
   /* The optabs are only defined for selectors with the same width
      as the values being permuted.  */

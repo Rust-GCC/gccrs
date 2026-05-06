@@ -37,6 +37,7 @@
 #include <bits/requires_hosted.h>
 
 #define __glibcxx_want_filesystem
+#define __glibcxx_want_format_path
 #include <bits/version.h>
 
 #ifdef __cpp_lib_filesystem // C++ >= 17 && HOSTED

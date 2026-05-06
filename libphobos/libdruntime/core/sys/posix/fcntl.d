@@ -500,6 +500,12 @@ else version (Darwin)
         short   l_type;
         short   l_whence;
     }
+
+    enum AT_FDCWD = -2;
+    enum AT_EACCESS          = 0x0010;
+    enum AT_SYMLINK_NOFOLLOW = 0x0020;
+    enum AT_SYMLINK_FOLLOW   = 0x0040;
+    enum AT_REMOVEDIR        = 0x0080;
 }
 else version (FreeBSD)
 {
@@ -559,8 +565,11 @@ else version (FreeBSD)
         short   l_whence;
     }
 
-    enum AT_SYMLINK_NOFOLLOW = 0x200;
     enum AT_FDCWD = -100;
+    enum AT_EACCESS          = 0x100;
+    enum AT_SYMLINK_NOFOLLOW = 0x200;
+    enum AT_SYMLINK_FOLLOW   = 0x400;
+    enum AT_REMOVEDIR        = 0x800;
 }
 else version (OpenBSD)
 {
@@ -676,6 +685,12 @@ else version (NetBSD)
         short   l_type;
         short   l_whence;
     }
+
+    enum AT_FDCWD = -100;
+    enum AT_EACCESS          = 0x100;
+    enum AT_SYMLINK_NOFOLLOW = 0x200;
+    enum AT_SYMLINK_FOLLOW   = 0x400;
+    enum AT_REMOVEDIR        = 0x800;
 }
 else version (DragonFlyBSD)
 {
@@ -760,6 +775,12 @@ else version (DragonFlyBSD)
     }
 
     alias oflock = flock;
+
+    enum AT_FDCWD = 0xFFFAFDCD;
+    enum AT_SYMLINK_NOFOLLOW = 1;
+    enum AT_REMOVEDIR        = 2;
+    enum AT_EACCESS          = 4;
+    enum AT_SYMLINK_FOLLOW   = 8;
 }
 else version (Solaris)
 {
@@ -843,6 +864,11 @@ else version (Solaris)
             c_long[4]   l_pad;
         }
     }
+    enum AT_FDCWD = -3041965;
+    enum AT_SYMLINK_NOFOLLOW = 0x1000;
+    enum AT_SYMLINK_FOLLOW   = 0x2000;
+    enum AT_REMOVEDIR        = 0x1;
+    enum AT_EACCESS          = 0x4;
 }
 else
 {
@@ -853,47 +879,57 @@ else
 int creat(const scope char*, mode_t);
 int fcntl(int, int, ...);
 int open(const scope char*, int, ...);
+int openat(int, const scope char*, int, ...);
 */
 version (CRuntime_Glibc)
 {
     static if ( __USE_FILE_OFFSET64 )
     {
         int   creat64(const scope char*, mode_t);
-        alias creat64 creat;
+        alias creat = creat64;
 
         int   open64(const scope char*, int, ...);
-        alias open64 open;
+        alias open = open64;
+
+        int   openat64(int, const scope char*, int, ...);
+        alias openat = openat64;
     }
     else
     {
         int   creat(const scope char*, mode_t);
         int   open(const scope char*, int, ...);
+        int   openat(int, const scope char*, int, ...);
     }
 }
 else version (Darwin)
 {
     int creat(const scope char*, mode_t);
     int open(const scope char*, int, ...);
+    int openat(int, const scope char*, int, ...);
 }
 else version (FreeBSD)
 {
     int creat(const scope char*, mode_t);
     int open(const scope char*, int, ...);
+    int openat(int, const scope char*, int, ...);
 }
 else version (OpenBSD)
 {
     int creat(const scope char*, mode_t);
     int open(const scope char*, int, ...);
+    int openat(int, const scope char*, int, ...);
 }
 else version (NetBSD)
 {
     int creat(const scope char*, mode_t);
     int open(const scope char*, int, ...);
+    int openat(int, const scope char*, int, ...);
 }
 else version (DragonFlyBSD)
 {
     int creat(const scope char*, mode_t);
     int open(const scope char*, int, ...);
+    int openat(int, const scope char*, int, ...);
 }
 else version (Solaris)
 {
@@ -901,11 +937,13 @@ else version (Solaris)
     {
         int creat(const scope char*, mode_t);
         int open(const scope char*, int, ...);
+        int openat(int, const scope char*, int, ...);
 
         static if (__USE_LARGEFILE64)
         {
-            alias creat creat64;
-            alias open open64;
+            alias creat64 = creat;
+            alias open64 = open;
+            alias openat64 = openat;
         }
     }
     else
@@ -913,15 +951,19 @@ else version (Solaris)
         static if (__USE_LARGEFILE64)
         {
             int creat64(const scope char*, mode_t);
-            alias creat64 creat;
+            alias creat = creat64;
 
             int open64(const scope char*, int, ...);
-            alias open64 open;
+            alias open = open64;
+
+            int openat64(int, const scope char*, int, ...);
+            alias openat = openat64;
         }
         else
         {
             int creat(const scope char*, mode_t);
             int open(const scope char*, int, ...);
+            int openat(int, const scope char*, int, ...);
         }
     }
 }
@@ -929,25 +971,32 @@ else version (CRuntime_Bionic)
 {
     int   creat(const scope char*, mode_t);
     int   open(const scope char*, int, ...);
+    int   openat(int, const scope char*, int, ...);
 }
 else version (CRuntime_Musl)
 {
+    int creat(const scope char*, mode_t);
     int open(const scope char*, int, ...);
+    int openat(int, const scope char*, int, ...);
 }
 else version (CRuntime_UClibc)
 {
     static if ( __USE_FILE_OFFSET64 )
     {
         int   creat64(const scope char*, mode_t);
-        alias creat64 creat;
+        alias creat = creat64;
 
         int   open64(const scope char*, int, ...);
-        alias open64 open;
+        alias open = open64;
+
+        int openat64(int, const scope char*, int, ...);
+        alias openat = openat64;
     }
     else
     {
         int   creat(const scope char*, mode_t);
         int   open(const scope char*, int, ...);
+        int openat(int, const scope char*, int, ...);
     }
 }
 else

@@ -1,3 +1,11 @@
+/* { dg-do run }
+   { dg-additional-options "-std=gnu17" }
+
+   # The ARM VxWorks kernel uses an external floating-point library in
+   # which routines like __ledf2 are just aliases for __cmpdf2.  These
+   # routines therefore don't handle NaNs correctly.
+   { dg-xfail-if "" { arm*-*-vxworks* } } */
+
 #ifndef SIGNAL_SUPPRESS
 #include <signal.h>
 #endif

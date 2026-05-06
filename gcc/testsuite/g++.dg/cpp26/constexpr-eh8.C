@@ -13,7 +13,7 @@ foo ()
     }
   catch (...)
     {
-      return std::current_exception ();
+      return __builtin_current_exception ();
     }
 }
 

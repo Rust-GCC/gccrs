@@ -1,5 +1,6 @@
 /* { dg-require-effective-target vsx_hw { target powerpc*-*-* } } */
 /* { dg-additional-options "-mdejagnu-cpu=power7 -mvsx" { target powerpc*-*-* } } */
+/* { dg-additional-options "-O3 -fno-ipa-cp-clone" } */
 
 #include "tree-vect.h"
 

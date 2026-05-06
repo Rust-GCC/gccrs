@@ -6,10 +6,10 @@
 /* { dg-skip-if "" { nvptx-*-* } } */
 /* { dg-skip-if PR119369 { amdgcn-*-* } } */
 
-/* { dg-final { scan-assembler "weak\[^ \t\]*\[ \t\]_?a" } } */
-/* { dg-final { scan-assembler-not "weak\[^ \t\]*\[ \t\]_?b" } } */
-/* { dg-final { scan-assembler "weak\[^ \t\]*\[ \t\]_?c" } } */
-/* { dg-final { scan-assembler "weak\[^ \t\]*\[ \t\]_?d" } } */
+/* { dg-final { scan-weak "a" } } */
+/* { dg-final { scan-not-weak "b" } } */
+/* { dg-final { scan-weak "c" } } */
+/* { dg-final { scan-weak "d" } } */
 
 #pragma weak a
 extern char a[];

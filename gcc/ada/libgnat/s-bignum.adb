@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2012-2025, Free Software Foundation, Inc.         --
+--          Copyright (C) 2012-2026, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -143,6 +143,12 @@ package body System.Bignums is
      renames Sec_Stack_Bignums.To_Bignum;
 
    function From_Bignum (X : Bignum) return Long_Long_Integer
+     renames Sec_Stack_Bignums.From_Bignum;
+
+   function LLU_To_Bignum (X : Long_Long_Unsigned) return Bignum
+     renames Sec_Stack_Bignums.To_Bignum;
+
+   function LLU_From_Bignum (X : Bignum) return Long_Long_Unsigned
      renames Sec_Stack_Bignums.From_Bignum;
 
 end System.Bignums;

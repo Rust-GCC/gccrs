@@ -74,10 +74,10 @@ version (CRuntime_Glibc) {
     static if ( __USE_FILE_OFFSET64 )
     {
         int statvfs64 (const char * file, statvfs_t* buf);
-        alias statvfs64 statvfs;
+        alias statvfs = statvfs64;
 
         int fstatvfs64 (int fildes, statvfs_t *buf) @trusted;
-        alias fstatvfs64 fstatvfs;
+        alias fstatvfs = fstatvfs64;
     }
     else
     {
@@ -97,7 +97,7 @@ else version (CRuntime_Musl)
         fsfilcnt_t f_files;
         fsfilcnt_t f_ffree;
         fsfilcnt_t f_favail;
-        static if (true /+__BYTE_ORDER == __LITTLE_ENDIAN+/)
+        version (LittleEndian)
         {
             c_ulong f_fsid;
             byte[2*int.sizeof-c_long.sizeof] __padding;
@@ -133,8 +133,8 @@ else version (CRuntime_Musl)
     int statvfs (const char * file, statvfs_t* buf);
     int fstatvfs (int fildes, statvfs_t *buf);
 
-    alias statvfs statvfs64;
-    alias fstatvfs fstatvfs64;
+    alias statvfs64 = statvfs;
+    alias fstatvfs64 = fstatvfs;
 }
 else version (NetBSD)
 {
@@ -180,7 +180,9 @@ else version (NetBSD)
         ST_NOSUID = 2
     }
 
+    pragma(mangle, "__statvfs90")
     int statvfs (const char * file, statvfs_t* buf);
+    pragma(mangle, "__fstatvfs90")
     int fstatvfs (int fildes, statvfs_t *buf) @trusted;
 }
 else version (OpenBSD)

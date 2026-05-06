@@ -608,7 +608,11 @@ cancel_changes (int num)
       else
 	*changes[i].loc = changes[i].old;
       if (changes[i].object && !MEM_P (changes[i].object))
-	INSN_CODE (changes[i].object) = changes[i].old_code;
+	{
+	  INSN_CODE (changes[i].object) = changes[i].old_code;
+	  if (recog_data.insn == changes[i].object)
+	    recog_data.insn = nullptr;
+	}
     }
   num_changes = num;
 }
@@ -2030,7 +2034,7 @@ extract_asm_operands (rtx body)
 int
 asm_noperands (const_rtx body)
 {
-  rtx asm_op = extract_asm_operands (CONST_CAST_RTX (body));
+  rtx asm_op = extract_asm_operands (const_cast<rtx> (body));
   int i, n_sets = 0;
 
   if (asm_op == NULL)

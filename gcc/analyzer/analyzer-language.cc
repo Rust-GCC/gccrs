@@ -22,6 +22,8 @@ along with GCC; see the file COPYING3.  If not see
 
 #include "diagnostic.h"
 #include "stringpool.h"
+#include "context.h"
+#include "channels.h"
 
 #include "analyzer/analyzer-language.h"
 #include "analyzer/analyzer-logging.h"
@@ -32,26 +34,6 @@ static GTY (()) hash_map <tree, tree> *analyzer_stashed_constants;
 #if ENABLE_ANALYZER
 
 namespace ana {
-static vec<finish_translation_unit_callback>
-    *finish_translation_unit_callbacks;
-
-void
-register_finish_translation_unit_callback (
-    finish_translation_unit_callback callback)
-{
-  if (!finish_translation_unit_callbacks)
-    vec_alloc (finish_translation_unit_callbacks, 1);
-  finish_translation_unit_callbacks->safe_push (callback);
-}
-
-static void
-run_callbacks (logger *logger, const translation_unit &tu)
-{
-  for (auto const &cb : finish_translation_unit_callbacks)
-    {
-      cb (logger, tu);
-    }
-}
 
 /* Call into TU to try to find a value for NAME.
    If found, stash its value within analyzer_stashed_constants.  */
@@ -95,6 +77,11 @@ stash_named_constants (logger *logger, const translation_unit &tu)
   maybe_stash_named_constant (logger, tu, "O_WRONLY");
   maybe_stash_named_constant (logger, tu, "SOCK_STREAM");
   maybe_stash_named_constant (logger, tu, "SOCK_DGRAM");
+
+  /* Stash named constants for use by kf.cc */
+  maybe_stash_named_constant (logger, tu, "O_CREAT");
+  maybe_stash_named_constant (logger, tu, "O_EXCL");
+  maybe_stash_named_constant (logger, tu, "O_RDWR");
 }
 
 /* Hook for frontend to call into analyzer when TU finishes.
@@ -120,7 +107,12 @@ on_finish_translation_unit (const translation_unit &tu)
 				       *global_dc->get_reference_printer ()));
   stash_named_constants (the_logger.get_logger (), tu);
 
-  run_callbacks (the_logger.get_logger (), tu);
+  if (auto chan = g->get_channels ().analyzer_events_channel.get_if_active ())
+    {
+      gcc::topics::analyzer_events::on_tu_finished msg {the_logger.get_logger (),
+							tu};
+      chan->publish (msg);
+    }
 }
 
 /* Lookup NAME in the named constants stashed when the frontend TU finished.

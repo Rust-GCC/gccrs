@@ -87,6 +87,7 @@
 
 #define __glibcxx_want_addressof_constexpr
 #define __glibcxx_want_as_const
+#define __glibcxx_want_constant_wrapper
 #define __glibcxx_want_constexpr_algorithms
 #define __glibcxx_want_constexpr_utility
 #define __glibcxx_want_exchange_function

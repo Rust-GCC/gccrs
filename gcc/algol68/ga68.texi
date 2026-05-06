@@ -108,6 +108,7 @@ variable @B{C}} is a pseudo-comment.
 @menu
 * Invoking ga68::               How to run the compiler.
 * Composing programs::          Packets, modules, holes, particular programs.
+* Foreign Function Interface::  Communicating with other languages via holes.
 * Comments and pragmats::       Comments and pragmas.
 * Hardware representation::     Representation of programs.
 * Standard prelude::            Standard modes, operators, etc.
@@ -187,9 +188,9 @@ programs.  @xref{Stropping regimes}.
 @opindex fbrackets
 @opindex fno-brackets
 @item -fbrackets
-This option controls whether @code{[ .. ]} and @code{@{ .. @}} are
-considered equivalent to @code{( .. )}.  This syntactic variation is
-blessed by the Revised Report and is still strict Algol 68.
+This option controls whether @code{[ .. ]} is considered equivalent to
+@code{( .. )}.  This syntactic variation is blessed by the Revised
+Report and is still strict Algol 68.
 
 This option is disabled by default.
 @end table
@@ -407,6 +408,7 @@ modules and separated compilation support provided by this compiler.
 @menu
 * Packets::                  Compilation units.
 * Modules::                  Facilities for bottom-up programming.
+* Holes::                    Facilities for top-down programming.
 * Particular programs::      The main program.
 * The standard environment:: Environment conforming a full program.
 @end menu
@@ -514,9 +516,9 @@ a very simple logging facility:
     @B{pub} @B{proc} log = (@B{string} msg) @B{void}:
            fputs (fd, (originator /= "" | ": ") + msg + "'n");
 
-    log ("beginning of log'n");
+    log ("beginning of log'n")
 @B{postlude}
-    log ("end of log'n");
+    log ("end of log'n")
 @B{fed}
 @end example
 
@@ -527,7 +529,7 @@ indicators are bold tags.
 
 The @dfn{prelude} of the module spans from @code{@B{def}} to either
 @code{@B{postlude}}, or to @code{@B{fed}} in case of modules not
-featuring a postlude.  It consists on a restricted serial clause in a
+featuring a postlude.  It consists of a restricted serial clause in a
 void strong context, which can contain units and declarations, but no
 labels or completers.  The declarations in the prelude may be either
 publicized or no publicized.  As we shall see, publicized indicators
@@ -535,7 +537,7 @@ are accessible within the reach of the defining module publicizing
 them.  Publicized declarations are marked by preceding them with
 @code{@B{pub}}.
 
-In our example the module prelude consists on three declarations and
+In our example the module prelude consists of three declarations and
 one unit.  The tag @code{fd} is not publicized and is to be used
 internally by the module.  The indicators @code{originator} and
 @code{log}, on the other hand, are publicized and conform the
@@ -544,7 +546,7 @@ covers the postlude: the @code{log} procedure is reachable there, as
 it would be @code{fd} as well.
 
 The @dfn{postlude} of the module is optional and spans from
-@code{@B{postlude}} to @code{@B{fed}}.  It consists on a serial clause
+@code{@B{postlude}} to @code{@B{fed}}.  It consists of a serial clause
 in a @code{@B{void}} strong context, where definitions, labels and
 module accesses are not allowed, just units.
 
@@ -562,14 +564,14 @@ program that reads an input file and writes some output file:
 
 @example
 @B{access} @B{Logger}
-@B{begin} # Identify ourselves with the program name #
+@B{begin} @{ Identify ourselves with the program name @}
       originator := argv (1);
 
-      # Read input file.  #
+      @{ Read input file.  @}
       @B{if} @B{NOT} parse_input (argv (2))
       @B{then} log ("error parsing input file"); stop @B{fi};
 
-      # Write output file.  #
+      @{ Write output file.  @}
       @B{if} @B{NOT} write_output (argv (3))
       @B{then} log ("error writing output file"); stop @B{fi};
 
@@ -691,9 +693,9 @@ JSON objects rather than raw strings.  We could do it this way:
               fputs (fd, json_array (json_string (originator),
                                      json_string (msg)));
 
-       log (json_string ("beginning of log'n"));
+       log (json_string ("beginning of log'n"))
    @B{postlude}
-       log (json_string ("end of log'n"));
+       log (json_string ("end of log'n"))
    @B{fed}
 @end example
 
@@ -799,9 +801,9 @@ need to add support for it in the definition module.  Something like:
        @B{pub} @B{proc} log = (@B{string} msg) @B{void}:
               fputs (fd, (originator[orig] /= "" | ": ") + msg + "'n");
 
-       log ("beginning of log'n");
+       log ("beginning of log'n")
    @B{postlude}
-       log ("end of log'n");
+       log ("end of log'n")
    @B{fed}
 @end example
 
@@ -861,6 +863,8 @@ sketch of such a file may look like this:
        (a + 1 | dontknow, no, yes);
 
     @B{C} ... other definitions ... @B{C}
+
+    @B{skip}
 @B{fed}
 @end example
 
@@ -995,11 +999,27 @@ identify user-defined modes and operators, such as @code{JSON},
 
 XXX
 
+@node Holes
+@section Holes
+@cindex holes
+
+@dfn{Holes} are part of the modules system and are a mechanism used
+for two main purposes:
+
+@itemize @minus
+@item Top-down programming.
+@item Communication with other programming languages.
+@end itemize
+
+
+At the moment only the second kind of holes are supported by this
+compiler.  @xref{Foreign Function Interface}.
+
 @node Particular programs
 @section Particular programs
 @cindex particular program
 
-An Algol 68 @dfn{particular program} consists on an enclosed clause in
+An Algol 68 @dfn{particular program} consists of an enclosed clause in
 a strong context with target mode @code{@B{void}}, possibly preceded
 by a set of zero or more labels.  For example:
 
@@ -1032,19 +1052,19 @@ Some operating systems have the notion of @dfn{exit status} of a
 process.  In such systems, by default the execution of the particular
 program results in an exit status of success.  It is possible for the
 program to specify an explicit exit status by using the standard
-procedure @code{set exit status}, like:
+procedure @code{posix exit}, like:
 
 @example
-@b{begin} # ... program code ... #
+@b{begin} @{ ... program code ... @}
      @B{if} error found;
-     @B{then} set exit status (1) @B{fi}
+     @B{then} posix exit (1) @B{fi}
 @b{end}
 @end example
 
 In POSIX systems the status is an integer, and the system interprets a
 value other than zero as a run-time error.  In other systems the
-status may be of some other type.  To support this, the @code{set
-error status} procedure accepts as an argument an united value that
+status may be of some other type.  To support this, the @code{posix
+exit} procedure accepts as an argument an united value that
 accommodates all the supported systems.
 
 The following example shows a very simple program that prints ``Hello
@@ -1094,7 +1114,7 @@ the form of pseudo code:
 @end example
 
 @noindent
-Where each user task consists on:
+Where each user task consists of:
 
 @example
 (@B{c} particular-prelude @B{c};
@@ -1134,6 +1154,173 @@ involved then the user-prelude is empty.
 
 Subsequent sections in this manual include a detailed description of
 the contents of these preludes.
+
+@node Foreign Function Interface
+@chapter Foreign Function Interface
+@cindex FFI
+
+It is possible to call functions written in other programming
+languages, and also to access variables and constants, using the
+following form of @dfn{formal hole}:
+
+@example
+@B{nest} @B{language_indicant} "row char denotation"
+@end example
+
+@noindent
+Where @B{language_indicant} is a bold word indicating the programming
+language we are communicating with and the row char denotation
+specifies the entity we are accessing.  The interpretation of the
+later depends on the specific language.
+
+The formal hole construction is an @dfn{unit}, and can only appear in
+a strong context.  It's mode is the mode expected by the strong
+context.  For example, in the following declaration:
+
+@example
+int counter = nest C "_counter";
+@end example
+
+@noindent
+The mode of the formal hole is @code{@B{int}}, since it is in a strong
+context (the actual parameter of an identity declaration) in which an
+integral value is expected.  Likewise, in:
+
+@example
+proc long int func = nest C "random";
+@end example
+
+@noindent
+The expected mode is a procedure that gets no arguments and returns a
+@code{@B{long} @B{int}}.
+
+The set of modes that are accepted in the formal holes depend on the
+specific language we are communicating to.  These are usually
+restricted because the compiler may not know how to translate certain
+Algol 68 concepts into the foreign language ones.  A compile time
+error is issued if an invalid mode is required.  Specifics are
+described in the sections below.
+
+It is important to note that the language-indicants like @code{@B{C}}
+or @code{@B{Fortran}} are still available to be used as mode
+indicants, operators or module indicants: they only qualify as
+language indicants when they appear in a formal hole (@code{@B{nest}})
+construct.
+
+The following subsections document the specific supported foreign
+languages.
+
+@menu
+* Communicating with C::     Accessing C variables and functions.
+@end menu
+
+@node Communicating with C
+@section Communicating with C
+
+The language indicant @code{@B{C}} is used to access C variables and
+calling C functions:
+
+@example
+@B{nest} @B{C} "[&]symbol"
+@end example
+
+The row char denotation should contain a symbol corresponding to a C
+variable or function, optionally preceded by an ampersand @code{&}.
+It is the responsibility of the programmer to make sure the specified
+symbol actually corresponds to an entity with the right type.  In case
+a malformed symbol is specified it will very likely result in an
+assembler error.
+
+For example, this is how we can access a C variable as an Algol 68
+constant:
+
+@example
+@B{int} counter = @B{nest} @B{C} "counter";
+
+@B{if} counter = 0
+@B{then} ... @B{fi};
+@end example
+
+If we wanted to be able to change the value of the C variable
+@code{counter} then we need to add a leading ampersand to the row
+denotation, and of course change the mode on the Algol 68 side to a
+@code{@B{ref} @B{int}}:
+
+@example
+@B{ref} @B{int} counter = @B{nest} @B{C} "&counter";
+
+counter +:= 1;
+@end example
+
+If we wanted to access a C pointer variable @code{int *ptr} as an
+Algol 68 name we could do:
+
+@example
+@B{ref} @B{int} ptr = @B{nest} @B{C} "ptr";
+
+ptr := 100; @{ Changes the value pointed by the C pointer ptr,
+              not of ptr itself @}
+@end example
+
+If we wanted to call the standard POSIX functions @code{random} and
+@code{srandom} we could do:
+
+@example
+@B{proc} @B{long} @B{int} random = @B{nest} @B{C} "random";
+@B{proc}(@B{bits})@B{void} srandom = @B{nest} @B{C} "srandom";
+
+@B{if} random < 100 @B{then} ... @B{fi}
+@end example
+
+The modes accepted in a formal hole for C are:
+
+@table @asis
+@item @code{@B{void}}
+As C @code{void}.
+@item @code{@B{bool}}
+As C @code{bool}.
+@item @code{@B{char}}
+As C 32-bit integer.
+@item @code{@B{int}}
+As C @code{int}.
+@item @code{@B{short} @B{int}}
+As C @code{short}.
+@item @code{@B{short} @B{short} @B{int}}
+As C @code{char}.
+@item @code{@B{long} @B{int}}
+As C @code{long} or as C @code{int}.
+@item @code{@B{long} @B{long} @B{int}}
+As C @code{long long} or as C @code{long} or as C @code{int}.
+@item @code{@B{bits}}
+As C @code{unsigned int}.
+@item @code{@B{short} @B{bits}}
+As C @code{unsigned short}.
+@item @code{@B{short} @B{short} @B{bits}}
+As C @code{unsigned char}.
+@item @code{@B{long} @B{bits}}
+As C @code{unsigned long} or as C @code{unsigned int}.
+@item @code{@B{long} @B{long} @B{bits}}
+As C @code{unsigned long long} or as C @code{unsigned long} or as C @code{unsigned int}.
+@item @code{@B{real}}
+As C @code{float}
+@item @code{@B{long} @B{real}}
+As C @code{double}
+@item @code{string} but only as formal parameters of procedures
+Each Algol 68 string formal parameter turns into three parameters in C:
+
+@table @code
+@item uint32_t *s
+A pointer to the UCS-4 characters composing the string.
+@item size_t len
+The length of @code{s} in number of characters.
+@item size_t stride
+The distance in bytes between each character in @code{s}.
+@end table
+@item @B{proc} with accepted formal parameter modes and yielded mode
+As the corresponding C functions.
+@item Structs with fields of accepted modes
+As the corresponding C structs.
+@end table
 
 @node Comments and pragmats
 @chapter Comments and pragmats
@@ -1331,7 +1518,7 @@ characters are:
 a b c d e f g h i j k l m n o p q r s t u v w x y z
 A B C D E F G H I J K L M N O P Q R S T U V W X Y Z
 0 1 2 3 4 5 6 7 8 9
-space tab " # $ % & ' ( ) * + , - . / : ; < = >  @ [ \ ]
+space tab " # $ % & ' ( ) * + , - . / : ; < = >  @@ [ \ ]
 ^ _ | @ ! ? ~ @{ @}
 @end example
 
@@ -2567,9 +2754,9 @@ Dyadic operator that yields the concatenation of the given string
 
 @deftypefn Operator {} {*} (= (@B{int} a, @B{string} b) @B{string})
 @deftypefnx Operator {} {*} (= (@B{string} b, @B{int} a) @B{string})
-Dyadic operator that yields the string @code{a} concatenated @code{a}
-times to itself.  If @code{a} is less than zero then it is interpreted
-to be zero.
+Dyadic operator that yields the string composed of @code{a}
+concatenated copies of @code{b}.  If @code{a} is less than zero then
+it is interpreted to be zero.
 @end deftypefn
 
 @subsection Composition combined with assignation
@@ -2623,16 +2810,22 @@ in the elements of the given bits operands.
 
 @deftypefn Operator {} {@B{SHL}} {= (@B{l} @B{bits} a, @B{int} n) @B{l} @B{bits}}
 @deftypefnx Operator {} {@B{UP}} {= (@B{l} @B{bits} a, @B{int} n) @B{l} @B{bits}}
-Dyadic operator that yields the given bits operand shifted @code{n}
-positions to the left.  Extra elements introduced on the right are
-initialized to @code{@B{false}}.
+Dyadic operator that yields the given bits operand shifted @code{ABS
+n} positions to the left if @code{n >= 0} or @code{ABS n} positions to
+the right if @code{n < 0}.  Extra elements introduced on the right or
+left are initialized to @code{@B{false}}.  If @code{ABS n >
+L_bits_width} then the resulting bits value has all bits set to
+@code{false}.
 @end deftypefn
 
 @deftypefn Operator {} {@B{SHR}} {= (@B{l} @B{bits} a, @B{int} n) @B{l} @B{bits}}
 @deftypefnx Operator {} {@B{DOWN}} {= (@B{l} @B{bits} a, @B{int} n) @B{l} @B{bits}}
-Dyadic operator that yields the given bits operand shifted @code{n}
-positions to the right.  Extra elements introduced on the left are
-initialized to @code{@B{false}}.
+Dyadic operator that yields the given bits operand shifted @code{ABS
+n} positions to the right if @code{n >= 0} or @code{ABS n} positions
+to the left if @code{n < 0}.  Extra elements introduced on the right
+or left are initialized to @code{@B{false}}.  If @code{ABS n >
+L_bits_width} then the resulting bits value has all bits set to
+@code{false}.
 @end deftypefn
 
 @subsection Relational
@@ -2861,6 +3054,25 @@ Dyadic operator that yields the bit exclusive-or operation of the
 given bits arguments.
 @end deftypefn
 
+@deftypefn Operator {} {@B{set}} {= (@B{l} @B{bits} b, @B{int} n) @B{l} @B{bits}}
+Dyadic operator that sets the @code{n}th least significant bit in
+@code{@B{b}}, where @code{n} is zero based.  If @code{n} is not in the
+range @code{[0,L_bits_width)} then the operator yields @B{b}.
+@end deftypefn
+
+@deftypefn Operator {} {@B{clear}} {= (@B{l} @B{bits} b, @B{int} n) @B{l} @B{bits}}
+Dyadic operator that clears the @code{n}th least significant bit in
+@code{@B{b}}, where @code{n} is zero based.  If @code{n} is not in the
+range @code{[0,L_bits_width)} then the operator yields @B{b}.
+@end deftypefn
+
+@deftypefn Operator {} {@B{test}} {= (@B{l} @B{bits} b, @B{int} n) @B{bool}}
+Dyadic operator that tests whether the @code{n}th least significant
+bit in @code{@B{b}} is set, where @code{n} is zero based. If @code{n}
+is not in the range @code{0,L_bits_width)} then the operator yields
+@B{false}.
+@end deftypefn
+
 @node Extended math procedures
 @section Extended math procedures
 
@@ -2894,17 +3106,15 @@ which is the default.
 @node POSIX process
 @section POSIX process
 
-The Algol 68 program can report an exit status to the operating system
-once they stop running.  The exit status reported by default is zero,
-which corresponds to success.
+The Algol 68 program reports an exit status to the operating system once
+it stops running.  The exit status reported by default is zero, which
+corresponds to success.
 
-@deftypefn Procedure {} {set exit status} {= (@B{int} status)}
+@deftypefn Procedure {} {posix exit} {= (@B{int} status)}
 Procedure that sets the exit status to report to the operating system
-once the program stop executing.  The default exit status is 0 which,
-by convention, is interpreted by POSIX systems as success.  A value
-different to zero is interpreted as an error status.  This procedure
-can be invoked more than one, the previous exit status being
-overwritten.
+and immediately stops executing the program.  The default exit status is
+0 which, by convention, is interpreted by POSIX systems as success.  A
+value different to zero is interpreted as an error status.
 @end deftypefn
 
 @node POSIX command line
@@ -3073,7 +3283,7 @@ error condition, this procedure yields -1 and @code{errno} is set
 appropriately.
 @end deftypefn
 
-@deftypefn Procedure {} {lseek} {= (@B{int} fd, @B{long int} offset, @B{int} whence) @B{long long int}}
+@deftypefn Procedure {} {lseek} {= (@B{int} fd, @B{long long int} offset, @B{int} whence) @B{long long int}}
 Set the file offset of the file characterized by the file descriptor @code{fd}
 depending on the values of @code{offset} and @code{whence}.  On success, the
 resulting offset, as measured in bytes from the beginning of the file, is
@@ -3190,6 +3400,7 @@ invoking the compiler.
 @menu
 * @code{@B{bin}} and @code{@B{abs}} of negative integral values::
 * Bold taggles::              Using underscores in mode and operator indications.
+* Brief selection::           Shorter form of the @code{of-symbol}.
 @end menu
 
 @node @code{@B{bin}} and @code{@B{abs}} of negative integral values
@@ -3309,6 +3520,28 @@ like @code{Foo__bar} and @code{_Baz} are not valid indications.
 
 Bold taggles are available when the gnu68 dialect of the language is
 selected.  @xref{Dialect options}.
+
+@node Brief selection
+@section Brief selection
+
+It was early recognized that a shorter alternative representation the
+of-symbol was very much needed, considering the fact the bold version
+@code{@B{of}} is at least four characters long.  This makes certain
+phrases long and also slightly laborious to read, like in:
+
+@example
+@B{pub} @B{op} + = (@B{Pos} a,b) @B{Pos}: (c @B{of} a + c @B{of} b, r @B{of} a + r @B{of} b),
+       - = (@B{Pos} a,b) @B{Pos}: (c @B{of} a - c @B{of} b, r @B{of} a - r @B{of} b);
+@end example
+
+This compiler allows using a quote character @code{'} instead of
+@code{of} in selections of structs and multiples.  Using this brief
+style the example above now can be written as:
+
+@example
+@B{pub} @B{op} + = (@B{Pos} a,b) @B{Pos}: (c'a + c'b, r'a + r'b),
+       - = (@B{Pos} a,b) @B{Pos}: (c'a - c'b, r'a - r'b);
+@end example
 
 @include gpl_v3.texi
 @include fdl.texi

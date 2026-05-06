@@ -672,12 +672,7 @@ public:
     outer_attrs = std::move (new_attrs);
   }
 
-  NodeId get_node_id () const override final
-  {
-    return ExprWithoutBlock::get_node_id ();
-  }
-
-  NodeId get_macro_node_id () const { return node_id; }
+  NodeId get_node_id () const override final { return node_id; }
 
   MacroInvocData &get_invoc_data () { return invoc_data; }
 
@@ -714,8 +709,10 @@ private:
     MacroInvocData invoc_data, std::vector<Attribute> outer_attrs,
     location_t locus, bool is_semi_coloned,
     std::vector<std::unique_ptr<MacroInvocation>> &&pending_eager_invocs)
-    : TraitItem (locus), outer_attrs (std::move (outer_attrs)), locus (locus),
-      node_id (Analysis::Mappings::get ().get_next_node_id ()),
+    : TraitItem (locus),
+      ExternalItem (Analysis::Mappings::get ().get_next_node_id ()),
+      outer_attrs (std::move (outer_attrs)), locus (locus),
+      node_id (ExternalItem::get_node_id ()),
       invoc_data (std::move (invoc_data)), is_semi_coloned (is_semi_coloned),
       kind (kind), builtin_kind (builtin_kind),
       pending_eager_invocs (std::move (pending_eager_invocs))
@@ -816,6 +813,11 @@ public:
   Item::Kind get_item_kind () const override
   {
     return Item::Kind::MacroInvocation;
+  }
+
+  Type::Kind get_type_kind () const override
+  {
+    return Type::Kind::MacroInvocation;
   }
 
 protected:
@@ -1129,7 +1131,7 @@ private:
   std::unique_ptr<Parser<MacroInvocLexer>> parser;
 
 public:
-  AttributeParser (std::vector<std::unique_ptr<Token>> token_stream,
+  AttributeParser (std::vector<const_TokenPtr> token_stream,
 		   int stream_start_pos = 0);
 
   ~AttributeParser ();

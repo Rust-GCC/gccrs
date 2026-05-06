@@ -322,6 +322,11 @@ parse_output_constraint (const char **constraint_p, int operand_num,
 
   unsigned int alt = 0;
   bool early_clobbered = false;
+  /* Currently, multiple hard register constraints in one alternative are not
+     supported.  A combination of hard register constraints and regular
+     register constraints is also not supported.  */
+  bool alt_has_hard_reg_cstr = false;
+  bool alt_has_reg_cstr = false;
 
   /* Loop through the constraint string.  */
   for (p = constraint + 1; *p; )
@@ -357,6 +362,8 @@ parse_output_constraint (const char **constraint_p, int operand_num,
 	case ',':
 	  ++alt;
 	  early_clobbered = false;
+	  alt_has_hard_reg_cstr = false;
+	  alt_has_reg_cstr = false;
 	  break;
 
 	case '0':  case '1':  case '2':  case '3':  case '4':
@@ -390,6 +397,21 @@ parse_output_constraint (const char **constraint_p, int operand_num,
 	      }
 	    if (reg_info)
 	      {
+		if (alt_has_reg_cstr)
+		  {
+		    error (
+			"hard register constraints and regular register "
+			"constraints in one alternative are not supported");
+		    return false;
+		  }
+		if (alt_has_hard_reg_cstr)
+		  {
+		    error (
+			"multiple hard register constraints in one "
+			"alternative are not supported");
+		    return false;
+		  }
+		alt_has_hard_reg_cstr = true;
 		int regno = decode_hard_reg_constraint (p);
 		if (regno < 0)
 		  {
@@ -441,7 +463,17 @@ parse_output_constraint (const char **constraint_p, int operand_num,
 	  enum constraint_num cn = lookup_constraint (p);
 	  if (reg_class_for_constraint (cn) != NO_REGS
 	      || insn_extra_address_constraint (cn))
-	    *allows_reg = true;
+	    {
+	      if (alt_has_hard_reg_cstr)
+		{
+		  error (
+		      "hard register constraints and regular register "
+		      "constraints in one alternative are not supported");
+		  return false;
+		}
+	      alt_has_reg_cstr = true;
+	      *allows_reg = true;
+	    }
 	  else if (insn_extra_memory_constraint (cn))
 	    *allows_mem = true;
 	  else
@@ -503,11 +535,15 @@ parse_input_constraint (const char **constraint_p, int input_num,
   *allows_mem = false;
   *allows_reg = false;
 
+  bool alt_has_hard_reg_cstr = false;
+  bool alt_has_reg_cstr = false;
+
   /* Make sure constraint has neither `=', `+', nor '&'.  */
 
   unsigned int alt = 0;
   unsigned long match = 0;
 
+repeat:
   for (j = 0; j < c_len; j += CONSTRAINT_LEN (constraint[j], constraint+j))
     switch (constraint[j])
       {
@@ -554,6 +590,8 @@ parse_input_constraint (const char **constraint_p, int input_num,
 
       case ',':
 	++alt;
+	alt_has_hard_reg_cstr = false;
+	alt_has_reg_cstr = false;
 	break;
 
 	/* Whether or not a numeric constraint allows a register is
@@ -583,12 +621,7 @@ parse_input_constraint (const char **constraint_p, int input_num,
 	      constraint = constraints[match];
 	      *constraint_p = constraint;
 	      c_len = strlen (constraint);
-	      j = 0;
-	      /* ??? At the end of the loop, we will skip the first part of
-		 the matched constraint.  This assumes not only that the
-		 other constraint is an output constraint, but also that
-		 the '=' or '+' come first.  */
-	      break;
+	      goto repeat;
 	    }
 	  else
 	    j = end - constraint;
@@ -611,6 +644,21 @@ parse_input_constraint (const char **constraint_p, int input_num,
 	    }
 	  if (reg_info)
 	    {
+	      if (alt_has_reg_cstr)
+		{
+		  error (
+		      "hard register constraints and regular register "
+		      "constraints in one alternative are not supported");
+		  return false;
+		}
+	      if (alt_has_hard_reg_cstr)
+		{
+		  error (
+		      "multiple hard register constraints in one "
+		      "alternative are not supported");
+		  return false;
+		}
+	      alt_has_hard_reg_cstr = true;
 	      int regno = decode_hard_reg_constraint (constraint + j);
 	      if (regno < 0)
 		{
@@ -670,7 +718,17 @@ parse_input_constraint (const char **constraint_p, int input_num,
 	enum constraint_num cn = lookup_constraint (constraint + j);
 	if (reg_class_for_constraint (cn) != NO_REGS
 	    || insn_extra_address_constraint (cn))
-	  *allows_reg = true;
+	  {
+	    if (alt_has_hard_reg_cstr)
+	      {
+		error (
+		    "hard register constraints and regular register "
+		    "constraints in one alternative are not supported");
+		return false;
+	      }
+	    alt_has_reg_cstr = true;
+	    *allows_reg = true;
+	  }
 	else if (insn_extra_memory_constraint (cn)
 		 || insn_extra_special_memory_constraint (cn)
 		 || insn_extra_relaxed_memory_constraint (cn))

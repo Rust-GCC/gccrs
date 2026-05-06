@@ -173,6 +173,9 @@
 (define_mode_iterator BWD [SI HI QI])
 (define_mode_iterator BWDD [DI SI HI QI])
 
+;; Need to handle BWD and SF similarly, at least in the expander.
+(define_mode_iterator BWDSF [SI HI QI SF])
+
 ;; To be able to refer to the same mode_attr for both a multi-mode
 ;; and a mode-specific pattern, we use some singleton iterators.
 (define_mode_iterator DI_ [DI])
@@ -560,11 +563,11 @@
 
 ;; Normal move patterns from SI on.
 
-(define_expand "movsi"
+(define_expand "mov<mode>"
   [(parallel
     [(set
-      (match_operand:SI 0 "nonimmediate_operand")
-      (match_operand:SI 1 "general_operand"))
+      (match_operand:BWDSF 0 "nonimmediate_operand")
+      (match_operand:BWDSF 1 "general_operand"))
      (clobber (reg:CC CRIS_CC0_REGNUM))])]
   ""
 {
@@ -572,14 +575,16 @@
      input.  */
   if (MEM_P (operands[0])
       && ! REG_S_P (operands[1])
-      && operands[1] != const0_rtx
+      && operands[1] != CONST0_RTX (<MODE>mode)
       && can_create_pseudo_p ())
-    operands[1] = force_reg (SImode, operands[1]);
+    operands[1] = force_reg (<MODE>mode, operands[1]);
 
    /* At post-reload time, we'll get here for e.g. split multi-mode insns
       with a memory destination.  Go directly to the clobber-less variant.
-      FIXME: Also applies to special-register source or destination.  */
-   if (reload_completed
+      FIXME: Also applies to special-register source or destination.
+      Only do this for integer modes.  */
+   if (SCALAR_INT_MODE_P (<MODE>mode)
+       && reload_completed
        && (MEM_P (operands[0]) || operands[1] == const0_rtx))
      {
         emit_insn (gen_rtx_SET (operands[0], operands[1]));
@@ -656,14 +661,14 @@
    (set_attr "cc<cccc><ccnz><ccnzvc>"
 	     "*,*,none,none,*,none,none,*,*,none,none,none,none,none,none,*,none")])
 
-;; FIXME: See movsi.
-
-(define_insn "<acc><anz><anzvc>movhi<setcc><setnz><setnzvc>"
+(define_insn "*movhi_internal<setcc><setnz><setnzvc>"
   [(set
     (match_operand:HI 0 "nonimmediate_operand" "=r,r, r,Q>,r,Q>,r,r,r,g,g,r,r,x")
     (match_operand:HI 1 "general_operand"	"r,Q>,M,M, I,r, L,O,n,M,r,g,x,r"))
    (clobber (reg:CC CRIS_CC0_REGNUM))]
-  ""
+  "(register_operand (operands[0], HImode)
+    || register_operand (operands[1], HImode)
+    || operands[1] == const0_rtx)"
 {
   switch (which_alternative)
     {
@@ -700,13 +705,32 @@
   [(set_attr "slottable" "yes,yes,yes,yes,yes,yes,no,yes,no,no,no,no,yes,yes")
    (set_attr "cc<cccc><ccnz><ccnzvc>" "*,*,none,none,*,none,*,clobber,*,none,none,*,none,none")])
 
-(define_insn "movstricthi"
+(define_expand "movstrict<mode>"
+  [(parallel
+    [(set
+      (strict_low_part (match_operand:BW 0 "nonimmediate_operand"))
+      (match_operand:BW 1 "general_operand"))
+     (clobber (reg:CC CRIS_CC0_REGNUM))])]
+  ""
+{
+  /* If the output goes to a MEM, make sure we have zero or a register as
+     input.  */
+  if (MEM_P (operands[0])
+      && ! REG_S_P (operands[1])
+      && operands[1] != const0_rtx
+      && can_create_pseudo_p ())
+    operands[1] = force_reg (<MODE>mode, operands[1]);
+})
+
+(define_insn "*movstricthi_internal"
   [(set
     (strict_low_part
      (match_operand:HI 0 "nonimmediate_operand" "+r,r, r,Q>,Q>,g,r,g"))
     (match_operand:HI 1 "general_operand"	 "r,Q>,M,M, r, M,g,r"))
    (clobber (reg:CC CRIS_CC0_REGNUM))]
-  ""
+  "(register_operand (operands[0], HImode)
+    || register_operand (operands[1], HImode)
+    || operands[1] == const0_rtx)"
   "@
    move.w %1,%0
    move.w %1,%0
@@ -734,11 +758,13 @@
   ""
   "")
 
-(define_insn "<acc><anz><anzvc>movqi<setcc><setnz><setnzvc>"
+(define_insn "*movqi_internal<setcc><setnz><setnzvc>"
   [(set (match_operand:QI 0 "nonimmediate_operand" "=r,Q>,r, r,Q>,r,g,g,r,r,r,x")
 	(match_operand:QI 1 "general_operand"	    "r,r, Q>,M,M, I,M,r,O,g,x,r"))
    (clobber (reg:CC CRIS_CC0_REGNUM))]
-  ""
+  "(register_operand (operands[0], QImode)
+    || register_operand (operands[1], QImode)
+    || operands[1] == const0_rtx)"
   "@
    move.b %1,%0
    move.b %1,%0
@@ -756,12 +782,14 @@
    (set_attr "cc<cccc><ccnz><ccnzvc>"
 	     "*,none,*,none,none,*,none,none,clobber,*,none,none")])
 
-(define_insn "movstrictqi"
+(define_insn "*movstrictqi_internal"
   [(set (strict_low_part
 	 (match_operand:QI 0 "nonimmediate_operand" "+r,Q>,r, r,Q>,g,g,r"))
 	(match_operand:QI 1 "general_operand"	     "r,r, Q>,M,M, M,r,g"))
    (clobber (reg:CC CRIS_CC0_REGNUM))]
-  ""
+  "(register_operand (operands[0], QImode)
+    || register_operand (operands[1], QImode)
+    || operands[1] == const0_rtx)"
   "@
    move.b %1,%0
    move.b %1,%0
@@ -778,11 +806,13 @@
 ;; all ones); the worthwhile one is "0.0".
 ;; It will use clear, so we know ALL types of immediate 0 never change cc.
 
-(define_insn "movsf"
+(define_insn "*movsf_internal"
   [(set (match_operand:SF 0 "nonimmediate_operand" "=r,Q>,r, r,Q>,g,g,r,r,x,Q>,m,x, x")
 	(match_operand:SF 1 "general_operand"       "r,r, Q>,G,G, G,r,g,x,r,x, x,Q>,g"))
    (clobber (reg:CC CRIS_CC0_REGNUM))]
-  ""
+  "(register_operand (operands[0], SFmode)
+    || register_operand (operands[1], SFmode)
+    || operands[1] == CONST0_RTX (SFmode))"
   "@
    move.d %1,%0
    move.d %1,%0
@@ -2319,7 +2349,9 @@
 	 (label_ref (match_operand 2 ""))
 	 (pc)))
    (clobber (reg:CC CRIS_CC0_REGNUM))]
-  ""
+  "(register_operand (operands[0], <MODE>mode)
+    || register_operand (operands[1], <MODE>mode)
+    || operands[1] == const0_rtx)"
   "#"
   "&& reload_completed"
   [(set (reg:<xCC> CRIS_CC0_REGNUM)
@@ -2475,7 +2507,9 @@
 	 (match_operand:BWDD 1 "nonimmediate_operand" "<cmp_op0c>")
 	 (match_operand:BWDD 2 "general_operand" "<cmp_op1c>")))
    (clobber (reg:CC CRIS_CC0_REGNUM))]
-  ""
+  "(register_operand (operands[1], <MODE>mode)
+    || register_operand (operands[2], <MODE>mode)
+    || operands[2] == const0_rtx)"
   "#"
   "&& reload_completed"
   [(set (reg:<xCC> CRIS_CC0_REGNUM)

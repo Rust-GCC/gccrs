@@ -5,18 +5,18 @@
 /* { dg-skip-if "" { x86_64-*-mingw* } } */
 /* { dg-skip-if PR119369 { amdgcn-*-* } } */
 
-/* { dg-final { scan-assembler "weak\[^ \t\]*\[ \t\]_?vfoo1a" } } */
-/* { dg-final { scan-assembler "weak\[^ \t\]*\[ \t\]_?vfoo1b" } } */
-/* { dg-final { scan-assembler "weak\[^ \t\]*\[ \t\]_?vfoo1c" } } */
-/* { dg-final { scan-assembler "weak\[^ \t\]*\[ \t\]_?vfoo1d" } } */
-/* { dg-final { scan-assembler "weak\[^ \t\]*\[ \t\]_?vfoo1e" } } */
-/* { dg-final { scan-assembler "weak\[^ \t\]*\[ \t\]_?vfoo1f" } } */
-/* { dg-final { scan-assembler "weak\[^ \t\]*\[ \t\]_?vfoo1g" } } */
-/* { dg-final { scan-assembler "weak\[^ \t\]*\[ \t\]_?vfoo1h" } } */
-/* { dg-final { scan-assembler "weak\[^ \t\]*\[ \t\]_?vfoo1i" } } */
-/* { dg-final { scan-assembler "weak\[^ \t\]*\[ \t\]_?vfoo1j" } } */
-/* { dg-final { scan-assembler "weak\[^ \t\]*\[ \t\]_?vfoo1k" } } */
-/* { dg-final { scan-assembler "weak\[^ \t\]*\[ \t\]_?vfoo1l" } } */
+/* { dg-final { scan-weak "vfoo1a" } } */
+/* { dg-final { scan-weak "vfoo1b" } } */
+/* { dg-final { scan-weak "vfoo1c" } } */
+/* { dg-final { scan-weak "vfoo1d" } } */
+/* { dg-final { scan-weak "vfoo1e" } } */
+/* { dg-final { scan-weak "vfoo1f" } } */
+/* { dg-final { scan-weak "vfoo1g" } } */
+/* { dg-final { scan-weak "vfoo1h" } } */
+/* { dg-final { scan-weak "vfoo1i" } } */
+/* { dg-final { scan-weak "vfoo1j" } } */
+/* { dg-final { scan-weak "vfoo1k" } } */
+/* { dg-final { scan-weak "vfoo1l" } } */
 
 /* test variable addresses with __attribute__ ((weak)) */
 

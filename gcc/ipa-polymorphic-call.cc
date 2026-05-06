@@ -503,8 +503,10 @@ polymorphic_ctor_dtor_p (tree fn, bool check_clones)
 	return NULL_TREE;
     }
 
-  if (flags_from_decl_or_type (fn) & (ECF_PURE | ECF_CONST))
-    return NULL_TREE;
+  /* We used to check that the ctor/dtor is not pure/const.
+     However this may interact with pass ordering.  It is possible that the
+     store of vtable is optimized out in offline copy, but inline copies keep
+     it and then local-pure-const overwrites the flag.  See PR120098.  */
 
   return fn;
 }
@@ -2363,7 +2365,18 @@ ipa_polymorphic_call_context::possible_dynamic_type_change (bool in_poly_cdtor,
 							    tree otr_type)
 {
   if (dynamic)
-    make_speculative (otr_type);
+    {
+      /* See if existing speculation was inconsistent before type change.
+	 If so drop it first, so we do not lose track about it being
+	 impossible.  */
+      if (speculative_outer_type
+	  && !speculation_consistent_p (speculative_outer_type,
+					speculative_offset,
+					speculative_maybe_derived_type,
+					otr_type))
+	clear_speculation ();
+      make_speculative (otr_type);
+    }
   else if (in_poly_cdtor)
     maybe_in_construction = true;
 }
@@ -2471,12 +2484,14 @@ ipa_polymorphic_call_context::meet_with (ipa_polymorphic_call_context ctx,
       updated = true;
     }
 
-  /* If call is known to be invalid, we are done.  */
+  /* If a certain context is known to be invalid, we can move to comparing
+     speculation.  Because the second context might be a certain one which can
+     be met with the speculation of the first, make it speculative.  */
   if (!outer_type)
-    ;
+    ctx.make_speculative ();
   else if (!ctx.outer_type)
     {
-      clear_outer_type ();
+      make_speculative ();
       updated = true;
     }
   /* If types are known to be same, merging is quite easy.  */

@@ -1,3 +1,4 @@
+/* { dg-require-effective-target label_values } */
 #include "../../gcc.dg/analyzer/analyzer-decls.h"
 
 void test_1 (int pc)

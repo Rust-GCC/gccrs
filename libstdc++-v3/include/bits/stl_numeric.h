@@ -79,7 +79,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
    *  @param  __first  Start of range.
    *  @param  __last  End of range.
    *  @param  __value  Starting value.
-   *  @return  Nothing.
    *  @ingroup numeric_ops
    */
   template<typename _ForwardIterator, typename _Tp>

@@ -27,7 +27,8 @@
 #if __glibcxx_atomic_wait
 #include <atomic>
 #include <bits/atomic_timed_wait.h>
-#include <cstdint> // uint32_t, uint64_t
+#include <utility> // cmp_less
+#include <cstdint> // uint32_t, uint64_t, uintptr_t
 #include <climits> // INT_MAX
 #include <cerrno>  // errno, ETIMEDOUT, etc.
 #include <bits/std_mutex.h>  // std::mutex, std::__condvar
@@ -38,6 +39,24 @@
 # include <sys/syscall.h> // SYS_futex
 # include <unistd.h>
 # include <sys/time.h> // timespec
+# define _GLIBCXX_HAVE_PLATFORM_WAIT 1
+#elif defined __APPLE__ \
+      && __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ >= 101200
+// These are thin wrappers over the underlying syscall, they exist on
+// earlier versions of the OS, however those versions do not support the
+// UL_COMPARE_AND_WAIT64 operation.
+extern "C" int
+__ulock_wait(uint32_t operation, void* addr, uint64_t value, uint32_t timeout);
+extern "C" int
+__ulock_wake(uint32_t operation, void* addr, uint64_t wake_value);
+# define UL_COMPARE_AND_WAIT             1
+# define UL_COMPARE_AND_WAIT64          5
+# define ULF_WAKE_ALL                    0x00000100
+# define _GLIBCXX_HAVE_PLATFORM_WAIT 1
+#elif defined __FreeBSD__ && __FreeBSD__ >= 11 && __SIZEOF_LONG__ == 8
+# include <sys/types.h>
+# include <sys/umtx.h>
+# include <sys/time.h>
 # define _GLIBCXX_HAVE_PLATFORM_WAIT 1
 #endif
 
@@ -87,6 +106,13 @@ namespace
 			__wait_clock_t::time_point timeout,
 			int obj_size) = delete;
 
+  // This is needed even when we don't have __platform_wait
+  [[gnu::always_inline]]
+  inline __wait_value_type
+  __platform_load(const __platform_wait_t* addr, int memory_order,
+		  int /* obj_sz */) noexcept
+  { return __atomic_load_n(addr, memory_order); }
+
 #elif defined _GLIBCXX_HAVE_LINUX_FUTEX
 
   const int futex_private_flag = 128;
@@ -135,6 +161,128 @@ namespace
 	  __throw_system_error(errno);
       }
     return true;
+  }
+
+  [[gnu::always_inline]]
+  inline __wait_value_type
+  __platform_load(const int* addr, int order, int /* obj_sz */) noexcept
+  { return __atomic_load_n(addr, order); }
+
+#elif defined __APPLE__ \
+      && __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ >= 101200
+
+  [[gnu::always_inline]]
+  inline uint32_t
+  wait_op(int obj_sz) noexcept
+  {
+    __glibcxx_assert(obj_sz == 4 || obj_sz == 8);
+    return obj_sz == 4 ? UL_COMPARE_AND_WAIT : UL_COMPARE_AND_WAIT64;
+  }
+
+  void
+  __platform_wait(const void* addr, uint64_t val, int obj_sz) noexcept
+  {
+    if (0 > __ulock_wait(wait_op(obj_sz), const_cast<void*>(addr), val, 0))
+      if (errno != EINTR && errno != EFAULT)
+	__throw_system_error(errno);
+  }
+
+  void
+  __platform_notify(const void* addr, bool all, int obj_sz) noexcept
+  {
+    uint32_t op = wait_op (obj_sz);
+    if (all)
+      op |= ULF_WAKE_ALL;
+    __ulock_wake(op, const_cast<void*>(addr), 0);
+  }
+
+  // returns true if wait ended before timeout
+  bool
+  __platform_wait_until(const void* addr, uint64_t val,
+			const __wait_clock_t::time_point& atime,
+			int obj_sz) noexcept
+  {
+    auto reltime
+      = chrono::ceil<chrono::microseconds>(atime - __wait_clock_t::now());
+    if (reltime <= reltime.zero())
+      return false;
+    uint32_t timeout = numeric_limits<uint32_t>::max();
+    if (std::cmp_less(reltime.count(), timeout))
+       timeout = reltime.count();
+
+    if (0 > __ulock_wait(wait_op(obj_sz), const_cast<void*>(addr), val,
+			 timeout))
+      {
+	if (errno == ETIMEDOUT)
+	  return timeout == numeric_limits<uint32_t>::max();
+	if (errno != EINTR && errno != EFAULT)
+	  __throw_system_error(errno);
+      }
+    return true;
+  }
+
+  // ??? CHECKME: this could likely be more efficient.
+  [[gnu::always_inline]]
+  inline __wait_value_type
+  __platform_load(const __platform_wait_t* addr, int memory_order,
+		  int /* obj_sz */) noexcept
+  { return __atomic_load_n(addr, memory_order); }
+
+#elif defined __FreeBSD__ && __SIZEOF_LONG__ == 8
+  [[gnu::always_inline]]
+  inline int
+  wait_op(int obj_sz) noexcept
+  { return obj_sz == sizeof(unsigned) ? UMTX_OP_WAIT_UINT : UMTX_OP_WAIT; }
+
+  void
+  __platform_wait(const void* addr, uint64_t val, int obj_sz) noexcept
+  {
+    if (_umtx_op(const_cast<void*>(addr), wait_op(obj_sz), val,
+		 nullptr, nullptr))
+      if (errno != EINTR)
+	__throw_system_error(errno);
+  }
+
+  void
+  __platform_notify(const void* addr, bool all, int /* obj_sz */) noexcept
+  {
+    const int count = all ? INT_MAX : 1;
+    _umtx_op(const_cast<void*>(addr), UMTX_OP_WAKE, count, nullptr, nullptr);
+  }
+
+  // returns true if wait ended before timeout
+  bool
+  __platform_wait_until(const void* addr, uint64_t val,
+			const __wait_clock_t::time_point& atime,
+			int obj_sz) noexcept
+  {
+    struct _umtx_time timeout = {
+      ._timeout = chrono::__to_timeout_timespec(atime),
+      ._flags = UMTX_ABSTIME,
+      ._clockid = CLOCK_MONOTONIC
+    };
+    // _umtx_op hangs if timeout._timeout is {0, 0}
+    if (atime.time_since_epoch() < chrono::nanoseconds(1))
+      return false;
+    constexpr uintptr_t timeout_sz = sizeof(timeout);
+    if (_umtx_op(const_cast<void*>(addr), wait_op(obj_sz), val,
+		 (void*)timeout_sz, &timeout))
+      {
+	if (errno == ETIMEDOUT)
+	  return false;
+	if (errno != EINTR)
+	  __throw_system_error(errno);
+      }
+    return true;
+  }
+
+  [[gnu::always_inline]]
+  inline __wait_value_type
+  __platform_load(const void* addr, int order, int obj_sz) noexcept
+  {
+    if (obj_sz == sizeof(long))
+      return __atomic_load_n(static_cast<const long*>(addr), order);
+    return __atomic_load_n(static_cast<const unsigned*>(addr), order);
   }
 #endif // HAVE_PLATFORM_WAIT
 
@@ -248,21 +396,21 @@ namespace
     bool _M_track_contention;
   };
 
-  constexpr auto __atomic_spin_count_relax = 12;
-  constexpr auto __atomic_spin_count = 16;
+  constexpr auto atomic_spin_count_relax = 12;
+  constexpr auto atomic_spin_count = 16;
 
-  // This function always returns _M_has_val == true and _M_val == *__addr.
-  // _M_timeout == (*__addr == __args._M_old).
+  // This function always returns _M_has_val == true and _M_val == *addr.
+  // _M_timeout == (*addr == args._M_old).
   __wait_result_type
-  __spin_impl(const __platform_wait_t* __addr, const __wait_args_base& __args)
+  __spin_impl(const __platform_wait_t* addr, const __wait_args_base& args)
   {
     __wait_value_type wval;
-    for (auto __i = 0; __i < __atomic_spin_count; ++__i)
+    for (auto i = 0; i < atomic_spin_count; ++i)
       {
-	wval = __atomic_load_n(__addr, __args._M_order);
-	if (wval != __args._M_old)
+	wval = __platform_load(addr, args._M_order, args._M_obj_size);
+	if (wval != args._M_old)
 	  return { ._M_val = wval, ._M_has_val = true, ._M_timeout = false };
-	if (__i < __atomic_spin_count_relax)
+	if (i < atomic_spin_count_relax)
 	  __thread_relax();
 	else
 	  __thread_yield();
@@ -280,8 +428,7 @@ namespace
 
   [[gnu::always_inline]]
   inline bool
-  use_proxy_wait([[maybe_unused]] const __wait_args_base& args,
-		 [[maybe_unused]] const void* /* addr */)
+  use_proxy_wait([[maybe_unused]] const __wait_args_base& args)
   {
 #ifdef _GLIBCXX_HAVE_PLATFORM_WAIT
     if constexpr (__platform_wait_uses_type<uint32_t>)
@@ -309,28 +456,42 @@ namespace
 
 } // namespace
 
-// Return false (and don't change any data members) if we can do a non-proxy
-// wait for the object of size `_M_obj_size` at address `addr`.
-// Otherwise, the object at addr needs to use a proxy wait. Set _M_wait_state,
-// set _M_obj and _M_obj_size to refer to the _M_wait_state->_M_ver proxy,
-// load the current value from _M_obj and store it in _M_old, then return true.
+// Returns true if a proxy wait will be used for addr, false otherwise.
+//
+// For the first call (from `_M_setup_wait`) `_M_obj` will equal `addr`,
+// and this function will decide whether to use a proxy wait.
+//
+// If it returns false, there are no effects (all data members are unchanged),
+// and this function should not be called again on `*this` (because calling it
+// again will just return false again, so is a waste of cycles).
+//
+// The first call that returns true does the initial setup of the proxy wait,
+// setting `_M_wait_state` to the waitable state for `addr` and setting
+// `_M_obj` and `_M_obj_size` to refer to the `_M_wait_state->_M_ver` proxy.
+// For subsequent calls (from `_M_on_wake`) the argument can be null,
+// because any value not equal to `_M_obj` has the same effect.
+// All calls that return true will load a value from `_M_obj` (i.e. the proxy)
+// and store it in `_M_old`.
 bool
 __wait_args::_M_setup_proxy_wait(const void* addr)
 {
-  if (!use_proxy_wait(*this, addr)) // We can wait on this address directly.
+  __waitable_state* state = nullptr;
+
+  if (addr == _M_obj)
     {
-      // Ensure the caller set _M_obj correctly, as that's what we'll wait on:
-      __glibcxx_assert(_M_obj == addr);
-      return false;
+      if (!use_proxy_wait(*this)) // We can wait on this address directly.
+	return false;
+
+      // This will be a proxy wait, so get a waitable state.
+      state = set_wait_state(addr, *this);
+
+      // The address we will wait on is the version count of the waitable state:
+      _M_obj = &state->_M_ver;
+      // __wait_impl and __wait_until_impl need to know this size:
+      _M_obj_size = sizeof(state->_M_ver);
     }
-
-  // This will be a proxy wait, so get a waitable state.
-  auto state = set_wait_state(addr, *this);
-
-  // The address we will wait on is the version count of the waitable state:
-  _M_obj = &state->_M_ver;
-  // __wait_impl and __wait_until_impl need to know this size:
-  _M_obj_size = sizeof(state->_M_ver);
+  else // This is not the first call to this function, already a proxy wait.
+    state = static_cast<__waitable_state*>(_M_wait_state);
 
   // Read the value of the _M_ver counter.
   _M_old = __atomic_load_n(&state->_M_ver, __ATOMIC_ACQUIRE);
@@ -378,7 +539,7 @@ __notify_impl([[maybe_unused]] const void* __addr, [[maybe_unused]] bool __all,
 	      const __wait_args_base& __args)
 {
   const bool __track_contention = __args & __wait_flags::__track_contention;
-  const bool proxy_wait = use_proxy_wait(__args, __addr);
+  const bool proxy_wait = use_proxy_wait(__args);
 
   [[maybe_unused]] auto* __wait_addr
     = static_cast<const __platform_wait_t*>(__addr);

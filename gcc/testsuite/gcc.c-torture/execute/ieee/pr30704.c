@@ -1,3 +1,7 @@
+/* { dg-do run }
+
+   # Floating-point support is incomplete.
+   { dg-skip-if "AVR doubles are floats" { avr-*-* } } */
 /* PR middle-end/30704 */
 
 typedef __SIZE_TYPE__ size_t;

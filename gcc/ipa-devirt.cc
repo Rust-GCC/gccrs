@@ -227,7 +227,16 @@ struct GTY(()) odr_type_d
   bool rtti_broken;
   /* Set when the canonical type is determined using the type name.  */
   bool tbaa_enabled;
+  /* Set when we determined there are no derived construction vtables.  */
+  bool no_derived_construction_vtables;
 };
+
+/* ODR types also stored into ODR_TYPE vector to allow consistent
+   walking.  Bases appear before derived types.  Vector is garbage collected
+   so we won't end up visiting empty types.  */
+
+static GTY(()) vec <odr_type, va_gc> *odr_types_ptr;
+#define odr_types (*odr_types_ptr)
 
 /* Return TRUE if all derived types of T are known and thus
    we may consider the walk of derived type complete.
@@ -268,6 +277,46 @@ type_all_ctors_visible_p (tree t)
 	 && type_in_anonymous_namespace_p (t);
 }
 
+/* Return true if VTABLE is is a virtual table of an anonymous namespace
+   type and it is not the main virtual table for its type.  */
+
+static bool
+anonymous_construction_vtable_p (tree vtable)
+{
+  if (!DECL_VIRTUAL_P (vtable)
+      || !type_in_anonymous_namespace_p (DECL_CONTEXT (vtable)))
+    return false;
+  tree vtable2 = BINFO_VTABLE (TYPE_BINFO (DECL_CONTEXT (vtable)));
+  if (TREE_CODE (vtable2) == POINTER_PLUS_EXPR)
+    vtable2 = TREE_OPERAND (TREE_OPERAND (vtable2, 0), 0);
+  return vtable2 != vtable;
+}
+
+/* Set if construction vtables are computed.  */
+static bool construction_vtables_detected = false;
+
+/* Mark all bases of T as having derived construction vtables.  */
+
+static void
+mark_derived_construction_vtables (odr_type t)
+{
+  for (odr_type b: t->bases)
+    {
+      b->no_derived_construction_vtables = false;
+      mark_derived_construction_vtables (b);
+    }
+}
+
+/* Watch removal of construction vtables so we recompute their
+   existence.  */
+
+void
+construction_vtable_hook (varpool_node *v, void *)
+{
+  if (anonymous_construction_vtable_p (v->decl))
+    construction_vtables_detected = false;
+}
+
 /* Return TRUE if type may have instance.  */
 
 static bool
@@ -284,7 +333,34 @@ type_possibly_instantiated_p (tree t)
   if (TREE_CODE (vtable) == POINTER_PLUS_EXPR)
     vtable = TREE_OPERAND (TREE_OPERAND (vtable, 0), 0);
   vnode = varpool_node::get (vtable);
-  return vnode && vnode->definition;
+  if (vnode && vnode->definition)
+    return true;
+
+  /* If T is derived, we may see only the construction vtable.
+     To find them, we need to walk symbol table. Cache the result
+     and only recompute when some vtables are removed.  This only
+     happens in unreachable node removal, which is only called
+     constant number of times during computation.  */
+  odr_type odr_t = get_odr_type (t);
+  if (odr_t->derived_types.length () && !construction_vtables_detected)
+    {
+      static bool hook_registered = false;
+      if (!hook_registered)
+	{
+	  symtab->add_varpool_removal_hook (construction_vtable_hook, NULL);
+	  hook_registered = true;
+	}
+      for (odr_type t: odr_types)
+	if (t)
+	  t->no_derived_construction_vtables = true;
+      FOR_EACH_VARIABLE (vnode)
+	if (vnode->definition
+	    && anonymous_construction_vtable_p (vnode->decl))
+	  mark_derived_construction_vtables
+	    (get_odr_type (DECL_CONTEXT (vnode->decl)));
+      construction_vtables_detected = true;
+    }
+  return !odr_t->no_derived_construction_vtables;
 }
 
 /* Return true if T or type derived from T may have instance.  */
@@ -506,13 +582,6 @@ odr_name_hasher::remove (odr_type_d *v)
 
 typedef hash_table<odr_name_hasher> odr_hash_type;
 static odr_hash_type *odr_hash;
-
-/* ODR types are also stored into ODR_TYPE vector to allow consistent
-   walking.  Bases appear before derived types.  Vector is garbage collected
-   so we won't end up visiting empty types.  */
-
-static GTY(()) vec <odr_type, va_gc> *odr_types_ptr;
-#define odr_types (*odr_types_ptr)
 
 /* All enums defined and accessible for the unit.  */
 static GTY(()) vec <tree, va_gc> *odr_enums;
@@ -1979,6 +2048,7 @@ get_odr_type (tree type, bool insert)
       val->type = type;
       val->bases = vNULL;
       val->derived_types = vNULL;
+      val->no_derived_construction_vtables = false;
       if (type_with_linkage_p (type))
         val->anonymous_namespace = type_in_anonymous_namespace_p (type);
       else
@@ -3845,23 +3915,21 @@ ipa_devirt (void)
  	       with the speculation.  */
 	    if (e->speculative)
 	      {
-		bool found = false;
 		for (cgraph_node * likely_target: likely_targets)
 		  if (e->speculative_call_for_target (likely_target))
 		    {
-		      found = true;
-		      break;
+		      fprintf (dump_file,
+			       "We agree with speculation on target %s\n\n",
+			       likely_target->dump_name ());
+		      stats.nok++;
 		    }
-		if (found)
-		  {
-		    fprintf (dump_file, "We agree with speculation\n\n");
-		    stats.nok++;
-		  }
-		else
-		  {
-		    fprintf (dump_file, "We disagree with speculation\n\n");
-		    stats.nwrong++;
-		  }
+		  else
+		    {
+		      fprintf (dump_file,
+			       "We disagree with speculation on target %s\n\n",
+			       likely_target->dump_name ());
+		      stats.nwrong++;
+		    }
 		continue;
 	      }
 	    bool first = true;
@@ -3908,6 +3976,16 @@ ipa_devirt (void)
 	else if (cgraph_simple_indirect_info *sii
 		 = dyn_cast <cgraph_simple_indirect_info *> (e->indirect_info))
 	  {
+	    if (e->speculative)
+	      {
+		if (dump_file)
+		  fprintf (dump_file, "Call is already speculated\n\n");
+		stats.nspeculated++;
+
+		/* When dumping see if we agree with speculation.  */
+		if (!dump_file)
+		  continue;
+	      }
 	    if (!sii->fnptr_loaded_from_record
 		|| !opt_for_fn (n->decl,
 				flag_speculatively_call_stored_functions))
@@ -3929,6 +4007,20 @@ ipa_devirt (void)
 						    ->noninterposable_alias ());
 		    if (alias)
 		      likely_tgt_node = alias;
+		  }
+		if (e->speculative)
+		  {
+		    if (e->speculative_call_for_target (likely_tgt_node))
+		      {
+			fprintf (dump_file, "Simple call agree with speculation\n\n");
+			stats.nok++;
+		      }
+		    else
+		      {
+			fprintf (dump_file, "Simple call disagree with speculation\n\n");
+			stats.nwrong++;
+		      }
+		    continue;
 		  }
 
 		if (dump_enabled_p ())

@@ -1,5 +1,5 @@
 /* { dg-do run } */
-/* { dg-options "-O2 -m32" } */
+/* { dg-options "-O2" } */
 
 #include <stddef.h>
 #include <stdint.h>

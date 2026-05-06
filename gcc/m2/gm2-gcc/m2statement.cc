@@ -214,19 +214,19 @@ copy_strncpy (location_t location, tree left, tree cst)
   add_stmt (location, result);
 }
 
-/* copy_memcpy copy right into left using builtin_memcpy.  */
+/* CopyMemcpy copy bytes from src into dest using builtin_memcpy.  */
 
-static
 void
-copy_memcpy (location_t location, tree left, tree right)
+m2statement_CopyMemcpy (location_t location, tree dest, tree src, tree bytes)
 {
+  tree addr_dest = m2expr_BuildAddr (location, dest, false);
   tree result = m2builtins_BuiltinMemCopy (location,
-					   m2expr_BuildAddr (location, left, false),
-					   m2expr_BuildAddr (location, right, false),
-					   m2expr_GetSizeOf (location, left));
+					   addr_dest,
+					   m2expr_BuildAddr (location, src, false),
+					   bytes);
   TREE_SIDE_EFFECTS (result) = true;
-  TREE_USED (left) = true;
-  TREE_USED (right) = true;
+  TREE_USED (dest) = true;
+  TREE_USED (src) = true;
   add_stmt (location, result);
 }
 
@@ -249,7 +249,8 @@ CopyByField_Lower (location_t location,
   else if (left_code == ARRAY_TYPE && right_code == CONSTRUCTOR)
     copy_array (location, left, right);
   else if (left_code == UNION_TYPE && right_code == CONSTRUCTOR)
-    copy_memcpy (location, left, right);
+    m2statement_CopyMemcpy (location, left, right,
+			    m2expr_GetSizeOf (location, left));
   else if (right_code == STRING_CST)
     copy_strncpy (location, left, right);
   else
@@ -269,10 +270,10 @@ m2statement_CopyByField (location_t location, tree des, tree expr)
     CopyByField_Lower (location, des, expr);
 }
 
-/* BuildAssignmentTree builds the assignment of, des, and, expr.
-   It returns, des.  */
+/* BuildAssignmentTree builds the assignment of des and expr.
+   It returns des.  */
 
-tree
+void
 m2statement_BuildAssignmentTree (location_t location, tree des, tree expr)
 {
   tree result;
@@ -286,7 +287,15 @@ m2statement_BuildAssignmentTree (location_t location, tree des, tree expr)
   else
     {
       gcc_assert (TREE_CODE (TREE_TYPE (des)) != TYPE_DECL);
-      if (TREE_TYPE (expr) == TREE_TYPE (des))
+      if ((TREE_CODE (expr) == CONSTRUCTOR)
+	  && (TREE_CODE (TREE_TYPE (des)) == ARRAY_TYPE))
+	{
+	  m2statement_CopyMemcpy (location, des, expr,
+				  m2expr_GetSizeOf (location,
+						    m2type_GetTreeType (des)));
+	  return;
+	}
+      else if (TREE_TYPE (expr) == TREE_TYPE (des))
         result = build2 (MODIFY_EXPR, TREE_TYPE (des), des, expr);
       else
         result = build2 (
@@ -298,10 +307,9 @@ m2statement_BuildAssignmentTree (location_t location, tree des, tree expr)
   TREE_USED (des) = true;
   TREE_USED (expr) = true;
   add_stmt (location, result);
-  return des;
 }
 
-/* BuildAssignmentStatement builds the assignment of, des, and, expr.  */
+/* BuildAssignmentStatement builds the assignment of des and expr.  */
 
 void
 m2statement_BuildAssignmentStatement (location_t location, tree des, tree expr)

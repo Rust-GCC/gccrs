@@ -1248,6 +1248,33 @@ coverage_obj_finish (vec<constructor_elt, va_gc> *ctor,
   varpool_node::finalize_decl (gcov_info_var);
 }
 
+/* Open the coverage files.  */
+
+void
+coverage_init_file (void)
+{
+  if (flag_test_coverage && !flag_compare_debug)
+    {
+      if (!gcov_open (bbg_file_name, -1))
+	{
+	  error ("cannot open %s", bbg_file_name);
+	  bbg_file_name = NULL;
+	}
+      else
+	{
+	  gcov_write_unsigned (GCOV_NOTE_MAGIC);
+	  gcov_write_unsigned (GCOV_VERSION);
+	  gcov_write_unsigned (bbg_file_stamp);
+	  /* Use an arbitrary checksum */
+	  gcov_write_unsigned (0);
+	  gcov_write_string (remap_profile_filename (getpwd ()));
+
+	  /* Do not support has_unexecuted_blocks for Ada.  */
+	  gcov_write_unsigned (strcmp (lang_hooks.name, "GNU Ada") != 0);
+	}
+    }
+}
+
 /* Perform file-level initialization. Read in data file, generate name
    of notes file.  */
 
@@ -1316,7 +1343,7 @@ coverage_init (const char *filename)
   strcpy (da_file_name + prefix_len + len, GCOV_DATA_SUFFIX);
 
   bbg_file_stamp = local_tick;
-  if (flag_branch_probabilities)
+  if (flag_branch_probabilities && !flag_auto_profile)
     read_counts_file ();
 
   /* Name of bbg file.  */
@@ -1330,34 +1357,15 @@ coverage_init (const char *filename)
 	  memcpy (bbg_file_name, original_filename, original_len);
 	  strcpy (bbg_file_name + original_len, GCOV_NOTE_SUFFIX);
 	}
-
-      if (!gcov_open (bbg_file_name, -1))
-	{
-	  error ("cannot open %s", bbg_file_name);
-	  bbg_file_name = NULL;
-	}
-      else
-	{
-	  gcov_write_unsigned (GCOV_NOTE_MAGIC);
-	  gcov_write_unsigned (GCOV_VERSION);
-	  gcov_write_unsigned (bbg_file_stamp);
-	  /* Use an arbitrary checksum */
-	  gcov_write_unsigned (0);
-	  gcov_write_string (remap_profile_filename (getpwd ()));
-
-	  /* Do not support has_unexecuted_blocks for Ada.  */
-	  gcov_write_unsigned (strcmp (lang_hooks.name, "GNU Ada") != 0);
-	}
     }
 
   g->get_dumps ()->dump_finish (profile_pass_num);
 }
 
-/* Performs file-level cleanup.  Close notes file, generate coverage
-   variables and constructor.  */
+/* Close the coverage files.  */
 
 void
-coverage_finish (void)
+coverage_finish_file (void)
 {
   if (bbg_file_name && gcov_close ())
     unlink (bbg_file_name);
@@ -1367,7 +1375,14 @@ coverage_finish (void)
     /* Only remove the da file, if we're emitting coverage code and
        cannot uniquely stamp it.  If we can stamp it, libgcov will DTRT.  */
     unlink (da_file_name);
+}
 
+/* Performs file-level cleanup.  Close notes file, generate coverage
+   variables and constructor.  */
+
+void
+coverage_finish (void)
+{
   /* Global GCDA checksum that aggregates all functions.  */
   unsigned object_checksum = 0;
 

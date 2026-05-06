@@ -424,12 +424,12 @@
     case 6: /* S register from immediate.  */
       return \"vmov.f16\\t%0, %1\t%@ __<fporbf>\";
     case 7: /* S register from memory.  */
-      if (TARGET_HAVE_MVE)
+      if (!auto_inc_p (XEXP (operands[1], 0)))
 	return \"vldr.16\\t%0, %1\";
       else
 	return \"vld1.16\\t{%z0}, %A1\";
     case 8: /* Memory from S register.  */
-      if (TARGET_HAVE_MVE)
+      if (!auto_inc_p (XEXP (operands[0], 0)))
 	return \"vstr.16\\t%1, %0\";
       else
 	return \"vst1.16\\t{%z1}, %A0\";

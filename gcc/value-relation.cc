@@ -321,6 +321,10 @@ equiv_oracle::equiv_oracle ()
   m_self_equiv.safe_grow_cleared (num_ssa_names + 1);
   m_partial.create (0);
   m_partial.safe_grow_cleared (num_ssa_names + 1);
+  // Create a bitmap to avoid registering multiple equivalences from a LHS.
+  // See PR 124809.
+  m_lhs_equiv_set_p = BITMAP_ALLOC (&m_bitmaps);
+  bitmap_tree_view (m_lhs_equiv_set_p);
 }
 
 // Destruct an equivalency oracle.
@@ -1103,6 +1107,14 @@ relation_oracle::record (gimple *stmt, relation_kind k, tree op1, tree op2)
 	return false;
     }
 
+  // If the LHS of a statement has already been processed and an equivalence
+  // registered, do not register another one.  See PR 124809.
+  if (m_lhs_equiv_set_p && relation_equiv_p (k)
+      && gimple_get_lhs (stmt) == op1)
+    {
+      if (!bitmap_set_bit (m_lhs_equiv_set_p, SSA_NAME_VERSION (op1)))
+	return false;
+    }
   bool ret = record (gimple_bb (stmt), k, op1, op2);
 
   if (ret && dump_file && (dump_flags & TDF_DETAILS))

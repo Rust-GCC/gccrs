@@ -202,7 +202,7 @@ generate(_ExecutionPolicy&& __exec, _ForwardIterator __first, _ForwardIterator _
 
 template <class _ExecutionPolicy, class _ForwardIterator, class _Size, class _Generator>
 __pstl::__internal::__enable_if_execution_policy<_ExecutionPolicy, _ForwardIterator>
-generate_n(_ExecutionPolicy&& __exec, _ForwardIterator __first, _Size count, _Generator __g);
+generate_n(_ExecutionPolicy&& __exec, _ForwardIterator __first, _Size __count, _Generator __g);
 
 // [alg.remove]
 

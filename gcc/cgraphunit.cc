@@ -255,6 +255,8 @@ symtab_node::needed_p (void)
   /* If the user told us it is used, then it must be so.  */
   if (force_output)
     return true;
+  if (ref_by_asm)
+    return true;
 
   /* ABI forced symbols are needed when they are external.  */
   if (forced_by_abi && TREE_PUBLIC (decl))
@@ -737,7 +739,7 @@ process_symver_attribute (symtab_node *n)
 
   for (; value != NULL; value = TREE_CHAIN (value))
     {
-      /* Starting from bintuils 2.35 gas supports:
+      /* Starting from binutils 2.35 gas supports:
 	  # Assign foo to bar@V1 and baz@V2.
 	  .symver foo, bar@V1
 	  .symver foo, baz@V2
@@ -1109,10 +1111,13 @@ check_global_declaration (symtab_node *snode)
       if (warning_suppressed_p (decl, OPT_Wunused))
 	;
       else if (snode->referred_to_p (/*include_self=*/false))
-	pedwarn (input_location, 0, "%q+F used but never defined", decl);
-      else
-	warning (OPT_Wunused_function, "%q+F declared %<static%> but never "
-				       "defined", decl);
+	{
+	  if (pedwarn (input_location, 0, "%q+F used but never defined", decl))
+	    suppress_warning (decl, OPT_Wunused);
+	}
+      else if (warning (OPT_Wunused_function,
+			"%q+F declared %<static%> but never defined", decl))
+	suppress_warning (decl, OPT_Wunused);
     }
 
   /* Warn about static fns or vars defined but not used.  */
@@ -1384,7 +1389,7 @@ analyze_functions (bool first_time)
 	  && TYPE_NEEDS_CONSTRUCTING (TREE_TYPE (node->decl))
 	  && DECL_EXTERNAL (node->decl))
 	TREE_READONLY (node->decl) = 0;
-      if (!node->aux && !node->referred_to_p ())
+      if (!node->aux && !node->referred_to_p () && !node->ref_by_asm)
 	{
 	  if (symtab->dump_file)
 	    fprintf (symtab->dump_file, " %s", node->dump_name ());
@@ -2580,6 +2585,8 @@ symbol_table::finalize_compilation_unit (void)
 
   if (flag_dump_passes)
     dump_passes ();
+
+  analyze_toplevel_extended_asm ();
 
   /* Gimplify and lower all functions, compute reachability and
      remove unreachable nodes.  */

@@ -41,7 +41,9 @@ jobs:
         env:
           GH_EVENT: ${{ toJson(github.event) }}
         run: |
-          echo "$GH_EVENT" > /tmp/gh_event.json
+          # GH_EVENT can be very big as it contains the full commit log and
+          # overflow the shell's maximum length.
+          echo '$GH_EVENT' | envsubst '$GH_EVENT' > /tmp/gh_event.json
 
           BEFORE_REF=$(jq -r '.before' /tmp/gh_event.json)
           echo "BEFORE_REF=$BEFORE_REF" >> $GITHUB_ENV
@@ -222,6 +224,28 @@ jobs:
              cp /tmp/description.txt "/tmp/tmp_descr.txt"
              echo "Commit on github: https://github.com/${{ github.repository }}/commit/$SHA1" >> /tmp/tmp_descr.txt
 
+             LINKED_ISSUES_LIST_FILE=/tmp/commit_linked_issues.txt
+
+             ## find issue(s) referenced in commit message
+             gccrs_ref_regex='Rust-GCC/gccrs#[0-9]+'
+             git show -s --format=%B "$SHA1" | \
+                grep -Eo "$gccrs_ref_regex" | \
+                sort -u > "$LINKED_ISSUES_LIST_FILE"
+
+             echo "Issues list: >>>"
+             cat "$LINKED_ISSUES_LIST_FILE"
+             echo "<<<"
+             echo
+
+             if [ -s "$LINKED_ISSUES_LIST_FILE" ]; then
+               echo -e "\nThe commit has been mentioned in the following issue(s):" >> /tmp/tmp_descr.txt
+               while read -r i; do
+                 ISSUE_NUM=${i##*#}    # 1234
+                 echo " - $i: https://github.com/Rust-GCC/gccrs/issues/${ISSUE_NUM}" >> /tmp/tmp_descr.txt
+               done < "$LINKED_ISSUES_LIST_FILE"
+             fi
+
+             ## find corresponding pull-request(s)
              if gh api "repos/${{ github.repository }}/commits/$SHA1/pulls" | \
                   jq '.[].html_url' > /tmp/tmp_pr_links.txt;
              then

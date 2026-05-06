@@ -512,13 +512,28 @@ bounded_range::operator== (const bounded_range &other) const
 	  && tree_int_cst_equal (m_upper, other.m_upper));
 }
 
+static int
+cmp_types (const_tree type1, const_tree type2)
+{
+  int t1 = TYPE_UID (type1);
+  int t2 = TYPE_UID (type2);
+  return t1 - t2;
+}
+
 int
 bounded_range::cmp (const bounded_range &br1, const bounded_range &br2)
 {
-  if (int cmp_lower = tree_int_cst_compare (br1.m_lower,
-					    br2.m_lower))
+  if (int cmp_lower = tree_int_cst_compare (br1.m_lower, br2.m_lower))
     return cmp_lower;
-  return tree_int_cst_compare (br1.m_upper, br2.m_upper);
+  if (int cmp_upper = tree_int_cst_compare (br1.m_upper, br2.m_upper))
+    return cmp_upper;
+  if (int cmp_lower_type = cmp_types (TREE_TYPE (br1.m_lower),
+				      TREE_TYPE (br2.m_lower)))
+    return cmp_lower_type;
+  if (int cmp_upper_type = cmp_types (TREE_TYPE (br1.m_upper),
+				      TREE_TYPE (br2.m_upper)))
+    return cmp_upper_type;
+  return 0;
 }
 
 /* struct bounded_ranges.  */

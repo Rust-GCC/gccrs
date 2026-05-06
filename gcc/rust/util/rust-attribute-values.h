@@ -32,13 +32,19 @@ public:
   static constexpr auto &DERIVE_ATTR = "derive";
   static constexpr auto &DEPRECATED = "deprecated";
   static constexpr auto &ALLOW = "allow";
+  static constexpr auto &DENY = "deny";
+  static constexpr auto &WARN = "warn";
+  static constexpr auto &FORBID = "forbid";
   static constexpr auto &ALLOW_INTERNAL_UNSTABLE = "allow_internal_unstable";
   static constexpr auto &DOC = "doc";
   static constexpr auto &MUST_USE = "must_use";
   static constexpr auto &LANG = "lang";
   static constexpr auto &LINK_NAME = "link_name";
+  static constexpr auto &NO_CORE = "no_core";
+  static constexpr auto &NO_STD = "no_std";
   static constexpr auto &LINK_SECTION = "link_section";
   static constexpr auto &NO_MANGLE = "no_mangle";
+  static constexpr auto &EXPORT_NAME = "export_name";
   static constexpr auto &REPR = "repr";
   static constexpr auto &RUSTC_BUILTIN_MACRO = "rustc_builtin_macro";
   static constexpr auto &RUSTC_MACRO_TRANSPARENCY = "rustc_macro_transparency";
@@ -48,8 +54,11 @@ public:
   static constexpr auto &PROC_MACRO = "proc_macro";
   static constexpr auto &PROC_MACRO_DERIVE = "proc_macro_derive";
   static constexpr auto &PROC_MACRO_ATTRIBUTE = "proc_macro_attribute";
+  static constexpr auto &CRATE_NAME = "crate_name";
+  static constexpr auto &CRATE_TYPE = "crate_type";
 
   static constexpr auto &TARGET_FEATURE = "target_feature";
+  static constexpr auto &FEATURE = "feature";
   // From now on, these are reserved by the compiler and gated through
   // #![feature(rustc_attrs)]
   static constexpr auto &RUSTC_DEPRECATED = "rustc_deprecated";
@@ -75,6 +84,9 @@ public:
 
   static constexpr auto &RUSTC_LAYOUT_SCALAR_VALID_RANGE_START
     = "rustc_layout_scalar_valid_range_start";
+
+  static constexpr auto &COMPILER_BUILTINS = "compiler_builtins";
+  static constexpr auto &NO_BUILTINS = "no_builtins";
 
   static constexpr auto &MAY_DANGLE = "may_dangle";
   static constexpr auto &PRELUDE_IMPORT = "prelude_import";

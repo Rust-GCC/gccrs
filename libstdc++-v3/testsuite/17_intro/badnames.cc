@@ -67,7 +67,7 @@
 
 // BSD adds:
 #define __used		__used is a BADNAME
-#define __unused	__unused is a BADNAME
+        // __unused	(glibc uses this so can't test here)
         // __inline	(glibc uses this so can't test here)
         // _Complex	(glibc uses this so can't test here)
 #define __istype	__istype is a BADNAME

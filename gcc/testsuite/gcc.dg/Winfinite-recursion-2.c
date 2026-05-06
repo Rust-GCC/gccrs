@@ -2,7 +2,8 @@
    Exercise warning with optimization.  Same as -Winfinite-recursion.c
    plus mutually recursive calls that depend on inlining.
    { dg-do compile }
-   { dg-options "-O2 -Wall -Winfinite-recursion" } */
+   { dg-options "-O2 -Wall -Winfinite-recursion" }
+   { dg-require-effective-target nonlocal_goto } */
 
 #define NORETURN __attribute__ ((noreturn))
 

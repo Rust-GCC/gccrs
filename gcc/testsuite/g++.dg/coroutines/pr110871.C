@@ -1,5 +1,5 @@
-// { dg-additional-options "-fcontracts -fcontract-continuation-mode=on" }
-// { dg-do run }
+// { dg-additional-options "-fcontracts -fcontract-evaluation-semantic=observe" }
+// { dg-do run { target c++26 } }
 // { dg-skip-if "requires hosted libstdc++ for iostream" { ! hostedlib } }
 
 #include <iostream>
@@ -44,8 +44,8 @@ struct coroutine_traits<generator<T>, Args...>
 
 };
 
-generator<int> seq(int from, int to) [[pre: from <= to]]
-
+generator<int> seq(int from, int to)
+ pre (from <= to)
 {
     std::cout << "coro initial" << std::endl;
     for (int i = from; i <= to; ++i) {
@@ -61,4 +61,4 @@ int main() {
     std::cout << "main continues" << std::endl;
 }
 
-// { dg-output "contract violation in function seq at .*.C:47: from \<= to.*(\n|\r\n|\r)" }
+// { dg-output "contract violation in function generator<int> seq.int, int. at .*.C:48: from \<= to.*(\n|\r\n|\r)" }

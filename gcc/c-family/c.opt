@@ -149,8 +149,10 @@ C ObjC C++ ObjC++ Separate Alias(o)
 -output=
 C ObjC C++ ObjC++ Joined Alias(o)
 
+; The documented user option for PCH output is -o.  The driver converts that
+; to -output-pch when invoking the front ends to produce a PCH file.
 -output-pch
-C ObjC C++ ObjC++ Separate
+C ObjC C++ ObjC++ Separate Undocumented
 
 -pedantic
 C ObjC C++ ObjC++ Alias(pedantic)
@@ -758,7 +760,7 @@ C ObjC C++ ObjC++
 ; Documented in common.opt
 
 Werror-implicit-function-declaration
-C ObjC RejectNegative Warning Alias(Werror=, implicit-function-declaration)
+C ObjC RejectNegative Undocumented Warning Alias(Werror=, implicit-function-declaration)
 This switch is deprecated; use -Werror=implicit-function-declaration instead.
 
 Wexceptions
@@ -1875,7 +1877,7 @@ C++ ObjC++ Ignore
 Does nothing.  Preserved for backward compatibility.
 
 fconstant-string-class=
-ObjC ObjC++ Joined MissingArgError(no class name specified with %qs)
+ObjC ObjC++ Joined RejectNegative MissingArgError(no class name specified with %qs)
 -fconst-string-class=<name>	Use class <name> for constant strings.
 
 fconstexpr-depth=
@@ -1900,7 +1902,57 @@ C++ ObjC++ Joined RejectNegative Host_Wide_Int Var(constexpr_ops_limit) Init(335
 
 fcontracts
 C++ ObjC++ Var(flag_contracts) Init(0)
-Enable certain features present in drafts of C++ Contracts.
+Enable features proposed for C++26 Contracts.
+
+; Keep these in step with the values in cp/contracts.h
+
+Enum
+Name(contract_semantic) Type(int)  UnknownError(unrecognized contract evaluation semantic %qs)
+
+EnumValue
+Enum(contract_semantic) String(ignore) Value(1)
+
+EnumValue
+Enum(contract_semantic) String(observe) Value(2)
+
+EnumValue
+Enum(contract_semantic) String(enforce) Value(3)
+
+EnumValue
+Enum(contract_semantic) String(quick_enforce) Value(4)
+
+fcontract-evaluation-semantic=
+C++ ObjC++ Joined RejectNegative Enum(contract_semantic) Var(flag_contract_evaluation_semantic) Init(3)
+-fcontract-evaluation-semantic=[ignore|observe|enforce|quick_enforce]	Select the contract evaluation semantic (defaults to enforce).
+
+fcontracts-conservative-ipa
+C++ ObjC++ Var(flag_contracts_conservative_ipa) Init(1)
+-fcontracts-conservative-ipa	Do not allow certain optimisations between
+functions in contract assertions.
+
+fcontract-checks-outlined
+C++ ObjC++ Var(flag_contract_checks_outlined) Init(0)
+-fcontract-checks-outlined	Build contract checks using outlined functions.
+
+fcontract-disable-optimized-checks
+C++ ObjC++ Var(flag_contract_disable_optimized_checks) Init(0)
+-fcontract-disable-optimized-checks	Disable optimisation of contract checks.
+
+Enum
+Name(client_contract_check) Type(int)  UnknownError(unrecognized client contract check option %qs)
+
+EnumValue
+Enum(client_contract_check) String(none) Value(0)
+
+EnumValue
+Enum(client_contract_check) String(pre) Value(1)
+
+EnumValue
+Enum(client_contract_check) String(all) Value(2)
+
+fcontracts-client-check=
+C++ ObjC++ Joined RejectNegative Enum(client_contract_check) Var(flag_contract_client_check) Init (0)
+-fcontracts-client-check=[none|pre|all] Select which contracts will be checked on the client side for non virtual functions.
 
 Enum
 Name(on_off) Type(int) UnknownError(argument %qs must be either %<on%> or %<off%>)
@@ -1911,33 +1963,9 @@ Enum(on_off) String(off) Value(0)
 EnumValue
 Enum(on_off) String(on) Value(1)
 
-fcontract-assumption-mode=
-C++ ObjC++ Joined RejectNegative
--fcontract-assumption-mode=[on|off]	Enable or disable treating axiom level contracts as assumptions (default on).
-
-fcontract-build-level=
-C++ ObjC++ Joined RejectNegative
--fcontract-build-level=[off|default|audit]	Specify max contract level to generate runtime checks for.
-
-fcontract-strict-declarations=
-C++ ObjC++ Var(flag_contract_strict_declarations) Enum(on_off) Joined Init(0) RejectNegative
--fcontract-strict-declarations=[on|off]	Enable or disable warnings on generalized redeclaration of functions with contracts (default off).
-
-fcontract-mode=
-C++ ObjC++ Var(flag_contract_mode) Enum(on_off) Joined Init(1) RejectNegative
--fcontract-mode=[on|off]	Enable or disable all contract facilities (default on).
-
-fcontract-continuation-mode=
-C++ ObjC++ Joined RejectNegative
--fcontract-continuation-mode=[on|off]	Enable or disable contract continuation mode (default off).
-
-fcontract-role=
-C++ ObjC++ Joined RejectNegative
--fcontract-role=<name>:<semantics>	Specify the semantics for all levels in a role (default, review), or a custom contract role with given semantics (ex: opt:assume,assume,assume).
-
-fcontract-semantic=
-C++ ObjC++ Joined RejectNegative
--fcontract-semantic=<level>:<semantic>	Specify the concrete semantics for level.
+fcontracts-definition-check=
+C++ ObjC++ Joined RejectNegative Enum(on_off) Var(flag_contracts_definition_check) Init(1)
+-fcontracts-definition-check=[on|off]	Enable or disable contract checks on the definition side for all functions (default on).
 
 fcoroutines
 C++ ObjC++ LTO Var(flag_coroutines)
@@ -2328,6 +2356,10 @@ Treat known sprintf return values as constants.
 frange-for-ext-temps
 C++ ObjC++ Var(flag_range_for_ext_temps)
 Enable lifetime extension of range based for temporaries.
+
+freflection
+C++ ObjC++ Var(flag_reflection) Init(0)
+Enable experimental C++26 Reflection.
 
 freplace-objc-classes
 ObjC ObjC++ LTO Var(flag_replace_objc_classes)

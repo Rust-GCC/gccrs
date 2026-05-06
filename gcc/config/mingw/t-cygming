@@ -61,5 +61,3 @@ msformat-c.o: $(srcdir)/config/mingw/msformat-c.cc $(CONFIG_H) $(SYSTEM_H) \
   $(TM_P_H) $(HASHTAB_H) $(GGC_H)
 	$(COMPILER) -c $(ALL_COMPILERFLAGS) $(ALL_CPPFLAGS) $(INCLUDES) \
 	$(srcdir)/config/mingw/msformat-c.cc
-
-STMP_FIXINC=stmp-fixinc

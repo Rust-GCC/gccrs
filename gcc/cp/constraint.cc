@@ -1033,7 +1033,7 @@ get_constraints (const_tree t)
   gcc_assert (DECL_P (t));
   if (TREE_CODE (t) == TEMPLATE_DECL)
     t = DECL_TEMPLATE_RESULT (t);
-  tree* found = decl_constraints->get (CONST_CAST_TREE (t));
+  tree* found = decl_constraints->get (const_cast<tree> (t));
   if (found)
     return *found;
   else
@@ -1218,7 +1218,7 @@ build_constrained_parameter (tree cnc, tree proto, tree args)
    done only after the requires clause has been parsed (or not).  */
 
 tree
-finish_shorthand_constraint (tree decl, tree constr)
+finish_shorthand_constraint (tree decl, tree constr, bool is_non_type)
 {
   /* No requirements means no constraints.  */
   if (!constr)
@@ -1227,9 +1227,26 @@ finish_shorthand_constraint (tree decl, tree constr)
   if (error_operand_p (constr))
     return NULL_TREE;
 
-  tree proto = CONSTRAINED_PARM_PROTOTYPE (constr);
-  tree con = CONSTRAINED_PARM_CONCEPT (constr);
-  tree args = CONSTRAINED_PARM_EXTRA_ARGS (constr);
+  tree proto, con, args;
+  if (is_non_type)
+    {
+      /* This function should not see constrained auto&, auto* NTTPs, and a
+	 simple constrained auto NTTP type should by now have been replaced
+	 by ordinary auto; see finish_constrained_parameter.  */
+      gcc_checking_assert (is_auto (TREE_TYPE (decl))
+			   && !is_constrained_auto (TREE_TYPE (decl)));
+      gcc_checking_assert (TREE_CODE (constr) == TEMPLATE_ID_EXPR);
+      tree tmpl = TREE_OPERAND (constr, 0);
+      proto = concept_prototype_parameter (tmpl);
+      con = DECL_TEMPLATE_RESULT (tmpl);
+      args = TREE_OPERAND (constr, 1);
+    }
+  else
+    {
+      proto = CONSTRAINED_PARM_PROTOTYPE (constr);
+      con = CONSTRAINED_PARM_CONCEPT (constr);
+      args = CONSTRAINED_PARM_EXTRA_ARGS (constr);
+    }
 
   bool variadic_concept_p = template_parameter_pack_p (proto);
   bool declared_pack_p = template_parameter_pack_p (decl);
@@ -1243,7 +1260,19 @@ finish_shorthand_constraint (tree decl, tree constr)
 
   /* Build the concept constraint-expression.  */
   tree tmpl = DECL_TI_TEMPLATE (con);
-  tree check = build_concept_check (tmpl, arg, args, tf_warning_or_error);
+  tree check;
+  if (is_non_type)
+    {
+      arg = finish_decltype_type (arg, /*id_expr=*/true, tf_warning_or_error);
+      if (ARGUMENT_PACK_P (TREE_VEC_ELT (args, 0)))
+	args = expand_template_argument_pack (args);
+      else
+	args = copy_template_args (args);
+      TREE_VEC_ELT (args, 0) = arg;
+      check = build_concept_check (tmpl, args, tf_warning_or_error);
+    }
+  else
+    check = build_concept_check (tmpl, arg, args, tf_warning_or_error);
 
   /* Make the check a fold-expression if needed.
      Use UNKNOWN_LOCATION so write_template_args can tell the
@@ -1943,6 +1972,10 @@ struct GTY((for_user)) sat_entry
      the first time.  */
   tree result;
 
+  /* For a !ATOMIC_CONSTR_MAP_INSTANTIATED_P atom, this conveniently points to
+     the entry for the corresponding atom after instantiating its mapping.  */
+  sat_entry *inst_entry;
+
   /* The value of input_location when satisfaction of ATOM+ARGS was first
      performed.  */
   location_t location;
@@ -2102,6 +2135,7 @@ satisfaction_cache
       entry->atom = atom;
       entry->args = args;
       entry->result = NULL_TREE;
+      entry->inst_entry = nullptr;
       entry->location = input_location;
       entry->ftc_begin = entry->ftc_end = -1;
       entry->diagnose_instability = false;
@@ -2141,10 +2175,12 @@ satisfaction_cache::get ()
     {
       /* If we get here, it means satisfaction is self-recursive.  */
       gcc_checking_assert (!entry->result || seen_error ());
+      /* Prefer printing the instantiated mapping.  */
+      tree atom = entry->inst_entry ? entry->inst_entry->atom : entry->atom;
       if (info.noisy ())
-	error_at (EXPR_LOCATION (ATOMIC_CONSTR_EXPR (entry->atom)),
+	error_at (EXPR_LOCATION (ATOMIC_CONSTR_EXPR (atom)),
 		  "satisfaction of atomic constraint %qE depends on itself",
-		  entry->atom);
+		  atom);
       return error_mark_node;
     }
 
@@ -2464,6 +2500,8 @@ satisfy_atom (tree t, tree args, sat_info info)
   gcc_assert (!ATOMIC_CONSTR_MAP_INSTANTIATED_P (t));
   ATOMIC_CONSTR_MAP_INSTANTIATED_P (t) = true;
   satisfaction_cache inst_cache (t, /*args=*/NULL_TREE, info);
+  if (cache.entry && inst_cache.entry)
+    cache.entry->inst_entry = inst_cache.entry;
   if (tree r = inst_cache.get ())
     {
       cache.entry->location = inst_cache.entry->location;
@@ -2788,7 +2826,12 @@ satisfy_declaration_constraints (tree t, tree args, sat_info info)
       tree pattern = DECL_TEMPLATE_RESULT (t);
       push_to_top_level ();
       push_access_scope (pattern);
-      result = satisfy_normalized_constraints (norm, args, info);
+      {
+	/* For reconstruct_lambda_capture_pack.  */
+	local_specialization_stack lss (LAMBDA_FUNCTION_P (t)
+					? lss_blank : lss_nop);
+	result = satisfy_normalized_constraints (norm, args, info);
+      }
       pop_access_scope (pattern);
       pop_from_top_level ();
       pop_tinst_level ();
@@ -3315,6 +3358,10 @@ diagnose_trait_expr (location_t loc, tree expr, tree args)
       break;
     case CPTK_IS_VOLATILE:
       inform (loc, "%qT is not a volatile type", t1);
+      break;
+    case CPTK_IS_STRUCTURAL:
+      inform (decl_loc, "%qT is not a structural type", t1);
+      structural_type_p (t1, /*explain=*/true);
       break;
     case CPTK_RANK:
       inform (loc, "%qT cannot yield a rank", t1);

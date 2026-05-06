@@ -169,25 +169,27 @@ protected:
   }
 };
 
-// Like an AttrInputLiteral, but stores a MacroInvocation
-class AttrInputMacro : public AttrInput
+class AttrInputExpr : public AttrInput
 {
-  std::unique_ptr<MacroInvocation> macro;
+  std::unique_ptr<Expr> expr;
 
 public:
-  AttrInputMacro (std::unique_ptr<MacroInvocation> macro)
-    : macro (std::move (macro))
-  {}
+  AttrInputExpr (std::unique_ptr<Expr> expr) : expr (std::move (expr)) {}
 
-  AttrInputMacro (const AttrInputMacro &oth);
+  AttrInputExpr (const AttrInputExpr &oth);
 
-  AttrInputMacro (AttrInputMacro &&oth) : macro (std::move (oth.macro)) {}
+  AttrInputExpr (AttrInputExpr &&oth) : expr (std::move (oth.expr)) {}
 
-  AttrInputMacro &operator= (const AttrInputMacro &oth);
-
-  AttrInputMacro &operator= (AttrInputMacro &&oth)
+  AttrInputType get_attr_input_type () const final override
   {
-    macro = std::move (oth.macro);
+    return AttrInput::AttrInputType::EXPR;
+  }
+
+  AttrInputExpr &operator= (const AttrInputExpr &oth);
+
+  AttrInputExpr &operator= (AttrInputExpr &&oth)
+  {
+    expr = std::move (oth.expr);
     return *this;
   }
 
@@ -195,23 +197,18 @@ public:
 
   void accept_vis (ASTVisitor &vis) override;
 
-  // assuming this can't be a cfg predicate
   bool check_cfg_predicate (const Session &) const override { return false; }
 
   // assuming this is like AttrInputLiteral
   bool is_meta_item () const override { return false; }
 
-  std::unique_ptr<MacroInvocation> &get_macro () { return macro; }
+  Expr &get_expr () { return *expr; }
 
-  AttrInputType get_attr_input_type () const final override
-  {
-    return AttrInput::AttrInputType::MACRO;
-  }
+  std::unique_ptr<Expr> &get_expr_ptr () { return expr; }
 
-protected:
-  AttrInputMacro *clone_attr_input_impl () const override
+  AttrInputExpr *clone_attr_input_impl () const override
   {
-    return new AttrInputMacro (*this);
+    return new AttrInputExpr (*this);
   }
 };
 

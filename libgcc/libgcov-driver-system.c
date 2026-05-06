@@ -301,6 +301,11 @@ gcov_exit_open_gcda_file (struct gcov_info *gi_ptr,
 
   size_t prefix_length = gf->prefix ? strlen (gf->prefix) : 0;
   gf->filename = (char *) xmalloc (prefix_length + strlen (fname) + 2);
+  if (!gf->filename)
+    {
+      fprintf (stderr, "profiling:Failed to allocate memory for filename");
+      return -1;
+    }
   *gf->filename = '\0';
   if (prefix_length)
     strcat (gf->filename, gf->prefix);

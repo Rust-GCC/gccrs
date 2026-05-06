@@ -1,3 +1,7 @@
+2026-04-22  Sam James  <sam@gentoo.org>
+
+	* show-headers: Fix spelling of 'additional'.
+
 2024-06-05  Jonathan Wakely  <jwakely@redhat.com>
 
 	* README: Fix spelling and capitalization typos.

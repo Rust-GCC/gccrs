@@ -60,7 +60,11 @@ inquire_via_unit (st_parameter_inquire *iqp, gfc_unit *u)
     *iqp->number = (u != NULL) ? u->unit_number : -1;
 
   if ((cf & IOPARM_INQUIRE_HAS_NAMED) != 0)
-    *iqp->named = (u != NULL && u->flags.status != STATUS_SCRATCH);
+    {
+      *iqp->named = 0;
+      if (u != NULL && u->flags.status != STATUS_SCRATCH)
+	*iqp->named = 1;
+    }
 
   if ((cf & IOPARM_INQUIRE_HAS_NAME) != 0
       && u != NULL && u->flags.status != STATUS_SCRATCH)
@@ -117,6 +121,29 @@ inquire_via_unit (st_parameter_inquire *iqp, gfc_unit *u)
 	  }
 
       cf_strcpy (iqp->access, iqp->access_len, p);
+    }
+
+  if ((cf & IOPARM_INQUIRE_HAS_ACTION) != 0)
+    {
+      if (u == NULL)
+	p = undefined;
+      else
+	switch (u->flags.action)
+	  {
+	  case ACTION_READ:
+	    p = "READ";
+	    break;
+	  case ACTION_WRITE:
+	    p = "WRITE";
+	    break;
+	  case ACTION_READWRITE:
+	    p = "READWRITE";
+	    break;
+	  default:
+	    internal_error (&iqp->common, "inquire_via_filename(): Bad action");
+	  }
+
+      cf_strcpy (iqp->action, iqp->action_len, p);
     }
 
   if ((cf & IOPARM_INQUIRE_HAS_SEQUENTIAL) != 0)
@@ -284,13 +311,13 @@ inquire_via_unit (st_parameter_inquire *iqp, gfc_unit *u)
 
       if ((cf2 & IOPARM_INQUIRE_HAS_ENCODING) != 0)
 	{
-	  if (u == NULL || u->flags.form != FORM_FORMATTED)
-	    p = undefined;
-          else
+	  if (u == NULL)
+	    p = "UNKNOWN";
+	  else if (u->flags.form == FORM_FORMATTED)
 	    switch (u->flags.encoding)
 	      {
 	      case ENCODING_DEFAULT:
-		p = "UNKNOWN";
+		p = "DEFAULT";
 		break;
 	      case ENCODING_UTF8:
 		p = "UTF-8";
@@ -298,6 +325,8 @@ inquire_via_unit (st_parameter_inquire *iqp, gfc_unit *u)
 	      default:
 		internal_error (&iqp->common, "inquire_via_unit(): Bad encoding");
 	      }
+	  else
+	    p = "UNDEFINED";
 
 	  cf_strcpy (iqp->encoding, iqp->encoding_len, p);
 	}
@@ -345,7 +374,9 @@ inquire_via_unit (st_parameter_inquire *iqp, gfc_unit *u)
 
       if ((cf2 & IOPARM_INQUIRE_HAS_PENDING) != 0)
 	{
-	  if (!ASYNC_IO || u->au == NULL)
+	  if (u == NULL)
+	    *iqp->pending = 0;
+	  else if (!ASYNC_IO || u->au == NULL)
 	    *(iqp->pending) = 0;
 	  else
 	    {
@@ -353,12 +384,12 @@ inquire_via_unit (st_parameter_inquire *iqp, gfc_unit *u)
 	      if ((cf2 & IOPARM_INQUIRE_HAS_ID) != 0)
 		{
 		  int id;
-		  id = *(iqp->id);
-		  *(iqp->pending) = id > u->au->id.low;
+		  id = *iqp->id;
+		  *iqp->pending = id >= u->au->id.low;
 		}
 	      else
 		{
-		  *(iqp->pending) = ! u->au->empty;
+		  *iqp->pending = !u->au->empty;
 		}
 	      UNLOCK (&(u->au->lock));
 	    }
@@ -567,19 +598,28 @@ inquire_via_unit (st_parameter_inquire *iqp, gfc_unit *u)
 
   if ((cf & IOPARM_INQUIRE_HAS_READ) != 0)
     {
-      p = (!u || u->flags.action == ACTION_WRITE) ? no : yes;
+      if (u == NULL)
+	p = "UNKNOWN";
+      else
+	p = (!u || u->flags.action == ACTION_WRITE) ? no : yes;
       cf_strcpy (iqp->read, iqp->read_len, p);
     }
 
   if ((cf & IOPARM_INQUIRE_HAS_WRITE) != 0)
     {
-      p = (!u || u->flags.action == ACTION_READ) ? no : yes;
+      if (u == NULL)
+	p = "UNKNOWN";
+      else
+	p = (!u || u->flags.action == ACTION_READ) ? no : yes;
       cf_strcpy (iqp->write, iqp->write_len, p);
     }
 
   if ((cf & IOPARM_INQUIRE_HAS_READWRITE) != 0)
     {
-      p = (!u || u->flags.action != ACTION_READWRITE) ? no : yes;
+      if (u == NULL)
+	p = "UNKNOWN";
+      else
+	p = (!u || u->flags.action != ACTION_READWRITE) ? no : yes;
       cf_strcpy (iqp->readwrite, iqp->readwrite_len, p);
     }
 
@@ -678,6 +718,12 @@ inquire_via_filename (st_parameter_inquire *iqp)
   const char *p;
   GFC_INTEGER_4 cf = iqp->common.flags;
 
+  if ((cf & IOPARM_INQUIRE_HAS_ACTION) != 0)
+    cf_strcpy (iqp->action, iqp->action_len, undefined);
+
+  if ((cf & IOPARM_INQUIRE_HAS_DELIM) != 0)
+    cf_strcpy (iqp->delim, iqp->delim_len, undefined);
+
   if ((cf & IOPARM_INQUIRE_HAS_EXIST) != 0)
     *iqp->exist = file_exists (iqp->file, iqp->file_len);
 
@@ -722,7 +768,6 @@ inquire_via_filename (st_parameter_inquire *iqp)
       p = "UNKNOWN";
       cf_strcpy (iqp->unformatted, iqp->unformatted_len, p);
     }
-
   if ((cf & IOPARM_INQUIRE_HAS_RECL_OUT) != 0)
     /* F2018 (N2137) 12.10.2.26: If there is no connection, recl is
        assigned the value -1.  */
@@ -741,8 +786,20 @@ inquire_via_filename (st_parameter_inquire *iqp)
     {
       GFC_INTEGER_4 cf2 = iqp->flags2;
 
+      if ((cf2 & IOPARM_INQUIRE_HAS_ASYNCHRONOUS) != 0)
+	cf_strcpy (iqp->asynchronous, iqp->asynchronous_len, undefined);
+
+      if ((cf2 & IOPARM_INQUIRE_HAS_PENDING) != 0)
+	*iqp->pending = 0;
+
       if ((cf2 & IOPARM_INQUIRE_HAS_ENCODING) != 0)
-	cf_strcpy (iqp->encoding, iqp->encoding_len, undefined);
+	cf_strcpy (iqp->encoding, iqp->encoding_len, "UNKNOWN");
+
+      if ((cf2 & IOPARM_INQUIRE_HAS_SIGN) != 0)
+	cf_strcpy (iqp->sign, iqp->sign_len, undefined);
+
+      if ((cf2 & IOPARM_INQUIRE_HAS_ROUND) != 0)
+	cf_strcpy (iqp->round, iqp->round_len, undefined);
   
       if ((cf2 & IOPARM_INQUIRE_HAS_DELIM) != 0)
 	cf_strcpy (iqp->delim, iqp->delim_len, undefined);
@@ -756,9 +813,6 @@ inquire_via_filename (st_parameter_inquire *iqp)
       if ((cf2 & IOPARM_INQUIRE_HAS_PAD) != 0)
 	cf_strcpy (iqp->pad, iqp->pad_len, undefined);
   
-      if ((cf2 & IOPARM_INQUIRE_HAS_ENCODING) != 0)
-	cf_strcpy (iqp->encoding, iqp->encoding_len, undefined);
-
       if ((cf2 & IOPARM_INQUIRE_HAS_SIZE) != 0)
 	*iqp->size = file_size (iqp->file, iqp->file_len);
 

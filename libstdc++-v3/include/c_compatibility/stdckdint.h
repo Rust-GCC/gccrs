@@ -29,7 +29,11 @@
 #ifndef _GLIBCXX_STDCKDINT_H
 #define _GLIBCXX_STDCKDINT_H
 
-#if __cplusplus > 202302L
+#define __glibcxx_want_stdckdint_h
+#include <bits/version.h>
+
+#ifdef __cpp_lib_stdckdint_h // C++ >= 26
+
 #include <type_traits>
 #include <concepts>
 
@@ -96,6 +100,6 @@ using __gnu_cxx::ckd_sub;
 using __gnu_cxx::ckd_mul;
 #endif
 
-#endif // C++26
+#endif // __cpp_lib_stdckdint_h
 
 #endif // _GLIBCXX_STDCKDINT_H

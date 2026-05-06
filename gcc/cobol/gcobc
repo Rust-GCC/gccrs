@@ -35,10 +35,20 @@
 ##    output set the mode variable.  Everything else is appended to the
 ##    opts variable.
 ##
-##  - -fPIC is added to the command line if $mode is "-shared".  That
-##    option applies only to "certain machines", per the gcc info
-##    manual. For this script to be portable across machines, -fPIC
-##    would have to be set more judiciously.
+##  - -fPIC is added to the command line unless we're producing an
+##    executable.  That option applies only to "certain machines", per
+##    the gcc info manual. For this script to be portable across
+##    machines, -fPIC would have to be set more judiciously.
+
+# To override the default gcobol, set the "gcobol" environment variable.
+gcobol="${gcobol:-${0%/*}/gcobol}"
+
+# If invoked as "gcobcx", execute with tracing enabled. 
+if [ gcobcx = ${0##*/} ]
+then
+    #cho "parsing args: $@" >&2
+    set -x
+fi
 
 if [ "$COBCPY" ]
 then
@@ -78,6 +88,7 @@ fi
 exit_status=0
 skip_arg=
 opts="$copydir $includes"
+cflags=-fPIC
 mode=-shared
 
 incomparable="has no comparable gcobol option"
@@ -163,6 +174,8 @@ do
         continue
     fi
 
+    #cho "next arg: $opt" >&2
+
     case $opt in
 
         # pass next parameter to GCC
@@ -184,15 +197,14 @@ do
          -C) error "$opt $incomparable"
              ;;
         -d | -debug | --debug) opts="$opts -fcobol-exceptions=EC-ALL"
-                       warn "$opt implies -fstack-check:"
                        ;;
         # define for preprocessor, note: -D* is directly passed
         -D)
             pending_arg=$opt
             ;;
-         -E) opts="$opts $opt -fsyntax-only"
-             ;;
-         -echo) echo="echo"
+        -E) opts="$opts $opt -fsyntax-only"
+            ;;
+        -echo) echo="echo"
                ;;
 
         -fec=* | -fno-ec=*)
@@ -200,7 +212,7 @@ do
              opts="$opts $opt"
              ;;
          -ext)
-            pending_arg="$opt "
+            pending_arg="-copyext "
              ;;
          -ext=*) opts="$opts $(echo "$opt" | sed 's/-ext=/-copyext ./')"
                  ;;
@@ -230,7 +242,7 @@ do
         -fwrite-after) warn "$opt" ;;
         -fmfcomment) warn "$opt" ;;
         -facucomment) warn "$opt" ;;
-        -fno-trunc) no_warn "$opt" ;;
+        -ftrunc | -fno-trunc | -fnotrunc) no_warn "$opt" ;;
         -fsingle-quote) warn "$opt" ;;
         -foptional-file) warn "$opt" ;;
         -fstatic-call | -fno-static-call)
@@ -384,8 +396,9 @@ do
         -fformat=auto) ;; # gcobol and gnucobol default
 
         -fixed | --fixed | -fformat=fixed | -fformat=variable | -fformat=xcard)
-                    # note: variable + xcard are only _more similar_ to fixed than free,
-                    # (with changing right-column to 250/255, which isn't supported in gcobol, yet)
+                    # note: variable + xcard are only _more similar_
+                    # to fixed than free, (with changing right-column
+                    # to 250/255, which isn't supported in gcobol
                      opts="$opts -ffixed-form"
                      ;;
 
@@ -400,8 +413,24 @@ do
                ;;
         -i | --info) warn "$opt"
                      ;;
-
-        # -I
+        -include )
+            pending_arg=$opt
+            ;;
+        # no-space version: just concatenate
+        -include* )
+            opts="$opts $opt"
+            ;;
+        #
+        # Options that may have a space  before the argument, or not
+        #
+        -I | -L | -MF | -MT )
+            pending_arg=$opt
+            ;;
+        # no-space version: just concatenate
+        -I* | -L* | -MF* | -MT* )
+            opts="$opts $opt"
+            ;;
+        
         -fimplicit-init) warn "$opt"
                          ;;
         -j | -job)  warn "$opt"
@@ -411,7 +440,6 @@ do
         -K*) warn "$opt"
             ;;
         # -l
-        # -L
         --list*) warn "$opt"
                  ;;
         -m) mode="-shared"
@@ -425,9 +453,6 @@ do
              opts="$opts $opt"
             ;;
 
-        # -O0, -Ox
-        -O | -O2 | -Os) warn "$opt"
-                        ;;
         -S) mode="$opt"
             ;;
         -save-temps=*) opt="$(echo "$opt" | sed -E 's/^.+=//')"
@@ -463,7 +488,13 @@ do
          -v | --verbose) opts="$opts -V"
                          ;;
          # note: we want -dumpversion to be passed to gcc
-         -V | --version | -version) opts="$opts --version"
+         -V | --version | -version)
+             $gcobol --version |
+                 awk '1 == NR { ver = $3; 
+                                $3 = "3.1"
+                                $5 = "(GnuCOBOL emulation using " ver ")" } 1'
+             exit
+             # opts="$opts --version"
             ;;
         # pass through, strangely -Wall is not supported
         -w | -W | -Wextra) opts="$opts $opt"
@@ -471,10 +502,11 @@ do
         -Wno-*) no_warn "$opt"
              ;;
 
-        -W*) ignore_arg "$opt"
+        -W*) warn "$opt"
              ;;
 
         -x) mode=
+            cflags=
             ;;
 
         -) output_name=a.out # nonnull to prevent overriding gcc default
@@ -490,10 +522,9 @@ do
                        ;;
                    -shared)
                        output_name="$output_name".so
-                       opts="$opts -fPIC"
                        ;;
                esac
-               opts="$opts -o $output_name"
+               opts="$opts $cflags -o $output_name"
            fi    
            opts="$opts $opt" # pass through
            ;;
@@ -503,16 +534,13 @@ done
 # cobc default:
 if [ "$static_used" = "" ]
 then
-    opts="$opts -fno-static-call";
+    opts="-fno-static-call $opts";
 fi
 
 if [ "$exit_status" -gt 0 ]
 then
     exit $exit_status
 fi
-
-# To override the default gcobol, set the "gcobol" environment variable.
-gcobol="${gcobol:-${0%/*}/gcobol}"
 
 if [ "$dialect" ]
 then

@@ -1353,37 +1353,31 @@ gimple_range_op_handler::maybe_non_standard ()
   gcc_checking_assert (signed_op);
   range_op_handler unsigned_op (OP_WIDEN_MULT_UNSIGNED);
   gcc_checking_assert (unsigned_op);
+  range_op_handler signed_unsigned_op (OP_WIDEN_MULT_SIGNED_UNSIGNED);
+  gcc_checking_assert (signed_unsigned_op);
+  bool signed1, signed2;
 
   if (gimple_code (m_stmt) == GIMPLE_ASSIGN)
     switch (gimple_assign_rhs_code (m_stmt))
       {
 	case WIDEN_MULT_EXPR:
-	{
 	  m_op1 = gimple_assign_rhs1 (m_stmt);
 	  m_op2 = gimple_assign_rhs2 (m_stmt);
-	  tree ret = gimple_assign_lhs (m_stmt);
-	  bool signed1 = TYPE_SIGN (TREE_TYPE (m_op1)) == SIGNED;
-	  bool signed2 = TYPE_SIGN (TREE_TYPE (m_op2)) == SIGNED;
-	  bool signed_ret = TYPE_SIGN (TREE_TYPE (ret)) == SIGNED;
+	  signed1 = TYPE_SIGN (TREE_TYPE (m_op1)) == SIGNED;
+	  signed2 = TYPE_SIGN (TREE_TYPE (m_op2)) == SIGNED;
 
-	  /* Normally these operands should all have the same sign, but
-	     some passes and violate this by taking mismatched sign args.  At
-	     the moment the only one that's possible is mismatch inputs and
-	     unsigned output.  Once ranger supports signs for the operands we
-	     can properly fix it,  for now only accept the case we can do
-	     correctly.  */
-	  if ((signed1 ^ signed2) && signed_ret)
-	    return;
-
-	  if (signed2 && !signed1)
-	    std::swap (m_op1, m_op2);
-
-	  if (signed1 || signed2)
+	  if (signed1 != signed2)
+	    {
+	      if (signed2 && !signed1)
+		std::swap (m_op1, m_op2);
+	      m_operator = signed_unsigned_op.range_op ();
+	    }
+	  else if (signed1)
 	    m_operator = signed_op.range_op ();
 	  else
 	    m_operator = unsigned_op.range_op ();
 	  break;
-	}
+
 	default:
 	  break;
       }
@@ -1410,6 +1404,8 @@ gimple_range_op_handler::maybe_builtin_call ()
   switch (func)
     {
     case CFN_BUILT_IN_CONSTANT_P:
+      if (gimple_call_num_args (call) != 1)
+	return;
       m_op1 = gimple_call_arg (call, 0);
       if (irange::supports_p (TREE_TYPE (m_op1)))
 	m_operator = &op_cfn_constant_p;
@@ -1420,21 +1416,29 @@ gimple_range_op_handler::maybe_builtin_call ()
       break;
 
     CASE_FLT_FN (CFN_BUILT_IN_SIGNBIT):
+      if (gimple_call_num_args (call) != 1)
+	return;
       m_op1 = gimple_call_arg (call, 0);
       m_operator = &op_cfn_signbit;
       break;
 
     CASE_FLT_FN (CFN_BUILT_IN_ISINF):
+      if (gimple_call_num_args (call) != 1)
+	return;
       m_op1 = gimple_call_arg (call, 0);
       m_operator = &op_cfn_isinf;
       break;
 
     case CFN_BUILT_IN_ISFINITE:
+      if (gimple_call_num_args (call) != 1)
+	return;
       m_op1 = gimple_call_arg (call, 0);
       m_operator = &op_cfn_isfinite;
       break;
 
     case CFN_BUILT_IN_ISNORMAL:
+      if (gimple_call_num_args (call) != 1)
+	return;
       m_op1 = gimple_call_arg (call, 0);
       m_operator = &op_cfn_isnormal;
       break;
@@ -1565,7 +1569,9 @@ gimple_range_op_handler::maybe_builtin_call ()
     default:
       {
 	unsigned arg;
-	if (gimple_call_fnspec (call).returns_arg (&arg) && arg == 0)
+	if (gimple_call_fnspec (call).returns_arg (&arg)
+	    && arg == 0
+	    && gimple_call_num_args (call) > 0)
 	  {
 	    m_op1 = gimple_call_arg (call, 0);
 	    m_operator = &op_cfn_pass_through_arg1;

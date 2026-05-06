@@ -1,6 +1,7 @@
 /* { dg-require-effective-target vect_int } */
 /* { dg-add-options bind_pic_locally } */
 /* { dg-additional-options "--param vect-max-peeling-for-alignment=0" } */
+/* { dg-additional-options "-fno-section-anchors" } */
 
 #include <stdarg.h>
 #include "tree-vect.h"

@@ -1,6 +1,6 @@
 
 /* Compiler implementation of the D programming language
- * Copyright (C) 1999-2025 by The D Language Foundation, All Rights Reserved
+ * Copyright (C) 1999-2026 by The D Language Foundation, All Rights Reserved
  * written by Walter Bright
  * https://www.digitalmars.com
  * Distributed under the Boost Software License, Version 1.0.
@@ -29,7 +29,6 @@ class AttribDeclaration : public Dsymbol
 public:
     Dsymbols *decl;     // array of Dsymbol's
     const char *kind() const override;
-    bool hasPointers() override final;
     void accept(Visitor *v) override { v->visit(this); }
 };
 

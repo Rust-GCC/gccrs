@@ -39,6 +39,7 @@ public:
 
   // rust-ast.h
   // virtual void visit(AttrInput& attr_input) = 0;
+  virtual void visit (AST::Attribute &attribute) = 0;
   // virtual void visit(TokenTree& token_tree) = 0;
   // virtual void visit(MacroMatch& macro_match) = 0;
   virtual void visit (Token &tok) = 0;
@@ -71,7 +72,7 @@ public:
   // rust-expr.h
   virtual void visit (LiteralExpr &expr) = 0;
   virtual void visit (AttrInputLiteral &attr_input) = 0;
-  virtual void visit (AttrInputMacro &attr_input) = 0;
+  virtual void visit (AttrInputExpr &attr_input) = 0;
   virtual void visit (MetaItemLitExpr &meta_item) = 0;
   virtual void visit (MetaItemPathExpr &meta_item) = 0;
   virtual void visit (BorrowExpr &expr) = 0;
@@ -267,7 +268,7 @@ public:
   virtual void visit (AST::QualifiedPathInType &path) override;
   virtual void visit (AST::LiteralExpr &expr) override;
   virtual void visit (AST::AttrInputLiteral &attr_input) override;
-  virtual void visit (AST::AttrInputMacro &attr_input) override;
+  virtual void visit (AST::AttrInputExpr &attr_input) override;
   virtual void visit (AST::MetaItemLitExpr &meta_item) override;
   virtual void visit (AST::MetaItemPathExpr &meta_item) override;
   virtual void visit (AST::BorrowExpr &expr) override;
@@ -444,7 +445,7 @@ public:
   virtual void visit (AST::StructPatternElements &spe);
   virtual void visit (AST::MaybeNamedParam &param);
 
-  void visit (AST::Attribute &attribute) {}
+  virtual void visit (AST::Attribute &attribute) override;
 
   template <typename T> void visit_outer_attrs (T &node)
   {

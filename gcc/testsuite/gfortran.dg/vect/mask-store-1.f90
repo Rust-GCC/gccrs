@@ -1,3 +1,5 @@
+! { dg-do compile }
+
 subroutine foo(a, b, x, n)
   real(kind=8) :: a(n), b(n), tmp
   logical(kind=1) :: x

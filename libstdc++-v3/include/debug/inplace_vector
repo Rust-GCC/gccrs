@@ -338,11 +338,12 @@ namespace __debug
       }
 
       template<typename... _Args>
-	constexpr _Tp*
+	constexpr optional<_Tp&>
 	try_emplace_back(_Args&&... __args)
 	{
 	  auto __end = _Base::cend();
-	  _Tp* __res = _Base::try_emplace_back(std::forward<_Args>(__args)...);
+	  optional<_Tp&> __res
+	    = _Base::try_emplace_back(std::forward<_Args>(__args)...);
 
 	  if (__res)
 	    this->_M_invalidate_if(_Equal(__end));
@@ -350,11 +351,11 @@ namespace __debug
 	  return __res;
 	}
 
-      constexpr _Tp*
+      constexpr optional<_Tp&>
       try_push_back(const _Tp& __x)
       {
 	const auto __end = _Base::cend();
-	_Tp* __res = _Base::try_push_back(__x);
+	optional<_Tp&> __res = _Base::try_push_back(__x);
 
 	if (__res)
 	  this->_M_invalidate_if(_Equal(__end));
@@ -362,30 +363,17 @@ namespace __debug
 	return __res;
       }
 
-      constexpr _Tp*
+      constexpr optional<_Tp&>
       try_push_back(_Tp&& __x)
       {
 	const auto __end = _Base::cend();
-	_Tp* __res = _Base::try_push_back(std::move(__x));
+	optional<_Tp&> __res = _Base::try_push_back(std::move(__x));
 
 	if (__res)
 	  this->_M_invalidate_if(_Equal(__end));
 
 	return __res;
       }
-
-      template<__detail::__container_compatible_range<_Tp> _Rg>
-	constexpr ranges::borrowed_iterator_t<_Rg>
-	try_append_range(_Rg&& __rg)
-	{
-	  const auto __size = size();
-	  const auto __end = _Base::cend();
-	  auto __res = _Base::try_append_range(__rg);
-	  if (size() != __size)
-	    this->_M_invalidate_if(_Equal(__end));
-
-	  return __res;
-	}
 
       template<typename... _Args>
 	constexpr _Tp&
@@ -566,13 +554,13 @@ namespace __debug
       noexcept( noexcept(__x.swap(__y)) )
       { __x.swap(__y); }
 
-    private:
       constexpr _Base&
       _M_base() noexcept { return *this; }
 
       constexpr const _Base&
       _M_base() const noexcept { return *this; }
 
+    private:
       constexpr void
       _M_invalidate_after_nth(difference_type __n) noexcept
       {
@@ -663,17 +651,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     {
       if constexpr (_Nm != 0)
 	{
-	  _GLIBCXX_STD_C::inplace_vector<_Tp, _Nm>& __ucont = __cont;
-	  const auto __osz = __cont.size();
-	  const auto __end = __ucont.end();
-	  auto __removed = std::__remove_if(__ucont.begin(), __end,
-					    std::move(__pred));
-	  if (__removed != __end)
-	    {
-	      __cont.erase(__niter_wrap(__cont.cbegin(), __removed),
-			   __cont.cend());
-	      return __osz - __cont.size();
-	    }
+	  return __detail::__erase_if(__cont, __cont._M_base(),
+				      std::move(__pred));
 	}
 
       return 0;

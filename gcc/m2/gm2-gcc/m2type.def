@@ -96,6 +96,14 @@ PROCEDURE BuildEndArrayConstructor (p: Constructor) : tree ;
 
 
 (*
+   ReverseArrayConstructorElements - reverse the list containing the
+                                     constant array elements.
+*)
+
+PROCEDURE ReverseArrayConstructorElements (p: Constructor) ;
+
+
+(*
    BuildEndArrayConstructor - returns a tree containing the array
                               compound literal.
 *)

@@ -149,7 +149,7 @@ a68_string_concat (tree str1, tree str2)
 					size_in_bytes (a68_char_type),
 					num_elems);
       tree elements = a68_lower_tmpvar ("elements%", char_pointer_type,
-					a68_lower_malloc (a68_char_type, elements_size));
+					a68_lower_malloc (M_CHAR, elements_size));
 
       /* Copy elements.  */
       tree to_index = a68_lower_tmpvar ("to_index%", sizetype, size_zero_node);
@@ -191,16 +191,19 @@ a68_string_mult (tree str, tree factor)
 
   str = save_expr (str);
   tree ssize_one_node = ssize_int (1);
-  tree res = a68_lower_tmpvar ("res%", CTYPE (M_STRING), str);
+  tree res = a68_lower_tmpvar ("res%", CTYPE (M_STRING),
+			       fold_build1 (INDIRECT_REF, CTYPE(M_STRING),
+					    a68_low_gen (M_STRING, 0, NULL,
+							 false /* use_heap */)));
   tree index = a68_lower_tmpvar ("index%", ssizetype, ssize_one_node);
 
   /* Begin of loop body.  */
   a68_push_range (NULL);
 
-  /* if (index == FACTOR) break;  */
+  /* if (index > FACTOR) break;  */
   a68_add_stmt (fold_build1 (EXIT_EXPR,
 			     void_type_node,
-			     fold_build2 (GE_EXPR, ssizetype,
+			     fold_build2 (GT_EXPR, ssizetype,
 					  index,
 					  fold_convert (ssizetype, factor))));
 
@@ -234,7 +237,7 @@ a68_string_from_char (tree c)
   a68_push_range (M_STRING);
 
   tree elements = a68_lower_tmpvar ("elements%", char_pointer_type,
-				    a68_lower_malloc (a68_char_type,
+				    a68_lower_malloc (M_CHAR,
 						      size_one_node));
   a68_add_stmt (fold_build2 (MODIFY_EXPR,
 			     void_type_node,

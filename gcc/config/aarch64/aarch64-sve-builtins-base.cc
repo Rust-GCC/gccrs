@@ -1854,6 +1854,20 @@ public:
 	gimple_seq_add_stmt_without_update (&stmts, mem_ref_stmt);
 
 	int source_nelts = TYPE_VECTOR_SUBPARTS (access_type).to_constant ();
+
+	/* When the SVE vector has the same number of elements as the
+	   128-bit quadword (i.e. VL == 128), the load fills the entire
+	   register and no replication is needed.  Just convert the
+	   loaded value from the Advanced SIMD type to the SVE type.  */
+	if (known_eq (lhs_len, (unsigned int) source_nelts))
+	  {
+	    gimple *g
+	      = gimple_build_assign (lhs, build1 (VIEW_CONVERT_EXPR,
+						  lhs_type, mem_ref_lhs));
+	    gimple_seq_add_stmt_without_update (&stmts, g);
+	    gsi_replace_with_seq_vops (f.gsi, stmts);
+	    return g;
+	  }
 	vec_perm_builder sel (lhs_len, source_nelts, 1);
 	for (int i = 0; i < source_nelts; i++)
 	  sel.quick_push (i);
@@ -2289,7 +2303,14 @@ public:
 	  icode = code_for_aarch64_sve_add (UNSPEC_SMATMUL, e.vector_mode (0));
       }
     else
-      icode = code_for_aarch64_sve (UNSPEC_FMMLA, e.vector_mode (0));
+      {
+	if (e.type_suffix_ids[1] == NUM_TYPE_SUFFIXES)
+	  icode = code_for_aarch64_sve (UNSPEC_FMMLA, e.vector_mode (0));
+	else
+	  icode = code_for_aarch64_sve2 (UNSPEC_FMMLA,
+					e.vector_mode (0),
+					e.vector_mode (1));
+      }
     return e.use_exact_insn (icode);
   }
 };
@@ -2308,11 +2329,18 @@ class svmul_impl : public rtx_code_function
 {
 public:
   CONSTEXPR svmul_impl ()
-    : rtx_code_function (MULT, MULT, UNSPEC_COND_FMUL) {}
+    : rtx_code_function (MULT, MULT, UNSPEC_COND_FMUL, UNSPEC_FMUL) {}
 
   gimple *
   fold (gimple_folder &f) const override
   {
+    /* The code below assumes that the function has 3 arguments (pg, rn, rm).
+       Unpredicated functions have only 2 arguments (rn, rm) so will cause the
+       code below to crash.  Also skip if it does not operate on integers,
+       since all the optimizations below are for integer multiplication.  */
+    if (!f.type_suffix (0).integer_p || f.pred == aarch64_sve::PRED_none)
+      return nullptr;
+
     if (auto *res = f.fold_const_binary (MULT_EXPR))
       return res;
 

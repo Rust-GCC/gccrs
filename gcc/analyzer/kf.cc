@@ -747,6 +747,655 @@ kf_memset::impl_call_pre (const call_details &cd) const
   cd.maybe_set_lhs (dest_sval);
 }
 
+/* A subclass of pending_diagnostic for complaining about functions on the
+   'mktemp' family called on a string literal.  */
+
+class mktemp_of_string_literal : public undefined_function_behavior
+{
+public:
+  mktemp_of_string_literal (const call_details &cd)
+    : undefined_function_behavior (cd)
+  {
+  }
+
+  int
+  get_controlling_option () const final override
+  {
+    return OPT_Wanalyzer_mktemp_of_string_literal;
+  }
+
+  bool
+  emit (diagnostic_emission_context &ctxt) final override
+  {
+    auto_diagnostic_group d;
+
+    /* SEI CERT C Coding Standard: "STR30-C. Do not attempt to modify string
+       literals.  */
+    diagnostics::metadata::precanned_rule rule (
+      "STR30-C", "https://wiki.sei.cmu.edu/confluence/x/VtYxBQ");
+    ctxt.add_rule (rule);
+
+    bool warned = ctxt.warn ("%qE on a string literal", get_callee_fndecl ());
+    if (warned)
+      inform (ctxt.get_location (),
+	      "use a writable character array as the template argument,"
+	      " e.g. %<char tmpl[] = \"/tmp/fooXXXXXX\"%>");
+    return warned;
+  }
+
+  bool
+  describe_final_event (pretty_printer &pp,
+			const evdesc::final_event &) final override
+  {
+    pp_printf (&pp, "%qE on a string literal", get_callee_fndecl ());
+    return true;
+  }
+};
+
+/* A subclass of pending_diagnostic for complaining about functions in the
+   'mktemp' family called with a template that does not contain the expected
+   "XXXXXX" placeholder.  */
+
+class mktemp_missing_placeholder
+  : public pending_diagnostic_subclass<mktemp_missing_placeholder>
+{
+public:
+  mktemp_missing_placeholder (const call_details &cd, size_t trailing_len)
+    : m_call_stmt (cd.get_call_stmt ()), m_fndecl (cd.get_fndecl_for_call ()),
+      m_trailing_len (trailing_len)
+  {
+    gcc_assert (m_fndecl);
+  }
+
+  const char *
+  get_kind () const final override
+  {
+    return "mktemp_missing_placeholder";
+  }
+
+  bool
+  operator== (const mktemp_missing_placeholder &other) const
+  {
+    return &m_call_stmt == &other.m_call_stmt;
+  }
+
+  int
+  get_controlling_option () const final override
+  {
+    return OPT_Wanalyzer_mktemp_missing_placeholder;
+  }
+
+  bool
+  emit (diagnostic_emission_context &ctxt) final override
+  {
+    if (m_trailing_len == 0)
+      return ctxt.warn ("%qE template string does not end with %qs", m_fndecl,
+			"XXXXXX");
+    else
+      return ctxt.warn ("%qE template string does not contain %qs"
+			" before a %zu-character suffix",
+			m_fndecl, "XXXXXX", m_trailing_len);
+  }
+
+  bool
+  describe_final_event (pretty_printer &pp,
+			const evdesc::final_event &) final override
+  {
+    if (m_trailing_len == 0)
+      pp_printf (&pp, "%qE template string does not end with %qs", m_fndecl,
+		 "XXXXXX");
+    else
+      pp_printf (&pp,
+		 "%qE template string does not contain %qs"
+		 " before a %zu-character suffix",
+		 m_fndecl, "XXXXXX", m_trailing_len);
+    return true;
+  }
+
+private:
+  const gimple &m_call_stmt;
+  tree m_fndecl; // non-NULL
+  size_t m_trailing_len;
+};
+
+/* A subclass of pending_diagnostic for complaining about 'mkostemp'
+   or 'mkostemps' called with flags that are already included
+   internally (O_CREAT, O_EXCL, O_RDWR).  */
+
+class mkostemp_redundant_flags
+  : public pending_diagnostic_subclass<mkostemp_redundant_flags>
+{
+public:
+  mkostemp_redundant_flags (const call_details &cd)
+    : m_call_stmt (cd.get_call_stmt ()), m_fndecl (cd.get_fndecl_for_call ())
+  {
+    gcc_assert (m_fndecl);
+  }
+
+  const char *
+  get_kind () const final override
+  {
+    return "mkostemp_redundant_flags";
+  }
+
+  bool
+  operator== (const mkostemp_redundant_flags &other) const
+  {
+    return &m_call_stmt == &other.m_call_stmt;
+  }
+
+  int
+  get_controlling_option () const final override
+  {
+    return OPT_Wanalyzer_mkostemp_redundant_flags;
+  }
+
+  bool
+  emit (diagnostic_emission_context &ctxt) final override
+  {
+    return ctxt.warn (
+      "%qE flags argument should not include %<O_RDWR%>, %<O_CREAT%>,"
+      " or %<O_EXCL%> as these are already implied",
+      m_fndecl);
+  }
+
+  bool
+  describe_final_event (pretty_printer &pp,
+			const evdesc::final_event &) final override
+  {
+    pp_printf (&pp,
+	       "%qE flags argument should not include %<O_RDWR%>, %<O_CREAT%>,"
+	       " or %<O_EXCL%> as these are already implied",
+	       m_fndecl);
+    return true;
+  }
+
+private:
+  const gimple &m_call_stmt;
+  tree m_fndecl; // non-NULL
+};
+
+class kf_mktemp_family : public known_function
+{
+public:
+  /* Describes how the mktemp-family function signals success or failure
+     through its return value.  */
+  enum class outcome
+  {
+    /* Returns fd on success, -1 on failure (mkstemp, mkostemp, etc.).  */
+    fd,
+
+    /* Returns pointer on success, NULL on failure (mkdtemp).  */
+    null_ptr,
+
+    /* Returns template pointer; first byte \0 on failure (mktemp).  */
+    modif_tmpl
+  };
+
+protected:
+  /* suffixlen_arg_idx is the index of the suffixlen argument, or -1
+     if there is none (trailing_len is implicitly 0).  */
+  kf_mktemp_family (outcome oc, int suffixlen_arg_idx)
+    : m_outcome (oc), m_suffixlen_arg_idx (suffixlen_arg_idx)
+  {
+  }
+
+  class failure;
+  class success;
+
+  static void check_for_string_literal_arg (const call_details &cd);
+
+  /* Check whether the flags argument at FLAGS_ARG_IDX contains any of
+     O_RDWR, O_CREAT, or O_EXCL, which are already included internally
+     by mkostemp/mkostemps.  */
+  static void check_flags (const call_details &cd, unsigned int flags_arg_idx);
+
+  HOST_WIDE_INT get_trailing_len (const call_details &cd,
+				  tristate &valid) const;
+
+  void impl_call_post (const call_details &cd) const final override;
+
+private:
+  outcome m_outcome;
+  int m_suffixlen_arg_idx;
+
+  static const int PLACEHOLDER_LEN = 6;
+
+  /* Return true if the placeholder is "XXXXXX", false if it definitely isn't,
+   or unknown if we can't determine.  */
+  static tristate check_placeholder (const call_details &cd,
+				     size_t trailing_len,
+				     const svalue *ptr_sval,
+				     const svalue *strlen_sval);
+};
+
+void
+kf_mktemp_family::check_for_string_literal_arg (const call_details &cd)
+{
+  region_model_context *ctxt = cd.get_ctxt ();
+  gcc_assert (ctxt);
+  cd.get_model ()->check_for_null_terminated_string_arg (cd, 0, false,
+							 nullptr);
+  if (cd.get_arg_string_literal (0))
+    {
+      ctxt->warn (std::make_unique<mktemp_of_string_literal> (cd));
+      ctxt->terminate_path ();
+    }
+}
+
+void
+kf_mktemp_family::check_flags (const call_details &cd,
+			       unsigned int flags_arg_idx)
+{
+  region_model_context *ctxt = cd.get_ctxt ();
+  gcc_assert (ctxt);
+
+  const svalue *flags_sval = cd.get_arg_svalue (flags_arg_idx);
+  const constant_svalue *cst = flags_sval->dyn_cast_constant_svalue ();
+  if (!cst)
+    return;
+
+  unsigned HOST_WIDE_INT flags = TREE_INT_CST_LOW (cst->get_constant ());
+
+  /* Check whether any of the implicit flags are redundantly specified. */
+  unsigned HOST_WIDE_INT implicit_flags = 0;
+  for (const char *name : { "O_RDWR", "O_CREAT", "O_EXCL" })
+    if (tree cst_tree = get_stashed_constant_by_name (name))
+      implicit_flags |= TREE_INT_CST_LOW (cst_tree);
+
+  if (flags & implicit_flags)
+    ctxt->warn (std::make_unique<mkostemp_redundant_flags> (cd));
+}
+
+/* Extract the trailing length from the suffixlen argument.
+
+   Returns the trailing length on success, or -1 if the suffixlen is
+   not a compile-time constant.  Sets VALID to TS_FALSE if the
+   suffixlen is a negative constant (always invalid).  */
+
+HOST_WIDE_INT
+kf_mktemp_family::get_trailing_len (const call_details &cd,
+				    tristate &valid) const
+{
+  if (m_suffixlen_arg_idx < 0)
+    return 0;
+
+  const svalue *suffixlen_sval = cd.get_arg_svalue (m_suffixlen_arg_idx);
+  const constant_svalue *cst = suffixlen_sval->dyn_cast_constant_svalue ();
+  if (!cst)
+    return -1;
+
+  /* TODO: Negative suffixlen is always wrong and potentially OOB, maybe add a
+     warning in the future?  */
+  if (tree_int_cst_sgn (cst->get_constant ()) < 0)
+    {
+      valid = tristate::TS_FALSE;
+      return -1;
+    }
+
+  return TREE_INT_CST_LOW (cst->get_constant ());
+}
+
+/* Model the failure outcome of a mktemp-family function call.
+
+   Sets the return value according to the function's convention (fd == -1, NULL
+   pointer, or '\0' in template[0]) and sets errno.  */
+
+class kf_mktemp_family::failure : public failed_call_info
+{
+public:
+  failure (const call_details &cd, outcome oc)
+    : failed_call_info (cd), m_outcome (oc)
+  {
+  }
+
+  bool
+  update_model (region_model *model, const exploded_edge *,
+		region_model_context *ctxt) const final override
+  {
+    const call_details cd (get_call_details (model, ctxt));
+
+    switch (m_outcome)
+      {
+      case outcome::fd:
+	model->update_for_int_cst_return (cd, -1, true);
+	break;
+      case outcome::null_ptr:
+	model->update_for_null_return (cd, true);
+	break;
+      case outcome::modif_tmpl:
+	{
+	  const svalue *first_arg_svalue = cd.get_arg_svalue (0);
+
+	  /* Return the same pointer that was passed in.  */
+	  cd.maybe_set_lhs (first_arg_svalue);
+
+	  region_model_manager *mgr = cd.get_manager ();
+	  const region *template_reg = model->deref_rvalue (
+	    first_arg_svalue, cd.get_arg_tree (0), ctxt);
+
+	  /* mktemp may have modified the X positions before failing;
+	     invalidate the old buffer contents.  */
+	  model->mark_region_as_unknown (template_reg, nullptr);
+
+	  /* Then: template[0] = '\0'.  */
+	  const svalue *nul = mgr->get_or_create_int_cst (char_type_node, 0);
+	  model->set_value (template_reg, nul, ctxt);
+	  break;
+	}
+      default:
+	gcc_unreachable ();
+      }
+
+    model->set_errno (cd);
+    return true;
+  }
+
+private:
+  outcome m_outcome;
+};
+
+/* Model the success outcome of a mktemp-family function call.
+
+   For fd-returning functions, conjures a non-negative fd and marks it valid.
+   For pointer-returning functions, returns the template pointer and marks the
+   template region as modified.  */
+
+class kf_mktemp_family::success : public success_call_info
+{
+public:
+  success (const call_details &cd, outcome oc)
+    : success_call_info (cd), m_outcome (oc)
+  {
+  }
+
+  bool
+  update_model (region_model *model, const exploded_edge *,
+		region_model_context *ctxt) const final override
+  {
+    const call_details cd (get_call_details (model, ctxt));
+
+    switch (m_outcome)
+      {
+      case outcome::fd:
+	{
+	  region_model_manager *mgr = cd.get_manager ();
+	  const region *lhs_reg = cd.get_lhs_region ();
+	  /* conjured_svalue needs a non-null id_reg.  When there is
+	     no LHS, use an unknown symbolic region; we still conjure
+	     and mark the fd so the leak checker can see it.  */
+	  const region *id_reg
+	    = lhs_reg ? lhs_reg
+		      : mgr->get_unknown_symbolic_region (integer_type_node);
+
+	  tree lhs_type = cd.get_lhs_type ();
+	  if (!lhs_type)
+	    lhs_type = integer_type_node;
+
+	  conjured_purge p (model, ctxt);
+	  const svalue *fd_sval = mgr->get_or_create_conjured_svalue (
+	    lhs_type, &cd.get_call_stmt (), id_reg, p);
+	  const svalue *zero = mgr->get_or_create_int_cst (lhs_type, 0);
+
+	  if (!model->add_constraint (fd_sval, GE_EXPR, zero, ctxt))
+	    return false;
+
+	  if (lhs_reg)
+	    model->set_value (lhs_reg, fd_sval, ctxt);
+
+	  /* TODO: transition to an unchecked state so that
+	     use-without-check can be detected.  */
+	  model->mark_as_valid_fd (fd_sval, ctxt);
+	  break;
+	}
+      case outcome::null_ptr:
+	{
+	  region_model_manager *mgr = cd.get_manager ();
+	  const svalue *first_arg_svalue = cd.get_arg_svalue (0);
+	  cd.maybe_set_lhs (first_arg_svalue);
+
+	  /* On success, mkdtemp returns non-NULL.  */
+	  const svalue *null_ptr
+	    = mgr->get_or_create_int_cst (first_arg_svalue->get_type (), 0);
+	  if (!model->add_constraint (first_arg_svalue, NE_EXPR, null_ptr,
+				      ctxt))
+	    return false;
+
+	  const region *template_reg = model->deref_rvalue (
+	    first_arg_svalue, cd.get_arg_tree (0), ctxt);
+	  model->mark_region_as_unknown (template_reg, nullptr);
+	  break;
+	}
+      case outcome::modif_tmpl:
+	{
+	  const svalue *first_arg_svalue = cd.get_arg_svalue (0);
+	  cd.maybe_set_lhs (first_arg_svalue);
+	  const region *template_reg = model->deref_rvalue (
+	    first_arg_svalue, cd.get_arg_tree (0), ctxt);
+	  model->mark_region_as_unknown (template_reg, nullptr);
+	  break;
+	}
+      default:
+	gcc_unreachable ();
+      }
+
+    return true;
+  }
+
+private:
+  outcome m_outcome;
+};
+
+/* Bifurcate into success and failure paths.  The template placeholder is
+   validated when possible.  If definitely invalid, only the failure path is
+   explored.  */
+
+void
+kf_mktemp_family::impl_call_post (const call_details &cd) const
+{
+  if (!cd.get_ctxt ())
+    return;
+
+  tristate valid = tristate::TS_UNKNOWN;
+  HOST_WIDE_INT trailing_len = get_trailing_len (cd, valid);
+
+  /* Determine whether the template placeholder is valid.  */
+  const svalue *strlen_sval = nullptr;
+  const svalue *ptr_sval = nullptr;
+  if (trailing_len >= 0 && !valid.is_false ())
+    {
+      ptr_sval = cd.get_arg_svalue (0);
+      strlen_sval = cd.get_model ()->check_for_null_terminated_string_arg (
+	cd, 0, false, nullptr);
+    }
+
+  if (strlen_sval)
+    {
+      valid = check_placeholder (cd, trailing_len, ptr_sval, strlen_sval);
+      if (valid.is_false ())
+	cd.get_ctxt ()->warn (
+	  std::make_unique<mktemp_missing_placeholder> (cd, trailing_len));
+    }
+
+  /* Failure is always possible (bad template or runtime failure).  */
+  cd.get_ctxt ()->bifurcate (std::make_unique<failure> (cd, m_outcome));
+  /* Success is only possible if the template is not definitely invalid.  */
+  if (!valid.is_false ())
+    cd.get_ctxt ()->bifurcate (std::make_unique<success> (cd, m_outcome));
+  cd.get_ctxt ()->terminate_path ();
+}
+
+tristate
+kf_mktemp_family::check_placeholder (const call_details &cd,
+				     size_t trailing_len,
+				     const svalue *ptr_sval,
+				     const svalue *strlen_sval)
+{
+  region_model *model = cd.get_model ();
+
+  const constant_svalue *len_cst = strlen_sval->dyn_cast_constant_svalue ();
+  if (!len_cst)
+    return tristate::TS_UNKNOWN;
+
+  byte_offset_t len = TREE_INT_CST_LOW (len_cst->get_constant ());
+  if (len < PLACEHOLDER_LEN + trailing_len)
+    return tristate::TS_FALSE;
+
+  tree arg_tree = cd.get_arg_tree (0);
+  const region *reg = model->deref_rvalue (ptr_sval, arg_tree, cd.get_ctxt ());
+
+  /* Find the byte offset of the pointed-to region. */
+  region_offset reg_offset = reg->get_offset (cd.get_manager ());
+  if (reg_offset.symbolic_p ())
+    return tristate::TS_UNKNOWN;
+  byte_offset_t ptr_byte_offset;
+  if (!reg_offset.get_concrete_byte_offset (&ptr_byte_offset))
+    return tristate::TS_UNKNOWN;
+
+  const region *base_reg = reg->get_base_region ();
+  const svalue *base_sval = model->get_store_value (base_reg, cd.get_ctxt ());
+
+  const constant_svalue *cst_sval = base_sval->dyn_cast_constant_svalue ();
+  if (!cst_sval)
+    return tristate::TS_UNKNOWN;
+
+  tree cst = cst_sval->get_constant ();
+  if (TREE_CODE (cst) != STRING_CST)
+    return tristate::TS_UNKNOWN;
+
+  HOST_WIDE_INT str_len = len.to_shwi ();
+  HOST_WIDE_INT start = ptr_byte_offset.to_shwi ();
+
+  /* Ensure we can read up to and including the NUL terminator at position
+     [start + str_len - trailing_len] within the STRING_CST.  */
+  HOST_WIDE_INT range = start + str_len - trailing_len + 1;
+  if (range > TREE_STRING_LENGTH (cst))
+    return tristate::TS_UNKNOWN;
+
+  if (memcmp (TREE_STRING_POINTER (cst) + start + str_len - trailing_len
+		- PLACEHOLDER_LEN,
+	      "XXXXXX", PLACEHOLDER_LEN)
+      != 0)
+    return tristate::TS_FALSE;
+
+  return tristate::TS_TRUE;
+}
+
+/* Handler for calls to "mkdtemp", "mkstemp", and "mktemp", which all
+   take a single char * template argument.
+
+   The template must not be a string constant, and its last six
+   characters must be "XXXXXX".  */
+
+class kf_mktemp_simple : public kf_mktemp_family
+{
+public:
+  kf_mktemp_simple (outcome oc) : kf_mktemp_family (oc, -1) {}
+
+  bool
+  matches_call_types_p (const call_details &cd) const final override
+  {
+    return (cd.num_args () == 1 && cd.arg_is_pointer_p (0));
+  }
+
+  void
+  impl_call_pre (const call_details &cd) const final override
+  {
+    if (cd.get_ctxt ())
+      check_for_string_literal_arg (cd);
+  }
+};
+
+/* Handler for calls to "mkostemp":
+
+     int mkostemp(char *template, int flags);
+
+   The template must not be a string constant, and its last six
+   characters must be "XXXXXX".  Warns when flags contains O_RDWR,
+   O_CREAT, or O_EXCL, which are already included internally.  */
+
+class kf_mkostemp : public kf_mktemp_family
+{
+public:
+  kf_mkostemp () : kf_mktemp_family (outcome::fd, -1) {}
+
+  bool
+  matches_call_types_p (const call_details &cd) const final override
+  {
+    return (cd.num_args () == 2 && cd.arg_is_pointer_p (0)
+	    && cd.arg_is_integral_p (1));
+  }
+
+  void
+  impl_call_pre (const call_details &cd) const final override
+  {
+    if (cd.get_ctxt ())
+      {
+	check_for_string_literal_arg (cd);
+	check_flags (cd, 1);
+      }
+  }
+};
+
+/* Handler for calls to "mkostemps":
+
+     int mkostemps(char *template, int suffixlen, int flags);
+
+   The template must not be a string constant, and must contain
+   "XXXXXX" before a suffixlen-character suffix.  Warns when flags
+   contains O_RDWR, O_CREAT, or O_EXCL, which are already included
+   internally.  */
+
+class kf_mkostemps : public kf_mktemp_family
+{
+public:
+  kf_mkostemps () : kf_mktemp_family (outcome::fd, 1) {}
+
+  bool
+  matches_call_types_p (const call_details &cd) const final override
+  {
+    return (cd.num_args () == 3 && cd.arg_is_pointer_p (0)
+	    && cd.arg_is_integral_p (1) && cd.arg_is_integral_p (2));
+  }
+
+  void
+  impl_call_pre (const call_details &cd) const final override
+  {
+    if (cd.get_ctxt ())
+      {
+	check_for_string_literal_arg (cd);
+	check_flags (cd, 2);
+      }
+  }
+};
+
+/* Handler for calls to "mkstemps":
+
+     int mkstemps(char *template, int suffixlen);
+
+   The template must not be a string constant, and must contain
+   "XXXXXX" before a suffixlen-character suffix.  */
+
+class kf_mkstemps : public kf_mktemp_family
+{
+public:
+  kf_mkstemps () : kf_mktemp_family (outcome::fd, 1) {}
+
+  bool
+  matches_call_types_p (const call_details &cd) const final override
+  {
+    return (cd.num_args () == 2 && cd.arg_is_pointer_p (0)
+	    && cd.arg_is_integral_p (1));
+  }
+
+  void
+  impl_call_pre (const call_details &cd) const final override
+  {
+    if (cd.get_ctxt ())
+      check_for_string_literal_arg (cd);
+  }
+};
+
 /* A subclass of pending_diagnostic for complaining about 'putenv'
    called on an auto var.  */
 
@@ -833,6 +1482,113 @@ private:
   tree m_var_decl; // could be NULL
 };
 
+class kf_atoi_family: public known_function
+{
+public:
+  bool matches_call_types_p (const call_details &cd) const final override
+  {
+    return (cd.num_args () == 1 && cd.arg_is_pointer_p (0));
+  }
+
+  void impl_call_pre (const call_details &cd) const final override
+  {
+    /* atoi expects a valid, null-terminated string. */
+    cd.check_for_null_terminated_string_arg (0, false, nullptr);
+    
+    /* atoi returns an integer, but we don't know what it is statically. 
+       Tell the analyzer to assume it returns a generic, unknown value. */
+    cd.set_any_lhs_with_defaults ();
+  }
+};
+
+/* Handler for calls to "getenv".
+     char *getenv (const char *name);
+
+   Returns either NULL (if the environment variable is not found),
+   or a pointer to the value string.  */
+
+class kf_getenv : public known_function
+{
+public:
+  bool matches_call_types_p (const call_details &cd) const final override
+  {
+    return (cd.num_args () == 1 && cd.arg_is_pointer_p (0));
+  }
+
+  void impl_call_pre (const call_details &cd) const final override
+  {
+    cd.check_for_null_terminated_string_arg (0);
+  }
+
+  void impl_call_post (const call_details &cd) const final override;
+};
+
+void
+kf_getenv::impl_call_post (const call_details &cd) const
+{
+  class getenv_call_info : public call_info
+  {
+  public:
+    getenv_call_info (const call_details &cd, bool found)
+    : call_info (cd), m_found (found)
+    {
+    }
+
+    void print_desc (pretty_printer &pp) const final override
+    {
+      if (m_found)
+	pp_printf (&pp,
+		   "when %qE returns non-NULL",
+		   get_fndecl ());
+      else
+	pp_printf (&pp,
+		   "when %qE returns NULL",
+		   get_fndecl ());
+    }
+
+    bool update_model (region_model *model,
+		       const exploded_edge *,
+		       region_model_context *ctxt) const final override
+    {
+      const call_details cd (get_call_details (model, ctxt));
+      if (tree lhs_type = cd.get_lhs_type ())
+	{
+	  region_model_manager *mgr = model->get_manager ();
+	  const svalue *result;
+	  if (m_found)
+	    {
+	      /* Return a conjured non-NULL pointer.  */
+	      result
+		= mgr->get_or_create_conjured_svalue (lhs_type,
+						       &cd.get_call_stmt (),
+						       cd.get_lhs_region (),
+						       conjured_purge (model,
+								       ctxt));
+	      const svalue *null_ptr
+		= mgr->get_or_create_int_cst (lhs_type, 0);
+	      model->add_constraint (result, NE_EXPR, null_ptr, ctxt);
+	    }
+	  else
+	    result = mgr->get_or_create_int_cst (lhs_type, 0);
+	  cd.maybe_set_lhs (result);
+	}
+      return true;
+    }
+  private:
+    bool m_found;
+  };
+
+  /* Body of kf_getenv::impl_call_post.  */
+  if (cd.get_ctxt ())
+    {
+      cd.get_ctxt ()->bifurcate
+	(std::make_unique<getenv_call_info> (cd, false));
+      cd.get_ctxt ()->bifurcate
+	(std::make_unique<getenv_call_info> (cd, true));
+      cd.get_ctxt ()->terminate_path ();
+    }
+}
+
 /* Handler for calls to "putenv".
 
    In theory we could try to model the state of the environment variables
@@ -858,7 +1614,7 @@ public:
     const region *reg
       = model->deref_rvalue (ptr_sval, cd.get_arg_tree (0), ctxt);
     store_manager *store_mgr = model->get_manager ()->get_store_manager ();
-    model->get_store ()->mark_as_escaped (*store_mgr, reg);
+    model->get_store ()->mark_as_escaped (*store_mgr, reg->get_base_region ());
     enum memory_space mem_space = reg->get_memory_space ();
     switch (mem_space)
       {
@@ -1245,6 +2001,12 @@ public:
     const svalue *dst_ptr = cd.get_arg_svalue (0);
     const region *dst_reg
       = model->deref_rvalue (dst_ptr, cd.get_arg_tree (0), ctxt);
+    /* Restrict the region we consider to be affected to the valid capacity
+       so that we don't trigger buffer overflow false positives.  */
+    const svalue *capacity = model->get_capacity (dst_reg);
+    dst_reg = model->get_manager ()->get_sized_region (dst_reg,
+						       NULL_TREE,
+						       capacity);
     const svalue *content = cd.get_or_create_conjured_svalue (dst_reg);
     model->set_value (dst_reg, content, ctxt);
     cd.set_any_lhs_with_defaults ();
@@ -1399,10 +2161,11 @@ kf_strcpy::impl_call_pre (const call_details &cd) const
   /* strcpy returns the initial param.  */
   cd.maybe_set_lhs (dest_sval);
 
-  const svalue *bytes_to_copy;
+  const svalue *bytes_to_copy = nullptr;
   if (const svalue *num_bytes_read_sval
       = cd.check_for_null_terminated_string_arg (1, true, &bytes_to_copy))
     {
+      gcc_assert (bytes_to_copy);
       cd.complain_about_overlap (0, 1, num_bytes_read_sval);
       model->write_bytes (dest_reg, num_bytes_read_sval, bytes_to_copy, ctxt);
     }
@@ -2085,6 +2848,45 @@ region_model::impl_deallocation_call (const call_details &cd)
   kf.impl_call_post (cd);
 }
 
+/* Handler for "strcasecmp"   */
+
+class kf_strcasecmp : public builtin_known_function
+{
+public:
+  bool
+  matches_call_types_p (const call_details &cd) const final override
+  {
+    return (cd.num_args () == 2
+      && cd.arg_is_pointer_p (0)
+      && cd.arg_is_pointer_p (1));
+  }
+  void
+  impl_call_pre (const call_details &cd) const final override
+  {
+    cd.check_for_null_terminated_string_arg (0);
+    cd.check_for_null_terminated_string_arg (1);
+  }
+
+  enum built_in_function
+  builtin_code () const final override
+  {
+    return BUILT_IN_STRCASECMP;
+  }
+
+  void impl_call_post (const call_details &cd) const final override;
+};
+
+void
+kf_strcasecmp::impl_call_post (const call_details &cd) const
+{
+  if (tree lhs_type = cd.get_lhs_type ())
+    {
+      const svalue *result_val
+	= cd.get_or_create_conjured_svalue (cd.get_lhs_region ());
+      cd.maybe_set_lhs (result_val);
+    }
+}
+
 static void
 register_atomic_builtins (known_function_manager &kfm)
 {
@@ -2274,6 +3076,8 @@ register_known_functions (known_function_manager &kfm,
 
     kfm.add (BUILT_IN_EH_POINTER, std::make_unique<kf_eh_pointer> ());
 
+    kfm.add(BUILT_IN_STRCASECMP, std::make_unique<kf_strcasecmp>());
+
     register_atomic_builtins (kfm);
     register_sanitizer_builtins (kfm);
     register_varargs_builtins (kfm);
@@ -2282,6 +3086,10 @@ register_known_functions (known_function_manager &kfm,
   /* Known builtins and C standard library functions
      the analyzer has known functions for.  */
   {
+    kfm.add ("atoi", std::make_unique<kf_atoi_family> ());
+    kfm.add ("atol", std::make_unique<kf_atoi_family> ());
+    kfm.add ("atoll", std::make_unique<kf_atoi_family> ());
+
     kfm.add ("alloca", std::make_unique<kf_alloca> ());
     kfm.add ("__builtin_alloca", std::make_unique<kf_alloca> ());
     kfm.add ("calloc", std::make_unique<kf_calloc> ());
@@ -2334,11 +3142,25 @@ register_known_functions (known_function_manager &kfm,
     kfm.add ("__builtin_strlen", std::make_unique<kf_strlen> ());
     kfm.add ("strstr", std::make_unique<kf_strstr> ());
     kfm.add ("__builtin_strstr", std::make_unique<kf_strstr> ());
+    kfm.add("strcasecmp", std::make_unique<kf_strcasecmp>());
+    kfm.add("__builtin_strcasecmp", std::make_unique<kf_strcasecmp>());
   }
 
   /* Known POSIX functions, and some non-standard extensions.  */
   {
     kfm.add ("fopen", std::make_unique<kf_fopen> ());
+    kfm.add ("getenv", std::make_unique<kf_getenv> ());
+    kfm.add ("mkdtemp", std::make_unique<kf_mktemp_simple> (
+			  kf_mktemp_family::outcome::null_ptr));
+    kfm.add ("mkostemp", std::make_unique<kf_mkostemp> ());
+    kfm.add ("mkostemps", std::make_unique<kf_mkostemps> ());
+    kfm.add ("mkstemps", std::make_unique<kf_mkstemps> ());
+    kfm.add ("mkstemp", std::make_unique<kf_mktemp_simple> (
+			  kf_mktemp_family::outcome::fd));
+    /* TODO: Report mktemp as deprecated per MSC24-C
+       (https://wiki.sei.cmu.edu/confluence/x/hNYxBQ).  */
+    kfm.add ("mktemp", std::make_unique<kf_mktemp_simple> (
+			 kf_mktemp_family::outcome::modif_tmpl));
     kfm.add ("putenv", std::make_unique<kf_putenv> ());
     kfm.add ("strtok", std::make_unique<kf_strtok> (rmm));
 
@@ -2381,6 +3203,10 @@ register_known_functions (known_function_manager &kfm,
      from <cstdlib> etc for the C spellings of these headers (e.g. <stdlib.h>),
      so we must match against these too.  */
   {
+    kfm.add_std_ns ("atoi", std::make_unique<kf_atoi_family> ());
+    kfm.add_std_ns ("atol", std::make_unique<kf_atoi_family> ());
+    kfm.add_std_ns ("atoll", std::make_unique<kf_atoi_family> ());
+
     kfm.add_std_ns ("malloc", std::make_unique<kf_malloc> ());
     kfm.add_std_ns ("free", std::make_unique<kf_free> ());
     kfm.add_std_ns ("realloc", std::make_unique<kf_realloc> ());

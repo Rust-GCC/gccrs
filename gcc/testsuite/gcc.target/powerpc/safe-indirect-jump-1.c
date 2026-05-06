@@ -18,5 +18,5 @@ int bar ()
 /* { dg-final { scan-assembler "beqctrl-" { target { lp64 || { powerpc*-*-aix* } } } } } */
 
 /* The other ABIs do allow a sibcall.  */
-/* { dg-final { scan-assembler "beqctr-" { target { ilp32 && !powerpc*-*-aix* } } } } */
-/* { dg-final { scan-assembler {b \$} { target { ilp32 && !powerpc*-*-aix* } } } } */
+/* { dg-final { scan-assembler "beqctr-" { target { ilp32 && { ! powerpc*-*-aix* } } } } } */
+/* { dg-final { scan-assembler {b \$} { target { ilp32 && { ! powerpc*-*-aix* } } } } } */

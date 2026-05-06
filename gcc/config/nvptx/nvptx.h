@@ -99,6 +99,7 @@
 
 /* There are no 'TARGET_PTX_3_1' and smaller conditionals: our baseline is
    PTX ISA Version 3.1.  */
+#define TARGET_PTX_4_0 (ptx_version_option >= PTX_VERSION_4_0)
 #define TARGET_PTX_4_1 (ptx_version_option >= PTX_VERSION_4_1)
 #define TARGET_PTX_4_2 (ptx_version_option >= PTX_VERSION_4_2)
 #define TARGET_PTX_5_0 (ptx_version_option >= PTX_VERSION_5_0)

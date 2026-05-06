@@ -365,8 +365,12 @@ enum reg_class
 /* The SPARC port says: Nonzero if access to memory by bytes is slow
    and undesirable.  For RISC chips, it means that access to memory by
    bytes is no better than access by words when possible, so grab a
-   whole word and maybe make use of that.  */
-#define SLOW_BYTE_ACCESS 1
+   whole word and maybe make use of that.
+   BPF programs will be JIT-ed to various architectures, so we cannot
+   say for certain what the access patterns on the final architecture
+   are.  From the BPF verifier perspective, smaller loads are actually
+   preferable so set this to zero.  */
+#define SLOW_BYTE_ACCESS 0
 
 /* Threshold of number of scalar memory-to-memory move instructions,
    _below_ which a sequence of insns should be generated instead of a

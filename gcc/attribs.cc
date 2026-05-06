@@ -371,7 +371,7 @@ register_scoped_attribute (const struct attribute_spec *attr,
 	 ->find_slot_with_hash (&str, substring_hash (str.str, str.length),
 				INSERT);
   gcc_assert (!*slot || attr->name[0] == '*');
-  *slot = CONST_CAST (struct attribute_spec *, attr);
+  *slot = const_cast<struct attribute_spec *> (attr);
 }
 
 /* Return the spec for the scoped attribute with namespace NS and
@@ -1230,7 +1230,11 @@ make_dispatcher_decl (const tree decl)
   /* Set flags on the cgraph_node for the new decl.  */
   cgraph_node *func_node = cgraph_node::get_create (func_decl);
   func_node->dispatcher_function = true;
-  func_node->definition = true;
+  /* For targets with TARGET_HAS_FMV_TARGET_ATTRIBUTE, the resolver is created
+     unconditionally if any versioned nodes are present.
+     For !TARGET_HAS_FMV_TARGET_ATTRIBUTE, the dispatcher is only defined when
+     the default node is defined.  */
+  func_node->definition = node->definition || TARGET_HAS_FMV_TARGET_ATTRIBUTE;
 
   cgraph_function_version_info *func_v
     = func_node->insert_new_function_version ();
@@ -1458,6 +1462,10 @@ attribute_value_equal (const_tree attr1, const_tree attr2)
       && TREE_VALUE (attr2) != NULL_TREE
       && TREE_CODE (TREE_VALUE (attr2)) == TREE_LIST)
     {
+      if (ATTR_UNIQUE_VALUE_P (TREE_VALUE (attr1))
+	  || ATTR_UNIQUE_VALUE_P (TREE_VALUE (attr2)))
+	return false;
+
       /* Handle attribute format.  */
       if (is_attribute_p ("format", get_attribute_name (attr1)))
 	{
@@ -1505,7 +1513,7 @@ comp_type_attributes (const_tree type1, const_tree type2)
       if (!as || as->affects_type_identity == false)
 	continue;
 
-      attr = find_same_attribute (a, CONST_CAST_TREE (a2));
+      attr = find_same_attribute (a, const_cast<tree> (a2));
       if (!attr || !attribute_value_equal (a, attr))
 	break;
     }
@@ -1519,7 +1527,7 @@ comp_type_attributes (const_tree type1, const_tree type2)
 	  if (!as || as->affects_type_identity == false)
 	    continue;
 
-	  if (!find_same_attribute (a, CONST_CAST_TREE (a1)))
+	  if (!find_same_attribute (a, const_cast<tree> (a1)))
 	    break;
 	  /* We don't need to compare trees again, as we did this
 	     already in first loop.  */
@@ -1529,13 +1537,13 @@ comp_type_attributes (const_tree type1, const_tree type2)
       if (!a)
 	return 1;
     }
-  if (lookup_attribute ("transaction_safe", CONST_CAST_TREE (a)))
+  if (lookup_attribute ("transaction_safe", const_cast<tree> (a)))
     return 0;
   if ((lookup_attribute ("nocf_check", TYPE_ATTRIBUTES (type1)) != NULL)
       ^ (lookup_attribute ("nocf_check", TYPE_ATTRIBUTES (type2)) != NULL))
     return 0;
-  int strub_ret = strub_comptypes (CONST_CAST_TREE (type1),
-				   CONST_CAST_TREE (type2));
+  int strub_ret = strub_comptypes (const_cast<tree> (type1),
+				   const_cast<tree> (type2));
   if (strub_ret == 0)
     return strub_ret;
   /* As some type combinations - like default calling-convention - might
@@ -1739,11 +1747,34 @@ merge_attributes (tree a1, tree a2)
 	attributes = a2;
       else
 	{
-	  /* Pick the longest list, and hang on the other list.  */
+	  /* Pick the longest list, and hang on the other list,
+	     unless both lists contain ATTR_UNIQUE_VALUE_P values.
+	     In that case a1 list needs to go after the a2 list
+	     because attributes from a single declaration are stored
+	     in reverse order of their declarations.  */
+	  bool a1_unique_value_p = false, a2_unique_value_p = false;
+	  tree aa1 = a1, aa2 = a2;
+	  for (; aa1 && aa2; aa1 = TREE_CHAIN (aa1), aa2 = TREE_CHAIN (aa2))
+	    {
+	      if (!a1_unique_value_p
+		  && TREE_VALUE (aa1)
+		  && TREE_CODE (TREE_VALUE (aa1)) == TREE_LIST
+		  && ATTR_UNIQUE_VALUE_P (TREE_VALUE (aa1)))
+		a1_unique_value_p = true;
+	      if (!a2_unique_value_p
+		  && TREE_VALUE (aa2)
+		  && TREE_CODE (TREE_VALUE (aa2)) == TREE_LIST
+		  && ATTR_UNIQUE_VALUE_P (TREE_VALUE (aa2)))
+		a2_unique_value_p = true;
+	    }
 
-	  if (list_length (a1) < list_length (a2))
-	    attributes = a2, a2 = a1;
+	  if (aa2 && (!a1_unique_value_p || !a2_unique_value_p))
+	    {
+	      attributes = a2;
+	      a2 = a1;
+	    }
 
+	  tree a3 = NULL_TREE, *pa = &a3;
 	  for (; a2 != 0; a2 = TREE_CHAIN (a2))
 	    {
 	      tree a;
@@ -1756,9 +1787,14 @@ merge_attributes (tree a1, tree a2)
 	      if (a == NULL_TREE)
 		{
 		  a1 = copy_node (a2);
-		  TREE_CHAIN (a1) = attributes;
-		  attributes = a1;
+		  *pa = a1;
+		  pa = &TREE_CHAIN (a1);
 		}
+	    }
+	  if (a3)
+	    {
+	      *pa = attributes;
+	      attributes = a3;
 	    }
 	}
     }
@@ -1975,10 +2011,16 @@ handle_dll_attribute (tree * pnode, tree name, tree args, int flags,
 	{
 	  if (DECL_INITIAL (node))
 	    {
-	      error ("variable %q+D definition is marked dllimport",
-		     node);
+	      error ("variable %q+D definition is marked dllimport", node);
 	      *no_add_attrs = true;
 	    }
+#if TARGET_WIN32_TLS
+	  else if (DECL_THREAD_LOCAL_P (node))
+	    {
+	      error ("thread-local variable %q+D declared as dllimport", node);
+	      *no_add_attrs = true;
+	    }
+#endif
 
 	  /* `extern' needn't be specified with dllimport.
 	     Specify `extern' now and hope for the best.  Sigh.  */
@@ -2002,6 +2044,13 @@ handle_dll_attribute (tree * pnode, tree name, tree args, int flags,
 	   && flag_keep_inline_dllexport)
     /* An exported function, even if inline, must be emitted.  */
     DECL_EXTERNAL (node) = 0;
+#if TARGET_WIN32_TLS
+  else if (VAR_P (node) && DECL_THREAD_LOCAL_P (node))
+    {
+      error ("thread-local variable %q+D declared as dllexport", node);
+      *no_add_attrs = true;
+    }
+#endif
 
   /*  Report error if symbol is not accessible at global scope.  */
   if (!TREE_PUBLIC (node) && VAR_OR_FUNCTION_DECL_P (node))
@@ -2081,7 +2130,7 @@ attribute_list_contained (const_tree l1, const_tree l2)
 	 modify its argument and the return value is assigned to a
 	 const_tree.  */
       for (attr = lookup_ident_attribute (get_attribute_name (t2),
-					  CONST_CAST_TREE (l1));
+					  const_cast<tree> (l1));
 	   attr != NULL_TREE && !attribute_value_equal (t2, attr);
 	   attr = lookup_ident_attribute (get_attribute_name (t2),
 					  TREE_CHAIN (attr)))
@@ -2660,7 +2709,7 @@ attr_access::array_as_string (tree type) const
 	     [*] is represented the same as [0] this hack only works for
 	     the most significant bound like static and the others are
 	     rendered as [0].  */
-	  arat = build_tree_list (get_identifier ("array"), flag);
+	  arat = build_tree_list (get_identifier ("array "), flag);
 	}
 
       const int quals = TYPE_QUALS (type);

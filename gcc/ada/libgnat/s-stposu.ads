@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 2011-2025, Free Software Foundation, Inc.         --
+--          Copyright (C) 2011-2026, Free Software Foundation, Inc.         --
 --                                                                          --
 -- This specification is derived from the Ada Reference Manual for use with --
 -- GNAT. The copyright notice above, and the license provisions that follow --
@@ -130,6 +130,18 @@ package System.Storage_Pools.Subpools is
       return System.Storage_Elements.Storage_Count
    is
       (System.Storage_Elements.Storage_Count'Last);
+
+   procedure _Adjust_Clone (Subpool : in out Root_Subpool);
+   --  After copying the value of an initialized (but otherwise unused)
+   --  Root_Subpool object into another subpool object using unchecked
+   --  techniques (an assignment statement would be illegal), this
+   --  procedure is called to fixup the copy (in particular, it fixes up
+   --  self-referential access values contained therein).
+   --
+   --  The leading underscore is intentional. We don't want a user-visible
+   --  declaration that is not mentioned in the spec for this package that
+   --  is given in the Ada RM. This subprogram is called only from the body
+   --  of Ada.Containers.Bounded_Indefinite_Holders.
 
 private
    --  SP_Nodes are created on the heap, while collection nodes and associated

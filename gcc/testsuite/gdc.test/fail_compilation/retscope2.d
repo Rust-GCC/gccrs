@@ -130,7 +130,7 @@ fail_compilation/retscope2.d(721): Error: returning `s.get1()` escapes a referen
 
 struct S700
 {
-    @safe S700* get1() scope return
+    @safe S700* get1() return ref scope
     {
         return &this;
     }
@@ -230,6 +230,7 @@ void test17428() @safe
 TEST_OUTPUT:
 ---
 fail_compilation/retscope2.d(1107): Error: returning scope variable `dg` is not allowed in a `@safe` function
+fail_compilation/retscope2.d(1106):        `dg` inferred `scope` because of `dg = &s.foo`
 ---
 */
 

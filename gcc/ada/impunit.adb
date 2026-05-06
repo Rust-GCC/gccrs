@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---           Copyright (C) 2000-2025, Free Software Foundation, Inc.        --
+--           Copyright (C) 2000-2026, Free Software Foundation, Inc.        --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -24,7 +24,6 @@
 ------------------------------------------------------------------------------
 
 with Errout;      use Errout;
-with Sinfo;       use Sinfo;
 with Sinfo.Nodes; use Sinfo.Nodes;
 with Fname.UF;    use Fname.UF;
 with Lib;         use Lib;
@@ -585,6 +584,7 @@ package body Impunit is
     ("a-cborma", T),  -- Ada.Containers.Bounded_Ordered_Maps
     ("a-cbhase", T),  -- Ada.Containers.Bounded_Hashed_Sets
     ("a-cbhama", T),  -- Ada.Containers.Bounded_Hashed_Maps
+    ("a-cbinho", T),  -- Ada.Containers.Bounded_Indefinite_Holders
     ("a-coinho", T),  -- Ada.Containers.Indefinite_Holders
     ("a-comutr", T),  -- Ada.Containers.Multiway_Trees
     ("a-cimutr", T),  -- Ada.Containers.Indefinite_Multiway_Trees

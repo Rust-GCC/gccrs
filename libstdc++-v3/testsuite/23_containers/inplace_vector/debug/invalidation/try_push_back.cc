@@ -14,7 +14,7 @@ void test01()
   auto last = v.end();
   auto end = last--;
 
-  VERIFY( v.try_push_back(42) != nullptr );
+  VERIFY( v.try_push_back(42).has_value() );
 
   VERIFY(before._M_dereferenceable());
   VERIFY(last._M_dereferenceable());
@@ -30,7 +30,7 @@ void test02()
   auto last = v.end();
   auto end = last--;
 
-  VERIFY( v.try_push_back(std::move(vv)) != nullptr );
+  VERIFY( v.try_push_back(std::move(vv)).has_value() );
 
   VERIFY(before._M_dereferenceable());
   VERIFY(last._M_dereferenceable());

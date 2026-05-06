@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2026, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -28,7 +28,6 @@ with Aspects;        use Aspects;
 with Atree;          use Atree;
 with Checks;         use Checks;
 with Debug;          use Debug;
-with Einfo;          use Einfo;
 with Einfo.Entities; use Einfo.Entities;
 with Einfo.Utils;    use Einfo.Utils;
 with Elists;         use Elists;
@@ -66,7 +65,6 @@ with Sem_Res;        use Sem_Res;
 with Sem_Type;       use Sem_Type;
 with Sem_Util;       use Sem_Util;
 with Sem_Warn;       use Sem_Warn;
-with Sinfo;          use Sinfo;
 with Sinfo.Nodes;    use Sinfo.Nodes;
 with Sinfo.Utils;    use Sinfo.Utils;
 with Snames;         use Snames;
@@ -220,7 +218,7 @@ package body Exp_Ch4 is
    --  Convert_To_Actual_Subtype if necessary).
 
    function Minimized_Eliminated_Overflow_Check (N : Node_Id) return Boolean;
-   --  For signed arithmetic operations when the current overflow mode is
+   --  For overflow arithmetic operations when the current overflow mode is
    --  MINIMIZED or ELIMINATED, we must call Apply_Arithmetic_Overflow_Checks
    --  as the first thing we do. We then return. We count on the recursive
    --  apparatus for overflow checks to call us back with an equivalent
@@ -658,7 +656,9 @@ package body Exp_Ch4 is
              Object_Definition   => New_Occurrence_Of (Typ, Loc),
              Expression          =>
                Make_Allocator (Loc,
-                 Expression => New_Occurrence_Of (Etype (Exp), Loc)));
+                 Subpool_Handle_Name =>
+                   Relocate_Node (Subpool_Handle_Name (N)),
+                 Expression          => New_Occurrence_Of (Etype (Exp), Loc)));
 
       begin
          --  Prevent default initialization of the allocator
@@ -697,7 +697,9 @@ package body Exp_Ch4 is
              Object_Definition   => New_Occurrence_Of (Typ, Loc),
              Expression          =>
                Make_Allocator (Loc,
-                 Expression => New_Occurrence_Of (Etype (Exp), Loc)));
+                 Subpool_Handle_Name =>
+                   Relocate_Node (Subpool_Handle_Name (N)),
+                 Expression          => New_Occurrence_Of (Etype (Exp), Loc)));
 
       begin
          --  Prevent default initialization of the allocator
@@ -2129,9 +2131,6 @@ package body Exp_Ch4 is
       Llo, Lhi : Uint;
       Rlo, Rhi : Uint;
 
-      LLIB : constant Entity_Id := Base_Type (Standard_Long_Long_Integer);
-      --  Entity for Long_Long_Integer'Base
-
       procedure Set_True;
       procedure Set_False;
       --  These procedures rewrite N with an occurrence of Standard_True or
@@ -2231,11 +2230,30 @@ package body Exp_Ch4 is
          Ltype : constant Entity_Id := Etype (Left_Opnd (N));
          Rtype : constant Entity_Id := Etype (Right_Opnd (N));
 
+         LL_IB : constant Entity_Id := Base_Type (Standard_Long_Long_Integer);
+         --  Entity for Long_Long_Integer'Base
+
+         LL_UB : constant Entity_Id := Base_Type (Standard_Long_Long_Unsigned);
+         --  Entity for Long_Long_Unsigned'Base
+
+         LL_Type : Entity_Id;
+         --  Operands and results are of this type when we perform convertion:
+         --  Long_Long_Integer or Long_Long_Unsigned (when the type of the
+         --  result has the Unsigned_Base_Range aspect).
+
       begin
+         --  Initialize type of operands and results when we convert
+
+         if Ltype = LL_UB or else Rtype = LL_UB then
+            LL_Type := LL_UB;
+         else
+            LL_Type := LL_IB;
+         end if;
+
          --  If the two operands have the same signed integer type we are
          --  all set, nothing more to do. This is the case where either
          --  both operands were unchanged, or we rewrote both of them to
-         --  be Long_Long_Integer.
+         --  be Long_Long_[Integer|Unsigned].
 
          --  Note: Entity for the comparison may be wrong, but it's not worth
          --  the effort to change it, since the back end does not use it.
@@ -2317,25 +2335,29 @@ package body Exp_Ch4 is
             end;
 
          --  No bignums involved, but types are different, so we must have
-         --  rewritten one of the operands as a Long_Long_Integer but not
-         --  the other one.
+         --  rewritten one of the operands as a Long_Long_[Integer|Unsigned]
+         --  type but not the other one.
 
-         --  If left operand is Long_Long_Integer, convert right operand
-         --  and we are done (with a comparison of two Long_Long_Integers).
+         --  If left operand is Long_Long_[Integer|Unsigned], convert right
+         --  operand and we are done (with a comparison of two Long_Long_
+         --  [Integers|Unsigneds]).
 
-         elsif Ltype = LLIB then
-            Convert_To_And_Rewrite (LLIB, Right_Opnd (N));
-            Analyze_And_Resolve (Right_Opnd (N), LLIB, Suppress => All_Checks);
+         elsif Ltype = LL_Type then
+            Convert_To_And_Rewrite (LL_Type, Right_Opnd (N));
+            Analyze_And_Resolve
+              (Right_Opnd (N), LL_Type, Suppress => All_Checks);
             return;
 
-         --  If right operand is Long_Long_Integer, convert left operand
-         --  and we are done (with a comparison of two Long_Long_Integers).
+         --  If right operand is Long_Long_[Integer|Unsigned], convert left
+         --  operand and we are done (with a comparison of two Long_Long_
+         --  [Integers|Unsigneds]).
 
          --  This is the only remaining possibility
 
-         else pragma Assert (Rtype = LLIB);
-            Convert_To_And_Rewrite (LLIB, Left_Opnd (N));
-            Analyze_And_Resolve (Left_Opnd (N), LLIB, Suppress => All_Checks);
+         else pragma Assert (Rtype = LL_Type);
+            Convert_To_And_Rewrite (LL_Type, Left_Opnd (N));
+            Analyze_And_Resolve
+              (Left_Opnd (N), LL_Type, Suppress => All_Checks);
             return;
          end if;
       end;
@@ -2459,7 +2481,34 @@ package body Exp_Ch4 is
                    Parameter_Associations => New_List (L_Exp, R_Exp));
             end;
 
+         --  Composite equality not available for the type
+
          else
+            --  Under Ada83 and Ada95, search for user-defined equality and
+            --  report a warning if found since it will not be called.
+
+            if Ada_Version <= Ada_95
+              and then Warn_On_Ignored_Equality
+            then
+               declare
+                  Elmt : Elmt_Id;
+
+               begin
+                  Elmt := First_Elmt (Direct_Primitive_Operations (Full_Type));
+                  while Present (Elmt) loop
+                     if Is_User_Defined_Equality (Node (Elmt)) then
+                        Warn_On_Ignored_Equality_Operator
+                          (Typ      => Outer_Type,
+                           Comp_Typ => Full_Type,
+                           Loc      => Sloc (Node (Elmt)));
+                        exit;
+                     end if;
+
+                     Next_Elmt (Elmt);
+                  end loop;
+               end;
+            end if;
+
             return Expand_Record_Equality (Nod, Full_Type, Lhs, Rhs);
          end if;
 
@@ -3616,10 +3665,23 @@ package body Exp_Ch4 is
       Lo, Hi : Uint;
       --  Bounds in Minimize calls, not used currently
 
-      LLIB : constant Entity_Id := Base_Type (Standard_Long_Long_Integer);
-      --  Entity for Long_Long_Integer'Base
+      LL_Type : Entity_Id;
+      --  Entity for Long_Long_[Integer|Unsigned]'Base
+
+      From_Bignum_Id : Entity_Id;
+      --  Entity for RE_[LLU_]From_Bignum
 
    begin
+      --  Initialize type of operands and results when we convert
+
+      if Has_Unsigned_Base_Range_Aspect (Base_Type (Etype (Lop))) then
+         LL_Type        := Base_Type (Standard_Long_Long_Unsigned);
+         From_Bignum_Id := RTE (RE_LLU_From_Bignum);
+      else
+         LL_Type        := Base_Type (Standard_Long_Long_Integer);
+         From_Bignum_Id := RTE (RE_From_Bignum);
+      end if;
+
       Minimize_Eliminate_Overflows (Lop, Lo, Hi, Top_Level => False);
 
       --  If right operand is a subtype name, and the subtype name has no
@@ -3751,21 +3813,22 @@ package body Exp_Ch4 is
                null;
 
             --  If types are not all the same, it means that we have rewritten
-            --  at least one of them to be of type Long_Long_Integer, and we
-            --  will convert the other operands to Long_Long_Integer.
+            --  at least one of them to be of type Long_Long_[Integer|Unsigned]
+            --  and we will convert the other operands to Long_Long_[Integer|
+            --  Unsigned].
 
             else
-               Convert_To_And_Rewrite (LLIB, Lop);
+               Convert_To_And_Rewrite (LL_Type, Lop);
                Set_Analyzed (Lop, False);
-               Analyze_And_Resolve (Lop, LLIB);
+               Analyze_And_Resolve (Lop, LL_Type);
 
                --  For the right operand, avoid unnecessary recursion into
                --  this routine, we know that overflow is not possible.
 
-               Convert_To_And_Rewrite (LLIB, Low_Bound (Rop));
-               Convert_To_And_Rewrite (LLIB, High_Bound (Rop));
+               Convert_To_And_Rewrite (LL_Type, Low_Bound (Rop));
+               Convert_To_And_Rewrite (LL_Type, High_Bound (Rop));
                Set_Analyzed (Rop, False);
-               Analyze_And_Resolve (Rop, LLIB, Suppress => Overflow_Check);
+               Analyze_And_Resolve (Rop, LL_Type, Suppress => Overflow_Check);
             end if;
 
             --  Now the three operands are of the same signed integer type,
@@ -3800,7 +3863,7 @@ package body Exp_Ch4 is
 
             --       declare
             --          M   : Mark_Id := SS_Mark;
-            --          Lnn : Long_Long_Integer'Base
+            --          Lnn : Long_Long_[Integer|Unsigned]'Base
             --          Nnn : Bignum;
 
             --       begin
@@ -3811,7 +3874,8 @@ package body Exp_Ch4 is
             --         else
             --            Lnn := From_Bignum (Nnn);
             --            Bnn :=
-            --              Lnn in LLIB (T'Base'First) .. LLIB (T'Base'Last)
+            --              Lnn in LL_Type (T'Base'First)
+            --                       .. LL_Type (T'Base'Last)
             --                and then T'Base (Lnn) in T;
             --         end if;
 
@@ -3847,7 +3911,7 @@ package body Exp_Ch4 is
                  (Last (Declarations (Blk)),
                   Make_Object_Declaration (Loc,
                     Defining_Identifier => Lnn,
-                    Object_Definition   => New_Occurrence_Of (LLIB, Loc)));
+                    Object_Definition   => New_Occurrence_Of (LL_Type, Loc)));
 
                Insert_After
                  (Last (Declarations (Blk)),
@@ -3884,11 +3948,12 @@ package body Exp_Ch4 is
                         Make_Assignment_Statement (Loc,
                           Name => New_Occurrence_Of (Lnn, Loc),
                           Expression =>
-                            Make_Function_Call (Loc,
-                              Name                   =>
-                                New_Occurrence_Of (RTE (RE_From_Bignum), Loc),
-                              Parameter_Associations => New_List (
-                                  New_Occurrence_Of (Nnn, Loc)))),
+                            Convert_To (LL_Type,
+                              Make_Function_Call (Loc,
+                                Name                   =>
+                                  New_Occurrence_Of (From_Bignum_Id, Loc),
+                                Parameter_Associations => New_List (
+                                    New_Occurrence_Of (Nnn, Loc))))),
 
                         Make_Assignment_Statement (Loc,
                           Name       => New_Occurrence_Of (Bnn, Loc),
@@ -3900,14 +3965,14 @@ package body Exp_Ch4 is
                                   Right_Opnd =>
                                     Make_Range (Loc,
                                       Low_Bound  =>
-                                        Convert_To (LLIB,
+                                        Convert_To (LL_Type,
                                           Make_Attribute_Reference (Loc,
                                             Attribute_Name => Name_First,
                                             Prefix         =>
                                               New_Occurrence_Of (TB, Loc))),
 
                                       High_Bound =>
-                                        Convert_To (LLIB,
+                                        Convert_To (LL_Type,
                                           Make_Attribute_Reference (Loc,
                                             Attribute_Name => Name_Last,
                                             Prefix         =>
@@ -3931,15 +3996,15 @@ package body Exp_Ch4 is
             end;
 
          --  Not bignum case, but types don't match (this means we rewrote the
-         --  left operand to be Long_Long_Integer).
+         --  left operand to be Long_Long_[Integer|Unsigned]).
 
          else
-            pragma Assert (Base_Type (Etype (Lop)) = LLIB);
+            pragma Assert (Base_Type (Etype (Lop)) = LL_Type);
 
             --  We rewrite the membership test as (where T is the type with
             --  the predicate, i.e. the type of the right operand)
 
-            --    Lop in LLIB (T'Base'First) .. LLIB (T'Base'Last)
+            --    Lop in LL_Type (T'Base'First) .. LL_Type (T'Base'Last)
             --      and then T'Base (Lop) in T
 
             declare
@@ -3966,13 +4031,13 @@ package body Exp_Ch4 is
                        Right_Opnd =>
                          Make_Range (Loc,
                            Low_Bound  =>
-                             Convert_To (LLIB,
+                             Convert_To (LL_Type,
                                Make_Attribute_Reference (Loc,
                                  Attribute_Name => Name_First,
                                  Prefix         =>
                                    New_Occurrence_Of (TB, Loc))),
                            High_Bound =>
-                             Convert_To (LLIB,
+                             Convert_To (LL_Type,
                                Make_Attribute_Reference (Loc,
                                  Attribute_Name => Name_Last,
                                  Prefix         =>
@@ -4573,8 +4638,7 @@ package body Exp_Ch4 is
 
       --  Set the storage pool and find the appropriate version of Allocate to
       --  call. Do not overwrite the storage pool if it is already set, which
-      --  can happen for build-in-place function returns (see
-      --  Exp_Ch4.Expand_N_Extended_Return_Statement).
+      --  can occur for BIP function returns (see Expand_N_Object_Declaration).
 
       if No (Storage_Pool (N)) then
          Pool := Associated_Storage_Pool (Root_Type (PtrT));
@@ -4933,7 +4997,9 @@ package body Exp_Ch4 is
                     and then Ekind (Current_Scope) = E_Function
                     and then
                       Ekind (Etype (Current_Scope)) = E_General_Access_Type
-                    and then In_Return_Value (N)
+                    and then Nkind (Parent (N)) = N_Type_Conversion
+                    and then
+                      Nkind (Parent (Parent (N))) = N_Simple_Return_Statement
                   then
                      Set_Master_Id (PtrT, Master_Id (Etype (Current_Scope)));
 
@@ -5023,15 +5089,9 @@ package body Exp_Ch4 is
                --  create a specific block to activate the created tasks.
 
                if Has_Task (Etyp) then
-                  declare
-                     Actions : constant List_Id := New_List;
-
-                  begin
-                     Build_Task_Allocate_Block
-                       (Actions, Relocate_Node (N), Init_Stmts);
-                     Insert_Actions (N, Actions, Suppress => All_Checks);
-                  end;
-
+                  Insert_Actions (N,
+                    Build_Task_Allocate_Block (N, Init_Stmts),
+                    Suppress => All_Checks);
                else
                   Insert_Actions (N, Init_Stmts, Suppress => All_Checks);
                end if;
@@ -8794,12 +8854,143 @@ package body Exp_Ch4 is
 
       Bastyp : Entity_Id;
 
+      procedure Expand_Exponentiation;
+      --  Expand N into code that computes Left_Opnd(N) ** Right_Opnd(N) using
+      --  the standard logarithmic approach. This routine is used to expand in
+      --  line the exponentiation of unsigned base range operands with overflow
+      --  checks, because there is no suitable implementation of it in the
+      --  runtime library.
+
       function Wrap_MA (Exp : Node_Id) return Node_Id;
       --  Given an expression Exp, if the root type is Float or Long_Float,
       --  then wrap the expression in a call of Bastyp'Machine, to stop any
       --  extra precision. This is done to ensure that X**A = X**B when A is
       --  a static constant and B is a variable with the same value. For any
       --  other type, the node Exp is returned unchanged.
+
+      ---------------------------
+      -- Expand_Exponentiation --
+      ---------------------------
+
+      procedure Expand_Exponentiation is
+         Loc       : constant Source_Ptr := Sloc (N);
+         Decls     : constant List_Id    := New_List;
+         Exp       : constant Entity_Id  := Make_Temporary (Loc, 'E');
+         Factor    : constant Entity_Id  := Make_Temporary (Loc, 'F');
+         L         : constant Node_Id    := Left_Opnd (N);
+         L_Typ     : constant Entity_Id  := Etype (L);
+         Result    : constant Entity_Id  := Make_Temporary (Loc, 'R');
+         R         : constant Node_Id    := Right_Opnd (N);
+         R_Typ     : constant Entity_Id  := Etype (R);
+         Stmts     : constant List_Id    := New_List;
+         Then_List : constant List_Id    := New_List;
+
+      begin
+         --  Generate:
+          --    do
+          --       declare
+          --          Result : Typ   := 1;
+          --          Factor : L_Typ := Left_Opnd (N);
+          --          Exp    : R_Typ := Right_Opnd (N);
+          --       begin
+          --          loop
+          --             if Exp rem 2 /= 0 then
+          --                Result := Result * Factor;
+          --             end if;
+          --             Exp := Exp / 2;
+          --             if Exp = 0 then
+          --                exit;
+          --             end if;
+          --             Factor := Factor * Factor;
+          --          end loop;
+          --       end;
+          --    in Result end
+
+         Append_To (Decls,
+           Make_Object_Declaration (Loc,
+             Defining_Identifier => Result,
+             Object_Definition   => New_Occurrence_Of (Typ, Loc),
+             Expression          => Make_Integer_Literal (Loc, Uint_1)));
+
+         Append_To (Decls,
+           Make_Object_Declaration (Loc,
+             Defining_Identifier => Factor,
+             Object_Definition   => New_Occurrence_Of (L_Typ, Loc),
+             Expression          => New_Copy_Tree (L)));
+
+         Append_To (Decls,
+           Make_Object_Declaration (Loc,
+             Defining_Identifier => Exp,
+             Object_Definition   => New_Occurrence_Of (R_Typ, Loc),
+             Expression          => New_Copy_Tree (R)));
+
+         Append_To (Then_List,
+           Make_Loop_Statement (Loc,
+             Statements       => New_List (
+
+               Make_If_Statement (Loc,
+                 Condition       =>
+                   Make_Op_Ne (Loc,
+                     Left_Opnd  =>
+                       Make_Op_Rem (Loc,
+                         Left_Opnd => New_Occurrence_Of (Exp, Loc),
+                         Right_Opnd => Make_Integer_Literal (Loc, Uint_2)),
+                     Right_Opnd => Make_Integer_Literal (Loc, Uint_0)),
+
+                 Then_Statements => New_List (
+                   Make_Assignment_Statement (Loc,
+                     Name =>
+                       New_Occurrence_Of (Result, Loc),
+                     Expression =>
+                       Make_Op_Multiply (Loc,
+                         Left_Opnd => New_Occurrence_Of (Result, Loc),
+                         Right_Opnd => New_Occurrence_Of (Factor, Loc))))),
+
+               Make_Assignment_Statement (Loc,
+                 Name =>
+                   New_Occurrence_Of (Exp, Loc),
+                 Expression =>
+                   Make_Op_Divide (Loc,
+                     Left_Opnd => New_Occurrence_Of (Exp, Loc),
+                     Right_Opnd => Make_Integer_Literal (Loc, Uint_2))),
+
+               Make_If_Statement (Loc,
+                 Condition       =>
+                   Make_Op_Eq (Loc,
+                     Left_Opnd  => New_Occurrence_Of (Exp, Loc),
+                     Right_Opnd => Make_Integer_Literal (Loc, Uint_0)),
+                 Then_Statements =>
+                   New_List (Make_Exit_Statement (Loc))),
+
+               Make_Assignment_Statement (Loc,
+                 Name =>
+                   New_Occurrence_Of (Factor, Loc),
+                 Expression =>
+                   Make_Op_Multiply (Loc,
+                     Left_Opnd => New_Occurrence_Of (Factor, Loc),
+                     Right_Opnd => New_Occurrence_Of (Factor, Loc)))
+             ),
+             End_Label        => Empty));
+
+         Append_To (Stmts,
+           Make_If_Statement (Loc,
+             Condition       =>
+               Make_Op_Ne (Loc,
+                 Left_Opnd  => New_Occurrence_Of (Exp, Loc),
+                 Right_Opnd => Make_Integer_Literal (Loc, Uint_0)),
+
+             Then_Statements => Then_List));
+
+         Rewrite (N,
+           Make_Expression_With_Actions (Loc,
+             Actions    => New_List (
+               Make_Block_Statement (Loc,
+                 Declarations => Decls,
+                 Handled_Statement_Sequence =>
+                   Make_Handled_Sequence_Of_Statements (Loc,
+                     Statements => Stmts))),
+             Expression => New_Occurrence_Of (Result, Loc)));
+      end Expand_Exponentiation;
 
       -------------
       -- Wrap_MA --
@@ -9107,10 +9298,11 @@ package body Exp_Ch4 is
 
       --  Fall through if exponentiation must be done using a runtime routine
 
-      --  First deal with modular case
+      --  First deal with modular case.
 
-      if Has_Modular_Operations (Rtyp) then
-
+      if Has_Modular_Operations (Rtyp)
+        and then not Has_Unsigned_Base_Range_Aspect (Base_Type (Typ))
+      then
          --  Nonbinary modular case, we call the special exponentiation
          --  routine for the nonbinary case, converting the argument to
          --  Long_Long_Integer and passing the modulus value. Then the
@@ -9170,32 +9362,69 @@ package body Exp_Ch4 is
       --  checks are required, and one when they are not required, since there
       --  is a real gain in omitting checks on many machines.
 
-      elsif Has_Overflow_Operations (Rtyp) then
+      elsif Has_Overflow_Operations (Rtyp)
+        or else Has_Unsigned_Base_Range_Aspect (Base_Type (Typ))
+      then
          if Esize (Rtyp) <= Standard_Integer_Size then
-            Etyp := Standard_Integer;
+            if Has_Unsigned_Base_Range_Aspect (Base_Type (Typ)) then
+               Etyp := RTE (RE_Unsigned);
 
-            if Ovflo then
-               Rent := RE_Exp_Integer;
+               if Ovflo then
+                  Expand_Exponentiation;
+                  Analyze_And_Resolve (N, Typ);
+                  return;
+               else
+                  Rent := RE_Exp_Unsigned;
+               end if;
             else
-               Rent := RE_Exn_Integer;
+               Etyp := Standard_Integer;
+
+               if Ovflo then
+                  Rent := RE_Exp_Integer;
+               else
+                  Rent := RE_Exn_Integer;
+               end if;
             end if;
 
          elsif Esize (Rtyp) <= Standard_Long_Long_Integer_Size then
-            Etyp := Standard_Long_Long_Integer;
+            if Has_Unsigned_Base_Range_Aspect (Base_Type (Typ)) then
+               Etyp := RTE (RE_Long_Long_Unsigned);
 
-            if Ovflo then
-               Rent := RE_Exp_Long_Long_Integer;
+               if Ovflo then
+                  Expand_Exponentiation;
+                  Analyze_And_Resolve (N, Typ);
+                  return;
+               else
+                  Rent := RE_Exp_Long_Long_Unsigned;
+               end if;
             else
-               Rent := RE_Exn_Long_Long_Integer;
+               Etyp := Standard_Long_Long_Integer;
+
+               if Ovflo then
+                  Rent := RE_Exp_Long_Long_Integer;
+               else
+                  Rent := RE_Exn_Long_Long_Integer;
+               end if;
             end if;
-
          else
-            Etyp := Standard_Long_Long_Long_Integer;
+            if Has_Unsigned_Base_Range_Aspect (Base_Type (Typ)) then
+               Etyp := RTE (RE_Long_Long_Long_Unsigned);
 
-            if Ovflo then
-               Rent := RE_Exp_Long_Long_Long_Integer;
+               if Ovflo then
+                  Expand_Exponentiation;
+                  Analyze_And_Resolve (N, Typ);
+                  return;
+               else
+                  Rent := RE_Exp_Long_Long_Long_Unsigned;
+               end if;
             else
-               Rent := RE_Exn_Long_Long_Long_Integer;
+               Etyp := Standard_Long_Long_Long_Integer;
+
+               if Ovflo then
+                  Rent := RE_Exp_Long_Long_Long_Integer;
+               else
+                  Rent := RE_Exn_Long_Long_Long_Integer;
+               end if;
             end if;
          end if;
 
@@ -12099,6 +12328,10 @@ package body Exp_Ch4 is
       --  Case of converting to an access type
 
       if Is_Access_Type (Target_Type) then
+         --  Generate a null access check first for the sake of ACATS c3a0025
+
+         Apply_Constraint_Check (Operand, Target_Type);
+
          --  In terms of accessibility rules, an anonymous access discriminant
          --  is not considered separate from its parent object.
 
@@ -12127,9 +12360,9 @@ package body Exp_Ch4 is
          --  Apply an accessibility check when the conversion operand is an
          --  access parameter (or a renaming thereof), unless conversion was
          --  expanded from an Unchecked_ or Unrestricted_Access attribute,
-         --  or for the actual of a class-wide interface parameter. Note that
-         --  other checks may still need to be applied below (such as tagged
-         --  type checks).
+         --  or for the actual of a tagged type parameter in a synthesized
+         --  subprogram call. Note that other checks may still need to be
+         --  applied below (such as tagged type checks).
 
          elsif Is_Entity_Name (Operand_Acc)
            and then Has_Extra_Accessibility (Entity (Operand_Acc))
@@ -12142,8 +12375,7 @@ package body Exp_Ch4 is
               and then Nkind (Parent (N)) in N_Function_Call
                                            | N_Parameter_Association
                                            | N_Procedure_Call_Statement
-              and then Is_Interface (Designated_Type (Target_Type))
-              and then Is_Class_Wide_Type (Designated_Type (Target_Type))
+              and then Is_Tagged_Type (Designated_Type (Target_Type))
             then
                null;
 
@@ -12222,7 +12454,7 @@ package body Exp_Ch4 is
 
       --  Case of conversions of tagged types and access to tagged types
 
-      --  When needed, that is to say when the expression is class-wide, Add
+      --  When needed, that is to say when the expression is class-wide, add
       --  runtime a tag check for (strict) downward conversion by using the
       --  membership test, generating:
 
@@ -12354,11 +12586,6 @@ package body Exp_Ch4 is
                end;
             end if;
          end Tagged_Conversion;
-
-      --  Case of other access type conversions
-
-      elsif Is_Access_Type (Target_Type) then
-         Apply_Constraint_Check (Operand, Target_Type);
 
       --  Case of conversions from a fixed-point type
 
@@ -13442,7 +13669,7 @@ package body Exp_Ch4 is
 
          --  The master is the innermost enclosing non-transient construct
 
-         Insert_Action (Find_Hook_Context (Expr), Master_Node_Decl);
+         Insert_Action (Find_Master_Context (Expr), Master_Node_Decl);
 
          --  Propagate the relaxed finalization semantics
 
@@ -14127,11 +14354,11 @@ package body Exp_Ch4 is
 
    function Minimized_Eliminated_Overflow_Check (N : Node_Id) return Boolean is
    begin
-      --  The MINIMIZED mode operates in Long_Long_Integer so we cannot use it
-      --  if the type of the expression is already larger.
+      --  The MINIMIZED mode operates in Long_Long_[Integer|Unsigned] so we
+      --  cannot use it if the type of the expression is already larger.
 
       return
-        Is_Signed_Integer_Type (Etype (N))
+        Has_Overflow_Operations (Etype (N))
           and then Overflow_Check_Mode in Minimized_Or_Eliminated
           and then not (Overflow_Check_Mode = Minimized
                          and then
@@ -14902,7 +15129,7 @@ package body Exp_Ch4 is
          Loc    : constant Source_Ptr := Sloc (Obj_Decl);
          Obj_Id : constant Entity_Id  := Defining_Identifier (Obj_Decl);
 
-         Hook_Context : constant Node_Id := Find_Hook_Context (Expr);
+         Master_Context : constant Node_Id := Find_Master_Context (Expr);
          --  The node after which to insert deferred finalization actions. This
          --  is usually the innermost enclosing non-transient construct.
 
@@ -14944,7 +15171,7 @@ package body Exp_Ch4 is
          --  enclosing non-transient construct.
 
          else
-            Fin_Context := Hook_Context;
+            Fin_Context := Master_Context;
          end if;
 
          --  Create the declaration of the Master_Node for the object and
@@ -14954,7 +15181,7 @@ package body Exp_Ch4 is
          Master_Node_Id := Make_Temporary (Loc, 'N');
          Master_Node_Decl :=
            Make_Master_Node_Declaration (Loc, Master_Node_Id, Obj_Id);
-         Insert_Action (Hook_Context, Master_Node_Decl);
+         Insert_Action (Master_Context, Master_Node_Decl);
 
          --  Generate the attachment of the object to the Master_Node
 
@@ -14974,7 +15201,7 @@ package body Exp_Ch4 is
 
          --  Finalize the object after the context has been evaluated
 
-         --  Note that the node returned by Find_Hook_Context above may be an
+         --  Note that the node returned by Find_Master_Context above may be an
          --  operator, which is not a list member. We must locate the proper
          --  node in the tree after which to insert the finalization call.
 

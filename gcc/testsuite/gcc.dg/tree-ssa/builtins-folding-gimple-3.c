@@ -38,6 +38,5 @@ AR (memmove, int,   2, INT_MAX, 1);
 AR (mempcpy, short, 2, SHRT_MAX, 1);
 AR (mempcpy, int,   2, INT_MAX, 1);
 
-/* { dg-final { scan-tree-dump-times "builtin_memcpy" 8 "optimized" } }
-   { dg-final { scan-tree-dump-times "builtin_memmove" 2 "optimized" } }
-   { dg-final { scan-tree-dump-times "builtin_mempcpy" 2 "optimized" } }  */
+/* { dg-final { scan-tree-dump-times "builtin_memcpy" 10 "optimized" } }
+   { dg-final { scan-tree-dump-times "builtin_memmove" 2 "optimized" } }  */

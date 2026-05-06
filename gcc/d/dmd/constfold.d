@@ -5,7 +5,7 @@
  *
  * Specification: $(LINK2 https://dlang.org/spec/float.html#fp_const_folding, Floating Point Constant Folding)
  *
- * Copyright:   Copyright (C) 1999-2025 by The D Language Foundation, All Rights Reserved
+ * Copyright:   Copyright (C) 1999-2026 by The D Language Foundation, All Rights Reserved
  * Authors:     $(LINK2 https://www.digitalmars.com, Walter Bright)
  * License:     $(LINK2 https://www.boost.org/LICENSE_1_0.txt, Boost License 1.0)
  * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/compiler/src/dmd/constfold.d, _constfold.d)
@@ -25,6 +25,7 @@ import dmd.declaration;
 import dmd.dstruct;
 import dmd.errors;
 import dmd.expression;
+import dmd.expressionsem;
 import dmd.globals;
 import dmd.location;
 import dmd.mtype;
@@ -36,7 +37,7 @@ import dmd.root.utf;
 import dmd.sideeffect;
 import dmd.target;
 import dmd.tokens;
-import dmd.typesem : toDsymbol, equivalent, sarrayOf, size;
+import dmd.typesem;
 
 private enum LOG = false;
 
@@ -1266,7 +1267,7 @@ UnionExp Slice(Type type, Expression e1, Expression lwr, Expression upr)
         {
             auto elements = new Expressions(cast(size_t)(iupr - ilwr));
             memcpy(elements.tdata(), es1.elements.tdata() + ilwr, cast(size_t)(iupr - ilwr) * ((*es1.elements)[0]).sizeof);
-            emplaceExp!(ArrayLiteralExp)(&ue, e1.loc, type, elements);
+            emplaceExp!(ArrayLiteralExp)(&ue, e1.loc, type, es1.basis, elements);
         }
     }
     else
@@ -1432,8 +1433,7 @@ UnionExp Cat(Loc loc, Type type, Expression e1, Expression e2)
         else
         {
             // Create an ArrayLiteralExp
-            auto elements = new Expressions();
-            elements.push(e);
+            auto elements = new Expressions(e);
             emplaceExp!(ArrayLiteralExp)(&ue, e.loc, type, elements);
         }
         assert(ue.exp().type);
@@ -1674,8 +1674,7 @@ UnionExp Cat(Loc loc, Type type, Expression e1, Expression e2)
         Type tb = t.toBasetype();
         if (tb.ty == Tarray && tb.nextOf().equivalent(e.type))
         {
-            auto expressions = new Expressions();
-            expressions.push(e);
+            auto expressions = new Expressions(e);
             emplaceExp!(ArrayLiteralExp)(&ue, loc, t, expressions);
             e = ue.exp();
         }

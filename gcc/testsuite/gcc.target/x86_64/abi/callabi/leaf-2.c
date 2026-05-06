@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-O2 -fno-tree-vectorize -mabi=sysv -fno-shrink-wrap-separate" } */
+/* { dg-options "-O2 -fno-tree-vectorize -mabi=sysv -fno-shrink-wrap-separate -fomit-frame-pointer" } */
 
 extern int glb1, gbl2, gbl3;
 

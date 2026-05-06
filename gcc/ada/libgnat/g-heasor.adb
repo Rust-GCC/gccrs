@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---                     Copyright (C) 1995-2025, AdaCore                     --
+--                     Copyright (C) 1995-2026, AdaCore                     --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -45,10 +45,9 @@ package body GNAT.Heap_Sort is
    --  from 2NlogN to NlogN.
 
    procedure Sort (N : Natural; Xchg : Xchg_Procedure; Lt : Lt_Function) is
+
       Max : Natural := N;
-      --  Current Max index in tree being sifted. Note that we make Max
-      --  Natural rather than Positive so that the case of sorting zero
-      --  elements is correctly handled (i.e. does nothing at all).
+      --  Current Max index in tree being sifted
 
       procedure Sift (S : Positive);
       --  This procedure sifts up node S, i.e. converts the subtree rooted
@@ -78,7 +77,9 @@ package body GNAT.Heap_Sort is
          --  Loop to pull up larger sons
 
          loop
-            Son := C + C;
+            exit when C > Positive'Last / 2;
+
+            Son := 2 * C;
 
             if Son < Max then
                if Lt (Son, Son + 1) then

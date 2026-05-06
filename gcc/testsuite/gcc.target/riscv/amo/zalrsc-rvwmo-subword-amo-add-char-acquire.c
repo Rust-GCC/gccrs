@@ -3,6 +3,7 @@
 /* { dg-add-options riscv_zalrsc } */
 /* { dg-remove-options riscv_ztso } */
 /* { dg-remove-options riscv_zabha } */
+/* { dg-remove-options riscv_zalasr } */
 /* { dg-final { scan-assembler-times "lr.w.aq\t" 1 } } */
 /* { dg-final { scan-assembler-times "sc.w\t" 1 } } */
 

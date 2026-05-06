@@ -40,3 +40,4 @@ TEST_WIDEN_TERNARY_VX_UNSIGNED(T, NT)
 /* { dg-final { scan-assembler-not {vmsne.vx} } } */
 /* { dg-final { scan-assembler-not {vmsltu.vx} } } */
 /* { dg-final { scan-assembler-not {vmsleu.vx} } } */
+/* { dg-final { scan-assembler-not {vmsgtu.vx} } } */

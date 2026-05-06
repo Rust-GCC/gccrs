@@ -89,6 +89,14 @@ ftms = {
 };
 
 ftms = {
+  name = allocate_at_least;
+  values = {
+    v = 202302;
+    cxxmin = 23;
+  };
+};
+
+ftms = {
   name = is_null_pointer;
   values = {
     v = 201309;
@@ -176,6 +184,11 @@ ftms = {
 
 ftms = {
   name = integer_sequence;
+  values = {
+    v = 202511;
+    cxxmin = 26;
+    extra_cond = "__cpp_pack_indexing";
+  };
   values = {
     v = 201304;
     cxxmin = 14;
@@ -395,8 +408,10 @@ ftms = {
 
 ftms = {
   name = constant_wrapper;
+  // 202506 P2781R9 std::constexpr_wrapper 
+  // 202603 P3978R3 constant_wrapper should unwrap on call and subscript
   values = {
-    v = 202506;
+    v = 202603;
     cxxmin = 26;
   };
 };
@@ -790,6 +805,14 @@ ftms = {
 };
 
 ftms = {
+  name = atomic_min_max;
+  values = {
+    v = 202403;
+    cxxmin = 26;
+  };
+};
+
+ftms = {
   name = atomic_lock_free_type_aliases;
   values = {
     v = 201907;
@@ -801,7 +824,7 @@ ftms = {
 ftms = {
   name = atomic_ref;
   values = {
-    v = 202411;
+    v = 202603;
     cxxmin = 26;
   };
   values = {
@@ -1101,8 +1124,13 @@ ftms = {
 
 ftms = {
   name = submdspan;
+  // 202306 P2630R4 Submdspan
+  // 202403 P2642R6 Padded mdspan layouts
+  // 202411 P3355R1 Fix submdspan for C++26
+  // 202511 P3663R3 Future-proof submdspan-mapping  
+  // 202603 P3982R1 Split strided_slice into extent_slice and range_slice for C++26                                                          
   values = {
-    v = 202411;
+    v = 202603;
     cxxmin = 26;
     extra_cond = "__glibcxx_constant_wrapper >= 202506L";
   };
@@ -1305,8 +1333,9 @@ ftms = {
   // 202305 P2757R3 Type checking format args
   // 202306 P2637R3 Member visit
   // 202311 P2918R2 Runtime format strings II
+  // 202603 P3953R3 Rename std::runtime_format
   values = {
-    v = 202311;
+    v = 202603;
     cxxmin = 26;
     hosted = yes;
   };
@@ -1348,6 +1377,14 @@ ftms = {
     v = 201907;
     cxxmin = 20;
     hosted = yes;
+  };
+};
+
+ftms = {
+  name = constexpr_flat_map;
+  values = {
+    v = 202502;
+    cxxmin = 26;
   };
 };
 
@@ -1546,6 +1583,16 @@ ftms = {
 };
 
 ftms = {
+  name = format_path;
+  // 202403 P2845R8 Formatting of std::filesystem::path
+  values = {
+    v = 202403;
+    cxxmin = 26;
+    hosted = yes;
+  };
+};
+
+ftms = {
   name = freestanding_algorithm;
   values = {
     v = 202311;
@@ -1614,6 +1661,22 @@ ftms = {
   values = {
     v = 202106;
     cxxmin = 23;
+  };
+};
+
+ftms = {
+  name = associative_heterogeneous_erasure;
+  values = {
+    v = 202110;
+    cxxmin = 23;
+  };
+};
+
+ftms = {
+  name = associative_heterogeneous_insertion;
+  values = {
+    v = 202306;
+    cxxmin = 26;
   };
 };
 
@@ -1809,6 +1872,22 @@ ftms = {
 };
 
 ftms = {
+  name = stdbit_h;
+  values = {
+    v = 202603;
+    cxxmin = 26;
+  };
+};
+
+ftms = {
+  name = stdckdint_h;
+  values = {
+    v = 202603;
+    cxxmin = 26;
+  };
+};
+
+ftms = {
   name = adaptor_iterator_pair_constructor;
   values = {
     v = 202106;
@@ -1903,9 +1982,12 @@ ftms = {
 };
 
 ftms = {
+  // 202306 P0792R14 function_ref: a non-owning reference to a Callable
+  // 202511 P3774R1  Rename std::nontype, and make it broadly useful
+  // 202603 P3948R1  constant_wrapper is the only tool needed for passing...
   name = function_ref;
   values = {
-    v = 202306;
+    v = 202603;
     cxxmin = 26;
   };
 };
@@ -2030,8 +2112,11 @@ ftms = {
 
 ftms = {
   name = algorithm_default_value_type;
+  // 202403 P2248R8 Enabling list-initialization for algorithms
+  //        P3787R2 Adjoints to "Enabling ...": find_last
+  // 202603 P3787R2 Adjoints to "Enabling ...": uninitialized_fill
   values = {
-    v = 202403;
+    v = 202603;
     cxxmin = 26;
   };
 };
@@ -2107,15 +2192,7 @@ ftms = {
 ftms = {
   name = saturation_arithmetic;
   values = {
-    v = 202311;
-    cxxmin = 26;
-  };
-};
-
-ftms = {
-  name = span_initializer_list;
-  values = {
-    v = 202311;
+    v = 202603;
     cxxmin = 26;
   };
 };
@@ -2131,7 +2208,16 @@ ftms = {
 };
 
 ftms = {
-  name = ranges_to_input;
+  name = ranges_filter;
+  values = {
+    // This is P3725R3, a C++26 change, but we treat it as a DR against C++20.
+    v = 202603;
+    cxxmin = 20;
+  };
+};
+
+ftms = {
+  name = ranges_as_input;
   values = {
     v = 202502;
     cxxmin = 26;
@@ -2158,9 +2244,12 @@ ftms = {
 };
 
 ftms = {
+  // 202406 P0843R14 inplace_vector 
+  // 202603 P3981R2 Better return types in std::inplace_vector and std::exception_ptr_cast
+  //        P4022R0 Remove try_append_range from inplace_vector for now
   name = inplace_vector;
   values = {
-    v = 202406;
+    v = 202603;
     cxxmin = 26;
   };
 };
@@ -2246,11 +2335,77 @@ ftms = {
 };
 
 ftms = {
+  name = reflection;
+  values = {
+    v = 202603;
+    cxxmin = 26;
+    extra_cond = "__cpp_impl_reflection >= 202603L";
+    cxx11abi = yes;
+  };
+};
+
+ftms = {
+  name = define_static;
+  values = {
+    v = 202506;
+    cxxmin = 26;
+    extra_cond = "__cpp_impl_reflection >= 202506L";
+    cxx11abi = yes;
+  };
+};
+
+ftms = {
   name = is_implicit_lifetime;
   values = {
     v =  202302;
     cxxmin = 23;
     extra_cond = "__has_builtin(__builtin_is_implicit_lifetime)";
+  };
+};
+
+ftms = {
+  name = contracts;
+  values = {
+    v = 202502;
+    cxxmin = 26;
+    extra_cond = "__cpp_contracts >= 202502L";
+  };
+};
+
+ftms = {
+  name = replaceable_contract_violation_handler;
+  values = {
+    v = 202603;
+    cxxmin = 26;
+    extra_cond = "__cpp_contracts >= 202502L "
+    "&& __ELF__";
+  };
+  values = {
+    v = 0;
+    cxxmin = 26;
+    extra_cond = "__cpp_contracts >= 202502L";
+  };
+};
+
+ftms = {
+  name = simd;
+  values = {
+    no_stdname = true; // TODO: change once complete
+    v = 202506;
+    cxxmin = 26;
+    extra_cond = "__cpp_structured_bindings >= 202411L "
+    "&& __cpp_expansion_statements >= 202411L "
+    "&& __SSE2__"; // TODO: add more targets
+    hosted = yes;
+  };
+};
+
+ftms = {
+  name = is_structural;
+  values = {
+    v = 202603;
+    cxxmin = 26;
+    extra_cond = "__has_builtin(__builtin_is_structural)";
   };
 };
 

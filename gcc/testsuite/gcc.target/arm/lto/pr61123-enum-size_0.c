@@ -20,4 +20,4 @@ foo1 (struct debug_ABI_enum_size *x)
   return sizeof (x->es);
 }
 
-/* { dg-final { object-readelf Tag_ABI_enum_size int { target arm_eabi } } } */
+/* { dg-final { object-readelf-attributes {Tag_ABI_enum_size:\s+int} { target arm_eabi } } } */

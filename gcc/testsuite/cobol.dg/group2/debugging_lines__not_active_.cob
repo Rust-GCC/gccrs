@@ -1,6 +1,6 @@
        *> { dg-do run }
        *> { dg-output-file "group2/debugging_lines__not_active_.out" }
-
+       >>SOURCE FIXED
        IDENTIFICATION   DIVISION.
        PROGRAM-ID.      prog.
        DATA             DIVISION.

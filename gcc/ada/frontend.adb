@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2026, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -30,7 +30,6 @@ with Checks;
 with CStand;
 with Debug;          use Debug;
 with Elists;
-with Exp_Ch6;
 with Exp_Dbug;
 with Exp_Unst;
 with Fmap;
@@ -61,7 +60,6 @@ with Sem_SCIL;
 with Sem_Elab;       use Sem_Elab;
 with Sem_Prag;       use Sem_Prag;
 with Sem_Warn;
-with Sinfo;          use Sinfo;
 with Sinfo.Nodes;    use Sinfo.Nodes;
 with Sinfo.Utils;    use Sinfo.Utils;
 with Sinput;         use Sinput;
@@ -515,16 +513,6 @@ begin
    if Generate_SCIL then
       pragma Debug (Sem_SCIL.Check_SCIL_Nodes (Cunit (Main_Unit)));
       null;
-   end if;
-
-   --  Validate all the subprogram calls; this work will be done by VAST; in
-   --  the meantime it is done to check extra formals and it can be disabled
-   --  using -gnatd_X (which also disables all the other assertions on extra
-   --  formals). It is invoked using pragma Debug to avoid adding any cost
-   --  when the compiler is built with assertions disabled.
-
-   if not Debug_Flag_Underscore_XX then
-      pragma Debug (Exp_Ch6.Validate_Subprogram_Calls (Cunit (Main_Unit)));
    end if;
 
    --  Dump the source now. Note that we do this as soon as the analysis

@@ -1,3 +1,4 @@
+/* { dg-do run } */
 /* PR target/50310 */
 
 extern void abort (void);

@@ -463,12 +463,12 @@ aarch64-*-mingw*)
 	    tmake_thr_file="mingw/t-mingw-mcfgthread"
 	    ;;
 	esac
-	tmake_file="${tmake_file} ${cpu_type}/t-no-eh ${tmake_thr_file}"
+	tmake_file="${tmake_file} mingw/t-seh-eh ${tmake_thr_file}"
 	tmake_file="${tmake_file} t-dfprules"
 	tmake_file="${tmake_file} ${cpu_type}/t-aarch64"
 	tmake_file="${tmake_file} ${cpu_type}/t-mingw"
 	tmake_file="${tmake_file} ${cpu_type}/t-lse"
-	tmake_file="${tmake_file} ${cpu_type}/t-softfp t-softfp t-crtfm"
+	tmake_file="${tmake_file} t-crtfm"
 	;;
 alpha*-*-linux*)
 	tmake_file="${tmake_file} alpha/t-alpha alpha/t-ieee t-crtfm alpha/t-linux"
@@ -870,7 +870,7 @@ x86_64-*-cygwin*)
 	        # biarch -m32 with --disable-sjlj-exceptions
 	     	tmake_eh_file="i386/t-dw2-eh"
 	else
-		tmake_eh_file="i386/t-seh-eh"
+		tmake_eh_file="mingw/t-seh-eh"
 	fi
 	# Shared libgcc DLL install dir depends on cross/native build.
 	if test x${build} = x${host} ; then
@@ -932,7 +932,7 @@ x86_64-*-mingw*)
 	     	tmake_eh_file="i386/t-dw2-eh"
 		md_unwind_header=i386/w32-unwind.h
 	else
-		tmake_eh_file="i386/t-seh-eh"
+		tmake_eh_file="mingw/t-seh-eh"
 	fi
 	# Shared libgcc DLL install dir depends on cross/native build.
 	if test x${build} = x${host} ; then
@@ -957,9 +957,11 @@ ia64*-*-freebsd*)
 ia64*-*-linux*)
 	# Don't use crtbeginT.o from *-*-linux* default.
 	extra_parts="crtbegin.o crtend.o crtbeginS.o crtendS.o crtfastmath.o"
-	tmake_file="$tmake_file ia64/t-ia64 ia64/t-ia64-elf t-crtfm t-softfp-tf ia64/t-softfp t-softfp ia64/t-softfp-compat ia64/t-eh-ia64 t-libunwind ia64/t-linux"
+	tmake_file="${tmake_file} ia64/t-ia64 ia64/t-ia64-elf t-crtfm t-softfp-tf ia64/t-softfp t-softfp ia64/t-softfp-compat ia64/t-eh-ia64"
 	if test x$with_system_libunwind != xyes ; then
 		tmake_file="${tmake_file} t-libunwind-elf ia64/t-linux-libunwind"
+	else
+		tmake_file="${tmake_file} ia64/t-linux t-libunwind"
 	fi
 	md_unwind_header=ia64/linux-unwind.h
 	;;
@@ -1391,6 +1393,9 @@ s390x-*-linux*)
 	if test "${host_address}" = 32; then
 	   tmake_file="${tmake_file} s390/32/t-floattodi"
 	else
+	   if test "$libgcc_cv_s390_float16" = "yes"; then
+		tmake_file="${tmake_file} s390/t-float16"
+	   fi
 	   tmake_file="${tmake_file} s390/t-softfp t-softfp"
 	fi
 	md_unwind_header=s390/linux-unwind.h

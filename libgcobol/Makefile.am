@@ -1,4 +1,4 @@
-# Copyright (C) 2025 Free Software Foundation, Inc.
+# Copyright (C) 2026 Free Software Foundation, Inc.
 # Contributed by the Symas Corporation, 2025
 
 # This file is part of GCC.
@@ -54,6 +54,7 @@ libgcobol_la_SOURCES =				\
 	constants.cc				\
 	gfileio.cc				\
 	gmath.cc				\
+	inspect.cc				\
 	intrinsic.cc				\
 	io.cc					\
 	libgcobol.cc				\
@@ -85,13 +86,13 @@ nobase_libsubinclude_HEADERS =			\
 WARN_CFLAGS = -W -Wall -Wwrite-strings
 
 AM_CPPFLAGS = -I. -I posix/shim $(LIBQUADINCLUDE)
-AM_CPPFLAGS += -I /usr/include/libxml2
+AM_CPPFLAGS += $(LIBXML2_CPPFLAGS)
 
 AM_CFLAGS = $(XCFLAGS)
 AM_CXXFLAGS = $(XCFLAGS)
 AM_CXXFLAGS += $(WARN_CFLAGS)
 AM_CXXFLAGS += -DIN_TARGET_LIBS
-AM_CXXFLAGS += -fno-strict-aliasing
+AM_CXXFLAGS += -fstrict-aliasing -Wstrict-aliasing -Wstrict-aliasing=3
 
 if ENABLE_DARWIN_AT_RPATH
 # Handle embedded rpaths for Darwin.
@@ -103,7 +104,7 @@ endif
 libgcobol_la_LINK = $(CXXLINK) $(libgcobol_la_LDFLAGS)
 version_arg = -version-info $(LIBGCOBOL_VERSION)
 libgcobol_la_LDFLAGS = $(LTLDFLAGS) $(LIBQUADLIB) $(LTLIBICONV) \
-	$(extra_ldflags_libgcobol) $(LIBS) $(version_arg)
+	$(extra_ldflags_libgcobol) $(LIBS) $(LIBXML2_LIBS) $(version_arg)
 libgcobol_la_DEPENDENCIES = libgcobol.spec $(LIBQUADLIB_DEP)
 
 endif BUILD_LIBGCOBOL

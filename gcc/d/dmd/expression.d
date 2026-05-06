@@ -3,7 +3,7 @@
  *
  * Specification: ($LINK2 https://dlang.org/spec/expression.html, Expressions)
  *
- * Copyright:   Copyright (C) 1999-2025 by The D Language Foundation, All Rights Reserved
+ * Copyright:   Copyright (C) 1999-2026 by The D Language Foundation, All Rights Reserved
  * Authors:     $(LINK2 https://www.digitalmars.com, Walter Bright)
  * License:     $(LINK2 https://www.boost.org/LICENSE_1_0.txt, Boost License 1.0)
  * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/compiler/src/dmd/expression.d, _expression.d)
@@ -17,23 +17,18 @@ import core.stdc.stdarg;
 import core.stdc.stdio;
 import core.stdc.string;
 
-import dmd.aggregate;
 import dmd.arraytypes;
 import dmd.astenums;
 import dmd.ast_node;
-import dmd.dcast : implicitConvTo;
 import dmd.dclass;
 import dmd.declaration;
-import dmd.dimport;
-import dmd.dmodule;
 import dmd.dstruct;
 import dmd.dsymbol;
 import dmd.dtemplate;
 import dmd.errors;
-import dmd.errorsink;
 import dmd.func;
 import dmd.globals;
-import dmd.hdrgen;
+import dmd.hdrgen : toChars;
 import dmd.id;
 import dmd.identifier;
 import dmd.init;
@@ -41,15 +36,11 @@ import dmd.location;
 import dmd.mtype;
 import dmd.root.complex;
 import dmd.root.ctfloat;
-import dmd.common.outbuffer;
-import dmd.root.optional;
 import dmd.root.rmem;
 import dmd.rootobject;
 import dmd.root.string;
 import dmd.root.utf;
-import dmd.target;
 import dmd.tokens;
-import dmd.typesem;
 import dmd.visitor;
 
 enum LOGSEMANTIC = false;
@@ -69,103 +60,6 @@ inout(Expression) lastComma(inout Expression e)
         ex = (cast(CommaExp)ex).e2;
     return cast(inout)ex;
 
-}
-
-/****************************************
- * Expand tuples in-place.
- *
- * Example:
- *     When there's a call `f(10, pair: AliasSeq!(20, 30), single: 40)`, the input is:
- *         `exps =  [10, (20, 30), 40]`
- *         `names = [null, "pair", "single"]`
- *     The arrays will be modified to:
- *         `exps =  [10, 20, 30, 40]`
- *         `names = [null, "pair", null, "single"]`
- *
- * Params:
- *     exps  = array of Expressions
- *     names = optional array of names corresponding to Expressions
- */
-void expandTuples(Expressions* exps, Identifiers* names = null)
-{
-    //printf("expandTuples()\n");
-    if (exps is null)
-        return;
-
-    if (names)
-    {
-        if (exps.length != names.length)
-        {
-            printf("exps.length = %d, names.length = %d\n", cast(int) exps.length, cast(int) names.length);
-            printf("exps = %s, names = %s\n", exps.toChars(), names.toChars());
-            if (exps.length > 0)
-                printf("%s\n", (*exps)[0].loc.toChars());
-            assert(0);
-        }
-    }
-
-    // At `index`, a tuple of length `length` is expanded. Insert corresponding nulls in `names`.
-    void expandNames(size_t index, size_t length)
-    {
-        if (names)
-        {
-            if (length == 0)
-            {
-                names.remove(index);
-                return;
-            }
-            foreach (i; 1 .. length)
-            {
-                names.insert(index + i, cast(Identifier) null);
-            }
-        }
-    }
-
-    for (size_t i = 0; i < exps.length; i++)
-    {
-        Expression arg = (*exps)[i];
-        if (!arg)
-            continue;
-
-        // Look for tuple with 0 members
-        if (auto e = arg.isTypeExp())
-        {
-            if (auto tt = e.type.toBasetype().isTypeTuple())
-            {
-                if (!tt.arguments || tt.arguments.length == 0)
-                {
-                    exps.remove(i);
-                    expandNames(i, 0);
-                    if (i == exps.length)
-                        return;
-                }
-                else // Expand a TypeTuple
-                {
-                    exps.remove(i);
-                    auto texps = new Expressions(tt.arguments.length);
-                    foreach (j, a; *tt.arguments)
-                        (*texps)[j] = new TypeExp(e.loc, a.type);
-                    exps.insert(i, texps);
-                    expandNames(i, texps.length);
-                }
-                i--;
-                continue;
-            }
-        }
-
-        // Inline expand all the tuples
-        while (arg.op == EXP.tuple)
-        {
-            TupleExp te = cast(TupleExp)arg;
-            exps.remove(i); // remove arg
-            exps.insert(i, te.exps); // replace with tuple contents
-            expandNames(i, te.exps.length);
-            if (i == exps.length)
-                return; // empty tuple, no more arguments
-            (*exps)[i] = Expression.combine(te.e0, (*exps)[i]);
-            arg = (*exps)[i];
-        }
-    }
 }
 
 /****************************************
@@ -208,76 +102,6 @@ DotIdExp typeDotIdExp(Loc loc, Type type, Identifier ident) @safe
     return new DotIdExp(loc, new TypeExp(loc, type), ident);
 }
 
-/***************************************************
- * Given an Expression, find the variable it really is.
- *
- * For example, `a[index]` is really `a`, and `s.f` is really `s`.
- * Params:
- *      e = Expression to look at
- *      deref = number of dereferences encountered
- * Returns:
- *      variable if there is one, null if not
- */
-VarDeclaration expToVariable(Expression e, out int deref)
-{
-    deref = 0;
-    while (1)
-    {
-        switch (e.op)
-        {
-            case EXP.variable:
-                return e.isVarExp().var.isVarDeclaration();
-
-            case EXP.dotVariable:
-                e = e.isDotVarExp().e1;
-                if (e.type.toBasetype().isTypeClass())
-                    deref++;
-
-                continue;
-
-            case EXP.index:
-            {
-                e = e.isIndexExp().e1;
-                if (!e.type.toBasetype().isTypeSArray())
-                    deref++;
-
-                continue;
-            }
-
-            case EXP.slice:
-            {
-                e = e.isSliceExp().e1;
-                if (!e.type.toBasetype().isTypeSArray())
-                    deref++;
-
-                continue;
-            }
-
-            case EXP.super_:
-                return e.isSuperExp().var.isVarDeclaration();
-            case EXP.this_:
-                return e.isThisExp().var.isVarDeclaration();
-
-            // Temporaries for rvalues that need destruction
-            // are of form: (T s = rvalue, s). For these cases
-            // we can just return var declaration of `s`. However,
-            // this is intentionally not calling `Expression.extractLast`
-            // because at this point we cannot infer the var declaration
-            // of more complex generated comma expressions such as the
-            // one for the array append hook.
-            case EXP.comma:
-            {
-                if (auto ve = e.isCommaExp().e2.isVarExp())
-                    return ve.var.isVarDeclaration();
-
-                return null;
-            }
-            default:
-                return null;
-        }
-    }
-}
-
 enum OwnedBy : ubyte
 {
     code,          // normal code expression in AST
@@ -306,6 +130,7 @@ extern (C++) abstract class Expression : ASTNode
     {
     bool parens;    // if this is a parenthesized expression
     bool rvalue;    // true if this is considered to be an rvalue, even if it is an lvalue
+    bool gcPassDone; // `checkGC` has been run on this expression
     }
     import dmd.common.bitfields;
     mixin(generateBitFields!(BitFields, ubyte));
@@ -468,78 +293,6 @@ extern (C++) abstract class Expression : ASTNode
         return a;
     }
 
-    dinteger_t toInteger()
-    {
-        //printf("Expression %s\n", EXPtoString(op).ptr);
-        if (!type || !type.isTypeError())
-            error(loc, "integer constant expression expected instead of `%s`", toChars());
-        return 0;
-    }
-
-    uinteger_t toUInteger()
-    {
-        //printf("Expression %s\n", EXPtoString(op).ptr);
-        return cast(uinteger_t)toInteger();
-    }
-
-    real_t toReal()
-    {
-        error(loc, "floating point constant expression expected instead of `%s`", toChars());
-        return CTFloat.zero;
-    }
-
-    real_t toImaginary()
-    {
-        error(loc, "floating point constant expression expected instead of `%s`", toChars());
-        return CTFloat.zero;
-    }
-
-    complex_t toComplex()
-    {
-        error(loc, "floating point constant expression expected instead of `%s`", toChars());
-        return complex_t(CTFloat.zero);
-    }
-
-    StringExp toStringExp()
-    {
-        return null;
-    }
-
-    /***************************************
-     * Return !=0 if expression is an lvalue.
-     */
-    bool isLvalue()
-    {
-        return false;
-    }
-
-    /****************************************
-     * Check that the expression has a valid type.
-     * If not, generates an error "... has no type".
-     * Returns:
-     *      true if the expression is not valid.
-     * Note:
-     *      When this function returns true, `checkValue()` should also return true.
-     */
-    bool checkType()
-    {
-        return false;
-    }
-
-    /******************************
-     * Take address of expression.
-     */
-    final Expression addressOf()
-    {
-        //printf("Expression::addressOf()\n");
-        debug
-        {
-            assert(op == EXP.error || isLvalue());
-        }
-        Expression e = new AddrExp(loc, this, type.pointerTo());
-        return e;
-    }
-
     /******************************
      * If this is a reference, dereference it.
      */
@@ -573,22 +326,6 @@ extern (C++) abstract class Expression : ASTNode
             return 0;
         }
         assert(0);
-    }
-
-    /******
-     * Identical, not just equal. I.e. NaNs with different bit patterns are not identical
-     */
-    bool isIdentical(const Expression e) const
-    {
-        return equals(e);
-    }
-
-
-    /// Statically evaluate this expression to a `bool` if possible
-    /// Returns: an optional thath either contains the value or is empty
-    Optional!bool toBool()
-    {
-        return typeof(return)();
     }
 
     bool hasCode()
@@ -749,27 +486,37 @@ extern (C++) abstract class Expression : ASTNode
     }
 }
 
+// Approximate Non-semantic version of the `Type.isScalar` function in `typesem`
+bool _isRoughlyScalar(Type _this)
+{
+    if (auto tb = _this.isTypeBasic())
+        return (tb.flags & TFlags.integral | TFlags.floating) != 0;
+    else if (_this.ty == Tenum || _this.ty == Tpointer) // the enum is possibly scalar
+        return true;
+    return false;
+}
+
 /***********************************************************
  * A compile-time known integer value
  */
 extern (C++) final class IntegerExp : Expression
 {
-    private dinteger_t value;
+    dinteger_t value;
 
     extern (D) this(Loc loc, dinteger_t value, Type type)
     {
         super(loc, EXP.int64);
         //printf("IntegerExp(value = %lld, type = '%s')\n", value, type ? type.toChars() : "");
         assert(type);
-        if (!type.isScalar())
-        {
-            //printf("%s, loc = %d\n", toChars(), loc.linnum);
-            if (type.ty != Terror)
-                error(loc, "integral constant must be scalar type, not `%s`", type.toChars());
-            type = Type.terror;
-        }
+
+        /* Verify no path to the following assert failure.
+         * Weirdly, the isScalar() includes floats - see enumsem.enumMemberSemantic() for the
+         * base type. This is possibly a bug.
+         */
+        assert(_isRoughlyScalar(type) || type.ty == Terror);
+
         this.type = type;
-        this.value = normalize(type.toBasetype().ty, value);
+        this.value = normalize(type.toBaseTypeNonSemantic().ty, value);
     }
 
     extern (D) this(dinteger_t value)
@@ -784,53 +531,6 @@ extern (C++) final class IntegerExp : Expression
         return new IntegerExp(loc, value, type);
     }
 
-    override bool equals(const RootObject o) const
-    {
-        if (this == o)
-            return true;
-        if (auto ne = (cast(Expression)o).isIntegerExp())
-        {
-            if (type.toHeadMutable().equals(ne.type.toHeadMutable()) && value == ne.value)
-            {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    override dinteger_t toInteger()
-    {
-        // normalize() is necessary until we fix all the paints of 'type'
-        return value = normalize(type.toBasetype().ty, value);
-    }
-
-    override real_t toReal()
-    {
-        // normalize() is necessary until we fix all the paints of 'type'
-        const ty = type.toBasetype().ty;
-        const val = normalize(ty, value);
-        value = val;
-        return (ty == Tuns64)
-            ? real_t(cast(ulong)val)
-            : real_t(cast(long)val);
-    }
-
-    override real_t toImaginary()
-    {
-        return CTFloat.zero;
-    }
-
-    override complex_t toComplex()
-    {
-        return complex_t(toReal());
-    }
-
-    override Optional!bool toBool()
-    {
-        bool r = toInteger() != 0;
-        return typeof(return)(r);
-    }
-
     override void accept(Visitor v)
     {
         v.visit(this);
@@ -843,7 +543,7 @@ extern (C++) final class IntegerExp : Expression
 
     extern (D) void setInteger(dinteger_t value)
     {
-        this.value = normalize(type.toBasetype().ty, value);
+        this.value = normalize(type.toBaseTypeNonSemantic().ty, value);
     }
 
     extern (D) static dinteger_t normalize(TY ty, dinteger_t value)
@@ -851,6 +551,8 @@ extern (C++) final class IntegerExp : Expression
         /* 'Normalize' the value of the integer to be in range of the type
          */
         dinteger_t result;
+        if (ty == Tpointer)
+            ty = Type.tsize_t.ty;
         switch (ty)
         {
         case Tbool:
@@ -891,15 +593,6 @@ extern (C++) final class IntegerExp : Expression
         case Tuns64:
             result = cast(ulong)value;
             break;
-
-        case Tpointer:
-            if (target.ptrsize == 8)
-                goto case Tuns64;
-            if (target.ptrsize == 4)
-                goto case Tuns32;
-            if (target.ptrsize == 2)
-                goto case Tuns16;
-            assert(0);
 
         default:
             break;
@@ -1033,72 +726,6 @@ extern (C++) final class RealExp : Expression
         return new RealExp(loc, value, type);
     }
 
-    /********************************
-     * Test to see if two reals are the same.
-     * Regard NaN's as equivalent.
-     * Regard +0 and -0 as different.
-     * Params:
-     *      x1 = first operand
-     *      x2 = second operand
-     * Returns:
-     *      true if x1 is x2
-     *      else false
-     */
-    private static bool RealIdentical(real_t x1, real_t x2) @safe
-    {
-        return (CTFloat.isNaN(x1) && CTFloat.isNaN(x2)) || CTFloat.isIdentical(x1, x2);
-    }
-    override bool equals(const RootObject o) const
-    {
-        if (this == o)
-            return true;
-        if (auto ne = (cast(Expression)o).isRealExp())
-        {
-            if (type.toHeadMutable().equals(ne.type.toHeadMutable()) && RealIdentical(value, ne.value))
-            {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    override bool isIdentical(const Expression e) const
-    {
-        if (!equals(e))
-            return false;
-        return CTFloat.isIdentical(value, e.isRealExp().value);
-    }
-
-    override dinteger_t toInteger()
-    {
-        return cast(sinteger_t)toReal();
-    }
-
-    override uinteger_t toUInteger()
-    {
-        return cast(uinteger_t)toReal();
-    }
-
-    override real_t toReal()
-    {
-        return type.isReal() ? value : CTFloat.zero;
-    }
-
-    override real_t toImaginary()
-    {
-        return type.isReal() ? CTFloat.zero : value;
-    }
-
-    override complex_t toComplex()
-    {
-        return complex_t(toReal(), toImaginary());
-    }
-
-    override Optional!bool toBool()
-    {
-        return typeof(return)(!!value);
-    }
-
     override void accept(Visitor v)
     {
         v.visit(this);
@@ -1123,62 +750,6 @@ extern (C++) final class ComplexExp : Expression
     static ComplexExp create(Loc loc, complex_t value, Type type) @safe
     {
         return new ComplexExp(loc, value, type);
-    }
-
-    override bool equals(const RootObject o) const
-    {
-        if (this == o)
-            return true;
-        if (auto ne = (cast(Expression)o).isComplexExp())
-        {
-            if (type.toHeadMutable().equals(ne.type.toHeadMutable()) &&
-                RealExp.RealIdentical(creall(value), creall(ne.value)) &&
-                RealExp.RealIdentical(cimagl(value), cimagl(ne.value)))
-            {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    override bool isIdentical(const Expression e) const
-    {
-        if (!equals(e))
-            return false;
-        // equals() regards different NaN values as 'equals'
-        auto c = e.isComplexExp();
-        return CTFloat.isIdentical(creall(value), creall(c.value)) &&
-               CTFloat.isIdentical(cimagl(value), cimagl(c.value));
-    }
-
-    override dinteger_t toInteger()
-    {
-        return cast(sinteger_t)toReal();
-    }
-
-    override uinteger_t toUInteger()
-    {
-        return cast(uinteger_t)toReal();
-    }
-
-    override real_t toReal()
-    {
-        return creall(value);
-    }
-
-    override real_t toImaginary()
-    {
-        return cimagl(value);
-    }
-
-    override complex_t toComplex()
-    {
-        return value;
-    }
-
-    override Optional!bool toBool()
-    {
-        return typeof(return)(!!value);
     }
 
     override void accept(Visitor v)
@@ -1208,11 +779,6 @@ extern (C++) class IdentifierExp : Expression
     static IdentifierExp create(Loc loc, Identifier ident) @safe
     {
         return new IdentifierExp(loc, ident);
-    }
-
-    override final bool isLvalue()
-    {
-        return !this.rvalue;
     }
 
     override void accept(Visitor v)
@@ -1254,11 +820,6 @@ extern (C++) final class DsymbolExp : Expression
         this.hasOverloads = hasOverloads;
     }
 
-    override bool isLvalue()
-    {
-        return !rvalue;
-    }
-
     override void accept(Visitor v)
     {
         v.visit(this);
@@ -1291,18 +852,6 @@ extern (C++) class ThisExp : Expression
         r.type = null;
         r.var = null;
         return r;
-    }
-
-    override Optional!bool toBool()
-    {
-        // `this` is never null (what about structs?)
-        return typeof(return)(true);
-    }
-
-    override final bool isLvalue()
-    {
-        // Class `this` should be an rvalue; struct `this` should be an lvalue.
-        return !rvalue && type.toBasetype().ty != Tclass;
     }
 
     override void accept(Visitor v)
@@ -1340,36 +889,6 @@ extern (C++) final class NullExp : Expression
         this.type = type;
     }
 
-    override bool equals(const RootObject o) const
-    {
-        if (auto e = o.isExpression())
-        {
-            if (e.op == EXP.null_ && type.equals(e.type))
-            {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    override Optional!bool toBool()
-    {
-        // null in any type is false
-        return typeof(return)(false);
-    }
-
-    override StringExp toStringExp()
-    {
-        if (this.type.implicitConvTo(Type.tstring))
-        {
-            auto se = new StringExp(loc, (cast(char*)mem.xcalloc(1, 1))[0 .. 0]);
-            se.type = Type.tstring;
-            return se;
-        }
-
-        return null;
-    }
-
     override void accept(Visitor v)
     {
         v.visit(this);
@@ -1405,6 +924,8 @@ extern (C++) final class StringExp : Expression
 
     /// If the string is parsed from a hex string literal
     bool hexString = false;
+    /// If the string is from a collected C macro
+    bool cMacro = false;
 
     enum char NoPostfix = 0;
 
@@ -1416,13 +937,14 @@ extern (C++) final class StringExp : Expression
         this.sz = 1;                    // work around LDC bug #1286
     }
 
-    extern (D) this(Loc loc, const(void)[] string, size_t len, ubyte sz, char postfix = NoPostfix) scope
+    extern (D) this(Loc loc, const(void)[] string, size_t len, ubyte sz, char postfix = NoPostfix, bool cMacro = false) scope
     {
         super(loc, EXP.string_);
         this.string = cast(char*)string.ptr; // note that this.string should be const
         this.len = len;
         this.sz = sz;
         this.postfix = postfix;
+        this.cMacro = cMacro;
     }
 
     static StringExp create(Loc loc, const(char)* s)
@@ -1435,28 +957,16 @@ extern (C++) final class StringExp : Expression
         return new StringExp(loc, string[0 .. len]);
     }
 
-    override bool equals(const RootObject o) const
-    {
-        //printf("StringExp::equals('%s') %s\n", o.toChars(), toChars());
-        if (auto e = o.isExpression())
-        {
-            if (auto se = e.isStringExp())
-            {
-                return compare(se) == 0;
-            }
-        }
-        return false;
-    }
-
     /**********************************
      * Return the number of code units the string would be if it were re-encoded
      * as tynto.
      * Params:
      *      tynto = code unit type of the target encoding
+     *      s = set to error message on invalid string
      * Returns:
      *      number of code units
      */
-    size_t numberOfCodeUnits(int tynto = 0) const
+    extern (D) size_t numberOfCodeUnits(int tynto, out .string s) const
     {
         int encSize;
         switch (tynto)
@@ -1479,11 +989,9 @@ extern (C++) final class StringExp : Expression
         case 1:
             for (size_t u = 0; u < len;)
             {
-                if (const s = utf_decodeChar(string[0 .. len], u, c))
-                {
-                    error(loc, "%.*s", cast(int)s.length, s.ptr);
+                s = utf_decodeChar(string[0 .. len], u, c);
+                if (s)
                     return 0;
-                }
                 result += utf_codeLength(encSize, c);
             }
             break;
@@ -1491,11 +999,9 @@ extern (C++) final class StringExp : Expression
         case 2:
             for (size_t u = 0; u < len;)
             {
-                if (const s = utf_decodeWchar(wstring[0 .. len], u, c))
-                {
-                    error(loc, "%.*s", cast(int)s.length, s.ptr);
+                s = utf_decodeWchar(wstring[0 .. len], u, c);
+                if (s)
                     return 0;
-                }
                 result += utf_codeLength(encSize, c);
             }
             break;
@@ -1604,12 +1110,6 @@ extern (C++) final class StringExp : Expression
         }
     }
 
-    override StringExp toStringExp()
-    {
-        return this;
-    }
-
-
     /**
      * Compare two `StringExp` by length, then value
      *
@@ -1639,55 +1139,39 @@ extern (C++) final class StringExp : Expression
 
         assert(this.sz == se2.sz, "Comparing string expressions of different sizes");
         //printf("sz = %d, len1 = %d, len2 = %d\n", sz, cast(int)len1, cast(int)len2);
-        if (len1 == len2)
+        if (len1 != len2)
+            return cast(int)(len1 - len2);
+        switch (sz)
         {
-            switch (sz)
+        case 1:
+            return memcmp(string, se2.string, len1);
+
+        case 2:
             {
-            case 1:
-                return memcmp(string, se2.string, len1);
-
-            case 2:
+                wchar* s1 = cast(wchar*)string;
+                wchar* s2 = cast(wchar*)se2.string;
+                foreach (u; 0 .. len)
                 {
-                    wchar* s1 = cast(wchar*)string;
-                    wchar* s2 = cast(wchar*)se2.string;
-                    foreach (u; 0 .. len)
-                    {
-                        if (s1[u] != s2[u])
-                            return s1[u] - s2[u];
-                    }
+                    if (s1[u] != s2[u])
+                        return s1[u] - s2[u];
                 }
-                break;
-            case 4:
-                {
-                    dchar* s1 = cast(dchar*)string;
-                    dchar* s2 = cast(dchar*)se2.string;
-                    foreach (u; 0 .. len)
-                    {
-                        if (s1[u] != s2[u])
-                            return s1[u] - s2[u];
-                    }
-                }
-                break;
-            default:
-                assert(0);
             }
+            break;
+        case 4:
+            {
+                dchar* s1 = cast(dchar*)string;
+                dchar* s2 = cast(dchar*)se2.string;
+                foreach (u; 0 .. len)
+                {
+                    if (s1[u] != s2[u])
+                        return s1[u] - s2[u];
+                }
+            }
+            break;
+        default:
+            assert(0);
         }
-        return cast(int)(len1 - len2);
-    }
-
-    override Optional!bool toBool()
-    {
-        // Keep the old behaviour for this refactoring
-        // Should probably match language spec instead and check for length
-        return typeof(return)(true);
-    }
-
-    override bool isLvalue()
-    {
-        /* string literal is rvalue in default, but
-         * conversion to reference of static array is only allowed.
-         */
-        return !rvalue && (type && type.toBasetype().ty == Tsarray);
+        return 0;
     }
 
     /********************************
@@ -1816,34 +1300,7 @@ extern (C++) final class TupleExp : Expression
     {
         super(loc, EXP.tuple);
         this.exps = new Expressions();
-
-        this.exps.reserve(tup.objects.length);
-        foreach (o; *tup.objects)
-        {
-            if (Dsymbol s = getDsymbol(o))
-            {
-                /* If tuple element represents a symbol, translate to DsymbolExp
-                 * to supply implicit 'this' if needed later.
-                 */
-                Expression e = new DsymbolExp(loc, s);
-                this.exps.push(e);
-            }
-            else if (auto eo = o.isExpression())
-            {
-                auto e = eo.copy();
-                e.loc = loc;    // https://issues.dlang.org/show_bug.cgi?id=15669
-                this.exps.push(e);
-            }
-            else if (auto t = o.isType())
-            {
-                Expression e = new TypeExp(loc, t);
-                this.exps.push(e);
-            }
-            else
-            {
-                error(loc, "`%s` is not an expression", o.toChars());
-            }
-        }
+        // the rest of the constructor is moved to expressionsem.d in fillTupleExpExps function
     }
 
     static TupleExp create(Loc loc, Expressions* exps) @safe
@@ -1854,28 +1311,6 @@ extern (C++) final class TupleExp : Expression
     override TupleExp syntaxCopy()
     {
         return new TupleExp(loc, e0 ? e0.syntaxCopy() : null, arraySyntaxCopy(exps));
-    }
-
-    override bool equals(const RootObject o) const
-    {
-        if (this == o)
-            return true;
-        if (auto e = o.isExpression())
-            if (auto te = e.isTupleExp())
-            {
-                if (exps.length != te.exps.length)
-                    return false;
-                if (e0 && !e0.equals(te.e0) || !e0 && te.e0)
-                    return false;
-                foreach (i, e1; *exps)
-                {
-                    auto e2 = (*te.exps)[i];
-                    if (!e1.equals(e2))
-                        return false;
-                }
-                return true;
-            }
-        return false;
     }
 
     override void accept(Visitor v)
@@ -1902,6 +1337,12 @@ extern (C++) final class ArrayLiteralExp : Expression
 
     Expressions* elements;
 
+    Expression lowering;
+
+    // aaLiteral is set if this is an array of values of an AA literal
+    // only used during CTFE to show the original AA in error messages instead
+    AssocArrayLiteralExp aaLiteral;
+
     extern (D) this(Loc loc, Type type, Expressions* elements) @safe
     {
         super(loc, EXP.arrayLiteral);
@@ -1913,8 +1354,7 @@ extern (C++) final class ArrayLiteralExp : Expression
     {
         super(loc, EXP.arrayLiteral);
         this.type = type;
-        elements = new Expressions();
-        elements.push(e);
+        elements = new Expressions(e);
     }
 
     extern (D) this(Loc loc, Type type, Expression basis, Expressions* elements) @safe
@@ -1938,36 +1378,6 @@ extern (C++) final class ArrayLiteralExp : Expression
             arraySyntaxCopy(elements));
     }
 
-    override bool equals(const RootObject o) const
-    {
-        if (this == o)
-            return true;
-        auto e = o.isExpression();
-        if (!e)
-            return false;
-        if (auto ae = e.isArrayLiteralExp())
-        {
-            if (elements.length != ae.elements.length)
-                return false;
-            if (elements.length == 0 && !type.equals(ae.type))
-            {
-                return false;
-            }
-
-            foreach (i, e1; *elements)
-            {
-                auto e2 = (*ae.elements)[i];
-                auto e1x = e1 ? e1 : basis;
-                auto e2x = e2 ? e2 : ae.basis;
-
-                if (e1x != e2x && (!e1x || !e2x || !e1x.equals(e2x)))
-                    return false;
-            }
-            return true;
-        }
-        return false;
-    }
-
     Expression getElement(size_t i) // use opIndex instead
     {
         return this[i];
@@ -1977,65 +1387,6 @@ extern (C++) final class ArrayLiteralExp : Expression
     {
         auto el = (*elements)[i];
         return el ? el : basis;
-    }
-
-    override Optional!bool toBool()
-    {
-        size_t dim = elements ? elements.length : 0;
-        return typeof(return)(dim != 0);
-    }
-
-    override StringExp toStringExp()
-    {
-        TY telem = type.nextOf().toBasetype().ty;
-        if (telem.isSomeChar || (telem == Tvoid && (!elements || elements.length == 0)))
-        {
-            ubyte sz = 1;
-            if (telem == Twchar)
-                sz = 2;
-            else if (telem == Tdchar)
-                sz = 4;
-
-            OutBuffer buf;
-            if (elements)
-            {
-                foreach (i; 0 .. elements.length)
-                {
-                    auto ch = this[i];
-                    if (ch.op != EXP.int64)
-                        return null;
-                    if (sz == 1)
-                        buf.writeByte(cast(uint)ch.toInteger());
-                    else if (sz == 2)
-                        buf.writeword(cast(uint)ch.toInteger());
-                    else
-                        buf.write4(cast(uint)ch.toInteger());
-                }
-            }
-            char prefix;
-            if (sz == 1)
-            {
-                prefix = 'c';
-                buf.writeByte(0);
-            }
-            else if (sz == 2)
-            {
-                prefix = 'w';
-                buf.writeword(0);
-            }
-            else
-            {
-                prefix = 'd';
-                buf.write4(0);
-            }
-
-            const size_t len = buf.length / sz - 1;
-            auto se = new StringExp(loc, buf.extractSlice()[0 .. len * sz], len, sz, prefix);
-            se.sz = sz;
-            se.type = type;
-            return se;
-        }
-        return null;
     }
 
     override void accept(Visitor v)
@@ -2055,8 +1406,9 @@ extern (C++) final class AssocArrayLiteralExp : Expression
 
     Expressions* keys;
     Expressions* values;
-    /// Lower to core.internal.newaa for static initializaton
-    Expression lowering;
+
+    Expression lowering;     // call to _d_assocarrayliteralTX()
+    Expression loweringCtfe; // result of interpreting lowering for static initializaton
 
     extern (D) this(Loc loc, Expressions* keys, Expressions* values) @safe
     {
@@ -2066,44 +1418,9 @@ extern (C++) final class AssocArrayLiteralExp : Expression
         this.values = values;
     }
 
-    override bool equals(const RootObject o) const
-    {
-        if (this == o)
-            return true;
-        auto e = o.isExpression();
-        if (!e)
-            return false;
-        if (auto ae = e.isAssocArrayLiteralExp())
-        {
-            if (keys.length != ae.keys.length)
-                return false;
-            size_t count = 0;
-            foreach (i, key; *keys)
-            {
-                foreach (j, akey; *ae.keys)
-                {
-                    if (key.equals(akey))
-                    {
-                        if (!(*values)[i].equals((*ae.values)[j]))
-                            return false;
-                        ++count;
-                    }
-                }
-            }
-            return count == keys.length;
-        }
-        return false;
-    }
-
     override AssocArrayLiteralExp syntaxCopy()
     {
         return new AssocArrayLiteralExp(loc, arraySyntaxCopy(keys), arraySyntaxCopy(values));
-    }
-
-    override Optional!bool toBool()
-    {
-        size_t dim = keys.length;
-        return typeof(return)(dim != 0);
     }
 
     override void accept(Visitor v)
@@ -2182,116 +1499,11 @@ extern (C++) final class StructLiteralExp : Expression
         return new StructLiteralExp(loc, sd, cast(Expressions*)elements, stype);
     }
 
-    override bool equals(const RootObject o) const
-    {
-        if (this == o)
-            return true;
-        auto e = o.isExpression();
-        if (!e)
-            return false;
-        if (auto se = e.isStructLiteralExp())
-        {
-            if (!type.equals(se.type))
-                return false;
-            if (elements.length != se.elements.length)
-                return false;
-            foreach (i, e1; *elements)
-            {
-                auto e2 = (*se.elements)[i];
-                if (e1 != e2 && (!e1 || !e2 || !e1.equals(e2)))
-                    return false;
-            }
-            return true;
-        }
-        return false;
-    }
-
     override StructLiteralExp syntaxCopy()
     {
         auto exp = new StructLiteralExp(loc, sd, arraySyntaxCopy(elements), type ? type : stype);
         exp.origin = this;
         return exp;
-    }
-
-    /**************************************
-     * Gets expression at offset of type.
-     * Returns NULL if not found.
-     */
-    extern (D) Expression getField(Type type, uint offset)
-    {
-        //printf("StructLiteralExp::getField(this = %s, type = %s, offset = %u)\n",
-        //  /*toChars()*/"", type.toChars(), offset);
-        Expression e = null;
-        int i = getFieldIndex(type, offset);
-
-        if (i != -1)
-        {
-            //printf("\ti = %d\n", i);
-            if (i >= sd.nonHiddenFields())
-                return null;
-
-            assert(i < elements.length);
-            e = (*elements)[i];
-            if (e)
-            {
-                //printf("e = %s, e.type = %s\n", e.toChars(), e.type.toChars());
-
-                /* If type is a static array, and e is an initializer for that array,
-                 * then the field initializer should be an array literal of e.
-                 */
-                auto tsa = type.isTypeSArray();
-                if (tsa && e.type.castMod(0) != type.castMod(0))
-                {
-                    const length = cast(size_t)tsa.dim.toInteger();
-                    auto z = new Expressions(length);
-                    foreach (ref q; *z)
-                        q = e.copy();
-                    e = new ArrayLiteralExp(loc, type, z);
-                }
-                else
-                {
-                    e = e.copy();
-                    e.type = type;
-                }
-                if (useStaticInit && e.type.needsNested())
-                    if (auto se = e.isStructLiteralExp())
-                    {
-                        se.useStaticInit = true;
-                    }
-            }
-        }
-        return e;
-    }
-
-    /************************************
-     * Get index of field.
-     * Returns -1 if not found.
-     */
-    extern (D) int getFieldIndex(Type type, uint offset)
-    {
-        /* Find which field offset is by looking at the field offsets
-         */
-        if (elements.length)
-        {
-            const sz = type.size();
-            if (sz == SIZE_INVALID)
-                return -1;
-            foreach (i, v; sd.fields)
-            {
-                if (offset == v.offset && sz == v.type.size())
-                {
-                    /* context fields might not be filled. */
-                    if (i >= sd.nonHiddenFields())
-                        return cast(int)i;
-                    if (auto e = (*elements)[i])
-                    {
-                        return cast(int)i;
-                    }
-                    break;
-                }
-            }
-        }
-        return -1;
     }
 
     override void accept(Visitor v)
@@ -2339,12 +1551,6 @@ extern (C++) final class TypeExp : Expression
         return new TypeExp(loc, type.syntaxCopy());
     }
 
-    override bool checkType()
-    {
-        error(loc, "type `%s` is not an expression", toChars());
-        return true;
-    }
-
     override void accept(Visitor v)
     {
         v.visit(this);
@@ -2377,27 +1583,6 @@ extern (C++) final class ScopeExp : Expression
         return new ScopeExp(loc, sds.syntaxCopy(null));
     }
 
-    override bool checkType()
-    {
-        if (sds.isPackage())
-        {
-            error(loc, "%s `%s` has no type", sds.kind(), sds.toChars());
-            return true;
-        }
-        if (auto ti = sds.isTemplateInstance())
-        {
-            //assert(ti.needsTypeInference(sc));
-            if (ti.tempdecl &&
-                ti.semantictiargsdone &&
-                ti.semanticRun == PASS.initial)
-            {
-                error(loc, "partial %s `%s` has no type", sds.kind(), toChars());
-                return true;
-            }
-        }
-        return false;
-    }
-
     override void accept(Visitor v)
     {
         v.visit(this);
@@ -2420,17 +1605,6 @@ extern (C++) final class TemplateExp : Expression
         this.fd = fd;
     }
 
-    override bool isLvalue()
-    {
-        return fd !is null;
-    }
-
-    override bool checkType()
-    {
-        error(loc, "%s `%s` has no type", td.kind(), toChars());
-        return true;
-    }
-
     override void accept(Visitor v)
     {
         v.visit(this);
@@ -2445,7 +1619,7 @@ extern (C++) final class NewExp : Expression
     Expression thisexp;         // if !=null, 'this' for class being allocated
     Type newtype;
     Expressions* arguments;     // Array of Expression's
-    Identifiers* names;         // Array of names corresponding to expressions
+    ArgumentLabels* names;         // Array of names(name and location of name) corresponding to expressions
     Expression placement;       // if !=null, then PlacementExpression
 
     Expression argprefix;       // expression to be evaluated just before arguments[]
@@ -2457,9 +1631,10 @@ extern (C++) final class NewExp : Expression
 
     /// Puts the `arguments` and `names` into an `ArgumentList` for easily passing them around.
     /// The fields are still separate for backwards compatibility
+
     extern (D) ArgumentList argumentList() { return ArgumentList(arguments, names); }
 
-    extern (D) this(Loc loc, Expression placement, Expression thisexp, Type newtype, Expressions* arguments, Identifiers* names = null) @safe
+    extern (D) this(Loc loc, Expression placement, Expression thisexp, Type newtype, Expressions* arguments, ArgumentLabels* names = null) @safe
     {
         super(loc, EXP.new_);
         this.placement = placement;
@@ -2555,23 +1730,11 @@ extern (C++) final class SymOffExp : SymbolExp
     {
         if (auto v = var.isVarDeclaration())
         {
-            // FIXME: This error report will never be handled anyone.
-            // It should be done before the SymOffExp construction.
-            if (v.needThis())
-            {
-                auto t = v.isThis();
-                assert(t);
-                .error(loc, "taking the address of non-static variable `%s` requires an instance of `%s`", v.toChars(), t.toChars());
-            }
+            assert(!v.needThis()); // make sure the error message is no longer necessary
             hasOverloads = false;
         }
         super(loc, EXP.symbolOffset, var, hasOverloads);
         this.offset = offset;
-    }
-
-    override Optional!bool toBool()
-    {
-        return typeof(return)(true);
     }
 
     override void accept(Visitor v)
@@ -2602,27 +1765,6 @@ extern (C++) final class VarExp : SymbolExp
         return new VarExp(loc, var, hasOverloads);
     }
 
-    override bool equals(const RootObject o) const
-    {
-        if (this == o)
-            return true;
-        if (auto ne = o.isExpression().isVarExp())
-        {
-            if (type.toHeadMutable().equals(ne.type.toHeadMutable()) && var == ne.var)
-            {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    override bool isLvalue()
-    {
-        if (rvalue || var.storage_class & (STC.lazy_ | STC.rvalue | STC.manifest))
-            return false;
-        return true;
-    }
-
     override void accept(Visitor v)
     {
         v.visit(this);
@@ -2642,11 +1784,6 @@ extern (C++) final class OverExp : Expression
         //printf("OverExp(this = %p, '%s')\n", this, var.toChars());
         vars = s;
         type = Type.tvoid;
-    }
-
-    override bool isLvalue()
-    {
-        return true;
     }
 
     override void accept(Visitor v)
@@ -2680,20 +1817,6 @@ extern (C++) final class FuncExp : Expression
         assert(fd.fbody);
     }
 
-    override bool equals(const RootObject o) const
-    {
-        if (this == o)
-            return true;
-        auto e = o.isExpression();
-        if (!e)
-            return false;
-        if (auto fe = e.isFuncExp())
-        {
-            return fd == fe.fd;
-        }
-        return false;
-    }
-
     override FuncExp syntaxCopy()
     {
         if (td)
@@ -2703,16 +1826,6 @@ extern (C++) final class FuncExp : Expression
         // https://issues.dlang.org/show_bug.cgi?id=13481
         // Prevent multiple semantic analysis of lambda body.
         return new FuncExp(loc, fd);
-    }
-
-    override bool checkType()
-    {
-        if (td)
-        {
-            error(loc, "template lambda has no type");
-            return true;
-        }
-        return false;
     }
 
     override void accept(Visitor v)
@@ -2964,11 +2077,6 @@ extern (C++) class BinAssignExp : BinExp
         super(loc, op, e1, e2);
     }
 
-    override final bool isLvalue()
-    {
-        return !rvalue;
-    }
-
     override void accept(Visitor v)
     {
         v.visit(this);
@@ -2993,28 +2101,6 @@ extern (C++) final class MixinExp : Expression
     override MixinExp syntaxCopy()
     {
         return new MixinExp(loc, arraySyntaxCopy(exps));
-    }
-
-    override bool equals(const RootObject o) const
-    {
-        if (this == o)
-            return true;
-        auto e = o.isExpression();
-        if (!e)
-            return false;
-        if (auto ce = e.isMixinExp())
-        {
-            if (exps.length != ce.exps.length)
-                return false;
-            foreach (i, e1; *exps)
-            {
-                auto e2 = (*ce.exps)[i];
-                if (e1 != e2 && (!e1 || !e2 || !e1.equals(e2)))
-                    return false;
-            }
-            return true;
-        }
-        return false;
     }
 
     override void accept(Visitor v)
@@ -3051,6 +2137,7 @@ extern (C++) final class ImportExp : UnaExp
 extern (C++) final class AssertExp : UnaExp
 {
     Expression msg;
+    Expression loweredFrom;
 
     extern (D) this(Loc loc, Expression e, Expression msg = null) @safe
     {
@@ -3132,12 +2219,6 @@ extern (C++) final class DotTemplateExp : UnaExp
         this.td = td;
     }
 
-    override bool checkType()
-    {
-        error(loc, "%s `%s` has no type", td.kind(), toChars());
-        return true;
-    }
-
     override void accept(Visitor v)
     {
         v.visit(this);
@@ -3162,16 +2243,6 @@ extern (C++) final class DotVarExp : UnaExp
         this.hasOverloads = hasOverloads;
     }
 
-    override bool isLvalue()
-    {
-        if (rvalue)
-            return false;
-        if (e1.op != EXP.structLiteral)
-            return true;
-        auto vd = var.isVarDeclaration();
-        return !(vd && vd.isField());
-    }
-
     override void accept(Visitor v)
     {
         v.visit(this);
@@ -3185,35 +2256,21 @@ extern (C++) final class DotTemplateInstanceExp : UnaExp
 {
     TemplateInstance ti;
 
-    extern (D) this(Loc loc, Expression e, Identifier name, Objects* tiargs)
-    {
-        super(loc, EXP.dotTemplateInstance, e);
-        //printf("DotTemplateInstanceExp()\n");
-        this.ti = new TemplateInstance(loc, name, tiargs);
-    }
-
     extern (D) this(Loc loc, Expression e, TemplateInstance ti) @safe
     {
         super(loc, EXP.dotTemplateInstance, e);
         this.ti = ti;
     }
 
+    extern (D) this(Loc loc, Expression e, Identifier name, Objects* tiargs)
+    {
+        //printf("DotTemplateInstanceExp()\n");
+        this(loc, e, new TemplateInstance(loc, name, tiargs));
+    }
+
     override DotTemplateInstanceExp syntaxCopy()
     {
         return new DotTemplateInstanceExp(loc, e1.syntaxCopy(), ti.name, TemplateInstance.arraySyntaxCopy(ti.tiargs));
-    }
-
-    override bool checkType()
-    {
-        // Same logic as ScopeExp.checkType()
-        if (ti.tempdecl &&
-            ti.semantictiargsdone &&
-            ti.semanticRun == PASS.initial)
-        {
-            error(loc, "partial %s `%s` has no type", ti.kind(), toChars());
-            return true;
-        }
-        return false;
     }
 
     override void accept(Visitor v)
@@ -3271,41 +2328,50 @@ extern (C++) final class DotTypeExp : UnaExp
 struct ArgumentList
 {
     Expressions* arguments; // function arguments
-    Identifiers* names;     // named argument identifiers
+    ArgumentLabels* names;  // named argument labels
 
     size_t length() const @nogc nothrow pure @safe { return arguments ? arguments.length : 0; }
 
     /// Returns: whether this argument list contains any named arguments
-    bool hasNames() const @nogc nothrow pure @safe
+    bool hasArgNames() const @nogc nothrow pure @safe
     {
         if (names is null)
             return false;
-        foreach (name; *names)
-            if (name !is null)
+        foreach (argLabel; *names)
+            if (argLabel.name !is null)
                 return true;
 
         return false;
     }
 }
 
+// Contains both `name` and `location of the name` for an expression.
+struct ArgumentLabel
+{
+    Identifier name;    // name of the argument
+    Loc loc;            // location of the name
+ }
+
 /***********************************************************
  */
 extern (C++) final class CallExp : UnaExp
 {
     Expressions* arguments; // function arguments
-    Identifiers* names;     // named argument identifiers
+    ArgumentLabels *names;  // named argument labels
     FuncDeclaration f;      // symbol to call
     bool directcall;        // true if a virtual call is devirtualized
     bool inDebugStatement;  /// true if this was in a debug statement
     bool ignoreAttributes;  /// don't enforce attributes (e.g. call @gc function in @nogc code)
     bool isUfcsRewrite;     /// the first argument was pushed in here by a UFCS rewrite
+    bool fromOpAssignment;  // set when operator overload method call from assignment (2024 edition)
     VarDeclaration vthis2;  // container for multi-context
+    Expression loweredFrom; // set if this is the result of a lowering
 
     /// Puts the `arguments` and `names` into an `ArgumentList` for easily passing them around.
     /// The fields are still separate for backwards compatibility
     extern (D) ArgumentList argumentList() { return ArgumentList(arguments, names); }
 
-    extern (D) this(Loc loc, Expression e, Expressions* exps, Identifiers* names = null) @safe
+    extern (D) this(Loc loc, Expression e, Expressions* exps, ArgumentLabels *names = null) @safe
     {
         super(loc, EXP.call, e);
         this.arguments = exps;
@@ -3379,47 +2445,10 @@ extern (C++) final class CallExp : UnaExp
         return new CallExp(loc, e1.syntaxCopy(), arraySyntaxCopy(arguments), names ? names.copy() : null);
     }
 
-    override bool isLvalue()
-    {
-        if (rvalue)
-            return false;
-        Type tb = e1.type.toBasetype();
-        if (tb.ty == Tdelegate || tb.ty == Tpointer)
-            tb = tb.nextOf();
-        auto tf = tb.isTypeFunction();
-        if (tf && tf.isRef)
-        {
-            if (auto dve = e1.isDotVarExp())
-                if (dve.var.isCtorDeclaration())
-                    return false;
-            return true; // function returns a reference
-        }
-        return false;
-    }
-
     override void accept(Visitor v)
     {
         v.visit(this);
     }
-}
-
-/**
- * Get the called function type from a call expression
- * Params:
- *   ce = function call expression. Must have had semantic analysis done.
- * Returns: called function type, or `null` if error / no semantic analysis done
- */
-TypeFunction calledFunctionType(CallExp ce)
-{
-    Type t = ce.e1.type;
-    if (!t)
-        return null;
-    t = t.toBasetype();
-    if (auto tf = t.isTypeFunction())
-        return tf;
-    if (auto td = t.isTypeDelegate())
-        return td.nextOf().isTypeFunction();
-    return null;
 }
 
 FuncDeclaration isFuncAddress(Expression e, bool* hasOverloads = null) @safe
@@ -3498,11 +2527,6 @@ extern (C++) final class PtrExp : UnaExp
         type = t;
     }
 
-    override bool isLvalue()
-    {
-        return !rvalue;
-    }
-
     override void accept(Visitor v)
     {
         v.visit(this);
@@ -3562,6 +2586,8 @@ extern (C++) final class ComExp : UnaExp
  */
 extern (C++) final class NotExp : UnaExp
 {
+    Expression loweredFrom; // for lowering of `aa1 != aa2` to `!_d_aaEqual(aa1, aa2)`
+
     extern (D) this(Loc loc, Expression e) @safe
     {
         super(loc, EXP.not, e);
@@ -3606,6 +2632,7 @@ extern (C++) final class CastExp : UnaExp
     Type to;                    // type to cast to
     ubyte mod = cast(ubyte)~0;  // MODxxxxx
     bool trusted; // assume cast is safe
+    Expression lowering;
 
     extern (D) this(Loc loc, Expression e, Type t) @safe
     {
@@ -3624,16 +2651,6 @@ extern (C++) final class CastExp : UnaExp
     override CastExp syntaxCopy()
     {
         return to ? new CastExp(loc, e1.syntaxCopy(), to.syntaxCopy()) : new CastExp(loc, e1.syntaxCopy(), mod);
-    }
-
-    override bool isLvalue()
-    {
-        //printf("e1.type = %s, to.type = %s\n", e1.type.toChars(), to.toChars());
-        if (rvalue || !e1.isLvalue())
-            return false;
-        return (to.ty == Tsarray && (e1.type.ty == Tvector || e1.type.ty == Tsarray)) ||
-            (to.ty == Taarray && e1.type.ty == Taarray) ||
-            e1.type.mutableOf.unSharedOf().equals(to.mutableOf().unSharedOf());
     }
 
     override void accept(Visitor v)
@@ -3685,11 +2702,6 @@ extern (C++) final class VectorArrayExp : UnaExp
         super(loc, EXP.vectorArray, e1);
     }
 
-    override bool isLvalue()
-    {
-        return !rvalue && e1.isLvalue();
-    }
-
     override void accept(Visitor v)
     {
         v.visit(this);
@@ -3739,19 +2751,6 @@ extern (C++) final class SliceExp : UnaExp
         return se;
     }
 
-    override bool isLvalue()
-    {
-        /* slice expression is rvalue in default, but
-         * conversion to reference of static array is only allowed.
-         */
-        return !rvalue && (type && type.toBasetype().ty == Tsarray);
-    }
-
-    override Optional!bool toBool()
-    {
-        return e1.toBool();
-    }
-
     override void accept(Visitor v)
     {
         v.visit(this);
@@ -3785,6 +2784,7 @@ extern (C++) final class ArrayExp : UnaExp
 
     size_t currentDimension;    // for opDollar
     VarDeclaration lengthVar;
+    bool modifiable = false;    // is this expected to be an lvalue in an AssignExp? propagate to IndexExp
 
     extern (D) this(Loc loc, Expression e1, Expression index = null)
     {
@@ -3805,15 +2805,6 @@ extern (C++) final class ArrayExp : UnaExp
         auto ae = new ArrayExp(loc, e1.syntaxCopy(), arraySyntaxCopy(arguments));
         ae.lengthVar = this.lengthVar; // bug7871
         return ae;
-    }
-
-    override bool isLvalue()
-    {
-        if (rvalue)
-            return false;
-        if (type && type.toBasetype().ty == Tvoid)
-            return false;
-        return true;
     }
 
     override void accept(Visitor v)
@@ -3851,6 +2842,9 @@ extern (C++) final class CommaExp : BinExp
     /// false will be passed will be from the parser.
     bool allowCommaExp;
 
+    /// The original expression before any rewriting occurs.
+    /// This is used in error messages.
+    Expression originalExp;
 
     extern (D) this(Loc loc, Expression e1, Expression e2, bool generated = true) @safe
     {
@@ -3858,14 +2852,10 @@ extern (C++) final class CommaExp : BinExp
         allowCommaExp = isGenerated = generated;
     }
 
-    override bool isLvalue()
+    extern (D) this(Loc loc, Expression e1, Expression e2, Expression oe) @safe
     {
-        return !rvalue && e2.isLvalue();
-    }
-
-    override Optional!bool toBool()
-    {
-        return e2.toBool();
+        this(loc, e1, e2);
+        originalExp = oe;
     }
 
     override void accept(Visitor v)
@@ -3933,11 +2923,6 @@ extern (C++) final class DelegatePtrExp : UnaExp
         super(loc, EXP.delegatePointer, e1);
     }
 
-    override bool isLvalue()
-    {
-        return !rvalue && e1.isLvalue();
-    }
-
     override void accept(Visitor v)
     {
         v.visit(this);
@@ -3956,11 +2941,6 @@ extern (C++) final class DelegateFuncptrExp : UnaExp
         super(loc, EXP.delegateFunctionPointer, e1);
     }
 
-    override bool isLvalue()
-    {
-        return !rvalue && e1.isLvalue();
-    }
-
     override void accept(Visitor v)
     {
         v.visit(this);
@@ -3973,6 +2953,7 @@ extern (C++) final class DelegateFuncptrExp : UnaExp
 extern (C++) final class IndexExp : BinExp
 {
     VarDeclaration lengthVar;
+    Expression loweredFrom;     // for associative array lowering to _d_aaGetY or _d_aaGetRvalueX
     bool modifiable = false;    // assume it is an rvalue
     bool indexIsInBounds;       // true if 0 <= e2 && e2 <= e1.length - 1
 
@@ -3994,42 +2975,6 @@ extern (C++) final class IndexExp : BinExp
         auto ie = new IndexExp(loc, e1.syntaxCopy(), e2.syntaxCopy());
         ie.lengthVar = this.lengthVar; // bug7871
         return ie;
-    }
-
-    override bool isLvalue()
-    {
-        if (rvalue)
-            return false;
-        auto t1b = e1.type.toBasetype();
-        if (t1b.isTypeAArray() || t1b.isTypeSArray() ||
-            (e1.isIndexExp() && t1b != t1b.isTypeDArray()))
-        {
-            return e1.isLvalue();
-        }
-        return true;
-    }
-
-    extern (D) Expression markSettingAAElem()
-    {
-        if (e1.type.toBasetype().ty == Taarray)
-        {
-            Type t2b = e2.type.toBasetype();
-            if (t2b.ty == Tarray && t2b.nextOf().isMutable())
-            {
-                error(loc, "associative arrays can only be assigned values with immutable keys, not `%s`", e2.type.toChars());
-                return ErrorExp.get();
-            }
-            modifiable = true;
-
-            if (auto ie = e1.isIndexExp())
-            {
-                Expression ex = ie.markSettingAAElem();
-                if (ex.op == EXP.error)
-                    return ex;
-                assert(ex == e1);
-            }
-        }
-        return this;
     }
 
     override void accept(Visitor v)
@@ -4100,17 +3045,6 @@ extern (C++) class AssignExp : BinExp
         super(loc, tok, e1, e2);
     }
 
-    override final bool isLvalue()
-    {
-        // Array-op 'x[] = y[]' should make an rvalue.
-        // Setting array length 'x.length = v' should make an rvalue.
-        if (e1.op == EXP.slice || e1.op == EXP.arrayLength)
-        {
-            return false;
-        }
-        return !rvalue;
-    }
-
     override void accept(Visitor v)
     {
         v.visit(this);
@@ -4143,6 +3077,8 @@ extern (C++) final class LoweredAssignExp : AssignExp
  */
 extern (C++) final class ConstructExp : AssignExp
 {
+    Expression lowering;
+
     extern (D) this(Loc loc, Expression e1, Expression e2) @safe
     {
         super(loc, EXP.construct, e1, e2);
@@ -4762,7 +3698,6 @@ extern (C++) final class RemoveExp : BinExp
     extern (D) this(Loc loc, Expression e1, Expression e2)
     {
         super(loc, EXP.remove, e1, e2);
-        type = Type.tbool;
     }
 
     override void accept(Visitor v)
@@ -4780,6 +3715,7 @@ extern (C++) final class RemoveExp : BinExp
  */
 extern (C++) final class EqualExp : BinExp
 {
+    Expression lowering;
     extern (D) this(EXP op, Loc loc, Expression e1, Expression e2) @safe
     {
         super(loc, op, e1, e2);
@@ -4831,11 +3767,6 @@ extern (C++) final class CondExp : BinExp
     override CondExp syntaxCopy()
     {
         return new CondExp(loc, econd.syntaxCopy(), e1.syntaxCopy(), e2.syntaxCopy());
-    }
-
-    override bool isLvalue()
-    {
-        return !rvalue && e1.isLvalue() && e2.isLvalue();
     }
 
     override void accept(Visitor v)
@@ -4976,27 +3907,6 @@ extern (C++) final class ClassReferenceExp : Expression
     ClassDeclaration originalClass()
     {
         return value.sd.isClassDeclaration();
-    }
-
-    // Return index of the field, or -1 if not found
-    int getFieldIndex(Type fieldtype, uint fieldoffset)
-    {
-        ClassDeclaration cd = originalClass();
-        uint fieldsSoFar = 0;
-        for (size_t j = 0; j < value.elements.length; j++)
-        {
-            while (j - fieldsSoFar >= cd.fields.length)
-            {
-                fieldsSoFar += cd.fields.length;
-                cd = cd.baseClass;
-            }
-            VarDeclaration v2 = cd.fields[j - fieldsSoFar];
-            if (fieldoffset == v2.offset && fieldtype.size() == v2.type.size())
-            {
-                return cast(int)(value.elements.length - fieldsSoFar - cd.fields.length + (j - fieldsSoFar));
-            }
-        }
-        return -1;
     }
 
     // Return index of the field, or -1 if not found

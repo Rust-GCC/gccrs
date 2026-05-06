@@ -7,7 +7,7 @@
 /* { dg-require-alias "" } */
 /* { dg-options "-fno-common" } */
 
-/* { dg-final { scan-assembler "weak\[^ \t\]*\[ \t\]_?bar1" } } */
+/* { dg-final { scan-weak "bar1" } } */
 
 #pragma weak bar1 = foo1
 void foo1 (void) {}

@@ -43,4 +43,4 @@ int main()
   return 0;
 }
 
-/* { dg-final { scan-tree-dump "LOOP VECTORIZED" "vect" { target avx2 } } } */
+/* { dg-final { scan-tree-dump "LOOP VECTORIZED" "vect" { target avx2_runtime } } } */

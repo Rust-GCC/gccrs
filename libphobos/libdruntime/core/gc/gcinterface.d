@@ -13,6 +13,8 @@
  */
 module core.gc.gcinterface;
 
+import core.thread.threadbase : ThreadBase;
+
 static import core.memory;
 alias BlkAttr = core.memory.GC.BlkAttr;
 alias BlkInfo = core.memory.GC.BlkInfo;
@@ -270,4 +272,30 @@ interface GC
      * Returns: true if successful.
      */
     bool shrinkArrayUsed(void[] slice, size_t existingUsed, bool atomic = false) nothrow;
+
+    /**
+     * Prepare a thread for use with the GC after the GC is initialized. Note
+     * that you can register an initThread function to call before the GC is
+     * initialized, see core.gc.registry.
+     *
+     * This function is always called *from* the thread as it is being started,
+     * before any static initializers. The thread object parameter may not yet
+     * be registered as `ThreadBase.getThis()`, as this is called before that
+     * happens.
+     */
+    void initThread(ThreadBase thread) nothrow @nogc;
+
+    /**
+     * Clean up any GC related data from the thread before it exits. There is
+     * no equivalent of this function as a hook before the GC is initialized.
+     * That is, the thread init function called before the GC is initialized
+     * (from the registry hook) should assume this function may not be called
+     * on termination if the GC is never initialized.
+     *
+     * This function is only called from a thread that was started from the D
+     * runtime, and is terminating. The GC can assume the thread is still in
+     * the list of running threads and can be paused for a GC cycle. This is
+     * not called for the main thread which initialized the GC.
+     */
+    void cleanupThread(ThreadBase thread) nothrow @nogc;
 }

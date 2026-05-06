@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2026, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -28,7 +28,6 @@ with Aspects;        use Aspects;
 with Atree;          use Atree;
 with Checks;         use Checks;
 with Contracts;      use Contracts;
-with Einfo;          use Einfo;
 with Einfo.Entities; use Einfo.Entities;
 with Einfo.Utils;    use Einfo.Utils;
 with Errout;         use Errout;
@@ -70,7 +69,6 @@ with Sem_SCIL;       use Sem_SCIL;
 with Sem_Type;       use Sem_Type;
 with Sem_Util;       use Sem_Util;
 with Sem_Warn;       use Sem_Warn;
-with Sinfo;          use Sinfo;
 with Sinfo.Nodes;    use Sinfo.Nodes;
 with Sinfo.Utils;    use Sinfo.Utils;
 with Stand;          use Stand;
@@ -95,6 +93,10 @@ package body Exp_Ch3 is
    --  Build initialization procedure for given array type. Nod is a node
    --  used for attachment of any actions required in its construction.
    --  It also supplies the source location used for the procedure.
+
+   procedure Build_Implicit_Copy_Constructor (N : Node_Id; Typ : Entity_Id);
+   --  Build default copy constructor. N is the type declaration node, and Typ
+   --  is the corresponding entity for the record type.
 
    function Build_Discriminant_Formals
      (Rec_Id : Entity_Id;
@@ -381,6 +383,10 @@ package body Exp_Ch3 is
    function Predefined_Primitive_Freeze (Tag_Typ : Entity_Id) return List_Id;
    --  Freeze entities of all predefined primitive operations. This is needed
    --  because the bodies of these operations do not normally do any freezing.
+
+   function Constructor_Freeze (Typ : Entity_Id) return List_Id;
+   --  Freeze all constructors of the type Tag_Typ. Otherwise, constructors
+   --  would not be available at freeze point.
 
    --------------------------
    -- Adjust_Discriminants --
@@ -1387,6 +1393,19 @@ package body Exp_Ch3 is
          --  is imported or not.
 
          if not Restriction_Active (No_Default_Initialization) then
+            --  If the type requires construction and the object being
+            --  initialized is an allocator that comes from source, then use
+            --  the parameterless constructor.
+
+            if Nkind (N) = N_Allocator
+              and then Comes_From_Source (N)
+              and then Needs_Construction (Typ)
+            then
+               return
+                 Make_Attribute_Reference (Loc,
+                   Prefix         => New_Occurrence_Of (Typ, Loc),
+                   Attribute_Name => Name_Make);
+            end if;
 
             --  If the values of the components are compile-time known, use
             --  their prebuilt aggregate form directly.
@@ -1751,6 +1770,217 @@ package body Exp_Ch3 is
          Copy_Discr_Checking_Funcs (N);
       end if;
    end Build_Or_Copy_Discr_Checking_Funcs;
+
+   -------------------------------------
+   -- Build_Implicit_Copy_Constructor --
+   -------------------------------------
+
+   procedure Build_Implicit_Copy_Constructor (N : Node_Id; Typ : Entity_Id) is
+      Loc     : constant Source_Ptr := Sloc (Typ);
+      Copy_Id : Entity_Id;
+
+      Comp_List, Comp_Decl : Node_Id;
+      Comp_Id, Comp_Typ    : Entity_Id;
+
+      Body_Stmts, Parameters, Aspect_Specs : List_Id;
+      Spec_Node, Stmt                      : Node_Id;
+      Self, From                           : Entity_Id;
+   begin
+      --  Only build copy constructor for user-defined non-limited tagged
+      --  record types that needs construction without having declared a copy
+      --  constructor already, or without having it explicitly removed. This
+      --  implicit copy needs to call first the parent's copy constructor (if
+      --  derived), second to copy field-by-field the components, and third to
+      --  call their respective copy constructors if necessary.
+
+      if not Comes_From_Source (N)
+        or else Is_Limited_Type (Typ)
+        or else not Is_Tagged_Type (Typ)
+        or else not Needs_Construction (Typ)
+        or else Has_Copy_Constructor (Typ, Allow_Removed => True)
+      then
+         return;
+      end if;
+
+      if Is_Derived_Type (Typ) then
+         Comp_List :=
+           Component_List (Record_Extension_Part (Type_Definition (N)));
+      else
+         Comp_List := Component_List (Type_Definition (N));
+      end if;
+
+      --  Here, there is still a possibility that an implicit copy constructor
+      --  is actually not needed.
+
+      declare
+         Found : Boolean := False;
+      begin
+         if Present (Comp_List) then
+            Comp_Decl := First_Non_Pragma (Component_Items (Comp_List));
+            while not Found and then Present (Comp_Decl) loop
+               Comp_Id := Defining_Identifier (Comp_Decl);
+               Comp_Typ := Etype (Comp_Id);
+               if Has_Copy_Constructor (Comp_Typ) then
+                  Found := True;
+               end if;
+               Next_Non_Pragma (Comp_Decl);
+            end loop;
+         end if;
+
+         --  If Found is false, then there is no component in the current type
+         --  with a copy constructor. If also the type is either not derived or
+         --  its parent has no copy constructor, then there is no need for a
+         --  copy constructor for the current type as its behavior would be
+         --  identical to the byte-wise copy provided by assignment.
+
+         if not Found
+           and then (if Is_Derived_Type (Typ)
+                      then not Has_Copy_Constructor (Parent_Subtype (Typ)))
+         then
+            return;
+         end if;
+      end;
+
+      Copy_Id :=
+        Make_Defining_Identifier (Loc,
+          Direct_Attribute_Definition_Name (Typ, Name_Constructor));
+      Mutate_Ekind (Copy_Id, E_Procedure);
+
+      if not Debug_Generated_Code then
+         Set_Debug_Info_Off (Copy_Id);
+      end if;
+
+      --  The copy constructor has the following profile:
+      --    procedure T'Constructor (Self : in out T; From : T);
+
+      Self := Make_Defining_Identifier (Loc, Name_Self);
+      From := Make_Defining_Identifier (Loc, Name_From);
+
+      Parameters := New_List (
+        Make_Parameter_Specification (Loc,
+          Defining_Identifier => Self,
+          In_Present          => True,
+          Out_Present         => True,
+          Parameter_Type      => New_Occurrence_Of (Typ, Loc)),
+        Make_Parameter_Specification (Loc,
+          Defining_Identifier => From,
+          In_Present          => True,
+          Parameter_Type      => New_Occurrence_Of (Typ, Loc)));
+
+      --  The first thing to do in the implicit copy constructor is to copy
+      --  components field-by-field, the parent copy constructor call is
+      --  prepended later via the 'Super aspect.
+
+      Body_Stmts := New_List;
+      if Present (Comp_List) then
+         Comp_Decl := First_Non_Pragma (Component_Items (Comp_List));
+         while Present (Comp_Decl) loop
+            Comp_Id := Defining_Identifier (Comp_Decl);
+            Comp_Typ := Etype (Comp_Id);
+
+            if Chars (Comp_Id) not in Name_uParent | Name_uTag then
+               Stmt :=
+                 Make_Assignment_Statement (Loc,
+                   Name       =>
+                     Make_Selected_Component (Loc,
+                       Prefix        => New_Occurrence_Of (Self, Loc),
+                       Selector_Name => New_Occurrence_Of (Comp_Id, Loc)),
+                   Expression =>
+                     Make_Selected_Component (Loc,
+                       Prefix        => New_Occurrence_Of (From, Loc),
+                       Selector_Name => New_Occurrence_Of (Comp_Id, Loc)));
+               Set_Assignment_OK (Name (Stmt));
+               Set_No_Ctrl_Actions (Stmt);
+               Append_To (Body_Stmts, Stmt);
+            end if;
+
+            Next_Non_Pragma (Comp_Decl);
+         end loop;
+
+         --  Then, call the copy constructor for each component that needs
+         --  construction and has a copy constructor.
+
+         Comp_Decl := First_Non_Pragma (Component_Items (Comp_List));
+         while Present (Comp_Decl) loop
+            Comp_Id := Defining_Identifier (Comp_Decl);
+            Comp_Typ := Etype (Comp_Id);
+
+            --  For each component that has a copy constructor, generate:
+            --    Self.Comp_Id := Comp_Typ'Make (From.Comp_Id);
+
+            if Chars (Comp_Id) /= Name_uParent
+              and then Needs_Construction (Comp_Typ)
+              and then Has_Copy_Constructor (Comp_Typ)
+            then
+               Stmt :=
+                 Make_Assignment_Statement (Loc,
+                   Name       =>
+                     Make_Selected_Component (Loc,
+                       Prefix        => New_Occurrence_Of (Self, Loc),
+                       Selector_Name => New_Occurrence_Of (Comp_Id, Loc)),
+                   Expression =>
+                     Make_Attribute_Reference (Loc,
+                       Prefix         => New_Occurrence_Of (Comp_Typ, Loc),
+                       Attribute_Name => Name_Make,
+                       Expressions    => New_List (
+                         Make_Selected_Component (Loc,
+                           Prefix        => New_Occurrence_Of (From, Loc),
+                           Selector_Name =>
+                             New_Occurrence_Of (Comp_Id, Loc)))));
+               Set_Assignment_OK (Name (Stmt));
+               Append_To (Body_Stmts, Stmt);
+            end if;
+
+            --  Components that do not need construction or lack a copy
+            --  constructor are simply skipped since the expansion of a
+            --  constructor also takes care of default copies/initializations.
+
+            Next_Non_Pragma (Comp_Decl);
+         end loop;
+      end if;
+
+      --  Prepend the call to the parent's copy constructor if derived
+
+      if Is_Derived_Type (Typ)
+        and then Has_Copy_Constructor (Parent_Subtype (Typ))
+      then
+         Aspect_Specs := New_List
+           (Make_Aspect_Specification (Loc,
+              Identifier => Make_Identifier (Loc, Name_Super),
+              Expression =>
+                Make_Aggregate (Loc,
+                  Expressions => New_List (
+                    Make_Type_Conversion (Loc,
+                      Subtype_Mark =>
+                        New_Occurrence_Of (Parent_Subtype (Typ), Loc),
+                      Expression   => New_Occurrence_Of (From, Loc))),
+                  Is_Parenthesis_Aggregate => True,
+                  Is_Homogeneous_Aggregate => True)));
+      else
+         Aspect_Specs := No_List;
+      end if;
+
+      Spec_Node := New_Node (N_Procedure_Specification, Loc);
+      Set_Defining_Unit_Name (Spec_Node, Copy_Id);
+      Set_Parameter_Specifications (Spec_Node, Parameters);
+      Freeze_Extra_Formals (Copy_Id);
+
+      declare
+         Ignore : Node_Id;
+      begin
+         Ignore :=
+           Make_Subprogram_Body (Loc,
+             Specification => Spec_Node,
+             Aspect_Specifications => Aspect_Specs,
+             Handled_Statement_Sequence =>
+               Make_Handled_Sequence_Of_Statements (Loc, Body_Stmts));
+      end;
+
+      Set_Is_Public (Copy_Id, Is_Public (Typ));
+      Set_Is_Internal (Copy_Id);
+      Set_Is_Constructor (Copy_Id);
+      Set_Init_Proc (Typ, Copy_Id);
+   end Build_Implicit_Copy_Constructor;
 
    --------------------------------
    -- Build_Discriminant_Formals --
@@ -3185,40 +3415,6 @@ package body Exp_Ch3 is
          if Parent_Subtype_Renaming_Discrims then
             Append_List_To (Body_Stmts, Build_Init_Call_Thru (Parameters));
 
-         elsif Needs_Construction (Rec_Type) then
-            if Has_Default_Constructor (Rec_Type) then
-               --  The 'Make attribute reference (with no arguments) will
-               --  generate a call to the one-parameter constructor procedure.
-
-               Append_To (Body_Stmts,
-                 Make_Assignment_Statement (Loc,
-                   Name       => New_Occurrence_Of
-                     (Defining_Identifier (First (Parameters)), Loc),
-                   Expression => Make_Attribute_Reference (Loc,
-                     Prefix         => New_Occurrence_Of (Rec_Type, Loc),
-                     Attribute_Name => Name_Make)));
-            else
-               --  No constructor procedure with an appropriate profile
-               --  is available, so raise Program_Error.
-               --
-               --  We could instead do nothing here, since the absence of a
-               --  one-parameter constructor procedure should trigger other
-               --  legality checks which should statically ensure that
-               --  the init proc we are constructing here will never be
-               --  called. So a bit of "belt and suspenders" here.
-               --  If this raise statement is ever executed, that probably
-               --  means that some compile-time legality check is not
-               --  implemented, and that the program should have instead
-               --  failed to compile.
-               --  Because this raise statement should never be executed, it
-               --  seems ok to pass in a dubious Reason parameter instead of
-               --  declaring a new RT_Exception_Code value.
-
-               Append_To (Body_Stmts,
-                          Make_Raise_Program_Error (Loc,
-                            Reason => PE_Explicit_Raise));
-            end if;
-
          elsif Nkind (Type_Definition (N)) = N_Record_Definition then
             Build_Discriminant_Assignments (Body_Stmts);
 
@@ -3811,7 +4007,7 @@ package body Exp_Ch3 is
                --  attribute.
 
                elsif Needs_Construction (Typ)
-                 and then Has_Default_Constructor (Typ)
+                 and then Has_Parameterless_Constructor (Typ)
                then
                   Set_Expression (Decl,
                     Make_Attribute_Reference (Loc,
@@ -5180,7 +5376,7 @@ package body Exp_Ch3 is
 
          while Present (Comp) loop
             if Present (User_Defined_Eq (Etype (Comp)))
-              and then not Is_Record_Type (Etype (Comp))
+              and then not Is_Record_Type (Underlying_Type (Etype (Comp)))
               and then not Is_Intrinsic_Subprogram
                              (User_Defined_Eq (Etype (Comp)))
             then
@@ -5515,6 +5711,8 @@ package body Exp_Ch3 is
           (Component_Type (Typ));
 
    begin
+      --  First, the nonpacked case
+
       if not Is_Bit_Packed_Array (Typ) then
          if No (Init_Proc (Base)) then
 
@@ -5538,7 +5736,7 @@ package body Exp_Ch3 is
             --  and do not need initialization procedures.
 
             elsif Is_Standard_String_Type (Base)
-              and then No (Default_Aspect_Component_Value (Base))
+              and then not Has_Default_Aspect (Base)
             then
                null;
 
@@ -5559,18 +5757,20 @@ package body Exp_Ch3 is
             end if;
          end if;
 
-      --  For packed case, default initialization, except if the component type
-      --  is itself a packed structure with an initialization procedure, or
-      --  initialize/normalize scalars active, and we have a base type, or the
-      --  type is public, because in that case a client might specify
-      --  Normalize_Scalars and there better be a public Init_Proc for it.
+      --  For the packed case, no initialization, except if the component type
+      --  has an initialization procedure, or Initialize/Normalize_Scalars is
+      --  active, or there is a Default_Component_Value aspect, or the type is
+      --  public, because a client might specify Initialize_Scalars and there
+      --  better be a public Init_Proc for it.
 
-      elsif (Present (Init_Proc (Component_Type (Base)))
-              and then No (Base_Init_Proc (Base)))
-        or else (Init_Or_Norm_Scalars and then Base = Typ)
+      elsif Present (Init_Proc (Component_Type (Base)))
+        or else Init_Or_Norm_Scalars
+        or else Has_Default_Aspect (Base)
         or else Is_Public (Typ)
       then
-         Build_Array_Init_Proc (Base, N);
+         if No (Init_Proc (Base)) then
+            Build_Array_Init_Proc (Base, N);
+         end if;
       end if;
    end Expand_Freeze_Array_Type;
 
@@ -6182,9 +6382,7 @@ package body Exp_Ch3 is
 
                else
                   pragma Assert
-                    (Extra_Formals_Match_OK
-                      (E     => Subp,
-                       Ref_E => Ovr_Subp));
+                    (Extra_Formals_Match_OK (E => Subp, Ref_E => Ovr_Subp));
                end if;
             end if;
 
@@ -6474,6 +6672,10 @@ package body Exp_Ch3 is
          Build_Untagged_Record_Equality (Typ);
       end if;
 
+      --  Freeze constructors as predefined operations
+
+      Append_Freeze_Actions (Typ, Constructor_Freeze (Typ));
+
       --  Before building the record initialization procedure, if we are
       --  dealing with a concurrent record value type, then we must go through
       --  the discriminants, exchanging discriminals between the concurrent
@@ -6518,6 +6720,7 @@ package body Exp_Ch3 is
         and then (Tagged_Type_Expansion or else not Is_Interface (Typ))
       then
          Build_Record_Init_Proc (Typ_Decl, Typ);
+         Build_Implicit_Copy_Constructor (Typ_Decl, Typ);
       end if;
 
       --  Create the body of TSS primitive Finalize_Address. This must be done
@@ -7589,7 +7792,7 @@ package body Exp_Ch3 is
       if No (Expr)
         and then Constant_Present (N)
         and then (not Needs_Construction (Typ)
-                   or else not Has_Default_Constructor (Typ))
+                   or else not Has_Parameterless_Constructor (Typ))
       then
          return;
       end if;
@@ -7615,17 +7818,39 @@ package body Exp_Ch3 is
          return;
       end if;
 
-      --  Expand objects with default constructors to have the 'Make
-      --  attribute.
+      --  Expand objects to use constructors if needed
 
       if Comes_From_Source (N)
-        and then No (Expr)
         and then Needs_Construction (Typ)
-        and then Has_Default_Constructor (Typ)
+
+      --  Don't expand copy constructor for objects initialized with aggregates
+
+        and then (if Present (Expr)
+                   then Nkind (Expr) not in N_Aggregate
+                                          | N_Delta_Aggregate
+                                          | N_Extension_Aggregate)
+
+      --  Don't expand copy constructor if a constructor was explicitly called
+
+        and then (if Present (Expr)
+                   then (Nkind (Original_Node (Expr)) /= N_Attribute_Reference
+                          or else Attribute_Name (Original_Node (Expr))
+                                    /= Name_Make))
       then
-         Expr := Make_Attribute_Reference (Loc,
-                   Attribute_Name => Name_Make,
-                   Prefix         => Object_Definition (N));
+         if No (Expr) then
+            Expr :=
+              Make_Attribute_Reference
+                (Loc,
+                 Attribute_Name => Name_Make,
+                 Prefix         => New_Occurrence_Of (Typ, Loc));
+         else
+            Expr :=
+              Make_Attribute_Reference
+                (Loc,
+                 Attribute_Name => Name_Make,
+                 Prefix         => New_Occurrence_Of (Typ, Loc),
+                 Expressions    => New_List (Expr));
+         end if;
          Set_Expression (N, Expr);
          Analyze_And_Resolve (Expr);
       end if;
@@ -7800,10 +8025,6 @@ package body Exp_Ch3 is
       --  Explicit initialization present
 
       else
-         --  Obtain actual expression from qualified expression
-
-         Expr_Q := Unqualify (Expr);
-
          --  When we have the appropriate kind of aggregate in the expression
          --  (this has been determined during analysis of the aggregate by
          --  setting the Expansion_Delayed flag), let's perform in place
@@ -8273,6 +8494,7 @@ package body Exp_Ch3 is
             elsif Is_CPP_Constructor_Call (Expr) then
                declare
                   Id_Ref : constant Node_Id := New_Occurrence_Of (Def_Id, Loc);
+                  Marker : constant Node_Id := Next (N);
 
                begin
                   --  The call to the initialization procedure does NOT freeze
@@ -8280,16 +8502,6 @@ package body Exp_Ch3 is
 
                   Set_Must_Not_Freeze (Id_Ref);
                   Set_Assignment_OK (Id_Ref);
-
-                  --  Avoid separating an object declaration from
-                  --  its representation clauses.
-
-                  while Present (Next (Init_After))
-                    and then Nkind (Next (Init_After)) in
-                               N_Attribute_Definition_Clause
-                  loop
-                     Init_After := Next (Init_After);
-                  end loop;
 
                   Insert_Actions_After (Init_After,
                     Build_Initialization_Call (N, Id_Ref, Typ,
@@ -8299,6 +8511,22 @@ package body Exp_Ch3 is
                   --  to avoid its management in the backend
 
                   Set_Expression (N, Empty);
+
+                  --  Place the call to the constructor into a compound
+                  --  statement attached to the object through attribute
+                  --  Initialization_Statements; the compound statement will
+                  --  be moved to the freezing actions of the object if the
+                  --  object has an address clause (see Analyze_Attribute_
+                  --  Definition_Clause, Attribute_Address).
+
+                  if Needs_Initialization_Statements (N)
+                    and then not (Scope_Is_Transient
+                                    and then N = Node_To_Be_Wrapped)
+                  then
+                     Set_No_Initialization (N);
+                     Move_To_Initialization_Statements (N, Marker);
+                  end if;
+
                   return;
                end;
 
@@ -12918,6 +13146,36 @@ package body Exp_Ch3 is
 
       return Res;
    end Predefined_Primitive_Freeze;
+
+   ------------------------
+   -- Constructor_Freeze --
+   ------------------------
+
+   function Constructor_Freeze (Typ : Entity_Id) return List_Id is
+      Res     : constant List_Id := New_List;
+      Cursor  : Entity_Id;
+      Frnodes : List_Id;
+
+   begin
+      if not Needs_Construction (Typ) then
+         return No_List;
+      end if;
+
+      Cursor :=
+        Get_Name_Entity_Id
+          (Direct_Attribute_Definition_Name (Typ, Name_Constructor));
+      while Present (Cursor) loop
+         Frnodes := Freeze_Entity (Cursor, Typ);
+
+         if Present (Frnodes) then
+            Append_List_To (Res, Frnodes);
+         end if;
+
+         Cursor := Homonym (Cursor);
+      end loop;
+
+      return Res;
+   end Constructor_Freeze;
 
    -------------------------
    -- Stream_Operation_OK --

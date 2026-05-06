@@ -1,6 +1,9 @@
 // P0847R7
 // { dg-do run { target c++23 } }
 
+// PR c++/124632
+// { dg-additional-options "-Wall --param ggc-min-expand=0 --param ggc-min-heapsize=0" }
+
 // recursive lambdas
 
 inline constexpr int correct_result = 5 + 4 + 3 + 2 + 1; 

@@ -151,7 +151,8 @@ typedef struct LOW_CTX_T LOW_CTX_T;
 /* Type of the lowerer routines defined in a68-low-prelude.cc.  */
 typedef tree (*LOWERER_T) (struct NODE_T *, struct LOW_CTX_T);
 
-#define NO_LOWERER a68_lower_unimplemented
+#define NO_LOWERER NULL
+#define LOWERER_UNIMPL a68_lower_unimplemented
 
 struct GTY((chain_next ("%h.more"), chain_prev ("%h.less"))) KEYWORD_T
 {
@@ -185,6 +186,9 @@ struct GTY((chain_next ("%h.more"), chain_prev ("%h.less"))) KEYWORD_T
    NODE is a parse tree node XXX.
 
    HAS_ROWS is true if the mode contains rows somewhere in its internal
+   structure.
+
+   HAS_REFS is true if the mode contains refs somewhere in its internal
    structure.
 
    The interpretation of SUB depends on the kind of mode:
@@ -244,7 +248,7 @@ struct GTY((chain_next ("%h.next"))) MOID_T
   int number;
   int attribute;
   int dim;
-  bool has_rows, use, portable, derivate;
+  bool has_rows, has_refs, use, portable, derivate;
   NODE_T *node;
   PACK_T *pack;
   MOID_T *sub, *equivalent_mode, *slice, *deflexed_mode, *name, *multiple_mode, *next, *rowed, *trim;
@@ -432,7 +436,9 @@ struct GTY(()) OPTIONS_T
    DEFINING_INDICANT nodes that appear in declarations marked with PUB.
 
    CDECL is a GCC GENERIC tree corresponding to a DECL_FIELD for FIELD
-   nodes.  */
+   nodes.
+
+   NEGATED is used to mark DENOTATION nodes as being negated.  */
 
 struct GTY((chain_next ("%h.next"), chain_prev ("%h.previous"))) NODE_T
 {
@@ -452,6 +458,7 @@ struct GTY((chain_next ("%h.next"), chain_prev ("%h.previous"))) NODE_T
   tree cdecl;
   bool dynamic_stack_allocs;
   bool publicized;
+  bool negated;
 };
 
 #define NO_NODE ((NODE_T *) 0)
@@ -593,6 +600,11 @@ struct GTY(()) TABLE_T
    are optimized in a similar way than variable declarations in order to avoid
    indirect addressing.
 
+   NEST_PROC is set when the defining identifier has been set in an
+   identity-declaration of a proc mode with a formal hole as actual parameter.
+   These declarations are optimized in a similar way than variable declarations
+   in order to avoid indirect addressing.
+
    YOUNGEST_ENVIRON is used when NODE is either a ROUTINE_TEXT or a
    FORMAT_TEXT, and contains the youngest (higher) lexical level of any object
    directly declared in the routine or format body.  This is filled in and used
@@ -617,7 +629,7 @@ struct GTY((chain_next ("%h.next"))) TAG_T
   MOID_T *type;
   NODE_T *node, *unit;
   const char *value;
-  bool scope_assigned, use, in_proc, loc_assigned, portable, variable;
+  bool scope_assigned, use, in_proc, nest_proc, loc_assigned, portable, variable;
   bool ascribed_routine_text, is_recursive, publicized;
   int priority, heap, scope, youngest_environ, number;
   STATUS_MASK_T status;
@@ -950,6 +962,7 @@ struct GTY(()) A68_T
 #define GREEN(p) ((p)->green)
 #define H(p) ((p)->h)
 #define HANDLE(p) ((p)->handle)
+#define HAS_REFS(p) ((p)->has_refs)
 #define HAS_ROWS(p) ((p)->has_rows)
 #define HEAP(p) ((p)->heap)
 #define ID(p) ((p)->id)
@@ -1009,6 +1022,7 @@ struct GTY(()) A68_T
 #define MULTIPLE_MODE(p) ((p)->multiple_mode)
 #define NAME(p) ((p)->name)
 #define NEST(p) ((p)->nest)
+#define NEST_PROC(p) ((p)->nest_proc)
 #define NEXT(p) ((p)->next)
 #define NEXT_NEXT(p) (NEXT (NEXT (p)))
 #define NEXT_NEXT_NEXT(p) (NEXT (NEXT_NEXT (p)))
@@ -1025,6 +1039,7 @@ struct GTY(()) A68_T
 #define NCOMMENT_CHAR_IN_LINE(p) (COMMENT_CHAR_IN_LINE (INFO (p)))
 #define NCOMMENT_LINE(p) (COMMENT_LINE (INFO (p)))
 #define NCOMMENT_TYPE(p) (COMMENT_TYPE (INFO (p)))
+#define NEGATED(p) ((p)->negated)
 #define NPRAGMAT(p) (PRAGMAT (INFO (p)))
 #define NPRAGMAT_CHAR_IN_LINE(p) (PRAGMAT_CHAR_IN_LINE (INFO (p)))
 #define NPRAGMAT_LINE(p) (PRAGMAT_LINE (INFO (p)))

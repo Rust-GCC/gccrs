@@ -1273,18 +1273,19 @@ int
 cgraph_edge::get_next_speculative_id ()
 {
   int max_id = -1;
-  cgraph_edge *e;
 
-  /* Iterate through all edges leaving this caller */
-  for (e = caller->callees; e; e = e->next_callee)
+  /* If this edge is not yet speculative, there are no existing speculative
+     edges for this call site, so return 0.  */
+  if (!speculative)
+    return 0;
+
+  /* Iterate only through speculative edges for this specific call site.  */
+  for (cgraph_edge *e = first_speculative_call_target ();
+       e;
+       e = e->next_speculative_call_target ())
     {
-      /* Match the specific GIMPLE statement and check the
-	 speculative flag */
-      if (e->call_stmt == call_stmt && e->speculative)
-	{
-	  if (e->speculative_id > max_id)
-	    max_id = e->speculative_id;
-	}
+      if (e->speculative_id > max_id)
+	max_id = e->speculative_id;
     }
 
   return max_id + 1;
@@ -2012,10 +2013,11 @@ cgraph_update_edges_for_call_stmt_node (cgraph_node *node,
 		{
 		  tree decl = gimple_call_fndecl (new_stmt);
 		  if (decl)
-		    e = cgraph_edge::resolve_speculation (e, decl);
+		    e = cgraph_edge::make_direct
+			    (e, cgraph_node::get_create (decl));
 		}
 	      else
-		e = cgraph_edge::resolve_speculation (e, NULL);
+		gcc_unreachable ();
 	    }
 	  /* Keep calls marked as dead dead.  */
 	  if (new_stmt && is_gimple_call (new_stmt) && e->callee
@@ -2842,6 +2844,7 @@ static bool
 cgraph_node_cannot_be_local_p_1 (cgraph_node *node, void *)
 {
   return !(!node->force_output
+	   && !node->ref_by_asm
 	   && !node->ifunc_resolver
 	   /* Limitation of gas requires us to output targets of symver aliases
 	      as global symbols.  This is binutils PR 25295.  */
@@ -3623,6 +3626,16 @@ cgraph_node::only_called_directly_p (void)
 				       NULL, true);
 }
 
+/* Returns TRUE iff THIS is a descendant of N in the clone tree.  */
+
+bool
+cgraph_node::is_clone_of (cgraph_node *n) const
+{
+  for (cgraph_node *walker = clone_of; walker; walker = walker->clone_of)
+    if (walker == n)
+      return true;
+  return false;
+}
 
 /* Collect all callers of NODE.  Worker for collect_callers_of_node.  */
 
@@ -4000,6 +4013,11 @@ cgraph_node::verify_node (void)
   if (inlined_to && force_output)
     {
       error ("inline clone is forced to output");
+      error_found = true;
+    }
+  if (inlined_to && ref_by_asm)
+    {
+      error ("inline clone is referenced by assembly");
       error_found = true;
     }
   if (symtab->state != LTO_STREAMING)
@@ -4396,7 +4414,8 @@ cgraph_node::verify_node (void)
 	    }
 
 	  if (e->has_callback
-	      && !callback_is_special_cased (e->callee->decl, e->call_stmt))
+	      && !callback_is_special_cased (e->callee->decl, e->call_stmt)
+	      && !fndecl_built_in_p (e->callee->decl, BUILT_IN_UNREACHABLE))
 	    {
 	      int ncallbacks = 0;
 	      int nfound_edges = 0;
@@ -4422,6 +4441,16 @@ cgraph_node::verify_node (void)
 			 nfound_edges);
 		}
 	    }
+
+	  if (e->has_callback
+	      && fndecl_built_in_p (e->callee->decl, BUILT_IN_UNREACHABLE))
+	    for (cgraph_edge *cbe = e->first_callback_edge (); cbe;
+		 cbe = cbe->next_callback_edge ())
+	      if (!fndecl_built_in_p (cbe->callee->decl, BUILT_IN_UNREACHABLE))
+		error ("callback-carrying edge is pointing towards "
+		       "__builtin_unreachable, but its callback edge %s -> %s "
+		       "is not",
+		       cbe->caller->name (), cbe->callee->name ());
 
 	  if (!e->aux && !e->speculative && !e->callback && !e->has_callback)
 	    {

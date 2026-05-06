@@ -1,3 +1,5 @@
+/* { dg-do run }
+   { dg-require-effective-target double64 } */
 /* PR tree-optimization/108540 */
 
 __attribute__((noipa)) void

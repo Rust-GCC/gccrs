@@ -1,3 +1,5 @@
+/* { dg-do run }
+   { dg-additional-options "-Wl,-u,_printf_float" { target newlib_nano_io } } */
 #include <stdio.h>
 void abort (void);
 void exit (int);

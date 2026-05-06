@@ -1,5 +1,5 @@
-// { dg-options "-g -O0 -std=gnu++2a" }
-// { dg-do run { target c++2a } }
+// { dg-options "-g -O0 -std=gnu++20" }
+// { dg-do run { target c++20 } }
 // { dg-additional-options "-DTEST_ZONED_TIME" { target tzdb } }
 
 // Copyright The GNU Toolchain Authors.

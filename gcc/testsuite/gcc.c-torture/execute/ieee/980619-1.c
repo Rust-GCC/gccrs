@@ -1,3 +1,7 @@
+/* This used to fail on ia32, with or without -ffloat-store.
+   It works now, but some people think that's a fluke. */
+
+/* { dg-do run } */
 	void abort (void);
 	void exit (int);
 

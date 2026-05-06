@@ -139,7 +139,7 @@ build_frontend_type (tree type)
 	  dtype = Type::basic[i];
 
 	  /* Search for type matching size and signedness.  */
-	  if (unsignedp != dtype->isUnsigned ()
+	  if (unsignedp != dmd::isUnsigned (dtype)
 	      || size != dmd::size (dtype))
 	    continue;
 
@@ -386,7 +386,7 @@ d_eval_constant_expression (const Loc &loc, tree cst)
 	{
 	  const void *string = TREE_STRING_POINTER (cst);
 	  size_t len = TREE_STRING_LENGTH (cst) - 1;
-	  return StringExp::create (loc, CONST_CAST (void *, string), len);
+	  return StringExp::create (loc, const_cast<void *> (string), len);
 	}
       else if (code == VECTOR_CST)
 	{
@@ -515,6 +515,8 @@ d_init_versions (void)
 
   if (optimize)
     VersionCondition::addPredefinedGlobalIdent ("D_Optimized");
+  if (profile_flag)
+    VersionCondition::addPredefinedGlobalIdent ("D_Profile");
 
   VersionCondition::addPredefinedGlobalIdent ("all");
 
@@ -715,7 +717,7 @@ matches_builtin_type (Type *t1, Type *t2)
       && dmd::implicitConvTo (tb1, tb2) != MATCH::nomatch)
     return true;
 
-  if (tb1->isIntegral () == tb2->isIntegral ()
+  if (dmd::isIntegral (tb1) == dmd::isIntegral (tb2)
       && dmd::size (tb1) == dmd::size (tb2))
     return true;
 

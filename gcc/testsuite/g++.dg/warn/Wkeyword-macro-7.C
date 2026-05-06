@@ -26,7 +26,7 @@
 #define constexpr 1			// { dg-warning "keyword 'constexpr' defined as macro" "" { target c++11 } }
 #define constinit 1			// { dg-warning "keyword 'constinit' defined as macro" "" { target c++20 } }
 #define continue 1			// { dg-warning "keyword 'continue' defined as macro" }
-#define contract_assert 1
+#define contract_assert 1		// { dg-warning "keyword 'contract_assert' defined as macro" "" { target c++26 } }
 #define co_return 1			// { dg-warning "keyword 'co_return' defined as macro" "" { target c++20 } }
 #define co_yield 1			// { dg-warning "keyword 'co_yield' defined as macro" "" { target c++20 } }
 #define decltype 1			// { dg-warning "keyword 'decltype' defined as macro" "" { target c++11 } }
@@ -93,8 +93,8 @@
 #define import 1			// { dg-warning "keyword 'import' defined as macro" "" { target c++20 } }
 #define module 1			// { dg-warning "keyword 'module' defined as macro" "" { target c++20 } }
 #define override 1			// { dg-warning "keyword 'override' defined as macro" "" { target c++11 } }
-#define post 1
-#define pre 1
+#define post 1				// { dg-warning "keyword 'post' defined as macro" "" { target c++26 } }
+#define pre 1				// { dg-warning "keyword 'pre' defined as macro" "" { target c++26 } }
 #define replaceable_if_eligible
 #define trivially_relocatable_if_eligible
 

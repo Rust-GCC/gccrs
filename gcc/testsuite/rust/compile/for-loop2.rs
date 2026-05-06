@@ -1,5 +1,7 @@
 // { dg-output "1\r*\n2\r*\n" }
-#![feature(intrinsics, lang_items)]
+#![feature(no_core)]
+#![no_core]
+#![feature(intrinsics, lang_items, staged_api)]
 
 pub use option::Option::{self, None, Some};
 pub use result::Result::{self, Err, Ok};

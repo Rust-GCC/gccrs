@@ -149,7 +149,8 @@ Builder::function_param (std::unique_ptr<Pattern> &&pattern,
 FunctionQualifiers
 Builder::fn_qualifiers () const
 {
-  return FunctionQualifiers (loc, Async::No, Const::No, Unsafety::Normal);
+  return FunctionQualifiers (loc, Default::No, Async::No, Const::No,
+			     Unsafety::Normal);
 }
 
 std::unique_ptr<Function>
@@ -510,7 +511,7 @@ Builder::loop (std::vector<std::unique_ptr<Stmt>> &&stmts)
 std::unique_ptr<TypeParamBound>
 Builder::trait_bound (TypePath bound)
 {
-  return std::make_unique<TraitBound> (bound, loc);
+  return std::make_unique<TraitBound> (std::move (bound), loc);
 }
 
 std::unique_ptr<Item>
@@ -520,7 +521,7 @@ Builder::trait_impl (TypePath trait_path, std::unique_ptr<Type> target,
 		     WhereClause where_clause, Visibility visibility) const
 {
   return std::unique_ptr<Item> (
-    new TraitImpl (trait_path, /* unsafe */ false,
+    new TraitImpl (std::move (trait_path), /* unsafe */ false,
 		   /* exclam */ false, std::move (trait_items),
 		   std::move (generics), std::move (target), where_clause,
 		   visibility, {}, {}, loc));
@@ -567,7 +568,7 @@ std::unique_ptr<GenericParam>
 Builder::new_const_param (ConstGenericParam &param) const
 {
   return std::make_unique<ConstGenericParam> (param.get_name (),
-					      param.get_type ().clone_type (),
+					      param.get_type ().reconstruct (),
 					      param.get_default_value (),
 					      param.get_outer_attrs (),
 					      param.get_locus ());
@@ -735,6 +736,16 @@ Builder::new_generic_args (GenericArgs &args)
 
   return GenericArgs (std::move (lifetime_args), std::move (generic_args),
 		      std::move (binding_args), locus);
+}
+
+std::unique_ptr<Expr>
+Builder::qualified_call (std::vector<std::string> &&segments,
+			 std::vector<std::unique_ptr<Expr>> &&args) const
+{
+  auto path = std::unique_ptr<Expr> (
+    new PathInExpression (path_in_expression (std::move (segments))));
+
+  return call (std::move (path), std::move (args));
 }
 
 } // namespace AST

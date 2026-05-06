@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2026, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -28,7 +28,6 @@ with Atree;          use Atree;
 with Casing;         use Casing;
 with Csets;          use Csets;
 with Debug;          use Debug;
-with Einfo;          use Einfo;
 with Einfo.Entities; use Einfo.Entities;
 with Einfo.Utils;    use Einfo.Utils;
 with Lib;            use Lib;
@@ -39,7 +38,6 @@ with Output;         use Output;
 with Rtsfind;        use Rtsfind;
 with Sem_Eval;       use Sem_Eval;
 with Sem_Util;       use Sem_Util;
-with Sinfo;          use Sinfo;
 with Sinfo.Nodes;    use Sinfo.Nodes;
 with Sinfo.Utils;    use Sinfo.Utils;
 with Sinput;         use Sinput;
@@ -73,7 +71,7 @@ package body Sprint is
    --  Set True if the -gnatdo (dump original tree) flag is set
 
    Dump_Generated_Only : Boolean;
-   --  Set True if the -gnatdG (dump generated tree) debug flag is set
+   --  Set True if the -gnatdg (dump generated tree) debug flag is set
    --  or for Print_Generated_Code (-gnatG) or Dump_Generated_Code (-gnatD).
 
    Dump_Freeze_Null : Boolean;

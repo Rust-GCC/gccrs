@@ -18,6 +18,9 @@ UrlSuffix(gcc/SH-Options.html#index-m2a-single)
 m2a-single-only
 UrlSuffix(gcc/SH-Options.html#index-m2a-single-only)
 
+m2e
+UrlSuffix(gcc/SH-Options.html#index-m2e)
+
 m3
 UrlSuffix(gcc/SH-Options.html#index-m3)
 
@@ -50,6 +53,9 @@ UrlSuffix(gcc/SH-Options.html#index-m4-300-nofpu)
 
 m4-340
 UrlSuffix(gcc/SH-Options.html#index-m4-340)
+
+m4-400
+UrlSuffix(gcc/SH-Options.html#index-m4-400)
 
 m4-500
 UrlSuffix(gcc/SH-Options.html#index-m4-500)
@@ -103,7 +109,7 @@ mbigtable
 UrlSuffix(gcc/SH-Options.html#index-mbigtable)
 
 mbitops
-UrlSuffix(gcc/SH-Options.html#index-mbitops)
+UrlSuffix(gcc/SH-Options.html#index-mbitops-1)
 
 ; skipping UrlSuffix for 'mbranch-cost=' due to finding no URLs
 
@@ -118,7 +124,8 @@ UrlSuffix(gcc/SH-Options.html#index-mdalign)
 
 ; skipping UrlSuffix for 'mdiv=' due to finding no URLs
 
-; skipping UrlSuffix for 'mfdpic' due to finding no URLs
+mfdpic
+UrlSuffix(gcc/SH-Options.html#index-mfdpic-2)
 
 mfmovd
 UrlSuffix(gcc/SH-Options.html#index-mfmovd)
@@ -141,14 +148,11 @@ UrlSuffix(gcc/SH-Options.html#index-ml)
 mnomacsave
 UrlSuffix(gcc/SH-Options.html#index-mnomacsave)
 
-mpadstruct
-UrlSuffix(gcc/SH-Options.html#index-mpadstruct)
-
 mprefergot
 UrlSuffix(gcc/SH-Options.html#index-mprefergot)
 
 mrelax
-UrlSuffix(gcc/SH-Options.html#index-mrelax-8)
+UrlSuffix(gcc/SH-Options.html#index-mrelax-9)
 
 mrenesas
 UrlSuffix(gcc/SH-Options.html#index-mrenesas)
@@ -168,5 +172,6 @@ UrlSuffix(gcc/SH-Options.html#index-mfsca)
 mfsrra
 UrlSuffix(gcc/SH-Options.html#index-mfsrra)
 
-; skipping UrlSuffix for 'mlra' due to finding no URLs
+mlra
+UrlSuffix(gcc/SH-Options.html#index-mlra-2)
 

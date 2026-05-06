@@ -4,6 +4,7 @@
 /* { dg-add-options riscv_zabha } */
 /* { dg-add-options riscv_zacas } */
 /* { dg-remove-options riscv_ztso } */
+/* { dg-remove-options riscv_zalasr } */
 /* { dg-final { scan-assembler-not "\tlr\.w" } } */
 /* { dg-final { scan-assembler-not "\tsc\.w" } } */
 /* { dg-final { scan-assembler-times "amocas\.h\.rl\t" 2 } } */

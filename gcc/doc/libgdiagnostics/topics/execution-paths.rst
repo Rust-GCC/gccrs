@@ -89,10 +89,10 @@ cross-references between events.  In particular FIXME
    :type:`va_list` rather than directly taking variadic arguments.
 
 .. function:: diagnostic_event_id diagnostic_execution_path_add_event_via_msg_buf (diagnostic_execution_path *path, \
-						 const diagnostic_physical_location *physical_loc, \
-						 const diagnostic_logical_location *logical_loc, \
-						 unsigned stack_depth,
-						 diagnostic_message_buffer *msg_buf)
+                                                                                   const diagnostic_physical_location *physical_loc, \
+                                                                                   const diagnostic_logical_location *logical_loc, \
+                                                                                   unsigned stack_depth, \
+                                                                                   diagnostic_message_buffer *msg_buf)
 
    This is equivalent to :func:`diagnostic_execution_path_add_event` but
    using a message buffer rather than a format string and variadic

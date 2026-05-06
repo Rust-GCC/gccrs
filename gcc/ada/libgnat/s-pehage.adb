@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---                     Copyright (C) 2002-2025, AdaCore                     --
+--                     Copyright (C) 2002-2026, AdaCore                     --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -1275,8 +1275,9 @@ package body System.Perfect_Hash_Generators is
    --------------
 
    function New_Word (S : String) return Word_Type is
+      subtype Word_String is String (1 .. S'Length);
    begin
-      return new String'(S);
+      return new String'(Word_String (S));
    end New_Word;
 
    ------------------------------

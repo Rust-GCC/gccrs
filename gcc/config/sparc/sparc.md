@@ -557,7 +557,7 @@
 
 ;; Attributes for branch scheduling
 (define_attr "tls_delay_slot" "false,true"
-  (symbol_ref "((TARGET_GNU_TLS && HAVE_GNU_LD) != 0
+  (symbol_ref "(!HAVE_SOLARIS_AS && !HAVE_SOLARIS_LD
 		? TLS_DELAY_SLOT_TRUE : TLS_DELAY_SLOT_FALSE)"))
 
 (define_attr "in_sibcall_delay" "false,true"
@@ -1713,11 +1713,7 @@
 			      UNSPEC_MOVE_PIC)))]
   "flag_pic"
 {
-#ifdef HAVE_AS_SPARC_GOTDATA_OP
   return "xor\t%1, %%gdop_lox10(%a2), %0";
-#else
-  return "or\t%1, %%lo(%a2), %0";
-#endif
 })
 
 (define_insn "movsi_high_pic"
@@ -1725,11 +1721,7 @@
         (high:SI (unspec:SI [(match_operand 1 "" "")] UNSPEC_MOVE_PIC)))]
   "flag_pic && check_pic (1)"
 {
-#ifdef HAVE_AS_SPARC_GOTDATA_OP
   return "sethi\t%%gdop_hix22(%a1), %0";
-#else
-  return "sethi\t%%hi(%a1), %0";
-#endif
 })
 
 (define_insn "movsi_pic_gotdata_op"
@@ -1740,11 +1732,7 @@
 		   UNSPEC_MOVE_GOTDATA))]
   "flag_pic && check_pic (1)"
 {
-#ifdef HAVE_AS_SPARC_GOTDATA_OP
   return "ld\t[%1 + %2], %0, %%gdop(%a3)";
-#else
-  return "ld\t[%1 + %2], %0";
-#endif
 }
   [(set_attr "type" "load")
    (set_attr "subtype" "regular")])
@@ -1934,11 +1922,7 @@
 			      UNSPEC_MOVE_PIC)))]
   "TARGET_ARCH64 && flag_pic"
 {
-#ifdef HAVE_AS_SPARC_GOTDATA_OP
   return "xor\t%1, %%gdop_lox10(%a2), %0";
-#else
-  return "or\t%1, %%lo(%a2), %0";
-#endif
 })
 
 (define_insn "movdi_high_pic"
@@ -1946,11 +1930,7 @@
         (high:DI (unspec:DI [(match_operand 1 "" "")] UNSPEC_MOVE_PIC)))]
   "TARGET_ARCH64 && flag_pic && check_pic (1)"
 {
-#ifdef HAVE_AS_SPARC_GOTDATA_OP
   return "sethi\t%%gdop_hix22(%a1), %0";
-#else
-  return "sethi\t%%hi(%a1), %0";
-#endif
 })
 
 (define_insn "movdi_pic_gotdata_op"
@@ -1961,11 +1941,7 @@
 		   UNSPEC_MOVE_GOTDATA))]
   "TARGET_ARCH64 && flag_pic && check_pic (1)"
 {
-#ifdef HAVE_AS_SPARC_GOTDATA_OP
   return "ldx\t[%1 + %2], %0, %%gdop(%a3)";
-#else
-  return "ldx\t[%1 + %2], %0";
-#endif
 }
   [(set_attr "type" "load")
    (set_attr "subtype" "regular")])
@@ -8070,7 +8046,7 @@
 		(unspec:P [(match_operand:P 2 "register_operand" "r")
 			   (match_operand 3 "tie_symbolic_operand" "")]
 			  UNSPEC_TLSIE)))]
-  "TARGET_SUN_TLS"
+  "HAVE_SOLARIS_AS"
   "add\\t%1, %2, %0, %%tie_add(%a3)")
 
 (define_insn "@tle_hix22<P:mode>"

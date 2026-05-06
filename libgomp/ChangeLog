@@ -1,3 +1,430 @@
+2026-04-28  Tobias Burnus  <tburnus@baylibre.com>
+
+	* testsuite/libgomp.fortran/map-subarray-6.f90: Fix, extend, and
+	robustify.
+
+2026-04-17  Thomas Schwinge  <tschwinge@baylibre.com>
+
+	* testsuite/libgomp.c/declare-variant-3-sm50.c: New.
+	* testsuite/libgomp.c/declare-variant-3.h: Adjust.
+
+2026-04-17  Thomas Schwinge  <tschwinge@baylibre.com>
+
+	PR middle-end/95551
+	* testsuite/libgomp.fortran/target-var.f90: Rename to...
+	* testsuite/libgomp.fortran/pr95551-1.f90: ... this, and fix up the
+	OpenACC.
+	* testsuite/libgomp.oacc-fortran/pr95551-1.f90: New.
+
+2026-04-17  Thomas Schwinge  <tschwinge@baylibre.com>
+
+	* testsuite/libgomp.c/omp_target_is_present.c (check_routines):
+	'omp_target_disassociate_ptr' after 'omp_target_associate_ptr'.
+
+2026-03-27  Tobias Burnus  <tburnus@baylibre.com>
+
+	* target.c (omp_target_is_present, omp_get_mapped_ptr): Update handling
+	for nullptr and shared-memory devices.
+	* libgomp.texi (omp_target_is_present, omp_get_mapped_ptr): Update
+	description, add see-also @refs.
+	(omp_target_is_accessible, omp_target_associate_ptr): Add see-also
+	@refs.
+	* testsuite/libgomp.c/omp_target_is_present.c: New test.
+	* testsuite/libgomp.c/omp_target_is_present-2.c: New test.
+
+2026-03-26  Prathamesh Kulkarni  <prathameshk@nvidia.com>
+
+	PR libgomp/124123
+	* testsuite/libgomp.c/pr122314.c (test): Initialize full_data
+	to 0.
+	* testsuite/libgomp.c/pr122356.c: Likewise.
+
+2026-03-24  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	PR libgomp/123177
+	* testsuite/libgomp.fortran/uses_allocators-7.f90: Change to
+	compile test.
+	(dg-message): Adjust line numbers.
+	(dg-bogus): Likewise.
+
+2026-03-20  Tobias Burnus  <tburnus@baylibre.com>
+	    Sandra Loosemore  <sloosemore@baylibre.com>
+
+	* target.c (gomp_exit_data): Handle iterators.
+	* testsuite/libgomp.c-c++-common/target-enter-data-iterators-1.c: New.
+	* testsuite/libgomp.c-c++-common/target-update-iterators-2.c:
+	Also test "target exit data".
+	* testsuite/libgomp.c-c++-common/target-update-iterators-3.c:
+	Likewise.
+
+2026-03-20  Kwok Cheung Yeung  <kcyeung@baylibre.com>
+	    Sandra Loosemore  <sloosemore@baylibre.com>
+
+	* testsuite/libgomp.c-c++-common/target-data-iterators-1.c: New.
+
+2026-03-18  Arsen Arsenović  <aarsenovic@baylibre.com>
+
+	* plugin/plugin-gcn.c (struct kernel_dispatch): Add a field to
+	hold a pointer to the allocation cache node this dispatch is
+	holding for kernel arguments, replacing kernarg_address.
+	(print_kernel_dispatch): Print the allocation pointer from that
+	node as kernargs address.
+	(struct agent_info): Add in an allocation cache field.
+	(alloc_kernargs_on_agent): New function.  Pulls kernel arguments
+	from the cache, or, if no appropriate node is found, allocates
+	new ones.
+	(create_kernel_dispatch): Use alloc_kernargs_on_agent to
+	allocate kernargs.
+	(release_kernel_dispatch): Use release_alloc_cache_node to
+	release kernargs.
+	(run_kernel): Update usages of kernarg_address to use the kernel
+	arguments cache node.
+	(GOMP_OFFLOAD_fini_device): Clean up kernargs cache.
+	(GOMP_OFFLOAD_init_device): Initialize kernargs cache.
+	* alloc_cache.h: New file.
+	* testsuite/libgomp.c/alloc_cache-1.c: New test.
+
+2026-03-17  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/120286
+	* testsuite/libgomp.fortran/pr120286.f90: New test.
+
+2026-02-28  Kwok Cheung Yeung  <kcyeung@baylibre.com>
+
+	PR middle-end/113436
+	* testsuite/libgomp.c++/pr113436-1.C (test_vla_by_ref): New.
+	(main): Add call to test_vla_by_ref.
+	* testsuite/libgomp.c++/pr113436-2.C (test_vla_by_ref): New.
+	(main): Add call to test_vla_by_ref.
+
+2026-02-23  Paul-Antoine Arras  <parras@baylibre.com>
+
+	PR fortran/120505
+	* testsuite/libgomp.fortran/map-subarray-16.f90: Enable test only for
+	offload device.
+
+2026-02-23  Paul-Antoine Arras  <parras@baylibre.com>
+
+	PR fortran/120505
+	* testsuite/libgomp.fortran/map-subarray-12.f90: New test.
+
+2026-02-23  Paul-Antoine Arras  <parras@baylibre.com>
+
+	PR fortran/120505
+	* testsuite/libgomp.fortran/map-subarray-11.f90: New test.
+	* testsuite/libgomp.fortran/map-subarray-13.f90: New test.
+	* testsuite/libgomp.fortran/map-subarray-14.f90: New test.
+	* testsuite/libgomp.fortran/map-subarray-15.f90: New test.
+	* testsuite/libgomp.fortran/map-subarray-16.f90: New test.
+	* testsuite/libgomp.fortran/map-alloc-present-2.f90: New file.
+
+2026-02-12  Kwok Cheung Yeung  <kcyeung@baylibre.com>
+
+	PR middle-end/113436
+	* libgomp.texi (OpenMP 5.0): Mark allocate clause as implemented.
+	(Memory allocation): Add documentation for use in target construct.
+	* testsuite/libgomp.c++/firstprivate-1.C: Enable alignment check.
+	* testsuite/libgomp.c++/pr113436-1.C: New.
+	* testsuite/libgomp.c++/pr113436-2.C: New.
+	* testsuite/libgomp.c++/private-1.C: Enable alignment check.
+	* testsuite/libgomp.c-c++-common/pr113436-1.c: New.
+	* testsuite/libgomp.c-c++-common/pr113436-2.c: New.
+	* testsuite/libgomp.fortran/pr113436-1.f90: New.
+	* testsuite/libgomp.fortran/pr113436-2.f90: New.
+
+2026-02-05  Andrew Stubbs  <ams@baylibre.com>
+
+	* libgomp.texi: Mark TR14 omp_target_is_accessible status as "Y".
+
+2026-02-05  Andrew Stubbs  <ams@baylibre.com>
+
+	* libgomp.texi: Separate the ompx_gnu_pinned_mem_alloc notes for
+	NVPTX and AMD GCN, and move them to right sections.
+
+2026-02-04  Paul-Antoine Arras  <parras@baylibre.com>
+
+	* target.c (gomp_present_fatal): New function.
+	(gomp_map_vars_internal): For a Fortran allocatable array, present
+	causes runtime termination only if the descriptor is not mapped.
+	(gomp_update): Call gomp_present_fatal.
+	* testsuite/libgomp.fortran/map-alloc-present-1.f90: New test.
+
+2026-02-04  Jeff Law  <jeffrey.law@oss.qualcomm.com>
+
+	* J: Remove.
+
+2026-02-04  Yangyu Chen  <cyy@cyyself.name>
+
+	* J: New file.
+
+2026-02-03  Andrew Stubbs  <ams@baylibre.com>
+
+	PR libgomp/121813
+	PR libgomp/113213
+	* libgomp-plugin.h (GOMP_OFFLOAD_is_accessible_ptr): New prototype.
+	* libgomp.h
+	(struct gomp_device_descr): Add GOMP_OFFLOAD_is_accessible_ptr.
+	* libgomp.texi: Update omp_target_is_accessible docs.
+	* plugin/cuda-lib.def (cuPointerGetAttribute): New entry.
+	* plugin/plugin-gcn.c (struct hsa_runtime_fn_info): Add
+	hsa_amd_svm_attributes_get_fn and hsa_amd_pointer_info_fn.
+	(init_hsa_runtime_functions): Add hsa_amd_svm_attributes_get and
+	hsa_amd_pointer_info.
+	(enum accessible): New enum type.
+	(host_memory_is_accessible): New function.
+	(device_memory_is_accessible): New function.
+	(GOMP_OFFLOAD_is_accessible_ptr): New function.
+	* plugin/plugin-nvptx.c (GOMP_OFFLOAD_is_accessible_ptr): Likewise.
+	* target.c (omp_target_is_accessible): Call is_accessible_ptr_func.
+	(gomp_load_plugin_for_device): Add is_accessible_ptr.
+	* testsuite/libgomp.c-c++-common/target-is-accessible-1.c: Rework
+	to match more details of the GPU implementation.
+	* testsuite/libgomp.fortran/target-is-accessible-1.f90: Likewise.
+	* testsuite/libgomp.c-c++-common/target-is-accessible-2.c: New test.
+	* testsuite/libgomp.c-c++-common/target-is-accessible-3.c: New test.
+	* testsuite/libgomp.c-c++-common/target-is-accessible-4.c: New test.
+	* testsuite/libgomp.c-c++-common/target-is-accessible-5.c: New test.
+
+2026-01-20  Matthew Malcolmson  <mmalcolmson@nvidia.com>
+
+	PR libgomp/122356
+	* config/gcn/bar.c (gomp_team_barrier_wait_end): Atomically read
+	team->task_count.
+	(gomp_team_barrier_wait_cancel_end): Likewise.
+	* config/gcn/bar.h (gomp_team_barrier_done): Atomically write
+	bar->generation.
+	* config/linux/bar.c (gomp_team_barrier_wait_end): Atomically
+	read team->task_count.
+	(gomp_team_barrier_wait_cancel_end): Likewise.
+	* config/linux/bar.h (gomp_team_barrier_done): Atomically write
+	bar->generation.
+	* config/posix/bar.c (gomp_team_barrier_wait_end): Atomically
+	read team->task_count.
+	(gomp_team_barrier_wait_cancel_end): Likewise.
+	* config/posix/bar.h (gomp_team_barrier_done): Atomically write
+	bar->generation.
+	* config/rtems/bar.h (gomp_team_barrier_done): Atomically write
+	bar->generation.
+	* task.c (gomp_barrier_handle_tasks): Atomically write
+	team->task_count when decrementing to zero.
+	* testsuite/libgomp.c/pr122356.c: New test.
+
+2026-01-20  Matthew Malcolmson  <mmalcolmson@nvidia.com>
+
+	PR libgomp/122314
+	PR libgomp/88707
+	* config/gcn/bar.c (gomp_team_barrier_wait_end): Use
+	gomp_barrier_state_is_incremented.
+	(gomp_team_barrier_wait_cancel_end): Likewise.
+	* config/gcn/bar.h (gomp_barrier_state_is_incremented,
+	gomp_barrier_has_completed): New.
+	* config/linux/bar.c (gomp_team_barrier_wait_end): Use
+	gomp_barrier_state_is_incremented.
+	(gomp_team_barrier_wait_cancel_end): Likewise.
+	* config/linux/bar.h (gomp_barrier_state_is_incremented,
+	gomp_barrier_has_completed): New.
+	* config/nvptx/bar.h (gomp_barrier_state_is_incremented,
+	gomp_barrier_has_completed): New.
+	* config/posix/bar.c (gomp_team_barrier_wait_end): Use
+	gomp_barrier_state_is_incremented.
+	(gomp_team_barrier_wait_cancel_end): Likewise
+	* config/posix/bar.h (gomp_barrier_state_is_incremented,
+	gomp_barrier_has_completed): New.
+	* config/rtems/bar.h (gomp_barrier_state_is_incremented,
+	gomp_barrier_has_completed): New.
+	* task.c (gomp_barrier_handle_tasks): Use
+	gomp_barrier_has_completed.
+	* testsuite/libgomp.c/pr122314.c: New test.
+
+2026-01-15  Josef Melcr  <josef.melcr@suse.com>
+
+	PR ipa/122852
+	* testsuite/libgomp.c/pr122852.c: New test.
+
+2026-01-14  Thomas Schwinge  <tschwinge@baylibre.com>
+
+	* testsuite/libgomp.c++/target-std__unordered_map-concurrent-usm.C:
+	New.
+	* testsuite/libgomp.c++/target-std__unordered_multimap-concurrent-usm.C:
+	Likewise.
+	* testsuite/libgomp.c++/target-std__unordered_multiset-concurrent-usm.C:
+	Likewise.
+	* testsuite/libgomp.c++/target-std__unordered_set-concurrent-usm.C:
+	Likewise.
+	* testsuite/libgomp.c++/target-std__unordered_map-concurrent.C:
+	Adjust.
+	* testsuite/libgomp.c++/target-std__unordered_multimap-concurrent.C:
+	Likewise.
+	* testsuite/libgomp.c++/target-std__unordered_multiset-concurrent.C:
+	Likewise.
+	* testsuite/libgomp.c++/target-std__unordered_set-concurrent.C:
+	Likewise.
+
+2026-01-14  Thomas Schwinge  <tschwinge@baylibre.com>
+
+	* testsuite/libgomp.c++/target-std__flat_map-concurrent-usm.C:
+	New.
+	* testsuite/libgomp.c++/target-std__flat_multimap-concurrent-usm.C:
+	Likewise.
+	* testsuite/libgomp.c++/target-std__flat_multiset-concurrent-usm.C:
+	Likewise.
+	* testsuite/libgomp.c++/target-std__flat_set-concurrent-usm.C:
+	Likewise.
+	* testsuite/libgomp.c++/target-std__flat_map-concurrent.C: Adjust.
+	* testsuite/libgomp.c++/target-std__flat_multimap-concurrent.C:
+	Likewise.
+	* testsuite/libgomp.c++/target-std__flat_multiset-concurrent.C:
+	Likewise.
+	* testsuite/libgomp.c++/target-std__flat_set-concurrent.C:
+	Likewise.
+
+2026-01-14  Thomas Schwinge  <tschwinge@baylibre.com>
+
+	* testsuite/libgomp.c++/target-std__array-concurrent-usm.C:
+	'#define OMP_USM'.
+	* testsuite/libgomp.c++/target-std__forward_list-concurrent-usm.C:
+	Likewise.
+	* testsuite/libgomp.c++/target-std__list-concurrent-usm.C:
+	Likewise.
+	* testsuite/libgomp.c++/target-std__span-concurrent-usm.C:
+	Likewise.
+	* testsuite/libgomp.c++/target-std__map-concurrent-usm.C:
+	Likewise.
+	* testsuite/libgomp.c++/target-std__multimap-concurrent-usm.C:
+	Likewise.
+	* testsuite/libgomp.c++/target-std__multiset-concurrent-usm.C:
+	Likewise.
+	* testsuite/libgomp.c++/target-std__set-concurrent-usm.C:
+	Likewise.
+	* testsuite/libgomp.c++/target-std__valarray-concurrent-usm.C:
+	Likewise.
+	* testsuite/libgomp.c++/target-std__vector-concurrent-usm.C:
+	Likewise.
+	* testsuite/libgomp.c++/target-std__bitset-concurrent-usm.C:
+	Likewise.
+	* testsuite/libgomp.c++/target-std__deque-concurrent-usm.C:
+	Likewise.
+	* testsuite/libgomp.c++/target-std__array-concurrent.C: Comment.
+	* testsuite/libgomp.c++/target-std__bitset-concurrent.C: Likewise.
+	* testsuite/libgomp.c++/target-std__deque-concurrent.C: Likewise.
+	* testsuite/libgomp.c++/target-std__forward_list-concurrent.C:
+	Likewise.
+	* testsuite/libgomp.c++/target-std__list-concurrent.C: Likewise.
+	* testsuite/libgomp.c++/target-std__span-concurrent.C: Likewise.
+	* testsuite/libgomp.c++/target-std__valarray-concurrent.C:
+	Likewise.
+	* testsuite/libgomp.c++/target-std__vector-concurrent.C: Likewise.
+	* testsuite/libgomp.c++/target-std__map-concurrent.C [OMP_USM]:
+	Fix up dynamic memory allocation.
+	* testsuite/libgomp.c++/target-std__multimap-concurrent.C
+	[OMP_USM]: Likewise.
+	* testsuite/libgomp.c++/target-std__multiset-concurrent.C
+	[OMP_USM]: Likewise.
+	* testsuite/libgomp.c++/target-std__set-concurrent.C [OMP_USM]:
+	Likewise.
+
+2026-01-14  Thomas Schwinge  <tschwinge@baylibre.com>
+
+	* testsuite/libgomp.c-c++-common/map-arrayofstruct-2-usm.c: New.
+	* testsuite/libgomp.c-c++-common/map-arrayofstruct-3-usm.c:
+	Likewise.
+	* testsuite/libgomp.c-c++-common/struct-elem-5-usm.c: Likewise.
+	* testsuite/libgomp.c-c++-common/target-present-1-usm.c: Likewise.
+	* testsuite/libgomp.c-c++-common/target-present-2-usm.c: Likewise.
+	* testsuite/libgomp.c-c++-common/target-present-3-usm.c: Likewise.
+	* testsuite/libgomp.fortran/map-subarray-5-usm.f90: Likewise.
+	* testsuite/libgomp.fortran/map-subarray-6-usm.f90: Likewise.
+	* testsuite/libgomp.fortran/map-subarray-7-usm.f90: Likewise.
+	* testsuite/libgomp.fortran/target-allocatable-1-1-usm.f90:
+	Likewise.
+	* testsuite/libgomp.fortran/target-allocatable-1-2-usm.f90:
+	Likewise.
+	* testsuite/libgomp.fortran/target-enter-data-2-usm.F90: Likewise.
+	* testsuite/libgomp.fortran/target-present-1-usm.f90: Likewise.
+	* testsuite/libgomp.fortran/target-present-2-usm.f90: Likewise.
+	* testsuite/libgomp.fortran/target-present-3-usm.f90: Likewise.
+	* testsuite/libgomp.fortran/target-allocatable-1-1.f90: Adjust.
+	* testsuite/libgomp.fortran/target-allocatable-1-2.f90: Likewise.
+	* testsuite/libgomp.fortran/target-present-1.f90: Likewise.
+	* testsuite/libgomp.fortran/target-present-2.f90: Likewise.
+	* testsuite/libgomp.fortran/target-present-3.f90: Likewise.
+
+2026-01-13  Thomas Schwinge  <tschwinge@baylibre.com>
+
+	* testsuite/libgomp.fortran/map-alloc-comp-9-usm.f90: Require
+	working Unified Shared Memory to run the test.
+
+2026-01-13  Thomas Schwinge  <tschwinge@baylibre.com>
+
+	* testsuite/libgomp.c++/examples-4/declare_target-2.C: Add
+	'-Wno-deprecated-openmp'.
+	* testsuite/libgomp.c/declare-variant-3-sm30.c: Likewise.
+	* testsuite/libgomp.c/declare-variant-3-sm35.c: Likewise.
+	* testsuite/libgomp.c/declare-variant-3-sm37.c: Likewise.
+	* testsuite/libgomp.c/declare-variant-3-sm52.c: Likewise.
+	* testsuite/libgomp.c/declare-variant-3-sm53.c: Likewise.
+	* testsuite/libgomp.c/declare-variant-3-sm61.c: Likewise.
+	* testsuite/libgomp.c/declare-variant-3-sm70.c: Likewise.
+	* testsuite/libgomp.c/declare-variant-3-sm75.c: Likewise.
+	* testsuite/libgomp.c/declare-variant-3-sm80.c: Likewise.
+	* testsuite/libgomp.c/declare-variant-3-sm89.c: Likewise.
+	* testsuite/libgomp.c/declare-variant-4-gfx10-3-generic.c:
+	Likewise.
+	* testsuite/libgomp.c/declare-variant-4-gfx1030.c: Likewise.
+	* testsuite/libgomp.c/declare-variant-4-gfx1031.c: Likewise.
+	* testsuite/libgomp.c/declare-variant-4-gfx1032.c: Likewise.
+	* testsuite/libgomp.c/declare-variant-4-gfx1033.c: Likewise.
+	* testsuite/libgomp.c/declare-variant-4-gfx1034.c: Likewise.
+	* testsuite/libgomp.c/declare-variant-4-gfx1035.c: Likewise.
+	* testsuite/libgomp.c/declare-variant-4-gfx1036.c: Likewise.
+	* testsuite/libgomp.c/declare-variant-4-gfx11-generic.c: Likewise.
+	* testsuite/libgomp.c/declare-variant-4-gfx1100.c: Likewise.
+	* testsuite/libgomp.c/declare-variant-4-gfx1101.c: Likewise.
+	* testsuite/libgomp.c/declare-variant-4-gfx1102.c: Likewise.
+	* testsuite/libgomp.c/declare-variant-4-gfx1103.c: Likewise.
+	* testsuite/libgomp.c/declare-variant-4-gfx1150.c: Likewise.
+	* testsuite/libgomp.c/declare-variant-4-gfx1151.c: Likewise.
+	* testsuite/libgomp.c/declare-variant-4-gfx1152.c: Likewise.
+	* testsuite/libgomp.c/declare-variant-4-gfx1153.c: Likewise.
+	* testsuite/libgomp.c/declare-variant-4-gfx9-4-generic.c:
+	Likewise.
+	* testsuite/libgomp.c/declare-variant-4-gfx9-generic.c: Likewise.
+	* testsuite/libgomp.c/declare-variant-4-gfx900.c: Likewise.
+	* testsuite/libgomp.c/declare-variant-4-gfx902.c: Likewise.
+	* testsuite/libgomp.c/declare-variant-4-gfx904.c: Likewise.
+	* testsuite/libgomp.c/declare-variant-4-gfx906.c: Likewise.
+	* testsuite/libgomp.c/declare-variant-4-gfx908.c: Likewise.
+	* testsuite/libgomp.c/declare-variant-4-gfx909.c: Likewise.
+	* testsuite/libgomp.c/declare-variant-4-gfx90a.c: Likewise.
+	* testsuite/libgomp.c/declare-variant-4-gfx90c.c: Likewise.
+	* testsuite/libgomp.c/declare-variant-4-gfx942.c: Likewise.
+	* testsuite/libgomp.c/declare-variant-4-gfx950.c: Likewise.
+	* testsuite/libgomp.c/examples-4/async_target-2.c: Likewise.
+	* testsuite/libgomp.c/interop-hsa.c: Likewise.
+	* testsuite/libgomp.c/target-20.c: Likewise.
+	* testsuite/libgomp.c/target-simd-clone-1.c: Likewise.
+	* testsuite/libgomp.c/target-simd-clone-2.c: Likewise.
+	* testsuite/libgomp.c/target-simd-clone-3.c: Likewise.
+	* testsuite/libgomp.fortran/alloc-managed-1.f90: Likewise.
+	* testsuite/libgomp.fortran/target9.f90: Likewise.
+
+2026-01-13  Thomas Schwinge  <tschwinge@baylibre.com>
+
+	PR testsuite/123098
+	* testsuite/libgomp.oacc-c-c++-common/vred2d-128.c: Remove
+	'-Wno-deprecated-openmp'.
+
+2026-01-12  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	PR c++/81337
+	* testsuite/libgomp.c++/target-cdtor-2.C: Skip on Solaris.
+	Fix comments.
+
+2026-01-06  supers1ngular  <supers1ngular@baylibre.com>
+
+	* testsuite/libgomp.fortran/pr84418-1.f90: Fix verbiage of
+	dg-warning to reflect updated warning.
+
 2026-01-01  Jakub Jelinek  <jakub@redhat.com>
 
 	* libgomp.texi: Bump @copying's copyright year.

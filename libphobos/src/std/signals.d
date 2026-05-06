@@ -66,11 +66,6 @@ import core.exception : onOutOfMemoryError;
 import core.stdc.stdlib : calloc, realloc, free;
 import std.stdio;
 
-// Special function for internal use only.
-// Use of this is where the slot had better be a delegate
-// to an object or an interface that is part of an object.
-extern (C) Object _d_toObject(void* p);
-
 // Used in place of Object.notifyRegister and Object.notifyUnRegister.
 alias DisposeEvt = void delegate(Object);
 extern (C) void  rt_attachDisposeEvent( Object obj, DisposeEvt evt );

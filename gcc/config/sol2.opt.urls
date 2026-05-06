@@ -16,9 +16,6 @@ UrlSuffix(gcc/Solaris-2-Options.html#index-mimpure-text)
 ;   duplicate: 'gcc/Link-Options.html#index-pthread-1'
 ;   duplicate: 'gcc/Preprocessor-Options.html#index-pthread'
 
-pthreads
-UrlSuffix(gcc/Solaris-2-Options.html#index-pthreads)
-
 rdynamic
 UrlSuffix(gcc/Link-Options.html#index-rdynamic)
 

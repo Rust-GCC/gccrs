@@ -189,6 +189,9 @@ enum rid
   /* C++ coroutines */
   RID_CO_AWAIT, RID_CO_YIELD, RID_CO_RETURN,
 
+  /* C++26 */
+  RID_CONTASSERT,
+
   /* C++ transactional memory.  */
   RID_ATOMIC_NOEXCEPT, RID_ATOMIC_CANCEL, RID_SYNCHRONIZED,
 
@@ -258,6 +261,8 @@ enum rid
   RID_LAST_CXX11 = RID_STATIC_ASSERT,
   RID_FIRST_CXX20 = RID_CONSTINIT,
   RID_LAST_CXX20 = RID_CO_RETURN,
+  RID_FIRST_CXX26 = RID_CONTASSERT,
+  RID_LAST_CXX26 = RID_CONTASSERT,
   RID_FIRST_AT = RID_AT_ENCODE,
   RID_LAST_AT = RID_AT_IMPLEMENTATION,
   RID_FIRST_PQ = RID_IN,
@@ -1352,7 +1357,7 @@ extern void c_omp_mark_declare_variant (location_t, tree, tree);
 extern void c_omp_adjust_map_clauses (tree, bool);
 template<typename T> struct omp_mapper_list;
 extern void c_omp_find_nested_mappers (struct omp_mapper_list<tree> *, tree);
-extern tree c_omp_instantiate_mappers (tree);
+extern tree c_omp_instantiate_mappers (tree, enum c_omp_region_type);
 
 namespace omp_addr_tokenizer { struct omp_addr_token; }
 typedef omp_addr_tokenizer::omp_addr_token omp_addr_token;

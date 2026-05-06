@@ -39,6 +39,7 @@
 #include "gimplify.h"
 #include "dumpfile.h"
 #include "convert.h"
+#include "options.h"
 
 #include "a68.h"
 
@@ -631,6 +632,37 @@ a68_make_variable_declaration_decl (NODE_T *identifier,
   return decl;
 }
 
+/* Make an extern declaration for a formal hole.
+
+   If ADDRP is true then it is the address of the external symbol we are
+   interested in.  In that case the mode of P shall be a ref.
+   
+   Note that this function is not used for formal holes with proc modes, called
+   from a68_wrap_formal_var_hole.  See a68_wrap_formal_proc_hole.  */
+
+tree
+a68_make_formal_hole_decl (NODE_T *p, const char *extern_symbol,
+			   bool addrp)
+{
+  gcc_assert (!IS (MOID (p), PROC_SYMBOL));
+
+  tree type = CTYPE (MOID (p));
+  tree decl = build_decl (a68_get_node_location (p),
+			  VAR_DECL,
+			  get_identifier (extern_symbol),
+			  type);
+  DECL_EXTERNAL (decl) = 1;
+  TREE_PUBLIC (decl) = 1;
+  DECL_INITIAL (decl) = a68_get_skip_tree (MOID (p));
+
+  if (addrp)
+    {
+      gcc_assert (IS_REF (MOID (p)));
+      decl = fold_build1 (ADDR_EXPR, type, decl);
+    }
+  return decl;
+}
+
 /* Do a checked indirection.
 
    P is a tree node used for its location information.
@@ -741,12 +773,14 @@ a68_low_dup (tree expr, bool use_heap)
       tree element_pointer_type = TREE_TYPE (elements);
       tree element_type = TREE_TYPE (element_pointer_type);
       tree new_elements_size = save_expr (a68_multiple_elements_size (expr));
+      tree new_elements_type = TREE_TYPE (TREE_TYPE (elements));
+      MOID_T *new_elements_moid = a68_type_moid (new_elements_type);
       tree new_elements = a68_lower_tmpvar ("new_elements%",
 					    TREE_TYPE (elements),
 					    (use_heap
-					     ? a68_lower_malloc (TREE_TYPE (TREE_TYPE (elements)),
+					     ? a68_lower_malloc (new_elements_moid,
 								 new_elements_size)
-					     : a68_lower_alloca (TREE_TYPE (TREE_TYPE (elements)),
+					     : a68_lower_alloca (new_elements_moid,
 								 new_elements_size)));
 
       /* Then copy the elements.
@@ -1110,8 +1144,9 @@ a68_lower_memcpy (tree dst, tree src, tree size)
    pointer to it.  */
 
 tree
-a68_lower_alloca (tree type, tree size)
+a68_lower_alloca (MOID_T *m, tree size)
 {
+  tree type = CTYPE (m);
   tree call = builtin_decl_explicit (BUILT_IN_ALLOCA_WITH_ALIGN);
   call = build_call_expr_loc (UNKNOWN_LOCATION, call, 2,
 			      size,
@@ -1121,14 +1156,17 @@ a68_lower_alloca (tree type, tree size)
 }
 
 
-/* Build a tree that allocates SIZE bytes on the heap and returns a *TYPE
-   pointer to it.  */
+/* Build a tree that allocates SIZE bytes on the heap and returns a pointer to
+   a tree with type equivalent to mode M.  */
 
 tree
-a68_lower_malloc (tree type, tree size)
+a68_lower_malloc (MOID_T *m, tree size)
 {
+  tree type = CTYPE (m);
+  a68_libcall_fn libcall
+    = (HAS_REFS (m) || HAS_ROWS (m)) ? A68_LIBCALL_MALLOC : A68_LIBCALL_MALLOC_LEAF;
   return fold_convert (build_pointer_type (type),
-		       a68_build_libcall (A68_LIBCALL_MALLOC, ptr_type_node,
+		       a68_build_libcall (libcall, ptr_type_node,
 					  1, size));
 }
 
@@ -1212,6 +1250,23 @@ lower_revelations (NODE_T *p, LOW_CTX_T ctx, bool prelude)
   return NULL_TREE;
 }
 
+/* Lower the declaration of a prelude or postlude.  */
+
+static tree
+lower_lude_decl (const char *module, bool postludep)
+{
+  char *symbol = xasprintf ("%s__%s",
+			    module,
+			    postludep ? "postlude" : "prelude");
+  tree fdecl = build_decl (UNKNOWN_LOCATION, FUNCTION_DECL,
+			   get_identifier (symbol),
+			   build_function_type (void_type_node, void_list_node));
+  free (symbol);
+  DECL_EXTERNAL (fdecl) = 1;
+  TREE_PUBLIC (fdecl) = 1;
+  return fdecl;
+}
+
 /* Lower a module text.
 
      module text : revelation part, def part, postlude part, fed symbol ;
@@ -1284,6 +1339,15 @@ lower_module_text (NODE_T *p, LOW_CTX_T ctx)
     {
       a68_push_stmt_list (NULL);
       {
+	if (!flag_building_libga68)
+	  {
+	    /* Add calls to implicitly accessed standard preludes.  */
+	    tree standard_prelude = lower_lude_decl ("STANDARD", false);
+	    tree posix_prelude = lower_lude_decl ("POSIX", false);
+	    a68_add_stmt (build_call_expr_loc (UNKNOWN_LOCATION, standard_prelude, 0));
+	    a68_add_stmt (build_call_expr_loc (UNKNOWN_LOCATION, posix_prelude, 0));
+	  }
+
 	/* Add calls to preludes of modules in REVELATION_PART.  */
 	lower_revelations (revelation_part, ctx, true /* prelude */);
 	a68_add_stmt (a68_lower_tree (prelude_enquiry, ctx));
@@ -1333,14 +1397,24 @@ lower_module_text (NODE_T *p, LOW_CTX_T ctx)
     {
       a68_push_stmt_list (NULL);
       {
-	/* Add calls to postludes of modules in REVELATION_PART.  */
-	lower_revelations (revelation_part, ctx, false /* prelude */);
 	/* Perhaps the postlude code, if there is one.  */
 	NODE_T *postlude_serial = NO_NODE;
 	if (postlude_part != NO_NODE)
 	  postlude_serial = NEXT_SUB (postlude_part);
 	if (postlude_serial != NO_NODE)
 	  a68_add_stmt (a68_lower_tree (postlude_serial, ctx));
+
+	/* Add calls to postludes of modules in REVELATION_PART.  */
+	lower_revelations (revelation_part, ctx, false /* prelude */);
+
+	if (!flag_building_libga68)
+	  {
+	    /* Add calls to implicitly accessed standard postludes.  */
+	    tree standard_postlude = lower_lude_decl ("STANDARD", true);
+	    tree posix_postlude = lower_lude_decl ("POSIX", true);
+	    a68_add_stmt (build_call_expr_loc (UNKNOWN_LOCATION, posix_postlude, 0));
+	    a68_add_stmt (build_call_expr_loc (UNKNOWN_LOCATION, standard_postlude, 0));
+	  }
       }
       tree do_postlude = a68_pop_stmt_list ();
 
@@ -1386,7 +1460,9 @@ lower_module_declaration (NODE_T *p, LOW_CTX_T ctx)
 	  for (tree d : A68_MODULE_DEFINITION_DECLS)
 	    {
 	      if (TREE_CODE (d) == FUNCTION_DECL)
-		cgraph_node::finalize_function (d, true);
+		{
+		  cgraph_node::finalize_function (d, true);
+		}
 	      else
 		{
 		  rest_of_decl_compilation (d, 1, 0);
@@ -1437,10 +1513,24 @@ lower_particular_program (NODE_T *p, LOW_CTX_T ctx)
 			   void_type_node /* result_type */);
 
   /* Lower the body of the function.  */
+
+  tree standard_prelude = lower_lude_decl ("STANDARD", false);
+  tree standard_postlude = lower_lude_decl ("STANDARD", true);
+  tree posix_prelude = lower_lude_decl ("POSIX", false);
+  tree posix_postlude = lower_lude_decl ("POSIX", true);
+
   NODE_T *enclosed_clause = (IS (SUB (p), ENCLOSED_CLAUSE)
 			     ? SUB (p) : NEXT (SUB (p)));
-  tree body_expr = a68_lower_tree (enclosed_clause, ctx);
-  a68_pop_function_range (body_expr);
+
+  a68_push_range (M_VOID);
+  a68_add_stmt (build_call_expr_loc (UNKNOWN_LOCATION, standard_prelude, 0));
+  a68_add_stmt (build_call_expr_loc (UNKNOWN_LOCATION, posix_prelude, 0));
+  a68_add_stmt (a68_lower_tree (enclosed_clause, ctx));
+  a68_add_stmt (build_call_expr_loc (UNKNOWN_LOCATION, posix_postlude, 0));
+  a68_add_stmt (build_call_expr_loc (UNKNOWN_LOCATION, standard_postlude, 0));
+
+  tree body = a68_pop_range ();
+  a68_pop_function_range (body);
   return NULL_TREE;
 }
 
@@ -1614,6 +1704,9 @@ a68_lower_tree (NODE_T *p, LOW_CTX_T ctx)
     case AND_FUNCTION:
     case OR_FUNCTION:
       res = a68_lower_logic_function (p, ctx);
+      break;
+    case FORMAL_HOLE:
+      res = a68_lower_formal_hole (p, ctx);
       break;
     case IDENTITY_RELATION:
       res = a68_lower_identity_relation (p, ctx);

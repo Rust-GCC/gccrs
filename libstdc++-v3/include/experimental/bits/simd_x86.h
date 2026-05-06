@@ -415,13 +415,31 @@ template <size_t _Np, typename _Tp, typename _Kp>
 #endif
 
 // ISA & type detection {{{
+template <typename _Tp>
+  constexpr bool
+  __is_x86_ps()
+  {
+    return is_same_v<_Tp, float>;
+  }
+
+template <typename _Tp>
+  constexpr bool
+  __is_x86_pd()
+  {
+#if __LDBL_MANT_DIG == __DBL_MANT_DIG
+    if constexpr (is_same_v<_Tp, long double>)
+      return true;
+#endif
+    return is_same_v<_Tp, double>;
+  }
+
 template <typename _Tp, size_t _Np>
   constexpr bool
   __is_sse_ps()
   {
     return __have_sse
-	   && is_same_v<_Tp,
-			float> && sizeof(__intrinsic_type_t<_Tp, _Np>) == 16;
+	   && __is_x86_ps<_Tp>()
+	   && sizeof(__intrinsic_type_t<_Tp, _Np>) == 16;
   }
 
 template <typename _Tp, size_t _Np>
@@ -429,8 +447,8 @@ template <typename _Tp, size_t _Np>
   __is_sse_pd()
   {
     return __have_sse2
-	   && is_same_v<_Tp,
-			double> && sizeof(__intrinsic_type_t<_Tp, _Np>) == 16;
+	   && __is_x86_pd<_Tp>()
+	   && sizeof(__intrinsic_type_t<_Tp, _Np>) == 16;
   }
 
 template <typename _Tp, size_t _Np>
@@ -438,8 +456,8 @@ template <typename _Tp, size_t _Np>
   __is_avx_ps()
   {
     return __have_avx
-	   && is_same_v<_Tp,
-			float> && sizeof(__intrinsic_type_t<_Tp, _Np>) == 32;
+	   && __is_x86_ps<_Tp>()
+	   && sizeof(__intrinsic_type_t<_Tp, _Np>) == 32;
   }
 
 template <typename _Tp, size_t _Np>
@@ -447,8 +465,8 @@ template <typename _Tp, size_t _Np>
   __is_avx_pd()
   {
     return __have_avx
-	   && is_same_v<_Tp,
-			double> && sizeof(__intrinsic_type_t<_Tp, _Np>) == 32;
+	   && __is_x86_pd<_Tp>()
+	   && sizeof(__intrinsic_type_t<_Tp, _Np>) == 32;
   }
 
 template <typename _Tp, size_t _Np>
@@ -456,8 +474,8 @@ template <typename _Tp, size_t _Np>
   __is_avx512_ps()
   {
     return __have_avx512f
-	   && is_same_v<_Tp,
-			float> && sizeof(__intrinsic_type_t<_Tp, _Np>) == 64;
+	   && __is_x86_ps<_Tp>()
+	   && sizeof(__intrinsic_type_t<_Tp, _Np>) == 64;
   }
 
 template <typename _Tp, size_t _Np>
@@ -465,8 +483,8 @@ template <typename _Tp, size_t _Np>
   __is_avx512_pd()
   {
     return __have_avx512f
-	   && is_same_v<_Tp,
-			double> && sizeof(__intrinsic_type_t<_Tp, _Np>) == 64;
+	   && __is_x86_pd<_Tp>()
+	   && sizeof(__intrinsic_type_t<_Tp, _Np>) == 64;
   }
 
 // }}}
@@ -2397,9 +2415,9 @@ template <typename _Abi, typename>
 	    [[maybe_unused]] const auto __yi = __to_intrin(__y);
 	    if constexpr (sizeof(__xi) == 64)
 	      {
-		if constexpr (is_same_v<_Tp, float>)
+		if constexpr (__is_x86_ps<_Tp> ())
 		  return _mm512_mask_cmp_ps_mask(__k1, __xi, __yi, _CMP_LT_OS);
-		else if constexpr (is_same_v<_Tp, double>)
+		else if constexpr (__is_x86_pd<_Tp> ())
 		  return _mm512_mask_cmp_pd_mask(__k1, __xi, __yi, _CMP_LT_OS);
 		else if constexpr (is_signed_v<_Tp> && sizeof(_Tp) == 1)
 		  return _mm512_mask_cmplt_epi8_mask(__k1, __xi, __yi);
@@ -2422,9 +2440,9 @@ template <typename _Abi, typename>
 	      }
 	    else if constexpr (sizeof(__xi) == 32)
 	      {
-		if constexpr (is_same_v<_Tp, float>)
+		if constexpr (__is_x86_ps<_Tp> ())
 		  return _mm256_mask_cmp_ps_mask(__k1, __xi, __yi, _CMP_LT_OS);
-		else if constexpr (is_same_v<_Tp, double>)
+		else if constexpr (__is_x86_pd<_Tp> ())
 		  return _mm256_mask_cmp_pd_mask(__k1, __xi, __yi, _CMP_LT_OS);
 		else if constexpr (is_signed_v<_Tp> && sizeof(_Tp) == 1)
 		  return _mm256_mask_cmplt_epi8_mask(__k1, __xi, __yi);
@@ -2447,9 +2465,9 @@ template <typename _Abi, typename>
 	      }
 	    else if constexpr (sizeof(__xi) == 16)
 	      {
-		if constexpr (is_same_v<_Tp, float>)
+		if constexpr (__is_x86_ps<_Tp> ())
 		  return _mm_mask_cmp_ps_mask(__k1, __xi, __yi, _CMP_LT_OS);
-		else if constexpr (is_same_v<_Tp, double>)
+		else if constexpr (__is_x86_pd<_Tp> ())
 		  return _mm_mask_cmp_pd_mask(__k1, __xi, __yi, _CMP_LT_OS);
 		else if constexpr (is_signed_v<_Tp> && sizeof(_Tp) == 1)
 		  return _mm_mask_cmplt_epi8_mask(__k1, __xi, __yi);
@@ -2505,9 +2523,9 @@ template <typename _Abi, typename>
 	    [[maybe_unused]] const auto __yi = __to_intrin(__y);
 	    if constexpr (sizeof(__xi) == 64)
 	      {
-		if constexpr (is_same_v<_Tp, float>)
+		if constexpr (__is_x86_ps<_Tp> ())
 		  return _mm512_mask_cmp_ps_mask(__k1, __xi, __yi, _CMP_LE_OS);
-		else if constexpr (is_same_v<_Tp, double>)
+		else if constexpr (__is_x86_pd<_Tp> ())
 		  return _mm512_mask_cmp_pd_mask(__k1, __xi, __yi, _CMP_LE_OS);
 		else if constexpr (is_signed_v<_Tp> && sizeof(_Tp) == 1)
 		  return _mm512_mask_cmple_epi8_mask(__k1, __xi, __yi);
@@ -2530,9 +2548,9 @@ template <typename _Abi, typename>
 	      }
 	    else if constexpr (sizeof(__xi) == 32)
 	      {
-		if constexpr (is_same_v<_Tp, float>)
+		if constexpr (__is_x86_ps<_Tp> ())
 		  return _mm256_mask_cmp_ps_mask(__k1, __xi, __yi, _CMP_LE_OS);
-		else if constexpr (is_same_v<_Tp, double>)
+		else if constexpr (__is_x86_pd<_Tp> ())
 		  return _mm256_mask_cmp_pd_mask(__k1, __xi, __yi, _CMP_LE_OS);
 		else if constexpr (is_signed_v<_Tp> && sizeof(_Tp) == 1)
 		  return _mm256_mask_cmple_epi8_mask(__k1, __xi, __yi);
@@ -2555,9 +2573,9 @@ template <typename _Abi, typename>
 	      }
 	    else if constexpr (sizeof(__xi) == 16)
 	      {
-		if constexpr (is_same_v<_Tp, float>)
+		if constexpr (__is_x86_ps<_Tp> ())
 		  return _mm_mask_cmp_ps_mask(__k1, __xi, __yi, _CMP_LE_OS);
-		else if constexpr (is_same_v<_Tp, double>)
+		else if constexpr (__is_x86_pd<_Tp> ())
 		  return _mm_mask_cmp_pd_mask(__k1, __xi, __yi, _CMP_LE_OS);
 		else if constexpr (is_signed_v<_Tp> && sizeof(_Tp) == 1)
 		  return _mm_mask_cmple_epi8_mask(__k1, __xi, __yi);
@@ -5021,10 +5039,10 @@ template <typename _Abi, typename>
 		  = _Abi::template _S_implicit_mask_intrin<_Tp>();
 		return 0 != __testc(__a, __b);
 	      }
-	    else if constexpr (is_same_v<_Tp, float>)
+	    else if constexpr (__is_x86_ps<_Tp> ())
 	      return (_mm_movemask_ps(__a) & ((1 << _Np) - 1))
 		     == (1 << _Np) - 1;
-	    else if constexpr (is_same_v<_Tp, double>)
+	    else if constexpr (__is_x86_pd<_Tp> ())
 	      return (_mm_movemask_pd(__a) & ((1 << _Np) - 1))
 		     == (1 << _Np) - 1;
 	    else
@@ -5084,9 +5102,9 @@ template <typename _Abi, typename>
 		else
 		  return 0 == __testz(__a, __a);
 	      }
-	    else if constexpr (is_same_v<_Tp, float>)
+	    else if constexpr (__is_x86_ps<_Tp> ())
 	      return (_mm_movemask_ps(__a) & ((1 << _Np) - 1)) != 0;
-	    else if constexpr (is_same_v<_Tp, double>)
+	    else if constexpr (__is_x86_pd<_Tp> ())
 	      return (_mm_movemask_pd(__a) & ((1 << _Np) - 1)) != 0;
 	    else
 	      return (_mm_movemask_epi8(__a) & ((1 << (_Np * sizeof(_Tp))) - 1))
@@ -5120,9 +5138,9 @@ template <typename _Abi, typename>
 		else
 		  return 0 != __testz(__a, __a);
 	      }
-	    else if constexpr (is_same_v<_Tp, float>)
+	    else if constexpr (__is_x86_ps<_Tp> ())
 	      return (__movemask(__a) & ((1 << _Np) - 1)) == 0;
-	    else if constexpr (is_same_v<_Tp, double>)
+	    else if constexpr (__is_x86_pd<_Tp> ())
 	      return (__movemask(__a) & ((1 << _Np) - 1)) == 0;
 	    else
 	      return (__movemask(__a) & int((1ull << (_Np * sizeof(_Tp))) - 1))
@@ -5150,13 +5168,13 @@ template <typename _Abi, typename>
 		  = _Abi::template _S_implicit_mask_intrin<_Tp>();
 		return 0 != __testnzc(__a, __b);
 	      }
-	    else if constexpr (is_same_v<_Tp, float>)
+	    else if constexpr (__is_x86_ps<_Tp> ())
 	      {
 		constexpr int __allbits = (1 << _Np) - 1;
 		const auto __tmp = _mm_movemask_ps(__a) & __allbits;
 		return __tmp > 0 && __tmp < __allbits;
 	      }
-	    else if constexpr (is_same_v<_Tp, double>)
+	    else if constexpr (__is_x86_pd<_Tp> ())
 	      {
 		constexpr int __allbits = (1 << _Np) - 1;
 		const auto __tmp = _mm_movemask_pd(__a) & __allbits;

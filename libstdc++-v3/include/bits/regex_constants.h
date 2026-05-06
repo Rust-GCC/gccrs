@@ -335,18 +335,14 @@ namespace regex_constants
    * Format strings (from ECMA-262 [15.5.4.11]):
    * @li $$  The dollar-sign itself ($)
    * @li $&  The matched substring.
-   * @li $`  The portion of @a string that precedes the matched substring.
+   * @li $\`  The portion of the string that precedes the matched substring.
    *         This would be match_results::prefix().
-   * @li $'  The portion of @a string that follows the matched substring.
+   * @li $'  The portion of the string that follows the matched substring.
    *         This would be match_results::suffix().
-   * @li $n  The nth capture, where n is in [1,9] and $n is not followed by a
-   *         decimal digit.  If n <= match_results::size() and the nth capture
-   *         is undefined, use the empty string instead.  If n >
-   *         match_results::size(), the result is implementation-defined.
-   * @li $nn The nnth capture, where nn is a two-digit decimal number on
-   *         [01, 99].  If nn <= match_results::size() and the nth capture is
-   *         undefined, use the empty string instead. If
-   *         nn > match_results::size(), the result is implementation-defined.
+   * @li $n  The nth capture, where n is a positive integer less than 100.
+   *         If `n <= match_results::size()` and the nth capture is undefined,
+   *         use the empty string instead.  If `n > match_results::size()`,
+   *         the result is implementation-defined.
    */
   _GLIBCXX17_INLINE constexpr match_flag_type format_default = _S_default;
 

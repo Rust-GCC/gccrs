@@ -1,0 +1,10 @@
+begin
+      int shft := 2;
+
+      int i := 12;
+      bits x = BIN i;
+      int j := Abs(x Shl 2);
+      int k := Abs(x Shl shft);
+
+      assert (j = k)
+end

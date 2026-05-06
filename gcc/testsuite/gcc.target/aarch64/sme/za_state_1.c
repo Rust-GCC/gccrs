@@ -1,19 +1,19 @@
 // { dg-options "" }
 
 void shared_a () [[arm::inout("za")]];
-void shared_a (); // { dg-error "conflicting types" }
+void shared_a (); // { dg-error "conflicting types" "PR122483" { xfail *-*-* } }
 
 void shared_b ();
 void shared_b () [[arm::inout("za")]]; // { dg-error "conflicting types" }
 
 void shared_c () [[arm::inout("za")]];
-void shared_c () {} // { dg-error "conflicting types" }
+void shared_c () {} // { dg-error "conflicting types" "PR122483" { xfail *-*-* } }
 
 void shared_d ();
 void shared_d () [[arm::inout("za")]] {} // { dg-error "conflicting types" }
 
 void shared_e () [[arm::inout("za")]] {}
-void shared_e (); // { dg-error "conflicting types" }
+void shared_e (); // { dg-error "conflicting types" "PR122483" { xfail *-*-* } }
 
 void shared_f () {}
 void shared_f () [[arm::inout("za")]]; // { dg-error "conflicting types" }
@@ -27,19 +27,19 @@ extern void (*shared_h) (); // { dg-error "conflicting types" }
 //----------------------------------------------------------------------------
 
 void preserved_a () [[arm::preserves("za")]];
-void preserved_a (); // { dg-error "conflicting types" }
+void preserved_a (); // { dg-error "conflicting types" "PR122483" { xfail *-*-* } }
 
 void preserved_b ();
 void preserved_b () [[arm::preserves("za")]]; // { dg-error "conflicting types" }
 
 void preserved_c () [[arm::preserves("za")]];
-void preserved_c () {} // { dg-error "conflicting types" }
+void preserved_c () {} // { dg-error "conflicting types" "PR122483" { xfail *-*-* } }
 
 void preserved_d ();
 void preserved_d () [[arm::preserves("za")]] {} // { dg-error "conflicting types" }
 
 void preserved_e () [[arm::preserves("za")]] {}
-void preserved_e (); // { dg-error "conflicting types" }
+void preserved_e (); // { dg-error "conflicting types" "PR122483" { xfail *-*-* } }
 
 void preserved_f () {}
 void preserved_f () [[arm::preserves("za")]]; // { dg-error "conflicting types" }
@@ -139,7 +139,7 @@ __arm_new("za") void keyword_ok_6 () {}
 //----------------------------------------------------------------------------
 
 void keyword_conflict_1 () __arm_inout("za");
-void keyword_conflict_1 (); // { dg-error "conflicting types" }
+void keyword_conflict_1 (); // { dg-error "conflicting types" "PR122483" { xfail *-*-* } }
 
 void keyword_conflict_2 ();
 void keyword_conflict_2 () __arm_inout("za"); // { dg-error "conflicting types" }

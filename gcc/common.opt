@@ -349,6 +349,9 @@ Driver JoinedOrMissing Alias(B)
 -preprocess
 Driver Alias(E)
 
+-print-autofdo-gcov-version
+Driver Alias(print-autofdo-gcov-version)
+
 -print-file-name
 Driver Separate Alias(print-file-name=)
 
@@ -1213,10 +1216,11 @@ Common Var(flag_auto_profile_inlining) Init(1) Optimization
 Perform inlining using auto-profile.
 
 ; -fbounds-check causes gcc to generate array bounds checks.
-; It's presently used only for fortran and d languages, and is documented
-; in the manuals for those languages.
+; It's presently used only for fortran, algol68, and d languages.
+; In Fortran and algol68 it is a deprecated alias for -fcheck=bounds,
+; in D it is documented in the D language manual.
 fbounds-check
-Common Var(flag_bounds_check)
+Common Undocumented Var(flag_bounds_check)
 Generate code to check bounds before indexing arrays.
 
 fbranch-count-reg
@@ -2360,6 +2364,10 @@ flto-partition=
 Common Joined RejectNegative Enum(lto_partition_model) Var(flag_lto_partition) Init(LTO_PARTITION_BALANCED)
 Specify the algorithm to partition symbols and vars at linktime.
 
+flto-toplevel-asm-heuristics
+Common Var(flag_toplevel_asm_heuristics) Init(0)
+Enable heuristics to recognize symbol identifiers in toplevel (not extended) assembly and prevent their mangling/deletion.
+
 ; The initial value of -1 comes from Z_DEFAULT_COMPRESSION in zlib.h.
 flto-compression-level=
 Common Joined RejectNegative UInteger Var(flag_lto_compression_level) Init(-1) IntegerRange(0, 19)
@@ -2466,8 +2474,10 @@ foffload-options=
 Common Driver Joined RejectNegative MissingArgError(options or targets=options missing after %qs)
 -foffload-options=<targets>=<options>	Specify options for the offloading targets.
 
+; -foffload-abi is not useful to users because the host/offload
+; pointer sizes must match regardless.
 foffload-abi=
-Common Joined RejectNegative Enum(offload_abi)
+Common Undocumented Joined RejectNegative Enum(offload_abi)
 -foffload-abi=[lp64|ilp32]	Set the ABI to use in an offload compiler.
 
 Enum
@@ -2479,8 +2489,10 @@ Enum(offload_abi) String(ilp32) Value(OFFLOAD_ABI_ILP32)
 EnumValue
 Enum(offload_abi) String(lp64) Value(OFFLOAD_ABI_LP64)
 
+; -foffload-abi-host-opts is not useful to users because the host/offload
+; pointer sizes must match regardless.
 foffload-abi-host-opts=
-Common Joined RejectNegative MissingArgError(option missing after %qs)
+Common Undocumented Joined RejectNegative MissingArgError(option missing after %qs)
 -foffload-abi-host-opts=<options>	Specify host ABI options.
 
 fomit-frame-pointer
@@ -2553,7 +2565,7 @@ Report on memory allocation before interprocedural optimization.
 
 fpost-ipa-mem-report
 Common Var(post_ipa_mem_report)
-Report on memory allocation before interprocedural optimization.
+Report on memory allocation after interprocedural optimization.
 
 fpack-struct
 Common Var(flag_pack_struct) Optimization
@@ -3133,7 +3145,7 @@ Common Var(flag_syntax_only)
 Check for syntax errors, then stop.
 
 ftest-coverage
-Common Var(flag_test_coverage)
+Common Var(flag_test_coverage) EnabledBy(fpath-coverage || fcondition-coverage)
 Create data files needed by \"gcov\".
 
 fthread-jumps
@@ -3786,7 +3798,7 @@ Common Driver Var(flag_describe_dies) Init(0)
 Add description attributes to some DWARF DIEs that have no name attribute.
 
 gtoggle
-Common Driver Var(flag_gtoggle)
+Common RejectNegative Driver Var(flag_gtoggle)
 Toggle debug information generation.
 
 gvariable-location-views
@@ -3892,6 +3904,9 @@ Driver
 
 pipe
 Driver Var(use_pipes)
+
+print-autofdo-gcov-version
+Driver Var(print_autofdo_gcov_version)
 
 print-file-name=
 Driver JoinedOrMissing Var(print_file_name)

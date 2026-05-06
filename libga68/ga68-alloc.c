@@ -42,6 +42,15 @@ _libga68_malloc_internal (size_t size)
   return res;
 }
 
+void *
+_libga68_realloc_internal (void *ptr, size_t size)
+{
+  void *res = (void *) realloc (ptr, size);
+  if (!res)
+    _libga68_abort ("Virtual memory exhausted\n");
+  return res;
+}
+
 #if LIBGA68_WITH_GC
 #include <gc/gc.h>
 
@@ -58,7 +67,7 @@ _libga68_init_heap (void)
 void *
 _libga68_realloc (void *ptr, size_t size)
 {
-  void *res = (void *) GC_realloc (ptr, size);
+  void *res = (void *) GC_REALLOC (ptr, size);
   if (!res)
     _libga68_abort ("Virtual memory exhausted\n");
   return res;
@@ -67,14 +76,23 @@ _libga68_realloc (void *ptr, size_t size)
 void *
 _libga68_realloc_unchecked (void *ptr, size_t size)
 {
-  void *res = (void *) GC_realloc (ptr, size);
+  void *res = (void *) GC_REALLOC (ptr, size);
   return res;
 }
 
 void *
 _libga68_malloc (size_t size)
 {
-  void *res = (void *) GC_malloc (size);
+  void *res = (void *) GC_MALLOC (size);
+  if (!res)
+    _libga68_abort ("Virtual memory exhausted\n");
+  return res;
+}
+
+void *
+_libga68_malloc_leaf (size_t size)
+{
+  void *res = (void *) GC_MALLOC_ATOMIC (size);
   if (!res)
     _libga68_abort ("Virtual memory exhausted\n");
   return res;
@@ -110,6 +128,12 @@ _libga68_malloc (size_t size)
   if (!res)
     _libga68_abort ("Virtual memory exhausted\n");
   return res;
+}
+
+void *
+_libga68_malloc_leaf (size_t size)
+{
+  return _libga68_malloc (size);
 }
 
 #endif /* !LIBGA68_WITH_GC */

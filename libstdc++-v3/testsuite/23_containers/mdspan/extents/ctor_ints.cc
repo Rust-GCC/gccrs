@@ -24,18 +24,30 @@ static_assert(std::is_constructible_v<std::extents<unsigned __int128, 1, 2>,
 #endif
 
 // No implicit conversion from integer-like objects.
-template<typename Extent, typename... OExtents>
-  constexpr bool
+template<typename ExtentsType, typename OIndex, typename... RIndicies>
+  consteval bool
   is_explicit()
   {
-    return std::is_nothrow_constructible_v<Extent, OExtents...>
-	   && !std::is_convertible_v<Extent, OExtents...>;
+    if (!std::is_nothrow_constructible_v<ExtentsType, OIndex, RIndicies...>)
+      return false;
+    if constexpr (sizeof...(RIndicies) == 0)
+      if (std::is_convertible_v<OIndex, ExtentsType>)
+	return false;
+
+    extern void testConv(ExtentsType);
+    return !requires (OIndex index, RIndicies... rindicies)
+      { testConv({index, rindicies...}); };
   }
 
 static_assert(is_explicit<std::extents<int, 1>, int>());
 static_assert(is_explicit<std::extents<int, 1>, unsigned int>());
 static_assert(is_explicit<std::extents<unsigned int, 1>, int>());
 
+static_assert(is_explicit<std::dextents<int, 1>, int>());
+static_assert(is_explicit<std::dextents<int, 2>, int, int>());
+static_assert(is_explicit<std::dextents<int, 3>, int, int, int>());
+
+	
 constexpr bool
 test_all()
 {

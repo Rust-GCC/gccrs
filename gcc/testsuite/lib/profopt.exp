@@ -312,6 +312,8 @@ proc profopt-execute { src } {
     global generate_final_code use_final_code
     global verbose
     global testname_with_flags
+    global additional_sources_used
+    global GCC_UNDER_TEST
 
     if ![info exists profile_option] {
         error "No profile option specified for first compile."
@@ -452,7 +454,15 @@ proc profopt-execute { src } {
 	    # convert profile
 	    if { $run_autofdo == 1 } {
                 set bprefix "afdo."
-		set cmd "create_gcov --binary $execname1 --profile=$tmpdir/$base.perf.data --gcov_version=3 --gcov=$tmpdir/$bprefix$base.$ext"
+		set compiler [lindex $GCC_UNDER_TEST 0]
+		set autofdo_version [string trim [lindex [remote_exec target "$compiler --print-autofdo-gcov-version"] 1] ]
+		set profiler_check [string trim [lindex [remote_exec target "perf --no-pager list | grep arm_spe"] 1]]
+		if {$profiler_check ne ""} {
+		    set profiler "perf_spe"
+		} else {
+		    set profiler "perf"
+		}
+		set cmd "create_gcov --binary $execname1 --profile=$tmpdir/$base.perf.data --profiler=$profiler --gcov_version=$autofdo_version --gcov=$tmpdir/$bprefix$base.$ext"
 		verbose "Running $cmd"
 		set id [remote_spawn "" $cmd]
 		if { $id < 0 } {
@@ -473,6 +483,19 @@ proc profopt-execute { src } {
 		    set status "fail"
 		    set missing_file 1
 		    fail "$testcase execution: file $bprefix$base.$ext does not exist, $option $profile_option"
+		}
+		if [info exists additional_sources_used] {
+		    foreach srcfile $additional_sources_used {
+			set add_basename [file tail $srcfile]
+			set add_base [file rootname $add_basename]
+			remote_upload target $tmpdir/$bprefix$add_base.$ext
+			set files [glob -nocomplain $bprefix$add_base.$ext]
+			if { $files == "" } {
+			    set status "fail"
+			    set missing_file 1
+			    fail "$testcase execution: file $bprefix$add_base.$ext does not exist, $option $profile_option"
+			}
+		    }
 		}
 	    }
 	}
@@ -606,4 +629,5 @@ proc profopt-execute { src } {
 	}
     }
     unset testname_with_flags
+    cleanup-after-saved-dg-test
 }

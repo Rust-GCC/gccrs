@@ -980,7 +980,7 @@ riscv_expand_block_move_scalar (rtx dest, rtx src, rtx length)
 bool
 riscv_expand_block_move (rtx dest, rtx src, rtx length)
 {
-  if ((TARGET_VECTOR && !TARGET_XTHEADVECTOR)
+  if (TARGET_VECTOR
       && stringop_strategy & STRATEGY_VECTOR)
     {
       bool ok = riscv_vector::expand_block_move (dest, src, length, false);
@@ -1086,8 +1086,18 @@ use_vector_stringop_p (struct stringop_info &info, HOST_WIDE_INT max_ew,
   rtx avl = length_in;
   HOST_WIDE_INT potential_ew = max_ew;
 
-  if (!TARGET_VECTOR || !(stringop_strategy & STRATEGY_VECTOR))
+  if (!TARGET_VECTOR
+      || !(stringop_strategy & STRATEGY_VECTOR))
     return false;
+
+  if (TARGET_XTHEADVECTOR
+      && (!CONST_INT_P (length_in)
+	  || known_lt (INTVAL (length_in), BYTES_PER_RISCV_VECTOR)))
+      return false;
+
+  int max_lmul = TARGET_MAX_LMUL;
+  if (rvv_max_lmul == RVV_CONV_DYNAMIC)
+    max_lmul = RVV_M1;
 
   if (CONST_INT_P (length_in))
     {
@@ -1095,7 +1105,7 @@ use_vector_stringop_p (struct stringop_info &info, HOST_WIDE_INT max_ew,
 
       /* If the VLEN and preferred LMUL allow the entire block to be copied in
 	 one go then no loop is needed.  */
-      if (known_le (length, BYTES_PER_RISCV_VECTOR * TARGET_MAX_LMUL))
+      if (known_le (length, BYTES_PER_RISCV_VECTOR * max_lmul))
 	{
 	  need_loop = false;
 
@@ -1130,10 +1140,10 @@ use_vector_stringop_p (struct stringop_info &info, HOST_WIDE_INT max_ew,
 	  poly_int64 nunits;
 
 	  if (need_loop)
-	    per_iter = BYTES_PER_RISCV_VECTOR * TARGET_MAX_LMUL;
+	    per_iter = BYTES_PER_RISCV_VECTOR * max_lmul;
 	  else
 	    per_iter = length;
-	  /* BYTES_PER_RISCV_VECTOR * TARGET_MAX_LMUL may not be divisible by
+	  /* BYTES_PER_RISCV_VECTOR * MAX_LMUL may not be divisible by
 	     this potential_ew.  */
 	  if (!multiple_p (per_iter, potential_ew, &nunits))
 	    continue;
@@ -1164,7 +1174,7 @@ use_vector_stringop_p (struct stringop_info &info, HOST_WIDE_INT max_ew,
 		 pointless.
 		 Still, by choosing a lower LMUL factor that still allows
 		 an entire transfer, we can reduce register pressure.  */
-	      for (unsigned lmul = 1; lmul < TARGET_MAX_LMUL; lmul <<= 1)
+	      for (int lmul = 1; lmul < max_lmul; lmul <<= 1)
 		if (known_le (length * BITS_PER_UNIT, TARGET_MIN_VLEN * lmul)
 		    && multiple_p (BYTES_PER_RISCV_VECTOR * lmul, potential_ew,
 				   &mode_units)
@@ -1177,9 +1187,9 @@ use_vector_stringop_p (struct stringop_info &info, HOST_WIDE_INT max_ew,
 	  if (vmode != VOIDmode)
 	    break;
 
-	  /* BYTES_PER_RISCV_VECTOR * TARGET_MAX_LMUL will at least be divisible
+	  /* BYTES_PER_RISCV_VECTOR * MAX_LMUL will at least be divisible
 	     by potential_ew 1, so this should succeed eventually.  */
-	  if (multiple_p (BYTES_PER_RISCV_VECTOR * TARGET_MAX_LMUL,
+	  if (multiple_p (BYTES_PER_RISCV_VECTOR * max_lmul,
 			  potential_ew, &mode_units)
 	      && riscv_vector::get_vector_mode (elem_mode,
 						mode_units).exists (&vmode))
@@ -1195,7 +1205,7 @@ use_vector_stringop_p (struct stringop_info &info, HOST_WIDE_INT max_ew,
     }
   else
     {
-      gcc_assert (get_lmul_mode (QImode, TARGET_MAX_LMUL).exists (&vmode));
+      gcc_assert (get_lmul_mode (QImode, max_lmul).exists (&vmode));
     }
 
   /* A memcpy libcall in the worst case takes 3 instructions to prepare the
@@ -1249,7 +1259,7 @@ expand_block_move (rtx dst_in, rtx src_in, rtx length_in, bool movmem_p)
 	       && length > riscv_memcpy_size_threshold)
 	return false;
     }
-  else
+  else if (riscv_memmove_size_threshold != -1)
     return false;
 
   /* Inlining general memmove is a pessimisation: we can't avoid having to
@@ -1356,6 +1366,8 @@ expand_rawmemchr (machine_mode mode, rtx dst, rtx haystack, rtx needle,
 
   unsigned int isize = GET_MODE_SIZE (mode).to_constant ();
   int lmul = TARGET_MAX_LMUL;
+  if (rvv_max_lmul == RVV_CONV_DYNAMIC)
+    lmul = RVV_M1;
   poly_int64 nunits = exact_div (BYTES_PER_RISCV_VECTOR * lmul, isize);
 
   machine_mode vmode;
@@ -1396,10 +1408,7 @@ expand_rawmemchr (machine_mode mode, rtx dst, rtx haystack, rtx needle,
 		   riscv_vector::UNARY_OP, vlops);
 
   /* Read how far we read.  */
-  if (Pmode == SImode)
-    emit_insn (gen_read_vlsi (cnt));
-  else
-    emit_insn (gen_read_vldi_zero_extend (cnt));
+  emit_insn (gen_read_vl (Pmode, cnt));
 
   /* Compare needle with haystack and store in a mask.  */
   rtx eq = gen_rtx_EQ (mask_mode, gen_const_vec_duplicate (vmode, needle), vec);
@@ -1455,6 +1464,8 @@ expand_strcmp (rtx result, rtx src1, rtx src2, rtx nbytes,
   machine_mode mode = E_QImode;
   unsigned int isize = GET_MODE_SIZE (mode).to_constant ();
   int lmul = TARGET_MAX_LMUL;
+  if (rvv_max_lmul == RVV_CONV_DYNAMIC)
+    lmul = RVV_M1;
   poly_int64 nunits = exact_div (BYTES_PER_RISCV_VECTOR * lmul, isize);
 
   machine_mode vmode;
@@ -1512,10 +1523,7 @@ expand_strcmp (rtx result, rtx src1, rtx src2, rtx nbytes,
     }
 
   /* Read the vl for the next pointer bump.  */
-  if (Pmode == SImode)
-    emit_insn (gen_read_vlsi (cnt));
-  else
-    emit_insn (gen_read_vldi_zero_extend (cnt));
+  emit_insn (gen_read_vl (Pmode, cnt));
 
   if (with_length)
     {
@@ -1596,6 +1604,10 @@ check_vectorise_memory_operation (rtx length_in, HOST_WIDE_INT &lmul_out)
 
   HOST_WIDE_INT length = INTVAL (length_in);
 
+  if (TARGET_XTHEADVECTOR
+      && known_lt (length, BYTES_PER_RISCV_VECTOR))
+    return false;
+
   /* If it's tiny, default operation is likely better; maybe worth
      considering fractional lmul in the future as well.  */
   if (length < (TARGET_MIN_VLEN / 8))
@@ -1606,7 +1618,9 @@ check_vectorise_memory_operation (rtx length_in, HOST_WIDE_INT &lmul_out)
   if (rvv_max_lmul != RVV_DYNAMIC)
     {
       lmul_out = TARGET_MAX_LMUL;
-      return (length <= ((TARGET_MAX_LMUL * TARGET_MIN_VLEN) / 8));
+      if (rvv_max_lmul == RVV_CONV_DYNAMIC)
+	lmul_out = RVV_M1;
+      return (length <= ((lmul_out * TARGET_MIN_VLEN) / 8));
     }
 
   /* Find smallest lmul large enough for entire op.  */
@@ -1641,7 +1655,7 @@ expand_vec_setmem (rtx dst_in, rtx length_in, rtx fill_value_in)
 	  && length > riscv_memset_size_threshold)
 	return false;
     }
-  else
+  else if (riscv_memset_size_threshold != -1)
     return false;
 
   rtx dst_addr = copy_addr_to_reg (XEXP (dst_in, 0));

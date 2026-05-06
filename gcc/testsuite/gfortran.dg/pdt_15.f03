@@ -101,6 +101,6 @@ contains
     if (int (pop_8 (root)) .ne. 0) STOP 4
   end subroutine
 end program ch2701
-! { dg-final { scan-tree-dump-times "Pdtlink_8._deallocate " 5 "original" } }
+! { dg-final { scan-tree-dump-times "PDTlink_8._deallocate " 5 "original" } }
 ! { dg-final { scan-tree-dump-times ".n.data = 0B" 9 "original" } }
 ! { dg-final { scan-tree-dump-times "__builtin_free" 15 "original" } }

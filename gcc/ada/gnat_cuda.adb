@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2010-2025, Free Software Foundation, Inc.         --
+--          Copyright (C) 2010-2026, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -36,7 +36,6 @@ with Nmake;          use Nmake;
 with Sem_Aux;        use Sem_Aux;
 with Sem_Util;       use Sem_Util;
 with Sinfo.Nodes;    use Sinfo.Nodes;
-with Sinfo;          use Sinfo;
 
 with GNAT.HTable;
 

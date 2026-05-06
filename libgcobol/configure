@@ -644,6 +644,8 @@ LIBQUADINCLUDE
 LIBQUADLIB_DEP
 LIBQUADLIB
 LIBQUADSPEC
+LIBXML2_LIBS
+LIBXML2_CPPFLAGS
 extra_ldflags_libgcobol
 LIBGCOBOL_VERSION
 BUILD_LIBGCOBOL_FALSE
@@ -803,6 +805,9 @@ with_toolexeclibdir
 enable_rpath
 with_libiconv_prefix
 with_libiconv_type
+with_target_libxml2
+with_target_libxml2_include
+with_target_libxml2_lib
 enable_libquadmath
 with_gcc_major_version_only
 '
@@ -1472,6 +1477,16 @@ Optional Packages:
   --with-libiconv-prefix[=DIR]  search for libiconv in DIR/include and DIR/lib
   --without-libiconv-prefix     don't search for libiconv in includedir and libdir
   --with-libiconv-type=TYPE     type of library to search for (auto/static/shared)
+  --with-target-libxml2=PATHLIST
+                          specify prefix directory for installed libxml2
+                          package. Equivalent to
+                          --with-target-libxml2-include=PATH/include plus
+                          --with-target-libxml2-lib=PATH/lib
+  --with-target-libxml2-include=PATHLIST
+                          specify directories for installed libxml2 include
+                          files
+  --with-target-libxml2-lib=PATHLIST
+                          specify directories for installed libxml2 library
   --with-gcc-major-version-only
                           use only GCC major number in filesystem paths
 
@@ -12199,7 +12214,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<_LT_EOF
-#line 12202 "configure"
+#line 12217 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -12305,7 +12320,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<_LT_EOF
-#line 12308 "configure"
+#line 12323 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -17666,97 +17681,109 @@ fi
 
 
 # These are libxml2.
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for xmlSAXUserParseMemory in -lxml2" >&5
-$as_echo_n "checking for xmlSAXUserParseMemory in -lxml2... " >&6; }
-if ${ac_cv_lib_xml2_xmlSAXUserParseMemory+:} false; then :
-  $as_echo_n "(cached) " >&6
+
+# Check whether --with-target-libxml2 was given.
+if test "${with_target_libxml2+set}" = set; then :
+  withval=$with_target_libxml2;
+fi
+
+
+# Check whether --with-target-libxml2-include was given.
+if test "${with_target_libxml2_include+set}" = set; then :
+  withval=$with_target_libxml2_include;
+fi
+
+
+# Check whether --with-target-libxml2-lib was given.
+if test "${with_target_libxml2_lib+set}" = set; then :
+  withval=$with_target_libxml2_lib;
+fi
+
+
+if test "x$use_libgcobol" = xyes && test "x$libgcobol_cv_have_int128" = xyes; then
+  { $as_echo "$as_me:${as_lineno-$LINENO}: checking for libxml2" >&5
+$as_echo_n "checking for libxml2... " >&6; }
+  if test "x$with_target_libxml2$with_target_libxml2_include$with_target_libxml2_lib" = x; then
+        LIBXML2_CPPFLAGS="-I /usr/include/libxml2"
+    LIBXML2_LIBS="-lxml2"
+  else
+        if test "x$with_target_libxml2_include" = x && test "x$with_target_libxml2_lib" != x; then
+      as_fn_error $? "found --with-target-libxml2-lib but --with-target-libxml2-include missing" "$LINENO" 5
+    elif test "x$with_target_libxml2_include" != x && test "x$with_target_libxml2_lib" = x; then
+      as_fn_error $? "found --with-target-libxml2-include but --with-target-libxml2-lib missing" "$LINENO" 5
+    else
+      { $as_echo "$as_me:${as_lineno-$LINENO}: result: using paths configured with --with-target-libxml2 options" >&5
+$as_echo "using paths configured with --with-target-libxml2 options" >&6; }
+    fi
+    mldir=`${CC-gcc} --print-multi-directory 2>/dev/null`
+    libxml2_val=
+    if test "x$with_target_libxml2" != x; then
+      for i in `echo $with_target_libxml2 | tr ',' ' '`; do
+        case "$i" in
+          *=*) sd=${i%%=*}; d=${i#*=} ;;
+          *) sd=.; d=$i ;;
+        esac
+        if test "$mldir" = "$sd"; then
+          libxml2_val=$d
+        fi
+      done
+      if test "x$libxml2_val" = x; then
+        as_fn_error $? "no multilib path ($mldir) found in --with-target-libxml2" "$LINENO" 5
+      fi
+      libxml2_inc_dir="$libxml2_val/include"
+      libxml2_lib_dir="$libxml2_val/lib"
+    fi
+    libxml2_val=
+    if test "x$with_target_libxml2_include" != x; then
+      for i in `echo $with_target_libxml2_include | tr ',' ' '`; do
+        case "$i" in
+          *=*) sd=${i%%=*}; d=${i#*=} ;;
+          *) sd=.; d=$i; fallback=$i ;;
+        esac
+        if test "$mldir" = "$sd"; then
+          libxml2_val=$d
+        fi
+      done
+      if test "x$libxml2_val" = x && test "x$libxml2_inc_dir" = x && test "x$fallback" != x; then
+        libxml2_inc_dir="$fallback"
+      elif test "x$libxml2_val" = x; then
+        as_fn_error $? "no multilib path ($mldir) found in --with-target-libxml2-include" "$LINENO" 5
+      else
+        libxml2_inc_dir="$libxml2_val"
+      fi
+    fi
+    libxml2_val=
+    if test "x$with_target_libxml2_lib" != x; then
+      for i in `echo $with_target_libxml2_lib | tr ',' ' '`; do
+        case "$i" in
+          *=*) sd=${i%%=*}; d=${i#*=} ;;
+          *) sd=.; d=$i ;;
+        esac
+        if test "$mldir" = "$sd"; then
+          libxml2_val=$d
+        fi
+      done
+      if test "x$libxml2_val" = x; then
+        as_fn_error $? "no multilib path ($mldir) found in --with-target-libxml2-lib" "$LINENO" 5
+      fi
+      libxml2_lib_dir="$libxml2_val"
+    fi
+    if test "x$libxml2_inc_dir" = x; then
+      as_fn_error $? "no multilib path ($mldir) found in --with-target-libxml2-include" "$LINENO" 5
+    fi
+    if test "x$libxml2_lib_dir" = x; then
+      as_fn_error $? "no multilib path ($mldir) found in --with-target-libxml2-lib" "$LINENO" 5
+    fi
+    LIBXML2_CPPFLAGS="-I$libxml2_inc_dir"
+    LIBXML2_LIBS="-L$libxml2_lib_dir -lxml2"
+    { $as_echo "$as_me:${as_lineno-$LINENO}: result: found" >&5
+$as_echo "found" >&6; }
+  fi
 else
-  ac_check_lib_save_LIBS=$LIBS
-LIBS="-lxml2  $LIBS"
-if test x$gcc_no_link = xyes; then
-  as_fn_error $? "Link tests are not allowed after GCC_NO_EXECUTABLES." "$LINENO" 5
-fi
-cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-
-/* Override any GCC internal prototype to avoid an error.
-   Use char because int might match the return type of a GCC
-   builtin and then its argument prototype would still apply.  */
-#ifdef __cplusplus
-extern "C"
-#endif
-char xmlSAXUserParseMemory ();
-int
-main ()
-{
-return xmlSAXUserParseMemory ();
-  ;
-  return 0;
-}
-_ACEOF
-if ac_fn_cxx_try_link "$LINENO"; then :
-  ac_cv_lib_xml2_xmlSAXUserParseMemory=yes
-else
-  ac_cv_lib_xml2_xmlSAXUserParseMemory=no
-fi
-rm -f core conftest.err conftest.$ac_objext \
-    conftest$ac_exeext conftest.$ac_ext
-LIBS=$ac_check_lib_save_LIBS
-fi
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_xml2_xmlSAXUserParseMemory" >&5
-$as_echo "$ac_cv_lib_xml2_xmlSAXUserParseMemory" >&6; }
-if test "x$ac_cv_lib_xml2_xmlSAXUserParseMemory" = xyes; then :
-  LIBS="-lxml2 $LIBS"
-
-$as_echo "#define HAVE_SAX_XML_PARSER 1" >>confdefs.h
-
+  LIBXML2_CPPFLAGS=
+  LIBXML2_LIBS=
 fi
 
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for xmlParseChunk in -lxml2" >&5
-$as_echo_n "checking for xmlParseChunk in -lxml2... " >&6; }
-if ${ac_cv_lib_xml2_xmlParseChunk+:} false; then :
-  $as_echo_n "(cached) " >&6
-else
-  ac_check_lib_save_LIBS=$LIBS
-LIBS="-lxml2  $LIBS"
-if test x$gcc_no_link = xyes; then
-  as_fn_error $? "Link tests are not allowed after GCC_NO_EXECUTABLES." "$LINENO" 5
-fi
-cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-
-/* Override any GCC internal prototype to avoid an error.
-   Use char because int might match the return type of a GCC
-   builtin and then its argument prototype would still apply.  */
-#ifdef __cplusplus
-extern "C"
-#endif
-char xmlParseChunk ();
-int
-main ()
-{
-return xmlParseChunk ();
-  ;
-  return 0;
-}
-_ACEOF
-if ac_fn_cxx_try_link "$LINENO"; then :
-  ac_cv_lib_xml2_xmlParseChunk=yes
-else
-  ac_cv_lib_xml2_xmlParseChunk=no
-fi
-rm -f core conftest.err conftest.$ac_objext \
-    conftest$ac_exeext conftest.$ac_ext
-LIBS=$ac_check_lib_save_LIBS
-fi
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_xml2_xmlParseChunk" >&5
-$as_echo "$ac_cv_lib_xml2_xmlParseChunk" >&6; }
-if test "x$ac_cv_lib_xml2_xmlParseChunk" = xyes; then :
-  LIBS="-lxml2 $LIBS"
-
-$as_echo "#define HAVE_SAX_XML_PARSER 1" >>confdefs.h
-
-fi
 
 
 # Copied from gcc/configure.ac. 2025-06-05 R.J.Dubner

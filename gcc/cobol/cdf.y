@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2025 Symas Corporation
+ * Copyright (c) 2021-2026 Symas Corporation
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -30,9 +30,11 @@
 %{
 
 #include "cobol-system.h"
-#include "coretypes.h"
-#include "tree.h"
+#include <coretypes.h>
+#include <tree.h>
+
 #undef yy_flex_debug
+
 #include "../../libgcobol/ec.h"
 #include "../../libgcobol/common-defs.h"
 #include "util.h"

@@ -336,7 +336,7 @@ static int const x86_64_ms_abi_int_parameter_registers[4] =
 };
 
 /* Similar as Clang's preserve_none function parameter passing.
-   NB: Use DI_REG and SI_REG, see ix86_function_value_regno_p.  */
+   NB: Use DI_REG and SI_REG, see ix86_function_arg_regno_p.  */
 
 static int const x86_64_preserve_none_int_parameter_registers[6] =
 {
@@ -744,7 +744,10 @@ ix86_in_large_data_p (tree exp)
     {
       const char *section = DECL_SECTION_NAME (exp);
       if (strcmp (section, ".ldata") == 0
-	  || strcmp (section, ".lbss") == 0)
+	  || startswith (section, ".ldata.")
+	  || strcmp (section, ".lbss") == 0
+	  || startswith (section, ".lbss.")
+	  || startswith (section, ".gnu.linkonce.lb."))
 	return true;
       return false;
     }
@@ -852,7 +855,12 @@ x86_64_elf_section_type_flags (tree decl, const char *name, int reloc)
   if (strcmp (name, ".lbss") == 0
       || startswith (name, ".lbss.")
       || startswith (name, ".gnu.linkonce.lb."))
-    flags |= SECTION_BSS;
+    {
+      flags |= SECTION_BSS;
+      /* Clear SECTION_NOTYPE so .lbss etc. are marked @nobits in
+	 default_elf_asm_named_section.  */
+      flags &= ~SECTION_NOTYPE;
+    }
 
   return flags;
 }
@@ -1175,7 +1183,7 @@ ix86_get_callcvt (const_tree type)
       else if (lookup_attribute ("thiscall", attrs))
 	ret |= IX86_CALLCVT_THISCALL;
 
-      /* Regparam isn't allowed for thiscall and fastcall.  */
+      /* Regparm isn't allowed for thiscall and fastcall.  */
       if ((ret & (IX86_CALLCVT_THISCALL | IX86_CALLCVT_FASTCALL)) == 0)
 	{
 	  if (lookup_attribute ("regparm", attrs))
@@ -2737,7 +2745,7 @@ classify_argument (machine_mode mode, const_tree type,
    class.  Return true iff parameter should be passed in memory.  */
 
 static bool
-examine_argument (machine_mode mode, const_tree type, int in_return,
+examine_argument (machine_mode mode, const_tree type, bool in_return,
 		  int *int_nregs, int *sse_nregs)
 {
   enum x86_64_reg_class regclass[MAX_CLASSES];
@@ -2782,8 +2790,8 @@ examine_argument (machine_mode mode, const_tree type, int in_return,
 
 static rtx
 construct_container (machine_mode mode, machine_mode orig_mode,
-		     const_tree type, int in_return, int nintregs, int nsseregs,
-		     const int *intreg, int sse_regno)
+		     const_tree type, bool in_return, int nintregs,
+		     int nsseregs, const int *intreg, int sse_regno)
 {
   /* The following variables hold the static issued_error state.  */
   static bool issued_sse_arg_error;
@@ -2801,12 +2809,10 @@ construct_container (machine_mode mode, machine_mode orig_mode,
   rtx exp[MAX_CLASSES];
   rtx ret;
 
-  n = classify_argument (mode, type, regclass, 0);
-  if (!n)
-    return NULL;
   if (examine_argument (mode, type, in_return, &needed_intregs,
 			&needed_sseregs))
     return NULL;
+
   if (needed_intregs > nintregs || needed_sseregs > nsseregs)
     return NULL;
 
@@ -2840,6 +2846,9 @@ construct_container (machine_mode mode, machine_mode orig_mode,
 	}
       return NULL;
     }
+
+  n = classify_argument (mode, type, regclass, 0);
+  gcc_assert (n);
 
   /* Likewise, error if the ABI requires us to return values in the
      x87 registers and the user specified -mno-80387.  */
@@ -3203,7 +3212,7 @@ function_arg_advance_64 (CUMULATIVE_ARGS *cum, machine_mode mode,
 		 || VALID_AVX256_REG_MODE (mode)))
     return 0;
 
-  if (!examine_argument (mode, type, 0, &int_nregs, &sse_nregs)
+  if (!examine_argument (mode, type, false, &int_nregs, &sse_nregs)
       && sse_nregs <= cum->sse_nregs && int_nregs <= cum->nregs)
     {
       cum->nregs -= int_nregs;
@@ -3483,8 +3492,8 @@ function_arg_64 (const CUMULATIVE_ARGS *cum, machine_mode mode,
   else
     parm_regs = x86_64_int_parameter_registers;
 
-  return construct_container (mode, orig_mode, type, 0, cum->nregs,
-			      cum->sse_nregs,
+  return construct_container (mode, orig_mode, type, false,
+			      cum->nregs, cum->sse_nregs,
 			      &parm_regs[cum->regno],
 			      cum->sse_regno);
 }
@@ -4070,6 +4079,17 @@ ix86_zero_call_used_regs (HARD_REG_SET need_zeroed_hardregs)
     {
       emit_insn (zero_all_vec_insn);
       all_sse_zeroed = true;
+      if (TARGET_64BIT && TARGET_AVX512F)
+	{
+	  rtx zero = CONST0_RTX (V4SFmode);
+	  for (unsigned int regno = XMM16_REG;
+	       regno <= XMM31_REG;
+	       regno++)
+	    {
+	      rtx reg = gen_rtx_REG (V4SFmode, regno);
+	      emit_move_insn (reg, zero);
+	    }
+	}
     }
 
   /* mm/st registers are shared registers set, we should follow the following
@@ -4289,7 +4309,7 @@ function_value_64 (machine_mode orig_mode, machine_mode mode,
       mode = word_mode;
     }
 
-  ret = construct_container (mode, orig_mode, valtype, 1,
+  ret = construct_container (mode, orig_mode, valtype, true,
 			     X86_64_REGPARM_MAX, X86_64_SSE_REGPARM_MAX,
 			     x86_64_int_return_registers, 0);
 
@@ -4456,7 +4476,7 @@ ix86_return_in_memory (const_tree type, const_tree fntype ATTRIBUTE_UNUSED)
 	{
 	  int needed_intregs, needed_sseregs;
 
-	  return examine_argument (mode, type, 1,
+	  return examine_argument (mode, type, true,
 				   &needed_intregs, &needed_sseregs);
 	}
     }
@@ -4564,6 +4584,7 @@ ix86_build_builtin_va_list_64 (void)
   DECL_CHAIN (f_gpr) = f_fpr;
   DECL_CHAIN (f_fpr) = f_ovf;
   DECL_CHAIN (f_ovf) = f_sav;
+  TREE_PUBLIC (type_decl) = 1;
 
   layout_type (record);
 
@@ -4985,9 +5006,8 @@ ix86_gimplify_va_arg (tree valist, tree type, gimple_seq *pre_p,
 
     default:
       container = construct_container (nat_mode, TYPE_MODE (type),
-				       type, 0, X86_64_REGPARM_MAX,
-				       X86_64_SSE_REGPARM_MAX, intreg,
-				       0);
+				       type, false, X86_64_REGPARM_MAX,
+				       X86_64_SSE_REGPARM_MAX, intreg, 0);
       break;
     }
 
@@ -5005,7 +5025,8 @@ ix86_gimplify_va_arg (tree valist, tree type, gimple_seq *pre_p,
       lab_false = create_artificial_label (UNKNOWN_LOCATION);
       lab_over = create_artificial_label (UNKNOWN_LOCATION);
 
-      examine_argument (nat_mode, type, 0, &needed_intregs, &needed_sseregs);
+      examine_argument (nat_mode, type, false,
+			&needed_intregs, &needed_sseregs);
 
       bool container_in_reg = false;
       if (REG_P (container))
@@ -5990,7 +6011,7 @@ ix86_output_ssemov (rtx_insn *insn, rtx *operands)
 /* Returns true if OP contains a symbol reference */
 
 bool
-symbolic_reference_mentioned_p (rtx op)
+symbolic_reference_mentioned_p (const_rtx op)
 {
   const char *fmt;
   int i;
@@ -8438,7 +8459,7 @@ output_adjust_stack_and_probe (rtx reg)
 
   /* Probe at SP.  */
   xops[1] = const0_rtx;
-  output_asm_insn ("or%z0\t{%1, (%0)|DWORD PTR [%0], %1}", xops);
+  output_asm_insn ("or{b}\t{%1, (%0)|BYTE PTR [%0], %1}", xops);
 
   /* Test if SP == LAST_ADDR.  */
   xops[0] = stack_pointer_rtx;
@@ -8574,7 +8595,7 @@ output_probe_stack_range (rtx reg, rtx end)
   xops[0] = stack_pointer_rtx;
   xops[1] = reg;
   xops[2] = const0_rtx;
-  output_asm_insn ("or%z0\t{%2, (%0,%1)|DWORD PTR [%0+%1], %2}", xops);
+  output_asm_insn ("or{b}\t{%2, (%0,%1)|BYTE PTR [%0+%1], %2}", xops);
 
   /* Test if TEST_ADDR == LAST_ADDR.  */
   xops[0] = reg;
@@ -8598,6 +8619,20 @@ struct stack_access_data
   unsigned int *stack_alignment;
 };
 
+/* Return true if OP references an argument passed on stack.  */
+
+static bool
+ix86_argument_passed_on_stack_p (const_rtx op)
+{
+  tree mem_expr = MEM_EXPR (op);
+  if (mem_expr)
+    {
+      tree var = get_base_address (mem_expr);
+      return TREE_CODE (var) == PARM_DECL;
+    }
+  return false;
+}
+
 /* Update the maximum stack slot alignment from memory alignment in PAT.  */
 
 static void
@@ -8613,7 +8648,11 @@ ix86_update_stack_alignment (rtx, const_rtx pat, void *data)
       auto op = *iter;
       if (MEM_P (op))
 	{
-	  if (reg_mentioned_p (p->reg, XEXP (op, 0)))
+	  /* NB: Ignore arguments passed on stack since caller is
+	     responsible to align the outgoing stack for arguments
+	     passed on stack.  */
+	  if (reg_mentioned_p (p->reg, XEXP (op, 0))
+	      && !ix86_argument_passed_on_stack_p (op))
 	    {
 	      unsigned int alignment = MEM_ALIGN (op);
 
@@ -8711,6 +8750,121 @@ ix86_find_all_reg_uses (HARD_REG_SET &regset,
     }
 }
 
+/* Return true if the hard register REGNO used for a stack access is
+   defined in a basic block that dominates the block where it is used.  */
+
+static bool
+ix86_access_stack_p (unsigned int regno, basic_block bb,
+		     HARD_REG_SET &set_up_by_prologue,
+		     HARD_REG_SET &prologue_used,
+		     auto_bitmap reg_dominate_bbs_known[],
+		     auto_bitmap reg_dominate_bbs[])
+{
+  if (bitmap_bit_p (reg_dominate_bbs_known[regno], bb->index))
+    return bitmap_bit_p (reg_dominate_bbs[regno], bb->index);
+
+  bitmap_set_bit (reg_dominate_bbs_known[regno], bb->index);
+
+  /* Get all BBs which set REGNO and dominate the current BB from all
+     DEFs of REGNO.  */
+  for (df_ref def = DF_REG_DEF_CHAIN (regno);
+       def;
+       def = DF_REF_NEXT_REG (def))
+    if (!DF_REF_IS_ARTIFICIAL (def)
+	&& !DF_REF_FLAGS_IS_SET (def, DF_REF_MAY_CLOBBER)
+	&& !DF_REF_FLAGS_IS_SET (def, DF_REF_MUST_CLOBBER))
+      {
+	basic_block set_bb = DF_REF_BB (def);
+	if (dominated_by_p (CDI_DOMINATORS, bb, set_bb))
+	  {
+	    rtx_insn *insn = DF_REF_INSN (def);
+	    /* Return true if INSN requires stack.  */
+	    if (requires_stack_frame_p (insn, prologue_used,
+					set_up_by_prologue))
+	      {
+		bitmap_set_bit (reg_dominate_bbs[regno], bb->index);
+		return true;
+	      }
+	  }
+      }
+
+  /* When we get here, REGNO used in the current BB doesn't access
+     stack.  */
+  return false;
+}
+
+/* Return true if OP isn't a memory operand with SYMBOLIC_CONST and
+   needs alignment > ALIGNMENT.  */
+
+static bool
+ix86_need_alignment_p_2 (const_rtx op, unsigned int alignment)
+{
+  bool need_alignment = MEM_ALIGN (op) > alignment;
+  tree mem_expr = MEM_EXPR (op);
+  if (!mem_expr)
+    return need_alignment;
+
+  tree var = get_base_address (mem_expr);
+  if (!VAR_P (var) || !DECL_RTL_SET_P (var))
+    return need_alignment;
+
+  rtx x = DECL_RTL (var);
+  if (!MEM_P (x))
+    return need_alignment;
+
+  x = XEXP (x, 0);
+  return !SYMBOLIC_CONST (x) && need_alignment;
+}
+
+/* Return true if SET needs alignment > ALIGNMENT.  */
+
+static bool
+ix86_need_alignment_p_1 (rtx set, unsigned int alignment)
+{
+  rtx dest = SET_DEST (set);
+
+  if (MEM_P (dest))
+    return ix86_need_alignment_p_2 (dest, alignment);
+
+  const_rtx src = SET_SRC (set);
+
+  subrtx_iterator::array_type array;
+  FOR_EACH_SUBRTX (iter, array, src, ALL)
+    {
+      auto op = *iter;
+
+      if (MEM_P (op))
+	return ix86_need_alignment_p_2 (op, alignment);
+    }
+
+  return false;
+}
+
+/* Return true if INSN needs alignment > ALIGNMENT.  */
+
+static bool
+ix86_need_alignment_p (rtx_insn *insn, unsigned int alignment)
+{
+  rtx set = single_set (insn);
+  if (set)
+    return ix86_need_alignment_p_1 (set, alignment);
+
+  rtx pat = PATTERN (insn);
+  if (GET_CODE (pat) != PARALLEL)
+    return false;
+
+  for (int i = 0; i < XVECLEN (pat, 0); i++)
+    {
+      rtx exp = XVECEXP (pat, 0, i);
+
+      if (GET_CODE (exp) == SET
+	  && ix86_need_alignment_p_1 (exp, alignment))
+	return true;
+    }
+
+  return false;
+}
+
 /* Set stack_frame_required to false if stack frame isn't required.
    Update STACK_ALIGNMENT to the largest alignment, in bits, of stack
    slot used if stack frame is required and CHECK_STACK_SLOT is true.  */
@@ -8771,6 +8925,11 @@ ix86_find_max_used_stack_alignment (unsigned int &stack_alignment,
       bitmap_set_bit (worklist, HARD_FRAME_POINTER_REGNUM);
     }
 
+  /* Registers on HARD_STACK_SLOT_ACCESS always access stack.  */
+  HARD_REG_SET hard_stack_slot_access = stack_slot_access;
+
+  calculate_dominance_info (CDI_DOMINATORS);
+
   unsigned int regno;
 
   do
@@ -8783,24 +8942,44 @@ ix86_find_max_used_stack_alignment (unsigned int &stack_alignment,
   hard_reg_set_iterator hrsi;
   stack_access_data data;
 
+  auto_bitmap reg_dominate_bbs_known[FIRST_PSEUDO_REGISTER];
+  auto_bitmap reg_dominate_bbs[FIRST_PSEUDO_REGISTER];
+
   data.stack_alignment = &stack_alignment;
 
   EXECUTE_IF_SET_IN_HARD_REG_SET (stack_slot_access, 0, regno, hrsi)
-    for (df_ref ref = DF_REG_USE_CHAIN (regno);
-	 ref != NULL;
-	 ref = DF_REF_NEXT_REG (ref))
-      {
-	if (DF_REF_IS_ARTIFICIAL (ref))
-	  continue;
+    {
+      for (df_ref ref = DF_REG_USE_CHAIN (regno);
+	   ref != NULL;
+	   ref = DF_REF_NEXT_REG (ref))
+	{
+	  if (DF_REF_IS_ARTIFICIAL (ref))
+	    continue;
 
-	rtx_insn *insn = DF_REF_INSN (ref);
+	  rtx_insn *insn = DF_REF_INSN (ref);
 
-	if (!NONJUMP_INSN_P (insn))
-	  continue;
+	  if (!NONJUMP_INSN_P (insn))
+	    continue;
 
-	data.reg = DF_REF_REG (ref);
-	note_stores (insn, ix86_update_stack_alignment, &data);
-      }
+	  /* Call ix86_access_stack_p only if INSN needs alignment >
+	     STACK_ALIGNMENT.  */
+	  if (ix86_need_alignment_p (insn, stack_alignment)
+	      && (TEST_HARD_REG_BIT (hard_stack_slot_access, regno)
+		  || ix86_access_stack_p (regno, BLOCK_FOR_INSN (insn),
+					  set_up_by_prologue,
+					  prologue_used,
+					  reg_dominate_bbs_known,
+					  reg_dominate_bbs)))
+	    {
+	      /* Update stack alignment if REGNO is used for stack
+		 access.  */
+	      data.reg = DF_REF_REG (ref);
+	      note_stores (insn, ix86_update_stack_alignment, &data);
+	    }
+	}
+    }
+
+  free_dominance_info (CDI_DOMINATORS);
 }
 
 /* Finalize stack_realign_needed and frame_pointer_needed flags, which
@@ -20632,13 +20811,13 @@ avx_vpermilp_parallel (rtx par, machine_mode mode)
 	 then fallthru.  */
       for (i = 4; i < 6; ++i)
 	{
-	  if (ipar[i] < 4 || ipar[i] >= 6)
+	  if (!IN_RANGE (ipar[i], 4, 5))
 	    return 0;
 	  mask |= (ipar[i] - 4) << i;
 	}
       for (i = 6; i < 8; ++i)
 	{
-	  if (ipar[i] < 6)
+	  if (!IN_RANGE (ipar[i], 6, 7))
 	    return 0;
 	  mask |= (ipar[i] - 6) << i;
 	}
@@ -20650,13 +20829,13 @@ avx_vpermilp_parallel (rtx par, machine_mode mode)
          a 128-bit lane.  */
       for (i = 0; i < 2; ++i)
 	{
-	  if (ipar[i] >= 2)
+	  if (!IN_RANGE (ipar[i], 0, 1))
 	    return 0;
 	  mask |= ipar[i] << i;
 	}
       for (i = 2; i < 4; ++i)
 	{
-	  if (ipar[i] < 2)
+	  if (!IN_RANGE (ipar[i], 2, 3))
 	    return 0;
 	  mask |= (ipar[i] - 2) << i;
 	}
@@ -23024,36 +23203,71 @@ ix86_rtx_costs (rtx x, machine_mode mode, int outer_code_i, int opno,
       return false;
 
     case UNSPEC:
-      if (XINT (x, 1) == UNSPEC_TP)
-	*total = 0;
-      else if (XINT (x, 1) == UNSPEC_VTERNLOG)
+      switch (XINT (x, 1))
 	{
+	case UNSPEC_TP:
+	  *total = 0;
+	  break;
+
+	case UNSPEC_VTERNLOG:
 	  *total = cost->sse_op;
-	  *total += rtx_cost (XVECEXP (x, 0, 0), mode, code, 0, speed);
-	  *total += rtx_cost (XVECEXP (x, 0, 1), mode, code, 1, speed);
-	  *total += rtx_cost (XVECEXP (x, 0, 2), mode, code, 2, speed);
+	  if (!REG_P (XVECEXP (x, 0, 0)))
+	    *total += rtx_cost (XVECEXP (x, 0, 0), mode, code, 0, speed);
+	  if (!REG_P (XVECEXP (x, 0, 1)))
+	    *total += rtx_cost (XVECEXP (x, 0, 1), mode, code, 1, speed);
+	  if (!REG_P (XVECEXP (x, 0, 2)))
+	    *total += rtx_cost (XVECEXP (x, 0, 2), mode, code, 2, speed);
 	  return true;
-	}
-      else if (XINT (x, 1) == UNSPEC_PTEST)
-	{
+
+	case UNSPEC_PTEST:
+	  {
+	    *total = cost->sse_op;
+	    rtx test_op0 = XVECEXP (x, 0, 0);
+	    if (!rtx_equal_p (test_op0, XVECEXP (x, 0, 1)))
+	      return false;
+	    if (GET_CODE (test_op0) == AND)
+	      {
+		rtx and_op0 = XEXP (test_op0, 0);
+		if (GET_CODE (and_op0) == NOT)
+		  and_op0 = XEXP (and_op0, 0);
+		*total += rtx_cost (and_op0, GET_MODE (and_op0),
+				    AND, 0, speed)
+			  + rtx_cost (XEXP (test_op0, 1), GET_MODE (and_op0),
+				      AND, 1, speed);
+	     }
+	    else
+	      *total = rtx_cost (test_op0, GET_MODE (test_op0),
+				 UNSPEC, 0, speed);
+	  }
+	  return true;
+
+	case UNSPEC_BLENDV:
 	  *total = cost->sse_op;
-	  rtx test_op0 = XVECEXP (x, 0, 0);
-	  if (!rtx_equal_p (test_op0, XVECEXP (x, 0, 1)))
-	    return false;
-	  if (GET_CODE (test_op0) == AND)
+	  if (!REG_P (XVECEXP (x, 0, 0)))
+	    *total += rtx_cost (XVECEXP (x, 0, 0), mode, code, 0, speed);
+	  if (!REG_P (XVECEXP (x, 0, 1)))
+	    *total += rtx_cost (XVECEXP (x, 0, 1), mode, code, 1, speed);
+	  if (!REG_P (XVECEXP (x, 0, 2)))
 	    {
-	      rtx and_op0 = XEXP (test_op0, 0);
-	      if (GET_CODE (and_op0) == NOT)
-		and_op0 = XEXP (and_op0, 0);
-	      *total += rtx_cost (and_op0, GET_MODE (and_op0),
-				  AND, 0, speed)
-			+ rtx_cost (XEXP (test_op0, 1), GET_MODE (and_op0),
-				    AND, 1, speed);
+	      rtx cond = XVECEXP (x, 0, 2);
+	      if ((GET_CODE (cond) == LT || GET_CODE (cond) == GT)
+		  && CONST_VECTOR_P (XEXP (cond, 1)))
+		{
+		  /* avx2_blendvpd256_gt and friends.  */
+		  if (!REG_P (XEXP (cond, 0)))
+		    *total += rtx_cost (XEXP (cond, 0), mode, code, 2, speed);
+		}
+	      else
+		*total += rtx_cost (cond, mode, code, 2, speed);
 	    }
-	  else
-	    *total = rtx_cost (test_op0, GET_MODE (test_op0),
-			       UNSPEC, 0, speed);
 	  return true;
+
+	case UNSPEC_MOVMSK:
+	  *total = cost->sse_op;
+	  return true;
+
+	default:
+	  break;
 	}
       return false;
 
@@ -23266,6 +23480,70 @@ ix86_rtx_costs (rtx x, machine_mode mode, int outer_code_i, int opno,
 	    *total += rtx_cost (XEXP (x, 1), mode, code, 1, speed);
 	  if (!REG_P (XEXP (x, 2)))
 	    *total += rtx_cost (XEXP (x, 2), mode, code, 2, speed);
+	  return true;
+	}
+      return false;
+
+    case EQ:
+    case GT:
+    case GTU:
+    case LT:
+    case LTU:
+      if (TARGET_SSE2
+	  && GET_MODE_CLASS (mode) == MODE_VECTOR_INT
+	  && GET_MODE_SIZE (mode) >= 8)
+	{
+	  /* vpcmpeq */
+	  *total = speed ? COSTS_N_INSNS (1) : COSTS_N_BYTES (4);
+	  if (!REG_P (XEXP (x, 0)))
+	    *total += rtx_cost (XEXP (x, 0), mode, code, 0, speed);
+	  if (!REG_P (XEXP (x, 1)))
+	    *total += rtx_cost (XEXP (x, 1), mode, code, 1, speed);
+	  return true;
+	}
+      if (TARGET_XOP
+	  && GET_MODE_CLASS (mode) == MODE_VECTOR_INT
+	  && GET_MODE_SIZE (mode) <= 16)
+	{
+	  /* vpcomeq */
+	  *total = speed ? COSTS_N_INSNS (1) : COSTS_N_BYTES (6);
+	  if (!REG_P (XEXP (x, 0)))
+	    *total += rtx_cost (XEXP (x, 0), mode, code, 0, speed);
+	  if (!REG_P (XEXP (x, 1)))
+	    *total += rtx_cost (XEXP (x, 1), mode, code, 1, speed);
+	  return true;
+	}
+      return false;
+
+    case NE:
+    case GE:
+    case GEU:
+      if (TARGET_XOP
+	  && GET_MODE_CLASS (mode) == MODE_VECTOR_INT
+	  && GET_MODE_SIZE (mode) <= 16)
+	{
+	  /* vpcomneq */
+	  *total = speed ? COSTS_N_INSNS (1) : COSTS_N_BYTES (6);
+	  if (!REG_P (XEXP (x, 0)))
+	    *total += rtx_cost (XEXP (x, 0), mode, code, 0, speed);
+	  if (!REG_P (XEXP (x, 1)))
+	    *total += rtx_cost (XEXP (x, 1), mode, code, 1, speed);
+	  return true;
+	}
+      if (TARGET_SSE2
+	  && GET_MODE_CLASS (mode) == MODE_VECTOR_INT
+	  && GET_MODE_SIZE (mode) >= 8)
+	{
+	  if (TARGET_AVX512F && GET_MODE_SIZE (mode) >= 16)
+	    /* vpcmpeq + vpternlog */
+	    *total = speed ? COSTS_N_INSNS (2) : COSTS_N_BYTES (11);
+	  else
+	    /* vpcmpeq + pxor + vpcmpeq */
+	    *total = speed ? COSTS_N_INSNS (3) : COSTS_N_BYTES (12);
+	  if (!REG_P (XEXP (x, 0)))
+	    *total += rtx_cost (XEXP (x, 0), mode, code, 0, speed);
+	  if (!REG_P (XEXP (x, 1)))
+	    *total += rtx_cost (XEXP (x, 1), mode, code, 1, speed);
 	  return true;
 	}
       return false;
@@ -25116,7 +25394,7 @@ i386_solaris_elf_named_section (const char *name, unsigned int flags,
       return;
     }
 
-#if !HAVE_GNU_AS
+#if HAVE_SOLARIS_AS
   if (HAVE_COMDAT_GROUP && flags & SECTION_LINKONCE)
     {
       solaris_elf_asm_comdat_section (name, flags, decl);
@@ -25545,7 +25823,10 @@ ix86_reassociation_width (unsigned int op, machine_mode mode)
       /* Znver1-4 Integer vector instructions execute in FP unit
 	 and can execute 3 additions and one multiplication per cycle.  */
       if ((ix86_tune == PROCESSOR_ZNVER1 || ix86_tune == PROCESSOR_ZNVER2
-	   || ix86_tune == PROCESSOR_ZNVER3 || ix86_tune == PROCESSOR_ZNVER4)
+	   || ix86_tune == PROCESSOR_ZNVER3 || ix86_tune == PROCESSOR_ZNVER4
+	   || ix86_tune == PROCESSOR_C86_4G_M4
+	   || ix86_tune == PROCESSOR_C86_4G_M6
+	   || ix86_tune == PROCESSOR_C86_4G_M7)
    	  && INTEGRAL_MODE_P (mode) && op != PLUS && op != MINUS)
 	return 1;
       /* Znver5 can do 2 integer multiplications per cycle with latency
@@ -25700,7 +25981,7 @@ ix86_autovectorize_vector_modes (vector_modes *modes, bool all)
   if (TARGET_SSE2)
     modes->safe_push (V4QImode);
 
-  return 0;
+  return ix86_vect_compare_costs ? VECT_COMPARE_COSTS : 0;
 }
 
 /* Implemenation of targetm.vectorize.get_mask_mode.  */
@@ -26382,26 +26663,29 @@ ix86_vector_costs::add_stmt_cost (int count, vect_cost_for_stmt kind,
 	  TREE_VISITED (op) = 1;
 	  gimple *def = SSA_NAME_DEF_STMT (op);
 	  tree tem;
+	  /* Look through a conversion.  */
 	  if (is_gimple_assign (def)
 	      && CONVERT_EXPR_CODE_P (gimple_assign_rhs_code (def))
 	      && ((tem = gimple_assign_rhs1 (def)), true)
-	      && TREE_CODE (tem) == SSA_NAME
-	      /* A sign-change expands to nothing.  */
-	      && tree_nop_conversion_p (TREE_TYPE (gimple_assign_lhs (def)),
-					TREE_TYPE (tem)))
+	      && TREE_CODE (tem) == SSA_NAME)
 	    def = SSA_NAME_DEF_STMT (tem);
-	  /* When the component is loaded from memory we can directly
-	     move it to a vector register, otherwise we have to go
-	     via a GPR or via vpinsr which involves similar cost.
-	     Likewise with a BIT_FIELD_REF extracting from a vector
-	     register we can hope to avoid using a GPR.  */
-	  if (!is_gimple_assign (def)
-	      || ((!gimple_assign_load_p (def)
-		   || (!TARGET_SSE4_1
-		       && GET_MODE_SIZE (TYPE_MODE (TREE_TYPE (op))) == 1))
-		  && (gimple_assign_rhs_code (def) != BIT_FIELD_REF
-		      || !VECTOR_TYPE_P (TREE_TYPE
-				(TREE_OPERAND (gimple_assign_rhs1 (def), 0))))))
+	  /* When the component is loaded from memory without sign-
+	     or zero-extension we can move it to a vector register and/or
+	     insert it via vpinsr with a memory operand.  */
+	  if (gimple_assign_load_p (def)
+	      && tree_nop_conversion_p (TREE_TYPE (op),
+					TREE_TYPE (gimple_assign_lhs (def)))
+	      && (GET_MODE_SIZE (TYPE_MODE (TREE_TYPE (op))) > 1
+		  || TARGET_SSE4_1))
+	    ;
+	  /* When the component is extracted from a vector it is already
+	     in a vector register.  */
+	  else if (is_gimple_assign (def)
+		   && gimple_assign_rhs_code (def) == BIT_FIELD_REF
+		   && VECTOR_TYPE_P (TREE_TYPE
+				(TREE_OPERAND (gimple_assign_rhs1 (def), 0))))
+	    ;
+	  else
 	    {
 	      if (fp)
 		{
@@ -26422,21 +26706,7 @@ ix86_vector_costs::add_stmt_cost (int count, vect_cost_for_stmt kind,
 		{
 		  m_num_gpr_needed[where]++;
 
-		  int cost = COSTS_N_INSNS (ix86_cost->integer_to_sse) / 2;
-
-		  /* For integer construction, the number of actual GPR -> XMM
-		     moves will be somewhere between 0 and n.
-		     We do not have very good idea about actual number, since
-		     the source may be a constant, memory or a chain of
-		     instructions that will be later converted by
-		     scalar-to-vector pass.  */
-		  if (kind == vec_construct
-		      && GET_MODE_BITSIZE (mode) == 256)
-		    cost *= 2;
-		  else if (kind == vec_construct
-			   && GET_MODE_BITSIZE (mode) == 512)
-		    cost *= 3;
-		  stmt_cost += cost;
+		  stmt_cost += COSTS_N_INSNS (ix86_cost->integer_to_sse) / 2;
 		}
 	    }
 	}
@@ -26572,6 +26842,12 @@ ix86_vector_costs::finish_cost (const vector_costs *scalar_costs)
 	      > ceil_log2 (LOOP_VINFO_INT_NITERS (loop_vinfo))))
 	m_costs[vect_body] = INT_MAX;
 
+      /* We'd like to avoid using masking if there's an in-order reduction
+	 to vectorize because that will also perform in-order adds of
+	 masked elements (as neutral value, of course) here, but there
+	 is currently no way to indicate to try un-masked with the same
+	 mode.  */
+
       bool any_reduc_p = false;
       for (int i = 0; i != X86_REDUC_LAST; i++)
 	if (m_num_reduc[i])
@@ -26687,6 +26963,20 @@ ix86_vector_costs::finish_cost (const vector_costs *scalar_costs)
 		  }
 	      }
 	  }
+      /* Avoid using masking if there's an in-order reduction
+	 to vectorize because that will also perform in-order adds of
+	 masked elements (as neutral value, of course).  */
+      if (!avoid)
+	{
+	  for (auto inst : LOOP_VINFO_SLP_INSTANCES (loop_vinfo))
+	    if (SLP_INSTANCE_KIND (inst) == slp_inst_kind_reduc_group
+		&& (vect_reduc_type (loop_vinfo, SLP_INSTANCE_TREE (inst))
+		    == FOLD_LEFT_REDUCTION))
+	      {
+		avoid = true;
+		break;
+	      }
+	}
       if (!avoid)
 	{
 	  m_suggested_epilogue_mode = loop_vinfo->vector_mode;
@@ -27433,7 +27723,7 @@ ix86_bitint_type_info (int n, struct bitint_info *info)
     info->limb_mode = DImode;
   info->abi_limb_mode = info->limb_mode;
   info->big_endian = false;
-  info->extended = false;
+  info->extended = bitint_ext_undef;
   return true;
 }
 

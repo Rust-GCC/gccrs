@@ -1759,28 +1759,7 @@ loongarch_const_vector_bitimm_set_p (rtx op, machine_mode mode)
       && (GET_MODE_CLASS (mode) == MODE_VECTOR_FLOAT
 	  || GET_MODE_CLASS (mode) == MODE_VECTOR_INT))
     {
-      unsigned HOST_WIDE_INT val;
-
-      if (GET_MODE_CLASS (mode) == MODE_VECTOR_FLOAT)
-	{
-	  rtx val_s = CONST_VECTOR_ELT (op, 0);
-	  const REAL_VALUE_TYPE *x = CONST_DOUBLE_REAL_VALUE (val_s);
-	  if (GET_MODE (val_s) == DFmode)
-	    {
-	      long tmp[2];
-	      REAL_VALUE_TO_TARGET_DOUBLE (*x, tmp);
-	      val = (unsigned HOST_WIDE_INT) tmp[1] << 32 | tmp[0];
-	    }
-	  else
-	    {
-	      long tmp;
-	      REAL_VALUE_TO_TARGET_SINGLE (*x, tmp);
-	      val = (unsigned HOST_WIDE_INT) tmp;
-	    }
-	}
-      else
-	val = UINTVAL (CONST_VECTOR_ELT (op, 0));
-
+      unsigned HOST_WIDE_INT val = UINTVAL (CONST_VECTOR_ELT (op, 0));
       int vlog2 = exact_log2 (val & GET_MODE_MASK (GET_MODE_INNER (mode)));
 
       if (vlog2 != -1)
@@ -1872,27 +1851,7 @@ loongarch_const_vector_same_bytes_p (rtx op, machine_mode mode)
 
   first = CONST_VECTOR_ELT (op, 0);
   bytes = GET_MODE_UNIT_SIZE (mode);
-
-  if (GET_MODE_CLASS (mode) == MODE_VECTOR_FLOAT)
-    {
-      rtx val_s = CONST_VECTOR_ELT (op, 0);
-      const REAL_VALUE_TYPE *x = CONST_DOUBLE_REAL_VALUE (val_s);
-      if (GET_MODE (val_s) == DFmode)
-	{
-	  long tmp[2];
-	  REAL_VALUE_TO_TARGET_DOUBLE (*x, tmp);
-	  val = (unsigned HOST_WIDE_INT) tmp[1] << 32 | tmp[0];
-	}
-      else
-	{
-	  long tmp;
-	  REAL_VALUE_TO_TARGET_SINGLE (*x, tmp);
-	  val = (unsigned HOST_WIDE_INT) tmp;
-	}
-    }
-  else
-    val = UINTVAL (first);
-
+  val = INTVAL (first);
   first_byte = val & 0xff;
   for (i = 1; i < bytes; i++)
     {
@@ -6887,35 +6846,18 @@ loongarch_print_operand (FILE *file, rtx op, int letter)
 	{
 	  machine_mode mode = GET_MODE_INNER (GET_MODE (op));
 	  rtx val_s = CONST_VECTOR_ELT (op, 0);
-	  unsigned HOST_WIDE_INT val;
-
-	  if (GET_MODE_CLASS (mode) == MODE_FLOAT)
+	  if (CONST_INT_P (val_s))
 	    {
-	      const REAL_VALUE_TYPE *x = CONST_DOUBLE_REAL_VALUE (val_s);
-	      if (GET_MODE (val_s) == DFmode)
+	      unsigned HOST_WIDE_INT val = UINTVAL (val_s);
+	      int vlog2 = exact_log2 (val & GET_MODE_MASK (mode));
+	      if (vlog2 != -1)
 		{
-		  long tmp[2];
-		  REAL_VALUE_TO_TARGET_DOUBLE (*x, tmp);
-		  val = (unsigned HOST_WIDE_INT) (tmp[1] << 32 | tmp[0]);
-		}
-	      else
-		{
-		  long tmp;
-		  REAL_VALUE_TO_TARGET_SINGLE (*x, tmp);
-		  val = (unsigned HOST_WIDE_INT) tmp;
+		  fprintf (file, "%d", vlog2);
+		  break;
 		}
 	    }
-	  else
-	    val = UINTVAL (val_s);
-
-	  int vlog2 = exact_log2 (val & GET_MODE_MASK (mode));
-	  if (vlog2 != -1)
-	    fprintf (file, "%d", vlog2);
-	  else
-	    output_operand_lossage ("invalid use of '%%%c'", letter);
 	}
-      else
-	output_operand_lossage ("invalid use of '%%%c'", letter);
+      output_operand_lossage ("invalid use of '%%%c'", letter);
       break;
 
     case 'W':
@@ -8906,7 +8848,7 @@ loongarch_set_handled_components (sbitmap components)
 }
 
 /* Use the vshuf instruction to implement all 128-bit constant vector
-   permuatation.  */
+   permutation.  */
 
 static bool
 loongarch_try_expand_lsx_vshuf_const (struct expand_vec_perm_d *d)
@@ -9639,7 +9581,7 @@ loongarch_is_elem_duplicate (struct expand_vec_perm_d *d)
    When GCC wants to performs a vector permutation, it provides two op
    reigster, one target register, and a selector.
    In const vector permutation case, GCC provides selector as a char array
-   that contains original value; in variable vector permuatation
+   that contains original value; in variable vector permutation
    (performs via vec_perm<mode> insn template), it provides a vector register.
    We assume that nelt is the elements numbers inside single vector in current
    256bit vector mode.
@@ -9666,7 +9608,7 @@ loongarch_is_elem_duplicate (struct expand_vec_perm_d *d)
    by single instruction easily.
 
    3.  What LASX permutation instruction does:
-   In short, it just execute two independent 128bit vector permuatation, and
+   In short, it just execute two independent 128bit vector permutation, and
    it's the reason that we need to do the jobs below.  We will explain it.
    op0, op1, target, and selector will be separate into high 128bit and low
    128bit, and do permutation as the description below:
@@ -9696,8 +9638,8 @@ loongarch_is_elem_duplicate (struct expand_vec_perm_d *d)
    c) Use other instructions to process op and put correct result into target.
    */
 
-/* Implementation of constant vector permuatation.  This function identifies
-   recognized pattern of permuation selector argument, and use one or more
+/* Implementation of constant vector permutation.  This function identifies
+   recognized pattern of permutation selector argument, and use one or more
    instruction (s) to finish the permutation job correctly.  For unsupported
    patterns, it will return false.  */
 
@@ -10436,32 +10378,7 @@ loongarch_expand_vector_init_same (rtx target, rtx vals, unsigned nvar)
 	}
     }
 
-  if (imode == GET_MODE (same))
-    temp = same;
-  else if (GET_MODE_SIZE (imode) >= UNITS_PER_WORD)
-    {
-      if (GET_CODE (same) == MEM)
-	{
-	  rtx reg_tmp = gen_reg_rtx (GET_MODE (same));
-	  loongarch_emit_move (reg_tmp, same);
-	  temp = simplify_gen_subreg (imode, reg_tmp, GET_MODE (reg_tmp), 0);
-	}
-      else
-	temp = simplify_gen_subreg (imode, same, GET_MODE (same), 0);
-    }
-  else
-    {
-      if (GET_CODE (same) == MEM)
-	{
-	  rtx reg_tmp = gen_reg_rtx (GET_MODE (same));
-	  loongarch_emit_move (reg_tmp, same);
-	  temp = lowpart_subreg (imode, reg_tmp, GET_MODE (reg_tmp));
-	}
-      else
-	temp = lowpart_subreg (imode, same, GET_MODE (same));
-    }
-
-  temp = force_reg (imode, temp);
+  temp = force_reg (imode, same);
 
   switch (vmode)
     {
@@ -11210,7 +11127,7 @@ loongarch_build_signbit_mask (machine_mode mode, bool vect, bool invert)
     return force_reg (inner_mode, mask);
 
   v = loongarch_build_const_vector (vec_mode, vect, mask);
-  return force_reg (vec_mode, v);
+  return v;
 }
 
 /* Use rsqrte instruction and Newton-Rhapson to compute the approximation of
@@ -11259,10 +11176,11 @@ void loongarch_emit_swrsqrtsf (rtx res, rtx a, machine_mode mode, bool recip)
       if (VECTOR_MODE_P (mode))
 	{
 	  machine_mode imode = related_int_vector_mode (mode).require ();
-	  rtx mask = gen_reg_rtx (imode);
-	  emit_insn (gen_rtx_SET (mask, gen_rtx_NE (imode, a, zero)));
-	  emit_insn (gen_rtx_SET (x0, gen_rtx_AND (mode, x0,
-						   gen_lowpart (mode, mask))));
+	  rtx mask = force_reg (imode, gen_rtx_NE (imode, a, zero));
+	  emit_move_insn (gen_lowpart (imode, x0),
+			  gen_rtx_AND (imode,
+				       gen_lowpart (imode, x0),
+				       mask));
 	}
       else
 	{
@@ -11473,7 +11391,7 @@ loongarch_bitint_type_info (int n, struct bitint_info *info)
     info->abi_limb_mode = TImode;
 
   info->big_endian = false;
-  info->extended = true;
+  info->extended = bitint_ext_partial;
   return true;
 }
 
@@ -11589,7 +11507,7 @@ loongarch_process_target_version_attr (tree args, tree fndecl)
   if (str == "default")
     return true;
 
-  if (loongarch_parse_fmv_features (fndecl, str, NULL, NULL) == false)
+  if (loongarch_parse_fmv_features (loc, str, NULL, NULL) == false)
     return false;
 
   /* Get the attribute string and take out only the option part.
@@ -11811,8 +11729,22 @@ get_feature_mask_for_version (tree decl,
 
   string_slice version_string
     = TREE_STRING_POINTER (TREE_VALUE (TREE_VALUE (version_attr)));
-  loongarch_parse_fmv_features (decl, version_string, feature_mask,
-				feature_priority);
+  loongarch_parse_fmv_features (DECL_SOURCE_LOCATION (decl), version_string,
+				feature_mask, feature_priority);
+}
+
+/* Implement TARGET_CHECK_TARGET_CLONE_VERSION.  */
+
+bool
+loongarch_check_target_clone_version (string_slice str, location_t *loc)
+{
+  str = str.strip ();
+
+  if (str == "default")
+    return true;
+
+  return loongarch_parse_fmv_features (loc == NULL ? UNKNOWN_LOCATION : *loc,
+				       str, NULL, NULL);
 }
 
 /* This adds a condition to the basic_block NEW_BB in function FUNCTION_DECL
@@ -12126,7 +12058,7 @@ loongarch_generate_version_dispatcher_body (void *node_p)
 	 not.  This happens for methods in derived classes that override
 	 virtual methods in base classes but are not explicitly marked as
 	 virtual.  */
-      if (DECL_VINDEX (versn->decl))
+      if (DECL_VIRTUAL_P (versn->decl))
 	sorry ("virtual function multiversioning not supported");
 
       fn_ver_vec.safe_push (versn->decl);
@@ -12165,13 +12097,14 @@ loongarch_generate_version_dispatcher_body (void *node_p)
    This assumes that FN1 and FN2 have the same signature.  */
 
 bool
-loongarch_option_same_function_versions (string_slice str1, string_slice str2)
+loongarch_option_same_function_versions (string_slice str1, const_tree,
+					 string_slice str2, const_tree)
 {
   loongarch_fmv_feature_mask feature_mask1;
   loongarch_fmv_feature_mask feature_mask2;
-  loongarch_parse_fmv_features (NULL, str1,
+  loongarch_parse_fmv_features (UNKNOWN_LOCATION, str1,
 				&feature_mask1, NULL);
-  loongarch_parse_fmv_features (NULL, str2,
+  loongarch_parse_fmv_features (UNKNOWN_LOCATION, str2,
 				&feature_mask2, NULL);
 
   return feature_mask1 == feature_mask2;
@@ -12475,6 +12408,10 @@ loongarch_option_same_function_versions (string_slice str1, string_slice str2)
 #undef TARGET_MANGLE_DECL_ASSEMBLER_NAME
 #define TARGET_MANGLE_DECL_ASSEMBLER_NAME \
   loongarch_mangle_decl_assembler_name
+
+#undef TARGET_CHECK_TARGET_CLONE_VERSION
+#define TARGET_CHECK_TARGET_CLONE_VERSION \
+  loongarch_check_target_clone_version
 
 #undef TARGET_GENERATE_VERSION_DISPATCHER_BODY
 #define TARGET_GENERATE_VERSION_DISPATCHER_BODY \

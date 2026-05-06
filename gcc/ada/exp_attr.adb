@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2026, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -27,10 +27,10 @@ with Accessibility;  use Accessibility;
 with Atree;          use Atree;
 with Checks;         use Checks;
 with Debug;          use Debug;
-with Einfo;          use Einfo;
 with Einfo.Entities; use Einfo.Entities;
 with Einfo.Utils;    use Einfo.Utils;
 with Elists;         use Elists;
+with Errout;         use Errout;
 with Exp_Atag;       use Exp_Atag;
 with Exp_Ch3;        use Exp_Ch3;
 with Exp_Ch6;        use Exp_Ch6;
@@ -62,7 +62,6 @@ with Sem_Ch8;        use Sem_Ch8;
 with Sem_Eval;       use Sem_Eval;
 with Sem_Res;        use Sem_Res;
 with Sem_Util;       use Sem_Util;
-with Sinfo;          use Sinfo;
 with Sinfo.Nodes;    use Sinfo.Nodes;
 with Sinfo.Utils;    use Sinfo.Utils;
 with Snames;         use Snames;
@@ -4052,7 +4051,7 @@ package body Exp_Attr is
          --
          --  and the attribute reference is replaced with a reference to Size.
 
-         elsif Is_Class_Wide_Type (Ptyp) then
+         elsif Is_Class_Wide_Type (Ptyp) and then Is_Object_Prefix (Pref) then
             Size := Make_Temporary (Loc, 'S');
 
             Insert_Actions (N, New_List (
@@ -4417,6 +4416,131 @@ package body Exp_Attr is
 
       when Attribute_Fraction =>
          Expand_Fpt_Attribute_R (N);
+
+      ------------------
+      -- From_Address --
+      ------------------
+
+      when Attribute_From_Address =>
+         declare
+            --  Rewrite attribute reference as Expression_With_Actions:
+            --
+            --    declare
+            --      subtype S is Designated_Array_Type (<bounds>);
+            --      Obj : aliased S;
+            --      pragma Import (Convention => Ada, Entity => Obj);
+            --      for Obj'Address use <address>;
+            --    begin
+            --      Access_Type'(Obj'Unchecked_Access);
+            --    end;
+            --
+            --  If Designated_Array_Type is already constrained, then
+            --  the subtype declaration is omitted and D_A_T is referenced
+            --  instead. [An earlier attempt that used aspect_specification
+            --  syntax instead ran into problems.]
+
+            Access_Type : constant Entity_Id := Etype (N);
+
+            Designated_Array_Subtype : constant Entity_Id :=
+              Designated_Type (Access_Type);
+
+            Constraints   : constant List_Id := New_List;
+            Actions       : constant List_Id := New_List;
+            Subtype_Decl  : Node_Id;
+            Object_Decl   : Node_Id;
+            Import_Pragma : Node_Id;
+            Address_ADC   : Node_Id; -- ADC = attribute_definition_clause
+
+            function Object_Name return Node_Id is
+              (New_Occurrence_Of (Defining_Identifier (Object_Decl), Loc));
+         begin
+            if Is_Constrained (Designated_Array_Subtype) then
+               --  No need to declare a new subtype; bounds come from the
+               --  already-declared Designated_Array_Subtype.
+               --  Later tests for Present (Subtype_Decl) are testing
+               --  which path through this if-statement was taken.
+               Subtype_Decl := Empty;
+            else
+               declare
+                  --  Skip the first argument, which is the address
+                  Bound_Arg : Node_Id := Next (First (Expressions (N)));
+                  Index     : Node_Id :=
+                    First_Index (Designated_Array_Subtype);
+                  Lo, Hi    : Node_Id;
+               begin
+                  for Dim in 1 .. Number_Dimensions (Designated_Array_Subtype)
+                  loop
+                     if Is_Fixed_Lower_Bound_Index_Subtype (Etype (Index)) then
+                        Lo := New_Copy_Tree (Type_Low_Bound (Etype (Index)));
+                     else
+                        Lo := New_Copy_Tree (Bound_Arg);
+                        Next (Bound_Arg);
+                     end if;
+                     Hi := New_Copy_Tree (Bound_Arg);
+                     Append (Make_Range (Loc, Lo, Hi), Constraints);
+                     Next (Bound_Arg);
+                     Next_Index (Index);
+                  end loop;
+               end;
+
+               Subtype_Decl :=
+                 Make_Subtype_Declaration (Loc,
+                   Defining_Identifier =>
+                     Make_Temporary (Loc, 'S', Related_Node => N),
+                   Subtype_Indication  =>
+                     Make_Subtype_Indication (Loc,
+                       Subtype_Mark => New_Occurrence_Of
+                                         (Designated_Array_Subtype, Loc),
+                       Constraint   =>
+                          Make_Index_Or_Discriminant_Constraint
+                            (Loc, Constraints)));
+            end if;
+
+            Object_Decl :=
+              Make_Object_Declaration (Loc,
+                Defining_Identifier =>
+                  Make_Temporary (Loc, 'V', Related_Node => N),
+                  Object_Definition =>
+                    New_Occurrence_Of
+                      ((if Present (Subtype_Decl)
+                        then Defining_Identifier (Subtype_Decl)
+                        else Designated_Array_Subtype), Loc),
+                  Aliased_Present => True);
+
+            Import_Pragma :=
+              Make_Pragma (Loc,
+                Name_Import,
+                New_List (Make_Pragma_Argument_Association (Loc,
+                            Chars => Name_Convention,
+                            Expression => Make_Identifier (Loc, Name_Ada)),
+                          Make_Pragma_Argument_Association (Loc,
+                            Chars => Name_Entity,
+                            Expression => Object_Name)));
+
+            Address_ADC :=
+              Make_Attribute_Definition_Clause (Loc,
+                Name => Object_Name,
+                Chars => Name_Address,
+                Expression => New_Copy_Tree (First (Expressions (N))));
+
+            if Present (Subtype_Decl) then
+               Append (Subtype_Decl, Actions);
+            end if;
+            Append (Object_Decl, Actions);
+            Append (Import_Pragma, Actions);
+            Append (Address_ADC, Actions);
+
+            Rewrite (N, Make_Expression_With_Actions (Loc,
+              Actions => Actions,
+              Expression =>
+                Make_Qualified_Expression (Loc,
+                  Subtype_Mark => New_Occurrence_Of (Access_Type, Loc),
+                  Expression => Make_Attribute_Reference (Loc,
+                                  Prefix => Object_Name,
+                                  Attribute_Name => Name_Unchecked_Access))));
+
+            Analyze_And_Resolve (N, Access_Type);
+         end;
 
       --------------
       -- From_Any --
@@ -5277,8 +5401,7 @@ package body Exp_Attr is
       when Attribute_Make =>
          declare
             Constructor_Params : List_Id := New_Copy_List (Expressions (N));
-            Constructor_Call   : Node_Id;
-            Constructor_EWA    : Node_Id;
+            Constructor_Rhs    : Node_Id;
             Result_Decl        : Node_Id;
             Result_Id          : constant Entity_Id :=
               Make_Temporary (Loc, 'D', N);
@@ -5299,31 +5422,49 @@ package body Exp_Attr is
             Mutate_Ekind (Result_Id, E_Variable);
             Set_Suppress_Initialization (Result_Id);
 
-            --  Build a prefixed-notation call
+            --  A call to the copy constructor can be a special case. Even if
+            --  no copy constructor is declared (both explicitly by the user or
+            --  implicitly by the compiler), the call needs to succeed. In this
+            --  case, we rewrite the call simply as its unique actual.
 
-            declare
-               Proc_Name : constant Node_Id :=
-                 Make_Selected_Component (Loc,
-                   Prefix        => New_Occurrence_Of (Result_Id, Loc),
-                   Selector_Name => Make_Identifier (Loc,
-                                      Direct_Attribute_Definition_Name
-                                        (Typ, Name_Constructor)));
-            begin
-               Set_Is_Prefixed_Call (Proc_Name);
+            if Is_Copy_Constructor_Call (N)
+              and then not Has_Copy_Constructor (Entity (Pref))
+            then
+               if Nkind (First (Exprs)) = N_Parameter_Association
+               then
+                  Constructor_Rhs :=
+                    Relocate_Node (Explicit_Actual_Parameter (First (Exprs)));
+               else
+                  Constructor_Rhs := Relocate_Node (First (Exprs));
+               end if;
 
-               Constructor_Call := Make_Procedure_Call_Statement (Loc,
-                 Parameter_Associations => Constructor_Params,
-                 Name                   => Proc_Name);
-            end;
+            --  Otherwise build a prefixed-notation call
 
-            Set_Is_Expanded_Constructor_Call (Constructor_Call, True);
+            else
+               declare
+                  Constructor_Name : constant Node_Id :=
+                    Make_Selected_Component (Loc,
+                      Prefix        => New_Occurrence_Of (Result_Id, Loc),
+                      Selector_Name => Make_Identifier (Loc,
+                                         Direct_Attribute_Definition_Name
+                                           (Typ, Name_Constructor)));
+                  Constructor_Call : Node_Id;
+               begin
+                  Set_Is_Prefixed_Call (Constructor_Name);
+                  Constructor_Call :=
+                    Make_Procedure_Call_Statement (Loc,
+                      Parameter_Associations => Constructor_Params,
+                      Name                   => Constructor_Name);
+                  Set_Is_Expanded_Constructor_Call (Constructor_Call, True);
 
-            Constructor_EWA :=
-              Make_Expression_With_Actions (Loc,
-                Actions => New_List (Result_Decl, Constructor_Call),
-                Expression => New_Occurrence_Of (Result_Id, Loc));
+                  Constructor_Rhs :=
+                    Make_Expression_With_Actions (Loc,
+                      Actions => New_List (Result_Decl, Constructor_Call),
+                      Expression => New_Occurrence_Of (Result_Id, Loc));
+               end;
+            end if;
 
-            Rewrite (N, Constructor_EWA);
+            Rewrite (N, Constructor_Rhs);
          end;
 
          Analyze_And_Resolve (N, Typ);
@@ -5581,14 +5722,18 @@ package body Exp_Attr is
       ---------
 
       when Attribute_Old => Old : declare
-         CW_Temp : Entity_Id;
-         CW_Typ  : Entity_Id;
-         Decl    : Node_Id;
-         Ins_Nod : Node_Id;
-         Temp    : Entity_Id;
+         CW_Temp   : Entity_Id;
+         CW_Typ    : Entity_Id;
+         Decl      : Node_Id;
+         Ins_Nod   : Node_Id;
+         Temp      : Entity_Id;
 
          use Old_Attr_Util.Conditional_Evaluation;
          use Old_Attr_Util.Indirect_Temps;
+
+         Cond_Eval : constant Boolean :=
+            Eligible_For_Conditional_Evaluation (N);
+
       begin
          --  'Old can only appear in the case where local contract-related
          --  wrapper has been generated with the purpose of wrapping the
@@ -5617,7 +5762,12 @@ package body Exp_Attr is
 
          Ins_Nod := Last (Declarations (Ins_Nod));
 
-         if Eligible_For_Conditional_Evaluation (N) then
+         --  The code that builds declarations for always evaluated 'Old
+         --  constants doesn't handle the anonymous access type case correctly.
+         --  Indirect temporaries do, so we avoid that problem by going through
+         --  the same code as for conditionally evaluated constants.
+
+         if Cond_Eval or else Is_Anonymous_Access_Type (Etype (N)) then
             declare
                Eval_Stmts : constant List_Id := New_List;
 
@@ -5649,12 +5799,19 @@ package body Exp_Attr is
                Declare_Indirect_Temporary
                  (Attr_Prefix => Pref, Indirect_Temp => Temp);
 
-               Insert_After_And_Analyze (
-                 Ins_Nod,
-                 Make_If_Statement
-                   (Sloc            => Loc,
-                    Condition       => Conditional_Evaluation_Condition  (N),
-                    Then_Statements => Eval_Stmts));
+               --  Prefixes with anonymous access type might be unconditionally
+               --  evaluated.
+
+               if Cond_Eval then
+                  Insert_After_And_Analyze (
+                    Ins_Nod,
+                    Make_If_Statement
+                      (Sloc            => Loc,
+                       Condition       => Conditional_Evaluation_Condition (N),
+                       Then_Statements => Eval_Stmts));
+               else
+                  Insert_List_After_And_Analyze (Ins_Nod, Eval_Stmts);
+               end if;
 
                Rewrite (N, Indirect_Temp_Value
                              (Temp => Temp,
@@ -7186,14 +7343,25 @@ package body Exp_Attr is
                end if;
             end if;
 
-            --  If the prefix is X'Class, transform it into a direct reference
-            --  to the class-wide type, because the back end must not see a
-            --  'Class reference.
+            --  If the prefix is X'Class, transform it into a
+            --  raise of Constraint_Error.
 
             if Is_Entity_Name (Pref)
               and then Is_Class_Wide_Type (Entity (Pref))
             then
-               Rewrite (Prefix (N), New_Occurrence_Of (Entity (Pref), Loc));
+               pragma Assert (not Is_Mutably_Tagged_Type (Entity (Pref)));
+               --  In the Mutably_Tagged_Case, this attribute reference
+               --  should have been transformed into an integer literal
+               --  (in Eval_Attribute) before we get here.
+               --  If this assertion ever fails, the thing to do here
+               --  is generate a literal equal to the specified
+               --  T'Size'Class [sic] aspect value.
+
+               Error_Msg_N
+                 ("Constraint_Error will be raised at run time??", N);
+               Rewrite (N, Make_Raise_Constraint_Error
+                             (Loc, Reason => CE_Range_Check_Failed));
+               Set_Etype (N, Etype (Original_Node (N)));
                return;
 
             --  For X'Size applied to an object of a class-wide type, transform
@@ -8717,6 +8885,7 @@ package body Exp_Attr is
          | Attribute_Definite
          | Attribute_Delta
          | Attribute_Denorm
+         | Attribute_Destructor
          | Attribute_Digits
          | Attribute_Emax
          | Attribute_Enabled
@@ -8926,7 +9095,7 @@ package body Exp_Attr is
          then
             Set_Actual_Designated_Subtype (Pref, Get_Actual_Subtype (Pref));
 
-         --  If Size was applied to a slice of a bit-packed array, we rewrite
+         --  If Size is applied to a slice of a bit-packed array, we rewrite
          --  it into the product of Length and Component_Size. We need to do so
          --  because bit-packed arrays are represented internally as arrays of
          --  System.Unsigned_Types.Packed_Byte for code generation purposes so
@@ -8941,6 +9110,27 @@ package body Exp_Attr is
                 Make_Attribute_Reference (Loc,
                   Prefix         => Duplicate_Subexpr (Pref, Name_Req => True),
                   Attribute_Name => Name_Component_Size)));
+            Analyze_And_Resolve (N, Typ);
+
+         --  If Size is applied to a formal parameter that has got a dynamic
+         --  indication of its constrained status, return the "constrained"
+         --  size if the status is True, that is to say the size based on the
+         --  constraints of the actual, and the "unconstrained" size if the
+         --  status is False, that is to say the Object_Size of the type.
+
+         elsif Is_Entity_Name (Pref)
+           and then Is_Formal (Entity (Pref))
+           and then Present (Extra_Constrained (Entity (Pref)))
+         then
+            Rewrite (N,
+              Make_If_Expression (Loc,
+                Expressions => New_List (
+                  New_Occurrence_Of (Extra_Constrained (Entity (Pref)), Loc),
+                  Relocate_Node (N),
+                  Make_Attribute_Reference (Loc,
+                    Prefix         => New_Occurrence_Of (Etype (Pref), Loc),
+                    Attribute_Name => Name_Object_Size))));
+            Set_Analyzed (Next (First (Expressions (N))));
             Analyze_And_Resolve (N, Typ);
          end if;
 

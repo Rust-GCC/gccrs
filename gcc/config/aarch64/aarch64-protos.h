@@ -255,6 +255,8 @@ typedef struct simd_vec_cost advsimd_vec_cost;
 /* SVE-specific extensions to the information provided by simd_vec_cost.  */
 struct sve_vec_cost : simd_vec_cost
 {
+  sve_vec_cost () = default;
+
   CONSTEXPR sve_vec_cost (const simd_vec_cost &base,
 			  unsigned int clast_cost,
 			  unsigned int fadda_f16_cost,
@@ -365,6 +367,8 @@ using aarch64_scalar_vec_issue_info = aarch64_base_vec_issue_info;
    Advanced SIMD and SVE.  */
 struct aarch64_simd_vec_issue_info : aarch64_base_vec_issue_info
 {
+  aarch64_simd_vec_issue_info () = default;
+
   CONSTEXPR aarch64_simd_vec_issue_info (aarch64_base_vec_issue_info base,
 					 unsigned int ld2_st2_general_ops,
 					 unsigned int ld3_st3_general_ops,
@@ -393,6 +397,8 @@ using aarch64_advsimd_vec_issue_info = aarch64_simd_vec_issue_info;
    is a concept of "predicate operations".  */
 struct aarch64_sve_vec_issue_info : aarch64_simd_vec_issue_info
 {
+  aarch64_sve_vec_issue_info () = default;
+
   CONSTEXPR aarch64_sve_vec_issue_info
     (aarch64_simd_vec_issue_info base,
      unsigned int pred_ops_per_cycle,
@@ -481,6 +487,7 @@ struct cpu_branch_cost
 {
   int predictable;    /* Predictable branch or optimizing for size.  */
   int unpredictable;  /* Unpredictable branch or optimizing for speed.  */
+  int br_mispredict_factor;  /* Scale factor for cost of misprediction on branches.  */
 };
 
 /* Control approximate alternatives to certain FP operators.  */
@@ -983,6 +990,7 @@ bool aarch64_uimm12_shift (unsigned HOST_WIDE_INT);
 int aarch64_movk_shift (const wide_int_ref &, const wide_int_ref &);
 bool aarch64_is_mov_xn_imm (unsigned HOST_WIDE_INT);
 bool aarch64_use_return_insn_p (void);
+bool aarch64_use_simple_return_insn_p (void);
 const char *aarch64_output_casesi (rtx *);
 const char *aarch64_output_load_tp (rtx);
 const char *aarch64_output_sme_zero_za (rtx);
@@ -1253,6 +1261,7 @@ rtl_opt_pass *make_pass_late_track_speculation (gcc::context *);
 rtl_opt_pass *make_pass_insert_bti (gcc::context *ctxt);
 rtl_opt_pass *make_pass_switch_pstate_sm (gcc::context *ctxt);
 rtl_opt_pass *make_pass_ldp_fusion (gcc::context *);
+rtl_opt_pass *make_pass_narrow_gp_writes (gcc::context *);
 
 poly_uint64 aarch64_regmode_natural_size (machine_mode);
 

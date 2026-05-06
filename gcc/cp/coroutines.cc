@@ -33,7 +33,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "gcc-rich-location.h"
 #include "hash-map.h"
 #include "coroutines.h"
-#include "contracts.h"
 
 /* ================= Debug. ================= */
 
@@ -353,10 +352,20 @@ coroutine_info_hasher::equal (coroutine_info *lhs, const compare_type& rhs)
   return lhs->function_decl == rhs;
 }
 
+/* Initialize the coroutine info table, to hold state per coroutine decl,
+   if not already created.  */
+
+static void
+create_coroutine_info_table ()
+{
+  if (!coroutine_info_table)
+    coroutine_info_table = hash_table<coroutine_info_hasher>::create_ggc (11);
+}
+
 /* Get the existing coroutine_info for FN_DECL, or insert a new one if the
    entry does not yet exist.  */
 
-coroutine_info *
+static coroutine_info *
 get_or_insert_coroutine_info (tree fn_decl)
 {
   gcc_checking_assert (coroutine_info_table != NULL);
@@ -375,7 +384,7 @@ get_or_insert_coroutine_info (tree fn_decl)
 
 /* Get the existing coroutine_info for FN_DECL, fail if it doesn't exist.  */
 
-coroutine_info *
+static coroutine_info *
 get_coroutine_info (tree fn_decl)
 {
   if (coroutine_info_table == NULL)
@@ -757,11 +766,7 @@ ensure_coro_initialized (location_t loc)
       if (!void_coro_handle_address)
 	return false;
 
-      /* A table to hold the state, per coroutine decl.  */
-      gcc_checking_assert (coroutine_info_table == NULL);
-      coroutine_info_table =
-	hash_table<coroutine_info_hasher>::create_ggc (11);
-
+      create_coroutine_info_table ();
       if (coroutine_info_table == NULL)
 	return false;
 
@@ -873,11 +878,13 @@ coro_promise_type_found_p (tree fndecl, location_t loc)
       coro_info->self_h_proxy
 	= build_lang_decl (VAR_DECL, coro_self_handle_id,
 			   coro_info->handle_type);
+      DECL_CONTEXT (coro_info->self_h_proxy) = fndecl;
 
       /* Build a proxy for the promise so that we can perform lookups.  */
       coro_info->promise_proxy
 	= build_lang_decl (VAR_DECL, coro_promise_id,
 			   coro_info->promise_type);
+      DECL_CONTEXT (coro_info->promise_proxy) = fndecl;
 
       /* Note where we first saw a coroutine keyword.  */
       coro_info->first_coro_keyword = loc;
@@ -902,6 +909,17 @@ coro_get_ramp_function (tree decl)
   return NULL_TREE;
 }
 
+/* Given a DECL, an actor or destroyer, build a link from that to the ramp
+   function.  Used by modules streaming.  */
+
+void
+coro_set_ramp_function (tree decl, tree ramp)
+{
+  if (!to_ramp)
+    to_ramp = hash_map<tree, tree>::create_ggc (10);
+  to_ramp->put (decl, ramp);
+}
+
 /* Given the DECL for a ramp function (the user's original declaration) return
    the actor function if it has been defined.  */
 
@@ -924,6 +942,27 @@ coro_get_destroy_function (tree decl)
     return info->destroy_decl;
 
   return NULL_TREE;
+}
+
+/* For a given ramp function DECL, set the actor and destroy functions.
+   This is only used by modules streaming.  */
+
+void
+coro_set_transform_functions (tree decl, tree actor, tree destroy)
+{
+  /* Only relevant with modules.  */
+  gcc_checking_assert (modules_p ());
+
+  /* This should only be called for newly streamed declarations.  */
+  gcc_checking_assert (!get_coroutine_info (decl));
+
+  /* This might be the first use of coroutine info in the TU, so
+     create the coroutine info table if needed.  */
+  create_coroutine_info_table ();
+
+  coroutine_info *coroutine = get_or_insert_coroutine_info (decl);
+  coroutine->actor_decl = actor;
+  coroutine->destroy_decl = destroy;
 }
 
 /* Given a CO_AWAIT_EXPR AWAIT_EXPR, return its resume call.  */
@@ -1432,6 +1471,9 @@ build_co_await (location_t loc, tree a, suspend_point_kind suspend_kind,
       3. a coroutine handle, we execute the handle.resume() call.  */
   tree awsp_func = NULL_TREE;
   tree h_proxy = get_coroutine_self_handle_proxy (current_function_decl);
+  /* expand_one_await_expression will replace the argument with a prvalue call
+     to from_address, so pass an rvalue now as well.  */
+  h_proxy = move (h_proxy);
   vec<tree, va_gc> *args = make_tree_vector_single (h_proxy);
   tree awsp_call
     = build_new_method_call (e_proxy, awsp_meth, &args, NULL_TREE,
@@ -2198,7 +2240,18 @@ expand_one_await_expression (tree *expr, tree *await_expr, void *d)
     build_new_method_call (dummy_ch, data->hfa_m, &args, NULL_TREE,
 			   LOOKUP_NORMAL, NULL, tf_warning_or_error));
   release_tree_vector (args);
-  CALL_EXPR_ARG (susp_call, call_expr_nargs (susp_call) - 1) = hfa;
+  {
+    tree fn = get_callee_fndecl (susp_call);
+    int argno = 0 + DECL_OBJECT_MEMBER_FUNCTION_P (fn);
+    tree &arg = CALL_EXPR_ARG (susp_call, argno);
+    /* Handle await_suspend taking an unusual type (c++/123975).  */
+    tree type = TYPE_ARG_TYPES (TREE_TYPE (fn));
+    type = TREE_VALUE (chain_index (argno, type));
+    hfa = perform_implicit_conversion (type, hfa, tf_warning_or_error);
+    hfa = convert_for_arg_passing (type, hfa, tf_warning_or_error);
+    gcc_checking_assert (same_type_p (TREE_TYPE (arg), TREE_TYPE (hfa)));
+    arg = hfa;
+  }
 
   bool is_cont = false;
   /* NOTE: final suspend can't resume; the "resume" label in that case
@@ -2610,7 +2663,7 @@ build_actor_fn (location_t loc, tree coro_frame_type, tree actor, tree fnbody,
   /* The destroy point numbered #1 is special, in that it is reached from a
      coroutine that is suspended after re-throwing from unhandled_exception().
      This label just invokes the cleanup of promise, param copies and the
-     frame itself.  */
+     frame itself, if the ramp isn't still keeping them alive.  */
   tree del_promise_label
     = create_named_label_with_ctx (loc, "coro.delete.promise", actor);
   finish_case_label (loc, build_int_cst (short_unsigned_type_node, 1),
@@ -2704,6 +2757,9 @@ build_actor_fn (location_t loc, tree coro_frame_type, tree actor, tree fnbody,
   /* Add in our function body with the co_returns rewritten to final form.  */
   add_stmt (fnbody);
 
+  tree r = build_stmt (loc, LABEL_EXPR, del_promise_label);
+  add_stmt (r);
+
   /* We are done with the frame, but if the ramp still has a hold on it
      we should not cleanup.  So decrement the refcount and then return to
      the ramp if it is > 0.  */
@@ -2713,7 +2769,7 @@ build_actor_fn (location_t loc, tree coro_frame_type, tree actor, tree fnbody,
   tree released = build2_loc (loc, MINUS_EXPR, short_unsigned_type_node,
 			      coro_frame_refcount,
 			      build_int_cst (short_unsigned_type_node, 1));
-  tree r = cp_build_modify_expr (loc, coro_frame_refcount, NOP_EXPR, released,
+  r = cp_build_modify_expr (loc, coro_frame_refcount, NOP_EXPR, released,
 				 tf_warning_or_error);
   finish_expr_stmt (r);
   tree cond = build2_loc (loc, NE_EXPR, short_unsigned_type_node,
@@ -2726,8 +2782,6 @@ build_actor_fn (location_t loc, tree coro_frame_type, tree actor, tree fnbody,
   finish_if_stmt (ramp_cu_if);
 
   /* Otherwise, do the tail of the function; first cleanups.  */
-  r = build_stmt (loc, LABEL_EXPR, del_promise_label);
-  add_stmt (r);
 
   /* Destructors for the things we built explicitly.
      promise... */
@@ -4393,14 +4447,13 @@ coro_build_actor_or_destroy_function (tree orig, tree fn_type,
     = build_lang_decl (FUNCTION_DECL, copy_node (DECL_NAME (orig)), fn_type);
 
   /* Allow for locating the ramp (original) function from this one.  */
-  if (!to_ramp)
-    to_ramp = hash_map<tree, tree>::create_ggc (10);
-  to_ramp->put (fn, orig);
+  coro_set_ramp_function (fn, orig);
 
   DECL_CONTEXT (fn) = DECL_CONTEXT (orig);
   DECL_SOURCE_LOCATION (fn) = loc;
   DECL_ARTIFICIAL (fn) = true;
   DECL_INITIAL (fn) = error_mark_node;
+  DECL_COROUTINE_P (fn) = true;
 
   tree id = get_identifier ("frame_ptr");
   tree fp = build_lang_decl (PARM_DECL, id, coro_frame_ptr);
@@ -4420,8 +4473,6 @@ coro_build_actor_or_destroy_function (tree orig, tree fn_type,
   DECL_USER_ALIGN (fn) = DECL_USER_ALIGN (orig);
   /* Apply attributes from the original fn.  */
   DECL_ATTRIBUTES (fn) = copy_list (DECL_ATTRIBUTES (orig));
-  /* but we do not want ones for contracts.  */
-  remove_contract_attributes (fn);
 
   /* A void return.  */
   tree resdecl = build_decl (loc, RESULT_DECL, 0, void_type_node);
@@ -5087,7 +5138,9 @@ cp_coroutine_transform::build_ramp_function ()
   tree coro_frame_refcount
     = coro_build_and_push_artificial_var_with_dve (loc, coro_frame_refcount_id,
 						   short_unsigned_type_node,
-						   orig_fn_decl, NULL_TREE,
+						   orig_fn_decl,
+						   build_int_cst
+						   (short_unsigned_type_node, 0),
 						   deref_fp);
   /* Cleanup if both the ramp and the body have finished.  */
   tree cond
@@ -5240,6 +5293,23 @@ cp_coroutine_transform::build_ramp_function ()
       push_cleanup (p, r, /*eh_only*/false);
     }
 
+  /* Now that we've constructed everything in the frame, consider it
+     used...  */
+  r = cp_build_modify_expr (loc, coro_frame_refcount, NOP_EXPR,
+			    build_int_cst (short_unsigned_type_node, 1),
+			    tf_warning_or_error);
+  finish_expr_stmt (r);
+  /* ... but when we finish we want to release that, and we want to do that
+     before the frame cleanups run.  But after the gro cleanup, in case it
+     calls destroy (PR121961).  */
+  tree released
+    = build2_loc (loc, MINUS_EXPR, short_unsigned_type_node,
+		  coro_frame_refcount,
+		  build_int_cst (short_unsigned_type_node, 1));
+  released = cp_build_modify_expr (loc, coro_frame_refcount, NOP_EXPR, released,
+				 tf_warning_or_error);
+  push_cleanup (NULL_TREE, released, /*eh_only*/false);
+
   tree get_ro
     = coro_build_promise_expression (orig_fn_decl, p,
 				     coro_get_return_object_identifier,
@@ -5301,20 +5371,7 @@ cp_coroutine_transform::build_ramp_function ()
 	push_cleanup (coro_gro, coro_gro_cleanup, /*eh_only*/false);
     }
 
-  /* Start the coroutine body, we now have a use of the frame...  */
-  r = cp_build_modify_expr (loc, coro_frame_refcount, NOP_EXPR,
-			    build_int_cst (short_unsigned_type_node, 1),
-			    tf_warning_or_error);
-  finish_expr_stmt (r);
-  /* ... but when we finish we want to release that, and we want to do that
-     before any of the other cleanups run.  */
-  tree released
-    = build2_loc (loc, MINUS_EXPR, short_unsigned_type_node, coro_frame_refcount,
-		  build_int_cst (short_unsigned_type_node, 1));
-  released = cp_build_modify_expr (loc, coro_frame_refcount, NOP_EXPR, released,
-				 tf_warning_or_error);
-  push_cleanup (NULL_TREE, released, /*eh_only*/false);
-
+  /* Start the coroutine body.  */
   r = build_call_expr_loc (fn_start, resumer, 1, coro_fp);
   finish_expr_stmt (r);
 

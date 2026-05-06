@@ -231,9 +231,9 @@ a68_read_export_data (int fd, uint64_t offset, char **pbuf, size_t *plen,
 
 /* Look for export data in an object file.  */
 
-static char *
+char *
 a68_find_object_export_data (const std::string& filename,
-			     int fd, uint64_t offset, size_t *psize)
+			     int fd, off_t offset, size_t *psize)
 {
   char *buf;
   size_t len;
@@ -243,9 +243,9 @@ a68_find_object_export_data (const std::string& filename,
   if (errmsg != NULL)
     {
       if (err == 0)
-	a68_error (NO_NODE, "Z: Z", filename.c_str (), errmsg);
+	a68_error (NO_NODE, "%s: %s", filename.c_str (), errmsg);
       else
-	a68_error (NO_NODE, "Z: Z: Z", filename.c_str(), errmsg,
+	a68_error (NO_NODE, "%s: %s: %s", filename.c_str(), errmsg,
 		   xstrerror(err));
       return NULL;
     }
@@ -266,7 +266,7 @@ a68_find_export_data (const std::string &filename, int fd, size_t *psize)
 
   if (lseek (fd, 0, SEEK_SET) < 0)
     {
-      a68_error (NO_NODE, "lseek Z failed", filename.c_str ());
+      a68_error (NO_NODE, "lseek %qs failed", filename.c_str ());
       return NULL;
     }
 
@@ -277,7 +277,7 @@ a68_find_export_data (const std::string &filename, int fd, size_t *psize)
 
   if (lseek (fd, 0, SEEK_SET) < 0)
     {
-      a68_error (NO_NODE, "lseek Z failed", filename.c_str ());
+      a68_error (NO_NODE, "lseek %qs failed", filename.c_str ());
       return NULL;
     }
 
@@ -292,7 +292,7 @@ a68_find_export_data (const std::string &filename, int fd, size_t *psize)
       len = a68_file_size (fd);
       if (len == -1)
         {
-          a68_error (NO_NODE, "a68_file_size failed for Z",
+          a68_error (NO_NODE, "%<a68_file_size%> failed for %qs",
                      filename.c_str ());
           return NULL;
         }
@@ -324,11 +324,26 @@ a68_find_export_data (const std::string &filename, int fd, size_t *psize)
       return buf;
     }
 
-#if 0
   /* See if we can read this as an archive.  */
-  if (Import::is_archive_magic(buf))
-    return Import::find_archive_export_data(filename, fd, location);
-#endif
+  {
+    char buf[8];
+
+    if (lseek (fd, 0, SEEK_SET) < 0)
+      {
+	a68_error (NO_NODE, "lseek %qs failed", filename.c_str ());
+	return NULL;
+      }
+
+    c = read (fd, buf, 8);
+    if (c < 8)
+      {
+	a68_error (NO_NODE, "read %qs failed", filename.c_str ());
+	return NULL;
+      }
+
+    if (a68_is_archive_magic (buf))
+      return a68_find_archive_export_data(filename.c_str (), fd, psize);
+  }
 
   return NULL;
 }
@@ -394,7 +409,7 @@ a68_try_packet_in_directory (const std::string &filename, size_t *psize)
 
   close (fd);
 
-  a68_error (NO_NODE, "file Z exists but does not contain any export data",
+  a68_error (NO_NODE, "file %qs exists but does not contain any export data",
 	     found_filename.c_str ());
 
   return NULL;
@@ -1351,10 +1366,14 @@ a68_decode_moifs (const char *data, size_t size, const char **errstr)
 }
 
 /* Get a moif with the exports for module named MODULE.  If no exports can be
-   found then return NULL.  */
+   found then return NULL.
+
+   If BASENAME is not NULL then it specifies the basefile of the file to open
+   for the module exports: BASENAME.o, libBASENAME.so, etc.  If BASENAME is
+   NULL then the filename is derived from the module name.  */
 
 MOIF_T *
-a68_open_packet (const char *module)
+a68_open_packet (const char *module, const char *basename)
 {
   /* We may have a suitable moif already decoded for the requested module.  If
      so, use it.  */
@@ -1375,21 +1394,26 @@ a68_open_packet (const char *module)
   if (moif == NO_MOIF)
     {
       char *filename;
-      const char **pfilename = A68_MODULE_FILES->get (module);
-      if (pfilename == NULL)
-	{
-	  /* Turn the module indicant in MODULE to lower-case.  */
-	  filename = (char *) alloca (strlen (module) + 1);
-	  size_t i = 0;
-	  for (; i < strlen (module); i++)
-	    filename[i] = TOLOWER (module[i]);
-	  filename[i] = '\0';
-	}
+      if (basename != NULL)
+	filename = xstrdup (basename);
       else
 	{
-	  size_t len = strlen (*pfilename) + 1;
-	  filename = (char *) alloca (len);
-	  memcpy (filename, *pfilename, len);
+	  const char **pfilename = A68_MODULE_FILES->get (module);
+	  if (pfilename == NULL)
+	    {
+	      /* Turn the module indicant in MODULE to lower-case.  */
+	      filename = (char *) alloca (strlen (module) + 1);
+	      size_t i = 0;
+	      for (; i < strlen (module); i++)
+		filename[i] = TOLOWER (module[i]);
+	      filename[i] = '\0';
+	    }
+	  else
+	    {
+	      size_t len = strlen (*pfilename) + 1;
+	      filename = (char *) alloca (len);
+	      memcpy (filename, *pfilename, len);
+	    }
 	}
 
       /* Try to read exports data in a buffer.  */
@@ -1405,7 +1429,7 @@ a68_open_packet (const char *module)
       const char *errstr = NULL;
       if (!a68_decode_moifs (exports_data, exports_data_size, &errstr))
 	{
-	  a68_error (NO_NODE, "Y", errstr);
+	  a68_error (NO_NODE, "%s", errstr);
 	  return NULL;
 	}
 

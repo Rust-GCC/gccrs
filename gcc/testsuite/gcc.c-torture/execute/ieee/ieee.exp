@@ -21,8 +21,9 @@
 
 # Load support procs.
 load_lib gcc-dg.exp
-load_lib torture-options.exp
-load_lib c-torture.exp
+
+# initialize harness
+dg-init
 
 # These tests come from Torbjorn Granlund's (tege@cygnus.com)
 # C torture test suite, and other contributors.
@@ -30,55 +31,44 @@ load_lib c-torture.exp
 # Disable tests on machines with no hardware support for IEEE arithmetic.
 if { [istarget "vax-*-*"] || [ istarget "powerpc-*-*spe"] || [istarget "pdp11-*-*"] } { return }
 
-if $tracelevel then {
-    strace $tracelevel
+# If a testcase doesn't have special options, use these.
+global DEFAULT_IEEE_CFLAGS
+if ![info exists DEFAULT_IEEE_CFLAGS] then {
+  set DEFAULT_IEEE_CFLAGS "-w -fno-inline"
 }
 
-torture-init
-set-torture-options $C_TORTURE_OPTIONS {{}} $LTO_TORTURE_OPTIONS
+set IEEE_CFLAGS $DEFAULT_IEEE_CFLAGS
 
-set additional_flags "-fno-inline"
+# The following flags are target-specific
 
 # We must use -ffloat-store/-mieee to ensure that excess precision on some
 # machines does not cause problems
 if { ([istarget "i?86-*-*"] || [istarget "x86_64-*-*"])
-     && [check_effective_target_ia32] } then {
-  lappend additional_flags "-ffloat-store"
+    && [check_effective_target_ia32] } then {
+    lappend IEEE_CFLAGS -ffloat-store
 }
 if [istarget "m68k-*-*"] then {
-  lappend additional_flags "-ffloat-store"
+  lappend IEEE_CFLAGS -ffloat-store
 }
-if { [istarget "alpha*-*-*"] 
-     || [istarget "sh*-*-*"] } then {
-  lappend additional_flags "-mieee"
+if { [istarget "alpha*-*-*"] || [istarget "sh*-*-*"] } then {
+  lappend IEEE_CFLAGS -mieee
 }
 if [istarget rx-*-*] then {
-  lappend additional_flags "-mnofpu"
+  lappend IEEE_CFLAGS -mnofpu
 }
+
+# These flags are not target-specific, always set them
 
 if { ![check_effective_target_signal] } {
-    lappend additional_flags "-DSIGNAL_SUPPRESS"
+  lappend IEEE_CFLAGS -DSIGNAL_SUPPRESS
 }
 
-# load support procs
-load_lib c-torture.exp
 
-# initialize harness
-gcc_init
-
-#
 # main test loop
-#
-
-foreach src [lsort [glob -nocomplain $srcdir/$subdir/*.c]] {
-    # If we're only testing specific files and this isn't one of them, skip it.
-    if ![runtest_file_p $runtests $src] then {
-	continue
-    }
-
-    c-torture-execute $src $additional_flags
-}
+set saved-dg-do-what-default ${dg-do-what-default}
+set dg-do-what-default "run"
+gcc-dg-runtest [lsort [glob -nocomplain $srcdir/$subdir/*.\[cS\]]] "" $IEEE_CFLAGS
+set dg-do-what-default ${saved-dg-do-what-default}
 
 # All done.
-torture-finish
-gcc_finish
+dg-finish

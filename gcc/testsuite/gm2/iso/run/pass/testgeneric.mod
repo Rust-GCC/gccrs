@@ -31,7 +31,8 @@ BEGIN
    INC (test) ;
    IF NOT b
    THEN
-      printf ("failed test %d which was %a\n", ADR(a)) ;
+      printf ("failed test %d ", test) ;
+      printf ("(%s)\n", ADR (a)) ;
       code := 1
    END
 END assert ;
@@ -49,11 +50,13 @@ BEGIN
    THEN
       w := c ;
       i := w ;
+      printf ("value of i (should be 1 after going though a variable and word) is %d\n", i);
       assert (CARDINAL(i) = c, "copying data through WORD32")
    END ;
 
    w := 1 ;
    i := w ;
+   printf ("value of i (should be 1, constant to word) is %d\n", i);
    assert (i=1, "assigning const into a WORD32") ;
    
    exit (code)

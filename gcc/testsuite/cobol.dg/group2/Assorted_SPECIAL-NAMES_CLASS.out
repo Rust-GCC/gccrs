@@ -1,0 +1,12 @@
+properly J IS J
+properly not K IS J
+properly hex-value IS HexNumber
+properly not name IS HexNumber
+properly name IS RealName
+properly zed IS EbcdicZero
+properly zed IS AsciiZero
+properly four IS LooseDigit
+properly not J IS LooseDigit
+properly J IS IntChars
+properly not S IS IntChars
+

@@ -524,13 +524,10 @@ loongarch_option_valid_attribute_p (tree fndecl, tree, tree args, int)
    priority calculated by the feature string.  */
 
 bool
-loongarch_parse_fmv_features (tree decl, string_slice str,
+loongarch_parse_fmv_features (location_t loc, string_slice str,
 			      loongarch_fmv_feature_mask *feature_mask,
 			      auto_vec<unsigned int> *feature_priority)
 {
-  location_t loc
-    = decl == NULL ? UNKNOWN_LOCATION : DECL_SOURCE_LOCATION (decl);
-
   if (feature_mask)
     *feature_mask = 0;
 
@@ -553,7 +550,7 @@ loongarch_parse_fmv_features (tree decl, string_slice str,
 
   if (attr_str.empty ())
     {
-      error_at (loc, "characher before %<;%> in attribute %qs cannot be empty",
+      error_at (loc, "character before %<;%> in attribute %qs cannot be empty",
 		attr_str.begin ());
       return false;
     }
@@ -573,7 +570,7 @@ loongarch_parse_fmv_features (tree decl, string_slice str,
 
       if (str.is_valid ())
 	{
-	  error_at (loc, "in attribute %qs the number of reatures "
+	  error_at (loc, "in attribute %qs the number of features "
 		    "cannot exceed two", attr_str.begin ());
 	  return false;
 	}
@@ -625,7 +622,7 @@ loongarch_parse_fmv_features (tree decl, string_slice str,
 	{
 	  string_slice arch_name = attr_str;
 	  string_slice::tokenize (&arch_name, "=");
-	  if (!arch_name.is_valid ())
+	  if (arch_name.empty ())
 	    {
 	      error_at (loc, "in attribute %qs you need to set a legal value "
 			"for \"arch\"", attr_str.begin ());
@@ -659,8 +656,10 @@ loongarch_parse_fmv_features (tree decl, string_slice str,
 	    }
 	  else
 	    {
-	      error_at (loc, "in attribute %qs you need to set a legal value "
-			"for \"arch\"", attr_str.begin ());
+	      if (loc != UNKNOWN_LOCATION)
+		warning_at (loc, OPT_Wattributes,
+			    "in attribute %qs you need to set a legal value "
+			    "for \"arch\"", attr_str.begin ());
 	      return false;
 	    }
 
@@ -681,9 +680,11 @@ loongarch_parse_fmv_features (tree decl, string_slice str,
 		{
 		  if (loongarch_attributes[i].feat_mask == 0)
 		    {
-		      error_at (loc, "attribute %qs is not supported in "
-				"%<target_version%> or %<target_clones%>",
-				attr_str.begin ());
+		      if (loc != UNKNOWN_LOCATION)
+			warning_at (loc, OPT_Wattributes,
+				    "attribute %qs is not supported in "
+				    "%<target_version%> or %<target_clones%>",
+				    attr_str.begin ());
 		      return false;
 		    }
 
@@ -698,8 +699,10 @@ loongarch_parse_fmv_features (tree decl, string_slice str,
 
 	  if (i == num_features - 1)
 	    {
-	      error_at (loc, "%qs is not supported in target attribute",
-			attr_str.begin ());
+	      if (loc != UNKNOWN_LOCATION)
+		warning_at (loc, OPT_Wattributes,
+			    "%qs is not supported in target attribute",
+			    attr_str.begin ());
 	      return false;
 	    }
 	}

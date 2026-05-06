@@ -514,6 +514,10 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     template<typename _Rep, typename _Period>
       class duration
       {
+	// _GLIBCXX_RESOLVE_LIB_DEFECTS
+	// 4481. Disallow chrono::duration<const T, P>
+	static_assert(is_same<_Rep, __remove_cvref_t<_Rep>>::value,
+		      "rep should be cv-unqualified object type");
 	static_assert(!__is_duration<_Rep>::value,
 		      "rep cannot be a std::chrono::duration");
 	static_assert(__is_ratio<_Period>::value,
@@ -1035,8 +1039,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
      * returns the closest value that is less than the argument.
      *
      * @tparam _ToDur The `duration` type to use for the result.
-     * @param __t A time point.
-     * @return The value of `__d` converted to type `_ToDur`.
+     * @param __tp A time point.
+     * @return The value of `__tp` rounded down to the precision of `_ToDur`.
      * @since C++17
      */
     template<typename _ToDur, typename _Clock, typename _Dur>
@@ -1056,8 +1060,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
      * returns the closest value that is greater than the argument.
      *
      * @tparam _ToDur The `duration` type to use for the result.
-     * @param __t A time point.
-     * @return The value of `__d` converted to type `_ToDur`.
+     * @param __tp A time point.
+     * @return The value of `__tp` rounded up to the precision of `_ToDur`.
      * @since C++17
      */
     template<typename _ToDur, typename _Clock, typename _Dur>
@@ -1078,8 +1082,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
      *
      * @tparam _ToDur The `duration` type to use for the result,
      *                which must have a non-floating-point `rep` type.
-     * @param __t A time point.
-     * @return The value of `__d` converted to type `_ToDur`.
+     * @param __tp A time point.
+     * @return The value of `__tp` rounded to the precision `_ToDur`.
      * @since C++17
      */
     template<typename _ToDur, typename _Clock, typename _Dur>

@@ -1396,10 +1396,6 @@ initialize_argument_information (int num_actuals ATTRIBUTE_UNUSED,
       /* Replace erroneous argument with constant zero.  */
       if (type == error_mark_node || !COMPLETE_TYPE_P (type))
 	args[i].tree_value = integer_zero_node, type = integer_type_node;
-      else if (promote_p
-	       && INTEGRAL_TYPE_P (type)
-	       && TYPE_PRECISION (type) < TYPE_PRECISION (integer_type_node))
-	type = integer_type_node;
 
       /* If TYPE is a transparent union or record, pass things the way
 	 we would pass the first field of the union or record.  We have
@@ -1541,6 +1537,11 @@ initialize_argument_information (int num_actuals ATTRIBUTE_UNUSED,
 	}
 
       unsignedp = TYPE_UNSIGNED (type);
+      if (promote_p
+	  && INTEGRAL_TYPE_P (type)
+	  && TYPE_PRECISION (type) < TYPE_PRECISION (integer_type_node))
+	type = integer_type_node;
+
       arg.type = type;
       arg.mode
 	= promote_function_mode (type, TYPE_MODE (type), &unsignedp,

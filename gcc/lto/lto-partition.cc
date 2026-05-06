@@ -45,6 +45,8 @@ vec<ltrans_partition> ltrans_partitions;
 
 static void add_symbol_to_partition (ltrans_partition part,
 				     toplevel_node *node);
+static ltrans_partition join_partitions (ltrans_partition into,
+					 ltrans_partition from);
 
 
 /* Helper for qsort; compare partitions and return one with smaller order.  */
@@ -364,11 +366,25 @@ node_into_file_partition (toplevel_node* node,
   add_symbol_to_partition (partition, node);
 }
 
-/* Group cgrah nodes by input files.  This is used mainly for testing
-   right now.  */
+/* map_1_to_1 is able to partition a subset of symbols/asm.
+   map1to1_forced covers symbols/asm that we are forced to partition
+   with 1_to_1 partitioning, otherwise they may become broken.
+   Other symbols may be partitioned arbitrarily.  */
+enum map1to1_content {
+    /* Forced symbols are always attempted.  */
+    map1to1_forced_symbols = 0,
 
-void
-lto_1_to_1_map (void)
+    map1to1_asm = 1,
+    map1to1_other_symbols = 2,
+    map1to1_symbols = map1to1_forced_symbols | map1to1_other_symbols,
+    map1to1_forced = map1to1_asm | map1to1_forced_symbols,
+    map1to1_all = map1to1_symbols | map1to1_asm,
+};
+
+/* Group cgraph nodes by input files.  Used for symbols that must remain
+   together.  */
+static void
+map_1_to_1 (map1to1_content content)
 {
   symtab_node *node;
   hash_map<lto_file_decl_data *, ltrans_partition> pmap;
@@ -379,36 +395,103 @@ lto_1_to_1_map (void)
 	  || symbol_partitioned_p (node))
 	continue;
 
+      if (!(content & map1to1_other_symbols) && !node->must_remain_in_tu_name
+	  && !node->must_remain_in_tu_body && !node->no_reorder)
+	continue;
+
       node_into_file_partition (node, pmap);
     }
 
   struct asm_node *anode;
-  for (anode = symtab->first_asm_symbol (); anode; anode = safe_as_a<asm_node*>(anode->next))
-    node_into_file_partition (anode, pmap);
-
-  create_partition_if_empty ();
+  if (content & map1to1_asm)
+    for (anode = symtab->first_asm_symbol (); anode;
+	 anode = safe_as_a<asm_node*>(anode->next))
+      node_into_file_partition (anode, pmap);
 
   /* Order partitions by order of symbols because they are linked into binary
      that way.  */
   ltrans_partitions.qsort (cmp_partitions_order);
 }
 
-/* Creates partition with all toplevel assembly.
+/* Group cgrah nodes by input files.  This is used mainly for testing
+   right now.  */
 
-   Before toplevel asm could be partitioned, all toplevel asm was inserted
-   into first partition.
-   This function achieves similar behavior for partitionings that cannot
-   easily satisfy requirements of toplevel asm.  */
-static void
-create_asm_partition (void)
+void
+lto_1_to_1_map (void)
 {
-  struct asm_node *anode = symtab->first_asm_symbol ();
-  if (anode)
+  map_1_to_1 (map1to1_all);
+  create_partition_if_empty ();
+}
+
+/* Toplevel assembly and symbols referenced by it can be required to remain
+   in the same partition and not be renamed.
+   noreroder symbols are also handled here to keep their order in respect to
+   these symbols.
+
+   This functions partitions these symbols with 1to1 partitioning and unites
+   translation units to target_size as long as there is no name conflict.
+
+   Remaining symbols can be partitioned with any strategy.  */
+static void
+create_asm_partitions (int64_t target_size)
+{
+  if (!symtab->first_asm_symbol ())
+    return;
+  map_1_to_1 (map1to1_forced);
+
+  size_t join_into = 0;
+  size_t join_from = 0;
+  hash_set<const char*> nonrenameable_symbols;
+  lto_symtab_encoder_iterator lsei;
+
+  for (; join_from < ltrans_partitions.length (); join_into++)
     {
-      ltrans_partition partition = new_partition ("asm_nodes");
-      for (; anode; anode = safe_as_a<asm_node*>(anode->next))
-	add_symbol_to_partition (partition, anode);
+      ltrans_partitions[join_into] = ltrans_partitions[join_from];
+      ltrans_partition p_into = ltrans_partitions[join_into];
+      nonrenameable_symbols.empty ();
+
+      bool first_partition = true;
+      for (; join_from < ltrans_partitions.length (); join_from++)
+	{
+	  ltrans_partition p_from = ltrans_partitions[join_from];
+	  if (p_into->insns > target_size)
+	    break;
+
+	  lto_symtab_encoder_t encoder = p_from->encoder;
+	  /* All symbols that cannot be renamed and might collide.  */
+	  for (lsei = lsei_start (encoder); !lsei_end_p (lsei);
+	       lsei_next (&lsei))
+	    {
+	      toplevel_node* tnode = lsei_node (lsei);
+	      if (symtab_node *snode = dyn_cast <symtab_node*> (tnode))
+		{
+		  if (snode->must_remain_in_tu_name)
+		    if (nonrenameable_symbols.add (snode->asm_name ()))
+		      goto finish_partition;
+		}
+	      else if (asm_node *anode = dyn_cast <asm_node*> (tnode))
+		{
+		  symtab_node* snode;
+		  unsigned i = 0;
+		  /* This covers symbols defined by extended assembly.  */
+		  for (; anode->symbols_referenced.iterate (i, &snode); i++)
+		    {
+		    if (snode->must_remain_in_tu_name)
+		      if (nonrenameable_symbols.add (snode->asm_name ()))
+			goto finish_partition;
+		    }
+		}
+	    }
+	  first_partition = false;
+
+	  if (p_into != p_from)
+	    join_partitions (p_into, p_from);
+	}
+finish_partition: {}
+	if (first_partition)
+	  join_from++;
     }
+  ltrans_partitions.truncate (join_into);
 }
 
 /* Maximal partitioning.  Put every new symbol into new partition if possible.  */
@@ -419,6 +502,9 @@ lto_max_map (void)
   symtab_node *node;
   ltrans_partition partition;
 
+  /* Needed for toplevel assembly.  */
+  map_1_to_1 (map1to1_forced);
+
   FOR_EACH_SYMBOL (node)
     {
       if (node->get_partitioning_class () != SYMBOL_PARTITION
@@ -428,7 +514,6 @@ lto_max_map (void)
       add_symbol_to_partition (partition, node);
     }
 
-  create_asm_partition ();
   create_partition_if_empty ();
 }
 
@@ -1043,15 +1128,29 @@ private:
 void
 lto_cache_map (int n_lto_partitions, int max_partition_size)
 {
-  lto_1_to_1_map ();
+  cgraph_node *node;
+  int64_t total_size = 0;
+  FOR_EACH_DEFINED_FUNCTION (node)
+    if (node->get_partitioning_class () == SYMBOL_PARTITION && !node->alias)
+      total_size += ipa_size_summaries->get (node)->size;
+
+  /* Separates toplevel asm into its own partitions and handles name conflicts.
+
+     We could do this directly in cache partitioning without separating asm
+     into its own partitions in most cases.  */
+  create_asm_partitions (total_size / n_lto_partitions);
+  unsigned asm_n = ltrans_partitions.length ();
+
+  map_1_to_1 (map1to1_symbols);
+  create_partition_if_empty ();
 
   std::vector<ltrans_partition> partitions;
-  for (unsigned i = 0; i < ltrans_partitions.length (); ++i)
+  for (unsigned i = asm_n; i < ltrans_partitions.length (); ++i)
     {
       ltrans_partition part = ltrans_partitions[i];
       partitions.push_back (part);
     }
-  ltrans_partitions.truncate (0);
+  ltrans_partitions.truncate (asm_n);
 
   partitioner_default partitioner = partitioner_default
     (param_min_partition_size, max_partition_size);
@@ -1169,10 +1268,33 @@ lto_balanced_map (int n_lto_partitions, int max_partition_size)
   if (partition_size < param_min_partition_size)
     partition_size = param_min_partition_size;
   npartitions = 1;
-  partition = new_partition ("");
   if (dump_file)
     fprintf (dump_file, "Total unit size: %" PRId64 ", partition size: %" PRId64 "\n",
 	     total_size, partition_size);
+
+  create_asm_partitions (partition_size);
+  if (ltrans_partitions.length ())
+    {
+      int64_t insns = 0;
+      unsigned partitions = ltrans_partitions.length ();
+      for (unsigned i = 0; i + 1 < partitions ; i++)
+	insns += ltrans_partitions[i]->insns;
+
+      total_size -= insns;
+      if (partition_size)
+	n_lto_partitions -= insns / partition_size;
+      if (n_lto_partitions < 1)
+	n_lto_partitions = 1;
+
+      partition_size = total_size / n_lto_partitions;
+      if (partition_size < param_min_partition_size)
+	partition_size = param_min_partition_size;
+
+      partition = ltrans_partitions[partitions - 1];
+    }
+  else
+    partition = new_partition ("");
+
 
   auto_vec<symtab_node *> next_nodes;
 
@@ -1434,10 +1556,9 @@ lto_balanced_map (int n_lto_partitions, int max_partition_size)
     next_nodes.safe_push (noreorder[noreorder_pos++]);
   /* For one partition the cost of boundary should be 0 unless we added final
      symbols here (these are not accounted) or we have accounting bug.  */
-  gcc_assert (next_nodes.length () || npartitions != 1 || !best_cost || best_cost == -1);
+  gcc_assert (next_nodes.length () || ltrans_partitions.length () != 1
+	      || !best_cost || best_cost == -1);
   add_sorted_nodes (next_nodes, partition);
-
-  create_asm_partition ();
 
   if (dump_file)
     {

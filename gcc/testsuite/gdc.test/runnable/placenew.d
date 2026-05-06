@@ -93,6 +93,72 @@ void test6()
 
 /*************************************************/
 
+struct S7
+{
+    int x = 10;
+    int y = 20;
+}
+
+void test7()
+{
+    S7 t = void;
+    new (t) S7(10,20);
+    assert(t.x == 10 && t.y == 20);
+}
+
+/*************************************************/
+// https://github.com/dlang/dmd/issues/21203
+
+struct Y8
+{
+    int a;
+    this() @disable; // default disabled
+    this(int i) { a = i; }
+}
+
+struct S8
+{
+    Y8 m;
+
+    this(int x)
+    {
+        new(m) Y8(x); // initialise `m`
+    }
+}
+
+void test8()
+{
+    S8 s = S8(3);
+    assert(s.m.a == 3);
+}
+
+/*************************************************/
+// https://github.com/dlang/dmd/issues/21549
+
+struct Test9
+{
+    size_t a, b = 3;
+    this(int x)
+	{
+		a = x;
+	}
+}
+
+void new9(ref Test9 p)
+{
+    new(p) Test9(1);
+}
+
+void test9()
+{
+	Test9 t9 = void;
+	new9(t9);
+	assert(t9.a == 1);
+	// assert(t9.b == 3);  // Test9.init not copied yet
+}
+
+/*************************************************/
+
 int main()
 {
     test1();
@@ -101,6 +167,9 @@ int main()
     test4();
     test5();
     test6();
+    test7();
+    test8();
+    test9();
 
     return 0;
 }

@@ -150,8 +150,8 @@ range, representation, and behavior as ``plain'' @code{char} (C90
 @opindex fsigned-char
 @opindex funsigned-char
 Determined by ABI@.  The options @option{-funsigned-char} and
-@option{-fsigned-char} change the default.  @xref{C Dialect Options, ,
-Options Controlling C Dialect}.
+@option{-fsigned-char} change the default.
+@xref{@code{char} type signedness}.
 
 @item
 @cite{The literal encoding, which maps of the characters of the

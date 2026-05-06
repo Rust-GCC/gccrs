@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2026, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -29,7 +29,6 @@ with Atree;            use Atree;
 with Checks;           use Checks;
 with Contracts;        use Contracts;
 with Debug;            use Debug;
-with Einfo;            use Einfo;
 with Einfo.Entities;   use Einfo.Entities;
 with Einfo.Utils;      use Einfo.Utils;
 with Elists;           use Elists;
@@ -70,7 +69,6 @@ with Sem_Res;          use Sem_Res;
 with Sem_Type;         use Sem_Type;
 with Sem_Util;         use Sem_Util;
 with Sem_Warn;         use Sem_Warn;
-with Sinfo;            use Sinfo;
 with Sinfo.Nodes;      use Sinfo.Nodes;
 with Sinfo.Utils;      use Sinfo.Utils;
 with Sinput;           use Sinput;
@@ -1529,9 +1527,7 @@ package body Sem_Ch13 is
       --  at the ends of certain declaration lists (like visible-part lists),
       --  not when this procedure is called at arbitrary freeze points.
 
-      if not Nonoverridable_Only
-        and then not Scope_Within_Or_Same (Current_Scope, Scope (E))
-      then
+      if not Nonoverridable_Only and then not In_Open_Scopes (Scope (E)) then
          if Is_Type (E) and then From_Nested_Package (E) then
             declare
                Pack : constant Entity_Id := Scope (E);
@@ -2137,6 +2133,14 @@ package body Sem_Ch13 is
 
             procedure Analyze_Aspect_Static;
             --  Ada 2022 (AI12-0075): Perform analysis of aspect Static
+
+            procedure Check_Constructor_Initialization_Expression
+              (Expr : Node_Id; Aspect_Name : String);
+            --  Check legality rules for an expression occurring as
+            --  an expression of a Super or Initialize aspect specification.
+            --  These expressions are evaluated before the constructed
+            --  object has been initialized and therefore shall not
+            --  reference that object.
 
             procedure Check_Expr_Is_OK_Static_Expression
               (Expr : Node_Id;
@@ -3291,6 +3295,53 @@ package body Sem_Ch13 is
                                "confirm parent value", Id);
                end if;
             end Analyze_Aspect_Yield;
+
+            -------------------------------------------------
+            -- Check_Constructor_Initialization_Expression --
+            -------------------------------------------------
+
+            procedure Check_Constructor_Initialization_Expression
+              (Expr : Node_Id; Aspect_Name : String)
+            is
+               First_Parameter : Entity_Id;
+
+               --  Flag error if N refers to the forbidden entity
+               function Check_Node_For_Bad_Reference
+                 (N : Node_Id) return Traverse_Result;
+
+               ----------------------------------
+               -- Check_Node_For_Bad_Reference --
+               ----------------------------------
+
+               function Check_Node_For_Bad_Reference
+                 (N : Node_Id) return Traverse_Result is
+               begin
+                  if Nkind (N) = N_Identifier
+                    and then Entity (N) = First_Parameter
+                  then
+                     Error_Msg_N
+                       ("constructed object referenced in " &
+                        Aspect_Name & " aspect_specification", N);
+                  end if;
+
+                  return OK;
+               end Check_Node_For_Bad_Reference;
+
+               procedure Check_Tree_For_Bad_Reference is
+                 new Traverse_Proc (Check_Node_For_Bad_Reference);
+            begin
+               --  If coming from an implicit constructor, the Self parameter
+               --  is retrieved via the specification's defining unit name.
+
+               if Acts_As_Spec (N) then
+                  First_Parameter :=
+                    First_Entity (Defining_Unit_Name (Specification (N)));
+               else
+                  First_Parameter := First_Entity (Corresponding_Spec (N));
+               end if;
+
+               Check_Tree_For_Bad_Reference (Expr);
+            end Check_Constructor_Initialization_Expression;
 
             ----------------------------------------
             -- Check_Expr_Is_OK_Static_Expression --
@@ -4505,9 +4556,15 @@ package body Sem_Ch13 is
                   Aspect_Comp :=
                     First (Component_Associations (Expression (Aspect)));
                   while Present (Aspect_Comp) loop
-                     if Present (Expression (Aspect_Comp)) then
-                        Analyze (Expression (Aspect_Comp));
-                     end if;
+                     declare
+                        Expr : constant Node_Id := Expression (Aspect_Comp);
+                     begin
+                        if Present (Expr) then
+                           Analyze (Expr);
+                           Check_Constructor_Initialization_Expression
+                             (Expr, Aspect_Name => "Initialize");
+                        end if;
+                     end;
 
                      Next (Aspect_Comp);
                   end loop;
@@ -4940,20 +4997,6 @@ package body Sem_Ch13 is
                      goto Continue;
                   end if;
 
-               when Aspect_Destructor =>
-                  if not All_Extensions_Allowed then
-                     Error_Msg_Name_1 := Nam;
-                     Error_Msg_GNAT_Extension ("aspect %", Loc);
-                     goto Continue;
-
-                  elsif not Is_Type (E) then
-                     Error_Msg_N ("can only be specified for a type", Aspect);
-                     goto Continue;
-                  end if;
-
-                  Set_Has_Destructor (E);
-                  Set_Is_Controlled_Active (E);
-
                when Aspect_Storage_Model_Type =>
                   if not All_Extensions_Allowed then
                      Error_Msg_Name_1 := Nam;
@@ -5286,6 +5329,10 @@ package body Sem_Ch13 is
                   --  on legality checking performed during expansion.
                   --  To reverse this decision, set this flag to False.
 
+                  procedure Check_Super_Arg
+                    (Expr : Node_Id; Aspect_Name : String := "Super")
+                    renames Check_Constructor_Initialization_Expression;
+
                begin
                   --  Error checking
 
@@ -5295,9 +5342,7 @@ package body Sem_Ch13 is
                      goto Continue;
                   end if;
 
-                  if Ekind (E) /= E_Subprogram_Body
-                    or else Nkind (Parent (E)) /= N_Procedure_Specification
-                  then
+                  if Nkind (N) /= N_Subprogram_Body then
                      Error_Msg_N ("Super must apply to a constructor body", N);
                   end if;
 
@@ -5322,6 +5367,7 @@ package body Sem_Ch13 is
                         begin
                            while Present (Param_Expr) loop
                               Analyze (Param_Expr);
+                              Check_Super_Arg (Param_Expr);
                               Next (Param_Expr);
                            end loop;
 
@@ -5341,6 +5387,7 @@ package body Sem_Ch13 is
 
                   elsif Analyze_Parameter_Expressions then
                      Analyze (Expr);
+                     Check_Super_Arg (Expr);
                   end if;
                end Super;
 
@@ -7908,17 +7955,17 @@ package body Sem_Ch13 is
                            Set_Class_Wide_Equivalent_Type (Etyp,
                              Make_CW_Equivalent_Type (Etyp, Empty, Actions));
 
-                           --  Add a Compile_Time_Error sizing check as a hint
-                           --  to the backend.
+                           --  Insert its declaration immediately after that of
+                           --  the root type.
 
-                           Append_To (Actions,
-                             Make_CW_Size_Compile_Check
-                               (Etype (Etyp), U_Ent));
+                           Insert_Actions_After
+                             (Declaration_Node (Etype (Etyp)), Actions);
 
-                           --  Set the expansion to occur during freezing when
-                           --  everything is analyzed
+                           --  Add a Compile_Time_Error size check for the root
+                           --  type at the freeze point.
 
-                           Append_Freeze_Actions (Etyp, Actions);
+                           Append_Freeze_Action (Etype (Etyp),
+                             Make_CW_Size_Compile_Check (Etype (Etyp), U_Ent));
 
                            Set_Is_Mutably_Tagged_Type (Etyp);
                         end;
@@ -11742,8 +11789,7 @@ package body Sem_Ch13 is
       --  name, so we need to verify that one of these interpretations is
       --  the one available at the freeze point.
 
-      elsif A_Id in Aspect_Destructor
-                  | Aspect_Input
+      elsif A_Id in Aspect_Input
                   | Aspect_Output
                   | Aspect_Read
                   | Aspect_Write
@@ -12197,67 +12243,6 @@ package body Sem_Ch13 is
 
          when Aspect_Designated_Storage_Model =>
             Analyze (Expression (ASN));
-            return;
-
-         when Aspect_Destructor =>
-            if not Is_Record_Type (Entity (ASN)) then
-               Error_Msg_N
-                 ("aspect Destructor can only be specified for a "
-                  & "record type",
-                  ASN);
-               return;
-            end if;
-
-            Set_Has_Destructor (Entity (ASN));
-            Set_Is_Controlled_Active (Entity (ASN));
-
-            Analyze (Expression (ASN));
-
-            if not Resolve_Finalization_Procedure
-                     (Expression (ASN), Entity (ASN))
-            then
-               Error_Msg_N
-                 ("destructor must be local procedure whose only formal "
-                  & "parameter has mode `IN OUT` and is of the type the "
-                  & "destructor is for",
-                  Expression (ASN));
-            end if;
-
-            Set_Is_Destructor (Entity (Expression (ASN)));
-
-            declare
-               Proc  : constant Entity_Id := Entity (Expression (ASN));
-               Overr : constant Opt_N_Entity_Id :=
-                 Overridden_Inherited_Operation (Proc);
-               Orig  : constant Entity_Id :=
-                 (if Present (Overr) then Overr else Proc);
-
-               Decl : constant Node_Id :=
-                 Parent
-                   (if Nkind (Parent (Orig)) = N_Procedure_Specification
-                    then Parent (Orig)
-                    else Orig);
-
-               Encl : constant Node_Id := Parent (Decl);
-
-               Is_Private : constant Boolean :=
-                 Nkind (Encl) = N_Package_Specification
-                 and then Is_List_Member (Decl)
-                 and then List_Containing (Decl) = Private_Declarations (Encl);
-
-            begin
-
-               if Has_Private_Declaration (Entity (ASN))
-                 and then not Aspect_On_Partial_View (ASN)
-                 and then not Is_Private
-               then
-                  Error_Msg_N
-                    ("aspect Destructor on full view cannot denote public "
-                     & "primitive",
-                     ASN);
-               end if;
-            end;
-
             return;
 
          when Aspect_Storage_Model_Type =>

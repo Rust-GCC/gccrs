@@ -1,4 +1,5 @@
 /* { dg-do compile } */
+/* { dg-additional-options "-O1" } */
 
 double heating[2][2];
 

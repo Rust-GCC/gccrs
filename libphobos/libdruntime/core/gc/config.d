@@ -12,6 +12,8 @@ import core.stdc.stdio : printf;
 
 __gshared Config config;
 
+private __gshared bool _initialized;
+
 struct Config
 {
     bool disable;            // start disabled
@@ -23,6 +25,12 @@ struct Config
     @MemVal size_t minPoolSize = 1  << 20;  // initial and minimum pool size (bytes)
     @MemVal size_t maxPoolSize = 64 << 20;  // maximum pool size (bytes)
     @MemVal size_t incPoolSize = 3  << 20;  // pool size increment (bytes)
+
+    // Limit under which the GC will try to keep its heap (bytes)
+    // The GC does this on a best effort basis, and exceeding this size
+    // might lead to a performance cliff.
+    @MemVal size_t heapSizeLimit = size_t.max;
+
     uint parallel = 99;      // number of additional threads for marking (limited by cpuid.threadsPerCPU-1)
     float heapSizeFactor = 2.0; // heap size to used memory ratio
     string cleanup = "collect"; // select gc cleanup method none|collect|finalize
@@ -31,7 +39,9 @@ struct Config
 
     bool initialize()
     {
-        return initConfigOptions(this, "gcopt");
+        if (!_initialized)
+            _initialized = initConfigOptions(this, "gcopt");
+        return _initialized;
     }
 
     void help() @nogc nothrow

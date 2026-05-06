@@ -2,6 +2,7 @@
    (GPL v2.0).  */
 
 /* { dg-additional-options "-Wno-analyzer-too-complex -Wno-analyzer-symbol-too-complex" } */
+/* { dg-require-effective-target named_sections } */
 
 /* Types.  */
 

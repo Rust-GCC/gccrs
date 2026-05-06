@@ -723,7 +723,6 @@ vec_info::new_stmt_vec_info (gimple *stmt)
   STMT_VINFO_REDUC_IDX (res) = -1;
   STMT_VINFO_REDUC_DEF (res) = NULL;
   STMT_VINFO_SLP_VECT_ONLY (res) = false;
-  STMT_VINFO_SLP_VECT_ONLY_PATTERN (res) = false;
 
   if (is_a <loop_vec_info> (this)
       && gimple_code (stmt) == GIMPLE_PHI

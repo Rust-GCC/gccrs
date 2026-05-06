@@ -3339,6 +3339,32 @@ gimple_fold_builtin_stpcpy (gimple_stmt_iterator *gsi)
   return true;
 }
 
+/* Simplify mempcpy call stmt at GSI, returning true if simplified.
+   Currently only handling mempcpy -> memcpy when the return value
+   is ignored.  */
+
+static bool
+gimple_fold_builtin_mempcpy (gimple_stmt_iterator *gsi)
+{
+  gcall *stmt = as_a <gcall *> (gsi_stmt (*gsi));
+
+  if (gimple_call_lhs (stmt) != NULL_TREE)
+    return false;
+
+  tree fn = builtin_decl_explicit (BUILT_IN_MEMCPY);
+  if (!fn)
+    return false;
+
+  tree dest = gimple_call_arg (stmt, 0);
+  tree src = gimple_call_arg (stmt, 1);
+  tree n = gimple_call_arg (stmt, 2);
+
+  gcall *repl = gimple_build_call (fn, 3, dest, src, n);
+  replace_call_with_call_and_fold (gsi, repl);
+
+  return true;
+}
+
 /* Fold a call EXP to {,v}snprintf having NARGS passed as ARGS.  Return
    NULL_TREE if a normal call should be emitted rather than expanding
    the function inline.  FCODE is either BUILT_IN_SNPRINTF_CHK or
@@ -5346,7 +5372,7 @@ gimple_fold_builtin_stdarg (gimple_stmt_iterator *gsi, gcall *call)
 	}
       unlink_stmt_vdef (call);
       release_defs (call);
-      gsi_replace (gsi, gimple_build_nop (), true);
+      gsi_replace (gsi, gimple_build_nop (), false);
       return true;
 
     default:
@@ -5387,8 +5413,12 @@ gimple_fold_builtin (gimple_stmt_iterator *gsi)
       return gimple_fold_builtin_memset (gsi,
 					 gimple_call_arg (stmt, 1),
 					 gimple_call_arg (stmt, 2));
-    case BUILT_IN_MEMCPY:
     case BUILT_IN_MEMPCPY:
+      if (gimple_fold_builtin_memory_op (gsi, gimple_call_arg (stmt, 0),
+					    gimple_call_arg (stmt, 1), fcode))
+	return true;
+      return gimple_fold_builtin_mempcpy (gsi);
+    case BUILT_IN_MEMCPY:
     case BUILT_IN_MEMMOVE:
       return gimple_fold_builtin_memory_op (gsi, gimple_call_arg (stmt, 0),
 					    gimple_call_arg (stmt, 1), fcode);
@@ -5899,8 +5929,18 @@ gimple_fold_partial_load_store (gimple_stmt_iterator *gsi, gcall *call)
 	  /* Replace load with else value.  */
 	  int else_index = internal_fn_else_index (ifn);
 	  tree else_value = gimple_call_arg (call, else_index);
+	  if (!is_gimple_reg (lhs))
+	    {
+	      if (!zerop (else_value))
+		return false;
+	      else_value = build_constructor (TREE_TYPE (lhs), NULL);
+	    }
 	  gassign *new_stmt = gimple_build_assign (lhs, else_value);
 	  gimple_set_location (new_stmt, gimple_location (call));
+	  /* When the lhs is an array for LANES version, then there is still
+	     a store, move the vops from the old stmt to the new one.  */
+	  if (!is_gimple_reg (lhs))
+	    gimple_move_vops (new_stmt, call);
 	  gsi_replace (gsi, new_stmt, false);
 	  return true;
 	}
@@ -6056,6 +6096,10 @@ gimple_fold_call (gimple_stmt_iterator *gsi, bool inplace)
     }
 
   if (inplace)
+    return changed;
+
+  /* Don't constant fold functions which can change the control. */
+  if (gimple_call_ctrl_altering_p (stmt))
     return changed;
 
   /* Check for builtins that CCP can handle using information not

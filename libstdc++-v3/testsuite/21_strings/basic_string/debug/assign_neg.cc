@@ -1,0 +1,19 @@
+// { dg-do run { xfail *-*-* } }
+// { dg-require-debug-mode "" }
+
+#include <vector>
+#include <string>
+
+void test01()
+{
+  std::vector<char> v1(10, 'a');
+  std::string s2;
+
+  s2.assign(v1.begin() + 7, v1.begin() + 2);
+}
+
+int main()
+{
+  test01();
+  return 0;
+}

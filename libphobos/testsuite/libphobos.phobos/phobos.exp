@@ -36,6 +36,8 @@ if { [is-effective-target linux_pre_2639] } {
 set libphobos_skip_tests {
     # Skip concurrency.d test: SEGVs or hangs on macOS 13+ (PR d/111628).
     { libphobos.phobos/std_concurrency.d { x86_64-apple-darwin2[2-9]* } }
+    # Skip math/hardware.d if missing necessary support (PR d/123202).
+    { libphobos.phobos/std_math_hardware.d { ! phobos_ieee_flags_support } }
 }
 
 # Initialize dg.

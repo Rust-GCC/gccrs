@@ -313,6 +313,11 @@ public:
     return m_option_classifier.option_unspecified_p (opt_id);
   }
 
+  bool emitting_diagnostic_p () const
+  {
+    return m_lock > 0;
+  }
+
   bool emit_diagnostic_with_group (enum kind kind,
 				   rich_location &richloc,
 				   const metadata *metadata,
@@ -388,7 +393,9 @@ public:
   /* Various setters for use by option-handling logic.  */
   void set_sink (std::unique_ptr<sink> sink_);
   void set_text_art_charset (enum diagnostic_text_art_charset charset);
-  void set_client_data_hooks (std::unique_ptr<client_data_hooks> hooks);
+
+  std::unique_ptr<client_data_hooks>
+  set_client_data_hooks (std::unique_ptr<client_data_hooks> hooks);
 
   void push_owned_urlifier (std::unique_ptr<urlifier>);
   void push_borrowed_urlifier (const urlifier &);
@@ -478,22 +485,22 @@ public:
     return m_option_id_mgr->option_enabled_p (opt_id);
   }
 
-  inline char *make_option_name (option_id opt_id,
-				 enum kind orig_diag_kind,
-				 enum kind diag_kind) const
+  inline label_text get_option_name (option_id opt_id,
+				     enum kind orig_diag_kind,
+				     enum kind diag_kind) const
   {
     if (!m_option_id_mgr)
-      return nullptr;
-    return m_option_id_mgr->make_option_name (opt_id,
-					      orig_diag_kind,
-					      diag_kind);
+      return label_text ();
+    return m_option_id_mgr->get_option_name (opt_id,
+					     orig_diag_kind,
+					     diag_kind);
   }
 
-  inline char *make_option_url (option_id opt_id) const
+  inline label_text get_option_url (option_id opt_id) const
   {
     if (!m_option_id_mgr)
-      return nullptr;
-    return m_option_id_mgr->make_option_url (opt_id);
+      return label_text ();
+    return m_option_id_mgr->get_option_url (opt_id);
   }
 
   void

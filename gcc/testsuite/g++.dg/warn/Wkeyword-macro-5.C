@@ -26,7 +26,7 @@
 #undef constexpr 			// { dg-warning "undefining keyword 'constexpr'" "" { target c++26 } }
 #undef constinit 			// { dg-warning "undefining keyword 'constinit'" "" { target c++26 } }
 #undef continue 			// { dg-warning "undefining keyword 'continue'" "" { target c++26 } }
-#undef contract_assert
+#undef contract_assert			// { dg-warning "undefining keyword 'contract_assert'" "" { target c++26 } }
 #undef co_return 			// { dg-warning "undefining keyword 'co_return'" "" { target c++26 } }
 #undef co_yield 			// { dg-warning "undefining keyword 'co_yield'" "" { target c++26 } }
 #undef decltype 			// { dg-warning "undefining keyword 'decltype'" "" { target c++26 } }
@@ -93,8 +93,8 @@
 #undef import 				// { dg-warning "undefining keyword 'import'" "" { target c++26 } }
 #undef module 				// { dg-warning "undefining keyword 'module'" "" { target c++26 } }
 #undef override 			// { dg-warning "undefining keyword 'override'" "" { target c++26 } }
-#undef post
-#undef pre
+#undef post	 			// { dg-warning "undefining keyword 'post'" "" { target c++26 } }
+#undef pre	 			// { dg-warning "undefining keyword 'pre'" "" { target c++26 } }
 #undef replaceable_if_eligible
 #undef trivially_relocatable_if_eligible
 

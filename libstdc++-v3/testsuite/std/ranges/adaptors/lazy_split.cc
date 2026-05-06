@@ -239,6 +239,15 @@ test13()
   constexpr decltype(views::lazy_split(views::single(0), 0).begin()) it;
 }
 
+void
+test14()
+{
+  // LWG 3599
+  auto p = views::iota(0) | views::take(1) | views::reverse;
+  auto r = views::single(42) | views::lazy_split(p);
+  auto f = r.front();
+}
+
 int
 main()
 {
@@ -255,4 +264,5 @@ main()
   test11();
   static_assert(test12());
   test13();
+  test14();
 }

@@ -18,6 +18,8 @@
 ;; along with GCC; see the file COPYING3.  If not see
 ;; <http://www.gnu.org/licenses/>.
 
+;; Code organization: See block comment at the top of aarch64.md.
+
 ;; The file is organised into the following sections (search for the full
 ;; line):
 ;;
@@ -59,6 +61,7 @@
 ;; ---- [FP] Non-widening bfloat16 arithmetic
 ;; ---- [FP] Clamp to minimum/maximum
 ;; ---- [FP] Scaling by powers of two
+;; ---- [FP] Multiplication
 ;;
 ;; == Uniform ternary arithmnetic
 ;; ---- [INT] General ternary arithmetic that maps to unspecs
@@ -135,6 +138,9 @@
 ;; ---- Optional AES extensions
 ;; ---- Optional SHA-3 extensions
 ;; ---- Optional SM4 extensions
+;;
+;; == FMMLA extensions
+;; ---- [FP] Matrix multiply-accumulate widening
 
 ;; =========================================================================
 ;; == Moves
@@ -1487,26 +1493,74 @@
 ;; -------------------------------------------------------------------------
 ;; Includes the multiple and single vector and multiple vectors forms of
 ;; - FSCALE
+;; - BFSCALE (SVE_BFSCALE)
 ;; -------------------------------------------------------------------------
 
+;; FSCALE / BFSCALE (multiple vectors)
+;; sv{b}floatNx2_t svscale[_{b}fN_x2] (sv{b}floatNx2_t zdn, svintNx2_t zm) __arm_streaming;
+;; sv{b}floatNx4_t svscale[_{b}fN_x4] (sv{b}floatNx4_t zdn, svintNx4_t zm) __arm_streaming;
+;; {B}FSCALE { <Zdn1>.T-<Zdn2>.T }, { <Zdn1>.T-<Zdn2>.T }, { <Zm1>.H-<Zm2>.T }
+;; {B}FSCALE { <Zdn1>.T-<Zdn4>.T }, { <Zdn1>.T-<Zdn4>.T }, { <Zm1>.H-<Zm4>.T }
 (define_insn "@aarch64_sve_fscale<mode>"
-  [(set (match_operand:SVE_Fx24_NOBF 0 "register_operand" "=Uw<vector_count>")
-	(unspec:SVE_Fx24_NOBF
-	  [(match_operand:SVE_Fx24_NOBF 1 "register_operand" "0")
+  [(set (match_operand:SVE_Fx24_BFSCALE 0 "register_operand" "=Uw<vector_count>")
+	(unspec:SVE_Fx24_BFSCALE
+	  [(match_operand:SVE_Fx24_BFSCALE 1 "register_operand" "0")
 	   (match_operand:<SVSCALE_INTARG> 2 "register_operand" "Uw<vector_count>")]
 	  UNSPEC_FSCALE))]
-  "TARGET_STREAMING_SME2 && TARGET_FP8"
-  "fscale\t%0, %1, %2"
+  "TARGET_STREAMING_SME2 && (<is_bf16> ? TARGET_SVE_BFSCALE : TARGET_FP8)"
+  "<b>fscale\t%0, %1, %2"
 )
 
+;; FSCALE / BFSCALE (multiple and single vector)
+;; sv{b}floatNx2_t svscale[_single_{b}fN_x2] (sv{b}floatNx2_t zdn, svintN_t zm) __arm_streaming;
+;; sv{b}floatNx4_t svscale[_single_{b}fN_x4] (sv{b}floatNx4_t zdn, svintN_t zm) __arm_streaming;
+;; {B}FSCALE { <Zdn1>.T-<Zdn2>.T }, { <Zdn1>.T-<Zdn2>.T }, <Zm1>.T
+;; {B}FSCALE { <Zdn1>.T-<Zdn4>.T }, { <Zdn1>.T-<Zdn4>.T }, <Zm1>.T
 (define_insn "@aarch64_sve_single_fscale<mode>"
-  [(set (match_operand:SVE_Fx24_NOBF 0 "register_operand" "=Uw<vector_count>")
-	(unspec:SVE_Fx24_NOBF
-	  [(match_operand:SVE_Fx24_NOBF 1 "register_operand" "0")
+  [(set (match_operand:SVE_Fx24_BFSCALE 0 "register_operand" "=Uw<vector_count>")
+	(unspec:SVE_Fx24_BFSCALE
+	  [(match_operand:SVE_Fx24_BFSCALE	  1 "register_operand" "0")
 	   (match_operand:<SVSCALE_SINGLE_INTARG> 2 "register_operand" "x")]
 	  UNSPEC_FSCALE))]
-  "TARGET_STREAMING_SME2 && TARGET_FP8"
-  "fscale\t%0, %1, %2.<Vetype>"
+  "TARGET_STREAMING_SME2 && (<is_bf16> ? TARGET_SVE_BFSCALE : TARGET_FP8)"
+  "<b>fscale\t%0, %1, %2.<Vetype>"
+)
+
+;; -------------------------------------------------------------------------
+;; ---- [FP] Multiplication
+;; -------------------------------------------------------------------------
+;; Includes the multiple and single vector and multiple vectors forms of
+;; - BFMUL (SVE_BFSCALE)
+;; -------------------------------------------------------------------------
+
+;; BFMUL (multiple vectors)
+;; svbfloat16x2_t svmul[_bf16_x2](svbfloat16x2_t zd, svbfloat16x2_t zm) __arm_streaming;
+;; svbfloat16x4_t svmul[_bf16_x4](svbfloat16x4_t zd, svbfloat16x4_t zm) __arm_streaming;
+;; BFMUL { <Zd1>.H-<Zd2>.H }, { <Zn1>.H-<Zn2>.H }, { <Zm1>.H-<Zm2>.H }
+;; BFMUL { <Zd1>.H-<Zd4>.H }, { <Zn1>.H-<Zn4>.H }, { <Zm1>.H-<Zm4>.H }
+(define_insn "@aarch64_sve_<optab><mode>"
+  [(set (match_operand:SVE_BFx24 0 "register_operand" "=Uw<vector_count>")
+	(unspec:SVE_BFx24
+	  [(match_operand:SVE_BFx24 1 "register_operand" "Uw<vector_count>")
+	   (match_operand:SVE_BFx24 2 "register_operand" "Uw<vector_count>")]
+	  SVE_FP_MUL))]
+  "TARGET_STREAMING_SME2 && TARGET_SVE_BFSCALE"
+  "bfmul\t%0, %1, %2"
+)
+
+;; BFMUL (multiple and single vector)
+;; svbfloat16x2_t svmul[_single_bf16_x2](svbfloat16x2_t zd, svbfloat16_t zm) __arm_streaming;
+;; svbfloat16x4_t svmul[_single_bf16_x4](svbfloat16x4_t zd, svbfloat16_t zm) __arm_streaming;
+;; BFMUL { <Zd1>.H-<Zd2>.H }, { <Zn1>.H-<Zn2>.H }, <Zm>.H
+;; BFMUL { <Zd1>.H-<Zd4>.H }, { <Zn1>.H-<Zn4>.H }, <Zm>.H
+(define_insn "@aarch64_sve_<optab><mode>_single"
+  [(set (match_operand:SVE_BFx24 0 "register_operand" "=Uw<vector_count>")
+	(unspec:SVE_BFx24
+	  [(match_operand:SVE_BFx24 1 "register_operand" "Uw<vector_count>")
+	   (match_operand:<VSINGLE> 2 "register_operand" "x")]
+	  SVE_FP_MUL))]
+  "TARGET_STREAMING_SME2 && TARGET_SVE_BFSCALE"
+  "bfmul\t%0, %1, %2.h"
 )
 
 ;; =========================================================================
@@ -4075,9 +4129,8 @@
 	     UNSPEC_REVD_ONLY)]
 	  UNSPEC_PRED_X))]
   "TARGET_SVE2p1_OR_SME"
-  {@ [ cons: =0 , 1   , 2 ; attrs: movprfx ]
-     [ w        , Upl , 0 ; *              ] revd\t%0.q, %1/m, %2.q
-     [ ?&w      , Upl , w ; yes            ] movprfx\t%0, %2\;revd\t%0.q, %1/m, %2.q
+  {@ [ cons: =0 , 1   , 2 ]
+     [ w        , Upl , 0 ] revd\t%0.q, %1/m, %2.q
   }
   [(set_attr "sve_type" "sve_int_general")]
 )
@@ -4092,9 +4145,8 @@
 	   (match_operand:SVE_FULL 3 "register_operand")]
 	  UNSPEC_SEL))]
   "TARGET_SVE2p1_OR_SME"
-  {@ [ cons: =0 , 1   , 2 , 3  ; attrs: movprfx ]
-     [ w        , Upl , w , 0  ; *              ] revd\t%0.q, %1/m, %2.q
-     [ ?&w      , Upl , w , w  ; yes            ] movprfx\t%0, %3\;revd\t%0.q, %1/m, %2.q
+  {@ [ cons: =0 , 1   , 2 , 3 ]
+     [ w        , Upl , w , 0 ] revd\t%0.q, %1/m, %2.q
   }
   [(set_attr "sve_type" "sve_int_general")]
 )
@@ -4655,4 +4707,47 @@
   "TARGET_SVE2_SM4"
   "sm4ekey\t%0.s, %1.s, %2.s"
   [(set_attr "type" "crypto_sm4")]
+)
+
+;; =========================================================================
+;; == FMMLA extensions
+;; =========================================================================
+
+;; -------------------------------------------------------------------------
+;; ---- [FP] Matrix multiply-accumulate widening
+;; -------------------------------------------------------------------------
+;; Includes:
+;; - FMMLA (F8F16MM,F8F32MM,SVE_F16F32MM)
+;; -------------------------------------------------------------------------
+
+
+(define_insn "@aarch64_sve2_<sve_fp_op><SVE_FULL_HSF_FMMLA:mode><VNx16QI_ONLY:mode>"
+  [(set (match_operand:SVE_FULL_HSF_FMMLA 0 "register_operand")
+	(unspec:SVE_FULL_HSF_FMMLA
+	  [(match_operand:VNx16QI_ONLY 2 "register_operand")
+	   (match_operand:VNx16QI_ONLY 3 "register_operand")
+	   (match_operand:SVE_FULL_HSF_FMMLA 1 "register_operand")
+	   (reg:DI FPM_REGNUM)]
+	  FMMLA))]
+  "TARGET_SVE2 && TARGET_NON_STREAMING"
+  {@ [ cons: =0 , 1 , 2 , 3 ; attrs: movprfx ]
+     [ w        , 0 , w , w ; *              ] fmmla\t%0.<SVE_FULL_HSF_FMMLA:Vetype>, %2.b, %3.b
+     [ ?&w      , w , w , w ; yes            ] movprfx\t%0, %1\;fmmla\t%0.<SVE_FULL_HSF_FMMLA:Vetype>, %2.b, %3.b
+  }
+  [(set_attr "sve_type" "sve_fp_mul")]
+)
+
+(define_insn "@aarch64_sve2_<sve_fp_op><VNx4SF_ONLY:mode><VNx8HF_ONLY:mode>"
+  [(set (match_operand:VNx4SF_ONLY 0 "register_operand")
+	(unspec:VNx4SF_ONLY
+	 [(match_operand:VNx8HF_ONLY 2 "register_operand")
+	  (match_operand:VNx8HF_ONLY 3 "register_operand")
+	  (match_operand:VNx4SF_ONLY 1 "register_operand")]
+	 FMMLA))]
+  "TARGET_SVE2 && TARGET_SVE_F16F32MM && TARGET_NON_STREAMING"
+  {@ [ cons: =0 , 1 , 2 , 3 ; attrs: movprfx ]
+     [ w        , 0 , w , w ; *              ] fmmla\t%0.s, %2.h, %3.h
+     [ ?&w      , w , w , w ; yes            ] movprfx\t%0, %1\;fmmla\t%0.s, %2.h, %3.h
+  }
+  [(set_attr "sve_type" "sve_fp_mul")]
 )

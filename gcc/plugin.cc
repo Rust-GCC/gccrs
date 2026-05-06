@@ -186,7 +186,7 @@ add_new_plugin (const char* plugin_name)
 
   if (name_is_short)
     {
-      base_name = CONST_CAST (char*, plugin_name);
+      base_name = const_cast<char*> (plugin_name);
 
 #if defined(__MINGW32__)
       static const char plugin_ext[] = ".dll";
@@ -499,7 +499,6 @@ register_callback (const char *plugin_name,
       case PLUGIN_EARLY_GIMPLE_PASSES_END:
       case PLUGIN_NEW_PASS:
       case PLUGIN_INCLUDE_FILE:
-      case PLUGIN_ANALYZER_INIT:
         {
           struct callback_info *new_callback;
           if (!callback)
@@ -580,7 +579,6 @@ invoke_plugin_callbacks_full (int event, void *gcc_data)
       case PLUGIN_EARLY_GIMPLE_PASSES_END:
       case PLUGIN_NEW_PASS:
       case PLUGIN_INCLUDE_FILE:
-      case PLUGIN_ANALYZER_INIT:
         {
           /* Iterate over every callback registered with this event and
              call it.  */

@@ -312,6 +312,8 @@ proc filter_libphobos_unittests { list } {
 proc libphobos_skipped_test_p { test } {
     global libphobos_skip_tests
 
+    # Extract test name.
+    set test [lindex $test 0]
     set row [lsearch -inline -index 0 $libphobos_skip_tests $test]
     if { $row eq "" } {
 	return ""
@@ -363,4 +365,26 @@ proc check_effective_target_linux_pre_2639 { } {
 	return 0
     }
     return 1
+}
+
+# Return true if target support for manipulating IEEE floating flags
+# exists in the std.math.hardware module.
+proc check_effective_target_phobos_ieee_flags_support { } {
+    if { ![check_effective_target_hard_float] } {
+	return 0
+    }
+    # These targets set `version = IeeeFlagsSupport'.  Keep in sync with
+    # src/std/math/hardware.d.
+    if {    [istarget aarch64*-*-*]
+	 || [istarget arm*-*-*]
+	 || [istarget i?86*-*-*] || [istarget x86_64*-*-*]
+	 || [istarget loongarch64*-*-*]
+	 || [istarget mips*-*-*]
+	 || [istarget powerpc*-*-*]
+	 || [istarget riscv*-*-*]
+	 || [istarget sparc*-*-*] } {
+	return 1
+    } else {
+        return 0
+    }
 }

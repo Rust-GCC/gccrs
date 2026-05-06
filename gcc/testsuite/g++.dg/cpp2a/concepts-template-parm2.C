@@ -12,4 +12,4 @@ template<Int T = char> struct S1 { };
 template<Int auto X = false> struct S2 { };
 
 S1<> s1; // { dg-error "constraint failure" }
-S2<> s2; // { dg-error "placeholder constraints not satisfied" }
+S2<> s2; // { dg-error "constraint failure" }

@@ -1811,7 +1811,6 @@ indirectable_address_p (rtx x, bool strict, bool indirect)
 static bool
 nonindexed_address_p (rtx x, bool strict)
 {
-  rtx xfoo0;
   if (REG_P (x))
     {
       if (! reload_in_progress
@@ -1823,11 +1822,10 @@ nonindexed_address_p (rtx x, bool strict)
     return true;
   if (indirectable_address_p (x, strict, false))
     return true;
-  xfoo0 = XEXP (x, 0);
-  if (MEM_P (x) && indirectable_address_p (xfoo0, strict, true))
+  if (MEM_P (x) && indirectable_address_p (XEXP (x, 0), strict, true))
     return true;
   if ((GET_CODE (x) == PRE_DEC || GET_CODE (x) == POST_INC)
-      && BASE_REGISTER_P (xfoo0, strict))
+      && BASE_REGISTER_P (XEXP (x, 0), strict))
     return true;
   return false;
 }

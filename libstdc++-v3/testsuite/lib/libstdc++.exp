@@ -68,6 +68,8 @@ load_gcc_lib target-supports-dg.exp
 load_lib prune.exp
 load_lib dg-options.exp
 load_gcc_lib scanasm.exp
+load_gcc_lib scandump.exp
+load_gcc_lib scantree.exp
 load_gcc_lib target-libpath.exp
 load_gcc_lib timeout.exp
 load_gcc_lib timeout-dg.exp
@@ -471,20 +473,23 @@ if { [info procs saved-dg-test] == [list] } {
     }
 }
 
-# Find the minimum standard required by a test, if higher than the default_std.
-proc v3-minimum-std { test default_std max_std } {
-    for {set s $default_std} {$s <= $max_std} {incr s 3} {
+# These should be adjusted whenever the compiler's default -std is updated
+# or a newer C++ effective target is added.
+set v3_default_std 20
+set v3_max_std 26
+
+# Find the minimum standard required by a test, if higher than $v3_default_std.
+proc v3-minimum-std { test } {
+    global v3_default_std
+    global v3_max_std
+    for {set s $v3_default_std} {$s <= $v3_max_std} {incr s 3} {
 	if [search_for $test "\{ dg-do * \{ target c++$s"] {
 	    return $s
 	} elseif [search_for $test "\{ dg-require-effective-target c++$s"] {
 	    return $s
 	}
     }
-    # TODO: replace all c++2a with c++20 and remove this case.
-    if [search_for $test "\{ dg-do * \{ target c++2a"] {
-	return 20
-    }
-    return $default_std
+    return $v3_default_std
 }
 
 # Allow v3_std_list to be set in configuration files, e.g., ~/.dejagnurc
@@ -498,13 +503,15 @@ if [info exists env(GLIBCXX_TESTSUITE_STDS)] {
 
 # Allow adjusting which -std we test with -fmodules.
 if ![info exists v3_modules_std] {
-    set v3_modules_std "26"
+    set v3_modules_std "$v3_max_std"
 }
 
 # Modified dg-runtest that runs tests in multiple standard modes,
 # unless they specifically specify one standard.
 proc v3-dg-runtest { testcases flags default-extra-flags } {
     global runtests
+    global v3_default_std
+    global v3_max_std
     global v3_modules_std
 
     foreach test $testcases {
@@ -531,22 +538,18 @@ proc v3-dg-runtest { testcases flags default-extra-flags } {
 		# If the test requires a newer C++ version than which
 		# is tested by default, use that C++ version for that
 		# single test.
-		# These should be adjusted whenever the default -std is
-		# updated or newer C++ effective target is added.
-		set default_std 20
-		set max_std 26
-		set min_std [v3-minimum-std $test $default_std $max_std]
-		if { $min_std > $default_std } {
+		set min_std [v3-minimum-std $test]
+		if { $min_std > $v3_default_std } {
 		    set std_list $min_std
-		    if { $min_std != $max_std } {
+		    if { $min_std != $v3_max_std } {
 			# Also test the latest version.
-			lappend std_list "$max_std"
+			lappend std_list "$v3_max_std"
 		    }
 		} else {
 		    # Only run each test once with the default -std option.
 		    # This avoids increasing the run time for most testers.
 		    # Libstdc++ developers can override this with v3_std_list.
-		    set std_list $default_std
+		    set std_list $v3_default_std
 		}
 	    }
 	    set option_list { }

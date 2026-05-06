@@ -34,37 +34,37 @@ void InitializeObjectAttributes(OBJECT_ATTRIBUTES* p, UNICODE_STRING* n,
 }
 
 pragma(inline, true) @safe pure nothrow @nogc {
-    bool NT_SUCCESS(NTSTATUS Status)     { return Status >= 0; }
-    bool NT_INFORMATION(NTSTATUS Status) { return ((cast(ULONG) Status) >> 30) == 1; }
-    bool NT_WARNING(NTSTATUS Status)     { return ((cast(ULONG) Status) >> 30) == 2; }
-    bool NT_ERROR(NTSTATUS Status)       { return ((cast(ULONG) Status) >> 30) == 3; }
+    bool NT_SUCCESS()(NTSTATUS Status)     { return Status >= 0; }
+    bool NT_INFORMATION()(NTSTATUS Status) { return ((cast(ULONG) Status) >> 30) == 1; }
+    bool NT_WARNING()(NTSTATUS Status)     { return ((cast(ULONG) Status) >> 30) == 2; }
+    bool NT_ERROR()(NTSTATUS Status)       { return ((cast(ULONG) Status) >> 30) == 3; }
 }
 
 /*  In MinGW, NTSTATUS, UNICODE_STRING, STRING and their associated pointer
  *  type aliases are defined in ntdef.h, ntsecapi.h and subauth.h, each of
  *  which checks that none of the others is already included.
  */
-alias int  NTSTATUS;
-alias int* PNTSTATUS;
+alias NTSTATUS = int;
+alias PNTSTATUS = int*;
 
 struct UNICODE_STRING {
     USHORT Length;
     USHORT MaximumLength;
     PWSTR  Buffer;
 }
-alias UNICODE_STRING*        PUNICODE_STRING;
-alias const(UNICODE_STRING)* PCUNICODE_STRING;
+alias PUNICODE_STRING = UNICODE_STRING*;
+alias PCUNICODE_STRING = const(UNICODE_STRING)*;
 
 struct STRING {
     USHORT Length;
     USHORT MaximumLength;
     PCHAR  Buffer;
 }
-alias STRING  ANSI_STRING, OEM_STRING;
-alias STRING* PSTRING, PANSI_STRING, POEM_STRING;
+alias ANSI_STRING = STRING, OEM_STRING = STRING;
+alias PSTRING = STRING*, PANSI_STRING = STRING*, POEM_STRING = STRING*;
 
-alias LARGE_INTEGER  PHYSICAL_ADDRESS;
-alias LARGE_INTEGER* PPHYSICAL_ADDRESS;
+alias PHYSICAL_ADDRESS = LARGE_INTEGER;
+alias PPHYSICAL_ADDRESS = LARGE_INTEGER*;
 
 enum SECTION_INHERIT {
     ViewShare = 1,
@@ -82,4 +82,4 @@ struct OBJECT_ATTRIBUTES {
     PVOID           SecurityDescriptor;
     PVOID           SecurityQualityOfService;
 }
-alias OBJECT_ATTRIBUTES* POBJECT_ATTRIBUTES;
+alias POBJECT_ATTRIBUTES = OBJECT_ATTRIBUTES*;

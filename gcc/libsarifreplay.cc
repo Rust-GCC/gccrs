@@ -28,10 +28,12 @@ along with GCC; see the file COPYING3.  If not see
 #include "libgdiagnostics++.h"
 #include "libgdiagnostics-private.h"
 #include "json-parsing.h"
+#include "json-pointer-parsing.h"
 #include "intl.h"
 #include "sarif-spec-urls.def"
 #include "libsarifreplay.h"
 #include "label-text.h"
+#include "pretty-print.h"
 
 namespace {
 
@@ -145,7 +147,9 @@ make_logical_location_from_jv (libgdiagnostics::manager &mgr,
     parent = make_logical_location_from_jv (mgr,
 					    *jv.m_pointer_token.m_parent);
 
-  std::string short_name;
+  pretty_printer pp;
+  pointer_token.print (&pp);
+  std::string short_name = pp_formatted_text (&pp);
   std::string fully_qualified_name;
   switch (pointer_token.m_kind)
     {
@@ -153,19 +157,16 @@ make_logical_location_from_jv (libgdiagnostics::manager &mgr,
       gcc_unreachable ();
 
     case json::pointer::token::kind::root_value:
-      short_name = "";
       fully_qualified_name = "";
       break;
 
     case json::pointer::token::kind::object_member:
-      short_name = pointer_token.m_data.u_member;
       gcc_assert (parent.m_inner);
       fully_qualified_name
 	= std::string (parent.get_fully_qualified_name ()) + "/" + short_name;
       break;
 
     case json::pointer::token::kind::array_index:
-      short_name = std::to_string (pointer_token.m_data.u_index);
       gcc_assert (parent.m_inner);
       fully_qualified_name
 	= std::string (parent.get_fully_qualified_name ()) + "/" + short_name;
@@ -292,6 +293,12 @@ public:
   libgdiagnostics::message_buffer m_label;
 };
 
+struct embedded_link
+{
+  std::string text;
+  std::string destination;
+};
+
 using id_map = std::map<std::string, const json::string *>;
 
 class sarif_replayer
@@ -301,6 +308,7 @@ public:
 		  libgdiagnostics::manager &&control_manager)
   : m_output_mgr (std::move (output_manager)),
     m_control_mgr (std::move (control_manager)),
+    m_root_val (nullptr),
     m_driver_obj (nullptr),
     m_artifacts_arr (nullptr)
   {
@@ -310,27 +318,6 @@ public:
 			   const replay_options &replay_opts);
 
 private:
-  class replayer_location_map : public json::location_map
-  {
-  public:
-    void record_range_for_value (json::value *jv,
-				 const range &r) final override
-    {
-      m_map_jv_to_range[jv] = r;
-    }
-
-    const json::location_map::range &
-    get_range_for_value (const json::value &jv) const
-    {
-      auto iter = m_map_jv_to_range.find (&jv);
-      gcc_assert (iter != m_map_jv_to_range.end ());
-      return iter->second;
-    }
-
-  private:
-    std::map<const json::value *, range> m_map_jv_to_range;
-  };
-
   enum status emit_sarif_as_diagnostics (const json::value &jv);
 
   libgdiagnostics::message_buffer
@@ -724,6 +711,15 @@ private:
     return sub;
   }
 
+  void
+  append_embeddded_link (libgdiagnostics::message_buffer &result,
+			 const embedded_link &link,
+			 const json::object &message_obj);
+
+  const json::value *
+  decode_link_within_sarif (const char *dst,
+			    const json::object &message_obj);
+
   /* The manager to replay the SARIF files to.  */
   libgdiagnostics::manager m_output_mgr;
 
@@ -733,8 +729,9 @@ private:
   /* The file within m_control_mgr representing the .sarif file.  */
   libgdiagnostics::file m_loaded_file;
 
-  replayer_location_map m_json_location_map;
+  json::simple_location_map m_json_location_map;
 
+  const json::value *m_root_val;
   const json::object *m_driver_obj;
   const json::array *m_artifacts_arr;
 };
@@ -868,6 +865,7 @@ sarif_replayer::replay_file (const char *filename,
     }
 
   gcc_assert (result.m_val.get ());
+  m_root_val = result.m_val.get ();
   return emit_sarif_as_diagnostics (*result.m_val.get ());
 }
 
@@ -1499,12 +1497,6 @@ maybe_consume_placeholder (const char *&iter_src, unsigned *out_arg_idx)
   return false;
 }
 
-struct embedded_link
-{
-  std::string text;
-  std::string destination;
-};
-
 /*  If ITER_SRC starts with an embedded link as per §3.11.6, advance ITER_SRC
     to immediately beyond the link, and return the link.
 
@@ -1576,6 +1568,69 @@ maybe_consume_embedded_link (const char *&iter_src)
 
   iter_src = iter;
   return std::make_unique<embedded_link> (std::move (result));
+}
+
+void
+sarif_replayer::append_embeddded_link (libgdiagnostics::message_buffer &result,
+				       const embedded_link &link,
+				       const json::object &message_obj)
+{
+  /* Try to convert intra-sarif links into event ids.  */
+  if (!strncmp (link.destination.c_str (), "sarif:/", strlen ("sarif:/")))
+    {
+      if (auto linked_val = decode_link_within_sarif (link.destination.c_str (),
+						      message_obj))
+	{
+	  /* Assume we have a threadFlowLocation object, and that it's
+	     for the correct code flow.  */
+	  if (const json::object *linked_obj
+		= dyn_cast <const json::object *> (linked_val))
+	    {
+	      const property_spec_ref location_prop
+		("threadFlowLocation", "executionOrder", "3.38.11");
+	      if (auto execution_order
+		  = get_optional_property<json::integer_number> (*linked_obj,
+								 location_prop))
+		if (execution_order->get () > 0)
+		  {
+		    diagnostic_event_id event_id = execution_order->get () - 1;
+		    diagnostic_message_buffer_append_event_id (result.m_inner,
+							       event_id);
+		    return;
+		  }
+	    }
+	}
+
+      /* If we can't use the sarif link, simply use the text.  */
+      result += link.text.c_str ();
+      return;
+    }
+  result.begin_url (link.destination.c_str ());
+  result += link.text.c_str ();
+  result.end_url ();
+}
+
+const json::value *
+sarif_replayer::decode_link_within_sarif (const char *dst,
+					  const json::object &message_obj)
+{
+  gcc_assert (!strncmp (dst, "sarif:/", strlen ("sarif:/")));
+  gcc_assert (m_root_val);
+
+  auto result
+    = json::pointer::parse_utf8_string (dst + strlen ("sarif:/") - 1,
+					m_root_val);
+  if (result.m_err)
+    {
+      const spec_ref uris_with_sarif_scheme ("3.10.3");
+      pp_token_buffer_element e (result.m_err->m_tokens);
+      report_invalid_sarif
+	(message_obj, uris_with_sarif_scheme,
+	 "error parsing JSON pointer in SARIF link %qs: %e",
+	 dst, &e);
+      return nullptr;
+    }
+  return result.m_val;
 }
 
 /* Lookup the plain text string within a result.message (§3.27.11),
@@ -1662,13 +1717,7 @@ make_plain_text_within_result_message (const json::object *tool_component_obj,
 	    }
 	}
       else if (auto link = maybe_consume_embedded_link (iter_src))
-	{
-	  result.begin_url (link->destination.c_str ());
-	  result += link->text.c_str ();
-	  result.end_url ();
-	  /* TODO: potentially could try to convert
-	     intra-sarif links into event ids.  */
-	}
+	append_embeddded_link (result, *link, message_obj);
       else
 	{
 	  result += ch;
@@ -2303,8 +2352,9 @@ sarif_replayer::handle_graph_object (const json::object &graph_json_obj,
   id_map edge_id_map;
 
   if (auto properties = maybe_get_property_bag (graph_json_obj))
-    private_diagnostic_graph_set_property_bag (*out_graph.m_inner,
-					       properties->clone_as_object ());
+    private_diagnostic_graph_set_property_bag
+      (*out_graph.m_inner,
+       properties->clone_as_object ());
 
   // §3.39.2: MAY contain a "description" property
   const property_spec_ref description_prop

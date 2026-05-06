@@ -165,6 +165,21 @@ summarized in <a href="tables.html">tables</a>.  */
  */
 
 /**
+ * @defgroup variable_templates Variable Templates
+ * @ingroup metaprogramming
+ * @since C++17
+ *
+ * Each trait in `<type_traits>` that has a `value` static data member is
+ * also available as a variable template, using the same name with a `_v`
+ * suffix. For example, `std::is_integral_v<T>` is a `bool` constant with
+ * the same value as `std::is_integral<T>::value`.
+ *
+ * In some cases, using the variable template instead of the `::value` member
+ * avoids instantiating the class template for the trait. This gives the
+ * compiler less work to do and can make your code compile a little faster.
+ */
+
+/**
  * @defgroup experimental Technical Specifications
  *
  * Components specified by various Technical Specifications.

@@ -48,6 +48,12 @@ enum class Async
   No
 };
 
+enum class Default
+{
+  Yes,
+  No
+};
+
 enum BoundPolarity
 {
   RegularBound,

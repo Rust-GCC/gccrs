@@ -280,7 +280,7 @@ cxx_incomplete_type_inform (const_tree type)
     return;
 
   location_t loc = DECL_SOURCE_LOCATION (TYPE_MAIN_DECL (type));
-  tree ptype = strip_top_quals (CONST_CAST_TREE (type));
+  tree ptype = strip_top_quals (const_cast<tree> (type));
 
   /* When defining a template, current_class_type will be the pattern on
      the template definition, while non-self-reference usages of this
@@ -2459,8 +2459,16 @@ build_m_component_ref (tree datum, tree component, tsubst_flags_t complain)
 	{
 	mismatch:
 	  if (complain & tf_error)
-	    error ("pointer to member type %qT incompatible with object "
-		   "type %qT", type, objtype);
+	    {
+	      if (COMPLETE_TYPE_P (objtype))
+		error ("pointer to member type %qT incompatible "
+		       "with object type %qT because %qT is not "
+		       "derived from %qT", ptrmem_type, objtype,
+		       objtype, ctype);
+	      else
+		error ("pointer to member type %qT incompatible with "
+		       "incomplete object type %qT", ptrmem_type, objtype);
+	    }
 	  return error_mark_node;
 	}
       else if (binfo == error_mark_node)
@@ -2602,9 +2610,13 @@ build_functional_cast_1 (location_t loc, tree exp, tree parms,
 	      return error_mark_node;
 	    }
 	  else if (cxx_dialect < cxx23)
-	    pedwarn (loc, OPT_Wc__23_extensions,
-		     "%<auto(x)%> only available with "
-		     "%<-std=c++23%> or %<-std=gnu++23%>");
+	    {
+	      if ((complain & tf_warning_or_error) == 0)
+		return error_mark_node;
+	      pedwarn (loc, OPT_Wc__23_extensions,
+		       "%<auto(x)%> only available with "
+		       "%<-std=c++23%> or %<-std=gnu++23%>");
+	    }
 	}
       else
 	{

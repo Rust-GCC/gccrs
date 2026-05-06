@@ -54,6 +54,8 @@ FROM DynamicStrings IMPORT String, Length, InitString, Mark, Slice, EqualArray,
 
 CONST
    Debugging = FALSE ;
+   (* DefaultRuntimeModuleOverride must match
+      DEFAULT_RUNTIME_MODULE_OVERRIDE in libgm2/libm2iso/m2rts.h.  *)
    DefaultRuntimeModuleOverride = "m2iso:RTentity,m2iso:Storage,m2iso:SYSTEM,m2iso:M2RTS,m2iso:RTExceptions,m2iso:IOLink" ;
 
 VAR

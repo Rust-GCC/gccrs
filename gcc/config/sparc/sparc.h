@@ -174,19 +174,19 @@ along with GCC; see the file COPYING3.  If not see
 #endif
 #if TARGET_CPU_DEFAULT == TARGET_CPU_niagara3
 #define CPP_CPU64_DEFAULT_SPEC "-D__sparc_v9__"
-#define ASM_CPU64_DEFAULT_SPEC "-Av9" AS_NIAGARA3_FLAG
+#define ASM_CPU64_DEFAULT_SPEC "-Av9d"
 #endif
 #if TARGET_CPU_DEFAULT == TARGET_CPU_niagara4
 #define CPP_CPU64_DEFAULT_SPEC "-D__sparc_v9__"
-#define ASM_CPU64_DEFAULT_SPEC AS_NIAGARA4_FLAG
+#define ASM_CPU64_DEFAULT_SPEC "-xarch=sparc4"
 #endif
 #if TARGET_CPU_DEFAULT == TARGET_CPU_niagara7
 #define CPP_CPU64_DEFAULT_SPEC "-D__sparc_v9__"
-#define ASM_CPU64_DEFAULT_SPEC AS_NIAGARA7_FLAG
+#define ASM_CPU64_DEFAULT_SPEC "-xarch=sparc5"
 #endif
 #if TARGET_CPU_DEFAULT == TARGET_CPU_m8
 #define CPP_CPU64_DEFAULT_SPEC "-D__sparc_v9__"
-#define ASM_CPU64_DEFAULT_SPEC AS_M8_FLAG
+#define ASM_CPU64_DEFAULT_SPEC "-xarch=sparc6"
 #endif
 
 #else
@@ -344,10 +344,10 @@ along with GCC; see the file COPYING3.  If not see
 %{mcpu=ultrasparc3:%{!mv8plus:-Av9b}} \
 %{mcpu=niagara:%{!mv8plus:-Av9b}} \
 %{mcpu=niagara2:%{!mv8plus:-Av9b}} \
-%{mcpu=niagara3:%{!mv8plus:-Av9" AS_NIAGARA3_FLAG "}} \
-%{mcpu=niagara4:%{!mv8plus:" AS_NIAGARA4_FLAG "}} \
-%{mcpu=niagara7:%{!mv8plus:" AS_NIAGARA7_FLAG "}} \
-%{mcpu=m8:%{!mv8plus:" AS_M8_FLAG "}} \
+%{mcpu=niagara3:%{!mv8plus:-Av9d}} \
+%{mcpu=niagara4:%{!mv8plus:-xarch=sparc4}} \
+%{mcpu=niagara7:%{!mv8plus:-xarch=sparc5}} \
+%{mcpu=m8:%{!mv8plus:-xarch=sparc6}} \
 %{!mcpu*:%(asm_cpu_default)} \
 "
 
@@ -1279,32 +1279,13 @@ do {									\
 
 /* Select a format to encode pointers in exception handling data.  CODE
    is 0 for data, 1 for code labels, 2 for function pointers.  GLOBAL is
-   true if the symbol may be affected by dynamic relocations.
-
-   If assembler and linker properly support .uaword %r_disp32(foo),
-   then use PC relative 32-bit relocations instead of absolute relocs
-   for shared libraries.  On sparc64, use pc relative 32-bit relocs even
-   for binaries, to save memory.
-
-   binutils 2.12 would emit a R_SPARC_DISP32 dynamic relocation if the
-   symbol %r_disp32() is against was not local, but .hidden.  In that
-   case, we have to use DW_EH_PE_absptr for pic personality.  */
-#ifdef HAVE_AS_SPARC_UA_PCREL
-#ifdef HAVE_AS_SPARC_UA_PCREL_HIDDEN
+   true if the symbol may be affected by dynamic relocations.  */
 #define ASM_PREFERRED_EH_DATA_FORMAT(CODE,GLOBAL)			\
   (flag_pic								\
    ? (GLOBAL ? DW_EH_PE_indirect : 0) | DW_EH_PE_pcrel | DW_EH_PE_sdata4\
    : ((TARGET_ARCH64 && ! GLOBAL)					\
       ? (DW_EH_PE_pcrel | DW_EH_PE_sdata4)				\
       : DW_EH_PE_absptr))
-#else
-#define ASM_PREFERRED_EH_DATA_FORMAT(CODE,GLOBAL)			\
-  (flag_pic								\
-   ? (GLOBAL ? DW_EH_PE_absptr : (DW_EH_PE_pcrel | DW_EH_PE_sdata4))	\
-   : ((TARGET_ARCH64 && ! GLOBAL)					\
-      ? (DW_EH_PE_pcrel | DW_EH_PE_sdata4)				\
-      : DW_EH_PE_absptr))
-#endif
 
 /* Emit a PC-relative relocation.  */
 #define ASM_OUTPUT_DWARF_PCREL(FILE, SIZE, LABEL)	\
@@ -1314,7 +1295,6 @@ do {									\
     assemble_name (FILE, LABEL);			\
     fputc (')', FILE);					\
   } while (0)
-#endif
 
 /* Addressing modes, and classification of registers for them.  */
 
@@ -1640,40 +1620,13 @@ extern int sparc_indent_opcode;
       }					\
   } while (0)
 
-/* TLS support defaulting to original Sun flavor.  GNU extensions
-   must be activated in separate configuration files.  */
-#ifdef HAVE_AS_TLS
-#define TARGET_TLS 1
-#else
-#define TARGET_TLS 0
+#ifndef HAVE_AS_TLS
+#define HAVE_AS_TLS 0
 #endif
 
-#define TARGET_SUN_TLS TARGET_TLS
-#define TARGET_GNU_TLS 0
-
-#ifdef HAVE_AS_FMAF_HPC_VIS3
-#define AS_NIAGARA3_FLAG "d"
-#else
-#define AS_NIAGARA3_FLAG "b"
-#endif
-
-#ifdef HAVE_AS_SPARC4
-#define AS_NIAGARA4_FLAG "-xarch=sparc4"
-#else
-#define AS_NIAGARA4_FLAG "-Av9" AS_NIAGARA3_FLAG
-#endif
-
-#ifdef HAVE_AS_SPARC5_VIS4
-#define AS_NIAGARA7_FLAG "-xarch=sparc5"
-#else
-#define AS_NIAGARA7_FLAG AS_NIAGARA4_FLAG
-#endif
-
-#ifdef HAVE_AS_SPARC6
-#define AS_M8_FLAG "-xarch=sparc6"
-#else
-#define AS_M8_FLAG AS_NIAGARA7_FLAG
-#endif
+/* TLS support defaults to GNU extensions.  The original Sun flavor must be
+   activated in separate configuration files.  */
+#define TARGET_TLS HAVE_AS_TLS
 
 #ifdef HAVE_AS_LEON
 #define AS_LEON_FLAG "-Aleon"

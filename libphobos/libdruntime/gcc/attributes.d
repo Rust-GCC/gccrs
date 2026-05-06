@@ -629,6 +629,9 @@ auto allocSize(A...)(A arguments)
  */
 alias assumeUsed = used;
 
+/// This attribute is ignored.
+auto callingConvention(string) => false;
+
 /// This attribute has no effect.
 enum dynamicCompile = false;
 
@@ -696,6 +699,19 @@ enum naked = attribute("naked");
  * `@noSanitize("address") `@noSanitize("thread")` to disable both ASan and TSan.
  */
 alias noSanitize = no_sanitize;
+
+/**
+ * Disables split-stack instrumentation for this function, overriding the
+ * `-fsplit-stack` commandline function.
+ *
+ * Examples:
+ * ---
+ * import gcc.attributes;
+ *
+ * @noSplitStack int user_function() { return 1; }
+ * ---
+ */
+enum noSplitStack = attribute("no_split_stack");
 
 /**
  * Sets the optimization strategy for a function.

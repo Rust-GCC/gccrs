@@ -27,6 +27,7 @@ Floor, Boston, MA 02110-1301, USA.  */
 # define va_copy(d,s)  __va_copy((d),(s))
 #endif
 #include <stdio.h>
+#include <errno.h>
 #ifdef HAVE_STRING_H
 #include <string.h>
 #endif
@@ -36,6 +37,21 @@ Floor, Boston, MA 02110-1301, USA.  */
 extern unsigned long strtoul ();
 #endif
 #include "libiberty.h"
+
+static inline unsigned long
+do_strtoul (const char *str, char **endptr, int base)
+  {
+#ifdef _WIN32
+    /* The MSVCRT `strtoul()` function resets `errno` to zero upon success.
+       We must preserve it across this call.  */
+    int saved_errno = errno;
+#endif
+    long value = strtoul (str, endptr, base);
+#ifdef _WIN32
+    errno = saved_errno;
+#endif
+    return value;
+  }
 
 int
 libiberty_vprintf_buffer_size (const char *format, va_list args)
@@ -65,7 +81,7 @@ libiberty_vprintf_buffer_size (const char *format, va_list args)
 	      total_width += abs (va_arg (ap, int));
 	    }
 	  else
-	    total_width += strtoul (p, (char **) &p, 10);
+	    total_width += do_strtoul (p, (char **) &p, 10);
 	  if (*p == '.')
 	    {
 	      ++p;
@@ -75,7 +91,7 @@ libiberty_vprintf_buffer_size (const char *format, va_list args)
 		  total_width += abs (va_arg (ap, int));
 		}
 	      else
-	      total_width += strtoul (p, (char **) &p, 10);
+		total_width += do_strtoul (p, (char **) &p, 10);
 	    }
 	  do
 	    {

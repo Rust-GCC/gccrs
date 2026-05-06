@@ -94,7 +94,14 @@ if (!is(T == const) && !is(T == immutable) && !is(T == inout))
 {
     import core.internal.traits : hasElaborateAssign;
 
-    static if (__traits(isZeroInit, T))
+    static if (is(T == shared U, U))
+    {
+        // Initialization happens before the shared object is published, so the
+        // helper has to operate on the backing storage instead of performing an
+        // ordinary shared write that `-preview=nosharedaccess` rejects.
+        emplaceInitializer(*cast(U*) &chunk);
+    }
+    else static if (__traits(isZeroInit, T))
     {
         import core.stdc.string : memset;
         memset(cast(void*) &chunk, 0, T.sizeof);
@@ -135,7 +142,9 @@ if (!is(T == const) && !is(T == immutable) && !is(T == inout))
         {
             shared T dst = void;
             emplaceInitializer(dst);
-            assert(dst is shared(T).init);
+            // The initializer has not been published yet, so the test may read
+            // the backing storage directly to verify that emplace wrote T.init.
+            assert((() @trusted => (*cast(T*) &dst) is T.init)());
         }
 
         // const T
@@ -201,4 +210,38 @@ void swap(T)(ref T lhs, ref T rhs)
     T tmp = move(lhs);
     moveEmplace(rhs, lhs);
     moveEmplace(tmp, rhs);
+}
+
+void __doPostblit(T)(T[] arr)
+{
+    // infer static postblit type, run postblit if any
+    static if (__traits(hasPostblit, T))
+    {
+        static if (__traits(isStaticArray, T) && is(T : E[], E))
+            __doPostblit(cast(E[]) arr);
+        else
+        {
+            import core.internal.traits : Unqual;
+            foreach (ref elem; (() @trusted => cast(Unqual!T[]) arr)())
+                elem.__xpostblit();
+        }
+    }
+}
+
+// ditto, but with an index to keep track of how many elements have been postblitted
+void __doPostblit(T)(T[] arr, ref size_t i)
+{
+    // infer static postblit type, run postblit if any
+    static if (__traits(hasPostblit, T))
+    {
+        static if (__traits(isStaticArray, T) && is(T : E[], E))
+            __doPostblit(cast(E[]) arr, i);
+        else
+        {
+            i = 0;
+            import core.internal.traits : Unqual;
+            for(auto eptr = cast(Unqual!T*)&arr[0]; i < arr.length; ++i, ++eptr)
+                eptr.__xpostblit();
+        }
+    }
 }

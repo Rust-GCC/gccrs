@@ -37,6 +37,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "gimplify.h"
 #include "intl.h"
 #include "asan.h"
+#include "contracts.h"
 
 /* Id for dumping the class hierarchy.  */
 int class_dump_id;
@@ -347,7 +348,10 @@ build_base_path (enum tree_code code,
 		 || processing_template_decl
 		 || in_template_context);
 
-  fixed_type_p = resolves_to_fixed_type_p (expr, &nonnull);
+  if (!uneval)
+    fixed_type_p = resolves_to_fixed_type_p (expr, &nonnull);
+  else
+    fixed_type_p = 0;
 
   /* Do we need to look in the vtable for the real offset?  */
   virtual_access = (v_binfo && fixed_type_p <= 0);
@@ -1219,9 +1223,10 @@ object_parms_correspond (tree fn, tree method, tree context)
       && DECL_IOBJ_MEMBER_FUNCTION_P (method))
     {
       /* Either both or neither need to be ref-qualified for
-	 differing quals to allow overloading.  */
-      if ((FUNCTION_REF_QUALIFIED (fn_type)
-	   == FUNCTION_REF_QUALIFIED (method_type))
+	 differing quals to allow overloading before C++20 (P1787R6).  */
+      if ((cxx_dialect >= cxx20
+	   || (FUNCTION_REF_QUALIFIED (fn_type)
+	       == FUNCTION_REF_QUALIFIED (method_type)))
 	  && (type_memfn_quals (fn_type) != type_memfn_quals (method_type)
 	      || type_memfn_rqual (fn_type) != type_memfn_rqual (method_type)))
 	return false;
@@ -2415,8 +2420,9 @@ finish_struct_bits (tree t)
      mode to be BLKmode, and force its TREE_ADDRESSABLE bit to be
      nonzero.  This will cause it to be passed by invisible reference
      and prevent it from being returned in a register.  */
-  if (type_has_nontrivial_copy_init (t)
-      || TYPE_HAS_NONTRIVIAL_DESTRUCTOR (t))
+  if (!has_trivial_abi_attribute (t)
+      && (type_has_nontrivial_copy_init (t)
+	  || TYPE_HAS_NONTRIVIAL_DESTRUCTOR (t)))
     {
       SET_DECL_MODE (TYPE_MAIN_DECL (t), BLKmode);
       SET_TYPE_MODE (t, BLKmode);
@@ -3251,6 +3257,10 @@ check_for_override (tree decl, tree ctype)
 
       if (DECL_DESTRUCTOR_P (decl))
 	TYPE_HAS_NONTRIVIAL_DESTRUCTOR (ctype) = true;
+
+      if (DECL_HAS_CONTRACTS_P (decl))
+	error_at (DECL_SOURCE_LOCATION (decl),
+		  "contracts cannot be added to virtual functions");
     }
   else if (DECL_FINAL_P (decl))
     error ("%q+#D marked %<final%>, but is not virtual", decl);
@@ -5138,7 +5148,7 @@ check_methods (tree t)
 	    error_at (location_of (t), "no viable destructor for %qT", t);
 	  else
 	    error_at (location_of (t), "destructor for %qT is ambiguous", t);
-	  print_candidates (dtor);
+	  print_candidates (location_of (t), dtor);
 
 	  /* Arbitrarily prune the overload set to a single function for
 	     sake of error recovery.  */
@@ -5723,7 +5733,7 @@ in_class_defaulted_default_constructor (tree t)
 }
 
 /* Returns true iff FN is a user-provided function, i.e. user-declared
-   and not defaulted at its first declaration.  */
+   and not explicitly defaulted or deleted on its first declaration.  */
 
 bool
 user_provided_p (tree fn)
@@ -5731,7 +5741,12 @@ user_provided_p (tree fn)
   fn = STRIP_TEMPLATE (fn);
   return (!DECL_ARTIFICIAL (fn)
 	  && !(DECL_INITIALIZED_IN_CLASS_P (fn)
-	       && (DECL_DEFAULTED_FN (fn) || DECL_DELETED_FN (fn))));
+	       && (DECL_DEFAULTED_FN (fn) || DECL_DELETED_FN (fn)))
+	  /* At namespace scope,
+	      void f () = delete;
+	    is *not* user-provided (and any function deleted after its first
+	    declaration is ill-formed).  */
+	  && !(DECL_NAMESPACE_SCOPE_P (fn) && DECL_DELETED_FN (fn)));
 }
 
 /* Returns true iff class T has a user-provided constructor.  */
@@ -6069,6 +6084,24 @@ classtype_has_non_deleted_move_ctor (tree t)
   for (ovl_iterator iter (CLASSTYPE_CONSTRUCTORS (t)); iter; ++iter)
     if (move_fn_p (*iter) && !DECL_DELETED_FN (*iter))
       return true;
+  return false;
+}
+
+/* True iff T has a copy or move constructor that is not deleted.  */
+
+bool
+classtype_has_non_deleted_copy_or_move_ctor (tree t)
+{
+  if (CLASSTYPE_LAZY_COPY_CTOR (t))
+    lazily_declare_fn (sfk_copy_constructor, t);
+  if (CLASSTYPE_LAZY_MOVE_CTOR (t))
+    lazily_declare_fn (sfk_move_constructor, t);
+  for (ovl_iterator iter (CLASSTYPE_CONSTRUCTORS (t)); iter; ++iter)
+    {
+      tree fn = *iter;
+      if ((copy_fn_p (fn) || move_fn_p (fn)) && !DECL_DELETED_FN (fn))
+	return true;
+    }
   return false;
 }
 
@@ -7472,12 +7505,11 @@ determine_key_method (tree type)
   for (method = TYPE_FIELDS (type); method; method = DECL_CHAIN (method))
     if (TREE_CODE (method) == FUNCTION_DECL
 	&& DECL_VINDEX (method) != NULL_TREE
-	&& (! DECL_DECLARED_INLINE_P (method)
-	    /* [[gnu::gnu_inline]] virtual inline/constexpr methods will
-	       have out of line bodies emitted in some other TU and so
-	       those can be key methods and vtable emitted in the TU with
-	       the actual out of line definition.  */
-	    || lookup_attribute ("gnu_inline", DECL_ATTRIBUTES (method)))
+	/* [[gnu::gnu_inline]] virtual inline/constexpr methods will
+	   have out of line bodies emitted in some other TU and so
+	   those can be key methods and vtable emitted in the TU with
+	   the actual out of line definition.  */
+	&& ! DECL_NONGNU_INLINE_P (method)
 	&& ! DECL_PURE_VIRTUAL_P (method))
       {
 	SET_CLASSTYPE_KEY_METHOD (type, method);
@@ -7595,7 +7627,8 @@ find_flexarrays (tree t, flexmems_t *fmem, bool base_p,
       if (TREE_CODE (fld) == TYPE_DECL
 	  && DECL_IMPLICIT_TYPEDEF_P (fld)
 	  && CLASS_TYPE_P (TREE_TYPE (fld))
-	  && IDENTIFIER_ANON_P (DECL_NAME (fld)))
+	  && (IDENTIFIER_ANON_P (DECL_NAME (fld))
+	      || TYPE_DECL_WAS_UNNAMED (fld)))
 	{
 	  /* Check the nested unnamed type referenced via a typedef
 	     independently of FMEM (since it's not a data member of
@@ -8071,6 +8104,8 @@ finish_struct_1 (tree t)
 	}
     }
 
+  validate_trivial_abi_attribute (t);
+
   finish_struct_bits (t);
 
   set_method_tm_attributes (t);
@@ -8348,6 +8383,11 @@ finish_struct (tree t, tree attributes)
       /* Lambdas are defined by the LAMBDA_EXPR.  */
       && !LAMBDA_TYPE_P (t))
     add_stmt (build_min (TAG_DEFN, t));
+
+  /* Lambdas will be keyed by their LAMBDA_TYPE_EXTRA_SCOPE when that
+     gets set; other local types might need keying anyway though.  */
+  if (at_function_scope_p () && !LAMBDA_TYPE_P (t))
+    maybe_key_decl (current_scope (), TYPE_NAME (t));
 
   return t;
 }
@@ -9116,7 +9156,7 @@ resolve_address_of_overloaded_function (tree target_type,
 	  error ("no matches converting function %qD to type %q#T",
 		 OVL_NAME (overload), target_type);
 
-	  print_candidates (overload);
+	  print_candidates (input_location, overload);
 	}
       return error_mark_node;
     }
@@ -9148,7 +9188,7 @@ resolve_address_of_overloaded_function (tree target_type,
 	      for (match = matches; match; match = TREE_CHAIN (match))
 		TREE_VALUE (match) = TREE_PURPOSE (match);
 
-	      print_candidates (matches);
+	      print_candidates (input_location, matches);
 	    }
 
 	  return error_mark_node;

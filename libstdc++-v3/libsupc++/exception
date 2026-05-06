@@ -61,9 +61,12 @@ namespace std _GLIBCXX_VISIBILITY(default)
     _GLIBCXX26_CONSTEXPR bad_exception() _GLIBCXX_USE_NOEXCEPT { }
 
 #if __cplusplus >= 202400L
-    constexpr virtual ~bad_exception() _GLIBCXX_TXN_SAFE_DYN noexcept {}
+    [[__gnu__::__gnu_inline__]]
+    constexpr inline virtual ~bad_exception() _GLIBCXX_TXN_SAFE_DYN noexcept {}
 
-    constexpr virtual const char* what() const _GLIBCXX_TXN_SAFE_DYN noexcept
+    [[__gnu__::__gnu_inline__]]
+    constexpr inline virtual const char* what() const _GLIBCXX_TXN_SAFE_DYN
+      noexcept
     {
       return "std::bad_exception";
     }
@@ -131,8 +134,8 @@ namespace std _GLIBCXX_VISIBILITY(default)
    *  stack unwinding [15.2].  end note]'
    *
    *  2: 'When `uncaught_exception()` is true, throwing an
-   *  %exception can result in a call of 1terminate()`
-   *  (15.5.1).'
+   *  %exception can result in a call of `terminate()`
+   *  (15.5.1).
    */
   _GLIBCXX17_DEPRECATED_SUGGEST("std::uncaught_exceptions()")
   bool uncaught_exception() _GLIBCXX_USE_NOEXCEPT __attribute__ ((__pure__));

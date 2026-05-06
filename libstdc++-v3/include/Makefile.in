@@ -393,6 +393,7 @@ std_freestanding = \
 	${std_srcdir}/bit \
 	${std_srcdir}/bitset \
 	${std_srcdir}/concepts \
+	${std_srcdir}/contracts \
 	${std_srcdir}/coroutine \
 	${std_srcdir}/expected \
 	${std_srcdir}/functional \
@@ -448,6 +449,7 @@ std_freestanding = \
 @GLIBCXX_HOSTED_TRUE@	${std_srcdir}/locale \
 @GLIBCXX_HOSTED_TRUE@	${std_srcdir}/map \
 @GLIBCXX_HOSTED_TRUE@	${std_srcdir}/memory_resource \
+@GLIBCXX_HOSTED_TRUE@	${std_srcdir}/meta \
 @GLIBCXX_HOSTED_TRUE@	${std_srcdir}/mutex \
 @GLIBCXX_HOSTED_TRUE@	${std_srcdir}/ostream \
 @GLIBCXX_HOSTED_TRUE@	${std_srcdir}/print \
@@ -457,6 +459,7 @@ std_freestanding = \
 @GLIBCXX_HOSTED_TRUE@	${std_srcdir}/semaphore \
 @GLIBCXX_HOSTED_TRUE@	${std_srcdir}/set \
 @GLIBCXX_HOSTED_TRUE@	${std_srcdir}/shared_mutex \
+@GLIBCXX_HOSTED_TRUE@	${std_srcdir}/simd \
 @GLIBCXX_HOSTED_TRUE@	${std_srcdir}/spanstream \
 @GLIBCXX_HOSTED_TRUE@	${std_srcdir}/sstream \
 @GLIBCXX_HOSTED_TRUE@	${std_srcdir}/syncstream \
@@ -597,7 +600,9 @@ bits_freestanding = \
 @GLIBCXX_HOSTED_TRUE@	${bits_srcdir}/node_handle.h \
 @GLIBCXX_HOSTED_TRUE@	${bits_srcdir}/ostream.tcc \
 @GLIBCXX_HOSTED_TRUE@	${bits_srcdir}/ostream_insert.h \
+@GLIBCXX_HOSTED_TRUE@	${bits_srcdir}/ostream_print.h \
 @GLIBCXX_HOSTED_TRUE@	${bits_srcdir}/postypes.h \
+@GLIBCXX_HOSTED_TRUE@	${bits_srcdir}/print.h \
 @GLIBCXX_HOSTED_TRUE@	${bits_srcdir}/quoted_string.h \
 @GLIBCXX_HOSTED_TRUE@	${bits_srcdir}/random.h \
 @GLIBCXX_HOSTED_TRUE@	${bits_srcdir}/random.tcc \
@@ -618,6 +623,16 @@ bits_freestanding = \
 @GLIBCXX_HOSTED_TRUE@	${bits_srcdir}/shared_ptr.h \
 @GLIBCXX_HOSTED_TRUE@	${bits_srcdir}/shared_ptr_atomic.h \
 @GLIBCXX_HOSTED_TRUE@	${bits_srcdir}/shared_ptr_base.h \
+@GLIBCXX_HOSTED_TRUE@	${bits_srcdir}/simd_alg.h \
+@GLIBCXX_HOSTED_TRUE@	${bits_srcdir}/simd_details.h \
+@GLIBCXX_HOSTED_TRUE@	${bits_srcdir}/simd_flags.h \
+@GLIBCXX_HOSTED_TRUE@	${bits_srcdir}/simd_iterator.h \
+@GLIBCXX_HOSTED_TRUE@	${bits_srcdir}/simd_loadstore.h \
+@GLIBCXX_HOSTED_TRUE@	${bits_srcdir}/simd_mask.h \
+@GLIBCXX_HOSTED_TRUE@	${bits_srcdir}/simd_mask_reductions.h \
+@GLIBCXX_HOSTED_TRUE@	${bits_srcdir}/simd_reductions.h \
+@GLIBCXX_HOSTED_TRUE@	${bits_srcdir}/simd_vec.h \
+@GLIBCXX_HOSTED_TRUE@	${bits_srcdir}/simd_x86.h \
 @GLIBCXX_HOSTED_TRUE@	${bits_srcdir}/slice_array.h \
 @GLIBCXX_HOSTED_TRUE@	${bits_srcdir}/specfun.h \
 @GLIBCXX_HOSTED_TRUE@	${bits_srcdir}/sstream.tcc \
@@ -650,6 +665,7 @@ bits_freestanding = \
 @GLIBCXX_HOSTED_TRUE@	${bits_srcdir}/valarray_array.tcc \
 @GLIBCXX_HOSTED_TRUE@	${bits_srcdir}/valarray_before.h \
 @GLIBCXX_HOSTED_TRUE@	${bits_srcdir}/valarray_after.h \
+@GLIBCXX_HOSTED_TRUE@	${bits_srcdir}/vec_ops.h \
 @GLIBCXX_HOSTED_TRUE@	${bits_srcdir}/vector.tcc
 
 bits_host_headers = \
@@ -1149,7 +1165,6 @@ experimental_headers = \
 	${experimental_srcdir}/array \
 	${experimental_srcdir}/buffer \
 	${experimental_srcdir}/chrono \
-	${experimental_srcdir}/contract \
 	${experimental_srcdir}/deque \
 	${experimental_srcdir}/executor \
 	${experimental_srcdir}/forward_list \

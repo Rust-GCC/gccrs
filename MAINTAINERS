@@ -40,6 +40,7 @@ Michael Meissner                                <gnu@the-meissners.org>
 Jason Merrill                                   <jason@redhat.com>
 David S. Miller                                 <davem@redhat.com>
 Joseph Myers                                    <josmyers@redhat.com>
+Andrew Pinski                                   <andrew.pinski@oss.qualcomm.com>
 Richard Sandiford                               <rdsandiford@googlemail.com>
 Bernd Schmidt                                   <bernds_cb1@t-online.de>
 Ian Lance Taylor                                <ian@airs.com>
@@ -210,7 +211,7 @@ callgraph               Jan Hubicka             <hubicka@ucw.cz>
 debugging code          Jim Wilson              <wilson@tuliptree.org>
 dwarf debugging code    Jason Merrill           <jason@redhat.com>
 dwarf debugging code    Cary Coutant            <ccoutant@gmail.com>
-c++ runtime libs        Paolo Carlini           <paolo.carlini@oracle.com>
+c++ runtime libs        Paolo Carlini           <pcarlini@gmail.com>
 c++ runtime libs        Ulrich Drepper          <drepper@gmail.com>
 c++ runtime libs        Benjamin De Kosnik      <bkoz@gnu.org>
 c++ runtime libs        Jonathan Wakely         <jwakely@redhat.com>
@@ -359,6 +360,7 @@ Scott Bambrough                 -               <scottb@netwinder.org>
 Wolfgang Bangerth               -               <bangerth@dealii.org>
 Claudio Bantaloukas             rdfm            <claudio.bantaloukas@arm.com>
 Gergö Barany                    -               <gergo@codesourcery.com>
+Daniel Barboza                  dbarboza        <daniel.barboza@oss.qualcomm.com>
 Thiago Jung Bauermann           -               <thiago.bauermann@linaro.org>
 Charles Baylis                  cbaylis         <charles.baylis@linaro.org>
 Tejas Belagod                   belagod         <tejas.belagod@arm.com>
@@ -405,7 +407,7 @@ Andrew Burgess                  aburgess        <aburgess@redhat.com>
 Tobias Burnus                   burnus          <tburnus@baylibre.com>
 Adam Butcher                    abutcher        <adam@jessamine.co.uk>
 Andrew Cagney                   cagney          <cagney@gnu.org>
-Paolo Carlini                   paolo           <paolo.carlini@oracle.com>
+Paolo Carlini                   paolo           <pcarlini@gmail.com>
 Alice Carlotti                  acarlotti       <alice.carlotti@arm.com>
 Daniel Carrera                  dcarrera        <dcarrera@gmail.com>
 Stephane Carrez                 ciceron         <stcarrez@nerim.fr>
@@ -430,6 +432,7 @@ Nick Clifton                    nickc           <nickc@redhat.com>
 Arthur Cohen                    cohenarthur     <arthur.cohen@embecosm.com>
 William Cohen                   -               <wcohen@redhat.com>
 Michael Collison                collison        <michael.collison@arm.com>
+Alejandro Colomar               -               <alx@kernel.org>
 Josh Conner                     jconner         <joshconner@google.com>
 R. Kelley Cook                  kcook           <kcook@gcc.gnu.org>
 Alex Coplan                     acoplan         <alex.coplan@arm.com>
@@ -479,7 +482,7 @@ Doug Evans                      devans          <dje@google.com>
 Chris Fairles                   cfairles        <cfairles@gcc.gnu.org>
 Alessandro Fanfarillo           afanfa          <fanfarillo.gcc@gmail.com>
 Changpeng Fang                  cfang           <changpeng.fang@amd.com>
-David Faust                     -               <david.faust@oracle.com>
+David Faust                     dfaust          <david.faust@oracle.com>
 Sam Feifer                      -               <sfeifer@redhat.com>
 Eric Feng                       efric           <ef2648@columbia.edu>
 Li Feng                         lifeng          <nemokingdom@gmail.com>
@@ -503,7 +506,7 @@ Matthew Gingell                 -               <gingell@gnat.com>
 Tristan Gingold                 gingold         <tgingold@free.fr>
 Jan-Benedict Glaw               jbglaw          <jbglaw@lug-owl.de>
 Marc Glisse                     glisse          <marc.glisse@inria.fr>
-Prachi Godbole                  prachigodbole   <prachi.godbole@imgtec.com>
+Prachi Godbole                  pgodbole        <pgodbole@nvidia.com>
 Torbjorn Granlund               -               <tege@swox.com>
 Anthony Green                   green           <green@moxielogic.com>
 James Greenhalgh                jgreenhalgh     <james.greenhalgh@arm.com>
@@ -517,7 +520,7 @@ Haochen Gui                     guihaoc         <guihaoc@gcc.gnu.org>
 Jiufu Guo                       guojiufu        <guojiufu@linux.ibm.com>
 Xuepeng Guo                     xguo            <terry.xpguo@gmail.com>
 Wei Guozhi                      carrot          <carrot@google.com>
-Vineet Gupta                    vineetg         <vineetg@rivosinc.com>
+Vineet Gupta                    vineetg         <vineet.gupta@linux.dev>
 Naveen H.S                      naveenh         <naveenh@marvell.com>
 Mostafa Hagog                   hagog           <hagog@gcc.gnu.org>
 Olivier Hainque                 hainque         <hainque@adacore.com>
@@ -631,6 +634,7 @@ Jozef Lawrynowicz               jozefl          <jozef.l@mittosystems.com>
 Georg-Johann Lay                gjl             <avr@gjlay.de>
 Vlad Lazar                      vladlazar       <vlad.lazar@arm.com>
 Marc Lehmann                    -               <pcg@goof.com>
+Bohan Lei                       garthlei        <garthlei@linux.alibaba.com>
 James Lemke                     jwlemke         <jim@lemke.org>
 Ilya Leoshkevich                iii             <iii@linux.ibm.com>
 Kriang Lerdsuwanakij            lerdsuwa        <lerdsuwa@users.sourceforge.net>
@@ -680,6 +684,7 @@ Michael Matz                    matz            <matz@suse.de>
 Greg McGary                     -               <gkm@gnu.org>
 Roland McGrath                  roland          <roland@hack.frob.com>
 Bryce McKinlay                  bryce           <mckinlay@redhat.com>
+Karl Meakin                     -               <karl.meakin@arm.com>
 Adam Megacz                     -               <adam@xwt.org>
 Bingfeng Mei                    meibf           <bmei@broadcom.com>
 Michael Meissner                meissner        <gnu@the-meissners.org>
@@ -834,7 +839,7 @@ Mike Stump                      mrs             <mikestump@comcast.net>
 Jeff Sturm                      jsturm          <jsturm@gcc.gnu.org>
 YunQiang Su                     syq             <syq@gcc.gnu.org>
 Robert Suchanek                 rts             <rsuchy84@gmail.com>
-Supers1ngular                   -               <supers1ngular@baylibre.com>
+Supers1ngular                   supers1ngular   <supers1ngular@baylibre.com>
 Andrew Sutton                   asutton         <andrew.n.sutton@gmail.com>
 Gabriele Svelto                 gsvelto         <gabriele.svelto@st.com>
 Torbjörn Svensson               azoff           <torbjorn.svensson@foss.st.com>
@@ -927,7 +932,7 @@ Xiao Zeng                       -               <zengxiao@eswincomputing.com>
 Dennis Zhang                    -               <dennis.zhang@arm.com>
 Jie Zhang                       jiez            <jzhang918@gmail.com>
 Yufeng Zhang                    yufeng          <yufeng.zhang@arm.com>
-Qing Zhao                       qinzhao         <qing.zhao@oracle.com>
+Qing Zhao                       qinzhao         <qing.zhao69@gmail.com>
 Shujing Zhao                    pzhao           <pearly.zhao@oracle.com>
 Pengxuan Zheng                  pzheng          <pengxuan.zheng@oss.qualcomm.com>
 Juzhe Zhong                     -               <juzhe.zhong@rivai.ai>
@@ -958,20 +963,23 @@ Daniel Barboza                                  <dbarboza@ventanamicro.com>
 Peter Bergner                                   <bergner@tenstorrent.com>
 Dhruv Chawla                                    <dhruvc@nvidia.com>
 Juergen Christ                                  <jchrist@linux.ibm.com>
+Alejandro Colomar                               <alx@kernel.org>
 Giuseppe D'Angelo                               <giuseppe.dangelo@kdab.com>
 Robin Dapp                                      <rdapp.gcc@gmail.com>
 Robin Dapp                                      <rdapp@qti.qualcomm.com>
 Robin Dapp                                      <rdapp@ventanamicro.com>
+Prachi Godbole                                  <pgodbole@nvidia.com>
 Aldy Hernandez                                  <aldy@quesejoda.com>
 Michal Jires                                    <mjires@suse.cz>
 Matthias Kretz                                  <m.kretz@gsi.de>
 Prathamesh Kulkarni                             <prathameshk@nvidia.com>
 Tim Lange                                       <mail@tim-lange.me>
 Jeff Law                                        <jefflaw@qti.qualcomm.com>
-Jeff Law                                        <jeffreyalaw@gmail.com>
 Jeff Law                                        <jeffrey.law@oss.qualcomm.com>
+Jeff Law                                        <jeffreyalaw@gmail.com>
 Jeff Law                                        <jlaw@tachyum.com>
 Jeff Law                                        <jlaw@ventanamicro.com>
+Bohan Lei                                       <garthlei@linux.alibaba.com>
 Martin Liška                                    <martin.liska@hey.com>
 H.J. Lu                                         <hjl.tools@gmail.com>
 Yuao Ma                                         <yuao@gcc.gnu.org>

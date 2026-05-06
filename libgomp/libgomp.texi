@@ -234,8 +234,7 @@ The OpenMP 4.5 specification is fully supported.
 @item Memory management routines @tab Y @tab
 @item @code{allocate} directive @tab P
       @tab C++ unsupported; see also @ref{Memory allocation}
-@item @code{allocate} clause @tab P @tab Clause has no effect on @code{target}
-      (@uref{https://gcc.gnu.org/PR113436,PR113436})
+@item @code{allocate} clause @tab Y @tab
 @item @code{use_device_addr} clause on @code{target data} @tab Y @tab
 @item @code{ancestor} modifier on @code{device} clause @tab Y @tab
 @item Implicit declare target directive @tab Y @tab
@@ -672,7 +671,7 @@ Technical Report (TR) 14 is the first preview for OpenMP 6.1.
 @item New @code{omp_default_device} identifier as conforming device number
       @tab Y @tab
 @item Clarify when @code{omp_target_is_accessible} routine returns zero
-      @tab N @tab
+      @tab Y @tab
 @end multitable
 
 @unnumberedsubsec Deprecated features, unless listed above
@@ -2123,18 +2122,9 @@ is not supported.
 @item @emph{Description}:
 This routine tests whether storage, identified by the host pointer @var{ptr}
 is mapped to the device specified by @var{device_num}.  If so, it returns
-a nonzero value and otherwise zero.
-
-In GCC, this includes self mapping such that @code{omp_target_is_present}
-returns @emph{true} when @var{device_num} specifies the host or when the host
-and the device share memory.  If @var{ptr} is a null pointer, @var{true} is
-returned and if @var{device_num} is an invalid device number, @var{false} is
-returned.
-
-If those conditions do not apply, @emph{true} is returned if the association has
-been established by an explicit or implicit @code{map} clause, the
-@code{declare target} directive or a call to the @code{omp_target_associate_ptr}
-routine.
+a nonzero value and otherwise zero.  In particular, it always returns zero
+for the null pointer and for invalid device numbers; for the host device,
+a nonzero value is returned for all non-null pointers.
 
 Running this routine in a @code{target} region except on the initial device
 is not supported.
@@ -2155,7 +2145,7 @@ is not supported.
 @end multitable
 
 @item @emph{See also}:
-@ref{omp_target_associate_ptr}
+@ref{omp_get_mapped_ptr}, @ref{omp_target_associate_ptr}, @ref{omp_target_is_accessible}
 
 @item @emph{Reference}:
 @uref{https://www.openmp.org, OpenMP specification v5.1}, Section 3.8.3
@@ -2172,13 +2162,17 @@ and extending @var{size} bytes, is accessibly on the device specified by
 @var{device_num}.  If so, it returns a nonzero value and otherwise zero.
 
 The address given by @var{ptr} is interpreted to be in the address space of
-the device and @var{size} must be positive.
+the device and @var{size} must be positive.  NULL pointers and zero-length
+ranges always return zero.
 
 Note that GCC's current implementation assumes that @var{ptr} is a valid host
-pointer. Therefore, all addresses given by @var{ptr} are assumed to be
-accessible on the initial device. And, to err on the safe side, this memory
-is only available on a non-host device that can access all host memory
-([uniform] shared memory access).
+pointer. Therefore, all non-NULL addresses given by @var{ptr} are assumed to be
+accessible on the initial device.  The address is only reported as accessible
+on non-host devices if this is @emph{known} to be the case, or if the device
+reports that all memory is accessible (i.e. [unified] shared memory access).
+If the runtime is uncertain it may report accessible memory as inaccessible.
+For a memory range to be reported accessible, the whole range must be known to
+be accessible.
 
 Running this routine in a @code{target} region except on the initial device
 is not supported.
@@ -2201,7 +2195,7 @@ is not supported.
 @end multitable
 
 @item @emph{See also}:
-@ref{omp_target_associate_ptr}
+@ref{omp_target_is_present}
 
 @item @emph{Reference}:
 @uref{https://www.openmp.org, OpenMP specification v5.1}, Section 3.8.4
@@ -2596,7 +2590,8 @@ is not supported.
 
 @item @emph{See also}:
 @ref{omp_target_disassociate_ptr}, @ref{omp_target_is_present},
-@ref{omp_target_alloc}
+@ref{omp_get_mapped_ptr}, @ref{omp_target_alloc}
+
 
 @item @emph{Reference}:
 @uref{https://www.openmp.org, OpenMP specification v5.1}, Section 3.8.9
@@ -2654,12 +2649,19 @@ is not supported.
 @subsection @code{omp_get_mapped_ptr} -- Return device pointer to a host pointer
 @table @asis
 @item @emph{Description}:
-If the device number is refers to the initial device or to a device with
-memory accessible from the host (shared memory), the @code{omp_get_mapped_ptr}
-routines returns the value of the passed @var{ptr}.  Otherwise, if associated
+If the device number refers to the initial device, @code{omp_get_mapped_ptr}
+returns the value of the passed @var{ptr}.  Otherwise, if associated
 storage to the passed host pointer @var{ptr} exists on device associated with
 @var{device_num}, it returns that pointer. In all other cases and in cases of
 an error, a null pointer is returned.
+
+If the device number is not the initial device and the pointer points to a
+variable that is specified in a @code{declare target} directive: When
+requiring @code{unified_shared_memory} or @code{self_maps}, a null pointer is
+returned if the variable appears in a @code{link} or @code{enter} clause.
+Otherwise, the corresponding device memory is returned; with the @code{link}
+clause, GCC returns the address of the pointer-typed link variable on the device,
+not to the data that is mapped to that variable.
 
 The association of storage location is established either via an explicit or
 implicit @code{map} clause, the @code{declare target} directive or the
@@ -2682,7 +2684,7 @@ is not supported.
 @end multitable
 
 @item @emph{See also}:
-@ref{omp_target_associate_ptr}
+@ref{omp_target_is_present}, @ref{omp_target_associate_ptr}
 
 @item @emph{Reference}:
 @uref{https://www.openmp.org, OpenMP specification v5.1}, Section 3.8.11
@@ -4093,7 +4095,7 @@ The value can either be a predefined allocator or a predefined memory space
 or a predefined memory space followed by a colon and a comma-separated list
 of memory trait and value pairs, separated by @code{=}.
 
-See @ref{Memory allocation} for a list of supported prefedined allocators,
+See @ref{Memory allocation} for a list of supported predefined allocators,
 memory spaces, and traits.
 
 Note: The corresponding device environment variables are currently not
@@ -6891,6 +6893,11 @@ The description below applies to:
       constant expression with value @code{omp_default_mem_alloc} and no
       @code{align} modifier has been specified. (In that case, the normal
       @code{malloc} allocation is used.)
+@item The @code{allocate} clause can be used in the @code{target} construct
+      to specify the memory used by @code{private} and @code{firstprivate}
+      variables on offload devices.  In the case of @code{firstprivate}, the
+      initial data is first allocated using the default memory allocator, then
+      copied to the memory region specified by the allocator.
 @item The @code{allocate} directive for variables in static memory; while
       the alignment is honored, the normal static memory is used.
 @item Using the @code{allocate} directive for automatic/stack variables, except
@@ -7183,10 +7190,9 @@ The implementation remark:
       pool is exhausted.
 @item Pinned memory allocated using @code{omp_alloc} with the
       @code{ompx_gnu_pinned_mem_alloc} allocator or the @code{pinned} trait is
-      obtained via the CUDA API when an NVPTX device is present.  This provides
-      a performance boost for NVPTX offload code and also allows unlimited use
-      of pinned memory regardless of the OS @code{ulimit}/@code{rlimit}
-      settings.
+      obtained via the CUDA API when an NVPTX device is present (even when
+      the primary device is AMD).  This allows unlimited use of pinned memory
+      regardless of the OS @code{ulimit}/@code{rlimit} settings.
 @item Managed memory allocated on the host with the
       @code{ompx_gnu_managed_mem_alloc} allocator or in the
       @code{ompx_gnu_managed_mem_space} (both GNU extensions) allocate memory
@@ -7383,6 +7389,12 @@ The implementation remark:
       use the fall-back setting. If the default device is configured
       differently when the memory is freed, via @code{omp_free} or
       @code{omp_realloc}, the result may be undefined.
+@item Pinned memory allocated using @code{omp_alloc} with the
+      @code{ompx_gnu_pinned_mem_alloc} allocator or the @code{pinned} trait is
+      obtained via the CUDA API when an NVPTX device is present.  This provides
+      a performance boost for NVPTX offload code and also allows unlimited use
+      of pinned memory regardless of the OS @code{ulimit}/@code{rlimit}
+      settings.
 @item The OpenMP routines @code{omp_target_memcpy_rect} and
       @code{omp_target_memcpy_rect_async} and the @code{target update}
       directive for non-contiguous list items use the 2D and 3D memory-copy

@@ -3,10 +3,10 @@
 /* { dg-require-alias "" } */
 /* { dg-options "-fno-common" } */
 
-/* { dg-final { scan-assembler "weak\[^ \t\]*\[ \t\]_?f1" } } */
-/* { dg-final { scan-assembler "weak\[^ \t\]*\[ \t\]_?f2" } } */
-/* { dg-final { scan-assembler "weak\[^ \t\]*\[ \t\]_?f3" } } */
-/* { dg-final { scan-assembler "weak\[^ \t\]*\[ \t\]_?f4" } } */
+/* { dg-final { scan-weak "f1" } } */
+/* { dg-final { scan-weak "f2" } } */
+/* { dg-final { scan-weak "f3" } } */
+/* { dg-final { scan-weak "f4" } } */
 
 void notf1() { }
 void notf2() { }

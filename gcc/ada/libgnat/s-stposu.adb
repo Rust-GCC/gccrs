@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2011-2025, Free Software Foundation, Inc.         --
+--          Copyright (C) 2011-2026, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -398,6 +398,7 @@ package body System.Storage_Pools.Subpools is
    procedure Finalize_Pool (Pool : in out Root_Storage_Pool_With_Subpools) is
       Curr_Ptr : SP_Node_Ptr;
       Ex_Occur : Exception_Occurrence;
+      Handle   : Subpool_Handle;
       Raised   : Boolean := False;
 
       function Is_Empty_List (L : not null SP_Node_Ptr) return Boolean;
@@ -432,16 +433,13 @@ package body System.Storage_Pools.Subpools is
       while not Is_Empty_List (Pool.Subpools'Unchecked_Access) loop
          Curr_Ptr := Pool.Subpools.Next;
 
-         --  Perform the following actions:
-
-         --    1) Finalize all objects chained on the subpool's collection
-         --    2) Remove the subpool from the owner's list of subpools
-         --    3) Deallocate the doubly linked list node associated with the
-         --       subpool.
-         --    4) Call Deallocate_Subpool
+         --  Finalize and deallocate the subpool. Beware that the node pointed
+         --  to by Curr_Ptr will be deallocated so may not be passed as actual
+         --  in the call, since the formal parameter is In Out.
 
          begin
-            Finalize_And_Deallocate (Curr_Ptr.Subpool);
+            Handle := Curr_Ptr.Subpool;
+            Finalize_And_Deallocate (Handle);
 
          exception
             when Fin_Occur : others =>
@@ -696,5 +694,14 @@ package body System.Storage_Pools.Subpools is
 
       Attach (N_Ptr, To.Subpools'Unchecked_Access);
    end Set_Pool_Of_Subpool;
+
+   -------------------
+   -- _Adjust_Clone --
+   -------------------
+
+   procedure _Adjust_Clone (Subpool : in out Root_Subpool) is
+   begin
+      Finalization_Primitives.Initialize (Subpool.Collection);
+   end _Adjust_Clone;
 
 end System.Storage_Pools.Subpools;

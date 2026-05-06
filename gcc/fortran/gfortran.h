@@ -490,6 +490,7 @@ enum gfc_isym_id
   GFC_ISYM_COS,
   GFC_ISYM_COSD,
   GFC_ISYM_COSH,
+  GFC_ISYM_COSHAPE,
   GFC_ISYM_COTAN,
   GFC_ISYM_COTAND,
   GFC_ISYM_COUNT,
@@ -3571,7 +3572,12 @@ vec_push (char **&optr, size_t &osz, const char *elt)
   /* {auto,}vec.safe_push () replacement.  Don't ask..  */
   // if (strlen (elt) < 4) return; premature optimization: eliminated by cutoff
   optr = XRESIZEVEC (char *, optr, osz + 2);
-  optr[osz] = CONST_CAST (char *, elt);
+  optr[osz] =
+#ifdef __cplusplus
+    const_cast<char *> (elt);
+#else
+    (__extension__ (union {const char *_q; const char *_nq;})(elt))._nq;
+#endif
   optr[++osz] = NULL;
 }
 
@@ -3773,6 +3779,7 @@ bool gfc_missing_attr (symbol_attribute *, locus *);
 bool gfc_copy_attr (symbol_attribute *, symbol_attribute *, locus *);
 int gfc_copy_dummy_sym (gfc_symbol **, gfc_symbol *, int);
 bool gfc_add_component (gfc_symbol *, const char *, gfc_component **);
+void gfc_free_component (gfc_component *);
 gfc_symbol *gfc_use_derived (gfc_symbol *);
 gfc_component *gfc_find_component (gfc_symbol *, const char *, bool, bool,
                                    gfc_ref **);
@@ -3787,6 +3794,7 @@ gfc_st_label *gfc_rebind_label (gfc_st_label *, int);
 
 gfc_namespace *gfc_get_namespace (gfc_namespace *, int);
 gfc_symtree *gfc_new_symtree (gfc_symtree **, const char *);
+void gfc_delete_symtree (gfc_symtree **, const char *);
 gfc_symtree *gfc_find_symtree (gfc_symtree *, const char *);
 gfc_symtree *gfc_get_unique_symtree (gfc_namespace *);
 gfc_user_op *gfc_get_uop (const char *);
@@ -3998,6 +4006,7 @@ bool gfc_numeric_ts (gfc_typespec *);
 int gfc_kind_max (gfc_expr *, gfc_expr *);
 
 bool gfc_check_conformance (gfc_expr *, gfc_expr *, const char *, ...) ATTRIBUTE_PRINTF_3;
+bool gfc_check_type_spec_parms (gfc_expr *, gfc_expr *, const char *);
 bool gfc_check_assign (gfc_expr *, gfc_expr *, int, bool c = true);
 bool gfc_check_pointer_assign (gfc_expr *lvalue, gfc_expr *rvalue,
 			       bool suppres_type_test = false,
@@ -4039,7 +4048,7 @@ gfc_expr* gfc_build_intrinsic_call (gfc_namespace *, gfc_isym_id, const char*,
 				    locus, unsigned, ...);
 bool gfc_check_vardef_context (gfc_expr*, bool, bool, bool, const char*);
 gfc_expr* gfc_pdt_find_component_copy_initializer (gfc_symbol *, const char *);
-
+bool has_parameterized_comps (gfc_symbol *);
 
 /* st.cc */
 extern gfc_code new_st;
@@ -4303,6 +4312,17 @@ bool gfc_may_be_finalized (gfc_typespec);
 	(expr && expr->expr_type == EXPR_VARIABLE \
 	 && expr->symtree->n.sym->assoc \
 	 && expr->symtree->n.sym->assoc->inferred_type)
+#define PDT_PREFIX "PDT"
+#define PDT_PREFIX_LEN 3
+#define IS_PDT(sym) \
+	(sym != NULL && sym->ts.type == BT_DERIVED \
+	 && sym->ts.u.derived \
+	 && sym->ts.u.derived->attr.pdt_type)
+#define IS_CLASS_PDT(sym) \
+	(sym != NULL && sym->ts.type == BT_CLASS \
+	 && CLASS_DATA (sym) \
+	 && CLASS_DATA (sym)->ts.u.derived \
+	 && CLASS_DATA (sym)->ts.u.derived->attr.pdt_type)
 
 /* frontend-passes.cc */
 

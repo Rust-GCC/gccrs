@@ -975,7 +975,7 @@ gfc_is_data_pointer (gfc_expr *e)
 }
 
 
-/* Return true if array variable VAR could be passed to the same function
+/* Return false if array variable VAR could be passed to the same function
    as argument EXPR without interfering with EXPR.  INTENT is the intent
    of VAR.
 
@@ -997,7 +997,7 @@ gfc_check_argument_var_dependency (gfc_expr *var, sym_intent intent,
     case EXPR_VARIABLE:
       /* In case of elemental subroutines, there is no dependency
          between two same-range array references.  */
-      if (gfc_ref_needs_temporary_p (expr->ref)
+      if ((elemental == NOT_ELEMENTAL && gfc_ref_needs_temporary_p (expr->ref))
 	  || gfc_check_dependency (var, expr, elemental == NOT_ELEMENTAL))
 	{
 	  if (elemental == ELEM_DONT_CHECK_VARIABLE)

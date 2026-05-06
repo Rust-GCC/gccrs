@@ -1559,6 +1559,23 @@ gomp_barrier_handle_tasks (gomp_barrier_state_t state)
   int do_wake = 0;
 
   gomp_mutex_lock (&team->task_lock);
+  /* Avoid running tasks from next task scheduling region (PR122314).
+     N.b. we check that `team->task_count != 0` in order to avoid the
+     non-atomic read of `bar->generation` "conflicting" (in the C standard
+     sense) with the atomic write of `bar->generation` in
+     `gomp_team_barrier_wait_end`.  That conflict would otherwise be a
+     data-race and hence UB.  One alternate approach could have been to
+     atomically load `bar->generation` in `gomp_barrier_has_completed`.
+
+     When `task_count == 0` we're not going to perform tasks anyway, so the
+     problem of PR122314 is naturally avoided.  */
+  if (team->task_count != 0
+      && gomp_barrier_has_completed (state, &team->barrier))
+    {
+      gomp_mutex_unlock (&team->task_lock);
+      return;
+    }
+
   if (gomp_barrier_last_thread (state))
     {
       if (team->task_count == 0)
@@ -1685,7 +1702,13 @@ gomp_barrier_handle_tasks (gomp_barrier_state_t state)
 	      if (do_wake > new_tasks)
 		do_wake = new_tasks;
 	    }
-	  --team->task_count;
+	  /* Need to use RELEASE to sync with barrier read outside of the
+	     tasking code (See PR122356).  Only care when decrementing to zero
+	     because that's what the barrier cares about.  */
+	  if (team->task_count == 1)
+	    __atomic_store_n (&team->task_count, 0, MEMMODEL_RELEASE);
+	  else
+	    team->task_count--;
 	}
     }
 }

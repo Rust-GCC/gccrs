@@ -1,7 +1,7 @@
        *> { dg-do run }
 
         identification division.
-        program-id. test.
+        program-id. testy.
         data division.
         working-storage section.
         01 datev    pic 99999999.
@@ -169,5 +169,5 @@
                 end-if
             add 1 to date-integer
             end-perform.
-        end program test.
+        end program testy.
 

@@ -969,6 +969,19 @@ if (isConvertibleToString!RF || isConvertibleToString!RT)
     assert(t2.readText == "2");
 }
 
+
+@safe unittest
+{
+    import std.file;
+    import std.exception : assertThrown;
+
+    string f = null;
+
+    // Check if FileException is thrown for invalid rename
+    assertThrown!FileException(rename("", f));
+    assertThrown!FileException(rename(f, ""));
+}
+
 private void renameImpl(scope const(char)[] f, scope const(char)[] t,
                         scope const(FSChar)* fromz, scope const(FSChar)* toz) @trusted
 {
@@ -2369,7 +2382,6 @@ if (isConvertibleToString!R)
 }
 
 ///
-
 @safe unittest
 {
     import std.exception : assertThrown;
@@ -4638,6 +4650,7 @@ private struct DirIteratorImpl
     DirEntry _cur;
     DirHandle[] _stack;
     DirEntry[] _stashed; //used in depth first mode
+    string _pathPrefix = null;
 
     //stack helpers
     void pushExtra(DirEntry de)
@@ -4793,20 +4806,12 @@ private struct DirIteratorImpl
         }
     }
 
-    this(R)(R pathname, SpanMode mode, bool followSymlink)
-    if (isSomeFiniteCharInputRange!R)
+    this(string pathname, SpanMode mode, bool followSymlink)
     {
         _mode = mode;
         _followSymlink = followSymlink;
 
-        static if (isNarrowString!R && is(immutable ElementEncodingType!R == immutable char))
-            alias pathnameStr = pathname;
-        else
-        {
-            import std.array : array;
-            string pathnameStr = pathname.array;
-        }
-        if (stepIn(pathnameStr))
+        if (stepIn(pathname))
         {
             if (_mode == SpanMode.depth)
                 while (mayStepIn())
@@ -5105,6 +5110,15 @@ auto dirEntries(bool useDIP1000 = dip1000Enabled)
 
     // https://issues.dlang.org/show_bug.cgi?id=15146
     dirEntries("", SpanMode.shallow).walkLength();
+
+    // https://github.com/dlang/phobos/issues/9584
+    string cwd = getcwd();
+    foreach (string entry; dirEntries(testdir, SpanMode.shallow))
+    {
+        if (entry.isDir)
+            chdir(entry);
+    }
+    chdir(cwd); // needed for the directories to be removed
 }
 
 /// Ditto

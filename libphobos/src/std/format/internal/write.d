@@ -1412,6 +1412,12 @@ if (isInputRange!T)
     // if the format spec is valid
     enum formatTestMode = is(Writer == NoOpSink);
 
+    static if (!formatTestMode && isInfinite!T)
+    {
+        static assert(!isInfinite!T, "Cannot format an infinite range. " ~
+            "Convert it to a finite range first using `std.range.take` or `std.range.takeExactly`.");
+    }
+
     // Formatting character ranges like string
     if (f.spec == 's')
     {
@@ -1582,18 +1588,16 @@ if (isInputRange!T)
         throw new FormatException(text("Incorrect format specifier for range: %", f.spec));
 }
 
-// https://issues.dlang.org/show_bug.cgi?id=20218
 @safe pure unittest
 {
-    void notCalled()
-    {
-        import std.range : repeat;
+    import std.range : repeat;
+    import std.format : format;
 
-        auto value = 1.repeat;
+    auto value = 1.repeat;
 
-        // test that range is not evaluated to completion at compiletime
-        format!"%s"(value);
-    }
+    // This should fail to compile — so we assert that it *doesn't* compile
+    static assert(!__traits(compiles, format!"%s"(value)),
+        "Test failed: formatting an infinite range should not compile.");
 }
 
 // character formatting with ecaping
@@ -2542,9 +2546,23 @@ if ((is(T == struct) || is(T == union)) && (hasToString!(T, Char) || !is(Builtin
             {
                 // ignore hidden context pointer
             }
-            else static if (0 < i && T.tupleof[i-1].offsetof == T.tupleof[i].offsetof)
+            /* https://github.com/dlang/phobos/issues/10840
+             * handle possible bitfields by doing overlap comparisons
+             * using bit counts rather than byte counts.
+             * However, the overlap
+             * check in general does not take into account staggered unions.
+             * This can be fixed using the correct algorithm implemented in
+             * the compiler function dmd.declaration.isOverlappedWith().
+             * For the moment we will not change to that because the `#(overlap ...)` output
+             * needs to be re-thought, as it was never correct.
+             */
+            else static if (0 < i &&
+                            T.tupleof[i-1].offsetof * 8 + __traits(getBitfieldOffset,T.tupleof[i-1]) ==
+                            T.tupleof[i  ].offsetof * 8 + __traits(getBitfieldOffset,T.tupleof[i  ]))
             {
-                static if (i == T.tupleof.length - 1 || T.tupleof[i].offsetof != T.tupleof[i+1].offsetof)
+                static if (i == T.tupleof.length - 1 ||
+                            T.tupleof[i  ].offsetof * 8 + __traits(getBitfieldOffset,T.tupleof[i  ]) !=
+                            T.tupleof[i+1].offsetof * 8 + __traits(getBitfieldOffset,T.tupleof[i+1]))
                 {
                     enum el = separator ~ __traits(identifier, T.tupleof[i]) ~ "}";
                     put(w, el);
@@ -2555,7 +2573,9 @@ if ((is(T == struct) || is(T == union)) && (hasToString!(T, Char) || !is(Builtin
                     put(w, el);
                 }
             }
-            else static if (i+1 < T.tupleof.length && T.tupleof[i].offsetof == T.tupleof[i+1].offsetof)
+            else static if (i+1 < T.tupleof.length &&
+                            T.tupleof[i  ].offsetof * 8 + __traits(getBitfieldOffset,T.tupleof[i  ]) ==
+                            T.tupleof[i+1].offsetof * 8 + __traits(getBitfieldOffset,T.tupleof[i+1]))
             {
                 enum el = (i > 0 ? separator : "") ~ "#{overlap " ~ __traits(identifier, T.tupleof[i]);
                 put(w, el);
@@ -3091,13 +3111,10 @@ if (isDelegate!T)
     import std.format : formatValue;
 
     void func() @system { __gshared int x; ++x; throw new Exception("msg"); }
-    version (linux)
-    {
-        FormatSpec!char f;
-        auto w = appender!string();
-        formatValue(w, &func, f);
-        assert(w.data.length >= 15 && w.data[0 .. 15] == "void delegate()");
-    }
+    FormatSpec!char f;
+    auto w = appender!string();
+    formatValue(w, &func, f);
+    assert(w.data.length >= 15 && w.data[0 .. 15] == "void delegate()");
 }
 
 // string elements are formatted like UTF-8 string literals.

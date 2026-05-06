@@ -3,7 +3,7 @@
  *
  * Specification: $(LINK2 https://dlang.org/spec/version.html, Conditional Compilation)
  *
- * Copyright:   Copyright (C) 1999-2025 by The D Language Foundation, All Rights Reserved
+ * Copyright:   Copyright (C) 1999-2026 by The D Language Foundation, All Rights Reserved
  * Authors:     $(LINK2 https://www.digitalmars.com, Walter Bright)
  * License:     $(LINK2 https://www.boost.org/LICENSE_1_0.txt, Boost License 1.0)
  * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/compiler/src/dmd/cond.d, _cond.d)
@@ -17,27 +17,20 @@ import core.stdc.string;
 import dmd.arraytypes;
 import dmd.astenums;
 import dmd.ast_node;
-import dmd.dcast;
-import dmd.dinterpret;
 import dmd.dmodule;
 import dmd.dscope;
-import dmd.dsymbol;
 import dmd.errors;
 import dmd.expression;
-import dmd.expressionsem : evalStaticCondition;
 import dmd.globals;
 import dmd.identifier;
 import dmd.location;
 import dmd.mtype;
-import dmd.optimize;
-import dmd.typesem;
 import dmd.common.outbuffer;
 import dmd.rootobject;
 import dmd.root.string;
 import dmd.tokens;
 import dmd.utils;
 import dmd.visitor;
-import dmd.id;
 import dmd.statement;
 import dmd.declaration;
 import dmd.dstruct;
@@ -70,8 +63,6 @@ extern (C++) abstract class Condition : ASTNode
     }
 
     abstract Condition syntaxCopy();
-
-    abstract int include(Scope* sc);
 
     inout(DebugCondition) isDebugCondition() inout
     {
@@ -158,6 +149,7 @@ extern (C++) final class StaticForeach : RootObject
         auto tf = new TypeFunction(ParameterList(), null, LINK.default_, STC.none);
         auto fd = new FuncLiteralDeclaration(loc, loc, tf, TOK.reserved, null);
         fd.fbody = s;
+        fd.skipCodegen = true;
         auto fe = new FuncExp(loc, fd);
         auto ce = new CallExp(loc, fe, new Expressions());
         return ce;
@@ -214,10 +206,9 @@ extern (C++) final class StaticForeach : RootObject
         auto sid = Identifier.generateId("Tuple");
         auto sdecl = new StructDeclaration(loc, sid, false);
         sdecl.storage_class |= STC.static_;
-        sdecl.members = new Dsymbols();
         auto fid = Identifier.idPool(tupleFieldName);
         auto ty = new TypeTypeof(loc, new TupleExp(loc, e));
-        sdecl.members.push(new VarDeclaration(loc, ty, fid, null, STC.none));
+        sdecl.members = new Dsymbols(new VarDeclaration(loc, ty, fid, null, STC.none));
         auto r = cast(TypeStruct)sdecl.type;
         if (global.params.useTypeInfo && Type.dtypeinfo)
             r.vtinfo = TypeInfoStructDeclaration.create(r); // prevent typeinfo from going to object file
@@ -238,15 +229,6 @@ extern (C++) final class StaticForeach : RootObject
     extern(D) Expression createTuple(Loc loc, TypeStruct type, Expressions* e) @safe
     {   // TODO: move to druntime?
         return new CallExp(loc, new TypeExp(loc, type), e);
-    }
-
-    /*****************************************
-     * Returns:
-     *     `true` iff ready to call `dmd.statementsem.makeTupleForeach`.
-     */
-    extern(D) bool ready()
-    {
-        return aggrfe && aggrfe.aggr && aggrfe.aggr.type && aggrfe.aggr.type.toBasetype().ty == Ttuple;
     }
 }
 
@@ -324,39 +306,6 @@ extern (C++) final class DebugCondition : DVCondition
         super(loc, mod, ident);
     }
 
-    override int include(Scope* sc)
-    {
-        //printf("DebugCondition::include() level = %d, debuglevel = %d\n", level, global.params.debuglevel);
-        if (inc != Include.notComputed)
-        {
-            return inc == Include.yes;
-        }
-        inc = Include.no;
-        bool definedInModule = false;
-        if (ident)
-        {
-            if (mod.debugids && findCondition(*mod.debugids, ident))
-            {
-                inc = Include.yes;
-                definedInModule = true;
-            }
-            else if (findCondition(global.debugids, ident))
-                inc = Include.yes;
-            else
-            {
-                if (!mod.debugidsNot)
-                    mod.debugidsNot = new Identifiers();
-                mod.debugidsNot.push(ident);
-            }
-        }
-        else if (global.params.debugEnabled)
-            inc = Include.yes;
-
-        if (!definedInModule)
-            printDepsConditional(sc, this, "depsDebug ");
-        return (inc == Include.yes);
-    }
-
     override inout(DebugCondition) isDebugCondition() inout
     {
         return this;
@@ -390,7 +339,7 @@ extern (C++) final class VersionCondition : DVCondition
      * Returns:
      *   `true` if it is reserved, `false` otherwise
      */
-    extern(D) private static bool isReserved(const(char)[] ident) @safe
+    extern(D) public static bool isReserved(const(char)[] ident) @safe
     {
         // This list doesn't include "D_*" versions, see the last return
         switch (ident)
@@ -402,6 +351,7 @@ extern (C++) final class VersionCondition : DVCondition
             case "Alpha_HardFloat":
             case "Alpha_SoftFloat":
             case "Android":
+            case "Apple":
             case "ARM":
             case "ARM_HardFloat":
             case "ARM_SoftFloat":
@@ -599,41 +549,6 @@ extern (C++) final class VersionCondition : DVCondition
         super(loc, mod, ident);
     }
 
-    override int include(Scope* sc)
-    {
-        //printf("VersionCondition::include() level = %d, versionlevel = %d\n", level, global.params.versionlevel);
-        //if (ident) printf("\tident = '%s'\n", ident.toChars());
-        if (inc != Include.notComputed)
-        {
-            return inc == Include.yes;
-        }
-
-        inc = Include.no;
-        bool definedInModule = false;
-        if (ident)
-        {
-            if (mod.versionids && findCondition(*mod.versionids, ident))
-            {
-                inc = Include.yes;
-                definedInModule = true;
-            }
-            else if (findCondition(global.versionids, ident))
-                inc = Include.yes;
-            else
-            {
-                if (!mod.versionidsNot)
-                    mod.versionidsNot = new Identifiers();
-                mod.versionidsNot.push(ident);
-            }
-        }
-        if (!definedInModule &&
-            (!ident || (!isReserved(ident.toString()) && ident != Id._unittest && ident != Id._assert)))
-        {
-            printDepsConditional(sc, this, "depsVersion ");
-        }
-        return (inc == Include.yes);
-    }
-
     override inout(VersionCondition) isVersionCondition() inout
     {
         return this;
@@ -660,47 +575,6 @@ extern (C++) final class StaticIfCondition : Condition
     override StaticIfCondition syntaxCopy()
     {
         return new StaticIfCondition(loc, exp.syntaxCopy());
-    }
-
-    override int include(Scope* sc)
-    {
-        // printf("StaticIfCondition::include(sc = %p) this=%p inc = %d\n", sc, this, inc);
-
-        int errorReturn()
-        {
-            if (!global.gag)
-                inc = Include.no; // so we don't see the error message again
-            return 0;
-        }
-
-        if (inc != Include.notComputed)
-        {
-            return inc == Include.yes;
-        }
-
-        if (!sc)
-        {
-            error(loc, "`static if` conditional cannot be at global scope");
-            inc = Include.no;
-            return 0;
-        }
-
-        import dmd.staticcond;
-        bool errors;
-
-        bool result = evalStaticCondition(sc, exp, exp, errors);
-
-        // Prevent repeated condition evaluation.
-        // See: fail_compilation/fail7815.d
-        if (inc != Include.notComputed)
-            return (inc == Include.yes);
-        if (errors)
-            return errorReturn();
-        if (result)
-            inc = Include.yes;
-        else
-            inc = Include.no;
-        return (inc == Include.yes);
     }
 
     override void accept(Visitor v)
@@ -734,7 +608,7 @@ bool findCondition(ref Identifiers ids, Identifier ident) @safe nothrow pure
 }
 
 // Helper for printing dependency information
-private void printDepsConditional(Scope* sc, DVCondition condition, const(char)[] depType)
+public void printDepsConditional(Scope* sc, DVCondition condition, const(char)[] depType)
 {
     if (!global.params.moduleDeps.buffer || global.params.moduleDeps.name)
         return;

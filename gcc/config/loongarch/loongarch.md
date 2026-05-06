@@ -648,7 +648,7 @@
 		     (match_operand:SI 2 "arith_operand" "rI")))]
   ""
 {
-  if (TARGET_64BIT && <MODE>mode == SImode)
+  if (TARGET_64BIT && <MODE>mode == SImode && can_create_pseudo_p ())
     {
       rtx t = gen_reg_rtx (DImode);
       emit_insn (gen_<optab>si3_extend (t, operands[1], operands[2]));
@@ -666,7 +666,7 @@
 		     (match_operand:GPR 2 "register_operand" "r")))]
   ""
 {
-  if (TARGET_64BIT && <MODE>mode == SImode)
+  if (TARGET_64BIT && <MODE>mode == SImode && can_create_pseudo_p ())
     {
       rtx t = gen_reg_rtx (DImode);
       emit_insn (gen_<optab>si3_extend (t, operands[1], operands[2]));
@@ -751,7 +751,7 @@
 		 (match_operand:SI 2 "plus_si_operand"  "r,I,La,Le,Lb")))]
   ""
 {
-  if (TARGET_64BIT)
+  if (TARGET_64BIT && can_create_pseudo_p ())
     {
       if (CONST_INT_P (operands[2]) && !IMM12_INT (operands[2])
 	  && ADDU16I_OPERAND (INTVAL (operands[2])))
@@ -1066,7 +1066,8 @@
 		     (match_operand:GPR 2 "register_operand")))]
   ""
 {
- if (GET_MODE (operands[0]) == SImode && TARGET_64BIT)
+ if (GET_MODE (operands[0]) == SImode && TARGET_64BIT
+     && can_create_pseudo_p ())
   {
     if (ISA_HAS_DIV32)
       {
@@ -2381,7 +2382,7 @@
   (unspec:DI [(const_int 0)]
     UNSPEC_LOAD_SYMBOL_OFFSET64)
   (clobber (match_operand:DI 2 "register_operand" "=&r,r"))]
- "TARGET_64BIT && TARGET_CMODEL_EXTREME"
+ "TARGET_64BIT"
 {
   if (which_alternative == 1)
     return "#";
@@ -2539,7 +2540,7 @@
 (define_expand "movsf"
   [(set (match_operand:SF 0 "")
 	(match_operand:SF 1 ""))]
-  "TARGET_HARD_FLOAT"
+  ""
 {
   if (loongarch_legitimize_move (SFmode, operands[0], operands[1]))
     DONE;

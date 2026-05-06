@@ -405,6 +405,31 @@ region_model_manager::get_ptr_svalue (tree ptr_type, const region *pointee)
   return sval;
 }
 
+/* Subroutine of region_model_manager::maybe_fold_unaryop
+   when the arg is a binop_svalue.
+   Invert comparisons e.g. "!(x == y)" => "x != y".
+   Otherwise, return nullptr.  */
+
+const svalue *
+region_model_manager::
+maybe_invert_comparison_in_unaryop (tree result_type,
+				    const binop_svalue *binop)
+{
+  if (TREE_CODE_CLASS (binop->get_op ()) == tcc_comparison)
+    {
+      enum tree_code inv_op
+	= invert_tree_comparison (binop->get_op (),
+				  HONOR_NANS (binop->get_type ()));
+      if (inv_op != ERROR_MARK)
+	return get_or_create_cast
+	  (result_type,
+	   get_or_create_binop (binop->get_type (), inv_op,
+				binop->get_arg0 (),
+				binop->get_arg1 ()));
+    }
+  return nullptr;
+}
+
 /* Subroutine of region_model_manager::get_or_create_unaryop.
    Attempt to fold the inputs and return a simpler svalue *.
    Otherwise, return nullptr.  */
@@ -470,16 +495,9 @@ region_model_manager::maybe_fold_unaryop (tree type, enum tree_code op,
       {
 	/* Invert comparisons e.g. "!(x == y)" => "x != y".  */
 	if (const binop_svalue *binop = arg->dyn_cast_binop_svalue ())
-	  if (TREE_CODE_CLASS (binop->get_op ()) == tcc_comparison)
-	    {
-	      enum tree_code inv_op
-		= invert_tree_comparison (binop->get_op (),
-					  HONOR_NANS (binop->get_type ()));
-	      if (inv_op != ERROR_MARK)
-		return get_or_create_binop (binop->get_type (), inv_op,
-					    binop->get_arg0 (),
-					    binop->get_arg1 ());
-	    }
+	  if (const svalue *folded
+		= maybe_invert_comparison_in_unaryop (type, binop))
+	    return folded;
       }
       break;
     case NEGATE_EXPR:
@@ -491,6 +509,19 @@ region_model_manager::maybe_fold_unaryop (tree type, enum tree_code op,
 	      && type
 	      && INTEGRAL_TYPE_P (type))
 	    return unaryop->get_arg ();
+      }
+      break;
+    case BIT_NOT_EXPR:
+      {
+	/* Invert comparisons for e.g. "~(x == y)" => "x != y".  */
+	if (type
+	    && TREE_CODE (type) == BOOLEAN_TYPE
+	    && arg->get_type ()
+	    && TREE_CODE (arg->get_type ()) == BOOLEAN_TYPE)
+	  if (const binop_svalue *binop = arg->dyn_cast_binop_svalue ())
+	    if (const svalue *folded
+		= maybe_invert_comparison_in_unaryop (type, binop))
+	      return folded;
       }
       break;
     }
@@ -608,7 +639,7 @@ maybe_undo_optimize_bit_field_compare (tree type,
   if (!INTEGRAL_TYPE_P (type))
     return nullptr;
 
-  const binding_map &map = compound_sval->get_map ();
+  const concrete_binding_map &map = compound_sval->get_concrete_bindings ();
   unsigned HOST_WIDE_INT mask = TREE_INT_CST_LOW (cst);
   /* If "mask" is a contiguous range of set bits, see if the
      compound_sval has a value for those bits.  */
@@ -620,11 +651,13 @@ maybe_undo_optimize_bit_field_compare (tree type,
   if (BYTES_BIG_ENDIAN)
     bound_bits = bit_range (BITS_PER_UNIT - bits.get_next_bit_offset (),
 			    bits.m_size_in_bits);
-  const concrete_binding *conc
-    = get_store_manager ()->get_concrete_binding (bound_bits);
-  const svalue *sval = map.get (conc);
+  const svalue *sval = map.get_any_exact_binding (bound_bits);
   if (!sval)
-    return nullptr;
+    {
+      /* In theory we could also look for bindings that straddle the
+	 bit range.  For simplicity, bail out on this case.  */
+      return nullptr;
+    }
 
   /* We have a value;
      shift it by the correct number of bits.  */
@@ -683,8 +716,14 @@ region_model_manager::maybe_fold_binop (tree type, enum tree_code op,
       /* X + (-X) -> 0.  */
       if (const unaryop_svalue *unary_op = arg1->dyn_cast_unaryop_svalue ())
 	if (unary_op->get_op () == NEGATE_EXPR
-	    && unary_op->get_arg () == arg0)
+	    && unary_op->get_arg () == arg0
+	    && type && (INTEGRAL_TYPE_P (type) || POINTER_TYPE_P (type)))
 	  return get_or_create_int_cst (type, 0);
+      /* X + (Y - X) -> Y.  */
+      if (const binop_svalue *bin_op = arg1->dyn_cast_binop_svalue ())
+	if (bin_op->get_op () == MINUS_EXPR)
+	  if (bin_op->get_arg1 () == arg0)
+	    return get_or_create_cast (type, bin_op->get_arg0 ());
       break;
     case MINUS_EXPR:
       /* (VAL - 0) -> VAL.  */
@@ -785,6 +824,24 @@ region_model_manager::maybe_fold_binop (tree type, enum tree_code op,
 	    /* "(ARG0 && nonzero-cst)" -> "nonzero-cst".  */
 	    return get_or_create_cast (type, arg1);
 	}
+      break;
+
+    case TRUNC_DIV_EXPR:
+    case CEIL_DIV_EXPR:
+    case FLOOR_DIV_EXPR:
+    case ROUND_DIV_EXPR:
+    case TRUNC_MOD_EXPR:
+    case CEIL_MOD_EXPR:
+    case FLOOR_MOD_EXPR:
+    case ROUND_MOD_EXPR:
+    case RDIV_EXPR:
+    case EXACT_DIV_EXPR:
+      {
+	value_range arg1_vr;
+	if (arg1->maybe_get_value_range (arg1_vr))
+	  if (arg1_vr.zero_p ())
+	    return get_or_create_unknown_svalue (type);
+      }
       break;
     }
 
@@ -1065,20 +1122,21 @@ region_model_manager::maybe_fold_repeated_svalue (tree type,
 
   /* If INNER_SVALUE is the same size as OUTER_SIZE,
      turn into simply a cast.  */
-  if (tree cst_outer_num_bytes = outer_size->maybe_get_constant ())
-    {
-      HOST_WIDE_INT num_bytes_inner_svalue
-	= int_size_in_bytes (inner_svalue->get_type ());
-      if (num_bytes_inner_svalue != -1)
-	if (num_bytes_inner_svalue
-	    == (HOST_WIDE_INT)tree_to_uhwi (cst_outer_num_bytes))
-	  {
-	    if (type)
-	      return get_or_create_cast (type, inner_svalue);
-	    else
-	      return inner_svalue;
-	  }
-    }
+  if (inner_svalue->get_type ())
+    if (tree cst_outer_num_bytes = outer_size->maybe_get_constant ())
+      {
+	HOST_WIDE_INT num_bytes_inner_svalue
+	  = int_size_in_bytes (inner_svalue->get_type ());
+	if (num_bytes_inner_svalue != -1)
+	  if (num_bytes_inner_svalue
+	      == (HOST_WIDE_INT)tree_to_uhwi (cst_outer_num_bytes))
+	    {
+	      if (type)
+		return get_or_create_cast (type, inner_svalue);
+	      else
+		return inner_svalue;
+	    }
+      }
 
   /* Handle zero-fill of a specific type.  */
   if (tree cst = inner_svalue->maybe_get_constant ())
@@ -1350,7 +1408,26 @@ get_or_create_widening_svalue (tree type,
 
 const svalue *
 region_model_manager::get_or_create_compound_svalue (tree type,
-						     const binding_map &map)
+						     concrete_binding_map &&map)
+{
+  compound_svalue::key_t tmp_key (type, &map);
+  if (compound_svalue **slot = m_compound_values_map.get (tmp_key))
+    return *slot;
+  compound_svalue *compound_sval
+    = new compound_svalue (alloc_symbol_id (), type, std::move (map));
+  RETURN_UNKNOWN_IF_TOO_COMPLEX (compound_sval);
+  /* Use make_key rather than reusing the key, so that we use a
+     ptr to compound_sval's binding_map, rather than the MAP param.  */
+  m_compound_values_map.put (compound_sval->make_key (), compound_sval);
+  return compound_sval;
+}
+
+/* Return the svalue * of type TYPE for the compound values in MAP,
+   creating it if necessary.  */
+
+const svalue *
+region_model_manager::get_or_create_compound_svalue (tree type,
+						     const concrete_binding_map &map)
 {
   compound_svalue::key_t tmp_key (type, &map);
   if (compound_svalue **slot = m_compound_values_map.get (tmp_key))
@@ -1668,6 +1745,8 @@ region_model_manager::get_unknown_symbolic_region (tree region_type)
 const region *
 region_model_manager::get_field_region (const region *parent, tree field)
 {
+  gcc_assert (parent);
+  gcc_assert (field);
   gcc_assert (TREE_CODE (field) == FIELD_DECL);
 
   /* (*UNKNOWN_PTR).field is (*UNKNOWN_PTR_OF_&FIELD_TYPE).  */
@@ -1732,7 +1811,7 @@ region_model_manager::get_offset_region (const region *parent,
       const svalue *sval_x = parent_offset_reg->get_byte_offset ();
       const svalue *sval_sum
 	= get_or_create_binop (byte_offset->get_type (),
-			       PLUS_EXPR, sval_x, byte_offset);
+			       POINTER_PLUS_EXPR, sval_x, byte_offset);
       return get_offset_region (parent->get_parent_region (), type, sval_sum);
     }
 

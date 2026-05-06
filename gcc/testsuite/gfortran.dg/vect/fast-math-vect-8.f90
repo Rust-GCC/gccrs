@@ -1,6 +1,7 @@
 ! { dg-do compile } 
 ! { dg-require-effective-target vect_float } 
 ! { dg-require-visibility "" }
+! { dg-additional-options "-ffast-math" }
 
 module solv_cap
 

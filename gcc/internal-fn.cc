@@ -3229,6 +3229,74 @@ expand_vec_cond_mask_optab_fn (internal_fn, gcall *stmt, convert_optab optab)
 
   gcc_assert (icode != CODE_FOR_nothing);
 
+  /* Find the comparison generating the mask OP0.  */
+  tree cmp_op0 = NULL_TREE;
+  tree cmp_op1 = NULL_TREE;
+  enum tree_code cmp_code = TREE_CODE (op0);
+  if (TREE_CODE_CLASS (cmp_code) == tcc_comparison)
+    {
+      cmp_op0 = TREE_OPERAND (op0, 0);
+      cmp_op1 = TREE_OPERAND (op0, 1);
+    }
+  else if (cmp_code == SSA_NAME)
+    {
+      gimple *def_stmt = get_gimple_for_ssa_name (op0);
+      if (def_stmt && is_gimple_assign (def_stmt))
+	{
+	  cmp_code = gimple_assign_rhs_code (def_stmt);
+	  if (TREE_CODE_CLASS (cmp_code) == tcc_comparison)
+	    {
+	      cmp_op0 = gimple_assign_rhs1 (def_stmt);
+	      cmp_op1 = gimple_assign_rhs2 (def_stmt);
+	    }
+	}
+    }
+
+  /* Decide whether to invert comparison based on rtx_cost.  */
+  if (cmp_op0)
+    {
+      enum tree_code rev_code;
+      tree op_type = TREE_TYPE (cmp_op0);
+      int unsignedp = TYPE_UNSIGNED (op_type);
+      rev_code = invert_tree_comparison (cmp_code, HONOR_NANS (op_type));
+
+      if (rev_code != ERROR_MARK)
+	{
+	  tree cmp_type = TREE_TYPE (op0);
+	  machine_mode cmp_mode = TYPE_MODE (cmp_type);
+	  machine_mode op_mode = TYPE_MODE (op_type);
+	  bool speed_p = optimize_insn_for_speed_p ();
+	  rtx reg = gen_raw_REG (op_mode, LAST_VIRTUAL_REGISTER + 1);
+	  enum rtx_code cmp_rtx_code = convert_tree_comp_to_rtx (cmp_code,
+								 unsignedp);
+	  rtx veccmp = gen_rtx_fmt_ee (cmp_rtx_code, cmp_mode, reg, reg);
+	  int old_cost = rtx_cost (veccmp, cmp_mode, SET, 0, speed_p);
+	  enum rtx_code rev_rtx_code = convert_tree_comp_to_rtx (rev_code,
+								 unsignedp);
+	  PUT_CODE (veccmp, rev_rtx_code);
+	  int new_cost = rtx_cost (veccmp, cmp_mode, SET, 0, speed_p);
+	  if (new_cost < old_cost)
+	    {
+	      op0 = fold_build2_loc (EXPR_LOCATION (op0), rev_code,
+				     cmp_type, cmp_op0, cmp_op1);
+	      std::swap (op1, op2);
+	    }
+
+	  if (dump_file && (dump_flags & TDF_DETAILS))
+	    {
+	      fprintf (dump_file,
+		       ";; %sswapping operands of .VCOND_MASK\n",
+		       new_cost >= old_cost ? "not " : "");
+	      fprintf (dump_file,
+		       ";; cost of original %s: %d\n",
+		       GET_RTX_NAME (cmp_rtx_code), old_cost);
+	      fprintf (dump_file,
+		       ";; cost of replacement %s: %d\n",
+		       GET_RTX_NAME (rev_rtx_code), new_cost);
+	    }
+	}
+    }
+
   mask = expand_normal (op0);
   rtx_op1 = expand_normal (op1);
   rtx_op2 = expand_normal (op2);
@@ -4829,7 +4897,12 @@ get_conditional_len_internal_fn (tree_code code)
   T (FMA) \
   T (FMS) \
   T (FNMA) \
-  T (FNMS)
+  T (FNMS) \
+  T (SQRT) \
+  T (ROUND) \
+  T (FLOOR) \
+  T (RINT) \
+  T (CEIL)
 
 /* Return a function that only performs internal function FN when a
    certain condition is met and that uses a given fallback value otherwise.
@@ -5129,8 +5202,18 @@ internal_fn_else_index (internal_fn fn)
     {
     case IFN_COND_NEG:
     case IFN_COND_NOT:
+    case IFN_COND_SQRT:
+    case IFN_COND_CEIL:
+    case IFN_COND_FLOOR:
+    case IFN_COND_ROUND:
+    case IFN_COND_RINT:
     case IFN_COND_LEN_NEG:
     case IFN_COND_LEN_NOT:
+    case IFN_COND_LEN_SQRT:
+    case IFN_COND_LEN_CEIL:
+    case IFN_COND_LEN_FLOOR:
+    case IFN_COND_LEN_ROUND:
+    case IFN_COND_LEN_RINT:
       return 2;
 
     case IFN_LEN_LOAD:

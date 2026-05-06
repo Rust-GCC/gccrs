@@ -94,7 +94,10 @@ proc dg_final_directive_check_num_args {} {
 
     verify_args scan-lang-dump 2 3
 
-    verify_args object-readelf 2 3
+    verify_args object-readelf-attributes 1 3
+    verify_args object-readelf-attributes-not 1 3
+    verify_args object-readelf-notes 1 3
+    verify_args object-readelf-notes-not 1 3
 
     verify_args scan-assembler-times 2 3
     verify_args scan-assembler-dem 1 2

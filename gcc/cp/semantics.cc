@@ -47,6 +47,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "memmodel.h"
 #include "gimplify.h"
 #include "contracts.h"
+#include "c-family/c-pragma.h"
 
 /* There routines provide a modular interface to perform many parsing
    operations.  They may therefore be used during actual parsing, or
@@ -609,8 +610,10 @@ set_one_cleanup_loc (tree t, location_t loc)
 {
   if (!t)
     return;
+
   if (TREE_CODE (t) != POSTCONDITION_STMT)
     protected_set_expr_location (t, loc);
+
   /* Avoid locus differences for C++ cdtor calls depending on whether
      cdtor_returns_this: a conversion to void is added to discard the return
      value, and this conversion ends up carrying the location, and when it
@@ -2492,6 +2495,8 @@ finish_asm_stmt (location_t loc, int volatile_p, tree string,
 				"of a function or non-automatic variable");
 		      operand = error_mark_node;
 		    }
+		  else if (TREE_CODE (TREE_OPERAND (t, 0)) == FUNCTION_DECL)
+		    suppress_warning (TREE_OPERAND (t, 0), OPT_Wunused);
 		}
 	    }
 	  else
@@ -3313,10 +3318,12 @@ finish_call_expr (tree fn, vec<tree, va_gc> **args, bool disallow_virtual,
   tree result;
   tree orig_fn;
   vec<tree, va_gc> *orig_args = *args;
+  tsubst_flags_t orig_complain = complain;
 
   if (fn == error_mark_node)
     return error_mark_node;
 
+  complain &= ~tf_any_viable;
   gcc_assert (!TYPE_P (fn));
 
   /* If FN may be a FUNCTION_DECL obfuscated by force_paren_expr, undo
@@ -3534,7 +3541,7 @@ finish_call_expr (tree fn, vec<tree, va_gc> **args, bool disallow_virtual,
 	    }
 
 	  /* A call to a namespace-scope function.  */
-	  result = build_new_function_call (fn, args, complain);
+	  result = build_new_function_call (fn, args, orig_complain);
 	}
     }
   else if (TREE_CODE (fn) == PSEUDO_DTOR_EXPR)
@@ -3665,9 +3672,9 @@ finish_this_expr (void)
   else if (fn && DECL_STATIC_FUNCTION_P (fn))
     error ("%<this%> is unavailable for static member functions");
   else if (fn && processing_contract_condition && DECL_CONSTRUCTOR_P (fn))
-    error ("invalid use of %<this%> before it is valid");
+    error ("invalid use of %<this%> in a constructor %<pre%> condition");
   else if (fn && processing_contract_condition && DECL_DESTRUCTOR_P (fn))
-    error ("invalid use of %<this%> after it is valid");
+    error ("invalid use of %<this%> in a destructor %<post%> condition");
   else if (fn)
     error ("invalid use of %<this%> in non-member function");
   else
@@ -3869,9 +3876,13 @@ finish_compound_literal (tree type, tree compound_literal,
 	  return error_mark_node;
 	}
       else if (cxx_dialect < cxx23)
-	pedwarn (input_location, OPT_Wc__23_extensions,
-		 "%<auto{x}%> only available with "
-		 "%<-std=c++23%> or %<-std=gnu++23%>");
+	{
+	  if ((complain & tf_warning_or_error) == 0)
+	    return error_mark_node;
+	  pedwarn (input_location, OPT_Wc__23_extensions,
+		   "%<auto{x}%> only available with "
+		   "%<-std=c++23%> or %<-std=gnu++23%>");
+	}
       type = do_auto_deduction (type, compound_literal, type, complain,
 				adc_variable_type);
       if (type == error_mark_node)
@@ -4196,14 +4207,6 @@ begin_class_definition (tree t)
       pushtag (TYPE_IDENTIFIER (t), t);
     }
 
-  if (modules_p ())
-    {
-      if (!module_may_redeclare (TYPE_NAME (t)))
-	return error_mark_node;
-      set_instantiating_module (TYPE_NAME (t));
-      set_defining_module (TYPE_NAME (t));
-    }
-
   maybe_process_partial_specialization (t);
   pushclass (t);
   TYPE_BEING_DEFINED (t) = 1;
@@ -4456,15 +4459,18 @@ finish_template_type (tree name, tree args, int entering_scope)
     return TYPE_NAME (type);
 }
 
-/* Finish processing a BASE_CLASS with the indicated ACCESS_SPECIFIER.
-   Return a TREE_LIST containing the ACCESS_SPECIFIER and the
-   BASE_CLASS, or NULL_TREE if an error occurred.  The
+/* Finish processing a BASE_CLASS with the indicated ACCESS_SPECIFIER
+   and ANNOTATIONS.
+   Return a TREE_LIST containing the ACCESS_SPECIFIER (or if there are
+   ANNOTATIONS, TREE_LIST containing the ACCESS_SPECIFIER and ANNOTATIONS)
+   and the BASE_CLASS, or NULL_TREE if an error occurred.  The
    ACCESS_SPECIFIER is one of
-   access_{default,public,protected_private}_node.  For a virtual base
+   access_{default,public,protected,private}_node.  For a virtual base
    we set TREE_TYPE.  */
 
 tree
-finish_base_specifier (tree base, tree access, bool virtual_p)
+finish_base_specifier (tree base, tree access, bool virtual_p,
+		       tree annotations)
 {
   tree result;
 
@@ -4486,6 +4492,8 @@ finish_base_specifier (tree base, tree access, bool virtual_p)
 	     class type?  */
 	  base = TYPE_MAIN_VARIANT (base);
 	}
+      if (annotations)
+	access = build_tree_list (access, nreverse (annotations));
       result = build_tree_list (access, base);
       if (virtual_p)
 	TREE_TYPE (result) = integer_type_node;
@@ -4524,7 +4532,7 @@ baselink_for_fns (tree fns)
 
 /* Returns true iff we are currently parsing a lambda-declarator.  */
 
-static bool
+bool
 parsing_lambda_declarator ()
 {
   cp_binding_level *b = current_binding_level;
@@ -4565,6 +4573,18 @@ outer_automatic_var_p (tree decl)
 {
   return (outer_var_p (decl)
 	  && !TREE_STATIC (decl));
+}
+
+/* Note whether capture proxy D is only used in a contract condition.  */
+
+static void
+set_contract_capture_flag (tree d, bool val)
+{
+  gcc_checking_assert (DECL_HAS_VALUE_EXPR_P (d));
+  tree proxy = DECL_VALUE_EXPR (d);
+  gcc_checking_assert (TREE_CODE (proxy) == COMPONENT_REF
+		       && TREE_CODE (TREE_OPERAND (proxy, 1)) == FIELD_DECL);
+  DECL_CONTRACT_CAPTURE_P (TREE_OPERAND (proxy, 1)) = val;
 }
 
 /* DECL satisfies outer_automatic_var_p.  Possibly complain about it or
@@ -4611,6 +4631,11 @@ process_outer_var_ref (tree decl, tsubst_flags_t complain, bool odr_use)
 
       if (d && d != decl && is_capture_proxy (d))
 	{
+	  if (flag_contracts && !processing_contract_condition)
+	    /* We might have created a capture for a contract_assert ref. to
+	       some var, if that is now captured 'normally' then this is OK.
+	       Otherwise we leave the capture marked as incorrect.  */
+	    set_contract_capture_flag (d, false);
 	  if (DECL_CONTEXT (d) == containing_function)
 	    /* We already have an inner proxy.  */
 	    return d;
@@ -4659,10 +4684,14 @@ process_outer_var_ref (tree decl, tsubst_flags_t complain, bool odr_use)
       return error_mark_node;
     }
   /* Do lambda capture when processing the id-expression, not when
-     odr-using a variable.  */
+     odr-using a variable, but uses in a contract must not cause a capture.  */
   if (!odr_use && context == containing_function)
-    decl = add_default_capture (lambda_stack,
-				/*id=*/DECL_NAME (decl), initializer);
+    {
+      decl = add_default_capture (lambda_stack,
+				  /*id=*/DECL_NAME (decl), initializer);
+      if (flag_contracts && processing_contract_condition)
+	set_contract_capture_flag (decl, true);
+    }
   /* Only an odr-use of an outer automatic variable causes an
      error, and a constant variable can decay to a prvalue
      constant without odr-use.  So don't complain yet.  */
@@ -4774,6 +4803,7 @@ finish_id_expression_1 (tree id_expression,
 	{
 	  /* Name lookup failed.  */
 	  if (scope
+	      && !dependent_namespace_p (scope)
 	      && (!TYPE_P (scope)
 		  || (!dependentish_scope_p (scope)
 		      && !(identifier_p (id_expression)
@@ -4806,7 +4836,9 @@ finish_id_expression_1 (tree id_expression,
       /* A use in unevaluated operand might not be instantiated appropriately
 	 if tsubst_copy builds a dummy parm, or if we never instantiate a
 	 generic lambda, so mark it now.  */
-      if (processing_template_decl && cp_unevaluated_operand)
+      if (processing_template_decl
+	  && (cp_unevaluated_operand
+	      || generic_lambda_fn_p (current_function_decl)))
 	mark_type_use (decl);
 
       /* Disallow uses of local variables from containing functions, except
@@ -4878,6 +4910,10 @@ finish_id_expression_1 (tree id_expression,
 		   "integral or enumeration type", decl, TREE_TYPE (decl));
 	  *non_integral_constant_expression_p = true;
 	}
+
+      if (flag_contracts && processing_contract_condition)
+	r = constify_contract_access (r);
+
       return r;
     }
   else if (TREE_CODE (decl) == UNBOUND_CLASS_TEMPLATE)
@@ -4934,7 +4970,7 @@ finish_id_expression_1 (tree id_expression,
 	  auto_diagnostic_group d;
 	  error ("request for member %qD is ambiguous in "
 		 "multiple inheritance lattice", id_expression);
-	  print_candidates (decl);
+	  print_candidates (input_location, decl);
 	  return error_mark_node;
 	}
 
@@ -5001,6 +5037,14 @@ finish_id_expression_1 (tree id_expression,
 	}
       else if (TREE_CODE (decl) == FIELD_DECL)
 	{
+	  if (flag_contracts && processing_contract_condition
+	      && contract_class_ptr == current_class_ptr)
+	    {
+	      error ("%qD 'this' required when accessing a member within a "
+		  "constructor precondition or destructor postcondition "
+		  "contract check", decl);
+		      return error_mark_node;
+	    }
 	  /* Since SCOPE is NULL here, this is an unqualified name.
 	     Access checking has been performed during name lookup
 	     already.  Turn off checking to avoid duplicate errors.  */
@@ -5024,6 +5068,14 @@ finish_id_expression_1 (tree id_expression,
 		      && !shared_member_p (decl))))
 	    {
 	      /* A set of member functions.  */
+	      if (flag_contracts && processing_contract_condition
+		  && contract_class_ptr == current_class_ptr)
+		{
+		  error ("%qD 'this' required when accessing a member within a "
+		      "constructor precondition or destructor postcondition "
+		      "contract check", decl);
+		  return error_mark_node;
+		}
 	      decl = maybe_dummy_object (DECL_CONTEXT (first_fn), 0);
 	      return finish_class_member_access_expr (decl, id_expression,
 						      /*template_p=*/false,
@@ -5047,7 +5099,11 @@ finish_id_expression_1 (tree id_expression,
 
 		       ??? Should this case make a clone instead, like
 		       handle_using_decl?  */
-		    gcc_assert (TREE_CODE (decl) == CONST_DECL);
+		    gcc_assert (TREE_CODE (decl) == CONST_DECL
+				/* This is for:
+				    constexpr auto r = ^^S::i;
+				    auto a = [:r:];  */
+				|| flag_reflection);
 		  else
 		    perform_or_defer_access_check (TYPE_BINFO (path),
 						   decl, decl,
@@ -5058,6 +5114,10 @@ finish_id_expression_1 (tree id_expression,
 	  decl = convert_from_reference (decl);
 	}
     }
+
+  check_param_in_postcondition (decl, location);
+  if (flag_contracts && processing_contract_condition)
+    decl = constify_contract_access (decl);
 
   return cp_expr (decl, location);
 }
@@ -6885,7 +6945,10 @@ cxx_omp_map_array_section (location_t loc, tree t)
       if (TREE_CODE (TREE_TYPE (t)) == REFERENCE_TYPE)
 	t = convert_from_reference (t);
 
-      t = build_array_ref (loc, t, low);
+      if (TYPE_PTR_P (TREE_TYPE (t)))
+	t = build_array_ref (loc, t, low);
+      else
+	t = error_mark_node;
     }
 
   return t;
@@ -12669,7 +12732,7 @@ init_cp_semantics (void)
    otherwise false.  */
 
 bool
-cexpr_str::type_check (location_t location)
+cexpr_str::type_check (location_t location, bool allow_char8_t /*=false*/)
 {
   tsubst_flags_t complain = tf_warning_or_error;
 
@@ -12705,7 +12768,7 @@ cexpr_str::type_check (location_t location)
       if (message_sz == error_mark_node || message_data == error_mark_node)
 	return false;
       message_sz = build_converted_constant_expr (size_type_node, message_sz,
-						       complain);
+						  complain);
       if (message_sz == error_mark_node)
 	{
 	  error_at (location, "constexpr string %<size()%> "
@@ -12713,8 +12776,17 @@ cexpr_str::type_check (location_t location)
 		    "%<std::size_t%>");
 	  return false;
 	}
+
+      if (allow_char8_t
+	  && POINTER_TYPE_P (TREE_TYPE (message_data))
+	  && (TYPE_MAIN_VARIANT (TREE_TYPE (TREE_TYPE (message_data)))
+	      == char8_type_node)
+	  && (TYPE_QUALS (TREE_TYPE (TREE_TYPE (message_data)))
+	      == TYPE_QUAL_CONST))
+	return true;
+
       message_data = build_converted_constant_expr (const_string_type_node,
-							 message_data, complain);
+						    message_data, complain);
       if (message_data == error_mark_node)
 	{
 	  error_at (location, "constexpr string %<data()%> "
@@ -12744,81 +12816,188 @@ cexpr_str::extract (location_t location, tree &str)
    Returns true if successful, otherwise false.  */
 
 bool
-cexpr_str::extract (location_t location, const char * & msg, int &len)
+cexpr_str::extract (location_t location, const char * &msg, int &len,
+		    const constexpr_ctx *ctx /* = NULL */,
+		    bool *non_constant_p /* = NULL */,
+		    bool *overflow_p /* = NULL */,
+		    tree *jump_target /* = NULL */)
 {
   tsubst_flags_t complain = tf_warning_or_error;
 
   msg = NULL;
   if (message_sz && message_data)
     {
-      tree msz = cxx_constant_value (message_sz, NULL_TREE, complain);
+      tree msz;
+      if (ctx)
+	{
+	  msz = cxx_eval_constant_expression (ctx, message_sz, vc_prvalue,
+					      non_constant_p, overflow_p,
+					      jump_target);
+	  if (*jump_target || *non_constant_p)
+	    return false;
+	}
+      else
+	msz = cxx_constant_value (message_sz, NULL_TREE, complain);
       if (!tree_fits_uhwi_p (msz))
 	{
-	  error_at (location,
-		    "constexpr string %<size()%> "
-		    "must be a constant expression");
+	  if (!ctx || !cxx_constexpr_quiet_p (ctx))
+	    error_at (location,
+		      "constexpr string %<size()%> "
+		      "must be a constant expression");
 	  return false;
 	}
       else if ((unsigned HOST_WIDE_INT) (int) tree_to_uhwi (msz)
 	       != tree_to_uhwi (msz))
 	{
-	  error_at (location,
-		    "constexpr string message %<size()%> "
-		    "%qE too large", msz);
+	  if (!ctx || !cxx_constexpr_quiet_p (ctx))
+	    error_at (location,
+		      "constexpr string message %<size()%> "
+		      "%qE too large", msz);
 	  return false;
 	}
       len = tree_to_uhwi (msz);
-      tree data = maybe_constant_value (message_data, NULL_TREE,
-					mce_true);
-      if (!reduced_constant_expression_p (data))
-	data = NULL_TREE;
-      if (len)
+      tree data;
+      if (ctx)
 	{
-	  if (data)
-	    msg = c_getstr (data);
-	  if (msg == NULL)
-	    buf = XNEWVEC (char, len);
-	  for (int i = 0; i < len; ++i)
+	  data = cxx_eval_constant_expression (ctx, message_data, vc_prvalue,
+					       non_constant_p, overflow_p,
+					       jump_target);
+	  if (*jump_target || *non_constant_p)
+	    return false;
+	  STRIP_NOPS (data);
+	  if (TREE_CODE (data) != ADDR_EXPR)
 	    {
-	      tree t = message_data;
-	      if (i)
-		t = build2 (POINTER_PLUS_EXPR,
-			    TREE_TYPE (message_data), message_data,
-			    size_int (i));
-	      t = build1 (INDIRECT_REF, TREE_TYPE (TREE_TYPE (t)), t);
-	      tree t2 = cxx_constant_value (t, NULL_TREE, complain);
-	      if (!tree_fits_shwi_p (t2))
+	    unhandled:
+	      if (!cxx_constexpr_quiet_p (ctx))
+		error_at (location, "unhandled return from %<data()%>");
+	      return false;
+	    }
+	  tree str = TREE_OPERAND (data, 0);
+	  unsigned HOST_WIDE_INT off = 0;
+	  if (TREE_CODE (str) == ARRAY_REF
+	      && tree_fits_uhwi_p (TREE_OPERAND (str, 1)))
+	    {
+	      off = tree_to_uhwi (TREE_OPERAND (str, 1));
+	      str = TREE_OPERAND (str, 0);
+	    }
+	  str = cxx_eval_constant_expression (ctx, str, vc_prvalue,
+					      non_constant_p, overflow_p,
+					      jump_target);
+	  if (*jump_target || *non_constant_p)
+	    return false;
+	  if (TREE_CODE (str) == STRING_CST)
+	    {
+	      if (TREE_STRING_LENGTH (str) < len
+		  || (unsigned) TREE_STRING_LENGTH (str) < off
+		  || (unsigned) TREE_STRING_LENGTH (str) < off + len)
+		goto unhandled;
+	      msg = TREE_STRING_POINTER (str) + off;
+	      goto translate;
+	    }
+	  if (TREE_CODE (str) != CONSTRUCTOR
+	      || TREE_CODE (TREE_TYPE (str)) != ARRAY_TYPE)
+	    goto unhandled;
+	  char *b;
+	  if (len < 64)
+	    b = XALLOCAVEC (char, len + 1);
+	  else
+	    {
+	      buf = XNEWVEC (char, len + 1);
+	      b = buf;
+	    }
+	  msg = b;
+	  memset (b, 0, len + 1);
+	  tree field, value;
+	  unsigned k;
+	  unsigned HOST_WIDE_INT l = 0;
+	  FOR_EACH_CONSTRUCTOR_ELT (CONSTRUCTOR_ELTS (str), k, field, value)
+	    if (!tree_fits_shwi_p (value))
+	      goto unhandled;
+	    else if (field == NULL_TREE)
+	      {
+		if (integer_zerop (value))
+		  break;
+		if (l >= off && l < off + len)
+		  b[l - off] = tree_to_shwi (value);
+		++l;
+	      }
+	    else if (TREE_CODE (field) == RANGE_EXPR)
+	      {
+		tree lo = TREE_OPERAND (field, 0);
+		tree hi = TREE_OPERAND (field, 1);
+		if (!tree_fits_uhwi_p (lo) || !tree_fits_uhwi_p (hi))
+		  goto unhandled;
+		if (integer_zerop (value))
+		  break;
+		unsigned HOST_WIDE_INT m = tree_to_uhwi (hi);
+		for (l = tree_to_uhwi (lo); l <= m; ++l)
+		  if (l >= off && l < off + len)
+		    b[l - off] = tree_to_shwi (value);
+	      }
+	    else if (tree_fits_uhwi_p (field))
+	      {
+		l = tree_to_uhwi (field);
+		if (integer_zerop (value))
+		  break;
+		if (l >= off && l < off + len)
+		  b[l - off] = tree_to_shwi (value);
+		l++;
+	      }
+	  b[len] = '\0';
+	}
+      else
+	{
+	  data = maybe_constant_value (message_data, NULL_TREE, mce_true);
+	  if (!reduced_constant_expression_p (data))
+	    data = NULL_TREE;
+	  if (len)
+	    {
+	      if (data)
+		msg = c_getstr (data);
+	      if (msg == NULL)
+		buf = XNEWVEC (char, len);
+	      for (int i = 0; i < len; ++i)
 		{
-		  error_at (location,
-			    "constexpr string %<data()[%d]%> "
-			    "must be a constant expression", i);
-		  return false;
+		  tree t = message_data;
+		  if (i)
+		    t = build2 (POINTER_PLUS_EXPR,
+				TREE_TYPE (message_data), message_data,
+				size_int (i));
+		  t = build1 (INDIRECT_REF, TREE_TYPE (TREE_TYPE (t)), t);
+		  tree t2 = cxx_constant_value (t, NULL_TREE, complain);
+		  if (!tree_fits_shwi_p (t2))
+		    {
+		      error_at (location,
+				"constexpr string %<data()[%d]%> "
+				"must be a constant expression", i);
+		      return false;
+		    }
+		  if (msg == NULL)
+		    buf[i] = tree_to_shwi (t2);
+		  /* If c_getstr worked, just verify the first and
+		     last characters using constant evaluation.  */
+		  else if (len > 2 && i == 0)
+		    i = len - 2;
 		}
 	      if (msg == NULL)
-		buf[i] = tree_to_shwi (t2);
-	      /* If c_getstr worked, just verify the first and
-		 last characters using constant evaluation.  */
-	      else if (len > 2 && i == 0)
-		i = len - 2;
+		msg = buf;
 	    }
-	  if (msg == NULL)
-	    msg = buf;
-	}
-      else if (!data)
-	{
-	  /* We don't have any function to test whether some
-	     expression is a core constant expression.  So, instead
-	     test whether (message.data (), 0) is a constant
-	     expression.  */
-	  data = build2 (COMPOUND_EXPR, integer_type_node,
-			 message_data, integer_zero_node);
-	  tree t = cxx_constant_value (data, NULL_TREE, complain);
-	  if (!integer_zerop (t))
+	  else if (!data)
 	    {
-	      error_at (location,
-			"constexpr string %<data()%> "
-			"must be a core constant expression");
-	      return false;
+	      /* We don't have any function to test whether some
+		 expression is a core constant expression.  So, instead
+		 test whether (message.data (), 0) is a constant
+		 expression.  */
+	      data = build2 (COMPOUND_EXPR, integer_type_node,
+			     message_data, integer_zero_node);
+	      tree t = cxx_constant_value (data, NULL_TREE, complain);
+	      if (!integer_zerop (t))
+		{
+		  error_at (location,
+			    "constexpr string %<data()%> "
+			    "must be a core constant expression");
+		  return false;
+		}
 	    }
 	}
     }
@@ -12828,6 +13007,47 @@ cexpr_str::extract (location_t location, const char * & msg, int &len)
       int sz = TREE_INT_CST_LOW (TYPE_SIZE_UNIT (eltype));
       msg = TREE_STRING_POINTER (message);
       len = TREE_STRING_LENGTH (message) / sz - 1;
+    }
+translate:
+  if ((message_sz && message_data) || ctx)
+    {
+      /* Convert the string from execution charset to SOURCE_CHARSET.  */
+      cpp_string istr, ostr;
+      istr.len = len;
+      istr.text = (const unsigned char *) msg;
+      enum cpp_ttype type = CPP_STRING;
+      if (message_sz && message_data)
+	{
+	  if (POINTER_TYPE_P (TREE_TYPE (message_data))
+	      && (TYPE_MAIN_VARIANT (TREE_TYPE (TREE_TYPE (message_data)))
+		  == char8_type_node))
+	    type = CPP_UTF8STRING;
+	}
+      else if (TYPE_MAIN_VARIANT (TREE_TYPE (TREE_TYPE (message)))
+	       == char8_type_node)
+	type = CPP_UTF8STRING;
+      if (len == 0)
+	;
+      else if (!cpp_translate_string (parse_in, &istr, &ostr, type,
+				      true))
+	{
+	  if (type == CPP_UTF8STRING)
+	    error_at (location, "could not convert constexpr string from "
+				"UTF-8 encoding to source character "
+				"set");
+	  else
+	    error_at (location, "could not convert constexpr string from "
+				"ordinary literal encoding to source character "
+				"set");
+	  return false;
+	}
+      else
+	{
+	  if (buf)
+	    XDELETEVEC (buf);
+	  msg = buf = const_cast <char *> ((const char *) ostr.text);
+	  len = ostr.len;
+	}
     }
 
   return true;
@@ -13030,7 +13250,13 @@ finish_decltype_type (tree expr, bool id_expression_or_member_access_p,
       if (identifier_p (expr))
         expr = lookup_name (expr);
 
-      if (INDIRECT_REF_P (expr)
+      /* If e is a constified expression inside a contract assertion,
+	 strip the const wrapper. Per P2900R14, "For a function f with the
+	 return type T , the result name is an lvalue of type const T , decltype(r)
+	 is T , and decltype((r)) is const T&."  */
+      expr = strip_contract_const_wrapper (expr);
+
+      if (REFERENCE_REF_P (expr)
 	  || TREE_CODE (expr) == VIEW_CONVERT_EXPR)
         /* This can happen when the expression is, e.g., "a.b". Just
            look at the underlying operand.  */
@@ -13056,12 +13282,16 @@ finish_decltype_type (tree expr, bool id_expression_or_member_access_p,
 	{
 	  if (ptds.saved)
 	    {
-	      gcc_checking_assert (DECL_HAS_VALUE_EXPR_P (expr));
+	      gcc_checking_assert (DECL_HAS_VALUE_EXPR_P (expr)
+				   || (DECL_CONTEXT (expr)
+				       != current_function_decl));
 	      /* DECL_HAS_VALUE_EXPR_P is always set if
-		 processing_template_decl.  If lookup_decomp_type
+		 processing_template_decl at least for structured bindings
+		 within the template.  If lookup_decomp_type
 		 returns non-NULL, it is the tuple case.  */
 	      if (tree ret = lookup_decomp_type (expr))
 		return ret;
+	      gcc_checking_assert (DECL_HAS_VALUE_EXPR_P (expr));
 	    }
 	  if (DECL_HAS_VALUE_EXPR_P (expr))
 	    /* Expr is an array or struct subobject proxy, handle
@@ -13654,6 +13884,57 @@ fold_builtin_is_corresponding_member (location_t loc, int nargs,
 				   fold_convert (TREE_TYPE (arg1), arg2)));
 }
 
+/* Fold __builtin_is_string_literal call.  */
+
+tree
+fold_builtin_is_string_literal (location_t loc, int nargs, tree *args)
+{
+  /* Unless users call the builtin directly, the following 3 checks should be
+     ensured from std::is_string_literal overloads.  */
+  if (nargs != 1)
+    {
+      error_at (loc, "%<__builtin_is_string_literal%> needs a single "
+		"argument");
+      return boolean_false_node;
+    }
+  tree arg = args[0];
+  if (error_operand_p (arg))
+    return boolean_false_node;
+  if (!TYPE_PTR_P (TREE_TYPE (arg))
+      || !TYPE_READONLY (TREE_TYPE (TREE_TYPE (arg)))
+      || TYPE_VOLATILE (TREE_TYPE (TREE_TYPE (arg))))
+    {
+    arg_invalid:
+      error_at (loc, "%<__builtin_is_string_literal%> "
+		     "argument is not %<const char*%>, %<const wchar_t*%>, "
+		     "%<const char8_t*%>, %<const char16_t*%> or "
+		     "%<const char32_t*%>");
+      return boolean_false_node;
+    }
+  tree chart = TYPE_MAIN_VARIANT (TREE_TYPE (TREE_TYPE (arg)));
+  if (chart != char_type_node
+      && chart != wchar_type_node
+      && chart != char8_type_node
+      && chart != char16_type_node
+      && chart != char32_type_node)
+    goto arg_invalid;
+
+  STRIP_NOPS (arg);
+  while (TREE_CODE (arg) == POINTER_PLUS_EXPR)
+    {
+      arg = TREE_OPERAND (arg, 0);
+      STRIP_NOPS (arg);
+    }
+  if (TREE_CODE (arg) != ADDR_EXPR)
+    return boolean_false_node;
+  arg = TREE_OPERAND (arg, 0);
+  if (TREE_CODE (arg) == ARRAY_REF)
+    arg = TREE_OPERAND (arg, 0);
+  if (TREE_CODE (arg) != STRING_CST)
+    return boolean_false_node;
+  return boolean_true_node;
+}
+
 /* [basic.types] 8.  True iff TYPE is an object type.  */
 
 static bool
@@ -13913,6 +14194,9 @@ trait_expr_value (cp_trait_kind kind, tree type1, tree type2)
     case CPTK_IS_DEDUCIBLE:
       return type_targs_deducible_from (type1, type2);
 
+    case CPTK_IS_STRUCTURAL:
+      return structural_type_p (type1);
+
     /* __array_rank, __builtin_type_order and __builtin_structured_binding_size
        are handled in finish_trait_expr.  */
     case CPTK_RANK:
@@ -14093,6 +14377,7 @@ finish_trait_expr (location_t loc, cp_trait_kind kind, tree type1, tree type2)
     case CPTK_IS_STD_LAYOUT:
     case CPTK_IS_TRIVIAL:
     case CPTK_IS_TRIVIALLY_COPYABLE:
+    case CPTK_IS_STRUCTURAL:
     case CPTK_HAS_UNIQUE_OBJ_REPRESENTATIONS:
       if (!check_trait_type (type1, /* kind = */ 2))
 	return error_mark_node;
@@ -14571,6 +14856,12 @@ cp_build_bit_cast (location_t loc, tree type, tree arg,
 	{
 	  error_at (loc, "%<__builtin_bit_cast%> destination type %qT "
 			 "is not trivially copyable", type);
+	  return error_mark_node;
+	}
+      if (consteval_only_p (type) || consteval_only_p (arg))
+	{
+	  error_at (loc, "%<__builtin_bit_cast%> cannot be used with "
+			 "consteval-only types");
 	  return error_mark_node;
 	}
     }

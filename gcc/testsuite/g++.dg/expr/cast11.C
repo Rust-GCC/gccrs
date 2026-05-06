@@ -10,6 +10,8 @@ template<typename T> void g(T const&&) { }
 
 struct B { int i; const char c; } b = {};
 
+typedef __INTPTR_TYPE__ intptr_t;
+
 void f1()
 {
   int i = 0;
@@ -19,7 +21,7 @@ void f1()
   f((long* const)&i);			// { dg-warning "5:type qualifiers ignored" }
 
   f(static_cast<long const>(i));	// { dg-warning "5:type qualifiers ignored" }
-  f(reinterpret_cast<long const>(&i));	// { dg-warning "5:type qualifiers ignored" }
+  f(reinterpret_cast<intptr_t const>(&i));	// { dg-warning "5:type qualifiers ignored" }
 
   f(static_cast<int* const>(&i));	// { dg-warning "5:type qualifiers ignored" }
   f(const_cast<int* const>(&i));	// { dg-warning "5:type qualifiers ignored" }

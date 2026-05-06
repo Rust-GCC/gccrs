@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2026, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -33,7 +33,6 @@ with Elists;
 with Errout;         use Errout;
 with Exp_CG;
 with Fmap;
-with Fname;          use Fname;
 with Fname.UF;       use Fname.UF;
 with Frontend;
 with Ghost;          use Ghost;
@@ -65,7 +64,6 @@ with Sem_Eval;
 with Sem_Prag;
 with Sem_Type;
 with Set_Targ;
-with Sinfo;          use Sinfo;
 with Sinfo.Nodes;    use Sinfo.Nodes;
 with Sinput;         use Sinput;
 with Sinput.L;       use Sinput.L;

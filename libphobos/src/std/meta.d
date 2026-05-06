@@ -175,9 +175,6 @@ alias AliasSeq(TList...) = TList;
  */
 alias Alias(alias a) = a;
 
-/// Ditto
-alias Alias(T) = T;
-
 ///
 @safe unittest
 {
@@ -222,44 +219,17 @@ alias Alias(T) = T;
     assert(g == 7);
 }
 
-package template OldAlias(alias a)
-{
-    static if (__traits(compiles, { alias x = a; }))
-        alias OldAlias = a;
-    else static if (__traits(compiles, { enum x = a; }))
-        enum OldAlias = a;
-    else
-        static assert(0, "Cannot alias " ~ a.stringof);
-}
-
-package template OldAlias(T)
-if (!isAggregateType!T || is(Unqual!T == T))
-{
-    alias OldAlias = T;
-}
-
-@safe unittest
-{
-    static struct Foo {}
-    //static assert(is(OldAlias!(const(Foo)) == const Foo));
-    static assert(is(OldAlias!(const(int)) == const(int)));
-    static assert(OldAlias!123 == 123);
-    enum abc = 123;
-    static assert(OldAlias!abc == 123);
-}
-
 /**
- * Returns the index of the first occurrence of `args[0]` in the
- * sequence `args[1 .. $]`. `args` may be types or compile-time values.
+ * Returns the index of the first occurrence of `A` in the
+ * sequence `args`. `A` and `args` may be types or compile-time values.
  * If not found, `-1` is returned.
  */
-template staticIndexOf(args...)
-if (args.length >= 1)
+template staticIndexOf(alias A, args...)
 {
     enum staticIndexOf =
     {
-        static foreach (idx, arg; args[1 .. $])
-            static if (isSame!(args[0], arg))
+        static foreach (idx, arg; args)
+            static if (isSame!(A, arg))
                 // `if (__ctfe)` is redundant here but avoids the "Unreachable code" warning.
                 if (__ctfe) return idx;
         return -1;
@@ -269,14 +239,9 @@ if (args.length >= 1)
 ///
 @safe unittest
 {
-    import std.stdio;
-
-    void foo()
-    {
-        writefln("The index of long is %s",
-                 staticIndexOf!(long, AliasSeq!(int, long, double)));
-        // prints: The index of long is 1
-    }
+    alias Types = AliasSeq!(int, long, double);
+    static assert(staticIndexOf!(long, Types) == 1);
+    static assert(staticIndexOf!(void, 0, "void", void) == 2);
 }
 
 @safe unittest
@@ -302,17 +267,16 @@ if (args.length >= 1)
 }
 
 /**
- * Returns an `AliasSeq` created from `args[1 .. $]` with the first occurrence,
- * if any, of `args[0]` removed.
+ * Returns an `AliasSeq` created from `args` with the first occurrence,
+ * if any, of `A` removed.
  */
-template Erase(args...)
-if (args.length >= 1)
+template Erase(alias A, args...)
 {
-    private enum pos = staticIndexOf!(args[0], args[1 .. $]);
+    private enum pos = staticIndexOf!(A, args);
     static if (pos < 0)
-        alias Erase = args[1 .. $];
+        alias Erase = args;
     else
-        alias Erase = AliasSeq!(args[1 .. pos + 1], args[pos + 2 .. $]);
+        alias Erase = AliasSeq!(args[0 .. pos], args[pos + 1 .. $]);
 }
 
 ///
@@ -336,15 +300,14 @@ if (args.length >= 1)
 
 
 /**
- * Returns an `AliasSeq` created from `args[1 .. $]` with all occurrences,
- * if any, of `args[0]` removed.
+ * Returns an `AliasSeq` created from `args` with all occurrences,
+ * if any, of `A` removed.
  */
-template EraseAll(args...)
-if (args.length >= 1)
+template EraseAll(alias A, args...)
 {
     alias EraseAll = AliasSeq!();
-    static foreach (arg; args[1 .. $])
-        static if (!isSame!(args[0], arg))
+    static foreach (arg; args)
+        static if (!isSame!(A, arg))
             EraseAll = AliasSeq!(EraseAll, arg);
 }
 
@@ -431,30 +394,26 @@ template NoDuplicates(args...)
 
 
 /**
- * Returns an `AliasSeq` created from TList with the first occurrence
+ * Returns an `AliasSeq` created from `Args` with the first occurrence
  * of T, if found, replaced with U.
  */
-template Replace(T, U, TList...)
+template Replace(alias T, alias U, Args...)
 {
-    alias Replace = GenericReplace!(T, U, TList).result;
-}
+    static if (Args.length)
+    {
+        alias head = Args[0 .. 1]; // use unary sequence instead of Alias
+        alias tail = Args[1 .. $];
 
-/// Ditto
-template Replace(alias T, U, TList...)
-{
-    alias Replace = GenericReplace!(T, U, TList).result;
-}
-
-/// Ditto
-template Replace(T, alias U, TList...)
-{
-    alias Replace = GenericReplace!(T, U, TList).result;
-}
-
-/// Ditto
-template Replace(alias T, alias U, TList...)
-{
-    alias Replace = GenericReplace!(T, U, TList).result;
+        static if (isSame!(T, head))
+            alias Replace = AliasSeq!(U, tail);
+        else
+            alias Replace = AliasSeq!(head,
+                Replace!(T, U, tail));
+    }
+    else
+    {
+        alias Replace = AliasSeq!();
+    }
 }
 
 ///
@@ -465,31 +424,6 @@ template Replace(alias T, alias U, TList...)
     alias TL = Replace!(long, char, Types);
     static assert(is(TL == AliasSeq!(int, char, long, int, float)));
 }
-
-// [internal]
-private template GenericReplace(args...)
-if (args.length >= 2)
-{
-    alias from  = OldAlias!(args[0]);
-    alias to    = OldAlias!(args[1]);
-    alias tuple = args[2 .. $];
-
-    static if (tuple.length)
-    {
-        alias head = OldAlias!(tuple[0]);
-        alias tail = tuple[1 .. $];
-
-        static if (isSame!(from, head))
-            alias result = AliasSeq!(to, tail);
-        else
-            alias result = AliasSeq!(head,
-                GenericReplace!(from, to, tail).result);
-    }
-    else
-    {
-        alias result = AliasSeq!();
-    }
- }
 
 @safe unittest
 {
@@ -511,16 +445,16 @@ if (args.length >= 2)
 }
 
 /**
- * Returns an `AliasSeq` created from `args[2 .. $]` with all occurrences
- * of `args[0]`, if any, replaced with `args[1]`.
+ * Returns an `AliasSeq` created from `args` with all occurrences
+ * of T, if found, replaced with U.
  */
-template ReplaceAll(args...)
+template ReplaceAll(alias T, alias U, args...)
 {
     alias ReplaceAll = AliasSeq!();
-    static foreach (arg; args[2 .. $])
+    static foreach (arg; args)
     {
-        static if (isSame!(args[0], arg))
-            ReplaceAll = AliasSeq!(ReplaceAll, args[1]);
+        static if (isSame!(T, arg))
+            ReplaceAll = AliasSeq!(ReplaceAll, U);
         else
             ReplaceAll = AliasSeq!(ReplaceAll, arg);
     }
@@ -1297,10 +1231,9 @@ private template staticMerge(alias cmp, uint mid, items...)
             staticMerge!(cmp, mid - run, items[run .. mid], items[mid + 1 .. $]));
 }
 
-private template isLessEq(alias cmp, Seq...)
-if (Seq.length == 2)
+private template isLessEq(alias cmp, alias A, alias B)
 {
-    private enum Result = cmp!(Seq[1], Seq[0]);
+    private enum Result = cmp!(B, A);
     static if (is(typeof(Result) == bool))
         enum isLessEq = !Result;
     else static if (is(typeof(Result) : int))
@@ -1451,11 +1384,6 @@ private template isSame(alias a, alias b)
     {
         enum isSame = __traits(isSame, a, b);
     }
-}
-// TODO: remove after https://github.com/dlang/dmd/pull/11320 and https://issues.dlang.org/show_bug.cgi?id=21889 are fixed
-private template isSame(A, B)
-{
-    enum isSame = is(A == B);
 }
 
 @safe unittest

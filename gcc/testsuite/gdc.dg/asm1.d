@@ -5,28 +5,24 @@ void parse1()
 {
     asm
     {
-        ""h;    // { dg-error "found 'h' when expecting ':'" }
+        ""h;    // { dg-error "found 'h' when expecting ';'" }
     }
 }
 
 void parse2()
 {
-    asm 
+    asm
     {
         "" : : "g" (1 ? 2 : 3);
         "" : : "g" (1 ? 2 : :) 3;
         // { dg-error "expression expected, not ':'" "" { target *-*-* } .-1 }
-        // { dg-error "expected constant string constraint for operand" "" { target *-*-* } .-2 }
+        // { dg-error "found '3' when expecting ';'" "" { target *-*-* } .-2 }
     }
 }
 
 void parse3()
 {
-    asm { "" [; }
-    // { dg-error "expression expected, not ';'" "" { target *-*-* } .-1 }
-    // { dg-error "found 'End of File' when expecting ','" "" { target *-*-* } .-2 }
-    // { dg-error "found 'End of File' when expecting ']'" "" { target *-*-* } .-3 }
-    // { dg-error "found 'End of File' when expecting ';'" "" { target *-*-* } .-4 }
+    asm { "" [; } // { dg-error "found '\\\[' when expecting ';'" }
 }
 
 void parse4()
@@ -34,7 +30,7 @@ void parse4()
     int expr;
     asm
     {
-        "%name" : [name] string (expr); // { dg-error "expected constant string constraint for operand, not 'string'" }
+        "%name" : [name] string (expr); // { dg-error "expected string literal or expression in parentheses" }
     }
 }
 
@@ -68,9 +64,9 @@ void semantic2()
 
 void semantic3()
 {
-    asm 
+    asm
     {
-        unknown;        // { dg-error "undefined identifier 'unknown'" }
+        unknown;        // { dg-error "expected string literal or expression in parentheses" }
     }
 }
 

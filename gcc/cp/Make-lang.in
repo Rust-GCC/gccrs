@@ -107,7 +107,7 @@ CXX_AND_OBJCXX_OBJS = \
 	cp/method.o cp/module.o \
 	cp/name-lookup.o cp/optimize.o \
 	cp/parser.o cp/pt.o cp/ptree.o \
-	cp/rtti.o \
+	cp/reflect.o cp/rtti.o \
 	cp/search.o cp/semantics.o \
 	cp/tree.o cp/typeck.o cp/typeck2.o \
 	cp/vtable-class-hierarchy.o $(CXX_C_OBJS)
@@ -188,30 +188,54 @@ endif
 # This is the file that depends on the generated header file.
 cp/name-lookup.o: $(srcdir)/cp/std-name-hint.h
 
+ifeq ($(ENABLE_MAINTAINER_RULES), true)
+# Special build rule.  This is a maintainer rule, that is only
+# available when GCC is configured with --enable-maintainer-mode.  In
+# other cases, it is not available to avoid triggering rebuilds if a
+# user has the source checked out with unusual timestamps.
+$(srcdir)/cp/metafns.h: $(srcdir)/cp/metafns.gperf
+else
+# We keep the rule so that you can still force a rebuild, even if you
+# didn't configure GCC with --enable-maintainer-mode, by manually
+# deleting the $(srcdir)/cp/metafns.h file.
+$(srcdir)/cp/metafns.h:
+endif
+	cd $(srcdir)/cp; gperf -o -C -E -k '1,4,5,11,14,$$' -D -N find -L C++ \
+		metafns.gperf --output-file metafns.h
+
+# This is the file that depends on the generated header file.
+cp/reflect.o: $(srcdir)/cp/metafns.h
+
 components_in_prev = "bfd opcodes binutils fixincludes gas gcc gmp mpfr mpc isl gold intl ld libbacktrace libcpp libcody libdecnumber libiberty libiberty-linker-plugin libiconv zlib lto-plugin libctf libsframe"
 components_in_prev_target = "libstdc++-v3 libsanitizer libvtv libgcc libbacktrace libphobos zlib libgomp libatomic"
 
 cc1plus.fda: create_fdas_for_cc1plus
-	$(PROFILE_MERGER) $(shell ls -ha cc1plus_*.fda) --output_file cc1plus.fda -gcov_version 2
+	$(PROFILE_MERGER) $(shell ls -ha cc1plus_*.fda) --output_file cc1plus.fda -gcov_version `../stage1-gcc/xgcc$(exeext) --print-autofdo-gcov-version`
 
 create_fdas_for_cc1plus: ../stage1-gcc/cc1plus$(exeext) ../prev-gcc/$(PERF_DATA)
 	for component_in_prev in "$(components_in_prev)"; do \
 	  perf_path=../prev-$$component_in_prev/$(PERF_DATA); \
-	  echo "Perf path:"; \
-	  echo $$perf_path; \
+	  echo "Perf path:" $$perf_path "..." `[ -f $$perf_path ] && echo exists || echo does not exist`; \
 	  if [ -f $$perf_path ]; then \
 	    profile_name=cc1plus_$$component_in_prev.fda; \
-	    $(CREATE_GCOV) -binary ../stage1-gcc/cc1plus$(exeext) -gcov $$profile_name -profile $$perf_path -gcov_version 3 || exit 1; \
+	    if [ "x`$(PERF) buildid-list -i $$perf_path | grep '/cc1plus$$' && echo yes`" != "x" ]; then \
+	      $(CREATE_GCOV) -binary ../stage1-gcc/cc1plus$(exeext) -gcov $$profile_name -profile $$perf_path -profiler $(AFDO_PROFILER) -gcov_version `../stage1-gcc/xgcc$(exeext) --print-autofdo-gcov-version` || exit 1; \
+	    else \
+	      echo "  warning: $$perf_path is missing cc1plus!"; \
+	    fi; \
 	  fi; \
 	done;
 
 	for component_in_prev_target in "$(components_in_prev_target)"; do \
 	  perf_path=../prev-$(TARGET_SUBDIR)/$$component_in_prev_target/$(PERF_DATA); \
-	  echo "Perf path:"; \
-	  echo $$perf_path; \
+	  echo "Perf path:" $$perf_path "..." `[ -f $$perf_path ] && echo exists || echo does not exist`; \
 	  if [ -f $$perf_path ]; then \
 	    profile_name=cc1plus_$$component_in_prev_target.fda; \
-	    $(CREATE_GCOV) -binary ../prev-gcc/cc1plus$(exeext) -gcov $$profile_name -profile $$perf_path -gcov_version 3 || exit 1; \
+	    if [ "x`$(PERF) buildid-list -i $$perf_path | grep '/cc1plus$$' && echo yes`" != "x" ]; then \
+	      $(CREATE_GCOV) -binary ../prev-gcc/cc1plus$(exeext) -gcov $$profile_name -profile $$perf_path -profiler $(AFDO_PROFILER) -gcov_version `../prev-gcc/xgcc$(exeext) --print-autofdo-gcov-version` || exit 1; \
+	    else \
+	      echo " warning: $$perf_path is missing cc1plus!"; \
+	    fi; \
 	  fi; \
 	done;
 
@@ -282,7 +306,7 @@ check-c++17:
 
 # Run the testsuite in all standard conformance levels.
 check-c++-all:
-	$(MAKE) RUNTESTFLAGS="$(RUNTESTFLAGS) --stds=98,11,14,17,20,23,impcx" check-g++
+	$(MAKE) RUNTESTFLAGS="$(RUNTESTFLAGS) --stds=98,11,14,17,20,23,26,impcx" check-g++
 
 # Run the testsuite with garbage collection at every opportunity.
 check-g++-strict-gc:

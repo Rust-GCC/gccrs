@@ -710,7 +710,7 @@ add_to_conflicts (ira_object_t obj1, ira_object_t obj2)
       if (OBJECT_CONFLICT_ARRAY_SIZE (obj1) < num * sizeof (ira_object_t))
 	{
 	  ira_object_t *newvec;
-	  size = (3 * num / 2 + 1) * sizeof (ira_allocno_t);
+	  size = (3 * num / 2 + 1) * sizeof (ira_object_t);
 	  newvec = (ira_object_t *) ira_allocate (size);
 	  memcpy (newvec, vec, curr_num * sizeof (ira_object_t));
 	  ira_free (vec);

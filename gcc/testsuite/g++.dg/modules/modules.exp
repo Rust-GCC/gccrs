@@ -54,18 +54,25 @@ global module_cmis
 
 set DEFAULT_REPO "gcm.cache"
 
+set devnull "/dev/null"
+if { [info exists ::env(OS)] && [string match "Windows*" $::env(OS)] } {
+    # Windows uses special file named "nul" as a substitute for /dev/null
+    set devnull "nul"
+}
+
 # Return the pathname for <HNAME>.
 # On failure this will return garbage that results in the understandable
 # FAIL: g++.dg/modules/compile-std1.C module-cmi <bits/stdcx++.h> (gcm.cache/,/ader_path1095619.C:1:10: fatal error: bits/stdcx++.h: No such file or directory.gcm)
 # ??? it would be nice to have a simple --print-include-name flag.
 proc host_header_path {hname} {
     global tool
+    global devnull
     set src header_path[pid].C
     set f [open $src "w"]
     puts $f "#include <$hname>"
     close $f
     set opts [list "additional_flags=-H" "additional_flags=-fdirectives-only"]
-    set lines [${tool}_target_compile $src /dev/null preprocess $opts]
+    set lines [${tool}_target_compile $src $devnull preprocess $opts]
     file delete $f
     # The first line of the -H output is ". /path/to/hname"
     set newline_idx [expr {[string first "\n" $lines] - 1}]

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2026, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -411,9 +411,9 @@ package Scans is
    --  is stored in Start_Column).
 
    Token_Node : Node_Id := Empty;
-   --  Node table Id for the current token. This is set only if the current
-   --  token is one for which the scanner constructs a node (i.e. it is an
-   --  identifier, operator symbol, or literal). For other token types,
+   --  Node_Id for the current token. This is set only if the current token is
+   --  one for which the scanner constructs a node (i.e. it is an identifier,
+   --  operator symbol, literal, or target name). For other token types,
    --  Token_Node is undefined.
 
    Token_Name : Name_Id := No_Name;

@@ -1,4 +1,5 @@
 /* { dg-do compile { target { ia32 } } } */
+/* { dg-require-effective-target fpic } */
 /* { dg-options "-O2 -fpic" } */
 extern void crosscall2 (void (*fn) (void *, int), void *, int);
 extern void _cgo_panic (void *, int);

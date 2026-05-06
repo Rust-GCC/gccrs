@@ -97,10 +97,6 @@ private
         // to avoid inlining - see https://issues.dlang.org/show_bug.cgi?id=13725.
         noreturn onInvalidMemoryOperationError(void* pretend_sideffect = null, string file = __FILE__, size_t line = __LINE__) @trusted pure nothrow @nogc;
         noreturn onOutOfMemoryError(void* pretend_sideffect = null, string file = __FILE__, size_t line = __LINE__) @trusted pure nothrow @nogc;
-
-        version (COLLECT_FORK)
-            version (OSX)
-                pid_t __fork() nothrow;
     }
 
     enum
@@ -109,7 +105,7 @@ private
     }
 }
 
-alias GC gc_t;
+alias gc_t = GC;
 
 /* ============================ GC =============================== */
 
@@ -1517,7 +1513,7 @@ class ConservativeGC : GC
         auto existingUsed = slice.length + offset;
 
         size_t typeInfoSize = (info.attr & BlkAttr.STRUCTFINAL) ? size_t.sizeof : 0;
-        if (__setArrayAllocLengthImpl(info, offset + newUsed, atomic, existingUsed, typeInfoSize))
+        if (__setArrayAllocLengthImpl(info, newUsed, atomic, existingUsed, typeInfoSize))
         {
             // could expand without extending
             if (!bic && !atomic)
@@ -1532,7 +1528,7 @@ class ConservativeGC : GC
             return false;
 
         // try extending the block into subsequent pages.
-        immutable requiredExtension = newUsed - info.size - LARGEPAD;
+        immutable requiredExtension = newUsed - (info.size - LARGEPAD);
         auto extendedSize = extend(info.base, requiredExtension, requiredExtension, null);
         if (extendedSize == 0)
             // could not extend, can't satisfy the request
@@ -1636,6 +1632,14 @@ class ConservativeGC : GC
         }
 
         return existingCapacity - offset;
+    }
+
+    void initThread(ThreadBase t) nothrow @nogc { }
+
+    void cleanupThread(ThreadBase t) nothrow @nogc
+    {
+        cleanupBlkCache(t.tlsGCData);
+        t.tlsGCData = null;
     }
 }
 
@@ -1796,7 +1800,7 @@ struct Gcx
         }
         debug(INVARIANT) initialized = true;
         version (COLLECT_FORK)
-            shouldFork = config.fork;
+            shouldFork = AllocSupportsShared && config.fork;
 
     }
 
@@ -1862,8 +1866,7 @@ struct Gcx
 
         roots.removeAll();
         ranges.removeAll();
-        toscanConservative.reset();
-        toscanPrecise.reset();
+        scanStackConservative.reset(); // scanStackPrecise overlaps with scanStackConservative
     }
 
 
@@ -2110,10 +2113,25 @@ struct Gcx
      */
     void updateCollectThresholds() nothrow
     {
-        static float max(float a, float b) nothrow
-        {
-            return a >= b ? a : b;
-        }
+        import core.internal.util.math : min, max;
+
+        // Reserve half of the remaining heap budget to small and large heaps.
+        immutable maxPageUsed = config.heapSizeLimit / PAGESIZE;
+        immutable usedPages = usedSmallPages + usedLargePages;
+        immutable heapBudget = maxPageUsed > usedPages
+            ? maxPageUsed - usedPages
+            : 0;
+
+        immutable smTargetHeap = usedSmallPages + heapBudget / 2;
+        immutable lgTargetHeap = usedLargePages + heapBudget / 2;
+
+        // Compute the target sizes based on the growth factor.
+        immutable smTargetGrowth = usedSmallPages * config.heapSizeFactor;
+        immutable lgTargetGrowth = usedLargePages * config.heapSizeFactor;
+
+        // Collect when either is reached.
+        immutable smTarget = min(smTargetHeap, smTargetGrowth);
+        immutable lgTarget = min(lgTargetHeap, lgTargetGrowth);
 
         // instantly increases, slowly decreases
         static float smoothDecay(float oldVal, float newVal) nothrow
@@ -2125,9 +2143,7 @@ struct Gcx
             return max(newVal, decay);
         }
 
-        immutable smTarget = usedSmallPages * config.heapSizeFactor;
         smallCollectThreshold = smoothDecay(smallCollectThreshold, smTarget);
-        immutable lgTarget = usedLargePages * config.heapSizeFactor;
         largeCollectThreshold = smoothDecay(largeCollectThreshold, lgTarget);
     }
 
@@ -2427,14 +2443,13 @@ struct Gcx
     {
     nothrow:
         @disable this(this);
-        auto stackLock = shared(AlignedSpinLock)(SpinLock.Contention.brief);
 
         void reset()
         {
             _length = 0;
             if (_p)
             {
-                os_mem_unmap(_p, _cap * RANGE.sizeof);
+                os_mem_unmap(_p, _cap);
                 _p = null;
             }
             _cap = 0;
@@ -2446,39 +2461,31 @@ struct Gcx
 
         void push(RANGE rng)
         {
-            if (_length == _cap) grow();
-            _p[_length++] = rng;
+            if ((_length + 1) * RANGE.sizeof > _cap) grow();
+            _p[_length] = rng;
+            _length++;
         }
 
-        RANGE pop()
-        in { assert(!empty); }
+        void pushReverse(RANGE[] ranges)
+        {
+            while ((_length + ranges.length) * RANGE.sizeof > _cap)
+                grow();
+
+            // reverse order for depth-first-order traversal
+            foreach_reverse (ref range; ranges)
+                _p[_length++] = range;
+        }
+
+        void pop(ref RANGE rng)
+        in { assert(_length > 0); }
         do
         {
-            return _p[--_length];
-        }
-
-        bool popLocked(ref RANGE rng)
-        {
-            if (_length == 0)
-                return false;
-
-            stackLock.lock();
-            scope(exit) stackLock.unlock();
-            if (_length == 0)
-                return false;
             rng = _p[--_length];
-            return true;
         }
 
-        ref inout(RANGE) opIndex(size_t idx) inout
-        in { assert(idx < _length); }
-        do
-        {
-            return _p[idx];
-        }
-
-        @property size_t length() const { return _length; }
-        @property bool empty() const { return !length; }
+        @property bool empty() const { return !_length; }
+        size_t length() const { return _length; }
+        RANGE* ptr() { return _p; }
 
     private:
         void grow()
@@ -2486,14 +2493,14 @@ struct Gcx
             pragma(inline, false);
 
             enum initSize = 64 * 1024; // Windows VirtualAlloc granularity
-            immutable ncap = _cap ? 2 * _cap : initSize / RANGE.sizeof;
-            auto p = cast(RANGE*)os_mem_map(ncap * RANGE.sizeof);
+            immutable ncap = _cap ? 2 * _cap : initSize;
+            auto p = cast(RANGE*)os_mem_map(ncap);
             if (p is null) onOutOfMemoryError();
             debug (VALGRIND) makeMemUndefined(p[0..ncap]);
             if (_p !is null)
             {
                 p[0 .. _length] = _p[0 .. _length];
-                os_mem_unmap(_p, _cap * RANGE.sizeof);
+                os_mem_unmap(_p, _cap);
             }
             _p = p;
             _cap = ncap;
@@ -2501,18 +2508,20 @@ struct Gcx
 
         size_t _length;
         RANGE* _p;
-        size_t _cap;
+        size_t _cap; // in bytes
     }
 
-    ToScanStack!(ScanRange!false) toscanConservative;
-    ToScanStack!(ScanRange!true) toscanPrecise;
-
+    union
+    {
+        ToScanStack!(ScanRange!false) scanStackConservative;
+        ToScanStack!(ScanRange!true) scanStackPrecise;
+    }
     template scanStack(bool precise)
     {
         static if (precise)
-            alias scanStack = toscanPrecise;
+            alias scanStack = scanStackPrecise;
         else
-            alias scanStack = toscanConservative;
+            alias scanStack = scanStackConservative;
     }
 
     /**
@@ -2520,12 +2529,10 @@ struct Gcx
      */
     private void mark(bool precise, bool parallel, bool shared_mem)(ScanRange!precise rng) scope nothrow
     {
-        alias toscan = scanStack!precise;
-
         debug(MARK_PRINTF)
             printf("marking range: [%p..%p] (%#llx)\n", rng.pbot, rng.ptop, cast(long)(rng.ptop - rng.pbot));
 
-        // limit the amount of ranges added to the toscan stack
+        // limit the amount of ranges added to the scan stack
         enum FANOUT_LIMIT = 32;
         size_t stackPos;
         ScanRange!precise[FANOUT_LIMIT] stack = void;
@@ -2706,16 +2713,16 @@ struct Gcx
             {
                 static if (parallel)
                 {
-                    if (!toscan.popLocked(rng))
+                    if (!scanStackPopLocked(rng))
                         break; // nothing more to do
                 }
                 else
                 {
-                    if (toscan.empty)
+                    if (scanStack!precise.empty)
                         break; // nothing more to do
 
                     // pop range from global stack and recurse
-                    rng = toscan.pop();
+                    scanStack!precise.pop(rng);
                 }
             }
             // printf("  pop [%p..%p] (%#zx)\n", p1, p2, cast(size_t)p2 - cast(size_t)p1);
@@ -2725,22 +2732,21 @@ struct Gcx
             rng.pbot += (void*).sizeof;
             if (rng.pbot < rng.ptop)
             {
-                if (stackPos < stack.length)
+                if (stackPos >= stack.length)
                 {
-                    stack[stackPos] = tgt;
-                    stackPos++;
-                    continue;
+                    static if (parallel)
+                    {
+                        scanStackPushLocked!precise(stack);
+                    }
+                    else
+                    {
+                        scanStack!precise.pushReverse(stack);
+                    }
+                    stackPos = 0;
                 }
-                static if (parallel)
-                {
-                    toscan.stackLock.lock();
-                    scope(exit) toscan.stackLock.unlock();
-                }
-                toscan.push(rng);
-                // reverse order for depth-first-order traversal
-                foreach_reverse (ref range; stack)
-                    toscan.push(range);
-                stackPos = 0;
+                stack[stackPos] = tgt;
+                stackPos++;
+                continue;
             }
         LendOfRange:
             // continue with last found range
@@ -3194,11 +3200,7 @@ struct Gcx
         {
             fflush(null); // avoid duplicated FILE* output
         }
-        version (OSX)
-        {
-            auto pid = __fork(); // avoids calling handlers (from libc source code)
-        }
-        else version (linux)
+        version (linux)
         {
             // clone() fits better as we don't want to do anything but scanning in the child process.
             // no fork-handlers are called, so we can avoid deadlocks due to malloc locks. Probably related:
@@ -3216,11 +3218,13 @@ struct Gcx
             auto stack = stackbuf.ptr + (isStackGrowingDown ? stackbuf.length : 0);
             auto pid = clone(&wrap_delegate, stack, flags, &dg);
         }
+        else static if (__traits(compiles, _Fork))
+        {
+            auto pid = _Fork();
+        }
         else
         {
-            fork_needs_lock = false;
-            auto pid = fork();
-            fork_needs_lock = true;
+            auto pid = -1;  // fork based GC not supported
         }
         switch (pid)
         {
@@ -3496,25 +3500,34 @@ Lmark:
         // before a fork.
         // This must not happen if fork is called from the GC with the lock already held
 
-        __gshared bool fork_needs_lock = true; // racing condition with cocurrent calls of fork?
-
+        __gshared int fork_cancel_state = 0;
 
         extern(C) static void _d_gcx_atfork_prepare()
         {
-            if (instance && fork_needs_lock)
+            static if (__traits(compiles, os_unblock_gc_signals))
+                os_unblock_gc_signals();
+
+            if (instance)
+            {
                 ConservativeGC.lockNR();
+                fork_cancel_state = thread_cancelDisable();
+            }
         }
 
         extern(C) static void _d_gcx_atfork_parent()
         {
-            if (instance && fork_needs_lock)
+            if (instance)
+            {
+                thread_cancelRestore(fork_cancel_state);
                 ConservativeGC.gcLock.unlock();
+            }
         }
 
         extern(C) static void _d_gcx_atfork_child()
         {
-            if (instance && fork_needs_lock)
+            if (instance)
             {
+                thread_cancelRestore(fork_cancel_state);
                 ConservativeGC.gcLock.unlock();
 
                 // make sure the threads and event handles are reinitialized in a fork
@@ -3525,9 +3538,10 @@ Lmark:
                         cstdlib.free(Gcx.instance.scanThreadData);
                         Gcx.instance.numScanThreads = 0;
                         Gcx.instance.scanThreadData = null;
-                        Gcx.instance.busyThreads = 0;
+                        atomicStore(Gcx.instance.busyThreads, 0);
+                        (cast() Gcx.instance.stackLock) = AlignedSpinLock(SpinLock.Contention.brief);
 
-                        memset(&Gcx.instance.evStart, 0, Gcx.instance.evStart.sizeof);
+                        memset(&Gcx.instance.evStackFilled, 0, Gcx.instance.evStackFilled.sizeof);
                         memset(&Gcx.instance.evDone, 0, Gcx.instance.evDone.sizeof);
                     }
                 }
@@ -3551,12 +3565,12 @@ Lmark:
     uint numScanThreads;
     ScanThreadData* scanThreadData;
 
-    Event evStart;
+    Event evStackFilled;
     Event evDone;
 
     shared uint busyThreads;
     shared uint stoppedThreads;
-    bool stopGC;
+    shared bool stopGC;
 
     void markParallel() nothrow
     {
@@ -3565,25 +3579,24 @@ Lmark:
         if (toscanRoots.empty)
             return;
 
-        void** pbot = toscanRoots._p;
-        void** ptop = toscanRoots._p + toscanRoots._length;
+        auto pbot = toscanRoots.ptr;
+        auto ptop = pbot + toscanRoots.length;
 
         debug(PARALLEL_PRINTF) printf("markParallel\n");
 
-        size_t pointersPerThread = toscanRoots._length / (numScanThreads + 1);
+        size_t pointersPerThread = toscanRoots.length / (numScanThreads + 1);
         if (pointersPerThread > 0)
         {
             void pushRanges(bool precise)()
             {
-                alias toscan = scanStack!precise;
-                toscan.stackLock.lock();
+                stackLock.lock();
 
                 for (int idx = 0; idx < numScanThreads; idx++)
                 {
-                    toscan.push(ScanRange!precise(pbot, pbot + pointersPerThread));
+                    scanStack!precise.push(ScanRange!precise(pbot, pbot + pointersPerThread));
                     pbot += pointersPerThread;
                 }
-                toscan.stackLock.unlock();
+                stackLock.unlock();
             }
             if (ConservativeGC.isPrecise)
                 pushRanges!true();
@@ -3592,21 +3605,22 @@ Lmark:
         }
         assert(pbot < ptop);
 
-        busyThreads.atomicOp!"+="(1); // main thread is busy
-
-        evStart.setIfInitialized();
+        evStackFilled.setIfInitialized(); // background threads start now
 
         debug(PARALLEL_PRINTF) printf("mark %lld roots\n", cast(ulong)(ptop - pbot));
 
+        void pullLoop(bool precise)()
+        {
+            mark!(precise, true, true)(ScanRange!precise(pbot, ptop));
+
+            while (pullFromScanStackImpl!precise())
+                evDone.wait(1.msecs);
+        }
         if (ConservativeGC.isPrecise)
-            mark!(true, true, true)(ScanRange!true(pbot, ptop, null));
+            pullLoop!(true)();
         else
-            mark!(false, true, true)(ScanRange!false(pbot, ptop));
+            pullLoop!(false)();
 
-        busyThreads.atomicOp!"-="(1);
-
-        debug(PARALLEL_PRINTF) printf("waitForScanDone\n");
-        pullFromScanStack();
         debug(PARALLEL_PRINTF) printf("waitForScanDone done\n");
     }
 
@@ -3654,7 +3668,7 @@ Lmark:
         if (!scanThreadData)
             onOutOfMemoryError();
 
-        evStart.initialize(false, false);
+        evStackFilled.initialize(true, false);
         evDone.initialize(false, false);
 
         version (Posix)
@@ -3696,8 +3710,8 @@ Lmark:
         stopGC = true;
         while (atomicLoad(stoppedThreads) < startedThreads && !allThreadsDead)
         {
-            evStart.setIfInitialized();
-            evDone.wait(dur!"msecs"(1));
+            evStackFilled.setIfInitialized();
+            evDone.wait(1.msecs);
         }
 
         for (int idx = 0; idx < numScanThreads; idx++)
@@ -3709,8 +3723,8 @@ Lmark:
             }
         }
 
+        evStackFilled.terminate();
         evDone.terminate();
-        evStart.terminate();
 
         cstdlib.free(scanThreadData);
         // scanThreadData = null; // keep non-null to not start again after shutdown
@@ -3723,26 +3737,24 @@ Lmark:
     {
         while (!stopGC)
         {
-            evStart.wait();
+            evStackFilled.wait();
             pullFromScanStack();
-            evDone.setIfInitialized();
+            evDone.setIfInitialized(); // tell main loop we are done
         }
         stoppedThreads.atomicOp!"+="(1);
+        evDone.setIfInitialized(); // wake up main
     }
 
-    void pullFromScanStack() nothrow
+    bool pullFromScanStack() nothrow
     {
         if (ConservativeGC.isPrecise)
-            pullFromScanStackImpl!true();
+            return pullFromScanStackImpl!true();
         else
-            pullFromScanStackImpl!false();
+            return pullFromScanStackImpl!false();
     }
 
-    void pullFromScanStackImpl(bool precise)() nothrow
+    bool pullFromScanStackImpl(bool precise)() nothrow
     {
-        if (atomicLoad(busyThreads) == 0)
-            return;
-
         version (Posix) debug (PARALLEL_PRINTF)
         {
             import core.sys.posix.pthread : pthread_self, pthread_t;
@@ -3751,29 +3763,60 @@ Lmark:
         }
 
         ScanRange!precise rng;
-        alias toscan = scanStack!precise;
 
-        while (atomicLoad(busyThreads) > 0)
+        stackLock.lock();
+        while (!scanStack!precise.empty())
         {
-            if (toscan.empty)
-            {
-                evDone.wait(dur!"msecs"(1));
-                continue;
-            }
-
             busyThreads.atomicOp!"+="(1);
-            if (toscan.popLocked(rng))
+            scanStack!precise.pop(rng);
+            if (scanStack!precise.empty)
+                evStackFilled.reset();
+            stackLock.unlock();
+
+            version (Posix) debug (PARALLEL_PRINTF)
             {
-                version (Posix) debug (PARALLEL_PRINTF)
-                {
-                    printf("scanBackground thread %d scanning range [%p,%lld] from stack\n",
-                        threadId, rng.pbot, cast(long) (rng.ptop - rng.pbot));
-                }
-                mark!(precise, true, true)(rng);
+                printf("scanBackground thread %d scanning range [%p,%lld] from stack\n",
+                    threadId, rng.pbot, cast(long) (rng.ptop - rng.pbot));
             }
+            mark!(precise, true, true)(rng);
+            // returns here only if an empty scan stack has been seen
+
+            stackLock.lock();
             busyThreads.atomicOp!"-="(1);
         }
+        bool cont = busyThreads > 0;
+        stackLock.unlock();
+
         version (Posix) debug (PARALLEL_PRINTF) printf("scanBackground thread %d done\n", threadId);
+        return cont;
+    }
+
+    auto stackLock = shared(AlignedSpinLock)(SpinLock.Contention.brief);
+
+    void scanStackPushLocked(bool precise)(ScanRange!precise[] ranges)
+    {
+        stackLock.lock();
+        scope(exit) stackLock.unlock();
+        bool wasEmpty = scanStack!precise.empty;
+
+        scanStack!precise.pushReverse(ranges);
+
+        if (wasEmpty)
+            evStackFilled.setIfInitialized();
+    }
+
+    bool scanStackPopLocked(bool precise)(ref ScanRange!precise rng)
+    {
+        stackLock.lock();
+        scope(exit) stackLock.unlock();
+        if (scanStack!precise.empty())
+            return false;
+
+        scanStack!precise.pop(rng);
+
+        if (scanStack!precise.empty())
+            evStackFilled.reset();
+        return true;
     }
 }
 
@@ -5253,6 +5296,7 @@ unittest
 // https://issues.dlang.org/show_bug.cgi?id=19281
 debug (SENTINEL) {} else // cannot allow >= 4 GB with SENTINEL
 debug (MEMSTOMP) {} else // might take too long to actually touch the memory
+version (OnlyLowMemUnittests) {} else
 version (D_LP64) unittest
 {
     static if (__traits(compiles, os_physical_mem))
@@ -5364,6 +5408,52 @@ unittest
         // adjacent allocations likely but not guaranteed
         printf("unexpected pointers %p and %p\n", p.ptr, q.ptr);
     }
+}
+
+// https://github.com/dlang/dmd/issues/22004
+@safe unittest
+{
+outer:
+    foreach (i; 1 .. 100)
+    {
+        foreach (j; 0 .. i)
+        {
+            int[] orig;
+            orig.length = i;
+            if (orig.capacity == orig.length)
+                // skip legitimate realloc cases
+                continue outer;
+
+            int[] slice = orig[j .. $];
+            assert(slice.capacity != 0);
+
+            auto ptr = &slice[0];
+            slice.length += 1;
+            // should not have realloc'd
+            assert(&slice[0] is ptr);
+        }
+    }
+}
+
+// https://github.com/dlang/dmd/issues/21615
+debug(SENTINEL) {} else // no additional capacity with SENTINEL
+version (OnlyLowMemUnittests) {} else
+@safe unittest
+{
+    size_t numReallocations = 0;
+    ubyte[] buffer = new ubyte[4096];
+    auto p = &buffer[0];
+    foreach (i; 0 .. 1000) {
+        buffer.length += 4096;
+        if (p !is &buffer[0])
+        {
+            ++numReallocations;
+            p = &buffer[0];
+        }
+    }
+
+    // pick a decently small number, it's unclear where this memory will start out.
+    assert(numReallocations <= 5);
 }
 
 /* ============================ MEMSTOMP =============================== */

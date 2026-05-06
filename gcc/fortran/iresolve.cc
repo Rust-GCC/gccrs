@@ -103,6 +103,25 @@ check_charlen_present (gfc_expr *source)
     }
 }
 
+static gfc_intrinsic_sym *
+copy_intrinsic_sym (const gfc_intrinsic_sym *src)
+{
+  gfc_intrinsic_sym *copy = XCNEW (gfc_intrinsic_sym);
+  gfc_intrinsic_arg *head = NULL;
+  gfc_intrinsic_arg **tail = &head;
+
+  *copy = *src;
+  for (const gfc_intrinsic_arg *arg = src->formal; arg; arg = arg->next)
+    {
+      *tail = XCNEW (gfc_intrinsic_arg);
+      **tail = *arg;
+      (*tail)->next = NULL;
+      tail = &(*tail)->next;
+    }
+  copy->formal = head;
+  return copy;
+}
+
 /* Helper function for resolving the "mask" argument.  */
 
 static void
@@ -729,6 +748,25 @@ gfc_resolve_cosh (gfc_expr *f, gfc_expr *x)
   f->value.function.name
     = gfc_get_string ("__cosh_%c%d", gfc_type_letter (x->ts.type),
 		      gfc_type_abi_kind (&x->ts));
+}
+
+
+void
+gfc_resolve_coshape (gfc_expr *f, gfc_expr *array, gfc_expr *kind)
+{
+  f->ts.type = BT_INTEGER;
+  if (kind)
+    f->ts.kind = mpz_get_si (kind->value.integer);
+  else
+    f->ts.kind = gfc_default_integer_kind;
+
+  f->value.function.name
+    = gfc_get_string ("__coshape_%c%d", gfc_type_letter (array->ts.type),
+		      gfc_type_abi_kind (&array->ts));
+  f->rank = 1;
+  f->corank = 0;
+  f->shape = gfc_get_shape (1);
+  mpz_init_set_si (f->shape[0], array->corank);
 }
 
 
@@ -2939,7 +2977,11 @@ gfc_resolve_spread (gfc_expr *f, gfc_expr *source, gfc_expr *dim,
     gfc_resolve_substring_charlen (source);
 
   if (source->ts.type == BT_CHARACTER)
-    check_charlen_present (source);
+    {
+      check_charlen_present (source);
+      f->value.function.isym = copy_intrinsic_sym (f->value.function.isym);
+      f->value.function.isym->formal->ts = source->ts;
+    }
 
   f->ts = source->ts;
   f->rank = source->rank + 1;

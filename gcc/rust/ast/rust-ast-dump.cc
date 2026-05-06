@@ -105,3 +105,16 @@ debug (Rust::AST::Visitable &v)
 {
   Rust::AST::Dump::debug (v);
 }
+
+void
+debug (Rust::AST::Crate &crate)
+{
+  for (auto &inner_attr : crate.get_inner_attrs ())
+    {
+      debug (inner_attr);
+    }
+  for (auto &item : crate.items)
+    {
+      debug (*item);
+    }
+}

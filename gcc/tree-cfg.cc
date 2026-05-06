@@ -1988,14 +1988,16 @@ replace_uses_by (tree name, tree val)
 		if (op && TREE_CODE (op) == ADDR_EXPR)
 		  recompute_tree_invariant_for_addr_expr (op);
 	      }
+	  update_stmt (stmt);
 
 	  if (fold_stmt (&gsi))
-	    stmt = gsi_stmt (gsi);
+	    {
+	      stmt = gsi_stmt (gsi);
+	      update_stmt (stmt);
+	    }
 
 	  if (maybe_clean_or_replace_eh_stmt (orig_stmt, stmt))
 	    gimple_purge_dead_eh_edges (gimple_bb (stmt));
-
-	  update_stmt (stmt);
 	}
     }
 
@@ -6412,7 +6414,7 @@ gimple_split_block_before_cond_jump (basic_block bb)
 static bool
 gimple_can_duplicate_bb_p (const_basic_block bb)
 {
-  gimple *last = last_nondebug_stmt (CONST_CAST_BB (bb));
+  gimple *last = last_nondebug_stmt (const_cast<basic_block> (bb));
 
   /* Do checks that can only fail for the last stmt, to minimize the work in the
      stmt loop.  */
@@ -6437,7 +6439,7 @@ gimple_can_duplicate_bb_p (const_basic_block bb)
       return false;
   }
 
-  for (gimple_stmt_iterator gsi = gsi_start_bb (CONST_CAST_BB (bb));
+  for (gimple_stmt_iterator gsi = gsi_start_bb (const_cast<basic_block> (bb));
        !gsi_end_p (gsi); gsi_next (&gsi))
     {
       gimple *g = gsi_stmt (gsi);
@@ -9362,6 +9364,7 @@ struct cfg_hooks gimple_cfg_hooks = {
   gimple_verify_flow_info,
   gimple_dump_bb,		/* dump_bb  */
   gimple_dump_bb_for_graph,	/* dump_bb_for_graph  */
+  gimple_dump_bb_as_sarif_properties,
   create_bb,			/* create_basic_block  */
   gimple_redirect_edge_and_branch, /* redirect_edge_and_branch  */
   gimple_redirect_edge_and_branch_force, /* redirect_edge_and_branch_force  */

@@ -39,6 +39,10 @@ along with GCC; see the file COPYING3.  If not see
    permitted for a constexpr object.  */
 #define C_TYPE_FIELDS_NON_CONSTEXPR(TYPE) TREE_LANG_FLAG_4 (TYPE)
 
+/* In a RECORD_TYPE or UNION_TYPE, nonzero if any component has a
+   counted_by attribute.  */
+#define C_TYPE_FIELDS_HAS_COUNTED_BY(TYPE) TYPE_LANG_FLAG_3 (TYPE)
+
 /* In a RECORD_TYPE or UNION_TYPE or ENUMERAL_TYPE
    nonzero if the definition of the type has already started.  */
 #define C_TYPE_BEING_DEFINED(TYPE) TYPE_LANG_FLAG_0 (TYPE)
@@ -803,7 +807,31 @@ extern bool null_pointer_constant_p (const_tree);
 inline bool
 c_type_variably_modified_p (tree t)
 {
-  return error_mark_node != t && C_TYPE_VARIABLY_MODIFIED (t);
+  if (error_mark_node == t)
+    return false;
+  if (C_TYPE_VARIABLY_MODIFIED (t))
+    return true;
+  if (TYPE_STRUCTURAL_EQUALITY_P (t))
+    {
+      /* The flag may not have been set yet because of incomplete
+	 structure or union types completed later.  */
+      switch (TREE_CODE (t))
+	{
+	case ARRAY_TYPE:
+	case FUNCTION_TYPE:
+	case POINTER_TYPE:
+	  /* Recurse.  */
+	  if (c_type_variably_modified_p (TREE_TYPE (t)))
+	    {
+	      C_TYPE_VARIABLY_MODIFIED (t) = 1;
+	      return true;
+	    }
+	  break;
+	default:
+	  break;
+	}
+    }
+  return false;
 }
 
 inline bool
@@ -927,6 +955,7 @@ extern tree c_build_function_call_vec (location_t, const vec<location_t>&,
 				       vec<tree, va_gc> *);
 extern tree c_omp_clause_copy_ctor (tree, tree, tree);
 extern tree c_reconstruct_complex_type (tree, tree);
+extern tree c_type_canonical (tree);
 extern tree c_build_type_attribute_variant (tree ntype, tree attrs);
 extern tree c_build_pointer_type (tree type);
 extern tree c_build_array_type (tree type, tree domain);
@@ -980,11 +1009,12 @@ extern tree c_check_omp_declare_reduction_r (tree *, int *, void *);
 extern tree c_omp_mapper_id (tree);
 extern tree c_omp_mapper_decl (tree);
 extern void c_omp_scan_mapper_bindings (location_t, tree *, tree);
-extern tree c_omp_instantiate_mappers (tree);
 extern bool c_check_in_current_scope (tree);
 extern void c_pushtag (location_t, tree, tree);
 extern void c_bind (location_t, tree, bool);
 extern bool tag_exists_p (enum tree_code, tree);
+
+extern void verify_counted_by_for_top_anonymous_type (tree);
 
 /* In c-errors.cc */
 extern bool pedwarn_c90 (location_t, diagnostics::option_id, const char *, ...)

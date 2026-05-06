@@ -2691,6 +2691,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     template<input_iterator _It2> friend class basic_const_iterator;
 
   public:
+    // _GLIBCXX_RESOLVE_LIB_DEFECTS
+    // 4253. basic_const_iterator should provide iterator_type
+    using iterator_type = _It;
     using iterator_concept = decltype(_S_iter_concept());
     using value_type = iter_value_t<_It>;
     using difference_type = iter_difference_t<_It>;

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2026, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -23,7 +23,7 @@
 --                                                                          --
 ------------------------------------------------------------------------------
 
-with Errid; use Errid;
+with Errid;    use Errid;
 with Namet.Sp; use Namet.Sp;
 with Stringt;  use Stringt;
 with Uintp;    use Uintp;

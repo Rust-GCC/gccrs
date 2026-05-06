@@ -142,6 +142,23 @@
 {
     import std.concurrency;
 
+    import core.time : msecs;
+    import core.thread : Thread;
+
+    auto tid = spawn((int x) {
+        Thread.sleep(10.msecs);
+        ownerTid.send(x * 2);
+    }, 21);
+
+    join(tid); // Wait for thread to finish
+    auto result = receiveOnly!int();
+    assert(result == 42);
+}
+
+@system unittest
+{
+    import std.concurrency;
+
     auto tid = spawn({
         int i;
         while (i < 9)

@@ -25,6 +25,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "fold-const.h"
 #include "diagnostic.h"
 #include "tree-diagnostic.h"
+#include "value-relation.h"
+#include "range-op.h"
 
 #include "text-art/dump.h"
 
@@ -676,8 +678,9 @@ svalue::cmp_ptr (const svalue *sval1, const svalue *sval2)
       {
 	const compound_svalue *compound_sval1 = (const compound_svalue *)sval1;
 	const compound_svalue *compound_sval2 = (const compound_svalue *)sval2;
-	return binding_map::cmp (compound_sval1->get_map (),
-				 compound_sval2->get_map ());
+	return concrete_binding_map::cmp
+	  (compound_sval1->get_concrete_bindings (),
+	   compound_sval2->get_concrete_bindings ());
       }
       break;
     case SK_CONJURED:
@@ -878,6 +881,36 @@ svalue::maybe_get_type_from_typeinfo () const
       return TREE_TYPE (DECL_NAME (decl_reg->get_decl ()));
 
   return NULL_TREE;
+}
+
+/* Return true if we can get a value_range for TYPE (which could be
+   NULL_TREE); false otherwise.  */
+
+static bool
+type_can_have_value_range_p (tree type)
+{
+  if (!type)
+    return false;
+  if (irange::supports_p (type))
+    return true;
+  if (frange::supports_p (type))
+    return true;
+  return false;
+}
+
+/* Base implementation of svalue::maybe_get_value_range_1 vfunc.
+   If there is a suitable underlying type, write a "varying" for it to OUT
+   (for "any value of that type") and return true; otherwise return false.  */
+
+bool
+svalue::maybe_get_value_range_1 (value_range &out) const
+{
+  tree type = get_type ();
+  if (!type_can_have_value_range_p (type))
+    return false;
+
+  out.set_varying (type);
+  return true;
 }
 
 /* class region_svalue : public svalue.  */
@@ -1165,6 +1198,22 @@ constant_svalue::all_zeroes_p () const
   return zerop (m_cst_expr);
 }
 
+
+/* Implementation of svalue::maybe_get_value_range_1 for constant_svalue.
+   If there is a suitable underlying type, write the value_range for the
+   single value of m_cst_expr to OUT and return true; otherwise return
+   false.  */
+
+bool
+constant_svalue::maybe_get_value_range_1 (value_range &out) const
+{
+  if (!type_can_have_value_range_p (get_type ()))
+    return false;
+
+  out = value_range (m_cst_expr, m_cst_expr);
+  return true;
+}
+
 /* class unknown_svalue : public svalue.  */
 
 /* Implementation of svalue::dump_to_pp vfunc for unknown_svalue.  */
@@ -1227,6 +1276,14 @@ unknown_svalue::maybe_fold_bits_within (tree type,
   /* Bits within an unknown_svalue are themselves unknown.  */
   return mgr->get_or_create_unknown_svalue (type);
 }
+
+bool
+unknown_svalue::maybe_get_value_range_1 (value_range &) const
+{
+  /* Don't attempt to participate in range ops.  */
+  return false;
+}
+
 
 /* Get a string for KIND for use in debug dumps.  */
 
@@ -1309,8 +1366,7 @@ poisoned_svalue::maybe_fold_bits_within (tree type,
   return mgr->get_or_create_poisoned_svalue (m_kind, type);
 }
 
-/* class setjmp_svalue's implementation is in engine.cc, so that it can use
-   the declaration of exploded_node.  */
+/* class setjmp_svalue's implementation is in setjmp-longjmp.cc.  */
 
 /* class initial_svalue : public svalue.  */
 
@@ -1518,6 +1574,34 @@ unaryop_svalue::maybe_fold_bits_within (tree type,
   return nullptr;
 }
 
+/* Implementation of svalue::maybe_get_value_range_1 for unaryop_svalue.  */
+
+bool
+unaryop_svalue::maybe_get_value_range_1 (value_range &out) const
+{
+  tree type = get_type ();
+  if (!type_can_have_value_range_p (type))
+    return false;
+
+  value_range arg_vr;
+  if (m_arg->maybe_get_value_range (arg_vr))
+    {
+      range_op_handler handler (m_op);
+      if (handler
+	  && handler.operand_check_p (type, arg_vr.type (), type))
+	{
+	  /* For unary ops, range_op_hander::fold_range expects
+	     a VARYING of the unknown value as the 2nd operand.  */
+	  value_range varying (type);
+	  varying.set_varying (type);
+	  out.set_type (type);
+	  if (handler.fold_range (out, type, arg_vr, varying))
+	    return true;
+	}
+    }
+  return false;
+}
+
 /* class binop_svalue : public svalue.  */
 
 /* Return whether OP be printed as an infix operator.  */
@@ -1632,6 +1716,38 @@ sub_svalue::sub_svalue (symbol::id_t id,
   m_parent_svalue (parent_svalue), m_subregion (subregion)
 {
   gcc_assert (parent_svalue->can_have_associated_state_p ());
+}
+
+/* Implementation of svalue::maybe_get_value_range_1 for binop_svalue.  */
+
+bool
+binop_svalue::maybe_get_value_range_1 (value_range &out) const
+{
+  tree type = get_type ();
+  if (!type_can_have_value_range_p (type))
+    return false;
+
+  /* Avoid cases where we have been sloppy about types.  */
+  if (!m_arg0->get_type ())
+    return false;
+  if (!m_arg1->get_type ())
+    return false;
+  if (!range_compatible_p (m_arg0->get_type (), m_arg1->get_type ()))
+    return false;
+
+  value_range lhs, rhs;
+  if (m_arg0->maybe_get_value_range (lhs))
+    if (m_arg1->maybe_get_value_range (rhs))
+      {
+	range_op_handler handler (m_op);
+	if (handler)
+	  {
+	    out.set_type (type);
+	    if (handler.fold_range (out, get_type (), lhs, rhs))
+	      return true;
+	  }
+      }
+  return false;
 }
 
 /* Implementation of svalue::dump_to_pp vfunc for sub_svalue.  */
@@ -2235,19 +2351,29 @@ unmergeable_svalue::implicitly_live_p (const svalue_set *live_svalues,
 
 compound_svalue::compound_svalue (symbol::id_t id,
 				  tree type,
-				  const binding_map &map)
-: svalue (calc_complexity (map), id, type), m_map (map)
+				  concrete_binding_map &&map)
+: svalue (map.calc_complexity (), id, type), m_map (std::move (map))
 {
 #if CHECKING_P
   for (auto iter : *this)
     {
-      /* All keys within the underlying binding_map are required to be concrete,
-	 not symbolic.  */
-      const binding_key *key = iter.m_key;
-      gcc_assert (key->concrete_p ());
-
       /* We don't nest compound svalues.  */
-      const svalue *sval = iter.m_sval;
+      const svalue *sval = iter.second;
+      gcc_assert (sval->get_kind () != SK_COMPOUND);
+    }
+#endif
+}
+
+compound_svalue::compound_svalue (symbol::id_t id,
+				  tree type,
+				  const concrete_binding_map &map)
+: svalue (map.calc_complexity (), id, type), m_map (map)
+{
+#if CHECKING_P
+  for (auto iter : *this)
+    {
+      /* We don't nest compound svalues.  */
+      const svalue *sval = iter.second;
       gcc_assert (sval->get_kind () != SK_COMPOUND);
     }
 #endif
@@ -2310,28 +2436,8 @@ void
 compound_svalue::accept (visitor *v) const
 {
   for (auto iter : m_map)
-    {
-      //iter.first.accept (v);
-      iter.m_sval->accept (v);
-    }
+    iter.second->accept (v);
   v->visit_compound_svalue (this);
-}
-
-/* Calculate what the complexity of a compound_svalue instance for MAP
-   will be, based on the svalues bound within MAP.  */
-
-complexity
-compound_svalue::calc_complexity (const binding_map &map)
-{
-  unsigned num_child_nodes = 0;
-  unsigned max_child_depth = 0;
-  for (auto iter : map)
-    {
-      const complexity &sval_c = iter.m_sval->get_complexity ();
-      num_child_nodes += sval_c.m_num_nodes;
-      max_child_depth = MAX (max_child_depth, sval_c.m_max_depth);
-    }
-  return complexity (num_child_nodes + 1, max_child_depth + 1);
 }
 
 /* Implementation of svalue::maybe_fold_bits_within vfunc
@@ -2342,65 +2448,56 @@ compound_svalue::maybe_fold_bits_within (tree type,
 					 const bit_range &bits,
 					 region_model_manager *mgr) const
 {
-  binding_map result_map (*mgr->get_store_manager ());
+  concrete_binding_map result_map;
   for (auto iter : m_map)
     {
-      const binding_key *key = iter.m_key;
-      if (const concrete_binding *conc_key
-	  = key->dyn_cast_concrete_binding ())
-	{
-	  /* Ignore concrete bindings outside BITS.  */
-	  if (!conc_key->get_bit_range ().intersects_p (bits))
-	    continue;
+      const bit_range &iter_bits = iter.first;
 
-	  const svalue *sval = iter.m_sval;
-	  /* Get the position of conc_key relative to BITS.  */
-	  bit_range result_location (conc_key->get_start_bit_offset ()
-				     - bits.get_start_bit_offset (),
-				     conc_key->get_size_in_bits ());
-	  /* If conc_key starts after BITS, trim off leading bits
-	     from the svalue and adjust binding location.  */
-	  if (result_location.m_start_bit_offset < 0)
-	    {
-	      bit_size_t leading_bits_to_drop
-		= -result_location.m_start_bit_offset;
-	      result_location = bit_range
-		(0, result_location.m_size_in_bits - leading_bits_to_drop);
-	      bit_range bits_within_sval (leading_bits_to_drop,
-					  result_location.m_size_in_bits);
-	      /* Trim off leading bits from iter_sval.  */
-	      sval = mgr->get_or_create_bits_within (NULL_TREE,
-						     bits_within_sval,
-						     sval);
-	    }
-	  /* If conc_key finishes after BITS, trim off trailing bits
-	     from the svalue and adjust binding location.  */
-	  if (conc_key->get_next_bit_offset ()
-	      > bits.get_next_bit_offset ())
-	    {
-	      bit_size_t trailing_bits_to_drop
-		= (conc_key->get_next_bit_offset ()
-		   - bits.get_next_bit_offset ());
-	      result_location = bit_range
-		(result_location.m_start_bit_offset,
-		 result_location.m_size_in_bits - trailing_bits_to_drop);
-	      bit_range bits_within_sval (0,
-					  result_location.m_size_in_bits);
-	      /* Trim off leading bits from iter_sval.  */
-	      sval = mgr->get_or_create_bits_within (NULL_TREE,
-						     bits_within_sval,
-						     sval);
-	    }
-	  const concrete_binding *offset_conc_key
-	    = mgr->get_store_manager ()->get_concrete_binding
-		(result_location);
-	  result_map.put (offset_conc_key, sval);
+      /* Ignore concrete bindings outside BITS.  */
+      if (!iter_bits.intersects_p (bits))
+	continue;
+
+      const svalue *sval = iter.second;
+      /* Get the position of iter_bits relative to BITS.  */
+      bit_range result_location (iter_bits.get_start_bit_offset ()
+				 - bits.get_start_bit_offset (),
+				 iter_bits.m_size_in_bits);
+      /* If iter_bits starts after BITS, trim off leading bits
+	 from the svalue and adjust binding location.  */
+      if (result_location.m_start_bit_offset < 0)
+	{
+	  bit_size_t leading_bits_to_drop
+	    = -result_location.m_start_bit_offset;
+	  result_location = bit_range
+	    (0, result_location.m_size_in_bits - leading_bits_to_drop);
+	  bit_range bits_within_sval (leading_bits_to_drop,
+				      result_location.m_size_in_bits);
+	  /* Trim off leading bits from iter_sval.  */
+	  sval = mgr->get_or_create_bits_within (NULL_TREE,
+						 bits_within_sval,
+						 sval);
 	}
-      else
-	/* If we have any symbolic keys we can't get it as bits.  */
-	return nullptr;
+      /* If iter_bits finishes after BITS, trim off trailing bits
+	 from the svalue and adjust binding location.  */
+      if (iter_bits.get_next_bit_offset ()
+	  > bits.get_next_bit_offset ())
+	{
+	  bit_size_t trailing_bits_to_drop
+	    = (iter_bits.get_next_bit_offset ()
+	       - bits.get_next_bit_offset ());
+	  result_location = bit_range
+	    (result_location.m_start_bit_offset,
+	     result_location.m_size_in_bits - trailing_bits_to_drop);
+	  bit_range bits_within_sval (0,
+				      result_location.m_size_in_bits);
+	  /* Trim off leading bits from iter_sval.  */
+	  sval = mgr->get_or_create_bits_within (NULL_TREE,
+						 bits_within_sval,
+						 sval);
+	}
+      result_map.insert (result_location, sval);
     }
-  return mgr->get_or_create_compound_svalue (type, result_map);
+  return mgr->get_or_create_compound_svalue (type, std::move (result_map));
 }
 
 /* class conjured_svalue : public svalue.  */

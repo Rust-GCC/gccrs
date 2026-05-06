@@ -107,6 +107,8 @@ struct token
   token &
   operator= (token &&other);
 
+  void print (pretty_printer *pp) const;
+
   json::value *m_parent;
   union u
   {
@@ -174,6 +176,7 @@ class value
   static int compare (const json::value &val_a, const json::value &val_b);
 
   const pointer::token &get_pointer_token () const { return m_pointer_token; }
+  void print_pointer (pretty_printer *pp) const;
 
   pointer::token m_pointer_token;
 };
@@ -219,8 +222,8 @@ class object : public value
   value *get (const char *key) const;
   const map_t &get_map () const { return m_map; }
 
-  void set_string (const char *key, const char *utf8_value);
-  void set_integer (const char *key, long v);
+  const json::string *set_string (const char *key, const char *utf8_value);
+  const json::integer_number *set_integer (const char *key, long v);
   void set_float (const char *key, double v);
 
   /* Set to literal true/false.  */
@@ -267,7 +270,7 @@ class array : public value
   array *dyn_cast_array () final override { return this; }
 
   void append (value *v);
-  void append_string (const char *utf8_value);
+  const json::string *append_string (const char *utf8_value);
 
   /* Append V to this array, requiring V
      to be a specific json::value subclass.

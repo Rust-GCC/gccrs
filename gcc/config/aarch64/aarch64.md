@@ -18,6 +18,27 @@
 ;; along with GCC; see the file COPYING3.  If not see
 ;; <http://www.gnu.org/licenses/>.
 
+;; Code organization:
+;
+;; The taxonomic lines dividing instructions into aarch64, simd, sve, sve2,
+;; and sme are perhaps a little non-obvious.
+;;
+;; The code is organized by the following rough principles:
+;;
+;; - aarch64.md for shared parts of the architecture (such as defining
+;;     registers and constants) and for instructions that operate on
+;;     general-purpose registers.
+;; - aarch64-simd.md for instructions that operate on Advanced SIMD
+;;     registers.
+;; - aarch64-sve.md for the baseline SVE instructions which predate SVE2 and
+;;     SME.
+;; - aarch64-sve2.md for any scalable SIMD instruction that is enabled by an
+;;     SVE2+ or SME+ extension and doesn't directly touch SME state (such as ZA,
+;;     or ZT0) and only involves regular SVE vectors and predicates.
+;; - aarch64-sme.md for any scalable SIMD instruction that is clearly
+;;     streaming mode only.  This usually means it uses the ZA or ZT0 register
+;;     or other SME state.
+
 ;; Register numbers
 (define_constants
   [
@@ -141,7 +162,7 @@
     ;; actual contents of ZA and PSTATE.ZA with the current function's
     ;; ZA_REGNUM and SME_STATE_REGNUM.  Conceptually, these extra writes
     ;; do not change the value of SME_STATE_REGNUM.  They simply act as
-    ;; sequencing points.  They means that all direct accesses to ZA can
+    ;; sequencing points.  They mean that all direct accesses to ZA can
     ;; depend only on ZA_REGNUM and SME_STATE_REGNUM, rather than also
     ;; depending on ZA_SAVED_REGNUM etc.
     (SME_STATE_REGNUM 89)
@@ -371,6 +392,7 @@
     UNSPEC_SYSREG_WDI
     UNSPEC_SYSREG_WTI
     UNSPEC_PLDX
+    UNSPEC_PLDIR
     ;; Represents an SVE-style lane index, in which the indexing applies
     ;; within the containing 128-bit block.
     UNSPEC_SVE_LANE_SELECT
@@ -1337,6 +1359,17 @@
   [(set_attr "type" "load_4")]
 )
 
+(define_insn "aarch64_pldir"
+  [(unspec [(match_operand:DI 0 "aarch64_prefetch_operand" "Dp")]
+	     UNSPEC_PLDIR)]
+  ""
+  {
+    operands[0] = gen_rtx_MEM (DImode, operands[0]);
+    return "prfm\\tir, %0";
+  }
+  [(set_attr "type" "load_4")]
+)
+
 (define_insn "aarch64_pldx"
   [(unspec [(match_operand 0 "" "")
 	    (match_operand:DI 1 "aarch64_prefetch_operand" "Dp")] UNSPEC_PLDX)]
@@ -1402,7 +1435,7 @@
 
 (define_insn "simple_return"
   [(simple_return)]
-  ""
+  "aarch64_use_simple_return_insn_p ()"
   {
     output_asm_insn ("ret", operands);
     return aarch64_sls_barrier (aarch64_harden_sls_retbr_p ());
@@ -1946,6 +1979,18 @@
 	rtx tmp = gen_reg_rtx (intmode);
 	emit_move_insn (tmp, gen_int_mode (ival, intmode));
 	emit_move_insn (operands[0], gen_lowpart (<MODE>mode, tmp));
+	DONE;
+      }
+
+    /* Expand into a literal load using anchors.  */
+    if (GET_CODE (operands[1]) == CONST_DOUBLE
+	&& !aarch64_can_const_movi_rtx_p (operands[1], <MODE>mode)
+	&& !aarch64_float_const_representable_p (operands[1])
+	&& !aarch64_float_const_zero_rtx_p (operands[1])
+	&& !aarch64_float_const_rtx_p (operands[1]))
+      {
+	operands[1] = force_const_mem (<MODE>mode, operands[1]);
+	emit_move_insn (operands[0], operands[1]);
 	DONE;
       }
   }
@@ -6133,7 +6178,8 @@
 	  (match_operand:GPI 1 "register_operand" "r")
 	  (minus:QI (match_operand 2 "const_int_operand" "n")
 		    (match_operand:QI 3 "register_operand" "r"))))]
-  "INTVAL (operands[2]) == GET_MODE_BITSIZE (<MODE>mode)"
+  "INTVAL (operands[2]) == GET_MODE_BITSIZE (<MODE>mode)
+   || INTVAL (operands[2]) == GET_MODE_BITSIZE (<MODE>mode) - 1"
   "#"
   "&& true"
   [(const_int 0)]
@@ -6143,7 +6189,10 @@
     rtx tmp = (can_create_pseudo_p () ? gen_reg_rtx (SImode)
 	       : gen_lowpart (SImode, operands[0]));
 
-    emit_insn (gen_negsi2 (tmp, subreg_tmp));
+    if (INTVAL (operands[2]) == GET_MODE_BITSIZE (<MODE>mode))
+      emit_insn (gen_negsi2 (tmp, subreg_tmp));
+    else
+      emit_insn (gen_one_cmplsi2 (tmp, subreg_tmp));
 
     rtx and_op = gen_rtx_AND (SImode, tmp,
 			      GEN_INT (GET_MODE_BITSIZE (<MODE>mode) - 1));

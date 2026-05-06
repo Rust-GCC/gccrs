@@ -6,6 +6,9 @@ UrlSuffix(gcc/Static-Analyzer-Options.html#index-Wanalyzer-allocation-size)
 Wanalyzer-deref-before-check
 UrlSuffix(gcc/Static-Analyzer-Options.html#index-Wanalyzer-deref-before-check)
 
+Wanalyzer-div-by-zero
+UrlSuffix(gcc/Static-Analyzer-Options.html#index-Wanalyzer-div-by-zero)
+
 Wanalyzer-double-fclose
 UrlSuffix(gcc/Static-Analyzer-Options.html#index-Wanalyzer-double-fclose)
 
@@ -62,6 +65,15 @@ UrlSuffix(gcc/Static-Analyzer-Options.html#index-Wanalyzer-malloc-leak)
 
 Wanalyzer-mismatching-deallocation
 UrlSuffix(gcc/Static-Analyzer-Options.html#index-Wanalyzer-mismatching-deallocation)
+
+Wanalyzer-mkostemp-redundant-flags
+UrlSuffix(gcc/Static-Analyzer-Options.html#index-Wanalyzer-mkostemp-redundant-flags)
+
+Wanalyzer-mktemp-missing-placeholder
+UrlSuffix(gcc/Static-Analyzer-Options.html#index-Wanalyzer-mktemp-missing-placeholder)
+
+Wanalyzer-mktemp-of-string-literal
+UrlSuffix(gcc/Static-Analyzer-Options.html#index-Wanalyzer-mktemp-of-string-literal)
 
 Wanalyzer-out-of-bounds
 UrlSuffix(gcc/Static-Analyzer-Options.html#index-Wanalyzer-out-of-bounds)
@@ -155,6 +167,9 @@ UrlSuffix(gcc/Static-Analyzer-Options.html#index-Wanalyzer-symbol-too-complex)
 
 Wanalyzer-too-complex
 UrlSuffix(gcc/Static-Analyzer-Options.html#index-Wanalyzer-too-complex)
+
+fanalyzer-assume-nothrow
+UrlSuffix(gcc/Static-Analyzer-Options.html#index-fanalyzer-assume-nothrow)
 
 fanalyzer-checker=
 UrlSuffix(gcc/Static-Analyzer-Options.html#index-fanalyzer-checker)

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2025 Symas Corporation
+ * Copyright (c) 2021-2026 Symas Corporation
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -59,9 +59,9 @@ extern "C"
 void __gg__handle_error(const char *function, const char *msg);
 
 void __gg__file_open(   cblc_file_t *file,
+                  const cblc_field_t *fname,
                         char *filename,
-                        int mode_char,
-                        int is_quoted);
+                        int mode_char);
 
 void __gg__file_reopen(cblc_file_t *file, int mode_char);
 

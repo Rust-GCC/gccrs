@@ -1,5 +1,6 @@
 ! { dg-do compile }
 ! { dg-require-effective-target vect_double }
+! { dg-additional-options "-O3" }
       subroutine shell(nx,ny,nz,q,dq)
       implicit none
       integer i,j,k,l,nx,ny,nz

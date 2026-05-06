@@ -39,10 +39,10 @@ void
 test01()
 {
   using value_type = std::pair<std::pair<X, int>, std::pair<int, X>>;
-  using scoped_alloc
-    = std::scoped_allocator_adaptor<__gnu_test::uneq_allocator<value_type>>;
+  using uneq_alloc = __gnu_test::uneq_allocator<value_type>;
+  using scoped_alloc = std::scoped_allocator_adaptor<uneq_alloc>;
 
-  const scoped_alloc a(10);
+  const scoped_alloc a(uneq_alloc(10));
   std::vector<value_type, scoped_alloc> v(a);
   VERIFY( v.get_allocator().get_personality() == a.get_personality() );
 
@@ -65,11 +65,11 @@ void
 test02()
 {
   using value_type = std::pair<std::pair<X, int>, std::pair<int, X>>;
+  using uneq_alloc = __gnu_test::uneq_allocator<value_type>;
   using scoped_alloc
-    = std::scoped_allocator_adaptor<__gnu_test::uneq_allocator<value_type>,
-				    X::allocator_type>;
+    = std::scoped_allocator_adaptor<uneq_alloc, X::allocator_type>;
 
-  const scoped_alloc a(10, 20);
+  const scoped_alloc a(uneq_alloc(10),  X::allocator_type(20));
   std::vector<value_type, scoped_alloc> v(a);
   VERIFY( v.get_allocator().get_personality() == a.get_personality() );
 

@@ -332,7 +332,7 @@ namespace __gnu_test
       uneq_allocator() _GLIBCXX_USE_NOEXCEPT
       : personality(0) { }
 
-      _GLIBCXX_CONSTEXPR
+      _GLIBCXX_CONSTEXPR explicit
       uneq_allocator(int person) _GLIBCXX_USE_NOEXCEPT
       : personality(person) { }
 

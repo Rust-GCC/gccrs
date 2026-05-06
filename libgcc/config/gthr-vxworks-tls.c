@@ -174,7 +174,7 @@ static __gthread_once_t tls_init_guard = __GTHREAD_ONCE_INIT;
 
 #ifdef __RTP__
 #define TLS_DELETE_HOOK_ARG_DECL TASK_ID tcb ATTRIBUTE_UNUSED
-#define TLS_DELETE_HOOK_ARG NULL
+#define TLS_DELETE_HOOK_ARG ((TASK_ID)0)
 #else
 #define TLS_DELETE_HOOK_ARG_DECL void
 #define TLS_DELETE_HOOK_ARG

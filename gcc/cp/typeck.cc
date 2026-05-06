@@ -1227,8 +1227,8 @@ comp_except_specs (const_tree t1, const_tree t2, int exact)
   if (exact < ce_exact)
     {
       if (exact == ce_type
-	  && (canonical_eh_spec (CONST_CAST_TREE (t1))
-	      == canonical_eh_spec (CONST_CAST_TREE (t2))))
+	  && (canonical_eh_spec (const_cast<tree> (t1))
+	      == canonical_eh_spec (const_cast<tree> (t2))))
 	return true;
 
       /* noexcept(false) is compatible with no exception-specification,
@@ -2556,7 +2556,7 @@ is_bitfield_expr_with_lowered_type (const_tree exp)
     case VAR_DECL:
       if (DECL_HAS_VALUE_EXPR_P (exp))
 	return is_bitfield_expr_with_lowered_type (DECL_VALUE_EXPR
-						   (CONST_CAST_TREE (exp)));
+						   (const_cast<tree> (exp)));
       return NULL_TREE;
 
     case VIEW_CONVERT_EXPR:
@@ -3466,16 +3466,18 @@ complain_about_unrecognized_member (tree access_path, tree name,
 
 /* This function is called by the parser to process a class member
    access expression of the form OBJECT.NAME.  NAME is a node used by
-   the parser to represent a name; it is not yet a DECL.  It may,
-   however, be a BASELINK where the BASELINK_FUNCTIONS is a
-   TEMPLATE_ID_EXPR.  Templates must be looked up by the parser, and
+   the parser to represent a name; it is not yet a DECL, except when
+   SPLICE_P.  It may, however, be a BASELINK where the BASELINK_FUNCTIONS
+   is a TEMPLATE_ID_EXPR.  Templates must be looked up by the parser, and
    there is no reason to do the lookup twice, so the parser keeps the
    BASELINK.  TEMPLATE_P is true iff NAME was explicitly declared to
-   be a template via the use of the "A::template B" syntax.  */
+   be a template via the use of the "A::template B" syntax.  SPLICE_P
+   is true if NAME was designated by a splice-expression.  */
 
 tree
 finish_class_member_access_expr (cp_expr object, tree name, bool template_p,
-				 tsubst_flags_t complain)
+				 tsubst_flags_t complain,
+				 bool splice_p/*=false*/)
 {
   tree expr;
   tree object_type;
@@ -3511,11 +3513,18 @@ finish_class_member_access_expr (cp_expr object, tree name, bool template_p,
 	     lookup until we instantiate the T.  */
 	  || (TREE_CODE (name) == IDENTIFIER_NODE
 	      && IDENTIFIER_CONV_OP_P (name)
-	      && dependent_type_p (TREE_TYPE (name))))
+	      && dependent_type_p (TREE_TYPE (name)))
+	  /* This is OBJECT.[:R:], which is dependent.  */
+	  || dependent_splice_p (name)
+	  /* This is OBJECT.[:T::R:], which is dependent.  */
+	  || (TREE_CODE (name) == SCOPE_REF
+	      && dependent_splice_p (TREE_OPERAND (name, 1))))
 	{
 	dependent:
-	  return build_min_nt_loc (UNKNOWN_LOCATION, COMPONENT_REF,
+	  expr = build_min_nt_loc (UNKNOWN_LOCATION, COMPONENT_REF,
 				   orig_object, orig_name, NULL_TREE);
+	  COMPONENT_REF_SPLICE_P (expr) = splice_p;
+	  return expr;
 	}
     }
   else if (c_dialect_objc ()
@@ -3549,6 +3558,16 @@ finish_class_member_access_expr (cp_expr object, tree name, bool template_p,
   if (BASELINK_P (name))
     /* A member function that has already been looked up.  */
     member = name;
+  else if (TREE_CODE (name) == TREE_BINFO)
+    {
+      /* Splicing a base class subobject.  We can only get here via
+	 e1.[:e2:].  */
+      expr = build_base_path (PLUS_EXPR, object, name, /*nonnull=*/true,
+			      complain);
+      if (expr == error_mark_node && (complain & tf_error))
+	error_not_base_type (BINFO_TYPE (name), object_type);
+      return expr;
+    }
   else
     {
       bool is_template_id = false;
@@ -3575,6 +3594,20 @@ finish_class_member_access_expr (cp_expr object, tree name, bool template_p,
 	      return error_mark_node;
 	    }
 	}
+      else if (splice_p && valid_splice_for_member_access_p (name))
+	{
+	  scope = context_for_name_lookup (OVL_FIRST (name));
+	  if (!CLASS_TYPE_P (scope))
+	    {
+	      if (complain & tf_error)
+		{
+		  auto_diagnostic_group d;
+		  error ("%q#D is not a member of %qT", name, object_type);
+		  inform (DECL_SOURCE_LOCATION (OVL_FIRST (name)), "declared here");
+		}
+	      return error_mark_node;
+	    }
+	}
 
       if (TREE_CODE (name) == TEMPLATE_ID_EXPR)
 	{
@@ -3582,7 +3615,11 @@ finish_class_member_access_expr (cp_expr object, tree name, bool template_p,
 	  template_args = TREE_OPERAND (name, 1);
 	  name = TREE_OPERAND (name, 0);
 
-	  if (!identifier_p (name))
+	  if (splice_p
+	      && (DECL_FUNCTION_TEMPLATE_P (OVL_FIRST (name))
+		  || variable_template_p (name)))
+	    scope = DECL_CONTEXT (OVL_FIRST (name));
+	  else if (!identifier_p (name))
 	    name = OVL_NAME (name);
 	}
 
@@ -3600,7 +3637,11 @@ finish_class_member_access_expr (cp_expr object, tree name, bool template_p,
 			   scope, name, object_type);
 		  return error_mark_node;
 		}
-	      tree val = lookup_enumerator (scope, name);
+	      tree val;
+	      if (splice_p && TREE_CODE (name) == CONST_DECL)
+		val = name;
+	      else
+		val = lookup_enumerator (scope, name);
 	      if (!val)
 		{
 		  if (complain & tf_error)
@@ -3615,7 +3656,9 @@ finish_class_member_access_expr (cp_expr object, tree name, bool template_p,
 	    }
 
 	  gcc_assert (CLASS_TYPE_P (scope));
-	  gcc_assert (identifier_p (name) || TREE_CODE (name) == BIT_NOT_EXPR);
+	  gcc_assert (identifier_p (name)
+		      || TREE_CODE (name) == BIT_NOT_EXPR
+		      || (splice_p && valid_splice_for_member_access_p (name)));
 
 	  if (constructor_name_p (name, scope))
 	    {
@@ -3629,8 +3672,13 @@ finish_class_member_access_expr (cp_expr object, tree name, bool template_p,
 	     one copy of the data member that is shared by all the objects of
 	     the class.  So NAME can be unambiguously referred to even if
 	     there are multiple indirect base classes containing NAME.  */
-	  const base_access ba = [scope, name] ()
+	  const base_access ba = [scope, name, splice_p] ()
 	    {
+	      /* [class.access.base]/5: A member m is accessible at the
+		 point R when designated in class N if
+		 -- m is designated by a splice-expression  */
+	      if (splice_p)
+		return ba_unique;
 	      if (identifier_p (name))
 		{
 		  tree m = lookup_member (scope, name, /*protect=*/0,
@@ -3661,6 +3709,20 @@ finish_class_member_access_expr (cp_expr object, tree name, bool template_p,
 	    /* The destructor isn't declared yet.  */
 	    goto dependent;
 	  member = lookup_destructor (object, scope, name, complain);
+	}
+      else if (splice_p && valid_splice_for_member_access_p (name))
+	{
+	  member = name;
+	  name = OVL_FIRST (name);
+	  if (any_dependent_type_attributes_p (DECL_ATTRIBUTES (name)))
+	    /* Dependent type attributes on the decl mean that the TREE_TYPE is
+	       wrong, so don't use it.  */
+	    goto dependent;
+	  if (is_overloaded_fn (name))
+	    member
+	      = build_baselink (access_path, TYPE_BINFO (object_type), member,
+				IDENTIFIER_CONV_OP_P (DECL_NAME (name))
+				? TREE_TYPE (DECL_NAME (name)) : NULL_TREE);
 	}
       else
 	{
@@ -3741,9 +3803,10 @@ finish_class_member_access_expr (cp_expr object, tree name, bool template_p,
 	    BASELINK_QUALIFIED_P (member) = 1;
 	  orig_name = member;
 	}
-      return build_min_non_dep (COMPONENT_REF, expr,
+      expr = build_min_non_dep (COMPONENT_REF, expr,
 				orig_object, orig_name,
 				NULL_TREE);
+      COMPONENT_REF_SPLICE_P (STRIP_REFERENCE_REF (expr)) = splice_p;
     }
 
   return expr;
@@ -4176,6 +4239,7 @@ cp_build_array_ref (location_t loc, tree array, tree idx,
 	    {
 	      idx = save_expr (idx);
 	      op0 = save_expr (op0);
+	      warning_sentinel w (warn_unused_value);
 	      tree tem = build_compound_expr (loc, op0, idx);
 	      op0 = build_compound_expr (loc, tem, op0);
 	    }
@@ -5790,7 +5854,10 @@ cp_build_binary_op (const op_location_t &location,
 	  if (tcode1 == COMPLEX_TYPE || tcode1 == VECTOR_TYPE)
 	    tcode1 = TREE_CODE (TREE_TYPE (TREE_TYPE (op1)));
 
-	  if (!(tcode0 == INTEGER_TYPE && tcode1 == INTEGER_TYPE))
+	  if (!((tcode0 == INTEGER_TYPE
+		 || (tcode0 == ENUMERAL_TYPE && code0 == VECTOR_TYPE))
+		&& (tcode1 == INTEGER_TYPE
+		    || (tcode1 == ENUMERAL_TYPE && code1 == VECTOR_TYPE))))
 	    resultcode = RDIV_EXPR;
 	  else
 	    {
@@ -6279,6 +6346,10 @@ cp_build_binary_op (const op_location_t &location,
 	  return cp_build_binary_op (location,
 				     EQ_EXPR, e, integer_zero_node, complain);
 	}
+      /* [expr.eq]: "If both operands are of type std::meta::info,
+	 comparison is defined as follows..."  */
+      else if (code0 == META_TYPE && code1 == META_TYPE)
+	result_type = type0;
       else
 	{
 	  gcc_assert (!TYPE_PTRMEMFUNC_P (type0)
@@ -7778,8 +7849,7 @@ cp_build_unary_op (enum tree_code code, tree xarg, bool noconvert,
       if (gnu_vector_type_p (TREE_TYPE (arg)))
 	return cp_build_binary_op (input_location, EQ_EXPR, arg,
 				   build_zero_cst (TREE_TYPE (arg)), complain);
-      arg = perform_implicit_conversion (boolean_type_node, arg,
-					 complain);
+      arg = contextual_conv_bool (arg, complain);
       if (arg != error_mark_node)
 	{
 	  if (processing_template_decl)
@@ -8193,6 +8263,10 @@ cxx_mark_addressable (tree exp, bool array_ref_p)
 		    || DECL_IN_AGGR_P (x) == 0
 		    || TREE_STATIC (x)
 		    || DECL_EXTERNAL (x));
+	if (VAR_P (x)
+	    && DECL_ANON_UNION_VAR_P (x)
+	    && !TREE_ADDRESSABLE (x))
+	  cxx_mark_addressable (DECL_VALUE_EXPR (x));
 	/* Fall through.  */
 
       case RESULT_DECL:
@@ -11714,6 +11788,12 @@ check_return_expr (tree retval, bool *no_warning, bool *dangling)
 	*dangling = true;
     }
 
+  if (check_out_of_consteval_use (retval))
+    {
+      current_function_return_value = error_mark_node;
+      return error_mark_node;
+    }
+
   /* A naive attempt to reduce the number of -Wdangling-reference false
      positives: if we know that this function can return a variable with
      static storage duration rather than one of its parameters, suppress
@@ -11943,7 +12023,7 @@ cp_type_quals (const_tree type)
   int quals;
   /* This CONST_CAST is okay because strip_array_types returns its
      argument unmodified and we assign it to a const_tree.  */
-  type = strip_array_types (CONST_CAST_TREE (type));
+  type = strip_array_types (const_cast<tree> (type));
   if (type == error_mark_node
       /* Quals on a FUNCTION_TYPE are memfn quals.  */
       || TREE_CODE (type) == FUNCTION_TYPE)
@@ -12020,7 +12100,7 @@ cp_has_mutable_p (const_tree type)
 {
   /* This CONST_CAST is okay because strip_array_types returns its
      argument unmodified and we assign it to a const_tree.  */
-  type = strip_array_types (CONST_CAST_TREE(type));
+  type = strip_array_types (const_cast<tree> (type));
 
   return CLASS_TYPE_P (type) && CLASSTYPE_HAS_MUTABLE (type);
 }

@@ -31,8 +31,7 @@
     class A
     {
         int a;
-        this(int a) {this.a = a;}
-        @property int i() { return a; }
+        this(int a) { this.a = a; }
     }
     interface I { }
     class B : I { }
@@ -57,19 +56,30 @@
 {
     import std.algorithm.comparison;
 
+    import core.exception : SwitchError;
     import std.exception : assertThrown;
 
     class A { }
     class B { }
-    // Void handlers are allowed if they throw:
+
+    // B's handler never returns, so `i` does not need a value
+    int i;
     assertThrown!Exception(
-        new B().castSwitch!(
+        i = new B().castSwitch!(
             (A a) => 1,
-            (B d)    { throw new Exception("B is not allowed!"); }
+            (B b) { throw new Exception("B is not allowed!"); }
         )()
     );
 
-    // Void handlers are also allowed if all the handlers are void:
+    // Void handler call will throw if another handler returns a value
+    assertThrown!SwitchError(
+        i = new B().castSwitch!(
+            (A a) => 1,
+            (B b) {}
+        )()
+    );
+
+    // Void handlers are allowed if all the handlers convert to void:
     new A().castSwitch!(
         (A a) { },
         (B b) { assert(false); },

@@ -3,7 +3,7 @@
  *
  * Specification: C11
  *
- * Copyright:   Copyright (C) 2021-2025 by The D Language Foundation, All Rights Reserved
+ * Copyright:   Copyright (C) 2021-2026 by The D Language Foundation, All Rights Reserved
  * Authors:     $(LINK2 https://www.digitalmars.com, Walter Bright)
  * License:     $(LINK2 https://www.boost.org/LICENSE_1_0.txt, Boost License 1.0)
  * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/compiler/src/dmd/importc.d, _importc.d)
@@ -17,16 +17,22 @@ import core.stdc.stdio;
 
 import dmd.astenums;
 import dmd.dcast;
+import dmd.denum;
 import dmd.declaration;
 import dmd.dscope;
 import dmd.dsymbol;
 import dmd.dsymbolsem;
+import dmd.dinterpret : ctfeInterpret;
 import dmd.errors;
 import dmd.expression;
 import dmd.expressionsem;
 import dmd.identifier;
+import dmd.id : Id;
 import dmd.init;
+import dmd.intrange : IntRange;
 import dmd.mtype;
+import dmd.optimize : optimize;
+import dmd.rootobject : DYNCAST;
 import dmd.tokens;
 import dmd.typesem;
 
@@ -83,13 +89,13 @@ Expression arrayFuncConv(Expression e, Scope* sc)
     auto t = e.type.toBasetype();
     if (auto ta = t.isTypeDArray())
     {
-        if (!checkAddressable(e, sc))
+        if (!checkAddressable(e, sc, "take address of"))
             return ErrorExp.get();
         e = e.castTo(sc, ta.next.pointerTo());
     }
     else if (auto ts = t.isTypeSArray())
     {
-        if (!checkAddressable(e, sc))
+        if (!checkAddressable(e, sc, "take address of"))
             return ErrorExp.get();
         e = e.castTo(sc, ts.next.pointerTo());
     }
@@ -120,6 +126,12 @@ Expression fieldLookup(Expression e, Scope* sc, Identifier id, bool arrow)
     e = e.expressionSemantic(sc);
     if (e.isErrorExp())
         return e;
+    if (arrow)
+    {
+        e = arrayFuncConv(e, sc);
+        if (e.isErrorExp())
+            return e;
+    }
 
     auto t = e.type;
     if (t.isTypePointer())
@@ -209,66 +221,6 @@ void addDefaultCInitializer(VarDeclaration dsym)
 
     auto e = dsym.type.defaultInit(dsym.loc, true);
     dsym._init = new ExpInitializer(dsym.loc, e);
-}
-
-/********************************************
- * Resolve cast/call grammar ambiguity.
- * Params:
- *      e = expression that might be a cast, might be a call
- *      sc = context
- * Returns:
- *      null means leave as is, !=null means rewritten AST
- */
-Expression castCallAmbiguity(Expression e, Scope* sc)
-{
-    Expression* pe = &e;
-
-    while (1)
-    {
-        // Walk down the postfix expressions till we find a CallExp or something else
-        switch ((*pe).op)
-        {
-            case EXP.dotIdentifier:
-                pe = &(*pe).isDotIdExp().e1;
-                continue;
-
-            case EXP.plusPlus:
-            case EXP.minusMinus:
-                pe = &(*pe).isPostExp().e1;
-                continue;
-
-            case EXP.array:
-                pe = &(*pe).isArrayExp().e1;
-                continue;
-
-            case EXP.call:
-                auto ce = (*pe).isCallExp();
-                if (ce.e1.parens)
-                {
-                    ce.e1 = expressionSemantic(ce.e1, sc);
-                    if (ce.e1.op == EXP.type)
-                    {
-                        const numArgs = ce.arguments ? ce.arguments.length : 0;
-                        if (numArgs >= 1)
-                        {
-                            ce.e1.parens = false;
-                            Expression arg;
-                            foreach (a; (*ce.arguments)[])
-                            {
-                                arg = arg ? new CommaExp(a.loc, arg, a) : a;
-                            }
-                            auto t = ce.e1.isTypeExp().type;
-                            *pe = arg;
-                            return new CastExp(ce.loc, e, t);
-                        }
-                    }
-                }
-                return null;
-
-            default:
-                return null;
-        }
-    }
 }
 
 /********************************************
@@ -532,13 +484,19 @@ Dsymbol handleSymbolRedeclarations(ref Scope sc, Dsymbol s, Dsymbol s2, ScopeDsy
         }
     }
 
+    // Don't let macros shadow real symbols
+    if (auto td = s.isTemplateDeclaration())
+    {
+        if (td.isCmacro) return s2;
+    }
+
     auto vd = s.isVarDeclaration(); // new declaration
     auto vd2 = s2.isVarDeclaration(); // existing declaration
 
-    if (vd && vd.isCmacro())
-        return vd2;
+    if (vd && vd.isCmacro)
+        return s2;
 
-    assert(!(vd2 && vd2.isCmacro()));
+    assert(!(vd2 && vd2.isCmacro));
 
     if (vd && vd2)
     {
@@ -562,6 +520,10 @@ Dsymbol handleSymbolRedeclarations(ref Scope sc, Dsymbol s, Dsymbol s2, ScopeDsy
             sds.symtab.update(vd);      // replace vd2 with the definition
             return vd;
         }
+        else if (!i1 && !(vd2.storage_class & STC.extern_)) /* incoming has void void definition */
+        {
+            vd.storage_class |= STC.extern_;
+        }
 
         /* BUG: the types should match, which needs semantic() to be run on it
          *    extern int x;
@@ -570,7 +532,14 @@ Dsymbol handleSymbolRedeclarations(ref Scope sc, Dsymbol s, Dsymbol s2, ScopeDsy
          *    INT x;  // match
          *    long x; // collision
          * We incorrectly ignore these collisions
+         * when their types are not matching, err on type differences
          */
+
+        if (!cTypeEquivalence(vd.type, vd2.type))
+        {
+            .error(vd.loc, "redefinition of `%s` with different type: `%s` vs `%s`",
+                vd2.ident.toChars(), vd2.type.toChars(), vd.type.toChars());
+        }
         return vd2;
     }
 
@@ -606,7 +575,7 @@ Dsymbol handleSymbolRedeclarations(ref Scope sc, Dsymbol s, Dsymbol s2, ScopeDsy
         if (fd.fbody)                   // fd is the definition
         {
             if (log) printf(" replace existing with new\n");
-            sds.symtab.update(fd);      // replace fd2 in symbol table with fd
+            sds.symtab.update(fd);  // replace fd2 in symbol table with fd
             fd.overnext = fd2;
 
             /* If fd2 is covering a tag symbol, then fd has to cover the same one
@@ -623,6 +592,15 @@ Dsymbol handleSymbolRedeclarations(ref Scope sc, Dsymbol s, Dsymbol s2, ScopeDsy
          */
         fd2.overloadInsert(fd);
 
+        //for the sake of functions declared in function scope.
+        // check for return type equivalence also
+        auto tf1 = fd.type.isTypeFunction();
+        auto tf2 = fd2.type.isTypeFunction();
+        if (sc.func &&  !cTypeEquivalence(tf1.next, tf2.next) )
+        {
+            .error(fd.loc, "%s `%s` redeclaration with different type", fd.kind, fd.toPrettyChars);
+        }
+
         return fd2;
     }
 
@@ -637,4 +615,116 @@ Dsymbol handleSymbolRedeclarations(ref Scope sc, Dsymbol s, Dsymbol s2, ScopeDsy
     }
 
     return collision();
+}
+
+/*********************************
+ * ImportC-specific semantic analysis on enum declaration `ed`
+ */
+void cEnumSemantic(Scope* sc, EnumDeclaration ed)
+{
+    // C11 6.7.2.2
+    Type commonType = ed.memtype;
+    if (!commonType)
+        commonType = Type.tint32;
+    ulong nextValue = 0;        // C11 6.7.2.2-3 first member value defaults to 0
+
+    // C11 6.7.2.2-2 value must be representable as an int.
+    // The sizemask represents all values that int will fit into,
+    // from 0..uint.max.  We want to cover int.min..uint.max.
+    IntRange ir = intRangeFromType(commonType);
+
+    void emSemantic(EnumMember em, ref ulong nextValue)
+    {
+        static void errorReturn(EnumMember em)
+        {
+            em.value = ErrorExp.get();
+            em.errors = true;
+            em.semanticRun = PASS.semanticdone;
+        }
+
+        em.semanticRun = PASS.semantic;
+        em.type = commonType;
+        em._linkage = LINK.c;
+        em.storage_class |= STC.manifest;
+        if (em.value)
+        {
+            Expression e = em.value;
+            assert(e.dyncast() == DYNCAST.expression);
+
+            /* To merge the type of e with commonType, add 0 of type commonType
+                */
+            if (!ed.memtype)
+                e = new AddExp(em.loc, e, new IntegerExp(em.loc, 0, commonType));
+
+            e = e.expressionSemantic(sc);
+            e = resolveProperties(sc, e);
+            e = e.integralPromotions(sc);
+            e = e.ctfeInterpret();
+            if (e.op == EXP.error)
+                return errorReturn(em);
+            auto ie = e.isIntegerExp();
+            if (!ie)
+            {
+                // C11 6.7.2.2-2
+                .error(em.loc, "%s `%s` enum member must be an integral constant expression, not `%s` of type `%s`", em.kind, em.toPrettyChars, e.toChars(), e.type.toChars());
+                return errorReturn(em);
+            }
+            if (ed.memtype && !ir.contains(getIntRange(ie)))
+            {
+                // C11 6.7.2.2-2
+                .error(em.loc, "%s `%s` enum member value `%s` does not fit in `%s`", em.kind, em.toPrettyChars, e.toChars(), commonType.toChars());
+                return errorReturn(em);
+            }
+            nextValue = ie.toInteger();
+            if (!ed.memtype)
+                commonType = e.type;
+            em.value = new IntegerExp(em.loc, nextValue, commonType);
+        }
+        else
+        {
+            // C11 6.7.2.2-3 add 1 to value of previous enumeration constant
+            bool first = (em == (*em.ed.members)[0]);
+            if (!first)
+            {
+                Expression max = getProperty(commonType, null, em.loc, Id.max, 0);
+                if (nextValue == max.toInteger())
+                {
+                    .error(em.loc, "%s `%s` initialization with `%s+1` causes overflow for type `%s`", em.kind, em.toPrettyChars, max.toChars(), commonType.toChars());
+                    return errorReturn(em);
+                }
+                nextValue += 1;
+            }
+            em.value = new IntegerExp(em.loc, nextValue, commonType);
+        }
+        em.type = commonType;
+        em.semanticRun = PASS.semanticdone;
+    }
+
+    ed.members.foreachDsymbol( (s)
+    {
+        if (EnumMember em = s.isEnumMember())
+            emSemantic(em, nextValue);
+    });
+
+    if (!ed.memtype)
+    {
+        // cast all members to commonType
+        ed.members.foreachDsymbol( (s)
+        {
+            if (EnumMember em = s.isEnumMember())
+            {
+                em.type = commonType;
+                // optimize out the cast so that other parts of the compiler can
+                // assume that an integral enum's members are `IntegerExp`s.
+                // https://issues.dlang.org/show_bug.cgi?id=24504
+                em.value = em.value.castTo(sc, commonType).optimize(WANTvalue);
+            }
+        });
+    }
+
+    ed.memtype = commonType;
+    // Set semantic2done to mark C enums as fully processed
+    // Prevents issues with final switch statements that reference C enums
+    ed.semanticRun = PASS.semantic2done;
+    return;
 }

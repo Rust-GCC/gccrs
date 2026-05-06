@@ -67,7 +67,8 @@ protected:
   ImplGenerics setup_impl_generics (
     const std::string &type_name,
     const std::vector<std::unique_ptr<GenericParam>> &type_generics,
-    tl::optional<std::unique_ptr<TypeParamBound>> &&extra_bound
+    tl::optional<std::function<std::unique_ptr<TypeParamBound> ()>>
+      &&extra_bound
     = tl::nullopt) const;
 
 private:
@@ -103,7 +104,7 @@ private:
   virtual void visit (Token &tok) override final{};
   virtual void visit (DelimTokenTree &delim_tok_tree) override final{};
   virtual void visit (AttrInputMetaItemContainer &input) override final{};
-  virtual void visit (AttrInputMacro &expr) override final{};
+  virtual void visit (AttrInputExpr &expr) override final{};
   virtual void visit (IdentifierExpr &ident_expr) override final{};
   virtual void visit (Lifetime &lifetime) override final{};
   virtual void visit (LifetimeParam &lifetime_param) override final{};
@@ -255,6 +256,7 @@ private:
   virtual void visit (FunctionParam &param) override final{};
   virtual void visit (VariadicParam &param) override final{};
   virtual void visit (FormatArgs &param) override final{};
+  virtual void visit (Attribute &attribute) override final{};
   virtual void visit (OffsetOf &param) override final{};
 };
 

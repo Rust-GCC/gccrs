@@ -1200,11 +1200,18 @@ dump_omp_clause (pretty_printer *pp, tree clause, int spc, dump_flags_t flags)
 	    }
 	  dump_generic_node (pp, OMP_CLAUSE_SIZE (clause),
 			     spc, flags, false);
+	  if (OMP_CLAUSE_CODE (clause) == OMP_CLAUSE_MAP
+	      && OMP_CLAUSE_MAP_SIZE_NEEDS_ADJUSTMENT (clause))
+	    pp_string (pp, " (needs adjustment)");
 	  pp_right_bracket (pp);
 	}
-      if (OMP_CLAUSE_CODE (clause) == OMP_CLAUSE_MAP
-	  && OMP_CLAUSE_MAP_RUNTIME_IMPLICIT_P (clause))
-	pp_string (pp, " [runtime_implicit]");
+      if (OMP_CLAUSE_CODE (clause) == OMP_CLAUSE_MAP)
+	{
+	  if (OMP_CLAUSE_MAP_RUNTIME_IMPLICIT_P (clause))
+	    pp_string (pp, " [runtime_implicit]");
+	  if (OMP_CLAUSE_MAP_GIMPLE_ONLY (clause))
+	    pp_string (pp, " [gimple only]");
+	}
       pp_right_paren (pp);
       break;
 
@@ -1780,7 +1787,7 @@ print_omp_context_selector (FILE *file, tree t, dump_flags_t flags)
 /* Dump location LOC to PP.  */
 
 void
-dump_location (pretty_printer *pp, location_t loc)
+dump_location (pretty_printer *pp, location_t loc, dump_flags_t flags)
 {
   expanded_location xloc = expand_location (loc);
   int discriminator = get_discriminator_from_loc (loc);
@@ -1794,7 +1801,7 @@ dump_location (pretty_printer *pp, location_t loc)
   pp_decimal_int (pp, xloc.line);
   pp_colon (pp);
   pp_decimal_int (pp, xloc.column);
-  if (discriminator)
+  if (discriminator && (flags & TDF_COMPARE_DEBUG) == 0)
   {
     pp_string (pp, " discrim ");
     pp_decimal_int (pp, discriminator);
@@ -1829,7 +1836,7 @@ dump_block_node (pretty_printer *pp, tree block, int spc, dump_flags_t flags)
     return;
 
   if (BLOCK_SOURCE_LOCATION (block))
-    dump_location (pp, BLOCK_SOURCE_LOCATION (block));
+    dump_location (pp, BLOCK_SOURCE_LOCATION (block), flags);
 
   newline_and_indent (pp, spc + 2);
 
@@ -2191,7 +2198,7 @@ dump_generic_node (pretty_printer *pp, tree node, int spc, dump_flags_t flags,
     }
 
   if ((flags & TDF_LINENO) && EXPR_HAS_LOCATION (node))
-    dump_location (pp, EXPR_LOCATION (node));
+    dump_location (pp, EXPR_LOCATION (node), flags);
 
   code = TREE_CODE (node);
   switch (code)

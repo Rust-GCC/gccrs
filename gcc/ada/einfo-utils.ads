@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---           Copyright (C) 2020-2025, Free Software Foundation, Inc.        --
+--           Copyright (C) 2020-2026, Free Software Foundation, Inc.        --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -550,6 +550,9 @@ package Einfo.Utils is
    procedure Set_Is_Volatile (Id : E; V : B := True);
    --  Call [Set_]Is_Volatile_Type/Is_Volatile_Object as appropriate for the
    --  Ekind of Id.
+
+   function Can_Have_Formals (Id : Entity_Id) return Boolean;
+   --  A utility function to see whether the entity can have formals.
 
    function Convention
      (N : Entity_Id) return Convention_Id renames Basic_Convention;

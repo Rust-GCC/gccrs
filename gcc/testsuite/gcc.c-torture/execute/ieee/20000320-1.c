@@ -1,3 +1,15 @@
+/* { dg-do run }
+
+   # AVR doubles are floats
+   { dg-skip-if "AVR doubles are floats" { avr-*-* } }
+
+   # ColdFire FPUs require software handling of subnormals.  We are
+   # not aware of any system that has this.
+   { dg-xfail-if "" { m68k-*-* && coldfire_fpu } }
+
+   # C6X floating point hardware turns denormals to zero in FP conversions.
+   { dg-xfail-if "" { tic6x-*-* && ti_c67x } } */
+
 void abort (void);
 void exit (int);
 

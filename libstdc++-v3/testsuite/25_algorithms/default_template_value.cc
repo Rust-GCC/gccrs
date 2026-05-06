@@ -4,12 +4,14 @@
 
 #if !defined(__cpp_lib_algorithm_default_value_type)
 #error "Feature test macro for default template type for algorithms' values is missing"
-#elif __cpp_lib_algorithm_default_value_type < 202403L
+#elif __cpp_lib_algorithm_default_value_type < 202603L
 #error "Feature test macro for default template type for algorithms' values is wrong"
 #endif
 
 #include <execution>
+#include <memory>
 #include <ranges>
+#include <span>
 #include <iterator>
 #include <vector>
 
@@ -139,4 +141,15 @@ test()
   // [alg.find.last]
   (void) std::ranges::find_last(in.begin(), in.end(), INPUT_VAL);
   (void) std::ranges::find_last(in, INPUT_VAL);
+
+  extern std::span<Input> unin;
+  // [uninitialized.fill]
+  (void) std::uninitialized_fill(unin.begin(), unin.end(), INPUT_VAL);
+  (void) std::uninitialized_fill(std::execution::seq, unin.begin(), unin.end(), INPUT_VAL);
+  (void) std::ranges::uninitialized_fill(unin.begin(), unin.end(), INPUT_VAL);
+  (void) std::ranges::uninitialized_fill(unin, INPUT_VAL);
+
+  (void) std::uninitialized_fill_n(unin.begin(), unin.size(), INPUT_VAL);
+  (void) std::uninitialized_fill_n(std::execution::seq, unin.begin(), unin.size(), INPUT_VAL);
+  (void) std::ranges::uninitialized_fill_n(unin.begin(), unin.size(), INPUT_VAL);
 }

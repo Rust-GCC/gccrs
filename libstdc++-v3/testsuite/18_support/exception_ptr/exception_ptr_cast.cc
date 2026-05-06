@@ -58,7 +58,11 @@ constexpr bool test01(bool x)
     }
   catch (...)
     {
+#if __has_builtin(__builtin_current_exception)
+      auto h = __builtin_current_exception();
+#else
       auto h = std::current_exception();
+#endif
       auto i = std::exception_ptr_cast<G>(h);
       VERIFY( i != nullptr );
       VERIFY( i->a == 1 && i->e == 2 && i->f == 3 && i->g == 4 );
@@ -78,7 +82,7 @@ constexpr bool test01(bool x)
   return true;
 }
 
-#if _GLIBCXX_USE_CXX11_ABI
+#if _GLIBCXX_USE_CXX11_ABI && __has_builtin(__builtin_current_exception)
 static_assert(test01(false));
 #endif
 

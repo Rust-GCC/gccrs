@@ -1,3 +1,185 @@
+2026-04-28  Jakub Jelinek  <jakub@redhat.com>
+
+	* c-common.cc (c_common_signed_or_unsigned_type): Use
+	build_bitint_type for TREE_CODE (type) == BITINT_TYPE whenever
+	flag_isoc2y even when precision is 1.
+	(c_common_get_alias_set): Don't special case BITINT_TYPE
+	with precision 1 for flag_isoc2y.
+	* c-lex.cc (interpret_integer): Use _BitInt(1) type for 0wb
+	if flag_isoc2y, rather than _BitInt(2).
+
+2026-04-22  Jakub Jelinek  <jakub@redhat.com>
+
+	* c-cppbuiltin.cc (c_cpp_builtins): Bump __cpp_impl_reflection value
+	from 202506L to 202603L.
+
+2026-04-22  Jakub Jelinek  <jakub@redhat.com>
+
+	PR sanitizer/124969
+	* c-ubsan.cc (get_index_from_pointer_addr_expr): For
+	VOID_TYPE_P (pointee_type) use size_one_node instead of
+	TYPE_SIZE_UNIT (pointee_type) as pointee_size.  Punt for
+	!COMPLETE_OR_VOID_TYPE_P (pointee_type).  Formatting fix.  Use
+	CONVERT_EXPR_P (x) instead of CONVERT_EXPR_CODE_P (TREE_CODE (x)).
+
+2026-04-07  Sandra Loosemore  <sloosemore@baylibre.com>
+
+	PR other/124784
+	* c.opt.urls: Regenerated.
+
+2026-03-19  Jason Merrill  <jason@redhat.com>
+
+	* c-opts.cc (c_common_post_options): Enable -fcontracts
+	in C++26 mode unless -fno-contracts was specified.
+
+2026-03-12  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/124447
+	* c-opts.cc (c_common_post_options): Error if -freflection is used
+	without -std=c++26 or -std=gnu++26.
+
+2026-03-07  Martin Uecker  <uecker@tugraz.at>
+
+	PR c/123856
+	* c-attribs.cc (handle_hardbool_attribute): Fix TYPE_NAME.
+
+2026-03-06  Qing Zhao  <qing.zhao@oracle.com>
+
+	PR c/124230
+	* c-ubsan.cc (get_index_from_offset): Handle the special case when
+	the offset is an integer constant.
+
+2026-02-12  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR c/105555
+	* c-common.cc (fold_offsetof): Handle REALPART_EXPR
+	and IMAGPART_EXPR.
+
+2026-02-06  Torbjörn SVENSSON  <torbjorn.svensson@foss.st.com>
+
+	PR middle-end/123892
+	* c-common.cc: Replace CONST_CAST with const_cast<>.
+	* c-lex.cc: Likewise.
+
+2026-02-06  Torbjörn SVENSSON  <torbjorn.svensson@foss.st.com>
+
+	PR middle-end/123892
+	* c-gimplify.cc: Replace CONST_CAST_TREE with const_cast<tree>.
+
+2026-02-05  Jakub Jelinek  <jakub@redhat.com>
+
+	Revert:
+	2026-02-05  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c/101312
+	* c-pretty-print.cc (c_pretty_printer::direct_abstract_declarator):
+	Look up "array " attribute instead of "array".
+
+2026-02-02  Patrick Palka  <ppalka@redhat.com>
+
+	* c-cppbuiltin.cc (c_cpp_builtins): Bump __cpp_deduction_guides to
+	202207L for C++23 and later.
+
+2026-01-28  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR c++/102846
+	PR c/102846
+	* known-headers.cc (macro_like_function_used::macro_like_function_used): New.
+	(macro_like_function_used::~macro_like_function_used): New.
+	* known-headers.h (class macro_like_function_used): New class.
+
+2026-01-28  Iain Sandoe  <iain@sandoe.co.uk>
+
+	* c.opt: Append a period to the message for
+	-fcontracts-client-check=.
+
+2026-01-28  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c/101312
+	* c-pretty-print.cc (c_pretty_printer::direct_abstract_declarator):
+	Look up "array " attribute instead of "array".
+
+2026-01-28  Nina Ranns  <dinka.ranns@gmail.com>
+	    Iain Sandoe  <iain@sandoe.co.uk>
+	    Ville Voutilainen  <ville.voutilainen@gmail.com>
+
+	* c.opt (fcontracts-definition-check=,
+	fcontracts-client-check=): New.
+	* c.opt.urls: Regenerate.
+
+2026-01-28  Nina Ranns  <dinka.ranns@gmail.com>
+	    Iain Sandoe  <iain@sandoe.co.uk>
+	    Ville Voutilainen  <ville.voutilainen@gmail.com>
+
+	* c.opt (fcontract-checks-outlined,
+	fcontract-disable-optimized-checks): New.
+	* c.opt.urls: Regenerate.
+
+2026-01-28  Nina Ranns  <dinka.ranns@gmail.com>
+	    Iain Sandoe  <iain@sandoe.co.uk>
+
+	* c.opt (fcontracts-conservative-ipa): New.
+
+2026-01-28  Iain Sandoe  <iain@sandoe.co.uk>
+	    Nina Ranns  <dinka.ranns@gmail.com>
+	    Ville Voutilainen  <ville.voutilainen@gmail.com>
+
+	* c-common.cc: Add contract_assert keyword.
+	* c-common.h (enum rid): Likewise.
+	* c-cppbuiltin.cc (c_cpp_builtins): Add C++26 contracts feature test
+	macro.
+	* c.opt: Add a flag to control the TU-wide evaluation semantic. Add
+	a flag to control whether P1494 observable_checkpoints are inserted
+	to separate contract checks.
+	* c.opt.urls: Regenerate.
+
+2026-01-28  Iain Sandoe  <iain@sandoe.co.uk>
+	    Nina Ranns  <dinka.ranns@gmail.com>
+
+	* c-cppbuiltin.cc (c_cpp_builtins): Remove C++2a-specific
+	feature macros.
+	* c.opt: Remove C++2a-specific flags.
+
+2026-01-25  Sandra Loosemore  <sloosemore@baylibre.com>
+
+	* c.opt.urls: Regenerated.
+
+2026-01-25  Sandra Loosemore  <sloosemore@baylibre.com>
+
+	PR other/122243
+	* c.opt (-output-pch): Mark as Undocumented, as it seems to be
+	an internal option that has never been documented anyway.
+	(Werror-implicit-function-declaration): Mark deprecated option
+	that is not currently documented as Undocumented.
+	(fconstant-string-class=): Add RejectNegative property.
+
+2026-01-20  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/123694
+	* c-indentation.cc (guard_tinfo_to_string): Handle RID_TEMPLATE
+	for C++11 or later.
+
+2026-01-15  Jakub Jelinek  <jakub@redhat.com>
+
+	* c.opt.urls: Regenerate.
+
+2026-01-15  Marek Polacek  <polacek@redhat.com>
+	    Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/120775
+	PR c++/123081
+	PR c++/122634
+	* c-attribs.cc (attribute_takes_identifier_p): Return false for C++
+	annotations.  Handle "old parm name".
+	* c-cppbuiltin.cc (c_cpp_builtins): Define __cpp_impl_reflection.
+	* c.opt (freflection): New.
+
+2026-01-07  Tobias Burnus  <tburnus@baylibre.com>
+
+	* c-omp.cc (c_omp_directives): Uncomment 'groupprivate'.
+	* c-pragma.cc (omp_pragmas): Add PRAGMA_OMP_GROUPPRIVATE.
+	* c-pragma.h (enum pragma_kind): Likewise.
+
 2025-12-26  Egas Ribeiro  <egas.g.ribeiro@gmail.com>
 
 	PR c++/121864

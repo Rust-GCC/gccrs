@@ -105,7 +105,10 @@ public:
    */
   void expand_qualified_path_type (AST::QualifiedPathType &path_type);
 
-  // FIXME: Add documentation
+  /**
+   * Expand all macro invocations in lieu of types within a list of closure
+   * parameters
+   */
   void expand_closure_params (std::vector<AST::ClosureParam> &params);
   void expand_where_clause (AST::WhereClause &where_clause);
 
@@ -218,6 +221,8 @@ public:
   void visit (AST::LifetimeParam &) override;
   void visit (AST::ConstGenericParam &) override;
 
+  void visit (AST::Attribute &attribute) override;
+
   void visit (AST::MacroInvocation &macro_invoc) override;
 
   void visit (AST::PathInExpression &path) override;
@@ -228,30 +233,20 @@ public:
 
   void visit (AST::LiteralExpr &expr) override;
   void visit (AST::AttrInputLiteral &) override;
-  void visit (AST::AttrInputMacro &) override;
+  void visit (AST::AttrInputExpr &) override;
   void visit (AST::MetaItemLitExpr &) override;
   void visit (AST::MetaItemPathExpr &) override;
-  void visit (AST::ArithmeticOrLogicalExpr &expr) override;
-  void visit (AST::ComparisonExpr &expr) override;
-  void visit (AST::LazyBooleanExpr &expr) override;
-  void visit (AST::TypeCastExpr &expr) override;
-  void visit (AST::AssignmentExpr &expr) override;
-  void visit (AST::CompoundAssignmentExpr &expr) override;
-  void visit (AST::GroupedExpr &expr) override;
   void visit (AST::StructExprStruct &expr) override;
 
-  void visit (AST::CallExpr &expr) override;
   void visit (AST::ClosureExprInner &expr) override;
 
   void visit (AST::BlockExpr &expr) override;
 
   void visit (AST::ClosureExprInnerTyped &expr) override;
-  void visit (AST::ContinueExpr &expr) override;
   void visit (AST::IfExpr &expr) override;
   void visit (AST::IfExprConseqElse &expr) override;
   void visit (AST::IfLetExpr &expr) override;
   void visit (AST::IfLetExprConseqElse &expr) override;
-  void visit (AST::TupleExpr &expr) override;
   void visit (AST::TypeParam &param) override;
   void visit (AST::LifetimeWhereClauseItem &) override;
   void visit (AST::TypeBoundWhereClauseItem &item) override;
@@ -269,8 +264,6 @@ public:
   void visit (AST::EnumItemStruct &item) override;
   void visit (AST::EnumItemDiscriminant &item) override;
   void visit (AST::Union &union_item) override;
-  void visit (AST::ConstantItem &const_item) override;
-  void visit (AST::StaticItem &static_item) override;
   void visit (AST::Trait &trait) override;
   void visit (AST::InherentImpl &impl) override;
   void visit (AST::TraitImpl &impl) override;
@@ -287,17 +280,6 @@ public:
   void visit (AST::MetaListPaths &) override;
   void visit (AST::MetaListNameValueStr &) override;
   void visit (AST::StructPatternFieldIdent &field) override;
-  void visit (AST::GroupedPattern &pattern) override;
-  void visit (AST::SlicePatternItemsNoRest &items) override;
-  void visit (AST::SlicePatternItemsHasRest &items) override;
-  void visit (AST::AltPattern &pattern) override;
-  void visit (AST::TupleStructItemsNoRest &tuple_items) override;
-  void visit (AST::TupleStructItemsHasRest &tuple_items) override;
-  void visit (AST::TuplePatternItemsNoRest &tuple_items) override;
-  void visit (AST::TuplePatternItemsHasRest &tuple_items) override;
-
-  void visit (AST::LetStmt &stmt) override;
-  void visit (AST::ExprStmt &stmt) override;
 
   void visit (AST::BareFunctionType &type) override;
   void visit (AST::FunctionParam &param) override;
@@ -315,6 +297,16 @@ public:
 private:
   MacroExpander &expander;
   NodeId macro_invoc_expect_id;
+
+  /**
+   * Helper to expand all macro invocations in lieu of types within a vector of
+   * fields (StructField or TupleField).
+   */
+  template <typename T> void expand_fields (std::vector<T> &fields)
+  {
+    for (auto &field : fields)
+      maybe_expand_type (field.get_field_type_ptr ());
+  }
 };
 
 } // namespace Rust

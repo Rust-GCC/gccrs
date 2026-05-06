@@ -2248,6 +2248,9 @@ gfc_trans_array_constructor_value (stmtblock_t * pblock,
 	    {
 	      /* Scalar values.  */
 	      gfc_init_se (&se, NULL);
+	      if (IS_PDT (c->expr) && c->expr->expr_type == EXPR_STRUCTURE)
+		c->expr->must_finalize = 1;
+
 	      gfc_trans_array_ctor_element (&body, desc, *poffset,
 					    &se, c->expr);
 
@@ -3088,6 +3091,10 @@ trans_array_constructor (gfc_ss * ss, locus * where)
   finalize_required = expr->must_finalize;
   if (expr->ts.type == BT_DERIVED && expr->ts.u.derived->attr.alloc_comp)
     finalize_required = true;
+
+  if (IS_PDT (expr))
+   finalize_required = true;
+
   gfc_trans_array_constructor_value (&outer_loop->pre,
 				     finalize_required ? &finalblock : NULL,
 				     type, desc, c, &offset, &offsetvar,
@@ -3513,20 +3520,37 @@ save_ref (tree &code, tree &ref, vec<tree> &replacement_roots)
 }
 
 
+/* If REF isn't shared with code in PREVIOUS_CODE, replace it with a fresh
+   variable in all of REPLACEMENT_ROOTS, appending extra code to CODE.  */
+
+static void
+maybe_save_ref (tree &code, tree &ref, vec<tree> &replacement_roots,
+		stmtblock_t *previous_code)
+{
+  if (find_tree (previous_code->head, ref))
+    return;
+
+  save_ref (code, ref, replacement_roots);
+}
+
+
 /* Save the descriptor reference VALUE to storage pointed by DESC_PTR.  Before
-   that, try to factor subexpressions of VALUE to variables, adding extra code
-   to BLOCK.
+   that, try to create fresh variables to factor subexpressions of VALUE, if
+   those subexpressions aren't shared with code in PRELIMINARY_CODE.  Add any
+   necessary additional code (initialization of variables typically) to BLOCK.
 
    The candidate references to factoring are dereferenced pointers because they
    are cheap to copy and array descriptors because they are often the base of
    multiple subreferences.  */
 
 static void
-set_factored_descriptor_value (tree *desc_ptr, tree value, stmtblock_t *block)
+set_factored_descriptor_value (tree *desc_ptr, tree value, stmtblock_t *block,
+			       stmtblock_t *preliminary_code)
 {
   /* As the reference is processed from outer to inner, variable definitions
      will be generated in reversed order, so can't be put directly in BLOCK.
-     We use TMP_BLOCK instead.  */
+     We use temporary blocks instead, which we save in ACCUMULATED_CODE, and
+     only append to BLOCK at the end.  */
   tree accumulated_code = NULL_TREE;
 
   /* The current candidate to factoring.  */
@@ -3565,7 +3589,8 @@ set_factored_descriptor_value (tree *desc_ptr, tree value, stmtblock_t *block)
 		     previous reference to save wasn't the current one, do save
 		     it now.  Otherwise drop it as we prefer saving the
 		     pointer.  */
-		  save_ref (accumulated_code, saveable_ref, replacement_roots);
+		  maybe_save_ref (accumulated_code, saveable_ref,
+				  replacement_roots, preliminary_code);
 		}
 
 	      /* Don't evaluate the pointer to a variable yet; do it only if the
@@ -3595,7 +3620,8 @@ set_factored_descriptor_value (tree *desc_ptr, tree value, stmtblock_t *block)
 
 	  if (saveable_ref != NULL_TREE)
 	    /* We have seen a reference worth saving.  Do it now.  */
-	    save_ref (accumulated_code, saveable_ref, replacement_roots);
+	    maybe_save_ref (accumulated_code, saveable_ref, replacement_roots,
+			    preliminary_code);
 
 	  if (TREE_CODE (data_ref) != ARRAY_REF)
 	    break;
@@ -3628,8 +3654,12 @@ gfc_conv_ss_descriptor (stmtblock_t * block, gfc_ss * ss, int base)
   gfc_init_se (&se, NULL);
   se.descriptor_only = 1;
   gfc_conv_expr_lhs (&se, ss_info->expr);
+  stmtblock_t tmp_block;
+  gfc_init_block (&tmp_block);
+  set_factored_descriptor_value (&info->descriptor, se.expr, &tmp_block,
+				 &se.pre);
   gfc_add_block_to_block (block, &se.pre);
-  set_factored_descriptor_value (&info->descriptor, se.expr, block);
+  gfc_add_block_to_block (block, &tmp_block);
   ss_info->string_length = se.string_length;
   ss_info->class_container = se.class_container;
 
@@ -3967,6 +3997,29 @@ trans_array_bound_check (gfc_se * se, gfc_ss *ss, tree index, int n,
 }
 
 
+/* Helper functions to detect impure functions in an expression.  */
+
+static const char *impure_name = NULL;
+static bool
+expr_contains_impure_fcn (gfc_expr *e, gfc_symbol* sym ATTRIBUTE_UNUSED,
+	 int* g ATTRIBUTE_UNUSED)
+{
+  if (e && e->expr_type == EXPR_FUNCTION
+      && !gfc_pure_function (e, &impure_name)
+      && !gfc_implicit_pure_function (e))
+    return true;
+
+  return false;
+}
+
+static bool
+gfc_expr_contains_impure_fcn (gfc_expr *e)
+{
+  impure_name = NULL;
+  return gfc_traverse_expr (e, NULL, &expr_contains_impure_fcn, 0);
+}
+
+
 /* Generate code for bounds checking for elemental dimensions.  */
 
 static void
@@ -3989,10 +4042,17 @@ array_bound_check_elemental (gfc_se * se, gfc_ss * ss, gfc_expr * expr)
 		{
 		  if (ar->dimen_type[dim] == DIMEN_ELEMENT)
 		    {
+		      if (gfc_expr_contains_impure_fcn (ar->start[dim]))
+			gfc_warning_now (0, "Bounds checking of the elemental "
+					 "index at %L will cause two calls to "
+					 "%qs, which is not declared to be "
+					 "PURE or is not implicitly pure.",
+					 &ar->start[dim]->where, impure_name);
 		      gfc_se indexse;
 		      gfc_init_se (&indexse, NULL);
 		      gfc_conv_expr_type (&indexse, ar->start[dim],
 					  gfc_array_index_type);
+		      gfc_add_block_to_block (&se->pre, &indexse.pre);
 		      trans_array_bound_check (se, ss, indexse.expr, dim,
 					       &ar->where,
 					       ar->as->type != AS_ASSUMED_SIZE
@@ -5252,6 +5312,7 @@ gfc_conv_ss_startstride (gfc_loopinfo * loop)
 	    {
 	    case GFC_ISYM_LBOUND:
 	    case GFC_ISYM_UBOUND:
+	    case GFC_ISYM_COSHAPE:
 	    case GFC_ISYM_LCOBOUND:
 	    case GFC_ISYM_UCOBOUND:
 	    case GFC_ISYM_MAXLOC:
@@ -5378,6 +5439,7 @@ done:
 		  /* Otherwise fall through GFC_SS_FUNCTION.  */
 		  gcc_fallthrough ();
 	      }
+	    case GFC_ISYM_COSHAPE:
 	    case GFC_ISYM_LCOBOUND:
 	    case GFC_ISYM_UCOBOUND:
 	    case GFC_ISYM_THIS_IMAGE:
@@ -7035,6 +7097,19 @@ gfc_conv_array_initializer (tree type, gfc_expr * expr)
       && expr->symtree->n.sym->attr.flavor == FL_PARAMETER
       && expr->symtree->n.sym->value)
     expr = expr->symtree->n.sym->value;
+
+  /* After parameter substitution the expression should be a constant, array
+     constructor, structure constructor, or NULL.  Anything else is invalid
+     and must not ICE later in lowering.  */
+  if (expr->expr_type != EXPR_CONSTANT
+      && expr->expr_type != EXPR_STRUCTURE
+      && expr->expr_type != EXPR_ARRAY
+      && expr->expr_type != EXPR_NULL)
+    {
+      gfc_error ("Array initializer at %L does not reduce to a constant "
+		 "expression", &expr->where);
+      return build_constructor (type, NULL);
+    }
 
   switch (expr->expr_type)
     {
@@ -9569,7 +9644,7 @@ gfc_conv_array_parameter (gfc_se *se, gfc_expr *expr, bool g77,
 	  tmp = build_fold_indirect_ref_loc (input_location, desc);
 
 	  gfc_ss * ss = gfc_walk_expr (expr);
-	  if (!transposed_dims (ss))
+	  if (!transposed_dims (ss) && expr->rank != -1)
 	    {
 	      if (!ctree)
 		gfc_conv_descriptor_data_set (&se->pre, tmp, ptr);
@@ -9577,9 +9652,6 @@ gfc_conv_array_parameter (gfc_se *se, gfc_expr *expr, bool g77,
 	  else if (!ctree)
 	    {
 	      tree old_field, new_field;
-
-	      /* The original descriptor has transposed dims so we can't reuse
-		 it directly; we have to create a new one.  */
 	      tree old_desc = tmp;
 	      tree new_desc = gfc_create_var (TREE_TYPE (old_desc), "arg_desc");
 
@@ -9587,16 +9659,75 @@ gfc_conv_array_parameter (gfc_se *se, gfc_expr *expr, bool g77,
 	      new_field = gfc_conv_descriptor_dtype (new_desc);
 	      gfc_add_modify (&se->pre, new_field, old_field);
 
-	      old_field = gfc_conv_descriptor_offset_get (old_desc);
-	      gfc_conv_descriptor_offset_set (&se->pre, new_desc, old_field);
-
-	      for (int i = 0; i < expr->rank; i++)
+	      if (expr->rank == -1)
 		{
-		  old_field = gfc_conv_descriptor_dimension (old_desc,
+		  tree idx = gfc_create_var (TREE_TYPE (gfc_conv_descriptor_rank
+							(old_desc)),
+					     "idx");
+		  tree stride = gfc_create_var (gfc_array_index_type, "stride");
+		  stmtblock_t loop_body;
+
+		  gfc_conv_descriptor_offset_set (&se->pre, new_desc,
+						  gfc_index_zero_node);
+		  gfc_conv_descriptor_span_set (&se->pre, new_desc,
+						gfc_conv_descriptor_span_get
+						(old_desc));
+		  gfc_add_modify (&se->pre, stride, gfc_index_one_node);
+
+		  gfc_init_block (&loop_body);
+
+		  old_field = gfc_conv_descriptor_lbound_get (old_desc, idx);
+		  gfc_conv_descriptor_lbound_set (&loop_body, new_desc, idx,
+						  old_field);
+
+		  old_field = gfc_conv_descriptor_ubound_get (old_desc, idx);
+		  gfc_conv_descriptor_ubound_set (&loop_body, new_desc, idx,
+						  old_field);
+
+		  gfc_conv_descriptor_stride_set (&loop_body, new_desc, idx,
+						  stride);
+
+		  tree offset = fold_build2_loc (input_location, MULT_EXPR,
+						 gfc_array_index_type, stride,
+						 gfc_conv_descriptor_lbound_get
+						 (new_desc, idx));
+		  offset = fold_build2_loc (input_location, MINUS_EXPR,
+					    gfc_array_index_type,
+					    gfc_conv_descriptor_offset_get
+					    (new_desc), offset);
+		  gfc_conv_descriptor_offset_set (&loop_body, new_desc, offset);
+
+		  tree extent = gfc_conv_array_extent_dim
+				(gfc_conv_descriptor_lbound_get (new_desc, idx),
+				 gfc_conv_descriptor_ubound_get (new_desc, idx),
+				 NULL);
+		  extent = fold_build2_loc (input_location, MULT_EXPR,
+					    gfc_array_index_type, stride,
+					    extent);
+		  gfc_add_modify (&loop_body, stride, extent);
+
+		  gfc_simple_for_loop (&se->pre, idx,
+				       build_int_cst (TREE_TYPE (idx), 0),
+				       gfc_conv_descriptor_rank (old_desc),
+				       LT_EXPR,
+				       build_int_cst (TREE_TYPE (idx), 1),
+				       gfc_finish_block (&loop_body));
+		}
+	      else
+		{
+		  /* The original descriptor has transposed dims so we can't
+		     reuse it directly; we have to create a new one.  */
+		  old_field = gfc_conv_descriptor_offset_get (old_desc);
+		  gfc_conv_descriptor_offset_set (&se->pre, new_desc, old_field);
+
+		  for (int i = 0; i < expr->rank; i++)
+		    {
+		      old_field = gfc_conv_descriptor_dimension (old_desc,
 			gfc_rank_cst[get_array_ref_dim_for_loop_dim (ss, i)]);
-		  new_field = gfc_conv_descriptor_dimension (new_desc,
+		      new_field = gfc_conv_descriptor_dimension (new_desc,
 			gfc_rank_cst[i]);
-		  gfc_add_modify (&se->pre, new_field, old_field);
+		      gfc_add_modify (&se->pre, new_field, old_field);
+		    }
 		}
 
 	      if (flag_coarray == GFC_FCOARRAY_LIB
@@ -10156,7 +10287,13 @@ generate_element_copy_wrapper (gfc_symbol *der_type, tree comp_type,
 
   pop_cfun ();
 
-  cgraph_node::add_new_function (fndecl, false);
+  /* Use finalize_function with no_collect=true to skip the ggc_collect
+     call that add_new_function would trigger.  This function is called
+     during tree lowering of structure_alloc_comps where caller stack
+     frames hold locally-computed tree nodes (COMPONENT_REFs etc.) that
+     are not yet attached to any GC root.  A collection at this point
+     would free those nodes and cause segfaults.  PR124235.  */
+  cgraph_node::finalize_function (fndecl, true);
 
   return build1 (ADDR_EXPR, get_copy_helper_pointer_type (), fndecl);
 }
@@ -10325,8 +10462,7 @@ structure_alloc_comps (gfc_symbol * der_type, tree decl, tree dest,
 	      && seen_derived_types.contains (CLASS_DATA (c)->ts.u.derived));
       bool inside_wrapper = generating_copy_helper;
 
-      bool is_pdt_type = c->ts.type == BT_DERIVED
-			 && c->ts.u.derived->attr.pdt_type;
+      bool is_pdt_type = IS_PDT (c);
 
       cdecl = c->backend_decl;
       ctype = TREE_TYPE (cdecl);
@@ -10864,8 +11000,7 @@ structure_alloc_comps (gfc_symbol * der_type, tree decl, tree dest,
 				  cdecl, NULL_TREE);
 	  dcmp = fold_convert (TREE_TYPE (comp), dcmp);
 
-	  if (c->ts.type == BT_DERIVED && c->ts.u.derived->attr.pdt_type
-	      && !c->attr.allocatable)
+	  if (IS_PDT (c) && !c->attr.allocatable)
 	    {
 	      tmp = gfc_copy_alloc_comp (c->ts.u.derived, comp, dcmp,
 					 0, 0);
@@ -11054,9 +11189,14 @@ structure_alloc_comps (gfc_symbol * der_type, tree decl, tree dest,
 					  copy_wrapper);
 	      gfc_add_expr_to_block (&fnblock, call);
 	    }
+	  /* For allocatable arrays with nested allocatable components,
+	     add_when_allocated already includes gfc_duplicate_allocatable
+	     (from the recursive structure_alloc_comps call at line 10290-10293),
+	     so we must not call it again here.  PR121628 added an
+	     add_when_allocated != NULL clause that was redundant for scalars
+	     (already handled by !c->as) and wrong for arrays (double alloc).  */
 	  else if (c->attr.allocatable && !c->attr.proc_pointer
-		   && (add_when_allocated != NULL_TREE
-		       || !cmp_has_alloc_comps
+		   && (!cmp_has_alloc_comps
 		       || !c->as
 		       || c->attr.codimension
 		       || caf_in_coarray (caf_mode)))
@@ -11120,11 +11260,11 @@ structure_alloc_comps (gfc_symbol * der_type, tree decl, tree dest,
 		}
 	    }
 	  else if (c->initializer && !c->attr.pdt_string && !c->attr.pdt_array
-		   && !c->as && !(c->ts.type == BT_DERIVED
-				  && c->ts.u.derived->attr.pdt_type))   /* Take care of arrays.  */
+		   && !c->as && !IS_PDT (c))   /* Take care of arrays.  */
 	    {
 	      gfc_se tse;
 	      gfc_expr *c_expr;
+	      gfc_init_se (&tse, NULL);
 	      c_expr = c->initializer;
 	      gfc_conv_expr_type (&tse, c_expr, TREE_TYPE (comp));
 	      gfc_add_block_to_block (&fnblock, &tse.pre);
@@ -11169,8 +11309,7 @@ structure_alloc_comps (gfc_symbol * der_type, tree decl, tree dest,
 
 	  /* Allocate parameterized arrays of parameterized derived types.  */
 	  if (!(c->attr.pdt_array && c->as && c->as->type == AS_EXPLICIT)
-	      && !((c->ts.type == BT_DERIVED || c->ts.type == BT_CLASS)
-		   && (c->ts.u.derived && c->ts.u.derived->attr.pdt_type)))
+	      && !(IS_PDT (c) || IS_CLASS_PDT (c)))
 	    continue;
 
 	  if (c->ts.type == BT_CLASS)
@@ -11269,8 +11408,7 @@ structure_alloc_comps (gfc_symbol * der_type, tree decl, tree dest,
 	    }
 
 	  /* Recurse in to PDT components.  */
-	  if ((c->ts.type == BT_DERIVED || c->ts.type == BT_CLASS)
-	      && c->ts.u.derived && c->ts.u.derived->attr.pdt_type
+	  if ((IS_PDT (c) || IS_CLASS_PDT (c))
 	      && !(c->attr.pointer || c->attr.allocatable))
 	    {
 	      gfc_actual_arglist *tail = c->param_list;
@@ -11292,8 +11430,7 @@ structure_alloc_comps (gfc_symbol * der_type, tree decl, tree dest,
 	     of parameterized derived types.  */
 	  if (!(c->attr.pdt_array && c->as && c->as->type == AS_EXPLICIT)
 	      && !c->attr.pdt_string
-	      && !((c->ts.type == BT_DERIVED || c->ts.type == BT_CLASS)
-		   && (c->ts.u.derived && c->ts.u.derived->attr.pdt_type)))
+	      && !(IS_PDT (c) || IS_CLASS_PDT (c)))
 	    continue;
 
 	  comp = fold_build3_loc (input_location, COMPONENT_REF, ctype,
@@ -11302,8 +11439,7 @@ structure_alloc_comps (gfc_symbol * der_type, tree decl, tree dest,
 	    comp = gfc_class_data_get (comp);
 
 	  /* Recurse in to PDT components.  */
-	  if ((c->ts.type == BT_DERIVED || c->ts.type == BT_CLASS)
-	      && c->ts.u.derived && c->ts.u.derived->attr.pdt_type
+	  if ((IS_PDT (c) || IS_CLASS_PDT (c))
 	      && (!c->attr.pointer && !c->attr.allocatable))
 	    {
 	      tmp = gfc_deallocate_pdt_comp (c->ts.u.derived, comp,
@@ -11446,12 +11582,12 @@ gfc_nullify_alloc_comp (gfc_symbol * der_type, tree decl, int rank,
 
 tree
 gfc_deallocate_alloc_comp (gfc_symbol * der_type, tree decl, int rank,
-			   int caf_mode)
+			   int caf_mode, bool no_finalization)
 {
   return structure_alloc_comps (der_type, decl, NULL_TREE, rank,
 				DEALLOCATE_ALLOC_COMP,
 				GFC_STRUCTURE_CAF_MODE_ENABLE_COARRAY | caf_mode,
-				NULL);
+				NULL, no_finalization);
 }
 
 tree
@@ -11574,24 +11710,10 @@ gfc_allocate_pdt_comp (gfc_symbol * der_type, tree decl, int rank,
 /* Recursively traverse an object of parameterized derived type, generating
    code to deallocate parameterized components.  */
 
-static bool
-has_parameterized_comps (gfc_symbol * der_type)
-{
-  /* A type without parameterized components causes gimplifier problems.  */
-  bool parameterized_comps = false;
-  for (gfc_component *c = der_type->components; c; c = c->next)
-    if (c->attr.pdt_array || c->attr.pdt_string)
-      parameterized_comps = true;
-    else if (c->ts.type == BT_DERIVED
-	     && c->ts.u.derived->attr.pdt_type
-	     && strcmp (der_type->name, c->ts.u.derived->name))
-      parameterized_comps = has_parameterized_comps (c->ts.u.derived);
-  return parameterized_comps;
-}
-
 tree
 gfc_deallocate_pdt_comp (gfc_symbol * der_type, tree decl, int rank)
 {
+  /* A type without parameterized components causes gimplifier problems.  */
   if (!has_parameterized_comps (der_type))
     return NULL_TREE;
 

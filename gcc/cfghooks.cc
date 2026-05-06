@@ -18,6 +18,7 @@ You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
+#define INCLUDE_VECTOR
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
@@ -34,6 +35,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "cfgloop.h"
 #include "sreal.h"
 #include "profile.h"
+#include "diagnostics/sarif-sink.h"
+#include "custom-sarif-properties/cfg.h"
 
 /* Disable warnings about missing quoting in GCC diagnostics.  */
 #if __GNUC__ >= 10
@@ -350,6 +353,33 @@ dump_bb_for_graph (pretty_printer *pp, basic_block bb)
   pp_write_text_to_stream (pp);
   if (!(dump_flags & TDF_SLIM))
     cfg_hooks->dump_bb_for_graph (pp, bb);
+}
+
+void
+dump_bb_as_sarif_properties (diagnostics::sarif_builder *builder,
+			     json::object &output_bag,
+			     basic_block bb)
+{
+  if (!cfg_hooks->dump_bb_for_graph)
+    internal_error ("%s does not support dump_bb_as_sarif_properties",
+		    cfg_hooks->name);
+  namespace bb_property_names = custom_sarif_properties::cfg::basic_block;
+  if (bb->index == ENTRY_BLOCK)
+    output_bag.set_string (bb_property_names::kind, "entry");
+  else if (bb->index == EXIT_BLOCK)
+    output_bag.set_string (bb_property_names::kind, "exit");
+  else if (BB_PARTITION (bb) == BB_HOT_PARTITION)
+    output_bag.set_string (bb_property_names::kind, "hot");
+  else if (BB_PARTITION (bb) == BB_COLD_PARTITION)
+    output_bag.set_string (bb_property_names::kind, "cold");
+  if (bb->count.initialized_p ())
+    {
+      pretty_printer pp;
+      pp_printf (&pp, "%" PRId64, bb->count.to_gcov_type ());
+      output_bag.set_string (bb_property_names::count,
+			     pp_formatted_text (&pp));
+    }
+  cfg_hooks->dump_bb_as_sarif_properties (builder, output_bag, bb);
 }
 
 /* Dump the complete CFG to FILE.  FLAGS are the TDF_* flags in dumpfile.h.  */
@@ -893,11 +923,11 @@ merge_blocks (basic_block a, basic_block b)
 
 /* Split BB into entry part and the rest (the rest is the newly created block).
    Redirect those edges for that REDIRECT_EDGE_P returns true to the entry
-   part.  Returns the edge connecting the entry part to the rest.  */
+   part.  Returns the edge connecting the entry part to the rest.
+   DATA gets passed on to REDIRECT_EDGE_P.  */
 
 edge
-make_forwarder_block (basic_block bb, bool (*redirect_edge_p) (edge),
-		      void (*new_bb_cbk) (basic_block))
+make_forwarder_block (basic_block bb, bool (*redirect_edge_p) (edge, void*), void *data)
 {
   edge e, fallthru;
   edge_iterator ei;
@@ -918,7 +948,7 @@ make_forwarder_block (basic_block bb, bool (*redirect_edge_p) (edge),
     {
       basic_block e_src;
 
-      if (redirect_edge_p (e))
+      if (redirect_edge_p (e, data))
 	{
 	  dummy->count += e->count ();
 	  ei_next (&ei);
@@ -936,9 +966,6 @@ make_forwarder_block (basic_block bb, bool (*redirect_edge_p) (edge),
               && dummy->loop_father->header == dummy
               && dummy->loop_father->latch == e_src)
             dummy->loop_father->latch = jump;
-
-          if (new_bb_cbk != NULL)
-            new_bb_cbk (jump);
         }
     }
 

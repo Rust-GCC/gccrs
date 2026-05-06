@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2026, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -1168,7 +1168,13 @@ package body Ch4 is
 
       if Token in Tok_Identifier | Tok_Operator_Symbol | Tok_Others then
          Save_Scan_State (Scan_State_Id); -- at Id
-         Ident_Node := Token_Node;
+
+         if Token = Tok_Others then
+            Ident_Node := Empty; -- used below only in case of syntax error
+         else
+            Ident_Node := Token_Node;
+         end if;
+
          Scan; -- past Id
 
          --  Deal with => (allow := as incorrect substitute)

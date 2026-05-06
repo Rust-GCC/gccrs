@@ -1,3 +1,88 @@
+2026-04-22  Jakub Jelinek  <jakub@redhat.com>
+
+	* gcc-changelog/git_update_version.py (active_refs): Add
+	releases/gcc-16.
+
+2026-04-15  Jakub Jelinek  <jakub@redhat.com>
+
+	* gcc-changelog/git_update_version.py: Add
+	9df40f1f4bec855da864f535e242308ceb1cd5ad and
+	d5fb79718b22207253d62c92dcf8b1c16e1ea370 to ignored_commits.
+
+2026-04-15  Jakub Jelinek  <jakub@redhat.com>
+
+	* gcc-changelog/git_update_version.py: Add
+	eec8da328cf1f91db302ab4cee803e269e68ad33 to ignored_commits.
+
+2026-04-15  Jakub Jelinek  <jakub@redhat.com>
+
+	* gcc-changelog/git_update_version.py: Add
+	69a2c243dd2cf9f77150c0eb86dfbc0931876bc1 to ignored_commits.
+
+2026-03-14  Jakub Jelinek  <jakub@redhat.com>
+
+	PR other/124508
+	* update-copyright.py: Add James Bohl. as another copyright.
+
+2026-03-09  Martin Jambor  <mjambor@suse.cz>
+
+	* filter-clang-warnings.py (skip_warning): Also ingore
+	-Wimplicit-int-enum-cast in libiberty.
+
+2026-03-02  Jakub Jelinek  <jakub@redhat.com>
+
+	* gcc-changelog/git_update_version.py (ignored_commits): Add
+	9a7da540b63e7d77e747b5cdd6fdbbd3954e28c8.
+
+2026-02-24  Piyush Raj  <piyushraj92739@gmail.com>
+
+	* bpf-vmtest-tool/README: New file.
+	* bpf-vmtest-tool/bpf.py: New file.
+	* bpf-vmtest-tool/config.py: New file.
+	* bpf-vmtest-tool/kernel.py: New file.
+	* bpf-vmtest-tool/main.py: New file.
+	* bpf-vmtest-tool/pyproject.toml: New file.
+	* bpf-vmtest-tool/tests/test_cli.py: New file.
+	* bpf-vmtest-tool/utils.py: New file.
+	* bpf-vmtest-tool/vm.py: New file.
+
+2026-02-24  Martin Jambor  <mjambor@suse.cz>
+
+	* filter-clang-warnings.py (skip_warning): Skip warning
+	-Wreturn-type-c-linkage in rust/ast/rust-fmt.h.  Fix indentation of
+	the entry for libiberty/sha1.c.
+
+2026-02-19  Filip Kastl  <fkastl@suse.cz>
+
+	* filter-clang-warnings.py: Filter out all warnings comming from
+	files with ".texi" in their name.
+
+2026-02-05  Torbjörn SVENSSON  <torbjorn.svensson@foss.st.com>
+
+	* download_prerequisites: Switch gcc.gnu.org link to https
+
+2026-02-05  Filip Kastl  <fkastl@suse.cz>
+
+	* check-params-in-docs.py: Extend architecture-specific options
+	filtering.  Remove the mechanism for seeking to the param
+	section.
+
+2026-01-31  Pietro Monteiro  <pietro@sociotechnical.xyz>
+
+	* compare_tests: Use egrep if 'grep -E' is not supported.
+
+2026-01-09  Jakub Jelinek  <jakub@redhat.com>
+
+	* update-copyright.py (GCCFilter): Don't filter out
+	gen-evolution.awk and gen-cxxapi-file.py.
+
+2026-01-08  Pietro Monteiro  <pietro@sociotechnical.xyz>
+
+	* ci-containers/README: New file.
+	* ci-containers/autoregen/Containerfile: New file.
+	* ci-containers/autoregen/autoregen.py: New file.
+	* ci-containers/build-image.sh: New file.
+
 2026-01-02  Jakub Jelinek  <jakub@redhat.com>
 
 	* update-copyright.py (LibPhobosFilter): Ignore also

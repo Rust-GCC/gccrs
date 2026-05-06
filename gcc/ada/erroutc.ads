@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2026, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -27,7 +27,6 @@
 --  reporting packages, including Errout and Prj.Err.
 
 with Table;
-with Errsw; use Errsw;
 with Errid; use Errid;
 with Osint; use Osint;
 with Types; use Types;
@@ -419,13 +418,6 @@ package Erroutc is
    function Primary_Location (E : Error_Msg_Object) return Labeled_Span_Id;
    --  Returns the first Primary Labeled_Span associated with the error
    --  message. Otherwise it returns No_Labeled_Span.
-
-   function Get_Human_Id (E : Error_Msg_Object) return String_Ptr;
-   --  Returns a longer human readable name for the switch associated with the
-   --  error message.
-
-   function Get_Switch (E : Error_Msg_Object) return Switch_Type;
-   --  Returns the Switch information for the given error message
 
    function Get_Switch_Id (E : Error_Msg_Object) return Switch_Id;
    --  Returns the Switch information identifier for the given error message

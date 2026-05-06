@@ -21,7 +21,7 @@ void
 foo (B a)
 {
   #pragma omp for collapse(2)
-  for (auto [i, j, k] : a)
-    for (int l = i; l < j; l += k)	// { dg-error "initializer expression refers to iteration variable 'i'" }
-      ;					// { dg-error "condition expression refers to iteration variable 'j'" "" { target *-*-* } .-1 }
-}					// { dg-error "increment expression refers to iteration variable 'k'" "" { target *-*-* } .-2 }
+  for (auto [i, j, k] : a)		// { dg-error "initializer expression refers to iteration variable 'i'" }
+    for (int l = i; l < j; l += k)	// { dg-error "condition expression refers to iteration variable 'j'" }
+      ;					// { dg-error "increment expression refers to iteration variable 'k'" "" { target *-*-* } .-2 }
+}

@@ -1,0 +1,9 @@
+About to call FOO
+  entry point foo: This is foo
+  entry point bar: This is foo
+About to call BAR
+  entry point bar: This is bar
+About to call FOO again
+  entry point foo: This is foo2
+  entry point bar: This is foo2
+

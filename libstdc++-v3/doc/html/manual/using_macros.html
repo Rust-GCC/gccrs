@@ -147,4 +147,13 @@
 	mode will revert to the non-conforming implementation used prior to the
 	<a class="link" href="https://gcc.gnu.org/bugzilla/show_bug.cgi?id=112591" target="_top">PR112591</a>
 	in GCC-16. Has no impact for C++20 or later modes.
+      </p></dd><dt><span class="term"><code class="code">_GLIBCXX_NO_INLINE_PRINT</code></span></dt><dd><p>
+	Undefined by default. When defined <code class="code">std::print</code> and
+	<code class="code">std::println</code> are not implemented using inline functions.
+	This means that code using those functions will compile faster,
+	but <code class="option">-lstdc++exp</code> must be used when linking.
+	The non-inline definitions are compiled using
+	<code class="option">-fexec-charset=UTF-8</code> so might give incorrect results
+	if called from a source file that uses a non-Unicode encoding,
+	especially for format strings using non-ASCII fill characters.
       </p></dd></dl></div></div><div class="navfooter"><hr /><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="using_headers.html">Prev</a> </td><td width="20%" align="center"><a accesskey="u" href="using.html">Up</a></td><td width="40%" align="right"> <a accesskey="n" href="using_dual_abi.html">Next</a></td></tr><tr><td width="40%" align="left" valign="top">Headers </td><td width="20%" align="center"><a accesskey="h" href="../index.html">Home</a></td><td width="40%" align="right" valign="top"> Dual ABI</td></tr></table></div></body></html>

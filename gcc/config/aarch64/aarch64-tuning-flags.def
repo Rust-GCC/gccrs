@@ -72,4 +72,8 @@ AARCH64_EXTRA_TUNING_OPTION ("cheap_fpmr_write", CHEAP_FPMR_WRITE)
 /* Enables dispatch scheduling.  */
 AARCH64_EXTRA_TUNING_OPTION ("dispatch_sched", DISPATCH_SCHED)
 
+/* Enables narrowing of 64-bit GP register writes to 32-bit when the upper
+   32 bits are unused.  */
+AARCH64_EXTRA_TUNING_OPTION ("narrow_gp_writes", NARROW_GP_WRITES)
+
 #undef AARCH64_EXTRA_TUNING_OPTION

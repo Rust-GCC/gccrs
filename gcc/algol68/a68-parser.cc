@@ -377,6 +377,7 @@ a68_dont_mark_here (NODE_T *p)
     case NIL_SYMBOL:
     case OD_SYMBOL:
     case OF_SYMBOL:
+    case QUOTE_SYMBOL:
     case OPEN_SYMBOL:
     case OP_SYMBOL:
     case ORF_SYMBOL:
@@ -669,6 +670,7 @@ a68_new_node (void)
   CDECL (z) = NULL_TREE;
   DYNAMIC_STACK_ALLOCS (z) = false;
   PUBLICIZED (z) = false;
+  NEGATED (z) = false;
   return z;
 }
 
@@ -726,6 +728,7 @@ a68_new_moid (void)
   DIM (z) = 0;
   USE (z) = false;
   HAS_ROWS (z) = false;
+  HAS_REFS (z) = false;
   PORTABLE (z) = true;
   DERIVATE (z) = false;
   NODE (z) = NO_NODE;
@@ -776,6 +779,7 @@ a68_new_tag (void)
   PRIO (z) = 0;
   USE (z) = false;
   IN_PROC (z) = false;
+  NEST_PROC (z) = false;
   HEAP (z) = false;
   YOUNGEST_ENVIRON (z) = PRIMAL_SCOPE;
   LOC_ASSIGNED (z) = false;

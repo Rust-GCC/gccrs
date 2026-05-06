@@ -141,8 +141,8 @@ SHUT_WR
 
 version (linux)
 {
-    alias uint   socklen_t;
-    alias ushort sa_family_t;
+    alias socklen_t = uint;
+    alias sa_family_t = ushort;
 
     struct sockaddr
     {
@@ -233,12 +233,12 @@ version (linux)
 
     extern (D)
     {
-        size_t CMSG_ALIGN( size_t len ) pure nothrow @nogc
+        size_t CMSG_ALIGN()( size_t len ) pure nothrow @nogc
         {
             return (len + size_t.sizeof - 1) & cast(size_t) (~(size_t.sizeof - 1));
         }
 
-        size_t CMSG_LEN( size_t len ) pure nothrow @nogc
+        size_t CMSG_LEN()( size_t len ) pure nothrow @nogc
         {
             return CMSG_ALIGN(cmsghdr.sizeof) + len;
         }
@@ -622,8 +622,8 @@ version (linux)
 }
 else version (Darwin)
 {
-    alias uint   socklen_t;
-    alias ubyte  sa_family_t;
+    alias socklen_t = uint;
+    alias sa_family_t = ubyte;
 
     struct sockaddr
     {
@@ -668,13 +668,13 @@ else version (Darwin)
 
     extern (D)
     {
-        socklen_t CMSG_ALIGN(socklen_t len) pure nothrow @nogc { return (len + socklen_t.sizeof - 1) & cast(socklen_t) (~(socklen_t.sizeof - 1)); }
-        socklen_t CMSG_SPACE(socklen_t len) pure nothrow @nogc { return CMSG_ALIGN(len) + CMSG_ALIGN(cmsghdr.sizeof); }
-        socklen_t CMSG_LEN(socklen_t len) pure nothrow @nogc { return CMSG_ALIGN(cmsghdr.sizeof) + len; }
+        socklen_t CMSG_ALIGN()(socklen_t len) pure nothrow @nogc { return (len + socklen_t.sizeof - 1) & cast(socklen_t) (~(socklen_t.sizeof - 1)); }
+        socklen_t CMSG_SPACE()(socklen_t len) pure nothrow @nogc { return CMSG_ALIGN(len) + CMSG_ALIGN(cmsghdr.sizeof); }
+        socklen_t CMSG_LEN()(socklen_t len) pure nothrow @nogc { return CMSG_ALIGN(cmsghdr.sizeof) + len; }
 
-        inout(ubyte)*   CMSG_DATA( return scope inout(cmsghdr)* cmsg ) pure nothrow @nogc { return cast(ubyte*)( cmsg + 1 ); }
+        inout(ubyte)*   CMSG_DATA()( return scope inout(cmsghdr)* cmsg ) pure nothrow @nogc { return cast(ubyte*)( cmsg + 1 ); }
 
-        inout(cmsghdr)* CMSG_FIRSTHDR( inout(msghdr)* mhdr ) pure nothrow @nogc
+        inout(cmsghdr)* CMSG_FIRSTHDR()( inout(msghdr)* mhdr ) pure nothrow @nogc
         {
             return ( cast(socklen_t)mhdr.msg_controllen >= cmsghdr.sizeof ? cast(inout(cmsghdr)*) mhdr.msg_control : cast(inout(cmsghdr)*) null );
         }
@@ -762,8 +762,8 @@ else version (Darwin)
 }
 else version (FreeBSD)
 {
-    alias uint   socklen_t;
-    alias ubyte  sa_family_t;
+    alias socklen_t = uint;
+    alias sa_family_t = ubyte;
 
     struct sockaddr
     {
@@ -920,8 +920,8 @@ else version (FreeBSD)
 }
 else version (NetBSD)
 {
-    alias uint   socklen_t;
-    alias ubyte  sa_family_t;
+    alias socklen_t = uint;
+    alias sa_family_t = ubyte;
 
     struct sockaddr
     {
@@ -1098,8 +1098,8 @@ else version (NetBSD)
 }
 else version (OpenBSD)
 {
-    alias uint   socklen_t;
-    alias ubyte  sa_family_t;
+    alias socklen_t = uint;
+    alias sa_family_t = ubyte;
 
     struct sockaddr
     {
@@ -1270,8 +1270,8 @@ else version (OpenBSD)
 }
 else version (DragonFlyBSD)
 {
-    alias uint   socklen_t;
-    alias ubyte  sa_family_t;
+    alias socklen_t = uint;
+    alias sa_family_t = ubyte;
 
     enum
     {
@@ -1470,8 +1470,8 @@ else version (DragonFlyBSD)
 }
 else version (Solaris)
 {
-    alias uint socklen_t;
-    alias ushort sa_family_t;
+    alias socklen_t = uint;
+    alias sa_family_t = ushort;
 
     struct sockaddr
     {
@@ -1479,7 +1479,7 @@ else version (Solaris)
         char[14] sa_data = 0;
     }
 
-    alias double sockaddr_maxalign_t;
+    alias sockaddr_maxalign_t = double;
 
     private
     {
@@ -1704,7 +1704,7 @@ else version (NetBSD)
     ssize_t sendto(int, const scope void*, size_t, int, const scope sockaddr*, socklen_t);
     int     setsockopt(int, int, int, const scope void*, socklen_t);
     int     shutdown(int, int) @safe;
-    int     socket(int, int, int) @safe;
+    pragma(mangle, "__socket30") int     socket(int, int, int) @safe;
     int     sockatmark(int) @safe;
     int     socketpair(int, int, int, ref int[2]) @safe;
 }

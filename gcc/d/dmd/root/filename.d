@@ -1,7 +1,7 @@
 /**
  * Encapsulate path and file names.
  *
- * Copyright: Copyright (C) 1999-2025 by The D Language Foundation, All Rights Reserved
+ * Copyright: Copyright (C) 1999-2026 by The D Language Foundation, All Rights Reserved
  * Authors:   Walter Bright, https://www.digitalmars.com
  * License:   $(LINK2 https://www.boost.org/LICENSE_1_0.txt, Boost License 1.0)
  * Source:    $(LINK2 https://github.com/dlang/dmd/blob/master/compiler/src/dmd/root/filename.d, root/_filename.d)
@@ -51,8 +51,9 @@ version (CRuntime_Glibc)
     extern (C) char* canonicalize_file_name(const char*) nothrow;
 }
 
-alias Strings = Array!(const(char)*);
+nothrow:
 
+alias Strings = Array!(const(char)*);
 
 // Check whether character is a directory separator
 bool isDirSeparator(char c) pure nothrow @nogc @safe
@@ -468,7 +469,20 @@ nothrow:
             assert(buildPath("a/", "bb", "ccc") == "a/bb/ccc");
     }
 
-    // Split a path and append the results to `array`
+    /****
+     * Splits a delimiter-separated path string (e.g., from an environment variable like `PATH`)
+     * into individual path fragments and appends them to the given array.
+     *
+     * This is a convenience wrapper around `splitPath` that collects all fragments
+     * into an `Array!(const(char)*)`.
+     *
+     * Params:
+     *   path  = A null-terminated string containing path fragments separated by platform-specific delimiters.
+     *   array = The array to which each extracted fragment will be appended.
+     *
+     * See_Also:
+     *   `splitPath`
+     */
     extern (C++) static void appendSplitPath(const(char)* path, ref Strings array)
     {
         int sink(const(char)* p) nothrow
@@ -487,7 +501,7 @@ nothrow:
      *  sink = send the path pieces here, end when sink() returns !=0
      *  path = the path to split up.
      */
-    static void splitPath(int delegate(const(char)*) nothrow sink, const(char)* path)
+    static void splitPath(scope int delegate(const(char)*) nothrow sink, const(char)* path)
     {
         if (!path)
             return;

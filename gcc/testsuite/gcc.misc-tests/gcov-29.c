@@ -1,5 +1,5 @@
-/* { dg-options "--coverage -fpath-coverage" } */
-/* { dg-do run { target native } } */
+/* { dg-options "-fpath-coverage" } */
+/* { dg-do run } */
 
 void
 pathcov001a ()
@@ -823,7 +823,7 @@ void *gnu_getcwd()
 }
 
 /* BEGIN paths
-   summary: 0/5  */
+   summary: 0/6  */
 void pathcov007a (int a)
 /* END */
 {

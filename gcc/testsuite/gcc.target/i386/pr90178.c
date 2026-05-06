@@ -11,4 +11,4 @@ find_ptr (int* mem, int sz, int val)
   return 0;
 }
 
-/* { dg-final { scan-assembler-times "xorl\[\\t \]*\\\%eax,\[\\t \]*%eax" 1 } } */
+/* { dg-final { scan-assembler-times "ret" 2 } } */

@@ -24,6 +24,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "stringpool.h"
 #include "attribs.h"
 #include "xml-printer.h"
+#include "target.h"
 
 #include "analyzer/analyzer-logging.h"
 #include "analyzer/sm.h"
@@ -2087,6 +2088,25 @@ malloc_state_machine::handle_nonnull (sm_context &sm_ctxt,
     maybe_assume_non_null (sm_ctxt, arg);
 }
 
+/* Return true if it's valid to dereference the zero value of PTR_TYPE,
+   or false if we should warn on it.  */
+
+static bool
+zero_address_valid_p (const_tree ptr_type)
+{
+  gcc_assert (POINTER_TYPE_P (ptr_type));
+
+  /* Some targets have address spaces in which it's valid
+     to dereference zero.  */
+  addr_space_t as = TYPE_ADDR_SPACE (TREE_TYPE (ptr_type));
+  if (!ADDR_SPACE_GENERIC_P (as)
+      && targetm.addr_space.zero_address_valid (as))
+    return true;
+
+  /* Invalid.  */
+  return false;
+}
+
 /* Implementation of state_machine::on_stmt vfunc for malloc_state_machine.  */
 
 bool
@@ -2250,19 +2270,25 @@ malloc_state_machine::on_stmt (sm_context &sm_ctxt,
 	    maybe_assume_non_null (sm_ctxt, arg);
 	  else if (unchecked_p (state))
 	    {
-	      tree diag_arg = sm_ctxt.get_diagnostic_tree (arg);
-	      sm_ctxt.warn (arg,
-			    std::make_unique<possible_null_deref> (*this,
-								   diag_arg));
-	      const allocation_state *astate = as_a_allocation_state (state);
-	      sm_ctxt.set_next_state (arg, astate->get_nonnull ());
+	      if (!zero_address_valid_p (TREE_TYPE (arg)))
+		{
+		  tree diag_arg = sm_ctxt.get_diagnostic_tree (arg);
+		  sm_ctxt.warn (arg,
+				std::make_unique<possible_null_deref> (*this,
+								       diag_arg));
+		  const allocation_state *astate = as_a_allocation_state (state);
+		  sm_ctxt.set_next_state (arg, astate->get_nonnull ());
+		}
 	    }
 	  else if (state == m_null)
 	    {
-	      tree diag_arg = sm_ctxt.get_diagnostic_tree (arg);
-	      sm_ctxt.warn (arg,
-			    std::make_unique<null_deref> (*this, diag_arg));
-	      sm_ctxt.set_next_state (arg, m_stop);
+	      if (!zero_address_valid_p (TREE_TYPE (arg)))
+		{
+		  tree diag_arg = sm_ctxt.get_diagnostic_tree (arg);
+		  sm_ctxt.warn (arg,
+				std::make_unique<null_deref> (*this, diag_arg));
+		  sm_ctxt.set_next_state (arg, m_stop);
+		}
 	    }
 	  else if (freed_p (state))
 	    {

@@ -471,6 +471,13 @@ resolve_array_bound (gfc_expr *e, int check_constant)
   if (e == NULL)
     return true;
 
+  if (e->ts.type == BT_DERIVED || e->ts.type == BT_CLASS)
+    {
+      gfc_error ("Derived type or class expression for array bound at %L",
+		 &e->where);
+      return false;
+    }
+
   if (!gfc_resolve_expr (e)
       || !gfc_specification_expr (e))
     return false;
@@ -2214,6 +2221,7 @@ resolve_array_list (gfc_constructor_base base)
   bool t;
   gfc_constructor *c;
   gfc_iterator *iter;
+  gfc_expr *expr1 = NULL;
 
   t = true;
 
@@ -2276,6 +2284,15 @@ resolve_array_list (gfc_constructor_base base)
 	  t = false;
 	}
 
+      /* For valid expressions, check that the type specification parameters
+	 are the same.  */
+      if (t && !c->iterator && c->expr && IS_PDT (c->expr))
+	{
+	  if (expr1 == NULL)
+	    expr1 = c->expr;
+	  else
+	    t = gfc_check_type_spec_parms (expr1, c->expr, "in array constructor");
+	}
     }
 
   return t;

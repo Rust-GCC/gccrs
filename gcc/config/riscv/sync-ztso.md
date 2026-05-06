@@ -51,11 +51,13 @@
     enum memmodel model = (enum memmodel) INTVAL (operands[2]);
     model = memmodel_base (model);
 
+    /* Ignoring RCsc atomic load-acquire on MEMMODEL_SEQ_CST due to
+       Note 3 abi break for when TARGET_ZALASR is enabled.  */
     if (model == MEMMODEL_SEQ_CST)
       return "fence\trw,rw\;"
 	     "<load>\t%0,%1";
-    else
-      return "<load>\t%0,%1";
+
+    return "<load>\t%0,%1";
   }
   [(set_attr "type" "multi")
    (set (attr "length")
@@ -74,11 +76,14 @@
     enum memmodel model = (enum memmodel) INTVAL (operands[2]);
     model = memmodel_base (model);
 
+    if (TARGET_ZALASR && (model == MEMMODEL_SEQ_CST))
+      return "<store>.rl\t%z1,%0";
+
     if (model == MEMMODEL_SEQ_CST)
       return "<store>\t%z1,%0\;"
 	     "fence\trw,rw";
-    else
-      return "<store>\t%z1,%0";
+
+    return "<store>\t%z1,%0";
   }
   [(set_attr "type" "multi")
    (set (attr "length")

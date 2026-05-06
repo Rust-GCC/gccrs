@@ -17,6 +17,25 @@
    along with GCC; see the file COPYING3.  If not see
    <http://www.gnu.org/licenses/>.  */
 
+/* Code organization:
+
+   The taxonomic lines dividing intrinsics into sve, sve2, and sme are perhaps
+   a little non-obvious.
+
+   The code is organized by the following rough principles:
+
+   - aarch64-sve-builtins.def for common data types, groups, and other
+       supporting definitions used across all files.
+   - aarch64-sve-builtins-base.def for the baseline SVE intrinsics which predate
+       SVE2 and SME.
+   - aarch64-sve-builtins-sve2.def for any scalable SIMD intrinsic that is
+       enabled by an SVE2+ or SME+ extension and doesn't directly touch SME
+       state (such as ZA or ZT0) and only involves regular SVE vectors and
+       predicates.
+   - aarch64-sve-builtins-sme.def for any SME+ instinsic that is clearly
+       streaming mode only.  This usually means it uses the ZA or ZT0 registers,
+       or other SME state.  */
+
 #ifndef DEF_SVE_MODE
 #define DEF_SVE_MODE(A, B, C, D)
 #endif

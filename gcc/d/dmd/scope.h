@@ -1,6 +1,6 @@
 
 /* Compiler implementation of the D programming language
- * Copyright (C) 1999-2025 by The D Language Foundation, All Rights Reserved
+ * Copyright (C) 1999-2026 by The D Language Foundation, All Rights Reserved
  * written by Walter Bright
  * https://www.digitalmars.com
  * Distributed under the Boost Software License, Version 1.0.
@@ -67,10 +67,6 @@ struct Scope final
     ForeachStatement *fes;      // if nested function for ForeachStatement, this is it
     Scope *callsc;              // used for __FUNCTION__, __PRETTY_FUNCTION__ and __MODULE__
     Dsymbol *inunion;           // !=null if processing members of a union
-    d_bool nofree;                // true if shouldn't free it
-    d_bool inLoop;                // true if inside a loop (where constructor calls aren't allowed)
-    d_bool inDefaultArg;          // true if inside a default argument (where __FILE__, etc are evaluated at the call site)
-    int intypeof;               // in typeof(exp)
     VarDeclaration *lastVar;    // Previous symbol used to prevent goto-skips-init
     ErrorSink *eSink;           // sink for error messages
 
@@ -96,13 +92,12 @@ struct Scope final
     PragmaDeclaration *inlining; // inlining strategy for functions
 
     Visibility visibility;            // visibility for class members
-    int explicitVisibility;     // set if in an explicit visibility attribute
 
     StorageClass stc;           // storage class
 
     DeprecatedDeclaration *depdecl; // customized deprecation message
 
-    uint16_t flags;
+    uint16_t flags, flags2;
     uint16_t previews; // state of preview switches
 
     bool ctor() const;
@@ -131,16 +126,16 @@ struct Scope final
     bool fullinst(bool v);
     bool ctfeBlock() const;
     bool ctfeBlock(bool v);
+    bool knownACompileTimeOnlyContext() const;
+    bool knownACompileTimeOnlyContext(bool v);
 
     UserAttributeDeclaration *userAttribDecl;   // user defined attributes
 
-    DocComment *lastdc;         // documentation comment for last symbol at this scope
+    void *lastdc;               // documentation comment for last symbol at this scope (DocComment*)
     AA *anchorCounts;           // lookup duplicate anchor name count
     Identifier *prevAnchor;     // qualified symbol name of last doc anchor
 
     AliasDeclaration *aliasAsg; // if set, then aliasAsg is being assigned a new value,
                                 // do not set wasRead for it
     StructDeclaration *argStruct; // elimiate recursion when looking for rvalue construction
-
-    Dsymbol *search(Loc loc, Identifier *ident, Dsymbol *&pscopesym, SearchOptFlags flags = (SearchOptFlags)SearchOpt::all);
 };

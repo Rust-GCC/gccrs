@@ -469,12 +469,12 @@
 (define_memory_constraint "Uj"
  "@internal
   In ARM/Thumb-2 state a VFP load/store address that supports writeback
-  for Neon but not for MVE"
+  for Neon but not for MVE or VFP_FP16INST"
  (and (match_code "mem")
-      (match_test "TARGET_32BIT")
-      (match_test "TARGET_HAVE_MVE
-                   ? arm_coproc_mem_operand_no_writeback (op)
-                   : neon_vector_mem_operand (op, 2, true)")))
+      (match_test "TARGET_32BIT
+		   && (arm_coproc_mem_operand_no_writeback (op)
+		       || (TARGET_NEON_FP16
+			   && neon_vector_mem_operand (op, 2, true)))")))
 
 (define_memory_constraint "Un"
  "@internal

@@ -4671,7 +4671,17 @@ lookup_name_fuzzy (tree name, enum lookup_name_fuzzy_kind kind, location_t loc)
 {
   gcc_assert (TREE_CODE (name) == IDENTIFIER_NODE);
 
-  /* First, try some well-known names in the C standard library, in case
+  /* Look up function-like macros first; maybe misusing them. */
+  auto cpp_node = cpp_lookup (parse_in,
+			      (const unsigned char*)IDENTIFIER_POINTER (name),
+			      IDENTIFIER_LENGTH (name));
+  if (cpp_node && cpp_fun_like_macro_p (cpp_node))
+    return name_hint
+      (nullptr,
+       std::make_unique<macro_like_function_used> (loc,
+						   IDENTIFIER_POINTER (name)));
+
+  /* Next, try some well-known names in the C standard library, in case
      the user forgot a #include.  */
   const char *header_hint
     = get_c_stdlib_header_for_name (IDENTIFIER_POINTER (name));
@@ -5005,7 +5015,7 @@ c_make_fname_decl (location_t loc, tree id, int type_dep)
   DECL_ARTIFICIAL (decl) = 1;
 
   init = build_string (length + 1, name);
-  free (CONST_CAST (char *, name));
+  free (const_cast<char *> (name));
   TREE_TYPE (init) = type;
   DECL_INITIAL (decl) = init;
 
@@ -6531,6 +6541,7 @@ build_compound_literal (location_t loc, tree type, tree init, bool non_const,
 
       type = TREE_TYPE (decl);
       TREE_TYPE (DECL_INITIAL (decl)) = type;
+      relayout_decl (decl);
     }
 
   if (type == error_mark_node || !COMPLETE_TYPE_P (type))
@@ -9086,6 +9097,12 @@ grokfield (location_t loc,
 			  width ? &width : NULL, decl_attrs, expr, NULL,
 			  DEPRECATED_NORMAL);
 
+  /* When this field has name, its type is a top level type, we should
+     call verify_counted_by_for_top_anonymous_type.  */
+  if (DECL_NAME (value) != NULL_TREE
+      && declspecs->typespec_kind == ctsk_tagdef)
+    verify_counted_by_for_top_anonymous_type (declspecs->type);
+
   finish_decl (value, loc, NULL_TREE, NULL_TREE, NULL_TREE);
   DECL_INITIAL (value) = width;
   if (width)
@@ -9485,63 +9502,108 @@ c_update_type_canonical (tree t)
     }
 }
 
-/* Verify the argument of the counted_by attribute of each of the
-   FIELDS_WITH_COUNTED_BY is a valid field of the containing structure,
-   STRUCT_TYPE, Report error and remove the corresponding attribute
-   when it's not.  */
+
+/* We set C_TYPE_VARIABLY_MODIFIED for derived types.  We will not update
+   array types, pointers to array types, function types and other derived
+   types created while the type was still incomplete.  We need to update
+   at least all types for which TYPE_CANONICAL will bet set, because for
+   those we later assume (in c_variably_modified_p) that the bit is
+   up-to-date.  */
 
 static void
-verify_counted_by_attribute (tree struct_type,
-			     auto_vec<tree> *fields_with_counted_by)
+c_update_variably_modified (tree t)
 {
-  for (tree field_decl : *fields_with_counted_by)
+  for (tree x = t; x; x = TYPE_NEXT_VARIANT (x))
     {
-      tree attr_counted_by = lookup_attribute ("counted_by",
-						DECL_ATTRIBUTES (field_decl));
+      C_TYPE_VARIABLY_MODIFIED (x) = 1;
+      for (tree p = TYPE_POINTER_TO (x); p; p = TYPE_NEXT_PTR_TO (p))
+	c_update_variably_modified (p);
+    }
+}
 
-      if (!attr_counted_by)
-	continue;
 
-      /* If there is an counted_by attribute attached to the field,
-	 verify it.  */
+/* Verify the argument of the counted_by attribute of each field of
+   the containing structure, OUTMOST_STRUCT_TYPE, including its inner
+   anonymous struct/union, Report error and remove the corresponding
+   attribute when it's not.  */
 
-      tree fieldname = TREE_VALUE (TREE_VALUE (attr_counted_by));
-
-      /* Verify the argument of the attrbute is a valid field of the
-	 containing structure.  */
-
-      tree counted_by_field = lookup_field (struct_type, fieldname);
-
-      /* Error when the field is not found in the containing structure and
-	 remove the corresponding counted_by attribute from the field_decl.  */
-      if (!counted_by_field)
+static void
+verify_counted_by_attribute (tree outmost_struct_type,
+			     tree cur_struct_type)
+{
+  for (tree field = TYPE_FIELDS (cur_struct_type); field;
+       field = TREE_CHAIN (field))
+    {
+      if (c_flexible_array_member_type_p (TREE_TYPE (field))
+	   || TREE_CODE (TREE_TYPE (field)) == POINTER_TYPE)
 	{
-	  error_at (DECL_SOURCE_LOCATION (field_decl),
+	  tree attr_counted_by = lookup_attribute ("counted_by",
+						   DECL_ATTRIBUTES (field));
+
+	  if (!attr_counted_by)
+	    continue;
+
+	  /* If there is an counted_by attribute attached to the field,
+	     verify it.  */
+
+	  tree fieldname = TREE_VALUE (TREE_VALUE (attr_counted_by));
+
+	  /* Verify the argument of the attrbute is a valid field of the
+	     containing structure.  */
+
+	  tree counted_by_field = lookup_field (outmost_struct_type,
+						fieldname);
+
+	  /* Error when the field is not found in the containing structure
+	     and remove the corresponding counted_by attribute from the
+	     field_decl.  */
+	  if (!counted_by_field)
+	    {
+	      error_at (DECL_SOURCE_LOCATION (field),
 		    "argument %qE to the %<counted_by%> attribute"
 		    " is not a field declaration in the same structure"
-		    " as %qD", fieldname, field_decl);
-	  DECL_ATTRIBUTES (field_decl)
-	    = remove_attribute ("counted_by", DECL_ATTRIBUTES (field_decl));
-	}
-      else
-      /* Error when the field is not with an integer type.  */
-	{
-	  while (TREE_CHAIN (counted_by_field))
-	    counted_by_field = TREE_CHAIN (counted_by_field);
-	  tree real_field = TREE_VALUE (counted_by_field);
-
-	  if (!INTEGRAL_TYPE_P (TREE_TYPE (real_field)))
+		    " as %qD", fieldname, field);
+	      DECL_ATTRIBUTES (field)
+		= remove_attribute ("counted_by", DECL_ATTRIBUTES (field));
+	    }
+	  else
+	  /* Error when the field is not with an integer type.  */
 	    {
-	      error_at (DECL_SOURCE_LOCATION (field_decl),
+	      while (TREE_CHAIN (counted_by_field))
+		counted_by_field = TREE_CHAIN (counted_by_field);
+	      tree real_field = TREE_VALUE (counted_by_field);
+
+	      if (!INTEGRAL_TYPE_P (TREE_TYPE (real_field)))
+		{
+		  error_at (DECL_SOURCE_LOCATION (field),
 			"argument %qE to the %<counted_by%> attribute"
 			" is not a field declaration with an integer type",
 			fieldname);
-	      DECL_ATTRIBUTES (field_decl)
-		= remove_attribute ("counted_by",
-				    DECL_ATTRIBUTES (field_decl));
+		  DECL_ATTRIBUTES (field)
+		    = remove_attribute ("counted_by",
+				    DECL_ATTRIBUTES (field));
+		}
 	    }
 	}
+      else if (RECORD_OR_UNION_TYPE_P (TREE_TYPE (field))
+	       && (DECL_NAME (field) == NULL_TREE))
+	verify_counted_by_attribute (outmost_struct_type, TREE_TYPE (field));
     }
+}
+
+/* Caller should make sure the TYPE is a top-level type (i.e. not being
+   nested in other structure/uniona). For such type, verify its counted_by
+   if it is an anonymous structure/union.  */
+
+void
+verify_counted_by_for_top_anonymous_type (tree type)
+{
+  if (!RECORD_OR_UNION_TYPE_P (type))
+    return;
+
+  if (C_TYPE_FIELDS_HAS_COUNTED_BY (type)
+      && c_type_tag (type) == NULL_TREE)
+    verify_counted_by_attribute (type, type);
 }
 
 /* TYPE is a struct or union that we're applying may_alias to after the body is
@@ -9615,7 +9677,6 @@ finish_struct (location_t loc, tree t, tree fieldlist, tree attributes,
      until now.)  */
 
   bool saw_named_field = false;
-  auto_vec<tree> fields_with_counted_by;
   for (x = fieldlist; x; x = DECL_CHAIN (x))
     {
       /* Whether this field is the last field of the structure or union.
@@ -9660,7 +9721,7 @@ finish_struct (location_t loc, tree t, tree fieldlist, tree attributes,
 	C_TYPE_VARIABLE_SIZE (t) = 1;
 
       /* If any field is variably modified, record this fact. */
-      if (C_TYPE_VARIABLY_MODIFIED (TREE_TYPE (x)))
+      if (c_type_variably_modified_p (TREE_TYPE (x)))
 	C_TYPE_VARIABLY_MODIFIED (t) = 1;
 
       if (DECL_C_BIT_FIELD (x))
@@ -9691,20 +9752,22 @@ finish_struct (location_t loc, tree t, tree fieldlist, tree attributes,
 	    pedwarn (DECL_SOURCE_LOCATION (x), OPT_Wpedantic,
 		     "flexible array member in a struct with no named "
 		     "members is a GCC extension");
-
-	  /* If there is a counted_by attribute attached to this field,
-	     record it here and do more verification later after the
-	     whole structure is complete.  */
 	  if (lookup_attribute ("counted_by", DECL_ATTRIBUTES (x)))
-	    fields_with_counted_by.safe_push (x);
+	    C_TYPE_FIELDS_HAS_COUNTED_BY (t) = 1;
 	}
 
-      if (TREE_CODE (TREE_TYPE (x)) == POINTER_TYPE)
-	/* If there is a counted_by attribute attached to this field,
-	   record it here and do more verification later after the
-	   whole structure is complete.  */
-	if (lookup_attribute ("counted_by", DECL_ATTRIBUTES (x)))
-	  fields_with_counted_by.safe_push (x);
+      if (TREE_CODE (TREE_TYPE (x)) == POINTER_TYPE
+	  && lookup_attribute ("counted_by", DECL_ATTRIBUTES (x)))
+	C_TYPE_FIELDS_HAS_COUNTED_BY (t) = 1;
+
+      /* If the field is an anonymous structure that includes a field
+	 with counted_by attribute, this structure should also be marked
+	 too.  */
+      if (RECORD_OR_UNION_TYPE_P (TREE_TYPE (x))
+	  && C_TYPE_FIELDS_HAS_COUNTED_BY (TREE_TYPE (x))
+	  && DECL_NAME (x) == NULL_TREE
+	  && c_type_tag (TREE_TYPE (x)) == NULL_TREE)
+	C_TYPE_FIELDS_HAS_COUNTED_BY (t) = 1;
 
       if (pedantic && TREE_CODE (t) == RECORD_TYPE
 	  && flexible_array_type_p (TREE_TYPE (x)))
@@ -9907,6 +9970,23 @@ finish_struct (location_t loc, tree t, tree fieldlist, tree attributes,
       warning_at (loc, 0, "union cannot be made transparent");
     }
 
+  tree incomplete_vars = C_TYPE_INCOMPLETE_VARS (TYPE_MAIN_VARIANT (t));
+  for (x = TYPE_MAIN_VARIANT (t); x; x = TYPE_NEXT_VARIANT (x))
+    {
+      TYPE_FIELDS (x) = TYPE_FIELDS (t);
+      TYPE_LANG_SPECIFIC (x) = TYPE_LANG_SPECIFIC (t);
+      TYPE_TRANSPARENT_AGGR (x) = TYPE_TRANSPARENT_AGGR (t);
+      TYPE_TYPELESS_STORAGE (x) = TYPE_TYPELESS_STORAGE (t);
+      C_TYPE_FIELDS_READONLY (x) = C_TYPE_FIELDS_READONLY (t);
+      C_TYPE_FIELDS_VOLATILE (x) = C_TYPE_FIELDS_VOLATILE (t);
+      C_TYPE_FIELDS_NON_CONSTEXPR (x) = C_TYPE_FIELDS_NON_CONSTEXPR (t);
+      C_TYPE_FIELDS_HAS_COUNTED_BY (x) = C_TYPE_FIELDS_HAS_COUNTED_BY (t);
+      C_TYPE_VARIABLE_SIZE (x) = C_TYPE_VARIABLE_SIZE (t);
+      C_TYPE_VARIABLY_MODIFIED (x) = C_TYPE_VARIABLY_MODIFIED (t);
+      C_TYPE_INCOMPLETE_VARS (x) = NULL_TREE;
+      TYPE_INCLUDES_FLEXARRAY (x) = TYPE_INCLUDES_FLEXARRAY (t);
+    }
+
   /* Check for consistency with previous definition.  */
   if (flag_isoc23 && NULL != enclosing_struct_parse_info)
     {
@@ -9952,29 +10032,13 @@ finish_struct (location_t loc, tree t, tree fieldlist, tree attributes,
 
       tree *e = c_struct_htab->find_slot_with_hash (t, hash, INSERT);
       if (*e)
-	TYPE_CANONICAL (t) = *e;
+	TYPE_CANONICAL (t) = TYPE_CANONICAL (*e);
       else
 	{
-	  TYPE_CANONICAL (t) = t;
+	  TYPE_CANONICAL (t) = c_type_canonical (t);
 	  *e = t;
 	}
       c_update_type_canonical (t);
-    }
-
-  tree incomplete_vars = C_TYPE_INCOMPLETE_VARS (TYPE_MAIN_VARIANT (t));
-  for (x = TYPE_MAIN_VARIANT (t); x; x = TYPE_NEXT_VARIANT (x))
-    {
-      TYPE_FIELDS (x) = TYPE_FIELDS (t);
-      TYPE_LANG_SPECIFIC (x) = TYPE_LANG_SPECIFIC (t);
-      TYPE_TRANSPARENT_AGGR (x) = TYPE_TRANSPARENT_AGGR (t);
-      TYPE_TYPELESS_STORAGE (x) = TYPE_TYPELESS_STORAGE (t);
-      C_TYPE_FIELDS_READONLY (x) = C_TYPE_FIELDS_READONLY (t);
-      C_TYPE_FIELDS_VOLATILE (x) = C_TYPE_FIELDS_VOLATILE (t);
-      C_TYPE_FIELDS_NON_CONSTEXPR (x) = C_TYPE_FIELDS_NON_CONSTEXPR (t);
-      C_TYPE_VARIABLE_SIZE (x) = C_TYPE_VARIABLE_SIZE (t);
-      C_TYPE_VARIABLY_MODIFIED (x) = C_TYPE_VARIABLY_MODIFIED (t);
-      C_TYPE_INCOMPLETE_VARS (x) = NULL_TREE;
-      TYPE_INCLUDES_FLEXARRAY (x) = TYPE_INCLUDES_FLEXARRAY (t);
     }
 
   /* Update type location to the one of the definition, instead of e.g.
@@ -9987,12 +10051,16 @@ finish_struct (location_t loc, tree t, tree fieldlist, tree attributes,
 
   finish_incomplete_vars (incomplete_vars, toplevel);
 
-  /* Make sure a DECL_EXPR is created for structs with VLA members.
-     Because we do not know the context, we always pass expr
-     to force creation of a BIND_EXPR which is required in some
-     contexts.  */
+
   if (c_type_variably_modified_p (t))
-    add_decl_expr (loc, t, expr, false);
+    {
+      c_update_variably_modified (t);
+      /* Make sure a DECL_EXPR is created for structs with VLA members.
+	 Because we do not know the context, we always pass expr
+	 to force creation of a BIND_EXPR which is required in some
+	 contexts.  */
+      add_decl_expr (loc, t, expr, false);
+    }
 
   if (warn_cxx_compat)
     warn_cxx_compat_finish_struct (fieldlist, TREE_CODE (t), loc);
@@ -10011,8 +10079,10 @@ finish_struct (location_t loc, tree t, tree fieldlist, tree attributes,
 	struct_parse_info->struct_types.safe_push (t);
      }
 
-  if (fields_with_counted_by.length () > 0)
-    verify_counted_by_attribute (t, &fields_with_counted_by);
+  /* Only when the enclosing struct/union type is not anonymous, do more
+     verification on the fields with counted_by attributes.  */
+  if (C_TYPE_FIELDS_HAS_COUNTED_BY (t) && c_type_tag (t) != NULL_TREE)
+    verify_counted_by_attribute (t, t);
 
   return t;
 }
@@ -13019,10 +13089,10 @@ declspecs_add_type (location_t loc, struct c_declspecs *specs,
     error_at (loc, "two or more data types in declaration specifiers");
   else if (TREE_CODE (type) == TYPE_DECL)
     {
-      mark_decl_used (type, false);
       specs->type = TREE_TYPE (type);
       if (TREE_TYPE (type) != error_mark_node)
 	{
+	  mark_decl_used (type, false);
 	  specs->decl_attr = DECL_ATTRIBUTES (type);
 	  specs->typedef_p = true;
 	  specs->explicit_signed_p = C_TYPEDEF_EXPLICITLY_SIGNED (type);
@@ -13581,10 +13651,11 @@ finish_declspecs (struct c_declspecs *specs)
     case cts_bitint:
       gcc_assert (!specs->long_p && !specs->short_p
 		  && !specs->complex_p);
-      if (!specs->unsigned_p && specs->u.bitint_prec == 1)
+      if (!specs->unsigned_p && specs->u.bitint_prec == 1 && !flag_isoc2y)
 	{
 	  error_at (specs->locations[cdw_typespec],
-		    "%<signed _BitInt%> argument must be at least 2");
+		    "%<signed _BitInt%> argument must be at least 2 "
+		    "before C2Y");
 	  specs->type = integer_type_node;
 	  break;
 	}
@@ -13634,25 +13705,22 @@ c_write_global_declarations_1 (tree globals)
       if (TREE_CODE (decl) == FUNCTION_DECL
 	  && DECL_INITIAL (decl) == NULL_TREE
 	  && DECL_EXTERNAL (decl)
-	  && !TREE_PUBLIC (decl))
+	  && !TREE_PUBLIC (decl)
+	  && !warning_suppressed_p (decl, OPT_Wunused))
 	{
 	  if (C_DECL_USED (decl))
 	    {
-	      /* TODO: Add OPT_Wundefined-inline.  */
 	      if (pedwarn (input_location, 0, "%q+F used but never defined",
 			   decl))
-		suppress_warning (decl /* OPT_Wundefined-inline.  */);
+		suppress_warning (decl, OPT_Wunused);
 	    }
 	  /* For -Wunused-function warn about unused static prototypes.  */
 	  else if (warn_unused_function
 		   && ! DECL_ARTIFICIAL (decl)
-		   && ! warning_suppressed_p (decl, OPT_Wunused_function))
-	    {
-	      if (warning (OPT_Wunused_function,
-			   "%q+F declared %<static%> but never defined",
-			   decl))
-		suppress_warning (decl, OPT_Wunused_function);
-	    }
+		   && warning (OPT_Wunused_function,
+			       "%q+F declared %<static%> but never defined",
+			       decl))
+	    suppress_warning (decl, OPT_Wunused);
 	}
 
       wrapup_global_declaration_1 (decl);

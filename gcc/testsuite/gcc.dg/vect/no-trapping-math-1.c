@@ -1,6 +1,8 @@
 /* Test for pr30485.  */
 /* { dg-do compile } */
 /* { dg-require-effective-target vect_condition } */
+/* { dg-additional-options "-fno-trapping-math" } */
+
 void
 foo (float a[32], float b[2][32])
 {

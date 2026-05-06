@@ -54,6 +54,7 @@ compilation is specified by a string called a "spec".  */
 #include "common/common-target.h"
 #include "gcc-urlifier.h"
 #include "opts-diagnostic.h"
+#include "auto-profile.h" /* for AUTO_PROFILE_VERSION.  */
 
 #ifndef MATH_LIBRARY
 #define MATH_LIBRARY "m"
@@ -146,7 +147,7 @@ env_manager::xput (const char *string)
       m_keys.safe_push (kv);
     }
 
-  ::putenv (CONST_CAST (char *, string));
+  ::putenv (const_cast<char *> (string));
 }
 
 /* Undo any xputenv changes made since last restore.
@@ -727,6 +728,13 @@ proper position among the other output files.  */
 #define CPP_SPEC ""
 #endif
 
+/* libc can define LIBC_CPP_SPEC to provide extra args to the C preprocessor
+   or extra switch-translations. */
+
+#ifndef LIBC_CPP_SPEC
+#define LIBC_CPP_SPEC ""
+#endif
+
 /* Operating systems can define OS_CC1_SPEC to provide extra args to cc1 and
    cc1plus or extra switch-translations.  The OS_CC1_SPEC is appended
    to CC1_SPEC in the initialization of cc1_spec.  */
@@ -750,6 +758,12 @@ proper position among the other output files.  */
    or extra switch-translations.  */
 #ifndef LINK_SPEC
 #define LINK_SPEC ""
+#endif
+
+/* libc can define LIBC_LINK_SPEC to provide extra args to the linker
+   or extra switch-translations.  */
+#ifndef LIBC_LINK_SPEC
+#define LIBC_LINK_SPEC ""
 #endif
 
 /* config.h can define LIB_SPEC to override the default libraries.  */
@@ -986,8 +1000,12 @@ proper position among the other output files.  */
 /* Here is the spec for running the linker, after compiling all files.  */
 
 #if defined(TARGET_PROVIDES_LIBATOMIC) && defined(USE_LD_AS_NEEDED)
+#ifdef USE_LD_AS_NEEDED_LDSCRIPT
+#define LINK_LIBATOMIC_SPEC "%{!fno-link-libatomic:-latomic_asneeded} "
+#else
 #define LINK_LIBATOMIC_SPEC "%{!fno-link-libatomic:" LD_AS_NEEDED_OPTION \
 			    " -latomic " LD_NO_AS_NEEDED_OPTION "} "
+#endif
 #else
 #define LINK_LIBATOMIC_SPEC ""
 #endif
@@ -1212,14 +1230,14 @@ proper position among the other output files.  */
 
 static const char *asm_debug = ASM_DEBUG_SPEC;
 static const char *asm_debug_option = ASM_DEBUG_OPTION_SPEC;
-static const char *cpp_spec = CPP_SPEC;
+static const char *cpp_spec = CPP_SPEC LIBC_CPP_SPEC;
 static const char *cc1_spec = CC1_SPEC OS_CC1_SPEC;
 static const char *cc1plus_spec = CC1PLUS_SPEC;
 static const char *link_gcc_c_sequence_spec = LINK_GCC_C_SEQUENCE_SPEC;
 static const char *link_ssp_spec = LINK_SSP_SPEC;
 static const char *asm_spec = ASM_SPEC;
 static const char *asm_final_spec = ASM_FINAL_SPEC;
-static const char *link_spec = LINK_SPEC;
+static const char *link_spec = LINK_SPEC LIBC_LINK_SPEC;
 static const char *lib_spec = LIB_SPEC;
 static const char *link_gomp_spec = "";
 static const char *libgcc_spec = LIBGCC_SPEC;
@@ -1832,6 +1850,16 @@ init_gcc_specs (struct obstack *obstack, const char *shared_name,
   char *buf;
 
 #if USE_LD_AS_NEEDED
+#if defined(USE_LD_AS_NEEDED_LDSCRIPT) && !defined(USE_LIBUNWIND_EXCEPTIONS)
+  buf = concat ("%{static|static-libgcc|static-pie:", static_name, " ", eh_name, "}"
+		"%{!static:%{!static-libgcc:%{!static-pie:"
+		"%{!shared-libgcc:",
+		static_name, " ",
+		shared_name, "_asneeded}"
+		"%{shared-libgcc:",
+		shared_name, "%{!shared: ", static_name, "}"
+		"}}"
+#else
   buf = concat ("%{static|static-libgcc|static-pie:", static_name, " ", eh_name, "}"
 		"%{!static:%{!static-libgcc:%{!static-pie:"
 		"%{!shared-libgcc:",
@@ -1841,6 +1869,7 @@ init_gcc_specs (struct obstack *obstack, const char *shared_name,
 		"%{shared-libgcc:",
 		shared_name, "%{!shared: ", static_name, "}"
 		"}}"
+#endif
 #else
   buf = concat ("%{static|static-libgcc:", static_name, " ", eh_name, "}"
 		"%{!static:%{!static-libgcc:"
@@ -2127,7 +2156,7 @@ set_spec (const char *name, const char *spec, bool user_p)
 
   /* Free the old spec.  */
   if (old_spec && sl->alloc_p)
-    free (CONST_CAST (char *, old_spec));
+    free (const_cast<char *> (old_spec));
 
   sl->user_p = user_p;
   sl->alloc_p = true;
@@ -2288,7 +2317,7 @@ close_at_file (void)
 
   /* Copy the strings over.  */
   for (i = 0; i < n_args; i++)
-    argv[i] = CONST_CAST (char *, at_file_argbuf[i]);
+    argv[i] = const_cast<char *> (at_file_argbuf[i]);
   argv[i] = NULL;
 
   at_file_argbuf.truncate (0);
@@ -2540,7 +2569,7 @@ read_specs (const char *filename, bool main_p, bool user_p)
 
 	      set_spec (p2, *(sl->ptr_spec), user_p);
 	      if (sl->alloc_p)
-		free (CONST_CAST (char *, *(sl->ptr_spec)));
+		free (const_cast<char *> (*(sl->ptr_spec)));
 
 	      *(sl->ptr_spec) = "";
 	      sl->alloc_p = 0;
@@ -2916,18 +2945,18 @@ for_each_path (const struct path_prefix *paths,
 	 Don't repeat any we have already seen.  */
       if (multi_dir)
 	{
-	  free (CONST_CAST (char *, multi_dir));
+	  free (const_cast<char *> (multi_dir));
 	  multi_dir = NULL;
-	  free (CONST_CAST (char *, multi_suffix));
+	  free (const_cast<char *> (multi_suffix));
 	  multi_suffix = machine_suffix;
-	  free (CONST_CAST (char *, just_multi_suffix));
+	  free (const_cast<char *> (just_multi_suffix));
 	  just_multi_suffix = just_machine_suffix;
 	}
       else
 	skip_multi_dir = true;
       if (multi_os_dir)
 	{
-	  free (CONST_CAST (char *, multi_os_dir));
+	  free (const_cast<char *> (multi_os_dir));
 	  multi_os_dir = NULL;
 	}
       else
@@ -2936,12 +2965,12 @@ for_each_path (const struct path_prefix *paths,
 
   if (multi_dir)
     {
-      free (CONST_CAST (char *, multi_dir));
-      free (CONST_CAST (char *, multi_suffix));
-      free (CONST_CAST (char *, just_multi_suffix));
+      free (const_cast<char *> (multi_dir));
+      free (const_cast<char *> (multi_suffix));
+      free (const_cast<char *> (just_multi_suffix));
     }
   if (multi_os_dir)
-    free (CONST_CAST (char *, multi_os_dir));
+    free (const_cast<char *> (multi_os_dir));
   if (ret != path)
     free (path);
   return ret;
@@ -3426,7 +3455,7 @@ execute (void)
       errmsg = pex_run (pex,
 			((i + 1 == n_commands ? PEX_LAST : 0)
 			 | (string == commands[i].prog ? PEX_SEARCH : 0)),
-			string, CONST_CAST (char **, commands[i].argv),
+			string, const_cast<char **> (commands[i].argv),
 			NULL, NULL, &err);
       if (errmsg != NULL)
 	{
@@ -3438,7 +3467,7 @@ execute (void)
 	}
 
       if (i && string != commands[i].prog)
-	free (CONST_CAST (char *, string));
+	free (const_cast<char *> (string));
     }
 
   execution_count++;
@@ -3582,7 +3611,7 @@ execute (void)
       }
 
    if (commands[0].argv[0] != commands[0].prog)
-     free (CONST_CAST (char *, commands[0].argv[0]));
+     free (const_cast<char *> (commands[0].argv[0]));
 
     return ret_code;
   }
@@ -4269,6 +4298,7 @@ driver_handle_option (struct gcc_options *opts,
     case OPT__no_sysroot_suffix:
     case OPT_pass_exit_codes:
     case OPT_print_search_dirs:
+    case OPT_print_autofdo_gcov_version:
     case OPT_print_file_name_:
     case OPT_print_prog_name_:
     case OPT_print_multi_lib:
@@ -4359,8 +4389,7 @@ driver_handle_option (struct gcc_options *opts,
 
     case OPT_fdiagnostics_format_:
 	{
-	  const char *basename = (opts->x_dump_base_name ? opts->x_dump_base_name
-				  : opts->x_main_input_basename);
+	  const char *basename = get_diagnostic_file_output_basename (*opts);
 	  gcc_assert (dc);
 	  diagnostics::output_format_init (*dc,
 					   opts->x_main_input_filename, basename,
@@ -7676,13 +7705,13 @@ give_switch (int switchnum, int omit_first_word)
 	      while (length-- && !IS_DIR_SEPARATOR (arg[length]))
 		if (arg[length] == '.')
 		  {
-		    (CONST_CAST (char *, arg))[length] = 0;
+		    (const_cast<char *> (arg))[length] = 0;
 		    dot = 1;
 		    break;
 		  }
 	      do_spec_1 (arg, 1, NULL);
 	      if (dot)
-		(CONST_CAST (char *, arg))[length] = '.';
+		(const_cast<char *> (arg))[length] = '.';
 	      do_spec_1 (suffix_subst, 1, NULL);
 	    }
 	  else
@@ -7863,7 +7892,7 @@ run_attempt (const char **new_argv, const char *out_temp,
     fatal_error (input_location, "%<pex_init%> failed: %m");
 
   errmsg = pex_run (pex, pex_flags, new_argv[0],
-		    CONST_CAST2 (char *const *, const char **, &new_argv[1]),
+		    const_cast<char *const *> (&new_argv[1]),
 		    out_temp, err_temp, &err);
   if (errmsg != NULL)
     {
@@ -8800,6 +8829,12 @@ driver::maybe_print_and_exit () const
 	      build_search_list (&exec_prefixes, "", false, false));
       printf (_("libraries: %s\n"),
 	      build_search_list (&startfile_prefixes, "", false, true));
+      return (0);
+    }
+
+  if (print_autofdo_gcov_version)
+    {
+      printf ("%d\n", AUTO_PROFILE_VERSION);
       return (0);
     }
 
@@ -10121,7 +10156,7 @@ set_multilib_dir (void)
   if (multilib_dir == NULL && multilib_os_dir != NULL
       && strcmp (multilib_os_dir, ".") == 0)
     {
-      free (CONST_CAST (char *, multilib_os_dir));
+      free (const_cast<char *> (multilib_os_dir));
       multilib_os_dir = NULL;
     }
   else if (multilib_dir != NULL && multilib_os_dir == NULL)
@@ -11203,7 +11238,8 @@ find_fortran_preinclude_file (int argc, const char **argv)
   return result;
 }
 
-/* The function takes any number of arguments and joins them together.
+/* The function takes any number of arguments and joins them together,
+   escaping any special characters.
 
    This seems to be necessary to build "-fjoined=foo.b" from "-fseparate foo.a"
    with a %{fseparate*:-fjoined=%.b$*} rule without adding undesired spaces:
@@ -11216,12 +11252,15 @@ find_fortran_preinclude_file (int argc, const char **argv)
 static const char *
 join_spec_func (int argc, const char **argv)
 {
-  if (argc == 1)
-    return argv[0];
-  for (int i = 0; i < argc; ++i)
-    obstack_grow (&obstack, argv[i], strlen (argv[i]));
-  obstack_1grow (&obstack, '\0');
-  return XOBFINISH (&obstack, const char *);
+  const char *result = argv[0];
+  if (argc != 1)
+    {
+      for (int i = 0; i < argc; ++i)
+	obstack_grow (&obstack, argv[i], strlen (argv[i]));
+      obstack_1grow (&obstack, '\0');
+      result = XOBFINISH (&obstack, const char *);
+    }
+  return quote_spec (xstrdup (result));
 }
 
 /* If any character in ORIG fits QUOTE_P (_, P), reallocate the string

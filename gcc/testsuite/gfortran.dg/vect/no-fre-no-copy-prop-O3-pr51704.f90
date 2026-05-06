@@ -1,4 +1,5 @@
 ! { dg-do compile }
+! { dg-additional-options "-O3 -fno-tree-copy-prop -fno-tree-fre" }
 
   integer, parameter :: q = 2
   integer, parameter :: nx=3, ny=2*q, nz=5

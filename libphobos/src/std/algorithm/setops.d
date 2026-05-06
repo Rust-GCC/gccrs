@@ -26,12 +26,11 @@ $(T2 multiwayMerge,
 $(T2 multiwayUnion,
         Computes the union of a range of sorted ranges.)
 $(T2 setDifference,
-        Lazily computes the set difference of two or more sorted ranges.)
+        Lazily computes the set difference of two sorted ranges.)
 $(T2 setIntersection,
         Lazily computes the intersection of two or more sorted ranges.)
 $(T2 setSymmetricDifference,
-        Lazily computes the symmetric set difference of two or more sorted
-        ranges.)
+        Lazily computes the symmetric set difference of two sorted ranges.)
 )
 
 Copyright: Andrei Alexandrescu 2008-.
@@ -366,6 +365,8 @@ if (ranges.length >= 2 &&
     // For infinite ranges or non-forward ranges, we fall back to the old
     // implementation which expands an exponential number of templates.
     import std.typecons : tuple;
+    import std.meta : allSatisfy;
+    import std.range.primitives : hasLength;
 
     static struct Result
     {
@@ -414,13 +415,37 @@ if (ranges.length >= 2 &&
             }
             return copy;
         }
+        static if (allSatisfy!(hasLength, RR))
+        {
+            @property size_t length()
+            {
+                size_t result = 1;
+                foreach (r; ranges)
+                {
+                    result *= r.length;
+                }
+                return result;
+            }
+        }
     }
     static assert(isForwardRange!Result, Result.stringof ~ " must be a forward"
             ~ " range");
 
     return Result(ranges);
 }
+@safe unittest
+{
+    import std.algorithm.setops : cartesianProduct;
 
+    // 2 ranges
+    assert(cartesianProduct([1, 2], [3, 4]).length == 4);
+
+    // different sizes
+    assert(cartesianProduct([1, 2, 3], [4, 5]).length == 6);
+
+    // 3 ranges
+    assert(cartesianProduct([1, 2], [3, 4], [5]).length == 4);
+}
 // cartesian product of empty ranges should be empty
 // https://issues.dlang.org/show_bug.cgi?id=10693
 @safe unittest

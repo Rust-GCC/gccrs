@@ -1,6 +1,7 @@
 // { dg-options "-O -fomit-frame-pointer -fno-optimize-sibling-calls -funwind-tables -mtrack-speculation" }
 // { dg-final { check-function-bodies "**" "" "" { target "*-*-*" } {\t\.inst} } }
 
+#pragma GCC target "+sve"
 
 void ns_callee ();
  void s_callee () [[arm::streaming]];

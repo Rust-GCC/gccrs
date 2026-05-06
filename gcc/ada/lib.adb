@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2026, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -29,12 +29,10 @@ pragma Style_Checks (All_Checks);
 
 with Atree;          use Atree;
 with Csets;          use Csets;
-with Einfo;          use Einfo;
 with Einfo.Entities; use Einfo.Entities;
 with Nlists;         use Nlists;
 with Opt;            use Opt;
 with Output;         use Output;
-with Sinfo;          use Sinfo;
 with Sinfo.Nodes;    use Sinfo.Nodes;
 with Sinfo.Utils;    use Sinfo.Utils;
 with Sinput;         use Sinput;

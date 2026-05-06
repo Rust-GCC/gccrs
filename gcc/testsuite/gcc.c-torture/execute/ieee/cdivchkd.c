@@ -1,3 +1,8 @@
+/* { dg-do run }
+
+   # Floating-point support is incomplete.
+   { dg-skip-if "AVR doubles are floats" { avr-*-* } } */
+
 /*
   Program to test complex divide for correct results on selected values.
   Checking known failure points.

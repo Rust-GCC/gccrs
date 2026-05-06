@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---           Copyright (C) 2020-2025, Free Software Foundation, Inc.        --
+--           Copyright (C) 2020-2026, Free Software Foundation, Inc.        --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -704,6 +704,12 @@ package body Einfo.Utils is
       end return;
    end Base_Type_If_Set;
 
+   function Can_Have_Formals (Id : Entity_Id) return Boolean
+   is (Is_Generic_Subprogram (Id)
+       or else Is_Overloadable (Id)
+       or else Ekind (Id)
+               in E_Entry_Family | E_Subprogram_Body | E_Subprogram_Type);
+
    ----------------------
    -- Declaration_Node --
    ----------------------
@@ -856,12 +862,7 @@ package body Einfo.Utils is
       Formal : Entity_Id;
 
    begin
-      pragma Assert
-        (Is_Generic_Subprogram (Id)
-           or else Is_Overloadable (Id)
-           or else Ekind (Id) in E_Entry_Family
-                               | E_Subprogram_Body
-                               | E_Subprogram_Type);
+      pragma Assert (Can_Have_Formals (Id));
 
       if Ekind (Id) = E_Enumeration_Literal then
          return Empty;
@@ -897,12 +898,7 @@ package body Einfo.Utils is
       Formal : Entity_Id;
 
    begin
-      pragma Assert
-        (Is_Generic_Subprogram (Id)
-           or else Is_Overloadable (Id)
-           or else Ekind (Id) in E_Entry_Family
-                               | E_Subprogram_Body
-                               | E_Subprogram_Type);
+      pragma Assert (Can_Have_Formals (Id));
 
       if Ekind (Id) = E_Enumeration_Literal then
          return Empty;
@@ -1823,11 +1819,7 @@ package body Einfo.Utils is
       Formal : Entity_Id;
 
    begin
-      pragma Assert
-        (Is_Overloadable (Id)
-          or else Ekind (Id) in E_Entry_Family
-                              | E_Subprogram_Body
-                              | E_Subprogram_Type);
+      pragma Assert (Can_Have_Formals (Id));
 
       if Ekind (Id) = E_Enumeration_Literal then
          return Empty;

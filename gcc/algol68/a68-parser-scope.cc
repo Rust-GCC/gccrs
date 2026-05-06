@@ -28,6 +28,7 @@
 #include "options.h"
 
 #include "a68.h"
+#include "a68-pretty-print.h"
 
 struct TUPLE_T
 {
@@ -116,9 +117,17 @@ scope_check (SCOPE_T *top, int mask, int dest)
 
 	  if (ws != NO_MOID)
 	    {
-	      if (IS_REF (ws) || IS (ws, PROC_SYMBOL) || IS (ws, FORMAT_SYMBOL) || IS (ws, UNION_SYMBOL))
-		a68_warning (WHERE (s), OPT_Wscope, "M A is a potential scope violation",
-			     MOID (WHERE (s)), ATTRIBUTE (WHERE (s)));
+	      if (IS_REF (ws)
+		  || IS (ws, PROC_SYMBOL)
+		  || IS (ws, FORMAT_SYMBOL)
+		  || IS (ws, UNION_SYMBOL))
+		{
+		  a68_moid_format_token m (MOID (WHERE (s)));
+		  a68_attr_format_token a (ATTRIBUTE (WHERE (s)));
+		  a68_warning (WHERE (s), OPT_Wscope,
+			       "%e %e is a potential scope violation",
+			       &m, &a);
+		}
 	    }
 	  STATUS_SET (WHERE (s), SCOPE_ERROR_MASK);
 	  errors++;
@@ -147,7 +156,11 @@ check_identifier_usage (TAG_T *t, NODE_T *p)
   for (; p != NO_NODE; FORWARD (p))
     {
       if (IS (p, IDENTIFIER) && TAX (p) == t && ATTRIBUTE (MOID (t)) != PROC_SYMBOL)
-	a68_warning (p, OPT_Wuninitialized, "identifier S might be used uninitialised");
+	{
+	  a68_symbol_format_token s (p);
+	  a68_warning (p, OPT_Wuninitialized,
+		       "identifier %e might be used uninitialised", &s);
+	}
       check_identifier_usage (t, SUB (p));
     }
 }

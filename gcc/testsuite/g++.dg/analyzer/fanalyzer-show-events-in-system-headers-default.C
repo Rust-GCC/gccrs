@@ -1,4 +1,5 @@
 /* { dg-skip-if "no shared_ptr in C++98" { c++98_only }  } */
+/* { dg-additional-options "-Wno-analyzer-too-complex" } */
 /* { dg-skip-if "requires hosted libstdc++ for memory shared_ptr" { ! hostedlib } } */
 
 #define _GLIBCXX_SYSHDR

@@ -4973,6 +4973,25 @@ cleanup:
 }
 
 
+/* A reduced version of gfc_spec_list_type, which only looks for deferred
+   type spec list parameters.  */
+
+static gfc_param_spec_type
+spec_list_type (gfc_actual_arglist *param_list)
+{
+  gfc_param_spec_type res = SPEC_EXPLICIT;
+
+  for (; param_list; param_list = param_list->next)
+    if (param_list->spec_type == SPEC_DEFERRED)
+      {
+	res = param_list->spec_type;
+	break;
+      }
+
+  return res;
+}
+
+
 /* Frees a list of gfc_alloc structures.  */
 
 void
@@ -4998,6 +5017,7 @@ gfc_match_allocate (void)
   gfc_expr *stat, *errmsg, *tmp, *source, *mold;
   gfc_typespec ts;
   gfc_symbol *sym;
+  gfc_ref *ref;
   match m;
   locus old_locus, deferred_locus, assumed_locus;
   bool saw_stat, saw_errmsg, saw_source, saw_mold, saw_deferred, b1, b2, b3;
@@ -5057,8 +5077,7 @@ gfc_match_allocate (void)
 	    }
 
 	  if (type_param_spec_list
-	      && gfc_spec_list_type (type_param_spec_list, NULL)
-		 == SPEC_DEFERRED)
+	      && spec_list_type (type_param_spec_list) == SPEC_DEFERRED)
 	    {
 	      gfc_error ("The type parameter spec list in the type-spec at "
 			 "%L cannot contain DEFERRED parameters", &old_locus);
@@ -5120,10 +5139,27 @@ gfc_match_allocate (void)
 	  goto cleanup;
 	}
 
-      if (tail->expr->ts.deferred)
+      if (tail->expr->ts.deferred
+	  || (tail->expr->symtree->n.sym->param_list
+	      && spec_list_type (tail->expr->symtree->n.sym->param_list)
+				 == SPEC_DEFERRED))
 	{
 	  saw_deferred = true;
 	  deferred_locus = tail->expr->where;
+	}
+      else if ((tail->expr->ts.type == BT_DERIVED
+		|| tail->expr->ts.type == BT_CLASS)
+	       && tail->expr->ref)
+	{
+	  for (ref = tail->expr->ref; ref; ref = ref->next)
+	    if (ref->type == REF_COMPONENT
+		&& ref->u.c.component->param_list
+		&& spec_list_type (ref->u.c.component->param_list)
+				   == SPEC_DEFERRED)
+	    {
+	      saw_deferred = true;
+	      deferred_locus = tail->expr->where;
+	    }
 	}
 
       if (gfc_find_state (COMP_DO_CONCURRENT)
@@ -7474,12 +7510,17 @@ gfc_match_select_type (void)
   else
     {
       m = gfc_match (" %e ", &expr1);
-      if (m != MATCH_YES)
+      if (m == MATCH_NO)
 	{
 	  std::swap (ns, gfc_current_ns);
 	  gfc_free_namespace (ns);
 	  return m;
 	}
+      /* On MATCH_ERROR, the temporary block namespace may already contain
+	 broken state from the failed expression match.  Avoid freeing it
+	 through the normal rollback path.  */
+      else if (m == MATCH_ERROR)
+	return m;
     }
 
   m = gfc_match (" )%t");
@@ -7947,10 +7988,8 @@ gfc_match_type_is (void)
       return MATCH_ERROR;
     }
 
-  if (c->ts.type == BT_DERIVED
-      && c->ts.u.derived && c->ts.u.derived->attr.pdt_type
-      && gfc_spec_list_type (type_param_spec_list, c->ts.u.derived)
-							!= SPEC_ASSUMED)
+  if (IS_PDT (c) && gfc_spec_list_type (type_param_spec_list,
+					c->ts.u.derived) != SPEC_ASSUMED)
     {
       gfc_error ("All the LEN type parameters in the TYPE IS statement "
 		 "at %C must be ASSUMED");

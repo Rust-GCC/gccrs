@@ -1,3 +1,592 @@
+2026-04-28  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/124217
+	* analyzer.opt (Wanalyzer-div-by-zero): New.
+	* analyzer.opt.urls: Regenerate.
+	* region-model.cc (class div_by_zero_diagnostic): New.
+	(region_model::get_gassign_result): Add warning for division by
+	zero if ctxt is non-null.  Bail out on such cases even if ctxt
+	is null.
+	* svalue.cc (type_can_have_value_range_p): Also handle frange.
+
+2026-04-28  David Malcolm  <dmalcolm@redhat.com>
+
+	* diagnostic-manager.cc: Include "analyzer/exploded-path.h".
+	* engine.cc: Likewise.
+	(exploded_path::exploded_path): Move to exploded-path.cc.
+	(exploded_path::find_stmt_backwards): Likewise.
+	(exploded_path::get_final_enode): Likewise.
+	(exploded_path::feasible_p): Likewise.
+	(exploded_path::dump_to_pp): Likewise.
+	(exploded_path::dump): Likewise.
+	(exploded_path::dump_to_file): Likewise.
+	* exploded-graph.h (class exploded_path): Move to exploded-path.h.
+	(shortest_exploded_paths): Likewise.
+	* exploded-path.cc: New file, taken from the above.
+	* exploded-path.h: Likewise.
+	* feasible-graph.cc: Include "analyzer/exploded-path.h".
+
+2026-04-28  David Malcolm  <dmalcolm@redhat.com>
+
+	* analyzer.cc (is_setjmp_call_p): Move to setjmp-longjmp.cc.
+	(is_longjmp_call_p): Likewise.
+	* engine.cc (setjmp_record::cmp): Likewise.
+	(setjmp_svalue::accept): Likewise.
+	(setjmp_svalue::dump_to_pp): Likewise.
+	(setjmp_svalue::print_dump_widget_label): Likewise.
+	(setjmp_svalue::add_dump_widget_children): Likewise.
+	(setjmp_svalue::get_enode_index): Likewise.
+	(valid_longjmp_stack_p): Likewise.
+	(class stale_jmp_buf): Likewise.
+	(exploded_node::on_longjmp): Likewise.
+	(rewind_info_t::update_model): Likewise.
+	(rewind_info_t::add_events_to_path): Likewise.
+	* region-model.cc (region_model::on_setjmp): Likewise.
+	(region_model::on_longjmp): Likewise.
+	* setjmp-longjmp.cc: New file, made from the above material.
+	* svalue.cc: Update comment.
+
+2026-04-28  David Malcolm  <dmalcolm@redhat.com>
+
+	* poisoned-value-diagnostic.cc: New file, taken from material in
+	region-model.cc.
+	* region-model.cc (class poisoned_value_diagnostic): Move to
+	poisoned-value-diagnostic.cc.
+	(class shift_count_negative_diagnostic): Move to
+	shift-diagnostics.cc.
+	(class shift_count_overflow_diagnostic): Likewise.
+	(region_model::get_gassign_result): Use factory functions when
+	creating diagnostics so that the subclasses can be moved to their
+	own source files.
+	(region_model::check_for_poison): Likewise.
+	(region_model::deref_rvalue): Likewise.
+	(class write_to_const_diagnostic): Move to
+	write-to-const-diagnostics.cc.
+	(class write_to_string_literal_diagnostic): Likewise.
+	(region_model::check_for_writable_region): Use factory functions
+	when creating diagnostics so that the subclasses can be moved to
+	their own source files.
+	* region-model.h (make_poisoned_value_diagnostic): New decl.
+	(make_shift_count_negative_diagnostic): New decl.
+	(make_shift_count_overflow_diagnostic): New decl.
+	(make_write_to_const_diagnostic): New decl.
+	(make_write_to_string_literal_diagnostic): New decl.
+	* shift-diagnostics.cc: New file, taken from material in
+	region-model.cc.
+	* write-to-const-diagnostics.cc: Likewise.
+
+2026-04-28  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/123145
+	* access-diagram.cc
+	(compound_svalue_spatial_item::compound_svalue_spatial_item):
+	Update for compound_svalue using concrete_binding_map rather than
+	binding_map.
+	* bounds-checking.cc (strip_types): Likewise.
+	* call-summary.cc
+	(call_summary_replay::convert_svalue_from_summary_1): Update for
+	reimplementation of class binding_map.
+	(call_summary_replay::convert_svalue_from_summary_1): Likewise.
+	* infinite-recursion.cc (contains_unknown_p): Update for
+	compound_svalue using concrete_binding_map rather than
+	binding_map.
+	* program-state.cc (sm_state_map::impl_set_state): Likewise.
+	* region-model-manager.cc (maybe_undo_optimize_bit_field_compare):
+	Likewise.
+	(maybe_undo_optimize_bit_field_compare): Avoid building a
+	concrete_binding key by using get_any_exact_binding.
+	(region_model_manager::get_or_create_compound_svalue): New
+	overload, consuming a concrete_binding_map &&.
+	* region-model-manager.h
+	(region_model_manager::get_or_create_compound_svalue): New decl
+	for the above.
+	* region-model-reachability.cc (reachable_regions::handle_sval):
+	Update for compound_svalue using concrete_binding_map rather than
+	binding_map.
+	(reachable_regions::handle_parm): Likewise.
+	* region-model.cc (region_model::scan_for_null_terminator_1): Port
+	from binding_map to concrete_binding_map.
+	(exposure_through_uninit_copy::calc_num_uninit_bits): Update for
+	compound_svalue using concrete_binding_map rather than
+	binding_map.
+	(contains_uninit_p): Likewise.
+	* region.cc (decl_region::calc_svalue_for_constructor): Port from
+	binding_map to concrete_binding_map.
+	(decl_region::get_svalue_for_initializer): Update call to
+	get_or_create_compound_svalue.
+	* store.cc (concrete_binding_map::dump_to_pp): New.
+	(concrete_binding_map::dump): New.
+	(concrete_binding_map::add_to_tree_widget): New.
+	(concrete_binding_map::validate): New.
+	(binding_map::cmp): Convert to...
+	(concrete_binding_map::cmp): ...this.
+	(concrete_binding_map::get_any_exact_binding): New.
+	(concrete_binding_map::calc_complexity): New.
+	(concrete_binding_map::remove_overlapping_binding): New.
+	(concrete_binding_map::remove_overlapping_bindings): New.
+	(concrete_binding_map::get_overlapping_bindings): New.
+	(binding_map::put): Update for change to m_concrete.
+	(binding_map::validate): Likewise.
+	(binding_map::apply_ctor_to_region): Convert to...
+	(concrete_binding_map::apply_ctor_to_region): ...this.
+	(binding_map::apply_ctor_val_to_range): Convert to...
+	(concrete_binding_map::apply_ctor_val_to_range): ...this.
+	(binding_map::apply_ctor_pair_to_child_region): Convert to...
+	(concrete_binding_map::apply_ctor_pair_to_child_region): ...this.
+	(binding_map::remove_overlapping_bindings): Move part of
+	implementation to
+	concrete_binding_map::remove_overlapping_binding.
+	(binding_cluster::bind_compound_sval): Simplify using
+	concrete_binding_map.
+	(binding_cluster::maybe_get_compound_binding): Likewise.
+	(store::replay_call_summary_cluster): Update for change
+	to compound_svalue.
+	* store.h: Include "analyzer/complexity.h".
+	(class concrete_binding_map): New, based on
+	binding_map::concrete_bindings_t.
+	(binding_map::concrete_bindings_t): Use concrete_binding_map.
+	(binding_map::empty_p): Update for above.
+	(binding_map::apply_ctor_to_region): Drop decl.
+	(binding_map::cmp): Likewise.
+	(binding_map::apply_ctor_val_to_range): Likewise.
+	(binding_map::apply_ctor_pair_to_child_region): Likewise.
+	* svalue.cc (svalue::cmp_ptr): Update for change to
+	compound_svalue.
+	(compound_svalue::compound_svalue): Port from binding_map to
+	concrete_binding_map.
+	(compound_svalue::accept): Likewise.
+	(compound_svalue::calc_complexity): Drop.
+	(compound_svalue::maybe_fold_bits_within): Port from binding_map
+	to concrete_binding_map.
+	* svalue.h (class compound_svalue): Update leading comment.  Port
+	from binding_map to concrete_binding_map.
+
+2026-04-28  Virginia Kodsy  <virginiahany9@gmail.com>
+
+	* kf.cc (class kf_strcasecmp): New.
+	(kf_strcasecmp::impl_call_post): New.
+	(register_known_functions): Register BUILT_IN_STRCASECMP,
+	"strcasecmp", and "__builtin_strcasecmp".
+
+2026-04-28  Ridham Khurana  <khurana.ridham222@gmail.com>
+
+	* kf.cc (class kf_getenv): New.
+	(kf_getenv::impl_call_post): New.
+	(register_known_functions): Register kf_getenv.
+
+2026-04-28  Tomás Ortín Fernández  <quanrong@mailbox.org>
+
+	PR analyzer/105890
+	* kf.cc (class kf_mktemp_family): Add nested outcome enum,
+	constructor, and nested failure and success classes.
+	(kf_mktemp_family::check_template_with_suffixlen_arg): Remove.
+	(kf_mktemp_family::check_template): Remove.  Both replaced
+	by...
+	(kf_mktemp_family::check_for_string_literal_arg): ...this.
+	(kf_mktemp_family::get_trailing_len): New.
+	(kf_mktemp_family::impl_call_post): New.
+	(class kf_mktemp_simple): Add constructor taking outcome.
+	Replace check_template with check_for_string_literal_arg.
+	Remove set_any_lhs_with_defaults call.
+	(class kf_mkostemp): Add constructor.  Replace check_template
+	with check_for_string_literal_arg.  Remove
+	set_any_lhs_with_defaults call.
+	(class kf_mkostemps): Likewise.
+	(class kf_mkstemps): Likewise.
+	(register_known_functions): Pass outcome to kf_mktemp_simple
+	instantiations.
+	* region-model.cc (region_model::update_for_null_return): New.
+	* region-model.h (class region_model): Add
+	update_for_null_return.
+
+2026-04-28  Tomás Ortín Fernández  <quanrong@mailbox.org>
+
+	PR analyzer/105890
+	* analyzer-language.cc (stash_named_constants): Stash O_CREAT,
+	O_EXCL, and O_RDWR for use by kf.cc.
+	* analyzer.opt: Rename -Wanalyzer-mkstemp-missing-suffix to
+	-Wanalyzer-mktemp-missing-placeholder and
+	-Wanalyzer-mkstemp-of-string-literal to
+	-Wanalyzer-mktemp-of-string-literal.  Add
+	-Wanalyzer-mkostemp-redundant-flags.  Fix alphabetical ordering.
+	* analyzer.opt.urls: Regenerate.
+	* kf.cc (class mkstemp_of_string_literal): Rename to...
+	(class mktemp_of_string_literal): ...this.
+	(class mkstemp_missing_suffix): Rename to...
+	(class mktemp_missing_placeholder): ...this.  Add trailing_len
+	parameter for suffixed variants.
+	(class mkostemp_redundant_flags): New diagnostic class.
+	(class kf_mktemp_family): New base class with shared template
+	and flags checking logic.
+	(kf_mktemp_family::check_template_with_suffixlen_arg): New.
+	(kf_mktemp_family::check_template): New.
+	(kf_mktemp_family::check_flags): New.
+	(kf_mktemp_family::check_placeholder): New.
+	(class kf_mkstemp): Rename to...
+	(class kf_mktemp_simple): ...this.  Generalize to handle mktemp,
+	mkstemp, and mkdtemp.
+	(class kf_mkostemp): New known_function handler.
+	(class kf_mkostemps): New known_function handler.
+	(class kf_mkstemps): New known_function handler.
+	(register_known_functions): Register all mktemp family handlers.
+
+2026-04-28  Tomás Ortín Fernández  <quanrong@mailbox.org>
+
+	PR analyzer/105890
+	* analyzer.opt: Add -Wanalyzer-mkstemp-missing-suffix and
+	-Wanalyzer-mkstemp-of-string-literal.
+	* analyzer.opt.urls: Add URL entries for the new warnings.
+	* kf.cc (class mkstemp_of_string_literal): New diagnostic class
+	for mkstemp called on a string literal.
+	(class mkstemp_missing_suffix): New diagnostic class for mkstemp
+	called with a template missing the "XXXXXX" suffix.
+	(class kf_mkstemp): New known_function handler for mkstemp.
+	(register_known_functions): Register kf_mkstemp.
+
+2026-04-28  Saksham Gupta  <io.sakshamgupta@gmail.com>
+
+	* kf.cc (class kf_atoi_family): New class.
+	(register_known_functions): Register atoi, atol, and atoll.
+
+2026-04-28  David Malcolm  <dmalcolm@redhat.com>
+
+	* access-diagram.cc
+	(access_diagram_impl::add_aligned_child_table): Use
+	std::make_unique rather than "new".
+	(access_diagram_impl::add_valid_vs_invalid_ruler): Likewise.
+	* checker-path.h (checker_path::replace_event): Use
+	std::unique_ptr.
+	* diagnostic-manager.cc
+	(diagnostic_manager::consolidate_conditions): Use std::make_unique
+	rather than "new".
+	* feasible-graph.cc (feasible_graph::make_epath): Likewise.
+
+2026-04-16  Torbjörn SVENSSON  <torbjorn.svensson@foss.st.com>
+
+	* engine.cc (impl_region_model_context::on_unexpected_tree_code): Print
+	"<unknown>" when m_file or m_function is NULL.
+
+2026-03-12  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/124451
+	* region-model-manager.cc
+	(region_model_manager::maybe_invert_comparison_in_unaryop): New,
+	adapted from...
+	(region_model_manager::maybe_fold_unaryop): ...here, splitting out
+	the comparison inversion case for TRUTH_NOT_EXPR.  Add a case for
+	BIT_NOT_EXPR, reusing the inversion logic when dealing with
+	boolean types.
+	* region-model-manager.h
+	(region_model_manager::maybe_invert_comparison_in_unaryop): New decl.
+
+2026-03-12  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/124375
+	* ops.cc (ggoto_edge_op::apply_constraints): Ensure that we write
+	back a rejected_constraint if the edge is infeasible.
+	* region-model.cc (region_model::add_constraint): Convert
+	rejected_op_constraint from tree to const svalue *.
+	(rejected_op_constraint::dump_to_pp): Likewise.
+	* region-model.h (class rejected_op_constraint): Likewise.
+
+2026-03-12  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/124433
+	* region-model-manager.cc
+	(region_model_manager::maybe_fold_binop): When checking for
+	division by zero, use the value range of the divisor, rather
+	than merely checking for constant 0.
+	* region-model.cc (region_model::get_gassign_result): Likewise.
+
+2026-03-06  David Malcolm  <dmalcolm@redhat.com>
+
+	PR testsuite/112520
+	* region-model-manager.cc
+	(region_model_manager::get_field_region): Assert that the args are non-null.
+
+2026-02-26  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/124232
+	* kf.cc (kf_putenv::impl_call_pre): Use base region when marking
+	pointer as having escaped.
+
+2026-02-24  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/124188
+	* region-model-manager.cc
+	(region_model_manager::maybe_fold_binop): Don't attempt to fold
+	X + (-X) to zero for vector types.
+
+2026-02-24  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/124195
+	* region-model-manager.cc
+	(region_model_manager::maybe_fold_binop): Bulletproof against
+	division by zero by returning "unknown".
+	* region-model.cc (region_model::get_gassign_result): Bail out for
+	division by zero.
+	* svalue.cc (svalue::maybe_get_value_range): Rename to...
+	(svalue::maybe_get_value_range_1): ...this.
+	(constant_svalue::maybe_get_value_range): Rename to...
+	(constant_svalue::maybe_get_value_range_1): ...this.
+	(unknown_svalue::maybe_get_value_range): Rename to...
+	(unknown_svalue::maybe_get_value_range_1): ...this.
+	(unaryop_svalue::maybe_get_value_range): Rename to...
+	(unaryop_svalue::maybe_get_value_range_1): ...this.
+	(binop_svalue::maybe_get_value_range): Rename to...
+	(binop_svalue::maybe_get_value_range_1): ...this.
+	* svalue.h (svalue::maybe_get_value_range): Reimplement inline,
+	asserting that if we get a result it is not undefined_p.  Use
+	maybe_get_value_range_1 for the vfunc.
+	(svalue::maybe_get_value_range_1): Rename from above.
+	(constant_svalue::maybe_get_value_range): Rename to...
+	(constant_svalue::maybe_get_value_range_1): ...this.
+	(unknown_svalue::maybe_get_value_range): Rename to...
+	(unknown_svalue::maybe_get_value_range_1): ...this.
+	(unaryop_svalue::maybe_get_value_range): Rename to...
+	(unaryop_svalue::maybe_get_value_range_1): ...this.
+	(binop_svalue::maybe_get_value_range): Rename to...
+	(binop_svalue::maybe_get_value_range_1): ...this.
+
+2026-02-17  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/124104
+	* svalue.cc (unaryop_svalue::maybe_get_value_range): Bail out for
+	incompatible types.
+
+2026-02-17  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/124139
+	* engine.cc (exploded_node::on_throw): Bail out if we can't get
+	the fndecl for the call.
+
+2026-02-12  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/117369
+	* kf.cc (kf_sprintf::impl_call_pre): Use the capacity of the
+	region when "faking" a write to the destination buffer, to
+	avoid buffer overflow false +ves.
+
+2026-02-12  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/124073
+	* region-model.cc (region_model::push_frame): Bulletproof against
+	DECL_RESULT having null SSA on function missing a return
+	statement (-Wreturn-type).
+
+2026-02-11  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/124055
+	* kf.cc (kf_strcpy::impl_call_pre): Ensure bytes_to_copy is
+	initialized.  Assert that it was written to with non-null if
+	check_for_null_terminated_string_arg returns non-null.
+	* region-model.cc (region_model::scan_for_null_terminator):
+	Initialize *out_sval, and assert it is written to when
+	returning non-null.
+	(region_model::check_for_null_terminated_string_arg): Assert
+	that scan_for_null_terminator wrote to *out_sval if it
+	returns non-null.
+
+2026-02-11  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/123973
+	* region-model-manager.cc
+	(region_model_manager::maybe_fold_binop): Fold X + (Y - X) to Y.
+
+2026-02-10  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/113496
+	* constraint-manager.cc (cmp_types): New.
+	(bounded_range::cmp): Compare the types of the constants, as well
+	as their values.
+
+2026-02-09  Federico Angelilli  <code@fedang.net>
+	    David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/123981
+	* sm-malloc.cc: Include "target.h".
+	(zero_address_valid_p): New.
+	(malloc_state_machine::on_stmt): Guard possible_null_deref and
+	null_deref with !zero_address_valid_p.
+
+2026-02-07  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/116228
+	* kf-lang-cp.cc (kf_operator_new::impl_call_post): Don't try to
+	add a constraint if the return value is discarded.
+
+2026-02-06  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/98447
+	* common.h: Include "value-range.h".
+	* region-model.cc: Include "value-relation.h" and "range-op.h".
+	(region_model::eval_condition): Try using range_op to see if we
+	can get a known boolean from the value_ranges of the operands.
+	* svalue.cc: Include "value-relation.h" and "range-op.h".
+	(type_can_have_value_range_p): New.
+	(svalue::maybe_get_value_range): New.
+	(constant_svalue::maybe_get_value_range): New.
+	(unknown_svalue::maybe_get_value_range): New.
+	(unaryop_svalue::maybe_get_value_range): New.
+	(binop_svalue::maybe_get_value_range): New.
+	* svalue.h (svalue::maybe_get_value_range): New vfunc decl.
+	(constant_svalue::maybe_get_value_range): New decl.
+	(unknown_svalue::maybe_get_value_range): New decl.
+	(unaryop_svalue::maybe_get_value_range): New decl.
+	(binop_svalue::maybe_get_value_range): New decl.
+
+2026-02-06  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/117491
+	* region-model-manager.cc
+	(region_model_manager::maybe_fold_repeated_svalue): Don't ICE when
+	inner_svalue has null type.
+
+2026-02-03  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/116865
+	* region-model-manager.cc
+	(region_model_manager::get_offset_region): Use POINTER_PLUS_EXPR
+	rather than PLUS_EXPR for pointer offsets.
+
+2026-01-31  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/123880
+	* engine.cc (throw_custom_edge::update_model): Gracefully handle
+	not knowing the current exception in a rethrow.
+	(exploded_node::on_throw): Likewise.
+
+2026-01-27  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/122623
+	* analyzer.opt (fanalyzer-assume-nothrow): New.
+	* analyzer.opt.urls: Regenerate.
+	* region-model.cc (can_throw_p): Bail out if the user specified
+	-fanalyzer-assume-nothrow.
+
+2026-01-26  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/123145
+	* program-state.cc (sm_state_map::impl_set_state): Update
+	iteration to avoid looking up binding_key values.
+	* region-model-reachability.cc (reachable_regions::handle_sval):
+	Use iter.get_svalue.
+	(reachable_regions::handle_parm): Likewise.
+	* region-model.cc (iterable_cluster::iterable_cluster): Update
+	iteration to avoid looking up binding_key values.
+	(iterable_cluster::dump_to_pp): Likewise.
+	(exposure_through_uninit_copy::calc_num_uninit_bits): Likewise.
+	(exposure_through_uninit_copy::complain_about_uninit_ranges):
+	Likewise.
+	(contains_uninit_p): Likewise.
+	* store.cc (binding_map::hash): Likewise.
+	* store.h (bit_range::hash): New, based on...
+	(concrete_binding::hash): ...this.  Reimplement using the above.
+	(binding_map::const_iterator::get_svalue): New decl.
+	(binding_map::get_symbolic_bindings): New accessor.
+	(binding_map::for_each_value): Update iteration to avoid looking
+	up binding_key values.
+
+2026-01-21  David Malcolm  <dmalcolm@redhat.com>
+
+	* store.cc (binding_cluster::validate): Reimplement as...
+	(binding_map::validate): ...this new function, using
+	m_concrete and m_symbolic sizes rather than iterating through
+	map and counting.  Verify that concrete keys do not overlap.
+	(binding_cluster::can_merge_p): Reject cases that would lead to
+	overlapping concrete clusters.
+	* store.h (binding_cluster::validate): New decl.
+	(binding_map::get_concrete_bindings): New accessor.
+
+2026-01-21  David Malcolm  <dmalcolm@redhat.com>
+
+	* store.cc (store::eval_alias): Different decls don't alias.
+
+2026-01-20  David Malcolm  <dmalcolm@redhat.com>
+
+	* checker-event.cc (cfg_edge_event::maybe_get_edge_sense): New.
+	* checker-event.h (cfg_edge_event::maybe_get_edge_sense): New decl.
+	* diagnostic-manager.cc
+	(diagnostic_manager::consolidate_conditions): Use the above to
+	ensure that edge_sense is initialized if used, and to simplify
+	the check for a run of conditions.
+
+2026-01-16  David Malcolm  <dmalcolm@redhat.com>
+
+	* engine.cc (exploded_graph::process_worklist): Remove guard on
+	limit being non-zero when checking for -Wanalyzer-too-complex
+	on overall number of exploded nodes.  Allow for the origin enode.
+
+2026-01-16  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/123145
+	* supergraph-fixup-locations.cc: Include "timevar.h".
+	(supergraph::fixup_locations): Track time spent as
+	TV_ANALYZER_SUPERGRAPH_FIXUP_LOCATIONS.
+	* supergraph-simplify.cc: Include "timevar.h".
+	(supergraph::simplify): Track time spent as
+	TV_ANALYZER_SUPERGRAPH_SIMPLIFY.
+	* supergraph-sorting.cc: Include "timevar.h".
+	(supergraph::sort_nodes): Track time spent as
+	TV_ANALYZER_SUPERGRAPH_SORTING.
+	* supergraph.cc (supergraph::supergraph): Track time spent as
+	TV_ANALYZER_SUPERGRAPH_CREATION rather than
+	TV_ANALYZER_SUPERGRAPH.
+
+2026-01-16  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/123540
+	* ops.cc (eh_dispatch_edge_op::make): Drop dst_snode param to
+	ctor.
+	(eh_dispatch_edge_op::eh_dispatch_edge_op): Likewise, dropping
+	field eh_dispatch_edge_op::m_dst_snode.
+	(eh_dispatch_try_edge_op::eh_dispatch_try_edge_op): Likewise.
+	(eh_dispatch_allowed_edge_op::eh_dispatch_allowed_edge_op):
+	Likewise.
+	* ops.h (eh_dispatch_edge_op::eh_dispatch_edge_op): Likewise.
+	(eh_dispatch_edge_op::m_dst_snode): Drop unused field.
+	(eh_dispatch_try_edge_op::eh_dispatch_try_edge_op): Drop unused
+	dst_snode param.
+
+2026-01-09  David Malcolm  <dmalcolm@redhat.com>
+
+	* common.h (struct on_frame_popped): New.
+	(subscriber::on_message): New vfunc for on_frame_popped.
+	* region-model.cc: Include "context.h" and "channels.h".
+	(region_model::pop_frame_callbacks): Delete.
+	(region_model::pop_frame): Port from notify_on_pop_frame to
+	using pub/sub channel.
+	* region-model.h (pop_frame_callback): Delete typedef.
+	(region_model::register_pop_frame_callback): Delete.
+	(region_model::pop_frame_callbacks): Delete.
+
+2026-01-09  David Malcolm  <dmalcolm@redhat.com>
+
+	* analyzer-language.cc: Include "context.h" and "channels.h".
+	(finish_translation_unit_callbacks): Delete.
+	(register_finish_translation_unit_callback): Delete.
+	(run_callbacks): Delete.
+	(on_finish_translation_unit): Port from run_callbacks to pub/sub.
+	* analyzer-language.h (finish_translation_unit_callback): Delete
+	typedef.
+	(register_finish_translation_unit_callback): Delete decl.
+	* common.h (class translation_unit): New forward decl.
+	(struct analyzer_events::on_tu_finished): New.
+	(analyzer_events::subscriber::on_message): Add vfunc for
+	on_tu_finished messages.
+
+2026-01-09  David Malcolm  <dmalcolm@redhat.com>
+
+	* common.h: Define INCLUDE_LIST.
+	(class plugin_analyzer_init_iface): Replace with...
+	(gcc::topics::analyzer_events::on_ana_init): ...this.
+	(gcc::topics::analyzer_events::subscriber): New.
+	* engine.cc: Include "context.h" and "channels.h".
+	(class plugin_analyzer_init_impl): Replace with...
+	(class impl_on_ana_init): ...this.  Fix some overlong lines.
+	(impl_run_checkers): Port from PLUGIN_ANALYZER_INIT to using
+	publish/subscribe framework.
+
 2025-12-16  David Malcolm  <dmalcolm@redhat.com>
 
 	PR analyzer/123136

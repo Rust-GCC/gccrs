@@ -35,12 +35,16 @@
 #include <atomic>     // atomic<T*>, atomic<int>
 #include <memory>     // atomic<shared_ptr<T>>
 #include <mutex>      // mutex
+#include <iomanip>    // quoted
 #if defined __GTHREADS && ! defined _GLIBCXX_HAS_GTHREADS
 # include <ext/concurrence.h> // __gnu_cxx::__mutex
 #endif
-#include <filesystem> // filesystem::read_symlink
 
-#ifndef _AIX
+#if defined(_GLIBCXX_HAVE_READLINK) && defined(_GLIBCXX_HAVE_UNISTD_H)
+# include <unistd.h>  // readlink
+#endif
+
+#ifdef _AIX
 # include <cstdlib>   // getenv
 #endif
 
@@ -272,11 +276,14 @@ namespace std::chrono
       // If not, indic is unchanged. Callers should set a default first.
       friend istream& operator>>(istream& in, Indicator& indic)
       {
-	auto [val, yes] = at_time::is_indicator(in.peek());
-	if (yes)
+	if (!in.eof())
 	  {
-	    in.ignore(1);
-	    indic = val;
+	    auto [val, yes] = at_time::is_indicator(in.peek());
+	    if (yes)
+	      {
+		in.ignore(1);
+		indic = val;
+	      }
 	  }
 	return in;
       }
@@ -917,7 +924,11 @@ namespace std::chrono
 	  }
 
 	if (active_rule)
-	  letters = active_rule->letters;
+	  {
+	    info.offset = ri.offset() + active_rule->save;
+	    info.save = chrono::duration_cast<minutes>(active_rule->save);
+	    letters = active_rule->letters;
+	  }
 	else if (first_std)
 	  letters = first_std->letters;
       }
@@ -1245,8 +1256,8 @@ namespace std::chrono
   pair<vector<leap_second>, bool>
   tzdb_list::_Node::_S_read_leap_seconds()
   {
-    // This list is valid until at least 2026-06-28 00:00:00 UTC.
-    constexpr auto expires = sys_days{2026y/06/28};
+    // This list is valid until at least 2026-12-28 00:00:00 UTC.
+    constexpr auto expires = sys_days{2026y/12/28};
     vector<leap_second> leaps
     {
       (leap_second)  78796800, // 1 Jul 1972
@@ -1883,28 +1894,87 @@ namespace std::chrono
   tzdb::current_zone() const
   {
     // TODO cache this function's result?
+    // Could check the modification time of /etc/localtime, and not re-read
+    // it if it hasn't changed. reload_tzdb() could clear the cache too,
+    // to have a way to force a re-read.
 
 #if !defined(_AIX) && !defined(_GLIBCXX_HAVE_WINDOWS_H)
-    // Repeat the preprocessor condition used by filesystem::read_symlink,
-    // to avoid a dependency on src/c++17/fs_ops.o if it won't work anyway.
-#if defined(_GLIBCXX_HAVE_READLINK) && defined(_GLIBCXX_HAVE_SYS_STAT_H)
-    error_code ec;
-    // This should be a symlink to e.g. /usr/share/zoneinfo/Europe/London
-    auto path = filesystem::read_symlink("/etc/localtime", ec);
-    if (!ec)
+#if defined(_GLIBCXX_HAVE_READLINK) && defined(_GLIBCXX_HAVE_UNISTD_H)
+    string_view str;
+    char buf[128]; // strlen("../usr/share/zoneinfo/...") is usually < 55
+    string dynbuf;
+    // /etc/localtime should be a symlink that ends with a zone name,
+    // e.g. /etc/localtime -> /usr/share/zoneinfo/Europe/London
+    // https://www.freedesktop.org/software/systemd/man/latest/localtime.html
+    // This should work on GNU/Linux, macOS, NetBSD, and OpenBSD.
+    // Some FreeBSD systems also use a symlink for /etc/localtime.
+    // Use readlink directly to avoid std::filesystem overhead.
+    if (auto n = ::readlink("/etc/localtime", buf, sizeof(buf)); n > 0)
       {
-	auto first = path.begin(), last = path.end();
-	if (std::distance(first, last) > 2)
+	if (static_cast<size_t>(n) < sizeof(buf))
+	  str = string_view(buf, n);
+	else [[unlikely]]
 	  {
-	    --last;
-	    string name = last->string();
-	    if (auto tz = do_locate_zone(this->zones, this->links, name))
-	      return tz;
-	    --last;
-	    name = last->string() + '/' + name;
-	    if (auto tz = do_locate_zone(this->zones, this->links, name))
-	      return tz;
+	    // We read the symlink but it didn't fit in buf[], use dynbuf.
+	    do
+	      {
+		n *= 2;
+		dynbuf.__resize_and_overwrite(n, [](char* p, size_t len) {
+		  auto n2 = ::readlink("/etc/localtime", p, len);
+		  if (n2 == -1) // symlink removed or replaced by file?!
+		    __throw_runtime_error("tzdb: error reading /etc/localtime");
+		  const size_t r = n2;
+		  return r < len ? r : 0;
+		});
+	      }
+	    while (dynbuf.empty());
+	    str = dynbuf;
 	  }
+      }
+
+    if (!str.empty())
+      {
+	// Remove any redundant slashes so we can match zone names.
+	// e.g. /usr/share/zoneinfo/Europe//London is a valid symlink,
+	// but won't match against "Europe/London".
+	if (auto pos = str.rfind("//"); pos != str.npos) [[unlikely]]
+	  {
+	    if (str.data() != dynbuf.data())
+	      dynbuf = str;
+	    string::size_type spos = pos;
+	    do
+	      {
+		dynbuf.erase(spos, 1);
+		spos = dynbuf.rfind("//", spos);
+	      }
+	    while (spos != dynbuf.npos);
+	    str = dynbuf;
+	  }
+
+	// Check the trailing components of the path against known zone names.
+	// Valid IANA times zones can have one, two, or three parts, e.g.
+	// "UTC", "Europe/London", and "America/Indiana/Indianapolis".
+	// Custom tzdata.zi files could in theory use four or more parts.
+
+	auto pos = str.rfind('/');
+	while (pos != str.npos && pos != 0)
+	  {
+	    if (auto tz = do_locate_zone(this->zones, this->links,
+					 str.substr(pos + 1)))
+	      return tz;
+	    pos = str.rfind('/', pos - 1);
+	  }
+	// If we didn't match yet, try once more so that we will match
+	// a symlink to a relative path such as "Europe/London"
+	// or symlink to an absolute path such as "/Europe/London".
+	// Both cases seem unlikely because it would require either
+	// /etc/Europe or /Europe to be a directory (or a symlink to one)
+	// containing the TZif files, but it's theoretically possible.
+	// If pos==npos then pos+1 wraps to 0 and we use the whole string.
+	// If pos==0 then substr(1) discards the leading slash.
+	if (auto tz = do_locate_zone(this->zones, this->links,
+				     str.substr(pos + 1)))
+	  return tz;
       }
 #endif
     // Otherwise, look for a file naming the time zone.
@@ -1941,6 +2011,11 @@ namespace std::chrono
 		  return tz;
 	      }
       }
+
+    // FIXME: For DragonFly BSD /etc/localtime is a copy of one of the
+    // zone files in /usr/share/zoneinfo so we need to compare its contents
+    // to each one until we find a match.
+
 #elif defined(_GLIBCXX_HAVE_WINDOWS_H)
     if (auto tz
 	= do_locate_zone(this->zones, this->links, detect_windows_zone()))
@@ -2182,10 +2257,11 @@ namespace std::chrono
     istream& operator>>(istream& in, at_time& at)
     {
       int sign = 1;
-      if (in.peek() == '-')
+      if (ws(in).peek() == '-')
 	{
 	  in.ignore(1);
-	  if (auto [val, yes] = at_time::is_indicator(in.peek()); yes)
+	  if (auto [val, yes] = at_time::is_indicator(in.peek());
+	      in.eof() || yes)
 	    {
 	      in.ignore(1);
 	      at.time = 0s;
@@ -2204,11 +2280,11 @@ namespace std::chrono
 	  in.ignore(1); // discard the colon.
 	  in >> i;
 	  m = minutes{i};
-	  if (in.peek() == ':')
+	  if (!in.eof() && in.peek() == ':')
 	    {
 	      in.ignore(1); // discard the colon.
 	      in >> i;
-	      if (in.peek() == '.')
+	      if (!in.eof() && in.peek() == '.')
 		{
 		  double frac;
 		  in >> frac;
@@ -2285,11 +2361,18 @@ namespace std::chrono
 	  at_time t{};
 	  // XXX DAY should support ON format, e.g. lastSun or Sun>=8
 	  in >> m >> d >> t;
-	  // XXX UNTIL field should be interpreted
-	  // "using the rules in effect just before the transition"
-	  // so might need to store as year_month_day and hh_mm_ss and only
-	  // convert to a sys_time once we know the offset in effect.
 	  inf.m_until = sys_days(year(y)/m.m/day(d)) + seconds(t.time);
+	  if (t.indicator != at_time::Universal)
+	    { // UNTIL uses "the rules in effect just before the transition"
+	      // adjust by STDOFF
+	      inf.m_until -= seconds(inf.m_offset);
+	      if (t.indicator != at_time::Standard)
+		{
+		  if (inf.m_expanded) // Not a named Rule, SAVE is known now.
+		    inf.m_until -= inf.m_save;
+		  // else Named Rule, SAVE is unknown. FIXME: PR 116110
+		}
+	    }
 	}
       else
 	inf.m_until = sys_days(year::max()/December/31);

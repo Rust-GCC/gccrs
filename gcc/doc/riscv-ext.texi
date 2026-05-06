@@ -158,6 +158,10 @@
 @tab 1.0
 @tab Atomic compare-and-swap instructions extension
 
+@item @samp{zalasr}
+@tab 1.0
+@tab Atomic load-acquire and store-release extension
+
 @item @samp{zalrsc}
 @tab 1.0
 @tab Load-reserved/store-conditional subset of the A extension

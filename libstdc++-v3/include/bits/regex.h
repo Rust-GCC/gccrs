@@ -61,7 +61,7 @@ namespace __detail
 		      _RegexExecutorPolicy		   __policy,
 		      bool				   __match_mode);
 
-  template<typename, typename, typename, bool>
+  template<typename, typename, typename>
     class _Executor;
 
   template<typename _Tp>
@@ -840,7 +840,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CXX11
 				    regex_constants::match_flag_type,
 				    __detail::_RegexExecutorPolicy, bool);
 
-      template<typename, typename, typename, bool>
+      template<typename, typename, typename>
 	friend class __detail::_Executor;
 
       flag_type		_M_flags;
@@ -2134,7 +2134,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CXX11
 
       /// @cond undocumented
 
-      template<typename, typename, typename, bool>
+      template<typename, typename, typename>
 	friend class __detail::_Executor;
 
       template<typename _Bp, typename _Ap, typename _Cp, typename _Rp>

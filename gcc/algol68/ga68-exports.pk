@@ -175,6 +175,83 @@ type ga68_mode_64 =
         field[nfields] fields;
       } sct : kind == GA68_MODE_STRUCT;
 
+      /* When assigning overhead values to union modes, the list of
+	 united modes is ordered so that overhead values are assigned
+         consistently across compilation units.  Overhead values are
+         assigned to the modes in the ordered list in ascending order
+         starting from zero.
+
+         Modes are ordered in the following order:
+
+           UNION
+           STRUCT
+           STANDARD
+           ROWS
+           REF
+           PROC
+           FLEX
+
+	 A STANDARD mode is one of the following: (VOID, STRING, REAL,
+	 INT, COMPL, CHAR, BYTES, BOOL, BITS)
+
+         When two modes occupy the same row in the list above, the
+         ordering is determined as follows:
+
+         UNION:
+
+           The union with greater number of united modes is ordered
+	   first.  Unions having an equal number of united modes are
+           ordered based on the ordering of their first non-equivalent
+           mode.
+
+         STRUCT:
+
+           The struct with the largest number of fields is ordered first.
+           Structs having an equal number of fields are ordered based
+           on the first field that has non-equivalent modes or
+           non-matching field selectors.  If the modes are not equivalent,
+           the structs are ordered in the ordering of those modes.
+           Otherwise, the struct are ordered in the lexicographical
+           order of the field selectors.
+
+         STANDARD:
+
+           The mode with the greatest size of longsety and smaller size
+           of shortsety is ordered first.  If the size of shortsety and
+	   longsety are equal, the modes are ordered as follows:
+
+               VOID
+               STRING
+               REAL
+               INT
+               COMPL
+               CHAR
+               BYTES
+               BOOL
+               BITS
+
+         ROWS:
+
+           The mode with greater number of dimensions is ordered first.
+           Otherwise, the ordering of the modes of the elements is used.
+
+         REF:
+
+           The ordering is the ordering of the referred mode.
+
+         PROC:
+
+           The ordering is the ordering of the mode of the value yielded
+           by the procedure.  If the procedure yields values of the the
+           same mode, the procedure with greater number of arguments is
+           ordered first.  If the number of arguments is equal, the
+           ordering is the ordering of the modes of the first arguments
+           having non-equivalent modes.
+
+         FLEX:
+
+           The ordering is the ordering of the referred mode. */
+
       struct
       {
         uint<8> nmodes;

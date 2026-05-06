@@ -169,6 +169,10 @@ public:
 				std::vector<PathExprSegment> &&segments
 				= {}) const;
 
+  std::unique_ptr<Expr>
+  qualified_call (std::vector<std::string> &&segments,
+		  std::vector<std::unique_ptr<Expr>> &&args) const;
+
   /* Self parameter for a function definition (`&self`) */
   std::unique_ptr<Param> self_ref_param (bool mutability = false) const;
   /* A regular named function parameter for a definition (`a: type`) */
@@ -184,8 +188,8 @@ public:
 	    std::unique_ptr<Type> return_type, std::unique_ptr<BlockExpr> block,
 	    std::vector<std::unique_ptr<GenericParam>> generic_params = {},
 	    FunctionQualifiers qualifiers
-	    = FunctionQualifiers (UNKNOWN_LOCATION, Async::No, Const::No,
-				  Unsafety::Normal),
+	    = FunctionQualifiers (UNKNOWN_LOCATION, Default::No, Async::No,
+				  Const::No, Unsafety::Normal),
 	    WhereClause where_clause = WhereClause::create_empty (),
 	    Visibility visibility = Visibility::create_private ()) const;
 

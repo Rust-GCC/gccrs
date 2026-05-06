@@ -220,53 +220,59 @@ IdentifyVersion(void)
   if (!access(doom2wad, 4)) {
     gamemode = commercial;
     D_AddFile(doom2wad);
-    return; /* { dg-warning "leak of 'doom2wad'" } */
-    /* { dg-warning "leak of 'doomuwad'"    "leak" { target *-*-* } .-1 } */
-    /* { dg-warning "leak of 'doomwad'"     "leak" { target *-*-* } .-2 } */
-    /* { dg-warning "leak of 'doom1wad'"    "leak" { target *-*-* } .-3 } */
-    /* { dg-warning "leak of 'plutoniawad'" "leak" { target *-*-* } .-4 } */
-    /* { dg-warning "leak of 'tntwad'"      "leak" { target *-*-* } .-5 } */
-    /* { dg-warning "leak of 'doom2fwad'"   "leak" { target *-*-* } .-6 } */
+    return; /* { dg-warning "leak of 'doom2wad'" "" { xfail *-*-* } } */
+    /* { dg-warning "leak of 'doomuwad'"    "leak" { xfail *-*-* } .-1 } */
+    /* { dg-warning "leak of 'doomwad'"     "leak" { xfail *-*-* } .-2 } */
+    /* { dg-warning "leak of 'doom1wad'"    "leak" { xfail *-*-* } .-3 } */
+    /* { dg-warning "leak of 'plutoniawad'" "leak" { xfail *-*-* } .-4 } */
+    /* { dg-warning "leak of 'tntwad'"      "leak" { xfail *-*-* } .-5 } */
+    /* { dg-warning "leak of 'doom2fwad'"   "leak" { xfail *-*-* } .-6 } */
   }
 
   if (!access(plutoniawad, 4)) {
     gamemode = commercial;
     D_AddFile(plutoniawad);
-    return; /* { dg-warning "leak of 'doom2wad'" } */
-    /* { dg-warning "leak of 'doomuwad'"    "leak" { target *-*-* } .-1 } */
-    /* { dg-warning "leak of 'doomwad'"     "leak" { target *-*-* } .-2 } */
-    /* { dg-warning "leak of 'doom1wad'"    "leak" { target *-*-* } .-3 } */
-    /* { dg-warning "leak of 'plutoniawad'" "leak" { target *-*-* } .-4 } */
-    /* { dg-warning "leak of 'tntwad'"      "leak" { target *-*-* } .-5 } */
-    /* { dg-warning "leak of 'doom2fwad'"   "leak" { target *-*-* } .-6 } */
+    return; /* { dg-warning "leak of 'doom2wad'" "" { xfail *-*-* } } */
+    /* { dg-warning "leak of 'doomuwad'"    "leak" { xfail *-*-* } .-1 } */
+    /* { dg-warning "leak of 'doomwad'"     "leak" { xfail *-*-* } .-2 } */
+    /* { dg-warning "leak of 'doom1wad'"    "leak" { xfail *-*-* } .-3 } */
+    /* { dg-warning "leak of 'plutoniawad'" "leak" { xfail *-*-* } .-4 } */
+    /* { dg-warning "leak of 'tntwad'"      "leak" { xfail *-*-* } .-5 } */
+    /* { dg-warning "leak of 'doom2fwad'"   "leak" { xfail *-*-* } .-6 } */
   }
 
   if (!access(tntwad, 4)) {
     gamemode = commercial;
     D_AddFile(tntwad);
-    return; /* { dg-warning "leak of 'doom2wad'" } */
-    /* { dg-warning "leak of 'doomuwad'"    "leak" { target *-*-* } .-1 } */
-    /* { dg-warning "leak of 'doomwad'"     "leak" { target *-*-* } .-2 } */
-    /* { dg-warning "leak of 'doom1wad'"    "leak" { target *-*-* } .-3 } */
-    /* { dg-warning "leak of 'plutoniawad'" "leak" { target *-*-* } .-4 } */
-    /* { dg-warning "leak of 'tntwad'"      "leak" { target *-*-* } .-5 } */
-    /* { dg-warning "leak of 'doom2fwad'"   "leak" { target *-*-* } .-6 } */
+    return; /* { dg-warning "leak of 'doom2wad'"  "" { xfail *-*-* } } */
+    /* { dg-warning "leak of 'doomuwad'"    "leak" { xfail *-*-* } .-1 } */
+    /* { dg-warning "leak of 'doomwad'"     "leak" { xfail *-*-* } .-2 } */
+    /* { dg-warning "leak of 'doom1wad'"    "leak" { xfail *-*-* } .-3 } */
+    /* { dg-warning "leak of 'plutoniawad'" "leak" { xfail *-*-* } .-4 } */
+    /* { dg-warning "leak of 'tntwad'"      "leak" { xfail *-*-* } .-5 } */
+    /* { dg-warning "leak of 'doom2fwad'"   "leak" { xfail *-*-* } .-6 } */
   }
 
   if (!access(doomuwad, 4)) {
     gamemode = retail;
     D_AddFile(doomuwad);
-    return; /* { dg-warning "leak of 'doom2wad'" } */
-    /* { dg-warning "leak of 'doomuwad'"    "leak" { target *-*-* } .-1 } */
-    /* { dg-warning "leak of 'doomwad'"     "leak" { target *-*-* } .-2 } */
-    /* { dg-warning "leak of 'doom1wad'"    "leak" { target *-*-* } .-3 } */
-    /* { dg-warning "leak of 'plutoniawad'" "leak" { target *-*-* } .-4 } */
-    /* { dg-warning "leak of 'tntwad'"      "leak" { target *-*-* } .-5 } */
-    /* { dg-warning "leak of 'doom2fwad'"   "leak" { target *-*-* } .-6 } */
+    return; /* { dg-warning "leak of 'doom2wad'"  "" { xfail *-*-* } } */
+    /* { dg-warning "leak of 'doomuwad'"    "leak" { xfail *-*-* } .-1 } */
+    /* { dg-warning "leak of 'doomwad'"     "leak" { xfail *-*-* } .-2 } */
+    /* { dg-warning "leak of 'doom1wad'"    "leak" { xfail *-*-* } .-3 } */
+    /* { dg-warning "leak of 'plutoniawad'" "leak" { xfail *-*-* } .-4 } */
+    /* { dg-warning "leak of 'tntwad'"      "leak" { xfail *-*-* } .-5 } */
+    /* { dg-warning "leak of 'doom2fwad'"   "leak" { xfail *-*-* } .-6 } */
   }
 
   /* [...snip...] */
 
   printf("Game mode indeterminate.\n");
   gamemode = indetermined;
-}
+} /* { dg-warning "leak of 'doom2wad'" } */
+/* { dg-warning "leak of 'doomuwad'"    "leak" { target *-*-* } .-1 } */
+/* { dg-warning "leak of 'doomwad'"     "leak" { target *-*-* } .-2 } */
+/* { dg-warning "leak of 'doom1wad'"    "leak" { target *-*-* } .-3 } */
+/* { dg-warning "leak of 'plutoniawad'" "leak" { target *-*-* } .-4 } */
+/* { dg-warning "leak of 'tntwad'"      "leak" { target *-*-* } .-5 } */
+/* { dg-warning "leak of 'doom2fwad'"   "leak" { target *-*-* } .-6 } */

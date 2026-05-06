@@ -232,9 +232,8 @@ compiler, and versions prior to 4.8 allow bootstrapping with an ISO
 C89 compiler.
 
 If you need to build an intermediate version of GCC in order to
-bootstrap current GCC, consider GCC 9.5: it can build the current Ada
-and D compilers, and was also the version that declared C++17 support
-stable.
+bootstrap current GCC, consider GCC 9.5: it can build the current D
+compiler, and was also the version that declared C++17 support stable.
 
 To build all languages in a cross-compiler or other configuration where
 3-stage bootstrap is not performed, you need to start with an existing
@@ -265,7 +264,7 @@ the specified architecture string is non-canonical, then you will need
 @item @anchor{GNAT-prerequisite}GNAT
 
 In order to build GNAT, the Ada compiler, you need a working GNAT
-compiler (GCC version 5.1 or later).
+compiler (GCC version 5.4 or later).
 
 This includes GNAT tools such as @command{gnatmake} and
 @command{gnatlink}, since the Ada front end is written in Ada and
@@ -305,13 +304,13 @@ to HTML is done with mandoc, available at
 @uref{https://mandoc.bsd.lv}.
 
 The COBOL runtime library. libgcobol, requires libxml2 2.9 or later.
-It implements support for @code{XML PARSE}.  
+It implements support for @code{XML PARSE}.
 
 Because ISO COBOL defines strict requirements for numerical precision,
 gcobol computes with 128-bit operands.  This requirement applies to
 both host and target. For integers, gcobol requires the platform to
 support the GCC @code{__int128} type.  For floating point it uses
-@code{_Float128} or similar.  
+@code{_Float128} or similar.
 
 gcobol has so far been tested on two architectures only: x86_64 and
 aarch64 with little-endian encoding.
@@ -386,7 +385,7 @@ Necessary in some circumstances, optional in others.  See the
 host/target specific instructions for your platform for the exact
 requirements.
 
-Note binutils 2.35 or newer is required for LTO to work correctly
+Binutils 2.35 or newer is required for LTO to work correctly
 with GNU libtool that includes doing a bootstrap with LTO enabled.
 
 @item gzip version 1.2.4 (or later) or
@@ -696,11 +695,11 @@ language front end and shared components, and language-specific
 distributions including the language front end and the language
 runtime (where appropriate).
 
-If you also intend to build binutils (either to upgrade an existing
+If you also intend to build Binutils (either to upgrade an existing
 installation or for use in place of the corresponding tools of your
-OS), unpack the binutils distribution either in the same directory or
+OS), unpack the Binutils distribution either in the same directory or
 a separate one.  In the latter case, add symbolic links to any
-components of the binutils you intend to build alongside the compiler
+components of the Binutils you intend to build alongside the compiler
 (@file{bfd}, @file{binutils}, @file{gas}, @file{gprof}, @file{ld},
 @file{opcodes}, @dots{}) to the directory containing the GCC sources.
 
@@ -987,13 +986,12 @@ This can be useful if you need to turn on a non-standard feature by
 default without modifying the compiler's source code, for instance
 @option{--with-specs=%@{!fcommon:%@{!fno-common:-fno-common@}@}}.
 @ifnothtml
-@xref{Spec Files,, Specifying subprocesses and the switches to pass to them,
-gcc, Using the GNU Compiler Collection (GCC)},
+@xref{Spec Files,, Specifying Subprocesses and the Switches to Pass to Them,
+gccint, GNU Compiler Collection (GCC) Internals}.
 @end ifnothtml
 @ifhtml
-See ``Spec Files'' in the main manual
+See ``Spec Files'' in the GCC Internals manual.
 @end ifhtml
-
 @end table
 
 @item --program-prefix=@var{prefix}
@@ -1602,6 +1600,30 @@ medlow code model; rv64ima with lp64 and medany code model
 rv64ima-lp64--;--cmodel=medlow,medany
 @end smallexample
 
+@item --with-multi-buildlist=@var{file}
+Specify a file containing a list of multilib directories to build.
+
+Each line in the file should contain a single multilib directory name,
+as printed by @code{gcc --print-multi-lib}.  Only the listed directories
+will be built and installed.
+
+This option is useful for reducing build time and binary size by
+excluding unnecessary multilib variants.  It is especially beneficial
+for embedded targets or vendor-specific toolchains.
+
+Example file contents:
+
+@smallexample
+mips-r6-hard/lib
+mips-r6-soft/lib32
+mipsel-r6-hard/lib64
+@end smallexample
+
+This option is target-independent and can be used with any architecture
+that supports multilibs.  It is passed to both host and target
+configuration stages and used during fixed includes installation and
+multilib directory generation.
+
 @item --with-endian=@var{endians}
 Specify what endians to use.
 Currently only implemented for sh*-*-*.
@@ -2205,7 +2227,7 @@ code.  Typically, the corresponding 32-bit target, e.g.@:
 powerpc-linux for powerpc64-linux, only generates 32-bit code.  This
 option enables the 32-bit target to be a bi-arch compiler, which is
 useful when you want a bi-arch compiler that defaults to 32-bit, and
-you are building a bi-arch or multi-arch binutils in a combined tree.
+you are building a bi-arch or multi-arch Binutils in a combined tree.
 On mips-linux, this will build a tri-arch compiler (ABI o32/n32/64),
 defaulted to o32.
 Currently, this option only affects sparc-linux, powerpc-linux, x86-linux,
@@ -2678,7 +2700,7 @@ to add @option{-fcf-protection} and, if needed, other target
 specific options to a set of building options.
 
 @code{--enable-cet=auto} is default.  CET is enabled on Linux/x86 if
-target binutils supports @code{Intel CET} instructions and disabled
+target Binutils supports @code{Intel CET} instructions and disabled
 otherwise.  In this case, the target libraries are configured to get
 additional @option{-fcf-protection} option.
 
@@ -2698,7 +2720,7 @@ Generate RISC-V attribute by default, in order to record extra build
 information in object.
 
 The option is disabled by default. It is enabled on RISC-V/ELF (bare-metal)
-target if target binutils supported.
+target if target Binutils supported.
 
 @item --enable-s390-excess-float-precision
 @itemx --disable-s390-excess-float-precision
@@ -2939,7 +2961,7 @@ is built, using an external build of the Boehm-Demers-Weiser garbage
 collector (@uref{https://www.hboehm.info/gc/}).
 
 This library needs to be available for each multilib variant, unless
-configured with @option{--enable-objc-gc=@samp{auto}} in which case
+configured with @option{--enable-algol68-gc=@samp{auto}} in which case
 the build of the additional runtime library is skipped when not
 available and the build continues.
 
@@ -3040,6 +3062,31 @@ to be available for each multilib variant, unless configured with
 @samp{zlib} is only used when the system installed library is not available.
 @end table
 
+@subheading COBOL-Specific Options
+
+The following options apply to the build of the COBOL runtime library.
+
+@table @code
+@item --with-target-libxml2=@var{list}
+@itemx --with-target-libxml2-include=@var{list}
+@itemx --with-target-libxml2-lib=@var{list}
+Specify search directories for the libxml2 header files and
+libraries.  @var{list} is a comma separated list of key value pairs of the
+form @samp{@var{multilibdir}=@var{path}}, where the default multilib key
+is named as @samp{.} (dot), or is omitted (e.g.@:
+@samp{--with-target-libxml2=/opt/libxml2,32=/opt-libxml2-32}).
+
+The options @option{--with-target-libxml2-include} and
+@option{--with-target-libxml2-lib} must always be specified together
+for each multilib variant and they take precedence over
+@option{--with-target-libxml2}.  If @option{--with-target-libxml2-include}
+is missing values for a multilib, then the value for the default
+multilib is used (e.g.@: @samp{--with-target-libxml2-include=/opt/libxml2/include}
+@samp{--with-target-libxml2-lib=/opt/libxml2/lib64,32=/opt-libxml2/lib32}).
+If none of these options are specified, the library is assumed in
+default locations.
+@end table
+
 @html
 <hr />
 <p>
@@ -3123,7 +3170,7 @@ Build tools necessary to build the compiler.
 
 @item
 Perform a 3-stage bootstrap of the compiler.  This includes building
-three times the target tools for use by the compiler such as binutils
+three times the target tools for use by the compiler such as Binutils
 (bfd, binutils, gas, gprof, ld, and opcodes) if they have been
 individually linked or moved into the top level GCC source tree before
 configuring.
@@ -3235,8 +3282,8 @@ version 2.21 or later).
 
 @item @samp{bootstrap-lto-noplugin}
 This option is similar to @code{bootstrap-lto}, but is intended for
-hosts that do not support the linker plugin.  Without the linker plugin 
-static libraries are not compiled with link-time optimizations.  Since 
+hosts that do not support the linker plugin.  Without the linker plugin
+static libraries are not compiled with link-time optimizations.  Since
 the GCC middle end and back end are in @file{libbackend.a} this means
 that only the front end is actually LTO optimized.
 
@@ -3342,7 +3389,7 @@ following steps:
 Build host tools necessary to build the compiler.
 
 @item
-Build target tools for use by the compiler such as binutils (bfd,
+Build target tools for use by the compiler such as Binutils (bfd,
 binutils, gas, gprof, ld, and opcodes)
 if they have been individually linked or moved into the top level GCC source
 tree before configuring.
@@ -3731,7 +3778,7 @@ are not only installed into @file{@var{bindir}}, that
 is, @file{@var{exec-prefix}/bin}, but additionally into
 @file{@var{exec-prefix}/@var{target-alias}/bin}, if that directory
 exists.  Typically, such @dfn{tooldirs} hold target-specific
-binutils, including assembler and linker.
+Binutils, including assembler and linker.
 
 Installation into a temporary staging area or into a @command{chroot}
 jail can be achieved with the command
@@ -3840,7 +3887,7 @@ AIX 7.1)}.
 @end itemize
 
 @item
-DOS---@uref{http://www.delorie.com/djgpp/,,DJGPP}.
+DOS---@uref{https://www.delorie.com/djgpp/,,DJGPP}.
 
 @item
 macOS:
@@ -3899,7 +3946,7 @@ GNU Compiler Collection on your machine.
 Note that this list of install notes is @emph{not} a list of supported
 hosts or targets.  Not all supported hosts and targets are listed
 here, only the ones that require host-specific or target-specific
-information have to. 
+information have to.
 
 @ifhtml
 @itemize
@@ -3907,8 +3954,6 @@ information have to.
 @uref{#aarch64-x-x,,aarch64*-*-*}
 @item
 @uref{#amdgcn-x-amdhsa,,amdgcn-*-amdhsa}
-@item
-@uref{#amd64-x-solaris2,,amd64-*-solaris2*}
 @item
 @uref{#arc-x-elf32,,arc-*-elf32}
 @item
@@ -3939,8 +3984,6 @@ information have to.
 @uref{#x-x-linux-gnu,,*-*-linux-gnu}
 @item
 @uref{#ix86-x-linux,,i?86-*-linux*}
-@item
-@uref{#ix86-x-solaris2,,i?86-*-solaris2*}
 @item
 @uref{#ia64-x-linux,,ia64-*-linux}
 @item
@@ -4024,13 +4067,7 @@ information have to.
 @item
 @uref{#sparc-x-x,,sparc*-*-*}
 @item
-@uref{#sparc-sun-solaris2,,sparc-sun-solaris2*}
-@item
 @uref{#sparc-x-linux,,sparc-*-linux*}
-@item
-@uref{#sparc64-x-solaris2,,sparc64-*-solaris2*}
-@item
-@uref{#sparcv9-x-solaris2,,sparcv9-*-solaris2*}
 @item
 @uref{#c6x-x-x,,c6x-*-*}
 @item
@@ -4039,8 +4076,6 @@ information have to.
 @uref{#x-x-vxworks,,*-*-vxworks*}
 @item
 @uref{#x86-64-x-x,,x86_64-*-*, amd64-*-*}
-@item
-@uref{#x86-64-x-solaris2,,x86_64-*-solaris2*}
 @item
 @uref{#xtensa-x-elf,,xtensa*-*-elf}
 @item
@@ -4104,13 +4139,6 @@ of the options are given at configure time.
 @html
 <hr />
 @end html
-@anchor{amd64-x-solaris2}
-@heading amd64-*-solaris2*
-This is a synonym for @samp{x86_64-*-solaris2*}.
-
-@html
-<hr />
-@end html
 @anchor{amdgcn-x-amdhsa}
 @heading amdgcn-*-amdhsa
 AMD GCN GPU target.
@@ -4137,14 +4165,14 @@ a linker error.
 By default, multilib support is built for @code{gfx908}, @code{gfx90a},
 @code{gfx9-generic}, @code{gfx9-4-generic}, @code{gfx10-3-generic}, and
 @code{gfx11-generic}, which covers all supported archs.  The default multilib
-configuration requires LLVM 19 or newer.  LLVM 13.0.1 or LLVM 14 can be used by
+configuration requires LLVM 20 or newer.  LLVM 13.0.1 or LLVM 14 can be used by
 specifying a @code{--with-multilib-list=} that only lists GFX9 or GFX10-3
 devices, while LLVM 15 is required for GFX 11 device and @code{gfx1036}.
 At least LLVM 16 is required for @code{gfx1150} and @code{gfx1151},
 LLVM 18 for @code{gfx942}, LLVM 19 for the generic @code{gfx9-generic},
-@code{gfx9-4-generic}, @code{gfx10-3-generic}, and @code{gfx11-generic}
-targets and for @code{gfx1152}, while LLVM 20 is required for
-@code{gfx950} and @code{gfx1153}.
+@code{gfx10-3-generic}, and @code{gfx11-generic} targets and for @code{gfx1152},
+while LLVM 20 is required for @code{gfx950}, @code{gfx1153}, and
+@code{gfx9-4-generic}.
 
 The supported ISA architectures are listed in the GCC manual. The generic
 ISA targets @code{gfx9-generic}, @code{gfx10-3-generic}, and
@@ -4153,10 +4181,7 @@ that @code{gfx9-generic} does not include @code{gfx908} or @code{gfx90a},
 that linking specific ISA code with generic code is currently not supported,
 and that only ROCm 6.4.0 or newer is able to execute generic code.
 
-Use Newlib (4.3.0 or newer; 4.4.0 contains some improvements and 4.5.0 fixes
-the device console output for GFX10 and GFX11 devices; post-4.5.0
-commits 2ef1a37e7 [Mar 25, 2025], f13e8e215 [Aug 8, 2025], and
-bd409f3c1 [Aug 27, 2025] fix SIMD math issues).
+Use Newlib (4.6.0 or newer).
 
 To run the binaries, install the HSA Runtime from the
 @uref{https://rocm.docs.amd.com/,,ROCm Platform}, and use
@@ -4235,7 +4260,7 @@ Collection (GCC)},
 See ``Blackfin Options'' in the main manual
 @end ifhtml
 
-More information, and a version of binutils with support for this processor,
+More information, and a version of Binutils with support for this processor,
 are available at @uref{https://sourceforge.net/projects/adi-toolchain/}.
 
 @html
@@ -4319,7 +4344,7 @@ Renesas H8/300 series of processors.
 @heading hppa64-hp-hpux11*
 Only the 64-bit @samp{hppa} target is supported on HP-UX.  Support
 for 32-bit @samp{hppa} was discontinued in GCC 13.
- 
+
 We require using gas on all hppa platforms.
 
 It may be helpful to configure GCC with the
@@ -4355,16 +4380,6 @@ libstdc++-v3 documentation.
 If you receive Signal 11 errors when building on GNU/Linux, then it is
 possible you have a hardware problem.  Further information on this can be
 found on @uref{https://www.bitwizard.nl/sig11/,,www.bitwizard.nl}.
-
-@html
-<hr />
-@end html
-@anchor{ix86-x-solaris2}
-@heading i?86-*-solaris2*
-Use this for Solaris 11.4 on x86 and x86-64 systems.  Starting
-with GCC 4.7, there is also a 64-bit @samp{amd64-*-solaris2*} or
-@samp{x86_64-*-solaris2*} configuration that corresponds to
-@samp{sparcv9-sun-solaris2*}.
 
 @html
 <hr />
@@ -4646,7 +4661,7 @@ be a @option{-mcpu} argument or one of the following values:
 @samp{m68000}, @samp{m68010}, @samp{m68020}, @samp{m68030},
 @samp{m68040}, @samp{m68060}, @samp{m68020-40} and @samp{m68020-60}.
 
-GCC requires at least binutils version 2.17 on these targets.
+GCC requires at least Binutils 2.17 on these targets.
 
 @html
 <hr />
@@ -4906,7 +4921,7 @@ This configuration is intended for embedded systems.
 @heading riscv32-*-elf
 The RISC-V RV32 instruction set.
 This configuration is intended for embedded systems.
-This (and all other RISC-V) targets require the binutils 2.30 release.
+This (and all other RISC-V) targets require the Binutils 2.40 release.
 
 @html
 <hr />
@@ -4914,7 +4929,7 @@ This (and all other RISC-V) targets require the binutils 2.30 release.
 @anchor{riscv32-x-linux}
 @heading riscv32-*-linux
 The RISC-V RV32 instruction set running GNU/Linux.
-This (and all other RISC-V) targets require the binutils 2.30 release.
+This (and all other RISC-V) targets require the Binutils 2.40 release.
 
 @html
 <hr />
@@ -4923,7 +4938,7 @@ This (and all other RISC-V) targets require the binutils 2.30 release.
 @heading riscv64-*-elf
 The RISC-V RV64 instruction set.
 This configuration is intended for embedded systems.
-This (and all other RISC-V) targets require the binutils 2.30 release.
+This (and all other RISC-V) targets require the Binutils 2.40 release.
 
 @html
 <hr />
@@ -4931,7 +4946,7 @@ This (and all other RISC-V) targets require the binutils 2.30 release.
 @anchor{riscv64-x-linux}
 @heading riscv64-*-linux
 The RISC-V RV64 instruction set running GNU/Linux.
-This (and all other RISC-V) targets require the binutils 2.30 release.
+This (and all other RISC-V) targets require the Binutils 2.40 release.
 
 @html
 <hr />
@@ -4967,74 +4982,103 @@ supported as cross-compilation target only.
 @end html
 @anchor{x-x-solaris2}
 @heading *-*-solaris2*
-Support for Solaris 11.3 and earlier has been removed in GCC 15.
-Support for Solaris 10 has been removed in GCC 10.  Support for Solaris
-9 has been removed in GCC 5.  Support for Solaris 8 has been removed in
-GCC 4.8.  Support for Solaris 7 has been removed in GCC 4.6.
+GCC only supports Solaris 11.4.  Support for Solaris 11.3 and earlier
+has been removed in GCC 15.  Support for Solaris 10 has been removed
+in GCC 10.
 
-Solaris 11.4 provides one or more of GCC 5, 7, 9, 10, 11, 12, 13, 14,and 15.
+Solaris 11.4 bundles several versions of GCC installed in parallel.
+They can be found in @file{/usr/gcc/@var{majorvers}}, with the default
+in @file{/usr/bin}. The exact set depends on the update installed.  It
+includes a subset of the available languages: since SRU 39 this
+consists of C, C++, Objective-C, Ada, Fortran, and Go.
+@c Missing D, Modula-2.
+
+In order to build the GNU Ada compiler, GNAT, a working GNAT is
+needed.
+
+In order to build the GNU D compiler, GDC, a working GDC is needed
+which isn't included with the bundled GCC.  At least GDC 11.5.0 is
+required on both SPARC and x86.  However, the @samp{libphobos} library
+wasn't built by default in GCC 11 on SPARC, or on x86 when the Solaris
+assembler is used, but can be enabled by configuring with
+@option{--enable-libphobos}.
 
 You need to install the @code{system/header}, @code{system/linker}, and
 @code{developer/assembler} packages.
 
-Trying to use the compatibility tools in @file{/usr/ucb}, from the
-@code{compatibility/ucb} package, to install GCC has been observed to
-cause trouble.  The fix is to remove @file{/usr/ucb} from your
-@env{PATH}.
+The build process works more smoothly with the GNU tools, so place
+@file{/usr/gnu/bin} before @file{/usr/bin} in your @env{PATH}.
 
-@c FIXME: Still?  Prefer /usr/gnu/bin instead?
-The build process works more smoothly with the legacy Solaris tools so,
-if you have @file{/usr/xpg4/bin} in your @env{PATH}, we recommend that
-you place @file{/usr/bin} before @file{/usr/xpg4/bin} for the duration
-of the build.
+Unlike other systems, without special options a bi-arch compiler is
+built.  There are both 32-bit configurations which can also generate
+64-bit code with the @option{-m64} switch, and 64-bit configurations
+capable of 32-bit code generation with @option{-m32}.
 
-We recommend the use of the Solaris assembler or the GNU assembler, in
-conjunction with the Solaris linker.
+In both cases, the build compiler must match the target configuration.
+Configure with @samp{CC='gcc -m32' CXX='g++ -m32' GDC='gdc -m32'} for
+a 32-bit target, or @option{-m64} for a 64-bit target.  The target
+must always be specified explicitly with @option{--build=@var{target}}
+because @file{config.guess} misdetects the situation, which can cause
+build failures.
 
-The GNU @command{as} versions included in Solaris 11.4, from GNU
-binutils 2.30.1 or newer (in @file{/usr/bin/gas} and
-@file{/usr/gnu/bin/as}), are known to work.  This is the minimum
-supported version.  The version from GNU
-binutils 2.45 is known to work as well.  Recent versions of the Solaris
-assembler in @file{/usr/bin/as} work almost as well, though.  To use GNU
-@command{as}, configure with the options @option{--with-gnu-as
---with-as=@//usr/@/gnu/@/bin/@/as}.
+Use the following targets as appropriate:
 
-For linking, the Solaris linker is preferred.  If you want to use the
-GNU linker instead, the version in Solaris 11.4, from GNU Binutils
-2.30.1 or newer (in @file{/usr/gnu/bin/ld} and @file{/usr/bin/gld}),
-works.  However, it
-generally lacks platform specific features, so better stay with Solaris
-@command{ld}.  To use the LTO linker plugin
-(@option{-fuse-linker-plugin}) with GNU @command{ld}, GNU Binutils
-@emph{must} be configured with @option{--enable-largefile}.  To use
-Solaris @command{ld}, we recommend to configure with
-@option{--without-gnu-ld --with-ld=@//usr/@/bin/@/ld} to guarantee the
-right linker is found irrespective of the user's @env{PATH}.
+@table @asis
+@item 32-bit-default Solaris/x86
+@samp{i386-pc-solaris2.11}
+@item 64-bit-default Solaris/x86
+@samp{amd64-pc-solaris2.11} or @samp{x86_64-pc-solaris2.11}
+@item 32-bit-default Solaris/SPARC
+@samp{sparc-sun-solaris2.11}
+@item 64-bit-default Solaris/SPARC
+@samp{sparcv9-sun-solaris2.11} or @samp{sparc64-sun-solaris2.11}
+@end table
 
-Note that your mileage may vary if you use a combination of the GNU
-tools and the Solaris tools: while the combination GNU @command{as} and
-Solaris @command{ld} works well, the reverse combination Solaris
-@command{as} with GNU @command{ld} may fail to build or cause memory
-corruption at runtime in some cases for C++ programs.
-@c FIXME: still?
+GCC can use both the native Solaris assembler and linker and those
+from GNU Binutils, with 3 supported combinations.  One of those needs
+to be selected when configuring GCC.
+
+@itemize
+@item Solaris @command{as} and @command{ld}
+@item GNU @command{as} and Solaris @command{ld}
+@item GNU @command{as} and @command{ld}
+@end itemize
+
+However, the combination of Solaris @command{as} and GNU @command{ld}
+is broken and should be avoided.
+
+Solaris 11.4 includes GNU Binutils 2.30.1 or newer.  This is the
+minimum supported version.  Either the bundled version or newer ones
+are known to work well.  When building a 32-bit-default version of GCC
+with either or both GNU @command{as} or GNU @command{ld}, GNU Binutils
+must be built separately as 32-bit executables.
+
+Both the GNU assembler (in @file{/usr/bin/gas} and
+@file{/usr/gnu/bin/as}) and the Solaris assembler (in
+@file{/usr/bin/as}) work well.  Solaris @command{as} has support for
+for hardware capabilities, while GNU @command{as} supports newer x86
+ISAs.  With GNU @command{as}, the binaries produced are smaller than
+the ones produced using Solaris @command{as}; this difference can be
+quite significant for binaries containing debugging information.
+
+For linking, the Solaris linker (in @file{/usr/bin/ld}) is preferred.
+The GNU linker (in @file{/usr/bin/gld} and @file{/usr/gnu/bin/ld})
+works, too.  However, it generally lacks platform specific features.
+To use the LTO linker plugin (@option{-fuse-linker-plugin}) with GNU
+@command{ld} in a 32-bit-default configuration, GNU Binutils
+@emph{must} be configured with @option{--enable-largefile}.
+
+We @emph{strongly} recommend to specify both the assembler and linker
+with the @command{configure} options @option{--with-as=@var{pathname}}
+and @option{--with-ld=@var{pathname}} to guarantee the right tool is
+found irrespective of the user's @env{PATH}.
 
 To enable symbol versioning in @samp{libstdc++} and other runtime
-libraries with the Solaris linker, you need to have any version of GNU
+libraries with the Solaris linker, you need to have GNU
 @command{c++filt}, which is part of GNU Binutils.  Symbol versioning
 will be disabled if no appropriate version is found.  Solaris
 @command{c++filt} from the Solaris Studio compilers does @emph{not}
 work.
-
-In order to build the GNU Ada compiler, GNAT, a working GNAT is needed.
-Since Solaris 11.4 SRU 39, GNAT 11, 12, 13, 14, or 15 is bundled in the
-@code{developer/gcc/gcc-gnat} package.
-
-In order to build the GNU D compiler, GDC, a working @samp{libphobos} is
-needed.  That library wasn't built by default in GCC 9--11 on SPARC, or
-on x86 when the Solaris assembler is used, but can be enabled by
-configuring with @option{--enable-libphobos}.  Also, GDC 9.4.0 is
-required on x86, while GDC 9.3.0 is known to work on SPARC.
 
 The versions of the GNU Multiple Precision Library (GMP), the MPFR
 library and the MPC library bundled with Solaris 11.4 are
@@ -5058,68 +5102,15 @@ in @uref{prerequisites.html,,the prerequisites}.
 @html
 <hr />
 @end html
-@anchor{sparc-sun-solaris2}
-@heading sparc-sun-solaris2*
-When GCC is configured to use GNU Binutils 2.14 or later, the binaries
-produced are smaller than the ones produced using Solaris native tools;
-this difference is quite significant for binaries containing debugging
-information.
-
-Starting with Solaris 7, the operating system is capable of executing
-64-bit SPARC V9 binaries.  GCC 3.1 and later properly supports
-this; the @option{-m64} option enables 64-bit code generation.
-
-When configuring the GNU Multiple Precision Library (GMP), the MPFR
-library or the MPC library on Solaris, the canonical target triplet must
-be specified as the @command{build} parameter on the @command{configure}
-line.  This target triplet can be obtained by invoking
-@command{./config.guess} in the toplevel source directory of GCC (and
-not that of GMP or MPFR or MPC).  For example:
-
-@smallexample
-% @var{srcdir}/configure --build=sparc-sun-solaris2.11 --prefix=@var{dirname}
-@end smallexample
-
-@html
-<hr />
-@end html
 @anchor{sparc-x-linux}
 @heading sparc-*-linux*
 
 @html
 <hr />
 @end html
-@anchor{sparc64-x-solaris2}
-@heading sparc64-*-solaris2*
-This is a synonym for @samp{sparcv9-*-solaris2*}.
-
-@html
-<hr />
-@end html
-@anchor{sparcv9-x-solaris2}
-@heading sparcv9-*-solaris2*
-
-When configuring a 64-bit-default GCC on Solaris/SPARC, you must use a
-build compiler that generates 64-bit code, either by default or by
-specifying @samp{CC='gcc -m64' CXX='g++ -m64' GDC='gdc -m64'} to @command{configure}.
-Additionally, you @emph{must} pass @option{--build=sparcv9-sun-solaris2.11}
-or @option{--build=sparc64-sun-solaris2.11} because @file{config.guess}
-misdetects this situation, which can cause build failures.
-
-When configuring the GNU Multiple Precision Library (GMP), the MPFR
-library or the MPC library, the canonical target triplet must be specified
-as the @command{build} parameter on the @command{configure} line.  For example:
-
-@smallexample
-% @var{srcdir}/configure --build=sparcv9-sun-solaris2.11 --prefix=@var{dirname}
-@end smallexample
-
-@html
-<hr />
-@end html
 @anchor{c6x-x-x}
 @heading c6x-*-*
-The C6X family of processors. This port requires binutils 2.22 or newer.
+The C6X family of processors. This port requires Binutils 2.22 or newer.
 
 @html
 <hr />
@@ -5174,20 +5165,6 @@ GCC supports the x86-64 architecture implemented by the AMD64 processor
 (amd64-*-* is an alias for x86_64-*-*) on GNU/Linux, FreeBSD and NetBSD@.
 On GNU/Linux the default is a bi-arch compiler which is able to generate
 both 64-bit x86-64 and 32-bit x86 code (via the @option{-m32} switch).
-
-@html
-<hr />
-@end html
-@anchor{x86-64-x-solaris2}
-@heading x86_64-*-solaris2*
-Unlike other systems, without special options a
-bi-arch compiler is built which generates 32-bit code by default, but
-can generate 64-bit x86-64 code with the @option{-m64} switch.  Since
-GCC 4.7, there is also a configuration that defaults to 64-bit code, but
-can generate 32-bit code with @option{-m32}.  To configure and build
-this way, you have to provide all support libraries like @file{libgmp}
-as 64-bit code, configure with @option{--target=x86_64-pc-solaris2.11}
-and @samp{CC=gcc -m64}.
 
 @html
 <hr />
@@ -5271,7 +5248,7 @@ with Microsoft's C++ compiler and there are no plans to make it do so.
 
 The Cygwin native compiler can be configured to target any 32-bit x86
 cpu architecture desired; the default is i686-pc-cygwin.  It should be
-used with as up-to-date a version of binutils as possible; use either
+used with as up-to-date a version of Binutils as possible; use either
 the latest official GNU Binutils release in the Cygwin distribution,
 or version 2.20 or above if building your own.
 

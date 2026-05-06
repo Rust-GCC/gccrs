@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2026, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -28,7 +28,6 @@ with Atree;          use Atree;
 with Aspects;        use Aspects;
 with Checks;         use Checks;
 with Contracts;      use Contracts;
-with Einfo;          use Einfo;
 with Einfo.Entities; use Einfo.Entities;
 with Einfo.Utils;    use Einfo.Utils;
 with Elists;         use Elists;
@@ -62,7 +61,6 @@ with Sem_Elab;       use Sem_Elab;
 with Sem_Eval;       use Sem_Eval;
 with Sem_Res;        use Sem_Res;
 with Sem_Util;       use Sem_Util;
-with Sinfo;          use Sinfo;
 with Sinfo.Nodes;    use Sinfo.Nodes;
 with Sinfo.Utils;    use Sinfo.Utils;
 with Snames;         use Snames;
@@ -4557,10 +4555,9 @@ package body Exp_Ch9 is
    -- Build_Task_Allocate_Block --
    -------------------------------
 
-   procedure Build_Task_Allocate_Block
-     (Actions    : List_Id;
-      N          : Node_Id;
-      Init_Stmts : List_Id)
+   function Build_Task_Allocate_Block
+     (N          : Node_Id;
+      Init_Stmts : List_Id) return List_Id
    is
       Loc    : constant Source_Ptr := Sloc (N);
       Chain  : constant Entity_Id  :=
@@ -4593,17 +4590,16 @@ package body Exp_Ch9 is
           Handled_Statement_Sequence =>
             Make_Handled_Sequence_Of_Statements (Loc, Init_Stmts),
 
-          Has_Created_Identifier => True,
+          Has_Created_Identifier   => True,
           Is_Task_Allocation_Block => True);
 
-      Append_To (Actions,
+      Set_Activation_Chain_Entity (Block, Chain);
+
+      return New_List (
         Make_Implicit_Label_Declaration (Loc,
           Defining_Identifier => Blkent,
-          Label_Construct     => Block));
-
-      Append_To (Actions, Block);
-
-      Set_Activation_Chain_Entity (Block, Chain);
+          Label_Construct     => Block),
+        Block);
    end Build_Task_Allocate_Block;
 
    -----------------------------------
@@ -5600,7 +5596,7 @@ package body Exp_Ch9 is
                --  during expansion, it is ok. If expansion is not performed,
                --  then Func is Empty so this test cannot succeed.
 
-               if Scope (E) = Func_Id then
+               if Scope_Within_Or_Same (S, Func_Id) then
                   null;
 
                --  A protected call from a barrier to another object is ok

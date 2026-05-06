@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2025 Symas Corporation
+ * Copyright (c) 2021-2026 Symas Corporation
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -63,7 +63,7 @@ void sayso( const char func[], int line,
   if( getenv("XMLPARSE") ) {
     switch(len) {
     case 0:
-      fprintf(stderr, "%s:%d Kilroy was here\n", func, line);
+      fprintf(stderr, "%s:%d was here\n", func, line);
       break;
     case -1:
       fprintf(stderr, "%s:%d: '%s'\n", func, line, data);
@@ -265,25 +265,23 @@ UNKNOWN-REFERENCE-IN-ATTRIBUTE The entity reference name, not including the "&" 
 VERSION-INFORMATION The value, between quotation marks or apostrophes, of the version information in the XML declaration
 
 */
-///////////////
 
-extern cblc_field_t __ggsr__xml_event;
-extern cblc_field_t __ggsr__xml_code;
-extern cblc_field_t __ggsr__xml_text;
-extern cblc_field_t __ggsr__xml_ntext;
+static cblc_field_t *xml_field_event = nullptr;
+static cblc_field_t *xml_field_text  = nullptr;
+static cblc_field_t *xml_field_code  = nullptr;
 
 static void
-xml_event( const char event_name[], size_t len, char text[] ) {
-  assert(strlen(event_name) < __ggsr__xml_event.allocated);
+xml_event( const char event_name[], size_t len, char text[]) {
+  assert(strlen(event_name) < xml_field_event->allocated);
 
-  auto pend = __ggsr__xml_event.data + __ggsr__xml_event.allocated;
+  auto pend = xml_field_event->data + xml_field_event->allocated;
   auto p = std::copy( event_name, event_name + strlen(event_name),
-                      PTRCAST(char, __ggsr__xml_event.data) );
+                      PTRCAST(char, xml_field_event->data) );
   std::fill(PTRCAST(unsigned char, p), pend, 0x20);
 
-  __ggsr__xml_text.data = reinterpret_cast<unsigned char*>(text);
-  __ggsr__xml_text.capacity = __ggsr__xml_text.allocated = len;
-  __ggsr__xml_code.data = 0;
+  xml_field_text->data = reinterpret_cast<unsigned char*>(text);
+  xml_field_text->capacity = xml_field_text->allocated = len;
+  xml_field_code->data = 0;
   cobol_callback();
 }
 
@@ -298,10 +296,12 @@ xml_event( const char event_name[], size_t len, const xmlChar * value ) {
   xml_event(event_name, len, text);
 }
 
+namespace XML {
+
 static inline void
 xml_event( const char event_name[], const xmlChar * value ) {
   char *text = reinterpret_cast<char*>(const_cast<xmlChar*>(value));
-  xml_event(event_name, strlen(text), text);
+  ::xml_event(event_name, strlen(text), text);
 }
 
 /*
@@ -327,7 +327,7 @@ static void cdataBlock(void * CTX,
                        int len)
 {
   SAYSO_DATA(len, data);
-  xml_event("CONTENT-CHARACTERS", len, data);
+  ::xml_event("CONTENT-CHARACTERS", len, data);
 }
 
 static void characters(void * CTX,
@@ -335,7 +335,7 @@ static void characters(void * CTX,
                        int len)
 {
   SAYSO_DATA(len, data);
-  xml_event("CONTENT-CHARACTERS", len, data);
+  ::xml_event("CONTENT-CHARACTERS", len, data);
 }
 
 static void comment(void * CTX, const xmlChar * value) {
@@ -765,8 +765,15 @@ __gg__xml_parse(  const cblc_field_t *input_field,
                   cblc_field_t *encoding __attribute__ ((unused)),
                   cblc_field_t *validating __attribute__ ((unused)),
                   int           returns_national __attribute__ ((unused)),
-                  void (*callback)(void) )
+                  void (*callback)(void),
+                  cblc_field_t         *event,
+                  cblc_field_t         *code,
+                  cblc_field_t         *text)
 {
+  xml_field_event = event;
+  xml_field_code  = code;
+  xml_field_text  = text;
+
   initialize_handlers(callback);
 
   const char *input = PTRCAST(char, input_field->data + input_offset);
@@ -781,4 +788,4 @@ __gg__xml_parse(  const cblc_field_t *input_field,
   return erc;
 }
 
-
+} // end XML namespace

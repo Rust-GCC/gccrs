@@ -374,7 +374,7 @@ void test_20 (int i, int j)
   __analyzer_eval (i & 1); /* { dg-warning "UNKNOWN" } */
   __analyzer_eval (i & j); /* { dg-warning "UNKNOWN" } */
 
-  __analyzer_eval (i | 1); /* { dg-warning "UNKNOWN" } */
+  __analyzer_eval (i | 1); /* { dg-warning "TRUE" } */
   __analyzer_eval (i | j); /* { dg-warning "UNKNOWN" } */
 
   __analyzer_eval (i ^ 1); /* { dg-warning "UNKNOWN" } */
@@ -421,11 +421,6 @@ void test_21 (void)
   __analyzer_eval (i / j == 1); /* { dg-warning "TRUE" } */
   __analyzer_eval (i % j == 2); /* { dg-warning "TRUE" } */
 
-  /* Division by zero.  */
-  // TODO: should we warn for this?
-  __analyzer_eval (i / zero); /* { dg-warning "UNKNOWN" } */
-  __analyzer_eval (i % zero); /* { dg-warning "UNKNOWN" } */
-
   __analyzer_eval ((i & 1) == (5 & 1)); /* { dg-warning "TRUE" } */
   __analyzer_eval ((i & j) == (5 & 3)); /* { dg-warning "TRUE" } */
   __analyzer_eval ((i | 1) == (5 | 1)); /* { dg-warning "TRUE" } */
@@ -447,6 +442,28 @@ void test_21 (void)
   __analyzer_eval (~i == ~5); /* { dg-warning "TRUE" } */
   __analyzer_eval (-i == -5); /* { dg-warning "TRUE" } */
   __analyzer_eval (+i == +5); /* { dg-warning "TRUE" } */
+}
+
+void test_21_division_by_zero (void)
+{
+  int i, zero;
+  int *pi = &i;
+  int *pzero = &zero;
+  *pi = 5;
+  *pzero = 0;
+
+  __analyzer_eval (i / zero); /* { dg-warning "Wanalyzer-div-by-zero" } */
+}
+
+void test_21_modulus_by_zero (void)
+{
+  int i, zero;
+  int *pi = &i;
+  int *pzero = &zero;
+  *pi = 5;
+  *pzero = 0;
+
+  __analyzer_eval (i % zero); /* { dg-warning "Wanalyzer-div-by-zero" } */
 }
 
 void test_22 (int i, int j)

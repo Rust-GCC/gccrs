@@ -398,6 +398,31 @@
 {
     import std.conv;
 
+    import std.array : appender;
+
+    auto output = appender!string();
+    output.writeText("The answer is ", 42);
+
+    assert(output.data == "The answer is 42");
+}
+
+@safe unittest
+{
+    import std.conv;
+
+    import std.array : appender;
+
+    const color = "red";
+    auto output = appender!string();
+    output.writeText(i"My favorite color is $(color)");
+
+    assert(output.data == "My favorite color is red");
+}
+
+@safe unittest
+{
+    import std.conv;
+
     // Same as 0177
     auto a = octal!177;
     // octal is a compile-time device

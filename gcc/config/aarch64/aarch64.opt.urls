@@ -18,6 +18,9 @@ UrlSuffix(gcc/AArch64-Options.html#index-mfix-cortex-a53-835769)
 mfix-cortex-a53-843419
 UrlSuffix(gcc/AArch64-Options.html#index-mfix-cortex-a53-843419)
 
+mnarrow-gp-writes
+UrlSuffix(gcc/AArch64-Options.html#index-mnarrow-gp-writes)
+
 mlittle-endian
 UrlSuffix(gcc/AArch64-Options.html#index-mlittle-endian)
 

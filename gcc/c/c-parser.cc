@@ -960,7 +960,11 @@ c_parser_consume_token (c_parser *parser)
   gcc_assert (parser->tokens_avail >= 1);
   gcc_assert (parser->tokens[0].type != CPP_EOF);
   gcc_assert (!parser->in_pragma || parser->tokens[0].type != CPP_PRAGMA_EOL);
-  gcc_assert (parser->error || parser->tokens[0].type != CPP_PRAGMA);
+  /* CPP_PRAGMA should not show up here except if there was an error or inside
+     another pragma.  */
+  gcc_assert (parser->in_pragma
+	      || parser->error
+	      || parser->tokens[0].type != CPP_PRAGMA);
   parser->last_token_location = parser->tokens[0].location;
   if (parser->tokens != &parser->tokens_buf[0])
     parser->tokens++;
@@ -1889,6 +1893,7 @@ static void c_parser_oacc_declare (c_parser *);
 static void c_parser_oacc_enter_exit_data (c_parser *, bool);
 static void c_parser_oacc_update (c_parser *);
 static void c_parser_omp_construct (c_parser *, bool *);
+static void c_parser_omp_groupprivate (c_parser *);
 static void c_parser_omp_threadprivate (c_parser *);
 static void c_parser_omp_barrier (c_parser *);
 static void c_parser_omp_depobj (c_parser *);
@@ -2322,7 +2327,7 @@ c_parser_maybe_reclassify_token (c_parser *parser)
     {
       c_token *token = c_parser_peek_token (parser);
 
-      if (token->id_kind != C_ID_CLASSNAME)
+      if (token->id_kind == C_ID_ID || token->id_kind == C_ID_TYPENAME)
 	{
 	  tree decl = lookup_name (token->value);
 
@@ -2571,6 +2576,11 @@ c_parser_declaration_or_fndef (c_parser *parser, bool fndef_ok,
     }
 
   finish_declspecs (specs);
+  /* When the decl is declared, its type is a top level type, we should
+     call verify_counted_by_for_top_anonymous_type.  */
+  if (specs->typespec_kind == ctsk_tagdef)
+    verify_counted_by_for_top_anonymous_type (specs->type);
+
   bool gnu_auto_type_p = specs->typespec_word == cts_auto_type;
   bool std_auto_type_p = specs->c23_auto_p;
   bool any_auto_type_p = gnu_auto_type_p || std_auto_type_p;
@@ -5497,6 +5507,11 @@ c_parser_parameter_declaration (c_parser *parser, tree attrs,
   c_parser_declspecs (parser, specs, true, true, true, true, false,
 		      !have_gnu_attrs, true, cla_nonabstract_decl);
   finish_declspecs (specs);
+  /* When the param is declared, its type is a top level type, we should
+     call verify_counted_by_for_top_anonymous_type.  */
+  if (specs->typespec_kind == ctsk_tagdef)
+    verify_counted_by_for_top_anonymous_type (specs->type);
+
   pending_xref_error ();
   prefix_attrs = specs->attrs;
   specs->attrs = NULL_TREE;
@@ -6499,6 +6514,10 @@ c_parser_type_name (c_parser *parser, bool alignas_ok)
     {
       pending_xref_error ();
       finish_declspecs (specs);
+      /* When the typename is declared, its type is a top level type, we should
+	 call verify_counted_by_for_top_anonymous_type.  */
+      if (specs->typespec_kind == ctsk_tagdef)
+	verify_counted_by_for_top_anonymous_type (specs->type);
     }
   declarator = c_parser_declarator (parser,
 				    specs->typespec_kind != ctsk_none,
@@ -9878,7 +9897,7 @@ c_parser_string_literal (c_parser *parser, bool translate, bool wide_ok)
 	  (parse_in, strs, count, &istr, type)))
     {
       value = build_string (istr.len, (const char *) istr.text);
-      free (CONST_CAST (unsigned char *, istr.text));
+      free (const_cast<unsigned char *> (istr.text));
       if (count > 1)
 	{
 	  location_t *locs = (location_t *) obstack_finish (&loc_ob);
@@ -11653,34 +11672,44 @@ c_parser_predefined_identifier (c_parser *parser)
   return expr;
 }
 
-/* Check whether the ARRAY_REF has an counted-by object associated with it
+/* Check whether the REF has an counted-by object associated with it
    through the "counted_by" attribute.  */
 
 static bool
-has_counted_by_object (tree array_ref)
+has_counted_by_object (tree ref)
 {
-  /* Currently, only when the array_ref is an indirect_ref to a call to the
-     .ACCESS_WITH_SIZE, return true.
+  /* Currently, there are two cases are valid:
+     A. when the ref is an indirect_ref to a call to the
+	.ACCESS_WITH_SIZE, return true. (this is for FAM)
+     B. when the ref is a call to .ACCESS_WITH_SIZE, return true.
+	(this is for pointer field inside a structure)
      More cases can be included later when the counted_by attribute is
      extended to other situations.  */
-  if (TREE_CODE (array_ref) == INDIRECT_REF
-      && is_access_with_size_p (TREE_OPERAND (array_ref, 0)))
+  if ((TREE_CODE (ref) == INDIRECT_REF
+       && is_access_with_size_p (TREE_OPERAND (ref, 0)))
+      || is_access_with_size_p (ref))
     return true;
   return false;
 }
 
-/* Get the reference to the counted-by object associated with the ARRAY_REF.  */
+/* Get the reference to the counted-by object associated with the REF.  */
 
 static tree
-get_counted_by_ref (tree array_ref)
+get_counted_by_ref (tree ref)
 {
-  /* Currently, only when the array_ref is an indirect_ref to a call to the
-     .ACCESS_WITH_SIZE, get the corresponding counted_by ref.
+  /* Currently, there are two cases are valid:
+     A. when the ref is an indirect_ref to a call to the
+	.ACCESS_WITH_SIZE, return true. (this is for FAM)
+     B. when the ref is a call to .ACCESS_WITH_SIZE, return true.
+	(this is for pointer field inside a structure)
      More cases can be included later when the counted_by attribute is
      extended to other situations.  */
-  if (TREE_CODE (array_ref) == INDIRECT_REF
-      && is_access_with_size_p (TREE_OPERAND (array_ref, 0)))
-    return CALL_EXPR_ARG (TREE_OPERAND (array_ref, 0), 1);
+  if (TREE_CODE (ref) == INDIRECT_REF
+      && is_access_with_size_p (TREE_OPERAND (ref, 0)))
+    return CALL_EXPR_ARG (TREE_OPERAND (ref, 0), 1);
+  else if (is_access_with_size_p (ref))
+    return CALL_EXPR_ARG (ref, 1);
+
   return NULL_TREE;
 }
 
@@ -12892,15 +12921,24 @@ c_parser_postfix_expression (c_parser *parser)
 	    e_p = &(*cexpr_list)[0];
 	    tree ref = e_p->value;
 
-	    if (TREE_CODE (TREE_TYPE (ref)) != ARRAY_TYPE)
+	    if (TREE_CODE (TREE_TYPE (ref)) != ARRAY_TYPE
+		 && TREE_CODE (TREE_TYPE (ref)) != POINTER_TYPE)
 	      {
 		error_at (loc, "the argument to %<__builtin_counted_by_ref%>"
-				" must be an array");
+				" must be an array or pointer");
 		expr.set_error ();
 		break;
 	      }
 
-	    /* If the array ref is inside TYPEOF or ALIGNOF, the call to
+	    if (TREE_CODE (ref) != COMPONENT_REF)
+	      {
+		error_at (loc, "the argument to %<__builtin_counted_by_ref%>"
+				" must be a field of a structure");
+		expr.set_error ();
+		break;
+	      }
+
+	    /* If the ref is inside TYPEOF or ALIGNOF, the call to
 	       .ACCESS_WITH_SIZE was not generated by the routine
 	       build_component_ref by default, we should generate it here.  */
 	    if (TREE_CODE (ref) == COMPONENT_REF)
@@ -16093,6 +16131,10 @@ c_parser_pragma (c_parser *parser, enum pragma_context context, bool *if_p,
 
     case PRAGMA_OMP_CANCELLATION_POINT:
       return c_parser_omp_cancellation_point (parser, context);
+
+    case PRAGMA_OMP_GROUPPRIVATE:
+      c_parser_omp_groupprivate (parser);
+      return false;
 
     case PRAGMA_OMP_THREADPRIVATE:
       c_parser_omp_threadprivate (parser);
@@ -26886,7 +26928,9 @@ c_parser_omp_target_data (location_t loc, c_parser *parser, bool *if_p)
 
   tree clauses
     = c_parser_omp_all_clauses (parser, OMP_TARGET_DATA_CLAUSE_MASK,
-				"#pragma omp target data");
+				"#pragma omp target data", false);
+  clauses = c_omp_instantiate_mappers (clauses, C_ORT_OMP);
+  clauses = c_finish_omp_clauses (clauses, C_ORT_OMP);
   c_omp_adjust_map_clauses (clauses, false);
   int map_seen = 0;
   for (tree *pc = &clauses; *pc;)
@@ -27044,7 +27088,9 @@ c_parser_omp_target_enter_data (location_t loc, c_parser *parser,
 
   tree clauses
     = c_parser_omp_all_clauses (parser, OMP_TARGET_ENTER_DATA_CLAUSE_MASK,
-				"#pragma omp target enter data");
+				"#pragma omp target enter data", false);
+  clauses = c_omp_instantiate_mappers (clauses, C_ORT_OMP);
+  clauses = c_finish_omp_clauses (clauses, C_ORT_OMP);
   c_omp_adjust_map_clauses (clauses, false);
   int map_seen = 0;
   for (tree *pc = &clauses; *pc;)
@@ -27155,6 +27201,7 @@ c_parser_omp_target_exit_data (location_t loc, c_parser *parser,
   tree clauses
     = c_parser_omp_all_clauses (parser, OMP_TARGET_EXIT_DATA_CLAUSE_MASK,
 				"#pragma omp target exit data", false);
+  clauses = c_omp_instantiate_mappers (clauses, C_ORT_OMP_EXIT_DATA);
   clauses = c_finish_omp_clauses (clauses, C_ORT_OMP_EXIT_DATA);
   c_omp_adjust_map_clauses (clauses, false);
   int map_seen = 0;
@@ -27414,7 +27461,7 @@ c_parser_omp_target (c_parser *parser, enum pragma_context context, bool *if_p)
 	OMP_CLAUSE_CHAIN (nc) = OMP_CLAUSE_CHAIN (c);
 	OMP_CLAUSE_CHAIN (c) = nc;
       }
-  clauses = c_omp_instantiate_mappers (clauses);
+  clauses = c_omp_instantiate_mappers (clauses, C_ORT_OMP_TARGET);
   clauses  = c_finish_omp_clauses (clauses, C_ORT_OMP_TARGET);
   c_omp_adjust_map_clauses (clauses, true);
 
@@ -28599,7 +28646,7 @@ c_maybe_parse_omp_decl (tree decl, tree d)
       return false;
     }
   if (dir->id != PRAGMA_OMP_THREADPRIVATE
-      /* && dir->id != PRAGMA_OMP_GROUPPRIVATE */
+      && dir->id != PRAGMA_OMP_GROUPPRIVATE
       && dir->id != PRAGMA_OMP_ALLOCATE
       && (dir->id != PRAGMA_OMP_DECLARE
 	  || strcmp (directive[1], "target") != 0))
@@ -30960,6 +31007,26 @@ c_parser_omp_construct (c_parser *parser, bool *if_p)
     gcc_assert (EXPR_LOCATION (stmt) != UNKNOWN_LOCATION);
 }
 
+/* OpenMP 6.0:
+   # pragma omp groupprivate (variable-list) [device_type(...)]  */
+
+#define OMP_GROUPPRIVATE_CLAUSE_MASK					\
+	( (OMP_CLAUSE_MASK_1 << PRAGMA_OMP_CLAUSE_DEVICE_TYPE) )
+
+static void
+c_parser_omp_groupprivate (c_parser *parser)
+{
+  location_t loc = c_parser_peek_token (parser)->location;
+  c_parser_consume_pragma (parser);
+  tree vars = c_parser_omp_var_list_parens (parser, OMP_CLAUSE_ERROR, NULL);
+  tree clauses = c_parser_omp_all_clauses (parser, OMP_GROUPPRIVATE_CLAUSE_MASK,
+					   "#pragma omp groupprivate");
+  /* TODO: Implies 'declare target local' with specified device_type, check for
+     conflicts.  Check for other restrictions.  */
+  (void) vars;
+  (void) clauses;
+  sorry_at (loc, "%<omp groupprivate%>");
+}
 
 /* OpenMP 2.5:
    # pragma omp threadprivate (variable-list) */

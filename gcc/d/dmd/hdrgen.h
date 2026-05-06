@@ -1,6 +1,6 @@
 
 /* Compiler implementation of the D programming language
- * Copyright (C) 1999-2025 by The D Language Foundation, All Rights Reserved
+ * Copyright (C) 1999-2026 by The D Language Foundation, All Rights Reserved
  * written by Dave Fladebo
  * https://www.digitalmars.com
  * Distributed under the Boost Software License, Version 1.0.
@@ -21,7 +21,7 @@ class Statement;
 namespace dmd
 {
     void genhdrfile(Module *m, bool doFuncBodies, OutBuffer &buf);
-    void genCppHdrFiles(Modules &ms);
+    void genCppHdrFiles(Modules &ms, ErrorSink *eSink);
     void moduleToBuffer(OutBuffer& buf, bool vcg_ast, Module *m);
     const char *parametersTypeToChars(ParameterList pl);
 

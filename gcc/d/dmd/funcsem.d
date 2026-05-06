@@ -3,7 +3,7 @@
  *
  * Specification: $(LINK2 https://dlang.org/spec/function.html, Functions)
  *
- * Copyright:   Copyright (C) 1999-2025 by The D Language Foundation, All Rights Reserved
+ * Copyright:   Copyright (C) 1999-2026 by The D Language Foundation, All Rights Reserved
  * Authors:     $(LINK2 https://www.digitalmars.com, Walter Bright)
  * License:     $(LINK2 https://www.boost.org/LICENSE_1_0.txt, Boost License 1.0)
  * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/compiler/src/dmd/funcsem.d, _funcsem.d)
@@ -14,13 +14,13 @@
 module dmd.funcsem;
 
 import core.stdc.stdio;
+import core.stdc.string;
 
 import dmd.aggregate;
 import dmd.arraytypes;
 import dmd.astenums;
 import dmd.attrib;
 import dmd.blockexit;
-import dmd.gluelayer;
 import dmd.dcast;
 import dmd.dclass;
 import dmd.declaration;
@@ -60,15 +60,241 @@ import dmd.semantic3;
 import dmd.statement;
 import dmd.statementsem;
 import dmd.target;
+import dmd.targetcompiler;
 import dmd.templatesem;
 import dmd.tokens;
 import dmd.typesem;
 import dmd.visitor;
 import dmd.visitor.statement_rewrite_walker;
 
-version (IN_GCC) {}
-else version (IN_LLVM) {}
-else version = MARS;
+bool addPostInvariant(FuncDeclaration _this)
+{
+    static bool visitFuncDeclaration(FuncDeclaration _this)
+    {
+        auto ad = _this.isThis();
+        return (
+            ad &&
+            ad.inv &&
+            global.params.useInvariants == CHECKENABLE.on &&
+            (_this.visibility.kind == Visibility.Kind.protected_ ||
+            _this.visibility.kind == Visibility.Kind.public_ ||
+            _this.visibility.kind == Visibility.Kind.export_) &&
+            !_this.isNaked
+        );
+    }
+
+    switch(_this.dsym)
+    {
+        case DSYM.funcLiteralDeclaration:
+        case DSYM.dtorDeclaration:
+        case DSYM.staticCtorDeclaration:
+        case DSYM.sharedStaticCtorDeclaration:
+        case DSYM.staticDtorDeclaration:
+        case DSYM.sharedStaticDtorDeclaration:
+        case DSYM.invariantDeclaration:
+        case DSYM.unitTestDeclaration:
+        case DSYM.newDeclaration:
+            return false;
+        case DSYM.ctorDeclaration:
+        {
+            auto cd = _this.isCtorDeclaration();
+            return (cd.isThis() && cd.vthis && global.params.useInvariants == CHECKENABLE.on);
+        }
+        case DSYM.postBlitDeclaration:
+        {
+            auto dd = _this.isPostBlitDeclaration();
+            return (dd.isThis() && dd.vthis && global.params.useInvariants == CHECKENABLE.on);
+        }
+        default: return visitFuncDeclaration(_this);
+    }
+}
+
+bool addPreInvariant(FuncDeclaration _this)
+{
+    static bool visitFuncDeclaration(FuncDeclaration _this)
+    {
+        return (
+            _this.isThis() &&
+            global.params.useInvariants == CHECKENABLE.on &&
+            (_this.visibility.kind == Visibility.Kind.protected_ ||
+            _this.visibility.kind == Visibility.Kind.public_ ||
+            _this.visibility.kind == Visibility.Kind.export_) &&
+            !_this.isNaked
+        );
+    }
+
+    switch(_this.dsym)
+    {
+        case DSYM.funcLiteralDeclaration:
+        case DSYM.ctorDeclaration:
+        case DSYM.postBlitDeclaration:
+        case DSYM.staticCtorDeclaration:
+        case DSYM.sharedStaticCtorDeclaration:
+        case DSYM.staticDtorDeclaration:
+        case DSYM.sharedStaticDtorDeclaration:
+        case DSYM.invariantDeclaration:
+        case DSYM.unitTestDeclaration:
+        case DSYM.newDeclaration:
+            return false;
+        case DSYM.dtorDeclaration:
+        {
+            auto dd = _this.isDtorDeclaration();
+            return (dd.isThis() && dd.vthis && global.params.useInvariants == CHECKENABLE.on);
+        }
+        default: return visitFuncDeclaration(_this);
+    }
+}
+
+// Determine if function goes into virtual function pointer table
+bool isVirtual(const FuncDeclaration _this)
+{
+    static bool visitFuncDeclaration(const FuncDeclaration _this)
+    {
+       if (_this.toAliasFunc() != _this)
+            return _this.toAliasFunc().isVirtual();
+
+        auto p = _this.toParent();
+
+        if (!_this.isMember || !p.isClassDeclaration)
+            return false;
+
+        if (p.isClassDeclaration.classKind == ClassKind.objc)
+            return objc.isVirtual(_this);
+
+        version (none)
+        {
+            printf("FuncDeclaration::isVirtual(%s)\n", _this.toChars());
+            printf("isMember:%p isStatic:%d private:%d ctor:%d !Dlinkage:%d\n",
+                _this.isMember(),
+                _this.isStatic(),
+                _this.visibility.kind == Visibility.Kind.private_,
+                _this.isCtorDeclaration() !is null,
+                _this._linkage != LINK.d
+            );
+            printf("result is %d\n",
+                _this.isMember() &&
+                !(_this.isStatic() || _this.visibility.kind == Visibility.Kind.private_ || _this.visibility.kind == Visibility.Kind.package_) &&
+                p.isClassDeclaration() &&
+                !(p.isInterfaceDeclaration() && _this.isFinalFunc())
+            );
+        }
+
+        return !(_this.isStatic() ||
+                 _this.visibility.kind == Visibility.Kind.private_ ||
+                 _this.visibility.kind == Visibility.Kind.package_) &&
+                !(p.isInterfaceDeclaration() && _this.isFinalFunc());
+    }
+
+    switch(_this.dsym)
+    {
+        case DSYM.funcLiteralDeclaration:
+        case DSYM.ctorDeclaration:
+        case DSYM.postBlitDeclaration:
+        case DSYM.staticCtorDeclaration:
+        case DSYM.sharedStaticCtorDeclaration:
+        case DSYM.staticDtorDeclaration:
+        case DSYM.sharedStaticDtorDeclaration:
+        case DSYM.invariantDeclaration:
+        case DSYM.unitTestDeclaration:
+        case DSYM.newDeclaration:
+            return false;
+        // D dtor's don't get put into the vtbl[]
+        // this is a hack so that extern(C++) destructors report as virtual
+        // which are manually added to the vtable
+        case DSYM.dtorDeclaration: return _this.vtblIndex != -1;
+        default: return visitFuncDeclaration(_this);
+    }
+}
+
+// Determine if a function is pedantically virtual
+bool isVirtualMethod(FuncDeclaration _this)
+{
+    if (_this.toAliasFunc() != _this)
+        return _this.toAliasFunc().isVirtualMethod();
+
+    //printf("FuncDeclaration::isVirtualMethod() %s\n", toChars());
+    if (!_this.isVirtual())
+        return false;
+
+    // If it's a final method, and does not override anything, then it is not virtual
+    if (_this.isFinalFunc() && _this.foverrides.length == 0)
+    {
+        return false;
+    }
+    return true;
+}
+
+/***********************************************
+ * Determine if function's variables are referenced by a function
+ * nested within it.
+ */
+bool hasNestedFrameRefs(FuncDeclaration _this)
+{
+    if (_this.closureVars.length)
+        return true;
+
+    /* If a virtual function has contracts, assume its variables are referenced
+     * by those contracts, even if they aren't. Because they might be referenced
+     * by the overridden or overriding function's contracts.
+     * This can happen because frequire and fensure are implemented as nested functions,
+     * and they can be called directly by an overriding function and the overriding function's
+     * context had better match, or
+     * https://issues.dlang.org/show_bug.cgi?id=7335 will bite.
+     */
+    if (_this.fdrequire || _this.fdensure)
+        return true;
+
+    if (_this.foverrides.length && _this.isVirtualMethod())
+    {
+        for (size_t i = 0; i < _this.foverrides.length; i++)
+        {
+            FuncDeclaration fdv = _this.foverrides[i];
+            if (fdv.hasNestedFrameRefs())
+                return true;
+        }
+    }
+    return false;
+}
+
+/**********************************
+ * Generate a FuncDeclaration for a runtime library function.
+ */
+FuncDeclaration genCfunc(Parameters* fparams, Type treturn, const(char)* name, STC stc = STC.none)
+{
+    return genCfunc(fparams, treturn, Identifier.idPool(name[0 .. strlen(name)]), stc);
+}
+
+FuncDeclaration genCfunc(Parameters* fparams, Type treturn, Identifier id, STC stc = STC.none)
+{
+    FuncDeclaration fd;
+    TypeFunction tf;
+    Dsymbol s;
+    __gshared DsymbolTable st = null;
+
+    //printf("genCfunc(name = '%s')\n", id.toChars());
+    //printf("treturn\n\t"); treturn.print();
+
+    // See if already in table
+    if (!st)
+        st = new DsymbolTable();
+    s = st.lookup(id);
+    if (s)
+    {
+        fd = s.isFuncDeclaration();
+        assert(fd);
+        assert(fd.type.nextOf().equals(treturn));
+    }
+    else
+    {
+        tf = new TypeFunction(ParameterList(fparams), treturn, LINK.c, stc);
+        fd = new FuncDeclaration(Loc.initial, Loc.initial, id, STC.static_, tf);
+        fd.visibility = Visibility(Visibility.Kind.public_);
+        fd._linkage = LINK.c;
+
+        st.insert(fd);
+    }
+    return fd;
+}
 
 /* Tweak all return statements and dtor call for nrvo_var, for correct NRVO.
  */
@@ -103,7 +329,7 @@ public:
     override void visit(TryFinallyStatement s)
     {
         DtorExpStatement des;
-        if (fd.isNRVO() && s.finalbody && (des = s.finalbody.isDtorExpStatement()) !is null &&
+        if (fd.isNRVO && s.finalbody && (des = s.finalbody.isDtorExpStatement()) !is null &&
             fd.nrvo_var == des.var)
         {
             if (!(global.params.useExceptions && ClassDeclaration.throwable))
@@ -138,11 +364,10 @@ public:
                 handler = new CompoundStatement(Loc.initial, handler, ts);
             }
 
-            auto catches = new Catches();
             auto ctch = new Catch(Loc.initial, getThrowable(), id, handler);
             ctch.internalCatch = true;
             ctch.catchSemantic(sc); // Run semantic to resolve identifier '__o'
-            catches.push(ctch);
+            auto catches = new Catches(ctch);
 
             Statement s2 = new TryCatchStatement(Loc.initial, s._body, catches);
             fd.hasNoEH = false;
@@ -176,6 +401,33 @@ extern (C++) bool onlyOneMain(FuncDeclaration fd)
     return true;
 }
 
+/********************************************
+ * Returns:
+ *  true if there are no overloads of this function
+ */
+bool isUnique(const FuncDeclaration fd)
+{
+    bool result = false;
+    overloadApply(cast() fd, (Dsymbol s)
+    {
+        auto f = s.isFuncDeclaration();
+        auto td = s.isTemplateDeclaration();
+        if (!f && !td)
+            return 0;
+        if (result)
+        {
+            result = false;
+            return 1; // ambiguous, done
+        }
+        else
+        {
+            result = true;
+            return 0;
+        }
+    });
+    return result;
+}
+
 /**********************************
  * Main semantic routine for functions.
  */
@@ -189,6 +441,10 @@ void funcDeclarationSemantic(Scope* sc, FuncDeclaration funcdecl)
         printf("sc.parent = %s, parent = %s\n", sc.parent.toChars(), funcdecl.parent ? funcdecl.parent.toChars() : "");
         printf("type: %p, %s\n", funcdecl.type, funcdecl.type.toChars());
     }
+
+    import dmd.timetrace;
+    timeTraceBeginEvent(TimeTraceEventType.sema1Function);
+    scope (exit) timeTraceEndEvent(TimeTraceEventType.sema1Function, funcdecl);
 
     if (funcdecl.semanticRun != PASS.initial && funcdecl.isFuncLiteralDeclaration())
     {
@@ -224,7 +480,7 @@ void funcDeclarationSemantic(Scope* sc, FuncDeclaration funcdecl)
     AggregateDeclaration ad = funcdecl.isThis();
     // Don't nest structs b/c of generated methods which should not access the outer scopes.
     // https://issues.dlang.org/show_bug.cgi?id=16627
-    if (ad && !funcdecl.isGenerated())
+    if (ad && !funcdecl.isGenerated)
     {
         funcdecl.storage_class |= ad.storage_class & (STC.TYPECTOR | STC.synchronized_);
         ad.makeNested();
@@ -235,6 +491,17 @@ void funcDeclarationSemantic(Scope* sc, FuncDeclaration funcdecl)
     if ((funcdecl.storage_class & STC.TYPECTOR) && !(ad || funcdecl.isNested()))
         funcdecl.storage_class &= ~STC.TYPECTOR;
 
+    auto tf = funcdecl.type.isTypeFunction();
+    if ((funcdecl.storage_class & STC.auto_) && tf.isRef && !funcdecl.inferRetType)
+    {
+        if (!(funcdecl.storage_class & STC.autoref))
+        {
+            // @@@DEPRECATED_2.122@@@
+            // Deprecated in 2.112, turn into an error in 2.122
+            deprecation(funcdecl.loc, "`auto ref` return type must have `auto` and `ref` adjacent");
+            funcdecl.storage_class |= STC.autoref;
+        }
+    }
     //printf("function storage_class = x%llx, sc.stc = x%llx, %x\n", storage_class, sc.stc, Declaration.isFinal());
 
     if (sc.traitsCompiles)
@@ -272,20 +539,6 @@ void funcDeclarationSemantic(Scope* sc, FuncDeclaration funcdecl)
     if (!funcdecl.originalType)
         funcdecl.originalType = funcdecl.type.syntaxCopy();
 
-    static TypeFunction getFunctionType(FuncDeclaration fd)
-    {
-        if (auto tf = fd.type.isTypeFunction())
-            return tf;
-
-        if (!fd.type.isTypeError())
-        {
-            .error(fd.loc, "%s `%s` `%s` must be a function instead of `%s`", fd.kind, fd.toPrettyChars, fd.toChars(), fd.type.toChars());
-            fd.type = Type.terror;
-        }
-        fd.errors = true;
-        return null;
-    }
-
     if (sc.inCfile)
     {
         /* C11 allows a function to be declared with a typedef, D does not.
@@ -313,7 +566,9 @@ void funcDeclarationSemantic(Scope* sc, FuncDeclaration funcdecl)
         sc = sc.push();
         sc.stc |= funcdecl.storage_class & (STC.disable | STC.deprecated_); // forward to function type
 
-        TypeFunction tf = funcdecl.type.toTypeFunction();
+        // Parameters don't inherit UDAs from outside, https://github.com/dlang/dmd/issues/19788
+        sc.userAttribDecl = null;
+
         if (sc.func)
         {
             /* If the nesting parent is pure without inference,
@@ -413,7 +668,7 @@ void funcDeclarationSemantic(Scope* sc, FuncDeclaration funcdecl)
 
         sc.linkage = funcdecl._linkage;
 
-        if (!tf.isNaked() && !(funcdecl.isThis() || funcdecl.isNested()))
+        if (!tf.isNaked && !(funcdecl.isThis() || funcdecl.isNested()))
         {
             import core.bitop : popcnt;
             auto mods = MODtoChars(tf.mod);
@@ -440,6 +695,16 @@ void funcDeclarationSemantic(Scope* sc, FuncDeclaration funcdecl)
         funcdecl.type = funcdecl.type.addSTC(stc);
 
         funcdecl.type = funcdecl.type.typeSemantic(funcdecl.loc, sc);
+
+        // semantic for parameters' UDAs
+        if (auto f = getFunctionType(funcdecl))
+            foreach (i, param; f.parameterList)
+            {
+                sc.userAttribDecl = null;
+                if (param && param.userAttribDecl)
+                    param.userAttribDecl.dsymbolSemantic(sc);
+            }
+
         sc = sc.pop();
     }
 
@@ -486,7 +751,7 @@ void funcDeclarationSemantic(Scope* sc, FuncDeclaration funcdecl)
         auto fnext = funcdecl.overnext.isFuncDeclaration();
         funcDeclarationSemantic(sc, fnext);
         auto fn = fnext.type.isTypeFunction();
-        if (!fn || !cFuncEquivalence(f, fn))
+        if (!fn || !cFuncEquivalence(f, fn) || !cTypeEquivalence(f.next, fn.next))
         {
             .error(funcdecl.loc, "%s `%s` redeclaration with different type", funcdecl.kind, funcdecl.toPrettyChars);
             //printf("t1: %s\n", f.toChars());
@@ -563,477 +828,13 @@ void funcDeclarationSemantic(Scope* sc, FuncDeclaration funcdecl)
 
     if (ClassDeclaration cd = parent.isClassDeclaration())
     {
-        parent = cd = objc.getParent(funcdecl, cd);
-
-        if (funcdecl.isCtorDeclaration())
+        switch (classFuncSemantic(cd, funcdecl, parent, sc, f))
         {
-            goto Ldone;
+            case 0: break;
+            case 1: goto Ldone;
+            case 2: return;
+            default: assert(0);
         }
-
-        if (funcdecl.storage_class & STC.abstract_)
-            cd.isabstract = ThreeState.yes;
-
-        // if static function, do not put in vtbl[]
-        if (!funcdecl.isVirtual())
-        {
-            //printf("\tnot virtual\n");
-            goto Ldone;
-        }
-        // Suppress further errors if the return type is an error
-        if (funcdecl.type.nextOf() == Type.terror)
-            goto Ldone;
-
-        bool may_override = false;
-        for (size_t i = 0; i < cd.baseclasses.length; i++)
-        {
-            BaseClass* b = (*cd.baseclasses)[i];
-            ClassDeclaration cbd = b.type.toBasetype().isClassHandle();
-            if (!cbd)
-                continue;
-            for (size_t j = 0; j < cbd.vtbl.length; j++)
-            {
-                FuncDeclaration f2 = cbd.vtbl[j].isFuncDeclaration();
-                if (!f2 || f2.ident != funcdecl.ident)
-                    continue;
-                if (cbd.parent && cbd.parent.isTemplateInstance())
-                {
-                    if (!functionSemantic(f2))
-                        goto Ldone;
-                }
-                may_override = true;
-            }
-        }
-        if (may_override && funcdecl.type.nextOf() is null)
-        {
-            /* If same name function exists in base class but 'this' is auto return,
-             * cannot find index of base class's vtbl[] to override.
-             */
-            .error(funcdecl.loc, "%s `%s` return type inference is not supported if may override base class function", funcdecl.kind, funcdecl.toPrettyChars);
-        }
-
-        /* Find index of existing function in base class's vtbl[] to override
-         * (the index will be the same as in cd's current vtbl[])
-         */
-        int vi = cd.baseClass ? findVtblIndex(funcdecl, cd.baseClass.vtbl[]) : -1;
-
-        bool doesoverride = false;
-        switch (vi)
-        {
-        case -1:
-        Lintro:
-            /* Didn't find one, so
-             * This is an 'introducing' function which gets a new
-             * slot in the vtbl[].
-             */
-
-            // Verify this doesn't override previous final function
-            if (cd.baseClass)
-            {
-                Dsymbol s = cd.baseClass.search(funcdecl.loc, funcdecl.ident);
-                if (s)
-                {
-                    if (auto f2 = s.isFuncDeclaration())
-                    {
-                        f2 = f2.overloadExactMatch(funcdecl.type);
-                        if (f2 && f2.isFinalFunc() && f2.visible().kind != Visibility.Kind.private_)
-                            .error(funcdecl.loc, "%s `%s` cannot override `final` function `%s`", funcdecl.kind, funcdecl.toPrettyChars, f2.toPrettyChars());
-                    }
-                }
-            }
-
-            /* These quirky conditions mimic what happens when virtual
-               inheritance is implemented by producing a virtual base table
-               with offsets to each of the virtual bases.
-             */
-            if (target.cpp.splitVBasetable && cd.classKind == ClassKind.cpp &&
-                cd.baseClass && cd.baseClass.vtbl.length)
-            {
-                /* if overriding an interface function, then this is not
-                 * introducing and don't put it in the class vtbl[]
-                 */
-                funcdecl.interfaceVirtual = overrideInterface(funcdecl);
-                if (funcdecl.interfaceVirtual)
-                {
-                    //printf("\tinterface function %s\n", toChars());
-                    cd.vtblFinal.push(funcdecl);
-                    goto Linterfaces;
-                }
-            }
-
-            if (funcdecl.isFinalFunc())
-            {
-                // Don't check here, as it may override an interface function
-                //if (isOverride())
-                //    error("is marked as override, but does not override any function");
-                cd.vtblFinal.push(funcdecl);
-            }
-            else
-            {
-                //printf("\tintroducing function %s\n", funcdecl.toChars());
-                funcdecl.isIntroducing = true;
-                if (cd.classKind == ClassKind.cpp && target.cpp.reverseOverloads)
-                {
-                    /* Overloaded functions with same name are grouped and in reverse order.
-                     * Search for first function of overload group, and insert
-                     * funcdecl into vtbl[] immediately before it.
-                     */
-                    funcdecl.vtblIndex = cast(int)cd.vtbl.length;
-                    bool found;
-                    foreach (const i, s; cd.vtbl)
-                    {
-                        if (found)
-                            // the rest get shifted forward
-                            ++s.isFuncDeclaration().vtblIndex;
-                        else if (s.ident == funcdecl.ident && s.parent == parent)
-                        {
-                            // found first function of overload group
-                            funcdecl.vtblIndex = cast(int)i;
-                            found = true;
-                            ++s.isFuncDeclaration().vtblIndex;
-                        }
-                    }
-                    cd.vtbl.insert(funcdecl.vtblIndex, funcdecl);
-
-                    debug foreach (const i, s; cd.vtbl)
-                    {
-                        // a C++ dtor gets its vtblIndex later (and might even be added twice to the vtbl),
-                        // e.g. when compiling druntime with a debug compiler, namely with core.stdcpp.exception.
-                        if (auto fd = s.isFuncDeclaration())
-                            assert(fd.vtblIndex == i ||
-                                   (cd.classKind == ClassKind.cpp && fd.isDtorDeclaration) ||
-                                   funcdecl.parent.isInterfaceDeclaration); // interface functions can be in multiple vtbls
-                    }
-                }
-                else
-                {
-                    // Append to end of vtbl[]
-                    vi = cast(int)cd.vtbl.length;
-                    cd.vtbl.push(funcdecl);
-                    funcdecl.vtblIndex = vi;
-                }
-            }
-            break;
-
-        case -2:
-            // can't determine because of forward references
-            funcdecl.errors = true;
-            return;
-
-        default:
-            {
-                if (vi >= cd.vtbl.length)
-                {
-                    /* the derived class cd doesn't have its vtbl[] allocated yet.
-                     * https://issues.dlang.org/show_bug.cgi?id=21008
-                     */
-                    .error(funcdecl.loc, "%s `%s` circular reference to class `%s`", funcdecl.kind, funcdecl.toPrettyChars, cd.toChars());
-                    funcdecl.errors = true;
-                    return;
-                }
-                FuncDeclaration fdv = cd.baseClass.vtbl[vi].isFuncDeclaration();
-                FuncDeclaration fdc = cd.vtbl[vi].isFuncDeclaration();
-                // This function is covariant with fdv
-
-                if (fdc == funcdecl)
-                {
-                    doesoverride = true;
-                    break;
-                }
-
-                auto vtf = getFunctionType(fdv);
-                if (vtf.trust > TRUST.system && f.trust == TRUST.system)
-                    .error(funcdecl.loc, "%s `%s` cannot override `@safe` method `%s` with a `@system` attribute", funcdecl.kind, funcdecl.toPrettyChars,
-                                   fdv.toPrettyChars);
-
-                if (fdc.toParent() == parent)
-                {
-                    //printf("vi = %d,\tthis = %p %s %s @ [%s]\n\tfdc  = %p %s %s @ [%s]\n\tfdv  = %p %s %s @ [%s]\n",
-                    //        vi, this, this.toChars(), this.type.toChars(), this.loc.toChars(),
-                    //            fdc,  fdc .toChars(), fdc .type.toChars(), fdc .loc.toChars(),
-                    //            fdv,  fdv .toChars(), fdv .type.toChars(), fdv .loc.toChars());
-
-                    // fdc overrides fdv exactly, then this introduces new function.
-                    if (fdc.type.mod == fdv.type.mod && funcdecl.type.mod != fdv.type.mod)
-                        goto Lintro;
-                }
-
-                if (fdv.isDeprecated && !funcdecl.isDeprecated)
-                    deprecation(funcdecl.loc, "`%s` is overriding the deprecated method `%s`",
-                                funcdecl.toPrettyChars, fdv.toPrettyChars);
-
-                // This function overrides fdv
-                if (fdv.isFinalFunc())
-                    .error(funcdecl.loc, "%s `%s` cannot override `final` function `%s`", funcdecl.kind, funcdecl.toPrettyChars, fdv.toPrettyChars());
-
-                if (!funcdecl.isOverride())
-                {
-                    if (fdv.isFuture())
-                    {
-                        deprecation(funcdecl.loc, "method `%s` implicitly overrides `@__future` base class method; rename the former",
-                            funcdecl.toPrettyChars());
-                        deprecationSupplemental(fdv.loc, "base method `%s` defined here",
-                            fdv.toPrettyChars());
-                        // Treat 'this' as an introducing function, giving it a separate hierarchy in the vtbl[]
-                        goto Lintro;
-                    }
-                    else
-                    {
-                        // https://issues.dlang.org/show_bug.cgi?id=17349
-                        error(funcdecl.loc, "cannot implicitly override base class method `%s` with `%s`; add `override` attribute",
-                              fdv.toPrettyChars(), funcdecl.toPrettyChars());
-                    }
-                }
-                doesoverride = true;
-                if (fdc.toParent() == parent)
-                {
-                    // If both are mixins, or both are not, then error.
-                    // If either is not, the one that is not overrides the other.
-                    bool thismixin = funcdecl.parent.isClassDeclaration() !is null;
-                    bool fdcmixin = fdc.parent.isClassDeclaration() !is null;
-                    if (thismixin == fdcmixin)
-                    {
-                        .error(funcdecl.loc, "%s `%s` multiple overrides of same function", funcdecl.kind, funcdecl.toPrettyChars);
-                    }
-                    /*
-                     * https://issues.dlang.org/show_bug.cgi?id=711
-                     *
-                     * If an overriding method is introduced through a mixin,
-                     * we need to update the vtbl so that both methods are
-                     * present.
-                     */
-                    else if (thismixin)
-                    {
-                        /* if the mixin introduced the overriding method, then reintroduce it
-                         * in the vtbl. The initial entry for the mixined method
-                         * will be updated at the end of the enclosing `if` block
-                         * to point to the current (non-mixined) function.
-                         */
-                        auto vitmp = cast(int)cd.vtbl.length;
-                        cd.vtbl.push(fdc);
-                        fdc.vtblIndex = vitmp;
-                    }
-                    else if (fdcmixin)
-                    {
-                        /* if the current overriding function is coming from a
-                         * mixined block, then push the current function in the
-                         * vtbl, but keep the previous (non-mixined) function as
-                         * the overriding one.
-                         */
-                        auto vitmp = cast(int)cd.vtbl.length;
-                        cd.vtbl.push(funcdecl);
-                        funcdecl.vtblIndex = vitmp;
-                        break;
-                    }
-                    else // fdc overrides fdv
-                    {
-                        // this doesn't override any function
-                        break;
-                    }
-                }
-                cd.vtbl[vi] = funcdecl;
-                funcdecl.vtblIndex = vi;
-
-                /* Remember which functions this overrides
-                 */
-                funcdecl.foverrides.push(fdv);
-
-                /* This works by whenever this function is called,
-                 * it actually returns tintro, which gets dynamically
-                 * cast to type. But we know that tintro is a base
-                 * of type, so we could optimize it by not doing a
-                 * dynamic cast, but just subtracting the isBaseOf()
-                 * offset if the value is != null.
-                 */
-
-                if (fdv.tintro)
-                    funcdecl.tintro = fdv.tintro;
-                else if (!funcdecl.type.equals(fdv.type))
-                {
-                    auto tnext = funcdecl.type.nextOf();
-                    if (auto handle = tnext.isClassHandle())
-                    {
-                        if (handle.semanticRun < PASS.semanticdone && !handle.isBaseInfoComplete())
-                            handle.dsymbolSemantic(null);
-                    }
-                    /* Only need to have a tintro if the vptr
-                     * offsets differ
-                     */
-                    int offset;
-                    if (fdv.type.nextOf().isBaseOf(tnext, &offset))
-                    {
-                        funcdecl.tintro = fdv.type;
-                    }
-                }
-                break;
-            }
-        }
-
-        /* Go through all the interface bases.
-         * If this function is covariant with any members of those interface
-         * functions, set the tintro.
-         */
-    Linterfaces:
-        bool foundVtblMatch = false;
-
-        for (ClassDeclaration bcd = cd; !foundVtblMatch && bcd; bcd = bcd.baseClass)
-        {
-            foreach (b; bcd.interfaces)
-            {
-                vi = findVtblIndex(funcdecl, b.sym.vtbl[]);
-                switch (vi)
-                {
-                case -1:
-                    break;
-
-                case -2:
-                    // can't determine because of forward references
-                    funcdecl.errors = true;
-                    return;
-
-                default:
-                    {
-                        auto fdv = cast(FuncDeclaration)b.sym.vtbl[vi];
-                        Type ti = null;
-
-                        foundVtblMatch = true;
-
-                        /* Remember which functions this overrides
-                         */
-                        funcdecl.foverrides.push(fdv);
-
-                        if (fdv.tintro)
-                            ti = fdv.tintro;
-                        else if (!funcdecl.type.equals(fdv.type))
-                        {
-                            /* Only need to have a tintro if the vptr
-                             * offsets differ
-                             */
-                            int offset;
-                            if (fdv.type.nextOf().isBaseOf(funcdecl.type.nextOf(), &offset))
-                            {
-                                ti = fdv.type;
-                            }
-                        }
-                        if (ti)
-                        {
-                            if (funcdecl.tintro)
-                            {
-                                if (!funcdecl.tintro.nextOf().equals(ti.nextOf()) && !funcdecl.tintro.nextOf().isBaseOf(ti.nextOf(), null) && !ti.nextOf().isBaseOf(funcdecl.tintro.nextOf(), null))
-                                {
-                                    .error(funcdecl.loc, "%s `%s` incompatible covariant types `%s` and `%s`", funcdecl.kind, funcdecl.toPrettyChars, funcdecl.tintro.toChars(), ti.toChars());
-                                }
-                            }
-                            else
-                            {
-                                funcdecl.tintro = ti;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        if (foundVtblMatch)
-        {
-            goto L2;
-        }
-
-        if (!doesoverride && funcdecl.isOverride() && (funcdecl.type.nextOf() || !may_override))
-        {
-            BaseClass* bc = null;
-            Dsymbol s = null;
-            for (size_t i = 0; i < cd.baseclasses.length; i++)
-            {
-                bc = (*cd.baseclasses)[i];
-                s = bc.sym.search_correct(funcdecl.ident);
-                if (s)
-                    break;
-            }
-
-            if (s)
-            {
-                HdrGenState hgs;
-                OutBuffer buf;
-
-                auto fd = s.isFuncDeclaration();
-                functionToBufferFull(cast(TypeFunction)(funcdecl.type), buf,
-                    new Identifier(funcdecl.toPrettyChars()), hgs, null);
-                const(char)* funcdeclToChars = buf.peekChars();
-
-                if (fd)
-                {
-                    OutBuffer buf1;
-
-                    if (fd.ident == funcdecl.ident)
-                        hgs.fullQual = true;
-
-                    // https://issues.dlang.org/show_bug.cgi?id=23745
-                    // If the potentially overridden function contains errors,
-                    // inform the user to fix that one first
-                    if (fd.errors)
-                    {
-                        error(funcdecl.loc, "function `%s` does not override any function, did you mean to override `%s`?",
-                            funcdecl.toChars(), fd.toPrettyChars());
-                        errorSupplemental(fd.loc, "Function `%s` contains errors in its declaration, therefore it cannot be correctly overridden",
-                            fd.toPrettyChars());
-                    }
-                    else
-                    {
-                        functionToBufferFull(cast(TypeFunction)(fd.type), buf1,
-                            new Identifier(fd.toPrettyChars()), hgs, null);
-
-                        error(funcdecl.loc, "function `%s` does not override any function, did you mean to override `%s`?",
-                            funcdeclToChars, buf1.peekChars());
-                   }
-                }
-                else
-                {
-                    error(funcdecl.loc, "function `%s` does not override any function, did you mean to override %s `%s`?",
-                        funcdeclToChars, s.kind, s.toPrettyChars());
-                    errorSupplemental(funcdecl.loc, "Functions are the only declarations that may be overridden");
-                }
-            }
-            else
-                .error(funcdecl.loc, "%s `%s` does not override any function", funcdecl.kind, funcdecl.toPrettyChars);
-        }
-
-    L2:
-        objc.setSelector(funcdecl, sc);
-        objc.checkLinkage(funcdecl);
-        objc.addToClassMethodList(funcdecl, cd);
-        objc.setAsOptional(funcdecl, sc);
-
-        /* Go through all the interface bases.
-         * Disallow overriding any final functions in the interface(s).
-         */
-        foreach (b; cd.interfaces)
-        {
-            if (b.sym)
-            {
-                if (auto s = search_function(b.sym, funcdecl.ident))
-                {
-                    if (auto f2 = s.isFuncDeclaration())
-                    {
-                        f2 = f2.overloadExactMatch(funcdecl.type);
-                        if (f2 && f2.isFinalFunc() && f2.visible().kind != Visibility.Kind.private_)
-                            .error(funcdecl.loc, "%s `%s` cannot override `final` function `%s.%s`", funcdecl.kind, funcdecl.toPrettyChars, b.sym.toChars(), f2.toPrettyChars());
-                    }
-                }
-            }
-        }
-
-        if (funcdecl.isOverride)
-        {
-            if (funcdecl.storage_class & STC.disable)
-                deprecation(funcdecl.loc,
-                            "`%s` cannot be annotated with `@disable` because it is overriding a function in the base class",
-                            funcdecl.toPrettyChars);
-
-            if (funcdecl.isDeprecated && !(funcdecl.foverrides.length && funcdecl.foverrides[0].isDeprecated))
-                deprecation(funcdecl.loc,
-                            "`%s` cannot be marked as `deprecated` because it is overriding a function in the base class",
-                            funcdecl.toPrettyChars);
-        }
-
     }
     else if (funcdecl.isOverride() && !parent.isTemplateInstance())
         .error(funcdecl.loc, "%s `%s` `override` only applies to class member functions", funcdecl.kind, funcdecl.toPrettyChars);
@@ -1137,13 +938,571 @@ Ldone:
     }
 
     assert(funcdecl.type.ty != Terror || funcdecl.errors);
+}
 
-    // semantic for parameters' UDAs
-    foreach (i, param; f.parameterList)
+/**
+ Returns:
+    0 if semantic analysis in `funcDeclarationSemantic` should continue as normal
+    1 if it should skip over some analysis and `goto Ldone;`
+    2 if `funcDeclarationSemantic` should return early because of forward refernce error or
+        the derived class cd doesn't have its vtbl[] allocated yet
+ */
+private int classFuncSemantic(ClassDeclaration cd, FuncDeclaration funcdecl,
+                              ref Dsymbol parent, Scope* sc, TypeFunction f)
+{
+    parent = cd = objc.getParent(funcdecl, cd);
+
+    if (funcdecl.isCtorDeclaration())
     {
-        if (param && param.userAttribDecl)
-            param.userAttribDecl.dsymbolSemantic(sc);
+        return 1;
     }
+
+    if (funcdecl.storage_class & STC.abstract_)
+        cd.isabstract = ThreeState.yes;
+
+    // if static function, do not put in vtbl[]
+    if (!funcdecl.isVirtual())
+    {
+        //printf("\tnot virtual\n");
+        return 1;
+    }
+    // Suppress further errors if the return type is an error
+    if (funcdecl.type.nextOf() == Type.terror)
+        return 1;
+
+    bool may_override = false;
+    for (size_t i = 0; i < cd.baseclasses.length; i++)
+    {
+        BaseClass* b = (*cd.baseclasses)[i];
+        ClassDeclaration cbd = b.type.toBasetype().isClassHandle();
+        if (!cbd)
+            continue;
+        for (size_t j = 0; j < cbd.vtbl.length; j++)
+        {
+            FuncDeclaration f2 = cbd.vtbl[j].isFuncDeclaration();
+            if (!f2 || f2.ident != funcdecl.ident)
+                continue;
+            if (cbd.parent && cbd.parent.isTemplateInstance())
+            {
+                if (!functionSemantic(f2))
+                    return 1;
+            }
+            may_override = true;
+        }
+    }
+    if (may_override && funcdecl.type.nextOf() is null)
+    {
+        /* If same name function exists in base class but 'this' is auto return,
+         * cannot find index of base class's vtbl[] to override.
+         */
+        .error(funcdecl.loc, "%s `%s` return type inference is not supported if may override base class function", funcdecl.kind, funcdecl.toPrettyChars);
+    }
+
+    /* Find index of existing function in base class's vtbl[] to override
+     * (the index will be the same as in cd's current vtbl[])
+     */
+    int vi = cd.baseClass ? findVtblIndex(funcdecl, cd.baseClass.vtbl[]) : -1;
+
+    bool doesoverride = false;
+    switch (vi)
+    {
+    case -1:
+    Lintro:
+        /* Didn't find one, so
+         * This is an 'introducing' function which gets a new
+         * slot in the vtbl[].
+         */
+
+        // Verify this doesn't override previous final function
+        if (cd.baseClass)
+        {
+            Dsymbol s = cd.baseClass.search(funcdecl.loc, funcdecl.ident);
+            if (s)
+            {
+                if (auto f2 = s.isFuncDeclaration())
+                {
+                    f2 = f2.overloadExactMatch(funcdecl.type);
+                    if (f2 && f2.isFinalFunc() && f2.visible().kind != Visibility.Kind.private_)
+                        .error(funcdecl.loc, "%s `%s` cannot override `final` function `%s`", funcdecl.kind, funcdecl.toPrettyChars, f2.toPrettyChars());
+                }
+            }
+        }
+
+        /* These quirky conditions mimic what happens when virtual
+           inheritance is implemented by producing a virtual base table
+           with offsets to each of the virtual bases.
+         */
+        if (target.cpp.splitVBasetable && cd.classKind == ClassKind.cpp &&
+            cd.baseClass && cd.baseClass.vtbl.length)
+        {
+            /* if overriding an interface function, then this is not
+             * introducing and don't put it in the class vtbl[]
+             */
+            funcdecl.interfaceVirtual = overrideInterface(funcdecl);
+            if (funcdecl.interfaceVirtual)
+            {
+                //printf("\tinterface function %s\n", toChars());
+                cd.vtblFinal.push(funcdecl);
+                goto Linterfaces;
+            }
+        }
+
+        if (funcdecl.isFinalFunc())
+        {
+            // Don't check here, as it may override an interface function
+            //if (isOverride())
+            //    error("is marked as override, but does not override any function");
+            cd.vtblFinal.push(funcdecl);
+        }
+        else
+        {
+            //printf("\tintroducing function %s\n", funcdecl.toChars());
+            funcdecl.isIntroducing = true;
+            if (cd.classKind == ClassKind.cpp && target.cpp.reverseOverloads)
+            {
+                /* Overloaded functions with same name are grouped and in reverse order.
+                 * Search for first function of overload group, and insert
+                 * funcdecl into vtbl[] immediately before it.
+                 */
+                funcdecl.vtblIndex = cast(int)cd.vtbl.length;
+                bool found;
+                foreach (const i, s; cd.vtbl)
+                {
+                    if (found)
+                        // the rest get shifted forward
+                        ++s.isFuncDeclaration().vtblIndex;
+                    else if (s.ident == funcdecl.ident && s.parent == parent)
+                    {
+                        // found first function of overload group
+                        funcdecl.vtblIndex = cast(int)i;
+                        found = true;
+                        ++s.isFuncDeclaration().vtblIndex;
+                    }
+                }
+                cd.vtbl.insert(funcdecl.vtblIndex, funcdecl);
+
+                debug foreach (const i, s; cd.vtbl)
+                {
+                    // a C++ dtor gets its vtblIndex later (and might even be added twice to the vtbl),
+                    // e.g. when compiling druntime with a debug compiler, namely with core.stdcpp.exception.
+                    if (auto fd = s.isFuncDeclaration())
+                        assert(fd.vtblIndex == i ||
+                               (cd.classKind == ClassKind.cpp && fd.isDtorDeclaration) ||
+                               funcdecl.parent.isInterfaceDeclaration); // interface functions can be in multiple vtbls
+                }
+            }
+            else
+            {
+                // Append to end of vtbl[]
+                vi = cast(int)cd.vtbl.length;
+                cd.vtbl.push(funcdecl);
+                funcdecl.vtblIndex = vi;
+            }
+        }
+        break;
+
+    case -2:
+        // can't determine because of forward references
+        funcdecl.errors = true;
+        return 2;
+
+    default:
+        {
+            if (vi >= cd.vtbl.length)
+            {
+                /* the derived class cd doesn't have its vtbl[] allocated yet.
+                 * https://issues.dlang.org/show_bug.cgi?id=21008
+                 */
+                .error(funcdecl.loc, "%s `%s` circular reference to class `%s`", funcdecl.kind, funcdecl.toPrettyChars, cd.toChars());
+                funcdecl.errors = true;
+                return 2;
+            }
+            FuncDeclaration fdv = cd.baseClass.vtbl[vi].isFuncDeclaration();
+            FuncDeclaration fdc = cd.vtbl[vi].isFuncDeclaration();
+            // This function is covariant with fdv
+
+            if (fdc == funcdecl)
+            {
+                doesoverride = true;
+                break;
+            }
+
+            auto vtf = getFunctionType(fdv);
+            if (vtf.trust > TRUST.system && f.trust == TRUST.system)
+                .error(funcdecl.loc, "%s `%s` cannot override `@safe` method `%s` with a `@system` attribute", funcdecl.kind, funcdecl.toPrettyChars,
+                               fdv.toPrettyChars);
+
+            if (fdc.toParent() == parent)
+            {
+                //printf("vi = %d,\tthis = %p %s %s @ [%s]\n\tfdc  = %p %s %s @ [%s]\n\tfdv  = %p %s %s @ [%s]\n",
+                //        vi, this, this.toChars(), this.type.toChars(), this.loc.toChars(),
+                //            fdc,  fdc .toChars(), fdc .type.toChars(), fdc .loc.toChars(),
+                //            fdv,  fdv .toChars(), fdv .type.toChars(), fdv .loc.toChars());
+
+                // fdc overrides fdv exactly, then this introduces new function.
+                if (fdc.type.mod == fdv.type.mod && funcdecl.type.mod != fdv.type.mod)
+                    goto Lintro;
+            }
+
+            if (fdv.isDeprecated && !funcdecl.isDeprecated)
+                deprecation(funcdecl.loc, "`%s` is overriding the deprecated method `%s`",
+                            funcdecl.toPrettyChars, fdv.toPrettyChars);
+
+            // This function overrides fdv
+            if (fdv.isFinalFunc())
+                .error(funcdecl.loc, "%s `%s` cannot override `final` function `%s`", funcdecl.kind, funcdecl.toPrettyChars, fdv.toPrettyChars());
+
+            if (!funcdecl.isOverride())
+            {
+                if (fdv.isFuture())
+                {
+                    deprecation(funcdecl.loc, "method `%s` implicitly overrides `@__future` base class method; rename the former",
+                        funcdecl.toPrettyChars());
+                    deprecationSupplemental(fdv.loc, "base method `%s` defined here",
+                        fdv.toPrettyChars());
+                    // Treat 'this' as an introducing function, giving it a separate hierarchy in the vtbl[]
+                    goto Lintro;
+                }
+                else
+                {
+                    // https://issues.dlang.org/show_bug.cgi?id=17349
+                    error(funcdecl.loc, "cannot implicitly override base class method `%s` with `%s`; add `override` attribute",
+                          fdv.toPrettyChars(), funcdecl.toPrettyChars());
+                }
+            }
+            doesoverride = true;
+            if (fdc.toParent() == parent)
+            {
+                // If both are mixins, or both are not, then error.
+                // If either is not, the one that is not overrides the other.
+                bool thismixin = funcdecl.parent.isClassDeclaration() !is null;
+                bool fdcmixin = fdc.parent.isClassDeclaration() !is null;
+                if (thismixin == fdcmixin)
+                {
+                    .error(funcdecl.loc, "%s `%s` multiple overrides of same function", funcdecl.kind, funcdecl.toPrettyChars);
+                }
+                /*
+                 * https://issues.dlang.org/show_bug.cgi?id=711
+                 *
+                 * If an overriding method is introduced through a mixin,
+                 * we need to update the vtbl so that both methods are
+                 * present.
+                 */
+                else if (thismixin)
+                {
+                    /* if the mixin introduced the overriding method, then reintroduce it
+                     * in the vtbl. The initial entry for the mixined method
+                     * will be updated at the end of the enclosing `if` block
+                     * to point to the current (non-mixined) function.
+                     */
+                    auto vitmp = cast(int)cd.vtbl.length;
+                    cd.vtbl.push(fdc);
+                    fdc.vtblIndex = vitmp;
+                }
+                else if (fdcmixin)
+                {
+                    /* if the current overriding function is coming from a
+                     * mixined block, then push the current function in the
+                     * vtbl, but keep the previous (non-mixined) function as
+                     * the overriding one.
+                     */
+                    auto vitmp = cast(int)cd.vtbl.length;
+                    cd.vtbl.push(funcdecl);
+                    funcdecl.vtblIndex = vitmp;
+                    break;
+                }
+                else // fdc overrides fdv
+                {
+                    // this doesn't override any function
+                    break;
+                }
+            }
+            cd.vtbl[vi] = funcdecl;
+            funcdecl.vtblIndex = vi;
+
+            /* Remember which functions this overrides
+             */
+            funcdecl.foverrides.push(fdv);
+
+            /* This works by whenever this function is called,
+             * it actually returns tintro, which gets dynamically
+             * cast to type. But we know that tintro is a base
+             * of type, so we could optimize it by not doing a
+             * dynamic cast, but just subtracting the isBaseOf()
+             * offset if the value is != null.
+             */
+
+            if (fdv.tintro)
+                funcdecl.tintro = fdv.tintro;
+            else if (!funcdecl.type.equals(fdv.type))
+            {
+                auto tnext = funcdecl.type.nextOf();
+                if (auto handle = tnext.isClassHandle())
+                {
+                    if (handle.semanticRun < PASS.semanticdone && !handle.isBaseInfoComplete())
+                        handle.dsymbolSemantic(null);
+                }
+                /* Only need to have a tintro if the vptr
+                 * offsets differ
+                 */
+                int offset;
+                if (fdv.type.nextOf().isBaseOf(tnext, &offset))
+                {
+                    funcdecl.tintro = fdv.type;
+                }
+            }
+            break;
+        }
+    }
+
+    /* Go through all the interface bases.
+     * If this function is covariant with any members of those interface
+     * functions, set the tintro.
+     */
+Linterfaces:
+    bool foundVtblMatch = false;
+
+    for (ClassDeclaration bcd = cd; !foundVtblMatch && bcd; bcd = bcd.baseClass)
+    {
+        foreach (b; bcd.interfaces)
+        {
+            vi = findVtblIndex(funcdecl, b.sym.vtbl[]);
+            switch (vi)
+            {
+            case -1:
+                break;
+
+            case -2:
+                // can't determine because of forward references
+                funcdecl.errors = true;
+                return 2;
+
+            default:
+                {
+                    auto fdv = cast(FuncDeclaration)b.sym.vtbl[vi];
+                    Type ti = null;
+
+                    foundVtblMatch = true;
+
+                    /* Remember which functions this overrides
+                     */
+                    funcdecl.foverrides.push(fdv);
+
+                    if (fdv.tintro)
+                        ti = fdv.tintro;
+                    else if (!funcdecl.type.equals(fdv.type))
+                    {
+                        /* Only need to have a tintro if the vptr
+                         * offsets differ
+                         */
+                        int offset;
+                        if (fdv.type.nextOf().isBaseOf(funcdecl.type.nextOf(), &offset))
+                        {
+                            ti = fdv.type;
+                        }
+                    }
+                    if (ti)
+                    {
+                        if (funcdecl.tintro)
+                        {
+                            if (!funcdecl.tintro.nextOf().equals(ti.nextOf()) && !funcdecl.tintro.nextOf().isBaseOf(ti.nextOf(), null) && !ti.nextOf().isBaseOf(funcdecl.tintro.nextOf(), null))
+                            {
+                                .error(funcdecl.loc, "%s `%s` incompatible covariant types `%s` and `%s`", funcdecl.kind, funcdecl.toPrettyChars, funcdecl.tintro.toChars(), ti.toChars());
+                            }
+                        }
+                        else
+                        {
+                            funcdecl.tintro = ti;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if (foundVtblMatch)
+    {
+        goto L2;
+    }
+
+    if (!doesoverride && funcdecl.isOverride() && (funcdecl.type.nextOf() || !may_override))
+    {
+        BaseClass* bc = null;
+        Dsymbol s = null;
+        for (size_t i = 0; i < cd.baseclasses.length; i++)
+        {
+            bc = (*cd.baseclasses)[i];
+            s = bc.sym.search_correct(funcdecl.ident);
+            if (s)
+                break;
+        }
+
+        if (s)
+        {
+            HdrGenState hgs;
+            OutBuffer buf;
+
+            auto fd = s.isFuncDeclaration();
+            functionToBufferFull(cast(TypeFunction)(funcdecl.type), buf,
+                new Identifier(funcdecl.toPrettyChars()), hgs, null);
+            const(char)* funcdeclToChars = buf.peekChars();
+
+            if (fd)
+            {
+                OutBuffer buf1;
+
+                if (fd.ident == funcdecl.ident)
+                    hgs.fullQual = true;
+
+                // https://issues.dlang.org/show_bug.cgi?id=23745
+                // If the potentially overridden function contains errors,
+                // inform the user to fix that one first
+                if (fd.errors)
+                {
+                    error(funcdecl.loc, "function `%s` does not override any function, did you mean to override `%s`?",
+                        funcdecl.toChars(), fd.toPrettyChars());
+                    errorSupplemental(fd.loc, "Function `%s` contains errors in its declaration, therefore it cannot be correctly overridden",
+                        fd.toPrettyChars());
+                }
+                else if (fd.isFinalFunc())
+                {
+                    // When trying to override a final method, don't suggest it as a candidate(Issue #19613)
+                    .error(funcdecl.loc, "%s `%s` does not override any function", funcdecl.kind, funcdecl.toPrettyChars);
+
+                    // Look for a non-final method with the same name to suggest as an alternative
+                    auto cdparent = fd.parent ? fd.parent.isClassDeclaration() : null;
+                    if (cdparent)
+                    {
+                        Dsymbol nonFinalAlt = null;
+
+                        auto overloadableSyms = cdparent.symtab.lookup(fd.ident);
+                        if (overloadableSyms)
+                        {
+                            // Check each overload to find one that's not final
+                            overloadApply(overloadableSyms, (Dsymbol s)
+                            {
+                                if (auto funcAlt = s.isFuncDeclaration())
+                                {
+                                    if (funcAlt != fd && !funcAlt.isFinalFunc())
+                                    {
+                                        nonFinalAlt = funcAlt;
+                                        return 1;
+                                    }
+                                }
+                                return 0;
+                            });
+
+                            // Provide a helpful suggestion if we found a viable alternative
+                            if (nonFinalAlt)
+                            {
+                                auto funcAlt = nonFinalAlt.isFuncDeclaration();
+                                OutBuffer buf2;
+                                functionToBufferFull(cast(TypeFunction)(funcAlt.type), buf2,
+                                    new Identifier(funcAlt.toPrettyChars()), hgs, null);
+                                errorSupplemental(funcdecl.loc, "Did you mean to override `%s`?", buf2.peekChars());
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    functionToBufferFull(cast(TypeFunction)(fd.type), buf1,
+                        new Identifier(fd.toPrettyChars()), hgs, null);
+
+                    error(funcdecl.loc, "function `%s` does not override any function", funcdeclToChars);
+                    errorSupplemental(fd.loc, "did you mean to override `%s`?", buf1.peekChars());
+
+                    // Supplemental error for parameter scope differences
+                    auto tf1 = cast(TypeFunction)funcdecl.type;
+                    auto tf2 = cast(TypeFunction)fd.type;
+
+                    if (tf1 && tf2)
+                    {
+                        auto params1 = tf1.parameterList;
+                        auto params2 = tf2.parameterList;
+
+                        if (params1.length == params2.length)
+                        {
+                            for (size_t i = 0; i < params1.length; i++)
+                            {
+                                auto p1 = params1[i];
+                                auto p2 = params2[i];
+
+                                if ((p1.storageClass & STC.scope_) == (p2.storageClass & STC.scope_))
+                                    continue;
+
+                                if (!(p2.storageClass & STC.scope_))
+                                    continue;
+
+                                errorSupplemental(funcdecl.loc, "parameter %d is missing `scope`",
+                                cast(int)(i + 1));
+                            }
+                        }
+                    }
+               }
+            }
+            else
+            {
+                error(funcdecl.loc, "function `%s` does not override any function, did you mean to override %s `%s`?",
+                    funcdeclToChars, s.kind, s.toPrettyChars());
+                errorSupplemental(funcdecl.loc, "Functions are the only declarations that may be overridden");
+            }
+        }
+        else
+            .error(funcdecl.loc, "%s `%s` does not override any function", funcdecl.kind, funcdecl.toPrettyChars);
+    }
+
+L2:
+    objc.setSelector(funcdecl, sc);
+    objc.checkLinkage(funcdecl);
+    objc.addToClassMethodList(funcdecl, cd);
+    objc.setAsOptional(funcdecl, sc);
+
+    /* Go through all the interface bases.
+     * Disallow overriding any final functions in the interface(s).
+     */
+    foreach (b; cd.interfaces)
+    {
+        if (b.sym)
+        {
+            if (auto s = search_function(b.sym, funcdecl.ident))
+            {
+                if (auto f2 = s.isFuncDeclaration())
+                {
+                    f2 = f2.overloadExactMatch(funcdecl.type);
+                    if (f2 && f2.isFinalFunc() && f2.visible().kind != Visibility.Kind.private_)
+                        .error(funcdecl.loc, "%s `%s` cannot override `final` function `%s.%s`", funcdecl.kind, funcdecl.toPrettyChars, b.sym.toChars(), f2.toPrettyChars());
+                }
+            }
+        }
+    }
+
+    if (funcdecl.isOverride)
+    {
+        if (funcdecl.storage_class & STC.disable)
+            deprecation(funcdecl.loc,
+                        "`%s` cannot be annotated with `@disable` because it is overriding a function in the base class",
+                        funcdecl.toPrettyChars);
+
+        if (funcdecl.isDeprecated && !(funcdecl.foverrides.length && funcdecl.foverrides[0].isDeprecated))
+            deprecation(funcdecl.loc,
+                        "`%s` cannot be marked as `deprecated` because it is overriding a function in the base class",
+                        funcdecl.toPrettyChars);
+    }
+    return 0;
+}
+
+private TypeFunction getFunctionType(FuncDeclaration fd)
+{
+    if (auto tf = fd.type.isTypeFunction())
+        return tf;
+
+    if (!fd.type.isTypeError())
+    {
+        .error(fd.loc, "%s `%s` `%s` must be a function instead of `%s`", fd.kind, fd.toPrettyChars, fd.toChars(), fd.type.toChars());
+        fd.type = Type.terror;
+    }
+    fd.errors = true;
+    return null;
 }
 
 /*****************************************
@@ -1260,7 +1619,7 @@ bool functionSemantic3(FuncDeclaration fd)
             return false;
     }
 
-    return !fd.errors && !fd.hasSemantic3Errors();
+    return !fd.errors && !fd.hasSemantic3Errors;
 }
 
 // called from semantic3
@@ -1451,7 +1810,7 @@ int findVtblIndex(FuncDeclaration fd, Dsymbol[] vtbl)
                              fdv.toPrettyChars(), fdv.type.toTypeFunction().parameterList.parametersTypeToChars(),
                               fd.toPrettyChars(),  fd.type.toTypeFunction().parameterList.parametersTypeToChars(), fd.type.modToChars());
 
-                const char* where = fd.type.isNaked() ? "parameters" : "type";
+                const char* where = fd.type.isNaked ? "parameters" : "type";
                 deprecationSupplemental(fd.loc, "Either remove `override`, or adjust the `const` qualifiers of the "
                                         ~ "overriding function %s", where);
             }
@@ -1657,13 +2016,17 @@ FuncDeclaration resolveFuncCall(Loc loc, Scope* sc, Dsymbol s,
             if (!od && !td.overnext)
             {
                 .error(loc, "%s `%s` is not callable using argument types `!(%s)%s`",
-                   td.kind(), td.ident.toChars(), tiargsBuf.peekChars(), fargsBuf.peekChars());
+                    td.kind(), td.ident.toChars(), tiargsBuf.peekChars(), fargsBuf.peekChars());
+
+                checkNamedArgErrorAndReport(td, argumentList, loc);
             }
             else
             {
                 .error(loc, "none of the overloads of %s `%s.%s` are callable using argument types `!(%s)%s`",
-                   td.kind(), td.parent.toPrettyChars(), td.ident.toChars(),
-                   tiargsBuf.peekChars(), fargsBuf.peekChars());
+                    td.kind(), td.parent.toPrettyChars(), td.ident.toChars(),
+                    tiargsBuf.peekChars(), fargsBuf.peekChars());
+
+                checkNamedArgErrorAndReport(td, argumentList, loc);
             }
 
 
@@ -1683,7 +2046,9 @@ FuncDeclaration resolveFuncCall(Loc loc, Scope* sc, Dsymbol s,
     if (od)
     {
         .error(loc, "none of the overloads of `%s` are callable using argument types `!(%s)%s`",
-               od.ident.toChars(), tiargsBuf.peekChars(), fargsBuf.peekChars());
+            od.ident.toChars(), tiargsBuf.peekChars(), fargsBuf.peekChars());
+
+        checkNamedArgErrorAndReportOverload(od, argumentList, loc);
         if (!global.gag || global.params.v.showGaggedErrors)
             printCandidates(loc, od, sc.isDeprecated());
         return null;
@@ -1713,8 +2078,14 @@ FuncDeclaration resolveFuncCall(Loc loc, Scope* sc, Dsymbol s,
             OutBuffer buf;
             buf.argExpTypesToCBuffer(fargs);
             if (fd.isCtorDeclaration())
-                .error(loc, "none of the overloads of `%s` can construct a %sobject with argument types `(%s)`",
-                    fd.toChars(), thisBuf.peekChars(), buf.peekChars());
+            {
+                if (tthis.mod & MODFlags.immutable_)
+                    .error(loc, "none of the overloads of `%s` can construct an immutable object with argument types `(%s)`. Expected `immutable(%s)`",
+                        fd.toChars(), buf.peekChars(), buf.peekChars());
+                else
+                    .error(loc, "none of the overloads of `%s` can construct a %sobject with argument types `(%s)`",
+                        fd.toChars(), thisBuf.peekChars(), buf.peekChars());
+            }
             else
                 .error(loc, "none of the overloads of `%s` are callable using a %sobject with argument types `(%s)`",
                     fd.toChars(), thisBuf.peekChars(), buf.peekChars());
@@ -1725,12 +2096,12 @@ FuncDeclaration resolveFuncCall(Loc loc, Scope* sc, Dsymbol s,
         }
 
         bool calledHelper;
-        void errorHelper(const(char)* failMessage) scope
+        void errorHelper(const(char)* failMessage, Loc argloc = Loc.initial) scope
         {
             .error(loc, "%s `%s%s%s` is not callable using argument types `%s`",
                    fd.kind(), fd.toPrettyChars(), parametersTypeToChars(tf.parameterList),
                    tf.modToChars(), fargsBuf.peekChars());
-            errorSupplemental(loc, failMessage);
+            errorSupplemental((argloc !is Loc.initial) ? argloc : loc, failMessage);
             calledHelper = true;
         }
 
@@ -1782,10 +2153,15 @@ FuncDeclaration resolveFuncCall(Loc loc, Scope* sc, Dsymbol s,
                     functionResolve(mErr, baseFunction, loc, sc, tiargs, baseClass.type, argumentList);
                     if (mErr.last > MATCH.nomatch && mErr.lastf)
                     {
-                        errorSupplemental(loc, "%s `%s` hides base class function `%s`",
-                                fd.kind, fd.toPrettyChars(), mErr.lastf.toPrettyChars());
-                        errorSupplemental(loc, "add `alias %s = %s` to `%s`'s body to merge the overload sets",
-                                fd.toChars(), mErr.lastf.toPrettyChars(), tthis.toChars());
+                        errorSupplemental(loc, "Note: %s `%s` hides base class %s `%s`",
+                            fd.kind, fd.toPrettyChars(),
+                            mErr.lastf.kind, mErr.lastf.toPrettyChars());
+
+                        if (!fd.isCtorDeclaration)
+                        {
+                            errorSupplemental(loc, "Add `alias %s = %s;` to `%s`'s body to merge the overload sets",
+                                    fd.toChars(), mErr.lastf.toPrettyChars(), tthis.toChars());
+                        }
                         return null;
                     }
                 }
@@ -1793,14 +2169,73 @@ FuncDeclaration resolveFuncCall(Loc loc, Scope* sc, Dsymbol s,
         }
     }
 
-    void errorHelper2(const(char)* failMessage) scope
+    void errorHelper2(const(char)* failMessage, Loc argloc = Loc.initial) scope
     {
-        errorSupplemental(loc, failMessage);
+        errorSupplemental((argloc !is Loc.initial) ? argloc : loc, failMessage);
     }
 
     functionResolve(m, orig_s, loc, sc, tiargs, tthis, argumentList, &errorHelper2);
 
     return null;
+}
+
+/********************************************************
+ * Check for named argument errors in template declarations and report them.
+ * Params:
+ *      td = template declaration to check
+ *      argumentList = arguments to check
+ *      loc = location for error reporting
+ */
+private void checkNamedArgErrorAndReport(TemplateDeclaration td, ArgumentList argumentList, Loc loc)
+{
+    if (!argumentList.hasArgNames())
+        return;
+    td.computeOneMember();
+    auto tf = td.onemember ? td.onemember.isFuncDeclaration() : null;
+    if (tf && tf.type && tf.type.ty == Tfunction)
+    {
+        OutBuffer buf;
+        auto resolvedArgs = tf.type.isTypeFunction().resolveNamedArgs(argumentList, &buf);
+        if (!resolvedArgs && buf.length)
+            .errorSupplemental(loc, "%s", buf.peekChars());
+    }
+}
+
+/******************************************
+ * Check for named argument errors in overload sets and report them.
+ * Params:
+ *      od = overload declaration to check
+ *      argumentList = arguments to check
+ *      loc = location for error report
+ */
+private void checkNamedArgErrorAndReportOverload(Dsymbol od, ArgumentList argumentList, Loc loc)
+{
+    if (!argumentList.hasArgNames())
+        return;
+
+    FuncDeclaration tf = null;
+    overloadApply(od, (Dsymbol s) {
+        if (!tf)
+        {
+            if (auto fd = s.isFuncDeclaration())
+                tf = fd;
+            else if (auto td = s.isTemplateDeclaration())
+            {
+                td.computeOneMember();
+                if (td.onemember)
+                    tf = td.onemember.isFuncDeclaration();
+            }
+        }
+        return 0;
+    });
+
+    if (tf && tf.type && tf.type.ty == Tfunction)
+    {
+        OutBuffer buf;
+        auto resolvedArgs = tf.type.isTypeFunction().resolveNamedArgs(argumentList, &buf);
+        if (!resolvedArgs && buf.length)
+            .errorSupplemental(loc, "%s", buf.peekChars());
+    }
 }
 
 /*******************************************
@@ -1869,6 +2304,7 @@ private void printCandidates(Decl)(Loc loc, Decl declaration, bool showDeprecate
             // td.onemember may not have overloads set
             // (see fail_compilation/onemember_overloads.d)
             // assume if more than one member it is overloaded internally
+            td.computeOneMember();
             bool recurse = td.onemember && (!td.onemember.isFuncDeclaration ||
                 td.members.length > 1);
             OutBuffer buf;
@@ -2050,16 +2486,17 @@ int overrides(FuncDeclaration fd1, FuncDeclaration fd2)
  * Params:
  *  f = first function
  *  g = second function
- *  names = names of parameters
+ *  names = argument Labels of parameters(name and location of the name)
  * Returns:
  *      match   'this' is at least as specialized as g
  *      0       g is more specialized than 'this'
  */
-MATCH leastAsSpecialized(FuncDeclaration f, FuncDeclaration g, Identifiers* names)
+MATCH leastAsSpecialized(FuncDeclaration f, FuncDeclaration g, ArgumentLabels* names)
 {
     enum LOG_LEASTAS = 0;
     static if (LOG_LEASTAS)
     {
+        Identifiers *names = extractNames(names);
         import core.stdc.stdio : printf;
         printf("leastAsSpecialized(%s, %s, %s)\n", f.toChars(), g.toChars(), names ? names.toChars() : "null");
         printf("%s, %s\n", f.type.toChars(), g.type.toChars());
@@ -2251,7 +2688,7 @@ int getLevelAndCheck(FuncDeclaration fd, Loc loc, Scope* sc, FuncDeclaration tar
                      Declaration decl)
 {
     int level = fd.getLevel(target, sc.intypeof);
-    if (level != fd.LevelError)
+    if (level != LevelError)
         return level;
     // Don't give error if in template constraint
     if (!sc.inTemplateConstraint)
@@ -2262,7 +2699,7 @@ int getLevelAndCheck(FuncDeclaration fd, Loc loc, Scope* sc, FuncDeclaration tar
                xstatic, fd.kind(), fd.toPrettyChars(), decl.kind(), decl.toChars(),
                target.toPrettyChars());
             .errorSupplemental(decl.loc, "`%s` declared here", decl.toChars());
-        return fd.LevelError;
+        return LevelError;
     }
     return 1;
 }
@@ -2276,7 +2713,7 @@ int getLevelAndCheck(FuncDeclaration fd, Loc loc, Scope* sc, FuncDeclaration tar
  * Returns:
  *  true if can
  */
-bool canInferAttributes(FuncDeclaration fd, Scope* sc)
+private bool canInferAttributes(FuncDeclaration fd, Scope* sc)
 {
     if (!fd.fbody)
         return false;
@@ -2307,90 +2744,6 @@ bool canInferAttributes(FuncDeclaration fd, Scope* sc)
     return false;
 }
 
-/*********************************************
- * In the current function 'sc.func', we are calling 'fd'.
- * 1. Check to see if the current function can call 'fd' , issue error if not.
- * 2. If the current function is not the parent of 'fd' , then add
- *    the current function to the list of siblings of 'fd' .
- * 3. If the current function is a literal, and it's accessing an uplevel scope,
- *    then mark it as a delegate.
- * Returns true if error occurs.
- */
-bool checkNestedFuncReference(FuncDeclaration fd, Scope* sc, Loc loc)
-{
-    //printf("FuncDeclaration::checkNestedFuncReference() %s\n", toPrettyChars());
-    if (auto fld = fd.isFuncLiteralDeclaration())
-    {
-        if (fld.tok == TOK.reserved)
-        {
-            fld.tok = TOK.function_;
-            fld.vthis = null;
-        }
-    }
-    if (!fd.parent || fd.parent == sc.parent)
-        return false;
-    if (fd.ident == Id.require || fd.ident == Id.ensure)
-        return false;
-    if (!fd.isThis() && !fd.isNested())
-        return false;
-    // The current function
-    FuncDeclaration fdthis = sc.parent.isFuncDeclaration();
-    if (!fdthis)
-        return false; // out of function scope
-    Dsymbol p = fd.toParentLocal();
-    Dsymbol p2 = fd.toParent2();
-    // Function literals from fdthis to p must be delegates
-    ensureStaticLinkTo(fdthis, p);
-    if (p != p2)
-        ensureStaticLinkTo(fdthis, p2);
-    if (!fd.isNested())
-        return false;
-
-    // The function that this function is in
-    bool checkEnclosing(FuncDeclaration fdv)
-    {
-        if (!fdv)
-            return false;
-        if (fdv == fdthis)
-            return false;
-        //printf("this = %s in [%s]\n", this.toChars(), this.loc.toChars());
-        //printf("fdv  = %s in [%s]\n", fdv .toChars(), fdv .loc.toChars());
-        //printf("fdthis = %s in [%s]\n", fdthis.toChars(), fdthis.loc.toChars());
-        // Add this function to the list of those which called us
-        if (fdthis != fd)
-        {
-            bool found = false;
-            for (size_t i = 0; i < fd.siblingCallers.length; ++i)
-            {
-                if (fd.siblingCallers[i] == fdthis)
-                    found = true;
-            }
-            if (!found)
-            {
-                //printf("\tadding sibling %s to %s\n", fdthis.toPrettyChars(), toPrettyChars());
-                if (!sc.intypeof && !sc.traitsCompiles)
-                {
-                    fd.siblingCallers.push(fdthis);
-                    fd.computedEscapingSiblings = false;
-                }
-            }
-        }
-        const lv = fdthis.getLevelAndCheck(loc, sc, fdv, fd);
-        if (lv == fd.LevelError)
-            return true; // error
-        if (lv == -1)
-            return false; // downlevel call
-        if (lv == 0)
-            return false; // same level call
-        return false; // Uplevel call
-    }
-    if (checkEnclosing(p.isFuncDeclaration()))
-        return true;
-    if (checkEnclosing(p == p2 ? null : p2.isFuncDeclaration()))
-        return true;
-    return false;
-}
-
 /****************************************************
  * Check whether result variable can be built.
  * Returns:
@@ -2416,6 +2769,7 @@ void buildResultVar(FuncDeclaration fd, Scope* sc, Type tret)
          * fbody.dsymbolSemantic() running, vresult.type might be modified.
          */
         fd.vresult = new VarDeclaration(loc, tret, Id.result, null);
+        fd.vresult._init = new VoidInitializer(loc); // hdrgen requires _init
         fd.vresult.storage_class |= STC.nodtor | STC.temp;
         if (!fd.isVirtual())
             fd.vresult.storage_class |= STC.const_;
@@ -2426,8 +2780,10 @@ void buildResultVar(FuncDeclaration fd, Scope* sc, Type tret)
     if (sc && fd.vresult.semanticRun == PASS.initial)
     {
         TypeFunction tf = fd.type.toTypeFunction();
-        if (tf.isRef)
+        if (fd.isNRVO || tf.isRef)
             fd.vresult.storage_class |= STC.ref_;
+        else if (target.isReturnOnStack(tf, fd.needThis()))
+            fd.vresult.nrvo = true;
         fd.vresult.type = tret;
         fd.vresult.dsymbolSemantic(sc);
         if (!sc.insert(fd.vresult))
@@ -2484,8 +2840,7 @@ Statement mergeFrequire(FuncDeclaration fd, Statement sf, Expressions* params)
         Statement s2 = new ExpStatement(fd.loc, e);
         auto c = new Catch(fd.loc, getThrowable(), null, sf);
         c.internalCatch = true;
-        auto catches = new Catches();
-        catches.push(c);
+        auto catches = new Catches(c);
         sf = new TryCatchStatement(fd.loc, s2, catches);
     }
     return sf;
@@ -2548,8 +2903,7 @@ Statement mergeFrequireInclusivePreview(FuncDeclaration fd, Statement sf, Expres
         Statement s3 = new CompoundStatement(loc, s2, fail);
         auto c = new Catch(loc, getThrowable(), id, s3);
         c.internalCatch = true;
-        auto catches = new Catches();
-        catches.push(c);
+        auto catches = new Catches(c);
         sf = new TryCatchStatement(loc, sf, catches);
     }
     return sf;
@@ -2974,6 +3328,248 @@ extern (D) void checkMain(FuncDeclaration fd)
         .error(fd.loc, "%s `%s` must return `int`, `void` or `noreturn`, not `%s`", fd.kind, fd.toPrettyChars, tf.nextOf().toChars());
 }
 
+enum LevelError = -2;
+
+/*****************************************
+ * Determine lexical level difference from `fd1` to nested function `fd2`.
+ * Params:
+ *      fd1 = function
+ *      fd2 = target of call
+ *      intypeof = !=0 if inside typeof
+ * Returns:
+ *      0       same level
+ *      >0      decrease nesting by number
+ *      -1      increase nesting by 1 (`fd2` is nested within `fd1`)
+ *      LevelError  error, `this` cannot call `fd2`
+ */
+extern (D) int getLevel(FuncDeclaration fd1, FuncDeclaration fd2, int intypeof)
+{
+    //printf("FuncDeclaration::getLevel(fd2 = '%s')\n", fd2.toChars());
+    Dsymbol fd2parent = fd2.toParent2();
+    if (fd2parent == fd1)
+        return -1;
+
+    Dsymbol s = fd1;
+    int level = 0;
+    while (fd2 != s && fd2parent != s.toParent2())
+    {
+        //printf("\ts = %s, '%s'\n", s.kind(), s.toChars());
+        if (auto thisfd = s.isFuncDeclaration())
+        {
+            if (!thisfd.isNested() && !thisfd.vthis && !intypeof)
+                return LevelError;
+        }
+        else
+        {
+            if (auto thiscd = s.isAggregateDeclaration())
+            {
+                /* AggregateDeclaration::isNested returns true only when
+                 * it has a hidden pointer.
+                 * But, calling the function belongs unrelated lexical scope
+                 * is still allowed inside typeof.
+                 *
+                 * struct Map(alias fun) {
+                 *   typeof({ return fun(); }) RetType;
+                 *   // No member function makes Map struct 'not nested'.
+                 * }
+                 */
+                if (!thiscd.isNested() && !intypeof)
+                    return LevelError;
+            }
+            else
+                return LevelError;
+        }
+
+        s = s.toParentP(fd2);
+        assert(s);
+        level++;
+    }
+    return level;
+}
+
+/* For all functions between outerFunc and f, mark them as needing
+ * a closure.
+ */
+private void markAsNeedingClosure(Dsymbol f, FuncDeclaration outerFunc)
+{
+    for (Dsymbol sx = f; sx && sx != outerFunc; sx = sx.toParentP(outerFunc))
+    {
+        FuncDeclaration fy = sx.isFuncDeclaration();
+        if (fy && fy.closureVars.length)
+        {
+            /* fy needs a closure if it has closureVars[],
+             * because the frame pointer in the closure will be accessed.
+             */
+            fy.requiresClosure = true;
+        }
+    }
+}
+
+/********
+ * Given a nested function f inside a function outerFunc, check
+ * if any sibling callers of f have escaped. If so, mark
+ * all the enclosing functions as needing closures.
+ * This is recursive: we need to check the callers of our siblings.
+ * Note that nested functions can only call lexically earlier nested
+ * functions, so loops are impossible.
+ * Params:
+ *      f = inner function (nested within outerFunc)
+ *      outerFunc = outer function
+ *      p = for internal recursion use
+ * Returns:
+ *      true if any closures were needed
+ */
+bool checkEscapingSiblings(FuncDeclaration f, FuncDeclaration outerFunc, void* p = null)
+{
+    static struct PrevSibling
+    {
+        PrevSibling* p;
+        FuncDeclaration f;
+    }
+
+    if (f.computedEscapingSiblings)
+        return f.hasEscapingSiblings;
+
+    PrevSibling ps;
+    ps.p = cast(PrevSibling*)p;
+    ps.f = f;
+
+    //printf("checkEscapingSiblings(f = %s, outerfunc = %s)\n", f.toChars(), outerFunc.toChars());
+    bool bAnyClosures = false;
+    for (size_t i = 0; i < f.siblingCallers.length; ++i)
+    {
+        FuncDeclaration g = f.siblingCallers[i];
+        if (g.isThis() || g.tookAddressOf)
+        {
+            markAsNeedingClosure(g, outerFunc);
+            bAnyClosures = true;
+        }
+
+        for (auto parent = g.toParentP(outerFunc); parent && parent !is outerFunc; parent = parent.toParentP(outerFunc))
+        {
+            // A parent of the sibling had its address taken.
+            // Assume escaping of parent affects its children, so needs propagating.
+            // see https://issues.dlang.org/show_bug.cgi?id=19679
+            FuncDeclaration parentFunc = parent.isFuncDeclaration;
+            if (parentFunc && parentFunc.tookAddressOf)
+            {
+                markAsNeedingClosure(parentFunc, outerFunc);
+                bAnyClosures = true;
+            }
+        }
+
+        PrevSibling* prev = cast(PrevSibling*)p;
+        while (1)
+        {
+            if (!prev)
+            {
+                bAnyClosures |= checkEscapingSiblings(g, outerFunc, &ps);
+                break;
+            }
+            if (prev.f == g)
+                break;
+            prev = prev.p;
+        }
+    }
+    f.hasEscapingSiblings = bAnyClosures;
+    f.computedEscapingSiblings = true;
+    //printf("\t%d\n", bAnyClosures);
+    return bAnyClosures;
+}
+
+/*******************************
+ * Look at all the variables in this function that are referenced
+ * by nested functions, and determine if a closure needs to be
+ * created for them.
+ */
+bool needsClosure(FuncDeclaration fd)
+{
+    /* Need a closure for all the closureVars[] if any of the
+     * closureVars[] are accessed by a
+     * function that escapes the scope of this function.
+     * We take the conservative approach and decide that a function needs
+     * a closure if it:
+     * 1) is a virtual function
+     * 2) has its address taken
+     * 3) has a parent that escapes
+     * 4) calls another nested function that needs a closure
+     *
+     * Note that since a non-virtual function can be called by
+     * a virtual one, if that non-virtual function accesses a closure
+     * var, the closure still has to be taken. Hence, we check for isThis()
+     * instead of isVirtual(). (thanks to David Friedman)
+     *
+     * When the function returns a local struct or class, `requiresClosure`
+     * is already set to `true` upon entering this function when the
+     * struct/class refers to a local variable and a closure is needed.
+     */
+    //printf("FuncDeclaration::needsClosure() %s\n", toPrettyChars());
+
+    if (fd.requiresClosure)
+        goto Lyes;
+
+    for (size_t i = 0; i < fd.closureVars.length; i++)
+    {
+        VarDeclaration v = fd.closureVars[i];
+        //printf("\tv = %s\n", v.toChars());
+
+        for (size_t j = 0; j < v.nestedrefs.length; j++)
+        {
+            FuncDeclaration f = v.nestedrefs[j];
+            assert(f != fd);
+
+            /* __require and __ensure will always get called directly,
+             * so they never make outer functions closure.
+             */
+            if (f.ident == Id.require || f.ident == Id.ensure)
+                continue;
+
+            //printf("\t\tf = %p, %s, isVirtual=%d, isThis=%p, tookAddressOf=%d\n", f, f.toChars(), f.isVirtual(), f.isThis(), f.tookAddressOf);
+
+            /* Look to see if f escapes. We consider all parents of f within
+             * this, and also all siblings which call f; if any of them escape,
+             * so does f.
+             * Mark all affected functions as requiring closures.
+             */
+            for (Dsymbol s = f; s && s != fd; s = s.toParentP(fd))
+            {
+                FuncDeclaration fx = s.isFuncDeclaration();
+                if (!fx)
+                    continue;
+                if (fx.isThis() || fx.tookAddressOf)
+                {
+                    //printf("\t\tfx = %s, isVirtual=%d, isThis=%p, tookAddressOf=%d\n", fx.toChars(), fx.isVirtual(), fx.isThis(), fx.tookAddressOf);
+
+                    /* Mark as needing closure any functions between this and f
+                     */
+                    markAsNeedingClosure((fx == f) ? fx.toParentP(fd) : fx, fd);
+
+                    fd.requiresClosure = true;
+                }
+
+                /* We also need to check if any sibling functions that
+                 * called us, have escaped. This is recursive: we need
+                 * to check the callers of our siblings.
+                 */
+                if (checkEscapingSiblings(fx, fd))
+                    fd.requiresClosure = true;
+
+                /* https://issues.dlang.org/show_bug.cgi?id=12406
+                 * Iterate all closureVars to mark all descendant
+                 * nested functions that access to the closing context of this function.
+                 */
+            }
+        }
+    }
+    if (fd.requiresClosure)
+        goto Lyes;
+
+    return false;
+
+Lyes:
+    return true;
+}
+
 /***********************************************
  * Check all return statements for a function to verify that returning
  * using NRVO is possible.
@@ -2984,7 +3580,7 @@ extern (D) void checkMain(FuncDeclaration fd)
 extern (D) bool checkNRVO(FuncDeclaration fd)
 {
     //printf("checkNRVO*() %s\n", fd.ident.toChars());
-    if (!fd.isNRVO() || fd.returns is null)
+    if (!fd.isNRVO || fd.returns is null)
         return false;
 
     auto tf = fd.type.toTypeFunction();
@@ -3006,12 +3602,12 @@ extern (D) bool checkNRVO(FuncDeclaration fd)
                     return false;
                 if (v.nestedrefs.length && fd.needsClosure())
                     return false;
+
                 // don't know if the return storage is aligned
-                version (MARS)
-                {
-                    if (fd.alignSectionVars && (*fd.alignSectionVars).contains(v))
-                        return false;
-                }
+                mixin alignSectionVarsContains;
+                if (isAlignSectionVar(v))
+                    return false;
+
                 // The variable type needs to be equivalent to the return type.
                 if (!v.type.equivalent(tf.next))
                     return false;
@@ -3130,7 +3726,7 @@ extern (D) PURE isPureBypassingInference(FuncDeclaration fd)
  * Returns:
  *      true if reference to `tb` is isolated from reference to `ta`
  */
-bool traverseIndirections(Type ta, Type tb)
+private bool traverseIndirections(Type ta, Type tb)
 {
     //printf("traverseIndirections(%s, %s)\n", ta.toChars(), tb.toChars());
 
@@ -3221,7 +3817,7 @@ bool traverseIndirections(Type ta, Type tb)
  *    which could have come from the function's parameters, mutable
  *    globals, or uplevel functions.
  */
-bool isTypeIsolatedIndirect(FuncDeclaration fd, Type t)
+private bool isTypeIsolatedIndirect(FuncDeclaration fd, Type t)
 {
     //printf("isTypeIsolatedIndirect(t: %s)\n", t.toChars());
     assert(t);
@@ -3292,7 +3888,7 @@ bool isTypeIsolatedIndirect(FuncDeclaration fd, Type t)
     // The 'this' reference is a parameter, too
     if (AggregateDeclaration ad = fd.isCtorDeclaration() ? null : fd.isThis())
     {
-        Type tthis = ad.getType().addMod(tf.mod);
+        Type tthis = dmd.dsymbolsem.getType(ad).addMod(tf.mod);
         //printf("\ttthis = %s\n", tthis.toChars());
         if (!traverseIndirections(tthis, t))
             return false;
@@ -3475,14 +4071,14 @@ extern (D) int overloadApply(Dsymbol fstart, scope int delegate(Dsymbol) dg, Sco
 
     int overloadApplyRecurse(Dsymbol fstart, scope int delegate(Dsymbol) dg, Scope* sc)
     {
-        // Detect cyclic calls.
-        if (visited.contains(fstart))
-            return 0;
-        visited.push(fstart);
-
         Dsymbol next;
         for (auto d = fstart; d; d = next)
         {
+            // Detect cyclic calls.
+            if (visited.contains(d))
+                return 0;
+            visited.push(d);
+
             import dmd.access : checkSymbolAccess;
             if (auto od = d.isOverDeclaration())
             {
@@ -3539,6 +4135,13 @@ extern (D) int overloadApply(Dsymbol fstart, scope int delegate(Dsymbol) dg, Sco
             }
             else if (auto td = d.isTemplateDeclaration())
             {
+                // Sometimes funcroot is not in the .overnext chain
+                // in such case we have to recurse into it
+                if(td.funcroot)
+                {
+                    if (int r = overloadApplyRecurse(td.funcroot, dg, sc))
+                        return r;
+                }
                 if (int r = dg(td))
                     return r;
                 next = td.overnext;
@@ -3565,4 +4168,158 @@ extern (D) int overloadApply(Dsymbol fstart, scope int delegate(Dsymbol) dg, Sco
         return 0;
     }
     return overloadApplyRecurse(fstart, dg, sc);
+}
+
+Dsymbol isUnique(OverDeclaration od)
+{
+    Dsymbol result = null;
+    overloadApply(od.aliassym, (Dsymbol s)
+    {
+        if (result)
+        {
+            result = null;
+            return 1; // ambiguous, done
+        }
+        else
+        {
+            result = s;
+            return 0;
+        }
+    });
+    return result;
+}
+
+/************************************
+* Check to see if this variable is actually in an enclosing function
+* rather than the current one.
+* Update nestedrefs[], closureVars[] and outerVars[].
+* Returns: true if error occurs.
+*/
+extern (D) bool checkNestedReference(VarDeclaration vd, Scope* sc, Loc loc)
+{
+    //printf("VarDeclaration::checkNestedReference() %s\n", toChars());
+    if (sc.intypeof == 1 || sc.ctfe)
+        return false;
+    if (!vd.parent || vd.parent == sc.parent)
+        return false;
+    if (vd.isDataseg() || (vd.storage_class & STC.manifest))
+        return false;
+
+    // The current function
+    FuncDeclaration fdthis = sc.parent.isFuncDeclaration();
+    if (!fdthis)
+        return false; // out of function scope
+
+    Dsymbol p = vd.toParent2();
+
+    // Function literals from fdthis to p must be delegates
+    ensureStaticLinkTo(fdthis, p);
+
+    // The function that this variable is in
+    FuncDeclaration fdv = p.isFuncDeclaration();
+    if (!fdv || fdv == fdthis)
+        return false;
+
+    //printf("\tfdv = %s\n", fdv.toChars());
+    //printf("\tfdthis = %s\n", fdthis.toChars());
+    if (loc.isValid())
+    {
+        if (fdthis.getLevelAndCheck(loc, sc, fdv, vd) == LevelError)
+            return true;
+    }
+
+    if (!sc.intypeof && !sc.traitsCompiles &&
+        // https://issues.dlang.org/show_bug.cgi?id=17605
+        (fdv.skipCodegen || !fdthis.skipCodegen))
+    {
+        // Add fdthis to nestedrefs[] if not already there
+        if (!vd.nestedrefs.contains(fdthis))
+            vd.nestedrefs.push(fdthis);
+
+        // Add this VarDeclaration to fdv.closureVars[] if not already there
+        if (!fdv.closureVars.contains(vd))
+            fdv.closureVars.push(vd);
+    }
+
+    if (!fdthis.outerVars.contains(vd))
+        fdthis.outerVars.push(vd);
+
+    //printf("fdthis is %s\n", fdthis.toChars());
+    //printf("var %s in function %s is nested ref\n", toChars(), fdv.toChars());
+    // __dollar creates problems because it isn't a real variable
+    // https://issues.dlang.org/show_bug.cgi?id=3326
+    if (vd.ident == Id.dollar)
+    {
+        .error(loc, "cannnot use `$` inside a function literal");
+        return true;
+    }
+    if (vd.ident == Id.withSym) // https://issues.dlang.org/show_bug.cgi?id=1759
+    {
+        ExpInitializer ez = vd._init.isExpInitializer();
+        assert(ez);
+        Expression e = ez.exp;
+        if (e.op == EXP.construct || e.op == EXP.blit)
+            e = (cast(AssignExp)e).e2;
+        return lambdaCheckForNestedRef(e, sc);
+    }
+
+    return false;
+}
+
+/**********************
+ * Check to see if array bounds checking code has to be generated
+ *
+ * Params:
+ *  fd = function for which code is to be generated
+ * Returns:
+ *  true if do array bounds checking for the given function
+ */
+bool arrayBoundsCheck(FuncDeclaration fd)
+{
+    final switch (global.params.useArrayBounds)
+    {
+    case CHECKENABLE.off:
+        return false;
+    case CHECKENABLE.on:
+        return true;
+    case CHECKENABLE.safeonly:
+        if (fd)
+        {
+            Type t = fd.type;
+            if (t.isTypeFunction() && t.isTypeFunction().trust == TRUST.safe)
+                return true;
+        }
+        return false;
+    case CHECKENABLE._default:
+        assert(0);
+    }
+}
+
+/**********************
+ * Check to see if null dereference checking code has to be generated
+ *
+ * Params:
+ *  fd = function for which code is to be generated
+ * Returns:
+ *  true if do null dereference checking for the given function
+ */
+bool nullDerefCheck(FuncDeclaration fd)
+{
+    final switch (global.params.useNullCheck)
+    {
+        case CHECKENABLE.off:
+            return false;
+        case CHECKENABLE.on:
+            return true;
+        case CHECKENABLE.safeonly:
+            if (fd)
+            {
+                Type t = fd.type;
+                if (t.isTypeFunction() && t.isTypeFunction().trust == TRUST.safe)
+                    return true;
+            }
+            return false;
+        case CHECKENABLE._default:
+            assert(0);
+    }
 }

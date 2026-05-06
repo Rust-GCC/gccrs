@@ -1,3 +1,6 @@
+.. role:: ada(code)
+   :language: ada
+
 .. _GNAT_Language_Extensions:
 
 ************************
@@ -1796,70 +1799,54 @@ configuration that does not exist in standard Ada.
 Destructors
 -----------
 
-The ``Destructor`` aspect can be applied to any record type, tagged or not.
-It must denote a primitive of the type that is a procedure with one parameter
-of the type and of mode ``in out``:
+The :ada:`Destructor` extension adds a new finalization mechanism that
+significantly differs standard Ada in how it interacts with type derivation.
+
+New syntax is introduced to make it possible to define "destructors" for record
+types, tagged or untagged. Here's a simple example:
 
 .. code-block:: ada
 
-   type T is record
-      ...
-   end record with Destructor => Foo;
+   package P is
+      type T is record
+         ...
+      end record;
 
-   procedure Foo (X : in out T);
-
-This is equivalent to the following code that uses ``Finalizable``:
-
-.. code-block:: ada
-
-   type T is record
-      ...
-   end record with Finalizable => (Finalize => Foo);
-
-   procedure Foo (X : in out T);
-
-Unlike ``Finalizable``, however, ``Destructor`` can be specified on a derived
-type. And when it is, the effect of the aspect combines with the destructors of
-the parent type. Take, for example:
+      procedure T'Destructor (X : in out T);
+   end P;
 
 .. code-block:: ada
 
-   type T1 is record
-      ...
-   end record with Destructor => Foo;
+   package body P is
+      procedure T'Destructor (X : in out T) is
+      begin
+         ...
+      end T'Destructor;
+   end P;
 
-   procedure Foo (X : in out T1);
+Like :ada:`Finalize` procedures, destructors are called on objects just before they
+are destroyed. But destructors are more flexible in how they can used with derived
+types. With standard Ada finalization, when you derive from a finalizable type,
+you must either inherit the :ada:`Finalize` procedure or override it completely.
 
-   type T2 is new T1 with Destructor => Bar;
-
-   procedure Bar (X : in out T2);
-
-Here, when an object of type ``T2`` is finalized, a call to ``Bar``
-will be performed and it will be followed by a call to ``Foo``.
-
-The ``Destructor`` aspect comes with a legality rule: if a primitive procedure
-of a type is denoted by a ``Destructor`` aspect specification, it is illegal to
-override this procedure in a derived type. For example, the following is illegal:
+Destructors work differently. You can define a destructor for a type derived from
+a parent type that also has a destructor, and then when objects of the derived type
+are finalized, both destructors will be called. For example:
 
 .. code-block:: ada
 
    type T1 is record
       ...
-   end record with Destructor => Foo;
+   end record;
 
-   procedure Foo (X : in out T1);
+   procedure T1'Destructor (X : in out T1);
 
    type T2 is new T1;
 
-   overriding
-   procedure Foo (X : in out T2); -- Error here
+   procedure T2'Destructor (X : in out T2);
 
-It is possible to specify ``Destructor`` on the completion of a private type,
-but there is one more restriction in that case: the denoted primitive must
-be private to the enclosing package. This is necessary due to the previously
-mentioned legality rule, to prevent breaking the privacy of the type when
-imposing that rule on outside types that derive from the private view of the
-type.
+When an object of type :ada:`T2` is finalized, there will be first a call to
+:ada:`T2'Destructor`, and then a call to :ada:`T1'Destructor` on the object.
 
 Structural Generic Instantiation
 --------------------------------
@@ -1901,16 +1888,25 @@ The generic unit shall not take a generic formal object of mode ``in out``.
 If the generic unit takes a generic formal object of mode ``in``, then the
 corresponding generic actual parameter shall be a static expression.
 
-A ``structural_generic_instance_name`` shall not be present in a library
-unit if the structural instance is also a library unit and has a semantic
-dependence on the former.
+A ``structural_generic_instance_name`` for a generic package shall not be
+present in a library unit if the structural instance is also a library unit
+and has a semantic dependence on the former.
+
+For a generic subprogram, if a local entity of the enclosing library-level
+package is used as an actual and the structural instance would have a semantic
+dependence on the package, the structural instantiation is automatically
+demoted to a local instantiation. In this case, several instances of the
+generic subprogram may be present in a single partition, unless
+whole-partition optimization is performed (e.g., via LTO).
 
 Static Semantics
 ^^^^^^^^^^^^^^^^
 
 A ``structural_generic_instance_name`` denotes the instance that is the
 product of the structural instantiation of a generic unit on the specified
-actual parameters. This instance is unique to a partition.
+actual parameters. This instance is unique to a partition, except when a
+generic subprogram instantiation is automatically demoted to a local
+instantiation as described under Legality Rules.
 
 Example:
 
@@ -1950,8 +1946,9 @@ Note that the following example is illegal:
 
 The reason is that ``Ada.Containers.Vectors``, ``Positive`` and ``Q.T`` being
 library-level entities, the structural instance ``Ada.Containers.Vectors(Positive,T)`` is a library unit with a dependence
-on ``Q`` and, therefore, cannot be referenced from within ``Q``. The simple
-way out is to declare a traditional instantiation in this case:
+on ``Q`` and, therefore, cannot be referenced from within ``Q``. This
+restriction applies to structural instantiations of generic packages. The
+simple way out is to declare a traditional instantiation in this case:
 
 .. code-block:: ada
 
@@ -1983,6 +1980,35 @@ But the following example is legal:
 
 because the structural instance ``Ada.Containers.Vectors(Positive,T)`` is
 not a library unit.
+
+For generic subprograms, the restriction does not apply: if a local entity of
+a library-level package is used as an actual, the structural instantiation is
+automatically demoted to a local instantiation. For example:
+
+.. code-block:: ada
+
+   with Ada.Unchecked_Deallocation;
+
+   package Q is
+      type T is record
+         I : Integer;
+      end record;
+
+      type T_Access is access T;
+   end Q;
+
+   package body Q is
+      procedure Free_T (X : in out T_Access) is
+      begin
+         Ada.Unchecked_Deallocation(T, T_Access)(X);
+      end Free_T;
+   end Q;
+
+is legal: since ``T`` and ``T_Access`` are local entities of ``Q``, the
+structural instantiation of ``Ada.Unchecked_Deallocation`` is demoted to a
+local instantiation rather than producing an error. Note that the uniqueness
+guarantee no longer holds in this case and several instances of the generic
+subprogram may be present in a single partition.
 
 The first example can be rewritten in a less verbose manner:
 

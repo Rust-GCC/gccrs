@@ -1,3 +1,147 @@
+2026-04-23  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* config/i386/t-slibgcc-cygming (SHLIB_LINK): Add $(LDFLAGS).
+
+2026-04-17  Andre Vieira  <andre.simoesdiasvieira@arm.com>
+
+	* config/arm/sfp-exceptions.c: New file.
+	* config/arm/sfp-machine.h: Define FP_HANDLE_EXCEPTIONS, FP_EX_*
+	MACROs, _FP_DECL_EX, FP_ROUNDMODE, FP_INIT_ROUNDMODE, FP_RND_* MACROs
+	and declare __sfp_handle_exceptions.
+	* config/arm/t-softfp: Add sfp-exceptions.c to LIB2ADD.
+
+2026-04-15  Torbjörn SVENSSON  <torbjorn.svensson@foss.st.com>
+
+	* libgcov-driver-system.c (gcov_exit_open_gcda_file): Handle
+	potential NULL value from malloc.
+
+2026-03-30  Saurabh Jha  <saurabh.jha@arm.com>
+	    Evgeny Karpov  <evgeny.karpov@arm.com>
+
+	* config.host: Disable soft floating point.
+
+2026-03-28  Alexandre Oliva  <oliva@adacore.com>
+
+	* config/gthr-vxworks-tls.c (TLS_DELETE_HOOK_ARG): Type-cast
+	NULL constant to avoid warning.
+	* config/t-vxworks (LIBGCC2_CFLAGS): Tolerate unused-parameter
+	and discarded-qualifiers errors.
+
+2026-03-25  Alexandre Oliva  <oliva@adacore.com>
+
+	* config/gthr-vxworks.h (__GTHREAD_ALWAYS_INLINE,
+	__GTHREAD_INLINE): Copy from gthr-posix.h.  Replace static
+	inline with __GTHREAD_INLINE.
+
+2026-03-13  Andre Vieira  <andre.simoesdiasvieira@arm.com>
+
+	* config/arm/libgcc-bpabi.ver: Add new symbols.
+	* config/arm/t-softfp: Enable use of floatbitinthf and pass necessary options to build fp16.
+
+2026-03-06  Saurabh Jha  <saurabh.jha@arm.com>
+	    Evgeny Karpov  <evgeny.karpov@arm.com>
+
+	* config.host: Set tmake_eh_file for aarch64-*-mingw* and update
+	it for x86_64-*-mingw* and x86_64-*-cygwin*.
+	* config/i386/t-seh-eh: Move to...
+	* config/mingw/t-seh-eh: ...here.
+	* config/aarch64/t-no-eh: Removed.
+
+2026-03-05  Alice Carlotti  <alice.carlotti@arm.com>
+
+	PR target/124333
+	* config/aarch64/cpuinfo.c: Define __aarch64_cpu_features
+	unconditionally.
+
+2026-02-23  Alice Carlotti  <alice.carlotti@arm.com>
+
+	* config/aarch64/libgcc-sme.ver: Add __arm_get_current_vg.
+	* config/aarch64/t-aarch64: Add new source file.
+	* config/aarch64/__arm_get_current_vg.S: New file.
+
+2026-02-06  Torbjörn SVENSSON  <torbjorn.svensson@foss.st.com>
+
+	* config/i386/gthr-win32.h: Replace CONST_CAST2 with expanded
+	expression where used.
+	* config/pa/gthr-dce.h: Likewise.
+
+2026-01-24  Xin Wang  <wangxinw@hygon.cn>
+
+	* sync.c: Replace UOItype with UTItype and use mode(TI) pass 16, not
+	8, to DEFINE macro.
+
+2026-01-13  Jakub Jelinek  <jakub@redhat.com>
+
+	PR libstdc++/123396
+	* config/t-slibgcc (SHLIB_ASNEEDED_SOLINK,
+	SHLIB_MAKE_ASNEEDED_SOLINK, SHLIB_INSTALL_ASNEEDED_SOLINK): New
+	vars.
+	(SHLIB_LINK): Include $(SHLIB_MAKE_ASNEEDED_SOLINK).
+	(SHLIB_INSTALL): Include $(SHLIB_INSTALL_ASNEEDED_SOLINK).
+
+2026-01-13  Kito Cheng  <kito.cheng@sifive.com>
+
+	PR target/117581
+	* config/riscv/libgcc-riscv.ver: New file.
+	* config/riscv/t-elf (SHLIB_MAPFILES): Add libgcc-riscv.ver.
+	* config/riscv/t-softfp32 (softfp_extras): Add floatbitinttf and
+	fixtfbitint.
+
+2026-01-11  Jerome Guitton  <guitton@adacore.com>
+
+	* config/gthr-vxworks.h: Remove #include of tickLib.h.
+
+2026-01-10  Stefan Schulze Frielinghaus  <stefansf@gcc.gnu.org>
+
+	* config.host: Include s390/t-float16.
+	* config/s390/libgcc-glibc.ver: Export symbols
+	__trunc{sf,df,tf}hf2, __extendhf{sf,df,tf}2, __fix{,uns}hfti,
+	__float{,un}tihf, __floatbitinthf.
+	* config/s390/t-softfp: Add to softfp_extras instead of setting
+	it.
+	* configure: Regenerate.
+	* configure.ac: Support float16 only for 64-bit targets z10 and
+	newer.
+	* config/s390/_dpd_dd_to_hf.c: New file.
+	* config/s390/_dpd_hf_to_dd.c: New file.
+	* config/s390/_dpd_hf_to_sd.c: New file.
+	* config/s390/_dpd_hf_to_td.c: New file.
+	* config/s390/_dpd_sd_to_hf.c: New file.
+	* config/s390/_dpd_td_to_hf.c: New file.
+	* config/s390/t-float16: New file.
+
+2026-01-07  Xinhui Yang  <cyan@cyano.uk>
+
+	* config.host (ia64): include unwind-compat only if the system
+	libunwind is being used.
+	* config/ia64/t-linux-libunwind: include libgcc symver definition
+	for libgcc symbols, since it bears the same role as t-linux
+	(except libunwind); Include fde-glibc.c since the unwind
+	implementation requires _Unwind_FindTableEntry in this file.
+	* config/ia64/unwind-ia64.c: protect _Unwind_FindTableEntry inside
+	inihbit_libc ifndefs to allow it to build with newlib or
+	without proper headers.
+
+2026-01-07  Vladimir Vishniakov  <volodia@hex-rays.com>
+
+	* config/v850/lib1funcs.S (__return_r26_r31): Use compact
+	add form to adjust stack pointer.
+	(__save_r27_r31): Likewise.
+	(__save_r29_r31): Likewise.
+	(__save_r31): Likewise.
+	(__return_r27_r31): Likewise.
+	(__return_r28_r31): Likewise.
+	(__return_r29_r31): Likewise.
+	(__return_r31): Likewise.
+	(__return_r2_r31): Likewise.
+
+2026-01-07  Vladimir Vishniakov  <volodia@hex-rays.com>
+
+	PR target/123403
+	* config/v850/lib1funcs.S (__return_r25_r29): Fix ! __EP__ clause to
+	use SP, not EP.
+	(__return_r2_r31): Fix offsets to match store offsets.
+
 2025-12-15  Peter Damianov  <peter0x44@disroot.org>
 
 	* config/score/crti.S: Delete.

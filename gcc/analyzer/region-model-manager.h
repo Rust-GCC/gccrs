@@ -77,7 +77,9 @@ public:
 					       const svalue *base_svalue,
 					       const svalue *iter_svalue);
   const svalue *get_or_create_compound_svalue (tree type,
-					       const binding_map &map);
+					       concrete_binding_map &&map);
+  const svalue *get_or_create_compound_svalue (tree type,
+					       const concrete_binding_map &map);
   const svalue *get_or_create_conjured_svalue (tree type, const gimple *stmt,
 					       const region *id_reg,
 					       const conjured_purge &p,
@@ -181,6 +183,9 @@ private:
   bool too_complex_p (const complexity &c) const;
   bool reject_if_too_complex (svalue *sval);
 
+  const svalue *
+  maybe_invert_comparison_in_unaryop (tree type,
+				      const binop_svalue *binop);
   const svalue *maybe_fold_unaryop (tree type, enum tree_code op,
 				    const svalue *arg);
   const svalue *maybe_fold_sub_svalue (tree type,

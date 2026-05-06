@@ -1186,33 +1186,33 @@ namespace __detail
   inline path
   path::stem() const
   {
-    auto ext = _M_find_extension();
-    if (ext.first && ext.second != 0)
-      return path{ext.first->substr(0, ext.second)};
+    auto __ext = _M_find_extension();
+    if (__ext.first && __ext.second != 0)
+      return path{__ext.first->substr(0, __ext.second)};
     return {};
   }
 
   inline path
   path::extension() const
   {
-    auto ext = _M_find_extension();
-    if (ext.first && ext.second != string_type::npos)
-      return path{ext.first->substr(ext.second)};
+    auto __ext = _M_find_extension();
+    if (__ext.first && __ext.second != string_type::npos)
+      return path{__ext.first->substr(__ext.second)};
     return {};
   }
 
   inline bool
   path::has_stem() const
   {
-    auto ext = _M_find_extension();
-    return ext.first && ext.second != 0;
+    auto __ext = _M_find_extension();
+    return __ext.first && __ext.second != 0;
   }
 
   inline bool
   path::has_extension() const
   {
-    auto ext = _M_find_extension();
-    return ext.first && ext.second != string_type::npos;
+    auto __ext = _M_find_extension();
+    return __ext.first && __ext.second != string_type::npos;
   }
 
   inline bool

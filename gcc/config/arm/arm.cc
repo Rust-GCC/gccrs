@@ -839,6 +839,12 @@ static const scoped_attribute_specs *const arm_attribute_table[] =
 
 #undef TARGET_VECTORIZE_GET_MASK_MODE
 #define TARGET_VECTORIZE_GET_MASK_MODE arm_get_mask_mode
+
+#undef TARGET_FLAGS_REGNUM
+#define TARGET_FLAGS_REGNUM CC_REGNUM
+
+#undef TARGET_C_BITINT_TYPE_INFO
+#define TARGET_C_BITINT_TYPE_INFO arm_bitint_type_info
 
 /* Obstack for minipool constant handling.  */
 static struct obstack minipool_obstack;
@@ -2447,7 +2453,7 @@ enum tls_reloc {
 inline static int
 arm_constant_limit (bool size_p)
 {
-  return size_p ? 1 : current_tune->constant_limit;
+  return size_p ? 1 : MAX (1, current_tune->constant_limit);
 }
 
 /* Emit an insn that's a simple single-set.  Both the operands must be known
@@ -5039,7 +5045,7 @@ arm_gen_constant (enum rtx_code code, machine_mode mode, rtx cond,
   int set_zero_bit_copies = 0;
   int insns = 0, neg_insns, inv_insns;
   unsigned HOST_WIDE_INT temp1, temp2;
-  unsigned HOST_WIDE_INT remainder = val & 0xffffffff;
+  unsigned HOST_WIDE_INT remainder = val & HOST_WIDE_INT_UC (0xffffffff);
   struct four_ints *immediates;
   struct four_ints pos_immediates, neg_immediates, inv_immediates;
 
@@ -5057,7 +5063,7 @@ arm_gen_constant (enum rtx_code code, machine_mode mode, rtx cond,
       break;
 
     case IOR:
-      if (remainder == 0xffffffff)
+      if (remainder == HOST_WIDE_INT_UC (0xffffffff))
 	{
 	  if (generate)
 	    emit_constant_insn (cond,
@@ -5084,7 +5090,7 @@ arm_gen_constant (enum rtx_code code, machine_mode mode, rtx cond,
 	    emit_constant_insn (cond, gen_rtx_SET (target, const0_rtx));
 	  return 1;
 	}
-      if (remainder == 0xffffffff)
+      if (remainder == HOST_WIDE_INT_UC (0xffffffff))
 	{
 	  if (reload_completed && rtx_equal_p (target, source))
 	    return 0;
@@ -5096,7 +5102,7 @@ arm_gen_constant (enum rtx_code code, machine_mode mode, rtx cond,
       break;
 
     case XOR:
-      if (remainder == 0)
+      if (remainder == HOST_WIDE_INT_0U)
 	{
 	  if (reload_completed && rtx_equal_p (target, source))
 	    return 0;
@@ -5105,7 +5111,7 @@ arm_gen_constant (enum rtx_code code, machine_mode mode, rtx cond,
 	  return 1;
 	}
 
-      if (remainder == 0xffffffff)
+      if (remainder == HOST_WIDE_INT_UC (0xffffffff))
 	{
 	  if (generate)
 	    emit_constant_insn (cond,
@@ -5119,7 +5125,7 @@ arm_gen_constant (enum rtx_code code, machine_mode mode, rtx cond,
     case MINUS:
       /* We treat MINUS as (val - source), since (source - val) is always
 	 passed as (source + (-val)).  */
-      if (remainder == 0)
+      if (remainder == HOST_WIDE_INT_0U)
 	{
 	  if (generate)
 	    emit_constant_insn (cond,
@@ -5186,7 +5192,7 @@ arm_gen_constant (enum rtx_code code, machine_mode mode, rtx cond,
   /* Count number of leading zeros.  */
   for (i = 31; i >= 0; i--)
     {
-      if ((remainder & (1 << i)) == 0)
+      if ((remainder & (HOST_WIDE_INT_1U << i)) == 0)
 	clear_sign_bit_copies++;
       else
 	break;
@@ -5195,7 +5201,7 @@ arm_gen_constant (enum rtx_code code, machine_mode mode, rtx cond,
   /* Count number of leading 1's.  */
   for (i = 31; i >= 0; i--)
     {
-      if ((remainder & (1 << i)) != 0)
+      if ((remainder & (HOST_WIDE_INT_1U << i)) != 0)
 	set_sign_bit_copies++;
       else
 	break;
@@ -5204,7 +5210,7 @@ arm_gen_constant (enum rtx_code code, machine_mode mode, rtx cond,
   /* Count number of trailing zero's.  */
   for (i = 0; i <= 31; i++)
     {
-      if ((remainder & (1 << i)) == 0)
+      if ((remainder & (HOST_WIDE_INT_1U << i)) == 0)
 	clear_zero_bit_copies++;
       else
 	break;
@@ -5213,7 +5219,7 @@ arm_gen_constant (enum rtx_code code, machine_mode mode, rtx cond,
   /* Count number of trailing 1's.  */
   for (i = 0; i <= 31; i++)
     {
-      if ((remainder & (1 << i)) != 0)
+      if ((remainder & (HOST_WIDE_INT_1U << i)) != 0)
 	set_zero_bit_copies++;
       else
 	break;
@@ -5244,7 +5250,7 @@ arm_gen_constant (enum rtx_code code, machine_mode mode, rtx cond,
 	    }
 	  /* For an inverted constant, we will need to set the low bits,
 	     these will be shifted out of harm's way.  */
-	  temp1 |= (1 << (set_sign_bit_copies - 1)) - 1;
+	  temp1 |= (HOST_WIDE_INT_1U << (set_sign_bit_copies - 1)) - 1;
 	  if (const_ok_for_arm (~temp1))
 	    {
 	      if (generate)
@@ -5266,15 +5272,18 @@ arm_gen_constant (enum rtx_code code, machine_mode mode, rtx cond,
 	{
 	  int topshift = clear_sign_bit_copies & ~1;
 
-	  temp1 = ARM_SIGN_EXTEND ((remainder + (0x00800000 >> topshift))
-				   & (0xff000000 >> topshift));
+	  temp1 = ARM_SIGN_EXTEND ((remainder
+				    + (HOST_WIDE_INT_UC (0x00800000)
+				       >> topshift))
+				   & (HOST_WIDE_INT_UC (0xff000000)
+				      >> topshift));
 
 	  /* If temp1 is zero, then that means the 9 most significant
 	     bits of remainder were 1 and we've caused it to overflow.
 	     When topshift is 0 we don't need to do anything since we
 	     can borrow from 'bit 32'.  */
 	  if (temp1 == 0 && topshift != 0)
-	    temp1 = 0x80000000 >> (topshift - 1);
+	    temp1 = HOST_WIDE_INT_UC (0x80000000) >> (topshift - 1);
 
 	  temp2 = ARM_SIGN_EXTEND (temp1 - remainder);
 
@@ -5299,15 +5308,16 @@ arm_gen_constant (enum rtx_code code, machine_mode mode, rtx cond,
 	 word.  We only look for the simplest cases, to do more would cost
 	 too much.  Be careful, however, not to generate this when the
 	 alternative would take fewer insns.  */
-      if (val & 0xffff0000)
+      if (val & HOST_WIDE_INT_UC (0xffff0000))
 	{
-	  temp1 = remainder & 0xffff0000;
-	  temp2 = remainder & 0x0000ffff;
+	  temp1 = remainder & HOST_WIDE_INT_UC (0xffff0000);
+	  temp2 = remainder & HOST_WIDE_INT_UC (0x0000ffff);
 
 	  /* Overlaps outside this range are best done using other methods.  */
 	  for (i = 9; i < 24; i++)
 	    {
-	      if ((((temp2 | (temp2 << i)) & 0xffffffff) == remainder)
+	      if ((((temp2 | (temp2 << i)) & HOST_WIDE_INT_UC (0xffffffff))
+		   == remainder)
 		  && !const_ok_for_arm (temp2))
 		{
 		  rtx new_src = (subtargets
@@ -5432,7 +5442,8 @@ arm_gen_constant (enum rtx_code code, machine_mode mode, rtx cond,
 
       */
       if (set_zero_bit_copies > 8
-	  && (remainder & ((1 << set_zero_bit_copies) - 1)) == remainder)
+	  && ((remainder & ((HOST_WIDE_INT_1U << set_zero_bit_copies) - 1))
+	      == remainder))
 	{
 	  if (generate)
 	    {
@@ -5490,11 +5501,12 @@ arm_gen_constant (enum rtx_code code, machine_mode mode, rtx cond,
       /* See if two shifts will do 2 or more insn's worth of work.  */
       if (clear_sign_bit_copies >= 16 && clear_sign_bit_copies < 24)
 	{
-	  HOST_WIDE_INT shift_mask = ((0xffffffff
-				       << (32 - clear_sign_bit_copies))
-				      & 0xffffffff);
+	  unsigned HOST_WIDE_INT shift_mask
+	    = ((HOST_WIDE_INT_UC (0xffffffff)
+		<< (32 - clear_sign_bit_copies))
+	       & HOST_WIDE_INT_UC (0xffffffff));
 
-	  if ((remainder | shift_mask) != 0xffffffff)
+	  if ((remainder | shift_mask) != HOST_WIDE_INT_UC (0xffffffff))
 	    {
 	      HOST_WIDE_INT new_val
 	        = ARM_SIGN_EXTEND (remainder | shift_mask);
@@ -5528,9 +5540,10 @@ arm_gen_constant (enum rtx_code code, machine_mode mode, rtx cond,
 
       if (clear_zero_bit_copies >= 16 && clear_zero_bit_copies < 24)
 	{
-	  HOST_WIDE_INT shift_mask = (1 << clear_zero_bit_copies) - 1;
+	  unsigned HOST_WIDE_INT shift_mask
+	    = (HOST_WIDE_INT_1U << clear_zero_bit_copies) - 1;
 
-	  if ((remainder | shift_mask) != 0xffffffff)
+	  if ((remainder | shift_mask) != HOST_WIDE_INT_UC (0xffffffff))
 	    {
 	      HOST_WIDE_INT new_val
 	        = ARM_SIGN_EXTEND (remainder | shift_mask);
@@ -5578,13 +5591,17 @@ arm_gen_constant (enum rtx_code code, machine_mode mode, rtx cond,
     insns = optimal_immediate_sequence (code, remainder, &pos_immediates);
 
   if (can_negate)
-    neg_insns = optimal_immediate_sequence (code, (-remainder) & 0xffffffff,
+    neg_insns = optimal_immediate_sequence (code,
+					    (-remainder
+					     & HOST_WIDE_INT_UC (0xffffffff)),
 					    &neg_immediates);
   else
     neg_insns = 99;
 
   if (can_invert || final_invert)
-    inv_insns = optimal_immediate_sequence (code, remainder ^ 0xffffffff,
+    inv_insns = optimal_immediate_sequence (code,
+					    (remainder
+					     ^ HOST_WIDE_INT_UC (0xffffffff)),
 					    &inv_immediates);
   else
     inv_insns = 99;
@@ -5680,7 +5697,7 @@ arm_const_double_prefer_rsbs_rsc (rtx op)
   if (TARGET_THUMB || !CONST_INT_P (op))
     return false;
   HOST_WIDE_INT hi, lo;
-  lo = UINTVAL (op) & 0xffffffffULL;
+  lo = UINTVAL (op) & HOST_WIDE_INT_UC (0xffffffff);
   hi = UINTVAL (op) >> 32;
   return const_ok_for_arm (lo) && const_ok_for_arm (hi);
 }
@@ -6116,6 +6133,8 @@ arm_return_in_memory (const_tree type, const_tree fntype)
 	 We don't care about which register here, so we can short-cut
 	 some of the detail.  */
       if (!AGGREGATE_TYPE_P (type)
+	  /* A _BitInt(N) for N <= 64 is a simple, non-aggregate type.  */
+	  && !(TREE_CODE (type) == BITINT_TYPE && size > 8)
 	  && TREE_CODE (type) != VECTOR_TYPE
 	  && TREE_CODE (type) != COMPLEX_TYPE)
 	return false;
@@ -6145,8 +6164,10 @@ arm_return_in_memory (const_tree type, const_tree fntype)
   if (TREE_CODE (type) == VECTOR_TYPE)
     return (size < 0 || size > (4 * UNITS_PER_WORD));
 
-  if (!AGGREGATE_TYPE_P (type) &&
-      (TREE_CODE (type) != VECTOR_TYPE))
+  if (!AGGREGATE_TYPE_P (type)
+      /* A _BitInt(N) for N <= 64 is a simple, non-aggregate type.  */
+      && !(TREE_CODE (type) == BITINT_TYPE && size > 8)
+      && (TREE_CODE (type) != VECTOR_TYPE))
     /* All simple types are returned in registers.  */
     return false;
 
@@ -6334,9 +6355,9 @@ arm_get_pcs_model (const_tree type, const_tree decl ATTRIBUTE_UNUSED)
 	  /* Local functions never leak outside this compilation unit,
 	     so we are free to use whatever conventions are
 	     appropriate.  */
-	  /* FIXME: remove CONST_CAST_TREE when cgraph is constified.  */
+	  /* FIXME: remove const_cast<tree> when cgraph is constified.  */
 	  cgraph_node *local_info_node
-	    = cgraph_node::local_info_node (CONST_CAST_TREE (decl));
+	    = cgraph_node::local_info_node (const_cast<tree> (decl));
 	  if (local_info_node && local_info_node->local)
 	    return ARM_PCS_AAPCS_LOCAL;
 	}
@@ -7205,6 +7226,14 @@ arm_needs_doubleword_align (machine_mode mode, const_tree type)
   if (!type)
     return GET_MODE_ALIGNMENT (mode) > PARM_BOUNDARY;
 
+  /* For any _BitInt(N) where N > 32 the ABI demands double word alignment.  */
+  if (TREE_CODE (type) == BITINT_TYPE)
+    {
+      if (int_size_in_bytes (type) > 4)
+	return 1;
+      return 0;
+    }
+
   /* Scalar and vector types: Use natural alignment, i.e. of base type.  */
   if (!AGGREGATE_TYPE_P (type))
     return TYPE_ALIGN (TYPE_MAIN_VARIANT (type)) > PARM_BOUNDARY;
@@ -7972,10 +8001,14 @@ arm_function_ok_for_sibcall (tree decl, tree exp)
      address.  But we only have r0-r3 and ip in that class.  If r0-r3 all hold
      function arguments, then we can only use IP.  But IP may be needed in the
      epilogue (for PAC validation), or for passing the static chain.  We have
-     to disable the tail call if nothing is available.  */
-  if (!decl
-      && ((CALL_EXPR_BY_DESCRIPTOR (exp) && !flag_trampolines)
-	  || arm_current_function_pac_enabled_p()))
+     to disable the tail call if nothing is available.  Long-calls are
+     effectively handled as indirect calls, so handle that as well.  */
+  if ((!decl
+       && ((CALL_EXPR_BY_DESCRIPTOR (exp) && !flag_trampolines)
+	   || arm_current_function_pac_enabled_p ()))
+      || (decl && arm_is_long_call_p (decl)
+	  && (CALL_EXPR_STATIC_CHAIN (exp)
+	      || arm_current_function_pac_enabled_p ())))
     {
       tree fntype = TREE_TYPE (TREE_TYPE (CALL_EXPR_FN (exp)));
       CUMULATIVE_ARGS cum;
@@ -30559,7 +30592,7 @@ arm_mangle_type (const_tree type)
   /* The ARM ABI documents (10th October 2008) say that "__va_list"
      has to be managled as if it is in the "std" namespace.  */
   if (TARGET_AAPCS_BASED
-      && lang_hooks.types_compatible_p (CONST_CAST_TREE (type), va_list_type))
+      && lang_hooks.types_compatible_p (const_cast<tree> (type), va_list_type))
     return "St9__va_list";
 
   /* Half-precision floating point types.  */
@@ -31986,7 +32019,7 @@ arm_evpc_neon_vext (struct expand_vec_perm_d *d)
   return true;
 }
 
-/* The NEON VTBL instruction is a fully variable permuation that's even
+/* The NEON VTBL instruction is a fully variable permutation that's even
    stronger than what we expose via VEC_PERM_EXPR.  What it doesn't do
    is mask the index operand as VEC_PERM_EXPR requires.  Therefore we
    can do slightly better by expanding this as a constant where we don't
@@ -35866,6 +35899,42 @@ arm_get_mask_mode (machine_mode mode)
     return arm_mode_to_pred_mode (mode);
 
   return default_get_mask_mode (mode);
+}
+
+
+/* Implement TARGET_C_BITINT_TYPE_INFO
+   Return true if _BitInt(N) is supported and fill its details into *INFO.  */
+
+bool
+arm_bitint_type_info (int n, struct bitint_info *info)
+{
+  if (TARGET_BIG_END)
+    return false;
+
+  if (n <= 8)
+    info->limb_mode = QImode;
+  else if (n <= 16)
+    info->limb_mode = HImode;
+  else if (n <= 32)
+    info->limb_mode = SImode;
+  else if (n <= 64)
+    info->limb_mode = DImode;
+  else
+    /* The AAPCS for Arm defines _BitInt(N > 64) as an array with
+       type {signed,unsigned} __int64[M] where M = (N/64) + 1.  However, to be
+       able to use libgcc's implementation to support large _BitInt's we need
+       to use a LIMB_MODE that is no larger than 'long int'.  This is why we
+       use SImode for our internal LIMB_MODE and we define the ABI_LIMB_MODE to
+       be DImode to ensure we are ABI compliant.  */
+    info->limb_mode = SImode;
+
+  if (n > 64)
+    info->abi_limb_mode = DImode;
+  else
+    info->abi_limb_mode = info->limb_mode;
+  info->big_endian = TARGET_BIG_END;
+  info->extended = bitint_ext_full;
+  return true;
 }
 
 /* Helper function to determine whether SEQ represents a sequence of

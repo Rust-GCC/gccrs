@@ -1,3 +1,4 @@
+! { dg-do compile }
 ! { dg-additional-options "-fdump-tree-gimple" }
 
 program main
@@ -61,8 +62,8 @@ end
 
 
 ! FIXME ENABLE code above for "gimple" once it has been implemented:
-! { dg-message "sorry, unimplemented: 'uses_allocators' clause with traits and memory spaces" "" { target *-*-* } 15 }
-! { dg-message "sorry, unimplemented: 'uses_allocators' clause with traits and memory spaces" "" { target *-*-* } 30 }
-! { dg-message "sorry, unimplemented: 'uses_allocators' clause with traits and memory spaces" "" { target *-*-* } 43 }
-! { dg-bogus "'my_alloc' not specified in enclosing 'target'" "bogus issue because clause is ignored" { xfail *-*-* } 31 }
-! { dg-bogus "'my_alloc' not specified in enclosing 'target'" "bogus issue because clause is ignored" { xfail *-*-* } 44 }
+! { dg-message "sorry, unimplemented: 'uses_allocators' clause with traits and memory spaces" "" { target *-*-* } 16 }
+! { dg-message "sorry, unimplemented: 'uses_allocators' clause with traits and memory spaces" "" { target *-*-* } 31 }
+! { dg-message "sorry, unimplemented: 'uses_allocators' clause with traits and memory spaces" "" { target *-*-* } 44 }
+! { dg-bogus "'my_alloc' not specified in enclosing 'target'" "bogus issue because clause is ignored" { xfail *-*-* } 32 }
+! { dg-bogus "'my_alloc' not specified in enclosing 'target'" "bogus issue because clause is ignored" { xfail *-*-* } 45 }

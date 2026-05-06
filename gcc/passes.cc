@@ -22,6 +22,7 @@ along with GCC; see the file COPYING3.  If not see
    in the proper order, and counts the time used by each.
    Error messages and low-level interface to malloc also handled here.  */
 
+#define INCLUDE_LIST
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
@@ -63,6 +64,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "diagnostic-core.h" /* for fnotice */
 #include "stringpool.h"
 #include "attribs.h"
+#include "topics/pass-events.h"
+#include "channels.h"
 
 /* Reserved TODOs */
 #define TODO_verify_il			(1u << 31)
@@ -884,7 +887,7 @@ pass_manager::register_one_dump_file (opt_pass *pass)
   set_pass_for_id (id, pass);
   full_name = concat (prefix, pass->name, num, NULL);
   register_pass_name (pass, full_name);
-  free (CONST_CAST (char *, full_name));
+  free (const_cast<char *> (full_name));
 }
 
 /* Register the dump files for the pass_manager starting at PASS. */
@@ -2204,7 +2207,7 @@ release_dump_file_name (void)
 {
   if (dump_file_name)
     {
-      free (CONST_CAST (char *, dump_file_name));
+      free (const_cast<char *> (dump_file_name));
       dump_file_name = NULL;
     }
 }
@@ -2575,9 +2578,14 @@ skip_pass (opt_pass *pass)
 bool
 execute_one_pass (opt_pass *pass)
 {
+  namespace pass_events = gcc::topics::pass_events;
+
   unsigned int todo_after = 0;
 
   bool gate_status;
+
+  if (auto channel = g->get_channels ().pass_events_channel.get_if_active ())
+    channel->publish (pass_events::before_pass {pass, cfun});
 
   /* IPA passes are executed on whole program, so cfun should be NULL.
      Other passes need function context set.  */
@@ -2741,6 +2749,10 @@ execute_one_pass (opt_pass *pass)
 
   if (pass->type == SIMPLE_IPA_PASS || pass->type == IPA_PASS)
     report_heap_memory_use ();
+
+  if (auto channel = g->get_channels ().pass_events_channel.get_if_active ())
+    channel->publish (pass_events::after_pass {pass, cfun});
+
   return true;
 }
 
@@ -2898,6 +2910,11 @@ ipa_write_summaries (void)
   FOR_EACH_DEFINED_VARIABLE (vnode)
     if (vnode->need_lto_streaming)
       lto_set_symtab_encoder_in_partition (encoder, vnode);
+
+  asm_node *anode;
+  for (anode = symtab->first_asm_symbol (); anode;
+       anode = safe_as_a<asm_node*> (anode->next))
+    lto_set_symtab_encoder_in_partition (encoder, anode);
 
   ipa_write_summaries_1 (compute_ltrans_boundary (encoder),
 			 flag_generate_offload);

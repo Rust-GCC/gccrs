@@ -31,6 +31,7 @@
 #include "vec.h"
 
 #include "a68.h"
+#include "a68-pretty-print.h"
 
 /* A few forward references of static functions defined in this file.  */
 
@@ -77,6 +78,7 @@ supper_postlude[] = {
 #define STOP_CHAR 127
 #define FORMFEED_CHAR '\f'
 #define CR_CHAR '\r'
+#define SINGLE_QUOTE_CHAR '\''
 #define QUOTE_CHAR '"'
 #define APOSTROPHE_CHAR '\''
 #define BACKSLASH_CHAR '\\'
@@ -1631,6 +1633,13 @@ get_next_token (bool in_format,
 	  *att = POINT_SYMBOL;
 	}
     }
+  else if (!OPTION_STRICT (&A68_JOB) && c == SINGLE_QUOTE_CHAR)
+    {
+      c = next_char (ref_l, ref_s, true);
+      (sym++)[0] = SINGLE_QUOTE_CHAR;
+      sym[0] = '\0';
+      *att = QUOTE_SYMBOL;
+    }
   else if (ISDIGIT (c))
     {
       /* Something that begins with a digit:
@@ -1666,8 +1675,9 @@ get_next_token (bool in_format,
 	  /* Parse the radix, which is expressed in base 10.  */
 	  (sym++)[0] = c;
 	  char *end;
-	  int64_t radix = strtol (A68_PARSER (scan_buf), &end, 10);
-	  gcc_assert (end != A68_PARSER (scan_buf) && *end == 'r');
+	  errno = 0;
+	  uint64_t radix = strtoul (A68_PARSER (scan_buf), &end, 10);
+	  gcc_assert (errno == 0 && end != A68_PARSER (scan_buf) && *end == 'r');
 
 	  /* Get the rest of the bits literal.  Typographical display features
 	     are allowed in the reference language between the digit symbols
@@ -1793,7 +1803,7 @@ string break character point"));
 				  }
 
 				SCAN_ERROR (c != ',', *start_l, *ref_s,
-					    "expected , or ) in string break");
+					    "expected %<,%> or %<)%> in string break");
 			      }
 			    else
 			      {
@@ -2213,6 +2223,7 @@ tokenise_source (NODE_T **root, int level, bool in_format,
 		case ESAC_SYMBOL:
 		case OD_SYMBOL:
 		case OF_SYMBOL:
+		case QUOTE_SYMBOL:
 		case FI_SYMBOL:
 		case CLOSE_SYMBOL:
 		case BUS_SYMBOL:
@@ -2262,9 +2273,12 @@ tokenise_source (NODE_T **root, int level, bool in_format,
 		TOP_NODE (&A68_JOB) = q;
 	      *root = q;
 	      if (trailing != NO_TEXT)
-		a68_warning (q, 0,
-			     "ignoring trailing character H in A",
-			     trailing, att);
+		{
+		  a68_attr_format_token a (att);
+		  a68_warning (q, 0,
+			       "ignoring trailing character %qs in %e",
+			       trailing, &a);
+		}
 	    }
 	  /* Redirection in tokenising formats. The scanner is a recursive-descent type as
 	     to know when it scans a format text and when not.  */

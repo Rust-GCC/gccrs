@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2026, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -28,7 +28,6 @@ with Atree;          use Atree;
 with Aspects;        use Aspects;
 with Checks;         use Checks;
 with Debug;          use Debug;
-with Einfo;          use Einfo;
 with Einfo.Entities; use Einfo.Entities;
 with Einfo.Utils;    use Einfo.Utils;
 with Errout;         use Errout;
@@ -72,7 +71,6 @@ with Sem_Res;        use Sem_Res;
 with Sem_SCIL;       use Sem_SCIL;
 with Sem_Util;       use Sem_Util;
                      use Sem_Util.Storage_Model_Support;
-with Sinfo;          use Sinfo;
 with Sinfo.Nodes;    use Sinfo.Nodes;
 with Sinfo.Utils;    use Sinfo.Utils;
 with Sinput;         use Sinput;
@@ -201,13 +199,6 @@ package body Exp_Ch6 is
    --  depends on discriminants). In particular, untagged types with only
    --  access discriminants do not require secondary stack use. Note we must
    --  always use the secondary stack for dispatching-on-result calls.
-
-   function Check_BIP_Actuals
-     (Subp_Call : Node_Id;
-      Subp_Id   : Entity_Id) return Boolean;
-   --  Given a subprogram call to the given subprogram return True if the
-   --  names of BIP extra actual and formal parameters match, and the number
-   --  of actuals (including extra actuals) matches the number of formals.
 
    function Check_Number_Of_Actuals
      (Subp_Call : Node_Id;
@@ -5920,6 +5911,12 @@ package body Exp_Ch6 is
 
       function Move_Activation_Chain (Func_Id : Entity_Id) return Node_Id is
       begin
+         --  Move_Activation_Chain is not universally available
+
+         if not RTE_Available (RE_Move_Activation_Chain) then
+            return Make_Null_Statement (Loc);
+         end if;
+
          return
            Make_Procedure_Call_Statement (Loc,
              Name                   =>
@@ -6487,26 +6484,18 @@ package body Exp_Ch6 is
                   end;
                end if;
 
-               --  Build a prefixed-notation call
-               declare
-                  Proc_Name : constant Node_Id :=
-                    Make_Selected_Component (Loc,
-                      Prefix        =>
-                        Make_Attribute_Reference (Loc,
-                          Prefix         => New_Occurrence_Of
-                                              (First_Formal (Spec_Id), Loc),
-                          Attribute_Name => Name_Super),
-                      Selector_Name =>
-                        Make_Identifier (Loc,
-                          Direct_Attribute_Definition_Name
-                            (Parent_Type, Name_Constructor)));
-               begin
-                  Set_Is_Prefixed_Call (Proc_Name);
-
-                  return Make_Procedure_Call_Statement (Loc,
-                           Name                   => Proc_Name,
-                           Parameter_Associations => Actual_Parameters);
-               end;
+               return Make_Assignment_Statement (Loc,
+                 Name       =>
+                   Make_Attribute_Reference (Loc,
+                     Prefix         =>
+                       New_Occurrence_Of (First_Formal (Spec_Id), Loc),
+                     Attribute_Name => Name_Super),
+                 Expression =>
+                   Make_Attribute_Reference (Loc,
+                     Prefix         =>
+                       New_Occurrence_Of (Parent_Type, Loc),
+                     Attribute_Name => Name_Make,
+                     Expressions    => Actual_Parameters));
             end Make_Parent_Constructor_Call;
 
          begin
@@ -6516,12 +6505,9 @@ package body Exp_Ch6 is
                if Chars (Component) = Name_uTag then
                   null;
 
-               elsif Chars (Component) = Name_uParent then
-                  --  ??? Here is where we should be looking for a
-                  --  Super aspect specification in order to call the
-                  --  right constructor with the right parameters
-                  --  (as opposed to unconditionally calling the
-                  --  single-parameter constructor).
+               elsif Chars (Component) = Name_uParent
+                 and then Needs_Construction (Etype (Component))
+               then
                   Append_To (Init_List, Make_Parent_Constructor_Call
                                           (Parent_Type => Etype (Component)));
 
@@ -7418,7 +7404,7 @@ package body Exp_Ch6 is
       --
       --  into
       --
-      --    return _anonymous_ : <return_subtype> := <expression>
+      --    return _anonymous_ : constant <return_subtype> := <expression>
 
       --  The expansion produced by Expand_N_Extended_Return_Statement will
       --  contain simple return statements (for example, a block containing
@@ -7450,6 +7436,7 @@ package body Exp_Ch6 is
             Obj_Decl : constant Node_Id :=
                          Make_Object_Declaration (Loc,
                            Defining_Identifier => Make_Temporary (Loc, 'R'),
+                           Constant_Present    => True,
                            Object_Definition   => Subtype_Ind,
                            Expression          => Relocate_Node (Exp));
 
@@ -9100,17 +9087,24 @@ package body Exp_Ch6 is
 
          New_Allocator :=
            Make_Allocator (Loc,
-             Expression => New_Occurrence_Of (Result_Subt, Loc));
+             Subpool_Handle_Name =>
+               Relocate_Node (Subpool_Handle_Name (Allocator)),
+             Expression          => New_Occurrence_Of (Result_Subt, Loc));
+
+         --  Prevent default initialization of the allocator
+
          Set_No_Initialization (New_Allocator);
 
-         --  Copy attributes to new allocator. Note that the new allocator
-         --  logically comes from source if the original one did, so copy the
-         --  relevant flag. This ensures proper treatment of the restriction
-         --  No_Implicit_Heap_Allocations in this case.
+         --  Copy the Comes_From_Source flag onto the allocator since logically
+         --  this allocator is a replacement of the original allocator. This is
+         --  for proper handling of restriction No_Implicit_Heap_Allocations.
+
+         Preserve_Comes_From_Source (New_Allocator, Allocator);
+
+         --  Copy the attributes set by Expand_N_Allocator
 
          Set_Storage_Pool      (New_Allocator, Storage_Pool      (Allocator));
          Set_Procedure_To_Call (New_Allocator, Procedure_To_Call (Allocator));
-         Set_Comes_From_Source (New_Allocator, Comes_From_Source (Allocator));
 
          Rewrite (Allocator, New_Allocator);
 
@@ -9187,10 +9181,9 @@ package body Exp_Ch6 is
 
       begin
          if Might_Have_Tasks (Result_Subt) then
-            Actions := New_List;
-            Build_Task_Allocate_Block
-              (Actions, Allocator, Init_Stmts => New_List (Assign));
-            Chain := Activation_Chain_Entity (Last (Actions));
+            Actions :=
+              Build_Task_Allocate_Block (Allocator, New_List (Assign));
+            Chain   := Activation_Chain_Entity (Last (Actions));
          else
             Actions := New_List (Assign);
             Chain   := Empty;
@@ -10149,17 +10142,24 @@ package body Exp_Ch6 is
 
       New_Allocator :=
         Make_Allocator (Loc,
-          Expression => New_Occurrence_Of (Result_Subt, Loc));
+          Subpool_Handle_Name =>
+            Relocate_Node (Subpool_Handle_Name (Allocator)),
+          Expression          => New_Occurrence_Of (Result_Subt, Loc));
+
+      --  Prevent default initialization of the allocator
+
       Set_No_Initialization (New_Allocator);
 
-      --  Copy attributes to new allocator. Note that the new allocator
-      --  logically comes from source if the original one did, so copy the
-      --  relevant flag. This ensures proper treatment of the restriction
-      --  No_Implicit_Heap_Allocations in this case.
+      --  Copy the Comes_From_Source flag onto the allocator since logically
+      --  this allocator is a replacement of the original allocator. This is
+      --  for proper handling of restriction No_Implicit_Heap_Allocations.
+
+      Preserve_Comes_From_Source (New_Allocator, Allocator);
+
+      --  Copy the attributes set by Expand_N_Allocator
 
       Set_Storage_Pool      (New_Allocator, Storage_Pool      (Allocator));
       Set_Procedure_To_Call (New_Allocator, Procedure_To_Call (Allocator));
-      Set_Comes_From_Source (New_Allocator, Comes_From_Source (Allocator));
 
       Rewrite (Allocator, New_Allocator);
 
@@ -10528,157 +10528,6 @@ package body Exp_Ch6 is
 
       return Unqual_BIP_Function_Call (Expr);
    end Unqual_BIP_Iface_Function_Call;
-
-   -------------------------------
-   -- Validate_Subprogram_Calls --
-   -------------------------------
-
-   procedure Validate_Subprogram_Calls (N : Node_Id) is
-
-      function Process_Node (Nod : Node_Id) return Traverse_Result;
-      --  Function to traverse the subtree of N using Traverse_Proc.
-
-      ------------------
-      -- Process_Node --
-      ------------------
-
-      function Process_Node (Nod : Node_Id) return Traverse_Result is
-      begin
-         case Nkind (Nod) is
-            when N_Entry_Call_Statement
-               | N_Procedure_Call_Statement
-               | N_Function_Call
-            =>
-               declare
-                  Call_Node : Node_Id renames Nod;
-                  Subp      : constant Entity_Id := Get_Called_Entity (Nod);
-
-               begin
-                  pragma Assert (Check_BIP_Actuals (Call_Node, Subp));
-
-                  --  Build-in-place function calls return their result by
-                  --  reference.
-
-                  pragma Assert (not Is_Build_In_Place_Function (Subp)
-                    or else Returns_By_Ref (Subp));
-               end;
-
-            --  Skip generic bodies
-
-            when N_Package_Body =>
-               if Ekind (Unique_Defining_Entity (Nod)) = E_Generic_Package then
-                  return Skip;
-               end if;
-
-            when N_Subprogram_Body =>
-               if Ekind (Unique_Defining_Entity (Nod)) in E_Generic_Function
-                                                        | E_Generic_Procedure
-               then
-                  return Skip;
-               end if;
-
-            --  Nodes we want to ignore
-
-            --  Skip calls placed in the full declaration of record types since
-            --  the call will be performed by their Init Proc; for example,
-            --  calls initializing default values of discriminants or calls
-            --  providing the initial value of record type components. Other
-            --  full type declarations are processed because they may have
-            --  calls that must be checked. For example:
-
-            --    type T is array (1 .. Some_Function_Call (...)) of Some_Type;
-
-            --  ??? More work needed here to handle the following case:
-
-            --    type Rec is record
-            --       F : String (1 .. <some complicated expression>);
-            --    end record;
-
-            when N_Full_Type_Declaration =>
-               if Is_Record_Type (Defining_Entity (Nod)) then
-                  return Skip;
-               end if;
-
-            --  Skip calls placed in unexpanded initialization expressions
-
-            when N_Object_Declaration =>
-               if No_Initialization (Nod) then
-                  return Skip;
-               end if;
-
-            --  Skip calls placed in subprogram specifications since function
-            --  calls initializing default parameter values will be processed
-            --  when the call to the subprogram is found (if the default actual
-            --  parameter is required), and calls found in aspects will be
-            --  processed when their corresponding pragma is found, or in the
-            --  specific case of class-wide pre-/postconditions, when their
-            --  helpers are found.
-
-            when N_Procedure_Specification
-               | N_Function_Specification
-            =>
-               return Skip;
-
-            when N_Abstract_Subprogram_Declaration
-               | N_Aspect_Specification
-               | N_At_Clause
-               | N_Call_Marker
-               | N_Empty
-               | N_Enumeration_Representation_Clause
-               | N_Enumeration_Type_Definition
-               | N_Function_Instantiation
-               | N_Freeze_Generic_Entity
-               | N_Generic_Function_Renaming_Declaration
-               | N_Generic_Package_Renaming_Declaration
-               | N_Generic_Procedure_Renaming_Declaration
-               | N_Generic_Package_Declaration
-               | N_Generic_Subprogram_Declaration
-               | N_Itype_Reference
-               | N_Number_Declaration
-               | N_Package_Instantiation
-               | N_Package_Renaming_Declaration
-               | N_Pragma
-               | N_Procedure_Instantiation
-               | N_Protected_Type_Declaration
-               | N_Record_Representation_Clause
-               | N_Validate_Unchecked_Conversion
-               | N_Variable_Reference_Marker
-               | N_Use_Package_Clause
-               | N_Use_Type_Clause
-               | N_With_Clause
-            =>
-               return Skip;
-
-            when others =>
-               null;
-         end case;
-
-         return OK;
-      end Process_Node;
-
-      procedure Check_Calls is new Traverse_Proc (Process_Node);
-
-   --  Start of processing for Validate_Subprogram_Calls
-
-   begin
-      --  No action if we are not generating code (including if we have
-      --  errors).
-
-      if Operating_Mode /= Generate_Code then
-         return;
-      end if;
-
-      pragma Assert (Serious_Errors_Detected = 0);
-
-      --  Do not attempt to verify the return type in CodePeer_Mode
-      --  as CodePeer_Mode is missing some expansion code that
-      --  results in trees that would be considered malformed for
-      --  GCC but aren't for GNAT2SCIL.
-
-      if not CodePeer_Mode then
-         Check_Calls (N);
-      end if;
-   end Validate_Subprogram_Calls;
 
    --------------
    -- Warn_BIP --

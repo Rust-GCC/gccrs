@@ -1,5 +1,6 @@
 /* { dg-do compile } */
 /* { dg-additional-options "-O -w" } */
+/* { dg-additional-options "-fno-tree-scev-cprop" } */
 
 int
 nr (unsigned int xe, unsigned int qqn)

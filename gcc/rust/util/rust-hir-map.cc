@@ -19,6 +19,7 @@
 #include "rust-hir-map.h"
 #include "optional.h"
 #include "rust-ast-full.h"
+#include "rust-ast.h"
 #include "rust-diagnostics.h"
 #include "rust-hir-full.h"
 #include "rust-item.h"
@@ -251,13 +252,19 @@ Mappings::get_ast_crate (CrateNum crateNum)
 AST::Crate &
 Mappings::get_ast_crate_by_node_id (NodeId id)
 {
+  return *get_ast_crate_by_node_id_raw (id);
+}
+
+AST::Crate *
+Mappings::get_ast_crate_by_node_id_raw (NodeId id)
+{
   auto i = crate_node_to_crate_num.find (id);
   rust_assert (i != crate_node_to_crate_num.end ());
 
   CrateNum crateNum = i->second;
   auto it = ast_crate_mappings.find (crateNum);
   rust_assert (it != ast_crate_mappings.end ());
-  return *it->second;
+  return it->second;
 }
 
 AST::Crate &
@@ -908,16 +915,16 @@ void
 Mappings::insert_macro_invocation (AST::MacroInvocation &invoc,
 				   AST::MacroRulesDefinition *def)
 {
-  auto it = macroInvocations.find (invoc.get_macro_node_id ());
+  auto it = macroInvocations.find (invoc.get_node_id ());
   rust_assert (it == macroInvocations.end ());
 
-  macroInvocations[invoc.get_macro_node_id ()] = def;
+  macroInvocations[invoc.get_node_id ()] = def;
 }
 
 tl::optional<AST::MacroRulesDefinition *>
 Mappings::lookup_macro_invocation (AST::MacroInvocation &invoc)
 {
-  auto it = macroInvocations.find (invoc.get_macro_node_id ());
+  auto it = macroInvocations.find (invoc.get_node_id ());
   if (it == macroInvocations.end ())
     return tl::nullopt;
 
@@ -1077,16 +1084,16 @@ void
 Mappings::insert_bang_proc_macro_invocation (AST::MacroInvocation &invoc,
 					     BangProcMacro def)
 {
-  auto it = procmacroBangInvocations.find (invoc.get_macro_node_id ());
+  auto it = procmacroBangInvocations.find (invoc.get_node_id ());
   rust_assert (it == procmacroBangInvocations.end ());
 
-  procmacroBangInvocations[invoc.get_macro_node_id ()] = def;
+  procmacroBangInvocations[invoc.get_node_id ()] = def;
 }
 
 tl::optional<BangProcMacro &>
 Mappings::lookup_bang_proc_macro_invocation (AST::MacroInvocation &invoc)
 {
-  auto it = procmacroBangInvocations.find (invoc.get_macro_node_id ());
+  auto it = procmacroBangInvocations.find (invoc.get_node_id ());
   if (it == procmacroBangInvocations.end ())
     return tl::nullopt;
 
@@ -1150,15 +1157,18 @@ Mappings::lookup_module_children (NodeId module)
 }
 
 void
-Mappings::insert_glob_container (AST::Item *container)
+Mappings::insert_glob_container (NodeId id, AST::GlobContainer *container)
 {
-  rust_assert (glob_containers.find (container->get_node_id ())
-	       == glob_containers.end ());
+  rust_assert (glob_containers.find (id) == glob_containers.end ());
 
-  glob_containers[container->get_node_id ()] = container;
+  // Crates have different memory managements that regular items
+  if (container->get_glob_container_kind () == AST::GlobContainer::Kind::Crate)
+    glob_containers[id] = get_ast_crate_by_node_id_raw (id);
+  else
+    glob_containers[id] = container;
 }
 
-tl::optional<AST::Item *>
+tl::optional<AST::GlobContainer *>
 Mappings::lookup_glob_container (NodeId id)
 {
   auto it = glob_containers.find (id);
@@ -1370,6 +1380,18 @@ bool
 Mappings::is_derived_node (NodeId node_id)
 {
   return derived_nodes.find (node_id) != derived_nodes.end ();
+}
+
+void
+Mappings::add_function_node (NodeId node_id)
+{
+  function_nodes.insert (node_id);
+}
+
+bool
+Mappings::is_function_node (NodeId node_id)
+{
+  return function_nodes.find (node_id) != function_nodes.end ();
 }
 
 } // namespace Analysis

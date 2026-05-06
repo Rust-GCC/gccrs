@@ -1,4 +1,5 @@
 /* { dg-do compile } */
+/* { dg-additional-options "-fno-tree-scev-cprop" } */
 
 #define N 40
 signed short image[N][N];

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2026, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -27,7 +27,6 @@ with Aspects;        use Aspects;
 with Atree;          use Atree;
 with Contracts;      use Contracts;
 with Debug;          use Debug;
-with Einfo;          use Einfo;
 with Einfo.Entities; use Einfo.Entities;
 with Einfo.Utils;    use Einfo.Utils;
 with Errout;         use Errout;
@@ -35,7 +34,6 @@ with Exp_Disp;       use Exp_Disp;
 with Exp_Put_Image;
 with Exp_Util;       use Exp_Util;
 with Elists;         use Elists;
-with Fname;          use Fname;
 with Fname.UF;       use Fname.UF;
 with Freeze;         use Freeze;
 with Impunit;        use Impunit;
@@ -64,7 +62,6 @@ with Sem_Prag;       use Sem_Prag;
 with Sem_Util;       use Sem_Util;
 with Sem_Warn;       use Sem_Warn;
 with Stand;          use Stand;
-with Sinfo;          use Sinfo;
 with Sinfo.Nodes;    use Sinfo.Nodes;
 with Sinfo.Utils;    use Sinfo.Utils;
 with Sinfo.CN;       use Sinfo.CN;
@@ -1136,6 +1133,20 @@ package body Sem_Ch10 is
       end if;
 
       --  Now analyze the unit (package, subprogram spec, body) itself
+
+      if Debug_Flag_I then
+         if Nkind (Unit_Node) in N_Package_Declaration
+                               | N_Package_Renaming_Declaration
+                               | N_Subprogram_Declaration
+                               | N_Generic_Declaration
+           or else (Nkind (Unit_Node) = N_Subprogram_Body
+                     and then Acts_As_Spec (Unit_Node))
+         then
+            Write_Str ("install unit ");
+            Write_Name (Chars (Defining_Entity (Unit_Node)));
+            Write_Eol;
+         end if;
+      end if;
 
       Analyze (Unit_Node);
 
@@ -4678,6 +4689,18 @@ package body Sem_Ch10 is
          end if;
       end if;
 
+      if Debug_Flag_I then
+         Write_Str ("install parent unit ");
+         Write_Name (Chars (P_Name));
+         Write_Eol;
+      end if;
+
+      --  Skip this for predefined units because of the rtsfind mechanism
+
+      if not In_Predefined_Unit (P_Name) then
+         Set_Is_Visible_Lib_Unit (P_Name);
+      end if;
+
       --  This is the recursive call that ensures all parents are loaded
 
       if Is_Child_Spec (P) then
@@ -4750,12 +4773,6 @@ package body Sem_Ch10 is
       Item   : Node_Id;
 
    begin
-      if Debug_Flag_I then
-         Write_Str ("install private with clauses of ");
-         Write_Name (Chars (P));
-         Write_Eol;
-      end if;
-
       if Nkind (Parent (Decl)) = N_Compilation_Unit then
          Item := First (Context_Items (Parent (Decl)));
          while Present (Item) loop
@@ -7322,6 +7339,18 @@ package body Sem_Ch10 is
          --  in the reverse order of their installation.
 
          Remove_Parents (P);
+
+         if Debug_Flag_I then
+            Write_Str ("remove parent unit ");
+            Write_Name (Chars (P_Name));
+            Write_Eol;
+         end if;
+
+         --  Skip this for predefined units because of the rtsfind mechanism
+
+         if not In_Predefined_Unit (P_Name) then
+            Set_Is_Visible_Lib_Unit (P_Name, False);
+         end if;
       end if;
    end Remove_Parents;
 

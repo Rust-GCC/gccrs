@@ -20,12 +20,10 @@ constexpr std::bad_typeid k;
 constexpr const char *l = k.what ();
 constexpr std::exception_ptr m = nullptr;
 static_assert (m == nullptr);
-constexpr std::exception_ptr n = std::current_exception ();
+constexpr std::exception_ptr n = __builtin_current_exception ();
 static_assert (n == nullptr);
 constexpr std::exception_ptr o;
 static_assert (o == nullptr);
-constexpr std::nested_exception p;
-static_assert (p.nested_ptr () == nullptr);
 
 struct A { virtual ~A () {} };
 struct B { virtual void b (); };
@@ -33,20 +31,13 @@ struct C { virtual void c (); };
 struct D : private B { virtual void d (); };
 struct E { virtual void e (); };
 struct F : D, E, private C { virtual void f (); };
-struct G { constexpr G () { if (std::uncaught_exceptions () != 0) asm (""); } };
-struct H { constexpr H () : h (0) {} constexpr ~H () { if (std::uncaught_exceptions () != h) asm (""); } int h; };
-struct I : std::nested_exception { };
-struct J { virtual ~J () noexcept = default; };
-struct K final { };
-struct L : J, std::nested_exception { };
-struct M { };
-struct N : I, L { };
-struct O : private std::nested_exception { };
+struct G { constexpr G () { if (__builtin_uncaught_exceptions () != 0) asm (""); } };
+struct H { constexpr H () : h (0) {} constexpr ~H () { if (__builtin_uncaught_exceptions () != h) asm (""); } int h; };
 
 constexpr int
 foo (int x)
 {
-  if (std::uncaught_exceptions () != 0)
+  if (__builtin_uncaught_exceptions () != 0)
     return -1;
   switch (x)
     {
@@ -58,7 +49,7 @@ foo (int x)
 	}
       catch (const std::bad_typeid &x)
 	{
-	  if (std::uncaught_exceptions () != 0)
+	  if (__builtin_uncaught_exceptions () != 0)
 	    return -1;
 	  const char *p = x.what ();
 	  return 1;
@@ -90,15 +81,15 @@ foo (int x)
 	{
 	  H h;
 	  h.h = 1;
-	  if (std::current_exception () != nullptr)
+	  if (__builtin_current_exception () != nullptr)
 	    return -1;
 	  throw G ();
 	}
       catch (const G &g)
 	{
-	  if (std::uncaught_exceptions () != 0)
+	  if (__builtin_uncaught_exceptions () != 0)
 	    return -1;
-	  if (std::current_exception () == nullptr)
+	  if (__builtin_current_exception () == nullptr)
 	    return -1;
 	  return 3;
 	}
@@ -156,7 +147,7 @@ foo (int x)
 	  {
 	    if (a != 1)
 	      return -1;
-	    b = std::current_exception ();
+	    b = __builtin_current_exception ();
 	    if (b == nullptr)
 	      return -1;
 	    try
@@ -167,14 +158,14 @@ foo (int x)
 	      {
 		if (c != 2L)
 		  return -1;
-		d = std::current_exception ();
+		d = __builtin_current_exception ();
 		if (d == nullptr || b == d)
 		  return -1;
 	      }
-	    if (std::current_exception () != b)
+	    if (__builtin_current_exception () != b)
 	      return -1;
 	  }
-	if (std::current_exception () != nullptr)
+	if (__builtin_current_exception () != nullptr)
 	  return -1;
 	try
 	  {
@@ -266,157 +257,6 @@ foo (int x)
 	  }
 	return 8;
       }
-    case 8:
-      {
-	std::nested_exception a;
-	if (a.nested_ptr () != nullptr)
-	  return -1;
-	try
-	  {
-	    std::nested_exception b;
-	    if (b.nested_ptr () != nullptr)
-	      return -1;
-	    throw 42;
-	  }
-	catch (...)
-	  {
-	    std::nested_exception c;
-	    if (c.nested_ptr () != std::current_exception ())
-	      return -1;
-	    std::nested_exception d = c;
-	    if (d.nested_ptr () != c.nested_ptr ())
-	      return -1;
-	    c = d;
-	    try
-	      {
-		c.rethrow_nested ();
-	      }
-	    catch (const int &e)
-	      {
-		if (e != 42)
-		  return -1;
-	      }
-	  }
-	return 9;
-      }
-    case 9:
-      try
-	{
-	  std::throw_with_nested (I ());
-	}
-      catch (const std::nested_exception &a)
-	{
-	  if (a.nested_ptr () != nullptr)
-	    return -1;
-	  try
-	    {
-	      throw;
-	    }
-	  catch (const I &)
-	    {
-	      return 10;
-	    }
-	}
-      return -1;
-    case 10:
-      try
-	{
-	  std::throw_with_nested (J ());
-	}
-      catch (const std::nested_exception &a)
-	{
-	  if (a.nested_ptr () != nullptr)
-	    return -1;
-	  try
-	    {
-	      throw;
-	    }
-	  catch (const J &)
-	    {
-	      return 11;
-	    }
-	}
-      return -1;
-    case 11:
-      try
-	{
-	  std::throw_with_nested (K ());
-	}
-      catch (const std::nested_exception &)
-	{
-	  return -1;
-	}
-      catch (const K &)
-	{
-	  return 12;
-	}
-      return -1;
-    case 12:
-      try
-	{
-	  throw 42;
-	}
-      catch (...)
-	{
-	  I a;
-	  try
-	    {
-	      std::rethrow_if_nested (a);
-	    }
-	  catch (const int &b)
-	    {
-	      if (b == 42)
-		return 13;
-	    }
-	}
-      return -1;
-    case 13:
-      try
-	{
-	  throw J ();
-	}
-      catch (const J &a)
-	{
-	  std::rethrow_if_nested (a);
-	  return 14;
-	}
-      return -1;
-    case 14:
-      try
-	{
-	  throw 42;
-	}
-      catch (...)
-	{
-	  try
-	    {
-	      throw L ();
-	    }
-	  catch (const J &a)
-	    {
-	      try
-		{
-		  std::rethrow_if_nested (a);
-		}
-	      catch (const int &b)
-		{
-		  if (b == 42)
-		    return 15;
-		}
-	    }
-	}
-      return -1;
-    case 15:
-      {
-	std::rethrow_if_nested (1);
-	M m;
-	std::rethrow_if_nested (m);
-	N n;
-	std::rethrow_if_nested (n);
-	O o;
-	std::rethrow_if_nested (o);
-	return 16;
-      }
     default:
       break;
     }
@@ -431,12 +271,4 @@ static_assert (foo (4) == 5);
 static_assert (foo (5) == 6);
 static_assert (foo (6) == 7);
 static_assert (foo (7) == 8);
-static_assert (foo (8) == 9);
-static_assert (foo (9) == 10);
-static_assert (foo (10) == 11);
-static_assert (foo (11) == 12);
-static_assert (foo (12) == 13);
-static_assert (foo (13) == 14);
-static_assert (foo (14) == 15);
-static_assert (foo (15) == 16);
-static_assert (std::uncaught_exceptions () == 0);
+static_assert (__builtin_uncaught_exceptions () == 0);

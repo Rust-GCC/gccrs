@@ -103,7 +103,7 @@ machine_mode c_default_pointer_mode = VOIDmode;
 	tree dfloat32_type_node;
 	tree dfloat64_type_node;
 	tree dfloat128_type_node;
-	tree dfloat64x_type_node; 
+	tree dfloat64x_type_node;
 
 	tree intQI_type_node;
 	tree intHI_type_node;
@@ -472,6 +472,7 @@ const struct c_common_resword c_common_reswords[] =
   { "__const",		RID_CONST,	0 },
   { "__const__",	RID_CONST,	0 },
   { "__constinit",	RID_CONSTINIT,	D_CXXONLY },
+  { "__contract_assert", RID_CONTASSERT, D_CXXONLY | D_CXXWARN  },
   { "__decltype",       RID_DECLTYPE,   D_CXXONLY },
   { "__extension__",	RID_EXTENSION,	0 },
   { "__func__",		RID_C99_FUNCTION_NAME, 0 },
@@ -519,6 +520,7 @@ const struct c_common_resword c_common_reswords[] =
   { "constinit",	RID_CONSTINIT,	D_CXXONLY | D_CXX20 | D_CXXWARN },
   { "const_cast",	RID_CONSTCAST,	D_CXXONLY | D_CXXWARN },
   { "continue",		RID_CONTINUE,	0 },
+  { "contract_assert",	RID_CONTASSERT,	D_CXXONLY | D_CXXWARN | D_CXX26 },
   { "decltype",         RID_DECLTYPE,   D_CXXONLY | D_CXX11 | D_CXXWARN },
   { "default",		RID_DEFAULT,	0 },
   { "delete",		RID_DELETE,	D_CXXONLY | D_CXXWARN },
@@ -851,7 +853,7 @@ fix_string_type (tree value)
     {
       error ("size of string literal is too large");
       length = tree_to_shwi (TYPE_MAX_VALUE (ssizetype)) / charsz * charsz;
-      char *str = CONST_CAST (char *, TREE_STRING_POINTER (value));
+      char *str = const_cast<char *> (TREE_STRING_POINTER (value));
       memset (str + length, '\0',
 	      MIN (TREE_STRING_LENGTH (value) - length, charsz));
       TREE_STRING_LENGTH (value) = length;
@@ -2817,8 +2819,8 @@ c_common_signed_or_unsigned_type (int unsignedp, tree type)
     return type;
 
   if (TREE_CODE (type) == BITINT_TYPE
-      /* signed _BitInt(1) is invalid, avoid creating that.  */
-      && (unsignedp || TYPE_PRECISION (type) > 1))
+      /* signed _BitInt(1) is invalid before C2Y, avoid creating that.  */
+      && (unsignedp || flag_isoc2y || TYPE_PRECISION (type) > 1))
     return build_bitint_type (TYPE_PRECISION (type), unsignedp);
 
 #define TYPE_OK(node)							    \
@@ -3959,8 +3961,10 @@ c_common_get_alias_set (tree t)
 	 TYPE_ALIAS_SET_KNOWN_P.  */
       if (TYPE_UNSIGNED (t))
 	{
-	  /* There is no signed _BitInt(1).  */
-	  if (TREE_CODE (t) == BITINT_TYPE && TYPE_PRECISION (t) == 1)
+	  /* There is no signed _BitInt(1) before C2Y.  */
+	  if (TREE_CODE (t) == BITINT_TYPE
+	      && !flag_isoc2y
+	      && TYPE_PRECISION (t) == 1)
 	    return -1;
 	  tree t1 = c_common_signed_type (t);
 	  gcc_checking_assert (t != t1);
@@ -7229,6 +7233,16 @@ fold_offsetof (tree expr, tree type, enum tree_code ctx)
     {
     case ERROR_MARK:
       return expr;
+
+    case REALPART_EXPR:
+     return fold_offsetof (TREE_OPERAND (expr, 0), type, code);
+
+    case IMAGPART_EXPR:
+     base = fold_offsetof (TREE_OPERAND (expr, 0), type, code);
+     if (base == error_mark_node)
+	return base;
+     off = TYPE_SIZE_UNIT (TREE_TYPE (TREE_TYPE (TREE_OPERAND (expr, 0))));
+     break;
 
     case VAR_DECL:
       error ("cannot apply %<offsetof%> to static data member %qD", expr);

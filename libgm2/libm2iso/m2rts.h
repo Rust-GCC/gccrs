@@ -1,6 +1,6 @@
 /* m2rts.h provides a C interface to M2RTS.mod.
 
-Copyright (C) 2019-2022 Free Software Foundation, Inc.
+Copyright (C) 2019-2026 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius.mulley@southwales.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -26,11 +26,17 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 
 
 #define str(X)  #X
+/* DEFAULT_RUNTIME_MODULE_OVERRIDE must match the m2 declaration in
+   gcc/m2/gm2-compiler/M2Options.mod.  */
+
+#define DEFAULT_RUNTIME_MODULE_OVERRIDE "m2iso:RTentity,m2iso:Storage,m2iso:SYSTEM,m2iso:M2RTS,m2iso:RTExceptions,m2iso:IOLink"
 
 typedef void (*proc_con) (int, char **, char **);
 typedef void (*proc_dep) (void);
 
-extern "C" void m2iso_M2RTS_RequestDependant (const char *modulename, const char *libname, const char *dependancy);
+extern "C" void m2iso_M2RTS_RequestDependant (const char *modulename, const char *libname,
+					      const char *dependantmodule,
+					      const char *dependantlibname);
 extern "C" void m2iso_M2RTS_RegisterModule (const char *modulename, const char *libname,
 					    proc_con init, proc_con fini, proc_dep dependencies);
 extern "C" void m2pim_M2RTS_RegisterModule (const char *modulename, const char *libname,
@@ -40,9 +46,11 @@ extern "C" void M2RTS_RegisterModule (const char *modulename, const char *libnam
 extern "C" void m2iso_M2_M2RTS_init (void);
 
 extern "C" void m2iso_M2RTS_ConstructModules (const char *modulename, const char *libname,
+					      const char *overrideliborder,
 					      int argc, char *argv[], char *envp[]);
 extern "C" void m2iso_M2RTS_Terminate (void);
-extern "C" void m2iso_M2RTS_DeconstructModules (void);
+extern "C" void m2iso_M2RTS_DeconstructModules (const char *modulename, const char *libname,
+						int argc, char *argv[], char *envp[]);
 
 extern "C" void m2iso_M2RTS_HaltC (const char *desc, const char *filename,
 				   const char *functionname, int line) __attribute__ ((noreturn));

@@ -1,3 +1,81 @@
+2026-04-22  Sam James  <sam@gentoo.org>
+
+	* lto-symtab.cc (lto_varpool_replace_node): Fix spelling of 'warning'.
+
+2026-04-09  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* Make-lang.in (create_fdas_for_lto1): Use $(AFDO_PROFILER) when passing
+	--profiler to create_gcov. Ensure that perf.data contains profile for
+	lto1. Make the console output more useful.
+
+2026-03-26  Michal Jires  <mjires@suse.cz>
+
+	* lto-partition.cc (enum map1to1_content): New.
+	(map_1_to_1): Use map1to1_content.
+	(lto_1_to_1_map): Likewise.
+	(create_asm_partitions): Likewise.
+	(lto_max_map): Likewise.
+	(lto_cache_map): Use create_asm_partitions.
+
+2026-03-18  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* Make-lang.in (lto1.fda): Add `--print-autofdo-gcov-version` to
+	profile_merger invocation.
+	(create_fdas_for_lto1): Add `--print-autofdo-gcov-version` to
+	create_gcov invocations.
+
+2026-02-13  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* Make-lang.in (lto1.fda): Likewise.
+
+2026-02-06  Torbjörn SVENSSON  <torbjorn.svensson@foss.st.com>
+
+	PR middle-end/123892
+	* lto-common.cc: Replace CONST_CAST with const_cast<>.
+	* lto.cc: Likewise.
+
+2026-02-06  Torbjörn SVENSSON  <torbjorn.svensson@foss.st.com>
+
+	PR middle-end/123892
+	* lto-common.cc: Replace CONST_CAST_TREE with const_cast<tree>.
+
+2026-01-11  Michal Jires  <mjires@suse.cz>
+
+	* lto-symtab.cc (lto_symtab_merge_symbols): Set body_removed
+	for symbols resolved outside of IR.
+
+2026-01-11  Michal Jires  <mjires@suse.cz>
+
+	* lto-partition.cc (join_partitions): Declare.
+	(lto_1_to_1_map): Split out to..
+	(map_1_to_1): ..here.
+	(create_asm_partition): Replaced by..
+	(create_asm_partitions): ..this.
+	(lto_max_map): Use new create_asm_partitions.
+	(lto_balanced_map): Use new create_asm_partitions.
+
+2026-01-11  Michal Jires  <mjires@suse.cz>
+
+	* lto-symtab.cc (lto_cgraph_replace_node): Propagate
+	must_remain_in_tu_*.
+	(lto_varpool_replace_node): Likewise.
+
+2026-01-11  Michal Jires  <mjires@suse.cz>
+
+	* lto-common.cc (read_cgraph_and_symbols): Call
+	input_toplevel_asms after decl merging.
+
+2026-01-11  Michal Jires  <mjires@suse.cz>
+
+	PR ipa/122458
+	* lto-common.cc (read_cgraph_and_symbols):
+	Call analyze_toplevel_extended_asm.
+
+2026-01-11  Michal Jires  <mjires@suse.cz>
+
+	* lto-symtab.cc (lto_cgraph_replace_node): Propagate ref_by_asm.
+	(lto_varpool_replace_node): Propagate ref_by_asm.
+
 2025-12-23  Dhruv Chawla  <dhruvc@nvidia.com>
 
 	* Make-lang.in: Bump GCOV version to 3.

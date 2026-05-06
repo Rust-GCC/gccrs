@@ -25,6 +25,7 @@
 #include "coretypes.h"
 
 #include "a68.h"
+#include "a68-pretty-print.h"
 
 /* After this checker, we know that at least brackets are matched.  This
    stabilises later parser phases.
@@ -193,15 +194,16 @@ bracket_check_parse (NODE_T *top, NODE_T *p)
       else if (q == NO_NODE)
 	{
 	  char *diag = bracket_check_diagnose (top);
-	  a68_error (p, "incorrect nesting, check for Y",
+	  a68_error (p, "incorrect nesting, check for %s",
 		     (strlen (diag) > 0 ? diag : "missing or unmatched keyword"));
 	  longjmp (A68_PARSER (top_down_crash_exit), 1);
 	}
       else
 	{
 	  char *diag = bracket_check_diagnose (top);
-	  a68_error (q, "unexpected X, check for Y",
-		     ATTRIBUTE (q),
+	  a68_attr_format_token a (ATTRIBUTE (q));
+
+	  a68_error (q, "unexpected %e, check for %s", &a,
 		     (strlen (diag) > 0 ? diag : "missing or unmatched keyword"));
 	  longjmp (A68_PARSER (top_down_crash_exit), 1);
 	}
@@ -217,7 +219,6 @@ a68_check_parenthesis (NODE_T *top)
   if (!setjmp (A68_PARSER (top_down_crash_exit)))
     {
       if (bracket_check_parse (top, top) != NO_NODE)
-	a68_error (top, "incorrect nesting, check for Y",
-		   "missing or unmatched keyword");
+	a68_error (top, "incorrect nesting, check for missing or unmatched keyword");
     }
 }

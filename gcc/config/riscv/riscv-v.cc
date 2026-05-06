@@ -2281,14 +2281,19 @@ get_lmul_mode (scalar_mode mode, int lmul)
   return E_VOIDmode;
 }
 
-/* Return the appropriate M1 mode for MODE.  */
+/* Return the appropriate LMUL1 mode for MODE.
+   If VLS_P is specified, get a VLS mode that represents a full
+   vector.  */
 
-static opt_machine_mode
-get_m1_mode (machine_mode mode)
+opt_machine_mode
+get_m1_mode (machine_mode mode, bool vls_p)
 {
   scalar_mode smode = GET_MODE_INNER (mode);
   unsigned int bytes = GET_MODE_SIZE (smode);
-  poly_uint64 m1_nunits = exact_div (BYTES_PER_RISCV_VECTOR, bytes);
+  poly_uint64 bytes_vector = BYTES_PER_RISCV_VECTOR;
+  if (vls_p)
+    bytes_vector = constant_lower_bound (bytes_vector);
+  poly_uint64 m1_nunits = exact_div (bytes_vector, bytes);
   return get_vector_mode (smode, m1_nunits);
 }
 
@@ -3858,6 +3863,7 @@ shuffle_slide_patterns (struct expand_vec_perm_d *d)
      is the first element of OP0.  */
   bool slideup = false;
   bool slidedown = false;
+  bool need_slideup_p = false;
 
   /* For a slideup the permutation must start at OP0's first element.  */
   if (known_eq (d->perm[0], 0))
@@ -3867,8 +3873,21 @@ shuffle_slide_patterns (struct expand_vec_perm_d *d)
   if (known_eq (d->perm[vlen - 1], 2 * vlen - 1))
     slidedown = true;
 
+  int slideup_cnt = 0;
   if (!slideup && !slidedown)
-    return false;
+    {
+      /* Check if the permutation starts with the end of OP0 followed by the
+	 beginning of OP1.  In this case we can do a slideup followed by a
+	 slidedown. */
+      slideup_cnt = vlen - (d->perm[vlen - 1].to_constant () % vlen) - 1;
+      if (known_eq (d->perm[slideup_cnt], vlen) && known_eq (d->perm[slideup_cnt - 1], vlen - 1))
+	{
+	  slidedown = true;
+	  need_slideup_p = true;
+	}
+      else
+	return false;
+    }
 
   /* Check for a monotonic sequence with one or two pivots.  */
   int pivot = -1;
@@ -3934,8 +3953,17 @@ shuffle_slide_patterns (struct expand_vec_perm_d *d)
     }
   else
     {
+      rtx op1 = d->op1;
+      if (need_slideup_p)
+	{
+	  op1 = gen_reg_rtx (vmode);
+	  rtx ops[] = {op1, d->op1, gen_int_mode (slideup_cnt, Pmode)};
+	  insn_code icode = code_for_pred_slide (UNSPEC_VSLIDEUP, vmode);
+	  emit_vlmax_insn (icode, BINARY_OP, ops);
+	}
+
       len = pivot;
-      rtx ops[] = {d->target, d->op1, d->op0,
+      rtx ops[] = {d->target, op1, d->op0,
 		   gen_int_mode (slide_cnt, Pmode)};
       icode = code_for_pred_slide (UNSPEC_VSLIDEDOWN, vmode);
       emit_nonvlmax_insn (icode, BINARY_OP_TUMA, ops,
@@ -6043,6 +6071,10 @@ get_swapped_cmp_rtx_code (rtx_code code)
       return LT;
     case GEU:
       return LEU;
+    case GE:
+      return LE;
+    case LTU:
+      return GTU;
     default:
       gcc_unreachable ();
     }

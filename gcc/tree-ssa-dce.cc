@@ -70,6 +70,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree-ssa.h"
 #include "ipa-modref-tree.h"
 #include "ipa-modref.h"
+#include "memmodel.h"
 
 static struct stmt_stats
 {
@@ -407,6 +408,29 @@ mark_stmt_if_obviously_necessary (gimple *stmt, bool aggressive)
 	/* For __cxa_atexit calls, don't mark as necessary right away. */
 	if (is_removable_cxa_atexit_call (call))
 	  return;
+
+	/* A relaxed atomic load with no LHS has no observable effect:
+	   the value is discarded and relaxed ordering provides no
+	   inter-thread synchronisation guarantee.  Don't mark it
+	   necessary so DCE can remove it. */
+	if (gimple_call_builtin_p (call, BUILT_IN_NORMAL))
+	  switch (DECL_FUNCTION_CODE (gimple_call_fndecl (call)))
+	    {
+	    case BUILT_IN_ATOMIC_LOAD_1:
+	    case BUILT_IN_ATOMIC_LOAD_2:
+	    case BUILT_IN_ATOMIC_LOAD_4:
+	    case BUILT_IN_ATOMIC_LOAD_8:
+	    case BUILT_IN_ATOMIC_LOAD_16:
+	      {
+	      tree model_arg = gimple_call_arg (call, 1);
+	      if (TREE_CODE (model_arg) == INTEGER_CST
+		  && is_mm_relaxed (memmodel_from_int (tree_to_uhwi (model_arg))))
+		return;
+	      break;
+	      }
+	    default:
+	      break;
+	    }
 
 	/* IFN_GOACC_LOOP calls are necessary in that they are used to
 	   represent parameter (i.e. step, bound) of a lowered OpenACC

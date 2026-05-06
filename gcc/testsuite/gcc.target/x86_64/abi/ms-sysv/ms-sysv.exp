@@ -80,7 +80,7 @@ proc runtest_ms_sysv { cflags generator_args } {
     # to generate bp clobbers.
     if { [regexp "(^| )-(O0|fno-omit-frame-pointer|p|pg)( |$)" \
 		 "$TEST_ALWAYS_FLAGS $cflags" match]
-	 || [istarget *-*-solaris*] } then {
+	 || [istarget *-*-solaris*] || [istarget *-*-freebsd*] } then {
 	set generator_args "$generator_args --omit-rbp-clobbers"
     }
 

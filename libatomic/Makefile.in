@@ -836,7 +836,7 @@ info: info-recursive
 
 info-am:
 
-install-data-am:
+@LIBAT_BUILD_ASNEEDED_SOLINK_FALSE@install-data-am:
 
 install-dvi: install-dvi-recursive
 
@@ -929,9 +929,30 @@ vpath % $(strip $(search_path))
 # makefile fragments to avoid broken *.Ppo getting included into the Makefile
 # when it is reloaded during the build of all-multi.
 all-multi: $(libatomic_la_LIBADD)
-all-local: libatomic.la
+all-local: stmp-libatomic
+stmp-libatomic: libatomic.la
 	$(LIBTOOL) --mode=install $(INSTALL_DATA) libatomic.la $(gcc_objdir)$(MULTISUBDIR)/
+@LIBAT_BUILD_ASNEEDED_SOLINK_TRUE@	cd $(gcc_objdir)$(MULTISUBDIR) || exit 1; \
+@LIBAT_BUILD_ASNEEDED_SOLINK_TRUE@	if test -f libatomic.so; then (echo "/* GNU ld script"; \
+@LIBAT_BUILD_ASNEEDED_SOLINK_TRUE@	 echo "   Add DT_NEEDED entry for -latomic only if needed.  */"; \
+@LIBAT_BUILD_ASNEEDED_SOLINK_TRUE@	 echo "INPUT ( AS_NEEDED ( -latomic ) )" \
+@LIBAT_BUILD_ASNEEDED_SOLINK_TRUE@	) > libatomic_asneeded.so; fi; \
+@LIBAT_BUILD_ASNEEDED_SOLINK_TRUE@	if test -f libatomic.a; then rm -f libatomic_asneeded.a; \
+@LIBAT_BUILD_ASNEEDED_SOLINK_TRUE@	$(LN_S) libatomic.a libatomic_asneeded.a; fi
 	rm $(gcc_objdir)$(MULTISUBDIR)/libatomic.la
+	touch $@
+
+@LIBAT_BUILD_ASNEEDED_SOLINK_TRUE@install-data-am: install-asneeded
+
+@LIBAT_BUILD_ASNEEDED_SOLINK_TRUE@install-asneeded: install-toolexeclibLTLIBRARIES
+@LIBAT_BUILD_ASNEEDED_SOLINK_TRUE@	$(MKDIR_P) "$(DESTDIR)$(toolexeclibdir)" || exit 1; \
+@LIBAT_BUILD_ASNEEDED_SOLINK_TRUE@	cd "$(DESTDIR)$(toolexeclibdir)" || exit 1; \
+@LIBAT_BUILD_ASNEEDED_SOLINK_TRUE@	if test -f libatomic.so; then (echo "/* GNU ld script"; \
+@LIBAT_BUILD_ASNEEDED_SOLINK_TRUE@	 echo "   Add DT_NEEDED entry for -latomic only if needed.  */"; \
+@LIBAT_BUILD_ASNEEDED_SOLINK_TRUE@	 echo "INPUT ( AS_NEEDED ( -latomic ) )" \
+@LIBAT_BUILD_ASNEEDED_SOLINK_TRUE@	) > libatomic_asneeded.so; fi; \
+@LIBAT_BUILD_ASNEEDED_SOLINK_TRUE@	if test -f libatomic.a; then rm -f libatomic_asneeded.a; \
+@LIBAT_BUILD_ASNEEDED_SOLINK_TRUE@	$(LN_S) libatomic.a libatomic_asneeded.a; fi
 
 # target overrides
 -include $(tmake_file)

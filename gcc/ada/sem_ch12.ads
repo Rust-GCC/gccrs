@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2026, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -63,6 +63,22 @@ package Sem_Ch12 is
    --  retrieve the parent generic. If the parent is installed as a result of
    --  this call, then Parent_Installed is set True, otherwise Parent_Installed
    --  is unchanged by the call.
+
+   procedure Check_Private_View (N : Node_Id);
+   --  Check whether the type of a generic entity has a different view between
+   --  the point of generic analysis and the point of instantiation. If the
+   --  view has changed, then at the point of instantiation we restore the
+   --  correct view to perform semantic analysis of the instance, and reset
+   --  the current view after instantiation. The processing is driven by the
+   --  current private status of the type of the node, and Has_Private_View,
+   --  a flag that is set at the point of generic compilation. If view and
+   --  flag are inconsistent then the type is updated appropriately. A second
+   --  flag Has_Secondary_Private_View is used to update a second type related
+   --  to this type if need be.
+   --
+   --  This subprogram is used in Check_Generic_Actuals and Copy_Generic_Node,
+   --  and is exported here for the purpose of front-end inlining (see Exp_Ch6.
+   --  Expand_Inlined_Call.Process_Formals).
 
    function Copy_Generic_Node
      (N             : Node_Id;
@@ -150,10 +166,6 @@ package Sem_Ch12 is
    --  restored in stack-like fashion. Front-end inlining also uses these
    --  structures for the management of private/full views.
 
-   procedure Save_Global_References_In_Aspects (N : Node_Id);
-   --  Save all global references found within the expressions of all aspects
-   --  that appear on node N.
-
    procedure Set_Copied_Sloc_For_Inlined_Body (N : Node_Id; E : Entity_Id);
    --  This procedure is used when a subprogram body is inlined. This process
    --  shares the same circuitry as the creation of an instantiated copy of
@@ -231,21 +243,5 @@ package Sem_Ch12 is
 
    procedure Initialize;
    --  Initializes internal data structures
-
-   procedure Check_Private_View (N : Node_Id);
-   --  Check whether the type of a generic entity has a different view between
-   --  the point of generic analysis and the point of instantiation. If the
-   --  view has changed, then at the point of instantiation we restore the
-   --  correct view to perform semantic analysis of the instance, and reset
-   --  the current view after instantiation. The processing is driven by the
-   --  current private status of the type of the node, and Has_Private_View,
-   --  a flag that is set at the point of generic compilation. If view and
-   --  flag are inconsistent then the type is updated appropriately. A second
-   --  flag Has_Secondary_Private_View is used to update a second type related
-   --  to this type if need be.
-   --
-   --  This subprogram is used in Check_Generic_Actuals and Copy_Generic_Node,
-   --  and is exported here for the purpose of front-end inlining (see Exp_Ch6.
-   --  Expand_Inlined_Call.Process_Formals).
 
 end Sem_Ch12;

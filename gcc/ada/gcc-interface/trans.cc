@@ -6,7 +6,7 @@
  *                                                                          *
  *                          C Implementation File                           *
  *                                                                          *
- *          Copyright (C) 1992-2025, Free Software Foundation, Inc.         *
+ *          Copyright (C) 1992-2026, Free Software Foundation, Inc.         *
  *                                                                          *
  * GNAT is free software;  you can  redistribute it  and/or modify it under *
  * terms of the  GNU General Public License as published  by the Free Soft- *
@@ -8906,7 +8906,9 @@ gnat_to_gnu (Node_Id gnat_node)
       /* Remove padding only if the inner object is of self-referential
 	 size: in that case it must be an object of unconstrained type
 	 with a default discriminant and we want to avoid copying too
-	 much data.  But do not remove it if it is already too small.  */
+	 much data, in particular reading too much data from the source,
+	 which may be constrained and thus may contain no padding at all.
+	 But do not remove the padding if it is already too small.  */
       if (type_is_padding_self_referential (TREE_TYPE (gnu_result))
 	  && !(TREE_CODE (gnu_result) == COMPONENT_REF
 	       && DECL_BIT_FIELD (TREE_OPERAND (gnu_result, 1))

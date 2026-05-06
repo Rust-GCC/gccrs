@@ -43,6 +43,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "attribs.h"
 #include "asan.h"
 #include "bitmap.h"
+#include "cfgloop.h"
 
 #ifndef LOGICAL_OP_NON_SHORT_CIRCUIT
 #define LOGICAL_OP_NON_SHORT_CIRCUIT \
@@ -817,6 +818,21 @@ ifcombine_ifandif (basic_block inner_cond_bb, bool inner_inv,
   gcond *outer_cond = safe_dyn_cast <gcond *> (*gsi_last_bb (outer_cond_bb));
   if (!outer_cond)
     return false;
+
+  /* niter analysis does not cope with boolean typed loop exit conditions.
+     Avoid turning an analyzable exit into an unanalyzable one.  */
+  if (inner_cond_bb->loop_father == outer_cond_bb->loop_father
+      && loop_exits_from_bb_p (inner_cond_bb->loop_father, inner_cond_bb)
+      && loop_exits_from_bb_p (outer_cond_bb->loop_father, outer_cond_bb))
+    {
+      tree outer_type = TREE_TYPE (gimple_cond_lhs (outer_cond));
+      tree inner_type = TREE_TYPE (gimple_cond_lhs (inner_cond));
+      if (TREE_CODE (outer_type) == INTEGER_TYPE
+	  || POINTER_TYPE_P (outer_type)
+	  || TREE_CODE (inner_type) == INTEGER_TYPE
+	  || POINTER_TYPE_P (inner_type))
+	return false;
+    }
 
   /* See if we test a single bit of the same name in both tests.  In
      that case remove the outer test, merging both else edges,

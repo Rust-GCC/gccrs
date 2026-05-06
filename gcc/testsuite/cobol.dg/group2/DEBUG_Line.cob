@@ -1,6 +1,6 @@
        *> { dg-do run }
        *> { dg-output-file "group2/DEBUG_Line.out" }
-
+       >>SOURCE FIXED
        IDENTIFICATION DIVISION.
        PROGRAM-ID. prog.
        ENVIRONMENT DIVISION.

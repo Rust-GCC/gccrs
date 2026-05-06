@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2026, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -29,7 +29,6 @@ with Atree;          use Atree;
 with Checks;         use Checks;
 with Contracts;      use Contracts;
 with Debug;          use Debug;
-with Einfo;          use Einfo;
 with Einfo.Entities; use Einfo.Entities;
 with Einfo.Utils;    use Einfo.Utils;
 with Elists;         use Elists;
@@ -81,7 +80,6 @@ with Sem_Type;       use Sem_Type;
 with Sem_Warn;       use Sem_Warn;
 with Sinput;         use Sinput;
 with Stand;          use Stand;
-with Sinfo;          use Sinfo;
 with Sinfo.Nodes;    use Sinfo.Nodes;
 with Sinfo.Utils;    use Sinfo.Utils;
 with Sinfo.CN;       use Sinfo.CN;
@@ -4158,6 +4156,14 @@ package body Sem_Ch6 is
             Style.Body_With_No_Spec (N);
          end if;
 
+         --  Subprograms defined with direct attribute definitions must always
+         --  have separate specs.
+         if Nkind (Defining_Unit_Name (Original_Node (Body_Spec)))
+           = N_Attribute_Reference
+         then
+            Error_Msg_N ("subprogram must have a spec", N);
+         end if;
+
          --  First set Acts_As_Spec if appropriate
 
          if Nkind (N) /= N_Subprogram_Body_Stub then
@@ -5272,11 +5278,35 @@ package body Sem_Ch6 is
       -----------------------------------------
 
       procedure Analyze_Direct_Attribute_Definition (Designator : Entity_Id) is
+         function Can_Be_Destructor_Of
+           (E : Entity_Id; T : Entity_Id) return Boolean;
+         --  Returns whether E can be declared the destructor of T
+
+         --------------------------
+         -- Can_Be_Destructor_Of --
+         --------------------------
+
+         function Can_Be_Destructor_Of
+           (E : Entity_Id; T : Entity_Id) return Boolean is
+         begin
+            return
+              Ekind (E) = E_Procedure
+              and then Scope (E) = Scope (T)
+              and then Present (First_Formal (E))
+              and then Ekind (First_Formal (E)) = E_In_Out_Parameter
+              and then Etype (First_Formal (E)) = T
+              and then No (Next_Formal (First_Formal (E)));
+         end Can_Be_Destructor_Of;
+
+         --  Local variables
+
          Att_N    : constant Node_Id := Original_Node (N);
          Prefix_E : constant Entity_Id :=
            Get_Name_Entity_Id (Chars (Prefix (Defining_Unit_Name (Att_N))));
          Att_Name : constant Name_Id :=
            Attribute_Name (Defining_Unit_Name (Att_N));
+
+         --  Start of processing for Analyze_Direct_Attribute_Definition
       begin
          pragma Assert (N /= Att_N);
 
@@ -5333,7 +5363,7 @@ package body Sem_Ch6 is
                     ("& must be defined before freezing#", Designator);
 
                elsif Parent_Kind (Enclosing_Package_Or_Subprogram (Designator))
-                       /= N_Package_Specification
+                 /= N_Package_Specification
                then
                   Error_Msg_N
                     ("& is required to be a primitive operation", Designator);
@@ -5343,7 +5373,40 @@ package body Sem_Ch6 is
                   Set_Is_Constructor (Designator);
                end if;
 
-            when others =>
+            when Name_Destructor  =>
+               if Parent_Kind (N) not in N_Subprogram_Declaration then
+                  return;
+               elsif not Is_Record_Type (Prefix_E) then
+                  Error_Msg_N
+                    ("destructors can only be specified for record types",
+                     Designator);
+                  return;
+               elsif not Can_Be_Destructor_Of (Designator, Prefix_E) then
+                  Error_Msg_N
+                    ("destructor must be local procedure whose only formal "
+                     & "parameter has mode `IN OUT` and is of the type the "
+                     & "destructor is for",
+                     Designator);
+               elsif Is_Frozen (Prefix_E)
+                 or else Current_Scope /= Scope (Prefix_E)
+               then
+                  Error_Msg_Sloc := Sloc (Freeze_Node (Prefix_E));
+                  Error_Msg_N
+                    ("& must be defined before freezing#", Designator);
+
+               elsif Parent_Kind (Enclosing_Package_Or_Subprogram (Designator))
+                 /= N_Package_Specification
+               then
+                  Error_Msg_N
+                    ("& is required to be a primitive operation", Designator);
+
+               else
+                  Set_Has_Destructor (Prefix_E);
+                  Set_Is_Controlled_Active (Prefix_E);
+                  Set_Destructor (Prefix_E, Designator);
+               end if;
+
+            when others           =>
                null;
 
          end case;
@@ -5732,6 +5795,10 @@ package body Sem_Ch6 is
                    Null_Exclusion_Present (Parent (F2));
          end if;
       end Null_Exclusions_Match;
+
+      -----------------------------------------------
+      -- Subprogram_Subtypes_Have_Same_Declaration --
+      -----------------------------------------------
 
       function Subprogram_Subtypes_Have_Same_Declaration
         (Subp         : Entity_Id;
@@ -8281,6 +8348,11 @@ package body Sem_Ch6 is
             if Typ = View then
                return True;
 
+            --  The type is an incomplete view of the non-limited view
+
+            elsif Is_Incomplete_Type (Typ) and then Full_View (Typ) = View then
+               return True;
+
             --  The type is a subtype of the non-limited view
 
             elsif Is_Subtype_Of (Typ, View) then
@@ -9739,8 +9811,7 @@ package body Sem_Ch6 is
       --       formals (see exp_ch9.Build_Wrapper_Specs) which will be
       --       checked later.
 
-      if Debug_Flag_Underscore_XX
-        or else not Expander_Active
+      if not Expander_Active
         or else
           (Is_Predefined_Dispatching_Operation (E)
              and then (not Has_Reliable_Extra_Formals (E)
@@ -9824,16 +9895,11 @@ package body Sem_Ch6 is
       Has_Extra_Formals : Boolean := False;
 
    begin
-      --  No check required if explicitly disabled
-
-      if Debug_Flag_Underscore_XX then
-         return True;
-
       --  No check required if expansion is disabled because extra
       --  formals are only generated when we are generating code.
       --  See Create_Extra_Formals.
 
-      elsif not Expander_Active then
+      if not Expander_Active then
          return True;
       end if;
 
@@ -11791,7 +11857,12 @@ package body Sem_Ch6 is
       begin
          Is_Primitive := False;
 
-         if not Comes_From_Source (S) then
+         --  Constructors are never primitive operations
+
+         if Is_Constructor (S) then
+            null;
+
+         elsif not Comes_From_Source (S) then
             if Present (Derived_Type) then
 
                --  Add an inherited primitive for an untagged derived type to

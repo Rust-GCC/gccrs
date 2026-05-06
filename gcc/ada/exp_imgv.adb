@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2001-2025, Free Software Foundation, Inc.         --
+--          Copyright (C) 2001-2026, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -26,10 +26,10 @@
 with Atree;          use Atree;
 with Casing;         use Casing;
 with Checks;         use Checks;
-with Einfo;          use Einfo;
 with Einfo.Entities; use Einfo.Entities;
 with Einfo.Utils;    use Einfo.Utils;
 with Debug;          use Debug;
+with Exp_Ch7;        use Exp_Ch7;
 with Exp_Put_Image;
 with Exp_Util;       use Exp_Util;
 with Lib;            use Lib;
@@ -43,7 +43,6 @@ with Rtsfind;        use Rtsfind;
 with Sem_Aux;        use Sem_Aux;
 with Sem_Res;        use Sem_Res;
 with Sem_Util;       use Sem_Util;
-with Sinfo;          use Sinfo;
 with Sinfo.Nodes;    use Sinfo.Nodes;
 with Sinfo.Utils;    use Sinfo.Utils;
 with Snames;         use Snames;
@@ -1043,7 +1042,7 @@ package body Exp_Imgv is
    --  Start of processing for Expand_Image_Attribute
 
    begin
-      if Is_Object_Image (Pref) then
+      if Is_Object_Prefix (Pref) then
          Rewrite_Object_Image (N, Pref, Name_Image, Standard_String);
          return;
       end if;
@@ -1052,6 +1051,7 @@ package body Exp_Imgv is
       --  Exp_Put_Image for details.
 
       if Exp_Put_Image.Image_Should_Call_Put_Image (N) then
+         Establish_Transient_Scope (N, Manage_Sec_Stack => True);
          Rewrite (N, Exp_Put_Image.Build_Image_Call (N));
          Analyze_And_Resolve (N, Standard_String, Suppress => All_Checks);
          return;
@@ -1856,7 +1856,7 @@ package body Exp_Imgv is
       Rtyp : Entity_Id;
 
    begin
-      if Is_Object_Image (Pref) then
+      if Is_Object_Prefix (Pref) then
          Rewrite_Object_Image (N, Pref, Name_Wide_Image, Standard_Wide_String);
          return;
       end if;
@@ -1865,6 +1865,7 @@ package body Exp_Imgv is
       --  Exp_Put_Image for details.
 
       if Exp_Put_Image.Image_Should_Call_Put_Image (N) then
+         Establish_Transient_Scope (N, Manage_Sec_Stack => True);
          Rewrite (N, Exp_Put_Image.Build_Image_Call (N));
          Analyze_And_Resolve (N, Standard_Wide_String, Suppress => All_Checks);
          return;
@@ -1964,7 +1965,7 @@ package body Exp_Imgv is
       Rtyp : Entity_Id;
 
    begin
-      if Is_Object_Image (Pref) then
+      if Is_Object_Prefix (Pref) then
          Rewrite_Object_Image
            (N, Pref, Name_Wide_Wide_Image, Standard_Wide_Wide_String);
          return;
@@ -1974,6 +1975,7 @@ package body Exp_Imgv is
       --  Exp_Put_Image for details.
 
       if Exp_Put_Image.Image_Should_Call_Put_Image (N) then
+         Establish_Transient_Scope (N, Manage_Sec_Stack => True);
          Rewrite (N, Exp_Put_Image.Build_Image_Call (N));
          Analyze_And_Resolve
            (N, Standard_Wide_Wide_String, Suppress => All_Checks);

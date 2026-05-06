@@ -23,7 +23,7 @@ import re
 import sys
 import argparse
 from pathlib import Path
-from typing import List
+from typing import Any, List
 import pprint
 
 def remove_line_comments(text: str) -> str:
@@ -123,7 +123,7 @@ def parsing_str_set(s: str) -> set:
     s = set(map(lambda x: x.strip(), s))
     return s
 
-def get_avaliable_types(md_file_path: str):
+def get_available_types(md_file_path: str):
     # Main logic: parse input file and print define_attr "type" expressions
     ast = parse_md_file(Path(md_file_path))
 
@@ -141,15 +141,24 @@ def get_consumed_type(entry: List[str]) -> set:
         return parsing_str_set(entry[2])
     return set()
 
-def check_pipemodel(md_file_path: str):
+def has_tune_attr(entry: Any) -> bool:
+    # Check if an expression tree contains (eq_attr "tune" ...).
+    if isinstance(entry, list):
+        if len(entry) >= 2 and entry[0] == 'eq_attr' and entry[1] == 'tune':
+            return True
+        return any(has_tune_attr(elem) for elem in entry)
+    return False
+
+def check_pipemodel(md_file_path: str, tuneless_only: bool = False) -> set[str]:
     # Load the RISCV MD file and check for pipemodel
     ast = parse_md_file(Path(md_file_path))
 
     consumed_type = set()
 
     for entry in ast:
-        entry_type = entry[0]
-        if entry_type not in ["define_insn_reservation"]:
+        if entry[0] != "define_insn_reservation":
+            continue
+        if tuneless_only and has_tune_attr(entry[3]):
             continue
         consumed_type |= get_consumed_type(entry[3])
     return consumed_type
@@ -172,16 +181,20 @@ def main():
         base_md_path = script_dir / "riscv.md"
     else:
         base_md_path = Path(args.base_md)
-    avaliable_types = get_avaliable_types(str(base_md_path))
+    available_types = get_available_types(str(base_md_path))
+    tuneless_types = check_pipemodel(str(base_md_path), tuneless_only=True)
     consumed_type = check_pipemodel(args.pipeline_model)
 
     if args.verbose:
-        print("Available types:\n", avaliable_types)
+        print("Available types:\n", available_types)
         print("Consumed types:\n", consumed_type)
+        print("Tune-independent types:\n", tuneless_types)
 
-    if not avaliable_types.issubset(consumed_type):
+    available_types -= tuneless_types
+
+    if not available_types.issubset(consumed_type):
         print("Error: Some types are not consumed by the pipemodel")
-        print("Missing types:\n", avaliable_types - consumed_type)
+        print("Missing types:\n", available_types - consumed_type)
         sys.exit(1)
     else:
         print("All available types are consumed by the pipemodel.")

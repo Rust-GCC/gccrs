@@ -150,14 +150,8 @@ case "${host_cpu}" in
   amdgcn)
     cpu_defines_dir=cpu/gcn
     ;;
-  arm*)
-    cpu_defines_dir=cpu/arm
-    ;;
   nvptx)
     cpu_defines_dir=cpu/nvptx
-    ;;
-  powerpc* | rs6000)
-    cpu_defines_dir=cpu/powerpc
     ;;
 esac
 

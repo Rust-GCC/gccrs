@@ -22,6 +22,8 @@
 
 namespace ranges = std::ranges;
 
+struct Empty { };
+
 auto pred_f(int x) { return x%2 == 0; };
 auto pred_l = [] (int x) { return x%2 == 0; };
 
@@ -52,4 +54,8 @@ static_assert
 
 #if __cpp_lib_ranges_slide
 static_assert(sizeof(ranges::slide_view<V>) == 3*ptr);
+#endif
+
+#if __cpp_lib_ranges_repeat
+static_assert(sizeof(ranges::repeat_view<Empty, size_t>) == 1*ptr);
 #endif

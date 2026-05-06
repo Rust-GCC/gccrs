@@ -37,6 +37,19 @@ LIBGCC2_INCLUDES = -nostdinc -include vxworks-predef.h -I. \
   -isystem $(MULTIBUILDTOP)../../gcc/include-fixed$(MULTISUBDIR) \
   -isystem $(MULTIBUILDTOP)../../gcc/include
 
+# The aarch64-vx7r2 objLibP.h defines an inline function with unused
+# parameters.  Ideally using -isystem instead of -I above would work
+# around that, but then we get conflicts between GCC's and VxWorks'
+# regs.h.
+
+LIBGCC2_CFLAGS += -Wno-error=unused-parameter
+
+# aarch64-vx7r2 also gets complaints about dropping volatile
+# qualifiers in vxTas calls taking a pointer to __vx_tas_t.
+# An explicit cast doesn't avoid the warning, alas.
+
+LIBGCC2_CFLAGS += -Wno-error=discarded-qualifiers
+
 # Use these also for the vxcrstuff objects (.e.g for version.h), on top of
 # the options possibly already set specifically for the target:
 CRTSTUFF_T_CFLAGS += $(LIBGCC2_INCLUDES)

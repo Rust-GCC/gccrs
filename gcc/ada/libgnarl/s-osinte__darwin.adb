@@ -6,7 +6,7 @@
 --                                                                          --
 --                                  B o d y                                 --
 --                                                                          --
---          Copyright (C) 1999-2025, Free Software Foundation, Inc.         --
+--          Copyright (C) 1999-2026, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNARL is free software; you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -57,8 +57,6 @@ package body System.OS_Interface is
       pragma Unreferenced (clock_id);
 
       --  Darwin Threads don't have clock_gettime, so use gettimeofday
-
-      use Interfaces;
 
       TV     : aliased C_Time.timeval;
       Result : int;

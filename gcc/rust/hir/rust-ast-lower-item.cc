@@ -455,6 +455,25 @@ ASTLoweringItem::visit (AST::Function &function)
 
       auto translated_pattern = std::unique_ptr<HIR::Pattern> (
 	ASTLoweringPattern::translate (param.get_pattern ()));
+
+      switch (param.get_pattern ().get_pattern_kind ())
+	{
+	case AST::Pattern::Kind::Identifier:
+	case AST::Pattern::Kind::Wildcard:
+	case AST::Pattern::Kind::Tuple:
+	case AST::Pattern::Kind::Struct:
+	case AST::Pattern::Kind::TupleStruct:
+	case AST::Pattern::Kind::Reference:
+	case AST::Pattern::Kind::Grouped:
+	case AST::Pattern::Kind::Slice:
+	case AST::Pattern::Kind::Rest:
+	  break;
+	default:
+	  rust_error_at (param.get_locus (),
+			 "refutable pattern in function argument");
+	  continue;
+	}
+
       auto translated_type = std::unique_ptr<HIR::Type> (
 	ASTLoweringType::translate (param.get_type ()));
 

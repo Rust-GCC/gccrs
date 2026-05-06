@@ -495,27 +495,25 @@ static bool
 fold_const_pow (real_value *result, const real_value *arg0,
 		const real_value *arg1, const real_format *format)
 {
-  if (do_mpfr_arg2 (result, mpfr_pow, arg0, arg1, format))
-    return true;
+  if (flag_signaling_nans
+      && (REAL_VALUE_ISSIGNALING_NAN (*arg0)
+	  || REAL_VALUE_ISSIGNALING_NAN (*arg1)))
+    return false;
 
-  /* Check for an integer exponent.  */
-  REAL_VALUE_TYPE cint1;
-  HOST_WIDE_INT n1 = real_to_integer (arg1);
-  real_from_integer (&cint1, VOIDmode, n1, SIGNED);
-  /* Attempt to evaluate pow at compile-time, unless this should
-     raise an exception.  */
-  if (real_identical (arg1, &cint1)
-      && (n1 > 0
-	  || (!flag_trapping_math && !flag_errno_math)
-	  || !real_equal (arg0, &dconst0)))
+  if (do_mpfr_arg2 (result, mpfr_pow, arg0, arg1, format))
     {
-      bool inexact = real_powi (result, format, arg0, n1);
-      /* Avoid the folding if flag_signaling_nans is on.  */
-      if (flag_unsafe_math_optimizations
-	  || (!inexact
-	      && !(flag_signaling_nans
-	           && REAL_VALUE_ISSIGNALING_NAN (*arg0))))
-	return true;
+      if (flag_errno_math)
+	switch (result->cl)
+	  {
+	  case rvc_inf:
+	  case rvc_nan:
+	    return false;
+	  case rvc_zero:
+	    return arg0->cl == rvc_zero;
+	  default:
+	    break;
+	  }
+      return true;
     }
 
   return false;
@@ -1459,6 +1457,26 @@ fold_const_vec_shl_insert (tree, tree arg0, tree arg1)
   return NULL_TREE;
 }
 
+/* Fold a call to IFN_VEC_EXTRACT (ARG0, ARG1), returning a value
+   of type TYPE.
+
+   Right now this is only handling uniform vectors, so ARG1 is not
+   used.  But it could be easily adjusted in the future to handle
+   non-uniform vectors by extracting the relevant element.  */
+
+static tree
+fold_const_vec_extract (tree, tree arg0, tree)
+{
+  if (TREE_CODE (arg0) != VECTOR_CST)
+    return NULL_TREE;
+
+  /* vec_extract ( dup(CST), CST) -> dup (CST). */
+  if (tree elem = uniform_vector_p (arg0))
+    return elem;
+
+  return NULL_TREE;
+}
+
 /* Try to evaluate:
 
       *RESULT = FN (*ARG0, *ARG1)
@@ -1864,6 +1882,9 @@ fold_const_call (combined_fn fn, tree type, tree arg0, tree arg1)
 
     case CFN_VEC_SHL_INSERT:
       return fold_const_vec_shl_insert (type, arg0, arg1);
+
+    case CFN_VEC_EXTRACT:
+      return fold_const_vec_extract (type, arg0, arg1);
 
     case CFN_UBSAN_CHECK_ADD:
     case CFN_ADD_OVERFLOW:

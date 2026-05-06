@@ -25,6 +25,8 @@
 #include "rust-path.h"
 #include "optional.h"
 #include "expected.h"
+#include "rust-name-resolution.h"
+#include "rust-unwrap-segment.h"
 
 namespace Rust {
 namespace Resolver2_0 {
@@ -550,6 +552,74 @@ enum class ResolutionMode
   FromExtern, // extern prelude
 };
 
+class ResolutionPath
+{
+public:
+  template <typename T>
+  ResolutionPath (const std::vector<T> &segments_in, NodeId node_id)
+    : node_id (node_id)
+  {
+    segments.clear ();
+    segments.reserve (segments_in.size ());
+    for (auto &outer_seg : segments_in)
+      {
+	if (auto lang_item = unwrap_segment_get_lang_item (outer_seg))
+	  {
+	    rust_assert (!lang_prefix.has_value ());
+	    lang_prefix = std::make_pair (lang_item.value (),
+					  unwrap_segment_node_id (outer_seg));
+	    continue;
+	  }
+
+	auto &seg = unwrap_type_segment (outer_seg);
+
+	Segment new_seg;
+	new_seg.name = seg.as_string ();
+	new_seg.node_id = unwrap_segment_node_id (outer_seg);
+	new_seg.locus = seg.get_locus ();
+	segments.push_back (std::move (new_seg));
+      }
+  }
+
+  ResolutionPath () : node_id (UNKNOWN_NODEID) {}
+
+  struct Segment
+  {
+    std::string name;
+    NodeId node_id;
+    location_t locus;
+
+    bool is_super_path_seg () const { return name.compare ("super") == 0; }
+    bool is_crate_path_seg () const { return name.compare ("crate") == 0; }
+    bool is_lower_self_seg () const { return name.compare ("self") == 0; }
+    bool is_big_self_seg () const { return name.compare ("Self") == 0; }
+  };
+
+  tl::optional<std::pair<LangItem::Kind, NodeId>> get_lang_prefix () const
+  {
+    return lang_prefix;
+  }
+
+  const std::vector<Segment> &get_segments () const { return segments; }
+
+  NodeId get_node_id () const { return node_id; }
+
+  std::string as_string () const
+  {
+    std::string ret;
+    if (lang_prefix)
+      ret = "#[lang]::";
+    for (auto &seg : segments)
+      ret += "::" + seg.name;
+    return ret;
+  }
+
+private:
+  tl::optional<std::pair<LangItem::Kind, NodeId>> lang_prefix;
+  std::vector<Segment> segments;
+  NodeId node_id;
+};
+
 template <Namespace N> class ForeverStack
 {
 public:
@@ -649,6 +719,14 @@ public:
   tl::expected<NodeId, DuplicateNameError> insert_at_root (Identifier name,
 							   NodeId id);
 
+  /**
+   * Insert an item within the lang prelude
+   *
+   * @param name The name of the definition
+   * @param id Its NodeId
+   */
+  void insert_lang_prelude (Identifier name, NodeId id);
+
   /* Access the innermost `Rib` in this map */
   Rib &peek ();
   const Rib &peek () const;
@@ -671,25 +749,6 @@ public:
   tl::optional<Rib::Definition> get_from_prelude (NodeId prelude,
 						  const Identifier &name);
 
-  /**
-   * Resolve a path to its definition in the current `ForeverStack`
-   *
-   * // TODO: Add documentation for `segments`
-   *
-   * @return a valid option with the Definition if the path is present in the
-   *         current map, an empty one otherwise.
-   */
-  template <typename S>
-  tl::optional<Rib::Definition> resolve_path (
-    const std::vector<S> &segments, ResolutionMode mode,
-    std::function<void (const S &, NodeId)> insert_segment_resolution,
-    std::vector<Error> &collect_errors);
-  template <typename S>
-  tl::optional<Rib::Definition> resolve_path (
-    const std::vector<S> &segments, ResolutionMode mode,
-    std::function<void (const S &, NodeId)> insert_segment_resolution,
-    std::vector<Error> &collect_errors, NodeId starting_point_id);
-
   // FIXME: Documentation
   tl::optional<Rib &> to_rib (NodeId rib_id);
   tl::optional<const Rib &> to_rib (NodeId rib_id) const;
@@ -702,7 +761,6 @@ public:
    */
   bool is_module_descendant (NodeId parent, NodeId child) const;
 
-private:
   /**
    * A link between two Nodes in our trie data structure. This class represents
    * the edges of the graph
@@ -750,18 +808,7 @@ private:
     tl::optional<Node &> parent; // `None` only if the node is a root
   };
 
-  /**
-   * Private overloads which allow specifying a starting point
-   */
-
   tl::optional<Rib::Definition> get (Node &start, const Identifier &name);
-
-  template <typename S>
-  tl::optional<Rib::Definition> resolve_path (
-    const std::vector<S> &segments, ResolutionMode mode,
-    std::function<void (const S &, NodeId)> insert_segment_resolution,
-    std::vector<Error> &collect_errors,
-    std::reference_wrapper<Node> starting_point);
 
   /* Should we keep going upon seeing a Rib? */
   enum class KeepGoing
@@ -784,6 +831,7 @@ private:
 
   Node &cursor ();
   const Node &cursor () const;
+
   void update_cursor (Node &new_cursor);
 
   /* The forever stack's actual nodes */
@@ -809,23 +857,21 @@ private:
 
   /* Helper types and functions for `resolve_path` */
 
-  template <typename S>
-  using SegIterator = typename std::vector<S>::const_iterator;
+  using SegIterator =
+    typename std::vector<ResolutionPath::Segment>::const_iterator;
 
   Node &find_closest_module (Node &starting_point);
 
-  template <typename S>
-  tl::optional<SegIterator<S>> find_starting_point (
-    const std::vector<S> &segments,
+  tl::optional<SegIterator> find_starting_point (
+    const std::vector<ResolutionPath::Segment> &segments,
     std::reference_wrapper<Node> &starting_point,
-    std::function<void (const S &, NodeId)> insert_segment_resolution,
+    std::function<void (Usage, Definition)> insert_segment_resolution,
     std::vector<Error> &collect_errors);
 
-  template <typename S>
   tl::optional<Node &> resolve_segments (
-    Node &starting_point, const std::vector<S> &segments,
-    SegIterator<S> iterator,
-    std::function<void (const S &, NodeId)> insert_segment_resolution,
+    Node &starting_point, const std::vector<ResolutionPath::Segment> &segments,
+    SegIterator iterator,
+    std::function<void (Usage, Definition)> insert_segment_resolution,
     std::vector<Error> &collect_errors);
 
   tl::optional<Rib::Definition> resolve_final_segment (Node &final_node,
@@ -857,7 +903,6 @@ private:
   tl::optional<const Node &> dfs_node (const Node &starting_point,
 				       NodeId to_find) const;
 
-public:
   bool forward_declared (NodeId definition, NodeId usage)
   {
     if (peek ().kind != Rib::Kind::ForwardTypeParamBan)

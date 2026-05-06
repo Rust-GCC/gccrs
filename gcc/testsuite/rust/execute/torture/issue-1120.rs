@@ -1,6 +1,7 @@
 // { dg-additional-options "-w" }
-#![feature(intrinsics)]
-
+#![feature(no_core)]
+#![no_core]
+#![feature(intrinsics, staged_api)]
 #![feature(lang_items)]
 #[lang = "sized"]
 pub trait Sized {}

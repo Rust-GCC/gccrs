@@ -42,7 +42,6 @@
 #define __glibcxx_want_bool_constant
 #define __glibcxx_want_bounded_array_traits
 #define __glibcxx_want_common_reference
-#define __glibcxx_want_constant_wrapper
 #define __glibcxx_want_has_unique_object_representations
 #define __glibcxx_want_integral_constant_callable
 #define __glibcxx_want_is_aggregate
@@ -55,6 +54,7 @@
 #define __glibcxx_want_is_null_pointer
 #define __glibcxx_want_is_pointer_interconvertible
 #define __glibcxx_want_is_scoped_enum
+#define __glibcxx_want_is_structural
 #define __glibcxx_want_is_swappable
 #define __glibcxx_want_is_virtual_base_of
 #define __glibcxx_want_logical_traits
@@ -674,6 +674,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     : public __bool_constant<__is_member_object_pointer(_Tp)>
     { };
 #else
+  template<typename _Tp>
+    struct is_function;
+
   template<typename>
     struct __is_member_object_pointer_helper
     : public false_type { };
@@ -696,6 +699,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     : public __bool_constant<__is_member_function_pointer(_Tp)>
     { };
 #else
+  template<typename _Tp>
+    struct is_function;
+
   template<typename>
     struct __is_member_function_pointer_helper
     : public false_type { };
@@ -747,6 +753,29 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   template<typename _Tp>
     struct is_function<_Tp&&>
     : public false_type { };
+#endif
+
+#if __cpp_impl_reflection >= 202506L // C++ >= 26
+  /// is_reflection
+  template<typename _Tp>
+    struct is_reflection
+    : public false_type { };
+
+  template<>
+    struct is_reflection<decltype(^^int)>
+    : public true_type { };
+
+  template<>
+    struct is_reflection<const decltype(^^int)>
+    : public true_type { };
+
+  template<>
+    struct is_reflection<volatile decltype(^^int)>
+    : public true_type { };
+
+  template<>
+    struct is_reflection<const volatile decltype(^^int)>
+    : public true_type { };
 #endif
 
 #ifdef __cpp_lib_is_null_pointer // C++ >= 11
@@ -814,7 +843,11 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   template<typename _Tp>
     struct is_fundamental
     : public __or_<is_arithmetic<_Tp>, is_void<_Tp>,
-		   is_null_pointer<_Tp>>::type
+		   is_null_pointer<_Tp>
+#if __cpp_impl_reflection >= 202506L
+		   , is_reflection<_Tp>
+#endif
+		   >::type
     { };
 
   /// is_object
@@ -838,7 +871,11 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   template<typename _Tp>
     struct is_scalar
     : public __or_<is_arithmetic<_Tp>, is_enum<_Tp>, is_pointer<_Tp>,
-                   is_member_pointer<_Tp>, is_null_pointer<_Tp>>::type
+                   is_member_pointer<_Tp>, is_null_pointer<_Tp>
+#if __cpp_impl_reflection >= 202506L
+		   , is_reflection<_Tp>
+#endif
+		   >::type
     { };
 
   /// is_compound
@@ -2451,15 +2488,15 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     const size_t aligned_union<_Len, _Types...>::alignment_value;
 #pragma GCC diagnostic pop
 
-  /// @cond undocumented
-
+  // Decay trait for arrays and functions, used for perfect forwarding
+  // in make_pair, make_tuple, etc.
 #if _GLIBCXX_USE_BUILTIN_TRAIT(__decay)
   template<typename _Tp>
     struct decay
     { using type = __decay(_Tp); };
 #else
-  // Decay trait for arrays and functions, used for perfect forwarding
-  // in make_pair, make_tuple, etc.
+  /// @cond undocumented
+
   template<typename _Up>
     struct __decay_selector
     : __conditional_t<is_const<const _Up>::value, // false for functions
@@ -3528,6 +3565,19 @@ template <typename _Tp>
     is_member_function_pointer<_Tp>::value;
 #endif
 
+#if __cpp_impl_reflection >= 202506L // C++ >= 26
+template <typename _Tp>
+  inline constexpr bool is_reflection_v = false;
+template <>
+  inline constexpr bool is_reflection_v<decltype(^^int)> = true;
+template <>
+  inline constexpr bool is_reflection_v<const decltype(^^int)> = true;
+template <>
+  inline constexpr bool is_reflection_v<volatile decltype(^^int)> = true;
+template <>
+  inline constexpr bool is_reflection_v<const volatile decltype(^^int)> = true;
+#endif
+
 template <typename _Tp>
   inline constexpr bool is_enum_v = __is_enum(_Tp);
 template <typename _Tp>
@@ -3858,6 +3908,23 @@ template<typename _Ret, typename _Fn, typename... _Args>
   template<typename _Tp>
     inline constexpr bool is_aggregate_v = __is_aggregate(remove_cv_t<_Tp>);
 # endif
+#endif
+
+#if __cpp_lib_is_structural >= 202603L // C++ >= 26
+  /// is_structural - true if the type is a structural type.
+  /// @since C++26
+  template<typename _Tp>
+    struct is_structural
+    : bool_constant<__builtin_is_structural(_Tp)>
+    { };
+
+  /** is_structural_v - true if the type is a structural only type.
+   *  @ingroup variable_templates
+   *  @since C++26
+   */
+  template<typename _Tp>
+    inline constexpr bool is_structural_v
+      = __builtin_is_structural(_Tp);
 #endif
 
   /** * Remove references and cv-qualifiers.
@@ -4320,376 +4387,6 @@ template<typename _Ret, typename _Fn, typename... _Args>
 #endif
     };
 #endif // C++11
-
-#ifdef __cpp_lib_constant_wrapper // C++ >= 26
-  template<typename _Tp>
-    struct _CwFixedValue
-    {
-      using __type = _Tp;
-
-      constexpr
-      _CwFixedValue(__type __v) noexcept
-      : _M_data(__v) { }
-
-      __type _M_data;
-    };
-
-  template<typename _Tp, size_t _Extent>
-    struct _CwFixedValue<_Tp[_Extent]>
-    {
-      using __type = _Tp[_Extent];
-
-      constexpr
-      _CwFixedValue(_Tp (&__arr)[_Extent]) noexcept
-        : _CwFixedValue(__arr, typename _Build_index_tuple<_Extent>::__type())
-      { }
-
-      template<size_t... _Indices>
-	constexpr
-	_CwFixedValue(_Tp (&__arr)[_Extent], _Index_tuple<_Indices...>) noexcept
-	  : _M_data{__arr[_Indices]...}
-	{ }
-
-      _Tp _M_data[_Extent];
-    };
-
-  template<typename _Tp, size_t _Extent>
-    _CwFixedValue(_Tp (&)[_Extent]) -> _CwFixedValue<_Tp[_Extent]>;
-
-  template<_CwFixedValue _Xv,
-	   typename = typename decltype(_CwFixedValue(_Xv))::__type>
-    struct constant_wrapper;
-
-  template<typename _Tp>
-    concept _ConstExprParam = requires
-    {
-      typename constant_wrapper<_Tp::value>;
-    };
-
-  struct _CwOperators
-  {
-    template<_ConstExprParam _Tp>
-      friend constexpr auto
-      operator+(_Tp) noexcept -> constant_wrapper<(+_Tp::value)>
-      { return {}; }
-
-    template<_ConstExprParam _Tp>
-      friend constexpr auto
-      operator-(_Tp) noexcept -> constant_wrapper<(-_Tp::value)>
-      { return {}; }
-
-    template<_ConstExprParam _Tp>
-      friend constexpr auto
-      operator~(_Tp) noexcept -> constant_wrapper<(~_Tp::value)>
-      { return {}; }
-
-    template<_ConstExprParam _Tp>
-      friend constexpr auto
-      operator!(_Tp) noexcept -> constant_wrapper<(!_Tp::value)>
-      { return {}; }
-
-    template<_ConstExprParam _Tp>
-      friend constexpr auto
-      operator&(_Tp) noexcept -> constant_wrapper<(&_Tp::value)>
-      { return {}; }
-
-    template<_ConstExprParam _Tp>
-      friend constexpr auto
-      operator*(_Tp) noexcept -> constant_wrapper<(*_Tp::value)>
-      { return {}; }
-
-    template<_ConstExprParam _Left, _ConstExprParam _Right>
-      friend constexpr auto
-      operator+(_Left, _Right) noexcept
-	-> constant_wrapper<(_Left::value + _Right::value)>
-      { return {}; }
-
-    template<_ConstExprParam _Left, _ConstExprParam _Right>
-      friend constexpr auto
-      operator-(_Left, _Right) noexcept
-	-> constant_wrapper<(_Left::value - _Right::value)>
-      { return {}; }
-
-    template<_ConstExprParam _Left, _ConstExprParam _Right>
-      friend constexpr auto
-      operator*(_Left, _Right) noexcept
-	-> constant_wrapper<(_Left::value * _Right::value)>
-      { return {}; }
-
-    template<_ConstExprParam _Left, _ConstExprParam _Right>
-      friend constexpr auto
-      operator/(_Left, _Right) noexcept
-	-> constant_wrapper<(_Left::value / _Right::value)>
-      { return {}; }
-
-    template<_ConstExprParam _Left, _ConstExprParam _Right>
-      friend constexpr auto
-      operator%(_Left, _Right) noexcept
-	-> constant_wrapper<(_Left::value % _Right::value)>
-      { return {}; }
-
-    template<_ConstExprParam _Left, _ConstExprParam _Right>
-      friend constexpr auto
-      operator<<(_Left, _Right) noexcept
-	-> constant_wrapper<(_Left::value << _Right::value)>
-      { return {}; }
-
-    template<_ConstExprParam _Left, _ConstExprParam _Right>
-      friend constexpr auto
-      operator>>(_Left, _Right) noexcept
-	-> constant_wrapper<(_Left::value >> _Right::value)>
-      { return {}; }
-
-    template<_ConstExprParam _Left, _ConstExprParam _Right>
-      friend constexpr auto
-      operator&(_Left, _Right) noexcept
-	-> constant_wrapper<(_Left::value & _Right::value)>
-      { return {}; }
-
-    template<_ConstExprParam _Left, _ConstExprParam _Right>
-      friend constexpr auto
-      operator|(_Left, _Right) noexcept
-	-> constant_wrapper<(_Left::value | _Right::value)>
-      { return {}; }
-
-    template<_ConstExprParam _Left, _ConstExprParam _Right>
-      friend constexpr auto
-      operator^(_Left, _Right) noexcept
-	-> constant_wrapper<(_Left::value ^ _Right::value)>
-      { return {}; }
-
-    template<_ConstExprParam _Left, _ConstExprParam _Right>
-      requires (!is_constructible_v<bool, decltype(_Left::value)>
-		|| !is_constructible_v<bool, decltype(_Right::value)>)
-      friend constexpr auto
-      operator&&(_Left, _Right) noexcept
-	-> constant_wrapper<(_Left::value && _Right::value)>
-      { return {}; }
-
-    template<_ConstExprParam _Left, _ConstExprParam _Right>
-      requires (!is_constructible_v<bool, decltype(_Left::value)>
-		|| !is_constructible_v<bool, decltype(_Right::value)>)
-      friend constexpr auto
-      operator||(_Left, _Right) noexcept
-	-> constant_wrapper<(_Left::value || _Right::value)>
-      { return {}; }
-
-    template<_ConstExprParam _Left, _ConstExprParam _Right>
-      friend constexpr auto
-      operator<=>(_Left, _Right) noexcept
-	-> constant_wrapper<(_Left::value <=> _Right::value)>
-      { return {}; }
-
-    template<_ConstExprParam _Left, _ConstExprParam _Right>
-      friend constexpr auto
-      operator<(_Left, _Right) noexcept
-	-> constant_wrapper<(_Left::value < _Right::value)>
-      { return {}; }
-
-    template<_ConstExprParam _Left, _ConstExprParam _Right>
-      friend constexpr auto
-      operator<=(_Left, _Right) noexcept
-	-> constant_wrapper<(_Left::value <= _Right::value)>
-      { return {}; }
-
-    template<_ConstExprParam _Left, _ConstExprParam _Right>
-      friend constexpr auto
-      operator==(_Left, _Right) noexcept
-	-> constant_wrapper<(_Left::value == _Right::value)>
-      { return {}; }
-
-    template<_ConstExprParam _Left, _ConstExprParam _Right>
-      friend constexpr auto
-      operator!=(_Left, _Right) noexcept
-	-> constant_wrapper<(_Left::value != _Right::value)>
-      { return {}; }
-
-    template<_ConstExprParam _Left, _ConstExprParam _Right>
-      friend constexpr auto
-      operator>(_Left, _Right) noexcept
-	-> constant_wrapper<(_Left::value > _Right::value)>
-      { return {}; }
-
-    template<_ConstExprParam _Left, _ConstExprParam _Right>
-      friend constexpr auto
-      operator>=(_Left, _Right) noexcept
-	-> constant_wrapper<(_Left::value >= _Right::value)>
-      { return {}; }
-
-    template<_ConstExprParam _Left, _ConstExprParam _Right>
-      friend constexpr auto
-      operator,(_Left, _Right) noexcept = delete;
-
-    template<_ConstExprParam _Left, _ConstExprParam _Right>
-      friend constexpr auto
-      operator->*(_Left, _Right) noexcept
-	-> constant_wrapper<_Left::value->*(_Right::value)>
-      { return {}; }
-
-    template<_ConstExprParam _Tp, _ConstExprParam... _Args>
-      constexpr auto
-      operator()(this _Tp, _Args...) noexcept
-      requires
-	requires(_Args...) { constant_wrapper<_Tp::value(_Args::value...)>(); }
-      { return constant_wrapper<_Tp::value(_Args::value...)>{}; }
-
-    template<_ConstExprParam _Tp, _ConstExprParam... _Args>
-      constexpr auto
-      operator[](this _Tp, _Args...) noexcept
-	-> constant_wrapper<(_Tp::value[_Args::value...])>
-      { return {}; }
-
-    template<_ConstExprParam _Tp>
-      constexpr auto
-      operator++(this _Tp) noexcept
-      requires requires(_Tp::value_type __x) { ++__x; }
-      {
-	return constant_wrapper<
-	  [] { auto __x = _Tp::value; return ++__x; }()>{};
-      }
-
-    template<_ConstExprParam _Tp>
-      constexpr auto
-      operator++(this _Tp, int) noexcept
-      requires requires(_Tp::value_type __x) { __x++; }
-      {
-	return constant_wrapper<
-	  [] { auto __x = _Tp::value; return __x++; }()>{};
-      }
-
-    template<_ConstExprParam _Tp>
-      constexpr auto
-      operator--(this _Tp) noexcept
-      requires requires(_Tp::value_type __x) { --__x; }
-      {
-	return constant_wrapper<
-	  [] { auto __x = _Tp::value; return --__x; }()>{};
-      }
-
-    template<_ConstExprParam _Tp>
-      constexpr auto
-      operator--(this _Tp, int) noexcept
-      requires requires(_Tp::value_type __x) { __x--; }
-      {
-	return constant_wrapper<
-	  [] { auto __x = _Tp::value; return __x--; }()>{};
-      }
-
-    template<_ConstExprParam _Tp, _ConstExprParam _Right>
-      constexpr auto
-      operator+=(this _Tp, _Right) noexcept
-      requires requires(_Tp::value_type __x) { __x += _Right::value; }
-      {
-	return constant_wrapper<
-	  [] { auto __x = _Tp::value; return __x += _Right::value; }()>{};
-      }
-
-    template<_ConstExprParam _Tp, _ConstExprParam _Right>
-      constexpr auto
-      operator-=(this _Tp, _Right) noexcept
-      requires requires(_Tp::value_type __x) { __x -= _Right::value; }
-      {
-	return constant_wrapper<
-	  [] { auto __x = _Tp::value; return __x -= _Right::value; }()>{};
-      }
-
-    template<_ConstExprParam _Tp, _ConstExprParam _Right>
-      constexpr auto
-      operator*=(this _Tp, _Right) noexcept
-      requires requires(_Tp::value_type __x) { __x *= _Right::value; }
-      {
-	return constant_wrapper<
-	  [] { auto __x = _Tp::value; return __x *= _Right::value; }()>{};
-      }
-
-    template<_ConstExprParam _Tp, _ConstExprParam _Right>
-      constexpr auto
-      operator/=(this _Tp, _Right) noexcept
-      requires requires(_Tp::value_type __x) { __x /= _Right::value; }
-      {
-	return constant_wrapper<
-	  [] { auto __x = _Tp::value; return __x /= _Right::value; }()>{};
-      }
-
-    template<_ConstExprParam _Tp, _ConstExprParam _Right>
-      constexpr auto
-      operator%=(this _Tp, _Right) noexcept
-      requires requires(_Tp::value_type __x) { __x %= _Right::value; }
-      {
-	return constant_wrapper<
-	  [] { auto __x = _Tp::value; return __x %= _Right::value; }()>{};
-      }
-
-    template<_ConstExprParam _Tp, _ConstExprParam _Right>
-      constexpr auto
-      operator&=(this _Tp, _Right) noexcept
-      requires requires(_Tp::value_type __x) { __x &= _Right::value; }
-      {
-	return constant_wrapper<
-	  [] { auto __x = _Tp::value; return __x &= _Right::value; }()>{};
-      }
-
-    template<_ConstExprParam _Tp, _ConstExprParam _Right>
-      constexpr auto
-      operator|=(this _Tp, _Right) noexcept
-      requires requires(_Tp::value_type __x) { __x |= _Right::value; }
-      {
-	return constant_wrapper<
-	  [] { auto __x = _Tp::value; return __x |= _Right::value; }()>{};
-      }
-
-    template<_ConstExprParam _Tp, _ConstExprParam _Right>
-      constexpr auto
-      operator^=(this _Tp, _Right) noexcept
-      requires requires(_Tp::value_type __x) { __x ^= _Right::value; }
-      {
-	return constant_wrapper<
-	  [] { auto __x = _Tp::value; return __x ^= _Right::value; }()>{};
-      }
-
-    template<_ConstExprParam _Tp, _ConstExprParam _Right>
-      constexpr auto
-      operator<<=(this _Tp, _Right) noexcept
-      requires requires(_Tp::value_type __x) { __x <<= _Right::value; }
-      {
-	return constant_wrapper<
-	  [] { auto __x = _Tp::value; return __x <<= _Right::value; }()>{};
-      }
-
-    template<_ConstExprParam _Tp, _ConstExprParam _Right>
-      constexpr auto
-      operator>>=(this _Tp, _Right) noexcept
-      requires requires(_Tp::value_type __x) { __x >>= _Right::value; }
-      {
-	return constant_wrapper<
-	  [] { auto __x = _Tp::value; return __x >>= _Right::value; }()>{};
-      }
-  };
-
-  template<_CwFixedValue _Xv, typename>
-  struct constant_wrapper : _CwOperators
-  {
-    static constexpr const auto& value = _Xv._M_data;
-    using type = constant_wrapper;
-    using value_type = typename decltype(_Xv)::__type;
-
-    template<_ConstExprParam _Right>
-      constexpr auto
-      operator=(_Right) const noexcept
-      requires requires(value_type __x) { __x = _Right::value; }
-      {
-	return constant_wrapper<
-	  [] { auto __x = value; return __x = _Right::value; }()>{};
-      }
-
-    constexpr
-    operator decltype(value)() const noexcept
-    { return value; }
-  };
-
-  template<_CwFixedValue _Tp>
-    constexpr auto cw = constant_wrapper<_Tp>{};
-#endif
 
   /// @} group metaprogramming
 

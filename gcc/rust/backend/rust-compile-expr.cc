@@ -192,9 +192,9 @@ void
 CompileExpr::visit (HIR::CompoundAssignmentExpr &expr)
 {
   auto op = expr.get_expr_type ();
-  auto lhs = CompileExpr::Compile (expr.get_lhs (), ctx);
-  auto rhs = CompileExpr::Compile (expr.get_rhs (), ctx);
-
+  tree lhs = CompileExpr::Compile (expr.get_lhs (), ctx);
+  tree rhs = CompileExpr::Compile (expr.get_rhs (), ctx);
+  tree compound_assignment = NULL_TREE;
   // this might be an operator overload situation lets check
   TyTy::FnType *fntype;
   bool is_op_overload = ctx->get_tyctx ()->lookup_operator_overload (
@@ -203,38 +203,37 @@ CompileExpr::visit (HIR::CompoundAssignmentExpr &expr)
     {
       auto lang_item_type = LangItem::CompoundAssignmentOperatorToLangItem (
 	expr.get_expr_type ());
-      auto compound_assignment
+      compound_assignment
 	= resolve_operator_overload (lang_item_type, expr, lhs, rhs,
 				     expr.get_lhs (), expr.get_rhs ());
-      ctx->add_statement (compound_assignment);
-
-      return;
     }
-
-  if (ctx->in_fn () && !ctx->const_context_p ())
+  else if (ctx->in_fn () && !ctx->const_context_p ())
     {
-      auto tmp = NULL_TREE;
+      tree tmp = NULL_TREE;
       Bvariable *receiver
 	= Backend::temporary_variable (ctx->peek_fn ().fndecl, NULL_TREE,
 				       TREE_TYPE (lhs), lhs, true,
 				       expr.get_locus (), &tmp);
-      auto check
+      tree check
 	= Backend::arithmetic_or_logical_expression_checked (op, lhs, rhs,
 							     expr.get_locus (),
 							     receiver);
       ctx->add_statement (check);
-
-      translated
+      compound_assignment
 	= Backend::assignment_statement (lhs,
 					 receiver->get_tree (expr.get_locus ()),
 					 expr.get_locus ());
     }
   else
     {
-      translated
+      tree expr_tree
 	= Backend::arithmetic_or_logical_expression (op, lhs, rhs,
 						     expr.get_locus ());
+      compound_assignment
+	= Backend::assignment_statement (lhs, expr_tree, expr.get_locus ());
     }
+  ctx->add_statement (compound_assignment);
+  translated = unit_expression (expr.get_locus ());
 }
 
 void
@@ -360,6 +359,7 @@ CompileExpr::visit (HIR::IfExpr &expr)
 {
   auto stmt = CompileConditionalBlocks::compile (&expr, ctx, nullptr);
   ctx->add_statement (stmt);
+  translated = unit_expression (expr.get_locus ());
 }
 
 void
@@ -367,9 +367,7 @@ CompileExpr::visit (HIR::InlineAsm &expr)
 {
   CompileAsm asm_codegen (ctx);
   ctx->add_statement (asm_codegen.tree_codegen_asm (expr));
-  // translated = build_asm_expr (0, NULL_TREE, NULL_TREE, NULL_TREE, NULL_TREE,
-  //		       NULL_TREE, true, true);
-  // CompileAsm::asm_build_expr (expr);
+  translated = unit_expression (expr.get_locus ());
 }
 
 void
@@ -377,6 +375,7 @@ CompileExpr::visit (HIR::LlvmInlineAsm &expr)
 {
   CompileLlvmAsm asm_codegen (ctx);
   ctx->add_statement (asm_codegen.tree_codegen_asm (expr));
+  translated = unit_expression (expr.get_locus ());
 }
 
 void
@@ -848,6 +847,7 @@ CompileExpr::visit (HIR::WhileLoopExpr &expr)
 
   tree loop_expr = Backend::loop_expression (loop_block, expr.get_locus ());
   ctx->add_statement (loop_expr);
+  translated = unit_expression (expr.get_locus ());
 }
 
 void
@@ -1099,6 +1099,7 @@ CompileExpr::visit (HIR::AssignmentExpr &expr)
     = Backend::assignment_statement (lvalue, rvalue, expr.get_locus ());
 
   ctx->add_statement (assignment);
+  translated = unit_expression (expr.get_locus ());
 }
 
 // Helper for CompileExpr::visit (HIR::MatchExpr).

@@ -877,17 +877,13 @@ get_string_length (strinfo *si)
 	  gimple_set_vuse (lenstmt, gimple_vuse (stmt));
 	  gsi_insert_before (&gsi, lenstmt, GSI_SAME_STMT);
 	  tem = gimple_call_arg (stmt, 0);
-          if (!ptrofftype_p (TREE_TYPE (lhs)))
-            {
-              lhs = convert_to_ptrofftype (lhs);
-              lhs = force_gimple_operand_gsi (&gsi, lhs, true, NULL_TREE,
-                                              true, GSI_SAME_STMT);
-            }
-	  lenstmt = gimple_build_assign
-			(make_ssa_name (TREE_TYPE (gimple_call_arg (stmt, 0))),
-			 POINTER_PLUS_EXPR,tem, lhs);
-	  gsi_insert_before (&gsi, lenstmt, GSI_SAME_STMT);
-	  gimple_call_set_arg (stmt, 0, gimple_assign_lhs (lenstmt));
+	  lhs = gimple_convert_to_ptrofftype (&gsi, true, GSI_SAME_STMT,
+					      gimple_location (stmt), lhs);
+	  tem = gimple_build (&gsi, true, GSI_SAME_STMT,
+			      gimple_location (stmt), POINTER_PLUS_EXPR,
+			      TREE_TYPE (gimple_call_arg (stmt, 0)),
+			      tem, lhs);
+	  gimple_call_set_arg (stmt, 0, tem);
 	  lhs = NULL_TREE;
 	  /* FALLTHRU */
 	case BUILT_IN_STRCPY:
@@ -2523,11 +2519,11 @@ strlen_pass::handle_builtin_strcpy (built_in_function bcode)
   dst = gimple_call_arg (stmt, 0);
   lhs = gimple_call_lhs (stmt);
   idx = get_stridx (src, stmt);
+  didx = get_stridx (dst, stmt);
   si = NULL;
   if (idx > 0)
     si = get_strinfo (idx);
 
-  didx = get_stridx (dst, stmt);
   olddsi = NULL;
   oldlen = NULL_TREE;
   if (didx > 0)
@@ -3341,11 +3337,12 @@ strlen_pass::handle_builtin_memcpy (built_in_function bcode)
   tree dst = gimple_call_arg (stmt, 0);
 
   int didx = get_stridx (dst, stmt);
+  if (didx < 0)
+    return;
+  int idx = get_stridx (src, stmt);
   strinfo *olddsi = NULL;
   if (didx > 0)
     olddsi = get_strinfo (didx);
-  else if (didx < 0)
-    return;
 
   if (olddsi != NULL
       && !integer_zerop (len))
@@ -3355,7 +3352,6 @@ strlen_pass::handle_builtin_memcpy (built_in_function bcode)
 	adjust_last_stmt (olddsi, stmt, false);
     }
 
-  int idx = get_stridx (src, stmt);
   if (idx == 0)
     return;
 
@@ -3533,6 +3529,7 @@ strlen_pass::handle_builtin_strcat (built_in_function bcode)
   didx = get_stridx (dst, stmt);
   if (didx < 0)
     return;
+  idx = get_stridx (src, stmt);
 
   dsi = NULL;
   if (didx > 0)
@@ -3540,7 +3537,6 @@ strlen_pass::handle_builtin_strcat (built_in_function bcode)
 
   srclen = NULL_TREE;
   si = NULL;
-  idx = get_stridx (src, stmt);
   if (idx < 0)
     srclen = build_int_cst (size_type_node, ~idx);
   else if (idx > 0)

@@ -1400,7 +1400,7 @@ namespace __rb_tree
 	  // Enforce this here with a user-friendly message.
 	  static_assert(
 	    __is_invocable<const _Compare&, const _Key&, const _Key&>::value,
-	    "comparison object must be invocable with two arguments of key type"
+	    "comparison object must be invocable with arguments of key_type"
 	  );
 #endif
 	  return _M_impl._M_key_compare(__k1, __k2);
@@ -1469,6 +1469,20 @@ namespace __rb_tree
       pair<_Base_ptr, _Base_ptr>
       _M_get_insert_hint_equal_pos(const_iterator __pos,
 				   const key_type& __k);
+
+#ifdef __glibcxx_associative_heterogeneous_insertion  // C++26
+      template <typename... _Args>
+	iterator
+	_M_emplace_here(bool __place_left, _Base_ptr __node, _Args&&... __args);
+
+      template <typename _Kt>
+	pair<_Base_ptr, _Base_ptr>
+	_M_get_insert_unique_pos_tr(const _Kt& __k);
+
+      template <typename _Kt>
+	pair<_Base_ptr, _Base_ptr>
+	_M_get_insert_hint_unique_pos_tr(const_iterator, const _Kt& __k);
+#endif
 
     private:
 #if __cplusplus >= 201103L
@@ -1539,9 +1553,17 @@ namespace __rb_tree
       _M_lower_bound(_Base_ptr __x, _Base_ptr __y,
 		     const _Key& __k) const;
 
+      template <typename _Kt>
+	_Base_ptr
+	_M_lower_bound_tr(_Base_ptr __x, _Base_ptr __y, const _Kt& __k) const;
+
       _Base_ptr
       _M_upper_bound(_Base_ptr __x, _Base_ptr __y,
 		     const _Key& __k) const;
+
+      template <typename _Kt>
+	_Base_ptr
+	_M_upper_bound_tr(_Base_ptr __x, _Base_ptr __y, const _Kt& __k) const;
 
     public:
       // allocation/deallocation
@@ -1850,6 +1872,10 @@ namespace __rb_tree
       size_type
       erase(const key_type& __x);
 
+      template <typename _Kt>
+	size_type
+	_M_erase_tr(const _Kt& __x);
+
       size_type
       _M_erase_unique(const key_type& __x);
 
@@ -2048,7 +2074,7 @@ namespace __rb_tree
       _M_move_assign(_Rb_tree&, false_type);
 #endif
 
-#if __glibcxx_node_extract // >= C++17
+#ifdef __glibcxx_node_extract // >= C++17
       static _Node_ptr
       _S_adapt(typename _Node_alloc_traits::pointer __ptr)
       {
@@ -2197,6 +2223,17 @@ namespace __rb_tree
 	  __nh = extract(const_iterator(__pos));
 	return __nh;
       }
+
+      template <typename _Kt>
+	node_type
+	_M_extract_tr(const _Kt& __k)
+	{
+	  node_type __nh;
+	  auto __pos = _M_find_tr(__k);
+	  if (__pos != end())
+	    __nh = extract(const_iterator(__pos));
+	  return __nh;
+	}
 
       template<typename _Compare2>
 	using _Compatible_tree
@@ -2423,7 +2460,7 @@ namespace __rb_tree
 	for (; __first != __last; ++__first)
 	  _M_insert_equal_(end(), *__first, __roan);
       }
-#endif
+#endif // C++11
 
   template<typename _Key, typename _Val, typename _KeyOfValue,
 	   typename _Compare, typename _Alloc>
@@ -2613,6 +2650,21 @@ namespace __rb_tree
     }
 
   template<typename _Key, typename _Val, typename _KeyOfValue,
+	typename _Compare, typename _Alloc>
+    template <typename _Kt>
+      typename _Rb_tree<_Key, _Val, _KeyOfValue, _Compare, _Alloc>::_Base_ptr
+      _Rb_tree<_Key, _Val, _KeyOfValue, _Compare, _Alloc>::
+      _M_lower_bound_tr(_Base_ptr __x, _Base_ptr __y, const _Kt& __k) const
+      {
+	while (__x)
+	  if (!_M_key_compare(_S_key(__x), __k))
+	    __y = __x, __x = _S_left(__x);
+	  else
+	    __x = _S_right(__x);
+	return __y;
+      }
+
+  template<typename _Key, typename _Val, typename _KeyOfValue,
 	   typename _Compare, typename _Alloc>
     typename _Rb_tree<_Key, _Val, _KeyOfValue,
 		      _Compare, _Alloc>::_Base_ptr
@@ -2627,6 +2679,21 @@ namespace __rb_tree
 	  __x = _S_right(__x);
       return __y;
     }
+
+  template<typename _Key, typename _Val, typename _KeyOfValue,
+	   typename _Compare, typename _Alloc>
+    template <typename _Kt>
+      typename _Rb_tree<_Key, _Val, _KeyOfValue, _Compare, _Alloc>::_Base_ptr
+      _Rb_tree<_Key, _Val, _KeyOfValue, _Compare, _Alloc>::
+      _M_upper_bound_tr(_Base_ptr __x, _Base_ptr __y, const _Kt& __k) const
+      {
+	while (__x)
+	  if (_M_key_compare(__k, _S_key(__x)))
+	    __y = __x, __x = _S_left(__x);
+	  else
+	    __x = _S_right(__x);
+	return __y;
+      }
 
   template<typename _Key, typename _Val, typename _KeyOfValue,
 	   typename _Compare, typename _Alloc>
@@ -2777,6 +2844,56 @@ namespace __rb_tree
       return _Res(__x, __y);
     }
 
+#ifdef __glibcxx_associative_heterogeneous_insertion  // C++26
+
+  // Multiple elements may compare equal to __k. Identify the first
+  // of any such elements, or insert normally.
+
+  template <typename _Key, typename _Val, typename _KeyOfValue,
+	    typename _Compare, typename _Alloc>
+    template <typename _Kt>
+      auto
+      _Rb_tree<_Key, _Val, _KeyOfValue, _Compare, _Alloc>::
+      _M_get_insert_unique_pos_tr(const _Kt& __k)
+      -> pair<_Base_ptr, _Base_ptr>
+      {
+	if (size() == 0)
+	  return { _M_end(), _M_end() }; // Insert as root.
+
+	_Base_ptr __x = _M_begin(), __y = __x;
+	bool __k_le_y = false;
+	do
+	  {
+	    __y = __x;
+	    __k_le_y = ! _M_key_compare(_S_key(__x), __k);
+	    __x = __k_le_y ? _S_left(__x) : _S_right(__x);
+	  }
+	while (__x);
+	// If !__k_le_y, __k > *__y;
+	//   If __y is rightmost, put at _M_right under *__y.
+	//   else if __k < *(__y+1), put at _M_right under *__y.
+	//   else __k == *(__y+1), do not insert, report (__y+1).
+	// else, __k_le_y, __k <= *__y;
+	//   If __k < *__Y, put at _M_left under *__y.
+	//   else __k == *__y, do not insert, report __y.
+	auto __j = iterator(__y);
+	if (! __k_le_y)  // k > *__y
+	  {
+	    if (__y == _M_rightmost())
+	      return { {}, __y };   // Place to right under __y.
+	    ++__j;
+	  }
+	if (_M_key_compare(__k, _S_key(__j._M_node)))
+	  {
+	    if (__k_le_y)
+	      return { __y, __y };  // Place to left under __y.
+	    else
+	      return { {}, __y };   // Place to right under __y.
+	  }
+	return { __j._M_node, {} };    // No insert.
+      }
+#endif
+
   template<typename _Key, typename _Val, typename _KeyOfValue,
 	   typename _Compare, typename _Alloc>
 #if __cplusplus >= 201103L
@@ -2882,6 +2999,59 @@ namespace __rb_tree
 	// Equivalent keys.
 	return _Res(__position._M_node, _Base_ptr());
     }
+
+#ifdef __glibcxx_associative_heterogeneous_insertion  // C++26
+  template <typename _Key, typename _Val, typename _KeyOfValue,
+	    typename _Compare, typename _Alloc>
+    template <typename _Kt>
+      auto
+      _Rb_tree<_Key, _Val, _KeyOfValue, _Compare, _Alloc>::
+      _M_get_insert_hint_unique_pos_tr(const_iterator __hint, const _Kt& __k)
+      -> pair<_Base_ptr, _Base_ptr>
+      {
+	auto __node =__hint._M_node;
+	if (__node == _M_end())
+	  {
+	    if (size() > 0 && _M_key_compare(_S_key(_M_rightmost()), __k))
+	      return { {}, _M_rightmost() };
+	    return _M_get_insert_unique_pos_tr(__k);
+	  }
+	if (_M_key_compare(__k, _S_key(__node)))
+	  { // First, try before...
+	    if (__node == _M_leftmost()) // begin()
+		return { _M_leftmost(), _M_leftmost() };
+	    iterator __before(__node);
+	    --__before;
+	    if (_M_key_compare(_S_key(__before._M_node), __k))
+	      {
+		if (!_S_right(__before._M_node))
+		  return { {}, __before._M_node }; // put right
+		return { __node, __node }; // put left;
+	      }
+	    return _M_get_insert_unique_pos_tr(__k);
+	  }
+	if (_M_key_compare(_S_key(__node), __k))
+	  { // ... then try after.
+	    if (__node == _M_rightmost())
+	      return { {}, _M_rightmost() };
+	    iterator __after(__node);
+	    ++__after;
+	    if (_M_key_compare(__k, _S_key(__after._M_node)))
+	      {
+		if (!_S_right(__node))
+		  return { {}, __node };
+		return { __after._M_node, __after._M_node };
+	      }
+	    return _M_get_insert_unique_pos_tr(__k);
+	  }
+	// Equal to __k; check if any more to the left.
+	iterator __before(__node);
+	if (__node == _M_leftmost() ||
+	      _M_key_compare(_S_key((--__before)._M_node), __k))
+	  { return { __node, {} }; }
+	return _M_get_insert_unique_pos_tr(__k);
+      }
+#endif
 
   template<typename _Key, typename _Val, typename _KeyOfValue,
 	   typename _Compare, typename _Alloc>
@@ -3102,7 +3272,27 @@ namespace __rb_tree
 	  return __z._M_insert(__res);
 	return __z._M_insert_equal_lower();
       }
+
+#ifdef __glibcxx_associative_heterogeneous_insertion  // C++26
+  template <typename _Key, typename _Val, typename _KeyOfValue,
+	    typename _Compare, typename _Alloc>
+    template <typename... _Args>
+      auto
+      _Rb_tree<_Key, _Val, _KeyOfValue, _Compare, _Alloc>::
+      _M_emplace_here(bool __place_left, _Base_ptr __node, _Args&&... __args)
+      -> iterator
+      {
+	_Auto_node __z(*this, std::forward<_Args>(__args)...);
+	_Base_ptr __base_z = __z._M_node->_M_base_ptr();
+	_Node_traits::_S_insert_and_rebalance(
+	  __place_left, __base_z, __node, _M_impl._M_header);
+	__z._M_node = nullptr;
+	++_M_impl._M_node_count;
+	return iterator(__base_z);
+      }
 #endif
+
+#endif  // >= C++11
 
 
   template<typename _Key, typename _Val, typename _KeyOfValue,
@@ -3141,6 +3331,19 @@ namespace __rb_tree
       _M_erase_aux(__p.first, __p.second);
       return __old_size - size();
     }
+
+  template<typename _Key, typename _Val, typename _KeyOfValue,
+	   typename _Compare, typename _Alloc>
+    template <typename _Kt>
+      typename _Rb_tree<_Key, _Val, _KeyOfValue, _Compare, _Alloc>::size_type
+      _Rb_tree<_Key, _Val, _KeyOfValue, _Compare, _Alloc>::
+      _M_erase_tr(const _Kt& __x)
+      {
+	pair<iterator, iterator> __p = _M_equal_range_tr(__x);
+	const size_type __old_size = size();
+	_M_erase_aux(__p.first, __p.second);
+	return __old_size - size();
+      }
 
   template<typename _Key, typename _Val, typename _KeyOfValue,
 	   typename _Compare, typename _Alloc>
@@ -3248,6 +3451,13 @@ namespace __rb_tree
       { return __tree._M_impl; }
     };
 #endif // C++17
+
+#ifdef __glibcxx_associative_heterogeneous_erasure // C++ >= 23
+template <typename _Kt, typename _Container>
+  concept __heterogeneous_tree_key =
+    __transparent_comparator<typename _Container::key_compare> &&
+    __heterogeneous_key<_Kt, _Container>;
+#endif
 
 _GLIBCXX_END_NAMESPACE_VERSION
 } // namespace

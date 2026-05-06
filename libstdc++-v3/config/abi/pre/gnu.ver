@@ -34,7 +34,9 @@ GLIBCXX_3.4 {
       std::basic_[a-e]*;
       std::basic_f[a-h]*;
 #     std::basic_filebuf;
-      std::basic_f[j-r]*;
+      std::basic_f[j-n]*;
+#     std::basic_format_context;
+      std::basic_f[p-r]*;
 #     std::basic_fstream;
       std::basic_f[t-z]*;
       std::basic_[g-h]*;
@@ -268,9 +270,10 @@ GLIBCXX_3.4 {
     _ZNSspLE[PRc]*;
     _ZNKSs[0-3][a-b]*;
     _ZNKSs[5-9][a-b]*;
-    _ZNKSs[0-9][d-e]*;
+    _ZNKSs[0-8][d-e]*;
     _ZNKSs[0-9][g-z]*;
-    _ZNKSs[0-9][0-9][a-z]*;
+    _ZNKSs1[2-8][a-z]*;
+    _ZNKSs[2-9][0-9][a-z]*;
     _ZNKSs4find*;
     _ZNKSs[abd-z]*;
     _ZNKSs4_Rep12_M_is_leakedEv;
@@ -339,9 +342,10 @@ GLIBCXX_3.4 {
     _ZNSbIwSt11char_traitsIwESaIwEEpLE[PRw]*;
     _ZNKSbIwSt11char_traitsIwESaIwEE[0-3][a-b]*;
     _ZNKSbIwSt11char_traitsIwESaIwEE[5-9][a-b]*;
-    _ZNKSbIwSt11char_traitsIwESaIwEE[0-9][d-e]*;
+    _ZNKSbIwSt11char_traitsIwESaIwEE[0-8][d-e]*;
     _ZNKSbIwSt11char_traitsIwESaIwEE[0-9][g-z]*;
-    _ZNKSbIwSt11char_traitsIwESaIwEE[0-9][0-9][a-z]*;
+    _ZNKSbIwSt11char_traitsIwESaIwEE1[2-8][a-z]*;
+    _ZNKSbIwSt11char_traitsIwESaIwEE[2-9][0-9][a-z]*;
     _ZNKSbIwSt11char_traitsIwESaIwEE[abd-z]*;
     _ZNKSbIwSt11char_traitsIwESaIwEE4find*;
     _ZNKSbIwSt11char_traitsIwESaIwEE4_Rep12_M_is_leakedEv;
@@ -1811,7 +1815,9 @@ GLIBCXX_3.4.21 {
     _ZNSt7__cxx1112basic_stringI[cw]St11char_traitsI[cw]ESaI[cw]EEC[12]Ev;
     _ZNSt7__cxx1112basic_stringI[cw]St11char_traitsI[cw]ESaI[cw]EEC[12]I[PN]*;
     _ZNSt7__cxx1112basic_stringI[cw]St11char_traitsI[cw]ESaI[cw]EE[Daip]*;
-    _ZNKSt7__cxx1112basic_stringI[cw]St11char_traitsI[cw]ESaI[cw]EE[1-9]*;
+    _ZNKSt7__cxx1112basic_stringI[cw]St11char_traitsI[cw]ESaI[cw]EE11_[MS]_*;
+    _ZNKSt7__cxx1112basic_stringI[cw]St11char_traitsI[cw]ESaI[cw]EE1[2-9]*;
+    _ZNKSt7__cxx1112basic_stringI[cw]St11char_traitsI[cw]ESaI[cw]EE[2-8]*;
     _ZNKSt7__cxx1112basic_stringI[cw]St11char_traitsI[cw]ESaI[cw]EEixE[jmy];
 
     # operator+ for ABI-tagged std::basic_string
@@ -2586,6 +2592,35 @@ GLIBCXX_3.4.35 {
     _ZNSt12__cow_stringaSERKS_;
     _ZNSt12__cow_stringaSEOS_;
     _ZNKSt12__cow_string5c_strEv;
+
+    # basic_string::starts_with
+    _ZNKSs11starts_with*;
+    _ZNKSbIwSt11char_traitsIwESaIwEE11starts_with*;
+    _ZNKSt7__cxx1112basic_stringI[cw]St11char_traitsI[cw]ESaI[cw]EE11starts_with*;
+
+    # basic_string::ends_with
+    _ZNKSs9ends_with*;
+    _ZNKSbIwSt11char_traitsIwESaIwEE9ends_with*;
+    _ZNKSt7__cxx1112basic_stringI[cw]St11char_traitsI[cw]ESaI[cw]EE9ends_with*;
+
+    # basic_string::basic_string() noexcept is_default_constructible<Allocator>;
+    _ZNSsC[12]EvQ26is_default_constructible_vIT1_E;
+    _ZNSbIwSt11char_traitsIwESaIwEEC[12]EvQ26is_default_constructible_vIT1_E;
+    _ZNSt7__cxx1112basic_stringI[cw]St11char_traitsI[cw]ESaI[cw]EEC[1-2]EvQ26is_default_constructible_vIT1_E;
+
+    # __format::__do_vformat_to<char, 1>(_Sink_iter<char>, string_view, format_context&);
+    # __format::__do_vformat_to<wchar_t, 1>(_Sink_iter<wchar_t>, wstring_view, format_context&);
+    _ZNSt8__format15__do_vformat_toI[cw]Lj1EEENS_10_Sink_iterIT_EES3_St17basic_string_viewIS2_St11char_traitsIS2_EERSt20basic_format_contextIS3_S2_E;
+
+#if defined (_WIN32) && !defined (__CYGWIN__)
+    _ZSt19__get_once_callablev;
+    _ZSt15__get_once_callv;
+#endif
+
+    # Module inititialization symbols for std and std.compat modules.
+    _ZGIW3std;
+    _ZGIW3stdW6compat;
+
 } GLIBCXX_3.4.34;
 
 # Symbols in the support library (libsupc++) have their own tag.
@@ -2899,9 +2934,16 @@ CXXABI_1.3.14 {
 
     # typeinfo for _Float{16,32,64,128,32x,64x,128x} and
     # __bf16/bfloat16_t
+#ifndef __s390x__
     _ZTIDF[0-9]*[_x];
     _ZTIPDF[0-9]*[_x];
     _ZTIPKDF[0-9]*[_x];
+#else
+    # No _Float16 on s390x in GCC 13.
+    _ZTIDF[0-9]*[0-57-9][_x];
+    _ZTIPDF[0-9]*[0-57-9][_x];
+    _ZTIPKDF[0-9]*[0-57-9][_x];
+#endif
 #ifndef __riscv
     _ZTIDF16b;
     _ZTIPDF16b;
@@ -2933,6 +2975,13 @@ CXXABI_1.3.16 {
 CXXABI_1.3.17 {
     # std::exception_ptr::_M_exception_ptr_cast
     _ZNKSt15__exception_ptr13exception_ptr21_M_exception_ptr_castERKSt9type_info;
+
+#ifdef __s390x__
+    _ZTIDF16_;
+    _ZTIPDF16_;
+    _ZTIPKDF16_;
+#endif
+
 #ifdef __riscv
 } CXXABI_1.3.16;
 #else

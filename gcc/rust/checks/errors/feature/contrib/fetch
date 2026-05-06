@@ -27,4 +27,4 @@ RUST_VERSION="1.49.0"
 URL_PREFIX='https://raw.githubusercontent.com/rust-lang/rust/refs/tags'
 URL_TEMPLATE="$URL_PREFIX/$RUST_VERSION/compiler/rustc_feature/src"
 
-wget -O $1 "$URL_TEMPLATE"/{accepted,active,removed}.rs
+wget -O $1 "$URL_TEMPLATE/accepted.rs" "$URL_TEMPLATE/active.rs" "$URL_TEMPLATE/removed.rs"

@@ -144,7 +144,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
    *  @ingroup mutating_algorithms
    *  @param  __a  An iterator.
    *  @param  __b  Another iterator.
-   *  @return   Nothing.
    *
    *  This function swaps the values pointed to by two iterators, not the
    *  iterators themselves.
@@ -990,7 +989,6 @@ _GLIBCXX_END_NAMESPACE_CONTAINER
    *  @param  __first  A forward iterator.
    *  @param  __last   A forward iterator.
    *  @param  __value  A reference-to-const of arbitrary type.
-   *  @return   Nothing.
    *
    *  This function fills a range with copies of the same value.  For char
    *  types filling contiguous areas of memory, this becomes an inline call

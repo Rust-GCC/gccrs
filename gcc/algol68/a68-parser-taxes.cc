@@ -25,6 +25,7 @@
 #include "options.h"
 
 #include "a68.h"
+#include "a68-pretty-print.h"
 
 /*
  * Symbol table handling, managing TAGS.
@@ -265,7 +266,8 @@ bind_identifier_tag_to_symbol_table (NODE_T * p)
 		MOID (p) = MOID (z);
 	      else
 		{
-		  a68_error (p, "tag S has not been declared properly");
+		  a68_error (p, "tag %qs has not been declared properly",
+			     NSYMBOL (p));
 		  z = a68_add_tag (TABLE (p), IDENTIFIER, p, M_ERROR, NORMAL_IDENTIFIER);
 		  MOID (p) = M_ERROR;
 		}
@@ -565,8 +567,10 @@ test_firmly_related_ops_local (NODE_T *p, TAG_T *s)
 
 	  if (t != NO_TAG)
 	    {
-	      a68_error (p, "M Z is firmly related to M Z",
-			 MOID (s), NSYMBOL (NODE (s)), MOID (t),
+	      a68_moid_format_token m1 (MOID (s));
+	      a68_moid_format_token m2 (MOID (t));
+	      a68_error (p, "%e %qs is firmly related to %e %qs",
+			 &m1, NSYMBOL (NODE (s)), &m2,
 			 NSYMBOL (NODE (t)));
 	    }
 	  else
@@ -585,23 +589,25 @@ test_firmly_related_ops_local (NODE_T *p, TAG_T *s)
 			  && warn_algol68_hidden_declarations > 0)
 			{
 			  if (a68_warning (p, OPT_Whidden_declarations_,
-					   "Z hides a firmly related operator in a larger reach",
+					   "%qs hides a firmly related operator in a larger reach",
 					   NSYMBOL (NODE (s))))
 			    {
+			      a68_moid_format_token m (MOID (t));
 			      a68_inform (NO_NODE,
-					  "operator M Z defined in the standard prelude",
-					  MOID (t), NSYMBOL (NODE (t)));
+					  "operator %e %qs defined in the standard prelude",
+					  &m, NSYMBOL (NODE (t)));
 			    }
 			}
 		      else if (warn_algol68_hidden_declarations > 1)
 			{
 			  if (a68_warning (p, OPT_Whidden_declarations_,
-					   "Z hides a firmly related operator in a larger reach",
+					   "%qs hides a firmly related operator in a larger reach",
 					   NSYMBOL (NODE (s))))
 			    {
+			      a68_symbol_format_token s1 (NODE (s));
 			      a68_inform (NODE (t),
-					  "previous hidden declaration of S declared here",
-					  NSYMBOL (NODE (s)));
+					  "previous hidden declaration of %e declared here",
+					  &s1);
 			    }
 			}
 
@@ -659,7 +665,7 @@ static void
 already_declared (NODE_T *n, int a)
 {
   if (find_tag_local (TABLE (n), a, NSYMBOL (n)) != NO_TAG)
-    a68_error (n, "multiple declaration of tag S");
+    a68_error (n, "multiple declaration of tag %qs", NSYMBOL (n));
 }
 
 /* Whether tag has already been declared in this range.  */
@@ -668,7 +674,7 @@ static void
 already_declared_hidden (NODE_T *n, int a)
 {
   if (find_tag_local (TABLE (n), a, NSYMBOL (n)) != NO_TAG)
-    a68_error (n, "multiple declaration of tag S");
+    a68_error (n, "multiple declaration of tag %qs", NSYMBOL (n));
 
   TAG_T *s = a68_find_tag_global (PREVIOUS (TABLE (n)), a, NSYMBOL (n));
 
@@ -677,16 +683,19 @@ already_declared_hidden (NODE_T *n, int a)
 	  || (TAG_TABLE (s) != A68_STANDENV && warn_algol68_hidden_declarations > 1)))
     {
       if (a68_warning (n, OPT_Whidden_declarations_,
-		       "Z hides a declaration with larger reach",
+		       "%qs hides a declaration with larger reach",
 		       NSYMBOL (n)))
 	{
 	  if (TAG_TABLE (s) == A68_STANDENV)
-	    a68_inform (NO_NODE,
-			"M Z defined in the standard prelude",
-			MOID (s), NSYMBOL (NODE (s)));
+	    {
+	      a68_moid_format_token m (MOID (s));
+	      a68_inform (NO_NODE,
+			  "%e %qs defined in the standard prelude",
+			  &m, NSYMBOL (NODE (s)));
+	    }
 	  else
 	    a68_inform (NODE (s),
-			"previous hidden declaration of S declared here",
+			"previous hidden declaration of %qs declared here",
 			NSYMBOL (n));
 	}
     }
@@ -1108,17 +1117,21 @@ check_operator_dec (NODE_T *p, MOID_T *u)
 
   if (k < 1 || k > 2)
     {
-      a68_error (p, "incorrect number of operands for S");
+      a68_symbol_format_token s (p);
+      a68_error (p, "incorrect number of operands for %e", &s);
       k = 0;
     }
 
   if (k == 1 && strchr (NOMADS, NSYMBOL (p)[0]) != NO_TEXT)
     {
-      a68_error (p, "monadic S cannot start with a character from Z", NOMADS);
+      a68_symbol_format_token s (p);
+      a68_error (p, "monadic %e cannot start with a character from %qs",
+		 &s, NOMADS);
     }
   else if (k == 2 && !a68_find_tag_global (TABLE (p), PRIO_SYMBOL, NSYMBOL (p)))
     {
-      a68_error (p, "dyadic S has no priority declaration");
+      a68_symbol_format_token s (p);
+      a68_error (p, "dyadic %e has no priority declaration", &s);
     }
 }
 
@@ -1739,7 +1752,7 @@ unused (TAG_T *s)
   for (; s != NO_TAG; FORWARD (s))
     {
       if (LINE_NUMBER (NODE (s)) > 0 && !USE (s))
-	a68_warning (NODE (s), OPT_Wunused, "tag S is not used", NODE (s));
+	a68_warning (NODE (s), OPT_Wunused, "tag %qs is not used", NSYMBOL (NODE (s)));
     }
 }
 
@@ -1791,7 +1804,7 @@ a68_jumps_from_procs (NODE_T *p)
 	      && (a68_find_tag_global (TABLE (u), LABEL, NSYMBOL (u)) == NO_TAG))
 	    {
 	      (void) a68_add_tag (TABLE (u), LABEL, u, NO_MOID, LOCAL_LABEL);
-	      a68_error (u, "tag S has not been declared properly");
+	      a68_error (u, "tag %qs has not been declared properly", NSYMBOL (u));
 	    }
 	  else
 	    USE (TAX (u)) = true;

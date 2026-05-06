@@ -501,6 +501,13 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       extract(const key_type& __key)
       { return _M_h.extract(__key); }
 
+#ifdef __glibcxx_associative_heterogeneous_erasure // C++23
+      template <__heterogeneous_hash_key<unordered_map> _Kt>
+	node_type
+	extract(_Kt&& __key)
+	{ return _M_h._M_extract_tr(__key); }
+#endif
+
       /// Re-insert an extracted node.
       insert_return_type
       insert(node_type&& __nh)
@@ -513,6 +520,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 #endif // node_extract
 
 #ifdef __glibcxx_unordered_map_try_emplace // C++ >= 17 && HOSTED
+      ///@{
       /**
        *  @brief Attempts to build and insert a std::pair into the
        *  %unordered_map.
@@ -551,6 +559,18 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 				  std::forward<_Args>(__args)...);
 	}
 
+#ifdef __glibcxx_associative_heterogeneous_insertion  // C++26
+      template <__heterogeneous_hash_key<unordered_map> _Kt, typename ..._Args>
+	pair<iterator, bool>
+	try_emplace(_Kt&& __k, _Args&&... __args)
+	{
+	  return _M_h.try_emplace(cend(),
+	    std::forward<_Kt>(__k), std::forward<_Args>(__args)...);
+	}
+#endif
+      ///@}
+
+      ///@{
       /**
        *  @brief Attempts to build and insert a std::pair into the
        *  %unordered_map.
@@ -596,6 +616,17 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 	  return _M_h.try_emplace(__hint, std::move(__k),
 				  std::forward<_Args>(__args)...).first;
 	}
+
+#ifdef __glibcxx_associative_heterogeneous_insertion  // C++26
+      template <__heterogeneous_hash_key<unordered_map> _Kt, typename ..._Args>
+	iterator
+	try_emplace(const_iterator __hint, _Kt&& __k, _Args&&... __args)
+	{
+	  return _M_h.try_emplace(__hint,
+	    std::forward<_Kt>(__k), std::forward<_Args>(__args)...).first;
+	}
+#endif
+      ///@}
 #endif // __glibcxx_unordered_map_try_emplace
 
       ///@{
@@ -715,6 +746,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 #endif
 
 #ifdef __glibcxx_unordered_map_try_emplace // >= C++17 && HOSTED
+      ///@{
       /**
        *  @brief Attempts to insert a std::pair into the %unordered_map.
        *  @param __k    Key to use for finding a possibly existing pair in
@@ -758,6 +790,21 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 	  return __ret;
 	}
 
+#ifdef __glibcxx_associative_heterogeneous_insertion  // C++26
+      template <__heterogeneous_hash_key<unordered_map> _Kt, typename _Obj>
+	pair<iterator, bool>
+	insert_or_assign(_Kt&& __k, _Obj&& __obj)
+	{
+	  auto __ret = _M_h.try_emplace(
+	    cend(), std::forward<_Kt>(__k), std::forward<_Obj>(__obj));
+	  if (!__ret.second)
+	    __ret.first->second = std::forward<_Obj>(__obj);
+	  return __ret;
+	}
+#endif
+      ///@}
+
+      ///@{
       /**
        *  @brief Attempts to insert a std::pair into the %unordered_map.
        *  @param  __hint  An iterator that serves as a hint as to where the
@@ -806,6 +853,20 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 	    __ret.first->second = std::forward<_Obj>(__obj);
 	  return __ret.first;
 	}
+
+#ifdef __glibcxx_associative_heterogeneous_insertion  // C++26
+      template <__heterogeneous_hash_key<unordered_map> _Kt, typename _Obj>
+	iterator
+	insert_or_assign(const_iterator __hint, _Kt&& __k, _Obj&& __obj)
+	{
+	  auto __ret = _M_h.try_emplace(__hint,
+	    std::forward<_Kt>(__k), std::forward<_Obj>(__obj));
+	  if (!__ret.second)
+	    __ret.first->second = std::forward<_Obj>(__obj);
+	  return __ret.first;
+	}
+#endif
+      ///@}
 #endif // unordered_map_try_emplace
 
       ///@{
@@ -832,6 +893,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       { return _M_h.erase(__position); }
       ///@}
 
+      ///@{
       /**
        *  @brief Erases elements according to the provided key.
        *  @param  __x  Key of element to be erased.
@@ -847,6 +909,14 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       size_type
       erase(const key_type& __x)
       { return _M_h.erase(__x); }
+
+#ifdef __glibcxx_associative_heterogeneous_erasure // C++23
+      template <__heterogeneous_hash_key<unordered_map> _Kt>
+	size_type
+	erase(_Kt&& __x)
+	{ return _M_h._M_erase_tr(__x); }
+#endif
+      ///@}
 
       /**
        *  @brief Erases a [__first,__last) range of elements from an
@@ -1075,6 +1145,15 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       mapped_type&
       operator[](key_type&& __k)
       { return _M_h[std::move(__k)]; }
+
+#ifdef __glibcxx_associative_heterogeneous_insertion  // C++26
+      template <__heterogeneous_hash_key<unordered_map> _Kt>
+	mapped_type&
+	operator[](_Kt&& __k)
+      {
+	return try_emplace(std::forward<_Kt>(__k)).first->second;
+      }
+#endif
       ///@}
 
       ///@{
@@ -1089,9 +1168,23 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       at(const key_type& __k)
       { return _M_h.at(__k); }
 
+#ifdef __glibcxx_associative_heterogeneous_insertion  // C++26
+      template <__heterogeneous_hash_key<unordered_map> _Kt>
+	mapped_type&
+	at(const _Kt& __k)
+	{ return _M_h._M_at_tr(__k); }
+#endif
+
       const mapped_type&
       at(const key_type& __k) const
       { return _M_h.at(__k); }
+
+#ifdef __glibcxx_associative_heterogeneous_insertion  // C++26
+      template <__heterogeneous_hash_key<unordered_map> _Kt>
+	const mapped_type&
+	at(const _Kt& __k) const
+	{ return _M_h._M_at_tr(__k); }
+#endif
       ///@}
 
       // bucket interface.
@@ -1115,6 +1208,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       bucket_size(size_type __n) const
       { return _M_h.bucket_size(__n); }
 
+      ///@{
       /*
        * @brief  Returns the bucket index of a given element.
        * @param  __key  A key instance.
@@ -1123,6 +1217,14 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       size_type
       bucket(const key_type& __key) const
       { return _M_h.bucket(__key); }
+
+#ifdef __glibcxx_associative_heterogeneous_insertion  // C++26
+      template <__heterogeneous_hash_key<unordered_map> _Kt>
+	size_type
+	bucket(const _Kt& __key) const
+	{ return _M_h._M_bucket_tr(__key); }
+#endif
+      ///@}
 
       /**
        *  @brief  Returns a read/write iterator pointing to the first bucket
@@ -1872,6 +1974,13 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       extract(const key_type& __key)
       { return _M_h.extract(__key); }
 
+#ifdef __glibcxx_associative_heterogeneous_erasure // C++23
+      template <__heterogeneous_hash_key<unordered_multimap> _Kt>
+	node_type
+	extract(_Kt&& __key)
+	{ return _M_h._M_extract_tr(__key); }
+#endif
+
       /// Re-insert an extracted node.
       iterator
       insert(node_type&& __nh)
@@ -1907,6 +2016,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       { return _M_h.erase(__position); }
       ///@}
 
+      ///@{
       /**
        *  @brief Erases elements according to the provided key.
        *  @param  __x  Key of elements to be erased.
@@ -1921,6 +2031,15 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       size_type
       erase(const key_type& __x)
       { return _M_h.erase(__x); }
+
+#ifdef __glibcxx_associative_heterogeneous_erasure // C++23
+      template <__heterogeneous_hash_key<unordered_multimap> _Kt>
+	size_type
+	erase(_Kt&& __x)
+	{ return _M_h._M_erase_tr(__x); }
+#endif
+      ///@}
+
 
       /**
        *  @brief Erases a [__first,__last) range of elements from an
@@ -2148,6 +2267,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       bucket_size(size_type __n) const
       { return _M_h.bucket_size(__n); }
 
+      ///@{
       /*
        * @brief  Returns the bucket index of a given element.
        * @param  __key  A key instance.
@@ -2156,6 +2276,14 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       size_type
       bucket(const key_type& __key) const
       { return _M_h.bucket(__key); }
+
+#ifdef __glibcxx_associative_heterogeneous_insertion  // C++26
+      template <__heterogeneous_hash_key<unordered_multimap> _Kt>
+	size_type
+	bucket(const _Kt& __key) const
+	{ return _M_h._M_bucket_tr(__key); }
+#endif
+      ///@}
 
       /**
        *  @brief  Returns a read/write iterator pointing to the first bucket

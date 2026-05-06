@@ -1212,23 +1212,18 @@ public:
   : svalue_spatial_item (sval, bits, kind),
     m_compound_sval (sval)
   {
-    const binding_map &map = m_compound_sval.get_map ();
+    const concrete_binding_map &map = m_compound_sval.get_concrete_bindings ();
     auto_vec <const binding_key *> binding_keys;
     for (auto iter : map)
       {
-	const binding_key *key = iter.m_key;
-	const svalue *bound_sval = iter.m_sval;
-	if (const concrete_binding *concrete_key
-	      = key->dyn_cast_concrete_binding ())
-	  {
-	    access_range range (nullptr,
-				concrete_key->get_bit_range ());
-	    if (std::unique_ptr<spatial_item> child
-		  = make_existing_svalue_spatial_item (bound_sval,
-						       range,
-						       theme))
-	      m_children.push_back (std::move (child));
-	  }
+	const bit_range &key = iter.first;
+	const svalue *bound_sval = iter.second;
+	access_range range (nullptr, key);
+	if (std::unique_ptr<spatial_item> child
+	    = make_existing_svalue_spatial_item (bound_sval,
+						 range,
+						 theme))
+	  m_children.push_back (std::move (child));
       }
   }
 
@@ -2214,10 +2209,10 @@ private:
 
   void add_aligned_child_table (table t)
   {
-    x_aligned_table_widget *w
-      = new x_aligned_table_widget (std::move (t), m_theme, *m_col_widths);
-    m_aligned_table_widgets.push_back (w);
-    add_child (std::unique_ptr<widget> (w));
+    auto w = std::make_unique<x_aligned_table_widget> (std::move (t),
+						       m_theme, *m_col_widths);
+    m_aligned_table_widgets.push_back (w.get ());
+    add_child (std::move (w));
   }
 
   /* Create a table showing headings for use by -fanalyzer-debug-text-art, for
@@ -2361,8 +2356,7 @@ private:
   {
     LOG_SCOPE (m_logger);
 
-    x_aligned_x_ruler_widget *w
-      = new x_aligned_x_ruler_widget (*this, m_theme);
+    auto w = std::make_unique<x_aligned_x_ruler_widget> (*this, m_theme);
 
     access_range invalid_before_bits;
     if (m_op.maybe_get_invalid_before_bits (&invalid_before_bits))
@@ -2410,7 +2404,7 @@ private:
       valid_bits.log ("valid_bits", *m_logger);
 
     got_valid_bits = true;
-    maybe_add_gap (w, invalid_before_bits, valid_bits);
+    maybe_add_gap (w.get (), invalid_before_bits, valid_bits);
 
     std::unique_ptr<styled_string> label;
     if (m_op.m_dir == access_direction::read)
@@ -2441,7 +2435,7 @@ private:
     if (m_op.maybe_get_invalid_after_bits (&invalid_after_bits))
       {
 	if (got_valid_bits)
-	  maybe_add_gap (w, valid_bits, invalid_after_bits);
+	  maybe_add_gap (w.get (), valid_bits, invalid_after_bits);
 
 	if (m_logger)
 	  invalid_before_bits.log ("invalid_after_bits", *m_logger);
@@ -2478,7 +2472,7 @@ private:
 	  m_logger->log ("no invalid_after_bits");
       }
 
-    add_child (std::unique_ptr<widget> (w));
+    add_child (std::move (w));
   }
 
   /* Subroutine of calc_req_size.

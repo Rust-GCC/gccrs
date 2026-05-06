@@ -749,6 +749,7 @@ dump_type (cxx_pretty_printer *pp, tree t, int flags)
 
     case TEMPLATE_DECL:
     case NAMESPACE_DECL:
+    case CONST_DECL:
       dump_decl (pp, t, flags & ~TFF_DECL_SPECIFIERS);
       break;
 
@@ -874,7 +875,15 @@ dump_type (cxx_pretty_printer *pp, tree t, int flags)
       break;
 
     case NULLPTR_TYPE:
-      pp_string (pp, "std::nullptr_t");
+      pp_cxx_ws_string (pp, "std::nullptr_t");
+      break;
+
+    case META_TYPE:
+      pp_cxx_ws_string (pp, "std::meta::info");
+      break;
+
+    case SPLICE_SCOPE:
+      dump_expr (pp, SPLICE_SCOPE_EXPR (t), flags & ~TFF_EXPR_IN_PARENS);
       break;
 
     default:
@@ -1136,6 +1145,8 @@ dump_type_prefix (cxx_pretty_printer *pp, tree t, int flags)
     case FIXED_POINT_TYPE:
     case NULLPTR_TYPE:
     case PACK_INDEX_TYPE:
+    case META_TYPE:
+    case SPLICE_SCOPE:
       dump_type (pp, t, flags);
       pp->set_padding (pp_before);
       break;
@@ -1269,6 +1280,8 @@ dump_type_suffix (cxx_pretty_printer *pp, tree t, int flags)
     case FIXED_POINT_TYPE:
     case NULLPTR_TYPE:
     case PACK_INDEX_TYPE:
+    case META_TYPE:
+    case SPLICE_SCOPE:
       break;
 
     default:
@@ -1615,9 +1628,14 @@ dump_decl (cxx_pretty_printer *pp, tree t, int flags)
 	tree name = TREE_OPERAND (t, 0);
 	tree args = TREE_OPERAND (t, 1);
 
-	if (!identifier_p (name))
-	  name = OVL_NAME (name);
-	dump_decl (pp, name, flags);
+	if (TREE_CODE (name) == SPLICE_EXPR)
+	  dump_expr (pp, name, flags);
+	else
+	  {
+	    if (!identifier_p (name))
+	      name = OVL_NAME (name);
+	    dump_decl (pp, name, flags);
+	  }
 	pp_cxx_begin_template_argument_list (pp);
 	if (args == error_mark_node)
 	  pp_string (pp, M_("<template arguments error>"));
@@ -3311,6 +3329,34 @@ dump_expr (cxx_pretty_printer *pp, tree t, int flags)
 	}
       break;
 
+    case REFLECT_EXPR:
+      {
+	pp_string (pp, "^^");
+	tree h = REFLECT_EXPR_HANDLE (t);
+	if (DECL_P (h))
+	  dump_decl (pp, h, flags);
+	else if (TYPE_P (h))
+	  dump_type (pp, h, flags);
+	else if (TREE_CODE (h) == TREE_VEC)
+	  {
+	    pp_format_decoder (pp) = cp_printer;
+	    pp->set_format_postprocessor
+	      (std::make_unique<cxx_format_postprocessor> ());
+	    dump_data_member_spec (pp, h);
+	  }
+	else
+	  dump_expr (pp, h, flags);
+	break;
+      }
+
+    case SPLICE_EXPR:
+      pp_cxx_ws_string (pp, "[:");
+      pp_cxx_whitespace (pp);
+      dump_expr (pp, TREE_OPERAND (t, 0), flags);
+      pp_cxx_whitespace (pp);
+      pp_cxx_ws_string (pp, ":]");
+      break;
+
       /*  This list is incomplete, but should suffice for now.
 	  It is very important that `sorry' does not call
 	  `report_error_function'.  That could cause an infinite loop.  */
@@ -3937,6 +3983,48 @@ function_category (tree fn)
     return G_("In function %qD");
 }
 
+/* We expected some kind of tree but instead got T and emitted a diagnostic.
+   Print the category of T (type, expression, ...) if possible.  */
+
+void
+inform_tree_category (tree t)
+{
+  const location_t loc = location_of (t);
+
+  t = maybe_get_first_fn (t);
+  if (TREE_CODE (t) == TYPE_DECL)
+    t = TREE_TYPE (t);
+
+  if (TYPE_P (t))
+    inform (loc, "but %qE is a type", t);
+  else if (EXPR_P (t))
+    inform (loc, "but %qE is an expression", t);
+  else if (DECL_DECOMPOSITION_P (t) && !DECL_DECOMP_IS_BASE (t))
+    inform (loc, "but %qE is a structured binding", t);
+  else if (VAR_P (t))
+    inform (loc, "but %qE is a variable", t);
+  else if (TREE_CODE (t) == PARM_DECL)
+    inform (loc, "but %qE is a parameter", t);
+  else if (TREE_CODE (t) == FUNCTION_DECL)
+    inform (loc, "but %qE is a function", t);
+  else if (TREE_CODE (t) == FIELD_DECL)
+    inform (loc, "but %qE is a data member", t);
+  else if (DECL_FUNCTION_TEMPLATE_P (t))
+    inform (loc, "but %qE is a function template", t);
+  else if (DECL_CLASS_TEMPLATE_P (t))
+    inform (loc, "but %qE is a class template", t);
+  else if (DECL_ALIAS_TEMPLATE_P (t))
+    inform (loc, "but %qE is an alias template", t);
+  else if (variable_template_p (t))
+    inform (loc, "but %qE is a variable template", t);
+  else if (TREE_CODE (t) == NAMESPACE_DECL)
+    inform (loc, "but %qE is a namespace", t);
+  else if (TREE_CODE (t) == CONST_DECL && !DECL_TEMPLATE_PARM_P (t))
+    inform (loc, "but %qE is an enumerator", t);
+  else if (concept_definition_p (t))
+    inform (loc, "but %qE is a concept", t);
+}
+
 /* Disable warnings about missing quoting in GCC diagnostics for
    the pp_verbatim calls.  Their format strings deliberately don't
    follow GCC diagnostic conventions.  */
@@ -4016,13 +4104,18 @@ public:
 		     bool show_locus = false)
   : m_text_output (text_output),
     m_loc (loc),
-    m_show_locus (show_locus)
+    m_show_locus (show_locus),
+    m_nesting_level (text_output.get_context ().get_diagnostic_nesting_level ()),
+    m_location_printed (false)
   {
     char *indent = m_text_output.build_indent_prefix (true);
     pp_verbatim (m_text_output.get_printer (), indent);
     free (indent);
-    if (!m_text_output.show_nesting_p ())
-      print_location (m_text_output, m_loc);
+    if (m_nesting_level == 0 || !m_text_output.show_nesting_p ())
+      {
+	print_location (m_text_output, m_loc);
+	m_location_printed = true;
+      }
   }
   ~auto_context_line ()
   {
@@ -4032,9 +4125,13 @@ public:
 	if (m_text_output.show_locations_in_nesting_p ())
 	  {
 	    char *indent = m_text_output.build_indent_prefix (false);
-	    pp_verbatim (pp, indent);
-	    print_location (m_text_output, m_loc);
-	    pp_newline (pp);
+	    if (!m_location_printed)
+	      {
+		pp_verbatim (pp, indent);
+		print_location (m_text_output, m_loc);
+		pp_newline (pp);
+		m_location_printed = true;
+	      }
 
 	    char *saved_prefix = pp_take_prefix (pp);
 	    pp_set_prefix (pp, indent);
@@ -4062,6 +4159,8 @@ private:
   diagnostics::text_sink &m_text_output;
   location_t m_loc;
   bool m_show_locus;
+  int m_nesting_level;
+  bool m_location_printed;
 };
 
 /* Helper function of print_instantiation_partial_context() that
@@ -4988,7 +5087,7 @@ qualified_name_lookup_error (tree scope, tree name,
 	  auto_diagnostic_group d;
 	  error_at (location, "reference to %<%T::%D%> is ambiguous",
 		    scope, name);
-	  print_candidates (decl);
+	  print_candidates (location, decl);
 	}
       else
 	{

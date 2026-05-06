@@ -9,10 +9,10 @@ constexpr size_t dyn = std::dynamic_extent;
 constexpr auto all = std::full_extent;
 
 template<typename T>
-  constexpr bool is_strided_slice = false;
+  constexpr bool is_extent_slice = false;
 
 template<typename O, typename E, typename S>
-  constexpr bool is_strided_slice<std::strided_slice<O, E, S>> = true;
+  constexpr bool is_extent_slice<std::extent_slice<O, E, S>> = true;
 
 template<typename MDSpan>
   constexpr void
@@ -151,7 +151,7 @@ template<typename IndexType, typename Slice>
 	std::ranges::iota(ret, 0);
 	return ret;
       }
-    else if constexpr (is_strided_slice<Slice>)
+    else if constexpr (is_extent_slice<Slice>)
       {
 	auto ret = std::vector<IndexType>{};
 	size_t n = static_cast<size_t>(slice.extent);
@@ -292,10 +292,10 @@ template<typename Layout>
       check_selection<Layout>(exts, collapse{}, s, collapse{});
     };
 
-    check(std::strided_slice(0, 2, 2));
-    check(std::strided_slice(0, 3, 2));
-    check(std::strided_slice(1, 3, 2));
-    check(std::strided_slice(1, std::cw<3>, std::cw<2>));
+    check(std::extent_slice(0, 1, 2));
+    check(std::extent_slice(0, 2, 2));
+    check(std::extent_slice(1, 2, 2));
+    check(std::extent_slice(1, std::cw<2>, std::cw<2>));
     return true;
   }
 
@@ -303,9 +303,9 @@ template<typename Layout>
   constexpr bool
   test_strided_box_selection(auto exts)
   {
-    auto s0 = std::strided_slice(0, 3, 2);
-    auto s1 = std::strided_slice(1, 4, 2);
-    auto s2 = std::strided_slice(0, 7, 3);
+    auto s0 = std::extent_slice(0, 2, 2);
+    auto s1 = std::extent_slice(1, 2, 2);
+    auto s2 = std::extent_slice(0, 3, 3);
 
     check_selection<Layout>(exts, s0, s1, s2);
     return true;

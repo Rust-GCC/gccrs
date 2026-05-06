@@ -545,6 +545,14 @@ show_expr (gfc_expr *p)
 
     case EXPR_ARRAY:
       fputs ("(/ ", dumpfile);
+      if (p->ts.type == BT_CHARACTER
+	  && p->ts.u.cl
+	  && p->ts.u.cl->length_from_typespec
+	  && p->ts.u.cl->length)
+	{
+	  show_typespec (&p->ts);
+	  fputs (" :: ", dumpfile);
+	}
       show_constructor (p->value.constructor);
       fputs (" /)", dumpfile);
 

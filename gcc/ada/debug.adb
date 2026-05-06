@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2026, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -169,7 +169,7 @@ package body Debug is
    --  d_B  Warn on build-in-place function calls
    --  d_C
    --  d_D
-   --  d_E  Print diagnostics and switch repository
+   --  d_E
    --  d_F  Encode full invocation paths in ALI files
    --  d_G
    --  d_H
@@ -188,7 +188,7 @@ package body Debug is
    --  d_U  Disable prepending messages with "error:".
    --  d_V  Enable VAST (verifications on the expanded tree)
    --  d_W  Enable VAST in verbose mode
-   --  d_X  Disable assertions to check matching of extra formals
+   --  d_X
    --  d_Y
    --  d_Z
 
@@ -1074,10 +1074,6 @@ package body Debug is
 
    --  d_W  Same as d_V, but also prints lots of tracing/debugging output
    --       as it walks the tree.
-
-   --  d_X  Disable assertions to check matching of extra formals; switch added
-   --       temporarily to disable these checks until this work is complete if
-   --       they cause unexpected assertion failures.
 
    --  d1   Error messages have node numbers where possible. Normally error
    --       messages have only source locations. This option is useful when

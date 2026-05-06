@@ -274,7 +274,7 @@ static slp_tree
 vect_build_swap_evenodd_node (slp_tree node)
 {
   /* Attempt to linearise the permute.  */
-  vec<std::pair<unsigned, unsigned> > zipped;
+  lane_permutation_t zipped;
   zipped.create (SLP_TREE_LANES (node));
 
   for (unsigned x = 0; x < SLP_TREE_LANES (node); x+=2)
@@ -302,6 +302,7 @@ static inline bool
 vect_match_expression_p (slp_tree node, code_helper code)
 {
   if (!node
+      || SLP_TREE_PERMUTE_P (node)
       || !SLP_TREE_REPRESENTATIVE (node))
     return false;
 
@@ -548,8 +549,6 @@ complex_pattern::build (vec_info *vinfo)
     {
       /* Calculate the location of the statement in NODE to replace.  */
       stmt_info = SLP_TREE_REPRESENTATIVE (node);
-      stmt_vec_info reduc_def
-	= STMT_VINFO_REDUC_DEF (vect_orig_stmt (stmt_info));
       gimple* old_stmt = STMT_VINFO_STMT (stmt_info);
       tree lhs_old_stmt = gimple_get_lhs (old_stmt);
       tree type = TREE_TYPE (lhs_old_stmt);
@@ -571,24 +570,22 @@ complex_pattern::build (vec_info *vinfo)
 	 the nodes as such we need to manually update them.  Any changes will be
 	 undone if SLP is cancelled.  */
       call_stmt_info
-	= vinfo->add_pattern_stmt (call_stmt, stmt_info);
+	= vinfo->add_pattern_stmt (call_stmt, vect_orig_stmt (stmt_info));
 
       /* Make sure to mark the representative statement pure_slp and
 	 relevant and transfer reduction info. */
       STMT_VINFO_RELEVANT (call_stmt_info) = vect_used_in_scope;
       STMT_SLP_TYPE (call_stmt_info) = pure_slp;
-      STMT_VINFO_REDUC_DEF (call_stmt_info) = reduc_def;
 
       gimple_set_bb (call_stmt, gimple_bb (stmt_info->stmt));
       STMT_VINFO_VECTYPE (call_stmt_info) = SLP_TREE_VECTYPE (node);
-      STMT_VINFO_SLP_VECT_ONLY_PATTERN (call_stmt_info) = true;
 
       /* Since we are replacing all the statements in the group with the same
 	 thing it doesn't really matter.  So just set it every time a new stmt
 	 is created.  */
       SLP_TREE_REPRESENTATIVE (node) = call_stmt_info;
       SLP_TREE_LANE_PERMUTATION (node).release ();
-      SLP_TREE_CODE (node) = CALL_EXPR;
+      SLP_TREE_CODE (node) = ERROR_MARK;
     }
 }
 
@@ -956,7 +953,7 @@ vect_validate_multiplication (slp_tree_to_load_perm_map_t *perm_cache,
 static slp_tree
 vect_build_combine_node (slp_tree even, slp_tree odd, slp_tree rep)
 {
-  vec<std::pair<unsigned, unsigned> > perm;
+  lane_permutation_t perm;
   perm.create (SLP_TREE_LANES (rep));
 
   for (unsigned x = 0; x < SLP_TREE_LANES (rep); x+=2)
@@ -965,8 +962,7 @@ vect_build_combine_node (slp_tree even, slp_tree odd, slp_tree rep)
       perm.quick_push (std::make_pair (1, x+1));
     }
 
-  slp_tree vnode = vect_create_new_slp_node (2, SLP_TREE_CODE (even));
-  SLP_TREE_CODE (vnode) = VEC_PERM_EXPR;
+  slp_tree vnode = vect_create_new_slp_node (2, VEC_PERM_EXPR);
   SLP_TREE_LANE_PERMUTATION (vnode) = perm;
 
   SLP_TREE_CHILDREN (vnode).create (2);
@@ -1621,13 +1617,12 @@ addsub_pattern::build (vec_info *vinfo)
 			     (TREE_TYPE (gimple_assign_lhs (rep->stmt))));
 	gimple_call_set_nothrow (call, true);
 	gimple_set_bb (call, gimple_bb (rep->stmt));
-	stmt_vec_info new_rep = vinfo->add_pattern_stmt (call, rep);
+	stmt_vec_info new_rep
+	  = vinfo->add_pattern_stmt (call, vect_orig_stmt (rep));
 	SLP_TREE_REPRESENTATIVE (node) = new_rep;
 	STMT_VINFO_RELEVANT (new_rep) = vect_used_in_scope;
 	STMT_SLP_TYPE (new_rep) = pure_slp;
 	STMT_VINFO_VECTYPE (new_rep) = SLP_TREE_VECTYPE (node);
-	STMT_VINFO_SLP_VECT_ONLY_PATTERN (new_rep) = true;
-	STMT_VINFO_REDUC_DEF (new_rep) = STMT_VINFO_REDUC_DEF (vect_orig_stmt (rep));
 	SLP_TREE_CODE (node) = ERROR_MARK;
 	SLP_TREE_LANE_PERMUTATION (node).release ();
 
@@ -1687,13 +1682,12 @@ addsub_pattern::build (vec_info *vinfo)
 			     (TREE_TYPE (gimple_get_lhs (srep->stmt))));
 	gimple_call_set_nothrow (call, true);
 	gimple_set_bb (call, gimple_bb (srep->stmt));
-	stmt_vec_info new_rep = vinfo->add_pattern_stmt (call, srep);
+	stmt_vec_info new_rep
+	  = vinfo->add_pattern_stmt (call, vect_orig_stmt (srep));
 	SLP_TREE_REPRESENTATIVE (node) = new_rep;
 	STMT_VINFO_RELEVANT (new_rep) = vect_used_in_scope;
 	STMT_SLP_TYPE (new_rep) = pure_slp;
 	STMT_VINFO_VECTYPE (new_rep) = SLP_TREE_VECTYPE (node);
-	STMT_VINFO_SLP_VECT_ONLY_PATTERN (new_rep) = true;
-	STMT_VINFO_REDUC_DEF (new_rep) = STMT_VINFO_REDUC_DEF (vect_orig_stmt (srep));
 	SLP_TREE_CODE (node) = ERROR_MARK;
 	SLP_TREE_LANE_PERMUTATION (node).release ();
 

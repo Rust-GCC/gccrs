@@ -1195,7 +1195,7 @@ adjust_mem_stores (rtx loc, const_rtx expr, void *data)
 					      adjust_mems, data);
       if (new_dest != SET_DEST (expr))
 	{
-	  rtx xexpr = CONST_CAST_RTX (expr);
+	  rtx xexpr = const_cast<rtx> (expr);
 	  validate_change (NULL_RTX, &SET_DEST (xexpr), new_dest, true);
 	}
     }
@@ -2519,7 +2519,8 @@ val_store (dataflow_set *set, rtx val, rtx loc, rtx_insn *insn,
 	  struct elt_loc_list *l;
 	  for (l = v->locs; l; l = l->next)
 	    {
-	      fprintf (dump_file, "\n%i: ", INSN_UID (l->setting_insn));
+	      fprintf (dump_file, "\n%i: ",
+		       l->setting_insn ? INSN_UID (l->setting_insn) : -1);
 	      print_inline_rtx (dump_file, l->loc, 0);
 	    }
 	}

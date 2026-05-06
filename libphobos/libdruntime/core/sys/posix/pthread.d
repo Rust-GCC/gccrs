@@ -371,6 +371,12 @@ else version (CRuntime_Bionic)
         PTHREAD_CREATE_DETACHED
     }
 
+    enum
+    {
+        PTHREAD_EXPLICIT_SCHED = 0,
+        PTHREAD_INHERIT_SCHED = 1,
+    }
+
     enum PTHREAD_MUTEX_INITIALIZER = pthread_mutex_t.init;
     enum PTHREAD_ONCE_INIT         = pthread_once_t.init;
 
@@ -384,8 +390,24 @@ else version (CRuntime_Musl)
 {
     enum
     {
+        PTHREAD_CANCEL_ENABLE = 0,
+        PTHREAD_CANCEL_DISABLE = 1,
+        PTHREAD_CANCEL_DEFERRED = 0,
+        PTHREAD_CANCEL_ASYNCHRONOUS = 1,
+    }
+
+    enum PTHREAD_CANCELED = cast(void*) -1;
+
+    enum
+    {
         PTHREAD_CREATE_JOINABLE = 0,
         PTHREAD_CREATE_DETACHED = 1
+    }
+
+    enum
+    {
+        PTHREAD_INHERIT_SCHED = 0,
+        PTHREAD_EXPLICIT_SCHED = 1,
     }
 
     enum PTHREAD_MUTEX_INITIALIZER = pthread_mutex_t.init;
@@ -451,8 +473,8 @@ int pthread_atfork(void function(), void function(), void function());
     int pthread_cancel(pthread_t);
 }
 
-alias void function(void*) _pthread_cleanup_routine;
-alias void function(void*) @nogc _pthread_cleanup_routine_nogc;
+alias _pthread_cleanup_routine = void function(void*);
+alias _pthread_cleanup_routine_nogc = void function(void*) @nogc;
 version (CRuntime_Glibc)
 {
     struct _pthread_cleanup_buffer

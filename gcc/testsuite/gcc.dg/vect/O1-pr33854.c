@@ -1,5 +1,6 @@
 /* Testcase by Martin Michlmayr <tbm@cyrius.com> */
 /* { dg-do compile } */
+/* { dg-additional-options "-O1" } */
 
 extern void *malloc (__SIZE_TYPE__ __size);
 typedef struct VMatrix_ VMatrix;

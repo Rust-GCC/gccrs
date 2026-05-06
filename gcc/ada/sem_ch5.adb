@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2026, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -27,7 +27,6 @@ with Aspects;        use Aspects;
 with Atree;          use Atree;
 with Checks;         use Checks;
 with Debug;          use Debug;
-with Einfo;          use Einfo;
 with Einfo.Entities; use Einfo.Entities;
 with Einfo.Utils;    use Einfo.Utils;
 with Errout;         use Errout;
@@ -60,7 +59,6 @@ with Sem_Util;       use Sem_Util;
 with Sem_Warn;       use Sem_Warn;
 with Snames;         use Snames;
 with Stand;          use Stand;
-with Sinfo;          use Sinfo;
 with Sinfo.Nodes;    use Sinfo.Nodes;
 with Sinfo.Utils;    use Sinfo.Utils;
 with Targparm;       use Targparm;
@@ -457,8 +455,14 @@ package body Sem_Ch5 is
                Get_First_Interp (Lhs, I, It);
 
                while Present (It.Typ) loop
+                  --  AI22-0112 restores the Ada 95 rule that excludes limited
+                  --  types from consideration during resolution of the target
+                  --  variable in assignment statements.
+
                   if Is_Limited_Type (It.Typ) then
-                     Remove_Interp (I);
+                     if not Has_Implicit_Dereference (It.Typ) then
+                        Remove_Interp (I);
+                     end if;
                   elsif T1 = Any_Type then
                      T1 := It.Typ;
                   end if;
@@ -507,7 +511,9 @@ package body Sem_Ch5 is
                   --  variable in assignment statements.
 
                   if Is_Limited_Type (It.Typ) then
-                     Remove_Interp (I);
+                     if not Has_Implicit_Dereference (It.Typ) then
+                        Remove_Interp (I);
+                     end if;
 
                   elsif Has_Compatible_Type (Rhs, It.Typ) then
                      if T1 = Any_Type then

@@ -2936,6 +2936,9 @@ Target can compile using @code{pthread.h} with no errors or warnings.
 @item pthread_h
 Target has @code{pthread.h}.
 
+@item sleep
+Target supports @code{sleep}.
+
 @item sockets
 Target can compile using @code{sys/socket.h} with no errors or warnings.
 
@@ -3727,6 +3730,29 @@ A line containing just:
 stands for zero or more unmatched lines; the whitespace after
 @var{prefix} is again not significant.
 
+@end table
+
+@subsubsection Scan object metadata with readelf
+
+These commands inspect the linked test output file with @command{readelf}.
+They are mainly intended for LTO tests.
+
+These commands take a single @var{regex} and test whether it is present
+in (or absent from, for @samp{-not}) the corresponding @command{readelf}
+output.
+
+@table @code
+@item object-readelf-attributes @var{regex} [@{ target/xfail @var{selector} @}]
+Runs @command{readelf -A} and checks that @var{regex} matches.
+
+@item object-readelf-attributes-not @var{regex} [@{ target/xfail @var{selector} @}]
+Runs @command{readelf -A} and checks that @var{regex} does not match.
+
+@item object-readelf-notes @var{regex} [@{ target/xfail @var{selector} @}]
+Runs @command{readelf -n} and checks that @var{regex} matches.
+
+@item object-readelf-notes-not @var{regex} [@{ target/xfail @var{selector} @}]
+Runs @command{readelf -n} and checks that @var{regex} does not match.
 @end table
 
 @subsubsection Scan optimization dump files

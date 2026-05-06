@@ -1,5 +1,5 @@
  /*
- * Copyright (c) 2021_2025 Symas Corporation
+ * Copyright (c) 2021_2026 Symas Corporation
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -1209,7 +1209,7 @@ valid_encoding( cbl_encoding_t enc ) {
 struct encodings_t {
   bool supported;
   cbl_encoding_t type;
-  const char name[32];
+  char name[32];
 };
 
 #endif

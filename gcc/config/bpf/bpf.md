@@ -279,8 +279,8 @@
 	(zero_extend:DI (match_operand:HI 1 "nonimmediate_operand" "0,r,q")))]
   ""
   "@
-   {and\t%0,0xffff|%0 &= 0xffff}
-   *return bpf_output_move (operands, \"{mov\t%0,%1\;and\t%0,0xffff|%0 = %1;%0 &= 0xffff}\");
+   *return bpf_has_alu32 ? \"{and32\t%0,0xffff|%W0 &= 0xffff}\" : \"{and\t%0,0xffff|%0 &= 0xffff}\";
+   *return bpf_output_move (operands, bpf_has_alu32 ? \"{mov\t%0,%1\;and\t%0,0xffff|%W0 = %W1;%W0 &= 0xffff}\" : \"{mov\t%0,%1\;and\t%0,0xffff|%0 = %1;%0 &= 0xffff}\");
    *return bpf_output_move (operands, \"{ldxh\t%0,%1|%0 = *(u16 *) %1}\");"
   [(set_attr "type" "alu,alu,ldx")])
 
@@ -289,8 +289,8 @@
 	(zero_extend:DI (match_operand:QI 1 "nonimmediate_operand" "0,r,q")))]
   ""
   "@
-   {and\t%0,0xff|%0 &= 0xff}
-   *return bpf_output_move (operands, \"{mov\t%0,%1\;and\t%0,0xff|%0 = %1;%0 &= 0xff}\");
+   *return bpf_has_alu32 ? \"{and32\t%0,0xff|%W0 &= 0xff}\" : \"{and\t%0,0xff|%0 &= 0xff}\";
+   *return bpf_output_move (operands, bpf_has_alu32 ? \"{mov\t%0,%1\;and\t%0,0xff|%W0 = %W1;%W0 &= 0xff}\" : \"{mov\t%0,%1\;and\t%0,0xff|%0 = %1;%0 &= 0xff}\");
    *return bpf_output_move (operands, \"{ldxb\t%0,%1|%0 = *(u8 *) %1}\");"
   [(set_attr "type" "alu,alu,ldx")])
 
@@ -300,7 +300,7 @@
 	  (match_operand:SI 1 "nonimmediate_operand" "r,q")))]
   ""
   "@
-   *return bpf_output_move (operands, bpf_has_alu32 ? \"{mov32\t%0,%1|%0 = %1}\" : \"{mov\t%0,%1\;and\t%0,0xffffffff|%0 = %1;%0 &= 0xffffffff}\");
+   *return bpf_output_move (operands, bpf_has_alu32 ? \"{mov32\t%0,%1|%W0 = %W1}\" : \"{mov\t%0,%1\;and\t%0,0xffffffff|%0 = %1;%0 &= 0xffffffff}\");
    *return bpf_output_move (operands, \"{ldxw\t%0,%1|%0 = *(u32 *) %1}\");"
   [(set_attr "type" "alu,ldx")])
 
@@ -545,7 +545,7 @@
   ;; operands[2] is next_arg_register
   ;; operands[3] is struct_value_size_rtx.
   ""
-  { return bpf_output_call (operands[0]); }
+  { return bpf_output_call ("call\t%0", operands, 0); }
   [(set_attr "type" "jmp")])
 
 (define_expand "call_value"
@@ -568,7 +568,7 @@
   ;; operands[3] is next_arg_register
   ;; operands[4] is struct_value_size_rtx.
   ""
-  { return bpf_output_call (operands[1]); }
+  { return bpf_output_call ("call\t%1", operands, 1); }
   [(set_attr "type" "jmp")])
 
 (define_insn "sibcall"

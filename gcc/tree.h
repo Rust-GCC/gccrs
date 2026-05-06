@@ -404,7 +404,7 @@ code_helper::is_builtin_fn () const
 (*tree_int_cst_elt_check ((T), (I), __FILE__, __LINE__, __FUNCTION__))
 
 #define TREE_VEC_ELT_CHECK(T, I) \
-(*(CONST_CAST2 (tree *, typeof (T)*, \
+(*(const_cast<tree *> ( \
      tree_vec_elt_check ((T), (I), __FILE__, __LINE__, __FUNCTION__))))
 
 #define OMP_CLAUSE_ELT_CHECK(T, I) \
@@ -412,7 +412,7 @@ code_helper::is_builtin_fn () const
 
 /* Special checks for TREE_OPERANDs.  */
 #define TREE_OPERAND_CHECK(T, I) \
-(*(CONST_CAST2 (tree*, typeof (T)*, \
+(*(const_cast<tree *> ( \
      tree_operand_check ((T), (I), __FILE__, __LINE__, __FUNCTION__))))
 
 #define TREE_OPERAND_CHECK_CODE(T, CODE, I) \
@@ -568,12 +568,12 @@ extern void omp_clause_range_check_failed (const_tree, const char *, int,
    we are not modifying the tree itself.  */
 
 #define STRIP_NOPS(EXP) \
-  (EXP) = tree_strip_nop_conversions (CONST_CAST_TREE (EXP))
+  (EXP) = tree_strip_nop_conversions (const_cast<tree> (EXP))
 
 /* Like STRIP_NOPS, but don't let the signedness change either.  */
 
 #define STRIP_SIGN_NOPS(EXP) \
-  (EXP) = tree_strip_sign_nop_conversions (CONST_CAST_TREE (EXP))
+  (EXP) = tree_strip_sign_nop_conversions (const_cast<tree> (EXP))
 
 /* Like STRIP_NOPS, but don't alter the TREE_TYPE either.  */
 
@@ -595,7 +595,7 @@ extern void omp_clause_range_check_failed (const_tree, const char *, int,
    in use to provide a location_t.  */
 
 #define STRIP_ANY_LOCATION_WRAPPER(EXP) \
-  (EXP) = tree_strip_any_location_wrapper (CONST_CAST_TREE (EXP))
+  (EXP) = tree_strip_any_location_wrapper (const_cast<tree> (EXP))
 
 /* Nonzero if TYPE represents a vector type.  */
 
@@ -614,6 +614,13 @@ extern void omp_clause_range_check_failed (const_tree, const char *, int,
 #define INTEGRAL_TYPE_P(TYPE)  \
   (TREE_CODE (TYPE) == ENUMERAL_TYPE  \
    || TREE_CODE (TYPE) == BOOLEAN_TYPE \
+   || TREE_CODE (TYPE) == INTEGER_TYPE \
+   || TREE_CODE (TYPE) == BITINT_TYPE)
+
+/* Nonzero if TYPE represents an integral type (non-boolean).  */
+
+#define INTEGRAL_NB_TYPE_P(TYPE)  \
+  (TREE_CODE (TYPE) == ENUMERAL_TYPE  \
    || TREE_CODE (TYPE) == INTEGER_TYPE \
    || TREE_CODE (TYPE) == BITINT_TYPE)
 
@@ -796,6 +803,11 @@ extern void omp_clause_range_check_failed (const_tree, const char *, int,
 /* Determines whether an ENUMERAL_TYPE has defined the list of constants. */
 #define ENUM_IS_OPAQUE(NODE) (ENUMERAL_TYPE_CHECK (NODE)->base.private_flag)
 
+/* Determines whether a VIEW_CONVERT_EXPR node is used to create const
+   qualified variant of its first operand (used by C++ contracts).  */
+#define CONST_WRAPPER_P(NODE) \
+  (TREE_CHECK (NODE, VIEW_CONVERT_EXPR)->base.private_flag)
+
 /* In an expr node (usually a conversion) this means the node was made
    implicitly and should not lead to any sort of warning.  In a decl node,
    warnings concerning the decl should be suppressed.  This is used at
@@ -974,13 +986,7 @@ extern void omp_clause_range_check_failed (const_tree, const char *, int,
       || flag_wrapv))
 
 /* True if overflow is undefined for the given integral or pointer type.
-   We may optimize on the assumption that values in the type never overflow.
-
-   IMPORTANT NOTE: Any optimization based on TYPE_OVERFLOW_UNDEFINED
-   must issue a warning based on warn_strict_overflow.  In some cases
-   it will be appropriate to issue the warning immediately, and in
-   other cases it will be appropriate to simply set a flag and let the
-   caller decide whether a warning is appropriate or not.  */
+   We may optimize on the assumption that values in the type never overflow.  */
 #define TYPE_OVERFLOW_UNDEFINED(TYPE)				\
   (POINTER_TYPE_P (TYPE)					\
    ? !flag_wrapv_pointer					\
@@ -1239,6 +1245,12 @@ extern void omp_clause_range_check_failed (const_tree, const char *, int,
 /* In a TREE_LIST node.  */
 #define TREE_PURPOSE(NODE) (TREE_LIST_CHECK (NODE)->list.purpose)
 #define TREE_VALUE(NODE) (TREE_LIST_CHECK (NODE)->list.value)
+
+/* In TREE_VALUE of an attribute this means the attribute is never equal to
+   different attribute with the same name and value and that the attribute
+   is order sensitive, the order of attributes with this flag on their
+   TREE_VALUE should be preserved.  */
+#define ATTR_UNIQUE_VALUE_P(NODE) (TREE_LIST_CHECK (NODE)->base.protected_flag)
 
 /* In a TREE_VEC node.  */
 #define TREE_VEC_LENGTH(NODE) (TREE_VEC_CHECK (NODE)->base.u.length)
@@ -1933,6 +1945,16 @@ class auto_suppress_location_wrappers
 /* Nonzero if OpenACC 'readonly' modifier set, used for 'copyin'.  */
 #define OMP_CLAUSE_MAP_READONLY(NODE) \
   TREE_READONLY (OMP_CLAUSE_SUBCODE_CHECK (NODE, OMP_CLAUSE_MAP))
+
+/* Nonzero if the size (or bias) is not known by the front end and needs to be
+   adjusted in the middle end.  */
+#define OMP_CLAUSE_MAP_SIZE_NEEDS_ADJUSTMENT(NODE) \
+  TREE_CONSTANT (OMP_CLAUSE_SUBCODE_CHECK (NODE, OMP_CLAUSE_MAP))
+
+/* Nonzero on a map clause that is only used internally by the gimplifier and
+   can thus be removed at the end of the GIMPLE pass.  */
+#define OMP_CLAUSE_MAP_GIMPLE_ONLY(NODE) \
+  TREE_USED (OMP_CLAUSE_SUBCODE_CHECK (NODE, OMP_CLAUSE_MAP))
 
 /* Same as above, for use in OpenACC cache directives.  */
 #define OMP_CLAUSE__CACHE__READONLY(NODE) \
@@ -2767,9 +2789,14 @@ extern tree vector_element_bits_tree (const_tree);
    vtable where the offset to the virtual base can be found.  */
 #define BINFO_VPTR_FIELD(NODE) (TREE_BINFO_CHECK (NODE)->binfo.vptr_field)
 
-/* Indicates the accesses this binfo has to its bases. The values are
+/* Indicates the accesses this binfo has to its bases.  The values are
    access_public_node, access_protected_node or access_private_node.
-   If this array is not present, public access is implied.  */
+   If this vector is not present, public access is implied.  If present,
+   the vector should have BINFO_N_BASE_BINFOS or larger length.  Elements
+   beyond BINFO_N_BASE_BINFOS are base attributes instead of the
+   access_p*_node values for base with index IDX at IDX + BINFO_N_BASE_BINFOS
+   index.  If that is beyond the length of the vector, no attributes for
+   that base is implied.  */
 #define BINFO_BASE_ACCESSES(NODE) \
   (TREE_BINFO_CHECK (NODE)->binfo.base_accesses)
 
@@ -3981,7 +4008,7 @@ tree_int_cst_elt_check (const_tree __t, int __i,
   if (__i < 0 || __i >= __t->base.u.int_length.extended)
     tree_int_cst_elt_check_failed (__i, __t->base.u.int_length.extended,
 				   __f, __l, __g);
-  return &CONST_CAST_TREE (__t)->int_cst.val[__i];
+  return &const_cast<tree> (__t)->int_cst.val[__i];
 }
 
 inline HOST_WIDE_INT *
@@ -3993,7 +4020,7 @@ tree_int_cst_elt_check (tree __t, int __i,
   if (__i < 0 || __i >= __t->base.u.int_length.extended)
     tree_int_cst_elt_check_failed (__i, __t->base.u.int_length.extended,
 				   __f, __l, __g);
-  return &CONST_CAST_TREE (__t)->int_cst.val[__i];
+  return &const_cast<tree> (__t)->int_cst.val[__i];
 }
 
 /* Workaround -Wstrict-overflow false positive during profiledbootstrap.  */
@@ -4011,7 +4038,7 @@ tree_vec_elt_check (tree __t, int __i,
     tree_check_failed (__t, __f, __l, __g, TREE_VEC, 0);
   if (__i < 0 || __i >= __t->base.u.length)
     tree_vec_elt_check_failed (__i, __t->base.u.length, __f, __l, __g);
-  return &CONST_CAST_TREE (__t)->vec.a[__i];
+  return &const_cast<tree> (__t)->vec.a[__i];
 }
 
 # if GCC_VERSION >= 4006
@@ -4269,7 +4296,7 @@ tree_vec_elt_check (const_tree __t, int __i,
     tree_check_failed (__t, __f, __l, __g, TREE_VEC, 0);
   if (__i < 0 || __i >= __t->base.u.length)
     tree_vec_elt_check_failed (__i, __t->base.u.length, __f, __l, __g);
-  return CONST_CAST (const_tree *, &__t->vec.a[__i]);
+  return const_cast<const_tree *> (&__t->vec.a[__i]);
   //return &__t->vec.a[__i];
 }
 
@@ -4285,7 +4312,7 @@ omp_clause_elt_check (const_tree __t, int __i,
     tree_check_failed (__t, __f, __l, __g, OMP_CLAUSE, 0);
   if (__i < 0 || __i >= omp_clause_num_ops [__t->omp_clause.code])
     omp_clause_operand_check_failed (__i, __t, __f, __l, __g);
-  return CONST_CAST (const_tree *, &__t->omp_clause.ops[__i]);
+  return const_cast<const_tree *> (&__t->omp_clause.ops[__i]);
 }
 
 inline const_tree
@@ -4322,7 +4349,7 @@ tree_operand_check (tree __t, int __i,
   const_tree __u = EXPR_CHECK (__t);
   if (__i < 0 || __i >= TREE_OPERAND_LENGTH (__u))
     tree_operand_check_failed (__i, __u, __f, __l, __g);
-  return &CONST_CAST_TREE (__u)->exp.operands[__i];
+  return &const_cast<tree> (__u)->exp.operands[__i];
 }
 
 inline tree *
@@ -4343,7 +4370,7 @@ tree_operand_check (const_tree __t, int __i,
   const_tree __u = EXPR_CHECK (__t);
   if (__i < 0 || __i >= TREE_OPERAND_LENGTH (__u))
     tree_operand_check_failed (__i, __u, __f, __l, __g);
-  return CONST_CAST (const_tree *, &__u->exp.operands[__i]);
+  return const_cast<const_tree *> (&__u->exp.operands[__i]);
 }
 
 inline const_tree *
@@ -4354,7 +4381,7 @@ tree_operand_check_code (const_tree __t, enum tree_code __code, int __i,
     tree_check_failed (__t, __f, __l, __g, __code, 0);
   if (__i < 0 || __i >= TREE_OPERAND_LENGTH (__t))
     tree_operand_check_failed (__i, __t, __f, __l, __g);
-  return CONST_CAST (const_tree *, &__t->exp.operands[__i]);
+  return const_cast<const_tree *> (&__t->exp.operands[__i]);
 }
 
 #endif
@@ -5980,6 +6007,9 @@ extern int get_range_pos_neg (tree, gimple * = NULL);
 
 /* Return true for a valid pair of new and delete operators.  */
 extern bool valid_new_delete_pair_p (tree, tree, bool * = NULL);
+
+/* Return whether the second argument is a subtree of the first one.  */
+extern bool find_tree (tree, tree);
 
 /* Return simplified tree code of type that is used for canonical type
    merging.  */

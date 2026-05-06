@@ -1,3 +1,44 @@
+2026-02-21  Jakub Jelinek  <jakub@redhat.com>
+
+	* Makefile.am (all-local): Depend on stmp-libatomic and otherwise
+	do nothing.
+	(stmp-libatomic): New goal, move all commands from all-local here plus
+	touch $@ at the end.
+	* Makefile.in: Regenerate.
+
+2026-01-30  Jakub Jelinek  <jakub@redhat.com>
+
+	* Makefile.am (all-local, install-asneeded): Only create
+	libatomic_asneeded.so script if libatomic.so exist, only
+	create libatomic_asneeded.a symlink if libatomic.a exist.
+	* Makefile.in: Regenerate.
+
+2026-01-19  Jakub Jelinek  <jakub@redhat.com>
+
+	PR libgcc/123650
+	* Makefile.am (toolexeclib_DATA): Remove.
+	(all-local): For LIBAT_BUILD_ASNEEDED_SOLINK instead of installing
+	libatomic_asneeded.{so,a} from top_srcdir cd into the destination
+	directory, use echo to write libatomic_asneeded.so and $(LN_S) to
+	symlink libatomic_asneeded.a to libatomic.a.
+	(install-data-am): For LIBAT_BUILD_ASNEEDED_SOLINK depend on
+	install-asneeded.
+	(install-asneeded): New goal.
+	* libatomic_asneeded.so: Remove.
+	* libatomic_asneeded.a: Remove.
+	* Makefile.in: Regenerate.
+
+2026-01-13  Jakub Jelinek  <jakub@redhat.com>
+
+	PR libstdc++/123396
+	* acinclude.m4 (LIBAT_BUILD_ASNEEDED_SOLINK): New AM_CONDITIONAL.
+	* libatomic_asneeded.so: New file.
+	* libatomic_asneeded.a: New file.
+	* Makefile.am (toolexeclib_DATA): Set if LIBAT_BUILD_ASNEEDED_SOLINK.
+	(all-local): Install those files into gcc subdir.
+	* Makefile.in: Regenerate.
+	* configure: Regenerate.
+
 2025-12-29  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
 
 	* configure: Regenerate.

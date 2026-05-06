@@ -1,7 +1,7 @@
 /**
  * Defines an identifier, which is the name of a `Dsymbol`.
  *
- * Copyright:   Copyright (C) 1999-2025 by The D Language Foundation, All Rights Reserved
+ * Copyright:   Copyright (C) 1999-2026 by The D Language Foundation, All Rights Reserved
  * Authors:     $(LINK2 https://www.digitalmars.com, Walter Bright)
  * License:     $(LINK2 https://www.boost.org/LICENSE_1_0.txt, Boost License 1.0)
  * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/compiler/src/dmd/identifier.d, _identifier.d)
@@ -76,6 +76,11 @@ nothrow:
         this.name = name;
         this.value = value;
         isAnonymous_ = isAnonymous;
+    }
+
+    bool equals(const Identifier i) const
+    {
+        return this is i;
     }
 
     static Identifier create(const(char)* name)
@@ -221,7 +226,7 @@ nothrow:
      *      Identifier (inside Identifier.idPool) with deterministic name based
      *      on the source location.
      */
-    extern (D) static Identifier generateIdWithLoc(string prefix, Loc loc, string parent = "")
+    extern (D) static Identifier generateIdWithLoc(string prefix, Loc loc, const void* parent = null)
     {
         // generate `<prefix>_L<line>_C<col>`
         auto sl = SourceLoc(loc);
@@ -248,14 +253,15 @@ nothrow:
          * directly, but that would unnecessary lengthen symbols names. See issue:
          * https://issues.dlang.org/show_bug.cgi?id=23722
          */
-        static struct Key { string locKey; string prefix; string parent; }
+        static struct Key { string locKey; string prefix; const(void)* parent; }
         __gshared uint[Key] counters;
 
-        string locKey = cast(string) (sl.filename ~ idBuf[]);
+        const locKey = cast(string) (sl.filename ~ idBuf[]);
+        const key = Key(locKey, prefix, parent);
         static if (__traits(compiles, counters.update(Key.init, () => 0u, (ref uint a) => 0u)))
         {
             // 2.082+
-            counters.update(Key(locKey, prefix, parent),
+            counters.update(key,
                 () => 1u,          // insertion
                 (ref uint counter) // update
                 {
@@ -267,7 +273,6 @@ nothrow:
         }
         else
         {
-            const key = Key(locKey, prefix, parent);
             if (auto pCounter = key in counters)
             {
                 idBuf.writestring("_");

@@ -3,7 +3,7 @@
  *
  * Specification: $(LINK2 https://dlang.org/spec/traits.html, Traits)
  *
- * Copyright:   Copyright (C) 1999-2025 by The D Language Foundation, All Rights Reserved
+ * Copyright:   Copyright (C) 1999-2026 by The D Language Foundation, All Rights Reserved
  * Authors:     $(LINK2 https://www.digitalmars.com, Walter Bright)
  * License:     $(LINK2 https://www.boost.org/LICENSE_1_0.txt, Boost License 1.0)
  * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/compiler/src/dmd/traits.d, _traits.d)
@@ -17,14 +17,12 @@ import core.stdc.stdio;
 
 import dmd.aggregate;
 import dmd.arraytypes;
-import dmd.astcodegen;
 import dmd.astenums;
 import dmd.attrib;
 import dmd.attribsem;
 import dmd.canthrow;
 import dmd.dclass;
 import dmd.declaration;
-import dmd.dimport;
 import dmd.dinterpret;
 import dmd.dmodule;
 import dmd.dscope;
@@ -46,16 +44,14 @@ import dmd.mangle : decoToType;
 import dmd.mtype;
 import dmd.nogc;
 import dmd.optimize;
-import dmd.parse;
 import dmd.root.array;
 import dmd.root.speller;
 import dmd.root.stringtable;
 import dmd.target;
+import dmd.templatesem : TemplateInstance_semanticTiargs, TemplateInstanceBox;
 import dmd.tokens;
 import dmd.typesem;
-import dmd.visitor;
 import dmd.rootobject;
-import dmd.common.outbuffer;
 import dmd.root.string;
 
 enum LOGSEMANTIC = false;
@@ -169,11 +165,14 @@ ulong getTypePointerBitmap(Loc loc, Type t, ref Array!(ulong) data, ErrorSink eS
             ulong nextsize = t.next.size();
             if (nextsize == SIZE_INVALID)
                 error = true;
-            ulong dim = t.dim.toInteger();
-            for (ulong i = 0; i < dim; i++)
+            if (t.hasPointers)
             {
-                offset = arrayoff + i * nextsize;
-                visit(t.next);
+                ulong dim = t.dim.toInteger();
+                for (ulong i = 0; i < dim; i++)
+                {
+                    offset = arrayoff + i * nextsize;
+                    visit(t.next);
+                }
             }
             offset = arrayoff;
         }
@@ -340,7 +339,7 @@ Expression semanticTraits(TraitsExp e, Scope* sc)
             sc.stc |= STC.deprecated_;
         Scope* sc2 = sc.startCTFE();
         scope(exit) { sc2.endCTFE(); }
-        if (!TemplateInstance.semanticTiargs(e.loc, sc2, e.args, 1))
+        if (!TemplateInstance_semanticTiargs(e.loc, sc2, e.args, 1))
         {
             sc.stc = save;
             return ErrorExp.get();
@@ -444,6 +443,27 @@ Expression semanticTraits(TraitsExp e, Scope* sc)
         });
     }
 
+    if (e.ident == Id.isOverlapped)
+    {
+        if (dim != 1)
+            return dimError(1);
+
+        return isDeclX((d)
+        {
+            auto v = d.isVarDeclaration();
+            if (!v || !v.isField())
+                return false;
+
+            // Ensure semantic analysis is complete
+            if (auto agg = v.toParent().isAggregateDeclaration())
+            {
+                if (agg.semanticRun < PASS.semanticdone)
+                    agg.dsymbolSemantic(null);
+            }
+
+            return v.overlapped;
+        });
+    }
     if (e.ident == Id.isArithmetic)
     {
         return isTypeX(t => t.isIntegral() || t.isFloating());
@@ -589,7 +609,8 @@ Expression semanticTraits(TraitsExp e, Scope* sc)
             return ErrorExp.get();
         }
 
-        t = t.toBasetype();     // get the base in case `t` is an `enum`
+        // get enum base or static array element type
+        t = t.baseElemOf();
 
         if (auto ts = t.isTypeStruct())
         {
@@ -597,6 +618,36 @@ Expression semanticTraits(TraitsExp e, Scope* sc)
         }
 
         return isCopyable(t) ? True() : False();
+    }
+    if (e.ident == Id.needsDestruction)
+    {
+        if (dim != 1)
+            return dimError(1);
+
+        auto o = (*e.args)[0];
+        auto t = isType(o);
+        if (!t)
+        {
+            error(e.loc, "type expected as second argument of __traits `%s` instead of `%s`",
+                    e.ident.toChars(), o.toChars());
+            return ErrorExp.get();
+        }
+        // FIXME should just check t.needsDestruction() but that doesn't run dsymbolSemantic
+
+        // T[0]
+        if (!t.size())
+            return False();
+
+        // get the base in case `t` is an `enum`
+        // handle static arrays
+        t = t.baseElemOf();
+        if (auto ts = t.isTypeStruct())
+        {
+            ts.sym.dsymbolSemantic(sc);
+            if (ts.sym.dtor)
+                return True();
+        }
+        return False();
     }
 
     if (e.ident == Id.isNested)
@@ -735,7 +786,7 @@ Expression semanticTraits(TraitsExp e, Scope* sc)
          * a symbol should not be folded to a constant.
          * Bit 1 means don't convert Parameter to Type if Parameter has an identifier
          */
-        if (!TemplateInstance.semanticTiargs(e.loc, sc, e.args, 2))
+        if (!TemplateInstance_semanticTiargs(e.loc, sc, e.args, 2))
             return ErrorExp.get();
         if (dim != 1)
             return dimError(1);
@@ -774,7 +825,7 @@ Expression semanticTraits(TraitsExp e, Scope* sc)
         sc2.copyFlagsFrom(sc);
         sc2.noAccessCheck = true;
         sc2.ignoresymbolvisibility = true;
-        bool ok = TemplateInstance.semanticTiargs(e.loc, sc2, e.args, 1);
+        bool ok = TemplateInstance_semanticTiargs(e.loc, sc2, e.args, 1);
         sc2.pop();
         if (!ok)
             return ErrorExp.get();
@@ -849,7 +900,7 @@ Expression semanticTraits(TraitsExp e, Scope* sc)
         sc2.copyFlagsFrom(sc);
         sc2.noAccessCheck = true;
         sc2.ignoresymbolvisibility = true;
-        bool ok = TemplateInstance.semanticTiargs(e.loc, sc2, e.args, 1);
+        bool ok = TemplateInstance_semanticTiargs(e.loc, sc2, e.args, 1);
         sc2.pop();
         if (!ok)
             return ErrorExp.get();
@@ -1096,6 +1147,18 @@ Expression semanticTraits(TraitsExp e, Scope* sc)
                 // Prevent semantic() from replacing Symbol with its initializer
                 die.wantsym = true;
             ex = ex.expressionSemantic(scx);
+            if (ex)
+            {
+                import dmd.access : symbolIsVisible;
+                import dmd.safe : setUnsafe;
+                auto msym = getDsymbolWithoutExpCtx(ex);
+                // https://github.com/dlang/dmd/issues/19721
+                if (msym && !symbolIsVisible(sc, msym))
+                {
+                    if (sc.setUnsafe(false, e.loc, "accessing member `%s`", id))
+                        return ErrorExp.get();
+                }
+            }
             return ex;
         }
         else if (e.ident == Id.getVirtualFunctions ||
@@ -1181,37 +1244,36 @@ Expression semanticTraits(TraitsExp e, Scope* sc)
                 auto fd = s.isFuncDeclaration();
                 if (!fd)
                 {
-                    if (includeTemplates)
+                    if (!includeTemplates)
+                        return 0;
+                    auto td = s.isTemplateDeclaration();
+                    if (!td)
+                        return 0;
+                    // if td is part of an overload set we must take a copy
+                    // which shares the same `instances` cache but without
+                    // `overroot` and `overnext` set to avoid overload
+                    // behaviour in the result.
+                    if (td.overnext !is null)
                     {
-                        if (auto td = s.isTemplateDeclaration())
+                        if (td.instances is null)
                         {
-                            // if td is part of an overload set we must take a copy
-                            // which shares the same `instances` cache but without
-                            // `overroot` and `overnext` set to avoid overload
-                            // behaviour in the result.
-                            if (td.overnext !is null)
-                            {
-                                if (td.instances is null)
-                                {
-                                    // create an empty AA just to copy it
-                                    scope ti = new TemplateInstance(Loc.initial, Id.empty, null);
-                                    auto tib = TemplateInstanceBox(ti);
-                                    td.instances[tib] = null;
-                                    td.instances.clear();
-                                }
-                                td = td.syntaxCopy(null);
-                                import core.stdc.string : memcpy;
-                                memcpy(cast(void*) td, cast(void*) s,
-                                        __traits(classInstanceSize, TemplateDeclaration));
-                                td.overroot = null;
-                                td.overnext = null;
-                            }
-
-                            auto e = ex ? new DotTemplateExp(Loc.initial, ex, td)
-                                        : new DsymbolExp(Loc.initial, td);
-                            exps.push(e);
+                            // create an empty AA just to copy it
+                            scope ti = new TemplateInstance(Loc.initial, Id.empty, null);
+                            auto tib = TemplateInstanceBox(ti);
+                            (*(cast(TemplateInstance[TemplateInstanceBox]*) &td.instances))[tib] = null;
+                            (cast(TemplateInstance[TemplateInstanceBox])td.instances).clear();
                         }
+                        td = td.syntaxCopy(null);
+                        import core.stdc.string : memcpy;
+                        memcpy(cast(void*) td, cast(void*) s,
+                                __traits(classInstanceSize, TemplateDeclaration));
+                        td.overroot = null;
+                        td.overnext = null;
                     }
+
+                    auto e = ex ? new DotTemplateExp(Loc.initial, ex, td)
+                                : new DsymbolExp(Loc.initial, td);
+                    exps.push(e);
                     return 0;
                 }
                 if (e.ident == Id.getVirtualFunctions && !fd.isVirtual())
@@ -1304,7 +1366,7 @@ Expression semanticTraits(TraitsExp e, Scope* sc)
          * a symbol should not be folded to a constant.
          * Bit 1 means don't convert Parameter to Type if Parameter has an identifier
          */
-        if (!TemplateInstance.semanticTiargs(e.loc, sc, e.args, 3))
+        if (!TemplateInstance_semanticTiargs(e.loc, sc, e.args, 3))
             return ErrorExp.get();
 
         if (dim != 1)
@@ -1686,6 +1748,11 @@ Expression semanticTraits(TraitsExp e, Scope* sc)
             errorSupplemental(e.loc, "`%s` must evaluate to either a module, a struct, an union, a class, an interface or a template instantiation", s.toChars());
             return ErrorExp.get();
         }
+        // https://issues.dlang.org/show_bug.cgi?id=13668
+        // https://github.com/dlang/dmd/issues/22524
+        // resolve forward references
+        if (sds.semanticRun < PASS.semanticdone)
+            sds.dsymbolSemantic(sc);
 
         auto idents = new Identifiers();
 
@@ -1764,10 +1831,6 @@ Expression semanticTraits(TraitsExp e, Scope* sc)
         auto cd = sds.isClassDeclaration();
         if (cd && e.ident == Id.allMembers)
         {
-            if (cd.semanticRun < PASS.semanticdone)
-                cd.dsymbolSemantic(null); // https://issues.dlang.org/show_bug.cgi?id=13668
-                                   // Try to resolve forward reference
-
             void pushBaseMembersDg(ClassDeclaration cd)
             {
                 for (size_t i = 0; i < cd.baseclasses.length; i++)
@@ -1847,7 +1910,7 @@ Expression semanticTraits(TraitsExp e, Scope* sc)
                     const tf = sc2.func.type.isTypeFunction();
                     err |= tf.isNothrow && canThrow(ex, sc2.func, null);
                 }
-                ex = checkGC(sc2, ex);
+                ex = ex.checkGC(sc2);
                 if (ex.op == EXP.error)
                     err = true;
             }
@@ -1882,9 +1945,9 @@ Expression semanticTraits(TraitsExp e, Scope* sc)
         ob1.push((*e.args)[0]);
         Objects ob2;
         ob2.push((*e.args)[1]);
-        if (!TemplateInstance.semanticTiargs(e.loc, sc, &ob1, 0))
+        if (!TemplateInstance_semanticTiargs(e.loc, sc, &ob1, 0))
             return ErrorExp.get();
-        if (!TemplateInstance.semanticTiargs(e.loc, sc, &ob2, 0))
+        if (!TemplateInstance_semanticTiargs(e.loc, sc, &ob2, 0))
             return ErrorExp.get();
         if (ob1.length != ob2.length)
             return False();
@@ -2244,8 +2307,8 @@ private bool isSame(RootObject o1, RootObject o2, Scope* sc)
     // https://issues.dlang.org/show_bug.cgi?id=12001, allow isSame, <BasicType>, <BasicType>
     Type t1 = isType(o1);
     Type t2 = isType(o2);
-    if (t1 && t2 && t1.equals(t2))
-        return true;
+    if (t1 && t2)
+        return t1.equals(t2);
 
     auto s1 = getDsymbol(o1);
     auto s2 = getDsymbol(o2);
@@ -2346,7 +2409,7 @@ private void traitNotFound(TraitsExp e)
         initialized = true;     // lazy initialization
 
         // All possible traits
-        __gshared Identifier*[59] idents =
+        __gshared Identifier*[60] idents =
         [
             &Id.allMembers,
             &Id.child,
@@ -2378,6 +2441,7 @@ private void traitNotFound(TraitsExp e)
             &Id.identifier,
             &Id.isAbstractClass,
             &Id.isAbstractFunction,
+            &Id.isOverlapped,
             &Id.isArithmetic,
             &Id.isAssociativeArray,
             &Id.isCopyable,

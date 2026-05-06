@@ -1114,6 +1114,7 @@ case "${target}" in
     noconfigdirs="$noconfigdirs sim target-rda"
     ;;
   amdgcn*-*-*)
+    noconfigdirs="$noconfigdirs ld gas"
     ;;
   arm-*-darwin*)
     noconfigdirs="$noconfigdirs ld gas gdb gprof"
@@ -3825,9 +3826,39 @@ case "$target:$have_compiler:$host:$target:$enable_multilib" in
     ;;
 esac
 
+# For s390, -m31 is deprecated.  Emit a warning if --enable-multilib and
+# --enable-obsolete are explicitly specified.  If --enable-multilib is
+# specified implicitly or --enable-obsolete is missing, error out.
+case "$target:$enable_multilib:$enable_obsolete" in
+  s390*:yes:yes)
+    AC_MSG_WARN([Support for -m31 is deprecated and will be removed.])
+    ;;
+  s390*::*)
+    AC_MSG_ERROR([Support for -m31 is deprecated and will be removed. Explicitly specify --disable-multilib or --enable-multilib --enable-obsolete to build it anyway.])
+    ;;
+  s390*:yes:*)
+    AC_MSG_ERROR([Support for -m31 is deprecated and will be removed. Specify --enable-obsolete to build it anyway.])
+    ;;
+esac
+
 # Default to --enable-multilib.
 if test x${enable_multilib} = x ; then
   target_configargs="--enable-multilib ${target_configargs}"
+fi
+
+# Source target-specific configuration fragment for GCC
+if test -d ${srcdir}/gcc; then
+  . ${srcdir}/gcc/configure.tgt
+fi
+
+# Pass through with_multi_buildlist to host and target.  'gcc' needs it for the
+# fixed includes which are multilib'd and target libraries need it as they use
+# config-ml.in.
+if test x${with_multi_buildlist} != x ; then
+  target_configargs="--with-multi-buildlist=${with_multi_buildlist} \
+  ${target_configargs}"
+  host_configargs="--with-multi-buildlist=${with_multi_buildlist} \
+  ${host_configargs}"
 fi
 
 # Pass --with-newlib if appropriate.  Note that target_configdirs has

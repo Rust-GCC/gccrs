@@ -632,7 +632,6 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
    *  @brief Layout storage.
    *  @param  __num_elements  The count of T's for which to allocate space
    *                          at first.
-   *  @return   Nothing.
    *
    *  The initial underlying memory layout is a bit complicated...
   */
@@ -1985,7 +1984,6 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
        *  @brief Fills the deque with whatever is in [first,last).
        *  @param  __first  An input iterator.
        *  @param  __last  An input iterator.
-       *  @return   Nothing.
        *
        *  If the iterators are actually forward iterators (or better), then the
        *  memory layout can be done all at once.  Else we move forward using
@@ -2006,7 +2004,6 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       /**
        *  @brief Fills the %deque with copies of value.
        *  @param  __value  Initial value.
-       *  @return   Nothing.
        *  @pre _M_start and _M_finish have already been initialized,
        *  but none of the %deque's elements have yet been constructed.
        *

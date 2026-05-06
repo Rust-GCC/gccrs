@@ -6,7 +6,7 @@
  *                                                                          *
  *                          C Implementation File                           *
  *                                                                          *
- *            Copyright (C) 2014-2025, Free Software Foundation, Inc.       *
+ *            Copyright (C) 2014-2026, Free Software Foundation, Inc.       *
  *                                                                          *
  * GNAT is free software;  you can  redistribute it  and/or modify it under *
  * terms of the  GNU General Public License as published  by the Free Soft- *
@@ -505,11 +505,26 @@ __gnat_runtime_initialize (int install_handler)
 	   (gnat_argv, argc_expanded * sizeof (char *));
        }
    }
+
+  /* We check whether the SetThreadDescription function is available. If so, we
+     set up a pointer to it. We follow the method that's documented on this page:
+
+     https://learn.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-getprocaddress
+   */
+  HMODULE hKernel32 = GetModuleHandleW(L"kernel32.dll");
+
+  if (hKernel32) {
+    pSetThreadDescription =
+      (SetThreadDescription_t)GetProcAddress(hKernel32, "SetThreadDescription");
+  }
+
 #endif
 
   if (install_handler)
     __gnat_install_handler();
 }
+
+SetThreadDescription_t pSetThreadDescription;
 
 /**************************************************/
 /* __gnat_runtime_initialize (init_float version) */

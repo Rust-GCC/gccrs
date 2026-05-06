@@ -120,14 +120,9 @@
 {
     import std.meta;
 
-    import std.stdio;
-
-    void foo()
-    {
-        writefln("The index of long is %s",
-                 staticIndexOf!(long, AliasSeq!(int, long, double)));
-        // prints: The index of long is 1
-    }
+    alias Types = AliasSeq!(int, long, double);
+    static assert(staticIndexOf!(long, Types) == 1);
+    static assert(staticIndexOf!(void, 0, "void", void) == 2);
 }
 
 @safe unittest

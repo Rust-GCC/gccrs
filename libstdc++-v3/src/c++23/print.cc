@@ -22,6 +22,13 @@
 // see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 // <http://www.gnu.org/licenses/>.
 
+// We want to emit symbols for the inline functions in bits/print.h here.
+#define _GLIBCXX_NO_INLINE_PRINT 1
+#include <ostream>
+#include <bits/ostream_print.h>
+#include <print>
+#include <bits/print.h>
+
 #include <span>
 #include <string>
 #include <streambuf>
@@ -68,8 +75,9 @@ namespace
 } // namespace
 #endif
 
-  // This returns intptr_t that is either a Windows HANDLE
-  // or 1 + a POSIX file descriptor. A zero return indicates failure.
+  // Windows: If `f` refers to a console, return the HANDLE associated with it.
+  // POSIX: If `f` refers to a POSIX terminal, return `f`.
+  // Return a null pointer if `f` is not known to be a console or terminal.
   void*
   __open_terminal([[maybe_unused]] FILE* f)
   {
@@ -88,6 +96,7 @@ namespace
     return nullptr;
   }
 
+  // If a `FILE*` can be obtained from `sb`, behave as above.
   void*
   __open_terminal([[maybe_unused]] std::streambuf* sb)
   {

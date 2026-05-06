@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2026, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -644,15 +644,17 @@ package body System.Secondary_Stack is
          --  calculated conservatively.
       end if;
 
+      --  Raise Storage_Error if the size has overflowed
+
+      if Storage_Size < 0 then
+         raise Storage_Error with "object too large";
+      end if;
+
       --  Round the requested size (plus the needed padding in case of
       --  over-alignment) up to the nearest multiple of the default
       --  alignment to ensure efficient access and that the next available
       --  Byte is always aligned on the default alignement value.
 
-      --  It should not be possible to request an allocation of negative
-      --  size.
-
-      pragma Assert (Storage_Size >= 0);
       Mem_Size := Round_Up (Storage_Size + Padding);
 
       if Sec_Stack_Dynamic then

@@ -219,7 +219,7 @@ To prevent this, we follow various approaches:
 @enumerate a
 @item
 state pruning: which tries to discard state that won't be relevant
-later on withing the function.
+later on within the function.
 This can be disabled via @option{-fno-analyzer-state-purge}.
 
 @item

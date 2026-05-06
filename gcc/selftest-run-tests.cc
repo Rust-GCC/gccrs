@@ -68,6 +68,7 @@ selftest::run_tests ()
   hash_set_tests_cc_tests ();
   vec_cc_tests ();
   pretty_print_cc_tests ();
+  pretty_print_token_buffer_cc_tests ();
   wide_int_cc_tests ();
   ggc_tests_cc_tests ();
   sreal_cc_tests ();
@@ -77,12 +78,14 @@ selftest::run_tests ()
   opts_cc_tests ();
   json_cc_tests ();
   json_parser_cc_tests ();
+  json_pointer_parsing_cc_tests ();
   cgraph_cc_tests ();
   optinfo_emit_json_cc_tests ();
   ordered_hash_map_tests_cc_tests ();
   splay_tree_cc_tests ();
   xml_cc_tests ();
   graphviz_cc_tests ();
+  pub_sub_cc_tests ();
 
   /* Mid-level data structures.  */
   input_cc_tests ();

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2025 Symas Corporation
+ * Copyright (c) 2021-2026 Symas Corporation
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -272,15 +272,16 @@ parser_see_stop_run( struct cbl_refer_t exit_status, const char name[] );
 void
 parser_program_hierarchy( const struct cbl_prog_hier_t& hier );
 void
-parser_end_program(const char *name=NULL);
+parser_end_program(const char *name);
 
 void parser_sleep(const cbl_refer_t &seconds);
 
-void parser_exit( const cbl_refer_t& refer, ec_type_t = ec_none_e );
+void parser_exit( const cbl_refer_t& refer,
+                  ec_type_t = ec_none_e );
 void parser_exit_section(void);
 void parser_exit_paragraph(void);
 void parser_exit_perform( struct cbl_perform_tgt_t *tgt, bool cycle );
-void parser_exit_program(void); // exits back to COBOL only, else continue
+void parser_exit_program(); // exits back to COBOL only, else continue
 
 void
 parser_exhibit( bool changed, bool named,
@@ -470,6 +471,20 @@ void
 parser_exception_file( cbl_field_t *tgt, cbl_file_t* file = NULL );
 
 void
+parser_intrinsic_convert(cbl_field_t *tgt,
+                         const cbl_refer_t& input,                           
+                         convert_type_t src_fmt, 
+                         unsigned int   dst_fmt );
+
+void
+parser_intrinsic_find_string(cbl_field_t *tgt,
+                             const cbl_refer_t& haystack,
+                             const cbl_refer_t& needle,
+                             const cbl_refer_t *after,
+                             bool last,
+                             bool anycase);
+
+void
 parser_module_name( cbl_field_t *tgt, module_type_t type );
 
 void
@@ -604,6 +619,7 @@ void parser_init_list();
 tree file_static_variable(tree type, const char *name);
 
 void parser_statement_begin( const cbl_name_t name, tree ecs, tree dcls );
+void parser_statement_end( const std::list<cbl_field_t*>& );
 
 tree parser_compile_ecs( const std::vector<uint64_t>& ecs );
 tree parser_compile_dcls( const std::vector<uint64_t>& dcls );

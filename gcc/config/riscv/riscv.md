@@ -626,13 +626,18 @@
 				      (const_int 12)))
 
 	  ;; Jumps further than +/- 1 MiB require two instructions.
+	  ;; Also, jumps that cross section boundaries (e.g., from hot to cold
+	  ;; section when -freorder-blocks-and-partition is used) require two
+	  ;; instructions because the linker may place the sections far apart.
 	  (eq_attr "type" "jump")
-	  (if_then_else (and (le (minus (match_dup 0) (pc))
-				 (const_int 1048568))
-			     (le (minus (pc) (match_dup 0))
-				 (const_int 1048572)))
-			(const_int 4)
-			(const_int 8))
+	  (if_then_else (match_test "CROSSING_JUMP_P (insn)")
+			(const_int 8)
+			(if_then_else (and (le (minus (match_dup 0) (pc))
+					       (const_int 1048568))
+					   (le (minus (pc) (match_dup 0))
+					       (const_int 1048572)))
+				      (const_int 4)
+				      (const_int 8)))
 
 	  ;; Conservatively assume calls take two instructions (AUIPC + JALR).
 	  ;; The linker will opportunistically relax the sequence to JAL.
@@ -1916,7 +1921,25 @@
   [(set (match_operand:SUPERQI    0 "register_operand")
 	(zero_extend:SUPERQI
 	    (match_operand:QI 1 "nonimmediate_operand")))]
-  "")
+  ""
+{
+  /* If the destination is not a full word, then do a zero extended
+     load to a full word and a sub-word extraction to get at the
+     appropriate low bits.  This enables more CSE of memory references
+     by having a canonical form.  That in turn can help other optimizations
+     as well.  */
+  if (<SUPERQI:MODE>mode != word_mode)
+    {
+      rtx tdest = gen_reg_rtx (word_mode);
+      emit_move_insn (tdest, gen_rtx_ZERO_EXTEND (word_mode, operands[1]));
+      tdest = gen_lowpart (<SUPERQI:MODE>mode, tdest);
+      SUBREG_PROMOTED_VAR_P (tdest) = 1;
+      SUBREG_PROMOTED_SET (tdest, SRP_UNSIGNED);
+      emit_move_insn (operands[0], tdest);
+      DONE;
+    }
+})
+
 
 (define_insn "*zero_extendqi<SUPERQI:mode>2_internal"
   [(set (match_operand:SUPERQI 0 "register_operand"    "=r,r")
@@ -1966,7 +1989,24 @@
 (define_expand "extend<SHORT:mode><SUPERQI:mode>2"
   [(set (match_operand:SUPERQI 0 "register_operand")
 	(sign_extend:SUPERQI (match_operand:SHORT 1 "nonimmediate_operand")))]
-  "")
+  ""
+{
+  /* If the destination is not a full word, then do a sign extended
+     load to a full word and a sub-word extraction to get at the
+     appropriate low bits.  This enables more CSE of memory references
+     by having a canonical form.  That in turn can help other optimizations
+     as well.  */
+  if (<SUPERQI:MODE>mode != word_mode)
+    {
+      rtx tdest = gen_reg_rtx (word_mode);
+      emit_move_insn (tdest, gen_rtx_SIGN_EXTEND (word_mode, operands[1]));
+      tdest = gen_lowpart (<SUPERQI:MODE>mode, tdest);
+      SUBREG_PROMOTED_VAR_P (tdest) = 1;
+      SUBREG_PROMOTED_SET (tdest, SRP_SIGNED);
+      emit_move_insn (operands[0], tdest);
+      DONE;
+    }
+})
 
 (define_insn_and_split "*extend<SHORT:mode><SUPERQI:mode>2"
   [(set (match_operand:SUPERQI   0 "register_operand"     "=r,r")
@@ -3166,6 +3206,62 @@
   [(set_attr "type" "shift")
    (set_attr "mode" "DI")])
 
+;; Handle logical AND feeding an equality test against zero where an operand
+;; to the AND is a constant requiring synthesis.  Because we only care about
+;; zero/nonzero state afte the AND, we may be able to shift both operands
+;; of the AND to the right and eliminate the need for constant synthesis.
+;;
+;; Once mvconst_internal goes away, this likely turns into a simple splitter.
+(define_insn_and_split ""
+  [(set (match_operand:X 0 "register_operand" "=r")
+	(any_eq:X (and:X (match_operand:X 1 "register_operand" "r")
+			 (match_operand 2 "shifted_const_arith_operand"))
+		  (const_int 0)))
+   (clobber (match_scratch:X 3 "=&r"))]
+  "!SMALL_OPERAND (INTVAL (operands[2]))"
+  "#"
+  "&& reload_completed"
+  [(set (match_dup 3) (ashiftrt:X (match_dup 1) (match_dup 4)))
+   (set (match_dup 3) (and:X (match_dup 3) (match_dup 2)))
+   (set (match_dup 0) (any_eq:X (match_dup 3) (const_int 0)))]
+{
+  HOST_WIDE_INT shift = ctz_hwi (INTVAL (operands[2]));
+  operands[4] = gen_int_mode (shift, QImode);
+  operands[2] = gen_int_mode (INTVAL (operands[2]) >> shift, word_mode);
+}
+  [(set_attr "type" "shift")])
+
+;; The pattern above is a bridge to this pattern.  Essentially a select
+;; between 0 and 2^n based on the zero/nonzero status of the AND.
+;;
+;; It's no fewer instructions, but the resulting code has fewer data
+;; dependencies and may compress better depending on 2^n.
+(define_insn_and_split ""
+  [(set (match_operand:X 0 "register_operand" "=r")
+	(ashift:X (any_eq:X
+		    (and:X (match_operand:X 1 "register_operand" "r")
+			   (match_operand 2 "shifted_const_arith_operand"))
+		    (const_int 0))
+		  (match_operand 3 "const_int_operand")))
+   (clobber (match_scratch:X 4 "=&r"))
+   (clobber (match_scratch:X 5 "=&r"))]
+  "TARGET_ZICOND && TARGET_ZBS"
+  "#"
+  "&& reload_completed"
+  [(set (match_dup 4) (ashiftrt:X (match_dup 1) (match_dup 6)))
+   (set (match_dup 4) (and:X (match_dup 4) (match_dup 2)))
+   (set (match_dup 5) (match_dup 3))
+   (set (match_dup 0) (if_then_else:X (any_eq:X (match_dup 4) (const_int 0))
+				      (match_dup 5)
+				      (const_int 0)))]
+{
+  HOST_WIDE_INT shift = ctz_hwi (INTVAL (operands[2]));
+  operands[3] = gen_int_mode (HOST_WIDE_INT_1U << INTVAL (operands[3]), word_mode);
+  operands[6] = gen_int_mode (shift, QImode);
+  operands[2] = gen_int_mode (INTVAL (operands[2]) >> shift, word_mode);
+}
+  [(set_attr "type" "shift")])
+
 ;;
 ;;  ....................
 ;;
@@ -3788,8 +3884,10 @@
   [(set (pc) (label_ref (match_operand 0 "" "")))]
   ""
 {
-  /* Hopefully this does not happen often as this is going
-     to clobber $ra and muck up the return stack predictors.  */
+  /* Use the long form (AUIPC+JALR) if the jump distance exceeds 1 MiB,
+     or if the jump crosses section boundaries (e.g., from hot to cold
+     section when -freorder-blocks-and-partition is used).
+     Note: This clobbers $ra and mucks up the return stack predictors.  */
   if (get_attr_length (insn) == 8)
     return "jump\t%l0,ra";
 
@@ -4959,6 +5057,120 @@
    (set (match_dup 0) (lshiftrt:X (match_dup 0) (match_dup 3)))]
   { operands[3] = GEN_INT (BITS_PER_WORD
 			   - exact_log2 (INTVAL (operands[3]) + 1)); })
+
+;; If a shift count is BITS_PER_WORD - 1 - N, then we can exploit the identity
+;; that -x = ~x + 1 which is equivalent to (-1 - x) = ~x.  When shifting only
+;; low bits of X matter (5 for SI, 6 for DI).  So 31/63 are equivalent to -1
+;; for SI/DI shifts.
+;;
+;; Strangely, even for rv64, the shift computation is done in SI, presumably
+;; something narrowed the arithmetic prior to gimple->rtl expansion.
+;; Ultimately it gets wrapped with a SUBREG narrowing to QI.
+(define_split
+  [(set (match_operand:X 0 "register_operand")
+	(any_shift_rotate:X
+	  (match_operand:X 1 "register_operand")
+	  (subreg:QI (minus:SI (match_operand 2 "bitpos_mask_operand")
+			       (match_operand:SI 3 "register_operand")) 0)))
+    (clobber (match_operand:X 4 "register_operand"))]
+  ""
+  [(set (match_dup 4) (not:X (match_dup 6)))
+   (set (match_dup 0) (any_shift_rotate:X (match_dup 1) (match_dup 5)))]
+ {
+   operands[5] = gen_lowpart (QImode, operands[4]);
+   operands[6] = gen_lowpart (word_mode, operands[3]);
+ })
+
+;; This is the same thing as the prior pattern, but for 32 bit shifts on rv64.
+(define_split
+  [(set (match_operand:DI 0 "register_operand")
+	(sign_extend:DI
+	 (any_shift_rotate:SI
+	  (match_operand:SI 1 "register_operand")
+	  (subreg:QI (minus:SI (const_int 31)
+			       (match_operand:SI 2 "register_operand")) 0))))
+    (clobber (match_operand:DI 3 "register_operand"))]
+  "TARGET_64BIT"
+  [(set (match_dup 3) (not:DI (match_dup 2)))
+   (set (match_dup 0)
+	(sign_extend:DI (any_shift_rotate:SI (match_dup 1)
+					     (match_dup 4))))]
+ {
+   operands[2] = gen_lowpart (DImode, operands[2]);
+   operands[4] = gen_lowpart (QImode, operands[3]);
+ })
+
+;; This is similar using a shift triplet to implement a logical AND when
+;; the mask is a consecutive_bits_operand.
+;;
+;; The difference is we have a left shift in the input RTL and we verify
+;; that clears the appropriate low bits.  So we can get away with just
+;; two shifts.
+(define_split
+  [(set (match_operand:X 0 "register_operand")
+	(and:X (ashift:X (match_operand:X 1 "register_operand")
+			 (match_operand 2 "const_int_operand"))
+		(match_operand 3 "consecutive_bits_operand")))
+   (clobber (match_operand:X 4 "register_operand"))]
+  "(ctz_hwi (INTVAL (operands[3]) & GET_MODE_MASK (word_mode))
+    == INTVAL (operands[2]))"
+  [(set (match_dup 4) (ashift:X (match_dup 1) (match_dup 5)))
+   (set (match_dup 0) (lshiftrt:X (match_dup 4) (match_dup 6)))]
+"{
+  /* We want to left shift by the number of leading zeros in the mask,
+     plus the number of bits shifted left by the pattern.  Remember that
+     a HOST_WIDE_INT may be 64 bits, so clz on that value can count bits
+     we don't care about for rv32.  */
+  HOST_WIDE_INT lshift
+    = clz_hwi (UINTVAL (operands[3])) % BITS_PER_WORD + INTVAL (operands[2]);
+  operands[5] = gen_int_mode (lshift, QImode);
+
+  /* And then we right shift things back into position.  */
+  HOST_WIDE_INT rshift = lshift - INTVAL (operands[2]);
+  operands[6] = gen_int_mode (rshift, QImode);
+}")
+
+;; EQ/NE of a sign bit splat against zero is just GE/LT 0, so we can
+;; recognize it directly.  Note there may be a subreg expression buried
+;; in there
+(define_insn "*sign_bit_splat_equality_test"
+  [(set (pc)
+	(if_then_else
+	 (any_eq
+	  (subreg:SI (ashiftrt:DI (match_operand:DI 1 "register_operand" "r")
+				  (const_int 63)) 0)
+	  (const_int 0))
+	 (label_ref (match_operand 0 "" ""))
+	 (pc)))]
+  "TARGET_64BIT"
+{
+  rtx x = PATTERN (insn);
+
+  /* We'll always have a SET, so it's safe to extract the source.  */
+  x = SET_SRC (x);
+
+  /* Get the condition of the IF_THEN_ELSE.  */
+  x = XEXP (x, 0);
+
+  if (GET_CODE (x) == EQ)
+    {
+      if (get_attr_length (insn) == 12)
+	return "blt\t%1,zero,1f; jump\t%l0,ra; 1:";
+      return "bge\t%1,zero,%l0";
+    }
+  else if (GET_CODE (x) == NE)
+    {
+      if (get_attr_length (insn) == 12)
+	return "bge\t%1,zero,1f; jump\t%l0,ra; 1:";
+      return "blt\t%1,zero,%l0";
+    }
+  else
+    gcc_unreachable ();
+}
+  [(set_attr "type" "branch")
+   (set_attr "mode" "none")])
+					
+	
 
 ;; Standard extensions and pattern for optimization
 (include "bitmanip.md")

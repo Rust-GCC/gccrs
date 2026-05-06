@@ -678,7 +678,7 @@ th_memidx_classify_address_index (struct riscv_address_info *info, rtx x,
     {
       type = (GET_CODE (XEXP (offset, 0)) == SIGN_EXTEND)
 	     ? ADDRESS_REG_REG : ADDRESS_REG_UREG;
-      shift = exact_log2 (INTVAL (XEXP (x, 1)));
+      shift = exact_log2 (INTVAL (offset));
       offset = XEXP (XEXP (x, 0), 0);
     }
   /* (ashift:X (reg:X) (const_int shift)) */

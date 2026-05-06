@@ -77,11 +77,7 @@ Parser<ManagedTokenSource>::parse_block_expr (
 
   if (!skip_token (RIGHT_CURLY))
     {
-      Error error (t->get_locus (),
-		   "error may be from having an expression (as opposed to "
-		   "statement) in the body of the function but not last");
-      add_error (std::move (error));
-
+      // We don't need to throw an error as it already reported by skip_token
       skip_after_end_block ();
       return tl::unexpected<Parse::Error::Node> (Parse::Error::Node::MALFORMED);
     }
@@ -348,12 +344,12 @@ Parser<ManagedTokenSource>::parse_literal_expr (AST::AttrVec outer_attrs)
       break;
     case INT_LITERAL:
       type = AST::Literal::INT;
-      literal_value = t->get_str ();
+      literal_value = LiteralResolve::evaluate_integer_literal (t);
       lexer.skip_token ();
       break;
     case FLOAT_LITERAL:
       type = AST::Literal::FLOAT;
-      literal_value = t->get_str ();
+      literal_value = LiteralResolve::evaluate_float_literal (t);
       lexer.skip_token ();
       break;
     // case BOOL_LITERAL
@@ -378,11 +374,15 @@ Parser<ManagedTokenSource>::parse_literal_expr (AST::AttrVec outer_attrs)
       return tl::unexpected<Parse::Error::Node> (Parse::Error::Node::MALFORMED);
     }
 
+  auto type_hint
+    = (t->get_id () == INT_LITERAL || t->get_id () == FLOAT_LITERAL)
+	? LiteralResolve::resolve_literal_suffix (t)
+	: t->get_type_hint ();
+
   // create literal based on stuff in switch
   return std::unique_ptr<AST::LiteralExpr> (
     new AST::LiteralExpr (std::move (literal_value), std::move (type),
-			  t->get_type_hint (), std::move (outer_attrs),
-			  t->get_locus ()));
+			  type_hint, std::move (outer_attrs), t->get_locus ()));
 }
 
 template <typename ManagedTokenSource>
@@ -1289,11 +1289,9 @@ Parser<ManagedTokenSource>::parse_match_expr (AST::AttrVec outer_attrs,
 
       if (!expr)
 	{
-	  Error error (lexer.peek_token ()->get_locus (),
-		       "failed to parse expr in match arm in match expr");
-	  add_error (std::move (error));
-
-	  // skip somewhere?
+	  /* We don't need to throw an error as it already reported by
+	   * parse_expr
+	   */
 	  return tl::unexpected<Parse::Error::Node> (
 	    Parse::Error::Node::CHILD_ERROR);
 	}
@@ -1800,6 +1798,8 @@ Parser<ManagedTokenSource>::parse_expr (int right_binding_power,
     = null_denotation ({}, null_denotation_restrictions);
   if (!expr)
     return tl::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
+  if (expr.value () == nullptr)
+    return tl::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
 
   return left_denotations (std::move (expr), right_binding_power,
 			   std::move (outer_attrs), restrictions);
@@ -1963,9 +1963,15 @@ Parser<ManagedTokenSource>::null_denotation_path (
   switch (t->get_id ())
     {
     case EXCLAM:
-      // macro
-      return parse_macro_invocation_partial (std::move (path),
-					     std::move (outer_attrs));
+      {
+	// macro
+	auto macro = parse_macro_invocation_partial (std::move (path),
+						     std::move (outer_attrs));
+	if (macro == nullptr)
+	  return tl::unexpected<Parse::Error::Expr> (
+	    Parse::Error::Expr::CHILD_ERROR);
+	return std::unique_ptr<AST::Expr> (std::move (macro));
+      }
     case LEFT_CURLY:
       {
 	bool not_a_block = lexer.peek_token (1)->get_id () == IDENTIFIER
@@ -1999,20 +2005,36 @@ Parser<ManagedTokenSource>::null_denotation_path (
 	    return std::unique_ptr<AST::PathInExpression> (
 	      new AST::PathInExpression (std::move (path)));
 	  }
-	return parse_struct_expr_struct_partial (std::move (path),
-						 std::move (outer_attrs));
+	auto struct_expr
+	  = parse_struct_expr_struct_partial (std::move (path),
+					      std::move (outer_attrs));
+	if (struct_expr == nullptr)
+	  {
+	    return tl::unexpected<Parse::Error::Expr> (
+	      Parse::Error::Expr::CHILD_ERROR);
+	  }
+	return struct_expr;
       }
     case LEFT_PAREN:
-      // struct/enum expr tuple
-      if (!restrictions.can_be_struct_expr)
-	{
-	  // assume path is returned
-	  // HACK: add outer attributes to path
-	  path.set_outer_attrs (std::move (outer_attrs));
-	  return std::make_unique<AST::PathInExpression> (std::move (path));
-	}
-      return parse_struct_expr_tuple_partial (std::move (path),
-					      std::move (outer_attrs));
+      {
+	// struct/enum expr tuple
+	if (!restrictions.can_be_struct_expr)
+	  {
+	    // assume path is returned
+	    // HACK: add outer attributes to path
+	    path.set_outer_attrs (std::move (outer_attrs));
+	    return std::make_unique<AST::PathInExpression> (std::move (path));
+	  }
+	auto tuple_expr
+	  = parse_struct_expr_tuple_partial (std::move (path),
+					     std::move (outer_attrs));
+	if (tuple_expr == nullptr)
+	  {
+	    return tl::unexpected<Parse::Error::Expr> (
+	      Parse::Error::Expr::CHILD_ERROR);
+	  }
+	return tuple_expr;
+      }
     default:
       // assume path is returned if not single segment
       if (path.is_single_segment ())
@@ -2059,14 +2081,14 @@ Parser<ManagedTokenSource>::null_denotation_not_path (
     case INT_LITERAL:
       // we should check the range, but ignore for now
       // encode as int?
-      return std::unique_ptr<AST::LiteralExpr> (
-	new AST::LiteralExpr (tok->get_str (), AST::Literal::INT,
-			      tok->get_type_hint (), {}, tok->get_locus ()));
+      return std::unique_ptr<AST::LiteralExpr> (new AST::LiteralExpr (
+	LiteralResolve::evaluate_integer_literal (tok), AST::Literal::INT,
+	LiteralResolve::resolve_literal_suffix (tok), {}, tok->get_locus ()));
     case FLOAT_LITERAL:
       // encode as float?
-      return std::unique_ptr<AST::LiteralExpr> (
-	new AST::LiteralExpr (tok->get_str (), AST::Literal::FLOAT,
-			      tok->get_type_hint (), {}, tok->get_locus ()));
+      return std::unique_ptr<AST::LiteralExpr> (new AST::LiteralExpr (
+	LiteralResolve::evaluate_float_literal (tok), AST::Literal::FLOAT,
+	LiteralResolve::resolve_literal_suffix (tok), {}, tok->get_locus ()));
     case STRING_LITERAL:
       return std::unique_ptr<AST::LiteralExpr> (
 	new AST::LiteralExpr (tok->get_str (), AST::Literal::STRING,
@@ -2832,17 +2854,27 @@ Parser<ManagedTokenSource>::left_denotation (const_TokenPtr tok,
 	    auto prefix = str.substr (0, dot_pos);
 	    auto suffix = str.substr (dot_pos + 1);
 	    if (dot_pos == str.size () - 1)
-	      lexer.split_current_token (
-		{Token::make_int (current_loc, std::move (prefix),
-				  CORETYPE_PURE_DECIMAL),
-		 Token::make (DOT, current_loc + 1)});
+	      {
+		auto prefix_len = prefix.length ();
+		lexer.split_current_token (
+		  {Token::make_int (current_loc, std::move (prefix), prefix_len,
+				    IntegerLiteralBase::Decimal,
+				    CORETYPE_PURE_DECIMAL),
+		   Token::make (DOT, current_loc + 1)});
+	      }
 	    else
-	      lexer.split_current_token (
-		{Token::make_int (current_loc, std::move (prefix),
-				  CORETYPE_PURE_DECIMAL),
-		 Token::make (DOT, current_loc + 1),
-		 Token::make_int (current_loc + 2, std::move (suffix),
-				  CORETYPE_PURE_DECIMAL)});
+	      {
+		auto prefix_len = prefix.length ();
+		auto suffix_len = suffix.length ();
+		lexer.split_current_token (
+		  {Token::make_int (current_loc, std::move (prefix), prefix_len,
+				    IntegerLiteralBase::Decimal,
+				    CORETYPE_PURE_DECIMAL),
+		   Token::make (DOT, current_loc + 1),
+		   Token::make_int (current_loc + 2, std::move (suffix),
+				    suffix_len, IntegerLiteralBase::Decimal,
+				    CORETYPE_PURE_DECIMAL)});
+	      }
 	    return parse_tuple_index_expr (tok, std::move (left),
 					   std::move (outer_attrs),
 					   restrictions);

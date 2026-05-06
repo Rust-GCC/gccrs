@@ -3,6 +3,7 @@
 /* { dg-options "-O" } */
 /* { dg-add-options riscv_zacas } */
 /* { dg-add-options riscv_zabha } */
+/* { dg-remove-options riscv_zalasr } */
 
 _Bool b;
 void atomic_bool_cmpxchg()

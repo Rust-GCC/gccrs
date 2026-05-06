@@ -103,7 +103,7 @@ if usage:
   print (" is included in a source file.  Should be run from the source directory")
   print (" files from find-include-depends")
   print ("      -s : search for a header, and point it out.")
-  print ("      -i : Specifies additonal directories to search for includes.")
+  print ("      -i : Specifies additional directories to search for includes.")
   sys.exit(0)
 
 

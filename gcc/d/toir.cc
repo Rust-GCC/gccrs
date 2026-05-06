@@ -831,7 +831,7 @@ public:
 
     /* A switch statement on a string gets turned into a library call.
        It is not lowered during codegen.  */
-    if (!condtype->isScalar ())
+    if (!dmd::isScalar (condtype))
       {
 	error ("cannot handle switch condition of type %s",
 	       condtype->toChars ());
@@ -920,7 +920,7 @@ public:
     else
       {
 	tree casevalue;
-	if (s->exp->type->isScalar ())
+	if (dmd::isScalar (s->exp->type))
 	  casevalue = build_expr (s->exp);
 	else
 	  casevalue = build_integer_cst (s->index, build_ctype (Type::tint32));
@@ -1022,41 +1022,64 @@ public:
 	/* Detect a call to a constructor function, or if returning a struct
 	   literal, write result directly into the return value.  */
 	StructLiteralExp *sle = NULL;
+	DeclarationExp *de = NULL;
+	VarExp *ve = NULL;
 	bool using_rvo_p = false;
 
 	if (DotVarExp *dve = (s->exp->isCallExp ()
 			      ? s->exp->isCallExp ()->e1->isDotVarExp ()
 			      : NULL))
 	  {
+	    /* Look for `var.__ctor(copytmp = {}, &copytmp)'  */
 	    if (dve->var->isCtorDeclaration ())
 	      {
 		if (CommaExp *ce = dve->e1->isCommaExp ())
 		  {
-		    /* Temporary initialized inside a return expression, and
-		       used as the return value.  Replace it with the hidden
-			reference to allow RVO return.  */
-		    DeclarationExp *de = ce->e1->isDeclarationExp ();
-		    VarExp *ve = ce->e2->isVarExp ();
-		    if (de != NULL && ve != NULL
-			&& ve->var == de->declaration
-			&& ve->var->storage_class & STCtemp)
-		      {
-			tree var = get_symbol_decl (ve->var);
-			TREE_ADDRESSABLE (var) = 1;
-			SET_DECL_VALUE_EXPR (var, decl);
-			DECL_HAS_VALUE_EXPR_P (var) = 1;
-			SET_DECL_LANG_NRVO (var, this->func_->shidden);
-			using_rvo_p = true;
-		      }
+		    de = ce->e1->isDeclarationExp ();
+		    ve = ce->e2->isVarExp ();
 		  }
 		else
 		  sle = dve->e1->isStructLiteralExp ();
 	      }
 	  }
+	else if (CommaExp *ce1 = s->exp->isCommaExp ())
+	  {
+	    /* Look for `copytmp = {}, copytmp.__ctor(), copytmp'  */
+	    if (CommaExp *ce2 = ce1->e2->isCommaExp ())
+	      {
+		DotVarExp *dve = ce2->e1->isCallExp ()
+		  ? ce2->e1->isCallExp ()->e1->isDotVarExp () : NULL;
+
+		if (dve && dve->var->isCtorDeclaration ())
+		  {
+		    de = ce1->e1->isDeclarationExp ();
+		    ve = ce2->e2->isVarExp ();
+		  }
+	      }
+	    else
+	      {
+		de = ce1->e1->isDeclarationExp ();
+		ve = ce1->e2->isVarExp ();
+	      }
+	  }
 	else
 	  sle = s->exp->isStructLiteralExp ();
 
-	if (sle != NULL)
+	if (de != NULL && ve != NULL
+	    && ve->var == de->declaration
+	    && ve->var->storage_class & STCtemp)
+	  {
+	    /* Temporary initialized inside a return expression, and
+	       used as the return value.  Replace it with the hidden
+	       reference to allow RVO return.  */
+	    tree var = get_symbol_decl (ve->var);
+	    TREE_ADDRESSABLE (var) = 1;
+	    SET_DECL_VALUE_EXPR (var, decl);
+	    DECL_HAS_VALUE_EXPR_P (var) = 1;
+	    SET_DECL_LANG_NRVO (var, this->func_->shidden);
+	    using_rvo_p = true;
+	  }
+	else if (sle != NULL)
 	  {
 	    sle->sym = build_address (this->func_->shidden);
 	    using_rvo_p = true;
@@ -1218,7 +1241,7 @@ public:
     else
       arg = build_nop (build_ctype (get_object_type ()), arg);
 
-    add_stmt (build_libcall (LIBCALL_THROW, Type::tvoid, 1, arg));
+    add_stmt (build_libcall (LIBCALL_THROW, 1, arg));
   }
 
   /* Build a try-catch statement, one of the building blocks for exception
@@ -1284,8 +1307,7 @@ public:
 	       the end catch callback.  */
 	    if (cd->isCPPclass ())
 	      {
-		tree endcatch = build_libcall (LIBCALL_CXA_END_CATCH,
-					       Type::tvoid, 0);
+		tree endcatch = build_libcall (LIBCALL_CXA_END_CATCH, 0);
 		catchbody = build2 (TRY_FINALLY_EXPR, void_type_node,
 				    catchbody, endcatch);
 	      }
@@ -1355,7 +1377,7 @@ public:
 
   void visit (GccAsmStatement *s) final override
   {
-    StringExp *insn = s->insn->toStringExp ();
+    StringExp *insn = dmd::toStringExp (s->insn);
     tree outputs = NULL_TREE;
     tree inputs = NULL_TREE;
     tree clobbers = NULL_TREE;
@@ -1370,7 +1392,7 @@ public:
 	    const char *sname = name ? name->toChars () : NULL;
 	    tree id = name ? build_string (strlen (sname), sname) : NULL_TREE;
 
-	    StringExp *constr = (*s->constraints)[i]->toStringExp ();
+	    StringExp *constr = dmd::toStringExp ((*s->constraints)[i]);
 	    const char *cstring = (const char *)(constr->len
 						 ? constr->string : "");
 	    tree str = build_string (constr->len, cstring);
@@ -1396,7 +1418,7 @@ public:
       {
 	for (size_t i = 0; i < s->clobbers->length; i++)
 	  {
-	    StringExp *clobber = (*s->clobbers)[i]->toStringExp ();
+	    StringExp *clobber = dmd::toStringExp ((*s->clobbers)[i]);
 	    const char *cstring = (const char *)(clobber->len
 						 ? clobber->string : "");
 

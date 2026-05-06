@@ -552,28 +552,25 @@ void
 text_sink::print_option_information (const diagnostic_info &diagnostic,
 				     enum kind orig_diag_kind)
 {
-  if (char *option_text
-      = m_context.make_option_name (diagnostic.m_option_id,
-				    orig_diag_kind, diagnostic.m_kind))
+  label_text option_text
+    = m_context.get_option_name (diagnostic.m_option_id,
+				 orig_diag_kind, diagnostic.m_kind);
+  if (option_text.get ())
     {
-      char *option_url = nullptr;
+      label_text option_url;
       pretty_printer * const pp = get_printer ();
       if (pp->supports_urls_p ())
-	option_url = m_context.make_option_url (diagnostic.m_option_id);
+	option_url = m_context.get_option_url (diagnostic.m_option_id);
       pp_string (pp, " [");
       const char *kind_color = get_color_for_kind (diagnostic.m_kind);
       pp_string (pp, colorize_start (pp_show_color (pp), kind_color));
-      if (option_url)
-	pp_begin_url (pp, option_url);
-      pp_string (pp, option_text);
-      if (option_url)
-	{
-	  pp_end_url (pp);
-	  free (option_url);
-	}
+      if (option_url.get ())
+	pp_begin_url (pp, option_url.get ());
+      pp_string (pp, option_text.get ());
+      if (option_url.get ())
+	pp_end_url (pp);
       pp_string (pp, colorize_stop (pp_show_color (pp)));
       pp_character (pp, ']');
-      free (option_text);
     }
 }
 

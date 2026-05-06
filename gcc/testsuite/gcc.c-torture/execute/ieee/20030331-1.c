@@ -1,3 +1,4 @@
+/* { dg-do run } */
 extern void exit (int);
 extern void abort (void);
 float x = -1.5f;

@@ -1,4 +1,5 @@
 /* { dg-do compile } */
+/* { dg-additional-options "-fno-tree-fre -fno-tree-pre" } */
 
 char c;
 int a, b;

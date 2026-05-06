@@ -26,6 +26,7 @@
 #include "rust-location.h"
 #include "rust-diagnostics.h"
 #include "rust-keyword-values.h"
+#include "rust-cloneable.h"
 
 namespace Rust {
 // TODO: remove typedefs and make actual types for these
@@ -565,9 +566,8 @@ protected:
 
 // aka Attr
 // Attribute AST representation
-struct Attribute
+class Attribute : public Visitable
 {
-private:
   SimplePath path;
 
   // bool has_attr_input;
@@ -576,6 +576,8 @@ private:
   location_t locus;
 
   bool inner_attribute;
+
+  NodeId node_id;
 
   // TODO: maybe a variable storing whether attr input is parsed or not
 
@@ -587,7 +589,8 @@ public:
   Attribute (SimplePath path, std::unique_ptr<AttrInput> input,
 	     location_t locus = UNDEF_LOCATION, bool inner_attribute = false)
     : path (std::move (path)), attr_input (std::move (input)), locus (locus),
-      inner_attribute (inner_attribute)
+      inner_attribute (inner_attribute),
+      node_id (Analysis::Mappings::get ().get_next_node_id ())
   {}
 
   bool is_derive () const;
@@ -628,6 +631,11 @@ public:
   location_t get_locus () const { return locus; }
 
   AttrInput &get_attr_input () const { return *attr_input; }
+
+  void set_attr_input (std::unique_ptr<AST::AttrInput> input)
+  {
+    attr_input = std::move (input);
+  }
 
   /* e.g.:
       #![crate_type = "lib"]
@@ -685,10 +693,12 @@ public:
 
   bool is_inner_attribute () const { return inner_attribute; }
 
-  // no visitor pattern as not currently polymorphic
+  void accept_vis (ASTVisitor &vis) override;
 
   const SimplePath &get_path () const { return path; }
   SimplePath &get_path () { return path; }
+
+  NodeId get_node_id () { return node_id; }
 
   // Call to parse attribute body to meta item syntax.
   void parse_attr_to_meta_item ();
@@ -719,8 +729,8 @@ class AttrInput : public Visitable
 public:
   enum AttrInputType
   {
+    EXPR,
     LITERAL,
-    MACRO,
     META_ITEM,
     TOKEN_TREE,
   };
@@ -1143,6 +1153,19 @@ protected:
   Item *clone_stmt_impl () const final override { return clone_item_impl (); }
 };
 
+class GlobContainer
+{
+public:
+  enum class Kind
+  {
+    Crate,
+    Module,
+    Enum,
+  };
+
+  virtual Kind get_glob_container_kind () const = 0;
+};
+
 // Item that supports visibility - abstract base class
 class VisItem : public Item
 {
@@ -1437,6 +1460,28 @@ class TraitBound;
 class Type : public Visitable
 {
 public:
+  enum Kind
+  {
+    MacroInvocation,
+    TypePath,
+    QualifiedPathInType,
+    ImplTrait,
+    TraitObject,
+    Parenthesised,
+    ImplTraitTypeOneBound,
+    TraitObjectTypeOneBound,
+    Tuple,
+    Never,
+    RawPointer,
+    Reference,
+    Array,
+    Slice,
+    Inferred,
+    BareFunction,
+  };
+
+  virtual Kind get_type_kind () const = 0;
+
   // Unique pointer custom clone function
   std::unique_ptr<Type> clone_type () const
   {
@@ -2021,7 +2066,7 @@ public:
 };
 
 // A crate AST object - holds all the data for a single compilation unit
-struct Crate
+struct Crate final : public GlobContainer
 {
   std::vector<Attribute> inner_attrs;
   // dodgy spacing required here
@@ -2081,6 +2126,9 @@ public:
     // TODO: is this the best way to do this?
   }
 
+  void inject_extern_crate (std::string name);
+  void inject_inner_attribute (Attribute attribute);
+
   NodeId get_node_id () const { return node_id; }
   const std::vector<Attribute> &get_inner_attrs () const { return inner_attrs; }
   std::vector<Attribute> &get_inner_attrs () { return inner_attrs; }
@@ -2094,9 +2142,27 @@ public:
   {
     items = std::move (new_items);
   }
+
+  GlobContainer::Kind get_glob_container_kind () const override
+  {
+    return GlobContainer::Kind::Crate;
+  }
 };
 
 } // namespace AST
+
+template <> struct CloneableDelegate<std::unique_ptr<AST::Pattern>>
+{
+  static std::unique_ptr<AST::Pattern>
+  clone (const std::unique_ptr<AST::Pattern> &other)
+  {
+    if (other == nullptr)
+      return nullptr;
+    else
+      return other->clone_pattern ();
+  }
+};
+
 } // namespace Rust
 
 namespace std {

@@ -17,3 +17,5 @@
 // <http://www.gnu.org/licenses/>.
 
 // AUTO-GENERATED -- SEE LOCAL contrib SUBDIRECTORY
+
+#include "rust-feature-defs-rfl.h"

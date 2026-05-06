@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2026, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -30,7 +30,6 @@ with Checks;         use Checks;
 with Contracts;      use Contracts;
 with Debug;          use Debug;
 with Elists;         use Elists;
-with Einfo;          use Einfo;
 with Einfo.Entities; use Einfo.Entities;
 with Einfo.Utils;    use Einfo.Utils;
 with Errout;         use Errout;
@@ -80,7 +79,6 @@ with Sem_Type;       use Sem_Type;
 with Sem_Util;       use Sem_Util;
 with Sem_Warn;       use Sem_Warn;
 with Stand;          use Stand;
-with Sinfo;          use Sinfo;
 with Sinfo.Nodes;    use Sinfo.Nodes;
 with Sinfo.Utils;    use Sinfo.Utils;
 with Sinput;         use Sinput;
@@ -5254,11 +5252,11 @@ package body Sem_Ch3 is
 
       elsif Needs_Construction (T)
         and then not Has_Init_Expression (N)
-        and then not Has_Default_Constructor (T)
+        and then not Has_Parameterless_Constructor (T)
         and then not Suppress_Initialization (Id)
         and then Comes_From_Source (N)
       then
-         Error_Msg_NE ("no default constructor for&",
+         Error_Msg_NE ("no parameterless constructor for&",
                        Object_Definition (N), T);
       end if;
 
@@ -18378,12 +18376,10 @@ package body Sem_Ch3 is
 
                   Insert_List_After_And_Analyze (N, Actions);
 
-                  --  Add a Compile_Time_Error sizing check as a hint
-                  --  to the backend since we don't know the true size of
-                  --  anything at this point.
+                  --  Add a Compile_Time_Error size check at the freeze point
 
-                  Append_Freeze_Actions (T,
-                    New_List (Make_CW_Size_Compile_Check (T, Root_Class_Typ)));
+                  Append_Freeze_Action (T,
+                    Make_CW_Size_Compile_Check (T, Root_Class_Typ));
                end if;
             end if;
          end;

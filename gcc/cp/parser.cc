@@ -47,9 +47,9 @@ along with GCC; see the file COPYING3.  If not see
 #include "cp-name-hint.h"
 #include "memmodel.h"
 #include "c-family/known-headers.h"
-#include "contracts.h"
 #include "bitmap.h"
 #include "builtins.h"
+#include "contracts.h"
 #include "analyzer/analyzer-language.h"
 
 
@@ -152,6 +152,7 @@ enum required_token {
   RT_COMMA_CLOSE_PAREN, /* ',' or ')' */
   RT_PRAGMA_EOL, /* end of line */
   RT_NAME, /* identifier */
+  RT_CLOSE_SPLICE, /* ':]' */
 
   /* The type is CPP_KEYWORD */
   RT_NEW, /* new */
@@ -278,6 +279,8 @@ static tree omp_start_variant_function
 static int omp_finish_variant_function
   (cp_parser *, tree, tree, tree, bool, bool);
 static void maybe_start_implicit_template (cp_parser *parser);
+static void missing_template_diag
+  (location_t, diagnostics::kind = diagnostics::kind::warning);
 
 /* Manifest constants.  */
 #define CP_LEXER_BUFFER_SIZE ((256 * 1024) / sizeof (cp_token))
@@ -291,6 +294,10 @@ static FILE *cp_lexer_debug_stream;
 /* Nonzero if we are parsing an unevaluated operand: an operand to
    sizeof, typeof, or alignof.  */
 int cp_unevaluated_operand;
+
+/* Nonzero if we are parsing a reflect-expression and shouldn't strip
+   using-declarations.  */
+bool cp_preserve_using_decl;
 
 #if ENABLE_ANALYZER
 
@@ -1179,6 +1186,20 @@ cp_lexer_get_preprocessor_token (unsigned flags, cp_token *token)
 		 particular identifier-turned-keyword again.  */
 	      C_SET_RID_CODE (token->u.value, RID_MAX);
 	    }
+	  if (warn_cxx26_compat
+	      && C_RID_CODE (token->u.value) >= RID_FIRST_CXX26
+	      && C_RID_CODE (token->u.value) <= RID_LAST_CXX26)
+	    {
+	      /* Warn about the C++26 keyword (but still treat it as
+		 an identifier).  */
+	      warning_at (token->location, OPT_Wc__26_compat,
+			  "identifier %qE is a keyword in C++26",
+			  token->u.value);
+
+	      /* Clear out the C_RID_CODE so we don't warn about this
+		 particular identifier-turned-keyword again.  */
+	      C_SET_RID_CODE (token->u.value, RID_MAX);
+	    }
 
 	  token->keyword = RID_MAX;
 	}
@@ -1616,10 +1637,11 @@ struct saved_token_sentinel
 {
   cp_lexer *lexer;
   unsigned len;
+  location_t loc;
   saved_token_sentinel_mode mode;
   saved_token_sentinel (cp_lexer *_lexer,
 			saved_token_sentinel_mode _mode = STS_COMMIT)
-    : lexer (_lexer), mode (_mode)
+    : lexer (_lexer), loc (input_location), mode (_mode)
   {
     len = lexer->saved_tokens.length ();
     cp_lexer_save_tokens (lexer);
@@ -1627,8 +1649,7 @@ struct saved_token_sentinel
   void rollback ()
   {
     cp_lexer_rollback_tokens (lexer);
-    cp_lexer_set_source_position_from_token
-      (cp_lexer_previous_token (lexer));
+    input_location = loc;
     mode = STS_DONOTHING;
   }
   ~saved_token_sentinel ()
@@ -1840,7 +1861,7 @@ clear_decl_specs (cp_decl_specifier_seq *decl_specs)
 
 static cp_declarator *make_call_declarator
   (cp_declarator *, tree, cp_cv_quals, cp_virt_specifiers, cp_ref_qualifier,
-   tree, tree, tree, tree, tree, location_t);
+   tree, tree, tree, tree, tree, tree, location_t);
 static cp_declarator *make_array_declarator
   (cp_declarator *, tree, tree);
 static cp_declarator *make_pointer_declarator
@@ -2026,6 +2047,7 @@ make_call_declarator (cp_declarator *target,
 		      tree exception_specification,
 		      tree late_return_type,
 		      tree requires_clause,
+		      tree contract_specifiers,
 		      tree std_attrs,
 		      location_t parens_loc)
 {
@@ -2041,6 +2063,7 @@ make_call_declarator (cp_declarator *target,
   declarator->u.function.exception_specification = exception_specification;
   declarator->u.function.late_return_type = late_return_type;
   declarator->u.function.requires_clause = requires_clause;
+  declarator->u.function.contract_specifiers = contract_specifiers;
   declarator->u.function.parens_loc = parens_loc;
   if (target)
     {
@@ -2621,7 +2644,7 @@ static tree cp_parser_range_for
 static void do_range_for_auto_deduction
   (tree, tree, cp_decomp *, bool);
 static tree cp_range_for_member_function
-  (tree, tree);
+  (tree, tree, tsubst_flags_t);
 static tree cp_parser_expansion_statement
   (cp_parser *, bool *);
 static tree cp_parser_jump_statement
@@ -2754,7 +2777,7 @@ static tree cp_parser_template_type_arg
   (cp_parser *);
 static tree cp_parser_trailing_type_id (cp_parser *);
 static tree cp_parser_type_id_1
-  (cp_parser *, cp_parser_flags, bool, bool, location_t *);
+  (cp_parser *, cp_parser_flags, bool, bool, location_t *, bool *);
 static void cp_parser_type_specifier_seq
   (cp_parser *, cp_parser_flags, bool, bool, cp_decl_specifier_seq *);
 static tree cp_parser_parameter_declaration_clause
@@ -2855,7 +2878,7 @@ static tree cp_parser_template_parameter
 static tree cp_parser_type_parameter
   (cp_parser *, bool *);
 static tree cp_parser_template_id
-  (cp_parser *, bool, bool, enum tag_types, bool);
+  (cp_parser *, bool, bool, enum tag_types, bool, tree = NULL_TREE);
 static tree cp_parser_template_id_expr
   (cp_parser *, bool, bool, bool);
 static tree cp_parser_template_name
@@ -2978,8 +3001,18 @@ static tree cp_parser_yield_expression
 
 /* Contracts */
 
-static void cp_parser_late_contract_condition
-  (cp_parser *, tree, tree);
+static tree cp_parser_contract_assert
+  (cp_parser *parser, cp_token *token);
+
+static tree cp_maybe_function_contract_specifier
+  (cp_parser *parser);
+
+static tree cp_parser_function_contract_specifier
+  (cp_parser *);
+static tree cp_parser_function_contract_specifier_seq
+  (cp_parser *);
+static void cp_parser_late_contracts
+  (cp_parser *, tree);
 
 enum pragma_context {
   pragma_external,
@@ -3346,6 +3379,8 @@ get_required_cpp_ttype (required_token token_desc)
       return CPP_COLON;
     case RT_CLOSE_PAREN:
       return CPP_CLOSE_PAREN;
+    case RT_CLOSE_SPLICE:
+      return CPP_CLOSE_SPLICE;
 
     default:
       /* Use CPP_EOF as a "no completions possible" code.  */
@@ -4138,7 +4173,8 @@ cp_parser_parse_and_diagnose_invalid_type_name (cp_parser *parser)
   /* If the next token is a (, this is a function with no explicit return
      type, i.e. constructor, destructor or conversion op.  */
   if (cp_lexer_next_token_is (parser->lexer, CPP_OPEN_PAREN)
-      || TREE_CODE (id) == TYPE_DECL)
+      || TREE_CODE (id) == TYPE_DECL
+      || id == error_mark_node)
     {
       cp_parser_abort_tentative_parse (parser);
       return false;
@@ -4991,7 +5027,7 @@ cp_parser_string_literal_common (cp_parser *parser, bool translate,
       (parse_in, strs, count, &istr, type))
     {
       value = build_string (istr.len, (const char *)istr.text);
-      free (CONST_CAST (unsigned char *, istr.text));
+      free (const_cast<unsigned char *> (istr.text));
       if (count > 1)
 	{
 	  location_t *locs = (location_t *)obstack_finish (&loc_ob);
@@ -6055,7 +6091,422 @@ cp_parser_pack_index (cp_parser *parser, tree pack)
   if (TREE_CODE (pack) == TYPE_DECL)
     pack = TREE_TYPE (pack);
   pack = make_pack_expansion (pack);
+  if (!type_dependent_expression_p (index))
+    index = build_converted_constant_expr (size_type_node, index,
+					   tf_warning_or_error);
+  if (error_operand_p (index))
+    return error_mark_node;
   return make_pack_index (pack, index);
+}
+
+/* Return true iff the next tokens start a splice-type-specifier.
+   If REQUIRE_TYPENAME_P, we only return true if there is a preceding
+   typename keyword.  */
+
+static bool
+cp_parser_next_tokens_start_splice_type_spec_p (cp_parser *parser,
+						bool require_typename_p)
+{
+  if (cp_lexer_next_token_is (parser->lexer, CPP_OPEN_SPLICE))
+    return !require_typename_p;
+  return (cp_lexer_next_token_is_keyword (parser->lexer, RID_TYPENAME)
+	  && cp_lexer_nth_token_is (parser->lexer, 2, CPP_OPEN_SPLICE));
+}
+
+/* Return true iff the next tokens start a splice-scope-specifier.  */
+
+static bool
+cp_parser_next_tokens_can_start_splice_scope_spec_p (cp_parser *parser)
+{
+  if (cp_lexer_next_token_is (parser->lexer, CPP_OPEN_SPLICE))
+    return true;
+  return (cp_lexer_next_token_is_keyword (parser->lexer, RID_TEMPLATE)
+	  && cp_lexer_nth_token_is (parser->lexer, 2, CPP_OPEN_SPLICE));
+}
+
+/* Parse a splice-specifier.
+
+   splice-specifier:
+     [: constant-expression :]
+
+    splice-specialization-specifier:
+      splice-specifier < template-argument-list[opt] >
+
+   TEMPLATE_P is true if we've parsed the leading template keyword.
+   TYPENAME_P is true if we've parsed the leading typename keyword or are
+   in a type-only context.
+   TARGS_P is set to true if there is a splice-specialization-specifier.  */
+
+static cp_expr
+cp_parser_splice_specifier (cp_parser *parser, bool template_p = false,
+			    bool typename_p = false, bool *targs_p = nullptr)
+{
+  /* Get the location of the '[:'.  */
+  location_t start_loc = cp_lexer_peek_token (parser->lexer)->location;
+
+  /* Consume the '[:'.  */
+  cp_lexer_consume_token (parser->lexer);
+
+  /* Get the location of the operand.  */
+  location_t caret_loc = cp_lexer_peek_token (parser->lexer)->location;
+
+  if (!flag_reflection)
+    {
+      error_at (caret_loc,
+		"reflection is only available with %<-freflection%>");
+      return error_mark_node;
+    }
+
+  tree object_type = parser->context->object_type;
+  /* Clear parser->context->object_type.  E.g.,
+     struct A { static int x; };
+     int q = A ().[: ^^x :];
+     should be an error -- x is not a member-qualified name and isn't
+     in scope.  */
+  parser->context->object_type = NULL_TREE;
+  tree expr = cp_parser_constant_expression (parser,
+					     /*allow_non_constant_p=*/false,
+					     /*non_constant_p=*/nullptr,
+					     /*strict_p=*/true);
+
+  /* Get the location of the ':]'.  */
+  location_t finish_loc = cp_lexer_peek_token (parser->lexer)->location;
+
+  /* Consume the ':]'.  */
+  if (!cp_parser_require (parser, CPP_CLOSE_SPLICE, RT_CLOSE_SPLICE))
+    return error_mark_node;
+
+  /* Get the reflected operand.  */
+  expr = splice (expr);
+
+  /* If the next token is a <, it could be a splice-specialization-specifier.
+     But we need to handle "[:r:] < 42" where the < doesn't start a template
+     argument list.  [temp.names]/3: A < is interpreted as the delimiter of
+     a template-argument-list if either
+     -- it follows a splice-specifier that either
+       -- appears in a type-only context or
+       -- is preceded by template or typename.  */
+  if (cp_parser_nth_token_starts_template_argument_list_p (parser, 1)
+      /* As a courtesy to the user, if there is a < after a template
+	 name, parse the construct as an s-s-s and warn about the missing
+	 'template'; it can't be anything else.  */
+      && (template_p
+	  || typename_p
+	  || TREE_CODE (OVL_FIRST (expr)) == TEMPLATE_DECL))
+    {
+      /* For member access splice-specialization-specifier, try to wrap
+	 non-dependent splice for function template into a BASELINK so
+	 that cp_parser_template_id can handle it.  */
+      if (object_type
+	  && DECL_FUNCTION_TEMPLATE_P (OVL_FIRST (expr))
+	  && !dependent_type_p (object_type))
+	{
+	  tree scope = DECL_CONTEXT (OVL_FIRST (expr));
+	  if (scope && CLASS_TYPE_P (scope))
+	    {
+	      tree access_path = lookup_base (object_type, scope, ba_unique,
+					      NULL, tf_warning_or_error);
+	      if (access_path == error_mark_node)
+		expr = error_mark_node;
+	      else
+		expr
+		  = build_baselink (access_path, TYPE_BINFO (object_type),
+				    expr,
+				    IDENTIFIER_CONV_OP_P (OVL_NAME (expr))
+				    ? TREE_TYPE (OVL_NAME (expr)) : NULL_TREE);
+	    }
+	}
+      /* Let cp_parser_template_id parse the template arguments.  */
+      expr = cp_parser_template_id (parser, template_p,
+				    /*check_dependency_p=*/true,
+				    /*tag_type=*/none_type,
+				    /*is_declaration=*/false,
+				    expr);
+      if (targs_p)
+	*targs_p = true;
+    }
+
+  return cp_expr (expr, make_location (caret_loc, start_loc, finish_loc));
+}
+
+/* Parse a splice-type-specifier.
+
+   splice-type-specifier:
+     typename[opt] splice-specifier
+     typename[opt] splice-specialization-specifier
+
+ */
+
+static tree
+cp_parser_splice_type_specifier (cp_parser *parser)
+{
+  /* Consume the optional typename.  */
+  if (cp_lexer_next_token_is_keyword (parser->lexer, RID_TYPENAME))
+    cp_lexer_consume_token (parser->lexer);
+
+  cp_expr expr = cp_parser_splice_specifier (parser, /*template_p=*/false,
+					     /*typename_p=*/true);
+  const location_t loc = (expr != error_mark_node
+			  ? expr.get_location () : input_location);
+  tree type = expr.get_value ();
+
+  if (TREE_CODE (type) == TYPE_DECL)
+    type = TREE_TYPE (type);
+
+  /* When we see [:T:] or [:T:]<arg> we don't know what it'll turn out
+     to be.  */
+  if (dependent_splice_p (type))
+    return make_splice_scope (type, /*type_p=*/true);
+
+  /* [dcl.type.simple]/3: A type-specifier is a placeholder for a deduced
+     class type if [...] it is of the form typename[opt] splice-specifier and
+     the splice-specifier designates a class template or alias template.  */
+  if (ctad_template_p (type))
+    type = make_template_placeholder (type);
+
+  if (!valid_splice_type_p (type))
+    {
+      if (!cp_parser_simulate_error (parser))
+	{
+	  auto_diagnostic_group d;
+	  error_at (loc, "expected a reflection of a type");
+	  inform_tree_category (type);
+	}
+      type = NULL_TREE;
+    }
+
+  return type;
+}
+
+/* Parse a splice-expression.
+
+   splice-expression:
+     splice-specifier
+     template splice-specifier
+     template splice-specialization-specifier
+
+   TEMPLATE_P is true if we've parsed the leading template keyword.
+   ADDRESS_P is true if we are taking the address of the splice.
+   TEMPLATE_ARG_P is true iff this splice is a template argument.
+   MEMBER_ACCESS_P is true if this splice is used in foo.[: bar :] or
+   foo->[: bar :] context.  */
+
+static tree
+cp_parser_splice_expression (cp_parser *parser, bool template_p,
+			     bool address_p, bool template_arg_p,
+			     bool member_access_p, cp_id_kind *idk)
+{
+  bool targs_p = false;
+
+  /* E.g., [: X::x :] is a separate lookup and we shouldn't take into
+     account any previous scopes.  */
+  parser->scope = NULL_TREE;
+  parser->object_scope = NULL_TREE;
+  parser->qualifying_scope = NULL_TREE;
+
+  cp_expr expr = cp_parser_splice_specifier (parser, template_p,
+					     /*typename_p=*/false, &targs_p);
+
+  /* And don't leave the scopes set, either.  */
+  parser->scope = NULL_TREE;
+  parser->object_scope = NULL_TREE;
+  parser->qualifying_scope = NULL_TREE;
+
+  const location_t loc = expr.get_location ();
+  tree t = expr.get_value ();
+  STRIP_ANY_LOCATION_WRAPPER (t);
+  tree unresolved = t;
+  t = MAYBE_BASELINK_FUNCTIONS (t);
+  t = resolve_nondeduced_context (t, tf_warning_or_error);
+
+  if (dependent_splice_p (t))
+    {
+      SET_SPLICE_EXPR_EXPRESSION_P (t);
+      SET_SPLICE_EXPR_MEMBER_ACCESS_P (t, member_access_p);
+      SET_SPLICE_EXPR_ADDRESS_P (t, address_p);
+      SET_SPLICE_EXPR_TEMPLATE_P (t, template_p);
+      SET_SPLICE_EXPR_TARGS_P (t, targs_p);
+      return t;
+    }
+
+  if (error_operand_p (t))
+    {
+      gcc_assert (seen_error ()
+		  || cp_parser_uncommitted_to_tentative_parse_p (parser));
+      return error_mark_node;
+    }
+
+  /* Make sure this splice-expression produces an expression.  */
+  if (!check_splice_expr (loc, expr.get_start (), t, address_p,
+			  member_access_p, template_p, targs_p,
+			  /*complain=*/true))
+    return error_mark_node;
+
+  if (!template_p
+      /* No 'template' but there were template arguments?  */
+      && (targs_p
+	  /* No 'template' but the splice-specifier designates a function
+	     template?  */
+	  || reflection_function_template_p (t))
+      && warning_enabled_at (loc, OPT_Wmissing_template_keyword))
+    /* Were 'template' present, this would be valid code, so keep going.  */
+    missing_template_diag (loc, diagnostics::kind::pedwarn);
+
+  cp_unevaluated u;
+
+  /* When doing foo.[: bar :], cp_parser_postfix_dot_deref_expression wants
+     to see an identifier or a TEMPLATE_ID_EXPR, if we have something like
+     s.template [: ^^S::var :]<int> where S::var is a variable template.  */
+  if (member_access_p)
+    {
+      /* Grab the unresolved expression then.  */
+      t = unresolved;
+      gcc_assert (valid_splice_for_member_access_p (t, /*decls_only_p=*/false));
+      /* ??? We're not setting *idk here.  */
+    }
+  else if (address_p
+	   && (BASELINK_P (t) || DECL_NONSTATIC_MEMBER_P (t)))
+    {
+      /* CWG 3109 adjusted [class.protected] to say that checking access to
+	 protected non-static members is disabled for members designated by
+	 a splice-expression.  */
+      push_deferring_access_checks (dk_no_check);
+      tree type = (BASELINK_P (t)
+		   ? BINFO_TYPE (BASELINK_ACCESS_BINFO (t))
+		   : DECL_CONTEXT (t));
+      t = build_offset_ref (type, t, /*address_p=*/true, tf_warning_or_error);
+      pop_deferring_access_checks ();
+    }
+  else
+    {
+      const char *error_msg;
+      t = finish_id_expression (t, t, NULL_TREE, idk,
+				/*integral_constant_expression_p=*/false,
+				/*allow_non_integral_constant_expr_p=*/true,
+				&parser->non_integral_constant_expression_p,
+				template_p,
+				/*done=*/true,
+				address_p,
+				template_arg_p,
+				&error_msg,
+				loc);
+      if (error_msg)
+	cp_parser_error (parser, error_msg);
+    }
+
+  return t;
+}
+
+/* Parse a splice-scope-specifier.
+
+   splice-scope-specifier:
+     splice-specifier
+     template[opt] splice-specialization-specifier
+
+   TYPENAME_P is true if we've seen the typename keyword.
+   TEMPLATE_P is true if we've seen the leading template keyword.  */
+
+static tree
+cp_parser_splice_scope_specifier (cp_parser *parser, bool typename_p,
+				  bool template_p)
+{
+  bool targs_p = false;
+  cp_expr scope = cp_parser_splice_specifier (parser, template_p, typename_p,
+					      &targs_p);
+  const location_t loc = scope.get_location ();
+  if (TREE_CODE (scope) == TYPE_DECL)
+    scope = TREE_TYPE (scope);
+
+  if (template_p && !targs_p)
+    {
+      error_at (loc, "extra %<template%> in a scope splice");
+      return error_mark_node;
+    }
+  /* [expr.prim.id.qual] The template may only be omitted from the
+     form template(opt) splice-specialization-specifier :: when the
+     splice-specialization-specifier is preceded by typename.  */
+  if (targs_p && !typename_p && !template_p)
+    {
+      auto_diagnostic_group d;
+      error_at (loc, "missing %<template%> in a scope splice with template "
+		"arguments");
+      inform (loc, "%<template%> may only be omitted when the scope splice "
+	      "is preceded by %<typename%>");
+      return error_mark_node;
+    }
+
+  /* A dependent scope.  Turn this into SPLICE_SCOPE which is a type,
+     so that dependent_scope_p et al can recognize this.  */
+  if (dependent_splice_p (scope))
+    return make_splice_scope (scope, /*type_p=*/false);
+
+  if (!valid_splice_scope_p (scope))
+    {
+      auto_diagnostic_group d;
+      error_at (loc, "expected a reflection of a class, namespace, or "
+		"enumeration");
+      inform_tree_category (tree (scope));
+      scope = error_mark_node;
+    }
+
+  return scope;
+}
+
+/* Skip the whole splice-expression: the optional typename/template,
+   [:...:], and also the <...>, if present.  Return true if we skipped
+   successfully.  */
+
+static bool
+cp_parser_skip_entire_splice_expr (cp_parser *parser)
+{
+  if (cp_lexer_next_token_is_keyword (parser->lexer, RID_TYPENAME)
+      || cp_lexer_next_token_is_keyword (parser->lexer, RID_TEMPLATE))
+    cp_lexer_consume_token (parser->lexer);
+
+  if (cp_lexer_next_token_is_not (parser->lexer, CPP_OPEN_SPLICE))
+    return false;
+
+  size_t n = cp_parser_skip_balanced_tokens (parser, 1);
+  if (n != 1)
+    {
+      /* Consume tokens up to the ':]' (including).  */
+      for (n = n - 1; n; --n)
+	cp_lexer_consume_token (parser->lexer);
+
+      /* Consume the whole '<....>', if present.  */
+      if (cp_lexer_next_token_is (parser->lexer, CPP_LESS)
+	  && !cp_parser_skip_entire_template_parameter_list (parser))
+	return false;
+
+      return true;
+    }
+
+  return false;
+}
+
+/* We know the next token is '[:' (optionally preceded by a template or
+   typename) and we are wondering if a '::' follows right after the
+   closing ':]', or after the possible '<...>' after the ':]'.  Return
+   true if yes, false otherwise.  */
+
+static bool
+cp_parser_splice_spec_is_nns_p (cp_parser *parser)
+{
+  saved_token_sentinel toks (parser->lexer, STS_ROLLBACK);
+  return (cp_parser_skip_entire_splice_expr (parser)
+	  && cp_lexer_next_token_is (parser->lexer, CPP_SCOPE));
+}
+
+/* Return true if the N-th token is '[:' and its closing ':]' is NOT
+   followed by a '::'.  For example, we could be checking if what follows
+   can be a splice-expression or not -- we can tell that '[:R:]::type' is
+   not a splice-expression.  */
+
+static bool
+cp_parser_nth_token_starts_splice_without_nns_p (cp_parser *parser, size_t n)
+{
+  return (cp_lexer_nth_token_is (parser->lexer, n, CPP_OPEN_SPLICE)
+	  && !cp_parser_splice_spec_is_nns_p (parser));
 }
 
 /* Parse a primary-expression.
@@ -6066,6 +6517,9 @@ cp_parser_pack_index (cp_parser *parser, tree pack)
      ( expression )
      id-expression
      lambda-expression (C++11)
+     fold-expression
+     requires-expression
+     splice-expression
 
    GNU Extensions:
 
@@ -6349,6 +6803,11 @@ cp_parser_primary_expression (cp_parser *parser,
 	return lam;
       }
 
+    case CPP_OPEN_SPLICE:
+      return cp_parser_splice_expression (parser, /*template_p=*/false,
+					  address_p, template_arg_p,
+					  /*member_access_p=*/false, idk);
+
     case CPP_OBJC_STRING:
       if (c_dialect_objc ())
 	/* We have an Objective-C++ string literal. */
@@ -6505,13 +6964,23 @@ cp_parser_primary_expression (cp_parser *parser,
 	case RID_TEMPLATE:
 	  if (parser->in_function_body
 	      && (cp_lexer_peek_nth_token (parser->lexer, 2)->type
-	      	  == CPP_LESS))
+		  == CPP_LESS))
 	    {
 	      error_at (token->location,
 			"a template declaration cannot appear at block scope");
 	      cp_parser_skip_to_end_of_block_or_statement (parser);
 	      return error_mark_node;
 	    }
+	  else if (cp_lexer_peek_nth_token (parser->lexer, 2)->type
+		   == CPP_OPEN_SPLICE)
+	    {
+	      cp_lexer_consume_token (parser->lexer);
+	      return cp_parser_splice_expression (parser, /*template_p=*/true,
+						  address_p, template_arg_p,
+						  /*member_access_p=*/false,
+						  idk);
+	    }
+
 	  /* FALLTHRU */
 	default:
 	  cp_parser_error (parser, "expected primary-expression");
@@ -6701,6 +7170,16 @@ cp_parser_primary_expression (cp_parser *parser,
 	return decl;
       }
 
+    case CPP_XOR:
+      if (cp_lexer_peek_nth_token (parser->lexer, 2)->type == CPP_XOR)
+	{
+	  error_at (token->location,
+		    "reflection is only available in C++26 with "
+		    "%<-freflection%>");
+	  return error_mark_node;
+	}
+      gcc_fallthrough ();
+
       /* Anything else is an error.  */
     default:
       cp_parser_error (parser, "expected primary-expression");
@@ -6724,7 +7203,7 @@ cp_parser_primary_expression (cp_parser *parser,
 
 static void
 missing_template_diag (location_t loc,
-		       enum diagnostics::kind diag_kind = diagnostics::kind::warning)
+		       diagnostics::kind diag_kind/*=kind::warning*/)
 {
   if (warning_suppressed_at (loc, OPT_Wmissing_template_keyword))
     return;
@@ -7168,6 +7647,20 @@ cp_parser_unqualified_id (cp_parser* parser,
 	    if (cp_parser_parse_definitely (parser))
 	      done = true;
 	  }
+	/* Allow r.~typename [:R:].  */
+	else if (!done
+		 && cp_parser_next_tokens_start_splice_type_spec_p
+		     (parser, /*require_typename_p=*/true))
+	  {
+	    parser->scope = object_scope;
+	    parser->object_scope = NULL_TREE;
+	    parser->qualifying_scope = NULL_TREE;
+	    type_decl = cp_parser_splice_type_specifier (parser);
+	    if (!type_decl)
+	      /* We don't have a TYPE_DECL, so return early.  */
+	      return error_mark_node;
+	    return build_min_nt_loc (loc, BIT_NOT_EXPR, type_decl);
+	  }
 	/* Look in the surrounding context.  */
 	if (!done)
 	  {
@@ -7315,6 +7808,7 @@ check_template_keyword_in_nested_name_spec (tree name)
      type-name ::
      namespace-name ::
      computed-type-specifier ::
+     splice-scope-specifier ::
      nested-name-specifier identifier ::
      nested-name-specifier template [opt] simple-template-id ::
 
@@ -7401,6 +7895,9 @@ cp_parser_nested_name_specifier_opt (cp_parser *parser,
 	;
       /* DR 743: decltype can be used in a nested-name-specifier.  */
       else if (token_is_decltype (token))
+	;
+      /* Could be a splice-scope-specifier.  */
+      else if (cp_parser_next_tokens_can_start_splice_scope_spec_p (parser))
 	;
       else
 	{
@@ -7607,7 +8104,8 @@ cp_parser_nested_name_specifier_opt (cp_parser *parser,
 			      error_at (token->location,
 					"reference to %qD is ambiguous",
 					token->u.value);
-			      print_candidates (ambiguous_decls);
+			      print_candidates (token->location,
+						ambiguous_decls);
 			    }
 			  decl = error_mark_node;
 			}
@@ -7778,6 +8276,23 @@ cp_parser_qualifying_entity (cp_parser *parser,
       return scope;
     }
 
+  /* In a nested-name-specifier, we can reach a splice-specifier
+     either via the computed-type-specifier -> splice-type-specifier
+     production, or via splice-scope-specifier.  But [dcl.type.splice]
+     says "A splice-specifier or splice-specialization-specifier immediately
+     followed by :: is never interpreted as part of a splice-type-specifier"
+     so we call only cp_parser_splice_scope_specifier.  */
+  if (cp_parser_next_tokens_can_start_splice_scope_spec_p (parser)
+      && cp_parser_splice_spec_is_nns_p (parser))
+    {
+      if (cp_parser_optional_template_keyword (parser))
+	template_keyword_p = true;
+      scope = cp_parser_splice_scope_specifier (parser,
+						typename_keyword_p,
+						template_keyword_p);
+      return scope;
+    }
+
   /* Before we try to parse the class-name, we must save away the
      current PARSER->SCOPE since cp_parser_class_name will destroy
      it.  */
@@ -7871,6 +8386,8 @@ literal_integer_zerop (const_tree expr)
      postfix-expression -> template [opt] id-expression
      postfix-expression . pseudo-destructor-name
      postfix-expression -> pseudo-destructor-name
+     postfix-expression . splice-expression
+     postfix-expression -> splice-expression
      postfix-expression ++
      postfix-expression --
      dynamic_cast < type-id > ( expression )
@@ -8075,6 +8592,12 @@ cp_parser_postfix_expression (cp_parser *parser, bool address_p, bool cast_p,
 
     case RID_TYPENAME:
       {
+	/* Just like cp_parser_type_specifier/RID_TYPENAME: if we see
+	   'typename [:', this could be a typename-specifier.  But if
+	   there's no '::' after the '[:x:]' then it is not.  */
+	if (cp_parser_nth_token_starts_splice_without_nns_p (parser, 2))
+	  goto default_;
+
 	tree type;
 	/* The syntax permitted here is the same permitted for an
 	   elaborated-type-specifier.  */
@@ -8276,6 +8799,7 @@ cp_parser_postfix_expression (cp_parser *parser, bool address_p, bool cast_p,
       }
 
     default:
+    default_:
       {
 	tree type;
 
@@ -8623,7 +9147,9 @@ cp_parser_postfix_expression (cp_parser *parser, bool address_p, bool cast_p,
 	  /* postfix-expression . template [opt] id-expression
 	     postfix-expression . pseudo-destructor-name
 	     postfix-expression -> template [opt] id-expression
-	     postfix-expression -> pseudo-destructor-name */
+	     postfix-expression -> pseudo-destructor-name
+	     postfix-expression . splice-expression
+	     postfix-expression -> splice-expression  */
 
 	  /* Consume the `.' or `->' operator.  */
 	  cp_lexer_consume_token (parser->lexer);
@@ -8983,6 +9509,8 @@ cp_parser_dot_deref_incomplete (tree *scope, cp_expr *postfix_expression,
      postfix-expression . pseudo-destructor-name
      postfix-expression -> template [opt] id-expression
      postfix-expression -> pseudo-destructor-name
+     postfix-expression . splice-expression
+     postfix-expression -> splice-expression
 
    FOR_OFFSETOF is set if we're being called in that context.  That sorta
    limits what of the above we'll actually accept, but nevermind.
@@ -9107,15 +9635,32 @@ cp_parser_postfix_dot_deref_expression (cp_parser *parser,
 	 ordinary class member access expression, rather than a
 	 pseudo-destructor-name.  */
       bool template_p;
+      bool template_keyword_p = cp_parser_optional_template_keyword (parser);
       cp_token *token = cp_lexer_peek_token (parser->lexer);
-      /* Parse the id-expression.  */
-      name = (cp_parser_id_expression
-	      (parser,
-	       cp_parser_optional_template_keyword (parser),
-	       /*check_dependency_p=*/true,
-	       &template_p,
-	       /*declarator_p=*/false,
-	       /*optional_p=*/false));
+      /* See if there was this->[:R:].  Note that in this->[: ^^S :]::i;
+	 the RHS is not a splice-expression.  */
+      const bool splice_p
+	= cp_parser_nth_token_starts_splice_without_nns_p (parser, 1);
+      if (splice_p)
+	{
+	  name = cp_parser_splice_expression (parser, template_keyword_p,
+					      /*address_p=*/false,
+					      /*template_arg_p=*/false,
+					      /*member_access_p=*/true, idk);
+	  /* This is not the leading 'template' but the one after n-n-s,
+	     which we don't have here.  */
+	  template_p = false;
+	}
+      else
+	/* Parse the id-expression.  */
+	name = (cp_parser_id_expression
+		(parser,
+		 template_keyword_p,
+		 /*check_dependency_p=*/true,
+		 &template_p,
+		 /*declarator_p=*/false,
+		 /*optional_p=*/false));
+
       /* In general, build a SCOPE_REF if the member name is qualified.
 	 However, if the name was not dependent and has already been
 	 resolved; there is no need to build the SCOPE_REF.  For example;
@@ -9124,10 +9669,16 @@ cp_parser_postfix_dot_deref_expression (cp_parser *parser,
 	     template <typename T> void f(T* t) { t->X::f(); }
 
 	 Even though "t" is dependent, "X::f" is not and has been resolved
-	 to a BASELINK; there is no need to include scope information.  */
+	 to a BASELINK; there is no need to include scope information.
 
-      /* But we do need to remember that there was an explicit scope for
-	 virtual function calls.  */
+	 But we do need to remember that there was an explicit scope for
+	 virtual function calls.  If the name was represented by
+	 a splice-expression, behave like this:
+
+	   [:^^B::fn:]()  // do not disable virtual dispatch
+	   [:^^B:]::fn()  // disable virtual dispatch
+
+	 In the former, parser->scope has been cleared when we get here.  */
       if (parser->scope)
 	*idk = CP_ID_KIND_QUALIFIED;
 
@@ -9148,6 +9699,14 @@ cp_parser_postfix_dot_deref_expression (cp_parser *parser,
 			    parser->scope, name);
 		  postfix_expression = error_mark_node;
 		}
+	      /* cp_parser_splice_expression may have given us a SCOPE_REF.  */
+	      else if (TREE_CODE (name) == SCOPE_REF
+		       || TREE_CODE (name) == FIELD_DECL
+		       || VAR_P (name)
+		       || TREE_CODE (name) == CONST_DECL
+		       || TREE_CODE (name) == FUNCTION_DECL
+		       || DECL_FUNCTION_TEMPLATE_P (OVL_FIRST (name)))
+		gcc_checking_assert (splice_p);
 	      else
 		name = build_qualified_name (/*type=*/NULL_TREE,
 					     parser->scope,
@@ -9157,13 +9716,15 @@ cp_parser_postfix_dot_deref_expression (cp_parser *parser,
 	      parser->qualifying_scope = NULL_TREE;
 	      parser->object_scope = NULL_TREE;
 	    }
-	  if (parser->scope && name && BASELINK_P (name))
-	    adjust_result_of_qualified_name_lookup
-	      (name, parser->scope, scope);
+	  if ((parser->scope || splice_p) && name && BASELINK_P (name))
+	    /* For obj->[:^^R:] we won't have parser->scope, but we still
+	       have to perform this adjustment.  */
+	    name = (adjust_result_of_qualified_name_lookup
+		    (name, parser->scope, scope));
 	  postfix_expression
 	    = finish_class_member_access_expr (postfix_expression, name,
 					       template_p,
-					       tf_warning_or_error);
+					       tf_warning_or_error, splice_p);
 	  /* Build a location e.g.:
 	       ptr->access_expr
 	       ~~~^~~~~~~~~~~~~
@@ -9283,6 +9844,17 @@ cp_parser_parenthesized_expression_list (cp_parser* parser,
 	      else
 		expression_list->quick_push (arg);
 	    goto get_comma;
+	  }
+	else if (is_attribute_list == normal_attr
+		 && cp_lexer_next_token_is (parser->lexer, CPP_STRING)
+		 && (cp_lexer_nth_token_is (parser->lexer, 2, CPP_COMMA)
+		     || cp_lexer_nth_token_is (parser->lexer, 2, CPP_CLOSE_PAREN)))
+	  {
+	    auto t = make_temp_override (parser->translate_strings_p, false);
+	    expr
+	      = cp_parser_parenthesized_expression_list_elt (parser, cast_p,
+							     allow_expansion_p,
+							     non_constant_p);
 	  }
 	else
 	  expr
@@ -9453,6 +10025,179 @@ cp_parser_pseudo_destructor_name (cp_parser* parser,
   *type = TREE_TYPE (cp_parser_nonclass_name (parser));
 }
 
+/* Parse a reflection-name.
+
+   reflection-name:
+    nested-name-specifier[opt] identifier
+    nested-name-specifier template identifier
+
+ */
+
+static tree
+cp_parser_reflection_name (cp_parser *parser)
+{
+
+  /* Look for the optional `::' operator.  */
+  bool global_scope_p
+    = (cp_parser_global_scope_opt (parser,
+				   /*current_scope_valid_p=*/false)
+       != NULL_TREE);
+  /* And the optional nested-name-specifier.  */
+  bool nested_name_specifier_p
+    = (cp_parser_nested_name_specifier_opt (parser,
+					    /*typename_keyword_p=*/false,
+					    /*check_dependency_p=*/true,
+					    /*type_p=*/false,
+					    /*is_declaration=*/false,
+					    /*template_keyword_p=*/false,
+					    global_scope_p)
+       != NULL_TREE);
+  /* Look for the optional `template' keyword.  */
+  if (cp_parser_optional_template_keyword (parser)
+      && !global_scope_p
+      && !nested_name_specifier_p)
+    cp_parser_error (parser, "%<template%> must follow a nested-name-"
+		     "specifier");
+
+  auto s = make_temp_override (cp_preserve_using_decl, true);
+  /* Look for the identifier.  */
+  location_t loc = cp_lexer_peek_token (parser->lexer)->location;
+  tree name = cp_parser_identifier (parser);
+  tree decl = cp_parser_lookup_name_simple (parser, name, loc);
+  if (name != error_mark_node && decl == error_mark_node)
+    cp_parser_name_lookup_error (parser, name, decl, NLE_NULL, loc);
+
+  /* If lookup finds a class member of an anonymous union, R represents
+     that class member.  */
+  if (VAR_P (decl) && DECL_ANON_UNION_VAR_P (decl))
+    {
+      tree v = DECL_VALUE_EXPR (decl);
+      if (v != error_mark_node && TREE_CODE (v) == COMPONENT_REF)
+	decl = TREE_OPERAND (v, 1);
+    }
+
+  return decl;
+}
+
+/* Parse a reflect-expression.
+
+   reflect-expression:
+     ^^ ::
+     ^^ reflection-name
+     ^^ type-id
+     ^^ id-expression
+
+  Returns a representation of the reflection.  */
+
+static tree
+cp_parser_reflect_expression (cp_parser *parser)
+{
+  if (!flag_reflection)
+    {
+      error_at (cp_lexer_peek_token (parser->lexer)->location,
+		"reflection is only available with %<-freflection%>");
+      return error_mark_node;
+    }
+
+  /* Consume the '^^'.  */
+  cp_lexer_consume_token (parser->lexer);
+
+  /* Get the location of the operand.  */
+  const location_t loc = cp_lexer_peek_token (parser->lexer)->location;
+
+  /* We don't know what this might be.  Try and see what works.  */
+  cp_parser_parse_tentatively (parser);
+  tree t = cp_parser_reflection_name (parser);
+  if (TREE_CODE (t) == TYPE_DECL && !cp_parser_error_occurred (parser))
+    /* Need to call cp_parser_type_id, because say
+	using A = int;
+	^^A &
+       should parse the type id rather than reflection-name.  */
+    cp_parser_simulate_error (parser);
+  /* For ^^tmpl<args>, looking for a nested-name-specifier in
+     cp_parser_reflection_name above creates a CPP_TEMPLATE_ID which
+     makes cp_parser_identifier cause a parser error.  So we don't
+     return early here.  */
+  if (cp_parser_parse_definitely (parser))
+    return get_reflection (loc, t);
+  /* Nope.  Well then, maybe it's a type-id.  */
+  cp_parser_parse_tentatively (parser);
+
+  bool type_alias_p;
+  t = cp_parser_type_id_1 (parser, CP_PARSER_FLAGS_NONE, false, false,
+			   nullptr, &type_alias_p);
+  if (cp_parser_parse_definitely (parser))
+    {
+      /* With using A = int; ^^A is a type alias but ^^const A or ^^A & or
+	 ^^A const is not.  With template<typename T> using B = C <T>;
+	 ^^B <int> is a type alias though.  */
+      if (TYPE_P (t) && !type_alias_p)
+	t = strip_typedefs (t);
+      /* [expr.reflect] If the type-id designates a placeholder type, R is
+	 ill-formed.  This check is here rather than in get_reflection so
+	 that we don't wrongly error for a return-type-requirement which is
+	 represented as a constrained auto.  */
+      if (is_auto (t))
+	{
+	  error_at (loc, "%<^^%> cannot be applied to a placeholder type");
+	  return error_mark_node;
+	}
+      return get_reflection (loc, t);
+    }
+  /* Try an id-expression.  */
+  {
+    cp_parser_parse_tentatively (parser);
+    /* [expr.reflect] The id-expression of a reflect-expression is
+       an unevaluated operand.  */
+    cp_unevaluated u;
+    tree id = cp_parser_id_expression (parser,
+				       /*template_keyword_p=*/false,
+				       /*check_dependency_p=*/true,
+				       /*template_p=*/nullptr,
+				       /*declarator_p=*/false,
+				       /*optional_p=*/false);
+    /* Lookup the name we got back from the id-expression.  */
+    if (identifier_p (id))
+      t = cp_parser_lookup_name_simple (parser, id, loc);
+    else
+      t = id;
+    /* We couldn't look ID up, harrumph.  */
+    if (id != error_mark_node && t == error_mark_node)
+      cp_parser_name_lookup_error (parser, id, t, NLE_NULL, loc);
+    /* We don't finish_id_expression here because we don't know in what
+       context this reflection will be used (address, class member access,
+       template argument, ...).  Except go ahead and (try to) resolve the
+       variable TEMPLATE_ID_EXPR (which is always considered type-dependent
+       because such TEMPLATE_ID_EXPRs don't have a type) now.  We don't need
+       to keep these TEMPLATE_ID_EXPRs for a possible class member access,
+       but most importantly, function templates with ^^vt<int> as one of its
+       template argument would never be mangled (mangle_decl checks if any
+       template arguments are dependent).  */
+    if (TREE_CODE (t) == TEMPLATE_ID_EXPR
+	&& variable_template_p (TREE_OPERAND (t, 0))
+	&& !concept_check_p (t))
+      t = finish_template_variable (t);
+    else if (is_overloaded_fn (t))
+      t = baselink_for_fns (t);
+    if (cp_parser_parse_definitely (parser))
+      return get_reflection (loc, t);
+  }
+
+  /* Last chance, see if there's ^^::.  This must be done only after we've
+     tried the other options.  */
+  if (cp_lexer_next_token_is (parser->lexer, CPP_SCOPE))
+    {
+      cp_lexer_consume_token (parser->lexer);
+      /* A reflect-expression of the form ^^:: represents the global
+	 namespace.  */
+      return get_reflection (loc, global_namespace);
+    }
+
+  /* Oy vey, nothing worked.  */
+  error_at (loc, "%<^^%> cannot be applied to this operand");
+  return error_mark_node;
+}
+
 /* Parse a unary-expression.
 
    unary-expression:
@@ -9463,9 +10208,10 @@ cp_parser_pseudo_destructor_name (cp_parser* parser,
      unary-operator cast-expression
      sizeof unary-expression
      sizeof ( type-id )
-     alignof ( type-id )  [C++0x]
+     alignof ( type-id )  [C++11]
      new-expression
      delete-expression
+     reflect-expression	[C++26]
 
    GNU Extensions:
 
@@ -9729,6 +10475,8 @@ cp_parser_unary_expression (cp_parser *parser, cp_id_kind * pidk,
       else if (keyword == RID_DELETE)
 	return cp_parser_delete_expression (parser);
     }
+  else if (cp_lexer_next_token_is (parser->lexer, CPP_REFLECT_OP))
+    return cp_parser_reflect_expression (parser);
 
   /* Look for a unary operator.  */
   unary_operator = cp_parser_unary_operator (token);
@@ -11409,10 +12157,24 @@ cp_parser_expression (cp_parser* parser, cp_id_kind * pidk,
 	     and one CPP_NUMBER plus CPP_COMMA before it and one
 	     CPP_COMMA plus CPP_NUMBER after it is guaranteed by
 	     the preprocessor.  Thus, parse the whole CPP_EMBED just
-	     as a single INTEGER_CST, the last byte in it.  */
+	     as a single INTEGER_CST, the last byte in it.  Though,
+	     don't use that shortcut if the comma operator could be
+	     overloaded.  */
 	  tree raw_data = cp_lexer_peek_token (parser->lexer)->u.value;
 	  location_t loc = cp_lexer_peek_token (parser->lexer)->location;
 	  cp_lexer_consume_token (parser->lexer);
+	  if (OVERLOAD_TYPE_P (TREE_TYPE (expression))
+	      || type_dependent_expression_p (expression))
+	    for (unsigned i = 0; i < RAW_DATA_LENGTH (raw_data) - 1U; ++i)
+	      {
+		assignment_expression
+		  = *raw_data_iterator (raw_data, i);
+		assignment_expression.set_location (loc);
+		expression
+		  = build_x_compound_expr (loc, expression,
+					   assignment_expression, NULL_TREE,
+					   complain_flags (decltype_p));
+	      }
 	  assignment_expression
 	    = *raw_data_iterator (raw_data, RAW_DATA_LENGTH (raw_data) - 1);
 	  assignment_expression.set_location (loc);
@@ -12180,7 +12942,9 @@ cp_parser_lambda_introducer (cp_parser* parser, tree lambda_expr)
       first = false;
 
       tree scope = current_nonlambda_scope (/*only_skip_closures_p=*/true);
-      if (TREE_CODE (scope) != FUNCTION_DECL && !parsing_nsdmi ())
+      if (TREE_CODE (scope) != FUNCTION_DECL
+	  && !parsing_nsdmi ()
+	  && current_binding_level->kind != sk_contract)
 	error ("non-local lambda expression cannot have a capture-default");
     }
 
@@ -12742,6 +13506,10 @@ cp_parser_lambda_declarator_opt (cp_parser* parser, tree lambda_expr,
       return_type = cp_parser_trailing_type_id (parser);
     }
 
+  tree contract_specifiers = NULL_TREE;
+  if (flag_contracts)
+    contract_specifiers = cp_parser_function_contract_specifier_seq (parser);
+
   /* Also allow GNU attributes at the very end of the declaration, the usual
      place for GNU attributes.  */
   if (cp_next_tokens_can_be_gnu_attribute_p (parser))
@@ -12810,6 +13578,7 @@ cp_parser_lambda_declarator_opt (cp_parser* parser, tree lambda_expr,
 				       exception_spec,
 				       return_type,
 				       trailing_requires_clause,
+				       contract_specifiers,
 				       std_attrs,
 				       UNKNOWN_LOCATION);
 
@@ -12866,7 +13635,7 @@ make_dummy_lambda_op ()
 				     VIRT_SPEC_UNSPECIFIED,
 				     REF_QUAL_NONE, NULL_TREE,
 				     NULL_TREE, NULL_TREE, NULL_TREE,
-				     NULL_TREE, UNKNOWN_LOCATION);
+				     NULL_TREE, NULL_TREE, UNKNOWN_LOCATION);
 
   tree fco = grokmethod (&return_type_specs, declarator, NULL_TREE);
   obstack_free (&declarator_obstack, p);
@@ -12961,6 +13730,31 @@ cp_parser_lambda_body (cp_parser* parser, tree lambda_expr)
        removed the need for that.  */
     cp_parser_function_body (parser, false);
 
+    /* We need to parse deferred contract conditions before we try to call
+       finish_function (which will try to emit the contracts).  */
+    cp_parser_late_contracts (parser, fco);
+
+    /* Check that we have not caused captures that only relate to contracts.
+       [expr.prim.lambda.closure] / P10.  */
+    if (flag_contracts)
+      {
+	gcc_checking_assert (current_lambda_expr () == lambda_expr);
+	for (tree le = LAMBDA_EXPR_CAPTURE_LIST (lambda_expr); le;
+	     le = TREE_CHAIN (le))
+	  {
+	    tree cap_fld = TREE_PURPOSE (le);
+	    if (TREE_CODE (cap_fld) == FIELD_DECL
+		&& DECL_CONTRACT_CAPTURE_P (cap_fld))
+	      {
+		auto_diagnostic_group d;
+		tree expr = TREE_VALUE (le);
+		location_t loc = DECL_SOURCE_LOCATION (cap_fld);
+		error_at (loc, "%qE is not implicitly captured by a contract"
+			  " assertion", expr);
+		inform (DECL_SOURCE_LOCATION (expr), "%q#E declared here", expr);
+	      }
+	  }
+      }
     finish_lambda_function (body);
   }
 
@@ -13224,16 +14018,6 @@ cp_parser_handle_statement_omp_attributes (cp_parser *parser, tree attrs)
   return attrs;
 }
 
-/* True if and only if the name is one of the contract types.  */
-
-static bool
-contract_attribute_p (const_tree id)
-{
-  return is_attribute_p ("assert", id)
-    || is_attribute_p ("pre", id)
-    || is_attribute_p ("post", id);
-}
-
 /* Handle omp::directive and omp::sequence attributes in *PATTRS
    (if any) at the start or after declaration-id of a declaration.  */
 
@@ -13413,22 +14197,6 @@ cp_parser_statement (cp_parser* parser, tree in_statement_expr,
   /* Peek at the next token.  */
   token = cp_lexer_peek_token (parser->lexer);
 
-  /* If we have contracts, check that they're valid in this context.  */
-  if (std_attrs != error_mark_node)
-    {
-      if (tree pre = lookup_attribute ("pre", std_attrs))
-	error_at (EXPR_LOCATION (TREE_VALUE (pre)),
-		  "preconditions cannot be statements");
-      else if (tree post = lookup_attribute ("post", std_attrs))
-	error_at (EXPR_LOCATION (TREE_VALUE (post)),
-		  "postconditions cannot be statements");
-
-    /* Check that assertions are null statements.  */
-    if (cp_contract_assertion_p (std_attrs))
-      if (token->type != CPP_SEMICOLON)
-	error_at (token->location, "assertions must be followed by %<;%>");
-    }
-
   bool omp_attrs_forbidden_p;
   omp_attrs_forbidden_p = parser->omp_attrs_forbidden_p;
 
@@ -13577,10 +14345,12 @@ cp_parser_statement (cp_parser* parser, tree in_statement_expr,
 	  std_attrs = process_stmt_hotness_attribute (std_attrs, attrs_loc);
 	  statement = cp_parser_transaction_cancel (parser);
 	  break;
-
+	case RID_CONTASSERT:
+	  statement = cp_parser_contract_assert (parser, token);
+	  break;
 	default:
 	  /* It might be a keyword like `int' that can start a
-	     declaration-statement.  */
+	   declaration-statement.  */
 	  break;
 	}
     }
@@ -13764,17 +14534,6 @@ cp_parser_statement (cp_parser* parser, tree in_statement_expr,
 	  else
 	    warning_at (statement_location, OPT_Wattributes,
 			"%<fallthrough%> attribute not followed by %<;%>");
-	  std_attrs = NULL_TREE;
-	}
-
-      /* Handle [[assert: ...]];  */
-      if (cp_contract_assertion_p (std_attrs))
-	{
-	  /* Add the assertion as a statement in the current block.  */
-	  if (!statement)
-	    emit_assertion (std_attrs);
-	  /* We already checked that the contract assertion is followed by
-	   a semicolon.  */
 	  std_attrs = NULL_TREE;
 	}
     }
@@ -15105,12 +15864,25 @@ cp_parser_range_for (cp_parser *parser, tree scope, tree init, tree range_decl,
    builds up the range temporary.  */
 
 tree
-build_range_temp (tree range_expr)
+build_range_temp (tree range_expr, tree expansion_stmt_decl /* = NULL_TREE */)
 {
-  /* Find out the type deduced by the declaration
-     `auto &&__range = range_expr'.  */
-  tree auto_node = make_auto ();
-  tree range_type = cp_build_reference_type (auto_node, true);
+  tree range_type, auto_node;
+
+  if (expansion_stmt_decl)
+    {
+      /* Build const decltype(auto) __range = range_expr;
+	 - range_expr provided by the caller already is (range_expr).  */
+      range_type = auto_node = make_decltype_auto ();
+      if (DECL_DECLARED_CONSTEXPR_P (expansion_stmt_decl))
+	range_type = cp_build_qualified_type (auto_node, TYPE_QUAL_CONST);
+    }
+  else
+    {
+      /* Find out the type deduced by the declaration
+	 `auto &&__range = range_expr'.  */
+      auto_node = make_auto ();
+      range_type = cp_build_reference_type (auto_node, true);
+    }
   range_type = do_auto_deduction (range_type, range_expr, auto_node);
 
   /* Create the __range variable.  */
@@ -15246,11 +16018,13 @@ warn_for_range_copy (tree decl, tree expr)
 
 /* Helper function for cp_convert_range_for and finish_expansion_stmt.
    Build the __range, __begin and __end declarations.  Return the
-   __begin VAR_DECL, set *END_P to the __end VAR_DECL.  */
+   __begin VAR_DECL, set *END_P to the __end VAR_DECL.  If
+   EXPANSION_STMT_DECL, don't create __end and instead store
+   begin_expr to END_P[0] and end_expr to END_P[1].  */
 
 tree
 cp_build_range_for_decls (location_t loc, tree range_expr, tree *end_p,
-			  bool expansion_stmt_p)
+			  tree expansion_stmt_decl)
 {
   tree iter_type, begin_expr, end_expr;
 
@@ -15262,27 +16036,39 @@ cp_build_range_for_decls (location_t loc, tree range_expr, tree *end_p,
     {
       tree range_temp;
 
-      if (!expansion_stmt_p
+      if (!expansion_stmt_decl
 	  && VAR_P (range_expr)
 	  && array_of_runtime_bound_p (TREE_TYPE (range_expr)))
 	/* Can't bind a reference to an array of runtime bound.  */
 	range_temp = range_expr;
       else
 	{
-	  range_temp = build_range_temp (range_expr);
-	  if (expansion_stmt_p)
+	  if (expansion_stmt_decl)
 	    {
-	      /* Depending on CWG3044 resolution, we might want to remove
-		 these 3 sets of TREE_STATIC (on range_temp, begin and end).
-		 Although it can only be done when P2686R4 is fully
-		 implemented.  */
-	      TREE_STATIC (range_temp) = 1;
-	      TREE_PUBLIC (range_temp) = 0;
-	      DECL_COMMON (range_temp) = 0;
-	      DECL_INTERFACE_KNOWN (range_temp) = 1;
-	      DECL_DECLARED_CONSTEXPR_P (range_temp) = 1;
-	      TREE_READONLY (range_temp) = 1;
+	      /* Build constexpr decltype(auto) __for_range = (range_expr);  */
+	      location_t range_loc = cp_expr_loc_or_loc (range_expr, loc);
+	      range_expr
+		= finish_parenthesized_expr (cp_expr (range_expr, range_loc));
+	      range_temp = build_range_temp (range_expr, expansion_stmt_decl);
+
+	      /* When P2686R4 is fully implemented, these 3 sets of TREE_STATIC
+		 (on range_temp, begin and end) should be removed as per
+		 CWG3044.  If expansion_stmt_decl is not constexpr, we don't
+		 need the static though.  */
+	      if (DECL_DECLARED_CONSTEXPR_P (expansion_stmt_decl))
+		{
+		  TREE_STATIC (range_temp) = 1;
+		  TREE_PUBLIC (range_temp) = 0;
+		  DECL_COMMON (range_temp) = 0;
+		  DECL_INTERFACE_KNOWN (range_temp) = 1;
+		  DECL_DECLARED_CONSTEXPR_P (range_temp) = 1;
+		  TREE_READONLY (range_temp) = 1;
+		}
 	    }
+	  else
+	    /* Build auto &&__for_range = range_expr;  */
+	    range_temp = build_range_temp (range_expr);
+
 	  pushdecl (range_temp);
 	  cp_finish_decl (range_temp, range_expr,
 			  /*is_constant_init*/false, NULL_TREE,
@@ -15294,12 +16080,14 @@ cp_build_range_for_decls (location_t loc, tree range_expr, tree *end_p,
     }
 
   /* The new for initialization statement.  */
-  if (expansion_stmt_p && !TYPE_REF_P (iter_type))
+  if (expansion_stmt_decl
+      && DECL_DECLARED_CONSTEXPR_P (expansion_stmt_decl)
+      && !TYPE_REF_P (iter_type))
     iter_type = cp_build_qualified_type (iter_type, TYPE_QUAL_CONST);
   tree begin = build_decl (loc, VAR_DECL, for_begin__identifier, iter_type);
   TREE_USED (begin) = 1;
   DECL_ARTIFICIAL (begin) = 1;
-  if (expansion_stmt_p)
+  if (expansion_stmt_decl && DECL_DECLARED_CONSTEXPR_P (expansion_stmt_decl))
     {
       TREE_STATIC (begin) = 1;
       DECL_DECLARED_CONSTEXPR_P (begin) = 1;
@@ -15310,21 +16098,18 @@ cp_build_range_for_decls (location_t loc, tree range_expr, tree *end_p,
 		  /*is_constant_init*/false, NULL_TREE,
 		  LOOKUP_ONLYCONVERTING);
 
-  if (cxx_dialect >= cxx17)
+  if (expansion_stmt_decl)
     {
-      iter_type = cv_unqualified (TREE_TYPE (end_expr));
-      if (expansion_stmt_p && !TYPE_REF_P (iter_type))
-	iter_type = cp_build_qualified_type (iter_type, TYPE_QUAL_CONST);
+      end_p[0] = begin_expr;
+      end_p[1] = end_expr;
+      return begin;
     }
+
+  if (cxx_dialect >= cxx17)
+    iter_type = cv_unqualified (TREE_TYPE (end_expr));
   tree end = build_decl (loc, VAR_DECL, for_end__identifier, iter_type);
   TREE_USED (end) = 1;
   DECL_ARTIFICIAL (end) = 1;
-  if (expansion_stmt_p)
-    {
-      TREE_STATIC (end) = 1;
-      DECL_DECLARED_CONSTEXPR_P (end) = 1;
-      TREE_READONLY (end) = 1;
-    }
   pushdecl (end);
   cp_finish_decl (end, end_expr,
 		  /*is_constant_init*/false, NULL_TREE,
@@ -15380,7 +16165,7 @@ cp_convert_range_for (tree statement, tree range_decl, tree range_expr,
   if (range_decl == error_mark_node)
     range_expr = error_mark_node;
   tree begin
-    = cp_build_range_for_decls (input_location, range_expr, &end, false);
+    = cp_build_range_for_decls (input_location, range_expr, &end, NULL_TREE);
 
   finish_init_stmt (statement);
 
@@ -15412,7 +16197,13 @@ cp_convert_range_for (tree statement, tree range_decl, tree range_expr,
 /* Solves BEGIN_EXPR and END_EXPR as described in cp_convert_range_for.
    We need to solve both at the same time because the method used
    depends on the existence of members begin or end.
-   Returns the type deduced for the iterator expression.  */
+   Returns the type deduced for the iterator expression.
+   This function assumes that if COMPLAIN is not tf_warning_or_error,
+   it is tf_none and is called to find out if an expansion statement
+   is iterating (vs. destructruring) and behaves differently in that
+   case, in particular just checks if ADL looked up begin/end has
+   any viable candidates rather than doing full finish_call_expr
+   in that case.  */
 
 tree
 cp_perform_range_for_lookup (tree range, tree *begin, tree *end,
@@ -15463,8 +16254,8 @@ cp_perform_range_for_lookup (tree range, tree *begin, tree *end,
       if (member_begin != NULL_TREE && member_end != NULL_TREE)
 	{
 	  /* Use the member functions.  */
-	  *begin = cp_range_for_member_function (range, id_begin);
-	  *end = cp_range_for_member_function (range, id_end);
+	  *begin = cp_range_for_member_function (range, id_begin, complain);
+	  *end = cp_range_for_member_function (range, id_end, complain);
 	}
       else
 	{
@@ -15473,21 +16264,34 @@ cp_perform_range_for_lookup (tree range, tree *begin, tree *end,
 
 	  vec_safe_push (vec, range);
 
-	  member_begin = perform_koenig_lookup (id_begin, vec,
-						complain);
+	  member_begin = perform_koenig_lookup (id_begin, vec, complain);
 	  if ((complain & tf_error) == 0 && member_begin == id_begin)
 	    return error_mark_node;
 	  *begin = finish_call_expr (member_begin, &vec, false, true,
-				     complain);
-	  member_end = perform_koenig_lookup (id_end, vec,
-					      tf_warning_or_error);
+				     (complain & tf_error) ? complain
+				     : tf_any_viable);
+	  member_end = perform_koenig_lookup (id_end, vec, complain);
 	  if ((complain & tf_error) == 0 && member_end == id_end)
 	    {
 	      *begin = error_mark_node;
 	      return error_mark_node;
 	    }
 	  *end = finish_call_expr (member_end, &vec, false, true,
-				   complain);
+				   (complain & tf_error) ? complain
+				   : tf_any_viable);
+	  if ((complain & tf_error) == 0)
+	    {
+	      if (*begin == error_mark_node || *end == error_mark_node)
+		{
+		  *begin = *end = error_mark_node;
+		  /* Expansion stmt should be destructuring if no viable
+		     candidate was found.  */
+		  return error_mark_node;
+		}
+	      /* Otherwise both are viable, so make sure to return
+		 NULL_TREE and set *begin and *end to error_mark_node.  */
+	      *begin = error_mark_node;
+	    }
 	}
 
       /* Last common checks.  */
@@ -15495,6 +16299,13 @@ cp_perform_range_for_lookup (tree range, tree *begin, tree *end,
 	{
 	  /* If one of the expressions is an error do no more checks.  */
 	  *begin = *end = error_mark_node;
+	  /* But signal to finish_expansion_stmt whether this is
+	     destructuring (error_mark_node returned) or iterating
+	     (something else returned).  If we got here, range.begin and
+	     range.end members were found or begin (range) and end (range)
+	     found any viable candidates.  */
+	  if ((complain & tf_error) == 0)
+	    return NULL_TREE;
 	  return error_mark_node;
 	}
       else if (type_dependent_expression_p (*begin)
@@ -15532,20 +16343,20 @@ cp_perform_range_for_lookup (tree range, tree *begin, tree *end,
    Builds a tree for RANGE.IDENTIFIER().  */
 
 static tree
-cp_range_for_member_function (tree range, tree identifier)
+cp_range_for_member_function (tree range, tree identifier,
+			      tsubst_flags_t complain)
 {
   tree member, res;
 
   member = finish_class_member_access_expr (range, identifier,
-					    false, tf_warning_or_error);
+					    false, complain);
   if (member == error_mark_node)
     return error_mark_node;
 
   releasing_vec vec;
   res = finish_call_expr (member, &vec,
 			  /*disallow_virtual=*/false,
-			  /*koenig_p=*/false,
-			  tf_warning_or_error);
+			  /*koenig_p=*/false, complain);
   return res;
 }
 
@@ -15811,6 +16622,8 @@ cp_parser_expansion_statement (cp_parser* parser, bool *if_p)
   /* A colon is used in expansion-statement.  */
   parser->colon_corrects_to_scope_p = false;
 
+  in_expansion_stmt = true;
+
   /* Parse the declaration.  */
   tree range_decl;
   cp_parser_simple_declaration (parser,
@@ -15819,6 +16632,7 @@ cp_parser_expansion_statement (cp_parser* parser, bool *if_p)
   if (range_decl == NULL_TREE)
     range_decl = error_mark_node;
   parser->colon_corrects_to_scope_p = saved_colon_corrects_to_scope_p;
+  in_expansion_stmt = save_in_expansion_stmt;
 
   cp_parser_require (parser, CPP_COLON, RT_COLON);
 
@@ -15886,6 +16700,20 @@ cp_parser_expansion_statement (cp_parser* parser, bool *if_p)
   TEMPLATE_FOR_DECL (r) = range_decl;
   TEMPLATE_FOR_EXPR (r) = expansion_init;
   TEMPLATE_FOR_BODY (r) = do_pushlevel (sk_block);
+
+  /* We don't know yet if range_decl will be initialized by constant
+     expression or not.  */
+  if (VAR_P (range_decl))
+    {
+      DECL_INITIALIZED_BY_CONSTANT_EXPRESSION_P (range_decl) = 1;
+      if (decl_maybe_constant_var_p (range_decl)
+	  /* FIXME setting TREE_CONSTANT on refs breaks the back end.  */
+	  && !TYPE_REF_P (TREE_TYPE (range_decl)))
+	TREE_CONSTANT (range_decl) = true;
+      /* Make it value dependent.  */
+      retrofit_lang_decl (range_decl);
+      SET_DECL_DEPENDENT_INIT_P (range_decl, 1);
+    }
 
   /* Parse the body of the expansion-statement.  */
   parser->in_statement = IN_EXPANSION_STMT;
@@ -16800,6 +17628,12 @@ cp_parser_declaration (cp_parser* parser, tree prefix_attrs)
       /* `template <' indicates a template declaration.  */
       else if (token2->type == CPP_LESS)
 	cp_parser_template_declaration (parser, /*member_p=*/false);
+      /* We can have
+	   template [: ^^T :]<3>::type t = 4;
+	 where the template binds to the splice-scope-specifier.  */
+      else if (token2->type == CPP_OPEN_SPLICE
+	       && cp_parser_splice_spec_is_nns_p (parser))
+	cp_parser_block_declaration (parser, /*statement_p=*/false);
       /* Anything else must be an explicit instantiation.  */
       else
 	{
@@ -17136,9 +17970,12 @@ cp_parser_simple_declaration (cp_parser* parser,
      omitted only when declaring a class or enumeration, that is when
      the decl-specifier-seq contains either a class-specifier, an
      elaborated-type-specifier, or an enum-specifier.  */
-  cp_parser_decl_specifier_seq (parser,
-				CP_PARSER_FLAGS_OPTIONAL,
-				&decl_specifiers,
+  cp_parser_flags flags = CP_PARSER_FLAGS_OPTIONAL;
+  /* [temp.res.general]/4.4.1: a decl-specifier of the decl-specifier-seq
+     of a simple-declaration in namespace scope is a type-only context.  */
+  if (at_namespace_scope_p ())
+    flags |= CP_PARSER_FLAGS_TYPENAME_OPTIONAL;
+  cp_parser_decl_specifier_seq (parser, flags, &decl_specifiers,
 				&declares_class_or_enum);
   /* We no longer need to defer access checks.  */
   stop_deferring_access_checks ();
@@ -17450,7 +18287,7 @@ cp_parser_decomposition_declaration (cp_parser *parser,
 	if (cp_lexer_next_token_is (parser->lexer, CPP_ELLIPSIS))
 	  {
 	    location_t elloc = cp_lexer_peek_token (parser->lexer)->location;
-	    if (!processing_template_decl)
+	    if (!processing_template_decl && !in_expansion_stmt)
 	      error_at (elloc, "structured binding pack outside of template");
 	    else if (pack != -1)
 	      error_at (elloc,
@@ -17490,6 +18327,8 @@ cp_parser_decomposition_declaration (cp_parser *parser,
 	      attr = NULL_TREE;
 	    if (attr && first_attr == -1)
 	      first_attr = v.length ();
+	    if (lookup_annotation (attr))
+	      error ("annotation on structured binding");
 	  }
 	v.safe_push (e);
 	++cnt;
@@ -17770,12 +18609,7 @@ cp_parser_decl_specifier_seq (cp_parser* parser,
 		   declared.  */;
 	      else
 		{
-		  if (find_contract (attrs))
-		    {
-		      diagnose_misapplied_contracts (attrs);
-		      attrs = NULL_TREE;
-		    }
-		  else if (decl_specs->type
+		  if (decl_specs->type
 			   && decl_specs->type_definition_p
 			   && OVERLOAD_TYPE_P (decl_specs->type))
 		    {
@@ -18568,9 +19402,31 @@ cp_parser_decltype_expr (cp_parser *parser,
          expression.  */
       cp_parser_abort_tentative_parse (parser);
 
-      /* Parse a full expression.  */
-      expr = cp_parser_expression (parser, /*pidk=*/NULL, /*cast_p=*/false,
-				   /*decltype_p=*/true);
+      /* [dcl.type.decltype] "if E is an unparenthesized splice-expression,
+	 decltype(E) is the type of the entity, object, or value designated
+	 by the splice-specifier of E"  */
+      const bool unparenthesized_splice_expr_p = [&] {
+	if (!flag_reflection)
+	  return false;
+	/* Skip to the end of the ':]' and see if the closing ')' follows.  */
+	saved_token_sentinel toks (parser->lexer, STS_ROLLBACK);
+	return (cp_parser_skip_entire_splice_expr (parser)
+		&& cp_lexer_next_token_is (parser->lexer, CPP_CLOSE_PAREN));
+      } ();
+      if (unparenthesized_splice_expr_p)
+	{
+	  cp_id_kind idk;
+	  const bool template_p = cp_parser_optional_template_keyword (parser);
+	  expr = cp_parser_splice_expression (parser, template_p,
+					      /*address_p=*/false,
+					      /*template_arg_p=*/false,
+					      /*member_access_p=*/false, &idk);
+	  id_expression_or_member_access_p = true;
+	}
+      else
+	/* Parse a full expression.  */
+	expr = cp_parser_expression (parser, /*pidk=*/NULL, /*cast_p=*/false,
+				     /*decltype_p=*/true);
     }
 
   return expr;
@@ -19124,14 +19980,17 @@ cp_parser_mem_initializer_id (cp_parser* parser)
   bool template_p = false;
   tree id;
 
-  cp_token *token = cp_lexer_peek_token (parser->lexer);
+  cp_token *typename_token = nullptr, *splice_token = nullptr;
 
-  /* `typename' is not allowed in this context ([temp.res]).  */
+  /* `typename' is not allowed in this context ([temp.res]), unless
+      it is part of splice-type-specifier.  Defer diagnostics for now
+      because it needs to be diagnosed if followed by splice-scope-specifier
+      but not when followed by splice-type-specifier.  */
   if (cp_lexer_next_token_is_keyword (parser->lexer, RID_TYPENAME))
     {
-      error_at (token->location,
-		"keyword %<typename%> not allowed in this context (a qualified "
-		"member initializer is implicitly a type)");
+      typename_token = cp_lexer_peek_token (parser->lexer);
+      if (cp_parser_next_tokens_start_splice_type_spec_p (parser, true))
+	splice_token = cp_lexer_peek_nth_token (parser->lexer, 2);
       cp_lexer_consume_token (parser->lexer);
     }
   /* Look for the optional `::' operator.  */
@@ -19158,6 +20017,12 @@ cp_parser_mem_initializer_id (cp_parser* parser)
 					    /*type_p=*/true,
 					    /*is_declaration=*/true)
        != NULL_TREE);
+  if (typename_token && cp_lexer_peek_token (parser->lexer) != splice_token)
+    /* Emit deferred diagnostics for invalid typename keyword if
+       cp_parser_nested_name_specifier_opt parsed splice-scope-specifier.  */
+    error_at (typename_token->location,
+	      "keyword %<typename%> not allowed in this context (a qualified "
+	      "member initializer is implicitly a type)");
   if (nested_name_specifier_p)
     template_p = cp_parser_optional_template_keyword (parser);
   /* If there is a `::' operator or a nested-name-specifier, then we
@@ -19170,6 +20035,14 @@ cp_parser_mem_initializer_id (cp_parser* parser)
 				 /*check_dependency_p=*/true,
 				 /*class_head_p=*/false,
 				 /*is_declaration=*/true);
+  else if (cp_lexer_next_token_is (parser->lexer, CPP_OPEN_SPLICE))
+    {
+      /* Parse C++26 splice-type-specifier.  */
+      id = cp_parser_splice_type_specifier (parser);
+      if (id == NULL_TREE)
+	return error_mark_node;
+      return id;
+    }
   /* Otherwise, we could also be looking for an ordinary identifier.  */
   cp_parser_parse_tentatively (parser);
   if (cp_lexer_next_token_is_decltype (parser->lexer))
@@ -19774,34 +20647,6 @@ cp_parser_check_constrained_type_parm (cp_parser *parser,
   return true;
 }
 
-/* Finish parsing/processing a template type parameter and checking
-   various restrictions. */
-
-static inline tree
-cp_parser_constrained_type_template_parm (cp_parser *parser,
-                                          tree id,
-                                          cp_parameter_declarator* parmdecl)
-{
-  if (cp_parser_check_constrained_type_parm (parser, parmdecl))
-    return finish_template_type_parm (class_type_node, id);
-  else
-    return error_mark_node;
-}
-
-/* Create a new non-type template parameter from the given PARM
-   declarator.  */
-
-static tree
-cp_parser_constrained_non_type_template_parm (bool *is_non_type,
-					      cp_parameter_declarator *parm)
-{
-  *is_non_type = true;
-  cp_declarator *decl = parm->declarator;
-  cp_decl_specifier_seq *specs = &parm->decl_specifiers;
-  specs->type = TREE_TYPE (DECL_INITIAL (specs->type));
-  return grokdeclarator (decl, specs, TPARM, 0, NULL);
-}
-
 /* Build a constrained template parameter based on the PARMDECL
    declarator. The type of PARMDECL is the constrained type, which
    refers to the prototype template parameter that ultimately
@@ -19812,24 +20657,60 @@ finish_constrained_parameter (cp_parser *parser,
                               cp_parameter_declarator *parmdecl,
                               bool *is_non_type)
 {
-  tree decl = parmdecl->decl_specifiers.type;
+  tree constr = parmdecl->decl_specifiers.type;
   tree id = get_unqualified_id (parmdecl->declarator);
   tree def = parmdecl->default_argument;
-  tree proto = DECL_INITIAL (decl);
 
   /* Build the parameter. Return an error if the declarator was invalid. */
+  bool set_template_parm_constraints_p = true;
   tree parm;
-  if (TREE_CODE (proto) == TYPE_DECL)
-    parm = cp_parser_constrained_type_template_parm (parser, id, parmdecl);
+  if (is_constrained_auto (constr))
+    {
+      /* Constrained non-type parameter.  */
+      *is_non_type = true;
+      if (!parmdecl->declarator
+	  || parmdecl->declarator->kind == cdk_id)
+	/* For a simple constrained auto NTTP, move its constraint from
+	   PLACEHOLDER_TYPE_CONSTRAINTS to TEMPLATE_PARM_CONSTRAINTS to
+	   eventually include them in the template's associated constraints.
+	   finish_shorthand_constraint will convert the constraint to its
+	   final form.  */
+	parmdecl->decl_specifiers.type = (AUTO_IS_DECLTYPE (constr)
+					  ? make_decltype_auto ()
+					  : make_auto ());
+      else
+	/* ??? For constrained auto*, auto& etc it's not clear how to represent
+	   the type-constraint as an associated constraint (we need it in terms
+	   of the pointed-to type).  We keep it in PLACEHOLDER_TYPE_CONSTRAINTS
+	   and effectively treat it like a non-NTTP constrained auto.  */
+	set_template_parm_constraints_p = false;
+      parm = grokdeclarator (parmdecl->declarator,
+			     &parmdecl->decl_specifiers,
+			     TPARM, /*initialized=*/0, /*attrlist=*/NULL);
+    }
   else
-    parm = cp_parser_constrained_non_type_template_parm (is_non_type, parmdecl);
+    {
+      /* Constrained type parameter.  */
+      gcc_checking_assert (CONSTRAINED_PARM_CONCEPT (constr));
+      if (cp_parser_check_constrained_type_parm (parser, parmdecl))
+	parm = finish_template_type_parm (class_type_node, id);
+      else
+	parm = error_mark_node;
+    }
   if (parm == error_mark_node)
     return error_mark_node;
 
   /* Finish the parameter decl and create a node attaching the
      default argument and constraint.  */
   parm = build_tree_list (def, parm);
-  TEMPLATE_PARM_CONSTRAINTS (parm) = decl;
+  if (set_template_parm_constraints_p)
+    {
+      if (*is_non_type)
+	TEMPLATE_PARM_CONSTRAINTS (parm)
+	  = PLACEHOLDER_TYPE_CONSTRAINTS (constr);
+      else
+	TEMPLATE_PARM_CONSTRAINTS (parm) = constr;
+    }
 
   return parm;
 }
@@ -20026,7 +20907,9 @@ cp_parser_template_parameter (cp_parser* parser, bool *is_non_type,
     }
 
   /* The parameter may have been constrained type parameter.  */
-  if (declares_constrained_type_template_parameter (parameter_declarator))
+  tree type = parameter_declarator->decl_specifiers.type;
+  if (declares_constrained_type_template_parameter (parameter_declarator)
+      || (type && is_constrained_auto (type)))
     return finish_constrained_parameter (parser,
                                          parameter_declarator,
                                          is_non_type);
@@ -20242,6 +21125,9 @@ cp_parser_type_parameter (cp_parser* parser, bool *is_parameter_pack)
    of functions, returns a TEMPLATE_ID_EXPR.  If the template-name
    names a class, returns a TYPE_DECL for the specialization.
 
+   PARSED_TEMPL, if non-null, is the already parsed template-name.  This
+   is used when parsing a splice-specialization-specifier.
+
    If CHECK_DEPENDENCY_P is FALSE, names are looked up in
    uninstantiated templates.  */
 
@@ -20250,7 +21136,8 @@ cp_parser_template_id (cp_parser *parser,
 		       bool template_keyword_p,
 		       bool check_dependency_p,
 		       enum tag_types tag_type,
-		       bool is_declaration)
+		       bool is_declaration,
+		       tree parsed_templ/*=NULL_TREE*/)
 {
   tree templ;
   tree arguments;
@@ -20271,28 +21158,32 @@ cp_parser_template_id (cp_parser *parser,
 
   /* Avoid performing name lookup if there is no possibility of
      finding a template-id.  */
-  if ((token->type != CPP_NAME && token->keyword != RID_OPERATOR)
-      || (token->type == CPP_NAME
-	  && !cp_parser_nth_token_starts_template_argument_list_p
-	       (parser, 2)))
+  if (!parsed_templ
+      && ((token->type != CPP_NAME && token->keyword != RID_OPERATOR)
+	  || (token->type == CPP_NAME
+	      && !cp_parser_nth_token_starts_template_argument_list_p
+		   (parser, 2))))
     {
       cp_parser_error (parser, "expected template-id");
       return error_mark_node;
     }
 
   /* Remember where the template-id starts.  */
-  if (cp_parser_uncommitted_to_tentative_parse_p (parser))
+  if (!parsed_templ && cp_parser_uncommitted_to_tentative_parse_p (parser))
     start_of_id = cp_lexer_token_position (parser->lexer, false);
 
   push_deferring_access_checks (dk_deferred);
 
   /* Parse the template-name.  */
   is_identifier = false;
-  templ = cp_parser_template_name (parser, template_keyword_p,
-				   check_dependency_p,
-				   is_declaration,
-				   tag_type,
-				   &is_identifier);
+  if (parsed_templ)
+    templ = parsed_templ;
+  else
+    templ = cp_parser_template_name (parser, template_keyword_p,
+				     check_dependency_p,
+				     is_declaration,
+				     tag_type,
+				     &is_identifier);
 
   /* Push any access checks inside the firewall we're about to create.  */
   vec<deferred_access_check, va_gc> *checks = get_deferred_access_checks ();
@@ -20414,7 +21305,9 @@ cp_parser_template_id (cp_parser *parser,
     = make_location (token->location, token->location, parser->lexer);
 
   /* Build a representation of the specialization.  */
-  if (identifier_p (templ))
+  if (identifier_p (templ)
+      /* We can't do much with [:T:]<arg> at this point.  */
+      || TREE_CODE (templ) == SPLICE_EXPR)
     template_id = build_min_nt_loc (combined_loc,
 				    TEMPLATE_ID_EXPR,
 				    templ, arguments);
@@ -20464,7 +21357,21 @@ cp_parser_template_id (cp_parser *parser,
     {
       /* If it's not a class-template or a template-template, it should be
 	 a function-template.  */
-      gcc_assert (OVL_P (templ) || BASELINK_P (templ));
+      if (OVL_P (templ) || BASELINK_P (templ))
+	/* It is.  */;
+      else if (parsed_templ)
+	{
+	  /* This means there was a splice-specifier.  Maybe the user
+	     used the wrong reflection, so complain.  */
+	  if (TYPE_P (templ))
+	    error_at (token->location, "%qT is not a template", templ);
+	  else
+	    error_at (token->location, "%qE is not a template", templ);
+	  pop_deferring_access_checks ();
+	  return error_mark_node;
+	}
+      else
+	gcc_unreachable ();
 
       template_id = lookup_template_function (templ, arguments);
       if (TREE_CODE (template_id) == TEMPLATE_ID_EXPR)
@@ -21086,6 +21993,7 @@ cp_parser_template_argument (cp_parser* parser)
 		{
 		  linkage_kind linkage = decl_linkage (probe);
 		  if (linkage != lk_external
+		      && linkage != lk_module
 		      && (cxx_dialect < cxx11 || linkage != lk_internal))
 		    cp_parser_simulate_error (parser);
 		}
@@ -21141,9 +22049,27 @@ cp_parser_template_argument (cp_parser* parser)
 	  && cp_lexer_next_token_is (parser->lexer, CPP_OPEN_BRACE))
 	return cp_parser_braced_list (parser);
 
+      /* [temp.names]/6: The constant-expression of a template-argument
+	 shall not be an unparenthesized splice-expression.  */
+      cp_token *next = nullptr;
+      if (flag_reflection)
+	{
+	  saved_token_sentinel toks (parser->lexer, STS_ROLLBACK);
+	  if (cp_parser_skip_entire_splice_expr (parser))
+	    next = cp_lexer_peek_token (parser->lexer);
+	}
+
       /* With C++17 generalized non-type template arguments we need to handle
 	 lvalue constant expressions, too.  */
       argument = cp_parser_assignment_expression (parser);
+      if (UNLIKELY (cp_lexer_peek_token (parser->lexer) == next)
+	  && argument != error_mark_node)
+	{
+	  loc = cp_lexer_peek_token (parser->lexer)->location;
+	  error_at (loc, "unparenthesized splice expression cannot be used "
+		    "as a template argument");
+	  return error_mark_node;
+	}
     }
 
   if (!maybe_type_id)
@@ -21495,6 +22421,13 @@ cp_parser_type_specifier (cp_parser* parser,
 
       /* Fall through.  */
     case RID_TYPENAME:
+      /* If we see 'typename [:', this could be a typename-specifier.
+	 But if there's no '::' after the '[:x:]' then it is
+	 a simple-type-specifier.  */
+      if (keyword == RID_TYPENAME
+	  && cp_parser_nth_token_starts_splice_without_nns_p (parser, 2))
+	break;
+
       /* Look for an elaborated-type-specifier.  */
       type_spec
 	= (cp_parser_elaborated_type_specifier
@@ -21592,6 +22525,15 @@ cp_parser_type_specifier (cp_parser* parser,
    C++17 extension:
 
      nested-name-specifier(opt) template-name
+
+   computed-type-specifier:
+     decltype-specifier
+     pack-index-specifier
+     splice-type-specifier
+
+   splice-type-specifier:
+     typename[opt] splice-specifier
+     typename[opt] splice-specialization-specifier
 
    GNU Extension:
 
@@ -21959,6 +22901,15 @@ cp_parser_simple_type_specifier (cp_parser* parser,
 	  else if (TREE_CODE (type) != TYPE_DECL)
 	    type = NULL_TREE;
 	}
+
+      /* "[: ... :]" is a C++26 splice-type-specifier.  The second argument
+	 decides if we require 'typename' before the splice-type-specifier.
+	 In a type-only context ([temp.res.general]/4) we shouldn't require
+	 it.  */
+      if (!type
+	  && cp_parser_next_tokens_start_splice_type_spec_p (parser,
+							     !typename_p))
+	type = cp_parser_splice_type_specifier (parser);
 
       /* Otherwise, look for a type-name.  */
       if (!type)
@@ -22969,25 +23920,17 @@ cp_parser_enum_specifier (cp_parser* parser)
   pop_deferring_access_checks ();
 
   /* Check for the `:' that denotes a specified underlying type in C++0x.
-     Note that a ':' could also indicate a bitfield width, however.  */
+     [dcl.enum]/1 says that a `:' following an enum-key is parsed as part
+     of an enum-base, so we can expect a type-specifier-seq rather than a
+     bitfield width.  */
   location_t colon_loc = UNKNOWN_LOCATION;
   if (cp_lexer_next_token_is (parser->lexer, CPP_COLON))
     {
       cp_decl_specifier_seq type_specifiers;
 
-      /* Consume the `:'.  */
-      colon_loc = cp_lexer_peek_token (parser->lexer)->location;
-      cp_lexer_consume_token (parser->lexer);
-
       auto tdf
 	= make_temp_override (parser->type_definition_forbidden_message,
 			      G_("types may not be defined in enum-base"));
-
-      /* Parse the type-specifier-seq.  */
-      cp_parser_type_specifier_seq (parser, CP_PARSER_FLAGS_NONE,
-				    /*is_declaration=*/false,
-				    /*is_trailing_return=*/false,
-                                    &type_specifiers);
 
       /* At this point this is surely not elaborated type specifier.  */
       if (!cp_parser_parse_definitely (parser))
@@ -22996,7 +23939,17 @@ cp_parser_enum_specifier (cp_parser* parser)
       if (cxx_dialect < cxx11)
         maybe_warn_cpp0x (CPP0X_SCOPED_ENUMS);
 
+      /* Consume the `:'.  */
+      colon_loc = cp_lexer_peek_token (parser->lexer)->location;
+      cp_lexer_consume_token (parser->lexer);
+
       has_underlying_type = true;
+
+      /* Parse the type-specifier-seq.  */
+      cp_parser_type_specifier_seq (parser, CP_PARSER_FLAGS_NONE,
+				    /*is_declaration=*/false,
+				    /*is_trailing_return=*/false,
+				    &type_specifiers);
 
       /* If that didn't work, stop.  */
       if (type_specifiers.type != error_mark_node)
@@ -23136,6 +24089,7 @@ cp_parser_enum_specifier (cp_parser* parser)
 	{
 	  new_value_list = true;
 	  SET_OPAQUE_ENUM_P (type, false);
+	  ENUM_BEING_DEFINED_P (type) = 1;
 	  DECL_SOURCE_LOCATION (TYPE_NAME (type)) = type_start_token->location;
 	}
       else
@@ -23544,7 +24498,8 @@ cp_parser_namespace_body (cp_parser* parser)
 /* Parse a namespace-alias-definition.
 
    namespace-alias-definition:
-     namespace identifier = qualified-namespace-specifier ;  */
+     namespace identifier = qualified-namespace-specifier
+     namespace identifier = splice-specifier  */
 
 static void
 cp_parser_namespace_alias_definition (cp_parser* parser)
@@ -23573,10 +24528,13 @@ cp_parser_namespace_alias_definition (cp_parser* parser)
       return;
     }
   cp_parser_require (parser, CPP_EQ, RT_EQ);
-  /* Look for the qualified-namespace-specifier.  */
-  namespace_specifier
-    = cp_parser_qualified_namespace_specifier (parser);
-  cp_warn_deprecated_use_scopes (namespace_specifier);
+  if (cp_parser_nth_token_starts_splice_without_nns_p (parser, 1))
+    namespace_specifier = cp_parser_splice_specifier (parser);
+  else
+    /* Look for the qualified-namespace-specifier.  */
+    namespace_specifier = cp_parser_qualified_namespace_specifier (parser);
+  if (!dependent_namespace_p (namespace_specifier))
+    cp_warn_deprecated_use_scopes (namespace_specifier);
   /* Look for the `;' token.  */
   cp_parser_require (parser, CPP_SEMICOLON, RT_SEMICOLON);
 
@@ -24038,8 +24996,9 @@ cp_parser_alias_declaration (cp_parser* parser)
 /* Parse a using-directive.
 
    using-directive:
-     attribute-specifier-seq [opt] using namespace :: [opt]
-       nested-name-specifier [opt] namespace-name ;  */
+     attribute-specifier-seq [opt] using namespace nested-name-specifier [opt]
+       namespace-name ;
+     attribute-specifier-seq [opt] using namespace splice-specifier ;  */
 
 static void
 cp_parser_using_directive (cp_parser* parser)
@@ -24058,16 +25017,21 @@ cp_parser_using_directive (cp_parser* parser)
   cp_parser_require_keyword (parser, RID_USING, RT_USING);
   /* And the `namespace' keyword.  */
   cp_parser_require_keyword (parser, RID_NAMESPACE, RT_NAMESPACE);
-  /* Look for the optional `::' operator.  */
-  cp_parser_global_scope_opt (parser, /*current_scope_valid_p=*/false);
-  /* And the optional nested-name-specifier.  */
-  cp_parser_nested_name_specifier_opt (parser,
-				       /*typename_keyword_p=*/false,
-				       /*check_dependency_p=*/true,
-				       /*type_p=*/false,
-				       /*is_declaration=*/true);
-  /* Get the namespace being used.  */
-  namespace_decl = cp_parser_namespace_name (parser);
+  if (cp_parser_nth_token_starts_splice_without_nns_p (parser, 1))
+    namespace_decl = cp_parser_splice_specifier (parser);
+  else
+    {
+      /* Look for the optional `::' operator.  */
+      cp_parser_global_scope_opt (parser, /*current_scope_valid_p=*/false);
+      /* And the optional nested-name-specifier.  */
+      cp_parser_nested_name_specifier_opt (parser,
+					   /*typename_keyword_p=*/false,
+					   /*check_dependency_p=*/true,
+					   /*type_p=*/false,
+					   /*is_declaration=*/true);
+      /* Get the namespace being used.  */
+      namespace_decl = cp_parser_namespace_name (parser);
+    }
   cp_warn_deprecated_use_scopes (namespace_decl);
   /* And any specified GNU attributes.  */
   if (cp_next_tokens_can_be_gnu_attribute_p (parser))
@@ -25242,6 +26206,7 @@ cp_parser_init_declarator (cp_parser* parser,
     {
       /* If the init-declarator isn't initialized and isn't followed by a
 	 `,' or `;', it's not a valid init-declarator.  */
+
       if (token->type != CPP_COMMA
 	  && token->type != CPP_SEMICOLON)
 	{
@@ -25847,6 +26812,11 @@ cp_parser_direct_declarator (cp_parser* parser,
 		  /* Parse the virt-specifier-seq.  */
 		  virt_specifiers = cp_parser_virt_specifier_seq_opt (parser);
 
+		  tree contract_specifiers = NULL_TREE;
+		  if (flag_contracts)
+		    contract_specifiers
+		      = cp_parser_function_contract_specifier_seq (parser);
+
 		  location_t parens_loc = make_location (parens_start,
 							 parens_start,
 							 parens_end);
@@ -25860,6 +26830,7 @@ cp_parser_direct_declarator (cp_parser* parser,
 						     exception_specification,
 						     late_return,
 						     requires_clause,
+						     contract_specifiers,
 						     attrs,
 						     parens_loc);
 		  declarator->attributes = gnu_attrs;
@@ -26826,12 +27797,21 @@ cp_parser_declarator_id (cp_parser* parser, bool optional_p)
    If IS_TRAILING_RETURN is true, we are in a trailing-return-type,
    i.e. we've just seen "->".
 
+   If TYPE_ALIAS_P is non-null, we set it to true or false depending
+   on if the type-id is a type alias or just a type.  E.g., given
+
+     template<typename> struct S {};
+     template<typename T> using A = const S<T>;
+
+   ^^A<int> is a type alias, but ^^const A<int>, ^^A<int> const, or ^^A<int>*
+   are just types, not type aliases.
+
    Returns the TYPE specified.  */
 
 static tree
 cp_parser_type_id_1 (cp_parser *parser, cp_parser_flags flags,
 		     bool is_template_arg, bool is_trailing_return,
-		     location_t *type_location)
+		     location_t *type_location, bool *type_alias_p)
 {
   cp_decl_specifier_seq type_specifier_seq;
   cp_declarator *abstract_declarator;
@@ -26869,7 +27849,19 @@ cp_parser_type_id_1 (cp_parser *parser, cp_parser_flags flags,
 			    /*static_p=*/false);
   /* Check to see if there really was a declarator.  */
   if (!cp_parser_parse_definitely (parser))
-    abstract_declarator = NULL;
+    abstract_declarator = nullptr;
+
+  /* If we found * or & and similar after the type-specifier, it's not
+     a type alias.  */
+  if (type_alias_p)
+    *type_alias_p = [&] {
+      if (abstract_declarator || !is_typedef_decl (type_specifier_seq.type))
+	return false;
+      for (int i = ds_first; i < ds_last; ++i)
+	if (i != ds_type_spec && type_specifier_seq.locations[i])
+	  return false;
+      return true;
+    } ();
 
   bool auto_typeid_ok = false;
   /* DR 625 prohibits use of auto as a template-argument.  We allow 'auto'
@@ -26933,7 +27925,8 @@ static tree
 cp_parser_type_id (cp_parser *parser, cp_parser_flags flags,
 		   location_t *type_location)
 {
-  return cp_parser_type_id_1 (parser, flags, false, false, type_location);
+  return cp_parser_type_id_1 (parser, flags, false, false, type_location,
+			      nullptr);
 }
 
 /* Wrapper for cp_parser_type_id_1.  */
@@ -26946,7 +27939,7 @@ cp_parser_template_type_arg (cp_parser *parser)
     = G_("types may not be defined in template arguments");
   tree r = cp_parser_type_id_1 (parser, CP_PARSER_FLAGS_NONE,
 				/*is_template_arg=*/true,
-				/*is_trailing_return=*/false, nullptr);
+				/*is_trailing_return=*/false, nullptr, nullptr);
   parser->type_definition_forbidden_message = saved_message;
   /* cp_parser_type_id_1 checks for auto, but only for
      ->auto_is_implicit_function_template_parm_p.  */
@@ -26964,7 +27957,7 @@ static tree
 cp_parser_trailing_type_id (cp_parser *parser)
 {
   return cp_parser_type_id_1 (parser, CP_PARSER_FLAGS_TYPENAME_OPTIONAL,
-			      false, true, NULL);
+			      false, true, nullptr, nullptr);
 }
 
 /* Parse a type-specifier-seq.
@@ -27048,6 +28041,12 @@ cp_parser_type_specifier_seq (cp_parser* parser,
 	    }
 	  continue;
 	}
+
+      /* We might have contract specifiers after a trailing return.  */
+      if (seen_type_specifier
+	  && is_trailing_return
+	  && cp_maybe_function_contract_specifier (parser))
+	break;
 
       /* record the token of the beginning of the type specifier seq,
          for error reporting purposes*/
@@ -29076,13 +30075,13 @@ cp_parser_class_specifier (cp_parser* parser)
 	}
       vec_safe_truncate (unparsed_nsdmis, 0);
 
-      /* Now contract attributes.  */
+      /* Now contract specifiers.  */
       FOR_EACH_VEC_SAFE_ELT (unparsed_contracts, ix, decl)
 	{
 	  tree ctx = DECL_CONTEXT (decl);
 	  switch_to_class (ctx);
 
-	  temp_override<tree> cfd(current_function_decl, decl);
+	  temp_override<tree> cfd (current_function_decl, decl);
 
 	  /* Make sure that any template parameters are in scope.  */
 	  maybe_begin_member_template_processing (decl);
@@ -29099,11 +30098,7 @@ cp_parser_class_specifier (cp_parser* parser)
 	    parser->local_variables_forbidden_p |= THIS_FORBIDDEN;
 
 	  /* Now we can parse contract conditions.  */
-	  for (tree a = DECL_ATTRIBUTES (decl); a; a = TREE_CHAIN (a))
-	    {
-	      if (cxx_contract_attribute_p (a))
-		cp_parser_late_contract_condition (parser, decl, a);
-	    }
+	  cp_parser_late_contracts (parser, decl);
 
 	  /* Restore the state of local_variables_forbidden_p.  */
 	  parser->local_variables_forbidden_p = local_variables_forbidden_p;
@@ -29113,9 +30108,6 @@ cp_parser_class_specifier (cp_parser* parser)
 
 	  /* Remove any template parameters from the symbol table.  */
 	  maybe_end_member_template_processing ();
-
-	  /* Perform any deferred contract matching.  */
-	  match_deferred_contracts (decl);
 	}
       vec_safe_truncate (unparsed_contracts, 0);
 
@@ -29285,8 +30277,6 @@ cp_parser_class_head (cp_parser* parser,
 
   /* Parse the attributes.  */
   attributes = cp_parser_attributes_opt (parser);
-  if (find_contract (attributes))
-    diagnose_misapplied_contracts (attributes);
 
   /* If the next token is `::', that is invalid -- but sometimes
      people do try to write:
@@ -29697,6 +30687,18 @@ cp_parser_class_head (cp_parser* parser,
      after parsing the member list.  */
   if (type && type != error_mark_node)
     start_lambda_scope (TYPE_NAME (type));
+
+  /* Check that it's valid to declare this type here.  */
+  if (modules_p () && type)
+    {
+      if (module_may_redeclare (TYPE_NAME (type)))
+	{
+	  set_instantiating_module (TYPE_NAME (type));
+	  set_defining_module (TYPE_NAME (type));
+	}
+      else
+	type = NULL_TREE;
+    }
 
   /* We will have entered the scope containing the class; the names of
      base classes should be looked up in that context.  For example:
@@ -30874,14 +31876,17 @@ cp_parser_base_clause (cp_parser* parser)
      public
 
    Returns a TREE_LIST.  The TREE_PURPOSE will be one of
-   ACCESS_{DEFAULT,PUBLIC,PROTECTED,PRIVATE}_[VIRTUAL]_NODE to
-   indicate the specifiers provided.  The TREE_VALUE will be a TYPE
+   ACCESS_{DEFAULT,PUBLIC,PROTECTED,PRIVATE}_NODE to
+   indicate the specifiers provided, or if the base specifier
+   has any annotations, a TREE_LIST with TREE_PURPOSE the
+   ACCESS_{DEFAULT,PUBLIC,PROTECTED,PRIVATE}_NODE and
+   TREE_VALUE the list of annotations.  The TREE_VALUE will be a TYPE
    (or the ERROR_MARK_NODE) indicating the type that was specified.  */
 
 static tree
 cp_parser_base_specifier (cp_parser* parser)
 {
-  cp_token *token;
+  cp_token *token, *typename_token = nullptr, *splice_token = nullptr;
   bool done = false;
   bool virtual_p = false;
   bool duplicate_virtual_error_issued_p = false;
@@ -30891,10 +31896,28 @@ cp_parser_base_specifier (cp_parser* parser)
   tree type;
   location_t attrs_loc = cp_lexer_peek_token (parser->lexer)->location;
   tree std_attrs = cp_parser_std_attribute_spec_seq (parser);
+  tree annotations = NULL_TREE;
 
-  if (std_attrs != NULL_TREE && any_nonignored_attribute_p (std_attrs))
-    warning_at (attrs_loc, OPT_Wattributes,
-		"attributes on base specifiers are ignored");
+  if (std_attrs != NULL_TREE && std_attrs != error_mark_node)
+    {
+      tree *pannotations = &annotations;
+      for (tree attr = std_attrs; attr; attr = TREE_CHAIN (attr))
+	{
+	  if (annotation_p (attr))
+	    {
+	      *pannotations = attr;
+	      pannotations = &TREE_CHAIN (attr);
+	    }
+	  else if (!attribute_ignored_p (attr))
+	    {
+	      if (std_attrs)
+		warning_at (attrs_loc, OPT_Wattributes,
+			    "attributes on base specifiers are ignored");
+	      std_attrs = NULL_TREE;
+	    }
+	}
+      *pannotations = NULL_TREE;
+    }
 
   /* Process the optional `virtual' and `access-specifier'.  */
   while (!done)
@@ -30947,17 +31970,14 @@ cp_parser_base_specifier (cp_parser* parser)
     }
   /* It is not uncommon to see programs mechanically, erroneously, use
      the 'typename' keyword to denote (dependent) qualified types
-     as base classes.  */
+     as base classes.  The diagnostic is deferred because if typename is
+     be followed by [:, it depends on whether it is splice-scope-specifier
+     or splice-type-specifier.  */
   if (cp_lexer_next_token_is_keyword (parser->lexer, RID_TYPENAME))
     {
-      token = cp_lexer_peek_token (parser->lexer);
-      if (!processing_template_decl)
-	error_at (token->location,
-		  "keyword %<typename%> not allowed outside of templates");
-      else
-	error_at (token->location,
-		  "keyword %<typename%> not allowed in this context "
-		  "(the base class is implicitly a type)");
+      typename_token = cp_lexer_peek_token (parser->lexer);
+      if (cp_parser_next_tokens_start_splice_type_spec_p (parser, true))
+	splice_token = cp_lexer_peek_nth_token (parser->lexer, 2);
       cp_lexer_consume_token (parser->lexer);
     }
 
@@ -30985,10 +32005,25 @@ cp_parser_base_specifier (cp_parser* parser)
   class_scope_p = (parser->scope && TYPE_P (parser->scope));
   template_p = class_scope_p && cp_parser_optional_template_keyword (parser);
 
+  if (typename_token && cp_lexer_peek_token (parser->lexer) != splice_token)
+    /* Emit deferred diagnostics for invalid typename keyword if
+       cp_parser_nested_name_specifier_opt parsed splice-scope-specifier.  */
+    error_at (typename_token->location,
+	      "keyword %<typename%> not allowed in this context "
+	      "(the base class is implicitly a type)");
+
   if (!parser->scope
       && cp_lexer_next_token_is_decltype (parser->lexer))
     /* DR 950 allows decltype as a base-specifier.  */
     type = cp_parser_decltype (parser);
+  else if (!parser->scope
+	   && cp_lexer_next_token_is (parser->lexer, CPP_OPEN_SPLICE))
+    {
+      /* Parse C++26 splice-type-specifier.  */
+      type = cp_parser_splice_type_specifier (parser);
+      if (type == NULL_TREE)
+	return error_mark_node;
+    }
   else
     {
       /* Otherwise, look for the class-name.  */
@@ -31008,7 +32043,7 @@ cp_parser_base_specifier (cp_parser* parser)
   if (type == error_mark_node)
     return error_mark_node;
 
-  return finish_base_specifier (type, access, virtual_p);
+  return finish_base_specifier (type, access, virtual_p, annotations);
 }
 
 /* Exception handling [gram.exception] */
@@ -31800,9 +32835,9 @@ cp_nth_tokens_can_be_std_attribute_p (cp_parser *parser, size_t n)
   cp_token *token = cp_lexer_peek_nth_token (parser->lexer, n);
 
   return ((token->type == CPP_KEYWORD && token->keyword == RID_ALIGNAS)
-	  || (token->type == CPP_OPEN_SQUARE
-	      && (token = cp_lexer_peek_nth_token (parser->lexer, n + 1))
-	      && token->type == CPP_OPEN_SQUARE));
+	   || (token->type == CPP_OPEN_SQUARE
+		&& (token = cp_lexer_peek_nth_token (parser->lexer, n + 1))
+		&& token->type == CPP_OPEN_SQUARE));
 }
 
 /* Return TRUE iff the next Nth tokens in the stream are possibly the
@@ -32392,6 +33427,21 @@ cp_parser_check_std_attribute (location_t loc, tree attributes, tree attribute)
   return true;
 }
 
+/* Parse a C++-26 annotation.
+
+  annotation:
+    = constant-expression  */
+
+static tree
+cp_parser_annotation (cp_parser *parser)
+{
+  cp_parser_require (parser, CPP_EQ, RT_EQ);
+  auto suppression = make_temp_override (suppress_location_wrappers, 0);
+  return cp_parser_constant_expression (parser, /*allow_non_constant_p=*/false,
+					/*non_constant_p=*/nullptr,
+					/*strict_p=*/true);
+}
+
 /* Parse a list of standard C++-11 attributes.
 
    attribute-list:
@@ -32409,7 +33459,22 @@ cp_parser_std_attribute_list (cp_parser *parser, tree attr_ns)
 
   while (true)
     {
-      location_t loc = cp_lexer_peek_token (parser->lexer)->location;
+      token = cp_lexer_peek_token (parser->lexer);
+      location_t loc = token->location;
+      if (token->type == CPP_EQ)
+	{
+	  error_at (loc, "mixing annotations and attributes in the same list");
+	  tree annotation = cp_parser_annotation (parser);
+	  if (annotation == error_mark_node)
+	    break;
+	  if (cp_lexer_next_token_is (parser->lexer, CPP_ELLIPSIS))
+	    cp_lexer_consume_token (parser->lexer);
+	  token = cp_lexer_peek_token (parser->lexer);
+	  if (token->type != CPP_COMMA)
+	    break;
+	  cp_lexer_consume_token (parser->lexer);
+	  continue;
+	}
       attribute = cp_parser_std_attribute (parser, attr_ns);
       if (attribute == error_mark_node)
 	break;
@@ -32451,323 +33516,101 @@ cp_parser_std_attribute_list (cp_parser *parser, tree attr_ns)
   return attributes;
 }
 
-/* Optionally parse a C++20 contract role. A NULL return means that no
-   contract role was specified.
+/* Parse a C++-26 annotation list.
 
-    contract-role:
-      % default
-      % identifier
+   annotation-list:
+     annotation ... [opt]
+     annotation-list , annotation ... [opt]
 
-   If the identifier does not name a known contract role, it will
-   be assumed to be default. Returns the identifier for the role
-   token.  */
+   annotation:
+     = constant-expression  */
 
 static tree
-cp_parser_contract_role (cp_parser *parser)
+cp_parser_annotation_list (cp_parser *parser)
 {
-  gcc_assert (cp_lexer_next_token_is (parser->lexer, CPP_MOD));
-  cp_lexer_consume_token (parser->lexer);
+  tree attributes = NULL_TREE;
 
-  cp_token *token = cp_lexer_peek_token (parser->lexer);
-  tree role_id = NULL_TREE;
-  if (token->type == CPP_NAME)
-    role_id = token->u.value;
-  else if (token->type == CPP_KEYWORD && token->keyword == RID_DEFAULT)
-    role_id = get_identifier ("default");
-  else
+  while (true)
     {
-      error_at (token->location, "expected contract-role");
-      return error_mark_node;
-    }
-  cp_lexer_consume_token (parser->lexer);
-
-  /* FIXME: Warn about invalid/unknown roles?  */
-  return role_id;
-}
-
-/* Parse an optional contract mode.
-
-     contract-mode:
-	contract-semantic
-	[contract-level] [contract-role]
-
-     contract-semantic:
-       check_never_continue
-       check_maybe_continue
-       check_always_continue
-
-     contract-level:
-       default
-       audit
-       axiom
-
-     contract-role:
-       default
-       identifier
-
-   This grammar is taken from P1332R0. During parsing, this sets options
-   on the MODE object to determine the configuration of the contract.
-
-   Returns a tree containing the identifiers used in the configuration.
-   This is either an IDENTIFIER with the literal semantic or a TREE_LIST
-   whose TREE_VALUE is the contract-level and whose TREE_PURPOSE is the
-   contract-role, if any. NULL_TREE is returned if no information is
-   given (i.e., all defaults selected).  */
-
-static tree
-cp_parser_contract_mode_opt (cp_parser *parser,
-			     bool postcondition_p)
-{
-  /* The mode is empty; the level and role are default.  */
-  if (cp_lexer_next_token_is (parser->lexer, CPP_COLON))
-    return NULL_TREE;
-
-  /* There is only a role; the level is default.  */
-  if (cp_lexer_next_token_is (parser->lexer, CPP_MOD))
-    {
-      tree role_id = cp_parser_contract_role (parser);
-      return build_tree_list (role_id, get_identifier ("default"));
-    }
-
-  /* Otherwise, match semantic or level.  */
-  cp_token *token = cp_lexer_peek_token (parser->lexer);
-  contract_level level = CONTRACT_INVALID;
-  contract_semantic semantic = CCS_INVALID;
-  tree config_id;
-  if (token->type == CPP_NAME)
-    {
-      config_id = token->u.value;
-
-      /* Either a named level, a concrete semantic, or an identifier
-	 for a postcondition.  */
-      const char *ident = IDENTIFIER_POINTER (token->u.value);
-      level = map_contract_level (ident);
-      semantic = map_contract_semantic (ident);
-
-      /* The identifier is the return value for a postcondition.  */
-      if (level == CONTRACT_INVALID && semantic == CCS_INVALID
-	  && postcondition_p)
-	return NULL_TREE;
-    }
-  else if (token->type == CPP_KEYWORD && token->keyword == RID_DEFAULT)
-    {
-      config_id = get_identifier ("default");
-      level = CONTRACT_DEFAULT;
-    }
-  else
-    {
-      /* We got some other token other than a ':'.  */
-      error_at (token->location, "expected contract semantic or level");
-      return NULL_TREE;
-    }
-
-  /* Consume the literal semantic or level token.  */
-  cp_lexer_consume_token (parser->lexer);
-
-  if (semantic == CCS_INVALID && level == CONTRACT_INVALID)
-    {
-      error_at (token->location,
-		"expected contract level: "
-		"%<default%>, %<audit%>, or %<axiom%>");
-      return NULL_TREE;
-    }
-
-  /* We matched an explicit semantic. */
-  if (semantic != CCS_INVALID)
-    {
-      if (cp_lexer_next_token_is (parser->lexer, CPP_MOD))
+      cp_token *token = cp_lexer_peek_token (parser->lexer);
+      location_t loc = token->location;
+      if (cp_lexer_next_token_is (parser->lexer, CPP_EQ))
 	{
-	  error ("invalid use of contract role for explicit semantic");
-	  cp_lexer_consume_token (parser->lexer);
-	  cp_lexer_consume_token (parser->lexer);
+	  tree annotation = cp_parser_annotation (parser);
+	  if (annotation == error_mark_node)
+	    break;
+	  annotation = build_tree_list (NULL_TREE, annotation);
+	  if (cp_lexer_next_token_is (parser->lexer, CPP_ELLIPSIS))
+	    {
+	      cp_lexer_consume_token (parser->lexer);
+	      annotation = make_pack_expansion (annotation);
+	      if (annotation == error_mark_node)
+		break;
+	    }
+	  attributes = tree_cons (build_tree_list (internal_identifier,
+						   annotation_identifier),
+				  annotation, attributes);
 	}
-      return config_id;
-    }
-
-  /* We matched a level, there may be a role; otherwise this is default.  */
-  if (cp_lexer_next_token_is (parser->lexer, CPP_MOD))
-    {
-      tree role_id = cp_parser_contract_role (parser);
-      return build_tree_list (role_id, config_id);
-    }
-
-  return build_tree_list (NULL_TREE, config_id);
-}
-
-static tree
-find_error (tree *tp, int *, void *)
-{
-  if (*tp == error_mark_node)
-    return *tp;
-  return NULL_TREE;
-}
-
-static bool
-contains_error_p (tree t)
-{
-  return walk_tree (&t, find_error, NULL, NULL);
-}
-
-/* Parse a standard C++20 contract attribute specifier.
-
-  contract-attribute-specifier:
-    [ [ assert contract-level [opt] : conditional-expression ] ]
-    [ [ pre contract-level [opt] : conditional-expression ] ]
-    [ [ post contract-level [opt] identifier [opt] : conditional-expression ] ]
-
-   For free functions, we cannot determine the type of the postcondition
-   identifier because the we haven't called grokdeclarator yet. In those
-   cases we parse the postcondition as if the identifier was declared as
-   'auto <identifier>'. We then instantiate the postcondition once the
-   return type is known.
-
-   For member functions, contracts are in the complete-class context, so the
-   parse is deferred. We also have the return type avaialable (unless it's
-   deduced), so we don't need to parse the postcondition in terms of a
-   placeholder.  */
-
-static tree
-cp_parser_contract_attribute_spec (cp_parser *parser, tree attribute)
-{
-  gcc_assert (contract_attribute_p (attribute));
-  cp_token *token = cp_lexer_consume_token (parser->lexer);
-  location_t loc = token->location;
-
-  bool assertion_p = is_attribute_p ("assert", attribute);
-  bool postcondition_p = is_attribute_p ("post", attribute);
-
-  /* Parse the optional mode.  */
-  tree mode = cp_parser_contract_mode_opt (parser, postcondition_p);
-
-  /* Check for postcondition identifiers.  */
-  cp_expr identifier;
-  if (postcondition_p && cp_lexer_next_token_is (parser->lexer, CPP_NAME))
-    identifier = cp_parser_identifier (parser);
-  if (identifier == error_mark_node)
-    return error_mark_node;
-
-  cp_parser_require (parser, CPP_COLON, RT_COLON);
-
-  /* Defer the parsing of pre/post contracts inside class definitions.  */
-  tree contract;
-  if (!assertion_p &&
-      current_class_type &&
-      TYPE_BEING_DEFINED (current_class_type))
-    {
-      /* Skip until we reach an unenclose ']'. If we ran into an unnested ']'
-	 that doesn't close the attribute, return an error and let the attribute
-	 handling code emit an error for missing ']]'.  */
-      cp_token *first = cp_lexer_peek_token (parser->lexer);
-      cp_parser_skip_to_closing_parenthesis_1 (parser,
-					       /*recovering=*/false,
-					       CPP_CLOSE_SQUARE,
-					       /*consume_paren=*/false);
-      if (cp_lexer_peek_token (parser->lexer)->type != CPP_CLOSE_SQUARE
-	  || cp_lexer_peek_nth_token (parser->lexer, 2)->type != CPP_CLOSE_SQUARE)
-	return error_mark_node;
-      cp_token *last = cp_lexer_peek_token (parser->lexer);
-
-      /* Build a deferred-parse node.  */
-      tree condition = make_node (DEFERRED_PARSE);
-      DEFPARSE_TOKENS (condition) = cp_token_cache_new (first, last);
-      DEFPARSE_INSTANTIATIONS (condition) = NULL;
-
-      /* And its corresponding contract.  */
-      contract = grok_contract (attribute, mode, identifier, condition, loc);
-    }
-  else
-    {
-      /* Enable location wrappers when parsing contracts.  */
-      auto suppression = make_temp_override (suppress_location_wrappers, 0);
-
-      /* Build a fake variable for the result identifier.  */
-      tree result = NULL_TREE;
-      if (identifier)
+      else if (token->type == CPP_NAME
+	       || token->type == CPP_KEYWORD
+	       || (token->flags & NAMED_OP))
 	{
-	  begin_scope (sk_block, NULL_TREE);
-	  result = make_postcondition_variable (identifier);
-	  ++processing_template_decl;
+	  error_at (loc, "mixing annotations and attributes in the same list");
+	  if (cp_parser_std_attribute (parser, NULL_TREE) == error_mark_node)
+	    break;
+	  if (cp_lexer_next_token_is (parser->lexer, CPP_ELLIPSIS))
+	    cp_lexer_consume_token (parser->lexer);
 	}
-
-      /* Parse the condition, ensuring that parameters or the return variable
-	 aren't flagged for use outside the body of a function.  */
-      ++processing_contract_condition;
-      cp_expr condition = cp_parser_conditional_expression (parser);
-      --processing_contract_condition;
-
-      /* Try to recover from errors by scanning up to the end of the
-	 attribute.  Sometimes we get partially parsed expressions, so
-	 we need to search the condition for errors.  */
-      if (contains_error_p (condition))
-	cp_parser_skip_up_to_closing_square_bracket (parser);
-
-      /* Build the contract.  */
-      contract = grok_contract (attribute, mode, result, condition, loc);
-
-      /* Leave our temporary scope for the postcondition result.  */
-      if (result)
+      else
 	{
-	  --processing_template_decl;
-	  pop_bindings_and_leave_scope ();
+	  cp_parser_require (parser, CPP_EQ, RT_EQ);
+	  break;
 	}
+      token = cp_lexer_peek_token (parser->lexer);
+      if (token->type != CPP_COMMA)
+	break;
+      cp_lexer_consume_token (parser->lexer);
     }
-
-  if (!flag_contracts)
-    {
-      error_at (loc, "contracts are only available with %<-fcontracts%>");
-      return error_mark_node;
-    }
-
-  return finish_contract_attribute (attribute, contract);
+  attributes = nreverse (attributes);
+  return attributes;
 }
 
 /* Parse a contract condition for a deferred contract.  */
 
-void cp_parser_late_contract_condition (cp_parser *parser,
-					tree fn,
-					tree attribute)
+void
+cp_parser_late_contract_condition (cp_parser *parser, tree fn, tree contract)
 {
-  tree contract = TREE_VALUE (TREE_VALUE (attribute));
-
-  /* Make sure we've gotten something that hasn't been parsed yet or that
-     we're not parsing an invalid contract.  */
   tree condition = CONTRACT_CONDITION (contract);
-  if (TREE_CODE (condition) != DEFERRED_PARSE)
-    return;
-
-  tree identifier = NULL_TREE;
+  tree r_ident = NULL_TREE;
   if (TREE_CODE (contract) == POSTCONDITION_STMT)
-    identifier = POSTCONDITION_IDENTIFIER (contract);
+    r_ident = POSTCONDITION_IDENTIFIER (contract);
 
-  /* Build a fake variable for the result identifier.  */
-  tree result = NULL_TREE;
-  if (identifier)
+  tree type = TREE_TYPE (TREE_TYPE (fn));
+  location_t r_loc = UNKNOWN_LOCATION;
+  if (r_ident)
     {
-      /* TODO: Can we guarantee that the identifier has a location? */
-      location_t loc = cp_expr_location (contract);
-      tree type = TREE_TYPE (TREE_TYPE (fn));
-      if (!check_postcondition_result (fn, type, loc))
+      r_loc = EXPR_LOCATION (r_ident);
+      r_ident = tree_strip_any_location_wrapper (r_ident);
+      if (r_loc == UNKNOWN_LOCATION)
+	r_loc = cp_expr_location (contract);
+      if (!check_postcondition_result (fn, type, r_loc))
 	{
 	  invalidate_contract (contract);
 	  return;
 	}
-
-      begin_scope (sk_block, NULL_TREE);
-      result = make_postcondition_variable (identifier, type);
-      ++processing_template_decl;
     }
 
-  /* 'this' is not allowed in preconditions of constructors or in postconditions
-     of destructors.  Note that the previous value of this variable is
-     established by the calling function, so we need to save it here.  */
-  tree saved_ccr = current_class_ref;
-  tree saved_ccp = current_class_ptr;
-  if ((DECL_CONSTRUCTOR_P (fn) && PRECONDITION_P (contract)) ||
-       (DECL_DESTRUCTOR_P (fn) && POSTCONDITION_P (contract)))
-    {
-      current_class_ref = current_class_ptr = NULL_TREE;
-      parser->local_variables_forbidden_p |= THIS_FORBIDDEN;
-    }
+  /* Contracts allow access to members only through explicit use of 'this'
+     pointer. */
+   tree saved_ccr = current_class_ref;
+   tree saved_ccp = current_class_ptr;
+   tree saved_contract_ccp = contract_class_ptr;
+
+   if ((DECL_CONSTRUCTOR_P (fn) && PRECONDITION_P (contract))
+       || (DECL_DESTRUCTOR_P (fn) && POSTCONDITION_P (contract)))
+    contract_class_ptr = current_class_ptr;
+  else
+    contract_class_ptr = NULL_TREE;
 
   push_unparsed_function_queues (parser);
 
@@ -32775,11 +33618,40 @@ void cp_parser_late_contract_condition (cp_parser *parser,
   cp_token_cache *tokens = DEFPARSE_TOKENS (condition);
   cp_parser_push_lexer_for_tokens (parser, tokens);
 
+  /* If we have a current class object, we need to consider
+     it const when processing the contract condition.  */
+  current_class_ref = view_as_const (current_class_ref);
+
   /* Parse the condition, ensuring that parameters or the return variable
      aren't flagged for use outside the body of a function.  */
-  ++processing_contract_condition;
-  condition = cp_parser_conditional_expression (parser);
-  --processing_contract_condition;
+  begin_scope (sk_contract, fn);
+  bool old_pc = processing_postcondition;
+  processing_postcondition = POSTCONDITION_P (contract);
+  /* Build a fake variable for the result identifier.  */
+  tree result = NULL_TREE;
+  if (r_ident)
+    {
+      cp_expr result_id (r_ident, r_loc);
+      result = make_postcondition_variable (result_id, type);
+      ++processing_template_decl;
+    }
+  cp_expr parsed_condition = cp_parser_conditional_expression (parser);
+  /* Commit to changes.  */
+  update_late_contract (contract, result, parsed_condition);
+  if (r_ident)
+    --processing_template_decl;
+
+  /* Rebuild the postcondition since we didn't do it in grokfndecl. */
+  rebuild_postconditions (fn);
+
+  /* Leave our temporary scope for the postcondition result.  */
+  processing_postcondition = old_pc;
+  gcc_checking_assert (scope_chain && scope_chain->bindings
+		       && scope_chain->bindings->kind == sk_contract);
+  pop_bindings_and_leave_scope ();
+
+  if (cp_lexer_next_token_is_not (parser->lexer, CPP_EOF))
+    error_at (input_location, "expected conditional-expression");
 
   /* Revert to the main lexer.  */
   cp_parser_pop_lexer (parser);
@@ -32789,23 +33661,327 @@ void cp_parser_late_contract_condition (cp_parser *parser,
 
   current_class_ref = saved_ccr;
   current_class_ptr = saved_ccp;
+  contract_class_ptr = saved_contract_ccp;
+}
 
-  /* Commit to changes.  */
-  update_late_contract (contract, result, condition);
+/* Parse deferred contracts of FNDECL.  */
 
-  /* Leave our temporary scope for the postcondition result.  */
-  if (result)
+void
+cp_parser_late_contracts (cp_parser *parser, tree fndecl)
+{
+
+  tree new_contracts = NULL_TREE;
+  tree old_contracts = get_fn_contract_specifiers (fndecl);
+
+  if (old_contracts == NULL_TREE || !contract_any_deferred_p (old_contracts))
+    return;
+
+  for (; old_contracts; old_contracts = TREE_CHAIN (old_contracts))
     {
-      --processing_template_decl;
-      pop_bindings_and_leave_scope ();
+      tree contract = TREE_VALUE (TREE_VALUE (old_contracts));
+
+      tree condition = CONTRACT_CONDITION (contract);
+      /* All contracts should be deferred if one of them is deferred */
+      gcc_checking_assert (TREE_CODE (condition) == DEFERRED_PARSE);
+
+      cp_parser_late_contract_condition (parser, fndecl, contract);
+      tree list = tree_cons (TREE_PURPOSE (old_contracts),
+			     TREE_VALUE (old_contracts), NULL_TREE);
+      new_contracts = chainon (new_contracts, list);
     }
+
+  update_fn_contract_specifiers (fndecl, new_contracts);
+}
+
+static tree
+cp_parser_contract_assert (cp_parser *parser, cp_token *token)
+{
+  if (!flag_contracts)
+    {
+      error_at (token->location, "%qs is only available with %qs",
+		"contract_assert", "-fcontracts");
+      cp_parser_skip_to_end_of_statement (parser);
+      return error_mark_node;
+    }
+
+  tree cont_assert = token->u.value;
+
+  token = cp_lexer_consume_token (parser->lexer);
+  location_t loc = token->location;
+
+  location_t attrs_loc = cp_lexer_peek_token (parser->lexer)->location;
+  tree std_attrs = cp_parser_std_attribute_spec_seq (parser);
+  if (std_attrs)
+    {
+      attrs_loc = make_location (attrs_loc, attrs_loc, input_location);
+      warning_at (attrs_loc, OPT_Wattributes, "attributes are ignored on %qs",
+		  "contract_assert");
+      std_attrs = NULL_TREE;
+    }
+
+  matching_parens parens;
+  parens.require_open (parser);
+  /* Enable location wrappers when parsing contracts.  */
+  auto suppression = make_temp_override (suppress_location_wrappers, 0);
+
+  /* If we have a current class object, see if we need to consider
+     it const when processing the contract condition.  */
+  tree current_class_ref_copy = current_class_ref;
+  current_class_ref = view_as_const (current_class_ref);
+
+  /* Parse the condition.  */
+  begin_scope (sk_contract, current_function_decl);
+  bool old_pc = processing_postcondition;
+  processing_postcondition = false;
+  cp_expr condition = cp_parser_conditional_expression (parser);
+  gcc_checking_assert (scope_chain && scope_chain->bindings
+		       && scope_chain->bindings->kind == sk_contract);
+  /* Build the contract.  */
+  tree contract = grok_contract (cont_assert, /*mode*/NULL_TREE,
+			    /*result*/NULL_TREE, condition, loc);
+  processing_postcondition = old_pc;
+  pop_bindings_and_leave_scope ();
+
+  /* Revert (any) constification of the current class object.  */
+  current_class_ref = current_class_ref_copy;
+
+  parens.require_close (parser);
+
+  if (!contract || contract == error_mark_node)
+    {
+      cp_parser_skip_to_end_of_statement (parser);
+      return error_mark_node;
+    }
+
+  if (!cp_parser_require (parser, CPP_SEMICOLON, RT_SEMICOLON))
+    return error_mark_node;
+
+  add_stmt (contract);
+  return contract;
+}
+
+/* Can the next tokens introduce a function contract specifier.  */
+
+static tree
+cp_function_contract_specifier_intro (cp_parser *parser)
+{
+  cp_token *token = cp_lexer_peek_token (parser->lexer);
+
+  /* Look for the contextual keywords 'pre' and 'post' as an introducer.  */
+  if (token->type != CPP_NAME)
+    return NULL_TREE;
+
+  tree contract_name = token->u.value;
+
+  if (!id_equal (contract_name, "pre") && !id_equal (contract_name, "post"))
+    /* If we don't have a valid contract start, we are done.  */
+    return NULL_TREE;
+  return contract_name;
+}
+
+/* Look ahead to see if this might introduce a function contract specifier.
+   If not return NULL_TREE, if successful return the name (pre or post).  */
+
+static tree
+cp_maybe_function_contract_specifier (cp_parser *parser)
+{
+  tree contract_name = cp_function_contract_specifier_intro (parser);
+  if (!contract_name)
+    return NULL_TREE;
+
+  size_t n = 2;
+  if (cp_nth_tokens_can_be_std_attribute_p (parser, n))
+    n = cp_parser_skip_std_attribute_spec_seq (parser, n);
+  if (cp_lexer_nth_token_is (parser->lexer, n, CPP_OPEN_PAREN))
+    return contract_name;
+  return NULL_TREE;
+}
+
+/* Parse a contract specifier.
+
+  function-contract-specifier :
+    precondition-specifier
+    postcondition-specifier
+  precondition-specifier :
+    pre attribute-specifier-seqopt ( conditional-expression )
+  postcondition-specifier :
+    post attribute-specifier-seqopt ( result-name-introduceropt conditional-expression )
+  result-name-introducer :
+    attributed-identifier :
+
+   Return void_list_node if the current token doesn't start a
+   contract specifier.  */
+
+static tree
+cp_parser_function_contract_specifier (cp_parser *parser)
+{
+  tree contract_name = cp_function_contract_specifier_intro (parser);
+  if (!contract_name)
+    return NULL_TREE;
+
+  cp_token *token = cp_lexer_peek_token (parser->lexer);
+  cp_lexer_consume_token (parser->lexer);
+  location_t loc = token->location;
+  bool postcondition_p = id_equal (contract_name, "post");
+
+  location_t attrs_loc = cp_lexer_peek_token (parser->lexer)->location;
+  tree std_attrs = cp_parser_std_attribute_spec_seq (parser);
+  if (std_attrs)
+    {
+      attrs_loc = make_location (attrs_loc, attrs_loc, input_location);
+      warning_at (attrs_loc, OPT_Wattributes, "attributes are ignored on"
+		  " function contract specifiers");
+      std_attrs = NULL_TREE;
+    }
+
+  matching_parens parens;
+  parens.require_open (parser);
+
+  /* Check for postcondition identifiers.  */
+  cp_expr identifier;
+  if (postcondition_p && cp_lexer_next_token_is (parser->lexer, CPP_NAME)
+      && cp_lexer_peek_nth_token (parser->lexer, 2)->type == CPP_COLON)
+    identifier = cp_parser_identifier (parser);
+
+  if (identifier == error_mark_node)
+    {
+      cp_parser_skip_to_closing_parenthesis (parser,
+					     /*recovering=*/true,
+					     /*or_comma=*/false,
+					     /*consume_paren=*/true);
+      return error_mark_node;
+    }
+
+  if (identifier)
+    cp_parser_require (parser, CPP_COLON, RT_COLON);
+
+  tree contract;
+  if (current_class_type && TYPE_BEING_DEFINED (current_class_type))
+    {
+      /* Defer the parsing of pre/post contracts inside class definitions.  */
+      cp_token *first = cp_lexer_peek_token (parser->lexer);
+
+      /* Skip until we reach a closing token ).  */
+      cp_parser_skip_to_closing_parenthesis (parser,
+					     /*recovering=*/false,
+					     /*or_comma=*/false,
+					     /*consume_paren=*/false);
+
+      cp_token *last = cp_lexer_peek_token (parser->lexer);
+      location_t end = last->location;
+      loc = make_location (loc, loc, end);
+
+      parens.require_close (parser);
+
+      /* Build a deferred-parse node.  */
+      tree condition = make_node (DEFERRED_PARSE);
+      DEFPARSE_TOKENS (condition) = cp_token_cache_new (first, last);
+      DEFPARSE_INSTANTIATIONS (condition) = NULL;
+
+      /* And its corresponding contract.  */
+      if (identifier)
+	identifier.maybe_add_location_wrapper ();
+      contract = grok_contract (contract_name, /*mode*/NULL_TREE, identifier,
+				condition, loc);
+    }
+  else
+    {
+      /* Enable location wrappers when parsing contracts.  */
+      auto suppression = make_temp_override (suppress_location_wrappers, 0);
+
+      /* If we have a current class object, see if we need to consider
+       it const when processing the contract condition.  */
+      tree current_class_ref_copy = current_class_ref;
+      current_class_ref = view_as_const (current_class_ref);
+
+      /* Parse the condition, ensuring that parameters or the return variable
+       aren't flagged for use outside the body of a function.  */
+      begin_scope (sk_contract, current_function_decl);
+      bool old_pc = processing_postcondition;
+      processing_postcondition = postcondition_p;
+      tree result = NULL_TREE;
+      if (identifier)
+	{
+	  /* Build a fake variable for the result identifier.  */
+	  result = make_postcondition_variable (identifier);
+	  ++processing_template_decl;
+	}
+      cp_expr condition = cp_parser_conditional_expression (parser);
+      /* Build the contract.  */
+      contract = grok_contract (contract_name, /*mode*/NULL_TREE, result,
+				condition, loc);
+      if (identifier)
+	--processing_template_decl;
+      processing_postcondition = old_pc;
+      gcc_checking_assert (scope_chain && scope_chain->bindings
+			   && scope_chain->bindings->kind == sk_contract);
+      pop_bindings_and_leave_scope ();
+
+      /* Revert (any) constification of the current class object.  */
+      current_class_ref = current_class_ref_copy;
+
+      if (contract != error_mark_node)
+	{
+	  location_t end = cp_lexer_peek_token (parser->lexer)->location;
+	  loc = make_location (loc, loc, end);
+	  SET_EXPR_LOCATION (contract, loc);
+	}
+
+      parens.require_close (parser);
+    }
+
+  if (!flag_contracts)
+    {
+      error_at (loc, "contracts are only available with %qs", "-fcontracts");
+      return error_mark_node;
+    }
+
+  return contract;
+}
+
+/* Parse a contract specifier seq. Returns a list of preconditions and
+  postconditions in an attribute tree.
+
+  function-contract-specifier-seq :
+    function-contract-specifier function-contract-specifier-seq.  */
+
+static tree
+cp_parser_function_contract_specifier_seq (cp_parser *parser)
+{
+  tree contract_specs = NULL_TREE;
+
+  while (true)
+    {
+      tree contract_spec = cp_parser_function_contract_specifier (parser);
+
+      /* If there are no more contracts, done.  */
+      if (contract_spec == NULL_TREE)
+	break;
+
+      /* Ignore any erroneous contracts and attempt to continue parsing.  */
+      if (contract_spec == error_mark_node)
+	continue;
+
+      /* For now, turn this into an attribute.  */
+      tree contract_name = TREE_CODE (contract_spec) == PRECONDITION_STMT
+			   ? get_identifier ("pre")
+			   : get_identifier ("post");
+      contract_spec = finish_contract_specifier (contract_name, contract_spec);
+      /* Arrange to build the list in the correct order.  */
+      if (contract_specs)
+	contract_specs = attr_chainon (contract_specs, contract_spec);
+      else
+	contract_specs = contract_spec;
+    }
+
+    return contract_specs;
 }
 
 /* Parse a standard C++-11 attribute specifier.
 
    attribute-specifier:
      [ [ attribute-using-prefix [opt] attribute-list ] ]
-     contract-attribute-specifier
+     [ [ annotation-list ]]
      alignment-specifier
 
    attribute-using-prefix:
@@ -32814,14 +33990,6 @@ void cp_parser_late_contract_condition (cp_parser *parser,
    alignment-specifier:
      alignas ( type-id ... [opt] )
      alignas ( alignment-expression ... [opt] ).
-
-   Extensions for contracts:
-
-   contract-attribute-specifier:
-     [ [ assert :  contract-mode [opt] : conditional-expression ] ]
-     [ [ pre :  contract-mode [opt] : conditional-expression ] ]
-     [ [ post :  contract-mode [opt] identifier [opt] :
-	 conditional-expression ] ]
 
    Return void_list_node if the current token doesn't start an
    attribute-specifier to differentiate from NULL_TREE returned e.g.
@@ -32843,19 +34011,24 @@ cp_parser_std_attribute_spec (cp_parser *parser)
       cp_lexer_consume_token (parser->lexer);
 
       token = cp_lexer_peek_token (parser->lexer);
+      if (token->type == CPP_EQ)
+	{
+	  if (cxx_dialect < cxx26)
+	    pedwarn (token->location, OPT_Wc__26_extensions,
+		     "annotations only available with %<-std=c++2c%> "
+		     "or %<-std=gnu++2c%>");
+	  attributes = cp_parser_annotation_list (parser);
+	  if (!cp_parser_require (parser, CPP_CLOSE_SQUARE, RT_CLOSE_SQUARE)
+	      || !cp_parser_require (parser, CPP_CLOSE_SQUARE,
+				     RT_CLOSE_SQUARE))
+	    cp_parser_skip_to_end_of_statement (parser);
+	  return attributes;
+	}
+
       if (token->type == CPP_NAME)
 	{
 	  attr_name = token->u.value;
 	  attr_name = canonicalize_attr_name (attr_name);
-	}
-
-      /* Handle contract-attribute-specs specially.  */
-      if (attr_name && contract_attribute_p (attr_name))
-	{
-	  tree attrs = cp_parser_contract_attribute_spec (parser, attr_name);
-	  if (attrs != error_mark_node)
-	    attributes = attrs;
-	  goto finish_attrs;
 	}
 
       if (cp_lexer_next_token_is_keyword (parser->lexer, RID_USING))
@@ -32886,7 +34059,6 @@ cp_parser_std_attribute_spec (cp_parser *parser)
 
       attributes = cp_parser_std_attribute_list (parser, attr_ns);
 
-      finish_attrs:
       if (!cp_parser_require (parser, CPP_CLOSE_SQUARE, RT_CLOSE_SQUARE)
 	  || !cp_parser_require (parser, CPP_CLOSE_SQUARE, RT_CLOSE_SQUARE))
 	cp_parser_skip_to_end_of_statement (parser);
@@ -33004,7 +34176,7 @@ static size_t
 cp_parser_skip_balanced_tokens (cp_parser *parser, size_t n)
 {
   size_t orig_n = n;
-  int nparens = 0, nbraces = 0, nsquares = 0;
+  int nparens = 0, nbraces = 0, nsquares = 0, nsplices = 0;
   do
     switch (cp_lexer_peek_nth_token (parser->lexer, n++)->type)
       {
@@ -33024,6 +34196,9 @@ cp_parser_skip_balanced_tokens (cp_parser *parser, size_t n)
       case CPP_OPEN_SQUARE:
 	++nsquares;
 	break;
+      case CPP_OPEN_SPLICE:
+	++nsplices;
+	break;
       case CPP_CLOSE_PAREN:
 	--nparens;
 	break;
@@ -33033,10 +34208,13 @@ cp_parser_skip_balanced_tokens (cp_parser *parser, size_t n)
       case CPP_CLOSE_SQUARE:
 	--nsquares;
 	break;
+      case CPP_CLOSE_SPLICE:
+	--nsplices;
+	break;
       default:
 	break;
       }
-  while (nparens || nbraces || nsquares);
+  while (nparens || nbraces || nsquares || nsplices);
   return n;
 }
 
@@ -33850,12 +35028,10 @@ cp_parser_simple_requirement (cp_parser *parser)
 
 /* Parse a type requirement
 
-     type-requirement
-         nested-name-specifier [opt] required-type-name ';'
-
-     required-type-name:
-         type-name
-         'template' [opt] simple-template-id  */
+     type-requirement:
+       typename nested-name-specifier [opt] type-name ';'
+       typename splice-specifier ';'
+       typename splice-specialization-specifier ';' */
 
 static tree
 cp_parser_type_requirement (cp_parser *parser)
@@ -33886,8 +35062,15 @@ cp_parser_type_requirement (cp_parser *parser)
       type = make_typename_type (parser->scope, type, typename_type,
                                  /*complain=*/tf_error);
     }
+  else if (cp_lexer_next_token_is (parser->lexer, CPP_OPEN_SPLICE))
+    {
+      /* tsubst_type_requirement wants this to be a type.  */
+      type = cp_parser_splice_type_specifier (parser);
+      if (!type)
+	type = error_mark_node;
+    }
   else
-   type = cp_parser_type_name (parser, /*typename_keyword_p=*/true);
+    type = cp_parser_type_name (parser, /*typename_keyword_p=*/true);
 
   if (TREE_CODE (type) == TYPE_DECL)
     type = TREE_TYPE (type);
@@ -34159,8 +35342,9 @@ cp_parser_lookup_name (cp_parser *parser, tree name,
 	 looking up names in uninstantiated templates.  Even then, we
 	 cannot look up the name if the scope is not a class type; it
 	 might, for example, be a template type parameter.  */
-      dependent_p = (TYPE_P (parser->scope)
-		     && dependent_scope_p (parser->scope));
+      dependent_p = ((TYPE_P (parser->scope)
+		      && dependent_scope_p (parser->scope))
+		     || dependent_namespace_p (parser->scope));
       if ((check_dependency || !CLASS_TYPE_P (parser->scope))
 	  && dependent_p)
 	/* Defer lookup.  */
@@ -34212,8 +35396,10 @@ cp_parser_lookup_name (cp_parser *parser, tree name,
 
       /* If the scope is a dependent type and either we deferred lookup or
 	 we did lookup but didn't find the name, rememeber the name.  */
-      if (decl == error_mark_node && TYPE_P (parser->scope)
-	  && dependentish_scope_p (parser->scope))
+      if (decl == error_mark_node
+	  && ((TYPE_P (parser->scope)
+	       && dependentish_scope_p (parser->scope))
+	      || dependent_namespace_p (parser->scope)))
 	{
 	  if (tag_type)
 	    {
@@ -34327,7 +35513,10 @@ cp_parser_lookup_name (cp_parser *parser, tree name,
 
      During an explicit instantiation, access is not checked at all,
      as per [temp.explicit].  */
-  if (DECL_P (decl))
+  if (DECL_P (decl)
+      /* One cannot take the reflection of a using-declarator.  Skip this
+	 check because we are going to report an error anyway.  */
+      && LIKELY (TREE_CODE (decl) != USING_DECL))
     check_accessibility_of_qualified_id (decl, object_type, parser->scope,
 					 tf_warning_or_error);
 
@@ -34347,7 +35536,7 @@ cp_parser_lookup_name (cp_parser *parser, tree name,
 	  auto_diagnostic_group d;
 	  error_at (name_location, "reference to %qD is ambiguous",
 		    name);
-	  print_candidates (decl);
+	  print_candidates (name_location, decl);
 	}
       return error_mark_node;
     }
@@ -35203,7 +36392,7 @@ cp_parser_explicit_template_declaration (cp_parser* parser, bool member_p)
   cp_parser_require_end_of_template_parameter_list (parser);
 
   /* Manage template requirements */
-  if (flag_concepts)
+  if (flag_concepts && current_template_parms)
   {
     tree reqs = get_shorthand_constraints (current_template_parms);
     if (tree treqs = cp_parser_requires_clause_opt (parser, false))
@@ -35378,7 +36567,7 @@ cp_parser_single_declaration (cp_parser* parser,
       && (cp_lexer_next_token_is_not (parser->lexer, CPP_SEMICOLON)
 	  || decl_specifiers.type != error_mark_node))
     {
-      int flags = CP_PARSER_FLAGS_TYPENAME_OPTIONAL;
+      cp_parser_flags flags = CP_PARSER_FLAGS_TYPENAME_OPTIONAL;
       /* FIXME: Delay parsing for all template friends, not just class
 	 template scope ones (PR114764).  */
       if (member_p && (!(friend_p && *friend_p)
@@ -35891,12 +37080,8 @@ cp_parser_save_default_args (cp_parser* parser, tree decl)
     }
 
   /* Contracts are deferred.  */
-  for (tree attr = DECL_ATTRIBUTES (decl); attr; attr = TREE_CHAIN (attr))
-    if (cxx_contract_attribute_p (attr))
-      {
-	vec_safe_push (unparsed_contracts, decl);
-	break;
-      }
+  if (DECL_HAS_CONTRACTS_P (decl))
+    vec_safe_push (unparsed_contracts, decl);
 }
 
 /* DEFAULT_ARG contains the saved tokens for the initializer of DECL,
@@ -36664,6 +37849,9 @@ cp_parser_required_error (cp_parser *parser,
 	    break;
 	  case RT_CLASS_TYPENAME_TEMPLATE:
 	    gmsgid = G_("expected %<class%>, %<typename%>, or %<template%>");
+	    break;
+	  case RT_CLOSE_SPLICE:
+	    gmsgid = G_("expected %<:]%>");
 	    break;
 	  default:
 	    gcc_unreachable ();
@@ -44668,7 +45856,7 @@ cp_parser_omp_clause_proc_bind (cp_parser *parser, tree list,
   return c;
 
  invalid_kind:
-  cp_parser_error (parser, "invalid depend kind");
+  cp_parser_error (parser, "invalid proc_bind kind");
  resync_fail:
   cp_parser_skip_to_closing_parenthesis (parser, /*recovering=*/true,
 					 /*or_comma=*/false,
@@ -44735,7 +45923,7 @@ cp_parser_omp_clause_device_type (cp_parser *parser, tree list,
   return c;
 
  invalid_kind:
-  cp_parser_error (parser, "invalid depend kind");
+  cp_parser_error (parser, "expected %<host%>, %<nohost%> or %<any%>");
  resync_fail:
   cp_parser_skip_to_closing_parenthesis (parser, /*recovering=*/true,
 					 /*or_comma=*/false,
@@ -48368,7 +49556,7 @@ cp_parser_omp_loop_nest (cp_parser *parser, bool *if_p)
 	  TREE_VEC_ELT (omp_for_parse_state->condv, depth) = NULL_TREE;
 	  TREE_VEC_ELT (omp_for_parse_state->incrv, depth) = NULL_TREE;
 	  if (omp_for_parse_state->orig_declv)
-	    TREE_VEC_ELT (omp_for_parse_state->incrv, depth) = NULL_TREE;
+	    TREE_VEC_ELT (omp_for_parse_state->orig_declv, depth) = NULL_TREE;
 	  vec_safe_push (omp_for_parse_state->init_blockv, NULL_TREE);
 	  vec_safe_push (omp_for_parse_state->body_blockv, NULL_TREE);
 	  vec_safe_push (omp_for_parse_state->init_placeholderv, NULL_TREE);
@@ -48856,6 +50044,9 @@ substitute_in_tree_walker (tree *tp, int *walk_subtrees ATTRIBUTE_UNUSED,
   else if (TREE_CODE (*tp) == BIND_EXPR
 	   && BIND_EXPR_BODY (*tp) == sit->orig
 	   && !BIND_EXPR_VARS (*tp)
+	   /* BIND_EXPRs in templates likely have NULL BIND_EXPR_VARS,
+	      are created by begin_compound_stmt and are not redundant.  */
+	   && !processing_template_decl
 	   && (sit->flatten || TREE_CODE (sit->repl) == BIND_EXPR))
     {
       *tp = sit->repl;
@@ -48900,7 +50091,12 @@ substitute_in_tree (tree *context, tree orig, tree repl, bool flatten)
   struct sit_data data;
 
   gcc_assert (*context && orig && repl);
-  if (TREE_CODE (repl) == BIND_EXPR && !BIND_EXPR_VARS (repl))
+  /* Look through redundant BIND_EXPR.  BIND_EXPRs in templates likely have
+     NULL BIND_EXPR_VARS, are created by begin_compound_stmt and are not
+     redundant.  */
+  if (TREE_CODE (repl) == BIND_EXPR
+      && !BIND_EXPR_VARS (repl)
+      && !processing_template_decl)
     repl = BIND_EXPR_BODY (repl);
   data.orig = orig;
   data.repl = repl;
@@ -49982,7 +51178,7 @@ cp_parser_omp_taskwait (cp_parser *parser, cp_token *pragma_tok)
   if (clauses)
     {
       tree stmt = make_node (OMP_TASK);
-      TREE_TYPE (stmt) = void_node;
+      TREE_TYPE (stmt) = void_type_node;
       OMP_TASK_CLAUSES (stmt) = clauses;
       OMP_TASK_BODY (stmt) = NULL_TREE;
       SET_EXPR_LOCATION (stmt, pragma_tok->location);
@@ -50025,6 +51221,25 @@ cp_parser_omp_taskgroup (cp_parser *parser, cp_token *pragma_tok, bool *if_p)
 				 clauses);
 }
 
+/* OpenMP 6.0:
+   # pragma omp groupprivate (variable-list) [device_type(...)]  */
+
+#define OMP_GROUPPRIVATE_CLAUSE_MASK					\
+	( (OMP_CLAUSE_MASK_1 << PRAGMA_OMP_CLAUSE_DEVICE_TYPE) )
+
+static void
+cp_parser_omp_groupprivate (cp_parser *parser, cp_token *pragma_tok)
+{
+  location_t loc = cp_lexer_peek_token (parser->lexer)->location;
+  tree vars = cp_parser_omp_var_list (parser, OMP_CLAUSE_ERROR, NULL);
+  tree clauses = cp_parser_omp_all_clauses (parser, OMP_GROUPPRIVATE_CLAUSE_MASK,
+					    "#pragma omp groupprivate", pragma_tok);
+  /* TODO: Implies 'declare target local' with specified device_type, check for
+     conflicts.  Check for other restrictions.  */
+  (void) vars;
+  (void) clauses;
+  sorry_at (loc, "%<omp groupprivate%>");
+}
 
 /* OpenMP 2.5:
    # pragma omp threadprivate (variable-list) */
@@ -50341,7 +51556,10 @@ cp_parser_omp_target_data (cp_parser *parser, cp_token *pragma_tok, bool *if_p)
 
   tree clauses
     = cp_parser_omp_all_clauses (parser, OMP_TARGET_DATA_CLAUSE_MASK,
-				 "#pragma omp target data", pragma_tok);
+				 "#pragma omp target data", pragma_tok, false);
+  if (!processing_template_decl)
+    clauses = c_omp_instantiate_mappers (clauses, C_ORT_OMP);
+  clauses = finish_omp_clauses (clauses, C_ORT_OMP);
   c_omp_adjust_map_clauses (clauses, false);
   int map_seen = 0;
   for (tree *pc = &clauses; *pc;)
@@ -50456,7 +51674,11 @@ cp_parser_omp_target_enter_data (cp_parser *parser, cp_token *pragma_tok,
 
   tree clauses
     = cp_parser_omp_all_clauses (parser, OMP_TARGET_ENTER_DATA_CLAUSE_MASK,
-				 "#pragma omp target enter data", pragma_tok);
+				 "#pragma omp target enter data", pragma_tok,
+				 false);
+  if (!processing_template_decl)
+    clauses = c_omp_instantiate_mappers (clauses, C_ORT_OMP);
+  clauses = finish_omp_clauses (clauses, C_ORT_OMP);
   c_omp_adjust_map_clauses (clauses, false);
   int map_seen = 0;
   for (tree *pc = &clauses; *pc;)
@@ -50573,6 +51795,8 @@ cp_parser_omp_target_exit_data (cp_parser *parser, cp_token *pragma_tok,
     = cp_parser_omp_all_clauses (parser, OMP_TARGET_EXIT_DATA_CLAUSE_MASK,
 				 "#pragma omp target exit data", pragma_tok,
 				 false);
+  if (!processing_template_decl)
+    clauses = c_omp_instantiate_mappers (clauses, C_ORT_OMP_EXIT_DATA);
   clauses = finish_omp_clauses (clauses, C_ORT_OMP_EXIT_DATA);
   c_omp_adjust_map_clauses (clauses, false);
   int map_seen = 0;
@@ -50869,7 +52093,7 @@ cp_parser_omp_target (cp_parser *parser, cp_token *pragma_tok,
 	OMP_CLAUSE_CHAIN (c) = nc;
       }
   if (!processing_template_decl)
-    clauses = c_omp_instantiate_mappers (clauses);
+    clauses = c_omp_instantiate_mappers (clauses, C_ORT_OMP_TARGET);
   clauses = finish_omp_clauses (clauses, C_ORT_OMP_TARGET);
 
   c_omp_adjust_map_clauses (clauses, true);
@@ -52318,7 +53542,7 @@ cp_parser_omp_dispatch (cp_parser *parser, cp_token *pragma_tok)
   if (depend_clauses != NULL_TREE)
     {
       tree stmt = make_node (OMP_TASK);
-      TREE_TYPE (stmt) = void_node;
+      TREE_TYPE (stmt) = void_type_node;
       OMP_TASK_CLAUSES (stmt) = depend_clauses;
       OMP_TASK_BODY (stmt) = NULL_TREE;
       SET_EXPR_LOCATION (stmt, loc);
@@ -52952,7 +54176,7 @@ cp_maybe_parse_omp_decl (tree decl, tree d)
       return false;
     }
   if (dir->id != PRAGMA_OMP_THREADPRIVATE
-      /* && dir->id != PRAGMA_OMP_GROUPPRIVATE */
+      && dir->id != PRAGMA_OMP_GROUPPRIVATE
       && dir->id != PRAGMA_OMP_ALLOCATE
       && (dir->id != PRAGMA_OMP_DECLARE
 	  || strcmp (directive[1], "target") != 0))
@@ -55951,6 +57175,10 @@ cp_parser_pragma (cp_parser *parser, enum pragma_context context, bool *if_p)
 
     case PRAGMA_OMP_CANCELLATION_POINT:
       return cp_parser_omp_cancellation_point (parser, pragma_tok, context);
+
+    case PRAGMA_OMP_GROUPPRIVATE:
+      cp_parser_omp_groupprivate (parser, pragma_tok);
+      return false;
 
     case PRAGMA_OMP_THREADPRIVATE:
       cp_parser_omp_threadprivate (parser, pragma_tok);

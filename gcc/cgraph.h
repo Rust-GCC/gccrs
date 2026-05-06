@@ -145,6 +145,8 @@ public:
       symver (false), analyzed (false), writeonly (false),
       refuse_visibility_changes (false), externally_visible (false),
       no_reorder (false), force_output (false), forced_by_abi (false),
+      ref_by_asm (false),
+      must_remain_in_tu_name (false), must_remain_in_tu_body (false),
       unique_name (false), implicit_section (false), body_removed (false),
       semantic_interposition (flag_semantic_interposition),
       used_from_other_partition (false), in_other_partition (false),
@@ -593,6 +595,16 @@ public:
      exported.  Unlike FORCE_OUTPUT this flag gets cleared to symbols promoted
      to static and it does not inhibit optimization.  */
   unsigned forced_by_abi : 1;
+  /* Referenced from toplevel assembly.  Must not be removed.
+     Static symbol may be renamed.  Global symbol should not be renamed.
+     Unlike force_output, can be on declarations.  */
+  unsigned ref_by_asm : 1;
+  /* Set when asm_name must remain in TU partition.
+     Used to guarantee not renaming of static ref_by_asm symbols.  */
+  unsigned must_remain_in_tu_name : 1;
+  /* Set when body (or any references) must remain in TU partition.
+     Used on symbols referring/calling must_remain_in_tu_name.  */
+  unsigned must_remain_in_tu_body : 1;
   /* True when the name is known to be unique and thus it does not need mangling.  */
   unsigned unique_name : 1;
   /* Specify whether the section was set by user or by
@@ -1281,6 +1293,9 @@ struct GTY((tag ("SYMTAB_FUNCTION"))) cgraph_node : public symtab_node
      i.e. it is not externally visible, address was not taken and
      it is not used in any other non-standard way.  */
   bool only_called_directly_p (void);
+
+  /* Returns TRUE iff THIS is a descendant of N in the clone tree.  */
+  bool is_clone_of (cgraph_node *n) const;
 
   /* Turn profile to global0.  Walk into inlined functions.  */
   void make_profile_local ();
@@ -2362,11 +2377,15 @@ private:
 
 struct GTY ((tag ("TOPLEVEL_ASM"))) asm_node: public toplevel_node {
   explicit asm_node (tree asm_str)
-    : toplevel_node (TOPLEVEL_ASM), asm_str (asm_str)
+    : toplevel_node (TOPLEVEL_ASM), asm_str (asm_str), symbols_referenced ()
   {}
   /* String for this asm node.  */
   tree asm_str;
+  /* Vector of referenced symbols used for LTO partitioning.
+     Not populated in flag_ltrans.  */
+  vec<symtab_node*> GTY ((skip)) symbols_referenced;
 };
+void analyze_toplevel_extended_asm (void);
 
 /* Report whether or not THIS symtab node is a function, aka cgraph_node.  */
 
@@ -3437,6 +3456,7 @@ cgraph_node::only_called_directly_or_aliased_p (void)
 {
   gcc_assert (!inlined_to);
   return (!force_output && !address_taken
+	  && !ref_by_asm
 	  && !ifunc_resolver
 	  && !used_from_other_partition
 	  && !DECL_VIRTUAL_P (decl)
@@ -3457,7 +3477,7 @@ cgraph_node::can_remove_if_no_direct_calls_and_refs_p (void)
   if (DECL_EXTERNAL (decl))
     return true;
   /* When function is needed, we cannot remove it.  */
-  if (force_output || used_from_other_partition)
+  if (force_output || used_from_other_partition || ref_by_asm)
     return false;
   if (DECL_STATIC_CONSTRUCTOR (decl)
       || DECL_STATIC_DESTRUCTOR (decl))
@@ -3489,6 +3509,7 @@ varpool_node::can_remove_if_no_refs_p (void)
   if (DECL_EXTERNAL (decl))
     return true;
   return (!force_output && !used_from_other_partition
+	  && !ref_by_asm
 	  && ((DECL_COMDAT (decl)
 	       && !forced_by_abi
 	       && !used_from_object_file_p ())
@@ -3507,6 +3528,7 @@ varpool_node::all_refs_explicit_p ()
   return (definition
 	  && !externally_visible
 	  && !used_from_other_partition
+	  && !ref_by_asm
 	  && !force_output);
 }
 

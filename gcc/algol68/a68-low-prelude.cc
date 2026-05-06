@@ -90,6 +90,15 @@ a68_lower_confirm2 (NODE_T *p, LOW_CTX_T ctx)
 tree
 a68_lower_negate2 (NODE_T *p, LOW_CTX_T ctx)
 {
+  /* Annotate denotations as being negated.  */
+  NODE_T *s = NEXT (SUB (p));
+  if (ATTRIBUTE (s) == SECONDARY
+      && ATTRIBUTE (SUB (s)) == PRIMARY
+      && ATTRIBUTE (SUB (SUB (s))) == DENOTATION)
+    {
+      NEGATED (SUB (SUB (s))) = true;
+    }
+
   return fold_build1_loc (a68_get_node_location (p),
 			  NEGATE_EXPR,
 			  CTYPE (MOID (p)),
@@ -751,6 +760,30 @@ a68_lower_elems3 (NODE_T *p, LOW_CTX_T ctx)
 }
 
 tree
+a68_lower_set3 (NODE_T *p, LOW_CTX_T ctx)
+{
+  tree op1 = a68_lower_tree (SUB (p), ctx);
+  tree op2 = a68_lower_tree (NEXT (NEXT (SUB (p))), ctx);
+  return a68_bits_set (MOID (p), op1, op2, a68_get_node_location (p));
+}
+
+tree
+a68_lower_clear3 (NODE_T *p, LOW_CTX_T ctx)
+{
+  tree op1 = a68_lower_tree (SUB (p), ctx);
+  tree op2 = a68_lower_tree (NEXT (NEXT (SUB (p))), ctx);
+  return a68_bits_clear (MOID (p), op1, op2, a68_get_node_location (p));
+}
+
+tree
+a68_lower_test3 (NODE_T *p, LOW_CTX_T ctx)
+{
+  tree op1 = a68_lower_tree (SUB (p), ctx);
+  tree op2 = a68_lower_tree (NEXT (NEXT (SUB (p))), ctx);
+  return a68_bits_test (op1, op2, a68_get_node_location (p));
+}
+
+tree
 a68_lower_pow_int (NODE_T *p, LOW_CTX_T ctx)
 {
   tree op1 = a68_lower_tree (SUB (p), ctx);
@@ -1061,7 +1094,9 @@ a68_lower_shl3 (NODE_T *p, LOW_CTX_T ctx)
 {
   tree bits = a68_lower_tree (SUB (p), ctx);
   tree shift = a68_lower_tree (NEXT (NEXT (SUB (p))), ctx);
-  return a68_bits_shift (shift, bits);
+  return a68_bits_shift (p,
+			 fold_build1 (NEGATE_EXPR, TREE_TYPE (shift), shift),
+			 bits);
 }
 
 tree
@@ -1069,9 +1104,7 @@ a68_lower_shr3 (NODE_T *p, LOW_CTX_T ctx)
 {
   tree bits = a68_lower_tree (SUB (p), ctx);
   tree shift = a68_lower_tree (NEXT (NEXT (SUB (p))), ctx);
-  return a68_bits_shift (fold_build1 (NEGATE_EXPR,
-				      TREE_TYPE (shift), shift),
-			 bits);
+  return a68_bits_shift (p, shift, bits);
 }
 
 tree
@@ -1180,72 +1213,6 @@ tree
 a68_lower_shortshortbitswidth (NODE_T *p ATTRIBUTE_UNUSED, LOW_CTX_T ctx ATTRIBUTE_UNUSED)
 {
   return a68_bits_width (a68_short_short_bits_type);
-}
-
-tree
-a68_lower_intwidth (NODE_T *p ATTRIBUTE_UNUSED, LOW_CTX_T ctx ATTRIBUTE_UNUSED)
-{
-  return a68_int_width (a68_int_type);
-}
-
-tree
-a68_lower_longintwidth (NODE_T *p ATTRIBUTE_UNUSED, LOW_CTX_T ctx ATTRIBUTE_UNUSED)
-{
-  return a68_int_width (a68_long_int_type);
-}
-
-tree
-a68_lower_longlongintwidth (NODE_T *p ATTRIBUTE_UNUSED, LOW_CTX_T ctx ATTRIBUTE_UNUSED)
-{
-  return a68_int_width (a68_long_long_int_type);
-}
-
-tree
-a68_lower_shortintwidth (NODE_T *p ATTRIBUTE_UNUSED, LOW_CTX_T ctx ATTRIBUTE_UNUSED)
-{
-  return a68_int_width (a68_short_int_type);
-}
-
-tree
-a68_lower_shortshortintwidth (NODE_T *p ATTRIBUTE_UNUSED, LOW_CTX_T ctx ATTRIBUTE_UNUSED)
-{
-  return a68_int_width (a68_short_short_int_type);
-}
-
-tree
-a68_lower_realwidth (NODE_T *p ATTRIBUTE_UNUSED, LOW_CTX_T ctx ATTRIBUTE_UNUSED)
-{
-  return a68_real_width (a68_real_type);
-}
-
-tree
-a68_lower_longrealwidth (NODE_T *p ATTRIBUTE_UNUSED, LOW_CTX_T ctx ATTRIBUTE_UNUSED)
-{
-  return a68_real_width (a68_long_real_type);
-}
-
-tree
-a68_lower_longlongrealwidth (NODE_T *p ATTRIBUTE_UNUSED, LOW_CTX_T ctx ATTRIBUTE_UNUSED)
-{
-  return a68_real_width (a68_long_long_real_type);
-}
-
-tree
-a68_lower_expwidth (NODE_T *p ATTRIBUTE_UNUSED, LOW_CTX_T ctx ATTRIBUTE_UNUSED)
-{
-  return a68_real_exp_width (a68_real_type);
-}
-
-tree
-a68_lower_longexpwidth (NODE_T *p ATTRIBUTE_UNUSED, LOW_CTX_T ctx ATTRIBUTE_UNUSED)
-{
-  return a68_real_exp_width (a68_long_real_type);
-}
-
-tree
-a68_lower_longlongexpwidth (NODE_T *p ATTRIBUTE_UNUSED, LOW_CTX_T ctx ATTRIBUTE_UNUSED)
-{
-  return a68_real_exp_width (a68_long_long_real_type);
 }
 
 tree
@@ -1898,296 +1865,4 @@ tree
 a68_lower_longlongrandom (NODE_T *p ATTRIBUTE_UNUSED, LOW_CTX_T ctx ATTRIBUTE_UNUSED)
 {
   return a68_get_libcall (A68_LIBCALL_LONGLONGRANDOM);
-}
-
-/********* POSIX prelude.  ***************/
-
-tree
-a68_lower_setexitstatus (NODE_T *p, LOW_CTX_T ctx ATTRIBUTE_UNUSED)
-{
-  tree t = a68_posix_setexitstatus ();
-  if (CAN_HAVE_LOCATION_P (t))
-    SET_EXPR_LOCATION (t, a68_get_node_location (p));
-  return t;
-}
-
-tree
-a68_lower_posixargc (NODE_T *p ATTRIBUTE_UNUSED, LOW_CTX_T ctx ATTRIBUTE_UNUSED)
-{
-  tree t = a68_posix_argc ();
-  if (CAN_HAVE_LOCATION_P (t))
-    SET_EXPR_LOCATION (t, a68_get_node_location (p));
-  return t;
-}
-
-tree
-a68_lower_posixargv (NODE_T *p ATTRIBUTE_UNUSED,
-		     LOW_CTX_T ctx ATTRIBUTE_UNUSED)
-{
-  tree t = a68_posix_argv ();
-  if (CAN_HAVE_LOCATION_P (t))
-    SET_EXPR_LOCATION (t, a68_get_node_location (p));
-  return t;
-}
-
-tree
-a68_lower_posixgetenv (NODE_T *p ATTRIBUTE_UNUSED,
-		       LOW_CTX_T ctx ATTRIBUTE_UNUSED)
-{
-  tree t = a68_posix_getenv ();
-  if (CAN_HAVE_LOCATION_P (t))
-    SET_EXPR_LOCATION (t, a68_get_node_location (p));
-  return t;
-}
-
-tree
-a68_lower_posixputchar (NODE_T *p ATTRIBUTE_UNUSED,
-			LOW_CTX_T ctx ATTRIBUTE_UNUSED)
-{
-  tree t = a68_posix_putchar ();
-  if (CAN_HAVE_LOCATION_P (t))
-    SET_EXPR_LOCATION (t, a68_get_node_location (p));
-  return t;
-}
-
-tree
-a68_lower_posixputs (NODE_T *p ATTRIBUTE_UNUSED,
-		     LOW_CTX_T ctx ATTRIBUTE_UNUSED)
-{
-  tree t = a68_posix_puts ();
-  if (CAN_HAVE_LOCATION_P (t))
-    SET_EXPR_LOCATION (t, a68_get_node_location (p));
-  return t;
-}
-
-tree
-a68_lower_posixfconnect (NODE_T *p ATTRIBUTE_UNUSED,
-			 LOW_CTX_T ctx ATTRIBUTE_UNUSED)
-{
-  tree t = a68_posix_fconnect ();
-  if (CAN_HAVE_LOCATION_P (t))
-    SET_EXPR_LOCATION (t, a68_get_node_location (p));
-  return t;
-}
-
-tree
-a68_lower_posixfopen (NODE_T *p ATTRIBUTE_UNUSED,
-		      LOW_CTX_T ctx ATTRIBUTE_UNUSED)
-{
-  tree t = a68_posix_fopen ();
-  if (CAN_HAVE_LOCATION_P (t))
-    SET_EXPR_LOCATION (t, a68_get_node_location (p));
-  return t;
-}
-
-tree
-a68_lower_posixfcreate (NODE_T *p ATTRIBUTE_UNUSED,
-			LOW_CTX_T ctx ATTRIBUTE_UNUSED)
-{
-  tree t = a68_posix_fcreate ();
-  if (CAN_HAVE_LOCATION_P (t))
-    SET_EXPR_LOCATION (t, a68_get_node_location (p));
-  return t;
-}
-
-tree
-a68_lower_posixfclose (NODE_T *p ATTRIBUTE_UNUSED,
-		       LOW_CTX_T ctx ATTRIBUTE_UNUSED)
-{
-  tree t = a68_posix_fclose ();
-  if (CAN_HAVE_LOCATION_P (t))
-    SET_EXPR_LOCATION (t, a68_get_node_location (p));
-  return t;
-}
-
-tree
-a68_lower_posixfsize (NODE_T *p ATTRIBUTE_UNUSED,
-		      LOW_CTX_T ctx ATTRIBUTE_UNUSED)
-{
-  tree t = a68_posix_fsize ();
-  if (CAN_HAVE_LOCATION_P (t))
-    SET_EXPR_LOCATION (t, a68_get_node_location (p));
-  return t;
-}
-
-tree
-a68_lower_posixlseek (NODE_T *p ATTRIBUTE_UNUSED,
-		      LOW_CTX_T ctx ATTRIBUTE_UNUSED)
-{
-  tree t = a68_posix_lseek ();
-  if (CAN_HAVE_LOCATION_P (t))
-    SET_EXPR_LOCATION (t, a68_get_node_location (p));
-  return t;
-}
-
-tree
-a68_lower_posixseekcur (NODE_T *p ATTRIBUTE_UNUSED,
-			LOW_CTX_T ctx ATTRIBUTE_UNUSED)
-{
-  return build_int_cst (a68_int_type, 0);
-}
-
-tree
-a68_lower_posixseekend (NODE_T *p ATTRIBUTE_UNUSED,
-			LOW_CTX_T ctx ATTRIBUTE_UNUSED)
-{
-  return build_int_cst (a68_int_type, 1);
-}
-
-tree
-a68_lower_posixseekset (NODE_T *p ATTRIBUTE_UNUSED,
-			LOW_CTX_T ctx ATTRIBUTE_UNUSED)
-{
-  return build_int_cst (a68_int_type, 2);
-}
-
-tree
-a68_lower_posixstdinfiledes (NODE_T *p ATTRIBUTE_UNUSED,
-			     LOW_CTX_T ctx ATTRIBUTE_UNUSED)
-{
-  return build_int_cst (a68_int_type, 0);
-}
-
-tree
-a68_lower_posixstdoutfiledes (NODE_T *p ATTRIBUTE_UNUSED,
-			      LOW_CTX_T ctx ATTRIBUTE_UNUSED)
-{
-  return build_int_cst (a68_int_type, 1);
-}
-
-tree
-a68_lower_posixstderrfiledes (NODE_T *p ATTRIBUTE_UNUSED,
-			      LOW_CTX_T ctx ATTRIBUTE_UNUSED)
-{
-  return build_int_cst (a68_int_type, 2);
-}
-
-tree
-a68_lower_posixfileodefault (NODE_T *p ATTRIBUTE_UNUSED,
-			     LOW_CTX_T ctx ATTRIBUTE_UNUSED)
-{
-  /* Please keep in sync with libga68/ga68-posix.c  */
-  return build_int_cst (a68_bits_type, 0x99999999);
-}
-
-tree
-a68_lower_posixfileordwr (NODE_T *p ATTRIBUTE_UNUSED,
-			  LOW_CTX_T ctx ATTRIBUTE_UNUSED)
-{
-  /* Please keep in sync with libga68/ga68-posix.c  */
-  return build_int_cst (a68_bits_type, 0x2);
-}
-
-tree
-a68_lower_posixfileordonly (NODE_T *p ATTRIBUTE_UNUSED,
-			    LOW_CTX_T ctx ATTRIBUTE_UNUSED)
-{
-  /* Please keep in sync with libga68/ga68-posix.c  */
-  return build_int_cst (a68_bits_type, 0x0);
-}
-
-tree
-a68_lower_posixfileowronly (NODE_T *p ATTRIBUTE_UNUSED,
-			    LOW_CTX_T ctx ATTRIBUTE_UNUSED)
-{
-  /* Please keep in sync with libga68/ga68-posix.c  */
-  return build_int_cst (a68_bits_type, 0x1);
-}
-
-tree
-a68_lower_posixfileotrunc (NODE_T *p ATTRIBUTE_UNUSED,
-			   LOW_CTX_T ctx ATTRIBUTE_UNUSED)
-{
-  /* Please keep in sync with libga68/ga68-posix.c  */
-  return build_int_cst (a68_bits_type, 0x8);
-}
-
-tree
-a68_lower_posixerrno (NODE_T *p ATTRIBUTE_UNUSED,
-		      LOW_CTX_T ctx ATTRIBUTE_UNUSED)
-{
-  tree t = a68_posix_errno ();
-  if (CAN_HAVE_LOCATION_P (t))
-    SET_EXPR_LOCATION (t, a68_get_node_location (p));
-  return t;
-}
-
-tree
-a68_lower_posixperror (NODE_T *p ATTRIBUTE_UNUSED,
-		       LOW_CTX_T ctx ATTRIBUTE_UNUSED)
-{
-  tree t = a68_posix_perror ();
-  if (CAN_HAVE_LOCATION_P (t))
-    SET_EXPR_LOCATION (t, a68_get_node_location (p));
-  return t;
-}
-
-tree
-a68_lower_posixstrerror (NODE_T *p ATTRIBUTE_UNUSED,
-			 LOW_CTX_T ctx ATTRIBUTE_UNUSED)
-{
-  tree t = a68_posix_strerror ();
-  if (CAN_HAVE_LOCATION_P (t))
-    SET_EXPR_LOCATION (t, a68_get_node_location (p));
-  return t;
-}
-
-tree
-a68_lower_posixfputc (NODE_T *p ATTRIBUTE_UNUSED,
-		      LOW_CTX_T ctx ATTRIBUTE_UNUSED)
-{
-  tree t = a68_posix_fputc ();
-  if (CAN_HAVE_LOCATION_P (t))
-    SET_EXPR_LOCATION (t, a68_get_node_location (p));
-  return t;
-}
-
-tree
-a68_lower_posixfputs (NODE_T *p ATTRIBUTE_UNUSED,
-		      LOW_CTX_T ctx ATTRIBUTE_UNUSED)
-{
-  tree t = a68_posix_fputs ();
-  if (CAN_HAVE_LOCATION_P (t))
-    SET_EXPR_LOCATION (t, a68_get_node_location (p));
-  return t;
-}
-
-tree
-a68_lower_posixgetchar (NODE_T *p ATTRIBUTE_UNUSED,
-			LOW_CTX_T ctx ATTRIBUTE_UNUSED)
-{
-  tree t = a68_posix_getchar ();
-  if (CAN_HAVE_LOCATION_P (t))
-    SET_EXPR_LOCATION (t, a68_get_node_location (p));
-  return t;
-}
-
-
-tree
-a68_lower_posixfgetc (NODE_T *p ATTRIBUTE_UNUSED,
-		      LOW_CTX_T ctx ATTRIBUTE_UNUSED)
-{
-  tree t = a68_posix_fgetc ();
-  if (CAN_HAVE_LOCATION_P (t))
-    SET_EXPR_LOCATION (t, a68_get_node_location (p));
-  return t;
-}
-
-tree
-a68_lower_posixgets (NODE_T *p ATTRIBUTE_UNUSED,
-		     LOW_CTX_T ctx ATTRIBUTE_UNUSED)
-{
-  tree t = a68_posix_gets ();
-  if (CAN_HAVE_LOCATION_P (t))
-    SET_EXPR_LOCATION (t, a68_get_node_location (p));
-  return t;
-}
-
-tree
-a68_lower_posixfgets (NODE_T *p, LOW_CTX_T ctx ATTRIBUTE_UNUSED)
-{
-  tree t = a68_posix_fgets ();
-  if (CAN_HAVE_LOCATION_P (t))
-    SET_EXPR_LOCATION (t, a68_get_node_location (p));
-  return t;
 }

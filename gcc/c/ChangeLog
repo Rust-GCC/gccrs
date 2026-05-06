@@ -1,3 +1,220 @@
+2026-04-28  Jakub Jelinek  <jakub@redhat.com>
+
+	* c-decl.cc (finish_declspecs) <case cts_bitint>: Implement
+	C2Y N3747 - Integer Sets, v5.  Allow signed _BitInt(1) for
+	flag_isoc2y.
+
+2026-04-25  Martin Uecker  <uecker@tugraz.at>
+
+	PR c/124303
+	* c-decl.cc (finish_struct): Check for consistency of
+	declarations after completing variants.
+
+2026-04-22  Jakub Jelinek  <jakub@redhat.com>
+
+	PR sanitizer/124969
+	* c-typeck.cc (build_access_with_size_for_counted_by): Use
+	size_one_node instead of build_one_cst (size_type_node).  Punt
+	if element_size is NULL_TREE.
+
+2026-04-09  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* Make-lang.in (create_fdas_for_cc1): Use $(AFDO_PROFILER) when passing
+	--profiler to create_gcov. Ensure that perf.data contains profile for
+	cc1. Make the console output more useful.
+
+2026-04-01  Martin Uecker  <uecker@tugraz.at>
+
+	PR c/124635
+	* c-typeck.cc (c_reconstruct_complex_type): Copy
+	TYPE_REVERSE_STORAGE_ORDER.
+
+2026-03-24  Martin Uecker  <uecker@tugraz.at>
+
+	PR c/123424
+	* c-decl.cc (c_update_variably_modified): New function.
+	(finish_struct): Call c_update_variably_modified.
+	* c-tree.h (c_variably_modified_p): Recurse if necessary.
+	* c-typeck.cc (c_verify_type): Update.
+	(c_set_type_bits): Use c_variably_modified_p.
+	(mark_decl_used): Dito.
+	(build_function_call_vec): Dito.
+	(c_build_qualified_type): Dito.
+	* c-objc-common.cc (c_var_p): Dito.
+
+2026-03-18  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* Make-lang.in (cc1.fda): Add `--print-autofdo-gcov-version` to
+	profile_merger invocation.
+	(create_fdas_for_cc1): Add `--print-autofdo-gcov-version` to
+	create_gcov invocations.
+
+2026-03-10  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR c/123461
+	* c-decl.cc (declspecs_add_type): Move mark_decl_used
+	call after the check for error mark node.
+
+2026-03-06  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR c/97991
+	* c-parser.cc (c_parser_consume_token): Allow
+	CPP_PRAGMA if inside a pragma.
+
+2026-03-03  Martin Uecker  <uecker@tugraz.at>
+
+	PR c/122572
+	* c-decl.cc (finish_struct): Add distinct canonical type.
+	* c-tree.h (c_type_canonical): Prototype for new function.
+	* c-typeck.cc (c_type_canonical): New function.
+	(ptr_to_tagged_member): New function.
+
+2026-03-03  Martin Uecker  <uecker@tugraz.at>
+
+	PR c/122572
+	* c-typeck.cc (tagged_types_tu_compatible_p): Fix check.
+
+2026-02-18  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c/123365
+	* c-decl.cc (build_compound_literal): Call relayout_decl
+	after completing the type.
+
+2026-02-13  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* Make-lang.in (cc1.fda): Likewise.
+
+2026-02-06  Torbjörn SVENSSON  <torbjorn.svensson@foss.st.com>
+
+	PR middle-end/123892
+	* c-decl.cc: Replace CONST_CAST with const_cast<>.
+	* c-parser.cc: Likewise.
+
+2026-02-05  Michal Jires  <mjires@suse.cz>
+
+	PR testsuite/123559
+	* c-decl.cc (c_write_global_declarations_1): Check and suppress
+	OPT_Wunused.
+	* c-typeck.cc (build_asm_expr): Suppress OPT_Wunused.
+
+2026-02-05  Jakub Jelinek  <jakub@redhat.com>
+
+	Revert:
+	2026-02-05  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c/101312
+	* c-tree.h (c_build_lang_qualified_type): Declare.
+	* c-objc-common.h (LANG_HOOKS_BUILD_LANG_QUALIFIED_TYPE): Define.
+	* c-objc-common.cc (c_build_lang_qualified_type): New function.
+
+2026-01-28  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR c++/102846
+	PR c/102846
+	* c-decl.cc (lookup_name_fuzzy): Lookup function-like macro and
+	notify of misuse there.
+
+2026-01-28  Senthil Kumar Selvaraj  <saaadhu@gcc.gnu.org>
+
+	PR c/123583
+	* c-parser.cc (c_parser_maybe_reclassify_token): Reclassify only
+	C_ID_ID and C_ID_TYPENAME tokens.
+
+2026-01-28  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c/101312
+	* c-tree.h (c_build_lang_qualified_type): Declare.
+	* c-objc-common.h (LANG_HOOKS_BUILD_LANG_QUALIFIED_TYPE): Define.
+	* c-objc-common.cc (c_build_lang_qualified_type): New function.
+
+2026-01-27  Qing Zhao  <qing.zhao@oracle.com>
+
+	PR c/123500
+	* c-typeck.cc (build_c_cast): Exclude call to .ACCESS_WITH_SIZE from
+	-Wbad-function-cast warnings.
+
+2026-01-16  Jakub Jelinek  <jakub@redhat.com>
+	    Peter Damianov  <peter0x44@disroot.org>
+
+	PR c/123437
+	* c-typeck.cc (build_binary_op): Don't use RDIV_EXPR
+	resultcode if both types are integral, _BitInt or
+	newly VECTOR_TYPE of ENUMERAL_TYPE.
+
+2026-01-14  Qing Zhao  <qing.zhao@oracle.com>
+
+	* c-decl.cc (grokfield): Call verify_counted_by_for_top_anonymous_type
+	for named field.
+	(verify_counted_by_attribute): Change the prototype to a recursive
+	routine.
+	(verify_counted_by_for_top_anonymous_type): New routine.
+	(finish_struct): Set C_TYPE_FIELDS_HAS_COUNTED_BY and call the routine
+	verify_counted_by_attribute only for named structure.
+	* c-parser.cc (c_parser_declaration_or_fndef): Call
+	verify_counted_by_for_top_anonymous_type for the decl.
+	(c_parser_parameter_declaration): Call
+	verify_counted_by_for_top_anonymous_type for the parameter.
+	(c_parser_type_name): Call verify_counted_by_for_top_anonymous_type
+	for the type.
+	* c-tree.h (C_TYPE_FIELDS_HAS_COUNTED_BY): New flag.
+	(verify_counted_by_for_top_anonymous_type): New routine.
+	* c-typeck.cc (build_counted_by_ref): Locate the root named structure,
+	build a chain of component_ref starting from the root structure.
+
+2026-01-13  Martin Uecker  <uecker@tugraz.at>
+
+	PR c/123309
+	* c-typeck.cc (transparent_union_replacement): New function.
+	(composite_type_internal): Rewrite logic.
+	(type_lists_compatible_p): Remove dead code for NULL arguments.
+
+2026-01-10  Martin Uecker  <uecker@tugraz.at>
+
+	PR c/123435
+	PR c/123463
+	* c-typeck.cc (comptypes_internal): Test for qualifiers first.
+
+2026-01-09  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c/123475
+	* c-typeck.cc (c_find_var_r): New function.
+	(convert_lvalue_to_rvalue): If c_build_function_call_vec
+	folded __atomic_load (&expr, &tmp, SEQ_CST); into
+	(void) (tmp = __atomic_load_<N> (&expr, SEQ_CST)), drop
+	TREE_ADDRESSABLE flag from tmp and set TARGET_EXPR
+	initializer just to the rhs of the MODIFY_EXPR.
+
+2026-01-08  Qing Zhao  <qing.zhao@oracle.com>
+
+	* c-parser.cc (has_counted_by_object): Support pointers.
+	(get_counted_by_ref): Support pointers.
+	(c_parser_postfix_expression): Support pointers.
+
+2026-01-07  Tobias Burnus  <tburnus@baylibre.com>
+
+	* c-parser.cc (OMP_GROUPPRIVATE_CLAUSE_MASK,
+	c_parser_omp_groupprivate): New.
+	(c_parser_pragma): Call it.
+	(c_maybe_parse_omp_decl): Uncomment PRAGMA_OMP_GROUPPRIVATE
+	check.
+
+2026-01-03  Martin Uecker  <uecker@tugraz.at>
+
+	PR c/121507
+	* c-decl.cc (start_function): Adapt condition.
+
+2026-01-03  Martin Uecker  <uecker@tugraz.at>
+
+	PR c/121081
+	* c-typeck.cc (composite_type_internal): Properly copy
+	atomic qualifier.
+
+2026-01-03  Martin Uecker  <uecker@tugraz.at>
+
+	PR c/117687
+	* c-typeck.cc (parser_build_binary_op,build_conditional_expr,
+	convert_for_assignment): Adapt conditions.
+
 2025-12-23  Dhruv Chawla  <dhruvc@nvidia.com>
 
 	* Make-lang.in: Bump GCOV version to 3.

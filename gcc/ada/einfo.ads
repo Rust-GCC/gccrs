@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2026, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -918,6 +918,13 @@ package Einfo is
 --       Directly_Designated_Type in that if the access type refers to an
 --       incomplete type, and the full type is available, then this full type
 --       is returned instead of the incomplete type.
+
+--    Destructor
+--       Defined in all types and subtypes entities. For record type entities
+--       that have destructors (in the strict sense, i.e., have destructors of
+--       their own and do not just descend from types with destructors), set to
+--       the procedure entity for the destructor. For other entities, set to
+--       Empty.
 
 --    DIC_Procedure (synthesized)
 --       Defined in all type entities. Set for a private type and its full view
@@ -2600,10 +2607,6 @@ package Einfo is
 --    Is_Descendant_Of_Address
 --       Defined in all entities. True if the entity is type System.Address,
 --       or (recursively) a subtype or derived type of System.Address.
-
---    Is_Destructor
---       Defined in procedure entities. True if the procedure is denoted by the
---       Destructor aspect on some type.
 
 --    Is_DIC_Procedure
 --       Defined in functions and procedures. Set for a generated procedure
@@ -4691,7 +4694,7 @@ package Einfo is
 --       if the type would normally require initialization. Set by use of
 --       pragma Suppress_Initialization and also for internal entities where
 --       we know that no initialization is required. For example, enumeration
---       image table entities set it.
+--       image table entities set it. This is unrelated to pragma Import.
 
 --    Suppress_Style_Checks
 --       Defined in all entities. Suppresses any style checks specifically
@@ -4857,7 +4860,7 @@ package Einfo is
 
 --    Wrapped_Statements
 --       Defined in functions, procedures, entries, and entry families. Refers
---       to the entity of the _Wrapped_Statements procedure, which gets
+--       to the entity of the _Wrapped_Statements subprogram, which gets
 --       generated as part of the expansion of contracts and postconditions
 --       and contains its enclosing subprogram's original source declarations
 --       and statements.
@@ -6014,7 +6017,6 @@ package Einfo is
    --    Is_Constructor
    --    Is_CPP_Constructor
    --    Is_CUDA_Kernel
-   --    Is_Destructor                        (non-generic case only)
    --    Is_DIC_Procedure                     (non-generic case only)
    --    Is_Elaboration_Checks_OK_Id
    --    Is_Elaboration_Warnings_OK_Id

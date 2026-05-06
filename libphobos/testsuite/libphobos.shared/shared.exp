@@ -64,6 +64,13 @@ shared_library "$srcdir/$subdir/lib_13414.d" "lib_13414.so" ""
 shared_library "$srcdir/$subdir/plugin.d" "plugin1.so" ""
 shared_library "$srcdir/$subdir/plugin.d" "plugin2.so" ""
 
+set libphobos_skip_tests {
+    # Skip some tests: dlopen handles are not unique on Solaris (PR d/88150).
+    { libphobos.shared/finalize.d { *-*-solaris2* } }
+    { libphobos.shared/load.d { *-*-solaris2* } }
+    { libphobos.shared/load_13414.d { *-*-solaris2* } }
+}
+
 # Initialize dg.
 dg-init
 

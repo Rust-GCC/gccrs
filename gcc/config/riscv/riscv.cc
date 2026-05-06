@@ -356,6 +356,9 @@ poly_uint16 riscv_vector_chunks;
 /* The number of bytes in a vector chunk.  */
 unsigned riscv_bytes_per_vector_chunk;
 
+/* Whether we are currently registering builtins.  */
+bool riscv_registering_builtins;
+
 /* Index R is the smallest register class that contains register R.  */
 const enum reg_class riscv_regno_to_class[FIRST_PSEUDO_REGISTER] = {
   GR_REGS,	GR_REGS,	GR_REGS,	GR_REGS,
@@ -3607,7 +3610,7 @@ riscv_expand_mult_with_const_int (machine_mode mode, rtx dest, rtx multiplicand,
   return false;
 }
 
-/* Analyze src and emit const_poly_int mov sequence. 
+/* Analyze src and emit const_poly_int mov sequence.
 
    Essentially we want to generate (set (dest) (src)), where SRC is
    a poly_int.  We may need TMP as a scratch register.  We assume TMP
@@ -3691,7 +3694,7 @@ riscv_legitimize_poly_move (machine_mode mode, rtx dest, rtx tmp, rtx src)
       gcc_assert (set);
       gcc_assert (SET_SRC (set) == tmp);
       gcc_assert (SET_DEST (set) == dest);
- 
+
       /* Now back up one real insn and see if it sets TMP, if so adjust
 	 it so that it sets DEST.  */
       rtx_insn *insn2 = prev_nonnote_nondebug_insn (insn);
@@ -3702,7 +3705,7 @@ riscv_legitimize_poly_move (machine_mode mode, rtx dest, rtx tmp, rtx src)
 	  /* Turn the prior insn into a NOP.  But don't delete.  */
 	  SET_SRC (set) = SET_DEST (set);
 	}
- 
+
     }
 
   HOST_WIDE_INT constant = offset - factor;
@@ -3912,9 +3915,16 @@ riscv_legitimize_move (machine_mode mode, rtx dest, rtx src)
 		}
 	    }
 
+	  /* If we are extracting a single element out of a vector and do
+	     not need an intermediate register, then the extraction will
+	     occur directly into RESULT.  RESULT is the same as DEST and
+	     INT_REG.  So we end up with a nop move.  That is not a major
+	     problem, except in this case it'll send us right back into
+	     this code and we recurse.  Given we put the value in RESULT
+	     already we can just elide the nop move here and be done.  */
 	  if (need_int_reg_p)
 	    emit_move_insn (dest, gen_lowpart (GET_MODE (dest), int_reg));
-	  else
+	  else if (!rtx_equal_p (dest, int_reg)) 
 	    emit_move_insn (dest, int_reg);
 	  return true;
 	}
@@ -4274,7 +4284,9 @@ riscv_rtx_costs (rtx x, machine_mode mode, int outer_code, int opno ATTRIBUTE_UN
 		been to duplicate the operation than to CSE the constant.
 	     3. TODO: make cost more accurate specially if riscv_const_insns
 		returns > 1.  */
-	  if (outer_code == SET || GET_MODE (x) == VOIDmode)
+	  if (outer_code == COMPARE)
+	    *total = COSTS_N_INSNS (cost);
+	  else if (outer_code == SET || GET_MODE (x) == VOIDmode)
 	    *total = COSTS_N_INSNS (1);
 	}
       else /* The instruction will be fetched from the constant pool.  */
@@ -4627,6 +4639,16 @@ riscv_rtx_costs (rtx x, machine_mode mode, int outer_code, int opno ATTRIBUTE_UN
 	      || GET_CODE (XEXP (x, 0)) == ASHIFT))
 	{
 	  *total = COSTS_N_INSNS (1);
+	  return true;
+	}
+
+      /* Conditional AND */
+      if (TARGET_ZICOND
+	  && GET_CODE (XEXP (x, 0)) == IF_THEN_ELSE
+	  && GET_CODE (XEXP (x, 1)) == IF_THEN_ELSE
+	  && GET_CODE (XEXP (XEXP (x, 1), 1)) == AND)
+	{
+	  *total = COSTS_N_INSNS (3);
 	  return true;
 	}
 
@@ -6448,6 +6470,17 @@ riscv_pass_fpr_pair (machine_mode mode, unsigned regno1,
 				   GEN_INT (offset2))));
 }
 
+/* Return true if VLS mode MODE fits in general purpose registers per the
+   psABI.  The psABI allows aggregates up to 2 * XLEN bits to be passed in
+   GPRs.  */
+
+static bool
+riscv_vls_mode_fits_in_gprs_p (machine_mode mode)
+{
+  return riscv_vls_mode_p (mode)
+	 && known_le (GET_MODE_SIZE (mode), 2 * UNITS_PER_WORD);
+}
+
 static rtx
 riscv_pass_vls_aggregate_in_gpr (struct riscv_arg_info *info, machine_mode mode,
 				 unsigned gpr_base)
@@ -6460,15 +6493,28 @@ riscv_pass_vls_aggregate_in_gpr (struct riscv_arg_info *info, machine_mode mode,
   unsigned vls_size = GET_MODE_SIZE (mode).to_constant ();
   unsigned gpr_size =  GET_MODE_SIZE (Xmode);
 
-  if (IN_RANGE (vls_size, 0, gpr_size * 2))
+  if (riscv_vls_mode_fits_in_gprs_p (mode))
     {
       count = riscv_v_vls_mode_aggregate_gpr_count (vls_size, gpr_size);
+      unsigned gprs_left = MAX_ARGS_IN_REGISTERS - info->gpr_offset;
 
-      if (count + info->gpr_offset <= MAX_ARGS_IN_REGISTERS)
+      if (count <= gprs_left)
 	{
+	  /* Entire VLS fits in remaining GPRs.  */
 	  regnum = gpr_base + info->gpr_offset;
 	  info->num_gprs = count;
 	  gpr_mode = riscv_v_vls_to_gpr_mode (vls_size);
+	}
+      else if (gprs_left > 0)
+	{
+	  /* Per the psABI, split between GPRs and stack:
+	     "if only one register is available, the first XLEN bits are
+	     passed in a register and the remaining bits are passed on
+	     the stack."  */
+	  regnum = gpr_base + info->gpr_offset;
+	  info->num_gprs = gprs_left;
+	  info->stack_p = true;
+	  gpr_mode = Xmode;
 	}
     }
 
@@ -6816,11 +6862,12 @@ riscv_pass_aggregate_in_vr (struct riscv_arg_info *info,
 
 /* Fill INFO with information about a single argument, and return an RTL
    pattern to pass or return the argument. Return NULL_RTX if argument cannot
-   pass or return in registers, then the argument may be passed by reference or
-   through the stack or  .  CUM is the cumulative state for earlier arguments.
-   MODE is the mode of this argument and TYPE is its type (if known). NAMED is
-   true if this is a named (fixed) argument rather than a variable one. RETURN_P
-   is true if returning the argument, or false if passing the argument.  */
+   pass or return in registers, then the argument may be passed by reference
+   or through the stack.  CUM is the cumulative state for earlier arguments.
+   MODE is the mode of this argument and TYPE is its type (if known).
+   NAMED is true if this is a named (fixed) argument rather than a variable
+   one.  RETURN_P is true if returning the argument, or false if passing
+   the argument.  */
 
 static rtx
 riscv_get_arg_info (struct riscv_arg_info *info, const CUMULATIVE_ARGS *cum,
@@ -6836,8 +6883,10 @@ riscv_get_arg_info (struct riscv_arg_info *info, const CUMULATIVE_ARGS *cum,
   info->gpr_offset = cum->num_gprs;
   info->fpr_offset = cum->num_fprs;
 
-  /* Passed by reference when the scalable vector argument is anonymous.  */
-  if (riscv_vector_mode_p (mode) && !named)
+  /* Passed by reference when the scalable vector argument is anonymous.
+     VLS modes <= 2*XLEN follow regular aggregate rules per the psABI.  */
+  if (riscv_vector_mode_p (mode) && !named
+      && !riscv_vls_mode_fits_in_gprs_p (mode))
     return NULL_RTX;
 
   if (named)
@@ -6929,13 +6978,19 @@ riscv_get_arg_info (struct riscv_arg_info *info, const CUMULATIVE_ARGS *cum,
   if (!named && num_bytes != 0 && alignment > BITS_PER_WORD)
     info->gpr_offset += info->gpr_offset & 1;
 
-  /* Partition the argument between registers and stack.  */
-  info->num_fprs = 0;
-  info->num_gprs = MIN (num_words, MAX_ARGS_IN_REGISTERS - info->gpr_offset);
-  info->stack_p = (num_words - info->num_gprs) != 0;
+  if (riscv_vls_mode_p (mode))
+    return riscv_pass_vls_aggregate_in_gpr (info, mode, gpr_base);
+  else
+    {
+      /* Partition the argument between registers and stack.  */
+      info->num_fprs = 0;
+      info->num_gprs
+	= MIN (num_words, MAX_ARGS_IN_REGISTERS - info->gpr_offset);
+      info->stack_p = (num_words - info->num_gprs) != 0;
 
-  if (info->num_gprs || return_p)
-    return gen_rtx_REG (mode, gpr_base + info->gpr_offset);
+      if (info->num_gprs || return_p)
+	return gen_rtx_REG (mode, gpr_base + info->gpr_offset);
+    }
 
   return NULL_RTX;
 }
@@ -7065,19 +7120,17 @@ riscv_pass_by_reference (cumulative_args_t cum_v, const function_arg_info &arg)
       if (info.num_fprs)
 	return false;
 
-      /* Don't pass by reference if we can use general register(s) for vls.  */
-      if (info.num_gprs && riscv_vls_mode_p (arg.mode))
-	return false;
-
       /* Don't pass by reference if we can use vector register groups.  */
       if (info.num_vrs > 0 || info.num_mrs > 0)
 	return false;
     }
 
   /* Passed by reference when:
-     1. The scalable vector argument is anonymous.
-     2. Args cannot be passed through vector registers.  */
-  if (riscv_vector_mode_p (arg.mode))
+      (1) The scalable vector argument is anonymous.
+      (2) Args cannot be passed through vector registers.
+     VLS modes <= 2*XLEN follow regular aggregate rules per the psABI.  */
+  if (riscv_vector_mode_p (arg.mode)
+      && !riscv_vls_mode_fits_in_gprs_p (arg.mode))
     return true;
 
   /* Pass by reference if the data do not fit in two integer registers.  */
@@ -7246,6 +7299,20 @@ riscv_vector_required_min_vlen (const_tree type)
   return element_bitsize;
 }
 
+static bool
+riscv_vector_fractional_lmul_p (const_tree type)
+{
+  machine_mode mode = TYPE_MODE (type);
+  if (VECTOR_MODE_P (mode))
+    {
+      enum vlmul_type vlmul = get_vlmul (mode);
+      if (vlmul == LMUL_F2 || vlmul == LMUL_F4 || vlmul == LMUL_F8)
+       return true;
+    }
+
+  return false;
+}
+
 static void
 riscv_validate_vector_type (const_tree type, const char *hint)
 {
@@ -7309,6 +7376,14 @@ riscv_validate_vector_type (const_tree type, const char *hint)
 	input_location,
 	"%s %qT requires the minimal vector length %qd but %qd is given",
 	hint, type, required_min_vlen, TARGET_MIN_VLEN);
+      return;
+    }
+
+  if (riscv_vector_fractional_lmul_p (type)
+      && TARGET_XTHEADVECTOR)
+    {
+      error_at (input_location, "%s %qT requires the V ISA extension",
+		hint, type);
       return;
     }
 }
@@ -7391,8 +7466,8 @@ riscv_get_vls_cc_attr (const_tree args, bool check_only = false)
   if (!riscv_valid_abi_vlen_vls_cc_p (abi_vlen) && !check_only)
     {
       error_at (input_location,
-		"unsupported %<ABI_VLEN%> value %d for %qs attribute;"
-		"%<ABI_VLEN must%> be in the range [32, 16384] and must be "
+		"unsupported %<ABI_VLEN%> value %d for %qs attribute; "
+		"%<ABI_VLEN%> must be in the range [32, 16384] and must be "
 		"a power of 2",
 		abi_vlen, "riscv_vls_cc");
       return RISCV_CC_UNKNOWN;
@@ -10665,9 +10740,9 @@ riscv_register_move_cost (machine_mode mode,
   if (from == V_REGS)
     {
       if (to_is_gpr)
-	return get_vector_costs ()->regmove->VR2GR;
+	return get_vr2gr_cost ();
       else if (to_is_fpr)
-	return get_vector_costs ()->regmove->VR2FR;
+	return get_vr2fr_cost ();
     }
 
   if (to == V_REGS)
@@ -11772,8 +11847,12 @@ static int
 riscv_sched_adjust_cost (rtx_insn *, int, rtx_insn *insn, int cost,
 			 unsigned int)
 {
-  /* Only do adjustments for the generic out-of-order scheduling model.  */
-  if (!TARGET_VECTOR || riscv_microarchitecture != generic_ooo)
+
+  /* Only do adjustments for the generic out-of-order and spacemit_x60
+     scheduling model.  */
+  if (!TARGET_VECTOR
+      || (riscv_microarchitecture != generic_ooo
+	  && riscv_microarchitecture != spacemit_x60))
     return cost;
 
   if (recog_memoized (insn) < 0)
@@ -12214,6 +12293,8 @@ riscv_override_options_internal (struct gcc_options *opts)
   const char *tune_string = get_tune_str (opts);
   cpu = riscv_parse_tune (tune_string, false);
   riscv_microarchitecture = cpu->microarchitecture;
+  if (riscv_microarchitecture == spacemit_x60)
+    opts->x_TARGET_ADJUST_LMUL_COST = 1;
   tune_param = opts->x_optimize_size
 		 ? &optimize_size_tune_info
 		 : cpu->tune_param;
@@ -12273,11 +12354,11 @@ riscv_override_options_internal (struct gcc_options *opts)
   /* Convert -march and -mrvv-vector-bits to a chunks count.  */
   riscv_vector_chunks = riscv_convert_vector_chunks (opts);
 
-  /* Set scalar costing to a high value such that we always pick
-     vectorization.  Increase scalar costing by 100x.  */
+  /* Enable possible unprofitable vectorization.  */
   if (opts->x_riscv_max_vectorization)
     SET_OPTION_IF_UNSET (&global_options, &global_options_set,
-			 param_vect_scalar_cost_multiplier, 10000);
+			 param_vect_allow_possibly_not_worthwhile_vectorizations,
+			 1);
 
   if (opts->x_flag_cf_protection != CF_NONE)
     {
@@ -12477,6 +12558,12 @@ riscv_option_override (void)
 		       param_cycle_accurate_model,
 		       0);
 
+  /* Disable fold-mem-offsets when optimizing for size with compressed
+     instructions, as it conflicts with the shorten-memrefs pass.  */
+  if (optimize_size && (TARGET_RVC || TARGET_ZCA))
+    SET_OPTION_IF_UNSET (&global_options, &global_options_set,
+			 flag_fold_mem_offsets, 0);
+
   /* Function to allocate machine-dependent function status.  */
   init_machine_status = &riscv_init_machine_status;
 
@@ -12582,9 +12669,7 @@ riscv_conditional_register_usage (void)
 	call_used_regs[regno] = 1;
     }
 
-  if (TARGET_VECTOR)
-    global_regs[VXRM_REGNUM] = 1;
-  else
+  if (!TARGET_VECTOR)
     {
       for (int regno = V_REG_FIRST; regno <= V_REG_LAST; regno++)
 	fixed_regs[regno] = call_used_regs[regno] = 1;
@@ -13390,7 +13475,17 @@ static bool
 riscv_vector_mode_supported_p (machine_mode mode)
 {
   if (TARGET_VECTOR)
-    return riscv_vector_mode_p (mode);
+    {
+      /* Avoid fractional LMUL modes for xtheadvector with the exception
+	 of builtin registration time.  During registration, all modes
+	 must be available so the order and numbering is consistent,
+	 see PR123279.  */
+      if (TARGET_XTHEADVECTOR && !riscv_registering_builtins
+	  && maybe_lt (GET_MODE_SIZE (mode), BYTES_PER_RISCV_VECTOR))
+	return false;
+
+      return riscv_vector_mode_p (mode);
+    }
 
   return false;
 }
@@ -13795,7 +13890,9 @@ riscv_emit_mode_set (int entity, int mode, int prev_mode,
   switch (entity)
     {
     case RISCV_VXRM:
-      if (mode != VXRM_MODE_NONE && mode != prev_mode)
+      if (mode != VXRM_MODE_NONE
+	  && mode != VXRM_MODE_CLOBBER
+	  && mode != prev_mode)
 	emit_insn (gen_vxrmsi (gen_int_mode (mode, SImode)));
       break;
     case RISCV_FRM:
@@ -13943,13 +14040,8 @@ asm_insn_p (rtx_insn *insn)
 static bool
 vxrm_unknown_p (rtx_insn *insn)
 {
-  /* Return true if there is a definition of VXRM.  */
+  /* Return true if VXRM is set or clobbered.  */
   if (reg_set_p (gen_rtx_REG (SImode, VXRM_REGNUM), insn))
-    return true;
-
-  /* A CALL function may contain an instruction that modifies the VXRM,
-     return true in this situation.  */
-  if (CALL_P (insn))
     return true;
 
   /* Return true for all assembly since users may hardcode a assembly
@@ -14150,6 +14242,21 @@ get_gr2vr_cost ()
   return cost;
 }
 
+/* Return the cost of operation that move from vr to gpr.
+   It will take the value of --param=vr2gpr_cost if it is provided.
+   Or the default regmove->VR2GR will be returned.  */
+
+int
+get_vr2gr_cost ()
+{
+  int cost = get_vector_costs ()->regmove->VR2GR;
+
+  if (vr2gpr_cost != VR2GPR_COST_UNPROVIDED)
+    cost = vr2gpr_cost;
+
+  return cost;
+}
+
 /* Return the cost of moving data from floating-point to vector register.
    It will take the value of --param=fpr2vr-cost if it is provided.
    Otherwise the default regmove->FR2VR will be returned.  */
@@ -14161,6 +14268,21 @@ get_fr2vr_cost ()
 
   if (fpr2vr_cost != FPR2VR_COST_UNPROVIDED)
     cost = fpr2vr_cost;
+
+  return cost;
+}
+
+/* Return the cost of moving data from floating-point to vector register.
+   It will take the value of --param=fpr2vr-cost if it is provided.
+   Otherwise the default regmove->FR2VR will be returned.  */
+
+int
+get_vr2fr_cost ()
+{
+  int cost = get_vector_costs ()->regmove->VR2FR;
+
+  if (vr2fpr_cost != VR2FPR_COST_UNPROVIDED)
+    cost = vr2fpr_cost;
 
   return cost;
 }
@@ -14308,8 +14430,6 @@ extract_base_offset_in_addr (rtx mem, rtx *base, rtx *offset)
 static bool
 riscv_vector_mode_supported_any_target_p (machine_mode)
 {
-  if (TARGET_XTHEADVECTOR)
-    return false;
   return true;
 }
 
@@ -14788,6 +14908,37 @@ riscv_c_mode_for_floating_type (enum tree_index ti)
   return default_mode_for_floating_type (ti);
 }
 
+/* Implement TARGET_C_BITINT_TYPE_INFO.
+   Return true if _BitInt(N) is supported and fill its details into *INFO.  */
+bool
+riscv_bitint_type_info (int n, struct bitint_info *info)
+{
+  if (n <= 8)
+    info->limb_mode = QImode;
+  else if (n <= 16)
+    info->limb_mode = HImode;
+  else if (n <= 32)
+    info->limb_mode = SImode;
+  else if (n <= 64)
+    info->limb_mode = DImode;
+  else if (n <= 128 && TARGET_64BIT)
+    info->limb_mode = TImode;
+  else
+    info->limb_mode = TARGET_64BIT ? DImode : SImode;
+
+  info->abi_limb_mode = info->limb_mode;
+
+  if (n > 64 && TARGET_64BIT)
+    info->abi_limb_mode = TImode;
+
+  if (n > 32 && !TARGET_64BIT)
+    info->abi_limb_mode = DImode;
+
+  info->big_endian = TARGET_BIG_ENDIAN;
+  info->extended = bitint_ext_full;
+  return true;
+}
+
 /* This parses the version string STR and modifies the feature mask and
    priority required to select those targets.
    If LOC is nonnull, report diagnostics against *LOC, otherwise
@@ -14871,15 +15022,16 @@ compare_fmv_features (const struct riscv_feature_bits &mask1,
    version.  */
 
 bool
-riscv_same_function_versions (string_slice v1, string_slice v2)
+riscv_same_function_versions (string_slice v1, const_tree, string_slice v2,
+			      const_tree)
 {
   struct riscv_feature_bits mask1, mask2;
   int prio1, prio2;
 
   /* Invalid features should have already been rejected by this point so
      providing no location should be okay.  */
-  parse_features_for_version (v1, UNKNOWN_LOCATION, mask1, prio1);
-  parse_features_for_version (v2, UNKNOWN_LOCATION, mask2, prio2);
+  parse_features_for_version (v1, nullptr, mask1, prio1);
+  parse_features_for_version (v2, nullptr, mask2, prio2);
 
   return compare_fmv_features (mask1, mask2, prio1, prio2) == 0;
 }
@@ -14915,16 +15067,29 @@ riscv_compare_version_priority (tree decl1, tree decl2)
 bool
 riscv_check_target_clone_version (string_slice str, location_t *loc_p)
 {
-  struct riscv_feature_bits mask;
-  int prio;
+  if (str == "default")
+    return true;
 
-  /* Currently it is not possible to parse without emitting errors on failure
-     so do not reject on a failed parse, as this would then emit two
-     diagnostics.  Instead let errors be emitted which will halt
-     compilation.  */
-  parse_features_for_version (str, loc_p, mask, prio);
+  struct cl_target_option cur_target;
+  cl_target_option_save (&cur_target, &global_options,
+			 &global_options_set);
 
-  return true;
+  struct cl_target_option *default_opts
+    = TREE_TARGET_OPTION (target_option_default_node);
+  cl_target_option_restore (&global_options, &global_options_set,
+			    default_opts);
+
+  bool ok = riscv_process_target_version_str (str, NULL);
+
+  cl_target_option_restore (&global_options, &global_options_set,
+			    &cur_target);
+
+  if (!ok && loc_p)
+    warning_at (*loc_p, OPT_Wattributes,
+		"invalid version %qB for %<target_clones%> attribute",
+		&str);
+
+  return ok;
 }
 
 /* Implement TARGET_MANGLE_DECL_ASSEMBLER_NAME, to add function multiversioning
@@ -15400,7 +15565,7 @@ riscv_generate_version_dispatcher_body (void *node_p)
 	 not.  This happens for methods in derived classes that override
 	 virtual methods in base classes but are not explicitly marked as
 	 virtual.  */
-      if (DECL_VINDEX (versn->decl))
+      if (DECL_VIRTUAL_P (versn->decl))
 	sorry ("virtual function multiversioning not supported");
 
       fn_ver_vec.safe_push (versn->decl);
@@ -15763,7 +15928,7 @@ synthesize_ior_xor (rtx_code code, rtx operands[3])
 {
   /* Trivial cases that don't need synthesis.  */
   if (SMALL_OPERAND (INTVAL (operands[2]))
-     || ((TARGET_ZBS || TARGET_ZBKB)
+     || (TARGET_ZBS
 	 && single_bit_mask_operand (operands[2], word_mode)))
     return false;
 
@@ -16385,6 +16550,38 @@ riscv_prefetch_offset_address_p (rtx x, machine_mode mode)
   return true;
 }
 
+
+/* Implement TARGET_MEMTAG_CAN_TAG_ADDRESSES.
+ * Enables -fsanitize=hwaddress if true.  */
+
+bool
+riscv_can_tag_addresses ()
+{
+  /* Tagging is possible when a pointer masking extension is available.  */
+  bool target_has_pointer_masking_p = TARGET_SMMPM
+				   || TARGET_SMNPM
+				   || TARGET_SSNPM
+				   || TARGET_SSPM
+				   || TARGET_SUPM;
+  return TARGET_64BIT && target_has_pointer_masking_p;
+}
+
+
+/* libsanitizer expects 8 tag bits.  */
+
+#define RISCV_HWASAN_TAG_SIZE 8
+
+
+/* Implement TARGET_MEMTAG_TAG_BITSIZE.
+ * Communicates how many unused pointer bits are used for tagging.  */
+
+unsigned char
+riscv_memtag_tag_bitsize ()
+{
+  return RISCV_HWASAN_TAG_SIZE;
+}
+
+
 /* Initialize the GCC target structure.  */
 #undef TARGET_ASM_ALIGNED_HI_OP
 #define TARGET_ASM_ALIGNED_HI_OP "\t.half\t"
@@ -16774,6 +16971,9 @@ riscv_prefetch_offset_address_p (rtx x, machine_mode mode)
 #undef TARGET_C_MODE_FOR_FLOATING_TYPE
 #define TARGET_C_MODE_FOR_FLOATING_TYPE riscv_c_mode_for_floating_type
 
+#undef TARGET_C_BITINT_TYPE_INFO
+#define TARGET_C_BITINT_TYPE_INFO riscv_bitint_type_info
+
 #undef TARGET_USE_BY_PIECES_INFRASTRUCTURE_P
 #define TARGET_USE_BY_PIECES_INFRASTRUCTURE_P riscv_use_by_pieces_infrastructure_p
 
@@ -16800,6 +17000,12 @@ riscv_prefetch_offset_address_p (rtx x, machine_mode mode)
 #undef TARGET_GET_FUNCTION_VERSIONS_DISPATCHER
 #define TARGET_GET_FUNCTION_VERSIONS_DISPATCHER \
   riscv_get_function_versions_dispatcher
+
+#undef TARGET_MEMTAG_CAN_TAG_ADDRESSES
+#define TARGET_MEMTAG_CAN_TAG_ADDRESSES riscv_can_tag_addresses
+
+#undef TARGET_MEMTAG_TAG_BITSIZE
+#define TARGET_MEMTAG_TAG_BITSIZE riscv_memtag_tag_bitsize
 
 #undef TARGET_DOCUMENTATION_NAME
 #define TARGET_DOCUMENTATION_NAME "RISC-V"

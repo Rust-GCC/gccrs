@@ -1,5 +1,5 @@
 // { dg-do compile { target c++11 } }
-// { dg-additional-options "-Wno-volatile" { target c++2a } }
+// { dg-additional-options "-Wno-volatile" { target c++20 } }
 
 // Copyright (C) 2012-2026 Free Software Foundation, Inc.
 //

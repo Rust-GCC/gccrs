@@ -33,6 +33,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "toplev.h"
 #include "intl.h"
 #include "common/common-target.h"
+#include "attribs.h"
 
 static void do_build_copy_assign (tree);
 static void do_build_copy_constructor (tree);
@@ -1898,7 +1899,7 @@ maybe_synthesize_method (tree fndecl)
 /* Build a reference to type TYPE with cv-quals QUALS, which is an
    rvalue if RVALUE is true.  */
 
-static tree
+tree
 build_stub_type (tree type, int quals, bool rvalue)
 {
   tree argtype = cp_build_qualified_type (type, quals);
@@ -3355,11 +3356,38 @@ deduce_inheriting_ctor (tree decl)
   return true;
 }
 
+/* Returns whether SFK is currently lazy within TYPE, i.e., it hasn't
+   yet been declared.  */
+
+static bool
+is_lazy_special_member (special_function_kind sfk, tree type)
+{
+  switch (sfk)
+    {
+    case sfk_constructor:
+      return CLASSTYPE_LAZY_DEFAULT_CTOR (type);
+    case sfk_copy_constructor:
+      return CLASSTYPE_LAZY_COPY_CTOR (type);
+    case sfk_move_constructor:
+      return CLASSTYPE_LAZY_MOVE_CTOR (type);
+    case sfk_copy_assignment:
+      return CLASSTYPE_LAZY_COPY_ASSIGN (type);
+    case sfk_move_assignment:
+      return CLASSTYPE_LAZY_MOVE_ASSIGN (type);
+    case sfk_destructor:
+      return CLASSTYPE_LAZY_DESTRUCTOR (type);
+    default:
+      return false;
+    }
+}
+
 /* Implicitly declare the special function indicated by KIND, as a
    member of TYPE.  For copy constructors and assignment operators,
    CONST_P indicates whether these functions should take a const
    reference argument or a non-const reference.
-   Returns the FUNCTION_DECL for the implicitly declared function.  */
+   Returns the FUNCTION_DECL for the new implicitly declared function,
+   or NULL_TREE if we just discovered the function already exists.
+   Currently this can only happen for lazy implicit members.  */
 
 tree
 implicitly_declare_fn (special_function_kind kind, tree type,
@@ -3483,6 +3511,7 @@ implicitly_declare_fn (special_function_kind kind, tree type,
     }
 
   bool trivial_p = false;
+  bool was_lazy = is_lazy_special_member (kind, type);
 
   if (inherited_ctor)
     {
@@ -3503,6 +3532,14 @@ implicitly_declare_fn (special_function_kind kind, tree type,
     synthesized_method_walk (type, kind, const_p, &raises, &trivial_p,
 			     &deleted_p, &constexpr_p, false,
 			     &inherited_ctor, inherited_parms);
+
+  /* The above walk may have indirectly loaded a lazy decl we're
+     about to build from a module, let's not build it again.  */
+  if (modules_p ()
+      && was_lazy
+      && !is_lazy_special_member (kind, type))
+    return NULL_TREE;
+
   /* Don't bother marking a deleted constructor as constexpr.  */
   if (deleted_p)
     constexpr_p = false;
@@ -3595,6 +3632,9 @@ implicitly_declare_fn (special_function_kind kind, tree type,
       tree inherited_ctor_fn = STRIP_TEMPLATE (inherited_ctor);
       /* Also copy any attributes.  */
       DECL_ATTRIBUTES (fn) = clone_attrs (DECL_ATTRIBUTES (inherited_ctor_fn));
+      /* But remove gnu::gnu_inline attribute.  See PR123526.  */
+      DECL_ATTRIBUTES (fn)
+	= remove_attribute ("gnu", "gnu_inline", DECL_ATTRIBUTES (fn));
       DECL_DISREGARD_INLINE_LIMITS (fn)
 	= DECL_DISREGARD_INLINE_LIMITS (inherited_ctor_fn);
     }
@@ -3914,17 +3954,26 @@ defaultable_fn_check (tree fn)
 }
 
 /* Add an implicit declaration to TYPE for the kind of function
-   indicated by SFK.  Return the FUNCTION_DECL for the new implicit
-   declaration.  */
+   indicated by SFK.  */
 
-tree
+void
 lazily_declare_fn (special_function_kind sfk, tree type)
 {
-  tree fn;
-  /* Whether or not the argument has a const reference type.  */
-  bool const_p = false;
-
   type = TYPE_MAIN_VARIANT (type);
+
+  /* Whether or not the argument has a const reference type.  */
+  bool const_p = ((sfk == sfk_copy_constructor
+		   && TYPE_HAS_CONST_COPY_CTOR (type))
+		  || (sfk == sfk_copy_assignment
+		      && TYPE_HAS_CONST_COPY_ASSIGN (type)));
+
+  /* Declare the function.  */
+  tree fn = implicitly_declare_fn (sfk, type, const_p, NULL, NULL);
+
+  /* We may have indirectly acquired the function from a module,
+     if so there's nothing else to do.  */
+  if (!fn)
+    return;
 
   switch (sfk)
     {
@@ -3932,14 +3981,12 @@ lazily_declare_fn (special_function_kind sfk, tree type)
       CLASSTYPE_LAZY_DEFAULT_CTOR (type) = 0;
       break;
     case sfk_copy_constructor:
-      const_p = TYPE_HAS_CONST_COPY_CTOR (type);
       CLASSTYPE_LAZY_COPY_CTOR (type) = 0;
       break;
     case sfk_move_constructor:
       CLASSTYPE_LAZY_MOVE_CTOR (type) = 0;
       break;
     case sfk_copy_assignment:
-      const_p = TYPE_HAS_CONST_COPY_ASSIGN (type);
       CLASSTYPE_LAZY_COPY_ASSIGN (type) = 0;
       break;
     case sfk_move_assignment:
@@ -3951,9 +3998,6 @@ lazily_declare_fn (special_function_kind sfk, tree type)
     default:
       gcc_unreachable ();
     }
-
-  /* Declare the function.  */
-  fn = implicitly_declare_fn (sfk, type, const_p, NULL, NULL);
 
   /* [class.copy]/8 If the class definition declares a move constructor or
      move assignment operator, the implicitly declared copy constructor is
@@ -4007,8 +4051,6 @@ lazily_declare_fn (special_function_kind sfk, tree type)
      check_bases_and_members, but we must also inject them here for deferred
      lazily-declared functions.  */
   maybe_propagate_warmth_attributes (fn, type);
-
-  return fn;
 }
 
 /* Given a FUNCTION_DECL FN and a chain LIST, skip as many elements of LIST

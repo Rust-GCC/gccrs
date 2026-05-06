@@ -33,6 +33,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "target.h"
 #include "decl.h"
 #include "flags.h"
+#include "contracts.h"
 
 /* Constructor for a lambda expression.  */
 
@@ -497,6 +498,8 @@ build_capture_proxy (tree member, tree init, bool early_p)
 	    init = PACK_EXPANSION_PATTERN (init);
 	}
 
+      init = strip_contract_const_wrapper (init);
+
       if (INDIRECT_REF_P (init))
 	init = TREE_OPERAND (init, 0);
       STRIP_NOPS (init);
@@ -726,8 +729,19 @@ add_capture (tree lambda, tree id, tree orig_init, bool by_reference_p,
       && current_class_type == LAMBDA_EXPR_CLOSURE (lambda))
     {
       if (COMPLETE_TYPE_P (current_class_type))
-	internal_error ("trying to capture %qD in instantiation of "
-			"generic lambda", id);
+	{
+	  /* This can happen for code like [&]<auto e> { [:e:]; } where
+	     we can't figure out what the splice will designate while parsing;
+	     we'll only know it after we've substituted the splice, but then
+	     it's too late to capture anything.  This code is ill-formed as
+	     per [expr.prim.splice]/2.1.4.1: The expression is ill-formed if
+	     S is ... a local entity such that ... there is a lambda scope that
+	     intervenes between the expression and the point at which S was
+	     introduced and the expression would be potentially evaluated.  */
+	  error ("trying to capture %qD in instantiation of generic lambda",
+		 id);
+	  return error_mark_node;
+	}
       finish_member_declaration (member);
     }
 
@@ -1150,7 +1164,7 @@ prepare_op_call (tree fn, int nargs)
 bool
 generic_lambda_fn_p (tree callop)
 {
-  return (LAMBDA_FUNCTION_P (callop)
+  return (callop && LAMBDA_FUNCTION_P (callop)
 	  && DECL_TEMPLATE_INFO (callop)
 	  && PRIMARY_TEMPLATE_P (DECL_TI_TEMPLATE (callop)));
 }

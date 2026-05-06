@@ -38,5 +38,6 @@ int main ()
   return 0;
 }
 
-
-/* { dg-final { scan-tree-dump-times "vectorized 0 loops" 1 "vect" { xfail amdgcn*-*-* } } } */
+/* On power64, we vectorize pairs of ints into single non-vector registers.
+   That's not necessarily profitable, the costmodel may need adjustments.  */
+/* { dg-final { scan-tree-dump-times "vectorized 0 loops" 1 "vect" { xfail { amdgcn*-*-* || { powerpc*-*-* && lp64 } } } } } */

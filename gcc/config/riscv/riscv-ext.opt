@@ -176,6 +176,8 @@ Mask(ZABHA) Var(riscv_za_subext)
 
 Mask(ZACAS) Var(riscv_za_subext)
 
+Mask(ZALASR) Var(riscv_za_subext)
+
 Mask(ZALRSC) Var(riscv_za_subext)
 
 Mask(ZAWRS) Var(riscv_za_subext)

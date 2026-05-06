@@ -7,6 +7,7 @@ enum class CustomIndexKind
   Throwing,
   Mutating,
   RValue,
+  ConstLValue,
 };
 
 template<CustomIndexKind Kind, bool Copyable = false>
@@ -57,6 +58,15 @@ template<CustomIndexKind Kind, bool Copyable = false>
     requires (Kind == CustomIndexKind::RValue)
     { return value; }
 
+    constexpr
+    operator int() const& noexcept
+    requires (Kind == CustomIndexKind::ConstLValue)
+    { return value; }
+
+    operator int() const&&
+    requires (Kind == CustomIndexKind::ConstLValue)	   
+    = delete;
+
   private:
     int value;
   };
@@ -65,6 +75,7 @@ using IntLike = CustomIndexType<CustomIndexKind::Const>;
 using ThrowingInt = CustomIndexType<CustomIndexKind::Throwing>;
 using MutatingInt = CustomIndexType<CustomIndexKind::Mutating>;
 using RValueInt = CustomIndexType<CustomIndexKind::RValue>;
+using ConstLValueInt = CustomIndexType<CustomIndexKind::ConstLValue>;
 
 struct NotIntLike
 { };

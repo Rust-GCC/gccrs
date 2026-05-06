@@ -24,6 +24,7 @@
 #include "coretypes.h"
 
 #include "a68.h"
+#include "a68-pretty-print.h"
 
 /* This is part of the bottom-up parser.  Here is a set of routines that gather
   definitions from phrases.  This way we can apply tags before defining them.
@@ -55,8 +56,11 @@ static void
 detect_redefined_keyword (NODE_T *p, int construct)
 {
   if (p != NO_NODE && a68_whether (p, KEYWORD, EQUALS_SYMBOL, STOP))
-    a68_error (p, "attempt to redefine keyword Y in A",
-	       NSYMBOL (p), construct);
+    {
+      a68_attr_format_token a ((a68_attribute) construct);
+      a68_error (p, "attempt to redefine keyword %s in %e",
+		 NSYMBOL (p), &a);
+    }
 }
 
 /* Skip anything until a FED or ALT_ACCESS_SYMBOL is found.  */
@@ -135,7 +139,8 @@ find_tag_definition (TABLE_T *table, const char *name)
     return 0;
 }
 
-/* Fill in whether bold tag is operator, indicant or module indicant.  */
+/* Fill in whether bold tag is operator, indicant, module indicant or language
+   indicant.  */
 
 void
 a68_elaborate_bold_tags (NODE_T *p)
@@ -144,20 +149,37 @@ a68_elaborate_bold_tags (NODE_T *p)
     {
       if (IS (q, BOLD_TAG))
 	{
-	  switch (find_tag_definition (TABLE (q), NSYMBOL (q)))
+	  if (PREVIOUS (q) != NO_NODE
+	      && IS (PREVIOUS (q), FORMAL_NEST_SYMBOL))
 	    {
-	    case 0:
-	      a68_error (q, "tag S has not been declared properly");
-	      break;
-	    case INDICANT:
-	      ATTRIBUTE (q) = INDICANT;
-	      break;
-	    case OPERATOR:
-	      ATTRIBUTE (q) = OPERATOR;
-	      break;
-	    case MODULE_INDICANT:
-	      ATTRIBUTE (q) = MODULE_INDICANT;
-	      break;
+	      if (strcmp (NSYMBOL (q), "C") != 0)
+		{
+		  a68_symbol_format_token s (q);
+		  a68_error (q, "%e is not a valid language indication", &s);
+		}
+	      else
+		ATTRIBUTE (q) = LANGUAGE_INDICANT;
+	    }
+	  else
+	    {
+	      switch (find_tag_definition (TABLE (q), NSYMBOL (q)))
+		{
+		case 0:
+		  {
+		    a68_symbol_format_token s (q);
+		    a68_error (q, "indicant %e has not been declared properly", &s);
+		  }
+		  break;
+		case INDICANT:
+		  ATTRIBUTE (q) = INDICANT;
+		  break;
+		case OPERATOR:
+		  ATTRIBUTE (q) = OPERATOR;
+		  break;
+		case MODULE_INDICANT:
+		  ATTRIBUTE (q) = MODULE_INDICANT;
+		  break;
+		}
 	    }
 	}
     }
@@ -185,19 +207,30 @@ skip_pack_declarer (NODE_T *p)
     return p;
 }
 
-/* Extract the revelation associated with the module MODULE.  The node Q is
-   used for symbol table and diagnostic purposes.  Publicized modules are
-   recursively extracted as well.  This call may result in one or more
-   errors.  */
+/* Extract the revelation associated with the module MODULE.
 
-static void
-extract_revelation (NODE_T *q, const char *module, TAG_T *tag)
+   The node Q is used for symbol table and diagnostic purposes
+
+   Publicized modules are recursively extracted as well.  This call may result
+   in one or more errors.
+
+   If FILENAME is not NULL then the module exports are looked in
+   libFILENAME.so, FILENAME.o, etc.  If it is NULL, the filename is derived
+   from the module name.
+
+   This function is visible externally because it is used to extract
+   revelations of modules distributed as part of libga68, in
+   a68-parser-prelude.cc */
+
+void
+a68_extract_revelation (NODE_T *q, const char *module, const char *filename,
+			TAG_T *tag)
 {
   /* Import the MOIF and install it in the tag.  */
-  MOIF_T *moif = a68_open_packet (module);
+  MOIF_T *moif = a68_open_packet (module, filename);
   if (moif == NULL)
     {
-      a68_error (q, "cannot find module Z", module);
+      a68_error (q, "cannot find module %qs", module);
       return;
     }
 
@@ -234,7 +267,7 @@ extract_revelation (NODE_T *q, const char *module, TAG_T *tag)
      extract_revelation calls is properly done.  */
 
   for (EXTRACT_T *e : MODULES (moif))
-    extract_revelation (q, EXTRACT_SYMBOL (e), NO_TAG);
+    a68_extract_revelation (q, EXTRACT_SYMBOL (e), filename, NO_TAG);
 
   /* Store mode indicants from the MOIF in the symbol table,
      and also in the moid list.  */
@@ -255,6 +288,7 @@ extract_revelation (NODE_T *q, const char *module, TAG_T *tag)
       /* INDICANT node.  */
       NODE_T *n = a68_some_node (a68_demangle_symbol (NAME (moif),
 						      EXTRACT_SYMBOL (e)));
+      MOID (n) = EXTRACT_MODE (e);
       /* EQUALS_SYMBOL node.  */
       NEXT (n) = a68_some_node ("=");
       ATTRIBUTE (NEXT (n)) = EQUALS_SYMBOL;
@@ -339,6 +373,21 @@ extract_revelation (NODE_T *q, const char *module, TAG_T *tag)
     }
 }
 
+/* This version of a68_extract_revelation gets a symbol table and line info
+   rather than a node.  It is used to extract revelations from standard modules
+   distributed in the run-time library.  See a68-parser-prelude.cc */
+
+void
+a68_extract_revelation (TABLE_T *t, LINE_T *l,
+			const char *module, const char *filename,
+			TAG_T *tag)
+{
+  NODE_T *q = a68_some_node ("");
+  TABLE (q) = t;
+  LINE (INFO (q)) = l;
+  a68_extract_revelation (q, module, filename, tag);
+}
+
 /* Search [MODE|MODULE] A = .., B = ..
    and    ACCESS A, B, ..
    and store indicants.  */
@@ -377,7 +426,8 @@ a68_extract_indicants (NODE_T *p)
 		    {
 		      TAG_T *tag = a68_add_tag (TABLE (bold_tag), MODULE_SYMBOL, bold_tag, NO_MOID, STOP);
 		      gcc_assert (tag != NO_TAG);
-		      extract_revelation (bold_tag, NSYMBOL (bold_tag), tag);
+		      a68_extract_revelation (bold_tag, NSYMBOL (bold_tag),
+					      NULL /* filename */, tag);
 		    }
 		}
 	    }
@@ -404,7 +454,10 @@ a68_extract_indicants (NODE_T *p)
 		  else
 		    {
 		      q = skip_module_text (NEXT (q));
-		      FORWARD (q);
+		      if (q == NO_NODE)
+			siga = false;
+		      else
+			FORWARD (q);
 		    }
 		}
 	      else
@@ -562,7 +615,12 @@ a68_extract_priorities (NODE_T *p)
 		      NSYMBOL (q) = TEXT (a68_add_token (&A68 (top_token), sym));
 		      free (sym);
 		      if (len > 2 && NSYMBOL (q)[len - 2] == ':' && NSYMBOL (q)[len - 3] != '=')
-			a68_error (q, "probably a missing symbol near invalid operator S");
+			{
+			  a68_symbol_format_token s (q);
+			  a68_error (q,
+				     "probably a missing symbol near invalid operator %e",
+				     &s);
+			}
 		      ATTRIBUTE (q) = DEFINING_OPERATOR;
 		      PUBLICIZED (q) = is_public;
 		      insert_alt_equals (q);
@@ -679,8 +737,14 @@ a68_extract_operators (NODE_T *p)
 			  a68_bufcpy (sym, NSYMBOL (q), len + 1);
 			  sym[len - 1] = '\0';
 			  NSYMBOL (q) = TEXT (a68_add_token (&A68 (top_token), sym));
-			  if (len > 2 && NSYMBOL (q)[len - 2] == ':' && NSYMBOL (q)[len - 3] != '=')
-			    a68_error (q, "probably a missing symbol near invalid operator S");
+			  if (len > 2 && NSYMBOL (q)[len - 2] == ':'
+			      && NSYMBOL (q)[len - 3] != '=')
+			    {
+			      a68_symbol_format_token s (q);
+			      a68_error (q,
+					 "probably a missing symbol near invalid operator %e",
+					 &s);
+			    }
 			  ATTRIBUTE (q) = DEFINING_OPERATOR;
 			  PUBLICIZED (q) = is_public;
 			  insert_alt_equals (q);
@@ -746,6 +810,7 @@ extract_identities (NODE_T *p)
 	      FORWARD (q);
 	    }
 
+	  NODE_T *declarer = q;
 	  do
 	    {
 	      if (a68_whether ((FORWARD (q)), IDENTIFIER, EQUALS_SYMBOL, STOP))
@@ -755,6 +820,12 @@ extract_identities (NODE_T *p)
 		    gcc_unreachable ();
 		  ATTRIBUTE (q) = DEFINING_IDENTIFIER;
 		  PUBLICIZED (q) = is_public;
+		  if (IS (SUB (declarer), PROC_SYMBOL))
+		    {
+		      NODE_T *actual_param = NEXT (NEXT (q));
+		      if (actual_param != NO_NODE && IS (actual_param, FORMAL_NEST_SYMBOL))
+			NEST_PROC (tag) = true;
+		    }
 		  FORWARD (q);
 		  ATTRIBUTE (q) = ALT_EQUALS_SYMBOL;
 		  q = skip_unit (q);
@@ -985,7 +1056,8 @@ a68_extract_declarations (NODE_T *p)
 	    }
 	  else
 	    {
-	      a68_error (q, "tag S has not been declared properly");
+	      a68_symbol_format_token s (q);
+	      a68_error (q, "indicant %e has not been declared properly", &s);
 	      PRIO (INFO (q)) = 1;
 	    }
 	}

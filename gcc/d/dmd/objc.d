@@ -3,7 +3,7 @@
  *
  * Specification: $(LINK2 https://dlang.org/spec/objc_interface.html, Interfacing to Objective-C)
  *
- * Copyright:   Copyright (C) 1999-2025 by The D Language Foundation, All Rights Reserved
+ * Copyright:   Copyright (C) 1999-2026 by The D Language Foundation, All Rights Reserved
  * Authors:     $(LINK2 https://www.digitalmars.com, Walter Bright)
  * License:     $(LINK2 https://www.boost.org/LICENSE_1_0.txt, Boost License 1.0)
  * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/compiler/src/dmd/objc.d, _objc.d)
@@ -17,12 +17,11 @@ import dmd.aggregate;
 import dmd.arraytypes;
 import dmd.astenums;
 import dmd.attrib;
-import dmd.attribsem;
+import dmd.attribsem : foreachUda;
 import dmd.cond;
 import dmd.dclass;
 import dmd.declaration;
 import dmd.denum;
-import dmd.dmodule;
 import dmd.dscope;
 import dmd.dstruct;
 import dmd.dsymbol;
@@ -31,8 +30,6 @@ import dmd.errors;
 import dmd.expression;
 import dmd.expressionsem;
 import dmd.func;
-import dmd.globals;
-import dmd.gluelayer;
 import dmd.hdrgen;
 import dmd.id;
 import dmd.identifier;
@@ -433,7 +430,7 @@ extern(C++) private final class Unsupported : Objc
 {
     extern(D) final this()
     {
-        ObjcGlue.initialize();
+
     }
 
     override void setObjc(ClassDeclaration cd)
@@ -545,7 +542,6 @@ extern(C++) private final class Supported : Objc
     {
         VersionCondition.addPredefinedGlobalIdent("D_ObjectiveC");
 
-        ObjcGlue.initialize();
         ObjcSelector._init();
     }
 

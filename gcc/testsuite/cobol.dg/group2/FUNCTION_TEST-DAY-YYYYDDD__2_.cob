@@ -1,7 +1,7 @@
        *> { dg-do run }
 
         identification division.
-        program-id. test.
+        program-id. testy.
         data division.
         working-storage section.
         01 datev     pic 99999999.
@@ -166,5 +166,5 @@
                     should_be " but was " result
             move 1 to return-code
             end-if.
-        end program test.
+        end program testy.
 

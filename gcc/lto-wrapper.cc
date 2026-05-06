@@ -1381,7 +1381,7 @@ init_num_threads (void)
 void
 print_lto_docs_link ()
 {
-  label_text url = label_text::take (global_dc->make_option_url (OPT_flto));
+  label_text url = global_dc->get_option_url (OPT_flto);
   inform (UNKNOWN_LOCATION,
 	  "see the %{%<-flto%> option documentation%} for more information",
 	  url.get ());
@@ -1401,7 +1401,7 @@ make_exists (void)
   int exit_status = 0;
   int err = 0;
   const char *errmsg
-    = pex_one (PEX_SEARCH, make_args[0], CONST_CAST (char **, make_args),
+    = pex_one (PEX_SEARCH, make_args[0], const_cast<char **> (make_args),
 	       "make", NULL, NULL, &exit_status, &err);
   freeargv (make_argv);
   return errmsg == NULL && exit_status == 0 && err == 0;
@@ -1929,7 +1929,7 @@ cont1:
 
   new_argv = XOBFINISH (&argv_obstack, const char **);
   argv_ptr = &new_argv[new_head_argc];
-  fork_execute (new_argv[0], CONST_CAST (char **, new_argv), true,
+  fork_execute (new_argv[0], const_cast<char **> (new_argv), true,
 		"ltrans_args");
 
   /* Copy the early generated debug info from the objects to temporary
@@ -2154,7 +2154,7 @@ cont:
 		snprintf (argsuffix,
 			  sizeof (DUMPBASE_SUFFIX) + sizeof (".ltrans_args"),
 			  "ltrans%u.ltrans_args", i);
-	      fork_execute (new_argv[0], CONST_CAST (char **, new_argv),
+	      fork_execute (new_argv[0], const_cast<char **> (new_argv),
 			    true, save_temps ? argsuffix : NULL);
 	      if (!ltrans_cache)
 		maybe_unlink (input_names[i]);
@@ -2206,7 +2206,7 @@ cont:
 	  obstack_ptr_grow (&argv_obstack, NULL);
 	  new_argv = XOBFINISH (&argv_obstack, const char **);
 
-	  pex = collect_execute (new_argv[0], CONST_CAST (char **, new_argv),
+	  pex = collect_execute (new_argv[0], const_cast<char **> (new_argv),
 				 NULL, NULL, PEX_SEARCH, false, NULL);
 	  do_wait (new_argv[0], pex);
 	  freeargv (make_argv);
@@ -2282,11 +2282,12 @@ public:
   {
     return true;
   }
-  char *make_option_name (diagnostics::option_id,
-			  enum diagnostics::kind,
-			  enum diagnostics::kind) const final override
+  label_text
+  get_option_name (diagnostics::option_id,
+		   enum diagnostics::kind,
+		   enum diagnostics::kind) const final override
   {
-    return nullptr;
+    return label_text::borrow (nullptr);
   }
 };
 

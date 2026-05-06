@@ -205,7 +205,7 @@ END Value ;
 
 PROCEDURE Key (node: Node) : ADDRESS ;
 BEGIN
-   RETURN node^.value
+   RETURN node^.key
 END Key ;
 
 

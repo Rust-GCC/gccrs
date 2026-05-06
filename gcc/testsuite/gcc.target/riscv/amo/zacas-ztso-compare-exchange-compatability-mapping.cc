@@ -7,6 +7,7 @@
 /* { dg-options "-O3 -std=c++17" } */
 /* { dg-add-options riscv_zacas } */
 /* { dg-add-options riscv_ztso } */
+/* { dg-remove-options riscv_zalasr } */
 /* { dg-final { check-function-bodies "**" "" } } */
 
 /*

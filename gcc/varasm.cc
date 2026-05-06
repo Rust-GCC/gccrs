@@ -4517,7 +4517,7 @@ mark_constants_in_pattern (rtx insn)
 	      if (!TREE_ASM_WRITTEN (DECL_INITIAL (decl)))
 		{
 		  n_deferred_constants--;
-		  output_constant_def_contents (CONST_CAST_RTX (x));
+		  output_constant_def_contents (const_cast<rtx> (x));
 		}
 	    }
 	}
@@ -7374,7 +7374,7 @@ categorize_decl_for_section (const_tree decl, int reloc)
   else if (TREE_CODE (decl) == STRING_CST)
     {
       if ((flag_sanitize & SANITIZE_ADDRESS)
-	  && asan_protect_global (CONST_CAST_TREE (decl)))
+	  && asan_protect_global (const_cast<tree> (decl)))
       /* or !flag_merge_constants */
         return SECCAT_RODATA;
       else
@@ -7382,7 +7382,7 @@ categorize_decl_for_section (const_tree decl, int reloc)
     }
   else if (VAR_P (decl))
     {
-      tree d = CONST_CAST_TREE (decl);
+      tree d = const_cast<tree> (decl);
       if (bss_initializer_p (decl))
 	ret = SECCAT_BSS;
       else if (! TREE_READONLY (decl)

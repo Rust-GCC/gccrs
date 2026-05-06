@@ -1,0 +1,63 @@
+   Simple data structure
+1 "James  Keen   Lowden "
+2 "       Keen          "
+3 "                     "
+4 "James         Lowden "
+5 "James  Keen   Lowden "
+    Simple table
+31 "James  Keen   Lowden James  Keen   Lowden James  Keen   Lowden "
+32 "       Keen                 Keen                 Keen          "
+33 "                                                               "
+34 "James         Lowden James         Lowden James         Lowden "
+35 "James  Keen   Lowden James  Keen   Lowden James  Keen   Lowden "
+36 "AAAAAAAAAAAAAAAAAAAAABBBBBBBBBBBBBBBBBBBBBCCCCCCCCCCCCCCCCCCCCC"
+37 "James  AAAAAAALowden James  BBBBBBBLowden James  CCCCCCCLowden "
+      Simple four-by-four table
+40-1 "James  Keen   Lowden James  Keen   Lowden James  Keen   Lowden James  Keen   Lowden "
+40-2 "James  Keen   Lowden James  Keen   Lowden James  Keen   Lowden James  Keen   Lowden "
+40-3 "James  Keen   Lowden James  Keen   Lowden James  Keen   Lowden James  Keen   Lowden "
+40-4 "James  Keen   Lowden James  Keen   Lowden James  Keen   Lowden James  Keen   Lowden "
+41-1 "AAAAAAAAAAAAAAAAAAAAABBBBBBBBBBBBBBBBBBBBBCCCCCCCCCCCCCCCCCCCCCDDDDDDDDDDDDDDDDDDDDD"
+41-2 "EEEEEEEEEEEEEEEEEEEEEFFFFFFFFFFFFFFFFFFFFFGGGGGGGGGGGGGGGGGGGGGHHHHHHHHHHHHHHHHHHHHH"
+41-3 "IIIIIIIIIIIIIIIIIIIIIJJJJJJJJJJJJJJJJJJJJJKKKKKKKKKKKKKKKKKKKKKLLLLLLLLLLLLLLLLLLLLL"
+41-4 "MMMMMMMMMMMMMMMMMMMMMNNNNNNNNNNNNNNNNNNNNNOOOOOOOOOOOOOOOOOOOOOPPPPPPPPPPPPPPPPPPPPP"
+42-1 "James  AAAAAAALowden James  BBBBBBBLowden James  CCCCCCCLowden James  DDDDDDDLowden "
+42-2 "James  EEEEEEELowden James  FFFFFFFLowden James  GGGGGGGLowden James  HHHHHHHLowden "
+42-3 "James  IIIIIIILowden James  JJJJJJJLowden James  KKKKKKKLowden James  LLLLLLLLowden "
+42-4 "James  MMMMMMMLowden James  NNNNNNNLowden James  OOOOOOOLowden James  PPPPPPPLowden "
+      Complex four-by-four table, with extra fields
+50-1 "four-outer  four-inner  James  Keen   Lowden four-inner  James  Keen   Lowden four-inner  James  Keen   Lowden four-inner  James  Keen   Lowden "
+50-2 "four-outer  four-inner  James  Keen   Lowden four-inner  James  Keen   Lowden four-inner  James  Keen   Lowden four-inner  James  Keen   Lowden "
+50-3 "four-outer  four-inner  James  Keen   Lowden four-inner  James  Keen   Lowden four-inner  James  Keen   Lowden four-inner  James  Keen   Lowden "
+50-4 "four-outer  four-inner  James  Keen   Lowden four-inner  James  Keen   Lowden four-inner  James  Keen   Lowden four-inner  James  Keen   Lowden "
+      After INITIALIZE, only the KEEN columns should be left
+51-1 "                               Keen                             Keen                             Keen                             Keen          "
+51-2 "                               Keen                             Keen                             Keen                             Keen          "
+51-3 "                               Keen                             Keen                             Keen                             Keen          "
+51-4 "                               Keen                             Keen                             Keen                             Keen          "
+      After INITIALIZE WITH FILLER, all should be blank
+52-1 "                                                                                                                                                "
+52-2 "                                                                                                                                                "
+52-3 "                                                                                                                                                "
+52-4 "                                                                                                                                                "
+      After INITIALIZE ALL VALUE, all but the KEEN columns should be back
+53-1 "four-outer  four-inner  James         Lowden four-inner  James         Lowden four-inner  James         Lowden four-inner  James         Lowden "
+53-2 "four-outer  four-inner  James         Lowden four-inner  James         Lowden four-inner  James         Lowden four-inner  James         Lowden "
+53-3 "four-outer  four-inner  James         Lowden four-inner  James         Lowden four-inner  James         Lowden four-inner  James         Lowden "
+53-4 "four-outer  four-inner  James         Lowden four-inner  James         Lowden four-inner  James         Lowden four-inner  James         Lowden "
+      After INITIALIZE WITH FILLER ALL VALUE, should be the original
+54-1 "four-outer  four-inner  James  Keen   Lowden four-inner  James  Keen   Lowden four-inner  James  Keen   Lowden four-inner  James  Keen   Lowden "
+54-2 "four-outer  four-inner  James  Keen   Lowden four-inner  James  Keen   Lowden four-inner  James  Keen   Lowden four-inner  James  Keen   Lowden "
+54-3 "four-outer  four-inner  James  Keen   Lowden four-inner  James  Keen   Lowden four-inner  James  Keen   Lowden four-inner  James  Keen   Lowden "
+54-4 "four-outer  four-inner  James  Keen   Lowden four-inner  James  Keen   Lowden four-inner  James  Keen   Lowden four-inner  James  Keen   Lowden "
+      After setting FILLER fields to unique values
+55-1 "four-outer  AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD"
+55-2 "four-outer  EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH"
+55-3 "four-outer  IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL"
+55-4 "four-outer  MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP"
+      After INITIALIZE ALL VALUE, the KEEN columns should have the unique values
+56-1 "four-outer  four-inner  James  AAAAAAALowden four-inner  James  BBBBBBBLowden four-inner  James  CCCCCCCLowden four-inner  James  DDDDDDDLowden "
+56-2 "four-outer  four-inner  James  EEEEEEELowden four-inner  James  FFFFFFFLowden four-inner  James  GGGGGGGLowden four-inner  James  HHHHHHHLowden "
+56-3 "four-outer  four-inner  James  IIIIIIILowden four-inner  James  JJJJJJJLowden four-inner  James  KKKKKKKLowden four-inner  James  LLLLLLLLowden "
+56-4 "four-outer  four-inner  James  MMMMMMMLowden four-inner  James  NNNNNNNLowden four-inner  James  OOOOOOOLowden four-inner  James  PPPPPPPLowden "
+

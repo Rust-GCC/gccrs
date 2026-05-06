@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2026, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -36,7 +36,6 @@ with Checks;         use Checks;
 with Contracts;      use Contracts;
 with Csets;          use Csets;
 with Debug;          use Debug;
-with Einfo;          use Einfo;
 with Einfo.Entities; use Einfo.Entities;
 with Einfo.Utils;    use Einfo.Utils;
 with Elists;         use Elists;
@@ -79,7 +78,6 @@ with Sem_Type;       use Sem_Type;
 with Sem_Util;       use Sem_Util;
 with Sem_Warn;       use Sem_Warn;
 with Stand;          use Stand;
-with Sinfo;          use Sinfo;
 with Sinfo.Nodes;    use Sinfo.Nodes;
 with Sinfo.Utils;    use Sinfo.Utils;
 with Sinfo.CN;       use Sinfo.CN;
@@ -1361,7 +1359,7 @@ package body Sem_Prag is
                               Ref      => Item);
                         end if;
 
-                     elsif Ekind (Item_Id) in E_Constant | E_Variable
+                     elsif Ekind (Item_Id) = E_Variable
                        and then Present (Ultimate_Overlaid_Entity (Item_Id))
                      then
                         SPARK_Msg_NE
@@ -3286,7 +3284,7 @@ package body Sem_Prag is
                elsif Is_Formal_Object (Item_Id) then
                   null;
 
-               elsif Ekind (Item_Id) in E_Constant | E_Variable
+               elsif Ekind (Item_Id) = E_Variable
                  and then Present (Ultimate_Overlaid_Entity (Item_Id))
                then
                   SPARK_Msg_NE
@@ -3910,7 +3908,7 @@ package body Sem_Prag is
                if Item_Id = Any_Id then
                   null;
 
-               elsif Ekind (Item_Id) in E_Constant | E_Variable
+               elsif Ekind (Item_Id) = E_Variable
                  and then Present (Ultimate_Overlaid_Entity (Item_Id))
                then
                   SPARK_Msg_NE
@@ -4062,7 +4060,7 @@ package body Sem_Prag is
                         end if;
                      end if;
 
-                     if Ekind (Input_Id) in E_Constant | E_Variable
+                     if Ekind (Input_Id) = E_Variable
                        and then Present (Ultimate_Overlaid_Entity (Input_Id))
                      then
                         SPARK_Msg_NE
@@ -25782,7 +25780,7 @@ package body Sem_Prag is
             Add_Contract_Item (N, Spec_Id);
 
             --  A function with side effects cannot override a function without
-            --  side effects (SPARK RM 7.1.2(16)). Overriding checks are
+            --  side effects (SPARK RM 7.1.2(15)). Overriding checks are
             --  usually performed in New_Overloaded_Entity, however at
             --  that point the pragma has not been processed yet.
 
@@ -28592,7 +28590,7 @@ package body Sem_Prag is
             Analyze_If_Present (Pragma_SPARK_Mode);
 
             --  A volatile function cannot override a non-volatile function
-            --  (SPARK RM 7.1.2(15)). Overriding checks are usually performed
+            --  (SPARK RM 7.1.2(14)). Overriding checks are usually performed
             --  in New_Overloaded_Entity, however at that point the pragma has
             --  not been processed yet.
 

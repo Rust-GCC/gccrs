@@ -32,6 +32,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "cfgloop.h"
 #include "tree-scalar-evolution.h"
 #include "crc-verification.h"
+#include "internal-fn.h"
+#include "predict.h"
 
 class crc_optimization {
  private:
@@ -225,10 +227,10 @@ class crc_optimization {
   /* Returns phi statement which may hold the calculated CRC.  */
   gphi *get_output_phi ();
 
-  /* Attempts to optimize a CRC calculation loop by replacing it with a call to
-     an internal function (IFN_CRC or IFN_CRC_REV).
+  /* Attempts to optimize a CRC calculation calculated by LOOP by replacing it
+     with a call to an internal function (IFN_CRC or IFN_CRC_REV).
      Returns true if replacement succeeded, otherwise false.  */
-  bool optimize_crc_loop (gphi *output_crc);
+  bool optimize_crc_loop (class loop *loop, gphi *output_crc);
 
  public:
   crc_optimization () : m_visited_stmts (BITMAP_ALLOC (NULL)),
@@ -1221,7 +1223,7 @@ crc_optimization::get_output_phi ()
    Returns true if replacement succeeded, otherwise false.  */
 
 bool
-crc_optimization::optimize_crc_loop (gphi *output_crc)
+crc_optimization::optimize_crc_loop (class loop *loop, gphi *output_crc)
 {
   if (!output_crc)
     {
@@ -1259,6 +1261,18 @@ crc_optimization::optimize_crc_loop (gphi *output_crc)
   tree phi_result = gimple_phi_result (output_crc);
   location_t loc;
   loc = EXPR_LOCATION (phi_result);
+
+  /* If the target does not have an expansion for CRC optimally then the table
+     based lookup will need at least 255-bytes of RODATA and won't be smaller
+     than the original code itself.  */
+  if (!optimize_loop_for_speed_p (loop))
+    {
+      tree data_type = TREE_TYPE (m_data_arg);
+      tree result_type = TREE_TYPE (phi_result);
+      auto ty_pair = tree_pair (data_type, result_type);
+      if (!direct_internal_fn_supported_p (ifn, ty_pair, OPTIMIZE_FOR_BOTH))
+	return false;
+    }
 
   /* Add IFN call and write the return value in the phi_result.  */
   gcall *call = gimple_build_call_internal (ifn, 3, m_crc_arg, m_data_arg,
@@ -1337,7 +1351,7 @@ crc_optimization::execute (function *fun)
 	    fprintf (dump_file, "The loop with %d header BB index "
 				"calculates CRC!\n", m_crc_loop->header->index);
 
-	  if (!optimize_crc_loop (output_crc))
+	  if (!optimize_crc_loop (loop, output_crc))
 	    {
 	      if (dump_file)
 		fprintf (dump_file, "Couldn't generate faster CRC code.\n");

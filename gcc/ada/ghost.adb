@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2014-2025, Free Software Foundation, Inc.         --
+--          Copyright (C) 2014-2026, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -26,7 +26,6 @@
 with Alloc;
 with Aspects;        use Aspects;
 with Atree;          use Atree;
-with Einfo;          use Einfo;
 with Einfo.Entities; use Einfo.Entities;
 with Einfo.Utils;    use Einfo.Utils;
 with Elists;         use Elists;
@@ -39,7 +38,6 @@ with Sem_Disp;       use Sem_Disp;
 with Sem_Eval;       use Sem_Eval;
 with Sem_Prag;       use Sem_Prag;
 with Sem_Util;       use Sem_Util;
-with Sinfo;          use Sinfo;
 with Sinfo.Nodes;    use Sinfo.Nodes;
 with Sinfo.Utils;    use Sinfo.Utils;
 with Snames;         use Snames;
@@ -2334,13 +2332,14 @@ package body Ghost is
       --  we are not dealing with an expanded construct.
 
       if Present (Id)
+        and then Can_Have_Formals (Id)
         and then Comes_From_Source (N)
         and then Ghost_Config.Ghost_Mode /= None
       then
          Orig_Actual := First_Actual (N);
          Formal := First_Formal (Id);
 
-         while Present (Orig_Actual) loop
+         while Present (Orig_Actual) and then Present (Formal) loop
             --  Similarly to Mark_And_Set_Ghost_Procedure_Call we need to
             --  analyze the call argument first to get its level for this
             --  analysis.

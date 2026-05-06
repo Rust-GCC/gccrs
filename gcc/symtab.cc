@@ -1897,11 +1897,9 @@ symtab_node::set_init_priority (priority_type priority)
   if (is_a <cgraph_node *> (this))
     gcc_assert (DECL_STATIC_CONSTRUCTOR (this->decl));
 
-  if (priority == DEFAULT_INIT_PRIORITY)
-    {
-      gcc_assert (get_init_priority() == priority);
-      return;
-    }
+  if (priority == DEFAULT_INIT_PRIORITY
+      && get_init_priority() == priority)
+    return;
   h = priority_info ();
   h->init = priority;
 }
@@ -1915,11 +1913,9 @@ cgraph_node::set_fini_priority (priority_type priority)
 
   gcc_assert (DECL_STATIC_DESTRUCTOR (this->decl));
 
-  if (priority == DEFAULT_INIT_PRIORITY)
-    {
-      gcc_assert (get_fini_priority() == priority);
-      return;
-    }
+  if (priority == DEFAULT_INIT_PRIORITY
+      && get_fini_priority() == priority)
+    return;
   h = priority_info ();
   h->fini = priority;
 }
@@ -2452,7 +2448,7 @@ address_matters_1 (symtab_node *n, void *)
 
   if (!n->address_can_be_compared_p ())
     return false;
-  if (n->externally_visible || n->force_output)
+  if (n->externally_visible || n->force_output || n->ref_by_asm)
     return true;
 
   for (unsigned int i = 0; n->iterate_referring (i, ref); i++)

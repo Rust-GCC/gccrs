@@ -9,7 +9,8 @@
           03 X-NUM      PIC 9(06) PACKED-DECIMAL VALUE 123.
        77 NUM           PIC 9(06).
        PROCEDURE        DIVISION.
-           MOVE x"0A" TO X (2:1)
+           *> "O" is non-numeric BCD in ascii or ebcdic
+           MOVE "O" TO X (2:1)
            IF X-NUM NUMERIC
               DISPLAY "bad prog"
               END-DISPLAY

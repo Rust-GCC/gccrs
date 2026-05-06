@@ -1,7 +1,8 @@
 /* PR tree-optimization/121190 */
-/* { dg-options "-O3" } */
+/* { dg-additional-options "-O3" } */
 /* { dg-additional-options "-march=znver2" { target x86_64-*-* i?86-*-* } } */
 /* { dg-require-effective-target mmap } */
+/* { dg-require-effective-target sysconf } */
 /* { dg-require-effective-target vect_early_break } */
 
 #include <stdint.h>

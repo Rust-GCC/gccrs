@@ -1,9 +1,17 @@
 #include "rust-compile-asm.h"
 #include "rust-compile-expr.h"
 #include "rust-system.h"
+#include "rust-ggc.h"
 
 namespace Rust {
 namespace Compile {
+
+static void
+chain_asm_operand (GGC::ChainList &ls, const char *constraint, tree value)
+{
+  auto name = build_string (strlen (constraint) + 1, constraint);
+  ls.push_back (build_tree_list (build_tree_list (NULL_TREE, name), value));
+}
 
 CompileAsm::CompileAsm (Context *ctx) : HIRCompileBase (ctx) {}
 
@@ -99,7 +107,7 @@ CompileAsm::asm_construct_outputs (HIR::InlineAsm &expr)
 {
   // TODO: Do i need to do this?
 
-  tree head = NULL_TREE;
+  GGC::ChainList ls;
   for (auto &operand : expr.get_operands ())
     {
       tl::optional<std::reference_wrapper<HIR::Expr>> out_expr
@@ -110,15 +118,9 @@ CompileAsm::asm_construct_outputs (HIR::InlineAsm &expr)
       tree out_tree = CompileExpr::Compile (*out_expr, this->ctx);
       // expects a tree list
       // TODO: This assumes that the output is a register
-      std::string expr_name = "=r";
-      auto name = build_string (expr_name.size () + 1, expr_name.c_str ());
-      head = chainon (head, build_tree_list (build_tree_list (NULL_TREE, name),
-					     out_tree));
-
-      /*Backend::debug (head);*/
-      /*head = chainon (head, out_tree);*/
+      chain_asm_operand (ls, "=r", out_tree);
     }
-  return head;
+  return ls.get_head ();
 }
 
 tl::optional<std::reference_wrapper<HIR::Expr>>
@@ -145,7 +147,8 @@ tree
 CompileAsm::asm_construct_inputs (HIR::InlineAsm &expr)
 {
   // TODO: Do i need to do this?
-  tree head = NULL_TREE;
+
+  GGC::ChainList ls;
   for (auto &operand : expr.get_operands ())
     {
       tl::optional<std::reference_wrapper<HIR::Expr>> in_expr
@@ -156,14 +159,9 @@ CompileAsm::asm_construct_inputs (HIR::InlineAsm &expr)
       tree in_tree = CompileExpr::Compile (*in_expr, this->ctx);
       // expects a tree list
       // TODO: This assumes that the input is a register
-      std::string expr_name = "r";
-      auto name = build_string (expr_name.size () + 1, expr_name.c_str ());
-      head = chainon (head, build_tree_list (build_tree_list (NULL_TREE, name),
-					     in_tree));
-
-      /*head = chainon (head, out_tree);*/
+      chain_asm_operand (ls, "r", in_tree);
     }
-  return head;
+  return ls.get_head ();
 }
 
 tree
@@ -185,29 +183,28 @@ CompileLlvmAsm::CompileLlvmAsm (Context *ctx) : HIRCompileBase (ctx) {}
 tree
 CompileLlvmAsm::construct_operands (std::vector<HIR::LlvmOperand> operands)
 {
-  tree head = NULL_TREE;
+  GGC::ChainList ls;
   for (auto &operand : operands)
     {
       tree t = CompileExpr::Compile (*operand.expr, this->ctx);
       auto name = build_string (operand.constraint.size () + 1,
 				operand.constraint.c_str ());
-      head = chainon (head,
-		      build_tree_list (build_tree_list (NULL_TREE, name), t));
+      ls.push_back (build_tree_list (build_tree_list (NULL_TREE, name), t));
     }
-  return head;
+  return ls.get_head ();
 }
 
 tree
 CompileLlvmAsm::construct_clobbers (std::vector<AST::TupleClobber> clobbers)
 {
-  tree head = NULL_TREE;
+  GGC::ChainList ls;
   for (auto &clobber : clobbers)
     {
       auto name
 	= build_string (clobber.symbol.size () + 1, clobber.symbol.c_str ());
-      head = chainon (head, build_tree_list (NULL_TREE, name));
+      ls.push_back (build_tree_list (NULL_TREE, name));
     }
-  return head;
+  return ls.get_head ();
 }
 
 tree

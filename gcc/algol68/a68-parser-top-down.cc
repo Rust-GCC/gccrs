@@ -24,6 +24,7 @@
 #include "coretypes.h"
 
 #include "a68.h"
+#include "a68-pretty-print.h"
 
 /* A few forward prototypes of functions defined below.  */
 
@@ -164,12 +165,19 @@ top_down_diagnose (NODE_T *start, NODE_T *p, int clause, int expected)
   NODE_T *issue = (p != NO_NODE ? p : start);
   const char *strop_keyword = a68_strop_keyword (NSYMBOL (start));
 
+  a68_line_format_token l (LINE (INFO (start)), issue);
+  a68_attr_format_token a1 ((a68_attribute) clause);
+
   if (expected != 0)
-    a68_error (issue, "B expected in A, near Z L",
-	       expected, clause, strop_keyword, LINE (INFO (start)));
+    {
+
+      a68_attr_format_token a2 ((a68_attribute) expected);
+      a68_error (issue, "%e expected in %e, near %qs %e",
+		 &a2, &a1, strop_keyword, &l);
+    }
   else
-    a68_error (issue, "missing or unbalanced keyword in A, near Z L",
-	       clause, strop_keyword, LINE (INFO (start)));
+    a68_error (issue, "missing or unbalanced keyword in %e, near %qs %e",
+	       &a1, strop_keyword, &l);
 }
 
 /* Check for premature exhaustion of tokens.  */
@@ -179,7 +187,9 @@ tokens_exhausted (NODE_T *p, NODE_T *q)
 {
   if (p == NO_NODE)
     {
-      a68_error (q, "check for missing or unmatched keyword in clause starting at S");
+      a68_symbol_format_token s (q);
+      a68_error (q, "check for missing or unmatched keyword in clause starting at %e",
+		 &s);
       longjmp (A68_PARSER (top_down_crash_exit), 1);
     }
 }

@@ -124,9 +124,12 @@ CONFIG_CLEAN_VPATH_FILES =
 LTLIBRARIES = $(noinst_LTLIBRARIES)
 libc__20convenience_la_LIBADD =
 am__objects_1 = tzdb.lo format.lo atomic.lo clock.lo syncbuf.lo
-@ENABLE_EXTERN_TEMPLATE_TRUE@am__objects_2 = sstream-inst.lo
+@ENABLE_DUAL_ABI_TRUE@am__objects_2 = cow-string-inst.lo
+@ENABLE_EXTERN_TEMPLATE_TRUE@am__objects_3 = sstream-inst.lo \
+@ENABLE_EXTERN_TEMPLATE_TRUE@	format-inst.lo string-inst.lo \
+@ENABLE_EXTERN_TEMPLATE_TRUE@	$(am__objects_2)
 @GLIBCXX_HOSTED_TRUE@am_libc__20convenience_la_OBJECTS =  \
-@GLIBCXX_HOSTED_TRUE@	$(am__objects_1) $(am__objects_2)
+@GLIBCXX_HOSTED_TRUE@	$(am__objects_1) $(am__objects_3)
 libc__20convenience_la_OBJECTS = $(am_libc__20convenience_la_OBJECTS)
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
@@ -428,12 +431,17 @@ AM_CPPFLAGS = $(GLIBCXX_INCLUDES) $(CPPFLAGS)
 # Convenience library for C++20 runtime.
 noinst_LTLIBRARIES = libc++20convenience.la
 headers = 
+@ENABLE_DUAL_ABI_FALSE@extra_string_inst_sources = 
+@ENABLE_DUAL_ABI_TRUE@extra_string_inst_sources = cow-string-inst.cc
 # XTEMPLATE_FLAGS =
 @ENABLE_EXTERN_TEMPLATE_FALSE@inst_sources = 
 
 # XTEMPLATE_FLAGS = -fno-implicit-templates
 @ENABLE_EXTERN_TEMPLATE_TRUE@inst_sources = \
-@ENABLE_EXTERN_TEMPLATE_TRUE@	sstream-inst.cc
+@ENABLE_EXTERN_TEMPLATE_TRUE@	sstream-inst.cc \
+@ENABLE_EXTERN_TEMPLATE_TRUE@	format-inst.cc \
+@ENABLE_EXTERN_TEMPLATE_TRUE@	string-inst.cc \
+@ENABLE_EXTERN_TEMPLATE_TRUE@	$(extra_string_inst_sources)
 
 sources = tzdb.cc format.cc atomic.cc clock.cc syncbuf.cc
 @GLIBCXX_HOSTED_FALSE@libc__20convenience_la_SOURCES = 
@@ -747,6 +755,9 @@ uninstall-am:
 
 vpath % $(top_srcdir)/src/c++20
 
+# These files should be rebuilt if the .cc prerequisite changes.
+@ENABLE_DUAL_ABI_TRUE@cow-string-inst.lo cow-string-inst.o: string-inst.cc
+
 @USE_STATIC_TZDATA_TRUE@tzdata.zi.h: $(top_srcdir)/src/c++20/tzdata.zi
 @USE_STATIC_TZDATA_TRUE@	echo 'static const char tzdata_chars[] = R"__libstdcxx__(' > $@.tmp
 @USE_STATIC_TZDATA_TRUE@	cat $^ >> $@.tmp
@@ -763,6 +774,12 @@ format.lo: format.cc
 	$(LTCXXCOMPILE) -std=gnu++26 -fno-access-control -c $<
 format.o: format.cc
 	$(CXXCOMPILE) -std=gnu++26 -fno-access-control -c $<
+
+# The unicode literal version of formatters is exported, override the encoding accordingly
+@ENABLE_EXTERN_TEMPLATE_TRUE@format-inst.lo: format-inst.cc
+@ENABLE_EXTERN_TEMPLATE_TRUE@	$(LTCXXCOMPILE) -fexec-charset=UTF-8 -c $<
+@ENABLE_EXTERN_TEMPLATE_TRUE@format-inst.o: format-inst.cc
+@ENABLE_EXTERN_TEMPLATE_TRUE@	$(CXXCOMPILE) -fexec-charset=UTF-8 -c $<
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

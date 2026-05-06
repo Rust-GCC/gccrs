@@ -1,3 +1,7 @@
+/* { dg-do run }
+
+   # AVR doubles are floats
+   { dg-skip-if "AVR doubles are floats" { avr-*-* } } */
 extern void abort();
 
 typedef union {

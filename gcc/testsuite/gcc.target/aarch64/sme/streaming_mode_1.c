@@ -1,19 +1,19 @@
 // { dg-options "" }
 
 void sc_a () [[arm::streaming_compatible]];
-void sc_a (); // { dg-error "conflicting types" }
+void sc_a (); // { dg-error "conflicting types" "PR122483" { xfail *-*-* } }
 
 void sc_b ();
 void sc_b () [[arm::streaming_compatible]]; // { dg-error "conflicting types" }
 
 void sc_c () [[arm::streaming_compatible]];
-void sc_c () {} // { dg-error "conflicting types" }
+void sc_c () {} // { dg-error "conflicting types" "PR122483" { xfail *-*-* } }
 
 void sc_d ();
 void sc_d () [[arm::streaming_compatible]] {} // { dg-error "conflicting types" }
 
 void sc_e () [[arm::streaming_compatible]] {}
-void sc_e (); // { dg-error "conflicting types" }
+void sc_e (); // { dg-error "conflicting types" "PR122483" { xfail *-*-* } }
 
 void sc_f () {}
 void sc_f () [[arm::streaming_compatible]]; // { dg-error "conflicting types" }
@@ -27,19 +27,19 @@ extern void (*sc_h) (); // { dg-error "conflicting types" }
 //----------------------------------------------------------------------------
 
 void s_a () [[arm::streaming]];
-void s_a (); // { dg-error "conflicting types" }
+void s_a (); // { dg-error "conflicting types" "PR122483" { xfail *-*-* } }
 
 void s_b ();
 void s_b () [[arm::streaming]]; // { dg-error "conflicting types" }
 
 void s_c () [[arm::streaming]];
-void s_c () {} // { dg-error "conflicting types" }
+void s_c () {} // { dg-error "conflicting types" "PR122483" { xfail *-*-* } }
 
 void s_d ();
 void s_d () [[arm::streaming]] {} // { dg-error "conflicting types" }
 
 void s_e () [[arm::streaming]] {}
-void s_e (); // { dg-error "conflicting types" }
+void s_e (); // { dg-error "conflicting types" "PR122483" { xfail *-*-* } }
 
 void s_f () {}
 void s_f () [[arm::streaming]]; // { dg-error "conflicting types" }
@@ -118,7 +118,7 @@ void keyword_ok_5 () [[arm::streaming_compatible]];
 //----------------------------------------------------------------------------
 
 void keyword_contradiction_1 () __arm_streaming;
-void keyword_contradiction_1 (); // { dg-error "conflicting types" }
+void keyword_contradiction_1 (); // { dg-error "conflicting types" "PR122483" { xfail *-*-* } }
 
 void keyword_contradiction_2 ();
 void keyword_contradiction_2 () __arm_streaming; // { dg-error "conflicting types" }

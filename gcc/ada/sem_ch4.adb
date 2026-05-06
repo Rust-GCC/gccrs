@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2026, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -23,11 +23,9 @@
 --                                                                          --
 ------------------------------------------------------------------------------
 
-with Accessibility;  use Accessibility;
 with Aspects;        use Aspects;
 with Atree;          use Atree;
 with Debug;          use Debug;
-with Einfo;          use Einfo;
 with Einfo.Entities; use Einfo.Entities;
 with Einfo.Utils;    use Einfo.Utils;
 with Elists;         use Elists;
@@ -64,7 +62,6 @@ with Sem_Type;       use Sem_Type;
 with Sem_Util;       use Sem_Util;
 with Sem_Warn;       use Sem_Warn;
 with Stand;          use Stand;
-with Sinfo;          use Sinfo;
 with Sinfo.Nodes;    use Sinfo.Nodes;
 with Sinfo.Utils;    use Sinfo.Utils;
 with Snames;         use Snames;
@@ -1539,51 +1536,6 @@ package body Sem_Ch4 is
          end if;
       end if;
 
-      --  Check the accessibility level for actuals for explicitly aliased
-      --  formals when a function call appears within a return statement.
-      --  This is only checked if the enclosing subprogram Comes_From_Source,
-      --  to avoid issuing errors on calls occurring in wrapper subprograms
-      --  (for example, where the call is part of an expression of an aspect
-      --  associated with a wrapper, such as Pre'Class).
-
-      if Nkind (N) = N_Function_Call
-        and then Comes_From_Source (N)
-        and then Present (Nam_Ent)
-        and then In_Return_Value (N)
-        and then Comes_From_Source (Current_Subprogram)
-      then
-         declare
-            Form : Node_Id;
-            Act  : Node_Id;
-         begin
-            Act  := First_Actual (N);
-            Form := First_Formal (Nam_Ent);
-
-            while Present (Form) and then Present (Act) loop
-               --  Check whether the formal is aliased and if the accessibility
-               --  level of the actual is deeper than the accessibility level
-               --  of the enclosing subprogram to which the current return
-               --  statement applies.
-
-               --  Should we be checking Is_Entity_Name on Act? Won't this miss
-               --  other cases ???
-
-               if Is_Explicitly_Aliased (Form)
-                 and then Is_Entity_Name (Act)
-                 and then Static_Accessibility_Level
-                            (Act, Zero_On_Dynamic_Level)
-                              > Subprogram_Access_Level (Current_Subprogram)
-               then
-                  Error_Msg_N ("actual for explicitly aliased formal is too"
-                                & " short lived", Act);
-               end if;
-
-               Next_Formal (Form);
-               Next_Actual (Act);
-            end loop;
-         end;
-      end if;
-
       if Ada_Version >= Ada_2012 then
 
          --  Check if the call contains a function with writable actuals
@@ -2383,12 +2335,12 @@ package body Sem_Ch4 is
             while Present (It.Nam) loop
                T := It.Typ;
 
-               if Is_Access_Type (T)
-                 and then No (First_Formal (Base_Type (Designated_Type (T))))
-               then
-                  Set_Etype (P, T);
-               else
-                  Remove_Interp (I);
+               if Is_Access_Type (T) then
+                  if No (First_Formal (Base_Type (Designated_Type (T)))) then
+                     Set_Etype (P, T);
+                  else
+                     Remove_Interp (I);
+                  end if;
                end if;
 
                Get_Next_Interp (I, It);
@@ -3891,11 +3843,9 @@ package body Sem_Ch4 is
       procedure Indicate_Name_And_Type is
       begin
          Add_One_Interp (N, Nam, Etype (Nam));
-         Check_Implicit_Dereference (N, Etype (Nam));
-         Success := True;
 
-         --  If the prefix of the call is a name, indicate the entity
-         --  being called. If it is not a name, it is an expression that
+         --  If the prefix of the call is an entity name, indicate the entity
+         --  being called. If it is not such a name, it is an expression that
          --  denotes an access to subprogram or else an entry or family. In
          --  the latter case, the name is a selected component, and the entity
          --  being called is noted on the selector.
@@ -3909,6 +3859,11 @@ package body Sem_Ch4 is
                Set_Entity (Selector_Name (Name (N)),  Nam);
             end if;
          end if;
+
+         --  Now add an interpretation for the implicit dereference, if any
+
+         Check_Implicit_Dereference (N, Etype (Nam));
+         Success := True;
 
          if Debug_Flag_E and not Report then
             Write_Str (" Overloaded call ");
@@ -5789,12 +5744,12 @@ package body Sem_Ch4 is
          --  Ada 2005 (AI05-0030): In the case of dispatching requeue, the
          --  selected component should resolve to a name.
 
-         --  Extension feature: Also support calls with prefixed views for
-         --  untagged record types.
+         --  GNAT extension: Accept calls with prefixed view for untagged
+         --  record types.
 
          if Ada_Version >= Ada_2005
            and then (Is_Tagged_Type (Prefix_Type)
-                       or else Core_Extensions_Allowed)
+                      or else Core_Extensions_Allowed)
            and then not Is_Concurrent_Type (Prefix_Type)
          then
             if Nkind (Parent (N)) = N_Generic_Association
@@ -5864,8 +5819,12 @@ package body Sem_Ch4 is
                --  Before declaring an error, check whether this is tagged
                --  private type and a call to a primitive operation.
 
+               --  GNAT extension: Accept calls with prefixed view for
+               --  untagged private types
+
                elsif Ada_Version >= Ada_2005
-                 and then Is_Tagged_Type (Prefix_Type)
+                 and then (Is_Tagged_Type (Prefix_Type)
+                            or else Core_Extensions_Allowed)
                  and then Try_Object_Operation (N)
                then
                   return;
@@ -5883,8 +5842,8 @@ package body Sem_Ch4 is
             Next_Entity (Comp);
          end loop;
 
-         --  Extension feature: Also support calls with prefixed views for
-         --  untagged private types.
+         --  GNAT extension: Accept calls with prefixed view for untagged
+         --  private types.
 
          if Core_Extensions_Allowed then
             if Try_Object_Operation (N) then
@@ -6066,9 +6025,13 @@ package body Sem_Ch4 is
          --  visible entities are plausible interpretations, check whether
          --  there is some other primitive operation with that name.
 
+         --  Note that, unlike for other types, we do not accept calls with
+         --  prefixed view for untagged concurrent types with -gnatX, since
+         --  this would require associated legality rules to avoid conflict
+         --  with protected operations or entries of the concurrent types.
+
          if Ada_Version >= Ada_2005 and then Is_Tagged_Type (Prefix_Type) then
-            if (Etype (N) = Any_Type
-                  or else not Has_Candidate)
+            if (Etype (N) = Any_Type or else not Has_Candidate)
               and then Try_Object_Operation (N)
             then
                return;
@@ -6144,17 +6107,29 @@ package body Sem_Ch4 is
 
          Set_Is_Overloaded (N, Is_Overloaded (Sel));
 
-      --  Extension feature: Also support calls with prefixed views for
-      --  untagged types.
+      --  GNAT extension: Accept calls with prefixed view for untagged types
 
       elsif Core_Extensions_Allowed
         and then Try_Object_Operation (N)
       then
          return;
 
-      else
-         --  Invalid prefix
+      --  Invalid prefix. If it is the dereference of a name, we give the same
+      --  error message as would be given if the dereference was implicit.
 
+      elsif Nkind (Pref) = N_Explicit_Dereference
+        and then Is_Entity_Name (Prefix (Pref))
+      then
+         Error_Msg_N
+           ("invalid prefix& in selected component", Prefix (Pref));
+
+         if Is_Incomplete_Type (Etype (Pref)) then
+            Error_Msg_N
+              ("\dereference must not be of an incomplete type "
+               & "(RM 3.10.1)", Prefix (Pref));
+         end if;
+
+      else
          Error_Msg_NE ("invalid prefix in selected component&", N, Sel);
       end if;
 
@@ -9551,7 +9526,12 @@ package body Sem_Ch4 is
 
       if Idx_Type = Any_Type then
          Error_Msg_NE
-           ("container cannot be indexed with&", N, Etype (First (Exprs)));
+           ("container cannot be indexed with&", N,
+            (if Nkind (First (Exprs)) = N_Parameter_Association
+             then
+                Etype (Explicit_Actual_Parameter (First (Exprs)))
+             else
+                Etype (First (Exprs))));
          Rewrite (N, New_Occurrence_Of (Any_Id, Loc));
       end if;
 
@@ -10394,8 +10374,8 @@ package body Sem_Ch4 is
          --  type, this is not a prefixed call. Restore the previous type as
          --  the current one is not a legal candidate.
 
-         --  Extension feature: Calls with prefixed views are also supported
-         --  for untagged types, so skip the early return when extensions are
+         --  GNAT extension: Given that calls with prefixed view are accepted
+         --  for untagged types, skip the early return when extensions are
          --  enabled, unless the type doesn't have a primitive operations list
          --  (such as in the case of predefined types).
 
@@ -10421,7 +10401,7 @@ package body Sem_Ch4 is
                    (Call_Node       => New_Call_Node,
                     Node_To_Replace => Node_To_Replace);
 
-               --  Extension feature: In the case where the prefix is of an
+               --  GNAT extension: In the case where the prefix is of an
                --  access type, and a primitive wasn't found for the designated
                --  type, then if the access type has primitives we attempt a
                --  prefixed call using one of its primitives. (It seems that
@@ -10510,8 +10490,8 @@ package body Sem_Ch4 is
          --  We retrieve the candidate operations from the generic declaration.
 
          function Extended_Primitive_Ops (T : Entity_Id) return Elist_Id;
-         --  Prefix notation can also be used on operations that are not
-         --  primitives of the type, but are declared in the same immediate
+         --  Prefix notation can also be used on either constructors, which are
+         --  never primitives; or operations declared in the same immediate
          --  declarative part, which can only mean the corresponding package
          --  body (see RM 4.1.3 (9.2/3)). If we are in that body we extend the
          --  list of primitives with body operations with the same name that
@@ -10643,7 +10623,30 @@ package body Sem_Ch4 is
          function Extended_Primitive_Ops (T : Entity_Id) return Elist_Id is
             Type_Scope : constant Entity_Id := Scope (T);
             Op_List    : Elist_Id := Primitive_Operations (T);
+            Op_Found   : Boolean := False;
          begin
+            if Needs_Construction (T) then
+               --  to include all constructors iterate over T's entities
+
+               declare
+                  Cursor : Entity_Id := Next_Entity (T);
+               begin
+                  while Present (Cursor) loop
+                     if Is_Constructor (Cursor) then
+                        if not Op_Found then
+                           --  Copy list of primitives so it is not affected
+                           --  for other uses.
+
+                           Op_List := New_Copy_Elist (Op_List);
+                           Op_Found := True;
+                        end if;
+                        Append_Elmt (Cursor, Op_List);
+                     end if;
+                     Next_Entity (Cursor);
+                  end loop;
+               end;
+            end if;
+
             if Is_Package_Or_Generic_Package (Type_Scope)
               and then ((In_Package_Body (Type_Scope)
               and then In_Open_Scopes (Type_Scope)) or else In_Instance_Body)
@@ -10658,7 +10661,6 @@ package body Sem_Ch4 is
                      declare
                         Body_Decls : constant List_Id :=
                           Declarations (Unit_Declaration_Node (The_Body));
-                        Op_Found : Boolean := False;
                         Op : Entity_Id := Current_Entity (Subprog);
                      begin
                         while Present (Op) loop

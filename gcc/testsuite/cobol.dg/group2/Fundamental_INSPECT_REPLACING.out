@@ -1,0 +1,12 @@
+INSPECT REPLACING Abc by MMM
+AbcAbcXAbcAbcAbcYAbcAbcAbcAbc AbcAbcAbcAbcAbc
+all          MMMMMMXMMMMMMMMMYMMMMMMMMMMMM MMMMMMMMMMMMMMM Okay.
+leading      MMMMMMXAbcAbcAbcYAbcAbcAbcAbc AbcAbcAbcAbcAbc Okay.
+X to Y       AbcAbcXMMMMMMMMMYAbcAbcAbcAbc AbcAbcAbcAbcAbc Okay.
+Y to space   AbcAbcXAbcAbcAbcYMMMMMMMMMMMM AbcAbcAbcAbcAbc Okay.
+trailing     AbcAbcXAbcAbcAbcYAbcAbcAbcAbc MMMMMMMMMMMMMMM Okay.
+after X      AbcAbcXMMMMMMMMMYMMMMMMMMMMMM MMMMMMMMMMMMMMM Okay.
+before space MMMMMMXMMMMMMMMMYMMMMMMMMMMMM AbcAbcAbcAbcAbc Okay.
+after b      AbcMMMXMMMMMMMMMYMMMMMMMMMMMM MMMMMMMMMMMMMMM Okay.
+before b     AbcAbcXAbcAbcAbcYAbcAbcAbcAbc AbcAbcAbcAbcAbc Okay.
+

@@ -5,6 +5,7 @@
 
 /* { dg-options "-ffunction-sections -fdata-sections -Wl,--gc-sections" } */
 /* { dg-options "-ffunction-sections -fdata-sections -Wl,--gc-sections -static" { target static } } */
+/* { dg-require-effective-target named_sections } */
 
 #include <stdlib.h>
 

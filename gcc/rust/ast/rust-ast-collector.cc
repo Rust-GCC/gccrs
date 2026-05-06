@@ -176,9 +176,9 @@ TokenCollector::visit (Attribute &attrib)
 		static_cast<AttrInputLiteral &> (attrib.get_attr_input ()));
 	      break;
 	    }
-	  case AST::AttrInput::AttrInputType::MACRO:
+	  case AST::AttrInput::AttrInputType::EXPR:
 	    {
-	      visit (static_cast<AttrInputMacro &> (attrib.get_attr_input ()));
+	      visit (static_cast<AttrInputExpr &> (attrib.get_attr_input ()));
 	      break;
 	    }
 	  case AST::AttrInput::AttrInputType::META_ITEM:
@@ -397,13 +397,20 @@ TokenCollector::visit (Token &tok)
       push (Rust::Token::make_identifier (tok.get_locus (), std::move (data)));
       break;
     case INT_LITERAL:
-      push (Rust::Token::make_int (tok.get_locus (), std::move (data),
-				   tok.get_type_hint ()));
-      break;
-    case FLOAT_LITERAL:
-      push (Rust::Token::make_float (tok.get_locus (), std::move (data),
+      {
+	auto suffix_start = data.length ();
+	push (Rust::Token::make_int (tok.get_locus (), std::move (data),
+				     suffix_start, IntegerLiteralBase::Decimal,
 				     tok.get_type_hint ()));
-      break;
+	break;
+      }
+    case FLOAT_LITERAL:
+      {
+	auto suffix_start = data.length ();
+	push (Rust::Token::make_float (tok.get_locus (), std::move (data),
+				       suffix_start, tok.get_type_hint ()));
+	break;
+      }
     case STRING_LITERAL:
       push (Rust::Token::make_string (tok.get_locus (), std::move (data)));
       break;
@@ -857,13 +864,20 @@ TokenCollector::visit (Literal &lit, location_t locus)
       push (Rust::Token::make_raw_string (locus, std::move (value)));
       break;
     case Literal::LitType::INT:
-      push (
-	Rust::Token::make_int (locus, std::move (value), lit.get_type_hint ()));
-      break;
-    case Literal::LitType::FLOAT:
-      push (Rust::Token::make_float (locus, std::move (value),
+      {
+	auto val_len = value.length ();
+	push (Rust::Token::make_int (locus, std::move (value), val_len,
+				     IntegerLiteralBase::Decimal,
 				     lit.get_type_hint ()));
-      break;
+	break;
+      }
+    case Literal::LitType::FLOAT:
+      {
+	auto val_len = value.length ();
+	push (Rust::Token::make_float (locus, std::move (value), val_len,
+				       lit.get_type_hint ()));
+	break;
+      }
     case Literal::LitType::BOOL:
       {
 	if (value == Values::Keywords::FALSE_LITERAL)
@@ -899,12 +913,10 @@ TokenCollector::visit (AttrInputLiteral &literal)
 }
 
 void
-TokenCollector::visit (AttrInputMacro &macro)
+TokenCollector::visit (AttrInputExpr &attr)
 {
-  describe_node (std::string ("AttrInputMacro"), [this, &macro] () {
-    push (Rust::Token::make (EQUAL, UNDEF_LOCATION));
-    visit (macro.get_macro ());
-  });
+  describe_node (std::string ("AttrInputExpr"),
+		 [this, &attr] () { visit (attr.get_expr ()); });
 }
 
 void
@@ -1239,8 +1251,10 @@ TokenCollector::visit (TupleIndexExpr &expr)
   describe_node (std::string ("TupleIndexExpr"), [this, &expr] () {
     visit (expr.get_tuple_expr ());
     push (Rust::Token::make (DOT, expr.get_locus ()));
-    push (Rust::Token::make_int (UNDEF_LOCATION,
-				 std::to_string (expr.get_tuple_index ())));
+    auto str = std::to_string (expr.get_tuple_index ());
+    auto suffix_start = str.length ();
+    push (Rust::Token::make_int (UNDEF_LOCATION, str, suffix_start,
+				 IntegerLiteralBase::Decimal));
   });
 }
 
@@ -1279,8 +1293,10 @@ TokenCollector::visit (StructExprFieldIndexValue &expr)
 {
   describe_node (std::string ("StructExprFieldIndexValue"), [this, &expr] () {
     visit_items_as_lines (expr.get_outer_attrs ());
-    push (Rust::Token::make_int (expr.get_locus (),
-				 std::to_string (expr.get_index ())));
+    auto str = std::to_string (expr.get_index ());
+    auto suffix_start = str.length ();
+    push (Rust::Token::make_int (expr.get_locus (), str, suffix_start,
+				 IntegerLiteralBase::Decimal));
     push (Rust::Token::make (COLON, UNDEF_LOCATION));
     visit (expr.get_value ());
   });
@@ -2449,7 +2465,11 @@ TokenCollector::visit (Trait &trait)
     push (Rust::Token::make (TRAIT, trait.get_locus ()));
     push (Rust::Token::make_identifier (UNDEF_LOCATION, std::move (id)));
 
-    visit (trait.get_generic_params ());
+    if (trait.has_generics ())
+      visit (trait.get_generic_params ());
+    if (!trait.get_type_param_bounds ().empty ())
+      push (Rust::Token::make ((COLON), trait.get_locus ()));
+    visit_items_joined_by_separator (trait.get_type_param_bounds (), PLUS);
 
     visit_items_as_block (trait.get_trait_items (), {});
   });
@@ -2883,8 +2903,10 @@ TokenCollector::visit (StructPatternFieldTuplePat &pattern)
   describe_node (std::string ("StructPatternFieldTuplePat"), [this,
 							      &pattern] () {
     visit_items_as_lines (pattern.get_outer_attrs ());
-    push (Rust::Token::make_int (pattern.get_locus (),
-				 std::to_string (pattern.get_index ())));
+    auto str = std::to_string (pattern.get_index ());
+    auto suffix_start = str.length ();
+    push (Rust::Token::make_int (pattern.get_locus (), str, suffix_start,
+				 IntegerLiteralBase::Decimal));
     push (Rust::Token::make (COLON, pattern.get_locus ()));
     visit (pattern.get_index_pattern ());
   });

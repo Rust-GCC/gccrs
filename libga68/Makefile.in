@@ -173,7 +173,7 @@ am__DEPENDENCIES_1 =
 am_libga68_la_OBJECTS = libga68_la-libga68.lo \
 	libga68_la-ga68-unistr.lo libga68_la-ga68-posix.lo \
 	libga68_la-ga68-alloc.lo libga68_la-ga68-error.lo \
-	libga68_la-ga68-standenv.lo
+	libga68_la-ga68-standenv.lo libga68_la-ga68-math.lo
 libga68_la_OBJECTS = $(am_libga68_la_OBJECTS)
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
@@ -468,6 +468,7 @@ libga68_la_SOURCES = libga68.c \
                      ga68-alloc.c \
                      ga68-error.c \
                      ga68-standenv.c \
+                     ga68-math.c \
                      ga68.h
 
 libga68_la_LIBTOOLFLAGS = 
@@ -475,14 +476,14 @@ libga68_la_CFLAGS = $(LIBGA68_GCFLAGS) $(LIBGA68_BOEHM_GC_INCLUDES)
 libga68_la_LDFLAGS = -version-info `grep -v '^\#' $(srcdir)/libtool-version` \
 		     $(version_arg) $(lt_host_flags) $(extra_darwin_ldflags_libga68)
 
-libga68_la_DEPENDENCIES = libga68.spec $(version_dep) transput.lo
-libga68_la_LIBADD = $(LIBGA68_BOEHM_GC_LIBS) transput.lo
+libga68_la_DEPENDENCIES = libga68.spec $(version_dep) standard.lo posix.lo
+libga68_la_LIBADD = $(LIBGA68_BOEHM_GC_LIBS) standard.lo posix.lo
 
 # Rules to build the Algol 68 code in the library.
 LTA68COMPILE = $(LIBTOOL) --tag=A68 $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
 	--mode=compile $(A68) $(AM_A68FLAGS)
 
-BUILT_SOURCES = transput.a68
+BUILT_SOURCES = standard.a68
 MULTISRCTOP = 
 MULTIBUILDTOP = 
 MULTIDIRS = 
@@ -592,6 +593,7 @@ distclean-compile:
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libga68_la-ga68-alloc.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libga68_la-ga68-error.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libga68_la-ga68-math.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libga68_la-ga68-posix.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libga68_la-ga68-standenv.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libga68_la-ga68-unistr.Plo@am__quote@
@@ -659,6 +661,13 @@ libga68_la-ga68-standenv.lo: ga68-standenv.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='ga68-standenv.c' object='libga68_la-ga68-standenv.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(libga68_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libga68_la_CFLAGS) $(CFLAGS) -c -o libga68_la-ga68-standenv.lo `test -f 'ga68-standenv.c' || echo '$(srcdir)/'`ga68-standenv.c
+
+libga68_la-ga68-math.lo: ga68-math.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(libga68_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libga68_la_CFLAGS) $(CFLAGS) -MT libga68_la-ga68-math.lo -MD -MP -MF $(DEPDIR)/libga68_la-ga68-math.Tpo -c -o libga68_la-ga68-math.lo `test -f 'ga68-math.c' || echo '$(srcdir)/'`ga68-math.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libga68_la-ga68-math.Tpo $(DEPDIR)/libga68_la-ga68-math.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='ga68-math.c' object='libga68_la-ga68-math.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(libga68_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libga68_la_CFLAGS) $(CFLAGS) -c -o libga68_la-ga68-math.lo `test -f 'ga68-math.c' || echo '$(srcdir)/'`ga68-math.c
 
 mostlyclean-libtool:
 	-rm -f *.lo
@@ -896,12 +905,12 @@ uninstall-am: uninstall-toolexeclibDATA \
 @LIBGA68_USE_SYMVER_SUN_TRUE@@LIBGA68_USE_SYMVER_TRUE@	> $@ || (rm -f $@ ; exit 1)
 
 .a68.o:
-	$(A68) -o $@ $(A68FLAGS) -c $<
+	$(A68) -o $@ $(A68FLAGS) -fbuilding-libga68 -c $<
 
 .a68.lo:
-	$(LTA68COMPILE) $(A68FLAGS) $(MULTIFLAGS) -c -o $@ $<
+	$(LTA68COMPILE) $(A68FLAGS) $(MULTIFLAGS) -fbuilding-libga68 -c -o $@ $<
 
-transput.a68 : transput.a68.in
+standard.a68 : standard.a68.in
 	$(AWK) -f $(srcdir)/sppp.awk $< > $@
 
 # target overrides

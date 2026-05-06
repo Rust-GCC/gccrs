@@ -184,7 +184,7 @@ get_fndecl_arguments (FuncDeclaration *decl)
 
 	  /* Type `noreturn` is a terminator, as no other arguments can possibly
 	     be evaluated after it.  */
-	  if (TREE_TYPE (parm_decl) == noreturn_type_node)
+	  if (TYPE_MAIN_VARIANT (TREE_TYPE (parm_decl)) == noreturn_type_node)
 	    break;
 
 	  /* Chain them in the correct order.  */
@@ -449,7 +449,7 @@ public:
     if (dmd::isError (d)|| !d->members)
       return;
 
-    if (!d->needsCodegen ())
+    if (!dmd::needsCodegen (d))
       return;
 
     for (size_t i = 0; i < d->members->length; i++)
@@ -534,7 +534,7 @@ public:
       {
 	FuncDeclaration *fd = d->vtbl[i]->isFuncDeclaration ();
 
-	if (!fd || (!fd->fbody && d->isAbstract ()))
+	if (!fd || (!fd->fbody && dmd::isAbstract (d)))
 	  continue;
 
 	/* Ensure function has a return value.  */
@@ -643,7 +643,7 @@ public:
       {
 	FuncDeclaration *fd = d->vtbl[i]->isFuncDeclaration ();
 
-	if (fd && (fd->fbody || !d->isAbstract ()))
+	if (fd && (fd->fbody || !dmd::isAbstract (d)))
 	  {
 	    CONSTRUCTOR_APPEND_ELT (elms, size_int (i),
 				    build_address (get_symbol_decl (fd)));
@@ -731,9 +731,10 @@ public:
     if (tc->sym->members && !dmd::isZeroInit (d->type))
       {
 	/* Generate static initializer.  */
-	d->sinit = enum_initializer_decl (d);
-	DECL_INITIAL (d->sinit) = build_expr (tc->sym->defaultval, true);
-	d_finish_decl (d->sinit);
+	tree sinit = enum_initializer_decl (d);
+	d->sinit = sinit;
+	DECL_INITIAL (sinit) = build_expr (tc->sym->defaultval, true);
+	d_finish_decl (sinit);
       }
 
     d->semanticRun (PASS::obj);
@@ -758,14 +759,14 @@ public:
        `assert(0)` if ever read.  */
     if (d->type->isTypeNoreturn ())
       {
-	if (!d->isDataseg () && !d->isMember ()
+	if (!d->isDataseg () && !d->isMember () && !d->isRef ()
 	    && d->_init && !d->_init->isVoidInitializer ())
 	  {
 	    /* Evaluate RHS for side effects first.  */
 	    Expression *ie = dmd::initializerToExpression (d->_init);
 	    add_stmt (build_expr (ie));
 
-	    Expression *e = d->type->defaultInitLiteral (d->loc);
+	    Expression *e = dmd::defaultInitLiteral (d->type, d->loc);
 	    add_stmt (build_expr (e));
 	  }
 
@@ -774,7 +775,7 @@ public:
 
     if (d->aliasTuple)
       {
-	this->build_dsymbol (d->toAlias ());
+	this->build_dsymbol (dmd::toAlias (d));
 	return;
       }
 
@@ -782,7 +783,7 @@ public:
       {
 	/* Do not store variables we cannot take the address of,
 	   but keep the values for purposes of debugging.  */
-	if (d->type->isScalar () && !dmd::hasPointers (d->type))
+	if (dmd::isScalar (d->type) && !dmd::hasPointers (d->type))
 	  {
 	    tree decl = get_symbol_decl (d);
 	    d_pushdecl (decl);
@@ -833,7 +834,7 @@ public:
 	      DECL_INITIAL (decl) = layout_struct_initializer (ts->sym);
 	    else
 	      {
-		Expression *e = d->type->defaultInitLiteral (d->loc);
+		Expression *e = dmd::defaultInitLiteral (d->type, d->loc);
 		DECL_INITIAL (decl) = build_expr (e, true);
 	      }
 	  }
@@ -968,7 +969,7 @@ public:
 
 	doing_semantic_analysis_p = true;
 	dmd::functionSemantic3 (d);
-	Module::runDeferredSemantic3 ();
+	dmd::runDeferredSemantic3 ();
 	doing_semantic_analysis_p = false;
       }
 
@@ -1048,10 +1049,15 @@ public:
 	else
 	  d->shidden = resdecl;
 
-	if (d->isNRVO () && d->nrvo_var)
-	  {
-	    tree var = get_symbol_decl (d->nrvo_var);
+	tree var = NULL_TREE;
 
+	if (d->isNRVO () && d->nrvo_var)
+	  var = get_symbol_decl (d->nrvo_var);
+	else if (d->vresult && !d->vresult->isRef ())
+	  var = get_symbol_decl (d->vresult);
+
+	if (var != NULL_TREE)
+	  {
 	    /* Copy name from VAR to RESULT.  */
 	    DECL_NAME (resdecl) = DECL_NAME (var);
 	    /* Don't forget that we take its address.  */
@@ -1213,8 +1219,7 @@ get_symbol_decl (Declaration *decl)
 
   /* Deal with placeholder symbols immediately:
      SymbolDeclaration is used as a shell around an initializer symbol.  */
-  SymbolDeclaration *sd = decl->isSymbolDeclaration ();
-  if (sd)
+  if (SymbolDeclaration *sd = decl->isSymbolDeclaration ())
     {
       decl->csym = aggregate_initializer_decl (sd->dsym);
       return decl->csym;
@@ -1225,8 +1230,7 @@ get_symbol_decl (Declaration *decl)
     return get_typeinfo_decl ((TypeInfoDeclaration *) decl);
 
   /* FuncAliasDeclaration is used to import functions from another scope.  */
-  FuncAliasDeclaration *fad = decl->isFuncAliasDeclaration ();
-  if (fad)
+  if (FuncAliasDeclaration *fad = decl->isFuncAliasDeclaration ())
     {
       decl->csym = get_symbol_decl (fad->funcalias);
       return decl->csym;
@@ -1251,7 +1255,7 @@ get_symbol_decl (Declaration *decl)
       /* CONST_DECL was initially intended for enumerals and may be used for
 	 scalars in general, but not for aggregates.  Here a non-constant
 	 value is generated anyway so as its value can be used.  */
-      if (!vd->canTakeAddressOf () && !vd->type->isScalar ())
+      if (!vd->canTakeAddressOf () && !dmd::isScalar (vd->type))
 	{
 	  gcc_assert (vd->_init && !vd->_init->isVoidInitializer ());
 	  Expression *ie = dmd::initializerToExpression (vd->_init);
@@ -1261,8 +1265,7 @@ get_symbol_decl (Declaration *decl)
     }
 
   /* Build the tree for the symbol.  */
-  FuncDeclaration *fd = decl->isFuncDeclaration ();
-  if (fd)
+  if (FuncDeclaration *fd = decl->isFuncDeclaration ())
     {
       /* Run full semantic on functions we need to know about.  */
       if (!dmd::functionSemantic (fd))
@@ -1312,7 +1315,7 @@ get_symbol_decl (Declaration *decl)
 	  /* Cannot make an expression out of a void initializer.  */
 	  gcc_assert (vd->_init && !vd->_init->isVoidInitializer ());
 	  /* Non-scalar manifest constants have already been dealt with.  */
-	  gcc_assert (vd->type->isScalar ());
+	  gcc_assert (dmd::isScalar (vd->type));
 
 	  Expression *ie = dmd::initializerToExpression (vd->_init);
 	  DECL_INITIAL (decl->csym) = build_expr (ie, true);
@@ -1354,29 +1357,38 @@ get_symbol_decl (Declaration *decl)
       if (IDENTIFIER_DSYMBOL (mangled_name))
 	{
 	  Declaration *other = IDENTIFIER_DSYMBOL (mangled_name);
-	  tree olddecl = decl->csym;
-	  decl->csym = get_symbol_decl (other);
+	  tree newdecl = decl->csym;
+	  tree olddecl = get_symbol_decl (other);
 
-	  /* Update the symbol location to the current definition.  */
-	  if (DECL_EXTERNAL (decl->csym) && !DECL_INITIAL (decl->csym))
-	    DECL_SOURCE_LOCATION (decl->csym) = DECL_SOURCE_LOCATION (olddecl);
+	  if (TREE_CODE (olddecl) == TREE_CODE (newdecl))
+	    {
+	      /* Update the symbol location to the current definition.  */
+	      if (DECL_EXTERNAL (olddecl) && !DECL_INITIAL (olddecl))
+		DECL_SOURCE_LOCATION (olddecl) = DECL_SOURCE_LOCATION (newdecl);
 
-	  /* The current declaration is a prototype or marked extern, merge
-	     applied user attributes and return.  */
-	  if (DECL_EXTERNAL (olddecl) && !DECL_INITIAL (olddecl))
-	    {
-	      apply_user_attributes (decl, decl->csym);
-	      return decl->csym;
+	      /* The current declaration is a prototype or marked extern, merge
+		 applied user attributes and return.  */
+	      if (DECL_EXTERNAL (newdecl) && !DECL_INITIAL (newdecl))
+		{
+		  apply_user_attributes (decl, olddecl);
+		  decl->csym = olddecl;
+		  return decl->csym;
+		}
+	      /* The previous declaration is a prototype or marked extern, set
+		 the current declaration as the main reference of the symbol.
+	       */
+	      else if (DECL_EXTERNAL (olddecl) && !DECL_INITIAL (olddecl))
+		{
+		  IDENTIFIER_DSYMBOL (mangled_name) = decl;
+		  decl->csym = olddecl;
+		  DECL_EXTERNAL (decl->csym) = 0;
+		}
+	      /* Non-extern, non-templated decls shouldn't be defined twice.  */
+	      else if (!decl->isInstantiated ())
+		ScopeDsymbol::multiplyDefined (decl->loc, decl, other);
 	    }
-	  /* The previous declaration is a prototype or marked extern, set the
-	     current declaration as the main reference of the symbol.  */
-	  else if (DECL_EXTERNAL (decl->csym) && !DECL_INITIAL (decl->csym))
-	    {
-	      IDENTIFIER_DSYMBOL (mangled_name) = decl;
-	      DECL_EXTERNAL (decl->csym) = 0;
-	    }
-	  /* Non-extern, non-templated decls shouldn't be defined twice.  */
-	  else if (!decl->isInstantiated ())
+	  /* Declarations are for conflicting kinds of symbol.  */
+	  else
 	    ScopeDsymbol::multiplyDefined (decl->loc, decl, other);
 	}
       else
@@ -1418,6 +1430,9 @@ get_symbol_decl (Declaration *decl)
     }
   else if (TREE_CODE (decl->csym) == FUNCTION_DECL)
     {
+      FuncDeclaration *fd = decl->isFuncDeclaration ();
+      gcc_assert (fd != NULL);
+
       /* Dual-context functions require the code generation to build an array
 	 for the context pointer of the function, making the delicate task of
 	 tracking which context to follow when encountering a non-local symbol,
@@ -1571,6 +1586,7 @@ get_symbol_decl (Declaration *decl)
   if (decl->isDataseg () || decl->isCodeseg () || decl->isThreadlocal ())
     {
       /* Set TREE_PUBLIC by default, but allow private template to override.  */
+      FuncDeclaration *fd = decl->isFuncDeclaration ();
       if (!fd || !fd->isNested ())
 	TREE_PUBLIC (decl->csym) = 1;
 
@@ -2039,7 +2055,7 @@ make_thunk (FuncDeclaration *decl, int offset)
       unsigned identlen = IDENTIFIER_LENGTH (target_name) + 14;
       ident = XNEWVEC (const char, identlen);
 
-      snprintf (CONST_CAST (char *, ident), identlen,
+      snprintf (const_cast<char *> (ident), identlen,
 		"_DTi%u%s", offset, IDENTIFIER_POINTER (target_name));
     }
 
@@ -2049,7 +2065,7 @@ make_thunk (FuncDeclaration *decl, int offset)
   d_keep (thunk);
 
   if (decl->resolvedLinkage () != LINK::cpp)
-    free (CONST_CAST (char *, ident));
+    free (const_cast<char *> (ident));
 
   /* Thunks are connected to the definitions of the functions, so thunks are
      not produced for external functions.  */
@@ -2444,20 +2460,21 @@ tree
 enum_initializer_decl (EnumDeclaration *decl)
 {
   if (decl->sinit)
-    return decl->sinit;
+    return (tree) decl->sinit;
 
   gcc_assert (decl->ident);
 
   tree type = build_ctype (decl->type);
   tree ident = mangle_internal_decl (decl, "__init", "Z");
 
-  decl->sinit = declare_extern_var (ident, type);
-  DECL_LANG_SPECIFIC (decl->sinit) = build_lang_decl (NULL);
+  tree sinit = declare_extern_var (ident, type);
+  DECL_LANG_SPECIFIC (sinit) = build_lang_decl (NULL);
 
-  DECL_CONTEXT (decl->sinit) = d_decl_context (decl);
-  TREE_READONLY (decl->sinit) = 1;
+  DECL_CONTEXT (sinit) = d_decl_context (decl);
+  TREE_READONLY (sinit) = 1;
 
-  return decl->sinit;
+  decl->sinit = sinit;
+  return sinit;
 }
 
 /* Return an anonymous static variable of type TYPE, initialized with INIT,

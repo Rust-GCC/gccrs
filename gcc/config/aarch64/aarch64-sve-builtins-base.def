@@ -17,6 +17,9 @@
    along with GCC; see the file COPYING3.  If not see
    <http://www.gnu.org/licenses/>.  */
 
+/* Code organization: See block comment at the top of
+   aarch64-sve-builtins.def.  */
+
 #define REQUIRED_EXTENSIONS ssve (0)
 DEF_SVE_FUNCTION (svabd, binary_opt_n, all_arith, mxz)
 DEF_SVE_FUNCTION (svabs, unary, all_float_and_signed, mxz)

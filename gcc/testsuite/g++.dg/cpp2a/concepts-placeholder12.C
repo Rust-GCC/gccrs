@@ -22,8 +22,8 @@ int main() {
   A<false>::g(X<0>{}); // { dg-error "no match|constraints" }
 
   bool v1 = A<true>::value<0>;
-  bool v2 = A<false>::value<0>;  // { dg-error "constraints" }
+  bool v2 = A<false>::value<0>;  // { dg-error "invalid variable template" }
 
   A<true>::D<0> d1;
-  A<false>::D<0> d2; // { dg-error "constraints" }
+  A<false>::D<0> d2; // { dg-error "constraint failure" }
 }

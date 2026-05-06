@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2025 Symas Corporation
+ * Copyright (c) 2021-2026 Symas Corporation
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -120,6 +120,7 @@ static bool nonspace( char ch ) { return !ISSPACE(ch); }
 
 static int
 numstr_of( const char string[], radix_t radix = decimal_e ) {
+  yylval.numstr.is_float = false;
   yylval.numstr.radix = radix;
   ydflval.string = yylval.numstr.string = xstrdup(string);
   char *comma = strchr(yylval.numstr.string, ',');
@@ -185,6 +186,7 @@ numstr_of( const char string[], radix_t radix = decimal_e ) {
         return NO_CONDITION;
       }
     }
+    yylval.numstr.is_float = true;
   }
   if( 1 < std::count(input, eoinput, symbol_decimal_point()) ) {
     error_msg(yylloc, "invalid numeric literal %qs", ++p);
@@ -394,14 +396,33 @@ class enter_leave_t {
   }
 };
 
-static class input_file_status_t {
+/*
+ * The lexer knows the immediate status of the input file and its line number
+ * from the PUSH, POP, and LINE directives.  It saves yylineno whenever it
+ * encounters a PUSH, and updates it for a POP.  
+ *
+ * The line number trickles into the parser by way of location.  Only the
+ * parser knows what token it is parsing.  As for the filename, the lexer
+ * queues enter/leave notices for the parser.  
+ *
+ * Whenever the parser fetches a token, it gets the current line number from
+ * yylineno, and the current filename by depleting the notification queue, if
+ * any, and using the last one.
+ */
+class input_file_status_t {
+ public:
+  struct input_pos_t { int lineno; const char *filename; };
+ private:
   std::queue <enter_leave_t> inputs;
+  std::stack<input_pos_t> positions;
  public:
   void enter(const char *filename) {
     inputs.push( enter_leave_t(parser_enter_file, filename) );
+    positions.push( input_pos_t{ yylineno, filename } );
   }
   void leave() {
     inputs.push( enter_leave_t(parser_leave_file) );
+    positions.pop();
   }
   void notify() {
     while( ! inputs.empty() ) {
@@ -410,7 +431,10 @@ static class input_file_status_t {
       inputs.pop();
     }
   }
-} input_file_status;
+  input_pos_t pending() const { assert( ! positions.empty() ); return positions.top(); }
+};
+
+static input_file_status_t input_file_status;
 
 void input_file_status_notify() { input_file_status.notify(); }
 
@@ -634,12 +658,11 @@ binary_integer_usage( const char name[]) {
 }
       
 static void
-verify_ws( const YYLTYPE& loc, const char [] /* input[] */, char ch ) {
+verify_ws( char ch ) {
   if( ! fisspace(ch) ) {
-    dialect_ok(loc, LexSeparatorE, "missing separator space");
+    dialect_ok(yylloc, LexSeparatorE, "missing separator space");
   }
 }
-#define verify_ws(C) verify_ws(yylloc, yytext, C)
 
 int
 binary_integer_usage_of( const char name[] ) {
@@ -1165,13 +1188,13 @@ typed_name( const char name[] ) {
     {
       auto f = cbl_field_of(e);
       if( is_constant(f) ) {
-	if(  f->data.initial ) {
-	  int token = cbl_figconst_tok(f->data.initial);
+	if(  f->data.original() ) {
+	  int token = cbl_figconst_tok(f->data.original());
 	  if( token ) return token;
 	}
-        int token = datetime_format_of(f->data.initial);
+        int token = datetime_format_of(f->data.original());
         if( token ) {
-          yylval.string = xstrdup(f->data.initial);
+          yylval.string = xstrdup(f->data.original());
           return token;
         }
       }
@@ -1183,7 +1206,7 @@ typed_name( const char name[] ) {
       if( type == FldLiteralN ) {
         yylval.numstr.radix =
           f->has_attr(hex_encoded_e)? hexadecimal_e : decimal_e;
-        yylval.numstr.string = xstrdup(f->data.initial);
+        yylval.numstr.string = xstrdup(f->data.original());
         return NUMSTR;
       }
       if( !f->has_attr(record_key_e) ) { // not a key-name literal
@@ -1251,8 +1274,52 @@ integer_of( const char input[], bool is_hex = false) {
   return output;
 }
 
+/*
+ * Loosely parse what might be a refmod expression.  This is used to decide
+ * whether to indicate a refmod to the parser with an LPAREN token, or not,
+ * with a '(' token.  The input is known to have a first line that begins with
+ * '('., includes ':', and ends with ')'.
+ *
+ * Single forward pass: track paren depth, require exactly one ':' at depth 1,
+ * skip quoted regions (doubled quote is escape).  Allows arithmetic and
+ * parentheses in the left part, e.g. ((LENGTH OF x/2) - (y/2)) : 1.
+ */
+static bool
+is_refmod( const char input[], const char enput[] ) {
+	if( input == enput || *input != '(' ) return false;
+	int depth = 0;
+	bool colon_at_depth1 = false;
+	const char *p = input;
 
-
-
-
-
+	while( p < enput ) {
+		char ch = *p++;
+		if( ch == '"' || ch == '\'' ) {
+			/* Skip quoted region; doubled quote is escape.  */
+			const char quote = ch;
+			while( p < enput ) {
+				ch = *p++;
+				if( ch == quote ) {
+					if( p < enput && *p == quote ) { p++; continue; }
+					break;
+				}
+			}
+			continue;
+		}
+		if( ch == '(' ) {
+			depth++;
+			continue;
+		}
+		if( ch == ')' ) {
+			depth--;
+			if( depth < 0 ) return false;
+			if( depth == 0 ) return colon_at_depth1;
+			continue;
+		}
+		if( ch == ':' && depth == 1 ) {
+			if( colon_at_depth1 ) return false;
+			colon_at_depth1 = true;
+			continue;
+		}
+	}
+	return false;
+}

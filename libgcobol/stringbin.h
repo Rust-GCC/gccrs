@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2025 Symas Corporation
+ * Copyright (c) 2021-2026 Symas Corporation
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -36,7 +36,7 @@ bool __gg__binary_to_string_ascii(char *result,
                                   __int128 value);
 extern "C"
 bool __gg__binary_to_string_encoded(char *result,
-                                    int digits,
+                                    size_t digits, // Desired digits
                                     __int128 value,
                                     cbl_encoding_t encoding);
 

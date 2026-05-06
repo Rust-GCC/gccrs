@@ -235,6 +235,10 @@
 #define signature_SHANGHAI_ecx	0x20206961
 #define signature_SHANGHAI_edx	0x68676e61
 
+#define signature_HYGON_ebx	0x6f677948
+#define signature_HYGON_ecx	0x656e6975
+#define signature_HYGON_edx	0x6e65476e
+
 #ifndef __x86_64__
 /* At least one cpu (Winchip 2) does not set %ebx and %ecx
    for cpuid leaf 1. Forcibly zero the two registers before

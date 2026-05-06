@@ -757,9 +757,31 @@ unittest
  * Returns:
  *      the product
  */
-pragma(inline, true)
+// pragma(inline, true)
 uint mulu()(uint x, uint y, ref bool overflow)
 {
+    version (D_InlineAsm_X86)         enum useAsm = true;
+    else version (D_InlineAsm_X86_64) enum useAsm = true;
+    else                              enum useAsm = false;
+
+    static if (useAsm)
+    {
+        if (!__ctfe)
+        {
+            uint r;
+            bool o;
+            asm pure nothrow @nogc @trusted
+            {
+                mov EAX, x;
+                mul y;        // EDX:EAX = EAX * y
+                mov r, EAX;
+                setc o;
+            }
+            overflow |= o;
+            return r;
+        }
+    }
+
     immutable ulong r = ulong(x) * ulong(y);
     if (r >> 32)
         overflow = true;
@@ -791,21 +813,53 @@ unittest
 pragma(inline, true)
 ulong mulu()(ulong x, uint y, ref bool overflow)
 {
-    ulong r = x * y;
-    if (x >> 32 &&
+    version (D_InlineAsm_X86_64)
+    {
+        return __ctfe ? mulu_generic(x, y, overflow)
+            : mulu(x, ulong(y), overflow);
+    }
+    else
+    {
+        return mulu_generic(x, y, overflow);
+    }
+}
+
+/// ditto
+// pragma(inline, true)
+ulong mulu()(ulong x, ulong y, ref bool overflow)
+{
+    version (D_InlineAsm_X86_64)
+    {
+        if (!__ctfe)
+        {
+            ulong r;
+            bool o;
+            asm pure nothrow @nogc @trusted
+            {
+                mov RAX, x;
+                mul y;        // RDX:RAX = RAX * y
+                mov r, RAX;
+                setc o;
+            }
+            overflow |= o;
+            return r;
+        }
+    }
+
+    immutable ulong r = x * y;
+    if ((x | y) >> 32 &&
+            x &&
             r / x != y)
         overflow = true;
     return r;
 }
 
-/// ditto
-pragma(inline, true)
-ulong mulu()(ulong x, ulong y, ref bool overflow)
+private ulong mulu_generic()(ulong x, uint y, ref bool overflow)
 {
-    immutable ulong r = x * y;
-    if ((x | y) >> 32 &&
-            x &&
-            r / x != y)
+    pragma(inline, true)
+    ulong r = x * y;
+    if (x >> 32 &&
+        r / x != y)
         overflow = true;
     return r;
 }

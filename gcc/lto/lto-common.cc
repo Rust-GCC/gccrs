@@ -96,7 +96,7 @@ free_with_string (void *arg)
 {
   struct lto_section_slot *s = (struct lto_section_slot *)arg;
 
-  free (CONST_CAST (char *, s->name));
+  free (const_cast<char *> (s->name));
   free (arg);
 }
 
@@ -397,8 +397,8 @@ gimple_canonical_type_eq (const void *p1, const void *p2)
 {
   const_tree t1 = (const_tree) p1;
   const_tree t2 = (const_tree) p2;
-  return gimple_canonical_types_compatible_p (CONST_CAST_TREE (t1),
-					      CONST_CAST_TREE (t2));
+  return gimple_canonical_types_compatible_p (const_cast<tree> (t1),
+					      const_cast<tree> (t2));
 }
 
 /* Main worker for gimple_register_canonical_type.  */
@@ -2504,7 +2504,7 @@ get_section_data (struct lto_file_decl_data *file_data,
       *len = f_slot->len;
     }
 
-  free (CONST_CAST (char *, section_name));
+  free (const_cast<char *> (section_name));
   return data;
 }
 
@@ -2531,7 +2531,7 @@ free_section_data (struct lto_file_decl_data *file_data ATTRIBUTE_UNUSED,
 
   munmap ((caddr_t) computed_offset, computed_len);
 #else
-  free (CONST_CAST(char *, offset));
+  free (const_cast<char *> (offset));
 #endif
 }
 
@@ -2948,6 +2948,9 @@ read_cgraph_and_symbols (unsigned nfiles, const char **fnames)
   if (tree_with_vars)
     ggc_free (tree_with_vars);
   tree_with_vars = NULL;
+
+  input_toplevel_asms ();
+
   /* During WPA we want to prevent ggc collecting by default.  Grow limits
      until after the IPA summaries are streamed in.  Basically all IPA memory
      is explcitly managed by ggc_free and ggc collect is not useful.
@@ -2998,6 +3001,7 @@ read_cgraph_and_symbols (unsigned nfiles, const char **fnames)
 	  symtab->dump (dump_file);
 	}
       lto_symtab_merge_symbols ();
+      analyze_toplevel_extended_asm ();
       /* Removal of unreachable symbols is needed to make verify_symtab to pass;
 	 we are still having duplicated comdat groups containing local statics.
 	 We could also just remove them while merging.  */

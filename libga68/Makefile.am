@@ -129,13 +129,14 @@ libga68_la_SOURCES = libga68.c \
                      ga68-alloc.c \
                      ga68-error.c \
                      ga68-standenv.c \
+                     ga68-math.c \
                      ga68.h
 libga68_la_LIBTOOLFLAGS =
 libga68_la_CFLAGS = $(LIBGA68_GCFLAGS) $(LIBGA68_BOEHM_GC_INCLUDES)
 libga68_la_LDFLAGS = -version-info `grep -v '^\#' $(srcdir)/libtool-version` \
 		     $(version_arg) $(lt_host_flags) $(extra_darwin_ldflags_libga68)
-libga68_la_DEPENDENCIES = libga68.spec $(version_dep) transput.lo
-libga68_la_LIBADD = $(LIBGA68_BOEHM_GC_LIBS) transput.lo
+libga68_la_DEPENDENCIES = libga68.spec $(version_dep) standard.lo posix.lo
+libga68_la_LIBADD = $(LIBGA68_BOEHM_GC_LIBS) standard.lo posix.lo
 
 # Rules to build the Algol 68 code in the library.
 
@@ -143,15 +144,15 @@ LTA68COMPILE = $(LIBTOOL) --tag=A68 $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
 	--mode=compile $(A68) $(AM_A68FLAGS)
 
 .a68.o:
-	$(A68) -o $@ $(A68FLAGS) -c $<
+	$(A68) -o $@ $(A68FLAGS) -fbuilding-libga68 -c $<
 
 .a68.lo:
-	$(LTA68COMPILE) $(A68FLAGS) $(MULTIFLAGS) -c -o $@ $<
+	$(LTA68COMPILE) $(A68FLAGS) $(MULTIFLAGS) -fbuilding-libga68 -c -o $@ $<
 
-transput.a68 : transput.a68.in
+standard.a68 : standard.a68.in
 	$(AWK) -f $(srcdir)/sppp.awk $< > $@
 
-BUILT_SOURCES = transput.a68
+BUILT_SOURCES = standard.a68
 
 # target overrides
 -include $(tmake_file)

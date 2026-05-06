@@ -71,7 +71,7 @@ EXTERN tree m2statement_BuildIfThenDoEnd (tree condition, tree then_block);
 
 EXTERN void m2statement_DeclareLabel (location_t location, char *name);
 EXTERN void m2statement_BuildGoto (location_t location, char *name);
-EXTERN tree m2statement_BuildAssignmentTree (location_t location, tree des,
+EXTERN void m2statement_BuildAssignmentTree (location_t location, tree des,
                                              tree expr);
 EXTERN void m2statement_BuildAssignmentStatement (location_t location, tree des,
 						  tree expr);
@@ -106,6 +106,7 @@ EXTERN tree m2statement_BuildCleanUp (tree param);
 EXTERN void m2statement_IfBitInSetJump (location_t location, bool invertCondition,
 					tree setvalue, tree bit, char *label);
 EXTERN void m2statement_CopyByField (location_t location, tree des, tree expr);
+EXTERN void m2statement_CopyMemcpy (location_t location, tree dest, tree src, tree bytes);
 
 #undef EXTERN
 #endif /* m2statement_h.  */

@@ -223,7 +223,7 @@ gfc_free_omp_clauses (gfc_omp_clauses *c)
   gfc_free_expr_list (c->wait_list);
   gfc_free_expr_list (c->tile_list);
   gfc_free_expr_list (c->sizes_list);
-  free (CONST_CAST (char *, c->critical_name));
+  free (const_cast<char *> (c->critical_name));
   if (c->assume)
     {
       free (c->assume->absent);
@@ -3481,11 +3481,6 @@ gfc_match_omp_clauses (gfc_omp_clauses **cp, const omp_mask mask,
 		  gfc_current_locus = old_loc;
 		  break;
 		}
-	      if (old_linear_modifier)
-		gfc_warning (OPT_Wdeprecated_openmp,
-			     "Specification of the list items as arguments to "
-			     "the modifiers at %L is deprecated since "
-			     "OpenMP 5.2", &saved_loc);
 	      if (linear_op != OMP_LINEAR_DEFAULT)
 		{
 		  if (gfc_match (" :") == MATCH_YES)
@@ -3508,6 +3503,52 @@ gfc_match_omp_clauses (gfc_omp_clauses **cp, const omp_mask mask,
 		      *head = NULL;
 		      goto error;
 		    }
+		}
+	      if (old_linear_modifier)
+		{
+		  char var_names[512]{};
+		  int count, offset = 0;
+		  for (gfc_omp_namelist *n = *head; n; n = n->next)
+		    {
+		      if (!n->next)
+			count = snprintf (var_names + offset,
+					  sizeof (var_names) - offset,
+					  "%s", n->sym->name);
+		      else
+			count = snprintf (var_names + offset,
+					  sizeof (var_names) - offset,
+					  "%s, ", n->sym->name);
+		      if (count < 0 || count >= ((int)sizeof (var_names))
+						- offset)
+			{
+			  snprintf (var_names, 512, "%s, ..., ",
+				    (*head)->sym->name);
+			  while (n->next)
+			    n = n->next;
+			  offset = strlen (var_names);
+			  snprintf (var_names + offset,
+				    sizeof (var_names) - offset,
+				    "%s", n->sym->name);
+			  break;
+			}
+		      offset += count;
+		    }
+		  char *var_names_for_warn = var_names;
+		  const char *op_name;
+		  switch (linear_op)
+		    {
+		      case OMP_LINEAR_REF: op_name = "ref"; break;
+		      case OMP_LINEAR_VAL: op_name = "val"; break;
+		      case OMP_LINEAR_UVAL: op_name = "uval"; break;
+		      default: gcc_unreachable ();
+		    }
+		  gfc_warning (OPT_Wdeprecated_openmp,
+			       "Specification of the list items as "
+			       "arguments to the modifiers at %L is "
+			       "deprecated; since OpenMP 5.2, use "
+			       "%<linear(%s : %s%s)%>", &saved_loc,
+			       var_names_for_warn, op_name,
+			       step == nullptr ? "" : ", step(...)");
 		}
 	      else if (end_colon)
 		{
@@ -9849,6 +9890,12 @@ resolve_omp_clauses (gfc_code *code, gfc_omp_clauses *omp_clauses,
 				     &n->where);
 		      }
 		  }
+		if (list == OMP_LIST_MAP
+		    && (n->sym->attr.omp_groupprivate
+			|| n->sym->attr.omp_declare_target_local))
+		  gfc_error ("%qs argument to MAP clause at %L must not be a "
+			     "device-local variable, including GROUPPRIVATE",
+			     n->sym->name, &n->where);
 		if (openacc
 		    && list == OMP_LIST_MAP
 		    && (n->u.map.op == OMP_MAP_ATTACH
@@ -10435,6 +10482,41 @@ resolve_omp_clauses (gfc_code *code, gfc_omp_clauses *omp_clauses,
 		      }
 		    break;
 		  case OMP_LIST_LINEAR:
+		    if (code)
+		      {
+			bool is_worksharing_for = false;
+			switch (code->op)
+			  {
+			  case EXEC_OMP_DO:
+			  case EXEC_OMP_PARALLEL_DO:
+			  case EXEC_OMP_DISTRIBUTE_PARALLEL_DO:
+			  case EXEC_OMP_TARGET_PARALLEL_DO:
+			  case EXEC_OMP_TEAMS_DISTRIBUTE_PARALLEL_DO:
+			  case EXEC_OMP_TARGET_TEAMS_DISTRIBUTE_PARALLEL_DO:
+			    is_worksharing_for = true;
+			    break;
+			  default:
+			    break;
+			  }
+
+			if (is_worksharing_for
+			    && (n->sym->attr.dimension
+				|| n->sym->attr.allocatable))
+			  {
+			    if (n->sym->attr.allocatable)
+			      gfc_error ("Sorry, ALLOCATABLE object %qs in "
+					 "LINEAR clause on worksharing-loop "
+					 "construct at %L is not yet supported",
+					 n->sym->name, &n->where);
+			    else
+			      gfc_error ("Sorry, array %qs in LINEAR clause "
+					 "on worksharing-loop construct at %L "
+					 "is not yet supported",
+					 n->sym->name, &n->where);
+			    break;
+			  }
+		      }
+
 		    if (code
 			&& n->u.linear.op != OMP_LINEAR_DEFAULT
 			&& n->u.linear.op != linear_op)

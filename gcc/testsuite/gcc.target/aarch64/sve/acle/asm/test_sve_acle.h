@@ -1,6 +1,13 @@
 #ifndef TEST_SVE_ACLE_H
 #define TEST_SVE_ACLE_H 1
 
+/* When compiling for e.g. C++98, we won't get the INt*_MIN macros that some
+   tests want without defining this macro.  */
+
+#ifndef __STDC_LIMIT_MACROS
+# define __STDC_LIMIT_MACROS 1
+#endif
+
 #include <arm_neon_sve_bridge.h>
 
 #if defined (TEST_OVERLOADS)

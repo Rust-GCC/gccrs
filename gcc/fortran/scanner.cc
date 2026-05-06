@@ -173,9 +173,7 @@ wide_strchr (const gfc_char_t *s, gfc_char_t c)
 {
   do {
     if (*s == c)
-      {
-        return CONST_CAST(gfc_char_t *, s);
-      }
+      return const_cast<gfc_char_t *> (s);
   } while (*s++);
   return 0;
 }
@@ -776,6 +774,8 @@ skip_free_oacc_sentinel (locus start, locus old_loc)
       if ((c = next_char ()) == ' ' || c == '\t'
 	  || continue_flag)
 	{
+	  if (!continue_flag && (c == ' ' || c == '\t'))
+	    openmp_flag = 0;
 	  while (gfc_is_whitespace (c))
 	    c = next_char ();
 	  if (c != '\n' && c != '!')
@@ -816,6 +816,8 @@ skip_free_omp_sentinel (locus start, locus old_loc)
       if ((c = next_char ()) == ' ' || c == '\t'
 	  || continue_flag)
 	{
+	  if (!continue_flag && (c == ' ' || c == '\t'))
+	    openacc_flag = 0;
 	  while (gfc_is_whitespace (c))
 	    c = next_char ();
 	  if (c != '\n' && c != '!')

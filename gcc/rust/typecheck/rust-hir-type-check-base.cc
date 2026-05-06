@@ -421,14 +421,27 @@ TypeCheckBase::parse_repr_options (const AST::AttrVec &attrs, location_t locus)
 	  const AST::AttrInput &input = attr.get_attr_input ();
 	  bool is_token_tree = input.get_attr_input_type ()
 			       == AST::AttrInput::AttrInputType::TOKEN_TREE;
-	  if (!is_token_tree)
+	  bool is_meta_item = input.get_attr_input_type ()
+			      == AST::AttrInput::AttrInputType::META_ITEM;
+	  if (!is_token_tree && !is_meta_item)
 	    {
 	      rust_error_at (attr.get_locus (), "malformed %<repr%> attribute");
 	      continue;
 	    }
-	  const auto &option = static_cast<const AST::DelimTokenTree &> (input);
-	  AST::AttrInputMetaItemContainer *meta_items
-	    = option.parse_to_meta_item ();
+
+	  const AST::AttrInputMetaItemContainer *meta_items = nullptr;
+	  if (is_token_tree)
+	    {
+	      const auto &option
+		= static_cast<const AST::DelimTokenTree &> (input);
+	      meta_items = option.parse_to_meta_item ();
+	    }
+	  else
+	    { // is_meta_item is true
+	      const auto &option
+		= static_cast<const AST::AttrInputMetaItemContainer &> (input);
+	      meta_items = new AST::AttrInputMetaItemContainer (option);
+	    }
 
 	  if (meta_items == nullptr)
 	    {

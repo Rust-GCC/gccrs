@@ -1,6 +1,9 @@
-// { dg-additional-options "-fcontracts -fcontract-continuation-mode=on" }
-// { dg-do run }
+// { dg-additional-options "-fcontracts -fcontract-evaluation-semantic=observe" }
+// NOTE this should switch to run when the changes are resolved.
+// { dg-do compile { target c++26 } }
 // { dg-skip-if "requires hosted libstdc++ for iostream" { ! hostedlib } }
+// { dg-prune-output "during RTL pass: expand" }
+// { dg-ice "expand_expr_addr_expr_1" { lp64 || { *-*-darwin* arm*-*-* } } }
 
 #include <iostream>
 #include <coroutine>
@@ -20,7 +23,7 @@ struct generator
         generator<T> get_return_object() noexcept { return {}; }
     };
 
-    bool is_valid() { return false; }
+    bool is_valid() const { return false; }
 };
 
 namespace std {
@@ -33,7 +36,7 @@ struct coroutine_traits<generator<T>, Args...>
 };
 
 generator<int> val(int v) 
-[[post g: g.is_valid()]]
+  post (g: g.is_valid())
 {
     std::cout << "coro initial" << std::endl;
     co_yield v;
@@ -47,4 +50,4 @@ int main() {
     std::cout << "main continues" << std::endl;
 }
 
-// { dg-output "contract violation in function val at .*.C:36: g.is_valid().*(\n|\r\n|\r)" }
+// { dg-output "contract violation in function generator<int> val.int. at .*.C:36: g.is_valid().*(\n|\r\n|\r)" }

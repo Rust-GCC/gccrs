@@ -860,6 +860,7 @@ substitute_and_fold_dom_walker::before_dom_children (basic_block bb)
       /* If we made a replacement, fold the statement.  */
       if (did_replace)
 	{
+	  update_stmt (stmt);
 	  fold_stmt (&i, follow_single_use_edges);
 	  stmt = gsi_stmt (i);
 	  gimple_set_modified (stmt, true);

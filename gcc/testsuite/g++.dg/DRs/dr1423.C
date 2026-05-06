@@ -5,3 +5,4 @@ bool b = nullptr; // { dg-error "converting to .bool. from .std::nullptr_t. requ
 bool b2(nullptr);
 bool b3{nullptr};
 bool b4 = { nullptr }; // { dg-error "converting to .bool. from .std::nullptr_t. requires direct-initialization" }
+bool b5 = !nullptr;

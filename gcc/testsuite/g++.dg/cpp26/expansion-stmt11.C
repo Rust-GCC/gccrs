@@ -9,7 +9,7 @@ struct T { using type = T; int s; };
 T d = { 8 };
 struct U {
   constexpr const S *begin () const { return &c[0]; }
-  constexpr const S *end () const { return &c[s]; }
+  constexpr const S *end () const { return &c[s]; }	// { dg-error "is not usable in a constant expression" "" { target c++11_down } }
   int s;
 };
 struct V { int a; long b; double c; };
@@ -29,7 +29,7 @@ foo ()
   template for (auto g : u)		// { dg-warning "'template for' only available with" "" { target c++23_down } }
     {
       decltype(g)::type h = g;
-    }
+    }					// { dg-message "was not declared 'constexpr'" "" { target c++11_down } }
   V v = { 9, 10L, 11.0 };
   template for (auto g : v)		// { dg-warning "'template for' only available with" "" { target c++23_down } }
     {

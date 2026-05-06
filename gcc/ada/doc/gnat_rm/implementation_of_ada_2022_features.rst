@@ -1496,6 +1496,15 @@ http://www.ada-auth.org/AI12-SUMMARY.HTML.
 
   RM references: C.03.01 (13)
 
+.. index:: AI12-0254 (Ada 2022 feature)
+
+* *AI12-0254 Bounded_Indefinite_Holders (2025-12-15)*
+
+  This AI defines a new package ``Ada.Containers.Indefinite_Holders`` which
+  is fully implemented by GNAT.
+
+  RM references: A.18.32 (0)
+
 .. index:: AI12-0256 (Ada 2022 feature)
 
 * *AI12-0256 Aspect No_Controlled_Parts (2021-01-26)*
@@ -1618,7 +1627,7 @@ http://www.ada-auth.org/AI12-SUMMARY.HTML.
 
 .. index:: AI12-0277 (Ada 2022 feature)
 
-* *AI12-0277 The meaning of "accessibility level of the body of F" (0000-00-00)*
+* *AI12-0277 The meaning of "accessibility level of the body of F" (2020-09-09)*
 
   Clarify that the only time that an explicitly aliased formal parameter has different accessibility properties than an aliased part of a "normal" parameter is for the accessibility checking associated with a return statement.
 
@@ -1934,7 +1943,7 @@ http://www.ada-auth.org/AI12-SUMMARY.HTML.
 
 .. index:: AI12-0345 (Ada 2022 feature)
 
-* *AI12-0345 Dynamic accessibility of explicitly aliased parameters (0000-00-00)*
+* *AI12-0345 Dynamic accessibility of explicitly aliased parameters (2020-09-09)*
 
   Further clarify (after AI12-0277) accessibility rules for explicitly aliased parameters.
 
@@ -1943,10 +1952,9 @@ http://www.ada-auth.org/AI12-SUMMARY.HTML.
 
 .. index:: AI12-0350 (Ada 2022 feature)
 
-* *AI12-0350 Swap for Indefinite_Holders (0000-00-00)*
+* *AI12-0350 Swap for Indefinite_Holders (2025-12-15)*
 
-  Add a ``Swap`` procedure to the predefined package
-  ``Ada.Containers.Indefinite_Holders``. The AI also contains implementation advice for ``Ada.Containers.Bounded_Indefinite_Holders``, a package that is not implemented by GNAT.
+  Package ``Ada.Containers.Indefinite_Holders`` is implemented in GNAT, comprising the support for ``Swap`` as specified by this AI.
 
   RM references: A.18.18 (22/5) A.18.18 (67/5) A.18.18 (73/3) A.18.32 (13/5)
 
@@ -2030,7 +2038,7 @@ http://www.ada-auth.org/AI12-SUMMARY.HTML.
 
 .. index:: AI12-0372 (Ada 2022 feature)
 
-* *AI12-0372 Static accessibility of "master of the call" (0000-00-00)*
+* *AI12-0372 Static accessibility of "master of the call" (2020-09-09)*
 
   Add an extra compile-time accessibility check for explicitly aliased parameters needed to prevent dangling references.
 
@@ -2192,6 +2200,16 @@ http://www.ada-auth.org/AI12-SUMMARY.HTML.
   the operand is a constant, or the target subtype statically matches the nominal subtype of the operand, or is unconstrained with no predicates, to prevent setting variables to values outside their range or constraints.
 
   RM references: 3.03 (23.2/3) 8.05.01 (4.7/5) 8.05.01 (5/3)
+
+.. index:: AI12-0402 (Ada 2022 feature)
+
+* *AI12-0402 Master of a function call with elementary result type (2026-01-07)*
+
+  This AI restricts the rule that makes the master of a function call, which
+  is used to directly initialize part of an object, that of the object being
+  initialized, to the case where the result type of the function is composite.
+
+  RM references: 3.10.2 (10.2/5)
 
 .. index:: AI12-0409 (Ada 2022 feature)
 

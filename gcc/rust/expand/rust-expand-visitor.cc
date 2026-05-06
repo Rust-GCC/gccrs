@@ -218,6 +218,7 @@ ExpandVisitor::expand_inner_items (
 		{
 		  if (is_builtin (current))
 		    {
+		      visit (*attr_it);
 		      attr_it++;
 		    }
 		  else
@@ -303,6 +304,7 @@ ExpandVisitor::expand_inner_stmts (AST::BlockExpr &expr)
 		{
 		  if (is_builtin (current))
 		    {
+		      visit (*attr_it);
 		      attr_it++;
 		    }
 		  else
@@ -331,6 +333,24 @@ ExpandVisitor::expand_inner_stmts (AST::BlockExpr &expr)
   expand_macro_children (stmts, &AST::SingleASTNode::take_stmt);
 
   expander.pop_context ();
+}
+
+void
+ExpandVisitor::visit (AST::Attribute &attr)
+{
+  // An attribute input containing a macro may have been expanded to a literal
+  if (attr.has_attr_input ()
+      && attr.get_attr_input ().get_attr_input_type ()
+	   == AST::AttrInput::AttrInputType::EXPR)
+    {
+      auto &expr = static_cast<AST::AttrInputExpr &> (attr.get_attr_input ());
+      if (expr.get_expr ().is_literal ())
+	{
+	  auto &lit = static_cast<AST::LiteralExpr &> (expr.get_expr ());
+	  attr.set_attr_input (std::make_unique<AST::AttrInputLiteral> (lit));
+	}
+    }
+  AST::DefaultASTVisitor::visit (attr);
 }
 
 void
@@ -404,22 +424,16 @@ ExpandVisitor::maybe_expand_pattern (std::unique_ptr<AST::Pattern> &pattern)
     pattern = final_fragment.take_pattern_fragment ();
 }
 
-// FIXME: Can this be refactored into a `scoped` method? Which takes a
-// ContextType as parameter and a lambda? And maybe just an std::vector<T>&?
 void
 ExpandVisitor::expand_struct_fields (std::vector<AST::StructField> &fields)
 {
-  for (auto &field : fields)
-    {
-      maybe_expand_type (field.get_field_type_ptr ());
-    }
+  expand_fields (fields);
 }
 
 void
 ExpandVisitor::expand_tuple_fields (std::vector<AST::TupleField> &fields)
 {
-  for (auto &field : fields)
-    maybe_expand_type (field.get_field_type_ptr ());
+  expand_fields (fields);
 }
 
 // FIXME: This can definitely be refactored with the method above
@@ -590,9 +604,9 @@ ExpandVisitor::visit (AST::AttrInputLiteral &)
 {}
 
 void
-ExpandVisitor::visit (AST::AttrInputMacro &macro)
+ExpandVisitor::visit (AST::AttrInputExpr &attr_input)
 {
-  rust_sorry_at (UNDEF_LOCATION, "macros in attributes not supported");
+  maybe_expand_expr (attr_input.get_expr_ptr ());
 }
 
 void
@@ -604,65 +618,8 @@ ExpandVisitor::visit (AST::MetaItemPathExpr &)
 {}
 
 void
-ExpandVisitor::visit (AST::ArithmeticOrLogicalExpr &expr)
-{
-  maybe_expand_expr (expr.get_left_expr_ptr ());
-  maybe_expand_expr (expr.get_right_expr_ptr ());
-}
-
-void
-ExpandVisitor::visit (AST::ComparisonExpr &expr)
-{
-  maybe_expand_expr (expr.get_left_expr_ptr ());
-  maybe_expand_expr (expr.get_right_expr_ptr ());
-}
-
-void
-ExpandVisitor::visit (AST::LazyBooleanExpr &expr)
-{
-  maybe_expand_expr (expr.get_left_expr_ptr ());
-  maybe_expand_expr (expr.get_right_expr_ptr ());
-}
-
-void
-ExpandVisitor::visit (AST::TypeCastExpr &expr)
-{
-  maybe_expand_expr (expr.get_casted_expr_ptr ());
-  maybe_expand_type (expr.get_type_to_cast_to_ptr ());
-}
-
-void
-ExpandVisitor::visit (AST::AssignmentExpr &expr)
-{
-  maybe_expand_expr (expr.get_left_expr_ptr ());
-  maybe_expand_expr (expr.get_right_expr_ptr ());
-}
-
-void
-ExpandVisitor::visit (AST::CompoundAssignmentExpr &expr)
-{
-  maybe_expand_expr (expr.get_left_expr_ptr ());
-  maybe_expand_expr (expr.get_right_expr_ptr ());
-}
-
-void
-ExpandVisitor::visit (AST::GroupedExpr &expr)
-{
-  maybe_expand_expr (expr.get_expr_in_parens_ptr ());
-}
-
-void
 ExpandVisitor::visit (AST::StructExprStruct &expr)
 {}
-
-void
-ExpandVisitor::visit (AST::CallExpr &expr)
-{
-  visit (expr.get_function_expr ());
-
-  for (auto &param : expr.get_params ())
-    maybe_expand_expr (param);
-}
 
 void
 ExpandVisitor::visit (AST::ClosureExprInner &expr)
@@ -691,10 +648,6 @@ ExpandVisitor::visit (AST::ClosureExprInnerTyped &expr)
 
   visit (expr.get_definition_expr ());
 }
-
-void
-ExpandVisitor::visit (AST::ContinueExpr &expr)
-{}
 
 void
 ExpandVisitor::visit (AST::IfExpr &expr)
@@ -728,13 +681,6 @@ ExpandVisitor::visit (AST::IfLetExprConseqElse &expr)
 
   visit (expr.get_if_block ());
   visit (expr.get_else_block ());
-}
-
-void
-ExpandVisitor::visit (AST::TupleExpr &expr)
-{
-  for (auto &sub : expr.get_tuple_elems ())
-    maybe_expand_expr (sub);
 }
 
 void
@@ -863,23 +809,6 @@ ExpandVisitor::visit (AST::Union &union_item)
 }
 
 void
-ExpandVisitor::visit (AST::ConstantItem &const_item)
-{
-  maybe_expand_type (const_item.get_type_ptr ());
-
-  if (const_item.has_expr ())
-    maybe_expand_expr (const_item.get_expr_ptr ());
-}
-
-void
-ExpandVisitor::visit (AST::StaticItem &static_item)
-{
-  maybe_expand_type (static_item.get_type_ptr ());
-
-  maybe_expand_expr (static_item.get_expr_ptr ());
-}
-
-void
 ExpandVisitor::visit (AST::Trait &trait)
 {
   for (auto &generic : trait.get_generic_params ())
@@ -999,87 +928,6 @@ ExpandVisitor::visit (AST::MetaListNameValueStr &)
 void
 ExpandVisitor::visit (AST::StructPatternFieldIdent &field)
 {}
-
-void
-ExpandVisitor::visit (AST::GroupedPattern &pattern)
-{
-  maybe_expand_pattern (pattern.get_pattern_in_parens_ptr ());
-}
-
-void
-ExpandVisitor::visit (AST::SlicePatternItemsNoRest &items)
-{
-  for (auto &sub : items.get_patterns ())
-    maybe_expand_pattern (sub);
-}
-
-void
-ExpandVisitor::visit (AST::SlicePatternItemsHasRest &items)
-{
-  for (auto &sub : items.get_lower_patterns ())
-    maybe_expand_pattern (sub);
-  for (auto &sub : items.get_upper_patterns ())
-    maybe_expand_pattern (sub);
-}
-
-void
-ExpandVisitor::visit (AST::AltPattern &pattern)
-{
-  for (auto &alt : pattern.get_alts ())
-    maybe_expand_pattern (alt);
-}
-
-void
-ExpandVisitor::visit (AST::TupleStructItemsNoRest &tuple_items)
-{
-  for (auto &sub : tuple_items.get_patterns ())
-    maybe_expand_pattern (sub);
-}
-
-void
-ExpandVisitor::visit (AST::TupleStructItemsHasRest &tuple_items)
-{
-  for (auto &sub : tuple_items.get_lower_patterns ())
-    maybe_expand_pattern (sub);
-
-  for (auto &sub : tuple_items.get_upper_patterns ())
-    maybe_expand_pattern (sub);
-}
-
-void
-ExpandVisitor::visit (AST::TuplePatternItemsNoRest &tuple_items)
-{
-  for (auto &sub : tuple_items.get_patterns ())
-    maybe_expand_pattern (sub);
-}
-
-void
-ExpandVisitor::visit (AST::TuplePatternItemsHasRest &tuple_items)
-{
-  for (auto &sub : tuple_items.get_lower_patterns ())
-    maybe_expand_pattern (sub);
-
-  for (auto &sub : tuple_items.get_upper_patterns ())
-    maybe_expand_pattern (sub);
-}
-
-void
-ExpandVisitor::visit (AST::LetStmt &stmt)
-{
-  maybe_expand_pattern (stmt.get_pattern_ptr ());
-
-  if (stmt.has_type ())
-    maybe_expand_type (stmt.get_type_ptr ());
-
-  if (stmt.has_init_expr ())
-    maybe_expand_expr (stmt.get_init_expr_ptr ());
-}
-
-void
-ExpandVisitor::visit (AST::ExprStmt &stmt)
-{
-  maybe_expand_expr (stmt.get_expr_ptr ());
-}
 
 void
 ExpandVisitor::visit (AST::BareFunctionType &type)

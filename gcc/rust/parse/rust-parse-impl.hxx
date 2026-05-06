@@ -431,10 +431,9 @@ Parser<ManagedTokenSource>::parse_item (bool called_from_statement)
       else if (t->get_str () == Values::WeakKeywords::DEFAULT
 	       && lexer.peek_token (1)->get_id () != EXCLAM)
 	{
-	  add_error (Error (t->get_locus (),
-			    "%qs is only allowed on items within %qs blocks",
-			    "default", "impl"));
-	  return Parse::Error::Item::make_malformed ();
+	  // parse normal functions with `default` qualifier
+	  // they will be rejected in ASTValidation pass
+	  return parse_vis_item (std::move (outer_attrs));
 	}
       else if (is_macro_rules_def (t))
 	{
@@ -547,10 +546,13 @@ Parser<ManagedTokenSource>::parse_vis_item (AST::AttrVec outer_attrs)
 	  return parse_union (std::move (vis), std::move (outer_attrs));
 	  // or should item switch go straight to parsing union?
 	}
-      else
+      else if (t->get_str () == Values::WeakKeywords::DEFAULT)
 	{
-	  break;
+	  // parse normal functions with `default` qualifier they will be
+	  // rejected in ASTValidation pass
+	  return parse_function (std::move (vis), std::move (outer_attrs));
 	}
+      break;
     case CONST:
       // lookahead to resolve syntactical production
       t = lexer.peek_token (1);
@@ -1557,7 +1559,9 @@ Parser<ManagedTokenSource>::parse_function (AST::Visibility vis,
 {
   location_t locus = lexer.peek_token ()->get_locus ();
   // Get qualifiers for function if they exist
-  AST::FunctionQualifiers qualifiers = parse_function_qualifiers ();
+  auto qualifiers = parse_function_qualifiers ();
+  if (!qualifiers)
+    return nullptr;
 
   skip_token (FN_KW);
 
@@ -1633,71 +1637,240 @@ Parser<ManagedTokenSource>::parse_function (AST::Visibility vis,
       body = std::move (block_expr.value ());
     }
 
-  return std::unique_ptr<AST::Function> (
-    new AST::Function (std::move (function_name), std::move (qualifiers),
-		       std::move (generic_params), std::move (function_params),
-		       std::move (return_type), std::move (where_clause),
-		       std::move (body), std::move (vis),
-		       std::move (outer_attrs), locus, false, is_external));
+  return std::unique_ptr<AST::Function> (new AST::Function (
+    std::move (function_name), std::move (qualifiers.value ()),
+    std::move (generic_params), std::move (function_params),
+    std::move (return_type), std::move (where_clause), std::move (body),
+    std::move (vis), std::move (outer_attrs), locus, is_external));
 }
 
 // Parses function or method qualifiers (i.e. const, unsafe, and extern).
 template <typename ManagedTokenSource>
-AST::FunctionQualifiers
+tl::expected<AST::FunctionQualifiers, Parse::Error::Node>
 Parser<ManagedTokenSource>::parse_function_qualifiers ()
 {
+  location_t locus = lexer.peek_token ()->get_locus ();
+
+  auto parsed = parse_function_qualifiers_raw (locus);
+  if (!parsed)
+    return tl::unexpected<Parse::Error::Node> (parsed.error ());
+
+  return function_qualifiers_from_keywords (locus, std::move (parsed->first),
+					    std::move (parsed->second));
+}
+
+// Take the list of parsed function qualifiers and convert it to
+// the corrresponding flags to pass to the AST item constructor.
+//
+// This assumes ``keywords`` contains only those tokens that
+// map to qualifiers.
+template <typename ManagedTokenSource>
+tl::expected<AST::FunctionQualifiers, Parse::Error::Node>
+Parser<ManagedTokenSource>::function_qualifiers_from_keywords (
+  location_t locus, const std::vector<TokenId> keywords, std::string abi)
+{
+  Default default_status = Default::No;
   Async async_status = Async::No;
   Const const_status = Const::No;
   Unsafety unsafe_status = Unsafety::Normal;
   bool has_extern = false;
+
+  for (auto qualifier : keywords)
+    {
+      switch (qualifier)
+	{
+	case IDENTIFIER:
+	  // only "default" is valid in this context
+	  default_status = Default::Yes;
+	  continue;
+	case CONST:
+	  const_status = Const::Yes;
+	  continue;
+	case ASYNC:
+	  async_status = Async::Yes;
+	  continue;
+	case UNSAFE:
+	  unsafe_status = Unsafety::Unsafe;
+	  continue;
+	case EXTERN_KW:
+	  has_extern = true;
+	  continue;
+	default:
+	  // non-qualifier token in input
+	  rust_unreachable ();
+	}
+    }
+
+  return AST::FunctionQualifiers (locus, default_status, async_status,
+				  const_status, unsafe_status, has_extern,
+				  std::move (abi));
+}
+
+// this consumes as many function qualifier tokens while ensuring
+// uniqueness.
+template <typename ManagedTokenSource>
+tl::expected<std::pair<std::vector<TokenId>, std::string>, Parse::Error::Node>
+Parser<ManagedTokenSource>::parse_function_qualifiers_raw (location_t locus)
+{
+  std::vector<TokenId> found_order;
   std::string abi;
 
-  const_TokenPtr t;
-  location_t locus;
-  // Check in order of const, unsafe, then extern
-  for (int i = 0; i < 2; i++)
+  // this will terminate on duplicates or the first non-qualifier token
+  while (true)
     {
-      t = lexer.peek_token ();
-      locus = t->get_locus ();
+      auto token = lexer.peek_token ();
+      const TokenId token_id = token->get_id ();
+      location_t locus = lexer.peek_token ()->get_locus ();
 
-      switch (t->get_id ())
+      switch (token_id)
 	{
+	case IDENTIFIER:
+	  if (token->get_str () != Values::WeakKeywords::DEFAULT)
+	    {
+	      // only "default" is valid in this context, so this must
+	      // be a non-qualifier keyword
+	      goto done;
+	    }
+	  // fallthrough
 	case CONST:
-	  lexer.skip_token ();
-	  const_status = Const::Yes;
-	  break;
 	case ASYNC:
+	case UNSAFE:
+	  found_order.push_back (token_id);
 	  lexer.skip_token ();
-	  async_status = Async::Yes;
+	  break;
+	case EXTERN_KW:
+	  {
+	    found_order.push_back (token_id);
+	    lexer.skip_token ();
+
+	    // detect optional abi name
+	    const_TokenPtr next_tok = lexer.peek_token ();
+	    if (next_tok->get_id () == STRING_LITERAL)
+	      {
+		abi = next_tok->get_str ();
+		lexer.skip_token ();
+	      }
+	  }
 	  break;
 	default:
-	  // const status is still none
-	  break;
+	  // non-qualifier keyword
+	  goto done;
 	}
-    }
 
-  if (lexer.peek_token ()->get_id () == UNSAFE)
-    {
-      lexer.skip_token ();
-      unsafe_status = Unsafety::Unsafe;
-    }
-
-  if (lexer.peek_token ()->get_id () == EXTERN_KW)
-    {
-      lexer.skip_token ();
-      has_extern = true;
-
-      // detect optional abi name
-      const_TokenPtr next_tok = lexer.peek_token ();
-      if (next_tok->get_id () == STRING_LITERAL)
+      if (std::count (found_order.cbegin (), found_order.cend (), token_id) > 1)
 	{
-	  lexer.skip_token ();
-	  abi = next_tok->get_str ();
+	  // qualifiers mustn't appear twice
+	  Error error (locus, "encountered duplicate function qualifier %qs",
+		       token->get_token_description ());
+	  add_error (std::move (error));
+
+	  return tl::unexpected<Parse::Error::Node> (
+	    Parse::Error::Node::MALFORMED);
+	}
+    }
+done:
+
+  if (!ensure_function_qualifier_order (locus, found_order))
+    return tl::unexpected<Parse::Error::Node> (Parse::Error::Node::MALFORMED);
+
+  return make_pair (found_order, abi);
+}
+
+// Validate the order of the list of function qualifiers; this assumes that
+// ``found_order`` consists only of function qualifier tokens.
+//
+// If the order is illegal, the generated error message gives both the wrong
+// order as found in the source and the correct order according to Rust syntax
+// rules.
+template <typename ManagedTokenSource>
+bool
+Parser<ManagedTokenSource>::ensure_function_qualifier_order (
+  location_t locus, const std::vector<TokenId> &found_order)
+{
+  // Check in order of default, const, async, unsafe, extern
+  auto token_priority = [] (const TokenId id) {
+    switch (id)
+      {
+      case IDENTIFIER: // "default"; the only "weak" keyword considered here
+	return 1;
+      case CONST:
+	return 2;
+      case ASYNC:
+	return 3;
+      case UNSAFE:
+	return 4;
+      case EXTERN_KW:
+	return 5;
+      default:
+	rust_unreachable ();
+      };
+  };
+
+  size_t last_priority = 0;
+  for (auto token_id : found_order)
+    {
+      const size_t priority = token_priority (token_id);
+      if (priority <= last_priority)
+	{
+	  emit_function_qualifier_order_error_msg (locus, found_order);
+	  return false;
+	}
+
+      last_priority = priority;
+    }
+
+  return true;
+}
+
+template <typename ManagedTokenSource>
+void
+Parser<ManagedTokenSource>::emit_function_qualifier_order_error_msg (
+  location_t locus, const std::vector<TokenId> &found_order)
+{
+  std::vector<TokenId> expected_order
+    = {IDENTIFIER, CONST, ASYNC, UNSAFE, EXTERN_KW};
+
+  // we only keep the qualifiers actually used in the offending code
+  std::vector<TokenId>::iterator token_id = expected_order.begin ();
+  while (token_id != expected_order.end ())
+    {
+      if (std::find (found_order.cbegin (), found_order.cend (), *token_id)
+	  == found_order.cend ())
+	{
+	  token_id = expected_order.erase (token_id);
+	}
+      else
+	{
+	  ++token_id;
 	}
     }
 
-  return AST::FunctionQualifiers (locus, async_status, const_status,
-				  unsafe_status, has_extern, std::move (abi));
+  auto qualifiers_to_str = [] (const std::vector<TokenId> &token_ids) {
+    std::ostringstream ss;
+
+    for (auto id : token_ids)
+      {
+	if (ss.tellp () != 0)
+	  ss << ' ';
+
+	if (id == IDENTIFIER)
+	  ss << Values::WeakKeywords::DEFAULT;
+	else
+	  ss << token_id_keyword_string (id);
+      }
+
+    return ss.str ();
+  };
+
+  const std::string found_qualifiers = qualifiers_to_str (found_order);
+  const std::string expected_qualifiers = qualifiers_to_str (expected_order);
+
+  location_t error_locus
+    = make_location (locus, locus, lexer.peek_token ()->get_locus ());
+  Error error (error_locus,
+	       "invalid order of function qualifiers; found %qs, expected %qs",
+	       found_qualifiers.c_str (), expected_qualifiers.c_str ());
+  add_error (std::move (error));
 }
 
 // Parses generic (lifetime or type) params inside angle brackets (optional).
@@ -2750,6 +2923,8 @@ Parser<ManagedTokenSource>::parse_trait_bound ()
 
   // handle TypePath
   AST::TypePath type_path = parse_type_path ();
+  if (type_path.is_error ())
+    return nullptr;
 
   // handle closing parentheses
   if (has_parens)
@@ -2977,10 +3152,6 @@ Parser<ManagedTokenSource>::parse_struct (AST::Visibility vis,
   const_TokenPtr name_tok = expect_token (IDENTIFIER);
   if (name_tok == nullptr)
     {
-      Error error (lexer.peek_token ()->get_locus (),
-		   "could not parse struct or tuple struct identifier");
-      add_error (std::move (error));
-
       // skip after somewhere?
       return nullptr;
     }
@@ -3351,26 +3522,26 @@ Parser<ManagedTokenSource>::parse_enum_items ()
 {
   std::vector<std::unique_ptr<AST::EnumItem>> items;
 
-  std::unique_ptr<AST::EnumItem> initial_item = parse_enum_item ();
+  auto initial_item = parse_enum_item ();
 
   // Return empty item list if no field there
-  if (initial_item == nullptr)
+  if (!initial_item)
     return items;
 
-  items.push_back (std::move (initial_item));
+  items.push_back (std::move (initial_item.value ()));
 
   while (lexer.peek_token ()->get_id () == COMMA)
     {
       lexer.skip_token ();
 
-      std::unique_ptr<AST::EnumItem> item = parse_enum_item ();
-      if (item == nullptr)
+      auto item = parse_enum_item ();
+      if (!item)
 	{
 	  // this would occur with a trailing comma, which is allowed
 	  break;
 	}
 
-      items.push_back (std::move (item));
+      items.push_back (std::move (item.value ()));
     }
 
   items.shrink_to_fit ();
@@ -3387,13 +3558,13 @@ Parser<ManagedTokenSource>::parse_enum_items (EndTokenPred is_end_tok)
 {
   std::vector<std::unique_ptr<AST::EnumItem>> items;
 
-  std::unique_ptr<AST::EnumItem> initial_item = parse_enum_item ();
+  auto initial_item = parse_enum_item ();
 
   // Return empty item list if no field there
-  if (initial_item == nullptr)
+  if (!initial_item)
     return items;
 
-  items.push_back (std::move (initial_item));
+  items.push_back (std::move (initial_item.value ()));
 
   while (lexer.peek_token ()->get_id () == COMMA)
     {
@@ -3402,8 +3573,8 @@ Parser<ManagedTokenSource>::parse_enum_items (EndTokenPred is_end_tok)
       if (is_end_tok (lexer.peek_token ()->get_id ()))
 	break;
 
-      std::unique_ptr<AST::EnumItem> item = parse_enum_item ();
-      if (item == nullptr)
+      auto item = parse_enum_item ();
+      if (!item)
 	{
 	  /* TODO should this ignore all successfully parsed enum items just
 	   * because one failed? */
@@ -3414,7 +3585,7 @@ Parser<ManagedTokenSource>::parse_enum_items (EndTokenPred is_end_tok)
 	  return {};
 	}
 
-      items.push_back (std::move (item));
+      items.push_back (std::move (item.value ()));
     }
 
   items.shrink_to_fit ();
@@ -3426,7 +3597,7 @@ Parser<ManagedTokenSource>::parse_enum_items (EndTokenPred is_end_tok)
 /* Parses a single enum variant item in an enum definition. Does not parse
  * commas. */
 template <typename ManagedTokenSource>
-std::unique_ptr<AST::EnumItem>
+tl::expected<std::unique_ptr<AST::EnumItem>, Parse::Error::EnumVariant>
 Parser<ManagedTokenSource>::parse_enum_item ()
 {
   // parse outer attributes if they exist
@@ -3435,7 +3606,7 @@ Parser<ManagedTokenSource>::parse_enum_item ()
   // parse visibility, which may or may not exist
   auto vis_res = parse_visibility ();
   if (!vis_res)
-    return nullptr;
+    return Parse::Error::EnumVariant::make_child_error ();
   auto vis = vis_res.value ();
 
   // parse name for enum item, which is required
@@ -3443,7 +3614,7 @@ Parser<ManagedTokenSource>::parse_enum_item ()
   if (item_name_tok->get_id () != IDENTIFIER)
     {
       // this may not be an error but it means there is no enum item here
-      return nullptr;
+      return Parse::Error::EnumVariant::make_not_identifier (item_name_tok);
     }
   lexer.skip_token ();
   Identifier item_name{item_name_tok};
@@ -3467,7 +3638,7 @@ Parser<ManagedTokenSource>::parse_enum_item ()
 	if (!skip_token (RIGHT_PAREN))
 	  {
 	    // skip after somewhere
-	    return nullptr;
+	    return Parse::Error::EnumVariant::make_unfinished_tuple_variant ();
 	  }
 
 	return std::unique_ptr<AST::EnumItemTuple> (new AST::EnumItemTuple (
@@ -3485,7 +3656,7 @@ Parser<ManagedTokenSource>::parse_enum_item ()
 	if (!skip_token (RIGHT_CURLY))
 	  {
 	    // skip after somewhere
-	    return nullptr;
+	    return Parse::Error::EnumVariant::make_unfinished_tuple_variant ();
 	  }
 
 	return std::unique_ptr<AST::EnumItemStruct> (new AST::EnumItemStruct (
@@ -3499,20 +3670,19 @@ Parser<ManagedTokenSource>::parse_enum_item ()
 
 	auto discriminant_expr = parse_expr ();
 	if (!discriminant_expr)
-	  return nullptr;
+	  return Parse::Error::EnumVariant::make_child_error ();
 
-	return std::unique_ptr<AST::EnumItemDiscriminant> (
-	  new AST::EnumItemDiscriminant (std::move (item_name), std::move (vis),
-					 std::move (discriminant_expr.value ()),
-					 std::move (outer_attrs),
-					 item_name_tok->get_locus ()));
+	return std::make_unique<AST::EnumItemDiscriminant> (
+	  std::move (item_name), std::move (vis),
+	  std::move (discriminant_expr.value ()), std::move (outer_attrs),
+	  item_name_tok->get_locus ());
       }
     default:
       // regular enum with just an identifier
-      return std::unique_ptr<AST::EnumItem> (
-	new AST::EnumItem (std::move (item_name), std::move (vis),
-			   std::move (outer_attrs),
-			   item_name_tok->get_locus ()));
+      return std::make_unique<AST::EnumItem> (std::move (item_name),
+					      std::move (vis),
+					      std::move (outer_attrs),
+					      item_name_tok->get_locus ());
     }
 }
 
@@ -4277,7 +4447,9 @@ Parser<ManagedTokenSource>::parse_inherent_impl_function_or_method (
 {
   location_t locus = lexer.peek_token ()->get_locus ();
   // parse function or method qualifiers
-  AST::FunctionQualifiers qualifiers = parse_function_qualifiers ();
+  auto qualifiers = parse_function_qualifiers ();
+  if (!qualifiers)
+    return nullptr;
 
   skip_token (FN_KW);
 
@@ -4363,7 +4535,7 @@ Parser<ManagedTokenSource>::parse_inherent_impl_function_or_method (
     }
 
   return std::unique_ptr<AST::Function> (
-    new AST::Function (std::move (ident), std::move (qualifiers),
+    new AST::Function (std::move (ident), std::move (qualifiers.value ()),
 		       std::move (generic_params), std::move (function_params),
 		       std::move (return_type), std::move (where_clause),
 		       std::move (body), std::move (vis),
@@ -4459,17 +4631,10 @@ Parser<ManagedTokenSource>::parse_trait_impl_function_or_method (
   // - template?
   location_t locus = lexer.peek_token ()->get_locus ();
 
-  auto is_default = false;
-  auto t = lexer.peek_token ();
-  if (t->get_id () == IDENTIFIER
-      && t->get_str () == Values::WeakKeywords::DEFAULT)
-    {
-      is_default = true;
-      lexer.skip_token ();
-    }
-
   // parse function or method qualifiers
-  AST::FunctionQualifiers qualifiers = parse_function_qualifiers ();
+  auto qualifiers = parse_function_qualifiers ();
+  if (!qualifiers)
+    return nullptr;
 
   skip_token (FN_KW);
 
@@ -4600,11 +4765,11 @@ Parser<ManagedTokenSource>::parse_trait_impl_function_or_method (
     }
 
   return std::unique_ptr<AST::Function> (
-    new AST::Function (std::move (ident), std::move (qualifiers),
+    new AST::Function (std::move (ident), std::move (qualifiers.value ()),
 		       std::move (generic_params), std::move (function_params),
 		       std::move (return_type), std::move (where_clause),
 		       std::move (body), std::move (vis),
-		       std::move (outer_attrs), locus, is_default));
+		       std::move (outer_attrs), locus));
 }
 
 // Parses an extern block of declarations.
@@ -6212,7 +6377,9 @@ Parser<ManagedTokenSource>::parse_bare_function_type (
   // TODO: pass in for lifetime location as param
   location_t best_try_locus = lexer.peek_token ()->get_locus ();
 
-  AST::FunctionQualifiers qualifiers = parse_function_qualifiers ();
+  auto qualifiers = parse_function_qualifiers ();
+  if (!qualifiers)
+    return nullptr;
 
   if (!skip_token (FN_KW))
     return nullptr;
@@ -6295,11 +6462,10 @@ Parser<ManagedTokenSource>::parse_bare_function_type (
 	}
     }
 
-  return std::unique_ptr<AST::BareFunctionType> (
-    new AST::BareFunctionType (std::move (for_lifetimes),
-			       std::move (qualifiers), std::move (params),
-			       is_variadic, std::move (variadic_attrs),
-			       std::move (return_type), best_try_locus));
+  return std::unique_ptr<AST::BareFunctionType> (new AST::BareFunctionType (
+    std::move (for_lifetimes), std::move (qualifiers.value ()),
+    std::move (params), is_variadic, std::move (variadic_attrs),
+    std::move (return_type), best_try_locus));
 }
 
 template <typename ManagedTokenSource>
@@ -7198,6 +7364,19 @@ Parser<ManagedTokenSource>::parse_stmt_or_expr ()
 	return ExprOrStmt (
 	  std::make_unique<AST::ExprStmt> (std::move (expr.value ()),
 					   t->get_locus (), false));
+
+      // Check if expr_without_block is properly terminated
+      if (expr.value ()->is_expr_without_block ()
+	  && after_expr->get_id () != RIGHT_CURLY)
+	{
+	  // expr_without_block must be followed by ';' or '}'
+	  Error error (after_expr->get_locus (),
+		       "expected %<;%> or %<}%> after expression, found %qs",
+		       after_expr->get_token_description ());
+	  add_error (std::move (error));
+	  return tl::unexpected<Parse::Error::Node> (
+	    Parse::Error::Node::MALFORMED);
+	}
     }
 
   // return expression

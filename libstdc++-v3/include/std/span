@@ -47,9 +47,7 @@
 #include <cstddef>
 #include <bits/stl_iterator.h>
 #include <bits/ranges_base.h>
-#ifdef __cpp_lib_span_initializer_list
-# include <initializer_list>
-#endif
+
 namespace std _GLIBCXX_VISIBILITY(default)
 {
 _GLIBCXX_BEGIN_NAMESPACE_VERSION
@@ -231,18 +229,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 		  && noexcept(ranges::size(__range)))
 	: _M_ptr(ranges::data(__range)), _M_extent(ranges::size(__range))
 	{ }
-
-#if __cpp_lib_span_initializer_list >= 202311L // >= C++26
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Winit-list-lifetime"
-      constexpr
-      explicit(extent != dynamic_extent)
-      span(initializer_list<value_type> __il)
-      requires (is_const_v<_Type>)
-      : _M_ptr(__il.begin()), _M_extent(__il.size())
-      { }
-#pragma GCC diagnostic pop
-#endif
 
       constexpr
       span(const span&) noexcept = default;
@@ -481,15 +467,13 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   {
     // _GLIBCXX_RESOLVE_LIB_DEFECTS
     // 4351. integral-constant-like needs more remove_cvref_t
+    // 4486. integral-constant-like and constexpr-wrapper-like exposition-only
+    //       concept duplication
     template<typename _Tp>
       concept __integral_constant_like =
 	is_integral_v<remove_cvref_t<decltype(_Tp::value)>>
 	&& !is_same_v<bool, remove_cvref_t<decltype(_Tp::value)>>
-	&& convertible_to<_Tp, decltype(_Tp::value)>
-	&& equality_comparable_with<_Tp, decltype(_Tp::value)>
-	&& bool_constant<_Tp() == _Tp::value>::value
-	&& bool_constant<static_cast<decltype(_Tp::value)>(_Tp()) == _Tp::value>
-	     ::value;
+	&& __constexpr_wrapper_like<_Tp>;
 
     template<typename _Tp>
       constexpr size_t __maybe_static_ext = dynamic_extent;
@@ -517,7 +501,10 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     span(_Range &&)
       -> span<remove_reference_t<ranges::range_reference_t<_Range&>>>;
 
+  // _GLIBCXX_RESOLVE_LIB_DEFECTS
+  // 4243. as_bytes/as_writable_bytes is broken with span<volatile T>
   template<typename _Type, size_t _Extent>
+    requires (!is_volatile_v<_Type>)
     [[nodiscard]]
     inline
     span<const byte, _Extent == dynamic_extent
@@ -532,7 +519,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     }
 
   template<typename _Type, size_t _Extent>
-    requires (!is_const_v<_Type>)
+    requires (!is_const_v<_Type> && !is_volatile_v<_Type>)
     inline
     span<byte, _Extent == dynamic_extent
        ? dynamic_extent : _Extent * sizeof(_Type)>

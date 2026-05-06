@@ -3283,7 +3283,7 @@ tree_ctz (const_tree expr)
     case COMPOUND_EXPR:
       return tree_ctz (TREE_OPERAND (expr, 1));
     case ADDR_EXPR:
-      ret1 = get_pointer_alignment (CONST_CAST_TREE (expr));
+      ret1 = get_pointer_alignment (const_cast<tree> (expr));
       if (ret1 > BITS_PER_UNIT)
 	{
 	  ret1 = ctz_hwi (ret1 / BITS_PER_UNIT);
@@ -4000,14 +4000,26 @@ decl_address_ip_invariant_p (const_tree op)
   /* The conditions below are slightly less strict than the one in
      staticp.  */
 
+  symtab_node* node;
   switch (TREE_CODE (op))
     {
     case LABEL_DECL:
-    case FUNCTION_DECL:
     case STRING_CST:
       return true;
 
+    case FUNCTION_DECL:
+      /* Disable const propagation of symbols defined in assembly.  */
+      node = symtab_node::get (op);
+      return !node || !node->must_remain_in_tu_name;
+
     case VAR_DECL:
+      if (TREE_STATIC (op) || DECL_EXTERNAL (op))
+	  {
+	    /* Disable const propagation of symbols defined in assembly.  */
+	    node = symtab_node::get (op);
+	    if (node && node->must_remain_in_tu_name)
+	      return false;
+	  }
       if (((TREE_STATIC (op) || DECL_EXTERNAL (op))
            && !DECL_DLLIMPORT_P (op))
           || DECL_THREAD_LOCAL_P (op))
@@ -6814,13 +6826,27 @@ simple_cst_equal (const_tree t1, const_tree t2)
 	vec<constructor_elt, va_gc> *v2 = CONSTRUCTOR_ELTS (t2);
 
 	if (vec_safe_length (v1) != vec_safe_length (v2))
-	  return false;
+	  return 0;
 
         for (idx = 0; idx < vec_safe_length (v1); ++idx)
-	  /* ??? Should we handle also fields here? */
-	  if (!simple_cst_equal ((*v1)[idx].value, (*v2)[idx].value))
-	    return false;
-	return true;
+	  {
+	    if ((*v1)[idx].index
+		&& TREE_CODE ((*v1)[idx].index) == FIELD_DECL)
+	      {
+		if ((*v1)[idx].index != (*v2)[idx].index)
+		  return 0;
+	      }
+	    else
+	      {
+		cmp = simple_cst_equal ((*v1)[idx].index, (*v2)[idx].index);
+		if (cmp <= 0)
+		  return cmp;
+	      }
+	    cmp = simple_cst_equal ((*v1)[idx].value, (*v2)[idx].value);
+	    if (cmp <= 0)
+	      return cmp;
+	  }
+	return 1;
       }
 
     case SAVE_EXPR:
@@ -7395,7 +7421,7 @@ build_bitint_type (unsigned HOST_WIDE_INT precision, int unsignedp)
 {
   tree itype, ret;
 
-  gcc_checking_assert (precision >= 1 + !unsignedp);
+  gcc_checking_assert (precision >= 1);
 
   if (unsignedp)
     unsignedp = MAX_INT_CACHED_PREC + 1;
@@ -7754,7 +7780,8 @@ build_function_type (tree value_type, tree arg_types,
     gcc_assert (TYPE_STRUCTURAL_EQUALITY_P (t));
   else if (any_noncanonical_p)
     TYPE_CANONICAL (t) = build_function_type (TYPE_CANONICAL (value_type),
-					      canon_argtypes);
+					      canon_argtypes,
+					      no_named_args_stdarg_p);
 
   if (!COMPLETE_TYPE_P (t))
     layout_type (t);
@@ -11413,7 +11440,7 @@ signed_or_unsigned_type_for (int unsignedp, tree type)
   else
     return NULL_TREE;
 
-  if (TREE_CODE (type) == BITINT_TYPE && (unsignedp || bits > 1))
+  if (TREE_CODE (type) == BITINT_TYPE)
     return build_bitint_type (bits, unsignedp);
   return build_nonstandard_integer_type (bits, unsignedp);
 }
@@ -12306,6 +12333,9 @@ block_ultimate_origin (const_tree block)
 bool
 tree_nop_conversion_p (const_tree outer_type, const_tree inner_type)
 {
+  if (!inner_type || inner_type == error_mark_node)
+    return false;
+
   /* Do not strip casts into or out of differing address spaces.  */
   if (POINTER_TYPE_P (outer_type)
       && TYPE_ADDR_SPACE (TREE_TYPE (outer_type)) != ADDR_SPACE_GENERIC)
@@ -12355,8 +12385,6 @@ tree_nop_conversion (const_tree exp)
 
   outer_type = TREE_TYPE (exp);
   inner_type = TREE_TYPE (TREE_OPERAND (exp, 0));
-  if (!inner_type || inner_type == error_mark_node)
-    return false;
 
   return tree_nop_conversion_p (outer_type, inner_type);
 }
@@ -12936,7 +12964,7 @@ block_may_fallthru (const_tree block)
 {
   /* This CONST_CAST is okay because expr_last returns its argument
      unmodified and we assign it to a const_tree.  */
-  const_tree stmt = expr_last (CONST_CAST_TREE (block));
+  const_tree stmt = expr_last (const_cast<tree> (block));
 
   switch (stmt ? TREE_CODE (stmt) : ERROR_MARK)
     {
@@ -14451,10 +14479,25 @@ verify_type (const_tree t)
     }
   if (TYPE_MAIN_VARIANT (t) == t && ct && TYPE_MAIN_VARIANT (ct) != ct)
    {
-      error ("%<TYPE_CANONICAL%> of main variant is not main variant");
-      debug_tree (ct);
-      debug_tree (TYPE_MAIN_VARIANT (ct));
-      error_found = true;
+     /* This can happen when build_type_attribute_variant is called on
+	C/C++ arrays of qualified types.  volatile int[2] is unqualified
+	ARRAY_TYPE with volatile int element type.
+	TYPE_CANONICAL (volatile int) is itself and so is
+	TYPE_CANONICAL (volatile int[2]).  build_type_attribute_qual_variant
+	creates a distinct type copy (so TYPE_MAIN_VARIANT is itself) and sets
+	its TYPE_CANONICAL to the unqualified ARRAY_TYPE (so volatile int[2]).
+	But this is not the TYPE_MAIN_VARIANT, which is int[2].  So, just
+	verify that TYPE_MAIN_VARIANT (ct) is already the final type we
+	need.  */
+      tree mvc = TYPE_MAIN_VARIANT (ct);
+      if (TYPE_CANONICAL (mvc) != mvc)
+	{
+	  error ("main variant of %<TYPE_CANONICAL%> of main variant is not"
+		 " its own %<TYPE_CANONICAL%>");
+	  debug_tree (ct);
+	  debug_tree (TYPE_MAIN_VARIANT (ct));
+	  error_found = true;
+	}
    }
 
 
@@ -15255,6 +15298,26 @@ verify_type_context (location_t loc, type_context_kind context,
 	  || targetm.verify_type_context (loc, context, type, silent_p));
 }
 
+/* Callback of walk_tree telling whether the current tree pointed by TP is the
+   one provided as DATA.  */
+
+static tree
+find_tree_1 (tree *tp, int *walk_subtrees ATTRIBUTE_UNUSED, void *data)
+{
+  if (*tp == data)
+    return (tree) data;
+  else
+    return NULL;
+}
+
+/* Return whether SEARCH is a subtree of TOP.  */
+
+bool
+find_tree (tree top, tree search)
+{
+  return walk_tree_without_duplicates (&top, find_tree_1, search) != 0;
+}
+
 /* Return true if NEW_ASM and DELETE_ASM name a valid pair of new and
    delete operators.  Return false if they may or may not name such
    a pair and, when nonnull, set *PCERTAIN to true if they certainly
@@ -15306,6 +15369,13 @@ valid_new_delete_pair_p (tree new_asm, tree delete_asm,
   if ((new_name[2] != 'w' || delete_name[2] != 'l')
       && (new_name[2] != 'a' || delete_name[2] != 'a'))
     return false;
+  if (new_name[3] == 'I' || delete_name[3] == 'I')
+    {
+      /* When ::operator new or ::operator delete are function templates,
+	 return uncertain mismatch, we need demangler in that case.  */
+      *pcertain = false;
+      return false;
+    }
   /* 'j', 'm' and 'y' correspond to size_t.  */
   if (new_name[3] != 'j' && new_name[3] != 'm' && new_name[3] != 'y')
     return false;
@@ -15610,7 +15680,8 @@ disjoint_version_decls (tree fn1, tree fn2)
 	      for (string_slice v1 : fn1_versions)
 		{
 		  for (string_slice v2 : fn2_versions)
-		    if (targetm.target_option.same_function_versions (v1, v2))
+		    if (targetm.target_option.same_function_versions
+			  (v1, NULL_TREE, v2, NULL_TREE))
 		      return false;
 		}
 	      return true;
@@ -15628,7 +15699,8 @@ disjoint_version_decls (tree fn1, tree fn2)
 	      if (!v2.is_valid ())
 		v2 = "default";
 	      for (string_slice v1 : fn1_versions)
-		if (targetm.target_option.same_function_versions (v1, v2))
+		if (targetm.target_option.same_function_versions
+		      (v1, NULL_TREE, v2, NULL_TREE))
 		  return false;
 	      return true;
 	    }
@@ -15647,7 +15719,8 @@ disjoint_version_decls (tree fn1, tree fn2)
 	  if (!v2.is_valid ())
 	    v2 = "default";
 
-	  if (targetm.target_option.same_function_versions (v1, v2))
+	  if (targetm.target_option.same_function_versions (v1, NULL_TREE,
+							    v2, NULL_TREE))
 	    return false;
 
 	  return true;
@@ -15695,30 +15768,32 @@ diagnose_versioned_decls (tree old_decl, tree new_decl)
      the two sets of target_clones imply the same set of versions.  */
   if (old_target_clones_attr && new_target_clones_attr)
     {
-      auto_vec<string_slice> fn1_versions = get_clone_versions (old_decl);
-      auto_vec<string_slice> fn2_versions = get_clone_versions (new_decl);
+      auto_vec<string_slice> old_versions = get_clone_versions (old_decl);
+      auto_vec<string_slice> new_versions = get_clone_versions (new_decl);
 
       bool mergeable = true;
 
-      if (fn1_versions.length () != fn2_versions.length ())
+      if (old_versions.length () != new_versions.length ())
 	mergeable = false;
 
       /* Check both inclusion directions.  */
-      for (auto fn1v : fn1_versions)
+      for (auto oldv: old_versions)
 	{
 	  bool matched = false;
-	  for (auto fn2v : fn2_versions)
-	    if (targetm.target_option.same_function_versions (fn1v, fn2v))
+	  for (auto newv: new_versions)
+	    if (targetm.target_option.same_function_versions (oldv, old_decl,
+							      newv, new_decl))
 	      matched = true;
 	  if (!matched)
 	    mergeable = false;
 	}
 
-      for (auto fn2v : fn2_versions)
+      for (auto newv: new_versions)
 	{
 	  bool matched = false;
-	  for (auto fn1v : fn1_versions)
-	    if (targetm.target_option.same_function_versions (fn1v, fn2v))
+	  for (auto oldv: old_versions)
+	    if (targetm.target_option.same_function_versions (oldv, old_decl,
+							      newv, new_decl))
 	      matched = true;
 	  if (!matched)
 	    mergeable = false;
@@ -15767,9 +15842,9 @@ diagnose_versioned_decls (tree old_decl, tree new_decl)
       return true;
     }
 
-  /* The only remaining case is two target_version annotated decls.  Must
-     be mergeable as otherwise are distinct.  */
-  return false;
+  /* The only remaining case is two target_version annotated decls.  */
+  return !targetm.target_option.same_function_versions
+	    (old_target_attr, old_decl, new_target_attr, new_decl);
 }
 
 void

@@ -1,3 +1,4 @@
+/* { dg-do run } */
 #if defined (__AVR__) && (__SIZEOF_DOUBLE__ == __SIZEOF_FLOAT__)
 extern double sqrt (double) __asm ("sqrtf");
 #else

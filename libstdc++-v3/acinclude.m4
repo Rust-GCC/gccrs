@@ -81,6 +81,10 @@ AC_DEFUN([GLIBCXX_CONFIGURE], [
     AC_HELP_STRING([--with-newlib],
 		   [assume newlib as a system C library]))
 
+  AC_ARG_WITH([picolibc],
+    AC_HELP_STRING([--with-picolibc],
+		   [assume picolibc as a system C library]))
+
   # Will set LN_S to either 'ln -s', 'ln', or 'cp -p' (if linking isn't
   # available).  Uncomment the next line to force a particular method.
   AC_PROG_LN_S
@@ -5314,7 +5318,7 @@ EOF
 
     AC_MSG_CHECKING([for atomic builtins for libbacktrace])
     if AC_TRY_EVAL(ac_compile); then
-      if grep __atomic_ conftest.s >/dev/null 2>&1 ; then
+      if grep -E '__atomic_|__sync_' conftest.s >/dev/null 2>&1 ; then
 	glibcxx_cv_libbacktrace_atomics=no
       else
 	glibcxx_cv_libbacktrace_atomics=yes
@@ -5822,13 +5826,20 @@ AC_LANG_SAVE
   AC_MSG_CHECKING([whether flockfile and putc_unlocked are defined in <stdio.h>])
   AC_TRY_COMPILE([
   #include <stdio.h>
+  #if __has_include(<newlib.h>)
+  # ifdef __CYGWIN__
+    // Cygwin has working flockfile
+  # else
+  #  error No usable flockfile on most newlib targets
+  # endif
+  #endif
   ],[
     FILE* f = ::fopen("", "");
     ::flockfile(f);
     ::putc_unlocked(' ', f);
     ::funlockfile(f);
     ::fclose(f);
-  ], [ac_stdio_locking=yes], [ac_stdio_locking=no])
+  ],[ac_stdio_locking=yes],[ac_stdio_locking=no])
   AC_MSG_RESULT($ac_stdio_locking)
 
   if test "$ac_stdio_locking" = yes; then

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2025 Symas Corporation
+ * Copyright (c) 2021-2026 Symas Corporation
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -279,28 +279,6 @@ struct cblc_field_t __ggsr___file_status = {
   };
 
 
-unsigned char __gg__data_linage_counter[2] = {0,0};
-struct cblc_field_t __ggsr___14_linage_counter6 = {
-  .data           = __gg__data_linage_counter ,
-  .capacity       = 2 ,
-  .allocated      = 2 ,
-  .offset         = 0 ,
-  .name           = "LINAGE-COUNTER" ,
-  .picture        = "" ,
-  .initial        = "" ,
-  .parent         = NULL,
-  .occurs_lower   = 0 ,
-  .occurs_upper   = 0 ,
-  .attr           = 0x0 ,
-  .type           = FldNumericBin5 ,
-  .level          = 0 ,
-  .digits         = 4 ,
-  .rdigits        = 0 ,
-  .encoding       = iconv_CP1252_e ,
-  .alphabet       = 0 ,
-  };
-
-
 unsigned char __gg__data_upsi_0[2] = {0,0};
 struct cblc_field_t __ggsr__upsi_0 = {
   .data           = __gg__data_upsi_0 ,
@@ -314,27 +292,6 @@ struct cblc_field_t __ggsr__upsi_0 = {
   .occurs_lower   = 0 ,
   .occurs_upper   = 0 ,
   .attr           = 0x0 ,
-  .type           = FldNumericBin5 ,
-  .level          = 0 ,
-  .digits         = 4 ,
-  .rdigits        = 0 ,
-  .encoding       = iconv_CP1252_e ,
-  .alphabet       = 0 ,
-  };
-
-short __gg__data_return_code = 0;
-struct cblc_field_t __ggsr__return_code = {
-  .data           = (unsigned char *)&__gg__data_return_code ,
-  .capacity       = 2 ,
-  .allocated      = 2 ,
-  .offset         = 0 ,
-  .name           = "RETURN-CODE" ,
-  .picture        = "" ,
-  .initial        = "" ,
-  .parent         = NULL,
-  .occurs_lower   = 0 ,
-  .occurs_upper   = 0 ,
-  .attr           = signable_e ,
   .type           = FldNumericBin5 ,
   .level          = 0 ,
   .digits         = 4 ,
@@ -427,27 +384,6 @@ struct cblc_field_t __ggsr___dev_null = {
   .alphabet       = 0 ,
   };
 
-unsigned char __gg__data_tally[] = {0,0};
-struct cblc_field_t __ggsr___tally = {
-  .data           = __gg__data_tally ,
-  .capacity       = 4 ,
-  .allocated      = 4 ,
-  .offset         = 0 ,
-  .name           = "_TALLY" ,
-  .picture        = "" ,
-  .initial        = "" ,
-  .parent         = NULL,
-  .occurs_lower   = 0 ,
-  .occurs_upper   = 0 ,
-  .attr           = global_e ,
-  .type           = FldNumericBin5 ,
-  .level          = 0 ,
-  .digits         = 5 ,
-  .rdigits        = 0 ,
-  .encoding       = iconv_CP1252_e ,
-  .alphabet       = 0 ,
-  };
-
 unsigned char __gg__data_argi[] = {0,0};
 struct cblc_field_t __ggsr__argi = {
   .data           = __gg__data_argi ,
@@ -469,200 +405,6 @@ struct cblc_field_t __ggsr__argi = {
   .alphabet       = 0 ,
   };
 
-/*
- * Special registers used by the XML parser
- */
-// XML-CODE  PICTURE S9(9) USAGE BINARY VALUE ZERO   *> status of XML event
-static int __gg__data_xml_code = 0;
-struct cblc_field_t __ggsr__xml_code = {
-  .data           = reinterpret_cast<unsigned char*>(&__gg__data_xml_code), 
-  .capacity       = 4 ,
-  .allocated      = 4 ,
-  .offset         = 0 ,
-  .name           = "XML-CODE" ,
-  .picture        = "" ,
-  .initial        = "" ,
-  .parent         = NULL,
-  .occurs_lower   = 0 ,
-  .occurs_upper   = 0 ,
-  .attr           = register_e,
-  .type           = FldNumericBin5 ,
-  .level          = 0 ,
-  .digits         = 9 ,
-  .rdigits        = 0 ,
-  .encoding       = iconv_CP1252_e ,
-  .alphabet       = 0 ,
-  };
-
-// XML-EVENT PICTURE X(30) USAGE DISPLAY VALUE SPACE *> name of XML event
-static unsigned char __gg__data_xml_event[30];
-struct cblc_field_t __ggsr__xml_event = {
-  .data           = __gg__data_xml_event, 
-  .capacity       = 30 ,
-  .allocated      = 30 ,
-  .offset         = 0 ,
-  .name           = "XML-EVENT" ,
-  .picture        = "" ,
-  .initial        = NULL,
-  .parent         = NULL, 
-  .occurs_lower   = 0 ,
-  .occurs_upper   = 0 ,
-  .attr           = register_e ,
-  .type           = FldAlphanumeric ,
-  .level          = 0 ,
-  .digits         = 0 ,
-  .rdigits        = 0 ,
-  .encoding       = iconv_CP1252_e ,
-  .alphabet       = 0 ,
-  };
-
-// XML-INFORMATION  PICTURE S9(9) USAGE BINARY VALUE ZERO
-static int __gg__data_xml_information = 0;
-struct cblc_field_t __ggsr__xml_information = {
-  .data           = reinterpret_cast<unsigned char*>(&__gg__data_xml_information), 
-  .capacity       = 4 ,
-  .allocated      = 4 ,
-  .offset         = 0 ,
-  .name           = "XML-INFORMATION" ,
-  .picture        = "" ,
-  .initial        = "" ,
-  .parent         = NULL,
-  .occurs_lower   = 0 ,
-  .occurs_upper   = 0 ,
-  .attr           = register_e,
-  .type           = FldNumericBin5 ,
-  .level          = 0 ,
-  .digits         = 9 ,
-  .rdigits        = 0 ,
-  .encoding       = iconv_CP1252_e ,
-  .alphabet       = 0 ,
-  };
-
-// XML-NAMESPACE  Variable-length based alphanumeric item
-struct cblc_field_t __ggsr__xml_namespace = {
-  .data           = nullptr ,
-  .capacity       = 1 ,
-  .allocated      = 1 ,
-  .offset         = 0 ,
-  .name           = "XML-NAMESPACE" ,
-  .picture        = "" ,
-  .initial        = "" ,
-  .parent         = NULL,
-  .occurs_lower   = 0 ,
-  .occurs_upper   = 0 ,
-  .attr           = register_e | based_e | any_length_e,
-  .type           = FldAlphanumeric ,
-  .level          = 0 ,
-  .digits         = 0 ,
-  .rdigits        = 0 ,
-  .encoding       = iconv_CP1252_e ,
-  .alphabet       = 0 ,
-  };
-
-// XML-NNAMESPACE Variable-length national item
-struct cblc_field_t __ggsr__xml_nnamespace = {
-  .data           = nullptr ,
-  .capacity       = 1 ,
-  .allocated      = 1 ,
-  .offset         = 0 ,
-  .name           = "XML-NNAMESPACE" ,
-  .picture        = "" ,
-  .initial        = "" ,
-  .parent         = NULL,
-  .occurs_lower   = 0 ,
-  .occurs_upper   = 0 ,
-  .attr           = register_e | based_e | any_length_e,
-  .type           = FldAlphanumeric ,
-  .level          = 0 ,
-  .digits         = 0 ,
-  .rdigits        = 0 ,
-  .encoding       = iconv_CP1252_e ,
-  .alphabet       = 0 ,
-  };
-
-// XML-NAMESPACE-PREFIX  Variable-length based alphanumeric item
-struct cblc_field_t __ggsr__xml_namespace_prefix = {
-  .data           = nullptr ,
-  .capacity       = 1 ,
-  .allocated      = 1 ,
-  .offset         = 0 ,
-  .name           = "XML-NAMESPACE-PREFIX" ,
-  .picture        = "" ,
-  .initial        = "" ,
-  .parent         = NULL,
-  .occurs_lower   = 0 ,
-  .occurs_upper   = 0 ,
-  .attr           = register_e | based_e | any_length_e,
-  .type           = FldAlphanumeric ,
-  .level          = 0 ,
-  .digits         = 0 ,
-  .rdigits        = 0 ,
-  .encoding       = iconv_CP1252_e ,
-  .alphabet       = 0 ,
-  };
-
-// XML-NNAMESPACE_PREFIX Variable-length national item
-struct cblc_field_t __ggsr__xml_nnamespace_prefix = {
-  .data           = nullptr ,
-  .capacity       = 1 ,
-  .allocated      = 1 ,
-  .offset         = 0 ,
-  .name           = "XML-NNAMESPACE-PREFIX" ,
-  .picture        = "" ,
-  .initial        = "" ,
-  .parent         = NULL,
-  .occurs_lower   = 0 ,
-  .occurs_upper   = 0 ,
-  .attr           = register_e | based_e | any_length_e,
-  .type           = FldAlphanumeric ,
-  .level          = 0 ,
-  .digits         = 0 ,
-  .rdigits        = 0 ,
-  .encoding       = iconv_CP1252_e ,
-  .alphabet       = 0 ,
-  };
-
-// XML-TEXT  Variable-length based alphanumeric item
-struct cblc_field_t __ggsr__xml_text = {
-  .data           = nullptr ,
-  .capacity       = 1 ,
-  .allocated      = 1 ,
-  .offset         = 0 ,
-  .name           = "XML-TEXT" ,
-  .picture        = "" ,
-  .initial        = "" ,
-  .parent         = NULL,
-  .occurs_lower   = 0 ,
-  .occurs_upper   = 0 ,
-  .attr           = register_e | based_e | any_length_e ,
-  .type           = FldAlphanumeric ,
-  .level          = 0 ,
-  .digits         = 0 ,
-  .rdigits        = 0 ,
-  .encoding       = iconv_CP1252_e ,
-  .alphabet       = 0 ,
-  };
-
-// XML-NTEXT Variable-length national item
-struct cblc_field_t __ggsr__xml_ntext = {
-  .data           = nullptr ,
-  .capacity       = 1 ,
-  .allocated      = 1 ,
-  .offset         = 0 ,
-  .name           = "XML-NTEXT" ,
-  .picture        = "" ,
-  .initial        = "" ,
-  .parent         = NULL,
-  .occurs_lower   = 0 ,
-  .occurs_upper   = 0 ,
-  .attr           = register_e | based_e | any_length_e,
-  .type           = FldAlphanumeric ,
-  .level          = 0 ,
-  .digits         = 0 ,
-  .rdigits        = 0 ,
-  .encoding       = iconv_CP1252_e ,
-  .alphabet       = 0 ,
-  };
 
 /* The following defines storage for the global DEBUG-ITEM:
 

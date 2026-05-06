@@ -1,6 +1,6 @@
 
 /* Compiler implementation of the D programming language
- * Copyright (C) 1999-2025 by The D Language Foundation, All Rights Reserved
+ * Copyright (C) 1999-2026 by The D Language Foundation, All Rights Reserved
  * written by Walter Bright
  * https://www.digitalmars.com
  * Distributed under the Boost Software License, Version 1.0.
@@ -518,6 +518,7 @@ class ReturnStatement final : public Statement
 public:
     Expression *exp;
     size_t caseDim;
+    FuncDeclaration *fesFunc;   // nested function for foreach it is in
 
     ReturnStatement *syntaxCopy() override;
 
@@ -561,6 +562,7 @@ public:
 class WithStatement final : public Statement
 {
 public:
+    Parameter *prm;
     Expression *exp;
     Statement *_body;
     VarDeclaration *wthis;
@@ -715,7 +717,15 @@ class AsmStatement : public Statement
 {
 public:
     Token *tokens;
-    d_bool caseSensitive;  // for register names
+private:
+    uint8_t bitFields;
+public:
+    bool caseSensitive() const; // for register names
+    bool caseSensitive(bool v);
+    bool isVolatile() const;    // importC asm volatile
+    bool isVolatile(bool v);
+    bool isInline() const;      // importC asm inline
+    bool isInline(bool v);
 
     AsmStatement *syntaxCopy() override;
     void accept(Visitor *v) override { v->visit(this); }
@@ -725,8 +735,8 @@ class InlineAsmStatement final : public AsmStatement
 {
 public:
     void *asmcode;
-    unsigned asmalign;          // alignment of this statement
-    unsigned regs;              // mask of registers modified (must match regm_t in back end)
+    unsigned long long regs;      // mask of registers modified (must match regm_t in back end)
+    unsigned asmalign;            // alignment of this statement
     d_bool refparam;              // true if function parameter is referenced
     d_bool naked;                 // true if function is to be naked
 

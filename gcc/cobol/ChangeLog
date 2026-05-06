@@ -1,3 +1,576 @@
+2026-04-02  Robert Dubner  <rdubner@symas.com>
+
+	* cobol1.cc (cobol_langhook_handle_option): Handle OPT_Wrecording_mode.
+	* gcobol.1: Documentation of pre-program registers.
+	* genapi.cc (hijacker): Define new function hijacked code generation.
+	(RETURN_WHEN_HIJACKED): Macro for wrapping if(hijacked)return;
+	(hijacked): Either a boolean or false depending on ENABLE_HIJACKING.
+	(set_exception_environment): Use gg_pointer_to_array instead of
+	gg_get_address_of.
+	(parser_statement_end): Formatting.
+	(section_label): Change ALTER STATEMENT processing.
+	(pseudo_return_push): Expand TRACE1 message.
+	(pseudo_return_pop): Expand TRACE1 message; improved PERFORM processing.
+	(find_procedure): Change how cbl_proc_t is allocated; improved PERFORM
+	processing.
+	(parser_enter_section): Changed ALTER statement processing.
+	(parser_enter_paragraph): Likewise.
+	(parser_goto): Use SWITCH_EXPR instead of indirect jump.
+	(parser_perform): Likewise.
+	(internal_perform_through): Likewise.
+	(parser_enter_file): Use SWITCH_EXPR for implementing ENTRY statement.
+	(parser_leave_file): Build table of values for the SWITCH_EXPR.
+	(enter_program_common): Remove unused JMP *ptr.
+	(parser_enter_program): Code to hijack code generation for a function
+	"dubner" when ENABLE_HIJACKING is defined.
+	(build_dispatch_switch): Generalize builder of SWITCH_EXPR.
+	(build_alter_switch): Uses build_dispatch_switch.
+	(build_entry_switch): Likewise.
+	(build_perform_dispatcher): Likewise.
+	(parser_end_program): Wrap build_perform_dispatcher() in if(!hijacked).
+	(parser_init_list): Use RETURN_WHEN_HIJACKED; use gg_pointer_to_array()
+	instead of gg_get_address_of().
+	(psa_FldLiteralN): Set TREE_READONLY(var_decl) = 1.
+	(parser_alphabet): use gg_pointer_to_array() instead of
+	gg_get_address_of().
+	(parser_assign): Formatting.
+	(program_end_stuff): Call hijacking() when ENABLE_HIJACKING and the
+	program-id is "hijack"; use gg_pointer_to_array().
+	(parser_exit): Handle if(hijacked);
+	(register_find): New static function to find XML-* COBOL variables.
+	(parser_xml_parse): Updated XML PARSE statement handling.
+	(initialize_the_data): Use RETURN_WHEN_HIJACKED.
+	(establish_using): Change first-time-through processing.
+	(parser_division): Change ENTRY statement processing.
+	(parser_see_stop_run): Changed RETURN-CODE per-function variable
+	processing.
+	(parser_label_label): Use RETURN_WHEN_HIJACKED.
+	(parser_label_goto): Likewise.
+	(parser_perform_inline_times): Honor cbl_field_t offset for the count
+	parameter.
+	(inspect_tally): Use __gg__inspect_format_1_sbc() for SBC characters.
+	(create_and_call): Use per-function RETURN-CODE.
+	(parser_entry_activate): Eliminate static tree variables.
+	(parser_entry): Use automatic tree variables.
+	(parser_program_hierarchy): Use RETURN_WHEN_HIJACKED and
+	gg_pointer_to_array().
+	(build_temporaryN): New function compiled when ENABLE_HIJACKING.
+	(hijack_for_development): Changed to generate minimal GENERIC.
+	(actually_create_the_static_field): Use gg_structure_type_constructor
+	to create the constructor for the static cblc_field_t VAR_DECL.
+	(psa_FldLiteralA): Move where TREE attributes are established.
+	(parser_local_add): Use gg_pointer_to_array().
+	(parser_symbol_add): Use RETURN_WHEN_HIJACKED(); use gg_pointer_to_array().
+	* gengen.cc (gg_append_statement): #if 0 around some debugging code.
+	(gg_show_type): Expanded to display "static" and "readonly".
+	(gg_find_field_in_struct): Moved and rewritten.
+	(gg_get_structure_type_decl): New function.
+	(gg_start_building_a_union): Eliminated.
+	(gg_start_building_a_struct): Eliminated.
+	(gg_add_field_to_structure): Eliminated.
+	(gg_structure_type_constructor): New function.
+	(gg_get_struct_type_decl): Eliminated.
+	(gg_get_union_type_decl): Eliminated.
+	(gg_get_local_struct_type_decl): Eliminated.
+	(gg_get_filelevel_struct_type_decl): Eliminated.
+	(gg_get_filelevel_union_type_decl): Eliminated.
+	(gg_define_local_struct): Eliminated.
+	(gg_assign_to_structure): Eliminated.
+	(gg_define_array): Formatting.
+	(gg_pointer_to_array): Returns ADDR_EXPR for &array[0];
+	(gg_goto): Comment reflecting why we aren't using it.
+	* gengen.h (SHORT_P): Alias for build_pointer_type(short_integer_type_node);
+	(struct gg_function_t): Changes mostly in support of SWITCH_EXPR.
+	(gg_get_local_struct_type_decl): Eliminated declaration.
+	(gg_get_filelevel_struct_type_decl): Likewise.
+	(gg_get_filelevel_union_type_decl): Likewise.
+	(gg_define_local_struct): Likewise.
+	(gg_get_structure_type_decl): New declaration.
+	(gg_structure_type_constructor): New declaration.
+	(gg_assign_to_structure): Eliminated declaration.
+	(gg_define_uchar_star): Changed declaration.
+	(gg_pointer_to_array): New declaration.
+	* genutil.cc: Removed unused globals; added var_decl_entry_index.
+	* genutil.h: Likewise.
+	* parse.y: Change program-id and REDEFINES handling.
+	* parse_ante.h: Likewise.
+	* scan_ante.h (is_refmod): Rewrite.
+	* structs.cc (create_cblc_field_t): Use gg_get_structure_type_decl().
+	* symbols.cc (return_code_register): Use per-program COBOL registers.
+	(symbol_redefines_root): New function.
+	(symbols_update): Use per-program COBOL registers.
+	(symbol_table_init): Implement per-program registers.
+	(symbol_registers_add): Likewise.
+	(cbl_field_t::encode): Loosen COBOL level requirement.
+	* symbols.h (struct cbl_proc_t): SWITCH_EXPR-based PERFORM returns.
+	(symbol_redefines_root): New declaration.
+	(symbol_registers_add): New declaration.
+	(new_alphanumeric): New comment.
+	* util.cc (FOR_JIM): Remove some unused demonstration code.
+	(cbl_field_t::encode_numeric): Likewise.
+
+2026-03-02  Robert Dubner  <rdubner@symas.com>
+
+	PR cobol/119456
+	* genapi.cc (mh_source_is_literalA): Don't set refmod_e attribute
+	unless it is necessary.
+	(have_common_parent): Helper routine that determines whether two
+	COBOL variables are members of the same data description.
+	(mh_alpha_to_alpha): Modified for greater efficiency when table
+	subscripts and reference modification parameters are numeric
+	literals.
+	* genutil.cc (get_data_offset): Recognizes when table subscripts
+	and refmod offsets are numeric literals.
+	(refer_size): Recognizes when refmod offsets are numeric literals.
+	(refer_size_source): Recognizes when table subscripts are numeric
+	literals.
+
+2026-02-27  Richard Biener  <rguenther@suse.de>
+
+	PR cobol/123238
+	* lexio.cc: Remove <iostream> include.
+	(cdftext::process_file): Remove if (false) gated use of
+	iostream code.
+
+2026-02-26  Robert Dubner  <rdubner@symas.com>
+
+	* parse.y: BASECONVERT and TRIM take their type from their first
+	parameter.
+	* parse_util.h (intrinsic_return_field): The function_descrs[] is
+	adjusted so that a number of functions take their return type from
+	their first calling parameter.  intrinsic_return_field() has been
+	refined.
+	* symbols.cc (new_alphanumeric):  Use set_explicit() instead of
+	set() in support of refined intrinsic function return type.
+
+2026-02-24  Robert Dubner  <rdubner@symas.com>
+
+	* gcobc: Adjust how -fPIC is applied, and other refinements.
+	* gcobol.1: Documentation.
+	* genapi.cc (parser_statement_end): New function.  Deallocates
+	temp char strings from the heap.
+	(initialize_variable_internal): Ignore temp char strings.
+	(compare_binary_binary): Formatting.
+	(parser_end_program): Formatting.
+	(parser_init_list): Formatting.
+	(parser_exit_program): Formatting.
+	(program_end_stuff): Formatting.
+	(parser_exit): Formatting.
+	(parser_perform_conditional): Formatting.
+	(perform_outofline_before_until): Formatting.
+	(parser_file_add): Formatting.
+	(mh_source_is_literalA): Formatting.
+	(psa_new_var_decl): Make cblc_field_t for intermediate_e
+	alphanumerics program-static.
+	(parser_symbol_add): Eliminate unnecessary code when
+	type!=FldConditional; change handling of intermediate_e for
+	FldAlphanumerics.
+	* genapi.h (parser_end_program): New declaration.
+	(parser_exit): Formatting.
+	(parser_exit_program): Formatting.
+	(parser_statement_end): New declaration.
+	* lexio.cc (parse_replace_pairs): Change CDF handling.
+	(cdftext::lex_open): Likewise.
+	(cdftext::process_file): Likewise.
+	* parse.y: Changes to MAXIMUM_ALPHA_LENGTH; refine return value
+	types for various intrinsic functions; some CDF handling.
+	* parse_ante.h (MAXLENGTH_FORMATTED_DATE): Eliminate constant.
+	(MAXLENGTH_FORMATTED_TIME): Likewise.
+	(MAXLENGTH_CALENDAR_DATE): Likewise.
+	(MAXLENGTH_FORMATTED_DATETIME): Likewise.
+	(new_alphanumeric): No longer takes a capacity.
+	(intrinsic_return_field): New declaration.
+	(struct ffi_args_t): Changed debug message.
+	(is_among): New declaration.
+	* parse_util.h (intrinsic_return_field): New function. Works with
+	the modified function_descrs[] table.
+	* scan.l: Modified scanning.
+	* scan_ante.h (class input_file_status_t): Likewise.
+	(verify_ws):  Likewise.
+	(is_refmod): Likewise.
+	* symbols.cc (symbols_update): Improved comment about a debug
+	message.
+	(symbol_temporaries): New function for temporaries on the heap that
+	will have to be deallocated.
+	(symbol_temporary_alphanumerics): Likewise.
+	(new_temporary_impl): Eliminate MAXIMUM_ALPHA_LENGTH from template.
+	(new_alphanumeric): Eliminate capacity as a parameter.
+	* symbols.h (cbl_dialect_str): Formatting.
+	(MAXIMUM_ALPHA_LENGTH): Change comment and value.
+	(IBM_MAXIMUM_ALPHA_LENGTH): Put parentheses around "size_t(1)<<31".
+	(symbol_temporaries): New declaration.
+	(symbol_temporary_alphanumerics): New declaration.
+	(struct function_descr_t): New comment on ret_type.
+	(new_alphanumeric): New declaration.
+	* util.cc (class cdf_directives_t): CDF processing.
+	(cobol_set_indicator_column): Likewise.
+	(cdf_push_source_format): Likewise.
+	(cdf_pop_source_format): Likewise.
+	(parent_names): Likewise.
+	(cobol_filename): Likewise.
+	(cobol_lineno): Likewise.
+	(cobol_filename_restore): Likewise.
+
+2026-02-19  Robert Dubner  <rdubner@symas.com>
+
+	* genapi.cc (tree_type_from_field_type): Move static code.
+	(compare_binary_binary): Identify little-endian compares.
+	(psa_FldLiteralN): Eliminate obsolete development code; make the
+	initialized variables TREE_CONSTANT.
+	(parser_symbol_add): Adjust for modified FldLiteralN.
+	* genmath.cc (all_results_binary): Renamed. Modified for fastness.
+	(all_results_integer): Likewise.
+	(all_refers_integer): Likewise.
+	(largest_binary_term): Likewise.
+	(fast_add): Expand conditions.  Use get_binary_value_tree.
+	(fast_subtract): Likewise.
+	(fast_multiply): Expand conditions.
+	(fast_divide): Expand conditions.
+	(parser_add): Avoid fast_add when error or not-error are specified.
+	(parser_multiply): Likewise.
+	(parser_divide): Likewise.
+	(parser_subtract): Likewise.
+	* genutil.cc (tree_type_from_field): Disable; flagged for removal.
+	(get_binary_value): Use get_binary_value_tree.
+	(get_binary_value_tree): Avoid intermediate variables when possible.
+	(refer_is_clean): Formatting.
+	(is_pure_integer): Refine test for little-endian binary.
+	* genutil.h (get_binary_value_tree): New declaration.
+	(is_pure_integer): New declaration.
+	* symbols.cc (symbol_table_init): Explanatory ZEROS comment.
+
+2026-02-13  Robert Dubner  <rdubner@symas.com>
+
+	PR cobol/119455
+	* genapi.cc (mh_source_is_group): Formatting.
+	(mh_source_is_literalA): Implement accelerated move.
+	(mh_alpha_to_alpha): New function; implements accelerated move.
+	(move_helper): Calls new mh_alpha_to_alpha.
+
+2026-02-12  Robert Dubner  <rdubner@symas.com>
+
+	* cbldiag.h: Copyright updated to 2026.
+	* cdf-copy.cc: Likewise.
+	* cdf.y: Likewise.
+	* cdfval.h: Likewise.
+	* cobol-system.h: Likewise.
+	* convert.cc: Likewise.
+	* copybook.h: Likewise.
+	* except.cc: Likewise.
+	* exceptg.h: Likewise.
+	* genapi.cc: Likewise.
+	* genapi.h: Likewise.
+	* gengen.cc: Likewise.
+	* gengen.h: Likewise.
+	* genmath.cc: Likewise.
+	* genmath.h: Likewise.
+	* genutil.cc: Likewise.
+	* genutil.h: Likewise.
+	* inspect.h: Likewise.
+	* lang-specs.h: Likewise.
+	* lexio.cc: Likewise.
+	* lexio.h: Likewise.
+	* messages.cc: Likewise.
+	* parse.y: Likewise.
+	* parse_ante.h: Likewise.
+	* parse_util.h: Likewise.
+	* scan.l: Likewise.
+	* scan_ante.h: Likewise.
+	* scan_post.h: Likewise.
+	* show_parse.h: Likewise.
+	* structs.cc: Likewise.
+	* structs.h: Likewise.
+	* symbols.cc: Likewise.
+	* symbols.h: Likewise.
+	* symfind.cc: Likewise.
+	* util.cc: Likewise.
+	* util.h: Likewise.
+
+2026-02-12  Robert Dubner  <rdubner@symas.com>
+
+	* genapi.cc (establish_using): Use a 128-bit type for
+	float-extended; handle numeric-edited values of different sizes
+	and signs correctly.
+	(create_and_call):  Use a 128-bit type for float-extended.
+
+2026-02-06  Robert Dubner  <rdubner@symas.com>
+
+	PR cobol/119332
+	* gcobolspec.cc (lang_specific_driver): Add -dumpspecs,
+	-dumpversion, -dumpmachine to the no_files_error=false cases.
+
+2026-02-05  Robert Dubner  <rdubner@symas.com>
+
+	* genapi.cc (DEFAULT_LINE_NUMBER): Remove unused #define.
+	(parser_statement_begin): Implement perform_is_armed logic.
+	(initialize_variable_internal): Handle both real and int types in
+	SHOW_PARSE tracing.
+	(section_label): Comment a renumbered insert_nop() for gdb-cobol
+	logic.
+	(paragraph_label): Likewise.
+	(leave_procedure): Eliminate call to gg_insert_into_assembler().
+	(parser_enter_section): Renumber insert_nop().
+	(parser_perform): Eliminate call to gg_insert_into_assembler().
+	(parser_perform_times): Likewise.
+	(internal_perform_through): Likewise.
+	(internal_perform_through_times): Likewise.
+	(parser_leave_file): Create the static _perform_line_pairs table.
+	(parser_sleep): Renumber insert_nop().
+	(parser_division): Remove calls to initialize_the_data().
+	(parser_perform_start): New call to insert_nop().
+	(parser_perform_conditional): Likewise.
+	(perform_outofline_before_until): Expanded comment.
+	(perform_outofline_after_until): Eliminate call to
+	gg_insert_into_assembler().
+	(perform_outofline_testafter_varying): Likewise.
+	(perform_outofline_before_varying): Likewise.
+	(perform_inline_testbefore_varying):  New call to insert_nop().
+	(create_and_call): Change a comment.
+	* gengen.cc (gg_create_goto_pair): Change characteristics of a
+	label.
+	* parse.y: Change how data are initialized.
+	* parse_ante.h (field_type_update): Likewise.
+	* symbols.cc (cbl_field_t::set_signable): Likewise.
+	(cbl_field_t::encode): Likewise.
+	* symbols.h (struct cbl_field_t): Likewise.
+	* util.cc (symbol_field_type_update): Likewise.
+	(cbl_field_t::encode_numeric): Likewise.
+
+2026-01-20  Jakub Jelinek  <jakub@redhat.com>
+
+	* lang.opt (fexec-national-charset=): Add dot at the end of the
+	description.
+
+2026-01-20  Jakub Jelinek  <jakub@redhat.com>
+
+	* lang.opt (Wmove-index): Add missing dot at the end of description.
+
+2026-01-17  Jakub Jelinek  <jakub@redhat.com>
+
+	* lang.opt.urls: Regenerate.
+
+2026-01-17  Robert Dubner  <rdubner@symas.com>
+	    James K. Lowden  <jklowden@cobolworx.com>
+
+	* cbldiag.h (struct cbl_loc_t): Diagnostics.
+	(enum cbl_diag_id_t): Diagnostics.
+	* cdf.y: Includes.
+	* cobol1.cc (cobol_warning_suppress): Diagnostics.
+	(cobol_langhook_handle_option): Implement -fexec-charset.  Expand
+	the use of diagnostics.
+	* gcobc: Expand options and warnings.
+	* gcobol.1: Documentation.
+	* genapi.cc (level_88_helper): Charsets.
+	(get_level_88_domain): Charsets.
+	(get_class_condition_string): Charsets.
+	(function_pointer_from_name): Charsets.
+	(initialize_variable_internal):  Charsets.
+	(parser_initialize): Charsets.
+	(get_binary_value_from_float): Charsets.
+	(get_bytes_needed): Charsets.
+	(cobol_compare): Charsets.
+	(move_tree): Eliminate function.
+	(move_tree_to_field): Eliminate function.
+	(get_string_from): Eliminate function.
+	(parser_init_list): Charsets.
+	(psa_FldLiteralN): Charsets.
+	(parser_accept_date_yymmdd): Charsets.
+	(parser_accept_date_yyyymmdd): Charsets.
+	(parser_accept_date_yyddd): Charsets.
+	(parser_accept_date_yyyyddd): Charsets.
+	(parser_accept_date_dow): Charsets.
+	(parser_accept_date_hhmmssff): Charsets.
+	(parser_alphabet): Charsets.
+	(parser_alphabet_use): Charsets.
+	(parser_display_internal): Charsets.
+	(get_literalN_value): Charsets.
+	(tree_type_from_field_type): Charsets.
+	(program_end_stuff): Charsets.
+	(walk_initialization): Charsets.
+	(parser_xml_parse): Charsets.
+	(initialize_the_data): Charsets.
+	(establish_using): Charsets.
+	(parser_setop): Charsets.
+	(parser_set_conditional88): Charsets.
+	(parser_file_add): Charsets.
+	(get_the_filename): Eliminate function.
+	(parser_file_open): Charsets.
+	(parser_file_delete_file): Charsets.
+	(parser_file_start): Charsets.
+	(parser_module_name): Charsets.
+	(parser_intrinsic_find_string): New function.
+	(parser_intrinsic_numval_c): Charsets.
+	(parser_intrinsic_convert): New function.
+	(parser_intrinsic_call_1): Charsets.
+	(create_and_call): Charsets.
+	(mh_identical): Charsets.
+	(mh_source_is_literalN): Charsets.
+	(float_type_of): Charsets.
+	(mh_dest_is_float): Charsets.
+	(mh_numeric_display): Charsets.
+	(mh_little_endian): Charsets.
+	(mh_source_is_group): Charsets.
+	(mh_source_is_literalA): Charsets.
+	(move_helper): Charsets.
+	(binary_initial): Eliminate function.
+	(digits_from_int128): Eliminate function.
+	(digits_from_float128): Eliminate function.
+	(initial_from_initial):  Eliminate function.
+	(convert_data_initial): New function.
+	(actually_create_the_static_field): Charsets.
+	(psa_new_var_decl): Charsets.
+	(psa_FldLiteralA): Charsets.
+	(parser_local_add): Charsets.
+	(parser_symbol_add): Charsets.
+	* genapi.h (parser_intrinsic_convert): New function.
+	(parser_intrinsic_find_string): New function.
+	* genmath.cc (arithmetic_operation): Charsets.
+	(largest_binary_term): Charsets.
+	(fast_add): Charsets.
+	(fast_subtract): Charsets.
+	(fast_multiply): Charsets.
+	(fast_divide): Charsets.
+	(parser_subtract): Fix subtract float from float.
+	* genutil.cc (get_any_capacity): Charsets.
+	(get_and_check_refstart_and_reflen): Charsets.
+	(get_data_offset): Charsets.
+	(get_binary_value): Charsets.
+	(tree_type_from_field): Charsets.
+	(copy_little_endian_into_place): Charsets.
+	(get_literal_string): Charsets.
+	(refer_is_clean): Charsets.
+	(refer_fill_depends): Charsets.
+	(refer_size_source): Comment.
+	* lang-specs.h: Charsets.
+	* lang.opt: Charsets.
+	* lexio.cc (parse_copy_directive): Diagnostics.
+	* messages.cc (cbl_diagnostic_kind): Diagnostics.
+	(cobol_warning_suppress): Diagnostics.
+	* parse.y: Many changes for charsets and diagnostics.
+	* parse_ante.h (MAXLENGTH_FORMATTED_DATE): Charsets.
+	(MAXLENGTH_FORMATTED_TIME): Charsets.
+	(MAXLENGTH_CALENDAR_DATE): Charsets.
+	(MAXLENGTH_FORMATTED_DATETIME): Charsets.
+	(consistent_encoding_check): Charsets.
+	(enum data_clause_t): Charsets.
+	(new_alphanumeric): Charsets.
+	(name_of): Charsets.
+	(class eval_subject_t): Charsets.
+	(struct domain_t): Charsets.
+	(struct file_list_t): Charsets.
+	(current_encoding): Charsets.
+	(new_tempnumeric): Charsets.
+	(is_integer_literal): Charsets.
+	(new_literal): Charsets.
+	(new_constant): Charsets.
+	(conditional_set): Charsets.
+	(field_find): Charsets.
+	(valid_redefine): Charsets.
+	(field_value_all): Charsets.
+	(parent_has_picture): Charsets.
+	(parent_has_value): Charsets.
+	(blank_pad_initial): Charsets.
+	(blankit): Charsets.
+	(cbl_field_t::blank_initial): Charsets.
+	(value_encoding_check): Charsets.
+	(cbl_field_t::set_initial): Charsets.
+	(field_alloc): Charsets.
+	(parser_move_carefully): Charsets.
+	(data_division_ready): Charsets.
+	(anybody_redefines): Charsets.
+	(procedure_division_ready): Charsets.
+	(file_section_parent_set): Charsets.
+	(field_binary_usage): Charsets.
+	(goodnight_gracie): Formatting.
+	* scan.l: Charsets.
+	* scan_ante.h (numstr_of): Charsets.
+	(typed_name): Charsets.
+	* show_parse.h: Charsets.
+	* structs.cc (create_cblc_file_t): Charsets.
+	* symbols.cc (symbol_table_extend): Charsets.
+	(WARNING_FIELD): Diagnostics.
+	(constq): Charsets.
+	(elementize): Charsets.
+	(field_size): Charsets.
+	(cbl_field_t::set_attr): Eliminate run-time component.
+	(cbl_field_t::clear_attr): Eliminate run-time component.
+	(field_memsize): Charsets.
+	(cbl_encoding_str): Charsets.
+	(symbols_dump): Charsets.
+	(is_variable_length): Formatting.
+	(field_str): Charsets.
+	(extend_66_capacity): Charsets.
+	(operator<<): Charsets.
+	(symbols_update): Charsets.
+	(symbol_field_parent_set): Charsets.
+	(symbol_table_init): Charsets.
+	(numeric_group_attrs): Charsets.
+	(symbol_field_add): Charsets.
+	(symbol_field_alias): Charsets.
+	(fd_record_size_cmp): Charsets.
+	(symbol_file_record_sizes): Charsets.
+	(cbl_alphabet_t::reencode): Charsets.
+	(symbol_temporary_location): Charsets.
+	(new_literal_2): Charsets.
+	(new_alphanumeric): Charsets.
+	(standard_internal): Charsets.
+	(cbl_field_t::codeset_t::stride): Charsets.
+	(cobol_alpha_encoding): Charsets.
+	(cobol_national_encoding): Charsets.
+	(new_temporary): Charsets.
+	(new_literal_float): Charsets.
+	(cbl_field_t::is_ascii): Charsets.
+	(cbl_field_t::internalize): Eliminate function.
+	(cbl_field_t::source_code_check): Charsets.
+	(iconv_cd): Charsets.
+	(cbl_field_t::encode): New function for charsets.
+	(cbl_field_t::set_capacity): Charsets.
+	(cbl_field_t::add_capacity): Charsets.
+	(cbl_field_t::char_capacity): Charsets.
+	(symbol_label_section_exists): Charsets.
+	(size): Charsets.
+	(validate_numeric_edited): Charsets.
+	* symbols.h (cobol_alpha_encoding): Charsets.
+	(cobol_national_encoding): Charsets.
+	(consistent_encoding_check): Charsets.
+	(class cbl_domain_elem_t): Charsets.
+	(struct cbl_domain_t): Charsets.
+	(struct cbl_field_data_t): Charsets.
+	(class cbl_field_data_t): Charsets.
+	(struct cbl_subtable_t): Charsets.
+	(struct cbl_field_t): Charsets.
+	(new_literal_float): Charsets.
+	(new_temporary): Charsets.
+	(new_literal_2): Charsets.
+	(symbol_temporary_location): Charsets.
+	(class temporaries_t): Charsets.
+	(struct symbol_elem_t): Charsets.
+	(symbol_elem_of): Charsets.
+	(symbol_unique_index): Charsets.
+	(cbl_field_type_name): Charsets.
+	(validate_numeric_edited): Charsets.
+	* token_names.h: Charsets.
+	* util.cc (cdf_literalize): Charsets.
+	(cbl_field_type_name): Charsets.
+	(determine_intermediate_type): Charsets.
+	(is_alpha_edited): Charsets.
+	(cbl_field_data_t::is_alpha_edited): Charsets.
+	(symbol_field_type_update): Charsets.
+	(redefine_field): Charsets.
+	(FIXED_WIDE_INT): Charsets.
+	(dirty_to_binary): Charsets.
+	(digits_from_int128): Charsets.
+	(binary_initial): Charsets.
+	(cbl_field_t::encode_numeric): Charsets.
+	(FOR_JIM): Temporary conditional demonstration code.
+	(parse_error_inc): Diagnostics.
+	(parse_error_count): Diagnostics.
+	(cbl_field_t::report_invalid_initial_value): Diagnostics.
+	(valid_move): Diagnostics.
+	(type_capacity): Charsets.
+	(symbol_unique_index): New function.
+	(cbl_unimplementedw): Formatting.
+
 2025-12-19  Jakub Jelinek  <jakub@redhat.com>
 
 	* lexio.cc (parse_replace_pairs): Fix comment typo, statment

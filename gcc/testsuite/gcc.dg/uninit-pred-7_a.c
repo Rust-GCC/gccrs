@@ -1,6 +1,5 @@
-
 /* { dg-do compile } */
-/* { dg-options "-Wuninitialized -O2" } */
+/* { dg-options "-Wuninitialized -O2 --param logical-op-non-short-circuit=1" } */
 
 int g;
 void bar();

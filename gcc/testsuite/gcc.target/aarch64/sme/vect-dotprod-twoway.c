@@ -1,4 +1,4 @@
-/* { dg-additional-options "-O2 -ftree-vectorize" } */
+/* { dg-additional-options "-O2 -ftree-vectorize -mtune=generic-armv9-a" } */
 
 #include <stdint.h>
 #pragma GCC target "+sme2"

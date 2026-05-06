@@ -2615,6 +2615,8 @@ try_combine (rtx_insn *i3, rtx_insn *i2, rtx_insn *i1, rtx_insn *i0,
 	    }
 	  else if (BINARY_P (src) && CONSTANT_P (XEXP (src, 1)))
 	    ngood++;
+	  else if (GET_CODE (src) == IF_THEN_ELSE)
+	    ngood++;
 	  else if (GET_CODE (src) == ASHIFT || GET_CODE (src) == ASHIFTRT
 		   || GET_CODE (src) == LSHIFTRT)
 	    nshift++;
@@ -4028,7 +4030,7 @@ try_combine (rtx_insn *i3, rtx_insn *i2, rtx_insn *i1, rtx_insn *i0,
 	       && !(GET_CODE (SET_DEST (set1)) == SUBREG
 		    && find_reg_note (i2, REG_DEAD,
 				      SUBREG_REG (SET_DEST (set1))))
-	       && SET_DEST (set1) != pc_rtx
+	       && !modified_between_p (SET_DEST (set1), i2, i3)
 	       && !reg_used_between_p (SET_DEST (set1), i2, i3)))
 	  /* If I3 is a jump, ensure that set0 is a jump so that
 	     we do not create invalid RTL.  */
@@ -4044,7 +4046,7 @@ try_combine (rtx_insn *i3, rtx_insn *i2, rtx_insn *i1, rtx_insn *i0,
 		    && !(GET_CODE (SET_DEST (set0)) == SUBREG
 			 && find_reg_note (i2, REG_DEAD,
 					   SUBREG_REG (SET_DEST (set0))))
-		    && SET_DEST (set0) != pc_rtx
+		    && !modified_between_p (SET_DEST (set0), i2, i3)
 		    && !reg_used_between_p (SET_DEST (set0), i2, i3)))
 	       /* If I3 is a jump, ensure that set1 is a jump so that
 		  we do not create invalid RTL.  */
@@ -11759,7 +11761,8 @@ recog_for_combine (rtx *pnewpat, rtx_insn *insn, rtx *pnotes,
       rtx src = SET_SRC (pat);
       if (CONSTANT_P (src)
 	  && !CONST_INT_P (src)
-	  && crtl->uses_const_pool)
+	  && crtl->uses_const_pool
+	  && SET_DEST (pat) != pc_rtx)
 	{
 	  machine_mode mode = GET_MODE (src);
 	  if (mode == VOIDmode)
@@ -11855,7 +11858,8 @@ gen_lowpart_for_combine (machine_mode omode, rtx x)
       /* If we want to refer to something bigger than the original memref,
 	 generate a paradoxical subreg instead.  That will force a reload
 	 of the original memref X.  */
-      if (paradoxical_subreg_p (omode, imode))
+      if (paradoxical_subreg_p (omode, imode)
+	  && validate_subreg (omode, GET_MODE (x), x, 0))
 	return gen_rtx_SUBREG (omode, x, 0);
 
       poly_int64 offset = byte_lowpart_offset (omode, imode);

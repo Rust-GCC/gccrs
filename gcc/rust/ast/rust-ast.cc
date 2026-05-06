@@ -235,6 +235,20 @@ Crate::as_string () const
   return str + "\n";
 }
 
+void
+Crate::inject_extern_crate (std::string name)
+{
+  items.push_back (std::make_unique<AST::ExternCrate> (
+    AST::ExternCrate (name, AST::Visibility::create_public (UNKNOWN_LOCATION),
+		      {}, UNKNOWN_LOCATION)));
+}
+
+void
+Crate::inject_inner_attribute (Attribute attribute)
+{
+  inner_attrs.push_back (attribute);
+}
+
 std::string
 Attribute::as_string () const
 {
@@ -243,6 +257,12 @@ Attribute::as_string () const
     return path_str;
   else
     return path_str + attr_input->as_string ();
+}
+
+void
+Attribute::accept_vis (ASTVisitor &vis)
+{
+  vis.visit (*this);
 }
 
 bool
@@ -294,8 +314,9 @@ Attribute::get_traits_to_derive ()
 			auto word = static_cast<AST::MetaWord *> (meta_item);
 			// Convert current word to path
 			current = std::make_unique<AST::MetaItemPath> (
-			  AST::MetaItemPath (
-			    AST::SimplePath (word->get_ident ())));
+			  AST::MetaItemPath (AST::SimplePath::from_str (
+			    word->get_ident ().as_string (),
+			    word->get_locus ())));
 			auto path
 			  = static_cast<AST::MetaItemPath *> (current.get ());
 
@@ -323,7 +344,7 @@ Attribute::get_traits_to_derive ()
       break;
     case AST::AttrInput::TOKEN_TREE:
     case AST::AttrInput::LITERAL:
-    case AST::AttrInput::MACRO:
+    case AST::AttrInput::EXPR:
       rust_unreachable ();
       break;
     }
@@ -1085,7 +1106,6 @@ Function::Function (Function const &other)
   : VisItem (other), ExternalItem (other.get_node_id ()),
     qualifiers (other.qualifiers), function_name (other.function_name),
     where_clause (other.where_clause), locus (other.locus),
-    has_default (other.has_default),
     is_external_function (other.is_external_function)
 {
   // guard to prevent null dereference (always required)
@@ -1117,7 +1137,6 @@ Function::operator= (Function const &other)
   // visibility = other.visibility->clone_visibility();
   // outer_attrs = other.outer_attrs;
   locus = other.locus;
-  has_default = other.has_default;
   is_external_function = other.is_external_function;
 
   // guard to prevent null dereference (always required)
@@ -3332,10 +3351,27 @@ AttrInputMetaItemContainer::as_string () const
   return str + ")";
 }
 
-std::string
-AttrInputMacro::as_string () const
+AttrInputExpr::AttrInputExpr (const AttrInputExpr &oth)
+  : expr (oth.expr->clone_expr ())
+{}
+
+AttrInputExpr &
+AttrInputExpr::operator= (const AttrInputExpr &oth)
 {
-  return " = " + macro->as_string ();
+  expr = oth.expr->clone_expr ();
+  return *this;
+}
+
+std::string
+AttrInputExpr::as_string () const
+{
+  return expr->as_string ();
+}
+
+void
+AttrInputExpr::accept_vis (ASTVisitor &vis)
+{
+  vis.visit (*this);
 }
 
 /* Override that calls the function recursively on all items contained within
@@ -3410,9 +3446,13 @@ Module::process_file_path ()
   auto path_string = filename_from_path_attribute (get_outer_attrs ());
 
   std::string including_subdir;
+  bool subdir_was_added = false;
   if (path_string.empty () && module_scope.empty ()
       && get_file_subdir (including_fname, including_subdir))
-    current_directory_name += including_subdir + file_separator;
+    {
+      current_directory_name += including_subdir + file_separator;
+      subdir_was_added = true;
+    }
 
   // Handle inline module declarations adding path components.
   for (auto const &name : module_scope)
@@ -3440,6 +3480,28 @@ Module::process_file_path ()
   std::string dir_mod_path = current_directory_name + module_name.as_string ()
 			     + file_separator + expected_dir_path;
   bool dir_mod_found = file_exists (dir_mod_path);
+
+  if (!file_mod_found && !dir_mod_found && subdir_was_added)
+    {
+      size_t suffix_len
+	= including_subdir.length () + std::string (file_separator).length ();
+      std::string fallback_dir
+	= current_directory_name.substr (0, current_directory_name.length ()
+					      - suffix_len);
+      std::string fallback_file = fallback_dir + expected_file_path;
+      std::string fallback_dir_mod = fallback_dir + module_name.as_string ()
+				     + file_separator + expected_dir_path;
+      if (file_exists (fallback_file))
+	{
+	  file_mod_found = true;
+	  file_mod_path = fallback_file;
+	}
+      else if (file_exists (fallback_dir_mod))
+	{
+	  dir_mod_found = true;
+	  dir_mod_path = fallback_dir_mod;
+	}
+    }
 
   bool multiple_candidates_found = file_mod_found && dir_mod_found;
   bool no_candidates_found = !file_mod_found && !dir_mod_found;
@@ -3520,7 +3582,12 @@ DelimTokenTree::parse_to_meta_item () const
 
   /* assume top-level delim token tree in attribute - convert all nested ones
    * to token stream */
-  std::vector<std::unique_ptr<Token>> token_stream = to_token_stream ();
+  std::vector<std::unique_ptr<Token>> token_stream_wrapped = to_token_stream ();
+
+  std::vector<const_TokenPtr> token_stream;
+  token_stream.reserve (token_stream_wrapped.size ());
+  for (auto &tk : token_stream_wrapped)
+    token_stream.push_back (tk->get_tok_ptr ());
 
   AttributeParser parser (std::move (token_stream));
   std::vector<std::unique_ptr<MetaItemInner>> meta_items (
@@ -3529,8 +3596,8 @@ DelimTokenTree::parse_to_meta_item () const
   return new AttrInputMetaItemContainer (std::move (meta_items));
 }
 
-AttributeParser::AttributeParser (
-  std::vector<std::unique_ptr<Token>> token_stream, int stream_start_pos)
+AttributeParser::AttributeParser (std::vector<const_TokenPtr> token_stream,
+				  int stream_start_pos)
   : lexer (new MacroInvocLexer (std::move (token_stream))),
     parser (new Parser<MacroInvocLexer> (*lexer))
 {
@@ -4130,10 +4197,8 @@ MetaListNameValueStr::to_attribute () const
 Attribute
 MetaItemPathExpr::to_attribute () const
 {
-  rust_assert (expr->is_literal ());
-  auto &lit = static_cast<LiteralExpr &> (*expr);
-  return Attribute (path, std::unique_ptr<AttrInputLiteral> (
-			    new AttrInputLiteral (lit)));
+  auto input = std::make_unique<AttrInputExpr> (expr->clone_expr ());
+  return Attribute (path, std::move (input));
 }
 
 std::vector<Attribute>
@@ -4149,13 +4214,9 @@ AttrInputMetaItemContainer::separate_cfg_attrs () const
 
   for (auto it = items.begin () + 1; it != items.end (); ++it)
     {
-      if ((*it)->get_kind () == MetaItemInner::Kind::MetaItem
-	  && static_cast<MetaItem &> (**it).get_item_kind ()
-	       == MetaItem::ItemKind::PathExpr
-	  && !static_cast<MetaItemPathExpr &> (**it).get_expr ().is_literal ())
-	continue;
+      auto &item = **it;
 
-      Attribute attr = (*it)->to_attribute ();
+      Attribute attr = item.to_attribute ();
       if (attr.is_empty ())
 	{
 	  /* TODO should this be an error that causes us to chuck out
@@ -4244,19 +4305,6 @@ BlockExpr::normalize_tail_expr ()
     }
 }
 
-// needed here because "rust-expr.h" doesn't include "rust-macro.h"
-AttrInputMacro::AttrInputMacro (const AttrInputMacro &oth)
-  : macro (oth.macro->clone_macro_invocation_impl ())
-{}
-
-AttrInputMacro &
-AttrInputMacro::operator= (const AttrInputMacro &oth)
-{
-  macro = std::unique_ptr<MacroInvocation> (
-    oth.macro->clone_macro_invocation_impl ());
-  return *this;
-}
-
 /* Visitor implementations - these are short but inlining can't happen anyway
  * due to virtual functions and I didn't want to make the ast header includes
  * any longer than they already are. */
@@ -4299,12 +4347,6 @@ LiteralExpr::accept_vis (ASTVisitor &vis)
 
 void
 AttrInputLiteral::accept_vis (ASTVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-AttrInputMacro::accept_vis (ASTVisitor &vis)
 {
   vis.visit (*this);
 }

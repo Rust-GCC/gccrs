@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2026, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -418,7 +418,8 @@ package body Snames is
 
    function Is_Direct_Attribute_Definition_Name (N : Name_Id) return Boolean is
    begin
-      return Is_Attribute_Name (N) and then N = Name_Constructor;
+      return
+        Is_Attribute_Name (N) and then N in Name_Constructor | Name_Destructor;
    end Is_Direct_Attribute_Definition_Name;
 
    ------------------------------

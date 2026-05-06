@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 2020-2025, Free Software Foundation, Inc.         --
+--          Copyright (C) 2020-2026, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -500,6 +500,7 @@ package Gen_IL.Fields is
       Digits_Value,
       Predicated_Parent,
       Predicates_Ignored,
+      Destructor,
       Direct_Primitive_Operations,
       Directly_Designated_Type,
       Disable_Controlled,
@@ -704,7 +705,6 @@ package Gen_IL.Fields is
       Is_CPP_Constructor,
       Is_CUDA_Kernel,
       Is_Descendant_Of_Address,
-      Is_Destructor,
       Is_DIC_Procedure,
       Is_Discrim_SO_Function,
       Is_Discriminant_Check_Function,

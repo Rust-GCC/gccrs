@@ -24,6 +24,7 @@ struct A
   constexpr int operator * () const { return x; }
   constexpr bool operator != (const A &o) const { return x != o.x; }
   constexpr A operator + (int o) const { A r (x + o); return r; }
+  constexpr int operator - (const A &o) const { return x - o.x; }
 };
 struct C
 {
@@ -33,20 +34,21 @@ struct C
   constexpr C operator * () const { return *this; }
   constexpr bool operator != (const C &o) const { return x != o.x || y != o.y || z != o.z; }
   constexpr C operator + (int o) const { C r (x + o, y - o, z + o); return r; }
+  constexpr int operator - (const C &o) const { return x - o.x; }
 };
 
 namespace N
 {
   struct B { constexpr B () {} };
-  constexpr A begin (B &) { return A (0); }
-  constexpr A end (B &) { return A (6); }
+  constexpr A begin (const B &) { return A (0); }
+  constexpr A end (const B &) { return A (6); }
 }
 
 namespace O
 {
   struct D { constexpr D () {} };
-  constexpr C begin (D &) { return C (0, 42, 5); }
-  constexpr C end (D &) { return C (6, 36, 11); }
+  constexpr C begin (const D &) { return C (0, 42, 5); }
+  constexpr C end (const D &) { return C (6, 36, 11); }
 }
 
 #if __cpp_nontype_template_parameter_class >= 201806L

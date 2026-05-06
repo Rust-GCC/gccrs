@@ -1,3 +1,13 @@
+2026-04-28  Maximilian Ciric  <max.ciric@gmail.com>
+
+	* configure.tgt: Enable HWASAN support for RISC-V target.
+
+2026-04-21  Marian Buschsieweke  <maribu@users.noreply.github.com>
+
+	PR sanitizer/124248
+	* sanitizer_common/sanitizer_platform_limits_posix.cpp (struct_sock_fprog_sz):
+	Make available on non-glibc Linux systems.
+
 2025-12-29  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
 
 	* configure: Regenerate.

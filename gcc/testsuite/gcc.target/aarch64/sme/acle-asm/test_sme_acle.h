@@ -29,6 +29,20 @@
     INVOKE (CODE1, CODE2);					\
   }
 
+#define TEST_LOAD_ZA_NOPRED(NAME, CODE1, CODE2)			\
+  PROTO (NAME, void, (int32_t w0, const char *x1,		\
+		      uint64_t x2))				\
+  {								\
+    INVOKE (CODE1, CODE2);					\
+  }
+
+#define TEST_STORE_ZA_NOPRED(NAME, CODE1, CODE2)		\
+  PROTO (NAME, void, (int32_t w0, char *x1,			\
+		      uint64_t x2))				\
+  {								\
+    INVOKE (CODE1, CODE2);					\
+  }
+
 #define TEST_READ_ZA(NAME, TYPE, CODE1, CODE2)			\
   PROTO (NAME, TYPE, (TYPE z0, TYPE z1, svbool_t p0,		\
 		      int32_t w0))				\

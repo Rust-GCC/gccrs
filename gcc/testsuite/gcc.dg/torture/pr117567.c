@@ -1,6 +1,6 @@
 /* { dg-do compile } */
 /* { dg-require-effective-target int32plus } */
-/* { dg-additional-options "-fwrapv" } */
+/* { dg-additional-options "-fwrapv -w" } */
 
 extern signed char a[];
 long b;

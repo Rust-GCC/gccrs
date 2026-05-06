@@ -5,7 +5,7 @@
 void __attribute__((noipa))
 foo (unsigned * __restrict x, int * __restrict flag)
 {
-  for (int i = 0; i < 32; ++i)
+  for (int i = 0; i < 16; ++i)
     {
       if (flag[2*i+0])
         x[2*i+0] = x[2*i+0] + 3;

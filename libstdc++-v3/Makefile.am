@@ -124,6 +124,9 @@ install-ps:
 dvi:
 install-dvi:
 
+new-abi-baseline:
+	$(MAKE) -C testsuite $@
+
 # Multilib support.
 MAKEOVERRIDES=
 

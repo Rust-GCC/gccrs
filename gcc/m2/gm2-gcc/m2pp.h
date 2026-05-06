@@ -50,15 +50,23 @@ EXTERN void m2pp_CloseDumpGimple (void);
 EXTERN void m2pp_DumpGimpleFd (int fd, tree fndecl);
 
 namespace modula2 {
-/* GDB Interactive interface to m2pp.  Allow a maintainer to dump
-   the trees in Modula-2.  */
+  /* GDB Interactive interface to m2pp.  Allow a maintainer to dump
+     the trees in Modula-2.  */
 
-EXTERN void pf (tree t);
-EXTERN void pe (tree t);
-EXTERN void pt (tree t);
-EXTERN void ptl (tree t);
-EXTERN void pv (tree t);
-EXTERN void ptcl (tree t);
+  /* pf print function in Modula-2 syntax.  */
+  EXTERN void pf (tree t);
+  /* pe print expression.  */  
+  EXTERN void pe (tree t);
+  /* pt print type.  */    
+  EXTERN void pt (tree t);
+  /* ptl print type with low level detail.  */
+  EXTERN void ptl (tree t);
+  /* pv print variable and type declaration.  */
+  EXTERN void pv (tree t);
+  /* ptcl print chained list.  */
+  EXTERN void ptcl (tree t);
+  /* Print statement stmt.  */
+  EXTERN void ps (tree stmt);
 }
 
 #   undef EXTERN

@@ -19,78 +19,32 @@
 #include "rust-feature-gate.h"
 #include "rust-abi.h"
 #include "rust-attribute-values.h"
+#include "rust-attributes.h"
 #include "rust-ast-visitor.h"
 #include "rust-feature.h"
 #include "rust-ast-full.h"
+#include "rust-feature-store.h"
 
 namespace Rust {
 
 void
 FeatureGate::check (AST::Crate &crate)
 {
+  auto &store = Features::EarlyFeatureGateStore::get ();
+  while (store.has_error ())
+    {
+      auto pair = store.get_error ();
+      gate (pair.first, pair.second.locus, pair.second.message);
+    }
   visit (crate);
 }
 
 void
 FeatureGate::visit (AST::Crate &crate)
 {
-  valid_lang_features.clear ();
-  valid_lib_features.clear ();
-
-  // avoid clearing defined features (?)
-
-  for (const auto &attr : crate.inner_attrs)
-    {
-      if (attr.get_path ().as_string () == "feature")
-	{
-	  // check for empty feature, such as `#![feature], this is an error
-	  if (attr.empty_input ())
-	    {
-	      rust_error_at (attr.get_locus (), ErrorCode::E0556,
-			     "malformed %<feature%> attribute input");
-	      continue;
-	    }
-	  const auto &attr_input = attr.get_attr_input ();
-	  auto type = attr_input.get_attr_input_type ();
-	  if (type == AST::AttrInput::AttrInputType::TOKEN_TREE)
-	    {
-	      const auto &option = static_cast<const AST::DelimTokenTree &> (
-		attr.get_attr_input ());
-	      std::unique_ptr<AST::AttrInputMetaItemContainer> meta_item (
-		option.parse_to_meta_item ());
-	      for (const auto &item : meta_item->get_items ())
-		{
-		  const auto &name_str = item->as_string ();
-
-		  // TODO: detect duplicates
-		  if (auto tname = Feature::as_name (name_str))
-		    valid_lang_features.insert (tname.value ());
-		  else
-		    valid_lib_features.emplace (name_str, item->get_locus ());
-		}
-	    }
-	  else if (type == AST::AttrInput::AttrInputType::META_ITEM)
-	    {
-	      const auto &meta_item
-		= static_cast<const AST::AttrInputMetaItemContainer &> (
-		  attr_input);
-	      for (const auto &item : meta_item.get_items ())
-		{
-		  const auto &name_str = item->as_string ();
-
-		  // TODO: detect duplicates
-		  if (auto tname = Feature::as_name (name_str))
-		    valid_lang_features.insert (tname.value ());
-		  else
-		    valid_lib_features.emplace (name_str, item->get_locus ());
-		}
-	    }
-	}
-    }
-
   AST::DefaultASTVisitor::visit (crate);
 
-  for (auto &ent : valid_lib_features)
+  for (auto &ent : features.valid_lib_features)
     {
       const std::string &feature = ent.first;
       location_t locus = ent.second;
@@ -109,13 +63,24 @@ FeatureGate::visit (AST::Crate &crate)
       rust_error_at (locus, ErrorCode::E0635, "unknown feature %qs",
 		     feature.c_str ());
     }
+  for (const auto &attribute : crate.inner_attrs)
+    {
+      check_no_core_attribute (attribute);
+
+      if (attribute.get_path ().as_string ()
+	  == Values::Attributes::COMPILER_BUILTINS)
+	gate (Feature::Name::COMPILER_BUILTINS, attribute.get_locus (),
+	      "the #[compiler_builtins] attribute is used to identify the "
+	      "compiler_builtins crate which contains compiler-rt intrinsics "
+	      "and will never be stable");
+    }
 }
 
 void
 FeatureGate::gate (Feature::Name name, location_t loc,
 		   const std::string &error_msg)
 {
-  if (!valid_lang_features.count (name))
+  if (!features.valid_lang_features.count (name))
     {
       auto &feature = Feature::lookup (name);
       if (auto issue = feature.issue ())
@@ -152,6 +117,14 @@ FeatureGate::visit (AST::ExternBlock &block)
 	      "intrinsics are subject to change");
     }
   AST::DefaultASTVisitor::visit (block);
+}
+
+void
+FeatureGate::check_no_core_attribute (const AST::Attribute &attribute)
+{
+  if (attribute.get_path ().as_string () == Values::Attributes::NO_CORE)
+    gate (Feature::Name::NO_CORE, attribute.get_locus (),
+	  "no_core is experimental");
 }
 
 void
@@ -260,6 +233,16 @@ FeatureGate::visit (AST::Function &function)
 {
   if (!function.is_external ())
     check_rustc_attri (function.get_outer_attrs ());
+
+  for (const AST::Attribute &attr : function.get_outer_attrs ())
+    {
+      if (attr.get_path ().as_string () == "rustc_const_stable")
+	{
+	  gate (Feature::Name::STAGED_API, attr.get_locus (),
+		"stability attributes may not be used outside of the standard "
+		"library");
+	}
+    }
 
   check_lang_item_attribute (function.get_outer_attrs ());
 

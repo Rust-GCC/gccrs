@@ -78,6 +78,10 @@ Wanalyzer-deref-before-check
 Common Var(warn_analyzer_deref_before_check) Init(1) Warning
 Warn about code paths in which a pointer is checked for NULL after it has already been dereferenced.
 
+Wanalyzer-div-by-zero
+Common Var(warn_analyzer_div_by_zero) Init(1) Warning
+Warn about code paths which attempt integer division by zero.
+
 Wanalyzer-double-fclose
 Common Var(warn_analyzer_double_fclose) Init(1) Warning
 Warn about code paths in which a stdio FILE can be closed more than once.
@@ -153,6 +157,18 @@ Warn about code paths in which a heap-allocated pointer leaks.
 Wanalyzer-mismatching-deallocation
 Common Var(warn_analyzer_mismatching_deallocation) Init(1) Warning
 Warn about code paths in which the wrong deallocation function is called.
+
+Wanalyzer-mkostemp-redundant-flags
+Common Var(warn_analyzer_mkostemp_redundant_flags) Init(1) Warning
+Warn about code paths in which mkostemp or mkostemps are called with flags that are already included internally.
+
+Wanalyzer-mktemp-missing-placeholder
+Common Var(warn_analyzer_mktemp_missing_placeholder) Init(1) Warning
+Warn about code paths in which a function in the mktemp family is called with a template not containing the placeholder \"XXXXXX\".
+
+Wanalyzer-mktemp-of-string-literal
+Common Var(warn_analyzer_mktemp_of_string_literal) Init(1) Warning
+Warn about code paths in which a string literal is passed to a function in the mktemp family.
 
 Wanalyzer-out-of-bounds
 Common Var(warn_analyzer_out_of_bounds) Init(1) Warning
@@ -277,6 +293,10 @@ Warn if expressions are too complicated for the analyzer to fully track.
 Wanalyzer-too-complex
 Common Var(warn_analyzer_too_complex) Init(0) Warning
 Warn if the code is too complicated for the analyzer to fully explore.
+
+fanalyzer-assume-nothrow
+Common Var(flag_analyzer_assume_nothrow) Init(0)
+Assume that no function calls can throw exceptions.
 
 fanalyzer-checker=
 Common Joined RejectNegative Var(flag_analyzer_checker)

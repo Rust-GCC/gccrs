@@ -3,7 +3,7 @@
  *
  * Specification: $(LINK2 https://dlang.org/spec/abi.html#name_mangling, Name Mangling)
  *
- * Copyright: Copyright (C) 1999-2025 by The D Language Foundation, All Rights Reserved
+ * Copyright: Copyright (C) 1999-2026 by The D Language Foundation, All Rights Reserved
  * Authors: Walter Bright, https://www.digitalmars.com
  * License:   $(LINK2 https://www.boost.org/LICENSE_1_0.txt, Boost License 1.0)
  * Source:    $(LINK2 https://github.com/dlang/dmd/blob/master/compiler/src/dmd/mangle/package.d, _dmangle.d)
@@ -145,6 +145,8 @@ import dmd.declaration;
 import dmd.dinterpret;
 import dmd.dmodule;
 import dmd.dsymbol;
+import dmd.dsymbolsem : toAlias;
+import dmd.expressionsem : toInteger, toReal, toImaginary;
 import dmd.dtemplate;
 import dmd.errors;
 import dmd.expression;
@@ -318,6 +320,14 @@ void mangleType(Type t, ubyte modMask, ref OutBuffer buf, ref Backref backref)
 
 
 /*************************************************************
+ * Mangle type of function. writing it to `buf`
+ * Params:
+ *	t = function type
+ *	ta = consult original function type for attributes
+ *	modMask = type modifiers
+ *	tret = function return type
+ *	buf = sink for mangling characters
+ *	backref = back reference
  */
 void mangleFuncType(TypeFunction t, TypeFunction ta, ubyte modMask, Type tret, ref OutBuffer buf, ref Backref backref)
 {
@@ -401,7 +411,7 @@ void mangleFuncType(TypeFunction t, TypeFunction ta, ubyte modMask, Type tret, r
     foreach (idx, param; t.parameterList)
         mangleParameter(param, buf, backref);
     //if (buf.data[buf.length - 1] == '@') assert(0);
-    buf.writeByte('Z' - t.parameterList.varargs); // mark end of arg list
+    buf.writeByte(cast(ubyte)('Z' - t.parameterList.varargs)); // mark end of arg list
     if (tret !is null)
         mangleType(tret, 0, buf, backref);
     t.inuse--;
@@ -1205,11 +1215,11 @@ void writeBackRef(ref OutBuffer buf, size_t pos) @safe
     while (mul >= base)
     {
         auto dig = cast(ubyte)(pos / mul);
-        buf.writeByte('A' + dig);
+        buf.writeByte(cast(char)('A' + dig));
         pos -= dig * mul;
         mul /= base;
     }
-    buf.writeByte('a' + cast(ubyte)pos);
+    buf.writeByte(cast(char)('a' + pos));
 }
 
 
@@ -1339,7 +1349,11 @@ extern (D) const(char)[] externallyMangledIdentifier(Declaration d)
     const par = d.toParent(); //toParent() skips over mixin templates
     if (!par || par.isModule() || linkage == LINK.cpp ||
         (linkage == LINK.c && d.isCsymbol() &&
-         (d.isFuncDeclaration() ||
+         // https://github.com/dlang/dmd/issues/21241
+         // Static check is so C static functions get a unique mangle so the linker
+         // won't merge them if compiling all-at-once.
+         // Non-static functions can use their ident as their mangle.
+         ((d.isFuncDeclaration() && !d.isStatic()) ||
           (d.isVarDeclaration() && d.isDataseg() && d.storage_class & STC.extern_))))
     {
         if (linkage != LINK.d && d.localNum)

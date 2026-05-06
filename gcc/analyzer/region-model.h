@@ -246,11 +246,6 @@ public:
 
 struct append_regions_cb_data;
 
-typedef void (*pop_frame_callback) (const region_model *model,
-				    const region_model *prev_model,
-				    const svalue *retval,
-				    region_model_context *ctxt);
-
 /* Roughly equivalent to a struct __cxa_exception, except we store a std::vector
    rather than a linked list.    */
 
@@ -356,6 +351,8 @@ class region_model
 				  int retval,
 				  bool unmergeable);
   void update_for_zero_return (const call_details &cd,
+			       bool unmergeable);
+  void update_for_null_return (const call_details &cd,
 			       bool unmergeable);
   void update_for_nonzero_return (const call_details &cd);
 
@@ -591,22 +588,6 @@ class region_model
   get_builtin_kf (const gcall &call,
 		  region_model_context *ctxt = nullptr) const;
 
-  static void
-  register_pop_frame_callback (const pop_frame_callback &callback)
-  {
-    pop_frame_callbacks.safe_push (callback);
-  }
-
-  static void
-  notify_on_pop_frame (const region_model *model,
-		       const region_model *prev_model,
-		       const svalue *retval,
-		       region_model_context *ctxt)
-  {
-    for (auto &callback : pop_frame_callbacks)
-	callback (model, prev_model, retval, ctxt);
-  }
-
   bool called_from_main_p () const;
 
   void push_thrown_exception (const exception_node &node)
@@ -736,7 +717,6 @@ private:
 				    tree fndecl,
 				    region_model_context *ctxt);
 
-  static auto_vec<pop_frame_callback> pop_frame_callbacks;
   /* Storing this here to avoid passing it around everywhere.  */
   region_model_manager *const m_mgr;
 
@@ -1290,16 +1270,16 @@ class rejected_op_constraint : public rejected_constraint
 {
 public:
   rejected_op_constraint (const region_model &model,
-			  tree lhs, enum tree_code op, tree rhs)
+			  const svalue *lhs, enum tree_code op, const svalue *rhs)
   : rejected_constraint (model),
     m_lhs (lhs), m_op (op), m_rhs (rhs)
   {}
 
   void dump_to_pp (pretty_printer *pp) const final override;
 
-  tree m_lhs;
+  const svalue *m_lhs;
   enum tree_code m_op;
-  tree m_rhs;
+  const svalue *m_rhs;
 };
 
 class rejected_default_case : public rejected_constraint
@@ -1348,6 +1328,28 @@ private:
   region_model_manager &m_mgr;
   const supergraph *m_sg;
 };
+
+/* Factory functions for various diagnostics.  */
+
+extern std::unique_ptr<pending_diagnostic>
+make_poisoned_value_diagnostic (tree expr, enum poison_kind pkind,
+				const region *src_region,
+				tree check_expr);
+
+extern std::unique_ptr<pending_diagnostic>
+make_shift_count_negative_diagnostic (const gassign *assign,
+				      tree count_cst);
+
+extern std::unique_ptr<pending_diagnostic>
+make_shift_count_overflow_diagnostic (const gassign *assign,
+				      int operand_precision,
+				      tree count_cst);
+
+extern std::unique_ptr<pending_diagnostic>
+make_write_to_const_diagnostic (const region *dest_reg, tree decl);
+
+extern std::unique_ptr<pending_diagnostic>
+make_write_to_string_literal_diagnostic (const region *reg);
 
 } // namespace ana
 

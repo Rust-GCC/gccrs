@@ -17,6 +17,8 @@
 ;; along with GCC; see the file COPYING3.  If not see
 ;; <http://www.gnu.org/licenses/>.
 
+;; Code organization: See block comment at the top of aarch64.md.
+
 ;; The file is organised into the following sections (search for the full
 ;; line):
 ;;
@@ -76,6 +78,7 @@
 (define_c_enum "unspec" [
   UNSPEC_OLD_VG_SAVED
   UNSPEC_UPDATE_VG
+  UNSPEC_GET_CURRENT_VG
   UNSPEC_GET_SME_STATE
   UNSPEC_READ_SVCR
 ])
@@ -99,6 +102,19 @@
   ""
   ""
   [(set_attr "type" "no_insn")]
+)
+
+(define_insn "aarch64_get_current_vg"
+  [(set (reg:DI R0_REGNUM)
+	(unspec_volatile:DI [(const_int 0)] UNSPEC_GET_CURRENT_VG))
+   (clobber (reg:DI R16_REGNUM))
+   (clobber (reg:DI R17_REGNUM))
+   (clobber (reg:DI R18_REGNUM))
+   (clobber (reg:DI R30_REGNUM))
+   (clobber (reg:CC CC_REGNUM))]
+  ""
+  "bl\t__arm_get_current_vg"
+  [(set_attr "is_call" "yes")]
 )
 
 (define_insn "aarch64_get_sme_state"
@@ -1051,11 +1067,13 @@
 ;;      __arm_streaming __arm_out ("zt0");
 (define_insn "@aarch64_sme_write_zt<SVE_FULL:mode>"
   [(set (reg:V8DI ZT0_REGNUM)
-	(unspec_volatile:V8DI
-	  [(match_operand:SVE_FULL 0 "register_operand" "w")
+	(unspec:V8DI
+	  [(reg:V8DI ZT0_REGNUM)
+	   (reg:DI SME_STATE_REGNUM)
+	   (match_operand:SVE_FULL 0 "register_operand" "w")
 	   (match_operand:DI       1 "const_int_operand")]
 	  UNSPEC_SME_WRITE))]
-  "TARGET_SME_LUTv2"
+  "TARGET_SME_LUTv2 && TARGET_STREAMING"
   "movt\tzt0 [%1, mul vl], %0"
 )
 
@@ -2774,6 +2792,6 @@
 	   (reg:DI SME_STATE_REGNUM)
 	   (match_operand:VNx32QI 1 "register_operand" "w")]
 	  UNSPEC_SME_LUTI_ZT))]
-  "TARGET_SME_LUTv2"
+  "TARGET_SME_LUTv2 && TARGET_STREAMING"
   "luti4\t%0, zt0, {%Z1 - %T1}"
 )

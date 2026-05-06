@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---                     Copyright (C) 1995-2025, AdaCore                     --
+--                     Copyright (C) 1995-2026, AdaCore                     --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -67,9 +67,6 @@ package body GNAT.Heap_Sort_G is
          C      : Positive := S;
          Son    : Positive;
          Father : Positive;
-         --  Note: by making the above all Positive, we ensure that a test
-         --  against zero for the temporary location can be resolved on the
-         --  basis of types when the routines are inlined.
 
       begin
          --  This is where the optimization is done, normally we would do a
@@ -85,6 +82,8 @@ package body GNAT.Heap_Sort_G is
          --  Loop to pull up larger sons
 
          loop
+            exit when C > Positive'Last / 2;
+
             Son := 2 * C;
 
             if Son < Max then
@@ -138,7 +137,6 @@ package body GNAT.Heap_Sort_G is
          Max := Max - 1;
          Sift (1);
       end loop;
-
    end Sort;
 
 end GNAT.Heap_Sort_G;

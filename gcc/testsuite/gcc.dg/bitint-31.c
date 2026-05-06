@@ -1,7 +1,8 @@
 /* PR c/102989 */
 /* { dg-do run } */
 /* { dg-require-effective-target fenv } */
-/* { dg-options "-std=c23" } */
+/* { dg-require-effective-target hard_float } */
+/* { dg-options "-std=c23 -frounding-math" } */
 /* { dg-add-options ieee } */
 
 #include <fenv.h>

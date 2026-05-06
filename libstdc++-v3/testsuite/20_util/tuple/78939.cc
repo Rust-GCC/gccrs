@@ -15,7 +15,7 @@
 // with this library; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
-// { dg-additional-options "-Wno-deprecated" { target c++2a } }
+// { dg-additional-options "-Wno-deprecated" { target c++20 } }
 // { dg-do compile { target c++17 } }
 
 // PR libstdc++/78939

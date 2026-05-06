@@ -129,34 +129,6 @@ a68_real_smallval (tree type)
   return build_real (type, res);
 }
 
-/* Given a real type, build an INT with the number of decimal digits required
-   to represent a mantissa, such that a real is not reglected in comparison
-   with 1, not including sign.  */
-
-tree
-a68_real_width (tree type)
-{
-  const machine_mode mode = TYPE_MODE (type);
-  const struct real_format *fmt = REAL_MODE_FORMAT (mode);
-  return build_int_cst (a68_int_type, fmt->p);
-}
-
-/* Given a real type, build an INT with the number of decimal digits required
-   to represent a decimal exponent, such that a real can be correctly
-   represented, not including sign.  */
-
-tree
-a68_real_exp_width (tree type ATTRIBUTE_UNUSED)
-{
-  const machine_mode mode = TYPE_MODE (type);
-  const struct real_format *fmt = REAL_MODE_FORMAT (mode);
-  const double log10_2 = .30102999566398119521;
-  double log10_b = log10_2;
-  int max_10_exp = fmt->emax * log10_b;
-
-  return build_int_cst (a68_int_type, 1 + log10 (max_10_exp));
-}
-
 /* Given a real value VAL, return -1 if it is less than zero, 0 if it is zero
    and +1 if it is bigger than zero.  The built value is always of mode
    M_INT.  */

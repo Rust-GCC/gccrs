@@ -41,6 +41,7 @@
 #include "convert.h"
 
 #include "a68.h"
+#include "a68-pretty-print.h"
 
 /* Note that enclosed clauses, which are units, are handled in
    a68-low-clauses.  */
@@ -54,11 +55,12 @@
 tree
 a68_lower_identifier (NODE_T *p, LOW_CTX_T ctx)
 {
-  if (TAG_TABLE (TAX (p)) == A68_STANDENV)
+  LOWERER_T lowerer = LOWERER (TAX (p));
+
+  if (lowerer != NO_LOWERER)
     {
       /* This identifier is defined in the standard prelude.  Use its lowering
 	 handler.  */
-      LOWERER_T lowerer = LOWERER (TAX (p));
       return (*lowerer) (p, ctx);
     }
   else
@@ -79,6 +81,7 @@ a68_lower_identifier (NODE_T *p, LOW_CTX_T ctx)
 	  if (IS (MOID (p), PROC_SYMBOL))
 	    {
 	      bool external = (MOIF (TAX (p)) != NO_MOIF);
+
 	      const char *extern_symbol = EXTERN_SYMBOL (TAX (p));
 	      if (VARIABLE (TAX (p)))
 		{
@@ -90,7 +93,7 @@ a68_lower_identifier (NODE_T *p, LOW_CTX_T ctx)
 		    id_decl
 		      = a68_make_variable_declaration_decl (p, ctx.module_definition_name);
 		}
-	      else if (IN_PROC (TAX (p)))
+	      else if (IN_PROC (TAX (p)) || NEST_PROC (TAX (p)))
 		{
 		  if (external)
 		    id_decl
@@ -144,8 +147,9 @@ a68_lower_identifier (NODE_T *p, LOW_CTX_T ctx)
 	  TAX_TREE_DECL (TAX (p)) = id_decl;
 	}
 
-      /* If the identifier refers to a FUNCTION_DECL, this means the declaration
-	 was made by a procecure-identity-dclaration.  The applied identifier in
+      /* If the identifier refers to a FUNCTION_DECL, this means the
+	 declaration was made by a procecure-identity-dclaration or a
+	 proc-identity-declaration of a formal hole.  The applied identifier in
 	 that case refers to the address of the corresponding function.  */
       if (TREE_CODE (id_decl) == FUNCTION_DECL)
 	return fold_build1 (ADDR_EXPR,
@@ -222,9 +226,10 @@ a68_lower_denotation (NODE_T *p, LOW_CTX_T ctx)
   else if (moid == M_CHAR)
     {
       char *s = a68_string_process_breaks (p, NSYMBOL (p));
+      int num_units = strlen (s);
       uint32_t ucs;
-      int length = a68_u8_mbtouc (&ucs, (const uint8_t *) s, 1);
-      gcc_assert (length == 1);
+      int length = a68_u8_mbtouc (&ucs, (const uint8_t *) s, num_units);
+      gcc_assert (length == num_units);
       free (s);
       return build_int_cst (a68_char_type, ucs);
     }
@@ -246,8 +251,23 @@ a68_lower_denotation (NODE_T *p, LOW_CTX_T ctx)
 	s = SUB (p);
 
       type = CTYPE (moid);
-      int64_t val = strtol (NSYMBOL (s), &end, 10);
+      errno = 0;
+#if defined(INT64_T_IS_LONG)
+      uint64_t val = strtoul (NSYMBOL (s), &end, 10);
+#else
+      uint64_t val = strtoull (NSYMBOL (s), &end, 10);
+#endif
       gcc_assert (end[0] == '\0');
+      uint64_t max_positive = uint64_t (wi::max_value (type).to_shwi ());
+      uint64_t max_negative = -uint64_t (wi::min_value (type).to_shwi ());
+      if (errno == ERANGE
+	  || (NEGATED (p) && (val > max_negative))
+	  || (!NEGATED (p) && (val > max_positive)))
+	{
+	  a68_moid_format_token m (moid);
+	  a68_error (s, "denotation is too large for %e", &m);
+	}
+
       return build_int_cst (type, val);
     }
   if (moid == M_BITS
@@ -267,18 +287,28 @@ a68_lower_denotation (NODE_T *p, LOW_CTX_T ctx)
 	s = SUB (p);
 
       type = CTYPE (moid);
-      int64_t radix = strtol (NSYMBOL (s), &end, 10);
-      gcc_assert (end != NSYMBOL (s) && *end == 'r');
+      errno = 0;
+#if defined(INT64_T_IS_LONG)
+      uint64_t radix = strtoul (NSYMBOL (s), &end, 10);
+#else
+      uint64_t radix = strtoull (NSYMBOL (s), &end, 10);
+#endif
+      gcc_assert (errno == 0 && end != NSYMBOL (s) && *end == 'r');
       end++;
-      int64_t val = strtol (end, &end, radix);
-      gcc_assert (end[0] == '\0');
+      errno = 0;
+#if defined(INT64_T_IS_LONG)
+      uint64_t val = strtoul (end, &end, radix);
+#else
+      uint64_t val = strtoull (end, &end, radix);
+#endif
+      gcc_assert (errno == 0 && end[0] == '\0');
       return build_int_cst (type, val);
     }
   else if (moid == M_REAL
 	   || moid == M_LONG_REAL
 	   || moid == M_LONG_LONG_REAL)
     {
-      /* SIZETY INT */
+      /* SIZETY REAL */
       tree type;
       NODE_T *s = NO_NODE;
       if (IS (SUB (p), LONGETY) || IS (SUB (p), SHORTETY))
@@ -534,11 +564,18 @@ lower_subscript_for_trimmers (NODE_T *p, LOW_CTX_T ctx,
 	    tree dim_lower_bound = save_expr (a68_multiple_lower_bound (multiple, size_dim));
 	    tree lower_bound = dim_lower_bound;
 	    tree upper_bound = save_expr (a68_multiple_upper_bound (multiple, size_dim));
-	    tree at = ssize_int (1);
+	    tree at = NULL_TREE;
+
+	    bool explicit_lower_bound = false;
+	    bool explicit_upper_bound = false;
 
 	    NODE_T *q = SUB (p);
+
+	    /* Process trimscript if present.  */
 	    if (q != NO_NODE)
 	      {
+		at = ssize_int (1);
+
 		if (IS (q, AT_SYMBOL))
 		  {
 		    /* Both bounds are implicit.  */
@@ -548,27 +585,30 @@ lower_subscript_for_trimmers (NODE_T *p, LOW_CTX_T ctx,
 		  {
 		    /* Lower bound is implicit.  */
 		    FORWARD (q);
-		    if (IS (q, AT_SYMBOL))
+		    if (q != NO_NODE)
 		      {
-			/* Upper bound is implicit, AT specified.  */
-			gcc_assert (IS (q, AT_SYMBOL));
-			at = save_expr (fold_convert (ssizetype, a68_lower_tree (NEXT (q), ctx)));
-		      }
-		    else
-		      {
-			upper_bound
-			  = save_expr (fold_convert (ssizetype, a68_lower_tree (q, ctx)));
-			FORWARD (q);
-			if (q != NO_NODE)
+			if (IS (q, AT_SYMBOL))
 			  {
-			    gcc_assert (IS (q, AT_SYMBOL));
+			    /* Upper bound is implicit, AT specified.  */
 			    at = save_expr (fold_convert (ssizetype, a68_lower_tree (NEXT (q), ctx)));
+			  }
+			else
+			  {
+			    explicit_upper_bound = true;
+			    upper_bound
+			      = save_expr (fold_convert (ssizetype, a68_lower_tree (q, ctx)));
+			    FORWARD (q);
+			    if (q != NO_NODE)
+			      {
+				gcc_assert (IS (q, AT_SYMBOL));
+				at = save_expr (fold_convert (ssizetype, a68_lower_tree (NEXT (q), ctx)));
+			      }
 			  }
 		      }
 		  }
 		else
 		  {
-		    /* Lower bound is explicit.  */
+		    explicit_lower_bound = true;
 		    lower_bound = fold_convert (ssizetype, a68_lower_tree (q, ctx));
 		    FORWARD (q);
 		    gcc_assert (IS (q, COLON_SYMBOL));
@@ -579,6 +619,7 @@ lower_subscript_for_trimmers (NODE_T *p, LOW_CTX_T ctx,
 			  at = save_expr (fold_convert (ssizetype, a68_lower_tree (NEXT (q), ctx)));
 			else
 			  {
+			    explicit_upper_bound = true;
 			    upper_bound
 			      = save_expr (fold_convert (ssizetype, a68_lower_tree (q, ctx)));
 			    FORWARD (q);
@@ -588,37 +629,40 @@ lower_subscript_for_trimmers (NODE_T *p, LOW_CTX_T ctx,
 			  }
 		      }
 		  }
-	      }
 
-	    /* Time for some bounds checking.
+		/* Time for some bounds checking.
 
-	       Note that in trimmers, given the current dimension's bounds
-	       (L,U), we cannot simply do the check:
+		   Note that in trimmers, given the current dimension's bounds
+		   (L,U), we cannot simply do the check:
 
-	            L <= lower_bound <= U
-		    L <= upper_bound <= U
+		     L <= lower_bound <= U
+		     L <= upper_bound <= U
 
-	       This is because the multiple may be flat, and the dimension may
-	       have bounds such like U < L.  In that case, the expressions
-	       above would always eval to false for any lower_bound and
-	       upper_bound.
+		   This is because the multiple may be flat, and the dimension
+		   may have bounds such like U < L.  In that case, the
+		   expressions above would always eval to false for any
+		   lower_bound and upper_bound.
 
-	       So we check for this instead:
+		   So we check for this instead:
 
-	            L <= lower_bound AND upper_bound <= U
+	             L <= lower_bound AND upper_bound <= U
 
-               This allows to trim a "flat dimension" using a trimmer where
-	       upper_bound < lower_bound.  The result is, of course, another
-	       "flat dimension" in the multiple result of the trimming.  */
+		     This allows to trim a "flat dimension" using a trimmer
+		     where upper_bound < lower_bound.  The result is, of
+		     course, another "flat dimension" in the multiple result of
+		     the trimming.  */
 
-	    if (OPTION_BOUNDS_CHECKING (&A68_JOB))
-	      {
-		a68_add_stmt (a68_multiple_single_bound_check (p, size_dim, multiple,
-							       lower_bound,
-							       false /* upper_bound */));
-		a68_add_stmt (a68_multiple_single_bound_check (p, size_dim, multiple,
-							       upper_bound,
-							       true /* upper_bound */));
+		if (OPTION_BOUNDS_CHECKING (&A68_JOB))
+		  {
+		    if (explicit_lower_bound)
+		      a68_add_stmt (a68_multiple_single_bound_check (p, size_dim, multiple,
+								     lower_bound,
+								     false /* upper_bound */));
+		    if (explicit_upper_bound)
+		      a68_add_stmt (a68_multiple_single_bound_check (p, size_dim, multiple,
+								     upper_bound,
+								     true /* upper_bound */));
+		  }
 	      }
 
 	    /* new_elements += i * strides[dim] */
@@ -643,16 +687,19 @@ lower_subscript_for_trimmers (NODE_T *p, LOW_CTX_T ctx,
 	    a68_add_stmt (a68_multiple_set_elements_size (new_multiple,
 							  elements_size));
 
+	    /* Correct bounds to the revised lower bound, if necessary.  */
+	    if (at != NULL_TREE)
+	      {
+		/* Correct bounds to honor the revised lower bound.  */
+		tree d = fold_build2 (MINUS_EXPR, ssizetype, lower_bound, at);
+		lower_bound = fold_build2 (MINUS_EXPR, ssizetype, lower_bound, d);
+		upper_bound = fold_build2 (MINUS_EXPR, ssizetype, upper_bound, d);
+	      }
+
 	    /* Fill the triplet for this dimension in new_multiple.  */
 	    tree size_new_dim = size_int (*new_dim);
-	    tree d = fold_build2 (MINUS_EXPR, ssizetype, lower_bound, at);
-
-	    a68_add_stmt (a68_multiple_set_lower_bound (new_multiple, size_new_dim,
-							fold_build2 (MINUS_EXPR, ssizetype,
-								     lower_bound, d)));
-	    a68_add_stmt (a68_multiple_set_upper_bound (new_multiple, size_new_dim,
-							fold_build2 (MINUS_EXPR, ssizetype,
-								     upper_bound, d)));
+	    a68_add_stmt (a68_multiple_set_lower_bound (new_multiple, size_new_dim, lower_bound));
+	    a68_add_stmt (a68_multiple_set_upper_bound (new_multiple, size_new_dim, upper_bound));
 	    a68_add_stmt (a68_multiple_set_stride (new_multiple, size_new_dim, stride));
 
 	    *new_dim += 1;
@@ -778,7 +825,7 @@ a68_lower_slice (NODE_T *p, LOW_CTX_T ctx)
 	{
 	  tree ptrtype = CTYPE (orig_sliced_multiple_mode);
 	  tree slice_addr = fold_build1 (ADDR_EXPR, ptrtype, slice);
-	  tree alloc = a68_lower_malloc (ptrtype, size_in_bytes (TREE_TYPE (slice)));
+	  tree alloc = a68_lower_malloc (orig_sliced_multiple_mode, size_in_bytes (TREE_TYPE (slice)));
 	  alloc = save_expr (alloc);
 	  tree copy = a68_lower_memcpy (alloc, slice_addr, size_in_bytes (TREE_TYPE (slice)));
 
@@ -956,11 +1003,12 @@ a68_lower_formula (NODE_T *p, LOW_CTX_T ctx)
     return a68_lower_tree (SUB (p), ctx);
   else
     {
+      LOWERER_T lowerer = LOWERER (TAX (NEXT (SUB (p))));
+
       /* If the operator is defined in the standard prelude, then use its lowering
 	 code.  */
-      if (TAG_TABLE (TAX (NEXT (SUB (p)))) == A68_STANDENV)
+      if (lowerer != NO_LOWERER)
 	{
-	  LOWERER_T lowerer = LOWERER (TAX (NEXT (SUB (p))));
 	  return (*lowerer) (p, ctx);
 	}
       else
@@ -988,11 +1036,12 @@ a68_lower_formula (NODE_T *p, LOW_CTX_T ctx)
 tree
 a68_lower_monadic_formula (NODE_T *p, LOW_CTX_T ctx)
 {
+  LOWERER_T lowerer = LOWERER (TAX (SUB (p)));
+
   /* If the operator is defined in the standard prelude, then use its lowering
      code.  */
-  if (TAG_TABLE (TAX (SUB (p))) == A68_STANDENV)
+  if (lowerer != NO_LOWERER)
     {
-      LOWERER_T lowerer = LOWERER (TAX (SUB (p)));
       return (*lowerer) (p, ctx);
     }
   else
@@ -1236,6 +1285,79 @@ a68_lower_routine_text (NODE_T *p, LOW_CTX_T ctx)
     return fold_build1 (ADDR_EXPR,
 			build_pointer_type (TREE_TYPE (func_decl)),
 			func_decl);
+}
+
+/* Lower a formal hole.
+
+      formal hole : formal nest symbol, tertiary ;
+                    formal nest symbol, language indicant, tertiary.
+*/
+
+tree
+a68_lower_formal_hole (NODE_T *p, LOW_CTX_T ctx ATTRIBUTE_UNUSED)
+{
+  NODE_T *defining_identifier = ctx.proc_decl_identifier;
+  bool defining_operator = ctx.proc_decl_operator;
+
+  if (defining_identifier != NO_NODE)
+    {
+      /* The formal-hole is part of an identity declaration and yields a proc
+	 mode.  */
+      gcc_assert (IS (MOID (p), PROC_SYMBOL));
+
+      tree func_decl = TAX_TREE_DECL (TAX (defining_identifier));
+      if (func_decl == NULL_TREE)
+	{
+	  /* Note that for PROC modes (which are non-REF) the function below
+	     always returns a func_decl, never an address.  */
+	  func_decl
+	    = a68_make_proc_identity_declaration_decl (defining_identifier,
+						       ctx.module_definition_name,
+						       defining_operator /* indicant */);
+	  TAX_TREE_DECL (TAX (defining_identifier)) = func_decl;
+	}
+
+      /* If the identity-declaration is in a public range then add the
+	 declaration to the module's declarations list.  Otherwise chain the
+	 declaration in the proper block and bind it.  */
+      if (PUBLIC_RANGE (TABLE (TAX (defining_identifier))))
+	vec_safe_push (A68_MODULE_DEFINITION_DECLS, func_decl);
+      else
+	a68_add_decl (func_decl);
+
+      a68_add_decl_expr (fold_build1_loc (a68_get_node_location (p),
+					  DECL_EXPR,
+					  TREE_TYPE (func_decl),
+					  func_decl));
+
+      /* Create the body for the wrapper from the formal hole. */
+      a68_wrap_formal_proc_hole (p, func_decl);
+
+      return func_decl;
+    }
+  else
+    {
+      /* The formal-hole is free standing. */
+      tree decl;
+      if (IS (MOID (p), PROC_SYMBOL))
+	{
+	  decl = a68_make_anonymous_routine_decl (MOID (p));
+	  a68_add_decl (decl);
+	  a68_add_decl_expr (fold_build1_loc (a68_get_node_location (p),
+					      DECL_EXPR,
+					      TREE_TYPE (decl),
+					      decl));
+	  a68_wrap_formal_proc_hole (p, decl);
+
+	  decl = fold_build1 (ADDR_EXPR,
+			      build_pointer_type (TREE_TYPE (decl)),
+			      decl);
+	}
+      else
+	decl = a68_wrap_formal_var_hole (p);
+
+      return decl;
+    }
 }
 
 /* Lower an unit.

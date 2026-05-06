@@ -6,7 +6,7 @@
  *                                                                          *
  *                              C Header File                               *
  *                                                                          *
- *          Copyright (C) 2002-2025, Free Software Foundation, Inc.         *
+ *          Copyright (C) 2002-2026, Free Software Foundation, Inc.         *
  *                                                                          *
  * GNAT is free software;  you can  redistribute it  and/or modify it under *
  * terms of the  GNU General Public License as published  by the Free Soft- *
@@ -94,5 +94,12 @@ extern UINT __gnat_current_ccs_encoding;
 #define S2WS(wstr,str,len) strncpy(wstr,str,len)
 #define WS2S(str,wstr,len) strncpy(str,wstr,len)
 #endif
+
+typedef HRESULT (WINAPI *SetThreadDescription_t)(
+    _In_ HANDLE hThread,
+    _In_ PCWSTR lpThreadDescription
+);
+
+extern SetThreadDescription_t pSetThreadDescription;
 
 #endif /* _MINGW32_H */

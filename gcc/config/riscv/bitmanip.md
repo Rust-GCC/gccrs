@@ -541,7 +541,10 @@
       operands[1] = force_reg (DImode, gen_rtx_SIGN_EXTEND (DImode, operands[1]));
       operands[2] = force_reg (DImode, gen_rtx_SIGN_EXTEND (DImode, operands[2]));
       emit_insn (gen_<bitmanip_optab>di3 (t, operands[1], operands[2]));
-      emit_move_insn (operands[0], gen_lowpart (SImode, t));
+      t = gen_lowpart (SImode, t);
+      SUBREG_PROMOTED_VAR_P (t) = 1;
+      SUBREG_PROMOTED_SET (t, SRP_SIGNED);
+      emit_move_insn (operands[0], t);
       DONE;
     }
 })
@@ -924,7 +927,7 @@
 
 ;; We do not define SHIFT_COUNT_TRUNCATED, so we have to have variants
 ;; that mask/extend the count if we want to eliminate those ops
-;;      
+;;
 ;; We could (in theory) use GPR for the various modes, but I haven't
 ;; seen those cases appear in practice.  Without a testcase I've
 ;; elected to keep the modes X which is easy to reason about.
@@ -1365,3 +1368,76 @@
    (set (match_dup 0) (zero_extract:X (match_dup 3)
 				      (const_int 1)
 				      (zero_extend:X (match_dup 2))))])
+
+;; If we have (and (not X) (not Y)), and we can implement one of those NOT
+;; expressions as a single insn, then do so as that will allow using andn.
+;; In this case we exploit ~(-x) == x - 1.  Two versions as we can reverse
+;; the operands of the AND.
+(define_split
+  [(set (match_operand:DI 0 "register_operand")
+	(and:DI
+	  (not:DI
+	   (sign_extend:DI (neg:SI (match_operand:SI 1 "register_operand"))))
+	  (not:DI (match_operand:DI 2 "register_operand"))))
+   (clobber (match_operand:DI 3 "register_operand"))]
+  "TARGET_64BIT && TARGET_ZBB"
+  [(set (match_dup 3) (sign_extend:DI (plus:SI (match_dup 1) (const_int -1))))
+   (set (match_dup 0) (and:DI (not:DI (match_dup 2)) (match_dup 3)))])
+
+(define_split
+  [(set (match_operand:DI 0 "register_operand")
+	(and:DI
+	  (not:DI (match_operand:DI 1 "register_operand"))
+	  (not:DI
+	   (sign_extend:DI (neg:SI (match_operand:SI 2 "register_operand"))))))
+   (clobber (match_operand:DI 3 "register_operand"))]
+  "TARGET_64BIT && TARGET_ZBB"
+  [(set (match_dup 3) (sign_extend:DI (plus:SI (match_dup 2) (const_int -1))))
+   (set (match_dup 0) (and:DI (not:DI (match_dup 1)) (match_dup 3)))])
+
+;; Another variant, this time exploiting (x & -x) - 1 == (x - 1) & ~x
+(define_split
+  [(set (match_operand:DI 0 "register_operand")
+	(sign_extend:DI
+	 (plus:SI
+	  (subreg:SI (and:DI
+		      (subreg:DI (neg:SI
+				  (match_operand:SI 1 "register_operand")) 0)
+		      (match_operand:DI 2 "register_operand")) 0)
+	  (const_int -1))))
+   (clobber (match_operand:DI 3 "register_operand"))]
+  "(TARGET_64BIT
+    && TARGET_ZBB
+    && (REG_P (operands[2]) && SUBREG_P (operands[1])
+	 ? REGNO (operands[2]) == REGNO (SUBREG_REG (operands[1]))
+	 : REG_P (operands[1]) && SUBREG_P (operands[2])
+	   ? (REGNO (SUBREG_REG (operands[2])) == REGNO (operands[1])) : 0))"
+  [(set (match_dup 3) (sign_extend:DI (plus:SI (match_dup 1) (const_int -1))))
+   (set (match_dup 0) (and:DI (not:DI (match_dup 2)) (match_dup 3)))])
+
+;; Another exploiting (x & -x) -1 == (x - 1) & ~x
+(define_split
+  [(set (match_operand:X 0 "register_operand")
+	(plus:X (and:X (neg:X (match_operand:X 1 "register_operand"))
+		       (match_dup 1))
+		(const_int -1)))
+   (clobber (match_operand:X 2 "register_operand"))]
+  "TARGET_ZBB"
+  [(set (match_dup 2) (plus:X (match_dup 1) (const_int -1)))
+   (set (match_dup 0) (and:X (not:X (match_dup 1)) (match_dup 2)))])
+
+(define_split
+  [(set (match_operand:DI 0 "register_operand")
+	(sign_extend:DI (plus:SI (plus:SI (ashift:SI (match_operand:SI 1 "register_operand")
+						     (match_operand 2 "imm123_operand"))
+					  (match_operand:SI 3 "register_operand"))
+				 (match_operand:SI 4 "arith_operand"))))
+   (clobber (match_operand:DI 5 "register_operand"))]
+  "TARGET_64BIT && TARGET_ZBA"
+  [(set (match_dup 5) (plus:DI (ashift:DI (match_dup 1) (match_dup 2)) (match_dup 3)))
+   (set (match_dup 0) (sign_extend:DI (plus:SI (match_dup 6) (match_dup 4))))]
+  {
+    operands[1] = gen_lowpart (DImode, operands[1]);
+    operands[3] = gen_lowpart (DImode, operands[3]);
+    operands[6] = gen_lowpart (SImode, operands[5]);
+  })

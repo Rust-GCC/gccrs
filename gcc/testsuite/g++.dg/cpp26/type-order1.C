@@ -92,3 +92,24 @@ constexpr eq <W, W> r;
 constexpr ne <V, W> s;
 constexpr eq <U <W>, U <W>> t;
 constexpr ne <U <V>, U <W>> u;
+
+constexpr eq <int[], int[]> v;
+constexpr ne <int[], int[2]> w;
+constexpr eq <S[], S[]> x;
+constexpr ne <S[], S[2]> y;
+
+constexpr eq <int (), int ()> z;
+constexpr eq <int () noexcept, int () noexcept> aa;
+constexpr ne <int (), int () noexcept> ab;
+constexpr eq <int () const, int () const> ac;
+constexpr ne <int (), int () const> ad;
+constexpr eq <int () &, int () &> ae;
+constexpr ne <int (), int () &> af;
+constexpr eq <int (*)() noexcept, int (*)() noexcept> ag;
+constexpr ne <int (), int (*)()> ah;
+
+constexpr eq <int V::*, int V::*> ba;
+constexpr ne <int V::*, long V::*> bb;
+constexpr eq <int (V::*)() const& noexcept, int (V::*)() const& noexcept> bc;
+constexpr ne <int (V::*)(), long (V::*)()> bd;
+constexpr ne <int (V::*)(), int (*)()> be;

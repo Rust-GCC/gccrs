@@ -41,6 +41,9 @@
 
 #include <bits/invoke.h>
 #include <bits/utility.h>
+#if __glibcxx_function_ref
+#include <bits/stl_function.h>
+#endif
 
 namespace std _GLIBCXX_VISIBILITY(default)
 {
@@ -139,6 +142,11 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	 { return &_S_call_ptrs<_Adjust_target<_Tp>>; }
 
 #ifdef __glibcxx_function_ref // C++ >= 26
+       template<typename _Fn>
+	 static _Ret
+	 _S_static(_Ptrs, _Args... __args) noexcept(_Noex)
+	 { return _Fn::operator()(std::forward<_Args>(__args)...); }
+
        template<auto __fn>
 	 static _Ret
 	 _S_nttp(_Ptrs, _Args... __args) noexcept(_Noex)
@@ -495,6 +503,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       _Cpy_base(_Cpy_base&&) = default;
 
       _Cpy_base(_Cpy_base const& __x)
+      : _Mo_base()
       { _M_copy(__x); }
 
       _Cpy_base&
@@ -564,15 +573,16 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     requires is_function_v<_Fn>
     function_ref(_Fn*) -> function_ref<_Fn>;
 
-  template<auto __f, class _Fn = remove_pointer_t<decltype(__f)>>
-    requires is_function_v<_Fn>
-    function_ref(nontype_t<__f>) -> function_ref<_Fn>;
+  template<auto __cwfn, typename _Fn>
+    requires is_function_v<remove_pointer_t<_Fn>>
+    function_ref(constant_wrapper<__cwfn, _Fn>)
+      -> function_ref<remove_pointer_t<_Fn>>;
 
-  template<auto __f, typename _Tp,
+  template<auto __cwfn, typename _Fn, typename _Tp,
 	   typename _SignaturePtr =
-	     decltype(__polyfunc::__deduce_funcref<decltype(__f), _Tp&>())>
+	     decltype(__polyfunc::__deduce_funcref<_Fn, _Tp&>())>
     requires (!is_void_v<_SignaturePtr>)
-    function_ref(nontype_t<__f>, _Tp&&)
+    function_ref(constant_wrapper<__cwfn, _Fn>, _Tp&&)
       -> function_ref<remove_pointer_t<_SignaturePtr>>;
 
 #endif // __glibcxx_function_ref

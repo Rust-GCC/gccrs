@@ -76,7 +76,7 @@ march-map=sm_37
 Target RejectNegative Alias(misa=,sm_37)
 
 march-map=sm_50
-Target RejectNegative Alias(misa=,sm_37)
+Target RejectNegative Alias(misa=,sm_50)
 
 march-map=sm_52
 Target RejectNegative Alias(misa=,sm_52)
@@ -173,6 +173,9 @@ EnumValue
 Enum(ptx_version) String(3.1) Value(PTX_VERSION_3_1)
 
 EnumValue
+Enum(ptx_version) String(4.0) Value(PTX_VERSION_4_0)
+
+EnumValue
 Enum(ptx_version) String(4.1) Value(PTX_VERSION_4_1)
 
 EnumValue
@@ -204,7 +207,7 @@ Target RejectNegative Negative(mptx=) ToLower Joined Enum(ptx_version) Var(ptx_v
 Specify the PTX ISA version to use.
 
 minit-regs=
-Target Var(nvptx_init_regs) IntegerRange(0, 3) Joined UInteger Init(3)
+Target Undocumented Var(nvptx_init_regs) IntegerRange(0, 3) Joined UInteger Init(3)
 Initialize ptx registers.
 
 mptx-comment

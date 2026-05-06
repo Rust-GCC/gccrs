@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-Ofast -march=armv8-a+sve --param vect-scalar-cost-multiplier=1000 -fdump-tree-vect-details" } */
+/* { dg-options "-Ofast -march=armv8-a+sve --param vect_allow_possibly_not_worthwhile_vectorizations=1 -fdump-tree-vect-details" } */
 
 void
 foo (char *restrict a, int *restrict b, int *restrict c,

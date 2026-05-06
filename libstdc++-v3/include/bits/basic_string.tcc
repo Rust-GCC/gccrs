@@ -302,6 +302,38 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	traits_type::assign(_M_data()[__n], _CharT());
     }
 
+#if __cplusplus >= 202302L
+  template<typename _CharT, typename _Traits, typename _Alloc>
+    constexpr void
+    basic_string<_CharT, _Traits, _Alloc>::
+    _M_construct(basic_string&& __str, size_type __pos,  size_type __n)
+    {
+      const _CharT* __start = __str._M_data() + __pos;
+      if (__n <= _S_local_capacity)
+	{
+	  _M_init_local_buf();
+	  traits_type::copy(_M_local_buf, __start, __n);
+	  _M_set_length(__n);
+	  return;
+	}
+
+      if constexpr (!allocator_traits<_Alloc>::is_always_equal::value)
+	if (get_allocator() != __str.get_allocator())
+	  {
+	    _M_construct<false>(__start, __n);
+	    return;
+	  }
+
+      _M_data(__str._M_data());
+      _M_capacity(__str._M_allocated_capacity);
+      __str._M_data(__str._M_use_local_data());
+      __str._M_set_length(0);
+
+      _S_move(_M_data(), _M_data() + __pos, __n);
+      _M_set_length(__n);
+    }
+#endif // C++23
+
   template<typename _CharT, typename _Traits, typename _Alloc>
     _GLIBCXX20_CONSTEXPR
     void
@@ -999,12 +1031,13 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   // Inhibit implicit instantiations for required instantiations,
   // which are defined via explicit instantiations elsewhere.
 #if _GLIBCXX_EXTERN_TEMPLATE
-  // The explicit instantiation definitions in src/c++11/string-inst.cc and
-  // src/c++17/string-inst.cc only instantiate the members required for C++17
-  // and earlier standards (so not C++20's starts_with and ends_with).
-  // Suppress the explicit instantiation declarations for C++20, so C++20
+  // The explicit instantiation definitions in src/c++11/string-inst.cc,
+  // src/c++17/string-inst.cc and src/c++20/string-inst.cc only instantiate
+  // the members required for C++20 and earlier standards (so not C++23's
+  // contains).
+  // Suppress the explicit instantiation declarations for C++23, so C++23
   // code will implicitly instantiate std::string and std::wstring as needed.
-# if __cplusplus <= 201703L && _GLIBCXX_EXTERN_TEMPLATE > 0
+# if __cplusplus <= 202002L && _GLIBCXX_EXTERN_TEMPLATE > 0
   extern template class basic_string<char>;
 # elif ! _GLIBCXX_USE_CXX11_ABI
   // Still need to prevent implicit instantiation of the COW empty rep,
@@ -1012,7 +1045,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   extern template basic_string<char>::size_type
     basic_string<char>::_Rep::_S_empty_rep_storage[];
 # elif _GLIBCXX_EXTERN_TEMPLATE > 0
-  // Export _M_replace_cold even for C++20.
+  // Export _M_replace_cold even for C++23.
   extern template void
     basic_string<char>::_M_replace_cold(char *, size_type, const char*,
 					const size_type, const size_type);
@@ -1032,13 +1065,13 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     getline(basic_istream<char>&, string&);
 
 #ifdef _GLIBCXX_USE_WCHAR_T
-# if __cplusplus <= 201703L && _GLIBCXX_EXTERN_TEMPLATE > 0
+# if __cplusplus <= 202002L && _GLIBCXX_EXTERN_TEMPLATE > 0
   extern template class basic_string<wchar_t>;
 # elif ! _GLIBCXX_USE_CXX11_ABI
   extern template basic_string<wchar_t>::size_type
     basic_string<wchar_t>::_Rep::_S_empty_rep_storage[];
 # elif _GLIBCXX_EXTERN_TEMPLATE > 0
-  // Export _M_replace_cold even for C++20.
+  // Export _M_replace_cold even for C++23.
   extern template void
     basic_string<wchar_t>::_M_replace_cold(wchar_t*, size_type, const wchar_t*,
 					   const size_type, const size_type);

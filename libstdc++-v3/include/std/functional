@@ -148,9 +148,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     }
 #endif // __cpp_lib_invoke_r
 
+#if __cplusplus >= 201103L
   /// @cond undocumented
 
-#if __cplusplus >= 201103L
   template<typename _MemFunPtr,
 	   bool __is_mem_fn = is_member_function_pointer<_MemFunPtr>::value>
     class _Mem_fn_base

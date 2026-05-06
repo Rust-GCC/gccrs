@@ -1243,7 +1243,7 @@ lookup_member (tree xbasetype, tree name, int protect, bool want_type,
 	    {
 	      auto_diagnostic_group d;
 	      error ("request for member %qD is ambiguous", name);
-	      print_candidates (lfi.ambiguous);
+	      print_candidates (input_location, lfi.ambiguous);
 	    }
 	  return error_mark_node;
 	}
@@ -1465,21 +1465,26 @@ adjust_result_of_qualified_name_lookup (tree decl,
 					tree qualifying_scope,
 					tree context_class)
 {
-  if (context_class && context_class != error_mark_node
+  if (!BASELINK_P (decl))
+    return decl;
+
+  const bool qualified_p = qualifying_scope != NULL_TREE;
+  if (!qualified_p)
+    qualifying_scope = BINFO_TYPE (BASELINK_ACCESS_BINFO (decl));
+
+  if (context_class
+      && context_class != error_mark_node
       && CLASS_TYPE_P (context_class)
       && CLASS_TYPE_P (qualifying_scope)
-      && DERIVED_FROM_P (qualifying_scope, context_class)
-      && BASELINK_P (decl))
+      && DERIVED_FROM_P (qualifying_scope, context_class))
     {
-      tree base;
-
       /* Look for the QUALIFYING_SCOPE as a base of the CONTEXT_CLASS.
 	 Because we do not yet know which function will be chosen by
 	 overload resolution, we cannot yet check either accessibility
 	 or ambiguity -- in either case, the choice of a static member
 	 function might make the usage valid.  */
-      base = lookup_base (context_class, qualifying_scope,
-			  ba_unique, NULL, tf_none);
+      tree base = lookup_base (context_class, qualifying_scope,
+			       ba_unique, NULL, tf_none);
       if (base && base != error_mark_node)
 	{
 	  BASELINK_ACCESS_BINFO (decl) = base;
@@ -1491,8 +1496,7 @@ adjust_result_of_qualified_name_lookup (tree decl,
 	}
     }
 
-  if (BASELINK_P (decl))
-    BASELINK_QUALIFIED_P (decl) = true;
+  BASELINK_QUALIFIED_P (decl) = qualified_p;
 
   return decl;
 }
@@ -2123,11 +2127,15 @@ check_final_overrider (tree overrider, tree basefn)
       return 0;
     }
 
-  /* A consteval virtual function shall not override a virtual function that is
-     not consteval. A consteval virtual function shall not be overridden by a
-     virtual function that is not consteval.  */
-  if (DECL_IMMEDIATE_FUNCTION_P (overrider)
-      != DECL_IMMEDIATE_FUNCTION_P (basefn))
+  /* A class with a consteval virtual function that overrides a virtual
+     function that is not consteval shall have consteval-only type (CWG 3117).
+     A consteval virtual function shall not be overridden by a virtual
+     function that is not consteval.  */
+  if ((DECL_IMMEDIATE_FUNCTION_P (basefn)
+       && !DECL_IMMEDIATE_FUNCTION_P (overrider))
+      || (!DECL_IMMEDIATE_FUNCTION_P (basefn)
+	  && DECL_IMMEDIATE_FUNCTION_P (overrider)
+	  && !consteval_only_p (overrider)))
     {
       auto_diagnostic_group d;
       if (DECL_IMMEDIATE_FUNCTION_P (overrider))
@@ -2178,32 +2186,6 @@ check_final_overrider (tree overrider, tree basefn)
 		  "overridden function is %qD", basefn);
 	}
       return 0;
-    }
-
-  if (!DECL_HAS_CONTRACTS_P (basefn) && DECL_HAS_CONTRACTS_P (overrider))
-    {
-      auto_diagnostic_group d;
-      error ("function with contracts %q+D overriding contractless function",
-	     overrider);
-      inform (DECL_SOURCE_LOCATION (basefn),
-	      "overridden function is %qD", basefn);
-      return 0;
-    }
-  else if (DECL_HAS_CONTRACTS_P (basefn) && !DECL_HAS_CONTRACTS_P (overrider))
-    {
-      /* We're inheriting basefn's contracts; create a copy of them but
-	 replace references to their parms to our parms.  */
-      inherit_base_contracts (overrider, basefn);
-    }
-  else if (DECL_HAS_CONTRACTS_P (basefn) && DECL_HAS_CONTRACTS_P (overrider))
-    {
-      /* We're in the process of completing the overrider's class, which means
-	 our conditions definitely are not parsed so simply chain on the
-	 basefn for later checking.
-
-	 Note that OVERRIDER's contracts will have been fully parsed at the
-	 point the deferred match is run.  */
-      defer_guarded_contract_match (overrider, basefn, DECL_CONTRACTS (basefn));
     }
 
   if (DECL_FINAL_P (basefn))

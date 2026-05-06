@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2026, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -29,7 +29,6 @@
 
 with Atree;          use Atree;
 with Debug;          use Debug;
-with Einfo;          use Einfo;
 with Einfo.Entities; use Einfo.Entities;
 with Einfo.Utils;    use Einfo.Utils;
 with Elists;         use Elists;
@@ -54,7 +53,6 @@ with Output;         use Output;
 with Restrict;       use Restrict;
 with Rident;         use Rident;
 with Rtsfind;        use Rtsfind;
-with Sinfo;          use Sinfo;
 with Sinfo.Nodes;    use Sinfo.Nodes;
 with Sinfo.Utils;    use Sinfo.Utils;
 with Sem;            use Sem;
@@ -7666,13 +7664,10 @@ package body Exp_Ch7 is
             end;
 
             declare
-               ASN : constant Opt_N_Aspect_Specification_Id :=
-                 Get_Rep_Item (Typ, Name_Destructor, False);
-
+               Proc : constant Entity_Id := Destructor (Typ);
                Stmt : Node_Id;
-               Proc : Entity_Id;
             begin
-               if Present (ASN) then
+               if Present (Proc) then
                   --  Generate:
                   --    begin
                   --       <Destructor_Proc> (V);
@@ -7686,7 +7681,6 @@ package body Exp_Ch7 is
                   --          end if;
                   --    end;
 
-                  Proc := Entity (Expression (ASN));
                   Stmt :=
                     Make_Procedure_Call_Statement
                       (Loc,
@@ -8480,10 +8474,6 @@ package body Exp_Ch7 is
       then
          Utyp := Underlying_Type (Root_Type (Base_Type (Typ)));
          Ref  := Unchecked_Convert_To (Utyp, Ref);
-
-         --  The following is to prevent problems with UC see 1.156 RH ???
-
-         Set_Assignment_OK (Ref);
       end if;
 
       --  If the underlying_type is a subtype, then we are dealing with the

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2026, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -27,13 +27,11 @@ with Atree;          use Atree;
 with Casing;         use Casing;
 with Csets;          use Csets;
 with Debug;          use Debug;
-with Einfo;          use Einfo;
 with Einfo.Entities; use Einfo.Entities;
 with Einfo.Utils;    use Einfo.Utils;
 with Elists;         use Elists;
 with Errout;         use Errout;
 with Exp_Dist;
-with Fname;          use Fname;
 with Fname.UF;       use Fname.UF;
 with Ghost;          use Ghost;
 with Lib;            use Lib;
@@ -47,10 +45,9 @@ with Restrict;       use Restrict;
 with Sem;            use Sem;
 with Sem_Aux;        use Sem_Aux;
 with Sem_Ch7;        use Sem_Ch7;
-with Sem_Ch12;        use Sem_Ch12;
+with Sem_Ch12;       use Sem_Ch12;
 with Sem_Dist;       use Sem_Dist;
 with Sem_Util;       use Sem_Util;
-with Sinfo;          use Sinfo;
 with Sinfo.Nodes;    use Sinfo.Nodes;
 with Sinfo.Utils;    use Sinfo.Utils;
 with Stand;          use Stand;

@@ -1,3 +1,381 @@
+2026-04-17  Steven G. Kargl  <kargl@gcc.gnu.org>
+
+	PR libfortran/120431
+	* m4/spread.m4: Fix scalar source case with ncopies < 0.
+	* generated/spread_c10.c: Regenerated.
+	* generated/spread_c16.c: Ditto.
+	* generated/spread_c17.c: Ditto.
+	* generated/spread_c4.c: Ditto.
+	* generated/spread_c8.c: Ditto.
+	* generated/spread_i1.c: Ditto.
+	* generated/spread_i16.c: Ditto.
+	* generated/spread_i2.c: Ditto.
+	* generated/spread_i4.c: Ditto.
+	* generated/spread_i8.c: Ditto.
+	* generated/spread_r10.c: Ditto.
+	* generated/spread_r16.c: Ditto.
+	* generated/spread_r17.c: Ditto.
+	* generated/spread_r4.c: Ditto.
+	* generated/spread_r8.c: Ditto.
+
+2026-04-07  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR libfortran/124543
+	* io/inquire.c (inquire_via_unit): Change the returned
+	encoding value to 'DEFAULT' when not specified in the OPEN
+	statement.
+
+2026-04-04  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR libfortran/124543
+	* io/inquire.c (inquire_via_unit): Adjust the logic to
+	treat formatted vs unformatted correctly.
+
+2026-03-30  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR libfortran/124543
+	* io/inquire.c (inquire_via_unit): Fix return value for
+	NAMED. Add check for ACTION. Fix return values for
+	ENCODING, PENDING, READ, WRITE, READWRITE.
+	(inquire_via_filename): Add checks for ACTION, DELIM,
+	ASYNCHRONOUS, and PENDING. Fix return value for
+	ENCODING.
+	* io/unix.c (inquire_access): Change return value from no
+	to unknown.
+
+2026-03-22  Christopher Albert  <albert@tugraz.at>
+
+	PR fortran/124512
+	* Makefile.am: Adjust the dependencies.
+	* Makefile.in: Regenerate.
+	* configure: Regenerate.
+	* configure.ac: Add new check.
+
+2026-03-06  Andre Vehreschild  <vehre@gcc.gnu.org>
+
+	PR libfortran/124371
+	* caf/shmem/supervisor.c (startWorker): Use defined(HAVE_FORK)
+	instead of !defined(WIN32) for preprocessor conditional.
+
+2026-03-04  Jakub Jelinek  <jakub@redhat.com>
+
+	PR libfortran/124330
+	* caf/shmem/shared_memory.c (shared_memory_set_env): Make buffer
+	used by putenv static.
+	(shared_memory_init): Likewise.
+
+2026-03-04  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/124330
+	* caf/shmem/shared_memory.c (shared_memory_init): Use
+	putenv() for HPUX and as a fallback where setenv()
+	is not available.
+
+2026-03-03  Mark Wielaard  <mark@klomp.org>
+
+	* config.h.in: Regenerate.
+	* configure: Regenerate.
+
+2026-03-03  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+	    John David Anglin  <danglin@gcc.gnu.org>
+
+	PR fortran/124330
+	* caf/shmem/shared_memory.c: Fix filenames for WIN32
+	includes.
+	(shared_memory_set_env): Use putenv() for HPUX and as
+	a fallback where setenv () is not available.
+	(NAME_MAX): Replace with SHM_NAME_MAX.
+	(SHM_NAME_MAX): Use this to avoid duplicating NAME_MAX
+	used elsewhere.
+	* caf/shmem/supervisor.c (get_image_num_from_envvar): Add
+	a fallback for HPUX. Add additional comment to explain why
+	the number of cores is used in lieu of GFORTRAN_NUM_IMAGES.
+
+2026-03-01  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/124286
+	* acinclude.m4: Remove LIBGFOR_CHECK_SANE_BUILTIN_CLZL.
+	* caf/shmem/allocator.c (next_power_of_two): Use known sane
+	builtin.
+	* configure: Regenerate.
+	* configure.ac: Remove use of LIBGFOR_CHECK_SANE_BUILTIN_CLZL.
+
+2026-02-27  Jakub Jelinek  <jakub@redhat.com>
+
+	* aclocal.m4: Regenerate.
+	* configure: Regenerate.
+	* Makefile.in: Regenerate.
+
+2026-02-27  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/88076
+	* caf/shmem/supervisor.c (supervisor_main_loop): Use fprintf
+	instead of dprintf.
+
+2026-02-26  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR libfortran/88076
+	* Makefile.in: Regenerate.
+	* aclocal.m4: Regenerate.
+	* config.h.in: Regenerate.
+	* configure: Regenerate.
+
+2026-02-26  Andre Vehreschild  <vehre@gcc.gnu.org>
+
+	* Makefile.am: Only build caf_shmem when pthreads is available.
+	* configure.ac: Check for pthreads availability and needed
+	flags.
+
+2026-02-26  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/124080
+	* caf/shmem/hashmap.c (hash): Use size_t instead of
+	uint64.
+	(hmiadd): Use size_t instead of ssize_t.
+	(scan_inside_lookahead): Likewise.
+	(scan_empty): Likewise.
+
+2026-02-26  Andre Vehreschild  <vehre@gcc.gnu.org>
+
+	PR fortran/121429
+	* caf/shmem.c (_gfortran_caf_deregister): Add a call to
+	sync_team.
+
+2026-02-26  Andre Vehreschild  <vehre@gcc.gnu.org>
+
+	PR fortran/124071
+	* caf/shmem.c (_gfortran_caf_form_team): Take free index, when
+	computed one is already taken.
+
+2026-02-26  Andre Vehreschild  <vehre@gcc.gnu.org>
+
+	PR fortran/88076
+	* Makefile.am: Add new library.
+	* Makefile.in: Regenerated
+	* acinclude.m4: Add check for reasonable clzl.
+	* config.h.in: Regenerate.
+	* configure: Regenerate.
+	* configure.ac: Call clzl check.
+
+2026-02-26  Andre Vehreschild  <vehre@gcc.gnu.org>
+
+	* caf/shmem.c (_gfortran_caf_finalize): Add a sync on the
+	initial team on exit.
+
+2026-02-26  Andre Vehreschild  <vehre@gcc.gnu.org>
+
+	* caf/shmem.c (_gfortran_caf_finalize): Ensure all memory is
+	freeed.
+	* caf/shmem/allocator.c (allocator_shared_malloc): Just assert
+	that an index is within its bounds.
+	* caf/shmem/shared_memory.c (shared_memory_init): When shared
+	memory can not be placed at desired address, exit the image with
+	a certain code to let the supervisor restart the image.
+	(shared_memory_cleanup): Only the supervisor must unlink the shm
+	object.
+	* caf/shmem/supervisor.c (GFORTRAN_ENV_IMAGE_RESTARTS_LIMITS):
+	New environment variable.
+	(get_image_restarts_limit): Get the limit on image restarts
+	(accumulates over all) form the environment variable or default
+	to 4000.
+	(ensure_shmem_initialization): Add error handling.
+	(startWorker): Start a single worker/image.
+	(kill_all_images): Kill all images.
+	(supervisor_main_loop): When a worker/image reports a shared
+	memory issue just try to restart it.
+	* caf/shmem/thread_support.c (initialize_shared_mutex): Mark
+	mutex robust on plattforms that support it.
+	(initialize_shared_errorcheck_mutex): Same.
+
+2026-02-26  Andre Vehreschild  <vehre@gcc.gnu.org>
+
+	* caf/shmem.c (_gfortran_caf_init): Cleanup thread helper after
+	use.
+	(_gfortran_caf_finalize): Same.
+	(_gfortran_caf_register): Handle lock_t correctly on Windows.
+	(GEN_OP): Prevent warnings on non-initialized.
+	(_gfortran_caf_lock): Handle lock_t correctly on Windows.
+	(_gfortran_caf_unlock): Same.
+	(_gfortran_caf_random_init): Fix formatting.
+	(_gfortran_caf_form_team): Add more images to counter_barrier.
+	* caf/shmem/alloc.c: Use routines from thread_support.
+	* caf/shmem/allocator.c (allocator_lock): Same.
+	(allocator_unlock): Same.
+	* caf/shmem/allocator.h: Same.
+	* caf/shmem/collective_subroutine.c (get_collsub_buf): Same.
+	* caf/shmem/collective_subroutine.h: Same.
+	* caf/shmem/counter_barrier.c (lock_counter_barrier): Same.
+	(unlock_counter_barrier): Same.
+	(counter_barrier_init): Same.
+	(counter_barrier_wait): Same.
+	(change_internal_barrier_count): Same.
+	(counter_barrier_add): Same.
+	(counter_barrier_init_add): Only increase value w/o signaling.
+	(counter_barrier_get_count): Use routines from thread_support.
+	* caf/shmem/counter_barrier.h: Same.
+	(counter_barrier_init_add): New routine.
+	* caf/shmem/shared_memory.c: Use windows routines where
+	applicable.
+	(shared_memory_set_env): Same.
+	(shared_memory_get_master): Same.
+	(shared_memory_init): Same.
+	(shared_memory_cleanup): Same.
+	* caf/shmem/shared_memory.h: Use types from thread_support.
+	* caf/shmem/supervisor.c: Use windows routines where applicable.
+	(get_memory_size_from_envvar): Same.
+	(ensure_shmem_initialization): Same.
+	(supervisor_main_loop): Use windows process start on windows
+	without fork().
+	* caf/shmem/supervisor.h: Use types from thread_support.
+	* caf/shmem/sync.c (lock_table): Use routines from thread_support.
+	(unlock_table): Same.
+	(sync_init): Same.
+	(sync_init_supervisor): Same.
+	(sync_table): Same.
+	(lock_event): Same.
+	(unlock_event): Same.
+	(event_post): Same.
+	(event_wait): Same.
+	* caf/shmem/sync.h: Use types from thread_support.
+	* caf/shmem/teams_mgmt.c (update_teams_images): Use routines from
+	thread_support.
+	* caf/shmem/thread_support.c: Add synchronisation primitives for
+	windows.
+	(smax): Windows only: Max for size_t.
+	(get_handle): Windows only: Get the windows handle for a given
+	id or create a new one, if it does not exist.
+	(get_mutex): Windows only: Shortcut for getting a windows mutex
+	handle.
+	(get_condvar): Windows only: Same, but for condition variable.
+	(thread_support_init_supervisor): Windows only: Clear tracker of
+	allocated handle ids.
+	(caf_shmem_mutex_lock): Windows only: Implememtation of lock,
+	(caf_shmem_mutex_trylock): Windows only: trylock, and
+	(caf_shmem_mutex_unlock): Windows only:  unlock for Windows.
+	(bm_is_set): Windows only: Check a bit is set in a mask.
+	(bm_clear_bit): Windows only: Clear a bit in a mask.
+	(bm_set_mask): Windows only: Set all bits in a mask.
+	(bm_is_none): Windows only: Check if all bits are cleared.
+	(caf_shmem_cond_wait): Windows only: Condition variable
+	implemenation fro wait,
+	(caf_shmem_cond_broadcast): Windows only: broadcast, and
+	(caf_shmem_cond_signal): Windows only: signal on Windows.
+	(caf_shmem_cond_update_count): Windows only: Need to know the
+	images participating in a condition variable.
+	(thread_support_cleanup): Windows only: Clean up the handles on
+	exit.
+	* caf/shmem/thread_support.h: Conditionally compile the types
+	as required for Windows and other OSes.
+
+2026-02-26  Andre Vehreschild  <vehre@gcc.gnu.org>
+
+	* caf/shmem/allocator.c (next_power_of_two): Use sane clzl
+	implementation or alternative.
+
+2026-02-26  Andre Vehreschild  <vehre@gcc.gnu.org>
+
+	PR fortran/88076
+	* caf/libcaf.h (LIBCAF_H): Remove unused header inclusions.
+	* caf/caf_error.c: New file.
+	* caf/caf_error.h: New file.
+	* caf/shmem.c: New file.
+	* caf/shmem/alloc.c: New file.
+	* caf/shmem/alloc.h: New file.
+	* caf/shmem/allocator.c: New file.
+	* caf/shmem/allocator.h: New file.
+	* caf/shmem/collective_subroutine.c: New file.
+	* caf/shmem/collective_subroutine.h: New file.
+	* caf/shmem/counter_barrier.c: New file.
+	* caf/shmem/counter_barrier.h: New file.
+	* caf/shmem/hashmap.c: New file.
+	* caf/shmem/hashmap.h: New file.
+	* caf/shmem/shared_memory.c: New file.
+	* caf/shmem/shared_memory.h: New file.
+	* caf/shmem/supervisor.c: New file.
+	* caf/shmem/supervisor.h: New file.
+	* caf/shmem/sync.c: New file.
+	* caf/shmem/sync.h: New file.
+	* caf/shmem/teams_mgmt.c: New file.
+	* caf/shmem/teams_mgmt.h: New file.
+	* caf/shmem/thread_support.c: New file.
+	* caf/shmem/thread_support.h: New file.
+
+2026-02-26  Andre Vehreschild  <vehre@gcc.gnu.org>
+
+	* caf/libcaf.h (_gfortran_caf_failed_images): Team attribute is
+	used now in some libs.
+	(_gfortran_caf_image_status): Same.
+	(_gfortran_caf_stopped_images): Same.
+	* caf/single.c (caf_internal_error): Use correct printf function
+	to handle va_list.
+
+2026-01-13  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR libfortran/123012
+	* io/list_read.c (read_character): Add new check after
+	get_string and provide better comments.
+
+2026-01-11  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR libfortran/123012
+	* io/list_read.c (read_character): Add new check when no
+	quate is provided and the character string is digits only.
+
+2026-01-09  Thomas Koenig  <tkoenig@gcc.gnu.org>
+
+	* io/io.h: Change type of self to intptr_t.
+	* io/async.h (LOCK_UNIT): Cast __gthread_self () to intptr_t.
+	(TRYLOCK_UNIT): Likewise.
+	(OWN_THREAD_ID): Likewise.
+
+2026-01-08  Thomas Koenig  <tkoenig@gcc.gnu.org>
+
+	* io/async.h: DEBUG_ASYNC needs gtreads support.
+	(LOCK_UNIT): Only lock when there is pthreads support and it is active.
+	Otherwise, just set unit->self to 1.
+	(UNLOCK_UNIT): Only unlock when there is pthreads support and it is active.
+	Otherwise, just set unit->self to 0.
+	(TRYLOCK_UNIT): Only try locking when thee is pthreads support and it is
+	active.  Otherwise, return unit->self.
+	(OWN_THREAD_ID): New macro.
+	* io/io.h: gfc_unit's self is an int when there is no gthreads support.
+	* io/unit.c (check_for_recursive): Check for equality of unit which
+	locked to OWN_THREAD_ID.
+
+2026-01-06  Thomas Koenig  <tkoenig@gcc.gnu.org>
+
+	* io/async.h (UNLOCK_UNIT): New macro.
+	(TRYLOCK_UNIT): New macro.
+	(LOCK_UNIT): New macro.
+	* io/io.h: Delete prototype for unused stash_internal_unit.
+	(check_for_recursive): Add prototype for this new function.
+	* io/transfer.c (data_transfer_init): Add call to new
+	check_for_recursive.
+	* io/unit.c (delete_unit): Fix comment.
+	(check_for_recursive): Add new function.
+	(init_units): Use new macros.
+	(close_unit_1): Likewise.
+	(unlock_unit): Likewise.
+	* io/unix.c (flush_all_units_1): Likewise.
+	(flush_all_units): Likewise.
+	* runtime/error.c (translate_error): : Add translation for
+	"Recursive I/O not allowed runtime error message.
+
+2026-01-03  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	Revert:
+	2026-01-03  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR libfortran/119136
+	* io/io.h: Delete prototype for unused stash_internal_unit.
+	(check_for_recursive): Add prototype for this new function.
+	* io/transfer.c (data_transfer_init): Add call to new
+	check_for_recursive.
+	* io/unit.c (delete_unit): Fix comment.
+	(check_for_recursive): Add new function.
+	* runtime/error.c (translate_error): Add translation for
+	"Recursive I/O not allowed runtime error message.
+
 2026-01-01  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
 
 	PR libfortran/119136

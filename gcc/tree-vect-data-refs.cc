@@ -732,11 +732,45 @@ vect_analyze_early_break_dependences (loop_vec_info loop_vinfo)
 	  if (is_gimple_debug (stmt))
 	    continue;
 
+	  stmt_vec_info orig_stmt_vinfo = loop_vinfo->lookup_stmt (stmt);
 	  stmt_vec_info stmt_vinfo
-	    = vect_stmt_to_vectorize (loop_vinfo->lookup_stmt (stmt));
+	    = vect_stmt_to_vectorize (orig_stmt_vinfo);
 	  auto dr_ref = STMT_VINFO_DATA_REF (stmt_vinfo);
 	  if (!dr_ref)
-	    continue;
+	    {
+	      /* Trapping statements after the last early exit are fine.  */
+	      if (check_deps)
+		{
+		  bool could_trap_p = false;
+		  gimple *cur_stmt = STMT_VINFO_STMT (stmt_vinfo);
+		  could_trap_p = gimple_could_trap_p (cur_stmt);
+		  if (STMT_VINFO_IN_PATTERN_P (orig_stmt_vinfo))
+		    {
+		      gimple_stmt_iterator gsi2;
+		      auto stmt_seq
+			= STMT_VINFO_PATTERN_DEF_SEQ (orig_stmt_vinfo);
+		      for (gsi2 = gsi_start (stmt_seq);
+			   !could_trap_p && !gsi_end_p (gsi2); gsi_next (&gsi2))
+			{
+			  cur_stmt = gsi_stmt (gsi2);
+			  could_trap_p = gimple_could_trap_p (cur_stmt);
+			}
+		    }
+
+		  if (could_trap_p)
+		    {
+		      if (dump_enabled_p ())
+			dump_printf_loc (MSG_MISSED_OPTIMIZATION, vect_location,
+			     "cannot vectorize as operation may trap.\n");
+		      return opt_result::failure_at (cur_stmt,
+			     "can't safely apply code motion to dependencies"
+			     " to vectorize the early exit. %G may trap.\n",
+			     cur_stmt);
+		    }
+		}
+
+	      continue;
+	    }
 
 	  /* We know everything below dest_bb is safe since we know we
 	     had a full vector iteration when reaching it.  Either by
@@ -2040,33 +2074,21 @@ vect_peeling_hash_get_lowest_cost (_vect_peel_info **slot,
 				   _vect_peel_extended_info *min)
 {
   vect_peel_info elem = *slot;
-  int dummy;
   unsigned int inside_cost = 0, outside_cost = 0;
   loop_vec_info loop_vinfo = dyn_cast <loop_vec_info> (min->vinfo);
-  stmt_vector_for_cost prologue_cost_vec, body_cost_vec,
-		       epilogue_cost_vec;
+  stmt_vector_for_cost prologue_cost_vec, body_cost_vec;
 
   prologue_cost_vec.create (2);
   body_cost_vec.create (2);
-  epilogue_cost_vec.create (2);
 
   vect_get_peeling_costs_all_drs (loop_vinfo, elem->dr_info, &inside_cost,
 				  &outside_cost, &body_cost_vec,
 				  &prologue_cost_vec, elem->npeel);
 
   body_cost_vec.release ();
-
-  outside_cost += vect_get_known_peeling_cost
-    (loop_vinfo, elem->npeel, &dummy,
-     &LOOP_VINFO_SCALAR_ITERATION_COST (loop_vinfo),
-     &prologue_cost_vec, &epilogue_cost_vec);
-
-  /* Prologue and epilogue costs are added to the target model later.
-     These costs depend only on the scalar iteration cost, the
-     number of peeling iterations finally chosen, and the number of
-     misaligned statements.  So discard the information found here.  */
   prologue_cost_vec.release ();
-  epilogue_cost_vec.release ();
+
+  outside_cost += vect_get_known_peeling_cost (loop_vinfo, elem->npeel);
 
   if (inside_cost < min->inside_cost
       || (inside_cost == min->inside_cost
@@ -2502,8 +2524,7 @@ vect_enhance_data_refs_alignment (loop_vec_info loop_vinfo)
               if (unlimited_cost_model (LOOP_VINFO_LOOP (loop_vinfo)))
 		{
 		  unsigned group_size = 1;
-		  if (STMT_SLP_TYPE (stmt_info)
-		      && STMT_VINFO_GROUPED_ACCESS (stmt_info))
+		  if (STMT_VINFO_GROUPED_ACCESS (stmt_info))
 		    group_size = DR_GROUP_SIZE (stmt_info);
 		  nscalars = vf * group_size;
 		}
@@ -2658,18 +2679,8 @@ vect_enhance_data_refs_alignment (loop_vec_info loop_vinfo)
 	  peel_for_unknown_alignment.outside_cost = load_outside_cost;
 	}
 
-      stmt_vector_for_cost prologue_cost_vec, epilogue_cost_vec;
-      prologue_cost_vec.create (2);
-      epilogue_cost_vec.create (2);
-
-      int dummy2;
-      peel_for_unknown_alignment.outside_cost += vect_get_known_peeling_cost
-	(loop_vinfo, estimated_npeels, &dummy2,
-	 &LOOP_VINFO_SCALAR_ITERATION_COST (loop_vinfo),
-	 &prologue_cost_vec, &epilogue_cost_vec);
-
-      prologue_cost_vec.release ();
-      epilogue_cost_vec.release ();
+      peel_for_unknown_alignment.outside_cost
+	+= vect_get_known_peeling_cost (loop_vinfo, estimated_npeels);
 
       peel_for_unknown_alignment.peel_info.count = dr0_same_align_drs + 1;
     }
@@ -2727,18 +2738,7 @@ vect_enhance_data_refs_alignment (loop_vec_info loop_vinfo)
 
       /* Add epilogue costs.  As we do not peel for alignment here, no prologue
 	 costs will be recorded.  */
-      stmt_vector_for_cost prologue_cost_vec, epilogue_cost_vec;
-      prologue_cost_vec.create (2);
-      epilogue_cost_vec.create (2);
-
-      int dummy2;
-      nopeel_outside_cost += vect_get_known_peeling_cost
-	(loop_vinfo, 0, &dummy2,
-	 &LOOP_VINFO_SCALAR_ITERATION_COST (loop_vinfo),
-	 &prologue_cost_vec, &epilogue_cost_vec);
-
-      prologue_cost_vec.release ();
-      epilogue_cost_vec.release ();
+      nopeel_outside_cost += vect_get_known_peeling_cost (loop_vinfo, 0);
 
       npeel = best_peel.peel_info.npeel;
       dr0_info = best_peel.peel_info.dr_info;
@@ -3068,10 +3068,9 @@ vect_enhance_data_refs_alignment (loop_vec_info loop_vinfo)
 
 /* Function vect_analyze_data_refs_alignment
 
-   Analyze the alignment of the data-references in the loop.
-   Return FALSE if a data reference is found that cannot be vectorized.  */
+   Analyze the alignment of the data-references in the loop.  */
 
-opt_result
+void
 vect_analyze_data_refs_alignment (loop_vec_info loop_vinfo)
 {
   DUMP_VECT_SCOPE ("vect_analyze_data_refs_alignment");
@@ -3094,8 +3093,6 @@ vect_analyze_data_refs_alignment (loop_vec_info loop_vinfo)
 					   STMT_VINFO_VECTYPE (dr_info->stmt));
 	}
     }
-
-  return opt_result::success ();
 }
 
 
@@ -5628,10 +5625,24 @@ vect_get_new_ssa_name (tree type, enum vect_var_kind var_kind, const char *name)
 static void
 vect_duplicate_ssa_name_ptr_info (tree name, dr_vec_info *dr_info)
 {
-  duplicate_ssa_name_ptr_info (name, DR_PTR_INFO (dr_info->dr));
-  /* DR_PTR_INFO is for a base SSA name, not including constant or
-     variable offsets in the ref so its alignment info does not apply.  */
-  mark_ptr_info_alignment_unknown (SSA_NAME_PTR_INFO (name));
+  if (DR_PTR_INFO (dr_info->dr))
+    {
+      duplicate_ssa_name_ptr_info (name, DR_PTR_INFO (dr_info->dr));
+      /* DR_PTR_INFO is for a base SSA name, not including constant or
+	 variable offsets in the ref so its alignment info does not apply.  */
+      mark_ptr_info_alignment_unknown (SSA_NAME_PTR_INFO (name));
+    }
+  else if (!SSA_NAME_PTR_INFO (name))
+    {
+      tree base = get_base_address (dr_info->dr->ref);
+      if (VAR_P (base)
+	  || TREE_CODE (base) == PARM_DECL
+	  || TREE_CODE (base) == RESULT_DECL)
+	{
+	  struct ptr_info_def *pi = get_ptr_info (name);
+	  pt_solution_set_var (&pi->pt, base);
+	}
+    }
 }
 
 /* Function vect_create_addr_base_for_vector_ref.
@@ -5722,8 +5733,7 @@ vect_create_addr_base_for_vector_ref (vec_info *vinfo, stmt_vec_info stmt_info,
   addr_base = force_gimple_operand (addr_base, &seq, true, dest);
   gimple_seq_add_seq (new_stmt_list, seq);
 
-  if (DR_PTR_INFO (dr)
-      && TREE_CODE (addr_base) == SSA_NAME
+  if (TREE_CODE (addr_base) == SSA_NAME
       /* We should only duplicate pointer info to newly created SSA names.  */
       && SSA_NAME_VAR (addr_base) == dest)
     {
@@ -5971,11 +5981,8 @@ vect_create_data_ref_ptr (vec_info *vinfo, stmt_vec_info stmt_info,
       incr = gsi_stmt (incr_gsi);
 
       /* Copy the points-to information if it exists. */
-      if (DR_PTR_INFO (dr))
-	{
-	  vect_duplicate_ssa_name_ptr_info (indx_before_incr, dr_info);
-	  vect_duplicate_ssa_name_ptr_info (indx_after_incr, dr_info);
-	}
+      vect_duplicate_ssa_name_ptr_info (indx_before_incr, dr_info);
+      vect_duplicate_ssa_name_ptr_info (indx_after_incr, dr_info);
       if (ptr_incr)
 	*ptr_incr = incr;
 
@@ -6000,11 +6007,8 @@ vect_create_data_ref_ptr (vec_info *vinfo, stmt_vec_info stmt_info,
       incr = gsi_stmt (incr_gsi);
 
       /* Copy the points-to information if it exists. */
-      if (DR_PTR_INFO (dr))
-	{
-	  vect_duplicate_ssa_name_ptr_info (indx_before_incr, dr_info);
-	  vect_duplicate_ssa_name_ptr_info (indx_after_incr, dr_info);
-	}
+      vect_duplicate_ssa_name_ptr_info (indx_before_incr, dr_info);
+      vect_duplicate_ssa_name_ptr_info (indx_after_incr, dr_info);
       if (ptr_incr)
 	*ptr_incr = incr;
 
@@ -6085,11 +6089,7 @@ bump_vector_ptr (vec_info *vinfo,
     }
 
   /* Copy the points-to information if it exists. */
-  if (DR_PTR_INFO (dr))
-    {
-      duplicate_ssa_name_ptr_info (new_dataref_ptr, DR_PTR_INFO (dr));
-      mark_ptr_info_alignment_unknown (SSA_NAME_PTR_INFO (new_dataref_ptr));
-    }
+  duplicate_ssa_name_ptr_info (new_dataref_ptr, DR_PTR_INFO (dr));
 
   if (!ptr_incr)
     return new_dataref_ptr;
@@ -6865,7 +6865,6 @@ vect_supportable_dr_alignment (vec_info *vinfo, dr_vec_info *dr_info,
 	  /* If we are doing SLP then the accesses need not have the
 	     same alignment, instead it depends on the SLP group size.  */
 	  if (loop_vinfo
-	      && STMT_SLP_TYPE (stmt_info)
 	      && STMT_VINFO_GROUPED_ACCESS (stmt_info)
 	      && !multiple_p (LOOP_VINFO_VECT_FACTOR (loop_vinfo)
 			      * (DR_GROUP_SIZE

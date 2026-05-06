@@ -175,7 +175,6 @@ LIBGA68_CHECK_ATTRIBUTE_VISIBILITY
 
 # Search for needed functions in host libraries.
 AC_SEARCH_LIBS([malloc], [c])
-AC_SEARCH_LIBS([cosf], [m])
 
 # Determine what GCC version number to use in filesystem paths.
 GCC_BASE_VER
@@ -235,7 +234,7 @@ AM_CONDITIONAL(LIBGA68_USE_SYMVER_SUN, [test "x$ga68_use_symver" = xsun])
 AC_ARG_ENABLE(algol68-gc,
 [AS_HELP_STRING([--enable-algol68-gc],
 		[enable use of Boehm's garbage collector with the
-		 GNU Algol runtime])],,enable_algol68_gc=no)
+		 GNU Algol runtime])],,enable_algol68_gc=auto)
 AC_ARG_WITH([target-bdw-gc],
 [AS_HELP_STRING([--with-target-bdw-gc=PATHLIST],
 		[specify prefix directory for installed bdw-gc package.
@@ -247,6 +246,11 @@ AC_ARG_WITH([target-bdw-gc-include],
 AC_ARG_WITH([target-bdw-gc-lib],
 [AS_HELP_STRING([--with-target-bdw-gc-lib=PATHLIST],
 		[specify directories for installed bdw-gc library])])
+
+AC_ARG_ENABLE(algol68-gc-debug,
+[AS_HELP_STRING([--enable-algol68-gc-debug],
+		[enable use of Boehm's garbage collector debug functions
+		 with the GNU Algol runtime])],,enable_algol68_gc_debug=no)
 
 bdw_lib_dir=
 case "$enable_algol68_gc" in
@@ -351,10 +355,13 @@ no)
     AC_LINK_IFELSE(
       [AC_LANG_PROGRAM([#include <gc/gc.h>],[GC_init()])],
       [
+        dnl Make sure to include GC_is_init_called and any other
+        dnl feature that may require a "recent" libgc.
         AC_RUN_IFELSE([AC_LANG_SOURCE([[
           #include <gc/gc.h>
           int main() {
-            GC_init();
+            if (!GC_is_init_called ())
+               GC_init();
             return 0;
           }
           ]])],
@@ -368,10 +375,10 @@ no)
     CFLAGS=$save_CFLAGS
     LIBS=$save_LIBS
     if test x$enable_algol68_gc = xauto && test x$system_bdw_gc_found = xno; then
-      AC_MSG_WARN([system bdw-gc not found, building libga68 with no GC support])
+      AC_MSG_WARN([usable system bdw-gc not found, building libga68 with no GC support])
       use_bdw_gc=no
     elif test x$enable_algol68_gc = xyes && test x$system_bdw_gc_found = xno; then
-      AC_MSG_ERROR([system bdw-gc required but not found])
+      AC_MSG_ERROR([usable system bdw-gc required but not found])
     else
       use_bdw_gc=yes
       AC_MSG_RESULT([found])
@@ -404,6 +411,17 @@ case $host in
   *) ;;
 esac
 AC_SUBST(extra_darwin_ldflags_libga68)
+
+case "$enable_algol68_gc_debug" in
+  no) ;;
+  *)
+    if test "$use_bdw_gc" = no; then
+      AC_MSG_ERROR([GC debugging enabled but GC is not being used])
+    else
+      LIBGA68_GCFLAGS="$LIBGA68_GCFLAGS -DGC_DEBUG"
+    fi
+    ;;
+esac
 
 # Subst some variables used in Makefile.am
 AC_SUBST(LIBGA68_GCFLAGS)

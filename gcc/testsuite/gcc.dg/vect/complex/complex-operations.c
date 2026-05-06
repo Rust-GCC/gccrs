@@ -1,3 +1,5 @@
+/* { dg-skip-if "template file" { *-*-* } } */
+
 #include <stdio.h>
 #include <complex.h>
 

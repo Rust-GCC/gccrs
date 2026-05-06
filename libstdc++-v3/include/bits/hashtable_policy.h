@@ -777,7 +777,7 @@ namespace __detail
       typename _RehashPolicy::_State _M_prev_state;
 
       _RehashStateGuard(_RehashPolicy& __policy)
-      : _M_guarded_obj(std::__addressof(__policy))
+      : _M_guarded_obj(std::addressof(__policy))
       , _M_prev_state(__policy._M_state())
       { }
       _RehashStateGuard(const _RehashStateGuard&) = delete;
@@ -872,6 +872,26 @@ namespace __detail
 	  __throw_out_of_range(__N("unordered_map::at"));
 	return __ite->second;
       }
+
+      template <typename _Kt>
+	mapped_type&
+	_M_at_tr(const _Kt& __k)
+	{
+	  auto __ite = static_cast<__hashtable*>(this)->_M_find_tr(__k);
+	  if (!__ite._M_cur)
+	    __throw_out_of_range(__N("unordered_map::at"));
+	  return __ite->second;
+	}
+
+      template <typename _Kt>
+	const mapped_type&
+	_M_at_tr(const _Kt& __k) const
+	{
+	  auto __ite = static_cast<const __hashtable*>(this)->_M_find_tr(__k);
+	  if (!__ite._M_cur)
+	    __throw_out_of_range(__N("unordered_map::at"));
+	  return __ite->second;
+	}
     };
 
   template<typename _Key, typename _Val, typename _Alloc, typename _Equal,
@@ -1232,7 +1252,7 @@ namespace __detail
 
       void
       _M_init(const _Hash& __h)
-      { std::_Construct(std::__addressof(__hash_obj_storage::_M_u._M_h), __h); }
+      { std::_Construct(std::addressof(__hash_obj_storage::_M_u._M_h), __h); }
 
       void
       _M_destroy() { __hash_obj_storage::_M_u._M_h.~_Hash(); }
@@ -1413,8 +1433,7 @@ namespace __detail
       template<typename _Kt>
 	bool
 	_M_key_equals_tr(const _Kt& __k,
-			 const _Hash_node_value<_Value,
-					     __hash_cached::value>& __n) const
+	  const _Hash_node_value<_Value, __hash_cached::value>& __n) const
 	{
 	  static_assert(
 	    __is_invocable<const _Equal&, const _Kt&, const _Key&>{},
@@ -1439,8 +1458,7 @@ namespace __detail
       template<typename _Kt>
 	bool
 	_M_equals_tr(const _Kt& __k, __hash_code __c,
-		     const _Hash_node_value<_Value,
-					    __hash_cached::value>& __n) const
+	  const _Hash_node_value<_Value, __hash_cached::value>& __n) const
 	{
 	  if constexpr (__hash_cached::value)
 	    if (__c != __n._M_hash_code)

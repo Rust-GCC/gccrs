@@ -62,24 +62,17 @@ namespace std _GLIBCXX_VISIBILITY(default)
 
   public:
     /// The default constructor stores the current exception (if any).
-    _GLIBCXX26_CONSTEXPR
     nested_exception() noexcept : _M_ptr(current_exception()) { }
 
-    _GLIBCXX26_CONSTEXPR
     nested_exception(const nested_exception&) noexcept = default;
 
-    _GLIBCXX26_CONSTEXPR
     nested_exception& operator=(const nested_exception&) noexcept = default;
 
-#if __cplusplus >= 202400L
-    constexpr virtual ~nested_exception() noexcept {}
-#else
     virtual ~nested_exception() noexcept;
-#endif
 
     /// Rethrow the stored exception, or terminate if none was stored.
     [[noreturn]]
-    _GLIBCXX26_CONSTEXPR void
+    void
     rethrow_nested() const
     {
       if (_M_ptr)
@@ -88,7 +81,7 @@ namespace std _GLIBCXX_VISIBILITY(default)
     }
 
     /// Access the stored exception.
-    _GLIBCXX26_CONSTEXPR exception_ptr
+    exception_ptr
     nested_ptr() const noexcept
     { return _M_ptr; }
   };
@@ -98,11 +91,11 @@ namespace std _GLIBCXX_VISIBILITY(default)
   template<typename _Except>
     struct _Nested_exception : public _Except, public nested_exception
     {
-      _GLIBCXX26_CONSTEXPR explicit _Nested_exception(const _Except& __ex)
+      explicit _Nested_exception(const _Except& __ex)
       : _Except(__ex)
       { }
 
-      _GLIBCXX26_CONSTEXPR explicit _Nested_exception(_Except&& __ex)
+      explicit _Nested_exception(_Except&& __ex)
       : _Except(static_cast<_Except&&>(__ex))
       { }
     };
@@ -151,7 +144,7 @@ namespace std _GLIBCXX_VISIBILITY(default)
    */
   template<typename _Tp>
     [[noreturn]]
-    _GLIBCXX26_CONSTEXPR inline void
+    inline void
     throw_with_nested(_Tp&& __t)
     {
       using _Up = typename decay<_Tp>::type;
@@ -211,7 +204,7 @@ namespace std _GLIBCXX_VISIBILITY(default)
 # if ! __cpp_rtti
     [[__gnu__::__always_inline__]]
 #endif
-    _GLIBCXX26_CONSTEXPR inline void
+    inline void
     rethrow_if_nested(const _Ex& __ex)
     {
       const _Ex* __ptr = __builtin_addressof(__ex);

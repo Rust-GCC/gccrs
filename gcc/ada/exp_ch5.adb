@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2026, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -28,7 +28,6 @@ with Aspects;        use Aspects;
 with Atree;          use Atree;
 with Checks;         use Checks;
 with Debug;          use Debug;
-with Einfo;          use Einfo;
 with Einfo.Entities; use Einfo.Entities;
 with Einfo.Utils;    use Einfo.Utils;
 with Elists;         use Elists;
@@ -49,7 +48,6 @@ with Opt;            use Opt;
 with Restrict;       use Restrict;
 with Rident;         use Rident;
 with Rtsfind;        use Rtsfind;
-with Sinfo;          use Sinfo;
 with Sinfo.Nodes;    use Sinfo.Nodes;
 with Sinfo.Utils;    use Sinfo.Utils;
 with Sem;            use Sem;
@@ -2527,6 +2525,20 @@ package body Exp_Ch5 is
             end if;
 
             Apply_Predicate_Check (Rhs, Typ);
+
+            --  If the generation of the check required capturing a function
+            --  call to remove its side effects, and the assignment initially
+            --  was to be done without controlled actions, then change it to
+            --  be done without finalization only, in other words restore the
+            --  adjustment of the LHS, because the RHS is now a temporary that
+            --  will be finalized after the assignment is complete.
+
+            if No_Ctrl_Actions (N)
+              and then Is_Captured_Function_Call (Rhs)
+            then
+               Set_No_Ctrl_Actions (N, False);
+               Set_No_Finalize_Actions (N, True);
+            end if;
          end if;
       end if;
 
@@ -5049,7 +5061,10 @@ package body Exp_Ch5 is
       Array_Dim  : constant Pos        := Number_Dimensions (Array_Typ);
       Id         : constant Entity_Id  := Defining_Identifier (I_Spec);
       Loc        : constant Source_Ptr := Sloc (Isc);
-      Stats      : List_Id    := Statements (N);
+
+      Stats : List_Id := Statements (N);
+      --  Maybe wrapped in a conditional if a filter is present
+
       Core_Loop  : Node_Id;
       Dim1       : Int;
       Ind_Comp   : Node_Id;
@@ -5339,7 +5354,7 @@ package body Exp_Ch5 is
       Id_Kind  : constant Entity_Kind := Ekind (Id);
       Loc      : constant Source_Ptr  := Sloc (N);
 
-      Stats    : List_Id     := Statements (N);
+      Stats : List_Id := Statements (N);
       --  Maybe wrapped in a conditional if a filter is present
 
       Cursor         : Entity_Id;
@@ -5859,7 +5874,7 @@ package body Exp_Ch5 is
             Loop_Id : constant Entity_Id := Defining_Identifier (LPS);
             Ltype   : constant Entity_Id := Etype (Loop_Id);
             Btype   : constant Entity_Id := Base_Type (Ltype);
-            Stats   : constant List_Id   := Statements (N);
+
             Expr    : Node_Id;
             Decls   : List_Id;
             New_Id  : Entity_Id;
@@ -5880,7 +5895,7 @@ package body Exp_Ch5 is
                Set_Statements (N,
                   New_List (Make_If_Statement (Loc,
                     Condition => Iterator_Filter (LPS),
-                    Then_Statements => Stats)));
+                    Then_Statements => Statements (N))));
                Analyze_List (Statements (N));
             end if;
 
@@ -6000,7 +6015,7 @@ package body Exp_Ch5 is
                        Declarations => Decls,
                        Handled_Statement_Sequence =>
                          Make_Handled_Sequence_Of_Statements (Loc,
-                           Statements => Stats))),
+                           Statements => Statements (N)))),
 
                    End_Label => End_Label (N)));
 

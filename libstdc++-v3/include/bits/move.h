@@ -212,7 +212,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
    *  @brief Swaps two values.
    *  @param  __a  A thing of arbitrary type.
    *  @param  __b  Another thing of arbitrary type.
-   *  @return   Nothing.
   */
   template<typename _Tp>
 #if __glibcxx_concepts // >= C++20

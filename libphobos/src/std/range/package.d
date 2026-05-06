@@ -86,7 +86,7 @@ $(BOOKTABLE ,
         $(TD Creates the range that results from discarding
         the first element from the given range.
     ))
-    $(TR $(TD $(D $(LREF dropBackOne)))
+    $(TR $(TD $(LREF dropBackOne))
         $(TD Creates the range that results from discarding
         the last element from the given range.
     ))
@@ -162,7 +162,7 @@ $(BOOKTABLE ,
         $(TD Similar to `recurrence`, except that a random-access range is
         created.
     ))
-    $(TR $(TD $(D $(LREF slide)))
+    $(TR $(TD $(LREF slide))
         $(TD Creates a range that returns a fixed-size sliding window
         over the original range. Unlike chunks,
         it advances a configurable number of items at a time,
@@ -1807,7 +1807,7 @@ pure @safe nothrow unittest
 /**
 Choose one of two ranges at runtime depending on a Boolean condition.
 
-The ranges may be different, but they must have compatible element types (i.e.
+The ranges may have different capabilities, but they must have compatible element types (i.e.
 `CommonType` must exist for the two element types). The result is a range
 that offers the weakest capabilities of the two (e.g. `ForwardRange` if $(D
 R1) is a random-access range and `R2` is a forward range).
@@ -1914,7 +1914,7 @@ private struct ChooseResult(Ranges...)
                 break sw;
             }
 
-            default: assert(false);
+            default: assert(false, "index exceeds `Ranges.length`");
         }
     }
 
@@ -2280,7 +2280,7 @@ pure @safe nothrow unittest
 /**
 Choose one of multiple ranges at runtime.
 
-The ranges may be different, but they must have compatible element types. The
+The ranges may have different capabilities, but they must have compatible element types. The
 result is a range that offers the weakest capabilities of all `Ranges`.
 
 Params:
@@ -2288,9 +2288,8 @@ Params:
     rs = two or more ranges
 
 Returns:
-    The indexed range. If rs consists of only one range, the return type is an
-    alias of that range's type.
- */
+    A range type dependent on `Ranges`.
+*/
 auto chooseAmong(Ranges...)(size_t index, return scope Ranges rs)
 if (Ranges.length >= 2
         && allSatisfy!(isInputRange, staticMap!(Unqual, Ranges))
@@ -2306,12 +2305,9 @@ if (Ranges.length >= 2
     {
         import std.algorithm.comparison : equal;
 
-        int[4] sarr1 = [1, 2, 3, 4];
-        int[2] sarr2 = [5, 6];
-        int[1] sarr3 = [7];
-        auto arr1 = sarr1[];
-        auto arr2 = sarr2[];
-        auto arr3 = sarr3[];
+        scope arr1 = [1, 2, 3, 4];
+        scope arr2 = [5, 6];
+        scope arr3 = [7];
 
         {
             auto s = chooseAmong(0, arr1, arr2, arr3);
@@ -2321,23 +2317,43 @@ if (Ranges.length >= 2
             s.popFront();
             assert(equal(t, only(1, 2, 3, 4)));
         }
+        // result elements can be modified
         {
             auto s = chooseAmong(1, arr1, arr2, arr3);
             assert(s.length == 2);
             s.front = 8;
             assert(equal(s, only(8, 6)));
-        }
-        {
-            auto s = chooseAmong(1, arr1, arr2, arr3);
-            assert(s.length == 2);
             s[1] = 9;
             assert(equal(s, only(8, 9)));
+            // original range was mutated
+            assert(equal(s, arr2));
         }
+        return 0;
+    }
+    // works at runtime
+    auto a = test();
+    // and at compile time
+    static b = test();
+}
+
+/// Result has minimum capabilities of all given ranges
+@safe nothrow pure @nogc unittest
+{
+    auto test()
+    {
+        import std.algorithm.comparison : equal;
+
+        scope arr1 = [1, 2, 3, 4];
+        scope arr2 = [8, 9];
+        scope arr3 = [10];
+
+        // slicing
         {
             auto s = chooseAmong(1, arr2, arr1, arr3)[1 .. 3];
             assert(s.length == 2);
             assert(equal(s, only(2, 3)));
         }
+        // bidirectional
         {
             auto s = chooseAmong(0, arr1, arr2, arr3);
             assert(s.length == 4);
@@ -2348,6 +2364,7 @@ if (Ranges.length >= 2
             s.back = 3;
             assert(equal(s, only(1, 2, 3)));
         }
+        // range primitives
         {
             uint[5] foo = [1, 2, 3, 4, 5];
             uint[5] bar = [6, 7, 8, 9, 10];
@@ -2359,6 +2376,7 @@ if (Ranges.length >= 2
             assert(c.moveBack() == 10);
             assert(c.moveAt(4) == 10);
         }
+        // composability
         {
             import std.range : cycle;
             auto s = chooseAmong(0, cycle(arr2), cycle(arr3));
@@ -3881,9 +3899,11 @@ pure @safe nothrow @nogc unittest
 }
 
 /++
-    Convenience function which calls
+    `drop` is a convenience function which calls
     $(REF popFrontN, std, range, primitives)`(range, n)` and returns `range`.
-    `drop` makes it easier to pop elements from a range
+    Unlike `popFrontN`, the range argument is passed by copy, not by `ref`.
+
+    `drop` makes it easier to pop elements from a range rvalue
     and then pass it to another function within a single expression,
     whereas `popFrontN` would require multiple statements.
 
@@ -3916,7 +3936,10 @@ if (isInputRange!R)
 {
     import std.algorithm.comparison : equal;
 
-    assert([0, 2, 1, 5, 0, 3].drop(3) == [5, 0, 3]);
+    auto a = [0, 2, 1, 5, 0, 3];
+    assert(a.drop(3) == [5, 0, 3]);
+    assert(a.length == 6); // original unchanged
+
     assert("hello world".drop(6) == "world");
     assert("hello world".drop(50).empty);
     assert("hello world".take(6).drop(3).equal("lo "));
@@ -3993,8 +4016,8 @@ if (isBidirectionalRange!R)
         `range` with `n` elements dropped
 
     See_Also:
-        $(REF popFrontExcatly, std, range, primitives),
-        $(REF popBackExcatly, std, range, primitives)
+        $(REF popFrontExactly, std, range, primitives),
+        $(REF popBackExactly, std, range, primitives)
 +/
 R dropExactly(R)(R range, size_t n)
 if (isInputRange!R)
@@ -4030,9 +4053,11 @@ if (isBidirectionalRange!R)
 }
 
 /++
-    Convenience function which calls
-    `range.popFront()` and returns `range`. `dropOne`
-    makes it easier to pop an element from a range
+    `dropOne` is a convenience function which calls
+    `range.popFront()` and returns `range`.
+    Unlike `popFront`, the range argument is passed by copy, not by `ref`.
+
+    `dropOne` makes it easier to pop an element from a range rvalue
     and then pass it to another function within a single expression,
     whereas `popFront` would require multiple statements.
 
@@ -4439,7 +4464,7 @@ if (isForwardRange!R && !isInfinite!R)
             return _original[_index];
         }
 
-        static if (is(typeof((cast(const R)_original)[_index])))
+        static if (__traits(compiles, (const R r) => r[0]))
         {
             /// ditto
             @property auto ref front() const
@@ -4477,8 +4502,8 @@ if (isForwardRange!R && !isInfinite!R)
             return _original[(n + _index) % _original.length];
         }
 
-        static if (is(typeof((cast(const R)_original)[_index])) &&
-                   is(typeof((cast(const R)_original).length)))
+        static if (__traits(compiles, (const R r) => r[0]) &&
+            __traits(compiles, (const R r) => r.length))
         {
             /// ditto
             auto ref opIndex(size_t n) const
@@ -4552,7 +4577,7 @@ if (isForwardRange!R && !isInfinite!R)
             return _current.front;
         }
 
-        static if (is(typeof((cast(const R)_current).front)))
+        static if (__traits(compiles, (const R r) => r.front))
         {
             /// ditto
             @property auto ref front() const
@@ -4939,6 +4964,23 @@ pure @safe unittest
         range.front = Handle(42);
         assert(called);
     }
+}
+
+// https://github.com/dlang/phobos/issues/10852
+@safe unittest
+{
+    // forward range
+    struct R
+    {
+        int i;
+        int front() => i;
+        bool empty() => i == 0;
+        void popFront() {--i;}
+        R save() => this;
+    }
+
+    auto r = R(10).cycle.take(20);
+    assert(r.array == [10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1]);
 }
 
 private alias lengthType(R) = typeof(R.init.length.init);
@@ -6823,12 +6865,15 @@ pure @safe nothrow unittest
    user-defined types that support `++`, the range is an input
    range.
 
-   An integral iota also supports `in` operator from the right. It takes
-   the stepping into account, the integral won't be considered
-   contained if it falls between two consecutive values of the range.
-   `contains` does the same as in, but from lefthand side.
+   $(DDOC_SECTION_H `in` operator and `contains`:)
+   `iota` over an integral/pointer type defines the `in` operator from the right.
+   `val in iota(...)` is true when `val` occurs in the range. When present, it takes
+   `step` into account - `val` won't be considered
+   contained if it falls between two consecutive elements of the range.
+   The `contains` method does the same as `in`, but from the left-hand side.
 
     Example:
+    $(RUNNABLE_EXAMPLE
     ---
     void main()
     {
@@ -6855,6 +6900,7 @@ pure @safe nothrow unittest
         writeln();
     }
     ---
+    )
 */
 auto iota(B, E, S)(B begin, E end, S step)
 if ((isIntegral!(CommonType!(B, E)) || isPointer!(CommonType!(B, E)))

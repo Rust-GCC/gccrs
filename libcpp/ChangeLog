@@ -1,3 +1,71 @@
+2026-04-21  Marek Polacek  <polacek@redhat.com>
+
+	PR preprocessor/124930
+	* charset.cc (_cpp_destroy_iconv): Correct two calls to
+	iconv_close.
+
+2026-03-19  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	PR c++/124466
+	* line-map.cc (linemap_location_from_module_p): Resolve loc in
+	case it's a macro location.
+
+2026-03-13  Jakub Jelinek  <jakub@redhat.com>
+
+	PR preprocessor/105412
+	* files.cc (_cpp_stack_file): Call deps_add_dep even on
+	empty file path.
+	* mkdeps.cc (class mkdeps): Add first_phony_dep member.
+	(mkdeps::mkdeps ()): Initialize it to 1.
+	(deps_add_dep): When called first with "" argument, decrease
+	d->first_phony_dep to 0.
+	(make_write): For -MP iterate from d->first_phony_dep
+	rather than 1.
+
+2026-02-22  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	PR c++/124153
+	* lex.cc (cpp_maybe_module_directive): Set in_deferred_pragma
+	and eol when we see an unexpected CPP_PRAGMA_EOL.
+
+2026-02-22  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	PR c++/119756
+	* files.cc (search_path_head): Also treat empty string (stdin)
+	as an absolute path.
+
+2026-01-30  Jakub Jelinek  <jakub@redhat.com>
+
+	PR preprocessor/123273
+	* lex.cc (cpp_directive_only_process): Only go to done_comment
+	for '/' if star is true and esc is false.  When seeing '\\' with
+	esc set to true, clear esc as well as star instead of keeping esc
+	set.
+
+2026-01-15  Marek Polacek  <polacek@redhat.com>
+	    Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/120775
+	PR c++/123081
+	PR c++/122634
+	* charset.cc (_cpp_destroy_iconv): Destroy narrow_cset_desc and
+	utf8_cset_desc.
+	(cpp_translate_string): New.
+	(cpp_valid_identifier): New.
+	* include/cpplib.h: Add OPEN_SPLICE, CLOSE_SPLICE, and REFLECT_OP to
+	TTYPE_TABLE.
+	(cpp_translate_string): Declare.
+	(cpp_valid_identifier): Declare.
+	* internal.h (struct cpp_reader): Add reverse_narrow_cset_desc and
+	reverse_utf8_cset_desc fields.
+	* lex.cc (_cpp_lex_direct): Emit CPP_CLOSE_SPLICE, CPP_REFLECT_OP,
+	and CPP_OPEN_SPLICE tokens.
+
+2026-01-09  Ben Boeckel  <ben.boeckel@kitware.com>
+
+	* configure: Regenerate.
+	* configure.ac: Replace gcc-bugs@ with bug reporting link.
+
 2025-12-10  Jason Merrill  <jason@redhat.com>
 
 	* include/cpplib.h (struct cpp_callbacks): Replace 'path' parameter

@@ -40,5 +40,5 @@ contains
     print *, kind (z%x%n), z%x%n
   end subroutine
 end
-! { dg-final { scan-tree-dump-times "Pdtt2_4.1.x.n = 8" 1 "original" } }
-! { dg-final { scan-tree-dump-times "z = Pdtt2_4.1" 1 "original" } }
+! { dg-final { scan-tree-dump-times "PDTt2_4.1.x.n = 8" 1 "original" } }
+! { dg-final { scan-tree-dump-times "z = PDTt2_4.1" 1 "original" } }

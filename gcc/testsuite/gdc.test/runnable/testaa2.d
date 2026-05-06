@@ -307,6 +307,89 @@ void testinenum()
     assert("one" in aa);
 }
 
+// https://github.com/dlang/dmd/issues/21258
+void test21258()
+{
+    alias AliasSeq(TList...) = TList;
+
+    struct S { int x; } // use a local type to not generate required TypeInfo elsewhere
+    foreach (T; AliasSeq!(S[int]))
+        enum E { a = T.init, } // bug report uses bad syntax here, but this crashed, too
+}
+
+// https://github.com/dlang/dmd/issues/21207
+void test21207()
+{
+	struct S { int x; } // use a local type to not generate required TypeInfo elsewhere
+    enum aa = ["baz": S(7)];
+
+    void foo(S[string] x = aa) { }
+    foo();
+}
+
+/************************************************/
+void foo() @safe
+{
+    immutable key = 1;
+    int[int] aa;
+    aa[key] = 123;
+}
+
+// https://github.com/dlang/dmd/issues/22560
+void test22560()
+{
+    enum E { a }
+    bool[E] aa;
+    static assert(!__traits(compiles, aa[0]));
+}
+
+/************************************************/
+
+void testEvaluationOrder()
+{
+	static int last;
+	int[int] aa;
+	int[4] arr;
+
+	int seqi(int n, int i, int ln = __LINE__)
+	{
+		n += ln * 100;
+		assert(n > last);
+		last = n;
+		return i;
+	}
+	ref int[int] seqaa(int n, int ln = __LINE__)
+	{
+		n += ln * 100;
+		assert(n > last);
+		last = n;
+		return aa;
+	}
+	seqaa(1)[seqi(2, 0)] = seqi(3, 1); // aa[0] = 1
+	int x = seqaa(1)[seqi(2, 0)];  // x = aa[0]
+	seqaa(1)[seqi(2, 1)] = seqaa(3)[seqi(4, 0)]; // aa[1] = aa[0]
+	assert(seqi(1, 0) in seqaa(2)); // 0 in aa
+
+	// only executed once?
+	auto naa = seqaa(1).dup;
+	auto len = seqaa(1).length;
+	auto keys = seqaa(1).keys;
+	auto values = seqaa(1).values;
+	auto hash = hashOf(seqaa(1));
+	seqaa(1).rehash;
+	seqaa(1).clear;
+
+	version (none)
+		seqaa(1) = [seqi(2, 1) : seqi(3, 1), seqi(4, 2) : seqi(5, 4)]; // aa = [1:1, 2:4]
+	else
+		aa = [1:1, 2:4];
+
+	assert(seqaa(1).remove(seqi(2, 1))); // aa.remove(1)
+
+	assert(seqaa(1) == seqaa(2)); // aa == aa
+	assert(!(seqaa(1) != seqaa(2))); // aa != aa
+}
+
 /************************************************/
 
 int main()
@@ -318,6 +401,8 @@ int main()
     test3825x();
     testinout();
     testinenum();
+    test21258();
+	testEvaluationOrder();
 
     printf("Success\n");
     return 0;

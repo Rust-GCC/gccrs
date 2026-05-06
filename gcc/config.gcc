@@ -55,11 +55,13 @@
 #			$default_gnu_indirect_function is set to
 #			"no" except for targets which are known to be OK.
 #
-#  gas_flag		Either yes or no depending on whether GNU as was
-#			requested.
+#  gas_flag		One of yes, no or "" depending on whether GNU as was
+#			explicitly requested, explicitly not requested or
+#			unspecified.
 #
-#  gnu_ld_flag		Either yes or no depending on whether GNU ld was
-#			requested.
+#  gnu_ld_flag		One of yes, no or "" depending on whether GNU ld was
+#			explicitly requested, explicitly not requested or
+#			unspecified.
 
 # This file sets the following shell variables for use by the
 # autoconf-generated configure script:
@@ -292,6 +294,15 @@ case ${target} in
     fi;;
 esac
 
+case ${target} in
+  s390-*)
+    if test "x$enable_obsolete" != xyes; then
+      echo "*** Configuration ${target} is deprecated and will be removed." >&2
+      echo "*** Specify --enable-obsolete to build it anyway." >&2
+      exit 1
+    fi;;
+esac
+
 # Unsupported targets list.  Do not put an entry in this list unless
 # it would otherwise be caught by a more permissive pattern.  The list
 # should be in alphabetical order.
@@ -359,7 +370,7 @@ aarch64*-*-*)
 	c_target_objs="aarch64-c.o"
 	cxx_target_objs="aarch64-c.o"
 	d_target_objs="aarch64-d.o"
-	extra_objs="aarch64-builtins.o aarch-common.o aarch64-elf-metadata.o aarch64-sve-builtins.o aarch64-sve-builtins-shapes.o aarch64-sve-builtins-base.o aarch64-sve-builtins-sve2.o aarch64-sve-builtins-sme.o cortex-a57-fma-steering.o aarch64-speculation.o aarch-bti-insert.o aarch64-early-ra.o aarch64-ldp-fusion.o aarch64-sched-dispatch.o aarch64-json-tunings-printer.o aarch64-json-tunings-parser.o"
+	extra_objs="aarch64-builtins.o aarch-common.o aarch64-elf-metadata.o aarch64-sve-builtins.o aarch64-sve-builtins-shapes.o aarch64-sve-builtins-base.o aarch64-sve-builtins-sve2.o aarch64-sve-builtins-sme.o cortex-a57-fma-steering.o aarch64-speculation.o aarch-bti-insert.o aarch64-early-ra.o aarch64-ldp-fusion.o aarch64-sched-dispatch.o aarch64-json-tunings-printer.o aarch64-json-tunings-parser.o aarch64-narrow-gp-writes.o"
 	target_gtfiles="\$(srcdir)/config/aarch64/aarch64-protos.h \$(srcdir)/config/aarch64/aarch64-builtins.h \$(srcdir)/config/aarch64/aarch64-builtins.cc \$(srcdir)/config/aarch64/aarch64-sve-builtins.h \$(srcdir)/config/aarch64/aarch64-sve-builtins.cc"
 	target_has_targetm_common=yes
 	;;
@@ -678,6 +689,28 @@ i[34567]86-*-*)
 x86_64-*-darwin*)
 	;;
 x86_64-*-*)
+        # Pick a default with_abi and with_multilib_list for m32
+        # restricted toolchains
+        case ${target} in
+        *abi32)
+		case ${with_abi} in
+		"" | 32 | m32)
+			with_abi=m32
+			;;
+		*)
+			echo "Invalid --with-abi=$with_abi for m32 target"
+			exit 1
+	       esac
+	       case ${with_multilib_list} in
+	       default | *m32*)
+			;;
+	       *)
+			echo "Invalid multilib list for abi32 target"
+			exit 1
+	       esac
+	       ;;
+	esac
+
 	case ${with_abi} in
 	"")
 		if test "x$with_multilib_list" = xmx32; then
@@ -691,6 +724,9 @@ x86_64-*-*)
 		;;
 	x32 | mx32)
 		tm_file="i386/biarchx32.h ${tm_file}"
+		;;
+	32 | m32)
+		tm_defines="${tm_defines} TARGET_BI_ARCH=1"
 		;;
 	*)
 		echo "Unknown ABI used in --with-abi=$with_abi"
@@ -732,7 +768,7 @@ sapphirerapids alderlake rocketlake eden-x2 nano nano-1000 nano-2000 nano-3000 \
 nano-x2 eden-x4 nano-x4 lujiazui yongfeng shijidadao x86-64 x86-64-v2 \
 x86-64-v3 x86-64-v4 sierraforest graniterapids graniterapids-d grandridge \
 arrowlake arrowlake-s clearwaterforest pantherlake diamondrapids novalake \
-native"
+c86-4g-m4 c86-4g-m6 c86-4g-m7 native"
 
 # Additional x86 processors supported by --with-cpu=.  Each processor
 # MUST be separated by exactly one space.
@@ -2361,7 +2397,10 @@ ia64*-*-freebsd*)
 	;;
 ia64*-*-linux*)
 	tm_file="${tm_file} elfos.h gnu-user.h linux.h glibc-stdint.h ia64/sysv4.h ia64/linux.h"
-	tmake_file="${tmake_file} ia64/t-ia64 ia64/t-linux t-libunwind"
+	tmake_file="${tmake_file} ia64/t-ia64 ia64/t-linux"
+	if test x$with_system_libunwind = xyes ; then
+		tmake_file="${tmake_file} t-libunwind"
+	fi
 	target_cpu_default="MASK_GNU_AS|MASK_GNU_LD"
 	;;
 ia64*-*-hpux*)
@@ -2633,8 +2672,8 @@ loongarch*-*-linux*)
 
 loongarch*-*-elf*)
 	tm_file="elfos.h newlib-stdint.h ${tm_file}"
-	tm_file="${tm_file} loongarch/elf.h loongarch/linux.h loongarch/loongarch-driver.h"
-	tmake_file="${tmake_file} loongarch/t-multilib loongarch/t-linux"
+	tm_file="${tm_file} loongarch/elf.h loongarch/loongarch-driver.h"
+	tmake_file="${tmake_file} loongarch/t-multilib"
 	gnu_ld=yes
 	gas=yes
 
@@ -3697,6 +3736,24 @@ case ${target} in
 	;;
 esac
 
+# picolibc systems
+case "${target}_${with_picolibc}" in
+*-picolibc-*|*_yes)
+	default_use_cxa_atexit=yes
+	use_gcc_stdint=none
+	# add newlib-stdint.h if not already present
+	case "${tm_file}" in
+	*newlib-stdint.h*)
+		;;
+	*)
+		tm_file="${tm_file} newlib-stdint.h"
+		;;
+	esac
+	tm_file="${tm_file} picolibc-spec.h"
+	extra_options="${extra_options} picolibc.opt"
+	;;
+esac
+
 # Assume the existence of indirect function support and allow the use of the
 # resolver attribute.
 case ${target} in
@@ -3949,6 +4006,18 @@ case ${target} in
 	cpu=pentiumpro
 	arch_without_sse2=yes
 	;;
+      c86_4g_m4-*)
+	arch=c86-4g-m4
+	cpu=c86-4g-m4
+	;;
+      c86_4g_m6-*)
+	arch=c86-4g-m6
+	cpu=c86-4g-m6
+	;;
+      c86_4g_m7-*)
+	arch=c86-4g-m7
+	cpu=c86-4g-m7
+	;;
       *)
 	arch=pentiumpro
 	cpu=generic
@@ -4050,6 +4119,18 @@ case ${target} in
       corei7-*)
 	arch=corei7
 	cpu=corei7
+	;;
+      c86_4g_m4-*)
+	arch=c86-4g-m4
+	cpu=c86-4g-m4
+	;;
+      c86_4g_m6-*)
+	arch=c86-4g-m6
+	cpu=c86-4g-m6
+	;;
+      c86_4g_m7-*)
+	arch=c86-4g-m7
+	cpu=c86-4g-m7
 	;;
       *)
 	arch=x86-64
@@ -4302,8 +4383,15 @@ case "${target}" in
 		fi
 		for which in cpu arch tune; do
 			eval "val=\$with_$which"
-			base_val=`echo $val | sed -E -e 's/\+.*//'`
-			ext_val=`echo $val | sed -E -e 's/[a-z0-9.-]+//'`
+			filtered_val=`echo "$val" | sed -E -e 's/[-A-Za-z0-9.+]+//'`
+			if [ x"$filtered_val" != x ]; then
+			  echo "Invalid characters used in --with-$which=$val"
+			  exit 1
+			fi
+
+			escaped_val=`echo "$val" | sed -E -e 's/\./\\\./g'`
+			base_val=`echo "$escaped_val" | sed -E -e 's/\+.*//'`
+			ext_val=`echo "$escaped_val" | sed -E -e 's/^[^+]*//'`
 
 			if [ $which = arch ]; then
 			  def=aarch64-arches.def
@@ -4335,20 +4423,19 @@ case "${target}" in
 
 			  while [ x"$ext_val" != x ]
 			  do
-				ext_val=`echo $ext_val | sed -E -e 's/\+//'`
-				ext=`echo $ext_val | sed -E -e 's/\+.*//'`
-				base_ext=`echo $ext | sed -E -e 's/^no//'`
+				ext_val=`echo "$ext_val" | sed -E -e 's/\+//'`
+				ext=`echo "$ext_val" | sed -E -e 's/\+.*//'`
+				base_ext=`echo "$ext" | sed -E -e 's/^no//'`
 				opt_line=`echo -e "$options_parsed" | \
 					grep "^\"$base_ext\""`
 
-				if [ x"$base_ext" = x ] \
-				    || [ x"$opt_line" != x ]; then
+				if [ x"$opt_line" != x ]; then
 				  true
 				else
 				  echo "Unknown extension used in --with-$which=$val" 1>&2
 				  exit 1
 				fi
-				ext_val=`echo $ext_val | sed -E -e 's/[a-z0-9]+//'`
+				ext_val=`echo "$ext_val" | sed -E -e 's/[^+]+//'`
 			  done
 
 			  true
@@ -5741,7 +5828,7 @@ case "${target}" in
 			case $nvptx_multilib in
 			#TODO 'sm_[...]' list per 'nvptx-sm.def'.
 			sm_30 | sm_35 | sm_37 \
-			| sm_52 | sm_53 \
+			| sm_50 | sm_52 | sm_53 \
 			| sm_61 \
 			| sm_70 | sm_75 \
 			| sm_80 | sm_89 )

@@ -188,6 +188,14 @@ give to GCC into options for GCC to pass to the CPP@.
 Do not define this macro if it does not need to do anything.
 @end defmac
 
+@defmac LIBC_CPP_SPEC
+A C string constant which is appended to the value of
+@code{CPP_SPEC}. @code{LIBC_CPP_SPEC} is intended to depend upon the
+C library in use.
+
+Do not define this macro if it does not need to do anything.
+@end defmac
+
 @defmac CPLUSPLUS_CPP_SPEC
 This macro is just like @code{CPP_SPEC}, but is used for C++, rather
 than C@.  If you do not define this macro, then the value of
@@ -250,6 +258,14 @@ see @file{mips.h} for instance.
 A C string constant that tells the GCC driver program options to
 pass to the linker.  It can also specify how to translate options you
 give to GCC into options for GCC to pass to the linker.
+
+Do not define this macro if it does not need to do anything.
+@end defmac
+
+@defmac LIBC_LINK_SPEC
+A C string constant which is appended to the value of
+@code{LINK_SPEC}. @code{LIBC_LINK_SPEC} is intended to depend upon the
+C library in use.
 
 Do not define this macro if it does not need to do anything.
 @end defmac
@@ -4062,7 +4078,8 @@ control passing certain arguments in registers.
 @deftypefn {Target Hook} bool TARGET_PROMOTE_PROTOTYPES (const_tree @var{fntype})
 This target hook returns @code{true} if an argument declared in a
 prototype as an integral type smaller than @code{int} should actually be
-passed as an @code{int}.  In addition to avoiding errors in certain
+passed as an @code{int}.  This also applies to the type of the first member
++in a transparent union argument.  In addition to avoiding errors in certain
 cases of mismatch, it also makes for better code on certain machines.
 The default is to not promote prototypes.
 @end deftypefn
@@ -10679,8 +10696,8 @@ mode or ``no mode'', depending on context.
 
 @deftypefn {Target Hook} void TARGET_MODE_EMIT (int @var{entity}, int @var{mode}, int @var{prev_mode}, HARD_REG_SET @var{regs_live})
 Generate one or more insns to set @var{entity} to @var{mode}.
-@var{hard_reg_live} is the set of hard registers live at the point where
-the insn(s) are to be inserted. @var{prev_moxde} indicates the mode
+@var{regs_live} is the set of hard registers live at the point where
+the insn(s) are to be inserted. @var{prev_mode} indicates the mode
 to switch from, or is the number of modes if the previous mode is not
 known.  Sets of a lower numbered entity will be emitted before
 sets of a higher numbered entity to a mode of the same or lower priority.
@@ -11012,9 +11029,15 @@ changed via the optimize attribute or pragma, see
 @code{TARGET_OVERRIDE_OPTIONS_AFTER_CHANGE}
 @end deftypefn
 
-@deftypefn {Target Hook} bool TARGET_OPTION_SAME_FUNCTION_VERSIONS (string_slice @var{fn1}, string_slice @var{fn2})
+@deftypefn {Target Hook} bool TARGET_OPTION_SAME_FUNCTION_VERSIONS (string_slice @var{fn1}, const_tree @var{decl1}, string_slice @var{fn2}, const_tree @var{decl2})
 This target hook returns @code{true} if the target/target-version strings
 @var{fn1} and @var{fn2} imply the same function version.
+
+If @var{decl1} and @var{decl2} are non @code{NULL} then @var{fn1} and
+@var{fn2} are from an earlier and a later declaration respectively, and the
+hook diagnoses any version string incompatibility for these decls.
+If the version strings are incompatible and the declarations can not be
+merged, then hook emits an error.
 @end deftypefn
 
 @deftypefn {Target Hook} bool TARGET_OPTION_FUNCTIONS_B_RESOLVABLE_FROM_A (tree @var{decl_a}, tree @var{decl_v}, tree @var{base})

@@ -936,7 +936,9 @@ PlaceInfo::specialize (const Constructor &c) const
 	      TyTy::VariantDef *variant
 		= adt->get_variants ().at (c.get_variant_index ());
 	      if (variant->get_variant_type ()
-		  == TyTy::VariantDef::VariantType::NUM)
+		    == TyTy::VariantDef::VariantType::NUM
+		  || variant->get_variant_type ()
+		       == TyTy::VariantDef::VariantType::UNIT)
 		return {};
 
 	      std::vector<PlaceInfo> new_place_infos;
@@ -1050,6 +1052,7 @@ WitnessPat::to_string () const
 
 	switch (variant->get_variant_type ())
 	  {
+	  case TyTy::VariantDef::VariantType::UNIT:
 	  case TyTy::VariantDef::VariantType::NUM:
 	    {
 	      return buf;
@@ -1145,7 +1148,8 @@ WitnessMatrix::apply_constructor (const Constructor &ctor,
 	    TyTy::ADTType *adt = static_cast<TyTy::ADTType *> (ty);
 	    TyTy::VariantDef *variant
 	      = adt->get_variants ().at (ctor.get_variant_index ());
-	    if (variant->get_variant_type () == TyTy::VariantDef::NUM)
+	    if (variant->get_variant_type () == TyTy::VariantDef::NUM
+		|| variant->get_variant_type () == TyTy::VariantDef::UNIT)
 	      arity = 0;
 	    else
 	      arity = variant->get_fields ().size ();
@@ -1315,8 +1319,12 @@ lower_struct_pattern (Resolver::TypeCheckContext *ctx,
 	  break;
 	case HIR::StructPatternField::ItemType::TUPLE_PAT:
 	  {
-	    // TODO: tuple: pat
-	    rust_unreachable ();
+	    HIR::StructPatternFieldTuplePat *tuple_pat
+	      = static_cast<HIR::StructPatternFieldTuplePat *> (elem.get ());
+	    int field_idx = tuple_pat->get_index ();
+	    fields.at (field_idx) = lower_pattern (
+	      ctx, tuple_pat->get_tuple_pattern (),
+	      variant->get_fields ().at (field_idx)->get_field_type ());
 	  }
 	  break;
 	default:

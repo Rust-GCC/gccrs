@@ -1,4 +1,5 @@
 /* { dg-require-effective-target vect_float } */
+/* { dg-additional-options "-fno-trapping-math" } */
 
 #include <stdarg.h>
 #include "tree-vect.h"

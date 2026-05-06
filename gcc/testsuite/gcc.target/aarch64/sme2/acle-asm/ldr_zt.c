@@ -29,8 +29,8 @@ PROTO (ldr_zt0_x0p64, void, (char *x0)) { svldr_zt (0, x0 + 64); }
 
 /*
 ** ldr_zt0_x0_vl1:
-**	incb	x0
+**	addsvl	x0, x0, #?1
 **	ldr	zt0, \[x0\]
 **	ret
 */
-PROTO (ldr_zt0_x0_vl1, void, (char *x0)) { svldr_zt (0, x0 + svcntb()); }
+PROTO (ldr_zt0_x0_vl1, void, (char *x0)) { svldr_zt (0, x0 + svcntsb()); }

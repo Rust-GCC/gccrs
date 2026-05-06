@@ -15,7 +15,7 @@
  * - $(LINK2 https://github.com/ldc-developers/ldc, LDC repository)
  * - $(LINK2 https://github.com/D-Programming-GDC/gcc, GDC repository)
  *
- * Copyright:   Copyright (C) 1999-2025 by The D Language Foundation, All Rights Reserved
+ * Copyright:   Copyright (C) 1999-2026 by The D Language Foundation, All Rights Reserved
  * Authors:     $(LINK2 https://www.digitalmars.com, Walter Bright)
  * License:     $(LINK2 https://www.boost.org/LICENSE_1_0.txt, Boost License 1.0)
  * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/compiler/src/dmd/target.d, _target.d)
@@ -335,10 +335,10 @@ struct TargetC
     BitFieldStyle bitFieldStyle; /// different C compilers do it differently
 
     /**
-     * Indicates whether the specified bit-field contributes to the alignment
+     * Indicates whether the specified bitfield contributes to the alignment
      * of the containing aggregate.
      * E.g., (not all) ARM ABIs do NOT ignore anonymous (incl. 0-length)
-     * bit-fields.
+     * bitfields.
      */
     extern (C++) bool contributesToAggregateAlignment(BitFieldDeclaration bfd);
 }

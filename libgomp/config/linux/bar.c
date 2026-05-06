@@ -90,7 +90,9 @@ gomp_team_barrier_wait_end (gomp_barrier_t *bar, gomp_barrier_state_t state)
 
       bar->awaited = bar->total;
       team->work_share_cancelled = 0;
-      if (__builtin_expect (team->task_count, 0))
+      unsigned task_count
+	= __atomic_load_n (&team->task_count, MEMMODEL_ACQUIRE);
+      if (__builtin_expect (task_count, 0))
 	{
 	  gomp_barrier_handle_tasks (state);
 	  state &= ~BAR_WAS_LAST;
@@ -118,7 +120,7 @@ gomp_team_barrier_wait_end (gomp_barrier_t *bar, gomp_barrier_state_t state)
 	}
       generation |= gen & BAR_WAITING_FOR_TASK;
     }
-  while (gen != state + BAR_INCR);
+  while (!gomp_barrier_state_is_incremented (gen, state));
 }
 
 void
@@ -154,7 +156,9 @@ gomp_team_barrier_wait_cancel_end (gomp_barrier_t *bar,
 
       bar->awaited = bar->total;
       team->work_share_cancelled = 0;
-      if (__builtin_expect (team->task_count, 0))
+      unsigned task_count
+	= __atomic_load_n (&team->task_count, MEMMODEL_ACQUIRE);
+      if (__builtin_expect (task_count, 0))
 	{
 	  gomp_barrier_handle_tasks (state);
 	  state &= ~BAR_WAS_LAST;
@@ -185,7 +189,7 @@ gomp_team_barrier_wait_cancel_end (gomp_barrier_t *bar,
 	}
       generation |= gen & BAR_WAITING_FOR_TASK;
     }
-  while (gen != state + BAR_INCR);
+  while (!gomp_barrier_state_is_incremented (gen, state));
 
   return false;
 }

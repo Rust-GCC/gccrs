@@ -307,6 +307,7 @@ struct vect_load_store_data : vect_data {
   /* True if the load requires a load permutation.  */
   bool slp_perm;    // SLP_TREE_LOAD_PERMUTATION
   unsigned n_perms; // SLP_TREE_LOAD_PERMUTATION
+  unsigned n_loads; // SLP_TREE_LOAD_PERMUTATION
   /* Whether the load permutation is consecutive and simple.  */
   bool subchain_p; // VMAT_STRIDED_SLP and VMAT_GATHER_SCATTER
 };
@@ -327,6 +328,10 @@ struct _slp_tree {
   vec<stmt_vec_info> stmts;
   /* A group of scalar operands to be vectorized together.  */
   vec<tree> ops;
+  /* A set of lane indices that are live and to be code-generated from
+     this SLP node.  */
+  vec<unsigned> live_lanes;
+
   /* The representative that should be used for analysis and
      code generation.  */
   stmt_vec_info representative;
@@ -456,6 +461,7 @@ public:
 #define SLP_TREE_CHILDREN(S)                     (S)->children
 #define SLP_TREE_SCALAR_STMTS(S)                 (S)->stmts
 #define SLP_TREE_SCALAR_OPS(S)                   (S)->ops
+#define SLP_TREE_LIVE_LANES(S)			 (S)->live_lanes
 #define SLP_TREE_REF_COUNT(S)                    (S)->refcnt
 #define SLP_TREE_VEC_DEFS(S)                     (S)->vec_defs
 #define SLP_TREE_LOAD_PERMUTATION(S)             (S)->load_permutation
@@ -875,6 +881,9 @@ public:
      when we reduce a mask.  */
   tree reduc_vectype_for_mask;
 
+  /* The neutral operand to use, if any.  */
+  tree neutral_op;
+
   /* For INTEGER_INDUC_COND_REDUCTION, the initial value to be used.  */
   tree induc_cond_initial_val;
 
@@ -911,6 +920,7 @@ typedef class vect_reduc_info_s *vect_reduc_info;
 #define VECT_REDUC_INFO_VECTYPE_FOR_MASK(I) ((I)->reduc_vectype_for_mask)
 #define VECT_REDUC_INFO_FORCE_SINGLE_CYCLE(I) ((I)->force_single_cycle)
 #define VECT_REDUC_INFO_RESULT_POS(I) ((I)->reduc_result_pos)
+#define VECT_REDUC_INFO_NEUTRAL_OP(I) ((I)->neutral_op)
 
 /* Information about a reduction accumulator from the main loop that could
    conceivably be reused as the input to a reduction in an epilogue loop.  */
@@ -1641,10 +1651,6 @@ public:
 
   /* True if this is only suitable for SLP vectorization.  */
   bool slp_vect_only_p;
-
-  /* True if this is a pattern that can only be handled by SLP
-     vectorization.  */
-  bool slp_vect_pattern_only_p;
 };
 
 /* Information about a gather/scatter call.  */
@@ -1723,7 +1729,6 @@ struct gather_scatter_info {
 #define STMT_VINFO_REDUC_CODE(S)	(S)->reduc_code
 #define STMT_VINFO_REDUC_DEF(S)		(S)->reduc_def
 #define STMT_VINFO_SLP_VECT_ONLY(S)     (S)->slp_vect_only_p
-#define STMT_VINFO_SLP_VECT_ONLY_PATTERN(S) (S)->slp_vect_pattern_only_p
 #define STMT_VINFO_REDUC_VECTYPE_IN(S)  (S)->reduc_vectype_in
 
 #define DR_GROUP_FIRST_ELEMENT(S) \
@@ -2606,7 +2611,7 @@ extern tree vect_get_smallest_scalar_type (stmt_vec_info, tree);
 extern opt_result vect_analyze_data_ref_dependences (loop_vec_info, unsigned int *);
 extern bool vect_slp_analyze_instance_dependence (vec_info *, slp_instance);
 extern opt_result vect_enhance_data_refs_alignment (loop_vec_info);
-extern opt_result vect_analyze_data_refs_alignment (loop_vec_info);
+extern void vect_analyze_data_refs_alignment (loop_vec_info);
 extern bool vect_slp_analyze_instance_alignment (vec_info *, slp_instance);
 extern opt_result vect_analyze_data_ref_accesses (vec_info *, vec<int> *);
 extern opt_result vect_prune_runtime_alias_test_list (loop_vec_info);
@@ -2673,7 +2678,7 @@ extern void vect_record_loop_len (loop_vec_info, vec_loop_lens *, unsigned int,
 				  tree, unsigned int);
 extern tree vect_get_loop_len (loop_vec_info, gimple_stmt_iterator *,
 			       vec_loop_lens *, unsigned int, tree,
-			       unsigned int, unsigned int);
+			       unsigned int, unsigned int, bool);
 extern tree vect_gen_loop_len_mask (loop_vec_info, gimple_stmt_iterator *,
 				    gimple_stmt_iterator *, vec_loop_lens *,
 				    unsigned int, tree, tree, unsigned int,
@@ -2725,10 +2730,7 @@ extern bool vectorizable_early_exit (loop_vec_info, stmt_vec_info,
 extern bool vect_emulated_vector_p (tree);
 extern bool vect_can_vectorize_without_simd_p (tree_code);
 extern bool vect_can_vectorize_without_simd_p (code_helper);
-extern int vect_get_known_peeling_cost (loop_vec_info, int, int *,
-					stmt_vector_for_cost *,
-					stmt_vector_for_cost *,
-					stmt_vector_for_cost *);
+extern int vect_get_known_peeling_cost (loop_vec_info, int);
 extern tree cse_and_gimplify_to_preheader (loop_vec_info, tree);
 
 /* Nonlinear induction.  */
@@ -2771,7 +2773,7 @@ extern int vect_get_place_in_interleaving_chain (stmt_vec_info, stmt_vec_info);
 extern slp_tree vect_create_new_slp_node (unsigned, tree_code);
 extern void vect_free_slp_tree (slp_tree);
 extern bool compatible_calls_p (gcall *, gcall *, bool);
-extern int vect_slp_child_index_for_operand (const gimple *, int op, bool);
+extern int vect_slp_child_index_for_operand (const stmt_vec_info, int op);
 
 extern tree prepare_vec_mask (loop_vec_info, tree, tree, tree,
 			      gimple_stmt_iterator *);

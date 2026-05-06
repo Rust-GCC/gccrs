@@ -35,20 +35,19 @@ public:
      (or if the value is unknown, typically set later in target).  */
   virtual int option_enabled_p (option_id opt_id) const = 0;
 
-  /* Return malloced memory for the name of the option OPT_ID
-     which enabled a diagnostic, originally of type ORIG_DIAG_KIND but
-     possibly converted to DIAG_KIND by options such as -Werror.
+  /* Return the name of the option OPT_ID which enabled a diagnostic,
+     originally of type ORIG_DIAG_KIND but possibly converted to DIAG_KIND
+     by options such as -Werror.
      May return NULL if no name is to be printed.
      May be passed 0 as well as the index of a particular option.  */
-  virtual char *make_option_name (option_id opt_id,
-				  enum kind orig_diag_kind,
-				  enum kind diag_kind) const = 0;
+  virtual label_text get_option_name (option_id opt_id,
+				      enum kind orig_diag_kind,
+				      enum kind diag_kind) const = 0;
 
-  /* Return malloced memory for a URL describing the option that controls
-     a diagnostic.
+  /* Return a URL describing the option that controls a diagnostic.
      May return NULL if no URL is available.
      May be passed 0 as well as the index of a particular option.  */
-  virtual char *make_option_url (option_id opt_id) const = 0;
+  virtual label_text get_option_url (option_id opt_id) const = 0;
 };
 
 } // namespace diagnostics

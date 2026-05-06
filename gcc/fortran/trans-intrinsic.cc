@@ -675,7 +675,7 @@ gfc_adjust_builtins (void)
       for (hash_map<nofree_string_hash, int>::iterator it
 	   = gfc_vectorized_builtins->begin ();
 	   it != gfc_vectorized_builtins->end (); ++it)
-	free (CONST_CAST (char *, (*it).first));
+	free (const_cast<char *> ((*it).first));
 
       delete gfc_vectorized_builtins;
       gfc_vectorized_builtins = NULL;
@@ -1486,7 +1486,8 @@ conv_caf_send_to_remote (gfc_code *code)
   gfc_init_se (&rhs_se, NULL);
   if (rhs_expr->rank == 0)
     {
-      rhs_se.want_pointer = rhs_expr->ts.type == BT_CHARACTER;
+      rhs_se.want_pointer = rhs_expr->ts.type == BT_CHARACTER
+			    && rhs_expr->expr_type != EXPR_CONSTANT;
       gfc_conv_expr (&rhs_se, rhs_expr);
       gfc_add_block_to_block (&block, &rhs_se.pre);
       opt_rhs_desc = null_pointer_node;
@@ -2073,9 +2074,13 @@ conv_intrinsic_image_status (gfc_se *se, gfc_expr *expr)
 					    GFC_STAT_STOPPED_IMAGE));
     }
   else if (flag_coarray == GFC_FCOARRAY_LIB)
+    /* The team is optional and therefore needs to be a pointer to the opaque
+       pointer.  */
     tmp = build_call_expr_loc (input_location, gfor_fndecl_caf_image_status, 2,
 			       args[0],
-			       num_args < 2 ? null_pointer_node : args[1]);
+			       num_args < 2
+				 ? null_pointer_node
+				 : gfc_build_addr_expr (NULL_TREE, args[1]));
   else
     gcc_unreachable ();
 
@@ -2618,12 +2623,13 @@ conv_intrinsic_cobound (gfc_se * se, gfc_expr * expr)
   gfc_actual_arglist *arg;
   gfc_actual_arglist *arg2;
   gfc_se argse;
-  tree bound, resbound, resbound2, desc, cond, tmp;
+  tree bound, lbound, resbound, resbound2, desc, cond, tmp;
   tree type;
   int corank;
 
   gcc_assert (expr->value.function.isym->id == GFC_ISYM_LCOBOUND
 	      || expr->value.function.isym->id == GFC_ISYM_UCOBOUND
+	      || expr->value.function.isym->id == GFC_ISYM_COSHAPE
 	      || expr->value.function.isym->id == GFC_ISYM_THIS_IMAGE);
 
   arg = expr->value.function.actual;
@@ -2643,7 +2649,8 @@ conv_intrinsic_cobound (gfc_se * se, gfc_expr * expr)
   if (se->ss)
     {
       /* Create an implicit second parameter from the loop variable.  */
-      gcc_assert (!arg2->expr);
+      gcc_assert (!arg2->expr
+		  || expr->value.function.isym->id == GFC_ISYM_COSHAPE);
       gcc_assert (corank > 0);
       gcc_assert (se->loop->dimen == 1);
       gcc_assert (se->ss->info->expr == expr);
@@ -2653,9 +2660,10 @@ conv_intrinsic_cobound (gfc_se * se, gfc_expr * expr)
 			       bound, gfc_rank_cst[arg->expr->rank]);
       gfc_advance_se_ss_chain (se);
     }
+  else if (expr->value.function.isym->id == GFC_ISYM_COSHAPE)
+    bound = gfc_index_zero_node;
   else
     {
-      /* use the passed argument.  */
       gcc_assert (arg2->expr);
       gfc_init_se (&argse, NULL);
       gfc_conv_expr_type (&argse, arg2->expr, gfc_array_index_type);
@@ -2704,8 +2712,15 @@ conv_intrinsic_cobound (gfc_se * se, gfc_expr * expr)
 
   resbound = gfc_conv_descriptor_lbound_get (desc, bound);
 
+  /* COSHAPE needs the lower cobound and so it is stashed here before resbound
+     is overwritten.  */
+  lbound = NULL_TREE;
+  if (expr->value.function.isym->id == GFC_ISYM_COSHAPE)
+    lbound = resbound;
+
   /* Handle UCOBOUND with special handling of the last codimension.  */
-  if (expr->value.function.isym->id == GFC_ISYM_UCOBOUND)
+  if (expr->value.function.isym->id == GFC_ISYM_UCOBOUND
+      || expr->value.function.isym->id == GFC_ISYM_COSHAPE)
     {
       /* Last codimension: For -fcoarray=single just return
 	 the lcobound - otherwise add
@@ -2759,6 +2774,18 @@ conv_intrinsic_cobound (gfc_se * se, gfc_expr * expr)
 	}
       else
 	se->expr = resbound;
+
+      /* Get the coshape for this dimension.  */
+      if (expr->value.function.isym->id == GFC_ISYM_COSHAPE)
+	{
+	  gcc_assert (lbound != NULL_TREE);
+	  se->expr = fold_build2_loc (input_location, MINUS_EXPR,
+				      gfc_array_index_type,
+				      se->expr, lbound);
+	  se->expr = fold_build2_loc (input_location, PLUS_EXPR,
+				      gfc_array_index_type,
+				      se->expr, gfc_index_one_node);
+	}
     }
   else
     se->expr = resbound;
@@ -7647,6 +7674,14 @@ gfc_conv_intrinsic_len (gfc_se * se, gfc_expr * expr)
       break;
 
     case EXPR_ARRAY:
+      /* If there is an explicit type-spec, use it.  */
+      if (arg->ts.u.cl->length && arg->ts.u.cl->length_from_typespec)
+	{
+	  gfc_conv_string_length (arg->ts.u.cl, arg, &se->pre);
+	  len = arg->ts.u.cl->backend_decl;
+	  break;
+	}
+
       /* Obtain the string length from the function used by
          trans-array.cc(gfc_trans_array_constructor).  */
       len = NULL_TREE;
@@ -9864,7 +9899,17 @@ conv_isocbinding_function (gfc_se *se, gfc_expr *expr)
       se->expr = gfc_evaluate_now (se->expr, &se->pre);
     }
   else if (expr->value.function.isym->id == GFC_ISYM_C_FUNLOC)
-    gfc_conv_expr_reference (se, arg->expr);
+    {
+      gfc_conv_expr_reference (se, arg->expr);
+      if (arg->expr->symtree->n.sym->attr.proc_pointer
+	  && arg->expr->symtree->n.sym->attr.dummy)
+	se->expr = build_fold_indirect_ref_loc (input_location, se->expr);
+      /* The code below is necessary to create a reference from the calling
+	 subprogram to the argument of C_FUNLOC() in the call graph.
+	 Please see PR 117303 for more details. */
+      se->expr = convert (pvoid_type_node, se->expr);
+      se->expr = gfc_evaluate_now (se->expr, &se->pre);
+    }
   else if (expr->value.function.isym->id == GFC_ISYM_C_ASSOCIATED)
     {
       gfc_se arg1se;
@@ -11304,6 +11349,10 @@ gfc_conv_intrinsic_function (gfc_se * se, gfc_expr * expr)
       gfc_conv_intrinsic_conjg (se, expr);
       break;
 
+    case GFC_ISYM_COSHAPE:
+      conv_intrinsic_cobound (se, expr);
+      break;
+
     case GFC_ISYM_COUNT:
       gfc_conv_intrinsic_count (se, expr);
       break;
@@ -12006,6 +12055,7 @@ gfc_add_intrinsic_ss_code (gfc_loopinfo * loop ATTRIBUTE_UNUSED, gfc_ss * ss)
     {
     case GFC_ISYM_UBOUND:
     case GFC_ISYM_LBOUND:
+    case GFC_ISYM_COSHAPE:
     case GFC_ISYM_UCOBOUND:
     case GFC_ISYM_LCOBOUND:
     case GFC_ISYM_MAXLOC:
@@ -12031,6 +12081,7 @@ gfc_walk_intrinsic_bound (gfc_ss * ss, gfc_expr * expr)
 
   /* The two argument version returns a scalar.  */
   if (expr->value.function.isym->id != GFC_ISYM_SHAPE
+      && expr->value.function.isym->id != GFC_ISYM_COSHAPE
       && expr->value.function.actual->next->expr)
     return ss;
 
@@ -12209,6 +12260,7 @@ gfc_walk_intrinsic_function (gfc_ss * ss, gfc_expr * expr,
   /* Special cases.  */
   switch (isym->id)
     {
+    case GFC_ISYM_COSHAPE:
     case GFC_ISYM_LBOUND:
     case GFC_ISYM_LCOBOUND:
     case GFC_ISYM_UBOUND:

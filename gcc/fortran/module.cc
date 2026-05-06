@@ -3936,10 +3936,9 @@ mio_expr (gfc_expr **ep)
       break;
 
     case EXPR_SUBSTRING:
-      e->value.character.string
-	= CONST_CAST (gfc_char_t *,
-		      mio_allocated_wide_string (e->value.character.string,
-						 e->value.character.length));
+      e->value.character.string = const_cast<gfc_char_t *>
+	(mio_allocated_wide_string (e->value.character.string,
+				    e->value.character.length));
       mio_ref_list (&e->ref);
       break;
 
@@ -3976,10 +3975,9 @@ mio_expr (gfc_expr **ep)
 	  hwi = e->value.character.length;
 	  mio_hwi (&hwi);
 	  e->value.character.length = hwi;
-	  e->value.character.string
-	    = CONST_CAST (gfc_char_t *,
-			  mio_allocated_wide_string (e->value.character.string,
-						     e->value.character.length));
+	  e->value.character.string = const_cast<gfc_char_t *>
+	    (mio_allocated_wide_string (e->value.character.string,
+					e->value.character.length));
 	  break;
 
 	default:
@@ -5845,13 +5843,14 @@ read_module (void)
 	  /* Include pdt_types if their associated pdt_template is in a
 	     USE, ONLY list.  */
 	  if (p == NULL && name[0] == 'P'
-	      && startswith (name, "Pdt")
+	      && startswith (name, PDT_PREFIX)
 	      && module_list)
 	    {
 	      gfc_use_list *ml = module_list;
 	      for (; ml; ml = ml->next)
 		if (ml->rename
-		    && !strncmp (&name[3], ml->rename->use_name,
+		    && !strncmp (&name[PDT_PREFIX_LEN],
+				 ml->rename->use_name,
 				 strlen (ml->rename->use_name)))
 		  p = name;
 	    }

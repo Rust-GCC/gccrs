@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2020-2025, Free Software Foundation, Inc.         --
+--          Copyright (C) 2020-2026, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -459,6 +459,7 @@ begin -- Gen_IL.Gen.Gen_Entities
         Sm (Contract, Node_Id),
         Sm (Current_Use_Clause, Node_Id),
         Sm (Derived_Type_Link, Node_Id),
+        Sm (Destructor, Node_Id),
         Sm (Direct_Primitive_Operations, Elist_Id),
         Sm (Predicates_Ignored, Flag),
         Sm (Esize, Uint),
@@ -1059,7 +1060,6 @@ begin -- Gen_IL.Gen.Gen_Entities
         Sm (Is_Asynchronous, Flag),
         Sm (Is_Called, Flag),
         Sm (Is_CUDA_Kernel, Flag),
-        Sm (Is_Destructor, Flag),
         Sm (Is_DIC_Procedure, Flag),
         Sm (Is_Generic_Actual_Subprogram, Flag),
         Sm (Is_Initial_Condition_Procedure, Flag),

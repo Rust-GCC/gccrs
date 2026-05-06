@@ -1278,7 +1278,8 @@ struct mips_cpu_info {
 #define ISA_HAS_9BIT_DISPLACEMENT	(mips_isa_rev >= 6		\
 					 || ISA_HAS_MIPS16E2)
 
-#define ISA_HAS_FMIN_FMAX	(mips_isa_rev >= 6)
+#define ISA_HAS_FMIN_FMAX	(mips_isa_rev >= 6			\
+				 || TARGET_MIPS5900)
 
 #define ISA_HAS_FRINT		(mips_isa_rev >= 6)
 
@@ -1704,10 +1705,6 @@ FP_ASM_SPEC "\
 /* FIXME.  LONG_LONG_ACCUM_TYPE_SIZE should be 128 bits, but GCC
    doesn't support 128-bit integers for MIPS32 currently.  */
 #define LONG_LONG_ACCUM_TYPE_SIZE (TARGET_64BIT ? 128 : 64)
-
-/* long double is not a fixed mode, but the idea is that, if we
-   support long double, we also want a 128-bit integer type.  */
-#define MAX_FIXED_MODE_SIZE MIPS_LONG_DOUBLE_TYPE_SIZE
 
 /* Width in bits of a pointer.  */
 #ifndef POINTER_SIZE

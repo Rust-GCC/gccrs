@@ -16,9 +16,9 @@
 
 using __gnu_test::uneq_allocator;
 using UneqAlloc = uneq_allocator<int>;
-using ScopedAlloc = std::scoped_allocator_adaptor<
-  uneq_allocator<std::vector<int, UneqAlloc>>,
-  UneqAlloc>;
+using UneqVecAlloc = uneq_allocator<std::vector<int, UneqAlloc>>;
+using ScopedAlloc
+  = std::scoped_allocator_adaptor<UneqVecAlloc, UneqAlloc>;
 
 struct Obj
 {
@@ -48,9 +48,10 @@ test_default_ctor()
   if (std::is_constant_evaluated())
     return;
 
+  const ScopedAlloc scopedAlloc(UneqVecAlloc(11), UneqAlloc(22));
   // Object is constructed using allocator-aware constructor.
   std::polymorphic<std::vector<int, UneqAlloc>, ScopedAlloc>
-    i3(std::allocator_arg, ScopedAlloc(11, 22));
+    i3(std::allocator_arg, scopedAlloc);
   VERIFY( i3->empty() );
   VERIFY( i3->get_allocator().get_personality() == 22 );
   VERIFY( i3.get_allocator().get_personality() == 11 );
@@ -82,17 +83,18 @@ test_forwarding_ctor()
   if (std::is_constant_evaluated())
     return;
 
+  const ScopedAlloc scopedAlloc(UneqVecAlloc(11), UneqAlloc(22));
   std::vector<int, UneqAlloc> v{1, 2, 3, 4, 5};
   // Object is constructed using allocator-aware constructor.
   std::polymorphic<std::vector<int, UneqAlloc>, ScopedAlloc>
-    i7(std::allocator_arg, ScopedAlloc(11, 22), v);
+    i7(std::allocator_arg, scopedAlloc, v);
   VERIFY( i7->size() == 5  );
   VERIFY( v.size() == 5 );
   VERIFY( i7->get_allocator().get_personality() == 22 );
   VERIFY( i7.get_allocator().get_personality() == 11 );
 
   std::polymorphic<std::vector<int, UneqAlloc>, ScopedAlloc>
-    i8(std::allocator_arg, ScopedAlloc(11, 22), std::move(v));
+    i8(std::allocator_arg, scopedAlloc, std::move(v));
   VERIFY( i8->size() == 5  );
   VERIFY( v.size() == 0 );
   VERIFY( i8->get_allocator().get_personality() == 22 );
@@ -113,14 +115,16 @@ test_inplace_ctor()
   VERIFY( i2->c[1] == 0 );
 
   std::polymorphic<Obj, uneq_allocator<Obj>>
-    i3(std::allocator_arg, 42, std::in_place_type<Obj>);
+    i3(std::allocator_arg, uneq_allocator<Obj>(42),
+       std::in_place_type<Obj>);
   VERIFY( i3->i == 0 );
   VERIFY( i3->c[0] == 0 );
   VERIFY( i3->c[1] == 0 );
   VERIFY( i3.get_allocator().get_personality() == 42 );
 
   std::polymorphic<Obj,  uneq_allocator<Obj>>
-    i4(std::allocator_arg, 42, std::in_place_type<Obj>, 10);
+    i4(std::allocator_arg, uneq_allocator<Obj>(42),
+       std::in_place_type<Obj>, 10);
   VERIFY( i4->i == 10 );
   VERIFY( i4->c[0] == 0 );
   VERIFY( i4->c[1] == 0 );
@@ -160,15 +164,16 @@ test_inplace_ctor()
   if (std::is_constant_evaluated())
     return;
 
+  const ScopedAlloc scopedAlloc(UneqVecAlloc(11), UneqAlloc(22));
   std::polymorphic<std::vector<int, UneqAlloc>, ScopedAlloc>
-    i14(std::allocator_arg, ScopedAlloc(11, 22),
+    i14(std::allocator_arg, scopedAlloc,
 	std::in_place_type<std::vector<int, UneqAlloc>>);
   VERIFY( i14->size() == 0 );
   VERIFY( i14->get_allocator().get_personality() == 22 );
   VERIFY( i14.get_allocator().get_personality() == 11 );
 
   std::polymorphic<std::vector<int, UneqAlloc>, ScopedAlloc>
-    i15(std::allocator_arg, ScopedAlloc(11, 22),
+    i15(std::allocator_arg, scopedAlloc,
 	std::in_place_type<std::vector<int, UneqAlloc>>, 5, 13);
   VERIFY( i15->size() == 5 );
   VERIFY( i15->at(0) == 13 );
@@ -176,7 +181,7 @@ test_inplace_ctor()
   VERIFY( i15.get_allocator().get_personality() == 11 );
 
   std::polymorphic<std::vector<int, UneqAlloc>, ScopedAlloc>
-    i16(std::allocator_arg, ScopedAlloc(11, 22),
+    i16(std::allocator_arg, scopedAlloc,
 	std::in_place_type<std::vector<int, UneqAlloc>>, {1, 2, 3, 4});
   VERIFY( i16->size() == 4 );
   VERIFY( i16->at(2) == 3 );

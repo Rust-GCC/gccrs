@@ -1,3 +1,4 @@
+/* { dg-do run } */
 __attribute__((noipa)) int
 foo (double a, double b)
 {

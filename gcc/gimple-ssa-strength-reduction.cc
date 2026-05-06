@@ -57,6 +57,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree-eh.h"
 #include "builtins.h"
 #include "tree-ssa-dce.h"
+#include "gimple-fold.h"
 
 /* Information about a strength reduction candidate.  Each statement
    in the candidate table represents an expression of one of the
@@ -2219,6 +2220,13 @@ replace_mult_candidate (slsr_cand_t c, tree basis_name, offset_int bump,
 	{
 	  gimple_stmt_iterator gsi = gsi_for_stmt (c->cand_stmt);
 	  slsr_cand_t cc = lookup_cand (c->first_interp);
+	  tree lhs = gimple_assign_lhs (c->cand_stmt);
+	  basis_name = gimple_convert (&gsi, true, GSI_SAME_STMT,
+				       UNKNOWN_LOCATION,
+				       TREE_TYPE (lhs), basis_name);
+	  bump_tree = gimple_convert (&gsi, true, GSI_SAME_STMT,
+				      UNKNOWN_LOCATION,
+				      TREE_TYPE (lhs), bump_tree);
 	  gimple_assign_set_rhs_with_ops (&gsi, code, basis_name, bump_tree);
 	  update_stmt (gsi_stmt (gsi));
 	  while (cc)
@@ -2226,6 +2234,9 @@ replace_mult_candidate (slsr_cand_t c, tree basis_name, offset_int bump,
 	      cc->cand_stmt = gsi_stmt (gsi);
 	      cc = lookup_cand (cc->next_interp);
 	    }
+	  if (gimple_needing_rewrite_undefined (gsi_stmt (gsi)))
+	    rewrite_to_defined_unconditional (&gsi);
+
 	  if (dump_file && (dump_flags & TDF_DETAILS))
 	    stmt_to_print = gsi_stmt (gsi);
 	}
@@ -2329,16 +2340,27 @@ create_add_on_incoming_edge (slsr_cand_t c, tree basis_name,
 
       if (incr_vec[i].initializer)
 	{
+	  tree init = incr_vec[i].initializer;
+	  tree wanted_type = POINTER_TYPE_P (basis_type) ? c->stride_type : basis_type;
+
+	  if (!types_compatible_p (TREE_TYPE (c->stride), wanted_type))
+	    {
+	      tree cast_stride = make_temp_ssa_name (wanted_type, NULL,
+						     "slsr");
+	      cast_stmt = gimple_build_assign (cast_stride, NOP_EXPR,
+					       init);
+	      init = cast_stride;
+	    }
 	  enum tree_code code = negate_incr ? MINUS_EXPR : plus_code;
-	  new_stmt = gimple_build_assign (lhs, code, basis_name,
-					  incr_vec[i].initializer);
+	  new_stmt = gimple_build_assign (lhs, code, basis_name, init);
 	}
       else {
 	tree stride;
+	tree wanted_type = POINTER_TYPE_P (basis_type) ? c->stride_type : basis_type;
 
-	if (!types_compatible_p (TREE_TYPE (c->stride), c->stride_type))
+	if (!types_compatible_p (TREE_TYPE (c->stride), wanted_type))
 	  {
-	    tree cast_stride = make_temp_ssa_name (c->stride_type, NULL,
+	    tree cast_stride = make_temp_ssa_name (wanted_type, NULL,
 						   "slsr");
 	    cast_stmt = gimple_build_assign (cast_stride, NOP_EXPR,
 					     c->stride);
@@ -2363,7 +2385,14 @@ create_add_on_incoming_edge (slsr_cand_t c, tree basis_name,
     }
 
   gimple_set_location (new_stmt, loc);
-  gsi_insert_on_edge (e, new_stmt);
+  if (gimple_needing_rewrite_undefined (new_stmt))
+    {
+      gimple_seq stmts;
+      stmts = rewrite_to_defined_unconditional (new_stmt);
+      gsi_insert_seq_on_edge (e, stmts);
+    }
+  else
+    gsi_insert_on_edge (e, new_stmt);
 
   if (dump_file && (dump_flags & TDF_DETAILS))
     {
@@ -3474,8 +3503,15 @@ insert_initializers (slsr_cand_t c)
 	      gimple_set_location (cast_stmt, loc);
 	    }
 
-	  gsi_insert_before (&gsi, init_stmt, GSI_SAME_STMT);
 	  gimple_set_location (init_stmt, loc);
+	  if (gimple_needing_rewrite_undefined (init_stmt))
+	    {
+	      gimple_seq seq;
+	      seq = rewrite_to_defined_unconditional (init_stmt);
+	      gsi_insert_seq_before (&gsi, seq, GSI_SAME_STMT);
+	    }
+	  else
+	    gsi_insert_before (&gsi, init_stmt, GSI_SAME_STMT);
 	}
       else
 	{
@@ -3483,6 +3519,7 @@ insert_initializers (slsr_cand_t c)
 	  gimple *basis_stmt = lookup_cand (c->basis)->cand_stmt;
 	  location_t loc = gimple_location (basis_stmt);
 
+	  gimple_set_location (init_stmt, gimple_location (basis_stmt));
 	  if (!gsi_end_p (gsi) && stmt_ends_bb_p (gsi_stmt (gsi)))
 	    {
 	      if (cast_stmt)
@@ -3490,7 +3527,14 @@ insert_initializers (slsr_cand_t c)
 		  gsi_insert_before (&gsi, cast_stmt, GSI_SAME_STMT);
 		  gimple_set_location (cast_stmt, loc);
 		}
-	      gsi_insert_before (&gsi, init_stmt, GSI_SAME_STMT);
+	      if (gimple_needing_rewrite_undefined (init_stmt))
+		{
+		  gimple_seq seq;
+		  seq = rewrite_to_defined_unconditional (init_stmt);
+		  gsi_insert_seq_before (&gsi, seq, GSI_SAME_STMT);
+		}
+	      else
+		gsi_insert_before (&gsi, init_stmt, GSI_SAME_STMT);
 	    }
 	  else
 	    {
@@ -3499,10 +3543,15 @@ insert_initializers (slsr_cand_t c)
 		  gsi_insert_after (&gsi, cast_stmt, GSI_NEW_STMT);
 		  gimple_set_location (cast_stmt, loc);
 		}
-	      gsi_insert_after (&gsi, init_stmt, GSI_NEW_STMT);
+	      if (gimple_needing_rewrite_undefined (init_stmt))
+		{
+		  gimple_seq seq;
+		  seq = rewrite_to_defined_unconditional (init_stmt);
+		  gsi_insert_seq_after (&gsi, seq, GSI_SAME_STMT);
+		}
+	      else
+		gsi_insert_after (&gsi, init_stmt, GSI_SAME_STMT);
 	    }
-
-	  gimple_set_location (init_stmt, gimple_location (basis_stmt));
 	}
 
       if (dump_file && (dump_flags & TDF_DETAILS))
@@ -3627,18 +3676,17 @@ static tree
 introduce_cast_before_cand (slsr_cand_t c, tree to_type, tree from_expr)
 {
   tree cast_lhs;
-  gassign *cast_stmt;
   gimple_stmt_iterator gsi = gsi_for_stmt (c->cand_stmt);
 
-  cast_lhs = make_temp_ssa_name (to_type, NULL, "slsr");
-  cast_stmt = gimple_build_assign (cast_lhs, NOP_EXPR, from_expr);
-  gimple_set_location (cast_stmt, gimple_location (c->cand_stmt));
-  gsi_insert_before (&gsi, cast_stmt, GSI_SAME_STMT);
+  cast_lhs = gimple_convert (&gsi, true, GSI_SAME_STMT,
+			     gimple_location (c->cand_stmt),
+			     to_type, from_expr);
 
   if (dump_file && (dump_flags & TDF_DETAILS))
     {
-      fputs ("  Inserting: ", dump_file);
-      print_gimple_stmt (dump_file, cast_stmt, 0);
+      fputs ("  Inserting(cast): ", dump_file);
+      print_generic_expr (dump_file, cast_lhs);
+      fprintf (dump_file, "\n");
     }
 
   return cast_lhs;
@@ -3662,7 +3710,17 @@ replace_rhs_if_not_dup (enum tree_code new_code, tree new_rhs1, tree new_rhs2,
 	  && (!operand_equal_p (new_rhs1, old_rhs2, 0)
 	      || !operand_equal_p (new_rhs2, old_rhs1, 0))))
     {
+      tree lhs = gimple_assign_lhs (c->cand_stmt);
       gimple_stmt_iterator gsi = gsi_for_stmt (c->cand_stmt);
+      tree rhs2_type = TREE_TYPE (lhs);
+      if (POINTER_TYPE_P (rhs2_type))
+	rhs2_type = sizetype;
+      new_rhs1 = gimple_convert (&gsi, true, GSI_SAME_STMT,
+				 UNKNOWN_LOCATION,
+				 TREE_TYPE (lhs), new_rhs1);
+      new_rhs2 = gimple_convert (&gsi, true, GSI_SAME_STMT,
+				 UNKNOWN_LOCATION,
+				 rhs2_type, new_rhs2);
       slsr_cand_t cc = lookup_cand (c->first_interp);
       gimple_assign_set_rhs_with_ops (&gsi, new_code, new_rhs1, new_rhs2);
       update_stmt (gsi_stmt (gsi));
@@ -3672,6 +3730,8 @@ replace_rhs_if_not_dup (enum tree_code new_code, tree new_rhs1, tree new_rhs2,
 	  cc = lookup_cand (cc->next_interp);
 	}
 
+      if (gimple_needing_rewrite_undefined (gsi_stmt (gsi)))
+	rewrite_to_defined_unconditional (&gsi);
       if (dump_file && (dump_flags & TDF_DETAILS))
 	return gsi_stmt (gsi);
     }
@@ -3786,7 +3846,14 @@ replace_one_candidate (slsr_cand_t c, unsigned i, tree basis_name,
 	  || !operand_equal_p (rhs2, orig_rhs2, 0))
 	{
 	  gimple_stmt_iterator gsi = gsi_for_stmt (c->cand_stmt);
+	  tree lhs = gimple_assign_lhs (c->cand_stmt);
 	  slsr_cand_t cc = lookup_cand (c->first_interp);
+	  basis_name = gimple_convert (&gsi, true, GSI_SAME_STMT,
+				       UNKNOWN_LOCATION,
+				       TREE_TYPE (lhs), basis_name);
+	  rhs2 = gimple_convert (&gsi, true, GSI_SAME_STMT,
+				 UNKNOWN_LOCATION,
+				 TREE_TYPE (lhs), rhs2);
 	  gimple_assign_set_rhs_with_ops (&gsi, MINUS_EXPR, basis_name, rhs2);
 	  update_stmt (gsi_stmt (gsi));
 	  while (cc)

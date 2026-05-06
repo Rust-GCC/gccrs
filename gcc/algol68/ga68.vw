@@ -40,6 +40,9 @@
   [NC] This is the GNU68-2025-005-nestable-comments GNU extension.  It
        adds support for nestable block comments.
 
+  [BF] This is the GNU68-2026-001-brief-selection GNU extension.  It
+       adds support for a brief form of the selection construct.
+
   The metaproduction rules, hyper-rules and hyper-alternatives
   introduced by each extension are clearly marked in the sections
   below.  You can easily search for them using the extensions tags in
@@ -388,7 +391,7 @@ k) *vacuum : EMPTY PACK.
 3.4.1 Syntax
 
 A) CHOICE :: choice using boolean ; CASE.
-B) CASE :: choice using intgral ; choice using UNITED.
+B) CASE :: choice using integral ; choice using UNITED.
 
 a) SOID NEST1 CHOICE clause{5D,551a,A341h,A349a} :
      CHOICE STYLE start{91a,-},
@@ -1060,13 +1063,16 @@ a) strong reference to MODE NEST nihil{5B} :
 
 5.3.1.1 Syntax
 
+{ Extensions:
+  [BF] brief selection }
+
 A) REFETY :: REF to ; EMPTY.
 B) REFLEXETY :: REF to ; REF to flexible ; EMPTY.
 
 a) REFETY MODE1 NEST selection{5C} :
      MODE1 field FIELDS applied field selector with TAG{48d},
-       of{94f} token, weak REFLEXETY ROWS of structured with
-                           FIELDS mode NEST SECONDARY{5C},
+       STYLE selection token, weak REFLEXETY ROWS of structured with
+                                   FIELDS mode NEST SECONDARY{5C},
        where (REFETY) is derived from (REFLEXETY){b,c,-}.
 b) WHETHER (transient reference to) is derived from
            (REF to flexible){a,532,66a} :
@@ -1217,12 +1223,14 @@ a) strong MOID NEST skip{5A} : skip{94f} token.
 
 5.6.1 Syntax
 
-A) LANGUAGE :: algol sixty eight ; fortran ; c language ; cpp language.
-B) ALGOL68 :: algol sixty eight.
-C) FORTRAM :: fortran.
-D) CLANG :: c language.
-E) CPPLANG :: cpp language.
-F) DLANG :: d language.
+A) LANGUAGE :: algol sixty eight ; c language.
+B) CODE :: CAIN ; CLAN ; reference to CAIN ;
+           procedure with PERFORMERS yieling COID ;
+           procedure yielding COID.
+C) PERFORMERS :: PERFORMER ; PERFORMERS PERFORMER.
+D) PERFORMER :: CODE parameter.
+E) COID :: CODE ; void.
+F) CAIN :: real ; long real ; integral ; BITS ; boolean ; char.
 
 a) strong MOID NEST virtual hole{5A} :
      virtual nest symbol, strong MOID NEST closed clause{31a}.
@@ -1233,15 +1241,12 @@ c) MOID NEST actual hole{A6a} :
      strong MOID NEST ENCLOSED clause{31a,33a,c,34a,35a,36a,-}.
 d) hole indication{b} :
      character denotation{814a} ; row of character denotation{83a}.
-e) MOID ALGOL68 indication{b} : EMPTY.
-f) MOID FORTRAN indication{b} : bold letter f letter o letter r letter t
-                                     letter r letter a letter n token.
-g) MOID CLANG indication{b} : bold letter c letter l letter a letter n
-                                   letter g.
-e) MOID CPPLANG indication{b} : bold letter c letter p letter p letter l
-                                     letter a letter n letter g.
-f) MOID DLANG indication{b} : bold letter d letter l letter a letter n
-                                   letter g.
+e) MOID algol sixty eight indication{b} : EMPTY.
+f) COID c language indication{b} : bold letter c token.
+
+{ COID-c-language-indication restricts the `MOID's to the set for
+  which a C equivalence can be immediately determined by the compiler
+  without any additional information.  }
 
 { Since no representation is provided for the virtual-nest-symbol, the
   user is unable to construct virtual-holes for himself, but a
@@ -1623,7 +1628,7 @@ d) CHOICE STYLE out{34l} :
        STYLE else{94f,-} token ;
      where (CHOICE) is (CASE), STYLE out{94f,-} token.
 e) CHOICE STYLE finish{34a} :
-     whre (CHOICE) is (choice using boolean),
+     where (CHOICE) is (choice using boolean),
        STYLE fi{94f,-} token ;
      where (CHOICE) is (CASE), STYLE esac{94f,-} token.
 f) NOTION token :
@@ -1675,7 +1680,8 @@ f) STYLE nestable comment item{e} :
   [CS] andth symbol, orel symbol
   [MR] access symbol, module symbol, def symbol, public symbol,
        postlude symbol, formal nest symbol, egg symbol
-  [US] unsafe symbol }
+  [US] unsafe symbol
+  [SS] brief of symbol }
 
 { This section of the Report doesn't describe syntax, but lists all
   the different symbols along with their representation in the
@@ -1695,6 +1701,8 @@ d) module symbol{49a}                   MODULE
    formal nest symbol{56b}              NEST
    egg symbol{A6a,c}                    EGG
 f) unsafe symbol{37a}                   UNSAFE
+   bold of symbol{53a}                  OF
+   brief of symbol{53a}                 '
 h) bold comment begin symbol{92a}       NOTE
    bold comment end symbol{92a}         ETON
    brief comment begin symbol{92a}      {

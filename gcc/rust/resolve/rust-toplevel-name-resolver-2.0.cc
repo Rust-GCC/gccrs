@@ -33,10 +33,10 @@ TopLevel::TopLevel (NameResolutionContext &resolver)
 template <typename T>
 void
 TopLevel::insert_enum_variant_or_error_out (const Identifier &identifier,
-					    const T &node)
+					    const T &node, bool is_also_value)
 {
   insert_enum_variant_or_error_out (identifier, node.get_locus (),
-				    node.get_node_id ());
+				    node.get_node_id (), is_also_value);
 }
 
 void
@@ -58,12 +58,13 @@ TopLevel::check_multiple_insertion_error (
 void
 TopLevel::insert_enum_variant_or_error_out (const Identifier &identifier,
 					    const location_t &locus,
-					    const NodeId node_id)
+					    const NodeId node_id,
+					    bool is_also_value)
 {
   // keep track of each node's location to provide useful errors
   node_locations.emplace (node_id, locus);
 
-  auto result = ctx.insert_variant (identifier, node_id);
+  auto result = ctx.insert_variant (identifier, node_id, is_also_value);
   check_multiple_insertion_error (result, identifier, locus, node_id);
 }
 
@@ -96,6 +97,11 @@ TopLevel::go (AST::Crate &crate)
   // responsible for this ugly and perfom a lot of error checking.
 
   visit (crate);
+
+  if (Analysis::Mappings::get ().lookup_glob_container (crate.get_node_id ())
+      == tl::nullopt)
+    Analysis::Mappings::get ().insert_glob_container (crate.get_node_id (),
+						      &crate);
 }
 
 void
@@ -105,7 +111,8 @@ TopLevel::visit (AST::Module &module)
 
   if (Analysis::Mappings::get ().lookup_glob_container (module.get_node_id ())
       == tl::nullopt)
-    Analysis::Mappings::get ().insert_glob_container (&module);
+    Analysis::Mappings::get ().insert_glob_container (module.get_node_id (),
+						      &module);
 }
 
 void
@@ -234,6 +241,8 @@ TopLevel::visit (AST::Function &function)
   insert_or_error_out (function.get_function_name (), function,
 		       Namespace::Values);
 
+  Analysis::Mappings::get ().add_function_node (function.get_node_id ());
+
   DefaultResolver::visit (function);
 }
 
@@ -303,7 +312,7 @@ TopLevel::visit (AST::TupleStruct &tuple_struct)
 void
 TopLevel::visit (AST::EnumItem &variant)
 {
-  insert_enum_variant_or_error_out (variant.get_identifier (), variant);
+  insert_enum_variant_or_error_out (variant.get_identifier (), variant, true);
 
   DefaultResolver::visit (variant);
 }
@@ -311,7 +320,7 @@ TopLevel::visit (AST::EnumItem &variant)
 void
 TopLevel::visit (AST::EnumItemTuple &variant)
 {
-  insert_enum_variant_or_error_out (variant.get_identifier (), variant);
+  insert_enum_variant_or_error_out (variant.get_identifier (), variant, true);
 
   DefaultResolver::visit (variant);
 }
@@ -319,7 +328,7 @@ TopLevel::visit (AST::EnumItemTuple &variant)
 void
 TopLevel::visit (AST::EnumItemStruct &variant)
 {
-  insert_enum_variant_or_error_out (variant.get_identifier (), variant);
+  insert_enum_variant_or_error_out (variant.get_identifier (), variant, false);
 
   DefaultResolver::visit (variant);
 }
@@ -327,7 +336,7 @@ TopLevel::visit (AST::EnumItemStruct &variant)
 void
 TopLevel::visit (AST::EnumItemDiscriminant &variant)
 {
-  insert_or_error_out (variant.get_identifier (), variant, Namespace::Types);
+  insert_enum_variant_or_error_out (variant.get_identifier (), variant, true);
 
   DefaultResolver::visit (variant);
 }
@@ -345,7 +354,8 @@ TopLevel::visit (AST::Enum &enum_item)
   if (Analysis::Mappings::get ().lookup_glob_container (
 	enum_item.get_node_id ())
       == tl::nullopt)
-    Analysis::Mappings::get ().insert_glob_container (&enum_item);
+    Analysis::Mappings::get ().insert_glob_container (enum_item.get_node_id (),
+						      &enum_item);
 }
 
 void
@@ -360,8 +370,9 @@ TopLevel::visit (AST::Union &union_item)
 void
 TopLevel::visit (AST::ConstantItem &const_item)
 {
-  insert_or_error_out (const_item.get_identifier (), const_item,
-		       Namespace::Values);
+  if (const_item.get_identifier ().as_string () != Values::Keywords::UNDERSCORE)
+    insert_or_error_out (const_item.get_identifier (), const_item,
+			 Namespace::Values);
 
   DefaultResolver::visit (const_item);
 }
@@ -493,7 +504,9 @@ flatten_glob (const AST::UseTreeGlob &glob, std::vector<AST::SimplePath> &paths,
   if (glob.has_path ())
     paths.emplace_back (glob.get_path ());
   else
-    paths.emplace_back (AST::SimplePath ({}, false, glob.get_locus ()));
+    paths.emplace_back (AST::SimplePath (
+      {}, glob.get_glob_type () == AST::UseTreeGlob::PathType::GLOBAL,
+      glob.get_locus ()));
 }
 
 static bool

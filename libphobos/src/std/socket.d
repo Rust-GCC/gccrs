@@ -1284,7 +1284,7 @@ abstract class Address
         // libraries shipped with DMD. Thus, we check for getnameinfo at
         // runtime in the shared module constructor, and use it if it's
         // available in the base class method. Classes for specific network
-        // families (e.g. InternetHost) override this method and use a
+        // families (e.g. InternetAddress) override this method and use a
         // deprecated, albeit commonly-available method when getnameinfo()
         // is not available.
         // http://technet.microsoft.com/en-us/library/aa450403.aspx
@@ -1861,6 +1861,19 @@ public:
     {
         assert(addr.sin6_family == AddressFamily.INET6);
         sin6 = addr;
+    }
+
+    version (Posix)
+    {
+        /// Human readable string representing the IPv6 address in RFC 2373 form.
+        override string toAddrString() @trusted const
+        {
+            char[INET6_ADDRSTRLEN] buf;
+            string addrString = to!string(
+                .inet_ntop(AddressFamily.INET6, &sin6.sin6_addr, buf.ptr, INET6_ADDRSTRLEN)
+            );
+            return addrString;
+        }
     }
 
    /**
@@ -2953,6 +2966,43 @@ public:
         return newSocket;
     }
 
+    /**
+     * Accept an incoming connection and retrieve the peer `Address`. If the
+     * socket is blocking, `accept` waits for a connection request. Throws
+     * `SocketAcceptException` if unable to _accept. See `accepting` for use
+     * with derived classes.
+     */
+    Socket accept(out Address peerAddress) @trusted
+    {
+        Address addr = createAddress();
+        socklen_t nameLen = addr.nameLen;
+        auto newsock = cast(socket_t).accept(sock, addr.name, &nameLen);
+        if (socket_t.init == newsock)
+            throw new SocketAcceptException("Unable to accept socket connection");
+
+        addr.setNameLen(nameLen);
+        peerAddress = addr;
+
+        Socket newSocket;
+        try
+        {
+            newSocket = accepting();
+            assert(newSocket.sock == socket_t.init);
+
+            newSocket.setSock(newsock);
+            version (Windows)
+                newSocket._blocking = _blocking;                 //inherits blocking mode
+            newSocket._family = _family;             //same family
+        }
+        catch (Throwable o)
+        {
+            _close(newsock);
+            throw o;
+        }
+
+        return newSocket;
+    }
+
     /// Disables sends and/or receives.
     void shutdown(SocketShutdown how) @trusted nothrow @nogc
     {
@@ -3510,7 +3560,7 @@ public:
             if (checkError) checkError.setMinCapacity(n);
         }
 
-        int result = .select(n, fr, fw, fe, &timeout.ctimeval);
+        int result = .select(n, fr, fw, fe, timeout !is null ? &timeout.ctimeval : null);
 
         version (Windows)
         {
@@ -3671,6 +3721,10 @@ class UdpSocket: Socket
                 checkAttributes!q{pure nothrow @safe}; assert(0);
             }
             @trusted Socket accept()
+            {
+                checkAttributes!q{@trusted}; assert(0);
+            }
+            @trusted Socket accept(out Address peerAddress)
             {
                 checkAttributes!q{@trusted}; assert(0);
             }
@@ -3845,4 +3899,27 @@ Socket[2] socketPair() @trusted
     auto buf = new ubyte[data.length];
     pair[1].receive(buf);
     assert(buf == data);
+}
+
+// Test accept with peer address
+@safe unittest
+{
+    auto listener = new TcpSocket();
+    scope(exit) listener.close();
+    listener.setOption(SocketOptionLevel.SOCKET, SocketOption.REUSEADDR, true);
+    listener.bind(new InternetAddress(INADDR_LOOPBACK, InternetAddress.PORT_ANY));
+    auto serverAddr = listener.localAddress;
+    listener.listen(1);
+
+    auto client = new TcpSocket(serverAddr);
+    scope(exit) client.close();
+
+    Address peerAddress;
+    auto server = listener.accept(peerAddress);
+    scope(exit) server.close();
+
+    assert(peerAddress !is null);
+    assert(peerAddress.addressFamily == AddressFamily.INET);
+    // The peer address should match the client's local address
+    assert(peerAddress.toAddrString() == client.localAddress.toAddrString());
 }

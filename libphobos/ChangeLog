@@ -1,3 +1,134 @@
+2026-04-21  Iain Buclaw  <ibuclaw@gdcproject.org>
+
+	* libdruntime/MERGE: Merge upstream druntime d1fbbb1a2f.
+
+2026-04-19  Iain Buclaw  <ibuclaw@gdcproject.org>
+
+	* libdruntime/gcc/attributes.d (callingConvention): New UDA.
+
+2026-04-19  Iain Buclaw  <ibuclaw@gdcproject.org>
+
+	* libdruntime/gcc/attributes.d (noSplitStack): New UDA.
+
+2026-04-14  Iain Buclaw  <ibuclaw@gdcproject.org>
+
+	* libdruntime/MERGE: Merge upstream druntime e145b91245.
+
+2026-04-08  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	PR d/88150
+	* testsuite/lib/libphobos.exp (libphobos_skipped_test_p): Extract
+	filename from $test.
+	* testsuite/libphobos.shared/shared.exp (libphobos_skip_tests):
+	Skip libphobos.shared/finalize.d etc. on Solaris.
+
+2026-04-08  Iain Buclaw  <ibuclaw@gdcproject.org>
+
+	PR d/123202
+	* testsuite/lib/libphobos.exp
+	(check_effective_target_phobos_ieee_flags_support): New proc.
+	* testsuite/libphobos.phobos/phobos.exp: Skip math/hardware.d tests if
+	target does not have phobos_iee_flags_support.
+	* testsuite/libphobos.phobos/shared/phobos-shared.exp: Likewise.
+	* testsuite/libphobos.phobos/static/phobos-static.exp: Likewise.
+
+2026-04-01  Iain Buclaw  <ibuclaw@gdcproject.org>
+
+	* libdruntime/MERGE: Merge upstream druntime 55e64690bc.
+	* src/MERGE: Merge upstream phobos 0c519ae39.
+	* src/Makefile.am (PHOBOS_DSOURCES): Add
+	std/internal/windows/bcrypt.d.
+	* src/Makefile.in: Regenerate.
+	* testsuite/libphobos.aa/test_aa.d: Update.
+	* testsuite/libphobos.phobos/std_array.d: Regenerate.
+	* testsuite/libphobos.phobos/std_mathspecial.d: Regenerate.
+	* src/std/internal/windows/bcrypt.d: New file.
+
+2026-03-31  Iain Buclaw  <ibuclaw@gdcproject.org>
+
+	* libdruntime/MERGE: Merge upstream druntime e7c34c13de.
+	* src/MERGE: Merge upstream phobos 0c5c9e984.
+	* testsuite/libphobos.phobos/std_algorithm_comparison.d: Regenerate.
+	* testsuite/libphobos.phobos/std_algorithm_iteration.d: Regenerate.
+	* testsuite/libphobos.phobos/std_algorithm_searching.d: Regenerate.
+	* testsuite/libphobos.phobos/std_array.d: Regenerate.
+	* testsuite/libphobos.phobos/std_concurrency.d: Regenerate.
+	* testsuite/libphobos.phobos/std_conv.d: Regenerate.
+	* testsuite/libphobos.phobos/std_datetime_date.d: Regenerate.
+	* testsuite/libphobos.phobos/std_datetime_systime.d: Regenerate.
+	* testsuite/libphobos.phobos/std_math_algebraic.d: Regenerate.
+	* testsuite/libphobos.phobos/std_meta.d: Regenerate.
+	* testsuite/libphobos.phobos/std_range_package.d: Regenerate.
+	* testsuite/libphobos.phobos/std_sumtype.d: Regenerate.
+	* testsuite/libphobos.phobos/std_traits.d: Regenerate.
+	* testsuite/libphobos.phobos/std_typecons.d: Regenerate.
+	* testsuite/libphobos.phobos/std_uuid.d: Regenerate.
+	* testsuite/libphobos.phobos/std_internal_entropy.d: New test.
+	* testsuite/libphobos.phobos/std_mathspecial.d: New test.
+
+2026-03-12  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	PR d/123202
+	* src/std/math/hardware.d (getIeeeFlags) [GNU && SPARC_Any]: Implement.
+	(resetIeeeFlags) [GNU && SPARC_Any]: Likewise.
+	(hasExceptionTraps) [SPARC_Any]: Return true.
+	(getControlState) [GNU && SPARC_Any]: Implement.
+	(setControlState) [GNU && SPARC_Any]: Likewise.
+
+2026-02-05  Iain Buclaw  <ibuclaw@gdcproject.org>
+
+	* src/MERGE: Merge upstream phobos f7249cf45.
+
+2026-02-05  Iain Buclaw  <ibuclaw@gdcproject.org>
+
+	* libdruntime/Makefile.am (DRUNTIME_DSOURCES): Add
+	core/internal/vararg/gnu.d.
+	(DRUNTIME_DSOURCES_LINUX): Add core/sys/linux/hdlc/ioctl.d,
+	core/sys/linux/net/if_.d.
+	(DRUNTIME_DSOURCES_SOLARIS): Add core/sys/solaris/sys/procfs.d,
+	core/sys/solaris/sys/regset.d, core/sys/solaris/thread.d.
+	* libdruntime/Makefile.in: Regenerate.
+
+2026-02-03  Iain Buclaw  <ibuclaw@gdcproject.org>
+
+	* libdruntime/MERGE: Merge upstream druntime 24a41073c2.
+	* libdruntime/__importc_builtins.di: Reimplement.
+	* src/MERGE: Merge upstream phobos 808314eb2.
+	* testsuite/libphobos.aa/test_aa.d: Adjust test.
+	* testsuite/libphobos.gc/forkgc2.d: Removed.
+	* testsuite/libphobos.thread/filterthrownglobal.d: New test.
+	* testsuite/libphobos.thread/filterthrownmethod.d: New test.
+
+2026-01-31  Iain Buclaw  <ibuclaw@gdcproject.org>
+
+	* libdruntime/MERGE: Merge upstream druntime e1f6680f50.
+	* libdruntime/Makefile.am (DRUNTIME_DSOURCES): Add
+	core/internal/cast_.d.  Remove rt/aaA.d, rt/adi.d, rt/cast_.d.
+	(DRUNTIME_DSOURCES_POSIX): Add core/sys/posix/endian.d.
+	* libdruntime/Makefile.in: Regenerate.
+	* src/MERGE: Merge upstream phobos f87979028.
+	* src/Makefile.am (PHOBOS_DSOURCES): Add std/internal/entropy.d.
+	* src/Makefile.in: Regenerate.
+	* testsuite/libphobos.aa/test_aa.d: Adjust test.
+	* testsuite/libphobos.init_fini/custom_gc.d: Likewise.
+
+2026-01-30  Iain Buclaw  <ibuclaw@gdcproject.org>
+
+	* libdruntime/MERGE: Merge upstream druntime 1017635a96.
+	* libdruntime/Makefile.am (DRUNTIME_DSOURCES_LINUX): Add
+	core/sys/linux/sys/syscall.d, core/sys/linux/syscall.d.
+	* libdruntime/Makefile.in: Regenerate.
+	* src/MERGE: Merge upstream phobos 5a142da0a.
+	* src/Makefile.am (PHOBOS_DSOURCES): Remove
+	std/internal/windows/bcrypt.d.
+	* src/Makefile.in: Regenerate.
+
+2026-01-26  Iain Buclaw  <ibuclaw@gdcproject.org>
+
+	PR d/122800
+	* configure: Regenerate.
+	* configure.ac (libtool_VERSION): Update to 7:0:0.
+
 2025-12-29  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
 
 	* configure: Regenerate.

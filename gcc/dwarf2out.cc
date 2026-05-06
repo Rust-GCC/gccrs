@@ -5969,7 +5969,7 @@ equate_type_number_to_die (tree type, dw_die_ref type_die)
 static dw_die_ref maybe_create_die_with_external_ref (tree);
 struct GTY(()) sym_off_pair
 {
-  const char * GTY((skip)) sym;
+  const char *sym;
   unsigned HOST_WIDE_INT off;
 };
 static GTY(()) hash_map<tree, sym_off_pair> *external_die_map;
@@ -8545,6 +8545,7 @@ generate_skeleton_bottom_up (skeleton_chain_node *parent)
 	       type unit.  Just move the DIE and its children back to
 	       the skeleton tree (in the main CU).  */
 	    remove_child_with_prev (c, prev);
+	    generate_skeleton_ancestor_tree (parent);
 	    add_child_die (parent->new_die, c);
 	    c = prev;
 	  }
@@ -13494,7 +13495,10 @@ is_base_type (tree type)
       return false;
 
     default:
-      if (is_cxx_auto (type))
+      if (is_cxx ()
+	  && TREE_CODE (type) >= LAST_AND_UNUSED_TREE_CODE
+	  && TYPE_P (type)
+	  && TYPE_IDENTIFIER (type))
 	return false;
       gcc_unreachable ();
     }
@@ -21347,7 +21351,9 @@ add_location_or_const_value_attribute (dw_die_ref die, tree decl, bool cache_p)
 static tree
 mangle_referenced_decls (tree *tp, int *walk_subtrees, void *)
 {
-  if (! EXPR_P (*tp) && ! CONSTANT_CLASS_P (*tp))
+  if (! EXPR_P (*tp)
+      && ! CONSTANT_CLASS_P (*tp)
+      && TREE_CODE (*tp) != CONSTRUCTOR)
     *walk_subtrees = 0;
 
   if (VAR_OR_FUNCTION_DECL_P (*tp))
@@ -21395,13 +21401,7 @@ tree_add_const_value_attribute (dw_die_ref die, tree t)
       /* For early_dwarf force mangling of all referenced symbols.  */
       tree initializer = init;
       STRIP_NOPS (initializer);
-      /* rtl_for_decl_init punts on other aggregates, and complex values.  */
-      if (AGGREGATE_TYPE_P (type)
-	  || (TREE_CODE (initializer) == VIEW_CONVERT_EXPR
-	      && AGGREGATE_TYPE_P (TREE_TYPE (TREE_OPERAND (initializer, 0))))
-	  || TREE_CODE (type) == COMPLEX_TYPE)
-	;
-      else if (initializer_constant_valid_p (initializer, type))
+      if (initializer_constant_valid_p (initializer, type))
 	walk_tree (&initializer, mangle_referenced_decls, NULL, NULL);
     }
   /* If the host and target are sane, try harder.  */
@@ -23790,6 +23790,7 @@ dwarf2out_abstract_function (tree decl)
     }
 
   if (DECL_DECLARED_INLINE_P (decl)
+      && !DECL_ARTIFICIAL (decl)
       && lookup_attribute ("artificial", DECL_ATTRIBUTES (decl)))
     add_AT_flag (old_die, DW_AT_artificial, 1);
 
@@ -26959,6 +26960,7 @@ gen_type_die_with_usage (tree type, dw_die_ref context_die,
 
     case NULLPTR_TYPE:
     case LANG_TYPE:
+    unspecified_type:
       /* Just use DW_TAG_unspecified_type.  */
       {
         dw_die_ref type_die = lookup_type_die (type);
@@ -26988,6 +26990,11 @@ gen_type_die_with_usage (tree type, dw_die_ref context_die,
 	  equate_type_number_to_die (type, *die);
 	  break;
 	}
+      if (is_cxx ()
+	  && TREE_CODE (type) >= LAST_AND_UNUSED_TREE_CODE
+	  && TYPE_P (type)
+	  && TYPE_IDENTIFIER (type))
+	goto unspecified_type;
       gcc_unreachable ();
     }
 

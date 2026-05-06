@@ -1,8 +1,9 @@
 /* { dg-do compile } */
-/* { dg-options "-O2 -fdump-tree-forwprop1" } */
+/* { dg-options "-O2 -fdump-tree-forwprop1 -Wno-psabi" } */
 /* { dg-require-effective-target stdint_types } */
 /* { dg-require-effective-target vect_int } */
 /* { dg-additional-options "-fgimple" } */
+/* { dg-additional-options "-msse2" { target ia32 } } */
 
 #include <stdint.h>
 

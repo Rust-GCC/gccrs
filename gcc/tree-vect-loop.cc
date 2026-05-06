@@ -59,6 +59,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "case-cfn-macros.h"
 #include "langhooks.h"
 #include "opts.h"
+#include "hierarchical_discriminator.h"
 
 /* Loop Vectorization Pass.
 
@@ -762,6 +763,7 @@ _loop_vec_info::_loop_vec_info (class loop *loop_in, vec_info_shared *shared)
     peeling_for_gaps (false),
     peeling_for_niter (false),
     early_breaks (false),
+    loop_iv_cond (NULL),
     user_unroll (false),
     no_data_dependencies (false),
     has_mask_store (false),
@@ -1411,7 +1413,7 @@ vect_compute_single_scalar_iteration_cost (loop_vec_info loop_vinfo)
 	  /* We are using vect_prologue here to avoid scaling twice
 	     by the inner loop factor.  */
 	  record_stmt_cost (&LOOP_VINFO_SCALAR_ITERATION_COST (loop_vinfo),
-			    factor, kind, stmt_info, 0, vect_prologue);
+			    factor, kind, stmt_info, 0, vect_body);
         }
     }
 
@@ -1555,7 +1557,8 @@ vect_analyze_loop_form (class loop *loop, gimple *loop_vectorized_call,
 	return opt_result::failure_at (vect_location,
 				       "not vectorized: Bad inner loop.\n");
 
-      if (!expr_invariant_in_loop_p (loop, inner.number_of_iterations))
+      if (inner.number_of_iterations ==  chrec_dont_know
+	  || !expr_invariant_in_loop_p (loop, inner.number_of_iterations))
 	return opt_result::failure_at (vect_location,
 				       "not vectorized: inner-loop count not"
 				       " invariant.\n");
@@ -1691,7 +1694,7 @@ vect_create_loop_vinfo (class loop *loop, vec_info_shared *shared,
 
   unsigned cond_id = 0;
   if (!LOOP_VINFO_NITERS_UNCOUNTED_P (loop_vinfo))
-      LOOP_VINFO_LOOP_IV_COND (loop_vinfo) = info->conds[cond_id++];
+    LOOP_VINFO_LOOP_IV_COND (loop_vinfo) = info->conds[cond_id++];
 
   for (; cond_id < info->conds.length (); cond_id ++)
     LOOP_VINFO_LOOP_CONDS (loop_vinfo).safe_push (info->conds[cond_id]);
@@ -1792,9 +1795,13 @@ vect_analyze_loop_costing (loop_vec_info loop_vinfo,
 	    }
 	}
       /* Reject vectorizing for a single scalar iteration, even if
-	 we could in principle implement that using partial vectors.  */
+	 we could in principle implement that using partial vectors.
+	 But allow such vectorization if VF == 1 in case we do not
+	 need to peel for gaps (if we need, avoid vectorization for
+	 reasons of code footprint).  */
       unsigned peeling_gap = LOOP_VINFO_PEELING_FOR_GAPS (loop_vinfo);
-      if (scalar_niters <= peeling_gap + 1)
+      if (scalar_niters <= peeling_gap + 1
+	  && (assumed_vf > 1 || peeling_gap != 0))
 	{
 	  if (dump_enabled_p ())
 	    dump_printf_loc (MSG_MISSED_OPTIMIZATION, vect_location,
@@ -1950,8 +1957,27 @@ vect_analyze_loop_costing (loop_vec_info loop_vinfo,
       return -1;
     }
 
+  /* As we cannot use a runtime check to gate profitability for uncounted
+     loops require either an estimate or if none, at least a profitable
+     vectorization within the first vector iteration (that condition
+     will practically never be true due to the required epilog and
+     likely alignment prologue).   */
+  if (LOOP_VINFO_NITERS_UNCOUNTED_P (loop_vinfo)
+      && estimated_niter == -1
+      && min_profitable_estimate > (int) vect_vf_for_cost (loop_vinfo))
+    {
+      if (dump_enabled_p ())
+	dump_printf_loc (MSG_NOTE, vect_location,
+			 "not vectorized: no loop iteration estimate on the "
+			 "uncounted loop and not trivially profitable.\n");
+      return -1;
+    }
+
   return 1;
 }
+
+/* Gather data references in LOOP with body BBS and store them into
+   *DATAREFS.  */
 
 static opt_result
 vect_get_datarefs_in_loop (loop_p loop, basic_block *bbs,
@@ -2150,7 +2176,7 @@ vect_analyze_loop_2 (loop_vec_info loop_vinfo, int masked_p, bool &fatal,
 
   loop_p loop = LOOP_VINFO_LOOP (loop_vinfo);
 
-  /* Gather the data references and count stmts in the loop.  */
+  /* Gather the data references.  */
   if (!LOOP_VINFO_DATAREFS (loop_vinfo).exists ())
     {
       opt_result res
@@ -2306,17 +2332,8 @@ start_over:
 
   loop_vinfo->vector_costs = init_cost (loop_vinfo, false);
 
-  /* Analyze the alignment of the data-refs in the loop.
-     Fail if a data reference is found that cannot be vectorized.  */
-
-  ok = vect_analyze_data_refs_alignment (loop_vinfo);
-  if (!ok)
-    {
-      if (dump_enabled_p ())
-	dump_printf_loc (MSG_MISSED_OPTIMIZATION, vect_location,
-			 "bad data alignment.\n");
-      return ok;
-    }
+  /* Analyze the alignment of the data-refs in the loop.  */
+  vect_analyze_data_refs_alignment (loop_vinfo);
 
   /* Prune the list of ddrs to be tested at run-time by versioning for alias.
      It is important to call pruning after vect_analyze_data_ref_accesses,
@@ -2533,7 +2550,7 @@ start_over:
 
   /* Check the costings of the loop make vectorizing worthwhile.  */
   res = vect_analyze_loop_costing (loop_vinfo, suggested_unroll_factor);
-  if (res < 0)
+  if (res < 0 && !param_vect_allow_possibly_not_worthwhile_vectorizations)
     {
       ok = opt_result::failure_at (vect_location,
 				   "Loop costings may not be worthwhile.\n");
@@ -2665,7 +2682,7 @@ again:
   FOR_EACH_VEC_ELT (LOOP_VINFO_SLP_INSTANCES (loop_vinfo), j, instance)
     vect_free_slp_instance (instance);
   LOOP_VINFO_SLP_INSTANCES (loop_vinfo).release ();
-  /* Reset SLP type to loop_vect on all stmts.  */
+  /* Reset altered state on stmts.  */
   for (i = 0; i < LOOP_VINFO_LOOP (loop_vinfo)->num_nodes; ++i)
     {
       basic_block bb = LOOP_VINFO_BBS (loop_vinfo)[i];
@@ -2673,7 +2690,6 @@ again:
 	   !gsi_end_p (si); gsi_next (&si))
 	{
 	  stmt_vec_info stmt_info = loop_vinfo->lookup_stmt (gsi_stmt (si));
-	  STMT_SLP_TYPE (stmt_info) = not_vect;
 	  if (STMT_VINFO_DEF_TYPE (stmt_info) == vect_reduction_def
 	      || STMT_VINFO_DEF_TYPE (stmt_info) == vect_double_reduction_def)
 	    {
@@ -2684,28 +2700,6 @@ again:
 	      STMT_VINFO_DEF_TYPE (vect_stmt_to_vectorize
 					(STMT_VINFO_REDUC_DEF (stmt_info)))
 		= STMT_VINFO_DEF_TYPE (stmt_info);
-	    }
-	}
-      for (gimple_stmt_iterator si = gsi_start_bb (bb);
-	   !gsi_end_p (si); gsi_next (&si))
-	{
-	  if (is_gimple_debug (gsi_stmt (si)))
-	    continue;
-	  stmt_vec_info stmt_info = loop_vinfo->lookup_stmt (gsi_stmt (si));
-	  STMT_SLP_TYPE (stmt_info) = not_vect;
-	  if (STMT_VINFO_IN_PATTERN_P (stmt_info))
-	    {
-	      stmt_vec_info pattern_stmt_info
-		= STMT_VINFO_RELATED_STMT (stmt_info);
-	      if (STMT_VINFO_SLP_VECT_ONLY_PATTERN (pattern_stmt_info))
-		STMT_VINFO_IN_PATTERN_P (stmt_info) = false;
-
-	      gimple *pattern_def_seq = STMT_VINFO_PATTERN_DEF_SEQ (stmt_info);
-	      STMT_SLP_TYPE (pattern_stmt_info) = not_vect;
-	      for (gimple_stmt_iterator pi = gsi_start (pattern_def_seq);
-		   !gsi_end_p (pi); gsi_next (&pi))
-		STMT_SLP_TYPE (loop_vinfo->lookup_stmt (gsi_stmt (pi)))
-		  = not_vect;
 	    }
 	}
     }
@@ -2730,6 +2724,8 @@ again:
   LOOP_VINFO_MUST_USE_PARTIAL_VECTORS_P (loop_vinfo) = false;
   LOOP_VINFO_USING_PARTIAL_VECTORS_P (loop_vinfo) = false;
   LOOP_VINFO_USING_SELECT_VL_P (loop_vinfo) = false;
+  LOOP_VINFO_USING_DECREMENTING_IV_P (loop_vinfo) = false;
+
   if (loop_vinfo->scan_map)
     loop_vinfo->scan_map->empty ();
 
@@ -3927,17 +3923,14 @@ vect_get_peel_iters_epilogue (loop_vec_info loop_vinfo, int peel_iters_prologue)
     }
 }
 
-/* Calculate cost of peeling the loop PEEL_ITERS_PROLOGUE times.  */
+/* Calculate cost of peeling the scalar loop PEEL_ITERS_PROLOGUE times for
+   a prologue and the corresponding times for the epilogue.  */
 int
-vect_get_known_peeling_cost (loop_vec_info loop_vinfo, int peel_iters_prologue,
-			     int *peel_iters_epilogue,
-			     stmt_vector_for_cost *scalar_cost_vec,
-			     stmt_vector_for_cost *prologue_cost_vec,
-			     stmt_vector_for_cost *epilogue_cost_vec)
+vect_get_known_peeling_cost (loop_vec_info loop_vinfo, int peel_iters_prologue)
 {
   int retval = 0;
 
-  *peel_iters_epilogue
+  int peel_iters_epilogue
     = vect_get_peel_iters_epilogue (loop_vinfo, peel_iters_prologue);
 
   if (!LOOP_VINFO_NITERS_KNOWN_P (loop_vinfo))
@@ -3945,27 +3938,15 @@ vect_get_known_peeling_cost (loop_vec_info loop_vinfo, int peel_iters_prologue,
       /* If peeled iterations are known but number of scalar loop
 	 iterations are unknown, count a taken branch per peeled loop.  */
       if (peel_iters_prologue > 0)
-	retval = record_stmt_cost (prologue_cost_vec, 1, cond_branch_taken,
-				   vect_prologue);
-      if (*peel_iters_epilogue > 0)
-	retval += record_stmt_cost (epilogue_cost_vec, 1, cond_branch_taken,
-				    vect_epilogue);
+	retval = builtin_vectorization_cost (cond_branch_taken, NULL_TREE, 0);
+      if (peel_iters_epilogue > 0)
+	retval += builtin_vectorization_cost (cond_branch_taken, NULL_TREE, 0);
     }
 
-  stmt_info_for_cost *si;
-  int j;
-  if (peel_iters_prologue)
-    FOR_EACH_VEC_ELT (*scalar_cost_vec, j, si)
-      retval += record_stmt_cost (prologue_cost_vec,
-				  si->count * peel_iters_prologue,
-				  si->kind, si->stmt_info, si->misalign,
-				  vect_prologue);
-  if (*peel_iters_epilogue)
-    FOR_EACH_VEC_ELT (*scalar_cost_vec, j, si)
-      retval += record_stmt_cost (epilogue_cost_vec,
-				  si->count * *peel_iters_epilogue,
-				  si->kind, si->stmt_info, si->misalign,
-				  vect_epilogue);
+  retval += ((peel_iters_prologue + peel_iters_epilogue)
+	     * loop_vinfo->scalar_costs->body_cost ());
+  retval += (((peel_iters_prologue != 0) + (peel_iters_epilogue != 0))
+	     * loop_vinfo->scalar_costs->outside_cost ());
 
   return retval;
 }
@@ -4079,8 +4060,7 @@ vect_estimate_min_profitable_iters (loop_vec_info loop_vinfo,
      TODO: Consider assigning different costs to different scalar
      statements.  */
 
-  scalar_single_iter_cost = (loop_vinfo->scalar_costs->total_cost ()
-			     * param_vect_scalar_cost_multiplier) / 100;
+  scalar_single_iter_cost = loop_vinfo->scalar_costs->total_cost ();
 
   /* Add additional cost for the peeled instructions in prologue and epilogue
      loop.  (For fully-masked loops there will be no peeling.)
@@ -4149,6 +4129,11 @@ vect_estimate_min_profitable_iters (loop_vec_info loop_vinfo,
 	   iterations are unknown, count a taken branch per peeled loop.  */
 	epilogue_need_br_taken_cost = true;
     }
+
+  /* The way we cummulate peeling costs into the vector prologue/epilogue
+     cost is a bit awkward given we cannot reuse scalar_costs which is
+     already computed and also because it cannot take into account any
+     epilogue vectorization we'll carry out in the end.  */
 
   stmt_info_for_cost *si;
   int j;
@@ -4955,7 +4940,16 @@ get_initial_defs_for_reduction (loop_vec_info loop_vinfo,
   if (neutral_op
       && !useless_type_conversion_p (vector_elt_type,
 				     TREE_TYPE (neutral_op)))
-    neutral_op = gimple_convert (&ctor_seq, vector_elt_type, neutral_op);
+    {
+      if (VECTOR_BOOLEAN_TYPE_P (vector_type))
+	neutral_op = gimple_build (&ctor_seq, COND_EXPR,
+				   vector_elt_type,
+				   neutral_op,
+				   build_all_ones_cst (vector_elt_type),
+				   build_zero_cst (vector_elt_type));
+      else
+	neutral_op = gimple_convert (&ctor_seq, vector_elt_type, neutral_op);
+    }
   for (j = 0; j < nunits * number_of_vectors; ++j)
     {
       tree op;
@@ -5147,9 +5141,7 @@ vect_find_reusable_accumulator (loop_vec_info loop_vinfo,
 	 initialize the accumulator with a neutral value instead.  */
       if (!operand_equal_p (initial_value, main_adjustment))
 	return false;
-      code_helper code = VECT_REDUC_INFO_CODE (reduc_info);
-      initial_values[0] = neutral_op_for_reduction (TREE_TYPE (initial_value),
-						    code, initial_value);
+      initial_values[0] = VECT_REDUC_INFO_NEUTRAL_OP (reduc_info);
     }
   VECT_REDUC_INFO_EPILOGUE_ADJUSTMENT (reduc_info) = main_adjustment;
   VECT_REDUC_INFO_INITIAL_VALUES (reduc_info).truncate (0);
@@ -5998,7 +5990,7 @@ vect_create_epilog_for_reduction (loop_vec_info loop_vinfo,
 	       && (mode1 = targetm.vectorize.split_reduction (mode)) != mode)
 	nunits1 = GET_MODE_NUNITS (mode1).to_constant ();
 
-      tree vectype1 = vectype;
+      tree vectype1 = compute_vectype;
       if (mode1 != mode)
 	{
 	  vectype1 = get_related_vectype_for_scalar_type (TYPE_MODE (vectype),
@@ -6280,8 +6272,17 @@ vect_create_epilog_for_reduction (loop_vec_info loop_vinfo,
           scalar_result = scalar_results[k];
           FOR_EACH_IMM_USE_STMT (use_stmt, imm_iter, orig_name)
 	    {
+	      gphi *use_phi = dyn_cast <gphi *> (use_stmt);
 	      FOR_EACH_IMM_USE_ON_STMT (use_p, imm_iter)
-		SET_USE (use_p, scalar_result);
+		{
+		  if (use_phi
+		      && (phi_arg_edge_from_use (use_p)->flags & EDGE_ABNORMAL))
+		    {
+		      gcc_assert (SSA_NAME_OCCURS_IN_ABNORMAL_PHI (orig_name));
+		      SSA_NAME_OCCURS_IN_ABNORMAL_PHI (scalar_result) = 1;
+		    }
+		  SET_USE (use_p, scalar_result);
+		}
 	      update_stmt (use_stmt);
 	    }
         }
@@ -6504,7 +6505,7 @@ vectorize_fold_left_reduction (loop_vec_info loop_vinfo,
       if (LOOP_VINFO_FULLY_WITH_LENGTH_P (loop_vinfo))
 	{
 	  len = vect_get_loop_len (loop_vinfo, gsi, lens, vec_num, vectype_in,
-				   i, 1);
+				   i, 1, false);
 	  signed char biasval = LOOP_VINFO_PARTIAL_LOAD_STORE_BIAS (loop_vinfo);
 	  bias = build_int_cst (intQI_type_node, biasval);
 	  if (!is_cond_op)
@@ -6979,6 +6980,21 @@ vectorizable_reduction (loop_vec_info loop_vinfo,
 			       "invariants\n");
 	    return false;
 	  }
+	else if (SLP_TREE_DEF_TYPE (child) == vect_internal_def
+		 && !useless_type_conversion_p (SLP_TREE_VECTYPE (slp_node),
+						SLP_TREE_VECTYPE (child)))
+	  {
+	    /* With bools we can have mask and non-mask precision vectors
+	       or different non-mask precisions.  while pattern recog is
+	       supposed to guarantee consistency here, we do not have
+	       pattern stmts for PHIs (PR123316).
+	       Deal with that here instead of ICEing later.  */
+	    if (dump_enabled_p ())
+	      dump_printf_loc (MSG_MISSED_OPTIMIZATION, vect_location,
+			       "incompatible vector type setup from "
+			       "bool pattern detection\n");
+	    return false;
+	  }
       /* Analysis for double-reduction is done on the outer
 	 loop PHI, nested cycles have no further restrictions.  */
       SLP_TREE_TYPE (slp_node) = cycle_phi_info_type;
@@ -7107,6 +7123,13 @@ vectorizable_reduction (loop_vec_info loop_vinfo,
 	  vdef_slp = SLP_TREE_CHILDREN (vdef_slp)[reduc_idx];
 	}
       reduc_chain_length++;
+    }
+  if (!slp_for_stmt_info)
+    {
+      if (dump_enabled_p ())
+	dump_printf_loc (MSG_MISSED_OPTIMIZATION, vect_location,
+			 "only noop-conversions in the reduction chain.\n");
+      return false;
     }
   stmt_info = SLP_TREE_REPRESENTATIVE (slp_for_stmt_info);
 
@@ -7569,8 +7592,10 @@ vectorizable_reduction (loop_vec_info loop_vinfo,
   tree initial_value = NULL_TREE;
   if (reduc_chain)
     initial_value = vect_phi_initial_value (reduc_def_phi);
-  neutral_op = neutral_op_for_reduction (TREE_TYPE (vectype_out),
+  neutral_op = neutral_op_for_reduction (TREE_TYPE
+					   (gimple_phi_result (reduc_def_phi)),
 					 orig_code, initial_value);
+  VECT_REDUC_INFO_NEUTRAL_OP (reduc_info) = neutral_op;
 
   if (double_reduc && reduction_type == FOLD_LEFT_REDUCTION)
     {
@@ -7610,15 +7635,19 @@ vectorizable_reduction (loop_vec_info loop_vinfo,
   /* For double reductions, and for SLP reductions with a neutral value,
      we construct a variable-length initial vector by loading a vector
      full of the neutral value and then shift-and-inserting the start
-     values into the low-numbered elements.  */
+     values into the low-numbered elements.  This is however not needed
+     when neutral and initial value are equal or we can handle the
+     initial value via adjustment in the epilogue.  */
   if ((double_reduc || neutral_op)
       && !nunits_out.is_constant ()
-      && (SLP_TREE_LANES (slp_node) != 1 && !reduc_chain)
-      && (!neutral_op
-	  || !operand_equal_p (neutral_op,
-			       vect_phi_initial_value (reduc_def_phi)))
+      && reduction_type != INTEGER_INDUC_COND_REDUCTION
+      && !((SLP_TREE_LANES (slp_node) == 1 || reduc_chain)
+	   && neutral_op
+	   && (!double_reduc
+	       || operand_equal_p (neutral_op,
+				   vect_phi_initial_value (reduc_def_phi))))
       && !direct_internal_fn_supported_p (IFN_VEC_SHL_INSERT,
-					  vectype_out, OPTIMIZE_FOR_SPEED))
+					  vectype_out, OPTIMIZE_FOR_BOTH))
     {
       if (dump_enabled_p ())
 	dump_printf_loc (MSG_MISSED_OPTIMIZATION, vect_location,
@@ -7838,7 +7867,7 @@ vect_emulate_mixed_dot_prod (loop_vec_info loop_vinfo, stmt_vec_info stmt_info,
     std::swap (vop[0], vop[1]);
 
   /* Convert all inputs to signed types.  */
-  for (int i = 0; i < 3; ++i)
+  for (int i = 1; i < 3; ++i)
     if (TYPE_UNSIGNED (TREE_TYPE (vop[i])))
       {
 	tree tmp = make_ssa_name (signed_type_for (TREE_TYPE (vop[i])));
@@ -7852,17 +7881,25 @@ vect_emulate_mixed_dot_prod (loop_vec_info loop_vinfo, stmt_vec_info stmt_info,
 
   /* Create a vector of -128.  */
   tree min_narrow_elttype = TYPE_MIN_VALUE (narrow_elttype);
-  tree min_narrow = build_vector_from_val (narrow_vectype,
-					   min_narrow_elttype);
+  tree min_narrow = build_vector_from_val (TREE_TYPE (vop[0]),
+					   fold_convert
+					     (TREE_TYPE (TREE_TYPE (vop[0])),
+					      min_narrow_elttype));
 
   /* Create a vector of 64.  */
   auto half_wi = wi::lrshift (wi::to_wide (min_narrow_elttype), 1);
   tree half_narrow = wide_int_to_tree (narrow_elttype, half_wi);
   half_narrow = build_vector_from_val (narrow_vectype, half_narrow);
 
-  /* Emit: SUB_RES = VOP[0] - 128.  */
-  tree sub_res = make_ssa_name (narrow_vectype);
+  /* Emit: SUB_RES = VOP[0] - 128 in an unsigned type.  */
+  tree sub_res = make_ssa_name (TREE_TYPE (vop[0]));
   new_stmt = gimple_build_assign (sub_res, PLUS_EXPR, vop[0], min_narrow);
+  vect_finish_stmt_generation (loop_vinfo, stmt_info, new_stmt, gsi);
+
+  vop[0] = make_ssa_name (narrow_vectype);
+  new_stmt = gimple_build_assign (vop[0], VIEW_CONVERT_EXPR,
+				  build1 (VIEW_CONVERT_EXPR, narrow_vectype,
+					  sub_res));
   vect_finish_stmt_generation (loop_vinfo, stmt_info, new_stmt, gsi);
 
   /* Emit:
@@ -7885,7 +7922,7 @@ vect_emulate_mixed_dot_prod (loop_vec_info loop_vinfo, stmt_vec_info stmt_info,
 
   tree stage3 = make_ssa_name (wide_vectype);
   new_stmt = gimple_build_assign (stage3, DOT_PROD_EXPR,
-				  sub_res, vop[1], stage2);
+				  vop[0], vop[1], stage2);
   vect_finish_stmt_generation (loop_vinfo, stmt_info, new_stmt, gsi);
 
   /* Convert STAGE3 to the reduction type.  */
@@ -8195,11 +8232,8 @@ vect_transform_reduction (loop_vec_info loop_vinfo,
 						 vop[2], vop[reduc_index]);
 	    }
 	  else
-	    {
-	      gcc_assert (code.is_tree_code ());
-	      call = gimple_build_call_internal (cond_fn, 4, mask, vop[0],
-						 vop[1], vop[reduc_index]);
-	    }
+	    call = gimple_build_call_internal (cond_fn, 4, mask, vop[0],
+					       vop[1], vop[reduc_index]);
 	  new_temp = make_ssa_name (vec_dest, call);
 	  gimple_call_set_lhs (call, new_temp);
 	  gimple_call_set_nothrow (call, true);
@@ -8292,7 +8326,6 @@ vect_transform_cycle_phi (loop_vec_info loop_vinfo,
 					       vectype_out);
 
   /* Get the loop-entry arguments.  */
-  tree vec_initial_def = NULL_TREE;
   auto_vec<tree> vec_initial_defs;
   vec_initial_defs.reserve (vec_num);
   /* Optimize: if initial_def is for REDUC_MAX smaller than the base
@@ -8341,40 +8374,29 @@ vect_transform_cycle_phi (loop_vec_info loop_vinfo,
 	  gphi *this_phi = as_a<gphi *> (stmts[i]->stmt);
 	  initial_values.quick_push (vect_phi_initial_value (this_phi));
 	}
-      if (vec_num == 1)
-	vect_find_reusable_accumulator (loop_vinfo, reduc_info, vectype_out);
-      if (!initial_values.is_empty ())
+      tree neutral_op = VECT_REDUC_INFO_NEUTRAL_OP (reduc_info);
+      if (vec_num == 1
+	  && vect_find_reusable_accumulator (loop_vinfo,
+					     reduc_info, vectype_out))
+	;
+      /* Try to simplify the vector initialization by applying an
+	 adjustment after the reduction has been performed.  This
+	 can also break a critical path but on the other hand
+	 requires to keep the initial value live across the loop.  */
+      else if (neutral_op
+	       && initial_values.length () == 1
+	       && STMT_VINFO_DEF_TYPE (stmt_info) == vect_reduction_def
+	       && !operand_equal_p (neutral_op, initial_values[0]))
 	{
-	  tree initial_value
-	    = (num_phis == 1 ? initial_values[0] : NULL_TREE);
-	  code_helper code = VECT_REDUC_INFO_CODE (reduc_info);
-	  tree neutral_op
-	    = neutral_op_for_reduction (TREE_TYPE (vectype_out),
-					code, initial_value);
-	  /* Try to simplify the vector initialization by applying an
-	     adjustment after the reduction has been performed.  This
-	     can also break a critical path but on the other hand
-	     requires to keep the initial value live across the loop.  */
-	  if (neutral_op
-	      && initial_values.length () == 1
-	      && !VECT_REDUC_INFO_REUSED_ACCUMULATOR (reduc_info)
-	      && STMT_VINFO_DEF_TYPE (stmt_info) == vect_reduction_def
-	      && !operand_equal_p (neutral_op, initial_values[0]))
-	    {
-	      VECT_REDUC_INFO_EPILOGUE_ADJUSTMENT (reduc_info)
-		= initial_values[0];
-	      initial_values[0] = neutral_op;
-	    }
-	  get_initial_defs_for_reduction (loop_vinfo, reduc_info, vectype_out,
-					  &vec_initial_defs, vec_num,
-					  stmts.length (), neutral_op);
+	  VECT_REDUC_INFO_EPILOGUE_ADJUSTMENT (reduc_info)
+	    = initial_values[0];
+	  initial_values[0] = neutral_op;
 	}
-    }
-
-  if (vec_initial_def)
-    {
-      vec_initial_defs.create (1);
-      vec_initial_defs.quick_push (vec_initial_def);
+      if (!VECT_REDUC_INFO_REUSED_ACCUMULATOR (reduc_info)
+	  || loop_vinfo->main_loop_edge)
+	get_initial_defs_for_reduction (loop_vinfo, reduc_info, vectype_out,
+					&vec_initial_defs, vec_num,
+					stmts.length (), neutral_op);
     }
 
   if (reduc_info)
@@ -8824,7 +8846,13 @@ vectorizable_recurr (loop_vec_info loop_vinfo, stmt_vec_info stmt_info,
   edge le = loop_latch_edge (LOOP_VINFO_LOOP (loop_vinfo));
   gimple *latch_def = SSA_NAME_DEF_STMT (PHI_ARG_DEF_FROM_EDGE (phi, le));
   gimple_stmt_iterator gsi2 = gsi_for_stmt (latch_def);
-  gsi_next (&gsi2);
+  do
+    {
+      gsi_next (&gsi2);
+    }
+  /* Skip inserted vectorized stmts for the latch definition.  We have to
+     insert after those.  */
+  while (gsi_stmt (gsi2) && gimple_uid (gsi_stmt (gsi2)) == 0);
 
   for (unsigned i = 0; i < ncopies; ++i)
     {
@@ -9796,14 +9824,15 @@ vectorizable_induction (loop_vec_info loop_vinfo,
 	}
       else
 	{
+	  tree step = gimple_convert (&init_stmts, stept, steps[0]);
 	  if (init_node)
 	    ;
-	  else if (INTEGRAL_TYPE_P (TREE_TYPE (steps[0])))
+	  else if (INTEGRAL_TYPE_P (stept))
 	    {
 	      new_name = gimple_convert (&init_stmts, stept, inits[0]);
 	      /* Build the initial value directly as a VEC_SERIES_EXPR.  */
 	      vec_init = gimple_build (&init_stmts, VEC_SERIES_EXPR,
-				       step_vectype, new_name, steps[0]);
+				       step_vectype, new_name, step);
 	      if (!useless_type_conversion_p (vectype, step_vectype))
 		vec_init = gimple_build (&init_stmts, VIEW_CONVERT_EXPR,
 					 vectype, vec_init);
@@ -9813,19 +9842,18 @@ vectorizable_induction (loop_vec_info loop_vinfo,
 	      /* Build:
 		 [base, base, base, ...]
 		 + (vectype) [0, 1, 2, ...] * [step, step, step, ...].  */
-	      gcc_assert (SCALAR_FLOAT_TYPE_P (TREE_TYPE (steps[0])));
+	      gcc_assert (SCALAR_FLOAT_TYPE_P (stept));
 	      gcc_assert (flag_associative_math);
 	      gcc_assert (index_vectype != NULL_TREE);
 
 	      tree index = build_index_vector (index_vectype, 0, 1);
-	      new_name = gimple_convert (&init_stmts, TREE_TYPE (steps[0]),
-					 inits[0]);
+	      new_name = gimple_convert (&init_stmts, stept, inits[0]);
 	      tree base_vec = gimple_build_vector_from_val (&init_stmts,
 							    step_vectype,
 							    new_name);
 	      tree step_vec = gimple_build_vector_from_val (&init_stmts,
 							    step_vectype,
-							    steps[0]);
+							    step);
 	      vec_init = gimple_build (&init_stmts, FLOAT_EXPR,
 				       step_vectype, index);
 	      vec_init = gimple_build (&init_stmts, MULT_EXPR,
@@ -9838,7 +9866,7 @@ vectorizable_induction (loop_vec_info loop_vinfo,
 	    }
 	  /* iv_loop is nested in the loop to be vectorized. Generate:
 	     vec_step = [S, S, S, S]  */
-	  t = unshare_expr (steps[0]);
+	  t = unshare_expr (step);
 	  gcc_assert (CONSTANT_CLASS_P (t)
 		      || TREE_CODE (t) == SSA_NAME);
 	  vec_step = gimple_build_vector_from_val (&init_stmts,
@@ -9885,7 +9913,7 @@ vectorizable_induction (loop_vec_info loop_vinfo,
 		   _21 = vect_vec_iv_.6_22 + vect_cst__22;  */
 	      vec_loop_lens *lens = &LOOP_VINFO_LENS (loop_vinfo);
 	      tree len = vect_get_loop_len (loop_vinfo, NULL, lens, 1,
-					    vectype, 0, 0);
+					    vectype, 0, 0, false);
 	      if (SCALAR_FLOAT_TYPE_P (stept))
 		expr = gimple_build (&stmts, FLOAT_EXPR, stept, len);
 	      else
@@ -10032,7 +10060,7 @@ vectorizable_live_operation_1 (loop_vec_info loop_vinfo, basic_block exit_bb,
     {
       /* Emit:
 
-	 SCALAR_RES = VEC_EXTRACT <VEC_LHS, LEN - (BIAS + 1)>
+	 SCALAR_RES = VEC_EXTRACT <VEC_LHS, LEN - 1>
 
 	 where VEC_LHS is the vectorized live-out result, LEN is the length of
 	 the vector, BIAS is the load-store bias.  The bias should not be used
@@ -10043,21 +10071,14 @@ vectorizable_live_operation_1 (loop_vec_info loop_vinfo, basic_block exit_bb,
       gimple_stmt_iterator gsi = gsi_last (tem);
       tree len = vect_get_loop_len (loop_vinfo, &gsi,
 				    &LOOP_VINFO_LENS (loop_vinfo),
-				    1, vectype, 0, 1);
+				    1, vectype, 0, 1, false);
       gimple_seq_add_seq (&stmts, tem);
 
-      /* BIAS + 1.  */
-      signed char biasval = LOOP_VINFO_PARTIAL_LOAD_STORE_BIAS (loop_vinfo);
-      tree bias_plus_one
-	= int_const_binop (PLUS_EXPR,
-			   build_int_cst (TREE_TYPE (len), biasval),
-			   build_one_cst (TREE_TYPE (len)));
-
-      /* LAST_INDEX = LEN - (BIAS + 1).  */
+      /* LAST_INDEX = LEN - 1.  */
       tree last_index = gimple_build (&stmts, MINUS_EXPR, TREE_TYPE (len),
-				     len, bias_plus_one);
+				     len, build_one_cst (TREE_TYPE (len)));
 
-      /* SCALAR_RES = VEC_EXTRACT <VEC_LHS, LEN - (BIAS + 1)>.  */
+      /* SCALAR_RES = VEC_EXTRACT <VEC_LHS, LEN - 1>.  */
       tree scalar_res
 	= gimple_build (&stmts, CFN_VEC_EXTRACT, TREE_TYPE (vectype),
 			vec_lhs_phi, last_index);
@@ -10137,7 +10158,10 @@ vectorizable_live_operation (vec_info *vinfo, stmt_vec_info stmt_info,
   if (vect_is_reduction (slp_node))
     {
       if (!vec_stmt_p)
-	return true;
+	{
+	  SLP_TREE_LIVE_LANES (slp_node).safe_push (slp_index);
+	  return true;
+	}
       /* For SLP reductions we vectorize the epilogue for all involved stmts
 	 together.  For SLP reduction chains we only get here once.  */
       if (SLP_INSTANCE_KIND (slp_node_instance) == slp_inst_kind_reduc_group
@@ -10261,6 +10285,7 @@ vectorizable_live_operation (vec_info *vinfo, stmt_vec_info stmt_info,
       if (!loop_vinfo)
 	record_stmt_cost (cost_vec, 1, vec_to_scalar, slp_node,
 			  0, vect_epilogue);
+      SLP_TREE_LIVE_LANES (slp_node).safe_push (slp_index);
       return true;
     }
 
@@ -10390,12 +10415,12 @@ vectorizable_live_operation (vec_info *vinfo, stmt_vec_info stmt_info,
       FOR_EACH_IMM_USE_STMT (use_stmt, imm_iter, lhs)
 	if (!is_gimple_debug (use_stmt)
 	    && (!(use_stmt_info = vinfo->lookup_stmt (use_stmt))
-		|| !PURE_SLP_STMT (vect_stmt_to_vectorize (use_stmt_info))))
+		|| !PURE_SLP_STMT (use_stmt_info)))
 	  {
 	    /* ???  This can happen when the live lane ends up being
 	       rooted in a vector construction code-generated by an
 	       external SLP node (and code-generation for that already
-	       happened).  See gcc.dg/vect/bb-slp-47.c.
+	       happened).
 	       Doing this is what would happen if that vector CTOR
 	       were not code-generated yet so it is not too bad.
 	       ???  In fact we'd likely want to avoid this situation
@@ -10413,26 +10438,35 @@ vectorizable_live_operation (vec_info *vinfo, stmt_vec_info stmt_info,
 				   "def\n");
 		continue;
 	      }
-	    /* ???  It can also happen that we end up pulling a def into
-	       a loop where replacing out-of-loop uses would require
-	       a new LC SSA PHI node.  Retain the original scalar in
-	       those cases as well.  PR98064.  */
-	    if (TREE_CODE (new_tree) == SSA_NAME
-		&& !SSA_NAME_IS_DEFAULT_DEF (new_tree)
-		&& (gimple_bb (use_stmt)->loop_father
-		    != gimple_bb (vec_stmt)->loop_father)
-		&& !flow_loop_nested_p (gimple_bb (vec_stmt)->loop_father,
-					gimple_bb (use_stmt)->loop_father))
-	      {
-		if (dump_enabled_p ())
-		  dump_printf_loc (MSG_MISSED_OPTIMIZATION, vect_location,
-				   "Using original scalar computation for "
-				   "live lane because there is an out-of-loop "
-				   "definition for it\n");
-		continue;
-	      }
 	    FOR_EACH_IMM_USE_ON_STMT (use_p, imm_iter)
-	      SET_USE (use_p, new_tree);
+	      {
+		/* ???  It can also happen that we end up pulling a def into
+		   a loop where replacing out-of-loop uses would require
+		   a new LC SSA PHI node.  Retain the original scalar in
+		   those cases as well.  PR98064.  */
+		edge e;
+		if (TREE_CODE (new_tree) == SSA_NAME
+		    && !SSA_NAME_IS_DEFAULT_DEF (new_tree)
+		    && (gimple_bb (use_stmt)->loop_father
+			!= gimple_bb (vec_stmt)->loop_father)
+		    /* But a replacement in a LC PHI is OK.  This happens
+		       in gcc.dg/vect/bb-slp-57.c for example.  */
+		    && (gimple_code (use_stmt) != GIMPLE_PHI
+			|| (((e = phi_arg_edge_from_use (use_p)), true)
+			    && !loop_exit_edge_p
+				  (gimple_bb (vec_stmt)->loop_father, e)))
+		    && !flow_loop_nested_p (gimple_bb (vec_stmt)->loop_father,
+					    gimple_bb (use_stmt)->loop_father))
+		  {
+		    if (dump_enabled_p ())
+		      dump_printf_loc (MSG_MISSED_OPTIMIZATION, vect_location,
+				       "Using original scalar computation for "
+				       "live lane because there is an "
+				       "out-of-loop definition for it\n");
+		    continue;
+		  }
+		SET_USE (use_p, new_tree);
+	      }
 	    update_stmt (use_stmt);
 	  }
     }
@@ -10678,7 +10712,7 @@ vect_record_loop_len (loop_vec_info loop_vinfo, vec_loop_lens *lens,
 tree
 vect_get_loop_len (loop_vec_info loop_vinfo, gimple_stmt_iterator *gsi,
 		   vec_loop_lens *lens, unsigned int nvectors, tree vectype,
-		   unsigned int index, unsigned int factor)
+		   unsigned int index, unsigned int factor, bool adjusted)
 {
   rgroup_controls *rgl = &(*lens)[nvectors - 1];
   bool use_bias_adjusted_len =
@@ -10711,7 +10745,7 @@ vect_get_loop_len (loop_vec_info loop_vinfo, gimple_stmt_iterator *gsi,
 	}
     }
 
-  if (use_bias_adjusted_len)
+  if (use_bias_adjusted_len && adjusted)
     return rgl->bias_adjusted_ctrl;
 
   tree loop_len = rgl->controls[index];
@@ -10734,6 +10768,36 @@ vect_get_loop_len (loop_vec_info loop_vinfo, gimple_stmt_iterator *gsi,
 	    gsi_insert_seq_before (gsi, seq, GSI_SAME_STMT);
 	}
     }
+  else if (factor && rgl->factor != factor)
+    {
+      /* The number of scalars per iteration, scalar occupied bytes and
+	 the number of vectors are both compile-time constants.  */
+      unsigned int nscalars_per_iter
+	= exact_div (nvectors * TYPE_VECTOR_SUBPARTS (vectype),
+		     LOOP_VINFO_VECT_FACTOR (loop_vinfo)).to_constant ();
+      unsigned int rglvecsize = rgl->factor * rgl->max_nscalars_per_iter;
+      unsigned int vecsize = nscalars_per_iter * factor;
+      if (rglvecsize > vecsize)
+	{
+	  unsigned int fac = rglvecsize / vecsize;
+	  tree iv_type = LOOP_VINFO_RGROUP_IV_TYPE (loop_vinfo);
+	  gimple_seq seq = NULL;
+	  loop_len = gimple_build (&seq, EXACT_DIV_EXPR, iv_type, loop_len,
+				   build_int_cst (iv_type, fac));
+	  if (seq)
+	    gsi_insert_seq_before (gsi, seq, GSI_SAME_STMT);
+	}
+      else if (rglvecsize < vecsize)
+	{
+	  unsigned int fac = vecsize / rglvecsize;
+	  tree iv_type = LOOP_VINFO_RGROUP_IV_TYPE (loop_vinfo);
+	  gimple_seq seq = NULL;
+	  loop_len = gimple_build (&seq, MULT_EXPR, iv_type, loop_len,
+				   build_int_cst (iv_type, fac));
+	  if (seq)
+	    gsi_insert_seq_before (gsi, seq, GSI_SAME_STMT);
+	}
+    }
   return loop_len;
 }
 
@@ -10751,7 +10815,7 @@ vect_gen_loop_len_mask (loop_vec_info loop_vinfo, gimple_stmt_iterator *gsi,
   tree all_one_mask = build_all_ones_cst (vectype);
   tree all_zero_mask = build_zero_cst (vectype);
   tree len = vect_get_loop_len (loop_vinfo, gsi, lens, nvectors, vectype, index,
-				factor);
+				factor, true);
   tree bias = build_int_cst (intQI_type_node,
 			     LOOP_VINFO_PARTIAL_LOAD_STORE_BIAS (loop_vinfo));
   tree len_mask = make_temp_ssa_name (TREE_TYPE (stmt), NULL, "vec_len_mask");
@@ -11022,7 +11086,7 @@ vect_update_ivs_after_vectorizer_for_early_breaks (loop_vec_info loop_vinfo)
     {
       vec_loop_lens *lens = &LOOP_VINFO_LENS (loop_vinfo);
       tree_vf = vect_get_loop_len (loop_vinfo, NULL, lens, 1,
-				   NULL_TREE, 0, 0);
+				   NULL_TREE, 0, 0, true);
     }
 
   tree iter_var;
@@ -11182,6 +11246,23 @@ vect_transform_loop (loop_vec_info loop_vinfo, gimple *loop_vectorized_call)
 			      &step_vector, &niters_vector_mult_vf, th,
 			      check_profitability, niters_no_overflow,
 			      &advance);
+
+  /* Assign hierarchical discriminators to the vectorized loop.  */
+  poly_uint64 vf_val = LOOP_VINFO_VECT_FACTOR (loop_vinfo);
+  unsigned int vf_int = constant_lower_bound (vf_val);
+  if (vf_int > DISCR_MULTIPLICITY_MAX)
+    vf_int = DISCR_MULTIPLICITY_MAX;
+
+  /* Assign unique copy_id dynamically instead of using hardcoded constants.
+     Epilogue and main vectorized loops get different copy_ids.  */
+  gimple *loop_last = last_nondebug_stmt (loop->header);
+  location_t loop_loc
+    = loop_last ? gimple_location (loop_last) : UNKNOWN_LOCATION;
+  if (loop_loc != UNKNOWN_LOCATION)
+    {
+      unsigned int copyid = allocate_copyid_base (loop_loc, 1);
+      assign_discriminators_to_loop (loop, vf_int, copyid);
+    }
   if (LOOP_VINFO_SCALAR_LOOP (loop_vinfo)
       && LOOP_VINFO_SCALAR_LOOP_SCALING (loop_vinfo).initialized_p ())
     {

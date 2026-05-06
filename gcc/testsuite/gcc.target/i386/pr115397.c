@@ -1,4 +1,5 @@
 /* { dg-do compile { target ia32 } } */
+/* { dg-require-effective-target fpic } */
 /* { dg-options "-fPIC -mavx512f -O3" } */
 
 int LONG_divide_AVX512F_dimensions_0;

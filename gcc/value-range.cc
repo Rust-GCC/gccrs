@@ -32,7 +32,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "gimple-range.h"
 
 // Return the bitmask inherent in a range :   TYPE [MIN, MAX].
-// This use to be get_bitmask_from_range ().
+// This used to be get_bitmask_from_range ().
 
 irange_bitmask::irange_bitmask (tree type,
 				const wide_int &min, const wide_int &max)
@@ -2163,6 +2163,13 @@ irange::intersect (const vrange &v)
     }
 
   m_kind = VR_RANGE;
+  // Snap subranges if there is a bitmask.  See PR 123319.
+  if (!m_bitmask.unknown_p ())
+    {
+      snap_subranges ();
+      if (undefined_p ())
+	return true;
+    }
   // The range has been altered, so normalize it even if nothing
   // changed in the mask.
   if (!intersect_bitmask (r))

@@ -116,7 +116,10 @@ align(size_t __align, size_t __size, void*& __ptr, size_t& __space) noexcept
     [[nodiscard,__gnu__::__always_inline__]]
     inline bool
     is_sufficiently_aligned(_Tp* __ptr)
-    { return reinterpret_cast<__UINTPTR_TYPE__>(__ptr) % _Align == 0; }
+    {
+      static_assert(std::has_single_bit(_Align));
+      return reinterpret_cast<__UINTPTR_TYPE__>(__ptr) % _Align == 0;
+    }
 #endif // __glibcxx_is_sufficiently_aligned
 
 _GLIBCXX_END_NAMESPACE_VERSION

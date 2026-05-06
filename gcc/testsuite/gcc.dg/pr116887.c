@@ -1,6 +1,7 @@
 /* { dg-do compile } */
 /* { dg-require-effective-target fpic } */
 /* { dg-options "-fpic" } */
+/* { dg-require-effective-target named_sections } */
 
 struct link_map
 {

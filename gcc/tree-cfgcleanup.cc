@@ -629,10 +629,8 @@ maybe_remove_forwarder_block (basic_block bb, bool can_split = false)
 		return false;
 	      /* If bb doesn't have a single predecessor we'd make this
 		 loop have multiple latches.  Don't do that if that
-		 would in turn require disambiguating them.  */
-	      if (!single_pred_p (bb)
-		      && !loops_state_satisfies_p
-			   (LOOPS_MAY_HAVE_MULTIPLE_LATCHES))
+		 would in turn require disambiguating them over again.  */
+	      if (!single_pred_p (bb))
 		return false;
 	    }
 	  /* cleanup_tree_cfg_noloop just created the loop preheader, don't
@@ -1105,8 +1103,11 @@ cleanup_control_flow_pre ()
   return retval;
 }
 
+/* Callback function for make_forwarder_block which returns
+   true when E is not a latch.  */
+
 static bool
-mfb_keep_latches (edge e)
+mfb_keep_latches (edge e, void*)
 {
   return !((dom_info_available_p (CDI_DOMINATORS)
 	    && dominated_by_p (CDI_DOMINATORS, e->src, e->dest))
@@ -1166,8 +1167,7 @@ cleanup_tree_cfg_noloop (unsigned ssa_update_flags)
 	       create a forwarder.  */
 	    if (found_latch && ! any_abnormal && n > 1)
 	      {
-		edge fallthru = make_forwarder_block (bb, mfb_keep_latches,
-						      NULL);
+		edge fallthru = make_forwarder_block (bb, mfb_keep_latches, NULL);
 		loop->header = fallthru->dest;
 		if (! loops_state_satisfies_p (LOOPS_NEED_FIXUP))
 		  {

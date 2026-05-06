@@ -81,10 +81,15 @@
 // The default values are appropriate for many 32-bit targets.
 
 // GCC only intrinsically supports modulo integral types.  The only remaining
-// integral exceptional values is division by zero.  Only targets that do not
-// signal division by zero in some "hard to ignore" way should use false.
+// integral exceptional values is division by zero, but that's an operation,
+// not a value, and traps is about values that trap (Issue554), so there aren't
+// any for integral types.  The standard has numeric_limits<bool>::traps
+// explicitly set to false.  However, we used to set them all to true based on
+// the division-by-zero misinterpretation, so we retain this macro, and those
+// who relied on the misinterpretation can restore it with a command-line
+// define and revert the ABI-changing effects of this fix.
 #ifndef __glibcxx_integral_traps
-# define __glibcxx_integral_traps true
+# define __glibcxx_integral_traps false
 #endif
 
 // float
@@ -446,9 +451,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       static _GLIBCXX_USE_CONSTEXPR bool is_bounded = true;
       static _GLIBCXX_USE_CONSTEXPR bool is_modulo = false;
 
-      // It is not clear what it means for a boolean type to trap.
-      // This is a DR on the LWG issue list.  Here, I use integer
-      // promotion semantics.
       static _GLIBCXX_USE_CONSTEXPR bool traps = __glibcxx_integral_traps;
       static _GLIBCXX_USE_CONSTEXPR bool tinyness_before = false;
       static _GLIBCXX_USE_CONSTEXPR float_round_style round_style

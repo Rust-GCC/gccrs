@@ -142,11 +142,12 @@ public:
 
   template <typename T>
   void insert_enum_variant_or_error_out (const Identifier &identifier,
-					 const T &node);
+					 const T &node, bool is_also_value);
 
   void insert_enum_variant_or_error_out (const Identifier &identifier,
 					 const location_t &locus,
-					 const NodeId node_id);
+					 const NodeId node_id,
+					 bool is_also_value);
 
 private:
   // If a new export has been defined whilst visiting the visitor is considered

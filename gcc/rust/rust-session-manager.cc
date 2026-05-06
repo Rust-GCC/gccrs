@@ -34,6 +34,7 @@
 #include "rust-hir-type-check.h"
 #include "rust-privacy-check.h"
 #include "rust-const-checker.h"
+#include "rust-feature-collector.h"
 #include "rust-feature-gate.h"
 #include "rust-compile.h"
 #include "rust-cfg-parser.h"
@@ -51,6 +52,7 @@
 #include "rust-early-name-resolver-2.0.h"
 #include "rust-late-name-resolver-2.0.h"
 #include "rust-resolve-builtins.h"
+#include "rust-early-cfg-strip.h"
 #include "rust-cfg-strip.h"
 #include "rust-expand-visitor.h"
 #include "rust-unicode.h"
@@ -58,6 +60,8 @@
 #include "rust-borrow-checker.h"
 #include "rust-ast-validation.h"
 #include "rust-tyty-variance-analysis.h"
+#include "rust-attribute-checker.h"
+#include "rust-builtin-attribute-checker.h"
 
 #include "input.h"
 #include "selftest.h"
@@ -162,6 +166,16 @@ validate_crate_name (const std::string &crate_name, Error &error)
   return true;
 }
 
+static bool
+has_attribute (AST::Crate crate, std::string attribute)
+{
+  auto &crate_attrs = crate.get_inner_attrs ();
+  auto has_attr = [&attribute] (AST::Attribute &attr) {
+    return attr.as_string () == attribute;
+  };
+  return std::any_of (crate_attrs.begin (), crate_attrs.end (), has_attr);
+}
+
 void
 Session::init ()
 {
@@ -196,7 +210,7 @@ Session::init_options ()
 bool
 Session::handle_option (
   enum opt_code code, const char *arg, HOST_WIDE_INT value ATTRIBUTE_UNUSED,
-  int kind ATTRIBUTE_UNUSED, location_t loc ATTRIBUTE_UNUSED,
+  int kind ATTRIBUTE_UNUSED, location_t loc,
   const struct cl_option_handlers *handlers ATTRIBUTE_UNUSED)
 {
   // used to store whether results of various stuff are successful
@@ -240,6 +254,12 @@ Session::handle_option (
 	ret = false;
       break;
 
+    case OPT_frust_crate_attr_:
+      if (arg != nullptr)
+	{
+	  options.addional_attributes.emplace_back (arg, loc);
+	}
+      break;
     case OPT_frust_dump_:
       // enable dump and return whether this was successful
       if (arg != nullptr)
@@ -464,7 +484,7 @@ Session::handle_crate_name (const char *filename,
 
   for (const auto &attr : parsed_crate.inner_attrs)
     {
-      if (attr.get_path () != "crate_name")
+      if (attr.get_path () != Values::Attributes::CRATE_NAME)
 	continue;
 
       auto msg_str = Analysis::Attributes::extract_string_literal (attr);
@@ -524,6 +544,36 @@ Session::handle_crate_name (const char *filename,
   mappings.set_current_crate (crate_num);
 }
 
+/** Parse additional attributes injected from the command line
+ *
+ */
+AST::AttrVec
+parse_cli_attributes (
+  std::vector<CompileOptions::CliAttributeContent> attributes)
+{
+  AST::AttrVec result;
+  result.reserve (attributes.size ());
+
+  for (auto attribute : attributes)
+    {
+      Session::get_instance ().linemap->start_file ("cli", 1);
+      Lexer lex (attribute.content, Session::get_instance ().linemap);
+      Parser<Lexer> parser (lex);
+
+      if (auto attr_body = parser.parse_attribute_body ())
+	{
+	  auto body = std::move (attr_body.value ());
+	  result.push_back (AST::Attribute (std::move (body.path),
+					    std::move (body.input), body.locus,
+					    true));
+	}
+
+      for (auto error : parser.get_errors ())
+	error.emit ();
+    }
+  return result;
+}
+
 // Parses a single file with filename filename.
 void
 Session::compile_crate (const char *filename)
@@ -574,6 +624,8 @@ Session::compile_crate (const char *filename)
 
       dump_lex_opt = dump_lex_stream;
     }
+
+  auto cli_attributes = parse_cli_attributes (options.addional_attributes);
 
   Lexer lex (filename, std::move (file_wrap), linemap, dump_lex_opt);
 
@@ -646,7 +698,7 @@ Session::compile_crate (const char *filename)
     }
 
   // injection pipeline stage
-  injection (parsed_crate);
+  injection (parsed_crate, cli_attributes);
   rust_debug ("\033[0;31mSUCCESSFULLY FINISHED INJECTION \033[0m");
   if (options.dump_option_enabled (CompileOptions::INJECTION_DUMP))
     {
@@ -658,6 +710,25 @@ Session::compile_crate (const char *filename)
 
   Analysis::AttributeChecker ().go (parsed_crate);
 
+  EarlyCfgStrip ().go (parsed_crate);
+
+  auto parsed_crate_features
+    = Features::FeatureCollector{}.collect (parsed_crate);
+
+  // Do not inject core if some errors were emitted
+  if (!saw_errors ()
+      && !has_attribute (parsed_crate,
+			 std::string (Values::Attributes::NO_CORE)))
+    {
+      parsed_crate.inject_extern_crate ("core");
+      // #![no_core] implies #![no_std]
+      if (!has_attribute (parsed_crate,
+			  std::string (Values::Attributes::NO_STD)))
+	{
+	  parsed_crate.inject_extern_crate ("std");
+	}
+    }
+
   if (last_step == CompileOptions::CompileStep::Expansion)
     return;
 
@@ -665,6 +736,8 @@ Session::compile_crate (const char *filename)
   // expansion pipeline stage
 
   expansion (parsed_crate, name_resolution_ctx);
+
+  Analysis::BuiltinAttributeChecker ().go (parsed_crate);
 
   AST::CollectLangItems ().go (parsed_crate);
 
@@ -686,7 +759,8 @@ Session::compile_crate (const char *filename)
   // feature gating
   if (last_step == CompileOptions::CompileStep::FeatureGating)
     return;
-  FeatureGate ().check (parsed_crate);
+
+  FeatureGate (parsed_crate_features).check (parsed_crate);
 
   if (last_step == CompileOptions::CompileStep::NameResolution)
     return;
@@ -835,7 +909,7 @@ contains_name (const AST::AttrVec &attrs, std::string name)
 }
 
 void
-Session::injection (AST::Crate &crate)
+Session::injection (AST::Crate &crate, AST::AttrVec cli_attributes)
 {
   rust_debug ("started injection");
 
@@ -889,6 +963,9 @@ Session::injection (AST::Crate &crate)
   /* TODO: actually implement injection of these macros. In particular, derive
    * macros, cfg, and test should be prioritised since they seem to be used
    * the most. */
+
+  for (auto attribute : cli_attributes)
+    crate.inject_inner_attribute (attribute);
 
   // crate injection
   std::vector<std::string> names;

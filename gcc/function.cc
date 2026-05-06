@@ -85,6 +85,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "value-range.h"
 #include "gimple-range.h"
 #include "insn-attr.h"
+#include "hierarchical_discriminator.h"
 
 /* So we can assign to cfun in this file.  */
 #undef cfun
@@ -217,6 +218,7 @@ free_after_compilation (struct function *f)
   f->cfg = NULL;
   f->curr_properties &= ~PROP_cfg;
   delete f->cond_uids;
+  free_copyid_allocator (f);
 
   regno_reg_rtx = NULL;
 }
@@ -2823,7 +2825,7 @@ assign_parm_remove_parallels (struct assign_parm_data_one *data)
    always valid and properly aligned.  */
 
 static void
-assign_parm_adjust_stack_rtl (struct assign_parm_data_one *data)
+assign_parm_adjust_stack_rtl (tree parm, struct assign_parm_data_one *data)
 {
   rtx stack_parm = data->stack_parm;
 
@@ -2838,7 +2840,14 @@ assign_parm_adjust_stack_rtl (struct assign_parm_data_one *data)
 						 MEM_ALIGN (stack_parm))))
 	  || (data->nominal_type
 	      && TYPE_ALIGN (data->nominal_type) > MEM_ALIGN (stack_parm)
-	      && MEM_ALIGN (stack_parm) < PREFERRED_STACK_BOUNDARY)))
+	      && ((MEM_ALIGN (stack_parm)
+		   < MIN (BIGGEST_ALIGNMENT, MAX_SUPPORTED_STACK_ALIGNMENT))
+		  /* If its address is taken, make a local copy whose
+		     maximum alignment is MAX_SUPPORTED_STACK_ALIGNMENT.
+		   */
+		  || (TREE_ADDRESSABLE (parm)
+		      && (MEM_ALIGN (stack_parm)
+			  < MAX_SUPPORTED_STACK_ALIGNMENT))))))
     stack_parm = NULL;
 
   /* If parm was passed in memory, and we need to convert it on entry,
@@ -3712,7 +3721,7 @@ assign_parms (tree fndecl)
       else
 	set_decl_incoming_rtl (parm, data.entry_parm, false);
 
-      assign_parm_adjust_stack_rtl (&data);
+      assign_parm_adjust_stack_rtl (parm, &data);
 
       if (assign_parm_setup_block_p (&data))
 	assign_parm_setup_block (&all, parm, &data);

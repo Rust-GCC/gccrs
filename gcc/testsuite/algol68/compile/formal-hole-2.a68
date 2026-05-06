@@ -1,0 +1,6 @@
+{ Freestanding formal hole with &.  }
+
+begin
+      ref int foo = nest C "&foo";
+      skip
+end

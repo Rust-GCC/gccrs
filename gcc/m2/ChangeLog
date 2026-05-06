@@ -1,3 +1,97 @@
+2026-04-21  Gaius Mulley  <gaiusmod2@gmail.com>
+
+	PR modula2/120189
+	* gm2-compiler/M2Options.mod (DefaultRuntimeModuleOverride): Add
+	reference comment to libgm2/libm2iso/m2rts.h.
+
+2026-04-15  Gaius Mulley  <gaiusmod2@gmail.com>
+
+	PR modula2/124081
+	* gm2-compiler/M2Quads.mod (SafeCheckWithField): New procedure.
+	(BuildInclRange): Reimplement.
+	(AddFieldTo): Ditto.
+	(BuildComponentValue): Ditto.
+
+2026-04-14  Gaius Mulley  <gaiusmod2@gmail.com>
+
+	PR modula2/105408
+	* Make-lang.in (GM2-COMP-BOOT-MODS): Remove duplicate NameKey.mod.
+	* gm2-compiler/M2GenGCC.mod (import): Remove BuildAssignmentTree.
+	Add CopyMemcpy.
+	(IsSystemTypeBecomes): New procedure function.
+	(CodeAssignment): Rewrite using CopyMemcpy and IsSystemTypeBecomes.
+	* gm2-gcc/m2convert.cc (const_to_ISO_aggregate_type): Reverse
+	array elements if BYTES_BIG_ENDIAN.
+	* gm2-gcc/m2pp.cc (ps): New function.
+	* gm2-gcc/m2pp.h (pf): Added comment.
+	(pe): Ditto.
+	(pt): Ditto.
+	(ptl): Ditto.
+	(pv): Ditto.
+	(ptcl): Ditto.
+	* gm2-gcc/m2statement.cc (copy_memcpy): Replace with ...
+	(m2statement_CopyMemcpy): ... this.
+	(CopyByField_Lower): Call m2statement_CopyMemcpy instead of copy_memcpy.
+	(m2statement_BuildAssignmentTree): Tidied up comment.
+	Add test for ARRAY_TYPE CONSTRUCTOR expr and use
+	m2statement_CopyMemcpy.
+	Return type changed to void.
+	* gm2-gcc/m2statement.def (BuildAssignmentTree): Rewrite declaration.
+	(CopyMemcpy): New procedure declaration.
+	* gm2-gcc/m2statement.h (m2statement_BuildAssignmentTree): Replace
+	return type with void.
+	(m2statement_CopyMemcpy): New function declaration.
+	* gm2-gcc/m2type.cc (m2type_ReverseArrayConstructorElements): New
+	function.
+	* gm2-gcc/m2type.def (ReverseArrayConstructorElements): New
+	procedure function declaration.
+	* gm2-gcc/m2type.h (m2type_ReverseArrayConstructorElements): New
+	function declaration.
+
+2026-04-10  Gaius Mulley  <gaiusmod2@gmail.com>
+
+	PR modula2/124840
+	* gm2-libs/BinDict.mod (Key): Return field key.
+
+2026-04-07  Sandra Loosemore  <sloosemore@baylibre.com>
+
+	PR other/124784
+	* lang.opt.urls: Regenerated.
+
+2026-01-25  Sandra Loosemore  <sloosemore@baylibre.com>
+
+	* lang.opt.urls: Regenerated.
+
+2026-01-21  Gaius Mulley  <gaiusmod2@gmail.com>
+
+	PR modula2/123739
+	* lang.opt: All option descriptions are now capitalized.
+	(Wcase-enum): Warning tag added.
+	(Wpedantic-param-names): Ditto.
+	(Wpedantic-cast): Ditto.
+	(Wverbose-unbounded): Ditto.
+	(Wstyle): Ditto.
+	(Wuninit-variable-checking): Ditto.
+	(Wuninit-variable-checking=): Ditto.
+
+2026-01-20  Jakub Jelinek  <jakub@redhat.com>
+
+	* lang.opt (Wpedantic-param-names, Wpedantic-cast, Wverbose-unbounded,
+	Wstyle, fauto-init, fbounds, fcase, fcpp, fcpp-end, fcpp-begin,
+	fdebug-builtins, fd, fdebug-function-line-numbers, fdef=,
+	fdump-system-exports, fextended-opaque, ffloatvalue,
+	fgen-module-list=, findex, fiso, flocation=, fm2-debug-trace=,
+	fm2-dump=, fm2-dump-decl=, fm2-dump-gimple=, fm2-dump-quad=,
+	fm2-dump-filter=, fm2-file-offset-bits=, fm2-g, fm2-lower-case,
+	fm2-pathname=, fm2-pathname-root=, fm2-pathname-rootI=, fm2-plugin,
+	fm2-prefix=, fm2-statistics, fm2-strict-type, fm2-strict-type-reason,
+	fm2-whole-program, fmod=, fnil, fpim, fpim2, fpim3, fpim4,
+	fpositive-mod-floor-div, fpthread, fq, frange, freturn,
+	fruntime-modules=, fscaffold-dynamic, fscaffold-c, fscaffold-c++,
+	fscaffold-main, fscaffold-static, fshared, fsoft-check-all, fsources,
+	fswig, fuse-list=, fwideset, fwholediv, fwholevalue, save-temps,
+	save-temps=): Add dot at the end of the description.
+
 2025-12-19  Jakub Jelinek  <jakub@redhat.com>
 
 	* gm2-compiler/FilterError.mod: Fix comment typo, refering

@@ -1,3 +1,4 @@
+/* { dg-do run } */
 extern void abort (void);
 
 int main()

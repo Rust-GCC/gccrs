@@ -1,4 +1,5 @@
 // PR c++/119864
+// { dg-require-effective-target fopenmp }
 // { dg-additional-options "-fmodules -fopenmp" }
 
 import p1;

@@ -1,5 +1,5 @@
 # Makefile for GNU Ada Compiler (GNAT).
-#   Copyright (C) 1994-2025 Free Software Foundation, Inc.
+#   Copyright (C) 1994-2026 Free Software Foundation, Inc.
 
 #This file is part of GCC.
 
@@ -182,6 +182,9 @@ LIBICONV_DEP = @LIBICONV_DEP@
 # Any system libraries needed just for GNAT.
 SYSLIBS = @GNAT_LIBEXC@
 
+# Default is no TGT_LIB; one might be passed down or something
+TGT_LIB =
+
 # List extra gnattools
 EXTRA_GNATTOOLS =
 
@@ -202,6 +205,21 @@ RTSDIR = rts$(subst /,_,$(MULTISUBDIR))
 # link with libgcc to avoid a dependency on shared libgcc (which is tricky
 # to deal with as it may conflict with the libgcc provided by the system).
 GCC_LINK_FLAGS=-static-libstdc++ -static-libgcc
+
+# We need to link against libbacktrace because diagnostics use it
+LIBBACKTRACE = ../../../libbacktrace/.libs/libbacktrace.a
+
+ifneq ($(enable_host_pie),)
+LIBIBERTY = ../../../libiberty/pic/libiberty.a
+LIBGNAT   = ../$(RTSDIR)/libgnat_pic.a
+else
+LIBIBERTY = ../../../libiberty/libiberty.a
+LIBGNAT   = ../$(RTSDIR)/libgnat.a
+endif
+
+# How to link with both our libraries and the system's installed libraries
+LIBS = $(LIBGNAT) $(LIBINTL) $(LIBICONV) $(LIBBACKTRACE) $(LIBIBERTY) \
+  $(SYSLIBS) $(TGT_LIB)
 
 # End of variables for you to override.
 
@@ -234,26 +252,9 @@ ALL_CPPFLAGS = $(CPPFLAGS)
 
 ALL_ADAFLAGS = $(CFLAGS) $(ADA_CFLAGS) $(ADAFLAGS)
 
-ifneq ($(enable_host_pie),)
-LIBIBERTY = ../../libiberty/pic/libiberty.a
-else
-LIBIBERTY = ../../libiberty/libiberty.a
-endif
-
-# We need to link against libbacktrace because diagnostic.c in
-# libcommon.a uses it.
-LIBBACKTRACE = ../../libbacktrace/.libs/libbacktrace.a
-
-# How to link with both our special library facilities
-# and the system's installed libraries.
-LIBS = $(LIBINTL) $(LIBICONV) $(LIBBACKTRACE) $(LIBIBERTY) $(SYSLIBS)
-LIBDEPS = $(LIBINTL_DEP) $(LIBICONV_DEP) $(LIBBACKTRACE) $(LIBIBERTY)
-# Default is no TGT_LIB; one might be passed down or something
-TGT_LIB =
 TOOLS_LIBS = ../version.o ../link.o ../targext.o ../../ggc-none.o \
   ../../libcommon-target.a ../../libcommon.a ../../../libcpp/libcpp.a \
-  $(LIBGNAT) $(LIBINTL) $(LIBICONV) ../$(LIBBACKTRACE) ../$(LIBIBERTY) \
-  $(SYSLIBS) $(TGT_LIB)
+  $(LIBS)
 
 # Specify the directories to be searched for header files.
 # Both . and srcdir are used, in that order,
@@ -331,7 +332,8 @@ GNATMAKE_OBJS = a-except.o ali.o ali-util.o aspects.o s-casuti.o alloc.o \
  uname.o urealp.o usage.o widechar.o warnsw.o \
  seinfo.o einfo-entities.o einfo-utils.o sinfo-nodes.o sinfo-utils.o \
  errid.o \
- errsw.o \
+ errid-diagnostic_repository.o \
+ errid-switch_repository.o \
  erroutc-pretty_emitter.o \
  erroutc-sarif_emitter.o \
  json_utils.o
@@ -358,21 +360,22 @@ ifeq ($(strip $(filter-out x86_64 linux-gnux32%, $(target_cpu) $(target_os))),)
   endif
 endif
 
+# The x86_64-*abi32 compilers are x86_64 compilers defaulting to -m32
+ifeq ($(strip $(filter-out x86_64 %abi32, $(target_cpu) $(target_os))),)
+  ifneq ($(strip $(MULTISUBDIR)),/64)
+    target_cpu:=i686
+  endif
+endif
+
 # Configuration of host tools
 
-# Under linux, host tools need to be linked with -ldl
+# On old Linux versions, host tools need to be linked with -ldl
 
 ifeq ($(strip $(filter-out linux%,$(host_os))),)
    TOOLS1_LIBS=-ldl
 endif
 
 include $(fsrcdir)/ada/Makefile.rtl
-
-ifneq ($(enable_host_pie),)
-LIBGNAT=../$(RTSDIR)/libgnat_pic.a
-else
-LIBGNAT=../$(RTSDIR)/libgnat.a
-endif
 
 TOOLS_FLAGS_TO_PASS=		\
 	"CC=$(CC)" 		\

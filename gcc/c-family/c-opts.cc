@@ -1249,6 +1249,10 @@ c_common_post_options (const char **pfilename)
   SET_OPTION_IF_UNSET (&global_options, &global_options_set,
 		       flag_range_for_ext_temps, cxx_dialect >= cxx23);
 
+  /* Contracts are in C++26.  */
+  SET_OPTION_IF_UNSET (&global_options, &global_options_set,
+		       flag_contracts, cxx_dialect >= cxx26);
+
   /* EnabledBy unfortunately can't specify value to use if set and
      LangEnabledBy can't specify multiple options with &&.  For -Wunused
      or -Wunused -Wextra we want these to default to 3 unless user specified
@@ -1264,6 +1268,10 @@ c_common_post_options (const char **pfilename)
      supported.  */
   if (flag_immediate_escalation && cxx_dialect < cxx20)
     flag_immediate_escalation = 0;
+
+  if (flag_reflection && cxx_dialect < cxx26)
+    error ("%<-freflection%> only supported with %<-std=c++26%> or "
+	   "%<-std=gnu++26%>");
 
   if (num_in_fnames > 1)
     error ("too many filenames given; type %<%s %s%> for usage",

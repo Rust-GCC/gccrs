@@ -46,7 +46,7 @@
     assert(isNaN(sqrt(-1.0L)));
 }
 
-@safe unittest
+@safe pure unittest
 {
     import std.math.algebraic;
 
@@ -62,11 +62,16 @@
     import std.math.algebraic;
 
     import std.math.operations : feqrel;
+    import std.math.traits : isNaN;
 
     assert(hypot(1.0, 1.0).feqrel(1.4142) > 16);
     assert(hypot(3.0, 4.0).feqrel(5.0) > 16);
     assert(hypot(real.infinity, 1.0L) == real.infinity);
+    assert(hypot(1.0L, real.infinity) == real.infinity);
     assert(hypot(real.infinity, real.nan) == real.infinity);
+    assert(hypot(real.nan, real.infinity) == real.infinity);
+    assert(hypot(real.nan, 1.0L).isNaN);
+    assert(hypot(1.0L, real.nan).isNaN);
 }
 
 @safe unittest

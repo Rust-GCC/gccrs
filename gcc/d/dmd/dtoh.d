@@ -2,7 +2,7 @@
  * This module contains the implementation of the C++ header generation available through
  * the command line switch -Hc.
  *
- * Copyright:   Copyright (C) 1999-2025 by The D Language Foundation, All Rights Reserved
+ * Copyright:   Copyright (C) 1999-2026 by The D Language Foundation, All Rights Reserved
  * Authors:     $(LINK2 https://www.digitalmars.com, Walter Bright)
  * License:     $(LINK2 https://www.boost.org/LICENSE_1_0.txt, Boost License 1.0)
  * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/compiler/src/dmd/dtoh.d, _dtoh.d)
@@ -18,10 +18,12 @@ import core.stdc.ctype;
 import dmd.astcodegen;
 import dmd.astenums;
 import dmd.arraytypes;
-import dmd.attrib;
-import dmd.dsymbol;
 import dmd.dsymbolsem;
+import dmd.templatesem : computeOneMember;
+import dmd.expressionsem : toInteger;
+import dmd.funcsem : isVirtual;
 import dmd.errors;
+import dmd.errorsink;
 import dmd.globals;
 import dmd.hdrgen;
 import dmd.id;
@@ -46,6 +48,7 @@ import dmd.utils;
  *
  * Params:
  *   ms = the modules
+ *   eSink = where to report errors
  *
  * Notes:
  *  - the header is written to `<global.params.cxxhdrdir>/<global.params.cxxhdrfile>`
@@ -54,7 +57,7 @@ import dmd.utils;
  *  - ignored declarations are mentioned in a comment if `global.params.doCxxHdrGeneration`
  *    is set to `CxxHeaderMode.verbose`
  */
-void genCppHdrFiles(ref Modules ms)
+void genCppHdrFiles(ref Modules ms, ErrorSink eSink)
 {
     initialize();
 
@@ -68,7 +71,7 @@ void genCppHdrFiles(ref Modules ms)
     decl.doindent = true;
     decl.spaces = true;
 
-    scope v = new ToCppBuffer(&fwd, &done, &decl);
+    scope v = new ToCppBuffer(&fwd, &done, &decl, eSink);
 
     // Conditionally include another buffer for sanity checks
     debug (Debug_DtoH_Checks)
@@ -259,6 +262,9 @@ public:
     /// Default buffer for the currently visited declaration
     OutBuffer* buf;
 
+    /// Sink for error reporting
+    ErrorSink eSink;
+
     /// The generated header uses `real` emitted as `_d_real`?
     bool hasReal = false;
 
@@ -329,12 +335,13 @@ public:
     }
     mixin(generateMembers());
 
-    this(OutBuffer* fwdbuf, OutBuffer* donebuf, OutBuffer* buf) scope
+    this(OutBuffer* fwdbuf, OutBuffer* donebuf, OutBuffer* buf, ErrorSink eSink) scope
     {
         this.fwdbuf = fwdbuf;
         this.donebuf = donebuf;
         this.buf = buf;
         this.printIgnored = global.params.cxxhdr.fullOutput;
+        this.eSink = eSink;
     }
 
     /**
@@ -502,12 +509,12 @@ public:
             }
 
             __gshared bool warned = false;
-            warning(loc, "%s `%s` is a %s", kind, ident.toChars(), reason);
+            eSink.warning(loc, "%s `%s` is a %s", kind, ident.toChars(), reason);
 
             if (!warned)
             {
-                warningSupplemental(loc, "The generated C++ header will contain " ~
-                                    "identifiers that are keywords in C++");
+                eSink.warningSupplemental(loc, "The generated C++ header will contain " ~
+                                          "identifiers that are keywords in C++");
                 warned = true;
             }
         }
@@ -574,7 +581,6 @@ public:
         debug (Debug_DtoH)
         {
             mixin(traceVisit!s);
-            import dmd.asttypename;
             printf("[AST.Dsymbol enter] %s\n", s.astTypeName().ptr);
         }
     }
@@ -895,7 +901,7 @@ public:
     {
         // Omit redundant declarations - the slot was already
         // reserved in the base class
-        if (fd.isVirtual() && fd.isIntroducing())
+        if (fd.isVirtual() && fd.isIntroducing)
         {
             // Hide placeholders because they are not ABI compatible
             writeProtection(AST.Visibility.Kind.private_);
@@ -1164,7 +1170,7 @@ public:
 
         auto fd = ad.aliassym.isFuncDeclaration();
 
-        if (fd && (fd.isGenerated() || fd.isDtorDeclaration()))
+        if (fd && (fd.isGenerated || fd.isDtorDeclaration()))
         {
             // Ignore. It's taken care of while visiting FuncDeclaration
             return;
@@ -1197,7 +1203,7 @@ public:
                 // Print prefix of the base class if this function originates from a superclass
                 // because alias might be resolved through multiple classes, e.g.
                 // e.g. for alias visit = typeof(super).visit in the visitors
-                if (!fd.isIntroducing())
+                if (!fd.isIntroducing)
                     printPrefix(ad.toParent().isClassDeclaration().baseClass);
                 else
                     printPrefix(pd);
@@ -1748,7 +1754,6 @@ public:
         // `this` but accessible via `outer`
         if (auto td = s.isThisDeclaration())
         {
-            import dmd.id;
             this.ident = Id.outer;
         }
         else
@@ -2141,6 +2146,7 @@ public:
         if (!shouldEmitAndMarkVisited(td))
             return;
 
+        td.computeOneMember();
         if (!td.parameters || !td.onemember || (!td.onemember.isStructDeclaration && !td.onemember.isClassDeclaration && !td.onemember.isFuncDeclaration))
         {
             visit(cast(AST.Dsymbol)td);
@@ -2697,7 +2703,6 @@ public:
         }
         else
         {
-            import dmd.hdrgen;
             // Hex floating point literals were introduced in C++ 17
             const allowHex = global.params.cplusplus >= CppStdRevision.cpp17;
             floatToBuffer(e.type, e.value, *buf, allowHex);

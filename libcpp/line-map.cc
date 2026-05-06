@@ -772,7 +772,9 @@ linemap_module_restore (line_maps *set, line_map_uint_t lwm)
 bool
 linemap_location_from_module_p (const line_maps *set, location_t loc)
 {
-  const line_map_ordinary *map = linemap_ordinary_map_lookup (set, loc);
+  const line_map_ordinary *map = nullptr;
+  linemap_resolve_location (set, loc, LRK_SPELLING_LOCATION, &map);
+
   while (map && map->reason != LC_MODULE)
     map = linemap_included_from_linemap (set, map);
   return !!map;

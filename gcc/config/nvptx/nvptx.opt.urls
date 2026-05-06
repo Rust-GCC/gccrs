@@ -12,6 +12,9 @@ UrlSuffix(gcc/Nvidia-PTX-Options.html#index-moptimize)
 msoft-stack
 UrlSuffix(gcc/Nvidia-PTX-Options.html#index-msoft-stack)
 
+msoft-stack-reserve-local=
+UrlSuffix(gcc/Nvidia-PTX-Options.html#index-msoft-stack-reserve-local)
+
 muniform-simt
 UrlSuffix(gcc/Nvidia-PTX-Options.html#index-muniform-simt)
 
@@ -22,7 +25,7 @@ misa=
 UrlSuffix(gcc/Nvidia-PTX-Options.html#index-misa)
 
 march=
-UrlSuffix(gcc/Nvidia-PTX-Options.html#index-march-11)
+UrlSuffix(gcc/Nvidia-PTX-Options.html#index-march-10)
 
 mptx=
 UrlSuffix(gcc/Nvidia-PTX-Options.html#index-mptx)

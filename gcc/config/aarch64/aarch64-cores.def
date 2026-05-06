@@ -137,6 +137,7 @@ AARCH64_CORE("a64fx", a64fx, a64fx, V8_2A,  (F16, SVE), a64fx, 0x46, 0x001, -1)
 AARCH64_CORE("fujitsu-monaka", fujitsu_monaka, cortexa57, V9_3A, (F16, FAMINMAX, FP8FMA, FP8DOT2, FP8DOT4, LS64, LUT, RNG, CRYPTO, SVE2_AES, SVE2_BITPERM, SVE2_SHA3, SVE2_SM4), fujitsu_monaka, 0x46, 0x003, -1)
 
 /* HiSilicon ('H') cores. */
+AARCH64_CORE("hip12", hip12, cortexa57, V8_7A, (F16, PROFILE, RNG, SVE2_BITPERM, SVE2_AES, SVE2_SM4, SVE2_SHA3, LS64, RCPC3), hip12, 0x48, 0xd06, -1)
 AARCH64_CORE("tsv110",  tsv110, tsv110, V8_2A,  (CRYPTO, F16), tsv110,   0x48, 0xd01, -1)
 
 /* ARMv8.3-A Architecture Processors.  */
@@ -179,7 +180,7 @@ AARCH64_CORE("cortex-r82ae", cortexr82ae, cortexa53, V8R, (), cortexa53, 0x41, 0
    Known part numbers as listed in other public sources.
    Placeholders for schedulers, generic_armv8_a for costs.
    A12 seems mostly 8.3, M1 is 8.5 without BTI, M2 and M3 are 8.6.
-   M4 is 9.2 but without SVE, so the closest match is 8.7.
+   M4 and M5 are 9.2 but without SVE, so the closest match is 8.7.
    From measurements made so far the odd-number core IDs are performance.  */
 AARCH64_CORE("apple-a12", applea12, cortexa53, V8_3A,  (), generic_armv8_a, 0x61, 0x12, -1)
 AARCH64_CORE("apple-m1", applem1_0, cortexa57, V8_5A,  (), generic_armv8_a, 0x61, AARCH64_BIG_LITTLE (0x21, 0x20), -1)
@@ -196,6 +197,9 @@ AARCH64_CORE("apple-m3", applem3_2, cortexa57, V8_6A,  (), generic_armv8_a, 0x61
 AARCH64_CORE("apple-m4", applem4_0, cortexa57, V8_7A,  (), generic_armv8_a, 0x61, AARCH64_BIG_LITTLE (0x53, 0x52), -1)
 AARCH64_CORE("apple-m4", applem4_1, cortexa57, V8_7A,  (), generic_armv8_a, 0x61, AARCH64_BIG_LITTLE (0x55, 0x54), -1)
 AARCH64_CORE("apple-m4", applem4_2, cortexa57, V8_7A,  (), generic_armv8_a, 0x61, AARCH64_BIG_LITTLE (0x59, 0x58), -1)
+AARCH64_CORE("apple-m5", applem5_0, cortexa57, V8_7A,  (), generic_armv8_a, 0x61, AARCH64_BIG_LITTLE (0x63, 0x62), -1)
+AARCH64_CORE("apple-m5", applem5_1, cortexa57, V8_7A,  (), generic_armv8_a, 0x61, AARCH64_BIG_LITTLE (0x65, 0x64), -1)
+AARCH64_CORE("apple-m5", applem5_2, cortexa57, V8_7A,  (), generic_armv8_a, 0x61, AARCH64_BIG_LITTLE (0x69, 0x68), -1)
 
 /* Armv9.0-A Architecture Processors.  */
 
@@ -230,6 +234,7 @@ AARCH64_CORE("neoverse-v2", neoversev2, cortexa57, V9A, (I8MM, BF16, SVE2_BITPER
 AARCH64_CORE("grace", grace, cortexa57, V9A, (I8MM, BF16, SVE2_BITPERM, SVE2_AES, SVE2_SHA3, SVE2_SM4, PROFILE), neoversev2, 0x41, 0xd4f, -1)
 AARCH64_CORE("neoverse-v3", neoversev3, cortexa57, V9_2A, (SVE2_BITPERM, RNG, LS64, MEMTAG, PROFILE), neoversev3, 0x41, 0xd84, -1)
 AARCH64_CORE("neoverse-v3ae", neoversev3ae, cortexa57, V9_2A, (SVE2_BITPERM, RNG, LS64, MEMTAG, PROFILE), neoversev3ae, 0x41, 0xd83, -1)
+AARCH64_CORE("armagicpu", armagicpu, cortexa57, V9_2A, (SVE2_BITPERM, RNG, LS64, MEMTAG, PROFILE), neoversev3ae, 0x41, 0xd83, -1)
 
 AARCH64_CORE("c1-nano", c1nano, cortexa53, V9_3A, (MEMTAG, SVE2_BITPERM, F16FML, SME2, RCPC3), cortexa53, 0x41, 0xd8a, -1)
 AARCH64_CORE("c1-pro", c1pro, cortexa57, V9_3A, (MEMTAG, SVE2_BITPERM, F16FML, PROFILE, SME2, RCPC3), neoversen3, 0x41, 0xd8b, -1)
