@@ -7857,7 +7857,10 @@ package body Sem_Attr is
                --  in turn prevents the proper expansion of the attribute into
                --  True.
 
-               if Is_Tagged_Type (P_Type) then
+               if Is_Tagged_Type (P_Type)
+                 or else (Present (Full_View (P_Type))
+                           and then Is_Tagged_Type (Full_View (P_Type)))
+               then
                   Error_Msg_Name_1 := Aname;
                   Error_Msg_N ("??effects of attribute % are ignored", N);
                end if;
