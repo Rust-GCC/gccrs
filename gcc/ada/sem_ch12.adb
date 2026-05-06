@@ -268,6 +268,7 @@ package body Sem_Ch12 is
    --                                Exit_Cases
    --                                Extensions_Visible
    --                                Global
+   --                                Modifies
    --     package body               Post
    --       Refined_State            Post_Class
    --                                Postcondition

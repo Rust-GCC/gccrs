@@ -563,6 +563,13 @@ Aspect Max_Queue_Length
 
 This aspect is equivalent to :ref:`pragma Max_Queue_Length<Pragma-Max_Queue_Length>`.
 
+Aspect Modifies
+===============
+.. index:: Modifies
+
+For the syntax and semantics of this aspect, see the SPARK 2014 Reference
+Manual, section TBD.
+
 Aspect No_Caching
 =================
 .. index:: No_Caching

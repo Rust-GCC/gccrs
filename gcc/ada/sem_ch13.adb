@@ -5417,7 +5417,7 @@ package body Sem_Ch13 is
          --  Case 4: Aspects requiring special handling
 
          --  Pre/Post/Test_Case/Contract_Cases/Always_Terminates/
-         --  Exceptional_Cases/Exit_Cases/Program_Exit and
+         --  Exceptional_Cases/Exit_Cases/Modifies/Program_Exit and
          --  Subprogram_Variant whose corresponding pragmas take care of
          --  the delay.
 
@@ -5614,6 +5614,14 @@ package body Sem_Ch13 is
                  Make_Pragma_Argument_Association (Loc,
                    Expression => Relocate_Node (Expr))),
                Pragma_Name                  => Name_Exit_Cases);
+            Insert_Aitem;
+
+         when Aspect_Modifies =>
+            Make_Aitem_Pragma
+              (Pragma_Argument_Associations => New_List (
+                 Make_Pragma_Argument_Association (Loc,
+                   Expression => Relocate_Node (Expr))),
+               Pragma_Name                  => Name_Modifies);
             Insert_Aitem;
 
          when Aspect_Program_Exit =>
@@ -5905,10 +5913,10 @@ package body Sem_Ch13 is
 
       --  Note that there is a special handling for Pre, Post, Test_Case,
       --  Contract_Cases, Always_Terminates, Exit_Cases, Exceptional_Cases,
-      --  Program_Exit and Subprogram_Variant aspects. In these cases, we do
-      --  not have to worry about delay issues, since the pragmas themselves
-      --  deal with delay of visibility for the expression analysis. Thus, we
-      --  just insert the pragma after the node N.
+      --  Modifies, Program_Exit and Subprogram_Variant aspects. In these
+      --  cases, we do not have to worry about delay issues, since the pragmas
+      --  themselves deal with delay of visibility for the expression analysis.
+      --  Thus, we just insert the pragma after the node N.
 
       Aspect : Node_Id := First (Aspect_Specifications (N));
 
@@ -12242,6 +12250,7 @@ package body Sem_Ch13 is
             | Aspect_Initializes
             | Aspect_Max_Entry_Queue_Length
             | Aspect_Max_Queue_Length
+            | Aspect_Modifies
             | Aspect_Obsolescent
             | Aspect_Part_Of
             | Aspect_Post

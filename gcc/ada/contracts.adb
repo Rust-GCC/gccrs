@@ -230,6 +230,7 @@ package body Contracts is
       --    Exceptional_Cases
       --    Extensions_Visible
       --    Global
+      --    Modifies
       --    Interrupt_Handler
       --    Postcondition
       --    Precondition
@@ -266,6 +267,7 @@ package body Contracts is
                          | Name_Contract_Cases
                          | Name_Exceptional_Cases
                          | Name_Exit_Cases
+                         | Name_Modifies
                          | Name_Program_Exit
                          | Name_Subprogram_Variant
                          | Name_Test_Case
@@ -649,9 +651,9 @@ package body Contracts is
       end if;
 
       --  Deal with preconditions, [refined] postconditions, Always_Terminates,
-      --  Contract_Cases, Exceptional_Cases, Program_Exit, Subprogram_Variant,
-      --  invariants and predicates associated with body and its spec. Do not
-      --  expand the contract of subprogram body stubs.
+      --  Contract_Cases, Exceptional_Cases, Modifies, Program_Exit,
+      --  Subprogram_Variant, invariants and predicates associated with body
+      --  and its spec. Do not expand the contract of subprogram body stubs.
 
       if Nkind (Body_Decl) = N_Subprogram_Body then
          Expand_Subprogram_Contract (Body_Id);
@@ -798,6 +800,9 @@ package body Contracts is
 
             elsif Prag_Nam = Name_Exceptional_Cases then
                Analyze_Exceptional_Cases_In_Decl_Part (Prag);
+
+            elsif Prag_Nam = Name_Modifies then
+               Analyze_Modifies_In_Decl_Part (Prag);
 
             elsif Prag_Nam = Name_Program_Exit then
                Analyze_Program_Exit_In_Decl_Part (Prag);
@@ -1424,6 +1429,7 @@ package body Contracts is
       --    Depends
       --    Exceptional_Cases
       --    Global
+      --    Modifies
       --    Postcondition
       --    Precondition
       --    Program_Exit

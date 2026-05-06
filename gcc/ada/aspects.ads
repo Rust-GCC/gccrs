@@ -120,6 +120,7 @@ package Aspects is
       Aspect_Machine_Radix,
       Aspect_Max_Entry_Queue_Length,
       Aspect_Max_Queue_Length,              -- GNAT
+      Aspect_Modifies,                      -- GNAT
       Aspect_Object_Size,
       Aspect_Obsolescent,                   -- GNAT
       Aspect_Output,
@@ -328,6 +329,7 @@ package Aspects is
       Aspect_Local_Restrictions          => True,
       Aspect_Lock_Free                   => True,
       Aspect_Max_Queue_Length            => True,
+      Aspect_Modifies                    => True,
       Aspect_No_Caching                  => True,
       Aspect_No_Elaboration_Code_All     => True,
       Aspect_No_Inline                   => True,
@@ -486,6 +488,7 @@ package Aspects is
       Aspect_Machine_Radix              => Expression,
       Aspect_Max_Entry_Queue_Length     => Expression,
       Aspect_Max_Queue_Length           => Expression,
+      Aspect_Modifies                   => Expression,
       Aspect_Object_Size                => Expression,
       Aspect_Obsolescent                => Optional_Expression,
       Aspect_Output                     => Name,
@@ -593,6 +596,7 @@ package Aspects is
       Aspect_Machine_Radix                => True,
       Aspect_Max_Entry_Queue_Length       => False,
       Aspect_Max_Queue_Length             => False,
+      Aspect_Modifies                     => False,
       Aspect_Object_Size                  => True,
       Aspect_Obsolescent                  => False,
       Aspect_Output                       => False,
@@ -787,6 +791,7 @@ package Aspects is
       Aspect_Machine_Radix                => Name_Machine_Radix,
       Aspect_Max_Entry_Queue_Length       => Name_Max_Entry_Queue_Length,
       Aspect_Max_Queue_Length             => Name_Max_Queue_Length,
+      Aspect_Modifies                     => Name_Modifies,
       Aspect_No_Caching                   => Name_No_Caching,
       Aspect_No_Controlled_Parts          => Name_No_Controlled_Parts,
       Aspect_No_Task_Parts                => Name_No_Task_Parts,
@@ -1106,6 +1111,7 @@ package Aspects is
       Aspect_Invariant                    => Never_Delay,
       Aspect_Max_Entry_Queue_Length       => Never_Delay,
       Aspect_Max_Queue_Length             => Never_Delay,
+      Aspect_Modifies                     => Never_Delay,
       Aspect_No_Caching                   => Never_Delay,
       Aspect_No_Controlled_Parts          => Never_Delay,
       Aspect_No_Task_Parts                => Never_Delay,

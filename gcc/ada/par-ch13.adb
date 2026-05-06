@@ -36,6 +36,7 @@ package body Ch13 is
 
    function P_Component_Clause return Node_Id;
    function P_Mod_Clause return Node_Id;
+   function P_Modifies_Specification return Node_Id;
 
    -----------------------------------
    -- Aspect_Specifications_Present --
@@ -510,10 +511,16 @@ package body Ch13 is
                   when others => null;
                end case;
 
+               --  Aspect Modifies requires dedicated parsing, because it is
+               --  unlike any valid expression.
+
+               if A_Id = Aspect_Modifies then
+                  Set_Expression (Aspect, P_Modifies_Specification);
+
                --  Parse the aspect definition depending on the expected
                --  argument kind.
 
-               if Aspect_Argument (A_Id) = Name
+               elsif Aspect_Argument (A_Id) = Name
                  or else Aspect_Argument (A_Id) = Optional_Name
                then
                   Set_Expression (Aspect, P_Name);
@@ -994,6 +1001,144 @@ package body Ch13 is
       TF_Semicolon;
       return Mod_Node;
    end P_Mod_Clause;
+
+   ------------------------------
+   -- P_Modifies_Specification --
+   ------------------------------
+
+   --  MODIFIES_SPECIFICATION ::=
+   --      MODIFIES_CLAUSE
+   --    | (MODIFIES_CLAUSE {, MODIFIES_CLAUSE});
+   --
+   --  MODIFIES_CLAUSE ::= MODIFIED_OBJECTS { when GUARD }
+   --
+   --  GUARD ::= boolean_EXPRESSION
+   --
+   --  MODIFIED_OBJECTS ::=
+   --      MODIFIED_OBJECT
+   --    | (MODIFIED_OBJECT {, MODIFIED_OBJECT})
+   --
+   --  MODIFIED_OBJECT ::=
+   --      name
+   --    | MODIFIED_OBJECT . all
+   --    | MODIFIED_OBJECT . component_selector_name
+   --    | MODIFIED_OBJECT (expression {, expression})
+
+   function P_Modifies_Specification return Node_Id is
+
+      function P_Modifies_Clause return Node_Id;
+      --  Parse a single modifies clause. If there are multiple modified
+      --  objects or a guard, then a component association is returned where
+      --  modified objects become component choices and guard becomes component
+      --  expression; otherwise, a modified object is returned directly.
+
+      -----------------------
+      -- P_Modifies_Clause --
+      -----------------------
+
+      function P_Modifies_Clause return Node_Id is
+         Clause_Node    : Node_Id;
+         Object_Node    : Node_Id;
+         Condition_Node : Node_Id;
+      begin
+         if Token = Tok_Left_Paren then
+            Scan;  --  pase left paren
+
+            Clause_Node :=
+              New_Node (N_Component_Association, Token_Ptr);
+
+            loop
+               Object_Node := P_Name;
+
+               if Choices (Clause_Node) = No_List then
+                  Set_Choices (Clause_Node, New_List);
+               end if;
+
+               Append (Object_Node, Choices (Clause_Node));
+
+               if Token = Tok_Comma then
+                  Scan; --  past comma
+               elsif Token = Tok_Right_Paren then
+                  Scan; --  past right paren
+                  exit;
+               else
+                  raise Error_Resync;
+               end if;
+            end loop;
+
+            if Token = Tok_When then
+               Scan; --  past WHEN
+               Condition_Node := P_Expression;
+
+               Set_Expression (Clause_Node, Condition_Node);
+            end if;
+
+            return Clause_Node;
+         else
+            Object_Node := P_Name;
+
+            if Token = Tok_When then
+               Scan; --  past WHEN
+               Condition_Node := P_Expression;
+
+               Clause_Node :=
+                 New_Node (N_Component_Association, Sloc (Object_Node));
+
+               Set_Choices    (Clause_Node, New_List (Object_Node));
+               Set_Expression (Clause_Node, Condition_Node);
+
+               return Clause_Node;
+            else
+               return Object_Node;
+            end if;
+         end if;
+      end P_Modifies_Clause;
+
+      Modifies_Node : Node_Id;
+      Clause_Node   : Node_Id;
+
+   begin
+      Modifies_Node := New_Node (N_Aggregate, Token_Ptr);
+
+      if Token = Tok_Left_Paren then
+         Scan; --  past left paren
+         loop
+            Clause_Node := P_Modifies_Clause;
+            if Nkind (Clause_Node) = N_Component_Association then
+               if Component_Associations (Modifies_Node) = No_List then
+                  Set_Component_Associations (Modifies_Node, New_List);
+               end if;
+               Append (Clause_Node, Component_Associations (Modifies_Node));
+            else
+               if Expressions (Modifies_Node) = No_List then
+                  Set_Expressions (Modifies_Node, New_List);
+               end if;
+               Append (Clause_Node, Expressions (Modifies_Node));
+            end if;
+
+            if Token = Tok_Comma then
+               Scan; --  past comma
+            elsif Token = Tok_Right_Paren then
+               Scan; --  past right paren
+               exit;
+            else
+               raise Error_Resync;
+            end if;
+         end loop;
+      else
+         Clause_Node := P_Modifies_Clause;
+         if Nkind (Clause_Node) = N_Component_Association then
+            Set_Component_Associations (Modifies_Node, New_List (Clause_Node));
+         else
+            Set_Expressions (Modifies_Node, New_List (Clause_Node));
+         end if;
+      end if;
+
+      return Modifies_Node;
+   exception
+      when Error_Resync =>
+         return Error;
+   end P_Modifies_Specification;
 
    ------------------------------
    -- 13.5.1  Component Clause --

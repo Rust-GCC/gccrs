@@ -2562,6 +2562,7 @@ package Sem_Util is
    --    Exit_Cases
    --    Extensions_Visible
    --    Global
+   --    Modifies
    --    Post
    --    Post_Class
    --    Postcondition

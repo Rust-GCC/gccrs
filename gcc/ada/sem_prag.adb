@@ -355,8 +355,8 @@ package body Sem_Prag is
      (Contract_Id : Entity_Id;
       Freeze_Id   : Entity_Id);
    --  Subsidiary to the analysis of pragmas Contract_Cases, Exceptional_Cases,
-   --  Part_Of, Post, Pre, Program_Exit and Subprogram_Variant. Emit a
-   --  freezing-related error message where Freeze_Id is the entity of a body
+   --  Modifies, Part_Of, Post, Pre, Program_Exit and Subprogram_Variant. Emit
+   --  a freezing-related error message where Freeze_Id is the entity of a body
    --  which caused contract freezing and Contract_Id denotes the entity of the
    --  affected contstruct.
 
@@ -4278,6 +4278,285 @@ package body Sem_Prag is
       Set_Is_Analyzed_Pragma (N);
    end Analyze_Initializes_In_Decl_Part;
 
+   -----------------------------------
+   -- Analyze_Modifies_In_Decl_Part --
+   -----------------------------------
+
+   --  WARNING: This routine manages Ghost regions. Return statements must be
+   --  replaced by gotos which jump to the end of the routine and restore the
+   --  Ghost mode.
+
+   procedure Analyze_Modifies_In_Decl_Part
+     (N         : Node_Id;
+      Freeze_Id : Entity_Id := Empty)
+   is
+      Subp_Decl : constant Node_Id   := Find_Related_Declaration_Or_Body (N);
+      Spec_Id   : constant Entity_Id := Unique_Defining_Entity (Subp_Decl);
+
+      procedure Analyze_Clause (Clause : Node_Id);
+      --  Verify legality of a single modifies clause
+
+      procedure Analyze_Object (Object : Node_Id);
+
+      --------------------
+      -- Analyze_Clause --
+      --------------------
+
+      procedure Analyze_Clause (Clause : Node_Id) is
+         Modified_Object : Node_Id;
+         Guard           : constant Node_Id := Expression (Clause);
+         Errors          : Nat;
+
+      begin
+         pragma Assert (Nkind (Clause) = N_Component_Association);
+
+         Modified_Object := First (Choices (Clause));
+         while Present (Modified_Object) loop
+            Analyze_Object (Modified_Object);
+            Next (Modified_Object);
+         end loop;
+
+         if Present (Guard) then
+
+            Errors := Serious_Errors_Detected;
+
+            Preanalyze_And_Resolve_Assert_Expression (Guard, Any_Boolean);
+
+            --  Emit a clarification message when the guard expression contains
+            --  at least one undefined reference, possibly due to contract
+            --  freezing.
+
+            if Errors /= Serious_Errors_Detected
+              and then Present (Freeze_Id)
+              and then Has_Undefined_Reference (Guard)
+            then
+               Contract_Freeze_Error (Spec_Id, Freeze_Id);
+            end if;
+         end if;
+      end Analyze_Clause;
+
+      --------------------
+      -- Analyze_Object --
+      --------------------
+
+      procedure Analyze_Object (Object : Node_Id) is
+         procedure Analyze_And_Resolve_State_Or_Expression (N : Node_Id);
+         --  Like preanalyze and resolve, but with a custom resolution that
+         --  works both for abstract states and expressions.
+
+         ---------------------------------------------
+         -- Analyze_And_Resolve_State_Or_Expression --
+         ---------------------------------------------
+
+         procedure Analyze_And_Resolve_State_Or_Expression (N : Node_Id) is
+         begin
+            Analyze (N);
+
+            --  Try to resolve expression as an abstract state (in particular,
+            --  this will pick abstract state when it is overloaded by a
+            --  function). If this doesn't work, then resolve it as an
+            --  expression.
+
+            Resolve_State (N);
+
+            if Is_Entity_Name (N)
+               and then Present (Entity (N))
+               and then Ekind (Entity (N)) = E_Abstract_State
+            then
+               null;
+            else
+               Resolve (N);
+            end if;
+         end Analyze_And_Resolve_State_Or_Expression;
+
+         Root    : Node_Id;
+         Root_Id : Entity_Id;
+
+      --  Start of processing for Analyze_Object
+
+      begin
+         --  This contract allows both abstract states (which must be resolved
+         --  like in Global/Depends) and parts of objects (which must be
+         --  resolved like assert expressions, including checks for
+         --  subexpressions inside array indexes). This requires processing
+         --  like in Preanalyze_And_Resolve_Assert_Expression, but with a
+         --  custom resolution. Unfortunately, the current API doesn't allow
+         --  us to build it from exising routines, so we duplicate code to get
+         --  the necessary behavior.
+
+         declare
+            Save_In_Spec_Expression : constant Boolean := In_Spec_Expression;
+            Save_Full_Analysis      : constant Boolean := Full_Analysis;
+         begin
+            In_Assertion_Expr := In_Assertion_Expr + 1;
+            In_Spec_Expression := True;
+
+            Full_Analysis := False;
+            Expander_Mode_Save_And_Set (False);
+
+            --  See previous version of Preanalyze_And_Resolve for similar
+            --  handling.
+
+            if GNATprove_Mode then
+               Analyze_And_Resolve_State_Or_Expression (Object);
+            else
+               declare
+                  Sva : constant Suppress_Array := Scope_Suppress.Suppress;
+               begin
+                  Scope_Suppress.Suppress := (others => True);
+                  Analyze_And_Resolve_State_Or_Expression (Object);
+                  Scope_Suppress.Suppress := Sva;
+               end;
+            end if;
+
+            Expander_Mode_Restore;
+            Full_Analysis := Save_Full_Analysis;
+            In_Spec_Expression := Save_In_Spec_Expression;
+            In_Assertion_Expr := In_Assertion_Expr - 1;
+         end;
+
+         Root := Object;
+         while Present (Root) loop
+            case Nkind (Root) is
+               when N_Identifier | N_Expanded_Name =>
+                  Root_Id := Entity (Root);
+
+                  --  Immutable discriminants might have been rewritten into
+                  --  literals and we want to complain about the original
+                  --  expression.
+
+                  if Is_Rewrite_Substitution (Root)
+                    and then Ekind (Root_Id) = E_Enumeration_Literal
+                  then
+                     Root := Original_Node (Root);
+                  else
+                     exit;
+                  end if;
+
+               when N_Selected_Component =>
+                  if Ekind (Entity (Selector_Name (Root))) = E_Discriminant
+                  then
+                     Error_Msg_N
+                       ("discriminant cannot appear in Modifies contract",
+                        Root);
+                     return;
+                  end if;
+
+                  Root := Prefix (Root);
+
+               when N_Explicit_Dereference | N_Indexed_Component =>
+                  Root := Prefix (Root);
+
+               when others =>
+                  --  Immutable discriminants might have been rewritten into
+                  --  literals and we want to complain about the original
+                  --  expression.
+
+                  if Is_Rewrite_Substitution (Root)
+                    and then Nkind (Root) in N_Character_Literal
+                                           | N_Integer_Literal
+                                           | N_Null
+                  then
+                     Root := Original_Node (Root);
+                  else
+                     Error_Msg_N
+                       ("modified expression must be a part " &
+                        "of subprogram output",
+                        Root);
+                     return;
+                  end if;
+
+            end case;
+         end loop;
+
+         if Is_Object (Root_Id) or else Ekind (Root_Id) = E_Abstract_State then
+            --  ??? check if named object is subprogram output
+            null;
+         else
+            Error_Msg_NE
+              ("& cannot appear in Modifies contract", Root, Root_Id);
+         end if;
+      end Analyze_Object;
+
+      --  Local variables
+
+      Clauses : constant Node_Id := Expression (Get_Argument (N, Spec_Id));
+
+      Saved_Ghost_Config : constant Ghost_Config_Type := Ghost_Config;
+      --  Save the Ghost-related attributes to restore on exit
+
+      Clause        : Node_Id;
+      Restore_Scope : Boolean := False;
+
+   --  Start of processing for Analyze_Modifies_In_Decl_Part
+
+   begin
+      --  Do not analyze the pragma multiple times
+
+      if Is_Analyzed_Pragma (N) then
+         return;
+      end if;
+
+      --  Set the Ghost mode in effect from the pragma. Due to the delayed
+      --  analysis of the pragma, the Ghost mode at point of declaration and
+      --  point of analysis may not necessarily be the same. Use the mode in
+      --  effect at the point of declaration.
+
+      Set_Ghost_Mode (N);
+
+      --  Parse represents the modifies specification as an aggregate
+      --  where clauses with guards or multiple objects become component
+      --  associations, while clauses with single objects and no guards
+      --  become expressions.
+
+      pragma Assert
+        (Present (Component_Associations (Clauses))
+           or
+         Present (Expressions (Clauses)));
+
+      --  Check that the expression is a proper aggregate (no parentheses)
+
+      if Paren_Count (Clauses) /= 0 then
+         Error_Msg_F -- CODEFIX
+           ("redundant parentheses", Clauses);
+      end if;
+
+      --  Ensure that the formal parameters are visible when analyzing all
+      --  clauses. This falls out of the general rule of aspects pertaining
+      --  to subprogram declarations.
+
+      if not In_Open_Scopes (Spec_Id) then
+         Restore_Scope := True;
+         Push_Scope (Spec_Id);
+
+         if Is_Generic_Subprogram (Spec_Id) then
+            Install_Generic_Formals (Spec_Id);
+         else
+            Install_Formals (Spec_Id);
+         end if;
+      end if;
+
+      Clause := First (Component_Associations (Clauses));
+      while Present (Clause) loop
+         Analyze_Clause (Clause);
+         Next (Clause);
+      end loop;
+
+      Clause := First (Expressions (Clauses));
+      while Present (Clause) loop
+         Analyze_Object (Clause);
+         Next (Clause);
+      end loop;
+
+      if Restore_Scope then
+         End_Scope;
+      end if;
+
+      Set_Is_Analyzed_Pragma (N);
+
+      Restore_Ghost_Region (Saved_Ghost_Config);
+   end Analyze_Modifies_In_Decl_Part;
+
    ---------------------
    -- Analyze_Part_Of --
    ---------------------
@@ -5154,7 +5433,7 @@ package body Sem_Prag is
       procedure Ensure_Aggregate_Form (Arg : Node_Id);
       --  Subsidiary routine to the processing of pragmas Abstract_State,
       --  Contract_Cases, Depends, Exceptional_Cases, Global, Initializes,
-      --  Refined_Depends, Refined_Global, Refined_State and
+      --  Modifies, Refined_Depends, Refined_Global, Refined_State and
       --  Subprogram_Variant. Transform argument Arg into an aggregate if not
       --  one already. N_Null is never transformed. Arg may denote an aspect
       --  specification or a pragma argument association.
@@ -22197,6 +22476,151 @@ package body Sem_Prag is
             Check_Arg_Count (1);
             Check_Arg_Is_Integer_Literal (Arg1);
 
+         --------------
+         -- Modifies --
+         --------------
+
+         --  pragma Modifies ( SUBPROGRAM_VARIANT_LIST );
+
+         --  pragma Modifies (MODIFIES_SPECIFICATION);
+         --
+         --  MODIFIES_SPECIFICATION ::=
+         --      MODIFIES_CLAUSE
+         --    | (MODIFIES_CLAUSE {, MODIFIES_CLAUSE});
+         --
+         --  MODIFIES_CLAUSE ::= MODIFIED_OBJECTS { when GUARD }
+         --
+         --  GUARD ::= boolean_EXPRESSION
+         --
+         --  MODIFIED_OBJECTS ::=
+         --      MODIFIED_OBJECT
+         --    | (MODIFIED_OBJECT {, MODIFIED_OBJECT})
+         --
+         --  MODIFIED_OBJECT ::=
+         --      name
+         --    | MODIFIED_OBJECT . all
+         --    | MODIFIED_OBJECT . component_selector_name
+         --    | MODIFIED_OBJECT (expression {, expression})
+
+         --  Characteristics:
+
+         --    * Analysis - The annotation undergoes initial checks to verify
+         --    the legal placement and context. Secondary checks preanalyze the
+         --    expressions in:
+
+         --       Analyze_Modifies_In_Decl_Part
+
+         --    * Expansion - The annotation is expanded during the expansion of
+         --    the related subprogram [body] contract as performed in:
+
+         --       Expand_Subprogram_Contract
+
+         --    * Template - The annotation utilizes the generic template of the
+         --    related subprogram [body] when it is:
+
+         --       aspect on subprogram declaration
+         --       aspect on stand-alone subprogram body
+         --       pragma on stand-alone subprogram body
+
+         --    The annotation must prepare its own template when it is:
+
+         --       pragma on subprogram declaration
+
+         --    * Globals - Capture of global references must occur after full
+         --    analysis.
+
+         --    * Instance - The annotation is instantiated automatically when
+         --    the related generic subprogram [body] is instantiated except for
+         --    the "pragma on subprogram declaration" case. In that scenario
+         --    the annotation must instantiate itself.
+
+         when Pragma_Modifies => Modifies : declare
+            Spec_Id   : Entity_Id;
+            Subp_Decl : Node_Id;
+            Subp_Spec : Node_Id;
+
+         begin
+            GNAT_Pragma;
+            Check_No_Identifiers;
+            Check_Arg_Count (1);
+
+            --  Ensure the proper placement of the pragma. Modifies must be
+            --  associated with a subprogram declaration or a body that acts
+            --  as a spec.
+
+            Subp_Decl :=
+              Find_Related_Declaration_Or_Body (N, Do_Checks => True);
+
+            --  Generic subprogram
+
+            if Nkind (Subp_Decl) = N_Generic_Subprogram_Declaration then
+               null;
+
+            --  Body acts as spec
+
+            elsif Nkind (Subp_Decl) = N_Subprogram_Body
+              and then No (Corresponding_Spec (Subp_Decl))
+            then
+               null;
+
+            --  Body stub acts as spec
+
+            elsif Nkind (Subp_Decl) = N_Subprogram_Body_Stub
+              and then No (Corresponding_Spec_Of_Stub (Subp_Decl))
+            then
+               null;
+
+            --  Subprogram
+
+            elsif Nkind (Subp_Decl) = N_Subprogram_Declaration then
+               Subp_Spec := Specification (Subp_Decl);
+
+               --  Pragma Modifies is forbidden on null procedures, as this
+               --  may lead to potential ambiguities in behavior when interface
+               --  null procedures are involved. Also, it just wouldn't make
+               --  sense, because null procedure doesn't modify anything.
+
+               if Nkind (Subp_Spec) = N_Procedure_Specification
+                 and then Null_Present (Subp_Spec)
+               then
+                  Error_Msg_N (Fix_Error
+                    ("pragma % cannot apply to null procedure"), N);
+                  return;
+               end if;
+
+            else
+               Pragma_Misplaced;
+            end if;
+
+            Spec_Id := Unique_Defining_Entity (Subp_Decl);
+
+            --  A pragma that applies to a Ghost entity becomes Ghost for the
+            --  purposes of legality checks and removal of ignored Ghost code.
+
+            Mark_Ghost_Pragma (N, Spec_Id);
+            Ensure_Aggregate_Form (Get_Argument (N, Spec_Id));
+
+            --  Chain the pragma on the contract for further processing by
+            --  Analyze_Subprogram_Variant_In_Decl_Part.
+
+            Add_Contract_Item (N, Defining_Entity (Subp_Decl));
+
+            --  Fully analyze the pragma when it appears inside a subprogram
+            --  body because it cannot benefit from forward references.
+
+            if Nkind (Subp_Decl) in N_Subprogram_Body
+                                  | N_Subprogram_Body_Stub
+            then
+               --  The legality checks of pragma Modifies are affected by the
+               --  SPARK mode in effect and the volatility of the context.
+               --  Analyze all pragmas in a specific order.
+
+               Analyze_If_Present (Pragma_SPARK_Mode);
+               Analyze_If_Present (Pragma_Volatile_Function);
+               Analyze_Modifies_In_Decl_Part (N);
+            end if;
+         end Modifies;
+
          -------------
          -- No_Body --
          -------------
@@ -34939,6 +35363,7 @@ package body Sem_Prag is
       Pragma_Max_Entry_Queue_Length         =>  0,
       Pragma_Max_Queue_Length               =>  0,
       Pragma_Memory_Size                    =>  0,
+      Pragma_Modifies                       => -1,
       Pragma_No_Body                        =>  0,
       Pragma_No_Caching                     =>  0,
       Pragma_No_Component_Reordering        => -1,

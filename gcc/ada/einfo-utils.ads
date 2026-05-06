@@ -464,6 +464,7 @@ package Einfo.Utils is
    --    Initial_Condition
    --    Initializes
    --    Interrupt_Handler
+   --    Modifies
    --    No_Caching
    --    Part_Of
    --    Precondition

@@ -3887,6 +3887,40 @@ entry.
 
 A value of -1 represents no additional restriction on queue length.
 
+Pragma Modifies
+===============
+.. index:: Modifies
+
+Syntax:
+
+
+::
+
+  pragma Modifies (MODIFIES_SPECIFICATION);
+
+  MODIFIES_SPECIFICATION ::=
+      MODIFIES_CLAUSE
+    | (MODIFIES_CLAUSE {, MODIFIES_CLAUSE});
+
+  MODIFIES_CLAUSE ::= MODIFIED_OBJECTS { when GUARD }
+
+  GUARD ::= boolean_EXPRESSION
+
+  MODIFIED_OBJECTS ::= MODIFIED_OBJECT | (MODIFIED_OBJECT {, MODIFIED_OBJECT})
+
+  MODIFIED_OBJECT ::=
+      name
+    | MODIFIED_OBJECT . all
+    | MODIFIED_OBJECT . component_selector_name
+    | MODIFIED_OBJECT (expression {, expression})
+
+The ``Modifies`` pragma is intended to be an exact replacement for the
+implementation-defined ``Modifies`` aspect, and shares its restrictions
+and semantics.
+
+This is an assertion kind pragma that can associate a set of its arguments
+with an assertion level. See SPARK 2014 Reference Manual, section TBD.
+
 Pragma No_Body
 ==============
 

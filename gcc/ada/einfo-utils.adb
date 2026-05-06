@@ -1055,6 +1055,7 @@ package body Einfo.Utils is
                   Id = Pragma_Contract_Cases            or else
                   Id = Pragma_Exceptional_Cases         or else
                   Id = Pragma_Exit_Cases                or else
+                  Id = Pragma_Modifies                  or else
                   Id = Pragma_Program_Exit              or else
                   Id = Pragma_Subprogram_Variant        or else
                   Id = Pragma_Test_Case;

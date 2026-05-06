@@ -81,6 +81,7 @@ package Sem_Prag is
       Pragma_Invariant                    => True,
       Pragma_Linker_Section               => True,
       Pragma_Lock_Free                    => True,
+      Pragma_Modifies                     => True,
       Pragma_No_Elaboration_Code_All      => True,
       Pragma_No_Return                    => True,
       Pragma_Obsolescent                  => True,
@@ -148,6 +149,7 @@ package Sem_Prag is
       Pragma_Exceptional_Cases         => True,
       Pragma_Initial_Condition         => True,
       Pragma_Invariant                 => True,
+      Pragma_Modifies                  => True,
       Pragma_Loop_Invariant            => True,
       Pragma_Loop_Variant              => True,
       Pragma_Post                      => True,
@@ -225,6 +227,7 @@ package Sem_Prag is
       Pragma_Global              => True,
       Pragma_Inline              => True,
       Pragma_Inline_Always       => True,
+      Pragma_Modifies            => True,
       Pragma_Post                => True,
       Pragma_Post_Class          => True,
       Pragma_Postcondition       => True,
@@ -380,6 +383,13 @@ package Sem_Prag is
 
    procedure Analyze_Initializes_In_Decl_Part (N : Node_Id);
    --  Perform full analysis of delayed pragma Initializes
+
+   procedure Analyze_Modifies_In_Decl_Part
+     (N         : Node_Id;
+      Freeze_Id : Entity_Id := Empty);
+   --  Perform full analysis of delayed pragma Modifies. Freeze_Id is the
+   --  entity of [generic] package body or [generic] subprogram body which
+   --  caused "freezing" of the related contract where the pragma resides.
 
    procedure Analyze_Part_Of_In_Decl_Part
      (N         : Node_Id;
@@ -546,6 +556,7 @@ package Sem_Prag is
    --    Initializes
    --    Max_Entry_Queue_Length
    --    Max_Queue_Length
+   --    Modifies
    --    Post
    --    Post_Class
    --    Postcondition

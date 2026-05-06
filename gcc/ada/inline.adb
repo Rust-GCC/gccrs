@@ -310,6 +310,7 @@ package body Inline is
    --    Depends
    --    Exceptional_Cases
    --    Exit_Cases
+   --    Modifies
    --    Postcondition
    --    Precondition
    --    Program_Exit
@@ -5209,6 +5210,7 @@ package body Inline is
                                         | Name_Depends
                                         | Name_Exceptional_Cases
                                         | Name_Exit_Cases
+                                        | Name_Modifies
                                         | Name_Postcondition
                                         | Name_Precondition
                                         | Name_Program_Exit

@@ -7167,6 +7167,7 @@ package body Sem_Ch8 is
                      | Name_Depends
                      | Name_Global
                      | Name_Initializes
+                     | Name_Modifies
                      | Name_Refined_Depends
                      | Name_Refined_Global
                then

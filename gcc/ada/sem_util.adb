@@ -21750,6 +21750,7 @@ package body Sem_Util is
         or else Nam = Name_Exceptional_Cases
         or else Nam = Name_Extensions_Visible
         or else Nam = Name_Global
+        or else Nam = Name_Modifies
         or else Nam = Name_Post
         or else Nam = Name_Post_Class
         or else Nam = Name_Postcondition

@@ -1507,6 +1507,7 @@ begin
          | Pragma_Max_Entry_Queue_Length
          | Pragma_Max_Queue_Length
          | Pragma_Memory_Size
+         | Pragma_Modifies  --  ??? this pragma needs custom parsing
          | Pragma_No_Body
          | Pragma_No_Caching
          | Pragma_No_Component_Reordering
