@@ -1845,6 +1845,17 @@ vector_costs::add_stmt_cost (int count, vect_cost_for_stmt kind,
   return record_stmt_cost (stmt_info, where, cost);
 }
 
+unsigned int
+vector_costs::add_slp_cost (slp_tree,
+			    const array_slice<stmt_info_for_cost> &cost_vec)
+{
+  unsigned int sum = 0;
+  for (auto item : cost_vec)
+    sum += ::add_stmt_cost (this, item.count, item.kind, item.stmt_info,
+			    item.node, item.vectype, item.misalign, item.where);
+  return sum;
+}
+
 /* See the comment above the declaration for details.  */
 
 void

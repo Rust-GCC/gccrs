@@ -1777,6 +1777,11 @@ public:
 				      tree vectype, int misalign,
 				      vect_cost_model_location where);
 
+  /* Update the costs in response to adding costs in V which are all from
+     vectorizing NODE to the respective part.  */
+  virtual unsigned int add_slp_cost (slp_tree node,
+				     const array_slice<stmt_info_for_cost> &v);
+
   /* Finish calculating the cost of the code.  The results can be
      read back using the functions below.
 

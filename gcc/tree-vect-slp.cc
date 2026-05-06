@@ -9167,6 +9167,24 @@ vect_slp_prune_covered_roots (slp_tree node, hash_set<stmt_vec_info> &roots,
       vect_slp_prune_covered_roots (child, roots, visited);
 }
 
+/* Hand over COST_VEC to the target COSTS grouped by SLP node.  */
+
+static void
+add_slp_costs (vector_costs *costs, stmt_vector_for_cost& cost_vec)
+{
+  for (unsigned start = 0; start < cost_vec.length ();)
+    {
+      unsigned end = start + 1;
+      while (end < cost_vec.length ()
+	     && cost_vec[start].node == cost_vec[end].node)
+	end++;
+      costs->add_slp_cost (cost_vec[start].node,
+			   array_slice<stmt_info_for_cost>
+			     (cost_vec.begin () + start, end - start));
+      start = end;
+    }
+}
+
 /* Analyze statements in SLP instances of VINFO.  Return true if the
    operations are supported. */
 
@@ -9252,7 +9270,7 @@ vect_slp_analyze_operations (vec_info *vinfo)
 	  i++;
 	  if (loop_vec_info loop_vinfo = dyn_cast<loop_vec_info> (vinfo))
 	    {
-	      add_stmt_costs (loop_vinfo->vector_costs, &cost_vec);
+	      add_slp_costs (loop_vinfo->vector_costs, cost_vec);
 	      cost_vec.release ();
 	    }
 	  else
@@ -9520,7 +9538,7 @@ vect_bb_slp_scalar_cost (bb_vec_info vinfo,
 /* Comparator for the loop-index sorted cost vectors.  */
 
 static int
-li_cost_vec_cmp (const void *a_, const void *b_)
+li_cost_vec_cmp (const void *a_, const void *b_, void *)
 {
   auto *a = (const std::pair<unsigned, stmt_info_for_cost *> *)a_;
   auto *b = (const std::pair<unsigned, stmt_info_for_cost *> *)b_;
@@ -9610,8 +9628,8 @@ vect_bb_vectorization_profitable_p (bb_vec_info bb_vinfo,
 	l = gimple_bb (cost->stmt_info->stmt)->loop_father->num;
       li_vector_costs.quick_push (std::make_pair (l, cost));
     }
-  li_scalar_costs.qsort (li_cost_vec_cmp);
-  li_vector_costs.qsort (li_cost_vec_cmp);
+  li_scalar_costs.stablesort (li_cost_vec_cmp, NULL);
+  li_vector_costs.stablesort (li_cost_vec_cmp, NULL);
 
   /* Now cost the portions individually.  */
   unsigned vi = 0;
@@ -9651,13 +9669,15 @@ vect_bb_vectorization_profitable_p (bb_vec_info bb_vinfo,
 
       /* Complete the target-specific vector cost calculation.  */
       class vector_costs *vect_target_cost_data = init_cost (bb_vinfo, false);
+      auto_vec<stmt_info_for_cost> tem;
       do
 	{
-	  add_stmt_cost (vect_target_cost_data, li_vector_costs[vi].second);
+	  tem.safe_push (*li_vector_costs[vi].second);
 	  vi++;
 	}
       while (vi < li_vector_costs.length ()
 	     && li_vector_costs[vi].first == vl);
+      add_slp_costs (vect_target_cost_data, tem);
       vect_target_cost_data->finish_cost (scalar_target_cost_data);
       vec_prologue_cost = vect_target_cost_data->prologue_cost ();
       vec_inside_cost = vect_target_cost_data->body_cost ();
