@@ -84,10 +84,90 @@ TypeCheckStmt::visit (HIR::LetStmt &stmt)
   auto &stmt_pattern = stmt.get_pattern ();
   TyTy::BaseType *init_expr_ty = nullptr;
   location_t init_expr_locus = UNKNOWN_LOCATION;
+
   if (stmt.has_init_expr ())
     {
-      init_expr_locus = stmt.get_init_expr ().get_locus ();
-      init_expr_ty = TypeCheckExpr::Resolve (stmt.get_init_expr ());
+      HIR::Expr &init = stmt.get_init_expr ();
+      init_expr_locus = init.get_locus ();
+      init_expr_ty = TypeCheckExpr::Resolve (init);
+
+      if (stmt_pattern.get_pattern_type ()
+	  == HIR::Pattern::PatternType::IDENTIFIER)
+	{
+	  auto &ident = static_cast<HIR::IdentifierPattern &> (stmt_pattern);
+
+	  if (ident.get_is_ref () && ident.is_mut ())
+	    {
+	      NodeId def_id = UNKNOWN_NODEID;
+	      bool found = false;
+	      auto resolver = Rust::Resolver::Resolver::get ();
+
+	      if (resolver->lookup_resolved_name (
+		    init.get_mappings ().get_nodeid (), &def_id))
+		{
+		  found = true;
+		}
+	      else if (init.get_expression_type () == HIR::Expr::ExprType::Path)
+		{
+		  auto &path_expr = static_cast<HIR::PathInExpression &> (init);
+
+		  if (resolver->lookup_resolved_name (
+			path_expr.get_mappings ().get_nodeid (), &def_id))
+		    {
+		      found = true;
+		    }
+		  else
+		    {
+		      for (auto &seg : path_expr.get_segments ())
+			{
+			  if (resolver->lookup_resolved_name (
+				seg.get_mappings ().get_nodeid (), &def_id))
+			    {
+			      found = true;
+			      break;
+			    }
+			}
+		    }
+		}
+
+	      if (found)
+		{
+		  bool is_mutable = false;
+		  auto &mappings = Analysis::Mappings::get ();
+
+		  auto result_hir_id = mappings.lookup_node_to_hir (def_id);
+		  if (result_hir_id.has_value ())
+		    {
+		      HirId var_hir_id = result_hir_id.value ();
+		      auto result_pattern
+			= mappings.lookup_hir_pattern (var_hir_id);
+
+		      if (result_pattern.has_value ())
+			{
+			  HIR::Pattern *def_pattern = result_pattern.value ();
+
+			  if (def_pattern
+			      && def_pattern->get_pattern_type ()
+				   == HIR::Pattern::PatternType::IDENTIFIER)
+			    {
+			      auto def_ident
+				= static_cast<HIR::IdentifierPattern *> (
+				  def_pattern);
+
+			      if (def_ident->is_mut ())
+				is_mutable = true;
+			    }
+			}
+		    }
+
+		  if (!is_mutable)
+		    rust_error_at (
+		      stmt_pattern.get_locus (),
+		      "cannot borrow immutable local variable as mutable");
+		}
+	    }
+	}
+
       if (init_expr_ty->get_kind () == TyTy::TypeKind::ERROR)
 	return;
 
