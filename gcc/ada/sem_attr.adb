@@ -3580,6 +3580,144 @@ package body Sem_Attr is
 
          Set_Etype (N, RTE (RE_Asm_Output_Operand));
 
+      --------
+      -- At --
+      --------
+
+      when Attribute_At =>
+         Check_E1;
+
+         --  Set the type of the attribute now to ensure the successful
+         --  continuation of analysis even if the attribute is misplaced.
+
+         Set_Etype (N, P_Type);
+
+         --  We start with the same checks as for goto statements. The final
+         --  check rejects references to forward labels, which are allowed for
+         --  goto, but not for this attribute.
+
+         if not (Nkind (E1) = N_Identifier
+                   and then Ekind (Entity (E1)) = E_Label)
+         then
+            Error_Attr ("label expected", E1);
+         elsif not Reachable (Entity (E1)) then
+            Error_Attr ("label is not reachable", E1);
+         elsif Sloc (E1) < Sloc (Entity (E1)) then
+            Error_Attr ("forward label reference", E1);
+         end if;
+
+         declare
+            function Check_Goto (Stmt : Node_Id) return Traverse_Result;
+            --  Detect goto statements that "jump over" the attribute label
+
+            function Check_Reference (Ref : Node_Id) return Traverse_Result;
+            --  Check if reference denotes entity visible at the location of
+            --  the referenced label or declared within the prefix itself.
+
+            function Declared_Within_Prefix (E : Entity_Id) return Boolean;
+            --  Return True iff E is declared within the attribute prefix
+
+            Label_Depth : constant Unat := Scope_Depth (Scope (Entity (E1)));
+            --  Scope depth at the label
+
+            -------------
+            -- Check_Goto --
+            -------------
+
+            function Check_Goto (Stmt : Node_Id) return Traverse_Result is
+            begin
+               --  Check if the target of a goto statement is located past the
+               --  label appearing in the attribute expression.
+
+               if Nkind (Stmt) in N_Goto_Statement | N_Goto_When_Statement
+                 and then Sloc (Entity (Name (Stmt))) > Sloc (Entity (E1))
+               then
+                  Error_Msg_Sloc := Sloc (Stmt);
+                  Error_Msg_N
+                    ("!attribute label is skipped by goto at #", N);
+                  return Skip;
+
+               --  Stop once we reached the attribute label
+
+               elsif Nkind (Stmt) = N_Label
+                 and then Entity (Identifier (Stmt)) = Entity (E1)
+               then
+                  return Abandon;
+
+               --  Skip constructs where a goto jump will not be allowed anyway
+
+               elsif Nkind (Stmt) in N_Package_Declaration
+                                   | N_Package_Body
+                                   | N_Subprogram_Body
+                                   | N_Generic_Declaration
+                                   | N_Single_Task_Declaration
+                                   | N_Task_Type_Declaration
+                                   | N_Single_Protected_Declaration
+                                   | N_Protected_Type_Declaration
+                                   | N_Protected_Body
+                                   | N_Task_Body
+               then
+                  return Skip;
+
+               else
+                  return OK;
+               end if;
+            end Check_Goto;
+
+            ---------------------
+            -- Check_Reference --
+            ---------------------
+
+            function Check_Reference (Ref : Node_Id) return Traverse_Result is
+            begin
+               --  To check if referenced entity is visible at the label we
+               --  simply compare the scope depth.
+
+               if Nkind (Ref) = N_Identifier
+                 and then Present (Entity (Ref))
+                 and then Scope_Depth (Scope (Entity (Ref))) > Label_Depth
+                 and then not Declared_Within_Prefix (Entity (Ref))
+               then
+                  Error_Msg_Sloc := Sloc (Entity (E1));
+                  Error_Msg_NE ("!& is not visible at #", N, Entity (Ref));
+               end if;
+
+               return OK;
+            end Check_Reference;
+
+            ----------------------------
+            -- Declared_Within_Prefix --
+            ----------------------------
+
+            function Declared_Within_Prefix (E : Entity_Id) return Boolean is
+               Context : Node_Id;
+
+            begin
+               Context := E;
+               while Present (Context) loop
+                  if Context = P then
+                     return True;
+
+                  --  Prevent the search from going too far
+
+                  elsif Is_Body_Or_Package_Declaration (Context) then
+                     return False;
+                  end if;
+
+                  Context := Parent (Context);
+               end loop;
+
+               return False;
+            end Declared_Within_Prefix;
+
+            procedure Check_Gotos is new Traverse_Proc (Check_Goto);
+            procedure Check_References is new Traverse_Proc (Check_Reference);
+
+         begin
+            Check_Gotos (Parent (Label_Construct (Parent (Entity (E1)))));
+            Check_References (P);
+         end;
+
       -----------------------------
       -- Atomic_Always_Lock_Free --
       -----------------------------
@@ -11378,6 +11516,7 @@ package body Sem_Attr is
          | Attribute_Address_Size
          | Attribute_Asm_Input
          | Attribute_Asm_Output
+         | Attribute_At
          | Attribute_Base
          | Attribute_Bit_Order
          | Attribute_Bit_Position

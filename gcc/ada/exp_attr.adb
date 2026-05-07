@@ -5437,6 +5437,9 @@ package body Exp_Attr is
       when Attribute_Loop_Entry =>
          Expand_Loop_Entry_Attribute (N);
 
+      when Attribute_At =>
+         Error_Msg_N ("expansion of attribute At is not yet supported", N);
+
       -------------
       -- Machine --
       -------------

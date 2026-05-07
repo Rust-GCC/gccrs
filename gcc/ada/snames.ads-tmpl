@@ -947,6 +947,7 @@ package Snames is
    Name_Alignment                      : constant Name_Id := N + $;
    Name_Asm_Input                      : constant Name_Id := N + $; -- GNAT
    Name_Asm_Output                     : constant Name_Id := N + $; -- GNAT
+   Name_At                             : constant Name_Id := N + $; -- GNAT
    Name_Atomic_Always_Lock_Free        : constant Name_Id := N + $; -- GNAT
    Name_Bit                            : constant Name_Id := N + $; -- GNAT
    Name_Bit_Order                      : constant Name_Id := N + $;
@@ -1294,7 +1295,6 @@ package Snames is
    Name_And                              : constant Name_Id := N + $;
    Name_All                              : constant Name_Id := N + $;
    Name_Array                            : constant Name_Id := N + $;
-   Name_At                               : constant Name_Id := N + $;
    Name_Begin                            : constant Name_Id := N + $;
    Name_Body                             : constant Name_Id := N + $;
    Name_Case                             : constant Name_Id := N + $;
@@ -1486,6 +1486,7 @@ package Snames is
       Attribute_Alignment,
       Attribute_Asm_Input,
       Attribute_Asm_Output,
+      Attribute_At,
       Attribute_Atomic_Always_Lock_Free,
       Attribute_Bit,
       Attribute_Bit_Order,

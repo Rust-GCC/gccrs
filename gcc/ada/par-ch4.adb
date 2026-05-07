@@ -527,6 +527,12 @@ package body Ch4 is
             elsif Token = Tok_Mod and then Ada_Version >= Ada_95 then
                Attr_Name := Name_Mod;
 
+            elsif Token = Tok_At then
+               Attr_Name := Name_At;
+
+               Error_Msg_GNAT_Extension
+                 ("attribute At", Token_Ptr, Is_Core_Extension => False);
+
             elsif Apostrophe_Should_Be_Semicolon then
                Expr_Form := EF_Name;
                return Name_Node;
