@@ -628,8 +628,15 @@ package body Ghost is
 
             if Nkind (Stmt) = N_Assignment_Statement then
                if Is_Ghost_Assignment (Stmt) then
-                  Check_Assignment_Levels
-                    (Get_Enclosing_Ghost_Entity (Name (Stmt)));
+                  --  No Id is present when checking the context of the
+                  --  Initialized attribute that can only appear in ghost
+                  --  context. However we do not need to check the assertion
+                  --  levels in this case.
+
+                  if Present (Id) then
+                     Check_Assignment_Levels
+                       (Get_Enclosing_Ghost_Entity (Name (Stmt)));
+                  end if;
                   return True;
                end if;
 
@@ -637,7 +644,15 @@ package body Ghost is
 
             elsif Nkind (Stmt) = N_Procedure_Call_Statement then
                if Is_Ghost_Procedure_Call (Stmt) then
-                  Check_Procedure_Call_Policies (Get_Subprogram_Entity (Stmt));
+                  --  No Id is present when checking the context of the
+                  --  Initialized attribute that can only appear in ghost
+                  --  context. However we do not need to check the policies nor
+                  --  the assertion levels in this case.
+
+                  if Present (Id) then
+                     Check_Procedure_Call_Policies
+                       (Get_Subprogram_Entity (Stmt));
+                  end if;
                   return True;
                end if;
 
