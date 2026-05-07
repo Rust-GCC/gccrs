@@ -1752,6 +1752,16 @@ Parser<ManagedTokenSource>::parse_struct_expr_field ()
     case DOT_DOT:
       /* this is a struct base and can't be parsed here, so just return
        * nothing without erroring */
+      if (!outer_attrs.empty ())
+	{
+	  add_error (
+	    Error (t->get_locus (),
+		   "attributes are not allowed before %<..%> in a struct "
+		   "expression"));
+
+	  return tl::unexpected<Parse::Error::StructExprField> (
+	    Parse::Error::StructExprField::STRUCT_BASE_ATTRIBUTES);
+	}
 
       return tl::unexpected<Parse::Error::StructExprField> (
 	Parse::Error::StructExprField::STRUCT_BASE);
@@ -4068,9 +4078,15 @@ Parser<ManagedTokenSource>::parse_struct_expr_struct_partial (
 	while (t->get_id () != RIGHT_CURLY && t->get_id () != DOT_DOT)
 	  {
 	    auto field = parse_struct_expr_field ();
-	    if (!field
-		&& field.error () != Parse::Error::StructExprField::STRUCT_BASE)
+	    if (!field)
 	      {
+		if (field.error () == Parse::Error::StructExprField::STRUCT_BASE)
+		  break;
+		if (field.error ()
+		    == Parse::Error::StructExprField::STRUCT_BASE_ATTRIBUTES)
+		  return tl::unexpected<Parse::Error::Expr> (
+		    Parse::Error::Expr::CHILD_ERROR);
+
 		Error error (t->get_locus (),
 			     "failed to parse struct (or enum) expr field");
 		add_error (std::move (error));
