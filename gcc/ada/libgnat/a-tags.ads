@@ -289,10 +289,9 @@ private
      access function (A : System.Address) return Long_Long_Integer;
 
    type Type_Specific_Data (Idepth : Natural) is record
-   --  The discriminant Idepth is the Inheritance Depth Level: Used to
-   --  implement the membership test associated with single inheritance of
-   --  tagged types in constant-time. It also indicates the size of the
-   --  Tags_Table component.
+      --  Inheritance Depth Level: Used to implement the membership test
+      --  associated with single inheritance of tagged types in constant-time.
+      --  It also indicates the size of the Tags_Table component.
 
       Access_Level : Natural;
       --  Accessibility level required to give support to Ada 2005 nested type
@@ -303,28 +302,30 @@ private
       --  function return, and class-wide stream I/O, the danger of objects
       --  outliving their type declaration can be eliminated (Ada 2005: AI-344)
 
-      Alignment     : Natural;
-      Expanded_Name : Cstring_Ptr;
-      External_Tag  : Cstring_Ptr;
-      HT_Link       : Tag_Ptr;
-      --  Components used to support to the Ada.Tags subprograms in RM 3.9
-
-      --  Note: Expanded_Name is referenced by GDB to determine the actual name
-      --  of the tagged type. Its requirements are: 1) it must have this exact
-      --  name, and 2) its contents must point to a C-style Nul terminated
-      --  string containing its expanded name. GDB has no requirement on a
-      --  given position inside the record.
+      Alignment : Natural;
+      --  Alignment of the type
 
       Transportable : Boolean;
       --  Used to check RM E.4(18), set for types that satisfy the requirements
       --  for being used in remote calls as actuals for classwide formals or as
       --  return values for classwide functions.
 
+      Needs_Finalization : Boolean;
+      --  Used to dynamically check whether an object is controlled or not
+
       Is_Abstract : Boolean;
       --  True if the type is abstract (Ada 2012: AI05-0173)
 
-      Needs_Finalization : Boolean;
-      --  Used to dynamically check whether an object is controlled or not
+      Expanded_Name : Cstring_Ptr;
+      External_Tag  : Cstring_Ptr;
+      HT_Link       : Tag_Ptr;
+      --  Components used to support the Ada.Tags subprograms in RM 3.9
+
+      --  Note: Expanded_Name is referenced by GDB to determine the actual name
+      --  of the tagged type. Its requirements are: 1) it must have this exact
+      --  name, and 2) its contents must point to a C-style Nul terminated
+      --  string containing its expanded name. GDB has no requirement on a
+      --  given position inside the record.
 
       Size_Func : Size_Ptr;
       --  Pointer to the subprogram computing the _size of the object. Used by

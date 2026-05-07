@@ -5129,6 +5129,50 @@ package body Exp_Disp is
              Attribute_Name => Name_Alignment));
       end if;
 
+      --  Transportable: Set for types that can be used in remote calls
+      --  with respect to E.4(18) legality rules.
+
+      declare
+         Transportable : Entity_Id;
+
+      begin
+         Transportable :=
+           Boolean_Literals
+             (Is_Pure (Typ)
+                or else Is_Shared_Passive (Typ)
+                or else
+                  ((Is_Remote_Types (Typ)
+                     or else Is_Remote_Call_Interface (Typ))
+                   and then Original_View_In_Visible_Part (Typ))
+                or else not Comes_From_Source (Typ));
+
+         Append_To (TSD_Aggr_List,
+            New_Occurrence_Of (Transportable, Loc));
+      end;
+
+      --  Needs_Finalization: Set if the type is controlled or has controlled
+      --  components.
+
+      declare
+         Needs_Fin : Entity_Id;
+      begin
+         Needs_Fin := Boolean_Literals (Needs_Finalization (Typ));
+         Append_To (TSD_Aggr_List, New_Occurrence_Of (Needs_Fin, Loc));
+      end;
+
+      --  Is_Abstract (Ada 2012: AI05-0173). This functionality is not
+      --  available in the HIE runtime.
+
+      if RTE_Record_Component_Available (RE_Is_Abstract) then
+         declare
+            Is_Abstract : Entity_Id;
+         begin
+            Is_Abstract := Boolean_Literals (Is_Abstract_Type (Typ));
+            Append_To (TSD_Aggr_List,
+              New_Occurrence_Of (Is_Abstract, Loc));
+         end;
+      end if;
+
       --  Expanded_Name
 
       Append_To (TSD_Aggr_List,
@@ -5344,50 +5388,6 @@ package body Exp_Disp is
            Unchecked_Convert_To (RTE (RE_Tag_Ptr),
              New_Occurrence_Of (RTE (RE_Null_Address), Loc)));
       end if;
-
-      --  Transportable: Set for types that can be used in remote calls
-      --  with respect to E.4(18) legality rules.
-
-      declare
-         Transportable : Entity_Id;
-
-      begin
-         Transportable :=
-           Boolean_Literals
-             (Is_Pure (Typ)
-                or else Is_Shared_Passive (Typ)
-                or else
-                  ((Is_Remote_Types (Typ)
-                     or else Is_Remote_Call_Interface (Typ))
-                   and then Original_View_In_Visible_Part (Typ))
-                or else not Comes_From_Source (Typ));
-
-         Append_To (TSD_Aggr_List,
-            New_Occurrence_Of (Transportable, Loc));
-      end;
-
-      --  Is_Abstract (Ada 2012: AI05-0173). This functionality is not
-      --  available in the HIE runtime.
-
-      if RTE_Record_Component_Available (RE_Is_Abstract) then
-         declare
-            Is_Abstract : Entity_Id;
-         begin
-            Is_Abstract := Boolean_Literals (Is_Abstract_Type (Typ));
-            Append_To (TSD_Aggr_List,
-              New_Occurrence_Of (Is_Abstract, Loc));
-         end;
-      end if;
-
-      --  Needs_Finalization: Set if the type is controlled or has controlled
-      --  components.
-
-      declare
-         Needs_Fin : Entity_Id;
-      begin
-         Needs_Fin := Boolean_Literals (Needs_Finalization (Typ));
-         Append_To (TSD_Aggr_List, New_Occurrence_Of (Needs_Fin, Loc));
-      end;
 
       --  Size_Func
 
