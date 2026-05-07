@@ -5324,7 +5324,13 @@ decl_defined_p (tree decl)
   else
     {
       gcc_assert (VAR_P (decl));
-      return !DECL_EXTERNAL (decl);
+      return (!DECL_EXTERNAL (decl)
+	      /* An initialized variable is defined even if we've decided not
+		 to emit it, unless it's initialized within the class and not
+		 inline.  Note that finish_static_member_decl doesn't set
+		 DECL_IN_AGGR_P for inline variables, so we don't need to check
+		 DECL_INLINE_VAR_P here.  */
+	      || (DECL_INITIAL (decl) && !DECL_IN_AGGR_P (decl)));
     }
 }
 
