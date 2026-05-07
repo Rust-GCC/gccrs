@@ -300,8 +300,13 @@ void
 Late::visit (AST::LoopLabel &label)
 {
   auto &lifetime = label.get_lifetime ();
-  ctx.labels.insert (Identifier (lifetime.as_string (), lifetime.get_locus ()),
-		     lifetime.get_node_id ());
+  auto resolved = ctx.lookup (lifetime.get_node_id ());
+  if (!resolved.has_value ())
+    {
+      ctx.labels.insert (Identifier (lifetime.as_string (),
+				     lifetime.get_locus ()),
+			 lifetime.get_node_id ());
+    }
 }
 
 void

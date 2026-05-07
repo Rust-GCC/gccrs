@@ -19,6 +19,7 @@
 #ifndef RUST_COMPILE_EXPR
 #define RUST_COMPILE_EXPR
 
+#include "optional.h"
 #include "rust-compile-base.h"
 #include "rust-hir-visitor.h"
 
@@ -150,6 +151,9 @@ protected:
 
   bool generate_possible_fn_trait_call (HIR::CallExpr &expr, tree receiver,
 					tree *result);
+
+  std::pair<tree, tree>
+  construct_loop_labels (tl::optional<HIR::LoopLabel> loop_label);
 
 private:
   CompileExpr (Context *ctx);
