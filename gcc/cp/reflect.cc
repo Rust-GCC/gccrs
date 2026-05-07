@@ -8948,9 +8948,12 @@ compare_reflections (tree lhs, tree rhs)
     return lhs == rhs;
   else if (TYPE_P (lhs) && TYPE_P (rhs))
     {
-      /* Given "using A = int;", "^^int != ^^A" should hold.  */
-      if (typedef_variant_p (lhs) != typedef_variant_p (rhs))
-	return false;
+      /* Given
+	  using A = int;
+	  using B = int;
+	 ^^int != ^^A and ^^A != ^^B.  */
+      if (typedef_variant_p (lhs) || typedef_variant_p (rhs))
+	return lhs == rhs;
       /* This is for comparing function types.  E.g.,
 	  auto fn() -> int; type_of(^^fn) == ^^auto()->int;  */
       return same_type_p (lhs, rhs);
