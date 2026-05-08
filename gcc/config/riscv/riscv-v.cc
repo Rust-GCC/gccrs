@@ -1600,135 +1600,39 @@ expand_const_vector_interleaved_stepped_npatterns (rtx target, rtx src,
     rtx_to_poly_int64 (builder->elt (builder->npatterns () + 1))
       - rtx_to_poly_int64 (base2);
 
-  /* For { 1, 0, 2, 0, ... , n - 1, 0 }, we can use larger EEW
-     integer vector mode to generate such vector efficiently.
-
-     E.g. EEW = 16, { 2, 0, 4, 0, ... }
-
-     can be interpreted into:
-
-     EEW = 32, { 2, 4, ... }.
-
-     Both the series1 and series2 may overflow before taking the IOR
-     to generate the final result.  However, only series1 matters
-     because the series2 will shift before IOR, thus the overflow
-     bits will never pollute the final result.
-
-     For now we forbid the negative steps and overflow, and they
-     will fall back to the default merge way to generate the
-     const_vector.  */
-
-  unsigned int new_smode_bitsize = builder->inner_bits_size () * 2;
-  scalar_int_mode new_smode;
-  machine_mode new_mode;
-  poly_uint64 new_nunits = exact_div (GET_MODE_NUNITS (builder->mode ()), 2);
-
-  poly_int64 base1_poly = rtx_to_poly_int64 (base1);
-  bool overflow_smode_p = false;
-
-  if (!step1.is_constant ())
-    overflow_smode_p = true;
-  else
+  rtx vid = gen_reg_rtx (mode);
+  expand_vec_series (vid, const0_rtx, const1_rtx);
+  /* Transform into { 0, 0, 1, 1, 2, 2, ... }.  */
+  rtx shifted_vid;
+  if (lra_in_progress)
     {
-      int elem_count = XVECLEN (src, 0);
-      uint64_t step1_val = step1.to_constant ();
-      int64_t base1_signed = base1_poly.to_constant ();
-      /* Reinterpret as type of inner bits size so we can properly check
-	 overflow.  */
-      uint64_t base1_val
-	= base1_signed & ((1ULL << builder->inner_bits_size ()) - 1);
-      uint64_t elem_val = base1_val + (elem_count - 1) * step1_val;
-
-      if ((elem_val >> builder->inner_bits_size ()) != 0)
-	overflow_smode_p = true;
-    }
-
-  if (known_ge (step1, 0) && known_ge (step2, 0)
-      && int_mode_for_size (new_smode_bitsize, 0).exists (&new_smode)
-      && get_vector_mode (new_smode, new_nunits).exists (&new_mode)
-      && !overflow_smode_p)
-    {
-      rtx tmp1 = gen_reg_rtx (new_mode);
-      base1 = gen_int_mode (base1_poly, new_smode);
-      expand_vec_series (tmp1, base1, gen_int_mode (step1, new_smode));
-
-      if (rtx_equal_p (base2, const0_rtx) && known_eq (step2, 0))
-	/* { 1, 0, 2, 0, ... }.  */
-	emit_move_insn (result, gen_lowpart (mode, tmp1));
-      else if (known_eq (step2, 0))
-	{
-	  /* { 1, 1, 2, 1, ... }.  */
-	  rtx scalar = expand_simple_binop (
-	    Xmode, ASHIFT, gen_int_mode (rtx_to_poly_int64 (base2), Xmode),
-	    gen_int_mode (builder->inner_bits_size (), Xmode), NULL_RTX, false,
-	    OPTAB_DIRECT);
-	  scalar = simplify_gen_subreg (new_smode, scalar, Xmode, 0);
-	  rtx tmp2 = gen_reg_rtx (new_mode);
-	  rtx ior_ops[] = {tmp2, tmp1, scalar};
-	  emit_vlmax_insn (code_for_pred_scalar (IOR, new_mode), BINARY_OP,
-			   ior_ops);
-	  emit_move_insn (result, gen_lowpart (mode, tmp2));
-	}
-      else
-	{
-	  /* { 1, 3, 2, 6, ... }.  */
-	  rtx tmp2 = gen_reg_rtx (new_mode);
-	  base2 = gen_int_mode (rtx_to_poly_int64 (base2), new_smode);
-	  expand_vec_series (tmp2, base2, gen_int_mode (step2, new_smode));
-	  rtx shifted_tmp2;
-	  rtx shift = gen_int_mode (builder->inner_bits_size (), Xmode);
-	  if (lra_in_progress)
-	    {
-	      shifted_tmp2 = gen_reg_rtx (new_mode);
-	      rtx shift_ops[] = {shifted_tmp2, tmp2, shift};
-	      emit_vlmax_insn (code_for_pred_scalar (ASHIFT, new_mode),
-			       BINARY_OP, shift_ops);
-	    }
-	  else
-	    shifted_tmp2 = expand_simple_binop (new_mode, ASHIFT, tmp2, shift,
-						NULL_RTX, false, OPTAB_DIRECT);
-	  rtx tmp3 = gen_reg_rtx (new_mode);
-	  rtx ior_ops[] = {tmp3, tmp1, shifted_tmp2};
-	  emit_vlmax_insn (code_for_pred (IOR, new_mode), BINARY_OP, ior_ops);
-	  emit_move_insn (result, gen_lowpart (mode, tmp3));
-	}
+      shifted_vid = gen_reg_rtx (mode);
+      rtx shift = gen_int_mode (1, Xmode);
+      rtx shift_ops[] = {shifted_vid, vid, shift};
+      emit_vlmax_insn (code_for_pred_scalar (LSHIFTRT, mode), BINARY_OP,
+		       shift_ops);
     }
   else
-    {
-      rtx vid = gen_reg_rtx (mode);
-      expand_vec_series (vid, const0_rtx, const1_rtx);
-      /* Transform into { 0, 0, 1, 1, 2, 2, ... }.  */
-      rtx shifted_vid;
-      if (lra_in_progress)
-	{
-	  shifted_vid = gen_reg_rtx (mode);
-	  rtx shift = gen_int_mode (1, Xmode);
-	  rtx shift_ops[] = {shifted_vid, vid, shift};
-	  emit_vlmax_insn (code_for_pred_scalar (LSHIFTRT, mode), BINARY_OP,
-			   shift_ops);
-	}
-      else
-	shifted_vid = expand_simple_binop (mode, LSHIFTRT, vid, const1_rtx,
-					   NULL_RTX, false, OPTAB_DIRECT);
-      rtx tmp1 = gen_reg_rtx (mode);
-      rtx tmp2 = gen_reg_rtx (mode);
-      expand_vec_series (tmp1, base1,
-			 gen_int_mode (step1, builder->inner_mode ()),
-			 shifted_vid);
-      expand_vec_series (tmp2, base2,
-			 gen_int_mode (step2, builder->inner_mode ()),
-			 shifted_vid);
+    shifted_vid = expand_simple_binop (mode, LSHIFTRT, vid, const1_rtx,
+				       NULL_RTX, false, OPTAB_DIRECT);
+  rtx tmp1 = gen_reg_rtx (mode);
+  rtx tmp2 = gen_reg_rtx (mode);
+  expand_vec_series (tmp1, base1,
+		     gen_int_mode (step1, builder->inner_mode ()),
+		     shifted_vid);
+  expand_vec_series (tmp2, base2,
+		     gen_int_mode (step2, builder->inner_mode ()),
+		     shifted_vid);
 
-      /* Transform into { 0, 1, 0, 1, 0, 1, ... }.  */
-      rtx and_vid = gen_reg_rtx (mode);
-      rtx and_ops[] = {and_vid, vid, const1_rtx};
-      emit_vlmax_insn (code_for_pred_scalar (AND, mode), BINARY_OP, and_ops);
-      rtx mask = gen_reg_rtx (builder->mask_mode ());
-      expand_vec_cmp (mask, EQ, and_vid, CONST1_RTX (mode));
+  /* Transform into { 0, 1, 0, 1, 0, 1, ... }.  */
+  rtx and_vid = gen_reg_rtx (mode);
+  rtx and_ops[] = {and_vid, vid, const1_rtx};
+  emit_vlmax_insn (code_for_pred_scalar (AND, mode), BINARY_OP, and_ops);
+  rtx mask = gen_reg_rtx (builder->mask_mode ());
+  expand_vec_cmp (mask, EQ, and_vid, CONST1_RTX (mode));
 
-      rtx ops[] = {result, tmp1, tmp2, mask};
-      emit_vlmax_insn (code_for_pred_merge (mode), MERGE_OP, ops);
-    }
+  rtx ops[] = {result, tmp1, tmp2, mask};
+  emit_vlmax_insn (code_for_pred_merge (mode), MERGE_OP, ops);
 
   if (result != target)
     emit_move_insn (target, result);
