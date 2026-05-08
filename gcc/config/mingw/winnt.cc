@@ -860,7 +860,9 @@ mingw_pe_file_end (void)
 			   "\t.p2align\t3, 0\n"
 	  		   "\t.globl\t%s\n"
 			   "\t.linkonce\tdiscard\n", oname, oname);
-	  fprintf (asm_out_file, "%s:\n\t.quad\t%s\n", oname, name);
+	  fprintf (asm_out_file, "%s:\n\t.quad\t", oname);
+	  ASM_OUTPUT_LABELREF (asm_out_file, name);
+	  fputc ('\n', asm_out_file);
 	}
     }
 }
