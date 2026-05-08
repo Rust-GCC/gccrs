@@ -34,5 +34,5 @@ int __attribute__((optimize(0))) test3(int a) {
   return bar() + a;
 }
 
-/* { dg-final { scan-assembler-times "mov\t|mov.n\t" 21 } } */
+/* { dg-final { scan-assembler-times "mov\t|mov.n\t" 20 } } */
 /* { dg-final { scan-assembler-times "a15, 8" 2 } } */
