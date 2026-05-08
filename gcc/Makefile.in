@@ -3056,7 +3056,7 @@ $(GENERIC_MATCH_PD_SEQ_SRC): s-generic-match generic-match-head.cc; @true
 generic-match-auto.h: s-generic-match; @true
 
 s-gimple-match: build/genmatch$(build_exeext) \
-	    $(srcdir)/match.pd cfn-operators.pd
+	    $(srcdir)/match.pd $(srcdir)/match-sat-alu.pd cfn-operators.pd
 	$(RUN_GEN) build/genmatch$(build_exeext) --gimple \
 	    --header=tmp-gimple-match-auto.h --include=gimple-match-auto.h \
 	    $(srcdir)/match.pd $(patsubst %, tmp-%, $(GIMPLE_MATCH_PD_SEQ_SRC))
