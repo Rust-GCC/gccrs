@@ -18609,6 +18609,149 @@ aarch64_possible_by_lane_insn_p (vec_info *m_vinfo, gimple *stmt)
   return false;
 }
 
+/* Determine probabilistically whether CALL is one that produces a scalar
+   result in a SIMD register.  */
+static bool
+aarch64_call_scalar_result_in_simd_reg_p (const gcall *call)
+{
+  /* Don't assume that non-built-in functions return results in SIMD registers
+     because the ABI says that a scalar integer result is returned in a GPR.  */
+  if (!gimple_call_internal_p (call)
+      && !gimple_call_builtin_p (call, BUILT_IN_MD))
+    return false;
+
+  /* Assume that built-in functions which have at least one floating point or
+     SIMD parameter return scalar results in a SIMD register.  This heuristic
+     covers both reductions (whose result is always in a SIMD register) and
+     vector element extractions such as lastb (where the result can be in a GPR
+     or SIMD register, but instruction selection is assumed to make the choice
+     that is most efficient for the usage).  */
+  for (unsigned i = 0; i < gimple_call_num_args (call); ++i)
+    if (VECTOR_TYPE_P (TREE_TYPE (gimple_call_arg (call, i)))
+	|| SCALAR_FLOAT_TYPE_P (TREE_TYPE (gimple_call_arg (call, i))))
+      return true;
+
+  /* Assume that other built-in functions return scalar results in a GPR.  */
+  return false;
+}
+
+/* Determine probabilistically whether the scalar operand OP is one that could
+   incur additional costs for a GPR to SIMD register transfer.  We can't be
+   sure, but certain operations have a higher chance.  */
+static bool
+aarch64_scalar_op_to_vec_p (tree op)
+{
+  gcc_checking_assert (TREE_CODE (op) == SSA_NAME);
+
+  tree optype = TREE_TYPE (op);
+  if (SCALAR_FLOAT_TYPE_P (optype))
+    return false;
+
+  gcc_checking_assert (!AGGREGATE_TYPE_P (optype));
+  gcc_checking_assert (!VECTOR_TYPE_P (optype));
+
+  gimple *def = SSA_NAME_DEF_STMT (op);
+  if (is_gimple_assign (def)
+      && CONVERT_EXPR_CODE_P (gimple_assign_rhs_code (def)))
+    {
+      tree lhs = gimple_assign_lhs (def);
+      tree rhs = gimple_assign_rhs1 (def);
+      if (TREE_CODE (rhs) == SSA_NAME
+	  /* A sign-change expands to nothing.  */
+	  && tree_nop_conversion_p (TREE_TYPE (lhs), TREE_TYPE (rhs)))
+	def = SSA_NAME_DEF_STMT (rhs);
+    }
+
+  /* When the defining statement reads from memory, we can sometimes load its
+     value directly into a vector register lane, for example using
+       LD1 {v31.b}[1], [x0]
+     In reality, such operations usually seem to be lowered to a load-insert
+     pair instead, for example to allow pre-indexed addressing:
+       LDR b30, [x0, 4]
+       INS v31.b[1], v30.b[0]
+     Regardless, we do not charge extra scalar-to-vector costs for loads
+     from memory that feed a vec_construct because:
+       1.  builtin_vectorization_cost should already have charged any
+     insertion costs.
+       2.  Charging scalar-to-vector costs for loads would change how more
+     code is compiled. (Costs of scalar loads feeding a vec_construct are
+     charged separately; assume they subsume the cost of any SIMD load
+     instructions used in place of GPR load instructions as a consequence of
+     vectorization.)
+  */
+  if (gimple_vuse (def))
+    return false;
+
+  /* Likewise, we can hope to avoid using an intermediate GPR when
+     constructing a vector from a BIT_FIELD_REF that extracts from a
+     vector register.  */
+  if (is_gimple_assign (def) && gimple_assign_rhs_code (def) == BIT_FIELD_REF
+      && VECTOR_TYPE_P (TREE_TYPE (TREE_OPERAND (gimple_assign_rhs1 (def), 0))))
+    return false;
+
+  /* Likewise, we can hope to avoid using an intermediate GPR when
+     constructing a vector from the result of a vector reduction.  */
+  if (const gcall *call = dyn_cast<const gcall *> (def))
+    if (aarch64_call_scalar_result_in_simd_reg_p (call))
+      return false;
+
+  /* Likewise, we can hope to avoid using an intermediate GPR when
+     constructing a vector from the integer result of a vector reduction
+     that is immediately narrowed.  */
+  if (is_gimple_assign (def)
+      && CONVERT_EXPR_CODE_P (gimple_assign_rhs_code (def)))
+    {
+      tree lhs = gimple_assign_lhs (def);
+      tree rhs = gimple_assign_rhs1 (def);
+
+      if (TREE_CODE (rhs) == SSA_NAME && INTEGRAL_TYPE_P (TREE_TYPE (lhs))
+	  && INTEGRAL_TYPE_P (TREE_TYPE (rhs))
+	  && (TYPE_PRECISION (TREE_TYPE (lhs))
+	      < TYPE_PRECISION (TREE_TYPE (rhs))))
+	{
+	  gimple *rhs_def = SSA_NAME_DEF_STMT (rhs);
+	  if (const gcall *call = dyn_cast<const gcall *> (rhs_def))
+	    if (aarch64_call_scalar_result_in_simd_reg_p (call))
+	      return false;
+	}
+    }
+
+  /* Otherwise, treat every component as requiring a GPR to SIMD
+     register transfer.  Notably, this prevents reverse-bytes ops
+     from being erroneously vectorized before reaching the store
+     merging pass that is supposed to ultimately produce REV.  */
+  return true;
+}
+
+/* STMT_COST is the cost calculated by aarch64_builtin_vectorization_cost
+   for NODE, which has cost kind KIND and which when vectorized would
+   operate on vector type VECTYPE.  Adjust the cost as necessary for a value
+   that is not defined within the vectorized region.  */
+static fractional_cost
+aarch64_external_adjust_stmt_cost (vect_cost_for_stmt kind, slp_tree node,
+				   tree vectype, fractional_cost stmt_cost)
+{
+  if (SLP_TREE_DEF_TYPE (node) != vect_external_def)
+    return stmt_cost;
+
+  if (kind != vec_construct)
+    return stmt_cost;
+
+  const simd_vec_cost *simd_costs = aarch64_simd_vec_costs (vectype);
+  hash_set<tree> visited;
+
+  for (auto op : SLP_TREE_SCALAR_OPS (node))
+    {
+      if (TREE_CODE (op) != SSA_NAME || visited.add (op))
+	continue;
+
+      if (aarch64_scalar_op_to_vec_p (op))
+	stmt_cost += simd_costs->scalar_to_vec_cost;
+    }
+
+  return stmt_cost;
+}
+
 unsigned
 aarch64_vector_costs::add_stmt_cost (int count, vect_cost_for_stmt kind,
 				     stmt_vec_info stmt_info, slp_tree node,
@@ -18798,6 +18941,10 @@ aarch64_vector_costs::add_stmt_cost (int count, vect_cost_for_stmt kind,
       stmt_cost = 0;
       m_stores_to_vector_load_decl = true;
     }
+
+  if (node && vectype)
+    stmt_cost
+      = aarch64_external_adjust_stmt_cost (kind, node, vectype, stmt_cost);
 
   return record_stmt_cost (stmt_info, where, (count * stmt_cost).ceil ());
 }
