@@ -3221,7 +3221,7 @@ __gnat_copy_attribs (char *from ATTRIBUTE_UNUSED, char *to ATTRIBUTE_UNUSED,
        return -1;
 
      res = SetFileTime
-       (hto, NULL, &info.ftCreationTime, &info.ftLastAccessTime);
+       (hto, &info.ftCreationTime, &info.ftLastAccessTime, &info.ftLastWriteTime);
 
      CloseHandle (hto);
 
