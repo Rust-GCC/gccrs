@@ -941,8 +941,9 @@ default_stack_protect_guard (void)
     {
       rtx x;
 
-      if (targetm.stack_protect_guard_symbol_p ())
-	t = lang_hooks.types.type_for_mode (ptr_mode, 1);
+      if (UINTPTR_TYPE && targetm.stack_protect_guard_symbol_p ())
+	/* Get unsigned integer type for uintptr_t.  */
+	t = unsigned_integer_tree_node_for_type (UINTPTR_TYPE);
       else
 	t = ptr_type_node;
       t = build_decl (UNKNOWN_LOCATION,

@@ -9618,6 +9618,46 @@ build_atomic_base (tree type, unsigned int align)
   return t;
 }
 
+/* Return unsigned integer tree node for TYPE.  */
+
+tree
+unsigned_integer_tree_node_for_type (const char *type)
+{
+  tree type_node;
+
+  if (strcmp (type, "unsigned int") == 0)
+    type_node = unsigned_type_node;
+  else if (strcmp (type, "long unsigned int") == 0)
+    type_node = long_unsigned_type_node;
+  else if (strcmp (type, "long long unsigned int") == 0)
+    type_node = long_long_unsigned_type_node;
+  else if (strcmp (type, "short unsigned int") == 0)
+    type_node = short_unsigned_type_node;
+  else
+    {
+      int i;
+
+      type_node = nullptr;
+      for (i = 0; i < NUM_INT_N_ENTS; i++)
+	if (int_n_enabled_p[i])
+	  {
+	    char name[50], altname[50];
+	    sprintf (name, "__int%d unsigned", int_n_data[i].bitsize);
+	    sprintf (altname, "__int%d__ unsigned", int_n_data[i].bitsize);
+
+	    if (strcmp (name, type) == 0
+		|| strcmp (altname, type) == 0)
+	      {
+		type_node = int_n_trees[i].unsigned_type;
+	      }
+	  }
+      if (type_node == nullptr)
+	gcc_unreachable ();
+    }
+
+  return type_node;
+}
+
 /* Information about the _FloatN and _FloatNx types.  This must be in
    the same order as the corresponding TI_* enum values.  */
 const floatn_type_info floatn_nx_types[NUM_FLOATN_NX_TYPES] =
@@ -9688,35 +9728,7 @@ build_common_tree_nodes (bool signed_char)
   TYPE_MAX_VALUE (boolean_type_node) = build_int_cst (boolean_type_node, 1);
 
   /* Define what type to use for size_t.  */
-  if (strcmp (SIZE_TYPE, "unsigned int") == 0)
-    size_type_node = unsigned_type_node;
-  else if (strcmp (SIZE_TYPE, "long unsigned int") == 0)
-    size_type_node = long_unsigned_type_node;
-  else if (strcmp (SIZE_TYPE, "long long unsigned int") == 0)
-    size_type_node = long_long_unsigned_type_node;
-  else if (strcmp (SIZE_TYPE, "short unsigned int") == 0)
-    size_type_node = short_unsigned_type_node;
-  else
-    {
-      int i;
-
-      size_type_node = NULL_TREE;
-      for (i = 0; i < NUM_INT_N_ENTS; i++)
-	if (int_n_enabled_p[i])
-	  {
-	    char name[50], altname[50];
-	    sprintf (name, "__int%d unsigned", int_n_data[i].bitsize);
-	    sprintf (altname, "__int%d__ unsigned", int_n_data[i].bitsize);
-
-	    if (strcmp (name, SIZE_TYPE) == 0
-		|| strcmp (altname, SIZE_TYPE) == 0)
-	      {
-		size_type_node = int_n_trees[i].unsigned_type;
-	      }
-	  }
-      if (size_type_node == NULL_TREE)
-	gcc_unreachable ();
-    }
+  size_type_node = unsigned_integer_tree_node_for_type (SIZE_TYPE);
 
   /* Define what type to use for ptrdiff_t.  */
   if (strcmp (PTRDIFF_TYPE, "int") == 0)
