@@ -8636,25 +8636,10 @@ package body Exp_Attr is
 
          Expr := Empty;
 
-         --  Attribute 'Valid_Scalars is not supported on private tagged types;
-         --  see a detailed explanation where this attribute is analyzed.
-
-         if Is_Private_Type (Ptyp)
-           and then (Is_Tagged_Type (Ptyp)
-                      or else (Present (Full_View (Ptyp))
-                                and then Is_Tagged_Type (Full_View (Ptyp))))
-         then
-            null;
-
-         elsif Is_Class_Wide_Type (Ptyp)
-           and then Is_Private_Type (Root_Type (Ptyp))
-         then
-            null;
-
          --  Attribute 'Valid_Scalars evaluates to True when the type lacks
          --  scalars.
 
-         elsif not Scalar_Part_Present (Val_Typ) then
+         if not Scalar_Part_Present (Val_Typ) then
             null;
 
          --  Attribute 'Valid_Scalars is the same as attribute 'Valid when the

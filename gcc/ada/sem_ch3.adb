@@ -20303,17 +20303,22 @@ package body Sem_Ch3 is
       elsif not Comes_From_Source (Original_Comp) then
          return True;
 
+      --  If the component reference is inserted for a discriminant check or
+      --  a validity check on a full view, then it is also visible.
+
+      elsif Present (N)
+        and then Nkind (N) = N_Selected_Component
+        and then
+          Nkind (Prefix (N)) in N_Type_Conversion | N_Unchecked_Type_Conversion
+        and then not Comes_From_Source (Prefix (N))
+      then
+         return True;
+
       --  Discriminants are visible unless the (private) type has unknown
-      --  discriminants. If the discriminant reference is inserted for a
-      --  discriminant check on a full view it is also visible.
+      --  discriminants.
 
       elsif Ekind (Original_Comp) = E_Discriminant
-        and then
-          (not Has_Unknown_Discriminants (Original_Typ)
-            or else (Present (N)
-                      and then Nkind (N) = N_Selected_Component
-                      and then Nkind (Prefix (N)) = N_Type_Conversion
-                      and then not Comes_From_Source (Prefix (N))))
+        and then not Has_Unknown_Discriminants (Original_Typ)
       then
          return True;
 

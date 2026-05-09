@@ -7981,27 +7981,7 @@ package body Sem_Attr is
               or else (Is_Class_Wide_Type (P_Type)
                         and then Is_Private_Type (Root_Type (P_Type)))
             then
-               --  Attribute 'Valid_Scalars is not supported on private tagged
-               --  types due to a code generation issue. Is_Visible_Component
-               --  does not allow for a component of a private tagged type to
-               --  be successfully retrieved.
-               --  ??? This attribute should simply ignore type privacy
-               --  (see Validated_View). It should examine components of the
-               --  tagged type extensions (if any) and recursively examine
-               --  'Valid_Scalars of the parent's type (if any).
-
-               --  Do not use Error_Attr_P because this bypasses any subsequent
-               --  processing and leaves the attribute with type Any_Type. This
-               --  in turn prevents the proper expansion of the attribute into
-               --  True.
-
-               if Is_Tagged_Type (P_Type)
-                 or else (Present (Full_View (P_Type))
-                           and then Is_Tagged_Type (Full_View (P_Type)))
-               then
-                  Error_Msg_Name_1 := Aname;
-                  Error_Msg_N ("??effects of attribute % are ignored", N);
-               end if;
+               null;
 
             --  Otherwise the type is not private
 

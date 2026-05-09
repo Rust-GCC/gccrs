@@ -12768,8 +12768,8 @@ returns True if and only if @code{T'Value (S)} would not raise Constraint_Error.
 The @code{'Valid_Scalars} attribute is intended to make it easier to check the
 validity of scalar subcomponents of composite objects. The attribute is defined
 for any prefix @code{P} which denotes an object. Prefix @code{P} can be any type
-except for tagged private or @code{Unchecked_Union} types. The value of the
-attribute is of type @code{Boolean}.
+except for @code{Unchecked_Union} types. The value of the attribute is of type
+@code{Boolean}.
 
 @code{P'Valid_Scalars} yields @code{True} if and only if the evaluation of
 @code{C'Valid} yields @code{True} for every scalar subcomponent @code{C} of @code{P}, or if

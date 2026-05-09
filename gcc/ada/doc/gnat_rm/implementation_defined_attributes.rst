@@ -1687,8 +1687,8 @@ Attribute Valid_Scalars
 The ``'Valid_Scalars`` attribute is intended to make it easier to check the
 validity of scalar subcomponents of composite objects. The attribute is defined
 for any prefix ``P`` which denotes an object. Prefix ``P`` can be any type
-except for tagged private or ``Unchecked_Union`` types. The value of the
-attribute is of type ``Boolean``.
+except for ``Unchecked_Union`` types. The value of the attribute is of type
+``Boolean``.
 
 ``P'Valid_Scalars`` yields ``True`` if and only if the evaluation of
 ``C'Valid`` yields ``True`` for every scalar subcomponent ``C`` of ``P``, or if
