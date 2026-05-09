@@ -20257,23 +20257,9 @@ package body Sem_Ch3 is
      (C : Entity_Id;
       N : Node_Id := Empty) return Boolean
    is
-      Original_Comp : Entity_Id := Empty;
-      Original_Type : Entity_Id;
-      Type_Scope    : Entity_Id;
-
-      function Is_Local_Type (Typ : Entity_Id) return Boolean;
-      --  Check whether parent type of inherited component is declared locally,
-      --  possibly within a nested package or instance. The current scope is
-      --  the derived record itself.
-
-      -------------------
-      -- Is_Local_Type --
-      -------------------
-
-      function Is_Local_Type (Typ : Entity_Id) return Boolean is
-      begin
-         return Scope_Within (Inner => Typ, Outer => Scope (Current_Scope));
-      end Is_Local_Type;
+      Original_Comp : Entity_Id;
+      Original_Typ  : Entity_Id;
+      Typ           : Entity_Id;
 
    --  Start of processing for Is_Visible_Component
 
@@ -20282,22 +20268,22 @@ package body Sem_Ch3 is
         and then Is_Not_Self_Hidden (C)
       then
          Original_Comp := Original_Record_Component (C);
+      else
+         Original_Comp := Empty;
       end if;
+
+      --  Bail out for premature usage or previous error
 
       if No (Original_Comp) then
-
-         --  Premature usage, or previous error
-
          return False;
-
-      else
-         Original_Type := Scope (Original_Comp);
-         Type_Scope    := Scope (Base_Type (Scope (C)));
       end if;
+
+      Original_Typ := Base_Type (Scope (Original_Comp));
+      Typ          := Base_Type (Scope (C));
 
       --  This test only concerns tagged types
 
-      if not Is_Tagged_Type (Original_Type) then
+      if not Is_Tagged_Type (Original_Typ) then
 
          --  Check if this is a renamed discriminant (hidden either by the
          --  derived type or by some ancestor), unless we are analyzing code
@@ -20323,7 +20309,7 @@ package body Sem_Ch3 is
 
       elsif Ekind (Original_Comp) = E_Discriminant
         and then
-          (not Has_Unknown_Discriminants (Original_Type)
+          (not Has_Unknown_Discriminants (Original_Typ)
             or else (Present (N)
                       and then Nkind (N) = N_Selected_Component
                       and then Nkind (Prefix (N)) = N_Type_Conversion
@@ -20332,48 +20318,49 @@ package body Sem_Ch3 is
          return True;
 
       --  If the component has been declared in an ancestor which is currently
-      --  a private type, then it is not visible. The same applies if the
-      --  component's containing type is not in an open scope and the original
-      --  component's enclosing type is a visible full view of a private type
-      --  (which can occur in cases where an attempt is being made to reference
-      --  a component in a sibling package that is inherited from a visible
-      --  component of a type in an ancestor package; the component in the
-      --  sibling package should not be visible even though the component it
-      --  inherited from is visible), but instance bodies are not subject to
-      --  this second case since they have the Has_Private_View mechanism to
-      --  ensure proper visibility. This does not apply however in the case
-      --  where the scope of the type is a private child unit, or when the
-      --  parent comes from a local package in which the ancestor is currently
-      --  visible. The latter suppression of visibility is needed for cases
-      --  that are tested in B730006.
+      --  a private type, then it is not visible.
 
-      elsif Is_Private_Type (Original_Type)
-        or else
-          (not Is_Private_Descendant (Type_Scope)
-            and then not In_Open_Scopes (Type_Scope)
-            and then Has_Private_Declaration (Original_Type)
-            and then not In_Instance_Body)
+      elsif Is_Private_Type (Original_Typ) then
+         return False;
+
+      --  Likewise if the ancestor is a visible full view of a private type,
+      --  and the parent type is not in an open scope and was not declared in
+      --  a private child unit (which can occur in cases where an attempt is
+      --  being made to reference a component in a sibling package that is
+      --  inherited from a visible component of a type in an ancestor package;
+      --  the component in the sibling package is not be visible even though
+      --  the component it inherited from is visible), but instance bodies are
+      --  not subject to this second case since they have the Has_Private_View
+      --  mechanism to ensure proper visibility. This suppression of visibility
+      --  is needed for cases that are tested in ACATS B730006.
+
+      elsif Has_Private_Declaration (Original_Typ)
+        and then not In_Open_Scopes (Scope (Typ))
+        and then not Is_Private_Descendant (Scope (Typ))
+        and then not In_Instance_Body
       then
          --  If the type derives from an entity in a formal package, there
          --  are no additional visible components.
 
-         if Nkind (Original_Node (Unit_Declaration_Node (Type_Scope))) =
+         if Nkind (Original_Node (Unit_Declaration_Node (Scope (Typ)))) =
             N_Formal_Package_Declaration
          then
             return False;
 
-         --  if we are not in the private part of the current package, there
+         --  If we are not in the private part of the current package, there
          --  are no additional visible components.
 
          elsif Ekind (Scope (Current_Scope)) = E_Package
            and then not In_Private_Part (Scope (Current_Scope))
          then
             return False;
+
+         --  However, if the parent type is also declared in this private part,
+         --  possibly within a nested package or instance, then its components
+         --  are nevertheless visible.
+
          else
-            return
-              Is_Child_Unit (Cunit_Entity (Current_Sem_Unit))
-                and then In_Open_Scopes (Scope (Original_Type))
-                and then Is_Local_Type (Type_Scope);
+            return Scope_Within (Scope (Typ), Scope (Current_Scope));
          end if;
 
       --  There is another weird way in which a component may be invisible when
@@ -20395,15 +20382,15 @@ package body Sem_Ch3 is
 
          begin
             loop
-               if Ancestor = Original_Type then
+               if Ancestor = Original_Typ then
                   return True;
 
                --  The ancestor may have a partial view of the original type,
                --  but if the full view is in scope, as in a child body, the
                --  component is visible.
 
-               elsif In_Private_Part (Scope (Original_Type))
-                 and then Full_View (Ancestor) = Original_Type
+               elsif In_Private_Part (Scope (Original_Typ))
+                 and then Full_View (Ancestor) = Original_Typ
                then
                   return True;
 
