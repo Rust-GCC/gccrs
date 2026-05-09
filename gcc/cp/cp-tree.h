@@ -9524,6 +9524,7 @@ extern tree process_metafunction (const constexpr_ctx *, tree, tree,
 				  bool *, bool *, tree *);
 extern tree get_reflection (location_t, tree, reflect_kind = REFLECT_UNDEF);
 extern tree get_null_reflection () ATTRIBUTE_PURE;
+extern bool null_reflection_p (const_tree) ATTRIBUTE_PURE;
 extern tree splice (tree);
 extern bool check_out_of_consteval_use (tree, bool = true);
 extern bool consteval_only_p (tree) ATTRIBUTE_PURE;

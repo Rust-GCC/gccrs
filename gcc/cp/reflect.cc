@@ -267,6 +267,15 @@ get_null_reflection ()
   return null_reflection;
 }
 
+/* True iff T is a null reflection.  */
+
+bool
+null_reflection_p (const_tree t)
+{
+  return (t && TREE_CODE (t) == REFLECT_EXPR
+	  && REFLECT_EXPR_HANDLE (t) == unknown_type_node);
+}
+
 /* Do strip_typedefs on T, but only for types.  */
 
 static tree
@@ -8533,7 +8542,7 @@ splice (tree refl)
       return error_mark_node;
     }
 
-  if (compare_reflections (refl, get_null_reflection ()))
+  if (null_reflection_p (refl))
     {
       error_at (loc, "cannot splice a null reflection");
       return error_mark_node;

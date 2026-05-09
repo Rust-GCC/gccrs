@@ -3471,6 +3471,11 @@ dump_expr (cxx_pretty_printer *pp, tree t, int flags)
 	    pp_right_paren (pp);
 	    break;
 	  default:
+	    if (null_reflection_p (t))
+	      {
+		pp_cxx_ws_string (pp, "std::meta::info{}");
+		break;
+	      }
 	    pp_string (pp, "^^");
 	    pp->set_padding (pp_none);
 	    if (DECL_P (h))

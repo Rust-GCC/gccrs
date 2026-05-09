@@ -44,3 +44,6 @@ void qux (int x, int y);
 
 static_assert (parameters_of (^^qux)[0] == parameters_of (^^qux)[1]);	// { dg-error "static assertion failed" }
 // { dg-message "note: the comparison reduces to '\\\(parameters_of\\\(\\\^\\\^qux\\\(int, int\\\)\\\)\\\[0\\\] \\\{aka x\\\} == parameters_of\\\(\\\^\\\^qux\\\(int, int\\\)\\\)\\\[1\\\] \\\{aka y\\\}\\\)'" "" { target *-*-* } .-1 }
+
+static_assert (std::meta::info{} == ^^int);	// { dg-error "static assertion failed" }
+// { dg-message {note: the comparison reduces to '\(std::meta::info{} == \^\^int\)} "" { target *-*-* } .-1 }
