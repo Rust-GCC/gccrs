@@ -1545,7 +1545,7 @@ json_set_prime_path_coverage (json::object &function, function_info &info)
 	  if (i + 1 != path.size ())
 	    {
 	      const arc_info &arc = find_arc (block, path[i+1]);
-	      if (arc.false_value)
+	      if (arc.true_value)
 		edge_kind = "true";
 	      else if (arc.false_value)
 		edge_kind = "false";
