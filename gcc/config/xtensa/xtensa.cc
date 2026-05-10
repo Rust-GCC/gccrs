@@ -3587,17 +3587,16 @@ xtensa_emit_adjust_stack_ptr (HOST_WIDE_INT offset, int flags)
 
 static bool
 xtensa_can_eliminate_callee_saved_reg_p (unsigned int regno,
-					 rtx_insn **p_insnS,
-					 rtx_insn **p_insnR)
+					 rtx_insn *&insnS, rtx_insn *&insnR)
 {
   df_ref ref;
-  rtx_insn *insn, *insnS = NULL, *insnR = NULL;
+  rtx_insn *insn;
   rtx pattern;
 
   if (!optimize || !df || call_used_or_fixed_reg_p (regno))
     return false;
 
-  for (ref = DF_REG_DEF_CHAIN (regno);
+  for (insnS = NULL, ref = DF_REG_DEF_CHAIN (regno);
        ref; ref = DF_REF_NEXT_REG (ref))
     if (DF_REF_CLASS (ref) != DF_REF_REGULAR
 	|| DEBUG_INSN_P (insn = DF_REF_INSN (ref)))
@@ -3617,7 +3616,7 @@ xtensa_can_eliminate_callee_saved_reg_p (unsigned int regno,
     else
       return false;
 
-  for (ref = DF_REG_USE_CHAIN (regno);
+  for (insnR = NULL, ref = DF_REG_USE_CHAIN (regno);
        ref; ref = DF_REF_NEXT_REG (ref))
     if (DF_REF_CLASS (ref) != DF_REF_REGULAR
 	|| DEBUG_INSN_P (insn = DF_REF_INSN (ref)))
@@ -3637,12 +3636,7 @@ xtensa_can_eliminate_callee_saved_reg_p (unsigned int regno,
     else
       return false;
 
-  if (!insnS || !insnR)
-    return false;
-
-  *p_insnS = insnS, *p_insnR = insnR;
-
-  return true;
+  return insnS && insnR;
 }
 
 /* minimum frame = reg save area (4 words) plus static chain (1 word)
@@ -3745,7 +3739,7 @@ xtensa_expand_prologue (void)
 
 	    if (!large_stack_needed
 		&& xtensa_can_eliminate_callee_saved_reg_p (regno,
-							    &insnS, &insnR))
+							    insnS, insnR))
 	      {
 		if (frame_pointer_needed)
 		  mem = replace_rtx (mem, stack_pointer_rtx,
