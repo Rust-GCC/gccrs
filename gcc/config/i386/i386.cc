@@ -6776,6 +6776,13 @@ ix86_save_reg (unsigned int regno, bool maybe_eh_return, bool ignore_outlined)
 {
   rtx reg;
 
+  /* Save and restore DRAP register between prologue and epilogue so
+     that stack pointer can be restored.  */
+  if (crtl->drap_reg
+      && regno == REGNO (crtl->drap_reg)
+      && !cfun->machine->no_drap_save_restore)
+    return true;
+
   switch (cfun->machine->call_saved_registers)
     {
     case TYPE_DEFAULT_CALL_SAVED_REGISTERS:
@@ -6850,11 +6857,6 @@ ix86_save_reg (unsigned int regno, bool maybe_eh_return, bool ignore_outlined)
       if (xlogue_layout::is_stub_managed_reg (regno, count))
 	return false;
     }
-
-  if (crtl->drap_reg
-      && regno == REGNO (crtl->drap_reg)
-      && !cfun->machine->no_drap_save_restore)
-    return true;
 
   return (df_regs_ever_live_p (regno)
 	  && !call_used_or_fixed_reg_p (regno)
@@ -7946,6 +7948,11 @@ find_drap_reg (void)
      registers.  */
   if (TARGET_64BIT)
     {
+      /* In preserve_none functions, any register can be used for DRAP,
+	 except AX, R12–R15, DI, SI (argument registers), SP, and BP.  */
+      if (cfun->machine->call_saved_registers == TYPE_PRESERVE_NONE)
+	return R11_REG;
+
       /* Use R13 for nested function or function need static chain.
 	 Since function with tail call may use any caller-saved
 	 registers in epilogue, DRAP must not use caller-saved
