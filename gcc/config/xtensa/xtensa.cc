@@ -5883,6 +5883,7 @@ FPreg_neg_scaled_simm12b (rtx_insn *insn)
   int scale;
   rtx_insn *next, *last, *seq;
   REAL_VALUE_TYPE r;
+  bool success;
 
   /* It matches RTL expressions of the following format:
 	(set (reg:SF gpr) (const_double:SF cst))
@@ -5938,12 +5939,14 @@ FPreg_neg_scaled_simm12b (rtx_insn *insn)
 	      dump_insn_slim (dump_file, next);
 	    }
 	  remove_reg_equal_equiv_notes (insn);
-	  validate_change (insn, &PATTERN (insn),
-			   PATTERN (seq), 0);
+	  success = validate_change (insn, &PATTERN (insn),
+				     PATTERN (seq), 0);
+	  gcc_assert (success);
 	  remove_reg_equal_equiv_notes (next);
 	  remove_note (next, note);
-	  validate_change (next, &PATTERN (next),
-			   PATTERN (last), 0);
+	  success = validate_change (next, &PATTERN (next),
+				     PATTERN (last), 0);
+	  gcc_assert (success);
 	  add_reg_note (next, REG_EQUIV, src);
 	  add_reg_note (next, REG_DEAD, dest_2);
 	  if (dump_file)
@@ -5980,6 +5983,7 @@ static bool
 convert_SF_const (rtx_insn *insn)
 {
   rtx pat, dest, src, dest0, src0, src0c;
+  bool success;
 
   /* It is more efficient to assign SFmode literal constants using their
      bit-equivalent SImode ones, thus we convert them so.  */
@@ -6018,7 +6022,9 @@ convert_SF_const (rtx_insn *insn)
       && ! xtensa_simm12b (INTVAL (src0)))
     src0c = src0, src0 = force_const_mem (SImode, src0);
   remove_reg_equal_equiv_notes (insn);
-  validate_change (insn, &PATTERN (insn), gen_rtx_SET (dest0, src0), 0);
+  success = validate_change (insn, &PATTERN (insn),
+			     gen_rtx_SET (dest0, src0), 0);
+  gcc_assert (success);
   if (src0c)
     add_reg_note (insn, REG_EQUIV, copy_rtx (src0c));
   if (dump_file)
@@ -6331,6 +6337,7 @@ constantsynth_pass1 (rtx_insn *insn, constantsynth_info &info)
 {
   rtx pat, dest, src;
   int *pcount;
+  bool success;
 
   /* Check whether the insn is an assignment to a constant that is eligible
      for constantsynth.  If a large constant, record the insn and also the
@@ -6348,7 +6355,8 @@ constantsynth_pass1 (rtx_insn *insn, constantsynth_info &info)
       if (! rtx_equal_p (src, SET_SRC (pat)))
 	{
 	  remove_reg_equal_equiv_notes (insn);
-	  validate_change (insn, &SET_SRC (pat), src, 0);
+	  success = validate_change (insn, &SET_SRC (pat), src, 0);
+	  gcc_assert (success);
 	}
       if (dump_file)
 	{
@@ -6521,6 +6529,7 @@ litpool_set_src_1 (rtx_insn *insn, rtx set, bool in_group)
 {
   rtx dest, src;
   enum machine_mode mode;
+  bool success;
 
   if (REG_P (dest = SET_DEST (set)) && CONST_INT_P (src = SET_SRC (set))
       && ((((mode = GET_MODE (dest)) == SImode || mode == HImode)
@@ -6528,8 +6537,9 @@ litpool_set_src_1 (rtx_insn *insn, rtx set, bool in_group)
 	  || mode == DImode))
     {
       remove_reg_equal_equiv_notes (insn);
-      validate_change (insn, &SET_SRC (set),
-		       force_const_mem (mode, src), in_group);
+      success = validate_change (insn, &SET_SRC (set),
+				 force_const_mem (mode, src), in_group);
+      gcc_assert (success);
       add_reg_note (insn, REG_EQUIV, copy_rtx (src));
       return true;
     }
@@ -6542,7 +6552,7 @@ litpool_set_src (rtx_insn *insn)
 {
   rtx pat = PATTERN (insn);
   int i;
-  bool changed;
+  bool changed, success;
 
   switch (GET_CODE (pat))
     {
@@ -6558,7 +6568,11 @@ litpool_set_src (rtx_insn *insn)
 	    && litpool_set_src_1 (insn, XVECEXP (pat, 0, i), 1))
 	  changed = true;
       if (changed)
-	apply_change_group ();
+	{
+	  success = apply_change_group ();
+	  gcc_assert (success);
+	}
+
       return changed;
 
     default:
