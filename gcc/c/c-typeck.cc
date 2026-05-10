@@ -579,8 +579,9 @@ c_reconstruct_complex_type (tree type, tree bottom)
 
 /* Helper function for c_canonical_type.  Check whether FIELD
    contains a pointer to a structure or union with tag,
-   possibly nested in other type derivations.  */
-static bool
+   possibly nested in other type derivations, and return the
+   type of this nested structure or union.  */
+static tree
 ptr_to_tagged_member (tree field)
 {
   gcc_assert (FIELD_DECL == TREE_CODE (field));
@@ -598,17 +599,17 @@ ptr_to_tagged_member (tree field)
   if (ptr_seen
       && RECORD_OR_UNION_TYPE_P (type)
       && NULL_TREE != c_type_tag (type))
-    return true;
+    return type;
 
-  return false;
+  return NULL_TREE;
 }
 
 /* For a record or union type, make necessary adaptations so that the
    type can be used as TYPE_CANONICAL.
 
    If the TYPE contains a pointer (possibly nested in other type
-   derivations) to a structure or union as a member, create a copy
-   and change such pointers to void pointers.  Otherwise, the middle-end
+   derivations) to a structure or union as a member, create a copy and
+   change the nested type to an incomplete type.  Otherwise, the middle-end
    gets confused when recording component aliases in the case where we
    have formed equivalency classes that include types for which these
    member pointers end up pointing to other structure or unions types
@@ -635,9 +636,15 @@ c_type_canonical (tree type)
   for (tree x = TYPE_FIELDS (type); x; x = DECL_CHAIN (x))
     {
       tree f = copy_node (x);
-      if (ptr_to_tagged_member (x))
-	TREE_TYPE (f) = c_reconstruct_complex_type (TREE_TYPE (x),
-						    ptr_type_node);
+      if (tree m = ptr_to_tagged_member (x))
+	{
+	  tree new_node = make_node (TREE_CODE (m));
+	  TYPE_NAME (new_node) = TYPE_NAME (m);
+	  SET_TYPE_STRUCTURAL_EQUALITY (new_node);
+	  new_node = qualify_type (new_node, m);
+	  TREE_TYPE (f) = c_reconstruct_complex_type (TREE_TYPE (x),
+						      new_node);
+	}
       *fields = f;
       fields = &DECL_CHAIN (f);
     }
