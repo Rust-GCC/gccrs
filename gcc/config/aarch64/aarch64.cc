@@ -24604,6 +24604,85 @@ aarch64_simd_valid_mov_imm (rtx op)
   return aarch64_simd_valid_imm (op, NULL, AARCH64_CHECK_MOV);
 }
 
+
+/* Return true if OP is an FP constant vector in which the low register
+   element can be materialized using FMOV and all other elements are zero.  */
+bool
+aarch64_const_vec_fmov_p (rtx op)
+{
+  if (!CONST_VECTOR_P (op))
+    return false;
+
+  machine_mode mode = GET_MODE (op);
+  scalar_mode inner_mode = GET_MODE_INNER (mode);
+
+  if (inner_mode != E_HFmode
+      && inner_mode != E_SFmode
+      && inner_mode != E_DFmode)
+    return false;
+
+  if (inner_mode == E_HFmode && !TARGET_FP_F16INST)
+    return false;
+
+  unsigned int nunits = GET_MODE_NUNITS (mode).to_constant ();
+  unsigned int const_idx = BYTES_BIG_ENDIAN ? nunits - 1 : 0;
+
+  rtx elt = CONST_VECTOR_ELT (op, const_idx);
+  if (!CONST_DOUBLE_P (elt))
+    return false;
+
+  REAL_VALUE_TYPE r = *CONST_DOUBLE_REAL_VALUE (elt);
+  if (!aarch64_real_float_const_representable_p (r))
+    return false;
+
+  for (unsigned int i = 0; i < nunits; ++i)
+    {
+      if (i == const_idx)
+	continue;
+
+      rtx x = CONST_VECTOR_ELT (op, i);
+      if (!rtx_equal_p (x, CONST0_RTX (inner_mode)))
+	return false;
+    }
+
+  return true;
+}
+
+/* Output a move of an FP constant vector in which the low register element is
+   materialized using FMOV and all other elements are zero.  */
+char *
+aarch64_output_simd_mov_imm_low (rtx *operands)
+{
+  machine_mode mode = GET_MODE (operands[1]);
+  scalar_mode inner_mode = GET_MODE_INNER (mode);
+  unsigned int nunits = GET_MODE_NUNITS (mode).to_constant ();
+  unsigned int const_idx = BYTES_BIG_ENDIAN ? nunits - 1 : 0;
+  rtx elt = CONST_VECTOR_ELT (operands[1], const_idx);
+  rtx xop[2];
+
+  xop[0] = operands[0];
+  xop[1] = elt;
+
+  switch (inner_mode)
+    {
+      case E_HFmode:
+	output_asm_insn ("fmov\t%h0, %1", xop);
+	break;
+
+      case E_SFmode:
+	output_asm_insn ("fmov\t%s0, %1", xop);
+	break;
+
+      case E_DFmode:
+	output_asm_insn ("fmov\t%d0, %1", xop);
+	break;
+
+      default:
+	gcc_unreachable ();
+    }
+  return "";
+}
+
 /* Return true if OP is a valid SIMD orr immediate for SVE or AdvSIMD.  */
 bool
 aarch64_simd_valid_orr_imm (rtx op)

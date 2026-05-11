@@ -503,6 +503,13 @@
  (and (match_code "const_vector")
       (match_test "aarch64_simd_valid_xor_imm (op)")))
 
+(define_constraint "Dc"
+ "@internal
+  A constraint that matches an FP constant vector in which the low register
+  element can be materialized using FMOV and all other elements are zero."
+ (and (match_code "const_vector")
+      (match_test "aarch64_const_vec_fmov_p (op)")))
+
 (define_constraint "Dn"
   "@internal
  A constraint that matches vector of immediates."

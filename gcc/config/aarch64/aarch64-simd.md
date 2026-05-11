@@ -79,7 +79,8 @@
 	}
       else if (!aarch64_simd_imm_zero (operands[1], <MODE>mode)
 	       && !aarch64_simd_special_constant_p (operands[1], <MODE>mode)
-	       && !aarch64_simd_valid_mov_imm (operands[1]))
+	       && !aarch64_simd_valid_mov_imm (operands[1])
+	       && !aarch64_const_vec_fmov_p (operands[1]))
 	{
 	  rtx x;
 	  /* Expand into VDUP.  */
@@ -183,6 +184,7 @@
      [?r, w ; neon_to_gp<q>      , *        , *] fmov\t%x0, %d1
      [?w, r ; f_mcr              , *        , *] fmov\t%d0, %1
      [?r, r ; mov_reg            , *        , *] mov\t%0, %1
+     [w , Dc; fmov               , *        , *] << aarch64_output_simd_mov_imm_low (operands);
      [w , Dn; neon_move<q>       , simd     , *] << aarch64_output_simd_mov_imm (operands[1], 64);
      [w , Dz; f_mcr              , *        , *] fmov\t%d0, xzr
      [w , Dx; neon_move          , simd     , 8] #
@@ -212,6 +214,7 @@
      [?r , w ; multiple           , *   , 8] #
      [?w , r ; multiple           , *   , 8] #
      [?r , r ; multiple           , *   , 8] #
+     [w  , Dc; fmov               , *   , 4] << aarch64_output_simd_mov_imm_low (operands);
      [w  , Dn; neon_move<q>       , simd, 4] << aarch64_output_simd_mov_imm (operands[1], 128);
      [w  , Dz; fmov               , *   , 4] fmov\t%d0, xzr
      [w  , Dx; neon_move          , simd, 8] #
