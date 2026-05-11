@@ -11531,12 +11531,42 @@ recog_for_combine_1 (rtx *pnewpat, rtx_insn *insn, rtx *pnotes,
       REG_NOTES (insn) = notes;
       INSN_CODE (insn) = insn_code_number;
 
-      /* Allow targets to reject combined insn.  */
-      if (!targetm.legitimate_combined_insn (insn))
+      /* Do not accept an insn if hard register constraints are used.  For
+	 example, assume that the first insn is combined into the last one:
+
+	 r100=...
+	 %5=...
+	 r101=exp(r100)
+
+	 If the resulting insn has an operand which is constrained to hard
+	 register %5, then this introduces a conflict since register %5 is live
+	 at this point.  Therefore, skip for now.  This is a sledge hammer
+	 approach.  Ideally we would skip based on the fact whether a
+	 combination crosses a hard register assignment and the corresponding
+	 hard register is also referred by a single register constraint of the
+	 resulting insn.  */
+      bool has_hard_reg_cstr = false;
+      extract_insn (insn);
+      for (int nop = recog_data.n_operands - 1; nop >= 0; --nop)
+	if (strchr (recog_data.constraints[nop], '{'))
+	  {
+	    has_hard_reg_cstr = true;
+	    break;
+	  }
+
+      /* Don't accept hard register constraints.  Allow targets to reject
+	 combined insn.  */
+      if (has_hard_reg_cstr || !targetm.legitimate_combined_insn (insn))
 	{
 	  if (dump_file && (dump_flags & TDF_DETAILS))
-	    fputs ("Instruction not appropriate for target.",
-		   dump_file);
+	    {
+	      if (has_hard_reg_cstr)
+		fputs ("Instruction makes use of hard register constraints.",
+		       dump_file);
+	      else
+		fputs ("Instruction not appropriate for target.",
+		       dump_file);
+	    }
 
 	  /* Callers expect recog_for_combine to strip
 	     clobbers from the pattern on failure.  */
