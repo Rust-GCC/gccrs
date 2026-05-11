@@ -2323,7 +2323,14 @@ execute_sm (class loop *loop, im_mem_ref *ref,
   bool always_stored = ref_always_accessed_p (loop, ref, true);
   if (maybe_mt
       && (bb_in_transaction (loop_preheader_edge (loop)->src)
-	  || (ref_can_have_store_data_races (ref->mem.ref) && ! always_stored)))
+	  || (ref_can_have_store_data_races (ref->mem.ref) && ! always_stored)
+	  /* Do not speculate a load/store when that's not a noop, either
+	     because the mode cannot be transferred or because there's
+	     UB involved for out-of-bound values.  */
+	  || !mode_can_transfer_bits (TYPE_MODE (TREE_TYPE (ref->mem.ref)))
+	  || TREE_CODE (TREE_TYPE (ref->mem.ref)) == BOOLEAN_TYPE
+	  || (TREE_CODE (ref->mem.ref) == COMPONENT_REF
+	      && DECL_BIT_FIELD (TREE_OPERAND (ref->mem.ref, 1)))))
     multi_threaded_model_p = true;
 
   if (multi_threaded_model_p && !use_other_flag_var)
