@@ -24,6 +24,8 @@
    see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
    <http://www.gnu.org/licenses/>.  */
 
+#include "libgomp.h"
+
 void *
 GOMP_target_map_indirect_ptr (void *ptr)
 {
