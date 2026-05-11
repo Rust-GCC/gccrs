@@ -27,6 +27,10 @@
 
 #include "libgomp.h"
 
+extern void *GOMP_INDIRECT_ADDR_MAP;
+
+extern void *GOMP_INDIRECT_ADDR_HMAP;
+
 extern void build_indirect_map (void);
 
 #endif /* GOMP_TARGET_INDIRECT_H */

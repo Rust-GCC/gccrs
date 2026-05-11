@@ -36,8 +36,6 @@
 
 #define UNLIKELY(x) (__builtin_expect ((x), 0))
 
-extern void *GOMP_INDIRECT_ADDR_MAP;
-
 /* Defined in basic-allocator.c via config/amdgcn/allocator.c.  */
 void __gcn_lowlat_init (void *heap, size_t size);
 

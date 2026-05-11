@@ -34,8 +34,6 @@
 
 #define UNLIKELY(x) (__builtin_expect ((x), 0))
 
-extern void *GOMP_INDIRECT_ADDR_MAP;
-
 struct gomp_thread *nvptx_thrs __attribute__((shared,nocommon));
 int __gomp_team_num __attribute__((shared,nocommon));
 
