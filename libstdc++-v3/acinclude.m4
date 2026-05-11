@@ -1785,6 +1785,8 @@ AC_DEFUN([GLIBCXX_ENABLE_LIBSTDCXX_TIME], [
       # VxWorks has nanosleep as soon as the kernel is configured with
       # INCLUDE_POSIX_TIMERS, which is normally/most-often the case.
       vxworks*)
+        ac_has_clock_monotonic=yes
+        ac_has_clock_realtime=yes
         ac_has_nanosleep=yes
         ;;
       gnu* | linux* | kfreebsd*-gnu | knetbsd*-gnu)
