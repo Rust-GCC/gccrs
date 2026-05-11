@@ -5326,9 +5326,9 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
   (view_convert (BIT_FIELD_REF@0 @1 @2 @3))
   (if (is_gimple_reg_type (type)
        && (!INTEGRAL_TYPE_P (type)
-	   || !INTEGRAL_TYPE_P (TREE_TYPE (@0))
-	   || (type_has_mode_precision_p (type)
-	       && type_has_mode_precision_p (TREE_TYPE (@0)))))
+	   || type_has_mode_precision_p (type))
+       && (!INTEGRAL_TYPE_P (TREE_TYPE (@0))
+	   || type_has_mode_precision_p (TREE_TYPE (@0))))
    (BIT_FIELD_REF:type @1 @2 @3)))
 
 /* For integral conversions with the same precision or pointer
