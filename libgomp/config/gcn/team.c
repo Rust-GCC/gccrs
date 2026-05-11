@@ -27,6 +27,7 @@
 #include <assert.h>
 
 #include "libgomp.h"
+#include "target-indirect.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -41,7 +42,6 @@ extern void *GOMP_INDIRECT_ADDR_MAP;
 void __gcn_lowlat_init (void *heap, size_t size);
 
 static void gomp_thread_start (struct gomp_thread_pool *);
-extern void build_indirect_map (void);
 
 /* This externally visible function handles target region entry.  It
    sets up a per-team thread pool and transfers control by returning to

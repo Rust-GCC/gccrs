@@ -26,6 +26,7 @@
 
 #include <assert.h>
 #include "libgomp.h"
+#include "target-indirect.h"
 
 void *GOMP_INDIRECT_ADDR_MAP = NULL;
 
