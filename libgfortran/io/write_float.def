@@ -26,6 +26,295 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 
 #include "config.h"
 
+/* Math function dispatch macros for kind=16.  The type and its math functions
+   vary by platform: _Float128 (IEC 60559), __float128 (libquadmath, including
+   POWER_IEEE128), or 128-bit long double.  */
+#ifdef HAVE_GFC_REAL_16
+# if defined(GFC_REAL_16_IS_FLOAT128)
+#  if defined(GFC_REAL_16_USE_IEC_60559)
+#   define GFC_REAL_16_FREXP(x, e)  frexpf128 (x, e)
+#   define GFC_REAL_16_FABS(x)      fabsf128 (x)
+#   define GFC_REAL_16_SCALBN(x, n) scalbnf128 (x, n)
+#  else  /* libquadmath __float128, including POWER_IEEE128  */
+#   define GFC_REAL_16_FREXP(x, e)  frexpq (x, e)
+#   define GFC_REAL_16_FABS(x)      fabsq (x)
+#   define GFC_REAL_16_SCALBN(x, n) scalbnq (x, n)
+#  endif
+# else  /* 128-bit long double  */
+#  define GFC_REAL_16_FREXP(x, e)   frexpl (x, e)
+#  define GFC_REAL_16_FABS(x)       fabsl (x)
+#  define GFC_REAL_16_SCALBN(x, n)  scalbnl (x, n)
+# endif
+#endif /* HAVE_GFC_REAL_16  */
+
+/* Helper function for EX format specifier.
+
+   Returns 0 on success, -1 on error. Fills 'buffer' with the hexadecimal
+   floating-point representation of the input value derived from the
+   IEEE-754 bit representations.  Non-IEEE-754 representations are not
+   supported. Sets '*res_len' to the length of the string,
+   excluding NUL terminator. The buffer must be at least 64 bytes to
+   contain the resulting string for all kinds.  */
+static int
+get_float_hex_string (const void *source, int kind, char *buffer,
+		      int *res_len)
+{
+  int result = -1;
+  bool is_negative;
+  *res_len = 0;
+
+  switch (kind)
+    {
+    case 4:
+      {
+	GFC_REAL_4 val;
+	GFC_REAL_4 mant;
+	int expon;
+	int int_part;
+	unsigned int frac_part;
+
+	val = *(const GFC_REAL_4 *) source;
+	is_negative = signbit (val);
+	if (val == 0.0f)
+	  {
+	    if (is_negative)
+	      result = snprintf (buffer, 9, "-0X0.P0");
+	    else
+	      result = snprintf (buffer, 8, "0X0.P0");
+	    *res_len = result;
+	    return result < 0 ? -1 : 0;
+	  }
+	if (isinf (val))
+	  {
+	    if (is_negative)
+	      result = snprintf (buffer, 5, "-Inf");
+	    else
+	      result = snprintf (buffer, 4, "Inf");
+	    *res_len = result;
+	    return result < 0 ? -1 : 0;
+	  }
+	if (isnan (val))
+	  {
+	    result = snprintf (buffer, 4, "NaN");
+	    *res_len = result;
+	    return result < 0 ? -1 : 0;
+	  }
+	mant = frexpf (val, &expon);
+	/* Scale mantissa so the leading hex digit is in the range [8, 15].  */
+	if (mant != 0.0f)
+	  {
+	    mant = fabsf (mant);
+	    mant = scalbnf (mant, 4);
+	    expon -= 4;
+	    if (mant < 8.f)
+	      {
+		mant = scalbnf (mant, 1);
+		expon -= 1;
+	      }
+	  }
+	int_part = (int) mant;
+	/* 24 is the nearest integer divisible by 4 that is >= 23 (mantissa bits
+	   for kind=4).  (24-4)/4 = 5 hex digits for the fractional part.  */
+	frac_part = (unsigned int) scalbnf (mant - (GFC_REAL_4) int_part, 24 - 4);
+	if (is_negative)
+	  result = snprintf (buffer, 16, "-0X%X.%5.5XP%+d", int_part, frac_part, expon);
+	else
+	  result = snprintf (buffer, 16, "0X%X.%5.5XP%+d", int_part, frac_part, expon);
+      }
+      break;
+    case 8:
+      {
+	double val;
+	double mant;
+	int expon;
+	int int_part;
+	unsigned long frac_part;
+
+	val = *(const GFC_REAL_8 *) source;
+	is_negative = signbit (val);
+	if (val == 0.0)
+	  {
+	    if (is_negative)
+	      result = snprintf (buffer, 9, "-0X0.P0");
+	    else
+	      result = snprintf (buffer, 8, "0X0.P0");
+	    *res_len = result;
+	    return result < 0 ? -1 : 0;
+	  }
+	if (isinf (val))
+	  {
+	    if (is_negative)
+	      result = snprintf (buffer, 5, "-Inf");
+	    else
+	      result = snprintf (buffer, 4, "Inf");
+	    *res_len = result;
+	    return result < 0 ? -1 : 0;
+	  }
+	if (isnan (val))
+	  {
+	    result = snprintf (buffer, 4, "NaN");
+	    *res_len = result;
+	    return result < 0 ? -1 : 0;
+	  }
+	mant = frexp (val, &expon);
+	/* Scale mantissa so the leading hex digit is in the range [8, 15].  */
+	if (mant != 0.0)
+	  {
+	    mant = fabs (mant);
+	    mant = scalbn (mant, 4);
+	    expon -= 4;
+	    if (mant < 8.)
+	      {
+		mant = scalbn (mant, 1);
+		expon -= 1;
+	      }
+	  }
+	int_part = (int) mant;
+	/* 56 is the nearest integer divisible by 4 that is >= 53 (mantissa bits
+	   for kind=8).  (56-4)/4 = 13 hex digits for the fractional part.  */
+	frac_part = (unsigned long) scalbn (mant - (double) int_part, 56 - 4);
+	if (is_negative)
+	  result = snprintf (buffer, 25, "-0X%X.%13.13lXP%+d", int_part, frac_part, expon);
+	else
+	  result = snprintf (buffer, 25, "0X%X.%13.13lXP%+d", int_part, frac_part, expon);
+      }
+      break;
+#ifdef HAVE_GFC_REAL_10
+    case 10:
+      {
+	GFC_REAL_10 val;
+	GFC_REAL_10 mant;
+	int expon;
+	int int_part;
+	unsigned long long frac_part;
+
+	val = *(const GFC_REAL_10 *) source;
+	is_negative = signbit (val);
+	if (val == 0.0L)
+	  {
+	    if (is_negative)
+	      result = snprintf (buffer, 9, "-0X0.P0");
+	    else
+	      result = snprintf (buffer, 8, "0X0.P0");
+	    *res_len = result;
+	    return result < 0 ? -1 : 0;
+	  }
+	if (isinf (val))
+	  {
+	    if (is_negative)
+	      result = snprintf (buffer, 5, "-Inf");
+	    else
+	      result = snprintf (buffer, 4, "Inf");
+	    *res_len = result;
+	    return result < 0 ? -1 : 0;
+	  }
+	if (isnan (val))
+	  {
+	    result = snprintf (buffer, 4, "NaN");
+	    *res_len = result;
+	    return result < 0 ? -1 : 0;
+	  }
+	mant = frexpl (val, &expon);
+	/* Scale mantissa so the leading hex digit is in the range [8, 15].  */
+	if (mant != 0.0L)
+	  {
+	    mant = fabsl (mant);
+	    mant = scalbnl (mant, 4);
+	    expon -= 4;
+	    if (mant < 8.L)
+	      {
+		mant = scalbnl (mant, 1);
+		expon -= 1;
+	      }
+	  }
+	int_part = (int) mant;
+	/* 64 is the nearest integer divisible by 4 that is >= 64 (mantissa bits
+	   for kind=10).  (64-4)/4 = 15 hex digits for the fractional part.  */
+	frac_part = (unsigned long long) scalbnl (mant - (GFC_REAL_10) int_part, 64 - 4);
+	if (is_negative)
+	  result = snprintf (buffer, 28, "-0X%X.%15.15llXP%+d", int_part, frac_part, expon);
+	else
+	  result = snprintf (buffer, 28, "0X%X.%15.15llXP%+d", int_part, frac_part, expon);
+      }
+      break;
+#endif
+#ifdef HAVE_GFC_REAL_16
+    case 16:
+      {
+	GFC_REAL_16 val;
+	GFC_REAL_16 mant;
+	int expon;
+	int int_part;
+	unsigned long long frac_hi, frac_lo;
+	GFC_REAL_16 frac_val, frac_lo_val;
+
+	val = *(const GFC_REAL_16 *) source;
+	is_negative = signbit (val);
+	if (val == (GFC_REAL_16) 0.0)
+	  {
+	    if (is_negative)
+	      result = snprintf (buffer, 9, "-0X0.P0");
+	    else
+	      result = snprintf (buffer, 8, "0X0.P0");
+	    *res_len = result;
+	    return result < 0 ? -1 : 0;
+	  }
+	if (isinf (val))
+	  {
+	    if (is_negative)
+	      result = snprintf (buffer, 5, "-Inf");
+	    else
+	      result = snprintf (buffer, 4, "Inf");
+	    *res_len = result;
+	    return result < 0 ? -1 : 0;
+	  }
+	if (isnan (val))
+	  {
+	    result = snprintf (buffer, 4, "NaN");
+	    *res_len = result;
+	    return result < 0 ? -1 : 0;
+	  }
+	mant = GFC_REAL_16_FREXP (val, &expon);
+	/* Scale mantissa so the leading hex digit is in the range [8, 15].  */
+	if (mant != (GFC_REAL_16) 0.0)
+	  {
+	    mant = GFC_REAL_16_FABS (mant);
+	    mant = GFC_REAL_16_SCALBN (mant, 4);
+	    expon -= 4;
+	    if (mant < (GFC_REAL_16) 8.)
+	      {
+		mant = GFC_REAL_16_SCALBN (mant, 1);
+		expon -= 1;
+	      }
+	  }
+	int_part = (int) mant;
+	/* 116 is the nearest integer divisible by 4 that is >= 113 (mantissa
+	   bits for kind=16).  (116-4)/4 = 28 hex digits for the fractional
+	   part, split into two 56-bit halves (14 hex digits each) to fit in
+	   unsigned long long.  */
+	frac_val = mant - (GFC_REAL_16) int_part;
+	frac_hi = (unsigned long long) GFC_REAL_16_SCALBN (frac_val, 56);
+	frac_lo_val = frac_val - GFC_REAL_16_SCALBN ((GFC_REAL_16) frac_hi, -56);
+	frac_lo = (unsigned long long) GFC_REAL_16_SCALBN (frac_lo_val, 112);
+	if (is_negative)
+	  result = snprintf (buffer, 42, "-0X%X.%14.14llX%14.14llXP%+d",
+			     int_part, frac_hi, frac_lo, expon);
+	else
+	  result = snprintf (buffer, 42, "0X%X.%14.14llX%14.14llXP%+d",
+			     int_part, frac_hi, frac_lo, expon);
+      }
+      break;
+#endif /* HAVE_GFC_REAL_16  */
+    default:
+      return -1;
+    }
+  if (result < 0)
+    return -1;
+
+  *res_len = result;
+  return 0;
+}
+
 typedef enum
 { S_NONE, S_MINUS, S_PLUS }
 sign_t;
@@ -186,7 +475,7 @@ build_float_string (st_parameter_dt *dtp, const fnode *f, char *buffer,
     case FMT_F:
       nbefore = ndigits - precision;
       if ((w > 0) && (nbefore > (int) size))
-        {
+	{
 	  *len = w;
 	  star_fill (result, w);
 	  result[w] = '\0';
@@ -310,7 +599,7 @@ build_float_string (st_parameter_dt *dtp, const fnode *f, char *buffer,
       /* The exponent must be a multiple of three, with 1-3 digits before
 	 the decimal point.  */
       if (!zero_flag)
-        e--;
+	e--;
       if (e >= 0)
 	nbefore = e % 3;
       else
@@ -328,7 +617,7 @@ build_float_string (st_parameter_dt *dtp, const fnode *f, char *buffer,
 
     case FMT_ES:
       if (!zero_flag)
-        e--;
+	e--;
       nbefore = 1;
       nzero = 0;
       nafter = d;
@@ -444,9 +733,9 @@ build_float_string (st_parameter_dt *dtp, const fnode *f, char *buffer,
 	  if (i < 0)
 	    {
 	      /* The carry overflowed.  Fortunately we have some spare
-	         space at the start of the buffer.  We may discard some
-	         digits, but this is ok because we already know they are
-	         zero.  */
+		 space at the start of the buffer.  We may discard some
+		 digits, but this is ok because we already know they are
+		 zero.  */
 	      digits--;
 	      digits[0] = '1';
 	      if (ft == FMT_F)
@@ -562,7 +851,7 @@ build_float_string (st_parameter_dt *dtp, const fnode *f, char *buffer,
       /* The output is zero, so set the sign according to the sign bit unless
 	 -fno-sign-zero was specified.  */
       if (compile_options.sign_zero == 1)
-        sign = calculate_sign (dtp, sign_bit);
+	sign = calculate_sign (dtp, sign_bit);
       else
 	sign = calculate_sign (dtp, 0);
     }
@@ -987,9 +1276,9 @@ quadmath_snprintf (buffer, size, "%+-#.*Qf", (prec), (val))
    10.0**e even when the final result will not be rounded to 10.0**e.
    For these values the exponent returned by atoi has to be decremented
    by one. The values y in the ranges
-       (1000.0-0.5*10.0**(-d))*10.0**(3*n) <= y < 10.0*(3*(n+1))
-        (100.0-0.5*10.0**(-d))*10.0**(3*n) <= y < 10.0*(3*n+2)
-         (10.0-0.5*10.0**(-d))*10.0**(3*n) <= y < 10.0*(3*n+1)
+	(1000.0-0.5*10.0**(-d))*10.0**(3*n) <= y < 10.0*(3*(n+1))
+	 (100.0-0.5*10.0**(-d))*10.0**(3*n) <= y < 10.0*(3*n+2)
+	  (10.0-0.5*10.0**(-d))*10.0**(3*n) <= y < 10.0*(3*n+1)
    are correctly rounded respectively to 1.0...0*10.0*(3*(n+1)),
    100.0...0*10.0*(3*n), and 10.0...0*10.0*(3*n), where 0...0
    represents d zeroes, by the lines 279 to 297. */
@@ -1118,7 +1407,7 @@ determine_en_precision (st_parameter_dt *dtp, const fnode *f,
 	  d = precision;\
 	}\
       /* The switch between FMT_E and FMT_F is based on the absolute value.  \
-         Set r=0 for rounding toward zero and r = 1 otherwise.  \
+	 Set r=0 for rounding toward zero and r = 1 otherwise.  \
 	 If (exp_d - m) == 1 there is no rounding needed.  */\
       switch (dtp->u.p.current_unit->round_status)\
 	{\

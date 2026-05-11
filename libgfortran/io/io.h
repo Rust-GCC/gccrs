@@ -145,7 +145,8 @@ typedef enum
   FMT_LPAREN, FMT_RPAREN, FMT_X, FMT_S, FMT_SS, FMT_SP, FMT_STRING,
   FMT_BADSTRING, FMT_P, FMT_I, FMT_B, FMT_BN, FMT_BZ, FMT_O, FMT_Z, FMT_F,
   FMT_E, FMT_EN, FMT_ES, FMT_G, FMT_L, FMT_A, FMT_D, FMT_H, FMT_END, FMT_DC,
-  FMT_DP, FMT_STAR, FMT_RC, FMT_RD, FMT_RN, FMT_RP, FMT_RU, FMT_RZ, FMT_DT
+  FMT_DP, FMT_STAR, FMT_RC, FMT_RD, FMT_RN, FMT_RP, FMT_RU, FMT_RZ, FMT_DT, FMT_EX,
+  FMT_LPS, FMT_LPZ, FMT_LZ
 }
 format_token;
 
@@ -945,6 +946,9 @@ internal_proto(write_en);
 
 extern void write_es (st_parameter_dt *, const fnode *, const char *, int);
 internal_proto(write_es);
+
+extern void write_ex (st_parameter_dt *, const fnode *, const char *, int);
+internal_proto(write_ex);
 
 extern void write_f (st_parameter_dt *, const fnode *, const char *, int);
 internal_proto(write_f);

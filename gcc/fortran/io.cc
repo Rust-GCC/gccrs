@@ -118,11 +118,11 @@ static gfc_dt *current_dt;
 enum format_token
 {
   FMT_NONE, FMT_UNKNOWN, FMT_SIGNED_INT, FMT_ZERO, FMT_POSINT, FMT_PERIOD,
-  FMT_COMMA, FMT_COLON, FMT_SLASH, FMT_DOLLAR, FMT_LPAREN,
-  FMT_RPAREN, FMT_X, FMT_SIGN, FMT_BLANK, FMT_CHAR, FMT_P, FMT_IBOZ, FMT_F,
-  FMT_E, FMT_EN, FMT_ES, FMT_G, FMT_L, FMT_A, FMT_D, FMT_H, FMT_END,
-  FMT_ERROR, FMT_DC, FMT_DP, FMT_T, FMT_TR, FMT_TL, FMT_STAR, FMT_RC,
-  FMT_RD, FMT_RN, FMT_RP, FMT_RU, FMT_RZ, FMT_DT
+  FMT_COMMA, FMT_COLON, FMT_SLASH, FMT_DOLLAR, FMT_LPAREN, FMT_RPAREN, FMT_X,
+  FMT_SIGN, FMT_BLANK, FMT_CHAR, FMT_P, FMT_IBOZ, FMT_F, FMT_E, FMT_EN, FMT_ES,
+  FMT_G, FMT_L, FMT_A, FMT_D, FMT_H, FMT_END, FMT_ERROR, FMT_DC, FMT_DP, FMT_T,
+  FMT_TR, FMT_TL, FMT_STAR, FMT_RC, FMT_RD, FMT_RN, FMT_RP, FMT_RU, FMT_RZ,
+  FMT_DT, FMT_EX, FMT_LPS, FMT_LPZ, FMT_LZ
 };
 
 /* Local variables for checking format strings.  The saved_token is
@@ -422,6 +422,8 @@ format_lex (void)
 	token = FMT_EN;
       else if (c == 'S')
         token = FMT_ES;
+      else if (c == 'X')
+	token = FMT_EX;
       else
 	{
 	  token = FMT_E;
@@ -439,6 +441,37 @@ format_lex (void)
       break;
 
     case 'L':
+      c = next_char_not_space ();
+      switch (c)
+	{
+	case 'P':
+	  c = next_char_not_space ();
+	  switch (c)
+	  {
+	    case 'S':
+	      token = FMT_LPS;
+	      break;
+
+	    case 'Z':
+	      token = FMT_LPZ;
+	      break;
+
+	    default:
+	      token = FMT_UNKNOWN;
+	      unget_char ();
+	      break;
+	  }
+	  break;
+
+	case 'Z':
+	  token = FMT_LZ;
+	  break;
+
+	default:
+	  token = FMT_UNKNOWN;
+	  unget_char ();
+	  break;
+	}
       token = FMT_L;
       break;
 
@@ -746,6 +779,7 @@ format_item_1:
     case FMT_E:
     case FMT_EN:
     case FMT_ES:
+    case FMT_EX:
     case FMT_G:
     case FMT_L:
     case FMT_A:
@@ -879,6 +913,7 @@ data_desc:
 
     case FMT_D:
     case FMT_E:
+    case FMT_EX:
     case FMT_G:
     case FMT_EN:
     case FMT_ES:

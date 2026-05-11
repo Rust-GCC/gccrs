@@ -30,6 +30,7 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #include "unix.h"
 #include <assert.h>
 #include <string.h>
+#include "config.h"
 
 #define star_fill(p, n) memset(p, '*', n)
 
@@ -127,7 +128,7 @@ write_default_char4 (st_parameter_dt *dtp, const gfc_char4_t *source,
 		return;
 	      *p++ = (uchar) c;
 	    }
-          else
+	  else
 	    {
 	      p = write_block (dtp, 1);
 	      if (p == NULL)
@@ -409,8 +410,8 @@ write_a (st_parameter_dt *dtp, const fnode *f, const char *source, size_t len)
 	      /* Write out the CR_LF sequence.  */
 	      q++;
 	      p = write_block (dtp, 2);
-              if (p == NULL)
-                return;
+	      if (p == NULL)
+		return;
 	      memcpy (p, crlf, 2);
 	    }
 	  else
@@ -709,11 +710,11 @@ write_boz (st_parameter_dt *dtp, const fnode *f, const char *q, int n, int len)
   if (m == 0 && n == 0)
     {
       if (w == 0)
-        w = 1;
+	w = 1;
 
       p = write_block (dtp, w);
       if (p == NULL)
-        return;
+	return;
       if (unlikely (is_char4_unit (dtp)))
 	{
 	  gfc_char4_t *p4 = (gfc_char4_t *) p;
@@ -825,11 +826,11 @@ write_decimal (st_parameter_dt *dtp, const fnode *f, const char *source,
   if (m == 0 && n == 0)
     {
       if (w == 0)
-        w = 1;
+	w = 1;
 
       p = write_block (dtp, w);
       if (p == NULL)
-        return;
+	return;
       if (unlikely (is_char4_unit (dtp)))
 	{
 	  gfc_char4_t *p4 = (gfc_char4_t *) p;
@@ -1250,7 +1251,7 @@ otoa_big (const char *s, char *buffer, int len, GFC_UINTEGER_LARGEST *n)
 	      octet |= (c & 1) << j;
 	      c >>= 1;
 	      if (++k > 7)
-	        {
+		{
 		  i++;
 		  k = 0;
 		  c = *--p;
@@ -1275,7 +1276,7 @@ otoa_big (const char *s, char *buffer, int len, GFC_UINTEGER_LARGEST *n)
 	      octet |= (c & 1) << j;
 	      c >>= 1;
 	      if (++k > 7)
-	        {
+		{
 		  i++;
 		  k = 0;
 		  c = *++p;
@@ -1661,9 +1662,9 @@ write_character (st_parameter_dt *dtp, const char *source, int kind, size_t leng
 	  *p++ = d;
 
 	  for (size_t i = 0; i < length; i++)
-            {
-              *p++ = source[i];
-              if (source[i] == d)
+	    {
+	      *p++ = source[i];
+	      if (source[i] == d)
 		*p++ = d;
 	    }
 
@@ -1812,7 +1813,7 @@ write_float_0 (st_parameter_dt *dtp, const fnode *f, const char *source, int kin
   buffer = select_buffer (dtp, f, precision, buf_stack, &buf_size, kind);
 
   get_float_string (dtp, f, source , kind, 0, buffer,
-                           precision, buf_size, result, &flt_str_len);
+			   precision, buf_size, result, &flt_str_len);
   write_float_string (dtp, result, flt_str_len);
 
   if (buf_size > BUF_STACK_SZ)
@@ -1855,6 +1856,196 @@ write_es (st_parameter_dt *dtp, const fnode *f, const char *p, int len)
   write_float_0 (dtp, f, p, len);
 }
 
+void
+write_ex (st_parameter_dt *dtp, const fnode *f, const char *p, int kind)
+{
+  /* The EX specifier in Fortran 2018 produces hexadecimal floating-point
+     output.  The format is EXw.dEe where:
+     - w is the total field width
+     - d is the number of significant hex digits after the radix point
+     - e is the width of the exponent field (including 'p' and sign)
+
+     Example output: 0x1.23p+10 or -0x1.abcp-5 */
+
+  char buf[64];
+  char output[64];
+  char *p_pos, *exp_pos, *decimal;
+  char sign_char;
+  int w, d, e, result, res_len;
+  int exp_value;
+  int mantissa_digits;
+  size_t output_len, mantissa_len, copy_len;
+
+  /* Get the user supplied width parameters.  */
+
+  w = f->u.real.w;  /* Total field width */
+  d = f->u.real.d;  /* Significant hex digits after decimal */
+  e = f->u.real.e == -1 ? 0 : f->u.real.e; /* Exponent field width */
+
+  /* Get the hex float string using uppercase format (e.g., 0X1.23P+10) */
+  result = get_float_hex_string (p, kind, buf, &res_len);
+
+  if (result < 0)
+    {
+      /* Error - output asterisks  */
+      w = (w > 0) ? w : 1;
+      char *out = write_block (dtp, w);
+      if (out != NULL)
+	memset (out, '*', w);
+      return;
+    }
+
+  /* Find the exponent marker 'P' (uppercase from %A format) */
+  p_pos = strchr (buf, 'P');
+  if (p_pos == NULL)
+    {
+      /* No exponent found - this occurs when the value is INF or NAN  */
+      strncpy (output, buf, sizeof (output) - 1);
+      output[sizeof (output) - 1] = '\0';
+      output_len = strlen (output);
+      goto write_output;
+    }
+
+  /* Parse exponent value  */
+  exp_pos = p_pos + 1;
+  sign_char = '+';
+  if (*exp_pos == '+' || *exp_pos == '-')
+    {
+      sign_char = *exp_pos;
+      exp_pos++;
+    }
+
+  if (sscanf (exp_pos, "%d", &exp_value) != 1)
+    {
+      /* Failed to parse - use original */
+      strncpy (output, buf, sizeof (output) - 1);
+      output[sizeof (output) - 1] = '\0';
+      output_len = strlen (output);
+      goto write_output;
+    }
+
+  /* Handle the 'd' parameter - trim trailing zeros before 'P'.  */
+  if (d == 0)
+    {
+      decimal = strchr (buf, '.');
+      if (decimal != NULL && decimal < p_pos)
+	{
+	  char *trim = p_pos - 1;
+	  while (trim > decimal && *trim == '0')
+	    trim--;
+	  /* Shift 'P...' part left to just after last non-zero digit.  */
+	  if (trim + 1 < p_pos)
+	    {
+	      memmove (trim + 1, p_pos, strlen (p_pos) + 1);
+	      p_pos = trim + 1;
+	    }
+	}
+    }
+
+  /* Handle the 'd' parameter - adjust mantissa precision if specified */
+  if (d > 0)
+    {
+      /* Find the decimal point in mantissa */
+      decimal = strchr (buf, '.');
+      if (decimal != NULL && decimal < p_pos)
+	{
+	  /* Count current mantissa digits after decimal point */
+	  mantissa_digits = p_pos - decimal - 1;
+
+	  /* Adjust mantissa to have exactly 'd' digits after decimal */
+	  if (d < mantissa_digits)
+	    {
+	      /* Truncate mantissa */
+	      memmove (decimal + d + 1, p_pos, strlen (p_pos) + 1);
+	      p_pos = decimal + d + 1;
+	    }
+	  else if (d > mantissa_digits)
+	    {
+	      /* Pad with zeros - shift exponent part right */
+	      int pad_count = d - mantissa_digits;
+	      if (strlen (buf) + pad_count < sizeof (buf))
+		{
+		  memmove (p_pos + pad_count, p_pos, strlen (p_pos) + 1);
+		  memset (p_pos, '0', pad_count);
+		  p_pos += pad_count;
+		}
+	    }
+	}
+    }
+
+  /* Format the exponent field with specified width 'e'. The 'e' parameter
+     is the total exponent width INCLUDING 'P' and the sign.  */
+
+  int exp_digits = e;
+  if (exp_digits < 1)
+    exp_digits = 1;  /* Minimum 1 digit */
+
+  /* Construct output with formatted exponent */
+  mantissa_len = p_pos - buf;
+  if (mantissa_len >= sizeof (output))
+    mantissa_len = sizeof (output) - 1;
+
+  memcpy (output, buf, mantissa_len);
+  snprintf (output + mantissa_len, sizeof (output) - mantissa_len,
+	    "P%c%0*d", sign_char, exp_digits, abs (exp_value));
+
+  output_len = strlen (output);
+
+  /* Check the field width 'w' if specified. If the field width is not
+     wide enough, fill it with  "*"  before writing it out.  */
+  if (w > 0 && (output_len > (size_t) w))
+    {
+      char *out = write_block (dtp, w);
+      if (out != NULL)
+	{
+	  if (unlikely (is_char4_unit (dtp)))
+	    {
+	      gfc_char4_t *out4 = (gfc_char4_t *) out;
+	      memset4 (out4, '*', w);
+	    }
+	  else
+	    memset (out, '*', w);
+	}
+      return;
+    }
+
+write_output:
+
+  /* Determine actual output width */
+  int actual_width = (w > 0) ? w : (int) output_len;
+
+  /* Get the block of memory that will be transferred out.  */
+  char *out = write_block (dtp, actual_width);
+  if (out == NULL)
+    return;
+
+  /* Handle character unit type (4-byte vs 1-byte) */
+  if (unlikely (is_char4_unit (dtp)))
+    {
+      gfc_char4_t *out4 = (gfc_char4_t *) out;
+
+      /* Pad with spaces if width specified and we're short */
+      int pad_len = actual_width - output_len;
+      if (pad_len > 0)
+	memset4 (out4, ' ', pad_len);
+
+      /* Copy out the wide character string.  */
+      out4 += (actual_width - output_len);
+      memcpy4 (out4, output, output_len);
+    }
+  else
+    {
+      /* Pad with spaces if width specified and we're short */
+      if (w > 0 && output_len < (size_t)actual_width)
+	memset (out, ' ', actual_width - output_len);
+      out += (actual_width - output_len);
+
+      /* Copy output string */
+      copy_len = (output_len < (size_t)actual_width)
+		  ? output_len : (size_t)actual_width;
+      memcpy (out, output, copy_len);
+    }
+}
 
 /* Set an fnode to default format.  */
 
@@ -1938,7 +2129,7 @@ write_real (st_parameter_dt *dtp, const char *source, int kind)
   buffer = select_buffer (dtp, &f, precision, buf_stack, &buf_size, kind);
 
   get_float_string (dtp, &f, source , kind, 1, buffer,
-                           precision, buf_size, result, &flt_str_len);
+			   precision, buf_size, result, &flt_str_len);
   write_float_string (dtp, result, flt_str_len);
 
   dtp->u.p.scale_factor = orig_scale;
@@ -2046,9 +2237,9 @@ write_complex (st_parameter_dt *dtp, const char *source, int kind, size_t size)
   buffer = select_buffer (dtp, &f, precision, buf_stack, &buf_size, kind);
 
   get_float_string (dtp, &f, source , kind, 0, buffer,
-                           precision, buf_size, result1, &flt_str_len1);
+			   precision, buf_size, result1, &flt_str_len1);
   get_float_string (dtp, &f, source + size / 2 , kind, 0, buffer,
-                           precision, buf_size, result2, &flt_str_len2);
+			   precision, buf_size, result2, &flt_str_len2);
   if (!dtp->u.p.namelist_mode)
     {
       lblanks = width - flt_str_len1 - flt_str_len2 - 3;
@@ -2344,10 +2535,10 @@ nml_write_obj (st_parameter_dt *dtp, namelist_info *obj, index_type offset,
 	  len = strlen (base->var_name);
 	  base_name_len = strlen (base_name);
 	  for (dim_i = 0; dim_i < base_name_len; dim_i++)
-            {
+	    {
 	      cup = safe_toupper (base_name[dim_i]);
 	      write_character (dtp, &cup, 1, 1, NODELIM);
-            }
+	    }
 	}
       clen = strlen (obj->var_name);
       for (dim_i = len; dim_i < clen; dim_i++)
@@ -2440,28 +2631,28 @@ nml_write_obj (st_parameter_dt *dtp, namelist_info *obj, index_type offset,
 
 	    case BT_INTEGER:
 	      write_integer (dtp, p, len);
-              break;
+	      break;
 
 	    case BT_LOGICAL:
 	      write_logical (dtp, p, len);
-              break;
+	      break;
 
 	    case BT_CHARACTER:
 	      if (dtp->u.p.current_unit->flags.encoding == ENCODING_UTF8)
 		write_character (dtp, p, 4, obj->string_length, DELIM);
 	      else
 		write_character (dtp, p, 1, obj->string_length, DELIM);
-              break;
+	      break;
 
 	    case BT_REAL:
 	      write_real (dtp, p, len);
-              break;
+	      break;
 
 	   case BT_COMPLEX:
 	      dtp->u.p.no_leading_blank = 0;
 	      num++;
-              write_complex (dtp, p, len, obj_size);
-              break;
+	      write_complex (dtp, p, len, obj_size);
+	      break;
 
 	    case BT_DERIVED:
 	    case BT_CLASS:
@@ -2603,9 +2794,9 @@ nml_write_obj (st_parameter_dt *dtp, namelist_info *obj, index_type offset,
 	      free (ext_name);
 	      goto obj_loop;
 
-            default:
+	    default:
 	      internal_error (&dtp->common, "Bad type for namelist write");
-            }
+	    }
 
 	  /* Reset the leading blank suppression, write a comma (or semi-colon)
 	     and, if 5 values have been output, write a newline and advance
@@ -2670,7 +2861,7 @@ namelist_write (st_parameter_dt *dtp)
   switch (dtp->u.p.current_unit->delim_status)
     {
       case DELIM_APOSTROPHE:
-        dtp->u.p.nml_delim = '\'';
+	dtp->u.p.nml_delim = '\'';
 	break;
       case DELIM_QUOTE:
       case DELIM_UNSPECIFIED:

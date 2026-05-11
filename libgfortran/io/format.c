@@ -522,6 +522,9 @@ format_lex (format_data *fmt)
 	case 'S':
 	  token = FMT_ES;
 	  break;
+	case 'X':
+	  token = FMT_EX;
+	  break;
 	default:
 	  token = FMT_E;
 	  unget_char (fmt);
@@ -706,7 +709,7 @@ parse_format_list (st_parameter_dt *dtp, bool *seen_dd)
       tail->repeat = 1;
 
       t = format_lex (fmt);
-      if (t == FMT_F || t == FMT_EN || t == FMT_ES || t == FMT_D
+      if (t == FMT_F || t == FMT_EN || t == FMT_ES || t == FMT_EX || t == FMT_D
 	  || t == FMT_G || t == FMT_E)
 	{
 	  repeat = 1;
@@ -818,6 +821,7 @@ parse_format_list (st_parameter_dt *dtp, bool *seen_dd)
     case FMT_E:
     case FMT_EN:
     case FMT_ES:
+    case FMT_EX:
     case FMT_D:
     case FMT_DT:
     case FMT_L:
@@ -921,6 +925,7 @@ parse_format_list (st_parameter_dt *dtp, bool *seen_dd)
     case FMT_G:
     case FMT_EN:
     case FMT_ES:
+    case FMT_EX:
       *seen_dd = true;
       get_fnode (fmt, &head, &tail, t);
       tail->repeat = repeat;
@@ -1538,8 +1543,8 @@ next_format (st_parameter_dt *dtp)
 
   if (!fmt->reversion_ok &&
       (t == FMT_I || t == FMT_B || t == FMT_O || t == FMT_Z || t == FMT_F ||
-       t == FMT_E || t == FMT_EN || t == FMT_ES || t == FMT_G || t == FMT_L ||
-       t == FMT_A || t == FMT_D || t == FMT_DT))
+       t == FMT_E || t == FMT_EN || t == FMT_ES || t== FMT_EX || t == FMT_G ||
+       t == FMT_L || t == FMT_A || t == FMT_D || t == FMT_DT))
     fmt->reversion_ok = 1;
   return f;
 }

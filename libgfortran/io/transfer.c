@@ -2129,7 +2129,7 @@ formatted_transfer_scalar_write (st_parameter_dt *dtp, bt type, void *p, int kin
 		    || t == FMT_Z  || t == FMT_F  || t == FMT_E
 		    || t == FMT_EN || t == FMT_ES || t == FMT_G
 		    || t == FMT_L  || t == FMT_A  || t == FMT_D
-		    || t == FMT_DT))
+		    || t == FMT_DT || t == FMT_EX))
 	    || t == FMT_STRING))
 	{
 	  if (dtp->u.p.skips > 0)
@@ -2350,6 +2350,15 @@ formatted_transfer_scalar_write (st_parameter_dt *dtp, bt type, void *p, int kin
 	  else
 	    write_es (dtp, f, p, kind);
 	  break;
+
+	case FMT_EX:
+	  if (n == 0)
+	    goto need_data;
+	  if (require_type (dtp, BT_REAL, type, f))
+	    return;
+	  write_ex (dtp, f, p, kind);
+	  break;
+
 
 	case FMT_F:
 	  if (n == 0)
