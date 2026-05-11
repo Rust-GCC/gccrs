@@ -5403,16 +5403,6 @@ package body Sem_Ch12 is
                  and then Nkind (Parent (N)) /= N_Compilation_Unit
                then
                   Inline_Now := True;
-
-               --  In configurable_run_time mode we force the inlining of
-               --  predefined subprograms marked Inline_Always, to minimize
-               --  the use of the run-time library.
-
-               elsif In_Predefined_Unit (Gen_Decl)
-                 and then Configurable_Run_Time_Mode
-                 and then Nkind (Parent (N)) /= N_Compilation_Unit
-               then
-                  Inline_Now := True;
                end if;
 
                --  If the current scope is itself an instance within a child
