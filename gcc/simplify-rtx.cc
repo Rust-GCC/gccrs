@@ -2734,6 +2734,84 @@ simplify_context::simplify_logical_relational_operation (rtx_code code,
   return simplify_gen_relational (code, mode, VOIDmode, op0, op1);
 }
 
+/* We are going to IOR together OP0/OP1.  If there is a common term in OP0/OP1
+   then we may be able to simplify the expression.  We're primarily trying to
+   simplify down to IOR/XOR expression right now, but there may be other
+   simplifications we can do in the future.
+
+   Return the simpified expression or NULL_RTX if no simpification was
+   possible.  */
+rtx
+simplify_context::simplify_ior_with_common_term (machine_mode mode, rtx op0, rtx op1)
+{
+  /* (ior X (plus/xor X C)) can be simplified into (ior X C) when
+     X and C have no bits in common.  */
+  if ((GET_CODE (op1) == PLUS || GET_CODE (op1) == XOR)
+      && rtx_equal_p (op0, XEXP (op1, 0))
+      && ((nonzero_bits (op0, GET_MODE (op0))
+	  & nonzero_bits (XEXP (op1, 1), GET_MODE (op1))) == 0)
+      && !side_effects_p (op1))
+    return simplify_gen_binary (IOR, mode, op0, XEXP (op1, 1));
+
+  /* (ior (and A C1) (and (not A) C2)) can be converted
+     into (and (xor A C2) (C1 + C2)) when there are no bits
+     in common between C1 and C2.  */
+  if (GET_CODE (op0) == AND
+      && GET_CODE (op1) == AND
+      && GET_CODE (XEXP (op1, 0)) == NOT
+      && rtx_equal_p (XEXP (op0, 0), XEXP (XEXP (op1, 0), 0))
+      && CONST_INT_P (XEXP (op0, 1))
+      && CONST_INT_P (XEXP (op1, 1))
+      && (INTVAL (XEXP (op0, 1)) & INTVAL (XEXP (op1, 1))) == 0)
+    {
+      rtx c = GEN_INT (INTVAL (XEXP (op0, 1)) + INTVAL (XEXP (op1, 1)));
+
+      rtx tem = simplify_gen_binary (XOR, mode, XEXP (op0, 0), XEXP (op1, 1));
+      if (tem)
+	{
+	  tem = simplify_gen_binary (AND, mode, tem, c);
+
+	  if (tem)
+	    return tem;
+	}
+    }
+
+  /* Another variant seen on some target particularly those with
+     sub-word operations.
+
+     (ior (and A C1) (plus (and A C2) C2)) can be simplified into
+     (and (xor (A C2) (C1 + C2).
+
+     Where C2 is the sign bit for A's mode.  So 0x80 for QI,
+     0x8000 for HI, etc.  In this case we know there is no carry
+     from the PLUS into relevant bits of the output.  */
+  if (GET_CODE (op0) == AND
+      && GET_CODE (op1) == PLUS
+      && GET_CODE (XEXP (op1, 0)) == AND
+      && rtx_equal_p (XEXP (op0, 0), XEXP (XEXP (op1, 0), 0))
+      && CONST_INT_P (XEXP (op0, 1))
+      && CONST_INT_P (XEXP (op1, 1))
+      && CONST_INT_P (XEXP (XEXP (op1, 0), 1))
+      && INTVAL (XEXP (op1, 1)) == INTVAL (XEXP (XEXP (op1, 0), 1))
+      && GET_MODE_BITSIZE (GET_MODE (op1)).is_constant ()
+      && ((INTVAL (XEXP (op1, 1)) & GET_MODE_MASK (GET_MODE (op1)))
+	  == HOST_WIDE_INT_1U << (GET_MODE_BITSIZE (GET_MODE (op1)).to_constant () - 1))
+      && (INTVAL (XEXP (op0, 1)) & INTVAL (XEXP (op1, 1))) == 0)
+    {
+      rtx c = GEN_INT (INTVAL (XEXP (op0, 1)) + INTVAL (XEXP (op1, 1)));
+
+      rtx tem = simplify_gen_binary (XOR, mode, XEXP (op0, 0), XEXP (op1, 1));
+      if (tem)
+	{
+	  tem = simplify_gen_binary (AND, mode, tem, c);
+	  if (tem)
+	    return tem;
+	}
+    }
+  return NULL_RTX;
+}
+
+
 /* Simplify a binary operation CODE with result mode MODE, operating on OP0
    and OP1.  Return 0 if no simplification is possible.
 
@@ -3899,6 +3977,19 @@ simplify_context::simplify_binary_operation_1 (rtx_code code,
       if (GET_CODE (op0) == AND
 	  && negated_ops_p (XEXP (op0, 0), op1))
 	return simplify_gen_binary (IOR, mode, XEXP (op0, 1), op1);
+
+      /* op0/op1 may have a common term which in turn may allow simplification
+	 of the the outer IOR.  There are likely other cases we should
+	 handle for the outer code as well as the form of the operands.  */
+      tem = simplify_ior_with_common_term (mode, op0, op1);
+      if (tem)
+	return tem;
+
+      /* IOR is commutative and we can't rely on canonicalization at this point,
+	 so try again to simplify with the operands reversed.  */
+      tem = simplify_ior_with_common_term (mode, op1, op0);
+      if (tem)
+	return tem;
 
       tem = simplify_with_subreg_not (code, mode, op0, op1);
       if (tem)

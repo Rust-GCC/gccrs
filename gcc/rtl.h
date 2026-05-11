@@ -3496,6 +3496,7 @@ public:
 				  rtx, rtx, rtx);
   rtx simplify_relational_operation (rtx_code, machine_mode, machine_mode,
 				     rtx, rtx);
+  rtx simplify_ior_with_common_term (machine_mode, rtx, rtx);
   rtx simplify_subreg (machine_mode, rtx, machine_mode, poly_uint64);
 
   rtx lowpart_subreg (machine_mode, rtx, machine_mode);
