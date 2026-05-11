@@ -77,7 +77,7 @@ host_modules= { module= gprofng; };
 host_modules= { module= gettext; bootstrap=true; no_install=true;
                 module_srcdir= "gettext/gettext-runtime";
 		// We always build gettext with pic, because some packages (e.g. gdbserver)
-		// need it in some configuratons, which is determined via nontrivial tests.
+		// need it in some configurations, which is determined via nontrivial tests.
 		// Always enabling pic seems to make sense for something tied to
 		// user-facing output.
 		extra_configure_flags='--disable-shared --disable-threads --disable-java --disable-csharp --with-pic --disable-libasprintf';

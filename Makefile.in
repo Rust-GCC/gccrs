@@ -711,7 +711,7 @@ AR_FOR_TARGET=@AR_FOR_TARGET@ @AR_PLUGIN_OPTION_FOR_TARGET@
 AS_FOR_TARGET=@AS_FOR_TARGET@
 CC_FOR_TARGET=$(STAGE_CC_WRAPPER) @CC_FOR_TARGET@
 
-# If GCC_FOR_TARGET is not overriden on the command line, then this
+# If GCC_FOR_TARGET is not overridden on the command line, then this
 # variable is passed down to the gcc Makefile, where it is used to
 # build libgcc2.a.  We define it here so that it can itself be
 # overridden on the command line.
@@ -873,7 +873,7 @@ CXX_FOR_TARGET_FLAG_TO_PASS = \
 
 # Flags to pass down to all sub-makes. STAGE*FLAGS,
 # MAKEINFO and MAKEINFOFLAGS are explicitly passed here to make them
-# overrideable (for a bootstrap build stage1 also builds gcc.info).
+# overridable (for a bootstrap build stage1 also builds gcc.info).
 BASE_FLAGS_TO_PASS = \
 	"DESTDIR=$(DESTDIR)" \
 	"RPATH_ENVVAR=$(RPATH_ENVVAR)" \

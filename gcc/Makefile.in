@@ -3902,7 +3902,7 @@ doc/%.pdf: %.texi
 doc/gccinstall.pdf: $(TEXI_GCCINSTALL_FILES)
 	$(TEXI2PDF) -I . -I $(abs_docdir) -I $(abs_docdir)/include -o $@ $<
 
-# List the directories or single hmtl files which are installed by
+# List the directories or single html files which are installed by
 # install-html. The lang.html file triggers language fragments to build
 # html documentation.
 HTMLS_INSTALL=$(build_htmldir)/cpp $(build_htmldir)/gcc \
