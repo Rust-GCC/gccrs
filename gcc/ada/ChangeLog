@@ -1,3 +1,15 @@
+2026-05-10  Eric Botcazou  <ebotcazou@adacore.com>
+
+	PR ada/125240
+	* gen_il-gen-gen_entities.adb (Enumeration_Kind): Make
+	Lit_Indexes and Lit_Strings be defined for root types only.
+	* einfo.ads (Lit_Hash): Adjust description.
+	(Lit_Indexes): Likewise.
+	(Lit_Strings): Likewise.
+	(E_Enumeration_Type): Likewise.
+	* exp_imgv.adb (Expand_Image_Attribute): Do not fetch the root type
+	for enumeration types, except for character types, and adjust.
+
 2026-05-03  Eric Botcazou  <ebotcazou@adacore.com>
 
 	PR ada/125168

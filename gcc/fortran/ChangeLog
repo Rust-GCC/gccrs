@@ -1,3 +1,18 @@
+2026-05-10  Andre Vehreschild  <vehre@gcc.gnu.org>
+	    Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/125051
+	* trans-decl.cc (gfc_get_symbol_decl): gfc_defer_symbol_init
+	must not be called for PDT types, classes or types with PDT
+	(gfc_generate_function_code): If gfc_current_ns is not the same
+	as the function namespace, stash it,change it to the function
+	namespace and restore after translation of the code.
+	* trans-intrinsic.cc (gfc_conv_intrinsic_caf_get): If the array
+	is in a module, use the symbol namespace.
+	* trans-openmp.cc (gfc_trans_omp_array_reduction_or_udr): If the
+	current namespace is not that of the procedure, change to the
+	procedure namspace and revert on leaving this function.
+
 2026-05-08  Harald Anlauf  <anlauf@gmx.de>
 
 	PR fortran/111952

@@ -1,3 +1,8 @@
+2026-05-10  Jose E. Marchesi  <jemarch@gnu.org>
+
+	* a68-parser-taxes.cc (is_mappable_routine): Remove handling of
+	non-implemented math functions.
+
 2026-05-01  Peter Damianov  <peter0x44@disroot.org>
 
 	* Make-lang.in: Correct typo exeect -> exeext

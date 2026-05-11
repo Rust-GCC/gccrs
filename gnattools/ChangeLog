@@ -1,3 +1,10 @@
+2026-05-10  Eric Botcazou  <ebotcazou@adacore.com>
+
+	PR ada/125232
+	* Makefile.in (ADA_FOR_BUILD): Delete.
+	(ADA_FOR_TARGET): Likewise.
+	(LDFLAGS): Set to @LDFLAGS@.
+
 2026-01-08  Olivier Hainque  <hainque@adacore.com>
 	    Alexandre Oliva  <oliva@adacore.com>
 

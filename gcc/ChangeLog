@@ -1,3 +1,14 @@
+2026-05-10  Jørgen Kvalsvik  <j@lambda.is>
+
+	* gcov.cc (json_set_prime_path_coverage): Read arc.true_value.
+
+2026-05-10  H.J. Lu  <hjl.tools@gmail.com>
+
+	PR target/125238
+	* config/i386/i386-features.cc (ix86_broadcast_inner): Set kind
+	to X86_CSE_CONST_VECTOR if the vector load can be converted to
+	constant integer load.
+
 2026-05-09  Michiel Derhaeg  <Michiel.Derhaeg@synopsys.com>
 
 	PR target/125217
