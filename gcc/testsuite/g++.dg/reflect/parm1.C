@@ -4,9 +4,8 @@
 
 #include <meta>
 
-// FIXME PR62244
-//consteval int fn(decltype(^^::) x = ^^x) { return 0; }
-//constexpr int x = fn ();
+consteval int fn(decltype(^^::) x = ^^x) { return 0; }
+constexpr int x = fn ();
 
 consteval auto
 ref (std::meta::info r)

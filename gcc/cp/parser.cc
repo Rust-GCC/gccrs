@@ -2785,7 +2785,7 @@ static tree cp_parser_parameter_declaration_clause
 static tree cp_parser_parameter_declaration_list
   (cp_parser *, cp_parser_flags, auto_vec<tree> *);
 static cp_parameter_declarator *cp_parser_parameter_declaration
-  (cp_parser *, cp_parser_flags, bool, bool *);
+  (cp_parser *, cp_parser_flags, bool, bool *, tree * = nullptr);
 static tree cp_parser_default_argument
   (cp_parser *, bool);
 static void cp_parser_function_body
@@ -28301,24 +28301,7 @@ cp_parser_parameter_declaration_list (cp_parser* parser,
       parameter
 	= cp_parser_parameter_declaration (parser, flags,
 					   /*template_parm_p=*/false,
-					   &parenthesized_p);
-
-      /* We don't know yet if the enclosing context is unavailable or deprecated,
-	 so wait and deal with it in grokparms if appropriate.  */
-      deprecated_state = UNAVAILABLE_DEPRECATED_SUPPRESS;
-
-      if (parameter && !cp_parser_error_occurred (parser))
-	{
-	  decl = grokdeclarator (parameter->declarator,
-				 &parameter->decl_specifiers,
-				 PARM,
-				 parameter->default_argument != NULL_TREE,
-				 &parameter->decl_specifiers.attributes);
-	  if (decl != error_mark_node && parameter->loc != UNKNOWN_LOCATION)
-	    DECL_SOURCE_LOCATION (decl) = parameter->loc;
-	}
-
-      deprecated_state = DEPRECATED_NORMAL;
+					   &parenthesized_p, &decl);
 
       /* If a parse error occurred parsing the parameter declaration,
 	 then the entire parameter-declaration-list is erroneous.  */
@@ -28361,7 +28344,10 @@ cp_parser_parameter_declaration_list (cp_parser* parser,
 		   return false;
 		 }())
 	    pending_decls->safe_push (decl);
-	  else
+	  /* If we saw a default argument, we've already pushed this decl.
+	     (An ill-formed default argument should have been parsed to
+	     error_mark_node.)  */
+	  else if (!parameter->default_argument)
 	    decl = pushdecl (decl);
 	}
 
@@ -28474,6 +28460,10 @@ cp_parser_parameter_declaration_list (cp_parser* parser,
    token encountered during the parsing of the assignment-expression
    is not interpreted as a greater-than operator.)
 
+   If DECLP is non-null, we are called from cp_parser_parameter_declaration_list
+   and will perform grokdeclarator here; DECLP will be set to the result.  If
+   we see a default argument, we also call pushdecl; see below for rationale.
+
    Returns a representation of the parameter, or NULL if an error
    occurs.  If PARENTHESIZED_P is non-NULL, *PARENTHESIZED_P is set to
    true iff the declarator is of the form "(p)".  */
@@ -28482,7 +28472,8 @@ static cp_parameter_declarator *
 cp_parser_parameter_declaration (cp_parser *parser,
 				 cp_parser_flags flags,
 				 bool template_parm_p,
-				 bool *parenthesized_p)
+				 bool *parenthesized_p,
+				 tree *declp/*=nullptr*/)
 {
   int declares_class_or_enum;
   cp_decl_specifier_seq decl_specifiers;
@@ -28697,13 +28688,37 @@ cp_parser_parameter_declaration (cp_parser *parser,
       decl_specifiers.locations[ds_this] = 0;
     }
 
+  const bool has_defarg_p = cp_lexer_next_token_is (parser->lexer, CPP_EQ);
+
+  /* We don't know yet if the enclosing context is unavailable or deprecated,
+     so wait and deal with it in grokparms if appropriate.  */
+  deprecated_state = UNAVAILABLE_DEPRECATED_SUPPRESS;
+
+  /* We are processing a parameter-declaration-list and need to do this
+     early so that we have a decl for the pushdecl below.  */
+  if (declp && !cp_parser_error_occurred (parser))
+    *declp = grokdeclarator (declarator,
+			    &decl_specifiers,
+			    PARM,
+			    has_defarg_p,
+			    &decl_specifiers.attributes);
+
+  deprecated_state = DEPRECATED_NORMAL;
+
   /* The restriction on defining new types applies only to the type
      of the parameter, not to the default argument.  */
   parser->type_definition_forbidden_message = saved_message;
-  cp_token *eq_token = NULL;
+  cp_token *eq_token = nullptr;
   /* If the next token is `=', then process a default argument.  */
-  if (cp_lexer_next_token_is (parser->lexer, CPP_EQ))
+  if (has_defarg_p)
     {
+      /* And if we have a default argument, we must be dealing with a function
+	 declaration, so we can push now to correctly handle
+	   void fn (int i = sizeof (i));
+	 which is valid.  */
+      if (declp && *declp != error_mark_node && DECL_NAME (*declp))
+	*declp = pushdecl (*declp);
+
       tree type = decl_specifiers.type;
       token = cp_lexer_peek_token (parser->lexer);
       /* Used for diagnostics with an xobj parameter.  */
@@ -28811,6 +28826,9 @@ cp_parser_parameter_declaration (cp_parser *parser,
   location_t param_loc = make_location (caret_loc,
 					decl_spec_token_start->location,
 					input_location);
+
+  if (declp && *declp != error_mark_node && param_loc != UNKNOWN_LOCATION)
+    DECL_SOURCE_LOCATION (*declp) = param_loc;
 
   return make_parameter_declarator (&decl_specifiers,
 				    declarator,
