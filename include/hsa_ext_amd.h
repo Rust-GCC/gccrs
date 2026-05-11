@@ -634,7 +634,7 @@ hsa_status_t hsa_amd_signal_value_pointer(hsa_signal_t signal,
                                           volatile hsa_signal_value_t** value_ptr);
 
 /**
- * @brief Asyncronous signal handler function type.
+ * @brief Asynchronous signal handler function type.
  *
  * @details Type definition of callback function to be used with
  * hsa_amd_signal_async_handler. This callback is invoked if the associated
@@ -1528,7 +1528,7 @@ hsa_status_t HSA_API hsa_amd_memory_lock(void* host_ptr, size_t size,
  * locked memory, then the overlap area is kept locked (i.e. multiple mappings are permitted).
  * In this case, the same input @p host_ptr may give different locked @p agent_ptr and when it
  * does, they are not necessarily coherent (i.e. accessing either @p agent_ptr is not equivalent).
- * Acesses to the memory via @p agent_ptr have the same access properties as memory allocated from
+ * Accesses to the memory via @p agent_ptr have the same access properties as memory allocated from
  * @p pool as determined by ::hsa_amd_memory_pool_get_info and ::hsa_amd_agent_memory_pool_get_info
  * (ex. coarse/fine grain, platform atomic support, link info).  Physical composition and placement
  * of the memory (ex. page size, NUMA binding) is not changed.
@@ -1814,10 +1814,10 @@ typedef struct hsa_amd_pointer_info_s {
  * @param[in] alloc Function pointer to an allocator used to allocate the
  * @p accessible array.  If NULL @p accessible will not be returned.
  *
- * @param[out] num_agents_accessible Recieves the count of agents in
+ * @param[out] num_agents_accessible Receives the count of agents in
  * @p accessible.  If NULL @p accessible will not be returned.
  *
- * @param[out] accessible Recieves a pointer to the array, allocated by @p alloc,
+ * @param[out] accessible Receives a pointer to the array, allocated by @p alloc,
  * holding the list of agents which may directly access the allocation.
  * May be NULL.
  *
@@ -1843,7 +1843,7 @@ hsa_status_t HSA_API hsa_amd_pointer_info(const void* ptr,
  * @param[in] ptr Pointer to the first byte of an allocation known to ROCr
  * with which to associate @p userdata.
  *
- * @param[in] userdata Abitrary pointer to associate with the allocation.
+ * @param[in] userdata Arbitrary pointer to associate with the allocation.
  *
  * @retval HSA_STATUS_SUCCESS @p userdata successfully stored.
  *
@@ -1915,7 +1915,7 @@ hsa_status_t HSA_API hsa_amd_ipc_memory_create(void* ptr, size_t len,
  * @param[in] mapping_agents List of agents to access the shared memory.
  * Ignored if @p num_agents is zero.
  *
- * @param[out] mapped_ptr Recieves a process local pointer to the shared memory.
+ * @param[out] mapped_ptr Receives a process local pointer to the shared memory.
  *
  * @retval HSA_STATUS_SUCCESS if memory is successfully imported.
  *
@@ -1991,7 +1991,7 @@ hsa_status_t HSA_API hsa_amd_ipc_signal_create(hsa_signal_t signal, hsa_amd_ipc_
  *
  * @param[in] handle Pointer to the identifier for the shared signal.
  *
- * @param[out] signal Recieves a process local signal handle to the shared signal.
+ * @param[out] signal Receives a process local signal handle to the shared signal.
  *
  * @retval HSA_STATUS_SUCCESS if the signal is successfully imported.
  *
@@ -2111,7 +2111,7 @@ typedef enum hsa_amd_queue_priority_s {
 } hsa_amd_queue_priority_t;
 
 /**
- * @brief Modifies the dispatch and wavefront scheduling prioirty for a
+ * @brief Modifies the dispatch and wavefront scheduling priority for a
  * given compute queue. The default is HSA_AMD_QUEUE_PRIORITY_NORMAL.
  *
  * @param[in] queue Compute queue to apply new priority to.

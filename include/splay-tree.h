@@ -105,7 +105,7 @@ struct splay_tree_s {
   /* The root of the tree.  */
   splay_tree_node root;
 
-  /* The comparision function.  */
+  /* The comparison function.  */
   splay_tree_compare_fn comp;
 
   /* The deallocate-key function.  NULL if no cleanup is necessary.  */

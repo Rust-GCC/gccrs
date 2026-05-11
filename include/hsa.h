@@ -802,7 +802,7 @@ typedef enum {
    */
   HSA_AGENT_INFO_FEATURE = 2,
   /**
-   * @deprecated Query ::HSA_ISA_INFO_MACHINE_MODELS for a given intruction set
+   * @deprecated Query ::HSA_ISA_INFO_MACHINE_MODELS for a given instruction set
    * architecture supported by the agent instead.  If more than one ISA is
    * supported by the agent, the returned value corresponds to the first ISA
    * enumerated by ::hsa_agent_iterate_isas.
@@ -812,7 +812,7 @@ typedef enum {
    */
   HSA_AGENT_INFO_MACHINE_MODEL = 3,
   /**
-   * @deprecated Query ::HSA_ISA_INFO_PROFILES for a given intruction set
+   * @deprecated Query ::HSA_ISA_INFO_PROFILES for a given instruction set
    * architecture supported by the agent instead.  If more than one ISA is
    * supported by the agent, the returned value corresponds to the first ISA
    * enumerated by ::hsa_agent_iterate_isas.
@@ -823,7 +823,7 @@ typedef enum {
   HSA_AGENT_INFO_PROFILE = 4,
   /**
    * @deprecated Query ::HSA_ISA_INFO_DEFAULT_FLOAT_ROUNDING_MODES for a given
-   * intruction set architecture supported by the agent instead.  If more than
+   * instruction set architecture supported by the agent instead.  If more than
    * one ISA is supported by the agent, the returned value corresponds to the
    * first ISA enumerated by ::hsa_agent_iterate_isas.
    *
@@ -834,7 +834,7 @@ typedef enum {
   HSA_AGENT_INFO_DEFAULT_FLOAT_ROUNDING_MODE = 5,
   /**
    * @deprecated Query ::HSA_ISA_INFO_BASE_PROFILE_DEFAULT_FLOAT_ROUNDING_MODES
-   * for a given intruction set architecture supported by the agent instead.  If
+   * for a given instruction set architecture supported by the agent instead.  If
    * more than one ISA is supported by the agent, the returned value corresponds
    * to the first ISA enumerated by ::hsa_agent_iterate_isas.
    *
@@ -846,7 +846,7 @@ typedef enum {
    */
   HSA_AGENT_INFO_BASE_PROFILE_DEFAULT_FLOAT_ROUNDING_MODES = 23,
   /**
-   * @deprecated Query ::HSA_ISA_INFO_FAST_F16_OPERATION for a given intruction
+   * @deprecated Query ::HSA_ISA_INFO_FAST_F16_OPERATION for a given instruction
    * set architecture supported by the agent instead.  If more than one ISA is
    * supported by the agent, the returned value corresponds to the first ISA
    * enumerated by ::hsa_agent_iterate_isas.
@@ -859,7 +859,7 @@ typedef enum {
   HSA_AGENT_INFO_FAST_F16_OPERATION = 24,
   /**
    * @deprecated Query ::HSA_WAVEFRONT_INFO_SIZE for a given wavefront and
-   * intruction set architecture supported by the agent instead.  If more than
+   * instruction set architecture supported by the agent instead.  If more than
    * one ISA is supported by the agent, the returned value corresponds to the
    * first ISA enumerated by ::hsa_agent_iterate_isas and the first wavefront
    * enumerated by ::hsa_isa_iterate_wavefronts for that ISA.
@@ -870,7 +870,7 @@ typedef enum {
    */
   HSA_AGENT_INFO_WAVEFRONT_SIZE = 6,
   /**
-   * @deprecated Query ::HSA_ISA_INFO_WORKGROUP_MAX_DIM for a given intruction
+   * @deprecated Query ::HSA_ISA_INFO_WORKGROUP_MAX_DIM for a given instruction
    * set architecture supported by the agent instead.  If more than one ISA is
    * supported by the agent, the returned value corresponds to the first ISA
    * enumerated by ::hsa_agent_iterate_isas.
@@ -883,7 +883,7 @@ typedef enum {
    */
   HSA_AGENT_INFO_WORKGROUP_MAX_DIM = 7,
   /**
-   * @deprecated Query ::HSA_ISA_INFO_WORKGROUP_MAX_SIZE for a given intruction
+   * @deprecated Query ::HSA_ISA_INFO_WORKGROUP_MAX_SIZE for a given instruction
    * set architecture supported by the agent instead.  If more than one ISA is
    * supported by the agent, the returned value corresponds to the first ISA
    * enumerated by ::hsa_agent_iterate_isas.
@@ -894,7 +894,7 @@ typedef enum {
    */
   HSA_AGENT_INFO_WORKGROUP_MAX_SIZE = 8,
   /**
-   * @deprecated Query ::HSA_ISA_INFO_GRID_MAX_DIM for a given intruction set
+   * @deprecated Query ::HSA_ISA_INFO_GRID_MAX_DIM for a given instruction set
    * architecture supported by the agent instead.
    *
    * Maximum number of work-items of each dimension of a grid. Each maximum must
@@ -906,7 +906,7 @@ typedef enum {
    */
   HSA_AGENT_INFO_GRID_MAX_DIM = 9,
   /**
-   * @deprecated Query ::HSA_ISA_INFO_GRID_MAX_SIZE for a given intruction set
+   * @deprecated Query ::HSA_ISA_INFO_GRID_MAX_SIZE for a given instruction set
    * architecture supported by the agent instead.  If more than one ISA is
    * supported by the agent, the returned value corresponds to the first ISA
    * enumerated by ::hsa_agent_iterate_isas.
@@ -917,7 +917,7 @@ typedef enum {
    */
   HSA_AGENT_INFO_GRID_MAX_SIZE = 10,
   /**
-   * @deprecated Query ::HSA_ISA_INFO_FBARRIER_MAX_SIZE for a given intruction
+   * @deprecated Query ::HSA_ISA_INFO_FBARRIER_MAX_SIZE for a given instruction
    * set architecture supported by the agent instead.  If more than one ISA is
    * supported by the agent, the returned value corresponds to the first ISA
    * enumerated by ::hsa_agent_iterate_isas.
@@ -1093,7 +1093,7 @@ typedef enum {
 } hsa_exception_policy_t;
 
 /**
- * @deprecated Use ::hsa_isa_get_exception_policies for a given intruction set
+ * @deprecated Use ::hsa_isa_get_exception_policies for a given instruction set
  * architecture supported by the agent instead. If more than one ISA is
  * supported by the agent, this function uses the first value returned by
  * ::hsa_agent_iterate_isas.
@@ -3191,7 +3191,7 @@ typedef enum {
   /**
    * Updates to memory in this region can be performed by a single agent at
    * a time. If a different agent in the system is allowed to access the
-   * region, the application must explicitely invoke ::hsa_memory_assign_agent
+   * region, the application must explicitly invoke ::hsa_memory_assign_agent
    * in order to transfer ownership to that agent for a particular buffer.
    */
   HSA_REGION_GLOBAL_FLAG_COARSE_GRAINED = 4
@@ -3402,7 +3402,7 @@ hsa_status_t HSA_API hsa_memory_copy(
  * @brief Change the ownership of a global, coarse-grained buffer.
  *
  * @details The contents of a coarse-grained buffer are visible to an agent
- * only after ownership has been explicitely transferred to that agent. Once the
+ * only after ownership has been explicitly transferred to that agent. Once the
  * operation completes, the previous owner cannot longer access the data in the
  * buffer.
  *

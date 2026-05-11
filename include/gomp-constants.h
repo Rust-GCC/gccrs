@@ -160,7 +160,7 @@ enum gomp_map_kind
 					 | GOMP_MAP_FLAG_SPECIAL_2
 					 | GOMP_MAP_FLAG_SPECIAL | 0),
     /* On a location of a pointer/reference that is assumed to be already mapped
-       earlier, store the translated address of the preceeding mapping.
+       earlier, store the translated address of the preceding mapping.
        No refcount is bumped by this, and the store is done unconditionally.  */
     GOMP_MAP_ALWAYS_POINTER =		(GOMP_MAP_FLAG_SPECIAL_2
 					 | GOMP_MAP_FLAG_SPECIAL | 1),
@@ -381,7 +381,7 @@ enum gomp_map_kind
 /* Target argument index of THREAD_LIMIT.  */
 #define GOMP_TARGET_ARG_THREAD_LIMIT		(2 << 8)
 
-/* If the value is directly embeded in target argument, it should be a 16-bit
+/* If the value is directly embedded in target argument, it should be a 16-bit
    at most and shifted by this many bits.  */
 #define GOMP_TARGET_ARG_VALUE_SHIFT		16
 

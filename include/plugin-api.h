@@ -37,7 +37,7 @@
 #error cannot find uint64_t type
 #endif
 
-/* Detect endianess based on gcc's (>=4.6.0) __BYTE_ORDER__ macro.  */
+/* Detect endianness based on gcc's (>=4.6.0) __BYTE_ORDER__ macro.  */
 #if defined(__BYTE_ORDER__) && defined(__ORDER_BIG_ENDIAN__) && \
     defined(__ORDER_LITTLE_ENDIAN__) && defined(__ORDER_PDP_ENDIAN__)
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
@@ -64,7 +64,7 @@
 #include <machine/endian.h>
 #endif
 
-/* Detect endianess based on __BYTE_ORDER.  */
+/* Detect endianness based on __BYTE_ORDER.  */
 #ifdef __BYTE_ORDER
 #if __BYTE_ORDER == __LITTLE_ENDIAN
 #define PLUGIN_LITTLE_ENDIAN 1
@@ -72,7 +72,7 @@
 #define PLUGIN_BIG_ENDIAN 1
 #endif
 
-/* Detect endianess based on _BYTE_ORDER.  */
+/* Detect endianness based on _BYTE_ORDER.  */
 #elif defined _BYTE_ORDER
 #if _BYTE_ORDER == _LITTLE_ENDIAN
 #define PLUGIN_LITTLE_ENDIAN 1
@@ -160,7 +160,7 @@ struct ld_plugin_symbol
   char unused;
   char section_kind;
 #else
-#error "Could not detect architecture endianess"
+#error "Could not detect architecture endianness"
 #endif
   int visibility;
   uint64_t size;
@@ -403,7 +403,7 @@ enum ld_plugin_status
                                          size_t* len);
 
 /* The linker's interface for specifying the desired order of sections.
-   The sections should be specifed using the array SECTION_LIST in the
+   The sections should be specified using the array SECTION_LIST in the
    order in which they should appear in the final layout.  NUM_SECTIONS
    specifies the number of entries in each array.  This should be invoked
    in the all_symbols_read handler.  */

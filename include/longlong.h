@@ -1084,7 +1084,7 @@ extern UDItype __umulsidi3 (USItype, USItype);
 #elif __riscv_xlen == 64
   #define MULUW3 "call __muldi3"
 #else
-#error unsupport xlen
+#error unsupported xlen
 #endif /* __riscv_xlen */
 /* We rely on the fact that MULUW3 doesn't clobber the t-registers.
    It can get better register allocation result.  */

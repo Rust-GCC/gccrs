@@ -64,7 +64,7 @@
    or as a whole via LINKED_LIST_MUTATIVE_OPS_PROTOTYPE for the prototypes, and
    LINKED_LIST_MUTATIVE_OPS_DECL for the implementations.  */
 
-/* Append the given node new_ to the exising list.
+/* Append the given node new_ to the existing list.
    Precondition: prev and next of new_ must be NULL.  */
 #define LINKED_LIST_APPEND(LTYPE)		LTYPE##_append
 

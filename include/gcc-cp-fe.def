@@ -138,7 +138,7 @@ GCC_METHOD1 (int /* bool */, push_function,
    Then, as we set up the binding context to compile a code snippet at
    point 3, we may choose to activate c_1, o_0 and p upfront,
    declaring and discarding c, c_0 and o, and then reentering the
-   funciton scope to declare c_1, o_0 and p; or we can wait for oracle
+   function scope to declare c_1, o_0 and p; or we can wait for oracle
    lookups of c, o or p.  If c is looked up, and the debugger resolves
    c in the scope to c_1, it is expected to enter the function scope
    from the top level, declare c, leave it, reenter it, declare c_0,
@@ -258,7 +258,7 @@ GCC_METHOD2 (int /* bool */, add_using_decl,
    SYM_KIND, in addition to any other applicable flags, and pass as
    NAME a string starting with the two-character mangling for operator
    name: "ps" for unary plus, "mL" for multiply and assign, *=; etc.
-   Use "cv" for type converstion operators (the target type portion
+   Use "cv" for type conversion operators (the target type portion
    may be omitted, as it is taken from the return type in SYM_TYPE).
    For operator"", use "li" followed by the identifier (the mangled
    name mandates digits specifying the length of the identifier; if
