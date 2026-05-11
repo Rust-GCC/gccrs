@@ -9066,6 +9066,9 @@ user_facing_original_type_p (const_tree type)
     if (!name_reserved_for_implementation_p (IDENTIFIER_POINTER (orig_id)))
       return true;
 
+  if (typedef_variant_p (orig_type))
+    return user_facing_original_type_p (orig_type);
+
   switch (TREE_CODE (orig_type))
     {
     /* Don't look through to an anonymous vector type, since the syntax

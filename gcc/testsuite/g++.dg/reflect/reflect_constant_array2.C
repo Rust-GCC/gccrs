@@ -1,5 +1,6 @@
 // { dg-do compile { target c++26 } }
-// { dg-additional-options "-freflection" }
+// Added _GLIBCXX_SYSHR to test c++/124621.
+// { dg-additional-options "-freflection -D_GLIBCXX_SYSHDR" }
 // Test std::meta::reflect_constant_string.
 
 #include <meta>
