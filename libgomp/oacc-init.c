@@ -559,8 +559,6 @@ acc_init (acc_device_t d)
   goacc_attach_host_thread_to_device (-1);
 }
 
-ialias (acc_init)
-
 void
 acc_shutdown (acc_device_t d)
 {
@@ -575,8 +573,6 @@ acc_shutdown (acc_device_t d)
 
   gomp_mutex_unlock (&acc_device_lock);
 }
-
-ialias (acc_shutdown)
 
 int
 acc_get_num_devices (acc_device_t d)
@@ -605,8 +601,6 @@ acc_get_num_devices (acc_device_t d)
 
   return n;
 }
-
-ialias (acc_get_num_devices)
 
 /* Set the device type for the current thread only (using the current global
    default device number), initialising that device if necessary.  Also set the
@@ -658,8 +652,6 @@ acc_set_device_type (acc_device_t d)
       thr->api_info = NULL;
     }
 }
-
-ialias (acc_set_device_type)
 
 static bool
 self_initializing_p (void)
@@ -717,8 +709,6 @@ acc_get_device_type (void)
   return res;
 }
 
-ialias (acc_get_device_type)
-
 int
 acc_get_device_num (acc_device_t d)
 {
@@ -751,8 +741,6 @@ acc_get_device_num (acc_device_t d)
 
   return goacc_device_num;
 }
-
-ialias (acc_get_device_num)
 
 void
 acc_set_device_num (int ord, acc_device_t d)
@@ -799,8 +787,6 @@ acc_set_device_num (int ord, acc_device_t d)
   goacc_device_num = ord;
 }
 
-ialias (acc_set_device_num)
-
 static union goacc_property_value
 get_property_any (int ord, acc_device_t d, acc_device_property_t prop)
 {
@@ -845,8 +831,6 @@ acc_get_property (int ord, acc_device_t d, acc_device_property_t prop)
     return get_property_any (ord, d, prop).val;
 }
 
-ialias (acc_get_property)
-
 const char *
 acc_get_property_string (int ord, acc_device_t d, acc_device_property_t prop)
 {
@@ -858,8 +842,6 @@ acc_get_property_string (int ord, acc_device_t d, acc_device_property_t prop)
   else
     return NULL;
 }
-
-ialias (acc_get_property_string)
 
 /* For -O and higher, the compiler always attempts to expand acc_on_device, but
    if the user disables the builtin, or calls it via a pointer, we'll need this
@@ -876,8 +858,6 @@ acc_on_device (acc_device_t dev)
 {
   return __builtin_acc_on_device (dev);
 }
-
-ialias (acc_on_device)
 
 attribute_hidden void
 goacc_runtime_initialize (void)
