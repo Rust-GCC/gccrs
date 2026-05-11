@@ -67,7 +67,8 @@ AARCH64_EXTRA_TUNING_OPTION ("cheap_fpmr_write", CHEAP_FPMR_WRITE)
 
 /* Baseline tuning settings suitable for all modern cores.  */
 #define AARCH64_EXTRA_TUNE_BASE (AARCH64_EXTRA_TUNE_CHEAP_SHIFT_EXTEND	\
-				 | AARCH64_EXTRA_TUNE_FULLY_PIPELINED_FMA)
+				 | AARCH64_EXTRA_TUNE_FULLY_PIPELINED_FMA \
+				 | AARCH64_EXTRA_TUNE_NARROW_GP_WRITES)
 
 /* Enables dispatch scheduling.  */
 AARCH64_EXTRA_TUNING_OPTION ("dispatch_sched", DISPATCH_SCHED)
