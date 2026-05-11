@@ -16,16 +16,17 @@
 # along with GCC; see the file COPYING3.  If not see
 # <http://www.gnu.org/licenses/>.
 
-# Build a shared libgcc library with the HP-UX linker on PA.
+# Build a shared libgcc library with the GNU linker on PA.
 
 SHLIB_EXT = .sl
 SHLIB_SOLINK = @shlib_base_name@$(SHLIB_EXT)
 SHLIB_SONAME = @shlib_base_name@.$(SHLIB_SOVERSION)
 SHLIB_LC =
 
-SHLIB_LDFLAGS = -Wl,+h,$(SHLIB_SONAME)
+SHLIB_LDFLAGS = -Wl,--soname=$(SHLIB_SONAME) \
+	-Wl,--version-script=$(SHLIB_MAP)
 
 INSTALL_SHLIB = $(INSTALL_DATA) -m 555
 
-SHLIB_MKMAP = $(srcdir)/mkmap-flat.awk
-SHLIB_MAPFILES = libgcc-std.ver
+SHLIB_MKMAP = $(srcdir)/mkmap-symver.awk
+SHLIB_MAPFILES = libgcc-std.ver $(srcdir)/config/pa/libgcc-hpux.ver

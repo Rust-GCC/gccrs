@@ -709,7 +709,11 @@ hppa*64*-*-hpux11*)
 	else
 	    tmake_file="$tmake_file pa/t-slibgcc-dwarf-ver"
 	fi
-	tmake_file="$tmake_file pa/t-slibgcc-hpux t-slibgcc-hpux"
+	if test $with_gnu_ld = yes; then
+	    tmake_file="$tmake_file t-slibgcc-libgcc pa/t-slibgcc-gld"
+	else
+	    tmake_file="$tmake_file pa/t-slibgcc-hpux"
+	fi
 	tmake_file="$tmake_file pa/t-softfp-sfdftf t-softfp"
 	tm_file="$tm_file pa/pa64-hpux-lib.h"
 	extra_parts="crtbegin.o crtend.o crtbeginS.o crtendS.o crtbeginT.o \

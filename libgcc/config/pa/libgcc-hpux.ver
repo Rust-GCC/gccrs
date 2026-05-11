@@ -1,4 +1,4 @@
-# Copyright (C) 2001-2026 Free Software Foundation, Inc.
+# Copyright (C) 2025-2026 Free Software Foundation, Inc.
 #
 # This file is part of GCC.
 #
@@ -16,16 +16,30 @@
 # along with GCC; see the file COPYING3.  If not see
 # <http://www.gnu.org/licenses/>.
 
-# Build a shared libgcc library with the HP-UX linker on PA.
-
-SHLIB_EXT = .sl
-SHLIB_SOLINK = @shlib_base_name@$(SHLIB_EXT)
-SHLIB_SONAME = @shlib_base_name@.$(SHLIB_SOVERSION)
-SHLIB_LC =
-
-SHLIB_LDFLAGS = -Wl,+h,$(SHLIB_SONAME)
-
-INSTALL_SHLIB = $(INSTALL_DATA) -m 555
-
-SHLIB_MKMAP = $(srcdir)/mkmap-flat.awk
-SHLIB_MAPFILES = libgcc-std.ver
+GCC_HPUX_12.0.0 {
+  __clz_tab
+  _U_Qfcmp
+  _U_Qfcnvfxt_quad_to_sgl
+  _U_Qfeq
+  _U_Qfne
+  _U_Qfgt
+  _U_Qfge
+  _U_Qflt
+  _U_Qfle
+  _U_Qfltgt
+  _U_Qfunle
+  _U_Qfunlt
+  _U_Qfunge
+  _U_Qfungt
+  _U_Qfuneq
+  _U_Qfunord
+  _U_Qford
+  _U_Qfcomp
+  _U_Qfneg
+  _U_Qfcopysign
+  __U_Qfcnvfxt_quad_to_sgl
+  _U_Qfcnvfxt_quad_to_usgl
+  _U_Qfcnvxf_usgl_to_quad
+  _U_Qfcnvfxt_quad_to_udbl
+  _U_Qfcnvxf_udbl_to_quad
+}
