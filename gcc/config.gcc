@@ -1349,7 +1349,7 @@ aarch64-*-mingw*)
 	tm_defines="${tm_defines} TARGET_AARCH64_MS_ABI=1"
 	;;
 aarch64*-wrs-vxworks*)
-        tm_file="${tm_file} elfos.h aarch64/aarch64-elf.h"
+        tm_file="${tm_file} elfos.h aarch64/aarch64-elf.h aarch64/aarch64-errata.h"
         tm_file="${tm_file} vx-common.h vxworks.h aarch64/aarch64-vxworks.h"
         tmake_file="${tmake_file} aarch64/t-aarch64 aarch64/t-aarch64-vxworks"
         ;;

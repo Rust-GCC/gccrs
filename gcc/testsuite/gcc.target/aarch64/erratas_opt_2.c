@@ -1,5 +1,4 @@
 /* { dg-do link } */
-/* { dg-skip-if "uses vxlink" { *-*-vxworks* } } */
 /* { dg-additional-options "-mfix-cortex-a53-835769 -mcpu=neoverse-v1 -###" } */
 
 int main()
