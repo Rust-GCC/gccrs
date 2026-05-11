@@ -225,7 +225,7 @@ MAKING CHANGES TO INCLHACK.DEF
 	be inserted.
 
     v) format - Replaces text selected with a regular expression with
-        a specialized formating string.  The formatting works as follows:
+        a specialized formatting string.  The formatting works as follows:
         The format text is copied to the output until a '%' character
         is found.  If the character after the '%' is another '%', then
         one '%' is output and processing continues.  If the following

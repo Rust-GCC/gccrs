@@ -730,7 +730,7 @@ quoted_file_exists (const char* pz_src_path,
    emits a triple of:
 
     1.  source directory of the original file
-    2.  the relative path file name of the #includ-ed file
+    2.  the relative path file name of the #include-d file
     3.  the full destination path for this file
 
    Input:  the text of the file, the file name and a pointer to the

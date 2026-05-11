@@ -720,7 +720,7 @@ fix = {
 };
 
 /*
- *  pthread.h on AIX 4.3.3 tries to define a macro without whitspace
+ *  pthread.h on AIX 4.3.3 tries to define a macro without whitespace
  *  which violates a requirement of ISO C.
  */
 fix = {
@@ -2644,7 +2644,7 @@ fix = {
 
 /*
  *  The definitions for PTHREAD_MUTEX_INITIALIZER and similar initializers
- *  in pthread.h need to be constant expressions to be standard complient.
+ *  in pthread.h need to be constant expressions to be standard compliant.
  *  As a result, we need to remove the void * casts in the initializers
  *  (see hpux11_pthread_const) and to change the __(M|C|RW)POINTER defines
  *  to use the long type.
@@ -4009,7 +4009,7 @@ fix = {
     files    = stdio.h;
     bypass   = "include.*(stdarg\.h|machine/ansi\.h|_stdio\.h)";
     /*
-     * On Solaris 10+, this fix is unncessary; <stdio.h> includes
+     * On Solaris 10+, this fix is unnecessary; <stdio.h> includes
      * <iso/stdio_iso.h>, which includes <sys/va_list.h>.
       */
     mach     = '*-*-solaris2*';

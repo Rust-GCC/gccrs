@@ -294,7 +294,7 @@ fix_path_separators (char* p)
       }
 }
 
-/* Count number of needle character ocurrences in str */
+/* Count number of needle character occurrences in str */
 static int
 count_occurrences_of_char (char* str, char needle)
 {

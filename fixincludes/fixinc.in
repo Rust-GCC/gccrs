@@ -146,7 +146,7 @@ esac
 #
 #  In the file macro_list are listed all the predefined
 #  macros that are not in the C89 reserved namespace (the reserved
-#  namespace is all identifiers beginnning with two underscores or one
+#  namespace is all identifiers beginning with two underscores or one
 #  underscore followed by a capital letter).  A regular expression to find
 #  any of those macros in a header file is written to MN_NAME_PAT.
 #
