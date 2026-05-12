@@ -9,11 +9,11 @@ pub trait Sized {}
 pub trait Copy {}
 
 extern "rust-intrinsic" {
-    pub fn cttz_nonzero<T>(x: T) -> u32; // { dg-error "cttz intrinsics can only be used with basic integer types .got 'bool'." }
+    pub fn cttz_nonzero<T>(x: T) -> u32;
 }
 
 fn main() {
     unsafe {
-        let _ = cttz_nonzero(true);
+        let _ = cttz_nonzero(true); // { dg-error "cttz intrinsic can only be used with basic integer types .got 'bool'." }
     }
 }

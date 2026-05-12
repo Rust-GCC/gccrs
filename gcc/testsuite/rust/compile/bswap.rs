@@ -9,9 +9,9 @@ pub trait Sized {}
 pub trait Copy {}
 
 extern "rust-intrinsic" {
-    pub fn bswap<T>(x: T) -> T; // { dg-error "bswap intrinsics can only be used with basic integer types .got 'bool'." }
+    pub fn bswap<T>(x: T) -> T; 
 }
 
 fn main() {
-    let _ = bswap(true);
+    let _ = bswap(true); // { dg-error "bswap intrinsic can only be used with basic integer types .got .bool.." }
 }
