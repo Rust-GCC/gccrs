@@ -154,11 +154,22 @@ rx_legitimize_address (rtx x,
       return rv;
     }
 
-  if (GET_CODE (x) == PLUS
-      && GET_CODE (XEXP (x, 0)) == PLUS
-      && REG_P (XEXP (XEXP (x, 0), 0))
-      && REG_P (XEXP (x, 1)))
-    return force_reg (SImode, x);
+  if (GET_CODE (x) == PLUS)
+    {
+      rtx op0 = XEXP (x, 0);
+      rtx op1 = XEXP (x, 1);
+
+      if (GET_CODE (op0) == PLUS
+	  && REG_P (XEXP (op0, 0))
+	  && CONST_INT_P (op1))
+	{
+	  rtx base = XEXP (op0, 0);
+	  rtx index = XEXP (op0, 1);
+
+	  rtx new_base = force_reg (Pmode, gen_rtx_PLUS (Pmode, base, op1));
+	  return simplify_gen_binary (PLUS, Pmode, new_base, index);
+	}
+    }
 
   return x;
 }
@@ -193,6 +204,27 @@ rx_is_legitimate_address (machine_mode mode, rtx x,
     /* Pre-decrement Register Indirect or
        Post-increment Register Indirect.  */
     return RTX_OK_FOR_BASE (XEXP (x, 0), strict);
+
+  if (GET_MODE_SIZE (mode) == UNITS_PER_WORD * 2)
+    {
+      /* Since double-word memory access is split into multiple parts,
+	 only simple indirect addresses are accepted.  */
+      if (GET_CODE (x) == PRE_DEC || GET_CODE (x) == POST_INC)
+	return false;
+
+      if (GET_CODE (x) == PLUS)
+	{
+	  rtx base = XEXP (x, 0);
+	  rtx index = XEXP (x, 1);
+
+	  if (!REG_P (base) || !CONST_INT_P (index))
+	    return false;
+
+	  if (!IN_RANGE (INTVAL (index), 0, (0x10000 * 4) - 1 - 4)
+	      || (INTVAL (index) % 4) != 0)
+	    return false;
+	}
+    }
 
   switch (rx_pid_data_operand (x))
     {
@@ -970,7 +1002,8 @@ rx_gen_move_template (rtx * operands, bool is_movu)
   rtx          src  = operands[1];
 
   /* Decide which extension, if any, should be given to the move instruction.  */
-  switch (CONST_INT_P (src) ? GET_MODE (dest) : GET_MODE (src))
+  /* When zero-extending, always check the size of the source. */
+  switch ((is_movu || MEM_P (src)) ? GET_MODE (src) : GET_MODE (dest))
     {
     case E_QImode:
       /* The .B extension is not valid when
@@ -984,10 +1017,9 @@ rx_gen_move_template (rtx * operands, bool is_movu)
 	   loading an immediate into a register.  */
 	extension = ".W";
       break;
-    case E_DFmode:
-    case E_DImode:
     case E_SFmode:
     case E_SImode:
+      gcc_assert (!is_movu);
       extension = ".L";
       break;
     case E_VOIDmode:
@@ -1025,18 +1057,8 @@ rx_gen_move_template (rtx * operands, bool is_movu)
   else
     dst_template = "%0";
 
-  if (GET_MODE (dest) == DImode || GET_MODE (dest) == DFmode)
-    {
-      gcc_assert (! is_movu);
-
-      if (REG_P (src) && REG_P (dest) && (REGNO (dest) == REGNO (src) + 1))
-	sprintf (out_template, "mov.L\t%%H1, %%H0 ! mov.L\t%%1, %%0");
-      else
-	sprintf (out_template, "mov.L\t%%1, %%0 ! mov.L\t%%H1, %%H0");
-    }
-  else
-    sprintf (out_template, "%s%s\t%s, %s", is_movu ? "movu" : "mov",
-	     extension, src_template, dst_template);
+  sprintf (out_template, "%s%s\t%s, %s", is_movu ? "movu" : "mov",
+	   extension, src_template, dst_template);
   return out_template;
 }
 
@@ -1568,12 +1590,9 @@ rx_get_stack_layout (unsigned int * lowest,
       * register_mask = 0;
     }
 
-  * frame_size = rx_round_up
-    (get_frame_size (), STACK_BOUNDARY / BITS_PER_UNIT);
-
-  if (crtl->args.size > 0)
-    * frame_size += rx_round_up
-      (crtl->args.size, STACK_BOUNDARY / BITS_PER_UNIT);
+  * frame_size = rx_round_up (
+      get_frame_size () + crtl->args.pretend_args_size,
+      STACK_BOUNDARY / BITS_PER_UNIT);
 
   * stack_size = rx_round_up
     (crtl->outgoing_args_size, STACK_BOUNDARY / BITS_PER_UNIT);
@@ -2221,26 +2240,27 @@ rx_initial_elimination_offset (int from, int to)
   unsigned int frame_size;
   unsigned int stack_size;
   unsigned int mask;
+  unsigned int saved_regs_size = 0;
 
   rx_get_stack_layout (& low, & high, & mask, & frame_size, & stack_size);
 
+  if (mask != 0)
+    /* multiple push reg */
+    saved_regs_size = bit_count (mask) * UNITS_PER_WORD;
+  else if (low != 0)
+    /* pushm low - high */
+    saved_regs_size = (high - low + 1) * UNITS_PER_WORD;
+
   if (from == ARG_POINTER_REGNUM)
     {
-      /* Extend the computed size of the stack frame to
-	 include the registers pushed in the prologue.  */
-      if (low)
-	frame_size += ((high - low) + 1) * UNITS_PER_WORD;
-      else
-	frame_size += bit_count (mask) * UNITS_PER_WORD;
-
       /* Remember to include the return address.  */
-      frame_size += 1 * UNITS_PER_WORD;
+      frame_size += UNITS_PER_WORD;
 
       if (to == FRAME_POINTER_REGNUM)
-	return frame_size;
+	return frame_size + saved_regs_size;
 
       gcc_assert (to == STACK_POINTER_REGNUM);
-      return frame_size + stack_size;
+      return frame_size + stack_size + saved_regs_size;
     }
 
   gcc_assert (from == FRAME_POINTER_REGNUM && to == STACK_POINTER_REGNUM);
@@ -3611,13 +3631,13 @@ rx_fuse_in_memory_bitop (rtx* operands, rtx_insn* curr_insn,
 static unsigned int
 rx_hard_regno_nregs (unsigned int, machine_mode mode)
 {
-  return CLASS_MAX_NREGS (0, mode);
+  return CEIL (GET_MODE_SIZE (mode), UNITS_PER_WORD);
 }
 
 /* Implement TARGET_HARD_REGNO_MODE_OK.  */
 
 static bool
-rx_hard_regno_mode_ok (unsigned int regno, machine_mode)
+rx_hard_regno_mode_ok (unsigned int regno, machine_mode mode ATTRIBUTE_UNUSED)
 {
   return REGNO_REG_CLASS (regno) == GR_REGS;
 }
@@ -3644,7 +3664,61 @@ rx_c_mode_for_floating_type (enum tree_index ti)
     return TARGET_64BIT_DOUBLES ? DFmode : SFmode;
   return default_mode_for_floating_type (ti);
 }
+
+/* Return one word of doubleword value OP, where OP has mode MODE.
+   A REG_OFFSET of 0 selects the low word and a REG_OFFSET of 1 selects
+   the high word.  */
+static rtx
+rx_get_subword (rtx op, machine_mode mode, int reg_offset)
+{
+  unsigned int mem_offset = reg_offset * 4;
+  if (TARGET_BIG_ENDIAN_DATA)
+    mem_offset = 4 - mem_offset;
+
+  if (MEM_P (op))
+    return adjust_address (op, SImode, mem_offset);
+  else
+    return simplify_gen_subreg (SImode, op, mode, mem_offset);
+}
+
+/* Split a doubleword move with operands OPERANDS.
+   Both operands have mode MODE.  */
+void
+rx_split_double_move (rtx * operands, machine_mode mode)
+{
+  rtx dest = operands[0];
+  rtx src  = operands[1];
+
+  rtx dest_low, dest_high, src_low, src_high;
+
+  src_low  = rx_get_subword (src, mode, 0);
+  src_high = rx_get_subword (src, mode, 1);
+
+  dest_low  = rx_get_subword (dest, mode, 0);
+  dest_high = rx_get_subword (dest, mode, 1);
+
+  if (REG_P (operands[0]) && reg_overlap_mentioned_p (dest_low, operands[1]))
+    {
+      emit_move_insn (dest_high, src_high);
+      emit_move_insn (dest_low, src_low);
+    }
+  else
+    {
+      emit_move_insn (dest_low, src_low);
+      emit_move_insn (dest_high, src_high);
+    }
+}
+
+/* Adjust the operands of a doubleword move. OPERANDS gives the operands and
+   MODE gives the mode of the operands.  */
+void
+rx_relax_double_operands(rtx * operands, machine_mode mode)
+{
+  if (MEM_P (operands[0]) && !REG_P (operands[1]))
+    operands[1] = force_reg (mode, operands[1]);
+}
 
+
 #undef  TARGET_NARROW_VOLATILE_BITFIELD
 #define TARGET_NARROW_VOLATILE_BITFIELD		rx_narrow_volatile_bitfield
 

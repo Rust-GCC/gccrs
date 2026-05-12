@@ -575,17 +575,11 @@
   ""
   {
     if (MEM_P (operands[0]) && MEM_P (operands[1]))
-      operands[1] = copy_to_mode_reg (<register_modes:MODE>mode, operands[1]);
+      operands[1] = force_reg (<register_modes:MODE>mode, operands[1]);
     operands[0] = rx_maybe_pidify_operand (operands[0], 0);
     operands[1] = rx_maybe_pidify_operand (operands[1], 0);
-    if (GET_CODE (operands[0]) != REG
-	&& GET_CODE (operands[1]) == PLUS)
-      operands[1] = copy_to_mode_reg (<register_modes:MODE>mode, operands[1]);
-    if (GET_CODE (operands[1]) == PLUS && GET_MODE (operands[1]) == SImode)
-      {
-        emit_insn (gen_addsi3 (operands[0], XEXP (operands[1], 0), XEXP (operands[1], 1)));
-        DONE;
-      }
+    if (MEM_P (operands[0]) && GET_CODE (operands[1]) == PLUS)
+      operands[1] = force_reg (<register_modes:MODE>mode, operands[1]);
     if (CONST_INT_P (operand1)
         && ! rx_is_legitimate_constant (<register_modes:MODE>mode, operand1))
       FAIL;
@@ -601,6 +595,52 @@
   { return rx_gen_move_template (operands, false); }
   [(set_attr "length" "3,4,5,6,2,4,6,5,6,7,8,8")
    (set_attr "timings" "11,11,11,11,11,12,11,11,11,11,11,11")]
+)
+
+(define_expand "movdi"
+  [(set (match_operand:DI 0 "nonimmediate_operand" "")
+        (match_operand:DI 1 "general_operand" ""))]
+  ""
+  {
+    rx_relax_double_operands(operands, DImode);
+  }
+)
+
+(define_insn_and_split "movdi_internal"
+  [(set (match_operand:DI 0 "nonimmediate_operand" "=r,r,m")
+        (match_operand:DI 1 "general_operand"  "ri,m,r"))]
+  ""
+  "#"
+  "reload_completed"
+  [(const_int 0)]
+  {
+    rx_split_double_move (operands, DImode);
+    DONE;
+  }
+  [(set_attr "length" "8")]
+)
+
+(define_expand "movdf"
+  [(set (match_operand:DF 0 "nonimmediate_operand" "")
+        (match_operand:DF 1 "general_operand" ""))]
+  ""
+  {
+    rx_relax_double_operands(operands, DFmode);
+  }
+)
+
+(define_insn_and_split "movdf_internal"
+  [(set (match_operand:DF 0 "nonimmediate_operand" "=r,r,m")
+        (match_operand:DF 1 "general_operand"  "rF,m,r"))]
+  ""
+  "#"
+  "reload_completed"
+  [(const_int 0)]
+  {
+    rx_split_double_move (operands, DFmode);
+    DONE;
+  }
+  [(set_attr "length" "8")]
 )
 
 (define_insn "extend<small_int_modes:mode>si2"
@@ -973,6 +1013,18 @@
   "adc\t%2, %0"
   [(set_attr "timings" "11,11,11,11,11,33")
    (set_attr "length"   "3,4,5,6,7,6")]
+)
+
+(define_insn "addsi3_pid"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (plus:SI (match_operand:SI 1 "register_operand" "%0")
+                 (const:SI (unspec:SI [(match_operand:SI 2 "immediate_operand" "i")] UNSPEC_PID_ADDR))))
+    (clobber (reg:CC CC_REG))]
+
+  ""
+  "add\t%2, %0"
+  [(set_attr "length" "6")
+   (set_attr "timings" "11")]
 )
 
 ;; Peepholes to match:
@@ -1938,6 +1990,7 @@
   [(set_attr "timings" "33")
    (set_attr "length"  "5")] ;; This length is corrected in rx_adjust_insn_length
 )
+
 
 ;; Floating Point Instructions
 
@@ -2872,20 +2925,30 @@
   ""
 )
 
-(define_insn "movdi"
-  [(set (match_operand:DI 0 "nonimmediate_operand" "=rm")
-        (match_operand:DI 1 "general_operand"      "rmi"))]
-  "TARGET_ENABLE_LRA"
-  { return rx_gen_move_template (operands, false); }
-  [(set_attr "length" "16")
-   (set_attr "timings" "22")]
+;; RX does not allow addition without destroying CC.
+;; As an alternative to addptrsi3, we define addsi3, which hides changes to CC.
+(define_insn_and_split "*addsi3_lra"
+  [(set (match_operand:SI 0 "register_operand" "=r,r")
+        (plus:SI (match_operand:SI 1 "register_operand" "0,r")
+                 (match_operand:SI 2 "rx_source_operand" "ri,ri")))]
+  "!post_ra_split_completed"
+  "#"
+  "&& 1"
+  [(parallel [
+     (set (match_dup 0) (plus:SI (match_dup 1) (match_dup 2)))
+     (clobber (reg:CC 16))
+   ])]
 )
 
-(define_insn "movdf"
-  [(set (match_operand:DF 0 "nonimmediate_operand" "=rm")
-        (match_operand:DF 1 "general_operand"      "rmi"))]
-  "TARGET_ENABLE_LRA"
-  { return rx_gen_move_template (operands, false); }
-  [(set_attr "length" "16")
-   (set_attr "timings" "22")]
+(define_insn_and_split "*ashlsi3_lra"
+  [(set (match_operand:SI 0 "register_operand" "=r,r,r")
+        (ashift:SI (match_operand:SI 1 "register_operand" "%0,0,r")
+                   (match_operand:SI 2 "rx_shift_operand" "r,i,i")))]
+  "!post_ra_split_completed"
+  "#"
+  "&& 1"
+  [(parallel [
+     (set (match_dup 0) (ashift:SI (match_dup 1) (match_dup 2)))
+     (clobber (reg:CC CC_REG))
+   ])]
 )
