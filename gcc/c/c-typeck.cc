@@ -7417,7 +7417,7 @@ build_c_cast (location_t loc, tree type, tree expr)
 	  && pedwarn (loc, OPT_Wpedantic,
 		      "ISO C forbids casting nonscalar to the same type"))
 	      ;
-      else if (warn_useless_cast)
+      else if (warn_useless_cast && c_inhibit_evaluation_warnings == 0)
 	warning_at (loc, OPT_Wuseless_cast,
 		    "useless cast to type %qT", type);
 

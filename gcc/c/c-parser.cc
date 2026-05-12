@@ -11469,14 +11469,14 @@ c_parser_generic_selection (c_parser *parser)
       bool match = assoc.type == NULL_TREE
 		   || comptypes (assoc.type, selector_type);
 
-      if (!match)
+      if (!match || matched_assoc.type != NULL_TREE)
 	c_inhibit_evaluation_warnings++;
       in_generic++;
 
       assoc.expression = c_parser_expr_no_commas (parser, NULL);
 
-      if (!match)
-	  c_inhibit_evaluation_warnings--;
+      if (!match || matched_assoc.type != NULL_TREE)
+	c_inhibit_evaluation_warnings--;
       in_generic--;
       if (!match)
 	pop_maybe_used (!flag_isoc23);
