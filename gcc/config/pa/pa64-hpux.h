@@ -104,11 +104,13 @@ along with GCC; see the file COPYING3.  If not see
 #endif
 
 /* Under hpux11, the normal location of the `ld' and `as' programs is the
-   /usr/ccs/bin directory.  */
+   /usr/ccs/bin directory.  However, we support both HP and GNU ld.
+   Adding this prefix to COMPILER_PATH can cause the wrong linker to be
+   selected.  */
 
 #ifndef CROSS_DIRECTORY_STRUCTURE
 #undef MD_EXEC_PREFIX
-#define MD_EXEC_PREFIX "/usr/ccs/bin"
+#define MD_EXEC_PREFIX ""
 #endif
 
 /* Default prefixes.  */
