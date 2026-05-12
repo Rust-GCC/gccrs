@@ -1391,10 +1391,19 @@ simplify_peeled_chrec (class loop *loop, tree arg, tree init_cond)
 	  && wi::to_widest (init_cond) == wi::to_widest (left_before)
 	  && !scev_probably_wraps_p (NULL_TREE, left_before, right, NULL,
 				     loop, false))
-	return build_polynomial_chrec (loop->num, init_cond,
-				       chrec_convert (TREE_TYPE (ev),
-						      right, NULL,
-						      false, NULL_TREE));
+	{
+	  tree tp = TREE_TYPE (right);
+
+	  /* We need a sign-extension to make things like
+	     u8(6, 4, 2) => i32(6, 4, 2), instead of i32(6, 260, 514).  */
+	  if (TYPE_UNSIGNED (tp))
+	    right = fold_convert (signed_type_for (tp), right);
+
+	  return build_polynomial_chrec (loop->num, init_cond,
+					 chrec_convert (TREE_TYPE (ev),
+							right, NULL,
+							false, NULL_TREE));
+	}
       return chrec_dont_know;
     }
 
