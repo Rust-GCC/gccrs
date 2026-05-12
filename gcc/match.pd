@@ -8383,6 +8383,11 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
        && TYPE_UNSIGNED (TREE_TYPE (@0)))
    (cmp @1 @0))))
 
+/* x SAT_ADD 0 == x.  */
+(simplify
+ (IFN_SAT_ADD:c @0 integer_zerop)
+  @0)
+
 /* Optimize A - B + -1 >= A into B >= A for unsigned comparisons.  */
 (for cmp (ge lt)
  (simplify

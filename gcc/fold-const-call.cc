@@ -1477,6 +1477,38 @@ fold_const_vec_extract (tree, tree arg0, tree)
   return NULL_TREE;
 }
 
+/* Try to fold scalar integer IFN_SAT_ADD with operands OP0 and OP1.  */
+
+static tree
+fold_internal_fn_sat_add (tree type, tree op0, tree op1)
+{
+  if (!INTEGRAL_NB_TYPE_P (type))
+    return NULL_TREE;
+
+  if (TREE_CODE (op0) != INTEGER_CST
+      || TREE_CODE (op1) != INTEGER_CST)
+    return NULL_TREE;
+
+  wi::overflow_type overflow;
+  unsigned int prec = TYPE_PRECISION (type);
+  wide_int result = wi::add (wi::to_wide (op0), wi::to_wide (op1),
+			     TYPE_SIGN (type), &overflow);
+
+  if (overflow != wi::OVF_NONE)
+    {
+      if (TYPE_UNSIGNED (type))
+	result = wi::max_value (prec, UNSIGNED);
+      else if (overflow == wi::OVF_OVERFLOW)
+	result = wi::max_value (prec, SIGNED);
+      else if (overflow == wi::OVF_UNDERFLOW)
+	result = wi::min_value (prec, SIGNED);
+      else
+	return NULL_TREE;
+    }
+
+  return wide_int_to_tree (type, result);
+}
+
 /* Try to evaluate:
 
       *RESULT = FN (*ARG0, *ARG1)
@@ -1885,6 +1917,9 @@ fold_const_call (combined_fn fn, tree type, tree arg0, tree arg1)
 
     case CFN_VEC_EXTRACT:
       return fold_const_vec_extract (type, arg0, arg1);
+
+    case CFN_SAT_ADD:
+      return fold_internal_fn_sat_add (type, arg0, arg1);
 
     case CFN_UBSAN_CHECK_ADD:
     case CFN_ADD_OVERFLOW:
