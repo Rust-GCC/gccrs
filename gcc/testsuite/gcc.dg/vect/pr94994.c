@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <stddef.h>
 #include "tree-vect.h"
 
 #define BLOCK_SIZE (sizeof (uint32_t))
