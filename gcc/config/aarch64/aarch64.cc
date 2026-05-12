@@ -24650,7 +24650,7 @@ aarch64_const_vec_fmov_p (rtx op)
 
 /* Output a move of an FP constant vector in which the low register element is
    materialized using FMOV and all other elements are zero.  */
-char *
+const char *
 aarch64_output_simd_mov_imm_low (rtx *operands)
 {
   machine_mode mode = GET_MODE (operands[1]);
