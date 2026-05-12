@@ -1614,6 +1614,15 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
       && TYPE_PRECISION (TREE_TYPE (@0)) == 1)
   @2))
 
+/* ((~a) & b) ^ (a | b) --> a  */
+/* ((~a) | b) ^ (a & b) --> ~a  */
+(simplify
+ (bit_xor:c (bit_ior:c @0 @1) (bit_and:c @2 @1))
+ (with { bool wascmp; }
+  (if (bitwise_inverted_equal_p (@0, @2, wascmp)
+       && (!wascmp || element_precision (type) == 1))
+   @0)))
+
 /* ~(~a & b)  -->  a | ~b  */
 (simplify
  (bit_not (bit_and:cs (bit_not @0) @1))
