@@ -1,3 +1,49 @@
+2026-05-11  Jason Merrill  <jason@redhat.com>
+
+	* g++.dg/reflect/pr125007.C: Add info{} test.
+
+2026-05-11  Jason Merrill  <jason@redhat.com>
+
+	PR c++/124621
+	* g++.dg/reflect/reflect_constant_array2.C: Add -D_GLIBCXX_SYSHDR.
+
+2026-05-11  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	* gfortran.dg/coarray_51.f90: New test.
+
+2026-05-11  Takayuki 'January June' Suwa  <jjsuwa_sys3175@yahoo.co.jp>
+
+	* gcc.target/xtensa/elim_callee_saved.c:
+	Revise the test item for the number of mov instructions in the
+	assembler output.
+
+2026-05-11  Oleg Tolmatcev  <oleg.tolmatcev@gmail.com>
+
+	* g++.target/i386/seh-sysvabi-wrap1.C: New test.
+
+2026-05-11  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/125250
+	* gcc.dg/torture/pr125250.c: New testcase.
+
+2026-05-11  Naveen  <naveen.siddegowda@oss.qualcomm.com>
+
+	* gcc.target/aarch64/pr113856.c: New test.
+
+2026-05-11  Boudewijn van der Heide  <boudewijn@delta-utec.com>
+
+	PR rtl-optimization/125209
+	* gcc.dg/pr125209.c: New test.
+
+2026-05-11  Shreya Munnangi  <smunnang@qti.qualcomm.com>
+	    Jeff Law   <jeffrey.law@oss.qualcomm.com>
+
+	PR rtl-optimization/80770
+	* gcc.target/riscv/pr80770.c: New test.
+	* gcc.target/riscv/pr80770-2.c: New test.
+	* gcc.target/h8300/pr80770.c: New test.
+	* gcc.target/h8300/pr80770-2.c: New test.
+
 2026-05-10  Eric Botcazou  <ebotcazou@adacore.com>
 
 	* gnat.dg/enum6.adb: New test.

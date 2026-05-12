@@ -1,3 +1,105 @@
+2026-05-11  William D. Jones  <thor0505@comcast.net>
+
+	PR target/120077
+	* config/lm32/lm32.cc: Enable LRA after diff testing showed minimal issues.
+
+2026-05-11  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	* flag-types.h (gfc_fcoarray): Add GFC_FCOARRAY_SHARED.
+
+2026-05-11  Takayuki 'January June' Suwa  <jjsuwa_sys3175@yahoo.co.jp>
+
+	* config/xtensa/xtensa.cc
+	(FPreg_neg_scaled_simm12b, convert_SF_const, constantsynth_pass1,
+	litpool_set_src_1, litpool_set_src):
+	Change each call to validate_change() and apply_change_group() to
+	trigger an ICE if the result is not true.
+
+2026-05-11  Takayuki 'January June' Suwa  <jjsuwa_sys3175@yahoo.co.jp>
+
+	* config/xtensa/xtensa.cc
+	(xtensa_can_eliminate_callee_saved_reg_p):
+	Change the arguments that return values from being passed by pointer
+	to C++ reference.
+	(xtensa_expand_prologue):
+	Adjust the call to xtensa_can_eliminate_callee_saved_reg_p() to
+	match the above changes.
+
+2026-05-11  Takayuki 'January June' Suwa  <jjsuwa_sys3175@yahoo.co.jp>
+
+	* config/xtensa/xtensa.h (HONOR_REG_ALLOC_ORDER):
+	New macro definition.
+
+2026-05-11  Tamar Christina  <tamar.christina@arm.com>
+
+	* config/aarch64/aarch64-tuning-flags.def
+	(AARCH64_EXTRA_TUNE_BASE): Add AARCH64_EXTRA_TUNE_NARROW_GP_WRITES.
+
+2026-05-11  Pan Li  <pan2.li@intel.com>
+
+	* Makefile.in: Add match-sat-alu.pd as dependency.
+	* match.pd: Remove saturation alu related patterns.
+	* match-sat-alu.pd: Add new file for saturation alu patterns.
+
+2026-05-11  Oleg Tolmatcev  <oleg.tolmatcev@gmail.com>
+
+	* config/i386/cygming.h (TARGET_SEH): Keep SEH enabled for all
+	64-bit Windows functions when unwind tables are requested.
+
+2026-05-11  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/125250
+	* tree-ssa-loop-im.cc (execute_sm): For modes that cannot
+	transfer bits, _Bool and bitfield accesses force the
+	multi-threaded model.
+
+2026-05-11  LIU Hao  <lh_mouse@126.com>
+
+	PR target/53929
+	* config/mingw/winnt.cc (mingw_pe_file_end): Use `ASM_OUTPUT_LABELREF`
+	to emit `name`.
+
+2026-05-11  Richard Biener  <rguenther@suse.de>
+
+	PR target/125174
+	* config/i386/i386.cc (ix86_vector_costs::add_stmt_cost):
+	Cost calls as 10 times FMA.
+
+2026-05-11  Stefan Schulze Frielinghaus  <stefansf@gcc.gnu.org>
+
+	PR rtl-optimization/121426
+	* combine.cc (recog_for_combine_1): Reject insns which make use
+	of hard register constraints.
+
+2026-05-11  Naveen  <naveen.siddegowda@oss.qualcomm.com>
+
+	* config/aarch64/aarch64-protos.h
+	(aarch64_output_simd_mov_imm_low): New.
+	(aarch64_const_vec_fmov_p): New.
+	* config/aarch64/aarch64-simd.md (mov<mode>): Do not expand constant
+	vectors handled by aarch64_const_vec_fmov_p into VDUP.
+	(*aarch64_simd_mov<VDMOV:mode>): Add Dc alternatives for FMOV based
+	SIMD constant moves.
+	(*aarch64_simd_mov<VQMOV:mode>): Likewise.
+	* config/aarch64/aarch64.cc (aarch64_const_vec_fmov_p): New function.
+	(aarch64_output_simd_mov_imm_low): New function.
+	* config/aarch64/constraints.md (Dc): New constraint.
+
+2026-05-11  Boudewijn van der Heide  <boudewijn@delta-utec.com>
+
+	PR rtl-optimization/125209
+	* combine.cc (make_compound_operation_int): Return NULL_RTX if we got CLOBBER.
+
+2026-05-11  Shreya Munnangi  <smunnang@qti.qualcomm.com>
+	    Jeff Law   <jeffrey.law@oss.qualcomm.com>
+
+	PR rtl-optimization/80770
+	* rtl.h (simplify_context::simplify_ior_with_common_term): Add
+	new method.
+	(simplify_context::simplify_binary_operation_1): Use new method.
+	* simplify-rtx.cc (simplify_context::simplify_ior_with_common_term):
+	New method.
+
 2026-05-10  Jørgen Kvalsvik  <j@lambda.is>
 
 	* gcov.cc (json_set_prime_path_coverage): Read arc.true_value.

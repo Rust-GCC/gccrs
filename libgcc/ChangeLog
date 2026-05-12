@@ -1,3 +1,11 @@
+2026-05-11  John David Anglin  <danglin@gcc.gnu.org>
+
+	* config.host (hppa*64*-hp-hpux11*): Handle linking with GNU ld.
+	* config/pa/libgcc-hpux.ver: New file.
+	* config/pa/t-slibgcc-gld: New file.
+	* config/pa/t-slibgcc-hpux (SHLIB_LDFLAGS, INSTALL_SHLIB,
+	SHLIB_MKMAP, SHLIB_MAPFILES): Define.
+
 2026-05-04  Iain Buclaw  <ibuclaw@gdcproject.org>
 
 	* config/m32c/*: Delete entire directory.

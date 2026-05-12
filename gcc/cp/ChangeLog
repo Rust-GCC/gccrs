@@ -1,3 +1,15 @@
+2026-05-11  Jason Merrill  <jason@redhat.com>
+
+	* reflect.cc (null_reflection_p): New.
+	(splice): Use it.
+	* error.cc (dump_expr): Use it.
+	* cp-tree.h (null_reflection_p): Declare.
+
+2026-05-11  Marek Polacek  <polacek@redhat.com>
+
+	* decl2.cc (decl_defined_p): Also return true if DECL_INITIAL
+	and !DECL_IN_AGGR_P is true for a VAR_DECL.
+
 2026-05-09  Patrick Palka  <ppalka@redhat.com>
 
 	PR c++/121500

@@ -1,3 +1,12 @@
+2026-05-11  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	* lang.opt (fcoarray=): Add shared enum value; update help text.
+	* gfortranspec.cc (CAF_SHMEM_LIBRARY): New macro.
+	(lang_specific_driver): Detect -fcoarray=shared in first pass and
+	set need_caf_shmem flag.  In second pass, transform -fcoarray=shared
+	to -fcoarray=lib for cc1.  Append -lcaf_shmem when need_caf_shmem
+	is set and linking is active.
+
 2026-05-10  Andre Vehreschild  <vehre@gcc.gnu.org>
 	    Paul Thomas  <pault@gcc.gnu.org>
 

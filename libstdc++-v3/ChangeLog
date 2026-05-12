@@ -1,3 +1,8 @@
+2026-05-11  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* include/std/format (__formatter_str::_M_format_range):
+	Reorder constexpr checks, to reduce number of instantiations.
+
 2026-05-07  Jonathan Wakely  <jwakely@redhat.com>
 
 	PR libstdc++/78302
