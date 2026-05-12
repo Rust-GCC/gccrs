@@ -1577,9 +1577,9 @@ Returns the number of fractional bits of a datum of fixed-point mode @var{m}.
 
 @findex GET_MODE_MASK
 @item GET_MODE_MASK (@var{m})
-Returns a bitmask containing 1 for all bits in a word that fit within
-mode @var{m}.  This macro can only be used for modes whose bitsize is
-less than or equal to @code{HOST_BITS_PER_INT}.
+Returns a bitmask containing 1 for all bits in a @code{HOST_WIDE_INT}
+that fit within mode @var{m}.  This macro can only be used for modes
+whose bitsize is less than or equal to @code{HOST_BITS_PER_WIDE_INT}.
 
 @findex GET_MODE_ALIGNMENT
 @item GET_MODE_ALIGNMENT (@var{m})
