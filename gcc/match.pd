@@ -2776,6 +2776,12 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
  )
 )
 
+/* Canonicalize `(type) (a CMP b)` to `(a CMP b) ? (type) true : (type) false`
+   for floating point types.   */
+(simplify
+ (float (convert:s (tcc_comparison@0 @1 @2)))
+ (cond @0 { build_one_cst (type); } { build_zero_cst (type); } ))
+
 /* For integral types with undefined overflow and C != 0 fold
    x * C EQ/NE y * C into x EQ/NE y.  */
 (for cmp (eq ne)
