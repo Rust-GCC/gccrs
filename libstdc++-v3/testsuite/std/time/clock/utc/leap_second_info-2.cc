@@ -52,7 +52,7 @@ test_future_leaps()
   std::ofstream("leapseconds") << "";
 
   using std::chrono::years;
-  auto s = std::chrono::utc_seconds(1483228826s + years(100)); // 1 Jan 2117
+  auto s = std::chrono::utc_seconds(1483228826s + years(100)); // 2117
   auto lsi = get_leap_second_info(s);
   VERIFY( override_used ); // If this fails then XFAIL for the target.
   VERIFY( lsi.is_leap_second == false );
@@ -91,7 +91,7 @@ Leap	2120	Dec	30	23:59:59	-	S
   // The file was not read again:
   VERIFY( ! override_used );
   // The list in the tzdb contains the three fake leap seconds:
-  VERIFY( tzdb.leap_seconds.size() == hardcoded_count.count() + 3 );
+  VERIFY( tzdb.leap_seconds.size() == size_t(hardcoded_count.count() + 3) );
   // And repeating the queries above gives the same results:
   lsi = get_leap_second_info(s);
   VERIFY( lsi.is_leap_second == false );
