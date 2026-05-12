@@ -10715,10 +10715,18 @@ build_over_call (struct z_candidate *cand, int flags, tsubst_flags_t complain)
              func(NULL);
            }
       */
-      bool const conversion_warning = !(null_node_p (current_arg)
-					&& DECL_TEMPLATE_INFO (fn)
-					&& cand->template_decl
-					&& !cand->explicit_targs);
+      bool conversion_warning = !(null_node_p (current_arg)
+				  && DECL_TEMPLATE_INFO (fn)
+				  && cand->template_decl
+				  && !cand->explicit_targs);
+
+      /* Also don't warn about (x <=> y) < 0 (c++/100903).  */
+      if (conversion_warning
+	  && integer_zerop (current_arg)
+	  && warn_zero_as_null_pointer_constant
+	  && !warning_enabled_at (DECL_SOURCE_LOCATION (fn),
+				  OPT_Wzero_as_null_pointer_constant))
+	conversion_warning = false;
 
       tsubst_flags_t const arg_complain
 	= conversion_warning ? complain : complain & ~tf_warning;
