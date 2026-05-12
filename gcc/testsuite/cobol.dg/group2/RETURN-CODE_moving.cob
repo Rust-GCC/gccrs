@@ -1,5 +1,6 @@
        *> { dg-do run }
        *> { dg-xfail-run-if "" { *-*-* }  }
+       *> { dg-options "-dialect ibm" }
 
        IDENTIFICATION   DIVISION.
        PROGRAM-ID.      prog.

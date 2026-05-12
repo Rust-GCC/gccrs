@@ -6,27 +6,43 @@
         working-storage         section.
         01 msg pic x(32).
         procedure               division.
-            move "This is foo" to msg
+            move "This is FOO" to msg
             display "About to call FOO"
-            call    "foo" using msg
-            move "This is bar" to msg
+            call    "FOO" using msg
+            move "This is BAR" to msg
             display "About to call BAR"
-            call    "bar" using msg
-            move "This is foo2" to msg
+            call    "BAR" using msg
+            move "This is FOO2" to msg
             display "About to call FOO again"
-            call    "foo" using msg
+            call    "FOO" using msg
+
+            move "This is BAZZ" to msg
+            display "About to call BAZZ"
+            call    "BAZZ" using msg
+            move "This is FAZZ" to msg
+            display "About to call FAZZ"
+            call    "FAZZ" using msg
+            move "This is baz2" to msg
+            display "About to call BAZZ again"
+            call    "BAZZ" using msg
+
             goback.
             end program         prog.
 
         identification          division.
-        program-id.             foo.
+        program-id.             FOO.
         data                    division.
         linkage                 section.
         01 msg pic x(32).
         procedure               division using msg.
-            display "  entry point foo: " function trim (msg)
-            entry   "bar"
-            display "  entry point bar: " function trim (msg)
+            display "  entry point FOO: " function trim (msg)
+            entry   "BAR"
+            display "  entry point BAR: " function trim (msg)
             goback.
-            end program         foo.
+            entry   "BAZZ"
+            display "  entry point BAZZ: " function trim (msg)
+            entry   "FAZZ"
+            display "  entry point FAZZ: " function trim (msg)
+            goback.
+            end program         FOO.
 

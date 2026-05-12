@@ -1364,7 +1364,6 @@ struct cbl_bsearch_t {
     tree right; // This is a long
     tree middle; // This is our copy of the index, so we only need to write
                  // it and never read it.
-    tree compare_result; // This is an int, and avoids
     struct cbl_field_t *index;
     bool first_when;
 };
@@ -3114,15 +3113,9 @@ bool validate_numeric_edited(cbl_field_t *field);
 cbl_field_t *new_alphanumeric(const cbl_name_t name=nullptr,
                               cbl_encoding_t encoding=no_encoding_e );
 
-
 // ENABLE_HIJACKING allows for code generation to be "hijacked" when the
-// program-id is "dubner" or "hijack".  See the mainline code in genapi.cc.
+// program-id is "dubner_h" or "hijack_h".  See the mainline code in genapi.cc.
 
-// To enable hijacking, use
-// 
-//     make ... CPPFLAGS=-DENABLE_HIJACKING
-//
-// taking care to recaptulate whatever CPPFLAGS were set when configure was
-// run.
+#define ENABLE_HIJACKING
 
 #endif

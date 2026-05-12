@@ -1046,6 +1046,7 @@ class locale_tgt_t {
 %printer { fprintf(yyo, "%c %s",
                         $$.invert? '!' : ' ',
 		        $$.term? name_of($$.term->field) : "<none>"); } <rel_term_t>
+%printer { fprintf(yyo, "%s", $$->dbgstr()); } <log_expr_t>
 
 %printer { fprintf(yyo, "%s (token %d)", keyword_str($$), $$ ); } relop
 %printer { fprintf(yyo, "'%s'", $$? $$ : "" ); } NAME <string>
@@ -6282,11 +6283,6 @@ exit_with:      %empty
 		   *  as specified in the rules."
 		   */
                   $$ = cbl_refer_t::empty();
-		  if( dialect_ibm() ) {
-		    static auto rt = cbl_field_of(symbol_at(return_code_register()));
-		    static cbl_refer_t status(rt);
-		    $$ = &status;
-		  }
 		  const auto prog = cbl_label_of(symbol_at(current_program_index()));
 		  if( prog->returning ) {
 		    $$ = new cbl_refer_t( cbl_field_of(symbol_at(prog->returning)) );

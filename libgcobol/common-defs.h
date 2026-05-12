@@ -160,6 +160,11 @@ enum cbl_field_type_t {
   FldPointer,
 };
 
+/* In some places, I use SUPERTYPE for things like MOVES and COMPARES to
+   avoid lots of conditionals or complex multi-level switch() statements. */
+
+#define SUPERTYPE(a, b) ((static_cast<int>(a)<<5)+(static_cast<int>(b)))
+
 
 /*  BINARY, COMP, COMPUTATIONAL, COMP-4, COMPUTATIONAL-4 are the same:
  *      Storage, by default, is big-endian.
@@ -427,7 +432,7 @@ cbl_file_mode_str( cbl_file_mode_t mode ) {
   case file_mode_any_e:    return "file_mode_any_e";
   }
   return "???";
-};
+}
 
 enum module_type_t {
   module_activating_e,

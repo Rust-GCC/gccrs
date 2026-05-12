@@ -93,7 +93,7 @@ set_up_arithmetic_error_handler(cbl_label_t *error,
   }
 
 static void
-arithmetic_operation(size_t nC, cbl_num_result_t *C,
+arithmetic_operation( size_t nC, cbl_num_result_t *C,
                       size_t nA, cbl_refer_t *A,
                       size_t nB, cbl_refer_t *B,
                       cbl_arith_format_t format,
@@ -140,21 +140,6 @@ arithmetic_operation(size_t nC, cbl_num_result_t *C,
   std::vector<cbl_refer_t> results(nC + 1);
   int ncount = 0;
 
-  if( nC+1 <= MIN_FIELD_BLOCK_SIZE )
-    {
-    // We know there is room in our existing buffer
-    }
-  else
-    {
-    // We might have to allocate more space:
-    gg_call(VOID,
-            "__gg__resize_int_p",
-            gg_get_address_of(var_decl_arithmetic_rounds_size),
-            gg_get_address_of(var_decl_arithmetic_rounds),
-            build_int_cst_type(SIZE_T, nC+1),
-            NULL_TREE);
-    }
-
   // We have to take into account the possibility the quotient of the division
   // can affect the disposition of the remainder.  In particular, some of the
   // NIST tests have the construction
@@ -182,10 +167,12 @@ arithmetic_operation(size_t nC, cbl_num_result_t *C,
     // list
     results[ncount++] = temp_remainder;
     }
+  tree array_of_int_type = build_array_type_nelts(INT, nC+1);
+  tree arithmetic_rounds = gg_define_variable(array_of_int_type);
   for(size_t i=0; i<nC; i++)
     {
     results[ncount] = C[i].refer;
-    gg_assign(  gg_array_value(var_decl_arithmetic_rounds, ncount),
+    gg_assign(  gg_array_value(arithmetic_rounds, ncount),
                 build_int_cst_type(INT, C[i].rounded));
     ncount += 1;
     }
@@ -201,17 +188,19 @@ arithmetic_operation(size_t nC, cbl_num_result_t *C,
   // Having done all that work, we now need to break out the various different
   // arithmetic routines that implement the various possibilities,
 
-  build_array_of_treeplets(1, nA, A);
-  build_array_of_treeplets(2, nB, B);
-  build_array_of_treeplets(3, ncount, results.data());
-
+  tree referlets_A = build_array_of_referlets(nA, A);
+  tree referlets_B = build_array_of_referlets(nB, B);
+  tree referlets_C = build_array_of_referlets(ncount, results.data());
   gg_call(VOID,
           operation,
           build_int_cst_type(INT, format),
           build_int_cst_type(SIZE_T, nA),
+          referlets_A,
           build_int_cst_type(SIZE_T, nB),
+          referlets_B,
           build_int_cst_type(SIZE_T, ncount),
-          var_decl_arithmetic_rounds,
+          referlets_C,
+          gg_pointer_to_array(arithmetic_rounds),
           build_int_cst_type(INT, call_flags),
           compute_error,
           NULL_TREE);
@@ -418,9 +407,11 @@ fast_add( size_t nC, cbl_num_result_t *C,
     tree term_type = largest_binary_term(nA, A);
     if( term_type )
       {
-      tree dest_type = tree_type_from_size(
-                                        C[0].refer.field->data.capacity(),
-                                        0);
+      tree dest_type = tree_type_from_size(C[0].refer.field->data.capacity(),
+                                           0);
+//      tree dest_type2 = TREE_TYPE(C[0].refer.field->data_decl_node);
+//      gcc_assert(dest_type2 == dest_type);
+
       // All the numbers are integers without rdigits
       if(    nC == 1
           && nA == 1
@@ -449,13 +440,23 @@ fast_add( size_t nC, cbl_num_result_t *C,
           }
         if( refer_is_clean(C[0].refer) )
           {
-          tree dest_addr = member(C[0].refer.field->var_decl_node,
-                                  "data");
-          tree ptr = gg_cast(build_pointer_type(dest_type), dest_addr);
           // We are accumulating into memory
-          gg_assign(  gg_indirect(ptr),
-                      gg_add( gg_indirect(ptr),
-                              A_value));
+
+          if(false &&    refer_is_working_storage(C[0].refer)
+             && C[0].refer.field->offset == 0 )
+            {
+            gg_assign(  C[0].refer.field->data_decl_node,
+                        gg_cast(TREE_TYPE(C[0].refer.field->data_decl_node), gg_add( C[0].refer.field->data_decl_node, A_value)));
+            }
+          else
+            {
+            tree dest_addr = member(C[0].refer.field->var_decl_node,
+                                    "data");
+            tree ptr = gg_cast(build_pointer_type(dest_type), dest_addr);
+            gg_assign(  gg_indirect(ptr),
+                        gg_add( gg_indirect(ptr),
+                                A_value));
+            }
           }
         else
           {
@@ -1154,7 +1155,7 @@ parser_add( size_t nC, cbl_num_result_t *C,
           // Do phase 2, which puts the subtotal into each target location in turn
           for(size_t i=0; i<nC; i++)
             {
-            arithmetic_operation(1, &C[i],
+            arithmetic_operation( 1, &C[i],
                                   0, NULL,
                                   0, NULL,
                                   format,

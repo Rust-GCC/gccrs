@@ -16,6 +16,6 @@
                    END-IF.
            IF FUNCTION ABS(000.0) NOT EQUAL TO ZERO
                    MOVE 1 TO RETURN-CODE
-                   DISPLAY "FUNCTION ABS(-000.0) FAILS."
+                   DISPLAY "FUNCTION ABS(000.0) FAILS."
                    END-IF.
 

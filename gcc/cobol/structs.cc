@@ -157,6 +157,8 @@ tree cblc_field_pp_type_node;
 tree cblc_file_type_node;
 tree cblc_file_p_type_node;
 tree cblc_goto_type_node;
+tree cblc_referlet_type_node;
+tree cblc_refer_type_node;
 
 // The following functions return type_decl nodes for the various structures
 
@@ -213,7 +215,7 @@ create_cblc_file_t()
     // When doing FILE I/O, you need the cblc_file_t structure
 
     /*
-typedef struct cblc_file_t*
+typedef struct cblc_file_t
     {
     char                *name;             // This is the name of the structure; might be the name of an environment variable
     uint64_t             symbol_index;     // The symbol table index of the related cbl_file_t structure
@@ -289,6 +291,46 @@ typedef struct cblc_file_t*
     return retval;
     }
 
+static tree
+create_referlet_t()
+    {
+    /*
+      typedef struct cblc_referlet_t
+          {
+          cblc_field_t        *field;
+          size_t               offset;
+          size_t               size;
+          } cblc_referlet_t;
+    */
+    tree retval = gg_get_structure_type_decl("cblc_referlet_t",
+                                              cblc_field_p_type_node, "field",
+                                              SIZE_T,               "offset",
+                                              SIZE_T,               "size",
+                                              NULL_TREE);
+    return retval;
+    }
+
+static tree
+create_refer_t()
+    {
+    /*
+      typedef struct cblc_refer_t
+          {
+          cblc_field_t        *field;
+          size_t               offset;
+          size_t               size;
+          int                  flags;
+          } cblc_refer_t;
+    */
+    tree retval = gg_get_structure_type_decl("cblc_refer_t",
+                                              cblc_field_p_type_node, "field",
+                                              SIZE_T,               "offset",
+                                              SIZE_T,               "size",
+                                              INT,                  "flags",
+                                              NULL_TREE);
+    return retval;
+    }
+
 void
 create_our_type_nodes()
     {
@@ -301,6 +343,8 @@ create_our_type_nodes()
         cblc_field_pp_type_node           = build_pointer_type(cblc_field_p_type_node);
         cblc_file_type_node               = create_cblc_file_t();
         cblc_file_p_type_node             = build_pointer_type(cblc_file_type_node);
+        cblc_referlet_type_node           = create_referlet_t();
+        cblc_refer_type_node              = create_refer_t();
         }
     }
 

@@ -127,6 +127,7 @@ struct GTY (()) language_function
 #define ATTR_TMPURE_NORETURN_NOTHROW_LEAF_COLD_LIST (ECF_TM_PURE|ECF_NORETURN|ECF_NOTHROW|ECF_LEAF|ECF_COLD)
 #define ATTR_NORETURN_NOTHROW_LIST (ECF_NORETURN|ECF_NOTHROW)
 #define ATTR_NOTHROW_NONNULL_LEAF (ECF_NOTHROW|ECF_LEAF)
+#define ATTR_CONST_NOTHROW_LEAF (ECF_CONST | ECF_NOTHROW | ECF_LEAF)
 
 static void
 gfc_define_builtin (const char *name, tree type, enum built_in_function code,
@@ -265,6 +266,44 @@ cobol_langhook_init (void)
                                       NULL_TREE);
     gfc_define_builtin ("__builtin_strcpy", ftype, BUILT_IN_STRCPY,
             "strcpy", ATTR_NOTHROW_NONNULL_LEAF);
+
+
+    ftype = build_function_type_list (uint16_type_node,
+                                      uint16_type_node,
+                                      NULL_TREE);
+    gfc_define_builtin ("__builtin_bswap16",
+                        ftype,
+                        BUILT_IN_BSWAP16,
+                        NULL,
+                        ATTR_CONST_NOTHROW_LEAF);
+
+    ftype = build_function_type_list (uint32_type_node,
+                                      uint32_type_node,
+                                      NULL_TREE);
+    gfc_define_builtin ("__builtin_bswap32",
+                        ftype,
+                        BUILT_IN_BSWAP32,
+                        NULL,
+                        ATTR_CONST_NOTHROW_LEAF);
+
+    ftype = build_function_type_list (uint64_type_node,
+                                      uint64_type_node,
+                                      NULL_TREE);
+    gfc_define_builtin ("__builtin_bswap64",
+                        ftype,
+                        BUILT_IN_BSWAP64,
+                        NULL,
+                        ATTR_CONST_NOTHROW_LEAF);
+
+    ftype = build_function_type_list (unsigned_intTI_type_node,
+                                      unsigned_intTI_type_node,
+                                      NULL_TREE);
+    gfc_define_builtin ("__builtin_bswap128",
+                        ftype,
+                        BUILT_IN_BSWAP128,
+                        NULL,
+                        ATTR_CONST_NOTHROW_LEAF);
+
 
     build_common_builtin_nodes ();
 

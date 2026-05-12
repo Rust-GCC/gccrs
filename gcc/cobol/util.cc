@@ -957,11 +957,9 @@ symbol_field_type_update( cbl_field_t *field,
     case FldSwitch:
       gcc_unreachable();
     case FldAlphanumeric:
-      // MF allows PIC X(n) to have USAGE COMP-[5x]
+      // MF and GNU allow pic x usage comp-5.
+      // Dialect enforcement in that case is in field_binary_usage.
       if( candidate != FldNumericBin5 ) return false;
-      if( ! (dialect_mf() && field->has_attr(all_x_e)) ) {
-        return false;
-      }
       __attribute__((fallthrough));
     case FldFloat:
     case FldNumericBin5:

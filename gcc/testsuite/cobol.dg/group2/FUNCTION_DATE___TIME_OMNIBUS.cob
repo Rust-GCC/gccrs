@@ -1,5 +1,5 @@
        *> { dg-do run }
-       *> { dg-set-target-env-var TZ UTC0 }
+       *> { dg-set-target-env-var TZ "UTC0" }
 
         identification division.
         program-id. testy.

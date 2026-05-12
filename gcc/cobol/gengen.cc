@@ -370,23 +370,34 @@ gg_show_type(tree type)
     cbl_internal_error("The given type is NULL, and that is just not fair");
     }
 
+  int code = TREE_CODE(type);
+
   if( DECL_P(type) )
     {
     type = TREE_TYPE(type);
     }
-  if( !TYPE_P(type) )
+  if( !TYPE_P(type) && code != ARRAY_REF)
     {
-    cbl_internal_error("The given type is not a declaration or a TYPE");
+    cbl_internal_error("%s", "The given type is not a declaration or a TYPE or an ARRAY_REF");
     }
 
   static char ach[1100];
   static char ach2[1024];
   static char ach3[1024];
-  switch( TREE_CODE(type) )
+  switch( code )
     {
     case POINTER_TYPE:
       strcpy(ach2, gg_show_type(TREE_TYPE(type)));
       sprintf(ach, "POINTER to %s", ach2);
+      break;
+
+    case ARRAY_TYPE:
+      strcpy(ach2, gg_show_type(TREE_TYPE(type)));
+      sprintf(ach, "ARRAY");
+      break;
+
+    case ARRAY_REF:
+      sprintf(ach, "ARRAY_REF");
       break;
 
     case VOID_TYPE:
@@ -431,6 +442,11 @@ gg_show_type(tree type)
   if( DECL_P(original_type) && TREE_READONLY(original_type) )
     {
     strcat(ach, " readonly");
+    }
+
+  if( DECL_P(original_type) && TYPE_VOLATILE(original_type) )
+    {
+    strcat(ach, " volatile");
     }
 
   return ach;
@@ -852,7 +868,7 @@ gg_define_from_declaration(tree var_decl)
     // it's time to actually define the storage with a decl_expression:
     tree stmt = build1_loc (gg_token_location(),
                             DECL_EXPR,
-                            TREE_TYPE(var_decl),
+                            void_type_node,
                             var_decl);
     gg_append_statement(stmt);
     }
@@ -908,6 +924,34 @@ gg_define_variable(tree type_decl, const char *name, gg_variable_scope_t vs_scop
     {
     gg_define_from_declaration(var_decl);
     }
+  return var_decl;
+  }
+
+tree
+gg_define_volatile_variable(tree type_decl,
+                            const char *name,
+                            gg_variable_scope_t vs_scope)
+  {
+  bool already_defined = false;
+
+  tree volatile_type = build_qualified_type(type_decl, TYPE_QUAL_VOLATILE);
+
+  tree var_decl = gg_declare_variable(volatile_type,
+                                      name,
+                                      NULL_TREE,
+                                      vs_scope,
+                                      &already_defined);
+
+  /* Helpful, especially while debugging the front end.  The volatile-qualified
+     type is the important part; these flags should agree with it. */
+  TREE_THIS_VOLATILE(var_decl) = 1;
+  TREE_SIDE_EFFECTS(var_decl) = 1;
+
+  if (!already_defined)
+    {
+    gg_define_from_declaration(var_decl);
+    }
+
   return var_decl;
   }
 
@@ -1317,6 +1361,23 @@ gg_pointer_to_array(tree expr)
   }
 
 tree
+gg_get_address(const tree var_decl)
+  {
+  /* This takes care of the problem of finding the address of a scalar, or of
+     an ARRAY_TYPE.  I recommend using it carefully; there is something to be
+     said for knowing whether you are working with an array, or a scalar. */
+  tree type = TREE_TYPE (var_decl);
+  if( TREE_CODE (type) == ARRAY_TYPE )
+    {
+    return gg_pointer_to_array(var_decl);
+    }
+
+  TREE_ADDRESSABLE(var_decl) = 1;
+  TREE_USED(var_decl) = 1;
+  return build_fold_addr_expr(var_decl);
+  }
+
+tree
 gg_get_indirect_reference(tree pointer, tree offset)
   {
   // The C equivalent: auto pointer[offset];
@@ -1400,12 +1461,13 @@ gg_array_value(tree pointer, tree offset)
     }
   else
     {
-    return build4(ARRAY_REF,
+    tree retval =  build4(ARRAY_REF,
                   element_type,
                   pointer,
-                  offset,
+                  fold_convert(SIZE_T, offset),
                   NULL_TREE,
                   NULL_TREE);
+    return retval;
     }
   }
 
@@ -1592,6 +1654,62 @@ gg_bitwise_and(tree A, tree B)
   // This is C equivalent to A & B
   tree larger_type = gg_get_larger_type(A, B);
   return build2( BIT_AND_EXPR, larger_type, gg_cast(larger_type,A), gg_cast(larger_type,B));
+  }
+
+tree
+gg_bswap (tree var)
+  {
+  location_t loc = UNKNOWN_LOCATION;
+  tree type = TREE_TYPE (var);
+  tree size = TYPE_SIZE_UNIT (type);
+
+  gcc_assert (tree_fits_uhwi_p (size));
+
+  unsigned HOST_WIDE_INT size_in_bytes = tree_to_uhwi (size);
+
+  enum built_in_function fncode;
+  tree unsigned_type;
+
+  switch (size_in_bytes)
+    {
+    case 1:
+      return var;
+
+    case 2:
+      fncode = BUILT_IN_BSWAP16;
+      unsigned_type = uint16_type_node;
+      break;
+
+    case 4:
+      {
+      fncode = BUILT_IN_BSWAP32;
+      unsigned_type = uint32_type_node;
+      break;
+      }
+
+    case 8:
+      fncode = BUILT_IN_BSWAP64;
+      unsigned_type = uint64_type_node;
+      break;
+
+    case 16:
+      fncode = BUILT_IN_BSWAP128;
+      unsigned_type = unsigned_intTI_type_node;  /* or your UINT128 type */
+      break;
+
+    default:
+      gcc_unreachable ();
+    }
+
+  tree arg = fold_convert_loc (loc, unsigned_type, var);
+
+  tree swapped =
+    build_call_expr_loc (loc,
+                         builtin_decl_explicit (fncode),
+                         1,
+                         arg);
+
+  return fold_convert_loc (loc, type, swapped);
   }
 
 tree
@@ -3124,6 +3242,19 @@ gg_free(tree pointer)
                           1,
                           pointer);
   gg_append_statement(the_call);
+  }
+
+tree
+gg_memcmp(const tree s1, const tree s2, tree n)
+  {
+  tree the_call =
+      build_call_expr_loc(gg_token_location(),
+                          builtin_decl_explicit (BUILT_IN_MEMCMP),
+                          3,
+                          s1,
+                          s2,
+                          n);
+  return the_call;
   }
 
 void

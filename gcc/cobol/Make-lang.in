@@ -64,6 +64,7 @@ cobol1_OBJS =    \
  cobol/cdf.o        \
  cobol/cdf-copy.o   \
  cobol/cobol1.o     \
+ cobol/compare.o    \
  cobol/convert.o    \
  cobol/except.o     \
  cobol/genutil.o    \

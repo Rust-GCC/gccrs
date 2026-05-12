@@ -65,6 +65,21 @@ typedef struct cblc_field_t
     int            alphabet;    // Same as cbl_field_t::codeset::language
     } cblc_field_t;
 
+typedef struct cblc_referlet_t
+    {
+    cblc_field_t        *field;
+    size_t               offset;
+    size_t               size;
+    } cblc_referlet_t;
+
+typedef struct cblc_refer_t
+    {
+    cblc_field_t        *field;
+    size_t               offset;
+    size_t               size;
+    int                  flags;
+    } cblc_refer_t;
+
 /*
  * Implementation details
  */
@@ -132,27 +147,5 @@ typedef struct cblc_file_t
     cbl_encoding_t       encoding;         // We assume size int
     int                  alphabet;         // Actually cbl_encoding_t
     } cblc_file_t;
-
-
-/*  In various arithmetic routines implemented in libgcobol, it is oftent the
-    case that complicates lists of variables need to be conveyed.  For example,
-    "ADD A B C D GIVING E" and "ADD A TO B C D" are valid instructions.
-    
-    These treeplets (triplets of trees) were created to handle that.  */
-
-extern cblc_field_t ** __gg__treeplet_1f;
-extern size_t       *  __gg__treeplet_1o;
-extern size_t       *  __gg__treeplet_1s;
-extern cblc_field_t ** __gg__treeplet_2f;
-extern size_t       *  __gg__treeplet_2o;
-extern size_t       *  __gg__treeplet_2s;
-extern cblc_field_t ** __gg__treeplet_3f;
-extern size_t       *  __gg__treeplet_3o;
-extern size_t       *  __gg__treeplet_3s;
-extern cblc_field_t ** __gg__treeplet_4f;
-extern size_t       *  __gg__treeplet_4o;
-extern size_t       *  __gg__treeplet_4s;
-
-extern int *        __gg__fourplet_flags;
 
 #endif

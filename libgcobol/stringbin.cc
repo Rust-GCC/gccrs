@@ -270,30 +270,49 @@ bool
 __gg__binary_to_string_ascii(char *result, int digits, __int128 value)
   {
   zero_char = ascii_zero;
-
-  // Note that this routine does not terminate the generated string with a
-  // NUL.  This routine is sometimes used to generate a NumericDisplay string
-  // of digits in place, with no terminator.
-  __int128 mask = __gg__power_of_ten(digits);
-
-  COMBINED combined;
-  if( value < 0 )
+  bool retval; // True means the value was too big to fit into digits
+  if( digits < 39 )
     {
-    value = -value;
+    // Note that this routine does not terminate the generated string with a
+    // NUL.  This routine is sometimes used to generate a NumericDisplay string
+    // of digits in place, with no terminator.
+    __int128 mask = __gg__power_of_ten(digits);
+
+    COMBINED combined;
+    if( value < 0 )
+      {
+      value = -value;
+      }
+
+    // A non-zero retval means the number was too big to fit into the desired
+    // number of digits:
+    retval = !!(value / mask);
+
+    // mask off the bottom digits to avoid garbage when value is too large
+    value %= mask;
+
+    combined.start = 0;
+    combined.run = digits;
+    combined.val128 = value;
+    string_from_combined(combined);
+    memcpy(result, combined_string, digits);
+    return retval;
     }
+  else
+    {
+    // We assume that this is a PIC X(16) COMP-X, so the value is always
+    // positive.
+    COMBINED combined;
+    // A non-zero retval means the number was too big to fit into the desired
+    // number of digits:
+    retval = false;
 
-  // A non-zero retval means the number was too big to fit into the desired
-  // number of digits:
-  bool retval = !!(value / mask);
-
-  // mask off the bottom digits to avoid garbage when value is too large
-  value %= mask;
-
-  combined.start = 0;
-  combined.run = digits;
-  combined.val128 = value;
-  string_from_combined(combined);
-  memcpy(result, combined_string, digits);
+    combined.start = 0;
+    combined.run = digits;
+    combined.val128 = value;
+    string_from_combined(combined);
+    memcpy(result, combined_string, digits);
+    }
   return retval;
   }
 

@@ -424,10 +424,7 @@ get_value_as_double_from_qualified_field( const cblc_field_t *input,
 
 static
 GCOB_FP128 kahan_summation(size_t ncount,
-                          cblc_field_t **source,
-                    const size_t        *source_o,
-                    const size_t        *source_s,
-                    const int           *flags,
+                     const cblc_refer_t *refers,
                           size_t        *k_count)
   {
   // We use compensated addition.  Look up Kahan summation.
@@ -446,19 +443,19 @@ GCOB_FP128 kahan_summation(size_t ncount,
   for(size_t i=0; i<ncount; i++)
     {
     refer_state_for_all state;
-    build_refer_state_for_all(state, source[i], flags[i]);
+    build_refer_state_for_all(state, refers[i].field, refers[i].flags);
 
     for(;;)
       {
-      input = __gg__float128_from_qualified_field(source[i],
-                                                  source_o[i],
-                                                  source_s[i]);
+      input = __gg__float128_from_qualified_field(refers[i].field,
+                                                  refers[i].offset,
+                                                  refers[i].size);
       y = input - kahan_c;
       t = sum + y;
       kahan_c = (t - sum) - y ;
       sum = t;
       *k_count += 1;
-      if( !update_refer_state_for_all(state, source[i]) )
+      if( !update_refer_state_for_all(state, refers[i].field) )
         {
         // There is nothing left to do.
         break;
@@ -471,10 +468,7 @@ GCOB_FP128 kahan_summation(size_t ncount,
 static
 GCOB_FP128
 variance( size_t         ncount,
-          cblc_field_t **source,
-    const size_t        *source_o,
-    const size_t        *source_s,
-    const int           *flags)
+     const cblc_refer_t *refers)
   {
   // In order to avoid catastrophic cancellation, we are going to use an
   // algorithm that is a bit wasteful of time, but is described as particularly
@@ -487,10 +481,7 @@ variance( size_t         ncount,
     // as an offset in the second stage:
     size_t k_count;
     GCOB_FP128 offset = kahan_summation( ncount,
-                                        source,
-                                        source_o,
-                                        source_s,
-                                        flags,
+                                         refers,
                                         &k_count);
     offset /= k_count;
 
@@ -506,13 +497,13 @@ variance( size_t         ncount,
     for(size_t i=0; i<ncount; i++)
       {
       refer_state_for_all state;
-      build_refer_state_for_all(state, source[i], flags[i]);
+      build_refer_state_for_all(state, refers[i].field, refers[i].flags);
 
       for(;;)
         {
-        newValue  = __gg__float128_from_qualified_field(source[i],
-                                                        source_o[i],
-                                                        source_s[i]);
+        newValue  = __gg__float128_from_qualified_field(refers[i].field,
+                                                        refers[i].offset,
+                                                        refers[i].size);
         newValue -= offset;
 
         count += 1;
@@ -520,7 +511,7 @@ variance( size_t         ncount,
         mean += delta / count;
         delta2 = newValue - mean;
         M2 += delta * delta2;
-        if( !update_refer_state_for_all(state, source[i]) )
+        if( !update_refer_state_for_all(state, refers[i].field) )
           {
           // There is nothing left to do.
           break;
@@ -1258,21 +1249,22 @@ __gg__combined_datetime(cblc_field_t *dest,
 extern "C"
 void
 __gg__concat( cblc_field_t *dest,
-              size_t ncount)
+              size_t ncount,
+        const cblc_refer_t *refers)
   {
   size_t bytes = 0;
   size_t offset = 0;
   for(size_t i=0; i<ncount; i++)
     {
-    bytes += __gg__treeplet_1s[i];
+    bytes += refers[i].size;
     }
   __gg__adjust_dest_size(dest, bytes);
   for(size_t i=0; i<ncount; i++)
     {
     memcpy( dest->data + offset,
-            __gg__treeplet_1f[i]->data + __gg__treeplet_1o[i],
-            __gg__treeplet_1s[i]);
-    offset += __gg__treeplet_1s[i];
+            refers[i].field->data + refers[i].offset,
+            refers[i].size);
+    offset += refers[i].size;
     }
   }
 
@@ -1998,12 +1990,13 @@ __gg__log10(cblc_field_t *dest,
 extern "C"
 void
 __gg__max(cblc_field_t *dest,
-          size_t ncount)
+          size_t ncount,
+    const cblc_refer_t *refers)
   {
   // FUNCTION MAX
 
-  if( (    __gg__treeplet_1f[0]->type == FldAlphanumeric
-        || __gg__treeplet_1f[0]->type == FldLiteralA) )
+  if( (    refers[0].field->type == FldAlphanumeric
+        || refers[0].field->type == FldLiteralA) )
     {
     cblc_field_t  *best_field      ;
     unsigned char *best_location = nullptr  ;
@@ -2017,26 +2010,26 @@ __gg__max(cblc_field_t *dest,
       {
       refer_state_for_all state;
 
-      build_refer_state_for_all(state, __gg__treeplet_1f[i], __gg__fourplet_flags[i]);
+      build_refer_state_for_all(state, refers[i].field, refers[i].flags);
 
       for(;;)
         {
         if( first_time )
           {
           first_time      = false;
-          best_field      = __gg__treeplet_1f[i];
-          best_location   = __gg__treeplet_1f[i]->data + __gg__treeplet_1o[i];
-          best_length     = __gg__treeplet_1s[i];
-          best_attr       = __gg__treeplet_1f[i]->attr;
-          best_flags      = __gg__fourplet_flags[i];
+          best_field      = refers[i].field;
+          best_location   = refers[i].field->data + refers[i].offset;
+          best_length     = refers[i].size;
+          best_attr       = refers[i].field->attr;
+          best_flags      = refers[i].flags;
           }
         else
           {
-          cblc_field_t  *candidate_field      = __gg__treeplet_1f[i];
-          unsigned char *candidate_location   = __gg__treeplet_1f[i]->data + __gg__treeplet_1o[i];
-          size_t         candidate_length     = __gg__treeplet_1s[i];
-          int            candidate_attr       = __gg__treeplet_1f[i]->attr;
-          int            candidate_flags      = __gg__fourplet_flags[i];
+          cblc_field_t  *candidate_field      = refers[i].field;
+          unsigned char *candidate_location   = refers[i].field->data + refers[i].offset;
+          size_t         candidate_length     = refers[i].size;
+          int            candidate_attr       = refers[i].field->attr;
+          int            candidate_flags      = refers[i].flags;
 
           int compare_result = __gg__compare_2(
                                  candidate_field,
@@ -2059,7 +2052,7 @@ __gg__max(cblc_field_t *dest,
             best_flags      = candidate_flags      ;
             }
           }
-        if( !update_refer_state_for_all(state, __gg__treeplet_1f[i]) )
+        if( !update_refer_state_for_all(state, refers[i].field) )
           {
           // There is nothing left to do.
           break;
@@ -2080,24 +2073,24 @@ __gg__max(cblc_field_t *dest,
     for(size_t i=0; i<ncount; i++)
       {
       refer_state_for_all state;
-      build_refer_state_for_all(state, __gg__treeplet_1f[i], __gg__fourplet_flags[i]);
+      build_refer_state_for_all(state, refers[i].field, refers[i].flags);
 
       for(;;)
         {
         if( first_time )
           {
           first_time = false;
-          retval = __gg__float128_from_qualified_field(__gg__treeplet_1f[i], __gg__treeplet_1o[i], __gg__treeplet_1s[i]);
+          retval = __gg__float128_from_qualified_field(refers[i].field, refers[i].offset, refers[i].size);
           }
         else
           {
-          GCOB_FP128 candidate = __gg__float128_from_qualified_field(__gg__treeplet_1f[i], __gg__treeplet_1o[i], __gg__treeplet_1s[i]);
+          GCOB_FP128 candidate = __gg__float128_from_qualified_field(refers[i].field, refers[i].offset, refers[i].size);
           if( candidate >= retval )
             {
             retval = candidate;
             }
           }
-        if( !update_refer_state_for_all(state, __gg__treeplet_1f[i]) )
+        if( !update_refer_state_for_all(state, refers[i].field) )
           {
           // There is nothing left to do for that input.
           break;
@@ -2182,15 +2175,13 @@ __gg__upper_case( cblc_field_t *dest,
 extern "C"
 void
 __gg__mean( cblc_field_t *dest,
-            size_t ninputs)
+            size_t ninputs,
+      const cblc_refer_t *refers)
   {
   // FUNCTION MEAN
   size_t k_count;
   GCOB_FP128 sum = kahan_summation(ninputs,
-                                  __gg__treeplet_1f,
-                                  __gg__treeplet_1o,
-                                  __gg__treeplet_1s,
-                                  __gg__fourplet_flags,
+                                   refers,
                                   &k_count);
   sum /= k_count;
   __gg__float128_to_field(dest,
@@ -2202,7 +2193,8 @@ __gg__mean( cblc_field_t *dest,
 extern "C"
 void
 __gg__median( cblc_field_t *dest,
-              size_t        ncount)
+              size_t        ncount,
+        const cblc_refer_t *refers)
   {
   // FUNCTION MEDIAN
 
@@ -2222,7 +2214,7 @@ __gg__median( cblc_field_t *dest,
   for(size_t i=0; i<ncount; i++)
     {
     refer_state_for_all state;
-    build_refer_state_for_all(state, __gg__treeplet_1f[i], __gg__fourplet_flags[i]);
+    build_refer_state_for_all(state, refers[i].field, refers[i].flags);
 
     for(;;)
       {
@@ -2234,11 +2226,11 @@ __gg__median( cblc_field_t *dest,
         }
 
       assert(the_list);
-      the_list[k_count] = __gg__float128_from_qualified_field(__gg__treeplet_1f[i],
-                                                              __gg__treeplet_1o[i],
-                                                              __gg__treeplet_1s[i]);
+      the_list[k_count] = __gg__float128_from_qualified_field(refers[i].field,
+                                                              refers[i].offset,
+                                                              refers[i].size);
       k_count += 1;
-      if( !update_refer_state_for_all(state, __gg__treeplet_1f[i]) )
+      if( !update_refer_state_for_all(state, refers[i].field) )
         {
         // There is nothing left to do.
         break;
@@ -2267,7 +2259,8 @@ __gg__median( cblc_field_t *dest,
 extern "C"
 void
 __gg__midrange( cblc_field_t *dest,
-                size_t        ncount)
+                size_t        ncount,
+          const cblc_refer_t *refers)
   {
   // FUNCTION MIDRANGE
   GCOB_FP128 val;
@@ -2278,12 +2271,12 @@ __gg__midrange( cblc_field_t *dest,
   for(size_t i=0; i<ncount; i++)
     {
     refer_state_for_all state;
-    build_refer_state_for_all(state, __gg__treeplet_1f[i], __gg__fourplet_flags[i]);
+    build_refer_state_for_all(state, refers[i].field, refers[i].flags);
     for(;;)
       {
-      val = __gg__float128_from_qualified_field(__gg__treeplet_1f[i],
-                                                __gg__treeplet_1o[i],
-                                                __gg__treeplet_1s[i]);
+      val = __gg__float128_from_qualified_field(refers[i].field,
+                                                refers[i].offset,
+                                                refers[i].size);
       if( first_time )
         {
         first_time = false;
@@ -2292,7 +2285,7 @@ __gg__midrange( cblc_field_t *dest,
         }
       min = std::min(min, val);
       max = std::max(max, val);
-      if( !update_refer_state_for_all(state, __gg__treeplet_1f[i]) )
+      if( !update_refer_state_for_all(state, refers[i].field) )
         {
         // There is nothing left to do for that input.
         break;
@@ -2309,12 +2302,13 @@ __gg__midrange( cblc_field_t *dest,
 extern "C"
 void
 __gg__min(cblc_field_t *dest,
-          size_t ncount)
+          size_t ncount,
+    const cblc_refer_t *refers)
   {
   // FUNCTION MIN
 
-  if( (    __gg__treeplet_1f[0]->type == FldAlphanumeric
-        || __gg__treeplet_1f[0]->type == FldLiteralA) )
+  if( (    refers[0].field->type == FldAlphanumeric
+        || refers[0].field->type == FldLiteralA) )
     {
     cblc_field_t  *best_field               ;
     unsigned char *best_location = nullptr  ;
@@ -2328,26 +2322,26 @@ __gg__min(cblc_field_t *dest,
       {
       refer_state_for_all state;
 
-      build_refer_state_for_all(state, __gg__treeplet_1f[i], __gg__fourplet_flags[i]);
+      build_refer_state_for_all(state, refers[i].field, refers[i].flags);
 
       for(;;)
         {
         if( first_time )
           {
           first_time      = false;
-          best_field      = __gg__treeplet_1f[i];
-          best_location   = __gg__treeplet_1f[i]->data + __gg__treeplet_1o[i];
-          best_length     = __gg__treeplet_1s[i];
-          best_attr       = __gg__treeplet_1f[i]->attr;
-          best_flags      = __gg__fourplet_flags[i];
+          best_field      = refers[i].field;
+          best_location   = refers[i].field->data + refers[i].offset;
+          best_length     = refers[i].size;
+          best_attr       = refers[i].field->attr;
+          best_flags      = refers[i].flags;
           }
         else
           {
-          cblc_field_t  *candidate_field      = __gg__treeplet_1f[i];
-          unsigned char *candidate_location   = __gg__treeplet_1f[i]->data + __gg__treeplet_1o[i];
-          size_t         candidate_length     = __gg__treeplet_1s[i];
-          int            candidate_attr       = __gg__treeplet_1f[i]->attr;
-          int            candidate_flags      = __gg__fourplet_flags[i];
+          cblc_field_t  *candidate_field      = refers[i].field;
+          unsigned char *candidate_location   = refers[i].field->data + refers[i].offset;
+          size_t         candidate_length     = refers[i].size;
+          int            candidate_attr       = refers[i].field->attr;
+          int            candidate_flags      = refers[i].flags;
 
           int compare_result = __gg__compare_2(
                                  candidate_field,
@@ -2370,7 +2364,7 @@ __gg__min(cblc_field_t *dest,
             best_flags      = candidate_flags      ;
             }
           }
-        if( !update_refer_state_for_all(state, __gg__treeplet_1f[i]) )
+        if( !update_refer_state_for_all(state, refers[i].field) )
           {
           // There is nothing left to do.
           break;
@@ -2391,24 +2385,24 @@ __gg__min(cblc_field_t *dest,
     for(size_t i=0; i<ncount; i++)
       {
       refer_state_for_all state;
-      build_refer_state_for_all(state, __gg__treeplet_1f[i], __gg__fourplet_flags[i]);
+      build_refer_state_for_all(state, refers[i].field, refers[i].flags);
 
       for(;;)
         {
         if( first_time )
           {
           first_time = false;
-          retval = __gg__float128_from_qualified_field(__gg__treeplet_1f[i], __gg__treeplet_1o[i], __gg__treeplet_1s[i]);
+          retval = __gg__float128_from_qualified_field(refers[i].field, refers[i].offset, refers[i].size);
           }
         else
           {
-          GCOB_FP128 candidate = __gg__float128_from_qualified_field(__gg__treeplet_1f[i], __gg__treeplet_1o[i], __gg__treeplet_1s[i]);
+          GCOB_FP128 candidate = __gg__float128_from_qualified_field(refers[i].field, refers[i].offset, refers[i].size);
           if( candidate < retval )
             {
             retval = candidate;
             }
           }
-        if( !update_refer_state_for_all(state, __gg__treeplet_1f[i]) )
+        if( !update_refer_state_for_all(state, refers[i].field) )
           {
           // There is nothing left to do for that input.
           break;
@@ -3193,7 +3187,8 @@ __gg__ord(cblc_field_t *dest,
 extern "C"
 void
 __gg__ord_min(cblc_field_t *dest,
-              size_t ninputs)
+              size_t ninputs,
+    const cblc_refer_t *refers)
   {
   // Sets dest to the one-based ordinal position of the first occurrence
   // of the biggest element in the list of refs[]
@@ -3216,7 +3211,7 @@ __gg__ord_min(cblc_field_t *dest,
     {
     refer_state_for_all state;
 
-    build_refer_state_for_all(state, __gg__treeplet_1f[i], __gg__fourplet_flags[i]);
+    build_refer_state_for_all(state, refers[i].field, refers[i].flags);
     for(;;)
       {
       running_position += 1;
@@ -3224,24 +3219,24 @@ __gg__ord_min(cblc_field_t *dest,
         {
         // We have to initialize the comparisons:
         retval          = running_position;
-        best            = __gg__treeplet_1f[i];
-        best_location   = __gg__treeplet_1f[i]->data + __gg__treeplet_1o[i];
-        best_length     = __gg__treeplet_1s[i];
-        best_attr       = __gg__treeplet_1f[i]->attr;
-        best_flags      = __gg__fourplet_flags[i];
+        best            = refers[i].field;
+        best_location   = refers[i].field->data + refers[i].offset;
+        best_length     = refers[i].size;
+        best_attr       = refers[i].field->attr;
+        best_flags      = refers[i].flags;
         }
       else
         {
         // We need to save the current adjustments, because __gg__compare
         // is free to modify .location
-        candidate_location   = __gg__treeplet_1f[i]->data + __gg__treeplet_1o[i];
-        candidate_length     = __gg__treeplet_1s[i];
-        candidate_attr       = __gg__treeplet_1f[i]->attr;
-        candidate_flags      = __gg__fourplet_flags[i];
+        candidate_location   = refers[i].field->data + refers[i].offset;
+        candidate_length     = refers[i].size;
+        candidate_attr       = refers[i].field->attr;
+        candidate_flags      = refers[i].flags;
 
         int compare_result =
           __gg__compare_2(
-            __gg__treeplet_1f[i],
+            refers[i].field,
             candidate_location,
             candidate_length,
             candidate_attr,
@@ -3255,14 +3250,14 @@ __gg__ord_min(cblc_field_t *dest,
         if( compare_result < 0 )
           {
           retval          = running_position;
-          best            = __gg__treeplet_1f[i];
+          best            = refers[i].field;
           best_location   = candidate_location;
           best_length     = candidate_length;
           best_attr       = candidate_attr;
           best_flags      = candidate_flags;
           }
         }
-      if( !update_refer_state_for_all(state, __gg__treeplet_1f[i]) )
+      if( !update_refer_state_for_all(state, refers[i].field) )
         {
         // There is nothing left to do for that input.
         break;
@@ -3281,7 +3276,8 @@ __gg__ord_min(cblc_field_t *dest,
 extern "C"
 void
 __gg__ord_max(cblc_field_t *dest,
-              size_t ninputs)
+              size_t ninputs,
+    const cblc_refer_t *refers)
   {
   // Sets dest to the one-based ordinal position of the first occurrence
   // of the biggest element in the list of refs[]
@@ -3304,7 +3300,7 @@ __gg__ord_max(cblc_field_t *dest,
     {
     refer_state_for_all state;
 
-    build_refer_state_for_all(state, __gg__treeplet_1f[i], __gg__fourplet_flags[i]);
+    build_refer_state_for_all(state, refers[i].field, refers[i].flags);
     for(;;)
       {
       running_position += 1;
@@ -3312,24 +3308,24 @@ __gg__ord_max(cblc_field_t *dest,
         {
         // We have to initialize the comparisons:
         retval          = running_position;
-        best            = __gg__treeplet_1f[i];
-        best_location   = __gg__treeplet_1f[i]->data + __gg__treeplet_1o[i];
-        best_length     = __gg__treeplet_1s[i];
-        best_attr       = __gg__treeplet_1f[i]->attr;
-        best_flags      = __gg__fourplet_flags[i];
+        best            = refers[i].field;
+        best_location   = refers[i].field->data + refers[i].offset;
+        best_length     = refers[i].size;
+        best_attr       = refers[i].field->attr;
+        best_flags      = refers[i].flags;
         }
       else
         {
         // We need to save the current adjustments, because __gg__compare
         // is free to modify .location
-        candidate_location   = __gg__treeplet_1f[i]->data + __gg__treeplet_1o[i];
-        candidate_length     = __gg__treeplet_1s[i];
-        candidate_attr       = __gg__treeplet_1f[i]->attr;
-        candidate_flags      = __gg__fourplet_flags[i];
+        candidate_location   = refers[i].field->data + refers[i].offset;
+        candidate_length     = refers[i].size;
+        candidate_attr       = refers[i].field->attr;
+        candidate_flags      = refers[i].flags;
 
         int compare_result =
           __gg__compare_2(
-            __gg__treeplet_1f[i],
+            refers[i].field,
             candidate_location,
             candidate_length,
             candidate_attr,
@@ -3343,14 +3339,14 @@ __gg__ord_max(cblc_field_t *dest,
         if( compare_result > 0 )
           {
           retval          = running_position;
-          best            = __gg__treeplet_1f[i];
+          best            = refers[i].field;
           best_location   = candidate_location;
           best_length     = candidate_length;
           best_attr       = candidate_attr;
           best_flags      = candidate_flags;
           }
         }
-      if( !update_refer_state_for_all(state, __gg__treeplet_1f[i]) )
+      if( !update_refer_state_for_all(state, refers[i].field) )
         {
         // There is nothing left to do for that input.
         break;
@@ -3383,7 +3379,8 @@ __gg__pi(cblc_field_t *dest)
 extern "C"
 void
 __gg__present_value(cblc_field_t *dest,
-                    size_t        ncount)
+                    size_t        ncount,
+              const cblc_refer_t *refers)
   {
   GCOB_FP128 discount = 0;;
   GCOB_FP128 denom = 1;
@@ -3393,15 +3390,15 @@ __gg__present_value(cblc_field_t *dest,
   for(size_t i=0; i<ncount; i++)
     {
     refer_state_for_all state;
-    build_refer_state_for_all(state, __gg__treeplet_1f[i], __gg__fourplet_flags[i]);
+    build_refer_state_for_all(state, refers[i].field, refers[i].flags);
     for(;;)
       {
       if(first_time)
         {
         first_time = false;
-        GCOB_FP128 arg1 = __gg__float128_from_qualified_field(__gg__treeplet_1f[i],
-                                                             __gg__treeplet_1o[i],
-                                                             __gg__treeplet_1s[i]);
+        GCOB_FP128 arg1 = __gg__float128_from_qualified_field(refers[i].field,
+                                                             refers[i].offset,
+                                                             refers[i].size);
         if( arg1 <= GCOB_FP128_LITERAL(-1.0) )
           {
           exception_raise(ec_argument_function_e);
@@ -3411,13 +3408,13 @@ __gg__present_value(cblc_field_t *dest,
         }
       else
         {
-        GCOB_FP128 arg = __gg__float128_from_qualified_field(__gg__treeplet_1f[i],
-                                                            __gg__treeplet_1o[i],
-                                                            __gg__treeplet_1s[i]);
+        GCOB_FP128 arg = __gg__float128_from_qualified_field(refers[i].field,
+                                                            refers[i].offset,
+                                                            refers[i].size);
         denom *= discount;
         retval += arg * denom;
         }
-      if( !update_refer_state_for_all(state, __gg__treeplet_1f[i]) )
+      if( !update_refer_state_for_all(state, refers[i].field) )
         {
         // There is nothing left to do for that input.
         break;
@@ -3433,7 +3430,8 @@ __gg__present_value(cblc_field_t *dest,
 extern "C"
 void
 __gg__range(cblc_field_t *dest,
-            size_t        ncount)
+            size_t        ncount,
+      const cblc_refer_t *refers)
   {
   // FUNCTION RANGE
   bool first_time = true;
@@ -3445,12 +3443,12 @@ __gg__range(cblc_field_t *dest,
   for(size_t i=0; i<ncount; i++)
     {
     refer_state_for_all state;
-    build_refer_state_for_all(state, __gg__treeplet_1f[i], __gg__fourplet_flags[i]);
+    build_refer_state_for_all(state, refers[i].field, refers[i].flags);
     for(;;)
       {
-      val = __gg__float128_from_qualified_field(__gg__treeplet_1f[i],
-                                                __gg__treeplet_1o[i],
-                                                __gg__treeplet_1s[i]);
+      val = __gg__float128_from_qualified_field(refers[i].field,
+                                                refers[i].offset,
+                                                refers[i].size);
       if( first_time )
         {
         first_time = false;
@@ -3459,7 +3457,7 @@ __gg__range(cblc_field_t *dest,
         }
       min = std::min(min, val);
       max = std::max(max, val);
-      if( !update_refer_state_for_all(state, __gg__treeplet_1f[i]) )
+      if( !update_refer_state_for_all(state, refers[i].field) )
         {
         // There is nothing left to do.
         break;
@@ -3803,14 +3801,12 @@ __gg__sqrt( cblc_field_t *dest,
 extern "C"
 void
 __gg__standard_deviation( cblc_field_t *dest,
-                          size_t        ninputs)
+                          size_t        ninputs,
+                    const cblc_refer_t *refers)
   {
   // FUNCTION STANDARD-DEVIATION
   GCOB_FP128 retval = variance(ninputs,
-                              __gg__treeplet_1f,
-                              __gg__treeplet_1o,
-                              __gg__treeplet_1s,
-                              __gg__fourplet_flags);
+                               refers);
   retval = FP128_FUNC(sqrt)(retval);
 
   __gg__float128_to_field(dest,
@@ -3822,15 +3818,13 @@ __gg__standard_deviation( cblc_field_t *dest,
 extern "C"
 void
 __gg__sum(cblc_field_t *dest,
-          size_t        ninputs)
+          size_t        ninputs,
+    const cblc_refer_t *refers)
   {
   // FUNCTION SUM
   size_t k_count;
   GCOB_FP128 sum = kahan_summation(ninputs,
-                                  __gg__treeplet_1f,
-                                  __gg__treeplet_1o,
-                                  __gg__treeplet_1s,
-                                  __gg__fourplet_flags,
+                                   refers,
                                   &k_count);
   __gg__float128_to_field(dest,
                           sum,
@@ -3951,14 +3945,12 @@ __gg__test_day_yyyyddd( cblc_field_t *dest,
 extern "C"
 void
 __gg__variance( cblc_field_t *dest,
-                size_t        ncount)
+              size_t ncount,
+        const cblc_refer_t *refers)
   {
   // FUNCTION VARIANCE
   GCOB_FP128 retval = variance(ncount,
-                              __gg__treeplet_1f,
-                              __gg__treeplet_1o,
-                              __gg__treeplet_1s,
-                              __gg__fourplet_flags);
+                               refers);
   __gg__float128_to_field(dest,
                           retval,
                           truncation_e,
@@ -5493,22 +5485,17 @@ strcaselaststr( const char *haystack,
 
 extern "C"
 void
-__gg__substitute( cblc_field_t *dest,
-            const cblc_field_t *arg1_f,
-                  size_t        arg1_o,
-                  size_t        arg1_s,
-                  size_t        N,
-            const uint8_t      *control)
+__gg__substitute( const cblc_referlet_t *arg2,
+                  const cblc_referlet_t *arg3,
+                        cblc_field_t    *dest,
+                  const cblc_field_t    *arg1_f,
+                        size_t           arg1_o,
+                        size_t           arg1_s,
+                        size_t           N,
+                  const uint8_t         *control)
   {
   // arg2 is the Group 1 triplet.
   // arg3 is the Group 2 triplet
-  cblc_field_t **arg2_f = __gg__treeplet_1f;
-  size_t        *arg2_o = __gg__treeplet_1o;
-  size_t        *arg2_s = __gg__treeplet_1s;
-  cblc_field_t **arg3_f = __gg__treeplet_2f;
-  const size_t  *arg3_o = __gg__treeplet_2o;
-  const size_t  *arg3_s = __gg__treeplet_2s;
-
   ssize_t retval_size;
   retval_size = 256;
   char  *retval = static_cast<char *>(malloc(retval_size));
@@ -5534,7 +5521,7 @@ __gg__substitute( cblc_field_t *dest,
 
   for( size_t i=0; i<N; i++ )
     {
-    if( arg2_s[i] == 0 )
+    if( arg2[i].size == 0 )
       {
       exception_raise(ec_argument_function_e);
       goto bugout;
@@ -5545,16 +5532,16 @@ __gg__substitute( cblc_field_t *dest,
         {
         pflasts[i] = strcasestr(haystack,
                                 haystack_e,
-                                PTRCAST(char, (arg2_f[i]->data+arg2_o[i])),
-                                PTRCAST(char, (arg2_f[i]->data+arg2_o[i])) + arg2_s[i],
+                                PTRCAST(char, (arg2[i].field->data+arg2[i].offset)),
+                                PTRCAST(char, (arg2[i].field->data+arg2[i].offset)) + arg2[i].size,
                                 is_ebcdic);
         }
       else if( control[i] & substitute_last_e)
         {
         pflasts[i] = strcaselaststr(haystack,
                                 haystack_e,
-                                PTRCAST(char, (arg2_f[i]->data+arg2_o[i])),
-                                PTRCAST(char, (arg2_f[i]->data+arg2_o[i])) + arg2_s[i],
+                                PTRCAST(char, (arg2[i].field->data+arg2[i].offset)),
+                                PTRCAST(char, (arg2[i].field->data+arg2[i].offset)) + arg2[i].size,
                                 is_ebcdic);
         }
       else
@@ -5568,15 +5555,15 @@ __gg__substitute( cblc_field_t *dest,
         {
         pflasts[i] = strstr(haystack,
                             haystack_e,
-                            PTRCAST(char, (arg2_f[i]->data+arg2_o[i])),
-                            PTRCAST(char, (arg2_f[i]->data+arg2_o[i])) + arg2_s[i]);
+                            PTRCAST(char, (arg2[i].field->data+arg2[i].offset)),
+                            PTRCAST(char, (arg2[i].field->data+arg2[i].offset)) + arg2[i].size);
         }
       else if( control[i] & substitute_last_e)
         {
         pflasts[i] = strlaststr(haystack,
                                 haystack_e,
-                                PTRCAST(char, (arg2_f[i]->data+arg2_o[i])),
-                                PTRCAST(char, (arg2_f[i]->data+arg2_o[i])) + arg2_s[i]);
+                                PTRCAST(char, (arg2[i].field->data+arg2[i].offset)),
+                                PTRCAST(char, (arg2[i].field->data+arg2[i].offset)) + arg2[i].size);
         }
       else
         {
@@ -5592,7 +5579,7 @@ __gg__substitute( cblc_field_t *dest,
       {
       // Let's make sure that there is enough room in the case that we add this
       // arg
-      while( outdex - (ssize_t)arg2_s[i] + (ssize_t)arg3_s[i]
+      while( outdex - (ssize_t)arg2[i].size + (ssize_t)arg3[i].size
                                                                  > retval_size )
         {
         retval_size *= 2;
@@ -5612,8 +5599,8 @@ __gg__substitute( cblc_field_t *dest,
           continue;
           }
 
-        const char *needle   = PTRCAST(char, arg2_f[i]->data+arg2_o[i]);
-        const char *needle_e = PTRCAST(char, arg2_f[i]->data+arg2_o[i]) + arg2_s[i];
+        const char *needle   = PTRCAST(char, arg2[i].field->data+arg2[i].offset);
+        const char *needle_e = PTRCAST(char, arg2[i].field->data+arg2[i].offset) + arg2[i].size;
         matched = (control[i] & substitute_anycase_e) && iscasematch(
                                                                  haystack,
                                                                  haystack_e,
@@ -5630,9 +5617,9 @@ __gg__substitute( cblc_field_t *dest,
         }
       if( matched )
         {
-        haystack += arg2_s[i];
-        memcpy(retval + outdex, arg3_f[i]->data + arg3_o[i], arg3_s[i]);
-        outdex += arg3_s[i];
+        haystack += arg2[i].size;
+        memcpy(retval + outdex, arg3[i].field->data + arg3[i].offset, arg3[i].size);
+        outdex += arg3[i].size;
         did_something = true;
         break;
         }

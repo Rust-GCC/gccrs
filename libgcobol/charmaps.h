@@ -536,7 +536,7 @@ class charmap_t
       switch(figconst)
         {
         case normal_value_e :
-          abort();
+          // Just leave it at zero
           break;
         case low_value_e    :
           const_char = low_value_character();

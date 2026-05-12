@@ -1591,7 +1591,9 @@ class log_expr_t {
       dbgmsg("%s:%d: logic error: %s is not a truth value",
                __func__, __LINE__, name_of(rhs));
     } else {
-      parser_logop( andable, andable, and_op, rhs );
+      auto cond = new_temporary(FldConditional);
+      parser_logop( cond, andable, and_op, rhs );
+      andable = cond;
     }
     return this;
   }
@@ -1604,7 +1606,9 @@ class log_expr_t {
     if( ! orable ) {
       orable = andable;
     } else {
-      parser_logop( orable, orable, or_op, andable );
+      auto cond = new_temporary(FldConditional);
+      parser_logop( cond, orable, or_op, andable );
+      orable = cond;
     }
     andable = rhs;
     return this;
@@ -1612,7 +1616,9 @@ class log_expr_t {
   cbl_field_t * resolve() {
     assert(andable);
     if( orable ) {
-      parser_logop( andable, orable, or_op, andable );
+      auto cond = new_temporary(FldConditional);
+      parser_logop( cond, orable, or_op, andable );
+      andable = cond;
       orable = NULL;
     }
     assert(!orable);
@@ -1620,6 +1626,19 @@ class log_expr_t {
   }
   bool unresolved() const {
     return orable != NULL;
+  }
+
+  const char * dbgstr() const {
+    static char msg[64 * 2 + 16];
+    int pos = 0;
+    if( andable ) {
+      pos = sprintf(msg, "%s", andable->name);
+      assert(0 < pos);
+    }
+    if( orable ) {
+      pos = sprintf(msg + pos, " or %s", orable->name);
+    }
+    return msg;
   }
 };
 

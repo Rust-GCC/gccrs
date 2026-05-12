@@ -410,4 +410,4 @@ yylex(void) {
 // tokens.h is generated as needed from parse.h with tokens.h.gen
 current_tokens_t::tokenset_t::tokenset_t() {
 #include "token_names.h"
-};
+}

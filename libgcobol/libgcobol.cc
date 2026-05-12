@@ -162,50 +162,6 @@ size_t      __gg__entry_index                 = 0    ;
 // Setting this variable to 'true' suppresses the error condition.
 static bool sv_suppress_eof_ec = false;
 
-// What follows are arrays that are used by features like INSPECT, STRING,
-// UNSTRING, and, particularly, arithmetic_operation.  These features are
-// characterized by having unknown, and essentially unlimited, numbers of
-// variables. Consider, for example, ADD A B C D ... TO L M N O ...
-
-// Although originally implemented with malloc/free, that's terribly inefficient
-// on its face; arithmetic is done frequently.  The next step was to malloc
-// buffers just once, and have them grow as needed, but that resulted in a lot
-// of code being laid down, because it meant checking each buffer size at
-// run-time, and laying down the code to be executed if the size was inadequate.
-//
-// The current solution is to make the pointers to the arrays of values global,
-// and initialize them with space for MIN_FIELD_BLOCK_SIZE values.  Thus, at
-// compile time, we can ignore all tests for fewer than MIN_FIELD_BLOCK_SIZE
-// (which is generally the case).  Only when N is greater than the MIN do we
-// have to check the current run-time size and, if necessary, expand the buffer
-// with realloc.
-size_t       __gg__arithmetic_rounds_size      = 0     ;
-int *        __gg__arithmetic_rounds           = NULL  ;
-
-size_t       __gg__fourplet_flags_size         = 0     ;
-int *        __gg__fourplet_flags              = NULL  ;
-
-static size_t         treeplet_1_size          = 0     ;
-cblc_field_t ** __gg__treeplet_1f              = NULL  ;
-size_t       *  __gg__treeplet_1o              = NULL  ;
-size_t       *  __gg__treeplet_1s              = NULL  ;
-
-static size_t         treeplet_2_size          = 0     ;
-cblc_field_t ** __gg__treeplet_2f              = NULL  ;
-size_t       *  __gg__treeplet_2o              = NULL  ;
-size_t       *  __gg__treeplet_2s              = NULL  ;
-
-static size_t         treeplet_3_size          = 0     ;
-cblc_field_t ** __gg__treeplet_3f              = NULL  ;
-size_t       *  __gg__treeplet_3o              = NULL  ;
-size_t       *  __gg__treeplet_3s              = NULL  ;
-
-static size_t         treeplet_4_size          = 0     ;
-cblc_field_t ** __gg__treeplet_4f              = NULL  ;
-size_t       *  __gg__treeplet_4o              = NULL  ;
-size_t       *  __gg__treeplet_4s              = NULL  ;
-
-
 // This value is increased every time PROCEDURE DIVISION is processed.  It is
 // used to keep track of local variables.
 size_t      __gg__unique_prog_id              = 0    ;
@@ -588,65 +544,6 @@ __gg__get_default_currency_string()
   return currency_signs(__gg__default_currency_sign).c_str();
   }
 
-extern "C"
-void
-__gg__resize_int_p( size_t *size,
-                    int    **block,
-                    size_t  new_size)
-  {
-  if( new_size > *size )
-    {
-    *size = new_size;
-    *block = static_cast<int *>(realloc(*block, new_size * sizeof(int)));
-    }
-  }
-
-extern "C"
-void
-__gg__resize_treeplet(int     ngroup,
-                      size_t  new_size)
-  {
-  switch( ngroup )
-    {
-    case 1:
-      if( new_size > treeplet_1_size )
-        {
-        treeplet_1_size = new_size;
-        __gg__treeplet_1f = static_cast<cblc_field_t **>(realloc(__gg__treeplet_1f, new_size * sizeof(cblc_field_t *)));
-        __gg__treeplet_1o = static_cast<size_t *>(realloc(__gg__treeplet_1o, new_size * sizeof(size_t)));
-        __gg__treeplet_1s = static_cast<size_t *>(realloc(__gg__treeplet_1s, new_size * sizeof(size_t)));
-        }
-    break;
-    case 2:
-      if( new_size > treeplet_2_size )
-        {
-        treeplet_2_size = new_size;
-        __gg__treeplet_2f = static_cast<cblc_field_t **>(realloc(__gg__treeplet_2f, new_size * sizeof(cblc_field_t *)));
-        __gg__treeplet_2o = static_cast<size_t *>(realloc(__gg__treeplet_2o, new_size * sizeof(size_t)));
-        __gg__treeplet_2s = static_cast<size_t *>(realloc(__gg__treeplet_2s, new_size * sizeof(size_t)));
-        }
-    break;
-    case 3:
-      if( new_size > treeplet_3_size )
-        {
-        treeplet_3_size = new_size;
-        __gg__treeplet_3f = static_cast<cblc_field_t **>(realloc(__gg__treeplet_3f, new_size * sizeof(cblc_field_t *)));
-        __gg__treeplet_3o = static_cast<size_t *>(realloc(__gg__treeplet_3o, new_size * sizeof(size_t)));
-        __gg__treeplet_3s = static_cast<size_t *>(realloc(__gg__treeplet_3s, new_size * sizeof(size_t)));
-        }
-    break;
-    case 4:
-      if( new_size > treeplet_4_size )
-        {
-        treeplet_4_size = new_size;
-        __gg__treeplet_4f = static_cast<cblc_field_t **>(realloc(__gg__treeplet_4f, new_size * sizeof(cblc_field_t *)));
-        __gg__treeplet_4o = static_cast<size_t *>(realloc(__gg__treeplet_4o, new_size * sizeof(size_t)));
-        __gg__treeplet_4s = static_cast<size_t *>(realloc(__gg__treeplet_4s, new_size * sizeof(size_t)));
-        }
-    break;
-    }
-  }
-
 static void
 initialize_program_state()
   {
@@ -654,20 +551,6 @@ initialize_program_state()
   program_state initial_value = {};
   program_states.push_back(initial_value);
   __gg__currency_signs = program_states.back().rt_currency_signs;
-
-  // This is where we initialize the various tables that have
-  // MIN_FIELD_BLOCK_SIZE elements:
-
-  __gg__resize_int_p(&__gg__arithmetic_rounds_size,
-                     &__gg__arithmetic_rounds,
-                      MIN_FIELD_BLOCK_SIZE );
-  __gg__resize_int_p(&__gg__fourplet_flags_size,
-                     &__gg__fourplet_flags,
-                      MIN_FIELD_BLOCK_SIZE );
-  __gg__resize_treeplet(1, MIN_FIELD_BLOCK_SIZE);
-  __gg__resize_treeplet(2, MIN_FIELD_BLOCK_SIZE);
-  __gg__resize_treeplet(3, MIN_FIELD_BLOCK_SIZE);
-  __gg__resize_treeplet(4, MIN_FIELD_BLOCK_SIZE);
   }
 
 extern "C"
@@ -3399,6 +3282,7 @@ format_for_display_internal(char **dest,
     case FldNumericBinary:
     case FldPacked:
     case FldNumericBin5:
+    case FldLiteralN:
       {
       int dummy;
       int digits;
@@ -3441,7 +3325,15 @@ format_for_display_internal(char **dest,
             digits = 19;
             break;
           case 16:
-            digits = MAX_FIXED_POINT_DIGITS;
+            // digits = MAX_FIXED_POINT_DIGITS;
+            /* This requires some context.  Although we generally operate on
+               the basis of MAX_FIXED_POINT_DIGITS (currently 37, which gives
+               one digit of headroom for rounding and such), a PIC X(16) COMP-X
+               provides for an honest 128-bits of binary value.  If that is set
+               to HIGH-VALUE, the decimal representation requires 39 decimal
+               digits.  So, we do that here so that the DISPLAY of that value
+               is accurate. */
+            digits = 39;
             break;
           default:
             warnx("%s(): %s has capacity %ld\n",
@@ -4010,9 +3902,9 @@ get_float128( const cblc_field_t *field,
   return retval;
   }
 
-static
+extern "C"
 int
-compare_field_class(const cblc_field_t  *conditional,
+__gg__compare_field_class(const cblc_field_t  *conditional,
                     unsigned char       *conditional_location,
                     int                  conditional_length,
                     cblc_field_t        *list)
@@ -4346,77 +4238,91 @@ interconvert( char **allocated_left,
   *allocated_left  = nullptr;
   *allocated_right = nullptr;
 
-  bool convert_left_to_right = false;
-  bool convert_right_to_left = false;
-
-  size_t converted_length;
-  const char *converted;
   if( *encoding_left == *encoding_right )
     {
     // This is both the most-seen situation, and, happily, the easiest to
     // handle.  We just do nothing.
     }
-  else if(   *encoding_left  == __gg__national_encoding
-          || *encoding_right == __gg__national_encoding )
-    {
-    // The encodings are different, but at least one is the national encoding.
-    // Convert the other one to be national as well:
-    if( *encoding_left != __gg__national_encoding )
-      {
-      convert_left_to_right = true;
-      }
-    else
-      {
-      convert_right_to_left = true;
-      }
-    }
   else
     {
-    // We have two different encodings, and neither of them are national.  This
-    // can happen when a file descriptor has a specific codeset that doesn't
-    // match the national codeset.  We will convert the narrower to the wider;
-    // if they are both the same width we will pick one arbitrarily.
+    bool convert_left_to_right = false;
+    bool convert_right_to_left = false;
+    size_t converted_length;
+    const char *converted;
+
+    // We are dealing with two different encodings
     const charmap_t *charmap_left  = __gg__get_charmap(*encoding_left);
     const charmap_t *charmap_right = __gg__get_charmap(*encoding_right);
-    if( charmap_right->stride() >= charmap_left->stride() )
+    if( charmap_left->stride() == charmap_right->stride() )
       {
-      convert_left_to_right = true;
+      // The strides are the same.  If one is display, convert the other to
+      // display.  If one is national, convert the other to national
+      if( *encoding_left  == __gg__display_encoding )
+        {
+        convert_right_to_left = true;
+        }
+      else if(*encoding_right  == __gg__display_encoding )
+        {
+        convert_left_to_right = true;
+        }
+      else if(*encoding_left  == __gg__national_encoding )
+        {
+        convert_right_to_left = true;
+        }
+      else if(*encoding_right  == __gg__national_encoding )
+        {
+        convert_left_to_right = true;
+        }
+      else
+        {
+        // The strides are the same, but we don't know anything about the
+        // encodings.  Toss a coin:
+        convert_right_to_left = true;
+        }
       }
     else
       {
-      convert_right_to_left = true;
+      // The two strides are different.  Convert the narrow to the wider:
+      if( charmap_left->stride() > charmap_right->stride() )
+        {
+        convert_right_to_left = true;
+        }
+      else
+        {
+        convert_left_to_right = true;
+        }
       }
-    }
 
-  if( convert_left_to_right )
-    {
-    // Convert the left side to the right encoding
-    converted = __gg__iconverter(*encoding_left,
-                                 *encoding_right,
-                                 *left_string,
-                                 *left_length,
-                                 &converted_length);
-    *encoding_left = *encoding_right ;
-    *allocated_left = static_cast<char *>(malloc(converted_length));
-    massert(*allocated_left);
-    *left_string = *allocated_left;
-    *left_length = converted_length;
-    memcpy(*left_string, converted, *left_length);
-    }
-  if( convert_right_to_left )
-    {
-    // Convert the right side to the left_encoding
-    converted = __gg__iconverter(*encoding_right,
-                                 *encoding_left,
-                                 *right_string,
-                                 *right_length,
-                                 &converted_length);
-    *encoding_right = *encoding_left ;
-    *allocated_right = static_cast<char *>(malloc(converted_length));
-    massert(*allocated_right);
-    *right_string = *allocated_right;
-    *right_length = converted_length;
-    memcpy(right_string, converted, *right_length);
+    if( convert_left_to_right )
+      {
+      // Convert the left side to the right encoding
+      converted = __gg__iconverter(*encoding_left,
+                                   *encoding_right,
+                                   *left_string,
+                                   *left_length,
+                                   &converted_length);
+      *encoding_left = *encoding_right ;
+      *allocated_left = static_cast<char *>(malloc(converted_length));
+      massert(*allocated_left);
+      *left_string = *allocated_left;
+      *left_length = converted_length;
+      memcpy(*left_string, converted, *left_length);
+      }
+    if( convert_right_to_left )
+      {
+      // Convert the right side to the left_encoding
+      converted = __gg__iconverter(*encoding_right,
+                                   *encoding_left,
+                                   *right_string,
+                                   *right_length,
+                                   &converted_length);
+      *encoding_right = *encoding_left ;
+      *allocated_right = static_cast<char *>(malloc(converted_length));
+      massert(*allocated_right);
+      *right_string = *allocated_right;
+      *right_length = converted_length;
+      memcpy(*right_string, converted, *right_length);
+      }
     }
   }
 
@@ -4544,7 +4450,7 @@ __gg__compare_2(cblc_field_t  *left_side,
 
   if( right_side->type == FldClass )
     {
-    return compare_field_class( left_side,
+    return __gg__compare_field_class( left_side,
                                 left_location,
                                 left_length,
                                 right_side);
@@ -6093,6 +5999,35 @@ __gg__move( cblc_field_t        *fdest,
 
               source_size   = fsource->digits;
 
+              // We have to deal with the special case of moving a pure binary
+              // value to an alphanumeric, which starts with a source_size
+              // of zero.
+              if( source_size == 0 )
+                {
+                switch(fsource->capacity)
+                  {
+                  case 1:
+                    source_size = 3;
+                    break;
+                  case 2:
+                    source_size = 5;
+                    break;
+                  case 3:
+                  case 4:
+                    source_size = 10;
+                    break;
+                  case 5:
+                  case 6:
+                  case 7:
+                  case 8:
+                    source_size = 20;
+                    break;
+                  default:
+                    source_size = 39;
+                    break;
+                  }
+                }
+
               // Turn the integer value into a string:
               __gg__binary_to_string_encoded(ach,
                                              source_size,
@@ -6109,7 +6044,7 @@ __gg__move( cblc_field_t        *fdest,
               // Specifically, we'll move pach to point to the first
               // character that isn't zero.
 
-              if( fsource->attr & intermediate_e )
+              if( fsource->attr & intermediate_e || fsource->digits == 0)
                 {
                 while(source_size > 1)  // This ensures we leave one '0'
                   {
@@ -7363,7 +7298,7 @@ normalize_for_inspect_format_4(const cblc_field_t  *var,
 
 extern "C"
 int
-__gg__string(const size_t integers[])
+__gg__string(const size_t integers[], const cblc_referlet_t *ref)
   {
   // The first integer is the count of identifier-2 values.  Call it N
   // The following N integers are the counts of each of the identifier-1 values,
@@ -7376,16 +7311,12 @@ __gg__string(const size_t integers[])
   // That's followed by identifier2 for N2
   // And so on
 
-  cblc_field_t **ref   = __gg__treeplet_1f;
-  const size_t  *ref_o = __gg__treeplet_1o;
-  const size_t  *ref_s = __gg__treeplet_1s;
-
   static const int INDEX_OF_POINTER = 1;
 
   size_t index_cblc = 0 ;
 
   // Pick up the target
-  const cblc_field_t *tgt = ref[index_cblc];
+  const cblc_field_t *tgt = ref[index_cblc].field;
 
   // Pick up the target encoding, which according to the ISO specification
   // controls all the parameters.
@@ -7394,8 +7325,8 @@ __gg__string(const size_t integers[])
   int stride = charmap->stride();
 
   // Pick up the rest of the parameters
-  size_t tgt_o              = ref_o[index_cblc];
-  size_t tgt_s              = ref_s[index_cblc];
+  size_t tgt_o = ref[index_cblc].offset;
+  size_t tgt_s = ref[index_cblc].size;
   index_cblc += 1;
 
   char  *dest         = reinterpret_cast<char *>(tgt->data + tgt_o);
@@ -7407,14 +7338,14 @@ __gg__string(const size_t integers[])
   // Pick up the pointer, if any
   size_t pointer = 0;
   int overflow = 0;
-  if( ref[INDEX_OF_POINTER] )
+  if( ref[INDEX_OF_POINTER].field )
     {
     int rdigits;
     int p  = (size_t)__gg__binary_value_from_qualified_field(
                                                     &rdigits,
-                                                    ref  [INDEX_OF_POINTER],
-                                                    ref_o[INDEX_OF_POINTER],
-                                                    ref_s[INDEX_OF_POINTER]
+                                                    ref[INDEX_OF_POINTER].field,
+                                                    ref[INDEX_OF_POINTER].offset,
+                                                    ref[INDEX_OF_POINTER].size
                                                     );
     if( p<0 )
       {
@@ -7441,9 +7372,9 @@ __gg__string(const size_t integers[])
 
       // Pick up the identifier_2 DELIMITED BY value
       std::u32string str_id2 = normalize_for_inspect_format_4(
-                                                        ref[index_cblc],
-                                                        ref_o[index_cblc],
-                                                        ref_s[index_cblc],
+                                                        ref[index_cblc].field,
+                                                        ref[index_cblc].offset,
+                                                        ref[index_cblc].size,
                                                         tgt_encoding);
       index_cblc += 1;
 
@@ -7451,9 +7382,9 @@ __gg__string(const size_t integers[])
         {
         // Pick up the next id-1 source string for the current id-2 delimiter
         std::u32string str_id1 = normalize_for_inspect_format_4(
-                                                        ref[index_cblc],
-                                                        ref_o[index_cblc],
-                                                        ref_s[index_cblc],
+                                                        ref[index_cblc].field,
+                                                        ref[index_cblc].offset,
+                                                        ref[index_cblc].size,
                                                         tgt_encoding);
         index_cblc += 1;
 
@@ -7507,11 +7438,11 @@ __gg__string(const size_t integers[])
       }
 
     // Update the pointer, if there is one
-    if( ref[INDEX_OF_POINTER] )
+    if( ref[INDEX_OF_POINTER].field )
       {
-      __gg__int128_to_qualified_field(ref  [INDEX_OF_POINTER],
-                                      ref_o[INDEX_OF_POINTER],
-                                      ref_s[INDEX_OF_POINTER],
+      __gg__int128_to_qualified_field(ref[INDEX_OF_POINTER].field,
+                                      ref[INDEX_OF_POINTER].offset,
+                                      ref[INDEX_OF_POINTER].size,
                                       (__int128)(pointer+1),
                                       0,
                                       truncation_e,
@@ -7538,6 +7469,12 @@ display_both(cblc_field_t  *field,
   {
   static size_t display_string_size = MINIMUM_ALLOCATION_SIZE;
   static char *display_string = static_cast<char *>(malloc(display_string_size));
+
+  if( field->type == FldLiteralA && field->encoding == custom_encoding_e )
+    {
+    field->encoding = DEFAULT_SOURCE_ENCODING;
+    }
+
 
   cbl_encoding_t encoding = format_for_display_internal(
                                             &display_string,
@@ -9399,37 +9336,11 @@ __gg__assign_value_from_stack(cblc_field_t *dest, __int128 parameter)
 
 extern "C"
 int
-__gg__literaln_alpha_compare(      char         *left_side,
-                             const cblc_field_t *right,
-                             size_t              offset,
-                             size_t              length,
-                             int                 flags)
-  {
-  int retval;
-  if( length == 0 )
-    {
-    length = right->capacity;
-    }
-
-  cbl_encoding_t right_encoding = right->encoding;
-  if( right->attr & hex_encoded_e )
-    {
-    right_encoding = iconv_CP1252_e;
-    }
-  retval = compare_strings(   left_side,
-                              strlen(left_side),
-                              false,
-                              reinterpret_cast<char *>((right->data + offset)),
-                              length,
-                              !!(flags & REFER_T_MOVE_ALL),
-                              right_encoding,
-                              right_encoding);
-  return retval;
-  }
-
-extern "C"
-int
-__gg__unstring( const cblc_field_t *id1,        // The string being unstring
+__gg__unstring( const cblc_referlet_t *id2,
+                const cblc_referlet_t *id4,
+                const cblc_referlet_t *id5,
+                const cblc_referlet_t *id6,
+                const cblc_field_t *id1,        // The string being unstring
                 size_t              id1_o,
                 size_t              id1_s,
                 size_t ndelimiteds,       // The number of DELIMITED entries
@@ -9451,23 +9362,6 @@ __gg__unstring( const cblc_field_t *id1,        // The string being unstring
   // For each delimiter, there is an identifier-4 receiver that must be
   // resolved.  Each might have an identifier-5 delimiter, and each might have
   // an identifier-6 count.
-
-  // The delimiting strings; one per ndelimiteds
-  cblc_field_t **id2         = __gg__treeplet_1f;
-  const size_t        *id2_o = __gg__treeplet_1o;
-  const size_t        *id2_s = __gg__treeplet_1s;
-  // The delimited string; one per nreceiver
-  cblc_field_t **id4         = __gg__treeplet_2f;
-  const size_t        *id4_o = __gg__treeplet_2o;
-  const size_t        *id4_s = __gg__treeplet_2s;
-  // The delimiting string; one per receiver
-  cblc_field_t **id5         = __gg__treeplet_3f;
-  const size_t        *id5_o = __gg__treeplet_3o;
-  const size_t        *id5_s = __gg__treeplet_3s;
-  // The count of characters examined;  one per receiver
-  cblc_field_t **id6         = __gg__treeplet_4f;
-  const size_t        *id6_o = __gg__treeplet_4o;
-  const size_t        *id6_s = __gg__treeplet_4s;
 
   // Initialize the state variables
   int overflow = 0;
@@ -9546,12 +9440,12 @@ __gg__unstring( const cblc_field_t *id1,        // The string being unstring
         break;
         }
       // We will peel off enough characters to fit the receiving id4:
-      size_t id_4_size = id4_s[receiver]/stride_id1;
-      if( id4[receiver]->attr & separate_e )
+      size_t id_4_size = id4[receiver].size/stride_id1;
+      if( id4[receiver].field->attr & separate_e )
         {
         // The receiver is NumericDisplay with a separate sign, so, as per
         // the spec, we reduce the size by one character.
-        id_4_size = id4_s[receiver] - 1;
+        id_4_size = id4[receiver].size - 1;
         }
 
       // Make sure id_4_size doesn't take us past the end of the universe
@@ -9569,9 +9463,9 @@ __gg__unstring( const cblc_field_t *id1,        // The string being unstring
                                                &bytes_converted );
       char *duped = static_cast<char *>(__gg__memdup(converted, bytes_converted));
       // Put the converted string into place:
-      __gg__field_from_string(id4[receiver],
-                        id4_o[receiver],
-                        id4_s[receiver],
+      __gg__field_from_string(id4[receiver].field,
+                        id4[receiver].offset,
+                        id4[receiver].size,
                         duped,
                         bytes_converted);
       free(duped);
@@ -9589,9 +9483,9 @@ __gg__unstring( const cblc_field_t *id1,        // The string being unstring
   for( size_t i=0; i<ndelimiteds; i++ )
     {
     std::u32string delimiter
-        = normalize_for_inspect_format_4(id2[i],
-                                         id2_o[i],
-                                         id2_s[i],
+        = normalize_for_inspect_format_4(id2[i].field,
+                                         id2[i].offset,
+                                         id2[i].size,
                                          id1->encoding);
     delimiters.push_back(delimiter);
     }
@@ -9667,9 +9561,9 @@ __gg__unstring( const cblc_field_t *id1,        // The string being unstring
                            &bytes_converted );
     char *duped = static_cast<char *>(__gg__memdup(converted, bytes_converted));
     // Put the converted string into place:
-    __gg__field_from_string(id4[nreceiver],
-                      id4_o[nreceiver],
-                      id4_s[nreceiver],
+    __gg__field_from_string(id4[nreceiver].field,
+                      id4[nreceiver].offset,
+                      id4[nreceiver].size,
                       duped,
                       bytes_converted);
     free(duped);
@@ -9677,7 +9571,7 @@ __gg__unstring( const cblc_field_t *id1,        // The string being unstring
     left = best_location + (best_delimiter > -1
                             ? delimiters[best_delimiter].size()
                             : 0) ;
-    if( id5[nreceiver] )
+    if( id5[nreceiver].field )
       {
       // The caller wants to know what the delimiter was:
       if( best_delimiter > -1 )
@@ -9689,9 +9583,9 @@ __gg__unstring( const cblc_field_t *id1,        // The string being unstring
                              delimiters[best_delimiter].size()*width_of_utf32,
                              &bytes_converted );
         duped = static_cast<char *>(__gg__memdup(converted, bytes_converted));
-        __gg__field_from_string(id5[nreceiver],
-                          id5_o[nreceiver],
-                          id5_s[nreceiver],
+        __gg__field_from_string(id5[nreceiver].field,
+                          id5[nreceiver].offset,
+                          id5[nreceiver].size,
                           duped,
                           bytes_converted);
         free(duped);
@@ -9699,19 +9593,19 @@ __gg__unstring( const cblc_field_t *id1,        // The string being unstring
       else
         {
         // We didn't find a delimiter
-        __gg__field_from_string(id5[nreceiver],
-                          id5_o[nreceiver],
-                          id5_s[nreceiver],
+        __gg__field_from_string(id5[nreceiver].field,
+                          id5[nreceiver].offset,
+                          id5[nreceiver].size,
                           "",
                           0);
         }
       }
 
-    if( id6[nreceiver] )
+    if( id6[nreceiver].field )
       {
-      __gg__int128_to_qualified_field(id6[nreceiver],
-                                      id6_o[nreceiver],
-                                      id6_s[nreceiver],
+      __gg__int128_to_qualified_field(id6[nreceiver].field,
+                                      id6[nreceiver].offset,
+                                      id6[nreceiver].size,
                                       (__int128)examined,
                                       0,
                                       truncation_e,
@@ -11019,15 +10913,26 @@ __gg__just_mangle_name( const cblc_field_t  *field,
   static char ach_unmangled[1024];
   static char ach_mangled[1024];
 
+
   assert(field);
   assert(field->data);
 
   size_t         length;
   length = field->capacity;
 
+  cbl_encoding_t encoding = field->encoding;
+  if( field->type == FldLiteralA )
+    {
+    // This is a little complicated.  FldLiteralA means somebody said
+    // CALL "LiteralName"m and we know that such things are in the
+    // display_encoding.  The parser assumes this, and so it doesn't set the
+    // encoding in the field, although it probably should.
+    encoding = DEFAULT_SOURCE_ENCODING;
+    }
+
   // We need ach_name to be in ASCII:
   size_t charsout;
-  const char *converted = __gg__iconverter(field->encoding,
+  const char *converted = __gg__iconverter(encoding,
                                            __gg__console_encoding,
                                            PTRCAST(char, field->data),
                                            length,
@@ -12254,7 +12159,7 @@ __gg__convert(cblc_field_t *dest,
               int           /*source_format*/,
               int           dest_format)
   {
-  /* convert formulations: 
+  /* convert formulations:
    *  1. ANY to ALNUM HEX, or NAT HEX
    *  2. HEX to BYTE
    *  3. ALNUM to NAT, ALNUM HEX, or NAT HEX
@@ -12267,18 +12172,18 @@ __gg__convert(cblc_field_t *dest,
    *convert_any_e        = 0x03, // i.e., both
    *convert_byte_e       = 0x04,
    *convert_hex_e        = 0x08, // may be combined with alpha or national
-   *convert_just_bit_e   = 0x10, 
+   *convert_just_bit_e   = 0x10,
    *convert_just_e       = 0x18, // combined with HEX
-   *convert_rjust_bit_e  = 0x20, 
+   *convert_rjust_bit_e  = 0x20,
    *convert_rjust_e      = 0x38, // combined with JUSTIFY
    */
-  cbl_encoding_t tgt_enc = (dest_format & convert_nat_e) 
+  cbl_encoding_t tgt_enc = (dest_format & convert_nat_e)
                          ? __gg__national_encoding
                          : __gg__display_encoding;
   const charmap_t *charmap_tgt = __gg__get_charmap(tgt_enc);
 
   charmap_t *charmap_dest = __gg__get_charmap(dest->encoding);
-  
+
   if( dest_format & convert_hex_e )
     {
     size_t nbytes;
@@ -12369,6 +12274,14 @@ __gg__convert(cblc_field_t *dest,
     }
   }
 
+/*
+   gg_printf("Message: \n", NULL_TREE);
+   gg_call(VOID,
+          "__gg__show_int128",
+          value,
+          NULL_TREE);
+   gg_printf("\n", NULL_TREE);
+*/
 
 extern "C"
 __int128
@@ -12395,10 +12308,698 @@ __gg__look_at_pointer(void *ptr)
 
 extern "C"
 void
-__gg__set_data_member(cblc_field_t *field, unsigned char *data)
+__gg__show_int128(__int128 val)
   {
-  // This function is used to hide the initialization of the ->data member
-  // from the compiler.  This avoids the bug that causes n-squared time in the
-  // middle end for a -O0 compiler when doing a -fpie compilation.
-  field->data = data;
+  if( val < 0 )
+    {
+    fprintf(stderr, "-");
+    val = -val;
+    }
+  char ach[128];
+  if(val == 0)
+    {
+    fprintf(stderr, "0");
+    return;
+    }
+  int index = 0;
+  while(val)
+    {
+    ach[index++] = '0' + val % 10;
+    val /= 10;
+    }
+  ach[index++] = '\0';
+  while( index > 0 )
+    {
+    fprintf(stderr, "%c", ach[--index]);
+    }
   }
+
+extern "C"
+void
+__gg__compare_string_all(int            *result,
+                   const unsigned char  *left,
+                         size_t          length_left,
+                         int             stride,
+                   const unsigned char  *right,
+                         size_t          length_right)
+  {
+  // "all" in the name is in the confusing COBOL sense, as in VALUE ALL "A".
+
+  // We are comparing the left data to the right data, where the right
+  // data is repeated as necessary to match the length of the left.
+
+  /* There are unanswered questions about display, versus national, and
+     how to handle different user-defined alphabets for display and national
+     and so on.  So, for now if the stride is one, we use the display
+     alphabet. */
+
+  *result = 0;
+  size_t index = 0;
+  if( stride == 1 )
+    {
+    while( index < length_left )
+      {
+      unsigned char ch_l = collated(left[index]);
+      unsigned char ch_r = collated(right[index % length_right]);
+
+      if( ch_l != ch_r )
+        {
+        *result =  ch_l < ch_r ? -1 : +1 ;
+        break;
+        }
+      index += 1;
+      }
+    }
+  else if ( stride == 2 )
+    {
+    length_left /= 2;
+    length_right /= 2;
+    const unsigned short *l = reinterpret_cast<const unsigned short *>(left);
+    const unsigned short *r = reinterpret_cast<const unsigned short *>(right);
+    while( index < length_left )
+     {
+      unsigned short ch_l = l[index];
+      unsigned short ch_r = r[index % length_right];
+      if( ch_l != ch_r )
+        {
+        *result =  ch_l < ch_r ? -1 : +1 ;
+        break;
+        }
+      index += 1;
+      }
+    }
+  else
+    {
+    length_left /= 4;
+    length_right /= 4;
+    const unsigned long *l = reinterpret_cast<const unsigned long *>(left);
+    const unsigned long *r = reinterpret_cast<const unsigned long *>(right);
+    while( index < length_left )
+      {
+      unsigned long ch_l = l[index];
+      unsigned long ch_r = r[index % length_right];
+      if( ch_l != ch_r )
+        {
+        *result =  ch_l < ch_r ? -1 : +1 ;
+        break;
+        }
+      index += 1;
+      }
+    }
+  }
+
+extern "C"
+void
+__gg__compare_string_1( int            *result,
+                  const unsigned char  *left,
+                        size_t          length_left,
+                  const unsigned char  *right,
+                        size_t          length_right,
+                        cbl_char_t      char_space_)
+  {
+  // This is the the routine that will probably do all of the real-world work,
+  // the following routines not withstanding.  It does single-byte comparisons
+  // through the collation table.
+  *result = 0;
+  unsigned char char_space = char_space_;
+
+  size_t length = std::min(length_left, length_right);
+  size_t index = 0;
+  while( index < length )
+    {
+    unsigned char ch_l = collated(left[index]);
+    unsigned char ch_r = collated(right[index]);
+    if( ch_l != ch_r )
+      {
+      *result =  ch_l < ch_r ? -1 : +1 ;
+      goto done;
+      }
+    index += 1;
+    }
+  if( *result == 0 )
+    {
+    while( index < length_left )
+      {
+      unsigned char ch_l = collated(left[index]);
+      if( ch_l != char_space )
+        {
+        *result =  ch_l < char_space ? -1 : +1 ;
+        goto done;
+        }
+      index += 1;
+      }
+    while( index < length_right )
+      {
+      unsigned char ch_r = collated(right[index]);
+      if( char_space != ch_r )
+        {
+        *result =  char_space < ch_r ? -1 : +1 ;
+        goto done;
+        }
+      index += 1;
+      }
+    }
+  done:
+  return;
+  }
+
+#define ASCII_16 "                "
+#define ASCII_64    ASCII_16  ASCII_16  ASCII_16  ASCII_16
+#define ASCII_256   ASCII_64  ASCII_64  ASCII_64  ASCII_64
+#define ASCII_1024  ASCII_256 ASCII_256 ASCII_256 ASCII_256
+
+#define EBCDIC_16 "@@@@@@@@@@@@@@@@"
+#define EBCDIC_64    EBCDIC_16  EBCDIC_16  EBCDIC_16  EBCDIC_16
+#define EBCDIC_256   EBCDIC_64  EBCDIC_64  EBCDIC_64  EBCDIC_64
+#define EBCDIC_1024  EBCDIC_256 EBCDIC_256 EBCDIC_256 EBCDIC_256
+
+static const unsigned char  ascii_1024[1025] =  ASCII_1024;
+static const unsigned char ebcdic_1024[1025] = EBCDIC_1024;
+
+extern "C"
+void
+__gg__compare_string_1a( int            *result,
+                   const unsigned char  *left,
+                         size_t          length_left,
+                   const unsigned char  *right,
+                         size_t          length_right,
+                         cbl_char_t      )
+  {
+  // This is the rarely-seen, but simplest routine of all, comparing
+  // single-byte ASCII characters in the same encoding without fear or favor.
+  *result = 0;
+
+  size_t length = std::min(length_left, length_right);
+  *result = memcmp(left, right, length);
+  if( *result == 0 )
+    {
+    if( length < length_left ) // Right is shorter than Left
+      {
+      // We need to compare the trailing characters of left to inferred spaces
+      // on the right.
+      left += length;
+      length_left -= length;
+      while( length_left )
+        {
+        size_t this_time = std::min(1024UL, length_left);
+        *result = memcmp(left, ascii_1024, this_time);
+        if( *result )
+          {
+          break;
+          }
+        left += this_time;
+        length_left -= this_time;
+        }
+      }
+    else if( length < length_right ) // Left is shorter than Right
+      {
+      // We need to compare the trailing characters of left to inferred spaces
+      // on the right.
+      right += length;
+      length_right -= length;
+      while( length_right )
+        {
+        size_t this_time = std::min(1024UL, length_right);
+        *result = memcmp(ascii_1024, right, this_time);
+        if( *result )
+          {
+          break;
+          }
+        right += this_time;
+        length_right -= this_time;
+        }
+      }
+    }
+  return;
+  }
+
+extern "C"
+void
+__gg__compare_string_1e( int            *result,
+                   const unsigned char  *left,
+                         size_t          length_left,
+                   const unsigned char  *right,
+                         size_t          length_right,
+                         cbl_char_t      )
+  {
+  // This is the rarely-seen, but simplest routine of all, comparing
+  // single-byte EBCDIC characters in the same encoding without fear or favor.
+  *result = 0;
+
+  size_t length = std::min(length_left, length_right);
+  *result = memcmp(left, right, length);
+  if( *result == 0 )
+    {
+    if( length < length_left ) // Right is shorter than Left
+      {
+      // We need to compare the trailing characters of left to inferred spaces
+      // on the right.
+      left += length;
+      length_left -= length;
+      while( length_left )
+        {
+        size_t this_time = std::min(1024UL, length_left);
+        *result = memcmp(left, ebcdic_1024, this_time);
+        if( *result )
+          {
+          break;
+          }
+        left += this_time;
+        length_left -= this_time;
+        }
+      }
+    else if( length < length_right ) // Left is shorter than Right
+      {
+      // We need to compare the trailing characters of left to inferred spaces
+      // on the right.
+      right += length;
+      length_right -= length;
+      while( length_right )
+        {
+        size_t this_time = std::min(1024UL, length_right);
+        *result = memcmp(ebcdic_1024, right, this_time);
+        if( *result )
+          {
+          break;
+          }
+        right += this_time;
+        length_right -= this_time;
+        }
+      }
+    }
+  return;
+  }
+
+extern "C"
+void
+__gg__compare_string_2( int            *result,
+                   const unsigned short  *left,
+                         size_t          length_left,
+                   const unsigned short  *right,
+                         size_t          length_right,
+                         cbl_char_t      char_space_)
+  {
+  // This compares USHORT character strings:
+  *result = 0;
+  unsigned short char_space = char_space_;
+
+  length_left  /= 2;
+  length_right /= 2;
+  size_t length = std::min(length_left, length_right);
+  size_t index = 0;
+  while( index < length )
+    {
+    unsigned short ch_l = collated(left[index]);
+    unsigned short ch_r = collated(right[index]);
+    if( ch_l != ch_r )
+      {
+      *result =  ch_l < ch_r ? -1 : +1 ;
+      goto done;
+      }
+    index += 1;
+    }
+  if( *result == 0 )
+    {
+    while( index < length_left )
+      {
+      unsigned short ch_l = collated(left[index]);
+      if( ch_l != char_space )
+        {
+        *result =  ch_l < char_space ? -1 : +1 ;
+        goto done;
+        }
+      index += 1;
+      }
+    while( index < length_right )
+      {
+      unsigned short ch_r = collated(right[index]);
+      if( char_space != ch_r )
+        {
+        *result =  char_space < ch_r ? -1 : +1 ;
+        goto done;
+        }
+      index += 1;
+      }
+    }
+  done:
+  return;
+  }
+
+extern "C"
+void
+__gg__compare_string_2a( int            *result,
+                   const unsigned short  *left,
+                         size_t          length_left,
+                   const unsigned short  *right,
+                         size_t          length_right,
+                         cbl_char_t      char_space_)
+  {
+  // This compares USHORT character strings:
+  *result = 0;
+  unsigned short char_space = char_space_;
+
+  length_left  /= 2;
+  length_right /= 2;
+  size_t length = std::min(length_left, length_right);
+  size_t index = 0;
+  while( index < length )
+    {
+    unsigned short ch_l = left[index];
+    unsigned short ch_r = right[index];
+    if( ch_l != ch_r )
+      {
+      *result =  ch_l < ch_r ? -1 : +1 ;
+      goto done;
+      }
+    index += 1;
+    }
+  if( *result == 0 )
+    {
+    while( index < length_left )
+      {
+      unsigned short ch_l = left[index];
+      if( ch_l != char_space )
+        {
+        *result =  ch_l < char_space ? -1 : +1 ;
+        goto done;
+        }
+      index += 1;
+      }
+    while( index < length_right )
+      {
+      unsigned short ch_r = right[index];
+      if( char_space != ch_r )
+        {
+        *result =  char_space < ch_r ? -1 : +1 ;
+        goto done;
+        }
+      index += 1;
+      }
+    }
+  done:
+  return;
+  }
+
+extern "C"
+void
+__gg__compare_string_4( int             *result,
+                   const unsigned long  *left,
+                         size_t          length_left,
+                   const unsigned long  *right,
+                         size_t          length_right,
+                         cbl_char_t      char_space_)
+  {
+  // This compares ULONG character strings:
+  *result = 0;
+  unsigned long char_space = char_space_;
+
+  length_left  /= 4;
+  length_right /= 4;
+  size_t length = std::min(length_left, length_right);
+  size_t index = 0;
+  while( index < length )
+    {
+    unsigned long ch_l = collated(left[index]);
+    unsigned long ch_r = collated(right[index]);
+    if( ch_l != ch_r )
+      {
+      *result =  ch_l < ch_r ? -1 : +1 ;
+      goto done;
+      }
+    index += 1;
+    }
+  if( *result == 0 )
+    {
+    while( index < length_left )
+      {
+      unsigned long ch_l = collated(left[index]);
+      if( ch_l != char_space )
+        {
+        *result =  ch_l < char_space ? -1 : +1 ;
+        goto done;
+        }
+      index += 1;
+      }
+    while( index < length_right )
+      {
+      unsigned long ch_r = collated(right[index]);
+      if( char_space != ch_r )
+        {
+        *result =  char_space < ch_r ? -1 : +1 ;
+        goto done;
+        }
+      index += 1;
+      }
+    }
+  done:
+  return;
+  }
+
+extern "C"
+void
+__gg__compare_string_4a( int             *result,
+                   const unsigned long  *left,
+                         size_t          length_left,
+                   const unsigned long  *right,
+                         size_t          length_right,
+                         cbl_char_t      char_space_)
+  {
+  // This compares ULONG character strings:
+  *result = 0;
+  unsigned long char_space = char_space_;
+
+  length_left  /= 4;
+  length_right /= 4;
+  size_t length = std::min(length_left, length_right);
+  size_t index = 0;
+  while( index < length )
+    {
+    unsigned long ch_l = left[index];
+    unsigned long ch_r = right[index];
+    if( ch_l != ch_r )
+      {
+      *result =  ch_l < ch_r ? -1 : +1 ;
+      goto done;
+      }
+    index += 1;
+    }
+  if( *result == 0 )
+    {
+    while( index < length_left )
+      {
+      unsigned long ch_l = left[index];
+      if( ch_l != char_space )
+        {
+        *result =  ch_l < char_space ? -1 : +1 ;
+        goto done;
+        }
+      index += 1;
+      }
+    while( index < length_right )
+      {
+      unsigned long ch_r = right[index];
+      if( char_space != ch_r )
+        {
+        *result =  char_space < ch_r ? -1 : +1 ;
+        goto done;
+        }
+      index += 1;
+      }
+    }
+  done:
+  return;
+  }
+
+extern "C"
+void
+__gg_compare_string_different(int            *result,
+                        const unsigned char  *left,
+                              size_t          length_left,
+                              cbl_encoding_t  encoding_left,
+                        const unsigned char  *right,
+                              size_t          length_right,
+                              cbl_encoding_t  encoding_right)
+  {
+  /*  This routine converts the right string to the left encoding, and then
+      compares the results.  In the case where the left side is the
+      __gg__display_encoding, the `collated` table is used. */
+  charmap_t *charmap = __gg__get_charmap(encoding_left);
+  int stride = charmap->stride();
+  cbl_char_t space = charmap->mapped_character(ascii_space);
+  size_t nbytes;
+  const unsigned char *converted = reinterpret_cast<unsigned char *>(
+                                    __gg__iconverter(encoding_right,
+                                                     encoding_left,
+                                                     right,
+                                                     length_right,
+                                                     &nbytes));
+  switch(stride)
+    {
+    case 1:
+      {
+      __gg__compare_string_1a( result,
+                               left,
+                               length_left,
+                               converted,
+                               nbytes,
+                               space);
+      break;
+      }
+
+    case 2:
+      {
+      __gg__compare_string_2(result,
+                             reinterpret_cast<const unsigned short *>(left),
+                             length_left,
+                             reinterpret_cast<const unsigned short *>(converted),
+                             nbytes,
+                             space);
+      break;
+      }
+
+    case 4:
+      {
+      __gg__compare_string_4(result,
+                             reinterpret_cast<const unsigned long *>(left),
+                             length_left,
+                             reinterpret_cast<const unsigned long *>(converted),
+                             nbytes,
+                             space);
+      break;
+      }
+    }
+  return;
+  }
+
+extern "C"
+void
+__gg__compare_numeric_all(int *result,
+                          __int128 value,
+                          size_t digits,
+                          const unsigned char *string,
+                          size_t length,
+                          cbl_encoding_t encoding )
+  {
+  char ach[128];
+  unsigned char *pach = reinterpret_cast<unsigned char *>(ach);
+  if( digits == 0 )
+    {
+    // Go for maximum length:
+    __gg__binary_to_string_ascii(ach, 38, value);
+    // Find the first non-zero digit:
+    while(digits > 1)
+      {
+      if( *pach != ascii_zero )
+        {
+        break;
+        }
+      digits -= 1;
+      pach += 1;
+      }
+    }
+  else
+    {
+    __gg__binary_to_string_ascii(ach, digits, value);
+    }
+
+  // we need to convert the ascii numeric string to the same encoding as the
+  // string:
+  const charmap_t *charmap = __gg__get_charmap(encoding);
+  size_t nbytes;
+  const char *converted = __gg__iconverter( DEFAULT_SOURCE_ENCODING,
+                                            encoding ,
+                                            ach,
+                                            digits,
+                                            &nbytes);
+  *result = 0;
+  for(size_t i=0; i<digits; i++)
+    {
+    cbl_char_t chl = charmap->getch(converted, i);
+    cbl_char_t chr = charmap->getch(string, i % length);
+
+    chl = collated(chl);
+    chr = collated(chr);
+    if( chl > chr )
+      {
+      *result = 1;
+      break;
+      }
+    else if( chl < chr )
+      {
+      *result = -1;
+      break;
+      }
+    }
+  return;
+  }
+
+extern "C"
+void
+__gg__compare_binary_to_string( int *result,
+                                __int128 value,
+                                size_t digits,
+                                char *right,
+                                size_t length,
+                                cbl_encoding_t encoding)
+  {
+  char ach[128];
+  unsigned char *pach = reinterpret_cast<unsigned char *>(ach);
+  if( digits == 0 )
+    {
+    // Go for maximum length:
+    __gg__binary_to_string_ascii(ach, 38, value);
+    // Find the first non-zero digit:
+    while(digits > 1)
+      {
+      if( *pach != ascii_zero )
+        {
+        break;
+        }
+      digits -= 1;
+      pach += 1;
+      }
+    }
+  else
+    {
+    __gg__binary_to_string_ascii(ach, digits, value);
+    }
+  // ach is digits characters in DEFAULT_SOURCE_ENCODING.
+  // we need to convert the ascii numeric string to the right-side encoding
+  charmap_t *charmap = __gg__get_charmap(encoding);
+  cbl_char_t space = charmap->mapped_character(ascii_space);
+  size_t nbytes;
+  char *converted = __gg__iconverter( DEFAULT_SOURCE_ENCODING,
+                                      encoding ,
+                                      ach,
+                                      digits,
+                                      &nbytes);
+  switch( charmap->stride() )
+    {
+    case 1:
+      __gg__compare_string_1(result,
+                             reinterpret_cast<unsigned char *>(converted),
+                             nbytes,
+                             reinterpret_cast<unsigned char *>(right),
+                             length,
+                             space);
+      break;
+    case 2:
+      __gg__compare_string_2(result,
+                             reinterpret_cast<unsigned short *>(converted),
+                             nbytes,
+                             reinterpret_cast<unsigned short *>(right),
+                             length,
+                             space);
+      break;
+    case 4:
+      __gg__compare_string_4(result,
+                             reinterpret_cast<unsigned long *>(converted),
+                             nbytes,
+                             reinterpret_cast<unsigned long *>(right),
+                             length,
+                             space);
+      break;
+    }
+  return;
+  }
+

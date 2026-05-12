@@ -1,0 +1,22 @@
+checking  -1 .lt. +001
+  .lt.  Good
+  .le.  Good
+  .eq.  Good
+  .ge.  Good
+  .gt.  Good
+  .ne.  Good
+checking  1 .eq. +001
+  .lt.  Good
+  .le.  Good
+  .eq.  Good
+  .ge.  Good
+  .gt.  Good
+  .ne.  Good
+checking  1 .gt. -001
+  .lt.  Good
+  .le.  Good
+  .eq.  Good
+  .ge.  Good
+  .gt.  Good
+  .ne.  Good
+

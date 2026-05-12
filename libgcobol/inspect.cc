@@ -820,7 +820,8 @@ the_alpha_and_omega_backward( const normalized_operand &id_before,
 
 static
 void
-inspect_backward_format_1(const size_t integers[])
+inspect_backward_format_1(const size_t integers[],
+                          const cblc_referlet_t *params)
   {
   size_t int_index = 0;
   size_t cblc_index = 0;
@@ -833,9 +834,9 @@ inspect_backward_format_1(const size_t integers[])
   std::vector<id_2_result> id_2_results(n_identifier_2);
 
   // Pick up identifier_1, which is the string being inspected
-  const cblc_field_t *id1   = __gg__treeplet_1f[cblc_index];
-  size_t              id1_o = __gg__treeplet_1o[cblc_index];
-  size_t              id1_s = __gg__treeplet_1s[cblc_index];
+  const cblc_field_t *id1   = params[cblc_index].field ;
+  size_t              id1_o = params[cblc_index].offset;
+  size_t              id1_s = params[cblc_index].size  ;
   cblc_index += 1;
   // normalize it, according to the language specification.
   normalized_operand normalized_id_1 = normalize_id(id1, id1_o, id1_s, id1->encoding);
@@ -846,9 +847,9 @@ inspect_backward_format_1(const size_t integers[])
     {
     // For each identifier_2, we pick up its value:
 
-    id_2_results[i].id2   = __gg__treeplet_1f  [cblc_index];
-    id_2_results[i].id2_o = __gg__treeplet_1o[cblc_index];
-    id_2_results[i].id2_s = __gg__treeplet_1s[cblc_index];
+    id_2_results[i].id2   = params[cblc_index].field ;
+    id_2_results[i].id2_o = params[cblc_index].offset;
+    id_2_results[i].id2_s = params[cblc_index].size  ;
 
     cblc_index += 1;
     id_2_results[i].result = 0;
@@ -873,14 +874,14 @@ inspect_backward_format_1(const size_t integers[])
           next_comparand.operation = operation;
           next_comparand.identifier_3.length = 1;
 
-          const cblc_field_t *id4_before   = __gg__treeplet_1f  [cblc_index];
-          size_t              id4_before_o = __gg__treeplet_1o[cblc_index];
-          size_t              id4_before_s = __gg__treeplet_1s[cblc_index];
+          const cblc_field_t *id4_before   = params[cblc_index].field ;
+          size_t              id4_before_o = params[cblc_index].offset;
+          size_t              id4_before_s = params[cblc_index].size  ;
           cblc_index += 1;
 
-          const cblc_field_t *id4_after   = __gg__treeplet_1f  [cblc_index];
-          size_t              id4_after_o = __gg__treeplet_1o[cblc_index];
-          size_t              id4_after_s = __gg__treeplet_1s[cblc_index];
+          const cblc_field_t *id4_after   = params[cblc_index].field ;
+          size_t              id4_after_o = params[cblc_index].offset;
+          size_t              id4_after_s = params[cblc_index].size  ;
           cblc_index += 1;
 
           normalized_operand normalized_id_4_before
@@ -923,19 +924,19 @@ inspect_backward_format_1(const size_t integers[])
             next_comparand.id_2_index = i;
             next_comparand.operation = operation;
 
-            const cblc_field_t *id3   = __gg__treeplet_1f[cblc_index];
-            size_t              id3_o = __gg__treeplet_1o[cblc_index];
-            size_t              id3_s = __gg__treeplet_1s[cblc_index];
+            const cblc_field_t *id3   = params[cblc_index].field ;
+            size_t              id3_o = params[cblc_index].offset;
+            size_t              id3_s = params[cblc_index].size  ;
             cblc_index += 1;
 
-            const cblc_field_t *id4_before   = __gg__treeplet_1f[cblc_index];
-            size_t              id4_before_o = __gg__treeplet_1o[cblc_index];
-            size_t              id4_before_s = __gg__treeplet_1s[cblc_index];
+            const cblc_field_t *id4_before   = params[cblc_index].field ;
+            size_t              id4_before_o = params[cblc_index].offset;
+            size_t              id4_before_s = params[cblc_index].size  ;
             cblc_index += 1;
 
-            const cblc_field_t *id4_after   = __gg__treeplet_1f[cblc_index];
-            size_t              id4_after_o = __gg__treeplet_1o[cblc_index];
-            size_t              id4_after_s = __gg__treeplet_1s[cblc_index];
+            const cblc_field_t *id4_after   = params[cblc_index].field ;
+            size_t              id4_after_o = params[cblc_index].offset;
+            size_t              id4_after_s = params[cblc_index].size  ;
             cblc_index += 1;
 
             next_comparand.identifier_3
@@ -1173,11 +1174,13 @@ inspect_backward_format_1(const size_t integers[])
 
 extern "C"
 void
-__gg__inspect_format_1(int backward, size_t integers[])
+__gg__inspect_format_1( int backward,
+                        size_t integers[],
+                        const cblc_referlet_t *params)
   {
   if( backward )
     {
-    return inspect_backward_format_1(integers);
+    return inspect_backward_format_1(integers, params);
     }
 
   size_t int_index = 0;
@@ -1191,9 +1194,9 @@ __gg__inspect_format_1(int backward, size_t integers[])
   std::vector<id_2_result> id_2_results(n_identifier_2);
 
   // Pick up identifier_1, which is the string being inspected
-  const cblc_field_t *id1   = __gg__treeplet_1f[cblc_index];
-  size_t              id1_o = __gg__treeplet_1o[cblc_index];
-  size_t              id1_s = __gg__treeplet_1s[cblc_index];
+  const cblc_field_t *id1   = params[cblc_index].field ;
+  size_t              id1_o = params[cblc_index].offset;
+  size_t              id1_s = params[cblc_index].size  ;
   cblc_index += 1;
   // normalize it, according to the language specification.
   normalized_operand normalized_id_1
@@ -1205,9 +1208,9 @@ __gg__inspect_format_1(int backward, size_t integers[])
     {
     // For each identifier_2, we pick up its value:
 
-    id_2_results[i].id2   = __gg__treeplet_1f  [cblc_index];
-    id_2_results[i].id2_o = __gg__treeplet_1o[cblc_index];
-    id_2_results[i].id2_s = __gg__treeplet_1s[cblc_index];
+    id_2_results[i].id2   = params[cblc_index].field ;
+    id_2_results[i].id2_o = params[cblc_index].offset;
+    id_2_results[i].id2_s = params[cblc_index].size  ;
 
     cblc_index += 1;
     id_2_results[i].result = 0;
@@ -1232,14 +1235,14 @@ __gg__inspect_format_1(int backward, size_t integers[])
           next_comparand.operation = operation;
           next_comparand.identifier_3.length = 1;
 
-          const cblc_field_t *id4_before   = __gg__treeplet_1f  [cblc_index];
-          size_t              id4_before_o = __gg__treeplet_1o[cblc_index];
-          size_t              id4_before_s = __gg__treeplet_1s[cblc_index];
+          const cblc_field_t *id4_before   = params[cblc_index].field ;
+          size_t              id4_before_o = params[cblc_index].offset;
+          size_t              id4_before_s = params[cblc_index].size  ;
           cblc_index += 1;
 
-          const cblc_field_t *id4_after   = __gg__treeplet_1f  [cblc_index];
-          size_t              id4_after_o = __gg__treeplet_1o[cblc_index];
-          size_t              id4_after_s = __gg__treeplet_1s[cblc_index];
+          const cblc_field_t *id4_after   = params[cblc_index].field ;
+          size_t              id4_after_o = params[cblc_index].offset;
+          size_t              id4_after_s = params[cblc_index].size  ;
           cblc_index += 1;
 
           normalized_operand normalized_id_4_before
@@ -1282,19 +1285,19 @@ __gg__inspect_format_1(int backward, size_t integers[])
             next_comparand.id_2_index = i;
             next_comparand.operation = operation;
 
-            const cblc_field_t *id3   = __gg__treeplet_1f[cblc_index];
-            size_t              id3_o = __gg__treeplet_1o[cblc_index];
-            size_t              id3_s = __gg__treeplet_1s[cblc_index];
+            const cblc_field_t *id3   = params[cblc_index].field ;
+            size_t              id3_o = params[cblc_index].offset;
+            size_t              id3_s = params[cblc_index].size  ;
             cblc_index += 1;
 
-            const cblc_field_t *id4_before   = __gg__treeplet_1f[cblc_index];
-            size_t              id4_before_o = __gg__treeplet_1o[cblc_index];
-            size_t              id4_before_s = __gg__treeplet_1s[cblc_index];
+            const cblc_field_t *id4_before   = params[cblc_index].field ;
+            size_t              id4_before_o = params[cblc_index].offset;
+            size_t              id4_before_s = params[cblc_index].size  ;
             cblc_index += 1;
 
-            const cblc_field_t *id4_after   = __gg__treeplet_1f[cblc_index];
-            size_t              id4_after_o = __gg__treeplet_1o[cblc_index];
-            size_t              id4_after_s = __gg__treeplet_1s[cblc_index];
+            const cblc_field_t *id4_after   = params[cblc_index].field ;
+            size_t              id4_after_o = params[cblc_index].offset;
+            size_t              id4_after_s = params[cblc_index].size  ;
             cblc_index += 1;
 
             next_comparand.identifier_3
@@ -1531,7 +1534,8 @@ __gg__inspect_format_1(int backward, size_t integers[])
 
 static
 void
-inspect_backward_format_2(const size_t integers[])
+inspect_backward_format_2(const size_t integers[],
+                          const cblc_referlet_t *params)
   {
   size_t int_index = 0;
   size_t cblc_index = 0;
@@ -1539,9 +1543,9 @@ inspect_backward_format_2(const size_t integers[])
   // Reference the language specification for the meanings of identifier_X
 
   // Pick up identifier_1, which is the string being inspected
-  cblc_field_t *id1   = __gg__treeplet_1f[cblc_index];
-  size_t        id1_o = __gg__treeplet_1o[cblc_index];
-  size_t        id1_s = __gg__treeplet_1s[cblc_index];
+  cblc_field_t *id1   = params[cblc_index].field ;
+  size_t        id1_o = params[cblc_index].offset;
+  size_t        id1_s = params[cblc_index].size  ;
   cblc_index += 1;
 
   // normalize it, according to the language specification.
@@ -1564,19 +1568,19 @@ inspect_backward_format_2(const size_t integers[])
         comparand next_comparand = {};
         next_comparand.operation = operation;
 
-        const cblc_field_t *id5   = __gg__treeplet_1f[cblc_index];
-        size_t              id5_o = __gg__treeplet_1o[cblc_index];
-        size_t              id5_s = __gg__treeplet_1s[cblc_index];
+        const cblc_field_t *id5   = params[cblc_index].field ;
+        size_t              id5_o = params[cblc_index].offset;
+        size_t              id5_s = params[cblc_index].size  ;
         cblc_index += 1;
 
-        const cblc_field_t *id4_before   = __gg__treeplet_1f[cblc_index];
-        size_t              id4_before_o = __gg__treeplet_1o[cblc_index];
-        size_t              id4_before_s = __gg__treeplet_1s[cblc_index];
+        const cblc_field_t *id4_before   = params[cblc_index].field ;
+        size_t              id4_before_o = params[cblc_index].offset;
+        size_t              id4_before_s = params[cblc_index].size  ;
         cblc_index += 1;
 
-        const cblc_field_t *id4_after   = __gg__treeplet_1f  [cblc_index];
-        size_t              id4_after_o = __gg__treeplet_1o[cblc_index];
-        size_t              id4_after_s = __gg__treeplet_1s[cblc_index];
+        const cblc_field_t *id4_after   = params[cblc_index].field ;
+        size_t              id4_after_o = params[cblc_index].offset;
+        size_t              id4_after_s = params[cblc_index].size  ;
         cblc_index += 1;
 
         next_comparand.identifier_5
@@ -1623,24 +1627,24 @@ inspect_backward_format_2(const size_t integers[])
           comparand next_comparand = {};
           next_comparand.operation = operation;
 
-          const cblc_field_t *id3   = __gg__treeplet_1f[cblc_index];
-          size_t              id3_o = __gg__treeplet_1o[cblc_index];
-          size_t              id3_s = __gg__treeplet_1s[cblc_index];
+          const cblc_field_t *id3   = params[cblc_index].field ;
+          size_t              id3_o = params[cblc_index].offset;
+          size_t              id3_s = params[cblc_index].size  ;
           cblc_index += 1;
 
-          const cblc_field_t *id5   = __gg__treeplet_1f[cblc_index];
-          size_t              id5_o = __gg__treeplet_1o[cblc_index];
-          size_t              id5_s = __gg__treeplet_1s[cblc_index];
+          const cblc_field_t *id5   = params[cblc_index].field ;
+          size_t              id5_o = params[cblc_index].offset;
+          size_t              id5_s = params[cblc_index].size  ;
           cblc_index += 1;
 
-          const cblc_field_t *id4_before   = __gg__treeplet_1f[cblc_index];
-          size_t              id4_before_o = __gg__treeplet_1o[cblc_index];
-          size_t              id4_before_s = __gg__treeplet_1s[cblc_index];
+          const cblc_field_t *id4_before   = params[cblc_index].field ;
+          size_t              id4_before_o = params[cblc_index].offset;
+          size_t              id4_before_s = params[cblc_index].size  ;
           cblc_index += 1;
 
-          const cblc_field_t *id4_after   = __gg__treeplet_1f[cblc_index];
-          size_t              id4_after_o = __gg__treeplet_1o[cblc_index];
-          size_t              id4_after_s = __gg__treeplet_1s[cblc_index];
+          const cblc_field_t *id4_after   = params[cblc_index].field ;
+          size_t              id4_after_o = params[cblc_index].offset;
+          size_t              id4_after_s = params[cblc_index].size  ;
           cblc_index += 1;
 
           next_comparand.identifier_3 = normalize_id(id3, id3_o, id3_s, id1->encoding);
@@ -1889,21 +1893,23 @@ inspect_backward_format_2(const size_t integers[])
 
 extern "C"
 void
-__gg__inspect_format_2(int backward, size_t integers[])
+__gg__inspect_format_2( int backward,
+                        size_t integers[],
+                        const cblc_referlet_t *params)
   {
   if( backward )
     {
-    return inspect_backward_format_2(integers);
+    return inspect_backward_format_2(integers, params);
     }
   size_t int_index = 0;
   size_t cblc_index = 0;
 
   // Reference the language specification for the meanings of identifier_X
 
-  // Pick up identifier_1, which is the string being inspected
-  cblc_field_t *id1   = __gg__treeplet_1f[cblc_index];
-  size_t        id1_o = __gg__treeplet_1o[cblc_index];
-  size_t        id1_s = __gg__treeplet_1s[cblc_index];
+  // id1 is the string being inspected
+  cblc_field_t *id1   = params[cblc_index].field;
+  size_t        id1_o = params[cblc_index].offset;
+  size_t        id1_s = params[cblc_index].size;
   cblc_index += 1;
 
   // normalize it, according to the language specification.
@@ -1927,19 +1933,19 @@ __gg__inspect_format_2(int backward, size_t integers[])
         comparand next_comparand = {} ;
         next_comparand.operation = operation;
 
-        const cblc_field_t *id5   = __gg__treeplet_1f[cblc_index];
-        size_t              id5_o = __gg__treeplet_1o[cblc_index];
-        size_t              id5_s = __gg__treeplet_1s[cblc_index];
+        const cblc_field_t *id5   = params[cblc_index].field;
+        size_t              id5_o = params[cblc_index].offset;
+        size_t              id5_s = params[cblc_index].size;
         cblc_index += 1;
 
-        const cblc_field_t *id4_before   = __gg__treeplet_1f[cblc_index];
-        size_t              id4_before_o = __gg__treeplet_1o[cblc_index];
-        size_t              id4_before_s = __gg__treeplet_1s[cblc_index];
+        const cblc_field_t *id4_before   = params[cblc_index].field;
+        size_t              id4_before_o = params[cblc_index].offset;
+        size_t              id4_before_s = params[cblc_index].size;
         cblc_index += 1;
 
-        const cblc_field_t *id4_after   = __gg__treeplet_1f  [cblc_index];
-        size_t              id4_after_o = __gg__treeplet_1o[cblc_index];
-        size_t              id4_after_s = __gg__treeplet_1s[cblc_index];
+        const cblc_field_t *id4_after   = params[cblc_index].field;
+        size_t              id4_after_o = params[cblc_index].offset;
+        size_t              id4_after_s = params[cblc_index].size;
         cblc_index += 1;
 
         next_comparand.identifier_5
@@ -1984,24 +1990,24 @@ __gg__inspect_format_2(int backward, size_t integers[])
           comparand next_comparand = {};
           next_comparand.operation = operation;
 
-          const cblc_field_t *id3   = __gg__treeplet_1f[cblc_index];
-          size_t              id3_o = __gg__treeplet_1o[cblc_index];
-          size_t              id3_s = __gg__treeplet_1s[cblc_index];
+          const cblc_field_t *id3   = params[cblc_index].field;
+          size_t              id3_o = params[cblc_index].offset;
+          size_t              id3_s = params[cblc_index].size;
           cblc_index += 1;
 
-          const cblc_field_t *id5   = __gg__treeplet_1f[cblc_index];
-          size_t              id5_o = __gg__treeplet_1o[cblc_index];
-          size_t              id5_s = __gg__treeplet_1s[cblc_index];
+          const cblc_field_t *id5   = params[cblc_index].field;
+          size_t              id5_o = params[cblc_index].offset;
+          size_t              id5_s = params[cblc_index].size;
           cblc_index += 1;
 
-          const cblc_field_t *id4_before   = __gg__treeplet_1f[cblc_index];
-          size_t              id4_before_o = __gg__treeplet_1o[cblc_index];
-          size_t              id4_before_s = __gg__treeplet_1s[cblc_index];
+          const cblc_field_t *id4_before   = params[cblc_index].field;
+          size_t              id4_before_o = params[cblc_index].offset;
+          size_t              id4_before_s = params[cblc_index].size;
           cblc_index += 1;
 
-          const cblc_field_t *id4_after   = __gg__treeplet_1f[cblc_index];
-          size_t              id4_after_o = __gg__treeplet_1o[cblc_index];
-          size_t              id4_after_s = __gg__treeplet_1s[cblc_index];
+          const cblc_field_t *id4_after   = params[cblc_index].field;
+          size_t              id4_after_o = params[cblc_index].offset;
+          size_t              id4_after_s = params[cblc_index].size;
           cblc_index += 1;
 
           next_comparand.identifier_3 = normalize_id(id3,
@@ -2608,13 +2614,15 @@ __gg__inspect_format_4( int backward,
 
 extern "C"
 void
-__gg__inspect_format_1_sbc(int backward, size_t integers[])
+__gg__inspect_format_1_sbc( int backward,
+                            size_t integers[],
+                            const cblc_referlet_t *params)
   {
   // When this routine is called, we know we are working in a single-byte-coded
   // codeset like ASCII or EBCDIC.
   if( backward )
     {
-    return inspect_backward_format_1(integers);
+    return inspect_backward_format_1(integers, params);
     }
 
   size_t int_index = 0;
@@ -2628,9 +2636,9 @@ __gg__inspect_format_1_sbc(int backward, size_t integers[])
   std::vector<id_2_result> id_2_results(n_identifier_2);
 
   // Pick up identifier_1, which is the string being inspected
-  const cblc_field_t *id1   = __gg__treeplet_1f[cblc_index];
-  size_t              id1_o = __gg__treeplet_1o[cblc_index];
-  size_t              id1_s = __gg__treeplet_1s[cblc_index];
+  const cblc_field_t *id1   = params[cblc_index].field ;
+  size_t              id1_o = params[cblc_index].offset;
+  size_t              id1_s = params[cblc_index].size  ;
   cblc_index += 1;
   // normalize it, according to the language specification.
   std::string normalized_id_1
@@ -2642,9 +2650,9 @@ __gg__inspect_format_1_sbc(int backward, size_t integers[])
     {
     // For each identifier_2, we pick up its value:
 
-    id_2_results[i].id2   = __gg__treeplet_1f  [cblc_index];
-    id_2_results[i].id2_o = __gg__treeplet_1o[cblc_index];
-    id_2_results[i].id2_s = __gg__treeplet_1s[cblc_index];
+    id_2_results[i].id2   = params[cblc_index].field ;
+    id_2_results[i].id2_o = params[cblc_index].offset;
+    id_2_results[i].id2_s = params[cblc_index].size  ;
 
     cblc_index += 1;
     id_2_results[i].result = 0;
@@ -2668,14 +2676,14 @@ __gg__inspect_format_1_sbc(int backward, size_t integers[])
           next_comparand.operation = operation;
           next_comparand.identifier_3 = " ";
 
-          const cblc_field_t *id4_before   = __gg__treeplet_1f  [cblc_index];
-          size_t              id4_before_o = __gg__treeplet_1o[cblc_index];
-          size_t              id4_before_s = __gg__treeplet_1s[cblc_index];
+          const cblc_field_t *id4_before   = params[cblc_index].field ;
+          size_t              id4_before_o = params[cblc_index].offset;
+          size_t              id4_before_s = params[cblc_index].size  ;
           cblc_index += 1;
 
-          const cblc_field_t *id4_after   = __gg__treeplet_1f  [cblc_index];
-          size_t              id4_after_o = __gg__treeplet_1o[cblc_index];
-          size_t              id4_after_s = __gg__treeplet_1s[cblc_index];
+          const cblc_field_t *id4_after   = params[cblc_index].field ;
+          size_t              id4_after_o = params[cblc_index].offset;
+          size_t              id4_after_s = params[cblc_index].size  ;
           cblc_index += 1;
 
           std::string normalized_id_4_before
@@ -2712,19 +2720,19 @@ __gg__inspect_format_1_sbc(int backward, size_t integers[])
             next_comparand.id_2_index = i;
             next_comparand.operation = operation;
 
-            const cblc_field_t *id3   = __gg__treeplet_1f[cblc_index];
-            size_t              id3_o = __gg__treeplet_1o[cblc_index];
-            size_t              id3_s = __gg__treeplet_1s[cblc_index];
+            const cblc_field_t *id3   = params[cblc_index].field ;
+            size_t              id3_o = params[cblc_index].offset;
+            size_t              id3_s = params[cblc_index].size  ;
             cblc_index += 1;
 
-            const cblc_field_t *id4_before   = __gg__treeplet_1f[cblc_index];
-            size_t              id4_before_o = __gg__treeplet_1o[cblc_index];
-            size_t              id4_before_s = __gg__treeplet_1s[cblc_index];
+            const cblc_field_t *id4_before   = params[cblc_index].field ;
+            size_t              id4_before_o = params[cblc_index].offset;
+            size_t              id4_before_s = params[cblc_index].size  ;
             cblc_index += 1;
 
-            const cblc_field_t *id4_after   = __gg__treeplet_1f[cblc_index];
-            size_t              id4_after_o = __gg__treeplet_1o[cblc_index];
-            size_t              id4_after_s = __gg__treeplet_1s[cblc_index];
+            const cblc_field_t *id4_after   = params[cblc_index].field ;
+            size_t              id4_after_o = params[cblc_index].offset;
+            size_t              id4_after_s = params[cblc_index].size  ;
             cblc_index += 1;
 
             next_comparand.identifier_3 = normalize_id_sbc(id3,

@@ -1,0 +1,8 @@
+prog starting return code should be +0000:           +0000
+prog first return code from prog-a  should be +0123: +0123
+prog second return code from prog-a should be +0246: +0246
+prog first return code from prog-i  should be +0321: +0321
+prog second return code from prog-i should be +0321: +0321
+prog first return code from prog-r  should be -0123: -0123
+prog second return code from prog-r should be -0123: -0123
+

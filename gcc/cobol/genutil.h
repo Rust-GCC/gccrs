@@ -57,31 +57,14 @@ extern tree var_decl_call_parameter_signature; // char   *__gg__call_parameter_s
 extern tree var_decl_call_parameter_count;     // int __gg__call_parameter_count
 extern tree var_decl_call_parameter_lengths;   // size_t *var_decl_call_parameter_lengths
 
-extern tree var_decl_arithmetic_rounds_size;  // size_t __gg__arithmetic_rounds_size;
-extern tree var_decl_arithmetic_rounds;       // int*   __gg__arithmetic_rounds;
-extern tree var_decl_fourplet_flags_size;     // size_t __gg__fourplet_flags_size;
-extern tree var_decl_fourplet_flags;          // int*   __gg__fourplet_flags;
-
-extern tree var_decl_treeplet_1f; // cblc_field_pp_type_node , "__gg__treeplet_1f"
-extern tree var_decl_treeplet_1o; // SIZE_T_P                , "__gg__treeplet_1o"
-extern tree var_decl_treeplet_1s; // SIZE_T_P                , "__gg__treeplet_1s"
-extern tree var_decl_treeplet_2f; // cblc_field_pp_type_node , "__gg__treeplet_2f"
-extern tree var_decl_treeplet_2o; // SIZE_T_P                , "__gg__treeplet_2o"
-extern tree var_decl_treeplet_2s; // SIZE_T_P                , "__gg__treeplet_2s"
-extern tree var_decl_treeplet_3f; // cblc_field_pp_type_node , "__gg__treeplet_3f"
-extern tree var_decl_treeplet_3o; // SIZE_T_P                , "__gg__treeplet_3o"
-extern tree var_decl_treeplet_3s; // SIZE_T_P                , "__gg__treeplet_3s"
-extern tree var_decl_treeplet_4f; // cblc_field_pp_type_node , "__gg__treeplet_4f"
-extern tree var_decl_treeplet_4o; // SIZE_T_P                , "__gg__treeplet_4o"
-extern tree var_decl_treeplet_4s; // SIZE_T_P                , "__gg__treeplet_4s"
 extern tree var_decl_nop;         // int __gg__nop
 extern tree var_decl_main_called; // int __gg__main_called
 extern tree var_decl_entry_index; // void* __gg__entry_index
 
 int       get_scaled_rdigits(cbl_field_t *field);
 int       get_scaled_digits(cbl_field_t *field);
-tree      tree_type_from_digits(size_t digits, int signable);
-tree      tree_type_from_size(size_t bytes, int signable);
+tree      tree_type_from_digits(size_t digits, uint64_t signable);
+tree      tree_type_from_size(size_t bytes, uint64_t signable);
 
 void      get_binary_value( tree value,
                             tree rdigits,
@@ -138,24 +121,31 @@ void      parser_display_internal_field(tree file_descriptor,
 char     *get_literal_string(cbl_field_t *field);
 
 bool      refer_is_clean(const cbl_refer_t &refer);
+bool      refer_is_super_clean(const cbl_refer_t &refer);
+bool      refer_is_working_storage(const cbl_refer_t &refer);
 
-tree      refer_offset(const cbl_refer_t &refer,
-                       int *pflags=NULL);
+tree      refer_offset(const cbl_refer_t &refer, int *pflags=NULL);
 tree      refer_size_source(const cbl_refer_t &refer);
 tree      refer_size_dest(const cbl_refer_t &refer);
 
 tree      qualified_data_location(const cbl_refer_t &refer);
 
-void      build_array_of_treeplets( int ngroup,
-                                    size_t N,
+tree      build_array_of_referlets( size_t N,
                                     cbl_refer_t *refers);
 
-void      build_array_of_fourplets( int ngroup,
-                                    size_t N,
-                                    cbl_refer_t *refers);
+tree      build_array_of_refers(size_t N,
+                                cbl_refer_t *refers);
 void      get_depending_on_value_from_odo(tree retval, cbl_field_t *odo);
 uint64_t  get_time_nanoseconds();
 
 bool      is_pure_integer(const cbl_field_t *field);
+
+tree      tree_type_from_field(const cbl_field_t *field);
+
+bool      get_binary_value(tree &value, 
+                     const cbl_refer_t &refer,
+                           tree type = NULL_TREE);
+void      get_location(tree &retval, const cbl_refer_t &refer);
+void      get_length(tree &retval, const cbl_refer_t &refer);
 
 #endif

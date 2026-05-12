@@ -3782,7 +3782,7 @@ temporaries_t::add( cbl_field_t *field ) {
   bool yn(p.second);
   assert(yn);
   return *p.first;
-};
+}
 
 cbl_field_t *
 temporaries_t::reuse( cbl_field_type_t type ) {

@@ -1,0 +1,21 @@
+Alphanumeric literal 10
+"   8888   "
+"8888   "
+"   8888"
+"8888"
+National literal 20
+"   1616   "
+"1616   "
+"   1616"
+"1616"
+Alphanumeric data item 10
+"   8888   "
+"8888      "
+"   8888   "
+"8888      "
+National data item 20
+"   1616   "
+"1616      "
+"   1616   "
+"1616      "
+

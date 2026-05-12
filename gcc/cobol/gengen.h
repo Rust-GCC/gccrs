@@ -48,6 +48,7 @@
 #define BOOL       boolean_type_node
 #define CHAR       char_type_node
 #define SCHAR      signed_char_type_node
+#define SCHAR_P    build_pointer_type(SCHAR)
 #define UCHAR      unsigned_char_type_node
 #define SHORT      short_integer_type_node
 #define SHORT_P    build_pointer_type(short_integer_type_node)
@@ -266,6 +267,7 @@ struct gg_function_t
     tree entry_switch_goto;
     tree entry_switch_label;
     std::vector<tree> entry_goto_expressions;
+    bool alphabet_in_use;
     };
 
 struct cbl_translation_unit_t
@@ -363,6 +365,9 @@ extern tree gg_define_variable(tree type_decl,
                                const char *name,
                                gg_variable_scope_t vs_scope,
                                tree initial_value);
+extern tree gg_define_volatile_variable(tree type_decl,
+                                        const char *name,
+                                        gg_variable_scope_t vs_scope);
 // Utility definers:
 extern tree gg_define_bool();
 extern tree gg_define_char();
@@ -414,9 +419,10 @@ extern tree gg_define_uchar_star(tree var);
 extern tree gg_define_uchar_star(const char *variable_name, tree var);
 
 // address_of operator; equivalent of C "&var_decl"
-extern tree gg_get_address_of(const tree var_decl);
+extern tree gg_get_address_of(const tree var_decl); // For scalars
 // equivalent of C "&array[0]"
-extern tree gg_pointer_to_array(tree array);
+extern tree gg_pointer_to_array(tree array);        // For arrays
+extern tree gg_get_address(const tree var_decl);
 
 
 // Array creation and access:
@@ -434,6 +440,7 @@ extern void gg_decrement(tree var);
 extern tree gg_negate(tree var);        // Two's complement negation
 extern tree gg_bitwise_not(tree var);   // Bitwise inversion
 extern tree gg_abs(tree var);           // Absolute value
+extern tree gg_bswap(tree var);         // end-for-end byte swap
 
 // And some binary operations:
 
@@ -477,6 +484,7 @@ extern tree gg_read(tree fd, tree buf, tree count);
 extern void gg_write(tree fd, tree buf, tree count);
 extern void gg_memset(tree dest, const tree value, tree size);
 extern tree gg_memchr(tree s, tree c, tree n);
+extern tree gg_memcmp(const tree dest, const tree src, tree size);
 extern void gg_memcpy(tree dest, const tree src, tree size);
 extern void gg_memmove(tree dest, const tree src, tree size);
 extern tree gg_memdup(tree data, tree length);
@@ -580,4 +588,5 @@ extern void gg_insert_into_assemblerf(const char *format, ...) ATTRIBUTE_PRINTF_
 
 extern char *gg_show_type(tree type);
 extern void gg_leaving_the_source_code_file();
+
 #endif
