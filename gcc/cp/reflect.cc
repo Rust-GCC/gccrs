@@ -8623,13 +8623,6 @@ consteval_only_p (tree t)
   if (dependent_type_p (t))
     return false;
 
-  /* We need the complete type otherwise we'd have no fields for class
-     templates and thus come up with zilch for things like
-       template<typename T>
-       struct X : T { };
-     which could be consteval-only, depending on T.  */
-  t = complete_type (t);
-
   consteval_only_p_walker walker;
   return walker.walk (t).is_true ();
 }
@@ -8641,6 +8634,9 @@ consteval_only_p (tree t)
 tristate
 consteval_only_p_walker::walk (tree t)
 {
+  if (t == error_mark_node)
+    return false;
+
   t = TYPE_MAIN_VARIANT (t);
 
   if (REFLECTION_TYPE_P (t))
