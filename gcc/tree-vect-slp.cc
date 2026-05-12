@@ -4728,12 +4728,10 @@ vect_analyze_slp_reduction (loop_vec_info vinfo,
 {
   slp_instance_kind kind = slp_inst_kind_reduc_group;
 
-  /* If there's no budget left bail out early.  */
-  if (*limit == 0)
-    return false;
-
-  /* Try to gather a reduction chain.  */
+  /* Try to gather a reduction chain.  Only attempt if there's budget left
+     since chain analysis may build multi-lane trees that consume limit.  */
   if (! force_single_lane
+      && *limit != 0
       && STMT_VINFO_DEF_TYPE (scalar_stmt) == vect_reduction_def
       && vect_analyze_slp_reduc_chain (vinfo, bst_map, scalar_stmt,
 				       max_tree_size, limit))
