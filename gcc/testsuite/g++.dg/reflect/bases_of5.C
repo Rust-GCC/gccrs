@@ -6,14 +6,14 @@ namespace std {
 template <class _E> struct initializer_list {
   typedef _E *const_iterator;
   _E *_M_array;
-  unsigned long _M_len;
+  decltype (sizeof 0) _M_len;
   constexpr long size() { return _M_len; }
   constexpr const_iterator begin() { return _M_array; }
   constexpr const_iterator end() { return begin() + size(); }
 };
 template <typename> struct allocator_traits;
 } // namespace std
-constexpr void *operator new(unsigned long, void *__p) { return __p; }
+constexpr void *operator new(decltype (sizeof 0), void *__p) { return __p; }
 namespace std {
 template <typename _Tp, typename... _Args>
 constexpr void _Construct(_Tp *__p, _Args... __args) {
