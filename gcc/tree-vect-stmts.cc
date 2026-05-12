@@ -2451,6 +2451,7 @@ get_load_store_type (vec_info  *vinfo, stmt_vec_info stmt_info,
 	  || *memory_access_type == VMAT_STRIDED_SLP))
     {
       gather_scatter_info gs_info;
+      tree tem;
       if (SLP_TREE_LANES (slp_node) == 1
 	  && (!SLP_TREE_LOAD_PERMUTATION (slp_node).exists ()
 	      || single_element_p)
@@ -2483,14 +2484,14 @@ get_load_store_type (vec_info  *vinfo, stmt_vec_info stmt_info,
 	       && vect_use_grouped_gather (STMT_VINFO_DR_INFO (stmt_info),
 					   vectype, loop_vinfo,
 					   masked_p, group_size,
-					   &gs_info, elsvals, ls_type))
+					   &gs_info, elsvals, &tem))
 	{
 	  SLP_TREE_GS_SCALE (slp_node) = gs_info.scale;
 	  SLP_TREE_GS_BASE (slp_node) = error_mark_node;
 	  grouped_gather_fallback = *memory_access_type;
 	  *memory_access_type = VMAT_GATHER_SCATTER_IFN;
 	  ls->gs.ifn = gs_info.ifn;
-	  vectype = *ls_type;
+	  vectype = *ls_type = tem;
 	  ls->strided_offset_vectype = gs_info.offset_vectype;
 	}
     }
