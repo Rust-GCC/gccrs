@@ -416,14 +416,13 @@ sub postprocess
     # Cross references are thrown away, as are @noindent and @refill.
     # (@noindent is impossible in .pod, and @refill is unnecessary.)
     # @* is also impossible in .pod; we discard it and any newline that
-    # follows it.  Similarly, our macro @gol must be discarded.
+    # follows it.
 
     s/\(?\@xref\{(?:[^\}]*)\}(?:[^.<]|(?:<[^<>]*>))*\.\)?//g;
     s/\s+\(\@pxref\{(?:[^\}]*)\}\)//g;
     s/;\s+\@pxref\{(?:[^\}]*)\}//g;
     s/\@noindent\s*//g;
     s/\@refill//g;
-    s/\@gol//g;
     s/\@\*\s*\n?//g;
 
     # Anchors are thrown away
