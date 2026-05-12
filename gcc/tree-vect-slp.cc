@@ -1391,6 +1391,7 @@ vect_build_slp_tree_1 (vec_info *vinfo, unsigned char *swap,
 	}
       else
 	{
+	  int comm_arg;
 	  if (first_reduc_idx != STMT_VINFO_REDUC_IDX (stmt_info)
 	      /* For SLP reduction groups the index isn't necessarily
 		 uniform but only that of the first stmt matters.  */
@@ -1399,9 +1400,10 @@ vect_build_slp_tree_1 (vec_info *vinfo, unsigned char *swap,
 		   && REDUC_GROUP_FIRST_ELEMENT (stmt_info))
 	      && !(first_reduc_idx != -1
 		   && STMT_VINFO_REDUC_IDX (stmt_info) != -1
-		   && rhs_code.is_tree_code ()
-		   && commutative_tree_code (tree_code (rhs_code))
-		   && first_reduc_idx == 1 - STMT_VINFO_REDUC_IDX (stmt_info)))
+		   && (comm_arg = first_commutative_argument
+				    (rhs_code, TREE_TYPE (lhs))) >= 0
+		   && (first_reduc_idx
+		       == 2 * comm_arg + 1 - STMT_VINFO_REDUC_IDX (stmt_info))))
 	    {
 	      if (dump_enabled_p ())
 		{
