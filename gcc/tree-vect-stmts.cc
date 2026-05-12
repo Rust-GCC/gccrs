@@ -8330,9 +8330,6 @@ vectorizable_store (vec_info *vinfo,
 	  && alignment_support_scheme != dr_aligned)
 	dump_printf_loc (MSG_NOTE, vect_location,
 			 "Vectorizing an unaligned access.\n");
-
-      SLP_TREE_TYPE (slp_node) = store_vec_info_type;
-      slp_node->data = new vect_load_store_data (std::move (ls));
     }
 
   /* Transform.  */
@@ -8358,6 +8355,9 @@ vectorizable_store (vec_info *vinfo,
 			     "vect_model_store_cost: inside_cost = %d, "
 			     "prologue_cost = %d .\n",
 			     inside_cost, prologue_cost);
+
+	  SLP_TREE_TYPE (slp_node) = store_vec_info_type;
+	  slp_node->data = new vect_load_store_data (std::move (ls));
 
 	  return true;
 	}
@@ -8655,6 +8655,9 @@ vectorizable_store (vec_info *vinfo,
 			     "vect_model_store_cost: inside_cost = %d, "
 			     "prologue_cost = %d .\n",
 			     inside_cost, prologue_cost);
+
+	  SLP_TREE_TYPE (slp_node) = store_vec_info_type;
+	  slp_node->data = new vect_load_store_data (std::move (ls));
 	}
 
       return true;
@@ -8887,6 +8890,9 @@ vectorizable_store (vec_info *vinfo,
 			     "vect_model_store_cost: inside_cost = %d, "
 			     "prologue_cost = %d .\n",
 			     inside_cost, prologue_cost);
+
+	  SLP_TREE_TYPE (slp_node) = store_vec_info_type;
+	  slp_node->data = new vect_load_store_data (std::move (ls));
 	}
 
       return true;
@@ -9270,11 +9276,16 @@ vectorizable_store (vec_info *vinfo,
 	    }
 	}
 
-      if (costing_p && dump_enabled_p ())
-	dump_printf_loc (MSG_NOTE, vect_location,
-			 "vect_model_store_cost: inside_cost = %d, "
-			 "prologue_cost = %d .\n",
-			 inside_cost, prologue_cost);
+      if (costing_p)
+	{
+	  if (dump_enabled_p ())
+	    dump_printf_loc (MSG_NOTE, vect_location,
+			     "vect_model_store_cost: inside_cost = %d, "
+			     "prologue_cost = %d .\n",
+			     inside_cost, prologue_cost);
+	  SLP_TREE_TYPE (slp_node) = store_vec_info_type;
+	  slp_node->data = new vect_load_store_data (std::move (ls));
+	}
 
       return true;
     }
@@ -9539,6 +9550,9 @@ vectorizable_store (vec_info *vinfo,
 			 "vect_model_store_cost: inside_cost = %d, "
 			 "prologue_cost = %d .\n",
 			 inside_cost, prologue_cost);
+
+      SLP_TREE_TYPE (slp_node) = store_vec_info_type;
+      slp_node->data = new vect_load_store_data (std::move (ls));
     }
 
   return true;
@@ -9917,6 +9931,26 @@ vectorizable_load (vec_info *vinfo,
 
   if (costing_p) /* transformation not required.  */
     {
+      if (loop_vinfo
+	  && LOOP_VINFO_CAN_USE_PARTIAL_VECTORS_P (loop_vinfo))
+	check_load_store_for_partial_vectors (loop_vinfo, vectype, slp_node,
+					      VLS_LOAD, group_size, &ls,
+					      mask_node, &ls.elsvals);
+
+      /* If the type needs padding we must zero inactive elements.
+	 Check if we can do that with a VEC_COND_EXPR and store the
+	 elsval we choose in MASKLOAD_ELSVAL.  */
+      if (ls.elsvals.length ()
+	  && type_mode_padding_p
+	  && !ls.elsvals.contains (MASK_LOAD_ELSE_ZERO)
+	  && !expand_vec_cond_expr_p (vectype, truth_type_for (vectype)))
+	{
+	  if (dump_enabled_p ())
+	    dump_printf_loc (MSG_MISSED_OPTIMIZATION, vect_location,
+			     "cannot zero inactive elements.\n");
+	  return false;
+	}
+
       if (mask_node
 	  && !vect_maybe_update_slp_op_vectype (mask_node,
 						mask_vectype))
@@ -9926,12 +9960,6 @@ vectorizable_load (vec_info *vinfo,
 			     "incompatible vector types for invariants\n");
 	  return false;
 	}
-
-      if (loop_vinfo
-	  && LOOP_VINFO_CAN_USE_PARTIAL_VECTORS_P (loop_vinfo))
-	check_load_store_for_partial_vectors (loop_vinfo, vectype, slp_node,
-					      VLS_LOAD, group_size, &ls,
-					      mask_node, &ls.elsvals);
 
       if (dump_enabled_p ()
 	  && memory_access_type != VMAT_ELEMENTWISE
@@ -9944,23 +9972,6 @@ vectorizable_load (vec_info *vinfo,
 
       if (memory_access_type == VMAT_LOAD_STORE_LANES)
 	vinfo->any_known_not_updated_vssa = true;
-
-      SLP_TREE_TYPE (slp_node) = load_vec_info_type;
-      slp_node->data = new vect_load_store_data (std::move (ls));
-    }
-
-  /* If the type needs padding we must zero inactive elements.
-     Check if we can do that with a VEC_COND_EXPR and store the
-     elsval we choose in MASKLOAD_ELSVAL.  */
-  if (elsvals.length ()
-      && type_mode_padding_p
-      && !elsvals.contains (MASK_LOAD_ELSE_ZERO)
-      && !expand_vec_cond_expr_p (vectype, truth_type_for (vectype)))
-    {
-      if (dump_enabled_p ())
-	dump_printf_loc (MSG_MISSED_OPTIMIZATION, vect_location,
-			 "cannot zero inactive elements.\n");
-      return false;
     }
 
   /* For now just use the first available else value.
@@ -10046,6 +10057,8 @@ vectorizable_load (vec_info *vinfo,
 			     "vect_model_load_cost: inside_cost = %d, "
 			     "prologue_cost = %d .\n",
 			     inside_cost, prologue_cost);
+	  SLP_TREE_TYPE (slp_node) = load_vec_info_type;
+	  slp_node->data = new vect_load_store_data (std::move (ls));
 	  return true;
 	}
       if (hoist_p)
@@ -10458,6 +10471,8 @@ vectorizable_load (vec_info *vinfo,
 			     "vect_model_load_cost: inside_cost = %u, "
 			     "prologue_cost = 0 .\n",
 			     inside_cost);
+	  SLP_TREE_TYPE (slp_node) = load_vec_info_type;
+	  slp_node->data = new vect_load_store_data (std::move (ls));
 	}
 
       return true;
@@ -10848,6 +10863,8 @@ vectorizable_load (vec_info *vinfo,
 			     "vect_model_load_cost: inside_cost = %u, "
 			     "prologue_cost = %u .\n",
 			     inside_cost, prologue_cost);
+	  SLP_TREE_TYPE (slp_node) = load_vec_info_type;
+	  slp_node->data = new vect_load_store_data (std::move (ls));
 	}
 
       return true;
@@ -11281,11 +11298,16 @@ vectorizable_load (vec_info *vinfo,
 	    }
 	}
 
-      if (costing_p && dump_enabled_p ())
-	dump_printf_loc (MSG_NOTE, vect_location,
-			 "vect_model_load_cost: inside_cost = %u, "
-			 "prologue_cost = %u .\n",
-			 inside_cost, prologue_cost);
+      if (costing_p)
+	{
+	  if (dump_enabled_p ())
+	    dump_printf_loc (MSG_NOTE, vect_location,
+			     "vect_model_load_cost: inside_cost = %u, "
+			     "prologue_cost = %u .\n",
+			     inside_cost, prologue_cost);
+	  SLP_TREE_TYPE (slp_node) = load_vec_info_type;
+	  slp_node->data = new vect_load_store_data (std::move (ls));
+	}
       return true;
     }
 
@@ -11948,6 +11970,8 @@ vectorizable_load (vec_info *vinfo,
 			 "vect_model_load_cost: inside_cost = %u, "
 			 "prologue_cost = %u .\n",
 			 inside_cost, prologue_cost);
+      SLP_TREE_TYPE (slp_node) = load_vec_info_type;
+      slp_node->data = new vect_load_store_data (std::move (ls));
     }
 
   return true;
