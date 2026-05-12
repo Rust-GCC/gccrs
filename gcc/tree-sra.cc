@@ -2091,16 +2091,20 @@ build_debug_ref_for_model (location_t loc, tree base, HOST_WIDE_INT offset,
 }
 
 /* Construct a memory reference consisting of component_refs and array_refs to
-   a part of an aggregate *RES (which is of type TYPE).  The requested part
-   should have type EXP_TYPE at be the given OFFSET.  This function might not
-   succeed, it returns true when it does and only then *RES points to something
-   meaningful.  This function should be used only to build expressions that we
-   might need to present to user (e.g. in warnings).  In all other situations,
+   a part of an aggregate *RES which is of type TYPE.  The requested part
+   should have type EXP_TYPE at the given OFFSET.  CUR_SIZE must be the size of
+   *RES unless it is known that *RES alone cannot be the result.  This function
+   might not succeed, it returns true when it does and only then *RES points to
+   something meaningful.
+
+   This function should be used only to build expressions that we might need to
+   present to user (e.g. in warnings).  In all other situations,
    build_ref_for_model or build_ref_for_offset should be used instead.  */
 
 static bool
 build_user_friendly_ref_for_offset (tree *res, tree type, HOST_WIDE_INT offset,
-				    tree exp_type)
+				    HOST_WIDE_INT cur_size, tree exp_type,
+				    HOST_WIDE_INT exp_size)
 {
   while (1)
     {
@@ -2108,7 +2112,8 @@ build_user_friendly_ref_for_offset (tree *res, tree type, HOST_WIDE_INT offset,
       tree tr_size, index, minidx;
       HOST_WIDE_INT el_size;
 
-      if (offset == 0 && exp_type
+      if (offset == 0
+	  && cur_size == exp_size
 	  && types_compatible_p (exp_type, type))
 	return true;
 
@@ -2146,7 +2151,8 @@ build_user_friendly_ref_for_offset (tree *res, tree type, HOST_WIDE_INT offset,
 			     NULL_TREE);
 	      expr_ptr = &expr;
 	      if (build_user_friendly_ref_for_offset (expr_ptr, TREE_TYPE (fld),
-						      offset - pos, exp_type))
+						      offset - pos, size,
+						      exp_type, exp_size))
 		{
 		  *res = expr;
 		  return true;
@@ -2169,17 +2175,12 @@ build_user_friendly_ref_for_offset (tree *res, tree type, HOST_WIDE_INT offset,
 	  *res = build4 (ARRAY_REF, TREE_TYPE (type), *res, index,
 			 NULL_TREE, NULL_TREE);
 	  offset = offset % el_size;
+	  cur_size = el_size;
 	  type = TREE_TYPE (type);
 	  break;
 
 	default:
-	  if (offset != 0)
-	    return false;
-
-	  if (exp_type)
-	    return false;
-	  else
-	    return true;
+	  return false;
 	}
     }
 }
@@ -3070,7 +3071,8 @@ create_artificial_child_access (struct access *parent, struct access *model,
   struct access *access = access_pool.allocate ();
   memset (access, 0, sizeof (struct access));
   if (!build_user_friendly_ref_for_offset (&expr, TREE_TYPE (expr), new_offset,
-					   model->type))
+					   parent->size, model->type,
+					   model->size))
     {
       access->grp_no_warning = true;
       expr = build_ref_for_model (EXPR_LOCATION (parent->base), parent->base,
@@ -3211,8 +3213,11 @@ propagate_subaccesses_from_rhs (struct access *lacc, struct access *racc)
 	  tree t = lacc->base;
 
 	  lacc->type = racc->type;
+	  /* We know racc and lacc are of different types so can pass -1 as
+	     cur_size.  */
 	  if (build_user_friendly_ref_for_offset (&t, TREE_TYPE (t),
-						  lacc->offset, racc->type))
+						  lacc->offset, -1,
+						  racc->type, racc->size))
 	    {
 	      lacc->expr = t;
 	      lacc->grp_same_access_path = true;
@@ -3270,7 +3275,6 @@ propagate_subaccesses_from_rhs (struct access *lacc, struct access *racc)
 	}
 
       if (rchild->grp_unscalarizable_region
-	  || (rchild->size % BITS_PER_UNIT) != 0
 	  || !budget_for_propagation_access (lacc->base))
 	{
 	  if (!lacc->grp_write && access_or_its_child_written (rchild))
@@ -3330,7 +3334,6 @@ propagate_subaccesses_from_lhs (struct access *lacc, struct access *racc)
       HOST_WIDE_INT norm_offset = lchild->offset + norm_delta;
 
       if (lchild->grp_unscalarizable_region
-	  || (lchild->size % BITS_PER_UNIT) != 0
 	  || child_would_conflict_in_acc (racc, norm_offset, lchild->size,
 					  &matching_acc)
 	  || !budget_for_propagation_access (racc->base))
