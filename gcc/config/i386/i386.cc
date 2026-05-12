@@ -26731,15 +26731,20 @@ ix86_vector_costs::add_stmt_cost (int count, vect_cost_for_stmt kind,
   if ((kind == vec_construct || kind == vec_deconstruct)
       && ((node
 	   && (((SLP_TREE_MEMORY_ACCESS_TYPE (node) == VMAT_ELEMENTWISE
-		 || (SLP_TREE_MEMORY_ACCESS_TYPE (node) == VMAT_STRIDED_SLP
-		     && SLP_TREE_LANES (node) == 1))
+		 || SLP_TREE_MEMORY_ACCESS_TYPE (node) == VMAT_STRIDED_SLP)
 		&& (TREE_CODE (DR_STEP (STMT_VINFO_DATA_REF
 					(SLP_TREE_REPRESENTATIVE (node))))
 		    != INTEGER_CST))
 	       || mat_gather_scatter_p (SLP_TREE_MEMORY_ACCESS_TYPE (node))))))
     {
-      stmt_cost = ix86_default_vector_cost (kind, mode);
-      stmt_cost *= (TYPE_VECTOR_SUBPARTS (vectype) + 1);
+      auto lsdata = static_cast<vect_load_store_data *> (node->data);
+      tree ls_type = lsdata->ls_type ? lsdata->ls_type : vectype;
+      tree ls_eltype
+	= lsdata->ls_eltype ? lsdata->ls_eltype : TREE_TYPE (ls_type);
+      stmt_cost = ix86_vector_cd_cost (TYPE_MODE (ls_type),
+				       TYPE_MODE (ls_eltype));
+      stmt_cost *= (GET_MODE_BITSIZE (TYPE_MODE (ls_type))
+		    / GET_MODE_BITSIZE (TYPE_MODE (ls_eltype)) + 1);
     }
   else if ((kind == vec_construct || kind == scalar_to_vec)
 	   && node
