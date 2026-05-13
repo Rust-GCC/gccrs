@@ -4042,6 +4042,7 @@ omp_runtime_api_procname (const char *name)
       NULL,
       /* And finally calls available as omp_*, omp_*_ and omp_*_8_; however,
 	 as DECL_NAME only omp_* and omp_*_8 appear.  */
+      "control_tool",
       "display_env",
       "get_ancestor_thread_num",
       "get_uid_from_device",

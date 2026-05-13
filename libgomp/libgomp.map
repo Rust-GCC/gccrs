@@ -240,6 +240,13 @@ OMP_5.2 {
 	omp_in_explicit_task_;
 } OMP_5.1.1;
 
+OMP_6.0 {
+  global:
+	omp_control_tool;
+	omp_control_tool_;
+	omp_control_tool_8_;
+} OMP_5.2;
+
 GOMP_1.0 {
   global:
 	GOMP_atomic_end;

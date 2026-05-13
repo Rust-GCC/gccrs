@@ -2510,4 +2510,19 @@ initialize_env (void)
 
   goacc_profiling_initialize ();
 }
+
+
+/* Stub implementation; to be moved to ompt.cc once implemented.  */
+
+ialias (omp_control_tool)
+
+omp_control_tool_result_t
+omp_control_tool (omp_control_tool_t command, int modifier, void *arg)
+{
+  (void) command;
+  (void) modifier;
+  (void) arg;
+  return omp_control_tool_notool;
+}
+
 #endif /* LIBGOMP_OFFLOADED_ONLY */

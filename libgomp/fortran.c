@@ -103,6 +103,7 @@ ialias_redirect (omp_get_interop_str)
 ialias_redirect (omp_get_interop_name)
 ialias_redirect (omp_get_interop_type_desc)
 ialias_redirect (omp_get_interop_rc_desc)
+ialias_redirect (omp_control_tool)
 #endif
 
 #ifndef LIBGOMP_GNU_SYMBOL_VERSIONING
@@ -870,6 +871,18 @@ void
 omp_display_env_8_ (const int64_t *verbose)
 {
   omp_display_env (!!*verbose);
+}
+
+omp_control_tool_result_t
+omp_control_tool_ (omp_control_tool_t command, int32_t modifier)
+{
+  return omp_control_tool (command, modifier, NULL);
+}
+
+omp_control_tool_result_t
+omp_control_tool_8_ (omp_control_tool_t command, int64_t modifier)
+{
+  return omp_control_tool (command, (int32_t) modifier, NULL);
 }
 
 #endif /* LIBGOMP_OFFLOADED_ONLY */

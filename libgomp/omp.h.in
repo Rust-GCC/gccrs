@@ -102,7 +102,8 @@ typedef struct __attribute__((__aligned__ (sizeof (void *)))) omp_depend_t
 typedef enum omp_pause_resource_t
 {
   omp_pause_soft = 1,
-  omp_pause_hard = 2
+  omp_pause_hard = 2,
+  omp_pause_stop_tool = 3
 } omp_pause_resource_t;
 
 typedef __INTPTR_TYPE__ omp_intptr_t;
@@ -239,6 +240,21 @@ typedef enum omp_interop_rc_t
   omp_irc_type_str = -5,
   omp_irc_other = -6
 } omp_interop_rc_t;
+
+typedef enum omp_control_tool_t {
+    omp_control_tool_start = 1,
+    omp_control_tool_pause = 2,
+    omp_control_tool_flush = 3,
+    omp_control_tool_end = 4,
+    omp_control_tool_max = __INT32_MAX__
+} omp_control_tool_t;
+
+typedef enum omp_control_tool_result_t {
+    omp_control_tool_notool = -2,
+    omp_control_tool_nocallback = -1,
+    omp_control_tool_success = 0,
+    omp_control_tool_ignored = 1
+} omp_control_tool_result_t;
 
 #ifdef __cplusplus
 extern "C" {
@@ -434,6 +450,9 @@ extern const char *omp_get_interop_rc_desc (const omp_interop_t,
 
 extern int omp_get_device_from_uid (const char *) __GOMP_NOTHROW;
 extern const char *omp_get_uid_from_device (int) __GOMP_NOTHROW;
+
+extern omp_control_tool_result_t omp_control_tool (omp_control_tool_t, int,
+						   void*) __GOMP_NOTHROW;
 
 #ifdef __cplusplus
 }

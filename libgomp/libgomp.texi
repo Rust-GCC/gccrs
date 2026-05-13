@@ -644,7 +644,8 @@ to address of matching mapped list item per 5.1, Sect. 2.21.7.2 @tab N @tab
 @item Multi-word directives now use underscore by default @tab N @tab
 @item Relaxed Fortran restrictions to the @code{aligned} clause @tab N @tab
 @item Mapping lambda captures @tab N @tab
-@item New @code{omp_pause_stop_tool} constant for omp_pause_resource @tab N @tab
+@item New @code{omp_pause_stop_tool} constant for @code{omp_pause_resource
+      @tab Y @tab
 @item In Fortran (fixed and free source form), spaces between directive names are mandatory
       @tab N @tab
 @item Update of the map-type decay for mapping and @code{declare_mapper}
@@ -709,7 +710,7 @@ specification in version 5.2.
 * Event Routine::
 * Interoperability Routines::
 * Memory Management Routines::
-@c * Tool Control Routine::
+* Tool Control Routine::
 * Environment Display Routine::
 @end menu
 
@@ -3940,10 +3941,74 @@ was already deallocated or when the used allocator has already been destroyed.
 
 
 
-@c @node Tool Control Routine
-@c @section Tool Control Routine
-@c
-@c FIXME
+@node Tool Control Routine
+@section Tool Control Routine
+
+Routine that supports the use of the OpenMP tools interface (OMPT).
+
+@menu
+* omp_control_tool:: pass commands to a tool
+@end menu
+
+@node omp_control_tool
+@subsection @code{omp_control_tool} -- pass commands to a tool
+@table @asis
+@item @emph{Description}:
+The @code{omp_control_tool} routine can be used to pass commands to a tool. The
+values for @var{modifier} and @var{arg} are specific for the particular tool;
+for Fortran, @var{arg} is NULL.  The following predefined values for
+@var{command} are supported by all tools:
+
+@itemize
+@item @code{omp_control_tool_start}: Request that monitoring is started or resumed;
+      it has no effect if monitoring is already on or was turned off permanently.
+@item @code{omp_control_tool_pause}: Request that monitoring is temporarily paused;
+      it has no effect if monitoring is already paused or stopped.
+@item @code{omp_control_tool_flush}: Request flushing of any buffered data,
+      independently whether monitoring is currently active.
+@item @code{omp_control_tool_end}: Request that monitoring is turned off
+      permanently, flushing all output and terminating the tool.
+@end itemize
+
+For the listed standard commands, the @var{modifier} and @var{arg} arguments
+are ignored by the tool.
+
+Negative return values indicate that the tool has not processed the command;
+in particular, the return value is @code{omp_control_tool_notool} if OMPT is
+inactive and no tool is active; if it is active but no callback is registered
+for the tool-control event, @code{omp_control_tool_nocallback} is returned.
+On success, @code{omp_control_tool_success} is returned and
+@code{omp_control_tool_ignored} indicates that the tool received the command
+but ignored it. Positive return values greater than 64 are tool specific.
+
+GCC implements the OpenMP 6.0 version of this function for C and C++, which is
+not compatible with its type signature in previous versions of the OpenMP
+specification.  In older versions, the type @code{int} was used for the
+@var{command} argument in place of the enumerated type
+@code{omp_control_tool_t}; the return type likewise changed from @code{int} to
+@code{omp_control_tool_result_t}.
+
+@item @emph{C/C++}:
+@multitable @columnfractions .20 .80
+@item @emph{Prototype}: @tab @code{omp_control_tool_result_t omp_control_tool(}
+@item                   @tab @code{  omp_control_tool_t command, int modifier, void *arg)}
+@end multitable
+
+@item @emph{Fortran}:
+@multitable @columnfractions .20 .80
+@item @emph{Interface}: @tab @code{integer (kind=omp_control_tool_result_kind) &}
+@item                   @tab @code{   function omp_control_tool(command, modifier)}
+@item                   @tab @code{integer (kind=omp_control_tool_kind) command}
+@item                   @tab @code{integer :: modifier}
+@end multitable
+
+@c @item @emph{See also}:
+
+@item @emph{Reference}:
+@uref{https://www.openmp.org, OpenMP specification v6.0}, Section 31.1
+@end table
+
+
 
 @node Environment Display Routine
 @section Environment Display Routine

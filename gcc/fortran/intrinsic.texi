@@ -16339,12 +16339,13 @@ kind @code{omp_lock_hint_kind}:
 @item @code{omp_sync_hint_speculative}
 @end table
 
-And the following two scalar integer named constants are of the
+And the following three scalar integer named constants are of the
 kind @code{omp_pause_resource_kind}:
 
 @table @asis
 @item @code{omp_pause_soft}
 @item @code{omp_pause_hard}
+@item @code{omp_pause_tool}
 @end table
 
 The following scalar integer named constants are of the kind
@@ -16411,6 +16412,27 @@ The following scalar integer named constants are of the kind
 @item @code{omp_const_mem_space}
 @item @code{omp_high_bw_mem_space}
 @item @code{omp_low_lat_mem_space}
+@end table
+
+The following scalar integer named constants are of the kind
+@code{omp_control_tool_kind}:
+
+@table @asis
+@item @code{omp_control_tool_start}
+@item @code{omp_control_tool_pause}
+@item @code{omp_control_tool_flush}
+@item @code{omp_control_tool_end}
+@item @code{omp_control_tool_max}
+@end table
+
+The following scalar integer named constants are of the kind
+@code{omp_control_tool_result_kind}:
+
+@table @asis
+@item @code{omp_control_tool_notool}
+@item @code{omp_control_tool_nocallback}
+@item @code{omp_control_tool_success}
+@item @code{omp_control_tool_ignored}
 @end table
 
 

@@ -79,14 +79,18 @@
       parameter (omp_pause_resource_kind = 4)
       integer (omp_pause_resource_kind) omp_pause_soft
       integer (omp_pause_resource_kind) omp_pause_hard
+      integer (omp_pause_resource_kind) omp_pause_tool
       parameter (omp_pause_soft = 1)
       parameter (omp_pause_hard = 2)
+      parameter (omp_pause_tool = 3)
 
       integer omp_allocator_handle_kind, omp_alloctrait_key_kind
       integer omp_alloctrait_val_kind, omp_memspace_handle_kind
       integer omp_event_handle_kind
       integer omp_interop_kind, omp_interop_fr_kind
       integer omp_interop_property_kind, omp_interop_rc_kind
+      integer omp_control_tool_kind
+      integer omp_control_tool_result_kind
       parameter (omp_allocator_handle_kind = @INTPTR_T_KIND@)
       parameter (omp_alloctrait_key_kind = 4)
       parameter (omp_alloctrait_val_kind = @INTPTR_T_KIND@)
@@ -96,6 +100,8 @@
       parameter (omp_interop_fr_kind = 4)
       parameter (omp_interop_property_kind = 4)
       parameter (omp_interop_rc_kind = 4)
+      parameter (omp_control_tool_kind = 4)
+      parameter (omp_control_tool_result_kind = 4)
       integer (omp_alloctrait_key_kind) omp_atk_sync_hint
       integer (omp_alloctrait_key_kind) omp_atk_alignment
       integer (omp_alloctrait_key_kind) omp_atk_access
@@ -244,6 +250,24 @@
       parameter (omp_irc_type_ptr = -4)
       parameter (omp_irc_type_str = -5)
       parameter (omp_irc_other = -6)
+      integer (omp_control_tool_kind) omp_control_tool_start
+      integer (omp_control_tool_kind) omp_control_tool_pause
+      integer (omp_control_tool_kind) omp_control_tool_flush
+      integer (omp_control_tool_kind) omp_control_tool_end
+      integer (omp_control_tool_kind) omp_control_tool_max
+      parameter (omp_control_tool_start = 1)
+      parameter (omp_control_tool_pause = 2)
+      parameter (omp_control_tool_flush = 3)
+      parameter (omp_control_tool_end = 4)
+      parameter (omp_control_tool_max = huge(1_omp_control_tool_kind))
+      integer (omp_control_tool_result_kind) omp_control_tool_notool
+      integer (omp_control_tool_result_kind) omp_control_tool_nocallback
+      integer (omp_control_tool_result_kind) omp_control_tool_success
+      integer (omp_control_tool_result_kind) omp_control_tool_ignored
+      parameter (omp_control_tool_notool = -2)
+      parameter (omp_control_tool_nocallback = -1)
+      parameter (omp_control_tool_success = 0)
+      parameter (omp_control_tool_ignored = 1)
 
       type omp_alloctrait
         integer (omp_alloctrait_key_kind) key
@@ -662,3 +686,18 @@
           integer(c_int64_t), intent(in), value :: device_num
         end function omp_get_uid_from_device_8
       end interface omp_get_uid_from_device
+
+      interface omp_control_tool
+        integer (kind=omp_control_tool_result_kind) function                    &
+     &      omp_control_tool (command, modifier)
+          import
+          integer (kind=omp_control_tool_kind) command
+          integer(4) modifier
+        end function
+        integer (kind=omp_control_tool_result_kind) function                    &
+     &      omp_control_tool_8 (command, modifier)
+          import
+          integer (kind=omp_control_tool_kind) command
+          integer(8) modifier
+        end function
+      end interface omp_control_tool
