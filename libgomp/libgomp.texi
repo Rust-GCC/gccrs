@@ -644,7 +644,7 @@ to address of matching mapped list item per 5.1, Sect. 2.21.7.2 @tab N @tab
 @item Multi-word directives now use underscore by default @tab N @tab
 @item Relaxed Fortran restrictions to the @code{aligned} clause @tab N @tab
 @item Mapping lambda captures @tab N @tab
-@item New @code{omp_pause_stop_tool} constant for @code{omp_pause_resource
+@item New @code{omp_pause_stop_tool} constant for @code{omp_pause_resource}
       @tab Y @tab
 @item In Fortran (fixed and free source form), spaces between directive names are mandatory
       @tab N @tab
