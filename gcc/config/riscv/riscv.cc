@@ -3879,7 +3879,7 @@ riscv_legitimize_move (machine_mode mode, rtx dest, rtx src)
       scalar_mode smode = as_a<scalar_mode> (mode);
       unsigned int index = SUBREG_BYTE (src).to_constant () / mode_size;
       unsigned int num = known_eq (GET_MODE_SIZE (smode), 8)
-	&& !TARGET_VECTOR_ELEN_64 ? 2 : 1;
+	&& (!TARGET_VECTOR_ELEN_64 || !TARGET_64BIT) ? 2 : 1;
       bool need_int_reg_p = false;
 
       if (num == 2)
@@ -3905,7 +3905,7 @@ riscv_legitimize_move (machine_mode mode, rtx dest, rtx src)
 	  if (need_int_reg_p)
 	    {
 	      int_reg = gen_reg_rtx (DImode);
-	      emit_move_insn (int_reg, gen_lowpart (GET_MODE (int_reg), dest));
+	      emit_move_insn (int_reg, gen_lowpart (DImode, dest));
 	    }
 
 	  for (unsigned int i = 0; i < num; i++)
@@ -3923,7 +3923,9 @@ riscv_legitimize_move (machine_mode mode, rtx dest, rtx src)
 
 	      /* The low-part must be zero-extended when ELEN == 32 and
 		 mode == 64.  */
-	      if (num == 2 && i == 0)
+	      if (num == 2
+		  && i == 0
+		  && FLOAT_MODE_P (mode) == FLOAT_MODE_P (smode))
 		int_reg = convert_modes (mode, smode, result, true);
 
 	      if (i == 1)
@@ -3956,7 +3958,7 @@ riscv_legitimize_move (machine_mode mode, rtx dest, rtx src)
 	     already we can just elide the nop move here and be done.  */
 	  if (need_int_reg_p)
 	    emit_move_insn (dest, gen_lowpart (GET_MODE (dest), int_reg));
-	  else if (!rtx_equal_p (dest, int_reg)) 
+	  else if (!rtx_equal_p (dest, int_reg))
 	    emit_move_insn (dest, int_reg);
 	  return true;
 	}
