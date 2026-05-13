@@ -136,5 +136,6 @@ static_assert( ! ostream_insertable<std::chrono::local_time<D>> );
 int main()
 {
   test_ostream();
+  test_format();
   test_parse();
 }
