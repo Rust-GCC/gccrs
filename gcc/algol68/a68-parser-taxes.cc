@@ -587,7 +587,7 @@ test_firmly_related_ops_local (NODE_T *p, TAG_T *s)
 			    }
 			}
 
-		      /* Report only one level of hidding or it gets messy.  */
+		      /* Report only one level of hiding or it gets messy.  */
 		      break;
 		    }
 		}

@@ -107,7 +107,7 @@ a68_lower_label (NODE_T *p, LOW_CTX_T ctx)
 
   a68_add_decl (label_decl);
 
-  /* Return the accummulated LABEL_EXPRs.  */
+  /* Return the accumulated LABEL_EXPRs.  */
   tree label_expr = build1 (LABEL_EXPR, void_type_node, label_decl);
   if (expr)
     return fold_build2_loc (a68_get_node_location (p),
@@ -147,7 +147,7 @@ a68_lower_labeled_unit (NODE_T *p, LOW_CTX_T ctx)
    that a completer can only appear inside a serial clause.
 
    This function always returns NULL_TREE, so the traversing code shall always
-   be careful to travese on these nodes explicitly and ignore the returned
+   be careful to traverse on these nodes explicitly and ignore the returned
    value.  */
 
 tree
@@ -173,7 +173,7 @@ a68_lower_completer (NODE_T *p ATTRIBUTE_UNUSED, LOW_CTX_T ctx ATTRIBUTE_UNUSED)
    BLOCK.
 
    This function always returns NULL_TREE, so the traversing code shall always
-   be careful to travese on these nodes explicitly and ignore the returned
+   be careful to traverse on these nodes explicitly and ignore the returned
    value.  */
 
 tree
@@ -205,7 +205,7 @@ a68_lower_initialiser_series (NODE_T *p, LOW_CTX_T ctx)
    See the function body to see the lowering actions.
 
    This function always returns NULL_TREE, so the traversing code shall always
-   be careful to travese on these nodes explicitly and ignore the returned
+   be careful to traverse on these nodes explicitly and ignore the returned
    value.  */
 
 tree
@@ -858,7 +858,7 @@ a68_lower_case_clause (NODE_T *p ATTRIBUTE_UNUSED,
    clause.
 
    This function always returns NULL_TREE, so the traversing code shall always
-   be careful to travese on these nodes explicitly and ignore the returned
+   be careful to traverse on these nodes explicitly and ignore the returned
    value.  */
 
 tree

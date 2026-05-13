@@ -79,7 +79,7 @@
     } while (0)
 
 /* Parse module map information in MAP and add entries to A68_MODULE_FILES
-   accordingly.  Existing entries in the map are overriden without warning.
+   accordingly.  Existing entries in the map are overridden without warning.
 
    If MAP is not a valid module map specification then this function returns
    `false' and sets *ERRMSG to some explanatory message.  Otherwise it returns
@@ -664,7 +664,7 @@ encoded_mode_free (struct encoded_mode *em)
       break;
     case GA68_MODE_STRUCT:
       /* Note that the field names are installed in moids in
-	 encoded_mode_to_moid, so we shoud not free them.  */
+	 encoded_mode_to_moid, so we should not free them.  */
       free (em->data.sct.fields);
       break;
     case GA68_MODE_UNION:

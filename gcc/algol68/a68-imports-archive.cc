@@ -74,7 +74,7 @@ struct Archive_fl_header
 };
 
 // The header of an entry in an archive.  This is all readable text,
-// padded with spaces where necesary.
+// padded with spaces where necessary.
 
 struct Archive_header
 {

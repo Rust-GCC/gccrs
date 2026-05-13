@@ -317,7 +317,7 @@ int i = -10;
 @{ Always a space after bold monadic operator @}
 int i = ABS (base + offset)
 
-@{ Spaces in dyadic opeator @}
+@{ Spaces in dyadic operator @}
 total := a + b;
 index := cnt +:= 1;
 total := (a + b);
@@ -362,7 +362,7 @@ mode MyString = [1:10@@]MyChar,
 While indexing and trimming a multiple, never put a space between the
 indexed tertiary and the SUB symbol.
 
-Do not put spaces direcly within indexers and trimmers, unless for
+Do not put spaces directly within indexers and trimmers, unless for
 indentation purposes.  As an exception to this rule, you can put a
 single space before the "at" operator @code{@@} if desired.
 

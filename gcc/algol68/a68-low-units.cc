@@ -148,7 +148,7 @@ a68_lower_identifier (NODE_T *p, LOW_CTX_T ctx)
 	}
 
       /* If the identifier refers to a FUNCTION_DECL, this means the
-	 declaration was made by a procecure-identity-dclaration or a
+	 declaration was made by a procedure-identity-dclaration or a
 	 proc-identity-declaration of a formal hole.  The applied identifier in
 	 that case refers to the address of the corresponding function.  */
       if (TREE_CODE (id_decl) == FUNCTION_DECL)

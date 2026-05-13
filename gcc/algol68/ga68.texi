@@ -2084,7 +2084,7 @@ values of these enquiries are also determined by the architecture and
 operating system targeted by the compiler.
 
 @deftypevr Constant @B{int} {int lengths}
-1 plus the number of extra lenghts of integers which are meaningful.
+1 plus the number of extra lengths of integers which are meaningful.
 @end deftypevr
 
 @deftypevr Constant @B{int} {int shorths}
@@ -2096,7 +2096,7 @@ The largest integral value.
 @end deftypevr
 
 @deftypevr Constant @B{int} {real lengths}
-1 plus the number of extra lenghts of real numbers which are
+1 plus the number of extra lengths of real numbers which are
 meaningful.
 @end deftypevr
 
@@ -2695,7 +2695,7 @@ to @code{b}.
 @subsection Conversions
 
 @deftypefn Operator {} {@B{ABS}} {= (@B{char} a) @B{int}}
-Monadic operator that yields an unique integer for each permissable
+Monadic operator that yields an unique integer for each permissible
 value of @code{@B{char}}.
 @end deftypefn
 

@@ -268,7 +268,7 @@ strange_separator (NODE_T *p)
      reduce (p, NO_NOTE, NO_TICK, PARTICULAR_PROGRAM, LABEL, ENCLOSED_CLAUSE, STOP);
      reduce (p, NO_NOTE, NO_TICK, PARTICULAR_PROGRAM, ENCLOSED_CLAUSE, STOP);
 
-   We know that at much only one of these reductions will succeed, becuase if
+   We know that at much only one of these reductions will succeed, because if
    the first reduction succeeds, then P gets changed to LABEL which cannot
    match ENCLOSED_CLAUSE.
 
@@ -302,7 +302,7 @@ strange_separator (NODE_T *p)
 
    Note how, when presented with a sequence of labels like `l1: l2: l3: ...',
    the first call to "reduce" will succeed, turning Q into a LABEL.  Then the
-   second call to "reduce" will also succed, reducing to another LABEL and
+   second call to "reduce" will also succeed, reducing to another LABEL and
    setting SIGA to "true".  In subsequent iterations of the loop the first call
    will always fail, and the second call will keep succeeding as more sequences
    of DEFINING_IDENTIFIER, COLON_SYMBOL get matched.  */
@@ -539,7 +539,7 @@ a68_bottom_up_parser (NODE_T *p)
 
    looking for declarations of indicants, priorities and operators
    (a68_extract_{indicants,priorities,operators}).  Using this information , it
-   determines the nature of bold tags occuring in the branch, by turning
+   determines the nature of bold tags occurring in the branch, by turning
    BOLD_TAG nodes into either INDICANT nodes or OPERATOR nodes
    (a68_elaborate_bold_tags).
 

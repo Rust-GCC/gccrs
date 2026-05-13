@@ -831,7 +831,7 @@ stand_prelude (void)
   a68_op (A68_STD, "ABS", m, a68_lower_bitabs2);
   m = a68_proc (M_SHORT_BITS, M_SHORT_SHORT_BITS, NO_MOID);
   a68_op (A68_STD, "LENG", m, a68_lower_bitleng2);
-  /* SHORT BITS operatos.  */
+  /* SHORT BITS operators.  */
   m = a68_proc (M_SHORT_INT, M_SHORT_BITS, NO_MOID);
   a68_op (A68_STD, "ABS", m, a68_lower_bitabs2);
   m = a68_proc (M_SHORT_BITS, M_SHORT_INT, NO_MOID);
@@ -893,7 +893,7 @@ stand_prelude (void)
   a68_op (A68_STD, "LENG", m, a68_lower_bitleng2);
   m = a68_proc (M_SHORT_BITS, M_BITS, NO_MOID);
   a68_op (A68_STD, "SHORTEN", m, a68_lower_bitshorten2);
-  /* LONG BITS operatos.  */
+  /* LONG BITS operators.  */
   m = a68_proc (M_LONG_INT, M_LONG_BITS, NO_MOID);
   a68_op (A68_STD, "ABS", m, a68_lower_bitabs2);
   m = a68_proc (M_LONG_BITS, M_LONG_INT, NO_MOID);

@@ -2331,7 +2331,7 @@ a68_lexical_analyser (const char *filename, bool *empty_program)
     s = STRING (l);
   tokenise_source (&root, 0, false, &l, &s, &start_l, &start_c);
 
-  /* Detemine whether the actual file contents resulted in some token.  This is
+  /* Determine whether the actual file contents resulted in some token.  This is
      used in order to provide better diagnostics for empty source files or
      files containing only comments or pragmats.  These are not valid Algol 68
      packets.  */

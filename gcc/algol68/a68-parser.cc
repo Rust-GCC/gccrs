@@ -92,7 +92,7 @@
        does not check VICTAL correctness of declarers. This is done separately.
 
   The parser sets up symbol tables and populates them as far as needed to parse
-  the source. After the bottom-up parser terminates succesfully, the symbol tables
+  the source. After the bottom-up parser terminates successfully, the symbol tables
   are completed.
 
    (4) Next, modes are collected and rules for well-formedness and structural
