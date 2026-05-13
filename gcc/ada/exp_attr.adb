@@ -2197,6 +2197,7 @@ package body Exp_Attr is
                    (No (Insertion_Point)
                      or else List_Containing (Insertion_Point) /=
                        Declarations (Ancestor))
+                 and then Nkind (Parent (Ancestor)) /= N_Subunit
                then
                   Insertion_Point := First (Declarations (Ancestor));
                   Skip_Non_Source_Subps;
