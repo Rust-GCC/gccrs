@@ -1,3 +1,7 @@
+2026-05-12  Léo Hardt  <leom.hardt@inf.ufrgs.br>
+
+	* texi2pod.pl: Remove rule to parse the defunct @gol macro.
+
 2026-05-11  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
 
 	PR other/125275

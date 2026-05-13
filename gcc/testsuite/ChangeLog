@@ -1,3 +1,155 @@
+2026-05-12  Robert Dubner  <rdubner@symas.com>
+
+	* cobol.dg/group2/Check_for_equality_of_COMP-1___COMP-2.cob:
+	Corrected logic.
+	* cobol.dg/group2/ENTRY_statement.cob: Expanded test.
+	* cobol.dg/group2/ENTRY_statement.out: Likewise.
+	* cobol.dg/group2/FUNCTION_DATE___TIME_OMNIBUS.cob: Automated
+	generation of run-time environment variable.
+	* cobol.dg/group2/Intrinsic_Function_ABS.cob: Corrected.
+	* cobol.dg/group2/RETURN-CODE_moving.cob: Requires "dialect ibm".
+	* cobol.dg/group2/FUNCTION_TRIM_with_NATIONAL_characters.cob: New test.
+	* cobol.dg/group2/FUNCTION_TRIM_with_NATIONAL_characters.out: New test.
+	* cobol.dg/group2/Large_PIC_10000000_.cob: New test.
+	* cobol.dg/group2/Large_PIC_10000000_.out: New test.
+	* cobol.dg/group2/Nested_PERFORM.cob: New test.
+	* cobol.dg/group2/Nested_PERFORM.out: New test.
+	* cobol.dg/group2/Overlapping_MOVE.cob: New test.
+	* cobol.dg/group2/Overlapping_MOVE.out: New test.
+	* cobol.dg/group2/PERFORM_TIMES_subscripted.cob: New test.
+	* cobol.dg/group2/PERFORM_TIMES_subscripted.out: New test.
+	* cobol.dg/group2/PERFORM_VARYING_BY_-0.2.cob: New test.
+	* cobol.dg/group2/PERFORM_VARYING_BY_-0.2.out: New test.
+	* cobol.dg/group2/REDEFINES__chained.cob: New test.
+	* cobol.dg/group2/REDEFINES__chained.out: New test.
+	* cobol.dg/group2/RETURN-CODE_with_INITIAL_and_RECURSIVE.cob: New test.
+	* cobol.dg/group2/RETURN-CODE_with_INITIAL_and_RECURSIVE.out: New test.
+	* cobol.dg/group2/Sanity_check_for_ENTRY.cob: New test.
+	* cobol.dg/group2/Sanity_check_for_ENTRY.out: New test.
+	* cobol.dg/group2/Simple_COMP-X.cob: New test.
+	* cobol.dg/group2/Simple_COMP-X.out: New test.
+	* cobol.dg/group2/compare_alpha_to_all__literal_.cob: New test.
+	* cobol.dg/group2/compare_alpha_to_all__literal_.out: New test.
+	* cobol.dg/group2/compare_national_to_display.cob: New test.
+	* cobol.dg/group2/compare_national_to_display.out: New test.
+	* cobol.dg/group2/comprensive_compare_comp-1_comp-5.cob: New test.
+	* cobol.dg/group2/comprensive_compare_comp-1_comp-5.out: New test.
+	* cobol.dg/group2/refmod_with_nested_parentheses.cob: New test.
+	* cobol.dg/group2/refmod_with_nested_parentheses.out: New test.
+	* cobol.dg/group2/signed_unsigned_compare.cob: New test.
+	* cobol.dg/group2/signed_unsigned_compare.out: New test.
+
+2026-05-12  Christopher Bazley  <chris.bazley@arm.com>
+
+	* gcc.dg/c23-empty-init-warn-1.c: New test.
+	* gcc.dg/c23-empty-init-warn-10.c: New test.
+	* gcc.dg/c23-empty-init-warn-11.c: New test.
+	* gcc.dg/c23-empty-init-warn-12.c: New test.
+	* gcc.dg/c23-empty-init-warn-13.c: New test.
+	* gcc.dg/c23-empty-init-warn-14.c: New test.
+	* gcc.dg/c23-empty-init-warn-15.c: New test.
+	* gcc.dg/c23-empty-init-warn-16.c: New test.
+	* gcc.dg/c23-empty-init-warn-17.c: New test.
+	* gcc.dg/c23-empty-init-warn-2.c: New test.
+	* gcc.dg/c23-empty-init-warn-3.c: New test.
+	* gcc.dg/c23-empty-init-warn-4.c: New test.
+	* gcc.dg/c23-empty-init-warn-5.c: New test.
+	* gcc.dg/c23-empty-init-warn-6.c: New test.
+	* gcc.dg/c23-empty-init-warn-7.c: New test.
+	* gcc.dg/c23-empty-init-warn-8.c: New test.
+	* gcc.dg/c23-empty-init-warn-9.c: New test.
+	* gcc.dg/gnu11-empty-init-warn-1.c: New test.
+	* gcc.dg/gnu11-empty-init-warn-10.c: New test.
+	* gcc.dg/gnu11-empty-init-warn-11.c: New test.
+	* gcc.dg/gnu11-empty-init-warn-12.c: New test.
+	* gcc.dg/gnu11-empty-init-warn-13.c: New test.
+	* gcc.dg/gnu11-empty-init-warn-14.c: New test.
+	* gcc.dg/gnu11-empty-init-warn-15.c: New test.
+	* gcc.dg/gnu11-empty-init-warn-16.c: New test.
+	* gcc.dg/gnu11-empty-init-warn-17.c: New test.
+	* gcc.dg/gnu11-empty-init-warn-2.c: New test.
+	* gcc.dg/gnu11-empty-init-warn-3.c: New test.
+	* gcc.dg/gnu11-empty-init-warn-4.c: New test.
+	* gcc.dg/gnu11-empty-init-warn-5.c: New test.
+	* gcc.dg/gnu11-empty-init-warn-6.c: New test.
+	* gcc.dg/gnu11-empty-init-warn-7.c: New test.
+	* gcc.dg/gnu11-empty-init-warn-8.c: New test.
+	* gcc.dg/gnu11-empty-init-warn-9.c: New test.
+
+2026-05-12  Jason Merrill  <jason@redhat.com>
+
+	PR c++/100903
+	* g++.dg/cpp2a/spaceship-warn1.C: New test.
+
+2026-05-12  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/50479
+	PR c++/62244
+	* g++.dg/reflect/parm1.C: Uncomment code.
+	* g++.dg/parse/defarg22.C: New test.
+	* g++.dg/parse/defarg23.C: New test.
+	* g++.dg/parse/defarg24.C: New test.
+	* g++.dg/parse/defarg25.C: New test.
+	* g++.dg/parse/defarg26.C: New test.
+
+2026-05-12  Marek Polacek  <polacek@redhat.com>
+
+	* g++.dg/reflect/bases_of5.C: Use decltype (sizeof 0) instead of
+	unsigned long.
+
+2026-05-12  Martin Jambor  <mjambor@suse.cz>
+
+	PR tree-optimization/124151
+	* gcc.dg/tree-ssa/pr124151.c: New test.
+
+2026-05-12  Lili Cui  <lili.cui@intel.com>
+	    Hongtao Liu  <hongtao.liu@intel.com>
+
+	* gcc.dg/vect/slp-reduc-15.c: New test.
+
+2026-05-12  Artemiy Volkov  <artemiy.volkov@arm.com>
+
+	PR middle-end/125259
+	* gcc.dg/tree-ssa/pr125259.c: New test.
+
+2026-05-12  Alexandre Oliva  <oliva@adacore.com>
+
+	* gcc.target/aarch64/erratas_opt_0.c: Revert skip on VxWorks.
+	* gcc.target/aarch64/erratas_opt_1.c: Likewise.
+	* gcc.target/aarch64/erratas_opt_2.c: Likewise.
+	* gcc.target/aarch64/erratas_opt_3.c: Likewise.
+	* gcc.target/aarch64/erratas_opt_4.c: Likewise.
+	* gcc.target/aarch64/erratas_opt_5.c: Likewise.
+	* gcc.target/aarch64/erratas_opt_6.c: Likewise.
+	* gcc.target/aarch64/erratas_opt_7.c: Likewise.
+	* gcc.target/aarch64/erratas_opt_8.c: Likewise.
+	* gcc.target/aarch64/erratas_opt_9.c: Likewise.
+	* gcc.target/aarch64/erratas_opt_10.c: Likewise.
+	* gcc.target/aarch64/erratas_opt_11.c: Likewise.
+	* gcc.target/aarch64/erratas_opt_12.c: Likewise.
+	* gcc.target/aarch64/erratas_opt_13.c: Likewise.
+	* gcc.target/aarch64/erratas_opt_14.c: Likewise.
+	* gcc.target/aarch64/erratas_opt_15.c: Likewise.
+
+2026-05-12  Alexandre Oliva  <oliva@adacore.com>
+
+	* gcc.dg/vect/pr94994.c: Include stddef.h.
+
+2026-05-12  Alexandre Oliva  <oliva@adacore.com>
+
+	* gcc.target/riscv/pr114139.c: Reset arch.
+	* gcc.target/riscv/pr118170.c: Likewise.
+
+2026-05-12  Naveen  <naveen.siddegowda@oss.qualcomm.com>
+
+	* gcc.dg/pr123286.c: New test.
+
+2026-05-12  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/125208
+	* g++.dg/reflect/alias3.C: New test.
+	* g++.dg/reflect/bases_of5.C: New test.
+
 2026-05-11  Jason Merrill  <jason@redhat.com>
 
 	* g++.dg/reflect/pr125007.C: Add info{} test.

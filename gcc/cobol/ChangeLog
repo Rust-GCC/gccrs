@@ -1,3 +1,132 @@
+2026-05-12  Robert Dubner  <rdubner@symas.com>
+
+	* Make-lang.in: Incorporate new gcc/cobol/compare.cc file.
+	* cobol1.cc (ATTR_CONST_NOTHROW_LEAF): Incorporate __builtin_swap16,
+	__builtin_swap32, __builtin_swap64, and __builtin_swap128.
+	(cobol_langhook_init): Likewise.
+	* genapi.cc (treeplet_fill_source): Improve speed.
+	(get_binary_value_from_float): Spelling.
+	(normal_normal_compare): Eliminate.
+	(compare_binary_binary): Eliminate.
+	(DEBUG_COMPARE): Eliminate.
+	(cobol_compare): Eliminate.
+	(parser_enter_file): Eliminate obsolete variables.
+	(data_decl_type_for): New function.
+	(parser_alphabet_use): Flag altered alphabets for speed.
+	(parser_display): Environment switch for putting comments into
+	the assembly language.
+	(program_end_stuff): Change "hijack" to "hijack_h".
+	(parser_division): Repair RETURN-CODE logic.
+	(parser_logop): Improve GENERIC for logical operations.
+	(parser_relop): Use new cobol_compare_relop() routine.
+	(parser_relop_long): Elminate unnecessary static variable.
+	(inspect_tally): Improve parameter passing to library routine.
+	(inspect_replacing): Likewise.
+	(parser_intrinsic_subst): Likewise.
+	(parser_intrinsic_callv): Likewise.
+	(parser_intrinsic_call_1): Likewise.
+	(parser_bsearch_start): Likewise.
+	(parser_bsearch_when): Use new comparison routine; simplify logic.
+	(parser_unstring): Improve parameter passing to library routine.
+	(parser_string): Likewise.
+	(create_and_call): Repair RETURN-CODE logic.
+	(parser_call): Adjust exception processing when the target cannot be
+	found.
+	(build_temporaryN): Constructor for cblc_field_t::data.
+	(hijack_for_development): Change hijacking name to "dubner_h".
+	(hijacker): Change hijacking name to "hijack_h".
+	(get_reference_to_data): New function.
+	(mh_identical): Improve speed when sender and receiver have the same
+	structure.
+	(mh_source_is_literalN): Eliminate leading plus/minus when moving a
+	numeric to an alphanumeric.
+	(move_helper): Adjust logic for mh_identical and mh_source_is_group.
+	(actually_create_the_static_field): Use constructor for data member.
+	(psa_new_var_decl): Typo in comment.
+	(parser_symbol_add): Make the generated data type more consistent
+	with the COBOL variable type.
+	* genapi.h (parser_bsearch_when): Change declaration.
+	(parser_bsearch_start): Formatting.
+	(parser_sort): Formatting.
+	* gengen.cc (gg_show_type): Expand for ARRAY_TYPE and ARRAY_REF.
+	(gg_define_from_declaration): Use void type for DECL_EXPR.
+	(gg_define_volatile_variable): New function.
+	(gg_get_address): New function.
+	(gg_array_value): Use fold_convert().
+	(gg_bswap): New function.
+	(gg_memcmp): New function.
+	* gengen.h (SCHAR_P): New and changed declarations.
+	(struct gg_function_t): Add alphabet_in_use flag.
+	(gg_define_volatile_variable): New declaration.
+	(gg_get_address_of): Comment.
+	(gg_pointer_to_array): Comment.
+	(gg_get_address): New declaration.
+	(gg_bswap): New declaration.
+	(gg_memcmp):  New declaration.
+	(gg_insert_into_assemblerf): Formatting.
+	* genmath.cc (arithmetic_operation): Improved handling of
+	parameters.
+	(fast_add): Improved handling of locations.
+	(parser_add): Formatting.
+	* genutil.cc (tree_type_from_digits): Correct parameter.
+	(get_data_offset): Correct exception handling.
+	(get_binary_value_tree): Improve location handling.
+	(tree_type_from_field): Correct logic.
+	(tree_type_from_size): Correct signs for returned type.
+	(build_array_of_treeplets): Eliminated.
+	(build_array_of_referlets): New function.
+	(build_array_of_fourplets): Eliminated.
+	(build_array_of_refers): New function.
+	(refer_is_clean): Improved logic.
+	(refer_is_super_clean): New function.
+	(refer_is_working_storage): New function.
+	(refer_offset): Formatting.
+	(binary_from_FldNumericBin5): New function.
+	(binary_from_FldNumericBinary): New function.
+	(d_and_q_num_disp): New function.
+	(binary_from_FldNumericDisplay): New function.
+	(make_dp2bin_decl): New function.
+	(d_and_q_packed): New function.
+	(binary_from_comp_3): New function.
+	(binary_from_comp_6): New function.
+	(binary_from_FldPacked): New function.
+	(binary_from_FldFloat): New function.
+	(get_binary_value): New function.
+	(get_location): New function.
+	(get_length): New function.
+	* genutil.h (tree_type_from_digits): New declaration.
+	(tree_type_from_size): Changed declaration.
+	(refer_is_super_clean): New declaration.
+	(refer_is_working_storage): New declaration.
+	(refer_offset): Changed declaration.
+	(build_array_of_treeplets): Remove declaration.
+	(build_array_of_referlets): New declaration.
+	(build_array_of_fourplets): Remove declaration.
+	(build_array_of_refers): New declaration.
+	(tree_type_from_field): New declaration.
+	(get_binary_value): New declaration.
+	(get_location): New declaration.
+	(get_length): New declaration.
+	* parse.y: Mysterious changes. All changes to YACC rules are
+	mysterious.
+	* parse_ante.h (class log_expr_t): Changes to logop() invocation.
+	* scan_post.h (yylex): Remove unnecessary trailing semicolon.
+	* structs.cc (create_cblc_file_t): Change cblc_file_t declaration.
+	(create_referlet_t): New function.
+	(create_refer_t): New function.
+	(create_our_type_nodes): Add cblc_referlet_type_node and
+	cblc_refer_type_node.
+	* structs.h (member2): New declaration.
+	(GTY): Type for cblc_referlet_type_node and cblc_refer_type_node.
+	* symbols.cc (temporaries_t::add): Remove unnecessary trailing
+	semicolon.
+	* symbols.h (struct cbl_bsearch_t): Remove obsolete member.
+	(ENABLE_HIJACKING): Compilation switch for enabling dubner_h and
+	hijack_h code-generation hijacking.
+	* util.cc (symbol_field_type_update): Comment.
+	* compare.cc: New file.
+	* compare.h: New file.
+
 2026-04-02  Robert Dubner  <rdubner@symas.com>
 
 	* cobol1.cc (cobol_langhook_handle_option): Handle OPT_Wrecording_mode.

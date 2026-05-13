@@ -1,3 +1,91 @@
+2026-05-12  Robert Dubner  <rdubner@symas.com>
+
+	* charmaps.h (class charmap_t): Remove an abort().
+	* common-defs.h (SUPERTYPE): Pairs integers for complex switch().
+	(cbl_file_mode_str): Remove unnecessary trailing semicolon.
+	* gcobolio.h: New cblc_referlet_t and cblc_refer_t structures;
+	eliminate obsolete structures.
+	* gmath.cc (__gg__pow): Improved parameter handling.
+	(__gg__add_fixed_phase1): Likewise.
+	(__gg__addf1_fixed_phase2): Likewise.
+	(__gg__fixed_phase2_assign_to_c): Likewise.
+	(__gg__add_float_phase1): Likewise.
+	(__gg__addf1_float_phase2): Likewise.
+	(__gg__float_phase2_assign_to_c): Likewise.
+	(__gg__addf3): Likewise.
+	(__gg__subtractf1_fixed_phase2): Likewise.
+	(__gg__subtractf2_fixed_phase1): Likewise.
+	(__gg__subtractf1_float_phase2): Likewise.
+	(__gg__subtractf2_float_phase1): Likewise.
+	(__gg__subtractf3): Likewise.
+	(__gg__multiplyf1_phase1): Likewise.
+	(__gg__multiplyf1_phase2): Likewise.
+	(__gg__multiplyf2): Likewise.
+	(__gg__dividef1_phase2): Likewise.
+	(__gg__dividef23): Likewise.
+	(__gg__dividef45): Likewise.
+	* inspect.cc (inspect_backward_format_1): Likewise.
+	(__gg__inspect_format_1): Likewise.
+	(inspect_backward_format_2): Likewise.
+	(__gg__inspect_format_2): Likewise.
+	(__gg__inspect_format_1_sbc): Likewise.
+	* intrinsic.cc (kahan_summation): Likewise.
+	(variance): Likewise.
+	(__gg__concat): Likewise.
+	(__gg__max): Likewise.
+	(__gg__mean): Likewise.
+	(__gg__median): Likewise.
+	(__gg__midrange): Likewise.
+	(__gg__min): Likewise.
+	(__gg__ord_min): Likewise.
+	(__gg__ord_max): Likewise.
+	(__gg__present_value): Likewise.
+	(__gg__range): Likewise.
+	(__gg__standard_deviation): Likewise.
+	(__gg__sum): Likewise.
+	(__gg__variance): Likewise.
+	(__gg__substitute): Likewise.
+	* libgcobol.cc (__gg__resize_int_p): Eliminate.
+	(__gg__resize_treeplet): Eliminate.
+	(initialize_program_state): Eliminate the use of obsolete variables.
+	(format_for_display_internal): Handle FldLiteralN; display up to
+	38 digits for __int128.
+	(compare_field_class): Rename to __gg__compare_field_class.
+	(__gg__compare_field_class): Likewise.
+	(interconvert): Correct codeset correction logic.
+	(__gg__compare_2): Use __gg__compare_field_class.
+	(__gg__move): Handle FldNumericBin5 correction.
+	(__gg__string): Improved parameter handling.
+	(display_both): Cope with missing codeset parameter.
+	(__gg__literaln_alpha_compare): Eliminate.
+	(__gg__unstring): Improved parameter handling.
+	(__gg__just_mangle_name): Improved codeset handling.
+	(__gg__convert): Formatting.
+	(__gg__set_data_member): Eliminate.
+	(__gg__show_int128): New function.
+	(__gg__compare_string_all): New function.
+	(__gg__compare_string_1): New function.
+	(ASCII_16): Abuse of the preprocessor to create a 1024-byte string
+	of ASCII spaces.
+	(ASCII_64): Likewise.
+	(ASCII_256): Likewise.
+	(ASCII_1024): Likewise.
+	(EBCDIC_16): Abuse of the preprocessor to create a 1024-byte string
+	of EBCDIC spaces.
+	(EBCDIC_64): Likewise.
+	(EBCDIC_256): Likewise.
+	(EBCDIC_1024): Likewise.
+	(__gg__compare_string_1a): New function.
+	(__gg__compare_string_1e): New function.
+	(__gg__compare_string_2): New function.
+	(__gg__compare_string_2a): New function.
+	(__gg__compare_string_4): New function.
+	(__gg__compare_string_4a): New function.
+	(__gg_compare_string_different): New function.
+	(__gg__compare_numeric_all): New function.
+	(__gg__compare_binary_to_string): New function.
+	* stringbin.cc (__gg__binary_to_string_ascii): Improved algorithm.
+
 2026-04-02  Robert Dubner  <rdubner@symas.com>
 
 	* Makefile.am: Include new libgcobol/inspect.cc file.

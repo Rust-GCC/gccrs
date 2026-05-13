@@ -1,3 +1,35 @@
+2026-05-12  Jonathan Wakely  <jwakely@redhat.com>
+	    Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	PR libstdc++/123165
+	* acinclude.m4 (libtool_VERSION): Bump version.
+	* config/abi/pre/gnu.ver (GLIBCXX_3.4.36): Add new symbol
+	version and export new symbol.
+	* configure: Regenerate.
+	* include/std/chrono (__detail::__recent_leap_second_info):
+	Declare new function and make it a friend of varous classes.
+	(leap_second): Make private constructor constexpr. Remove friend
+	declaration for get_leap_second_info.
+	(__detail::__get_leap_second_info): Use new function for times
+	past the hardcoded expiry.
+	* src/c++20/tzdb.cc (tzdb_list::_Node::fixed_leaps): Move array
+	of leap seconds here from _S_read_leap_seconds.
+	(fixed_expiry, num_leap_seconds): New globals.
+	(__detail::__recent_leap_second_info): Define new function.
+	(tzdb_list::_Node::_S_read_leap_seconds): Populate vector from
+	_Node::fixed_leaps. Rename bool variable to clarify meaning.
+	(tzdb_list::_Node::_S_replace_head): Update num_leap_seconds
+	when updating the tzdb_list.
+	* testsuite/util/testsuite_abi.cc: Update known_versions and
+	latestp.
+	* testsuite/std/time/clock/utc/leap_second_info-2.cc: New test.
+
+2026-05-12  Alexandre Oliva  <oliva@adacore.com>
+
+	* acinclude.m4 (GLIBXX_ENABLE_LIBSTDCXX_TIME) [vxworks*]:
+	Enable monotonic and realtime clocks.
+	* configure: Rebuilt.
+
 2026-05-11  Tomasz Kamiński  <tkaminsk@redhat.com>
 
 	* include/std/format (__formatter_str::_M_format_range):

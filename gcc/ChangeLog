@@ -1,3 +1,138 @@
+2026-05-12  Heiko Eißfeldt  <heiko.Eissfeldt@hexco.de>
+
+	PR middle-end/124651
+	* gimple-warn-recursion.cc (find_function_exit):
+	replace recursive calls with iteration for lower stack usage
+
+2026-05-12  John David Anglin  <danglin@gcc.gnu.org>
+
+	* config/pa/pa64-hpux.h (MD_EXEC_PREFIX): Define to empty
+	string.
+
+2026-05-12  Christopher Bazley  <chris.bazley@arm.com>
+
+	* common.opt: Add Wzero-init-padding-bits=.
+	* common.opt.urls: Regenerated.
+	* doc/invoke.texi: Document Wzero-init-padding-bits=.
+	* expr.cc (categorize_ctor_elements_1): Update new struct type
+	ctor_completeness instead of an integer to indicate presence of
+	padding or missing fields in a constructor. Instead of setting -1
+	upon discovery of padding bits in both structs and unions,
+	set separate flags to indicate the type of padding bits.
+	(categorize_ctor_elements): Update the type and documentation of
+	the p_complete parameter.
+	(mostly_zeros_p): Use new struct type ctor_completeness when
+	calling categorize_ctor_elements.
+	(all_zeros_p): Use new struct type ctor_completeness when
+	calling categorize_ctor_elements.
+	* expr.h (struct ctor_completeness): New struct type to replace an
+	an integer that could take the value -1 ('all fields are
+	initialized, but there's padding'), 0 ('fields are missing') or
+	1 ('all fields are initialized, and there's no padding'). Named
+	bool members make the code easier to understand and make room to
+	disambiguate struct padding bits from union padding bits.
+	(categorize_ctor_elements): Update the function declaration to use
+	the new struct type in the last parameter declaration.
+	* gimplify.cc (gimplify_init_constructor): Replace use of
+	complete_p != 0 ('all fields are initialized') with !sparse,
+	replace use of complete == 0 ('fields are missing') with sparse, and
+	replace use of complete <= 0 ('fields are missing' or 'all fields are
+	initialized, but there's padding') with sparse || padded_union or
+	padded_non_union. Trigger new warnings if storage for the object
+	is not zeroed but padded_union or padded_non_union is set
+	(because this combination implies possible non-zero padding bits).
+
+2026-05-12  Martin Jambor  <mjambor@suse.cz>
+
+	PR tree-optimization/124151
+	* tree-sra.cc (build_user_friendly_ref_for_offset): Added parameters
+	CUR_SIZE and EXP_SIZE.  Added code passing the correct CUR_SIZE and
+	checking it against EXP_SIZE.  Removed unused code for the case when
+	EXP_TYPE was NULL_TREE.
+	(create_artificial_child_access): Adjusted the call to
+	build_user_friendly_ref_for_offset.
+	(propagate_subaccesses_from_rhs): Likewise.
+	(propagate_subaccesses_from_rhs): Removed a check that the size of
+	lchild is a multiple of BITS_PER_UNIT.
+	(propagate_subaccesses_from_lhs): Likewise.
+
+2026-05-12  Yoshinori Sato  <yoshinori.sato@nifty.com>
+
+	PR target/113948
+	* config/rx/rx-protos.h (rx_split_double_move): New helper prototype.
+	(rx_relax_double_operands): Likewise.
+	* config/rx/rx.cc (rx_legitimize_address): Add expand complex case.
+	(rx_is_legitimate_address): Add double word case.
+	(rx_gen_move_template): Fix operation size in unsigned extend.
+	(rx_gen_move_template): Remove DImode and DFmode.
+	(rx_get_stack_layout): Fix for frame size calculation.
+	(rx_initial_elimination_offset): The calculation method has been
+	changed to one that supports LRA.
+	(rx_hard_regno_nregs): Use CEIL.
+	(rx_hard_regno_mode_ok): Add ATTRIBUTE_UNUSED.
+	(rx_get_subword): New. Double word move helper.
+	(rx_split_double_move): Likewise.
+	(rx_relax_double_operands): Likewise.
+	* config/rx/rx.h (reg_class): Add CC for all regsisters.
+	(CLASS_MAX_NREGS): Remove.
+	* config/rx/rx.md (mov<register_modes:mode>):
+	Replace copy_to_mode_reg to force_reg.
+	(movdi): Limit the arguments to make register allocation easier.
+	(movdf): Likewise.
+	(movdi_internal): New.
+	(movdf_internal): New.
+	(addsi3_pid): New. Handling UNSPEC_PID_ADDR.
+	(addsi3_lra): New. alternative addptrsi3.
+	(ashlsi3_lra): Likewise.
+
+2026-05-12  Lili Cui  <lili.cui@intel.com>
+	    Hongtao Liu  <hongtao.liu@intel.com>
+
+	* tree-vect-slp.cc (vect_analyze_slp_reduction): Don't bail out
+	early when SLP discovery limit is exhausted; only guard the chain
+	analysis which may build multi-lane trees.  Single-lane fallback
+	does not consume limit and should always be attempted.
+
+2026-05-12  Lili Cui  <lili.cui@intel.com>
+	    Hongtao Liu  <hongtao.liu@intel.com>
+
+	* tree-vect-slp.cc (vect_build_slp_tree_1): Use unified
+	first_commutative_argument interface to allow commutative
+	operand swap for both tree codes and internal functions
+	(e.g. .COND_ADD) in SLP reduction matching.
+
+2026-05-12  Richard Biener  <rguenther@suse.de>
+
+	* tree-vect-stmts.cc (get_load_store_type): Pass
+	temporary to vect_use_grouped_gather, only set ls_type
+	when that succeeded.
+
+2026-05-12  Artemiy Volkov  <artemiy.volkov@arm.com>
+
+	PR middle-end/125259
+	* match.pd: Fix the view_convert (BIT_FIELD_REF) pattern.
+
+2026-05-12  Alexandre Oliva  <oliva@adacore.com>
+
+	* config.gcc [aarch64*-wrs-vxworks*] (tm_file): Add
+	aarch64/aarch64-errata.h.
+	* config/aarch64/aarch64-vxworks.h (LINK_SPEC): Add
+	AARCH64_ERRATA_LINK_SPEC.
+	(CC1_SPEC, CC1PLUS_SPEC): Add AARCH64_ERRATA_COMPILE_SPEC.
+
+2026-05-12  Naveen  <naveen.siddegowda@oss.qualcomm.com>
+
+	* fold-const-call.cc (fold_internal_fn_sat_add): New function.
+	(fold_const_call): Handle CFN_SAT_ADD.
+	* match.pd: Add simplifications for x SAT_ADD 0 == x.
+	* genmatch.cc (commutative_op): Add CFN_SAT_ADD.
+
+2026-05-12  Naveen  <naveen.siddegowda@oss.qualcomm.com>
+
+	* config/aarch64/aarch64-protos.h (aarch64_output_simd_mov_imm_low):
+	Change return type to const char *.
+	* config/aarch64/aarch64.cc (aarch64_output_simd_mov_imm_low): Likewise.
+
 2026-05-11  William D. Jones  <thor0505@comcast.net>
 
 	PR target/120077

@@ -1,3 +1,26 @@
+2026-05-12  Jason Merrill  <jason@redhat.com>
+
+	PR c++/100903
+	* call.cc (build_over_call): Avoid -Wzero-as-null-pointer-constant
+	if the warning is disabled around the called function.
+
+2026-05-12  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/50479
+	PR c++/62244
+	* parser.cc (cp_parser_parameter_declaration_list): Move the
+	grokdeclarator call and setting DECL_SOURCE_LOCATION to...
+	(cp_parser_parameter_declaration): ...here.  New tree parameter.
+	Set it.  Call pushdecl for a named decl with a default argument.
+
+2026-05-12  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/125208
+	* reflect.cc (compare_reflections): Use == when comparing two
+	aliases.
+	* tree.cc (cp_tree_equal) <case REFLECT_EXPR>: Use
+	compare_reflections.
+
 2026-05-11  Jason Merrill  <jason@redhat.com>
 
 	* reflect.cc (null_reflection_p): New.
