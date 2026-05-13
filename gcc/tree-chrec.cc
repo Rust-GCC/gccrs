@@ -1598,6 +1598,31 @@ keep_cast:
 						  CHREC_RIGHT (chrec)));
       res = chrec_convert_1 (type, res, at_stmt, use_overflow_semantics, from);
     }
+  /* Similar perform the trick that (unsigned T)(base + step) can be
+     folded to ((unsigned T)x + (unsigned T)step).  */
+  else if (use_overflow_semantics
+	   && TREE_CODE (chrec) == POLYNOMIAL_CHREC
+	   && INTEGRAL_TYPE_P (ct)
+	   && INTEGRAL_TYPE_P (type)
+	   && TYPE_OVERFLOW_UNDEFINED (type)
+	   /* Must be unsigned so we don't introduce any UB.  */
+	   && TYPE_UNSIGNED (type)
+	   /* The outer type must at least as wide than the inner type so we
+		 don't truncate when we fold and must the inner CHREC must be
+		 non-wrapping so we don't change the behavior when folding to
+		 a wider type.  */
+	  && TYPE_PRECISION (type) >= TYPE_PRECISION (ct)
+	  && (!TYPE_UNSIGNED (ct)
+	      || TYPE_PRECISION (type) == TYPE_PRECISION (ct)
+	      || nonwrapping_chrec_p (chrec)))
+    {
+      res = build_polynomial_chrec (CHREC_VARIABLE (chrec),
+				    fold_convert (type,
+						  CHREC_LEFT (chrec)),
+				    fold_convert (type,
+						  CHREC_RIGHT (chrec)));
+      res = chrec_convert_1 (type, res, at_stmt, use_overflow_semantics, from);
+    }
   else
     res = fold_convert (type, chrec);
 
