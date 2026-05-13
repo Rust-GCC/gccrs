@@ -1418,8 +1418,8 @@ static encodings_t encodings[] = {
 };
 
 /*
- * Because this variable is static, the contructor runs before main and is
- * guaranted to run.
+ * Because this variable is static, the constructor runs before main and is
+ * guaranteed to run.
  */
 static class rt_encoding_t
   {
@@ -1629,7 +1629,7 @@ __gg__iconverter( cbl_encoding_t from,
     // When the caller supplies iconv_retval_p, we only try to convert once,
     // because they are telling us they will handle errors.
 
-    // Otherwise, we just keep trying to convert, replacing unconvertable
+    // Otherwise, we just keep trying to convert, replacing unconvertible
     // characters with a replacement.
 
     iconv_retval = 1; // This primes the pump:

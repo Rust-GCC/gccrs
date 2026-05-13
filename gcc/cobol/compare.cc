@@ -748,7 +748,7 @@ alpha_compare(tree        &left,
       {
       // They are the same size, and neither is national or display.  This is
       // highly weird.  The only thing I can think causing it would be two
-      // files with different speci fied encodings.  Just have the left side
+      // files with different specified encodings.  Just have the left side
       // win.
       do_it = true;
       }

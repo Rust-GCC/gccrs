@@ -912,7 +912,7 @@ inspect_backward_format_1(const size_t integers[],
           }
         default:
           {
-          // We have some number of identifer-3 values,
+          // We have some number of identifier-3 values,
           // each with possible PHRASE1 modifiers.
           size_t pair_count = integers[int_index++];
 
@@ -1273,7 +1273,7 @@ __gg__inspect_format_1( int backward,
           }
         default:
           {
-          // We have some number of identifer-3 values,
+          // We have some number of identifier-3 values,
           // each with possible PHRASE1 modifiers.
           size_t pair_count = integers[int_index++];
 
@@ -1618,7 +1618,7 @@ inspect_backward_format_2(const size_t integers[],
         }
       default:
         {
-        // We have some number of identifer-3/identifier-5 pairs,
+        // We have some number of identifier-3/identifier-5 pairs,
         // each with possible PHRASE1 modifiers.
         size_t pair_count = integers[int_index++];
 
@@ -1869,7 +1869,7 @@ inspect_backward_format_2(const size_t integers[],
 
   charmap_t *charmap = __gg__get_charmap(id1->encoding);
   // Wastefully prefill id_1 with spaces in case the processing resulted in a
-  // string shorter than the original.  (There is always the possiblity that
+  // string shorter than the original.  (There is always the possibility that
   // a UTF-8 or UTF-16 codeset pair got replaced with a single character.) Do
   // this before calling __gg__converter, because both mapped_character and
   // __gg__iconverter use the same static buffer.
@@ -1981,7 +1981,7 @@ __gg__inspect_format_2( int backward,
         }
       default:
         {
-        // We have some number of identifer-3/identifier-5 pairs,
+        // We have some number of identifier-3/identifier-5 pairs,
         // each with possible PHRASE1 modifiers.
         size_t pair_count = integers[int_index++];
 
@@ -2240,7 +2240,7 @@ __gg__inspect_format_2( int backward,
 
   charmap_t *charmap = __gg__get_charmap(id1->encoding);
   // Wastefully prefill id_1 with spaces in case the processing resulted in a
-  // string shorter than the original.  (There is always the possiblity that
+  // string shorter than the original.  (There is always the possibility that
   // a UTF-8 or UTF-16 codeset pair got replaced with a single character.) Do
   // this before calling __gg__converter, because both mapped_character and
   // __gg__iconverter use the same static buffer.
@@ -2708,7 +2708,7 @@ __gg__inspect_format_1_sbc( int backward,
 
         default:
           {
-          // We have some number of identifer-3 values,
+          // We have some number of identifier-3 values,
           // each with possible PHRASE1 modifiers.
           size_t pair_count = integers[int_index++];
 

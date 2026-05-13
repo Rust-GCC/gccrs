@@ -2869,7 +2869,7 @@ date_time_fmt( const char input[] ) {
 
 
 /*
- * Development suppport
+ * Development support
  */
 
 #pragma GCC diagnostic push
@@ -3035,11 +3035,11 @@ cobol_lineno( int lineno ) {
 /*
  * This function is called from the scanner, usually when a copybook is on top
  * of the input stack, before the parser retrieves the token and resets the
- * current filename.  For that reason, we normaly want to line number of the
+ * current filename.  For that reason, we normally want to line number of the
  * file that is about to become the current one, which is the one behind top().
  *
  * If somehow we arrive here when there is nothing underneath, we return the
- * current line nubmer, or zero if there's no input.  The only consequence is
+ * current line number, or zero if there's no input.  The only consequence is
  * that the reported line number might be wrong.
  */
 int

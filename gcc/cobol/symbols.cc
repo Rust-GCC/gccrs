@@ -378,7 +378,7 @@ special_pair_cmp( const cbl_special_name_t& key,
  *
  * A qualified reference is denoted LblParagraph with a section, and
  * with line = 0.  A qualified reference updates an unqualified
- * declaration; the declation is upgraded to LblParagraph with the
+ * declaration; the declaration is upgraded to LblParagraph with the
  * section as its parent, but still with no line (because it's still
  * undefined).
  *
@@ -2358,7 +2358,7 @@ symbol_table_init(void) {
 
   symbol_table_t table = symbol_table_extend();
 
-  // Insert known contants at the top of an empty table.
+  // Insert known constants at the top of an empty table.
   // Constants are signified by their attribute
   // Be warned that ZEROS plays for both sides.  It is defined here as
   // quoted, but in context it can be the value zero at run-time.  Yes, it
@@ -4531,7 +4531,7 @@ symbol_label_add( size_t program, cbl_label_t *input )
 /*
  * Under ISO (and not IBM) Declaratives are followed by a Section name.  If
  * Declaratives were used, when the first statement is parsed verify that it
- * was preceeded by a Section name.
+ * was preceded by a Section name.
  */
 bool
 symbol_label_section_exists( size_t eval_label_index ) {

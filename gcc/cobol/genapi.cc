@@ -186,7 +186,7 @@ static bool auto_advance_is_AFTER_advancing = 0;
 
 #define MAX_AFTERS 8
 
-// These variables contol a little state machine.  When a simple -main is in
+// These variables control a little state machine.  When a simple -main is in
 // effect, the first program in the module becomes the target of a main()
 // that we synthesize function.  When -main=module:progid is in effect, we
 // create a main() that calls progid.  When active, progid is kept in
@@ -3166,7 +3166,7 @@ enter_program_common(const char *funcname, const char *funcname_)
   }
 
 /*  Creates a function for program-id 'funcname_'.  Returns 1 when funcname_ is
-    "main" and the -main compiler switch is active for this moudle symbol_table
+    "main" and the -main compiler switch is active for this module symbol_table
     has been initialized, and the current program has been entered into it. For
     a top-level program, the program's program is 0, else it is the symbol
     table index of the containing program.  */
@@ -12060,7 +12060,7 @@ parser_bsearch_end( cbl_label_t* name )
   // Arriving here means that either the search ran out without finding
   // anything, (see the test up at TOP:), or else we just fell through from
   // the statements that executed after all the WHEN/AFTER clauses were
-  // satisifed by equality (meaning there were no jumps to TOO_SMALL: or
+  // satisfied by equality (meaning there were no jumps to TOO_SMALL: or
   // TOO_LARGE).  In other words: we're done.
   gg_append_statement(bsearch->bottom.label);
 
@@ -14030,7 +14030,7 @@ parser_set_pointers( size_t ntgt, cbl_refer_t *tgts, cbl_refer_t source )
       if( tgts[i].addr_of )
         {
         // When SET ADDRESS OF TARGET TO ..., the library call sets
-        // tgts[i].field->data.  We need to propogate the data+offset
+        // tgts[i].field->data.  We need to propagate the data+offset
         // through the level01 variable's children:
         propogate_linkage_offsets(tgts[i].field,
                                   member(tgts[i].field->var_decl_node, "data"));

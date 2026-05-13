@@ -1361,7 +1361,7 @@ ec_descr_t __gg__exception_table[] = {
   { ec_argument_imp_command_e,   uc_category_implementor_e,
    "EC-ARGUMENT-IMP-COMMAND", "COMMAND-LINE Subscript out of bounds" },
   { ec_argument_imp_environment_e, uc_category_implementor_e,
-   "EC-ARGUMENT-IMP-ENVIRONMENT", "Envrionment Variable is not defined" },
+   "EC-ARGUMENT-IMP-ENVIRONMENT", "Environment Variable is not defined" },
 
   { ec_bound_e,                  ec_category_none_e,
    "EC-BOUND", "Boundary violation" },

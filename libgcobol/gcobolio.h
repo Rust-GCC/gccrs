@@ -58,7 +58,7 @@ typedef struct cblc_field_t
     size_t occurs_upper;        // non-zero for a table
     unsigned long long attr;    // See cbl_field_attr_t
     signed char type;           // A one-byte copy of cbl_field_type_t
-    signed char level;          // This variable's level in the naming heirarchy
+    signed char level;          // This variable's level in the naming hierarchy
     signed char digits;         // Digits specified in PIC string; e.g. 5 for 99v999
     signed char rdigits;        // Digits to the right of the decimal point. 3 for 99v999
     cbl_encoding_t encoding;    //

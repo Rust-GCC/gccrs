@@ -3764,7 +3764,7 @@ procedure_division_ready( YYLTYPE loc, cbl_field_t *returning, ffi_args_t *ffi_a
   parser_label_label(tini_label);
 
   if( current.program()->initial ) {
-    // We perform the section we just layed down when IS INITIAL
+    // We perform the section we just laid down when IS INITIAL
     parser_perform(init_label);
   }
   return true;

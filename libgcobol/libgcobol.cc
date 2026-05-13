@@ -2239,7 +2239,7 @@ get_time_nanoseconds_local()
       how gettimeofday() gets used, instead.  But without the ability to
       compile on a MacOS system, I am fumbling along as best I can.
 
-      I decided to simply replace clock_gettime() with getttimeofday() when
+      I decided to simply replace clock_gettime() with gettimeofday() when
       clock_gettime() isn't available, even though gcc/timevar.cc handles
       the situation differently.
 
@@ -4662,7 +4662,7 @@ __gg__compare_2(cblc_field_t  *left_side,
         if( right_side->type == FldLiteralN)
           {
           right_value = get_float128(right_side, right_location);
-          // In order to do the comparision, we need the value from the
+          // In order to do the comparison, we need the value from the
           // literal to be the same flavor as the left side:
           switch(left_side->capacity)
             {
@@ -7482,7 +7482,7 @@ display_both(cblc_field_t  *field,
   cbl_encoding_t encout = __gg__console_encoding;
 
   // It can be the case in COBOL programs that a variable set to HIGH-VALUE is
-  // displayed.  In CP1252, the result for 0xFF is a y-with diaresis.
+  // displayed.  In CP1252, the result for 0xFF is a y-with diaeresis.
 
   // In EBCDIC CP1140, however, the 0xFF character is non-printing.  It's my
   // opinion that's protentially confusing, especially when debugging.
@@ -7494,8 +7494,8 @@ display_both(cblc_field_t  *field,
 
   // There are valid arguments against doing this.  But when I was doing some
   // debugging, I found the EBCDIC behavior of displaying nothing for
-  // HIGH-VALUE to be more astonishing than printing a y-with-diaresis.  There
-  // is, of course, the potential for confusing a real y-with-diaresis with a
+  // HIGH-VALUE to be more astonishing than printing a y-with-diaeresis.  There
+  // is, of course, the potential for confusing a real y-with-diaeresis with a
   // a HIGH-VALUE character.  But it is my opinion that those will be resolved
   // by examining the context.
 
@@ -8699,7 +8699,7 @@ accept_envar( cblc_field_t  *tgt,
 
   if( retval == 1 )
     {
-    // Could't find that environment variable
+    // Couldn't find that environment variable
     exception_raise(ec_argument_imp_environment_e);
     }
 
@@ -9009,7 +9009,7 @@ __gg__set_pointer(cblc_field_t       *target,
     // This is SET ADDRESS OF target TO ....
     // We know it has to be an unqualified LINKAGE level 01 or level 77
     target->data  = reinterpret_cast<unsigned char *>(source_address);
-    // The caller will propogate data + offset to their children.
+    // The caller will propagate data + offset to their children.
     }
   else
     {
@@ -9675,7 +9675,7 @@ struct cbl_exception_t {
 };
 
 /*
- * Compare the raised exception, cbl_exception_t, to the USE critera
+ * Compare the raised exception, cbl_exception_t, to the USE criteria
  * of a declarative, cbl_declarative_t.
  */
 static bool
@@ -9876,7 +9876,7 @@ ec_is_fatal( ec_type_t type ) {
 /*
  * To reach the default handler, an EC must have effect and not have been
  * handled by program logic.  To have effect, it must have been enabled
- * explictly, or be of type EC-I-O.  An EC may be handled by the statement or
+ * explicitly, or be of type EC-I-O.  An EC may be handled by the statement or
  * by a Declarative.
  *
  * Any EC handled by statement's conditional clause (e.g. ON SIZE ERROR)
@@ -12120,7 +12120,7 @@ convert_for_convert(      cbl_encoding_t dest_enc,
                           size_t        input_s,
                           size_t       *nbytes)
   {
-  // iconverter takes care of untranslateable characters.
+  // iconverter takes care of untranslatable characters.
   char *retval = __gg__miconverter(input->encoding,
                                    dest_enc,
                                    input->data + input_o,

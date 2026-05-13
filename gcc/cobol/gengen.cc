@@ -2543,7 +2543,7 @@ chain_parameter_to_function(tree function_decl, const tree param_type,  const ch
 
     Cases 3. and 4. turn out to require the same flags.  Here are the combinations of
     flags that are required for each flavor of function_decl.  This was empirically
-    determind by compiling a C++ program with sample code for each type.
+    determined by compiling a C++ program with sample code for each type.
 
                             | addressable | used | nothrow | static | external | public | no_instrument
 main                        |             |      |         |   X    |          |   X    |    X

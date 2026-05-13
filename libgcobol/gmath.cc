@@ -297,7 +297,7 @@ __gg__pow(  cbl_arith_format_t,
       *compute_error |= compute_error_exp_minus_by_frac;
       // This kind of error doesn't overwrite the target, so the returned
       // value is not relevant.  Make it zero to avoid overheating the
-      // converstion routine
+      // conversion routine
       tgt_value = 0;
       }
     }

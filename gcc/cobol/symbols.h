@@ -491,7 +491,7 @@ public:
       auto n = real_to_integer(r);
       REAL_VALUE_TYPE r2;
       real_from_integer (&r2, VOIDmode, n, SIGNED);
-      // If the orginal value r is equal to r2, derived from its integer
+      // If the original value r is equal to r2, derived from its integer
       // part n, then the fractional component is zero.
       if( real_identical (r, &r2) ) {
         return std::make_pair( int64_t(n), true );

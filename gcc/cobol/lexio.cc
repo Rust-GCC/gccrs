@@ -78,7 +78,7 @@ static inline int right_margin() {
 }
 
 /*
- * When setting the indicator column explicity:
+ * When setting the indicator column explicitly:
  *   To get strict fixed 72-column lines, use a negative column number.
  *   When setting back to 0 (free), the right margin is also reset to 0.
  */
@@ -206,7 +206,7 @@ maybe_add_space(const span_t& pattern, replace_t& recognized) {
  * directive.  For the current line, apply patterns that begins on the
  * line.  (It may match input extending beyond the current eol.)
  *
- * As each replacement is identified, append it to the passsed list of
+ * As each replacement is identified, append it to the passed list of
  * pending replacements.  For these elements:
  *
  *     before is a span in mfile

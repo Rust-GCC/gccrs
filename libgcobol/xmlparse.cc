@@ -170,7 +170,7 @@ struct xml_ec_value_t {
   { 148, "missing '=' after 'encoding' in XML declaration" },
   { 149, "missing XML encoding declaration value" },
   { 150, "invalid XML encoding declaration value" },
-  { 151, "invalid character afer XML declaration" },
+  { 151, "invalid character after XML declaration" },
   { 152, "invalid attribute  XML declaration" },
   { 153, "missing '=' after standalone  XML declaration" },
   { 154, "missing standalone XML declaration value" },

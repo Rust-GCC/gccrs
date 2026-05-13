@@ -497,7 +497,7 @@ extern tree gg_strncmp(tree char_star_A, tree char_star_B, tree size_t_N);
 // Flow control inside a function
 extern void gg_return(tree operand = NULL_TREE);
 
-// These routines are the preample and postamble that bracket everything else
+// These routines are the preamble and postamble that bracket everything else
 extern tree gg_build_fn_decl(const char *funcname, tree fndecl_type);
 extern tree gg_peek_fn_decl(const char *funcname);
 extern tree gg_define_function( tree return_type,

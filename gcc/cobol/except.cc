@@ -189,7 +189,7 @@ cbl_enabled_exceptions_t::turn_on_off( bool enabled,
                                            ec_cmp(ec, elem.ec); } )) ) {
       erase(p);
     }
-    // Keep the EC as an override if a higher-level would othewise apply.
+    // Keep the EC as an override if a higher-level would otherwise apply.
     p = std::find_if( begin(), end(),
                       [ec = type]( const auto& elem ) {
                         return
@@ -213,7 +213,7 @@ cbl_enabled_exceptions_t::turn_on_off( bool enabled,
                                              ec_cmp(ec, elem.ec); } )) ) {
         erase(p);
       }
-      // Keep the EC as an override if a higher-level would othewise apply.
+      // Keep the EC as an override if a higher-level would otherwise apply.
       p = std::find_if( begin(), end(),
                         [ec = type, file]( const auto& elem ) {
                           return

@@ -4829,7 +4829,7 @@ __gg__file_stash( cblc_file_t *file )
      * cblc_file_t is defined, and where the valid file status values
      * (and relops) are enumerated.
      *
-     * The library contructs the class, providing its own pointers,
+     * The library constructs the class, providing its own pointers,
      * and supplies a known function, gcobol_fileops, to return
      * it. gcobol-compiled programs call the functions, or others
      * supplied by a different implementation, through the pointers.
@@ -4841,7 +4841,7 @@ __gg__file_stash( cblc_file_t *file )
      * GnuCOBOL.  One difference is that the file status is captured
      * in the cblc_file_t, whereas in GnuCOBOL it is the return value.
      *
-     * There is no provision for using more than one implemetation at
+     * There is no provision for using more than one implementation at
      * a time in the same program, as would be needed for CODE-SET
      * support.  To achieve that in C++ without dynamic linking, there
      * would have to be a set of known implementations, each with its

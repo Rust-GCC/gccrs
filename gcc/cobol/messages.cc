@@ -66,7 +66,7 @@
 
 
 /*
- * As of now, every diagnositc has one id, one message, one kind, and is
+ * As of now, every diagnostic has one id, one message, one kind, and is
  * associated with "one" dialect. The dialect could be ORed. If it is, that
  * means among the dialects it belongs to, it is always of the same kind.
  *

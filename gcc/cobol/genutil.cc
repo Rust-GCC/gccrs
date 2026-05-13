@@ -2002,7 +2002,7 @@ refer_is_clean(const cbl_refer_t &refer)
     // passes us a refer for an optional parameter that has been omitted, for
     // example.
 
-    // It is also the case that a FldLiteralN will never have suscripts, or the
+    // It is also the case that a FldLiteralN will never have subscripts, or the
     // like.
     return true;
     }

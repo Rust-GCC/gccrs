@@ -227,7 +227,7 @@ enum cbl_field_attr_t : uint64_t {
   encoded_e         =  0x0020000000, // data.initial matches codeset.encoding
   bool_encoded_e    =  0x0040000000, // data.initial is a boolean string
   hex_encoded_e     =  0x0080000000, // data.initial is a hex-encoded string
-  depends_on_e      =  0x0100000000, // A group hierachy contains a DEPENDING_ON
+  depends_on_e      =  0x0100000000, // A group hierarchy contains a DEPENDING_ON
   initialized_e     =  0x0200000000, // Don't call parser_initialize from parser_symbol_add
   has_value_e       =  0x0400000000, // Flag to hierarchical descendents to ignore .initial
   ieeedec_e         =  0x0800000000, // Indicates a FldFloat is IEEE 754 decimal, rather than binary

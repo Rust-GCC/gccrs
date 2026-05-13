@@ -372,7 +372,7 @@ cobol.mostlyclean:
 
 gcobol.clean:
 # This is intended for non-general use.  It is a last-ditch effort to flush
-# out all oject files and executable code for gcobol and libgcobol, causing 
+# out all object files and executable code for gcobol and libgcobol, causing 
 # a complete rebuild of all executable code.
 	rm -fr gcobol cobol1 cobol/*		\
 	../*/libgcobol/*

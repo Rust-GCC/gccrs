@@ -4150,7 +4150,7 @@ gets_month( const char *p,
       }
     else if( MM > 12 )
       {
-      // We are betweem 13 and 19, so it was the second digit
+      // We are between 13 and 19, so it was the second digit
       retval = 2;
       }
     ctm.MM = MM;
