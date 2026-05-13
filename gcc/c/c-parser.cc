@@ -6625,7 +6625,7 @@ location_t last_init_list_comma;
    nested braced lists.  NESTED_P is true for nested braced lists,
    false for the list of a compound literal or the list that is the
    top-level initializer in a declaration.  VARSIZE_P indicates
-   wether the object to be initialized has a variable size.  */
+   whether the object to be initialized has a variable size.  */
 
 static struct c_expr
 c_parser_braced_init (c_parser *parser, tree type, bool nested_p,
@@ -9161,7 +9161,7 @@ c_parser_do_statement (c_parser *parser, bool ivdep, unsigned short unroll,
    In Objective-C, there are two additional variants:
 
    foreach-statement:
-     for ( expression in expresssion ) statement
+     for ( expression in expression ) statement
      for ( declaration in expression ) statement
 
    This is inconsistent with C, because the second variant is allowed
@@ -14288,7 +14288,7 @@ c_parser_expression (c_parser *parser)
 	mark_exp_read (lhsval);
       if (c_parser_next_token_is (parser, CPP_EMBED))
 	{
-	  /* Users aren't interested in milions of -Wunused-value
+	  /* Users aren't interested in millions of -Wunused-value
 	     warnings when using #embed inside of a comma expression,
 	     and one CPP_NUMBER plus CPP_COMMA before it and one
 	     CPP_COMMA plus CPP_NUMBER after it is guaranteed by
@@ -15782,7 +15782,7 @@ c_parser_objc_at_property_declaration (c_parser *parser)
 	    }
 
 	  /* If we see a comma here, then keep going - even if we already
-	     saw a syntax error.  For simple mistakes e.g. (asign, getter=x)
+	     saw a syntax error.  For simple mistakes e.g. (assign, getter=x)
 	     this makes a more useful output and avoid spurious warnings about
 	     missing attributes that are, in fact, specified after the one with
 	     the syntax error.  */

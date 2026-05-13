@@ -1593,7 +1593,7 @@ extern tree build_userdef_literal (tree suffix_id, tree value,
 
 extern bool convert_vector_to_array_for_subscript (location_t, tree *, tree);
 
-/* Possibe cases of scalar_to_vector conversion.  */
+/* Possible cases of scalar_to_vector conversion.  */
 enum stv_conv {
   stv_error,        /* Error occurred.  */
   stv_nothing,      /* Nothing happened.  */

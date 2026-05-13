@@ -560,7 +560,7 @@ ubsan_instrument_bounds (location_t loc, tree array, tree *index,
 /* Instrument array bounds for the pointer array address which is
    a call to .ACCESS_WITH_SIZE.  We create special
    builtin, that gets expanded in the sanopt pass, and make an array
-   dimention of it.  POINTER_ADDR is the pointer array's base address.
+   dimension of it.  POINTER_ADDR is the pointer array's base address.
    *INDEX is an index to the array.
    IGNORE_OFF_BY_ONE is true if the POINTER_ADDR is not inside an
    INDIRECT_REF.

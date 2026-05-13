@@ -44,7 +44,7 @@ c_disable_warnings (bool disable)
     }
 }
 
-/* If ENABLE is true, reenable issuing warnings.  */
+/* If ENABLE is true, re-enable issuing warnings.  */
 
 static void
 c_enable_warnings (bool enable)

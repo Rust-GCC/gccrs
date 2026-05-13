@@ -3884,7 +3884,7 @@ check_format_info_main (format_check_results *res,
   init_dollar_format_checking (info->first_arg_num, first_fillin_param);
 
   /* In GCC diagnostic functions check plain directives (substrings within
-     the format string that don't start with %) for quoting and punctuations
+     the format string that don't start with %) for quoting and punctuation
      problems.  */
   bool ck_plain = (!info->is_raw
 		   && (info->format_type == gcc_diag_format_type
@@ -4025,7 +4025,7 @@ check_format_info_main (format_check_results *res,
 				    format_chars - orig_format_chars,
 				    OPT_Wformat_,
 				    "%qc directive redundant after prior "
-				    "occurence of the same", format_char);
+				    "occurrence of the same", format_char);
 	  else if (!color_begin)
 	    format_warning_at_char (format_string_loc, format_string_cst,
 				    format_chars - orig_format_chars,
@@ -4375,7 +4375,7 @@ check_format_types (const substring_loc &fmt_loc,
 /* Given type TYPE, attempt to dereference the type N times
    (e.g. from ("int ***", 2) to "int *")
 
-   Return the derefenced type, with any qualifiers
+   Return the dereferenced type, with any qualifiers
    such as "const" stripped from the result, or
    NULL if unsuccessful (e.g. TYPE is not a pointer type).  */
 

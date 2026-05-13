@@ -3244,7 +3244,7 @@ build_access_with_size_for_counted_by (location_t loc, tree ref,
   bool is_fam = c_flexible_array_member_type_p (TREE_TYPE (ref));
 
   /* The result type of the call is a pointer to the flexible array type;
-     or is the original ponter type to the pointer field with counted_by.  */
+     or is the original pointer type to the pointer field with counted_by.  */
   tree result_type = is_fam ? c_build_pointer_type (TREE_TYPE (ref))
 		     : TREE_TYPE (ref);
 
@@ -7790,7 +7790,7 @@ build_modify_expr (location_t location, tree lhs, tree lhs_origtype,
       lhs = c_fully_fold (lhs, false, NULL, true);
       lhs = stabilize_reference (lhs);
 
-      /* Construct the RHS for any non-atomic compound assignemnt. */
+      /* Construct the RHS for any non-atomic compound assignment. */
       if (!is_atomic_op)
         {
 	  /* If in LHS op= RHS the RHS has side-effects, ensure they
@@ -16488,7 +16488,7 @@ c_find_omp_var_r (tree *tp, int *, void *data)
   return NULL_TREE;
 }
 
-/* Finish OpenMP iterators ITER.  Return true if they are errorneous
+/* Finish OpenMP iterators ITER.  Return true if they are erroneous
    and clauses containing them should be removed.  */
 
 static bool

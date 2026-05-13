@@ -5407,7 +5407,7 @@ append_access_attr (tree node[3], tree attrs, const char *attrstr,
   rdwr_map new_idxs;
   init_attr_rdwr_indices (&new_idxs, ataccess);
 
-  /* The current access specification alrady applied.  */
+  /* The current access specification already applied.  */
   rdwr_map cur_idxs;
   init_attr_rdwr_indices (&cur_idxs, attrs);
 
@@ -5613,9 +5613,9 @@ append_access_attr_idxs (tree node[3], tree attrs, const char *attrstr,
 
 /* Handle the access attribute for function type NODE[0], with the function
    DECL optionally in NODE[1].  The handler is called both in response to
-   an explict attribute access on a declaration with a mode and one or two
+   an explicit attribute access on a declaration with a mode and one or two
    positional arguments, and for internally synthesized access specifications
-   with a string argument optionally followd by a DECL or expression
+   with a string argument optionally followed by a DECL or expression
    representing a VLA bound.  To speed up parsing, the handler transforms
    the attribute and its arguments into a string.  */
 
@@ -7031,7 +7031,7 @@ has_attribute (location_t atloc, tree t, tree attr, tree (*convert)(tree))
 		  if (TREE_CODE (v1) == IDENTIFIER_NODE
 		      || TREE_CODE (v2) == IDENTIFIER_NODE)
 		    /* Two identifiers are the same if their values are
-		       equal (that's handled above).  Otherwise ther are
+		       equal (that's handled above).  Otherwise they are
 		       either not the same or oneis not an identifier.  */
 		    return false;
 

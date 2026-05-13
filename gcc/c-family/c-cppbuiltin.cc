@@ -2050,7 +2050,7 @@ builtin_define_type_max (const char *macro, tree type)
   builtin_define_type_minmax (NULL, macro, type);
 }
 
-/* Given a value with COUNT LSBs set, fill BUF with a hexidecimal
+/* Given a value with COUNT LSBs set, fill BUF with a hexadecimal
    representation of that value.  For example, a COUNT of 10 would
    return "0x3ff".  */
 

@@ -452,7 +452,7 @@ c_parser_gimple_compound_statement (gimple_parser &parser, gimple_seq *seq)
   if (! c_parser_require (parser, CPP_OPEN_BRACE, "expected %<{%>"))
     return false;
 
-  /* A compund statement starts with optional declarations.  */
+  /* A compound statement starts with optional declarations.  */
   while (c_parser_next_tokens_start_declaration (parser))
     {
       c_parser_gimple_declaration (parser);

@@ -5034,7 +5034,7 @@ c_omp_categorize_directive (const char *first, const char *second,
   return NULL;
 }
 
-/* Auxilliary helper function for c_omp_expand_variant_construct.  */
+/* Auxiliary helper function for c_omp_expand_variant_construct.  */
 
 static tree
 c_omp_expand_variant_construct_r (vec<struct omp_variant> &candidates,

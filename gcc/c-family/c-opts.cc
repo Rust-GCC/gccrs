@@ -865,7 +865,7 @@ c_common_post_options (const char **pfilename)
   sanitize_cpp_opts ();
 
   /* Don't register include chains if under -fpreprocessed since we might not
-     have correct sysroot this mode, and this may cause file permssion
+     have correct sysroot this mode, and this may cause file permission
      issue.  */
   if (!cpp_opts->preprocessed)
     register_include_chains (parse_in, sysroot, iprefix, imultilib,

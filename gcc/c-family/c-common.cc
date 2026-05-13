@@ -945,7 +945,7 @@ get_cpp_ttype_from_string_type (tree string_type)
   return CPP_OTHER;
 }
 
-/* The global record of string concatentations, for use in
+/* The global record of string concatenations, for use in
    extracting locations within string literals.  */
 
 GTY(()) string_concat_db *g_string_concat_db;
@@ -9760,7 +9760,7 @@ cb_get_suggestion (cpp_reader *, const char *goal,
   return bm.get_best_meaningful_candidate ();
 }
 
-/* Return the latice point which is the wider of the two FLT_EVAL_METHOD
+/* Return the lattice point which is the wider of the two FLT_EVAL_METHOD
    modes X, Y.  This isn't just  >, as the FLT_EVAL_METHOD values added
    by C TS 18661-3 for interchange  types that are computed in their
    native precision are larger than the C11 values for evaluating in the
@@ -10247,7 +10247,7 @@ maybe_add_include_fixit (rich_location *richloc, const char *header,
 /* Attempt to convert a braced array initializer list CTOR for array
    TYPE into a STRING_CST for convenience and efficiency.  Return
    the converted string on success or the original ctor on failure.
-   Also, for non-convertable CTORs which contain RAW_DATA_CST values
+   Also, for non-convertible CTORs which contain RAW_DATA_CST values
    among the elts try to extend the range of RAW_DATA_CSTs.  */
 
 static tree

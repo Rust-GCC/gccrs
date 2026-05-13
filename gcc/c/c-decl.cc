@@ -1537,7 +1537,7 @@ pop_file_scope (void)
   maybe_apply_pending_pragma_weaks ();
 }
 
-/* Whether we are curently inside the initializer for an
+/* Whether we are currently inside the initializer for an
    underspecified object definition (C23 auto or constexpr).  */
 static bool in_underspecified_init;
 
@@ -2568,7 +2568,7 @@ diagnose_mismatched_decls (tree newdecl, tree olddecl,
 			"but not here");
 	    }
 	}
-      /* Check if these are unmergable overlapping FMV declarations.  */
+      /* Check if these are unmergeable overlapping FMV declarations.  */
       if (!TARGET_HAS_FMV_TARGET_ATTRIBUTE
 	  && diagnose_versioned_decls (olddecl, newdecl))
 	return false;
@@ -8817,7 +8817,7 @@ parser_xref_tag (location_t loc, enum tree_code code, tree name,
 
   ref = lookup_tag (code, name, has_enum_type_specifier, &refloc);
 
-  /* If the visble type is still being defined, see if there is
+  /* If the visible type is still being defined, see if there is
      an earlier definition (which may be complete).  We do not
      have to loop because nested redefinitions are not allowed.  */
   if (flag_isoc23 && ref && C_TYPE_BEING_DEFINED (ref))
@@ -9544,7 +9544,7 @@ verify_counted_by_attribute (tree outmost_struct_type,
 
 	  tree fieldname = TREE_VALUE (TREE_VALUE (attr_counted_by));
 
-	  /* Verify the argument of the attrbute is a valid field of the
+	  /* Verify the argument of the attribute is a valid field of the
 	     containing structure.  */
 
 	  tree counted_by_field = lookup_field (outmost_struct_type,
