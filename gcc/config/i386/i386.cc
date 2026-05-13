@@ -25609,6 +25609,31 @@ asm_preferred_eh_data_format (int code, int global)
   return DW_EH_PE_absptr;
 }
 
+/* Cost of constructing or destructing a vector in VECMODE from/to elements
+   of ELMODE.  */
+static int
+ix86_vector_cd_cost (machine_mode vecmode, machine_mode elmode)
+{
+  if (GET_MODE_BITSIZE (vecmode) < 128)
+    return ((GET_MODE_BITSIZE (vecmode) / GET_MODE_BITSIZE (elmode) - 1)
+	    * ix86_cost->sse_op);
+
+  int n = GET_MODE_BITSIZE (vecmode) / 128;
+  int cost = 0;
+  /* Element inserts/extracts into/from N SSE vectors, the possible
+     GPR <-> XMM moves have to be accounted for elsewhere.  */
+  if (GET_MODE_BITSIZE (elmode) < 128)
+    cost += n * (128 / GET_MODE_BITSIZE (elmode) - 1) * ix86_cost->sse_op;
+  if (GET_MODE_BITSIZE (vecmode) >= 256
+      && GET_MODE_BITSIZE (elmode) < 256)
+    /* N/2 vinserti128/vextracti128 for SSE <-> AVX256.  */
+    cost += n * ix86_vec_cost (V32QImode, ix86_cost->sse_op) / 2;
+  if (GET_MODE_BITSIZE (vecmode) == 512)
+    /* One vinserti64x4/vextracti64x4 for AVX256 <-> AVX512.  */
+    cost += ix86_vec_cost (vecmode, ix86_cost->sse_op);
+  return cost;
+}
+
 /* Worker for ix86_builtin_vectorization_cost and the fallback calls
    from ix86_vector_costs::add_stmt_cost.  */
 static int
@@ -25700,29 +25725,7 @@ ix86_default_vector_cost (enum vect_cost_for_stmt type_of_cost,
 
       case vec_construct:
       case vec_deconstruct:
-	{
-	  int n = GET_MODE_NUNITS (mode);
-	  /* N - 1 element inserts into an SSE vector, the possible
-	     GPR -> XMM move is accounted for in add_stmt_cost.  */
-	  if (GET_MODE_BITSIZE (mode) <= 128)
-	    return (n - 1) * ix86_cost->sse_op;
-	  /* One vinserti128 for combining two SSE vectors for AVX256.  */
-	  else if (GET_MODE_BITSIZE (mode) == 256)
-	    return ((n - 2) * ix86_cost->sse_op
-		    + ix86_vec_cost (mode, ix86_cost->sse_op));
-	  /* One vinserti64x4 and two vinserti128 for combining SSE
-	     and AVX256 vectors to AVX512.  */
-	  else if (GET_MODE_BITSIZE (mode) == 512)
-	    {
-	      machine_mode half_mode
-		= mode_for_vector (GET_MODE_INNER (mode),
-				   GET_MODE_NUNITS (mode) / 2).require ();
-	      return ((n - 4) * ix86_cost->sse_op
-		      + 2 * ix86_vec_cost (half_mode, ix86_cost->sse_op)
-		      + ix86_vec_cost (mode, ix86_cost->sse_op));
-	    }
-	  gcc_unreachable ();
-	}
+	return ix86_vector_cd_cost (mode, GET_MODE_INNER (mode));
 
       default:
         gcc_unreachable ();
