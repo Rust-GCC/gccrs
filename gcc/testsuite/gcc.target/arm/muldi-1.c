@@ -1,5 +1,6 @@
 /* { dg-do compile } */
 /* { dg-options "-O2" } */
+/* { dg-require-effective-target arm32 } */
 
 long long ashll_fn (long long a)
 {
