@@ -431,7 +431,7 @@ Target::systemLinkage (void)
 /* Generate a TypeTuple of the equivalent types used to determine if a
    function argument of the given type can be passed in registers.
    The results of this are highly platform dependent, and intended
-   primarly for use in implementing va_arg() with RTTI.  */
+   primarily for use in implementing va_arg() with RTTI.  */
 
 TypeTuple *
 Target::toArgTypes (Type *)

@@ -224,7 +224,7 @@ lang_specific_driver (cl_decoded_option **in_decoded_options,
 	case OPT_M:
 	case OPT_MM:
 	case OPT_fsyntax_only:
-	  /* Don't specify libaries if we won't link, since that would
+	  /* Don't specify libraries if we won't link, since that would
 	     cause a warning.  */
 	  saw_opt_c = true;
 	  phobos_library = PHOBOS_NOLINK;

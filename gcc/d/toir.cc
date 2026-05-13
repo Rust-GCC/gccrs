@@ -381,7 +381,7 @@ public:
   {
     /* Don't write out label unless it is marked as used by the frontend.
        This makes auto-vectorization possible in conditional loops.
-       The only excemption to this is in the LabelStatement visitor,
+       The only exception to this is in the LabelStatement visitor,
        in which all computed labels are marked regardless.  */
     if (TREE_USED (label))
       add_stmt (build1 (LABEL_EXPR, void_type_node, label));
@@ -656,7 +656,7 @@ public:
     gcc_unreachable ();
   }
 
-  /* Do while statments implement simple loops.  The body is executed, then
+  /* Do while statements implement simple loops.  The body is executed, then
      the condition is evaluated.  */
 
   void visit (DoStatement *s) final override
@@ -840,7 +840,7 @@ public:
 
     condition = fold (condition);
 
-    /* Build LABEL_DECLs now so they can be refered to by goto case.
+    /* Build LABEL_DECLs now so they can be referred to by goto case.
        Also checking the jump from the switch to the label is allowed.  */
     if (s->cases)
       {

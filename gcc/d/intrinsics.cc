@@ -515,7 +515,7 @@ call_builtin_fn (tree callexp, built_in_function code, int n, ...)
   return convert (TREE_TYPE (callexp), fold (exp));
 }
 
-/* Expand a front-end instrinsic call to bsf().  This takes one argument,
+/* Expand a front-end intrinsic call to bsf().  This takes one argument,
    the signature to which can be either:
 
 	int bsf (uint arg);
@@ -544,7 +544,7 @@ expand_intrinsic_bsf (tree callexp)
   return call_builtin_fn (callexp, code, 1, arg);
 }
 
-/* Expand a front-end instrinsic call to bsr().  This takes one argument,
+/* Expand a front-end intrinsic call to bsr().  This takes one argument,
    the signature to which can be either:
 
 	int bsr (uint arg);
@@ -714,7 +714,7 @@ expand_intrinsic_rotate (intrinsic_code intrinsic, tree callexp)
     count = CALL_EXPR_ARG (callexp, 1);
   else
     {
-      /* Retrieve from the encoded template instantation.  */
+      /* Retrieve from the encoded template instantiation.  */
       tree callee = get_callee_fndecl (callexp);
       TemplateInstance *ti = DECL_LANG_FRONTEND (callee)->isInstantiated ();
       gcc_assert (ti && ti->tiargs && ti->tiargs->length == 2);
@@ -897,7 +897,7 @@ expand_intrinsic_vastart (tree callexp)
   return call_builtin_fn (callexp, BUILT_IN_VA_START, 2, ap, parmn);
 }
 
-/* Expand a front-end instrinsic call to INTRINSIC, which is either a call to
+/* Expand a front-end intrinsic call to INTRINSIC, which is either a call to
    adds(), addu(), subs(), subu(), negs(), muls(), or mulu().  These intrinsics
    expect to take two or three arguments, the signature to which can be either:
 
@@ -987,7 +987,7 @@ expand_intrinsic_checkedint (intrinsic_code intrinsic, tree callexp)
   return compound_expr (exp, real_part (result));
 }
 
-/* Expand a front-end instrinsic call to volatileLoad().  This takes one
+/* Expand a front-end intrinsic call to volatileLoad().  This takes one
    argument, the signature to which can be either:
 
 	ubyte volatileLoad (ubyte* ptr);
@@ -1015,7 +1015,7 @@ expand_volatile_load (tree callexp)
   return result;
 }
 
-/* Expand a front-end instrinsic call to volatileStore().  This takes two
+/* Expand a front-end intrinsic call to volatileStore().  This takes two
    arguments, the signature to which can be either:
 
 	void volatileStore (ubyte* ptr, ubyte value);
@@ -1045,7 +1045,7 @@ expand_volatile_store (tree callexp)
   return modify_expr (result, value);
 }
 
-/* Expand a front-end instrinsic call to convertvector().  This takes one
+/* Expand a front-end intrinsic call to convertvector().  This takes one
    argument, the signature to which is:
 
 	vector(T) convertvector (vector(F) vec);
@@ -1072,7 +1072,7 @@ expand_intrinsic_vec_convert (tree callexp)
 				       type, 1, vec);
 }
 
-/* Expand a front-end instrinsic call to blendvector().  This expects to take
+/* Expand a front-end intrinsic call to blendvector().  This expects to take
    three arguments, the signature to which is:
 
 	vector(T) blendvector (vector(T) vec0, vector(U) vec1, vector(M) mask);
@@ -1101,7 +1101,7 @@ expand_intrinsic_vec_blend (tree callexp)
   return ret;
 }
 
-/* Expand a front-end instrinsic call to shuffle().  This expects to take three
+/* Expand a front-end intrinsic call to shuffle().  This expects to take three
    arguments, the signature to which is:
 
 	vector(T) shuffle (vector(T) vec0, vector(T) vec1, vector(M) mask);
@@ -1121,7 +1121,7 @@ expand_intrinsic_vec_shuffle (tree callexp)
 		     TREE_TYPE (callexp), vec0, vec1, mask);
 }
 
-/* Expand a front-end instrinsic call to shufflevector().  This takes two
+/* Expand a front-end intrinsic call to shufflevector().  This takes two
    positional arguments and a variadic list, the signature to which is:
 
 	vector(TM) shuffle (vector(T) vec1, vector(T) vec2, index...);
@@ -1202,7 +1202,7 @@ expand_intrinsic_vec_shufflevector (tree callexp)
   return ret;
 }
 
-/* Expand a front-end instrinsic call to loadUnaligned().  This takes one
+/* Expand a front-end intrinsic call to loadUnaligned().  This takes one
    argument, the signature to which is:
 
 	vector(T) loadUnaligned (vector(T)* ptr)
@@ -1223,7 +1223,7 @@ expand_intrinsic_vec_load_unaligned (tree callexp)
   return convert (TREE_TYPE (callexp), load);
 }
 
-/* Expand a front-end instrinsic call to storeUnaligned().  This takes two
+/* Expand a front-end intrinsic call to storeUnaligned().  This takes two
    arguments, the signature to which is:
 
 	vector(T) storeUnaligned (vector(T)* ptr, vector(T) value)

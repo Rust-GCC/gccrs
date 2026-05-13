@@ -1345,7 +1345,7 @@ d_parse_file (void)
 
   dmd::runDeferredSemantic3 ();
 
-  /* Check again, incase semantic3 pass loaded any more modules.  */
+  /* Check again, in case semantic3 pass loaded any more modules.  */
   while (builtin_modules.length != 0)
     {
       Module *m = builtin_modules.pop ();

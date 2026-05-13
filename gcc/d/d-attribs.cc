@@ -1340,7 +1340,7 @@ d_handle_alloc_size_attribute (tree *node, tree name, tree args, int,
   tree next = TREE_CHAIN (args);
 
   /* NUM_ARG is null when the attribute includes just one argument, or is
-     explictly set to null if it has been left uninitialized by the caller.  */
+     explicitly set to null if it has been left uninitialized by the caller.  */
   tree num_arg = NULL_TREE;
   if (next != NULL_TREE)
     {

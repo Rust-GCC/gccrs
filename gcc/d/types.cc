@@ -727,7 +727,7 @@ finish_aggregate_type (unsigned structsize, unsigned alignsize, tree type)
   finish_incomplete_fields (type);
 }
 
-/* Returns true if the class or struct type TYPE has already been layed out by
+/* Returns true if the class or struct type TYPE has already been laid out by
    the lowering of another front-end AST type.  In which case, there will either
    be a reuse of the back-end type, or a multiple definition error.
    DECO is the uniquely mangled decoration for the type.  */

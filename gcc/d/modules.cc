@@ -330,7 +330,7 @@ get_dso_registry_fn (void)
   return dso_registry_fn;
 }
 
-/* Depending on CTOR_P, builds and emits eiter a constructor or destructor
+/* Depending on CTOR_P, builds and emits either a constructor or destructor
    calling _d_dso_registry if `dso_initialized' is `false' in a constructor
    or `true' in a destructor.  */
 

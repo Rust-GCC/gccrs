@@ -41,7 +41,7 @@ empty_modify_p (tree type, tree op)
       return empty_modify_p (type, TREE_OPERAND (op, 1));
 
     case CONSTRUCTOR:
-      /* Non-empty construcors are valid.  */
+      /* Non-empty constructors are valid.  */
       if (CONSTRUCTOR_NELTS (op) != 0 || TREE_CLOBBER_P (op))
 	return false;
       break;

@@ -635,7 +635,7 @@ public:
   void visit (CatExp *e) final override
   {
     /* This error is only emitted during the code generation pass because
-       concatentation is allowed in CTFE.  */
+       concatenation is allowed in CTFE.  */
     if (!global.params.useGC)
       {
 	error_at (make_location_t (e->loc),
@@ -707,7 +707,7 @@ public:
       case EXP::unsignedRightShiftAssign:
 	/* Use the original lhs type before it was promoted.  The left operand
 	   of `>>>=' does not undergo integral promotions before shifting.
-	   Strip off casts just incase anyway.  */
+	   Strip off casts just in case anyway.  */
 	while (e1b->op == EXP::cast_)
 	  {
 	    CastExp *ce = e1b->isCastExp ();

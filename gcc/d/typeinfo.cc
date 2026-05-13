@@ -195,7 +195,7 @@ make_internal_typeinfo (tinfo_kind tk, Identifier *ident, ...)
 static Module *object_module;
 
 /* Helper for create_frontend_tinfo_types.  Creates a typeinfo class
-   declaration incase one wasn't supplied by reading `object.d'.  */
+   declaration in case one wasn't supplied by reading `object.d'.  */
 
 static void
 make_frontend_typeinfo (Identifier *ident, ClassDeclaration *base = NULL)

@@ -1520,7 +1520,7 @@ tree
 build_boolop (tree_code code, tree arg0, tree arg1)
 {
   /* Aggregate comparisons may get lowered to a call to builtin memcmp,
-     so need to remove all side effects incase its address is taken.  */
+     so need to remove all side effects in case its address is taken.  */
   if (AGGREGATE_TYPE_P (TREE_TYPE (arg0)))
     arg0 = d_save_expr (arg0);
   if (AGGREGATE_TYPE_P (TREE_TYPE (arg1)))
@@ -2634,7 +2634,7 @@ get_frame_for_symbol (Dsymbol *sym)
 	  int offset;
 	  if (cdo->isBaseOf (cd, &offset) && offset != 0)
 	    {
-	      /* Generate a new frame to pass to the overriden function that
+	      /* Generate a new frame to pass to the overridden function that
 		 has the `this' pointer adjusted.  */
 	      gcc_assert (offset != OFFSET_RUNTIME);
 

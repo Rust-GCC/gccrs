@@ -1215,7 +1215,7 @@ result = __builtin_ssub (0, x, overflow);
 @deftypefnx {Function} {long} core.checkedint.subs (long @var{x}, long @var{y}, @
                                                     ref bool @var{overflow})
 
-Substract two signed integers, checking for overflow.
+Subtract two signed integers, checking for overflow.
 
 This intrinsic is the same as the GCC built-in function
 @code{__builtin_ssub_overflow}.
@@ -1226,7 +1226,7 @@ This intrinsic is the same as the GCC built-in function
 @deftypefnx {Function} {long} core.checkedint.subu (long @var{x}, long @var{y}, @
                                                     ref bool @var{overflow})
 
-Substract two unsigned integers, checking for overflow.
+Subtract two unsigned integers, checking for overflow.
 
 This intrinsic is the same as the GCC built-in function
 @code{__builtin_usub_overflow}.
@@ -1366,7 +1366,7 @@ This intrinsic is the same as the GCC built-in function @code{__builtin_va_copy}
 
 @deftypefn {Function} {void} core.stdc.stdarg.va_end (va_list ap)
 
-Destroy @var{ap} so that it is no longer useable.
+Destroy @var{ap} so that it is no longer usable.
 
 This intrinsic is the same as the GCC built-in function @code{__builtin_va_end}.
 @end deftypefn
@@ -1441,7 +1441,7 @@ computable at compile-time, either because their generic implementations are
 too complex, or do some low-level bit manipulation of floating point types.
 
 Calls to these functions that exist after CTFE has finished will get standard
-code-generation without any special compiler intrinsic suppport.
+code-generation without any special compiler intrinsic support.
 
 @deftypefn {Function} {float} std.math.exponential.exp (float x)
 @deftypefnx {Function} {double} std.math.exponential.exp (double x)

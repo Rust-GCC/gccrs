@@ -219,7 +219,7 @@ get_fndecl_arguments (FuncDeclaration *decl)
    emitted from the D Front-end to GCC trees.
    All visit methods accept one parameter D, which holds the frontend AST
    of the declaration to compile.  These also don't return any value, instead
-   generated code are appened to global_declarations or added to the
+   generated code are appended to global_declarations or added to the
    current_binding_level by d_pushdecl().  */
 
 class DeclVisitor : public Visitor
@@ -1003,7 +1003,7 @@ public:
     rest_of_decl_compilation (fndecl, 1, 0);
 
     /* If this is a member function that nested (possibly indirectly) in another
-       function, construct an expession for this member function's static chain
+       function, construct an expression for this member function's static chain
        by going through parent link of nested classes.  */
     if (d->vthis)
       d_function_chain->static_chain = get_symbol_decl (d->vthis);
@@ -2364,7 +2364,7 @@ build_class_instance (ClassReferenceExp *exp)
    implementation detail.  The initialization of these symbols could be done at
    run-time using during as part of the module initialization or shared static
    constructors phase of run-time start-up - whichever comes after `gc_init()'.
-   And infact that would be the better thing to do here eventually.  */
+   And in fact that would be the better thing to do here eventually.  */
 
 tree
 build_new_class_expr (ClassReferenceExp *expr)
