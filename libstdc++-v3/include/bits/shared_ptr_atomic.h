@@ -501,7 +501,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	{
 	  auto __old_ptr = __ptr;
 	  _GLIBCXX_TSAN_MUTEX_PRE_UNLOCK(&_M_val);
-	  uintptr_t __old_pi 
+	  uintptr_t __old_pi
 	    = _AtomicRef(&_M_val).fetch_sub(1, memory_order_relaxed) - 1u;
 	  _GLIBCXX_TSAN_MUTEX_POST_UNLOCK(&_M_val);
 
