@@ -701,7 +701,7 @@ back_threader_profitability::possibly_profitable_path_p
 
   /* Threading is profitable if the path duplicated is hot but also
      in a case we separate cold path from hot path and permit optimization
-     of the hot path later.  Be on the agressive side here. In some testcases,
+     of the hot path later.  Be on the aggressive side here. In some testcases,
      as in PR 78407 this leads to noticeable improvements.  */
   if (m_speed_p)
     {
@@ -794,7 +794,7 @@ back_threader_profitability::profitable_path_p (const vec<basic_block> &m_path,
 
   /* Threading is profitable if the path duplicated is hot but also
      in a case we separate cold path from hot path and permit optimization
-     of the hot path later.  Be on the agressive side here. In some testcases,
+     of the hot path later.  Be on the aggressive side here. In some testcases,
      as in PR 78407 this leads to noticeable improvements.  */
   if (m_speed_p
       && (optimize_edge_for_speed_p (taken_edge) || m_contains_hot_bb))

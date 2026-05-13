@@ -282,7 +282,7 @@ can_handle_load (gimple *load_stmt,
   if (aggregate)
     {
       /* If the vuse on the load is the same as the expected vuse,
-	 there are no stores inbetween.  */
+	 there are no stores in between.  */
       if (vuse == expected_vuse)
 	return vuse;
       if (expected_vuse)
@@ -316,7 +316,7 @@ can_handle_load (gimple *load_stmt,
     }
 
   /* If the vuse on the load is the same as the expected vuse,
-     there are no stores inbetween.  */
+     there are no stores in between.  */
   if (vuse == expected_vuse)
     return vuse;
 
@@ -559,7 +559,7 @@ propagate_with_phi (basic_block bb, gphi *vphi, gphi *phi,
 	  phiprop_insert_phi (bb, phi, use_stmt, phivn, n,
 			      dce_ssa_names, other_vuse);
 
-	  /* Remove old stmt. The phi and all of maybe its depedencies
+	  /* Remove old stmt. The phi and all of maybe its dependencies
 	     will be removed later via simple_dce_from_worklist. */
 	  gsi = gsi_for_stmt (use_stmt);
 	  /* Unlinking the VDEF here is fine as we are sure that we process
@@ -598,7 +598,7 @@ propagate_with_phi (basic_block bb, gphi *vphi, gphi *phi,
 	  phivn[SSA_NAME_VERSION (ptr)].value = res;
 	  phivn[SSA_NAME_VERSION (ptr)].vuse = vuse;
 
-	  /* Remove old stmt.  The phi and all of maybe its depedencies
+	  /* Remove old stmt.  The phi and all of maybe its dependencies
 	     will be removed later via simple_dce_from_worklist. */
 	  gsi = gsi_for_stmt (use_stmt);
 	  gsi_remove (&gsi, true);

@@ -100,7 +100,7 @@ replace_phi_edge_with_variable (basic_block cond_block,
 
   /* Duplicate range info if they are the only things setting the target PHI.
      This is needed as later on, the new_tree will be replacing
-     The assignement of the PHI.
+     The assignment of the PHI.
      For an example:
      bb1:
      _4 = min<a_1, 255>
@@ -331,7 +331,7 @@ factor_out_conditional_operation (edge e0, edge e1, basic_block merge,
 
   gcc_assert (arg0 != NULL_TREE && arg1 != NULL_TREE);
 
-  /* Arugments that are the same don't have anything to be
+  /* Arguments that are the same don't have anything to be
      done to them. */
   if (operand_equal_for_phi_arg_p (arg0, arg1))
     return false;
@@ -489,7 +489,7 @@ factor_out_conditional_operation (edge e0, edge e1, basic_block merge,
 	}
       new_arg1 = fold_convert (TREE_TYPE (new_arg0), arg1);
 
-      /* Drop the overlow that fold_convert might add. */
+      /* Drop the overflow that fold_convert might add. */
       if (TREE_OVERFLOW (new_arg1))
 	new_arg1 = drop_tree_overflow (new_arg1);
 
@@ -3169,7 +3169,7 @@ cond_if_else_store_replacement_1 (basic_block then_bb, basic_block else_bb,
 
   if (!is_gimple_reg_type (TREE_TYPE (lhs)))
     {
-      /* Handle clobbers seperately as operand_equal_p does not check
+      /* Handle clobbers separately as operand_equal_p does not check
 	 the kind of the clobbers being the same. */
       if (TREE_CLOBBER_P (then_rhs) && TREE_CLOBBER_P (else_rhs))
 	{
@@ -3874,7 +3874,7 @@ execute_over_cond_phis (func_type func)
 
    This fully replaces the old "Conditional Replacement",
    "ABS Replacement" and "MIN/MAX Replacement" transformations as they are now
-   implmeneted in match.pd.
+   implemented in match.pd.
 
    Value Replacement
    -----------------

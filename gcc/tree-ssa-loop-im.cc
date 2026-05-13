@@ -493,7 +493,7 @@ get_coldest_out_loop (class loop *outermost_loop, class loop *loop,
 	      || flow_loop_nested_p (outermost_loop, loop));
 
   /* If bb_colder_than_loop_preheader returns false due to three-state
-    comparision, OUTERMOST_LOOP is returned finally to preserve the behavior.
+    comparison, OUTERMOST_LOOP is returned finally to preserve the behavior.
     Otherwise, return the coldest loop between OUTERMOST_LOOP and LOOP.  */
   if (curr_bb && bb_colder_than_loop_preheader (curr_bb, loop))
     return NULL;
@@ -855,7 +855,7 @@ determine_max_movement (gimple *stmt, bool must_preserve_exec)
 	  if (!extract_true_false_args_from_phi (dom, phi, NULL, NULL))
 	    return false;
 
-	/* Check if one of the depedent statement is a vector compare whether
+	/* Check if one of the dependent statement is a vector compare whether
 	   the target supports it,  otherwise it's invalid to hoist it out of
 	   the gcond it belonged to.  */
 	if (VECTOR_TYPE_P (TREE_TYPE (gimple_cond_lhs (cond))))
@@ -2416,7 +2416,7 @@ execute_sm_exit (class loop *loop, edge ex, vec<seq_entry> &seq,
 	      tree lhs = gimple_assign_lhs (ref->accesses_in_loop[0].stmt);
 	      if (dump_file && (dump_flags & TDF_DETAILS))
 		{
-		  fprintf (dump_file, "Re-issueing dependent ");
+		  fprintf (dump_file, "Re-issuing dependent ");
 		  print_generic_expr (dump_file, unshare_expr (seq[i-1].from));
 		  fprintf (dump_file, " of ");
 		  print_generic_expr (dump_file, lhs);
@@ -2431,7 +2431,7 @@ execute_sm_exit (class loop *loop, edge ex, vec<seq_entry> &seq,
 	    {
 	      if (dump_file && (dump_flags & TDF_DETAILS))
 		{
-		  fprintf (dump_file, "Re-issueing dependent store of ");
+		  fprintf (dump_file, "Re-issuing dependent store of ");
 		  print_generic_expr (dump_file, ref->mem.ref);
 		  fprintf (dump_file, " from loop %d on exit %d -> %d\n",
 			   loop->num, ex->src->index, ex->dest->index);
@@ -2462,7 +2462,7 @@ execute_sm_exit (class loop *loop, edge ex, vec<seq_entry> &seq,
 
 /* Push the SM candidate at index PTR in the sequence SEQ down until
    we hit the next SM candidate.  Return true if that went OK and
-   false if we could not disambiguate agains another unrelated ref.
+   false if we could not disambiguate against another unrelated ref.
    Update *AT to the index where the candidate now resides.  */
 
 static bool
@@ -2778,7 +2778,7 @@ hoist_memory_references (class loop *loop, bitmap mem_refs,
   bitmap_iterator bi;
 
   /* There's a special case we can use ordered re-materialization for
-     conditionally excuted stores which is when all stores in the loop
+     conditionally executed stores which is when all stores in the loop
      happen in the same basic-block.  In that case we know we'll reach
      all stores and thus can simply process that BB and emit a single
      conditional block of ordered materializations.  See PR102436.  */

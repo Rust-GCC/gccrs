@@ -524,7 +524,7 @@ struct iv_inv_expr_ent
 {
   /* Tree expression of the entry.  */
   tree expr;
-  /* Unique indentifier.  */
+  /* Unique identifier.  */
   int id;
   /* Hash value.  */
   hashval_t hash;
@@ -869,7 +869,7 @@ dump_cand (FILE *file, struct iv_cand *cand)
 
   if (cand->var_before)
     {
-      fprintf (file, "  Var befor: ");
+      fprintf (file, "  Var before: ");
       print_generic_expr (file, cand->var_before, TDF_SLIM);
       fprintf (file, "\n");
     }
@@ -2578,7 +2578,7 @@ group_compare_offset (const void *a, const void *b)
    contains more than two uses with distinct addr_offsets.  Return
    false otherwise.  We want to split such groups because:
 
-     1) Small groups don't have much benefit and may interfer with
+     1) Small groups don't have much benefit and may interfere with
 	general candidate selection.
      2) Size for problem with only small groups is usually small and
 	general algorithm can handle it well.
@@ -2658,7 +2658,7 @@ split_address_groups (struct ivopts_data *data)
 	  struct iv_use *next = group->vuses[j];
 	  poly_int64 offset = next->addr_offset - use->addr_offset;
 
-	  /* Split group if aksed to, or the offset against the first
+	  /* Split group if asked to, or the offset against the first
 	     use can't fit in offset part of addressing mode.  IV uses
 	     having the same offset are still kept in one group.  */
 	  if (maybe_ne (offset, 0)
@@ -3997,7 +3997,7 @@ get_computation_aff_1 (struct ivopts_data *data, gimple *at, struct iv_use *use,
 	  inner_type = TREE_TYPE (inner_base);
 	  /* If candidate is added from a biv whose type is smaller than
 	     ctype, we know both candidate and the biv won't overflow.
-	     In this case, it's safe to skip the convertion in candidate.
+	     In this case, it's safe to skip the conversion in candidate.
 	     As an example, (unsigned short)((unsigned long)A) equals to
 	     (unsigned short)A, if A has a type no larger than short.  */
 	  if (TYPE_PRECISION (inner_type) <= TYPE_PRECISION (uutype))
@@ -6626,7 +6626,7 @@ iv_ca_dump (struct ivopts_data *data, FILE *file, class iv_ca *ivs)
 /* Try changing candidate in IVS to CAND for each use.  Return cost of the
    new set, and store differences in DELTA.  Number of induction variables
    in the new set is stored to N_IVS. MIN_NCAND is a flag. When it is true
-   the function will try to find a solution with mimimal iv candidates.  */
+   the function will try to find a solution with minimal iv candidates.  */
 
 static comp_cost
 iv_ca_extend (struct ivopts_data *data, class iv_ca *ivs,

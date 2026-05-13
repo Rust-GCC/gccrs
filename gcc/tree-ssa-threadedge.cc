@@ -658,7 +658,7 @@ propagate_threaded_block_debug_into (basic_block dest, basic_block src)
     fewvars.release ();
 }
 
-/* See if TAKEN_EDGE->dest is a threadable block with no side effecs (ie, it
+/* See if TAKEN_EDGE->dest is a threadable block with no side effects (ie, it
    need not be duplicated as part of the CFG/SSA updating process).
 
    If it is threadable, add it to PATH and VISITED and recurse, ultimately

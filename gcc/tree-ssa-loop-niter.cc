@@ -1030,7 +1030,7 @@ number_of_iterations_ne (class loop *loop, tree type, affine_iv *iv,
      Note, for NE_EXPR, base equals to FINAL is a special case, in
      which the loop exits immediately, and the iv does not overflow.
 
-     Also note, we prove condition 2) by checking base and final seperately
+     Also note, we prove condition 2) by checking base and final separately
      along with condition 1) or 1').  Since we ensure the difference
      computation of c does not wrap with cond below and the adjusted s
      will fit a signed type as well as an unsigned we can safely do
@@ -2129,7 +2129,7 @@ number_of_iterations_popcount (loop_p loop, edge exit,
 
   /* Check that _1 is defined by (_1 = iv_1 + -1).
      Also make sure that _1 is the same in and_stmt and _1 defining stmt.
-     Also canonicalize if _1 and _b11 are revrsed.  */
+     Also canonicalize if _1 and _b11 are reversed.  */
   if (ssa_defined_by_minus_one_stmt_p (iv_1, _1))
     std::swap (iv_1, _1);
   else if (ssa_defined_by_minus_one_stmt_p (_1, iv_1))
@@ -4361,7 +4361,7 @@ idx_infer_loop_bounds (tree base, tree *idx, void *dta)
       && tree_int_cst_compare (next, high) <= 0)
     return true;
 
-  /* If access is not executed on every iteration, we must ensure that overlow
+  /* If access is not executed on every iteration, we must ensure that overflow
      may not make the access valid later.  */
   if (!dominated_by_p (CDI_DOMINATORS, loop->latch, gimple_bb (data->stmt)))
     {
@@ -4537,7 +4537,7 @@ infer_loop_bounds_from_signedness (class loop *loop, gimple *stmt)
   record_nonwrapping_iv (loop, base, step, stmt, low, high, false, true);
 }
 
-/* The following analyzers are extracting informations on the bounds
+/* The following analyzers are extracting information on the bounds
    of LOOP from the following undefined behaviors:
 
    - data references should not access elements over the statically
@@ -4736,7 +4736,7 @@ discover_iteration_bound_by_body_walk (class loop *loop)
 	      if (entry && *entry < bound_index)
 		bound_index = *entry;
 
-	      /* Insert succesors into the queue, watch for latch edge
+	      /* Insert successors into the queue, watch for latch edge
 		 and record greatest index we saw.  */
 	      FOR_EACH_EDGE (e, ei, bb->succs)
 		{
@@ -4784,7 +4784,7 @@ discover_iteration_bound_by_body_walk (class loop *loop)
 }
 
 /* See if every path cross the loop goes through a statement that is known
-   to not execute at the last iteration. In that case we can decrese iteration
+   to not execute at the last iteration. In that case we can decrease iteration
    count by 1.  */
 
 static void
@@ -5572,7 +5572,7 @@ loop_exits_before_overflow (tree base, tree step,
      }
 
    VAR _6 doesn't overflow only with pre-condition (i_21 != 0), here we
-   can't use _6 to prove no-overlfow for _7.  In fact, var _7 takes value
+   can't use _6 to prove no-overflow for _7.  In fact, var _7 takes value
    sequence (4294967295, 0, 1, ..., 65533) in loop life time, rather than
    (4294967295, 4294967296, ...).  */
 

@@ -839,7 +839,7 @@ vn_reference_eq (const_vn_reference_t const vr1, const_vn_reference_t const vr2,
       /* Vector boolean types can have padding, verify we are dealing with
 	 the same number of elements, aka the precision of the types.
 	 For example, In most architecture the precision_size of vbool*_t
-	 types are caculated like below:
+	 types are calculated like below:
 	 precision_size = type_size * 8
 
 	 Unfortunately, the RISC-V will adjust the precision_size for the
@@ -4356,7 +4356,7 @@ vn_reference_lookup_call (gcall *call, vn_reference_t *vnresult,
   vr->vuse = vuse ? SSA_VAL (vuse) : NULL_TREE;
   vr->operands = valueize_shared_reference_ops_from_call (call);
   tree lhs = gimple_call_lhs (call);
-  /* For non-SSA return values the referece ops contain the LHS.  */
+  /* For non-SSA return values the reference ops contain the LHS.  */
   vr->type = ((lhs && TREE_CODE (lhs) == SSA_NAME)
 	      ? TREE_TYPE (lhs) : NULL_TREE);
   vr->punned = false;
@@ -4544,7 +4544,7 @@ vn_nary_op_eq (const_vn_nary_op_t const vno1, const_vn_nary_op_t const vno2)
     if (!expressions_equal_p (vno1->op[i], vno2->op[i]))
       return false;
 
-  /* BIT_INSERT_EXPR has an implict operand as the type precision
+  /* BIT_INSERT_EXPR has an implicit operand as the type precision
      of op1.  Need to check to make sure they are the same.  */
   if (vno1->opcode == BIT_INSERT_EXPR
       && TREE_CODE (vno1->op[1]) == INTEGER_CST
@@ -4851,7 +4851,7 @@ vn_nary_op_insert_into (vn_nary_op_t vno, vn_nary_op_table_type *table)
 	return *slot;
     }
 
-  /* ???  There's also optimistic vs. previous commited state merging
+  /* ???  There's also optimistic vs. previous committed state merging
      that is problematic for the case of unwinding.  */
 
   /* ???  We should return NULL if we do not use 'vno' and have the
@@ -5928,7 +5928,7 @@ visit_reference_op_call (tree lhs, gcall *stmt)
 	   && summary->load_accesses < accesses_limit)
 	  || gimple_call_flags (stmt) & ECF_CONST))
     {
-      /* First search if we can do someting useful and build a
+      /* First search if we can do something useful and build a
 	 vector of all loads we have to check.  */
       bool unknown_memory_access = false;
       auto_vec<ao_ref, accesses_limit> accesses;
@@ -6475,7 +6475,7 @@ visit_phi (gimple *phi, bool *inserted, bool backedges_varying_p)
        the hashes.  */
     result = PHI_RESULT (phi);
   /* If none of the edges was executable keep the value-number at VN_TOP,
-     if only a single edge is exectuable use its value.  */
+     if only a single edge is executable use its value.  */
   else if (n_executable <= 1)
     result = seen_undef ? seen_undef : sameval;
   /* If we saw only undefined values and VN_TOP use one of the
@@ -7558,7 +7558,7 @@ eliminate_dom_walker::eliminate_stmt (basic_block b, gimple_stmt_iterator *gsi)
       gsi_prev (&prev);
       if (fold_stmt (gsi, follow_all_ssa_edges))
 	{
-	  /* fold_stmt may have created new stmts inbetween
+	  /* fold_stmt may have created new stmts in between
 	     the previous stmt and the folded stmt.  Mark
 	     all defs created there as varying to not confuse
 	     the SCCVN machinery as we're using that even during
@@ -7915,7 +7915,7 @@ eliminate_dom_walker::eliminate_cleanup (bool region_p)
 
   /* Fixup stmts that became noreturn calls.  This may require splitting
      blocks and thus isn't possible during the dominator walk.  Do this
-     in reverse order so we don't inadvertedly remove a stmt we want to
+     in reverse order so we don't inadvertently remove a stmt we want to
      fixup by visiting a dominating now noreturn call first.  */
   while (!to_fixup.is_empty ())
     {
@@ -8529,7 +8529,7 @@ process_bb (rpo_elim &avail, basic_block bb,
 	    tree val = gimple_simplify (cmpcode,
 					boolean_type_node, lhs, rhs,
 					NULL, vn_valueize);
-	    /* If the condition didn't simplfy see if we have recorded
+	    /* If the condition didn't simplify see if we have recorded
 	       an expression from sofar taken edges.  */
 	    if (! val || TREE_CODE (val) != INTEGER_CST)
 	      {

@@ -730,7 +730,7 @@ split_loop (class loop *loop1)
 	   they increase expected loop count, so account this accordingly.
 	   If we do not know the probability of split conditional, avoid
 	   reudcing loop estimates, since we do not really know how they are
-	   split between of the two new loops.  Keep orignal estimate since
+	   split between of the two new loops.  Keep original estimate since
 	   it is likely better then completely dropping it.
 
 	   TODO: If we know that one of the new loops has constant
@@ -747,7 +747,7 @@ split_loop (class loop *loop1)
 		? loop2_edge->probability.to_sreal () : (sreal)1;
 	    sreal div1 = loop1_prob.initialized_p ()
 			 ? loop1_prob.to_sreal () : (sreal)1/(sreal)2;
-	    /* +1 to get header interations rather than latch iterations and then
+	    /* +1 to get header iterations rather than latch iterations and then
 	       -1 to convert back.  */
 	    if (div1 != 0)
 	      loop1->nb_iterations_estimate
@@ -958,7 +958,7 @@ find_vdef_in_loop (struct loop *loop)
 
 /* Two basic blocks have equivalent control dependency if one dominates to
    the other, and it is post-dominated by the latter.  Given a basic block
-   BB in LOOP, find farest equivalent dominating basic block.  For BB, there
+   BB in LOOP, find farthest equivalent dominating basic block.  For BB, there
    is a constraint that BB does not post-dominate loop header of LOOP, this
    means BB is control-dependent on at least one basic block in LOOP.  */
 
@@ -1634,7 +1634,7 @@ get_cond_branch_to_split_loop (struct loop *loop, gcond *cond)
 
    In the graph, loop1 represents the part derived from original one, and
    loop2 is duplicated using loop_version (), which corresponds to the part
-   of original one being splitted out.  In original latch edge of loop1, we
+   of original one being split out.  In original latch edge of loop1, we
    insert a new conditional statement duplicated from the semi-invariant cond,
    and one of its branch goes back to loop1 header as a latch edge, and the
    other branch goes to loop2 pre-header as an entry edge.  And also in loop2,

@@ -1464,7 +1464,7 @@ static tree
 new_src_based_on_copy (tree src2, tree dest, tree src)
 {
   /* If the second src is not exactly the same as dest,
-     try to handle it seperately; see it is address/size equivalent.
+     try to handle it separately; see it is address/size equivalent.
      Handles `a` and `a.b` and `MEM<char[N]>(&a)` which all have
      the same size and offsets as address/size equivalent.
      This allows copying over a memcpy and also one for copying
@@ -1605,7 +1605,7 @@ optimize_agr_copyprop_1 (gimple *stmt, gimple *use_stmt,
   src = new_src_based_on_copy (src2, dest, src);
   if (!src)
     return;
-  /* For 2 memory refences and using a temporary to do the copy,
+  /* For 2 memory references and using a temporary to do the copy,
      don't remove the temporary as the 2 memory references might overlap.
      Note t does not need to be decl as it could be field.
      See PR 22237 for full details.
@@ -5227,7 +5227,7 @@ public:
   bool m_full_walk = false;
 }; // class pass_forwprop
 
-/* Attemp to make the BB block of __builtin_unreachable unreachable by changing
+/* Attempt to make the BB block of __builtin_unreachable unreachable by changing
    the incoming jumps.  Return true if at least one jump was changed.  */
 
 static bool
@@ -5943,7 +5943,7 @@ pass_forwprop::execute (function *fun)
 	      propagate_value (use_p, val);
 	  }
 
-      /* Mark outgoing exectuable edges.  */
+      /* Mark outgoing executable edges.  */
       if (edge e = find_taken_edge (bb, NULL))
 	{
 	  e->flags |= EDGE_EXECUTABLE;
@@ -6005,7 +6005,7 @@ pass_forwprop::execute (function *fun)
 
   /* Fixup stmts that became noreturn calls.  This may require splitting
      blocks and thus isn't possible during the walk.  Do this
-     in reverse order so we don't inadvertedly remove a stmt we want to
+     in reverse order so we don't inadvertently remove a stmt we want to
      fixup by visiting a dominating now noreturn call first.  */
   while (!to_fixup.is_empty ())
     {

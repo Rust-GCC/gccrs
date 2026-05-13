@@ -44,7 +44,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree-ssa-loop-niter.h"
 #include "tree-scalar-evolution.h"
 
-/* Return path query insteance for testing ranges of statements
+/* Return path query instance for testing ranges of statements
    in headers of LOOP contained in basic block BB.
    Use RANGER instance.  */
 
@@ -171,7 +171,7 @@ loop_combined_static_and_iv_p (class loop *loop,
   return gimple_uid (SSA_NAME_DEF_STMT (op)) & 4;
 }
 
-/* Decision about posibility of copying a given header.  */
+/* Decision about possibility of copying a given header.  */
 
 enum ch_decision
 {
@@ -233,7 +233,7 @@ should_duplicate_loop_header_p (basic_block header, class loop *loop,
     {
       if (dump_file && (dump_flags & TDF_DETAILS))
 	fprintf (dump_file,
-		 "  Not duplicating bb %i: it has mutiple predecestors.\n",
+		 "  Not duplicating bb %i: it has multiple predecestors.\n",
 		 header->index);
       return ch_impossible;
     }
@@ -327,12 +327,12 @@ should_duplicate_loop_header_p (basic_block header, class loop *loop,
 	     size costs.
 
 	     Similarly static computations will be optimized out in the
-	     duplicatd header.  */
+	     duplicated header.  */
 	  if (inv || static_p)
 	    continue;
 
 	  /* Match the following:
-	     _1 = i_1 < 10   <- static condtion
+	     _1 = i_1 < 10   <- static condition
 	     _2 = n != 0     <- loop invariant condition
 	     _3 = _1 & _2    <- combined static and iv statement.  */
 	  tree_code code;
@@ -372,7 +372,7 @@ should_duplicate_loop_header_p (basic_block header, class loop *loop,
 	code_size_cost = true;
       if (dump_file && (dump_flags & TDF_DETAILS))
 	fprintf (dump_file,
-		 "    Acconting stmt as %i insns\n", insns);
+		 "    Accounting stmt as %i insns\n", insns);
       if (*limit < 0)
 	{
 	  if (dump_file && (dump_flags & TDF_DETAILS))
@@ -400,7 +400,7 @@ should_duplicate_loop_header_p (basic_block header, class loop *loop,
 
   /* Combined conditional is a result of if combining:
 
-     _1 = i_1 < 10   <- static condtion
+     _1 = i_1 < 10   <- static condition
      _2 = n != 0     <- loop invariant condition
      _3 = _1 & _2    <- combined static and iv statement
      if (_3 != 0)    <- combined conditional
@@ -457,7 +457,7 @@ should_duplicate_loop_header_p (basic_block header, class loop *loop,
 	      {
 		if (dump_file && (dump_flags & TDF_DETAILS))
 		  fprintf (dump_file,
-			   "    Will elliminate invariant exit %i->%i\n",
+			   "    Will eliminate invariant exit %i->%i\n",
 			   e->src->index, e->dest->index);
 		invariant_exits->add (e);
 	      }
@@ -500,7 +500,7 @@ should_duplicate_loop_header_p (basic_block header, class loop *loop,
   *limit -= insns;
   if (dump_file && (dump_flags & TDF_DETAILS))
     fprintf (dump_file,
-	     "    Acconting stmt as %i insns\n", insns);
+	     "    Accounting stmt as %i insns\n", insns);
   if (*limit < 0)
     {
       if (dump_file && (dump_flags & TDF_DETAILS))
@@ -737,7 +737,7 @@ public:
   /* opt_pass methods: */
   bool gate (function *) final override { return flag_tree_ch != 0; }
 
-  /* Initialize and finalize loop structures, copying headers inbetween.  */
+  /* Initialize and finalize loop structures, copying headers in between.  */
   unsigned int execute (function *) final override;
 
   opt_pass * clone () final override { return new pass_ch (m_ctxt); }

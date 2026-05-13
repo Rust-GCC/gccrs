@@ -1580,7 +1580,7 @@ powi_as_mults (gimple_stmt_iterator *gsi, location_t loc,
 /* ARG0 and N are the two arguments to a powi builtin in GSI with
    location info LOC.  If the arguments are appropriate, create an
    equivalent sequence of statements prior to GSI using an optimal
-   number of multiplications, and return an expession holding the
+   number of multiplications, and return an expression holding the
    result.  */
 
 static tree
@@ -1997,7 +1997,7 @@ expand_pow_as_sqrts (gimple_stmt_iterator *gsi, location_t loc,
 /* ARG0 and ARG1 are the two arguments to a pow builtin call in GSI
    with location info LOC.  If possible, create an equivalent and
    less expensive sequence of statements prior to GSI, and return an
-   expession holding the result.  */
+   expression holding the result.  */
 
 static tree
 gimple_expand_builtin_pow (gimple_stmt_iterator *gsi, location_t loc,
@@ -2096,7 +2096,7 @@ gimple_expand_builtin_pow (gimple_stmt_iterator *gsi, location_t loc,
 
 
   /* Attempt to expand the POW as a product of square root chains.
-     Expand the 0.25 case even when otpimising for size.  */
+     Expand the 0.25 case even when optimising for size.  */
   if (flag_unsafe_math_optimizations
       && sqrtfn
       && hw_sqrt_exists
@@ -2737,7 +2737,7 @@ convert_mult_to_widen (gimple *stmt, gimple_stmt_iterator *gsi)
     return false;
 
   /* if any one of rhs1 and rhs2 is subject to abnormal coalescing,
-     avoid the tranform. */
+     avoid the transform. */
   if ((TREE_CODE (rhs1) == SSA_NAME
        && SSA_NAME_OCCURS_IN_ABNORMAL_PHI (rhs1))
       || (TREE_CODE (rhs2) == SSA_NAME
@@ -2802,7 +2802,7 @@ convert_mult_to_widen (gimple *stmt, gimple_stmt_iterator *gsi)
 	}
     }
 
-  /* Ensure that the inputs to the handler are in the correct precison
+  /* Ensure that the inputs to the handler are in the correct precision
      for the opcode.  This will be the full mode size.  */
   actual_precision = GET_MODE_PRECISION (actual_mode);
   if (2 * actual_precision > TYPE_PRECISION (type))
@@ -3050,7 +3050,7 @@ convert_plusminus_to_widen (gimple_stmt_iterator *gsi, gimple *stmt,
   if (handler == CODE_FOR_nothing)
     return false;
 
-  /* Ensure that the inputs to the handler are in the correct precison
+  /* Ensure that the inputs to the handler are in the correct precision
      for the opcode.  This will be the full mode size.  */
   actual_precision = GET_MODE_PRECISION (actual_mode);
   if (actual_precision != TYPE_PRECISION (type1)

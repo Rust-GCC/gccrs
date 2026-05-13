@@ -1,4 +1,4 @@
-/* Header file for loop interation estimates.
+/* Header file for loop iteration estimates.
    Copyright (C) 2013-2026 Free Software Foundation, Inc.
 
 This file is part of GCC.

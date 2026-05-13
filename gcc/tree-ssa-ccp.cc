@@ -104,7 +104,7 @@ along with GCC; see the file COPYING3.  If not see
    precision of the type of the variable are always zero.  The
    uninteresting case is a variable of UNSIGNED type that has the
    maximum precision of the target.  Such variables can go to VARYING,
-   but this causes no loss of infomation since these variables will
+   but this causes no loss of information since these variables will
    never be extended.
 
    References:

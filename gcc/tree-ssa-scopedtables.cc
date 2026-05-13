@@ -664,7 +664,7 @@ hashable_expr_equal_p (const struct hashable_expr *expr0,
 			       expr1->ops.ternary.opnd2, 0))
 	return false;
 
-      /* BIT_INSERT_EXPR has an implict operand as the type precision
+      /* BIT_INSERT_EXPR has an implicit operand as the type precision
          of op1.  Need to check to make sure they are the same.  */
       if (expr0->ops.ternary.op == BIT_INSERT_EXPR
 	  && TREE_CODE (expr0->ops.ternary.opnd1) == INTEGER_CST

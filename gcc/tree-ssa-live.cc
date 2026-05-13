@@ -446,8 +446,8 @@ remove_unused_scope_block_p (tree scope, bool in_ctor_dtor_block)
       next = &DECL_CHAIN (*t);
 
       /* Debug info of nested function refers to the block of the
-	 function.  We might stil call it even if all statements
-	 of function it was nested into was elliminated.
+	 function.  We might still call it even if all statements
+	 of function it was nested into was eliminated.
 
 	 TODO: We can actually look into cgraph to see if function
 	 will be output to file.  */
@@ -582,7 +582,7 @@ remove_unused_scope_block_p (tree scope, bool in_ctor_dtor_block)
    else if (inlined_function_outer_scope_p (scope))
      unused = false;
    else
-   /* Verfify that only blocks with source location set
+   /* Verify that only blocks with source location set
       are entry points to the inlined functions.  */
      gcc_assert (LOCATION_LOCUS (BLOCK_SOURCE_LOCATION (scope))
 		 == UNKNOWN_LOCATION);

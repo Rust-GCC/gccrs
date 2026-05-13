@@ -131,7 +131,7 @@ along with GCC; see the file COPYING3.  If not see
       heuristic that disables prefetching in a loop if the prefetching
       cost is above a certain limit.  The relative prefetching cost is
       estimated by taking the ratio between the prefetch count and the
-      total intruction count (this models the I-cache cost).
+      total instruction count (this models the I-cache cost).
 
    The limits used in these heuristics are defined as parameters with
    reasonable default values. Machine-specific default values will be
@@ -1015,7 +1015,7 @@ should_issue_prefetch_p (struct mem_ref *ref)
       if (dump_file && (dump_flags & TDF_DETAILS))
 	fprintf (dump_file,
 		 "Step for reference %u:%u (" HOST_WIDE_INT_PRINT_DEC
-		 ") is less than the mininum required stride of %d\n",
+		 ") is less than the minimum required stride of %d\n",
 		 ref->group->uid, ref->uid, int_cst_value (ref->group->step),
 		 param_prefetch_minimum_stride);
       return false;
@@ -1081,7 +1081,7 @@ schedule_prefetches (struct mem_ref_group *groups, unsigned unroll_factor,
 	  continue;
 
         /* The loop is far from being sufficiently unrolled for this
-           prefetch.  Do not generate prefetch to avoid many redudant
+           prefetch.  Do not generate prefetch to avoid many redundant
            prefetches.  */
         if (ref->prefetch_mod / unroll_factor > PREFETCH_MOD_TO_UNROLL_FACTOR_RATIO)
           continue;

@@ -825,7 +825,7 @@ private:
   gcond *m_dummy_cond;
 
   /* Optimize a single statement within a basic block using the
-     various tables mantained by DOM.  Returns the taken edge if
+     various tables maintained by DOM.  Returns the taken edge if
      the statement is a conditional with a statically determined
      value.  */
   edge optimize_stmt (basic_block, gimple_stmt_iterator *, bool *);
@@ -1038,7 +1038,7 @@ pass_dominator::execute (function *fun)
   /* Fixup stmts that became noreturn calls.  This may require splitting
      blocks and thus isn't possible during the dominator walk or before
      jump threading finished.  Do this in reverse order so we don't
-     inadvertedly remove a stmt we want to fixup by visiting a dominating
+     inadvertently remove a stmt we want to fixup by visiting a dominating
      now noreturn call first.  */
   while (!need_noreturn_fixup.is_empty ())
     {

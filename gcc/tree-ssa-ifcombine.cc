@@ -1064,7 +1064,7 @@ tree_ssa_ifcombine_bb_1 (basic_block inner_cond_bb, basic_block outer_cond_bb,
 			 basic_block phi_pred_bb, basic_block outer_succ_bb)
 {
   /* The && form is characterized by a common else_bb with
-     the two edges leading to it mergable.  The latter is
+     the two edges leading to it mergeable.  The latter is
      guaranteed by matching PHI arguments in the else_bb and
      the inner cond_bb having no side-effects.  */
   if (phi_pred_bb != else_bb
@@ -1400,7 +1400,7 @@ pass_tree_ifcombine::execute (function *fun)
 
      We walk the blocks in order that guarantees that a block with
      a single predecessor is processed after the predecessor.
-     This ensures that we collapse outter ifs before visiting the
+     This ensures that we collapse outer ifs before visiting the
      inner ones, and also that we do not try to visit a removed
      block.  This is opposite of PHI-OPT, because we cascade the
      combining rather than cascading PHIs. */

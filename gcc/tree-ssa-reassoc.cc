@@ -481,7 +481,7 @@ get_rank (tree e)
 	  /* Otherwise, find the maximum rank for the operands.  As an
 	     exception, remove the bias from loop-carried phis when propagating
 	     the rank so that dependent operations are not also biased.  */
-	  /* Simply walk over all SSA uses - this takes advatage of the
+	  /* Simply walk over all SSA uses - this takes advantage of the
 	     fact that non-SSA operands are is_gimple_min_invariant and
 	     thus have rank 0.  */
 	  rank = 0;
@@ -5168,10 +5168,10 @@ remove_visited_stmt_chain (tree var)
     }
 }
 
-/* This function checks three consequtive operands in
+/* This function checks three consecutive operands in
    passed operands vector OPS starting from OPINDEX and
    swaps two operands if it is profitable for binary operation
-   consuming OPINDEX + 1 abnd OPINDEX + 2 operands.
+   consuming OPINDEX + 1 and OPINDEX + 2 operands.
 
    We pair ops with the same rank if possible.  */
 

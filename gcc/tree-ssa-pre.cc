@@ -454,7 +454,7 @@ get_or_alloc_expr_for_nary (vn_nary_op_t nary, unsigned value_id,
 /* Given an REFERENCE, get or create a pre_expr to represent it.  Assign
    VALUE_ID to it or allocate a new value-id if it is zero.  Record
    LOC as the original location of the expression.  If MOVE_OPERANDS
-   is true then ownership of REFERENCE->operands is transfered, otherwise
+   is true then ownership of REFERENCE->operands is transferred, otherwise
    a copy is made if necessary.  */
 
 static pre_expr
@@ -1052,7 +1052,7 @@ sorted_array_from_bitmap_set (bitmap_set_t set, bool for_insertion)
 	      }
 	    else
 	      {
-		/* If neither works for pairwise chosing a conservative
+		/* If neither works for pairwise choosing a conservative
 		   alternative, drop all REFERENCE expressions for this value.
 		   REFERENCE are always toplevel, so no chain should be
 		   interrupted by pruning them.  */
@@ -2019,7 +2019,7 @@ value_dies_in_block_x (pre_expr expr, basic_block block)
   /* A memory expression {e, VUSE} dies in the block if there is a
      statement that may clobber e.  If, starting statement walk from the
      top of the basic block, a statement uses VUSE there can be no kill
-     inbetween that use and the original statement that loaded {e, VUSE},
+     in between that use and the original statement that loaded {e, VUSE},
      so we can stop walking.  */
   ref.base = NULL_TREE;
   for (gsi = gsi_start_bb (block); !gsi_end_p (gsi); gsi_next (&gsi))
@@ -2409,7 +2409,7 @@ compute_antic_aux (basic_block block, bool block_has_abnormal_pred_edge)
   bitmap_ior_into (&ANTIC_IN (block)->values, &S->values);
   bitmap_ior_into (&ANTIC_IN (block)->expressions, &S->expressions);
 
-  /* clean (ANTIC_IN (block)) is defered to after the iteration converged
+  /* clean (ANTIC_IN (block)) is deferred to after the iteration converged
      because it can cause non-convergence, see for example PR81181.  */
 
   if (was_visited

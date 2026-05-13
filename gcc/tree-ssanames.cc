@@ -119,7 +119,7 @@ range_info_get_range (const_tree name, vrange &r)
   SSA_NAME_RANGE_INFO (name)->get_vrange (r, TREE_TYPE (name));
 }
 
-/* Set the global range for NAME from R.  Return TRUE if successfull,
+/* Set the global range for NAME from R.  Return TRUE if successful,
    or FALSE if we can't set a range of NAME's type.  */
 
 inline bool

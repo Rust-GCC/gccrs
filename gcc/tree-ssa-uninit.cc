@@ -193,7 +193,7 @@ warn_uninit (opt_code opt, tree t, tree var, gimple *context,
      Or
 
      2. A call to .DEFERRED_INIT internal function. Since the original variable
-     has been eliminated by optimziation, we need to get the variable name,
+     has been eliminated by optimization, we need to get the variable name,
      and variable declaration location from this call.  We recorded variable
      name into VAR_NAME_STR, and will get location info and record warning
      suppressed info to VAR_DEF_STMT, which is the .DEFERRED_INIT call.  */
@@ -1454,7 +1454,7 @@ execute_late_warn_uninitialized (function *fun)
 
   timevar_push (TV_TREE_UNINIT);
 
-  /* Avoid quadratic beahvior when looking up case labels for edges.  */
+  /* Avoid quadratic behavior when looking up case labels for edges.  */
   start_recording_case_labels ();
 
   possibly_undefined_names = new hash_set<tree>;

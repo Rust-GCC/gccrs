@@ -102,7 +102,7 @@ static bitmap need_ab_cleanup;
 
    Return TRUE if the statement was analyzed, FALSE otherwise.
 
-   It is always safe to return FALSE.  But typically better optimziation
+   It is always safe to return FALSE.  But typically better optimization
    can be achieved by analyzing more statements.  */
 
 static bool

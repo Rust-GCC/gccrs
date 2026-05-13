@@ -313,7 +313,7 @@ determine_global_memory_access (gcall *stmt,
   cgraph_node *node;
   modref_summary *summary;
 
-  /* We need to detrmine reads to set uses.  */
+  /* We need to determine reads to set uses.  */
   gcc_assert (!uses_global_memory || reads_global_memory);
 
   if ((callee = gimple_call_fndecl (stmt)) != NULL_TREE
@@ -1555,7 +1555,7 @@ clear_dependence_clique (gimple *, tree base, tree, void *data)
   return false;
 }
 
-/* Compute the set of independend memory references based on restrict
+/* Compute the set of independent memory references based on restrict
    tags and their conservative propagation to the points-to sets.  */
 
 static void
