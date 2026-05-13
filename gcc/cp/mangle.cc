@@ -1653,7 +1653,7 @@ write_unqualified_name (tree decl)
 	    decl = res;
 	  else if (flag_abi_version == 10)
 	    {
-	      /* In ABI 10, we want explict and implicit tags.  */
+	      /* In ABI 10, we want explicit and implicit tags.  */
 	      write_abi_tags (mtags);
 	      return;
 	    }

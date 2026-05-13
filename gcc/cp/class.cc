@@ -2005,7 +2005,7 @@ inherit_targ_abi_tags (tree t)
 }
 
 /* Return true, iff class T has a non-virtual destructor that is
-   accessible from outside the class heirarchy (i.e. is public, or
+   accessible from outside the class hierarchy (i.e. is public, or
    there's a suitable friend.  */
 
 static bool
@@ -3289,7 +3289,7 @@ warn_hidden (tree t)
 	unsigned j;
 	size_t num_overriders = 0;
 	hash_set<tree> overriden_base_fndecls;
-	/* base_fndecls that are hidden but not overriden. The "value"
+	/* base_fndecls that are hidden but not overridden. The "value"
 	   contains the last fndecl we saw that hides the "key".  */
 	hash_map<tree, tree> hidden_base_fndecls;
 
@@ -3455,9 +3455,9 @@ maybe_add_class_template_decl_list (tree type, tree t, int friend_p)
 /* This function is called from declare_virt_assop_and_dtor via
    dfs_walk_all.
 
-   DATA is a type that direcly or indirectly inherits the base
+   DATA is a type that directly or indirectly inherits the base
    represented by BINFO.  If BINFO contains a virtual assignment [copy
-   assignment or move assigment] operator or a virtual constructor,
+   assignment or move assignment] operator or a virtual constructor,
    declare that function in DATA if it hasn't been already declared.  */
 
 static tree
@@ -6483,7 +6483,7 @@ check_bases_and_members (tree t)
 
   /* Deduce noexcept on destructor.  This needs to happen after we've set
      triviality flags appropriately for our bases, and before checking
-     overriden virtual functions via check_methods.  */
+     overridden virtual functions via check_methods.  */
   if (cxx_dialect >= cxx11)
     if (tree dtor = CLASSTYPE_DESTRUCTOR (t))
       for (tree fn : ovl_range (dtor))
@@ -10493,7 +10493,7 @@ dfs_accumulate_vtbl_inits (tree binfo,
        straighten this out.  */
     BINFO_VTABLE (binfo) = tree_cons (rtti_binfo, vtbl, BINFO_VTABLE (binfo));
   else if (BINFO_PRIMARY_P (binfo) && BINFO_VIRTUAL_P (binfo))
-    /* Throw away any unneeded intializers.  */
+    /* Throw away any unneeded initializers.  */
     (*l)->truncate (n_inits);
   else
      /* For an ordinary vtable, set BINFO_VTABLE.  */

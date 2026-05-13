@@ -61,7 +61,7 @@ along with GCC; see the file COPYING3.  If not see
 
    There is code (such as in grok_op_properties) that depends on the
    order the operators are presented in this file.  Unary_ops must
-   preceed a matching binary op (i.e. '+').  Assignment operators must
+   precede a matching binary op (i.e. '+').  Assignment operators must
    be last, after OPERATOR_TRANSITION.  */
 
 /* Use DEF_ASSN_OPERATOR to define an assignment operator.  Its

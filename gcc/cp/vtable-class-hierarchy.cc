@@ -51,7 +51,7 @@ along with GCC; see the file COPYING3.  If not see
   hacker targets.
 
   To find and reference the set of valid vtable pointers for any given
-  virtual class, we create a special global varible for each virtual
+  virtual class, we create a special global variable for each virtual
   class.  We refer to this as the "vtable map variable" for that
   class.  The vtable map variable has the type "void *", and is
   initialized by the compiler to NULL.  At runtime when the set of
@@ -86,7 +86,7 @@ along with GCC; see the file COPYING3.  If not see
   The vtable verification feature is controlled by the flag
   '-fvtable-verify='.  There are three flavors of this:
   '-fvtable-verify=std', '-fvtable-verify=preinit', and
-  '-fvtable-verify=none'.  If the option '-fvtable-verfy=preinit' is
+  '-fvtable-verify=none'.  If the option '-fvtable-verify=preinit' is
   used, then our constructor initialization function gets put into the
   preinit array.  This is necessary if there are data sets that need
   to be built very early in execution.  If the constructor
@@ -436,7 +436,7 @@ vtv_compute_class_hierarchy_transitive_closure (void)
    offset into the vtable (VTABLE_DECL).  It is the actual vtable
    pointer address that will be stored in our list of valid vtable
    pointers for BASE_CLASS.  BASE_CLASS is the record_type node for
-   the base class to whose hiearchy we want to add
+   the base class to whose hierarchy we want to add
    VPTR_ADDRESS. (VTABLE_DECL should be the vtable for BASE_CLASS or
    one of BASE_CLASS' descendents.  */
 
@@ -1194,7 +1194,7 @@ vtv_generate_init_routine (void)
   pop_lang_context ();
 }
 
-/* This funtion takes a tree containing a class type (BASE_TYPE), and
+/* This function takes a tree containing a class type (BASE_TYPE), and
    it either finds the existing vtbl_map_node for that class in our
    data structure, or it creates a new node and adds it to the data
    structure if there is not one for the class already.  As part of

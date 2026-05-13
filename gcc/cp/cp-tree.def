@@ -547,7 +547,7 @@ DEFTREECODE (DISJ_CONSTR, "disj_constr", tcc_expression, 2)
 
 /* The co_await expression is used to support coroutines.
 
-  Op 0 is the cast expresssion (potentially modified by the
+  Op 0 is the cast expression (potentially modified by the
   promise "await_transform()" method).
   Op1 is a proxy for the temp / coro frame slot 'e' value.
   Op2 is the initialiser for Op1 (Op0, potentially modified by any

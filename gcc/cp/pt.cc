@@ -12202,7 +12202,7 @@ tsubst_friend_class (tree friend_tmpl, tree args)
 	     newly instantiated template type.  */
 	  propagate_defining_module (tmpl, friend_tmpl);
 
-	  /* Inject this template into the enclosing namspace scope.  */
+	  /* Inject this template into the enclosing namespace scope.  */
 	  tmpl = pushdecl_namespace_level (tmpl, /*hiding=*/true);
 	}
     }
@@ -13445,7 +13445,7 @@ use_pack_expansion_extra_args_p (tree t,
   else if (has_empty_arg)
     {
       /* If all the actual packs are pack expansions, we can still
-	 subsitute directly.  */
+	 substitute directly.  */
       for (tree p = parm_packs; p; p = TREE_CHAIN (p))
 	{
 	  tree a = TREE_VALUE (p);
@@ -13729,7 +13729,7 @@ tsubst_unary_left_fold (tree t, tree args, tsubst_flags_t complain,
 
 /* Substitute into a binary left fold expression.
 
-   Do ths by building a single (non-empty) vector of argumnts and
+   Do this by building a single (non-empty) vector of arguments and
    building the expression from those elements. */
 
 static tree
@@ -13806,7 +13806,7 @@ tsubst_unary_right_fold (tree t, tree args, tsubst_flags_t complain,
 
 /* Substitute into a binary right fold expression.
 
-   Do ths by building a single (non-empty) vector of arguments and
+   Do this by building a single (non-empty) vector of arguments and
    building the expression from those elements. */
 
 static tree
@@ -18106,7 +18106,7 @@ filter_memfn_lookup (tree oldfns, tree newfns, tree newtype)
 /* tsubst a BASELINK.  OBJECT_TYPE, if non-NULL, is the type of the
    expression on the left-hand side of the "." or "->" operator.  We
    only do the lookup if we had a dependent BASELINK.  Otherwise we
-   adjust it onto the instantiated heirarchy.  */
+   adjust it onto the instantiated hierarchy.  */
 
 static tree
 tsubst_baselink (tree baselink, tree object_type,

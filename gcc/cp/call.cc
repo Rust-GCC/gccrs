@@ -1711,7 +1711,7 @@ reference_compatible_p (tree t1, tree t2)
 static bool
 involves_qualification_conversion_p (tree to, tree from)
 {
-  /* If we're not convering a pointer to another one, we won't get
+  /* If we're not converting a pointer to another one, we won't get
      a qualification conversion.  */
   if (!((TYPE_PTR_P (to) && TYPE_PTR_P (from))
 	|| (TYPE_PTRDATAMEM_P (to) && TYPE_PTRDATAMEM_P (from))))
@@ -4700,7 +4700,7 @@ build_user_type_conversion_1 (tree totype, tree expr, int flags,
       struct z_candidate *old_candidates;
 
       /* If LOOKUP_NO_CONVERSION, don't consider a conversion function that
-	 would need an addional user-defined conversion, i.e. if the return
+	 would need an additional user-defined conversion, i.e. if the return
 	 type differs in class-ness from the desired type.  So we avoid
 	 considering operator bool when calling a copy constructor.
 
@@ -8452,7 +8452,7 @@ complain_about_access (tree decl, tree diag_decl, tree diag_location,
 	error ("%q#D is protected within this context", diag_decl);
       inform (DECL_SOURCE_LOCATION (diag_location), "declared protected here");
     }
-  /* Couldn't figure out why DECL is inaccesible, so just say it's
+  /* Couldn't figure out why DECL is inaccessible, so just say it's
      inaccessible.  */
   else
     {
@@ -11416,7 +11416,7 @@ maybe_warn_class_memaccess (location_t loc, tree fndecl,
       else
 	srctype = TREE_TYPE (srctype);
 
-      /* Since it's impossible to determine wheter the byte copy is
+      /* Since it's impossible to determine whether the byte copy is
 	 being used in place of assignment to an existing object or
 	 as a substitute for initialization, assume it's the former.
 	 Determine the best alternative to use instead depending on

@@ -1138,7 +1138,7 @@ maybe_convert_cond (tree cond)
 
   /* For structured binding used in condition, the conversion needs to be
      evaluated before the individual variables are initialized in the
-     std::tuple_{size,elemenet} case.  cp_finish_decomp saved the conversion
+     std::tuple_{size,element} case.  cp_finish_decomp saved the conversion
      result in a TARGET_EXPR, pick it up from there.  */
   if (DECL_DECOMPOSITION_P (cond)
       && DECL_DECOMP_IS_BASE (cond)
@@ -1931,7 +1931,7 @@ finish_switch_cond (tree cond, tree switch_stmt)
       tree orig_cond = cond;
       /* For structured binding used in condition, the conversion needs to be
 	 evaluated before the individual variables are initialized in the
-	 std::tuple_{size,elemenet} case.  cp_finish_decomp saved the
+	 std::tuple_{size,element} case.  cp_finish_decomp saved the
 	 conversion result in a TARGET_EXPR, pick it up from there.  */
       if (DECL_DECOMPOSITION_P (cond)
 	  && DECL_DECOMP_IS_BASE (cond)
@@ -7584,7 +7584,7 @@ cp_finish_omp_clause_doacross_sink (tree sink_clause)
   return false;
 }
 
-/* Finish OpenMP iterators ITER.  Return true if they are errorneous
+/* Finish OpenMP iterators ITER.  Return true if they are erroneous
    and clauses containing them should be removed.  */
 
 static bool
@@ -11049,7 +11049,7 @@ finish_omp_target_clauses_r (tree *tp, int *walk_subtrees, void *ptr)
     }
 
   /* When the current_function_decl is a lambda function, the closure object
-     argument's type seems to not yet have fields layed out, so a recording
+     argument's type seems to not yet have fields laid out, so a recording
      of DECL_VALUE_EXPRs during the target body walk seems the only way to
      find them.  */
   if (current_closure

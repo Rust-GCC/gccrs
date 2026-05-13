@@ -5059,7 +5059,7 @@ cp_coroutine_transform::build_ramp_function ()
     = build_coroutine_frame_alloc_expr (promise_type, orig_fn_decl, fn_start,
 					grooaf, &param_uses, frame_size);
 
-  /* We must have a useable allocator to proceed.  */
+  /* We must have a usable allocator to proceed.  */
   if (!new_fn_call || new_fn_call == error_mark_node)
     return false;
 
@@ -5358,7 +5358,7 @@ cp_coroutine_transform::build_ramp_function ()
   else
     {
       /* Per CWG2563, we keep the result of promise.get_return_object () in
-	 a temp which is then used to intialize the return object, including
+	 a temp which is then used to initialize the return object, including
 	 NVRO.  */
 
       coro_gro

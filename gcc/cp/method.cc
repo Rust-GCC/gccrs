@@ -560,7 +560,7 @@ inherited_ctor_binfo (tree fndecl)
 
 
 /* True if we should omit all user-declared parameters from a base
-   construtor built from complete constructor FN.
+   constructor built from complete constructor FN.
    That's when the ctor is inherited from a virtual base.  */
 
 bool
@@ -3167,7 +3167,7 @@ synthesized_method_walk (tree ctype, special_function_kind sfk, bool const_p,
   else if (ABSTRACT_CLASS_TYPE_P (ctype) && cxx_dialect >= cxx14
 	   /* DR 1658 specifies that vbases of abstract classes are
 	      ignored for both ctors and dtors.  Except DR 2336
-	      overrides that skipping when determing the eh-spec of a
+	      overrides that skipping when determining the eh-spec of a
 	      virtual destructor.  */
 	   && sfk != sfk_virtual_destructor)
     /* Vbase cdtors are not relevant.  */;

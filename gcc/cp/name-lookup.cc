@@ -550,8 +550,8 @@ vec<tree, va_heap, vl_embed> *name_lookup::shared_scopes;
 /* Currently active lookup.  */
 name_lookup *name_lookup::active;
 
-/* Name lookup is recursive, becase ADL can cause template
-   instatiation.  This is of course a rare event, so we optimize for
+/* Name lookup is recursive, because ADL can cause template
+   instantiation.  This is of course a rare event, so we optimize for
    it not happening.  When we discover an active name-lookup, which
    must be an ADL lookup,  we need to unmark the marked scopes and also
    unmark the lookup we might have been accumulating.  */
@@ -681,7 +681,7 @@ name_lookup::ambiguous (tree thing, tree current)
   return current;
 }
 
-/* FNS is a new overload set to add to the exising set.  */
+/* FNS is a new overload set to add to the existing set.  */
 
 void
 name_lookup::add_overload (tree fns)
@@ -4236,7 +4236,7 @@ pushdecl (tree decl, bool hiding)
 		  if (level->kind != sk_namespace
 		      && !instantiating_current_function_p ())
 		    /* This is a locally defined typedef in a function that
-		       is not a template instantation, record it to implement
+		       is not a template instantiation, record it to implement
 		       -Wunused-local-typedefs.  */
 		    record_locally_defined_typedef (decl);
 		}
@@ -7498,7 +7498,7 @@ suggest_alternatives_for_1 (location_t location, tree name,
    Search through all available namespaces and generate a suggestion and/or
    a deferred diagnostic that lists possible candidate(s).
 
-   This is similiar to suggest_alternatives_for, but doesn't fallback to
+   This is similar to suggest_alternatives_for, but doesn't fallback to
    the other approaches used by that function.  */
 
 name_hint
@@ -7812,7 +7812,7 @@ maybe_add_fuzzy_decl (auto_vec<tree> &vec, tree decl)
   return true;
 }
 
-/* Examing the namespace binding BINDING, and add at most one instance
+/* Examine the namespace binding BINDING, and add at most one instance
    of the name, if it contains a visible entity of interest.  Return
    true if we added something.  */
 

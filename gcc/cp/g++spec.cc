@@ -115,7 +115,7 @@ lang_specific_driver (struct cl_decoded_option **in_decoded_options,
   /* "-lm" or "-lmath" if it appears on the command line.  */
   const struct cl_decoded_option *saw_math = NULL;
 
-  /* "-lrt" or eqivalent if it appears on the command line.  */
+  /* "-lrt" or equivalent if it appears on the command line.  */
   const struct cl_decoded_option *saw_time = NULL;
 
   /* "-lc" if it appears on the command line.  */

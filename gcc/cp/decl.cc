@@ -7609,7 +7609,7 @@ reshape_init_array_1 (tree elt_type, tree max_index, reshape_iter *d,
       else
 	midx = tree_to_poly_uint64 (fold_convert (size_type_node, max_index));
 
-      /* For VLA vectors, we restict the number of elements in the constructor
+      /* For VLA vectors, we restrict the number of elements in the constructor
 	 to lower bound of the VLA elements.  */
       max_index_cst = constant_lower_bound (midx);
     }
@@ -9418,7 +9418,7 @@ omp_declare_variant_finalize (tree decl, tree attr)
     }
   /* This loop is like private_lookup_attribute, except that it works
      with tree * rather than tree, as we might want to remove the
-     attributes that are diagnosed as errorneous.  */
+     attributes that are diagnosed as erroneous.  */
   while (*list)
     {
       tree attr = get_attribute_name (*list);
@@ -15815,7 +15815,7 @@ grokdeclarator (const cp_declarator *declarator,
   id_loc = declarator ? declarator->id_loc : input_location;
 
   if (innermost_code != cdk_function
-    /* Don't check this if it can be the artifical decltype(auto)
+    /* Don't check this if it can be the artificial decltype(auto)
        we created when building a constraint in a compound-requirement:
        that the type-constraint is plain is going to be checked in
        cp_parser_compound_requirement.  */
@@ -18865,7 +18865,7 @@ copy_type_enum (tree dst, tree src)
 /* Begin compiling the definition of an enumeration type.
    NAME is its name,
 
-   if ENUMTYPE is not NULL_TREE then the type has alredy been found.
+   if ENUMTYPE is not NULL_TREE then the type has already been found.
 
    UNDERLYING_TYPE is the type that will be used as the storage for
    the enumeration type. This should be NULL_TREE if no storage type

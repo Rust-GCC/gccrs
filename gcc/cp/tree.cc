@@ -855,7 +855,7 @@ build_cplus_new (tree type, tree init, tsubst_flags_t complain)
 }
 
 /* Subroutine of build_vec_init_expr: Build up a single element
-   intialization as a proxy for the full array initialization to get things
+   initialization as a proxy for the full array initialization to get things
    marked as used and any appropriate diagnostics.
 
    This used to be necessary because we were deferring building the actual
@@ -1724,7 +1724,7 @@ apply_identity_attributes (tree result, tree attribs, bool *remove_attributes)
    Because of several reasons:
     * If T is a type that needs structural equality
       its TYPE_CANONICAL (T) will be NULL.
-    * TYPE_CANONICAL (T) desn't carry type attributes
+    * TYPE_CANONICAL (T) doesn't carry type attributes
       and loses template parameter names.
 
    If REMOVE_ATTRIBUTES is non-null, also strip attributes that don't

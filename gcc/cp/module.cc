@@ -20,7 +20,7 @@ along with GCC; see the file COPYING3.  If not see
 
 /* Comments in this file have a non-negligible chance of being wrong
    or at least inaccurate.  Due to (a) my misunderstanding, (b)
-   ambiguities that I have interpretted differently to original intent
+   ambiguities that I have interpreted differently to original intent
    (c) changes in the specification, (d) my poor wording, (e) source
    changes.  */
 
@@ -42,7 +42,7 @@ along with GCC; see the file COPYING3.  If not see
    Additionally each imported decl is mapped in the entity_map via its
    DECL_UID to the flat index in the entity_ary.  Thus we can locate
    the index for any imported decl by using this map and then
-   de-flattening the index via a binary seach of the module vector.
+   de-flattening the index via a binary search of the module vector.
    Cross-module references are by (remapped) module number and
    module-local index.
 
@@ -188,7 +188,7 @@ Classes used:
    The mapper object uses fileno IO to communicate with the server or
    program.   */
 
-/* In expermental (trunk) sources, MODULE_VERSION is a #define passed
+/* In experimental (trunk) sources, MODULE_VERSION is a #define passed
    in from the Makefile.  It records the modification date of the
    source directory -- that's the only way to stay sane.  In release
    sources, we (plan to) use the compiler's major.minor versioning.
@@ -323,7 +323,7 @@ version2string (unsigned version, verstr_t &out)
 /* Include files to note translation for.  */
 static vec<const char *, va_heap, vl_embed> *note_includes;
 
-/* Modules to note CMI pathames.  */
+/* Modules to note CMI pathnames.  */
 static vec<const char *, va_heap, vl_embed> *note_cmis;
 
 /* Traits to hash an arbitrary pointer.  Entries are not deletable,
@@ -2846,7 +2846,7 @@ pending_map_t *pending_table;
    completed.  */
 vec<tree, va_heap, vl_embed> *post_load_decls;
 
-/* Some entities are keyed to another entitity for ODR purposes.
+/* Some entities are keyed to another entity for ODR purposes.
    For example, at namespace scope, 'inline auto var = []{};', that
    lambda is keyed to 'var', and follows its ODRness.  */
 typedef hash_map<tree, auto_vec<tree>> keyed_map_t;
@@ -4220,7 +4220,7 @@ static GTY(()) vec<tree, va_gc> *class_members;
    expecting them in the instantiation table no longer holds.  One of
    the constrained partial specializations will be there, but the
    others not so much.  It's not even an unconstrained partial
-   spacialization in the table :(  so any partial template declaration
+   specialization in the table :(  so any partial template declaration
    is added to this list too.  */
 static GTY(()) vec<tree, va_gc> *partial_specializations;
 
@@ -6110,7 +6110,7 @@ trees_out::lang_decl_bools (tree t, bits_out& bits)
   WB (lang->u.base.var_declared_inline_p);
   WB (lang->u.base.dependent_init_p);
 
-  /* When building a header unit, everthing is marked as purview, (so
+  /* When building a header unit, everything is marked as purview, (so
      we know which decls to write).  But when we import them we do not
      want to mark them as in module purview.  */
   WB (lang->u.base.module_purview_p && !header_module_p ());
@@ -6563,7 +6563,7 @@ trees_out::core_vals (tree t)
 			 && TREE_CODE_CLASS (code) != tcc_vl_exp);
 
   /* Then by CODE.  Special cases and/or 1:1 tree shape
-     correspondance. */
+     correspondence. */
   switch (code)
     {
     default:
@@ -7146,7 +7146,7 @@ trees_in::core_vals (tree t)
     }
 
   /* Then by CODE.  Special cases and/or 1:1 tree shape
-     correspondance. */
+     correspondence. */
   switch (code)
     {
     default:
@@ -7168,7 +7168,7 @@ trees_in::core_vals (tree t)
       break;
 
     case FIXED_CST:
-      /* Not suported in C++.  */
+      /* Not supported in C++.  */
       return false;
 
     case INTEGER_CST:
@@ -12920,7 +12920,7 @@ trees_in::install_implicit_member (tree fn)
   tree name = DECL_NAME (fn);
   /* We know these are synthesized, so the set of expected prototypes
      is quite restricted.  We're not validating correctness, just
-     distinguishing beteeen the small set of possibilities.  */
+     distinguishing between the small set of possibilities.  */
   tree parm_type = TREE_VALUE (FUNCTION_FIRST_USER_PARMTYPE (fn));
   if (IDENTIFIER_CTOR_P (name))
     {
@@ -13129,7 +13129,7 @@ trees_in::odr_duplicate (tree maybe_existing, bool has_defn)
 
 /* The following writer functions rely on the current behaviour of
    depset::hash::add_dependency making the decl and defn depset nodes
-   depend on eachother.  That way we don't have to worry about seeding
+   depend on each other.  That way we don't have to worry about seeding
    the tree map with named decls that cannot be looked up by name (I.e
    template and function parms).  We know the decl and definition will
    be in the same cluster, which is what we want.  */
@@ -14568,7 +14568,7 @@ instantiating_tu_local_entity (tree decl)
   inform (DECL_SOURCE_LOCATION (decl), "declared here");
 
   /* We treat TU-local entities from the GMF as not actually being
-     TU-local as an extension, so allow instantation to proceed.  */
+     TU-local as an extension, so allow instantiation to proceed.  */
   return false;
 }
 
@@ -16299,7 +16299,7 @@ sort_cluster (depset::hash *original, depset *scc[], unsigned size)
 
      The instantiation of TPL will be in the specialization table, and
      refer to Foo via arg.  But we can only get to that specialization
-     from Foo's declaration, so we only need to treat Foo as mergable
+     from Foo's declaration, so we only need to treat Foo as mergeable
      (We'll do structural comparison of TPL<decltype (arg)>).
 
      We approximate finding the single cluster entry dep by checking for
@@ -19662,7 +19662,7 @@ module_state::write_define (bytes_out &sec, const cpp_macro *macro)
 
 	case CPP_TOKEN_FLD_STR:
 	  /* A string, number or comment.  Not always NUL terminated,
-	     we stream out in a single contatenation with embedded
+	     we stream out in a single concatenation with embedded
 	     NULs as that's a safe default.  */
 	  len += token->val.str.len + 1;
 	  sec.u (token->val.str.len);
@@ -21203,7 +21203,7 @@ module_state::write_begin (elf_out *to, cpp_reader *reader,
   gcc_assert (counts[MSC_sec_hwm] == to->get_section_limit ()
 	      && spaces.length () == counts[MSC_namespaces]);
 
-  /* Write the entitites.  None happens if we contain namespaces or
+  /* Write the entities.  None happens if we contain namespaces or
      nothing. */
   config.num_entities = counts[MSC_entities];
   if (counts[MSC_entities])
@@ -22859,7 +22859,7 @@ declare_module (module_state *module, location_t from_loc, bool exporting_p,
     {
       /* Copy the importing information we may have already done.  We
 	 do not need to separate out the imports that only happen in
-	 the GMF, inspite of what the literal wording of the std
+	 the GMF, in spite of what the literal wording of the std
 	 might imply.  See p2191, the core list had a discussion
 	 where the module implementors agreed that the GMF of a named
 	 module is invisible to importers.  */
@@ -23579,7 +23579,7 @@ void
 init_modules (cpp_reader *reader)
 {
   /* PCH should not be reachable because of lang-specs, but the
-     user could have overriden that.  */
+     user could have overridden that.  */
   if (pch_file)
     fatal_error (input_location,
 		 "C++ modules are incompatible with precompiled headers");

@@ -2612,7 +2612,7 @@ constant_value_1 (tree decl, bool strict_p, bool return_aggregate_cst_ok_p,
 	init = TREE_VALUE (init);
       /* Instantiate a non-dependent initializer for user variables.  We
 	 mustn't do this for the temporary for an array compound literal;
-	 trying to instatiate the initializer will keep creating new
+	 trying to instantiate the initializer will keep creating new
 	 temporaries until we crash.  Probably it's not useful to do it for
 	 other artificial variables, either.  */
       if (!DECL_ARTIFICIAL (decl))
@@ -4098,7 +4098,7 @@ build_new (location_t loc, vec<tree, va_gc> **placement, tree type,
       /* The expression in a noptr-new-declarator is erroneous if it's of
 	 non-class type and its value before converting to std::size_t is
 	 less than zero. ... If the expression is a constant expression,
-	 the program is ill-fomed.  */
+	 the program is ill-formed.  */
       if (TREE_CODE (cst_nelts) == INTEGER_CST
 	  && !valid_array_size_p (nelts_loc, cst_nelts, NULL_TREE,
 				  complain & tf_error))

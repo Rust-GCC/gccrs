@@ -3200,7 +3200,7 @@ struct GTY(()) lang_decl_base {
   unsigned module_purview_p : 1;	   /* in named-module purview */
   unsigned module_attach_p : 1;		   /* attached to named module */
   unsigned module_import_p : 1;		   /* from an import */
-  unsigned module_entity_p : 1;		   /* is in the entitity ary & hash */
+  unsigned module_entity_p : 1;		   /* is in the entity ary & hash */
 
   unsigned module_keyed_decls_p : 1;	   /* has keys, applies to all decls */
 
@@ -3971,7 +3971,7 @@ struct GTY(()) lang_decl {
 #define SCOPE_DEPTH(NODE) \
   (NAMESPACE_DECL_CHECK (NODE)->base.u.bits.address_space)
 
-/* Whether the namepace is an inline namespace.  */
+/* Whether the namespace is an inline namespace.  */
 #define DECL_NAMESPACE_INLINE_P(NODE) \
   TREE_LANG_FLAG_0 (NAMESPACE_DECL_CHECK (NODE))
 
@@ -5548,7 +5548,7 @@ set_anon_aggr_type_field (tree &typeinfo_var)
    TYPE_DECL).
 
    FIXME: const_cast<tree> is a hack that hopefully will go away after
-   tree is converted to C++ class hiearchy.  */
+   tree is converted to C++ class hierarchy.  */
 #define DECL_TEMPLATE_PARMS(NODE)       \
    ((struct tree_template_decl *)const_cast<tree> (TEMPLATE_DECL_CHECK \
 						   (NODE)))->arguments
@@ -5559,7 +5559,7 @@ set_anon_aggr_type_field (tree &typeinfo_var)
 /* For function, method, class-data templates.
 
    FIXME: const_cast<tree> is a hack that hopefully will go away after
-   tree is converted to C++ class hiearchy.  */
+   tree is converted to C++ class hierarchy.  */
 #define DECL_TEMPLATE_RESULT(NODE)      \
    ((struct tree_template_decl *)const_cast<tree> (TEMPLATE_DECL_CHECK \
 						   (NODE)))->result
@@ -6971,7 +6971,7 @@ enum cp_decl_spec {
 /* A decl-specifier-seq.  */
 
 struct cp_decl_specifier_seq {
-  /* An array of locations for the declaration sepecifiers, indexed by
+  /* An array of locations for the declaration specifiers, indexed by
      enum cp_decl_spec_word.  */
   location_t locations[ds_last];
   /* The primary type, if any, given by the decl-specifier-seq.

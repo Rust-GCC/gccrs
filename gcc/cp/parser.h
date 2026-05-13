@@ -172,7 +172,7 @@ struct GTY(()) cp_unparsed_functions_entry {
      Functions appear in this list in declaration order.  */
   vec<cp_default_arg_entry, va_gc> *funs_with_default_args;
 
-  /* Functions with defintions that require post-processing.  Functions
+  /* Functions with definitions that require post-processing.  Functions
      appear in this list in declaration order.  */
   vec<tree, va_gc> *funs_with_definitions;
 

@@ -878,7 +878,7 @@ cx_check_missing_mem_inits (tree ctype, tree body, bool complain)
 	    }
 	  ftype = TREE_TYPE (field);
 	  if (!ftype || !TYPE_P (ftype) || !COMPLETE_TYPE_P (ftype))
-	    /* A flexible array can't be intialized here, so don't complain
+	    /* A flexible array can't be initialized here, so don't complain
 	       that it isn't.  */
 	    continue;
 	  if (is_empty_field (field))
@@ -920,7 +920,7 @@ cx_check_missing_mem_inits (tree ctype, tree body, bool complain)
 }
 
 /* We are processing the definition of the constexpr function FUN.
-   Check that its body fulfills the apropriate requirements and
+   Check that its body fulfills the appropriate requirements and
    enter it in the constexpr function definition table.  */
 
 void
@@ -3350,7 +3350,7 @@ modifying_const_object_error (tree expr, tree obj)
 }
 
 /* Return true if FNDECL is a replaceable global allocation function that
-   should be useable during constant expression evaluation.  */
+   should be usable during constant expression evaluation.  */
 
 static inline bool
 cxx_replaceable_global_alloc_fn (tree fndecl)
@@ -3363,7 +3363,7 @@ cxx_replaceable_global_alloc_fn (tree fndecl)
 }
 
 /* Return true if FNDECL is a placement new function that should be
-   useable during constant expression evaluation of std::construct_at.  */
+   usable during constant expression evaluation of std::construct_at.  */
 
 static inline bool
 cxx_placement_new_fn (tree fndecl)
@@ -4689,7 +4689,7 @@ cxx_eval_call_expression (const constexpr_ctx *ctx, tree t,
 
      However, in C++20, a constexpr constructor doesn't necessarily have
      to initialize all the fields, so we don't clear CONSTRUCTOR_NO_CLEARING
-     in order to detect reading an unitialized object in constexpr instead
+     in order to detect reading an uninitialized object in constexpr instead
      of value-initializing it.  (reduced_constant_expression_p is expected to
      take care of clearing the flag.)  */
   if (TREE_CODE (result) == CONSTRUCTOR

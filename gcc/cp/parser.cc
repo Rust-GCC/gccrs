@@ -857,7 +857,7 @@ cp_lexer_new_main (void)
 	     by the current token which is either not a CPP_NUMBER (e.g.
 	     often CPP_CLOSE_BRACE), or CPP_NUMBER with non-int type or with
 	     value not in [0, UCHAR_MAX], or reaching the raw_data_max_len
-	     limit.  So we need to substract 1 (to get at the current token
+	     limit.  So we need to subtract 1 (to get at the current token
 	     index) plus 3 + !last_number to get at the CPP_EMBED index.  */
 	  unsigned int idx = lexer->buffer->length () - 4 - !last_number;
 	  if (!last_number)
@@ -907,7 +907,7 @@ cp_lexer_new_main (void)
     {
       /* Set the EOF token's location to be the just after the previous
          token's range.  That way 'at-eof' diagnostics point at something
-	 meaninful.  */
+	 meaningful.  */
       auto range = get_range_from_loc (line_table, tok[-1].location);
       tok[0].location
 	= linemap_position_for_loc_and_offset (line_table, range.m_finish, 1);
@@ -11331,7 +11331,7 @@ get_cast_suggestion (tree dst_type, tree orig_expr)
 
    to a C++-style cast.
 
-   The primary range of RICHLOC is asssumed to be that of the original
+   The primary range of RICHLOC is assumed to be that of the original
    expression.  OPEN_PAREN_LOC and CLOSE_PAREN_LOC give the locations
    of the parens in the C-style cast.  */
 
@@ -12152,7 +12152,7 @@ cp_parser_expression (cp_parser* parser, cp_id_kind * pidk,
       /* Parse the next assignment-expression.  */
       if (cp_lexer_next_token_is (parser->lexer, CPP_EMBED))
 	{
-	  /* Users aren't interested in milions of -Wunused-value
+	  /* Users aren't interested in millions of -Wunused-value
 	     warnings when using #embed inside of a comma expression,
 	     and one CPP_NUMBER plus CPP_COMMA before it and one
 	     CPP_COMMA plus CPP_NUMBER after it is guaranteed by
@@ -23056,7 +23056,7 @@ cp_parser_simple_type_specifier (cp_parser* parser,
   return type;
 }
 
-/* Parse the remainder of a placholder-type-specifier.
+/* Parse the remainder of a placeholder-type-specifier.
 
    placeholder-type-specifier:
      type-constraint_opt auto
@@ -32199,7 +32199,7 @@ cp_parser_noexcept_specification_opt (cp_parser* parser,
     {
       tree expr;
 
-      /* [class.mem]/6 says that a noexcept-specifer (within the
+      /* [class.mem]/6 says that a noexcept-specifier (within the
 	 member-specification of the class) is a complete-class context of
 	 a class.  So, if the noexcept-specifier has the optional expression,
 	 just save the tokens, and reparse this after we're done with the
@@ -35430,7 +35430,7 @@ cp_parser_lookup_name (cp_parser *parser, tree name,
 	}
 
       /* If the scope is a dependent type and either we deferred lookup or
-	 we did lookup but didn't find the name, rememeber the name.  */
+	 we did lookup but didn't find the name, remember the name.  */
       if (decl == error_mark_node
 	  && ((TYPE_P (parser->scope)
 	       && dependentish_scope_p (parser->scope))
@@ -38657,7 +38657,7 @@ class_decl_loc_t::diag_mismatched_tags (tree type_decl)
   auto_diagnostic_group d;
   /* Issue a warning for the first mismatched declaration.
      Avoid using "%#qT" since the class-key for the same type will
-     be the same regardless of which one was used in the declaraion.  */
+     be the same regardless of which one was used in the declaration.  */
   if (warning_at (loc, OPT_Wmismatched_tags,
 		  "%qT declared with a mismatched class-key %qs",
 		  type_decl, xmatchkstr))
@@ -38926,7 +38926,7 @@ cp_parser_cache_defarg (cp_parser *parser, bool nsdmi)
 	      if (nsdmi)
 		{
 		  /* Parse declarators until we reach a non-comma or
-		     somthing that cannot be an initializer.
+		     something that cannot be an initializer.
 		     Just checking whether we're looking at a single
 		     declarator is insufficient.  Consider:
 		       int var = tuple<T,U>::x;
@@ -40782,7 +40782,7 @@ cp_parser_objc_statement (cp_parser * parser)
   return error_mark_node;
 }
 
-/* If we are compiling ObjC++ and we see an __attribute__ we neeed to
+/* If we are compiling ObjC++ and we see an __attribute__ we need to
    look ahead to see if an objc keyword follows the attributes.  This
    is to detect the use of prefix attributes on ObjC @interface and
    @protocol.  */
@@ -41082,7 +41082,7 @@ cp_parser_objc_at_property_declaration (cp_parser *parser)
 	      }
 
 	    /* If we see a comma here, then keep going - even if we already
-	       saw a syntax error.  For simple mistakes e.g. (asign, getter=x)
+	       saw a syntax error.  For simple mistakes e.g. (assign, getter=x)
 	       this makes a more useful output and avoid spurious warnings
 	       about missing attributes that are, in fact, specified after the
 	       one with the syntax error.  */
@@ -50012,7 +50012,7 @@ cp_parser_omp_loop_nest (cp_parser *parser, bool *if_p)
 	 of the variables from intervening code.  However, putting this
 	 code in each level of loop instead of all around the innermost
 	 body also makes the decomposition variables visible to the
-	 inner for init/bound/step exressions, which is not supposed to
+	 inner for init/bound/step expressions, which is not supposed to
 	 happen and causes test failures.  */
       if (omp_for_parse_state->orig_declv)
 	for (int i = 0; i < omp_for_parse_state->count; i++)
@@ -56380,7 +56380,7 @@ cp_parser_omp_taskloop (cp_parser *parser, cp_token *pragma_tok,
 /* Parse the OpenACC routine pragma.  This has an optional '( name )'
    component, which must resolve to a declared namespace-scope
    function.  The clauses are either processed directly (for a named
-   function), or defered until the immediatley following declaration
+   function), or deferred until the immediately following declaration
    is parsed.  */
 
 static void

@@ -65,7 +65,7 @@ along with GCC; see the file COPYING3.  If not see
 
   'pre' and 'post' function contract specifiers require most of the special
   handling, since they must be tracked across re-declarations of functions and
-  there are contraints on how such specifiers may change in these cases.
+  there are constraints on how such specifiers may change in these cases.
 
   The contracts specification identifies a "first declaration" of any given
   function - which is the first encountered when parsing a given TU.
@@ -1231,7 +1231,7 @@ copy_contracts_list (tree contracts, tree fndecl,
   return new_contracts;
 }
 
-/* Returns a copy of FNDECL contracts. This is used when emiting a contract.
+/* Returns a copy of FNDECL contracts. This is used when emitting a contract.
  If we were to emit the original contract tree, any folding of the contract
  condition would affect the original contract too. The original contract
  tree needs to be preserved in case it is used to apply to a different
@@ -1686,7 +1686,7 @@ check_redecl_contract (tree newdecl, tree olddecl)
 	   && contract_any_deferred_p (new_contracts)
 	   && DECL_UNIQUE_FRIEND_P (newdecl))
     {
-      /* Put the defered contracts on the olddecl so we parse it when
+      /* Put the deferred contracts on the olddecl so we parse it when
 	 we can.  */
       set_fn_contract_specifiers (olddecl, old_contracts);
     }
@@ -2150,7 +2150,7 @@ update_late_contract (tree contract, tree result, cp_expr condition)
   CONTRACT_CONDITION (contract) = condition;
 }
 
-/* Returns the precondition funtion for FNDECL, or null if not set.  */
+/* Returns the precondition function for FNDECL, or null if not set.  */
 
 tree
 get_precondition_function (tree fndecl)
@@ -2160,7 +2160,7 @@ get_precondition_function (tree fndecl)
   return result ? *result : NULL_TREE;
 }
 
-/* Returns the postcondition funtion for FNDECL, or null if not set.  */
+/* Returns the postcondition function for FNDECL, or null if not set.  */
 
 tree
 get_postcondition_function (tree fndecl)
