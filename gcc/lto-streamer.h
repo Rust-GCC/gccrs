@@ -160,7 +160,7 @@ enum LTO_tags
   /* Tags of trees are encoded as
      LTO_first_tree_tag + TREE_CODE.  */
   LTO_first_tree_tag,
-  /* Tags of gimple typles are encoded as
+  /* Tags of gimple tuples are encoded as
      LTO_first_gimple_tag + gimple_code.  */
   LTO_first_gimple_tag = LTO_first_tree_tag + MAX_TREE_CODES,
 
@@ -268,9 +268,9 @@ public:
   /* Apply all changes in location cache.  Add locations into linemap and patch
      trees.  */
   bool apply_location_cache ();
-  /* Tree merging did not suceed; mark all changes in the cache as accepted.  */
+  /* Tree merging did not succeed; mark all changes in the cache as accepted.  */
   void accept_location_cache ();
-  /* Tree merging did suceed; throw away recent changes.  */
+  /* Tree merging did succeed; throw away recent changes.  */
   void revert_location_cache ();
   void input_location (location_t *loc, struct bitpack_d *bp,
 		       class data_in *data_in);

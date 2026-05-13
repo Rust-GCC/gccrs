@@ -138,7 +138,7 @@ fail_mmap:
   return ret;
 }
 
-/* Contructor of cache item.  */
+/* Constructor of cache item.  */
 ltrans_file_cache::item::item (std::string input, std::string output,
 			       checksum_t input_checksum,
 			       uint32_t last_used):

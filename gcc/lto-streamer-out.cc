@@ -140,7 +140,7 @@ lto_variably_modified_type_p (tree type)
 
 
 /* Return true if tree node T is written to various tables.  For these
-   nodes, we sometimes want to write their phyiscal representation
+   nodes, we sometimes want to write their physical representation
    (via lto_output_tree), and sometimes we need to emit an index
    reference into a table (via lto_output_tree_ref).  */
 
@@ -391,7 +391,7 @@ lto_is_streamable (tree expr)
 /* Very rough estimate of streaming size of the initializer.  If we ignored
    presence of strings, we could simply just count number of non-indexable
    tree nodes and number of references to indexable nodes.  Strings however
-   may be very large and we do not want to dump them int othe global stream.
+   may be very large and we do not want to dump them into the global stream.
 
    Count the size of initializer until the size in DATA is positive.  */
 
@@ -789,7 +789,7 @@ DFS::DFS (struct output_block *ob, tree expr, bool ref_p, bool this_ref_p,
 
 	  /* As a special case do not stream TRANSLATION_UNIT_DECL as shared
 	     tree.  We can not mark it local because references to it does not
-	     make other trees local (all global decls reffer to it via
+	     make other trees local (all global decls refer to it via
 	     CONTEXT).  */
 	  if (size == 1
 	      && TREE_CODE (sccstack[first].t) == TRANSLATION_UNIT_DECL)
@@ -2759,7 +2759,7 @@ cmp_symbol_files (const void *pn1, const void *pn2, void *id_map_)
   if (n1->lto_file_data && n1->lto_file_data->id != n2->lto_file_data->id)
     return *id_map->get (n1->lto_file_data) - *id_map->get (n2->lto_file_data);
 
-  /* And finaly order by the definition order.  */
+  /* And finally order by the definition order.  */
   return n1->order - n2->order;
 }
 
@@ -2895,7 +2895,7 @@ lto_output (void)
 	  && (gimple_has_body_p (cnode->decl)
 	      || (!flag_wpa
 		  && flag_incremental_link != INCREMENTAL_LINK_LTO)
-	      /* Thunks have no body but they may be synthetized
+	      /* Thunks have no body but they may be synthesized
 		 at WPA time.  */
 	      || DECL_ARGUMENTS (cnode->decl)))
 	output_function (cnode, output_order);

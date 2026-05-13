@@ -257,7 +257,7 @@ merge_flto_options (vec<cl_decoded_option> &decoded_options,
 }
 
 /* Try to merge and complain about options FDECODED_OPTIONS when applied
-   ontop of DECODED_OPTIONS.  */
+   on top of DECODED_OPTIONS.  */
 
 static void
 merge_and_complain (vec<cl_decoded_option> &decoded_options,
@@ -1535,7 +1535,7 @@ run_gcc (unsigned argc, char *argv[])
       close (fd);
     }
 
-  /* Initalize the common arguments for the driver.  */
+  /* Initialize the common arguments for the driver.  */
   obstack_init (&argv_obstack);
   obstack_ptr_grow (&argv_obstack, collect_gcc);
   obstack_ptr_grow (&argv_obstack, "-xlto");

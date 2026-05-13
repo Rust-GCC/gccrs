@@ -238,7 +238,7 @@ add_symbol_to_partition_1 (ltrans_partition part, symtab_node *node)
 	  }
       }
 
-  /* Ensure that SAME_COMDAT_GROUP lists all allways added in a group.  */
+  /* Ensure that SAME_COMDAT_GROUP lists all always added in a group.  */
   if (node->same_comdat_group)
     for (node1 = node->same_comdat_group;
 	 node1 != node; node1 = node1->same_comdat_group)
@@ -836,7 +836,7 @@ partition_over_target_split (partition_set& p)
   if (small.sym_groups.size ())
     {
       /* Handles special case where n_partitions might be smaller than
-	 all.size ().  Which can happen as result of interger division or with
+	 all.size ().  Which can happen as result of integer division or with
 	 0 sized partition_sets.  Then also prevents too small symbol group.
 	 This should also be a special case; more common one,
 	 but with no correctness problems.  */
@@ -1236,7 +1236,7 @@ lto_balanced_map (int n_lto_partitions, int max_partition_size)
   /* Streaming works best when the source units do not cross partition
      boundaries much.  This is because importing function from a source
      unit tends to import a lot of global trees defined there.  We should
-     get better about minimizing the function bounday, but until that
+     get better about minimizing the function boundary, but until that
      things works smoother if we order in source order.  */
   order.qsort (tp_first_run_node_cmp);
   noreorder.qsort (node_cmp);
@@ -1543,7 +1543,7 @@ lto_balanced_map (int n_lto_partitions, int max_partition_size)
 
   next_nodes.truncate (0);
 
-  /* Varables that are not reachable from the code go into last partition.  */
+  /* Variables that are not reachable from the code go into last partition.  */
   FOR_EACH_VARIABLE (vnode)
     if (vnode->get_partitioning_class () == SYMBOL_PARTITION
 	&& !symbol_partitioned_p (vnode))
@@ -1956,7 +1956,7 @@ rename_statics (lto_symtab_encoder_t encoder, symtab_node *node)
 	    || lto_symtab_encoder_lookup (encoder, s) != LCC_NOT_FOUND))
        break;
 
-  /* OK, no confict, so we have nothing to do.  */
+  /* OK, no conflict, so we have nothing to do.  */
   if (!s)
     return;
 

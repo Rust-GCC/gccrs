@@ -265,7 +265,7 @@ stream_out_partitions (char *temp_filename, int blen, int min, int max,
 	      wait_for_child ();
 	    else
 	      {
-		/* There are no free tokens, lets do the job outselves.  */
+		/* There are no free tokens, lets do the job ourselves.  */
 		stream_out_partitions_1 (temp_filename, blen, min, max);
 		return;
 	      }
@@ -589,7 +589,7 @@ do_whole_program_analysis (void)
 
   /* Collect a last time - in lto_wpa_write_files we may end up forking
      with the idea that this doesn't increase memory usage.  So we
-     absoultely do not want to collect after that.  */
+     absolutely do not want to collect after that.  */
   ggc_collect ();
 
   timevar_start (TV_PHASE_STREAM_OUT);

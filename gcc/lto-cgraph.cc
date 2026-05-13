@@ -1318,7 +1318,7 @@ get_alias_symbol (tree decl)
 }
 
 /* Read a node from input_block IB.  TAG is the node's tag just read.
-   Return the node read or overwriten.  */
+   Return the node read or overwritten.  */
 
 static struct cgraph_node *
 input_node (struct lto_file_decl_data *file_data,
@@ -1433,7 +1433,7 @@ input_node (struct lto_file_decl_data *file_data,
 }
 
 /* Read a node from input_block IB.  TAG is the node's tag just read.
-   Return the node read or overwriten.  */
+   Return the node read or overwritten.  */
 
 static varpool_node *
 input_varpool_node (struct lto_file_decl_data *file_data,
@@ -1513,7 +1513,7 @@ input_varpool_node (struct lto_file_decl_data *file_data,
 }
 
 /* Read a node from input_block IB.  TAG is the node's tag just read.
-   Return the node read or overwriten.  */
+   Return the node read or overwritten.  */
 
 static void
 input_ref (class lto_input_block *ib,
