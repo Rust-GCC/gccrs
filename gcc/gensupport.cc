@@ -888,7 +888,7 @@ parse_section (const char **templ, unsigned int n_elems, unsigned int alt_no,
   list[i].add (',');
 }
 
-/* The compact syntax has more convience syntaxes.  As such we post process
+/* The compact syntax has more convenience syntaxes.  As such we post process
    the lines to get them back to something the normal syntax understands.  */
 
 static void
@@ -946,7 +946,7 @@ convert_syntax (rtx x, file_location loc)
   skip_spaces (&templ);
 
   if (!expect_char (&templ, '['))
-    fatal_at (loc, "expecing `[' to begin section list");
+    fatal_at (loc, "expecting `[' to begin section list");
 
   skip_spaces (&templ);
 
@@ -2566,7 +2566,7 @@ mark_operands_from_match_dup (rtx pattern)
 /* This is a subroutine of adjust_operands_numbers.
    It goes through all expressions in PATTERN and when MATCH_DUP is
    met, all MATCH_OPERANDs inside it is marked as occupied.  The
-   process of marking is done by routin mark_operands_from_match_dup.  */
+   process of marking is done by routine mark_operands_from_match_dup.  */
 static void
 mark_operands_used_in_match_dup (rtx pattern)
 {

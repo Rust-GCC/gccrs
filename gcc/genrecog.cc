@@ -1784,7 +1784,7 @@ public:
   /* Index N says whether operands[N] has been set.  */
   auto_vec <bool> set_operands;
 
-  /* A guranteed lower bound on the value of peep2_current_count.  */
+  /* A guaranteed lower bound on the value of peep2_current_count.  */
   int peep2_count;
 };
 
@@ -2454,7 +2454,7 @@ prune_invalid_results (merge_state_info *sinfo)
     }
 }
 
-/* Return true if PAT represents the biggest posssible match for SINFO;
+/* Return true if PAT represents the biggest possible match for SINFO;
    that is, if the next action of SINFO's state on return from PAT will
    be something that cannot be merged with any other state.  */
 
@@ -3175,7 +3175,7 @@ split_out_patterns (vec <merge_state_info> &states)
      The non-leaf patterns that we try are as deep as possible
      and are an extension of the state's previous best candidate match (PB).
      We need only consider states whose current potential match is also PB;
-     any states that don't match as much as PB cannnot match the new pattern,
+     any states that don't match as much as PB cannot match the new pattern,
      while any states that already match more than PB must be different from
      the new pattern.  */
   for (unsigned int i2 = states.length (); i2-- > 0; )

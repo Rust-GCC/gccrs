@@ -105,7 +105,7 @@ open_outfile (const char *file_name)
 }
 
 /* Declare the maybe_code_for_* function for ONAME, and provide
-   an inline definition of the assserting code_for_* wrapper.  */
+   an inline definition of the asserting code_for_* wrapper.  */
 
 static void
 handle_overloaded_code_for (FILE *file, overloaded_name *oname)
@@ -129,7 +129,7 @@ handle_overloaded_code_for (FILE *file, overloaded_name *oname)
 }
 
 /* Declare the maybe_gen_* function for ONAME, and provide
-   an inline definition of the assserting gen_* wrapper.  */
+   an inline definition of the asserting gen_* wrapper.  */
 
 static void
 handle_overloaded_gen (FILE *file, overloaded_name *oname)
@@ -487,7 +487,7 @@ main (int argc, const char **argv)
 	   "}\n\n");
 
   /* C++ (even G++) does not support (non-trivial) designated initializers.
-     To work around that, generate these arrays programatically rather than
+     To work around that, generate these arrays programmatically rather than
      by our traditional multiple inclusion of def files.  */
 
   fprintf (s_file,

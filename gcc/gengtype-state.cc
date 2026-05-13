@@ -240,7 +240,7 @@ s_expr_writer::write_any_indent (int leading_spaces)
   m_had_recent_newline = 0;
 }
 
-/* Write the beginning of a new s-expresion e.g. "(!foo "
+/* Write the beginning of a new s-expression e.g. "(!foo "
    The writer automatically adds whitespace to show the hierarchical
    structure of the expressions, so each one starts on a new line,
    and any within it will be at an increased indentation level.  */
@@ -1368,7 +1368,7 @@ write_state (const char *state_path)
   fprintf (state_file,
 	   ";;; The format of this file is tied to a particular version of GCC.\n");
   fprintf (state_file,
-	   ";;; Don't parse this file wihout knowing GCC gengtype internals.\n");
+	   ";;; Don't parse this file without knowing GCC gengtype internals.\n");
   fprintf (state_file,
 	   ";;; This file should be parsed by the same %s which wrote it.\n",
 	   progname);

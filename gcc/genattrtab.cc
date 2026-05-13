@@ -305,7 +305,7 @@ static rtx min_fn		   (rtx);
    functions and tables.  This made insn-attrtab.cc _the_ bottle-neck in
    a parallel build, and even made it impossible to build GCC on machines
    with relatively small RAM space (PR other/29442).  Therefore, the
-   atrribute functions/tables are now written out to three separate
+   attribute functions/tables are now written out to three separate
    files: all "*insn_default_latency" functions go to LATENCY_FILE_NAME,
    all "*internal_dfa_insn_code" functions go to DFA_FILE_NAME, and the
    rest goes to ATTR_FILE_NAME.  */
@@ -2852,7 +2852,7 @@ get_attr_order (class attr_desc ***ret)
 		}
 	    if (k == num)
 	      {
-		/* Nothing in I depended on anything intersting, so
+		/* Nothing in I depended on anything interesting, so
 		   it's done.  */
 		handled[i] = 1;
 		sorted[j++] = all[i];
@@ -2918,7 +2918,7 @@ optimize_attrs (int num_insn_codes)
 
   iv = ivbuf = XNEWVEC (struct attr_value_list, num_insn_ents);
 
-  /* Create the chain of insn*attr values such that we see dependend
+  /* Create the chain of insn*attr values such that we see dependent
      attributes after their dependencies.  As we use a stack via the
      next pointers start from the end of the topological order.  */
   topnum = get_attr_order (&topsort);

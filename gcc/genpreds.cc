@@ -703,7 +703,7 @@ static class constraint_data **last_constraint_ptr = &first_constraint;
 #define FOR_ALL_CONSTRAINTS(iter_) \
   for (iter_ = first_constraint; iter_; iter_ = iter_->next_textual)
 
-/* Contraint letters that have a special meaning and that cannot be used
+/* Constraint letters that have a special meaning and that cannot be used
    in define*_constraints.  */
 static const char generic_constraint_letters[] = "g";
 

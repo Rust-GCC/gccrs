@@ -168,7 +168,7 @@ public:
 static class data *idata;
 
 /* This variable points to the end of the insn chain.  This is where
-   everything relevant from the machien description is appended to.  */
+   everything relevant from the machine description is appended to.  */
 static class data **idata_end;
 
 
@@ -609,7 +609,7 @@ operand_data_hasher::equal (const operand_data * op_info1,
   return compare_operands (op_info1, op_info2);
 }
 
-/* Hashtable of konwn pattern operands.  */
+/* Hashtable of known pattern operands.  */
 static hash_table<operand_data_hasher> *operand_datas;
 
 /* Scan the list of operands we've already committed to output and either

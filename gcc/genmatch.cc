@@ -3185,7 +3185,7 @@ capture_info::walk_c_expr (c_expr *e)
    code generation.  */
 static char *fail_label;
 
-/* Code generation off the decision tree and the refered AST nodes.  */
+/* Code generation off the decision tree and the referred AST nodes.  */
 
 bool
 is_conversion (id_base *op)
@@ -3418,7 +3418,7 @@ expr::gen_transform (FILE *f, int indent, const char *dest, bool gimple,
 	      indent += 4;
 	    }
 	  /* ???  Building a stmt can fail for various reasons here, seq being
-	     NULL or the stmt referencing SSA names occuring in abnormal PHIs.
+	     NULL or the stmt referencing SSA names occurring in abnormal PHIs.
 	     So if we fail here we should continue matching other patterns.  */
 	  fprintf_indent (f, indent, "gimple_match_op tem_op "
 			  "(res_op->cond.any_else (), %s, %s", opr_name, type);
@@ -6275,7 +6275,7 @@ usage ()
   fprintf (stderr, usage, progname, progname);
 }
 
-/* Write out the correct include to the match-head fle containing the helper
+/* Write out the correct include to the match-head file containing the helper
    files.  */
 
 static void

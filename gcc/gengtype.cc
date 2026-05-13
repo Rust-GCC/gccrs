@@ -1912,7 +1912,7 @@ struct file_rule_st {
 				 * the output_name, with $1 ... $9 for
 				 * subpatterns and $0 for the whole
 				 * matched filename.  */
-  const char* frul_tr_for;	/* Tranformation string for making the
+  const char* frul_tr_for;	/* Transformation string for making the
 				   for_name.  */
   frul_actionrout_t* frul_action; /* The action, if non null, is
 				   * called once the rule matches, on
@@ -2974,7 +2974,7 @@ walk_type (type_p t, struct walk_type_data *d)
 	       This organization requires the base class to have a case in
 	       the switch statement, and hence a tag value is mandatory
 	       for the base class.   This restriction could be removed, but
-	       it would require some restructing of this code.  */
+	       it would require some restructuring of this code.  */
 	    if (!type_tag)
 	      {
 		error_at_line (d->line,
@@ -4728,7 +4728,7 @@ write_roots (pair_p variables, bool emit_pch)
 		     "gt_pch_scalar_rtab");
 }
 
-/* Prints not-as-ugly version of a typename of T to OF.  Trades the uniquness
+/* Prints not-as-ugly version of a typename of T to OF.  Trades the uniqueness
    guarantee for somewhat increased readability.  If name conflicts do happen,
    this function will have to be adjusted to be more like
    output_mangled_typename.  */

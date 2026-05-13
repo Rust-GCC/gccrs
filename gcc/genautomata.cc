@@ -5029,7 +5029,7 @@ struct unit_usage
 {
   unit_decl_t unit_decl;
   /* The following forms a list of units used on the same cycle in the
-     same alternative.  The list is ordered by the correspdoning unit
+     same alternative.  The list is ordered by the corresponding unit
      declarations and there is no unit declaration duplication in the
      list.  */
   struct unit_usage *next;
