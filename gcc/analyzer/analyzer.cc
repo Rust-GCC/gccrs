@@ -70,7 +70,7 @@ get_stmt_location (const gimple *stmt, function *fun)
 static tree
 fixup_tree_for_diagnostic_1 (tree expr, hash_set<tree> *visited);
 
-/* Attemp to generate a tree for the LHS of ASSIGN_STMT.
+/* Attempt to generate a tree for the LHS of ASSIGN_STMT.
    VISITED must be non-NULL; it is used to ensure termination.  */
 
 static tree
@@ -238,7 +238,7 @@ tree_to_json (tree node)
 
 /* Generate a JSON value for EVENT_ID.
    This is intended for debugging the analyzer rather than serialization and
-   thus is a string matching those seen in event messags (or null,
+   thus is a string matching those seen in event messages (or null,
    for unknown).  */
 
 std::unique_ptr<json::value>

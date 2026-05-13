@@ -1219,7 +1219,7 @@ public:
   /* Implementation of pending_diagnostic::supercedes_p for
      null-deref.
 
-     We want null-deref to supercede use-of-unitialized-value,
+     We want null-deref to supercede use-of-uninitialized-value,
      so that if we have these at the same stmt, we don't emit
      a use-of-uninitialized, just the null-deref.  */
 
@@ -1394,7 +1394,7 @@ public:
   /* Implementation of pending_diagnostic::supercedes_p for
      use_after_free.
 
-     We want use-after-free to supercede use-of-unitialized-value,
+     We want use-after-free to supercede use-of-uninitialized-value,
      so that if we have these at the same stmt, we don't emit
      a use-of-uninitialized, just the use-after-free.
      (this is because we fully purge information about freed
@@ -1633,7 +1633,7 @@ public:
 	return false;
       }
 
-    /* Reject the warning if the check occurs within a macro defintion.
+    /* Reject the warning if the check occurs within a macro definition.
        This avoids false positives for such code as:
 
 	#define throw_error \

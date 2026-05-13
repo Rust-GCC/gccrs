@@ -909,7 +909,7 @@ void
 call_and_return_op::execute (operation_context &op_ctxt) const
 {
   /* Can we turn this into an interprocedural call, and execute within
-     the called fuction?  */
+     the called function?  */
   const program_state &old_state  = op_ctxt.get_initial_state ();
   program_state dst_state (old_state);
   op_region_model_context ctxt (op_ctxt, dst_state);

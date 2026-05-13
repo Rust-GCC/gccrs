@@ -1410,7 +1410,7 @@ public:
   /* Handle interactions between the dedupe winners, so that some
      diagnostics can supercede others (of different kinds).
 
-     We want use-after-free to supercede use-of-unitialized-value,
+     We want use-after-free to supercede use-of-uninitialized-value,
      so that if we have these at the same stmt, we don't emit
      a use-of-uninitialized, just the use-after-free.  */
 
@@ -2948,7 +2948,7 @@ prune_frame (checker_path *path, int &idx)
    is disabled and will prune the diagnostic of all events within a
    system header, only keeping the entry and exit events to the header.
    This should be called after diagnostic_manager::prune_interproc_events
-   so that sucessive events [system header call, system header return]
+   so that successive events [system header call, system header return]
    are preserved thereafter.
 
    Given a diagnostics path diving into a system header in the form

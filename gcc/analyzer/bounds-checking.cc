@@ -253,7 +253,7 @@ protected:
   bit_range m_out_of_bounds_bits;
 };
 
-/* Abstract subclass to complaing about concrete out-of-bounds
+/* Abstract subclass to complain about concrete out-of-bounds
    past the end of the buffer.  */
 
 class concrete_past_the_end : public concrete_out_of_bounds

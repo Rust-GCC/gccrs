@@ -44,7 +44,7 @@ namespace ana {
    Specifically, we want to:
 
    (a) mark asm outputs and certain other regions as having been written to,
-       to avoid false postives from -Wanalyzer-use-of-uninitialized-value.
+       to avoid false positives from -Wanalyzer-use-of-uninitialized-value.
 
    (b) identify some of these stmts as "deterministic" so that we can
        write consistent outputs given consistent inputs, so that we can

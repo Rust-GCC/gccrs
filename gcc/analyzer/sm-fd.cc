@@ -205,7 +205,7 @@ public:
   /* A bound socket after a successful call to "listen" (stream or unknown).  */
   state_t m_listening_stream_socket;
 
-  /* (i) the new FD as a result of a succesful call to "accept" on a
+  /* (i) the new FD as a result of a successful call to "accept" on a
      listening socket (via a passive open), or
      (ii) an active socket after a successful call to "connect"
      (via an active open).  */

@@ -337,7 +337,7 @@ svalue::can_merge_p (const svalue *other,
 	return nullptr;
     }
 
-  /* Reject merging svalues that have non-purgable sm-state,
+  /* Reject merging svalues that have non-purgeable sm-state,
      to avoid falsely reporting memory leaks by merging them
      with something else.  */
   if (!merger->mergeable_svalue_p (this))
@@ -2165,7 +2165,7 @@ widening_svalue::eval_condition_without_cm (enum tree_code op,
 	case LT_EXPR:
 	  {
 	    /* [BASE, +INF) OP RHS:
-	       This is either true or false at +ve ininity,
+	       This is either true or false at +ve infinity,
 	       It can be true for points X where X OP RHS, so we have either
 	       "false", or "unknown".  */
 	    tree base_op_rhs = fold_binary (op, boolean_type_node,

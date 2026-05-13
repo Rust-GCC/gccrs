@@ -1225,7 +1225,7 @@ region::accept (visitor *v) const
     m_parent->accept (v);
 }
 
-/* Return true if this is a symbolic region for deferencing an
+/* Return true if this is a symbolic region for dereferencing an
    unknown ptr.
    We shouldn't attempt to bind values for this region (but
    can unbind values for other regions).  */

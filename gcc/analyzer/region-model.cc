@@ -2622,7 +2622,7 @@ check_one_function_attr_null_terminated_string_arg (const gcall &call,
 }
 
 /* Check CALL a call to external function CALLEE_FNDECL for any uses
-   of __attribute__ ((null_terminated_string_arg)), compaining
+   of __attribute__ ((null_terminated_string_arg)), complaining
    to CTXT about any issues.
 
    Use RDWR_IDX for tracking uses of __attribute__ ((access, ....).  */
@@ -3327,7 +3327,7 @@ region_model::deref_rvalue (const svalue *ptr_sval, tree ptr_tree,
 	  {
 	  case POINTER_PLUS_EXPR:
 	    {
-	      /* If we have a symbolic value expressing pointer arithmentic,
+	      /* If we have a symbolic value expressing pointer arithmetic,
 		 try to convert it to a suitable region.  */
 	      const region *parent_region
 		= deref_rvalue (binop_sval->get_arg0 (), NULL_TREE, ctxt);
@@ -4657,7 +4657,7 @@ region_model::scan_for_null_terminator (const region *reg,
 
    Complain and return nullptr if:
    - the buffer pointed to isn't null-terminated
-   - the buffer pointed to has any uninitalized bytes before any 0-terminator
+   - the buffer pointed to has any uninitialized bytes before any 0-terminator
    - any of the reads aren't within the bounds of the underlying base region
 
    Otherwise, return a svalue for strlen of the buffer (*not* including
@@ -4685,7 +4685,7 @@ region_model::check_for_null_terminated_string_arg (const call_details &cd,
 
    Complain and return nullptr if:
    - the buffer pointed to isn't null-terminated
-   - the buffer pointed to has any uninitalized bytes before any 0-terminator
+   - the buffer pointed to has any uninitialized bytes before any 0-terminator
    - any of the reads aren't within the bounds of the underlying base region
 
    Otherwise, return a svalue.  This will be the number of bytes read
@@ -6622,7 +6622,7 @@ public:
   void visit_constant_svalue (const constant_svalue *sval) final override
   {
     /* At the point the analyzer runs, constant integer operands in a floating
-       point expression are already implictly converted to floating-points.
+       point expression are already implicitly converted to floating-points.
        Thus, we do prefer to report non-constants such that the diagnostic
        always reports a floating-point operand.  */
     tree type = sval->get_type ();
@@ -7342,7 +7342,7 @@ model_merger::mergeable_svalue_p (const svalue *sval) const
 {
   if (m_ext_state)
     {
-      /* Reject merging svalues that have non-purgable sm-state,
+      /* Reject merging svalues that have non-purgeable sm-state,
 	 to avoid falsely reporting memory leaks by merging them
 	 with something else.  For example, given a local var "p",
 	 reject the merger of a:
@@ -8560,7 +8560,7 @@ test_canonicalization_4 ()
 
 /* Assert that if we have two region_model instances
    with values VAL_A and VAL_B for EXPR that they are
-   mergable.  Write the merged model to *OUT_MERGED_MODEL,
+   mergeable.  Write the merged model to *OUT_MERGED_MODEL,
    and the merged svalue ptr to *OUT_MERGED_SVALUE.
    If VAL_A or VAL_B are nullptr_TREE, don't populate EXPR
    for that region_model.  */

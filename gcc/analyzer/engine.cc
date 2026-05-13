@@ -1399,7 +1399,7 @@ get_eh_outedge (const supernode &snode)
   return nullptr;
 }
 
-/* Given THROWN_ENODE, which expreses a throw or rethrow occurring at
+/* Given THROWN_ENODE, which expresses a throw or rethrow occurring at
    THROW_STMT, unwind intraprocedurally and interprocedurally to find
    the next eh_dispatch statement to handle exceptions, if any.
 
@@ -3267,7 +3267,7 @@ maybe_process_run_of_enodes (exploded_node *enode)
     return false;
 
   if (logger)
-    logger->log ("got run of %i bulk-mergable enodes going to SN: %i",
+    logger->log ("got run of %i bulk-mergeable enodes going to SN: %i",
 		 enodes.length (), dst_snode->m_id);
 
   /* All of these enodes have a shared intraprocedural successor point

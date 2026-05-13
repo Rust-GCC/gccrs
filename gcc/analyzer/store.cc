@@ -2250,7 +2250,7 @@ binding_cluster::maybe_get_compound_binding (store_manager *mgr,
 		 Add it to result_map, offsetting accordingly.  */
 	      result_map.insert (subrange, sval);
 
-	      /* Clobber default_map, removing/trimming/spliting where
+	      /* Clobber default_map, removing/trimming/splitting where
 		 it overlaps with offset_concrete_key.  */
 	      default_map.remove_overlapping_bindings (mgr, subrange);
 	    }
@@ -2279,7 +2279,7 @@ binding_cluster::maybe_get_compound_binding (store_manager *mgr,
 
 	      result_map.insert (reg_subrange, overlap_sval);
 
-	      /* Clobber default_map, removing/trimming/spliting where
+	      /* Clobber default_map, removing/trimming/splitting where
 		 it overlaps with overlap_concrete_key.  */
 	      default_map.remove_overlapping_bindings (mgr, reg_subrange);
 	    }
@@ -2443,7 +2443,7 @@ binding_cluster::can_merge_p (const binding_cluster *cluster_a,
 	= mgr->get_svalue_manager ()->get_or_create_unknown_svalue (type);
 
       /* ...but reject the merger if this sval shouldn't be mergeable
-	 (e.g. reject merging svalues that have non-purgable sm-state,
+	 (e.g. reject merging svalues that have non-purgeable sm-state,
 	 to avoid falsely reporting memory leaks by merging them
 	 with something else).  */
       if (!bound_sval->can_merge_p (unknown_sval, sval_mgr, merger))
@@ -4033,7 +4033,7 @@ store::replay_call_summary (call_summary_replay &r,
   if (summary.m_called_unknown_fn)
     {
       /* A call to an external function occurred in the summary.
-	 Hence we need to invalidate our knownledge of globals,
+	 Hence we need to invalidate our knowledge of globals,
 	 escaped regions, etc.  */
       on_unknown_fncall (r.get_call_stmt (),
 			 r.get_store_manager (),

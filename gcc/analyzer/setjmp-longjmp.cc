@@ -315,7 +315,7 @@ region_model::on_longjmp (const gcall &longjmp_call, const gcall &setjmp_call,
       /* Decorate the return value from setjmp as being unmergeable,
 	 so that we don't attempt to merge states with it as zero
 	 with states in which it's nonzero, leading to a clean distinction
-	 in the exploded_graph betweeen the first return and the second
+	 in the exploded_graph between the first return and the second
 	 return.  */
       fake_retval_sval = m_mgr->get_or_create_unmergeable (fake_retval_sval);
 

@@ -926,7 +926,7 @@ public:
 	 diagnostic.  */
       return expansion_point_location_if_in_system_header (loc);
     else if (in_system_header_at (loc))
-      /* For events, we want to show the implemenation of the assert
+      /* For events, we want to show the implementation of the assert
 	 macro when we're describing them.  */
       return linemap_resolve_location (line_table, loc,
 				       LRK_SPELLING_LOCATION,

@@ -352,7 +352,7 @@ class pending_diagnostic
   }
 
   /* Precision-of-wording vfunc for describing an interprocedural call
-     carrying critial state for the diagnostic, from caller to callee.
+     carrying critical state for the diagnostic, from caller to callee.
 
      For example a double-free diagnostic might use:
      - "passing freed pointer 'ptr' in call to 'deallocator' from 'test'"
@@ -367,7 +367,7 @@ class pending_diagnostic
   }
 
   /* Precision-of-wording vfunc for describing an interprocedural return
-     within the diagnostic path that carries critial state for the
+     within the diagnostic path that carries critical state for the
      diagnostic, from callee back to caller.
 
      For example, a deref-of-unchecked-malloc diagnostic might use:

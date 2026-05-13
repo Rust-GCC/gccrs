@@ -2689,7 +2689,7 @@ constraint_manager::impossible_derived_conditions_p (const svalue *lhs,
 		  && iter_binop->get_type ())
 		if (iter_binop->get_arg1 ()->get_kind () == SK_CONSTANT)
 		  {
-		    /* Try evalating EC_SVAL with LHS
+		    /* Try evaluating EC_SVAL with LHS
 		       as the value of EC_SVAL's lhs, and see if it's
 		       consistent with existing knowledge.  */
 		    const svalue *subst_bin_op

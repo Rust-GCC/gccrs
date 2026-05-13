@@ -112,7 +112,7 @@ private:
    The early inliner runs before the analyzer, which can lead to confusing
    output.
 
-   Tne base fndecl and depth within a checker_event are from call strings
+   The base fndecl and depth within a checker_event are from call strings
    in program_points, which reflect the call strings after inlining.
    This class lets us offset the depth and fix up the reported fndecl and
    stack depth to better reflect the user's original code.  */

@@ -2192,7 +2192,7 @@ public:
   const theme &get_theme () const { return m_theme; }
 
 private:
-  /* Figure out all of the boundaries of interest when visualizing ths op.  */
+  /* Figure out all of the boundaries of interest when visualizing the op.  */
   std::unique_ptr<boundaries>
   find_boundaries () const
   {
