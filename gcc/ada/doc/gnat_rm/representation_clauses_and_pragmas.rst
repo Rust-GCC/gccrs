@@ -1948,7 +1948,7 @@ done for the case of anonymous access-to-subprogram.
 In GNAT, we decide that if an explicit Convention is applied
 to an object or component, and its type is such an anonymous type,
 then the convention will apply to this anonymous type as well. This
-seems to make sense since it is anomolous in any case to have a
+seems to make sense since it is anomalous in any case to have a
 different convention for an object and its type, and there is clearly
 no way to explicitly specify a convention for an anonymous type, since
 it doesn't have a name to specify!

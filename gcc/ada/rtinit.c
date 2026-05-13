@@ -446,7 +446,7 @@ __gnat_runtime_initialize (int install_handler)
 		 && (_tcsstr (wargv[k], _T("?")) != 0 ||
 		     _tcsstr (wargv[k], _T("*")) != 0))
 	       {
-		 /* Wilcards are present, append all corresponding matches. */
+		 /* Wildcards are present, append all corresponding matches. */
 		 WIN32_FIND_DATA FileData;
 		 HANDLE hDir = FindFirstFile (wargv[k], &FileData);
 		 LPWSTR dir = NULL;

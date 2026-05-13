@@ -381,7 +381,7 @@ db_phases (int phases)
    by a function. Such filter is emitted around the body of C++
    functions defined like:
      void foo ([...])  throw (A, B) { [...] }
-   These can be viewed as negativ filter: the landing pad is branched
+   These can be viewed as negative filter: the landing pad is branched
    to for exceptions that doesn't match the filter and usually aborts
    the program).
 
@@ -1545,7 +1545,7 @@ PERSONALITY_FUNCTION (_Unwind_State state,
       /* Phase 2, to call a cleanup.  */
       uw_phases = _UA_CLEANUP_PHASE;
 #if 0
-      /* ??? We don't use UA_HANDLER_FRAME (except to debug).  Futhermore,
+      /* ??? We don't use UA_HANDLER_FRAME (except to debug).  Furthermore,
 	 barrier_cache.sp isn't yet set.  */
       if (!(state & _US_FORCE_UNWIND)
 	  && (uw_exception->barrier_cache.sp

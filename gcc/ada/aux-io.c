@@ -37,7 +37,7 @@
 #endif
 
 /* Don't use macros versions of this functions on VxWorks since they cause
-   imcompatible changes in some VxWorks versions */
+   incompatible changes in some VxWorks versions */
 #ifdef __vxworks
 #undef getchar
 #undef putchar

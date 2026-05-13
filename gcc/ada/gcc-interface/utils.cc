@@ -937,7 +937,7 @@ gnat_pushdecl (tree decl, Node_Id gnat_node)
   /* Mark functions really nested in another function, that is to say defined
      there as opposed to imported from elsewhere, as initially needing a static
      chain for the sake of uniformity (lower_nested_functions will recompute it
-     exacly later) and as private to the translation unit (the static chain may
+     exactly later) and as private to the translation unit (the static chain may
      be clobbered by calling conventions used across translation units).  */
   if (TREE_CODE (decl) == FUNCTION_DECL
       && !DECL_EXTERNAL (decl)
@@ -1857,7 +1857,7 @@ maybe_pad_type (tree type, tree size, unsigned int align,
 	}
 
       /* There is no need to show what we are a subtype of when outputting as
-	 few encodings as possible: regular debugging infomation makes this
+	 few encodings as possible: regular debugging information makes this
 	 redundant.  */
       if (gnat_encodings == DWARF_GNAT_ENCODINGS_ALL)
 	{
@@ -2383,7 +2383,7 @@ finish_record_type (tree record_type, tree field_list, int rep_level,
 	     the REP part of a record with a variant part for which the
 	     variant part has a rep clause but not the fixed part, in
 	     which case this REP part may contain overlapping fields
-	     and thus needs to be treated like a union tyoe above, so
+	     and thus needs to be treated like a union type above, so
 	     use a MAX in that case.  Also, if this field is a variant
 	     part, we need to take into account the previous size in
 	     the case of empty variants.  */
@@ -3588,7 +3588,7 @@ process_deferred_decl_context (bool force)
 	  processed = true;
 	}
 
-      /* If this node has been successfuly processed, remove it from the
+      /* If this node has been successfully processed, remove it from the
 	 queue.  Then move to the next node.  */
       if (processed)
 	{

@@ -602,7 +602,7 @@ building specialized scripts.
      * Places each keyword ``use`` in USE clauses on a separate line
      * Splits the line just before the keyword ``record`` in a RECORD type
        declaration
-     * Indents named blocks and loop statments with respect to the name
+     * Indents named blocks and loop statements with respect to the name
      * When necessary, splits binary operators always before the operator
      * Inserts an extra blank before various occurrences of ``(`` and ``:``
      * When it is necessary to split a line between two subexpressions (because
@@ -1069,7 +1069,7 @@ building specialized scripts.
      If you specify a project file but don't specify a source file,
      either directly or by means of a :switch:`--files` option,
      ``gnatpp`` processes all the units of the closure of the
-     specifed project. Otherwise this option has no effect.
+     specified project. Otherwise this option has no effect.
 
    :switch:`-U {main_unit}`
      If you specify a project file but don't specify a source file,

@@ -773,7 +773,7 @@ main program in the natural manner.
 These names are interpreted consistently with the underlying file system.
 
 *
-  "The maxium value for a file size in Directories.  See A.16(87)."
+  "The maximum value for a file size in Directories.  See A.16(87)."
 
 Directories.File_Size'Last is equal to Long_Long_Integer'Last .
 

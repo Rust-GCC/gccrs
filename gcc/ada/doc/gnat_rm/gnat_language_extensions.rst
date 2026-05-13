@@ -1526,7 +1526,7 @@ descendant of T (including T itself)
 * shall have a Size that does not exceed the specified value; and
 
 * shall have a (possibly inherited) ``Size'Class`` aspect that does not exceed
-  the specifed value; and
+  the specified value; and
 
 * shall be undiscriminated; and
 

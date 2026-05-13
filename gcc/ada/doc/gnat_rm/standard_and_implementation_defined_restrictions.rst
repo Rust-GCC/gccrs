@@ -194,7 +194,7 @@ to support specific constructs of the language. Here are some examples:
 * ``System.Memory``: heap memory allocation routines,
 * ``System.Memory_Compare``: memory comparison routine (aka ``memcmp`` for C),
 * ``System.Memory_Copy``: memory copy routine (aka ``memcpy`` for C),
-* ``System.Memory_Move``: memoy move routine (aka ``memmove`` for C),
+* ``System.Memory_Move``: memory move routine (aka ``memmove`` for C),
 * ``System.Memory_Set``: memory set routine (aka ``memset`` for C),
 * ``System.Stack_Checking[.Operations]``: stack checking without MMU,
 * ``System.GCC``: support routines from the GCC library.

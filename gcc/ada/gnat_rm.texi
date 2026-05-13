@@ -1989,7 +1989,7 @@ except that in an @code{Assertion_Policy} pragma, the identifier
 (or disabled).
 
 The intention is that this be used within a subprogram when the
-given test expresion sums up all the work done so far in the
+given test expression sums up all the work done so far in the
 subprogram, so that the rest of the subprogram can be verified
 (informally or formally) using only the entry preconditions,
 and the expression in this pragma. This allows dividing up
@@ -6461,7 +6461,7 @@ checking is enabled.
 
 Note that pragma @code{Postcondition} differs from the language-defined
 @code{Post} aspect (and corresponding @code{Post} pragma) in allowing
-multiple occurrences, allowing occurences in the body even if there
+multiple occurrences, allowing occurrences in the body even if there
 is a separate spec, and allowing a second string parameter, and the
 use of the pragma identifier @code{Check}. Historically, pragma
 @code{Postcondition} was implemented prior to the development of
@@ -6592,7 +6592,7 @@ checking is enabled.
 
 Note that pragma @code{Precondition} differs from the language-defined
 @code{Pre} aspect (and corresponding @code{Pre} pragma) in allowing
-multiple occurrences, allowing occurences in the body even if there
+multiple occurrences, allowing occurrences in the body even if there
 is a separate spec, and allowing a second string parameter, and the
 use of the pragma identifier @code{Check}. Historically, pragma
 @code{Precondition} was implemented prior to the development of
@@ -11922,7 +11922,7 @@ to set this restriction (if some unit does attempt to set it,
 the binder will refuse to bind the partition).
 
 Technical note: The restriction name and the unit name are
-intepreted entirely syntactically, as in the corresponding
+interpreted entirely syntactically, as in the corresponding
 Restrictions pragma, they are not analyzed semantically,
 so they do not have a type.
 
@@ -12100,7 +12100,7 @@ inheritance in the case of a derived type), then the default is normally
 the native ordering of the target, but this default can be overridden using
 pragma @code{Default_Scalar_Storage_Order}.
 
-If a component of @code{T} is itself of a record or array type, the specfied
+If a component of @code{T} is itself of a record or array type, the specified
 @code{Scalar_Storage_Order} does `not' apply to that nested type: an explicit
 attribute definition clause must be provided for the component type as well
 if desired.
@@ -12340,7 +12340,7 @@ static expression and where the function call could not be used
 (since the function call is always nonstatic, even if its
 argument is static). The argument must be in the range
 -(2**(m-1)) .. 2**m-1, where m is the memory size
-(typically 32 or 64). Negative values are intepreted in a
+(typically 32 or 64). Negative values are interpreted in a
 modular manner (e.g., -1 means the same as 16#FFFF_FFFF# on
 a 32 bits machine).
 
@@ -12683,7 +12683,7 @@ Rvar2 : Rec := Rvar1'Update (B => 20);
 @end example
 
 yields a value for @code{Rvar2} of (A => 1, B => 20, C => 3),
-with @code{Rvar1} being unmodifed.
+with @code{Rvar1} being unmodified.
 Note that the value of the attribute reference is computed
 completely before it is used. This means that if you write:
 
@@ -13183,7 +13183,7 @@ to support specific constructs of the language. Here are some examples:
 @code{System.Memory_Copy}: memory copy routine (aka @code{memcpy} for C),
 
 @item 
-@code{System.Memory_Move}: memoy move routine (aka @code{memmove} for C),
+@code{System.Memory_Move}: memory move routine (aka @code{memmove} for C),
 
 @item 
 @code{System.Memory_Set}: memory set routine (aka @code{memset} for C),
@@ -17840,7 +17840,7 @@ These names are interpreted consistently with the underlying file system.
 @itemize *
 
 @item 
-“The maxium value for a file size in Directories.  See A.16(87).”
+“The maximum value for a file size in Directories.  See A.16(87).”
 @end itemize
 
 Directories.File_Size’Last is equal to Long_Long_Integer’Last .
@@ -21319,7 +21319,7 @@ done for the case of anonymous access-to-subprogram.
 In GNAT, we decide that if an explicit Convention is applied
 to an object or component, and its type is such an anonymous type,
 then the convention will apply to this anonymous type as well. This
-seems to make sense since it is anomolous in any case to have a
+seems to make sense since it is anomalous in any case to have a
 different convention for an object and its type, and there is clearly
 no way to explicitly specify a convention for an anonymous type, since
 it doesn’t have a name to specify!
@@ -24698,7 +24698,7 @@ multiple instantiations.
 
 @geindex UTF-8 representation
 
-@geindex Wide characte representations
+@geindex Wide character representations
 
 Provides a routine which given a string, reads the start of the string to
 see whether it is one of the standard byte order marks (BOM’s) which signal
@@ -26609,7 +26609,7 @@ exception
 end;
 @end example
 
-The calls marked with @code{NO ERROR DETECTED!} will compile sucessfully,
+The calls marked with @code{NO ERROR DETECTED!} will compile successfully,
 even though the types specified in the specializations of the generic
 function do not match the type of the exception object that the
 function is expected to return. Mismatches between derived and base
@@ -32775,7 +32775,7 @@ shall have a Size that does not exceed the specified value; and
 
 @item 
 shall have a (possibly inherited) @code{Size'Class} aspect that does not exceed
-the specifed value; and
+the specified value; and
 
 @item 
 shall be undiscriminated; and

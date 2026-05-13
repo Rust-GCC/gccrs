@@ -912,10 +912,10 @@ gnat_get_array_descr_info (const_tree const_type,
 
       if (is_array)
 	{
-	  /* GDB does not handle very well the self-referencial bound
+	  /* GDB does not handle very well the self-referential bound
 	     expressions we are able to generate here for XUA types (they are
 	     used only by XUP encodings) so avoid them in this case.  Note that
-	     there are two cases where we generate self-referencial bound
+	     there are two cases where we generate self-referential bound
 	     expressions:  arrays that are constrained by record discriminants
 	     and XUA types.  */
 	  if (TYPE_CONTEXT (first_dimen)
@@ -1021,7 +1021,7 @@ get_array_bit_stride (tree comp_type)
   if (RECORD_OR_UNION_TYPE_P (comp_type) && !TYPE_FAT_POINTER_P (comp_type))
     return TYPE_ADA_SIZE (comp_type);
 
-  /* The gnat_get_array_descr_info debug hook expects a debug tyoe.  */
+  /* The gnat_get_array_descr_info debug hook expects a debug type.  */
   comp_type = maybe_debug_type (comp_type);
 
   /* Otherwise, see if this is an array we can analyze; if it's not, punt.  */

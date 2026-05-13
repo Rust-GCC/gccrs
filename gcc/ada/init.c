@@ -1321,7 +1321,7 @@ __gnat_handle_vms_condition (int *sigargs, void *mechargs)
 
   extern int SYS$PUTMSG (void *, int (*)(), void *, unsigned long long);
 
-  /* If it was a DEC Ada specific condtiion, make it GNAT otherwise
+  /* If it was a DEC Ada specific condition, make it GNAT otherwise
      keep the old facility.  */
   if ((sigargs [1] & FAC_MASK) == DECADA_M_FACILITY)
     SYS$PUTMSG (sigargs, copy_msg, &gnat_facility,
@@ -1350,7 +1350,7 @@ __gnat_handle_vms_condition (int *sigargs, void *mechargs)
 void
 GNAT$STOP (int *sigargs)
 {
-   /* Note that there are no mechargs. We rely on the fact that condtions
+   /* Note that there are no mechargs. We rely on the fact that conditions
       raised from DEClib I/O do not require an "adjust".  Also the count
       will be off by 2, since LIB$STOP didn't get a chance to add the
       PC and PSL fields, so we bump it so PUTMSG comes out right.  */
@@ -2119,7 +2119,7 @@ __gnat_error_handler (int sig, siginfo_t *si, void *sc)
 #endif
 
   /* VxWorks will always mask out the signal during the signal handler and
-     will reenable it on a longjmp.  GNAT does not generate a longjmp to
+     will re-enable it on a longjmp.  GNAT does not generate a longjmp to
      return from a signal handler so the signal will still be masked unless
      we unmask it.  */
   sigprocmask (SIG_SETMASK, NULL, &mask);

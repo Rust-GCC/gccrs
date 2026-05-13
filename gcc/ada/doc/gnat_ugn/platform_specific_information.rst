@@ -292,7 +292,7 @@ This gets the effective user id and if it's not 0 (i.e. root), it raises
 Program_Error. Note that if you're running the code in a container, this may
 not be sufficient as you may have sufficient privilege on the container,
 but not on the host machine running the container, so check that you also
-have sufficient priviledge for running the container image.
+have sufficient privilege for running the container image.
 
 .. _A_GNU_Linux_debug_quirk:
 
@@ -586,7 +586,7 @@ least the following data::
    </assembly>
 
 Without the manifest file, the socket timeout will be overcorrected on
-these Windows Server versions and the actual time wil be 500
+these Windows Server versions and the actual time will be 500
 milliseconds shorter than what was set with
 ``GNAT.Sockets.Set_Socket_Option``.  Note that on Microsoft Windows
 versions where correction is necessary, there is no way to set a

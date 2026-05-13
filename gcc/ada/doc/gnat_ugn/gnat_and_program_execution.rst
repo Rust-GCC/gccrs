@@ -647,7 +647,7 @@ using GNAT and your familiarity with compiler internals.
 Naming Conventions for GNAT Source Files
 ----------------------------------------
 
-In order to bettter understand the workings of the GNAT system, the following
+In order to better understand the workings of the GNAT system, the following
 brief description of its organization may be helpful:
 
 * Files with prefix :file:`sc` contain the lexical scanner.
@@ -2265,7 +2265,7 @@ aliasing optimizations are automatically suppressed for it.
 
 If it's not practical to move the unchecked conversion to the same unit
 in which the destination access type is declared (perhaps because the
-source type is not visible in that unit), the second possibiliy is for you to
+source type is not visible in that unit), the second possibility is for you to
 use pragma ``No_Strict_Aliasing`` for the type. You must place this pragma
 in the same declarative part as the declaration of the access type:
 
@@ -2421,7 +2421,7 @@ optimizations that assume the variable cannot be assigned to.  This
 means that the above example will in fact "work" reliably, that is, it
 will produce the expected results. However, you should nevertheless
 avoid code such as this if possible because it's not portable and may not
-functin as you expect with all compilers.
+function as you expect with all compilers.
 
 
 .. _Atomic_Variables_and_Optimization:
@@ -3043,7 +3043,7 @@ for code that is to be exported to some other compiler than GNAT.
 The Ada standard allows the reassociation of expressions at
 the same precedence level if no parentheses are present. For
 example, ``A+B+C`` parses as though it were ``(A+B)+C``, but
-the compiler can reintepret this as ``A+(B+C)``, possibly
+the compiler can reinterpret this as ``A+(B+C)``, possibly
 introducing or eliminating an overflow exception. The GNAT
 compiler never takes advantage of this freedom, and the
 expression ``A+B+C`` will be evaluated as ``(A+B)+C``.
@@ -3552,7 +3552,7 @@ given in kilobytes. For example:
 would specify to the analyzer that the environment task stack has a limit
 of 1.6 megabytes. Any stack usage beyond this will be ignored by the analysis.
 
-This is not suppored by the LLVM back end.
+This is not supported by the LLVM back end.
 
 The package ``GNAT.Task_Stack_Usage`` provides facilities to get
 stack-usage reports at run time. See its body for the details.

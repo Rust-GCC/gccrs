@@ -43,7 +43,7 @@
    -- Prototypes for our internal asm stubs --
    -------------------------------------------
 
-   Eventhough our symbols will remain local, the prototype claims "extern"
+   Even though our symbols will remain local, the prototype claims "extern"
    and not "static" to prevent compiler complaints about a symbol used but
    never defined.  */
 

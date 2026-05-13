@@ -1158,7 +1158,7 @@ __gnat_setup_winsize (void *desc ATTRIBUTE_UNUSED,
 #define USE_CLONE_DEVICE "/dev/ptc"
 #elif defined (__hpux__)
 /* On HP-UX we use the streamed version. Using the non streamed version is not
-   recommanded (through "/dev/ptym/clone"). Indeed it seems that there are
+   recommended (through "/dev/ptym/clone"). Indeed it seems that there are
    issues to detect process terminations. */
 #define USE_CLONE_DEVICE "/dev/ptmx"
 #endif
@@ -1645,7 +1645,7 @@ __gnat_new_tty (void)
 /* __gnat_close_tty - close a terminal
  *
  * PARAMETERS
- *   desc  a pty_desc strucure
+ *   desc  a pty_desc structure
  */
 void __gnat_close_tty (pty_desc* desc)
 {
@@ -1656,7 +1656,7 @@ void __gnat_close_tty (pty_desc* desc)
 /* __gnat_tty_name - return slave side device name
  *
  * PARAMETERS
- *   desc  a pty_desc strucure
+ *   desc  a pty_desc structure
  * RETURN VALUE
  *   a string
  */
@@ -1669,7 +1669,7 @@ __gnat_tty_name (pty_desc* desc)
 /* __gnat_tty_name - return master side fd
  *
  * PARAMETERS
- *   desc  a pty_desc strucure
+ *   desc  a pty_desc structure
  * RETURN VALUE
  *   a fd
  */

@@ -341,7 +341,7 @@ struct layout
 #define FRAME_OFFSET(FP) 0
 #define PC_ADJUST -4
 
-/* Eventhough the base PPC ABI states that a toplevel frame entry
+/* Even though the base PPC ABI states that a toplevel frame entry
    should to feature a null backchain, AIX might expose a null return
    address instead.  */
 

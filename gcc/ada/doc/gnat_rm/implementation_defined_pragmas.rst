@@ -485,7 +485,7 @@ except that in an ``Assertion_Policy`` pragma, the identifier
 (or disabled).
 
 The intention is that this be used within a subprogram when the
-given test expresion sums up all the work done so far in the
+given test expression sums up all the work done so far in the
 subprogram, so that the rest of the subprogram can be verified
 (informally or formally) using only the entry preconditions,
 and the expression in this pragma. This allows dividing up
@@ -4854,7 +4854,7 @@ checking is enabled.
 
 Note that pragma ``Postcondition`` differs from the language-defined
 ``Post`` aspect (and corresponding ``Post`` pragma) in allowing
-multiple occurrences, allowing occurences in the body even if there
+multiple occurrences, allowing occurrences in the body even if there
 is a separate spec, and allowing a second string parameter, and the
 use of the pragma identifier ``Check``. Historically, pragma
 ``Postcondition`` was implemented prior to the development of
@@ -4984,7 +4984,7 @@ checking is enabled.
 
 Note that pragma ``Precondition`` differs from the language-defined
 ``Pre`` aspect (and corresponding ``Pre`` pragma) in allowing
-multiple occurrences, allowing occurences in the body even if there
+multiple occurrences, allowing occurrences in the body even if there
 is a separate spec, and allowing a second string parameter, and the
 use of the pragma identifier ``Check``. Historically, pragma
 ``Precondition`` was implemented prior to the development of

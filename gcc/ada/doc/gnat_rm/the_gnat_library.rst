@@ -642,7 +642,7 @@ multiple instantiations.
 
 .. index:: UTF-8 representation
 
-.. index:: Wide characte representations
+.. index:: Wide character representations
 
 Provides a routine which given a string, reads the start of the string to
 see whether it is one of the standard byte order marks (BOM's) which signal

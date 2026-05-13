@@ -3224,7 +3224,7 @@ Loop_Statement_to_gnu (Node_Id gnat_node)
       gnat_pushlevel ();
 
       /* If we use the special induction variable, create it and set it to
-	 its initial value.  Morever, the regular iteration variable cannot
+	 its initial value.  Moreover, the regular iteration variable cannot
 	 itself be initialized, lest the initial value wrapped around.  */
       if (use_iv)
 	{
@@ -8439,7 +8439,7 @@ gnat_to_gnu (Node_Id gnat_node)
 	  /* Get the value to use as the address and save it as the equivalent
 	     for the object; when it is frozen, gnat_to_gnu_entity will do the
 	     right thing.  For a subprogram, put the naked address but build a
-	     meaningfull expression for an object in case its address is taken
+	     meaningful expression for an object in case its address is taken
 	     before the Freeze node is encountered; this can happen if the type
 	     of the object is limited and it is initialized with the result of
 	     a function call.  */

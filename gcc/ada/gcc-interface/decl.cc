@@ -8919,7 +8919,7 @@ components_to_record (Node_Id gnat_component_list, Entity_Id gnat_record_type,
      self-referential/variable offset or misaligned.  Note, in the latter
      case, that this can only happen in packed record types so the alignment
      is effectively capped to the byte for the whole record.  But we don't
-     do it for packed record types if not all fixed-size fiels can be packed
+     do it for packed record types if not all fixed-size fields can be packed
      and for non-packed record types if pragma Optimize_Alignment (Space) is
      specified, because this can prevent alignment gaps from being filled.
 

@@ -269,7 +269,7 @@ True for all of these, as well as for any case in which
 	?? := Get_Unrelated_Obj_Acc (BEx): --  ditto, NO ERROR DETECTED!
     end;
 
-The calls marked with ``NO ERROR DETECTED!`` will compile sucessfully,
+The calls marked with ``NO ERROR DETECTED!`` will compile successfully,
 even though the types specified in the specializations of the generic
 function do not match the type of the exception object that the
 function is expected to return. Mismatches between derived and base

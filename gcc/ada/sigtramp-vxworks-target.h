@@ -138,7 +138,7 @@
 
 #elif defined (i386)
 
-/* These are the cfi colunm numbers */
+/* These are the cfi column numbers */
 
 #define REGNO_EDI 7
 #define REGNO_ESI 6
@@ -176,7 +176,7 @@
 
 #elif defined (__x86_64__)
 
-/* These are the cfi colunm numbers */
+/* These are the cfi column numbers */
 
 #define REGNO_RAX 0
 #define REGNO_RDX 1

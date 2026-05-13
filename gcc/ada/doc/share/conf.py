@@ -150,7 +150,7 @@ if os.path.isfile('favicon.ico'):
 
 html_static_path = ['_static']
 
-# Use gnat.sty for bulding documents
+# Use gnat.sty for building documents
 latex_additional_files = ['gnat.sty']
 
 # Add copyright info to file

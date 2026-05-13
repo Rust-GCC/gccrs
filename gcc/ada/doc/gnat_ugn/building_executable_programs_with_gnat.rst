@@ -1616,7 +1616,7 @@ Alphabetical List of All Switches
 
 :switch:`-gnateH`
   Set the threshold from which the RM 13.5.1(13.3/2) clause applies to 64.
-  This is useful only on 64-bit plaforms where this threshold is 128, but
+  This is useful only on 64-bit platforms where this threshold is 128, but
   used to be 64 in earlier versions of the compiler.
 
 

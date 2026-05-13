@@ -241,7 +241,7 @@
 #endif
 
 /*
- * Properties of the unerlying NetDB library:
+ * Properties of the underlying NetDB library:
  *   Need_Netdb_Buffer __gnat_getXXXbyYYY expects a caller-supplied buffer
  *   Need_Netdb_Lock   __gnat_getXXXbyYYY expects the caller to ensure
  *                     mutual exclusion

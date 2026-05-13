@@ -937,7 +937,7 @@ to set this restriction (if some unit does attempt to set it,
 the binder will refuse to bind the partition).
 
 Technical note: The restriction name and the unit name are
-intepreted entirely syntactically, as in the corresponding
+interpreted entirely syntactically, as in the corresponding
 Restrictions pragma, they are not analyzed semantically,
 so they do not have a type.
 
@@ -1067,7 +1067,7 @@ If the opposite storage order is specified, then whenever the value of
 a scalar component of an object of type ``S`` is read, the storage
 elements of the enclosing machine scalar are first reversed (before
 retrieving the component value, possibly applying some shift and mask
-operatings on the enclosing machine scalar), and the opposite operation
+operations on the enclosing machine scalar), and the opposite operation
 is done for writes.
 
 In that case, the restrictions set forth in 13.5.1(10.3/2) for scalar components
@@ -1089,7 +1089,7 @@ inheritance in the case of a derived type), then the default is normally
 the native ordering of the target, but this default can be overridden using
 pragma ``Default_Scalar_Storage_Order``.
 
-If a component of ``T`` is itself of a record or array type, the specfied
+If a component of ``T`` is itself of a record or array type, the specified
 ``Scalar_Storage_Order`` does *not* apply to that nested type: an explicit
 attribute definition clause must be provided for the component type as well
 if desired.
@@ -1304,7 +1304,7 @@ static expression and where the function call could not be used
 (since the function call is always nonstatic, even if its
 argument is static). The argument must be in the range
 -(2**(m-1)) .. 2**m-1, where m is the memory size
-(typically 32 or 64). Negative values are intepreted in a
+(typically 32 or 64). Negative values are interpreted in a
 modular manner (e.g., -1 means the same as 16#FFFF_FFFF# on
 a 32 bits machine).
 
@@ -1629,7 +1629,7 @@ begin unmodified. Similarly:
 
 
 yields a value for ``Rvar2`` of (A => 1, B => 20, C => 3),
-with ``Rvar1`` being unmodifed.
+with ``Rvar1`` being unmodified.
 Note that the value of the attribute reference is computed
 completely before it is used. This means that if you write:
 

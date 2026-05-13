@@ -2050,7 +2050,7 @@ __gnat_set_OWNER_ACL (TCHAR *wname,
 
   if (AccessMode == SET_ACCESS)
     {
-      /*  SET_ACCESS, we want to set an explicte set of permissions, do not
+      /*  SET_ACCESS, we want to set an explicit set of permissions, do not
 	  merge with current DACL.  */
       if (SetEntriesInAcl (1, &ea, NULL, &pNewDACL) != ERROR_SUCCESS)
 	return;
