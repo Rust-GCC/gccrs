@@ -2945,18 +2945,8 @@ namespace __detail
   template<typename _RealType>
     void
     piecewise_constant_distribution<_RealType>::param_type::
-    _M_initialize()
+    _M_configure()
     {
-      if (_M_int.size() < 2
-	  || (_M_int.size() == 2
-	      && _M_int[0] == _RealType(0)
-	      && _M_int[1] == _RealType(1)))
-	{
-	  _M_int.clear();
-	  _M_den.clear();
-	  return;
-	}
-
       const double __sum = std::accumulate(_M_den.begin(),
 					   _M_den.end(), 0.0);
       __glibcxx_assert(__sum > 0);
@@ -2976,6 +2966,46 @@ namespace __detail
     }
 
   template<typename _RealType>
+    void
+    piecewise_constant_distribution<_RealType>::param_type::
+    _M_initialize2(const _RealType* __ints, _RealType __den)
+    {
+      if (__ints[0] == _RealType(0) && __ints[1] == _RealType(1))
+	return;
+
+      _M_int.reserve(2);
+      _M_int.push_back(__ints[0]);
+      _M_int.push_back(__ints[1]);
+
+      _M_den.reserve(1);
+      _M_den.push_back(__den);
+      _M_configure();
+    }
+
+namespace __detail
+{
+  template<typename _InputIterator, typename _RealType>
+    bool
+    __load_first2(_InputIterator& __first, _InputIterator __last,
+		  _RealType* __out)
+    {
+      if (__first == __last)
+	return false;
+
+      *__out = *__first;
+      ++__first;
+      if (__first == __last)
+	return false;
+
+      ++__out;
+      *__out = *__first;
+      ++__first;
+      return true;
+    }
+} // namespace __detail
+
+
+  template<typename _RealType>
     template<typename _InputIteratorB, typename _InputIteratorW>
       piecewise_constant_distribution<_RealType>::param_type::
       param_type(_InputIteratorB __bbegin,
@@ -2983,21 +3013,39 @@ namespace __detail
 		 _InputIteratorW __wbegin)
       : _M_int(), _M_den(), _M_cp()
       {
-	if (__bbegin != __bend)
-	  {
-	    for (;;)
-	      {
-		_M_int.push_back(*__bbegin);
-		++__bbegin;
-		if (__bbegin == __bend)
-		  break;
+	_RealType __ints[2];
+	if (!__detail::__load_first2(__bbegin, __bend, __ints))
+	  return;
 
-		_M_den.push_back(*__wbegin);
-		++__wbegin;
-	      }
+	if (__bbegin == __bend)
+	  {
+	    _M_initialize2(__ints, *__wbegin);
+	    return;
 	  }
 
-	_M_initialize();
+#if __glibcxx_concepts // C++ >= C++20
+	if constexpr (sized_sentinel_for<_InputIteratorB, _InputIteratorB>
+			|| forward_iterator<_InputIteratorB>)
+	  _M_int.reserve(2 + size_t(ranges::distance(__bbegin, __bend)));
+#else
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wc++17-extensions" // if constexpr
+	if constexpr (is_convertible<__iter_category_t<_InputIteratorB>,
+				     forward_iterator_tag>::value)
+	  _M_int.reserve(2 + size_t(std::distance(__bbegin, __bend)));
+#pragma GCC diagnostic pop
+#endif
+
+	_M_int.push_back(__ints[0]);
+	_M_int.push_back(__ints[1]);
+	for (; __bbegin != __bend; ++__bbegin)
+	  _M_int.push_back(*__bbegin);
+
+	_M_den.reserve(_M_int.size() - 1);
+	for (size_t __k = 0; __k < _M_int.size() - 1; (void)++__k, ++__wbegin)
+	  _M_den.push_back(*__wbegin);
+
+	_M_configure();
       }
 
   template<typename _RealType>
@@ -3006,15 +3054,23 @@ namespace __detail
       param_type(initializer_list<_RealType> __bl, _Func __fw)
       : _M_int(), _M_den(), _M_cp()
       {
-	_M_int.reserve(__bl.size());
-	for (auto __biter = __bl.begin(); __biter != __bl.end(); ++__biter)
-	  _M_int.push_back(*__biter);
+	if (__bl.size() < 2)
+	  return;
 
+	if (__bl.size() == 2)
+	  {
+	    const _RealType *__ints = __bl.begin();
+	    _RealType __den = __fw(0.5 * (__ints[1] + __ints[0]));
+	    _M_initialize2(__ints, __den);
+	    return;
+	  }
+
+	_M_int = __bl;
 	_M_den.reserve(_M_int.size() - 1);
 	for (size_t __k = 0; __k < _M_int.size() - 1; ++__k)
 	  _M_den.push_back(__fw(0.5 * (_M_int[__k + 1] + _M_int[__k])));
 
-	_M_initialize();
+	_M_configure();
       }
 
   template<typename _RealType>
@@ -3025,6 +3081,13 @@ namespace __detail
       {
 	const size_t __n = __nw == 0 ? 1 : __nw;
 	const _RealType __delta = (__xmax - __xmin) / __n;
+	if (__n == 1)
+	  {
+	    _RealType __ints[2] = { __xmin, __xmin + __delta };
+	    _RealType __den = __fw(__xmin * 0.5 * __delta);
+	    _M_initialize2(__ints, __den);
+	    return;
+	  }
 
 	_M_int.reserve(__n + 1);
 	for (size_t __k = 0; __k <= __nw; ++__k)
@@ -3034,7 +3097,7 @@ namespace __detail
 	for (size_t __k = 0; __k < __nw; ++__k)
 	  _M_den.push_back(__fw(_M_int[__k] + 0.5 * __delta));
 
-	_M_initialize();
+	_M_configure();
       }
 
   template<typename _RealType>
@@ -3159,19 +3222,8 @@ namespace __detail
   template<typename _RealType>
     void
     piecewise_linear_distribution<_RealType>::param_type::
-    _M_initialize()
+    _M_configure()
     {
-      if (_M_int.size() < 2
-	  || (_M_int.size() == 2
-	      && _M_int[0] == _RealType(0)
-	      && _M_int[1] == _RealType(1)
-	      && _M_den[0] == _M_den[1]))
-	{
-	  _M_int.clear();
-	  _M_den.clear();
-	  return;
-	}
-
       double __sum = 0.0;
       _M_cp.reserve(_M_int.size() - 1);
       _M_m.reserve(_M_int.size() - 1);
@@ -3194,7 +3246,27 @@ namespace __detail
 
       //  Make sure the last cumulative probablility is one.
       _M_cp[_M_cp.size() - 1] = 1.0;
-     }
+    }
+
+  template<typename _RealType>
+    void
+    piecewise_linear_distribution<_RealType>::param_type::
+    _M_initialize2(const _RealType* __ints, const _RealType* __dens)
+    {
+      if (__ints[0] == _RealType(0)
+	  && __ints[1] == _RealType(1)
+	  && __dens[0] == __dens[1])
+	return;
+
+      _M_int.reserve(2);
+      _M_int.push_back(__ints[0]);
+      _M_int.push_back(__ints[1]);
+
+      _M_den.reserve(2);
+      _M_den.push_back(__dens[0]);
+      _M_den.push_back(__dens[1]);
+      _M_configure();
+    }
 
   template<typename _RealType>
     template<typename _InputIteratorB, typename _InputIteratorW>
@@ -3204,13 +3276,43 @@ namespace __detail
 		 _InputIteratorW __wbegin)
       : _M_int(), _M_den(), _M_cp(), _M_m()
       {
-	for (; __bbegin != __bend; ++__bbegin, (void) ++__wbegin)
+	_RealType __ints[2];
+	if (!__detail::__load_first2(__bbegin, __bend, __ints))
+	  return;
+
+	if (__bbegin == __bend)
 	  {
-	    _M_int.push_back(*__bbegin);
-	    _M_den.push_back(*__wbegin);
+	    _RealType __dens[2];
+	    __dens[0] = *__wbegin;
+	    ++__wbegin;
+	    __dens[1] = *__wbegin;
+	    _M_initialize2(__ints, __dens);
+	    return;
 	  }
 
-	_M_initialize();
+#if __glibcxx_concepts // C++ >= C++20
+	if constexpr (sized_sentinel_for<_InputIteratorB, _InputIteratorB>
+			|| forward_iterator<_InputIteratorB>)
+	  _M_int.reserve(2 + size_t(ranges::distance(__bbegin, __bend)));
+#else
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wc++17-extensions" // if constexpr
+	if constexpr (is_convertible<__iter_category_t<_InputIteratorB>,
+				     forward_iterator_tag>::value)
+	  _M_int.reserve(2 + size_t(std::distance(__bbegin, __bend)));
+#pragma GCC diagnostic pop
+#endif
+
+	_M_int.push_back(__ints[0]);
+	_M_int.push_back(__ints[1]);
+	for (; __bbegin != __bend; ++__bbegin)
+	  _M_int.push_back(*__bbegin);
+
+	_M_den.reserve(_M_int.size());
+	for (size_t __i = 0; __i < _M_int.size(); (void)++__i, ++__wbegin)
+	  _M_den.push_back(*__wbegin);
+
+	_M_configure();
       }
 
   template<typename _RealType>
@@ -3219,15 +3321,24 @@ namespace __detail
       param_type(initializer_list<_RealType> __bl, _Func __fw)
       : _M_int(), _M_den(), _M_cp(), _M_m()
       {
-	_M_int.reserve(__bl.size());
-	_M_den.reserve(__bl.size());
-	for (auto __biter = __bl.begin(); __biter != __bl.end(); ++__biter)
+	if (__bl.size() < 2)
+	  return;
+
+	if (__bl.size() == 2)
 	  {
-	    _M_int.push_back(*__biter);
-	    _M_den.push_back(__fw(*__biter));
+	    const _RealType *__ints = __bl.begin();
+	    _RealType __den[2];
+	    __den[0] = __fw(__ints[0]);
+	    __den[1] = __fw(__ints[1]);
+	    _M_initialize2(__ints, __den);
+	    return;
 	  }
 
-	_M_initialize();
+	_M_int = __bl;
+	_M_den.reserve(__bl.size());
+	for (_RealType __b : __bl)
+	  _M_den.push_back(__fw(__b));
+	_M_configure();
       }
 
   template<typename _RealType>
@@ -3238,6 +3349,15 @@ namespace __detail
       {
 	const size_t __n = __nw == 0 ? 1 : __nw;
 	const _RealType __delta = (__xmax - __xmin) / __n;
+	if (__n == 1)
+	  {
+	    _RealType __ints[2] = { __xmin, __xmin + __delta };
+	    _RealType __dens[2];
+	    __dens[0] = __fw(__ints[0]);
+	    __dens[1] = __fw(__ints[1]);
+	    _M_initialize2(__ints, __dens);
+	    return;
+	  }
 
 	_M_int.reserve(__n + 1);
 	_M_den.reserve(__n + 1);
@@ -3247,7 +3367,7 @@ namespace __detail
 	    _M_den.push_back(__fw(_M_int[__k] + __delta));
 	  }
 
-	_M_initialize();
+	_M_configure();
       }
 
   template<typename _RealType>

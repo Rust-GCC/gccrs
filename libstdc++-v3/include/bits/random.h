@@ -6466,7 +6466,10 @@ _GLIBCXX_END_INLINE_ABI_NAMESPACE(_V2)
 
       private:
 	void
-	_M_initialize();
+	_M_configure();
+
+	void
+	_M_initialize2(const _RealType* __ints, _RealType __den);
 
 	std::vector<_RealType> _M_int;
 	std::vector<double> _M_den;
@@ -6746,7 +6749,10 @@ _GLIBCXX_END_INLINE_ABI_NAMESPACE(_V2)
 
       private:
 	void
-	_M_initialize();
+	_M_configure();
+
+	void
+	_M_initialize2(const _RealType* __ints, const _RealType* __dens);
 
 	std::vector<_RealType> _M_int;
 	std::vector<double> _M_den;

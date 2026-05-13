@@ -25,13 +25,17 @@
 
 #include <random>
 #include <testsuite_hooks.h>
+#include <testsuite_iterators.h>
 
+template<template<typename> class Range>
 void
-test01()
+test_it_pair()
 {
-  std::vector<double> x = {0.0, 1.0, 2.0, 3.0, 4.0, 5.0};
-  std::vector<double> wt = {0.0, 1.0, 2.5, 1.5, 3.5, 0.0};
-  std::piecewise_linear_distribution<> u(x.begin(), x.end(), wt.begin());
+  double x[] = {0.0, 1.0, 2.0, 3.0, 4.0, 5.0};
+  double wt[] = {0.0, 1.0, 2.5, 1.5, 3.5, 0.0};
+
+  Range<double> r(x, x+6);
+  std::piecewise_linear_distribution<> u(r.begin(), r.end(), wt);
   std::vector<double> interval = u.intervals();
   std::vector<double> density = u.densities();
   VERIFY( interval.size() == 6 );
@@ -44,6 +48,9 @@ test01()
 
 int main()
 {
-  test01();
+  using namespace __gnu_test;
+  test_it_pair<input_container>();
+  test_it_pair<forward_container>();
+  test_it_pair<random_access_container>();
   return 0;
 }
