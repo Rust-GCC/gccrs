@@ -229,7 +229,7 @@ environment variables need to be set up:
 
 For example, to run a binary that uses the library against a non-installed
 build of the library in LIBGCCJIT_BUILD_DIR you need an invocation of the
-client code like this, to preprend the dir to each of the environment
+client code like this, to prepend the dir to each of the environment
 variables:
 
 .. code-block:: console

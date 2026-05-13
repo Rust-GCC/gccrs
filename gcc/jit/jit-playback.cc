@@ -3262,7 +3262,7 @@ make_fake_args (vec <char *> *argvec,
      driver to expand ().
 
      For cc1 etc, the driver processes OPTION_DEFAULT_SPECS and,
-     if not overriden, injects the defaults as extra arguments to
+     if not overridden, injects the defaults as extra arguments to
      cc1 etc.
      For the jit case, we need to add these arguments here.  The
      input format (using the specs language) means that we have to run
@@ -4024,7 +4024,7 @@ playback::context::
 get_source_file (const char *filename)
 {
   /* Locate the file.
-     For simplicitly, this is currently a linear search.
+     For simplicity, this is currently a linear search.
      Replace with a hash if this shows up in the profile.  */
   int i;
   source_file *file;
@@ -4065,7 +4065,7 @@ playback::source_file::
 get_source_line (int line_num)
 {
   /* Locate the line.
-     For simplicitly, this is currently a linear search.
+     For simplicity, this is currently a linear search.
      Replace with a hash if this shows up in the profile.  */
   int i;
   source_line *line;

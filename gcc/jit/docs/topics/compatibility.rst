@@ -30,7 +30,7 @@ libgccjit.h.
           locked-down at this time.
 
 API compatibility is achieved by extending the API rather than changing
-it.  For ABI compatiblity, we avoid bumping the SONAME, and instead use
+it.  For ABI compatibility, we avoid bumping the SONAME, and instead use
 symbol versioning to tag each symbol, so that a binary linked against
 libgccjit.so is tagged according to the symbols that it uses.
 

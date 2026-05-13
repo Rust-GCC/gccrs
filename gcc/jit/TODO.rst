@@ -29,7 +29,7 @@ API
 
     gcc_jit_function_as_rvalue ()
 
-* expressing branch probabilies (like __builtin_expect)::
+* expressing branch probabilities (like __builtin_expect)::
 
     extern gcc_jit_rvalue *
     gcc_jit_rvalue_likely (gcc_jit_rvalue *rvalue,

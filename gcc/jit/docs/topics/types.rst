@@ -257,7 +257,7 @@ Structures and unions
 
 .. c:type:: gcc_jit_struct
 
-A compound type analagous to a C `struct`.
+A compound type analogous to a C `struct`.
 
 .. c:type:: gcc_jit_field
 

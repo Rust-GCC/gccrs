@@ -2972,7 +2972,7 @@ types_kinda_same_internal (recording::type *a,
    if the types and pointer depth are the same, otherwise false.
 
    For array and vector types the number of element also
-   has to match, aswell as the element types themself.  */
+   has to match, as well as the element types themself.  */
 inline bool
 types_kinda_same (recording::type *a, recording::type *b)
 {

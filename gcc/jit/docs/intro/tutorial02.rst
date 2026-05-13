@@ -260,7 +260,7 @@ away with having a single error-handling check in your code:
      }
 
 For more information, see the :ref:`error-handling guide <error-handling>`
-within the Topic eference.
+within the Topic reference.
 
 
 Options

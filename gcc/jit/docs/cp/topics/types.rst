@@ -128,7 +128,7 @@ Structures and unions
 
 .. class:: gccjit::struct_
 
-A compound type analagous to a C `struct`.
+A compound type analogous to a C `struct`.
 
 :class:`gccjit::struct_` is a subclass of :class:`gccjit::type` (and thus
 of :class:`gccjit::object` in turn).

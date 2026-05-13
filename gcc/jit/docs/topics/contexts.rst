@@ -216,7 +216,7 @@ Debugging
 To contrast the above: :c:func:`gcc_jit_context_dump_to_file` dumps the
 current state of a context to the given path, whereas
 :c:func:`gcc_jit_context_set_logfile` enables on-going logging of
-future activies on a context to the given `FILE *`.
+future activities on a context to the given `FILE *`.
 
 
 .. function:: void\

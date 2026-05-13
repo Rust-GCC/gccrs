@@ -1502,7 +1502,7 @@ gcc_jit_context_new_struct_constructor (gcc_jit_context *ctxt,
 			       type->get_debug_string (),
 			       n_fields);
 
-  /* It is OK if fields are null here, indicating definiton order,
+  /* It is OK if fields are null here, indicating definition order,
      but there has to be a values array.  */
   RETURN_NULL_IF_FAIL (values,
 		       ctxt, loc,

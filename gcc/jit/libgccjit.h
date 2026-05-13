@@ -1637,7 +1637,7 @@ gcc_jit_context_new_case (gcc_jit_context *ctxt,
 extern gcc_jit_object *
 gcc_jit_case_as_object (gcc_jit_case *case_);
 
-/* Terminate a block by adding evalation of an rvalue, then performing
+/* Terminate a block by adding evaluation of an rvalue, then performing
    a multiway branch.
 
    This is roughly equivalent to this C code:

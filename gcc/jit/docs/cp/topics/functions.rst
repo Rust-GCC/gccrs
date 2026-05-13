@@ -272,7 +272,7 @@ Statements
                                               std::vector <gccjit::case_> cases,\
                                               gccjit::location loc)
 
-   Terminate a block by adding evalation of an rvalue, then performing
+   Terminate a block by adding evaluation of an rvalue, then performing
    a multiway branch.
 
    This is roughly equivalent to this C code:

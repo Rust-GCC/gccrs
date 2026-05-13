@@ -502,7 +502,7 @@ Statements
                                              int num_cases,\
                                              gcc_jit_case **cases)
 
-   Terminate a block by adding evalation of an rvalue, then performing
+   Terminate a block by adding evaluation of an rvalue, then performing
    a multiway branch.
 
    This is roughly equivalent to this C code:
