@@ -451,7 +451,7 @@ gfc_vptr_size_get (tree vptr)
 
 /* IF ts is null (default), search for the last _class ref in the chain
    of references of the expression and cut the chain there.  Although
-   this routine is similiar to class.cc:gfc_add_component_ref (), there
+   this routine is similar to class.cc:gfc_add_component_ref (), there
    is a significant difference: gfc_add_component_ref () concentrates
    on an array ref that is the last ref in the chain and is oblivious
    to the kind of refs following.
@@ -10224,7 +10224,7 @@ gfc_trans_subcomponent_assign (tree dest, gfc_component * cm,
           c = gfc_constructor_next (c);
         }
       /* The following constructor expression, if any, represents a specific
-         map intializer, as given by the user.  */
+         map initializer, as given by the user.  */
       if (c != NULL && c->expr != NULL)
         {
           gcc_assert (expr->expr_type == EXPR_STRUCTURE);
@@ -10694,7 +10694,7 @@ gfc_conv_expr (gfc_se * se, gfc_expr * expr)
 	 structure constructor or array constructor, the entity created by
 	 the constructor is finalized after execution of the innermost
 	 executable construct containing the reference. This, in fact,
-	 was later deleted by the Combined Techical Corrigenda 1 TO 4 for
+	 was later deleted by the Combined Technical Corrigenda 1 TO 4 for
 	 fortran 2008 (f08/0011).  */
       if ((gfc_option.allow_std & (GFC_STD_F2008 | GFC_STD_F2003))
 	  && !(gfc_option.allow_std & GFC_STD_GNU)
@@ -12182,7 +12182,7 @@ fcncall_realloc_result (gfc_se *se, int rank, tree dtype)
 
   /* Check that the shapes are the same between lhs and expression.
      The evaluation of the shape is done in 'shape_block' to avoid
-     unitialized warnings from the lhs bounds. */
+     uninitialized warnings from the lhs bounds. */
   not_same_shape = boolean_false_node;
   gfc_start_block (&shape_block);
   for (n = 0 ; n < rank; n++)
@@ -12863,7 +12863,7 @@ alloc_scalar_allocatable_for_assignment (stmtblock_t *block,
 
    a = a + 4
 
-   to make sure we do not check for reallocation unneccessarily.  */
+   to make sure we do not check for reallocation unnecessarily.  */
 
 
 /* Strip parentheses from an expression to get the underlying variable.
@@ -13248,7 +13248,7 @@ gfc_trans_assignment_1 (gfc_expr * expr1, gfc_expr * expr2, bool init_flag,
 	 structure constructor or array constructor, the entity created by
 	 the constructor is finalized after execution of the innermost
 	 executable construct containing the reference.
-	 These finalizations were later deleted by the Combined Techical
+	 These finalizations were later deleted by the Combined Technical
 	 Corrigenda 1 TO 4 for fortran 2008 (f08/0011).  */
       else if (gfc_notification_std (GFC_STD_F2018_DEL)
 	  && (expr2->expr_type == EXPR_STRUCTURE

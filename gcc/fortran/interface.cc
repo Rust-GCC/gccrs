@@ -2600,7 +2600,7 @@ compare_parameter (gfc_symbol *formal, gfc_expr *actual,
 		      else
 			{
 			  /* The global symbol is a function.  Set the formal
-			     argument acordingly.  */
+			     argument accordingly.  */
 			  formal->attr.function = 1;
 			  formal->ts = global_asym->ts;
 			}

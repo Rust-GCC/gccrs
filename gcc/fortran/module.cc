@@ -4372,7 +4372,7 @@ mio_full_f2k_derived (gfc_symbol *sym)
 	  /* PDT templates make use of the mechanisms for formal args
 	     and so the parameter symbols are stored in the formal
 	     namespace.  Transfer the sym_root to f2k_derived and then
-	     free the formal namespace since it is uneeded.  */
+	     free the formal namespace since it is unneeded.  */
 	  if (sym->attr.pdt_template && sym->formal && sym->formal->sym)
 	    {
 	      ns = sym->formal->sym->ns;

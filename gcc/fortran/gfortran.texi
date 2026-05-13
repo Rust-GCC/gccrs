@@ -4141,7 +4141,7 @@ typedef struct caf_reference_t @{
     @} c;
     struct @{
       /* The mode of the array ref.  See CAF_ARR_REF_*.  */
-      /* caf_array_ref_t, replaced by unsigend char to allow specification in
+      /* caf_array_ref_t, replaced by unsigned char to allow specification in
          fortran FE.  */
      unsigned char mode[GFC_MAX_DIMENSIONS];
       /* The type of a static array.  Unset for array's with descriptors.  */
@@ -4343,7 +4343,7 @@ team is returned.
 @item @emph{Notes}:
 When both argument are given, then it is caf-library dependent which argument
 is examined first.  Current implementations prioritize the @var{team} argument,
-because it is easier to retrive the number of images from it.
+because it is easier to retrieve the number of images from it.
 
 Fortran 2008 or later, with no arguments; Fortran 2018 or later with two
 arguments.
@@ -4686,10 +4686,10 @@ from the remote image.  If the data type to get is a string or string array,
 then this needs to be set to the byte size of each character, i.e. @code{4} for
 a @code{CHARACTER (KIND=4)} string.  The length of the string is then returned
 in @code{opt_dst_charlen} (also for string arrays).
-@item @var{dst_data} @tab intent(inout) A pointer to the adress the data is
-stored.  To prevent copying of data into an output buffer the adress to the live
+@item @var{dst_data} @tab intent(inout) A pointer to the address the data is
+stored.  To prevent copying of data into an output buffer the address to the live
 data is returned here.  When a descriptor is provided also its data-member is
-set to that adress.  When @var{may_realloc_dst} is set, then the memory may be
+set to that address.  When @var{may_realloc_dst} is set, then the memory may be
 reallocated by the remote function, which needs to be replicated by this
 function.
 @item @var{opt_dst_charlen} @tab intent(inout)  When a char array is returned,
@@ -5724,7 +5724,7 @@ size_t errmsg_len)}
 @item @emph{Description}:
 Actives the team given by @var{team}, which must be formed but not active
 yet.  This routine starts a new epoch on the coarray memory pool.  All
-coarrays registered from now on, will be freeed once the team is terminated.
+coarrays registered from now on, will be freed once the team is terminated.
 
 @item @emph{Arguments}:
 @multitable @columnfractions .15 .70
@@ -5755,7 +5755,7 @@ block.
 @item @emph{Description}:
 Terminates the last team changed to.  The coarray memory epoch is
 terminated and all coarrays allocated since the execution of @code{CHANGE TEAM}
-are freeed.
+are freed.
 
 @item @emph{Arguments}:
 @multitable @columnfractions .15 .70

@@ -2325,7 +2325,7 @@ trans_associate_var (gfc_symbol *sym, gfc_wrapped_block *block)
 	      /* Add the assign to the beginning of the block...  */
 	      gfc_add_modify (&se.pre, charlen,
 			      fold_convert (TREE_TYPE (charlen), tmp));
-	      /* and the oposite way at the end of the block, to hand changes
+	      /* and the opposite way at the end of the block, to hand changes
 		 on the string length back.  */
 	      gfc_add_modify (&se.post, tmp,
 			      fold_convert (TREE_TYPE (tmp), charlen));
@@ -7085,7 +7085,7 @@ gfc_trans_allocate (gfc_code * code, gfc_omp_namelist *omp_allocate)
 	  && DECL_P (expr3) && DECL_ARTIFICIAL (expr3))
 	{
 	  /* Build a temporary symtree and symbol.  Do not add it to the current
-	     namespace to prevent accidentaly modifying a colliding
+	     namespace to prevent accidentally modifying a colliding
 	     symbol's as.  */
 	  /* The name of the symtree should be unique, because gfc_create_var ()
 	     took care about generating the identifier.  */
@@ -7736,7 +7736,7 @@ gfc_trans_allocate (gfc_code * code, gfc_omp_namelist *omp_allocate)
 	  tmp= gfc_trans_init_assign (ini);
 	  flag_realloc_lhs = realloc_lhs;
 	  gfc_free_statements (ini);
-	  /* Init_expr is freeed by above free_statements, just need to null
+	  /* Init_expr is freed by above free_statements, just need to null
 	     it here.  */
 	  init_expr = NULL;
 	  gfc_add_expr_to_block (&block, tmp);

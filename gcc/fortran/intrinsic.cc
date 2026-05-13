@@ -3585,7 +3585,7 @@ add_functions (void)
 	     gfc_check_fn_d, gfc_simplify_tand, gfc_resolve_trig,
 	     x, BT_REAL, dd, REQUIRED);
 
-  /* The following function is internally used for coarray libray functions.
+  /* The following function is internally used for coarray library functions.
      "make_from_module" makes it inaccessible for external users.  */
   add_sym_1 (GFC_PREFIX ("caf_get"), GFC_ISYM_CAF_GET, CLASS_IMPURE, ACTUAL_NO,
 	     BT_REAL, dr, GFC_STD_GNU, NULL, NULL, NULL,
@@ -4033,7 +4033,7 @@ add_subroutines (void)
 	      errmsg, BT_CHARACTER, dc, OPTIONAL, INTENT_INOUT);
 
 
-  /* The following subroutine is internally used for coarray libray functions.
+  /* The following subroutine is internally used for coarray library functions.
      "make_from_module" makes it inaccessible for external users.  */
   add_sym_2s (GFC_PREFIX ("caf_send"), GFC_ISYM_CAF_SEND, CLASS_IMPURE,
 	      BT_UNKNOWN, 0, GFC_STD_GNU, NULL, NULL, NULL,

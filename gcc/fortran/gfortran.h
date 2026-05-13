@@ -997,7 +997,7 @@ typedef struct
   unsigned always_explicit:1;
 
   /* Set if the symbol is generated and, hence, standard violations
-     shouldn't be flaged.  */
+     shouldn't be flagged.  */
   unsigned artificial:1;
 
   /* Set if the symbol has been referenced in an expression.  No further
@@ -2066,7 +2066,7 @@ typedef struct gfc_symbol
      function).
      gen_mark is used to check duplicate mappings for OpenMP
      use_device_ptr/use_device_addr/private/shared clauses (see generic_head in
-     above functon).
+     above function).
      reduc_mark is used to check duplicate mappings for OpenMP reduction
      clauses.  */
   struct gfc_symbol *old_symbol;

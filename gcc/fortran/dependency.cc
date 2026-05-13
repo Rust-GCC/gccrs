@@ -456,7 +456,7 @@ gfc_dep_compare_expr (gfc_expr *e1, gfc_expr *e2)
 	    s = e1->value.compcall.tbp->u.specific->n.sym;
 
 	  /* Check if the proc ptr points to an interface declaration and the
-	     names are the same; ie. the overriden proc. of an abstract type.
+	     names are the same; ie. the overridden proc. of an abstract type.
 	     The checking of the arguments will already have been done.  */
 	  for (; ref && s; ref = ref->next)
 	    if (!ref->next && ref->type == REF_COMPONENT

@@ -4988,7 +4988,7 @@ gfc_check_assign_symbol (gfc_symbol *sym, gfc_component *comp, gfc_expr *rvalue)
       if (flag)
 	{
 	  gfc_error ("The component %qs at %L of derived type %qs has "
-		     "paramterized type or array length parameters, which is "
+		     "parameterized type or array length parameters, which is "
 		     "not compatible with a default initializer",
 		      comp->name, &comp->initializer->where, sym->name);
 	  return false;

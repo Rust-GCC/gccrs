@@ -5538,7 +5538,7 @@ gfc_trans_deferred_vars (gfc_symbol * proc_sym, gfc_wrapped_block * block)
 	      input_location = gfc_get_location (&n->u2.allocator->where);
 	      gfc_conv_expr (&se, n->u2.allocator);
 	    }
-	  /* We need to evalulate non-constants - also to find the location
+	  /* We need to evaluate non-constants - also to find the location
 	     after which the GOMP_alloc has to be added to - also as BLOCK
 	     does not yield a new BIND_EXPR_BODY.  */
 	  if (n->u2.allocator
@@ -7903,7 +7903,7 @@ done:
   gfc_init_block (&block);
 
   /* For bind(C), Fortran does not permit mixing 'pointer' with 'contiguous' (or
-     len=*). Thus, when copy out is needed, the bounds ofthe descriptor remain
+     len=*). Thus, when copy out is needed, the bounds of the descriptor remain
      unchanged.  */
   if (do_copy_inout)
     {

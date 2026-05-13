@@ -590,7 +590,7 @@ gfc_intrinsic_hash_value (gfc_typespec *ts)
 
 /* Get the _len component from a class/derived object storing a string.
    For unlimited polymorphic entities a ref to the _data component is available
-   while a ref to the _len component is needed.  This routine traverese the
+   while a ref to the _len component is needed.  This routine traverses the
    ref-chain and strips the last ref to a _data from it replacing it with a
    ref to the _len component.  */
 

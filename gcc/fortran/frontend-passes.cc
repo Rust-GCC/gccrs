@@ -1809,7 +1809,7 @@ combine_array_constructor (gfc_expr *e)
   /* This might be an expanded constructor with very many constant values. If
      we perform the operation here, we might end up with a long compile time
      and actually longer execution time, so a length bound is in order here.
-     If the constructor constains something which is not a constant, it did
+     If the constructor contains something which is not a constant, it did
      not come from an expansion, so leave it alone.  */
 
 #define CONSTR_LEN_MAX 4
@@ -2598,7 +2598,7 @@ doloop_code (gfc_code **c, int *walk_subtrees ATTRIBUTE_UNUSED,
 
       f = gfc_sym_get_dummy_args (co->resolved_sym);
 
-      /* Withot a formal arglist, there is only unknown INTENT,
+      /* Without a formal arglist, there is only unknown INTENT,
 	 which we don't check for.  */
       if (f == NULL)
 	break;
@@ -3116,7 +3116,7 @@ doloop_warn (gfc_namespace *ns)
     }
 }
 
-/* This selction deals with inlining calls to MATMUL.  */
+/* This section deals with inlining calls to MATMUL.  */
 
 /* Replace calls to matmul outside of straight assignments with a temporary
    variable so that later inlining will work.  */
@@ -3516,7 +3516,7 @@ matmul_lhs_realloc (gfc_expr *c, gfc_expr *a, gfc_expr *b,
 
   /* c comes in as a full ref.  Change it into a copy and make it into an
      element ref so it has the right form for ALLOCATE.  In the same
-     switch statement, also generate the size comparison for the secod IF
+     switch statement, also generate the size comparison for the second IF
      statement.  */
 
   ar->type = AR_ELEMENT;

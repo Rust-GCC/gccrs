@@ -1624,7 +1624,7 @@ gfc_finalize_tree_expr (gfc_se *se, gfc_symbol *derived,
     return;
 
   /* Derived type function results with components that have defined
-     assignements are handled in resolve.cc(generate_component_assignments),
+     assignments are handled in resolve.cc(generate_component_assignments),
      unless the assignment was replaced by a subroutine call to the
      subroutine associated with the assignment operator. */
   if ( ! is_assign_call

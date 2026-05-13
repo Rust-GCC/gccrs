@@ -7271,7 +7271,7 @@ copy_prefix (symbol_attribute *dest, locus *where)
 	dest->recursive = 1;
 
       /* Module procedures are unusual in that the 'dest' is copied from
-	 the interface declaration. However, this is an oportunity to
+	 the interface declaration. However, this is an opportunity to
 	 check that the submodule declaration is compliant with the
 	 interface.  */
       if (dest->elemental && !current_attr.elemental)

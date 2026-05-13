@@ -2646,7 +2646,7 @@ gfc_omp_deep_mapping_cnt (const gimple *ctx, tree clause, gimple_seq *seq)
    TKIND is the map-type/kind to be used. The generated code is added to
    SEQ – and the actual struct-field address used for mapping, the map size,
    and kind value to the arrays DATA, SIZES, and KINDS, respectively.
-   OFFSET_DATA and OFFSET are size-type variables; the map operatations are
+   OFFSET_DATA and OFFSET are size-type variables; the map operations are
    added at array index OFFSET_DATA for DATA and at array index OFFSET for
    SIZES/KINDS, incrementing the offsets after each assignment.  */
 

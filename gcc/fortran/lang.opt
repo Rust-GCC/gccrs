@@ -699,7 +699,7 @@ Fortran Joined Var(flag_inline_intrinsics) Enum(gfc_inlineable_intrinsics) Init(
 Enable generation of inline code instead of calls to functions from the library to implement intrinsics.
 
 Enum
-Name(gfc_inlineable_intrinsics) Type(int) UnknownError(%qs is not an inline-controlable intrinsic)
+Name(gfc_inlineable_intrinsics) Type(int) UnknownError(%qs is not an inline-controllable intrinsic)
 
 ; This is not part of any set
 ; EnumValue

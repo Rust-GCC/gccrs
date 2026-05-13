@@ -166,8 +166,8 @@ oct2bin(int nbits, char *oct)
 }
 
 
-/* Convert a hexidecimal string into a binary string.  This is used in the
-   fallback conversion of a hexidecimal string to a REAL.  */
+/* Convert a hexadecimal string into a binary string.  This is used in the
+   fallback conversion of a hexadecimal string to a REAL.  */
 
 static char *
 hex2bin(int nbits, char *hex)
@@ -4820,7 +4820,7 @@ gfc_check_move_alloc (gfc_expr *from, gfc_expr *to, gfc_expr *stat,
       return false;
     }
 
-  /*  This is based losely on F2003 12.4.1.7. It is intended to prevent
+  /*  This is based loosely on F2003 12.4.1.7. It is intended to prevent
       the likes of to = sym->cmp1->cmp2 and from = sym->cmp1, where cmp1
       and cmp2 are allocatable.  After the allocation is transferred,
       the 'to' chain is broken by the nullification of the 'from'. A bit

@@ -2826,7 +2826,7 @@ resolve_global_procedure (gfc_symbol *sym, locus *where, int sub)
 				   reason, sizeof(reason), NULL, NULL,
 				   &bad_result_characteristics))
 	{
-	  /* Turn erros into warnings with -std=gnu and -std=legacy,
+	  /* Turn errors into warnings with -std=gnu and -std=legacy,
 	     unless a function returns a wrong type, which can lead
 	     to all kinds of ICEs and wrong code.  */
 
@@ -7024,7 +7024,7 @@ gfc_fixup_inferred_type_refs (gfc_expr *e)
 	break;
       }
 
-  /* Verify that the type inferrence mechanism has not introduced a spurious
+  /* Verify that the type inference mechanism has not introduced a spurious
      array reference.  This can happen with an associate name, whose selector
      is an element of another inferred type.  */
   target = e->symtree->n.sym->assoc->target;
@@ -15057,7 +15057,7 @@ gfc_verify_binding_labels (gfc_symbol *sym)
   /* According to the Fortran standard, global identifiers are case
      insensitive, which also holds for C identifiers.  This was probably done
      for systems which had case-insensitive linkers.  Such systems could not
-     accomodate the C standards referenced, so this restriction makes little
+     accommodate the C standards referenced, so this restriction makes little
      sense for modern systems. Therefore, check case-sensitive labels unless
      -pedantic is in force.  */
 
@@ -18319,7 +18319,7 @@ resolve_fl_parameter (gfc_symbol *sym)
       && !gfc_is_constant_expr (sym->value))
     {
       /* PR fortran/117070 argues a nonconstant proc pointer can appear in
-	 the array constructor of a paramater.  This seems inconsistant with
+	 the array constructor of a parameter.  This seems inconsistent with
 	 the concept of a parameter. TODO: Needs an interpretation.  */
       if (sym->value->ts.type == BT_DERIVED
 	  && sym->value->ts.u.derived

@@ -1121,7 +1121,7 @@ gfc_set_loop_bounds_from_array_spec (gfc_interface_mapping * mapping,
    free the array afterwards.
 
    If INITIAL is not NULL, it is packed using internal_pack and the result used
-   as data instead of allocating a fresh, unitialized area of memory.
+   as data instead of allocating a fresh, uninitialized area of memory.
 
    Initialization code is added to PRE and finalization code to POST.
    DYNAMIC is true if the caller may want to extend the array later
@@ -2434,7 +2434,7 @@ gfc_trans_array_constructor_value (stmtblock_t * pblock,
   /* F2008 4.5.6.3 para 5: If an executable construct references a structure
      constructor or array constructor, the entity created by the constructor is
      finalized after execution of the innermost executable construct containing
-     the reference. This, in fact, was later deleted by the Combined Techical
+     the reference. This, in fact, was later deleted by the Combined Technical
      Corrigenda 1 TO 4 for fortran 2008 (f08/0011).
 
      Transmit finalization of this constructor through 'finalblock'. */
@@ -3484,7 +3484,7 @@ maybe_substitute_expr (tree *tp, int *walk_subtree, void *data)
 }
 
 
-/* Substitute in EXPR any occurence of TARGET with REPLACEMENT.  */
+/* Substitute in EXPR any occurrence of TARGET with REPLACEMENT.  */
 
 static void
 substitute_subexpr_in_expr (tree target, tree replacement, tree expr)
@@ -10058,7 +10058,7 @@ duplicate_allocatable_coarray (tree dest, tree dest_tok, tree src, tree type,
     }
   else
     {
-      /* Set the rank or unitialized memory access may be reported.  */
+      /* Set the rank or uninitialized memory access may be reported.  */
       tmp = gfc_conv_descriptor_rank (dest);
       gfc_add_modify (&globalblock, tmp, build_int_cst (TREE_TYPE (tmp), rank));
 

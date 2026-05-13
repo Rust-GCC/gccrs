@@ -2242,7 +2242,7 @@ shared by @command{gfortran}, @command{gcc}, and other GNU compilers.
 @table @gcctabopt
 
 @opindex fc-prototypes
-@cindex Generating C prototypes from Fortran BIND(C) enteties
+@cindex Generating C prototypes from Fortran BIND(C) entities
 @item -fc-prototypes
 This option generates C prototypes from @code{BIND(C)} variable
 declarations, types and procedure interfaces and writes them to

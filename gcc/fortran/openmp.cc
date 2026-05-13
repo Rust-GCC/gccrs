@@ -553,7 +553,7 @@ gfc_match_omp_variable_list (const char *str, gfc_omp_namelist **list,
 	    {
 	      gcc_assert (allow_common);
 	      gfc_error ("%qs at %L is part of the common block %</%s/%> and "
-			 "may only be specificed implicitly via the named "
+			 "may only be specified implicitly via the named "
 			 "common block", sym->name, &cur_loc,
 			 sym->common_head->name);
 	      goto cleanup;
