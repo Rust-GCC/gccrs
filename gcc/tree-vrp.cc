@@ -199,7 +199,7 @@ remove_unreachable::fully_replaceable (tree name, basic_block bb)
 void
 remove_unreachable::handle_early (gimple *s, edge e)
 {
-  // If there is no gori_ssa, there is no early processsing.
+  // If there is no gori_ssa, there is no early processing.
   if (!m_ranger.gori_ssa ())
     return ;
   bool lhs_p = TREE_CODE (gimple_cond_lhs (s)) == SSA_NAME;

@@ -3694,7 +3694,7 @@ extern vec<tree, va_gc> **decl_debug_args_insert (tree);
    (FUNCTION_DECL_CHECK (NODE)->function_decl.versioned_function)
 
 /* In FUNCTION_DECL, this is set if this function is a C++ constructor.
-   Devirtualization machinery uses this knowledge for determing type of the
+   Devirtualization machinery uses this knowledge for determining type of the
    object constructed.  Also we assume that constructor address is not
    important.  */
 #define DECL_CXX_CONSTRUCTOR_P(NODE)\
@@ -5183,7 +5183,7 @@ strip_pointer_types (const_tree type)
   return type;
 }
 
-/* Desription of the reason why the argument of valid_constant_size_p
+/* Description of the reason why the argument of valid_constant_size_p
    is not a valid size.  */
 enum cst_size_error {
   cst_size_ok,

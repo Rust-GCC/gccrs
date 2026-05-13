@@ -1160,7 +1160,7 @@ assign_discriminators (void)
 	      bb_id++;
 	    }
 	}
-      /* If basic block has multiple sucessors, consdier every edge as a
+      /* If basic block has multiple successors, consider every edge as a
 	 separate block.  */
       if (!single_succ_p (bb))
 	bb_id++;
@@ -2744,7 +2744,7 @@ stmt_starts_bb_p (gimple *stmt, gimple *prev_stmt)
 	  && gimple_code (prev_stmt) != GIMPLE_LABEL
 	  && (gimple_code (prev_stmt) != GIMPLE_CALL
 	      || ! gimple_call_internal_p (prev_stmt, IFN_PHI)))
-	/* PHI nodes start a new block unless preceeded by a label
+	/* PHI nodes start a new block unless preceded by a label
 	   or another PHI.  */
 	return true;
     }
@@ -7152,7 +7152,7 @@ move_stmt_op (tree *tp, int *walk_subtrees, void *data)
 }
 
 /* Helper for move_stmt_r.  Given an EH region number for the source
-   function, map that to the duplicate EH regio number in the dest.  */
+   function, map that to the duplicate EH region number in the dest.  */
 
 static int
 move_stmt_eh_region_nr (int old_nr, struct move_stmt_d *p)
@@ -10188,7 +10188,7 @@ ifconvertable_edge (edge e)
 	return false;
     }
 
-  /* If convertables are only for conditionals. */
+  /* If convertibles are only for conditionals. */
   if (!is_a<gcond*>(*gsi_last_nondebug_bb (bb0)))
     return false;
 

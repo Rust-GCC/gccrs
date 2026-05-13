@@ -262,7 +262,7 @@ struct access
   /* Should TREE_NO_WARNING of a replacement be set?  */
   unsigned grp_no_warning : 1;
 
-  /* Result of propagation accross link from LHS to RHS.  */
+  /* Result of propagation across link from LHS to RHS.  */
   unsigned grp_result_of_prop_from_lhs : 1;
 };
 
@@ -389,7 +389,7 @@ static struct
      components.  */
   int aggregate_params_reduced;
 
-  /* Numbber of components created when splitting aggregate parameters.  */
+  /* Number of components created when splitting aggregate parameters.  */
   int param_reductions_created;
 
   /* Number of deferred_init calls that are modified.  */
@@ -1412,7 +1412,7 @@ build_access_from_call_arg (tree expr, gimple *stmt, bool can_be_returned,
       if (can_be_returned)
 	{
 	  disqualify_base_of_expr (base, "Address possibly returned, "
-				   "leading to an alis SRA may not know.");
+				   "leading to an alias SRA may not know.");
 	  return false;
 	}
       if (abnormal_edge_after_stmt_p (stmt, oe_check))
@@ -2311,7 +2311,7 @@ path_comparable_for_same_access (tree expr)
     {
       if (TREE_CODE (expr) == ARRAY_REF)
 	{
-	  /* SSA name indices can occur here too when the array is of sie one.
+	  /* SSA name indices can occur here too when the array is of size one.
 	     But we cannot just re-use array_refs with SSA names elsewhere in
 	     the function, so disallow non-constant indices.  TODO: Remove this
 	     limitation after teaching build_reconstructed_reference to replace
@@ -3055,7 +3055,7 @@ child_would_conflict_in_acc (struct access *acc, HOST_WIDE_INT norm_offset,
    Return the new access or NULL if it cannot be created.  Note that this
    access is created long after all splicing and sorting, it's not located in
    any access vector and is automatically a representative of its group.  Set
-   the gpr_write flag of the new accesss if SET_GRP_WRITE is true.  */
+   the gpr_write flag of the new access if SET_GRP_WRITE is true.  */
 
 static struct access *
 create_artificial_child_access (struct access *parent, struct access *model,
@@ -4344,7 +4344,7 @@ sra_modify_call_arg (tree *expr, gimple_stmt_iterator *call_gsi,
 }
 
 /* Where scalar replacements of the RHS have been written to when a replacement
-   of a LHS of an assigments cannot be direclty loaded from a replacement of
+   of a LHS of an assignments cannot be directly loaded from a replacement of
    the RHS. */
 enum unscalarized_data_handling { SRA_UDH_NONE,  /* Nothing done so far. */
 				  SRA_UDH_RIGHT, /* Data flushed to the RHS. */

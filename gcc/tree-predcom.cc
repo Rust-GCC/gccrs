@@ -327,7 +327,7 @@ typedef struct chain
   /* Finalizers for the eliminated stores.  */
   auto_vec<tree> finis;
 
-  /* gimple stmts intializing the initial variables of the chain.  */
+  /* gimple stmts initializing the initial variables of the chain.  */
   gimple_seq init_seq;
 
   /* gimple stmts finalizing the eliminated stores of the chain.  */
@@ -1114,7 +1114,7 @@ pcom_worker::suitable_component_p (struct component *comp)
 	     in some later iteration.  There might be more latent issues
 	     about this in predcom or data reference analysis.  If the
 	     reference is a COMPONENT_REF, also check if step isn't a
-	     multiple of the containg aggregate size.  See PR111683.  */
+	     multiple of the containing aggregate size.  See PR111683.  */
 	  tree ref = DR_REF (a->ref);
 	  tree step = DR_STEP (a->ref);
 	  if (TREE_CODE (ref) == COMPONENT_REF
@@ -1610,7 +1610,7 @@ pcom_worker::determine_roots_comp (struct component *comp)
 	    release_chain (chain);
 
 	  /* Determine type of the chain.  If the root reference is a load,
-	     this can only be a CT_LOAD chain; other chains are intialized
+	     this can only be a CT_LOAD chain; other chains are initialized
 	     to CT_STORE_LOAD and might be promoted to CT_STORE_STORE when
 	     new reference is added.  */
 	  type = DR_IS_READ (a->ref) ? CT_LOAD : CT_STORE_LOAD;
@@ -3132,7 +3132,7 @@ prepare_initializers_chain_store_elim (class loop *loop, chain_p chain)
   if (!chain->all_always_accessed)
     return false;
 
-  /* Nothing to intialize for intra-iteration store elimination.  */
+  /* Nothing to initialize for intra-iteration store elimination.  */
   if (n == 0 && chain->type == CT_STORE_STORE)
     return true;
 
@@ -3148,7 +3148,7 @@ prepare_initializers_chain_store_elim (class loop *loop, chain_p chain)
   chain->inits.create (n);
   chain->inits.safe_grow_cleared (n, true);
 
-  /* For store eliminatin chain like below:
+  /* For store eliminating chain like below:
 
      for (i = 0; i < len; i++)
        {
@@ -3384,7 +3384,7 @@ pcom_worker::tree_predictive_commoning_loop (bool allow_unroll_p)
   if (dump_file && (dump_flags & TDF_DETAILS))
     fprintf (dump_file, "Processing loop %d\n", m_loop->num);
 
-  /* Nothing for predicitive commoning if loop only iterates 1 time.  */
+  /* Nothing for predictive commoning if loop only iterates 1 time.  */
   if (get_max_loop_iterations_int (m_loop) == 0)
     {
       if (dump_file && (dump_flags & TDF_DETAILS))

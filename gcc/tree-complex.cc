@@ -1387,7 +1387,7 @@ expand_complex_div_wide (gimple_stmt_iterator *gsi, tree inner_type,
 
       /* Wire the blocks together.  */
       e->flags = EDGE_TRUE_VALUE;
-      /* TODO: With value profile we could add an historgram to determine real
+      /* TODO: With value profile we could add an histogram to determine real
 	 branch outcome.  */
       e->probability = profile_probability::even ();
       redirect_edge_succ (e, bb_true);

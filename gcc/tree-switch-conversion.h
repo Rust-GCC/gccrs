@@ -35,7 +35,7 @@ enum cluster_type
 
 /* Abstract base class for representing a cluster of cases.
 
-   Here is the inheritance hierarachy, and the enum_cluster_type
+   Here is the inheritance hierarchy, and the enum_cluster_type
    values for the concrete subclasses:
 
    cluster
@@ -312,7 +312,7 @@ as a single bit test:
 	if ((1<<x) & ((1<<4)|(1<<6)|(1<<9)|(1<<11)))
 
 This transformation is only applied if the number of case targets is small,
-if CST constains at least 3 bits, and "1 << x" is cheap.  The bit tests are
+if CST contains at least 3 bits, and "1 << x" is cheap.  The bit tests are
 performed in "word_mode".
 
 The following example shows the code the transformation generates:

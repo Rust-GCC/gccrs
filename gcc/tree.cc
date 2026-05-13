@@ -5455,7 +5455,7 @@ build5 (enum tree_code code, tree tt, tree arg0, tree arg1,
   return t;
 }
 
-/* Build a simple MEM_REF tree with the sematics of a plain INDIRECT_REF
+/* Build a simple MEM_REF tree with the semantics of a plain INDIRECT_REF
    on the pointer PTR.  */
 
 tree
@@ -9123,7 +9123,7 @@ get_file_function_name (const char *type)
   /* If the target is handling the constructors/destructors, they
      will be local to this file and the name is only necessary for
      debugging purposes.
-     We also assign sub_I and sub_D sufixes to constructors called from
+     We also assign sub_I and sub_D suffixes to constructors called from
      the global static constructors.  These are always local.
      OpenMP "declare target" offloaded constructors/destructors use "off_I" and
      "off_D" for the same purpose.  */
@@ -10559,7 +10559,7 @@ build_opaque_vector_type (tree innertype, poly_int64 nunits)
       && TYPE_VECTOR_OPAQUE (cand)
       && check_qualified_type (cand, t, TYPE_QUALS (t)))
     return cand;
-  /* Othewise build a variant type and make sure to queue it after
+  /* Otherwise build a variant type and make sure to queue it after
      the non-opaque type.  */
   cand = build_distinct_type_copy (t);
   TYPE_VECTOR_OPAQUE (cand) = true;
@@ -13231,7 +13231,7 @@ array_ref_up_bound (tree exp)
 bool
 array_ref_flexible_size_p (tree ref, bool *is_trailing_array /* = NULL */)
 {
-  /* The TYPE for this array referece.  */
+  /* The TYPE for this array reference.  */
   tree atype = NULL_TREE;
   /* The FIELD_DECL for the array field in the containing structure.  */
   tree afield_decl = NULL_TREE;
@@ -13795,7 +13795,7 @@ verify_type_variant (const_tree t, tree tv)
      - main variant may be TYPE_COMPLETE_P and variant types !TYPE_COMPLETE_P
        in this case some values may not be set in the variant types
        (see TYPE_COMPLETE_P checks).
-     - it is possible to have TYPE_ARTIFICIAL variant of non-artifical type
+     - it is possible to have TYPE_ARTIFICIAL variant of non-artificial type
      - by TYPE_NAME and attributes (i.e. when variant originate by typedef)
      - TYPE_CANONICAL (TYPE_ALIAS_SET is the same among variants)
      - by the alignment: TYPE_ALIGN and TYPE_USER_ALIGN
@@ -13873,7 +13873,7 @@ verify_type_variant (const_tree t, tree tv)
     verify_variant_match (TYPE_TRANSPARENT_AGGR);
   else if (TREE_CODE (t) == ARRAY_TYPE)
     verify_variant_match (TYPE_NONALIASED_COMPONENT);
-  /* During LTO we merge variant lists from diferent translation units
+  /* During LTO we merge variant lists from different translation units
      that may differ BY TYPE_CONTEXT that in turn may point
      to TRANSLATION_UNIT_DECL.
      Ada also builds variants of types with different TYPE_CONTEXT.   */
@@ -14084,7 +14084,7 @@ gimple_canonical_types_compatible_p (const_tree t1, const_tree t2,
      need to ensure that we are never called on it.
 
      FIXME: For more correctness the function probably should have three modes
-	1) mode assuming that types are complete mathcing their structure
+	1) mode assuming that types are complete matching their structure
 	2) mode allowing incomplete types but producing equivalence classes
 	   and thus ignoring all info from complete types
 	3) mode allowing incomplete types to match complete but checking

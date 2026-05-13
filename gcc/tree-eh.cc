@@ -1002,7 +1002,7 @@ lower_try_finally_fallthru_label (struct leh_tf_state *tf)
   return label;
 }
 
-/* A subroutine of lower_try_finally.  If FINALLY consits of a
+/* A subroutine of lower_try_finally.  If FINALLY consists of a
    GIMPLE_EH_ELSE node, return it.  */
 
 static inline geh_else *
@@ -3927,7 +3927,7 @@ lower_eh_dispatch (basic_block src, geh_dispatch *stmt)
 	hash_set<tree> seen_values;
 
 	/* Collect the labels for a switch.  Zero the post_landing_pad
-	   field becase we'll no longer have anything keeping these labels
+	   field because we'll no longer have anything keeping these labels
 	   in existence and the optimizer will be free to merge these
 	   blocks at will.  */
 	for (c = r->u.eh_try.first_catch; c ; c = c->next_catch)

@@ -392,7 +392,7 @@ parloops_is_simple_reduction (loop_vec_info loop_info, stmt_vec_info phi_info,
     }
 
   /* If this isn't a nested cycle or if the nested cycle reduction value
-     is used ouside of the inner loop we cannot handle uses of the reduction
+     is used outside of the inner loop we cannot handle uses of the reduction
      value.  */
   if ((!nested_in_vect_loop || inner_loop_of_double_reduc)
       && (nlatch_def_loop_uses > 1 || nphi_def_loop_uses > 1))
@@ -2270,7 +2270,7 @@ transform_to_exit_first_loop_alt (class loop *loop,
   basic_block new_exit_block = NULL;
   if (!single_pred_p (exit->dest))
     {
-      /* Create a new empty exit block, inbetween the new loop header and the
+      /* Create a new empty exit block, in between the new loop header and the
 	 old exit block.  The function separate_decls_in_region needs this block
 	 to insert code that is active on loop exit, but not any other path.  */
       new_exit_block = split_edge (exit);

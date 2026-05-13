@@ -346,7 +346,7 @@ get_ssa_name_ann (tree name)
   return info;
 }
 
-/* Return and allocate the auxiliar information for DECL.  */
+/* Return and allocate the auxiliary information for DECL.  */
 
 static inline var_info *
 get_var_info (tree decl)
@@ -374,12 +374,12 @@ clear_ssa_name_info (void)
   current_info_for_ssa_name_age++;
 
   /* If current_info_for_ssa_name_age wraps we use stale information.
-     Asser that this does not happen.  */
+     Assert that this does not happen.  */
   gcc_assert (current_info_for_ssa_name_age != 0);
 }
 
 
-/* Get access to the auxiliar information stored per SSA name or decl.  */
+/* Get access to the auxiliary information stored per SSA name or decl.  */
 
 static inline common_info *
 get_common_info (tree var)
@@ -3315,7 +3315,7 @@ insert_updated_phi_nodes_compare_uids (const void *a, const void *b)
    calling create_new_def_for to create new defs for names that the
    caller wants to replace.
 
-   The caller cretaes the new names to be inserted and the names that need
+   The caller creates the new names to be inserted and the names that need
    to be replaced by calling create_new_def_for for each old definition
    to be replaced.  Note that the function assumes that the
    new defining statement has already been inserted in the IL.
@@ -3477,7 +3477,7 @@ update_ssa (unsigned update_flags)
       statistics_counter_event (cfun, "Symbol to SSA rewrite", 1);
 
       /* If we rename bare symbols initialize the mapping to
-         auxiliar info we need to keep track of.  */
+         auxiliary info we need to keep track of.  */
       var_infos = new hash_table<var_info_hasher> (47);
 
       /* If we have to rename some symbols from scratch, we need to

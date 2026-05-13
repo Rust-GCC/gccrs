@@ -798,7 +798,7 @@ maybe_remove_forwarder_block (basic_block bb, bool can_split = false)
 
   set_immediate_dominator (CDI_DOMINATORS, dest, dom);
 
-  /* Adjust latch infomation of BB's parent loop as otherwise
+  /* Adjust latch information of BB's parent loop as otherwise
      the cfg hook has a hard time not to kill the loop.  */
   if (current_loops && bb->loop_father->latch == bb)
     bb->loop_father->latch = pred;
@@ -1217,7 +1217,7 @@ cleanup_tree_cfg_noloop (unsigned ssa_update_flags)
   /* Start by iterating over all basic blocks in PRE order looking for
      edge removal opportunities.  Do this first because incoming SSA form
      may be invalid and we want to avoid performing SSA related tasks such
-     as propgating out a PHI node during BB merging in that state.  This
+     as propagating out a PHI node during BB merging in that state.  This
      also gets rid of unreachable blocks.  */
   bool changed = cleanup_control_flow_pre ();
 

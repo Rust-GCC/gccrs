@@ -1197,7 +1197,7 @@ gimplify_size_expressions (object_size_info *osi)
 				 object_size_type))
 	    {
 	      /* Record the SSAs we're overwriting to propagate the
-		 unknwons.  */
+		 unknowns.  */
 	      tree oldval = object_sizes_get (osi, i);
 	      tree old_wholeval = object_sizes_get (osi, i, true);
 
@@ -2379,7 +2379,7 @@ object_sizes_execute (function *fun, bool early)
 	  if (!SSA_NAME_OCCURS_IN_ABNORMAL_PHI (lhs))
 	    {
 	      replace_uses_by (lhs, result);
-	      /* Mark lhs as being possiblely DCEd. */
+	      /* Mark lhs as being possibly DCEd. */
 	      bitmap_set_bit (sdce_worklist, SSA_NAME_VERSION (lhs));
 	    }
 	  else

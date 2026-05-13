@@ -1889,7 +1889,7 @@ scev_is_linear_expression (tree scev)
     }
 }
 
-/* Determines whether the expression CHREC contains only interger consts
+/* Determines whether the expression CHREC contains only integer consts
    in the right parts.  */
 
 bool

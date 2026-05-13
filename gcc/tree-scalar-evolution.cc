@@ -706,7 +706,7 @@ scev_dfs::add_to_evolution_1 (tree chrec_before, tree to_add, gimple *at_stmt)
       /* When we add the first evolution we need to replace the symbolic
 	 evolution we've put in when the DFS reached the loop PHI node
 	 with the initial value.  There's only a limited cases of
-	 extra operations ontop of that symbol allowed, namely
+	 extra operations on top of that symbol allowed, namely
 	 sign-conversions we can look through.  For other cases we leave
 	 the symbolic initial condition which causes build_polynomial_chrec
 	 to return chrec_dont_know.  See PR42512, PR66375 and PR107176 for
@@ -3128,7 +3128,7 @@ scev_reset (void)
 
    We do not use information whether TYPE can overflow so it is safe to
    use this test even for derived IVs not computed every iteration or
-   hypotetical IVs to be inserted into code.  */
+   hypothetical IVs to be inserted into code.  */
 
 bool
 iv_can_overflow_p (class loop *loop, tree type, tree base, tree step)
@@ -3638,7 +3638,7 @@ expression_expensive_p (tree expr, bool *cond_overflow_p)
 	  /* ???  Both the explicit unsharing and gimplification of expr will
 	     expand shared trees to multiple copies.
 	     Guard against exponential growth by counting the visits and
-	     comparing againt the number of original nodes.  Allow a tiny
+	     comparing against the number of original nodes.  Allow a tiny
 	     bit of duplication to catch some additional optimizations.  */
 	  || expanded_size > (cache.elements () + 1));
 }

@@ -105,7 +105,7 @@ can_log2 (tree type, optimization_type opt_type)
 
 /* Assume that OP is a power of two.  Build a sequence of gimple statements
    efficiently computing the base two logarithm of OP using special optabs.
-   Return the ssa name represeting the result of the logarithm through RESULT.
+   Return the ssa name representing the result of the logarithm through RESULT.
 
    Before computing the logarithm, OP may have to be converted to another type.
    This should be specified in TYPE.  Use can_log2 to decide what this type
@@ -431,7 +431,7 @@ switch_conversion::exp_index_transform (gswitch *swtch)
   gsi_insert_after (&gsi, stmt_cond, GSI_NEW_STMT);
 
   /* We just added an edge going to default bb so fix PHI nodes in that bb:
-     For each PHI add new PHI arg.  It will be the same arg as when comming to
+     For each PHI add new PHI arg.  It will be the same arg as when coming to
      the default bb from the switch bb.  */
   edge default_edge = find_edge (swtch_bb, default_bb);
   for (gphi_iterator gsi = gsi_start_phis (default_bb);
