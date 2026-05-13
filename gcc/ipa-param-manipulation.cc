@@ -52,7 +52,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "ipa-prop.h"
 #include "attr-callback.h"
 
-/* Actual prefixes of different newly synthetized parameters.  Keep in sync
+/* Actual prefixes of different newly synthesized parameters.  Keep in sync
    with IPA_PARAM_PREFIX_* defines.  */
 
 static const char *ipa_param_prefixes[IPA_PARAM_PREFIX_COUNT]
@@ -439,7 +439,7 @@ ipa_param_adjustments::get_surviving_params (vec<bool> *surviving_params)
 }
 
 /* Fill NEW_INDICES with new indices of each surviving parameter or -1 for
-   those which do not survive.  Any parameter outside of lenght of the vector
+   those which do not survive.  Any parameter outside of length of the vector
    does not survive.  There is currently no support for a parameter to be
    copied to two distinct new parameters.  */
 
@@ -646,7 +646,7 @@ purge_all_uses (tree name, hash_set <tree> *killed_ssas)
 	{
 	  if (gimple_debug_bind_p (stmt))
 	    {
-	      /* When runing within tree-inline, we will never end up here but
+	      /* When running within tree-inline, we will never end up here but
 		 adding the SSAs to killed_ssas will do the trick in this case
 		 and the respective debug statements will get reset. */
 	      gimple_debug_bind_reset_value (stmt);
@@ -1185,7 +1185,7 @@ ipa_param_body_adjustments::mark_dead_statements (tree dead_param,
 {
   /* Current IPA analyses which remove unused parameters never remove a
      non-gimple register ones which have any use except as parameters in other
-     calls, so we can safely leve them as they are.  */
+     calls, so we can safely leave them as they are.  */
   tree parm_ddef = get_ddef_if_exists_and_is_used (dead_param);
   if (!parm_ddef)
     return;
@@ -1324,7 +1324,7 @@ replace_with_mapped_expr (tree *remap, int *walk_subtrees, void *data)
   return 0;
 }
 
-/* Replace all occurances of SSAs in m_dead_ssa_debug_equiv in t with what they
+/* Replace all occurrences of SSAs in m_dead_ssa_debug_equiv in t with what they
    are mapped to.  */
 
 void
@@ -1751,7 +1751,7 @@ ipa_param_body_adjustments::get_new_param_chain ()
 /* Modify the function parameters FNDECL and its type according to the plan in
    ADJUSTMENTS.  This function needs to be called when the decl has not already
    been processed with ipa_param_adjustments::adjust_decl, otherwise just
-   seting DECL_ARGUMENTS to whatever get_new_param_chain will do is enough.  */
+   setting DECL_ARGUMENTS to whatever get_new_param_chain will do is enough.  */
 
 void
 ipa_param_body_adjustments::modify_formal_parameters ()
@@ -2205,7 +2205,7 @@ record_argument_state (copy_body_data *id, gimple *orig_stmt,
    up call_graph edges.
 
    If the method is invoked as a part of IPA clone materialization and if any
-   parameter split is pass-through, i.e. it applies to the functin that is
+   parameter split is pass-through, i.e. it applies to the function that is
    being modified and also to the callee of the statement, replace the
    parameter passed to old callee with all of the replacement a callee might
    possibly want and record the performed argument modifications in
@@ -2635,7 +2635,7 @@ ipa_param_body_adjustments::perform_cfun_body_modifications ()
 
 
 /* If there are any initialization statements that need to be emitted into
-   the basic block BB right at ther start of the new function, do so.  */
+   the basic block BB right at the start of the new function, do so.  */
 void
 ipa_param_body_adjustments::append_init_stmts (basic_block bb)
 {

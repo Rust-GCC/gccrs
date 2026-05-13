@@ -44,13 +44,13 @@ along with GCC; see the file COPYING3.  If not see
 	 satisfied.
       3. Redirect any new caller to a local clone if one exists.
 
-   Another heuristics can be used in the absense of profile information.  This
+   Another heuristics can be used in the absence of profile information.  This
    approach uses C++ template instantiation types to group functions together.
    Entry functions are sorted in the beginning by most used template types, and
    callees are sorted as part of partition_callchain (), again by template
    types.
 
-   For bothe schemes, partition size is param controlled to fine tune per
+   For both schemes, partition size is param controlled to fine tune per
    program behavior.  */
 
 #include "config.h"
@@ -780,7 +780,7 @@ edge_redirectable_p (cgraph_edge *edge, lto_locality_cloning_model cm)
 
 /* Create a locality clone of CNODE and redirect all callers present in
    PARTITION.
-   Create a clone dpending on whether CNODE itself is a clone or not.  */
+   Create a clone depending on whether CNODE itself is a clone or not.  */
 
 static cgraph_node *
 create_locality_clone (cgraph_node *cnode,
@@ -1084,7 +1084,7 @@ clone_node_as_needed (cgraph_edge *edge, locality_partition partition,
   return cloned_node;
 }
 
-/* Determine if EDGE->CALLEE is suitable for cloning.  It is assummed that the
+/* Determine if EDGE->CALLEE is suitable for cloning.  It is assumed that the
    callee is not an inlined node.  */
 
 static bool
@@ -1232,7 +1232,7 @@ partition_callchain (cgraph_node *node, locality_partition &partition,
 		     In partition X, edge A->B was transformed to A->B_clone0.
 		     In current partition, A was cloned to A_clone0 and now
 		     B_clone0 is visited via edge A_clone0->B_clone0.  If a
-		     B_clonei is present, redirect A_clone0 to it, otherise do
+		     B_clonei is present, redirect A_clone0 to it, otherwise do
 		     nothing.
 		 3.  N is not a locality clone and no clone of N is present in
 		     PARTITION, check for suitability and clone.  */

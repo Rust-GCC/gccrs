@@ -1390,7 +1390,7 @@ split_function (basic_block return_bb, class split_point *split_point,
     }
 
 
-  /* Let's take a time profile for splitted function.  */
+  /* Let's take a time profile for split function.  */
   if (cur_node->tp_first_run)
     node->tp_first_run = cur_node->tp_first_run + 1;
 

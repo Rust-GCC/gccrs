@@ -166,7 +166,7 @@ func_checker::compare_decl (const_tree t1, const_tree t2)
   /* We do not really need to check types of variables, since they are just
      blocks of memory and we verify types of the accesses to them.
      However do compare types of other kinds of decls
-     (parm decls and result decl types may affect ABI convetions).  */
+     (parm decls and result decl types may affect ABI conventions).  */
   if (t != VAR_DECL)
     {
       if (!compatible_types_p (TREE_TYPE (t1), TREE_TYPE (t2)))
@@ -238,7 +238,7 @@ func_checker::compatible_types_p (tree t1, tree t2)
 }
 
 /* Add hash of ARG to HSTATE. FLAGS have same meaning
-   as for operand_equal_p.  Works only if operand acces type is OP_NORMAL.  */
+   as for operand_equal_p.  Works only if operand access type is OP_NORMAL.  */
 
 void
 func_checker::hash_operand (const_tree arg, inchash::hash &hstate,
@@ -1007,7 +1007,7 @@ func_checker::compare_gimple_asm (const gasm *g1, const gasm *g2)
   if (gimple_asm_noutputs (g1) != gimple_asm_noutputs (g2))
     return false;
 
-  /* We do not suppport goto ASM statement comparison.  */
+  /* We do not support goto ASM statement comparison.  */
   if (gimple_asm_nlabels (g1) || gimple_asm_nlabels (g2))
     return false;
 

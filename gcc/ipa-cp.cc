@@ -3495,7 +3495,7 @@ good_cloning_opportunity_p (struct cgraph_node *node, sreal time_benefit,
 	  if (dump_file && (dump_flags & TDF_DETAILS))
 	    fprintf (dump_file, "     not cloning: time saved is not hot\n");
 	}
-      /* Evaulation approximately corresponds to time saved per instruction
+      /* Evaluation approximately corresponds to time saved per instruction
 	 introduced.  This is likely almost always going to be true, since we
 	 already checked that time saved is large enough to be considered
 	 hot.  */
@@ -4533,7 +4533,7 @@ dump_profile_updates (cgraph_node *node, bool spec)
 /* With partial train run we do not want to assume that original's count is
    zero whenever we redurect all executed edges to clone.  Simply drop profile
    to local one in this case.  In eany case, return the new value.  ORIG_NODE
-   is the original node and its count has not been updaed yet.  */
+   is the original node and its count has not been updated yet.  */
 
 profile_count
 lenient_count_portion_handling (profile_count remainder, cgraph_node *orig_node)
@@ -4718,7 +4718,7 @@ update_counts_for_self_gen_clones (cgraph_node *orig_node,
 	}
     }
 
-  /* Edges from the seeds of the valus generated for arithmetic jump-functions
+  /* Edges from the seeds of the values generated for arithmetic jump-functions
      along self-recursive edges are likely to have fairly low count and so
      edges from them to nodes in the self_gen_clones do not correspond to the
      artificially distributed count of the nodes, the total sum of incoming
@@ -4790,7 +4790,7 @@ update_profiling_info (struct cgraph_node *orig_node,
   bool orig_edges_processed = false;
   if (new_sum > orig_node_count)
     {
-      /* Profile has alreay gone astray, keep what we have but lower it
+      /* Profile has already gone astray, keep what we have but lower it
 	 to global0adjusted or to local if we have partial training.  */
       if (opt_for_fn (orig_node->decl, flag_profile_partial_training))
 	orig_node->make_profile_local ();
@@ -4950,7 +4950,7 @@ adjust_refs_in_act_callers (struct cgraph_node *node, void *data)
 
 /* At INDEX of a function being called by CS there is an ADDR_EXPR of a
    variable which is only dereferenced and which is represented by SYMBOL.  See
-   if we can remove ADDR reference in callers assosiated witht the call. */
+   if we can remove ADDR reference in callers associated with the call. */
 
 static void
 adjust_references_in_caller (cgraph_edge *cs, symtab_node *symbol, int index)
@@ -6122,7 +6122,7 @@ struct cloning_opportunity_ranking
   int index;
 };
 
-/* Helper function to qsort a vecotr of cloning opportunities.  */
+/* Helper function to qsort a vector of cloning opportunities.  */
 
 static int
 compare_cloning_opportunities (const void *a, const void *b)

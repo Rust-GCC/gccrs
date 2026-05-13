@@ -310,7 +310,7 @@ mark_all_inlined_calls_cdtor (cgraph_node *node)
 
 /* Mark edge E as inlined and update callgraph accordingly.  UPDATE_ORIGINAL
    specify whether profile of original function should be updated and whether
-   offline copy should be removed if unnecesary.  If any new
+   offline copy should be removed if unnecessary.  If any new
    indirect edges are discovered in the process, add them to NEW_EDGES, unless
    it is NULL. If UPDATE_OVERALL_SUMMARY is false, do not bother to recompute overall
    size of caller after inlining. Caller is required to eventually do it via
@@ -771,7 +771,7 @@ preserve_function_body_p (struct cgraph_node *node)
    with param manipulation because IPA param manipulation attaches debug
    statements to PARM_DECLs of called clone.  Materialize them if needed.
 
-   FIXME: This is somehwat broken by design because it does not play well
+   FIXME: This is somewhat broken by design because it does not play well
    with partitioning.  */
 
 static void

@@ -370,7 +370,7 @@ get_strub_mode_attr_parm (enum strub_mode mode)
     }
 }
 
-/* Return the parmeters (TREE_VALUE) for a strub attribute of MODE.
+/* Return the parameters (TREE_VALUE) for a strub attribute of MODE.
    We know we use a single parameter, so we bypass the creation of a
    tree list.  */
 
@@ -1068,7 +1068,7 @@ compute_strub_mode (cgraph_node *node, tree strub_attr)
   const bool strub_flag_at_calls = flag_strub == 1;
   /* On top of default, also enable strub implicitly for functions that can
      safely undergo internal strubbing.  At-calls mode will still be used in
-     functions that requiest it explicitly with attribute strub() or strub(1),
+     functions that request it explicitly with attribute strub() or strub(1),
      or when the function body requires strubbing and internal strubbing is not
      viable.  */
   const bool strub_flag_internal = flag_strub == 2;
@@ -1747,7 +1747,7 @@ public:
   virtual bool gate (function *) {
     /* In relaxed (-3) and strict (-4) settings, that only enable strub at a
        function or variable attribute's request, the attribute handler changes
-       flag_strub to -1 or -2, respectively, if any strub-enabling occurence of
+       flag_strub to -1 or -2, respectively, if any strub-enabling occurrence of
        the attribute is found.  Therefore, if it remains at -3 or -4, nothing
        that would enable strub was found, so we can disable it and avoid the
        overhead.  */

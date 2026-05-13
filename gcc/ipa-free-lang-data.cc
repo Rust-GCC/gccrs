@@ -116,7 +116,7 @@ fld_simplified_type_name (tree type)
   return TYPE_NAME (type);
 }
 
-/* Do same comparsion as check_qualified_type skipping lang part of type
+/* Do same comparison as check_qualified_type skipping lang part of type
    and be more permissive about type names: we only care that names are
    same (for diagnostics) and that ODR names are the same.
    If INNER_TYPE is non-NULL, be sure that TREE_TYPE match it.  */
@@ -569,7 +569,7 @@ free_lang_data_in_decl (tree decl, class free_lang_data_d *fld)
 	 use for middle-end.
 
 	 It would make more sense if frontends set TREE_ADDRESSABLE to 0 only
-	 for public objects that indeed cannot be adressed, but it is not
+	 for public objects that indeed cannot be addressed, but it is not
 	 the case.  Set the flag to true so we do not get merge failures for
 	 i.e. virtual tables between units that take address of it and
 	 units that don't.  */
@@ -683,7 +683,7 @@ free_lang_data_in_decl (tree decl, class free_lang_data_d *fld)
      these are needed by devirtualization.
      C++ destructors are special because C++ frontends sometimes produces
      virtual destructor as an alias of non-virtual destructor.  In
-     devirutalization code we always walk through aliases and we need
+     devirtualization code we always walk through aliases and we need
      context to be preserved too.  See PR89335  */
   if (TREE_CODE (decl) != FIELD_DECL
       && ((TREE_CODE (decl) != VAR_DECL && TREE_CODE (decl) != FUNCTION_DECL)

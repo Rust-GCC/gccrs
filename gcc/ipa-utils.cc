@@ -760,7 +760,7 @@ ipa_merge_profiles (struct cgraph_node *dst,
   src->decl = oldsrcdecl;
 }
 
-/* Return true if call to DEST is known to be self-recusive
+/* Return true if call to DEST is known to be self-recursive
    call withing FUNC.  */
 
 bool
@@ -778,7 +778,7 @@ recursive_call_p (tree func, tree dest)
     return true;
   if (!dest_node->semantically_equivalent_p (cnode))
     return false;
-  /* If there is only one way to call the fuction or we know all of them
+  /* If there is only one way to call the function or we know all of them
      are semantically equivalent, we still can consider call recursive.  */
   FOR_EACH_ALIAS (cnode, alias)
     if (!dest_node->semantically_equivalent_p (alias->referring))
@@ -788,7 +788,7 @@ recursive_call_p (tree func, tree dest)
 
 /* Return true if stmt may terminate execution of function.
    If assume_return_or_eh we can further assume that the function ends
-   either by retrn statement or EH (no trapping or infinite loops).  */
+   either by return statement or EH (no trapping or infinite loops).  */
 
 bool
 stmt_may_terminate_function_p (function *fun, gimple *stmt, bool assume_return_or_eh)
@@ -819,8 +819,8 @@ stmt_may_terminate_function_p (function *fun, gimple *stmt, bool assume_return_o
    execute on every invocation of the function.
 
    If assume_return_or_eh we can further assume that the function ends
-   either by retrn statement or EH (no trapping or infinite loops).
-   This is useful when sumarizing function in passes like ipa-modref.
+   either by return statement or EH (no trapping or infinite loops).
+   This is useful when summarizing function in passes like ipa-modref.
 
    Seeing assume_return_or_eh to false is used to prove that given
    statmeent will be executed even if the function gets into infinite
@@ -868,7 +868,7 @@ find_always_executed_bbs (function *fun, bool assume_return_or_eh)
 		 TODO: with C++ forced progression we can still walk the
 		 irreducible region and see if it contains any side effects.
 		 Similarly for loops.  -ffinite-loops does not really imply
-		 this since we allow inlining across -ffinite-loops bondary
+		 this since we allow inlining across -ffinite-loops boundary
 		 and thus it can be used only as a loop flag.  */
 	      if (e->dest->loop_father->header != e->dest
 		  || !dominated_by_p (CDI_DOMINATORS, bb, e->dest))

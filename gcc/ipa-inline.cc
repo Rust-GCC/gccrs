@@ -511,7 +511,7 @@ enum can_inline_edge_by_limits_flags
   /* Ignore size limits.  */
   CAN_INLINE_DISREGARD_LIMITS = 2,
   /* Force size limits (ignore always_inline).  This is used for
-     recrusive inlining where always_inline may lead to inline bombs
+     recursive inlining where always_inline may lead to inline bombs
      and technically it is non-sential anyway.  */
   CAN_INLINE_FORCE_LIMITS = 4,
   /* Report decision to dump file.  */
@@ -725,7 +725,7 @@ can_early_inline_edge_p (struct cgraph_edge *e)
 	  || !lookup_attribute ("always_inline", DECL_ATTRIBUTES (callee->decl))))
     {
       /* If there are indirect calls, inlining may produce direct call.
-	 TODO: We may lift this restriction if we avoid errors on formely
+	 TODO: We may lift this restriction if we avoid errors on formerly
 	 indirect calls to always_inline functions.  Taking address
 	 of always_inline function is generally bad idea and should
 	 have been declared as undefined, but sadly we allow this.  */
@@ -3270,7 +3270,7 @@ early_inliner (function *fun)
 	     statements that don't have inline parameters computed.  */
 	  for (edge = node->callees; edge; edge = edge->next_callee)
 	    {
-	      /* We can enounter not-yet-analyzed function during
+	      /* We can encounter not-yet-analyzed function during
 		 early inlining on callgraphs with strongly
 		 connected components.  */
 	      ipa_call_summary *es = ipa_call_summaries->get_create (edge);

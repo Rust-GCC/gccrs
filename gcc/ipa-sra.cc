@@ -411,7 +411,7 @@ public:
   /* Set when any of the call arguments are not byte-aligned.  */
   unsigned m_bit_aligned_arg : 1;
 
-  /* Set to true if the call happend before any (other) store to memory in the
+  /* Set to true if the call happened before any (other) store to memory in the
      caller.  */
   unsigned m_before_any_store : 1;
 };
@@ -1028,7 +1028,7 @@ isra_track_scalar_value_uses (function *fun, cgraph_node *node, tree name,
    statement.  If there are no such uses, return true and store the number of
    actual arguments that this parameter eventually feeds to (or zero if there
    is none) to DESC->call_uses and set DESC->remove_only_when_retval_removed if
-   there are any uses in return statemens.  For any such parameter, mark
+   there are any uses in return statements.  For any such parameter, mark
    PARM_NUM as one of its sources.
 
    This function is similar to ptr_parm_has_nonarg_uses but its results are
@@ -2633,7 +2633,7 @@ process_scan_results (cgraph_node *node, struct function *fun,
 	      }
 
 	    /* Walk basic block and see if its execution can terminate earlier.
-	       Keep the info for later re-use to avoid quadratic behavoiur here.  */
+	       Keep the info for later re-use to avoid quadratic behaviour here.  */
 	    gimple_stmt_iterator gsi = gsi_for_stmt (call_stmt);
 	    bool safe = true;
 	    int n = 0;
@@ -3469,7 +3469,7 @@ flip_all_hints_pessimistic (isra_param_desc *desc)
 }
 
 /* Because we have not analyzed or otherwise problematic caller, go over all
-   parameter int flags of IFS describing a call graph node of a calllee and
+   parameter int flags of IFS describing a call graph node of a callee and
    turn them pessimistic.  Return true if any hints that need to potentially
    trigger further propagation have changed.  */
 
@@ -3488,7 +3488,7 @@ flip_all_param_hints_pessimistic (isra_func_summary *ifs)
   return ret;
 }
 
-/* Propagate hints accross edge CS which ultimately leads to a node described
+/* Propagate hints across edge CS which ultimately leads to a node described
    by TO_IFS.  Return true if any hints of the callee which should potentially
    trigger further propagation have changed.  */
 

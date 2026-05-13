@@ -220,7 +220,7 @@ type_with_linkage_p (const_tree t)
   if (!TYPE_NAME (t) || TREE_CODE (TYPE_NAME (t)) != TYPE_DECL)
     return false;
 
-  /* After free_lang_data was run we can recongize
+  /* After free_lang_data was run we can recognize
      types with linkage by presence of mangled name.  */
   if (DECL_ASSEMBLER_NAME_SET_P (TYPE_NAME (t)))
     return true;
@@ -295,7 +295,7 @@ get_odr_name_for_type (tree type)
 inline bool
 lto_streaming_expected_p ()
 {
-  /* Compilation before LTO stremaing.  */
+  /* Compilation before LTO streaming.  */
   if (flag_lto && !in_lto_p && symtab->state < IPA_SSA_AFTER_INLINING)
     return true;
   /* WPA or incremental link.  */

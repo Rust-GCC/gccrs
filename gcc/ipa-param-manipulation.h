@@ -290,7 +290,7 @@ struct ipa_replace_map;
    part of tree-inine.c's tree_function_versioning machinery to clone functions
    (when M_ID is not NULL) and in s standalone fashion, modifying an existing
    function in place (when M_ID is NULL).  While a lot of stuff handled in a
-   unified way in both modes, there are many aspects of the processs that
+   unified way in both modes, there are many aspects of the process that
    requires distinct paths.  */
 
 class ipa_param_body_adjustments
@@ -337,12 +337,12 @@ public:
 			   gimple *orig_stmt);
   /* Return the new chain of parameters.  */
   tree get_new_param_chain ();
-  /* Replace all occurances of SSAs in m_dead_ssa_debug_equiv in t with what
+  /* Replace all occurrences of SSAs in m_dead_ssa_debug_equiv in t with what
      they are mapped to.  */
   void remap_with_debug_expressions (tree *t);
 
   /* If there are any initialization statements that need to be emitted into
-     the basic block BB right at ther start of the new function, do so.  */
+     the basic block BB right at the start of the new function, do so.  */
   void append_init_stmts (basic_block bb);
 
   /* Pointers to data structures defining how the function should be

@@ -339,7 +339,7 @@ struct GTY (()) ipa_jump_func
   struct ipa_agg_jump_function agg;
 
   /* Information about value range, containing valid data only when vr_known is
-     true.  The pointed to structure is shared betweed different jump
+     true.  The pointed to structure is shared between different jump
      functions.  Use ipa_set_jfunc_vr to set this field.  */
   ipa_vr *m_vr;
 
@@ -356,7 +356,7 @@ struct GTY (()) ipa_jump_func
 };
 
 
-/* Return the constant stored in a constant jump functin JFUNC.  */
+/* Return the constant stored in a constant jump function JFUNC.  */
 
 inline tree
 ipa_get_jf_constant (struct ipa_jump_func *jfunc)
@@ -517,7 +517,7 @@ ipa_get_jf_ancestor_keep_null (struct ipa_jump_func *jfunc)
 class ipa_auto_call_arg_values
 {
 public:
-  /* If m_known_vals (vector of known "scalar" values) is sufficiantly long,
+  /* If m_known_vals (vector of known "scalar" values) is sufficiently long,
      return its element at INDEX, otherwise return NULL.  */
   tree safe_sval_at (int index)
   {
@@ -569,7 +569,7 @@ public:
       m_known_value_ranges (aavals->m_known_value_ranges.to_vec_legacy ())
   {}
 
-  /* If m_known_vals (vector of known "scalar" values) is sufficiantly long,
+  /* If m_known_vals (vector of known "scalar" values) is sufficiently long,
      return its element at INDEX, otherwise return NULL.  */
   tree safe_sval_at (int index)
   {
@@ -1092,7 +1092,7 @@ public:
 		  ipa_node_params *data2) final override;
 };
 
-/* Summary to manange ipa_edge_args structures.  */
+/* Summary to manage ipa_edge_args structures.  */
 
 class GTY((user)) ipa_edge_args_sum_t : public call_summary <ipa_edge_args *>
 {

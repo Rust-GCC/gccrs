@@ -566,7 +566,7 @@ evaluate_conditions_for_known_args (struct cgraph_node *node,
     *ret_nonspec_clause = nonspec_clause;
 }
 
-/* Return true if VRP will be exectued on the function.
+/* Return true if VRP will be executed on the function.
    We do not want to anticipate optimizations that will not happen.
 
    FIXME: This can be confused with -fdisable and debug counters and thus
@@ -1323,7 +1323,7 @@ unmodified_parm_or_parm_agg_item (struct ipa_func_body_info *fbi,
 				 size_p, &aggpos->by_ref);
 }
 
-/* If stmt is simple load or store of value pointed to by a function parmaeter,
+/* If stmt is simple load or store of value pointed to by a function parameter,
    return its index.  */
 
 static int
@@ -2745,7 +2745,7 @@ guards_builtin_unreachable (basic_block bb, vec<unsigned char> &cache)
 	if (dump_file && (dump_flags & TDF_DETAILS))
 	  fprintf (dump_file,
 		   "BB %i ends with conditional guarding __builtin_unreachable;"
-		   " conditinal is unnecesary\n", bb->index);
+		   " conditinal is unnecessary\n", bb->index);
 	return true;
       }
   return false;
@@ -3011,7 +3011,7 @@ analyze_function_body (struct cgraph_node *node, bool early)
 	    {
 	      if (dump_file && (dump_flags & TDF_DETAILS))
 		{
-		  fprintf (dump_file, "  skipping unnecesary stmt ");
+		  fprintf (dump_file, "  skipping unnecessary stmt ");
 		  print_gimple_stmt (dump_file, stmt, 0);
 		}
 	      /* TODO: const calls used only to produce values for
@@ -3610,7 +3610,7 @@ estimate_edge_devirt_benefit (struct cgraph_edge *ie,
 /* Increase SIZE, MIN_SIZE (if non-NULL) and TIME for size and time needed to
    handle edge E with probability PROB.  Set HINTS accordingly if edge may be
    devirtualized.  AVALS, if non-NULL, describes the context of the call site
-   as far as values of parameters are concerened.  */
+   as far as values of parameters are concerned.  */
 
 static inline void
 estimate_edge_size_and_time (struct cgraph_edge *e, int *size, int *min_size,

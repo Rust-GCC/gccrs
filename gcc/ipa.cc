@@ -84,7 +84,7 @@ update_inlined_to_pointer (struct cgraph_node *node, struct cgraph_node *inlined
 
    The queue is linked via AUX pointers and terminated by pointer to 1.
    We enqueue nodes at two occasions: when we find them reachable or when we find
-   their bodies needed for further clonning.  In the second case we mark them
+   their bodies needed for further cloning.  In the second case we mark them
    by pointer to 2 after processing so they are re-queue when they become
    reachable.  */
 
@@ -105,7 +105,7 @@ enqueue_node (symtab_node *node, symtab_node **first,
 
 /* Return true if NODE may get inlined later.
    This is used to keep DECL_EXTERNAL function bodies around long enough
-   so inliner can proces them.  */
+   so inliner can process them.  */
 
 static bool
 possible_inline_candidate_p (symtab_node *node)
@@ -168,7 +168,7 @@ process_references (symtab_node *snode,
    devirtualization happens.  After inlining still keep their declarations
    around, so we can devirtualize to a direct call.
 
-   Also try to make trivial devirutalization when no or only one target is
+   Also try to make trivial devirtualization when no or only one target is
    possible.  */
 
 static void
@@ -747,7 +747,7 @@ set_readonly_bit (varpool_node *vnode, void *data ATTRIBUTE_UNUSED)
   return false;
 }
 
-/* Set writeonly bit and clear the initalizer, since it will not be needed.  */
+/* Set writeonly bit and clear the initializer, since it will not be needed.  */
 
 bool
 set_writeonly_bit (varpool_node *vnode, void *data)
@@ -784,7 +784,7 @@ clear_addressable_bit (varpool_node *vnode, void *data ATTRIBUTE_UNUSED)
    FIXME: This cannot be done in between gimplify and omp_expand since
    readonly flag plays role on what is shared and what is not.  Currently we do
    this transformation as part of whole program visibility and re-do at
-   ipa-reference pass (to take into account clonning), but it would
+   ipa-reference pass (to take into account cloning), but it would
    make sense to do it before early optimizations.  */
 
 bool
@@ -1387,7 +1387,7 @@ make_pass_ipa_cdtor_merge (gcc::context *ctxt)
 #define BOTTOM ((cgraph_node *)(size_t) 2)
 
 /* Meet operation for single user dataflow.
-   Here we want to associate variables with sigle function that may access it.
+   Here we want to associate variables with single function that may access it.
 
    FUNCTION is current single user of a variable, VAR is variable that uses it.
    Latttice is stored in SINGLE_USER_MAP.
@@ -1458,7 +1458,7 @@ propagate_single_user (varpool_node *vnode, cgraph_node *function,
 
 /* Pass setting used_by_single_function flag.
    This flag is set on variable when there is only one function that may
-   possibly referr to it.  */
+   possibly refer to it.  */
 
 static unsigned int
 ipa_single_use (void)

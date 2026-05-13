@@ -156,7 +156,7 @@ ipa_reference_var_uid (tree t)
 }
 
 /* Return ID used by ipa-reference bitmaps.  Create new entry if
-   T is not in map.  Set EXISTED accordinly  */
+   T is not in map.  Set EXISTED accordingly  */
 int
 ipa_reference_var_get_or_insert_uid (tree t, bool *existed)
 {
@@ -249,7 +249,7 @@ ipa_reference_get_written_global (struct cgraph_node *fn)
 }
 
 
-/* Hepler for is_proper_for_analysis.  */
+/* Helper for is_proper_for_analysis.  */
 static bool
 is_improper (symtab_node *n, void *v ATTRIBUTE_UNUSED)
 {
@@ -347,7 +347,7 @@ union_static_var_sets (bitmap &x, bitmap y)
 	     In that case, we want to make that visible explicitly.
 	     Even though bitmap_equal_p can be very expensive, it
 	     turns out to be an overall win to check this here for
-	     an LTO bootstrap of GCC itself.  Liberally extrapoliate
+	     an LTO bootstrap of GCC itself.  Liberally extrapolate
 	     that result to be applicable to all cases.  */
 	  if (bitmap_equal_p (x, all_module_statics))
 	    {

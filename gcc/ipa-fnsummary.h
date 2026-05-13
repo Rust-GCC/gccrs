@@ -191,7 +191,7 @@ public:
   auto_vec<size_time_entry> GTY((skip)) size_time_table;
   /* Unlike size_time_table that is initialized for all summaries
      call_size_time_table is allocated only for functions with
-     many calls.  Use effecient vl_ptr storage.  */
+     many calls.  Use efficient vl_ptr storage.  */
   vec<size_time_entry, va_heap, vl_ptr> GTY((skip)) call_size_time_table;
 
   /* Predicates on when some loops in the function can have known bounds.  */
@@ -440,11 +440,11 @@ void ipa_remove_from_growth_caches (struct cgraph_edge *edge);
 inline bool
 cross_module_call_p (struct cgraph_edge *edge)
 {
-  /* Here we do not want to walk to alias target becuase ICF may create
+  /* Here we do not want to walk to alias target because ICF may create
      cross-unit aliases.  */
   if (edge->caller->unit_id == edge->callee->unit_id)
     return false;
-  /* If the call is to a (former) comdat function or s symbol with mutiple
+  /* If the call is to a (former) comdat function or s symbol with multiple
      extern inline definitions then treat is as in-module call.  */
   if (edge->callee->merged_extern_inline || edge->callee->merged_comdat
       || DECL_COMDAT (edge->callee->decl))
