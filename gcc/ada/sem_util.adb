@@ -14768,7 +14768,7 @@ package body Sem_Util is
 
             --  Check if we are the actual of an explicitly aliased parameter
             --  of a function call. This specific case seems to be missing in
-            --  the RM 10.3.2(10.5/5) rule, but is necessary to propagate the
+            --  the RM 3.10.2(10.5/5) rule, but is necessary to propagate the
             --  master of the call down the chain of nested function calls.
 
             when N_Function_Call => declare

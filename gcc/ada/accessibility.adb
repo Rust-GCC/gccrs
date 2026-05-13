@@ -517,9 +517,12 @@ package body Accessibility is
          E := Expr;
       end if;
 
-      --  Extract the entity
+      --  Extract the entity when it is valid
 
-      if Nkind (E) in N_Has_Entity and then Present (Entity (E)) then
+      if Nkind (E) in N_Has_Entity
+        and then Present (Entity (E))
+        and then Entity (E) /= Any_Type
+      then
          E := Entity (E);
 
          --  Deal with a possible renaming of a private protected component
@@ -798,8 +801,6 @@ package body Accessibility is
          --  whereby there is an implicit dereference, a component of a
          --  composite type, or a function call in prefix notation.
 
-         --  We don't handle function calls in prefix notation correctly ???
-
          when N_Indexed_Component | N_Selected_Component | N_Slice =>
             Pre := Prefix (E);
 
@@ -807,10 +808,12 @@ package body Accessibility is
             --  of expanding a function call since we want to find the level
             --  of the original source call.
 
-            if not Comes_From_Source (Pre)
-              and then Nkind (Original_Node (Pre)) = N_Function_Call
-            then
-               Pre := Original_Node (Pre);
+            if not Comes_From_Source (Pre) then
+               if Nkind (Original_Node (Pre)) = N_Function_Call then
+                  Pre := Original_Node (Pre);
+               elsif Is_Captured_Function_Call (Pre) then
+                  Pre := Prefix (Constant_Value (Entity (Prefix (Pre))));
+               end if;
             end if;
 
             --  When E is an indexed component or selected component and
@@ -883,33 +886,30 @@ package body Accessibility is
                  Make_Level_Literal (Typ_Access_Level (Etype (Prefix (E))));
 
             --  The accessibility calculation routine that handles function
-            --  calls (Function_Call_Level) assumes, in the case the
-            --  result is of an anonymous access type, that the result will be
-            --  used "in its entirety" when the call is present within an
-            --  assignment or object declaration.
+            --  calls (Function_Call_Or_Allocator_Level) assumes, in the case
+            --  the result is not of a named access type, that the result will
+            --  be used "in its entirety" when the call is present within an
+            --  assignment or object declaration or return value.
 
             --  To properly handle cases where the result is not used in its
             --  entirety, we test if the prefix of the component in question is
             --  a function call, which tells us that one of its components has
-            --  been identified and is being accessed. Therefore we can
-            --  conclude that the result is not used "in its entirety"
-            --  according to RM 3.10.2 (10.2/3).
+            --  been identified and is being accessed.
 
             elsif Nkind (Pre) = N_Function_Call
               and then not Is_Named_Access_Type (Etype (Pre))
             then
-               --  Dynamic checks are generated when we are within a return
-               --  value or we are in a function call within an anonymous
-               --  access discriminant constraint of a return object (signified
-               --  by In_Return_Context) on the side of the callee.
+               --  Even if the result is not used "in it entirety", if the call
+               --  has an accessibility level tied to that of the result of the
+               --  enclosing function, it is nevertheless considered to define
+               --  the result for the purpose of determining its master and its
+               --  accessibility level by the RM 3.10.2(10.5/5) rule.
 
-               --  So, in this case, return a library accessibility level to
-               --  null out the check on the side of the caller.
-
-               if (In_Return_Value (E) or else In_Return_Context)
-                 and then Level /= Dynamic_Level
+               if (Ekind (Etype (Pre)) = E_Anonymous_Access_Type
+                    or else Has_Implicit_Dereference (Etype (Pre)))
+                 and then (In_Return_Value (E) or else In_Return_Context)
                then
-                  return Make_Level_Literal (Scope_Depth (Standard_Standard));
+                  return Function_Call_Or_Allocator_Level (Prefix (E));
                end if;
 
                return Make_Level_Literal (Innermost_Master_Scope_Depth (Expr));
@@ -1710,7 +1710,6 @@ package body Accessibility is
      (Return_Stmt : Node_Id;
       Stm_Entity  : Entity_Id)
    is
-      Loc      : constant Source_Ptr := Sloc (Return_Stmt);
       Scope_Id : constant Entity_Id  := Return_Applies_To (Stm_Entity);
 
       R_Type : constant Entity_Id := Etype (Scope_Id);
@@ -1718,12 +1717,6 @@ package body Accessibility is
 
       function First_Selector (Assoc : Node_Id) return Node_Id;
       --  Obtain the first selector or choice from a given association
-
-      function Is_Formal_Of_Current_Function
-        (Assoc_Expr : Node_Id) return Boolean;
-      --  Predicate to test if a given expression associated with a
-      --  discriminant is a formal parameter to the function in which the
-      --  return construct we checking applies to.
 
       --------------------
       -- First_Selector --
@@ -1742,19 +1735,6 @@ package body Accessibility is
          end if;
       end First_Selector;
 
-      -----------------------------------
-      -- Is_Formal_Of_Current_Function --
-      -----------------------------------
-
-      function Is_Formal_Of_Current_Function
-        (Assoc_Expr : Node_Id) return Boolean is
-      begin
-         return Is_Entity_Name (Assoc_Expr)
-                  and then Enclosing_Subprogram
-                             (Entity (Assoc_Expr)) = Scope_Id
-                  and then Is_Formal (Entity (Assoc_Expr));
-      end Is_Formal_Of_Current_Function;
-
       --  Local declarations
 
       Assoc : Node_Id := Empty;
@@ -1766,7 +1746,6 @@ package body Accessibility is
       Assoc_Expr    : Node_Id;
       Assoc_Present : Boolean := False;
 
-      Check_Cond        : Node_Id;
       Unseen_Disc_Count : Nat := 0;
       Seen_Discs        : Elist_Id;
       Disc              : Entity_Id;
@@ -2134,77 +2113,20 @@ package body Accessibility is
             Unseen_Disc_Count := Unseen_Disc_Count - 1;
          end if;
 
-         --  Check the accessibility level of the expression when the
+         --  Check the static accessibility level of the expression when the
          --  discriminant is of an anonymous access type.
 
          if Present (Assoc_Expr)
            and then Present (Disc)
            and then Ekind (Etype (Disc)) = E_Anonymous_Access_Type
-
-           --  We disable the check when we have a tagged return type and
-           --  the associated expression for the discriminant is a formal
-           --  parameter since the check would require us to compare the
-           --  accessibility level of Assoc_Expr to the level of the
-           --  Extra_Accessibility_Of_Result of the function - which is
-           --  currently disabled for functions with tagged return types.
-           --  This may change in the future ???
-
-           --  See Needs_Result_Accessibility_Level for details.
-
-           and then not
-             (No (Extra_Accessibility_Of_Result (Scope_Id))
-               and then Is_Formal_Of_Current_Function (Assoc_Expr)
-               and then Is_Tagged_Type (Etype (Scope_Id)))
-
-           --  Disable the check generation when we are only checking semantics
-           --  since required locals do not get generated (e.g. extra
-           --  accessibility of result), and constant folding can occur and
-           --  lead to spurious errors.
-
-           and then not Check_Semantics_Only_Mode
+           and then
+             Static_Accessibility_Level
+               (Assoc_Expr, Zero_On_Dynamic_Level, In_Return_Context => True)
+                 > Subprogram_Access_Level (Scope_Id)
          then
-            --  Generate a dynamic check based on the extra accessibility of
-            --  the result or the scope of the current function.
-
-            Check_Cond :=
-              Make_Op_Gt (Loc,
-                Left_Opnd  => Accessibility_Level
-                                (Expr              => Assoc_Expr,
-                                 Level             => Dynamic_Level,
-                                 In_Return_Context => True),
-                Right_Opnd =>
-                  (if Present (Extra_Accessibility_Of_Result (Scope_Id))
-
-                     --  When Assoc_Expr is a formal we have to look at the
-                     --  extra accessibility-level formal associated with
-                     --  the result.
-
-                     and then Is_Formal_Of_Current_Function (Assoc_Expr)
-                   then
-                      New_Occurrence_Of
-                        (Extra_Accessibility_Of_Result (Scope_Id), Loc)
-
-                   --  Otherwise, we compare the level of Assoc_Expr to the
-                   --  scope of the current function.
-
-                   else
-                      Make_Integer_Literal
-                        (Loc, Scope_Depth (Scope (Scope_Id)))));
-
-            Insert_Before_And_Analyze (Return_Stmt,
-              Make_Raise_Program_Error (Loc,
-                Condition => Check_Cond,
-                Reason    => PE_Accessibility_Check_Failed));
-
-            --  ??? Is this how we want to detect RM 6.5(5.9) violations?
-
-            if Nkind (Check_Cond) = N_Identifier
-              and then Entity (Check_Cond) = Standard_True
-            then
-               Error_Msg_N
-                 ("level of type of access discriminant value of return object"
-                    & " is statically too deep", Return_Stmt);
-            end if;
+            Error_Msg_N
+              ("level of type of access discriminant value of return object"
+               & " is statically too deep", Return_Stmt);
          end if;
 
          --  Iterate over the discriminants, except when we have encountered

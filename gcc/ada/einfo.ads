@@ -3072,8 +3072,8 @@ package Einfo is
 
 --    Is_Local_Anonymous_Access
 --       Defined in access types. Set for an anonymous access type to indicate
---       that the type is created for a record component with an access
---       definition, an array component, or (pre-Ada 2012) a standalone object.
+--       that the type is created for an array or record component with access
+--       definition, an access result, or (pre-Ada 2012) a standalone object.
 --       Such anonymous types have an accessibility level equal to that of the
 --       declaration in which they appear, unlike the anonymous access types
 --       that are created for access parameters, access discriminants, and

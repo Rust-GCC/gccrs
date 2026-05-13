@@ -335,6 +335,7 @@ package body Sem_Ch6 is
       --  because of arcane interactions with ghost generics.
 
       New_Spec := Copy_Subprogram_Spec (Spec);
+      Mutate_Ekind (Defining_Unit_Name (New_Spec), E_Subprogram_Body);
       if not In_Instance then
          Set_Comes_From_Source (Defining_Unit_Name (New_Spec));
       end if;

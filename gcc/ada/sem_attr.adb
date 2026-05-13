@@ -12252,27 +12252,6 @@ package body Sem_Attr is
 
             if Ekind (Btyp) in E_General_Access_Type | E_Anonymous_Access_Type
             then
-               --  Ada 2005 (AI-230): Check the accessibility of anonymous
-               --  access types for stand-alone objects, record and array
-               --  components, and return objects. For a component definition
-               --  the level is the same of the enclosing composite type.
-
-               if Ada_Version >= Ada_2005
-                 and then Attr_Id = Attribute_Access
-                 and then (Is_Local_Anonymous_Access (Btyp)
-
-                            --  Handle cases where Btyp is the anonymous access
-                            --  type of an Ada 2012 stand-alone object.
-
-                            or else Nkind (Associated_Node_For_Itype (Btyp)) =
-                                                        N_Object_Declaration)
-                 and then
-                   Static_Accessibility_Level (N, Zero_On_Dynamic_Level) >
-                     Deepest_Type_Access_Level (Btyp)
-               then
-                  Accessibility_Message (N, Typ);
-               end if;
-
                if Attr_Id /= Attribute_Unrestricted_Access
                  and then Is_Dependent_Component_Of_Mutable_Object (P)
                then
@@ -12410,41 +12389,51 @@ package body Sem_Attr is
                   end if;
                end if;
 
-               --  Check the static accessibility rule of 3.10.2(28). Note that
-               --  this check is not performed for the case of an anonymous
-               --  access type, since the access attribute is always legal
-               --  in such a context - unless the restriction
-               --  No_Dynamic_Accessibility_Checks is active.
+               --  Check the static accessibility rule of 3.10.2(28). In the
+               --  case of anonymous access types, only those of stand-alone
+               --  objects, components and results can be statically checked.
 
-               declare
-                  No_Dynamic_Acc_Checks : constant Boolean :=
-                    No_Dynamic_Accessibility_Checks_Enabled (Btyp);
+               if Attr_Id = Attribute_Access then
+                  declare
+                     No_Dynamic_Acc_Checks : constant Boolean :=
+                       No_Dynamic_Accessibility_Checks_Enabled (Btyp);
 
-                  Compatible_Alt_Checks : constant Boolean :=
-                    No_Dynamic_Acc_Checks and then not Debug_Flag_Underscore_B;
+                     Compatible_Alt_Checks : constant Boolean :=
+                       No_Dynamic_Acc_Checks
+                         and then not Debug_Flag_Underscore_B;
 
-               begin
-                  if Attr_Id = Attribute_Access
-                    and then (Ekind (Btyp) = E_General_Access_Type
-                               or else No_Dynamic_Acc_Checks)
+                  begin
+                     if (Ekind (Btyp) = E_General_Access_Type
+                          or else
+                            (Ada_Version >= Ada_2005
+                              and then
+                                (Is_Local_Anonymous_Access (Btyp)
 
-                    --  In the case of the alternate "compatibility"
-                    --  accessibility model we do not perform a static
-                    --  accessibility check on actuals for anonymous access
-                    --  types - so exclude them here.
+                                  --  Case where Btyp is the anonymous access
+                                  --  type of an Ada 2012 stand-alone object.
 
-                    and then not (Compatible_Alt_Checks
-                                   and then Is_Actual_Parameter (N)
-                                   and then Ekind (Btyp)
-                                              = E_Anonymous_Access_Type)
+                                  or else
+                                    Nkind (Associated_Node_For_Itype (Btyp)) =
+                                                        N_Object_Declaration)
 
-                    and then
-                      Static_Accessibility_Level (N, Zero_On_Dynamic_Level) >
-                        Deepest_Type_Access_Level (Btyp)
-                  then
-                     Accessibility_Message (N, Typ);
-                  end if;
-               end;
+                              --  In the case of the alternate "compatibility"
+                              --  accessibility model we do not make a static
+                              --  accessibility check on actuals for anonymous
+                              --  access types - so exclude them here.
+
+                              and then not (Compatible_Alt_Checks
+                                             and then Is_Actual_Parameter (N)))
+
+                          or else No_Dynamic_Acc_Checks)
+
+                       and then
+                         Static_Accessibility_Level (P, Zero_On_Dynamic_Level)
+                           > Deepest_Type_Access_Level (Btyp)
+                     then
+                        Accessibility_Message (N, Typ);
+                     end if;
+                  end;
+               end if;
             end if;
 
             if Ekind (Btyp) in Access_Protected_Kind then
