@@ -407,7 +407,7 @@ private:
   // MAX_RECOG_OPERANDS is the maximum number of pseudos that can be
   // defined by an instruction, so the number of definitions in a real
   // instruction should fit easily in 16 bits.  However, there are no
-  // limits on the number of definitions in artifical instructions.
+  // limits on the number of definitions in artificial instructions.
   unsigned int m_num_uses;
   unsigned int m_num_defs;
 

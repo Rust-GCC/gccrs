@@ -153,7 +153,7 @@ public:
   // scope until the change has been aborted or successfully completed.
   obstack_watermark new_change_attempt () { return &m_temp_obstack; }
 
-  // SET and INSN belong to the same EBB, with SET occuring before INSN.
+  // SET and INSN belong to the same EBB, with SET occurring before INSN.
   // Return true if SET is still available at INSN.
   bool remains_available_at_insn (const set_info *set, insn_info *insn);
 
@@ -166,7 +166,7 @@ public:
   // available on entry to BB, without solving a full dataflow problem.
   // If all the values are already live on entry to BB or can be made
   // available there, return a use_array that describes the uses as
-  // if they occured at the start of BB.  These uses are purely temporary,
+  // if they occurred at the start of BB.  These uses are purely temporary,
   // and will not become permanent unless applied using change_insns.
   //
   // If the operation fails, return an invalid use_array.

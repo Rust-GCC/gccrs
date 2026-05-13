@@ -523,7 +523,7 @@ function_info::record_use (build_info &bi, insn_info *insn,
       // actually correct.
       auto value_is_valid = [&]()
 	{
-	  // Memmory always has a valid definition.
+	  // Memory always has a valid definition.
 	  if (ref.is_mem ())
 	    return true;
 

@@ -19,7 +19,7 @@
 
 namespace rtl_ssa {
 
-// Return a referene to the whole of register REGNO.
+// Return a reference to the whole of register REGNO.
 inline resource_info
 full_register (unsigned int regno)
 {
@@ -79,7 +79,7 @@ drop_memory_access (T accesses)
 }
 
 // Filter ACCESSES to return an access_array of only those accesses that
-// satisfy PREDICATE.  Alocate the new array above WATERMARK.
+// satisfy PREDICATE.  Allocate the new array above WATERMARK.
 template<typename T, typename FilterPredicate>
 inline T
 filter_accesses (obstack_watermark &watermark,

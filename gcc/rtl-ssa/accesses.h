@@ -664,7 +664,7 @@ using clobber_tree = clobber_info::splay_tree::rooted;
 //   which it dies, otherwise there is a fake live-out use at the end of
 //   the EBB.
 //
-// Since debug instructions should not affect codegen, they opportunisticly
+// Since debug instructions should not affect codegen, they opportunistically
 // attach to the same set_info as nondebug instructions where possible.
 // If a nondebug instruction would attach to a degenerate phi and if no
 // such phi exists, debug instructions instead attach to whichever set_info
