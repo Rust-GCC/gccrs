@@ -8536,10 +8536,13 @@ vectorizable_store (vec_info *vinfo,
 	}
 
       if (costing_p)
-	/* Record the decomposition type for target access during costing.  */
-	ls.ls_type = lvectype;
+	{
+	  /* Record the decomposition type for target access during costing.  */
+	  ls.ls_type = lvectype;
+	  ls.ls_eltype = ltype;
+	}
       else
-	gcc_assert (ls.ls_type == lvectype);
+	gcc_assert (ls.ls_type == lvectype && ls.ls_eltype == ltype);
 
       unsigned align;
       if (alignment_support_scheme == dr_aligned)
@@ -10335,10 +10338,13 @@ vectorizable_load (vec_info *vinfo,
 	}
 
       if (costing_p)
-	/* Record the composition type for target access during costing.  */
-	ls.ls_type = lvectype;
+	{
+	  /* Record the composition type for target access during costing.  */
+	  ls.ls_type = lvectype;
+	  ls.ls_eltype = ltype;
+	}
       else
-	gcc_assert (ls.ls_type == lvectype);
+	gcc_assert (ls.ls_type == lvectype && ls.ls_eltype == ltype);
 
       /* For SLP permutation support we need to load the whole group,
 	 not only the number of vector stmts the permutation result

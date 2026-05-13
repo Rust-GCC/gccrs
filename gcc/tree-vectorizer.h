@@ -293,7 +293,10 @@ struct vect_load_store_data : vect_data {
   } gs;
   tree strided_offset_vectype; // VMAT_GATHER_SCATTER_IFN, originally strided
   /* Load/store type with larger element mode used for punning the vectype.  */
-  tree ls_type; // VMAT_GATHER_SCATTER_IFN
+  tree ls_type; // VMAT_GATHER_SCATTER_IFN, VMAT_STRIDED_SLP
+  /* Load/store element type used for punning the vectype.  Relevant when
+     that is a vector type.  */
+  tree ls_eltype; // VMAT_STRIDED_SLP
   /* This is set to a supported offset vector type if we don't support the
      originally requested offset type, otherwise NULL.
      If nonzero there will be an additional offset conversion before
