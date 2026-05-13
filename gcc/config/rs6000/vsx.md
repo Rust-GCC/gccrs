@@ -6547,25 +6547,19 @@
    (set_attr "size" "<bits>")])
 
 (define_insn "smul<mode>3_highpart"
-  [(set (match_operand:VIlong 0 "vsx_register_operand" "=v")
-	(mult:VIlong (ashiftrt
-		       (match_operand:VIlong 1 "vsx_register_operand" "v")
-		       (const_int 32))
-		     (ashiftrt
-		       (match_operand:VIlong 2 "vsx_register_operand" "v")
-		       (const_int 32))))]
+  [(set (match_operand:VIlong 0 "altivec_register_operand" "=v")
+	(smul_highpart:VIlong
+	  (match_operand:VIlong 1 "altivec_register_operand" "v")
+	  (match_operand:VIlong 2 "altivec_register_operand" "v")))]
   "TARGET_POWER10"
   "vmulhs<wd> %0,%1,%2"
   [(set_attr "type" "veccomplex")])
 
 (define_insn "umul<mode>3_highpart"
-  [(set (match_operand:VIlong 0 "vsx_register_operand" "=v")
-	(us_mult:VIlong (ashiftrt
-			  (match_operand:VIlong 1 "vsx_register_operand" "v")
-			  (const_int 32))
-			(ashiftrt
-			  (match_operand:VIlong 2 "vsx_register_operand" "v")
-			  (const_int 32))))]
+  [(set (match_operand:VIlong 0 "altivec_register_operand" "=v")
+	(umul_highpart:VIlong
+	  (match_operand:VIlong 1 "altivec_register_operand" "v")
+	  (match_operand:VIlong 2 "altivec_register_operand" "v")))]
   "TARGET_POWER10"
   "vmulhu<wd> %0,%1,%2"
   [(set_attr "type" "veccomplex")])
