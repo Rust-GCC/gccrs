@@ -10,9 +10,9 @@ foo (int n)
 {
   struct [[nodiscard]] S1 {};
   struct [[nodiscard ("foobar")]] S2 {};
-  struct [[nodiscard (0)]] S3 {};		// { dg-error "'nodiscard' attribute argument must be a string constant" }
+  struct [[nodiscard (0)]] S3 {};		// { dg-error "'nodiscard' attribute argument must be a string constant|expected string-literal" }
   struct [[nodiscard ("foo", "bar", "baz")]] S4 {};	// { dg-error "wrong number of arguments specified for 'nodiscard' attribute" }
-  struct [[nodiscard (0, 1, 2)]] S5 {};		// { dg-error "wrong number of arguments specified for 'nodiscard' attribute" }
+  struct [[nodiscard (0, 1, 2)]] S5 {};		// { dg-error "wrong number of arguments specified for 'nodiscard' attribute|expected string-literal" }
 
   auto a = [] [[nodiscard]] () {};
   auto b = [] constexpr [[nodiscard]] {};	// { dg-warning "'nodiscard' attribute can only be applied to functions or to class or enumeration types" }

@@ -30295,7 +30295,13 @@ cp_parser_class_head (cp_parser* parser,
   location_t class_head_start_location = input_location;
 
   /* Parse the attributes.  */
+  /* Save tokens for some unhandled error (PR123609).  */
+  cp_token_position attribute_error_position = 0;
+  if (!cp_parser_error_occurred (parser))
+    attribute_error_position = cp_lexer_token_position (parser->lexer, false);
   attributes = cp_parser_attributes_opt (parser);
+  if (!cp_parser_error_occurred (parser))
+    attribute_error_position = 0;
 
   /* If the next token is `::', that is invalid -- but sometimes
      people do try to write:
@@ -30437,6 +30443,15 @@ cp_parser_class_head (cp_parser* parser,
   /* At this point, we're going ahead with the class-specifier, even
      if some other problem occurs.  */
   cp_parser_commit_to_tentative_parse (parser);
+  /* Some errors while parsing attributes are ignored due to tentative parsing,
+     redo parsing to reject it.  */
+  if (attribute_error_position)
+    {
+      auto current_position = cp_lexer_token_position (parser->lexer, false);
+      cp_lexer_set_token_position (parser->lexer, attribute_error_position);
+      cp_parser_attributes_opt (parser);
+      cp_lexer_set_token_position (parser->lexer, current_position);
+    }
   /* Issue the error about the overly-qualified name now.  */
   if (qualified_p)
     {
