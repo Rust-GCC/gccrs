@@ -287,7 +287,7 @@ get_constraint_for_ssa_var (tree t, vec<ce_s> *results, bool address_p)
   cexpr.offset = 0;
 
   /* If we are not taking the address of the constraint expr, add all
-     sub-fiels of the variable as well.  */
+     sub-fields of the variable as well.  */
   if (!address_p
       && !vi->is_full_var)
     {
@@ -2500,7 +2500,7 @@ find_func_clobbers (struct function *fn, gimple *origt)
 	}
     }
 
-  /* Account for uses in assigments and returns.  */
+  /* Account for uses in assignments and returns.  */
   if (gimple_assign_single_p (t)
       || (gimple_code (t) == GIMPLE_RETURN
 	  && gimple_return_retval (as_a <greturn *> (t)) != NULL_TREE))
@@ -3487,7 +3487,7 @@ static unsigned int
 create_variable_info_for (tree decl, const char *name, bool add_id)
 {
   /* First see if we are dealing with an ifunc resolver call and
-     assiociate that with a call to the resolver function result.  */
+     associate that with a call to the resolver function result.  */
   cgraph_node *node;
   if (in_ipa_mode
       && TREE_CODE (decl) == FUNCTION_DECL
@@ -3856,7 +3856,7 @@ associate_varinfo_to_alias (struct cgraph_node *node, void *data)
   return false;
 }
 
-/* Compute whether node is refered to non-locally.  Worker for
+/* Compute whether node is referred to non-locally.  Worker for
    cgraph_for_symbol_thunks_and_aliases.  */
 static bool
 refered_from_nonlocal_fn (struct cgraph_node *node, void *data)

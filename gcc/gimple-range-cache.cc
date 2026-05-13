@@ -185,7 +185,7 @@ sbr_vector::bb_range_p (const_basic_block bb)
   return false;
 }
 
-// Like an sbr_vector, except it uses a bitmap to manage whetehr  vale is set
+// Like an sbr_vector, except it uses a bitmap to manage whether value is set
 // or not rather than cleared memory.
 
 class sbr_lazy_vector : public sbr_vector
@@ -404,7 +404,7 @@ block_range_cache::set_bb_range (tree name, const_basic_block bb,
 	}
       else if (last_basic_block_for_fn (cfun) < param_vrp_vector_threshold)
 	{
-	  // For small CFGs use the basic vector implemntation.
+	  // For small CFGs use the basic vector implementation.
 	  void *r = m_range_allocator->alloc (sizeof (sbr_vector));
 	  m_ssa_ranges[v] = new (r) sbr_vector (TREE_TYPE (name),
 						m_range_allocator);

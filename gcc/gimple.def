@@ -192,7 +192,7 @@ DEFGSCODE(GIMPLE_PHI, "gimple_phi", GSS_PHI)
    EVAL is the sequence of statements to execute on entry to GIMPLE_TRY.
 
    CLEANUP is the sequence of statements to execute according to
-   TRY_KIND.  If TRY_KIND is GIMPLE_TRY_CATCH, CLEANUP is only exected
+   TRY_KIND.  If TRY_KIND is GIMPLE_TRY_CATCH, CLEANUP is only executed
    if an exception is thrown during execution of EVAL.  If TRY_KIND is
    GIMPLE_TRY_FINALLY, CLEANUP is always executed after executing EVAL
    (regardless of whether EVAL finished normally, or jumped out or an

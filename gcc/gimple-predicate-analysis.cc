@@ -209,7 +209,7 @@ static bool
 find_matching_predicate_in_rest_chains (const pred_info &pred,
 					const pred_chain_union &preds)
 {
-  /* Trival case.  */
+  /* Trivial case.  */
   if (preds.length () == 1)
     return true;
 
@@ -243,7 +243,7 @@ find_matching_predicate_in_rest_chains (const pred_info &pred,
    is no predicate of the "FLAG_VAR CMP CONST" form, try to find one
    of that's the form "FLAG_VAR CMP FLAG_VAR" with value range info.
    PHI is the phi node whose incoming (interesting) paths need to be
-   examined.  On success, return the comparison code, set defintion
+   examined.  On success, return the comparison code, set definition
    gimple of FLAG_DEF and BOUNDARY_CST.  Otherwise return ERROR_MARK.
    I is the running iterator so the function can be called repeatedly
    to gather all candidates.  */
@@ -550,7 +550,7 @@ uninit_analysis::func_t::phi_arg_set (gphi *phi)
 }
 
 /* Determine if the predicate set of the use does not overlap with that
-   of the interesting paths.  The most common senario of guarded use is
+   of the interesting paths.  The most common scenario of guarded use is
    in Example 1:
      Example 1:
 	   if (some_cond)
@@ -1980,7 +1980,7 @@ predicate::dump (FILE *f, gimple *stmt, const char *msg) const
 }
 
 /* Initialize USE_PREDS with the predicates of the control dependence chains
-   between the basic block DEF_BB that defines a variable of interst and
+   between the basic block DEF_BB that defines a variable of interest and
    USE_BB that uses the variable, respectively.  */
 
 bool

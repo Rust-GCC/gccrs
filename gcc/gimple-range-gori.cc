@@ -657,7 +657,7 @@ gori_compute::compute_operand_range (vrange &r, gimple *stmt,
   tree op1 = gimple_range_ssa_p (handler.operand1 ());
   tree op2 = gimple_range_ssa_p (handler.operand2 ());
 
-  // If there is a relation betwen op1 and op2, use it instead as it is
+  // If there is a relation between op1 and op2, use it instead as it is
   // likely to be more applicable.
   if (op1 && op2)
     {
@@ -1596,7 +1596,7 @@ gori_stmt_info::gori_stmt_info (vrange &lhs, gimple *stmt, range_query *q)
       src.get_operand (op1_range, op1);
     }
 
-  // And satisfy the second operand for single op satements.
+  // And satisfy the second operand for single op statements.
   if (op2)
     {
       op2_range.set_range_class (TREE_TYPE (op2));
@@ -1632,7 +1632,7 @@ gori_calc_operands (vrange &lhs, gimple *stmt, ssa_cache &r, range_query *q)
 	{
 	  r.set_range (si.ssa1, si.op1_range);
 	  gimple *src = SSA_NAME_DEF_STMT (si.ssa1);
-	  // If defintion is in the same basic lock, evaluate it.
+	  // If definition is in the same basic block, evaluate it.
 	  if (src && gimple_bb (src) == gimple_bb (stmt))
 	    gori_calc_operands (si.op1_range, src, r, q);
 	}
@@ -1654,7 +1654,7 @@ gori_calc_operands (vrange &lhs, gimple *stmt, ssa_cache &r, range_query *q)
 }
 
 // Use ssa_cache R as a repository for all outgoing ranges on edge E that
-// can be calculated.  Use Q to establish starting edge ranges anbd to resolve
+// can be calculated.  Use Q to establish starting edge ranges and to resolve
 // operand values.  If Q is NULL use the current range
 // query available to the system.
 
@@ -1676,7 +1676,7 @@ gori_on_edge (ssa_cache &r, edge e, range_query *q)
 
 // Helper for GORI_NAME_ON_EDGE which uses query Q to determine if STMT
 // provides a range for NAME, and returns it in R if so. If it does not,
-// continue processing feeding statments until we run out of statements
+// continue processing feeding statements until we run out of statements
 // or fine a range for NAME.
 
 bool
@@ -1701,7 +1701,7 @@ gori_name_helper (vrange &r, tree name, vrange &lhs, gimple *stmt,
       if (si.calc_op1 (tmp, lhs, si.op2_range))
 	si.op1_range.intersect (tmp);
       gimple *src = SSA_NAME_DEF_STMT (si.ssa1);
-      // If defintion is in the same basic lock, evaluate it.
+      // If definition is in the same basic block, evaluate it.
       if (src && gimple_bb (src) == gimple_bb (stmt))
 	if (gori_name_helper (r, name, si.op1_range, src, q))
 	  return true;

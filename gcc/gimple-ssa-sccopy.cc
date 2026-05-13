@@ -70,11 +70,11 @@ along with GCC; see the file COPYING3.  If not see
    and replace references to the statement with the value -- we propagate the
    copy.
 
-   _3 = _2; // Replace all occurences of _3 by _2
+   _3 = _2; // Replace all occurrences of _3 by _2
 
    _8 = PHI <_9, _10>;
    _9 = PHI <_8, _10>;
-   _10 = PHI <_8, _9, _1>; // Replace all occurences of _8, _9 and _10 by _1
+   _10 = PHI <_8, _9, _1>; // Replace all occurrences of _8, _9 and _10 by _1
 
    To find all three types of copy statements we use an algorithm based on
    strongly-connected components (SCCs) in dataflow graph.  The algorithm was

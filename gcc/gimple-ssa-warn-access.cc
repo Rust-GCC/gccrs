@@ -133,7 +133,7 @@ call_arg (tree expr, unsigned argno)
    with an argument that is a character array with no terminating
    NUL.  SIZE is the EXACT size of the array, and BNDRNG the number
    of characters in which the NUL is expected.  Either EXPR or FNAME
-   may be null but noth both.  SIZE may be null when BNDRNG is null.  */
+   may be null but not both.  SIZE may be null when BNDRNG is null.  */
 
 template <class GimpleOrTree>
 static void

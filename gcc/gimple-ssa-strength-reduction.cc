@@ -453,7 +453,7 @@ static hash_map<tree, name_expansion *> *name_expansions;
 /* Pointer map embodying a mapping from bases to alternative bases.  */
 static hash_map<tree, tree> *alt_base_map;
 
-/* Given BASE, use the tree affine combiniation facilities to
+/* Given BASE, use the tree affine combination facilities to
    find the underlying tree expression for BASE, with any
    immediate offset excluded.
 

@@ -665,7 +665,7 @@ crc_optimization::set_defs (tree name, auto_vec<gimple *> &use_defs,
       return true;
     }
 
-  /* Return false for other than assigment and phi statement.  */
+  /* Return false for other than assignment and phi statement.  */
   return false;
 }
 

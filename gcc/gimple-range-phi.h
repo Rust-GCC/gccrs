@@ -24,7 +24,7 @@ along with GCC; see the file COPYING3.  If not see
 // -------------------------------------------------------------------------
 
 // A PHI_GROUP consists of a set of SSA_NAMES which are all PHI_DEFS, and
-// their arguemnts contain nothing but other PHI defintions, with at most
+// their arguments contain nothing but other PHI definitions, with at most
 // 2 exceptions:
 //  1 - An initial value.  This is either a constant, or another non-phi name
 //      with a single incoming edge to the cycle group
@@ -33,7 +33,7 @@ along with GCC; see the file COPYING3.  If not see
 //  to determine the other bound.
 //  All members of the PHI cycle will be given the same range.
 //
-// For example, given the follwoing sequences:
+// For example, given the following sequences:
 // qa_20 = qa_10 + 1;
 // qa_9 = PHI <qa_10(3), qa_20(4)>
 // qa_10 = PHI <0(2), qa_9(5)>
@@ -68,8 +68,8 @@ protected:
   friend class phi_analyzer;
 };
 
-// The phi anlyzer will return the group that name belongs to.
-// If inforamtion is not known about a name yet, analysis is conducted by
+// The phi analyzer will return the group that name belongs to.
+// If information is not known about a name yet, analysis is conducted by
 // looking at the arguments to PHIS and following them to their defs to
 // determine whether the conditions are met to form a new group.
 

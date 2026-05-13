@@ -167,7 +167,7 @@ trailing_array (tree arg, tree *pref)
 
 /* Acquire the upper bound and upper bound plus one for the array
    reference REF and record them into UP_BOUND and UP_BOUND_P1.
-   Set *DECL to the decl or expresssion REF refers to.  */
+   Set *DECL to the decl or expression REF refers to.  */
 
 static void
 get_up_bounds_for_array_ref (tree ref, tree *decl,

@@ -415,7 +415,7 @@ try_conditional_simplification (internal_fn ifn, gimple_match_op *res_op,
 
   unsigned int num_ops = res_op->num_ops;
   /* num_cond_ops = 2 for COND_ADD (MASK and ELSE)
-     wheras num_cond_ops = 4 for COND_LEN_ADD (MASK, ELSE, LEN and BIAS).  */
+     whereas num_cond_ops = 4 for COND_LEN_ADD (MASK, ELSE, LEN and BIAS).  */
   unsigned int num_cond_ops = len_index < 0 ? 2 : 4;
   tree else_value
     = len_index < 0 ? res_op->ops[num_ops - 1] : res_op->ops[num_ops - 3];

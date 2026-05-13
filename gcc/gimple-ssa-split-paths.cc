@@ -130,7 +130,7 @@ count_stmts_in_block (basic_block bb)
 }
 
 /* Return TRUE if CODE represents a tree code that is not likely to
-   be easily if-convertable because it likely expands into multiple
+   be easily if-convertible because it likely expands into multiple
    insns, FALSE otherwise.  */
 static bool
 poor_ifcvt_candidate_code (enum tree_code code)
@@ -191,7 +191,7 @@ poor_ifcvt_pred (basic_block pred, basic_block bb)
      jump rather than CSE/DCE opportunities.  So favor duplicating
      small latches.  A latch with just a conditional branch is ideal.
 
-     CSE/DCE opportunties crop up when statements from the predecessors
+     CSE/DCE opportunities crop up when statements from the predecessors
      feed statements in the latch and allow statements in the latch to
      simplify.  */
 
@@ -213,7 +213,7 @@ is_feasible_trace (basic_block bb)
       if (dump_file && (dump_flags & TDF_DETAILS))
 	fprintf (dump_file,
 		 "Duplicating block %d would duplicate "
-		 "too many statments: %d >= %d\n",
+		 "too many statements: %d >= %d\n",
 		 bb->index, num_stmts_in_join,
 		 param_max_jump_thread_duplication_stmts);
       return false;
@@ -241,7 +241,7 @@ is_feasible_trace (basic_block bb)
 	  if (dump_file && (dump_flags & TDF_DETAILS))
 	    fprintf (dump_file,
 		     "Block %d appears to be a join point for "
-		     "if-convertable bbs.\n",
+		     "if-convertible bbs.\n",
 		     bb->index);
 	  return false;
 	}

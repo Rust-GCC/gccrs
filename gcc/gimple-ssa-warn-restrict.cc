@@ -696,7 +696,7 @@ builtin_memref::offset_out_of_bounds (int strict, offset_int ooboff[3]) const
 }
 
 /* Create an association between the memory references DST and SRC
-   for access by a call EXPR to a memory or string built-in funtion.  */
+   for access by a call EXPR to a memory or string built-in function.  */
 
 builtin_access::builtin_access (pointer_query &ptrqry, gimple *call,
 				builtin_memref &dst,
@@ -977,7 +977,7 @@ builtin_access::overlap_size (const offset_int a[2], const offset_int b[2],
   return q[1] - p[0];
 }
 
-/* Return true if the bounded mempry (memcpy amd similar) or string function
+/* Return true if the bounded memory (memcpy amd similar) or string function
    access (strncpy and similar) ACS overlaps.  */
 
 bool
@@ -1817,7 +1817,7 @@ maybe_diag_access_bounds (gimple *call, tree func, int strict,
   else if (oobref == ref.base)
     {
       /* True when the offset formed by an access to the reference
-	 is out of bounds, rather than the initial offset wich is
+	 is out of bounds, rather than the initial offset which is
 	 in bounds.  This implies access past the end.  */
       bool form = ooboff[0] != ref.offrange[0];
 

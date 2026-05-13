@@ -125,7 +125,7 @@ class uninit_analysis
 
     /* Return a bitset of PHI arguments of interest.  By default returns
        bitset with a bit set for each argument.  Should be called in
-       the overriden function first and, if nonzero, the result then
+       the overridden function first and, if nonzero, the result then
        refined as appropriate.  */
     virtual phi_arg_set_t phi_arg_set (gphi *);
 

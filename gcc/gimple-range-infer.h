@@ -38,7 +38,7 @@ along with GCC; see the file COPYING3.  If not see
 //      read-only query and prevents any additional lookup.
 //   USE_RANGEOPS is a boolean flag which defaults to false.  if TRUE,
 //      range-ops is invoked to see if any additional side effects are seen
-//      based on the stmt.  ie .x = y * 2 will reigster a side effect for Y
+//      based on the stmt.  ie .x = y * 2 will register a side effect for Y
 //      which is [-INF/2 , +INF/2].  It is not on by default because it
 //      is a relatively expensive operation to do on every statement, and
 //      ranger will already incorporate that range for Y via GORI most of the
@@ -78,7 +78,7 @@ private:
   friend class non_null_wrapper;
 };
 
-// This is the basic infer oracle API.  Default functionaility does nothing.
+// This is the basic infer oracle API.  Default functionality does nothing.
 
 class infer_range_oracle
 {
@@ -101,7 +101,7 @@ public:
 // will want to use. Ranger invokes it with the cache's internal query which
 // can provide better ranges during a DOM walk.
 //
-// add_ranges is used to add inferred range IR assocaited with stmt S.
+// add_ranges is used to add inferred range IR associated with stmt S.
 // has_range_p is used to check if NAME has an inferred range in block BB.
 // maybe_adjust_range will adjust the range R to incorporate any inferred
 //   range NAME may have in block BB.  If there are on inferred ranges in

@@ -552,7 +552,7 @@ tree_loop_unroll_and_jam (void)
 	{
 	  struct data_reference *dra, *drb;
 
-	  /* If the refs are independend there's nothing to do.  */
+	  /* If the refs are independent there's nothing to do.  */
 	  if (DDR_ARE_DEPENDENT (ddr) == chrec_known)
 	    continue;
 

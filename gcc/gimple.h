@@ -4009,7 +4009,7 @@ gimple_goto_dest (const gimple *gs)
 }
 
 
-/* Set DEST to be the destination of the unconditonal jump GS.  */
+/* Set DEST to be the destination of the unconditional jump GS.  */
 
 inline void
 gimple_goto_set_dest (ggoto *gs, tree dest)

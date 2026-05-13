@@ -101,7 +101,7 @@ get_range_strlen (tree, bitmap, strlen_range_kind, c_strlen_data *, unsigned);
 	in other units.  Those methods have both STATIC and EXTERNAL
 	set.
      2) In WHOPR mode devirtualization might lead to reference
-	to method that was partitioned elsehwere.
+	to method that was partitioned elsewhere.
 	In this case we have static VAR_DECL or FUNCTION_DECL
 	that has no corresponding callgraph/varpool node
 	declaring the body.
@@ -155,7 +155,7 @@ can_refer_decl_in_current_unit_p (tree decl, tree from_decl)
 	  && (vnode = varpool_node::get (from_decl)) != NULL
 	  && vnode->in_other_partition))
     return true;
-  /* We are folding reference from external vtable.  The vtable may reffer
+  /* We are folding reference from external vtable.  The vtable may refer
      to a symbol keyed to other compilation unit.  The other compilation
      unit may be in separate DSO and the symbol may be hidden.  */
   if (DECL_VISIBILITY_SPECIFIED (decl)
@@ -165,7 +165,7 @@ can_refer_decl_in_current_unit_p (tree decl, tree from_decl)
     return false;
   /* When function is public, we always can introduce new reference.
      Exception are the COMDAT functions where introducing a direct
-     reference imply need to include function body in the curren tunit.  */
+     reference imply need to include function body in the current unit.  */
   if (TREE_PUBLIC (decl) && !DECL_COMDAT (decl))
     return true;
   /* We have COMDAT.  We are going to check if we still have definition
@@ -1399,7 +1399,7 @@ gimple_fold_builtin_bcopy (gimple_stmt_iterator *gsi)
     return false;
 
   /* bcopy has been removed from POSIX in Issue 7 but Issue 6 specifies
-     it's quivalent to memmove (not memcpy).  Transform bcopy (src, dest,
+     it's equivalent to memmove (not memcpy).  Transform bcopy (src, dest,
      len) into memmove (dest, src, len).  */
 
   gimple *stmt = gsi_stmt (*gsi);
@@ -1848,7 +1848,7 @@ get_range_strlen_tree (tree arg, bitmap visited, strlen_range_kind rkind,
 }
 
 /* For an ARG referencing one or more strings, try to obtain the range
-   of their lengths, or the size of the largest array ARG referes to if
+   of their lengths, or the size of the largest array ARG refers to if
    the range of lengths cannot be determined, and store all in *PDATA.
    For an integer ARG (when RKIND == SRK_INT_VALUE), try to determine
    the maximum constant value.
@@ -1860,7 +1860,7 @@ get_range_strlen_tree (tree arg, bitmap visited, strlen_range_kind rkind,
    strlen_range_kind).
    Set PDATA->DECL if ARG refers to an unterminated constant array.
    On input, set ELTSIZE to 1 for normal single byte character strings,
-   and either 2 or 4 for wide characer strings (the size of wchar_t).
+   and either 2 or 4 for wide character strings (the size of wchar_t).
    Return true if *PDATA was successfully populated and false otherwise.  */
 
 static bool
@@ -3288,7 +3288,7 @@ gimple_fold_builtin_stpcpy (gimple_stmt_iterator *gsi)
 
   /* Set to non-null if ARG refers to an unterminated array.  */
   c_strlen_data data = { };
-  /* The size of the unterminated array if SRC referes to one.  */
+  /* The size of the unterminated array if SRC refers to one.  */
   tree size;
   /* True if the size is exact/constant, false if it's the lower bound
      of a range.  */
@@ -6943,7 +6943,7 @@ fold_stmt_1 (gimple_stmt_iterator *gsi, bool inplace, tree (*valueize) (tree),
 		if (is_logical_not == false)
 		  gimple_assign_set_rhs_with_ops (gsi, TREE_CODE (op1), op1);
 		/* Only for one-bit precision typed X the transformation
-		   !X -> ~X is valied.  */
+		   !X -> ~X is valid.  */
 		else if (TYPE_PRECISION (type) == 1)
 		  gimple_assign_set_rhs_with_ops (gsi, BIT_NOT_EXPR, op1);
 		/* Otherwise we use !X -> X ^ 1.  */
@@ -8485,7 +8485,7 @@ fold_truth_andor_for_ifcombine (enum tree_code code, tree truth_type,
   /* If the mask encompassed extensions of the sign bit before
      clipping, try to include the sign bit in the test.  If we're not
      comparing with zero, don't even try to deal with it (for now?).
-     If we've already commited to a sign test, the extended (before
+     If we've already committed to a sign test, the extended (before
      clipping) mask could already be messing with it.  */
   if (ll_signbit)
     {
@@ -9860,7 +9860,7 @@ gimple_fold_stmt_to_constant (gimple *stmt, tree (*valueize) (tree))
    their constant initializers.  */
 
 /* See if we can find constructor defining value of BASE.
-   When we know the consructor with constant offset (such as
+   When we know the constructor with constant offset (such as
    base is array[40] and we do know constructor of array), then
    BIT_OFFSET is adjusted accordingly.
 
@@ -10536,7 +10536,7 @@ fold_const_aggregate_ref (tree t)
 /* Lookup virtual method with index TOKEN in a virtual table V
    at OFFSET.
    Set CAN_REFER if non-NULL to false if method
-   is not referable or if the virtual table is ill-formed (such as rewriten
+   is not referable or if the virtual table is ill-formed (such as rewritten
    by non-C++ produced symbol). Otherwise just return NULL in that calse.  */
 
 tree
@@ -10565,7 +10565,7 @@ gimple_get_virt_method_for_vtable (HOST_WIDE_INT token,
   init = ctor_for_folding (v);
 
   /* The virtual tables should always be born with constructors
-     and we always should assume that they are avaialble for
+     and we always should assume that they are available for
      folding.  At the moment we do not stream them in all cases,
      but it should never happen that ctor seem unreachable.  */
   gcc_assert (init);
@@ -10597,7 +10597,7 @@ gimple_get_virt_method_for_vtable (HOST_WIDE_INT token,
   gcc_checking_assert (offset % (elt_size * BITS_PER_UNIT) == 0);
 
   /* This code makes an assumption that there are no
-     indexed fileds produced by C++ FE, so we can directly index the array.  */
+     indexed fields produced by C++ FE, so we can directly index the array.  */
   if (access_index < CONSTRUCTOR_NELTS (init))
     {
       fn = CONSTRUCTOR_ELT (init, access_index)->value;
@@ -10647,7 +10647,7 @@ gimple_get_virt_method_for_vtable (HOST_WIDE_INT token,
    KNOWN_BINFO carries the binfo describing the true type of
    OBJ_TYPE_REF_OBJECT(REF).
    Set CAN_REFER if non-NULL to false if method
-   is not referable or if the virtual table is ill-formed (such as rewriten
+   is not referable or if the virtual table is ill-formed (such as rewritten
    by non-C++ produced symbol). Otherwise just return NULL in that calse.  */
 
 tree
@@ -10880,7 +10880,7 @@ rewrite_to_defined_unconditional (gimple_stmt_iterator *gsi, gimple *stmt,
   gcc_assert (gimple_needing_rewrite_undefined (stmt));
   if (dump_file && (dump_flags & TDF_DETAILS))
     {
-      fprintf (dump_file, "rewriting stmt for being uncondtional defined");
+      fprintf (dump_file, "rewriting stmt for being unconditional defined");
       print_gimple_stmt (dump_file, stmt, 0, TDF_SLIM);
     }
   gimple_seq stmts = NULL;
@@ -11324,7 +11324,7 @@ gimple_build (gimple_stmt_iterator *gsi,
 }
 
 /* Build the conversion (TYPE) OP with a result of type TYPE
-   with location LOC if such conversion is neccesary in GIMPLE,
+   with location LOC if such conversion is necessary in GIMPLE,
    simplifying it first.
    Returns the built expression inserting any new statements
    at GSI honoring BEFORE and UPDATE.  */
@@ -11341,7 +11341,7 @@ gimple_convert (gimple_stmt_iterator *gsi,
 
 /* Build the conversion (ptrofftype) OP with a result of a type
    compatible with ptrofftype with location LOC if such conversion
-   is neccesary in GIMPLE, simplifying it first.
+   is necessary in GIMPLE, simplifying it first.
    Returns the built expression value inserting any new statements
    at GSI honoring BEFORE and UPDATE.  */
 

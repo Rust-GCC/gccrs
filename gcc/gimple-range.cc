@@ -893,7 +893,7 @@ dom_ranger::range_of_stmt (vrange &r, gimple *s, tree name)
 // Preprocess block BB.  If there is a single predecessor, start with any
 // contextual ranges on the incoming edge, otherwise the initial list
 // of ranges i empty for this block.  Then Merge in any contextual ranges
-// from the dominator block.  Tihs will become the contextual ranges
+// from the dominator block.  This will become the contextual ranges
 // that apply to this block.
 
 void

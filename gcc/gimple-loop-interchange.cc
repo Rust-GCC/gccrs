@@ -394,7 +394,7 @@ loop_cand::can_interchange_p (loop_cand *iloop)
 
      for (int i = 0; i < N; i++)
        {
-	 // producer.  Note sum can be intitialized to a constant.
+	 // producer.  Note sum can be initialized to a constant.
 	 int sum = a[i];
 	 for (int j = 0; j < N; j++)
 	   {
@@ -783,7 +783,7 @@ loop_cand::analyze_lcssa_phis (void)
 }
 
 /* CONSUMER is a stmt in BB storing reduction result into memory object.
-   When the reduction is intialized from constant value, we need to add
+   When the reduction is initialized from constant value, we need to add
    a stmt loading from the memory object to target basic block in inner
    loop during undoing the reduction.  Problem is that memory reference
    may use ssa variables not dominating the target basic block.  This
@@ -1556,9 +1556,9 @@ should_interchange_loops (unsigned i_idx, unsigned o_idx,
       fprintf (dump_file, "All consecutive stride: before(%s), after(%s)\n",
 	       all_seq_dr_before_p ? "true" : "false",
 	       all_seq_dr_after_p ? "true" : "false");
-      fprintf (dump_file, "OK to interchage with variable strides: %d\n",
+      fprintf (dump_file, "OK to interchange with variable strides: %d\n",
 	       num_resolved_ok_drs);
-      fprintf (dump_file, "Not OK to interchage with variable strides: %d\n",
+      fprintf (dump_file, "Not OK to interchange with variable strides: %d\n",
 	       num_resolved_not_ok_drs);
       fprintf (dump_file, "Variable strides we cannot decide: %d\n",
 	       num_unresolved_drs);

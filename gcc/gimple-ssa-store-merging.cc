@@ -22,7 +22,7 @@
    of constant values, values loaded from memory, bitwise operations on those,
    or bit-field values, to consecutive locations, into fewer wider stores.
 
-   For example, if we have a sequence peforming four byte stores to
+   For example, if we have a sequence performing four byte stores to
    consecutive memory locations:
    [p     ] := imm1;
    [p + 1B] := imm2;
@@ -3624,7 +3624,7 @@ get_location_for_stmts (vec<gimple *> &stmts)
   return UNKNOWN_LOCATION;
 }
 
-/* Used to decribe a store resulting from splitting a wide store in smaller
+/* Used to describe a store resulting from splitting a wide store in smaller
    regularly-sized stores in split_group.  */
 
 class split_store

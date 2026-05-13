@@ -64,7 +64,7 @@ phi_group::phi_group (const phi_group &g)
 phi_group::phi_group (bitmap bm, irange &init_range, gimple *mod,
 		      range_query *q)
 {
-  // we dont expect a modifer and no inital value, so trap to have a look.
+  // We don't expect a modifier and no initial value, so trap to have a look.
   // perhaps they are dead cycles and we can just used UNDEFINED.
   gcc_checking_assert (!init_range.undefined_p ());
   gcc_checking_assert (!init_range.varying_p ());
@@ -132,7 +132,7 @@ phi_group::calculate_using_modifier (range_query *q)
     return true;
 
   // Examine modifier and run iteration evaluations  to see if it convergences.
-  // The constructor initilaized m_vr to the initial value already.
+  // The constructor initialized m_vr to the initial value already.
   int_range_max nv;
   int_range_max iter_value = m_vr;
   int_range_max iter_reach;
@@ -352,7 +352,7 @@ phi_analyzer::operator[] (tree name)
 }
 
 // Process phi node PHI to see if it is part of a group.  Use QUERY
-// to deteremine ranges.
+// to determine ranges.
 
 void
 phi_analyzer::process_phi (gphi *phi, range_query &query)

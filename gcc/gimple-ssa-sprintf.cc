@@ -1128,7 +1128,7 @@ get_int_range (tree arg, gimple *stmt,
 	    *pmin = *pmax = -*pmin;
 	  else
 	    {
-	      /* Make sure signed overlow is avoided.  */
+	      /* Make sure signed overflow is avoided.  */
 	      gcc_assert (*pmin != HOST_WIDE_INT_MIN);
 
 	      HOST_WIDE_INT tmp = -*pmin;
@@ -4401,7 +4401,7 @@ handle_printf_call (gimple_stmt_iterator *gsi, pointer_query &ptr_qry)
   /* Object size argument number (snprintf_chk and vsnprintf_chk).  */
   unsigned idx_objsize = UINT_MAX;
 
-  /* Destinaton argument number (valid for sprintf functions only).  */
+  /* Destination argument number (valid for sprintf functions only).  */
   unsigned idx_dstptr = 0;
 
   switch (info.fncode)

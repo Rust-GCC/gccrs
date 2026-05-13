@@ -402,7 +402,7 @@ find_assumption_locals_r (gimple_stmt_iterator *gsi_p, bool *,
   return NULL_TREE;
 }
 
-/* Create a new PARM_DECL that is indentical in all respect to DECL except that
+/* Create a new PARM_DECL that is identical in all respect to DECL except that
    DECL can be either a VAR_DECL, a PARM_DECL or RESULT_DECL.  The original
    DECL must come from ID->src_fn and the copy will be part of ID->dst_fn.  */
 
