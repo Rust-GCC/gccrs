@@ -728,7 +728,7 @@
 
 @item @samp{xandesperf}
 @tab 5.0
-@tab Andes performace extension
+@tab Andes performance extension
 
 @item @samp{xandesbfhcvt}
 @tab 5.0

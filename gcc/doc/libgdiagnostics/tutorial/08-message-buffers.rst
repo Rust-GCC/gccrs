@@ -25,7 +25,7 @@ In previous examples, we finished a diagnostic with a call to
 to determine the text message of the diagnostic.
 
 Sometimes this approach is inconvenient, such as where you might want to
-build up a message programatically from a series of components.
+build up a message programmatically from a series of components.
 Additionally, you might have existing code that uses ``fprintf``, whereas
 :func:`diagnostic_finish` has its
 :doc:`own formatting conventions <../topics/message-formatting>` which are

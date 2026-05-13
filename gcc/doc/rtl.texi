@@ -4430,7 +4430,7 @@ using namespace rtl_ssa;
 However, this is purely a matter of taste, and the examples in the rest of
 this section do not require it.
 
-The RTL SSA represention is an optional on-the-side feature that applies
+The RTL SSA representation is an optional on-the-side feature that applies
 on top of the normal RTL instructions.  It is currently local to individual
 RTL passes and is not maintained across passes.
 
@@ -4520,7 +4520,7 @@ structures and the underlying CFG @code{basic_block} structures
 @cindex ``real'' instructions, RTL SSA
 @anchor{real RTL SSA insns}
 If a CFG basic block @var{bb} contains an RTL instruction @var{insn},
-the RTL SSA represenation of @var{bb} also contains an RTL SSA representation
+the RTL SSA representation of @var{bb} also contains an RTL SSA representation
 of @var{insn}@footnote{Note that this excludes non-instruction things like
 @code{note}s and @code{barrier}s that also appear in the chain of RTL
 instructions.}.  Within RTL SSA, these instructions are referred to as

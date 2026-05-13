@@ -2122,7 +2122,7 @@ EXCEPT
    (* Now fixup.  Determine the source of the exception and retry.  *)
    IF head = NIL
    THEN
-      printf ("list was empty, add sentinal\n");
+      printf ("list was empty, add sentinel\n");
       Add (head, -1) ;
       RETRY  (* Jump back to the begin statement.  *)
    ELSIF p^.next = NIL
@@ -2159,7 +2159,7 @@ END lazyunique.
 @example
 @group
 new value 0
-list was empty, add sentinal
+list was empty, add sentinel
 new value 0
 growing the list
 new value 0
@@ -2527,7 +2527,7 @@ cp .libs/libNumberIO.so _NumberIO.so
 
 The first four commands, generate the swig interface file
 @file{NumberIO.i} and python wrap files @file{NumberIO_wrap.cxx} and
-@file{NumberIO.py}.  The next three @file{libtool} commnads compile
+@file{NumberIO.py}.  The next three @file{libtool} commands compile
 the C++ and Modula-2 source code into @file{.lo} objects.  The last
 @file{libtool} command links all the @file{.lo} files into a
 @file{.la} file and includes all shared library dependencies.

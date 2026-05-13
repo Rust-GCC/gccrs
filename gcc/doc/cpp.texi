@@ -590,7 +590,7 @@ reject source code containing ``other'' tokens.  In ASCII, the only
 ``other'' characters are @samp{@@}, @samp{$}, @samp{`}, and control
 characters other than NUL (all bits zero).  (Note that @samp{$} is
 normally considered a letter.)  All bytes with the high bit set
-(numeric range 0x7F--0xFF) that were not succesfully interpreted as
+(numeric range 0x7F--0xFF) that were not successfully interpreted as
 part of an extended character in the input encoding are also ``other''
 in the present implementation.
 

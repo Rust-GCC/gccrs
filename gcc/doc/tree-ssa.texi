@@ -385,7 +385,7 @@ a controlled position, and then iterating over those uses.  Then the
 optimization can manipulate the stmt when all the uses have been
 processed.  Only the current active @code{imm_use_p} may be altered
 when using an inner @code{FOR_EACH_IMM_USE_ON_STMT} iteration.
-You have to be careful to not inadvertedly modify the immediate
+You have to be careful to not inadvertently modify the immediate
 use list by working on another stmt than the the current @code{stmt} during
 the iteration.  In particular calling @code{update_stmt} is destructive
 on all SSA uses immediate use lists related to the updated stmt.

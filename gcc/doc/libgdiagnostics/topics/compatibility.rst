@@ -30,7 +30,7 @@ libgdiagnostics.h.
           locked-down at this time.
 
 API compatibility is achieved by extending the API rather than changing
-it.  For ABI compatiblity, we avoid bumping the SONAME, and instead use
+it.  For ABI compatibility, we avoid bumping the SONAME, and instead use
 symbol versioning to tag each symbol, so that a binary linked against
 libgdiagnostics.so is tagged according to the symbols that it uses.
 
@@ -166,7 +166,7 @@ tagged with ``LIBGDIAGNOSTICS_ABI_0``; these entrypoints are:
 ``LIBGDIAGNOSTICS_ABI_1``
 -------------------------
 ``LIBGDIAGNOSTICS_ABI_1`` covers the addition of these functions for
-acccessing values within a :type:`diagnostic_logical_location`:
+accessing values within a :type:`diagnostic_logical_location`:
 
   * :func:`diagnostic_logical_location_get_kind`
 

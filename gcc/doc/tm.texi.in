@@ -1430,7 +1430,7 @@ the target machine.  If you don't define this, the default is
 
 @defmac LIBGCC2_GNU_PREFIX
 This macro corresponds to the @code{TARGET_LIBFUNC_GNU_PREFIX} target
-hook and should be defined if that hook is overriden to be true.  It
+hook and should be defined if that hook is overridden to be true.  It
 causes function names in libgcc to be changed to use a @code{__gnu_}
 prefix for their name rather than the default @code{__}.  A port which
 uses this macro should also arrange to use @file{t-gnu-prefix} in
@@ -6587,7 +6587,7 @@ specially named labels.  The collect2 process will locate these
 labels and generate code to register the frames.
 
 This might be necessary, for instance, if the system linker will not
-place the eh_frames in-between the sentinals from @file{crtstuff.c},
+place the eh_frames in-between the sentinels from @file{crtstuff.c},
 or if the system linker does garbage collection and sections cannot
 be marked as not to be collected.
 @end defmac

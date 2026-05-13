@@ -1039,7 +1039,7 @@ applied.  @var{type} is either @code{EXCESS_PRECISION_TYPE_IMPLICIT},
 @code{EXCESS_PRECISION_TYPE_STANDARD}, or
 @code{EXCESS_PRECISION_TYPE_FLOAT16}.  For
 @code{EXCESS_PRECISION_TYPE_IMPLICIT}, the target should return which
-precision and range operations will be implictly evaluated in regardless
+precision and range operations will be implicitly evaluated in regardless
 of the excess precision explicitly added.  For
 @code{EXCESS_PRECISION_TYPE_STANDARD}, 
 @code{EXCESS_PRECISION_TYPE_FLOAT16}, and
@@ -1695,7 +1695,7 @@ the target machine.  If you don't define this, the default is
 
 @defmac LIBGCC2_GNU_PREFIX
 This macro corresponds to the @code{TARGET_LIBFUNC_GNU_PREFIX} target
-hook and should be defined if that hook is overriden to be true.  It
+hook and should be defined if that hook is overridden to be true.  It
 causes function names in libgcc to be changed to use a @code{__gnu_}
 prefix for their name rather than the default @code{__}.  A port which
 uses this macro should also arrange to use @file{t-gnu-prefix} in
@@ -4743,7 +4743,7 @@ Define this to return true if the @code{_Float@var{n}} and
 built-in function without the @code{__builtin_} prefix in addition to the
 normal built-in function with the @code{__builtin_} prefix.  The default is
 to only enable built-in functions without the @code{__builtin_} prefix for
-the GNU C langauge.  In strict ANSI/ISO mode, the built-in function without
+the GNU C language.  In strict ANSI/ISO mode, the built-in function without
 the @code{__builtin_} prefix is not enabled.  The argument @code{FUNC} is the
 @code{enum built_in_function} id of the function to be enabled.
 @end deftypefn
@@ -6465,7 +6465,7 @@ for a given element mode.
 
 The modes returned in @var{modes} should use the smallest element mode
 possible for the vectorization approach that they represent, preferring
-integer modes over floating-poing modes in the event of a tie.  The first
+integer modes over floating-point modes in the event of a tie.  The first
 mode should be the @code{TARGET_VECTORIZE_PREFERRED_SIMD_MODE} for its
 element mode.
 
@@ -6693,7 +6693,7 @@ way.
 @deftypefn {Target Hook} rtx TARGET_GOACC_EXPAND_VAR_DECL (tree @var{var})
 This hook, if defined, is used by accelerator target back-ends to expand
 specially handled kinds of @code{VAR_DECL} expressions.  A particular use is
-to place variables with specific attributes inside special accelarator
+to place variables with specific attributes inside special accelerator
 memories.  A return value of @code{NULL} indicates that the target does not
 handle this @code{VAR_DECL}, and normal RTL expanding is resumed.
 
@@ -10115,7 +10115,7 @@ specially named labels.  The collect2 process will locate these
 labels and generate code to register the frames.
 
 This might be necessary, for instance, if the system linker will not
-place the eh_frames in-between the sentinals from @file{crtstuff.c},
+place the eh_frames in-between the sentinels from @file{crtstuff.c},
 or if the system linker does garbage collection and sections cannot
 be marked as not to be collected.
 @end defmac
@@ -12459,7 +12459,7 @@ hardware count register support for decrement and branch, it may have to
 move IV value from hardware count register to general purpose register
 while doloop IV candidate is used for address IV uses.  It probably takes
 expensive penalty.  This hook allows target owners to define the cost for
-this escpecially for address IV uses.
+this especially for address IV uses.
 The default value is zero.
 @end deftypevr
 
@@ -12612,11 +12612,11 @@ modes and they have different conditional execution capability, such as ARM.
 
 @deftypefn {Target Hook} rtx TARGET_GEN_CCMP_FIRST (rtx_insn **@var{prep_seq}, rtx_insn **@var{gen_seq}, rtx_code @var{code}, tree @var{op0}, tree @var{op1})
 This function prepares to emit a comparison insn for the first compare in a
- sequence of conditional comparisions.  It returns an appropriate comparison
+ sequence of conditional comparisons.  It returns an appropriate comparison
  with @code{CC} for passing to @code{gen_ccmp_next} or @code{cbranch_optab}.
  The insns to prepare the compare are saved in @var{prep_seq} and the compare
  insns are saved in @var{gen_seq}.  They will be emitted when all the
- compares in the conditional comparision are generated without error.
+ compares in the conditional comparison are generated without error.
  @var{code} is the @code{rtx_code} of the compare for @var{op0} and @var{op1}.
 @end deftypefn
 
@@ -12626,7 +12626,7 @@ This function prepares to emit a conditional comparison within a sequence
  @code{CC} for passing to @code{gen_ccmp_next} or @code{cbranch_optab}.
  The insns to prepare the compare are saved in @var{prep_seq} and the compare
  insns are saved in @var{gen_seq}.  They will be emitted when all the
- compares in the conditional comparision are generated without error.  The
+ compares in the conditional comparison are generated without error.  The
  @var{prev} expression is the result of a prior call to @code{gen_ccmp_first}
  or @code{gen_ccmp_next}.  It may return @code{NULL} if the combination of
  @var{prev} and this comparison is not supported, otherwise the result must
@@ -12981,7 +12981,7 @@ This hook is used to determine the level of target support for
  compilation for the second case.
  
  For targets that have no processors that can execute instructions
- speculatively an alternative implemenation of this hook is available:
+ speculatively an alternative implementation of this hook is available:
  simply redefine this hook to @code{speculation_safe_value_not_needed}
  along with your other target hooks.
 @end deftypefn

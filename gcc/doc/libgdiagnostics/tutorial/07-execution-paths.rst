@@ -23,7 +23,7 @@ Tutorial part 7: execution paths
 A :type:`diagnostic` can optionally have a :type:`diagnostic_execution_path`
 describing a path of execution through code.
 
-For example, let's pretend we're writing a static analyis tool for finding
+For example, let's pretend we're writing a static analysis tool for finding
 bugs in `CPython extension code <https://docs.python.org/3/c-api/index.html>`_.
 
 Let's say we're analyzing this code:

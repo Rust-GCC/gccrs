@@ -2073,7 +2073,7 @@ loop.  The default value is four.
 
 @paindex aarch64-tag-memory-loop-threshold
 @item aarch64-tag-memory-loop-threshold
-Parameter to control the treshold in number of granules beyond which an
+Parameter to control the threshold in number of granules beyond which an
 explicit loop for tagging a memory block is emitted.  The memory block
 is tagged using MTE instructions.
 

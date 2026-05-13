@@ -50,7 +50,7 @@ locations.
    (`SARIF v2.1.0 §3.24.10 <https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/sarif-v2.1.0-errata01-os-complete.html#_Toc141790871>`_).
    See
    `SARIF v2.1.0 Appendix J <https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/sarif-v2.1.0-errata01-os-complete.html#_Toc141791197>`_
-   for suggested values for various programmming languages.
+   for suggested values for various programming languages.
 
    For example, this creates a :type:`diagnostic_file` for ``foo.c``
    and identifies it as C source code::

@@ -2139,7 +2139,7 @@ Summing it all up for an intuitive though slightly imprecise data flow:
 the primary output name is broken into a directory part and a basename
 part; @var{dumppfx} is set to the former, unless overridden by
 @option{-dumpdir} or @option{-save-temps=*}, and @var{dumpbase} is set
-to the latter, unless overriden by @option{-dumpbase}.  If there are
+to the latter, unless overridden by @option{-dumpbase}.  If there are
 multiple inputs or linking, this @var{dumpbase} may be combined with
 @var{dumppfx} and taken from each input file.  Auxiliary output names
 for each input are formed by combining @var{dumppfx}, @var{dumpbase}
@@ -12010,7 +12010,7 @@ The analyzer will complain for the above case because if @code{opcode}
 ever matches none of the cases, the @code{switch} will follow the
 implicit @code{default} case, making the body of the loop be a ``no-op''
 with @code{cpu_state.pc} unchanged, and thus using the same value of
-@code{opcode} on all subseqent iterations, leading to an infinite loop.
+@code{opcode} on all subsequent iterations, leading to an infinite loop.
 
 See @uref{https://cwe.mitre.org/data/definitions/835.html, CWE-835: Loop with Unreachable Exit Condition ('Infinite Loop')}.
 
@@ -12031,7 +12031,7 @@ to parameters or globals are assumed to lead to termination of the
 recursion and thus suppress the warning.
 
 This diagnostic is likely to miss cases of infinite recursion that
-are convered to iteration by the optimizer before the analyzer "sees"
+are converted to iteration by the optimizer before the analyzer "sees"
 them.  Hence optimization should be disabled when attempting to trigger
 this diagnostic.
 
@@ -27843,7 +27843,7 @@ Set the cost of ADDRESS_REG_REG to the value calculated by @var{n}.
 @opindex mcheck-zero-division
 @opindex mno-check-zero-division
 @item -mcheck-zero-division
-@itemx -mno-check-zero-divison
+@itemx -mno-check-zero-division
 Trap (do not trap) on integer division by zero.  The default is
 @option{-mcheck-zero-division} for @option{-O0} or @option{-Og}, and
 @option{-mno-check-zero-division} for other optimization levels.
@@ -28622,7 +28622,7 @@ This option is disabled by default; GCC
 generates code that assumes that the data segment follows the text segment.
 
 @opindex mid-shared-library
-@opindex mno-id-shared-libary
+@opindex mno-id-shared-library
 @item -mid-shared-library
 @itemx -mno-id-shared-library
 If enabled, generate code that supports shared libraries via the

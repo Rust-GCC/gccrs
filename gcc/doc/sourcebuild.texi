@@ -3612,7 +3612,7 @@ assembler output, excluding LTO sections.
 
 @item scan-assembler-bound @var{regex} @var{cmp} @var{num} [@{ target/xfail @var{selector} @}]
 Passes if @var{regex} is matched @var{cmp} @var{num} times in the test's
-assembler output, excluding LTO sections. @var{cmp} is a comparitor.
+assembler output, excluding LTO sections. @var{cmp} is a comparator.
 
 @item scan-assembler-dem @var{regex} [@{ target/xfail @var{selector} @}]
 Passes if @var{regex} matches text in the test's demangled assembler output,

@@ -1740,7 +1740,7 @@ extern void f3 [[gnu::section ("bar")]] (void);
 @end smallexample
 
 Typedefs follow the same attribute placement rules for other as other
-declarations.  These declarations are all valid with similiar meanings.
+declarations.  These declarations are all valid with similar meanings.
 
 @smallexample
 [[gnu::unavailable]] typedef int *t1;
@@ -1886,7 +1886,7 @@ to the function is accessed according to @var{access-mode}, which must be
 one of @code{read_only}, @code{read_write}, @code{write_only},
 or @code{none}.  The semantics of these modes are described below.
 
-The argument the attribute applies to is identifed by @var{ref-index}, which
+The argument the attribute applies to is identified by @var{ref-index}, which
 is an integer constant representing its position in the argument list.
 Argument numbering starts from 1.  You can specify multiple @code{access}
 attributes to describe the access modes of different arguments, but multiple
@@ -2585,7 +2585,7 @@ member or a pointer field of a structure.
 It indicates that the number
 of the elements of the array that is held by the flexible array member
 field, or is pointed to by the pointer field, is given by the field
-named by the identifer @var{count} in the same structure as the
+named by the identifier @var{count} in the same structure as the
 flexible array member or the pointer field.
 
 This attribute is available only in C for now.
@@ -7741,7 +7741,7 @@ This attribute applies to functions.
 
 It tells GCC to keep interrupts masked for the whole function.
 Without this attribute,
-GCC tries to reenable interrupts for as much of the function as it can.
+GCC tries to re-enable interrupts for as much of the function as it can.
 
 @atindex @code{use_debug_exception_return}, MIPS
 @item use_debug_exception_return
@@ -8358,7 +8358,7 @@ per-function basis.
 @item arch=
 Specifies the architecture version and architectural extensions to use
 for this function.  The behavior and permissible arguments are the same as
-for the @option{-march=} command-line option, in addtion, it also support
+for the @option{-march=} command-line option, in addition, it also support
 extension enablement list, a list of extension name and prefixed with @code{+},
 like @code{arch=+zba} means enable @code{zba} extension.
 Multiple extension can be enabled by separating them with a comma.  For example:
@@ -16373,7 +16373,7 @@ i.e.@: they subtract 2 unsigned values from the first unsigned value,
 set what the last argument points to to 1 if any of the two subtractions
 overflowed (otherwise 0) and return the result of the subtractions.
 Note, while all the first 3 arguments can have arbitrary values, better code
-will be emitted if one of them (preferrably the third one) has only values
+will be emitted if one of them (preferably the third one) has only values
 0 or 1 (i.e.@: carry-in).
 
 @enddefbuiltin
@@ -17790,7 +17790,7 @@ void foo () @{
   delete a; // This pair of allocation/deallocation operators can be omitted
 	    // or replaced with int _temp; int *a = &_temp; etc.@:
   void *b = ::operator new (32);
-  ::operator delete (b); // This one cannnot.
+  ::operator delete (b); // This one cannot.
   void *c = __builtin_operator_new (32);
   __builtin_operator_delete (c); // This one can.
 @}
@@ -26054,7 +26054,7 @@ unsigned int);
 Extract an element from two concatenated vectors starting at the given byte
 index.  The index is based on big endian order for a little endian system.
 Similarly, the index is based on little endian order for a big endian system.
-The extraced elements are zero-extended and put in doubleword 1
+The extracted elements are zero-extended and put in doubleword 1
 according to natural element order.  If the byte index is out of range for the
 data type, the intrinsic will be rejected.  For little-endian, this output
 will match the placement by the hardware instruction (vextdubvrx, vextduhvrx,

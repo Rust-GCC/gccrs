@@ -117,7 +117,7 @@ A @code{define_insn} is an RTL expression containing four or five operands:
 @enumerate
 @item
 An optional name @var{n}.  When a name is present, the compiler
-automically generates a C++ function @samp{gen_@var{n}} that takes
+automatically generates a C++ function @samp{gen_@var{n}} that takes
 the operands of the instruction as arguments and returns the instruction's
 rtx pattern.  The compiler also assigns the instruction a unique code
 @samp{CODE_FOR_@var{n}}, with all such codes belonging to an enum
@@ -2128,7 +2128,7 @@ A signed 12-bit integer constant.
 
 @item Cal
 constant for arithmetic/logical operations.  This might be any constant
-that can be put into a long immediate by the assmbler or linker without
+that can be put into a long immediate by the assembler or linker without
 involving a PIC relocation.
 
 @item K
@@ -4289,9 +4289,9 @@ like code motion can lead to cases where code optimized for size uses
 alternatives that are not preferred for size, and similarly for speed.
 
 Although @code{define_insn}s can in principle specify the @code{enabled}
-attribute directly, it is often clearer to have subsiduary attributes
+attribute directly, it is often clearer to have subsidiary attributes
 for each architectural feature of interest.  The @code{define_insn}s
-can then use these subsiduary attributes to say which alternatives
+can then use these subsidiary attributes to say which alternatives
 require which features.  The example below does this for @code{cpu_facility}.
 
 E.g. the following two patterns could easily be merged using the @code{enabled}
@@ -4894,7 +4894,7 @@ Similar, for other arithmetic operations.
 @mdindex ustrunc@var{m}@var{n}2
 @item @samp{ustrunc@var{m}@var{n}2}
 Truncate the operand 1, and storing the result in operand 0.  There will
-be saturation during the trunction.  The result will be saturated to the
+be saturation during the truncation.  The result will be saturated to the
 maximal value of operand 0 type if there is overflow when truncation.  The
 operand 1 must have mode @var{n},  and the operand 0 must have mode @var{m}.
 Both scalar and vector integer modes are allowed.
@@ -6752,7 +6752,7 @@ target can initialize all of the optabs at once with
 @code{init_sync_libfuncs}.
 For the purposes of C++11 @code{std::atomic::is_lock_free}, it is
 assumed that these library calls do @emph{not} use any kind of
-interruptable locking.
+interruptible locking.
 
 @mdindex sync_add@var{mode}
 @mdindex sync_sub@var{mode}
@@ -8121,21 +8121,21 @@ result of a vector boolean can be represented as 0 or -1.
 @mdindex vec_addsub@var{m}3
 @item @samp{vec_addsub@var{m}3}
 Alternating subtract, add with even lanes doing subtract and odd
-lanes doing addition.  Operands 1 and 2 and the outout operand are vectors
+lanes doing addition.  Operands 1 and 2 and the output operand are vectors
 with mode @var{m}.
 
 @mdindex vec_fmaddsub@var{m}4
 @item @samp{vec_fmaddsub@var{m}4}
 Alternating multiply subtract, add with even lanes doing subtract and odd
 lanes doing addition of the third operand to the multiplication result
-of the first two operands.  Operands 1, 2 and 3 and the outout operand are vectors
+of the first two operands.  Operands 1, 2 and 3 and the output operand are vectors
 with mode @var{m}.
 
 @mdindex vec_fmsubadd@var{m}4
 @item @samp{vec_fmsubadd@var{m}4}
 Alternating multiply add, subtract with even lanes doing addition and odd
 lanes doing subtraction of the third operand to the multiplication result
-of the first two operands.  Operands 1, 2 and 3 and the outout operand are vectors
+of the first two operands.  Operands 1, 2 and 3 and the output operand are vectors
 with mode @var{m}.
 
 These instructions are not allowed to @code{FAIL}.
@@ -10779,7 +10779,7 @@ The @code{mnemonic} attribute set is not generated automatically if the
 instruction string is generated via C code.
 
 An existing @code{mnemonic} attribute set in an insn definition will not
-be overriden by the md file parser.  That way it is possible to
+be overridden by the md file parser.  That way it is possible to
 manually set the instruction mnemonics for the cases where the md file
 parser fails to determine it automatically.
 
@@ -11411,7 +11411,7 @@ can be quite tedious to describe these forms directly in the
   [@var{predicate-pattern}]
   "@var{condition}"
   "@var{output-template}"
-  "@var{optional-insn-attribues}")
+  "@var{optional-insn-attributes}")
 @end smallexample
 
 @var{predicate-pattern} is the condition that must be true for the
@@ -12228,7 +12228,7 @@ Attributes are defined using:
 (define_int_attr @var{attr_name} [(@var{int1} "@var{value1}") @dots{} (@var{intn} "@var{valuen}")])
 @end smallexample
 
-In additon to these user-defined attributes, it is possible to use
+In addition to these user-defined attributes, it is possible to use
 @samp{<@var{name}>} to refer to the current expansion of iterator
 @var{name} (such as @var{int1}, @var{int2}, and so on).
 

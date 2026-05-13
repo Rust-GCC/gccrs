@@ -1366,7 +1366,7 @@ specified, then the default set of libraries is selected.
 profiles respectively.  Note that, due to some limitation of the current
 multilib framework, using the combined @code{aprofile,rmprofile}
 multilibs selects in some cases a less optimal multilib than when using
-the multilib profile for the architecture targetted.  The special value
+the multilib profile for the architecture targeted.  The special value
 @code{default} is also accepted and is equivalent to omitting the
 option, i.e., only the default run-time library will be enabled.
 
@@ -4674,7 +4674,7 @@ This configuration is intended for embedded systems.
 @anchor{mips-x-x}
 @heading mips-*-*
 If on a MIPS system you get an error message saying ``does not have gp
-sections for all it's [sic] sectons [sic]'', don't worry about it.  This
+sections for all it's [sic] sections [sic]'', don't worry about it.  This
 happens whenever you use GAS with the MIPS linker, but there is not
 really anything wrong, and it is okay to use the output file.  You can
 stop such warnings by installing the GNU linker.

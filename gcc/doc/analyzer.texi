@@ -875,8 +875,8 @@ This will dump a @file{SRC.eg.txt} file containing the full
 @code{exploded_graph}. I use @code{diff -u50 -p} to compare two different
 such files (e.g. before and after a patch) to find the first place where the
 two graphs diverge.  The option @option{-fdump-noaddr} will suppress
-printing pointers withihn the dumps (which would otherwise hide the real
-differences with irrelevent churn).
+printing pointers within the dumps (which would otherwise hide the real
+differences with irrelevant churn).
 
 The option @option{-fdump-analyzer-json} will dump both the supergraph
 and the exploded graph in compressed JSON form.

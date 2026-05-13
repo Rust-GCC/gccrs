@@ -93,7 +93,7 @@ must be a nonnegative integer.  An indeterminate value of 0 should usually
 represent the minimum possible runtime value, with @var{c0} specifying
 the value in that case.
 
-For example, when targetting the Arm SVE ISA, the single indeterminate
+For example, when targeting the Arm SVE ISA, the single indeterminate
 represents the number of 128-bit blocks in a vector @emph{beyond the minimum
 length of 128 bits}.  Thus the number of 64-bit doublewords in a vector
 is 2 + 2 * @var{x1}.  If an aggregate has a single SVE vector and 16
@@ -887,7 +887,7 @@ out of range.  Return the result as a
 @item wi::shwi (@var{value}, @var{precision})
 Return a @code{poly_int} with the same value as @var{value}, but with
 the coefficients converted from @code{HOST_WIDE_INT} to @code{wide_int}.
-@var{precision} specifies the precision of the @code{wide_int} cofficients;
+@var{precision} specifies the precision of the @code{wide_int} coefficients;
 if this is wider than a @code{HOST_WIDE_INT}, the coefficients of
 @var{value} will be sign-extended to fit.
 
@@ -1031,7 +1031,7 @@ only needs to be given once.  For example:
 Target-specific code in @file{config/@var{cpu}} only needs to handle
 non-constant @code{poly_int}s if @code{NUM_POLY_INT_COEFFS} is greater
 than one.  For other targets, @code{poly_int} degenerates to a compile-time
-constant and is often interchangable with a normal scalar integer.
+constant and is often interchangeable with a normal scalar integer.
 There are two main exceptions:
 
 @itemize
