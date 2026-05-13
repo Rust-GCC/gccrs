@@ -1509,7 +1509,7 @@ type_for_widest_vector_mode (tree original_vector_type, optab op)
    ARRAY_REF expression.
 
    GSI is required to insert temporary variables while building a
-   refernece to the element of the vector VECT.
+   reference to the element of the vector VECT.
 
    PTMPVEC is a pointer to the temporary variable for caching
    purposes.  In case when PTMPVEC is NULL new temporary variable

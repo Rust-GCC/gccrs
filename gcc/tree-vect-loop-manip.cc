@@ -1010,7 +1010,7 @@ vect_set_loop_condition_partial_vectors_avx512 (class loop *loop,
 	 continue;
 
      Where the constant is built with elements at most VF - 1 and
-     repetitions according to max_nscalars_per_iter which is guarnateed
+     repetitions according to max_nscalars_per_iter which is guaranteed
      to be the same within a group.  */
 
   /* Convert NITERS to the determined IV type.  */
@@ -1473,7 +1473,7 @@ get_live_virtual_operand_on_edge (edge e)
    where the contents of the loop body are split but the iteration space of both
    copies remains the same.
 
-   If UPDATED_DOMS is not NULL it is update with the list of basic blocks whoms
+   If UPDATED_DOMS is not NULL it is update with the list of basic blocks whose
    dominators were updated during the peeling.  When doing early break vectorization
    then LOOP_VINFO needs to be provided and is used to keep track of any newly created
    memory references that need to be updated should we decide to vectorize.  */
@@ -2256,7 +2256,7 @@ vect_can_peel_nonlinear_iv_p (loop_vec_info loop_vinfo,
     = STMT_VINFO_LOOP_PHI_EVOLUTION_TYPE (stmt_info);
   tree niters_skip;
   /* Init_expr will be update by vect_update_ivs_after_vectorizer,
-     if niters or vf is unkown:
+     if niters or vf is unknown:
      For shift, when shift mount >= precision, there would be UD.
      For mult, don't known how to generate
      init_expr * pow (step, niters) for variable niters.
@@ -2306,7 +2306,7 @@ vect_can_peel_nonlinear_iv_p (loop_vec_info loop_vinfo,
 	}
     }
 
-  /* Also doens't support peel for neg when niter is variable.
+  /* Also doesn't support peel for neg when niter is variable.
      ??? generate something like niter_expr & 1 ? init_expr : -init_expr?  */
   niters_skip = LOOP_VINFO_MASK_SKIP_NITERS (loop_vinfo);
   if ((niters_skip != NULL_TREE
@@ -2317,7 +2317,7 @@ vect_can_peel_nonlinear_iv_p (loop_vec_info loop_vinfo,
     {
       if (dump_enabled_p ())
 	dump_printf_loc (MSG_MISSED_OPTIMIZATION, vect_location,
-			 "Peeling for alignement is not supported"
+			 "Peeling for alignment is not supported"
 			 " for nonlinear induction when niters_skip"
 			 " is not constant.\n");
       return false;
@@ -3387,7 +3387,7 @@ vect_do_peeling (loop_vec_info loop_vinfo, tree niters, tree nitersm1,
      introduces clobbers of the temporary vector array, which in turn
      needs new vdefs.  If the scalar loop doesn't write to memory, these
      new vdefs will be the only ones in the vector loop.
-     We are currently defering updating virtual SSA form and creating
+     We are currently deferring updating virtual SSA form and creating
      of a virtual PHI for this case so we do not have to make sure the
      newly introduced virtual def is in LCSSA form.  */
 
@@ -3740,7 +3740,7 @@ vect_do_peeling (loop_vec_info loop_vinfo, tree niters, tree nitersm1,
 				       niters_no_overflow);
 	  if (!integer_onep (*step_vector))
 	    {
-	      /* On exit from the loop we will have an easy way of calcalating
+	      /* On exit from the loop we will have an easy way of calculating
 		 NITERS_VECTOR / STEP * STEP.  Install a dummy definition
 		 until then.  */
 	      niters_vector_mult_vf

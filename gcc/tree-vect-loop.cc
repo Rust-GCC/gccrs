@@ -656,7 +656,7 @@ edge
 vec_init_loop_exit_info (class loop *loop)
 {
   /* Before we begin we must first determine which exit is the main one and
-     which are auxilary exits.  */
+     which are auxiliary exits.  */
   auto_vec<edge> exits = get_loop_exit_edges (loop);
   if (exits.length () == 0)
     return NULL;
@@ -1246,7 +1246,7 @@ vect_verify_full_masking_avx512 (loop_vec_info loop_vinfo)
   return true;
 }
 
-/* Check whether we can use vector access with length based on precison
+/* Check whether we can use vector access with length based on precision
    comparison.  So far, to keep it simple, we only allow the case that the
    precision of the target supported length is larger than the precision
    required by loop niters.  */
@@ -1309,7 +1309,7 @@ vect_verify_loop_lens (loop_vec_info loop_vinfo)
      - the Pmode precision
 
      If min_ni_prec is less than the precision of the current niters,
-     we perfer to still use the niters type.  Prefer to use Pmode and
+     we prefer to still use the niters type.  Prefer to use Pmode and
      wider IV to avoid narrow conversions.  */
 
   unsigned int ni_prec
@@ -1776,7 +1776,7 @@ vect_analyze_loop_costing (loop_vec_info loop_vinfo,
 
   /* If we know the number of iterations we can do better, for the
      epilogue we can also decide whether the main loop leaves us
-     with enough iterations, prefering a smaller vector epilog then
+     with enough iterations, preferring a smaller vector epilog then
      also possibly used for the case we skip the vector loop.  */
   if (LOOP_VINFO_NITERS_KNOWN_P (loop_vinfo))
     {
@@ -2168,7 +2168,7 @@ vect_analyze_loop_2 (loop_vec_info loop_vinfo, int masked_p, bool &fatal,
     orig_loop_vinfo = loop_vinfo;
   gcc_assert (orig_loop_vinfo);
 
-  /* We can't mask on niters for uncounted loops due to unkown upper bound.  */
+  /* We can't mask on niters for uncounted loops due to unknown upper bound.  */
   if (LOOP_VINFO_NITERS_UNCOUNTED_P (loop_vinfo))
     LOOP_VINFO_CAN_USE_PARTIAL_VECTORS_P (loop_vinfo) = false;
 
@@ -2311,7 +2311,7 @@ start_over:
   gcc_assert (LOOP_VINFO_MASKS (loop_vinfo).is_empty ());
 
   /* Apply the suggested unrolling factor, this was determined by the backend
-     during finish_cost the first time we ran the analyzis for this
+     during finish_cost the first time we ran the analysis for this
      vector mode.  */
   if (applying_suggested_uf)
     LOOP_VINFO_VECT_FACTOR (loop_vinfo) *= loop_vinfo->suggested_unroll_factor;
@@ -3007,7 +3007,7 @@ vect_analyze_loop (class loop *loop, gimple *loop_vectorized_call,
 
       if (loop_vinfo)
 	{
-	  /*  Analyzis has been successful so update the VF value.  The
+	  /*  Analysis has been successful so update the VF value.  The
 	      VF should always be a multiple of unroll_factor and we want to
 	      capture the original VF here.  */
 	  cached_vf_per_mode[last_mode_i]
@@ -3184,7 +3184,7 @@ vect_analyze_loop (class loop *loop, gimple *loop_vectorized_call,
 		break;
 	    }
 
-	  /* Revert back to the default from the suggested prefered
+	  /* Revert back to the default from the suggested preferred
 	     epilogue vectorization mode.  */
 	  masked_p = -1;
 	  if (mode_i == vector_modes.length ())
@@ -3810,7 +3810,7 @@ vect_is_simple_reduction (loop_vec_info loop_info, stmt_vec_info phi_info,
     }
 
   /* If this isn't a nested cycle or if the nested cycle reduction value
-     is used ouside of the inner loop we cannot handle uses of the reduction
+     is used outside of the inner loop we cannot handle uses of the reduction
      value.  */
   if (nlatch_def_loop_uses > 1 || nphi_def_loop_uses > 1)
     {
@@ -5914,7 +5914,7 @@ vect_create_epilog_for_reduction (loop_vec_info loop_vinfo,
 							neutral_op);
       for (unsigned int i = 0; i < group_size; ++i)
 	{
-	  /* If there's no univeral neutral value, we can use the
+	  /* If there's no universal neutral value, we can use the
 	     initial scalar value from the original PHI.  This is used
 	     for MIN and MAX reduction, for example.  */
 	  if (!neutral_op)
@@ -6815,7 +6815,7 @@ vectorizable_lane_reducing (loop_vec_info loop_vinfo, stmt_vec_info stmt_info,
     return false;
 
   /* Lane-reducing pattern inside any inner loop of LOOP_VINFO is not
-     recoginized.  */
+     recognized.  */
   gcc_assert (!nested_in_vect_loop_p (LOOP_VINFO_LOOP (loop_vinfo), stmt_info));
   gcc_assert (VECT_REDUC_INFO_TYPE (reduc_info) == TREE_CODE_REDUCTION);
 
@@ -7447,7 +7447,7 @@ vectorizable_reduction (loop_vec_info loop_vinfo,
       else if (needs_fold_left_reduction_p (op.type, orig_code))
 	{
 	  /* When vectorizing a reduction chain w/o SLP the reduction PHI
-	     is not directy used in stmt.  */
+	     is not directly used in stmt.  */
 	  if (reduc_chain_length != 1)
 	    {
 	      if (dump_enabled_p ())
@@ -10442,7 +10442,7 @@ vectorizable_live_operation (vec_info *vinfo, stmt_vec_info stmt_info,
 		if (dump_enabled_p ())
 		  dump_printf_loc (MSG_MISSED_OPTIMIZATION, vect_location,
 				   "Using original scalar computation for "
-				   "live lane because use preceeds vector "
+				   "live lane because use precedes vector "
 				   "def\n");
 		continue;
 	      }
@@ -10714,7 +10714,7 @@ vect_record_loop_len (loop_vec_info loop_vinfo, vec_loop_lens *lens,
 /* Given a complete set of lengths LENS, extract length number INDEX
    for an rgroup that operates on NVECTORS vectors of type VECTYPE,
    where 0 <= INDEX < NVECTORS.  Return a value that contains FACTOR
-   multipled by the number of elements that should be processed.
+   multiplied by the number of elements that should be processed.
    Insert any set-up statements before GSI.  */
 
 tree
@@ -10869,7 +10869,7 @@ scale_profile_for_vect_loop (class loop *loop, edge exit_e, unsigned vf, bool fl
       if (dump_file && (dump_flags & TDF_DETAILS))
 	fprintf (dump_file,
 		 "Vectorization factor %i seems too large for profile "
-		 "prevoiusly believed to be consistent; reducing.\n", vf);
+		 "previously believed to be consistent; reducing.\n", vf);
       vf /= 2;
     }
 
@@ -11153,7 +11153,7 @@ vect_update_ivs_after_vectorizer_for_early_breaks (loop_vec_info loop_vinfo)
   /* Write the init_stmts in the loop-preheader block.  */
   auto psi = gsi_last_nondebug_bb (pe->src);
   gsi_insert_seq_after (&psi, init_stmts, GSI_LAST_NEW_STMT);
-  /* Wite the adjustments in the header block.  */
+  /* Write the adjustments in the header block.  */
   basic_block bb = loop->header;
   auto si = gsi_after_labels (bb);
   gsi_insert_seq_before (&si, stmts, GSI_SAME_STMT);

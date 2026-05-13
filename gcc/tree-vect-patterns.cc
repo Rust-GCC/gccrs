@@ -3002,7 +3002,7 @@ vect_recog_bit_insert_pattern (vec_info *vinfo, stmt_vec_info stmt_info,
    needed to maintain the type correctness of the IR.
 
    vect_determine_precisions has already determined the minimum
-   precison of the operation and the minimum precision required
+   precision of the operation and the minimum precision required
    by users of the result.  */
 
 static gimple *
@@ -4625,7 +4625,7 @@ vect_recog_build_binary_gimple_stmt (vec_info *vinfo, stmt_vec_info stmt_info,
  *   _10 = -_9;
  *   _12 = _7 | _10;
  *
- * And then simplied to
+ * And then simplified to
  *   _12 = .SAT_ADD (_4, _6);
  */
 
@@ -4732,7 +4732,7 @@ vect_recog_sat_sub_pattern_transform (vec_info *vinfo,
  *   _10 = (long unsigned int) _7;
  *   _9 = _8 * _10;
  *
- * And then simplied to
+ * And then simplified to
  *   _9 = .SAT_SUB (_1, _2);
  *
  * Signed:
@@ -4753,7 +4753,7 @@ vect_recog_sat_sub_pattern_transform (vec_info *vinfo,
  *   _41 = _42 & _44;
  *   iftmp.2_11 = _41 ? _26 : minus_19;
  *
- * And then simplied to
+ * And then simplified to
  *   iftmp.2_11 = .SAT_SUB (x_16, y_18);
  */
 
@@ -4794,7 +4794,7 @@ vect_recog_sat_sub_pattern (vec_info *vinfo, stmt_vec_info stmt_vinfo,
  *   _3 = -_2;
  *   _6 = _1 | _3;
  *
- * And then simplied to
+ * And then simplified to
  *   _6 = .SAT_TRUNC (x_4(D));
  */
 
@@ -5064,7 +5064,7 @@ add_code_for_floorceilround_divmod (tree vectype, vec_info *vinfo,
 	unsigned HOST_WIDE_INT mid_d = (abs_d - 1) >> 1;
 	if (!unsigned_p)
 	  {
-	    // check availibility of abs expression for vector
+	    // check availability of abs expression for vector
 	    if (!target_has_vecop_for_code (ABS_EXPR, vectype))
 	      return NULL;
 	    // abs (r)
@@ -6247,7 +6247,7 @@ vect_recog_bool_pattern (vec_info *vinfo,
 /* Function vect_recog_mask_conversion_pattern
 
    Try to find statements which require boolean type
-   converison.  Additional conversion statements are
+   conversion.  Additional conversion statements are
    added to handle such cases.  For example:
 
    bool m_1, m_2, m_3;
@@ -7436,7 +7436,7 @@ struct vect_recog_func
 };
 
 /* Note that ordering matters - the first pattern matching on a stmt is
-   taken which means usually the more complex one needs to preceed the
+   taken which means usually the more complex one needs to precede the
    less comples onex (widen_sum only after dot_prod or sad for example).  */
 static vect_recog_func vect_vect_recog_func_ptrs[] = {
   { vect_recog_bitfield_ref_pattern, "bitfield_ref" },

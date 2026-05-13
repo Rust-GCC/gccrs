@@ -374,7 +374,7 @@ vect_slp_tree_uniform_p (slp_tree node)
   gcc_assert (SLP_TREE_DEF_TYPE (node) == vect_constant_def
 	      || SLP_TREE_DEF_TYPE (node) == vect_external_def);
 
-  /* Pre-exsting vectors.  */
+  /* Pre-existing vectors.  */
   if (SLP_TREE_SCALAR_OPS (node).is_empty ())
     return false;
 
@@ -518,7 +518,7 @@ vect_def_types_match (enum vect_def_type dta, enum vect_def_type dtb)
    - for each child node, the index of the argument associated with that node.
      The special index -1 is the first operand of an embedded comparison and
      the special index -2 is the second operand of an embedded comparison.
-     The special indes -3 is the offset of a gather as analyzed by
+     The special index -3 is the offset of a gather as analyzed by
      vect_check_gather_scatter.
 
    SWAP is as for vect_get_and_check_slp_defs.  */
@@ -1142,7 +1142,7 @@ vect_record_max_nunits (vec_info *vinfo, stmt_vec_info stmt_info,
    operands.  Set SWAP[i] to 1 if stmt I is COND_EXPR and isomorphic to
    the first stmt by swapping the two operands of comparison; set SWAP[i]
    to 2 if stmt I is isormorphic to the first stmt by inverting the code
-   of comparison.  Take A1 >= B1 ? X1 : Y1 as an exmple, it can be swapped
+   of comparison.  Take A1 >= B1 ? X1 : Y1 as an example, it can be swapped
    to (B1 <= A1 ? X1 : Y1); or be inverted to (A1 < B1) ? Y1 : X1.  */
 
 static bool
@@ -2976,7 +2976,7 @@ out:
 	}
 
       /* If the SLP build for operand zero failed and operand zero
-	 and one can be commutated try that for the scalar stmts
+	 and one can be commuted try that for the scalar stmts
 	 that failed the match.  */
       if (i == 0
 	  /* A first scalar stmt mismatch signals a fatal mismatch.  */
@@ -5261,7 +5261,7 @@ vect_analyze_slp_instance (vec_info *vinfo,
 		  substmts.release ();
 		  if (end - start == 1)
 		    {
-		      /* Single-lane discovery failed.  Free ressources.  */
+		      /* Single-lane discovery failed.  Free resources.  */
 		      for (auto node : rhs_nodes)
 			vect_free_slp_tree (node);
 		      scalar_stmts.release ();
@@ -5637,7 +5637,7 @@ vect_lower_load_permutations (loop_vec_info loop_vinfo,
 	     interleaving scheme.  For this try to compute whether all
 	     elements needed for this load are in even or odd elements of
 	     an even/odd decomposition with N consecutive elements.
-	     Thus { e, e, o, o, e, e, o, o } woud be an even/odd decomposition
+	     Thus { e, e, o, o, e, e, o, o } would be an even/odd decomposition
 	     with N == 2.  */
 	  /* ???  Only an even number of lanes can be handed this way, but the
 	     fallback below could work for any number.  We have to make sure
@@ -6968,7 +6968,7 @@ vect_optimize_slp_pass::is_compatible_layout (const slpg_partition_info
   return true;
 }
 
-/* Return the cost (in arbtirary units) of going from layout FROM_LAYOUT_I
+/* Return the cost (in arbitrary units) of going from layout FROM_LAYOUT_I
    to layout TO_LAYOUT_I for a node like NODE.  Return -1 if either of the
    layouts is incompatible with NODE or if the change is not possible for
    some other reason.

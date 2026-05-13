@@ -107,7 +107,7 @@ enum vect_reduction_type {
        for (int i = 0; i < VF; ++i)
 	 res = res OP val[i];
 
-     (with no reassocation).  */
+     (with no reassociation).  */
   FOLD_LEFT_REDUCTION
 };
 
@@ -1218,7 +1218,7 @@ public:
   _loop_vec_info *main_loop_info;
 
   /* For loops being epilogues of already vectorized loops
-     this points to the preceeding vectorized (possibly epilogue) loop.
+     this points to the preceding vectorized (possibly epilogue) loop.
      Otherwise NULL.  */
   _loop_vec_info *orig_loop_info;
 
@@ -1260,7 +1260,7 @@ public:
   auto_vec<gimple*> early_break_vuses;
 
   /* The IV adjustment value for inductions that needs to be materialized
-     inside the relavent exit blocks in order to adjust for early break.  */
+     inside the relevant exit blocks in order to adjust for early break.  */
   tree early_break_niters_var;
 
   /* The type of the variable to be used to create the scalar IV for early break
@@ -2900,7 +2900,7 @@ extern size_t num__slp_patterns;
    The following routines are provided to simplify costing decisions in
    target code.  Please add more as needed.  */
 
-/* Return true if an operaton of kind KIND for STMT_INFO represents
+/* Return true if an operation of kind KIND for STMT_INFO represents
    the extraction of an element from a vector in preparation for
    storing the element to memory.  */
 inline bool

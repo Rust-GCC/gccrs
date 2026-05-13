@@ -3236,7 +3236,7 @@ vect_get_strided_load_store_ops (stmt_vec_info stmt_info, slp_tree node,
 /* Prepare the pointer IVs which needs to be updated by a variable amount.
    Such variable amount is the outcome of .SELECT_VL. In this case, we can
    allow each iteration process the flexible number of elements as long as
-   the number <= vf elments.
+   the number <= vf elements.
 
    Return data reference according to SELECT_VL.
    If new statements are needed, insert them before GSI.  */
@@ -4271,7 +4271,7 @@ vectorizable_simd_clone_call (vec_info *vinfo, stmt_vec_info stmt_info,
 	unsigned int num_calls;
 	/* The number of arguments in the call and the number of parameters in
 	   the simdclone should match.  However, when the simdclone is
-	   'inbranch', it could have one more paramater than nargs when using
+	   'inbranch', it could have one more parameter than nargs when using
 	   an inbranch simdclone to call a non-inbranch call, either in a
 	   non-masked loop using a all true constant mask, or inside a masked
 	   loop using it's mask.  */
@@ -8686,7 +8686,7 @@ vectorizable_store (vec_info *vinfo,
      during transform but it is allowed during analysis.
      Shouldn't go with length-based approach if fully masked.  */
   if (cost_vec == NULL)
-    /* The cost_vec is NULL during transfrom.  */
+    /* The cost_vec is NULL during transform.  */
     gcc_assert ((!loop_lens || !loop_masks));
 
   /* Targets with store-lane instructions must not require explicit
@@ -10577,7 +10577,7 @@ vectorizable_load (vec_info *vinfo,
      during transform but it is allowed during analysis.
      Shouldn't go with length-based approach if fully masked.  */
   if (cost_vec == NULL)
-    /* The cost_vec is NULL during transfrom.  */
+    /* The cost_vec is NULL during transform.  */
     gcc_assert ((!loop_lens || !loop_masks));
 
   /* Targets with store-lane instructions must not require explicit
@@ -12494,7 +12494,7 @@ vectorizable_condition (vec_info *vinfo,
 
       /* If we decided to apply a loop mask to the result of the vector
 	 comparison, AND the comparison with the mask now.  Later passes
-	 should then be able to reuse the AND results between mulitple
+	 should then be able to reuse the AND results between multiple
 	 vector statements.
 
 	 For example:
@@ -13081,7 +13081,7 @@ vectorizable_early_exit (loop_vec_info loop_vinfo, stmt_vec_info stmt_info,
       return true;
     }
 
-  /* Tranform.  */
+  /* Transform.  */
 
   tree new_temp = NULL_TREE;
   gimple *new_stmt = NULL;
@@ -13103,7 +13103,7 @@ vectorizable_early_exit (loop_vec_info loop_vinfo, stmt_vec_info stmt_info,
   auto_vec<tree> stmts;
   stmts.safe_splice (SLP_TREE_VEC_DEFS (slp_node));
 
-  /* If we're comparing against a previous forall we need to negate the resullts
+  /* If we're comparing against a previous forall we need to negate the results
      before we do the final comparison or reduction.  */
   if (flipped)
     {

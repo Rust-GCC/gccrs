@@ -218,7 +218,7 @@ vect_get_smallest_scalar_type (stmt_vec_info stmt_info, tree scalar_type)
 	    i = ~0U;
 	  else if (internal_store_fn_p (ifn))
 	    {
-	      /* For stores use the tyep of the stored value.  */
+	      /* For stores use the type of the stored value.  */
 	      i = internal_fn_stored_value_index (ifn);
 	      scalar_type = TREE_TYPE (gimple_call_arg (call, i));
 	      i = ~0U;
@@ -300,7 +300,7 @@ vect_preserves_scalar_order_p (dr_vec_info *dr_info_a, dr_vec_info *dr_info_b)
     return true;
 
   /* If there is a loop invariant read involved we might vectorize it in
-     the prologue, breaking scalar oder with respect to the in-loop store.  */
+     the prologue, breaking scalar order with respect to the in-loop store.  */
   if ((DR_IS_READ (dr_info_a->dr) && integer_zerop (DR_STEP (dr_info_a->dr)))
       || (DR_IS_READ (dr_info_b->dr) && integer_zerop (DR_STEP (dr_info_b->dr))))
     return false;
@@ -1268,7 +1268,7 @@ vect_slp_analyze_instance_dependence (vec_info *vinfo, slp_instance instance)
 
 	  /* For now concern ourselves with write-after-read as we also
 	     only look for re-use of the store within the same SLP instance.
-	     We can still get a RAW here when the instance contais a PHI
+	     We can still get a RAW here when the instance contains a PHI
 	     with a backedge though, thus this test.  */
 	  if (! vect_stmt_dominates_stmt_p (STMT_VINFO_STMT (load_info),
 					    STMT_VINFO_STMT (store_info)))
@@ -2621,7 +2621,7 @@ vect_enhance_data_refs_alignment (loop_vec_info loop_vinfo)
       || !slpeel_can_duplicate_loop_p (loop, LOOP_VINFO_MAIN_EXIT (loop_vinfo),
 				       loop_preheader_edge (loop))
       || loop->inner
-      /* We don't currently maintaing the LCSSA for prologue peeled inversed
+      /* We don't currently maintain the LCSSA for prologue peeled inversed
 	 loops.  */
       || (LOOP_VINFO_EARLY_BREAKS_VECT_PEELED (loop_vinfo)
 	  && !LOOP_VINFO_NITERS_UNCOUNTED_P (loop_vinfo)))
@@ -4824,7 +4824,7 @@ vect_check_gather_scatter (stmt_vec_info stmt_info, tree vectype,
 
 	  /* In pattern recog we simply used a ZERO else value that
 	     we need to correct here.  To that end just re-use the
-	     (already succesful) check if we support a gather IFN
+	     (already successful) check if we support a gather IFN
 	     and have it populate the else values.  */
 	  if (DR_IS_READ (dr) && internal_fn_mask_index (ifn) >= 0 && elsvals)
 	    supports_vec_gather_load_p (TYPE_MODE (vectype), elsvals);
@@ -6187,7 +6187,7 @@ vect_grouped_store_supported (tree vectype, unsigned HOST_WIDE_INT count)
       if (dump_enabled_p ())
 	dump_printf_loc (MSG_MISSED_OPTIMIZATION, vect_location,
 			 "the size of the group of accesses"
-			 " is not a power of 2 or not eqaul to 3\n");
+			 " is not a power of 2 or not equal to 3\n");
       return false;
     }
 

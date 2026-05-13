@@ -2046,7 +2046,7 @@ vector_costs::compare_inside_loop_cost (const vector_costs *other) const
   HOST_WIDE_INT est_rel_other_max
     = estimated_poly_value (rel_other, POLY_VALUE_MAX);
 
-  /* Check first if we can make out an unambigous total order from the minimum
+  /* Check first if we can make out an unambiguous total order from the minimum
      and maximum estimates.  */
   if (est_rel_this_min < est_rel_other_min
       && est_rel_this_max < est_rel_other_max)
