@@ -103,7 +103,7 @@ startswith (const char *str, const char *prefix)
 /* The part of the symbol table the plugin has to keep track of. Note that we
    must keep SYMS until all_symbols_read is called to give the linker time to
    copy the symbol information. 
-   The id must be 64bit to minimze collisions. */
+   The id must be 64bit to minimize collisions. */
 
 struct sym_aux
 {
@@ -687,7 +687,7 @@ exec_lto_wrapper (char *argv[])
   else
     arguments_file_name = make_temp_file (".lto_wrapper_args");
   check (arguments_file_name, LDPL_FATAL,
-         "Failed to generate a temorary file name");
+	  "Failed to generate a temporary file name");
 
   args = fopen (arguments_file_name, "w");
   check (args, LDPL_FATAL, "could not open arguments file");
@@ -1006,7 +1006,7 @@ static int symbol_strength (struct ld_plugin_symbol *s)
    gold and then finally gcc by supplying incorrect resolutions.
 
    Problem is that the main gold symbol table doesn't know about subids
-   and does not distingush the same symbols in different states.
+   and does not distinguish the same symbols in different states.
 
    So we drop duplicates from the linker visible symbol table
    and keep them in a private table. Then later do own symbol
