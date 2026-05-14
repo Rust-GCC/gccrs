@@ -1586,7 +1586,7 @@ expand_const_vector_single_step_npatterns (rtx target, rvv_builder *builder)
 }
 
 static void
-expand_const_vector_interleaved_stepped_npatterns (rtx target, rtx src,
+expand_const_vector_interleaved_stepped_npatterns (rtx target,
 						   rvv_builder *builder)
 {
   machine_mode mode = GET_MODE (target);
@@ -1639,15 +1639,14 @@ expand_const_vector_interleaved_stepped_npatterns (rtx target, rtx src,
 }
 
 static void
-expand_const_vector_stepped (rtx target, rtx src, rvv_builder *builder)
+expand_const_vector_stepped (rtx target, rvv_builder *builder)
 {
   gcc_assert (GET_MODE_CLASS (GET_MODE (target)) == MODE_VECTOR_INT);
 
   if (builder->single_step_npatterns_p ())
     return expand_const_vector_single_step_npatterns (target, builder);
   else if (builder->interleaved_stepped_npatterns_p ())
-    return expand_const_vector_interleaved_stepped_npatterns (target, src,
-							      builder);
+    return expand_const_vector_interleaved_stepped_npatterns (target, builder);
 
   /* TODO: We will enable more variable-length vector in the future.  */
   gcc_unreachable ();
@@ -1755,7 +1754,7 @@ expand_const_vector (rtx target, rtx src)
   else if (CONST_VECTOR_NELTS_PER_PATTERN (src) == 2)
     return expand_const_vector_onestep (target, builder);
   else if (CONST_VECTOR_STEPPED_P (src))
-    return expand_const_vector_stepped (target, src, &builder);
+    return expand_const_vector_stepped (target, &builder);
 
   gcc_unreachable ();
 }
