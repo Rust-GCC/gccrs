@@ -1,4 +1,7 @@
 // { dg-do compile { target { c++11 } } }
+// { dg-require-effective-target __float128 }
+// { dg-require-effective-target base_quadfloat_support }
+// { dg-add-options __float128 }
 
 #include <random>
 #include <cstdint>
@@ -45,13 +48,12 @@ test_pow2()
 
 int main()
 {
-// For 128bit floating points, generator emitting a range, which size is 
-// not power of two, but of width of B bits, such that for any N:
-// N * B < 113 (bits in ieee128)
-// (N+1) * B > 128
-// are not supported, as they would require integer with more than 127 bits.
-#ifndef _GLIBCXX_GENERATE_CANONICAL_STRICT
-#  ifdef __SIZEOF_FLOAT128__
+  // For 128bit floating points, generator emitting a range, which size is 
+  // not power of two, but of width of B bits, such that for any N:
+  // N * B < 113 (bits in ieee128)
+  // (N+1) * B > 128
+  // are not supported, as they would require integer with more than 127 bits.
+
   // N == 3: B in [43, 57)
   test_non_pow2<__float128, 42>(); // 3 calls
   test_non_pow2<__float128, 43>(); // { dg-error "from here" }
@@ -81,8 +83,6 @@ int main()
   test_non_pow2<__float128, 22>(); // { dg-error "from here" }
   test_non_pow2<__float128, 23>(); // 5 calls
   test_pow2<__float128, 22>();
-#  endif
-#endif 
 }
 
 // { dg-prune-output "no type named 'type' in 'struct std::__detail::_Select_uint_least_t" }
