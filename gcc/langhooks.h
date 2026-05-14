@@ -313,16 +313,25 @@ struct lang_hooks_for_decls
   /* Do language specific checking on an implicitly determined clause.  */
   void (*omp_finish_clause) (tree clause, gimple_seq *pre_p, bool);
 
-  /* Additional language-specific mappings for a decl; returns true
-     if those may occur.  */
+  /* Return true if for the passed OpenMP 'map' CLAUSE, additional data-mapping
+     is required; CTX_STMT is the gimple statement containing the clause.
+     Otherwise, false is returned.  */
   bool (*omp_deep_mapping_p) (const gimple *ctx_stmt, tree clause);
 
-  /* Additional language-specific mappings for a decl; returns the
-     number of additional mappings needed.  */
+  /* Return the number of additional data-mappings required for the passed
+     'map' CLAUSE; CTX_STMT is the gimple statement containing the clause.
+     It is NULL_TREE if known that no such mapping are required and otherwise
+     of type size_type_node and usually non-constant.  */
   tree (*omp_deep_mapping_cnt) (const gimple *ctx_stmt, tree clause,
 				gimple_seq *seq);
 
-  /* Do the actual additional language-specific mappings for a decl. */
+  /* If no additional data-mapping is required for the passed 'map' CLAUSE that
+     is part of the CTX_SMT gimple statement, the function has no effect.
+     Otherwise, DATA refers to a void-pointer array containing the address values
+     of the mapping while SIZE and KINDS are arrays for the to-be mapped size and
+     the map kind; OFFSET_DATA and OFFSET are size_type_node variable that refer
+     to the array index of DATA and SIZE/KIND, respectively and are incremented
+     whenever an element is added. New gimple code is added to SEQ.  */
   void (*omp_deep_mapping) (const gimple *stmt, tree clause,
 			    unsigned HOST_WIDE_INT tkind,
 			    tree data, tree sizes, tree kinds,

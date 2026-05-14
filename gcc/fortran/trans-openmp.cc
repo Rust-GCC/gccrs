@@ -2475,8 +2475,11 @@ gfc_omp_deep_mapping_int_p (const gimple *ctx, tree clause)
   return decl;
 }
 
-/* Return true if there is deep mapping, even if the number of mapping is known
-   at compile time. */
+/* Return true if there is any deep mapping required, even if the number of
+   mappings is known at compile time.  Deep mapping is required if the passed
+   CLAUSE is a map clause and its OMP_CLAUSE_DECL refers to a derived-type with
+   allocatable components. CTX is the statement that contains the CLAUSE.  */
+
 bool
 gfc_omp_deep_mapping_p (const gimple *ctx, tree clause)
 {
@@ -2622,8 +2625,14 @@ gfc_omp_deep_mapping_do (bool is_cnt, const gimple *ctx, tree clause,
   return num;
 }
 
-/* Return tree with a variable which contains the count of deep-mappyings
-   (value depends, e.g., on allocation status)  */
+/* Returns NULL_TREE if known that no deep mapping is required for the passed
+   'map' CLAUSE, otherwise returns a size_type expression with the number of
+   required data-mapping operations, which may be zero.  Deep mapping is
+   required for allocatable components of derived types; the number of mapping
+   operations depends on the allocation status, array sizes and the dynamic
+   type.  CTX is the gimple statement that contains the map CLAUSE; the
+   gimple code used for counting is added to SEQ.  */
+
 tree
 gfc_omp_deep_mapping_cnt (const gimple *ctx, tree clause, gimple_seq *seq)
 {
@@ -2631,7 +2640,16 @@ gfc_omp_deep_mapping_cnt (const gimple *ctx, tree clause, gimple_seq *seq)
 				  NULL_TREE, NULL_TREE, NULL_TREE, seq);
 }
 
-/* Does the actual deep mapping. */
+/* Handle the deep mapping for the passed map CLAUSE that is part of
+   the gimple statement CTX by walking all allocated allocatable components
+   and its allocatable components to add additional data-mapping operations.
+   TKIND is the map-type/kind to be used. The generated code is added to
+   SEQ – and the actual struct-field address used for mapping, the map size,
+   and kind value to the arrays DATA, SIZES, and KINDS, respectively.
+   OFFSET_DATA and OFFSET are size-type variables; the map operatations are
+   added at array index OFFSET_DATA for DATA and at array index OFFSET for
+   SIZES/KINDS, incrementing the offsets after each assignment.  */
+
 void
 gfc_omp_deep_mapping (const gimple *ctx, tree clause,
 		      unsigned HOST_WIDE_INT tkind, tree data,
