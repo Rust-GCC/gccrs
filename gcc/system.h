@@ -1229,7 +1229,7 @@ void gcc_stablesort_r (void *, size_t, size_t, sort_r_cmp_fn *, void *data);
    - the character 'k', if the number is higher than 10 K (in base 2)
      but strictly lower than 10 M (in base 2)
    - the character 'M' if the number is higher than 10 M (in base2)
-   - the charcter ' ' if the number is strictly lower  than 10 K  */
+   - the character ' ' if the number is strictly lower  than 10 K  */
 #define SIZE_LABEL(x) ((x) < 10 * ONE_K ? ' ' : ((x) < 10 * ONE_M ? 'k' : 'M'))
 
 /* Display an integer amount as multiple of 1K or 1M (in base 2).

@@ -354,7 +354,7 @@ assert_not_suggested_for (const location &loc, const char *candidate,
     assert_not_suggested_for (SELFTEST_LOCATION, CANDIDATE, TARGET);	\
   SELFTEST_END_STMT
 
-/* Verify that we offer varous suggestions that are meaningful,
+/* Verify that we offer various suggestions that are meaningful,
    and that we don't offer various other ones that aren't (PR c/82967).  */
 
 static void

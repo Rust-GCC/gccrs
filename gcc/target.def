@@ -1748,7 +1748,7 @@ DEFHOOK
 (expand_var_decl,
 "This hook, if defined, is used by accelerator target back-ends to expand\n\
 specially handled kinds of @code{VAR_DECL} expressions.  A particular use is\n\
-to place variables with specific attributes inside special accelarator\n\
+to place variables with specific attributes inside special accelerator\n\
 memories.  A return value of @code{NULL} indicates that the target does not\n\
 handle this @code{VAR_DECL}, and normal RTL expanding is resumed.\n\
 \n\
@@ -1970,7 +1970,7 @@ for a given element mode.\n\
 \n\
 The modes returned in @var{modes} should use the smallest element mode\n\
 possible for the vectorization approach that they represent, preferring\n\
-integer modes over floating-poing modes in the event of a tie.  The first\n\
+integer modes over floating-point modes in the event of a tie.  The first\n\
 mode should be the @code{TARGET_VECTORIZE_PREFERRED_SIMD_MODE} for its\n\
 element mode.\n\
 \n\
@@ -2822,11 +2822,11 @@ modes and they have different conditional execution capability, such as ARM.",
 DEFHOOK
 (gen_ccmp_first,
  "This function prepares to emit a comparison insn for the first compare in a\n\
- sequence of conditional comparisions.  It returns an appropriate comparison\n\
+ sequence of conditional comparisons.  It returns an appropriate comparison\n\
  with @code{CC} for passing to @code{gen_ccmp_next} or @code{cbranch_optab}.\n\
  The insns to prepare the compare are saved in @var{prep_seq} and the compare\n\
  insns are saved in @var{gen_seq}.  They will be emitted when all the\n\
- compares in the conditional comparision are generated without error.\n\
+ compares in the conditional comparison are generated without error.\n\
  @var{code} is the @code{rtx_code} of the compare for @var{op0} and @var{op1}.",
  rtx, (rtx_insn **prep_seq, rtx_insn **gen_seq, rtx_code code, tree op0, tree op1),
  NULL)
@@ -2838,7 +2838,7 @@ DEFHOOK
  @code{CC} for passing to @code{gen_ccmp_next} or @code{cbranch_optab}.\n\
  The insns to prepare the compare are saved in @var{prep_seq} and the compare\n\
  insns are saved in @var{gen_seq}.  They will be emitted when all the\n\
- compares in the conditional comparision are generated without error.  The\n\
+ compares in the conditional comparison are generated without error.  The\n\
  @var{prev} expression is the result of a prior call to @code{gen_ccmp_first}\n\
  or @code{gen_ccmp_next}.  It may return @code{NULL} if the combination of\n\
  @var{prev} and this comparison is not supported, otherwise the result must\n\
@@ -3792,7 +3792,7 @@ DEFHOOK
 built-in function without the @code{__builtin_} prefix in addition to the\n\
 normal built-in function with the @code{__builtin_} prefix.  The default is\n\
 to only enable built-in functions without the @code{__builtin_} prefix for\n\
-the GNU C langauge.  In strict ANSI/ISO mode, the built-in function without\n\
+the GNU C language.  In strict ANSI/ISO mode, the built-in function without\n\
 the @code{__builtin_} prefix is not enabled.  The argument @code{FUNC} is the\n\
 @code{enum built_in_function} id of the function to be enabled.",
  bool, (int func),
@@ -4061,7 +4061,7 @@ of spill registers and print a fatal error message.",
  hook_bool_mode_false)
 
 /* Register number for a flags register.  Only needs to be defined if the
-   target is constrainted to use post-reload comparison elimination.  */
+   target is constrained to use post-reload comparison elimination.  */
 DEFHOOKPOD
 (flags_regnum,
  "If the target has a dedicated flags register, and it needs to use the\n\
@@ -4710,7 +4710,7 @@ DEFHOOK
  compilation for the second case.\n\
  \n\
  For targets that have no processors that can execute instructions\n\
- speculatively an alternative implemenation of this hook is available:\n\
+ speculatively an alternative implementation of this hook is available:\n\
  simply redefine this hook to @code{speculation_safe_value_not_needed}\n\
  along with your other target hooks.",
 bool, (bool active), default_have_speculation_safe_value)
@@ -4774,7 +4774,7 @@ hardware count register support for decrement and branch, it may have to\n\
 move IV value from hardware count register to general purpose register\n\
 while doloop IV candidate is used for address IV uses.  It probably takes\n\
 expensive penalty.  This hook allows target owners to define the cost for\n\
-this escpecially for address IV uses.\n\
+this especially for address IV uses.\n\
 The default value is zero.",
  int64_t, 0)
 
@@ -6591,7 +6591,7 @@ applied.  @var{type} is either @code{EXCESS_PRECISION_TYPE_IMPLICIT},\n\
 @code{EXCESS_PRECISION_TYPE_STANDARD}, or\n\
 @code{EXCESS_PRECISION_TYPE_FLOAT16}.  For\n\
 @code{EXCESS_PRECISION_TYPE_IMPLICIT}, the target should return which\n\
-precision and range operations will be implictly evaluated in regardless\n\
+precision and range operations will be implicitly evaluated in regardless\n\
 of the excess precision explicitly added.  For\n\
 @code{EXCESS_PRECISION_TYPE_STANDARD}, \n\
 @code{EXCESS_PRECISION_TYPE_FLOAT16}, and\n\

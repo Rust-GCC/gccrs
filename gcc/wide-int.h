@@ -36,7 +36,7 @@ along with GCC; see the file COPYING3.  If not see
      bits above the precision that has been specified.  Because of
      this, the default flavor has semantics that are simple to
      understand and in general model the underlying hardware that the
-     compiler is targetted for.
+     compiler is targeted for.
 
      This flavor must be used at the RTL level of gcc because there
      is, in general, not enough information in the RTL representation
@@ -119,7 +119,7 @@ along with GCC; see the file COPYING3.  If not see
 
    The offset_int and the widest_int flavors are more expensive
    than the default wide int, so in addition to the caveats with these
-   two, the default is the prefered representation.
+   two, the default is the preferred representation.
 
    All three flavors of wide_int are represented as a vector of
    HOST_WIDE_INTs.  The default and widest_int vectors contain enough elements
@@ -2036,7 +2036,7 @@ wi::two (unsigned int precision)
 
 namespace wi
 {
-  /* ints_for<T>::zero (X) returns a zero that, when asssigned to a T,
+  /* ints_for<T>::zero (X) returns a zero that, when assigned to a T,
      gives that T the same precision as X.  */
   template<typename T, precision_type = int_traits<T>::precision_type>
   struct ints_for
@@ -2684,7 +2684,7 @@ wi::bitreverse (const T &x)
   return result;
 }
 
-/* Return the mininum of X and Y, treating them both as having
+/* Return the minimum of X and Y, treating them both as having
    signedness SGN.  */
 template <typename T1, typename T2>
 inline WI_BINARY_RESULT (T1, T2)
@@ -2715,7 +2715,7 @@ wi::umin (const T1 &x, const T2 &y)
   return wi::min (x, y, UNSIGNED);
 }
 
-/* Return the maxinum of X and Y, treating them both as having
+/* Return the maximum of X and Y, treating them both as having
    signedness SGN.  */
 template <typename T1, typename T2>
 inline WI_BINARY_RESULT (T1, T2)
@@ -3116,7 +3116,7 @@ wi::mul_high (const T1 &x, const T2 &y, signop sgn)
   return result;
 }
 
-/* Return X / Y, rouding towards 0.  Treat X and Y as having the
+/* Return X / Y, rounding towards 0.  Treat X and Y as having the
    signedness given by SGN.  Indicate in *OVERFLOW if the result
    overflows.  */
 template <typename T1, typename T2>
@@ -3141,7 +3141,7 @@ wi::div_trunc (const T1 &x, const T2 &y, signop sgn, overflow_type *overflow)
   return quotient;
 }
 
-/* Return X / Y, rouding towards 0.  Treat X and Y as signed values.  */
+/* Return X / Y, rounding towards 0.  Treat X and Y as signed values.  */
 template <typename T1, typename T2>
 inline WI_BINARY_RESULT (T1, T2)
 wi::sdiv_trunc (const T1 &x, const T2 &y)
@@ -3149,7 +3149,7 @@ wi::sdiv_trunc (const T1 &x, const T2 &y)
   return div_trunc (x, y, SIGNED);
 }
 
-/* Return X / Y, rouding towards 0.  Treat X and Y as unsigned values.  */
+/* Return X / Y, rounding towards 0.  Treat X and Y as unsigned values.  */
 template <typename T1, typename T2>
 inline WI_BINARY_RESULT (T1, T2)
 wi::udiv_trunc (const T1 &x, const T2 &y)
@@ -3157,7 +3157,7 @@ wi::udiv_trunc (const T1 &x, const T2 &y)
   return div_trunc (x, y, UNSIGNED);
 }
 
-/* Return X / Y, rouding towards -inf.  Treat X and Y as having the
+/* Return X / Y, rounding towards -inf.  Treat X and Y as having the
    signedness given by SGN.  Indicate in *OVERFLOW if the result
    overflows.  */
 template <typename T1, typename T2>
@@ -3192,7 +3192,7 @@ wi::div_floor (const T1 &x, const T2 &y, signop sgn, overflow_type *overflow)
   return quotient;
 }
 
-/* Return X / Y, rouding towards -inf.  Treat X and Y as signed values.  */
+/* Return X / Y, rounding towards -inf.  Treat X and Y as signed values.  */
 template <typename T1, typename T2>
 inline WI_BINARY_RESULT (T1, T2)
 wi::sdiv_floor (const T1 &x, const T2 &y)
@@ -3200,7 +3200,7 @@ wi::sdiv_floor (const T1 &x, const T2 &y)
   return div_floor (x, y, SIGNED);
 }
 
-/* Return X / Y, rouding towards -inf.  Treat X and Y as unsigned values.  */
+/* Return X / Y, rounding towards -inf.  Treat X and Y as unsigned values.  */
 /* ??? Why do we have both this and udiv_trunc.  Aren't they the same?  */
 template <typename T1, typename T2>
 inline WI_BINARY_RESULT (T1, T2)
@@ -3209,7 +3209,7 @@ wi::udiv_floor (const T1 &x, const T2 &y)
   return div_floor (x, y, UNSIGNED);
 }
 
-/* Return X / Y, rouding towards +inf.  Treat X and Y as having the
+/* Return X / Y, rounding towards +inf.  Treat X and Y as having the
    signedness given by SGN.  Indicate in *OVERFLOW if the result
    overflows.  */
 template <typename T1, typename T2>
@@ -3244,7 +3244,7 @@ wi::div_ceil (const T1 &x, const T2 &y, signop sgn, overflow_type *overflow)
   return quotient;
 }
 
-/* Return X / Y, rouding towards +inf.  Treat X and Y as unsigned values.  */
+/* Return X / Y, rounding towards +inf.  Treat X and Y as unsigned values.  */
 template <typename T1, typename T2>
 inline WI_BINARY_RESULT (T1, T2)
 wi::udiv_ceil (const T1 &x, const T2 &y)
@@ -3252,7 +3252,7 @@ wi::udiv_ceil (const T1 &x, const T2 &y)
   return div_ceil (x, y, UNSIGNED);
 }
 
-/* Return X / Y, rouding towards nearest with ties away from zero.
+/* Return X / Y, rounding towards nearest with ties away from zero.
    Treat X and Y as having the signedness given by SGN.  Indicate
    in *OVERFLOW if the result overflows.  */
 template <typename T1, typename T2>
@@ -3305,7 +3305,7 @@ wi::div_round (const T1 &x, const T2 &y, signop sgn, overflow_type *overflow)
   return quotient;
 }
 
-/* Return X / Y, rouding towards 0.  Treat X and Y as having the
+/* Return X / Y, rounding towards 0.  Treat X and Y as having the
    signedness given by SGN.  Store the remainder in *REMAINDER_PTR.  */
 template <typename T1, typename T2>
 inline WI_BINARY_RESULT (T1, T2)
@@ -3360,7 +3360,7 @@ wi::gcd (const T1 &a, const T2 &b, signop sgn)
   return y;
 }
 
-/* Compute X / Y, rouding towards 0, and return the remainder.
+/* Compute X / Y, rounding towards 0, and return the remainder.
    Treat X and Y as having the signedness given by SGN.  Indicate
    in *OVERFLOW if the division overflows.  */
 template <typename T1, typename T2>
@@ -3387,7 +3387,7 @@ wi::mod_trunc (const T1 &x, const T2 &y, signop sgn, overflow_type *overflow)
   return remainder;
 }
 
-/* Compute X / Y, rouding towards 0, and return the remainder.
+/* Compute X / Y, rounding towards 0, and return the remainder.
    Treat X and Y as signed values.  */
 template <typename T1, typename T2>
 inline WI_BINARY_RESULT (T1, T2)
@@ -3396,7 +3396,7 @@ wi::smod_trunc (const T1 &x, const T2 &y)
   return mod_trunc (x, y, SIGNED);
 }
 
-/* Compute X / Y, rouding towards 0, and return the remainder.
+/* Compute X / Y, rounding towards 0, and return the remainder.
    Treat X and Y as unsigned values.  */
 template <typename T1, typename T2>
 inline WI_BINARY_RESULT (T1, T2)
@@ -3405,7 +3405,7 @@ wi::umod_trunc (const T1 &x, const T2 &y)
   return mod_trunc (x, y, UNSIGNED);
 }
 
-/* Compute X / Y, rouding towards -inf, and return the remainder.
+/* Compute X / Y, rounding towards -inf, and return the remainder.
    Treat X and Y as having the signedness given by SGN.  Indicate
    in *OVERFLOW if the division overflows.  */
 template <typename T1, typename T2>
@@ -3441,7 +3441,7 @@ wi::mod_floor (const T1 &x, const T2 &y, signop sgn, overflow_type *overflow)
   return remainder;
 }
 
-/* Compute X / Y, rouding towards -inf, and return the remainder.
+/* Compute X / Y, rounding towards -inf, and return the remainder.
    Treat X and Y as unsigned values.  */
 /* ??? Why do we have both this and umod_trunc.  Aren't they the same?  */
 template <typename T1, typename T2>
@@ -3451,7 +3451,7 @@ wi::umod_floor (const T1 &x, const T2 &y)
   return mod_floor (x, y, UNSIGNED);
 }
 
-/* Compute X / Y, rouding towards +inf, and return the remainder.
+/* Compute X / Y, rounding towards +inf, and return the remainder.
    Treat X and Y as having the signedness given by SGN.  Indicate
    in *OVERFLOW if the division overflows.  */
 template <typename T1, typename T2>
@@ -3487,7 +3487,7 @@ wi::mod_ceil (const T1 &x, const T2 &y, signop sgn, overflow_type *overflow)
   return remainder;
 }
 
-/* Compute X / Y, rouding towards nearest with ties away from zero,
+/* Compute X / Y, rounding towards nearest with ties away from zero,
    and return the remainder.  Treat X and Y as having the signedness
    given by SGN.  Indicate in *OVERFLOW if the division overflows.  */
 template <typename T1, typename T2>

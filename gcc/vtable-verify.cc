@@ -86,7 +86,7 @@ along with GCC; see the file COPYING3.  If not see
   The vtable verification feature is controlled by the flag
   '-fvtable-verify='.  There are three flavors of this:
   '-fvtable-verify=std', '-fvtable-verify=preinit', and
-  '-fvtable-verify=none'.  If the option '-fvtable-verfy=preinit' is
+  '-fvtable-verify=none'.  If the option '-fvtable-verify=preinit' is
   used, then our constructor initialization function gets put into the
   preinit array.  This is necessary if there are data sets that need
   to be built very early in execution.  If the constructor

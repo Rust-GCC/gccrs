@@ -319,7 +319,7 @@ wi::from_mpz (const_tree type, mpz_t x, bool wrap)
 
 /* Return the largest SGNed number that is representable in PRECISION bits.
 
-   TODO: There is still code from the double_int era that trys to
+   TODO: There is still code from the double_int era that tries to
    make up for the fact that double int's could not represent the
    min and max values of all types.  This code should be removed
    because the min and max values can always be represented in
@@ -401,7 +401,7 @@ wi::force_to_size (HOST_WIDE_INT *val, const HOST_WIDE_INT *xval,
 }
 
 /* This function hides the fact that we cannot rely on the bits beyond
-   the precision.  This issue comes up in the relational comparisions
+   the precision.  This issue comes up in the relational comparisons
    where we do allow comparisons of values of different precisions.  */
 static inline HOST_WIDE_INT
 selt (const HOST_WIDE_INT *a, unsigned int len,
@@ -1865,7 +1865,7 @@ wi::divmod_internal (HOST_WIDE_INT *quotient, unsigned int *remainder_len,
     overflow = true;
 
   /* Handle the overflow cases.  Viewed as unsigned value, the quotient of
-     (signed min / -1) has the same representation as the orignal dividend.
+     (signed min / -1) has the same representation as the original dividend.
      We have traditionally made division by zero act as division by one,
      so there too we use the original dividend.  */
   if (overflow)

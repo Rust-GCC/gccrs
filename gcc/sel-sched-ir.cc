@@ -344,7 +344,7 @@ alloc_target_context (void)
 
 /* Init target context TC.
    If CLEAN_P is true, then make TC as it is beginning of the scheduler.
-   Overwise, copy current backend context to TC.  */
+   Otherwise, copy current backend context to TC.  */
 static void
 init_target_context (tc_t tc, bool clean_p)
 {
@@ -2249,7 +2249,7 @@ av_set_union_and_live (av_set_t *top, av_set_t *fromp, regset to_lv_set,
   av_set_iterator i;
   av_set_t *to_tailp, in_both_set = NULL;
 
-  /* Delete from TOP all expres, that present in FROMP.  */
+  /* Delete from TOP all exprs, that present in FROMP.  */
   FOR_EACH_EXPR_1 (expr1, i, top)
     {
       expr_t expr2 = av_set_lookup_and_remove (fromp, EXPR_VINSN (expr1));
@@ -6110,7 +6110,7 @@ make_regions_from_loop_nest (class loop *loop)
   return true;
 }
 
-/* Initalize data structures needed.  */
+/* Initialize data structures needed.  */
 void
 sel_init_pipelining (void)
 {

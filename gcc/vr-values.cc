@@ -1812,7 +1812,7 @@ simplify_using_ranges::simplify (gimple_stmt_iterator *gsi)
 	      cmp_var = rhs1;
 	    }
 
-	  /* If we could not find two-vals or the optimzation is invalid as
+	  /* If we could not find two-vals or the optimization is invalid as
 	     in divide by zero, new_rhs1 / new_rhs will be NULL_TREE.  */
 	  if (new_rhs1 && new_rhs2)
 	    {

@@ -346,7 +346,7 @@ x_ruler::update_layout ()
   /* Now walk backwards trying to place them vertically,
      setting m_text_rect.m_top_left.y for each label,
      consolidating the rows where possible.
-     The y cooordinates are stored with respect to label_dir::BELOW.  */
+     The y coordinates are stored with respect to label_dir::BELOW.  */
   int label_y = 2;
   for (int idx = m_labels.size () - 1; idx >= 0; idx--)
     {

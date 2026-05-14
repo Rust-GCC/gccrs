@@ -89,7 +89,7 @@ class x_ruler
      #             m_text_coord.x == 6
 
      and m_text_coord is (2, 6).
-     The y cooordinates are stored with respect to label_dir::BELOW;
+     The y coordinates are stored with respect to label_dir::BELOW;
      for label_dir::ABOVE we flip them when painting the ruler.  */
   class label
   {

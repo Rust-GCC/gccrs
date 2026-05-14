@@ -1861,7 +1861,7 @@ instrument_bool_enum_load (gimple_stmt_iterator *gsi)
 }
 
 /* Determine if we can propagate given LOCATION to ubsan_data descriptor to use
-   new style handlers.  Libubsan uses heuristics to destinguish between old and
+   new style handlers.  Libubsan uses heuristics to distinguish between old and
    new styles and relies on these properties for filename:
 
    a) Location's filename must not be NULL.

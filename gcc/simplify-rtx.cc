@@ -2739,7 +2739,7 @@ simplify_context::simplify_logical_relational_operation (rtx_code code,
    simplify down to IOR/XOR expression right now, but there may be other
    simplifications we can do in the future.
 
-   Return the simpified expression or NULL_RTX if no simpification was
+   Return the simplified expression or NULL_RTX if no simplification was
    possible.  */
 rtx
 simplify_context::simplify_ior_with_common_term (machine_mode mode, rtx op0, rtx op1)
@@ -5117,7 +5117,7 @@ simplify_ashift:
 	     (i386) extract scalar element from a vector using chain of
 	     nested VEC_SELECT expressions.  When input operand is a memory
 	     operand, this operation can be simplified to a simple scalar
-	     load from an offseted memory address.  */
+	     load from an offsetted memory address.  */
 	  int n_elts;
 	  if (GET_CODE (trueop0) == VEC_SELECT
 	      && (GET_MODE_NUNITS (GET_MODE (XEXP (trueop0, 0)))
@@ -8379,7 +8379,7 @@ simplify_const_vector_subreg (machine_mode outermode, rtx x,
   if (!native_encode_rtx (innermode, x, buffer, first_byte, buffer_bytes))
     return NULL_RTX;
 
-  /* Reencode the bytes as OUTERMODE.  */
+  /* Re-encode the bytes as OUTERMODE.  */
   return native_decode_vector_rtx (outermode, buffer, 0, out_npatterns,
 				   nelts_per_pattern);
 }

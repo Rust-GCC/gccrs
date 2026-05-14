@@ -2739,7 +2739,7 @@ sched_analyze_2 (class deps_desc *deps, rtx x, rtx_insn *insn)
 	 a jump insn which usually generates MOVE_BARRIER preventing
 	 to move insns containing registers or memories through the
 	 barrier.  It is also wrong with generated code performance
-	 point of view as prefetch withouth dependecies will have a
+	 point of view as prefetch without dependencies will have a
 	 tendency to be issued later instead of earlier.  It is hard
 	 to generate accurate dependencies for prefetch insns as
 	 prefetch has only the start address but it is better to have

@@ -1,4 +1,4 @@
-/* Declarations and definitons for stringpool.cc.
+/* Declarations and definitions for stringpool.cc.
    Copyright (C) 2013-2026 Free Software Foundation, Inc.
 
 This file is part of GCC.

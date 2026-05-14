@@ -4447,7 +4447,7 @@ ipa_tm_scan_irr_block (basic_block bb)
   return false;
 }
 
-/* For each of the blocks seeded witin PQUEUE, walk the CFG looking
+/* For each of the blocks seeded within PQUEUE, walk the CFG looking
    for new irrevocable blocks, marking them in NEW_IRR.  Don't bother
    scanning past OLD_IRR or EXIT_BLOCKS.  */
 
@@ -5516,7 +5516,7 @@ ipa_tm_execute (void)
 
   /* Iterate scans until no more work to be done.  Prefer not to use
      vec::pop because the worklist tends to follow a breadth-first
-     search of the callgraph, which should allow convergance with a
+     search of the callgraph, which should allow convergence with a
      minimum number of scans.  But we also don't want the worklist
      array to grow without bound, so we shift the array up periodically.  */
   for (i = 0; i < irr_worklist.length (); ++i)

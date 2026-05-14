@@ -265,7 +265,7 @@ bool has_warning_spec (const_tree t)
   return !RESERVED_LOCATION_P (loc) && get_no_warning_bit (t);
 }
 
-/* Retrieve warning dispostion bitmap for tree streaming.  */
+/* Retrieve warning disposition bitmap for tree streaming.  */
 
 unsigned
 get_warning_spec (const_tree t)

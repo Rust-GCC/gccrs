@@ -233,7 +233,7 @@ public:
   /* Number of IFN_ASAN_CHECK statements.  */
   int asan_num_accesses;
 
-  /* True when the current functions constains an ASAN_MARK.  */
+  /* True when the current functions contains an ASAN_MARK.  */
   bool contains_asan_mark;
 };
 

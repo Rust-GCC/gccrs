@@ -767,7 +767,7 @@ state::do_shift_right (value *arg1, value *arg2, tree dest)
 
 
 /* Adds two bits and carry value.
-   Resturn result and stores new carry bit in "carry".  */
+   Returns result and stores new carry bit in "carry".  */
 
 value_bit *
 state::full_adder (value_bit *var1, value_bit *var2, value_bit **carry)
@@ -1161,7 +1161,7 @@ state::get_parent_with_const_child (value_bit *root, bit_expression *&parent,
   node_to_parent.put (expr_root, nullptr);
 
   /* Traversing expression tree:
-     considering only comutative expression nodes.  */
+     considering only commutative expression nodes.  */
   while (!nodes_to_consider.is_empty ())
     {
       bit_expression *cur_element = *nodes_to_consider.begin ();
@@ -1239,7 +1239,7 @@ state::add_numbers (value *var1, const value *var2)
 }
 
 
-/* ANDs every bit of the vector with var_bit, stroes the result in var1.  */
+/* ANDs every bit of the vector with var_bit, stores the result in var1.  */
 
 void
 state::and_number_bit (value *var1, value_bit *var_bit)
@@ -1325,7 +1325,7 @@ state::add_equal_cond (value *arg1, value *arg2)
     }
 
   /* When some of bits are constants and they differ by value,
-     then we can evalate it to be false.  */
+     then we can evaluate it to be false.  */
   for (size_t i = 0; i < arg1->length (); i++)
     {
       if (is_a<bit *> ((*arg1)[i]) && is_a<bit *> ((*arg2)[i])
@@ -1388,7 +1388,7 @@ state::add_not_equal_cond (value *arg1, value *arg2)
     }
 
   /* When some of bits are constants and they differ by value,
-     then we can evalate it to be true.  */
+     then we can evaluate it to be true.  */
   for (size_t i = 0; i < arg1->length (); i++)
     {
       if (is_a<bit *> ((*arg1)[i]) && is_a<bit *> ((*arg2)[i])

@@ -71,7 +71,7 @@ along with GCC; see the file COPYING3.  If not see
 
    An expression is a vinsn with additional data characterizing its properties
    at some point in the control flow graph.  The data may be its usefulness,
-   priority, speculative status, whether it was renamed/subsituted, etc.
+   priority, speculative status, whether it was renamed/substituted, etc.
    An expression is described by expr_t type.
 
    Availability set (av_set) is a set of expressions at a given control flow
@@ -525,7 +525,7 @@ static bitmap code_motion_visited_blocks = NULL;
 /* The number of bookkeeping copies created.  */
 static int stat_bookkeeping_copies;
 
-/* The number of insns that required bookkeeiping for their scheduling.  */
+/* The number of insns that required bookkeeping for their scheduling.  */
 static int stat_insns_needed_bookkeeping;
 
 /* The number of insns that got renamed.  */
@@ -2144,7 +2144,7 @@ moveup_expr (expr_t expr, insn_t through_insn, bool inside_insn_group,
      insn is pulled ahead of it.  It's hard to figure out how to
      introduce such a notion in sel-sched, but it already fails to
      support debug insns in other ways, so we just go ahead and
-     let the deug insns go corrupt for now.  */
+     let the debug insns go corrupt for now.  */
   if (DEBUG_INSN_P (through_insn) && !DEBUG_INSN_P (insn))
     return MOVEUP_EXPR_SAME;
 
@@ -2531,7 +2531,7 @@ moveup_expr_cached (expr_t expr, insn_t insn, bool inside_insn_group)
        basic blocks.  */;
   else if (try_bitmap_cache (expr, insn, inside_insn_group, &res))
     /* When inside insn group, we do not want remove stores conflicting
-       with previosly issued loads.  */
+       with previously issued loads.  */
     got_answer = ! inside_insn_group || res != MOVEUP_EXPR_NULL;
   else if (try_transformation_cache (expr, insn, &res))
     got_answer = true;
@@ -3216,7 +3216,7 @@ get_spec_check_type_for_insn (insn_t insn, expr_t expr)
   return to_check_ds;
 }
 
-/* Find the set of registers that are unavailable for storing expres
+/* Find the set of registers that are unavailable for storing exprs
    while moving ORIG_OPS up on the path starting from INSN due to
    liveness (USED_REGS) or hardware restrictions (REG_RENAME_P).
 
@@ -3233,7 +3233,7 @@ get_spec_check_type_for_insn (insn_t insn, expr_t expr)
 
    This function utilizes code_motion_path_driver (formerly find_used_regs_1)
    to traverse the code motion paths.  This helper function finds registers
-   that are not available for storing expres while moving ORIG_OPS up on the
+   that are not available for storing exprs while moving ORIG_OPS up on the
    path starting from INSN.  A register considered as used on the moving path,
    if one of the following conditions is not satisfied:
 
@@ -4303,7 +4303,7 @@ get_expr_cost (expr_t expr, fence_t fence)
     {
       if (!FENCE_STARTS_CYCLE_P (fence)
 	  && INSN_ASM_P (insn))
-	/* This is asm insn which is tryed to be issued on the
+	/* This is asm insn which is tried to be issued on the
 	   cycle not first.  Issue it on the next cycle.  */
 	return 1;
       else
@@ -4715,7 +4715,7 @@ find_place_for_bookkeeping (edge e1, edge e2, fence_t *fence_to_rewind)
   return place_to_insert;
 }
 
-/* Find a proper seqno for bookkeeing insn inserted at PLACE_TO_INSERT
+/* Find a proper seqno for bookkeeping insn inserted at PLACE_TO_INSERT
    for JOIN_POINT.   */
 static int
 find_seqno_for_bookkeeping (insn_t place_to_insert, insn_t join_point)
@@ -5673,7 +5673,7 @@ update_and_record_unavailable_insns (basic_block book_block)
   rtx_insn *bb_end = sel_bb_end (book_block);
 
   /* First, get correct liveness in the bookkeeping block.  The problem is
-     the range between the bookeeping insn and the end of block.  */
+     the range between the bookkeeping insn and the end of block.  */
   update_liveness_on_insn (bb_end);
   if (control_flow_insn_p (bb_end))
     update_liveness_on_insn (PREV_INSN (bb_end));
@@ -6107,7 +6107,7 @@ move_op_at_first_insn (insn_t insn, cmpd_local_params_p lparams,
      r1 := r2
 
      Here, insn "r1 := r3" was scheduled at the current scheduling point
-     and bookkeeping code was generated at the bookeeping block.  This
+     and bookkeeping code was generated at the bookkeeping block.  This
      way insn "r1 := r2" is no longer available as a whole instruction
      (but only as expr) ahead of insn "r1 := r3" in bookkeeping block.
      This situation is handled by calling update_data_sets.
@@ -7431,7 +7431,7 @@ calculate_new_fences (flist_t fences, int orig_max_seqno, int *ptime)
 }
 
 /* Update seqnos of insns given by PSCHEDULED_INSNS.  MIN_SEQNO and MAX_SEQNO
-   are the miminum and maximum seqnos of the group, HIGHEST_SEQNO_IN_USE is
+   are the minimum and maximum seqnos of the group, HIGHEST_SEQNO_IN_USE is
    the highest seqno used in a region.  Return the updated highest seqno.  */
 static int
 update_seqnos_and_stage (int min_seqno, int max_seqno,

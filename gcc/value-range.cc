@@ -1823,8 +1823,8 @@ irange::irange_single_pair_union (const irange &r)
 bool
 irange::union_append (const irange &r)
 {
-  // Check if the first range in R is an immmediate successor to the last
-  // range, ths requiring a merge.
+  // Check if the first range in R is an immediate successor to the last
+  // range, thus requiring a merge.
   signop sign = TYPE_SIGN (m_type);
   wide_int lb = r.lower_bound ();
   wide_int ub = upper_bound ();
@@ -2456,7 +2456,7 @@ irange::snap (const wide_int &lb, const wide_int &ub,
 }
 
 // This method loops through the subranges in THIS, and adjusts any bounds
-// to satisfy the contraints of the BITMASK.  If a subrange is invalid,
+// to satisfy the constraints of the BITMASK.  If a subrange is invalid,
 // it is removed.   TRUE is returned if there were any changes.
 
 bool
@@ -2495,7 +2495,7 @@ irange::snap_subranges ()
 }
 
 // If the bitmask has a range representation, intersect this range with
-// the bitmasks range.  Then ensure all enpoints match the bitmask.
+// the bitmasks range.  Then ensure all endpoints match the bitmask.
 // Return TRUE if the range changes at all.
 
 bool
@@ -2565,7 +2565,7 @@ irange::get_bitmask () const
   irange_bitmask bm (type (), lower_bound (), upper_bound ());
   if (!m_bitmask.unknown_p ())
     {
-      // If the new intersection is unknown, it means there are inconstent
+      // If the new intersection is unknown, it means there are inconsistent
       // bits, so simply return the original bitmask.
       if (!bm.intersect (m_bitmask))
 	return m_bitmask;

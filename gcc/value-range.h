@@ -209,7 +209,7 @@ irange_bitmask::get_precision () const
   return m_mask.get_precision ();
 }
 
-// The following two functions are meant for backwards compatability
+// The following two functions are meant for backwards compatibility
 // with the nonzero bitmask.  A cleared bit means the value must be 0.
 // A set bit means we have no information for the bit.
 

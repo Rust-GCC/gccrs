@@ -1711,7 +1711,7 @@ shared_hash_find (shared_hash *vars, decl_or_value dv)
   return shared_hash_find_1 (vars, dv, dv_htab_hash (dv));
 }
 
-/* Return true if TVAL is better than CVAL as a canonival value.  We
+/* Return true if TVAL is better than CVAL as a canonical value.  We
    choose lowest-numbered VALUEs, using the RTX address as a
    tie-breaker.  The idea is to arrange them into a star topology,
    such that all of them are at most one step away from the canonical
@@ -8788,7 +8788,7 @@ emit_note_insn_var_location (variable **varp, emit_note_data *data)
       mode = GET_MODE (var->var_part[i].cur_loc);
       if (mode == VOIDmode && var->onepart)
 	mode = DECL_MODE (decl);
-      /* We ony track subparts of constant-sized objects, since at present
+      /* We only track subparts of constant-sized objects, since at present
 	 there's no representation for polynomial pieces.  */
       if (!GET_MODE_SIZE (mode).is_constant (&size))
 	{
