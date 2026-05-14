@@ -29,7 +29,7 @@
    to get use on the device - that's for the 'indirect' clause feature.
 
    In order to habe host initialization work, the pointer sizes must be
-   the same - and either the the endianess or the host-device memcopy
+   the same - and either the the endianness or the host-device memcopy
    has to take of it.  */
 
 typedef unsigned __int128 hash_entry_type;

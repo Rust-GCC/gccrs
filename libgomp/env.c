@@ -923,7 +923,7 @@ parse_places_var (const char *name, bool ignore)
   return false;
 }
 
-/* Parse the OMP_STACKSIZE environment varible.  Return true if one was
+/* Parse the OMP_STACKSIZE environment variable.  Return true if one was
    present and it was successfully parsed.  */
 
 static bool
@@ -983,7 +983,7 @@ parse_stacksize (const char *env, const char *val, void *const params[])
   return false;
 }
 
-/* Parse the GOMP_SPINCOUNT environment varible.  Return true if one was
+/* Parse the GOMP_SPINCOUNT environment variable.  Return true if one was
    present and it was successfully parsed.  */
 
 static bool
@@ -1131,7 +1131,7 @@ parse_wait_policy (const char *env, const char *val, void *const params[])
   return false;
 }
 
-/* Parse the GOMP_CPU_AFFINITY environment varible.  Return true if one was
+/* Parse the GOMP_CPU_AFFINITY environment variable.  Return true if one was
    present and it was successfully parsed.  */
 
 static bool
@@ -1227,7 +1227,7 @@ parse_affinity (bool ignore)
   return true;
 
  invalid:
-  gomp_error ("Invalid value for enviroment variable GOMP_CPU_AFFINITY");
+  gomp_error ("Invalid value for environment variable GOMP_CPU_AFFINITY");
   return false;
 }
 
@@ -2434,7 +2434,7 @@ initialize_env (void)
     {
       /* Using a rough estimation of 100000 spins per msec,
 	 use 5 min blocking for OMP_WAIT_POLICY=active,
-	 3 msec blocking when OMP_WAIT_POLICY is not specificed
+	 3 msec blocking when OMP_WAIT_POLICY is not specified
 	 and 0 when OMP_WAIT_POLICY=passive.
 	 Depending on the CPU speed, this can be e.g. 5 times longer
 	 or 5 times shorter.  */

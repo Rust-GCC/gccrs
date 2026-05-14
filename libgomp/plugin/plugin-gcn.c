@@ -244,7 +244,7 @@ struct hsa_runtime_fn_info
 
 /* As an HIP runtime is dlopened, following structure defines function
    pointers utilized by the interop feature of this plugin.
-   Add suffient type declarations to get this work.  */
+   Add sufficient type declarations to get this work.  */
 
 typedef int hipError_t;  /* Actually an enum; 0 == success. */
 typedef void* hipCtx_t;
@@ -262,7 +262,7 @@ struct hip_runtime_fn_info
 };
 
 /* Structure describing the run-time and grid properties of an HSA kernel
-   lauch.  This needs to match the format passed to GOMP_OFFLOAD_run.  */
+   launch.  This needs to match the format passed to GOMP_OFFLOAD_run.  */
 
 struct GOMP_kernel_launch_attributes
 {
@@ -1244,7 +1244,7 @@ get_cu_count (struct agent_info *agent)
 static int
 limit_worker_threads (int threads)
 {
-  /* FIXME Do something more inteligent here.
+  /* FIXME Do something more intelligent here.
      GCN can always run 4 threads within a Compute Unit, but
      more than that depends on register usage.  */
   if (threads > 16)
@@ -1831,7 +1831,7 @@ max_isa_vgprs (int isa)
    while setting up each team.  This is purely a performance optimization.
 
    The stack space is used by all kernels.  We must allocate it in such a
-   way that the reverse offload implmentation can access the data.
+   way that the reverse offload implementation can access the data.
 
    Allocating this memory costs performance, so this function will reuse an
    existing allocation if a large enough one is idle.
@@ -3603,7 +3603,7 @@ GOMP_OFFLOAD_get_name (void)
 }
 
 /* Return the UID; if not available return NULL.
-   Returns freshly allocated memoy.  */
+   Returns freshly allocated memory.  */
 
 const char *
 GOMP_OFFLOAD_get_uid (int ord)

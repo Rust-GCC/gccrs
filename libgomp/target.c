@@ -1617,7 +1617,7 @@ gomp_map_vars_internal (struct gomp_device_descr *devicep,
 		gomp_copy_host2dev (devicep, aq,
 				    (void *) (tgt->tgt_start + tgt_size),
 				    (void *) hostaddrs[i], len, false, cbufp);
-		/* Save device address in hostaddr to permit latter availablity
+		/* Save device address in hostaddr to permit latter availability
 		   when doing a deep-firstprivate with pointer attach.  */
 		hostaddrs[i] = (void *) (tgt->tgt_start + tgt_size);
 		tgt_size += len;
@@ -1795,7 +1795,7 @@ gomp_map_vars_internal (struct gomp_device_descr *devicep,
 			 pointer members, the mapping and the attach can end up
 			 in different sets; or the wrong mapping with the
 			 attach. As there is no way to know whether a size
-			 zero like  'var->ptr[i][:0]' happend in the same
+			 zero like  'var->ptr[i][:0]' happened in the same
 			 directive or not, the not-attached check is now
 			 fully silenced for 'enter data'.  */
 		      if (openmp_p && (pragma_kind & GOMP_MAP_VARS_ENTER_DATA))
@@ -3566,7 +3566,7 @@ GOMP_target_ext (int device, void (*fn) (void *), size_t mapnum,
 
 /* Reverse lookup (device addr -> host addr) for reverse offload.  We avoid
    keeping track of all variable handling - assuming that reverse offload occurs
-   ony very rarely.  Downside is that the reverse search is slow.  */
+   only very rarely.  Downside is that the reverse search is slow.  */
 
 struct gomp_splay_tree_rev_lookup_data {
   uintptr_t tgt_start;

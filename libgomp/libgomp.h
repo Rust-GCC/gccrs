@@ -1317,7 +1317,7 @@ struct target_mem_desc {
   reverse_splay_tree_node rev_array;
   /* Start of the target region.  */
   uintptr_t tgt_start;
-  /* End of the targer region.  */
+  /* End of the target region.  */
   uintptr_t tgt_end;
   /* Handle to free.  */
   void *to_free;

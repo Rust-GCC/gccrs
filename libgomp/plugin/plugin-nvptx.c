@@ -1277,7 +1277,7 @@ GOMP_OFFLOAD_get_name (void)
 }
 
 /* Return the UID; if not available return NULL.
-   Returns freshly allocated memoy.  */
+   Returns freshly allocated memory.  */
 
 const char *
 GOMP_OFFLOAD_get_uid (int ord)
