@@ -164,6 +164,26 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     using __conditional_t
       = typename __conditional<_Cond>::template type<_If, _Else>;
 
+#ifdef __cpp_lib_type_identity // C++ >= 20
+  /** Identity metafunction.
+   * @since C++20
+   * @{
+   */
+  template<typename _Tp>
+    struct type_identity { using type = _Tp; };
+
+  template<typename _Tp>
+    using type_identity_t = typename type_identity<_Tp>::type;
+  /// @}
+
+  /// @cond undocumented
+  template <typename _Tp>
+    using __type_identity = type_identity<_Tp>;
+
+  template<typename _Tp>
+    using __type_identity_t = typename type_identity<_Tp>::type;
+  /// @endcond
+#else
   /// @cond undocumented
   template <typename _Type>
     struct __type_identity
@@ -171,7 +191,10 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   template<typename _Tp>
     using __type_identity_t = typename __type_identity<_Tp>::type;
+  /// @endcond
+#endif
 
+  /// @cond undocumented
   namespace __detail
   {
     // A variadic alias template that resolves to its first argument.
@@ -3954,19 +3977,6 @@ template<typename _Ret, typename _Fn, typename... _Args>
     using remove_cvref_t = typename remove_cvref<_Tp>::type;
   /// @}
 #endif // __cpp_lib_remove_cvref
-
-#ifdef __cpp_lib_type_identity // C++ >= 20
-  /** * Identity metafunction.
-   * @since C++20
-   * @{
-   */
-  template<typename _Tp>
-    struct type_identity { using type = _Tp; };
-
-  template<typename _Tp>
-    using type_identity_t = typename type_identity<_Tp>::type;
-  /// @}
-#endif
 
 #ifdef __cpp_lib_unwrap_ref // C++ >= 20
   /** Unwrap a reference_wrapper
