@@ -437,7 +437,7 @@ AC_SUBST(GM2_FOR_TARGET)
 
 # Now we check the target as long as it is a supported host.
 # For some embedded targets we choose minimal runtime system which is
-# just enough to satisfy the linker targetting raw metal.
+# just enough to satisfy the linker targeting raw metal.
 if test x${M2_HOST_OS} != xunknown; then
 AC_MSG_NOTICE([m2 library building for target ${target}])
 case "$target" in
@@ -490,7 +490,7 @@ else
    GM2_MSG_RESULT([m2 front end will build PIM libraries:],[BUILD_PIMLIB])
    GM2_MSG_RESULT([m2 front end will build ISO libraries:],[BUILD_ISOLIB])
    GM2_MSG_RESULT([m2 front end will build coroutine libraries:],[BUILD_CORLIB])
-   GM2_MSG_RESULT([m2 front end will build Logitech compatability libraries:],[BUILD_LOGLIB])
+   GM2_MSG_RESULT([m2 front end will build Logitech compatibility libraries:],[BUILD_LOGLIB])
 fi
 
 AM_CONDITIONAL([BUILD_PIMLIB], [test x$BUILD_PIMLIB = xtrue])
