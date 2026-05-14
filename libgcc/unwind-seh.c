@@ -187,7 +187,7 @@ _Unwind_GetTextRelBase (struct _Unwind_Context *c)
 /* The "real" language-specific personality handler forwards to here
    where we handle the MS SEH state and transforms it into the GCC
    unwind state as per GCC's <unwind.h>, at which point we defer to
-   the regular language-specfic exception handler, which is passed in.  */
+   the regular language-specific exception handler, which is passed in.  */
 
 EXCEPTION_DISPOSITION
 _GCC_specific_handler (PEXCEPTION_RECORD ms_exc, void *this_frame,

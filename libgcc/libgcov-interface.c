@@ -121,7 +121,7 @@ __gcov_reset_int (void)
   struct gcov_root *root;
 
   /* If we're compatible with the master, iterate over everything,
-     otherise just do us.  */
+     otherwise just do us.  */
   for (root = __gcov_master.version == GCOV_VERSION
 	 ? __gcov_master.root : &__gcov_root; root; root = root->next)
     {
@@ -154,7 +154,7 @@ __gcov_dump_int (void)
   struct gcov_root *root;
 
   /* If we're compatible with the master, iterate over everything,
-     otherise just do us.  */
+     otherwise just do us.  */
   for (root = __gcov_master.version == GCOV_VERSION
 	 ? __gcov_master.root : &__gcov_root; root; root = root->next)
     __gcov_dump_one (root);

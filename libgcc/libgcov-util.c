@@ -1174,7 +1174,7 @@ struct overlap_t {
 #define FLAG_BOTH_COLD(flag) ((flag & 0x2) && (flag & 0x20))
 #define FLAG_ONE_HOT(flag) ((flag & 0x4) || (flag & 0x40))
 
-/* Cumlative overlap dscore for profile1 and profile2.  */
+/* Cumulative overlap dscore for profile1 and profile2.  */
 static double overlap_sum_1, overlap_sum_2;
 
 /* The number of gcda files in the profiles.  */
@@ -1451,7 +1451,7 @@ calculate_overlap (struct gcov_info *gcov_list1,
 
 /* Compute the overlap score of two lists of gcov_info objects PROFILE1 and
    PROFILE2.
-   Return 0 on success: without mismatch. Reutrn 1 on error.  */
+   Return 0 on success: without mismatch. Return 1 on error.  */
 
 int
 gcov_profile_overlap (struct gcov_info *profile1, struct gcov_info *profile2)

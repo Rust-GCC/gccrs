@@ -832,7 +832,7 @@ SATFRACT (FROM_FIXED_C_TYPE a)
 	       && (BIG_UINT_C_TYPE) low < (BIG_UINT_C_TYPE) min_low))
     low = min_low; /* Minimum.  */
 #elif FROM_MODE_UNSIGNED == 1 && TO_MODE_UNSIGNED == 1
-  /* Unigned -> Unsigned.  */
+  /* Unsigned -> Unsigned.  */
   if ((BIG_UINT_C_TYPE) high > (BIG_UINT_C_TYPE) max_high
       || ((BIG_UINT_C_TYPE) high == (BIG_UINT_C_TYPE) max_high
 	  && (BIG_UINT_C_TYPE) low > (BIG_UINT_C_TYPE) max_low))
@@ -1102,7 +1102,7 @@ SATFRACTUNS (FROM_INT_C_TYPE a)
 #endif
 
 #if TO_MODE_UNSIGNED == 1
-  /* Unigned -> Unsigned.  */
+  /* Unsigned -> Unsigned.  */
   if ((BIG_UINT_C_TYPE) high > (BIG_UINT_C_TYPE) max_high
       || ((BIG_UINT_C_TYPE) high == (BIG_UINT_C_TYPE) max_high
           && (BIG_UINT_C_TYPE) low > (BIG_UINT_C_TYPE) max_low))

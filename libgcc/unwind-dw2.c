@@ -61,7 +61,7 @@
    although so far in a case that doesn't actually matter.
 
    See PR49146, in which a call from x86_64 ms abi to x86_64 unix abi stores
-   the call-saved xmm registers and annotates them.  We havn't bothered
+   the call-saved xmm registers and annotates them.  We haven't bothered
    providing support for the xmm registers for the x86_64 port primarily
    because the 64-bit windows targets don't use dwarf2 unwind, using sjlj or
    SEH instead.  Adding the support for unix targets would generally be a
@@ -78,7 +78,7 @@
    unlikely to be able to get the new annotation.
 
    Barring a magic solution to restore the ms abi defined 128-bit xmm registers
-   (as distictly opposed to the full runtime width) without causing extra
+   (as distinctly opposed to the full runtime width) without causing extra
    overhead for normal unix abis, the best solution seems to be to simply
    ignore unwind data for unknown columns.  */
 
