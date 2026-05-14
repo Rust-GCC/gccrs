@@ -146,7 +146,7 @@ typedef unsigned UWORD __attribute__((mode(word)));
    granularity.
 
    Not actually declared here so that they can be defined static inline
-   in a target-specfic <host-config.h>.
+   in a target-specific <host-config.h>.
 
 UWORD protect_start (void *ptr);
 void protect_end (void *ptr, UWORD);
