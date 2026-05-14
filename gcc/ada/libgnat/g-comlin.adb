@@ -666,7 +666,7 @@ package body GNAT.Command_Line is
                --  isn't the parameter to a previous switch, since that has
                --  already been handled.
 
-               if Switches (Switches'First) = '*' then
+               if Switches /= "" and then Switches (Switches'First) = '*' then
                   Set_Parameter
                     (Parser.The_Switch,
                      Arg_Num => Parser.Current_Argument,
@@ -901,7 +901,8 @@ package body GNAT.Command_Line is
                   --  If Concatenate is False and the full argument is not
                   --  recognized as a switch, this is an invalid switch.
 
-                  if Switches (Switches'First) = '*' then
+                  if Switches /= "" and then Switches (Switches'First) = '*'
+                  then
                      Set_Parameter
                        (Parser.The_Switch,
                         Arg_Num => Parser.Current_Argument,
