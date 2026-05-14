@@ -67,6 +67,7 @@ along with GCC; see the file COPYING3.  If not see
   "%(link_relax) "                              \
   "%(link_pmem_wrap) "                          \
   "%(link_rodata_in_ram) "                      \
+  "%(link_no_call_main) "                       \
   "%{shared:%eshared is not supported} "
 
 #undef  LIB_SPEC
