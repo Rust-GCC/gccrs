@@ -247,7 +247,7 @@ struct method_group
   // Stop using any method from this group for now. This can be used to
   // destruct meta data as soon as this method group is not used anymore.
   virtual void fini() = 0;
-  // This can be overriden to implement more light-weight re-initialization.
+  // This can be overridden to implement more light-weight re-initialization.
   virtual void reinit()
   {
     fini();

@@ -73,7 +73,7 @@ static gl_mg o_gl_mg;
 // privatization safety. This even holds if a writing transaction has the
 // lock bit set in its shared_state because this is fine for both the serial
 // lock (the value will be smaller than ~0) and privatization safety (we
-// validate that no other update transaction comitted before we acquired the
+// validate that no other update transaction committed before we acquired the
 // orec, so we have the most recent timestamp and no other transaction can
 // commit until we have committed).
 // However, we therefore depend on shared_state not being modified by the

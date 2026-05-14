@@ -17747,8 +17747,8 @@ if test x$enable_symvers = xsun ; then
       # Unlikely to work.
       { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: === You have requested Sun symbol versioning, but" >&5
 $as_echo "$as_me: WARNING: === You have requested Sun symbol versioning, but" >&2;}
-      { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: === you are not targetting Solaris 2." >&5
-$as_echo "$as_me: WARNING: === you are not targetting Solaris 2." >&2;}
+      { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: === you are not targeting Solaris 2." >&5
+$as_echo "$as_me: WARNING: === you are not targeting Solaris 2." >&2;}
       { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: === Symbol versioning will be disabled." >&5
 $as_echo "$as_me: WARNING: === Symbol versioning will be disabled." >&2;}
       enable_symvers=no

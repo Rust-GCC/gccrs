@@ -241,7 +241,7 @@ static htm_mg o_htm_mg;
 // We just need the subclass to associate it with the HTM method group that
 // sets up the HTM fast path.  This will use serial_dispatch as fallback for
 // transactions that might get canceled; it has a different method group, but
-// this is harmless for serial dispatchs because they never abort.
+// this is harmless for serial dispatches because they never abort.
 class htm_dispatch : public serialirr_dispatch
 {
  public:

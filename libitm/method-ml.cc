@@ -280,7 +280,7 @@ protected:
     // validate sees.  However, the potential cache miss on global time is
     // probably a reasonable price to pay for avoiding unnecessary extensions
     // in the future.
-    // We need acquire memory oder because we have to synchronize with the
+    // We need acquire memory order because we have to synchronize with the
     // increment of global time by update transactions, whose lock
     // acquisitions we have to observe (also see trycommit()).
     gtm_word snapshot = o_ml_mg.time.load(memory_order_acquire);
@@ -489,8 +489,8 @@ public:
       return NO_RESTART;
 
     // Read the current time, which becomes our snapshot time.
-    // Use acquire memory oder so that we see the lock acquisitions by update
-    // transcations that incremented the global time (see trycommit()).
+    // Use acquire memory order so that we see the lock acquisitions by update
+    // transactions that incremented the global time (see trycommit()).
     gtm_word snapshot = o_ml_mg.time.load(memory_order_acquire);
     // Re-initialize method group on time overflow.
     if (snapshot >= o_ml_mg.TIME_MAX)
