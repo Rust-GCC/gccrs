@@ -198,7 +198,7 @@ typedef struct {
 #define SHT_RELA	4		/* Relocation entries with addends */
 #define SHT_REL		9		/* Relocation entries, no addends */
 #define SHT_GROUP	17		/* Section contains a section group */
-#define SHT_SYMTAB_SHNDX 18		/* Extended section indeces */
+#define SHT_SYMTAB_SHNDX 18		/* Extended section indices */
 
 /* Values for sh_flags field.  */
 
@@ -246,7 +246,7 @@ typedef struct
 #define STB_WEAK	2	/* Weak global */
 
 #define STV_DEFAULT	0	/* Visibility is specified by binding type */
-#define STV_HIDDEN	2	/* Can only be seen inside currect component */
+#define STV_HIDDEN	2	/* Can only be seen inside current component */
 
 /* Functions to fetch and store different ELF types, depending on the
    endianness and size.  */
@@ -1512,7 +1512,7 @@ simple_object_elf_copy_lto_debug_sections (simple_object_read *sobj,
 		 of __gnu_lto_slim symbol.  */
 	      if (st_shndx == SHN_COMMON)
 		discard = 1;
-	      /* We also need to remove symbols refering to sections
+	      /* We also need to remove symbols referring to sections
 		 we'll eventually remove as with fat LTO objects
 		 we otherwise get duplicate symbols at final link
 		 (with GNU ld, gold is fine and ignores symbols in

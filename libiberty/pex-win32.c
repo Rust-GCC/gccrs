@@ -350,7 +350,7 @@ argv_to_cmdline (char *const *argv)
       /* We only quote arguments that contain spaces, \t or " characters to
 	 prevent wasting 2 chars per argument of the CreateProcess 32k char
 	 limit.  We need only escape embedded double-quotes and immediately
-	 preceeding backslash characters.  A sequence of backslach characters
+	 preceding backslash characters.  A sequence of backslach characters
 	 that is not followed by a double quote character will not be
 	 escaped.  */
       needs_quotes = 0;
@@ -363,7 +363,7 @@ argv_to_cmdline (char *const *argv)
 
 	  if (argv[i][j] == '"')
 	    {
-	      /* Escape preceeding backslashes.  */
+	      /* Escape preceding backslashes.  */
 	      for (k = j - 1; k >= 0 && argv[i][k] == '\\'; k--)
 		cmdline_len++;
 	      /* Escape the quote character.  */
@@ -695,7 +695,7 @@ spawn_script (struct pex_obj *obj,
   int fd = _open (executable, _O_RDONLY);
 
   /* Try to open script, check header format, extract interpreter path,
-     and spawn script using that interpretter. */
+     and spawn script using that interpreter. */
   if (fd >= 0)
     {
       char buf[MAX_PATH + 5];

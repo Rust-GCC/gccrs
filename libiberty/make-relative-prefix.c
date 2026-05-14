@@ -410,7 +410,7 @@ make_relative_prefix_1 (const char *progname, const char *bin_prefix,
 /* Do the full job, including symlink resolution.
    This path will find files installed in the same place as the
    program even when a soft link has been made to the program
-   from somwhere else. */
+   from somewhere else. */
 
 char *
 make_relative_prefix (const char *progname, const char *bin_prefix,

@@ -1067,7 +1067,7 @@ dlang_identifier (string *decl, const char *mangled, struct dlang_info *info)
 }
 
 /* Extract the plain identifier from MANGLED and prepend/append it to DECL
-   with special treatment for some magic compiler generted symbols.
+   with special treatment for some magic compiler generated symbols.
    Return the remaining string on success or NULL on failure.  */
 static const char *
 dlang_lname (string *decl, const char *mangled, unsigned long len)

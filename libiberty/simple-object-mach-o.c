@@ -53,7 +53,7 @@ struct mach_o_header_32
   unsigned char filetype[4];	/* Type of file.  */
   unsigned char ncmds[4];	/* Number of load commands.  */
   unsigned char sizeofcmds[4];	/* Total size of load commands.  */
-  unsigned char flags[4];	/* Flags for special featues.  */
+  unsigned char flags[4];	/* Flags for special features.  */
 };
 
 /* Mach-O header (64-bit version).  */
@@ -66,7 +66,7 @@ struct mach_o_header_64
   unsigned char filetype[4];	/* Type of file.  */
   unsigned char ncmds[4];	/* Number of load commands.  */
   unsigned char sizeofcmds[4];	/* Total size of load commands.  */
-  unsigned char flags[4];	/* Flags for special featues.  */
+  unsigned char flags[4];	/* Flags for special features.  */
   unsigned char reserved[4];	/* Reserved.  Duh.  */
 };
 
@@ -1194,7 +1194,7 @@ simple_object_mach_o_write_segment (simple_object_write *sobj, int descriptor,
       unsigned int i;
 
       /* Write the section header for the wrapper.  */
-      /* Account for any initial aligment - which becomes the alignment for this
+      /* Account for any initial alignment - which becomes the alignment for this
 	 created section.  */
 
       secsize = (offset - index[0]);
@@ -1208,7 +1208,7 @@ simple_object_mach_o_write_segment (simple_object_write *sobj, int descriptor,
 						      errmsg, err))
 	return 0;
 
-      /* Subtract the wrapper section start from the begining of each sub
+      /* Subtract the wrapper section start from the beginning of each sub
 	 section.  */
 
       for (i = 1; i < nsects_in; ++i)

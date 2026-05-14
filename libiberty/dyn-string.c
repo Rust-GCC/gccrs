@@ -49,8 +49,8 @@ Boston, MA 02110-1301, USA.  */
    function can be used with a dyn_string struct on the stack or
    embedded in another object.  The contents of the string itself
    are still dynamically allocated.  The string initially is capable
-   of holding at least SPACE characeters, including the terminating
-   NUL.  If SPACE is 0, it will silently be increated to 1.  
+   of holding at least SPACE characters, including the terminating
+   NUL.  If SPACE is 0, it will silently be increased to 1.  
 
    If RETURN_ON_ALLOCATION_FAILURE is defined and memory allocation
    fails, returns 0.  Otherwise returns 1.  */

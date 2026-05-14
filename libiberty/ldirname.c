@@ -26,7 +26,7 @@ Given a pointer to a string containing a typical pathname
 (@samp{/usr/src/cmd/ls/ls.c} for example), returns a string containing the
 passed string up to, but not including, the final directory separator.
 
-If the given pathname doesn't contain a directory separator then this funtion
+If the given pathname doesn't contain a directory separator then this function
 returns the empty string; this includes an empty given pathname.  @code{NULL}
 is returned on memory allocation error.
 

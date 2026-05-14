@@ -695,7 +695,7 @@ Initialize use of an obstack, with an initial chunk of
 @var{chunk_size} bytes.
 
 @item int obstack_specify_allocation (struct obstack *@var{obstack-ptr}, size_t chunk_size, size_t alignment, void *(*chunkfun) (size_t), void (*freefun) (void *))
-Initialize use of an obstack, specifying intial chunk size, chunk
+Initialize use of an obstack, specifying initial chunk size, chunk
 alignment, and memory allocation functions.
 
 @item int obstack_specify_allocation_with_arg (struct obstack *@var{obstack-ptr}, size_t chunk_size, size_t alignment, void *(*chunkfun) (void *, size_t), void (*freefun) (void *, void *), void *arg)

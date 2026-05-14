@@ -321,7 +321,7 @@ AC_CHECK_SIZEOF([int])
 AC_CHECK_SIZEOF([long])
 AC_CHECK_SIZEOF([size_t])
 
-# Check for presense of long long
+# Check for presence of long long
 AC_CHECK_TYPE([long long],
   [AC_DEFINE(HAVE_LONG_LONG, 1, [Define if you have the `long long' type.]) AC_CHECK_SIZEOF([long long])],
   [])

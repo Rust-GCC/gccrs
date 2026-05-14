@@ -58,7 +58,7 @@
 
 # define WIDE_CHAR_SUPPORT (HAVE_WCTYPE_H && HAVE_WCHAR_H && HAVE_BTOWC)
 
-/* For platform which support the ISO C amendement 1 functionality we
+/* For platform which support the ISO C amendment 1 functionality we
    support user defined character classes.  */
 # if defined _LIBC || WIDE_CHAR_SUPPORT
 /* Solaris 2.5 has a bug: <wchar.h> must be included before <wctype.h>.  */
@@ -1235,7 +1235,7 @@ printchar (int c)
 
 # ifdef WCHAR
 /* This  convert a multibyte string to a wide character string.
-   And write their correspondances to offset_buffer(see below)
+   And write their correspondences to offset_buffer(see below)
    and write whether each wchar_t is binary data to is_binary.
    This assume invalid multibyte sequences as binary data.
    We assume offset_buffer and is_binary is already allocated
@@ -1247,7 +1247,7 @@ static size_t convert_mbs_to_wcs (CHAR_T *dest, const unsigned char* src,
 static size_t
 convert_mbs_to_wcs (CHAR_T *dest, const unsigned char*src, size_t len,
                     int *offset_buffer, char *is_binary)
-     /* It hold correspondances between src(char string) and
+     /* It hold correspondences between src(char string) and
 	dest(wchar_t string) for optimization.
 	e.g. src  = "xxxyzz"
              dest = {'X', 'Y', 'Z'}
@@ -1281,7 +1281,7 @@ convert_mbs_to_wcs (CHAR_T *dest, const unsigned char*src, size_t len,
 
       if (consumed <= 0)
 	/* failed to convert. maybe src contains binary data.
-	   So we consume 1 byte manualy.  */
+	   So we consume 1 byte manually.  */
 	{
 	  *pdest = *psrc;
 	  consumed = 1;
@@ -2174,7 +2174,7 @@ typedef struct
 # ifndef DEFINED_ONCE
 #  if defined _LIBC || WIDE_CHAR_SUPPORT
 /* The GNU C library provides support for user-defined character classes
-   and the functions from ISO C amendement 1.  */
+   and the functions from ISO C amendment 1.  */
 #   ifdef CHARCLASS_NAME_MAX
 #    define CHAR_CLASS_MAX_LENGTH CHARCLASS_NAME_MAX
 #   else
@@ -3416,7 +3416,7 @@ PREFIX(regex_compile) (const char *ARG_PREFIX(pattern),
 				  int32_t idx2 = table[ch];
 				  size_t len = weights[idx2];
 
-				  /* Test whether the lenghts match.  */
+				  /* Test whether the lengths match.  */
 				  if (weights[idx] == len)
 				    {
 				      /* They do.  New compare the bytes of
@@ -4389,7 +4389,7 @@ wcs_compile_range (CHAR_T range_start_char, const CHAR_T **p_ptr,
 	{
 	  /* range_start is a collating symbol.  */
 	  int32_t *wextra;
-	  /* Retreive the index and get collation sequence value.  */
+	  /* Retrieve the index and get collation sequence value.  */
 	  wextra = (int32_t*)(extra + char_set[-range_start_char]);
 	  start_val = wextra[1 + *wextra];
 	}
@@ -5502,7 +5502,7 @@ count_mbs_length(int *offset_buffer, int length)
     return 0;
 
   /* If there are no multibyte character, offset_buffer[i] == i.
-   Optmize for this case.  */
+   Optimize for this case.  */
   if (offset_buffer[length] == length)
     return length;
 
@@ -5538,7 +5538,7 @@ wcs_re_match_2_internal (struct re_pattern_buffer *bufp,
 			 struct re_registers *regs,
                          int stop,
      /* string1 == string2 == NULL means string1/2, size1/2 and
-	mbs_offset1/2 need seting up in this function.  */
+	mbs_offset1/2 need setting up in this function.  */
      /* We need wchar_t* buffers correspond to cstring1, cstring2.  */
                          wchar_t *string1, int size1,
                          wchar_t *string2, int size2,
@@ -5739,7 +5739,7 @@ byte_re_match_2_internal (struct re_pattern_buffer *bufp,
      fill them with converted string.  */
   if (string1 == NULL && string2 == NULL)
     {
-      /* We need seting up buffers here.  */
+      /* We need setting up buffers here.  */
 
       /* We must free wcs buffers in this function.  */
       cant_free_wcs_buf = 0;

@@ -1,4 +1,4 @@
-/* bcopy -- copy memory regions of arbitary length
+/* bcopy -- copy memory regions of arbitrary length
 
 @deftypefn Supplemental void bcopy (char *@var{in}, char *@var{out}, int @var{length})
 
