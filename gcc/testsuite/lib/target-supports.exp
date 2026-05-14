@@ -794,8 +794,6 @@ proc check_profiling_available { test_what } {
 	    verbose "autofdo not supported"
 	    return 0
 	}
-	puts $wrapper
-	global srcdir
 	set status [remote_exec host "$wrapper true -v >/dev/null"]
 	if { [lindex $status 0] != 0 } {
 	    verbose "autofdo not supported because perf does not work"
