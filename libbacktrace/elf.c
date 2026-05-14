@@ -1166,7 +1166,7 @@ elf_fetch_bits (const unsigned char **ppin, const unsigned char *pinend,
   return 1;
 }
 
-/* This is like elf_fetch_bits, but it fetchs the bits backward, and ensures at
+/* This is like elf_fetch_bits, but it fetches the bits backward, and ensures at
    least 16 bits.  This is for zstd.  */
 
 static int
