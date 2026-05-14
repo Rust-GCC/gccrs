@@ -43,6 +43,7 @@
 #include <debug/debug.h>
 #if __cplusplus >= 201103L
 #include <initializer_list>
+#include <bits/range_access.h>
 #endif
 
 namespace std _GLIBCXX_VISIBILITY(default)

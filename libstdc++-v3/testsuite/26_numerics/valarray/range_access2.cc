@@ -19,7 +19,6 @@
 
 // C++11 26.6.10 valarray range access: [valarray.range]
 
-#include <iterator>
 #include <valarray>
 
 // PR libstdc++/67374
@@ -46,8 +45,21 @@ test02()
   (void) std::cend(cva);
 }
 
+// P3016R6 4.8
+void
+test03()
+{
+#if __cplusplus >= 201703L
+  std::valarray<double> va;
+  (void) std::size(va);
+  const auto& cva = va;
+  (void) std::size(cva);
+#endif
+}
+
 int main()
 {
   test01();
   test02();
+  test03();
 }
