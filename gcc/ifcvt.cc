@@ -1287,7 +1287,7 @@ noce_try_sign_bit_splat (struct noce_if_info *if_info)
 	    goto fail;
 	}
 
-      /* Since we know the value is currenly -1 or 0, some constants may
+      /* Since we know the value is currently -1 or 0, some constants may
 	 be more easily handled by shifting the value again.  A right
 	 logical shift constructs 2^n-1 constants a left shift constructs
 	 ~(2^n-1) constants.  Given some targets don't have efficient
@@ -1339,7 +1339,7 @@ noce_try_sign_bit_splat (struct noce_if_info *if_info)
 	    goto fail;
 	}
 
-      /* Since we know the value is currenly -1 or 0, some constants may
+      /* Since we know the value is currently -1 or 0, some constants may
 	 be more easily handled by shifting the value again.  A right
 	 logical shift constructs 2^n-1 constants a left shift constructs
 	 ~(2^n-1) constants.  Given some targets don't have efficient

@@ -5115,7 +5115,7 @@ ira_mark_new_stack_slot (rtx x, int regno, poly_uint64 total_size)
    given IN and OUT for INSN.  Return also number points (through
    EXCESS_PRESSURE_LIVE_LENGTH) where the pseudo-register lives and
    the register pressure is high, number of references of the
-   pseudo-registers (through NREFS), the number of psuedo registers
+   pseudo-registers (through NREFS), the number of pseudo registers
    whose allocated register wouldn't need saving in the prologue
    (through CALL_USED_COUNT), and the first hard regno occupied by the
    pseudo-registers (through FIRST_HARD_REGNO).  */

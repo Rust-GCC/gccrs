@@ -694,7 +694,7 @@ static int flag_long_names = 0;
 
 static int flag_hash_filenames = 0;
 
-/* Print verbose informations.  */
+/* Print verbose information.  */
 
 static int flag_verbose = 0;
 
@@ -1134,7 +1134,7 @@ print_usage (int error_p)
   fnotice (file, "  -t, --stdout                    Output to stdout instead of a file\n");
   fnotice (file, "  -u, --unconditional-branches    Show unconditional branch counts too\n");
   fnotice (file, "  -v, --version                   Print version number, then exit\n");
-  fnotice (file, "  -w, --verbose                   Print verbose informations\n");
+  fnotice (file, "  -w, --verbose                   Print verbose information\n");
   fnotice (file, "  -x, --hash-filenames            Hash long pathnames\n");
   fnotice (file, "\nObsolete options:\n");
   fnotice (file, "  -i, --json-format               Replaced with -j, --json-format\n");
@@ -1459,7 +1459,7 @@ strip_extention (string str)
   return str;
 }
 
-/* Calcualte md5sum for INPUT string and return it in hex string format.  */
+/* Calculate md5sum for INPUT string and return it in hex string format.  */
 
 static string
 get_md5sum (const char *input)

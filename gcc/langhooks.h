@@ -254,7 +254,7 @@ struct lang_hooks_for_decls
 
   /* Check whether this DECL belongs to a Fortran optional argument.
      With 'for_present_check' set to false, decls which are optional parameters
-     themselve are returned as tree - or a NULL_TREE otherwise. Those decls are
+     themselves are returned as tree - or a NULL_TREE otherwise. Those decls are
      always pointers.  With 'for_present_check' set to true, the decl for
      checking whether an argument is present is returned; for arguments with
      value attribute this is the hidden argument and of BOOLEAN_TYPE.  If the

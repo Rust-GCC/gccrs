@@ -1147,7 +1147,7 @@ void translate_isl_ast_to_gimple::
 graphite_copy_stmts_from_block (basic_block bb, basic_block new_bb,
 				vec<tree> iv_map)
 {
-  /* Iterator poining to the place where new statement (s) will be inserted.  */
+  /* Iterator pointing to the place where new statement (s) will be inserted.  */
   gimple_stmt_iterator gsi_tgt = gsi_last_bb (new_bb);
 
   for (gimple_stmt_iterator gsi = gsi_start_bb (bb); !gsi_end_p (gsi);

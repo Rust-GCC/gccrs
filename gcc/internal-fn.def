@@ -129,7 +129,7 @@ along with GCC; see the file COPYING3.  If not see
    - The other is COND_LEN_* operations that are predicated by mask and len
      both. Such operations only make sense for vectors.
 
-   DEF_INTERNAL_SIGNED_COND_FN is like DEF_INTERNAL_COND_FN but defines intenal
+   DEF_INTERNAL_SIGNED_COND_FN is like DEF_INTERNAL_COND_FN but defines internal
    functions with DEF_INTERNAL_SIGNED_OPTAB_FN.
 
    Each entry must have a corresponding expander of the form:
@@ -534,7 +534,7 @@ DEF_INTERNAL_FN (RAWMEMCHR, ECF_PURE | ECF_LEAF | ECF_NOTHROW, NULL)
 DEF_INTERNAL_FN (UNIQUE, ECF_NOTHROW, NULL)
 DEF_INTERNAL_FN (PHI, 0, NULL)
 
-/* A function to represent an artifical initialization to an uninitialized
+/* A function to represent an artificial initialization to an uninitialized
    automatic variable.  */
 DEF_INTERNAL_FN (DEFERRED_INIT, ECF_CONST | ECF_LEAF | ECF_NOTHROW, NULL)
 

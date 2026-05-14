@@ -63,7 +63,7 @@ compilation is specified by a string called a "spec".  */
 
 /* Manage the manipulation of env vars.
 
-   We poison "getenv" and "putenv", so that all enviroment-handling is
+   We poison "getenv" and "putenv", so that all environment-handling is
    done through this class.  Note that poisoning happens in the
    preprocessor at the identifier level, and doesn't distinguish between
      env.getenv ();
@@ -607,7 +607,7 @@ or with constant text in a single argument.
  %2	process CC1PLUS_SPEC as a spec.
  %*	substitute the variable part of a matched option.  (See below.)
 	Note that each comma in the substituted string is replaced by
-	a single space.  A space is appended after the last substition
+	a single space.  A space is appended after the last substitution
 	unless there is more text in current sequence.
  %<S    remove all occurrences of -S from the command line.
         Note - this command is position dependent.  % commands in the
@@ -643,7 +643,7 @@ or with constant text in a single argument.
           if %* appears somewhere in X, then X will be substituted
           once for each matching switch, with the %* replaced by the
           part of that switch that matched the '*'.  A space will be
-	  appended after the last substition unless there is more
+	  appended after the last substitution unless there is more
 	  text in current sequence.
  %{.S:X}  substitutes X, if processing a file with suffix S.
  %{!.S:X} substitutes X, if NOT processing a file with suffix S.
@@ -1094,7 +1094,7 @@ proper position among the other output files.  */
 /* Conditional to test whether the LTO plugin is used or not.
    FIXME: For slim LTO we will need to enable plugin unconditionally.  This
    still cause problems with PLUGIN_LD != LD and when plugin is built but
-   not useable.  For GCC 4.6 we don't support slim LTO and thus we can enable
+   not usable.  For GCC 4.6 we don't support slim LTO and thus we can enable
    plugin only when LTO is enabled.  We still honor explicit
    -fuse-linker-plugin if the linker used understands -plugin.  */
 
@@ -9339,7 +9339,7 @@ driver::maybe_run_linker (const char *argv0) const
 	  warning (0, "%s: linker input file unused because linking not done",
 		   outfiles[i]);
 	  if (access (outfiles[i], F_OK) < 0)
-	    /* This is can be an indication the user specifed an errorneous
+	    /* This is can be an indication the user specified an erroneous
 	       separated option value, (or used the wrong prefix for an
 	       option).  */
 	    error ("%s: linker input file not found: %m", outfiles[i]);

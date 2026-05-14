@@ -553,7 +553,7 @@ public:
     diagnostic_initialize (&m_dc, 0);
     m_dc.remove_all_output_sinks ();
 
-    /* Get defaults from environemt.  These might be
+    /* Get defaults from environment.  These might be
        overridden by individual sinks.  */
     diagnostic_color_init (&m_dc, DIAGNOSTICS_COLOR_AUTO);
     diagnostic_urls_init (&m_dc);

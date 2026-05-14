@@ -802,7 +802,7 @@ canonicalize_address_mult (rtx x)
 
 #define MAX_CANON_ADDR_PARTS (5)
 
-/* Collect sub expressions in address X with PLUS as the seperator.
+/* Collect sub expressions in address X with PLUS as the separator.
    Sub expressions are stored in vector ADDR_PARTS.  */
 
 static void

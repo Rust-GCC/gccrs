@@ -386,7 +386,7 @@ diagnostic_manager_write_patch (diagnostic_manager *diag_mgr,
    If SARIF_SOURCE_LANGUAGE is non-NULL, it specifies a "sourceLanguage"
    value for the file when use when writing SARIF.
    See SARIF v2.1.0 Appendix J for suggested values for various
-   programmming languages.  */
+   programming languages.  */
 
 extern diagnostic_file *
 diagnostic_manager_new_file (diagnostic_manager *diag_mgr,

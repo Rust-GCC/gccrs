@@ -1276,7 +1276,7 @@ line_table_test::line_table_test ()
 }
 
 /* Constructor.  Store the old value of line_table, and create a new
-   one, using the sitation described in CASE_.  */
+   one, using the situation described in CASE_.  */
 
 line_table_test::line_table_test (const line_table_case &case_)
 {

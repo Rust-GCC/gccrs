@@ -1156,7 +1156,7 @@ optimize_mode_switching (void)
 	      return no_mode;
 	    };
 
-	  /* intialize mode in/out availability for bb.  */
+	  /* initialize mode in/out availability for bb.  */
 	  if (!targetm.mode_switching.confluence)
 	    {
 	      info[bb->index].mode_out = modes_confluence (avout);

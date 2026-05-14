@@ -113,7 +113,7 @@ public:
 
   /* File name of source code.  */
   const char *m_filename;
-  /* Funcation name.  */
+  /* Function name.  */
   const char *m_function;
   /* Line number in source code.  */
   int m_line;
@@ -259,7 +259,7 @@ public:
   size_t m_instances;
 };
 
-/* Memory usage pair that connectes memory usage and number
+/* Memory usage pair that connects memory usage and number
    of allocated bytes.  */
 template <class T>
 class mem_usage_pair
@@ -306,7 +306,7 @@ public:
   typedef hash_map <const void *, std::pair<T *, size_t> > reverse_object_map_t;
   typedef std::pair <mem_location *, T *> mem_list_t;
 
-  /* Default contructor.  */
+  /* Default constructor.  */
   mem_alloc_description ();
 
   /* Default destructor.  */
@@ -323,7 +323,7 @@ public:
   T *register_descriptor (const void *ptr, mem_location *location);
 
   /* Register memory allocation descriptor for container PTR.  ORIGIN identifies
-     type of container and GGC identifes if the allocation is handled in GGC
+     type of container and GGC identifies if the allocation is handled in GGC
      memory.  Each location is identified by file NAME, LINE in source code and
      FUNCTION name.  */
   T *register_descriptor (const void *ptr, mem_alloc_origin origin,
@@ -434,7 +434,7 @@ mem_alloc_description<T>::register_descriptor (const void *ptr,
 }
 
 /* Register memory allocation descriptor for container PTR.  ORIGIN identifies
-   type of container and GGC identifes if the allocation is handled in GGC
+   type of container and GGC identifies if the allocation is handled in GGC
    memory.  Each location is identified by file NAME, LINE in source code and
    FUNCTION name.  */
 
@@ -550,7 +550,7 @@ mem_alloc_description<T>::unregister_descriptor (void *ptr)
   m_reverse_map->remove (ptr);
 }
 
-/* Default contructor.  */
+/* Default constructor.  */
 
 template <class T>
 inline

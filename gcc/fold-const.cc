@@ -3173,7 +3173,7 @@ combine_comparisons (location_t loc,
    compares equal.
 
    Unless OEP_MATCH_SIDE_EFFECTS is set, the function returns false on
-   any operand with side effect.  This is unnecesarily conservative in the
+   any operand with side effect.  This is unnecessarily conservative in the
    case we know that arg0 and arg1 are in disjoint code paths (such as in
    ?: operator).  In addition OEP_MATCH_SIDE_EFFECTS is used when comparing
    addresses with TREE_CONSTANT flag set so we know that &var == &var
@@ -3356,7 +3356,7 @@ operand_compare::operand_equal_p (tree type0, const_tree arg0,
 	return false;
     }
 
-  /* When not checking adddresses, this is needed for conversions and for
+  /* When not checking addresses, this is needed for conversions and for
      COMPONENT_REF.  Might as well play it safe and always test this.  */
   if (TREE_CODE (type0) == ERROR_MARK
       || TREE_CODE (type1) == ERROR_MARK
@@ -3723,7 +3723,7 @@ operand_compare::operand_equal_p (tree type0, const_tree arg0,
 	case WIDEN_MULT_MINUS_EXPR:
 	  if (!OP_SAME (2))
 	    return false;
-	  /* The multiplcation operands are commutative.  */
+	  /* The multiplication operands are commutative.  */
 	  /* FALLTHRU */
 
 	case TRUTH_AND_EXPR:
@@ -3745,7 +3745,7 @@ operand_compare::operand_equal_p (tree type0, const_tree arg0,
 	  return OP_SAME (0);
 
 	case BIT_INSERT_EXPR:
-	  /* BIT_INSERT_EXPR has an implict operand as the type precision
+	  /* BIT_INSERT_EXPR has an implicit operand as the type precision
 	     of op1.  Need to check to make sure they are the same.  */
 	  if (TREE_CODE (TREE_OPERAND (arg0, 1)) == INTEGER_CST
 	      && TREE_CODE (TREE_OPERAND (arg1, 1)) == INTEGER_CST
@@ -9045,7 +9045,7 @@ fold_view_convert_vector_encoding (tree type, tree expr)
       != (int) buffer_bytes)
     return NULL_TREE;
 
-  /* Reencode the bytes as TYPE.  */
+  /* Re-encode the bytes as TYPE.  */
   unsigned int type_npatterns = type_sequence_bits / type_elt_bits;
   return native_interpret_vector_part (type, &buffer[0], buffer.length (),
 				       type_npatterns, nelts_per_pattern);
@@ -9699,7 +9699,7 @@ fold_truth_andor (location_t loc, enum tree_code code, tree type,
 	}
       /* Transform (A AND-IF B) into (A AND B), or (A OR-IF B)
 	 into (A OR B).
-	 For sequence point consistancy, we need to check for trapping,
+	 For sequence point consistency, we need to check for trapping,
 	 and side-effects.  */
       else if (code == icode && simple_condition_p (arg0)
 	       && simple_condition_p (arg1))

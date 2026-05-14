@@ -1854,7 +1854,7 @@ create_insn_allocnos (rtx x, rtx outer, bool output_p)
 	    a = ira_create_allocno (regno, false, ira_curr_loop_tree_node);
 
 	  /* This used to only trigger at allocno creation which seems
-	     wrong.  We care about the WMODE propery across all the uses.  */
+	     wrong.  We care about the WMODE property across all the uses.  */
 	  if (outer != NULL && GET_CODE (outer) == SUBREG)
 	    {
 	      machine_mode wmode = GET_MODE (outer);

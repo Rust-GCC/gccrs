@@ -78,7 +78,7 @@ extern void anti_adjust_stack_and_probe (rtx, bool);
 extern void anti_adjust_stack_and_probe_stack_clash (rtx);
 
 /* Support for building allocation/probing loops for stack-clash
-   protection of dyamically allocated stack space.  */
+   protection of dynamically allocated stack space.  */
 extern void compute_stack_clash_protection_loop_data (rtx *, rtx *, rtx *,
 						      HOST_WIDE_INT *, rtx);
 extern void emit_stack_clash_protection_probe_loop_start (rtx *, rtx *,

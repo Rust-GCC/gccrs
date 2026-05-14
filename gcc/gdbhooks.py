@@ -200,7 +200,7 @@ class Tree:
 
     def IDENTIFIER_POINTER(self):
         """
-        Get str correspoinding to result of IDENTIFIER_NODE (self)
+        Get str corresponding to result of IDENTIFIER_NODE (self)
         """
         return self.gdbval['identifier']['id']['str'].string()
 
@@ -816,7 +816,7 @@ class DumpFn(gdb.Command):
         else:
             flags = 0
 
-        # Get tempory file, if necessary
+        # Get temporary file, if necessary
         if editor_mode:
             f = tempfile.NamedTemporaryFile(delete=False, suffix=".txt")
             filename = f.name

@@ -80,7 +80,7 @@ typedef struct cand *cand_t;
 typedef const struct cand *const_cand_t;
 
 /* Insn candidates for rematerialization.  The candidate insn should
-   have the following properies:
+   have the following properties:
    o no any memory (as access to memory is non-profitable) or
      div/mod operations (as they are usually more expensive than loads)
    o no INOUT regs (it means no non-paradoxical subreg of output reg)
@@ -131,7 +131,7 @@ public:
   /* Registers becoming dead in the BB.  */
   bitmap_head dead_regs;
   /* Cands present in the BB whose in/out regs are not changed after
-     the cands occurence and are not dead (except the reload
+     the cands occurrence and are not dead (except the reload
      regno).  */
   bitmap_head gen_cands;
   bitmap_head livein_cands; /* cands whose inputs live at the BB start.  */

@@ -1212,7 +1212,7 @@ ext_dce_process_uses (rtx_insn *insn, rtx obj,
 		  && GET_MODE_BITSIZE (outer_mode) <= HOST_BITS_PER_WIDE_INT)
 		{
 		  /* So we have a right shift that could correspond to
-		     the second in a pair impementing QI, HI or SI -> DI
+		     the second in a pair implementing QI, HI or SI -> DI
 		     extension.  See if we can find the left shift.  For
 		     now, just look one real instruction back.  */
 		  rtx_insn *prev_insn = prev_nonnote_nondebug_insn_bb (insn);
@@ -1458,7 +1458,7 @@ ext_dce_process_bb (basic_block bb)
 	  if (!FAKE_CALL_P (insn))
 	    bitmap_set_range (livenow, STACK_POINTER_REGNUM * 4, 4);
 
-	  /* If this is not a call to a const fucntion, then assume it
+	  /* If this is not a call to a const function, then assume it
 	     can read any global register.  */
 	  if (!RTL_CONST_CALL_P (insn))
 	    for (unsigned i = 0; i < FIRST_PSEUDO_REGISTER; i++)
@@ -1723,7 +1723,7 @@ ext_dce_rd_transfer_n (int bb_index)
 /* Dummy function for the df_simple_dataflow API.  */
 static bool ext_dce_rd_confluence_n (edge) { return true; }
 
-/* Use lifetime analyis to identify extensions that set bits that
+/* Use lifetime analysis to identify extensions that set bits that
    are never read.  Turn such extensions into SUBREGs instead which
    can often be propagated away.  */
 

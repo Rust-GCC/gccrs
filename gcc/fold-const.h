@@ -286,7 +286,7 @@ public:
 protected:
   /* Verify that when arguments (ARG0 and ARG1) are equal, then they have
      an equal hash value.  When the function knowns comparison return,
-     true is returned.  Then RET is set to corresponding comparsion result.  */
+     true is returned.  Then RET is set to corresponding comparison result.  */
   bool verify_hash_value (const_tree arg0, const_tree arg1, unsigned int flags,
 			  bool *ret);
 

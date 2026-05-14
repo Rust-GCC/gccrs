@@ -663,7 +663,7 @@ store_bit_field_using_insv (const extraction_insn *insv, rtx op0,
   /* There are similar overflow check at the start of store_bit_field_1,
      but that only check the situation where the field lies completely
      outside the register, while there do have situation where the field
-     lies partialy in the register, we need to adjust bitsize for this
+     lies partially in the register, we need to adjust bitsize for this
      partial overflow situation.  Without this fix, pr48335-2.c on big-endian
      will broken on those arch support bit insert instruction, like arm, aarch64
      etc.  */
@@ -3545,7 +3545,7 @@ expand_mult (machine_mode mode, rtx op0, rtx op1, rtx target,
 
       /* If mode is integer vector mode, check if the backend supports
 	 vector lshift (by scalar or vector) at all.  If not, we can't use
-	 synthetized multiply.  */
+	 synthesized multiply.  */
       if (GET_MODE_CLASS (mode) == MODE_VECTOR_INT
 	  && optab_handler (vashl_optab, mode) == CODE_FOR_nothing
 	  && optab_handler (ashl_optab, mode) == CODE_FOR_nothing)
@@ -6309,7 +6309,7 @@ emit_store_flag_force (rtx target, enum rtx_code code, rtx op0, rtx op1,
 }
 
 /* Expand a vector (left) rotate of MODE of X by an immediate AMT as a vector
-   permute operation.  Emit code to put the result in DST if successfull and
+   permute operation.  Emit code to put the result in DST if successful and
    return it.  Otherwise return NULL.  This is intended to implement vector
    rotates by byte amounts using vector permutes when the target does not offer
    native vector rotate operations.  */
@@ -6384,7 +6384,7 @@ equivalent_cmp_code (enum rtx_code code)
     }
 }
 
-/* Choose the more appropiate immediate in scalar integer comparisons.  The
+/* Choose the more appropriate immediate in scalar integer comparisons.  The
    purpose of this is to end up with an immediate which can be loaded into a
    register in fewer moves, if possible.
 

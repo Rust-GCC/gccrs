@@ -1330,7 +1330,7 @@ parser::require_one_of (enum token_id tok_id_a, enum token_id tok_id_b)
   return result<enum token_id, std::unique_ptr<error>> (id);
 }
 
-/* Genarate a parsing error.  */
+/* Generate a parsing error.  */
 
 std::unique_ptr<error>
 parser::error_at (const location_map::range &r, const char *fmt, ...)

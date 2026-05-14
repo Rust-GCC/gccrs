@@ -82,7 +82,7 @@ scop_get_reads_and_writes (scop_p scop, isl_union_map *&reads,
 	  {
 	    if (dump_file)
 	      {
-		fprintf (dump_file, "Adding read to depedence graph: ");
+		fprintf (dump_file, "Adding read to dependence graph: ");
 		print_pdr (dump_file, pdr);
 	      }
 	    isl_union_map *um
@@ -90,7 +90,7 @@ scop_get_reads_and_writes (scop_p scop, isl_union_map *&reads,
 	    reads = isl_union_map_union (reads, um);
 	    if (dump_file)
 	      {
-		fprintf (dump_file, "Reads depedence graph: ");
+		fprintf (dump_file, "Reads dependence graph: ");
 		print_isl_union_map (dump_file, reads);
 	      }
 	  }
@@ -98,7 +98,7 @@ scop_get_reads_and_writes (scop_p scop, isl_union_map *&reads,
 	  {
 	    if (dump_file)
 	      {
-		fprintf (dump_file, "Adding must write to depedence graph: ");
+		fprintf (dump_file, "Adding must write to dependence graph: ");
 		print_pdr (dump_file, pdr);
 	      }
 	    isl_union_map *um
@@ -106,7 +106,7 @@ scop_get_reads_and_writes (scop_p scop, isl_union_map *&reads,
 	    must_writes = isl_union_map_union (must_writes, um);
 	    if (dump_file)
 	      {
-		fprintf (dump_file, "Must writes depedence graph: ");
+		fprintf (dump_file, "Must writes dependence graph: ");
 		print_isl_union_map (dump_file, must_writes);
 	      }
 	  }
@@ -114,7 +114,7 @@ scop_get_reads_and_writes (scop_p scop, isl_union_map *&reads,
 	  {
 	    if (dump_file)
 	      {
-		fprintf (dump_file, "Adding may write to depedence graph: ");
+		fprintf (dump_file, "Adding may write to dependence graph: ");
 		print_pdr (dump_file, pdr);
 	      }
 	    isl_union_map *um
@@ -122,7 +122,7 @@ scop_get_reads_and_writes (scop_p scop, isl_union_map *&reads,
 	    may_writes = isl_union_map_union (may_writes, um);
 	    if (dump_file)
 	      {
-		fprintf (dump_file, "May writes depedence graph: ");
+		fprintf (dump_file, "May writes dependence graph: ");
 		print_isl_union_map (dump_file, may_writes);
 	      }
 	  }

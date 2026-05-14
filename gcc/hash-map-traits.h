@@ -20,7 +20,7 @@ along with GCC; see the file COPYING3.  If not see
 #ifndef HASH_MAP_TRAITS_H
 #define HASH_MAP_TRAITS_H
 
-/* Bacause mem-stats.h uses default hashmap traits, we have to
+/* Because mem-stats.h uses default hashmap traits, we have to
    put the class to this separate header file.  */
 
 #include "hash-traits.h"

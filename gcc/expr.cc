@@ -1383,7 +1383,7 @@ class op_by_pieces_d
   /* The type of operation that we're performing.  */
   by_pieces_operation m_op;
 
-  /* Virtual functions, overriden by derived classes for the specific
+  /* Virtual functions, overridden by derived classes for the specific
      operation.  */
   virtual void generate (rtx, rtx, machine_mode) = 0;
   virtual bool prepare_mode (machine_mode, unsigned int) = 0;
@@ -1565,7 +1565,7 @@ op_by_pieces_d::run ()
 	  if (gap > 0)
 	    {
 	      /* If size of MODE > M_LEN, generate the last operation
-		 in MODE for the remaining bytes with ovelapping memory
+		 in MODE for the remaining bytes with overlapping memory
 		 from the previois operation.  */
 	      if (m_reverse)
 		m_offset += gap;
@@ -3817,7 +3817,7 @@ use_group_regs (rtx *call_fusage, rtx regs)
 }
 
 /* Return the defining gimple statement for SSA_NAME NAME if it is an
-   assigment and the code of the expresion on the RHS is CODE.  Return
+   assignment and the code of the expression on the RHS is CODE.  Return
    NULL otherwise.  */
 
 static gimple *
@@ -3838,7 +3838,7 @@ get_def_for_expr (tree name, enum tree_code code)
 }
 
 /* Return the defining gimple statement for SSA_NAME NAME if it is an
-   assigment and the class of the expresion on the RHS is CLASS.  Return
+   assignment and the class of the expression on the RHS is CLASS.  Return
    NULL otherwise.  */
 
 static gimple *
@@ -4660,7 +4660,7 @@ emit_move_insn (rtx x, rtx y)
   auto candidate_mem_p = [&](machine_mode innermode, rtx mem) {
     return (!targetm.can_change_mode_class (innermode, GET_MODE (mem), ALL_REGS)
 	    && !push_operand (mem, GET_MODE (mem))
-	    /* Not a candiate if innermode requires too much alignment.  */
+	    /* Not a candidate if innermode requires too much alignment.  */
 	    && (MEM_ALIGN (mem) >= GET_MODE_ALIGNMENT (innermode)
 		|| targetm.slow_unaligned_access (GET_MODE (mem),
 						  MEM_ALIGN (mem))
@@ -9621,7 +9621,7 @@ expand_expr_real (tree exp, rtx target, machine_mode tmode,
 }
 
 /* Try to expand the conditional expression which is represented by
-   TREEOP0 ? TREEOP1 : TREEOP2 using conditonal moves.  If it succeeds
+   TREEOP0 ? TREEOP1 : TREEOP2 using conditional moves.  If it succeeds
    return the rtl reg which represents the result.  Otherwise return
    NULL_RTX.  */
 
@@ -11337,7 +11337,7 @@ expand_expr_real_gassign (gassign *g, rtx target, machine_mode tmode,
     case GIMPLE_BINARY_RHS:
       ops.op1 = gimple_assign_rhs2 (g);
 
-      /* Try to expand conditonal compare.  */
+      /* Try to expand conditional compare.  */
       if (targetm.have_ccmp ())
 	{
 	  gcc_checking_assert (targetm.gen_ccmp_next != NULL);

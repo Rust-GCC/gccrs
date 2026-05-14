@@ -224,7 +224,7 @@ reload_pseudo_compare_func (const void *v1p, const void *v2p)
   if ((diff = regno_assign_info[r1].first - regno_assign_info[r2].first) != 0)
     return diff;
   /* Prefer pseudos with longer live ranges.  It sets up better
-     prefered hard registers for the thread pseudos and decreases
+     preferred hard registers for the thread pseudos and decreases
      register-register moves between the thread pseudos.  */
   if ((diff = regno_live_length[r2] - regno_live_length[r1]) != 0)
     return diff;

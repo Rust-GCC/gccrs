@@ -2205,7 +2205,7 @@ anti_adjust_stack_and_probe (rtx size, bool adjust_back)
 {
   /* We skip the probe for the first interval + a small dope of 4 words and
      probe that many bytes past the specified size to maintain a protection
-     area at the botton of the stack.  */
+     area at the bottom of the stack.  */
   const int dope = 4 * UNITS_PER_WORD;
 
   /* First ensure SIZE is Pmode.  */

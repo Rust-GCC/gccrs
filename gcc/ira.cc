@@ -5384,7 +5384,7 @@ struct sloc
 {
   rtx_insn *insn; /* Insn where the scratch was.  */
   int nop;  /* Number of the operand which was a scratch.  */
-  unsigned regno; /* regno gnerated instead of scratch */
+  unsigned regno; /* regno generated instead of scratch */
   int icode;  /* Original icode from which scratch was removed.  */
 };
 

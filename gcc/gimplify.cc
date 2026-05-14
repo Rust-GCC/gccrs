@@ -2061,7 +2061,7 @@ gimplify_decl_expr (tree *stmt_p, gimple_seq *seq_p)
 	    walk_tree (&init, force_labels_r, NULL, NULL);
 	}
       /* When there is no explicit initializer, if the user requested,
-	 We should insert an artifical initializer for this automatic
+	 We should insert an artificial initializer for this automatic
 	 variable.  */
       else if (var_needs_auto_init_p (decl)
 	       && !decl_had_value_expr_p)
@@ -7323,7 +7323,7 @@ gimplify_modify_expr (tree *expr_p, gimple_seq *pre_p, gimple_seq *post_p,
 	return ret;
     }
 
-  /* In case of va_arg internal fn wrappped in a WITH_SIZE_EXPR, add the type
+  /* In case of va_arg internal fn wrapped in a WITH_SIZE_EXPR, add the type
      size as argument to the call.  */
   if (TREE_CODE (*from_p) == WITH_SIZE_EXPR)
     {
@@ -9041,7 +9041,7 @@ oacc_default_clause (struct gimplify_omp_ctx *ctx, tree decl, unsigned flags)
 
   /* For Fortran COMMON blocks, only used variables in those blocks are
      transferred and remapped.  The block itself will have a private clause to
-     avoid transfering the data twice.
+     avoid transferring the data twice.
      The hook evaluates to false by default.  For a variable in Fortran's COMMON
      or EQUIVALENCE block, returns 'true' (as we have shared=false) - as only
      the variables in such a COMMON/EQUIVALENCE block shall be privatized not
@@ -9161,7 +9161,7 @@ omp_notice_variable (struct gimplify_omp_ctx *ctx, tree decl, bool in_code)
       if (DECL_HAS_VALUE_EXPR_P (decl))
 	{
 	  if (ctx->region_type & ORT_ACC)
-	    /* For OpenACC, defer expansion of value to avoid transfering
+	    /* For OpenACC, defer expansion of value to avoid transferring
 	       privatized common block data instead of im-/explicitly
 	       transferred variables which are in common blocks.  */
 	    ;

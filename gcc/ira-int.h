@@ -937,7 +937,7 @@ public:
   /* Flag of that the above array has been initialized.  */
   bool x_ira_prohibited_mode_move_regs_initialized_p;
 
-  /* Number of real occurences of hard regs before IRA.  */
+  /* Number of real occurrences of hard regs before IRA.  */
   size_t x_ira_hard_regno_nrefs[FIRST_PSEUDO_REGISTER];
 };
 

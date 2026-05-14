@@ -1024,7 +1024,7 @@ HWI_COMPUTABLE_MODE_P (scalar_int_mode mode)
 }
 
 struct int_n_data_t {
-  /* These parts are initailized by genmodes output */
+  /* These parts are initialized by genmodes output */
   unsigned int bitsize;
   scalar_int_mode_pod m;
   /* RID_* is RID_INTN_BASE + index into this array */

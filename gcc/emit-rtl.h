@@ -89,7 +89,7 @@ struct GTY(()) rtl_data {
   rtx return_rtx;
 
   /* Vector of initial-value pairs.  Each pair consists of a pseudo
-     register of approprite mode that stores the initial value a hard
+     register of appropriate mode that stores the initial value a hard
      register REGNO, and that hard register itself.  */
   /* ??? This could be a VEC but there is currently no way to define an
 	 opaque VEC type.  */
@@ -527,7 +527,7 @@ extern rtx adjust_automodify_address_1 (rtx, machine_mode, rtx,
    how reload pseudos are created.  */
 struct address_reload_context
 {
-  /* Can be overriden by derived classes.  */
+  /* Can be overridden by derived classes.  */
   virtual rtx get_reload_reg () const { return gen_reg_rtx (Pmode); }
 
   /* Emit insns to reload VALUE into a new register.  VALUE is an

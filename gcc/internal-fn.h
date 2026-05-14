@@ -88,7 +88,7 @@ enum ifn_goacc_loop_kind {
    LEVEL corresponds to the GOMP_DIM of the reduction
    OP is the tree code of the reduction operation
    OFFSET may be used as an offset into a reduction array for the
-          reductions occuring at this level.
+          reductions occurring at this level.
    In general the return value is LOCAL_VAR, which creates a data
    dependency between calls operating on the same reduction.  */
 

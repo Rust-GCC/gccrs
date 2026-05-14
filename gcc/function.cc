@@ -740,7 +740,7 @@ temp_address_hasher::equal (temp_slot_address_entry *t1,
   return exp_equiv_p (t1->address, t2->address, 0, true);
 }
 
-/* Add ADDRESS as an alias of TEMP_SLOT to the addess -> temp slot mapping.  */
+/* Add ADDRESS as an alias of TEMP_SLOT to the address -> temp slot mapping.  */
 static void
 insert_temp_slot_address (rtx address, class temp_slot *temp_slot)
 {
@@ -5951,7 +5951,7 @@ gen_call_used_regs_seq (rtx_insn *ret, unsigned int zero_regs_type)
 	    1. it is a call-used register;
 	and 2. it is not a fixed register;
 	and 3. it is not live at the return of the routine;
-	and 4. it is general registor if only_gpr is true;
+	and 4. it is general register if only_gpr is true;
 	and 5. it is used in the routine if only_used is true;
 	and 6. it is a register that passes parameter if only_arg is true.  */
 

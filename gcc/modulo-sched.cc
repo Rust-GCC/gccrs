@@ -733,7 +733,7 @@ schedule_reg_moves (partial_schedule_ptr ps)
 		gcc_assert (set);
 		/* If the instruction contains auto-inc register then
 		   validate that the regmov is being generated for the
-		   target regsiter rather then the inc'ed register.	*/
+		   target register rather then the inc'ed register.	*/
 		gcc_assert (!autoinc_var_is_used_p (u->insn, e->dest->insn));
 	      }
 
@@ -1066,7 +1066,7 @@ optimize_sc (partial_schedule_ptr ps, ddg_ptr g)
 
 	  /* The branch was failed to be placed in row ii - 1.
 	     Put it back in it's original place in the partial
-	     schedualing.  */
+	     scheduling.  */
 	  set_must_precede_follow (&tmp_follow, must_follow, &tmp_precede,
 				   must_precede, branch_cycle, start, end,
 				   step);
