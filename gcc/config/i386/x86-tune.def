@@ -682,10 +682,6 @@ DEF_TUNE (X86_TUNE_ALWAYS_FANCY_MATH_387, "always_fancy_math_387",
    is bad.  */
 DEF_TUNE (X86_TUNE_UNROLL_STRLEN, "unroll_strlen", ~m_386)
 
-/* X86_TUNE_SHIFT1: Enables use of short encoding of "sal reg" instead of
-   longer "sal $1, reg".  */
-DEF_TUNE (X86_TUNE_SHIFT1, "shift1", ~m_486)
-
 /* X86_TUNE_ZERO_EXTEND_WITH_AND: Use AND instruction instead
    of mozbl/movwl.  */
 DEF_TUNE (X86_TUNE_ZERO_EXTEND_WITH_AND, "zero_extend_with_and",

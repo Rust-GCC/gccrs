@@ -401,7 +401,6 @@ extern unsigned char ix86_tune_features[X86_TUNE_LAST];
 	ix86_tune_features[X86_TUNE_PROLOGUE_USING_MOVE]
 #define TARGET_EPILOGUE_USING_MOVE \
 	ix86_tune_features[X86_TUNE_EPILOGUE_USING_MOVE]
-#define TARGET_SHIFT1		ix86_tune_features[X86_TUNE_SHIFT1]
 #define TARGET_USE_FFREEP	ix86_tune_features[X86_TUNE_USE_FFREEP]
 #define TARGET_INTER_UNIT_MOVES_TO_VEC \
 	ix86_tune_features[X86_TUNE_INTER_UNIT_MOVES_TO_VEC]
