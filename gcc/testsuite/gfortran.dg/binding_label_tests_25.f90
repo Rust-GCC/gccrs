@@ -11,7 +11,7 @@ module m_odbc_if
   implicit none
 
   interface sql_set_env_attr
-    function sql_set_env_attr_int( input_handle,attribute,value,length ) &
+    function sql_set_env_attr_int( input_handle,attribute,value,length ) & ! { dg-error "Type mismatch" }
                                    result(res) bind(C,name="SQLSetEnvAttr")
       use, intrinsic :: iso_c_binding
       implicit none
@@ -21,7 +21,7 @@ module m_odbc_if
       integer(c_int), value :: length      
       integer(c_short) :: res
     end function
-    function sql_set_env_attr_ptr( input_handle,attribute,value,length ) &
+    function sql_set_env_attr_ptr( input_handle,attribute,value,length ) & ! { dg-error "Type mismatch" }
                                    result(res) bind(C,name="SQLSetEnvAttr")
       use, intrinsic :: iso_c_binding
       implicit none
@@ -38,24 +38,16 @@ module graph_partitions
   use,intrinsic :: iso_c_binding
 
   interface Cfun
-     subroutine cfunc1 (num, array) bind(c, name="Cfun")
+     subroutine cfunc1 (num, array) bind(c, name="Cfun") ! { dg-error "Type mismatch" }
        import :: c_int
        integer(c_int),value :: num
        integer(c_int)       :: array(*) ! <<< HERE: int[]
      end subroutine cfunc1
 
-     subroutine cfunf2 (num, array) bind(c, name="Cfun")
+     subroutine cfunf2 (num, array) bind(c, name="Cfun") ! { dg-error "Type mismatch" }
        import :: c_int, c_ptr
        integer(c_int),value :: num
        type(c_ptr),value    :: array ! <<< HERE: void*
      end subroutine cfunf2
   end interface
 end module graph_partitions
-
-program test
-  use graph_partitions
-  integer(c_int) :: a(100)
-
-  call Cfun (1, a)
-  call Cfun (2, C_NULL_PTR)
-end program test

@@ -1,5 +1,5 @@
 ! { dg-do run }
-! { dg-options "-fbackslash" }
+! { dg-options "-fbackslash -Wno-pedantic" }
 !
 ! PR fortran/103828
 ! Check that we can C char with non-ASCII values, which are interoperable

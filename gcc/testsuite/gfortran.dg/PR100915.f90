@@ -1,5 +1,6 @@
 ! { dg-do run }
 ! { dg-additional-sources PR100915.c }
+! { dg-additional-options "-Wno-pedantic" }
 !
 ! Test the fix for PR100915
 ! 

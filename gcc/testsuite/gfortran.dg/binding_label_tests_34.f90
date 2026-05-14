@@ -1,13 +1,15 @@
 ! { dg-do compile }
+! { dg-options "-pedantic" }
 ! PR 94737 - global symbols are case-insensitive; an error should be
 ! reported if they match (see F2018, 9.2, paragraph 2).  Original
 ! test case by Lee Busby.
 
+! Modified because this catches 
 module foo
 
 interface
-function func1(ii) result (k) bind(c, name="c_func")
-  integer :: ii
+   function func1(ii) result (k) bind(c, name="c_func") ! { dg-error "Global binding name" }
+     integer :: ii
   integer :: k
 end function func1
 subroutine sub1(ii,jj) bind(c, name="c_Func") ! { dg-error "Global binding name" }
@@ -20,6 +22,6 @@ contains
 function func2(ii) result (k) 
   integer :: ii
   integer :: k
-  k = func1(ii) ! { dg-error "Global binding name" }
+  k = func1(ii)
 end function func2
 end module foo

@@ -14903,6 +14903,134 @@ gfc_verify_DTIO_procedures (gfc_symbol *sym)
   return;
 }
 
+/* Auxiliary function, checks if an argument decays to a pointer.  */
+
+static bool
+decays_to_pointer (gfc_symbol *sym)
+{
+  if (!sym->as)
+    return true;
+
+  if (sym->as->type == AS_ASSUMED_SHAPE)
+    return false;
+
+  if (sym->as->type == AS_ASSUMED_RANK)
+    return false;
+
+  if (sym->as->type == AS_DEFERRED && sym->attr.dummy)
+    return false;
+
+  return true;
+}
+
+/* Helper function, returns true if the types conform according to the C
+   standard, when they are not equal on the Fortran side.  If we decide to
+   include or exclude any types from this, this is the place to change.  */
+
+static bool
+c_types_conform (gfc_typespec *ts1, gfc_typespec *ts2)
+{
+  if (ts1->type == BT_ASSUMED || ts2->type == BT_ASSUMED)
+    return true;
+
+  if (ts1->kind == ts2->kind
+      && (ts1->type == BT_CHARACTER || ts1->type == BT_INTEGER
+	  || ts1->type == BT_UNSIGNED)
+      && (ts2->type == BT_CHARACTER || ts2->type == BT_INTEGER
+	  || ts2->type == BT_UNSIGNED))
+    return true;
+
+  return false;
+
+}
+
+/* Check argument lists of BIND(C) procedures against each other, return
+   false if they do not. */
+
+static bool
+compare_c_binding_arglists (gfc_symbol *osym, gfc_symbol *nsym)
+{
+  gfc_formal_arglist *oarg, *narg;
+  bool ret = true;
+  locus *oloc, *nloc;
+
+  oarg = osym->formal;
+  narg = nsym->formal;
+  oloc = &osym->declared_at;
+  nloc = &nsym->declared_at;
+  for ( ; oarg && narg ; oarg = oarg->next, narg = narg->next)
+    {
+      oloc = &oarg->sym->declared_at;
+      nloc = &narg->sym->declared_at;
+
+      if (!gfc_compare_types (&oarg->sym->ts, &narg->sym->ts)
+	  && (pedantic || !c_types_conform (&oarg->sym->ts, &narg->sym->ts)))
+	{
+	  gfc_error ("Type mismatch in argument %qs at %L (%s/%s) "
+		     "originally declared at %L", narg->sym->name,
+		     nloc, gfc_typename (&narg->sym->ts),
+		     gfc_typename (&oarg->sym->ts), oloc);
+		     ret = false;
+		     continue;
+	}
+      if (oarg->sym->attr.value != narg->sym->attr.value)
+	{
+	  gfc_error ("VALUE attribute mismatch in argument %qs at %L "
+		     "originally declared at %L",narg->sym->name,
+		     nloc, oloc);
+	  ret = false;
+	  continue;
+	}
+
+      /* According to the Fortran standard, ranks have to match for arguments.
+	 In this case, this makes little sense because both decay to C
+	 pointers.  Only issue an error if -pedantic or if the argument does
+	 not decay to a pointer.  Same thing for CFI_desc arrays, which include
+	 assumed rank.  */
+
+      int orank = gfc_symbol_rank (oarg->sym);
+      int nrank = gfc_symbol_rank (narg->sym);
+      if (orank != nrank && pedantic)
+	{
+	  gfc_error ("Rank mismatch in argument %qs (%d/%d) at %L originally "
+		     "declared at %L", narg->sym->name, nrank, orank,  nloc,
+		     oloc);
+	  ret = false;
+	  continue;
+	}
+
+      /* Confusion between CFI_desc and "normal" arrays.  */
+
+      if (decays_to_pointer (oarg->sym) != decays_to_pointer (narg->sym))
+	{
+	  gfc_error ("Array specification mismatch in argument %qs at %L "
+		     "originally declared at %L", narg->sym->name,
+		     nloc, oloc);
+	  ret = false;
+	  continue;
+	}
+    }
+
+  if (oarg && !narg)
+    {
+      gfc_error ("Not enough arguments for procedure %qs with binding label "
+		 "%qs after %L, originally declared at %L", nsym->name,
+		 nsym->binding_label, nloc, &oarg->sym->declared_at);
+      ret = false;
+    }
+
+  if (!oarg && narg)
+    {
+      gfc_error ("Too many arguments for procedure %qs with binding label "
+		 "%qs at %L, originally declared at %L", nsym->name,
+		 nsym->binding_label, &narg->sym->declared_at, oloc);
+      ret = false;
+    }
+
+  return ret;
+}
+
+
 /* Verify that any binding labels used in a given namespace do not collide
    with the names or binding labels of any global symbols.  Multiple INTERFACE
    for the same procedure are permitted.  Abstract interfaces and dummy
@@ -14919,7 +15047,24 @@ gfc_verify_binding_labels (gfc_symbol *sym)
       || sym->attr.abstract || sym->attr.dummy)
     return;
 
-  gsym = gfc_find_case_gsymbol (gfc_gsym_root, sym->binding_label);
+  /* Avoid double error reporting.  */
+  if (sym->error)
+    return;
+
+  /* TODO: Check the names of reserved external C identifiers here, see
+     PR 125251.  */
+
+  /* According to the Fortran standard, global identifiers are case
+     insensitive, which also holds for C identifiers.  This was probably done
+     for systems which had case-insensitive linkers.  Such systems could not
+     accomodate the C standards referenced, so this restriction makes little
+     sense for modern systems. Therefore, check case-sensitive labels unless
+     -pedantic is in force.  */
+
+  if (pedantic)
+    gsym = gfc_find_case_gsymbol (gfc_gsym_root, sym->binding_label);
+  else
+    gsym = gfc_find_gsymbol (gfc_gsym_root, sym->binding_label);
 
   if (sym->module)
     module = sym->module;
@@ -14932,6 +15077,48 @@ gfc_verify_binding_labels (gfc_symbol *sym)
     module = sym->ns->parent->proc_name->name;
   else
     module = NULL;
+
+  if (gsym)
+    {
+      if (gsym->type == GSYM_FUNCTION || gsym->type == GSYM_SUBROUTINE)
+	{
+	  gfc_symbol *global_sym;
+	  gfc_find_symbol (gsym->sym_name, gsym->ns, 0, &global_sym);
+	  gcc_assert (global_sym);
+
+	  /* If subroutines and functions are conflated, there is little point
+	     in continuing checks.  */
+	  if ((sym->attr.function && gsym->type == GSYM_SUBROUTINE)
+	      || (sym->attr.subroutine && gsym->type == GSYM_FUNCTION))
+	    {
+	      gfc_global_used (gsym, &sym->declared_at);
+	      sym->binding_label = NULL;
+	      sym->error = 1;
+	      return;
+	    }
+
+	  if (gsym->type == GSYM_FUNCTION && sym->attr.function
+	      && !gfc_compare_types (&sym->ts, &global_sym->ts))
+	    {
+	      gfc_error ("Return type mismatch of function %qs with binding "
+			 "label %qs at %L (%s/%s), originally declared at %L",
+			 sym->name, sym->binding_label,
+			 &sym->declared_at,
+			 gfc_typename (&sym->ts),
+			 gfc_typename (&global_sym->ts),
+			 &gsym->where);
+	      sym->binding_label = NULL;
+	      sym->error = 1;
+	      return;
+	    }
+	  if (!compare_c_binding_arglists (global_sym, sym))
+	    {
+	      sym->binding_label = NULL;
+	      sym->error = 1;
+	      return;
+	    }
+	}
+    }
 
   if (!gsym
       || (!gsym->defined
@@ -14992,6 +15179,7 @@ gfc_verify_binding_labels (gfc_symbol *sym)
 		 "global identifier as entity at %L", sym->name,
 		 sym->binding_label, &sym->declared_at, &gsym->where);
       sym->binding_label = NULL;
+      return;
     }
 }
 

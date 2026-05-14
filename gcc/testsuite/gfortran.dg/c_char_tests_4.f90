@@ -1,4 +1,5 @@
 ! { dg-do run }
+! { dg-additional-options "-Wno-pedantic" }
 !
 ! PR fortran/103828
 ! Check that we can pass many function args as C char, which are interoperable

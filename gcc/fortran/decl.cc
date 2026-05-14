@@ -8409,7 +8409,7 @@ add_global_entry (const char *name, const char *binding_label, bool sub,
       else
 	{
 	  s->type = type;
-	  s->sym_name = name;
+	  s->sym_name = gfc_get_string ("%s", name);
 	  s->binding_label = binding_label;
 	  s->where = *where;
 	  s->defined = 1;

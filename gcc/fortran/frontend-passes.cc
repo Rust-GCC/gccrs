@@ -5884,6 +5884,9 @@ check_against_globals (gfc_symbol *sym)
       || sym->attr.dummy)
     return;
 
+  if (sym->error)
+    return;
+
   if (sym->binding_label)
     sym_name = sym->binding_label;
   else if (sym->attr.use_rename

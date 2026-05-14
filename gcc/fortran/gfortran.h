@@ -4133,6 +4133,7 @@ void gfc_free_interface (gfc_interface *);
 void gfc_drop_interface_elements_before (gfc_interface **, gfc_interface *);
 bool gfc_compare_derived_types (gfc_symbol *, gfc_symbol *);
 bool gfc_compare_types (gfc_typespec *, gfc_typespec *);
+int gfc_symbol_rank (gfc_symbol *);
 bool gfc_check_dummy_characteristics (gfc_symbol *, gfc_symbol *,
 				      bool, char *, int);
 bool gfc_check_result_characteristics (gfc_symbol *, gfc_symbol *,

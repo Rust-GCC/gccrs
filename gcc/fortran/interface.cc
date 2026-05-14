@@ -1375,8 +1375,8 @@ generic_correspondence (gfc_formal_arglist *f1, gfc_formal_arglist *f2,
 }
 
 
-static int
-symbol_rank (gfc_symbol *sym)
+int
+gfc_symbol_rank (gfc_symbol *sym)
 {
   gfc_array_spec *as = NULL;
 
@@ -1420,7 +1420,7 @@ gfc_check_dummy_characteristics (gfc_symbol *s1, gfc_symbol *s2,
       if (!compare_rank (s1, s2))
 	{
 	  snprintf (errmsg, err_len, "Rank mismatch in argument '%s' (%i/%i)",
-		    s1->name, symbol_rank (s1), symbol_rank (s2));
+		    s1->name, gfc_symbol_rank (s1), gfc_symbol_rank (s2));
 	  return false;
 	}
     }
@@ -1667,7 +1667,7 @@ gfc_check_result_characteristics (gfc_symbol *s1, gfc_symbol *s2,
   if (!compare_rank (r1, r2))
     {
       snprintf (errmsg, err_len, "Rank mismatch in function result (%i/%i)",
-		symbol_rank (r1), symbol_rank (r2));
+		gfc_symbol_rank (r1), gfc_symbol_rank (r2));
       return false;
     }
 
@@ -1958,7 +1958,7 @@ gfc_compare_interfaces (gfc_symbol *s1, gfc_symbol *s2, const char *name2,
 		if (errmsg != NULL)
 		  snprintf (errmsg, err_len, "Rank mismatch in argument "
 			    "'%s' (%i/%i)", f1->sym->name,
-			    symbol_rank (f1->sym), symbol_rank (f2->sym));
+			    gfc_symbol_rank (f1->sym), gfc_symbol_rank (f2->sym));
 		return false;
 	      }
 	    if ((gfc_option.allow_std & GFC_STD_F2008)
@@ -2477,12 +2477,12 @@ compare_parameter (gfc_symbol *formal, gfc_expr *actual,
 	return false;
 
       if (ranks_must_agree
-	  && symbol_rank (formal) != actual->rank
-	  && symbol_rank (formal) != -1)
+	  && gfc_symbol_rank (formal) != actual->rank
+	  && gfc_symbol_rank (formal) != -1)
 	{
 	  if (where)
 	    argument_rank_mismatch (formal->name, &actual->where,
-				    symbol_rank (formal), actual->rank,
+				    gfc_symbol_rank (formal), actual->rank,
 				    NULL);
 	  return false;
 	}
@@ -2692,7 +2692,7 @@ compare_parameter (gfc_symbol *formal, gfc_expr *actual,
 
   /* TS29113 C407c; F2018 C711.  */
   if (actual->ts.type == BT_ASSUMED
-      && symbol_rank (formal) == -1
+      && gfc_symbol_rank (formal) == -1
       && actual->rank != -1
       && !(actual->symtree->n.sym->as
 	   && actual->symtree->n.sym->as->type == AS_ASSUMED_SHAPE))
@@ -2871,7 +2871,7 @@ compare_parameter (gfc_symbol *formal, gfc_expr *actual,
     }
 
   /* If the rank is the same or the formal argument has assumed-rank.  */
-  if (symbol_rank (formal) == actual->rank || symbol_rank (formal) == -1)
+  if (gfc_symbol_rank (formal) == actual->rank || gfc_symbol_rank (formal) == -1)
     return true;
 
   rank_check = where != NULL && !is_elemental && formal_as
@@ -2916,7 +2916,7 @@ compare_parameter (gfc_symbol *formal, gfc_expr *actual,
 	    where_formal = NULL;
 
 	  argument_rank_mismatch (formal->name, &actual->where,
-				  symbol_rank (formal), actual->rank,
+				  gfc_symbol_rank (formal), actual->rank,
 				  where_formal);
 	}
       return false;
@@ -3019,7 +3019,7 @@ compare_parameter (gfc_symbol *formal, gfc_expr *actual,
 	    where_formal = NULL;
 
 	  argument_rank_mismatch (formal->name, &actual->where,
-				  symbol_rank (formal), actual->rank,
+				  gfc_symbol_rank (formal), actual->rank,
 				  where_formal);
 	}
       return false;
@@ -3052,7 +3052,7 @@ get_sym_storage_size (gfc_symbol *sym, bool *size_known)
   else
     strlen = 1;
 
-  if (symbol_rank (sym) == 0)
+  if (gfc_symbol_rank (sym) == 0)
     {
       *size_known = true;
       return strlen;
@@ -4639,7 +4639,7 @@ gfc_procedure_use (gfc_symbol *sym, gfc_actual_arglist **ap, locus *where)
 
 	  /* TS 29113, C407b.  */
 	  if (a->expr && a->expr->expr_type == EXPR_VARIABLE
-	      && symbol_rank (a->expr->symtree->n.sym) == -1)
+	      && gfc_symbol_rank (a->expr->symtree->n.sym) == -1)
 	    {
 	      gfc_error ("Assumed-rank argument requires an explicit interface "
 			 "at %L", &a->expr->where);
