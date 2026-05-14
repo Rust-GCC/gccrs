@@ -1,3 +1,5 @@
+// { dg-do compile { target c++11 } }
+
 #pragma omp declare mapper (int v)  // { dg-error "missing 'map' clause before end of line" }
 #pragma omp declare mapper (float v) map()  // { dg-error "expected primary-expression before '\\)' token" }
 // { dg-error "'float' is not a struct, union or class type in '#pragma omp declare mapper'" "" { target *-*-* } .-1 }
@@ -8,6 +10,8 @@ struct XT {
   int x;
 };
 #pragma omp declare mapper (XT y) map()  // { dg-error "expected primary-expression before '\\)' token" }
+// { dg-error "at least one 'map' clause must map 'y' or an element of it" "" { target *-*-* } .-1 }
+
 
 struct t {
   int x;
@@ -20,6 +24,7 @@ typedef struct t myStruct;
 #pragma omp declare mapper(myStruct) // { dg-error "expected unqualified-id before '\\)' token" }
 
 #pragma omp declare mapper(name : t v)  map() // { dg-error "expected primary-expression before '\\)' token" } 
+// { dg-error "at least one 'map' clause must map 'v' or an element of it" "" { target *-*-* } .-1 }
 
 #pragma omp declare mapper(fancy : struct t v) map(always,present,close,mapper(d),tofrom: v) // { dg-error "in 'declare mapper' directives, parameter to 'mapper' modifier must be 'default'" }
 
@@ -37,3 +42,4 @@ class B : public virtual A { };
 union u_t { };
 
 #pragma omp declare mapper(u_t v) map()  // { dg-error "expected primary-expression before '\\)' token" }
+// { dg-error "at least one 'map' clause must map 'v' or an element of it" "" { target *-*-* } .-1 }

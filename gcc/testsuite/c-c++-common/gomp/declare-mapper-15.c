@@ -1,4 +1,4 @@
-/* { dg-do compile } */
+/* { dg-do compile { target { c || c++11 } } } */
 /* { dg-options "-fopenmp -fdump-tree-gimple" } */
 
 typedef struct {

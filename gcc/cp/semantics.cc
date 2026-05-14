@@ -7440,22 +7440,66 @@ finish_omp_reduction_clause (tree c, bool *need_default_ctor, bool *need_dtor)
 bool
 cp_check_omp_declare_mapper (tree udm)
 {
-  tree type = TREE_TYPE (udm);
-  location_t loc = DECL_SOURCE_LOCATION (udm);
+  tree var = OMP_DECLARE_MAPPER_DECL (udm);
+  tree type = TREE_TYPE (var);
+  location_t loc = DECL_SOURCE_LOCATION (var);
 
   if (type == error_mark_node)
     return false;
 
-  if (!processing_template_decl && !RECORD_OR_UNION_TYPE_P (type))
+  if (processing_template_decl)
+    return true;
+
+  if (!RECORD_OR_UNION_TYPE_P (type))
     {
       error_at (loc, "%qT is not a struct, union or class type in "
 		"%<#pragma omp declare mapper%>", type);
       return false;
     }
-  if (!processing_template_decl && CLASSTYPE_VBASECLASSES (type))
+  if (CLASSTYPE_VBASECLASSES (type))
     {
       error_at (loc, "%qT must not be a virtual base class in "
 		"%<#pragma omp declare mapper%>", type);
+      return false;
+    }
+
+  tree c = OMP_DECLARE_MAPPER_CLAUSES (udm);
+  for ( ; c; c = OMP_CLAUSE_CHAIN (c))
+    {
+      tree dvar = OMP_CLAUSE_DECL (c);
+      while (!DECL_P (dvar) && TREE_OPERAND_LENGTH (dvar))
+	dvar = TREE_OPERAND (dvar, 0);
+      if (dvar == var)
+	break;
+    }
+  if (!c)
+    {
+      // After template handling, the var is mangled, demangle it
+      const char *name = IDENTIFIER_POINTER (DECL_NAME (var));
+      char *n = NULL;
+      if (startswith (name, "omp declare mapper "))
+	{
+	  name += strlen ("omp declare mapper ");
+	  n = xstrdup (name);
+	  n[strchr (n, '~')-n] = '\0';
+	  name = n;
+	}
+      error_at (loc, "at least one %<map%> clause must map %qs or an "
+		     "element of it", name);
+      if (n)
+	free (n);
+      return false;
+    }
+
+  /* FIXME: The vardecl created for the mapper_id uses DECL_DECLARED_CONSTEXPR_P
+     = 1, which is set to false in finalize_literal_type_property for C++ < 11,
+     leading to an error in ensure_literal_type_for_constexpr_object.
+     Examples (compile with -std=c++98): gcc.dg/gomp/declare-mapper-13.c and
+     libgomp.c++/declare-mapper-{5,6,8}.C.  */
+  if (cxx_dialect < cxx11)
+    {
+      sorry_at (loc, "%<#pragma omp declare mapper%> with %<-std=%> set to "
+		     "before C++11");
       return false;
     }
 

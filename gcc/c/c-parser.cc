@@ -29219,6 +29219,18 @@ c_parser_omp_declare_mapper (c_parser *parser, enum pragma_context context)
       error_at (input_location, "missing %<map%> clause");
       goto fail;
     }
+  tree list;
+  for (list = maplist; list; list = OMP_CLAUSE_CHAIN (list))
+    {
+      tree dvar = OMP_CLAUSE_DECL (list);
+      while (!DECL_P (dvar) && TREE_OPERAND_LENGTH (dvar))
+	dvar = TREE_OPERAND (dvar, 0);
+      if (dvar == var)
+	break;
+    }
+  if (!list)
+    error_at (input_location, "at least one %<map%> clause must map %qD or an "
+			      "element of it", var);
 
   stmt = make_node (OMP_DECLARE_MAPPER);
   TREE_TYPE (stmt) = type;

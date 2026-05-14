@@ -18,9 +18,11 @@ struct XT {
 // { dg-error "expected primary-expression before '\\)' token" "" { target c++ } .-1 }
 // { dg-error "unknown type name 'XT'" "" { target c } .-2 }
 // { dg-error "expected end of line before 'y'" "" { target c } .-3 }
+// { dg-error "at least one 'map' clause must map 'y' or an element of it" "" { target c++ } .-4 }
 #pragma omp declare mapper ( bar : struct XT y) map()
 // { dg-error "expected primary-expression before '\\)' token" "" { target c++ } .-1 }
 // { dg-error "expected expression before '\\)' token" "" { target c } .-2 }
+// { dg-error "at least one 'map' clause must map 'y' or an element of it" "" { target *-*-* } .-3 }
 
 struct t {
   int x;
@@ -45,8 +47,10 @@ typedef struct t myStruct;
 // { dg-error "expected primary-expression before '\\)' token" "" { target c++ } .-1 }
 // { dg-error "unknown type name 't'" "" { target c } .-2 }
 // { dg-error "expected end of line before 'v'" "" { target c } .-3 }
+// { dg-error "at least one 'map' clause must map 'v' or an element of it" "" { target c++ } .-4 }
 
 #pragma omp declare mapper(fancy : struct t v) map(always,present,close,mapper(d),tofrom: v) // { dg-error "in 'declare mapper' directives, parameter to 'mapper' modifier must be 'default'" }
+// { dg-message "sorry, unimplemented: '#pragma omp declare mapper' with '-std=' set to before C++11" "" { target c++98_only } .-1 }
 
 #pragma omp declare mapper(myStruct v) map(v, v.x)
 // { dg-note "'#pragma omp declare mapper \\(myStruct\\)' previously declared here" "" { target c++ } .-1 }
@@ -61,6 +65,7 @@ union u_q { };
 #pragma omp declare mapper(union u_t v) map()
 // { dg-error "expected primary-expression before '\\)' token" "" { target c++ } .-1 }
 // { dg-error "expected expression before '\\)' token" "" { target c } .-2 }
+// { dg-error "at least one 'map' clause must map 'v' or an element of it" "" { target *-*-* } .-3 }
 
 #pragma omp declare mapper( one : union u_t v) map(v)
 // { dg-note "'#pragma omp declare mapper \\(one: u_t\\)' previously declared here" "" { target c++ } .-1 }

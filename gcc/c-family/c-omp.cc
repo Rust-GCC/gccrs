@@ -4517,8 +4517,10 @@ omp_map_decayed_kind (enum gomp_map_kind mapper_kind,
   if (invoked_as == GOMP_MAP_RELEASE || invoked_as == GOMP_MAP_DELETE)
     return invoked_as;
 
+  bool m_force_p, m_always_p, m_present_p;
   bool force_p, always_p, present_p;
 
+  mapper_kind = omp_split_map_kind (mapper_kind, &m_force_p, &m_always_p, &m_present_p);
   invoked_as = omp_split_map_kind (invoked_as, &force_p, &always_p, &present_p);
   gomp_map_kind decay_to;
 
@@ -4556,7 +4558,8 @@ omp_map_decayed_kind (enum gomp_map_kind mapper_kind,
       gcc_unreachable ();
     }
 
-  return omp_join_map_kind (decay_to, force_p, always_p, present_p);
+  return omp_join_map_kind (decay_to, m_force_p | force_p,
+			    m_always_p | always_p, m_present_p | present_p);
 }
 
 /* Instantiate a mapper MAPPER for expression EXPR, adding new clauses to

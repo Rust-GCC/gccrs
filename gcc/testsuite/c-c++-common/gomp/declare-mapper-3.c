@@ -1,4 +1,4 @@
-// { dg-do compile }
+// { dg-do compile { target { c || c++11 } } }
 // { dg-additional-options "-fdump-tree-gimple" }
 
 #include <stdlib.h>

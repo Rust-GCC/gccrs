@@ -1,4 +1,4 @@
-// { dg-do compile }
+// { dg-do compile { target c++11 } }
 // { dg-additional-options "-fdump-tree-gimple" }
 
 // "omp declare mapper" support -- check expansion in gimple.

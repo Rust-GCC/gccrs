@@ -1,4 +1,4 @@
-// { dg-do compile }
+// { dg-do compile { target c++11 } }
 
 // Error-checking tests for "omp declare mapper".
 

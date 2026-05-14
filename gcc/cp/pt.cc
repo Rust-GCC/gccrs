@@ -20762,6 +20762,7 @@ tsubst_stmt (tree t, tree args, tsubst_flags_t complain, tree in_decl)
 	TREE_TYPE (t) = type;
 	OMP_DECLARE_MAPPER_DECL (t) = decl;
 	OMP_DECLARE_MAPPER_CLAUSES (t) = clauses;
+	cp_check_omp_declare_mapper (t);
 	RETURN (t);
       }
 
@@ -21881,6 +21882,7 @@ tsubst_expr (tree t, tree args, tsubst_flags_t complain, tree in_decl)
 	TREE_TYPE (t) = type;
 	OMP_DECLARE_MAPPER_DECL (t) = decl;
 	OMP_DECLARE_MAPPER_CLAUSES (t) = clauses;
+	cp_check_omp_declare_mapper (t);
 	RETURN (t);
       }
 

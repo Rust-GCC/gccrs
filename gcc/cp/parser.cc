@@ -55723,7 +55723,7 @@ cp_parser_omp_declare_mapper (cp_parser *parser, cp_token *pragma_tok,
   else
     pushdecl (vardecl);
 
-  cp_check_omp_declare_mapper (vardecl);
+  cp_check_omp_declare_mapper (mapper);
 
   cp_parser_require_pragma_eol (parser, pragma_tok);
   return;
