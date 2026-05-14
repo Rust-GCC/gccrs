@@ -35,7 +35,7 @@
 
 /**
  * @file tree_policy/sample_tree_node_update.hpp
- * Contains a samle node update functor.
+ * Contains a sample node update functor.
  */
 
 #ifndef PB_DS_SAMPLE_TREE_NODE_UPDATOR_HPP

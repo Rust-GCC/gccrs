@@ -97,7 +97,7 @@ namespace __unicode
   // read outside those bounds (incrementing or decrementing at the boundary
   // is erroneously idempotent).
   //
-  // On construction, the iterator attemps to decode a single code point from
+  // On construction, the iterator attempts to decode a single code point from
   // the input range and then encode it into an internal buffer in the output
   // format, e.g. if the input is UTF-8 and the output is UTF-16, it might read
   // three char8_t code units from the input and store two char16_t code units

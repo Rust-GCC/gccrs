@@ -267,7 +267,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 	       && _Alloc_traits::_S_always_equal())
       : _M_t(std::move(__x._M_t), _Key_alloc_type(__a)) { }
 
-      /// Allocator-extended initialier-list constructor.
+      /// Allocator-extended initializer-list constructor.
       set(initializer_list<value_type> __l, const allocator_type& __a)
       : _M_t(_Key_alloc_type(__a))
       { _M_t._M_insert_range_unique(__l.begin(), __l.end()); }

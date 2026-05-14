@@ -733,7 +733,7 @@ dnl Assumes cross_compiling bits already done, and with_cross_host in
 dnl particular.
 dnl
 dnl This logic must match gcc/configure.ac's setting of gcc_gxx_include_dir.
-dnl config/gxx-include-dir.m4 must be kept consistant with this as well.
+dnl config/gxx-include-dir.m4 must be kept consistent with this as well.
 AC_DEFUN([GLIBCXX_EXPORT_INSTALL_INFO], [
   glibcxx_toolexecdir=no
   glibcxx_toolexeclibdir=no
@@ -4026,7 +4026,7 @@ if test x$enable_symvers = xsun ; then
     *)
       # Unlikely to work.
       AC_MSG_WARN([=== You have requested Sun symbol versioning, but])
-      AC_MSG_WARN([=== you are not targetting Solaris 2.])
+      AC_MSG_WARN([=== you are not targeting Solaris 2.])
       AC_MSG_WARN([=== Symbol versioning will be disabled.])
       enable_symvers=no
       ;;

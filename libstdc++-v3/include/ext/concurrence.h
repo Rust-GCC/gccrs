@@ -53,7 +53,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   // _S_atomic    multi-threaded code using atomic operations.
   enum _Lock_policy { _S_single, _S_mutex, _S_atomic };
 
-  // Compile time constant that indicates prefered locking policy in
+  // Compile time constant that indicates preferred locking policy in
   // the current configuration.
   _GLIBCXX17_INLINE const _Lock_policy __default_lock_policy =
 #ifndef __GTHREADS

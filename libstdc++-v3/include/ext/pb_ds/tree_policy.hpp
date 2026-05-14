@@ -93,7 +93,7 @@ namespace __gnu_pbds
     inline iterator
     find_by_order(size_type);
 
-    /// Returns the order of a key within a sequence. For exapmle, if
+    /// Returns the order of a key within a sequence. For example, if
     /// r_key is the smallest key, this method will return 0; if r_key
     /// is a key between the smallest and next key, this method will
     /// return 1; if r_key is a key larger than the largest key, this

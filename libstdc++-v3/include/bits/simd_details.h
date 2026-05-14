@@ -284,7 +284,7 @@ namespace simd
    *
    * @tparam _Np    The number of elements.
    * @tparam _Nreg  The number of registers needed to store @p _Np elements.
-   * @tparam _Var   Determines how complex value-types are layed out and whether mask types use
+   * @tparam _Var   Determines how complex value-types are laid out and whether mask types use
    *                bit-masks or vector-masks.
    */
   template <int _Np, int _Nreg, underlying_type_t<_AbiVariant> _Var>
@@ -919,7 +919,7 @@ namespace simd
    * On IvyBridge, (vec<float> == 0.f) == (rebind_t<int, vec<float>> == 0) does not compile. It does
    * compile on basically every other target, though. This is due to the difference in ABI tag:
    * _Abi<8, 1, [...]> vs. _Abi<8, 2, [...]> (8 elements, 1 vs. 2 registers).
-   * I know how to define this funtion for libstdc++ to avoid interconvertible masks. The question
+   * I know how to define this function for libstdc++ to avoid interconvertible masks. The question
    * is whether we can specify this in general for C++29.
    *
    * Idea: Is rebind_t<integer-from<...>, mask>::abi_type the same type as

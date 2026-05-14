@@ -286,7 +286,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CXX11
       wstring_convert(_Codecvt* __pcvt) : _M_cvt(__pcvt, "wstring_convert")
       { }
 
-      /** Construct with an initial converstion state.
+      /** Construct with an initial conversion state.
        *
        * @param  __pcvt The facet to use for conversions.
        * @param  __state Initial conversion state.

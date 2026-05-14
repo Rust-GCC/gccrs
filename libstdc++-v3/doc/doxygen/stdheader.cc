@@ -26,7 +26,7 @@ std::map<std::string_view, std::string_view>  headers;
 
 void init_map()
 {
-    // Enter the glamourous world of data entry!!  Maintain these!
+    // Enter the glamorous world of data entry!!  Maintain these!
     // Because the map_header function removes common prefixes and suffixes,
     // a header "bits/st[dl]_foo.h" will automatically map to "foo" if that
     // is a standard header, so we don't need to list those cases here.

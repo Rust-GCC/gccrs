@@ -1129,7 +1129,7 @@ namespace __detail
     make_unique(_Args&&...) = delete;
 
 #if __cplusplus > 201703L
-  /** Create a default-initialied object owned by a `unique_ptr`.
+  /** Create a default-initialized object owned by a `unique_ptr`.
    *  @tparam _Tp A non-array object type.
    *  @returns A `unique_ptr<_Tp>` that owns the new object.
    *  @since C++20

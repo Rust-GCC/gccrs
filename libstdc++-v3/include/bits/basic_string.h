@@ -4608,7 +4608,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CXX11
 #endif
 
   // _GLIBCXX_RESOLVE_LIB_DEFECTS
-  // DR 1261. Insufficent overloads for to_string / to_wstring
+  // DR 1261. Insufficient overloads for to_string / to_wstring
 
   _GLIBCXX_NODISCARD
   inline string

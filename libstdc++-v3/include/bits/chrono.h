@@ -1217,7 +1217,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
     // To support the (forward) evolution of the library's defined
     // clocks, wrap inside inline namespace so that the current
-    // defintions of system_clock, steady_clock, and
+    // definitions of system_clock, steady_clock, and
     // high_resolution_clock types are uniquely mangled. This way, new
     // code can use the latests clocks, while the library can contain
     // compatibility definitions for previous versions.  At some

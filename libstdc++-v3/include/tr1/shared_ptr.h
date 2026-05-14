@@ -595,7 +595,7 @@ namespace tr1
         explicit
         __shared_ptr(std::auto_ptr<_Tp1>& __r)
 	: _M_ptr(__r.get()), _M_refcount()
-        { // TODO requries delete __r.release() well-formed
+        { // TODO requires delete __r.release() well-formed
 	  __glibcxx_function_requires(_ConvertibleConcept<_Tp1*, _Tp*>)
 	  typedef int _IsComplete[sizeof(_Tp1)];
 	  _Tp1* __tmp = __r.get();

@@ -47,7 +47,7 @@
  *  interface.
 */
 /** @namespace __gnu_internal
- *  @brief GNU implemenation details, not for public use or
+ *  @brief GNU implementation details, not for public use or
  *  export. Used only when anonymous namespaces cannot be substituted.
 */
 /** @namespace std::experimental

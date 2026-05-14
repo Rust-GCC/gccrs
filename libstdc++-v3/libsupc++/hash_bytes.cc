@@ -29,7 +29,7 @@
 // This file also defines _Fnv_hash_bytes, another primitive with
 // exactly the same interface but using a different hash algorithm,
 // Fowler / Noll / Vo (FNV) Hash (type FNV-1a). The Murmur hash
-// function apears to be better in both speed and hash quality, and
+// function appears to be better in both speed and hash quality, and
 // FNV is provided primarily for backward compatibility.
 
 #include <bits/hash_bytes.h>

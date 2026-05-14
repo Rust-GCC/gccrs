@@ -164,7 +164,7 @@ namespace __detail
 }
 /// @endcond
 
-  /** Return an object that asssociates timezone info with a local time.
+  /** Return an object that associates timezone info with a local time.
    *
    * A `chrono::local_time` object has no timezone associated with it. This
    * function creates an object that allows formatting a `local_time` as

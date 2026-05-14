@@ -60,7 +60,7 @@ struct parse_options {
 
 /**
  * This function parses the character sequence [first,last) for a number. It parses floating-point numbers expecting
- * a locale-indepent format equivalent to what is used by std::strtod in the default ("C") locale.
+ * a locale-independent format equivalent to what is used by std::strtod in the default ("C") locale.
  * The resulting floating-point value is the closest floating-point values (using either float or double),
  * using the "round to even" convention for values that would otherwise fall right in-between two values.
  * That is, we provide exact parsing according to the IEEE standard.
@@ -2924,7 +2924,7 @@ fastfloat_really_inline bool rounds_to_nearest() noexcept {
   // However, it is expected to be much faster than the fegetround()
   // function call.
   //
-  // The volatile keywoard prevents the compiler from computing the function
+  // The volatile keyword prevents the compiler from computing the function
   // at compile-time.
   // There might be other ways to prevent compile-time optimizations (e.g., asm).
   // The value does not need to be std::numeric_limits<float>::min(), any small

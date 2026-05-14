@@ -891,7 +891,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       static constexpr size_t
       _S_tail()
       {
-	// The array elemenent type.
+	// The array element type.
 	using _Tp = typename allocator_traits<_Alloc>::value_type;
 
 	// The space needed to store a _Sp_counted_array object.

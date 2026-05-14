@@ -16201,7 +16201,7 @@ pic_mode='default'
 postdeps_CXX=`echo " $postdeps_CXX " | sed 's, -lstdc++ ,,g'`
 
 # Possibly disable most of the library.
-## TODO: Consider skipping unncessary tests altogether in this case, rather
+## TODO: Consider skipping unnecessary tests altogether in this case, rather
 ## than just ignoring the results.  Faster /and/ more correct, win win.
 
   # Check whether --enable-hosted-libstdcxx was given.
@@ -51308,8 +51308,8 @@ if test x$enable_symvers = xsun ; then
       # Unlikely to work.
       { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: === You have requested Sun symbol versioning, but" >&5
 $as_echo "$as_me: WARNING: === You have requested Sun symbol versioning, but" >&2;}
-      { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: === you are not targetting Solaris 2." >&5
-$as_echo "$as_me: WARNING: === you are not targetting Solaris 2." >&2;}
+      { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: === you are not targeting Solaris 2." >&5
+$as_echo "$as_me: WARNING: === you are not targeting Solaris 2." >&2;}
       { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: === Symbol versioning will be disabled." >&5
 $as_echo "$as_me: WARNING: === Symbol versioning will be disabled." >&2;}
       enable_symvers=no

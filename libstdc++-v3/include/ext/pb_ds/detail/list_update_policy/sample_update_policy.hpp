@@ -67,7 +67,7 @@ namespace __gnu_pbds
     /// Decides whether a metadata object should be moved to the front
     /// of the list. A list-update based containers object will call
     /// this method to decide whether to move a node to the front of
-    /// the list. The method shoule return true if the node should be
+    /// the list. The method should return true if the node should be
     /// moved to the front of the list.
     bool
     operator()(metadata_reference) const;

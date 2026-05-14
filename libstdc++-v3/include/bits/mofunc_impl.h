@@ -162,7 +162,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       move_only_function&
       operator=(move_only_function&& __x) noexcept
       {
-	// Standard requires support of self assigment, by specifying it as
+	// Standard requires support of self assignment, by specifying it as
 	// copy and swap.
 	if (this != std::addressof(__x)) [[likely]]
 	  {

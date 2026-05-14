@@ -1837,7 +1837,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 	insert_range(const_iterator __pos, _Rg&& __rg);
 
       /**
-       * @brief Prepend a range at the begining of the deque.
+       * @brief Prepend a range at the beginning of the deque.
        * @param __rg A range of values that are convertible to `value_type`.
        * @since C++23
        */

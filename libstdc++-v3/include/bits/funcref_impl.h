@@ -78,7 +78,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       using _ArgsSignature = _Res(_ArgTypes...) noexcept(_Noex);
       using _TargetQuals = int _GLIBCXX_MOF_CV&;
 
-      // [func.wrap.ref.ctor]/1 is-invokable-using
+      // [func.wrap.ref.ctor]/1 is-invocable-using
       template<typename... _Tps>
 	static constexpr bool __is_invocable_using
 	  = __conditional_t<_Noex,
@@ -101,7 +101,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	requires (!is_same_v<remove_cv_t<_Vt>, function_ref>)
 	       && (!is_member_pointer_v<_Vt>)
 	       // We deviate from standard by having this condition, that forces
-	       // function references to use _Fn* constructors. This simplies
+	       // function references to use _Fn* constructors. This simplifies
 	       // implementation and provide better diagnostic when used in
 	       // constant expression (above constructor is not constexpr).
 	       && (!is_function_v<_Vt>)

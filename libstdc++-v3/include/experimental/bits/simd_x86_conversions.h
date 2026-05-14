@@ -1301,7 +1301,7 @@ template <typename _To, typename _V, typename _Traits>
 		// split low 32-bits, because if __hi32 is a small negative
 		// number, the 24-bit mantissa may lose important information if
 		// any of the high 8 bits of __lo32 is set, leading to
-		// catastrophic cancelation in the FMA
+		// catastrophic cancellation in the FMA
 		const __m512 __hi16
 		  = _mm512_cvtepu32_ps(_mm512_set1_epi32(0xffff0000u) & __lo32);
 		const __m512 __lo16
@@ -1347,7 +1347,7 @@ template <typename _To, typename _V, typename _Traits>
 	else if constexpr (__f64_to_ibw) //{{{2
 	  {
 	    // one-arg __f64_to_ibw goes via _SimdWrapper<int, ?>. The fallback
-	    // would go via two independet conversions to _SimdWrapper<_To> and
+	    // would go via two independent conversions to _SimdWrapper<_To> and
 	    // subsequent interleaving. This is better, because f64->__i32
 	    // allows to combine __v0 and __v1 into one register: if constexpr
 	    // (__z_to_x || __y_to_x) {

@@ -159,7 +159,7 @@ pic_mode='default'
 postdeps_CXX=`echo " $postdeps_CXX " | sed 's, -lstdc++ ,,g'`
 
 # Possibly disable most of the library.
-## TODO: Consider skipping unncessary tests altogether in this case, rather
+## TODO: Consider skipping unnecessary tests altogether in this case, rather
 ## than just ignoring the results.  Faster /and/ more correct, win win.
 GLIBCXX_ENABLE_HOSTED
 

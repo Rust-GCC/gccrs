@@ -35,7 +35,7 @@
 
 /**
  * @file trie_policy/sample_trie_node_update.hpp
- * Contains a samle node update functor.
+ * Contains a sample node update functor.
  */
 
 #ifndef PB_DS_SAMPLE_TRIE_NODE_UPDATOR_HPP

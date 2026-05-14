@@ -1516,7 +1516,7 @@ template <>
 template <typename _Tp, size_t _Np, typename = void>
   struct __vector_type_n {};
 
-// substition failure for 0-element case
+// substitution failure for 0-element case
 template <typename _Tp>
   struct __vector_type_n<_Tp, 0, void> {};
 

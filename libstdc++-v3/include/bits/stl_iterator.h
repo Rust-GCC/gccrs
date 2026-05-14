@@ -1744,7 +1744,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     inline _GLIBCXX17_CONSTEXPR bool
     operator==(const move_iterator<_Iterator>& __x,
 	       const move_iterator<_Iterator>& __y)
-    // N.B. No contraints, x.base() == y.base() is always well-formed.
+    // N.B. No constraints, x.base() == y.base() is always well-formed.
     { return __x.base() == __y.base(); }
 
 #ifdef __cpp_lib_three_way_comparison

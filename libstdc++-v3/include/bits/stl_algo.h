@@ -479,7 +479,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
    *  @param  __first  An input iterator.
    *  @param  __last   An input iterator.
    *  @param  __pred   A predicate.
-   *  @return  True if the range @p [__first,__last) is partioned by @p __pred,
+   *  @return  True if the range @p [__first,__last) is partitioned by @p __pred,
    *  i.e. if all elements that satisfy @p __pred appear before those that
    *  do not.
   */
@@ -3542,7 +3542,7 @@ _GLIBCXX_END_INLINE_ABI_NAMESPACE(_V2)
 #pragma GCC diagnostic pop
 
   /**
-   *  @brief  Checks whether a permutaion of the second sequence is equal
+   *  @brief  Checks whether a permutation of the second sequence is equal
    *          to the first sequence.
    *  @ingroup non_mutating_algorithms
    *  @param  __first1  Start of first range.
