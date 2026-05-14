@@ -90,7 +90,7 @@ def update_sources(glibc_srcdir, quadmath_srcdir):
                   'GET_LDOUBLE_WORDS64', 'SET_LDOUBLE_LSW64',
                   'SET_LDOUBLE_MSW64', 'SET_LDOUBLE_WORDS64'):
         repl_names[macro] = macro.replace('LDOUBLE', 'FLT128')
-    # The classication macros are replaced.
+    # The classification macros are replaced.
     for macro in ('FP_NAN', 'FP_INFINITE', 'FP_ZERO', 'FP_SUBNORMAL',
                   'FP_NORMAL'):
         repl_names[macro] = 'QUAD' + macro

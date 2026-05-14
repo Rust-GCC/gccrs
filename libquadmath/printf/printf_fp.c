@@ -150,7 +150,7 @@ __quadmath_printf_fp (struct __quadmath_printf_file *fp,
   /* We need to shift the contents of fp_input by this amount of bits.	*/
   int to_shift = 0;
 
-  /* The fraction of the floting-point value in question  */
+  /* The fraction of the floating-point value in question  */
   MPN_VAR(frac);
   /* and the exponent.	*/
   int exponent;
@@ -1195,7 +1195,7 @@ __quadmath_printf_fp (struct __quadmath_printf_file *fp,
 
 	  /* Now copy the wide character string.  Since the character
 	     (except for the decimal point and thousands separator) must
-	     be coming from the ASCII range we can esily convert the
+	     be coming from the ASCII range we can easily convert the
 	     string without mapping tables.  */
 	  for (cp = buffer, copywc = wstartp; copywc < wcp; ++copywc)
 	    if (*copywc == decimalwc)
