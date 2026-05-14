@@ -9927,7 +9927,21 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
   (simplify
    (negate (fmas@3 @0 @1 @2))
    (if (!HONOR_SIGN_DEPENDENT_ROUNDING (type) && single_use (@3))
-    (IFN_FNMS @0 @1 @2))))
+    (IFN_FNMS @0 @1 @2)))
+  (simplify
+   (fmas:c (nop_convert (negate @0)) @1 @2)
+   (with { tree t = TREE_TYPE (@0); }
+    (if ((!ANY_INTEGRAL_TYPE_P (type)
+	  || TYPE_UNSIGNED (type)
+	  || !TYPE_OVERFLOW_SANITIZED (type))
+	  && (!ANY_INTEGRAL_TYPE_P (t)
+	      || TYPE_UNSIGNED (t)
+	      || !TYPE_OVERFLOW_SANITIZED (type)))
+   /* Move the negation into FNMA only when signed overflow is
+      unobservable for both the outer operation and the inner negate.  */
+     (with { tree utype = unsigned_type_for (type); }
+      (convert (IFN_FNMA (convert:utype @0) (convert:utype @1)
+			 (convert:utype @2))))))))
 
  (simplify
   (IFN_FMS:c (negate @0) @1 @2)
