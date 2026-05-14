@@ -1,3 +1,17 @@
+2026-05-13  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/125280
+	* reflect.cc (consteval_only_p): Don't complete_type.
+	(consteval_only_p_walker::walk): Return false for
+	error_mark_node.
+
+2026-05-13  chzn@mail.ustc.edu.cn  <chzn@mail.ustc.edu.cn>
+	    Jason Merrill  <jason@redhat.com>
+
+	PR c++/123609
+	* parser.cc (cp_parser_class_head): Re-parse attributes
+	that caused a tentative parsing failure.
+
 2026-05-12  Jason Merrill  <jason@redhat.com>
 
 	PR c++/100903

@@ -1,3 +1,58 @@
+2026-05-13  Zhongyao Chen  <chen.zhongyao@zte.com.cn>
+
+	PR target/125215
+	* config/riscv/riscv-v.cc (expand_const_vector_interleaved_stepped_npatterns):
+	Remove hi/lo optimization and always use the merge fallback.
+
+2026-05-13  Tamar Christina  <tamar.christina@arm.com>
+
+	* tree-chrec.cc (chrec_convert_1): Fold unsigned CHREC converts.
+
+2026-05-13  Roger Sayle  <roger@nextmovesoftware.com>
+	    Uros Bizjak  <ubizjak@gmail.com>
+
+	PR target/32803
+	* config/i386/i386.md (peephole2): Don't transform xorl;movb into
+	movzb with -Oz.
+	(peephole2): Convert movl into xorl;movb (strict_low_part) with -Oz.
+	(peephole2): Likewise, convert movl into xorl;movb [abcd]h with -Oz.
+
+2026-05-13  Richard Biener  <rguenther@suse.de>
+
+	* tree-vect-stmts.cc (vectorizable_store): Record ls_type
+	for VMAT_STRIDED_SLP.
+	(vectorizable_load): Likewise.
+
+2026-05-13  Richard Biener  <rguenther@suse.de>
+
+	* tree-vect-stmts.cc (vectorizable_store): Set slp_node->data
+	and SLP_TREE_TYPE only on success.
+	(vectorizable_load): Likewise.  Move one validity check early.
+
+2026-05-13  Jeevitha Palanisamy  <jeevitha@linux.ibm.com>
+
+	PR target/122665
+	* config/rs6000/vsx.md (smul<mode>3_highpart, umul<mode>3_highpart):
+	Replace shift-based patterns with smul_highpart and umul_highpart RTL
+	codes and use altivec_register_operand.
+
+2026-05-13  Reshma Roy  <Reshma.Roy@amd.com>
+
+	* match.pd: Add new popcount pattern variants from Hacker's Delight.
+
+2026-05-13  H.J. Lu  <hjl.tools@gmail.com>
+	    Uros Bizjak  <ubizjak@gmail.com>
+
+	PR target/120870
+	* config/i386/i386.cc (ix86_save_reg): Return true for DRAP
+	register early at entry.
+	(find_drap_reg): Use R11_REG in preserve_none functions in
+	64-bit mode.
+
+2026-05-13  Tobias Burnus  <tburnus@baylibre.com>
+
+	* omp-general.cc (omp_runtime_api_procname): Add omp_control_tool.
+
 2026-05-12  Heiko Eißfeldt  <heiko.Eissfeldt@hexco.de>
 
 	PR middle-end/124651

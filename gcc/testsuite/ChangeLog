@@ -1,3 +1,76 @@
+2026-05-13  Zhongyao Chen  <chen.zhongyao@zte.com.cn>
+
+	PR target/125215
+	* gcc.target/riscv/rvv/autovec/pr125215.c: New test.
+	* gcc.target/riscv/rvv/autovec/slp-interleave-1.c: Remove.
+	* gcc.target/riscv/rvv/autovec/slp-interleave-2.c: Remove.
+	* gcc.target/riscv/rvv/autovec/slp-interleave-3.c: Remove.
+	* gcc.target/riscv/rvv/autovec/slp-interleave-4.c: Remove.
+	* gcc.target/riscv/rvv/autovec/slp-interleave-5.c: Remove.
+
+2026-05-13  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/125280
+	* g++.dg/reflect/init19.C: New test.
+	* g++.dg/reflect/type12.C: New test.
+	* g++.dg/reflect/type13.C: New test.
+
+2026-05-13  Tamar Christina  <tamar.christina@arm.com>
+
+	* gcc.dg/vect/vect-scev-affine_1.c: New test.
+
+2026-05-13  Roger Sayle  <roger@nextmovesoftware.com>
+	    Uros Bizjak  <ubizjak@gmail.com>
+
+	PR target/32803
+	* gcc.target/i386/pr32803-2.c: New test case.
+	* gcc.target/i386/pr32803-3.c: Likewise.
+
+2026-05-13  Roger Sayle  <roger@nextmovesoftware.com>
+	    Richard Earnshaw  <rearnsha@arm.com>
+
+	PR middle-end/122871
+	* gcc.target/arm/muldi-1.c: Skip test if compiled with -mthumb.
+
+2026-05-13  Reshma Roy  <Reshma.Roy@amd.com>
+
+	* gcc.dg/tree-ssa/popcount7.c: New test.
+	* gcc.dg/tree-ssa/popcount7_2.c: New test.
+	* gcc.dg/tree-ssa/popcount8.c: New test.
+	* gcc.dg/tree-ssa/popcount9.c: New test.
+
+2026-05-13  H.J. Lu  <hjl.tools@gmail.com>
+	    Uros Bizjak  <ubizjak@gmail.com>
+
+	PR target/120870
+	* gcc.target/i386/pr120870-1.c: New test.
+	* gcc.target/i386/pr120870-2.c: Likewise.
+
+2026-05-13  Martin Uecker  <uecker@tugraz.at>
+
+	PR c/125261
+	* gcc.dg/pr125261.c: New test.
+
+2026-05-13  chzn@mail.ustc.edu.cn  <chzn@mail.ustc.edu.cn>
+	    Jason Merrill  <jason@redhat.com>
+
+	PR c++/123609
+	* g++.dg/cpp0x/attr-nodiscard1.C: Adjust expected errors.
+	* g++.dg/reflect/annotations19.C: New test.
+
+2026-05-13  Naveen  <naveen.siddegowda@oss.qualcomm.com>
+
+	* gcc.dg/pr123286.c: Move to...
+	* gcc.target/aarch64/pr123286.c: ...here.
+
+2026-05-13  Hans-Peter Nilsson  <hp@axis.com>
+
+	PR libfortran/125005
+	* gfortran.dg/coarray/failed_images_2.f08,
+	gfortran.dg/coarray/image_status_2.f08,
+	gfortran.dg/coarray/stopped_images_2.f08: Require sleep effective
+	target.
+
 2026-05-12  Robert Dubner  <rdubner@symas.com>
 
 	* cobol.dg/group2/Check_for_equality_of_COMP-1___COMP-2.cob:

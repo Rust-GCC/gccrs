@@ -1,3 +1,8 @@
+2026-05-13  Tobias Burnus  <tburnus@baylibre.com>
+
+	* intrinsic.texi (OpenMP Modules): Add named parameters for
+	omp_control_tool and omp_control_tool_result.
+
 2026-05-11  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
 
 	* lang.opt (fcoarray=): Add shared enum value; update help text.

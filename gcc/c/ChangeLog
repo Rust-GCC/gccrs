@@ -1,3 +1,10 @@
+2026-05-13  Martin Uecker  <uecker@tugraz.at>
+
+	PR c/125261
+	* c-parser.cc (c_parser_generic_selection): Modify logic for
+	c_inhibit_evaluation_warnings.
+	* c-typeck.cc (build_c_cast): Use c_inhibit_evaluation_warnings.
+
 2026-05-06  Martin Uecker  <uecker@tugraz.at>
 
 	PR c/124985

@@ -1,3 +1,27 @@
+2026-05-13  H.J. Lu  <hjl.tools@gmail.com>
+
+	* libgomp.texi: the Add missing closing brace.
+
+2026-05-13  Tobias Burnus  <tburnus@baylibre.com>
+
+	* env.c (omp_control_tool): Stub implementation for omp_control_tool.
+	* fortran.c (omp_control_tool_, omp_control_tool_8_): Add.
+	* libgomp.map (OMP_6.0): Add for omp_control_tool*.
+	* libgomp.texi (Tool Control Routine): Add for omp_control_tool.
+	(OpenMP 6.0): Mark omp_pause_stop_tool as implemented.
+	* omp.h.in (omp_pause_resource_t): Add omp_pause_stop_tool.
+	(omp_control_tool_result_t): Add.
+	(omp_control_tool_t): Add.
+	* omp_lib.f90.in (omp_lib_kinds): Add omp_pause_stop_tool and
+	omp_control_tool/omp_control_tool_result parameters.
+	(omp_lib): Add omp_control_tool interface.
+	* omp_lib.h.in: Add omp_pause_stop_tool and
+	omp_control_tool/omp_control_tool_result parameters; add
+	omp_control_tool interface.
+	* testsuite/libgomp.c/omp-control-tools-1.c: New test.
+	* testsuite/libgomp.fortran/omp-control-tools-1.f: New test.
+	* testsuite/libgomp.fortran/omp-control-tools-1.f90: New test.
+
 2026-05-05  Pietro Monteiro  <pietro@sociotechnical.xyz>
 
 	* Makefile.in: Regenerate.
