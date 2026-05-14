@@ -742,7 +742,7 @@ post_order_compute (int *post_order, bool include_entry_exit,
 
 /* Helper routine for inverted_rev_post_order_compute
    flow_dfs_compute_reverse_execute, and the reverse-CFG
-   deapth first search in dominance.cc.
+   depth first search in dominance.cc.
    BB has to belong to a region of CFG
    unreachable by inverted traversal from the exit.
    i.e. there's no control flow path from ENTRY to EXIT
@@ -1304,7 +1304,7 @@ ret_from_find_loops:
 	    dest_scc = bb_data[dest_scc].scc;
 	  if (src_scc == dest_scc)
 	    continue;
-	  /* When dest_scc is nested insde src_scc it's not an
+	  /* When dest_scc is nested inside src_scc it's not an
 	     exit.  */
 	  int tem_dest_scc = dest_scc;
 	  unsigned dest_scc_depth = 0;

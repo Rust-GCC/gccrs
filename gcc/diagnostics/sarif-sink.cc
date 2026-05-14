@@ -5175,7 +5175,7 @@ get_message_from_result (const sarif_result &result)
 }
 
 /* Assuming that a single diagnostic has been emitted to
-   DC, get a json::object for the messsage object within
+   DC, get a json::object for the message object within
    the result.  */
 
 static const json::object *

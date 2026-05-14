@@ -120,7 +120,7 @@ analyze_toplevel_extended_asm ()
 
 /* Checks all toplevel assembly contents and compares them with known symbols.
    Marks those symbols with relevant flags.
-   Heuristics: Detects anything in assembly that looks like an identifer.
+   Heuristics: Detects anything in assembly that looks like an identifier.
 
    This pass must be in WPA, otherwise we will not see all possibly referenced
    symbols - if a symbol is only declared, it will not be in the callgraph if

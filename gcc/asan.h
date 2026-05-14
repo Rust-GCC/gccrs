@@ -267,7 +267,7 @@ sanitize_flags_p (sanitize_code_type flag,
   return result_flags;
 }
 
-/* Return true when coverage sanitization should happend for FN function.  */
+/* Return true when coverage sanitization should happen for FN function.  */
 
 inline bool
 sanitize_coverage_p (const_tree fn = current_function_decl)

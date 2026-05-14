@@ -443,7 +443,7 @@ auto_enable_urls ()
 
   /* When logging in a linux over serial line, we see TERM=linux
      and no COLORTERM, it is unlikely that the URL escapes will
-     work in that environmen either.  */
+     work in that environment either.  */
   if (!colorterm && term && !strcmp (term, "linux"))
     return false;
 

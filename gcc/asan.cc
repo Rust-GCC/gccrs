@@ -2696,7 +2696,7 @@ insert_if_then_before_iter (gcond *cond,
 }
 
 /* Build (base_addr >> ASAN_SHADOW_SHIFT) + asan_shadow_offset ().
-   If RETURN_ADDRESS is set to true, return memory location instread
+   If RETURN_ADDRESS is set to true, return memory location instead
    of a value in the shadow memory.  */
 
 static tree
@@ -4121,7 +4121,7 @@ asan_expand_check_ifn (gimple_stmt_iterator *iter, bool use_calls)
 	   {
 	     //asan instrumentation code goes here.
 	   }
-	 // falltrough instructions, starting with *ITER.  */
+	 // fallthrough instructions, starting with *ITER.  */
 
       g = gimple_build_cond (NE_EXPR,
 			    len,
@@ -4983,7 +4983,7 @@ hwasan_expand_check_ifn (gimple_stmt_iterator *iter, bool)
 	   {
 	     // hwasan instrumentation code goes here.
 	   }
-	 // falltrough instructions, starting with *ITER.  */
+	 // fallthrough instructions, starting with *ITER.  */
 
       g = gimple_build_cond (NE_EXPR,
 			    len,

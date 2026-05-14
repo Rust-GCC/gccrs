@@ -18321,7 +18321,7 @@ cst_pool_loc_descr (tree loc)
   if (!TREE_ASM_WRITTEN (SYMBOL_REF_DECL (XEXP (rtl, 0))))
     {
       expansion_failed (loc, NULL_RTX,
-			"CST value in contant pool but not marked.");
+			"CST value in constant pool but not marked.");
       return 0;
     }
   return mem_loc_descriptor (XEXP (rtl, 0), get_address_mode (rtl),
@@ -18356,7 +18356,7 @@ loc_list_for_address_of_addr_expr_of_indirect_ref (tree loc, bool toplev,
   if (!INDIRECT_REF_P (obj))
     {
       expansion_failed (obj,
-			NULL_RTX, "no indirect ref in inner refrence");
+			NULL_RTX, "no indirect ref in inner reference");
       return 0;
     }
   if (!offset && known_eq (bitpos, 0))
@@ -18609,7 +18609,7 @@ resolve_args_picking_1 (dw_loc_descr_ref loc, unsigned initial_frame_offset,
 	     one stack slot per argument (0 for the first one, 1 for the second
 	     one, etc.).
 
-	     The targetted argument number (N) is already set as the operand,
+	     The targeted argument number (N) is already set as the operand,
 	     and the number of temporaries can be computed with:
 	       frame_offsets_ - dpi->args_count */
 	  off += frame_offset_ - dpi->args_count;
@@ -19029,7 +19029,7 @@ typed_binop_from_tree (enum dwarf_location_atom op, tree loc,
 /* Generate Dwarf location list representing LOC.
    If WANT_ADDRESS is false, expression computing LOC will be computed
    If WANT_ADDRESS is 1, expression computing address of LOC will be returned
-   if WANT_ADDRESS is 2, expression computing address useable in location
+   if WANT_ADDRESS is 2, expression computing address usable in location
      will be returned (i.e. DW_OP_reg can be used
      to refer to register values).
 
@@ -22912,7 +22912,7 @@ gen_array_type_die (tree type, dw_die_ref context_die)
      there is no difference between an array of arrays and a multidimensional
      array.  We don't do this for Ada to remain as close as possible to the
      actual representation, which is especially important against the language
-     flexibilty wrt arrays of variable size.  */
+     flexibility wrt arrays of variable size.  */
 
   bool collapse_nested_arrays = !is_ada ();
 

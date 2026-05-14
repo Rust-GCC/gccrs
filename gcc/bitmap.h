@@ -64,7 +64,7 @@ along with GCC; see the file COPYING3.  If not see
    For random-access sparse sets of unknown universe, the binary tree
    representation is likely to be a more suitable choice.  Theoretical
    access times for the binary tree representation are better than those
-   for the linked-list, but in practice this is only true for truely
+   for the linked-list, but in practice this is only true for truly
    random access.
 
    Often the most suitable representation during construction of the set
@@ -218,7 +218,7 @@ along with GCC; see the file COPYING3.  If not see
 class bitmap_usage: public mem_usage
 {
 public:
-  /* Default contructor.  */
+  /* Default constructor.  */
   bitmap_usage (): m_nsearches (0), m_search_iter (0) {}
   /* Constructor.  */
   bitmap_usage (size_t allocated, size_t times, size_t peak,

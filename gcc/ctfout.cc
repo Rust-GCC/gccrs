@@ -422,7 +422,7 @@ ctf_asm_sou_lmember (ctf_dmdef_t * dmd)
 		       "ctlm_offsetlo");
 }
 
-/* Asm'out a member of a CTF sruct or union, represented by ctf_member_t.  */
+/* Asm'out a member of a CTF struct or union, represented by ctf_member_t.  */
 
 static void
 ctf_asm_sou_member (ctf_dmdef_t * dmd)
@@ -487,7 +487,7 @@ output_ctf_header (ctf_container_ref ctfc)
       funcoff = objtoff + ctfc->ctfc_num_global_objts * sizeof (uint32_t);
       /* Object index appears after function info.  */
       objtidxoff = funcoff + ctfc->ctfc_num_global_funcs * sizeof (uint32_t);
-      /* Funxtion index goes next.  */
+      /* Function index goes next.  */
       funcidxoff = objtidxoff + ctfc->ctfc_num_global_objts * sizeof (uint32_t);
       /* Vars appear after function index.  */
       varoff = funcidxoff + ctfc->ctfc_num_global_funcs * sizeof (uint32_t);

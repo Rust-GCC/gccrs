@@ -103,7 +103,7 @@ DEFCIFCODE(VARIADIC_THUNK, CIF_FINAL_ERROR,
 DEFCIFCODE(ORIGINALLY_INDIRECT_CALL, CIF_FINAL_NORMAL,
 	   N_("originally indirect function call not considered for inlining"))
 
-/* Ths edge represents an indirect edge with a yet-undetermined callee .  */
+/* The edge represents an indirect edge with a yet-undetermined callee .  */
 DEFCIFCODE(INDIRECT_UNKNOWN_CALL, CIF_FINAL_NORMAL,
 	   N_("indirect function call with a yet undetermined callee"))
 

@@ -791,7 +791,7 @@ find_many_sub_basic_blocks (sbitmap blocks)
 	/* If nothing changed, there is no need to create new BBs.  */
 	if (EDGE_COUNT (bb->succs) == n_succs[bb->index])
 	  {
-	    /* In rare occassions RTL expansion might have mistakely assigned
+	    /* In rare occasions RTL expansion might have mistakely assigned
 	       a probabilities different from what is in CFG.  This happens
 	       when we try to split branch to two but optimize out the
 	       second branch during the way. See PR81030.  */

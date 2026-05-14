@@ -12606,7 +12606,7 @@ simplify_comparison (enum rtx_code code, rtx *pop0, rtx *pop1)
 
 	     The difficulty here is that we have predicates for A but not for
 	     (A - C1) so we need to check that C1 is within proper bounds so
-	     as to perturbate A as little as possible.  */
+	     as to perturb A as little as possible.  */
 
 	  if (mode_width <= HOST_BITS_PER_WIDE_INT
 	      && subreg_lowpart_p (op0)
@@ -14453,7 +14453,7 @@ distribute_notes (rtx notes, rtx_insn *from_insn, rtx_insn *i3, rtx_insn *i2,
 	    /* The landing pad handling needs to be kept in sync with the
 	       prerequisite checking in try_combine.  */
 	    int lp_nr = INTVAL (XEXP (note, 0));
-	    /* A REG_EH_REGION note transfering control can only ever come
+	    /* A REG_EH_REGION note transferring control can only ever come
 	       from i3.  */
 	    if (lp_nr > 0)
 	      gcc_assert (from_insn == i3);

@@ -559,7 +559,7 @@ loop_exit_for_scaling (class loop *loop)
    If DESIRED_COUNT is NULL, loop entry count will be used.
    In consistent profile usually loop exists as many times as it is entred.
 
-   Return updated exit if successfull and NULL otherwise. */
+   Return updated exit if successful and NULL otherwise. */
 
 edge
 update_loop_exit_probability_scale_dom_bbs (class loop *loop,
@@ -619,7 +619,7 @@ update_loop_exit_probability_scale_dom_bbs (class loop *loop,
 
       If B2 count is smaller than desired exit edge count
       the profile was inconsistent with the newly discovered upper bound.
-      Probablity of edge B1->B2 is too low.  We do not attempt to fix
+      Probability of edge B1->B2 is too low.  We do not attempt to fix
       that (as it is hard in general).  */
   if (desired_count > exit_edge->src->count
       && exit_edge->src->count.differs_from_p (desired_count))
@@ -630,7 +630,7 @@ update_loop_exit_probability_scale_dom_bbs (class loop *loop,
 		   loop->num);
 	  exit_edge->src->count.dump (dump_file, cfun);
 	  fprintf (dump_file,
-		   " which is smaller then desired count of exitting loop ");
+		   " which is smaller then desired count of exiting loop ");
 	  desired_count.dump (dump_file, cfun);
 	  fprintf (dump_file, ". Profile update is impossible.\n");
 	}
@@ -689,9 +689,9 @@ update_loop_exit_probability_scale_dom_bbs (class loop *loop,
 /* Scale profile in LOOP by P.
    If ITERATION_BOUND is not -1, scale even further if loop is predicted
    to iterate too many times.
-   Before caling this function, preheader block profile should be already
+   Before calling this function, preheader block profile should be already
    scaled to final count.  This is necessary because loop iterations are
-   determined by comparing header edge count to latch ege count and thus
+   determined by comparing header edge count to latch edge count and thus
    they need to be scaled synchronously.  */
 
 void

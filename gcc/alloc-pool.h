@@ -37,7 +37,7 @@ extern ALLOC_POOL_ID_TYPE last_id;
 class pool_usage: public mem_usage
 {
 public:
-  /* Default contructor.  */
+  /* Default constructor.  */
   pool_usage (): m_element_size (0), m_pool_name ("") {}
   /* Constructor.  */
   pool_usage (size_t allocated, size_t times, size_t peak,

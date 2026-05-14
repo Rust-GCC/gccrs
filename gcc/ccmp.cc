@@ -159,7 +159,7 @@ get_compare_parts (tree t, rtx_code *rcode,
    result of the previous CMP or CCMP.  The function expands the
    next compare based on G which is ANDed/ORed with the previous
    compare depending on CODE.
-   PREP_SEQ returns all insns to prepare opearands for compare.
+   PREP_SEQ returns all insns to prepare operands for compare.
    GEN_SEQ returns all compare insns.  */
 static rtx
 expand_ccmp_next (tree op, tree_code code, rtx prev,
@@ -182,7 +182,7 @@ expand_ccmp_next (tree op, tree_code code, rtx prev,
 
    hook gen_ccmp_first is used to expand the first compare.
    hook gen_ccmp_next is used to expand the following CCMP.
-   PREP_SEQ returns all insns to prepare opearand.
+   PREP_SEQ returns all insns to prepare operand.
    GEN_SEQ returns all compare insns.  */
 static rtx
 expand_ccmp_expr_1 (gimple *g, rtx_insn **prep_seq, rtx_insn **gen_seq)

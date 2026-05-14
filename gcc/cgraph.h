@@ -219,7 +219,7 @@ public:
   void clone_references (symtab_node *node);
 
   /* Remove all stmt references in non-speculative references.
-     Those are not maintained during inlining & clonning.
+     Those are not maintained during inlining & cloning.
      The exception are speculative references that are updated along
      with callgraph edges associated with them.  */
   void clone_referring (symtab_node *node);
@@ -237,7 +237,7 @@ public:
   void remove_stmt_references (gimple *stmt);
 
   /* Remove all stmt references in non-speculative references.
-     Those are not maintained during inlining & clonning.
+     Those are not maintained during inlining & cloning.
      The exception are speculative references that are updated along
      with callgraph edges associated with them.  */
   void clear_stmts_in_references (void);
@@ -1303,7 +1303,7 @@ struct GTY((tag ("SYMTAB_FUNCTION"))) cgraph_node : public symtab_node
   /* Turn profile to global0.  Walk into inlined functions.  */
   void make_profile_global0 (profile_quality quality);
 
-  /* Scale profile by NUM/DEN.  Walk into inlined funtion.  */
+  /* Scale profile by NUM/DEN.  Walk into inlined function.  */
   void apply_scale (profile_count num, profile_count den);
 
   /* Scale profile to given IPA_COUNT.
@@ -1962,7 +1962,7 @@ public:
      pairs all linked to single statement.
 
      Note that ref may point to different symbol than the corresponding call
-     becuase the speculated edge may have been optimized (redirected to
+     because the speculated edge may have been optimized (redirected to
      a clone) or inlined.
 
      Given an edge which is part of speculative call, return the first
@@ -2011,7 +2011,7 @@ public:
      target2.  */
   cgraph_edge *speculative_call_for_target (cgraph_node *);
 
-  /* Return REF corresponding to direct call in the specualtive call
+  /* Return REF corresponding to direct call in the speculative call
      sequence.  */
   ipa_ref *speculative_call_target_ref ()
   {

@@ -267,7 +267,7 @@ make_pass_coroutine_lower_builtins (gcc::context *ctxt)
    resume and destroy paths as separate functions if that is found
    profitable by the optimisers.
 
-   Once we have remade the connections to their correct postions, we elide
+   Once we have remade the connections to their correct positions, we elide
    the labels that the front end inserted.  */
 
 static void

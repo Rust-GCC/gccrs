@@ -1,4 +1,4 @@
-/* Conditional comapre related functions.
+/* Conditional compare related functions.
    Copyright (C) 2014-2026 Free Software Foundation, Inc.
 
 This file is part of GCC.

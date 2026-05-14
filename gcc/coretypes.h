@@ -299,12 +299,12 @@ enum pad_direction {
   /* No padding is required.  */
   PAD_NONE,
 
-  /* Insert padding above the data, i.e. at higher memeory addresses
+  /* Insert padding above the data, i.e. at higher memory addresses
      when dealing with memory, and at the most significant end when
      dealing with registers.  */
   PAD_UPWARD,
 
-  /* Insert padding below the data, i.e. at lower memeory addresses
+  /* Insert padding below the data, i.e. at lower memory addresses
      when dealing with memory, and at the least significant end when
      dealing with registers.  */
   PAD_DOWNWARD

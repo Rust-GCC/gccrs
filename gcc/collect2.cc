@@ -1315,9 +1315,9 @@ main (int argc, char **argv)
 
 		  FILE *stream;
                   char buf[MAXPATHLEN + 2];
-		  /* Number of additionnal object files.  */
+		  /* Number of additional object files.  */
 		  int add_nbr = 0;
-		  /* Maximum of additionnal object files before vector
+		  /* Maximum of additional object files before vector
 		     expansion.  */
 		  int add_max = 0;
 		  const char *list_filename = arg + 2;
@@ -2803,7 +2803,7 @@ scan_prog_file (const char *prog_name, scanpass which_pass,
 		      switch (is_ctor_dtor (name))
 			{
 #if TARGET_AIX_VERSION
-		      /* Add AIX shared library initalisers/finalisers
+		      /* Add AIX shared library initialisers/finalisers
 			 to the constructors/destructors list of the
 			 current module.  */
 			case SYM_AIXI:

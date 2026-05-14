@@ -722,7 +722,7 @@ vars_ssa_cache::dump (FILE *file)
 /* Returns the filled in cache for NAME.
    This will fill in the cache if it does not exist already.
    Returns an empty for ssa names that can't contain pointers
-   (only intergal types and pointer types will contain pointers).  */
+   (only integral types and pointer types will contain pointers).  */
 
 const_bitmap
 vars_ssa_cache::operator() (tree name)
@@ -900,7 +900,7 @@ add_scope_conflicts_1 (vars_ssa_cache &cache, basic_block bb, bitmap work, bool 
 	    {
 	      /* When we are inheriting live variables from our predecessors
 		 through a CFG merge we might not see an actual mention of
-		 the variables to record the approprate conflict as defs/uses
+		 the variables to record the appropriate conflict as defs/uses
 		 might be through indirect stores/loads.  For this reason
 		 we have to make sure each live variable conflicts with
 		 each other.  When there's just a single predecessor the
@@ -1697,7 +1697,7 @@ set_parm_rtl (tree parm, rtx x)
 					      TYPE_MODE (TREE_TYPE (parm)),
 					      TYPE_ALIGN (TREE_TYPE (parm)));
 
-      /* If the variable alignment is very large we'll dynamicaly
+      /* If the variable alignment is very large we'll dynamically
 	 allocate it, which means that in-frame portion is just a
 	 pointer.  ??? We've got a pseudo for sure here, do we
 	 actually dynamically allocate its spilling area if needed?
@@ -1847,7 +1847,7 @@ expand_one_ssa_partition (tree var)
 					  TYPE_MODE (TREE_TYPE (var)),
 					  TYPE_ALIGN (TREE_TYPE (var)));
 
-  /* If the variable alignment is very large we'll dynamicaly allocate
+  /* If the variable alignment is very large we'll dynamically allocate
      it, which means that in-frame portion is just a pointer.  */
   if (align > MAX_SUPPORTED_STACK_ALIGNMENT)
     align = GET_MODE_ALIGNMENT (Pmode);
@@ -2075,7 +2075,7 @@ expand_one_var (tree var, bool toplevel, bool really_expand,
       else
 	align = MINIMUM_ALIGNMENT (var, DECL_MODE (var), DECL_ALIGN (var));
 
-      /* If the variable alignment is very large we'll dynamicaly allocate
+      /* If the variable alignment is very large we'll dynamically allocate
 	 it, which means that in-frame portion is just a pointer.  */
       if (align > MAX_SUPPORTED_STACK_ALIGNMENT)
 	align = GET_MODE_ALIGNMENT (Pmode);
@@ -6748,7 +6748,7 @@ discover_nonconstant_array_refs_r (tree * tp, int *walk_subtrees,
   /* References of size POLY_INT_CST to a fixed-size object must go
      through memory.  It's more efficient to force that here than
      to create temporary slots on the fly.
-     RTL expansion expectes TARGET_MEM_REF to always address actual memory.
+     RTL expansion expects TARGET_MEM_REF to always address actual memory.
      Also, force to stack non-BLKmode vars accessed through VIEW_CONVERT_EXPR
      to BLKmode type.  */
   else if (TREE_CODE (t) == TARGET_MEM_REF
@@ -7084,8 +7084,8 @@ pass_expand::execute (function *fun)
   crtl->init_stack_alignment ();
   fun->cfg->max_jumptable_ents = 0;
 
-  /* Resovle the function section.  Some targets, like ARM EABI rely on knowledge
-     of the function section at exapnsion time to predict distance of calls.  */
+  /* Resolve the function section.  Some targets, like ARM EABI rely on knowledge
+     of the function section at expansion time to predict distance of calls.  */
   resolve_unique_section (current_function_decl, 0, flag_function_sections);
 
   /* Expand the variables recorded during gimple lowering.  */

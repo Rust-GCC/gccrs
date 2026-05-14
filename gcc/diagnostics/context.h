@@ -226,7 +226,7 @@ private:
    - reporting those diagnostics to zero or more output sinks
      (e.g. text vs SARIF)
    - providing a "dump" member function for a debug dump of the state of
-     the diagnostics subsytem
+     the diagnostics subsystem
    - direct vs buffered diagnostics (see class diagnostics::buffer)
    - tracking the original argv of the program (for SARIF output)
    - crash-handling

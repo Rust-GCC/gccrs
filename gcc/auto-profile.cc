@@ -1713,7 +1713,7 @@ function_instance::match (cgraph_node *node,
       fprintf (dump_file, "\n");
     }
   basic_block bb;
-  /* Sets used to track if entires in auto-profile are useful.  */
+  /* Sets used to track if entries in auto-profile are useful.  */
   hash_set<const count_info *> counts;
   hash_set<const count_info *> targets;
   hash_set<const function_instance *> functions;
@@ -1756,7 +1756,7 @@ function_instance::match (cgraph_node *node,
 	  inline_stack stack;
 
 	  /* We do not assign discriminators to PHI nodes.
-	     In case we every start using them, we wil need to
+	     In case we every start using them, we will need to
 	     update tree-cfg.cc::assign_discriminators.  */
 	  gcc_assert (gimple_location (phi) == UNKNOWN_LOCATION);
 	  get_inline_stack_in_node (gimple_location (phi), &stack, node);
@@ -2359,7 +2359,7 @@ function_instance::remove_icall_target (tree fn, gcall *stmt)
 	n++;
       }
   /* TODO: If we add support for multiple targets, we may want to
-     remove only those we succesfully inlined.  */
+     remove only those we successfully inlined.  */
   gcc_assert (n);
 }
 
@@ -2389,7 +2389,7 @@ autofdo_source_profile::offline_external_functions ()
 	{
 	  /* Watch for duplicate entries.
 	     This seems to happen in practice and may be useful to distinguish
-	     multiple static symbols of the same name, but we do not realy
+	     multiple static symbols of the same name, but we do not really
 	     have a way to differentiate them in get_symbol_name lookup.  */
 	  int index = afdo_string_table->get_index (n1);
 	  if (index != (int)i)
@@ -2517,7 +2517,7 @@ autofdo_source_profile::offline_external_functions ()
 	    = afdo_string_table->get_cgraph_node (last_name);
 	  if (dump_file)
 	    fprintf (dump_file, "New name %s %s\n", name,
-		     n ? "wth corresponding definition"
+		     n ? "with corresponding definition"
 		     : "with no corresponding definition");
 	  if (n)
 	    seen.add (last_name);
@@ -3563,7 +3563,7 @@ afdo_set_bb_count (basic_block bb, hash_set <basic_block> &zero_bbs)
    3. BB1 and BB2 are in the same loop nest.
    This function finds the equivalent class for each basic block, and
    stores a pointer to the first BB in its equivalent class. Meanwhile,
-   set bb counts for the same equivalent class to be idenical. Update
+   set bb counts for the same equivalent class to be identical. Update
    ANNOTATED_BB for the first BB in its equivalent class.  */
 
 static void
@@ -3978,7 +3978,7 @@ scale_bbs (const vec <basic_block> &bbs, sreal scale)
 	b->count = b->count.force_guessed () * scale;
 
 	/* If we scaled to 0, make it auto-fdo since that is treated
-	   less agressively.  */
+	   less aggressively.  */
 	if (!b->count.nonzero_p () && o.nonzero_p ())
 	  b->count = profile_count::zero ().afdo ();
 	if (dump_file)
@@ -4208,7 +4208,7 @@ afdo_adjust_guessed_profile (bb_set *annotated_bb)
 		 boundary = true;
 		 annotated_count += AFDO_EINFO (e)->get_count ();
 	       }
-	     /* If source is anotated, combine with static
+	     /* If source is annotated, combine with static
 		probability prediction.
 		TODO: We can do better in case some of edges out are
 		annotated and distribute only remaining count out of BB.  */

@@ -51,7 +51,7 @@ static GTY (()) section * btf_info_section;
 
 #define BTF_INFO_SECTION_FLAGS (SECTION_DEBUG)
 
-/* Maximum size (in bytes) for an artifically generated BTF label.  */
+/* Maximum size (in bytes) for an artificially generated BTF label.  */
 
 #define MAX_BTF_LABEL_BYTES 40
 
@@ -409,7 +409,7 @@ btf_asm_type (ctf_dtdef_ref dtd)
       if (dtd->dtd_data.ctti_type == CTF_K_UNION)
 	btf_kflag = 1;
 
-      /* PR debug/111735.  Encode foward-declared enums as BTF_KIND_ENUM
+      /* PR debug/111735.  Encode forward-declared enums as BTF_KIND_ENUM
 	 with vlen=0.  A representation for these is not formally defined;
 	 this is the de-facto standard used by other tools like clang
 	 and pahole.  */
@@ -691,7 +691,7 @@ output_btf_vars (ctf_container_ref ctfc)
 }
 
 /* Output BTF string records. The BTF strings section is a concatenation
-   of the standard and auxilliary string tables in the ctf container.  */
+   of the standard and auxiliary string tables in the ctf container.  */
 
 static void
 output_btf_strs (ctf_container_ref ctfc)
@@ -1204,7 +1204,7 @@ btf_add_used_type_1 (ctf_container_ref ctfc, ctf_dtdef_ref dtd,
 	    farg->farg_type = btf_add_used_type_1 (ctfc, farg->farg_type,
 						   false, false,
 						   create_fixups);
-	    /* Note: argument names are stored in the auxilliary string table,
+	    /* Note: argument names are stored in the auxiliary string table,
 	       since CTF does not include arg names.  That table has not been
 	       cleared, so no need to re-add argument names here.  */
 	  }

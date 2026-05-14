@@ -550,7 +550,7 @@ find_fallthru_edge (vec<edge, va_gc> *edges)
   return e;
 }
 
-/* Check tha probability is sane.  */
+/* Check that probability is sane.  */
 
 inline void
 check_probability (int prob)

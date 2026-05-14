@@ -569,7 +569,7 @@ string_length (const void *ptr, unsigned eltsize, unsigned maxelts)
    than what a C strlen call would return.
 
    ELTSIZE is 1 for normal single byte character strings, and 2 or
-   4 for wide characer strings.  ELTSIZE is by default 1.
+   4 for wide character strings.  ELTSIZE is by default 1.
 
    The value returned is of type `ssizetype'.  */
 
@@ -928,7 +928,7 @@ expand_builtin_setjmp_setup (rtx buf_addr, rtx receiver_label)
 
 /* Construct the trailing part of a __builtin_setjmp call.  This is
    also called directly by the SJLJ exception handling code.
-   If RECEIVER_LABEL is NULL, instead contruct a nonlocal goto handler.  */
+   If RECEIVER_LABEL is NULL, instead construct a nonlocal goto handler.  */
 
 void
 expand_builtin_setjmp_receiver (rtx receiver_label)
@@ -7662,7 +7662,7 @@ inline_expand_builtin_bytecmp (tree exp, rtx target)
 		       || fcode == BUILT_IN_STRNCMP
 		       || fcode == BUILT_IN_MEMCMP);
 
-  /* On a target where the type of the call (int) has same or narrower presicion
+  /* On a target where the type of the call (int) has same or narrower precision
      than unsigned char, give up the inlining expansion.  */
   if (TYPE_PRECISION (unsigned_char_type_node)
       >= TYPE_PRECISION (TREE_TYPE (exp)))

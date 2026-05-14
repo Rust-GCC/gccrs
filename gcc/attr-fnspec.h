@@ -186,7 +186,7 @@ public:
   }
 
   /* Return true if the pointed-to type of the argument correspond to the
-     size of the memory acccess.  */
+     size of the memory access.  */
   bool
   arg_access_size_given_by_type_p (unsigned int i) const
   {

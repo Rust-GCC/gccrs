@@ -102,7 +102,7 @@ struct cselib_hasher : nofree_ptr_hash <cselib_val>
        integers).  */
     machine_mode mode;
     rtx x;
-    /* The mode of the contaning MEM, if any, otherwise VOIDmode.  */
+    /* The mode of the containing MEM, if any, otherwise VOIDmode.  */
     machine_mode memmode;
   };
   typedef key *compare_type;

@@ -118,7 +118,7 @@ ctf_get_AT_data_member_location (dw_die_ref die)
       else if (attr)
 	field_location = AT_unsigned (attr) * 8;
 
-      /* Otherwise the location is non-existant, e.g. for union members.  */
+      /* Otherwise the location is non-existent, e.g. for union members.  */
     }
 
   return field_location;
@@ -908,14 +908,14 @@ handle_ctf_type_tags (ctf_container_ref ctfc, dw_die_ref annot_die,
 /* Handle any DW_AT_GNU_annotation on decl DIE by constructing a CTF_K_DECL_TAG
    type for the DW_TAG_GNU_annotation DIE to which it points, if this has not
    been previously constructed.  There may be multiple annotations chained
-   together by further occurances of DW_AT_GNU_annotation in the annoation DIEs
-   themselves, in which case a corresponding CTF_K_DECL_TAG type is created for
-   each.  Unlike TYPE_TAGs, which form a chain, each DECL_TAG individually
+   together by further occurrences of DW_AT_GNU_annotation in the annotation
+   DIEs themselves, in which case a corresponding CTF_K_DECL_TAG type is created
+   for each.  Unlike TYPE_TAGs, which form a chain, each DECL_TAG individually
    refers directly to the annotated decl, which should be supplied in REF_DTD.
    IDX is the zero-based component index indicating to which function parameter
    or struct or union member the DECL_TAG refers, or (uint32_t) -1 if it refers
    to a function decl or sou itself.
-   Note that because individual DECL_TAGs refer direcly to the annotated decl,
+   Note that because individual DECL_TAGs refer directly to the annotated decl,
    they cannot be deduplicated across usages.  */
 
 static void

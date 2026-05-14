@@ -2076,7 +2076,7 @@ dwarf2out_frame_debug_expr (rtx expr)
 
           /* Rule 18: If stack is aligned, we will use FP as a
 	     reference to represent the address of the stored
-	     regiser.  */
+	     register.  */
           if (fde
               && fde->stack_realign
 	      && REG_P (src)

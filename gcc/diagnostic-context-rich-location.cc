@@ -34,7 +34,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "simple-diagnostic-path.h"
 #include "diagnostic-context-rich-location.h"
 
-/* Implemenation of the method make_inner_path of the class
+/* Implementation of the method make_inner_path of the class
    lazy_diagnostic_context_path.  */
 
 std::unique_ptr<diagnostics::paths::path>
@@ -133,7 +133,7 @@ lazy_diagnostic_context_path::make_inner_path () const
 	  gimple *cond_stmt = NULL;
 	  gimple_stmt_iterator gsi = gsi_last_bb (cond_bb);
 
-	  /* Currently, we only hanlde GIMPLE_COND.
+	  /* Currently, we only handle GIMPLE_COND.
 	     FIXME, will handle GIMPLE_SWITCH and other ctrl stmt later.  */
 	  if (gsi_stmt (gsi) && stmt_ends_bb_p (gsi_stmt (gsi)))
 	    if (gimple_code (gsi_stmt (gsi)) == GIMPLE_COND)

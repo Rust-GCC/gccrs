@@ -956,7 +956,7 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
    configuration using MD constraint definitions.  */
 #endif
 
-/* Determin whether the target runtime library is Bionic */
+/* Determine whether the target runtime library is Bionic */
 #ifndef TARGET_HAS_BIONIC
 #define TARGET_HAS_BIONIC 0
 #endif

@@ -2008,7 +2008,7 @@ likely_max_stmt_executions_int (class loop *loop)
 bool
 get_estimated_loop_iterations (class loop *loop, widest_int *nit)
 {
-  /* Even if the bound is not recorded, possibly we can derrive one from
+  /* Even if the bound is not recorded, possibly we can derive one from
      profile.  */
   if (!loop->any_estimate)
     {

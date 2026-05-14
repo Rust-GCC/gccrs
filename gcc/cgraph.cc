@@ -3083,7 +3083,7 @@ add_detected_attribute_1 (cgraph_node *node, const char *attr, bool *changed)
       add_detected_attribute_1 (e->caller, attr, changed);
 }
 
-/* Add attribyte ATTR to function and its aliases.  */
+/* Add attribute ATTR to function and its aliases.  */
 
 bool
 cgraph_node::add_detected_attribute (const char *attr)
@@ -3442,7 +3442,7 @@ cgraph_edge::maybe_hot_p (sreal scale)
   if (caller->frequency == NODE_FREQUENCY_HOT)
     return true;
 
-  /* Use IPA count and if it s not available appy local heuristics.  */
+  /* Use IPA count and if it s not available apply local heuristics.  */
   if (c.initialized_p ())
     {
       /* A special case; AFDO zero means that function may quite possibly

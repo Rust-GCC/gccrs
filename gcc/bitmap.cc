@@ -414,14 +414,14 @@ bitmap_list_find_element (bitmap head, unsigned int indx)
 
 /* Splay-tree view of bitmaps.
 
-   This is an almost one-to-one the implementatin of the simple top-down
+   This is an almost one-to-one the implementation of the simple top-down
    splay tree in Sleator and Tarjan's "Self-adjusting Binary Search Trees".
    It is probably not the most efficient form of splay trees, but it should
    be good enough to experiment with this idea of bitmaps-as-trees.
 
    For all functions below, the variable or function argument "t" is a node
    in the tree, and "e" is a temporary or new node in the tree.  The rest
-   is sufficiently straigh-forward (and very well explained in the paper)
+   is sufficiently straight-forward (and very well explained in the paper)
    that comment would only clutter things.  */
 
 static inline void

@@ -28,7 +28,7 @@ along with GCC; see the file COPYING3.  If not see
    Sets are stored as a fixed length array of uint64_t elements.  The length of
    this array is given as a template parameter.  */
 
-/* Use recusive templated functions to define constexpr operations.  */
+/* Use recursive templated functions to define constexpr operations.  */
 template<int M>
 struct bbitmap_operators
 {

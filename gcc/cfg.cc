@@ -977,7 +977,7 @@ update_bb_profile_for_threading (basic_block bb,
   gcc_assert (bb == taken_edge->src);
 
   /* If there is no profile or the threaded path is never executed
-     we don't need to upate.  */
+     we don't need to update.  */
   if (!bb->count.initialized_p ()
       || count == profile_count::zero ())
     return;

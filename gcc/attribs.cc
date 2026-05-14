@@ -853,7 +853,7 @@ decl_attributes (tree *node, tree attributes, int flags,
       bool no_add_attrs = false;
 
       /* Check for exclusions with other attributes on the current
-	 declation as well as the last declaration of the same
+	 declaration as well as the last declaration of the same
 	 symbol already processed (if one exists).  Detect and
 	 reject incompatible attributes.  */
       bool built_in = flags & ATTR_FLAG_BUILT_IN;

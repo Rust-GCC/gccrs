@@ -591,7 +591,7 @@ coverage_compute_profile_id (struct cgraph_node *n)
    The checksum is calculated carefully so that
    source code changes that doesn't affect the control flow graph
    won't change the checksum.
-   This is to make the profile data useable across source code change.
+   This is to make the profile data usable across source code change.
    The downside of this is that the compiler may use potentially
    wrong profile data - that the source code change has non-trivial impact
    on the validity of profile data (e.g. the reversed condition)

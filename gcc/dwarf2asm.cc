@@ -874,7 +874,7 @@ dw2_asm_output_delta_uleb128 (const char *lab1 ATTRIBUTE_UNUSED,
   putc ('-', asm_out_file);
   /* dwarf2out.cc might give us a label expression (e.g. .LVL548-1)
      as second argument.  If so, make it a subexpression, to make
-     sure the substraction is done in the right order.  */
+     sure the subtraction is done in the right order.  */
   if (strchr (lab2, '-') != NULL)
     {
       putc ('(', asm_out_file);

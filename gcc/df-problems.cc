@@ -3938,7 +3938,7 @@ df_simulate_fixup_sets (basic_block bb, bitmap live)
    i.e. they process the defs before the uses.
 
    df_simulate_initialize_backwards should be called first with a
-   bitvector copyied from the DF_LIVE_OUT or DF_LR_OUT.  Then
+   bitvector copied from the DF_LIVE_OUT or DF_LR_OUT.  Then
    df_simulate_one_insn_backwards should be called for each insn in
    the block, starting with the last one.  Finally,
    df_simulate_finalize_backwards can be called to get a new value
@@ -4007,7 +4007,7 @@ df_simulate_finalize_backwards (basic_block bb, bitmap live)
    problems computed before using these functions.
 
    df_simulate_initialize_forwards should be called first with a
-   bitvector copyied from the DF_LIVE_IN or DF_LR_IN.  Then
+   bitvector copied from the DF_LIVE_IN or DF_LR_IN.  Then
    df_simulate_one_insn_forwards should be called for each insn in
    the block, starting with the first one.
    ----------------------------------------------------------------------------*/
