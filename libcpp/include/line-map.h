@@ -142,7 +142,7 @@ enum lc_reason
              |   This packing scheme means we effectively have
              |     (column_bits - range_bits)
              |   of bits for the columns, typically (12 - 5) = 7, for 128
-             |   columns; longer line widths are accomodated by starting a
+             |   columns; longer line widths are accommodated by starting a
              |   new ordmap with a higher column_bits.
              |
              | ordmap[2]->start_location-1   | Final location in ordmap 1

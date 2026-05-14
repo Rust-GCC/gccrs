@@ -1007,7 +1007,7 @@ _cpp_stack_translated_file (cpp_reader *pfile, _cpp_file *file,
   /* We don't increment the line number at the end of a buffer,
      because we don't usually need that location (we're popping an
      include file).  However in this case we do want to do the
-     increment.  So push a writable buffer of two newlines to acheive
+     increment.  So push a writable buffer of two newlines to achieve
      that.  (We also need an extra newline, so this looks like a regular
      file, which we do that to to make sure we don't fall off the end in the
      middle of a line.  */
@@ -2377,7 +2377,7 @@ _cpp_get_file_path (_cpp_file *f)
   return f->path;
 }
 
-/* Inteface to file statistics record in _cpp_file structure. */
+/* Interface to file statistics record in _cpp_file structure. */
 struct stat *
 _cpp_get_file_stat (_cpp_file *file)
 {

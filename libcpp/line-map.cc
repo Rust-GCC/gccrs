@@ -679,7 +679,7 @@ linemap_add (line_maps *set, enum lc_reason reason,
       else
 	{
 	  /* Compute location from whence this line map was included.
-	     For #include this should be preferrably column 0 of the
+	     For #include this should be preferably column 0 of the
 	     line on which #include directive appears.
 	     map[-1] is the just closed map and usually included_from
 	     falls within that map.  In rare cases linemap_line_start
@@ -757,7 +757,7 @@ linemap_module_restore (line_maps *set, line_map_uint_t lwm)
 		       ORDINARY_MAP_IN_SYSTEM_HEADER_P (pre_map),
 		       ORDINARY_MAP_FILE_NAME (pre_map), src_line))))
     {
-      /* linemap_add will think we were included from the same as the preceeding
+      /* linemap_add will think we were included from the same as the preceding
 	 map.  */
       const_cast <line_map_ordinary *> (post_map)->included_from = inc_at;
 
@@ -2556,7 +2556,7 @@ rich_location::get_last_fixit_hint () const
 }
 
 /* If WHERE is an "awkward" location, then mark this rich_location as not
-   supporting fixits, purging any thay were already added, and return true.
+   supporting fixits, purging any that were already added, and return true.
 
    Otherwise (the common case), return false.  */
 

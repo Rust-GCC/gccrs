@@ -201,7 +201,7 @@ struct GTY(()) cpp_string {
 #define STRINGIFY_ARG	(1 << 2) /* If macro argument to be stringified.  */
 #define PASTE_LEFT	(1 << 3) /* If on LHS of a ## operator.  */
 #define NAMED_OP	(1 << 4) /* C++ named operators.  */
-#define PREV_FALLTHROUGH (1 << 5) /* On a token preceeded by FALLTHROUGH
+#define PREV_FALLTHROUGH (1 << 5) /* On a token preceded by FALLTHROUGH
 				     comment.  */
 #define DECIMAL_INT     (1 << 6) /* Decimal integer, set in c-lex.cc.  */
 #define PURE_ZERO	(1 << 7) /* Single 0 digit, used by the C++ frontend,
@@ -515,7 +515,7 @@ struct cpp_options
   unsigned char user_literals;
 
   /* Nonzero means warn when a string or character literal is followed by a
-     ud-suffix which does not beging with an underscore.  */
+     ud-suffix which does not begin with an underscore.  */
   unsigned char warn_literal_suffix;
 
   /* Nonzero means interpret imaginary, fixed-point, or other gnu extension

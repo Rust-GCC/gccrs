@@ -582,7 +582,7 @@ _cpp_builtin_macro_text (cpp_reader *pfile, cpp_hashnode *node,
 	cpp_buffer *pbuffer = cpp_get_buffer (pfile);
 	if (pbuffer->timestamp == NULL)
 	  {
-	    /* Initialize timestamp value of the assotiated file. */
+	    /* Initialize timestamp value of the associated file. */
             struct _cpp_file *file = cpp_get_file (pbuffer);
 	    if (file)
 	      {
@@ -1800,7 +1800,7 @@ arg_token_ptr_at (const macro_arg *arg, size_t index,
 
   if (tokens_ptr == NULL)
     /* This can happen for e.g, an empty token argument to a
-       funtion-like macro.  */
+       function-like macro.  */
     return tokens_ptr;
 
   if (virt_location)
@@ -2247,7 +2247,7 @@ replace_args (cpp_reader *pfile, cpp_hashnode *node, cpp_macro *macro,
       /* SRC is a macro parameter that we need to replace with its
 	 corresponding argument.  So at some point we'll need to
 	 iterate over the tokens of the macro argument and copy them
-	 into the "place" now holding the correspondig macro
+	 into the "place" now holding the corresponding macro
 	 parameter.  We are going to use the iterator type
 	 macro_argo_token_iter to handle that iterating.  The 'if'
 	 below is to initialize the iterator depending on the type of
@@ -2931,7 +2931,7 @@ reached_end_of_context (cpp_context *context)
 
 /* Consume the next token contained in the current context of PFILE,
    and return it in *TOKEN. It's "full location" is returned in
-   *LOCATION. If -ftrack-macro-location is in effeect, fFull location"
+   *LOCATION. If -ftrack-macro-location is in effect, fFull location"
    means the location encoding the locus of the token across macro
    expansion; otherwise it's just is the "normal" location of the
    token which (*TOKEN)->src_loc.  */
@@ -3009,7 +3009,7 @@ cpp_get_token_1 (cpp_reader *pfile, location_t *location)
   /* This token is a virtual token that either encodes a location
      related to macro expansion or a spelling location.  */
   location_t virt_loc = 0;
-  /* pfile->about_to_expand_macro_p can be overriden by indirect calls
+  /* pfile->about_to_expand_macro_p can be overridden by indirect calls
      to functions that push macro contexts.  So let's save it so that
      we can restore it when we are about to leave this routine.  */
   bool saved_about_to_expand_macro = pfile->about_to_expand_macro_p;
@@ -3160,7 +3160,7 @@ cpp_get_token_1 (cpp_reader *pfile, location_t *location)
       && !(result->type == CPP_PADDING || result->type == CPP_COMMENT)
       && !(15 & --pfile->state.directive_file_token))
     {
-      /* Do header-name frobbery.  Concatenate < ... > as approprate.
+      /* Do header-name frobbery.  Concatenate < ... > as appropriate.
 	 Do header search if needed, and finally drop the outer <> or
 	 "".  */
       pfile->state.angled_headers = false;
@@ -3710,7 +3710,7 @@ create_iso_definition (cpp_reader *pfile)
   pfile->cur_token = saved_cur_token;
 
   if (token->flags & PREV_WHITE)
-    /* Preceeded by space, must be part of expansion.  */;
+    /* Preceded by space, must be part of expansion.  */;
   else if (token->type == CPP_OPEN_PAREN)
     {
       /* An open-paren, get a parameter list.  */
@@ -4074,7 +4074,7 @@ get_deferred_or_lazy_macro (cpp_reader *pfile, cpp_hashnode *node,
 }
 
 /* Notify the use of NODE in a macro-aware context (i.e. expanding it,
-   or testing its existance).  Also applies any lazy definition.
+   or testing its existence).  Also applies any lazy definition.
    Return FALSE if the macro isn't really there.  */
 
 extern bool

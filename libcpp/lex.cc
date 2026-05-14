@@ -2631,7 +2631,7 @@ lex_raw_string (cpp_reader *pfile, cpp_token *token, const uchar *base)
 
 	  case '\n':
 	    /* This can happen for ??/<NEWLINE> when trigraphs are not
-	       being interpretted.  */
+	       being interpreted.  */
 	    gcc_checking_assert (!CPP_OPTION (pfile, trigraphs));
 	    note->type = 0;
 	    note++;
@@ -5416,7 +5416,7 @@ cpp_directive_only_process (cpp_reader *pfile,
 
 	    case '\\':
 	      /* <backslash><newline> is removed, and doesn't undo any
-		 preceeding escape or whatnot.  */
+		 preceding escape or whatnot.  */
 	      if (*pos == '\n')
 		{
 		  pos++;

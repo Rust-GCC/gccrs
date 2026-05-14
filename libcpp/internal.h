@@ -359,7 +359,7 @@ struct cpp_buffer
   struct _cpp_file *file;
 
   /* Saved value of __TIMESTAMP__ macro - date and time of last modification
-     of the assotiated file.  */
+     of the associated file.  */
   const unsigned char *timestamp;
 
   /* Value of if_stack at start of this file.
