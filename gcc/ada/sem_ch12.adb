@@ -4745,6 +4745,8 @@ package body Sem_Ch12 is
       if Nkind (Spec) = N_Function_Specification then
          if Nkind (Result_Definition (Spec)) = N_Access_Definition then
             Result_Type := Access_Definition (Spec, Result_Definition (Spec));
+            Set_Parent (Result_Type, Result_Definition (Spec));
+            Set_Is_Local_Anonymous_Access (Result_Type);
             Set_Etype (Id, Result_Type);
 
             --  Check restriction imposed by AI05-073: a generic function

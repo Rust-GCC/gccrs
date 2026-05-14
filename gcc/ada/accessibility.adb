@@ -715,8 +715,7 @@ package body Accessibility is
 
                --  Return the dynamic level in the normal case
 
-               return New_Occurrence_Of
-                        (Get_Dynamic_Accessibility (E), Loc);
+               return New_Occurrence_Of (Get_Dynamic_Accessibility (E), Loc);
 
             --  Initialization procedures have a special extra accessibility
             --  parameter associated with the level at which the object
@@ -782,7 +781,13 @@ package body Accessibility is
                return New_Occurrence_Of
                         (Init_Proc_Level_Formal (Scope (E)), Loc);
 
-            --  Normal object - get the level of the enclosing scope
+            --  Formal object of generic subprogram - get the level of the
+            --  subprogram
+
+            elsif Is_Formal_Object (E) and then Is_Subprogram (Scope (E)) then
+               return Make_Level_Literal (Subprogram_Access_Level (Scope (E)));
+
+            --  Normal object - get the depth of the enclosing dynamic scope
 
             else
                return Make_Level_Literal

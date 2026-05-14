@@ -154,6 +154,26 @@ package Accessibility is
    function Has_Anonymous_Access_Discriminant (Typ : Entity_Id) return Boolean;
    --  Returns True if Typ has one or more anonymous access discriminants
 
+   function Has_Unconstrained_Access_Discriminants
+     (Subtyp : Entity_Id) return Boolean;
+   --  Returns True if the given subtype is unconstrained and has one or more
+   --  access discriminants.
+
+   function Needs_Accessibility_Level_Temp_Or_Check
+     (Conditional_Expr : Node_Id) return Boolean;
+   --  Determine whether a conditional expression occurs in a context that
+   --  requires either an associated accessibility-level-valued temp (which
+   --  is assigned to in each arm of the conditional expression) or an
+   --  accessibility level check (which is pushed down into each arm of the
+   --  conditional expression).
+
+   function Needs_Result_Accessibility_Level
+     (Func_Id : Entity_Id) return Boolean;
+   --  Ada 2012 (AI05-0234): Return True if the function needs an implicit
+   --  parameter to identify the accessibility level of the function result
+   --  "determined by the point of call". Return False if the type of the
+   --  function result is a private type and its completion is unavailable.
+
    function Prefix_With_Safe_Accessibility_Level
      (N   : Node_Id;
       Typ : Entity_Id) return Boolean;
@@ -177,28 +197,12 @@ package Accessibility is
    --  integer for use in compile-time checking. Note: Level is restricted to
    --  be non-dynamic.
 
-   function Has_Unconstrained_Access_Discriminants
-     (Subtyp : Entity_Id) return Boolean;
-   --  Returns True if the given subtype is unconstrained and has one or more
-   --  access discriminants.
-
-   function Needs_Accessibility_Level_Temp_Or_Check
-     (Conditional_Expr : Node_Id) return Boolean;
-   --  Determine whether a conditional expression occurs in a context that
-   --  requires either an associated accessibility-level-valued temp (which
-   --  is assigned to in each arm of the conditional expression) or an
-   --  accessibility level check (which is pushed down into each arm of the
-   --  conditional expression).
-
-   function Needs_Result_Accessibility_Level
-     (Func_Id : Entity_Id) return Boolean;
-   --  Ada 2012 (AI05-0234): Return True if the function needs an implicit
-   --  parameter to identify the accessibility level of the function result
-   --  "determined by the point of call". Return False if the type of the
-   --  function result is a private type and its completion is unavailable.
-
    function Subprogram_Access_Level (Subp : Entity_Id) return Uint;
-   --  Return the accessibility level of the view denoted by Subp
+   --  Return the accessibility level of Subp. Note that this is the level of
+   --  the innermost master of the declaration of Subp (modulo renaming) and,
+   --  in particular, is *not* the level of the entities declared within Subp.
+   --  It is used to enforce the accessibility rules for access-to-subprogram
+   --  types, results of function calls, and formal objects of generic units.
 
    function Type_Access_Level
      (Typ             : Entity_Id;

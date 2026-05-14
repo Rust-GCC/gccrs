@@ -69,7 +69,7 @@ package GNAT.CPP_Exceptions is
    --  explicitly expected by the handler.
 
    generic
-      type T is abstract tagged limited private;
+      type T is tagged limited private;
    function Get_Access_To_Tagged_Object (X : Exception_Occurrence)
                                         return access T'Class;
    --  Extract the object associated with X. The exception of the
