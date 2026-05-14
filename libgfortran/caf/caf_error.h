@@ -35,7 +35,7 @@ void caf_runtime_error (const char *format, ...);
    If additionally `errmsg` is non-NULL, then printf-style `format` will by
    printed to `errmsg`.  If the resulting message is longer then `errmsg_len`,
    it will be truncated, else filled with spaces.
-   If `stat` is not given, then the printf-formated message will be emited to
+   If `stat` is not given, then the printf-formatted message will be emitted to
    stderr and the program terminates with EXIT_FAILURE.  */
 
 void caf_internal_error (const char *format, int *stat, char *errmsg,

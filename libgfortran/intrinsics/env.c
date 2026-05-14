@@ -69,7 +69,7 @@ PREFIX(getenv) (char * name, char * value, gfc_charlen_type name_len,
 /* GET_ENVIRONMENT_VARIABLE (name, [value, length, status, trim_name])
    is a F2003 intrinsic for getting an environment variable.  */
 
-/* Status codes specifyed by the standard. */
+/* Status codes specified by the standard. */
 #define GFC_SUCCESS 0
 #define GFC_VALUE_TOO_SHORT -1
 #define GFC_NAME_DOES_NOT_EXIST 1

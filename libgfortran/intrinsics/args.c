@@ -233,7 +233,7 @@ get_command_i4 (char *command, GFC_INTEGER_4 *length, GFC_INTEGER_4 *status,
 	  memcpy (&command[tot_len], argv[i], thisarg);
 	}
 
-      /* Add the legth of the argument.  */
+      /* Add the length of the argument.  */
       tot_len += arglen;
       if (i != argc - 1)
 	tot_len++;

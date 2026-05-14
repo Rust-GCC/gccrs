@@ -30,7 +30,7 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 
 /* High-level interface for shared memory allocation.
    Handle allocation and freeing of blocks in the shared memory for coarrays.
-   While allocator keeps track of allocated and freeed portions, this "class"
+   While allocator keeps track of allocated and freed portions, this "class"
    allows allocation of coarrays identified by a memid and associate them
    across images.
  */

@@ -61,7 +61,7 @@ export_proto(transfer_complex128_write);
 
 
 /* Make sure that libquadmath is pulled in. The functions strtoflt128
-   and quadmath_snprintf are weakly referrenced in convert_real and
+   and quadmath_snprintf are weakly referenced in convert_real and
    write_float; the pointer assignment with USED attribute make sure
    that there is a non-weakref dependence if the quadmath functions
    are used. That avoids segfault when libquadmath is statically linked.  */

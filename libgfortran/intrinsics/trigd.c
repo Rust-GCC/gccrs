@@ -1,4 +1,4 @@
-/* Implementation of the degree trignometric functions COSD, SIND, TAND.
+/* Implementation of the degree trigonometric functions COSD, SIND, TAND.
    Copyright (C) 2020-2026 Free Software Foundation, Inc.
    Contributed by Steven G. Kargl <kargl@gcc.gnu.org>
 

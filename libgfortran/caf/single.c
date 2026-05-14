@@ -117,7 +117,7 @@ caf_runtime_error (const char *message, ...)
   exit (EXIT_FAILURE);
 }
 
-/* Error handling is similar everytime.  */
+/* Error handling is similar every time.  */
 static void
 caf_internal_error (const char *msg, int *stat, char *errmsg,
 		    size_t errmsg_len, ...)
@@ -313,7 +313,7 @@ _gfortran_caf_deregister (caf_token_t *token, caf_deregister_t type, int *stat,
 	    ;
 	  if (!ca)
 	    caf_runtime_error (
-	      "Coarray token to be freeed is not in current team %d", type);
+	      "Coarray token to be freed is not in current team %d", type);
 	  /* Unhook found coarray_allocated node from list...  */
 	  pca->next = ca->next;
 	}

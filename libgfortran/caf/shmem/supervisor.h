@@ -98,7 +98,7 @@ struct caf_shmem_token
   void *base;
   /* The size of memory in each image aligned on pointer borders, i.e. each
      images memory starts on an address that is aligned to enable maximum speed
-     for the processor architecure used.  */
+     for the processor architecture used.  */
   size_t image_size;
   /* The id of this token.  */
   memid token_id;

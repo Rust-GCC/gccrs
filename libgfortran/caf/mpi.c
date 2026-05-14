@@ -72,7 +72,7 @@ caf_runtime_error (const char *message, ...)
    MPI initialization happened before; otherwise MPI_Initialized
    had to be used.  As the MPI library might modify the command-line
    arguments, the routine should be called before the run-time
-   libaray is initialized.  */
+   library is initialized.  */
 
 void
 _gfortran_caf_init (int *argc, char ***argv)

@@ -87,7 +87,7 @@ shared_memory_get_env (void)
   return getenv (ENV_PPID);
 }
 
-/* Get a pointer into the shared memory block with alignemnt
+/* Get a pointer into the shared memory block with alignment
    (works similar to sbrk).  */
 
 shared_mem_ptr

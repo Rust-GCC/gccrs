@@ -457,7 +457,7 @@ _gfortran_caf_deregister (caf_token_t *token, caf_deregister_t type, int *stat,
 	    ;
 	  if (!ca)
 	    caf_runtime_error (
-	      "Coarray token to be freeed is not in current team %d", type);
+	      "Coarray token to be freed is not in current team %d", type);
 	  /* Unhook found coarray_allocated node from list...  */
 	  pca->next = ca->next;
 	}

@@ -226,7 +226,7 @@ init_adv_cond (struct adv_cond *ac)
   __GTHREAD_COND_INIT_FUNCTION (&ac->signal);
 }
 
-/* Initialize an asyncronous unit, returning zero on success,
+/* Initialize an asynchronous unit, returning zero on success,
  nonzero on failure.  It also sets u->au.  */
 
 void

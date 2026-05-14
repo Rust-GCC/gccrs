@@ -50,7 +50,7 @@ typedef enum
   CAF_CURRENT_TEAM
 } caf_team_level_t;
 
-/* Describes what type of array we are registerring.  Keep in sync with
+/* Describes what type of array we are registering.  Keep in sync with
    gcc/fortran/trans.h.  */
 typedef enum caf_register_t
 {

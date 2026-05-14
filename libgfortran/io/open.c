@@ -683,7 +683,7 @@ new_unit (st_parameter_open *opp, gfc_unit *u, unit_flags *flags)
   else
     u->fbuf = NULL;
 
-  /* Check if asynchrounous.  */
+  /* Check if asynchronous.  */
   if (flags->async == ASYNC_YES)
     init_async_unit (u);
   else
@@ -827,7 +827,7 @@ st_open (st_parameter_open *opp)
     find_option (&opp->common, opp->status, opp->status_len,
 		 status_opt, "Bad STATUS parameter in OPEN statement");
 
-  /* First, we check wether the convert flag has been set via environment
+  /* First, we check whether the convert flag has been set via environment
      variable.  This overrides the convert tag in the open statement.  */
 
   conv = get_unformatted_convert (opp->common.unit);

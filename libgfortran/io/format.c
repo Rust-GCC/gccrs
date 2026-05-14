@@ -952,7 +952,7 @@ parse_format_list (st_parameter_dt *dtp, bool *seen_dd)
 	  tail->u.real.w = 0;
 	  tail->u.real.e = -1;
 
-	  /* Look for the dot seperator.  */
+	  /* Look for the dot separator.  */
 	  u = format_lex (fmt);
 	  if (u != FMT_PERIOD)
 	    {

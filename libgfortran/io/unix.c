@@ -773,7 +773,7 @@ buf_init (unix_stream *s, bool unformatted)
 
   /* Try to guess a good value for the buffer size.  For formatted
      I/O, we use so many CPU cycles converting the data that there is
-     more sense in converving memory and especially cache.  For
+     more sense in conserving memory and especially cache.  For
      unformatted, a bigger block can have a large impact in some
      environments.  */
 
@@ -908,7 +908,7 @@ mem_read (stream *s, void *buf, ssize_t nbytes)
 }
 
 
-/* Stream read function for chracter(kind=4) internal units.  */
+/* Stream read function for character(kind=4) internal units.  */
 
 static ssize_t
 mem_read4 (stream *s, void *buf, ssize_t nbytes)

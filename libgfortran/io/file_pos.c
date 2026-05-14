@@ -469,7 +469,7 @@ st_rewind (st_parameter_filepos *fpp)
 	      return;
 	    }
 
-	  /* Set this for compatibilty with g77 for /dev/null.  */
+	  /* Set this for compatibility with g77 for /dev/null.  */
 	  if (ssize (u->s) == 0)
 	    u->endfile = AT_ENDFILE;
 	  else

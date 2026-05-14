@@ -1162,7 +1162,7 @@ btoa (GFC_UINTEGER_LARGEST n, char *buffer, size_t len)
 /* The following three functions, btoa_big, otoa_big, and xtoa_big, are needed
    to convert large reals with kind sizes that exceed the largest integer type
    available on certain platforms.  In these cases, byte by byte conversion is
-   performed. Endianess is taken into account.  */
+   performed. Endianness is taken into account.  */
 
 /* Conversion to binary.  */
 
@@ -2530,7 +2530,7 @@ list_formatted_write (st_parameter_dt *dtp, bt type, void *p, int kind,
    the list.  */
 
 /* A generous estimate of the number of characters needed to print
-   repeat counts and indices, including commas, asterices and brackets.  */
+   repeat counts and indices, including commas, asterisks and brackets.  */
 
 #define NML_DIGITS 20
 

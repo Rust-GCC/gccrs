@@ -46,7 +46,7 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 
    For other sorts of data transfer, there are zero or more data
    transfer statement that depend on the format of the data transfer
-   statement. For READ (and for backwards compatibily: for WRITE), one has
+   statement. For READ (and for backwards compatibility: for WRITE), one has
 
       transfer_integer
       transfer_logical
@@ -835,7 +835,7 @@ write_block (st_parameter_dt *dtp, size_t length)
 
   if (is_internal_unit (dtp))
     {
-      if (is_char4_unit(dtp)) /* char4 internel unit.  */
+      if (is_char4_unit(dtp)) /* char4 internal unit.  */
 	{
 	  gfc_char4_t *dest4;
 	  dest4 = mem_alloc_w4 (dtp->u.p.current_unit->s, &length);
@@ -1153,7 +1153,7 @@ unformatted_read (st_parameter_dt *dtp, bt type,
   convert = dtp->u.p.current_unit->flags.convert;
   if (unlikely (convert != GFC_CONVERT_NATIVE) && kind != 1)
     {
-      /* Handle wide chracters.  */
+      /* Handle wide characters.  */
       if (type == BT_CHARACTER)
   	{
   	  nelems *= size;
@@ -1312,7 +1312,7 @@ unformatted_write (st_parameter_dt *dtp, bt type,
 
       p = source;
 
-      /* Handle wide chracters.  */
+      /* Handle wide characters.  */
       if (type == BT_CHARACTER && kind != 1)
 	{
 	  nelems *= size;
@@ -2601,7 +2601,7 @@ formatted_transfer_scalar_write (st_parameter_dt *dtp, bt type, void *p, int kin
 
   /* This function is first called from data_init_transfer to initiate the loop
      over each item in the format, transferring data as required.  Subsequent
-     calls to this function occur for each data item foound in the READ/WRITE
+     calls to this function occur for each data item found in the READ/WRITE
      statement.  The item_count is incremented for each call.  Since the first
      call is from data_transfer_init, the item_count is always one greater than
      the actual count number of the item being transferred.  */

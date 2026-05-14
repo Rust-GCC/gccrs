@@ -98,7 +98,7 @@ chmod_internal (char *file, char *mode, gfc_charlen_type mode_len)
 #endif
 
 #ifdef HAVE_UMASK
-  /* Obtain the umask without distroying the setting.  */
+  /* Obtain the umask without destroying the setting.  */
   mode_mask = 0;
   mode_mask = umask (mode_mask);
   (void) umask (mode_mask);

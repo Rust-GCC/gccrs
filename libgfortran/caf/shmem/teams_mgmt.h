@@ -35,7 +35,7 @@ struct caf_shmem_team
   int team_no;
   /* The index is the image's index minus one in this team.  I.e. if in Fortran
      notion the current image is 3, then the value of index is 2.  This allows
-     access to the image_map without having to substract one each time (and
+     access to the image_map without having to subtract one each time (and
      missing it).  Returning the image's index to the user is rarer, so adding
      one there is cheaper.  */
   int index;
