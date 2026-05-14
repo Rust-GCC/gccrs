@@ -182,6 +182,8 @@ mark_use (tree expr, bool rvalue_p, bool read_p,
 		}
 	    }
 	  tree r = mark_rvalue_use (ref, loc, reject_builtin);
+	  if (r == error_mark_node)
+	    return error_mark_node;
 	  if (r != ref)
 	    {
 	      if (!rvalue_p)
