@@ -7,9 +7,7 @@
 
 template<typename>
 auto
-f ()
-{
-}
+f ();
 
 consteval bool
 g ()

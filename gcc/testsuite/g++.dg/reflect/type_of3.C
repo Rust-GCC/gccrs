@@ -10,4 +10,10 @@ struct S {
 };
 int h() { return 0; }
 
+template<class T>
+struct ST {
+    auto g() { return T{}; }
+};
+
 static_assert(type_of(^^S::g) == type_of(^^h));
+static_assert(type_of(^^ST<int>::g) == type_of(^^h));

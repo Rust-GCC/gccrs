@@ -74,6 +74,19 @@ init_reflection ()
   pop_namespace ();
 }
 
+/* Ensure the type of DECL is fully resolved by performing return
+   type deduction and deferred noexcept instantiation.  */
+
+static void
+resolve_type_of_reflected_decl (tree decl)
+{
+  /* Quietly calling mark_used in an unevaluated context will perform
+     all necessary checks and instantiations while suppressing constraint
+     unsatisfaction and deletedness diagnostics.  */
+  cp_unevaluated u;
+  mark_used (decl, tf_none);
+}
+
 /* Create a REFLECT_EXPR expression of kind KIND around T.  */
 
 static tree
@@ -210,8 +223,7 @@ get_reflection (location_t loc, tree t, reflect_kind kind/*=REFLECT_UNDEF*/)
       t = resolve_nondeduced_context_or_error (t, tf_warning_or_error);
       /* The argument could have a deduced return type, so we need to
 	 instantiate it now to find out its type.  */
-      if (!mark_used (t))
-	return error_mark_node;
+      resolve_type_of_reflected_decl (t);
       /* Avoid -Wunused-but-set* warnings when a variable or parameter
 	 is just set and reflected.  */
       if (VAR_P (t) || TREE_CODE (t) == PARM_DECL)
@@ -2542,6 +2554,7 @@ has_type (tree r, reflect_kind kind)
     {
       if (DECL_CONSTRUCTOR_P (r) || DECL_DESTRUCTOR_P (r))
 	return false;
+      resolve_type_of_reflected_decl (r);
       if (undeduced_auto_decl (r))
 	return false;
       return true;
@@ -5541,6 +5554,8 @@ eval_can_substitute (location_t loc, const constexpr_ctx *ctx,
       if (fn == error_mark_node)
 	return boolean_false_node;
       fn = resolve_nondeduced_context_or_error (fn, tf_none);
+      fn = MAYBE_BASELINK_FUNCTIONS (fn);
+      resolve_type_of_reflected_decl (fn);
       if (fn == error_mark_node || undeduced_auto_decl (fn))
 	return boolean_false_node;
       return boolean_true_node;
@@ -6768,8 +6783,12 @@ members_of_representable_p (tree c, tree r)
 	  || TREE_CODE (r) == FIELD_DECL
 	  || TREE_CODE (r) == NAMESPACE_DECL)
 	return true;
-      if (VAR_OR_FUNCTION_DECL_P (r) && !undeduced_auto_decl (r))
-	return true;
+      if (VAR_OR_FUNCTION_DECL_P (r))
+	{
+	  resolve_type_of_reflected_decl (r);
+	  if (!undeduced_auto_decl (r))
+	    return true;
+	}
     }
   return false;
 }
