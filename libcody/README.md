@@ -181,7 +181,7 @@ omitted the value 0 is implied.  The following flags are available:
 * `1<<0`, `NameOnly`: The request is for the name only, and not the
   CMI contents.
 
-The `NameOnly` flag may be provded in a handshake response, and
+The `NameOnly` flag may be provided in a handshake response, and
 indicates that the server is interested in requests only for their
 implied dependency information.  It may be provided on a request to
 indicate that only the CMI name is required, not its contents (for
@@ -263,7 +263,7 @@ Importation, including that of header-units, uses:
 A PATHNAME response names the CMI file to be read.  Should the builder
 have to invoke a compilation to produce the CMI, the response should
 be delayed until that occurs.  If such a compilation fails, an error
-response should be provided to the requestor &mdash; which will then
+response should be provided to the requester &mdash; which will then
 presumably fail in some manner.
 
 #### Include Translation
