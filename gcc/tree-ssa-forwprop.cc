@@ -5264,8 +5264,7 @@ optimize_unreachable (basic_block bb)
 	}
       else
 	{
-	  /* Todo: handle other cases.  Note that unreachable switch case
-	     statements have already been removed.  */
+	  /* Todo: handle other cases.  e.g. switch.  */
 	  continue;
 	}
 
