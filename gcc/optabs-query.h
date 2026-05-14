@@ -90,7 +90,7 @@ trapv_binoptab_p (optab binoptab)
 }
 
 /* Return insn code for a comparison operator with VMODE
-   resultin MASK_MODE, unsigned if UNS is true.  */
+   result in MASK_MODE, unsigned if UNS is true.  */
 
 inline enum insn_code
 get_vec_cmp_icode (machine_mode vmode, machine_mode mask_mode, bool uns)
@@ -100,7 +100,7 @@ get_vec_cmp_icode (machine_mode vmode, machine_mode mask_mode, bool uns)
 }
 
 /* Return insn code for a comparison operator with VMODE
-   resultin MASK_MODE (only for EQ/NE).  */
+   result in MASK_MODE (only for EQ/NE).  */
 
 inline enum insn_code
 get_vec_cmp_eq_icode (machine_mode vmode, machine_mode mask_mode)

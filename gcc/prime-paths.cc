@@ -126,13 +126,13 @@ struct xpair
 
    The union of near/far is essentially a short-vector optimization, switching
    to a heap-allocated vector when necessary.  This happens relatively rarely
-   (usually maxes out at 1-2%), and the vertices that have more than 2 sucessors
+   (usually maxes out at 1-2%), and the vertices that have more than 2 successors
    also tend to have more than 4.  The root vertex tends to use the dynamic
    vector because the subpaths are recorded as the successors of the root.
 
    Conceptually, this is a small map from vertex-id -> index and the API is
    modelled as such.  The insert and search functions are unrolled by hand when
-   using the small vector.  This has a noticable performance impact on insert in
+   using the small vector.  This has a noticeable performance impact on insert in
    particular, and is not too complex since we know we are limited to 2
    elements.
 
@@ -150,7 +150,7 @@ struct xpair
    in [2 4 6] is cleared when the suffixes of [9 7 2 4 6] are inserted.
 
    The node will be inserted into a vec, and should be trivial.  Instances
-   should be value-initialized to zero-intialized state.  */
+   should be value-initialized to zero-initialized state.  */
 struct trie_node
 {
   unsigned length () const
@@ -1333,10 +1333,10 @@ edge_matrix (const struct graph *cfg)
 
    The algorithm is based on Fazli & Afsharchi's "A Time and Space-Efficient
    Compositional Method for Prime and Test Paths Generation" (2019), combined
-   with a suffix trie for removing duplicate or redundant paths.  An auxillary
+   with a suffix trie for removing duplicate or redundant paths.  An auxiliary
    graph of the strongly connected components (SCCs) is built.  Then, the prime
    paths of the SCCs composes the prime paths of each SCC with the prime paths
-   of this auxillary graph.  This can drastically cut the number of redundant
+   of this auxiliary graph.  This can drastically cut the number of redundant
    paths generated compared to a naive algorithm.
 
    This does not work for all graphs.  Some structures, e.g. when most of the
@@ -1652,7 +1652,7 @@ test_build_ccfg ()
 
 /* This test checks some basic assumptions on finding the strongly connected
    components and disconnecting the graph by removing all edges between SCCs.
-   Creating a single auxillary graph simplifies the bookkeeping.  */
+   Creating a single auxiliary graph simplifies the bookkeeping.  */
 static void
 test_split_components ()
 {

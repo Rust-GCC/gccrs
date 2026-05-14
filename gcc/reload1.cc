@@ -743,7 +743,7 @@ will_delete_init_insn_p (rtx_insn *insn)
    so any pseudo reg that is spilled must go to the stack.
 
    Return value is TRUE if reload likely left dead insns in the
-   stream and a DCE pass should be run to elimiante them.  Else the
+   stream and a DCE pass should be run to eliminate them.  Else the
    return value is FALSE.  */
 
 bool
@@ -8256,7 +8256,7 @@ emit_reload_insns (class insn_chain *chain)
 	}
 
       /* The following if-statement was #if 0'd in 1.34 (or before...).
-	 It's reenabled in 1.35 because supposedly nothing else
+	 It's re-enabled in 1.35 because supposedly nothing else
 	 deals with this problem.  */
 
       /* If a register gets output-reloaded from a non-spill register,

@@ -5840,7 +5840,7 @@ lower_rec_input_clauses (tree clauses, gimple_seq *ilist, gimple_seq *dlist,
 		{
 		  /* For reduction in SIMD loop, defer adding the
 		     initialization of the reference, because if we decide
-		     to use SIMD array for it, the initilization could cause
+		     to use SIMD array for it, the initialization could cause
 		     expansion ICE.  Ditto for other privatization clauses.  */
 		  if (is_simd)
 		    x = NULL_TREE;
@@ -15319,7 +15319,7 @@ lower_omp (gimple_seq *body, omp_context *ctx)
   gimple_stmt_iterator gsi;
   for (gsi = gsi_start (*body); !gsi_end_p (gsi); gsi_next (&gsi))
     lower_omp_1 (&gsi, ctx);
-  /* During gimplification, we haven't folded statments inside offloading
+  /* During gimplification, we haven't folded statements inside offloading
      or taskreg regions (gimplify.cc:maybe_fold_stmt); do that now.  */
   if (target_nesting_level || taskreg_nesting_level)
     for (gsi = gsi_start (*body); !gsi_end_p (gsi); gsi_next (&gsi))

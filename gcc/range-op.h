@@ -238,7 +238,7 @@ public:
   virtual bool overflow_free_p (const irange &lh, const irange &rh,
 				relation_trio = TRIO_VARYING) const;
 
-  // Compatability check for operands.
+  // Compatibility check for operands.
   virtual bool operand_check_p (tree, tree, tree) const;
 
 protected:

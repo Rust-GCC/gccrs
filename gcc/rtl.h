@@ -3146,7 +3146,7 @@ extern bool const_vec_series_p_1 (const_rtx, rtx *, rtx *);
 
    { B, B + S, B + 2 * S, B + 3 * S, ... }
 
-   for a nonzero S.  Store B and S in *BASE_OUT and *STEP_OUT on sucess.  */
+   for a nonzero S.  Store B and S in *BASE_OUT and *STEP_OUT on success.  */
 
 inline bool
 const_vec_series_p (const_rtx x, rtx *base_out, rtx *step_out)
@@ -3164,7 +3164,7 @@ const_vec_series_p (const_rtx x, rtx *base_out, rtx *step_out)
    { B, B + S, B + 2 * S, B + 3 * S, ... }
 
    where B and S are constant or nonconstant.  Store B and S in
-   *BASE_OUT and *STEP_OUT on sucess.  */
+   *BASE_OUT and *STEP_OUT on success.  */
 
 inline bool
 vec_series_p (const_rtx x, rtx *base_out, rtx *step_out)

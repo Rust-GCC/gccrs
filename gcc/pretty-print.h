@@ -360,7 +360,7 @@ private:
   /* If non-NULL, this is called by pp_format once after all format codes
      have been processed, to allow for client-specific postprocessing.
      This is used by the C++ frontend for handling the %H and %I
-     format codes (which interract with each other).  */
+     format codes (which interact with each other).  */
   std::unique_ptr<format_postprocessor> m_format_postprocessor;
 
   /* This is used by pp_output_formatted_text after it has converted all

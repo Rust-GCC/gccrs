@@ -656,7 +656,7 @@ lshift_cheap_p (bool speed_p)
   static bool init[2] = { false, false };
   static bool cheap[2] = { true, true };
 
-  /* If the targer has no lshift in word_mode, the operation will most
+  /* If the target has no lshift in word_mode, the operation will most
      probably not be cheap.  ??? Does GCC even work for such targets?  */
   if (optab_handler (ashl_optab, word_mode) == CODE_FOR_nothing)
     return false;

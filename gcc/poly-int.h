@@ -184,7 +184,7 @@ struct if_lossless<T1, T2, T3, true>
    - poly_int_traits<T>::num_coeffs gives the number of coefficients in T
      if T is a poly_int and 1 otherwise.
 
-   - poly_int_traits<T>::coeff_type gives the coefficent type of T if T
+   - poly_int_traits<T>::coeff_type gives the coefficient type of T if T
      is a poly_int and T itself otherwise
 
    - poly_int_traits<T>::int_type is a shorthand for
@@ -292,7 +292,7 @@ struct poly_result<T1, T2, 2>
    second of which has coefficients of type C2.  */
 #define POLY_POLY_COEFF(C1, C2) typename poly_result<C1, C2>::type
 
-/* Enforce that T2 is non-polynomial and provide the cofficient type of
+/* Enforce that T2 is non-polynomial and provide the coefficient type of
    the result of a binary operation in which the first operand is a
    poly_int with coefficients of type C1 and the second operand is
    a constant of type T2.  */

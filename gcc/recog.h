@@ -130,7 +130,7 @@ public:
 			  rtx /*mem*/) { return true; }
 
   /* Note that we've simplified OLD_RTX into NEW_RTX.  When substituting,
-     this only happens if a substitution occured within OLD_RTX.
+     this only happens if a substitution occurred within OLD_RTX.
      Undoing OLD_NUM_CHANGES and up will restore the old form of OLD_RTX.
      OLD_RESULT_FLAGS is the value that RESULT_FLAGS had before processing
      OLD_RTX.  */

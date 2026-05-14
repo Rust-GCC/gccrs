@@ -164,7 +164,7 @@ REG_CFA_NOTE (CFA_RESTORE)
 REG_CFA_NOTE (CFA_NO_RESTORE)
 
 /* Attached to insns that are RTX_FRAME_RELATED_P, marks insn that sets
-   vDRAP from DRAP.  If vDRAP is a register, vdrap_reg is initalized
+   vDRAP from DRAP.  If vDRAP is a register, vdrap_reg is initialized
    to the argument, if it is a MEM, it is ignored.  */
 REG_CFA_NOTE (CFA_SET_VDRAP)
 

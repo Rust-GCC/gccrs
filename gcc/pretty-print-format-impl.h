@@ -439,7 +439,7 @@ private:
        BEGIN_URL("http://example.com"), TEXT("-foption"), END_URL, END_QUOTE]
 
      (5) emits all tokens in sequence with appropriate line-wrapping.  This
-     can be overridded via the pretty_printer's token_printer, allowing for
+     can be overridden via the pretty_printer's token_printer, allowing for
      output formats to e.g. override how URLs are handled, or to handle
      custom_data that wasn't lowered in (2) above, e.g. for handling JSON
      output of optimization records.  */

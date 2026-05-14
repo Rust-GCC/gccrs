@@ -3186,7 +3186,7 @@ const struct real_format motorola_single_format =
       - Denormals can be represented, but are treated as +0.0 when
 	used as an operand and are never generated as a result.
       - -0.0 can be represented, but a zero result is always +0.0.
-      - the only supported rounding mode is trunction (towards zero).  */
+      - the only supported rounding mode is truncation (towards zero).  */
 const struct real_format spu_single_format =
   {
     encode_ieee_single,

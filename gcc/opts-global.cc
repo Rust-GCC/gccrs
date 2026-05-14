@@ -263,7 +263,7 @@ init_options_once (void)
   /* ??? Ideally, we should do this earlier and the FEs will override
      it if desired (none do it so far).  However, the way the FEs
      construct their pretty-printers means that all previous settings
-     are overriden.  */
+     are overridden.  */
   global_dc->set_show_highlight_colors (show_highlight_colors);
 
   diagnostic_color_init (global_dc);

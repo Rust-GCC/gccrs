@@ -154,7 +154,7 @@ class GTY((user)) profile_probability
   static const uint32_t uninitialized_probability
 		 = ((uint32_t) 1 << (n_bits - 1)) - 1;
   /* For probibilityes quality is either UNINITIALIZED (0)
-     or greated then GUESSED.  To save bits we store it in
+     or greater then GUESSED.  To save bits we store it in
      adjusted form which skips the invalid values.  */
   static const int min_quality = GUESSED;
 
@@ -1203,7 +1203,7 @@ public:
 	{
 	  /* This is common case of AFDO scaling when we upgrade
 	     GLOBAL0_AFDO function to AFDO.  Be sure that result
-	     is AFDO and not GUESSED (which is unnecesarily low).  */
+	     is AFDO and not GUESSED (which is unnecessarily low).  */
 	  if (num.m_quality == AFDO
 	      && (ret.m_quality != GUESSED
 		  && ret.m_quality != GUESSED_LOCAL))

@@ -1798,7 +1798,7 @@ expand_oacc_collapse_vars (const struct omp_for_data *fd, bool inner,
    store number of iterations of the loops from fd->first_nonrect
    to fd->last_nonrect inclusive, i.e. the above COUNT multiplied
    by the counts of rectangular loops not referenced in any non-rectangular
-   loops sandwitched in between those.  */
+   loops sandwiched in between those.  */
 
 /* NOTE: It *could* be better to moosh all of the BBs together,
    creating one larger BB with all the computation and the unexpected
@@ -2811,7 +2811,7 @@ expand_omp_for_init_vars (struct omp_for_data *fd, gimple_stmt_iterator *gsi,
 	    }
 	  /* Fallback implementation.  Evaluate the loops in between
 	     (inclusive) fd->first_nonrect and fd->last_nonrect at
-	     runtime unsing temporaries instead of the original iteration
+	     runtime using temporaries instead of the original iteration
 	     variables, in the body just bump the counter and compare
 	     with the desired value.  */
 	  gimple_stmt_iterator gsi2 = *gsi;
@@ -8253,7 +8253,7 @@ expand_omp_for (struct omp_region *region, gimple *inner_stmt)
       FALLTHRU_EDGE (region->cont)->flags &= ~EDGE_ABNORMAL;
     }
   else
-    /* If there isn't a continue then this is a degerate case where
+    /* If there isn't a continue then this is a degenerate case where
        the introduction of abnormal edges during lowering will prevent
        original loops from being detected.  Fix that up.  */
     loops_state_set (LOOPS_NEED_FIXUP);
@@ -9035,7 +9035,7 @@ expand_omp_atomic_fetch_op (basic_block load_bb,
 
   /* We could test all of the various optabs involved, but the fact of the
      matter is that (with the exception of i486 vs i586 and xadd) all targets
-     that support any atomic operaton optab also implements compare-and-swap.
+     that support any atomic operation optab also implements compare-and-swap.
      Let optabs.cc take care of expanding any compare-and-swap loop.  */
   if (!can_compare_and_swap_p (imode, true) || !can_atomic_load_p (imode))
     return false;
@@ -10863,7 +10863,7 @@ build_omp_regions_1 (basic_block bb, struct omp_region *parent,
 	    region = NULL;
 	  else if (code == GIMPLE_OMP_TASKGROUP)
 	    /* #pragma omp taskgroup isn't a stand-alone directive, but
-	       gimplifier put the end API call into try finall block
+	       gimplifier put the end API call into try finally block
 	       for it, so omp expansion can treat it as such.  */
 	    region = NULL;
 	  /* ..., this directive becomes the parent for a new region.  */

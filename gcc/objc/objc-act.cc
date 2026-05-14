@@ -2572,7 +2572,7 @@ objc_compare_types (tree ltyp, tree rtyp, int argno, tree callee)
 	  ltyp = function_args_iter_cond (&liter);
 	  rtyp = function_args_iter_cond (&riter);
 
-	  /* If we've exhaused both lists simulateously, we're done.  */
+	  /* If we've exhausted both lists simulateously, we're done.  */
 	  if (ltyp == NULL_TREE && rtyp == NULL_TREE)
 	    break;
 
@@ -5096,7 +5096,7 @@ objc_decl_method_attributes (tree *node, tree attributes, int flags)
 	    {
 	      /* We need to fixup all the argument indexes by adding 2
 		 for the two hidden arguments of an Objective-C method
-		 invocation, similat to what we do above for the
+		 invocation, similar to what we do above for the
 		 "format" attribute.  */
 	      /* FIXME: This works great in terms of implementing the
 		 functionality, but the warnings that are produced by
@@ -9843,7 +9843,7 @@ build_fast_enumeration_state_template (void)
             next_object:
 	    if (__objc_foreach_mutation_pointer != *__objc_foreach_enum_state.mutationsPtr) objc_enumeration_mutation (<collection expression>);
 	    <object expression> = enumState.itemsPtr[__objc_foreach_index];
-	    <statements> [PS: inside <statments>, 'break' jumps to break_label and 'continue' jumps to continue_label]
+	    <statements> [PS: inside <statements>, 'break' jumps to break_label and 'continue' jumps to continue_label]
 
             continue_label:
             __objc_foreach_index++;
@@ -10181,7 +10181,7 @@ objc_finish_foreach_loop (location_t location, tree object_expression, tree coll
   SET_EXPR_LOCATION (t, location);
   append_to_statement_list (t, &BIND_EXPR_BODY (next_batch_bind));
 
-  /* <statements> [PS: in <statments>, 'break' jumps to break_label and 'continue' jumps to continue_label] */
+  /* <statements> [PS: in <statements>, 'break' jumps to break_label and 'continue' jumps to continue_label] */
   append_to_statement_list (for_body, &BIND_EXPR_BODY (next_batch_bind));
 
   /* continue_label: */

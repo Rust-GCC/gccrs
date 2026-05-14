@@ -2178,7 +2178,7 @@ expand_binop (machine_mode mode, optab binoptab, rtx op0, rtx op1,
 	}
     }
 
-  /* Attempt to synthetize double word modulo by constant divisor.  */
+  /* Attempt to synthesize double word modulo by constant divisor.  */
   if ((binoptab == umod_optab
        || binoptab == smod_optab
        || binoptab == udiv_optab
@@ -7022,7 +7022,7 @@ expand_vec_perm_var (machine_mode mode, rtx v0, rtx v1, rtx sel, rtx target)
   gcc_assert (sel != NULL);
 
   /* Add the byte offset to each byte element.  */
-  /* Note that the definition of the indicies here is memory ordering,
+  /* Note that the definition of the indices here is memory ordering,
      so there should be no difference between big and little endian.  */
   rtx_vector_builder byte_indices (qimode, u, 1);
   for (i = 0; i < u; ++i)
@@ -7249,7 +7249,7 @@ expand_compare_and_swap_loop (rtx mem, rtx old_reg, rtx new_reg, rtx seq)
 }
 
 
-/* This function tries to emit an atomic_exchange intruction.  VAL is written
+/* This function tries to emit an atomic_exchange instruction.  VAL is written
    to *MEM using memory model MODEL. The previous contents of *MEM are returned,
    using TARGET if possible.  */
 
@@ -7788,7 +7788,7 @@ expand_atomic_load (rtx target, rtx mem, enum memmodel model)
      then we assume that a load will not be atomic.  We could try to
      emulate a load with a compare-and-swap operation, but the store that
      doing this could result in would be incorrect if this is a volatile
-     atomic load or targetting read-only-mapped memory.  */
+     atomic load or targeting read-only-mapped memory.  */
   if (maybe_gt (GET_MODE_PRECISION (mode), BITS_PER_WORD))
     /* If there is no atomic load, leave the library call.  */
     return NULL_RTX;
@@ -8016,7 +8016,7 @@ maybe_optimize_fetch_op (rtx target, rtx mem, rtx val, enum rtx_code code,
   return NULL_RTX;
 }
 
-/* Try to emit an instruction for a specific operation varaition.
+/* Try to emit an instruction for a specific operation variation.
    OPTAB contains the OP functions.
    TARGET is an optional place to return the result. const0_rtx means unused.
    MEM is the memory location to operate on.
@@ -8524,7 +8524,7 @@ can_reuse_operands_p (enum insn_code icode,
     {
     case EXPAND_OUTPUT:
     case EXPAND_UNDEFINED_INPUT:
-      /* Outputs and undefined intputs must remain distinct.  */
+      /* Outputs and undefined inputs must remain distinct.  */
       return false;
 
     case EXPAND_FIXED:

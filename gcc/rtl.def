@@ -1017,7 +1017,7 @@ DEF_RTL_EXPR(DEFINE_SPECIAL_PREDICATE, "define_special_predicate", "ses", RTX_EX
    2: A docstring for this constraint, in Texinfo syntax; not currently
       used, in future will be incorporated into the manual's list of
       machine-specific operand constraints.
-   3: A C expression that evalutes to true if "regno" is a valid
+   3: A C expression that evaluates to true if "regno" is a valid
       start register.  */
 DEF_RTL_EXPR(DEFINE_REGISTER_CONSTRAINT, "define_register_constraint", "sssS", RTX_EXTRA)
 
@@ -1337,7 +1337,7 @@ DEF_RTL_EXPR(COND, "cond", "Ee", RTX_EXTRA)
    that match the substitution pattern.
 
    Operand:
-   0: The name of the substitition template.
+   0: The name of the substitution template.
    1: Input template to match to see if a substitution is applicable.
    2: A C expression giving an additional condition for the generated
       new define_expand or define_insn.
@@ -1361,7 +1361,7 @@ DEF_RTL_EXPR(DEFINE_SUBST, "define_subst", "sEsE", RTX_EXTRA)
       name, for the case that the DEFINE_SUBST is not applied (i.e. the
       unmodified version of the pattern).
    3: String to substitute for the subst-attribute name in the pattern
-      name, for the case that the DEFINE_SUBST is applied to the patten.
+      name, for the case that the DEFINE_SUBST is applied to the pattern.
 
    The use of DEFINE_SUBST and DEFINE_SUBST_ATTR is explained in the
    GCC internals manual, under "RTL Templates Transformations".  */

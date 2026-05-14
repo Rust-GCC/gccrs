@@ -806,14 +806,14 @@ oacc_xform_tile (gcall *call)
   e_mask = 0;
 #endif
   if (!e_mask)
-    /* Not paritioning.  */
+    /* Not partitioning.  */
     span = integer_one_node;
   else if (!integer_zerop (tile_size))
     /* User explicitly specified size.  */
     span = tile_size;
   else
     {
-      /* Pick a size based on the paritioning of the element loop and
+      /* Pick a size based on the partitioning of the element loop and
 	 the number of loop nests.  */
       tree first_size = NULL_TREE;
       tree second_size = NULL_TREE;
@@ -1011,7 +1011,7 @@ oacc_validate_dims (tree fn, tree attrs, int *dims, int level, unsigned used)
 	   same wording and logic applies to num_workers and
 	   vector_length, however the worker- or vector- single
 	   execution doesn't have the same impact as gang-redundant
-	   execution.  (If the minimum gang-level partioning is not 1,
+	   execution.  (If the minimum gang-level partitioning is not 1,
 	   the target is probably too confusing.)  */
 	dims[ix] = (used & GOMP_DIM_MASK (ix)
 		    ? oacc_default_dims[ix] : oacc_min_dims[ix]);
@@ -1478,7 +1478,7 @@ oacc_loop_process (oacc_loop *loop, int fn_level)
 	      "gang reduction on an orphan loop");
 }
 
-/* Walk the OpenACC loop heirarchy checking and assigning the
+/* Walk the OpenACC loop hierarchy checking and assigning the
    programmer-specified partitionings.  OUTER_MASK is the partitioning
    this loop is contained within.  Return mask of partitioning
    encountered.  If any auto loops are discovered, set GOMP_DIM_MAX
@@ -1628,7 +1628,7 @@ oacc_loop_fixed_partitions (oacc_loop *loop, unsigned outer_mask)
   return mask_all;
 }
 
-/* Walk the OpenACC loop heirarchy to assign auto-partitioned loops.
+/* Walk the OpenACC loop hierarchy to assign auto-partitioned loops.
    OUTER_MASK is the partitioning this loop is contained within.
    OUTER_ASSIGN is true if an outer loop is being auto-partitioned.
    Return the cumulative partitioning used by this loop, siblings and
@@ -1749,7 +1749,7 @@ oacc_loop_auto_partitions (oacc_loop *loop, unsigned outer_mask,
   return inner_mask;
 }
 
-/* Walk the OpenACC loop heirarchy to check and assign partitioning
+/* Walk the OpenACC loop hierarchy to check and assign partitioning
    axes.  Return mask of partitioning.  */
 
 static unsigned
@@ -2379,7 +2379,7 @@ execute_oacc_device_lower ()
 
        2. The address of the variable in the new address space can be taken,
 	  converted to the default (original) address space, and the result of
-	  that conversion subsituted in place of the original ADDR_EXPR node.
+	  that conversion substituted in place of the original ADDR_EXPR node.
 
      Which of these is done depends on the gimple statement being processed.
      At present atomic operations and inline asms use (1), and everything else

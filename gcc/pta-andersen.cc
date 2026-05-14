@@ -527,7 +527,7 @@ merge_node_constraints (constraint_graph_t graph, unsigned int to,
   FOR_EACH_VEC_ELT (graph->complex[from], i, c)
     {
       /* In complex constraints for node FROM, we may have either
-	 a = *FROM, and *FROM = a, or an offseted constraint which are
+	 a = *FROM, and *FROM = a, or an offsetted constraint which are
 	 always added to the rhs node's constraints.  */
 
       if (c->rhs.type == DEREF)
@@ -641,7 +641,7 @@ add_graph_edge (constraint_graph_t graph, unsigned int to,
 	 adding the direct edge FROM -> TO when we have FROM -> ESCAPED
 	 and TO contains ESCAPED.
 	 ???  Note this is only a heuristic, it does not prevent the
-	 situation from occuring.  The heuristic helps PR38474 and
+	 situation from occurring.  The heuristic helps PR38474 and
 	 PR99912 significantly.  */
       if (to < FIRST_REF_NODE
 	  && bitmap_bit_p (graph->succs[from], find (escaped_id))

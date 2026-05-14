@@ -81,7 +81,7 @@ opt_pass *current_pass;
    need to implement cloning, but passes that support multiple instances
    *must* provide their own implementation of the clone method.
 
-   Handle this by providing a default implemenation, but make it a fatal
+   Handle this by providing a default implementation, but make it a fatal
    error to call it.  */
 
 opt_pass *
@@ -1914,7 +1914,7 @@ account_profile_1 (function *fn, void *data)
   pop_cfun ();
 }
 
-/* Account profile chnages to all passes in list starting in SUB.  */
+/* Account profile changes to all passes in list starting in SUB.  */
 
 static void
 account_profile_in_list (opt_pass *sub)

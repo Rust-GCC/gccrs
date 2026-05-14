@@ -318,7 +318,7 @@ class md_reader
   htab_t m_overloads_htab;
 };
 
-/* Global singleton; constrast with rtx_reader_ptr below.  */
+/* Global singleton; contrast with rtx_reader_ptr below.  */
 extern md_reader *md_reader_ptr;
 
 /* An md_reader subclass which skips unknown directives, for
@@ -370,7 +370,7 @@ class rtx_reader : public md_reader
 #endif
 };
 
-/* Global singleton; constrast with md_reader_ptr above.  */
+/* Global singleton; contrast with md_reader_ptr above.  */
 extern rtx_reader *rtx_reader_ptr;
 
 extern void (*include_callback) (const char *);

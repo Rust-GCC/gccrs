@@ -1696,7 +1696,7 @@ handle_min_max_size (tree ptr, int ostype, access_ref *pref,
 	{
 	  /* If the object referenced by both arguments has been determined
 	     set *PREF to the one with more or less space remainng, whichever
-	     is appopriate for CODE.
+	     is appropriate for CODE.
 	     TODO: Indicate when the objects are distinct so it can be
 	     diagnosed.  */
 	  i0 = code == MAX_EXPR;
@@ -1794,7 +1794,7 @@ handle_array_ref (tree aref, gimple *stmt, bool addr, int ostype,
   tree arefop = TREE_OPERAND (aref, 0);
   tree reftype = TREE_TYPE (arefop);
   if (!addr && TREE_CODE (TREE_TYPE (reftype)) == POINTER_TYPE)
-    /* Avoid arrays of pointers.  FIXME: Hande pointers to arrays
+    /* Avoid arrays of pointers.  FIXME: Handle pointers to arrays
        of known bound.  */
     return false;
 
@@ -2027,7 +2027,7 @@ handle_ssa_name (tree ptr, bool addr, int ostype,
 	qry->max_depth = qry->depth;
       if (const access_ref *cache_ref = qry->get_ref (ptr, ostype))
 	{
-	  /* Add the number of DEREFerences accummulated so far.  */
+	  /* Add the number of DEREFerences accumulated so far.  */
 	  const int deref = pref->deref;
 	  *pref = *cache_ref;
 	  pref->deref += deref;

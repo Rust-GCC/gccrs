@@ -1,7 +1,7 @@
 // Pass to fuse adjacent loads/stores into paired memory accesses.
 //
 // This file contains the definition of the virtual base class which is
-// overriden by targets that make use of the pass.
+// overridden by targets that make use of the pass.
 //
 // Copyright (C) 2023-2026 Free Software Foundation, Inc.
 //
@@ -85,7 +85,7 @@ enum class writeback_type {
   ALL
 };
 
-// This class can be overriden by targets to give a pass that fuses
+// This class can be overridden by targets to give a pass that fuses
 // adjacent loads and stores into load/store pair instructions.
 //
 // The target can override the various virtual functions to customize

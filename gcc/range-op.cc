@@ -143,7 +143,7 @@ range_op_handler::operator bool () const
   return m_operator != &default_operator;
 }
 
-// Return a pointer to the range operator assocaited with this handler.
+// Return a pointer to the range operator associated with this handler.
 // If it is a default operator, return nullptr.
 // This is the equivalent of indexing the range table.
 
@@ -3242,7 +3242,7 @@ operator_cast::op1_range (irange &r, tree type,
       wide_int value = wide_int::from (bm.value (), TYPE_PRECISION (type),
 				       UNSIGNED);
 
-      // Set then additonal unknown bits in mask.
+      // Set then additional unknown bits in mask.
       wide_int lim = wi::mask (TYPE_PRECISION (lhs_type), true,
 			       TYPE_PRECISION (type));
       mask = mask | lim;
@@ -3623,8 +3623,8 @@ operator_bitwise_and::wi_fold (irange &r, tree type,
 			       const wide_int &rh_ub) const
 {
   // The AND algorithm does not handle complex signed operations well.
-  // If a signed range crosses the boundry between signed and unsigned
-  // proces sit as 2 ranges and union the results.
+  // If a signed range crosses the boundary between signed and unsigned
+  // process it as 2 ranges and union the results.
   if (TYPE_SIGN (type) == SIGNED
       && wi::neg_p (lh_lb, SIGNED) != wi::neg_p (lh_ub, SIGNED))
     {
@@ -3869,7 +3869,7 @@ operator_bitwise_and::op1_range (irange &r, tree type,
   op1_mask |= lhs_bm.mask ();
   // The resulting zeros correspond to known bits in the LHS mask, and
   // the LHS value should tell us what they are.  Mask off any
-  // extraneous values thats are not convered by the mask.
+  // extraneous values that are not covered by the mask.
   wide_int op1_value = lhs_bm.value () & ~op1_mask;
   irange_bitmask op1_bm (op1_value, op1_mask);
   // Intersect this mask with anything already known about the value.

@@ -67,7 +67,7 @@ void objc_common_register_features ();
   (INSTANCE_METHOD_OR_CLASS_METHOD_DECL_CHECK (DECL)->decl_common.size_unit)
 
 
-/* PROPERTY_DECL.  A PROPERTY_DECL repesents a @property declaration
+/* PROPERTY_DECL.  A PROPERTY_DECL represents a @property declaration
    (when attached to the list of properties of an interface) or a
    @synthesize or @dynamic declaration (when attached to the list of
    properties of an implementation).  */

@@ -88,7 +88,7 @@ struct cl_option
   /* Option length, not including initial '-'.  */
   unsigned char opt_len;
   /* Next option in a sequence marked with Negative, or -1 if none.
-     For a single option with both a negative and a positve form
+     For a single option with both a negative and a positive form
      (such as -Wall and -Wno-all), NEG_IDX is equal to the option's
      own index (i.e., cl_options[IDX].neg_idx == IDX holds).  */
   int neg_index;

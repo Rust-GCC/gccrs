@@ -1372,7 +1372,7 @@ gcse_after_reload_main (rtx f ATTRIBUTE_UNUSED)
 
   if (!expr_table->is_empty ())
     {
-      /* Knowing which MEMs are transparent through a block can signifiantly
+      /* Knowing which MEMs are transparent through a block can significantly
 	 increase the number of redundant loads found.  So compute transparency
 	 information for each memory expression in the hash table.  */
       df_analyze ();

@@ -356,7 +356,7 @@ lookup_reg_by_dump_name (const char *name)
   /* TODO: handle "virtual-reg-%d".  */
 
   /* In compact mode, pseudos are printed with '< and '>' wrapping the regno,
-     offseting it by (LAST_VIRTUAL_REGISTER + 1), so that the
+     offsetting it by (LAST_VIRTUAL_REGISTER + 1), so that the
      first non-virtual pseudo is dumped as "<0>".  */
   if (name[0] == '<' && name[strlen (name) - 1] == '>')
     {

@@ -476,7 +476,7 @@ simd_clone_clauses_extract (struct cgraph_node *node, tree clauses,
 }
 
 /* Given a SIMD clone in NODE, calculate the characteristic data
-   type and return the coresponding type.  The characteristic data
+   type and return the corresponding type.  The characteristic data
    type is computed as described in the Intel Vector ABI.  */
 
 static tree
@@ -1137,7 +1137,7 @@ ipa_simd_modify_stmt_ops (tree *tp, int *walk_subtrees, void *data)
    offset into the corresponding simd_array.
 
    This function will replace all function argument uses with their
-   corresponding simd array elements, and ajust the return values
+   corresponding simd array elements, and adjust the return values
    accordingly.  */
 
 static void

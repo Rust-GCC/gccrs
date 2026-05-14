@@ -369,7 +369,7 @@ mark_referenced_resources (rtx x, struct resources *res,
       /* In addition to the usual references, also consider all outputs
 	 as referenced, to compensate for mark_set_resources treating
 	 them as killed.  This is similar to ZERO_EXTRACT / STRICT_LOW_PART
-	 handling, execpt that we got a partial incidence instead of a partial
+	 handling, except that we got a partial incidence instead of a partial
 	 width.  */
       mark_set_resources (x, res, 0,
 			  include_delayed_effects
@@ -800,7 +800,7 @@ mark_target_live_regs (rtx_insn *insns, rtx target_maybe_return, struct resource
 	  if (CALL_P (real_insn))
 	    {
 	      /* Values in call-clobbered registers survive a COND_EXEC CALL
-		 if that is not executed; this matters for resoure use because
+		 if that is not executed; this matters for resource use because
 		 they may be used by a complementarily (or more strictly)
 		 predicated instruction, or if the CALL is NORETURN.  */
 	      if (GET_CODE (PATTERN (real_insn)) != COND_EXEC)

@@ -1351,7 +1351,7 @@ find_and_remove_re (void)
 
      It may first appear that the arguments for the copy are reversed.
      Remember that the memory reference will be changed to refer to the
-     destination of the extention.  So we're actually emitting a copy
+     destination of the extension.  So we're actually emitting a copy
      from the new destination to the old destination.  */
   for (unsigned int i = 0; i < reinsn_copy_list.length (); i += 2)
     {

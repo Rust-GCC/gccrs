@@ -82,7 +82,7 @@ struct objc_runtime_hooks
   /* Check for or otherwise handle a request to check that the constant
      string class reference is set-up & OK.  */
   bool (*setup_const_string_class_decl) (void);
-  /* Return the tree reprenting a const string constructor for the arg.
+  /* Return the tree representing a const string constructor for the arg.
      Most of the data are in global trees.  */
   tree (*build_const_string_constructor) (location_t, tree, int);
 
