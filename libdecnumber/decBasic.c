@@ -123,7 +123,7 @@ static decFloat * decCanonical(decFloat *result, const decFloat *df) {
   #endif
   } /* block */
 
-  /* Loop to repair a non-canonical coefficent, as needed */
+  /* Loop to repair a non-canonical coefficient, as needed */
   inword=DECWORDS-1;		   /* current input word */
   uoff=0;			   /* bit offset of declet */
   encode=DFWORD(result, inword);
@@ -178,7 +178,7 @@ static decFloat * decDivide(decFloat *result, const decFloat *dfl,
 			    const decFloat *dfr, decContext *set, uInt op) {
   decFloat quotient;		   /* for remainders */
   bcdnum num;			   /* for final conversion */
-  uInt	 acc[DIVACCLEN];	   /* coefficent in base-billion .. */
+  uInt	 acc[DIVACCLEN];	   /* coefficient in base-billion .. */
   uInt	 div[DIVOPLEN]; 	   /* divisor in base-billion .. */
   uInt	 quo[DIVOPLEN+1];	   /* quotient in base-billion .. */
   uByte  bcdacc[(DIVOPLEN+1)*9+2]; /* for quotient in BCD, +1, +1 */
@@ -255,7 +255,7 @@ static decFloat * decDivide(decFloat *result, const decFloat *dfl,
     } /* 0/x */
   /* [here, both operands are known to be finite and non-zero] */
 
-  /* extract the operand coefficents into 'units' which are */
+  /* extract the operand coefficients into 'units' which are */
   /* base-billion; the lhs is high-aligned in acc and the msu of both */
   /* acc and div is at the right-hand end of array (offset length-1); */
   /* the quotient can need one more unit than the operands as digits */
@@ -726,7 +726,7 @@ static void decFiniteMultiply(bcdnum *num, uByte *bcdacc,
   #if DECUSE64
   uLong  accl[MULACCLEN];	   /* lazy accumulator (base-billion+) */
   uLong  *pl;			   /* work -> lazy accumulator */
-  uInt	 acc[MULACCLEN];	   /* coefficent in base-billion .. */
+  uInt	 acc[MULACCLEN];	   /* coefficient in base-billion .. */
   #else
   uInt	 acc[MULACCLEN*2];	   /* accumulator in base-billion .. */
   #endif
@@ -766,7 +766,7 @@ static void decFiniteMultiply(bcdnum *num, uByte *bcdacc,
   #endif
 
   /* Effect the multiplication */
-  /* The multiplcation proceeds using MFC's lazy-carry resolution */
+  /* The multiplication proceeds using MFC's lazy-carry resolution */
   /* algorithm from decNumber.	First, the multiplication is */
   /* effected, allowing accumulation of the partial products (which */
   /* are in base-billion at each column position) into 64 bits */
@@ -2661,7 +2661,7 @@ decFloat * decFloatMultiply(decFloat *result,
 			    const decFloat *dfl, const decFloat *dfr,
 			    decContext *set) {
   bcdnum num;			   /* for final conversion */
-  uByte  bcdacc[DECPMAX9*18+1];    /* for coefficent in BCD */
+  uByte  bcdacc[DECPMAX9*18+1];    /* for coefficient in BCD */
 
   if (DFISSPECIAL(dfl) || DFISSPECIAL(dfr)) { /* either is special? */
     /* NaNs are handled as usual */
@@ -3072,7 +3072,7 @@ decFloat * decFloatQuantize(decFloat *result,
       } /* inexact rounding */
 
     /* now clear zeros to the left so exactly DECPMAX digits will be */
-    /* available in the coefficent -- the first word to the left was */
+    /* available in the coefficient -- the first word to the left was */
     /* cleared earlier for safe carry; now add any more needed */
     if (drop>4) {
       UBFROMUI(BUFOFF-8, 0);		     /* must be at least 5 */
@@ -3091,7 +3091,7 @@ decFloat * decFloatQuantize(decFloat *result,
       ulsd=BUFOFF+DECPMAX-1;
       }
      else { /* padding will fit (but may still be too long) */
-      /* final-word mask depends on endianess */
+      /* final-word mask depends on endianness */
       #if DECLITEND
       static const uInt dmask[]={0, 0x000000ff, 0x0000ffff, 0x00ffffff};
       #else
@@ -3833,7 +3833,7 @@ static uInt decToInt32(const decFloat *df, decContext *set,
     set->status|=DEC_Invalid_operation; /* Invalid or out of range */
     return 0;
     }
-  /* get last twelve digits of the coefficent into hi & ho, base */
+  /* get last twelve digits of the coefficient into hi & ho, base */
   /* 10**9 (see GETCOEFFBILL): */
   sourlo=DFWORD(&result, DECWORDS-1);
   lo=DPD2BIN0[sourlo&0x3ff]

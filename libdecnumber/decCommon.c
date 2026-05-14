@@ -252,7 +252,7 @@ static decFloat * decFinalize(decFloat *df, bcdnum *num,
   #if DECCHECK
   Int clen=ulsd-umsd+1;
   #if QUAD
-    #define COEXTRA 2			     /* extra-long coefficent */
+    #define COEXTRA 2			     /* extra-long coefficient */
   #else
     #define COEXTRA 0
   #endif
@@ -795,7 +795,7 @@ decFloat * decFloatFromString(decFloat *result, const char *string,
   uInt	 uiwork;		   /* for macros */
   bcdnum num;			   /* collects data for finishing */
   uInt	 error=DEC_Conversion_syntax;	/* assume the worst */
-  uByte  buffer[ROUNDUP(DECSTRING+11, 8)]; /* room for most coefficents, */
+  uByte  buffer[ROUNDUP(DECSTRING+11, 8)]; /* room for most coefficients, */
 				   /* some common rounding, +3, & pad */
   #if DECTRACE
   /* printf("FromString %s ...\n", string); */

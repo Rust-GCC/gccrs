@@ -3792,7 +3792,7 @@ static void decToString(const decNumber *dn, char *string, Flag eng) {
 /*								      */
 /* Addition, especially x=x+1, is speed-critical.		      */
 /* The static buffer is larger than might be expected to allow for    */
-/* calls from higher-level funtions (notable exp).		      */
+/* calls from higher-level functions (notable exp).		      */
 /* ------------------------------------------------------------------ */
 static decNumber * decAddOp(decNumber *res, const decNumber *lhs,
 			    const decNumber *rhs, decContext *set,
@@ -4206,7 +4206,7 @@ static decNumber * decAddOp(decNumber *res, const decNumber *lhs,
 /* long subtractions.  These are acc and var1 respectively.	      */
 /* var1 is a copy of the lhs coefficient, var2 is the rhs coefficient.*/
 /* The static buffers may be larger than might be expected to allow   */
-/* for calls from higher-level funtions (notable exp).		      */
+/* for calls from higher-level functions (notable exp).		      */
 /* ------------------------------------------------------------------ */
 static decNumber * decDivideOp(decNumber *res,
 			       const decNumber *lhs, const decNumber *rhs,
@@ -5571,7 +5571,7 @@ const uShort LNnn[90]={9016,  8652,  8316,  8008,  7724,  7456,  7208,
 /*    would certainly save at least one if it were made ten times     */
 /*    bigger, too (for truncated fractions 0.100 through 0.999).      */
 /*    However, for most practical evaluations, at least four or five  */
-/*    iterations will be neede -- so this would only speed up by      */
+/*    iterations will be needed -- so this would only speed up by      */
 /*    20-25% and that probably does not justify increasing the table  */
 /*    size.							      */
 /*								      */
@@ -8091,7 +8091,7 @@ static void *decMalloc(size_t n) {
   uInt	uiwork; 		   /* for macros */
 
   alloc=malloc(size);		   /* -> allocated storage */
-  if (alloc==NULL) return NULL;    /* out of strorage */
+  if (alloc==NULL) return NULL;    /* out of storage */
   b0=(uByte *)alloc;		   /* as bytes */
   decAllocBytes+=n;		   /* account for storage */
   UBFROMUI(alloc, n);		   /* save n */
