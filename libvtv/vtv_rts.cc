@@ -53,7 +53,7 @@
   hacker targets.
 
   To find and reference the set of valid vtable pointers for any given
-  virtual class, we create a special global varible for each virtual
+  virtual class, we create a special global variable for each virtual
   class.  We refer to this as the "vtable map variable" for that
   class.  The vtable map variable has the type "void *", and is
   initialized by the compiler to NULL.  At runtime when the set of
@@ -138,7 +138,7 @@
 #include <fcntl.h>
 #include <limits.h>
 
-/* For gthreads suppport */
+/* For gthreads support */
 #include <bits/c++config.h>
 #include <ext/concurrence.h>
 
@@ -368,7 +368,7 @@ unsigned int num_cache_entries VTV_PROTECTED_VAR = 0;
 
 /* This function takes the LOAD_ADDR for an object opened by the
    dynamic loader, and checks the array of cached file data to see if
-   there is an entry with the same addres.  If it finds such an entry,
+   there is an entry with the same address.  If it finds such an entry,
    it returns the record for that entry; otherwise it returns
    NULL.  */
 
@@ -1304,7 +1304,7 @@ init_set_symbol_debug (void **set_handle_ptr, const void *set_symbol_key,
     {
       VTV_DEBUG_ASSERT (*map_value_ptr != NULL);
       snprintf (buffer, sizeof(buffer),
-                "*** Found diffence between local set ptr %p and set ptr %p"
+                "*** Found difference between local set ptr %p and set ptr %p"
                 "for symbol %.*s",
                 *handle_ptr, *map_value_ptr,
                 symbol_key_ptr->n, symbol_key_ptr->bytes);

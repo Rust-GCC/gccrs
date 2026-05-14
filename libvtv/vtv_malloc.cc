@@ -24,7 +24,7 @@
 /* This file is part of the vtable verification runtime library.  It
    contains our memory allocation and deallocation routines, which we
    use in order to keep track of the pages in memory in which our sets
-   of valid vtable pointes are stored.  (We need to know the pages so
+   of valid vtable pointers are stored.  (We need to know the pages so
    we can set the protections on them appropriately).  For more
    information about the vtable verification feature, see the comments
    in vtv_rts.cc.  We use the existing obstack implementation in our
@@ -243,7 +243,7 @@ __vtv_malloc (size_t size)
 void
 __vtv_free (void *)
 {
-  /* Do nothing. We dont care about recovering unneded memory at this
+  /* Do nothing. We dont care about recovering unneeded memory at this
      time.  */
 }
 

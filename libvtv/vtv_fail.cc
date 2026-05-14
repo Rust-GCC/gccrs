@@ -35,7 +35,7 @@
    find the pointer in the data set.  Allowing the programmer to
    overwrite this function means that he/she can do some alternate
    verification, including NOT failing in certain specific cases, if
-   desired.  This may be the case if the programmer has to deal wtih
+   desired.  This may be the case if the programmer has to deal with
    unverified third party software, for example.  __vtv_really_fail is
    available for the programmer to call from his version of
    __vtv_verify_fail, if he decides the failure is real.

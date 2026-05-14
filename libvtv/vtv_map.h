@@ -92,7 +92,7 @@ class insert_only_hash_map
   { Alloc().dealloc (m, m->size_in_bytes_); }
 
   /* Return a map identical to this except that *k is mapped to v.
-     Typcially it's done by modifying this in place, but if a resize
+     Typically it's done by modifying this in place, but if a resize
      is necessary then this is deallocated and a new map is returned.
      Requires k to be non-NULL.  Does nothing and returns NULL if the
      allocator fails.  */

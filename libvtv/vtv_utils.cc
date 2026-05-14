@@ -21,7 +21,7 @@
    see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
    <http://www.gnu.org/licenses/>.  */
 
-/* This file is part of the vtable verication runtime library (see
+/* This file is part of the vtable verification runtime library (see
    comments in vtv_rts.cc for more information about vtable
    verification).  This file contains log file utilities.  */
 
@@ -58,7 +58,7 @@ static int vtv_failures_log_fd = -1;
    open it in the logs_dir directory, and returns the resulting file
    descriptor.
 
-   This function first checks to see if the user has specifed (via
+   This function first checks to see if the user has specified (via
    the environment variable VTV_LOGS_DIR) a directory to use for the
    vtable verification logs.  If that fails, the function will open
    the logs in the current directory.
@@ -131,11 +131,11 @@ vtv_log_write (int fd, const char *str)
 }
 
 
-/* This function takes a file decriptor (LOG_FILE) and an output
+/* This function takes a file descriptor (LOG_FILE) and an output
  format string (FORMAT), followed by zero or more print format
  arguments (the same as fprintf, for example).  It gets the current
  process ID and PPID, pre-pends them to the formatted message, and
- writes write it out to the log file referenced by LOG_FILE via calles
+ writes write it out to the log file referenced by LOG_FILE via calls
  to vtv_log_write.  */
 
 int
