@@ -1542,7 +1542,12 @@
 #undef __glibcxx_want_constexpr_flat_set
 
 #if !defined(__cpp_lib_constexpr_string)
-# if (__cplusplus >= 202002L) && _GLIBCXX_USE_CXX11_ABI && _GLIBCXX_HOSTED && (defined(__glibcxx_is_constant_evaluated))
+# if (__cplusplus >  202302L) && _GLIBCXX_USE_CXX11_ABI && _GLIBCXX_HOSTED
+#  define __glibcxx_constexpr_string 202511L
+#  if defined(__glibcxx_want_all) || defined(__glibcxx_want_constexpr_string)
+#   define __cpp_lib_constexpr_string 202511L
+#  endif
+# elif (__cplusplus >= 202002L) && _GLIBCXX_USE_CXX11_ABI && _GLIBCXX_HOSTED && (defined(__glibcxx_is_constant_evaluated))
 #  define __glibcxx_constexpr_string 201907L
 #  if defined(__glibcxx_want_all) || defined(__glibcxx_want_constexpr_string)
 #   define __cpp_lib_constexpr_string 201907L

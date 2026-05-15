@@ -4607,11 +4607,17 @@ _GLIBCXX_BEGIN_NAMESPACE_CXX11
   { return std::stod(__str, __idx); }
 #endif
 
+#if __glibcxx_constexpr_string >= 202511L
+# define _GLIBCXX_TO_STRING_CONSTEXPR constexpr
+#else
+# define _GLIBCXX_TO_STRING_CONSTEXPR inline
+#endif
+
   // _GLIBCXX_RESOLVE_LIB_DEFECTS
   // DR 1261. Insufficient overloads for to_string / to_wstring
 
   _GLIBCXX_NODISCARD
-  inline string
+  _GLIBCXX_TO_STRING_CONSTEXPR string
   to_string(int __val)
 #if _GLIBCXX_USE_CXX11_ABI && (__CHAR_BIT__ * __SIZEOF_INT__) <= 32
   noexcept // any 32-bit value fits in the SSO buffer
@@ -4630,7 +4636,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CXX11
   }
 
   _GLIBCXX_NODISCARD
-  inline string
+  _GLIBCXX_TO_STRING_CONSTEXPR string
   to_string(unsigned __val)
 #if _GLIBCXX_USE_CXX11_ABI && (__CHAR_BIT__ * __SIZEOF_INT__) <= 32
   noexcept // any 32-bit value fits in the SSO buffer
@@ -4646,7 +4652,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CXX11
   }
 
   _GLIBCXX_NODISCARD
-  inline string
+  _GLIBCXX_TO_STRING_CONSTEXPR string
   to_string(long __val)
 #if _GLIBCXX_USE_CXX11_ABI && (__CHAR_BIT__ * __SIZEOF_LONG__) <= 32
   noexcept // any 32-bit value fits in the SSO buffer
@@ -4665,7 +4671,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CXX11
   }
 
   _GLIBCXX_NODISCARD
-  inline string
+  _GLIBCXX_TO_STRING_CONSTEXPR string
   to_string(unsigned long __val)
 #if _GLIBCXX_USE_CXX11_ABI && (__CHAR_BIT__ * __SIZEOF_LONG__) <= 32
   noexcept // any 32-bit value fits in the SSO buffer
@@ -4681,7 +4687,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CXX11
   }
 
   _GLIBCXX_NODISCARD
-  inline string
+  _GLIBCXX_TO_STRING_CONSTEXPR string
   to_string(long long __val)
   {
     const bool __neg = __val < 0;
@@ -4698,7 +4704,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CXX11
   }
 
   _GLIBCXX_NODISCARD
-  inline string
+  _GLIBCXX_TO_STRING_CONSTEXPR string
   to_string(unsigned long long __val)
   {
     const auto __len = __detail::__to_chars_len(__val);
@@ -4922,32 +4928,32 @@ _GLIBCXX_BEGIN_NAMESPACE_CXX11
 #pragma GCC diagnostic pop
 
   _GLIBCXX_NODISCARD
-  inline wstring
+  _GLIBCXX_TO_STRING_CONSTEXPR wstring
   to_wstring(int __val)
   { return std::__to_wstring_numeric(std::to_string(__val)); }
 
   _GLIBCXX_NODISCARD
-  inline wstring
+  _GLIBCXX_TO_STRING_CONSTEXPR wstring
   to_wstring(unsigned __val)
   { return std::__to_wstring_numeric(std::to_string(__val)); }
 
   _GLIBCXX_NODISCARD
-  inline wstring
+  _GLIBCXX_TO_STRING_CONSTEXPR wstring
   to_wstring(long __val)
   { return std::__to_wstring_numeric(std::to_string(__val)); }
 
   _GLIBCXX_NODISCARD
-  inline wstring
+  _GLIBCXX_TO_STRING_CONSTEXPR wstring
   to_wstring(unsigned long __val)
   { return std::__to_wstring_numeric(std::to_string(__val)); }
 
   _GLIBCXX_NODISCARD
-  inline wstring
+  _GLIBCXX_TO_STRING_CONSTEXPR wstring
   to_wstring(long long __val)
   { return std::__to_wstring_numeric(std::to_string(__val)); }
 
   _GLIBCXX_NODISCARD
-  inline wstring
+  _GLIBCXX_TO_STRING_CONSTEXPR wstring
   to_wstring(unsigned long long __val)
   { return std::__to_wstring_numeric(std::to_string(__val)); }
 
@@ -4968,6 +4974,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CXX11
   { return std::__to_wstring_numeric(std::to_string(__val)); }
 #endif
 #endif // _GLIBCXX_USE_WCHAR_T
+#undef _GLIBCXX_TO_STRING_CONSTEXPR
 
 _GLIBCXX_END_NAMESPACE_CXX11
 _GLIBCXX_END_NAMESPACE_VERSION

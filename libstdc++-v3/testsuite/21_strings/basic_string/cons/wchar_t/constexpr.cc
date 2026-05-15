@@ -6,8 +6,8 @@
 
 #ifndef __cpp_lib_constexpr_string
 # error "Feature-test macro for constexpr std::string missing in <string>"
-#elif __cpp_lib_constexpr_string != 201907L
-# error "Feature-test macro for constexpr std::string has wrong value in <string>"
+#elif __cpp_lib_constexpr_string < 201907L
+# error "Feature-test macro for constexpr std::string too small value in <string>"
 #endif
 
 #include <testsuite_hooks.h>

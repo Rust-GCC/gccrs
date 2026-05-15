@@ -25,3 +25,15 @@
 #  endif
 # endif
 #endif
+
+#if __cplusplus > 202302L
+# if _GLIBCXX_USE_CXX11_ABI
+#  if __cpp_lib_constexpr_string != 202511L
+#   error "Feature-test macro for constexpr std::string has wrong value for C++20 in <version>"
+#  endif
+# else // COW strings
+#  if __cpp_lib_constexpr_string != 201811L
+#   error "Feature-test macro for constexpr std::string has wrong value for C++20 in <version>"
+#  endif
+# endif
+#endif

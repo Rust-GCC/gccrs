@@ -1398,6 +1398,14 @@ ftms = {
 
 ftms = {
   name = constexpr_string;
+  // 202511 LWG4531 Should there be a feature-test macro update for constexpr std::to_(w)string?
+  //        P3391R2 constexpr std::format
+  values = {
+    v = 202511;
+    cxxmin = 26;
+    hosted = yes;
+    cxx11abi = yes;
+  };
   values = {
     v = 201907;
     cxxmin = 20;
