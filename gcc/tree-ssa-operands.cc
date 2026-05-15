@@ -976,6 +976,12 @@ operands_scanner::parse_ssa_operands ()
       append_vuse (gimple_vop (fn));
       goto do_default;
 
+    /* Switch index is the only operand that matters.  */
+    case GIMPLE_SWITCH:
+      get_expr_operands (gimple_switch_index_ptr (as_a <gswitch*> (stmt)),
+			 opf_use);
+      break;
+
     case GIMPLE_CALL:
       /* Add call-clobbered operands, if needed.  */
       maybe_add_call_vops (as_a <gcall *> (stmt));
