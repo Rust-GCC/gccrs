@@ -1,3 +1,46 @@
+2026-05-14  Andi Kleen  <ak@gcc.gnu.org>
+
+	PR target/124316
+	* config/i386/i386.md (ptwrite): Add explicit mode to
+	instruction.
+
+2026-05-14  Xi Ruoyao  <xry111@xry111.site>
+
+	PR rtl-optimization/96692
+	* config/loongarch/loongarch.md (define_split): New splitters
+	turning a ^ b ^ (a | c) => (c &~ a) ^ b.
+
+2026-05-14  Jeff Law  <jeffrey.law@oss.qualcomm.com>
+
+	* config/riscv/riscv-v.cc (expand_const_vector_stepped): Drop unused
+	SRC parameter. All callers changed.
+	(expand_const_vector_interleaved_stepped_npatterns): Likewise.
+	(expand_const_vector): Corresponding changes.
+
+2026-05-14  Alex Coplan  <alex.coplan@arm.com>
+
+	* doc/rtl.texi (Machine Modes): Update description of
+	GET_MODE_MASK to use HOST_BITS_PER_WIDE_INT instead of
+	HOST_BITS_PER_INT as the upper limit of the input mode's bitsize.
+
+2026-05-14  Tobias Burnus  <tburnus@baylibre.com>
+
+	* langhooks.cc (lhd_omp_deep_mapping_p, lhd_omp_deep_mapping_cnt,
+	lhd_omp_deep_mapping): Improve interface comment.
+	* langhooks.h (lhd_omp_deep_mapping_p, lhd_omp_deep_mapping_cnt,
+	lhd_omp_deep_mapping): Likewise
+
+2026-05-14  Georg-Johann Lay  <avr@gjlay.de>
+
+	PR target/125194
+	* config/avr/avr.cc (avr_no_call_main_p): Remove variable...
+	(avr_file_end): ...and code that uses it.
+	(avr_insert_attributes): Same.  Add "used" to main attributes
+	when -mno-call-main.
+	* config/avr/gen-avr-mmcu-specs.cc (print_mcu): Emit code
+	for link_no_call_main specs.
+	* config/avr/specs.h (LINK_SPEC): Add %(link_no_call_main).
+
 2026-05-13  Zhongyao Chen  <chen.zhongyao@zte.com.cn>
 
 	PR target/125215

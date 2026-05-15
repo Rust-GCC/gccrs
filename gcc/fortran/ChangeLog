@@ -1,3 +1,31 @@
+2026-05-14  Thomas Koenig  <tkoenig@gcc.gnu.org>
+
+	PR fortran/125092
+	* decl.cc (add_global_entry): Use string from the heap instead
+	of a pointer to stack-allocated memory.
+	* frontend-passes.cc (check_against_globals): If there is an error
+	already, return early.
+	* gfortran.h (gfc_symbol_rank): New prototype.
+	* interface.cc (symbol_rank): Rename to
+	(gfc_symbol_rank): this.
+	(gfc_check_dummy_characteristics): Use new function name.
+	(gfc_check_result_characteristics): Likewise.
+	(gfc_compare_interfaces): Likewise.
+	(compare_parameter): Likewise.
+	(get_sym_storage_size): Likewise.
+	(gfc_procedure_use): Likewise.
+	* resolve.cc (decays_to_pointer): New function.
+	(c_types_conform): New function.
+	(compare_c_binding_arglists): New function.
+	(gfc_verify_binding_labels): Check return types and rank
+	plus argument lists if there is a pre-exisiting global
+	symbol.
+
+2026-05-14  Tobias Burnus  <tburnus@baylibre.com>
+
+	* trans-openmp.cc (gfc_omp_deep_mapping_p, gfc_omp_deep_mapping_cnt,
+	gfc_omp_deep_mapping): Improve interface comment.
+
 2026-05-13  Tobias Burnus  <tburnus@baylibre.com>
 
 	* intrinsic.texi (OpenMP Modules): Add named parameters for

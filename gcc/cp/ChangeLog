@@ -1,3 +1,23 @@
+2026-05-14  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/124628
+	* reflect.cc (resolve_type_of_reflected_decl): New.
+	(get_reflection): Call resolve_type_of_reflected_decl instead
+	of mark_used.
+	(has_type): Call resolve_type_of_reflected_decl before
+	checking for an undeduced auto.
+	(eval_can_substitute): Likewise.  Also look through BASELINK.
+	(members_of_representable): Call resolve_type_of_reflected_decl
+	before checking for an undeduced auto.
+
+2026-05-14  Tobias Burnus  <tburnus@baylibre.com>
+
+	* semantics.cc (cp_check_omp_declare_mapper): Change what
+	argument is expected; check that the struct var is used by at
+	least one map war. Print sorry when compiling with -std=c++98.
+	* pt.cc (tsubst_stmt, tsubst_expr): Call it.
+	* parser.cc (cp_parser_omp_declare_mapper): Update call.
+
 2026-05-13  Marek Polacek  <polacek@redhat.com>
 
 	PR c++/125280

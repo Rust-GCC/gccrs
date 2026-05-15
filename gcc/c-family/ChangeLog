@@ -1,3 +1,8 @@
+2026-05-14  Tobias Burnus  <tburnus@baylibre.com>
+
+	* c-omp.cc (omp_map_decayed_kind): Handle map modifiers
+	also for declare-mapper's map clauses.
+
 2026-05-11  Jason Merrill  <jason@redhat.com>
 
 	PR c++/124621

@@ -1,3 +1,8 @@
+2026-05-14  Tobias Burnus  <tburnus@baylibre.com>
+
+	* c-parser.cc (c_parser_omp_declare_mapper): Check that the
+	struct var is actually used by at least one map clause.
+
 2026-05-13  Martin Uecker  <uecker@tugraz.at>
 
 	PR c/125261

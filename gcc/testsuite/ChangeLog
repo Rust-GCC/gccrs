@@ -1,3 +1,70 @@
+2026-05-14  Uros Bizjak  <ubizjak@gmail.com>
+
+	* lib/target-supports.exp (check_profiling_available): Remove
+	unused global declaration and debugging output.
+
+2026-05-14  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/124628
+	* g++.dg/reflect/can_substitute2.C: New test.
+	* g++.dg/reflect/members_of14.C: New test.
+	* g++.dg/reflect/substitute3.C: Adjust test so that f<int>'s
+	return type fails to get deduced.
+	* g++.dg/reflect/type_of3.C: Also test type_of of a templated
+	member function with deduced return type.
+
+2026-05-14  Andi Kleen  <ak@gcc.gnu.org>
+
+	PR target/124316
+	* gcc.target/i386/pr124316.c: New test.
+
+2026-05-14  Tobias Burnus  <tburnus@baylibre.com>
+
+	* c-c++-common/gomp/declare-mapper-10.c: Exclude C++98.
+	* c-c++-common/gomp/declare-mapper-15.c: Likewise.
+	* c-c++-common/gomp/declare-mapper-16.c: Likewise.
+	* c-c++-common/gomp/declare-mapper-3.c: Likewise.
+	* c-c++-common/gomp/declare-mapper-4.c: Likewise.
+	* c-c++-common/gomp/declare-mapper-5.c: Likewise.
+	* c-c++-common/gomp/declare-mapper-6.c: Likewise.
+	* c-c++-common/gomp/declare-mapper-7.c: Likewise.
+	* c-c++-common/gomp/declare-mapper-8.c: Likewise.
+	* c-c++-common/gomp/declare-mapper-9.c: Likewise.
+	* g++.dg/gomp/declare-mapper-1.C: Likewise.
+	* g++.dg/gomp/declare-mapper-2.C: Likewise.
+	* c-c++-common/gomp/pr122866.c: Expect sorry with C++98.
+	* c-c++-common/gomp/declare-mapper-11.c: Likewise.
+	Add dg-error for missing var-in-map-clause use.
+	* g++.dg/gomp/declare-mapper-3.C: Likewise.
+	* c-c++-common/gomp/declare-mapper-17.c: New test.
+	* c-c++-common/gomp/declare-mapper-18.c: New test.
+	* g++.dg/gomp/declare-mapper-4.C: New test.
+	* g++.dg/gomp/declare-mapper-5.C: New test.
+
+2026-05-14  Thomas Koenig  <tkoenig@gcc.gnu.org>
+
+	PR fortran/125092
+	* gfortran.dg/PR100906.f90: Add -Wno-pedantic to options.
+	* gfortran.dg/PR100911.f90: Likewise.
+	* gfortran.dg/PR100915.f90: Likewise.
+	* gfortran.dg/PR94327.f90: Likewise.
+	* gfortran.dg/PR94331.f90: Likewise.
+	* gfortran.dg/bind_c_procs_4.f90: Add error messages, remove
+	warning.
+	* gfortran.dg/binding_label_tests_25.f90: Add error messages.
+	* gfortran.dg/binding_label_tests_3.f03: Add error messages.
+	* gfortran.dg/binding_label_tests_34.f90: Add -Wno-pedantic to
+	options.
+	* gfortran.dg/c_char_tests_4.f90: Likewise.
+	* gfortran.dg/c_char_tests_5.f90: Likewise.
+	* gfortran.dg/binding_label_tests_36.f90: New test.
+	* gfortran.dg/binding_label_tests_37.f90: New test.
+
+2026-05-14  Xi Ruoyao  <xry111@xry111.site>
+
+	PR rtl-optimization/96692
+	* gcc.target/loongarch/pr96692.c: New test.
+
 2026-05-13  Zhongyao Chen  <chen.zhongyao@zte.com.cn>
 
 	PR target/125215

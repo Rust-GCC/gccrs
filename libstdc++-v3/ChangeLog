@@ -1,3 +1,47 @@
+2026-05-14  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* include/std/type_traits (__type_identity, __type_identity_t)
+	[__cpp_lib_type_identity]: Define as alias to type_identity
+	and its nested type respectively.
+
+2026-05-14  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	PR libstdc++/113761
+	* include/bits/random.h
+	(piecewise_constant_distribution::param_type::_M_initialize)
+	(piecewise_linear_distribution::param_type::_M_initialize): Remove.
+	(piecewise_constant_distribution::param_type::_M_configure)
+	(piecewise_linear_distribution::param_type::_M_configure): Define.
+	(piecewise_constant_distribution::param_type::_M_initialize2)
+	(piecewise_linear_distribution::param_type::_M_initialize2): Declare.
+	* include/bits/random.tcc (__detail::__load_first2): Define.
+	(piecewise_constant_distribution::param_type::_M_initialize)
+	(piecewise_linear_distribution::param_type::_M_initialize):
+	Rename to...
+	(piecewise_constant_distribution::param_type::_M_configure)
+	(piecewise_linear_distribution::param_type::_M_configure):
+	Renamed implementation of _M_initialize, that removes checks for
+	default values.
+	(piecewise_constant_distribution::param_type::_M_initialize2)
+	(piecewise_linear_distribution::param_type::_M_initialize2): Define.
+	(piecewise_constant_distribution::param_type::param_type)
+	(piecewise_linear_distribution::param_type::param_type):
+	Exit early for less that two intervals. Use _M_initialize2 to handle
+	two intervals case. Reserve _M_int for iterators case.
+	* testsuite/26_numerics/random/piecewise_constant_distribution/cons/range.cc:
+	Test input and forward iterators, in addition to random_access ones.
+	* testsuite/26_numerics/random/piecewise_linear_distribution/cons/range.cc:
+	Likewise.
+	* testsuite/26_numerics/random/piecewise_constant_distribution/cons/fallback.cc:
+	New test.
+	* testsuite/26_numerics/random/piecewise_linear_distribution/cons/fallback.cc:
+	New test.
+
+2026-05-14  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* testsuite/26_numerics/random/uniform_real_distribution/operators/gencanon_eng_neg.cc:
+	Removed preprocessor checks, add dg-require-effective-target.
+
 2026-05-13  Jonathan Wakely  <jwakely@redhat.com>
 
 	* include/bits/shared_ptr_atomic.h: Remove trailing whitespace.
