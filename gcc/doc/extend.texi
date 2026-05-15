@@ -16022,6 +16022,25 @@ Similar to @code{__builtin_bswap64}, except the argument and return types
 are 128-bit.  Only supported on targets when 128-bit types are supported.
 @enddefbuiltin
 
+@defbuiltin{uint8_t __builtin_bitreverse8 (uint8_t @var{x})}
+Returns @var{x} with all bits reversed.
+@enddefbuiltin
+
+@defbuiltin{uint16_t __builtin_bitreverse16 (uint16_t @var{x})}
+Similar to @code{__builtin_bitreverse8}, except the argument and return types
+are 16-bit.
+@enddefbuiltin
+
+@defbuiltin{uint32_t __builtin_bitreverse32 (uint32_t @var{x})}
+Similar to @code{__builtin_bitreverse8}, except the argument and return types
+are 32-bit.
+@enddefbuiltin
+
+@defbuiltin{uint64_t __builtin_bitreverse64 (uint64_t @var{x})}
+Similar to @code{__builtin_bitreverse8}, except the argument and return types
+are 64-bit.
+@enddefbuiltin
+
 @node CRC Builtins
 @subsection CRC Builtins
 @cindex CRC builtins

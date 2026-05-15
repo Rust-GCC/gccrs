@@ -2959,6 +2959,132 @@ expand_doubleword_bswap (machine_mode mode, rtx op, rtx target)
   return target;
 }
 
+/* Try calculating (bitreverse x) using masks and shifts.  */
+
+static rtx
+expand_bitreverse (scalar_int_mode mode, rtx op0, rtx target)
+{
+  unsigned int precision = GET_MODE_BITSIZE (mode);
+  rtx_insn *last;
+
+  /* Operation requires at least 4 bits (one nibble swap makes no sense below
+     that).  */
+  if (precision < 4)
+    return NULL_RTX;
+
+  if (target == NULL_RTX
+      || target == op0
+      || reg_overlap_mentioned_p (target, op0))
+    target = gen_reg_rtx (mode);
+
+  last = get_last_insn ();
+
+  rtx x, lo, hi;
+
+  /* Step 1: byte-swap (only meaningful for >= 16 bits).  */
+  if (precision >= 16)
+    {
+      x = expand_unop (mode, bswap_optab, op0, NULL_RTX, true);
+      if (x == NULL_RTX)
+	goto fail;
+    }
+  else
+    x = op0;
+
+  /* Step 2: swap nibbles within each byte (shift=4, only for >= 8 bits).  */
+  if (precision >= 8)
+    {
+      wide_int mask = wi::zero (precision);
+      for (unsigned int start = 0; start < precision; start += 8)
+	mask = wi::bit_or (mask, wi::shifted_mask (start, 4, false,
+						   precision));
+
+      rtx mask_rtx = immed_wide_int_const (mask, mode);
+
+      hi = expand_simple_binop (mode, LSHIFTRT, x, GEN_INT (4),
+				NULL_RTX, true, OPTAB_LIB_WIDEN);
+      if (hi == NULL_RTX) goto fail;
+      hi = expand_binop (mode, and_optab, hi, mask_rtx,
+			 NULL_RTX, true, OPTAB_LIB_WIDEN);
+      if (hi == NULL_RTX) goto fail;
+
+      lo = expand_binop (mode, and_optab, x, mask_rtx,
+			 NULL_RTX, true, OPTAB_LIB_WIDEN);
+      if (lo == NULL_RTX) goto fail;
+      lo = expand_simple_binop (mode, ASHIFT, lo, GEN_INT (4),
+				NULL_RTX, true, OPTAB_LIB_WIDEN);
+      if (lo == NULL_RTX) goto fail;
+
+      x = expand_binop (mode, ior_optab, hi, lo,
+			NULL_RTX, true, OPTAB_LIB_WIDEN);
+      if (x == NULL_RTX) goto fail;
+    }
+
+  /* Step 3: swap pairs of bits within each nibble (shift=2).  */
+  {
+    wide_int mask = wi::zero (precision);
+    for (unsigned int start = 0; start < precision; start += 4)
+      mask = wi::bit_or (mask, wi::shifted_mask (start, 2, false, precision));
+
+    rtx mask_rtx = immed_wide_int_const (mask, mode);
+
+    hi = expand_simple_binop (mode, LSHIFTRT, x, GEN_INT (2),
+			      NULL_RTX, true, OPTAB_LIB_WIDEN);
+    if (hi == NULL_RTX) goto fail;
+    hi = expand_binop (mode, and_optab, hi, mask_rtx,
+		       NULL_RTX, true, OPTAB_LIB_WIDEN);
+    if (hi == NULL_RTX) goto fail;
+
+    lo = expand_binop (mode, and_optab, x, mask_rtx,
+		       NULL_RTX, true, OPTAB_LIB_WIDEN);
+    if (lo == NULL_RTX) goto fail;
+    lo = expand_simple_binop (mode, ASHIFT, lo, GEN_INT (2),
+			      NULL_RTX, true, OPTAB_LIB_WIDEN);
+    if (lo == NULL_RTX) goto fail;
+
+    x = expand_binop (mode, ior_optab, hi, lo,
+		      NULL_RTX, true, OPTAB_LIB_WIDEN);
+    if (x == NULL_RTX) goto fail;
+  }
+
+  /* Step 4: swap adjacent bits (shift=1).  */
+  {
+    wide_int mask = wi::zero (precision);
+    for (unsigned int start = 0; start < precision; start += 2)
+      mask = wi::bit_or (mask, wi::shifted_mask (start, 1, false,
+						 precision));
+
+    rtx mask_rtx = immed_wide_int_const (mask, mode);
+
+    hi = expand_simple_binop (mode, LSHIFTRT, x, GEN_INT (1),
+			      NULL_RTX, true, OPTAB_LIB_WIDEN);
+    if (hi == NULL_RTX) goto fail;
+    hi = expand_binop (mode, and_optab, hi, mask_rtx,
+		       NULL_RTX, true, OPTAB_LIB_WIDEN);
+    if (hi == NULL_RTX) goto fail;
+
+    lo = expand_binop (mode, and_optab, x, mask_rtx,
+		       NULL_RTX, true, OPTAB_LIB_WIDEN);
+    if (lo == NULL_RTX) goto fail;
+    lo = expand_simple_binop (mode, ASHIFT, lo, GEN_INT (1),
+			      NULL_RTX, true, OPTAB_LIB_WIDEN);
+    if (lo == NULL_RTX) goto fail;
+
+    x = expand_binop (mode, ior_optab, hi, lo,
+		      target, true, OPTAB_LIB_WIDEN);
+    if (x == NULL_RTX) goto fail;
+  }
+
+  if (x != target)
+    emit_move_insn (target, x);
+
+  return target;
+
+ fail:
+  delete_insns_since (last);
+  return NULL_RTX;
+}
+
 /* Try calculating (parity x) as (and (popcount x) 1), where
    popcount can also be done in a wider mode.  */
 static rtx
@@ -3408,6 +3534,10 @@ expand_unop (machine_mode mode, optab unoptab, rtx op0, rtx target,
 
       goto try_libcall;
     }
+
+  if (unoptab == bitreverse_optab && is_a <scalar_int_mode> (mode, &int_mode))
+    if (rtx tem = expand_bitreverse (int_mode, op0, target))
+      return tem;
 
   /* Neg should be tried via expand_absneg_bit before widening.  */
   if (optab_to_code (unoptab) == NEG)

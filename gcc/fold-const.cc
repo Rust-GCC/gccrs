@@ -14984,6 +14984,10 @@ tree_call_nonnegative_warnv_p (tree type, combined_fn fn, tree arg0, tree arg1,
     case CFN_BUILT_IN_BSWAP32:
     case CFN_BUILT_IN_BSWAP64:
     case CFN_BUILT_IN_BSWAP128:
+    case CFN_BUILT_IN_BITREVERSE8:
+    case CFN_BUILT_IN_BITREVERSE16:
+    case CFN_BUILT_IN_BITREVERSE32:
+    case CFN_BUILT_IN_BITREVERSE64:
       /* Always true.  */
       return true;
 

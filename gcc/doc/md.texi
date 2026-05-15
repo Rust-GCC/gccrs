@@ -5273,6 +5273,10 @@ op0 = (narrow) (((wide) op1 + (wide) op2 + 1) >> 1);
 @item @samp{bswap@var{m}2}
 Reverse the order of bytes of operand 1 and store the result in operand 0.
 
+@mdindex bitreverse@var{m}2
+@item @samp{bitreverse@var{m}2}
+Reverse the order of bits of operand 1 and store the result in operand 0.
+
 @mdindex neg@var{m}2
 @mdindex ssneg@var{m}2
 @mdindex usneg@var{m}2
