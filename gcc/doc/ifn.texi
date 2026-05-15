@@ -63,8 +63,19 @@ instruction pattern.
 
 @cindex @code{IFN_MASK_LOAD} internal function
 @item @samp{IFN_MASK_LOAD}
-The @code{IFN_MASK_LOAD} internal function directly maps to the @code{maskload}
-instruction pattern.
+The @code{IFN_MASK_LOAD} internal function maps directly to the
+@code{maskload} instruction pattern (@pxref{maskload@var{m}@var{n}}).
+For a vector type @code{v} (with @code{TYPE_MODE} @var{m}), a mask type
+@code{p} (with @code{TYPE_MODE} @var{n}), and pointer type
+@code{aliasptr}, the signature of the internal function is:
+@smallexample
+v IFN_MASK_LOAD (v *addr, aliasptr cookie, p mask, v elseval)
+@end smallexample
+a call to this internal function with lhs @var{r} maps to
+@code{maskload@var{m}@var{n}} with the following operands array:
+@code{[@var{r}, addr, mask, elseval]}.  @code{cookie}'s type
+(@code{aliasptr}) is a pointer type used for type-based alias analysis,
+and its value gives the alignment of the load in bits.
 
 @cindex @code{IFN_LOAD_LANES} internal function
 @item @samp{IFN_LOAD_LANES}

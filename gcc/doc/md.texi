@@ -7617,6 +7617,7 @@ Operands 0, 2 and 3 have mode @var{m}.  Operand 1 has mode @var{n}.
 Operands 4 and 5 have a target-dependent scalar integer mode.
 
 @mdindex maskload@var{m}@var{n}
+@anchor{maskload@var{m}@var{n}}
 @item @samp{maskload@var{m}@var{n}}
 Perform a masked load of vector from memory operand 1 of mode @var{m}
 into register operand 0.  The mask is provided in register operand 2 of
