@@ -4308,6 +4308,35 @@ gfc_trans_omp_clauses (stmtblock_t *block, gfc_omp_clauses *clauses,
 	case OMP_LIST_MAP:
 	  for (; n != NULL; n = n->next)
 	    {
+	      if (!openacc)
+		{
+		  // Remove duplicates
+		  bool skip = false;
+		  for (gfc_omp_namelist *n2 = n->next; n2 != NULL;
+		       n2 = n2->next)
+		    {
+		      if (n2->sym == n->sym
+			  && gfc_dep_compare_expr (n2->expr, n->expr) == 0)
+			{
+			  if (n2->u.map.op == n->u.map.op)
+			    {
+			      skip = true;
+			      break;
+			    }
+			  else if ((n2->u.map.op & ~OMP_MAP_TOFROM)
+				   == (n->u.map.op & ~OMP_MAP_TOFROM))
+			    {
+			      n2->u.map.op = (enum gfc_omp_map_op) (
+				n->u.map.op | n2->u.map.op);
+			      skip = true;
+			      break;
+			    }
+			}
+		    }
+		  if (skip)
+		    continue;
+		}
+
 	      if (!n->sym->attr.referenced
 		  || n->sym->attr.flavor == FL_PARAMETER)
 		continue;

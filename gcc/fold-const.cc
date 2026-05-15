@@ -3816,6 +3816,9 @@ operand_compare::operand_equal_p (tree type0, const_tree arg0,
 	  }
 	return false;
 
+	case OMP_ARRAY_SECTION:
+	  return OP_SAME (0) && OP_SAME_WITH_NULL (1) && OP_SAME_WITH_NULL (2);
+
 	default:
 	  return false;
 	}

@@ -9293,7 +9293,7 @@ resolve_omp_clauses (gfc_code *code, gfc_omp_clauses *omp_clauses,
 		gfc_error ("Symbol %qs has mixed component and non-component "
 			   "accesses at %L", n->sym->name, &n->where);
 	    }
-	  else if (n->sym->mark)
+	  else if ((openacc || list != OMP_LIST_MAP) && n->sym->mark)
 	    gfc_error ("Symbol %qs present on multiple clauses at %L",
 		       n->sym->name, &n->where);
 	  else

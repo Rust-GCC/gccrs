@@ -5152,3 +5152,98 @@ omp_merge_context_selectors (location_t loc, tree outer_ctx, tree inner_ctx,
   merged_ctx = nreverse (merged_ctx);
   return omp_check_context_selector (loc, merged_ctx, directive);
 }
+
+/* Remove duplicate and merge clauses mapping the same variable. This function
+   is called twice: FIRST in the C and C++ front-ends before any clause
+   expansion happens, then in the gimplifier before gathering groups. This is
+   because it is easier to process most clauses earlier but some duplicates
+   still get introduced during the early clause expansion in the front-ends. */
+
+tree
+omp_remove_duplicate_maps (tree clauses, bool first)
+{
+  if (clauses == NULL_TREE)
+    return NULL_TREE;
+
+  tree outlist = NULL_TREE;
+  tree *outlist_p = &outlist;
+  bool remove = false;
+  tree c1;
+  for (c1 = clauses; OMP_CLAUSE_CHAIN (c1) != NULL_TREE;
+       c1 = OMP_CLAUSE_CHAIN (c1))
+    {
+      if (OMP_CLAUSE_CODE (c1) != OMP_CLAUSE_MAP)
+	{
+	  *outlist_p = c1;
+	  outlist_p = &OMP_CLAUSE_CHAIN (*outlist_p);
+	  continue;
+	}
+
+      for (tree c2 = OMP_CLAUSE_CHAIN (c1); c2 != NULL_TREE;
+	   c2 = OMP_CLAUSE_CHAIN (c2))
+	{
+	  if (OMP_CLAUSE_CODE (c2) != OMP_CLAUSE_MAP)
+	    continue;
+
+	  bool maybe_dup_found
+	    = (OMP_CLAUSE_CODE (c1) == OMP_CLAUSE_CODE (c2)
+	       && ((/* In the current state, a map clause decl is not supposed
+		       to be NULL; but let's be defensive.  */
+		    OMP_CLAUSE_DECL (c1) == NULL_TREE
+		    && OMP_CLAUSE_DECL (c2) == NULL_TREE)
+		   || operand_equal_p (OMP_CLAUSE_DECL (c1),
+				       OMP_CLAUSE_DECL (c2)))
+	       && ((/* The clause size is generally not known right after
+		       parsing.  */
+		    OMP_CLAUSE_SIZE (c1) == NULL_TREE
+		    && OMP_CLAUSE_SIZE (c2) == NULL_TREE)
+		   || (OMP_CLAUSE_SIZE (c1) != NULL_TREE
+		       && OMP_CLAUSE_SIZE (c2) != NULL_TREE
+		       && operand_equal_p (OMP_CLAUSE_SIZE (c1),
+					   OMP_CLAUSE_SIZE (c2))))
+	       && ((OMP_CLAUSE_ITERATORS (c1) == NULL_TREE
+		    && OMP_CLAUSE_ITERATORS (c2) == NULL_TREE)
+		   || operand_equal_p (OMP_CLAUSE_ITERATORS (c1),
+				       OMP_CLAUSE_ITERATORS (c2))));
+	  if (maybe_dup_found)
+	    {
+	      if (first)
+		{
+		  if (OMP_CLAUSE_MAP_KIND (c1) == OMP_CLAUSE_MAP_KIND (c2))
+		    {
+		      remove = true;
+		      break;
+		    }
+		  else if ((OMP_CLAUSE_MAP_KIND (c1) & ~GOMP_MAP_TOFROM)
+			   == (OMP_CLAUSE_MAP_KIND (c2) & ~GOMP_MAP_TOFROM))
+		    {
+		      OMP_CLAUSE_SET_MAP_KIND (c2,
+					       (OMP_CLAUSE_MAP_KIND (c1)
+						| OMP_CLAUSE_MAP_KIND (c2)));
+		      remove = true;
+		      break;
+		    }
+		}
+	      /* When called from the gimplifier, remove duplicate map clauses
+		 with identical kind only when the bits above
+		 GOMP_MAP_FLAG_SPECIAL_2 are unset - as clauses with those flags
+		 set may need to be present multiple times.  */
+	      else if (OMP_CLAUSE_MAP_KIND (c1) == OMP_CLAUSE_MAP_KIND (c2)
+		       && (OMP_CLAUSE_MAP_KIND (c1) & ~0b11111) == 0)
+		{
+		  remove = true;
+		  break;
+		}
+	    }
+	}
+      if (remove)
+	remove = false;
+      else
+	{
+	  *outlist_p = c1;
+	  outlist_p = &OMP_CLAUSE_CHAIN (*outlist_p);
+	}
+    }
+  *outlist_p = c1;
+  return outlist;
+}

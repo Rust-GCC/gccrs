@@ -417,4 +417,6 @@ extern bool omp_parse_expr (vec<omp_addr_token *> &, tree);
 extern tree omp_loop_number_of_iterations (tree, int, tree * = NULL);
 extern void omp_maybe_apply_loop_xforms (tree *, tree);
 
+extern tree omp_remove_duplicate_maps (tree, bool);
+
 #endif /* GCC_OMP_GENERAL_H */

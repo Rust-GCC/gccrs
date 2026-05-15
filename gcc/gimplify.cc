@@ -13676,6 +13676,8 @@ gimplify_scan_omp_clauses (tree *list_p, gimple_seq *pre_p,
       || code == OACC_UPDATE
       || code == OACC_DECLARE)
     {
+      if (!(region_type & ORT_ACC))
+	*list_p = omp_remove_duplicate_maps (*list_p, false);
       groups = omp_gather_mapping_groups (list_p);
 
       if (groups)
