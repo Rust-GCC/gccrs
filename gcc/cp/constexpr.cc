@@ -6883,15 +6883,6 @@ cxx_eval_bare_aggregate (const constexpr_ctx *ctx, tree t,
 	/* This is an initializer for an empty field; now that we've
 	   checked that it's constant, we can ignore it.  */
 	changed = true;
-      else if (index
-	       && (TREE_CODE (index) == NOP_EXPR
-		   || TREE_CODE (index) == POINTER_PLUS_EXPR))
-	{
-	  /* Old representation of empty bases.  FIXME remove.  */
-	  gcc_checking_assert (false);
-	  gcc_assert (is_empty_class (TREE_TYPE (TREE_TYPE (index))));
-	  changed = true;
-	}
       else
 	{
 	  if (TREE_CODE (type) == UNION_TYPE
