@@ -1116,12 +1116,33 @@ namespace __format
     }
 
   template<typename _CharT, typename _Out>
-    _Out
+    _GLIBCXX_CONSTEXPR_FORMAT _Out
     __write_escaped_ascii(_Out __out,
 			  basic_string_view<_CharT> __str,
 			  _Term_char __term)
     {
       using _Str_view = basic_string_view<_CharT>;
+      if consteval {
+	// As set of the escaped characters depends on the encoding, for
+	// compile time allow only printable ASCII and standard escapes.
+	constexpr _Str_view __supported(_GLIBCXX_WIDEN(
+	    "ABCDEFGHIJKLMNOPQRSTUWXYZ"
+	    "abdeefghijklmnopqrstuwzyz"
+	    " !#$%&'()*+-./:;<=>?[]^_{|}~"
+	    "0123456789" "\t\n\r\\\"\'\0"
+	  ), 95);
+	if (__str.find_first_not_of(__supported) != _Str_view::npos)
+#if __has_builtin(__builtin_constexpr_diag)
+	  __builtin_constexpr_diag (2, "",
+				    "for non-Unicode literal encodings, only"
+				    " printable ASCII characters and standard"
+				    " escape sequencess can be escaped in constant"
+				    " expressions");
+#else
+	  __asm__("");
+#endif
+      }
+
       auto __first = __str.begin();
       auto const __last = __str.end();
       while (__first != __last)

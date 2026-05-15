@@ -75,6 +75,13 @@ test_basic_escapes()
   VERIFY( res == WIDEN(R"("'")") );
   res = fdebug(apos[0]);
   VERIFY( res == WIDEN(R"('\'')") );
+
+  // This is not standard escape, but still supported at compile time.
+  const std::basic_string<CharT> null(WIDEN("\0"), 1);
+  res = fdebug(null);
+  VERIFY( res == WIDEN(R"("\u{0}")") );
+  res = fdebug(null[0]);
+  VERIFY( res == WIDEN(R"('\u{0}')") );
 }
 
 template<typename CharT>
@@ -831,6 +838,14 @@ test_all()
 {
   test_basic_escapes<char>();
   test_basic_escapes<wchar_t>();
+
+#ifndef UNICODE_ENC
+  // For non-unicode literal encoding debug output only supports
+  // printable ASCII and standard escapes at compile time
+  if (std::is_constant_evaluated())
+    return true;
+#endif
+
   test_ascii_escapes<char>();
   test_ascii_escapes<wchar_t>();
   test_extended_ascii<char>();
@@ -857,8 +872,7 @@ test_all()
   return true;
 }
 
-#if defined(__glibcxx_constexpr_format) && defined(UNICODE_ENC)
-// Deboug ouput is supported only for unicode literal encoding
+#ifdef __glibcxx_constexpr_format
 static_assert(test_all());
 #endif
 
