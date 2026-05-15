@@ -159,7 +159,10 @@ caller_save_regs (const function_abi &caller_abi) const
 	 clobbers for (e.g. taking -fipa-ra into account).  */
       result |= (extra_clobbers & m_abi_clobbers[abi_id]);
     }
-  return result;
+
+  /* The caller can save a register only if the register is enabled in
+     the caller.  */
+  return result & accessible_reg_set;
 }
 
 /* Return the set of registers that cannot be used to hold a value of
