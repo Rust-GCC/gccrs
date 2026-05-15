@@ -15,7 +15,7 @@ void test_missing_specialization()
 {
   struct X { };
   X x;
-  (void)std::make_format_args(x); // { dg-error "here" }
+  (void)std::make_format_args(x); // { dg-error "(here|in 'constexpr' expansion of)" }
 // { dg-error "std::formatter must be specialized" "" { target *-*-* } 0 }
 }
 
@@ -37,7 +37,7 @@ void test(std::formatter<Y>& f, std::format_parse_context& pc) {
 void test_const_arg()
 {
   const Y y;
-  (void)std::make_format_args(y); // { dg-error "here" }
+  (void)std::make_format_args(y); // { dg-error "(here|in 'constexpr' expansion of)" }
 // { dg-error "format arg must be non-const" "" { target *-*-* } 0 }
 }
 

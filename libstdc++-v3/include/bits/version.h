@@ -1476,6 +1476,16 @@
 #endif /* !defined(__cpp_lib_barrier) */
 #undef __glibcxx_want_barrier
 
+#if !defined(__cpp_lib_constexpr_exceptions)
+# if (__cplusplus >  202302L) && _GLIBCXX_USE_CXX11_ABI && (__cpp_constexpr_exceptions >= 202411L)
+#  define __glibcxx_constexpr_exceptions 202502L
+#  if defined(__glibcxx_want_all) || defined(__glibcxx_want_constexpr_exceptions)
+#   define __cpp_lib_constexpr_exceptions 202502L
+#  endif
+# endif
+#endif /* !defined(__cpp_lib_constexpr_exceptions) */
+#undef __glibcxx_want_constexpr_exceptions
+
 #if !defined(__cpp_lib_format)
 # if (__cplusplus >  202302L) && _GLIBCXX_HOSTED
 #  define __glibcxx_format 202603L
@@ -1490,6 +1500,16 @@
 # endif
 #endif /* !defined(__cpp_lib_format) */
 #undef __glibcxx_want_format
+
+#if !defined(__cpp_lib_constexpr_format)
+# if (__cplusplus >  202302L) && _GLIBCXX_USE_CXX11_ABI && _GLIBCXX_HOSTED && (__cpp_lib_constexpr_exceptions >= 202502L)
+#  define __glibcxx_constexpr_format 202511L
+#  if defined(__glibcxx_want_all) || defined(__glibcxx_want_constexpr_format)
+#   define __cpp_lib_constexpr_format 202511L
+#  endif
+# endif
+#endif /* !defined(__cpp_lib_constexpr_format) */
+#undef __glibcxx_want_constexpr_format
 
 #if !defined(__cpp_lib_format_uchar)
 # if (__cplusplus >= 202002L) && _GLIBCXX_HOSTED
@@ -2585,16 +2605,6 @@
 # endif
 #endif /* !defined(__cpp_lib_bitset) */
 #undef __glibcxx_want_bitset
-
-#if !defined(__cpp_lib_constexpr_exceptions)
-# if (__cplusplus >  202302L) && _GLIBCXX_USE_CXX11_ABI && (__cpp_constexpr_exceptions >= 202411L)
-#  define __glibcxx_constexpr_exceptions 202502L
-#  if defined(__glibcxx_want_all) || defined(__glibcxx_want_constexpr_exceptions)
-#   define __cpp_lib_constexpr_exceptions 202502L
-#  endif
-# endif
-#endif /* !defined(__cpp_lib_constexpr_exceptions) */
-#undef __glibcxx_want_constexpr_exceptions
 
 #if !defined(__cpp_lib_philox_engine)
 # if (__cplusplus >  202302L)

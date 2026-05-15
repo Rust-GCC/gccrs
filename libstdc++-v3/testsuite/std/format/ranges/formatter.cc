@@ -6,6 +6,12 @@
 #include <vector>
 #include <span>
 
+#ifdef __glibcxx_constexpr_format
+# define CONSTEXPR constexpr
+#else
+# define CONSTEXPR
+#endif
+
 #define WIDEN_(C, S) ::std::__format::_Widen<C>(S, L##S)
 #define WIDEN(S) WIDEN_(CharT, S)
 
@@ -32,7 +38,7 @@ struct std::formatter<MyVector<T, Formatter>, CharT>
   { return _formatter.parse(pc);  }
 
   template<typename Out>
-  typename std::basic_format_context<Out, CharT>::iterator
+  CONSTEXPR std::basic_format_context<Out, CharT>::iterator
   format(const MyVector<T, Formatter>& mv,
 	 std::basic_format_context<Out, CharT>& fc) const
   { return _formatter.format(mv, fc); }
@@ -42,7 +48,7 @@ private:
 };
 
 template<typename CharT, template<typename, typename> class Formatter>
-void
+CONSTEXPR void
 test_default()
 {
   MyVector<int, Formatter> vec{1, 2, 3};
@@ -94,7 +100,7 @@ test_default()
 }
 
 template<typename CharT, template<typename, typename> class Formatter>
-void
+CONSTEXPR void
 test_override()
 {
   MyVector<CharT, Formatter> vc{'a', 'b', 'c', 'd'};
@@ -115,7 +121,8 @@ test_override()
 }
 
 template<template<typename, typename> class Formatter>
-void test_outputs()
+CONSTEXPR void
+test_outputs()
 {
   test_default<char, Formatter>();
   test_default<wchar_t, Formatter>();
@@ -123,7 +130,7 @@ void test_outputs()
   test_override<wchar_t, Formatter>();
 }
 
-void
+CONSTEXPR void
 test_nested()
 {
   MyVector<MyVector<int>> v
@@ -152,7 +159,8 @@ struct std::formatter<MyFlatMap, CharT>
   : std::range_formatter<MyFlatMap::reference>
 {};
 
-void test_const_ref_type_mismatch()
+CONSTEXPR void
+test_const_ref_type_mismatch()
 {
   MyFlatMap m{{1, 11}, {2, 22}};
   std::string res = std::format("{:m}", m);
@@ -163,13 +171,15 @@ template<typename T, typename CharT>
 using VectorFormatter = std::formatter<std::vector<T>, CharT>;
 
 template<template<typename> typename Range>
-void test_nonblocking()
+CONSTEXPR void
+test_nonblocking()
 {
   static_assert(!std::enable_nonlocking_formatter_optimization<
 		  Range<int>>);
 }
 
-int main()
+CONSTEXPR bool
+test_all()
 {
   test_outputs<std::range_formatter>();
   test_outputs<VectorFormatter>();
@@ -179,4 +189,15 @@ int main()
   test_nonblocking<std::span>();
   test_nonblocking<std::vector>();
   test_nonblocking<MyVector>();
+
+  return true;
+}
+
+#ifdef __glibcxx_constexpr_format
+static_assert(test_all());
+#endif
+
+int main()
+{
+  test_all();
 }

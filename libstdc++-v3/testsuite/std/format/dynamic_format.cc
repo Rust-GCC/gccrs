@@ -3,7 +3,13 @@
 #include <format>
 #include <testsuite_hooks.h>
 
-void
+#ifdef __glibcxx_constexpr_format
+# define CONSTEXPR constexpr
+#else
+# define CONSTEXPR
+#endif
+
+CONSTEXPR void
 test_char()
 {
   std::string fmt = "{}";
@@ -11,7 +17,7 @@ test_char()
   VERIFY( s == "123" );
 }
 
-void
+CONSTEXPR void
 test_wchar()
 {
   std::wstring fmt = L"{:#o}";
@@ -19,7 +25,7 @@ test_wchar()
   VERIFY( s == L"0710" );
 }
 
-void
+CONSTEXPR void
 test_internal_api()
 {
   // Using _Dynamic_format_string directly works even in C++20 mode.
@@ -40,9 +46,20 @@ static_assert( !std::is_constructible_v<std::format_string<>,
 static_assert( !std::is_constructible_v<std::wformat_string<>,
 					decltype(std::dynamic_format(L""))&&> );
 
-int main()
+CONSTEXPR bool
+test_all()
 {
   test_char();
   test_wchar();
   test_internal_api();
+  return true;
+}
+
+#ifdef __glibcxx_constexpr_format
+static_assert(test_all());
+#endif
+
+int main()
+{
+  test_all();
 }

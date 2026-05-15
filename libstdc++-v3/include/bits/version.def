@@ -1329,6 +1329,16 @@ ftms = {
 };
 
 ftms = {
+  name = constexpr_exceptions;
+  values = {
+    v = 202502;
+    cxxmin = 26;
+    extra_cond = "__cpp_constexpr_exceptions >= 202411L";
+    cxx11abi = yes;
+  };
+};
+
+ftms = {
   name = format;
   // 202305 P2757R3 Type checking format args
   // 202306 P2637R3 Member visit
@@ -1348,6 +1358,18 @@ ftms = {
     v = 202304;
     cxxmin = 20;
     hosted = yes;
+  };
+};
+
+ftms = {
+  name = constexpr_format;
+  // 202511 P3391R2 constexpr std::format
+  values = {
+    v = 202511;
+    cxxmin = 26;
+    hosted = yes;
+    extra_cond = "__cpp_lib_constexpr_exceptions >= 202502L";
+    cxx11abi = yes;
   };
 };
 
@@ -2327,16 +2349,6 @@ ftms = {
   values = {
     v = 202306;
     cxxmin = 26;
-  };
-};
-
-ftms = {
-  name = constexpr_exceptions;
-  values = {
-    v = 202502;
-    cxxmin = 26;
-    extra_cond = "__cpp_constexpr_exceptions >= 202411L";
-    cxx11abi = yes;
   };
 };
 

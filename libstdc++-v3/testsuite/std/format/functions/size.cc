@@ -4,7 +4,13 @@
 #include <string>
 #include <testsuite_hooks.h>
 
-void
+#ifdef __glibcxx_constexpr_format
+# define CONSTEXPR constexpr
+#else
+# define CONSTEXPR
+#endif
+
+CONSTEXPR void
 test()
 {
   auto n = std::formatted_size("");
@@ -24,7 +30,7 @@ test()
   VERIFY( n == 5 );
 }
 
-void
+CONSTEXPR void
 test_wchar()
 {
   auto n = std::formatted_size(L"");
@@ -44,8 +50,19 @@ test_wchar()
   VERIFY( n == 5 );
 }
 
-int main()
+CONSTEXPR bool
+test_all()
 {
   test();
   test_wchar();
+  return true;
+}
+
+#ifdef __glibcxx_constexpr_format
+static_assert(test_all());
+#endif
+
+int main()
+{
+  test_all();
 }

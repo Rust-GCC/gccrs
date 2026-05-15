@@ -1,10 +1,17 @@
 // { dg-do run { target c++20 } }
+// { dg-options "-fconstexpr-ops-limit=100000000" }
 
 #include <format>
 #include <testsuite_hooks.h>
 
+#ifdef __glibcxx_constexpr_format
+# define CONSTEXPR constexpr
+#else
+# define CONSTEXPR
+#endif
+
 template<typename... Args>
-bool
+CONSTEXPR bool
 is_format_string_for(const char* str, Args&&... args)
 {
   try {
@@ -16,7 +23,7 @@ is_format_string_for(const char* str, Args&&... args)
 }
 
 template<typename... Args>
-bool
+CONSTEXPR bool
 is_format_string_for(const wchar_t* str, Args&&... args)
 {
   try {
@@ -27,7 +34,7 @@ is_format_string_for(const wchar_t* str, Args&&... args)
   }
 }
 
-void
+CONSTEXPR void
 test_no_args()
 {
   VERIFY( is_format_string_for("") );
@@ -42,7 +49,7 @@ test_no_args()
   VERIFY( ! is_format_string_for("{{{{{") );
 }
 
-void
+CONSTEXPR void
 test_indexing()
 {
   VERIFY( is_format_string_for("{} to {}", "a", "b") );   // automatic indexing
@@ -68,7 +75,7 @@ constexpr bool escaped_strings_supported = true;
 constexpr bool escaped_strings_supported = false;
 #endif
 
-void
+CONSTEXPR void
 test_format_spec()
 {
   VERIFY( is_format_string_for("{:}", 1) );
@@ -78,9 +85,14 @@ test_format_spec()
   VERIFY( is_format_string_for("{0:} {0:c}", 'c') );
   VERIFY( is_format_string_for("{0:p} {0:}", nullptr) );
   VERIFY( is_format_string_for("{:d} {:+d}", true, true) );
-  VERIFY( is_format_string_for("{:0<-#03Ld}", 1) );
-  VERIFY( is_format_string_for("{1:0<-#03.4Lf}", 1, 2.3) );
-  VERIFY( is_format_string_for("{1:3.3f}", 1, 2.3) );
+
+  if (!std::is_constant_evaluated())
+    {
+      VERIFY( is_format_string_for("{:0<-#03Ld}", 1) );
+      VERIFY( is_format_string_for("{1:0<-#03.4Lf}", 1, 2.3) );
+      VERIFY( is_format_string_for("{1:3.3f}", 1, 2.3) );
+    }
+  
   VERIFY( is_format_string_for("{:#d}", 'c') );
   VERIFY( is_format_string_for("{:#d}", true) );
   VERIFY( is_format_string_for("{0:s} {0:?}", "str") == escaped_strings_supported );
@@ -130,13 +142,16 @@ test_format_spec()
   VERIFY( ! is_format_string_for("{:3.3p}", nullptr) );
 
   // Dynamic precision arg must be a standard integer type.
-  VERIFY( ! is_format_string_for("{:.{}f}", 1.0, 1.5) );
-  VERIFY( ! is_format_string_for("{:.{}f}", 1.0, true) );
-  VERIFY( ! is_format_string_for("{:.{}f}", 1.0, "str") );
-  VERIFY( ! is_format_string_for("{:.{}f}", 1.0, nullptr) );
+  if (!std::is_constant_evaluated())
+    {
+      VERIFY( ! is_format_string_for("{:.{}f}", 1.0, 1.5) );
+      VERIFY( ! is_format_string_for("{:.{}f}", 1.0, true) );
+      VERIFY( ! is_format_string_for("{:.{}f}", 1.0, "str") );
+      VERIFY( ! is_format_string_for("{:.{}f}", 1.0, nullptr) );
 #ifdef __SIZEOF_INT128__
-  VERIFY( ! is_format_string_for("{:{}f}", 1.0, static_cast<unsigned __int128>(1)) );
+      VERIFY( ! is_format_string_for("{:{}f}", 1.0, static_cast<unsigned __int128>(1)) );
 #endif
+    }
 
   // Invalid presentation types for integers.
   VERIFY( ! is_format_string_for("{:f}", 1) );
@@ -164,7 +179,7 @@ test_format_spec()
   VERIFY( ! is_format_string_for(L"{:9999999}", 1) );
 }
 
-void
+CONSTEXPR void
 test_pr110862()
 {
   try {
@@ -178,7 +193,7 @@ test_pr110862()
   }
 }
 
-void
+CONSTEXPR void
 test_pr110974()
 {
   try {
@@ -197,11 +212,23 @@ test_pr110974()
   }
 }
 
-int main()
+CONSTEXPR bool
+test_all()
 {
   test_no_args();
   test_indexing();
   test_format_spec();
   test_pr110862();
   test_pr110974();
+
+  return true;
+}
+
+#ifdef __glibcxx_constexpr_format
+static_assert(test_all());
+#endif
+
+int main()
+{
+  test_all();
 }

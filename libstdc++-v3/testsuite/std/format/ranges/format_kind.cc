@@ -12,6 +12,12 @@
 #include <unordered_set>
 #include <vector>
 
+#ifdef __glibcxx_constexpr_format
+# define CONSTEXPR constexpr
+#else
+# define CONSTEXPR
+#endif
+
 static_assert( std::format_kind<std::vector<int>> == std::range_format::sequence );
 static_assert( std::format_kind<std::deque<int>> == std::range_format::sequence );
 static_assert( std::format_kind<std::list<int>> == std::range_format::sequence );
@@ -64,7 +70,8 @@ struct CustFormat : std::vector<T>
 template<typename T, std::range_format rf>
 constexpr auto std::format_kind<CustFormat<T, rf>> = rf;
 
-void test_override()
+CONSTEXPR bool
+test_override()
 {
   CustFormat<int, std::range_format::disabled> disabledf;
   static_assert( !std::formattable<decltype(disabledf), char> );
@@ -88,7 +95,13 @@ void test_override()
   VERIFY( std::format("{}", debugf) == R"("abcd")" );
   // Support precision as string do
   VERIFY( std::format("{:.3}", debugf) == R"("ab)" );
+
+  return true;
 }
+
+#ifdef __glibcxx_constexpr_format
+static_assert(test_override());
+#endif
 
 int main()
 {

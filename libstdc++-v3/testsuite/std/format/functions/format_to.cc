@@ -6,22 +6,31 @@
 #include <cstring>
 #include <testsuite_hooks.h>
 
+#ifdef __glibcxx_constexpr_format
+# define CONSTEXPR constexpr
+#else
+# define CONSTEXPR
+#endif
+
 struct punct : std::numpunct<char>
 {
   std::string do_grouping() const override { return "\2"; }
 };
 
-void
+CONSTEXPR void
 test()
 {
   char buf[32] = { };
   auto out = std::format_to(buf, "test");
   VERIFY( out == buf+4 );
 
-  std::locale loc({}, new punct);
-  auto out2 = std::format_to(buf, loc, "{:Ld}", 12345);
-  VERIFY( out2 == buf+7 );
-  VERIFY( std::string_view(buf, out2 - buf) == "1,23,45" );
+  if (!std::is_constant_evaluated())
+    {
+      std::locale loc({}, new punct);
+      auto out2 = std::format_to(buf, loc, "{:Ld}", 12345);
+      VERIFY( out2 == buf+7 );
+      VERIFY( std::string_view(buf, out2 - buf) == "1,23,45" );
+    }
 }
 
 struct wpunct : std::numpunct<wchar_t>
@@ -29,17 +38,20 @@ struct wpunct : std::numpunct<wchar_t>
   std::string do_grouping() const override { return "\2"; }
 };
 
-void
+CONSTEXPR void
 test_wchar()
 {
   wchar_t buf[32] = { };
   auto out = std::format_to(buf, L"123 + 456 = {}", 579);
   VERIFY( out == buf+15 );
 
-  std::locale loc({}, new wpunct);
-  auto out2 = std::format_to(buf, loc, L"{:Ld}", 12345);
-  VERIFY( out2 == buf+7 );
-  VERIFY( std::wstring_view(buf, out2 - buf) == L"1,23,45" );
+  if (!std::is_constant_evaluated())
+    {
+      std::locale loc({}, new wpunct);
+      auto out2 = std::format_to(buf, loc, L"{:Ld}", 12345);
+      VERIFY( out2 == buf+7 );
+      VERIFY( std::wstring_view(buf, out2 - buf) == L"1,23,45" );
+    }
 }
 
 template<typename I>
@@ -50,20 +62,20 @@ struct move_only_iterator
   using difference_type = iterator::difference_type;
   using iterator_category = std::output_iterator_tag;
 
-  move_only_iterator(iterator b) : base_(b) { }
+  constexpr move_only_iterator(iterator b) : base_(b) { }
   move_only_iterator(move_only_iterator&&) = default;
   move_only_iterator& operator=(move_only_iterator&&) = default;
 
-  move_only_iterator& operator++() { ++base_; return *this; }
-  move_only_iterator operator++(int) { auto tmp = *this; ++base_; return tmp; }
+  constexpr move_only_iterator& operator++() { ++base_; return *this; }
+  constexpr move_only_iterator operator++(int) { auto tmp = *this; ++base_; return tmp; }
 
-  decltype(auto) operator*() { return *base_; }
+  constexpr decltype(auto) operator*() { return *base_; }
 
 private:
   iterator base_;
 };
 
-void
+CONSTEXPR void
 test_move_only()
 {
   std::string str;
@@ -79,7 +91,7 @@ test_move_only()
   VERIFY( std::wstring_view(vec.data(), vec.size()) == L"format hat!" );
 }
 
-void
+CONSTEXPR void
 test_pr110917()
 {
   // PR libstdc++/110917
@@ -90,10 +102,22 @@ test_pr110917()
   VERIFY( ! std::memcmp(buf, "abc 123", 7) );
 }
 
-int main()
+CONSTEXPR bool
+test_all()
 {
   test();
   test_wchar();
   test_move_only();
   test_pr110917();
+
+  return true;
+}
+
+#ifdef __glibcxx_constexpr_format
+static_assert(test_all());
+#endif
+
+int main()
+{
+  test_all();
 }

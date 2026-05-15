@@ -161,4 +161,5 @@ auto si7 = std::format("{:%Q}", sys_info()); // { dg-error "call to consteval fu
 auto si8 = std::format("{:%Z}", sys_info()); // { dg-error "call to consteval function" "" { target cxx11_abi } }
 #endif
 
-// { dg-error "call to non-'constexpr' function" "" { target *-*-* } 0 }
+// { dg-error "call to non-'constexpr' function" "" { target { c++23_down || { ! cxx11_abi } } } 0 }
+// { dg-error "'std::terminate' called after throwing an exception" "" { target { { ! c++23_down } && cxx11_abi } } 0 }

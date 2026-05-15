@@ -1,5 +1,5 @@
 // { dg-do run { target c++23 } }
-// { dg-options "-fexec-charset=UTF-8" }
+// { dg-options "-fexec-charset=UTF-8 -fconstexpr-ops-limit=500000000" }
 // { dg-timeout-factor 2 }
 
 #include <format>
@@ -8,6 +8,12 @@
 #include <tuple>
 #include <utility>
 
+#ifdef __glibcxx_constexpr_format
+# define CONSTEXPR constexpr
+#else
+# define CONSTEXPR
+#endif
+
 struct NotFormattable
 {};
 
@@ -15,7 +21,7 @@ static_assert( !std::formattable<std::pair<int, NotFormattable>, char> );
 static_assert( !std::formattable<std::tuple<int, NotFormattable, int>, wchar_t> );
 
 template<typename... Args>
-bool
+CONSTEXPR bool
 is_format_string_for(const char* str, Args&&... args)
 {
   try {
@@ -27,7 +33,7 @@ is_format_string_for(const char* str, Args&&... args)
 }
 
 template<typename... Args>
-bool
+CONSTEXPR bool
 is_format_string_for(const wchar_t* str, Args&&... args)
 {
   try {
@@ -41,7 +47,7 @@ is_format_string_for(const wchar_t* str, Args&&... args)
 #define WIDEN_(C, S) ::std::__format::_Widen<C>(S, L##S)
 #define WIDEN(S) WIDEN_(CharT, S)
 
-void
+CONSTEXPR void
 test_format_string()
 {
   // invalid format stringss
@@ -123,7 +129,8 @@ void test_multi()
 }
 
 template<typename CharT, typename Tuple>
-void test_empty()
+CONSTEXPR void
+test_empty()
 {
   std::basic_string<CharT> res;
 
@@ -142,7 +149,8 @@ void test_empty()
 }
 
 template<typename CharT, typename Pair>
-void test_pair()
+CONSTEXPR void
+test_pair()
 {
   using Ft = std::remove_cvref_t<std::tuple_element_t<0, Pair>>;
   using St = std::remove_cvref_t<std::tuple_element_t<1, Pair>>;
@@ -167,7 +175,8 @@ void test_pair()
 }
 
 template<typename CharT, template<typename, typename> class PairT>
-void test_pair_e()
+CONSTEXPR void
+test_pair_e()
 {
   test_pair<CharT, PairT<int, std::basic_string<CharT>>>();
   test_pair<CharT, PairT<int, const CharT*>>();
@@ -196,7 +205,7 @@ struct std::formatter<MyPair<Pair>, CharT>
   { return _formatter.parse(pc);  }
 
   template<typename Out>
-  typename std::basic_format_context<Out, CharT>::iterator
+  CONSTEXPR typename std::basic_format_context<Out, CharT>::iterator
   format(const MyPair<Pair>& mp,
 	 std::basic_format_context<Out, CharT>& fc) const
   { return _formatter.format(mp, fc); }
@@ -206,7 +215,8 @@ private:
 };
 
 template<typename CharT, template<typename, typename> class PairT>
-void test_custom()
+CONSTEXPR void
+test_custom()
 {
   std::basic_string<CharT> res;
   MyPair<PairT<int, const CharT*>> c1(1, WIDEN("abc"));
@@ -228,9 +238,12 @@ void test_custom()
 }
 
 template<typename CharT>
-void test_outputs()
+CONSTEXPR void
+test_outputs()
 {
-  test_multi<CharT>();
+  if (!std::is_constant_evaluated())
+    test_multi<CharT>();
+
   test_empty<CharT, std::tuple<>>();
   test_pair_e<CharT, std::pair>();
   test_pair_e<CharT, std::tuple>();
@@ -238,7 +251,8 @@ void test_outputs()
   test_custom<CharT, std::tuple>();
 }
 
-void test_nested()
+CONSTEXPR void
+test_nested()
 {
   std::string res;
   std::tuple<std::tuple<>, std::pair<int, std::string>> tt{{}, {1, "abc"}};
@@ -251,7 +265,8 @@ void test_nested()
   VERIFY( res == R"((): (1, "abc"))" );
 }
 
-bool strip_quote(std::string_view& v)
+CONSTEXPR bool
+strip_quote(std::string_view& v)
 {
   if (!v.starts_with('"'))
     return false;
@@ -259,7 +274,8 @@ bool strip_quote(std::string_view& v)
   return true;
 }
 
-bool strip_prefix(std::string_view& v, std::string_view expected, bool quoted = false)
+CONSTEXPR bool
+strip_prefix(std::string_view& v, std::string_view expected, bool quoted = false)
 {
   if (quoted && !strip_quote(v))
     return false;
@@ -271,7 +287,8 @@ bool strip_prefix(std::string_view& v, std::string_view expected, bool quoted = 
   return true;
 }
 
-bool strip_parens(std::string_view& v)
+CONSTEXPR bool
+strip_parens(std::string_view& v)
 {
   if (!v.starts_with('(') || !v.ends_with(')'))
     return false;
@@ -280,7 +297,8 @@ bool strip_parens(std::string_view& v)
   return true;
 }
 
-bool strip_prefix(std::string_view& v, size_t n, char c)
+CONSTEXPR bool
+strip_prefix(std::string_view& v, size_t n, char c)
 {
   size_t pos = v.find_first_not_of(c);
   if (pos == std::string_view::npos)
@@ -291,7 +309,8 @@ bool strip_prefix(std::string_view& v, size_t n, char c)
   return true;
 }
 
-void test_padding()
+CONSTEXPR void
+test_padding()
 {
   std::string res;
   std::string_view resv;
@@ -351,13 +370,14 @@ struct std::formatter<Custom, CharT>
   { return pc.begin();  }
 
   template<typename Out>
-  typename std::basic_format_context<Out, CharT>::iterator
+  CONSTEXPR typename std::basic_format_context<Out, CharT>::iterator
   format(Custom, const std::basic_format_context<Out, CharT>& fc) const
   { return fc.out(); }
 };
 
 template<template<typename...> typename Tuple>
-void test_nonblocking()
+CONSTEXPR void
+test_nonblocking()
 {
   static_assert(std::enable_nonlocking_formatter_optimization<
 		  Tuple<int, float>>);
@@ -374,7 +394,8 @@ void test_nonblocking()
 		  Tuple<Custom&, float&>>);
 }
 
-int main()
+CONSTEXPR bool
+test_all()
 {
   test_format_string();
   test_outputs<char>();
@@ -384,4 +405,15 @@ int main()
 
   test_nonblocking<std::pair>();
   test_nonblocking<std::tuple>();
+
+  return true;
+}
+
+#ifdef __glibcxx_constexpr_format
+static_assert(test_all());
+#endif
+
+int main()
+{
+  test_all();
 }

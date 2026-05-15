@@ -5,6 +5,12 @@
 
 #include <format>
 
+#ifdef __glibcxx_constexpr_format
+# define CONSTEXPR constexpr
+#else
+# define CONSTEXPR
+#endif
+
 #ifndef __cpp_lib_format
 # error "Feature test macro for std::format is missing in <format>"
 #elif __cpp_lib_format < 202110L
@@ -41,7 +47,7 @@
 #include <cstdio>
 #include <testsuite_hooks.h>
 
-void
+CONSTEXPR void
 test_no_args()
 {
   std::string s;
@@ -55,7 +61,7 @@ test_no_args()
   VERIFY( s == "128bpm }" );
 }
 
-void
+CONSTEXPR void
 test_unescaped()
 {
 #ifdef __cpp_exceptions
@@ -78,7 +84,7 @@ struct brit_punc : std::numpunct<char>
   std::string do_falsename() const override { return "nah bruv"; }
 };
 
-void
+CONSTEXPR void
 test_std_examples()
 {
   using namespace std;
@@ -125,10 +131,13 @@ test_std_examples()
     VERIFY(s0 == "1,+1,1, 1");
     string s1 = format("{0:},{0:+},{0:-},{0: }", -1);
     VERIFY(s1 == "-1,-1,-1,-1");
-    string s2 = format("{0:},{0:+},{0:-},{0: }", inf);
-    VERIFY(s2 == "inf,+inf,inf, inf");
-    string s3 = format("{0:},{0:+},{0:-},{0: }", nan);
-    VERIFY(s3 == "nan,+nan,nan, nan");
+    if (!std::is_constant_evaluated())
+      {
+	string s2 = format("{0:},{0:+},{0:-},{0: }", inf);
+	VERIFY(s2 == "inf,+inf,inf, inf");
+	string s3 = format("{0:},{0:+},{0:-},{0: }", nan);
+	VERIFY(s3 == "nan,+nan,nan, nan");
+      }
   }
 
   // alternate form and zero fill
@@ -143,34 +152,35 @@ test_std_examples()
   }
 
   // integer presentation types
-  {
-    // Change global locale so "{:L}" adds digit separators.
-    std::locale::global(std::locale({}, new brit_punc));
+  if (!std::is_constant_evaluated())
+    {
+      // Change global locale so "{:L}" adds digit separators.
+      std::locale::global(std::locale({}, new brit_punc));
 
-    string s0 = format("{}", 42);
-    VERIFY(s0 == "42");
-    string s1 = format("{0:b} {0:d} {0:o} {0:x}", 42);
-    VERIFY(s1 == "101010 42 52 2a");
-    string s2 = format("{0:#x} {0:#X}", 42);
-    VERIFY(s2 == "0x2a 0X2A");
-    string s3 = format("{:L}", 1234);
-    VERIFY(s3 == "1,234");
+      string s0 = format("{}", 42);
+      VERIFY(s0 == "42");
+      string s1 = format("{0:b} {0:d} {0:o} {0:x}", 42);
+      VERIFY(s1 == "101010 42 52 2a");
+      string s2 = format("{0:#x} {0:#X}", 42);
+      VERIFY(s2 == "0x2a 0X2A");
+      string s3 = format("{:L}", 1234);
+      VERIFY(s3 == "1,234");
 
-    // Test locale's "byte-and-a-half" grouping (Imperial word? tribble?).
-    string s4 = format("{:#Lx}", 0xfffff);
-    VERIFY(s4 == "0xff,fff");
+      // Test locale's "byte-and-a-half" grouping (Imperial word? tribble?).
+      string s4 = format("{:#Lx}", 0xfffff);
+      VERIFY(s4 == "0xff,fff");
 
-    // Restore
-    std::locale::global(std::locale::classic());
+      // Restore
+      std::locale::global(std::locale::classic());
 
-    string s5 = format("{}", -100); // PR libstdc++/114325
-    VERIFY(s5 == "-100");
-    string s6 = format("{:d} {:d}", -123, 999);
-    VERIFY(s6 == "-123 999");
-  }
+      string s5 = format("{}", -100); // PR libstdc++/114325
+      VERIFY(s5 == "-100");
+      string s6 = format("{:d} {:d}", -123, 999);
+      VERIFY(s6 == "-123 999");
+    }
 }
 
-void
+CONSTEXPR void
 test_alternate_forms()
 {
   std::string s;
@@ -180,23 +190,26 @@ test_alternate_forms()
   s = std::format("{0:#b} {0:+#B} {0:#o} {0:#x} {0:+#X} {0: #d}", 0);
   VERIFY( s == "0b0 +0B0 0 0x0 +0X0  0" );
 
-  s = std::format("{0:+#012g} {0:+#014g} {0:+#014g}", 1234.0);
-  VERIFY( s == "+00001234.00 +0000001234.00 +0000001234.00" );
-  s = std::format("{0:+#0{1}g} {0:+#0{2}g} {0:+#0{2}g}", 1234.5, 12, 14);
-  VERIFY( s == "+00001234.50 +0000001234.50 +0000001234.50" );
+  if (!std::is_constant_evaluated())
+    {
+      s = std::format("{0:+#012g} {0:+#014g} {0:+#014g}", 1234.0);
+      VERIFY( s == "+00001234.00 +0000001234.00 +0000001234.00" );
+      s = std::format("{0:+#0{1}g} {0:+#0{2}g} {0:+#0{2}g}", 1234.5, 12, 14);
+      VERIFY( s == "+00001234.50 +0000001234.50 +0000001234.50" );
 
-  s = std::format("{:#.2g}", -0.0);
-  VERIFY( s == "-0.0" );
+      s = std::format("{:#.2g}", -0.0);
+      VERIFY( s == "-0.0" );
 
-  // PR libstdc++/108046
-  s = std::format("{0:#.0} {0:#.1} {0:#.0g}", 10.0);
-  VERIFY( s == "1.e+01 1.e+01 1.e+01" );
+      // PR libstdc++/108046
+      s = std::format("{0:#.0} {0:#.1} {0:#.0g}", 10.0);
+      VERIFY( s == "1.e+01 1.e+01 1.e+01" );
 
-  // PR libstdc++/113512
-  s = std::format("{:#.3g}", 0.025);
-  VERIFY( s == "0.0250" );
-  s = std::format("{:#07.3g}", 0.02);
-  VERIFY( s == "00.0200" );
+      // PR libstdc++/113512
+      s = std::format("{:#.3g}", 0.025);
+      VERIFY( s == "0.0250" );
+      s = std::format("{:#07.3g}", 0.02);
+      VERIFY( s == "00.0200" );
+    }
 }
 
 void
@@ -275,7 +288,7 @@ test_locale()
   std::locale::global(cloc);
 }
 
-void
+CONSTEXPR void
 test_width()
 {
   std::string s;
@@ -317,7 +330,7 @@ test_width()
   }
 }
 
-void
+CONSTEXPR void
 test_char()
 {
   std::string s;
@@ -347,7 +360,7 @@ test_char()
   VERIFY( s == "11110000 11110000 240 360 f0 F0" );
 }
 
-void
+CONSTEXPR void
 test_wchar()
 {
   using namespace std::literals;
@@ -356,24 +369,27 @@ test_wchar()
   s = std::format(L"{}", L'a');
   VERIFY( s == L"a" );
 
-  s = std::format(L"{} {} {} {} {} {}", L'0', 1, 2LL, 3.4, L"five", L"six"s);
-  VERIFY( s == L"0 1 2 3.4 five six" );
+  if (!std::is_constant_evaluated())
+    {
+      s = std::format(L"{} {} {} {} {} {}", L'0', 1, 2LL, 3.4, L"five", L"six"s);
+      VERIFY( s == L"0 1 2 3.4 five six" );
 
-  std::locale loc;
-  s = std::format(loc, L"{:L} {:.3s}{:Lc}", true, L"data"sv, '.');
-  VERIFY( s == L"true dat." );
+      std::locale loc;
+      s = std::format(loc, L"{:L} {:.3s}{:Lc}", true, L"data"sv, '.');
+      VERIFY( s == L"true dat." );
 
-  s = std::format(L"{}", 0.0625);
-  VERIFY( s == L"0.0625" );
-  s = std::format(L"{}", 0.25);
-  VERIFY( s == L"0.25" );
-  s = std::format(L"{:+a} {:A}", 0x1.23p45, -0x1.abcdefp-15);
-  VERIFY( s == L"+1.23p+45 -1.ABCDEFP-15" );
+      s = std::format(L"{}", 0.0625);
+      VERIFY( s == L"0.0625" );
+      s = std::format(L"{}", 0.25);
+      VERIFY( s == L"0.25" );
+      s = std::format(L"{:+a} {:A}", 0x1.23p45, -0x1.abcdefp-15);
+      VERIFY( s == L"+1.23p+45 -1.ABCDEFP-15" );
 
-  double inf = std::numeric_limits<double>::infinity();
-  double nan = std::numeric_limits<double>::quiet_NaN();
-  s = std::format(L"{0} {0:F} {1} {1:E}", -inf, -nan);
-  VERIFY( s == L"-inf -INF -nan -NAN" );
+      double inf = std::numeric_limits<double>::infinity();
+      double nan = std::numeric_limits<double>::quiet_NaN();
+      s = std::format(L"{0} {0:F} {1} {1:E}", -inf, -nan);
+      VERIFY( s == L"-inf -INF -nan -NAN" );
+    }
 
   s = std::format(L"{0:#b} {0:#B} {0:#x} {0:#X}", 99);
   VERIFY( s == L"0b1100011 0B1100011 0x63 0X63" );
@@ -382,20 +398,23 @@ test_wchar()
   s = std::format(L"{:d} {:d}", wchar_t(-1), char(-1));
   VERIFY( s.find('-') == std::wstring::npos );
 
-  auto ws = std::format(L"{:L}", 0.5);
-  VERIFY( ws == L"0.5" );
-  // The default C locale.
-  std::locale cloc = std::locale::classic();
-  // PR libstdc++/119671 use-after-free formatting floating-point to wstring
-  ws = std::format(cloc, L"{:L}", 0.5);
-  VERIFY( ws == L"0.5" );
-  // A locale with no name, but with the same facets as the C locale.
-  std::locale locx(cloc, &std::use_facet<std::ctype<char>>(cloc));
-  ws = std::format(locx, L"{:L}", 0.5);
-  VERIFY( ws == L"0.5" );
+  if (!std::is_constant_evaluated())
+    {
+      auto ws = std::format(L"{:L}", 0.5);
+      VERIFY( ws == L"0.5" );
+      // The default C locale.
+      std::locale cloc = std::locale::classic();
+      // PR libstdc++/119671 use-after-free formatting floating-point to wstring
+      ws = std::format(cloc, L"{:L}", 0.5);
+      VERIFY( ws == L"0.5" );
+      // A locale with no name, but with the same facets as the C locale.
+      std::locale locx(cloc, &std::use_facet<std::ctype<char>>(cloc));
+      ws = std::format(locx, L"{:L}", 0.5);
+      VERIFY( ws == L"0.5" );
+    }
 }
 
-void
+CONSTEXPR void
 test_minmax()
 {
   auto check = []<typename T, typename U = std::make_unsigned_t<T>>(T, U = 0) {
@@ -422,7 +441,7 @@ test_minmax()
 #endif
 }
 
-void
+CONSTEXPR void
 test_p1652r1() // printf corner cases in std::format
 {
   std::string s;
@@ -436,27 +455,33 @@ test_p1652r1() // printf corner cases in std::format
   s = std::format("{:c}", c);
   VERIFY( s == "A" );
 
-  // Problem 3: "-000nan" is not a floating point value
-  double nan = std::numeric_limits<double>::quiet_NaN();
-  try {
-    s = std::vformat("{:0=6}", std::make_format_args(nan));
-    VERIFY( false );
-  } catch (const std::format_error&) {
-  }
-
-  s = std::format("{:06}", nan);
-  VERIFY( s == "   nan" );
+  if (!std::is_constant_evaluated())
+    {
+      // Problem 3: "-000nan" is not a floating point value
+      double nan = std::numeric_limits<double>::quiet_NaN();
+      try {
+	s = std::vformat("{:0=6}", std::make_format_args(nan));
+	VERIFY( false );
+      } catch (const std::format_error&) {
+      }
+  
+      s = std::format("{:06}", nan);
+      VERIFY( s == "   nan" );
+    }
 
   // Problem 4: bool needs a type format specifier
   s = std::format("{:s}", true);
   VERIFY( s == "true" );
 
-  // Problem 5: double does not roundtrip float
-  s = std::format("{}", 3.31f);
-  VERIFY( s == "3.31" );
+  if (!std::is_constant_evaluated())
+    {
+      // Problem 5: double does not roundtrip float
+      s = std::format("{}", 3.31f);
+      VERIFY( s == "3.31" );
+    }
 }
 
-void
+CONSTEXPR void
 test_pointer()
 {
   void* p = nullptr;
@@ -477,28 +502,31 @@ test_pointer()
   s = std::format("{:o<4},{:o>5},{:o^7}", p, pc, nullptr); // fill+align+width
   VERIFY( s == "0x0o,oo0x0,oo0x0oo" );
 
-  pc = p = &s;
-  str_int = std::format("{:#x}", reinterpret_cast<std::uintptr_t>(p));
-  s = std::format("{} {} {}", p, pc, nullptr);
-  VERIFY( s == (str_int + ' ' + str_int + " 0x0") );
-  str_int = std::format("{:#20x}", reinterpret_cast<std::uintptr_t>(p));
-  s = std::format("{:20} {:20p}", p, pc);
-  VERIFY( s == (str_int + ' ' + str_int) );
+  if (!std::is_constant_evaluated())
+    {
+      pc = p = &s;
+      str_int = std::format("{:#x}", reinterpret_cast<std::uintptr_t>(p));
+      s = std::format("{} {} {}", p, pc, nullptr);
+      VERIFY( s == (str_int + ' ' + str_int + " 0x0") );
+      str_int = std::format("{:#20x}", reinterpret_cast<std::uintptr_t>(p));
+      s = std::format("{:20} {:20p}", p, pc);
+      VERIFY( s == (str_int + ' ' + str_int) );
 
 #if __cpp_lib_format >= 202304L
-  // P2510R3 Formatting pointers
-  s = std::format("{:06} {:07P} {:08p}", (void*)0, (const void*)0, nullptr);
-  VERIFY( s == "0x0000 0X00000 0x000000" );
-  str_int = std::format("{:#016x}", reinterpret_cast<std::uintptr_t>(p));
-  s = std::format("{:016} {:016}", p, pc);
-  VERIFY( s == (str_int + ' ' + str_int) );
-  str_int = std::format("{:#016X}", reinterpret_cast<std::uintptr_t>(p));
-  s = std::format("{:016P} {:016P}", p, pc);
-  VERIFY( s == (str_int + ' ' + str_int) );
+      // P2510R3 Formatting pointers
+      s = std::format("{:06} {:07P} {:08p}", (void*)0, (const void*)0, nullptr);
+      VERIFY( s == "0x0000 0X00000 0x000000" );
+      str_int = std::format("{:#016x}", reinterpret_cast<std::uintptr_t>(p));
+      s = std::format("{:016} {:016}", p, pc);
+      VERIFY( s == (str_int + ' ' + str_int) );
+      str_int = std::format("{:#016X}", reinterpret_cast<std::uintptr_t>(p));
+      s = std::format("{:016P} {:016P}", p, pc);
+      VERIFY( s == (str_int + ' ' + str_int) );
 #endif
+    }
 }
 
-void
+CONSTEXPR void
 test_bool()
 {
   std::string s;
@@ -519,7 +547,7 @@ test_bool()
   VERIFY( s == "0 0x1 0X0" );
 }
 
-void
+CONSTEXPR void
 test_unicode()
 {
 #ifdef UNICODE
@@ -579,13 +607,13 @@ test_unicode()
 #endif
 }
 
-int main()
+CONSTEXPR bool
+test_all()
 {
   test_no_args();
   test_unescaped();
   test_std_examples();
   test_alternate_forms();
-  test_locale();
   test_width();
   test_char();
   test_wchar();
@@ -594,4 +622,21 @@ int main()
   test_pointer();
   test_bool();
   test_unicode();
+
+  if (!std::is_constant_evaluated())
+    {
+      test_infnan();
+      test_locale();
+    }
+
+  return true;
+}
+
+#ifdef __glibcxx_constexpr_format
+static_assert(test_all());
+#endif
+
+int main()
+{
+  test_all();
 }
