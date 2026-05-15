@@ -5953,6 +5953,44 @@ cp_build_binary_op (const op_location_t &location,
 	  return cp_build_binary_op (location, code, op0, op1, complain);
 	}
 
+      if (warn_constant_logical_operand
+	  && (complain & tf_warning)
+	  && (code0 == INTEGER_TYPE || code0 == ENUMERAL_TYPE)
+	  && (code1 == INTEGER_TYPE || code1 == ENUMERAL_TYPE))
+	{
+	  tree cop0 = fold_for_warn (op0), cop1 = fold_for_warn (op1);
+	  const char *name
+	    = ((code == TRUTH_ANDIF_EXPR || code == TRUTH_AND_EXPR)
+	       ? "&&" : "||");
+	  auto enum_other_than_0_1 = [] (tree type) {
+	    if (TREE_CODE (type) != ENUMERAL_TYPE)
+	      return false;
+	    for (tree l = TYPE_VALUES (type); l; l = TREE_CHAIN (l))
+	      {
+		tree v = DECL_INITIAL (TREE_VALUE (l));
+		if (!integer_zerop (v) && !integer_onep (v))
+		  return true;
+	      }
+	    return false;
+	  };
+	  auto diagnose_constant_logical_operand = [=] (tree val, tree type) {
+	    if (TREE_CODE (val) != INTEGER_CST || integer_zerop (val))
+	      return false;
+	    if (integer_onep (val) && !enum_other_than_0_1 (type))
+	      return false;
+	    gcc_rich_location richloc (location);
+	    richloc.add_fixit_replace (name + 1);
+	    auto_diagnostic_group d;
+	    if (warning_at (location, OPT_Wconstant_logical_operand,
+			    "use of logical %qs with constant operand %qE",
+			    name, val))
+	      inform (&richloc, "use %qs for bitwise operation", name + 1);
+	    return true;
+	  };
+	  if (!diagnose_constant_logical_operand (cop1, orig_type1))
+	    diagnose_constant_logical_operand (cop0, orig_type0);
+	}
+
       result_type = boolean_type_node;
       break;
 

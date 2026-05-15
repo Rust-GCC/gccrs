@@ -5112,13 +5112,15 @@ char_type_p (tree type)
    in the input.  CODE, a tree_code, specifies the binary operator, and
    ARG1 and ARG2 are the operands.  In addition to constructing the
    expression, we check for operands that were written with other binary
-   operators in a way that is likely to confuse the user.
+   operators in a way that is likely to confuse the user.  ORIG_ARG1 is
+   the original first operand for TRUTH_{AND,OR}IF_EXPR before it is
+   converted to truth value, otherwise NULL_TREE.
 
    LOCATION is the location of the binary operator.  */
 
 struct c_expr
 parser_build_binary_op (location_t location, enum tree_code code,
-			struct c_expr arg1, struct c_expr arg2)
+			struct c_expr arg1, struct c_expr arg2, tree orig_arg1)
 {
   struct c_expr result;
   result.m_decimal = 0;
@@ -5162,6 +5164,43 @@ parser_build_binary_op (location_t location, enum tree_code code,
   if (warn_logical_op)
     warn_logical_operator (location, code, TREE_TYPE (result.value),
 			   code1, arg1.value, code2, arg2.value);
+
+  if (warn_constant_logical_operand
+      && (code == TRUTH_ANDIF_EXPR || code == TRUTH_ORIF_EXPR)
+      && INTEGRAL_NB_TYPE_P (type1)
+      && INTEGRAL_NB_TYPE_P (type2))
+    {
+      const char *name = code == TRUTH_ANDIF_EXPR ? "&&" : "||";
+      if (orig_arg1 == NULL_TREE)
+	orig_arg1 = arg1.value;
+      auto enum_other_than_0_1 = [] (tree type) {
+	if (TREE_CODE (type) != ENUMERAL_TYPE)
+	  return false;
+	for (tree l = TYPE_VALUES (type); l; l = TREE_CHAIN (l))
+	  {
+	    tree v = DECL_INITIAL (TREE_VALUE (l));
+	    if (!integer_zerop (v) && !integer_onep (v))
+	      return true;
+	  }
+	return false;
+      };
+      auto diagnose_constant_logical_operand = [=] (tree val, tree type) {
+	if (TREE_CODE (val) != INTEGER_CST || integer_zerop (val))
+	  return false;
+	if (integer_onep (val) && !enum_other_than_0_1 (type))
+	  return false;
+	gcc_rich_location richloc (location);
+	richloc.add_fixit_replace (name + 1);
+	auto_diagnostic_group d;
+	if (warning_at (location, OPT_Wconstant_logical_operand,
+			"use of logical %qs with constant operand %qE",
+			name, val))
+	  inform (&richloc, "use %qs for bitwise operation", name + 1);
+	return true;
+      };
+      if (!diagnose_constant_logical_operand (arg2.value, type2))
+	diagnose_constant_logical_operand (orig_arg1, type1);
+    }
 
   if (warn_tautological_compare)
     {

@@ -415,6 +415,9 @@ UrlSuffix(gcc/Warning-Options.html#index-Wcomments)
 Wconditionally-supported
 UrlSuffix(gcc/C_002b_002b-Dialect-Options.html#index-Wconditionally-supported)
 
+Wconstant-logical-operand
+UrlSuffix(gcc/Warning-Options.html#index-Wconstant-logical-operand)
+
 Wconversion
 UrlSuffix(gcc/Warning-Options.html#index-Wconversion) LangUrlSuffix_Fortran(gfortran/Error-and-Warning-Options.html#index-Wconversion)
 

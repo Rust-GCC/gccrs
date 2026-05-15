@@ -385,7 +385,7 @@ Objective-C and Objective-C++ Dialects}.
 -Wchar-subscripts
 -Wclobbered  -Wcomment
 -Wcompare-distinct-pointer-types
--Wno-complain-wrong-lang
+-Wno-complain-wrong-lang  -Wconstant-logical-operand
 -Wconversion  -Wno-coverage-mismatch  -Wno-cpp
 -Wdangling-else  -Wdangling-pointer  -Wdangling-pointer=@var{n}
 -Wdate-time
@@ -10644,6 +10644,22 @@ the operands of a logical operator are the same:
 extern int a;
 if (a < 0 && a < 0) @{ @dots{} @}
 @end smallexample
+
+@opindex Wconstant-logical-operand
+@opindex Wno-constant-logical-operand
+@item -Wconstant-logical-operand
+Warn about another case of suspicious uses of logical operators in
+expressions, when neither operand of a logical operator is boolean
+and one of the operands is (or folds into) a constant other than 0 or 1,
+or enumerator with value 1 if the enumeral type contains enumerators with
+values other than 0 or 1.
+In such case the warning will suggest using corresponding bitwise operator.
+@smallexample
+extern int a;
+if (a && 64) @{ @dots{} @}
+@end smallexample
+If the warning is a false positive, one can clarify the code by using
+e.g. @code{a && (64 != 0)} instead.
 
 @opindex Wlogical-not-parentheses
 @opindex Wno-logical-not-parentheses

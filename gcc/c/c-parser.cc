@@ -10304,6 +10304,9 @@ c_parser_binary_expression (c_parser *parser, struct c_expr *after,
     location_t loc;
     /* The sizeof argument if expr.original_code == {PAREN_,}SIZEOF_EXPR.  */
     tree sizeof_arg;
+    /* The original expr.value before c_objc_common_truthvalue_conversion
+       for TRUTH_{AND,OR}*_EXPR lhs operands.  */
+    tree orig_expr;
   } stack[NUM_PRECS];
   int sp;
   /* Location of the binary operator.  */
@@ -10399,7 +10402,9 @@ c_parser_binary_expression (c_parser *parser, struct c_expr *after,
       stack[sp - 1].expr = parser_build_binary_op (stack[sp].loc,	      \
 						   stack[sp].op,	      \
 						   stack[sp - 1].expr,	      \
-						   stack[sp].expr);	      \
+						   stack[sp].expr,	      \
+						   stack[sp - 1].orig_expr);  \
+    stack[sp - 1].orig_expr = NULL_TREE;				      \
     sp--;								      \
   } while (0)
   gcc_assert (!after || c_dialect_objc ());
@@ -10407,6 +10412,7 @@ c_parser_binary_expression (c_parser *parser, struct c_expr *after,
   stack[0].expr = c_parser_cast_expression (parser, after);
   stack[0].prec = PREC_NONE;
   stack[0].sizeof_arg = c_last_sizeof_arg;
+  stack[0].orig_expr = NULL_TREE;
   sp = 0;
   while (true)
     {
@@ -10505,6 +10511,7 @@ c_parser_binary_expression (c_parser *parser, struct c_expr *after,
 	  stack[sp].expr
 	    = convert_lvalue_to_rvalue (stack[sp].loc,
 					stack[sp].expr, true, true);
+	  stack[sp].orig_expr = stack[sp].expr.value;
 	  stack[sp].expr.value = c_objc_common_truthvalue_conversion
 	    (stack[sp].loc, default_conversion (stack[sp].expr.value));
 	  c_inhibit_evaluation_warnings += (stack[sp].expr.value
@@ -10516,6 +10523,7 @@ c_parser_binary_expression (c_parser *parser, struct c_expr *after,
 	  stack[sp].expr
 	    = convert_lvalue_to_rvalue (stack[sp].loc,
 					stack[sp].expr, true, true);
+	  stack[sp].orig_expr = stack[sp].expr.value;
 	  stack[sp].expr.value = c_objc_common_truthvalue_conversion
 	    (stack[sp].loc, default_conversion (stack[sp].expr.value));
 	  c_inhibit_evaluation_warnings += (stack[sp].expr.value
@@ -10531,6 +10539,7 @@ c_parser_binary_expression (c_parser *parser, struct c_expr *after,
       stack[sp].prec = oprec;
       stack[sp].op = ocode;
       stack[sp].sizeof_arg = c_last_sizeof_arg;
+      stack[sp].orig_expr = NULL_TREE;
     }
  out:
   while (sp > 0)

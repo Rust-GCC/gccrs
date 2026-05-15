@@ -890,7 +890,7 @@ extern struct c_expr parser_build_unary_op (location_t, enum tree_code,
     					    struct c_expr);
 extern struct c_expr parser_build_binary_op (location_t,
     					     enum tree_code, struct c_expr,
-					     struct c_expr);
+					     struct c_expr, tree);
 extern tree build_conditional_expr (location_t, tree, bool, tree, tree,
 				    location_t, tree, tree, location_t);
 extern tree build_compound_expr (location_t, tree, tree);

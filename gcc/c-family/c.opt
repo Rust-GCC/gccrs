@@ -595,6 +595,10 @@ Wconditionally-supported
 C++ ObjC++ Var(warn_conditionally_supported) Warning
 Warn for conditionally-supported constructs.
 
+Wconstant-logical-operand
+C ObjC C++ ObjC++ Var(warn_constant_logical_operand) Warning LangEnabledBy(C ObjC C++ ObjC++,Wall)
+Warn for constant operands of logical operators other than 0 or 1.
+
 Wconversion
 C ObjC C++ ObjC++ Var(warn_conversion) Warning
 Warn for implicit type conversions that may change a value.
