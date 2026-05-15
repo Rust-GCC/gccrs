@@ -4526,7 +4526,16 @@
 	 UNSPEC_SSP_SET))
    (set (match_scratch:GPR 2 "=&r") (const_int 0))]
   ""
-  "<load>\t%2, %1\;<store>\t%2, %0\;li\t%2, 0"
+  {
+    rtx moves[][2] = {
+      {operands[2], operands[1]},
+      {operands[0], operands[2]},
+    };
+    for (rtx *op: moves)
+      output_asm_insn (riscv_output_move (op[0], op[1]), op);
+
+    return "li\t%2, 0";
+  }
   [(set_attr "type" "multi")
    (set_attr "length" "12")])
 
@@ -4566,7 +4575,16 @@
 	 UNSPEC_SSP_TEST))
    (clobber (match_scratch:GPR 3 "=&r"))]
   ""
-  "<load>\t%3, %1\;<load>\t%0, %2\;xor\t%0, %3, %0\;li\t%3, 0"
+  {
+    rtx moves[][2] = {
+      {operands[3], operands[1]},
+      {operands[0], operands[2]},
+    };
+    for (rtx *op: moves)
+      output_asm_insn (riscv_output_move (op[0], op[1]), op);
+
+    return "xor\t%0, %3, %0\;li\t%3, 0";
+  }
   [(set_attr "type" "multi")
    (set_attr "length" "12")])
 
