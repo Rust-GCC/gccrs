@@ -931,17 +931,8 @@ func_checker::compare_gimple_switch (const gswitch *g1, const gswitch *g2)
       if (!tree_int_cst_equal (high1, high2))
 	return return_false_with_msg ("case high values are different");
 
-      if (TREE_CODE (label1) == CASE_LABEL_EXPR
-	  && TREE_CODE (label2) == CASE_LABEL_EXPR)
-	{
-	  label1 = CASE_LABEL (label1);
-	  label2 = CASE_LABEL (label2);
-
-	  if (!compare_operand (label1, label2, OP_NORMAL))
-	    return return_false_with_msg ("switch label_exprs are different");
-	}
-      else if (!tree_int_cst_equal (label1, label2))
-	return return_false_with_msg ("switch labels are different");
+      if (!compare_operand (CASE_LABEL (label1), CASE_LABEL (label2), OP_NORMAL))
+	return return_false_with_msg ("switch label_exprs are different");
     }
 
   return true;
