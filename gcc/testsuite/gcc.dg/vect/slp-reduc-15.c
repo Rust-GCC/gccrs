@@ -1,6 +1,7 @@
-/* { dg-do compile } */
-/* { dg-require-effective-target vect_float } */
-/* { dg-additional-options "-fgimple -march=x86-64-v3" { target x86_64-*-* } } */
+/* { dg-do compile { target { x86 || aarch64-*-* } } } */
+/* { dg-additional-options "-fgimple" } */
+/* { dg-additional-options "-mavx2" { target x86 } } */
+/* { dg-additional-options "-march=armv8.2-a+sve" { target aarch64-*-* } } */
 
 /* Test that SLP reduction vectorization handles commutative operand swap
    for .COND_ADD in multi-lane SLP where the reduction operand appears
@@ -76,6 +77,6 @@ foo (float * restrict p0, float * restrict p1,
 
 /* With the IFN commutative swap fix, these 4 reductions should be
    vectorized using SLP despite different reduc_idx values (1 vs 2).  */
-/* { dg-final { scan-tree-dump "swapped operands to match def types in" "vect" { target x86_64-*-* } } } */
-/* { dg-final { scan-tree-dump-times "vectorizing stmts using SLP" 4 "vect" { target x86_64-*-* } } } */
+/* { dg-final { scan-tree-dump "swapped operands to match def types in" "vect" } } */
+/* { dg-final { scan-tree-dump-times "vectorizing stmts using SLP" 4 "vect" } } */
 
