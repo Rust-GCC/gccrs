@@ -3757,6 +3757,15 @@ AC_DEFUN([GLIBCXX_ENABLE_ATOMIC_BUILTINS], [
     esac
   fi
 
+  # The $glibcxx_builddir/include/$target/bits/atomic_word.h header is created
+  # by include/Makefile so isn't available during configure. Copy it from the
+  # source dir to $PWD so that we don't include it using an absolute path,
+  # which does not work for win32 native builds (PR libstdc++/125312).
+  if ! $LN_S "${glibcxx_srcdir}/config/${atomic_word_dir}/atomic_word.h" ./
+  then
+    AC_MSG_ERROR([cannot create ./atomic_word.h])
+  fi
+
   if test "$atomic_builtins_link_tests" = yes; then
 
     # Do link tests.
@@ -3765,7 +3774,7 @@ AC_DEFUN([GLIBCXX_ENABLE_ATOMIC_BUILTINS], [
 
     AC_CACHE_CHECK([for atomic builtins for _Atomic_word],
 	glibcxx_cv_atomic_word,
-	[AC_TRY_LINK([#include "${glibcxx_srcdir}/config/$atomic_word_dir/atomic_word.h"],
+	[AC_TRY_LINK([#include "atomic_word.h"],
 		     [_Atomic_word a = 0, b;
 		      b = __atomic_fetch_add(&a, 1, __ATOMIC_ACQ_REL);],
 		     [glibcxx_cv_atomic_word=yes],
@@ -3781,7 +3790,7 @@ AC_DEFUN([GLIBCXX_ENABLE_ATOMIC_BUILTINS], [
 
     cat > conftest.$ac_ext << EOF
 [#]line __oline__ "configure"
-[#]include "${glibcxx_srcdir}/config/$atomic_word_dir/atomic_word.h"
+[#]include "atomic_word.h"
 int main()
 {
   _Atomic_word a = 0, b;
@@ -3800,6 +3809,8 @@ EOF
     AC_MSG_RESULT($glibcxx_cv_atomic_word)
     rm -f conftest*
   fi
+
+  rm -f ./atomic_word.h
 
   CXXFLAGS="$old_CXXFLAGS"
   AC_LANG_RESTORE

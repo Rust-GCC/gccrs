@@ -16422,6 +16422,15 @@ ac_compiler_gnu=$ac_cv_cxx_compiler_gnu
     esac
   fi
 
+  # The $glibcxx_builddir/include/$target/bits/atomic_word.h header is created
+  # by include/Makefile so isn't available during configure. Copy it from the
+  # source dir to $PWD so that we don't include it using an absolute path,
+  # which does not work for win32 native builds (PR libstdc++/125312).
+  if ! $LN_S "${glibcxx_srcdir}/config/${atomic_word_dir}/atomic_word.h" ./
+  then
+    as_fn_error $? "cannot create ./atomic_word.h" "$LINENO" 5
+  fi
+
   if test "$atomic_builtins_link_tests" = yes; then
 
     # Do link tests.
@@ -16438,7 +16447,7 @@ else
 fi
 cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 /* end confdefs.h.  */
-#include "${glibcxx_srcdir}/config/$atomic_word_dir/atomic_word.h"
+#include "atomic_word.h"
 int
 main ()
 {
@@ -16468,8 +16477,8 @@ $as_echo "$glibcxx_cv_atomic_word" >&6; }
     # Fake what AC_TRY_COMPILE does.
 
     cat > conftest.$ac_ext << EOF
-#line 16471 "configure"
-#include "${glibcxx_srcdir}/config/$atomic_word_dir/atomic_word.h"
+#line 16480 "configure"
+#include "atomic_word.h"
 int main()
 {
   _Atomic_word a = 0, b;
@@ -16494,6 +16503,8 @@ $as_echo_n "checking for atomic builtins for _Atomic_word... " >&6; }
 $as_echo "$glibcxx_cv_atomic_word" >&6; }
     rm -f conftest*
   fi
+
+  rm -f ./atomic_word.h
 
   CXXFLAGS="$old_CXXFLAGS"
   ac_ext=c
@@ -16614,7 +16625,7 @@ $as_echo "mutex" >&6; }
   # unnecessary for this test.
 
     cat > conftest.$ac_ext << EOF
-#line 16617 "configure"
+#line 16628 "configure"
 int main()
 {
   _Decimal32 d1;
@@ -16656,7 +16667,7 @@ ac_compiler_gnu=$ac_cv_cxx_compiler_gnu
   # unnecessary for this test.
 
   cat > conftest.$ac_ext << EOF
-#line 16659 "configure"
+#line 16670 "configure"
 template<typename T1, typename T2>
   struct same
   { typedef T2 type; };
@@ -54147,7 +54158,7 @@ $as_echo "$glibcxx_cv_libbacktrace_atomics" >&6; }
     CXXFLAGS='-O0 -S'
 
     cat > conftest.$ac_ext << EOF
-#line 54150 "configure"
+#line 54161 "configure"
 #include <stddef.h>
 int main()
 {
