@@ -6841,7 +6841,11 @@ cxx_eval_bare_aggregate (const constexpr_ctx *ctx, tree t,
       /* Like in cxx_eval_store_expression, omit entries for empty fields.  */
       bool no_slot = new_ctx.ctor == NULL_TREE;
       int pos_hint = -1;
-      if (new_ctx.ctor != ctx->ctor && !no_slot)
+      if (!ctx->ctor)
+	/* The enclosing object could be an empty subobject so we have no
+	   CONSTRUCTOR (c++/125336).  */
+	gcc_checking_assert (is_empty_class (type));
+      else if (new_ctx.ctor != ctx->ctor && !no_slot)
 	{
 	  /* If we built a new CONSTRUCTOR, attach it now so that other
 	     initializers can refer to it.  */
@@ -6883,7 +6887,7 @@ cxx_eval_bare_aggregate (const constexpr_ctx *ctx, tree t,
 	/* This is an initializer for an empty field; now that we've
 	   checked that it's constant, we can ignore it.  */
 	changed = true;
-      else
+      else if (ctx->ctor)
 	{
 	  if (TREE_CODE (type) == UNION_TYPE
 	      && (*p)->last().index != index)
