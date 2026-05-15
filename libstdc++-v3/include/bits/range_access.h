@@ -119,12 +119,14 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
 #if __cplusplus >= 201402L
 
+#if __glibcxx_valarray < 202511L
   template<typename _Tp> class valarray;
   // These overloads must be declared for cbegin and cend to use them.
   template<typename _Tp> _Tp* begin(valarray<_Tp>&) noexcept;
   template<typename _Tp> const _Tp* begin(const valarray<_Tp>&) noexcept;
   template<typename _Tp> _Tp* end(valarray<_Tp>&) noexcept;
   template<typename _Tp> const _Tp* end(const valarray<_Tp>&) noexcept;
+#endif
 
   /**
    *  @brief  Return an iterator pointing to the first element of

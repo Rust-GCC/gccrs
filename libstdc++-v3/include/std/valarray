@@ -46,6 +46,9 @@
 #include <bits/range_access.h>
 #endif
 
+#define __glibcxx_want_valarray
+#include <bits/version.h>
+
 namespace std _GLIBCXX_VISIBILITY(default)
 {
 _GLIBCXX_BEGIN_NAMESPACE_VERSION
@@ -139,6 +142,10 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	};
     public:
       typedef _Tp value_type;
+#if __glibcxx_valarray >= 202511L
+      typedef _Tp* iterator;
+      typedef const _Tp* const_iterator;
+#endif
 
 	// _lib.valarray.cons_ construct/destroy:
       ///  Construct an empty array.
@@ -571,6 +578,36 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
        *  @param  __c  New value for all elements.
        */
       void resize(size_t __size, _Tp __c = _Tp());
+
+#if __glibcxx_valarray >= 202511L
+      /**
+        *  @brief  Return an iterator pointing to the first element of
+        *          the valarray.
+        */
+      [[nodiscard]]
+      iterator
+      begin() noexcept
+      { return _M_data; }
+
+      [[nodiscard]]
+      const_iterator
+      begin() const noexcept
+      { return _M_data; }
+
+      /**
+        *  @brief  Return an iterator pointing to one past the last element of
+        *          the valarray.
+        */
+      [[nodiscard]]
+      iterator
+      end() noexcept
+      { return _M_data + _M_size; }
+
+      [[nodiscard]]
+      const_iterator
+      end() const noexcept
+      { return _M_data + _M_size; }
+#endif
 
     private:
       size_t _M_size;
@@ -1218,7 +1255,7 @@ _DEFINE_BINARY_OPERATOR(>=, __greater_equal)
 #undef _DEFINE_BINARY_OPERATOR
   /// @endcond
 
-#if __cplusplus >= 201103L
+#if (__cplusplus >= 201103L) && (__glibcxx_valarray < 202511L)
   /**
    *  @brief  Return an iterator pointing to the first element of
    *          the valarray.
@@ -1272,7 +1309,7 @@ _DEFINE_BINARY_OPERATOR(>=, __greater_equal)
       else
 	return nullptr;
     }
-#endif // C++11
+#endif // C++11 to C++23
 
   /// @} group numeric_arrays
 

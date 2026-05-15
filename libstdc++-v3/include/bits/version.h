@@ -2685,4 +2685,14 @@
 #endif /* !defined(__cpp_lib_initializer_list) */
 #undef __glibcxx_want_initializer_list
 
+#if !defined(__cpp_lib_valarray)
+# if (__cplusplus >  202302L)
+#  define __glibcxx_valarray 202511L
+#  if defined(__glibcxx_want_all) || defined(__glibcxx_want_valarray)
+#   define __cpp_lib_valarray 202511L
+#  endif
+# endif
+#endif /* !defined(__cpp_lib_valarray) */
+#undef __glibcxx_want_valarray
+
 #undef __glibcxx_want_all
