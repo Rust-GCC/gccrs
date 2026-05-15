@@ -1319,6 +1319,15 @@ aarch64*-*-gnu*)
 aarch64-*-mingw*)
 	tm_file="${tm_file} aarch64/aarch64-abi-ms.h"
 	tm_file="${tm_file} aarch64/aarch64-coff.h"
+	case ${enable_threads} in
+	  "" | yes | win32)
+	    thread_file='win32'
+	    ;;
+	  posix)
+	    thread_file='posix'
+	    tm_file="${tm_file} mingw/mingw-pthread.h"
+	    ;;
+	esac
 	tm_file="${tm_file} aarch64/cygming.h"
 	tm_file="${tm_file} mingw/mingw32.h"
 	tm_file="${tm_file} mingw/mingw-stdint.h"
@@ -1335,14 +1344,6 @@ aarch64-*-mingw*)
 	cxx_target_objs="${cxx_target_objs} msformat-c.o"
 	d_target_objs="${d_target_objs} winnt-d.o"
 	tmake_file="${tmake_file} mingw/t-cygming"
-	case ${enable_threads} in
-	  "" | yes | win32)
-	    thread_file='win32'
-	    ;;
-	  posix)
-	    thread_file='posix'
-	    ;;
-	esac
 	default_use_cxa_atexit=yes
 	use_gcc_stdint=wrap
 	user_headers_inc_next_post="${user_headers_inc_next_post} float.h"
@@ -2288,7 +2289,7 @@ i[34567]86-*-mingw* | x86_64-*-mingw*)
 			;;
 	esac
 	if test x$enable_threads = xposix ; then
-		tm_file="${tm_file} i386/mingw-pthread.h"
+		tm_file="${tm_file} mingw/mingw-pthread.h"
 	fi
 	if test x$enable_threads = xmcf ; then
 		tm_file="${tm_file} i386/mingw-mcfgthread.h"
