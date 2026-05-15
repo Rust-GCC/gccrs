@@ -440,20 +440,21 @@ extern rtx hppa_pic_save_rtx (void);
    the SOM linker can do unaligned fixups for absolute pointers.
    We also need aligned pointers for global and function pointers.
 
-   Although the HP-UX 64-bit ELF linker can handle unaligned pc-relative
-   fixups, the runtime doesn't have a consistent relationship between
-   text and data for dynamically loaded objects.  Thus, it's not possible
-   to use pc-relative encoding for pointers on this target.  It may be
-   possible to use segment relative encodings but GAS doesn't currently
-   have a mechanism to generate these encodings.  For other targets, we
-   use pc-relative encoding for pointers.  If the pointer might require
-   dynamic relocation, we make it indirect.  */
+   The HP-UX 64-bit dynamic linker can't handle unaligned DW_EH_PE_absptr
+   encodings.  Although the HP-UX 64-bit ELF linker can handle unaligned
+   pc-relative encodings, the runtime doesn't have a consistent relationship
+   between text and data for dynamically loaded objects.  Thus, it's not
+   possible to use pc-relative encoding for pointers on this target.  It
+   may be possible to use segment relative encodings.
+   
+   For other targets, we use pc-relative encoding for pointers.  If the
+   pointer might require dynamic relocation, we make it indirect.  */
 #define ASM_PREFERRED_EH_DATA_FORMAT(CODE,GLOBAL)			\
   (TARGET_GAS && !TARGET_HPUX						\
    ? (DW_EH_PE_pcrel							\
       | ((GLOBAL) || (CODE) == 2 ? DW_EH_PE_indirect : 0)		\
       | (TARGET_64BIT ? DW_EH_PE_sdata8 : DW_EH_PE_sdata4))		\
-   : (!TARGET_GAS || (GLOBAL) || (CODE) == 2				\
+   : (TARGET_64BIT || !TARGET_GAS || (GLOBAL) || (CODE) == 2		\
       ? DW_EH_PE_aligned : DW_EH_PE_absptr))
 
 /* Handle special EH pointer encodings.  Absolute, pc-relative, and
