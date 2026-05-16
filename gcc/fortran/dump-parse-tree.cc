@@ -4513,7 +4513,12 @@ write_formal_arglist (gfc_symbol *sym, bool bind_c)
 {
   gfc_formal_arglist *f;
 
-  for (f = sym->formal; f != NULL; f = f->next)
+  if (sym->ts.interface)
+    f = sym->ts.interface->formal;
+  else
+    f = sym->formal;
+
+  for (; f != NULL; f = f->next)
     {
       enum type_return rok;
       const char *intent_in;
