@@ -506,6 +506,10 @@ scalar_chain::add_insn (bitmap candidates, unsigned int insn_uid,
   if (def_set)
     switch (GET_CODE (SET_SRC (def_set)))
       {
+      case REG:
+	if (HARD_REGISTER_P (SET_SRC (def_set)))
+	  return true;
+	break;
       case VEC_SELECT:
 	return true;
       case ZERO_EXTEND:
@@ -1641,7 +1645,33 @@ timode_scalar_chain::compute_convert_gain ()
       switch (GET_CODE (src))
 	{
 	case REG:
-	  if (!speed_p)
+	  if (GENERAL_REGNO_P (REGNO (src)))
+	    {
+	      if (TARGET_AVX)
+		/* vmovq + vpinsrq */
+		igain = speed_p ? -ix86_cost->integer_to_sse
+				  - COSTS_N_INSNS (1)
+				: -COSTS_N_BYTES (11);
+	      else
+		/* movq + movq + punpcklqdq */
+		igain = speed_p ? -ix86_cost->integer_to_sse
+				  - COSTS_N_INSNS (2)
+				: -COSTS_N_BYTES (14);
+	    }
+	  else if (GENERAL_REG_P (dst))
+	    {
+	      if (TARGET_AVX)
+		/* vpextrq + vmovq */
+		igain = speed_p ? -ix86_cost->sse_to_integer
+				  - COSTS_N_INSNS (1)
+				: -COSTS_N_BYTES (11);
+	      else
+		/* movhlps + movq + movq */
+		igain = speed_p ? -ix86_cost->sse_to_integer
+				  - COSTS_N_INSNS (2)
+				: -COSTS_N_BYTES (13);
+	    }
+	  else if (!speed_p)
 	    igain = MEM_P (dst) ? COSTS_N_BYTES (6) : COSTS_N_BYTES (3);
 	  else
 	    igain = COSTS_N_INSNS (1);
@@ -1680,7 +1710,7 @@ timode_scalar_chain::compute_convert_gain ()
 	  if (timode_concatdi_p (src))
 	    {
 	      /* vmovq;vpinsrq (11 bytes).  */
-	      igain = speed_p ? -2 * ix86_cost->sse_to_integer
+	      igain = speed_p ? -ix86_cost->integer_to_sse - COSTS_N_INSNS (1)
 			      : -COSTS_N_BYTES (11);
 	      break;
 	    }
@@ -1693,7 +1723,7 @@ timode_scalar_chain::compute_convert_gain ()
 	case PLUS:
 	  if (timode_concatdi_p (src))
 	    /* vmovq;vpinsrq (11 bytes).  */
-	    igain = speed_p ? -2 * ix86_cost->sse_to_integer
+	    igain = speed_p ? -ix86_cost->integer_to_sse - COSTS_N_INSNS (1)
 			    : -COSTS_N_BYTES (11);
 	  break;
 
@@ -1963,8 +1993,13 @@ timode_scalar_chain::convert_insn (rtx_insn *insn)
     case REG:
       if (GET_MODE (dst) == TImode)
 	{
-	  PUT_MODE (dst, V1TImode);
-	  fix_debug_reg_uses (dst);
+	  if (!HARD_REGISTER_NUM_P (REGNO (dst)))
+	    {
+	      PUT_MODE (dst, V1TImode);
+	      fix_debug_reg_uses (dst);
+	    }
+	  else if (!GENERAL_REGNO_P (REGNO (dst)))
+	    dst = gen_raw_REG (V1TImode, REGNO (dst));
 	}
       if (GET_MODE (dst) == V1TImode)
 	{
@@ -1988,8 +2023,42 @@ timode_scalar_chain::convert_insn (rtx_insn *insn)
     case REG:
       if (GET_MODE (src) == TImode)
 	{
-	  PUT_MODE (src, V1TImode);
-	  fix_debug_reg_uses (src);
+	  if (GENERAL_REGNO_P (REGNO (src)))
+	    {
+	      rtx lo = gen_reg_rtx (DImode);
+	      rtx hi = gen_reg_rtx (DImode);
+	      emit_insn_before (gen_rtx_SET (lo, gen_lowpart (DImode, src)),
+				insn);
+	      emit_insn_before (gen_rtx_SET (hi, gen_highpart (DImode, src)),
+				insn);
+	      src = gen_reg_rtx (V2DImode);
+	      emit_insn_before (gen_vec_concatv2di (src, lo, hi), insn);
+	      src = gen_lowpart (V1TImode, src);
+	    }
+	  else if (!HARD_REGISTER_NUM_P (REGNO (src)))
+	    {
+	      PUT_MODE (src, V1TImode);
+	      fix_debug_reg_uses (src);
+	    }
+	  else
+	    src = gen_raw_REG (V1TImode, REGNO (src));
+	}
+      if (GENERAL_REG_P (dst))
+	{
+	  rtx tmp = gen_reg_rtx (V2DImode);
+	  src = gen_lowpart (V2DImode, src);
+	  emit_insn_before (gen_rtx_SET (tmp, src), insn);
+	  /* Extracting hi before lo helps register allocation.  */
+	  rtx hi = gen_reg_rtx (DImode);
+	  rtx lo = gen_reg_rtx (DImode);
+	  emit_insn_before (gen_vec_extractv2didi (hi, tmp, const1_rtx), insn);
+	  emit_insn_before (gen_vec_extractv2didi (lo, tmp, const0_rtx), insn);
+
+	  /* Construct *concatditi3 pattern from lo and hi.  */
+	  hi = gen_rtx_ZERO_EXTEND (TImode, hi);
+	  hi = gen_rtx_ASHIFT (TImode, hi, GEN_INT (64));
+	  lo = gen_rtx_ZERO_EXTEND (TImode, lo);
+	  src = gen_rtx_PLUS (TImode, hi, lo);
 	}
       break;
 
@@ -2453,8 +2522,31 @@ timode_scalar_to_vector_candidate_p (rtx_insn *insn)
 {
   rtx def_set = pseudo_reg_set (insn);
 
+  /* We allow two exceptions to the pseudo registers only rule.
+     Setting a hard register from a pseudo, and setting a pseudo
+     from a hard register.  */
   if (!def_set)
-    return false;
+    {
+      def_set = single_set (insn);
+      if (def_set)
+	{
+	  rtx src = SET_SRC (def_set);
+	  rtx dst = SET_DEST (def_set);
+	  if (GET_MODE (dst) == TImode
+	      && REG_P (src) && REG_P (dst))
+	    {
+	      if (HARD_REGISTER_P (dst)
+		  && !HARD_REGISTER_P (src)
+		  && single_def_chain_p (src))
+		return true;
+	      if (HARD_REGISTER_P (src)
+		  && !HARD_REGISTER_P (dst)
+		  && single_def_chain_p (dst))
+		return true;
+	    }
+	}
+      return false;
+    }
 
   rtx src = SET_SRC (def_set);
   rtx dst = SET_DEST (def_set);
