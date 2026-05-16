@@ -52,10 +52,7 @@ test(std::chars_format fmt = std::chars_format{})
     std::numbers::inv_sqrt3_v<std::float128_t>,
     std::numbers::egamma_v<std::float128_t>,
     std::numbers::phi_v<std::float128_t>,
-// Solaris has non-conforming printf, see PR98384 and PR107815.
-#if !(defined(__sun__) && defined(__svr4__))
     std::numeric_limits<std::float128_t>::max()
-#endif
   };
   char str1[10000], str2[10000];
   for (auto u : tests)
