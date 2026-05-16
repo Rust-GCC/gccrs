@@ -2435,10 +2435,6 @@ evaluate_stmt (gimple *stmt)
 	    case BUILT_IN_BSWAP32:
 	    case BUILT_IN_BSWAP64:
 	    case BUILT_IN_BSWAP128:
-	    case BUILT_IN_BITREVERSE8:
-	    case BUILT_IN_BITREVERSE16:
-	    case BUILT_IN_BITREVERSE32:
-	    case BUILT_IN_BITREVERSE64:
 	      val = get_value_for_expr (gimple_call_arg (stmt, 0), true);
 	      if (val.lattice_val == UNDEFINED)
 		break;
@@ -2458,6 +2454,33 @@ evaluate_stmt (gimple *stmt)
 								   prec,
 								   UNSIGNED)),
 					UNSIGNED);
+		  if (wi::sext (val.mask, prec) != -1)
+		    break;
+		}
+	      val.lattice_val = VARYING;
+	      val.value = NULL_TREE;
+	      val.mask = -1;
+	      break;
+
+	    case BUILT_IN_BITREVERSE8:
+	    case BUILT_IN_BITREVERSE16:
+	    case BUILT_IN_BITREVERSE32:
+	    case BUILT_IN_BITREVERSE64:
+	      val = get_value_for_expr (gimple_call_arg (stmt, 0), true);
+	      if (val.lattice_val == UNDEFINED)
+		break;
+	      else if (val.lattice_val == CONSTANT
+		       && val.value
+		       && TREE_CODE (val.value) == INTEGER_CST)
+		{
+		  tree type = TREE_TYPE (gimple_call_lhs (stmt));
+		  int prec = TYPE_PRECISION (type);
+		  wide_int wval = wi::to_wide (val.value);
+		  wval = wide_int::from (wval, prec, UNSIGNED);
+		  wide_int wmask = wide_int::from (val.mask, prec, UNSIGNED);
+		  val.value = wide_int_to_tree (type, wi::bitreverse (wval));
+		  val.mask = widest_int::from (wi::bitreverse (wmask),
+					       UNSIGNED);
 		  if (wi::sext (val.mask, prec) != -1)
 		    break;
 		}
