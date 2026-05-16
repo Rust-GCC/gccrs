@@ -273,7 +273,7 @@ _gfortran_caf_register (size_t size, caf_register_t type, caf_token_t *token,
     case CAF_REGTYPE_LOCK_ALLOC:
     case CAF_REGTYPE_CRITICAL:
       {
-	lock_t *addr;
+	caf_shmem_lock_t *addr;
 	bool created;
 	size_t alloc_size;
 
@@ -286,7 +286,7 @@ _gfortran_caf_register (size_t size, caf_register_t type, caf_token_t *token,
 	alloc_size = size;
 #endif
 	addr = alloc_get_memory_by_id_created (&local->ai,
-					       alloc_size * sizeof (lock_t),
+					       alloc_size * sizeof (caf_shmem_lock_t),
 					       next_memid, &created);
 
 	if (created)
@@ -296,7 +296,7 @@ _gfortran_caf_register (size_t size, caf_register_t type, caf_token_t *token,
 	    for (size_t c = 0; c < alloc_size; ++c)
 	      initialize_shared_errorcheck_mutex (&addr[c]);
 	  }
-	size *= sizeof (lock_t);
+	size *= sizeof (caf_shmem_lock_t);
 
 	allocator_unlock (&local->ai.alloc);
 	mem = addr;
@@ -1503,7 +1503,7 @@ _gfortran_caf_lock (caf_token_t token, size_t index, int image_index,
   const size_t lock_index = index;
   (void) image_index; // Prevent unused warnings.
 #endif
-  lock_t *lock = &((lock_t *) MEMTOK (token))[lock_index];
+  caf_shmem_lock_t *lock = &((caf_shmem_lock_t *) MEMTOK (token))[lock_index];
   int res;
 
   res = acquired_lock ? caf_shmem_mutex_trylock (lock)
@@ -1547,7 +1547,7 @@ _gfortran_caf_unlock (caf_token_t token, size_t index, int image_index,
   const size_t lock_index = index;
   (void) image_index; // Prevent unused warnings.
 #endif
-  lock_t *lock = &((lock_t *) MEMTOK (token))[lock_index];
+  caf_shmem_lock_t *lock = &((caf_shmem_lock_t *) MEMTOK (token))[lock_index];
   int res;
 
   res = caf_shmem_mutex_unlock (lock);

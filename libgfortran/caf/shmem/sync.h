@@ -43,7 +43,7 @@ typedef struct {
   caf_shmem_condvar *triggers;
 } sync_t;
 
-typedef caf_shmem_mutex lock_t;
+typedef caf_shmem_mutex caf_shmem_lock_t;
 
 typedef int event_t;
 
