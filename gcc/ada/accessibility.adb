@@ -1558,42 +1558,40 @@ package body Accessibility is
       Loc : constant Source_Ptr := Sloc (N);
 
       Check_Cond  : Node_Id;
-      Param_Ent   : Entity_Id := Param_Entity (N);
+      Param_Ent   : Entity_Id;
       Param_Level : Node_Id;
       Type_Level  : Node_Id;
 
    begin
+      if Inside_A_Generic then
+         return;
+      end if;
+
       --  Verify we haven't tried to add a dynamic accessibility check when we
       --  shouldn't.
 
       pragma Assert (not No_Dynamic_Accessibility_Checks_Enabled (N));
 
+      Param_Ent := Param_Entity (N);
+
+      --  Stand-alone object of an anonymous access type (SAOOAAAT)
+
       if Ada_Version >= Ada_2012
          and then No (Param_Ent)
          and then Is_Entity_Name (N)
          and then Ekind (Entity (N)) in E_Constant | E_Variable
-         and then Present (Effective_Extra_Accessibility (Entity (N)))
+         and then Present (Extra_Accessibility (Entity (N)))
       then
          Param_Ent := Entity (N);
-         while Present (Renamed_Object (Param_Ent)) loop
-            --  Renamed_Object must return an Entity_Name here
-            --  because of preceding "Present (E_E_A (...))" test.
-
-            Param_Ent := Entity (Renamed_Object (Param_Ent));
-         end loop;
       end if;
 
-      if Inside_A_Generic then
-         return;
+      --  Apply the run-time check only if the access object has an associated
+      --  extra access level object and when accessibility checks are enabled.
 
-      --  Only apply the run-time check if the access parameter has an
-      --  associated extra access level parameter and when accessibility checks
-      --  are enabled.
-
-      elsif Present (Param_Ent)
-         and then Present (Get_Dynamic_Accessibility (Param_Ent))
-         and then not Accessibility_Checks_Suppressed (Param_Ent)
-         and then not Accessibility_Checks_Suppressed (Typ)
+      if Present (Param_Ent)
+        and then Present (Get_Dynamic_Accessibility (Param_Ent))
+        and then not Accessibility_Checks_Suppressed (Param_Ent)
+        and then not Accessibility_Checks_Suppressed (Typ)
       then
          --  Obtain the parameter's accessibility level
 
@@ -2268,20 +2266,24 @@ package body Accessibility is
       end if;
    end Deepest_Type_Access_Level;
 
-   -----------------------------------
-   -- Effective_Extra_Accessibility --
-   -----------------------------------
+   -------------------------
+   -- Extra_Accessibility --
+   -------------------------
 
-   function Effective_Extra_Accessibility (Id : Entity_Id) return Entity_Id is
+   function Extra_Accessibility (Id : Entity_Id) return Entity_Id is
    begin
       if Present (Renamed_Object (Id))
         and then Is_Entity_Name (Renamed_Object (Id))
       then
-         return Effective_Extra_Accessibility (Entity (Renamed_Object (Id)));
-      else
-         return Extra_Accessibility (Id);
+         return Extra_Accessibility (Entity (Renamed_Object (Id)));
       end if;
-   end Effective_Extra_Accessibility;
+
+      if Is_Formal (Id) or else Ekind (Id) in E_Constant | E_Variable then
+         return Extra_Accessibility_Of_Object (Id);
+      else
+         return Empty;
+      end if;
+   end Extra_Accessibility;
 
    -------------------------------
    -- Get_Dynamic_Accessibility --

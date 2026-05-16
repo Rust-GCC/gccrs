@@ -535,7 +535,7 @@ package Gen_IL.Fields is
       Enumeration_Rep_Expr,
       Equivalent_Type,
       Esize,
-      Extra_Accessibility,
+      Extra_Accessibility_Of_Object,
       Extra_Accessibility_Of_Result,
       Extra_Constrained,
       Extra_Formal,

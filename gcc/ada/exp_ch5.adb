@@ -2871,7 +2871,7 @@ package body Exp_Ch5 is
       if Is_Access_Type (Typ)
         and then Is_Entity_Name (Lhs)
         and then Ekind (Entity (Lhs)) /= E_Loop_Parameter
-        and then Present (Effective_Extra_Accessibility (Entity (Lhs)))
+        and then Present (Extra_Accessibility (Entity (Lhs)))
       then
          if not Accessibility_Checks_Suppressed (Entity (Lhs)) then
             Insert_Action (N,
@@ -2888,8 +2888,7 @@ package body Exp_Ch5 is
          Insert_Action (N,
            Make_Assignment_Statement (Loc,
              Name       =>
-               New_Occurrence_Of
-                 (Effective_Extra_Accessibility (Entity (Lhs)), Loc),
+               New_Occurrence_Of (Extra_Accessibility (Entity (Lhs)), Loc),
              Expression =>
                Accessibility_Level
                  (Expr            => Rhs,

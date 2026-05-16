@@ -1251,17 +1251,17 @@ package Einfo is
 --       Note one obscure case: for pragma Default_Storage_Pool (null), the
 --       Etype of the N_Null node is Empty.
 
---    Extra_Accessibility
---       Defined in formal parameters in the non-generic case. Normally Empty,
---       but if expansion is active, and a parameter is one for which a
+--    Extra_Accessibility_Of_Object
+--       Defined in formal parameters in the non-generic case: normally Empty,
+--       but if expansion is active, and a formal parameter is one for which a
 --       dynamic accessibility check is required, then an extra formal of type
 --       Natural is created (see description of field Extra_Formal), and the
---       Extra_Accessibility field of the formal parameter points to the entity
---       for this extra formal. Also defined in variables when compiling
---       receiving stubs. In this case, a non Empty value means that this
---       variable's accessibility depth has been transmitted by the caller and
---       must be retrieved through the entity designed by this field instead of
---       being computed.
+--       Extra_Accessibility_Of_Object of the formal parameter points to the
+--       entity of this extra formal. Defined in stand-alone objects: normally
+--       Empty, but if expansion is active, and the object is one for which a
+--       dynamic accessibility check is required (AI05-0148), then a variable
+--       of type Natural is created and the Extra_Accessibility_Of_Object of
+--       the object points to the entity of this variable.
 
 --    Extra_Accessibility_Of_Result
 --       Defined in (non-generic) Function, Operator, and Subprogram_Type
@@ -1289,7 +1289,7 @@ package Einfo is
 --       parameters require extra implicit information to be passed (e.g. the
 --       flag indicating if an unconstrained variant record argument is
 --       constrained, and the accessibility level for access parameters). See
---       description of Extra_Constrained, Extra_Accessibility fields for
+--       description of Extra_Constrained and Extra_Accessibility_Of_Object for
 --       further details. Extra formal parameters are constructed to represent
 --       these values, and chained to the end of the list of formals using the
 --       Extra_Formal field (i.e. the Extra_Formal field of the last "real"
@@ -5392,7 +5392,7 @@ package Einfo is
    --    Discriminal_Link
    --    Full_View
    --    Esize
-   --    Extra_Accessibility                   (constants only)
+   --    Extra_Accessibility_Of_Object         (constants only)
    --    Alignment
    --    Actual_Subtype
    --    Renamed_Object
@@ -5744,7 +5744,7 @@ package Einfo is
    --    Discriminal_Link                     (discriminals only)
    --    Entry_Component
    --    Esize
-   --    Extra_Accessibility
+   --    Extra_Accessibility_Of_Object
    --    Alignment
    --    Extra_Formal
    --    Unset_Reference
@@ -6292,7 +6292,7 @@ package Einfo is
    --    Part_Of_Constituents
    --    Part_Of_References
    --    Esize
-   --    Extra_Accessibility
+   --    Extra_Accessibility_Of_Object
    --    Alignment
    --    Unset_Reference
    --    Actual_Subtype

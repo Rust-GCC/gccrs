@@ -1803,8 +1803,7 @@ package body Exp_Ch6 is
 
                if Is_Access_Type (E_Formal)
                  and then Is_Entity_Name (Lhs)
-                 and then
-                   Present (Effective_Extra_Accessibility (Entity (Lhs)))
+                 and then Present (Extra_Accessibility (Entity (Lhs)))
                  and then not No_Dynamic_Accessibility_Checks_Enabled (Lhs)
                then
                   --  Copyback target is an Ada 2012 stand-alone object of an
@@ -1829,7 +1828,7 @@ package body Exp_Ch6 is
                   Append_To (Post_Call,
                     Make_Assignment_Statement (Loc,
                       Name       => New_Occurrence_Of (
-                        Effective_Extra_Accessibility (Entity (Lhs)), Loc),
+                        Extra_Accessibility (Entity (Lhs)), Loc),
                       Expression => Make_Integer_Literal (Loc,
                         Type_Access_Level (E_Formal))));
 

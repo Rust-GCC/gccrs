@@ -11531,10 +11531,6 @@ package body Exp_Ch4 is
       procedure Real_Range_Check;
       --  Handles generation of range check for real target value
 
-      function Has_Extra_Accessibility (Id : Entity_Id) return Boolean;
-      --  True iff Present (Effective_Extra_Accessibility (Id)) successfully
-      --  evaluates to True.
-
       function Statically_Deeper_Relation_Applies (Targ_Typ : Entity_Id)
         return Boolean;
       --  Given a target type for a conversion, determine whether the
@@ -12047,22 +12043,6 @@ package body Exp_Ch4 is
          Rewrite (Expr, New_Occurrence_Of (Tnn, Loc));
       end Real_Range_Check;
 
-      -----------------------------
-      -- Has_Extra_Accessibility --
-      -----------------------------
-
-      --  Returns true for a formal of an anonymous access type or for an Ada
-      --  2012-style stand-alone object of an anonymous access type.
-
-      function Has_Extra_Accessibility (Id : Entity_Id) return Boolean is
-      begin
-         if Is_Formal (Id) or else Ekind (Id) in E_Constant | E_Variable then
-            return Present (Effective_Extra_Accessibility (Id));
-         else
-            return False;
-         end if;
-      end Has_Extra_Accessibility;
-
       ----------------------------------------
       -- Statically_Deeper_Relation_Applies --
       ----------------------------------------
@@ -12342,9 +12322,9 @@ package body Exp_Ch4 is
          --  subprogram call. Note that other checks may still need to be
          --  applied below (such as tagged type checks).
 
-         elsif Is_Entity_Name (Operand_Acc)
-           and then Has_Extra_Accessibility (Entity (Operand_Acc))
-           and then Ekind (Etype (Operand_Acc)) = E_Anonymous_Access_Type
+         elsif Ekind (Etype (Operand_Acc)) = E_Anonymous_Access_Type
+           and then Is_Entity_Name (Operand_Acc)
+           and then Present (Extra_Accessibility (Entity (Operand_Acc)))
            and then (Nkind (Original_Node (N)) /= N_Attribute_Reference
                       or else Attribute_Name (Original_Node (N)) = Name_Access)
            and then not No_Dynamic_Accessibility_Checks_Enabled (N)

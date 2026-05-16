@@ -138,8 +138,9 @@ package Accessibility is
    --  The Allow_Alt_Model parameter allows the alternative level calculation
    --  under the restriction No_Dynamic_Accessibility_Checks to be performed.
 
-   function Effective_Extra_Accessibility (Id : Entity_Id) return Entity_Id;
-   --  Same as Extra_Accessibility in Einfo, but looks through object renamings
+   function Extra_Accessibility (Id : Entity_Id) return Entity_Id;
+   --  Same as Extra_Accessibility_Of_Object in Einfo, but looks through object
+   --  renamings per the RM 3.10.2(8) rule.
 
    function Get_Dynamic_Accessibility (E : Entity_Id) return Entity_Id;
    --  Obtain the accessibility level for a given entity formal taking into

@@ -16868,7 +16868,7 @@ package body Sem_Ch3 is
 
          if Is_Limited_Interface (Parent_Type) then
             Set_Extra_Formal (New_Formal, Empty);
-            Set_Extra_Accessibility (New_Formal, Empty);
+            Set_Extra_Accessibility_Of_Object (New_Formal, Empty);
          end if;
 
          --  Normally we do not go copying parents, but in the case of

@@ -8771,7 +8771,7 @@ package body Exp_Ch3 is
 
             Insert_Action_After (Init_After, Level_Decl);
 
-            Set_Extra_Accessibility (Def_Id, Level);
+            Set_Extra_Accessibility_Of_Object (Def_Id, Level);
          end;
       end if;
 

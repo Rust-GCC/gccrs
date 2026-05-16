@@ -9306,7 +9306,7 @@ package body Sem_Ch6 is
             pragma Assert (No (Alias_Formal)
               or else Present (Extra_Accessibility (Alias_Formal)));
 
-            Set_Extra_Accessibility
+            Set_Extra_Accessibility_Of_Object
               (Formal, Add_Extra_Formal (Formal, Standard_Natural, E, "L"));
 
          else
