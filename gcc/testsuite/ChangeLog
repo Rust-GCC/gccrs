@@ -1,3 +1,74 @@
+2026-05-15  Marek Polacek  <polacek@redhat.com>
+
+	* g++.dg/warn/Wuninitialized-pr107919-1.C: Fix a dg-bogus.
+
+2026-05-15  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR tree-optimization/125290
+	* g++.dg/warn/Wuninitialized-pr107919-1.C: Remove xfail.
+	* gcc.dg/analyzer/taint-assert.c: Update for the non-removal
+	of block containing unreachable.
+	* gcc.dg/torture/pr125290-1.c: New test.
+
+2026-05-15  Andi Kleen  <ak@gcc.gnu.org>
+
+	PR c/124532
+	* c-c++-common/pr124532.c: New test.
+
+2026-05-15  Lili Cui  <lili.cui@intel.com>
+
+	* gcc.dg/vect/slp-reduc-15.c: Add aarch64 support and use
+	-mavx2 for x86.
+
+2026-05-15  Xi Ruoyao  <xry111@xry111.site>
+
+	PR tree-optimization/125291
+	* gcc.c-torture/execute/pr125291.c: New test.
+
+2026-05-15  Xi Ruoyao  <xry111@xry111.site>
+
+	* gcc.target/loongarch/la64/spaceship.c: New test.
+
+2026-05-15  Abhishek Kaushik  <abhishek.kaushik@arm.com>
+
+	PR target/123924
+	* gcc.target/aarch64/sve/fnma_match.c: New test.
+	* gcc.target/aarch64/sve/pr123897.c:
+	Update the test to scan for FNMA in the tree dump.
+
+2026-05-15  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/125296
+	* gcc.dg/pr125206.c: New testcase.
+
+2026-05-15  Jakub Jelinek  <jakub@redhat.com>
+
+	PR target/125308
+	* gcc.target/i386/pr125308.c: New test.
+
+2026-05-15  Disservin  <disservin.social@gmail.com>
+	    Jakub Jelinek  <jakub@redhat.com>
+
+	PR target/50481
+	* gcc.dg/builtin-bitreverse-1.c: New test.
+	* gcc.dg/builtin-bitreverse-2.c: New test.
+
+2026-05-15  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/125179
+	* g++.dg/reflect/pr125179.C: New test.
+
+2026-05-15  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/125081
+	* c-c++-common/Wconstant-logical-operand-1.c: New test.
+	* c-c++-common/Wconstant-logical-operand-2.c: New test.
+
+2026-05-15  Jason Merrill  <jason@redhat.com>
+
+	PR c++/125315
+	* g++.dg/cpp2a/no_unique_address16.C: New test.
+
 2026-05-14  Uros Bizjak  <ubizjak@gmail.com>
 
 	* lib/target-supports.exp (check_profiling_available): Remove

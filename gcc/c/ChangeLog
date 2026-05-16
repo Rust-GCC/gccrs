@@ -1,3 +1,20 @@
+2026-05-15  Andi Kleen  <ak@gcc.gnu.org>
+
+	PR c/124532
+	* c-parser.cc (struct attr_state): Add reset method.
+	(c_parser_compound_statement_nostart): Rename a to astate.
+	Reset state before iterating statements.
+
+2026-05-15  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/125081
+	* c-tree.h (parser_build_binary_op): Add ORIG_ARG1 argument.
+	* c-typeck.cc (parser_build_binary_op): Likewise.  Emit
+	-Wconstant-logical-operand warnings.
+	* c-parser.cc (c_parser_binary_expression): Adjust
+	parser_build_binary_op caller, pass to it the original
+	stack[sp - 1].expr.value before c_objc_common_truthvalue_conversion.
+
 2026-05-14  Tobias Burnus  <tburnus@baylibre.com>
 
 	* c-parser.cc (c_parser_omp_declare_mapper): Check that the

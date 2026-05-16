@@ -1,3 +1,7 @@
+2026-05-15  Karl Meakin  <karl.meakin@arm.com>
+
+	* .editorconfig (COMMIT_EDITMSG): New section.
+
 2026-05-13  Zhongyao Chen  <chen.zhongyao@zte.com.cn>
 
 	* MAINTAINERS (Write After Approval): Add myself.

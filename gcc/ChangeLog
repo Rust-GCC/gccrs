@@ -1,3 +1,92 @@
+2026-05-15  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	* tree-ssa-operands.cc (operands_scanner::parse_ssa_operands):
+	Process index of the gswitch only.
+
+2026-05-15  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR tree-optimization/125290
+	* tree-cfg.cc (group_case_labels_stmt): Remove code that was
+	added to remove `cases` that goto blocks of unreachable.
+	* tree-ssa-forwprop.cc (optimize_unreachable): Remove the
+	comment about switch cases being handled.
+
+2026-05-15  John David Anglin  <danglin@gcc.gnu.org>
+
+	* config/pa/pa.h (ASM_PREFERRED_EH_DATA_FORMAT): Use
+	DW_EH_PE_aligned encoding on 64-bit HP-UX.
+
+2026-05-15  H.J. Lu  <hjl.tools@gmail.com>
+
+	PR rtl-optimization/125321
+	* function-abi.cc (function_abi_aggregator::caller_save_regs):
+	Return the enabled registers.
+
+2026-05-15  Xi Ruoyao  <xry111@xry111.site>
+
+	PR tree-optimization/125291
+	* tree-scalar-evolution.cc (simplify_peeled_chrec): Sign-extend
+	the step for peeled converted IV.
+
+2026-05-15  Xi Ruoyao  <xry111@xry111.site>
+
+	* config/loongarch/loongarch.md (spaceship<mode>4): New
+	define_expand.
+
+2026-05-15  Abhishek Kaushik  <abhishek.kaushik@arm.com>
+
+	PR target/123924
+	* match.pd: Allow conversions in FMA-to-FNMA fold.
+
+2026-05-15  Richard Biener  <rguenther@suse.de>
+
+	* tree-vectorizer.h (vector_costs::add_slp_cost): New.
+	* tree-vectorizer.cc (vector_costs::add_slp_cost): New
+	default version.
+	* tree-vect-slp.cc (add_slp_costs): Helper for dispatching
+	a cost vector in SLP chunks.
+	(vect_slp_analyze_operations): Adjust.
+	(li_cost_vec_cmp): Likewise.
+	(vect_bb_vectorization_profitable_p): Likewise.
+
+2026-05-15  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/125296
+	* tree-ssa-forwprop.cc (forward_propagate_addr_expr_1):
+	Preserve alignment of the original access.
+
+2026-05-15  Jakub Jelinek  <jakub@redhat.com>
+
+	PR target/125308
+	* config/i386/sse.md (*minmax<mode>3_4): Force also
+	operands[2] into a REG.
+
+2026-05-15  Disservin  <disservin.social@gmail.com>
+	    Jakub Jelinek  <jakub@redhat.com>
+
+	PR target/50481
+	* builtin-types.def (BT_FN_UINT8_UINT8): New.
+	* builtins.def (BUILT_IN_BITREVERSE8, BUILT_IN_BITREVERSE16,
+	BUILT_IN_BITREVERSE32, BUILT_IN_BITREVERSE64): New builtins.
+	* builtins.cc (expand_builtin, is_inexpensive_builtin): Handle
+	bitreverse builtins.
+	* fold-const-call.cc (fold_const_call_ss): Fold bitreverse builtins.
+	* fold-const.cc (tree_call_nonnegative_warnv_p): Handle
+	bitreverse builtins.
+	* optabs.def (bitreverse_optab): New.
+	* optabs.cc (expand_bitreverse): New function.
+	(expand_unop): Use it for bitreverse_optab.
+	* tree-ssa-ccp.cc (evaluate_stmt): Handle bitreverse builtins.
+	* tree-ssa-phiopt.cc (empty_bb_or_one_feeding_into_p,
+	cond_removal_in_builtin_zero_pattern): Likewise.
+	* doc/extend.texi: Document __builtin_bitreverse{8,16,32,64}.
+	* doc/md.texi (bitreverse<mode>2): Document.
+
+2026-05-15  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/125081
+	* doc/invoke.texi (Wconstant-logical-operand): Document.
+
 2026-05-14  Andi Kleen  <ak@gcc.gnu.org>
 
 	PR target/124316

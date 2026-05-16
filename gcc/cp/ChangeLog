@@ -1,3 +1,15 @@
+2026-05-15  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/125081
+	* typeck.cc (cp_build_binary_op): Emit -Wconstant-logical-operand
+	warnings.
+
+2026-05-15  Jason Merrill  <jason@redhat.com>
+
+	PR c++/125315
+	* constexpr.cc (init_subob_ctx): Allow both ctor and object
+	to be null for an empty subobject.
+
 2026-05-14  Patrick Palka  <ppalka@redhat.com>
 
 	PR c++/124628
