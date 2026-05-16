@@ -176,6 +176,11 @@ associate_equivalences_with_edges (void)
 	      && !SSA_NAME_OCCURS_IN_ABNORMAL_PHI (cond))
 	    {
 	      int i, n_labels = gimple_switch_num_labels (switch_stmt);
+	      /* info contains NULL, error_mark_node or a value.
+		 error_mark signifies there are multiple values already.
+		 A NULL signifies there it is uninitialized.
+		 A value signifies that is the only value on that edge
+		 to that bb.  */
 	      tree *info = XCNEWVEC (tree, last_basic_block_for_fn (cfun));
 
 	      /* Walk over the case label vector.  Record blocks
@@ -186,24 +191,29 @@ associate_equivalences_with_edges (void)
 		  tree label = gimple_switch_label (switch_stmt, i);
 		  basic_block bb = label_to_block (cfun, CASE_LABEL (label));
 
+		  /* The default case is a case with multiple values.
+		     If the value is already set then it has multiple
+		     values.  */
 		  if (CASE_HIGH (label)
 		      || !CASE_LOW (label)
 		      || info[bb->index])
 		    info[bb->index] = error_mark_node;
 		  else
-		    info[bb->index] = label;
+		    /* Record the one value that can be on that edge to the
+		       target_bb.  */
+		    info[bb->index] = CASE_LOW (label);
 		}
 
 	      /* Now walk over the blocks to determine which ones were
 		 marked as being reached by a useful case label.  */
 	      for (i = 0; i < n_basic_blocks_for_fn (cfun); i++)
 		{
-		  tree node = info[i];
+		  tree value = info[i];
 
-		  if (node != NULL
-		      && node != error_mark_node)
+		  if (value != NULL
+		      && value != error_mark_node)
 		    {
-		      tree x = fold_convert (TREE_TYPE (cond), CASE_LOW (node));
+		      tree x = fold_convert (TREE_TYPE (cond), value);
 		      struct edge_equivalency *equivalency;
 
 		      /* Record an equivalency on the edge from BB to basic
