@@ -840,7 +840,7 @@ package body Exp_Ch4 is
 
       if Is_Entity_Name (Exp)
         and then Has_Anonymous_Access_Discriminant (Etype (Exp))
-        and then Static_Accessibility_Level (Exp, Object_Decl_Level)
+        and then Static_Accessibility_Level (Exp, Zero_On_Dynamic_Level)
                    > Static_Accessibility_Level (N, Object_Decl_Level)
       then
          --  A dynamic check and a warning are generated when we are within
