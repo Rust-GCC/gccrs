@@ -8752,18 +8752,7 @@ package body Exp_Ch3 is
 
             if No (Expr) then
                Level_Expr :=
-                 Make_Integer_Literal
-                   (Loc, Scope_Depth (Standard_Standard));
-
-            --  When the expression of the object is a function which returns
-            --  an anonymous access type the master of the call is the object
-            --  being initialized instead of the type.
-
-            elsif Nkind (Expr) = N_Function_Call
-              and then Ekind (Etype (Name (Expr))) = E_Anonymous_Access_Type
-            then
-               Level_Expr := Accessibility_Level
-                               (Def_Id, Object_Decl_Level);
+                 Make_Integer_Literal (Loc, Scope_Depth (Standard_Standard));
 
             --  General case
 

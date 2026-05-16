@@ -35,22 +35,25 @@ package Accessibility is
    --  rules of 3.10.2 are violated.
 
    type Accessibility_Level_Kind is
-     (Dynamic_Level,
-      Object_Decl_Level,
-      Zero_On_Dynamic_Level);
-   --  Accessibility_Level_Kind is an enumerated type which captures the
-   --  different modes in which an accessibility level could be obtained for
-   --  a given expression.
+     (Dynamic_Level, Object_Decl_Level, Zero_On_Dynamic_Level);
+   --  Captures the different modes in which an accessibility level could be
+   --  obtained for a given expression. In the context of Accessibility_Level
+   --  function, Accessibility_Level_Kind signals what type of accessibility
+   --  level to obtain.
 
-   --  When in the context of the function Accessibility_Level,
-   --  Accessibility_Level_Kind signals what type of accessibility level to
-   --  obtain. For example, when Level is Dynamic_Level, a defining identifier
-   --  associated with a saooaaat may be returned or an N_Integer_Literal node.
-   --  When the level is Object_Decl_Level, an N_Integer_Literal node is
-   --  returned containing the level of the declaration of the object if
-   --  relevant (be it a saooaaat or otherwise). Finally, Zero_On_Dynamic_Level
-   --  returns library level for all cases where the accessibility level is
-   --  dynamic (used to bypass static accessibility checks in dynamic cases).
+   --  When Level is Dynamic_Level, a defining identifier associated with an
+   --  access parameter, an access result, or an SAOOAAAT, may be returned,
+   --  and an N_Integer_Literal node in the other cases.
+
+   --  When Level is Object_Decl_Level, an N_Integer_Literal node whose value
+   --  is the level of the declaration of the object is returned in the cases
+   --  where Dynamic_Level returns a defining identifier; in the other cases,
+   --  the same N_Integer_Literal node as Dynamic_Level is returned.
+
+   --  When Level is Zero_On_Dynamic_Level, an N_Integer_Literal node whose
+   --  value is zero (i.e. that of the library level) is returned in the cases
+   --  where Dynamic_Level returns a defining identifier; in the other cases,
+   --  the same N_Integer_Literal node as Dynamic_Level is returned.
 
    function Accessibility_Level
      (Expr              : Node_Id;

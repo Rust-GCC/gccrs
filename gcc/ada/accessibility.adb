@@ -444,8 +444,8 @@ package body Accessibility is
 
                   when N_Object_Declaration =>
                      return
-                       Make_Level_Literal
-                         (Scope_Depth (Scope (Defining_Identifier (Par))));
+                       Accessibility_Level
+                         (Defining_Identifier (Par), Object_Decl_Level);
 
                   --  For the dynamic allocation of an object, return the
                   --  accessibility level of the allocator.
@@ -612,7 +612,7 @@ package body Accessibility is
 
                --  Anonymous access types
 
-               elsif Nkind (Pre) in N_Has_Entity
+               elsif Is_Entity_Name (Pre)
                  and then Ekind (Entity (Pre)) not in Subprogram_Kind
                  and then Present (Get_Dynamic_Accessibility (Entity (Pre)))
                  and then Level = Dynamic_Level
@@ -666,27 +666,26 @@ package body Accessibility is
             then
                return Make_Level_Literal (Scope_Depth (Standard_Standard));
 
-            --  Something went wrong and an extra accessibility formal has not
-            --  been generated when one should have ???
+            --  Return the library level for formal parameters of an anonymous
+            --  access type without extra accessiblity formal. This may happen
+            --  for subprograms with foreign convention or when expansion is
+            --  disabled, see Sem_Ch6.Create_Extra_Formals.
 
             elsif Is_Formal (E)
-              and then No (Get_Dynamic_Accessibility (E))
               and then Ekind (Etype (E)) = E_Anonymous_Access_Type
+              and then No (Get_Dynamic_Accessibility (E))
             then
                return Make_Level_Literal (Scope_Depth (Standard_Standard));
 
-            --  Stand-alone object of an anonymous access type "SAOAAT"
+            --  Formal parameters with an extra accessibility formal, as well
+            --  as stand-alone objects of an anonymous access type (SAOOAAAT).
 
-            elsif (Is_Formal (E)
-                    or else Ekind (E) in E_Variable
-                                       | E_Constant)
+            elsif (Is_Formal (E) or else Ekind (E) in E_Constant | E_Variable)
               and then Present (Get_Dynamic_Accessibility (E))
-              and then (Level = Dynamic_Level
-                         or else Level = Zero_On_Dynamic_Level)
+              and then (Level in Dynamic_Level | Zero_On_Dynamic_Level)
             then
                if Level = Zero_On_Dynamic_Level then
-                  return Make_Level_Literal
-                           (Scope_Depth (Standard_Standard));
+                  return Make_Level_Literal (Scope_Depth (Standard_Standard));
                end if;
 
                --  No_Dynamic_Accessibility_Checks restriction override for
@@ -776,6 +775,7 @@ package body Accessibility is
 
             elsif Level = Dynamic_Level
                and then Ekind (E) in E_In_Parameter | E_In_Out_Parameter
+               and then Is_Subprogram (Scope (E))
                and then Present (Init_Proc_Level_Formal (Scope (E)))
             then
                return New_Occurrence_Of
