@@ -2473,7 +2473,7 @@ initialize_env (void)
 
   if ((none != NULL && gomp_get_icv_flag (none->flags, GOMP_ICV_STACKSIZE))
       || (all != NULL && gomp_get_icv_flag (all->flags, GOMP_ICV_STACKSIZE))
-      || GOMP_DEFAULT_STACKSIZE)
+      || GOMP_DEFAULT_STACKSIZE != 0)
     {
       int err;
 
