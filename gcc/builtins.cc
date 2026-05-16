@@ -8188,6 +8188,7 @@ expand_builtin (tree exp, rtx target, rtx subtarget, machine_mode mode,
     case BUILT_IN_BITREVERSE16:
     case BUILT_IN_BITREVERSE32:
     case BUILT_IN_BITREVERSE64:
+    case BUILT_IN_BITREVERSE128:
       target = expand_builtin_unop (target_mode, exp, target, subtarget,
 				    bitreverse_optab);
       if (target)
@@ -12357,6 +12358,7 @@ is_inexpensive_builtin (tree decl)
       case BUILT_IN_BITREVERSE16:
       case BUILT_IN_BITREVERSE32:
       case BUILT_IN_BITREVERSE64:
+      case BUILT_IN_BITREVERSE128:
       case BUILT_IN_CLZ:
       case BUILT_IN_CLZIMAX:
       case BUILT_IN_CLZL:

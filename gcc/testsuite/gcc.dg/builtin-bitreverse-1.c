@@ -25,6 +25,14 @@ br64 (unsigned long long x)
   return __builtin_bitreverse64 (x);
 }
 
+#if __SIZEOF_INT128__ == 16
+[[gnu::noipa]] static unsigned __int128
+br128 (unsigned __int128 x)
+{
+  return __builtin_bitreverse128 (x);
+}
+#endif
+
 int
 main ()
 {
@@ -65,6 +73,19 @@ main ()
   if (br64 (0x0123456789abcdefull) != 0xf7b3d591e6a2c480ull)
     __builtin_abort ();
   if (br64 (0xffffffffffffffffull) != 0xffffffffffffffffull)
+    __builtin_abort ();
+#endif
+#if __SIZEOF_INT128__ == 16
+  if (br128 (0) != 0)
+    __builtin_abort ();
+  if (br128 (1) != (unsigned __int128) 1 << 127)
+    __builtin_abort ();
+  if (br128 (((unsigned __int128) 0x0123456789abcdefull << 64)
+	     | 0x2468ace013579bdfull)
+      != (((unsigned __int128) 0xfbd9eac807351624ull << 64)
+	  | 0xf7b3d591e6a2c480ull))
+    __builtin_abort ();
+  if (br128 (~(unsigned __int128) 0) != ~(unsigned __int128) 0)
     __builtin_abort ();
 #endif
 #endif

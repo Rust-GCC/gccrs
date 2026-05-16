@@ -1106,6 +1106,7 @@ fold_const_call_ss (wide_int *result, combined_fn fn, const wide_int_ref &arg,
     case CFN_BUILT_IN_BITREVERSE16:
     case CFN_BUILT_IN_BITREVERSE32:
     case CFN_BUILT_IN_BITREVERSE64:
+    case CFN_BUILT_IN_BITREVERSE128:
       *result = wi::bitreverse (wide_int::from (arg, precision,
 						TYPE_SIGN (arg_type)));
       return true;

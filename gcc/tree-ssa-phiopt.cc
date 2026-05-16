@@ -823,6 +823,7 @@ empty_bb_or_one_feeding_into_p (basic_block bb,
 	case CFN_BUILT_IN_BITREVERSE16:
 	case CFN_BUILT_IN_BITREVERSE32:
 	case CFN_BUILT_IN_BITREVERSE64:
+	case CFN_BUILT_IN_BITREVERSE128:
 	CASE_CFN_FFS:
 	CASE_CFN_PARITY:
 	CASE_CFN_POPCOUNT:
@@ -2586,6 +2587,7 @@ cond_removal_in_builtin_zero_pattern (basic_block cond_bb,
     case CFN_BUILT_IN_BITREVERSE16:
     case CFN_BUILT_IN_BITREVERSE32:
     case CFN_BUILT_IN_BITREVERSE64:
+    case CFN_BUILT_IN_BITREVERSE128:
     CASE_CFN_FFS:
     CASE_CFN_PARITY:
     CASE_CFN_POPCOUNT:
