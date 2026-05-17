@@ -6,4 +6,4 @@ test(int a, int b)
 		__builtin_unreachable ();
 }
 /* { dg-final { scan-ipa-dump "ends with conditional guarding __builtin_unreachable" "fnsummary"  } } */
-/* { dg-final { scan-ipa-dump-times "skipping unnecesary stmt" 2 "fnsummary"  } } */
+/* { dg-final { scan-ipa-dump-times "skipping unnecessary stmt" 2 "fnsummary"  } } */

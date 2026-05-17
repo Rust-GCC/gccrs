@@ -15,4 +15,4 @@ void pop_back_many(Vec& v, unsigned n)
 }
 
 // { dg-final { scan-tree-dump "Executing store motion of v" "lim2" } }
-// { dg-final { scan-tree-dump "Re-issueing dependent" "lim2" } }
+// { dg-final { scan-tree-dump "Re-issuing dependent" "lim2" } }
