@@ -556,7 +556,6 @@ class case_bit_test
 public:
   wide_int mask;
   basic_block target_bb;
-  tree label;
   int bits;
   profile_probability prob;
 

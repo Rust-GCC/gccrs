@@ -1950,8 +1950,8 @@ case_bit_test::cmp (const void *p1, const void *p2)
     return d2->bits - d1->bits;
 
   /* Stabilize the sort.  */
-  return (LABEL_DECL_UID (CASE_LABEL (d2->label))
-	  - LABEL_DECL_UID (CASE_LABEL (d1->label)));
+  return (d2->target_bb->index
+	  - d1->target_bb->index);
 }
 
 /*  Expand a switch statement by a short sequence of bit-wise
@@ -2010,7 +2010,6 @@ bit_test_cluster::emit (tree index_expr, tree index_type,
 	  gcc_checking_assert (count < m_max_case_bit_tests);
 	  test[k].mask = wi::zero (prec);
 	  test[k].target_bb = n->m_case_bb;
-	  test[k].label = n->m_case_label_expr;
 	  test[k].bits = 0;
 	  test[k].prob = profile_probability::never ();
 	  count++;
