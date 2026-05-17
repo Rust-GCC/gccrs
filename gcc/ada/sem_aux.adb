@@ -922,14 +922,12 @@ package body Sem_Aux is
 
    function Is_Definite_Subtype (T : Entity_Id) return Boolean is
       pragma Assert (Is_Type (T));
-      K : constant Entity_Kind := Ekind (T);
 
    begin
       if Is_Constrained (T) then
          return True;
 
-      elsif K in Array_Kind
-        or else K in Class_Wide_Kind
+      elsif Ekind (T) in Array_Kind | Class_Wide_Kind
         or else Has_Unknown_Discriminants (T)
       then
          return False;
