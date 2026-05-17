@@ -37,7 +37,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree-ssa-dse.h"
 #include "builtins.h"
 #include "gimple-fold.h"
-#include "gimplify.h"
 #include "tree-eh.h"
 #include "cfganal.h"
 #include "cgraph.h"

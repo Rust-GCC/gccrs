@@ -42,7 +42,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "gimple-iterator.h"
 #include "gimple-fold.h"
 #include "tree-eh.h"
-#include "gimplify.h"
 #include "flags.h"
 #include "dojump.h"
 #include "explow.h"

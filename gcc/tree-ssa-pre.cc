@@ -37,7 +37,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "gimple-iterator.h"
 #include "gimple-fold.h"
 #include "tree-eh.h"
-#include "gimplify.h"
 #include "tree-cfg.h"
 #include "tree-into-ssa.h"
 #include "tree-dfa.h"

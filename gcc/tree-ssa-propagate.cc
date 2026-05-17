@@ -30,7 +30,6 @@
 #include "gimple-iterator.h"
 #include "gimple-fold.h"
 #include "tree-eh.h"
-#include "gimplify.h"
 #include "tree-cfg.h"
 #include "tree-ssa.h"
 #include "tree-ssa-propagate.h"

@@ -102,8 +102,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "fold-const.h"
 #include "gimple-iterator.h"
 #include "gimple-fold.h"
-#include "gimplify.h"
-#include "gimplify-me.h"
 #include "stor-layout.h"
 #include "tree-cfg.h"
 #include "tree-dfa.h"

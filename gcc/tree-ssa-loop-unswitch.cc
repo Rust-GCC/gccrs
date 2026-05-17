@@ -26,7 +26,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree-pass.h"
 #include "ssa.h"
 #include "fold-const.h"
-#include "gimplify.h"
 #include "tree-cfg.h"
 #include "tree-ssa.h"
 #include "tree-ssa-loop-niter.h"

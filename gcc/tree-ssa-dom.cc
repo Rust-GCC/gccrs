@@ -42,7 +42,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree-ssa-scopedtables.h"
 #include "tree-ssa-threadedge.h"
 #include "tree-ssa-dom.h"
-#include "gimplify.h"
 #include "tree-cfgcleanup.h"
 #include "dbgcnt.h"
 #include "alloc-pool.h"

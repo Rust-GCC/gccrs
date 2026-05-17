@@ -63,7 +63,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "rtx-vector-builder.h"
 #include "gimple.h"
 #include "gimple-ssa.h"
-#include "gimplify.h"
 #include "bbitmap.h"
 
 struct target_rtl default_target_rtl;

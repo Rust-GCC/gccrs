@@ -7204,4 +7204,13 @@ extern bool disjoint_version_decls (tree, tree);
 /* Checks if two overlapping decls are not mergeable.  */
 extern bool diagnose_versioned_decls (tree, tree);
 
+/* Unshare tree if needed.  */
+extern tree unshare_expr (tree);
+
+/* Unshare tree if needed.
+   Removing the locations if an expr.  */
+extern tree unshare_expr_without_location (tree);
+
+extern void copy_if_shared (tree *, void * = NULL);
+
 #endif  /* GCC_TREE_H  */

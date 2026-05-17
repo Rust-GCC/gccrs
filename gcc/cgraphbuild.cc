@@ -31,7 +31,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "gimple-walk.h"
 #include "ipa-utils.h"
 #include "except.h"
-#include "gimplify.h"
 
 /* Context of record_reference.  */
 struct record_reference_ctx

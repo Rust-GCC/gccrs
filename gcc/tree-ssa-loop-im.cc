@@ -30,7 +30,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "fold-const.h"
 #include "cfganal.h"
 #include "tree-eh.h"
-#include "gimplify.h"
 #include "gimple-iterator.h"
 #include "tree-cfg.h"
 #include "tree-ssa-loop-manip.h"

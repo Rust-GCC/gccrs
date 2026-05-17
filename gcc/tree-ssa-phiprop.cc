@@ -29,7 +29,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "gimple-pretty-print.h"
 #include "fold-const.h"
 #include "tree-eh.h"
-#include "gimplify.h"
 #include "gimple-iterator.h"
 #include "stor-layout.h"
 #include "tree-ssa-loop.h"

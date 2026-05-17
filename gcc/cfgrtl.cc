@@ -62,7 +62,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree-pass.h"
 #include "print-rtl.h"
 #include "rtl-iter.h"
-#include "gimplify.h"
 #include "profile.h"
 #include "sreal.h"
 
