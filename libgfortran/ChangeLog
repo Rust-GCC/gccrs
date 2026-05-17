@@ -1,3 +1,8 @@
+2026-05-16  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* caf/shmem/sync.h (lock_t): Rename to caf_shmem_lock_t.
+	* caf/shmem.c: Adapt uses.
+
 2026-05-08  Harald Anlauf  <anlauf@gmx.de>
 
 	PR libfortran/125087

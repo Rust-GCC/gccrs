@@ -1,3 +1,59 @@
+2026-05-16  Jakub Jelinek  <jakub@redhat.com>
+
+	PR target/50481
+	* match.pd (BITREVERSE): New define_operator_list.  Use it next to
+	BSWAP for a subset of bswap simplifications.
+
+2026-05-16  Jakub Jelinek  <jakub@redhat.com>
+
+	PR target/50481
+	* doc/extend.texi (__builtin_bitreverse32, __builtin_bitreverse64):
+	Tweak wording for consistency with __builtin_bswap*.
+	(__builtin_bitreverse128): Document.
+	* builtins.def (BUILT_IN_BITREVERSE128): New.
+	* builtins.cc (expand_builtin): Handle also BUILT_IN_BITREVERSE128.
+	(is_inexpensive_builtin): Likewise.
+	* fold-const-call.cc (fold_const_call_ss): Handle also
+	CFN_BUILT_IN_BITREVERSE128.
+	* fold-const.cc (tree_call_nonnegative_warnv_p): Likewise.
+	* tree-ssa-ccp.cc (evaluate_stmt): Handle also BUILT_IN_BITREVERSE128.
+	* tree-ssa-phiopt.cc (empty_bb_or_one_feeding_into_p): Handle also
+	CFN_BUILT_IN_BITREVERSE128.
+	(cond_removal_in_builtin_zero_pattern): Likewise.
+
+2026-05-16  Jakub Jelinek  <jakub@redhat.com>
+
+	PR target/50481
+	* tree-ssa-ccp.cc (evaluate_stmt): Fix up
+	BUILT_IN_BITREVERSE{8,16,32,64} handling.
+
+2026-05-16  Roger Sayle  <roger@nextmovesoftware.com>
+	    Hongtao Liu  <hongtao.liu@intel.com>
+
+	* config/i386/i386-features.cc (scalar_chain): If the chain
+	starts with a register-to-register move from a hard register,
+	then the hard register's defs don't need to converted.
+	(timode_scalar_chain::compute_convert_gain): Provide costs
+	for hard_reg-to-pseudo and pseudo-to-hard_reg moves.
+	Tweak speed cost of timode_concatdi_p moves.
+	(timode_scalar_chain::convert_insn): Add support for
+	hard_reg-to-pseudo and pseudo-to-hard_reg TImode transfers.
+	(timode_scalar_to_vector_candidate_p): Likewise.
+
+2026-05-16  Shivam Gupta  <shivam98.tkg@gmail.com>
+
+	PR tree-optimization/112095
+	* match.pd: Simplify ((~x) & y) ^ (x | y)
+	to x and ((~x) | y) ^ (x & y) to ~x.
+
+2026-05-16  Timo Rothenpieler  <timo@rothenpieler.org>
+
+	* config/i386/mingw-pthread.h:
+	rename to generic config/mingw/mingw-pthread.h
+	* config.gcc [aarch64-*-mingw*]:
+	Fix support for posix threading on aarch64 mingw targets.
+	* config/mingw/mingw-pthread.h: New file.
+
 2026-05-15  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
 
 	* tree-ssa-operands.cc (operands_scanner::parse_ssa_operands):

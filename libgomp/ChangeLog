@@ -1,3 +1,8 @@
+2026-05-16  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* env.c (initialize_env): Check GOMP_DEFAULT_STACKSIZE for
+	non-zero.
+
 2026-05-13  H.J. Lu  <hjl.tools@gmail.com>
 
 	* libgomp.texi: the Add missing closing brace.

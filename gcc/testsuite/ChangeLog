@@ -1,3 +1,83 @@
+2026-05-16  Jakub Jelinek  <jakub@redhat.com>
+
+	PR target/50481
+	* gcc.dg/builtin-bitreverse-4.c: New test.
+
+2026-05-16  Jakub Jelinek  <jakub@redhat.com>
+
+	PR target/50481
+	* gcc.dg/builtin-bitreverse-1.c: Add __builtin_bitreverse128 tests.
+	* gcc.dg/builtin-bitreverse-2.c: Likewise.
+
+2026-05-16  Jakub Jelinek  <jakub@redhat.com>
+
+	PR target/50481
+	* gcc.dg/builtin-bitreverse-3.c: New test.
+
+2026-05-16  Roger Sayle  <roger@nextmovesoftware.com>
+	    Hongtao Liu  <hongtao.liu@intel.com>
+
+	* gcc.target/i386/avx-stv-1.c: New test case.
+	* gcc.target/i386/sse2-stv-3.c: Likewise.
+	* gcc.target/i386/sse2-stv-4.c: Likewise.
+	* gcc.target/i386/sse2-stv-5.c: Likewise.
+
+2026-05-16  Pan Li  <pan2.li@intel.com>
+
+	* gcc.target/riscv/sat/sat_arith.h: Add form 10.
+	* gcc.target/riscv/sat/sat_u_mul-11-u16.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-11-u32.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-11-u64.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-11-u8.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-run-11-u16.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-run-11-u32.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-run-11-u64.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-run-11-u8.c: New test.
+
+2026-05-16  Pan Li  <pan2.li@intel.com>
+
+	* gcc.target/riscv/sat/sat_arith.h: Add form 9.
+	* gcc.target/riscv/sat/sat_u_mul-10-u16.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-10-u32.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-10-u64.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-10-u8.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-run-10-u16.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-run-10-u32.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-run-10-u64.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-run-10-u8.c: New test.
+
+2026-05-16  Pan Li  <pan2.li@intel.com>
+
+	* gcc.target/riscv/sat/sat_arith.h: Add form 8.
+	* gcc.target/riscv/sat/sat_u_mul-9-u16-from-u128.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-9-u16-from-u32.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-9-u16-from-u64.rv32.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-9-u16-from-u64.rv64.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-9-u32-from-u128.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-9-u32-from-u64.rv32.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-9-u32-from-u64.rv64.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-9-u64-from-u128.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-9-u8-from-u128.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-9-u8-from-u16.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-9-u8-from-u32.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-9-u8-from-u64.rv32.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-9-u8-from-u64.rv64.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-run-9-u16-from-u128.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-run-9-u16-from-u32.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-run-9-u16-from-u64.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-run-9-u32-from-u128.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-run-9-u32-from-u64.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-run-9-u64-from-u128.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-run-9-u8-from-u128.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-run-9-u8-from-u16.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-run-9-u8-from-u32.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-run-9-u8-from-u64.c: New test.
+
+2026-05-16  Shivam Gupta  <shivam98.tkg@gmail.com>
+
+	PR tree-optimization/112095
+	* gcc.dg/tree-ssa/pr112095.c: New test.
+
 2026-05-15  Marek Polacek  <polacek@redhat.com>
 
 	* g++.dg/warn/Wuninitialized-pr107919-1.C: Fix a dg-bogus.

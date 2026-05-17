@@ -1,3 +1,24 @@
+2026-05-16  Dragon Archer  <dragon-archer@outlook.com>
+
+	PR libstdc++/125228
+	* src/c++11/debug.cc: Replace assert with __glibcxx_assert,
+	and remove the include of <cassert>.
+	* src/c++17/floating_to_chars.cc: Likewise, but redefine
+	assert as __glibcxx_assert.
+
+2026-05-16  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/125312
+	* acinclude.m4 (GLIBCXX_ENABLE_ATOMIC_BUILTINS): Copy header
+	into cwd instead of including it via an absolute path.
+	* configure: Regenerate.
+
+2026-05-16  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	PR libstdc++/107815
+	* testsuite/20_util/to_chars/float128_c++23.cc (test): Remove
+	Solaris workaround.
+
 2026-05-15  Tomasz Kamiński  <tkaminsk@redhat.com>
 
 	* include/std/optional [__cpp_lib_optional_range_support]:
