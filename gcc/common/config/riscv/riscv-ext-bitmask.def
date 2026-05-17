@@ -27,12 +27,16 @@ along with GCC; see the file COPYING3.  If not see
    minimal feature bits.  */
 
 RISCV_EXT_BITMASK ("i",			0,  8)
+RISCV_EXT_BITMASK ("e",			0,  4)
 RISCV_EXT_BITMASK ("m",			0, 12)
+RISCV_EXT_BITMASK ("zmmul",		1, 12)
 RISCV_EXT_BITMASK ("a",			0,  0)
 RISCV_EXT_BITMASK ("f",			0,  5)
 RISCV_EXT_BITMASK ("d",			0,  3)
 RISCV_EXT_BITMASK ("c",			0,  2)
+RISCV_EXT_BITMASK ("h",			0,  7)
 RISCV_EXT_BITMASK ("v",			0, 21)
+RISCV_EXT_BITMASK ("b",			0,  1)
 RISCV_EXT_BITMASK ("zba",		0, 27)
 RISCV_EXT_BITMASK ("zbb",		0, 28)
 RISCV_EXT_BITMASK ("zbs",		0, 33)
@@ -79,5 +83,9 @@ RISCV_EXT_BITMASK ("zcd",		1,  4)
 RISCV_EXT_BITMASK ("zcf",		1,  5)
 RISCV_EXT_BITMASK ("zcmop",		1,  6)
 RISCV_EXT_BITMASK ("zawrs",		1,  7)
+RISCV_EXT_BITMASK ("zilsd",		1,  8)
+RISCV_EXT_BITMASK ("zclsd",		1,  9)
+RISCV_EXT_BITMASK ("zcmp",		1, 10)
+RISCV_EXT_BITMASK ("zifencei",		1, 11)
 
 #undef RISCV_EXT_BITMASK
