@@ -834,9 +834,9 @@ typedef enum {
   HSA_AGENT_INFO_DEFAULT_FLOAT_ROUNDING_MODE = 5,
   /**
    * @deprecated Query ::HSA_ISA_INFO_BASE_PROFILE_DEFAULT_FLOAT_ROUNDING_MODES
-   * for a given instruction set architecture supported by the agent instead.  If
-   * more than one ISA is supported by the agent, the returned value corresponds
-   * to the first ISA enumerated by ::hsa_agent_iterate_isas.
+   * for a given instruction set architecture supported by the agent instead.
+   * If more than one ISA is supported by the agent, the returned value
+   * corresponds to the first ISA enumerated by ::hsa_agent_iterate_isas.
    *
    * A bit-mask of ::hsa_default_float_rounding_mode_t values, representing the
    * default floating-point rounding modes supported by the agent in the Base

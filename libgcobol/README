@@ -1,8 +1,8 @@
 The libgcobol is intended for use entirely and solely by executables created
 from COBOL source code by the GCOBOL "COBOL for GCC" front end.
 
-libgcobol.a can be statically linked in, but it makes for very large binaries. We
-tend to use that for debugging the GCOBOL compiler, and not much else
+libgcobol.a can be statically linked in, but it makes for very large binaries.
+We tend to use that for debugging the GCOBOL compiler, and not much else
 
 Many of the functions in the library are called by the executable code generated
 by the GCOBOL compiler through GIMPLE tags, and thus prototypes -- which are 

@@ -24,10 +24,10 @@
 #-----------------------------------------------------------------------------
 
 ## This script converts an Ada file (and its dependency files) to Html.
-## Keywords, comments and strings are color-highlighted. If the cross-referencing
-## information provided by Gnat (when not using the -gnatx switch) is found,
-## the html files will also have some cross-referencing features, i.e. if you
-## click on a type, its declaration will be displayed.
+## Keywords, comments and strings are color-highlighted. If the
+## cross-referencing information provided by Gnat (when not using the -gnatx
+## switch) is found, the html files will also have some cross-referencing
+## features, i.e. if you click on a type, its declaration will be displayed.
 ##
 ## To find more about the switches provided by this script, please use the
 ## following command :

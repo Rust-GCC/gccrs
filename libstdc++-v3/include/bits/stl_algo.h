@@ -479,9 +479,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
    *  @param  __first  An input iterator.
    *  @param  __last   An input iterator.
    *  @param  __pred   A predicate.
-   *  @return  True if the range @p [__first,__last) is partitioned by @p __pred,
-   *  i.e. if all elements that satisfy @p __pred appear before those that
-   *  do not.
+   *  @return  True if the range @p [__first,__last) is partitioned by @p
+   *  __pred, i.e. if all elements that satisfy @p __pred appear before those
+   *  that do not.
   */
   template<typename _InputIterator, typename _Predicate>
     _GLIBCXX_NODISCARD _GLIBCXX20_CONSTEXPR

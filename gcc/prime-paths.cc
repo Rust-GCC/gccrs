@@ -126,14 +126,15 @@ struct xpair
 
    The union of near/far is essentially a short-vector optimization, switching
    to a heap-allocated vector when necessary.  This happens relatively rarely
-   (usually maxes out at 1-2%), and the vertices that have more than 2 successors
-   also tend to have more than 4.  The root vertex tends to use the dynamic
-   vector because the subpaths are recorded as the successors of the root.
+   (usually maxes out at 1-2%), and the vertices that have more than 2
+   successors also tend to have more than 4.  The root vertex tends to use the
+   dynamic vector because the subpaths are recorded as the successors of the
+   root.
 
    Conceptually, this is a small map from vertex-id -> index and the API is
    modelled as such.  The insert and search functions are unrolled by hand when
-   using the small vector.  This has a noticeable performance impact on insert in
-   particular, and is not too complex since we know we are limited to 2
+   using the small vector.  This has a noticeable performance impact on insert
+   in particular, and is not too complex since we know we are limited to 2
    elements.
 
    Vertices are tagged with endofpath and inserted.  If endofpath is set, the

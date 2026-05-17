@@ -1194,8 +1194,8 @@ simple_object_mach_o_write_segment (simple_object_write *sobj, int descriptor,
       unsigned int i;
 
       /* Write the section header for the wrapper.  */
-      /* Account for any initial alignment - which becomes the alignment for this
-	 created section.  */
+      /* Account for any initial alignment - which becomes the alignment for
+	 this created section.  */
 
       secsize = (offset - index[0]);
       if (!simple_object_mach_o_write_section_header (sobj, descriptor,

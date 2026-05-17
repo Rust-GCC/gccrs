@@ -4687,10 +4687,10 @@ then this needs to be set to the byte size of each character, i.e. @code{4} for
 a @code{CHARACTER (KIND=4)} string.  The length of the string is then returned
 in @code{opt_dst_charlen} (also for string arrays).
 @item @var{dst_data} @tab intent(inout) A pointer to the address the data is
-stored.  To prevent copying of data into an output buffer the address to the live
-data is returned here.  When a descriptor is provided also its data-member is
-set to that address.  When @var{may_realloc_dst} is set, then the memory may be
-reallocated by the remote function, which needs to be replicated by this
+stored.  To prevent copying of data into an output buffer the address to the
+live data is returned here.  When a descriptor is provided also its data-member
+is set to that address.  When @var{may_realloc_dst} is set, then the memory may
+be reallocated by the remote function, which needs to be replicated by this
 function.
 @item @var{opt_dst_charlen} @tab intent(inout)  When a char array is returned,
 this parameter is set to the length where applicable.  The value can also be

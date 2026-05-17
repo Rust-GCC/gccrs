@@ -268,7 +268,8 @@ public:
   /* Apply all changes in location cache.  Add locations into linemap and patch
      trees.  */
   bool apply_location_cache ();
-  /* Tree merging did not succeed; mark all changes in the cache as accepted.  */
+  /* Tree merging did not succeed; mark all changes in the cache as
+     accepted.  */
   void accept_location_cache ();
   /* Tree merging did succeed; throw away recent changes.  */
   void revert_location_cache ();

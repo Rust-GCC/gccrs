@@ -218,7 +218,8 @@ along with GCC; see the file COPYING3.  If not see
 	       false, true, true, ATTRS, false, \
 	       flag_openacc)
 /* Set NONANSI_P = false to enable the builtins also with -fno-nonansi-builtins,
-   esp. as -std=c++../c.. imply that flag and -fopenacc should be orthogonal.  */
+   esp. as -std=c++../c.. imply that flag and -fopenacc should be
+   orthogonal.  */
 #undef DEF_GOACC_BUILTIN_COMPILER
 #define DEF_GOACC_BUILTIN_COMPILER(ENUM, NAME, TYPE, ATTRS) \
   DEF_BUILTIN (ENUM, "__builtin_" NAME, BUILT_IN_NORMAL, TYPE, TYPE,    \
