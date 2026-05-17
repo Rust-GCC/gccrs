@@ -5345,7 +5345,7 @@ package body Exp_Disp is
                   New_Val := Old_Val;
                else
                   Start_String (Old_Val);
-                  Store_String_Char (Get_Char_Code (ASCII.NUL));
+                  Store_String_Char (ASCII.NUL);
                   New_Val := End_String;
                end if;
 

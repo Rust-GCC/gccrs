@@ -3391,7 +3391,7 @@ package body Exp_Attr is
                   if Name_Buffer (J) = '.' then
                      Store_String_Chars ("__");
                   else
-                     Store_String_Char (Get_Char_Code (Name_Buffer (J)));
+                     Store_String_Char (Name_Buffer (J));
                   end if;
                end loop;
 

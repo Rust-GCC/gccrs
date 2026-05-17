@@ -7401,7 +7401,7 @@ package body Exp_Util is
 
          if Present (Scope (Scope (Ent))) then
             Internal_Full_Qualified_Name (Scope (Ent));
-            Store_String_Char (Get_Char_Code ('.'));
+            Store_String_Char ('.');
          end if;
 
          --  Every entity should have a name except some expanded blocks
@@ -7426,7 +7426,7 @@ package body Exp_Util is
       Internal_Full_Qualified_Name (E);
 
       if Append_NUL then
-         Store_String_Char (Get_Char_Code (ASCII.NUL));
+         Store_String_Char (ASCII.NUL);
       end if;
 
       return End_String;

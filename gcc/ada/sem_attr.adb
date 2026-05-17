@@ -7400,9 +7400,7 @@ package body Sem_Attr is
 
          --  Copy all characters in Full_Name
 
-         for J in 1 .. String_Length (Full_Name) loop
-            Store_String_Char (Get_String_Char (Full_Name, Pos (J)));
-         end loop;
+         Store_String_Chars (Full_Name);
 
          --  Compute CRC and convert it to string one character at a time, so
          --  as not to use Image within the compiler.
@@ -7501,14 +7499,14 @@ package body Sem_Attr is
                Start_String;
 
                if Negative then
-                  Store_String_Char (Get_Char_Code ('-'));
+                  Store_String_Char ('-');
                end if;
 
                S := Sloc (Expr);
                Src := Source_Text (Get_Source_File_Index (S));
 
                while Src (S) /= ';' and then Src (S) /= ' ' loop
-                  Store_String_Char (Get_Char_Code (Src (S)));
+                  Store_String_Char (Src (S));
                   S := S + 1;
                end loop;
 

@@ -188,7 +188,7 @@ package body Sem_Dist is
 
       if Parent_Name /= No_String then
          Start_String (Parent_Name);
-         Store_String_Char (Get_Char_Code ('.'));
+         Store_String_Char ('.');
       else
          Start_String;
       end if;

@@ -1087,7 +1087,7 @@ package body Exp_Ch11 is
       function Null_String return String_Id is
       begin
          Start_String;
-         Store_String_Char (Get_Char_Code (ASCII.NUL));
+         Store_String_Char (ASCII.NUL);
          return End_String;
       end Null_String;
 

@@ -214,7 +214,7 @@ package body Stringt is
    procedure Store_String_Chars (S : String) is
    begin
       for J in S'First .. S'Last loop
-         Store_String_Char (Get_Char_Code (S (J)));
+         Store_String_Char (S (J));
       end loop;
    end Store_String_Chars;
 

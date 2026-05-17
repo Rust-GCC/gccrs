@@ -11540,7 +11540,7 @@ package body Sem_Prag is
 
          else
             Start_String;
-            Store_String_Char (Get_Char_Code ('*'));
+            Store_String_Char ('*');
             String_Val := Strval (Expr_Value_S (Link_Nam));
             Store_String_Chars (String_Val);
             Link_Nam :=
@@ -35827,15 +35827,11 @@ package body Sem_Prag is
 
       procedure Encode is
       begin
-         Store_String_Char (Get_Char_Code ('_'));
-         Store_String_Char
-           (Get_Char_Code (Hex (Integer (CC / 2 ** 12))));
-         Store_String_Char
-           (Get_Char_Code (Hex (Integer (CC / 2 ** 8 and 16#0F#))));
-         Store_String_Char
-           (Get_Char_Code (Hex (Integer (CC / 2 ** 4 and 16#0F#))));
-         Store_String_Char
-           (Get_Char_Code (Hex (Integer (CC and 16#0F#))));
+         Store_String_Char ('_');
+         Store_String_Char (Hex (Integer (CC / 2 ** 12)));
+         Store_String_Char (Hex (Integer (CC / 2 ** 8 and 16#0F#)));
+         Store_String_Char (Hex (Integer (CC / 2 ** 4 and 16#0F#)));
+         Store_String_Char (Hex (Integer (CC and 16#0F#)));
       end Encode;
 
    --  Start of processing for Set_Encoded_Interface_Name
