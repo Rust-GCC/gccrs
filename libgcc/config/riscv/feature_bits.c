@@ -184,6 +184,8 @@ struct {
 #define ZICBOP_BITMASK (1ULL << 25)
 #define ZICFILP_GROUPID 1
 #define ZICFILP_BITMASK (1ULL << 26)
+#define ZICFISS_GROUPID 1
+#define ZICFISS_BITMASK (1ULL << 27)
 
 #define SET_EXT(EXT) features[EXT##_GROUPID] |= EXT##_BITMASK
 
@@ -268,6 +270,8 @@ struct {
 #define RISCV_HWPROBE_MISALIGNED_UNSUPPORTED (4 << 0)
 #define RISCV_HWPROBE_MISALIGNED_MASK (7 << 0)
 #define RISCV_HWPROBE_KEY_ZICBOZ_BLOCK_SIZE 6
+#define RISCV_HWPROBE_KEY_IMA_EXT_1 16
+#define RISCV_HWPROBE_EXT_ZICFISS (1ULL << 0)
 
 struct riscv_hwprobe {
   long long key;
@@ -297,6 +301,9 @@ static long syscall_5_args (long number, long arg1, long arg2, long arg3,
 #define SET_FROM_IMA_EXT(EXT) \
   SET_FROM_HWPROBE (hwprobe_ima_ext, EXT)
 
+#define SET_FROM_IMA_EXT_1(EXT) \
+  SET_FROM_HWPROBE (hwprobe_ima_ext_1, EXT)
+
 static void __init_riscv_features_bits_linux ()
 {
   struct riscv_hwprobe hwprobes[] = {
@@ -305,6 +312,7 @@ static void __init_riscv_features_bits_linux ()
     {RISCV_HWPROBE_KEY_MIMPID, 0},
     {RISCV_HWPROBE_KEY_BASE_BEHAVIOR, 0},
     {RISCV_HWPROBE_KEY_IMA_EXT_0, 0},
+    {RISCV_HWPROBE_KEY_IMA_EXT_1, 0},
   };
 
   long res = syscall_5_args (__NR_riscv_hwprobe, (long)&hwprobes,
@@ -442,6 +450,9 @@ static void __init_riscv_features_bits_linux ()
   SET_FROM_IMA_EXT (ZILSD);
   SET_FROM_IMA_EXT (ZCLSD);
   SET_FROM_IMA_EXT (ZICFILP);
+
+  const struct riscv_hwprobe hwprobe_ima_ext_1 = hwprobes[5];
+  SET_FROM_IMA_EXT_1 (ZICFISS);
 
   for (i = 0; i < RISCV_FEATURE_BITS_LENGTH; ++i)
     __riscv_feature_bits.features[i] = features[i];

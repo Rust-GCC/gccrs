@@ -98,6 +98,7 @@ RISCV_EXT_BITMASK ("zicbop",		1, 25)
 RISCV_EXT_BITMASK ("zilsd",		1,  8)
 RISCV_EXT_BITMASK ("zclsd",		1,  9)
 RISCV_EXT_BITMASK ("zicfilp",		1, 26)
+RISCV_EXT_BITMASK ("zicfiss",		1, 27)
 RISCV_EXT_BITMASK ("zcmp",		1, 10)
 RISCV_EXT_BITMASK ("zifencei",		1, 11)
 
