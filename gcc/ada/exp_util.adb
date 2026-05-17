@@ -7408,6 +7408,8 @@ package body Exp_Util is
          --  don't bother about those.
 
          if Chars (Ent) = No_Name then
+            pragma Assert (Ekind (Ent) = E_Block);
+            pragma Assert (No (Scope (Ent)));
             return;
          end if;
 
@@ -7419,7 +7421,7 @@ package body Exp_Util is
          return;
       end Internal_Full_Qualified_Name;
 
-   --  Start of processing for Full_Qualified_Name
+   --  Start of processing for Full_Qualified_Name_String
 
    begin
       Start_String;
