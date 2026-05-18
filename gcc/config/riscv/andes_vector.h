@@ -25,6 +25,11 @@
 #ifndef __ANDES_VECTOR_H
 #define __ANDES_VECTOR_H
 
+#define __riscv_intrinsic_xandesvbfhcvt 1
+#define __riscv_intrinsic_xandesvdot 1
+#define __riscv_intrinsic_xandesvpackfph 1
+#define __riscv_intrinsic_xandesvsintload 1
+
 /* TODO: This should have a separate pragma to include only the Andes
 	 vector intrinsics.  For now, we are including riscv_vector.h.  */
 #include <riscv_vector.h>

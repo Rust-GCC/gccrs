@@ -27193,6 +27193,16 @@ of @var{bitval} is taken into account.
 These built-in functions are available for the RISC-V family of
 processors.
 
+RISC-V intrinsic headers define macros of the form
+@code{__riscv_intrinsic_@var{extension}} with the value @code{1} when
+GCC supports intrinsics for @var{extension}.  These macros indicate
+compiler support for the intrinsic API and are independent of whether the
+corresponding ISA extension is enabled for the current compilation unit.
+Include @file{riscv_bitmanip.h} for scalar bit-manipulation intrinsics,
+@file{riscv_crypto.h} for scalar cryptography intrinsics,
+@file{riscv_vector.h} for vector intrinsics, and vendor intrinsic
+headers for vendor intrinsic extensions.
+
 @defbuiltin{{void *} __builtin_thread_pointer (void)}
 Returns the value that is currently set in the @samp{tp} register.
 @enddefbuiltin

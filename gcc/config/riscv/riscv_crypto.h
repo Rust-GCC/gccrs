@@ -27,6 +27,31 @@
 
 #include <stdint.h>
 
+#define __riscv_intrinsic_zknd 1
+#define __riscv_intrinsic_zkne 1
+#define __riscv_intrinsic_zknh 1
+#define __riscv_intrinsic_zksed 1
+#define __riscv_intrinsic_zksh 1
+
+#if !defined (__riscv_intrinsic_zkn) \
+    && defined (__riscv_intrinsic_zbkb) \
+    && defined (__riscv_intrinsic_zbkc) \
+    && defined (__riscv_intrinsic_zbkx) \
+    && defined (__riscv_intrinsic_zknd) \
+    && defined (__riscv_intrinsic_zkne) \
+    && defined (__riscv_intrinsic_zknh)
+#define __riscv_intrinsic_zkn 1
+#endif
+
+#if !defined (__riscv_intrinsic_zks) \
+    && defined (__riscv_intrinsic_zbkb) \
+    && defined (__riscv_intrinsic_zbkc) \
+    && defined (__riscv_intrinsic_zbkx) \
+    && defined (__riscv_intrinsic_zksed) \
+    && defined (__riscv_intrinsic_zksh)
+#define __riscv_intrinsic_zks 1
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif

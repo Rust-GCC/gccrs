@@ -28,6 +28,54 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#define __riscv_intrinsic_v 1
+#define __riscv_intrinsic_zve32f 1
+#define __riscv_intrinsic_zve32x 1
+#define __riscv_intrinsic_zve64d 1
+#define __riscv_intrinsic_zve64f 1
+#define __riscv_intrinsic_zve64x 1
+#define __riscv_intrinsic_zvbb 1
+#define __riscv_intrinsic_zvbc 1
+#define __riscv_intrinsic_zvfbfmin 1
+#define __riscv_intrinsic_zvfbfwma 1
+#define __riscv_intrinsic_zvfh 1
+#define __riscv_intrinsic_zvfhmin 1
+#define __riscv_intrinsic_zvkb 1
+#define __riscv_intrinsic_zvkg 1
+#define __riscv_intrinsic_zvkned 1
+#define __riscv_intrinsic_zvknha 1
+#define __riscv_intrinsic_zvknhb 1
+#define __riscv_intrinsic_zvksed 1
+#define __riscv_intrinsic_zvksh 1
+
+#if defined (__riscv_intrinsic_zvkned) \
+    && defined (__riscv_intrinsic_zvknhb) \
+    && defined (__riscv_intrinsic_zvkb)
+#define __riscv_intrinsic_zvkn 1
+#endif
+
+#if defined (__riscv_intrinsic_zvkn) && defined (__riscv_intrinsic_zvbc)
+#define __riscv_intrinsic_zvknc 1
+#endif
+
+#if defined (__riscv_intrinsic_zvkn) && defined (__riscv_intrinsic_zvkg)
+#define __riscv_intrinsic_zvkng 1
+#endif
+
+#if defined (__riscv_intrinsic_zvksed) \
+    && defined (__riscv_intrinsic_zvksh) \
+    && defined (__riscv_intrinsic_zvkb)
+#define __riscv_intrinsic_zvks 1
+#endif
+
+#if defined (__riscv_intrinsic_zvks) && defined (__riscv_intrinsic_zvbc)
+#define __riscv_intrinsic_zvksc 1
+#endif
+
+#if defined (__riscv_intrinsic_zvks) && defined (__riscv_intrinsic_zvkg)
+#define __riscv_intrinsic_zvksg 1
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
