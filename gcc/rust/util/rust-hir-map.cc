@@ -105,7 +105,7 @@ Mappings::Mappings ()
   builtinMarker
     = new HIR::ImplBlock (node, {}, {}, nullptr, nullptr, HIR::WhereClause ({}),
 			  BoundPolarity::RegularBound,
-			  HIR::Visibility (HIR::Visibility::VisType::PUBLIC),
+			  HIR::Visibility (HIR::Visibility::VisType::Public),
 			  {}, {}, UNDEF_LOCATION);
 }
 

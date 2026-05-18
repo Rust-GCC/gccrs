@@ -27,12 +27,12 @@ namespace HIR {
 struct Visibility
 {
 public:
-  enum VisType
+  enum class VisType
   {
-    PRIVATE,
-    PUBLIC,
-    RESTRICTED,
-    ERROR,
+    Private,
+    Public,
+    Restricted,
+    Error,
   };
 
 private:
@@ -50,18 +50,18 @@ public:
   {}
 
   // Returns whether visibility is in an error state.
-  bool is_error () const { return vis_type == ERROR; }
+  bool is_error () const { return vis_type == VisType::Error; }
 
   // Does the current visibility refer to a simple `pub <item>` entirely public
-  bool is_public () const { return vis_type == PUBLIC; }
+  bool is_public () const { return vis_type == VisType::Public; }
 
   // Is the current visibility public restricted to a certain path
-  bool is_restricted () const { return vis_type == RESTRICTED; }
+  bool is_restricted () const { return vis_type == VisType::Restricted; }
 
   // Creates an error visibility.
   static Visibility create_error ()
   {
-    return Visibility (ERROR, HIR::SimplePath::create_empty ());
+    return Visibility (VisType::Error, HIR::SimplePath::create_empty ());
   }
 
   VisType get_vis_type () const { return vis_type; }
