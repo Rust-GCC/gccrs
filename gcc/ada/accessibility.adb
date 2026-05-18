@@ -1546,11 +1546,11 @@ package body Accessibility is
       end loop;
    end Apply_Accessibility_Check_For_Discriminated_Return;
 
-   ---------------------------------------------
-   -- Apply_Accessibility_Check_For_Parameter --
-   ---------------------------------------------
+   ----------------------------------------------
+   -- Apply_Accessibility_Check_For_Conversion --
+   ----------------------------------------------
 
-   procedure Apply_Accessibility_Check_For_Parameter
+   procedure Apply_Accessibility_Check_For_Conversion
      (N           : Node_Id;
       Typ         : Entity_Id;
       Insert_Node : Node_Id)
@@ -1655,7 +1655,7 @@ package body Accessibility is
             Error_Msg_N ("\Program_Error [<<", N);
          end if;
       end if;
-   end Apply_Accessibility_Check_For_Parameter;
+   end Apply_Accessibility_Check_For_Conversion;
 
    ------------------------------------------
    -- Apply_Accessibility_Check_For_Return --

@@ -102,14 +102,14 @@ package Accessibility is
    --  case seems to be an actual gap in the language rules that needs to
    --  be fixed by the ARG. ???
 
-   procedure Apply_Accessibility_Check_For_Parameter
+   procedure Apply_Accessibility_Check_For_Conversion
      (N           : Node_Id;
       Typ         : Entity_Id;
       Insert_Node : Node_Id);
-   --  Given a name N denoting an access parameter, insert a run-time check
-   --  that the accessibility level of the object denoted by the parameter
-   --  is not deeper than the level of the type Typ. Insert_Node indicates
-   --  the node where the check should be inserted.
+   --  Given a name N denoting an access parameter or an SAOOAAAT, insert a
+   --  run-time check that the accessibility level of the anonymous access
+   --  type of the object is not deeper than the level of Typ. Insert_Node
+   --  indicates the node where the check should be inserted.
 
    procedure Apply_Accessibility_Check_For_Return
      (Exp  : Node_Id;

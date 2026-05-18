@@ -1811,7 +1811,7 @@ package body Exp_Ch6 is
 
                   pragma Assert (Ada_Version >= Ada_2012);
 
-                  Apply_Accessibility_Check_For_Parameter (Lhs, E_Formal, N);
+                  Apply_Accessibility_Check_For_Conversion (Lhs, E_Formal, N);
 
                   Append_To (Post_Call,
                     Make_Assignment_Statement (Loc,
