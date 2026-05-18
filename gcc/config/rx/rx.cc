@@ -1000,10 +1000,26 @@ rx_gen_move_template (rtx * operands, bool is_movu)
   const char * dst_template;
   rtx          dest = operands[0];
   rtx          src  = operands[1];
+  machine_mode mode;
+  machine_mode src_mode;
 
-  /* Decide which extension, if any, should be given to the move instruction.  */
-  /* When zero-extending, always check the size of the source. */
-  switch ((is_movu || MEM_P (src)) ? GET_MODE (src) : GET_MODE (dest))
+  /* Determine the size to transfer.  */
+  if (CONST_INT_P (src))
+    /* Since constants have no size, the destination is used.  */
+    mode = GET_MODE (dest);
+  else
+    {
+      /* Otherwise, use the smaller size.  */
+      if (GET_MODE (src) == SIGN_EXTEND || GET_MODE (src) == ZERO_EXTEND)
+	/* When expanding, the original size will be used. */
+	src_mode = GET_MODE (XEXP (src, 0));
+      else
+	src_mode = GET_MODE (src);
+      mode = (GET_MODE_SIZE (src_mode) < GET_MODE_SIZE(GET_MODE(dest)))
+	 ? src_mode : GET_MODE(dest);
+    }
+
+  switch (mode)
     {
     case E_QImode:
       /* The .B extension is not valid when
@@ -1021,9 +1037,6 @@ rx_gen_move_template (rtx * operands, bool is_movu)
     case E_SImode:
       gcc_assert (!is_movu);
       extension = ".L";
-      break;
-    case E_VOIDmode:
-      /* This mode is used by constants.  */
       break;
     default:
       debug_rtx (src);
