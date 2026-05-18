@@ -521,37 +521,38 @@ compute_new_first_bound (gimple_seq *stmts, class tree_niter_desc *niter,
 }
 
 /* Fix the two loop's bb count after split based on the split edge probability,
-   don't adjust the bbs dominated by true branches of that loop to avoid
+   don't adjust the bbs dominated by the branch kept in that loop to avoid
    dropping 1s down.  */
 static void
-fix_loop_bb_probability (class loop *loop1, class loop *loop2, edge true_edge,
-			 edge false_edge)
+fix_loop_bb_probability (class loop *loop1, class loop *loop2, edge loop1_edge,
+			 edge loop2_edge)
 {
-  /* Proportion first loop's bb counts except those dominated by true
-     branch to avoid drop 1s down.  */
+  /* Proportion first loop's bb counts except those dominated by the
+     branch that stays true/false in the first loop, to avoid dropping
+     1s down.  */
   basic_block *bbs1, *bbs2;
   bbs1 = get_loop_body (loop1);
   unsigned j;
   for (j = 0; j < loop1->num_nodes; j++)
     if (bbs1[j] == loop1->latch
-	/* Watch for case where the true conditional is empty.  */
-	|| !single_pred_p (true_edge->dest)
-	|| !dominated_by_p (CDI_DOMINATORS, bbs1[j], true_edge->dest))
+	/* Watch for case where the kept conditional arm is empty.  */
+	|| !single_pred_p (loop1_edge->dest)
+	|| !dominated_by_p (CDI_DOMINATORS, bbs1[j], loop1_edge->dest))
       bbs1[j]->count
-	= bbs1[j]->count.apply_probability (true_edge->probability);
+	= bbs1[j]->count.apply_probability (loop1_edge->probability);
   free (bbs1);
 
-  /* Proportion second loop's bb counts except those dominated by false
-     branch to avoid drop 1s down.  */
-  basic_block bbi_copy = get_bb_copy (false_edge->dest);
+  /* Proportion second loop's bb counts except those dominated by the
+     opposite branch, which is kept in the second loop.  */
+  basic_block bbi_copy = get_bb_copy (loop2_edge->dest);
   bbs2 = get_loop_body (loop2);
   for (j = 0; j < loop2->num_nodes; j++)
     if (bbs2[j] == loop2->latch
-	/* Watch for case where the flase conditional is empty.  */
+	/* Watch for case where the kept conditional arm is empty.  */
 	|| !single_pred_p (bbi_copy)
 	|| !dominated_by_p (CDI_DOMINATORS, bbs2[j], bbi_copy))
       bbs2[j]->count
-	= bbs2[j]->count.apply_probability (true_edge->probability.invert ());
+	= bbs2[j]->count.apply_probability (loop2_edge->probability);
   free (bbs2);
 }
 
@@ -675,6 +676,8 @@ split_loop (class loop *loop1)
 
 	edge true_edge, false_edge;
 	extract_true_false_edges_from_block (bbs[i], &true_edge, &false_edge);
+	edge loop1_edge = initial_true ? true_edge : false_edge;
+	edge loop2_edge = initial_true ? false_edge : true_edge;
 
 	/* Now version the loop, placing loop2 after loop1 connecting
 	   them, and fix up SSA form for that.  */
@@ -683,7 +686,7 @@ split_loop (class loop *loop1)
 
 	profile_probability loop1_prob
 	  = integer_onep (cond) ? profile_probability::always ()
-				: true_edge->probability;
+				: loop1_edge->probability;
 	/* TODO: It is commonly a case that we know that both loops will be
 	   entered.  very_likely below is the probability that second loop will
 	   be entered given by connect_loops.  We should work out the common
@@ -709,7 +712,16 @@ split_loop (class loop *loop1)
 		(loop_preheader_edge (loop2)->src)->probability
 			= loop1_prob.invert ();
 
-	fix_loop_bb_probability (loop1, loop2, true_edge, false_edge);
+	fix_loop_bb_probability (loop1, loop2, loop1_edge, loop2_edge);
+
+	if (dump_file && (dump_flags & TDF_DETAILS))
+	  fprintf (dump_file,
+		   ";; Split loop: initial_true %s, "
+		   "loop1 count %" PRId64 ", loop2 count %" PRId64 "\n",
+		   initial_true ? "true" : "false",
+		   (int64_t) loop1->header->count.to_gcov_type (),
+		   (int64_t) loop2->header->count.to_gcov_type ());
+
 	/* If conditional we split on has reliable profilea nd both
 	   preconditionals of loop1 and loop2 are constant true, we can
 	   only redistribute the iteration counts to the split loops.
@@ -727,10 +739,12 @@ split_loop (class loop *loop1)
 	if (loop1->any_estimate
 	    && wi::fits_shwi_p (loop1->nb_iterations_estimate))
 	  {
-	    sreal scale = true_edge->probability.reliable_p ()
-			  ? true_edge->probability.to_sreal () : (sreal)1;
-	    sreal scale2 = false_edge->probability.reliable_p ()
-			  ? false_edge->probability.to_sreal () : (sreal)1;
+	    sreal scale
+	      = loop1_edge->probability.reliable_p ()
+		? loop1_edge->probability.to_sreal () : (sreal)1;
+	    sreal scale2
+	      = loop2_edge->probability.reliable_p ()
+		? loop2_edge->probability.to_sreal () : (sreal)1;
 	    sreal div1 = loop1_prob.initialized_p ()
 			 ? loop1_prob.to_sreal () : (sreal)1/(sreal)2;
 	    /* +1 to get header interations rather than latch iterations and then
