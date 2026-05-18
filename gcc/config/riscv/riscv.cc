@@ -4435,6 +4435,26 @@ riscv_rtx_costs (rtx x, machine_mode mode, int outer_code, int opno ATTRIBUTE_UN
       gcc_fallthrough ();
     case IOR:
     case XOR:
+      /* packh for zbkb.  Alternate forms haven't shown up as a
+	 costing problem.  Obviously we can add the additional
+	 variants if needed.  */
+      if (TARGET_ZBKB
+	  && GET_CODE (x) == IOR
+	  && GET_CODE (XEXP (x, 0)) == AND
+	  && GET_CODE (XEXP (XEXP (x, 0), 0)) == ASHIFT
+	  && register_operand (XEXP (XEXP (XEXP (x, 0), 0), 0), word_mode)
+	  && CONST_INT_P (XEXP (XEXP (XEXP (x, 0), 0), 1))
+	  && INTVAL (XEXP (XEXP (XEXP (x, 0), 0), 1)) == 8
+	  && CONST_INT_P (XEXP (XEXP (x, 0), 1))
+	  && INTVAL (XEXP (XEXP (x, 0), 1)) == 0xff00
+	  && GET_CODE (XEXP (x, 1)) == ZERO_EXTEND
+	  && GET_MODE (XEXP (x, 1)) == word_mode
+	  && GET_MODE (XEXP (XEXP (x, 1), 0)) == QImode)
+	{
+	  *total = COSTS_N_INSNS (1);
+	  return true;
+	}
+
       /* orn, andn and xorn pattern for zbb.  */
       if (TARGET_ZBB
 	  && GET_CODE (XEXP (x, 0)) == NOT)

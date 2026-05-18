@@ -231,6 +231,10 @@
                     : IN_RANGE (REGNO (op), S0_REGNUM, S1_REGNUM)
                     || IN_RANGE (REGNO (op), S2_REGNUM, S7_REGNUM)")))
 
+(define_predicate "dimode_shift_operand"
+  (and (match_code "const_int")
+       (match_test "IN_RANGE (INTVAL (op), 1, GET_MODE_BITSIZE (DImode) - 1)")))
+
 ;; Only use branch-on-bit sequences when the mask is not an ANDI immediate.
 (define_predicate "branch_on_bit_operand"
   (and (match_code "const_int")

@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-march=rv64gc_zba -mabi=lp64" } */
+/* { dg-options "-march=rv64gc_zba_zbb -mabi=lp64" } */
 /* { dg-skip-if "" { *-*-* } { "-O0" "-Og" } } */
 
 long long sub1(unsigned long long a, unsigned long long b)

@@ -30,7 +30,7 @@ void atomic_load_int_relaxed (int* bar, int* baz)
 
 /*
 ** atomic_load_short_relaxed:
-**	lh\t[atx][0-9]+,0\(a0\)
+**	(lh|lhu)\t[atx][0-9]+,0\(a0\)
 **	sh\t[atx][0-9]+,0\(a1\)
 **	ret
 */

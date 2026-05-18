@@ -1858,33 +1858,41 @@
 	(zero_extend:DI (match_operand:SI 1 "nonimmediate_operand")))]
   "TARGET_64BIT"
 {
+  /* If the source is a suitably extended subreg, then this is just
+     a simple move.  */
   if (SUBREG_P (operands[1]) && SUBREG_PROMOTED_VAR_P (operands[1])
       && SUBREG_PROMOTED_UNSIGNED_P (operands[1]))
     {
       emit_insn (gen_movdi (operands[0], SUBREG_REG (operands[1])));
       DONE;
     }
+
+  /* If the source is a register and we do not have ZBA or similar
+     extensions with similar capabilities, then emit the two
+     shifts now.  */
+  if (!TARGET_ZBA && !TARGET_XTHEADBB
+      && !TARGET_XTHEADMEMIDX && !TARGET_XANDESPERF
+      && register_operand (operands[1], SImode))
+    {
+      /* Intermediate register.  */
+      rtx ireg = gen_reg_rtx (DImode);
+      operands[1] = gen_lowpart (DImode, operands[1]);
+      rtx shiftval = GEN_INT (32);
+      rtx t = gen_rtx_ASHIFT (DImode, operands[1], shiftval);
+      emit_move_insn (ireg, t);
+      t = gen_rtx_LSHIFTRT (DImode, ireg, shiftval);
+      emit_move_insn (operands[0], t);
+      DONE;
+    }
 })
 
-(define_insn_and_split "*zero_extendsidi2_internal"
-  [(set (match_operand:DI     0 "register_operand"     "=r,r")
-	(zero_extend:DI
-	    (match_operand:SI 1 "nonimmediate_operand" " r,m")))]
+(define_insn "*zero_extendsidi2_internal"
+  [(set (match_operand:DI     0 "register_operand"     "=r")
+	(zero_extend:DI (match_operand:SI 1 "memory_operand" "m")))]
   "TARGET_64BIT && !TARGET_ZBA && !TARGET_XTHEADBB && !TARGET_XTHEADMEMIDX
-   && !TARGET_XANDESPERF
-   && !(REG_P (operands[1]) && VL_REG_P (REGNO (operands[1])))"
-  "@
-   #
-   lwu\t%0,%1"
-  "&& reload_completed
-   && REG_P (operands[1])
-   && !paradoxical_subreg_p (operands[0])"
-  [(set (match_dup 0)
-	(ashift:DI (match_dup 1) (const_int 32)))
-   (set (match_dup 0)
-	(lshiftrt:DI (match_dup 0) (const_int 32)))]
-  { operands[1] = gen_lowpart (DImode, operands[1]); }
-  [(set_attr "move_type" "shift_shift,load")
+   && !TARGET_XANDESPERF"
+  "lwu\t%0,%1"
+  [(set_attr "move_type" "load")
    (set_attr "type" "load")
    (set_attr "mode" "DI")])
 
@@ -1892,29 +1900,43 @@
   [(set (match_operand:GPR    0 "register_operand")
 	(zero_extend:GPR
 	    (match_operand:HI 1 "nonimmediate_operand")))]
-  "")
+  ""
+{
+  /* If the source is a suitably extended subreg, then this is just
+     a simple move.  */
+  if (SUBREG_P (operands[1]) && SUBREG_PROMOTED_VAR_P (operands[1])
+      && SUBREG_PROMOTED_UNSIGNED_P (operands[1]))
+    {
+      emit_insn (gen_mov<GPR:mode> (operands[0], SUBREG_REG (operands[1])));
+      DONE;
+    }
 
-(define_insn_and_split "*zero_extendhi<GPR:mode>2"
-  [(set (match_operand:GPR    0 "register_operand"     "=r,r")
-	(zero_extend:GPR
-	    (match_operand:HI 1 "nonimmediate_operand" " r,m")))]
+  /* If the source is a register and we do not have ZBB or similar
+     extensions with similar capabilities, then emit the two
+     shifts now.  */
+  if (!TARGET_ZBB && !TARGET_XTHEADBB
+      && !TARGET_XTHEADMEMIDX && !TARGET_XANDESPERF
+      && register_operand (operands[1], HImode))
+    {
+      /* Intermediate register.  */
+      rtx ireg = gen_reg_rtx (<GPR:MODE>mode);
+      operands[1] = gen_lowpart (<GPR:MODE>mode, operands[1]);
+      rtx shiftval = GEN_INT (GET_MODE_BITSIZE (<GPR:MODE>mode) - 16);
+      rtx t = gen_rtx_ASHIFT (<GPR:MODE>mode, operands[1], shiftval);
+      emit_move_insn (ireg, t);
+      t = gen_rtx_LSHIFTRT (<GPR:MODE>mode, ireg, shiftval);
+      emit_move_insn (operands[0], t);
+      DONE;
+    }
+})
+
+(define_insn "*zero_extendhi<GPR:mode>2"
+  [(set (match_operand:GPR    0 "register_operand"     "=r")
+	(zero_extend:GPR (match_operand:HI 1 "memory_operand" "m")))]
   "!TARGET_ZBB && !TARGET_XTHEADBB && !TARGET_XTHEADMEMIDX
    && !TARGET_XANDESPERF"
-  "@
-   #
-   lhu\t%0,%1"
-  "&& reload_completed
-   && REG_P (operands[1])
-   && !paradoxical_subreg_p (operands[0])"
-  [(set (match_dup 0)
-	(ashift:GPR (match_dup 1) (match_dup 2)))
-   (set (match_dup 0)
-	(lshiftrt:GPR (match_dup 0) (match_dup 2)))]
-  {
-    operands[1] = gen_lowpart (<GPR:MODE>mode, operands[1]);
-    operands[2] = GEN_INT(GET_MODE_BITSIZE(<GPR:MODE>mode) - 16);
-  }
-  [(set_attr "move_type" "shift_shift,load")
+  "lhu\t%0,%1"
+  [(set_attr "move_type" "load")
    (set_attr "type" "load")
    (set_attr "mode" "<GPR:MODE>")])
 
@@ -3186,24 +3208,25 @@
 ;; Handle SImode to DImode zero-extend combined with a left shift.  This can
 ;; occur when unsigned int is used for array indexing.  Split this into two
 ;; shifts.  Otherwise we can get 3 shifts.
-
-(define_insn_and_split "zero_extendsidi2_shifted"
-  [(set (match_operand:DI 0 "register_operand" "=r")
-	(and:DI (ashift:DI (match_operand:DI 1 "register_operand" "r")
-			   (match_operand:QI 2 "immediate_operand" "I"))
-		(match_operand 3 "immediate_operand" "")))
-   (clobber (match_scratch:DI 4 "=&r"))]
-  "TARGET_64BIT && !TARGET_ZBA
-   && ((INTVAL (operands[3]) >> INTVAL (operands[2])) == 0xffffffff)"
-  "#"
-  "&& reload_completed"
-  [(set (match_dup 4)
-	(ashift:DI (match_dup 1) (const_int 32)))
-   (set (match_dup 0)
-	(lshiftrt:DI (match_dup 4) (match_dup 5)))]
-  "operands[5] = GEN_INT (32 - (INTVAL (operands [2])));"
-  [(set_attr "type" "shift")
-   (set_attr "mode" "DI")])
+(define_split
+  [(set (match_operand:DI 0 "register_operand")
+	(and:DI (ashift:DI (match_operand:DI 1 "register_operand")
+			   (match_operand:QI 2 "dimode_shift_operand"))
+		(match_operand 3 "consecutive_bits_operand")))
+   (clobber (match_operand:DI 4 "register_operand"))]
+  "TARGET_64BIT
+   && riscv_shamt_matches_mask_p (INTVAL (operands[2]), INTVAL (operands[3]))
+   && !(TARGET_ZBA && clz_hwi (INTVAL (operands[3])) <= 32)"
+  [(set (match_dup 4) (ashift:DI (match_dup 1) (match_dup 5)))
+   (set (match_dup 0) (lshiftrt:DI (match_dup 4) (match_dup 6)))]
+{
+  unsigned HOST_WIDE_INT mask = INTVAL (operands[3]);
+  int leading  = clz_hwi (mask);
+  int trailing = ctz_hwi (mask);
+ 
+  operands[5] = GEN_INT (leading + trailing);
+  operands[6] = GEN_INT (leading);
+})
 
 ;; Handle logical AND feeding an equality test against zero where an operand
 ;; to the AND is a constant requiring synthesis.  Because we only care about

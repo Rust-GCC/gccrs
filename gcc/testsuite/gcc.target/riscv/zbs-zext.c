@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-march=rv64gc_zbs -mabi=lp64" } */
+/* { dg-options "-march=rv64gc_zba_zbs -mabi=lp64" } */
 /* { dg-skip-if "" { *-*-* } { "-O0" "-Og" "-O1" } } */
 typedef unsigned long uint64_t;
 typedef unsigned int uint32_t;

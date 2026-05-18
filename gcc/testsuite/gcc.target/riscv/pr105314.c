@@ -1,7 +1,7 @@
 /* PR rtl-optimization/105314 */
 /* { dg-do compile } */
 /* { dg-skip-if "" { *-*-* } { "-march=*zicond*" "-O0" "-Og" "-Os" "-Oz" } } */
-/* { dg-options "-fdump-rtl-ce1" } */
+/* { dg-options "-fdump-rtl-ce1 -mbranch-cost=4" } */
 
 long
 foo (long a, long b, long c)

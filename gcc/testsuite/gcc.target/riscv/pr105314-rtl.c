@@ -2,7 +2,7 @@
 /* { dg-do compile } */
 /* { dg-require-effective-target rv64 } */
 /* { dg-skip-if "" { *-*-* } { "-march=*zicond*" "-O0" "-Og" "-Os" "-Oz" "-flto" } } */
-/* { dg-options "-fdump-rtl-ce1" } */
+/* { dg-options "-fdump-rtl-ce1 -mbranch-cost=4" } */
 
 long __RTL (startwith ("ce1"))
 foo (long a, long b, long c)
