@@ -548,7 +548,7 @@ along with GCC; see the file COPYING3.  If not see
    /* SAT_U_MUL (X, Y) = {
 	WT x = (WT)a * (WT)b;
 	NT max = -1;
-	bool overflow_p = x > (WT)max;
+	bool overflow_p = x > (WT)max || x > (WT)(max - 1);
 	return -(NT)(overflow_p) | (NT)x;
       } while WT is uint128_t, uint64_t, uint32_t, uint16_t,
 	and T is uint64_t, uint32_t, uint16_t, uint8_t.  */
@@ -560,7 +560,12 @@ along with GCC; see the file COPYING3.  If not see
       unsigned prec = TYPE_PRECISION (type);
       unsigned widen_prec = TYPE_PRECISION (TREE_TYPE (@3));
       wide_int max = wi::mask (prec, false, widen_prec);
-      bool c2_is_max_p = wi::eq_p (wi::to_wide (@2), max);
+
+      wide_int c2 = wi::to_wide (@2);
+      bool c2_is_max_p = wi::eq_p (c2, max);
+
+      wide_int c2_plus_one = wi::add (c2, wi::uhwi (1, widen_prec));
+      bool c2_plus_one_is_max_p = wi::eq_p (c2_plus_one, max);
      }
-     (if (c2_is_max_p)))))
+     (if (c2_is_max_p || c2_plus_one_is_max_p)))))
 )
