@@ -557,10 +557,13 @@ Additional command-line options
    by :func:`gcc_jit_context_compile` and
    :func:`gcc_jit_context_compile_to_file`.
 
+   If you need to add more than one such option, each should be done via
+   its own call to `gcc_jit_context_add_command_line_option`.
+
    The parameter ``optname`` must be non-NULL.  The underlying buffer is
    copied, so that it does not need to outlive the call.
 
-   Extra options added by `gcc_jit_context_add_command_line_option` are
+   Extra options added by calls to `gcc_jit_context_add_command_line_option` are
    applied *after* the regular options above, potentially overriding them.
    Options from parent contexts are inherited by child contexts; options
    from the parent are applied *before* those from the child.
@@ -593,7 +596,10 @@ Additional command-line options
    The parameter ``optname`` must be non-NULL.  The underlying buffer is
    copied, so that it does not need to outlive the call.
 
-   Extra options added by `gcc_jit_context_add_driver_option` are
+   If you need to add more than one such option, each should be done via
+   its own call to `gcc_jit_context_add_driver_option`.
+
+   Extra options added by calls to `gcc_jit_context_add_driver_option` are
    applied *after* all other options potentially overriding them.
    Options from parent contexts are inherited by child contexts; options
    from the parent are applied *before* those from the child.
