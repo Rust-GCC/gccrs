@@ -48,8 +48,10 @@ package body Ada.Containers.Bounded_Indefinite_Holders is
    overriding procedure Adjust (Container : in out Holder) is
    begin
       Container.Handle := Create_Subpool (The_Storage_Pool, Container);
-      Container.Element :=
-        new (Container.Handle) Element_Type'(Container.Element.all);
+      if Container.Element /= null then
+         Container.Element :=
+           new (Container.Handle) Element_Type'(Container.Element.all);
+      end if;
    end Adjust;
 
    ------------
