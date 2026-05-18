@@ -1,3 +1,20 @@
+2026-05-17  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	* tree-ssa-uncprop.cc (associate_equivalences_with_edges): For switches
+	info only store the case low value to be recorded as
+	the only value. Add comments.
+
+2026-05-17  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	* ipa-icf-gimple.cc (func_checker::compare_gimple_switch): Remove
+	the check on CASE_LABEL_EXPR since it is redundant.
+
+2026-05-17  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	* tree-ssa-dom.cc (record_edge_info): For switches
+	info only store the case low value to be recorded as
+	the only value. Add comments.
+
 2026-05-16  Jakub Jelinek  <jakub@redhat.com>
 
 	PR target/50481
