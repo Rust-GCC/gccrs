@@ -100,7 +100,7 @@ is
    --  upper half character value from the given File. The first byte has
    --  already been read and is passed in C. The character value is returned as
    --  the result, and the file pointer is bumped past the character.
-   --  Constraint_Error is raised if the encoded value is outside the bounds of
+   --  Data_Error is raised if the encoded value is outside the bounds of
    --  type Character.
 
    function Get_Upper_Half_Char_Immed
@@ -806,7 +806,7 @@ is
       Result := WC_In (C, File.WC_Method);
 
       if Wide_Character'Pos (Result) > 16#FF# then
-         raise Constraint_Error with
+         raise Data_Error with
            "invalid wide character in Text_'I'O input";
       else
          return Character'Val (Wide_Character'Pos (Result));
@@ -849,7 +849,7 @@ is
       Result := WC_In (C, File.WC_Method);
 
       if Wide_Character'Pos (Result) > 16#FF# then
-         raise Constraint_Error with
+         raise Data_Error with
            "invalid wide character in Text_'I'O input";
       else
          return Character'Val (Wide_Character'Pos (Result));
