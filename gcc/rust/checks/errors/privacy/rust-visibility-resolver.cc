@@ -108,13 +108,13 @@ VisibilityResolver::resolve_visibility (const HIR::Visibility &visibility,
 {
   switch (visibility.get_vis_type ())
     {
-    case HIR::Visibility::PRIVATE:
+    case HIR::Visibility::VisType::Private:
       to_resolve = ModuleVisibility::create_restricted (current_module);
       return true;
-    case HIR::Visibility::PUBLIC:
+    case HIR::Visibility::VisType::Public:
       to_resolve = ModuleVisibility::create_public ();
       return true;
-    case HIR::Visibility::RESTRICTED:
+    case HIR::Visibility::VisType::Restricted:
       {
 	// FIXME: We also need to handle 2015 vs 2018 edition conflicts
 	auto id = UNKNOWN_DEFID;
