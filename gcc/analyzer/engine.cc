@@ -3152,7 +3152,7 @@ exploded_graph::process_worklist ()
 	 explosion (or bugs).  */
       const int limit
 	= (// Per-supernode limit:
-	   (m_sg.num_nodes () * param_analyzer_bb_explosion_factor)
+	   (m_sg.num_nodes () * param_analyzer_supernode_explosion_factor)
 	   // Allow one for the "origin" enode:
 	   + 1);
       if (m_global_stats.m_num_nodes > limit)
@@ -3162,8 +3162,9 @@ exploded_graph::process_worklist ()
 	  warning_at (node->get_point ().get_location (),
 		      OPT_Wanalyzer_too_complex,
 		      "analysis bailed out early"
-		      " (%i enodes)",
-		      m_nodes.length ());
+		      " (%i enodes for %i snodes)",
+		      m_nodes.length (),
+		      m_sg.num_nodes ());
 	  return;
 	}
     }

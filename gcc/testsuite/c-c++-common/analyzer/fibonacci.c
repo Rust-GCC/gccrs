@@ -6,4 +6,4 @@ int fib (int n)
     return n;
 } 
 
-/* { dg-regexp "\[^\n\r\]+: warning: analysis bailed out early \\(\[0-9\]+ enodes\\) \[^\n\r\]*" } */
+/* { dg-regexp "\[^\n\r\]+: warning: analysis bailed out early \\(\[0-9\]+ enodes for \[0-9\]+ snodes\\) \[^\n\r\]*" } */

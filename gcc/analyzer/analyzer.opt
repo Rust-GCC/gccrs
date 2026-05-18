@@ -22,10 +22,6 @@
 
 ; Please try to keep this file in ASCII collating order.
 
--param=analyzer-bb-explosion-factor=
-Common Joined UInteger Var(param_analyzer_bb_explosion_factor) Init(5) Param
-The maximum number of 'after supernode' exploded nodes within the analyzer per supernode, before terminating analysis.
-
 -param=analyzer-max-enodes-per-program-point=
 Common Joined UInteger Var(param_analyzer_max_enodes_per_program_point) Init(8) Param
 The maximum number of exploded nodes per program point within the analyzer, before terminating analysis of that point.
@@ -53,6 +49,10 @@ The minimum number of supernodes within a function for the analyzer to consider 
 -param=analyzer-max-enodes-for-full-dump=
 Common Joined UInteger Var(param_analyzer_max_enodes_for_full_dump) Init(200) Param
 The maximum depth of exploded nodes that should appear in a dot dump before switching to a less verbose format.
+
+-param=analyzer-supernode-explosion-factor=
+Common Joined UInteger Var(param_analyzer_supernode_explosion_factor) Init(5) Param
+The maximum number of exploded nodes within the analyzer per supernode, before terminating analysis.
 
 -param=analyzer-text-art-string-ellipsis-threshold=
 Common Joined UInteger Var(param_analyzer_text_art_string_ellipsis_threshold) Init(15) Param
