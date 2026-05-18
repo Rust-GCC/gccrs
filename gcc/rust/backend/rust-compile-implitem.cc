@@ -96,7 +96,7 @@ CompileTraitItem::visit (HIR::TraitItemFunc &func)
     = nr_ctx.to_canonical_path (func.get_mappings ().get_nodeid ());
 
   // FIXME: How do we get the proper visibility here?
-  auto vis = HIR::Visibility (HIR::Visibility::VisType::PUBLIC);
+  auto vis = HIR::Visibility (HIR::Visibility::VisType::Public);
   HIR::TraitFunctionDecl &function = func.get_decl ();
   tree fndecl
     = compile_function (false, function.get_function_name ().as_string (),

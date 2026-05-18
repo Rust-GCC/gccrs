@@ -164,11 +164,11 @@ Visibility::to_string () const
 {
   switch (vis_type)
     {
-    case PRIVATE:
+    case VisType::Private:
       return std::string ("private");
-    case PUBLIC:
+    case VisType::Public:
       return std::string ("pub");
-    case RESTRICTED:
+    case VisType::Restricted:
       return std::string ("pub(in ") + path.get_mappings ().as_string ()
 	     + std::string (")");
     default:
