@@ -119,7 +119,7 @@ class dump_context
 
   void end_any_optinfo ();
 
-  void emit_optinfo (const optinfo *info);
+  void emit_optinfo (const optinfo &info);
   void emit_item (const optinfo_item &item, dump_flags_t dump_kind);
 
   bool apply_dump_filter_p (dump_flags_t dump_kind, dump_flags_t filter) const;

@@ -51,50 +51,41 @@ along with GCC; see the file COPYING3.  If not see
    in-memory JSON representation.  */
 
 optrecord_json_writer::optrecord_json_writer ()
-  : m_root_tuple (NULL), m_scopes ()
+: m_root_tuple (nullptr), m_scopes ()
 {
-  m_root_tuple = new json::array ();
+  m_root_tuple = std::make_unique<json::array> ();
 
   /* Populate with metadata; compare with toplev.cc: print_version.  */
-  json::object *metadata = new json::object ();
-  m_root_tuple->append (metadata);
+  auto metadata = std::make_unique<json::object> ();
   metadata->set_string ("format", "1");
-  json::object *generator = new json::object ();
-  metadata->set ("generator", generator);
+  auto generator = std::make_unique<json::object> ();
   generator->set_string ("name", lang_hooks.name);
   generator->set_string ("pkgversion", pkgversion_string);
   generator->set_string ("version", version_string);
   /* TARGET_NAME is passed in by the Makefile.  */
   generator->set_string ("target", TARGET_NAME);
+  metadata->set<json::object> ("generator", std::move (generator));
+  m_root_tuple->append<json::object> (std::move (metadata));
 
   /* TODO: capture command-line?
      see gen_producer_string in dwarf2out.cc (currently static).  */
 
   /* TODO: capture "any plugins?" flag (or the plugins themselves).  */
 
-  json::array *passes = new json::array ();
-  m_root_tuple->append (passes);
+  auto passes = std::make_unique<json::array> ();
 
   /* Call add_pass_list for all of the pass lists.  */
   {
 #define DEF_PASS_LIST(LIST) \
-    add_pass_list (passes, g->get_passes ()->LIST);
+    add_pass_list (passes.get (), g->get_passes ()->LIST);
     GCC_PASS_LISTS
 #undef DEF_PASS_LIST
   }
+  m_root_tuple->append<json::array> (std::move (passes));
 
-  json::array *records = new json::array ();
-  m_root_tuple->append (records);
-
-  m_scopes.safe_push (records);
-}
-
-/* optrecord_json_writer's ctor.
-   Delete the in-memory JSON representation.  */
-
-optrecord_json_writer::~optrecord_json_writer ()
-{
-  delete m_root_tuple;
+  auto records = std::make_unique<json::array> ();
+  m_scopes.safe_push (records.get ());
+  m_root_tuple->append (std::move (records));
 }
 
 /* Choose an appropriate filename, and write the saved records to it.  */
@@ -106,9 +97,9 @@ optrecord_json_writer::write () const
   m_root_tuple->print (&pp, false);
 
   bool emitted_error = false;
-  char *filename = concat (dump_base_name, ".opt-record.json.gz", NULL);
+  char *filename = concat (dump_base_name, ".opt-record.json.gz", nullptr);
   gzFile outfile = gzopen (filename, "w");
-  if (outfile == NULL)
+  if (outfile == nullptr)
     {
       error_at (UNKNOWN_LOCATION, "cannot open file %qs for writing optimization records",
 		filename); // FIXME: more info?
@@ -136,18 +127,19 @@ optrecord_json_writer::write () const
 /* Add a record for OPTINFO to the queue of records to be written.  */
 
 void
-optrecord_json_writer::add_record (const optinfo *optinfo)
+optrecord_json_writer::add_record (const optinfo &optinfo)
 {
-  json::object *obj = optinfo_to_json (optinfo);
+  auto obj = optinfo_to_json (optinfo);
+  auto borrowed_obj = obj.get ();
 
-  add_record (obj);
+  add_record (std::move (obj));
 
   /* Potentially push the scope.  */
-  if (optinfo->get_kind () == optinfo::kind::scope)
+  if (optinfo.get_kind () == optinfo::kind::scope)
     {
-      json::array *children = new json::array ();
-      obj->set ("children", children);
-      m_scopes.safe_push (children);
+      auto children = std::make_unique<json::array> ();
+      m_scopes.safe_push (children.get ());
+      borrowed_obj->set<json::array> ("children", std::move (children));
     }
 }
 
@@ -156,11 +148,11 @@ optrecord_json_writer::add_record (const optinfo *optinfo)
 /* Add record OBJ to the innermost scope.  */
 
 void
-optrecord_json_writer::add_record (json::object *obj)
+optrecord_json_writer::add_record (std::unique_ptr<json::object> obj)
 {
   /* Add to innermost scope.  */
   gcc_assert (m_scopes.length () > 0);
-  m_scopes[m_scopes.length () - 1]->append (obj);
+  m_scopes[m_scopes.length () - 1]->append<json::object> (std::move (obj));
 }
 
 /* Pop the innermost scope.  */
@@ -176,10 +168,10 @@ optrecord_json_writer::pop_scope ()
 
 /* Create a JSON object representing LOC.  */
 
-json::object *
+std::unique_ptr<json::object>
 optrecord_json_writer::impl_location_to_json (dump_impl_location_t loc)
 {
-  json::object *obj = new json::object ();
+  auto obj = std::make_unique<json::object> ();
   obj->set_string ("file", loc.m_file);
   obj->set_integer ("line", loc.m_line);
   if (loc.m_function)
@@ -189,12 +181,12 @@ optrecord_json_writer::impl_location_to_json (dump_impl_location_t loc)
 
 /* Create a JSON object representing LOC.  */
 
-json::object *
+std::unique_ptr<json::object>
 optrecord_json_writer::location_to_json (location_t loc)
 {
   gcc_assert (LOCATION_LOCUS (loc) != UNKNOWN_LOCATION);
   expanded_location exploc = expand_location (loc);
-  json::object *obj = new json::object ();
+  auto obj = std::make_unique<json::object> ();
   obj->set_string ("file", exploc.file);
   obj->set_integer ("line", exploc.line);
   obj->set_integer ("column", exploc.column);
@@ -203,10 +195,10 @@ optrecord_json_writer::location_to_json (location_t loc)
 
 /* Create a JSON object representing COUNT.  */
 
-json::object *
+std::unique_ptr<json::object>
 optrecord_json_writer::profile_count_to_json (profile_count count)
 {
-  json::object *obj = new json::object ();
+  auto obj = std::make_unique<json::object> ();
   obj->set_integer ("value", count.to_gcov_type ());
   obj->set_string ("quality", profile_quality_as_string (count.quality ()));
   return obj;
@@ -215,23 +207,23 @@ optrecord_json_writer::profile_count_to_json (profile_count count)
 /* Get a string for use when referring to PASS in the saved optimization
    records.  */
 
-json::string *
-optrecord_json_writer::get_id_value_for_pass (opt_pass *pass)
+std::unique_ptr<json::string>
+optrecord_json_writer::get_id_value_for_pass (const opt_pass &pass)
 {
   pretty_printer pp;
   /* this is host-dependent, but will be consistent for a given host.  */
-  pp_pointer (&pp, static_cast<void *> (pass));
-  return new json::string (pp_formatted_text (&pp));
+  pp_pointer (&pp, static_cast<const void *> (&pass));
+  return std::make_unique<json::string> (pp_formatted_text (&pp));
 }
 
 /* Create a JSON object representing PASS.  */
 
-json::object *
-optrecord_json_writer::pass_to_json (opt_pass *pass)
+std::unique_ptr<json::object>
+optrecord_json_writer::pass_to_json (const opt_pass &pass)
 {
-  json::object *obj = new json::object ();
-  const char *type = NULL;
-  switch (pass->type)
+  auto obj = std::make_unique<json::object> ();
+  const char *type = nullptr;
+  switch (pass.type)
     {
     default:
       gcc_unreachable ();
@@ -248,20 +240,20 @@ optrecord_json_writer::pass_to_json (opt_pass *pass)
       type = "ipa";
       break;
     }
-  obj->set ("id", get_id_value_for_pass (pass));
+  obj->set<json::string> ("id", get_id_value_for_pass (pass));
   obj->set_string ("type", type);
-  obj->set_string ("name", pass->name);
+  obj->set_string ("name", pass.name);
   /* Represent the optgroup flags as an array.  */
   {
-    json::array *optgroups = new json::array ();
-    obj->set ("optgroups", optgroups);
+    auto optgroups = std::make_unique<json::array> ();
     for (const kv_pair<optgroup_flags_t> *optgroup = optgroup_options;
-	 optgroup->name != NULL; optgroup++)
+	 optgroup->name != nullptr; optgroup++)
       if (optgroup->value != OPTGROUP_ALL
-	  && (pass->optinfo_flags & optgroup->value))
+	  && (pass.optinfo_flags & optgroup->value))
 	optgroups->append_string (optgroup->name);
+    obj->set<json::array> ("optgroups", std::move (optgroups));
   }
-  obj->set_integer ("num", pass->static_pass_number);
+  obj->set_integer ("num", pass.static_pass_number);
   return obj;
 }
 
@@ -269,10 +261,10 @@ optrecord_json_writer::pass_to_json (opt_pass *pass)
    locations.
    Compare with lhd_print_error_function and cp_print_error_function.  */
 
-json::value *
+std::unique_ptr<json::array>
 optrecord_json_writer::inlining_chain_to_json (location_t loc)
 {
-  json::array *array = new json::array ();
+  auto array = std::make_unique<json::array> ();
 
   tree abstract_origin = LOCATION_BLOCK (loc);
 
@@ -282,7 +274,7 @@ optrecord_json_writer::inlining_chain_to_json (location_t loc)
       tree block = abstract_origin;
 
       locus = &BLOCK_SOURCE_LOCATION (block);
-      tree fndecl = NULL;
+      tree fndecl = nullptr;
       block = BLOCK_SUPERCONTEXT (block);
       while (block && TREE_CODE (block) == BLOCK
 	     && BLOCK_ABSTRACT_ORIGIN (block))
@@ -307,17 +299,17 @@ optrecord_json_writer::inlining_chain_to_json (location_t loc)
 
 	  if (block && TREE_CODE (block) == FUNCTION_DECL)
 	    fndecl = block;
-	  abstract_origin = NULL;
+	  abstract_origin = nullptr;
 	}
       if (fndecl)
 	{
-	  json::object *obj = new json::object ();
+	  auto obj = std::make_unique<json::object> ();
 	  const char *printable_name
 	    = lang_hooks.decl_printable_name (fndecl, 2);
 	  obj->set_string ("fndecl", printable_name);
 	  if (LOCATION_LOCUS (*locus) != UNKNOWN_LOCATION)
-	    obj->set ("site", location_to_json (*locus));
-	  array->append (obj);
+	    obj->set<json::object> ("site", location_to_json (*locus));
+	  array->append<json::object> (std::move (obj));
 	}
     }
 
@@ -326,21 +318,21 @@ optrecord_json_writer::inlining_chain_to_json (location_t loc)
 
 /* Create a JSON object representing OPTINFO.  */
 
-json::object *
-optrecord_json_writer::optinfo_to_json (const optinfo *optinfo)
+std::unique_ptr<json::object>
+optrecord_json_writer::optinfo_to_json (const optinfo &optinfo)
 {
-  json::object *obj = new json::object ();
+  auto obj = std::make_unique<json::object> ();
 
-  obj->set ("impl_location",
-	    impl_location_to_json (optinfo->get_impl_location ()));
+  obj->set<json::object>
+    ("impl_location",
+     impl_location_to_json (optinfo.get_impl_location ()));
 
-  const char *kind_str = optinfo::kind_to_string (optinfo->get_kind ());
+  const char *kind_str = optinfo::kind_to_string (optinfo.get_kind ());
   obj->set_string ("kind", kind_str);
-  json::array *message = new json::array ();
-  obj->set ("message", message);
-  for (unsigned i = 0; i < optinfo->num_items (); i++)
+  auto message = std::make_unique<json::array> ();
+  for (unsigned i = 0; i < optinfo.num_items (); i++)
     {
-      const optinfo_item *item = optinfo->get_item (i);
+      const optinfo_item *item = optinfo.get_item (i);
       switch (item->get_kind ())
 	{
 	default:
@@ -352,60 +344,65 @@ optrecord_json_writer::optinfo_to_json (const optinfo *optinfo)
 	  break;
 	case optinfo_item::kind::tree:
 	  {
-	    json::object *json_item = new json::object ();
+	    auto json_item = std::make_unique<json::object> ();
 	    json_item->set_string ("expr", item->get_text ());
 
 	    /* Capture any location for the node.  */
 	    if (LOCATION_LOCUS (item->get_location ()) != UNKNOWN_LOCATION)
-	      json_item->set ("location",
-			      location_to_json (item->get_location ()));
+	      json_item->set<json::object>
+		("location",
+		 location_to_json (item->get_location ()));
 
-	    message->append (json_item);
+	    message->append<json::object> (std::move (json_item));
 	  }
 	  break;
 	case optinfo_item::kind::gimple:
 	  {
-	    json::object *json_item = new json::object ();
+	    auto json_item = std::make_unique<json::object> ();
 	    json_item->set_string ("stmt", item->get_text ());
 
 	    /* Capture any location for the stmt.  */
 	    if (LOCATION_LOCUS (item->get_location ()) != UNKNOWN_LOCATION)
-	      json_item->set ("location",
-			      location_to_json (item->get_location ()));
+	      json_item->set<json::object>
+		("location",
+		 location_to_json (item->get_location ()));
 
-	    message->append (json_item);
+	    message->append<json::object> (std::move (json_item));
 	  }
 	  break;
 	case optinfo_item::kind::symtab_node:
 	  {
-	    json::object *json_item = new json::object ();
+	    auto json_item = std::make_unique<json::object> ();
 	    json_item->set_string ("symtab_node", item->get_text ());
 
 	    /* Capture any location for the node.  */
 	    if (LOCATION_LOCUS (item->get_location ()) != UNKNOWN_LOCATION)
-	      json_item->set ("location",
-			      location_to_json (item->get_location ()));
-	    message->append (json_item);
+	      json_item->set<json::object>
+		("location",
+		 location_to_json (item->get_location ()));
+	    message->append<json::object> (std::move (json_item));
 	  }
 	  break;
 	}
    }
+  obj->set<json::array> ("message", std::move (message));
 
-  if (optinfo->get_pass ())
-    obj->set ("pass", get_id_value_for_pass (optinfo->get_pass ()));
+  if (auto pass = optinfo.get_pass ())
+    obj->set<json::string> ("pass",
+			    get_id_value_for_pass (*pass));
 
-  profile_count count = optinfo->get_count ();
+  profile_count count = optinfo.get_count ();
   if (count.initialized_p ())
-    obj->set ("count", profile_count_to_json (count));
+    obj->set<json::object> ("count", profile_count_to_json (count));
 
   /* Record any location, handling the case where of an UNKNOWN_LOCATION
      within an inlined block.  */
-  location_t loc = optinfo->get_location_t ();
+  location_t loc = optinfo.get_location_t ();
   if (get_pure_location (line_table, loc) != UNKNOWN_LOCATION)
     {
       // TOOD: record the location (just caret for now)
       // TODO: start/finish also?
-      obj->set ("location", location_to_json (loc));
+      obj->set<json::object> ("location", location_to_json (loc));
     }
 
   if (current_function_decl)
@@ -416,7 +413,7 @@ optrecord_json_writer::optinfo_to_json (const optinfo *optinfo)
     }
 
   if (loc != UNKNOWN_LOCATION)
-    obj->set ("inlining_chain", inlining_chain_to_json (loc));
+    obj->set<json::array> ("inlining_chain", inlining_chain_to_json (loc));
 
   return obj;
 }
@@ -425,18 +422,20 @@ optrecord_json_writer::optinfo_to_json (const optinfo *optinfo)
    child passes (adding their descriptions within a "children" array).  */
 
 void
-optrecord_json_writer::add_pass_list (json::array *arr, opt_pass *pass)
+optrecord_json_writer::add_pass_list (json::array *arr,
+				      const opt_pass *pass)
 {
+  gcc_assert (pass);
   do
     {
-      json::object *pass_obj = pass_to_json (pass);
-      arr->append (pass_obj);
+      auto pass_obj = pass_to_json (*pass);
       if (pass->sub)
 	{
-	  json::array *sub = new json::array ();
-	  pass_obj->set ("children", sub);
-	  add_pass_list (sub, pass->sub);
+	  auto child_arr = std::make_unique<json::array> ();
+	  add_pass_list (child_arr.get (), pass->sub);
+	  pass_obj->set ("children", std::move (child_arr));
 	}
+      arr->append (std::move (pass_obj));
       pass = pass->next;
     }
   while (pass);
@@ -457,12 +456,12 @@ test_building_json_from_dump_calls ()
   dump_printf_loc (MSG_NOTE, loc, "test of tree: ");
   dump_generic_expr (MSG_NOTE, TDF_SLIM, integer_zero_node);
   optinfo *info = tmp.get_pending_optinfo ();
-  ASSERT_TRUE (info != NULL);
+  ASSERT_TRUE (info != nullptr);
   ASSERT_EQ (info->num_items (), 2);
 
   optrecord_json_writer writer;
-  json::object *json_obj = writer.optinfo_to_json (info);
-  ASSERT_TRUE (json_obj != NULL);
+  auto json_obj = writer.optinfo_to_json (*info);
+  ASSERT_TRUE (json_obj != nullptr);
 
   /* Verify that the json is sane.  */
   pretty_printer pp;
@@ -472,7 +471,6 @@ test_building_json_from_dump_calls ()
   ASSERT_STR_CONTAINS (json_str, "\"kind\": \"note\"");
   ASSERT_STR_CONTAINS (json_str,
 		       "\"message\": [\"test of tree: \", {\"expr\": \"0\"}]");
-  delete json_obj;
 }
 
 /* Run all of the selftests within this file.  */

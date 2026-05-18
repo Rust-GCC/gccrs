@@ -1236,7 +1236,7 @@ void
 dump_context::end_any_optinfo ()
 {
   if (m_pending)
-    emit_optinfo (m_pending);
+    emit_optinfo (*m_pending);
   delete m_pending;
   m_pending = NULL;
 }
@@ -1246,7 +1246,7 @@ dump_context::end_any_optinfo ()
    dump_context::emit_item).  */
 
 void
-dump_context::emit_optinfo (const optinfo *info)
+dump_context::emit_optinfo (const optinfo &info)
 {
   /* -fsave-optimization-record.  */
   if (m_json_writer)
