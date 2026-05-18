@@ -361,12 +361,44 @@ cpu_is_64bit=
 case ${target} in
 aarch64*-*-*)
 	cpu_type=aarch64
-	extra_headers="arm_fp16.h arm_neon.h arm_bf16.h arm_acle.h arm_sve.h arm_sme.h arm_neon_sve_bridge.h arm_private_fp8.h arm_private_neon_types.h"
+	extra_headers="${extra_headers} arm_fp16.h"
+	extra_headers="${extra_headers} arm_neon.h"
+	extra_headers="${extra_headers} arm_bf16.h"
+	extra_headers="${extra_headers} arm_acle.h"
+	extra_headers="${extra_headers} arm_sve.h"
+	extra_headers="${extra_headers} arm_sme.h"
+	extra_headers="${extra_headers} arm_neon_sve_bridge.h"
+	extra_headers="${extra_headers} arm_private_fp8.h"
+	extra_headers="${extra_headers} arm_private_neon_types.h"
+
 	c_target_objs="aarch64-c.o"
 	cxx_target_objs="aarch64-c.o"
 	d_target_objs="aarch64-d.o"
-	extra_objs="aarch64-builtins.o aarch-common.o aarch64-elf-metadata.o aarch64-sve-builtins.o aarch64-sve-builtins-shapes.o aarch64-sve-builtins-base.o aarch64-sve-builtins-sve2.o aarch64-sve-builtins-sme.o cortex-a57-fma-steering.o aarch64-speculation.o aarch-bti-insert.o aarch64-early-ra.o aarch64-ldp-fusion.o aarch64-sched-dispatch.o aarch64-json-tunings-printer.o aarch64-json-tunings-parser.o aarch64-narrow-gp-writes.o"
-	target_gtfiles="\$(srcdir)/config/aarch64/aarch64-protos.h \$(srcdir)/config/aarch64/aarch64-builtins.h \$(srcdir)/config/aarch64/aarch64-builtins.cc \$(srcdir)/config/aarch64/aarch64-sve-builtins.h \$(srcdir)/config/aarch64/aarch64-sve-builtins.cc"
+
+	extra_objs="${extra_objs} aarch64-builtins.o"
+	extra_objs="${extra_objs} aarch-common.o"
+	extra_objs="${extra_objs} aarch64-elf-metadata.o"
+	extra_objs="${extra_objs} aarch64-sve-builtins.o"
+	extra_objs="${extra_objs} aarch64-sve-builtins-shapes.o"
+	extra_objs="${extra_objs} aarch64-sve-builtins-base.o"
+	extra_objs="${extra_objs} aarch64-sve-builtins-sve2.o"
+	extra_objs="${extra_objs} aarch64-sve-builtins-sme.o"
+	extra_objs="${extra_objs} cortex-a57-fma-steering.o"
+	extra_objs="${extra_objs} aarch64-speculation.o"
+	extra_objs="${extra_objs} aarch-bti-insert.o"
+	extra_objs="${extra_objs} aarch64-early-ra.o"
+	extra_objs="${extra_objs} aarch64-ldp-fusion.o"
+	extra_objs="${extra_objs} aarch64-sched-dispatch.o"
+	extra_objs="${extra_objs} aarch64-json-tunings-printer.o"
+	extra_objs="${extra_objs} aarch64-json-tunings-parser.o"
+	extra_objs="${extra_objs} aarch64-narrow-gp-writes.o"
+
+	target_gtfiles="${target_gtfiles} \$(srcdir)/config/aarch64/aarch64-protos.h"
+	target_gtfiles="${target_gtfiles} \$(srcdir)/config/aarch64/aarch64-builtins.h"
+	target_gtfiles="${target_gtfiles} \$(srcdir)/config/aarch64/aarch64-builtins.cc"
+	target_gtfiles="${target_gtfiles} \$(srcdir)/config/aarch64/aarch64-sve-builtins.h"
+	target_gtfiles="${target_gtfiles} \$(srcdir)/config/aarch64/aarch64-sve-builtins.cc"
+
 	target_has_targetm_common=yes
 	;;
 alpha*-*-*)
