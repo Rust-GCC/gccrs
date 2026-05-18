@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-O -fdump-tree-optimized" } */
+/* { dg-options "-O -fdump-tree-release_ssa -Wno-psabi" } */
 
 typedef signed int s32;
 typedef unsigned char u8;
@@ -121,7 +121,7 @@ vg (v4ui a, v4ui b)
 }
 
 /* f* and vf should simplify to return a.  */
-/* { dg-final { scan-tree-dump-times "return a_" 6 "optimized" } } */
+/* { dg-final { scan-tree-dump-times "return a_|<retval> = a_" 6 "release_ssa" } } */
 
 /* g* and vg should simplify to ~a directly.  */
-/* { dg-final { scan-tree-dump-times "= ~a" 6 "optimized" } } */
+/* { dg-final { scan-tree-dump-times "= ~a" 6 "release_ssa" } } */
