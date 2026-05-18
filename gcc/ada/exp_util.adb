@@ -6829,7 +6829,7 @@ package body Exp_Util is
       --  early return if we have no more statements or they have been
       --  rewritten, which means that they were in the source code.
 
-      elsif No (Stmt) or else Original_Node (Stmt) /= Stmt then
+      elsif No (Stmt) or else Is_Rewrite_Substitution (Stmt) then
          return Last_Init;
 
       --  In all other cases the initialization calls follow the related

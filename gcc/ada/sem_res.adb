@@ -2053,7 +2053,7 @@ package body Sem_Res is
       Parent_Id : Node_Id;
    begin
       if Nkind (IBT_Decl) = N_Full_Type_Declaration
-        and then Original_Node (IBT_Decl) /= IBT_Decl
+        and then Is_Rewrite_Substitution (IBT_Decl)
         and then Nkind (Original_Node (IBT_Decl)) =
                  N_Full_Type_Declaration
         and then Nkind (Type_Definition (Original_Node (IBT_Decl)))

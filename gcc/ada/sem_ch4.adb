@@ -274,7 +274,7 @@ package body Sem_Ch4 is
    is (Is_Visible_Operator (N => N, Typ => Typ)
          or else
            --  test for a rewritten Foo."+" call
-           (N /= Original_Node (N)
+           (Is_Rewrite_Substitution (N)
              and then Is_Effectively_Visible_Operator
                         (N => Original_Node (N), Typ => Typ))
          or else Checking_Potentially_Static_Expression

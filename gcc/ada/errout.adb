@@ -3752,7 +3752,7 @@ package body Errout is
             --  Handle direct attribute definitions
 
             if Parent_Kind (Node) in N_Subprogram_Specification
-              and then Original_Node (Parent (Node)) /= Parent (Node)
+              and then Is_Rewrite_Substitution (Parent (Node))
               and then Nkind (Defining_Unit_Name
                                (Original_Node (Parent (Node))))
                          = N_Attribute_Reference

@@ -1698,7 +1698,7 @@ package body Sem_Case is
                elsif Nkind (Expr) = N_Type_Conversion
                   and then not Comes_From_Source (Expr)
                then
-                  if Expr /= Original_Node (Expr) then
+                  if Is_Rewrite_Substitution (Expr) then
                      Traverse_Choice (Original_Node (Expr));
                   else
                      Traverse_Choice (Expression (Expr));
