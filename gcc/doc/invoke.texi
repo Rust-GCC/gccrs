@@ -1338,6 +1338,7 @@ See RS/6000 and PowerPC Options.
 -msmall-data-limit=@var{N-bytes}
 -msave-restore  -mno-shorten-memrefs
 -mstrict-align  -mscalar-strict-align  -mno-vector-strict-align
+-mzilsd-word-align  -mzilsd-strict-align
 -mcmodel=medlow  -mcmodel=medany  -mcmodel=large
 -mexplicit-relocs  -mrelax  -mriscv-attribute
 -malign-data=@var{type}
@@ -31424,6 +31425,20 @@ or not.  This is an alias for @option{-mstrict-align}.
 Do not or do generate unaligned vector memory accesses.  The default is set
 to off unless the processor we are optimizing for explicitly supports
 element-misaligned vector memory access.
+
+@opindex mzilsd-word-align
+@item -mzilsd-word-align
+Allow Zilsd/Zclsd memory accesses to be generated when they are known to be
+4-byte aligned.
+
+@opindex mzilsd-strict-align
+@item -mzilsd-strict-align
+Require Zilsd/Zclsd memory accesses to be naturally 8-byte aligned.
+
+The precedence among @option{-mzilsd-word-align},
+@option{-mzilsd-strict-align}, @option{-mstrict-align},
+@option{-mno-strict-align}, @option{-mscalar-strict-align}, and
+@option{-mno-scalar-strict-align} is determined by the last one specified.
 
 @opindex mmax-vectorization
 @opindex mno-max-vectorization

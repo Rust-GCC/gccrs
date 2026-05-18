@@ -75,6 +75,14 @@ enum riscv_align_data {
   riscv_align_data_type_natural
 };
 
+/* Alignment policy for Zilsd 2 * XLEN memory accesses.  */
+enum riscv_zilsd_align_type {
+  RISCV_ZILSD_ALIGN_DEFAULT,
+  RISCV_ZILSD_ALIGN_BYTE,
+  RISCV_ZILSD_ALIGN_WORD,
+  RISCV_ZILSD_ALIGN_STRICT
+};
+
 /* Where to get the canary for the stack protector.  */
 enum stack_protector_guard {
   SSP_TLS,			/* per-thread canary in TLS block */

@@ -50,6 +50,12 @@ UrlSuffix(gcc/RISC-V-Options.html#index-mstrict-align-4)
 mscalar-strict-align
 UrlSuffix(gcc/RISC-V-Options.html#index-mscalar-strict-align)
 
+mzilsd-word-align
+UrlSuffix(gcc/RISC-V-Options.html#index-mzilsd-word-align)
+
+mzilsd-strict-align
+UrlSuffix(gcc/RISC-V-Options.html#index-mzilsd-strict-align)
+
 mvector-strict-align
 UrlSuffix(gcc/RISC-V-Options.html#index-mvector-strict-align)
 
@@ -122,4 +128,3 @@ mautovec-segment
 UrlSuffix(gcc/RISC-V-Options.html#index-mautovec-segment)
 
 ; skipping UrlSuffix for 'mmpy-option=' due to finding no URLs
-

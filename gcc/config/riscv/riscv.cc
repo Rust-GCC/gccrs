@@ -53,6 +53,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "basic-block.h"
 #include "expr.h"
 #include "optabs.h"
+#include "expmed.h"
 #include "bitmap.h"
 #include "df.h"
 #include "function-abi.h"
@@ -1016,6 +1017,59 @@ riscv_2x_xlen_mode_p (machine_mode mode)
   poly_int64 mode_size = GET_MODE_SIZE (mode);
   return mode_size.is_constant ()
 	 && (mode_size.to_constant () == UNITS_PER_WORD * 2);
+}
+
+/* Return the required alignment, in bytes, for Zilsd memory accesses.  */
+
+static unsigned int
+riscv_zilsd_required_align (enum riscv_zilsd_align_type align,
+			    bool strict_align_p)
+{
+  switch (align)
+    {
+    case RISCV_ZILSD_ALIGN_BYTE:
+      return 1;
+
+    case RISCV_ZILSD_ALIGN_WORD:
+      return 4;
+
+    case RISCV_ZILSD_ALIGN_STRICT:
+      return 8;
+
+    case RISCV_ZILSD_ALIGN_DEFAULT:
+      return strict_align_p ? 8 : 1;
+
+    default:
+      gcc_unreachable ();
+    }
+}
+
+/* Return the required alignment, in bytes, for Zilsd memory accesses.  */
+
+static unsigned int
+riscv_zilsd_required_align (void)
+{
+  return riscv_zilsd_required_align (riscv_zilsd_align, TARGET_STRICT_ALIGN);
+}
+
+/* Return true if MEM can be accessed by a Zilsd 2 * XLEN load/store.  */
+
+bool
+riscv_zilsd_valid_mem_p (rtx mem, machine_mode mode)
+{
+  return (TARGET_ZILSD
+	  && riscv_2x_xlen_mode_p (mode)
+	  && MEM_P (mem)
+	  && MEM_ALIGN (mem) >= riscv_zilsd_required_align () * BITS_PER_UNIT);
+}
+
+/* Return the effective Zilsd memory access alignment policy.  */
+
+static unsigned int
+riscv_zilsd_required_align (const struct cl_target_option *opts)
+{
+  return riscv_zilsd_required_align
+    (opts->x_riscv_zilsd_align, TARGET_STRICT_ALIGN_P (opts->x_target_flags));
 }
 
 /* Implement TARGET_MIN_ARITHMETIC_PRECISION.  */
@@ -4265,8 +4319,7 @@ riscv_rtx_costs (rtx x, machine_mode mode, int outer_code, int opno ATTRIBUTE_UN
 	    }
 
 	  /* Load for XLEN * 2.  */
-	  if (TARGET_ZILSD && MEM_P (SET_SRC (x))
-	      && riscv_2x_xlen_mode_p (mode))
+	  if (riscv_zilsd_valid_mem_p (SET_SRC (x), mode))
 	    {
 	      /* TODO: Add riscv_tune_param for this.  */
 	      *total = COSTS_N_INSNS (1);
@@ -4278,8 +4331,7 @@ riscv_rtx_costs (rtx x, machine_mode mode, int outer_code, int opno ATTRIBUTE_UN
 	}
 
       /* Store for XLEN * 2.  */
-      if (TARGET_ZILSD && MEM_P (SET_DEST (x)) && REG_P (SET_SRC (x))
-	  && riscv_2x_xlen_mode_p (mode))
+      if (REG_P (SET_SRC (x)) && riscv_zilsd_valid_mem_p (SET_DEST (x), mode))
 	{
 	  /* TODO: Add riscv_tune_param for this.  */
 	  *total = COSTS_N_INSNS (1);
@@ -5017,7 +5069,13 @@ riscv_split_64bit_move_p (rtx dest, rtx src)
       /* GCC may still generating some load/store with odd-even reg pair
 	 because the ABI handling, but that's fine, just split that later.  */
       if (GP_REG_P (regno))
-	return (regno < FIRST_PSEUDO_REGISTER) && ((regno % 2) != 0);
+	{
+	  rtx mem = MEM_P (dest) ? dest : src;
+	  if (!riscv_zilsd_valid_mem_p (mem, GET_MODE (mem)))
+	    return true;
+
+	  return (regno < FIRST_PSEUDO_REGISTER) && ((regno % 2) != 0);
+	}
     }
 
   /* There is no need to split if the FLI instruction in the `Zfa` extension can be used.  */
@@ -5034,6 +5092,56 @@ riscv_split_64bit_move_p (rtx dest, rtx src)
     return false;
 
   return true;
+}
+
+/* Expand a potentially misaligned Zilsd-sized memory move.  */
+
+bool
+riscv_expand_zilsd_misaligned_move (rtx dest, rtx src)
+{
+  machine_mode mode = GET_MODE (dest);
+  if (mode == VOIDmode)
+    mode = GET_MODE (src);
+
+  if (TARGET_64BIT || !TARGET_ZILSD || !riscv_2x_xlen_mode_p (mode))
+    return false;
+
+  if (!MEM_P (src) && !MEM_P (dest))
+    return false;
+
+  if (MEM_P (src) && MEM_P (dest))
+    {
+      rtx tmp = gen_reg_rtx (mode);
+      if (!riscv_expand_zilsd_misaligned_move (tmp, src))
+	return false;
+      return riscv_expand_zilsd_misaligned_move (dest, tmp);
+    }
+
+  if ((MEM_P (src) && riscv_zilsd_valid_mem_p (src, mode))
+      || (MEM_P (dest) && riscv_zilsd_valid_mem_p (dest, mode)))
+    {
+      emit_move_insn (dest, src);
+      return true;
+    }
+
+  if (MEM_P (src))
+    {
+      rtx target = REG_P (dest) ? dest : NULL_RTX;
+      rtx value = extract_bit_field (src, GET_MODE_BITSIZE (mode), 0,
+				     false, target, mode, mode, false, NULL);
+      if (value != dest)
+	emit_move_insn (dest, value);
+      return true;
+    }
+
+  if (MEM_P (dest))
+    {
+      store_bit_field (dest, GET_MODE_BITSIZE (mode), 0, 0, 0, mode, src,
+		       false, false);
+      return true;
+    }
+
+  return false;
 }
 
 /* Split a doubleword move from SRC to DEST.  On 32-bit targets,
@@ -9061,6 +9169,10 @@ riscv_can_inline_p (tree caller, tree callee)
       != callee_opts->x_rvv_vector_strict_align)
     return false;
 
+  if (riscv_zilsd_required_align (caller_opts)
+      != riscv_zilsd_required_align (callee_opts))
+    return false;
+
   return true;
 }
 
@@ -11709,6 +11821,10 @@ riscv_override_options_internal (struct gcc_options *opts)
   if ((TARGET_HARD_FLOAT_OPTS_P (opts) || TARGET_ZFINX_OPTS_P (opts))
       && ((target_flags_explicit & MASK_FDIV) == 0))
     opts->x_target_flags |= MASK_FDIV;
+
+  if (TARGET_64BIT && opts->x_riscv_zilsd_align_explicit)
+    error ("%<-mzilsd-word-align%> and %<-mzilsd-strict-align%> are only "
+	   "supported for RV32");
 
   /* Handle -mtune, use -mcpu if -mtune is not given, and use default -mtune
      if both -mtune and -mcpu are not given.  */

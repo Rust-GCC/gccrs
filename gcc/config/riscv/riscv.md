@@ -2600,6 +2600,17 @@
    (set_attr "type" "move,move,load,store,mtc,fpload,mfc,fmove,fpstore,move")
    (set_attr "ext" "base,base,base,base,d,d,d,d,d,vector")])
 
+(define_expand "movmisaligndi"
+  [(set (match_operand:DI 0 "nonimmediate_operand")
+	(match_operand:DI 1 "general_operand"))]
+  "!TARGET_64BIT && TARGET_ZILSD"
+{
+  if (riscv_expand_zilsd_misaligned_move (operands[0], operands[1]))
+    DONE;
+  else
+    FAIL;
+})
+
 ;; 32-bit Integer moves
 
 (define_expand "mov<mode>"
@@ -2773,6 +2784,17 @@
   [(set_attr "move_type" "move,load,store")
    (set_attr "type" "fmove,fpload,fpstore")
    (set_attr "mode" "DF")])
+
+(define_expand "movmisaligndf"
+  [(set (match_operand:DF 0 "nonimmediate_operand")
+	(match_operand:DF 1 "general_operand"))]
+  "!TARGET_64BIT && TARGET_ZILSD"
+{
+  if (riscv_expand_zilsd_misaligned_move (operands[0], operands[1]))
+    DONE;
+  else
+    FAIL;
+})
 
 (define_insn "movsidf2_low_rv32"
   [(set (match_operand:SI      0 "register_operand" "=  r")

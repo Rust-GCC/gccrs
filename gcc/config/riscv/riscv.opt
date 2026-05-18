@@ -132,6 +132,14 @@ mscalar-strict-align
 Target Save Alias(mstrict-align)
 Do not generate unaligned scalar memory accesses.
 
+mzilsd-word-align
+Target RejectNegative
+Allow Zilsd/Zclsd memory accesses to be 4-byte aligned.
+
+mzilsd-strict-align
+Target RejectNegative
+Force Zilsd/Zclsd memory accesses to be 8-byte aligned.
+
 mvector-strict-align
 Target Save Var(rvv_vector_strict_align) Init(1)
 Do not create element-misaligned vector memory accesses.
@@ -170,6 +178,12 @@ Omit the frame pointer in leaf functions.
 
 TargetVariable
 int riscv_isa_flags
+
+TargetVariable
+enum riscv_zilsd_align_type riscv_zilsd_align = RISCV_ZILSD_ALIGN_DEFAULT
+
+TargetVariable
+int riscv_zilsd_align_explicit = 0
 
 Mask(64BIT) Var(riscv_isa_flags)
 

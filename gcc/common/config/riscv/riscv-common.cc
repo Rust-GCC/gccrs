@@ -1705,12 +1705,43 @@ riscv_find_cpu (const char *cpu)
 
 static bool
 riscv_handle_option (struct gcc_options *opts,
-		     struct gcc_options *opts_set ATTRIBUTE_UNUSED,
+		     struct gcc_options *opts_set,
 		     const struct cl_decoded_option *decoded,
 		     location_t loc)
 {
   switch (decoded->opt_index)
     {
+    case OPT_mstrict_align:
+      opts->x_riscv_zilsd_align
+	= decoded->value ? RISCV_ZILSD_ALIGN_STRICT : RISCV_ZILSD_ALIGN_BYTE;
+      opts->x_riscv_zilsd_align_explicit = 0;
+      if (opts_set)
+	{
+	  opts_set->x_riscv_zilsd_align = opts->x_riscv_zilsd_align;
+	  opts_set->x_riscv_zilsd_align_explicit = 0;
+	}
+      return true;
+
+    case OPT_mzilsd_word_align:
+      opts->x_riscv_zilsd_align = RISCV_ZILSD_ALIGN_WORD;
+      opts->x_riscv_zilsd_align_explicit = 1;
+      if (opts_set)
+	{
+	  opts_set->x_riscv_zilsd_align = opts->x_riscv_zilsd_align;
+	  opts_set->x_riscv_zilsd_align_explicit = 1;
+	}
+      return true;
+
+    case OPT_mzilsd_strict_align:
+      opts->x_riscv_zilsd_align = RISCV_ZILSD_ALIGN_STRICT;
+      opts->x_riscv_zilsd_align_explicit = 1;
+      if (opts_set)
+	{
+	  opts_set->x_riscv_zilsd_align = opts->x_riscv_zilsd_align;
+	  opts_set->x_riscv_zilsd_align_explicit = 1;
+	}
+      return true;
+
     case OPT_march_:
       if (riscv_find_cpu (decoded->arg) == NULL)
 	riscv_parse_arch_string (decoded->arg, opts, loc);
