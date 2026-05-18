@@ -60,6 +60,8 @@ by particular CPU name. Permissible values for this option are:
 
 @samp{xt-c920v2},
 
+@samp{xt-c9501fdvt},
+
 @samp{tt-ascalon-d8},
 
 @samp{xiangshan-nanhu},
