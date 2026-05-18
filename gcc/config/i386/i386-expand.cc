@@ -10454,7 +10454,7 @@ ix86_expand_movmem (rtx operands[])
 {
   /* Since there are much less registers available in 32-bit mode, don't
      inline movmem in 32-bit mode.  */
-  if (!TARGET_64BIT || optimize_function_for_size_p (cfun))
+  if (!TARGET_64BIT || optimize_insn_for_size_p ())
     return false;
 
   rtx dst = operands[0];
