@@ -1028,8 +1028,7 @@ exploded_node::status_to_str (enum status s)
 
 exploded_node::exploded_node (const point_and_state &ps,
 			      int index)
-: m_ps (ps), m_status (status::worklist), m_index (index),
-  m_num_processed_stmts (0)
+: m_ps (ps), m_status (status::worklist), m_index (index)
 {
   gcc_checking_assert (ps.get_state ().m_region_model->canonicalized_p ());
 }
@@ -1211,8 +1210,7 @@ exploded_node::dump (const extrinsic_state &ext_state) const
    {"point"  : object for program_point,
     "state"  : object for program_state,
     "status" : str,
-    "idx"    : int,
-    "processed_stmts" : int}.  */
+    "idx"    : int}.  */
 
 std::unique_ptr<json::object>
 exploded_node::to_json (const extrinsic_state &ext_state) const
@@ -1223,7 +1221,6 @@ exploded_node::to_json (const extrinsic_state &ext_state) const
   enode_obj->set ("state", get_state ().to_json (ext_state));
   enode_obj->set_string ("status", status_to_str (m_status));
   enode_obj->set_integer ("idx", m_index);
-  enode_obj->set_integer ("processed_stmts", m_num_processed_stmts);
 
   return enode_obj;
 }

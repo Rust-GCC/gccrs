@@ -322,10 +322,6 @@ private:
 public:
   /* The index of this exploded_node.  */
   const int m_index;
-
-  /* The number of stmts that were processed when process_node was
-     called on this enode.  */
-  unsigned m_num_processed_stmts;
 };
 
 /* An edge within the exploded graph.
