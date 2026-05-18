@@ -966,6 +966,19 @@ carry_backpropagate (unsigned HOST_WIDE_INT mask, enum rtx_code code, rtx x)
       /* Recurse into the operand.  */
       return carry_backpropagate (mask, GET_CODE (XEXP (x, 0)), XEXP (x, 0));
 
+    /* If an AND/IOR unconditionally clears/sets bits in the output, then
+       we do not care about the liveness of those bits in the inputs.
+
+       So AND MASK with the constant for AND and with the complemented constant
+       for IOR.  */
+    case AND:
+    case IOR:
+      if (CONST_INT_P (XEXP (x, 1)))
+	mask &= (code == AND
+		 ? UINTVAL (XEXP (x, 1))
+		 : ~UINTVAL (XEXP (x, 1)));
+      return mask;
+
     /* We propagate for the shifted operand, but not the shift
        count.  The count is handled specially.  */
     case SS_ASHIFT:
