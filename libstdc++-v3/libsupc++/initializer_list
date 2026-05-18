@@ -40,6 +40,9 @@
 
 #include <bits/c++config.h>
 
+#define __glibcxx_want_initializer_list
+#include <bits/version.h>
+
 namespace std _GLIBCXX_VISIBILITY(default)
 {
   /// initializer_list
@@ -77,8 +80,17 @@ namespace std _GLIBCXX_VISIBILITY(default)
       // One past the last element.
       constexpr const_iterator
       end() const noexcept { return begin() + size(); }
+
+#if __glibcxx_initializer_list >= 202511L
+      constexpr bool
+      empty() const noexcept { return _M_len == 0; }
+
+      constexpr const value_type*
+      data() const noexcept { return _M_array; }
+#endif
     };
 
+#if __glibcxx_initializer_list < 202511L
   /**
    *  @brief  Return an iterator pointing to the first element of
    *          the initializer_list.
@@ -100,6 +112,7 @@ namespace std _GLIBCXX_VISIBILITY(default)
     constexpr const _Tp*
     end(initializer_list<_Tp> __ils) noexcept
     { return __ils.end(); }
+#endif // __glibcxx_initializer_list < 202511L
 }
 
 #endif // C++11

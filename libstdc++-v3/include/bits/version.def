@@ -2410,6 +2410,14 @@ ftms = {
   };
 };
 
+ftms = {
+  name = initializer_list;
+  values = {
+    v = 202511;
+    cxxmin = 26;
+  };
+};
+
 // Standard test specifications.
 stds[97] = ">= 199711L";
 stds[03] = ">= 199711L";

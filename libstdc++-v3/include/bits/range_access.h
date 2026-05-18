@@ -328,6 +328,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     empty(const _Tp (&)[_Nm]) noexcept
     { return false; }
 
+#if __glibcxx_initializer_list < 202511L
   /**
    *  @brief  Return whether an initializer_list is empty.
    *  @param  __il  Initializer list.
@@ -338,6 +339,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     constexpr bool
     empty(initializer_list<_Tp> __il) noexcept
     { return __il.size() == 0;}
+#endif
 
   /**
    *  @brief  Return the data pointer of a container.
@@ -374,6 +376,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     data(_Tp (&__array)[_Nm]) noexcept
     { return __array; }
 
+#if __glibcxx_initializer_list < 202511L
   /**
    *  @brief  Return the data pointer of an initializer list.
    *  @param  __il  Initializer list.
@@ -384,6 +387,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     constexpr const _Tp*
     data(initializer_list<_Tp> __il) noexcept
     { return __il.begin(); }
+#endif
 #endif // __glibcxx_nonmember_container_access
 
 #ifdef __glibcxx_ssize // C++ >= 20

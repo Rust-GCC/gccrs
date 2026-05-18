@@ -2675,4 +2675,14 @@
 #endif /* !defined(__cpp_lib_is_structural) */
 #undef __glibcxx_want_is_structural
 
+#if !defined(__cpp_lib_initializer_list)
+# if (__cplusplus >  202302L)
+#  define __glibcxx_initializer_list 202511L
+#  if defined(__glibcxx_want_all) || defined(__glibcxx_want_initializer_list)
+#   define __cpp_lib_initializer_list 202511L
+#  endif
+# endif
+#endif /* !defined(__cpp_lib_initializer_list) */
+#undef __glibcxx_want_initializer_list
+
 #undef __glibcxx_want_all

@@ -20,16 +20,12 @@
 // 18.9.3 Initializer list range access [support.initlist.range]
 
 #include <initializer_list>
+#if __cpp_lib_initializer_list >= 202511L
+#  include <iterator>
+#endif
 
 void
 test01()
-{
-  std::begin({1, 2, 3});
-  std::end({1, 2, 3});
-}
-
-void
-test02()
 {
   static constexpr std::initializer_list<int> il{1};
   static_assert( std::begin(il) == il.begin() );
