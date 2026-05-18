@@ -531,6 +531,11 @@
  (and (match_code "const_int")
       (match_test "aarch64_simd_scalar_immediate_valid_for_move (op,
 						 QImode)")))
+(define_constraint "Da"
+  "@internal
+  A constraint that matches all sub-64-bit AdvSIMD vectors."
+  (and (match_code "const_vector")
+       (match_test "aarch64_advsimd_sub_dword_mode_p (GET_MODE (op))")))
 
 (define_constraint "Dt"
   "@internal

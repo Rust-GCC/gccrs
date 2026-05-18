@@ -872,6 +872,7 @@ bool aarch64_and_bitmask_imm (unsigned HOST_WIDE_INT val_in, machine_mode mode);
 int aarch64_branch_cost (bool, bool);
 enum aarch64_symbol_type aarch64_classify_symbolic_expression (rtx);
 bool aarch64_advsimd_struct_mode_p (machine_mode mode);
+bool aarch64_advsimd_sub_dword_mode_p (machine_mode mode);
 opt_machine_mode aarch64_v64_mode (scalar_mode);
 opt_machine_mode aarch64_v128_mode (scalar_mode);
 opt_machine_mode aarch64_full_sve_mode (scalar_mode);

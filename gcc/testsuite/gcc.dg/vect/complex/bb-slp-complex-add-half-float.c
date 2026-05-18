@@ -12,3 +12,6 @@
 
 /* { dg-final { scan-tree-dump "add new stmt: \[^\n\r]*COMPLEX_ADD_ROT270" "slp1" { xfail *-*-* } } } */
 /* { dg-final { scan-tree-dump "add new stmt: \[^\n\r]*COMPLEX_ADD_ROT90" "slp1" { xfail *-*-* } } } */
+
+/* { dg-final { scan-tree-dump "Found COMPLEX_ADD_ROT90" "slp1" { xfail arm*-*-* } } } */
+/* { dg-final { scan-tree-dump "Found COMPLEX_ADD_ROT270" "slp1" { xfail arm*-*-* } } } */

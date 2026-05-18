@@ -1778,6 +1778,13 @@ aarch64_classify_vector_mode (machine_mode mode, bool any_target_p = false)
     case E_V4x2DFmode:
       return (TARGET_FLOAT || any_target_p) ? VEC_ADVSIMD | VEC_STRUCT : 0;
 
+    /* 16-bit Advanced SIMD vectors.  */
+    case E_V2QImode:
+    /* 32-bit Advanced SIMD vectors.  */
+    case E_V2HFmode:
+    case E_V2BFmode:
+    case E_V2HImode:
+    case E_V4QImode:
     /* 64-bit Advanced SIMD vectors.  */
     case E_V8QImode:
     case E_V4HImode:
@@ -1854,6 +1861,14 @@ static bool
 aarch64_advsimd_full_struct_mode_p (machine_mode mode)
 {
   return (aarch64_classify_vector_mode (mode) == (VEC_ADVSIMD | VEC_STRUCT));
+}
+
+/* Return true if MODE is a partial (sub-64-bit) Advanced SIMD mode.  */
+bool
+aarch64_advsimd_sub_dword_mode_p (machine_mode mode)
+{
+  return (aarch64_classify_vector_mode (mode) == VEC_ADVSIMD)
+	 && known_lt (GET_MODE_BITSIZE (mode), 64);
 }
 
 /* Return true if MODE is any of the data vector modes, including
@@ -28414,6 +28429,9 @@ aarch64_vectorize_vec_perm_const (machine_mode vmode, machine_mode op_mode,
 				  const vec_perm_indices &sel)
 {
   struct expand_vec_perm_d d;
+
+  if (aarch64_advsimd_sub_dword_mode_p (op_mode))
+    return false;
 
   /* Check whether the mask can be applied to a single vector.  */
   if (sel.ninputs () == 1

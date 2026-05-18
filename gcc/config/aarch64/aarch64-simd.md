@@ -49,8 +49,8 @@
 (define_subst_attr "vczbe" "add_vec_concat_subst_be" "" "_vec_concatz_be")
 
 (define_expand "mov<mode>"
-  [(set (match_operand:VALL_F16 0 "nonimmediate_operand")
-	(match_operand:VALL_F16 1 "general_operand"))]
+  [(set (match_operand:VALL_F16_SUB64 0 "nonimmediate_operand")
+	(match_operand:VALL_F16_SUB64 1 "general_operand"))]
   "TARGET_FLOAT"
   "
   /* Force the operand into a register if it is not an
@@ -77,7 +77,8 @@
 	  aarch64_expand_vector_init (operands[0], operands[1]);
 	  DONE;
 	}
-      else if (!aarch64_simd_imm_zero (operands[1], <MODE>mode)
+      else if (!aarch64_advsimd_sub_dword_mode_p (<MODE>mode)
+	       && !aarch64_simd_imm_zero (operands[1], <MODE>mode)
 	       && !aarch64_simd_special_constant_p (operands[1], <MODE>mode)
 	       && !aarch64_simd_valid_mov_imm (operands[1])
 	       && !aarch64_const_vec_fmov_p (operands[1]))
@@ -242,6 +243,63 @@
       }
     DONE;
   }
+)
+
+(define_insn_and_split "*aarch64_simd_mov<mode>"
+  [(set (match_operand:VSUB64 0 "nonimmediate_operand")
+	(match_operand:VSUB64 1 "general_operand"))]
+  "TARGET_FLOAT
+   && (register_operand (operands[0], <MODE>mode)
+       || aarch64_simd_reg_or_zero (operands[1], <MODE>mode)
+       || CONST_VECTOR_P (operands[1]))"
+   {@ [cons: =0, 1; attrs: type, arch]
+     [r , Dz ; mov_imm          , *    ] mov\t%w0, 0
+     [r , rZ ; mov_reg          , *    ] mov\t%w0, %w1
+     [r , Da ; mov_imm          , *    ] #
+     [r , w  ; mov_reg          , simd ] #
+     [r , m  ; load_4           , *    ] ldr<size>\t%w0, %1
+     [w , w  ; neon_logic       , simd ] mov\t%0.8b, %1.8b
+     [w , m  ; neon_load1_1reg  , simd ] ldr\t%<vstype>0, %1
+     [w , Dz ; neon_move        , simd ] movi\t%0.2d, #0
+     [m , rZ ; store_4          , *    ] str<size>\t%w1, %0
+     [m , w  ; neon_store1_1reg , simd ] str\t%<vstype>1, %0
+  }
+  "&& reload_completed
+   && REG_P (operands[0])"
+  [(const_int 0)]
+  {
+    if (CONST_VECTOR_P (operands[1]))
+      {
+       int elt_bitsize
+	 = GET_MODE_BITSIZE (GET_MODE_INNER (GET_MODE (operands[1])));
+       int n_elts = CONST_VECTOR_NUNITS (operands[1]).to_constant ();
+       int val = 0;
+       bool int_vector_p = CONST_INT_P (CONST_VECTOR_ELT (operands[1], 0));
+       unsigned HOST_WIDE_INT eltval;
+       rtx elt;
+       for (int i = 0; i < n_elts; i++)
+	 {
+	    elt = CONST_VECTOR_ELT (operands[1], BYTES_BIG_ENDIAN
+						 ? i
+						 : n_elts - 1 - i);
+	    if (int_vector_p)
+	     eltval = INTVAL (elt);
+	    else
+	     {
+		bool res = aarch64_reinterpret_float_as_int (elt, &eltval);
+		gcc_assert (res);
+	     }
+
+	    val = (val << elt_bitsize) + (eltval & ((1 << elt_bitsize) - 1));
+	 }
+       emit_move_insn (gen_rtx_REG (SImode, REGNO (operands[0])),
+		       GEN_INT (val));
+      }
+    else if (REG_P (operands[1]))
+      aarch64_simd_emit_reg_reg_move (operands, <VSC>mode, 1);
+    DONE;
+  }
+  [(set_attr "type" "mov_reg")]
 )
 
 ;; When storing lane zero we can use the normal STR and its more permissive

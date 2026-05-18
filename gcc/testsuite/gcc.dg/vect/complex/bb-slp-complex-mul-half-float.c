@@ -8,5 +8,8 @@
 #define N 16
 #include "complex-mul-template.c"
 
-/* { dg-final { scan-tree-dump "Found COMPLEX_MUL_CONJ" "slp1"  { xfail *-*-* } } } */
-/* { dg-final { scan-tree-dump "Found COMPLEX_MUL" "slp1"  { xfail *-*-* } } } */
+/* { dg-final { scan-tree-dump-times "add new stmt:\[^\n\r]*COMPLEX_MUL_CONJ" 1 "slp1" { xfail *-*-* } } } */
+/* { dg-final { scan-tree-dump-times "add new stmt:\[^\n\r]*COMPLEX_MUL" 1 "slp1" { xfail *-*-* } } } */
+
+/* { dg-final { scan-tree-dump "Found COMPLEX_MUL_CONJ" "slp1" { xfail arm*-*-* } } } */
+/* { dg-final { scan-tree-dump "Found COMPLEX_MUL" "slp1" { xfail arm*-*-* } } } */

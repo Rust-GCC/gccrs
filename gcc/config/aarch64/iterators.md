@@ -227,9 +227,16 @@
 ;; All Advanced SIMD integer modes
 (define_mode_iterator VALLI [VDQ_BHSI V2DI])
 
+;; All sub-64-bit vector modes.
+(define_mode_iterator VSUB64 [V2QI V4QI V2HI V2HF V2BF])
+
 ;; All Advanced SIMD modes suitable for moving, loading, and storing.
 (define_mode_iterator VALL_F16 [V8QI V16QI V4HI V8HI V2SI V4SI V2DI
 				V4HF V8HF V4BF V8BF V2SF V4SF V2DF])
+
+;; All Advanced SIMD modes suitable for moving, loading, and storing,
+;; plus all sub-64-bit vector modes.
+(define_mode_iterator VALL_F16_SUB64 [VALL_F16 VSUB64])
 
 ;; The VALL_F16 modes except the 128-bit 2-element ones.
 (define_mode_iterator VALL_F16_NO_V2Q [V8QI V16QI V4HI V8HI V2SI V4SI
@@ -1466,7 +1473,9 @@
 (define_mode_attr s [(HF "h") (SF "s") (DF "d") (SI "s") (DI "d")])
 
 ;; Give the length suffix letter for a sign- or zero-extension.
-(define_mode_attr size [(QI "b") (HI "h") (SI "w")])
+(define_mode_attr size [(QI "b") (HI "h") (SI "w") (HF "") (BF "") (SF "")
+			(V2QI "h") (V4QI "") (V2HI "")
+			(V2HF "") (V2BF "")])
 
 ;; Give the number of bits in the mode
 (define_mode_attr sizen [(QI "8") (HI "16") (SI "32") (DI "64")])
@@ -1883,6 +1892,10 @@
 			(VNx4SI  "v2si") (VNx4SF "v2sf")
 			(VNx2DI  "di") (VNx2DF "df")])
 
+;; Sub-64-bit vector mode to equivalent scalar mode.
+(define_mode_attr VSC [(V4QI "SI") (V2QI "HI")
+		       (V2HI "SI") (V2HF "SF") (V2BF "SF")])
+
 (define_mode_attr vnx [(V4SI "vnx4si") (V2DI "vnx2di")])
 
 ;; 64-bit container modes the inner or scalar source mode.
@@ -2168,6 +2181,10 @@
 			        (V4HF "q") (V4BF "q")
 			        (V2SI "q") (V2SF "q")
 			        (DI   "q") (DF   "q")])
+
+;; Scalar size of a sub-64-bit vector mode.
+(define_mode_attr vstype [(V4QI "s") (V2QI "h")
+			  (V2HI "s") (V2BF "s") (V2HF "s")])
 
 ;; Define corresponding core/FP element mode for each vector mode.
 (define_mode_attr vw [(V8QI "w") (V16QI "w")
