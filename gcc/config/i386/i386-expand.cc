@@ -28069,5 +28069,122 @@ ix86_expand_vector_bf2sf_with_vec_perm (rtx dest, rtx src)
   emit_move_insn (dest, lowpart_subreg (GET_MODE (dest), target, vperm_mode));
 }
 
+/* Implement bitreverse<mode>2 using gf2p8affineqb.  */
+
+void
+ix86_expand_gfni_bitreverse (rtx dest, rtx src)
+{
+  machine_mode mode = GET_MODE (dest);
+  rtx temp;
+  if (GET_MODE_SIZE (mode) > UNITS_PER_WORD)
+    {
+      rtx temp1 = gen_reg_rtx (mode == TImode ? V2DImode : V4SImode);
+      rtx temp2 = gen_reg_rtx (mode == TImode ? V2DImode : V4SImode);
+      if (mode == TImode)
+	{
+	  temp = lowpart_subreg (DImode, src, TImode);
+	  emit_insn (gen_rtx_SET (temp1, gen_rtx_VEC_CONCAT (V2DImode, temp,
+							     const0_rtx)));
+	  temp = gen_highpart (DImode, src);
+	  emit_insn (gen_rtx_SET (temp2, gen_rtx_VEC_CONCAT (V2DImode, temp,
+							     const0_rtx)));
+	}
+      else
+	{
+	  temp = lowpart_subreg (SImode, src, DImode);
+	  emit_insn (gen_vec_setv4si_0 (temp1, CONST0_RTX (V4SImode), temp));
+	  temp = gen_highpart (SImode, src);
+	  emit_insn (gen_vec_setv4si_0 (temp2, CONST0_RTX (V4SImode), temp));
+	  temp1 = lowpart_subreg (V2DImode, temp1, V4SImode);
+	  temp2 = lowpart_subreg (V2DImode, temp2, V4SImode);
+	}
+      temp = gen_reg_rtx (V2DImode);
+      emit_insn (gen_vec_interleave_lowv2di (temp, temp1, temp2));
+    }
+  else if (mode != DImode)
+    {
+      if (mode != SImode)
+	{
+	  src = force_reg (mode, src);
+	  src = lowpart_subreg (SImode, src, mode);
+	}
+      temp = gen_reg_rtx (V4SImode);
+      emit_insn (gen_vec_setv4si_0 (temp, CONST0_RTX (V4SImode), src));
+    }
+  else
+    {
+      temp = gen_reg_rtx (V2DImode);
+      emit_insn (gen_rtx_SET (temp, gen_rtx_VEC_CONCAT (V2DImode, src,
+							const0_rtx)));
+    }
+  src = temp;
+  temp = gen_reg_rtx (V16QImode);
+  rtx src2 = gen_rtx_CONST_VECTOR (V16QImode,
+				   gen_rtvec (16, GEN_INT (1), GEN_INT (2),
+					      GEN_INT (4), GEN_INT (8),
+					      GEN_INT (16), GEN_INT (32),
+					      GEN_INT (64), GEN_INT (-128),
+					      GEN_INT (1), GEN_INT (2),
+					      GEN_INT (4), GEN_INT (8),
+					      GEN_INT (16), GEN_INT (32),
+					      GEN_INT (64), GEN_INT (-128)));
+  src2 = validize_mem (force_const_mem (V16QImode, src2));
+  src = lowpart_subreg (V16QImode, src, GET_MODE (src));
+  emit_insn (gen_vgf2p8affineqb_v16qi (temp, src, src2, const0_rtx));
+  if (mode == QImode)
+    {
+      rtx temp1 = gen_reg_rtx (SImode);
+      rtx temp2 = lowpart_subreg (V4SImode, temp, V16QImode);
+      rtx temp3 = gen_rtx_PARALLEL (VOIDmode, gen_rtvec (1, const0_rtx));
+      emit_insn (gen_rtx_SET (temp1,
+			      gen_rtx_VEC_SELECT (SImode, temp2, temp3)));
+      emit_move_insn (dest, lowpart_subreg (QImode, temp1, SImode));
+      return;
+    }
+  rtx target = gen_reg_rtx ((GET_MODE_SIZE (mode) < 4 || !TARGET_64BIT)
+			    ? SImode : mode == TImode ? DImode : mode);
+  emit_move_insn (target, lowpart_subreg (GET_MODE (target), temp, V16QImode));
+  if (GET_MODE_SIZE (mode) > UNITS_PER_WORD)
+    {
+      rtx temp1 = gen_reg_rtx (GET_MODE (target));
+      if (mode == TImode || TARGET_SSE4_1)
+	{
+	  rtx temp2 = lowpart_subreg (mode == TImode ? V2DImode : V4SImode,
+				      temp, V16QImode);
+	  rtx temp3 = gen_rtx_PARALLEL (VOIDmode,
+					gen_rtvec (1, GEN_INT (mode == TImode
+							       ? 1 : 2)));
+	  emit_insn (gen_rtx_SET (temp1,
+				  gen_rtx_VEC_SELECT (GET_MODE (target), temp2,
+						      temp3)));
+	}
+      else
+	{
+	  rtx temp2 = gen_reg_rtx (V4SImode);
+	  rtx temp3 = lowpart_subreg (V4SImode, temp, V16QImode);
+	  emit_insn (gen_sse2_pshufd (temp2, temp3, GEN_INT (0xaa)));
+	  emit_move_insn (temp1, lowpart_subreg (GET_MODE (target), temp2,
+						 V4SImode));
+	}
+      rtx temp4 = gen_reg_rtx (GET_MODE (target));
+      rtx temp5 = gen_reg_rtx (GET_MODE (target));
+      rtx (*gen_bswap) (rtx, rtx)
+	= mode == TImode ? gen_bswapdi2 : gen_bswapsi2;
+      emit_insn (gen_bswap (temp4, target));
+      emit_insn (gen_bswap (temp5, temp1));
+      temp4 = gen_rtx_ZERO_EXTEND (mode, temp4);
+      temp5 = gen_rtx_ZERO_EXTEND (mode, temp5);
+      rtx shift = GEN_INT (GET_MODE_PRECISION (GET_MODE (target)));
+      temp4 = gen_rtx_ASHIFT (mode, temp4, shift);
+      emit_insn (gen_rtx_SET (dest, gen_rtx_IOR (mode, temp4, temp5)));
+      return;
+    }
+  if (mode == HImode)
+    target = lowpart_subreg (mode, target, SImode);
+  if (mode == SImode)
+    emit_insn (gen_bswapsi2 (dest, target));
+  else
+    emit_insn (gen_rtx_SET (dest, gen_rtx_BSWAP (mode, target)));
+}
 
 #include "gt-i386-expand.h"
