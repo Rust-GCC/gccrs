@@ -720,9 +720,9 @@ template<typename Layout, bool Expected>
     static_assert(noexcept(MDSpan::is_always_exhaustive()) == Expected);
     static_assert(noexcept(MDSpan::is_always_strided()) == Expected);
 
-    static_assert(noexcept(std::declval<MDSpan>().is_unique()) == Expected);
-    static_assert(noexcept(std::declval<MDSpan>().is_exhaustive()) == Expected);
-    static_assert(noexcept(std::declval<MDSpan>().is_strided()) == Expected);
+    static_assert(noexcept(std::declval<const MDSpan>().is_unique()) == Expected);
+    static_assert(noexcept(std::declval<const MDSpan>().is_exhaustive()) == Expected);
+    static_assert(noexcept(std::declval<const MDSpan>().is_strided()) == Expected);
   }
 
 int

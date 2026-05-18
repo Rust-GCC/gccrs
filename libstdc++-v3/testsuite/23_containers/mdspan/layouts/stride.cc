@@ -278,7 +278,7 @@ template<typename Extents, typename Strides>
   constexpr void
   test_is_exhaustive(Extents extents, Strides strides, bool expected)
   {
-    std::layout_stride::mapping<Extents> m(extents, strides);
+    const std::layout_stride::mapping<Extents> m(extents, strides);
     VERIFY(m.is_exhaustive() == expected);
 
     bool always_exhaustive = extents.rank() == 0 || m.required_span_size() == 0;

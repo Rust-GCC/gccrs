@@ -509,7 +509,7 @@ template<template<size_t> typename Layout>
   {
     auto exts = std::extents<int>{};
 
-    auto check = [](auto m)
+    auto check = [](const auto m)
     {
       static_assert(m.is_always_exhaustive());
       VERIFY(m.is_exhaustive());
@@ -529,7 +529,7 @@ constexpr void
     {
       auto check = [](auto exts)
       {
-	auto m = typename PaddedLayout::mapping(exts);
+	const auto m = typename PaddedLayout::mapping(exts);
 	static_assert(m.is_always_exhaustive());
 	VERIFY(m.is_exhaustive());
       };
@@ -554,7 +554,7 @@ template<template<size_t> typename Layout>
     auto ctrue = std::cw<true>;
     auto cfalse= std::cw<false>;
 
-    auto check = [](auto m, auto static_expected, auto runtime_expected)
+    auto check = [](const auto m, auto static_expected, auto runtime_expected)
     {
       static_assert(m.is_always_exhaustive() == static_expected);
       VERIFY(m.is_exhaustive() == runtime_expected);

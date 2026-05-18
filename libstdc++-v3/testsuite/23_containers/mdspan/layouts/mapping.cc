@@ -44,6 +44,14 @@ template<typename Layout, typename Extents>
     static_assert(M::is_always_strided() && M::is_strided());
     if constexpr (has_static_is_exhaustive<M>)
       static_assert(M::is_always_exhaustive() && M::is_exhaustive());
+
+    static_assert(noexcept(M::is_always_unique()));
+    static_assert(noexcept(M::is_always_strided()));
+    static_assert(noexcept(M::is_always_exhaustive()));
+    static_assert(noexcept(std::declval<const M>().is_unique()));
+    static_assert(noexcept(std::declval<const M>().is_strided()));
+    static_assert(noexcept(std::declval<const M>().is_exhaustive()));
+
     return true;
   }
 

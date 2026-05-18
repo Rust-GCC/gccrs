@@ -2621,7 +2621,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	{ return _PaddedStorage::_M_is_always_exhaustive(); }
 
 	constexpr bool
-	is_exhaustive() noexcept
+	is_exhaustive() const noexcept
 	{ return _M_storage._M_is_exhaustive(); }
 
 	static constexpr bool
@@ -2794,7 +2794,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	{ return _PaddedStorage::_M_is_always_exhaustive(); }
 
 	constexpr bool
-	is_exhaustive() noexcept
+	is_exhaustive() const noexcept
 	{ return _M_storage._M_is_exhaustive(); }
 
 	static constexpr bool
