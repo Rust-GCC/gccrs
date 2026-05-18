@@ -344,7 +344,7 @@ PublicInterface::is_crate_public (const HIR::VisItem &item)
   const HIR::Visibility &visibility = item.get_visibility ();
 
   bool is_public
-    = visibility.get_vis_type () == HIR::Visibility::VisType::PUBLIC;
+    = visibility.get_vis_type () == HIR::Visibility::VisType::Public;
   bool has_path = !visibility.get_path ().is_error ();
 
   // FIXME this might be pub(crate)
