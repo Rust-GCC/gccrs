@@ -3073,11 +3073,12 @@ package Einfo is
 --    Is_Local_Anonymous_Access
 --       Defined in access types. Set for an anonymous access type to indicate
 --       that the type is created for an array or record component with access
---       definition, an access result, or (pre-Ada 2012) a standalone object.
---       Such anonymous types have an accessibility level equal to that of the
---       declaration in which they appear, unlike the anonymous access types
---       that are created for access parameters, access discriminants, and
---       (as of Ada 2012) stand-alone objects.
+--       definition, an access result, a return object, or (before Ada 2012) a
+--       stand-alone object. Such anonymous types have an accessibility level
+--       equal to that of the declaration in which they appear (or something
+--       equivalent), unlike the anonymous access types that are created for
+--       access parameters, access discriminants, and (in Ada 2012 and later
+--       versions of the language) stand-alone objects.
 
 --    Is_Loop_Parameter
 --       Applies to all entities. Certain loops, in particular "for ... of"

@@ -2708,25 +2708,13 @@ package body Accessibility is
                 (Is_Itype (Btyp)
                   and then Nkind (Associated_Node_For_Itype (Btyp)) =
                                                          N_Object_Declaration
-                  and then Is_Return_Object
-                             (Defining_Identifier
-                                (Associated_Node_For_Itype (Btyp))))
+                  and then
+                    Is_Return_Object
+                      (Defining_Identifier (Associated_Node_For_Itype (Btyp))))
             then
-               declare
-                  Scop : Entity_Id;
-
-               begin
-                  Scop := Scope (Scope (Btyp));
-                  while Present (Scop) loop
-                     exit when Ekind (Scop) = E_Function;
-                     Scop := Scope (Scop);
-                  end loop;
-
-                  --  Treat the return object's type as having the level of the
-                  --  function's result subtype (as per RM05-6.5(5.3/2)).
-
-                  return Type_Access_Level (Etype (Scop), Allow_Alt_Model);
-               end;
+               return
+                 Type_Access_Level
+                   (Etype (Enclosing_Subprogram (Btyp)), Allow_Alt_Model);
             end if;
          end if;
 

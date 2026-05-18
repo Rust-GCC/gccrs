@@ -19251,8 +19251,9 @@ package body Sem_Ch3 is
 
          Set_Is_Local_Anonymous_Access
            (T, Ada_Version < Ada_2012
-                   or else Nkind (P) /= N_Object_Declaration
-                   or else Is_Library_Level_Entity (Defining_Identifier (P)));
+                 or else Nkind (P) /= N_Object_Declaration
+                 or else Is_Return_Object (Defining_Identifier (P))
+                 or else Is_Library_Level_Entity (Defining_Identifier (P)));
 
       --  Otherwise, either the object definition is just a subtype_mark or we
       --  are analyzing a component declaration.
