@@ -18,6 +18,7 @@
 
 
 GTM_H += loongarch-multilib.h
+TM_H += $(srcdir)/common/config/loongarch/cpu-features.h
 OPTIONS_H_EXTRA += $(srcdir)/config/loongarch/loongarch-def.h	    \
 		   $(srcdir)/config/loongarch/loongarch-def-array.h \
 		   $(srcdir)/config/loongarch/loongarch-tune.h	    \
