@@ -5724,7 +5724,9 @@ gfc_conv_subref_array_arg (gfc_se *se, gfc_expr * expr, int g77,
 
   gcc_assert (lse.ss == gfc_ss_terminator);
 
-  tmp = gfc_trans_scalar_assign (&lse, &rse, expr->ts, false, true);
+  /* Do not do deallocations when we are looking at a g77-style argument.  */
+
+  tmp = gfc_trans_scalar_assign (&lse, &rse, expr->ts, false, !g77);
   gfc_add_expr_to_block (&body, tmp);
 
   /* Generate the copying loops.  */
