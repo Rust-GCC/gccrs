@@ -5578,7 +5578,7 @@ ix86_expand_vec_perm (rtx operands[])
       switch (mode)
 	{
 	case E_V16SImode:
-	  gen =gen_avx512f_permvarv16si;
+	  gen = gen_avx512f_permvarv16si;
 	  break;
 	case E_V16SFmode:
 	  gen = gen_avx512f_permvarv16sf;
@@ -5702,6 +5702,8 @@ ix86_expand_vec_perm (rtx operands[])
 	  return;
 
         case E_V4SImode:
+	  if (one_operand_shuffle)
+	    break; /* Handled below for TARGET_AVX.  */
 	  /* By combining the two 128-bit input vectors into one 256-bit
 	     input vector, we can use VPERMD and VPERMPS for the full
 	     two-operand shuffle.  */
@@ -5714,6 +5716,8 @@ ix86_expand_vec_perm (rtx operands[])
 	  return;
 
         case E_V4SFmode:
+	  if (one_operand_shuffle)
+	    break; /* Handled below for TARGET_AVX.  */
 	  t1 = gen_reg_rtx (V8SFmode);
 	  t2 = gen_reg_rtx (V8SImode);
 	  mask = gen_lowpart (V4SImode, mask);
@@ -5818,6 +5822,22 @@ ix86_expand_vec_perm (rtx operands[])
 	  gcc_assert (GET_MODE_SIZE (mode) <= 16);
 	  break;
 	}
+    }
+
+  if (TARGET_AVX
+      && one_operand_shuffle
+      && (mode == V4SImode || mode == V4SFmode))
+    {
+      if (mode == V4SImode)
+	{
+	  op0 = gen_lowpart (V4SFmode, op0);
+	  t1 = gen_reg_rtx (V4SFmode);
+	  emit_insn (gen_avx_vpermilvarv4sf3 (t1, op0, mask));
+	  emit_move_insn (target, gen_lowpart (mode, t1));
+	}
+      else
+	emit_insn (gen_avx_vpermilvarv4sf3 (target, op0, mask));
+      return;
     }
 
   if (TARGET_XOP)
