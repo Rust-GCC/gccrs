@@ -758,17 +758,6 @@ vpath % $(top_srcdir)/src/c++20
 # These files should be rebuilt if the .cc prerequisite changes.
 @ENABLE_DUAL_ABI_TRUE@cow-string-inst.lo cow-string-inst.o: string-inst.cc
 
-@USE_STATIC_TZDATA_TRUE@tzdata.zi.h: $(top_srcdir)/src/c++20/tzdata.zi
-@USE_STATIC_TZDATA_TRUE@	echo 'static const char tzdata_chars[] = R"__libstdcxx__(' > $@.tmp
-@USE_STATIC_TZDATA_TRUE@	cat $^ >> $@.tmp
-@USE_STATIC_TZDATA_TRUE@	echo ')__libstdcxx__";' >> $@.tmp
-@USE_STATIC_TZDATA_TRUE@	mv $@.tmp $@
-
-@USE_STATIC_TZDATA_TRUE@tzdb.lo: tzdb.cc tzdata.zi.h
-@USE_STATIC_TZDATA_TRUE@	$(LTCXXCOMPILE) -I. -c $<
-@USE_STATIC_TZDATA_TRUE@tzdb.o: tzdb.cc tzdata.zi.h
-@USE_STATIC_TZDATA_TRUE@	$(CXXCOMPILE) -I. -c $<
-
 # This needs access to std::text_encoding and to the internals of std::locale.
 format.lo: format.cc
 	$(LTCXXCOMPILE) -std=gnu++26 -fno-access-control -c $<

@@ -54,19 +54,6 @@ if ENABLE_DUAL_ABI
 cow-string-inst.lo cow-string-inst.o: string-inst.cc
 endif
 
-if USE_STATIC_TZDATA
-tzdata.zi.h: $(top_srcdir)/src/c++20/tzdata.zi
-	echo 'static const char tzdata_chars[] = R"__libstdcxx__(' > $@.tmp
-	cat $^ >> $@.tmp
-	echo ')__libstdcxx__";' >> $@.tmp
-	mv $@.tmp $@
-
-tzdb.lo: tzdb.cc tzdata.zi.h
-	$(LTCXXCOMPILE) -I. -c $<
-tzdb.o: tzdb.cc tzdata.zi.h
-	$(CXXCOMPILE) -I. -c $<
-endif
-
 # This needs access to std::text_encoding and to the internals of std::locale.
 format.lo: format.cc
 	$(LTCXXCOMPILE) -std=gnu++26 -fno-access-control -c $<

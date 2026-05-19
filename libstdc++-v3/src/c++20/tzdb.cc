@@ -1208,8 +1208,10 @@ namespace std::chrono
     const string_view leaps_file = "/leapseconds";
 
 #ifdef _GLIBCXX_STATIC_TZDATA
-// Static copy of tzdata.zi embedded in the library as tzdata_chars[]
-#include "tzdata.zi.h"
+// Static copy of tzdata.zi embedded in the library.
+static constexpr char tzdata_chars[] = {
+#embed "tzdata.zi"
+};
 #endif
 
     // An istream type that can read from a file or from a string.
@@ -1222,7 +1224,7 @@ namespace std::chrono
 	{
 #ifdef _GLIBCXX_STATIC_TZDATA
 	  char* p = const_cast<char*>(tzdata_chars);
-	  this->setg(p, p, p + std::size(tzdata_chars) - 1);
+	  this->setg(p, p, p + std::size(tzdata_chars));
 #endif
 	}
 
