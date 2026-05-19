@@ -6721,7 +6721,7 @@ init_subob_ctx (const constexpr_ctx *ctx, constexpr_ctx &new_ctx,
     {
       /* This can happen if the enclosing object is also an empty subobject
 	 (c++/125315).  */
-      gcc_checking_assert (is_empty_class (type));
+      gcc_checking_assert (is_empty_field (index));
       return;
     }
 
@@ -6745,7 +6745,7 @@ init_subob_ctx (const constexpr_ctx *ctx, constexpr_ctx &new_ctx,
 	new_ctx.object = build_ctor_subob_ref (index, type, ctx->object);
     }
 
-  if (is_empty_class (type)
+  if (is_empty_field (index)
       && TREE_CODE (ctxtype) != UNION_TYPE)
     /* Leave ctor null for an empty subobject of a non-union class, they aren't
        represented in the result of evaluation.  */
