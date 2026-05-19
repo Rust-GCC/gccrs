@@ -461,6 +461,7 @@ extern GTY(()) tree cp_global_trees[CPTI_MAX];
       SPLICE_EXPR_EXPRESSION_P (in SPLICE_EXPR)
       OLD_PARM_DECL_P (in PARM_DECL)
       COMPONENT_REF_SPLICE_P (in COMPONENT_REF)
+      TYPE_DECL_OPAQUE_ALIAS_P (in TYPE_DECL)
    1: IDENTIFIER_KIND_BIT_1 (in IDENTIFIER_NODE)
       TI_PENDING_TEMPLATE_FLAG.
       TEMPLATE_PARMS_FOR_INLINE.
@@ -4078,6 +4079,12 @@ struct GTY(()) lang_decl {
   (TREE_CODE (NODE) == TYPE_DECL \
    && TYPE_DECL_FOR_LINKAGE_PURPOSES_P (NODE) \
    && DECL_IMPLICIT_TYPEDEF_P (NODE))
+
+/* Nonzero for TYPE_DECL means that it represents an opaque alias; that is,
+   there is a LAMBDA_EXPR involved in it.  This flag is used to implement
+   dependent_opaque_alias_p.  */
+#define TYPE_DECL_OPAQUE_ALIAS_P(NODE) \
+  TREE_LANG_FLAG_0 (TYPE_DECL_CHECK (NODE))
 
 /* If non-NULL for a VAR_DECL, FUNCTION_DECL, TYPE_DECL, TEMPLATE_DECL,
    or CONCEPT_DECL, the entity is either a template specialization (if
@@ -8314,6 +8321,7 @@ extern bool any_value_dependent_elements_p      (const_tree);
 extern bool dependent_template_arg_p		(tree);
 extern bool dependent_omp_for_p			(tree, tree, tree, tree, tree);
 extern tree resolve_typename_type		(tree, bool);
+extern bool any_lambdas_p			(tree);
 extern tree template_for_substitution		(tree);
 extern bool reregister_specialization		(tree, tree, tree);
 extern tree instantiate_non_dependent_expr	(tree, tsubst_flags_t = tf_error);

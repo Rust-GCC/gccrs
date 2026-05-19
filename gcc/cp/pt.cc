@@ -6924,35 +6924,18 @@ dependent_alias_template_spec_p (const_tree t, bool transparent_typedefs)
 bool
 dependent_opaque_alias_p (const_tree t)
 {
-  auto any_lambda_targ_p = [] (tree args)
-    {
-      for (tree arg : tree_vec_range (args))
-	if (TREE_CODE (arg) == LAMBDA_EXPR)
-	  return true;
-      return false;
-    };
-
   return (TYPE_P (t)
 	  && typedef_variant_p (t)
-	  && (any_dependent_type_attributes_p (DECL_ATTRIBUTES
-					       (TYPE_NAME (t)))
-	      /* Treat a dependent decltype(lambda) alias as opaque so that we
-		 don't prematurely strip it when used as a template argument.
-		 Otherwise substitution into each occurrence of the (stripped)
-		 alias would incorrectly yield a distinct lambda type.  */
-	      || (TREE_CODE (t) == DECLTYPE_TYPE
-		  && TREE_CODE (DECLTYPE_TYPE_EXPR (t)) == LAMBDA_EXPR
-		  && !typedef_variant_p (DECL_ORIGINAL_TYPE (TYPE_NAME (t))))
-	      /* Also treat an alias to A<lambda> as opaque so that it doesn't
-		 "leak" into a deeper template context which would cause us to
-		 over substitute into the lambda.  */
-	      /* FIXME These lambda checks don't recognize deeply nested lambda
-		 subexpressions, and we can't use walk_tree here because it's
-		 slow.  Maybe a tree flag indicating typedef opaqueness?  */
-	      || (TYPE_TEMPLATE_INFO (t)
-		  && PRIMARY_TEMPLATE_P (TYPE_TI_TEMPLATE (t))
-		  && any_lambda_targ_p (INNERMOST_TEMPLATE_ARGS
-					(TYPE_TI_ARGS (t))))));
+	  /* Treat a dependent decltype(lambda) alias as opaque so that we
+	     don't prematurely strip it when used as a template argument.
+	     Otherwise substitution into each occurrence of the (stripped)
+	     alias would incorrectly yield a distinct lambda type.  Also
+	     treat an alias to A<lambda> as opaque so that it doesn't
+	     "leak" into a deeper template context which would cause us to
+	     over substitute into the lambda.  */
+	  && (TYPE_DECL_OPAQUE_ALIAS_P (TYPE_NAME (t))
+	      || any_dependent_type_attributes_p
+		  (DECL_ATTRIBUTES (TYPE_NAME (t)))));
 }
 
 /* Return the number of innermost template parameters in TMPL.  */
@@ -16483,6 +16466,9 @@ tsubst_decl (tree t, tree args, tsubst_flags_t complain,
 	/* Preserve a typedef that names a type.  */
 	if (is_typedef_decl (r) && type != error_mark_node)
 	  {
+	    /* Now that we've substituted the type, it may not be opaque
+	       anymore.  */
+	    TYPE_DECL_OPAQUE_ALIAS_P (r) = any_lambdas_p (type);
 	    DECL_ORIGINAL_TYPE (r) = NULL_TREE;
 	    set_underlying_type (r);
 
@@ -28325,6 +28311,21 @@ do_type_instantiation (tree t, tree storage, tsubst_flags_t complain)
       }
 }
 
+/* Return true if T contains any LAMBDA_EXPRs.  */
+
+bool
+any_lambdas_p (tree t)
+{
+  walk_tree_fn find_lambda = [](tree *tp, int *, void *)
+    {
+      if (TREE_CODE (*tp) == LAMBDA_EXPR)
+	return *tp;
+      return NULL_TREE;
+    };
+
+  return !!cp_walk_tree_without_duplicates (&t, find_lambda, nullptr);
+}
+
 /* Given a function DECL, which is a specialization of TMPL, modify
    DECL to be a re-instantiation of TMPL with the same template
    arguments.  TMPL should be the template into which tsubst'ing
@@ -28368,15 +28369,7 @@ regenerate_decl_from_template (tree decl, tree tmpl, tree args)
 
       /* A template with a lambda in the signature also changes type if
 	 regenerated (PR119401).  */
-      walk_tree_fn find_lambda
-	= [](tree *tp, int *, void *)
-	{
-	  if (TREE_CODE (*tp) == LAMBDA_EXPR)
-	    return *tp;
-	  return NULL_TREE;
-	};
-      if (cp_walk_tree_without_duplicates
-	  (&TREE_TYPE (tmpl), find_lambda, nullptr))
+      if (any_lambdas_p (TREE_TYPE (tmpl)))
 	goto done;
 
       /* Use the source location of the definition.  */

@@ -16159,6 +16159,10 @@ grokdeclarator (const cp_declarator *declarator,
 	     `using analias = atype;'.  */
 	TYPE_DECL_ALIAS_P (decl) = 1;
 
+      /* We use a flag so that dependent_opaque_alias_p doesn't have to
+	 recompute the answer every single time.  */
+      TYPE_DECL_OPAQUE_ALIAS_P (decl) = any_lambdas_p (type);
+
       return decl;
     }
 
