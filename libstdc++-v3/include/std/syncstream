@@ -43,6 +43,7 @@
 #ifdef __cpp_lib_syncbuf // C++ >= 20 && HOSTED && CXX11ABI
 #include <sstream>
 
+#include <bits/iosfwd_sync.h>
 #include <bits/alloc_traits.h>
 #include <bits/allocator.h>
 #include <bits/std_mutex.h>

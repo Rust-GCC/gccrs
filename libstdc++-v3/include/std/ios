@@ -40,8 +40,6 @@
 #include <bits/requires_hosted.h> // iostreams
 
 #include <iosfwd>
-#include <exception> 		// For ios_base::failure
-#include <bits/char_traits.h> 	// For char_traits, streamoff, streamsize, fpos
 #include <bits/localefwd.h>	// For class locale
 #include <bits/ios_base.h>	// For ios_base declarations.
 #include <streambuf>

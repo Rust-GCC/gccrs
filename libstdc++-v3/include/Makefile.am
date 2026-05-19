@@ -140,6 +140,11 @@ bits_freestanding = \
 	${bits_srcdir}/functional_hash.h \
 	${bits_srcdir}/intcmp.h \
 	${bits_srcdir}/invoke.h \
+	${bits_srcdir}/iosfwd.h \
+	${bits_srcdir}/iosfwd_file.h \
+	${bits_srcdir}/iosfwd_span.h \
+	${bits_srcdir}/iosfwd_string.h \
+	${bits_srcdir}/iosfwd_sync.h \
 	${bits_srcdir}/iterator_concepts.h \
 	${bits_srcdir}/new_except.h \
 	${bits_srcdir}/new_throw.h \

@@ -40,7 +40,12 @@
 
 #include <bits/requires_hosted.h> // iostreams
 
-#include <ios>
+#include <bits/iosfwd.h>	// For declarations of default template args.
+#include <bits/char_traits.h> 	// For char_traits, streamoff, streamsize, fpos
+#include <bits/localefwd.h>	// For class locale
+#include <bits/ios_base.h>	// For ios_base declarations.
+#include <streambuf>
+#include <bits/basic_ios.h>
 #include <bits/ostream_insert.h>
 
 # define __glibcxx_want_print

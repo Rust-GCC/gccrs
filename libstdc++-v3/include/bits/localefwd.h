@@ -40,7 +40,7 @@
 
 #include <bits/c++config.h>
 #include <bits/c++locale.h>  // Defines __c_locale, config-specific include
-#include <iosfwd>            // For ostreambuf_iterator, istreambuf_iterator
+#include <bits/iosfwd.h>     // For ostreambuf_iterator, istreambuf_iterator
 #include <cctype>
 
 namespace std _GLIBCXX_VISIBILITY(default)

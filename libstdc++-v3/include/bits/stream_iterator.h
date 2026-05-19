@@ -34,7 +34,7 @@
 #pragma GCC system_header
 #endif
 
-#include <iosfwd>
+#include <bits/iosfwd.h>
 #include <bits/move.h>
 #include <bits/stl_iterator_base_types.h>
 #include <debug/debug.h>

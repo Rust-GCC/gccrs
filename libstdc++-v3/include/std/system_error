@@ -41,7 +41,7 @@
 
 #include <bits/c++config.h>
 #include <bits/error_constants.h>
-#include <iosfwd>
+#include <bits/iosfwd.h>
 #include <stdexcept>
 #if __cplusplus > 201703L
 # include <compare>

@@ -39,7 +39,7 @@
 #include <bits/c++config.h>
 #include <bits/c++io.h>  // for __c_lock and __c_file
 #include <bits/move.h>   // for swap
-#include <ios>
+#include <bits/ios_base.h>     // For ios_base declarations.
 
 namespace std _GLIBCXX_VISIBILITY(default)
 {

@@ -43,7 +43,7 @@
 #include <bits/requires_hosted.h> // iostreams
 
 #include <bits/c++config.h>
-#include <iosfwd>
+#include <bits/iosfwd.h>
 #include <bits/ios_base.h>
 
 #define __glibcxx_want_quoted_string_io

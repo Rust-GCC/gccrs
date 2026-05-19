@@ -34,11 +34,11 @@
 
 #include <type_traits>
 #include <locale>
-#include <iosfwd>
 #include <iomanip>
 #include <codecvt>
 #include <string_view>
 #include <system_error>
+#include <bits/iosfwd.h>
 #include <bits/stl_algobase.h>
 #include <bits/stl_pair.h>
 #include <bits/locale_conv.h>

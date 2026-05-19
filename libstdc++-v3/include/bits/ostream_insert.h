@@ -34,7 +34,7 @@
 #pragma GCC system_header
 #endif
 
-#include <iosfwd>
+#include <bits/iosfwd.h>
 #include <bits/cxxabi_forced.h>
 #include <bits/exception_defines.h>
 

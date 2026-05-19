@@ -63,7 +63,7 @@
 #endif
 
 #if _GLIBCXX_HOSTED
-# include <iosfwd>
+# include <bits/iosfwd.h>
 # include <bits/ostream_insert.h>
 #endif
 

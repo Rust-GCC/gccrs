@@ -49,7 +49,7 @@
 #ifndef _SHARED_PTR_H
 #define _SHARED_PTR_H 1
 
-#include <iosfwd>           	  // std::basic_ostream
+#include <bits/iosfwd.h>           	  // std::basic_ostream
 #include <bits/shared_ptr_base.h>
 
 namespace std _GLIBCXX_VISIBILITY(default)

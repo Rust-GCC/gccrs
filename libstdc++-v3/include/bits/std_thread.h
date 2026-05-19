@@ -37,7 +37,7 @@
 #if __cplusplus >= 201103L
 #include <bits/c++config.h>
 
-#include <iosfwd>		// std::basic_ostream
+#include <bits/iosfwd.h>	// std::basic_ostream
 #include <tuple>		// std::tuple
 #include <bits/functional_hash.h> // std::hash
 #include <bits/invoke.h>	// std::__invoke

@@ -40,7 +40,7 @@
 #include <bits/requires_hosted.h> // iostreams
 
 #include <bits/c++config.h>
-#include <iosfwd>
+#include <bits/iosfwd.h>
 #include <bits/localefwd.h>
 #include <bits/ios_base.h>
 #include <bits/cpp_type_traits.h>

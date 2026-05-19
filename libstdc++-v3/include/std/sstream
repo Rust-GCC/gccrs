@@ -42,6 +42,7 @@
 #include <istream>
 #include <ostream>
 
+#include <bits/iosfwd_string.h>
 #include <bits/alloc_traits.h> // allocator_traits, __allocator_like
 
 #define __glibcxx_want_sstream_from_string_view

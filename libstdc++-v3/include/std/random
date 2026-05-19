@@ -46,7 +46,7 @@
 #include <cstdint> // For uint_fast32_t, uint_fast64_t, uint_least32_t
 #include <cstdlib>
 #include <string>
-#include <iosfwd>
+#include <bits/iosfwd.h>
 #include <limits>
 #include <debug/debug.h>
 #include <type_traits>

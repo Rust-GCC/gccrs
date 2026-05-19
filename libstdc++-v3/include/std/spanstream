@@ -43,6 +43,7 @@
 #include <streambuf>
 #include <istream>
 #include <ostream>
+#include <bits/iosfwd_span.h>
 #include <bits/ranges_base.h>
 
 namespace std _GLIBCXX_VISIBILITY(default)
