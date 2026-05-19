@@ -2,7 +2,7 @@
 /* { dg-options "-Ofast" } */
 
 void
-f (float *__restrict f, long *__restrict l)
+f (float *__restrict f, long long *__restrict l)
 {
   for (int i = 0; i < 128; i++)
     f[i] = l[i];
