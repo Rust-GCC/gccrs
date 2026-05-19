@@ -58,6 +58,6 @@ int64_t rev_crc64_data64 ()
 				     0x40021234002123);
 }
 
-/* { dg-final { scan-rtl-dump ";; (?:using optab for|emitting crc table) crc_8_polynomial_0x12" "expand" } } */
-/* { dg-final { scan-rtl-dump ";; (?:using optab for|emitting crc table) crc_16_polynomial_0x1021" "expand" } } */
-/* { dg-final { scan-rtl-dump ";; (?:using optab for|emitting crc table) crc_32_polynomial_0x4002123" "expand" } } */
+/* { dg-final { scan-rtl-dump ";; (?:using optab for|emitting reversed crc table) crc_8_polynomial_0x12" "expand" } } */
+/* { dg-final { scan-rtl-dump ";; (?:using optab for|emitting reversed crc table) crc_16_polynomial_0x1021" "expand" } } */
+/* { dg-final { scan-rtl-dump ";; (?:using optab for|emitting reversed crc table) crc_32_polynomial_0x4002123" "expand" } } */

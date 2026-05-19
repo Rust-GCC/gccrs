@@ -34,6 +34,6 @@ int32_t rev_crc32_data32 ()
   return __builtin_rev_crc32_data32 (0xffffffff, 0x123546ff, 0x4002123);
 }
 
-/* { dg-final { scan-rtl-dump ";; (?:using optab for|emitting crc table) crc_8_polynomial_0x12" "expand" } } */
-/* { dg-final { scan-rtl-dump ";; (?:using optab for|emitting crc table) crc_16_polynomial_0x1021" "expand" } } */
-/* { dg-final { scan-rtl-dump ";; (?:using optab for|emitting crc table) crc_32_polynomial_0x4002123" "expand" } } */
+/* { dg-final { scan-rtl-dump ";; (?:using optab for|emitting reversed crc table) crc_8_polynomial_0x12" "expand" } } */
+/* { dg-final { scan-rtl-dump ";; (?:using optab for|emitting reversed crc table) crc_16_polynomial_0x1021" "expand" } } */
+/* { dg-final { scan-rtl-dump ";; (?:using optab for|emitting reversed crc table) crc_32_polynomial_0x4002123" "expand" } } */
