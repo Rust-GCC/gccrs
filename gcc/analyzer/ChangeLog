@@ -1,3 +1,21 @@
+2026-05-18  David Malcolm  <dmalcolm@redhat.com>
+
+	* analyzer.opt (-param=analyzer-bb-explosion-factor=): Rename to...
+	(-param=analyzer-supernode-explosion-factor=): ...this.
+	* engine.cc (exploded_graph::process_worklist): Update for change
+	to param name.  Clarify the -Wanalyzer-too-complex message when
+	hitting the overall limit on enodes by also showing the number
+	of snodes.
+
+2026-05-18  David Malcolm  <dmalcolm@redhat.com>
+
+	* engine.cc (exploded_node::status_to_str): Drop unused field
+	m_num_processed_stmts.
+	(exploded_node::dump): Likewise.
+	(exploded_node::to_json): Likewise.
+	* exploded-graph.h (exploded_node::m_num_processed_stmts):
+	Likewise.
+
 2026-05-06  David Malcolm  <dmalcolm@redhat.com>
 
 	* svalue.cc (svalue::make_dump_widget): Show value ranges in

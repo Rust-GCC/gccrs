@@ -1,3 +1,57 @@
+2026-05-18  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	* gcc.dg/tree-ssa/pr112095.c: Add -Wno-psabi to the options.
+	Look at release_ssa instead of optimization. Match
+	"<retval> = a_" in addition to "return a_".
+
+2026-05-18  Xin Wang  <yw987194828@gmail.com>
+
+	* gcc.dg/tree-prof/loop-split-4.c: New test.
+
+2026-05-18  Wang Yaduo  <wangyaduo@linux.alibaba.com>
+
+	* gcc.target/riscv/mcpu-xt-c9501fdvt.c: New test.
+
+2026-05-18  Jeff Law  <jeffrey.law@oss.qualcomm.com>
+
+	* gcc.target/riscv/slt-1.c: Skip for -Oz as well.  Set explicit branch
+	cost.
+	* gcc.target/riscv/zba-shNadd-04.c: Add Zbb to command line switches.
+	* gcc.target/riscv/zba-slliuw.c: Add Zbs to command line switches.
+	* gcc.target/riscv/zbs-zext.c: Add Zbs to command line switches.
+	* gcc.target/riscv/shift-shift-6.c: New test.
+	* gcc.target/riscv/shift-shift-7.c: New test.
+	* gcc.target/riscv/amo/a-rvwmo-load-relaxed.c: Accept lh or lhu.
+	* gcc.target/riscv/amo/a-ztso-load-relaxed.c: Accept lh or lhu.
+	* gcc.target/riscv/amo/zalasr-rvwmo-load-relaxed.c: Accept lh or lhu.
+	* gcc.target/riscv/amo/zalasr-ztso-load-relaxed.c: Accept lh or lhu.
+	* gcc.target/riscv/pr105314.c: Set explicitly branch cost.
+	* gcc.target/riscv/pr105314-rtl.c: Set explicitly branch cost.
+
+2026-05-18  Jeff Law  <jeffrey.law@oss.qualcomm.com>
+
+	* gcc.target/riscv/ext-dce-2.c: New test.
+
+2026-05-18  David Malcolm  <dmalcolm@redhat.com>
+
+	* c-c++-common/analyzer/fibonacci.c: Update for change in message
+	wording.
+	* c-c++-common/analyzer/raw-data-cst-pr117262-1.c: Update for
+	change in param name.
+	* gcc.dg/analyzer/explode-2a.c: Likewise.
+	* gcc.dg/analyzer/pr93032-mztools-signed-char.c: Likewise.
+	* gcc.dg/analyzer/pr93032-mztools-unsigned-char.c: Likewise.
+
+2026-05-18  Jakub Jelinek  <jakub@redhat.com>
+
+	PR target/50481
+	* gcc.target/i386/gfni-builtin-bitreverse-1.c: New test.
+
+2026-05-18  H.J. Lu  <hjl.tools@gmail.com>
+
+	PR target/125355
+	* gcc.target/i386/pr125355.c: New test.
+
 2026-05-16  Jakub Jelinek  <jakub@redhat.com>
 
 	PR target/50481

@@ -1,3 +1,109 @@
+2026-05-18  Xin Wang  <yw987194828@gmail.com>
+
+	* tree-ssa-loop-split.cc (fix_loop_bb_probability): Rename
+	parameters from true_edge/false_edge to loop1_edge/loop2_edge
+	and scale both loops directly from their semantic edge
+	probabilities.
+	(split_loop): Derive loop1_edge and loop2_edge from initial_true.
+	Use them for loop1_prob, fix_loop_bb_probability, and iteration
+	estimate scaling.
+
+2026-05-18  Wang Yaduo  <wangyaduo@linux.alibaba.com>
+
+	* config/riscv/riscv-cores.def: Add xt-c9501fdvt tune and core.
+	* doc/riscv-mcpu.texi: Regenerated.
+	* doc/riscv-mtune.texi: Regenerated.
+
+2026-05-18  Jeff Law  <jeffrey.law@oss.qualcomm.com>
+
+	* config/riscv/riscv.cc (riscv_rtx_costs): Properly cost pack insns
+	for Zbkb.
+	* config/riscv/riscv.md (zero_extendsidi2): Expand into shift pairs
+	when the appropriate instructions are not available.
+	(zero_extendhi<GPR:mode>2): Simlarly.
+	(*zero_extendsidi2_internal): Make a simple define_insn.  Only handle
+	MEM sources.
+	(*zero_extendhi<GPR2:mode>2): Similarly.
+	(zero_extendsidi2_shifted): Turn into a define_split and generalize
+	to handle more constants.
+	* config/riscv/predicates.md (dimode_shift_operand): New predicate.
+
+2026-05-18  Jeff Law  <jeffrey.law@oss.qualcomm.com>
+
+	* ext-dce.cc (carry_backpropagate): Handle AND and IOR with a constant argument.
+
+2026-05-18  David Malcolm  <dmalcolm@redhat.com>
+
+	* doc/analyzer.texi: Update for change in param name.
+	* doc/params.texi: Likewise.  Clarify wording.
+
+2026-05-18  David Malcolm  <dmalcolm@redhat.com>
+
+	* dump-context.h (dump_context::emit_optinfo): "info" is non-null,
+	so pass it by reference.
+	* dumpfile.cc (dump_context::end_any_optinfo): Update for above
+	change.
+	(dump_context::emit_optinfo): Likewise.
+	* optinfo-emit-json.cc: Update throughout to eliminate naked "new"
+	and "delete" in favor of std::make_unique and unique_ptr.  Drop
+	redundant dtor.  Use nullptr rather than NULL.  Pass by
+	const-reference rather than by const-pointer in the places that
+	require non-null.
+	* optinfo-emit-json.h: Likewise.
+	* optinfo.cc (optinfo::emit_for_opt_problem): Update for above
+	changes.
+
+2026-05-18  Yoshinori Sato  <yoshinori.sato@nifty.com>
+
+	* config/rx/rx.cc (rx_gen_move_template): Select the mode with the smallest size
+	for the mov instruction.
+
+2026-05-18  Kito Cheng  <kito.cheng@sifive.com>
+
+	* expr.cc (calculate_reversed_crc): New function.
+	(assemble_reversed_crc_table): New function.
+	(generate_reversed_crc_table): New function.
+	(calculate_table_based_reversed_CRC): New function.
+	(expand_reversed_crc_table_based): Remove gen_reflecting_code
+	parameter.  Use calculate_table_based_reversed_CRC.
+	* expr.h (expand_reversed_crc_table_based): Update prototype.
+	* builtins.cc (expand_builtin_crc_table_based): Update call.
+	* internal-fn.cc (expand_crc_optab_fn): Update call.
+	* config/aarch64/aarch64.md (crc_rev<ALLI:mode><ALLX:mode>4):
+	Update call.
+	* config/i386/i386.md (crc_rev<SWI124:mode>si4): Update call.
+	* config/loongarch/loongarch.md (crc_rev<mode>si4): Update call.
+	Remove local rbit lambda.
+	* config/riscv/bitmanip.md (crc_rev<ANYI1:mode><ANYI:mode>4):
+	Update call.  Remove TARGET_ZBKB case.
+	* config/riscv/riscv.cc (generate_reflecting_code_using_brev):
+	Remove.
+	* config/riscv/riscv-protos.h (generate_reflecting_code_using_brev):
+	Remove declaration.
+
+2026-05-18  Robin Dapp  <rdapp@oss.qualcomm.com>
+
+	* config/riscv/riscv.cc (riscv_hard_regno_mode_ok): Remove else.
+
+2026-05-18  Robin Dapp  <rdapp@oss.qualcomm.com>
+
+	* config/riscv/riscv.cc (riscv_check_target_clone_version): Fix
+	format specifier.
+
+2026-05-18  Jakub Jelinek  <jakub@redhat.com>
+
+	PR target/50481
+	* config/i386/i386-protos.h (ix86_expand_gfni_bitreverse): Declare.
+	* config/i386/i386-expand.cc (ix86_expand_gfni_bitreverse): New
+	function.
+	* config/i386/i386.md (bitreverse<mode>2): New expander.
+
+2026-05-18  H.J. Lu  <hjl.tools@gmail.com>
+
+	PR target/125355
+	* config/i386/i386-expand.cc (ix86_expand_movmem): Return false
+	for -Os.
+
 2026-05-17  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
 
 	* tree-ssa-uncprop.cc (associate_equivalences_with_edges): For switches

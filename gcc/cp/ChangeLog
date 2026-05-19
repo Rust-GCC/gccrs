@@ -1,3 +1,7 @@
+2026-05-18  Marek Polacek  <polacek@redhat.com>
+
+	* constexpr.cc (cxx_eval_bare_aggregate): Remove dead code.
+
 2026-05-15  Jakub Jelinek  <jakub@redhat.com>
 
 	PR c++/125081

@@ -1,3 +1,52 @@
+2026-05-18  Jonathan Wakely  <jwakely@redhat.com>
+
+	* testsuite/23_containers/bitset/lwg4294.cc: Move to...
+	* testsuite/20_util/bitset/cons/lwg4294.cc: ...here.
+
+2026-05-18  Jonathan Wakely  <jwakely@redhat.com>
+
+	* testsuite/25_algorithms/pstl/alg_sorting/minmax_element.cc:
+	Reduce iterations for debug mode.
+
+2026-05-18  Avi Kivity  <avi@scylladb.com>
+
+	PR libstdc++/121789
+	* include/bits/stl_uninitialized.h (uninitialized_copy):
+	Unwrap move iterators
+	* testsuite/20_util/specialized_algorithms/uninitialized_move/121789.cc:
+	New test.
+	* testsuite/util/testsuite_greedy_ops.h (greedy_ops): Comment
+	out operator-(T, T).
+
+2026-05-18  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* include/std/valarray [__cplusplus >= 201103L]: Include
+	<bits/ranges_access.h>.
+	* testsuite/26_numerics/valarray/range_access2.cc: Remove
+	<iterator> include, and add test for std::size.
+
+2026-05-18  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* include/std/mdspan (layout_left_padded::is_exhaustive)
+	(layout_righ_padded::is_exhaustive): Mark as const.
+	* testsuite/23_containers/mdspan/layouts/mapping.cc: Test noexcept and
+	const-invocability for is_exhaustive, is_strided, and is_unique.
+	* testsuite/23_containers/mdspan/layouts/padded.cc: Test is_exhaustive on
+	const mapping..
+	* testsuite/23_containers/mdspan/layouts/stride.cc: Likewise.
+	* testsuite/23_containers/mdspan/mdspan.cc: Checks const-invocability
+	for is_exhaustive, is_strided, is_unique.
+
+2026-05-18  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	PR libstdc++/124852
+	* src/c++20/tzdb.cc (on_month_day::on_day_t, on_month_day::on_day):
+	Remove.
+	(operator>>(istream&, on_month_day::day_t&)): Inlined into...
+	(operator>>(istream&, on_month_day)): Inlined on_month_day::on_day.
+	Avoid modifying on.month if MONTH is not present. Report failure
+	on failure to parse day for LessEq / GreaterEq.
+
 2026-05-16  Dragon Archer  <dragon-archer@outlook.com>
 
 	PR libstdc++/125228
