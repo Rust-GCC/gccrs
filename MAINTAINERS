@@ -56,8 +56,8 @@ docs, and the testsuite related to that.
                         CPU Port Maintainers    (CPU alphabetical order)
 
 aarch64 ldp/stp         Alex Coplan             <alex.coplan@arm.com>
-aarch64 port            Richard Earnshaw        <richard.earnshaw@arm.com>
 aarch64 port            Tamar Christina         <tamar.christina@arm.com>
+aarch64 port            Richard Earnshaw        <richard.earnshaw@arm.com>
 aarch64 port            Kyrylo Tkachov          <ktkachov@nvidia.com>
 alpha port              Richard Henderson       <rth@gcc.gnu.org>
 amdgcn port             Julian Brown            <julian@codesourcery.com>
@@ -69,28 +69,28 @@ arm port                Ramana Radhakrishnan    <ramanara@nvidia.com>
 avr port                Denis Chertykov         <chertykov@gmail.com>
 bfin port               Jie Zhang               <jzhang918@gmail.com>
 bpf port                Jose E. Marchesi        <jose.marchesi@oracle.com>
-c6x port                Bernd Schmidt           <bernds_cb1@t-online.de>
-cris port               Hans-Peter Nilsson      <hp@axis.com>
 c-sky port              Xianmiao Qu             <cooper.qu@linux.alibaba.com>
 c-sky port              Yunhai Shang            <yunhai@linux.alibaba.com>
+c6x port                Bernd Schmidt           <bernds_cb1@t-online.de>
+cris port               Hans-Peter Nilsson      <hp@axis.com>
 fr30 port               Nick Clifton            <nickc@redhat.com>
 frv port                Nick Clifton            <nickc@redhat.com>
 frv port                Alexandre Oliva         <aoliva@gcc.gnu.org>
 ft32 port               James Bowman            <james.bowman@ftdichip.com>
 h8 port                 Jeff Law                <jeffreyalaw@gmail.com>
-hppa port               Jeff Law                <jeffreyalaw@gmail.com>
 hppa port               John David Anglin       <dave.anglin@bell.net>
-i386 port               Jan Hubicka             <hubicka@ucw.cz>
+hppa port               Jeff Law                <jeffreyalaw@gmail.com>
 i386 port               Uros Bizjak             <ubizjak@gmail.com>
-i386 vector ISA extns   Kirill Yukhin           <kirill.yukhin@gmail.com>
+i386 port               Jan Hubicka             <hubicka@ucw.cz>
 i386 vector ISA extns   Hongtao Liu             <hongtao.liu@intel.com>
+i386 vector ISA extns   Kirill Yukhin           <kirill.yukhin@gmail.com>
 iq2000 port             Nick Clifton            <nickc@redhat.com>
 lm32 port               Sebastien Bourdeauducq  <sebastien@milkymist.org>
-LoongArch port          Chenghua Xu             <xuchenghua@loongson.cn>
 LoongArch port          Lulu Cheng              <chenglulu@loongson.cn>
+LoongArch port          Chenghua Xu             <xuchenghua@loongson.cn>
 m32r port               Nick Clifton            <nickc@redhat.com>
-m68k port (?)           Jeff Law                <jeffreyalaw@gmail.com>
 m68k port               Andreas Schwab          <schwab@linux-m68k.org>
+m68k port (?)           Jeff Law                <jeffreyalaw@gmail.com>
 m68k-motorola-sysv port Philippe De Muyter      <phdm@macqel.be>
 mcore port              Nick Clifton            <nickc@redhat.com>
 microblaze              Michael Eager           <eager@eagercon.com>
@@ -100,10 +100,10 @@ mn10300 port            Jeff Law                <jeffreyalaw@gmail.com>
 mn10300 port            Alexandre Oliva         <aoliva@gcc.gnu.org>
 moxie port              Anthony Green           <green@moxielogic.com>
 msp430 port             Nick Clifton            <nickc@redhat.com>
-nds32 port              Chung-Ju Wu             <jasonwucj@gmail.com>
 nds32 port              Shiva Chen              <shiva0217@gmail.com>
-nvptx port              Tom de Vries            <tdevries@suse.de>
+nds32 port              Chung-Ju Wu             <jasonwucj@gmail.com>
 nvptx port              Thomas Schwinge         <tschwinge@baylibre.com>
+nvptx port              Tom de Vries            <tdevries@suse.de>
 or1k port               Stafford Horne          <shorne@gmail.com>
 pdp11 port              Paul Koning             <ni1d@arrl.net>
 powerpcspe port         Andrew Jenner           <andrew@codesourcery.com>
@@ -113,21 +113,21 @@ riscv port              Palmer Dabbelt          <palmer@dabbelt.com>
 riscv port              Robin Dapp              <rdapp.gcc@gmail.com>
 riscv port              Andrew Waterman         <andrew@sifive.com>
 riscv port              Jim Wilson              <jim.wilson.gcc@gmail.com>
-rs6000/powerpc port     David Edelsohn          <dje.gcc@gmail.com>
-rs6000/powerpc port     Segher Boessenkool      <segher@kernel.crashing.org>
-rs6000/powerpc port     Kewen Lin               <linkw@gcc.gnu.org>
 rs6000 vector extns     Aldy Hernandez          <aldy@quesejoda.com>
+rs6000/powerpc port     Segher Boessenkool      <segher@kernel.crashing.org>
+rs6000/powerpc port     David Edelsohn          <dje.gcc@gmail.com>
+rs6000/powerpc port     Kewen Lin               <linkw@gcc.gnu.org>
 rx port                 Nick Clifton            <nickc@redhat.com>
-s390 port               Ulrich Weigand          <uweigand@de.ibm.com>
 s390 port               Andreas Krebbel         <krebbel@linux.ibm.com>
 s390 port               Stefan Schulze Frielinghaus <stefansf@linux.ibm.com>
-sh port                 Alexandre Oliva         <aoliva@gcc.gnu.org>
+s390 port               Ulrich Weigand          <uweigand@de.ibm.com>
 sh port                 Oleg Endo               <olegendo@gcc.gnu.org>
-sparc port              David S. Miller         <davem@redhat.com>
+sh port                 Alexandre Oliva         <aoliva@gcc.gnu.org>
 sparc port              Eric Botcazou           <ebotcazou@libertysurf.fr>
+sparc port              David S. Miller         <davem@redhat.com>
 v850 port               Nick Clifton            <nickc@redhat.com>
-vax port                Matt Thomas             <matt@3am-software.com>
 vax port                Maciej W. Rozycki       <macro@orcam.me.uk>
+vax port                Matt Thomas             <matt@3am-software.com>
 visium port             Eric Botcazou           <ebotcazou@libertysurf.fr>
 x86-64 port             Jan Hubicka             <hubicka@ucw.cz>
 xstormy16 port          Nick Clifton            <nickc@redhat.com>
@@ -417,7 +417,7 @@ Arnaud Charlet                  charlet         <charlet@adacore.com>
 Chandra Chavva                  -               <cchavva@redhat.com>
 Dhruv Chawla                    dhruvc          <dhruvc@nvidia.com>
 Dehao Chen                      dehao           <dehao@google.com>
-Zhongyao Chen			-		<chenzhongyao.hit@gmail.com>
+Zhongyao Chen                   -               <chenzhongyao.hit@gmail.com>
 Fabien Chêne                    fabien          <fabien@gcc.gnu.org>
 Bin Cheng                       amker           <bin.cheng@linux.alibaba.com>
 Kito Cheng                      kito            <kito.cheng@gmail.com>
@@ -965,8 +965,8 @@ Daniel Barboza                                  <dbarboza@qti.qualcomm.com>
 Daniel Barboza                                  <dbarboza@ventanamicro.com>
 Peter Bergner                                   <bergner@tenstorrent.com>
 Dhruv Chawla                                    <dhruvc@nvidia.com>
-Zhongyao Chen					<chenzhongyao.hit@gmail.com>
-Zhongyao Chen					<chen.zhongyao@zte.com.cn>
+Zhongyao Chen                                   <chenzhongyao.hit@gmail.com>
+Zhongyao Chen                                   <chen.zhongyao@zte.com.cn>
 Juergen Christ                                  <jchrist@linux.ibm.com>
 Alejandro Colomar                               <alx@kernel.org>
 Giuseppe D'Angelo                               <giuseppe.dangelo@kdab.com>
