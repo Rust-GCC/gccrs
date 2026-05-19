@@ -357,7 +357,7 @@ ft32_init_machine_status (void)
 
 
 /* The TARGET_OPTION_OVERRIDE worker.
-   All this curently does is set init_machine_status.  */
+   All this currently does is set init_machine_status.  */
 static void
 ft32_option_override (void)
 {
