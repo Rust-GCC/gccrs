@@ -4538,7 +4538,7 @@
 
 ;; umax (a, add (a, b)) => [sum, ovf] = adds (a, b); !ovf ? sum : a
 ;; umin (a, add (a, b)) => [sum, ovf] = adds (a, b); !ovf ? a : sum
-;; ... and the commutated versions:
+;; ... and the commuted versions:
 ;; umax (a, add (b, a)) => [sum, ovf] = adds (b, a); !ovf ? sum : a
 ;; umin (a, add (b, a)) => [sum, ovf] = adds (b, a); !ovf ? a : sum
 (define_insn_and_split "*aarch64_plus_within_<optab><mode>3_<ovf_commutate>"

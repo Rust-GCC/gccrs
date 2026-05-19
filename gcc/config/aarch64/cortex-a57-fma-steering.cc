@@ -44,7 +44,7 @@
 /* For better performance, the destination of FMADD/FMSUB instructions should
    have the same parity as their accumulator register if the accumulator
    contains the result of a previous FMUL or FMADD/FMSUB instruction if
-   targetting Cortex-A57 processors.  Performance is also increased by
+   targeting Cortex-A57 processors.  Performance is also increased by
    otherwise keeping a good balance in the parity of the destination register
    of FMUL or FMADD/FMSUB.
 

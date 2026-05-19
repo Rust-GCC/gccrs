@@ -2059,7 +2059,7 @@ struct binary_za_m_def : public binary_za_m_base<>
   build (function_builder &b, const function_group_info &group) const override
   {
     b.add_overloaded_functions (group, MODE_none);
-    /* Allow the overloaded form to be specified seperately, with just
+    /* Allow the overloaded form to be specified separately, with just
        a single suffix.  This is necessary for the 64-bit SME MOP intrinsics,
        which have some forms dependent on FEAT_SME_I16I64 and some forms
        dependent on FEAT_SME_F64F64.  The resolver needs to be defined

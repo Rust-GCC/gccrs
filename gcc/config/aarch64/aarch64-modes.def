@@ -265,7 +265,7 @@ FLOAT_MODE (TF, 16, ieee_quad_format);
 /* A 4-tuple of SVE vectors with the maximum -msve-vector-bits= setting.
    Note that this is a limit only on the compile-time sizes of modes;
    it is not a limit on the runtime sizes, since VL-agnostic code
-   must work with arbitary vector lengths.  */
+   must work with arbitrary vector lengths.  */
 #define MAX_BITSIZE_MODE_ANY_MODE (2048 * 4)
 
 /* Coefficient 1 is multiplied by the number of 128-bit chunks in an

@@ -148,7 +148,7 @@
    mutually exclusive gates, with the normal pass being chosen wherever
    possible.  */
 
-/* Generate a code sequence to clobber SP if speculating incorreclty.  */
+/* Generate a code sequence to clobber SP if speculating incorrectly.  */
 static rtx_insn *
 aarch64_speculation_clobber_sp ()
 {

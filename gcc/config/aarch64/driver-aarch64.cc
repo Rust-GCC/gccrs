@@ -120,7 +120,7 @@ get_cpu_from_id (const char* name)
   return NULL;
 }
 
-/* Check wether the CORE array is the same as the big.LITTLE BL_CORE.
+/* Check whether the CORE array is the same as the big.LITTLE BL_CORE.
    For an example CORE={0xd08, 0xd03} and
    BL_CORE=AARCH64_BIG_LITTLE (0xd08, 0xd03) will return true.  */
 
@@ -436,7 +436,7 @@ host_detect_local_cpu (int argc, const char **argv)
 				 : DEFAULT_ARCH);
 	  auto arch_info = get_arch_from_id (arch_id);
 
-	  /* We got some arch indentifier that's not in aarch64-arches.def?  */
+	  /* We got some arch identifier that's not in aarch64-arches.def?  */
 	  if (!arch_info)
 	    goto not_found;
 

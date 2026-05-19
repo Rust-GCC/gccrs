@@ -1033,7 +1033,7 @@ extern enum aarch64_cpu aarch64_tune;
 
 #define DEFAULT_PCC_STRUCT_RETURN 0
 
-/* The set of available Procedure Call Stardards.  */
+/* The set of available Procedure Call Standards.  */
 
 enum arm_pcs
 {
@@ -1094,12 +1094,12 @@ struct GTY (()) aarch64_frame
   poly_int64 bytes_below_hard_fp;
 
   /* The number of bytes between the top of the locals area and the top
-     of the frame (the incomming SP).  This value is always a multiple of
+     of the frame (the incoming SP).  This value is always a multiple of
      STACK_BOUNDARY.  */
   poly_int64 bytes_above_locals;
 
   /* The number of bytes between the hard_frame_pointer and the top of
-     the frame (the incomming SP).  This value is always a multiple of
+     the frame (the incoming SP).  This value is always a multiple of
      STACK_BOUNDARY.  */
   poly_int64 bytes_above_hard_fp;
 
@@ -1494,7 +1494,7 @@ typedef struct
 
 /* This definition should be relocated to aarch64-elf-raw.h.  This macro
    should be undefined in aarch64-linux.h and a clear_cache pattern
-   implmented to emit either the call to __aarch64_sync_cache_range()
+   implemented to emit either the call to __aarch64_sync_cache_range()
    directly or preferably the appropriate sycall or cache clear
    instructions inline.  */
 #define CLEAR_INSN_CACHE(beg, end)				\
@@ -1639,7 +1639,7 @@ extern poly_uint16 aarch64_sve_vg;
    vectors in a structure mode (4).
 
    This limit must not be used for variable-size vectors, since
-   VL-agnostic code must work with arbitary vector lengths.  */
+   VL-agnostic code must work with arbitrary vector lengths.  */
 #define MAX_COMPILE_TIME_VEC_BYTES (256 * 4)
 #endif
 

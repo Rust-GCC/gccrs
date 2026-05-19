@@ -465,7 +465,7 @@ aarch64_parse_cpu (const char *to_parse, aarch64_cpu *res_cpu,
 	      if (ext_res != AARCH_PARSE_OK)
 		return ext_res;
 	    }
-	  /* Extension parsing was successfull.  Confirm the result
+	  /* Extension parsing was successful.  Confirm the result
 	     cpu and ISA flags.  */
 	  *res_cpu = cpu->processor;
 	  *res_flags = isa_flags;
@@ -711,7 +711,7 @@ aarch64_get_extension_string_for_isa_flags
   for (auto alias: all_extensions)
     {
       /* Only allow "+nocrypto" when "sm4" is not already enabled
-	 (to avoid dependending on whether "+nocrypto" also disables "sm4").  */
+	 (to avoid depending on whether "+nocrypto" also disables "sm4").  */
       if (alias.flag_canonical == AARCH64_FL_CRYPTO
 	  && (current_flags & AARCH64_FL_SM4))
 	continue;

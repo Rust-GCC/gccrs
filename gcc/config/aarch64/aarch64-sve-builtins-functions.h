@@ -371,7 +371,7 @@ typedef unspec_based_function_exact_insn<code_for_aarch64_sve_add_lane>
 typedef unspec_based_function_exact_insn<code_for_aarch64_sve_lane>
   unspec_based_lane_function;
 
-/* A functon that uses aarch64_pred* patterns regardless of the
+/* A function that uses aarch64_pred* patterns regardless of the
    predication type.  */
 typedef unspec_based_function_exact_insn<code_for_aarch64_pred>
   unspec_based_pred_function;

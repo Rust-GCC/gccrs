@@ -27,7 +27,7 @@
 ;; ---- Note on the handling of big-endian SVE
 ;; ---- Description of UNSPEC_PTEST
 ;; ---- Description of UNSPEC_PRED_Z
-;; ---- Note on predicated integer arithemtic and UNSPEC_PRED_X
+;; ---- Note on predicated integer arithmetic and UNSPEC_PRED_X
 ;; ---- Note on predicated FP arithmetic patterns and GP "strictness"
 ;; ---- Note on FFR handling
 ;;
@@ -305,7 +305,7 @@
 ;;
 ;; For example, when applying a separate PTEST to the result of a full-vector
 ;; .H comparison, the PTEST must be predicated on a .H PTRUE instead of a
-;; .B PTRUE.  In constrast, the comparison might be predicated on either
+;; .B PTRUE.  In contrast, the comparison might be predicated on either
 ;; a .H PTRUE or a .B PTRUE, since the values of odd-indexed predicate
 ;; bits don't matter for .H operations.
 ;;
@@ -336,7 +336,7 @@
 ;; The "Z" in UNSPEC_PRED_Z indicates that inactive lanes are zero.
 ;;
 ;; -------------------------------------------------------------------------
-;; ---- Note on predicated integer arithemtic and UNSPEC_PRED_X
+;; ---- Note on predicated integer arithmetic and UNSPEC_PRED_X
 ;; -------------------------------------------------------------------------
 ;;
 ;; Many SVE integer operations are predicated.  We can generate them
@@ -8592,7 +8592,7 @@
 ;; it would would copy the upper (undefined) bits of each container along
 ;; with the corresponding defined bits.  If SEL used the element size,
 ;; it would use separate predicate bits to select between the undefined
-;; elements in each input vector; these seperate predicate bits might
+;; elements in each input vector; these separate predicate bits might
 ;; themselves be undefined, depending on the mode of the predicate.
 ;;
 ;; Thus the only difference is whether the undefined bits in a container

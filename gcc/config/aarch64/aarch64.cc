@@ -579,7 +579,7 @@ aarch64_init_sysregs (void)
 }
 
 /* No direct access to the sysreg hash-map should be made.  Doing so
-   risks trying to acess an unitialized hash-map and dereferencing the
+   risks trying to access an uninitialized hash-map and dereferencing the
    returned double pointer without due care risks dereferencing a
    null-pointer.  */
 const sysreg_t *
@@ -3612,7 +3612,7 @@ aarch64_load_symref_appropriately (rtx dest, rtx imm,
 	   while the got entry is always of SImode size.  The mode of
 	   dest depends on how dest is used: if dest is assigned to a
 	   pointer (e.g. in the memory), it has SImode; it may have
-	   DImode if dest is dereferenced to access the memeory.
+	   DImode if dest is dereferenced to access the memory.
 	   This is why we have to handle three different tlsie_small
 	   patterns here (two patterns for ILP32).  */
 	machine_mode mode = GET_MODE (dest);
@@ -4449,7 +4449,7 @@ aarch64_output_sve_cnt_immediate (const char *prefix, const char *operands,
   if (nelts_per_vq == 0)
     /* There is some overlap in the ranges of the four CNT instructions.
        Here we always use the smallest possible element size, so that the
-       multiplier is 1 whereever possible.  */
+       multiplier is 1 wherever possible.  */
     nelts_per_vq = factor & -factor;
   int shift = std::min (exact_log2 (nelts_per_vq), 4);
   gcc_assert (IN_RANGE (shift, 1, 4));
@@ -7057,7 +7057,7 @@ aarch64_replace_reg_mode (rtx x, machine_mode mode)
   return x;
 }
 
-/* Return the SVE REV[BHW] unspec for reversing quantites of mode MODE
+/* Return the SVE REV[BHW] unspec for reversing quantities of mode MODE
    stored in wider integer containers.  */
 
 static unsigned int
@@ -7191,7 +7191,7 @@ aarch64_pass_by_reference_1 (CUMULATIVE_ARGS *pcum,
     return false;
 
   /* Arguments which are variable sized or larger than 2 registers are
-     passed by reference unless they are a homogenous floating point
+     passed by reference unless they are a homogeneous floating point
      aggregate.  */
   return size > 2 * UNITS_PER_WORD;
 }
@@ -7760,7 +7760,7 @@ aarch64_layout_arg (cumulative_args_t pcum_v, const function_arg_info &arg)
      - Types bigger than 16 bytes are passed indirectly.
 
      - If an argument of type T is passed indirectly, TYPE and MODE describe
-       a pointer to T rather than T iself.
+       a pointer to T rather than T itself.
 
      It follows that the AAPCS64 alignment of TYPE must be no greater
      than 16 bytes.
@@ -7877,8 +7877,8 @@ aarch64_layout_arg (cumulative_args_t pcum_v, const function_arg_info &arg)
 
   nvrn = pcum->aapcs_nvrn;
 
-  /* C1 - C5 for floating point, homogenous floating point aggregates (HFA)
-     and homogenous short-vector aggregates (HVA).  */
+  /* C1 - C5 for floating point, homogeneous floating point aggregates (HFA)
+     and homogeneous short-vector aggregates (HVA).  */
   if (allocate_nvrn)
     {
       /* aarch64_function_arg_alignment has never had an effect on
@@ -10312,7 +10312,7 @@ aarch64_allocate_and_probe_stack_space (rtx temp1, rtx temp2,
 	 The non-loop part won't be entered because if our allocation amount
 	 doesn't require a loop, the case above would handle it.
 
-	 The residual amount won't be entered because TEMP1 is a mutliple of
+	 The residual amount won't be entered because TEMP1 is a multiple of
 	 the allocation size.  The residual will always be 0.  As such, the only
 	 part we are actually using from that code is the loop setup.  The
 	 actual probing is done in aarch64_output_probe_stack_range.  */
@@ -11883,7 +11883,7 @@ aarch64_legitimize_address_displacement (rtx *offset1, rtx *offset2,
       if (vec_flags & VEC_SVE_DATA)
 	/* LDR supports a 9-bit range, but the move patterns for
 	   structure modes require all vectors to be in range of the
-	   same base.  The simplest way of accomodating that while still
+	   same base.  The simplest way of accommodating that while still
 	   promoting reuse of anchor points between different modes is
 	   to use an 8-bit range unconditionally.  */
 	vnum = ((vnum + 128) & 255) - 128;
@@ -14231,7 +14231,7 @@ aarch64_output_casesi (rtx *operands)
 
   gcc_assert (index >= 0 && index <= 3);
 
-  /* Need to implement table size reduction, by chaning the code below.  */
+  /* Need to implement table size reduction, by changing the code below.  */
   output_asm_insn (patterns[index][0], operands);
   ASM_GENERATE_INTERNAL_LABEL (label, "Lrtx", CODE_LABEL_NUMBER (operands[2]));
   snprintf (buf, sizeof (buf),
@@ -16185,7 +16185,7 @@ cost_plus:
     case UMOD:
       if (speed)
 	{
-	  /* Slighly prefer UMOD over SMOD.  */
+	  /* Slightly prefer UMOD over SMOD.  */
 	  if (VECTOR_MODE_P (mode))
 	    *cost += extra_cost->vect.alu;
 	  else if (GET_MODE_CLASS (mode) == MODE_INT)
@@ -16206,7 +16206,7 @@ cost_plus:
 	    /* There is no integer SQRT, so only DIV and UDIV can get
 	       here.  */
 	    *cost += (extra_cost->mult[mode == DImode].idiv
-		     /* Slighly prefer UDIV over SDIV.  */
+		     /* Slightly prefer UDIV over SDIV.  */
 		     + (code == DIV ? 1 : 0));
 	  else
 	    *cost += extra_cost->fp[mode == DFmode].div;
@@ -18563,7 +18563,7 @@ aarch64_stp_sequence_cost (unsigned int count, vect_cost_for_stmt kind,
     }
 }
 
-/* Determine probabilistically whether the STMT is one tht could possible be
+/* Determine probabilistically whether the STMT is one that could possible be
    made into a by lane operation later on.  We can't be sure, but certain
    operations have a higher chance.  */
 
@@ -18892,7 +18892,7 @@ aarch64_vector_costs::add_stmt_cost (int count, vect_cost_for_stmt kind,
 
       /* If we're applying the SVE vs. Advanced SIMD unrolling heuristic,
 	 estimate the number of statements in the unrolled Advanced SIMD
-	 loop.  For simplicitly, we assume that one iteration of the
+	 loop.  For simplicity, we assume that one iteration of the
 	 Advanced SIMD loop would need the same number of statements
 	 as one iteration of the SVE loop.  */
       if (where == vect_body && m_unrolled_advsimd_niters)
@@ -20214,7 +20214,7 @@ aarch64_override_options (void)
     {
       /* If both -mcpu and -march are specified, warn if they are not
 	 feature compatible.  feature compatible means that the inclusion of the
-	 cpu features would end up disabling an achitecture feature.  In
+	 cpu features would end up disabling an architecture feature.  In
 	 otherwords the cpu features need to be a strict superset of the arch
 	 features and if so prefer the -march ISA flags.  */
       if (~cpu_isa & arch_isa)
@@ -21420,7 +21420,7 @@ aarch64_functions_b_resolvable_from_a (tree decl_a, tree decl_b, tree baseline)
   if (b_version.is_valid ())
     aarch64_parse_fmv_features (b_version, &isa_b, NULL, NULL, NULL);
 
-  /* Are there any bits of b that arent in a.  */
+  /* Are there any bits of b that aren't in a.  */
   if (isa_b & (~isa_a))
     return false;
 
@@ -21734,7 +21734,7 @@ dispatch_function_versions (tree dispatch_decl,
 
   gseq = bb_seq (*empty_bb);
   /* Function version dispatch is via IFUNC.  IFUNC resolvers fire before
-     constructors, so explicity call __init_cpu_features_resolver here.  */
+     constructors, so explicitly call __init_cpu_features_resolver here.  */
   tree init_fn_type = build_function_type_list (void_type_node,
 						long_unsigned_type_node,
 						build_ifunc_arg_type(),
@@ -22170,7 +22170,7 @@ aarch64_can_inline_p (tree caller, tree callee)
     return false;
 
   /* If the user explicitly specified -momit-leaf-frame-pointer for the
-     caller and calle and they don't match up, reject inlining.  */
+     caller and callee and they don't match up, reject inlining.  */
   if (!aarch64_tribools_ok_for_inlining_p (
 	  caller_opts->x_flag_omit_leaf_frame_pointer,
 	  callee_opts->x_flag_omit_leaf_frame_pointer,
@@ -22312,7 +22312,7 @@ aarch64_classify_symbol (rtx x, HOST_WIDE_INT offset)
 	     the offset does not cause overflow of the final address.  But
 	     we have no way of knowing the address of symbol at compile time
 	     so we can't accurately say if the distance between the PC and
-	     symbol + offset is outside the addressible range of +/-1MB in the
+	     symbol + offset is outside the addressable range of +/-1MB in the
 	     TINY code model.  So we limit the maximum offset to +/-64KB and
 	     assume the offset to the symbol is not larger than +/-(1MB - 64KB).
 	     If offset_within_block_p is true we allow larger offsets.  */
@@ -22541,7 +22541,7 @@ aarch64_build_builtin_va_list (void)
 			integer_type_node);
 
   /* Tell tree-stdarg pass about our internal offset fields.
-     NOTE: va_list_gpr/fpr_counter_field are only used for tree comparision
+     NOTE: va_list_gpr/fpr_counter_field are only used for tree comparison
      purpose to identify whether the code is updating va_list internal
      offset fields through irregular way.  */
   va_list_gpr_counter_field = f_groff;
@@ -24476,7 +24476,7 @@ aarch64_sve_pred_valid_immediate (rtx x, simd_immediate_info *info)
      'r' is an integer in the range -3 <= r <= 4.
 
    Return true iff R represents a vale encodable into an AArch64 floating point
-   move instruction as an immediate.  Othewise false.  */
+   move instruction as an immediate.  Otherwise false.  */
 
 static bool
 aarch64_real_float_const_representable_p (REAL_VALUE_TYPE r)
@@ -25216,7 +25216,7 @@ aarch64_simd_lane_bounds (rtx operand, HOST_WIDE_INT low, HOST_WIDE_INT high,
   }
 }
 
-/* Peform endian correction on lane number N, which indexes a vector
+/* Perform endian correction on lane number N, which indexes a vector
    of mode MODE, and return the result as an SImode rtx.  */
 
 rtx
@@ -25674,7 +25674,7 @@ aarch64_expand_vector_init_fallback (rtx target, rtx vals)
 
   /* This is a special vec_init<M><N> where N is either an element mode or a
      vector mode with half the elements of M.  We expect to find two entries
-     of mode N in VALS and we must put their concatentation into TARGET.  */
+     of mode N in VALS and we must put their concatenation into TARGET.  */
   if (n_elts == 2 && (VECTOR_MODE_P (v0mode)
 				 || SCALAR_INT_MODE_P (v0mode)
 				 || SCALAR_FLOAT_MODE_P (v0mode)))
@@ -28861,7 +28861,7 @@ aarch64_modes_compatible_p (machine_mode mode1, machine_mode mode2)
 
 /* Implement TARGET_MODES_TIEABLE_P.  In principle we should always defer
    to aarch64_modes_compatible_p.  However due to issues with register
-   allocation it is preferable to avoid tieing integer scalar and FP
+   allocation it is preferable to avoid tying integer scalar and FP
    scalar modes.  Executing integer operations in general registers is
    better than treating them as scalar vector operations.  This reduces
    latency and avoids redundant int<->FP moves.  So tie modes if they
@@ -30247,7 +30247,7 @@ aarch64_ldrstr_offset_compare (const void *x, const void *y)
      stp  w1, w1, [scratch, 0x8]
 
    The peephole patterns detecting this opportunity should guarantee
-   the scratch register is avaliable.  */
+   the scratch register is available.  */
 
 bool
 aarch64_operands_adjust_ok_for_ldpstp (rtx *operands, bool load,
@@ -30870,7 +30870,7 @@ aarch64_speculation_safe_value (machine_mode mode,
 				rtx result, rtx val, rtx failval)
 {
   /* Maybe we should warn if falling back to hard barriers.  They are
-     likely to be noticably more expensive than the alternative below.  */
+     likely to be noticeably more expensive than the alternative below.  */
   if (!aarch64_track_speculation)
     return default_speculation_safe_value (mode, result, val, failval);
 

@@ -24,7 +24,7 @@
 
 /* This enum is used in libgcc feature detection, and in the function
    multiversioning implementation in aarch64.cc.  The enum should use the same
-   values as the corresponding enum in LLVM's compiler-rt, to faciliate
+   values as the corresponding enum in LLVM's compiler-rt, to facilitate
    compatibility between compilers.  */
 
 enum CPUFeatures {

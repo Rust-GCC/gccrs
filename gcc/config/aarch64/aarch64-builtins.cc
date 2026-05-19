@@ -593,7 +593,7 @@ static aarch64_simd_builtin_datum aarch64_simd_builtin_data[] = {
   CRC32_BUILTIN (crc32cw, SI) \
   CRC32_BUILTIN (crc32cx, DI)
 
-/* The next 8 FCMLA instrinsics require some special handling compared the
+/* The next 8 FCMLA intrinsics require some special handling compared the
    normal simd intrinsics.  */
 #define AARCH64_SIMD_FCMLA_LANEQ_BUILTINS \
   FCMLA_LANEQ_BUILTIN (0, v2sf, fcmla, V2SF, false) \

@@ -386,7 +386,7 @@ aarch64_pragma_target_parse (tree args, tree pop_target)
 
   cpp_opts->warn_unused_macros = saved_warn_unused_macros;
 
-  /* If we're popping or reseting make sure to update the globals so that
+  /* If we're popping or resetting make sure to update the globals so that
      the optab availability predicates get recomputed.  */
   if (pop_target)
     aarch64_save_restore_target_globals (pop_target);

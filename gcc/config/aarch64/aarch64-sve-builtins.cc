@@ -1519,7 +1519,7 @@ function_builder::add_function (const function_instance &instance,
 {
   unsigned int length = vec_safe_length (registered_functions);
   unsigned int code = (m_function_index << AARCH64_BUILTIN_SHIFT) | AARCH64_BUILTIN_SVE;
-  /* We need to be able to generate placeholders to enusre that we have a
+  /* We need to be able to generate placeholders to ensure that we have a
      consistent numbering scheme for function codes between the C and C++
      frontends, so that everything ties up in LTO.
 

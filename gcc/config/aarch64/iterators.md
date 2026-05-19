@@ -200,7 +200,7 @@
 				  (HF "TARGET_SIMD_F16INST")
 				  SF DF])
 
-;; Scalar and vetor modes for SF, DF.
+;; Scalar and vector modes for SF, DF.
 (define_mode_iterator VSFDF [V2SF V4SF V2DF DF SF])
 
 ;; Advanced SIMD single Float modes.
@@ -2693,7 +2693,7 @@
 			      (V4x1DF "16") (V4x2DF "16")
 			      (V4x4BF "16") (V4x8BF "16")])
 
-;; -fpic small model GOT reloc modifers: gotpage_lo15/lo14 for ILP64/32.
+;; -fpic small model GOT reloc modifiers: gotpage_lo15/lo14 for ILP64/32.
 ;; No need of iterator for -fPIC as it use got_lo12 for both modes.
 (define_mode_attr got_modifier [(SI "gotpage_lo14") (DI "gotpage_lo15")])
 

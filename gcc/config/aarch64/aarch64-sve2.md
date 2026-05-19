@@ -4734,7 +4734,7 @@
 ;; When AESE/AESMC and AESD/AESIMC fusion is enabled, we really want
 ;; to keep the two together and enforce the register dependency without
 ;; scheduling or register allocation messing up the order or introducing
-;; moves inbetween.  Mash the two together during combine.
+;; moves in between.  Mash the two together during combine.
 
 (define_insn "*aarch64_sve2_aese_fused"
   [(set (match_operand:VNx16QI 0 "register_operand" "=w")

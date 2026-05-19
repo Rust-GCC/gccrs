@@ -1,4 +1,4 @@
-/* Arm BF16 instrinsics include file.
+/* Arm BF16 intrinsics include file.
 
    Copyright (C) 2019-2026 Free Software Foundation, Inc.
    Contributed by Arm.

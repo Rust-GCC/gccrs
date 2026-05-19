@@ -463,7 +463,7 @@ trailing destructive updates of the base register used by a pair.
 
 -param=aarch64-tag-memory-loop-threshold=
 Target Joined UInteger Var(aarch64_tag_memory_loop_threshold) Init(10) IntegerRange(0, 65536) Param
-Param to control the treshold in number of granules beyond which an
+Param to control the threshold in number of granules beyond which an
 explicit loop for tagging a memory block is emitted.
 
 Wexperimental-fmv-target

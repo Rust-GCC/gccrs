@@ -659,7 +659,7 @@
 })
 
 ;; These expands map to the Dot Product optab the vectorizer checks for
-;; and to the intrinsics patttern.
+;; and to the intrinsics pattern.
 ;; The auto-vectorizer expects a dot product builtin that also does an
 ;; accumulation into the provided register.
 ;; Given the following pattern
@@ -4615,7 +4615,7 @@
 	   Example: UN<cc> (a, b) -> UNORDERED (a, b) |
 				     (cm<cc> (isnan (a) ? 0.0 : a,
 					      isnan (b) ? 0.0 : b))
-	   We use the following transformations for doing the comparisions:
+	   We use the following transformations for doing the comparisons:
 	   a UNGE b -> a GE b
 	   a UNGT b -> a GT b
 	   a UNLE b -> b GE a
@@ -4666,7 +4666,7 @@
       break;
 
     case LTGT:
-      /* LTGT is not guranteed to not generate a FP exception.  So let's
+      /* LTGT is not guaranteed to not generate a FP exception.  So let's
 	 go the faster way : ((a > b) || (b > a)).  */
       emit_insn (gen_aarch64_cmgt<mode> (operands[0],
 					 operands[2], operands[3]));
@@ -8107,7 +8107,7 @@
 
 ;; ADDP with two registers semantically concatenates them and performs
 ;; a pairwise addition on the result.  For 128-bit input modes represent this
-;; as a concatentation of the pairwise addition results of the two input
+;; as a concatenation of the pairwise addition results of the two input
 ;; registers.  This allow us to avoid using intermediate 256-bit modes.
 (define_insn "aarch64_addp<mode>_insn"
   [(set (match_operand:VQ_I 0 "register_operand" "=w")
@@ -8131,7 +8131,7 @@
   [(set_attr "type" "neon_reduc_add<q>")]
 )
 
-;; For 64-bit input modes an ADDP is represented as a concatentation
+;; For 64-bit input modes an ADDP is represented as a concatenation
 ;; of the input registers into an 128-bit register which is then fed
 ;; into a pairwise add.  That way we avoid having to create intermediate
 ;; 32-bit vector modes.
@@ -9622,7 +9622,7 @@
 
 ;; When AESE/AESMC fusion is enabled we really want to keep the two together
 ;; and enforce the register dependency without scheduling or register
-;; allocation messing up the order or introducing moves inbetween.
+;; allocation messing up the order or introducing moves in between.
 ;;  Mash the two together during combine.
 
 (define_insn "*aarch64_crypto_aese_fused"
@@ -9643,7 +9643,7 @@
 
 ;; When AESD/AESIMC fusion is enabled we really want to keep the two together
 ;; and enforce the register dependency without scheduling or register
-;; allocation messing up the order or introducing moves inbetween.
+;; allocation messing up the order or introducing moves in between.
 ;;  Mash the two together during combine.
 
 (define_insn "*aarch64_crypto_aesd_fused"

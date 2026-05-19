@@ -535,7 +535,7 @@
 ; necessarily accurate (because insns are split into uops, and those
 ; may be issued out-of-order).
 
-; the LDP/LDNP imm-offset S/D/Q suppplies the first arg with latency 4
+; the LDP/LDNP imm-offset S/D/Q supplies the first arg with latency 4
 ; and the 2nd at 5 (Q form) or 8 (S/D form). Can this be modeled? These
 ;forms, as documented, do not use the I0/I1/I2 units (no I3), but the
 ; other LDP ones do.

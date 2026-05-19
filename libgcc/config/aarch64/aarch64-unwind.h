@@ -154,7 +154,7 @@ aarch64_demangle_return_addr (struct _Unwind_Context *context,
      AArch64 DWARF instruction and contains a valid value, or is used to
      describe the initial state set in aarch64_arch_extension_frame_init.
      Return-address signing state is normally toggled by DW_CFA_AARCH64_negate
-     _ra_state (also knwon by its alias as DW_CFA_GNU_window_save).
+     _ra_state (also known by its alias as DW_CFA_GNU_window_save).
      However, RA state register can be set directly via DW_CFA_val_expression
      too.  GCC does not generate such CFI but some other compilers reportedly
      do (see PR104689 for more details).
