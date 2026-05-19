@@ -169,7 +169,7 @@
     case CONST:
       if (TARGET_EXPLICIT_RELOCS)
 	{
-	  /* We don't split symbolic operands into something unintelligable
+	  /* We don't split symbolic operands into something unintelligible
 	     until after reload, but we do not wish non-small, non-global
 	     symbolic operands to be reconstructed from their high/lo_sum
 	     form.  */

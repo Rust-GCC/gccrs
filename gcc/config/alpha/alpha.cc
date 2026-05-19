@@ -6415,7 +6415,7 @@ alpha_pass_by_reference (cumulative_args_t, const function_arg_info &arg)
 
      This introduces sort of ABI incompatibility, but until _Float32 was
      introduced, C-family languages promoted 32-bit float variable arg to
-     a 64-bit double, and it was not allowed to pass float as a varible
+     a 64-bit double, and it was not allowed to pass float as a variable
      argument.  Passing _Complex float as a variable argument never
      worked on alpha.  Thus, we have no backward compatibility issues
      to worry about, and passing unpromoted _Float32 and _Complex float
@@ -10099,7 +10099,7 @@ static void
 alpha_reorg (void)
 {
   /* Workaround for a linker error that triggers when an exception
-     handler immediatelly follows a sibcall or a noreturn function.
+     handler immediately follows a sibcall or a noreturn function.
 
 In the sibcall case:
 

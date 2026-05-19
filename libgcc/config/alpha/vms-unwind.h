@@ -114,13 +114,13 @@ alpha_vms_fallback_frame_state (struct _Unwind_Context *context,
   fs->retaddr_column = RA_COLUMN;
 
   /* If PV designates a VMS exception vector or condition handler, we need to
-     do as if the caller was the signaling point and estabish the state of the
+     do as if the caller was the signaling point and establish the state of the
      intermediate VMS code (CFA, RA and saved register locations) as if it was
      a single regular function.  This requires special processing.
 
      The datastructures available from an condition dispatcher frame (signal
      context) do not contain the values of most callee-saved registers, so
-     whathever PV designates, we need to account for the registers it saves.
+     whatever PV designates, we need to account for the registers it saves.
 
      Besides, we need to express all the locations with respect to a
      consistent CFA value, so we compute this first.  */
