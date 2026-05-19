@@ -875,7 +875,7 @@ fr30_const_double_is_zero (rtx operand)
    It must be REG<-REG, REG<-MEM, MEM<-REG or REG<-CONST.
    On the FR30 we are constrained by the fact that it does not
    support offsetable addresses, and so we have to load the
-   address of the secnd word into the second destination register
+   address of the second word into the second destination register
    before we can use it.  */
 
 rtx
