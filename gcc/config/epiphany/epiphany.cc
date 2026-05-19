@@ -1922,7 +1922,7 @@ epiphany_expand_epilogue (int sibcall_p)
   mem = gen_frame_mem (BLKmode, stack_pointer_rtx);
   /* For large / variable size frames, deallocating the register save area is
      joint with one register restore; for medium size frames, we use a
-     dummy post-increment load to dealloacte the whole frame.  */
+     dummy post-increment load to deallocate the whole frame.  */
   if (!SIMM11 (INTVAL (off)) || current_frame_info.last_slot >= 0)
     {
       emit_insn (gen_stack_adjust_ldr

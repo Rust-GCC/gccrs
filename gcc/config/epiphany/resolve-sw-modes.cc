@@ -68,7 +68,7 @@ public:
    If only one rounding mode is required, select that one.
    Else we have to choose one to use in this mode setting insn and
    insert new mode setting insns on the edges where the other mode
-   becomes unambigous.  */
+   becomes unambiguous.  */
 
 unsigned
 pass_resolve_sw_modes::execute (function *fun)
