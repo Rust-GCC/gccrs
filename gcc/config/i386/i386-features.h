@@ -145,7 +145,7 @@ class scalar_chain
   bitmap insns;
   /* All registers defined by a chain.  */
   bitmap defs;
-  /* Registers used in both vector and sclar modes.  */
+  /* Registers used in both vector and scalar modes.  */
   bitmap defs_conv;
 
   /* Limit on chain discovery.  */

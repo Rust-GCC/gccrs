@@ -878,7 +878,7 @@ ix86_function_specific_restore (struct gcc_options *opts,
   opts->x_ix86_tune_memset_strategy = ptr->x_ix86_tune_memset_strategy;
   opts->x_ix86_tune_no_default = ptr->x_ix86_tune_no_default;
   ix86_tune_cost = processor_cost_table[ix86_tune];
-  /* TODO: ix86_cost should be chosen at instruction or function granuality
+  /* TODO: ix86_cost should be chosen at instruction or function granularity
      so for cold code we use size_cost even in !optimize_size compilation.  */
   if (opts->x_optimize_size)
     ix86_cost = &ix86_size_cost;
@@ -1454,7 +1454,7 @@ ix86_valid_target_attribute_tree (tree fndecl, tree args,
 	opts->x_ix86_tune_string
 	  = ggc_strdup (option_strings[IX86_FUNCTION_SPECIFIC_TUNE]);
       /* If we have explicit arch string and no tune string specified, set
-	 tune_string to NULL and later it will be overriden by arch_string
+	 tune_string to NULL and later it will be overridden by arch_string
 	 so target clones can get proper optimization.  */
       else if (option_strings[IX86_FUNCTION_SPECIFIC_ARCH]
 	       || orig_tune_defaulted)
@@ -1959,7 +1959,7 @@ ix86_override_options_after_change_1 (struct gcc_options *opts,
 	OPTS (flag_web) = OPTS (flag_unroll_loops);
       if (!OPTS_SET_P (flag_rename_registers))
 	OPTS (flag_rename_registers) = OPTS (flag_unroll_loops);
-      /* -fcunroll-grow-size default follws -f[no]-unroll-loops.  */
+      /* -fcunroll-grow-size default follows -f[no]-unroll-loops.  */
       if (!OPTS_SET_P (flag_cunroll_grow_size))
 	OPTS (flag_cunroll_grow_size)
 	  = (OPTS (flag_unroll_loops)
@@ -2532,7 +2532,7 @@ ix86_option_override_internal (bool main_args_p,
   ix86_override_options_after_change_1 (opts, opts_set);
 
   ix86_tune_cost = processor_cost_table[ix86_tune];
-  /* TODO: ix86_cost should be chosen at instruction or function granuality
+  /* TODO: ix86_cost should be chosen at instruction or function granularity
      so for cold code we use size_cost even in !optimize_size compilation.  */
   if (opts->x_optimize_size)
     ix86_cost = &ix86_size_cost;

@@ -18,11 +18,11 @@
 
 ;; AMD btver2 scheduling
 
-;; Instructions decoded are that are classifed as direct (fast path single),
+;; Instructions decoded are that are classified as direct (fast path single),
 ;; double (fast path double) and vector instructions.
-;; Direct instrucions are decoded and convereted into 1 cop
-;; Double instrucions are decoded and converetd into 2 cops
-;; Vector instrucions are microcoded and they generated converted to 
+;; Direct instructions are decoded and converted into 1 cop
+;; Double instructions are decoded and converted into 2 cops
+;; Vector instructions are microcoded and they generated converted to 
 ;; 3 or more cops.
 
 (define_attr "btver2_decode" "direct,vector,double"
@@ -257,7 +257,7 @@
 					(eq_attr "memory" "store"))))
 			 "btver2-direct,btver2-alu,btver2-store")
 
-;; Other integer instrucions 
+;; Other integer instructions 
 (define_insn_reservation "btver2_idirect" 1
 			 (and (eq_attr "cpu" "btver2")
 			      (and (eq_attr "btver2_decode" "direct")
@@ -509,7 +509,7 @@
 					     (eq_attr "type" "sse")))))
 			 "btver2-double,btver2-load,btver2-fpm*42")
 
-;; Bitmanipulation instrucions BMI LZCNT POPCNT 
+;; Bitmanipulation instructions BMI LZCNT POPCNT 
 (define_insn_reservation "btver2_bmi_reg_direct"   1
 			 (and (eq_attr "cpu" "btver2")
 			      (and (eq_attr "btver2_decode" "direct")

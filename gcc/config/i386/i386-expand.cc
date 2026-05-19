@@ -2466,7 +2466,7 @@ ix86_expand_branch (enum rtx_code code, rtx op0, rtx op1, rtx label)
   machine_mode mode = GET_MODE (op0);
   rtx tmp;
 
-  /* Handle special case - vector comparsion with boolean result, transform
+  /* Handle special case - vector comparison with boolean result, transform
      it using ptest instruction or vpcmpeq + kortest.  */
   if (GET_MODE_CLASS (mode) == MODE_VECTOR_INT
       || (mode == TImode && !TARGET_64BIT)
@@ -4915,7 +4915,7 @@ ix86_expand_int_sse_cmp (rtx dest, enum rtx_code code, rtx cop0, rtx cop1,
       && GET_MODE_CLASS (mode) == MODE_VECTOR_INT
       && GET_MODE_SIZE (mode) <= 16)
     ;
-  /* AVX512F supports all of the comparsions
+  /* AVX512F supports all of the comparisons
      on all 128/256/512-bit vector int types.  */
   else if (ix86_use_mask_cmp_p (data_mode, mode, op_true, op_false))
     ;
@@ -5641,11 +5641,11 @@ ix86_expand_vec_perm (rtx operands[])
 	  else
 	    emit_insn (gen_avx2_pshufbv32qi3 (t1, mask, vt));
 
-	  /* Multiply the shuffle indicies by two.  */
+	  /* Multiply the shuffle indices by two.  */
 	  t1 = expand_simple_binop (maskmode, PLUS, t1, t1, t1, 1,
 				    OPTAB_DIRECT);
 
-	  /* Add one to the odd shuffle indicies:
+	  /* Add one to the odd shuffle indices:
 		t1 = { A*2, A*2+1, B*2, B*2+1, ... }.  */
 	  for (i = 0; i < w / 2; ++i)
 	    {
@@ -8812,7 +8812,7 @@ expand_small_cpymem_or_setmem (rtx destmem, rtx srcmem,
 }
 
 /* Handle small memcpy (up to SIZE that is supposed to be small power of 2.
-   and get ready for the main memcpy loop by copying iniital DESIRED_ALIGN-ALIGN
+   and get ready for the main memcpy loop by copying initial DESIRED_ALIGN-ALIGN
    bytes and last SIZE bytes adjusitng DESTPTR/SRCPTR/COUNT in a way we can
    proceed with an loop copying SIZE bytes at once. Do moves in MODE.
    DONE_LABEL is a label after the whole copying sequence. The label is created
@@ -9521,7 +9521,7 @@ ix86_copy_addr_to_reg (rtx addr)
      1) missaligned move prologue/epilogue containing:
         a) Prologue handling small memory blocks and jumping to done_label
 	   (skipped if blocks are known to be large enough)
-	b) Signle move copying first DESIRED_ALIGN-ALIGN bytes if alignment is
+	b) Single move copying first DESIRED_ALIGN-ALIGN bytes if alignment is
            needed by single possibly misaligned move
 	   (skipped if alignment is not needed)
         c) Copy of last SIZE_NEEDED bytes by possibly misaligned moves
@@ -14469,7 +14469,7 @@ ix86_expand_special_args_builtin (const struct builtin_description *d,
 	  op = fixup_modeless_constant (op, mode);
 
 	  /* NB: 3-operands load implied it's a mask load or v{p}expand*,
-	     and that mask operand shoud be at the end.
+	     and that mask operand should be at the end.
 	     Keep all-ones mask which would be simplified by the expander.  */
 	  if (nargs == 3 && i == 2 && klass == load
 	      && constm1_operand (op, mode)
@@ -18395,7 +18395,7 @@ ix86_expand_vector_init_interleave (machine_mode mode,
 	}
       else
 	{
-	  /* Extend the odd elment to SImode using a paradoxical SUBREG.  */
+	  /* Extend the odd element to SImode using a paradoxical SUBREG.  */
 	  op0 = gen_reg_rtx (SImode);
 	  emit_move_insn (op0, gen_lowpart (SImode, op));
 
@@ -18408,7 +18408,7 @@ ix86_expand_vector_init_interleave (machine_mode mode,
 				   const1_rtx);
 	  emit_insn (gen_rtx_SET (op1, op0));
 
-	  /* Cast the V4SImode vector back to a vector in orignal mode.  */
+	  /* Cast the V4SImode vector back to a vector in original mode.  */
 	  op0 = gen_reg_rtx (mode);
 	  emit_move_insn (op0, gen_lowpart (mode, op1));
 
@@ -22529,7 +22529,7 @@ expand_vec_perm_shufps_shufps (struct expand_vec_perm_d *d)
       perm1[3] = perm1[2]
 	= (count == 3) ? d->perm[pair_idx] : d->perm[pair_idx] + 4;
 
-      /* Alway put the vector contains lone indx at the first.  */
+      /* Always put the vector contains lone indx at the first.  */
       if (count == 1)
 	std::swap (d->op0, d->op1);
 
@@ -26551,7 +26551,7 @@ ix86_expand_sse2_mulvxdi3 (rtx op0, rtx op1, rtx op2)
 		       gen_rtx_MULT (mode, op1, op2));
 }
 
-/* Return 1 if control tansfer instruction INSN
+/* Return 1 if control transfer instruction INSN
    should be encoded with notrack prefix.  */
 
 bool
@@ -27139,7 +27139,7 @@ ix86_gen_ccmp_first (rtx_insn **prep_seq, rtx_insn **gen_seq,
 
   /* We only supports following scalar comparisons that use just 1
      instruction: DI/SI/QI/HI/DF/SF/HF.
-     Unordered/Ordered compare cannot be corretly indentified by
+     Unordered/Ordered compare cannot be correctly identified by
      ccmp so they are not supported.  */
   if (!(op_mode == DImode || op_mode == SImode || op_mode == HImode
 	|| op_mode == QImode || op_mode == DFmode || op_mode == SFmode

@@ -2478,7 +2478,7 @@ general_scalar_to_vector_candidate_p (rtx_insn *insn, enum machine_mode mode)
       return REG_P (dst);
 
     case VEC_SELECT:
-      /* Excluding MEM_P (dst) avoids intefering with vpextr[dq].  */
+      /* Excluding MEM_P (dst) avoids interfering with vpextr[dq].  */
       return REG_P (dst)
 	     && REG_P (XEXP (src, 0))
 	     && GET_MODE (XEXP (src, 0)) == (mode == DImode ? V2DImode
@@ -4879,7 +4879,7 @@ pass_x86_cse::x86_cse (void)
 	    continue;
 
 	  bool matched = false;
-	  /* Remove redundant pattens if there are more than 2 of
+	  /* Remove redundant patterns if there are more than 2 of
 	     them.  */
 	  unsigned int threshold = 2;
 
@@ -5302,14 +5302,14 @@ ix86_apx_nf_convert (void)
 	    continue;
 
 	  /* Convert candidate insns after cstore, which should
-	     satisify the two conditions:
+	     satisfy the two conditions:
 	     1. Is not flag user or producer, only clobbers
 	     FLAGS_REG.
 	     2. Have corresponding nf pattern.  */
 
 	  rtx pat = PATTERN (insn);
 
-	  /* Starting convertion at first cstorecc.  */
+	  /* Starting conversion at first cstorecc.  */
 	  rtx set = NULL_RTX;
 	  if (!converting_seq
 	      && (set = single_set (insn))
@@ -5819,7 +5819,7 @@ dispatch_function_versions (tree dispatch_decl,
 
   gseq = bb_seq (*empty_bb);
   /* Function version dispatch is via IFUNC.  IFUNC resolvers fire before
-     constructors, so explicity call __builtin_cpu_init here.  */
+     constructors, so explicitly call __builtin_cpu_init here.  */
   ifunc_cpu_init_stmt
     = gimple_build_call_vec (get_ix86_builtin (IX86_BUILTIN_CPU_INIT), vNULL);
   gimple_seq_add_stmt (&gseq, ifunc_cpu_init_stmt);

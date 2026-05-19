@@ -34,7 +34,7 @@
 (define_cpu_unit "znver1-decode3" "znver1")
 
 ;; Currently blocking all decoders for vector path instructions as
-;; they are dispatched separetely as microcode sequence.
+;; they are dispatched separately as microcode sequence.
 ;; Fix me: Need to revisit this.
 (define_reservation "znver1-vector" "znver1-decode0+znver1-decode1+znver1-decode2+znver1-decode3")
 
@@ -478,7 +478,7 @@
 			      (eq_attr "type" "lea"))
 			 "znver1-direct,znver1-ieu")
 
-;; Other integer instrucions
+;; Other integer instructions
 (define_insn_reservation "znver1_idirect" 1
 			 (and (eq_attr "cpu" "znver1,znver2,znver3")
 			      (and (eq_attr "unit" "integer,unknown")
@@ -807,7 +807,7 @@
 			 "znver1-direct,znver1-load,znver1-fp1|znver1-fp2")
 
 ;; SSE moves
-;; Fix me:  Need to revist this again some of the moves may be restricted
+;; Fix me:  Need to revisit this again some of the moves may be restricted
 ;; to some fpu pipes.
 (define_insn_reservation "znver1_sse_mov" 2
 			 (and (eq_attr "cpu" "znver1")

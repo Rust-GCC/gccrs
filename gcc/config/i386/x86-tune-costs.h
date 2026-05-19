@@ -1616,7 +1616,7 @@ struct processor_costs znver1_cost = {
   /* Start of register allocator costs.  integer->integer move cost is 2. */
 
   /* reg-reg moves are done by renaming and thus they are even cheaper than
-     1 cycle. Becuase reg-reg move cost is 2 and the following tables correspond
+     1 cycle. Because reg-reg move cost is 2 and the following tables correspond
      to doubles of latencies, we do not model this correctly.  It does not
      seem to make practical difference to bump prices up even more.  */
   6,					/* cost for loading QImode using
@@ -2355,13 +2355,13 @@ struct processor_costs znver5_cost = {
   /* FMA had throughput 2 and latency 4.  */
   COSTS_N_INSNS (4),			/* cost of FMA SS instruction.  */
   COSTS_N_INSNS (4),			/* cost of FMA SD instruction.  */
-  /* DIVSS has throughtput 0.4 and latency 10.  */
+  /* DIVSS has throughput 0.4 and latency 10.  */
   COSTS_N_INSNS (10),			/* cost of DIVSS instruction.  */
-  /* DIVSD has throughtput 0.25 and latency 13.  */
+  /* DIVSD has throughput 0.25 and latency 13.  */
   COSTS_N_INSNS (13),			/* cost of DIVSD instruction.  */
-  /* DIVSD has throughtput 0.22 and latency 14.  */
+  /* DIVSD has throughput 0.22 and latency 14.  */
   COSTS_N_INSNS (14),			/* cost of SQRTSS instruction.  */
-  /* DIVSD has throughtput 0.13 and latency 20.  */
+  /* DIVSD has throughput 0.13 and latency 20.  */
   COSTS_N_INSNS (20),			/* cost of SQRTSD instruction.  */
   COSTS_N_INSNS (3),			/* cost of CVTSS2SD etc.  */
   COSTS_N_INSNS (5),			/* cost of 256bit VCVTPS2PD etc.  */
@@ -2378,7 +2378,7 @@ struct processor_costs znver5_cost = {
 	for register pressure.
       - fp ops: 2 additions per cycle, latency 2-3
 		2 multiplicaitons per cycle, latency 3
-      - vector intger ops: 4 additions, latency 1
+      - vector integer ops: 4 additions, latency 1
 			   2 multiplications, latency 4
 	We increase width to 6 for multiplications
 	in ix86_reassociation_width.  */
@@ -2402,7 +2402,7 @@ struct processor_costs znver5_cost = {
   COSTS_N_INSNS (2),			/* Branch mispredict scale.  */
 };
 
-/* skylake_cost should produce code tuned for Skylake familly of CPUs.  */
+/* skylake_cost should produce code tuned for Skylake family of CPUs.  */
 static stringop_algs skylake_memcpy[2] =   {
   {libcall,
    {{256, rep_prefix_1_byte, true},
@@ -4277,7 +4277,7 @@ struct processor_costs generic_cost = {
   COSTS_N_INSNS (2),			/* Branch mispredict scale.  */
 };
 
-/* core_cost should produce code tuned for Core familly of CPUs.  */
+/* core_cost should produce code tuned for Core family of CPUs.  */
 static stringop_algs core_memcpy[2] = {
   {libcall, {{1024, rep_prefix_4_byte, true}, {-1, libcall, false}}},
   {libcall, {{24, loop, true}, {128, rep_prefix_8_byte, true},

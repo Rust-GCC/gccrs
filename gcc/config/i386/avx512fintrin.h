@@ -57,7 +57,7 @@ typedef enum
 /* These _mm{,256}_avx512* intrins are initially duplicated from their
    _mm{,256}_* forms from AVX2 or before.  At that time, e need to add them
    to prevent target option mismatch when calling AVX512 intrins implemented
-   with these intrins under no-evex512 function attribute.  Thess intrins will
+   with these intrins under no-evex512 function attribute.  These intrins will
    still be here to avoid huge changes.  All AVX512 intrins calling those AVX2
    intrins or before have changed their calls to these AVX512 version.  */
 extern __inline __m128 __attribute__((__gnu_inline__, __always_inline__, __artificial__))

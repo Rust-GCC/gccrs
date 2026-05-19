@@ -143,7 +143,7 @@ typedef struct dispatch_windows_s {
   struct dispatch_windows_s *prev;
 } dispatch_windows;
 
-/* Immediate valuse used in an insn.  */
+/* Immediate values used in an insn.  */
 typedef struct imm_info_s
   {
     int imm;
@@ -372,7 +372,7 @@ find_constant (rtx in_rtx, imm_info *imm_values)
 
 /* Return total size of immediate operands of an instruction along with number
    of corresponding immediate-operands.  It initializes its parameters to zero
-   befor calling FIND_CONSTANT.
+   before calling FIND_CONSTANT.
    INSN is the input instruction.  IMM is the total of immediates.
    IMM32 is the number of 32 bit immediates.  IMM64 is the number of 64
    bit immediates.  */

@@ -901,7 +901,7 @@
   return i == 3 || i == 5 || i == 9;
 })
 
-;; Match 4 or 8 to 11.  Used for embeded rounding.
+;; Match 4 or 8 to 11.  Used for embedded rounding.
 (define_predicate "const_4_or_8_to_11_operand"
   (match_code "const_int")
 {
@@ -1928,7 +1928,7 @@
   return true;
 })
 
-;; Return true if OP is a constant pool in perm{w,d,b} which constains index
+;; Return true if OP is a constant pool in perm{w,d,b} which contains index
 ;; match pmov{dw,wb,qd}.
 (define_predicate "permvar_truncate_operand"
  (match_code "mem")
@@ -1958,7 +1958,7 @@
   return true;
 })
 
-;; Return true if OP is a constant pool in shufb which constains index
+;; Return true if OP is a constant pool in shufb which contains index
 ;; match pmovdw.
 (define_predicate "pshufb_truncv4siv4hi_operand"
  (match_code "mem")
@@ -1988,7 +1988,7 @@
   return true;
 })
 
-;; Return true if OP is a constant pool in shufb which constains index
+;; Return true if OP is a constant pool in shufb which contains index
 ;; match pmovdw.
 (define_predicate "pshufb_truncv8hiv8qi_operand"
  (match_code "mem")

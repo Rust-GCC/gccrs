@@ -34,7 +34,7 @@
 (define_cpu_unit "znver4-decode3" "znver4")
 
 ;; Currently blocking all decoders for vector path instructions as
-;; they are dispatched separetely as microcode sequence.
+;; they are dispatched separately as microcode sequence.
 (define_reservation "znver4-vector" "znver4-decode0+znver4-decode1+znver4-decode2+znver4-decode3")
 
 ;; Direct instructions can be issued to any of the four decoders.

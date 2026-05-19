@@ -20,7 +20,7 @@ along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
 /* Define DEFAULT_PCC_STRUCT_RETURN to 1 because the i386 SVR4 ABI returns
-   records and unions in memory. ix86_option_override_internal will overide
+   records and unions in memory. ix86_option_override_internal will override
    this flag when compiling 64-bit code as we never do pcc_struct_return
    scheme on x86-64.  */
 #undef DEFAULT_PCC_STRUCT_RETURN

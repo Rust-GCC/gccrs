@@ -70,7 +70,7 @@
 (define_cpu_unit "athlon-decodev" "athlon")
 ;; Model the fact that double decoded instruction may take 2 cycles
 ;; to decode when decoder2 and decoder0 in next cycle
-;; is used (this is needed to allow troughput of 1.5 double decoded
+;; is used (this is needed to allow throughput of 1.5 double decoded
 ;; instructions per cycle).
 ;;
 ;; In order to avoid dependence between reservation of decoder
@@ -397,7 +397,7 @@
 			 "athlon-vector,(athlon-ieu+athlon-agu),athlon-ieu,
 			  athlon-store")
 
-;; Athlon floatin point unit
+;; Athlon floating point unit
 (define_insn_reservation "athlon_fldxf" 12
 			 (and (eq_attr "cpu" "athlon")
 			      (and (eq_attr "type" "fmov")
@@ -903,7 +903,7 @@
 					(eq_attr "mode" "V2DF,V4SF,TI"))))
 			 "athlon-direct,athlon-fpsched,athlon-fstore")
 ;; cvtsi2sd mem,reg is directpath path  (cvtsi2sd reg,reg is doublepath)
-;; cvtsi2sd has troughput 1 and is executed in store unit with latency of 6
+;; cvtsi2sd has throughput 1 and is executed in store unit with latency of 6
 (define_insn_reservation "athlon_sseicvt_cvtsi2sd_load" 6
 			 (and (eq_attr "cpu" "athlon,k8")
 			      (and (eq_attr "type" "sseicvt")
@@ -970,7 +970,7 @@
 					(and (eq_attr "mode" "SF,DF")
 					     (eq_attr "memory" "none")))))
 			 "athlon-vector,athlon-fploadk8,(athlon-faddmul+athlon-fstore)")
-;; cvtsd2ss mem,reg is doublepath, troughput unknown, latency 9
+;; cvtsd2ss mem,reg is doublepath, throughput unknown, latency 9
 (define_insn_reservation "athlon_ssecvt_cvtsd2ss_load_k8" 9
 			 (and (eq_attr "cpu" "k8,athlon")
 			      (and (eq_attr "type" "ssecvt")
@@ -985,7 +985,7 @@
 					(and (eq_attr "mode" "SF")
 					     (eq_attr "memory" "load")))))
 			 "athlon-double,athlon-fploadk8,(athlon-faddmul+athlon-fstore)")
-;; cvtsd2ss reg,reg is vectorpath, troughput unknown, latency 12
+;; cvtsd2ss reg,reg is vectorpath, throughput unknown, latency 12
 (define_insn_reservation "athlon_ssecvt_cvtsd2ss" 12
 			 (and (eq_attr "cpu" "athlon,k8")
 			      (and (eq_attr "type" "ssecvt")
@@ -1014,8 +1014,8 @@
 					(and (eq_attr "mode" "V4SF,V2DF,TI")
 					     (eq_attr "memory" "load")))))
 			 "athlon-double,athlon-fploadk8,(athlon-faddmul+athlon-fstore)")
-;; cvtpd2ps mem,reg is vectorpath, troughput unknown, latency 10
-;; ??? Why it is fater than cvtsd2ss?
+;; cvtpd2ps mem,reg is vectorpath, throughput unknown, latency 10
+;; ??? Why it is faster than cvtsd2ss?
 (define_insn_reservation "athlon_ssecvt_cvtpd2ps" 8
 			 (and (eq_attr "cpu" "athlon,k8")
 			      (and (eq_attr "type" "ssecvt")
@@ -1030,7 +1030,7 @@
 					(and (eq_attr "mode" "V4SF,V2DF,TI")
 					     (eq_attr "memory" "none")))))
 			 "athlon-double,athlon-fpsched,(athlon-faddmul+athlon-fstore)")
-;; cvtsd2si mem,reg is doublepath, troughput 1, latency 9
+;; cvtsd2si mem,reg is doublepath, throughput 1, latency 9
 (define_insn_reservation "athlon_secvt_cvtsX2si_load" 9
 			 (and (eq_attr "cpu" "athlon,k8")
 			      (and (eq_attr "type" "sseicvt")
@@ -1045,7 +1045,7 @@
 					(and (eq_attr "mode" "SI,DI")
 					     (eq_attr "memory" "load")))))
 			 "athlon-double,athlon-fploadk8,(athlon-fadd+athlon-fstore)")
-;; cvtsd2si reg,reg is doublepath, troughput 1, latency 9
+;; cvtsd2si reg,reg is doublepath, throughput 1, latency 9
 (define_insn_reservation "athlon_ssecvt_cvtsX2si" 9
 			 (and (eq_attr "cpu" "athlon")
 			      (and (eq_attr "type" "sseicvt")
@@ -1067,7 +1067,7 @@
 					(and (eq_attr "mode" "SI,DI")
 					     (eq_attr "memory" "none")))))
 			 "athlon-double,athlon-fpsched,(athlon-fadd+athlon-fstore)")
-;; cvtpd2dq reg,mem is doublepath, troughput 1, latency 9 on amdfam10
+;; cvtpd2dq reg,mem is doublepath, throughput 1, latency 9 on amdfam10
 (define_insn_reservation "athlon_sseicvt_cvtpd2dq_load_amdfam10" 9
 			 (and (eq_attr "cpu" "amdfam10")
 			      (and (eq_attr "type" "sseicvt")
@@ -1075,7 +1075,7 @@
 					(and (eq_attr "mode" "TI")
 					     (eq_attr "memory" "load")))))
 			 "athlon-double,athlon-fploadk8,(athlon-faddmul+athlon-fstore)")
-;; cvtpd2dq reg,mem is doublepath, troughput 1, latency 7 on amdfam10
+;; cvtpd2dq reg,mem is doublepath, throughput 1, latency 7 on amdfam10
 (define_insn_reservation "athlon_sseicvt_cvtpd2dq_amdfam10" 7
 			 (and (eq_attr "cpu" "amdfam10")
 			      (and (eq_attr "type" "sseicvt")

@@ -175,7 +175,7 @@
   ;; For AVX512BF16 support
   UNSPEC_VDPBF16PS
 
-  ;; For AVX512FP16 suppport
+  ;; For AVX512FP16 support
   UNSPEC_COMPLEX_FMA
   UNSPEC_COMPLEX_FMA_PAIR
   UNSPEC_COMPLEX_FCMA
@@ -214,7 +214,7 @@
   UNSPEC_SM4KEY4
   UNSPEC_SM4RNDS4
 
-  ;; For AVX10.2 suppport
+  ;; For AVX10.2 support
   UNSPEC_VDPPHPS
   UNSPEC_VCVTBIASPH2BF8
   UNSPEC_VCVTBIASPH2BF8S
@@ -256,7 +256,7 @@
   UNSPEC_VBMACXOR
   UNSPEC_VBITREV
 
-  ;; For MOVRS suppport
+  ;; For MOVRS support
   UNSPEC_VMOVRS
 ])
 
@@ -14042,7 +14042,7 @@
 	  UNSPEC_VTERNLOG))]
   "(<MODE_SIZE> == 64 || TARGET_AVX512VL
     || (TARGET_AVX512F && !TARGET_PREFER_AVX256))
-/* Disallow embeded broadcast for vector HFmode since
+/* Disallow embedded broadcast for vector HFmode since
    it's not real AVX512FP16 instruction.  */
   && (GET_MODE_SIZE (GET_MODE_INNER (<MODE>mode)) >= 4
      || GET_CODE (operands[3]) != VEC_DUPLICATE)"
@@ -17807,7 +17807,7 @@
        (const_string "0")))
    (set_attr "mode" "<sseinsnmode>")])
 
-;; PR target/101796: Transfrom movl+vpbranchcastw+vpsravw to vpsraw
+;; PR target/101796: Transform movl+vpbranchcastw+vpsravw to vpsraw
 ;; when COUNT is immediate.
 (define_split
   [(set (match_operand:VI248_AVX512BW 0 "register_operand")

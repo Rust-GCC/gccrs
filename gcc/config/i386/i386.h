@@ -794,7 +794,7 @@ extern const char *host_detect_local_cpu (int argc, const char **argv);
 
 /* 1 if -mstackrealign should be turned on by default.  It will
    generate an alternate prologue and epilogue that realigns the
-   runtime stack if nessary.  This supports mixing codes that keep a
+   runtime stack if necessary.  This supports mixing codes that keep a
    4-byte aligned stack, as specified by i386 psABI, with codes that
    need a 16-byte aligned stack, as required by SSE instructions.  */
 #define STACK_REALIGN_DEFAULT 0
@@ -805,7 +805,7 @@ extern const char *host_detect_local_cpu (int argc, const char **argv);
 /* According to Windows x64 software convention, the maximum stack allocatable
    in the prologue is 4G - 8 bytes.  Furthermore, there is a limited set of
    instructions allowed to adjust the stack pointer in the epilog, forcing the
-   use of frame pointer for frames larger than 2 GB.  This theorical limit
+   use of frame pointer for frames larger than 2 GB.  This theoretical limit
    is reduced by 256, an over-estimated upper bound for the stack use by the
    prologue.
    We define only one threshold for both the prolog and the epilog.  When the
@@ -1631,7 +1631,7 @@ enum reg_class
 
    FIXME: Unlike earlier implementations, the size of unwind info seems to
    actually grow with accumulation.  Is that because accumulated args
-   unwind info became unnecesarily bloated?
+   unwind info became unnecessarily bloated?
 
    With the 64-bit MS ABI, we can generate correct code with or without
    accumulated args, but because of OUTGOING_REG_PARM_STACK_SPACE the code

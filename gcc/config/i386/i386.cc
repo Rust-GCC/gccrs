@@ -235,7 +235,7 @@ unsigned int const debugger64_register_map[FIRST_PSEUDO_REGISTER] =
   75, 76, 77, 78, 79, 80, 81, 82,
   /* Mask registers */
   118, 119, 120, 121, 122, 123, 124, 125,
-  /* rex2 extend interger registers */
+  /* rex2 extend integer registers */
   130, 131, 132, 133, 134, 135, 136, 137,
   138, 139, 140, 141, 142, 143, 144, 145
 };
@@ -685,7 +685,7 @@ ix86_can_inline_p (tree caller, tree callee)
     ret = false;
 
   else if (caller_opts->x_ix86_fpmath != callee_opts->x_ix86_fpmath
-	   /* If the calle doesn't use FP expressions differences in
+	   /* If the callee doesn't use FP expressions differences in
 	      ix86_fpmath can be ignored.  We are called from FEs
 	      for multi-versioning call optimization, so beware of
 	      ipa_fn_summaries not available.  */
@@ -1321,7 +1321,7 @@ ix86_function_regparm (const_tree type, const_tree decl)
 
 	      /* Each fixed register usage increases register pressure,
 		 so less registers should be used for argument passing.
-		 This functionality can be overriden by an explicit
+		 This functionality can be overridden by an explicit
 		 regparm value.  */
 	      for (regno = AX_REG; regno <= DI_REG; regno++)
 		if (fixed_regs[regno])
@@ -1344,7 +1344,7 @@ ix86_function_regparm (const_tree type, const_tree decl)
    indicated TYPE and DECL.  DECL may be NULL when calling function
    indirectly or considering a libcall.  Return -1 if any FP parameter
    should be rejected by error.  This is used in siutation we imply SSE
-   calling convetion but the function is called from another function with
+   calling convention but the function is called from another function with
    SSE disabled. Otherwise return 0.  */
 
 static int
@@ -3076,7 +3076,7 @@ construct_container (machine_mode mode, machine_mode orig_mode,
    and data type TYPE.  (TYPE is null for libcalls where that information
    may not be available.)
 
-   Return a number of integer regsiters advanced over.  */
+   Return a number of integer registers advanced over.  */
 
 static int
 function_arg_advance_32 (CUMULATIVE_ARGS *cum, machine_mode mode,
@@ -4521,7 +4521,7 @@ ix86_return_in_memory (const_tree type, const_tree fntype ATTRIBUTE_UNUSED)
 	  if (size < 8)
 	    return false;
 
-	  /* Unless ABI prescibes otherwise,
+	  /* Unless ABI prescribes otherwise,
 	     MMX/3dNow values are returned in MM0 if available.  */
 
 	  if (size == 8)
@@ -6356,7 +6356,7 @@ output_indirect_thunk (unsigned int regno)
     fputs ("\tint3\n", asm_out_file);
 }
 
-/* Output a funtion with a call and return thunk for indirect branch.
+/* Output a function with a call and return thunk for indirect branch.
    If REGNO != INVALID_REGNUM, the function address is in REGNO.
    Otherwise, the function address is on the top of stack.  Thunk is
    used for function return if RET_P is true.  */
@@ -7088,8 +7088,8 @@ ix86_compute_frame_layout (void)
   frame->nsseregs = ix86_nsaved_sseregs ();
 
   /* 64-bit MS ABI seem to require stack alignment to be always 16,
-     except for function prologues, leaf functions and when the defult
-     incoming stack boundary is overriden at command line or via
+     except for function prologues, leaf functions and when the default
+     incoming stack boundary is overridden at command line or via
      force_align_arg_pointer attribute.
 
      Darwin's ABI specifies 128b alignment for both 32 and  64 bit variants
@@ -7118,7 +7118,7 @@ ix86_compute_frame_layout (void)
   gcc_assert (preferred_alignment <= stack_alignment_needed);
 
   /* The only ABI saving SSE regs should be 64-bit ms_abi or with
-     no_caller_saved_registers attribue.  */
+     no_caller_saved_registers attribute.  */
   gcc_assert (TARGET_64BIT
 	      || (cfun->machine->call_saved_registers
 		  == TYPE_NO_CALLER_SAVED_REGISTERS)
@@ -7564,7 +7564,7 @@ choose_basereg (HOST_WIDE_INT cfa_offset, rtx &base_reg,
 /* Return an RTX that points to CFA_OFFSET within the stack frame and
    the alignment of address.  If ALIGN is non-null, it should point to
    an alignment value (in bits) that is preferred or zero and will
-   recieve the alignment of the base register that was selected,
+   receive the alignment of the base register that was selected,
    irrespective of rather or not CFA_OFFSET is a multiple of that
    alignment value.  If it is possible for the base register offset to be
    non-immediate then SCRATCH_REGNO should specify a scratch register to
@@ -7714,7 +7714,7 @@ ix86_emit_save_reg_using_mov (machine_mode mode, unsigned int regno,
   addr = choose_baseaddr (cfa_offset, &align);
   mem = gen_frame_mem (mode, addr);
 
-  /* The location aligment depends upon the base register.  */
+  /* The location alignment depends upon the base register.  */
   align = MIN (GET_MODE_ALIGNMENT (mode), align);
   gcc_assert (! (cfa_offset & (align / BITS_PER_UNIT - 1)));
   set_mem_align (mem, align);
@@ -7951,7 +7951,7 @@ pro_epilogue_adjust_stack (rtx dest, rtx src, rtx offset,
 }
 
 /* Find an available register to be used as dynamic realign argument
-   pointer regsiter.  Such a register will be written in prologue and
+   pointer register.  Such a register will be written in prologue and
    used in begin of body, so it must not be
 	1. parameter passing register.
 	2. GOT pointer.
@@ -9813,7 +9813,7 @@ ix86_expand_prologue (void)
     }
   gcc_assert (m->fs.sp_offset == frame.stack_pointer_offset);
 
-  /* If we havn't already set up the frame pointer, do so now.  */
+  /* If we haven't already set up the frame pointer, do so now.  */
   if (frame_pointer_needed && !m->fs.fp_valid)
     {
       insn = gen_add3_insn (hard_frame_pointer_rtx, stack_pointer_rtx,
@@ -9845,7 +9845,7 @@ ix86_expand_prologue (void)
       RTX_FRAME_RELATED_P (insn) = 1;
       add_reg_note (insn, REG_CFA_FLUSH_QUEUE, NULL_RTX);
       emit_insn (gen_prologue_use (pic));
-      /* Deleting already emmitted SET_GOT if exist and allocated to
+      /* Deleting already emitted SET_GOT if exist and allocated to
 	 REAL_PIC_OFFSET_TABLE_REGNUM.  */
       ix86_elim_entry_set_got (pic);
     }
@@ -10160,7 +10160,7 @@ ix86_emit_restore_sse_regs_using_mov (HOST_WIDE_INT cfa_offset,
 	mem = choose_baseaddr (cfa_offset, &align);
 	mem = gen_rtx_MEM (V4SFmode, mem);
 
-	/* The location aligment depends upon the base register.  */
+	/* The location alignment depends upon the base register.  */
 	align = MIN (GET_MODE_ALIGNMENT (V4SFmode), align);
 	gcc_assert (! (cfa_offset & (align / BITS_PER_UNIT - 1)));
 	set_mem_align (mem, align);
@@ -12104,7 +12104,7 @@ ix86_memory_address_reg_class (rtx_insn* insn)
   /* Update recog_data for processing of alternatives.  */
   extract_insn_cached (insn);
 
-  /* If current alternative is not set, loop throught enabled
+  /* If current alternative is not set, loop through enabled
      alternatives and get the most limited register class.  */
   if (saved_alternative == -1)
     {
@@ -12347,7 +12347,7 @@ ix86_legitimate_address_p (machine_mode, rtx addr, bool strict,
 #if TARGET_MACHO
 	  else if (MACHO_DYNAMIC_NO_PIC_P
 		   && !ix86_legitimate_constant_p (Pmode, disp))
-	    /* displacment must be referenced via non_lazy_pointer */
+	    /* displacement must be referenced via non_lazy_pointer */
 	    return false;
 #endif
 
@@ -15760,7 +15760,7 @@ ix86_avx_u128_mode_after (int mode, rtx_insn *insn)
       if (avx_upper_reg_found)
 	return AVX_U128_DIRTY;
 
-      /* If the function desn't clobber any sse registers or only clobber
+      /* If the function doesn't clobber any sse registers or only clobber
 	 128-bit part, Then vzeroupper isn't issued before the function exit.
 	 the status not CLEAN but ANY after the function.  */
       const function_abi &abi = insn_callee_abi (insn);
@@ -16167,7 +16167,7 @@ ix86_output_addr_diff_elt (FILE *file, int value, int rel)
 /* Increase given DISTANCE in half-cycles according to
    dependencies between PREV and NEXT instructions.
    Add 1 half-cycle if there is no dependency and
-   go to next cycle if there is some dependecy.  */
+   go to next cycle if there is some dependency.  */
 
 static unsigned int
 increase_distance (rtx_insn *prev, rtx_insn *next, unsigned int distance)
@@ -16534,7 +16534,7 @@ ix86_lea_outperforms (rtx_insn *insn, unsigned int regno0, unsigned int regno1,
      lea priority.  */
   dist_define += split_cost + IX86_LEA_PRIORITY;
 
-  /* If there is no use in memory addess then we just check
+  /* If there is no use in memory address then we just check
      that split cost exceeds AGU stall.  */
   if (dist_use < 0)
     return dist_define > LEA_MAX_STALL;
@@ -16660,7 +16660,7 @@ ix86_avoid_lea_for_addr (rtx_insn *insn, rtx operands[])
      if split lea into a sequence of instructions.  */
   if (parts.base || parts.index)
     {
-      /* Have to use mov instruction if non desctructive
+      /* Have to use mov instruction if non destructive
 	 destination form is used.  */
       if (regno1 != regno0 && regno2 != regno0)
 	split_cost += 1;
@@ -17272,7 +17272,7 @@ ix86_cc_modes_compatible (machine_mode m1, machine_mode m2)
 }
 
 /* Return strategy to use for floating-point.  We assume that fcomi is always
-   preferrable where available, since that is also true when looking at size
+   preferable where available, since that is also true when looking at size
    (2 bytes, vs. 3 for fnstsw+sahf and at least 5 for fnstsw+test).  */
 
 enum ix86_fpcmp_strategy
@@ -18310,7 +18310,7 @@ add_parameter_dependencies (rtx_insn *call, rtx_insn *head)
 	}
       if (insn_is_function_arg (insn, &is_spilled))
 	{
-	  /* Add output depdendence between two function arguments if chain
+	  /* Add output dependence between two function arguments if chain
 	     of output arguments contains likely spilled HW registers.  */
 	  if (is_spilled)
 	    add_dependence (first_arg, insn, REG_DEP_OUTPUT);
@@ -18713,7 +18713,7 @@ ix86_data_alignment (tree type, unsigned int align, bool opt)
   return align;
 }
 
-/* Implememnt TARGET_LOWER_LOCAL_DECL_ALIGNMENT.  */
+/* Implement TARGET_LOWER_LOCAL_DECL_ALIGNMENT.  */
 static void
 ix86_lower_local_decl_alignment (tree decl)
 {
@@ -20210,7 +20210,7 @@ ix86_gimple_fold_builtin (gimple_stmt_iterator *gsi)
 	    {
 	      unsigned sel_idx;
 	      /* Imm[1:0](if VL > 128, then use Imm[3:2],Imm[5:4],Imm[7:6])
-		 provide 2 select constrols for each element of the
+		 provide 2 select controls for each element of the
 		 destination.  */
 	      if (imode == E_DFmode)
 		sel_idx = (i & 1) * elems + (i & ~1)
@@ -26023,7 +26023,7 @@ ix86_autovectorize_vector_modes (vector_modes *modes, bool all)
   return ix86_vect_compare_costs ? VECT_COMPARE_COSTS : 0;
 }
 
-/* Implemenation of targetm.vectorize.get_mask_mode.  */
+/* Implementation of targetm.vectorize.get_mask_mode.  */
 
 static opt_machine_mode
 ix86_get_mask_mode (machine_mode data_mode)
@@ -26097,7 +26097,7 @@ ix86_max_noce_ifcvt_seq_cost (edge e)
   /* For modern machines with deeper pipeline, the penalty for branch
      misprediction could be higher than before to reset the pipeline
      slots. Add parameter br_mispredict_scale as a factor to describe
-     the impact of reseting the pipeline.  */
+     the impact of resetting the pipeline.  */
 
   return BRANCH_COST (true, predictable_p)
 	 * ix86_tune_cost->br_mispredict_scale;
@@ -26363,7 +26363,7 @@ ix86_vector_costs::add_stmt_cost (int count, vect_cost_for_stmt kind,
 		 p = a < b
 		 c = p ? x : y
 	       and we will account first statement as setcc.  Exception is when
-	       p is loaded from memory as bool and then we will not acocunt
+	       p is loaded from memory as bool and then we will not account
 	       the compare, but there is no way to check for this.  */
 
 	    int ninsns = TARGET_SSE4_1 ? 1 : 3;
@@ -26883,7 +26883,7 @@ ix86_vector_costs::finish_cost (const vector_costs *scalar_costs)
     {
       /* We are currently not asking the vectorizer to compare costs
 	 between different vector mode sizes.  When using predication
-	 that will end up always choosing the prefered mode size even
+	 that will end up always choosing the preferred mode size even
 	 if there's a smaller mode covering all lanes.  Test for this
 	 situation and artificially reject the larger mode attempt.
 	 ???  We currently lack masked ops for sub-SSE sized modes,
@@ -27711,7 +27711,7 @@ ix86_optab_supported_p (int op, machine_mode mode1, machine_mode,
    to use %fs and %gs segment prefixes.  Therefore:
 
     (a) All address spaces have the same modes,
-    (b) All address spaces have the same addresss forms,
+    (b) All address spaces have the same address forms,
     (c) While %fs and %gs are technically subsets of the generic
         address space, they are probably not subsets of each other.
     (d) Since we have no access to the segment base register values
@@ -27863,7 +27863,7 @@ ix86_push_rounding (poly_int64 bytes)
 }
 
 /* Use 8 bits metadata start from bit48 for LAM_U48,
-   6 bits metadat start from bit57 for LAM_U57.  */
+   6 bits metadata start from bit57 for LAM_U57.  */
 #define IX86_HWASAN_SHIFT (ix86_lam_type == lam_u48		\
 			   ? 48					\
 			   : (ix86_lam_type == lam_u57 ? 57 : 0))

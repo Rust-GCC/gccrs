@@ -274,7 +274,7 @@ exact_store_load_dependency (rtx_insn *store, rtx_insn *load)
    between INSN and DEP_INSN through a dependence of type DEP_TYPE, and strength
    DW.  It should return the new value.
 
-   On x86 CPUs this is most commonly used to model the fact that valus of
+   On x86 CPUs this is most commonly used to model the fact that values of
    registers used to compute address of memory operand  needs to be ready
    earlier than values of registers used in the actual operation.  */
 
