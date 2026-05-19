@@ -3137,7 +3137,7 @@ arm_option_override_internal (struct gcc_options *opts,
   if (TARGET_THUMB_P (opts->x_target_flags) && TARGET_CALLEE_INTERWORKING)
     opts->x_target_flags |= MASK_INTERWORK;
 
-  /* need to remember initial values so combinaisons of options like
+  /* need to remember initial values so combinations of options like
      -mflip-thumb -mthumb -fno-schedule-insns work for any attribute.  */
   cl_optimization *to = TREE_OPTIMIZATION (init_optimize);
 
@@ -3196,7 +3196,7 @@ arm_option_override_internal (struct gcc_options *opts,
      'Find out how many of the (return) argument registers we can corrupt'.
      As a consequence, the epilogue may clobber registers without fipa-ra
      finding out about it.  Therefore, disable fipa-ra in Thumb1 mode.
-     TODO: Accurately model clobbers for epilogue_insns and reenable
+     TODO: Accurately model clobbers for epilogue_insns and re-enable
      fipa-ra.  */
   if (TARGET_THUMB1_P (opts->x_target_flags))
     opts->x_flag_ipa_ra = 0;
@@ -3869,7 +3869,7 @@ arm_option_override (void)
       && (!arm_arch7 || !current_tune->prefer_ldrd_strd))
     flag_schedule_fusion = 0;
 
-  /* Need to remember initial options before they are overriden.  */
+  /* Need to remember initial options before they are overridden.  */
   init_optimize = build_optimization_node (&global_options,
 					   &global_options_set);
 
@@ -4991,7 +4991,7 @@ optimal_immediate_sequence_1 (enum rtx_code code, unsigned HOST_WIDE_INT val,
 	  else if (loc > 16)
 	    {
 	      /* The 8-bit immediate already found clears b2 (and maybe b3)
-		 and we don't get here unless b1 is alredy clear, but it will
+		 and we don't get here unless b1 is already clear, but it will
 		 leave b4 unchanged.  */
 
 	      /* If we can clear b2 and b4 at once, then we win, since the
@@ -6305,7 +6305,7 @@ arm_pcs_from_attribute (tree attr)
 }
 
 /* Get the PCS variant to use for this call.  TYPE is the function's type
-   specification, DECL is the specific declartion.  DECL may be null if
+   specification, DECL is the specific declaration.  DECL may be null if
    the call could be indirect or if this is a library call.  */
 static enum arm_pcs
 arm_get_pcs_model (const_tree type, const_tree decl ATTRIBUTE_UNUSED)
@@ -6895,7 +6895,7 @@ aapcs_vfp_advance (CUMULATIVE_ARGS *pcum  ATTRIBUTE_UNUSED,
   }
 
 /* Table of co-processors that can be used to pass arguments in
-   registers.  Idealy no arugment should be a candidate for more than
+   registers.  Ideally no argument should be a candidate for more than
    one co-processor table entry, but the table is processed in order
    and stops after the first match.  If that entry then fails to put
    the argument into a co-processor register, the argument will go on
@@ -7158,7 +7158,7 @@ aapcs_layout_arg (CUMULATIVE_ARGS *pcum, machine_mode mode,
   /* C6 - NCRN is set to 4.  */
   pcum->aapcs_next_ncrn = NUM_ARG_REGS;
 
-  /* C7,C8 - arugment goes on the stack.  We have nothing to do here.  */
+  /* C7,C8 - argument goes on the stack.  We have nothing to do here.  */
   return;
 }
 
@@ -7218,7 +7218,7 @@ arm_init_cumulative_args (CUMULATIVE_ARGS *pcum, tree fntype,
    Return 1 if double word alignment is required for argument passing.
    Return -1 if double word alignment used to be required for argument
    passing before PR77728 ABI fix, but is not required anymore.
-   Return 0 if double word alignment is not required and wasn't requried
+   Return 0 if double word alignment is not required and wasn't required
    before either.  */
 static int
 arm_needs_doubleword_align (machine_mode mode, const_tree type)
@@ -10491,7 +10491,7 @@ arm_rtx_costs_internal (rtx x, enum rtx_code code, enum rtx_code outer_code,
 	*cost = LIBCALL_COST (2);
 
       /* Make the cost of sdiv more expensive so when both sdiv and udiv are
-	 possible udiv is prefered.  */
+	 possible udiv is preferred.  */
       *cost += (code == DIV ? COSTS_N_INSNS (1) : 0);
       return false;	/* All arguments must be in registers.  */
 
@@ -10516,7 +10516,7 @@ arm_rtx_costs_internal (rtx x, enum rtx_code code, enum rtx_code outer_code,
     /* Fall-through.  */
     case UMOD:
       /* Make the cost of sdiv more expensive so when both sdiv and udiv are
-	 possible udiv is prefered.  */
+	 possible udiv is preferred.  */
       *cost = LIBCALL_COST (2) + (code == MOD ? COSTS_N_INSNS (1) : 0);
       return false;	/* All arguments must be in registers.  */
 
@@ -13394,7 +13394,7 @@ mve_bool_vec_to_const (rtx const_vec)
 }
 
 /* Return a non-NULL RTX iff VALS, which is a PARALLEL containing only
-   constants (for vec_init) or CONST_VECTOR, can be effeciently loaded
+   constants (for vec_init) or CONST_VECTOR, can be efficiently loaded
    into a register.
 
    If this is the case, and GENERATE is set, we also generate code to do
@@ -17024,7 +17024,7 @@ operands_ok_ldrd_strd (rtx rt, rtx rt2, rtx rn, HOST_WIDE_INT offset,
           || (t % 2 != 0)   /* First destination register is not even.  */
           || (t2 != t + 1)
           /* PC can be used as base register (for offset addressing only),
-             but it is depricated.  */
+             but it is deprecated.  */
           || (n == PC_REGNUM)))
     return false;
 
@@ -22379,8 +22379,8 @@ emit_multi_reg_push (unsigned long mask, unsigned long dwarf_regs_mask)
 	     of dwarf code emitter and it doesn't consider reg-reg copies while
 	     updating the register list.  When PACBTI is enabled we manually
 	     updated the .save directive register list to use "ra_auth_code"
-	     (pseduo register 143) instead of IP register as shown in following
-	     pseduo code.
+	     (pseudo register 143) instead of IP register as shown in following
+	     pseudo code.
 	     Example:
 		pacbti  ip, lr, sp
 		.cfi_register 143, 12
@@ -22643,7 +22643,7 @@ arm_emit_vfp_multi_reg_pop (int first_reg, int num_regs, rtx base_reg)
   par = emit_insn (par);
   REG_NOTES (par) = dwarf;
 
-  /* Make sure cfa doesn't leave with IP_REGNUM to allow unwinding fron FP.  */
+  /* Make sure cfa doesn't leave with IP_REGNUM to allow unwinding from FP.  */
   if (REGNO (base_reg) == IP_REGNUM)
     {
       RTX_FRAME_RELATED_P (par) = 1;
@@ -22798,7 +22798,7 @@ thumb2_emit_ldrd_pop (unsigned long saved_regs_mask)
 
 /* LDRD in ARM mode needs consecutive registers as operands.  This function
    emits LDRD whenever possible, otherwise it emits single-word loads. It uses
-   offset addressing and then generates one separate stack udpate. This provides
+   offset addressing and then generates one separate stack update. This provides
    more scheduling freedom, compared to writeback on every load.  However,
    if the function returns using load into PC directly
    (i.e., if PC is in SAVED_REGS_MASK), the stack needs to be updated
@@ -24102,7 +24102,7 @@ arm_print_condition (FILE *stream)
 
 
 /* Globally reserved letters: acln
-   Puncutation letters currently used: @_-|?().!#
+   Punctuation letters currently used: @_-|?().!#
    Lower case letters currently used: bcdefhimpqtvwxyz
    Upper case letters currently used: ABCDEFGHIJKLMOPQRSTUV
    Letters previously used, but now deprecated/obsolete: sNWXYZ.
@@ -25317,7 +25317,7 @@ get_arm_condition_code (rtx comparison)
 }
 
 /* Implement TARGET_FIXED_CONDITION_CODE_REGS.  We only have condition
-   code registers when not targetting Thumb1.  The VFP condition register
+   code registers when not targeting Thumb1.  The VFP condition register
    only exists when generating hard-float code.  */
 static bool
 arm_fixed_condition_code_regs (unsigned int *p1, unsigned int *p2)
@@ -26278,7 +26278,7 @@ thumb_pop (FILE *f, unsigned long mask)
       if (TARGET_INTERWORK || TARGET_BACKTRACE || crtl->calls_eh_return
 	  || IS_CMSE_ENTRY (arm_current_func_type ()))
 	{
-	  /* The PC is never poped directly, instead
+	  /* The PC is never popped directly, instead
 	     it is popped into r3 and then BX is used.  */
 	  fprintf (f, "}\n");
 
@@ -28614,7 +28614,7 @@ arm_print_asm_arch_directives (FILE *stream, cl_target_option *targ_options)
 
   if (strcmp (build_target.arch_name, "armv7ve") == 0)
     {
-      /* Keep backward compatability for assemblers which don't support
+      /* Keep backward compatibility for assemblers which don't support
 	 armv7ve.  Fortunately, none of the following extensions are reset
 	 by a .fpu directive.  */
       asm_fprintf (stream, "\t.arch armv7-a\n");
@@ -29852,7 +29852,7 @@ arm_debugger_regno (unsigned int regno)
 }
 
 /* Dwarf models VFPv3 registers as 32 64-bit registers.
-   GCC models tham as 64 32-bit registers, so we need to describe this to
+   GCC models them as 64 32-bit registers, so we need to describe this to
    the DWARF generation code.  Other registers can use the default.  */
 static rtx
 arm_dwarf_register_span (rtx rtl)
@@ -34428,7 +34428,7 @@ arm_target_bb_ok_for_lob (basic_block bb)
 	  && single_succ_edge (bb)->dest == single_pred_edge (bb)->src);
 }
 
-/* Utility fuction: Given a VCTP or a VCTP_M insn, return the number of MVE
+/* Utility function: Given a VCTP or a VCTP_M insn, return the number of MVE
    lanes based on the machine mode being used.  */
 
 static int
@@ -34614,7 +34614,7 @@ arm_mve_load_store_insn_p (rtx_insn* insn,
    are used.
 
    If INSN is a MVE operation across lanes that is not predicated by
-   VCTP_VPR_GENERATED it can not be validated by the use of its ouputs.
+   VCTP_VPR_GENERATED it can not be validated by the use of its outputs.
 
    Any other INSN is safe to implicit predicate if we don't use its outputs
    outside the loop.  The instructions that use this INSN's outputs will be
@@ -34836,7 +34836,7 @@ arm_mve_check_reg_origin_is_num_elems (loop *loop, rtx reg, rtx vctp_step,
   if (DF_REG_DEF_COUNT (REGNO (reg)) > 2)
     return false;
 
-  /* Look for a single defition of REG going into the loop.  The DEF_CHAIN will
+  /* Look for a single definition of REG going into the loop.  The DEF_CHAIN will
      have at least two values, as this is a loop induction variable that is
      defined outside the loop.  */
   for (df_ref def = DF_REG_DEF_CHAIN (REGNO (reg));
@@ -35130,7 +35130,7 @@ arm_mve_dlstp_check_dec_counter (loop *loop, rtx_insn* vctp_insn,
     }
   /* If the decrements are the same, then the situation is simple: either they
      are also the same reg, which is safe, or they are different registers, in
-     which case makse sure that there is a only simple SET from one to the
+     which case make sure that there is a only simple SET from one to the
      other inside the loop.*/
   else if (decrementnum == arm_mve_get_vctp_lanes (vctp_insn))
     {
@@ -35319,7 +35319,7 @@ arm_mve_loop_valid_for_dlstp (loop *loop)
 
 /* Predict whether the given loop in gimple will be transformed in the RTL
    doloop_optimize pass.  It could be argued that turning large enough loops
-   into low-overhead loops would not show a signficant performance boost.
+   into low-overhead loops would not show a significant performance boost.
    However, in the case of tail predication we would still avoid using VPT/VPST
    instructions inside the loop, and in either case using low-overhead loops
    would not be detrimental, so we decided to not consider size, avoiding the
@@ -35390,7 +35390,7 @@ arm_loop_unroll_adjust (unsigned nunroll, struct loop *loop)
     return nunroll;
 }
 
-/* Function to hadle emitting a VPT-unpredicated version of a VPT-predicated
+/* Function to handle emitting a VPT-unpredicated version of a VPT-predicated
    insn to a sequence.  */
 
 static bool

@@ -753,7 +753,7 @@ public:
 
 /* Map the vidup / vddup function directly to CODE (UNSPEC, M) where M is the
    vector mode associated with type suffix 0.  We need this special case
-   because in MODE_wb the builtins derefrence the first parameter and update
+   because in MODE_wb the builtins dereference the first parameter and update
    its contents.  We also have to insert the two additional parameters needed
    by the builtins compared to the intrinsics.  In wrapping mode, we have to
    match the 'hack' to make sure the 'wrap' parameters is in odd register.  */
@@ -886,7 +886,7 @@ public:
 
 /* Map the vshlc function directly to CODE (UNSPEC, M) where M is the vector
    mode associated with type suffix 0.  We need this special case because the
-   intrinsics derefrence the second parameter and update its contents.  */
+   intrinsics dereference the second parameter and update its contents.  */
 class vshlc_impl : public function_base
 {
 public:

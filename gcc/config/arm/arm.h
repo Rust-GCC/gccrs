@@ -893,7 +893,7 @@ extern const int arm_arch_cde_coproc_bits[];
 /* Round X up to the nearest word.  */
 #define ROUND_UP_WORD(X) (((X) + 3) & ~3)
 
-/* Convert fron bytes to ints.  */
+/* Convert from bytes to ints.  */
 #define ARM_NUM_INTS(X) (((X) + UNITS_PER_WORD - 1) / UNITS_PER_WORD)
 
 /* The number of (integer) registers required to hold a quantity of type MODE.

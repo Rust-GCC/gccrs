@@ -1,4 +1,4 @@
-;; Unspec defintions.
+;; Unspec definitions.
 ;; Copyright (C) 2012-2026 Free Software Foundation, Inc.
 ;; Contributed by ARM Ltd.
 

@@ -134,7 +134,7 @@
 
 ;; Vector forms for the IEEE-754 fmax()/fmin() functions
 ;; Fixme: Should be enabled for MVE as well, but currently that uses an
-;; incompatible expasion.
+;; incompatible expansion.
 (define_expand "<fmaxmin><mode>3"
   [(set (match_operand:VF 0 "s_register_operand" "")
 	(unspec:VF [(match_operand:VF 1 "s_register_operand")

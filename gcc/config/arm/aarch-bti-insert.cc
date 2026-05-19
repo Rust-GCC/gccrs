@@ -138,7 +138,7 @@ rest_of_insert_bti (void)
 	    }
 
 	  /* There could still be more labels that are valid targets of a
-	     BTI J instuction.  To find them we start looking through the
+	     BTI J instruction.  To find them we start looking through the
 	     JUMP_INSN.  If it jumps to a jump table, then we find all labels
 	     of the jump table to protect with a BTI J.  */
 	  if (JUMP_P (insn))

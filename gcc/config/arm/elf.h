@@ -93,7 +93,7 @@
    Otherwise, the readonly data section is used.  */
 /* The choice of placement for jump tables is nuanced.  For cores with
    Harvard caches (pretty much all cases these days), there is a
-   benefit of maintaing a separation between I- and D-cache candidates
+   benefit of maintaining a separation between I- and D-cache candidates
    and that favors having jump tables in the RO data section.  This
    makes the dispatch sequence slightly longer as we need to load the
    address of the jump table first, but we often save elsewhere as the

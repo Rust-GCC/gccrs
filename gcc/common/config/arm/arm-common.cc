@@ -272,10 +272,10 @@ arm_config_default (const char *name)
 
 /* Called by the driver to check whether the target denoted by current
    command line options is a Thumb-only, or ARM-only, target.  ARGV is
-   an array of tupples (normally only one) where the first element of
-   the tupple is 'cpu' or 'arch' and the second is the option passed
-   to the compiler for that.  An architecture tupple is always taken
-   in preference to a cpu tupple and the last of each type always
+   an array of tuples (normally only one) where the first element of
+   the tuple is 'cpu' or 'arch' and the second is the option passed
+   to the compiler for that.  An architecture tuple is always taken
+   in preference to a cpu tuple and the last of each type always
    overrides any earlier setting.  */
 
 const char *
@@ -794,13 +794,13 @@ arm_canon_arch_option_1 (int argc, const char **argv, bool arch_for_multilib)
   /* If we have a soft-float ABI, disable the FPU.  */
   if (abi && strcmp (abi, "soft") == 0)
     {
-      /* Clearing the VFPv2 bit is sufficient to stop any extention that
+      /* Clearing the VFPv2 bit is sufficient to stop any extension that
 	 builds on the FPU from matching.  */
       bitmap_clear_bit (target_isa, isa_bit_vfpv2);
     }
 
   /* Here we remove feature isa bits from -mlibarch string which are not
-     necessary for multilib string comparsion.  */
+     necessary for multilib string comparison.  */
   if ((arch || cpu) && arch_for_multilib)
     {
       const enum isa_feature removable_bits[] = {ISA_IGNORE_FOR_MULTILIB,

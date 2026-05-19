@@ -35,7 +35,7 @@
 ;; or clobbering the flags.  Instead, they have the attribute "conds"
 ;; with value "set" or "clob".  However, this attribute is not used to
 ;; identify dependencies and therefore the scheduler might reorder
-;; these instruction.  Currenly, this problem cannot happen because
+;; these instruction.  Currently, this problem cannot happen because
 ;; there are no separate Thumb1 patterns for individual instruction
 ;; that consume flags (except conditional execution, which is treated
 ;; differently).  In particular there is no Thumb1 armv6-m pattern for
@@ -1070,7 +1070,7 @@
 
 
 ;; A pattern to recognize a special situation and optimize for it.
-;; On the thumb, zero-extension from memory is preferrable to sign-extension
+;; On the thumb, zero-extension from memory is preferable to sign-extension
 ;; due to the available addressing modes.  Hence, convert a signed comparison
 ;; with zero into an unsigned comparison with 127 if possible.
 (define_expand "cbranchqi4"

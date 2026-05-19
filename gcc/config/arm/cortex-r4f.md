@@ -23,7 +23,7 @@
 ;; registers are early registers.  Thus base latencies are 1 more than
 ;; those listed in the TRM.
 
-;; We use the A, B abd C units from the integer core, plus two additional
+;; We use the A, B and C units from the integer core, plus two additional
 ;; units to enforce VFP dual issue constraints.
 
 ;;		  A B C	    V1	VMLA

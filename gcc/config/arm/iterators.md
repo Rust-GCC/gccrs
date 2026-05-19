@@ -2110,7 +2110,7 @@
 (define_code_attr shift [(ashiftrt "ashr") (lshiftrt "lshr")])
 (define_code_attr shifttype [(ashiftrt "signed") (lshiftrt "unsigned")])
 
-;; String reprentations of operations on the sign of a number.
+;; String representations of operations on the sign of a number.
 (define_code_attr absneg_str [(abs "abs") (neg "neg")])
 
 ;; Conversions.
@@ -2268,7 +2268,7 @@
                                (UNSPEC_VRINTA "a") (UNSPEC_VRINTM "m")
                                (UNSPEC_VRINTR "r") (UNSPEC_VRINTX "x")])
 
-;; Some of the vrint instuctions are predicable.
+;; Some of the vrint instructions are predicable.
 (define_int_attr vrint_predicable [(UNSPEC_VRINTZ "yes") (UNSPEC_VRINTP "no")
                                   (UNSPEC_VRINTA "no") (UNSPEC_VRINTM "no")
                                   (UNSPEC_VRINTR "yes") (UNSPEC_VRINTX "yes")])

@@ -314,7 +314,7 @@
 ;   that the instruction does not use or alter the condition codes.
 ;
 ; NOCOND means that the instruction does not use or alter the condition
-;   codes but can be converted into a conditionally exectuted instruction.
+;   codes but can be converted into a conditionally executed instruction.
 ;   Given that NOCOND is the default for most instructions if omitted,
 ;   the attribute predicable must be set to yes as well.
 
@@ -1057,7 +1057,7 @@
    (set_attr "type" "alus_imm")]
 )
 
-;; We can handle more constants efficently if we can clobber either a scratch
+;; We can handle more constants efficiently if we can clobber either a scratch
 ;; or the other source operand.  We deliberately leave this late as in
 ;; high register pressure situations it's not worth forcing any reloads.
 (define_peephole2
@@ -11661,7 +11661,7 @@
 )
 
 ;; Note - although unspec_volatile's USE all hard registers,
-;; USEs are ignored after relaod has completed.  Thus we need
+;; USEs are ignored after reload has completed.  Thus we need
 ;; to add an unspec of the link register to ensure that flow
 ;; does not think that it is unused by the sibcall branch that
 ;; will replace the standard function epilogue.
@@ -11690,7 +11690,7 @@
 	emit_move_insn (ra, operands[2]);
 	operands[2] = ra;
       }
-    /* This is a hack -- we may have crystalized the function type too
+    /* This is a hack -- we may have crystallized the function type too
        early.  */
     cfun->machine->func_type = 0;
   }"

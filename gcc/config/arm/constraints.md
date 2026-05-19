@@ -133,7 +133,7 @@
 	   (match_test "(ival & 0xfffff000) == 0"))))
 
 (define_constraint "PJ"
- "@internal A constant that satisfies the Pj constrant if negated."
+ "@internal A constant that satisfies the Pj constraint if negated."
  (and (match_code "const_int")
       (and (match_test "TARGET_THUMB2")
 	   (match_test "((-ival) & 0xfffff000) == 0"))))

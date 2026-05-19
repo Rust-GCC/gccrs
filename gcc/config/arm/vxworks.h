@@ -143,7 +143,7 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
    8K is reserved in the stack to propagate exceptions in case of overflow.  */
 #define STACK_CHECK_PROTECT 8192
 
-/* Unless overridded by the target options, the default is little-endian.  */
+/* Unless overridden by the target options, the default is little-endian.  */
 #define TARGET_ENDIAN_DEFAULT 0
 
 /* The VxWorks environment on ARM is llvm based and we need to link

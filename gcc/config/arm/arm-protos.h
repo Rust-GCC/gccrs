@@ -360,7 +360,7 @@ struct tune_params
     prefer_constant_pool: 1;
   /* Prefer STRD/LDRD instructions over PUSH/POP/LDM/STM.  */
   enum {PREF_LDRD_FALSE, PREF_LDRD_TRUE} prefer_ldrd_strd: 1;
-  /* The preference for non short cirtcuit operation when optimizing for
+  /* The preference for non short circuit operation when optimizing for
      performance. The first element covers Thumb state and the second one
      is for ARM state.  */
   enum log_op_non_short_circuit {LOG_OP_NON_SHORT_CIRCUIT_FALSE,

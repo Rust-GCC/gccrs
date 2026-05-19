@@ -702,7 +702,7 @@ struct binary_lshift_unsigned_def : public overloaded_base<0>
     if (r.pred == PRED_m)
       {
 	/* With PRED_m, check that the 'inactive' first argument has
-	   the expeected unsigned type.  */
+	   the expected unsigned type.  */
 	type_suffix_index return_type
 	  = find_type_suffix (TYPE_unsigned, type_suffixes[type].element_bits);
 
@@ -750,7 +750,7 @@ struct binary_maxamina_def : public overloaded_base<0>
 	|| (type = r.infer_vector_type (i)) == NUM_TYPE_SUFFIXES)
       return error_mark_node;
 
-    /* Check that the first argument has the expeected unsigned
+    /* Check that the first argument has the expected unsigned
        type.  */
     type_suffix_index return_type
       = find_type_suffix (TYPE_unsigned, type_suffixes[type].element_bits);
@@ -2858,7 +2858,7 @@ struct viddup_def : public overloaded_base<0>
       return error_mark_node;
 
     type_suffix = r.type_suffix_ids[0];
-    /* With PRED_m, ther is no type suffix, so infer it from the first (inactive)
+    /* With PRED_m, there is no type suffix, so infer it from the first (inactive)
        argument.  */
     if (type_suffix == NUM_TYPE_SUFFIXES)
       type_suffix = r.infer_vector_type (0);
@@ -2943,7 +2943,7 @@ struct vidwdup_def : public overloaded_base<0>
       return error_mark_node;
 
     type_suffix = r.type_suffix_ids[0];
-    /* With PRED_m, ther is no type suffix, so infer it from the first (inactive)
+    /* With PRED_m, there is no type suffix, so infer it from the first (inactive)
        argument.  */
     if (type_suffix == NUM_TYPE_SUFFIXES)
       type_suffix = r.infer_vector_type (0);

@@ -43,7 +43,7 @@ ADJUST_FLOAT_FORMAT (HF, ((arm_fp16_format == ARM_FP16_FORMAT_ALTERNATIVE)
      (eg after an unsigned borrow with carry-in propagation).
    (used for DImode signed comparisons).
    CC_ADCmode is used when the carry is formed from the output of ADC for an
-     addtion.  In this case we cannot use the trick of comparing the sum
+     addition.  In this case we cannot use the trick of comparing the sum
      against one of the other operands.
    CCmode should be used otherwise.  */
 

@@ -403,7 +403,7 @@
        (eq_attr "cortex_a17_neon_type" "neon_fp_recpe_rsqrte_q"))
   "(ca17_asimd0+ca17_perm0)*2|(ca17_asimd1+ca17_perm1)*2")
 
-;; Miscelaneous Instructions.
+;; Miscellaneous Instructions.
 
 (define_insn_reservation
   "cortex_a17_neon_bitops" 4

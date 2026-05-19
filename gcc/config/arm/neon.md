@@ -964,7 +964,7 @@
 ;; 64-bit shifts
 
 ;; This pattern loads a 32-bit shift count into a 64-bit NEON register,
-;; leaving the upper half uninitalized.  This is OK since the shift
+;; leaving the upper half uninitialized.  This is OK since the shift
 ;; instruction only looks at the low 8 bits anyway.  To avoid confusing
 ;; data flow analysis however, we pretend the full register is set
 ;; using an unspec.
