@@ -3922,7 +3922,7 @@ csky_output_inline_const (machine_mode mode, rtx operands[])
      off to an lrw rather than calling this routine.  */
   gcc_assert (trick_type != IC_UNINLINABLE);
 
-  /* Operands: 0 = dst, 1 = load immedate., 2 = adjust immedate.  */
+  /* Operands: 0 = dst, 1 = load immediate., 2 = adjust immediate.  */
   out_operands[0] = operands[0];
   out_operands[1] = GEN_INT (x);
   if (trick_type != IC_SINGLE && trick_type != IC_APPEND_NOT)
@@ -5637,7 +5637,7 @@ emit_csky_regs_pop (unsigned long mask)
        (set (reg:SI 'first reg number')
 	    (unspec:SI [(mem)] UNSPEC_PUSHPOP_MULT),
      the rest elements is (use (reg:SI 'rest reg number')),
-     so the length should be number of register to be poped
+     so the length should be number of register to be popped
      plus one.  */
   par = gen_rtx_PARALLEL (VOIDmode, rtvec_alloc (num_regs + 1));
 
@@ -7081,7 +7081,7 @@ csky_return_in_memory (const_tree type,
 
 /* Implement TARGET_DWARF_REGISTER_SPAN.
    Dwarf models VFP registers as  64-bit or 128-bit registers default.
-   GCC models tham as 32-bit registers, so we need to describe this to
+   GCC models them as 32-bit registers, so we need to describe this to
    the DWARF generation code.  Other registers can use the default.  */
 
 static rtx
