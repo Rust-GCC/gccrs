@@ -24,9 +24,10 @@
 
 import locale
 import sys
-from difflib import ndiff
+import re
 from itertools import groupby
-
+from operator import itemgetter
+from difflib import ndiff
 import unidecode
 
 locale.setlocale(locale.LC_ALL, 'en_US.utf8')
@@ -38,26 +39,25 @@ if len(sys.argv) != 2:
     sys.exit(1)
 
 
-def get_surname(name):
+def get_name_for_sort(name):
     parts = name.split()
-    surname = parts[-1]
+    surname = parts[-1] + ", " + " ".join(parts[:-1])
 
     # Special-case some names
-    if name == 'Stefan Schulze Frielinghaus':
-        surname = parts[1]
-    elif name == 'Kris Van Hees':
-        surname = parts[1]
-    elif surname == "d'Humieres":
-        surname = 'Humieres'
+    if (name == 'Stefan Schulze Frielinghaus'
+        or name == 'Kris Van Hees'):
+        surname = " ".join(parts[1:]) + ", " + parts[0]
+    if surname.startswith("d'"):
+        surname = surname[2:]
 
     # Remove accents
     return unidecode.unidecode(surname)
 
 
-def check_group(name, lines, columns):
+def check_group(name, lines, columns, matcher, sort_by):
     global exit_code
-
     named_lines = []
+    rex = re.compile (matcher)
     for line in lines:
         if line.startswith(' '):
             print(f'Line should not start with space: "{line}"')
@@ -71,44 +71,79 @@ def check_group(name, lines, columns):
 
         # Special-case some names
         if line == 'James Norris':
-            named_lines.append((get_surname(line), line + "\n"))
+            named_lines.append((get_name_for_sort(line), "", "", line))
             continue
 
-        pieces = []
-        for i, column in enumerate(columns):
-            piece = ""
-            if len(line) <= column:
-                print(f'Line too short: "{line}"')
-                exit_code = 4
-            elif column > 0 and line[column - 1] != ' ':
-                print(f'Column {column - 1} should be empty: "{line}"')
-                exit_code = 5
-            elif line[column] == ' ':
-                print(f'Column {column} should be nonempty: "{line}"')
-                exit_code = 6
-            elif i == len(columns) - 1:
-                piece = line[column:].rstrip()
+        fields = rex.match(line)
+        if not fields:
+            print(f'Could not parse line: "{line}"')
+            exit_code = 3
+            continue
+
+        matched_keys = [
+            name for name, idx in sorted (rex.groupindex.items(),
+                                        key=lambda x: x[1])
+            if fields.group(idx) is not None]
+
+        pos = 0
+        for i, k in enumerate (matched_keys):
+            if i >= len (columns):
+                break
+            if pos < columns[i]:
+                pos = columns[i]
+            start = fields.start(k)
+            if k == 'email':
+                start -= 1  # Account for the leading '<'
+            if start == pos:
+                True
+            elif (start > pos
+                  and pos > 2
+                  and k == 'email'
+                  and line[start-1] == " "
+                  and line[start-2] != " "):
+                True
+            elif (start > pos
+                  and k != 'email'
+                  and pos > 3
+                  and line[start-2:start] == "  "
+                  and line[start-3] != " "):
+                True
             else:
-                piece = line[column:columns[i + 1]].rstrip()
+                exit_code = 3
+                print (line)
+                print (f"{k} starts in the wrong column: expected: {pos}, actual {start}")
+            pos += 1 + len (fields[k].rstrip())
 
-            if "  " in piece:
-                print(f'Malformed field at column {column}: "{line}"')
-                exit_code = 7
+        fields = fields.groupdict()
+        if 'Team' in fields and fields['Team']:
+            fields['User'] = fields['Team']
+            fields['email'] = ""
+        pieces = []
+        for i, f in enumerate (sort_by):
+            if f not in fields:
+                print('Internal error: re mismatch')
+                sys.exit(10)
+            if f == 'User':
+                pieces.append(get_name_for_sort(fields[f].rstrip()))
+            elif f == 'component':
+                pieces.append(fields[f].rstrip().lower())
+            else:
+                pieces.append(fields[f].rstrip())
+        pieces.append (line)
+        named_lines.append(pieces)
 
-            pieces.append(piece)
-
-        named_lines.append((get_surname(pieces[0]), line + "\n"))
-
-        email = pieces[-1]
-        if email and (not email.startswith('<') or not email.endswith('>')):
-            print(f'Malformed email address: "{line}"')
-            exit_code = 8
-
+    order = []
+    for i, _ in enumerate (sort_by):
+        order.append(i)
+    order = tuple(order)
     lines = [line + "\n" for line in lines]
-    sorted_lines = [line for _, line in sorted(named_lines)]
+    sorted_lines = [line[-1] + "\n"
+                    for line in sorted(named_lines,
+                                       key = itemgetter(*order))]
     if lines != sorted_lines:
         exit_code = 1
-        diff = ndiff(lines, sorted_lines)
+        diff = [line for line in ndiff(lines, sorted_lines)
+                if not line.startswith('? ')]
         print(f'Wrong order for {name}:\n')
         print(''.join(diff))
     else:
@@ -121,11 +156,55 @@ if '\t' in text:
     exit_code = 9
 
 sections = [
-    # heading, paragraph index, column numbers
-    ('Global Reviewers', 1, [0, 48]),
-    ('Write After Approval', 2, [0, 32, 48]),
-    ('Bug database only accounts', 1, [0, 48]),
-    ('Contributing under the DCO', 2, [0, 48])
+    # heading, paragraph index, column numbers, regex, sort order
+    ('Global Reviewers',
+     1,
+     [0, 48],
+     r'^(?P<User>.{47}) <(?P<email>.*)>$',
+     ['User', 'email']),
+    ('CPU Port Maintainers    (CPU alphabetical order)',
+     1,
+     [0, 24, 48],
+     r'^(?P<component>.{23}) (?P<User>.*) <(?P<email>[^<>]*)>$',
+     ['component', 'User', 'email']),
+    ('OS Port Maintainers     (OS alphabetical order)',
+     1,
+     [0, 24, 48],
+     r'^(?P<component>.{23}) (?P<User>.*) <(?P<email>[^<>]*)>$',
+     ['component', 'User', 'email']),
+    ('Language Front Ends Maintainer',
+     1,
+     [0, 24, 48],
+     r'^(?P<component>.{23}) (?P<User>.*) <(?P<email>[^<>]*)>$',
+     ['component', 'User', 'email']),
+    ('Various Maintainers',
+     1,
+     [0, 24, 48],
+     r'''(?x)
+         ^(?P<component>(?:(?!\s\s).)*)\s\s+
+         (?:(?P<Team>All.*maintainers)
+          |(?P<User>[^\s].*)\s+<(?P<email>[^<>]*)>)$''',
+     ['component', 'User', 'email']),
+    ('Reviewers',
+     1,
+     [0, 24, 48],
+     r'^(?P<component>(?:(?!  ).)*)  +(?P<User>[^\s].*) <(?P<email>[^<>]*)>$',
+     ['component', 'User', 'email']),
+    ('Write After Approval',
+     2,
+     [0, 32, 48],
+     r'^(?P<User>.{31}) (?P<account>.{15}) <(?P<email>[^<>]*)>$',
+     ['User', 'email', 'account']),
+    ('Bug database only accounts',
+     1,
+     [0, 48],
+     r'^(?P<User>.{47}) <(?P<email>[^<>]*)>$',
+     ['User', 'email']),
+    ('Contributing under the DCO',
+     2,
+     [0, 48],
+     r'^(?P<User>.{47}) <(?P<email>[^<>]*)>$',
+     ['User', 'email'])
 ]
 
 i = 0
@@ -137,7 +216,8 @@ for is_empty, lines in groupby(text.splitlines(), lambda x: not x):
     if count > 0:
         count -= 1
         if count == 0:
-            check_group(sections[i][0], lines, sections[i][2])
+            check_group(sections[i][0], lines, sections[i][2], sections[i][3],
+                        sections[i][4])
             i += 1
     elif len(lines) == 1 and i < len(sections) and sections[i][0] in lines[0]:
         count = sections[i][1]
