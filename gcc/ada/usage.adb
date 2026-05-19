@@ -715,23 +715,20 @@ begin
    Write_Switch_Char ("zr");
    Write_Line ("Distribution stub generation for receiver stubs");
 
-   if not Latest_Ada_Only then
+   --  Line for -gnat83 switch
 
-      --  Line for -gnat83 switch
+   Write_Switch_Char ("83");
+   Write_Line ("Ada 83 mode");
 
-      Write_Switch_Char ("83");
-      Write_Line ("Ada 83 mode");
+   --  Line for -gnat95 switch
 
-      --  Line for -gnat95 switch
+   Write_Switch_Char ("95");
+   Write_Line ("Ada 95 mode");
 
-      Write_Switch_Char ("95");
-      Write_Line ("Ada 95 mode");
+   --  Line for -gnat2005 switch
 
-      --  Line for -gnat2005 switch
-
-      Write_Switch_Char ("2005");
-      Write_Line ("Ada 2005 mode");
-   end if;
+   Write_Switch_Char ("2005");
+   Write_Line ("Ada 2005 mode");
 
    --  Line for -gnat2012 switch
 

@@ -354,22 +354,18 @@ begin
       ------------
 
       when Pragma_Ada_83 =>
-         if not Latest_Ada_Only then
-            Ada_Version := Ada_83;
-            Ada_Version_Explicit := Ada_83;
-            Ada_Version_Pragma := Pragma_Node;
-         end if;
+         Ada_Version := Ada_83;
+         Ada_Version_Explicit := Ada_83;
+         Ada_Version_Pragma := Pragma_Node;
 
       ------------
       -- Ada_95 --
       ------------
 
       when Pragma_Ada_95 =>
-         if not Latest_Ada_Only then
-            Ada_Version := Ada_95;
-            Ada_Version_Explicit := Ada_95;
-            Ada_Version_Pragma := Pragma_Node;
-         end if;
+         Ada_Version := Ada_95;
+         Ada_Version_Explicit := Ada_95;
+         Ada_Version_Pragma := Pragma_Node;
 
       ---------------------
       -- Ada_05/Ada_2005 --
@@ -378,7 +374,7 @@ begin
       when Pragma_Ada_05
          | Pragma_Ada_2005
       =>
-         if Arg_Count = 0 and not Latest_Ada_Only then
+         if Arg_Count = 0 then
             Ada_Version := Ada_2005;
             Ada_Version_Explicit := Ada_2005;
             Ada_Version_Pragma := Pragma_Node;

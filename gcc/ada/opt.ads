@@ -67,11 +67,6 @@ package Opt is
    --  case of some binder variables, Gnatbind.Scan_Bind_Arg may modify
    --  the default values.
 
-   Latest_Ada_Only : Boolean := False;
-   --  If True, the only value valid for Ada_Version is Ada_2012 or later.
-   --  Trying to specify other values will be ignored (in case of pragma
-   --  Ada_xxx) or generate an error (in case of -gnat83/95/xx switches).
-
    type Ada_Version_Type is
      (Ada_83, Ada_95, Ada_2005, Ada_2012, Ada_2022,
       Ada_With_Core_Extensions, Ada_With_All_Extensions);
