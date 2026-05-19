@@ -9039,6 +9039,43 @@
 
 ;; Bit Reverse
 
+(define_insn_and_split "bitreverseqi2"
+  [(set (match_operand:QI 0 "register_operand"               "=r")
+        (bitreverse:QI (match_operand:QI 1 "register_operand" "r")))]
+  ""
+  "#"
+  "&& reload_completed"
+  [(scratch)]
+  { DONE_ADD_CCC })
+
+(define_insn "*bitreverseqi2"
+  [(set (match_operand:QI 0 "register_operand"               "=r")
+        (bitreverse:QI (match_operand:QI 1 "register_operand" "r")))
+   (clobber (reg:CC REG_CC))]
+  "reload_completed"
+  {
+    return REGNO (operands[0]) == REGNO (operands[1])
+      ? "mov __tmp_reg__,%0"            CR_TAB
+        "lsl %0"                        CR_TAB
+        "adc %0,__zero_reg__"           CR_TAB
+        "bst __tmp_reg__,0 $ bld %0,7"  CR_TAB
+        "bst __tmp_reg__,1 $ bld %0,6"  CR_TAB
+        "bst __tmp_reg__,2 $ bld %0,5"  CR_TAB
+        "bst __tmp_reg__,4 $ bld %0,3"  CR_TAB
+        "bst __tmp_reg__,5 $ bld %0,2"  CR_TAB
+        "bst __tmp_reg__,6 $ bld %0,1"
+      : "mov %0,%1"            CR_TAB
+        "lsl %0"               CR_TAB
+        "adc %0,__zero_reg__"  CR_TAB
+        "bst %1,0 $ bld %0,7"  CR_TAB
+        "bst %1,1 $ bld %0,6"  CR_TAB
+        "bst %1,2 $ bld %0,5"  CR_TAB
+        "bst %1,4 $ bld %0,3"  CR_TAB
+        "bst %1,5 $ bld %0,2"  CR_TAB
+        "bst %1,6 $ bld %0,1";
+  }
+  [(set_attr "length" "15")])
+
 (define_insn_and_split "bitreversehi2"
   [(set (match_operand:HI 0 "register_operand"               "={r24}")
         (bitreverse:HI (match_operand:HI 1 "register_operand" "{r24}")))]
