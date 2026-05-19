@@ -70,7 +70,4 @@
 
 #define GLOBAL_ASM_OP "\t.global\t"
 
-#undef SUPPORTS_INIT_PRIORITY
-#define SUPPORTS_INIT_PRIORITY 0
-
 #endif
