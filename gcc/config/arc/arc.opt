@@ -141,7 +141,7 @@ mmixed-code
 Target Ignore Undocumented
 Does nothing.  Preserved for backward compatibility.
 
-; We use an explict definition for the negative form because that is the
+; We use an explicit definition for the negative form because that is the
 ; actually interesting option, and we want that to have its own comment.
 mvolatile-cache
 Target RejectNegative Mask(VOLATILE_CACHE_SET)

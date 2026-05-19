@@ -42,7 +42,7 @@
    FLAGS  Specific hardware flags that are enabled by this CPU configuration,
 	  as defined in arc-options.def file, and allowed by arc-arches.def
 	  file.  The specific hardware flags are enumerated without using
-	  spaces between the '|' character and consequtive flags.
+	  spaces between the '|' character and consecutive flags.
    EXTRA  Extra hardware flags, different than the ones in
 	  arc-arches.def.  Here we can specify the width of lp_count,
 	  for example.

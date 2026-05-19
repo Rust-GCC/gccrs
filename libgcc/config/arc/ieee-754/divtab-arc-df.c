@@ -33,9 +33,9 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
    Because of the Newton-raphson iteration step, an error in the seed at X
    is amplified by X.  Therefore, we don't want a Tchebycheff polynom
    or a polynom that is close to optimal according to the maximum norm
-   on the errro of the seed value; we want one that is close to optimal
+   on the error of the seed value; we want one that is close to optimal
    according to the maximum norm on the error of the result, i.e. we
-   want the maxima of the polynom to increase linearily.
+   want the maxima of the polynom to increase linearly.
    Given an interval [X0,X2) over which to approximate,
    with X1 := (X0+X2)/2,  D := X1-X0, F := 1/D, and S := D/X1 we have,
    like for Tchebycheff polynoms:

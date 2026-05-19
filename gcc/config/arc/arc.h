@@ -53,7 +53,7 @@ along with GCC; see the file COPYING3.  If not see
 #define TARGET_CPU_CPP_BUILTINS() arc_cpu_cpp_builtins (pfile)
 
 /* Macros enabled by specific command line option.  FIXME: to be
-   deprecatd.  */
+   deprecated.  */
 #define CPP_SPEC "\
 %{msimd:-D__Xsimd} %{mno-mpy:-D__Xno_mpy} %{mswap:-D__Xswap} \
 %{mmin-max:-D__Xmin_max} %{mEA:-D__Xea} \
@@ -147,7 +147,7 @@ extern const char *arc_cpu_to_as (int argc, const char **argv);
 /* Should we add padding before a return insn to avoid mispredict?  */
 #define TARGET_PAD_RETURN (TARGET_ARC700 && !optimize_size)
 
-/* For an anulled-true delay slot insn for a delayed branch, should we only
+/* For an annulled-true delay slot insn for a delayed branch, should we only
    use conditional execution?  */
 #define TARGET_AT_DBR_CONDEXEC  (!TARGET_ARC700 && !TARGET_V2)
 
@@ -971,7 +971,7 @@ arc_select_cc_mode (OP, X, Y)
    These extra instructions - and the second comparison - will also be
    an extra cost if the first comparison would have been decisive.
    So get an average saving, with a probability of the first branch
-   beging decisive of p0, we want:
+   being decisive of p0, we want:
    p0 * (branch_cost - 4) > (1 - p0) * 5
    ??? We don't get to see that probability to evaluate, so we can
    only wildly guess that it might be 50%.  */
@@ -1596,7 +1596,7 @@ enum
    because that would lead to infinite recursion as the attribute test
    needs to recognize the insn.  So, instead we have a clause for
    the pattern condition of all sfunc patterns which is only relevant for
-   the predicated varaint.  */
+   the predicated variant.  */
 #define SFUNC_CHECK_PREDICABLE \
   (GET_CODE (PATTERN (insn)) != COND_EXEC || !flag_pic || !TARGET_MEDIUM_CALLS)
 

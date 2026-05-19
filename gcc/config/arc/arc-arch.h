@@ -47,7 +47,7 @@ enum base_architecture
     BASE_ARCH_END
   };
 
-/* Architecture specific propoerties.  */
+/* Architecture specific properties.  */
 
 typedef struct
 {

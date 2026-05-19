@@ -83,7 +83,7 @@ typedef struct GTY (()) _arc_jli_section
 
 static arc_jli_section *arc_jli_sections = NULL;
 
-/* Track which regs are set fixed/call saved/call used from commnad line.  */
+/* Track which regs are set fixed/call saved/call used from command line.  */
 HARD_REG_SET overrideregs;
 
 /* Maximum size of a loop.  */
@@ -473,7 +473,7 @@ legitimate_scaled_address_p (machine_mode mode, rtx op, bool strict)
       return false;
     }
 
-  /* Scalled addresses for sdata is done other places.  */
+  /* Scaled addresses for sdata is done other places.  */
   if (legitimate_small_data_address_p (op, mode))
     return false;
 
@@ -1539,7 +1539,7 @@ get_arc_condition_code (rtx comparison)
   return (42);
 }
 
-/* Return true if COMPARISON has a short form that can accomodate OFFSET.  */
+/* Return true if COMPARISON has a short form that can accommodate OFFSET.  */
 
 bool
 arc_short_comparison_p (rtx comparison, int offset)
@@ -2404,7 +2404,7 @@ arc_setup_incoming_varargs (cumulative_args_t args_so_far,
     }
 }
 
-/* Return TRUE if reg is ok for short instrcutions.  */
+/* Return TRUE if reg is ok for short instructions.  */
 
 static bool
 arc_check_short_reg_p (rtx op)
@@ -3064,8 +3064,8 @@ pop_reg (rtx reg)
   return GET_MODE_SIZE (GET_MODE (reg));
 }
 
-/* Check if we have a continous range to be save/restored with the
-   help of enter/leave instructions.  A vaild register range starts
+/* Check if we have a continuous range to be save/restored with the
+   help of enter/leave instructions.  A valid register range starts
    from $r13 and is up to (including) $r26.  */
 
 static bool
@@ -3389,7 +3389,7 @@ arc_restore_callee_leave (uint64_t gmask,
 
   if (offset && !restore_fp)
     {
-      /* This add is only emmited when we do not restore fp with leave
+      /* This add is only emitted when we do not restore fp with leave
 	 instruction.  */
       frame_stack_add (offset);
       frame_allocated += offset;
@@ -4811,7 +4811,7 @@ arc_asm_trampoline_template (FILE *f)
    that no executable code but trampolines is on the stack, no icache
    entries linger for the area of the stack from when before the stack
    was allocated, and allocating trampolines in trampoline-only cache
-   lines or allocate trampolines fram a special pool of pre-allocated
+   lines or allocate trampolines from a special pool of pre-allocated
    trampolines.  */
 
 static void
@@ -4869,7 +4869,7 @@ arc_add_jli_section (rtx pat)
   arc_jli_sections = new_section;
 }
 
-/* This is set briefly to 1 when we output a ".as" address modifer, and then
+/* This is set briefly to 1 when we output a ".as" address modifier, and then
    reset when we output the scaled address.  */
 static int output_scaled = 0;
 
@@ -7635,7 +7635,7 @@ arc_invalid_within_doloop (const rtx_insn *insn)
   return NULL;
 }
 
-/* Return the next active insn, skiping the inline assembly code.  */
+/* Return the next active insn, skipping the inline assembly code.  */
 
 static rtx_insn *
 arc_active_insn (rtx_insn *insn)
@@ -8462,9 +8462,9 @@ arc_reorg (void)
    delay slot scheduling:
 
    - If a delay slot is filled with a nocond/set insn from above, the previous
-     basic block can become elegible for conditional execution.
+     basic block can become eligible for conditional execution.
    - If a delay slot is filled with a nocond insn from the fall-through path,
-     the branch with that delay slot can become eligble for conditional
+     the branch with that delay slot can become eligible for conditional
      execution (however, with the same sort of data flow analysis that dbr
      does, we could have figured out before that we don't need to
      conditionalize this insn.)
@@ -9489,8 +9489,8 @@ conditionalize_nonjump (rtx pat, rtx cond, rtx insn, bool annulled)
      what to do with COND_EXEC.  */
   if (RTX_FRAME_RELATED_P (insn))
     {
-      /* If this is the delay slot insn of an anulled branch,
-	 dwarf2out.cc:scan_trace understands the anulling semantics
+      /* If this is the delay slot insn of an annulled branch,
+	 dwarf2out.cc:scan_trace understands the annulling semantics
 	 without the COND_EXEC.  */
       gcc_assert (annulled);
       rtx note = alloc_reg_note (REG_FRAME_RELATED_EXPR, pat,
@@ -10184,7 +10184,7 @@ arc_eh_uses (int regno)
   return false;
 }
 
-/* ??? Should we define TARGET_REGISTER_PRIORITY?  We might perfer to
+/* ??? Should we define TARGET_REGISTER_PRIORITY?  We might prefer to
    use q registers, because some insn are shorter with them.  OTOH we
    already have separate alternatives for this purpose, and other
    insns don't mind, so maybe we should rather prefer the other
@@ -11298,7 +11298,7 @@ arc_memory_move_cost (machine_mode mode,
    one OR instruction:
    OR rA, rB, mask -> OR rA,rB,mask1/BSET_S rA,mask2
 
-   3. otherwise an OR with limm will be emmitted.  */
+   3. otherwise an OR with limm will be emitted.  */
 
 void
 arc_split_ior (rtx *operands)

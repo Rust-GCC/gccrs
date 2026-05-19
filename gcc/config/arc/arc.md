@@ -557,7 +557,7 @@
 
 ;; Delay slot definition for ARCompact ISA
 ;; ??? FIXME:
-;; When outputting an annul-true insn elegible for cond-exec
+;; When outputting an annul-true insn eligible for cond-exec
 ;; in a cbranch delay slot, unless optimizing for size, we use cond-exec
 ;; for ARC600; we could also use this for ARC700 if the branch can't be
 ;; unaligned and is at least somewhat likely (add parameter for this).
@@ -3928,7 +3928,7 @@ archs4x, archs4xd"
 })
 
 ;; ??? Could add a peephole to generate compare with swapped operands and
-;; modifed cc user if second, but not first operand is a compact register.
+;; modified cc user if second, but not first operand is a compact register.
 (define_insn "cmpsi_cc_insn_mixed"
   [(set (reg:CC CC_REG)
 	(compare:CC (match_operand:SI 0 "register_operand"   "q, q,  h, c, c,  q,c")
@@ -4170,7 +4170,7 @@ archs4x, archs4xd"
 ; are three reasons why we need to consider branches to be length 6:
 ; - annull-false delay slot insns are implemented using conditional execution,
 ;   thus preventing short insn formation where used.
-; - for ARC600: annull-true delay slot isnns are implemented where possile
+; - for ARC600: annull-true delay slot isnns are implemented where possible
 ;   using conditional execution, preventing short insn formation where used.
 ; - for ARC700: likely or somewhat likely taken branches are made long and
 ;   unaligned if possible to avoid branch penalty.
@@ -5190,7 +5190,7 @@ archs4x, archs4xd"
  ;; Comment in final.cc (insn_current_reference_address) says
  ;; forward branch addresses are calculated from the next insn after branch
  ;; and for backward branches, it is calculated from the branch insn start.
- ;; The shortening logic here is tuned to accomodate this behavior
+ ;; The shortening logic here is tuned to accommodate this behavior
 ;; ??? This should be grokked by the ccfsm machinery.
 (define_insn "cbranchsi4_scratch"
   [(set (pc)
@@ -6082,7 +6082,7 @@ archs4x, archs4xd"
 			 (match_operand:SI 3 "const_int_operand" "")))]
   "TARGET_NPS_BITOPS")
 
-; We need a sanity check in the instuction predicate because combine
+; We need a sanity check in the instruction predicate because combine
 ; will throw any old rubbish at us and see what sticks.
 (define_insn "*extzv_i"
   [(set (match_operand:SI 0 "register_operand" "=Rrq")
