@@ -11999,34 +11999,78 @@ ix86_expand_sse_ptest (const struct builtin_description *d, tree exp,
   machine_mode mode0 = insn_data[d->icode].operand[0].mode;
   machine_mode mode1 = insn_data[d->icode].operand[1].mode;
   enum rtx_code comparison = d->comparison;
-
-  /* ptest reg, reg sets the carry flag.  */
-  if (comparison == LTU
-      && (d->code == IX86_BUILTIN_PTESTC
-	  || d->code == IX86_BUILTIN_PTESTC256)
-      && rtx_equal_p (op0, op1))
-    {
-      if (!target)
-	target = gen_reg_rtx (SImode);
-      emit_move_insn (target, const1_rtx);
-      return target;
-    }
+  rtx result = NULL_RTX;
 
   if (VECTOR_MODE_P (mode0))
     op0 = safe_vector_operand (op0, mode0);
   if (VECTOR_MODE_P (mode1))
     op1 = safe_vector_operand (op1, mode1);
 
+  switch (d->code)
+    {
+    case IX86_BUILTIN_PTESTZ:
+    case IX86_BUILTIN_PTESTZ256:
+      // Returns (OP0 & OP1) == 0
+      if (rtx_equal_p (op0, CONST0_RTX (mode0))
+	  || rtx_equal_p (op1, CONST0_RTX (mode1)))
+	result = const1_rtx;
+      else if (rtx_equal_p (op0, CONSTM1_RTX (mode0)))
+	{
+	  op1 = force_reg (mode1, op1);
+	  op0 = op1;
+	}
+      else if (rtx_equal_p (op1, CONSTM1_RTX (mode1)))
+	{
+	  op0 = force_reg (mode0, op0);
+	  op1 = op0;
+	}
+      else if (MEM_P (op0) && !MEM_P (op1))
+	std::swap (op0, op1);
+      break;
+
+    case IX86_BUILTIN_PTESTC:
+    case IX86_BUILTIN_PTESTC256:
+      // Returns (~OP0 & OP1) == 0
+      if (rtx_equal_p (op0, CONSTM1_RTX (mode0))
+	  || rtx_equal_p (op1, CONST0_RTX (mode1))
+	  || rtx_equal_p (op0, op1))
+	result = const1_rtx;
+      break;
+
+    case IX86_BUILTIN_PTESTNZC:
+    case IX86_BUILTIN_PTESTNZC256:
+      // Returns ((OP0 && OP1) != 0) && ((~OP0 && OP1) != 0)
+      if (rtx_equal_p (op0, CONST0_RTX (mode0))
+	  || rtx_equal_p (op0, CONSTM1_RTX (mode0))
+	  || rtx_equal_p (op1, CONST0_RTX (mode1))
+	  || rtx_equal_p (op0, op1))
+	result = const0_rtx;
+      break;
+
+    default:
+      break;
+    }
+
+  if ((optimize && !register_operand (op0, mode0))
+      || !insn_data[d->icode].operand[0].predicate (op0, mode0)
+      || result)
+    op0 = copy_to_mode_reg (mode0, op0);
+  if ((optimize && !register_operand (op1, mode1))
+      || !insn_data[d->icode].operand[1].predicate (op1, mode1)
+      || result)
+    op1 = copy_to_mode_reg (mode1, op1);
+
+  if (result)
+    {
+      if (!target)
+	target = gen_reg_rtx (SImode);
+      emit_move_insn (target, result);
+      return target;
+    }
+
   target = gen_reg_rtx (SImode);
   emit_move_insn (target, const0_rtx);
   target = gen_rtx_SUBREG (QImode, target, 0);
-
-  if ((optimize && !register_operand (op0, mode0))
-      || !insn_data[d->icode].operand[0].predicate (op0, mode0))
-    op0 = copy_to_mode_reg (mode0, op0);
-  if ((optimize && !register_operand (op1, mode1))
-      || !insn_data[d->icode].operand[1].predicate (op1, mode1))
-    op1 = copy_to_mode_reg (mode1, op1);
 
   pat = GEN_FCN (d->icode) (op0, op1);
   if (! pat)
