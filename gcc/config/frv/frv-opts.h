@@ -1,4 +1,4 @@
-/* Frv option-handling defitions.
+/* Frv option-handling definitions.
    Copyright (C) 1999-2026 Free Software Foundation, Inc.
 
 This file is part of GCC.
