@@ -20,7 +20,7 @@ along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
 
-/* Default specs layout.  The actual definitions might be superseeded
+/* Default specs layout.  The actual definitions might be superseded
    by device- or OS- specific files, like avrlibc.h, ../rtems.h, etc.
    The specs are repeated in the device specs files.  Subspecs are
    specs known to GCC or specs defined in the device specs files.  */

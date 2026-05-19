@@ -596,7 +596,7 @@ avr_option_override (void)
   if (!avr_set_core_architecture ())
     return;
 
-  /* Sould be set by avr-common.cc */
+  /* Should be set by avr-common.cc */
   gcc_assert (avropt_long_double >= avropt_double && avropt_double >= 32);
 
   /* RAM addresses of some SFRs common to all devices in respective arch. */
@@ -981,7 +981,7 @@ avr_can_inline_p (tree /* caller */, tree /* callee */)
 
 
 /* Implement `TARGET_SET_CURRENT_FUNCTION'.  */
-/* Sanity cheching for above function attributes.  */
+/* Sanity checking for above function attributes.  */
 
 static void
 avr_set_current_function (tree decl)
@@ -2172,7 +2172,7 @@ avr_expand_epilogue (bool sibcall_p)
   if (isr_p)
     {
       /* Restore RAMPZ/Y/X/D using tmp_reg as scratch.
-	 The conditions to restore them must be tha same as in prologue.  */
+	 The conditions to restore them must be the same as in prologue.  */
 
       if (AVR_HAVE_RAMPZ
 	  && TEST_HARD_REG_BIT (set, REG_Z)
@@ -3110,7 +3110,7 @@ avr_init_cumulative_args (CUMULATIVE_ARGS *cum, tree fntype, rtx libname,
   if (!libname && stdarg_p (fntype))
     cum->nregs = 0;
 
-  /* Assume the calle may be tail called */
+  /* Assume the callee may be tail called */
 
   cfun->machine->sibcall_fails = false;
 }
@@ -3495,7 +3495,7 @@ reg_unused_after (rtx_insn *insn, rtx reg)
 
 /* Return true when REGNO is set by INSN but not used by the following code.
    The difference to reg_unused_after() is that reg_unused_after() returns
-   true for the entire result even when the result *IS* being used atfer.  */
+   true for the entire result even when the result *IS* being used after.  */
 
 static bool
 avr_result_regno_unused_p (rtx_insn *insn, unsigned regno)
@@ -3695,7 +3695,7 @@ avr_out_lpm_no_lpmx (rtx_insn *insn, rtx *xop, int *plen)
 }
 
 
-/* If PLEN == NULL: Ouput instructions to load a value from a memory location
+/* If PLEN == NULL: Output instructions to load a value from a memory location
    OP[1] in AS1 to register OP[0].
    If PLEN != 0 set *PLEN to the length in words of the instruction sequence.
    Return "".  */
@@ -6584,7 +6584,7 @@ avr_out_compare (rtx_insn *insn, rtx *xop, int *plen)
   const rtx_code cond = compare_condition (insn);
   const bool eqne_p = cond == EQ || cond == NE;
 
-  /* Comparisons == +/-1 and != +/-1 can be done similar to camparing
+  /* Comparisons == +/-1 and != +/-1 can be done similar to comparing
      against 0 by ORing the bytes.  This is one instruction shorter.
      Notice that 64-bit comparisons are always against reg:ALL8 18 (ACC_A)
      and therefore don't use this.  */
@@ -8670,7 +8670,7 @@ avr_out_plus_ext (rtx_insn *insn, rtx *yop, int *plen)
     ? "sbci %0,0"            CR_TAB  "sbrc %1,7"  CR_TAB  "inc %0"
     : "sbc %0,__zero_reg__"  CR_TAB  "sbrc %1,7"  CR_TAB  "inc %0";
 
-  // A register that containts 8 copies of $1.msb.
+  // A register that contains 8 copies of $1.msb.
   rtx ext_reg = ext == ZERO_EXTEND ? zero_reg_rtx : NULL_RTX;
 
   if (plen)
@@ -10691,7 +10691,7 @@ avr_out_fract (rtx_insn *insn, rtx operands[], bool intsigned, int *plen)
 	    {
 	      /* We are going to override the MSB.  If we shift right,
 		 store the MSB in the Carry flag.  This is only needed if
-		 we don't sign-extend becaue with sign-extension the MSB
+		 we don't sign-extend because with sign-extension the MSB
 		 (the sign) will be produced by the sign extension.  */
 
 	      avr_asm_len ("lsr %0", &all_regs_rtx[src_msb], plen, 1);
@@ -15601,7 +15601,7 @@ avr_nonzero_bits_lsr_operands_p (rtx_code code, rtx *op)
    XOP[2]  # Bytes to copy
 
    Return TRUE  if the expansion is accomplished.
-   Return FALSE if the operand compination is not supported.  */
+   Return FALSE if the operand combination is not supported.  */
 
 bool
 avr_emit_cpymemhi (rtx *xop)

@@ -18,7 +18,7 @@
 
 /* This file contains the definitions and documentation for the
    builtins defined in the AVR part of the GNU compiler.
-   Befor including this file, define a macro
+   Before including this file, define a macro
 
    DEF_BUILTIN(NAME, N_ARGS, TYPE, ICODE, LIBNAME, ATTRS)
 
@@ -65,7 +65,7 @@ DEF_BUILTIN (INSERT_BITS, 3, uintQI_ftype_uintSI_uintQI_uintQI, insert_bits, NUL
 
 DEF_BUILTIN (FLASH_SEGMENT, 1, intQI_ftype_const_memx_ptr, flash_segment, NULL, attr_const)
 
-/* strlen for ASes so that __builtin_constant_p can be used wthout raising
+/* strlen for ASes so that __builtin_constant_p can be used without raising
    a diagnostic from -Waddr-space-convert in some AVR-LibC headers.  */
 DEF_BUILTIN (STRLEN_FLASH,  1, strlen_flash_node,  nothing, "__strlen_P", attr_const) // AVR-LibC
 DEF_BUILTIN (STRLEN_FLASHX, 1, strlen_flashx_node, nothing, "strlen_PF",  attr_const) // AVR-LibC

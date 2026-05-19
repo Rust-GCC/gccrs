@@ -403,7 +403,7 @@ static machine_mode size_to_mode (int size)
    Each insn is optimized on its own, or may be fused with the
    previous insn like in example (1).
       As the insns are traversed, memento_t keeps track of known values
-   held in the GPRs (general purpse registers) R2 ... R31 by simulating
+   held in the GPRs (general purpose registers) R2 ... R31 by simulating
    the effect of the current insn in memento_t.apply_insn().
       The basic blocks are traversed in reverse post order so as to
    maximize the chance that GPRs from all preceding blocks are known,
@@ -480,7 +480,7 @@ struct absint_t;
 // A ply_t is a potential step towards an optimal sequence to load a constant
 // value into a multi-byte register.  A ply_t loosely relates to one AVR
 // instruction, but it may also represent a sequence of instructions.
-// For example, loading a constant into a lower register when no sratch reg
+// For example, loading a constant into a lower register when no scratch reg
 // is available may take up to 4 instructions.  There is no 1:1 correspondence
 // to insns, either.
 //    try_split_ldi determines the best sequence of ply_t's by means of a
@@ -1578,7 +1578,7 @@ plies_t::emit_sets (const insninfo_t &ii, int &n_insns, const memento_t &memo,
 
 
 // Try to find an operation such that  Y = op (X).
-// Shifts and rotates are regarded as unary operaions with
+// Shifts and rotates are regarded as unary operations with
 // an implied 2nd operand or 1 or 4, respectively.
 static rtx_code
 find_arith (uint8_t y, uint8_t x)
@@ -3364,7 +3364,7 @@ avr_strict_unsigned_p (rtx_code code)
 
   then set CMP1 = cond1, CMP2 = cond2, and return xval.  Else return NULL_RTX.
   When SWAPT is returned true, then way1 and way2 must be swapped.
-  When the incomping SWAPT is false, the outgoing one will be false, too.  */
+  When the incoming SWAPT is false, the outgoing one will be false, too.  */
 
 static rtx
 avr_2comparisons_rhs (rtx_code &cmp1, rtx xval1,
@@ -3600,7 +3600,7 @@ avr_redundant_compare (rtx xreg1, rtx_code &cond1, rtx xval1,
       if (REG_CC <cmp2> 0) goto label2;
 
    then set XREG1 to reg, COND1 and COND2 accordingly, and return xval.
-   Otherwise, return NULL_RTX.  This optmization can be performed
+   Otherwise, return NULL_RTX.  This optimization can be performed
    when { xreg1, xval1 } and { xreg2, xval2 } are equal as sets.
    It can be done in such a way that no difficult branches occur.  */
 
@@ -4063,7 +4063,7 @@ avr_optimize_casesi (rtx_insn *insns[5], rtx *xop)
   // SIGN_EXTEND or ZERO_EXTEND.
   rtx_code code = GET_CODE (xop[10]);
 
-  // Lower index, upper index (plus one) and range of case calues.
+  // Lower index, upper index (plus one) and range of case values.
   HOST_WIDE_INT low_idx = -INTVAL (xop[1]);
   HOST_WIDE_INT num_idx = INTVAL (xop[2]);
   HOST_WIDE_INT hig_idx = low_idx + num_idx;
@@ -4358,7 +4358,7 @@ struct AVR_LdSt_Props
 {
   bool has_postinc, has_predec, has_ldd;
   // The insn printers will use POST_INC or PRE_DEC addressing, no matter
-  // what adressing modes we are feeding into them.
+  // what addressing modes we are feeding into them.
   bool want_postinc, want_predec;
 
   AVR_LdSt_Props (int regno, bool store_p, bool volatile_p, addr_space_t as)
@@ -5038,7 +5038,7 @@ avr_pass_split_nzb::split_nzb_insns ()
 
 
 //////////////////////////////////////////////////////////////////////////////
-// Split shift insns after peephole2 / befor avr-fuse-move.
+// Split shift insns after peephole2 / before avr-fuse-move.
 
 static const pass_data avr_pass_data_split_after_peephole2 =
 {
@@ -5889,7 +5889,7 @@ make_avr_pass_fuse_move (gcc::context *ctxt)
   return new avr_pass_fuse_move (ctxt, "avr-fuse-move");
 }
 
-// Split insns after peephole2 / befor avr-fuse-move.
+// Split insns after peephole2 / before avr-fuse-move.
 
 rtl_opt_pass *
 make_avr_pass_split_after_peephole2 (gcc::context *ctxt)

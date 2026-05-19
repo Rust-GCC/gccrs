@@ -670,7 +670,7 @@ extern void f7_Isqrt (f7_t*);
 extern void f7_Isquare (f7_t*);
 extern f7_t* f7_Ildexp (f7_t*, int);
 
-// Protoypes for some functions from libf7-asm.sx.
+// Prototypes for some functions from libf7-asm.sx.
 F7_CONST extern uint16_t f7_sqrt16_round (uint16_t) F7ASM(f7_sqrt16_round_asm);
 F7_CONST extern uint8_t  f7_sqrt16_floor (uint16_t) F7ASM(f7_sqrt16_floor_asm);
 extern void f7_addsub_mant_scaled_asm (f7_t*, const f7_t*, const f7_t*, uint8_t);

@@ -959,7 +959,7 @@ void f7_addsub (f7_t *cc, const f7_t *aa, const f7_t *bb, bool neg_b)
   // From this point on, no more access aa->flags or bb->flags
   // to avoid early-clobber when writing cc->flags.
 
-  // Hande NaNs.
+  // Handle NaNs.
   if (f7_class_nan (a_class | b_class))
     return f7_set_nan (cc);
 
@@ -1035,7 +1035,7 @@ void f7_madd_msub (f7_t *cc, const f7_t *aa, const f7_t *bb, const f7_t *dd,
   uint8_t x_sign = f7_signbit (xx);
   int16_t x_expo = xx->expo;
   f7_addsub (xx, xx, dd, neg_d);
-  // Now add LSB.  If cancellation occured in the add / sub, then we have the
+  // Now add LSB.  If cancellation occurred in the add / sub, then we have the
   // chance of extra 8 bits of precision.  Turn LSByte into f7_t.
   f7_clr (cc);
   cc->expo = sub_ssat16 (x_expo, F7_MANT_BITS);

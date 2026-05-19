@@ -30,7 +30,7 @@
 static const struct default_options avr_option_optimization_table[] =
   {
     // There is no way to filter out unwanted cswtch transformations:
-    // - Code bload as mentioned in PR81540.
+    // - Code bloat as mentioned in PR81540.
     // - When tree-switch-conversion.cc::build_one_array() finds a
     //   linear function, it will use a formula that involves a
     //   multiplication without even trying to work out the costs.

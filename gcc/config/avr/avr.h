@@ -499,7 +499,7 @@ extern const char *avr_no_devlib (int, const char**);
   { "no-devlib", avr_no_devlib },                       \
   { "device-specs-file", avr_devicespecs_file },
 
-/* Driver self specs has lmited functionality w.r.t. '%s' for dynamic specs.
+/* Driver self specs has limited functionality w.r.t. '%s' for dynamic specs.
    Apply '%s' to a static string to inflate the file (directory) name which
    is used to diagnose problems with reading the specs file.  */
 
@@ -586,7 +586,7 @@ struct GTY(()) machine_function
     bool yes;
     /* 'true' if this function is allowed to use "*gasisr" insns. */
     bool maybe;
-    /* The register numer as printed by the Done chunk.  */
+    /* The register number as printed by the Done chunk.  */
     int regno;
   } gasisr;
 

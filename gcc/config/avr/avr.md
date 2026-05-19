@@ -193,8 +193,8 @@
 
 ;; The following ISA attributes are actually not architecture specific,
 ;; but depend on (optimization) options.  This is because the "enabled"
-;; attribut can't depend on more than one other attribute.  This means
-;; that 3op must work for all ISAs, and hence a 'flat' attribue scheme
+;; attribute can't depend on more than one other attribute.  This means
+;; that 3op must work for all ISAs, and hence a 'flat' attribute scheme
 ;; can be used (as opposed to a true cartesian product).
 
 ;; 3op  : alternative is a 3-operand insn
@@ -397,7 +397,7 @@
 ;; The following is used by nonlocal_goto and setjmp.
 ;; The receiver pattern will create no instructions since internally
 ;; virtual_stack_vars = hard_frame_pointer + 1 so the RTL become R28=R28
-;; This avoids creating add/sub offsets in frame_pointer save/resore.
+;; This avoids creating add/sub offsets in frame_pointer save/restore.
 ;; The 'null' receiver also avoids  problems with optimisation
 ;; not recognising incoming jmp and removing code that resets frame_pointer.
 ;; The code derived from builtins.cc.
@@ -6775,7 +6775,7 @@
 ;; without a comparison does not require a scratch.  With the peep2 approach
 ;; below, we can get a scratch from the peep2 framework without increasing
 ;; the register pressure, whereas cmpelim doesn't offer such a feature.
-;;    When no scratch is available, then we just don't perform the optimizaton,
+;;    When no scratch is available, then we just don't perform the optimization,
 ;; i.e. the comparison against 0 won't be optimized away, which is preferred
 ;; over increasing the register pressure -- in many cases without reason --
 ;; which might result in additional spills.
@@ -8090,7 +8090,7 @@
 ;;     AND   Rm, Rn
 ;;     BRNE  .La
 ;;
-;; shall not be superseeded.  With a respective combine pattern
+;; shall not be superseded.  With a respective combine pattern
 ;; the latter sequence would be
 ;;
 ;;     AND   Rm, Rn
@@ -8633,7 +8633,7 @@
     DONE;
   })
 
-;; Actually, it's too late now to work out address spaces known at compiletime.
+;; Actually, it's too late now to work out address spaces known at compile time.
 ;; Best place would be to fold ADDR_SPACE_CONVERT_EXPR in avr_fold_builtin.
 ;; However, avr_addr_space_convert can add some built-in knowledge for PSTR
 ;; so that ADDR_SPACE_CONVERT_EXPR in the built-in must not be resolved.
