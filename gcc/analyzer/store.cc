@@ -3133,12 +3133,14 @@ store::get_any_binding (store_manager *mgr, const region *reg) const
   return (*cluster_slot)->get_any_binding (mgr, reg);
 }
 
-/* Set the value of LHS_REG to RHS_SVAL.  */
+/* Set the value of LHS_REG to RHS_SVAL.
+   Use MODEL when determining if regions alias each other.  */
 
 void
 store::set_value (store_manager *mgr, const region *lhs_reg,
 		  const svalue *rhs_sval,
-		  uncertainty_t *uncertainty)
+		  uncertainty_t *uncertainty,
+		  const region_model &model)
 {
   logger *logger = mgr->get_logger ();
   LOG_SCOPE (logger);
@@ -3201,7 +3203,8 @@ store::set_value (store_manager *mgr, const region *lhs_reg,
 	      || lhs_cluster->symbolic_p ()
 	      || iter_cluster->symbolic_p ()))
 	{
-	  tristate t_alias = eval_alias (lhs_base_reg, iter_base_reg);
+	  tristate t_alias = eval_alias (lhs_base_reg, iter_base_reg,
+					 model);
 	  switch (t_alias.get_value ())
 	    {
 	    default:
@@ -3249,12 +3252,17 @@ store::set_value (store_manager *mgr, const region *lhs_reg,
   on_maybe_live_values (*mgr, maybe_live_values);
 }
 
-/* Determine if BASE_REG_A could be an alias of BASE_REG_B.  */
+/* Determine if BASE_REG_A could be an alias of BASE_REG_B.
+   Use information from MODEL when comparing pointers. */
 
 tristate
 store::eval_alias (const region *base_reg_a,
-		   const region *base_reg_b) const
+		   const region *base_reg_b,
+		   const region_model &model) const
 {
+  if (base_reg_a == base_reg_b)
+    return tristate (true);
+
   /* SSA names can't alias.  */
   tree decl_a = base_reg_a->maybe_get_decl ();
   if (decl_a && TREE_CODE (decl_a) == SSA_NAME)
@@ -3268,21 +3276,193 @@ store::eval_alias (const region *base_reg_a,
     return tristate::TS_FALSE;
 
   /* Try both ways, for symmetry.  */
-  tristate ts_ab = eval_alias_1 (base_reg_a, base_reg_b);
+  tristate ts_ab = eval_alias_1 (base_reg_a, base_reg_b, model);
   if (ts_ab.is_false ())
     return tristate::TS_FALSE;
-  tristate ts_ba = eval_alias_1 (base_reg_b, base_reg_a);
+  tristate ts_ba = eval_alias_1 (base_reg_b, base_reg_a, model);
   if (ts_ba.is_false ())
     return tristate::TS_FALSE;
-  return tristate::TS_UNKNOWN;
+
+  gcc_assert (base_reg_a != base_reg_b);
+  enum region_kind kind_a = base_reg_a->get_kind ();
+  enum region_kind kind_b = base_reg_b->get_kind ();
+  if (kind_a == kind_b)
+    {
+      /* We have two different base region instances of the same kind.
+	 For many kinds of region this implies they must have different
+	 addresses.  */
+      switch (kind_a)
+	{
+	/* Invalid cases.  */
+
+	default:
+	  gcc_unreachable ();
+
+	case RK_CODE:
+	case RK_ERRNO:
+	case RK_GLOBALS:
+	case RK_HEAP:
+	case RK_ROOT:
+	case RK_STACK:
+	case RK_THREAD_LOCAL:
+	  /* We expect these to be singletons.  */
+	  gcc_unreachable ();
+
+	case RK_BIT_RANGE:
+	case RK_CAST:
+	case RK_ELEMENT:
+	case RK_FIELD:
+	case RK_OFFSET:
+	case RK_SIZED:
+	  /* These aren't base regions.  */
+	  gcc_unreachable ();
+
+	/* Valid cases.  */
+
+	case RK_ALLOCA:
+	case RK_DECL:
+	case RK_FRAME:
+	case RK_FUNCTION:
+	case RK_LABEL:
+	case RK_PRIVATE:
+	case RK_VAR_ARG:
+	  /* We expect different regions of these kinds to have
+	     different addresses.  */
+	  return tristate (false);
+
+	case RK_HEAP_ALLOCATED:
+	  /* We have results of two different heap allocations.
+	     If they were non-zero-sized allocations they are different from
+	     each other, but zero-sized allocations might alias.
+	     Note that this doesn't handle the case where of a freed pointer
+	     possibly being reused, but we don't have a way to distinguish
+	     this case from the "two different allocations case", and it seems
+	     much more important to keep the latter from aliasing each
+	     other (for precision when tracking writes).   */
+	  {
+	    tristate size_a_gt_zero (tristate::unknown ());
+	    tristate size_b_gt_zero (tristate::unknown ());
+	    const svalue *zero_size
+	      = model.get_manager ()->get_or_create_int_cst (size_type_node, 0);
+
+	    if (auto sval_size_a = model.get_dynamic_extents (base_reg_a))
+	      {
+		size_a_gt_zero = model.eval_condition (sval_size_a,
+						       GT_EXPR,
+						       zero_size);
+	      }
+	    if (auto sval_size_b = model.get_dynamic_extents (base_reg_b))
+	      {
+		size_b_gt_zero = model.eval_condition (sval_size_b,
+						       GT_EXPR,
+						       zero_size);
+	      }
+	    if (size_a_gt_zero.is_known () && size_b_gt_zero.is_known ())
+	      {
+		/* We have results of two different heap allocations, and for
+		   each we know if the size was non-zero.  */
+		if (size_a_gt_zero.is_false () && size_b_gt_zero.is_false ())
+		  {
+		    /* Different allocations, both zero-sized.  We don't
+		       know if they have the same address.  */
+		    return tristate::unknown ();
+		  }
+		else
+		  {
+		    /* We either have different allocations of non-zero size,
+		       or different allocations where one has non-zero size, the
+		       other is zero-sized.  We know these have different
+		       addresses.  */
+		    return tristate (false);
+		  }
+	      }
+	    if (size_a_gt_zero.is_true () || size_b_gt_zero.is_true ())
+	      {
+		/* Different allocations, of which at least one > 0 in size.
+		   They must have different addresses.  */
+		return tristate (false);
+	      }
+	    /* At least one size might be zero.  */
+	    return tristate::unknown ();
+	  }
+
+	case RK_SYMBOLIC:
+	case RK_UNKNOWN:
+	  /* We don't know that such regions are different from each other.  */
+	  return tristate::unknown ();
+
+	case RK_STRING:
+	  /* For now, don't attempt to decide if string literals alias
+	     each other.  */
+	  return tristate::unknown ();
+	}
+    }
+  else
+    {
+      /* We have two base region instances of different kinds.
+	 For many kinds of region this implies they must have different
+	 addresses.  */
+      if (kind_b == RK_SYMBOLIC || kind_b == RK_UNKNOWN)
+	return tristate::unknown ();
+
+      switch (kind_a)
+	{
+	/* Invalid cases.  */
+
+	default:
+	  gcc_unreachable ();
+
+	case RK_CODE:
+	case RK_ERRNO:
+	case RK_GLOBALS:
+	case RK_HEAP:
+	case RK_ROOT:
+	case RK_STACK:
+	case RK_THREAD_LOCAL:
+	  /* We expect these to be singletons.  */
+	  gcc_unreachable ();
+
+	case RK_BIT_RANGE:
+	case RK_CAST:
+	case RK_ELEMENT:
+	case RK_FIELD:
+	case RK_OFFSET:
+	case RK_SIZED:
+	  /* These aren't base regions.  */
+	  gcc_unreachable ();
+
+	/* Valid cases.  */
+
+	case RK_ALLOCA:
+	case RK_DECL:
+	case RK_FRAME:
+	case RK_FUNCTION:
+	case RK_HEAP_ALLOCATED:
+	case RK_LABEL:
+	case RK_PRIVATE:
+	case RK_STRING:
+	case RK_VAR_ARG:
+	  /* We expect regions of these kinds to have different addresses
+	     from regions of other kinds (apart from symbolic/unknown).  */
+	  return tristate (false);
+
+	case RK_SYMBOLIC:
+	case RK_UNKNOWN:
+	  /* We don't know anything about such regions.  */
+	  return tristate::unknown ();
+	}
+    }
 }
 
 /* Half of store::eval_alias; called twice for symmetry.  */
 
 tristate
 store::eval_alias_1 (const region *base_reg_a,
-		     const region *base_reg_b) const
+		     const region *base_reg_b,
+		     const region_model &model) const
 {
+  gcc_assert (base_reg_a != base_reg_b);
+
   /* If they're in different memory spaces, they can't alias.  */
   {
     enum memory_space memspace_a = base_reg_a->get_memory_space ();
@@ -3334,12 +3514,14 @@ store::eval_alias_1 (const region *base_reg_a,
 		 We want to ensure that "*ptr" can only clobber things
 		 within REGION's base region.  */
 	      tristate ts = eval_alias (pointee->get_base_region (),
-					base_reg_b);
+					base_reg_b,
+					model);
 	      if (ts.is_false ())
 		return tristate::TS_FALSE;
 	    }
 	}
     }
+
   return tristate::TS_UNKNOWN;
 }
 
@@ -3952,7 +4134,8 @@ store::replay_call_summary_cluster (call_summary_replay &r,
 	  caller_sval =
 	    reg_mgr->get_or_create_unknown_svalue (summary_sval->get_type ());
 	set_value (mgr, caller_dest_reg,
-		   caller_sval, nullptr /* uncertainty_t * */);
+		   caller_sval, nullptr /* uncertainty_t * */,
+		   *cd.get_model ());
       }
       break;
 
@@ -3977,7 +4160,8 @@ store::replay_call_summary_cluster (call_summary_replay &r,
 	  caller_sval =
 	    reg_mgr->get_or_create_unknown_svalue (summary_sval->get_type ());
 	set_value (mgr, caller_dest_reg,
-		   caller_sval, nullptr /* uncertainty_t * */);
+		   caller_sval, nullptr /* uncertainty_t * */,
+		   *cd.get_model ());
       }
       break;
 

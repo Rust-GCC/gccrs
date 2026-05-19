@@ -284,7 +284,8 @@ public:
 
   static tristate eval_condition (const region_svalue *lhs_ptr,
 				  enum tree_code op,
-				  const region_svalue *rhs_ptr);
+				  const region_svalue *rhs_ptr,
+				  const region_model &model);
 
  private:
   const region *m_reg;

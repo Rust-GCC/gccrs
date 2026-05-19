@@ -1680,7 +1680,8 @@ region_model::on_assignment (const gassign *assign, region_model_context *ctxt)
 	/* e.g. "struct s2 x = {{'A', 'B', 'C', 'D'}};".  */
 	const svalue *rhs_sval = get_rvalue (rhs1, ctxt);
 	m_store.set_value (m_mgr->get_store_manager(), lhs_reg, rhs_sval,
-			   ctxt ? ctxt->get_uncertainty () : nullptr);
+			   ctxt ? ctxt->get_uncertainty () : nullptr,
+			   *this);
       }
       break;
     }
@@ -4012,7 +4013,8 @@ region_model::set_value (const region *lhs_reg, const svalue *rhs_sval,
   check_region_for_write (lhs_reg, rhs_sval, ctxt);
 
   m_store.set_value (m_mgr->get_store_manager(), lhs_reg, rhs_sval,
-		     ctxt ? ctxt->get_uncertainty () : nullptr);
+		     ctxt ? ctxt->get_uncertainty () : nullptr,
+		     *this);
 }
 
 /* Set the value of the region given by LHS to the value given by RHS.  */
@@ -4985,7 +4987,8 @@ region_model::eval_condition (const svalue *lhs,
   if (const region_svalue *lhs_ptr = lhs->dyn_cast_region_svalue ())
     if (const region_svalue *rhs_ptr = rhs->dyn_cast_region_svalue ())
       {
-	tristate res = region_svalue::eval_condition (lhs_ptr, op, rhs_ptr);
+	tristate res = region_svalue::eval_condition (lhs_ptr, op, rhs_ptr,
+						      *this);
 	if (res.is_known ())
 	  return res;
 	/* Otherwise, only known through constraints.  */

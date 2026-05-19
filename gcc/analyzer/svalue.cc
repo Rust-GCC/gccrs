@@ -998,45 +998,18 @@ region_svalue::implicitly_live_p (const svalue_set *,
 tristate
 region_svalue::eval_condition (const region_svalue *lhs,
 			       enum tree_code op,
-			       const region_svalue *rhs)
+			       const region_svalue *rhs,
+			       const region_model &model)
 {
-  /* See if they point to the same region.  */
+  /* Convert to region_offset representation, and work with that.  */
   const region *lhs_reg = lhs->get_pointee ();
   const region *rhs_reg = rhs->get_pointee ();
-  bool ptr_equality = lhs_reg == rhs_reg;
-  switch (op)
-    {
-    default:
-      gcc_unreachable ();
 
-    case EQ_EXPR:
-      if (ptr_equality)
-	return tristate::TS_TRUE;
-      else
-	return tristate::TS_FALSE;
-      break;
+  region_model_manager *mgr = model.get_manager ();
+  region_offset lhs_offset = lhs_reg->get_offset (mgr);
+  region_offset rhs_offset = rhs_reg->get_offset (mgr);
 
-    case NE_EXPR:
-      if (ptr_equality)
-	return tristate::TS_FALSE;
-      else
-	return tristate::TS_TRUE;
-      break;
-
-    case GE_EXPR:
-    case LE_EXPR:
-      if (ptr_equality)
-	return tristate::TS_TRUE;
-      break;
-
-    case GT_EXPR:
-    case LT_EXPR:
-      if (ptr_equality)
-	return tristate::TS_FALSE;
-      break;
-    }
-
-  return tristate::TS_UNKNOWN;
+  return eval_region_offset_comparison (lhs_offset, op, rhs_offset, model);
 }
 
 /* class constant_svalue : public svalue.  */

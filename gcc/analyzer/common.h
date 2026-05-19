@@ -210,6 +210,11 @@ extern bool int_size_in_bits (const_tree type, bit_size_t *out);
 
 extern tree get_field_at_bit_offset (tree record_type, bit_offset_t bit_offset);
 
+extern bool
+compare_bit_offsets_p (bit_offset_t a,
+		       enum tree_code op,
+		       bit_offset_t b);
+
 /* The location of a region expressesd as an offset relative to a
    base region.  */
 
@@ -290,6 +295,12 @@ extern bool operator< (const region_offset &, const region_offset &);
 extern bool operator<= (const region_offset &, const region_offset &);
 extern bool operator> (const region_offset &, const region_offset &);
 extern bool operator>= (const region_offset &, const region_offset &);
+
+extern tristate
+eval_region_offset_comparison (region_offset lhs_offset,
+			       enum tree_code op,
+			       region_offset rhs_offset,
+			       const region_model &model);
 
 extern location_t get_stmt_location (const gimple *stmt, function *fun);
 

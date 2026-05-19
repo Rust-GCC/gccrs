@@ -957,7 +957,8 @@ public:
 
   void set_value (store_manager *mgr, const region *lhs_reg,
 		  const svalue *rhs_sval,
-		  uncertainty_t *uncertainty);
+		  uncertainty_t *uncertainty,
+		  const region_model &model);
   void clobber_region (store_manager *mgr, const region *reg);
   void purge_region (store_manager *mgr, const region *reg);
   void fill_region (store_manager *mgr, const region *reg, const svalue *sval);
@@ -1002,7 +1003,8 @@ public:
   cluster_map_t::iterator end () const { return m_cluster_map.end (); }
 
   tristate eval_alias (const region *base_reg_a,
-		       const region *base_reg_b) const;
+		       const region *base_reg_b,
+		       const region_model &model) const;
 
   void canonicalize (store_manager *mgr);
   void loop_replay_fixup (const store *other_store,
@@ -1020,7 +1022,8 @@ private:
   void remove_overlapping_bindings (store_manager *mgr, const region *reg,
 				    uncertainty_t *uncertainty);
   tristate eval_alias_1 (const region *base_reg_a,
-			 const region *base_reg_b) const;
+			 const region *base_reg_b,
+			 const region_model &model) const;
 
   cluster_map_t m_cluster_map;
 
