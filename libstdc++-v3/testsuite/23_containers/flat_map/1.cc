@@ -13,6 +13,7 @@
 #include <testsuite_allocator.h>
 #include <testsuite_hooks.h>
 #include <testsuite_iterators.h>
+#include <string>
 #include <tuple>
 
 struct Gt {
@@ -283,6 +284,21 @@ test09()
   using value_type = std::pair<int, int>;
 }
 
+constexpr
+void
+test10()
+{
+  // PR libstdc++/125374 - flat_map unconditionally moves from lvalue keys in
+  // _M_try_emplace
+  std::flat_map<std::string, int, std::less<>> m;
+  std::string k = "hello";
+  m[k] = 1;
+  VERIFY (k == "hello");
+  k = "world";
+  m.try_emplace(k, 2);
+  VERIFY (k == "world");
+}
+
 void
 test()
 {
@@ -298,6 +314,7 @@ test()
   test07();
   test08();
   test09();
+  test10();
 }
 
 constexpr
@@ -313,6 +330,7 @@ test_constexpr()
   test07();
   test08();
   test09();
+  test10();
   return true;
 }
 
