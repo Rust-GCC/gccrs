@@ -4346,9 +4346,17 @@ function_value_ms_64 (machine_mode orig_mode, machine_mode mode,
 
   if (TARGET_SSE)
     {
-      switch (GET_MODE_SIZE (mode))
+      unsigned int mode_size = GET_MODE_SIZE (mode);
+
+      switch (mode_size)
 	{
 	case 16:
+	case 32:
+	case 64:
+	  if (mode_size == 32 && !TARGET_AVX)
+	    break;
+	  if (mode_size == 64 && !TARGET_AVX512F)
+	    break;
 	  if (valtype != NULL_TREE
 	      && !VECTOR_INTEGER_TYPE_P (valtype)
 	      && !INTEGRAL_TYPE_P (valtype)
@@ -4458,13 +4466,17 @@ ix86_return_in_memory (const_tree type, const_tree fntype ATTRIBUTE_UNUSED)
 	{
 	  size = int_size_in_bytes (type);
 
-	  /* __m128 is returned in xmm0.  */
+	  /* __m128 is returned in xmm0.  256/512-bit vector values are
+	     returned in ymm0/zmm0 when AVX/AVX512 is enabled.  */
 	  if ((!type || VECTOR_INTEGER_TYPE_P (type)
 	       || INTEGRAL_TYPE_P (type)
 	       || VECTOR_FLOAT_TYPE_P (type))
 	      && (SCALAR_INT_MODE_P (mode) || VECTOR_MODE_P (mode))
 	      && !COMPLEX_MODE_P (mode)
-	      && (GET_MODE_SIZE (mode) == 16 || size == 16))
+	      && ((GET_MODE_SIZE (mode) == 16 || size == 16)
+		  || (TARGET_AVX && (GET_MODE_SIZE (mode) == 32 || size == 32))
+		  || (TARGET_AVX512F
+		      && (GET_MODE_SIZE (mode) == 64 || size == 64))))
 	    return false;
 
 	  /* Otherwise, the size must be exactly in [1248]. */
