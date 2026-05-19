@@ -2895,16 +2895,18 @@ expand_doubleword_parity (scalar_int_mode mode, rtx op0, rtx target)
 /* Try calculating
 	(bswap:narrow x)
    as
-	(lshiftrt:wide (bswap:wide x) ((width wide) - (width narrow))).  */
+	(lshiftrt:wide (bswap:wide x) ((width wide) - (width narrow)))
+   or similarly for bitreverse.  */
 static rtx
-widen_bswap (scalar_int_mode mode, rtx op0, rtx target)
+widen_bswap_or_bitreverse (scalar_int_mode mode, rtx op0, rtx target,
+			   optab unoptab)
 {
   rtx x;
   rtx_insn *last;
   opt_scalar_int_mode wider_mode_iter;
 
   FOR_EACH_WIDER_MODE (wider_mode_iter, mode)
-    if (optab_handler (bswap_optab, wider_mode_iter.require ())
+    if (optab_handler (unoptab, wider_mode_iter.require ())
 	!= CODE_FOR_nothing)
       break;
 
@@ -2915,7 +2917,7 @@ widen_bswap (scalar_int_mode mode, rtx op0, rtx target)
   last = get_last_insn ();
 
   x = widen_operand (op0, wider_mode, mode, true, true);
-  x = expand_unop (wider_mode, bswap_optab, x, NULL_RTX, true);
+  x = expand_unop (wider_mode, unoptab, x, NULL_RTX, true);
 
   gcc_assert (GET_MODE_PRECISION (wider_mode) == GET_MODE_BITSIZE (wider_mode)
 	      && GET_MODE_PRECISION (mode) == GET_MODE_BITSIZE (mode));
@@ -2937,16 +2939,18 @@ widen_bswap (scalar_int_mode mode, rtx op0, rtx target)
   return target;
 }
 
-/* Try calculating bswap as two bswaps of two word-sized operands.  */
+/* Try calculating bswap as two bswaps of two word-sized operands.
+   Similarly for bitreverse.  */
 
 static rtx
-expand_doubleword_bswap (machine_mode mode, rtx op, rtx target)
+expand_doubleword_bswap_or_bitreverse (machine_mode mode, rtx op, rtx target,
+				       optab unoptab)
 {
   rtx t0, t1;
 
-  t1 = expand_unop (word_mode, bswap_optab,
+  t1 = expand_unop (word_mode, unoptab,
 		    operand_subword_force (op, 0, mode), NULL_RTX, true);
-  t0 = expand_unop (word_mode, bswap_optab,
+  t0 = expand_unop (word_mode, unoptab,
 		    operand_subword_force (op, 1, mode), NULL_RTX, true);
 
   if (target == 0 || !valid_multiword_target_p (target))
@@ -2971,6 +2975,16 @@ expand_bitreverse (scalar_int_mode mode, rtx op0, rtx target)
      that).  */
   if (precision < 4)
     return NULL_RTX;
+
+  if (rtx temp = widen_bswap_or_bitreverse (mode, op0, target,
+					    bitreverse_optab))
+    return temp;
+
+  if (GET_MODE_SIZE (mode) == 2 * UNITS_PER_WORD
+      && optab_handler (bitreverse_optab, word_mode) != CODE_FOR_nothing)
+    if (rtx temp = expand_doubleword_bswap_or_bitreverse (mode, op0, target,
+							  bitreverse_optab))
+      return temp;
 
   if (target == NULL_RTX
       || target == op0
@@ -3516,7 +3530,7 @@ expand_unop (machine_mode mode, optab unoptab, rtx op0, rtx target,
 
       if (is_a <scalar_int_mode> (mode, &int_mode))
 	{
-	  temp = widen_bswap (int_mode, op0, target);
+	  temp = widen_bswap_or_bitreverse (int_mode, op0, target, unoptab);
 	  if (temp)
 	    return temp;
 
@@ -3526,7 +3540,8 @@ expand_unop (machine_mode mode, optab unoptab, rtx op0, rtx target,
 	      && (UNITS_PER_WORD == 8
 		  || optab_handler (unoptab, word_mode) != CODE_FOR_nothing))
 	    {
-	      temp = expand_doubleword_bswap (mode, op0, target);
+	      temp = expand_doubleword_bswap_or_bitreverse (mode, op0, target,
+							    unoptab);
 	      if (temp)
 		return temp;
 	    }
