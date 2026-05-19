@@ -1245,7 +1245,7 @@ bpf_asm_named_section (const char *name, unsigned int flags,
      characters.  This includes for example names like /foo//bar/baz.
      This makes it necessary to quote section names to make sure the
      assembler doesn't get confused.  For example, the example above
-     would be interpreted unqouted as a section name "/foo" followed
+     would be interpreted unquoted as a section name "/foo" followed
      by a line comment "//bar/baz".
 
      Note that we only quote the section name if it contains any
