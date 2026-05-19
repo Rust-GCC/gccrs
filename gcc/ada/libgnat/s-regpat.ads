@@ -428,7 +428,7 @@ package System.Regpat is
    --
    --  This function raises Storage_Error if Matcher is too small to hold
    --  the resulting code (i.e. Matcher.Size has too small a value) only when
-   --  the paramter Error_When_Too_Small is set to True. Otherwise, no error
+   --  the parameter Error_When_Too_Small is set to True. Otherwise, no error
    --  will be raised and the required size will be placed in the
    --  Final_Code_Size parameter.
    --

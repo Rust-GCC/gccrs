@@ -566,7 +566,7 @@ BEGIN
          IF TreeOverflow (incrtree)
          THEN
             MetaErrorT0 (lastpos,
-                         'the intemediate calculation for the last iterator value in the {%kFOR} loop has caused an overflow') ;
+                         'the intermediate calculation for the last iterator value in the {%kFOR} loop has caused an overflow') ;
             NoChange := FALSE ;
             SubQuad (quad) ;
             success := FALSE
@@ -585,7 +585,7 @@ BEGIN
          IF TreeOverflow (incrtree)
          THEN
             MetaErrorT0 (lastpos,
-                         'the intemediate calculation for the last iterator value in the {%kFOR} loop has caused an overflow') ;
+                         'the intermediate calculation for the last iterator value in the {%kFOR} loop has caused an overflow') ;
             NoChange := FALSE ;
             SubQuad (quad) ;
             success := FALSE

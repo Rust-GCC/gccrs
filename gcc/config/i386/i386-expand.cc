@@ -15307,7 +15307,7 @@ ix86_expand_builtin (tree exp, rtx target, rtx subtarget,
 	else
 	  {
 	    if (INTVAL (op3) != 0)
-	      warning (0, "invalid forth argument to"
+	      warning (0, "invalid fourth argument to"
 			  " %<__builtin_ia32_prefetch%>; using zero");
 
 	    if (!address_operand (op0, VOIDmode))

@@ -9,5 +9,5 @@ void* p;
 void extern
 prefetch_test (void)
 {
-  __builtin_ia32_prefetch (p, 0, 0, 2); /* { dg-warning "invalid forth argument to '__builtin_ia32_prefetch'; using zero" } */
+  __builtin_ia32_prefetch (p, 0, 0, 2); /* { dg-warning "invalid fourth argument to '__builtin_ia32_prefetch'; using zero" } */
 }
