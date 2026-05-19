@@ -28347,7 +28347,8 @@ cp_parser_parameter_declaration_list (cp_parser* parser,
 	  /* If we saw a default argument, we've already pushed this decl.
 	     (An ill-formed default argument should have been parsed to
 	     error_mark_node.)  */
-	  else if (!parameter->default_argument)
+	  else if (!parameter->default_argument
+		   || parameter->default_argument == this_identifier)
 	    decl = pushdecl (decl);
 	}
 
