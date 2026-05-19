@@ -28,7 +28,7 @@
        (match_test "((unsigned HOST_WIDE_INT) ival + 0x8000) < 0x10000")))
 
 (define_constraint "Kf"
-  "Immeditate constant -1"
+  "Immediate constant -1"
   (and (match_code "const_int")
        (match_test "ival == -1")))
 
@@ -84,16 +84,16 @@
   "SGPR registers")
 
 (define_register_constraint "SD" "SGPR_DST_REGS"
-  "registers useable as a destination of scalar operation")
+  "registers usable as a destination of scalar operation")
 
 (define_register_constraint "SS" "SGPR_SRC_REGS"
-  "registers useable as a source of scalar operation")
+  "registers usable as a source of scalar operation")
 
 (define_register_constraint "Sm" "SGPR_MEM_SRC_REGS"
-  "registers useable as a source of scalar memory operation")
+  "registers usable as a source of scalar memory operation")
 
 (define_register_constraint "Sv" "SGPR_VOP_SRC_REGS"
-  "registers useable as a source of VOP3A instruction")
+  "registers usable as a source of VOP3A instruction")
 
 (define_register_constraint "ca" "ALL_CONDITIONAL_REGS"
   "SCC VCCZ or EXECZ")

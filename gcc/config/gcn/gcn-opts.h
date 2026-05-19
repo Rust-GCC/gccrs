@@ -104,7 +104,7 @@ enum hsaco_attr_type
    : 4)
 /* This mostly affects the metadata.  */
 #define TARGET_ARCHITECTED_FLAT_SCRATCH (TARGET_RDNA3 || TARGET_CDNA3)
-/* Device has Sub-DWord Addressing instrucions.  */
+/* Device has Sub-DWord Addressing instructions.  */
 #define TARGET_SDWA (!TARGET_RDNA3)
 /* Different devices uses different cache control instructions.  */
 #define TARGET_WBINVL1_CACHE (!TARGET_RDNA2_PLUS && !TARGET_CDNA3)

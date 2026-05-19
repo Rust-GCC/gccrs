@@ -216,7 +216,7 @@ STATIC_ASSERT (LAST_AVGPR_REG + 1 - FIRST_AVGPR_REG == 256);
 #define NUM_PARM_REGS  6
 
 /* There is no arg pointer.  Just choose random fixed register that does
-   not intefere with anything.  */
+   not interfere with anything.  */
 #define ARG_POINTER_REGNUM SOFT_ARG_REG
 
 #define HARD_FRAME_POINTER_IS_ARG_POINTER   0
@@ -865,7 +865,7 @@ enum gcn_builtin_codes
 
 /* Costs.  */
 
-/* Branches are to be dicouraged when theres an alternative.
+/* Branches are to be dicouraged when there's an alternative.
    FIXME: This number is plucked from the air.  */
 #define BRANCH_COST(SPEED_P, PREDICABLE_P) 10
 

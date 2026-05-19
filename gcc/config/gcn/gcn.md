@@ -98,7 +98,7 @@
 ;
 ; sop2 - scalar, two inputs, one output
 ;	 ssrc0/ssrc1: sgpr 0-102; flat_scratch,xnack,vcc,tba,tma,ttmp0-11,exec
-;		      vccz,execz,scc,inline immedate,fp inline immediate
+;		      vccz,execz,scc,inline immediate,fp inline immediate
 ;	 sdst: sgpr 0-102; flat_scratch,xnack,vcc,tba,tma,ttmp0-11,exec
 ;
 ;	 Constraints "=SD, SD", "SSA,SSB","SSB,SSA"
@@ -115,7 +115,7 @@
 ;
 ;	 Constraints "=SD", "SSA"
 ;
-; sopc - scalar, two inputs, one comparsion
+; sopc - scalar, two inputs, one comparison
 ;	 ssrc0: same as sop2/ssc0.
 ;
 ;	 Constraints "SSI,SSA","SSA,SSI"
@@ -147,7 +147,7 @@
 ;
 ;	 constraints: "=v", "vBSv"
 ;
-; vopc - vector, two inputs, one comparsion output;
+; vopc - vector, two inputs, one comparison output;
 ;	 vsrc0: same as vop2/src0
 ;	 vsrc1: vgpr0-255
 ;	 vdst:
@@ -1915,7 +1915,7 @@
 ; into the L1 cache, this is not actually safe.
 ;
 ; Additionally, scalar flat instructions access L2 via a different cache
-; (the "constant cache"), so they have separate constrol instructions.  We
+; (the "constant cache"), so they have separate control instructions.  We
 ; do not attempt to invalidate both caches at once; instead, atomics
 ; operating on scalar flat pointers will flush the constant cache, and
 ; atomics operating on flat or global pointers will flush L1.  It is up to

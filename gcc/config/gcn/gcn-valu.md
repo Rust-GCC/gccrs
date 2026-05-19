@@ -4417,7 +4417,7 @@
 
 ;; Warning: This "-ffast-math" implementation converts in-order reductions
 ;;          into associative reductions. It's also used where OpenMP or
-;;          OpenACC paralellization has already broken the in-order semantics.
+;;          OpenACC parallelization has already broken the in-order semantics.
 (define_expand "fold_left_plus_<mode>"
  [(match_operand:<SCALAR_MODE> 0 "register_operand")
   (match_operand:<SCALAR_MODE> 1 "gcn_alu_operand")
