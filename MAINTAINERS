@@ -138,23 +138,23 @@ xtensa port             Max Filippov            <jcmvbkbc@gmail.com>
 
 aix                     David Edelsohn          <dje.gcc@gmail.com>
 Android sub-port        Maxim Kuvyrkov          <maxim.kuvyrkov@linaro.org>
+cygwin, mingw-w64       Jonathan Yong           <10walls@gmail.com>
 darwin port             Iain Sandoe             <iain@sandoe.co.uk>
 darwin port             Mike Stump              <mikestump@comcast.net>
 DJGPP                   DJ Delorie              <dj@delorie.com>
 freebsd                 Andreas Tobler          <andreast@gcc.gnu.org>
 GNU/Hurd                Thomas Schwinge         <thomas@schwinge.name>
 hpux                    John David Anglin       <dave.anglin@bell.net>
-solaris                 Rainer Orth             <ro@CeBiTec.Uni-Bielefeld.DE>
 netbsd                  Jason Thorpe            <thorpej@netbsd.org>
 netbsd                  Krister Walfridsson     <krister.walfridsson@gmail.com>
-sh-linux-gnu            Kaz Kojima              <kkojima@gcc.gnu.org>
-RTEMS Ports             Joel Sherrill           <joel@oarcorp.com>
 RTEMS Ports             Ralf Corsepius          <ralf.corsepius@rtems.org>
 RTEMS Ports             Sebastian Huber         <sebastian.huber@embedded-brains.de>
-VMS                     Douglas Rupp            <douglas.b.rupp@gmail.com>
+RTEMS Ports             Joel Sherrill           <joel@oarcorp.com>
+sh-linux-gnu            Kaz Kojima              <kkojima@gcc.gnu.org>
+solaris                 Rainer Orth             <ro@CeBiTec.Uni-Bielefeld.DE>
 VMS                     Tristan Gingold         <tgingold@free.fr>
+VMS                     Douglas Rupp            <douglas.b.rupp@gmail.com>
 VxWorks ports           Olivier Hainque         <hainque@adacore.com>
-cygwin, mingw-w64       Jonathan Yong           <10walls@gmail.com>
 
                         Language Front Ends Maintainers
 
