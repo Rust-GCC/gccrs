@@ -34,6 +34,7 @@ LIB1ASMFUNCS = \
 	_popcountsi2 \
 	_popcountqi2 \
 	_bswapsi2 \
+	_bitreverse8 _bitreverse16 _bitreverse24 _bitreverse32 \
 	_fmul _fmuls _fmulsu \
 	_mulqq3 \
 	_mulhq3 _muluhq3 \

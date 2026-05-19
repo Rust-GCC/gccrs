@@ -9036,6 +9036,44 @@
    (set (reg:QI 25)
         (const_int 0))])
 
+
+;; Bit Reverse
+
+(define_insn_and_split "bitreversehi2"
+  [(set (match_operand:HI 0 "register_operand"               "={r24}")
+        (bitreverse:HI (match_operand:HI 1 "register_operand" "{r24}")))]
+  ""
+  "#"
+  "&& reload_completed"
+  [(scratch)]
+  { DONE_ADD_CCC })
+
+(define_insn "*bitreversehi2.libgcc"
+  [(set (reg:HI 24)
+        (bitreverse:HI (reg:HI 24)))
+   (clobber (reg:CC REG_CC))]
+  "reload_completed"
+  "%~call __bitreverse16"
+  [(set_attr "type" "xcall")])
+
+(define_insn_and_split "bitreversesi2"
+  [(set (match_operand:SI 0 "register_operand"               "={r22}")
+        (bitreverse:SI (match_operand:SI 1 "register_operand" "{r22}")))]
+  ""
+  "#"
+  "&& reload_completed"
+  [(scratch)]
+  { DONE_ADD_CCC })
+
+(define_insn "*bitreversesi2.libgcc"
+  [(set (reg:SI 22)
+        (bitreverse:SI (reg:SI 22)))
+   (clobber (reg:CC REG_CC))]
+  "reload_completed"
+  "%~call __bitreverse32"
+  [(set_attr "type" "xcall")])
+
+
 ;; Count Leading Zeros
 
 (define_expand "clzhi2"

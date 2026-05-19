@@ -3206,6 +3206,71 @@ ENDF __bswapdi2
 #endif /* defined (L_bswapdi2) */
 
 
+/*****************************************
+ * Reverse bitorder (__builtin_bitreverse)
+ ****************************************/
+
+#if defined (L_bitreverse8)
+DEFUN __bitreverse8
+    ;; 76543210
+    lsl r24
+    adc r24, __zero_reg__
+    ;; ...3...7
+    mov __tmp_reg__, r24            ; 65432107
+    bst __tmp_reg__, 1 $ bld r24, 7
+    ;; 0..3...7
+    bst __tmp_reg__, 2 $ bld r24, 6
+    ;; 01.3...7
+    bst __tmp_reg__, 3 $ bld r24, 5
+    ;; 0123...7
+    bst __tmp_reg__, 5 $ bld r24, 3
+    ;; 01234..7
+    bst __tmp_reg__, 6 $ bld r24, 2
+    ;; 012345.7
+    bst __tmp_reg__, 7 $ bld r24, 1
+    ;; 01234567
+    ret
+ENDF __bitreverse8
+#endif /* L_bitreverse8 */
+
+#if defined (L_bitreverse16)
+DEFUN __bitreverse16
+    XCALL __bitreverse8
+    bswap   r24, r25
+    XJMP __bitreverse8
+ENDF __bitreverse16
+#endif /* L_bitreverse16 */
+
+#if defined (L_bitreverse24)
+DEFUN __bitreverse24
+    XCALL __bitreverse8
+    push    r24
+    mov     r24, r23
+    XCALL __bitreverse8
+    mov     r23, r24
+    mov     r24, r22
+    pop     r22
+    XJMP __bitreverse8
+ENDF __bitreverse24
+#endif /* L_bitreverse24 */
+
+#if defined (L_bitreverse32)
+DEFUN __bitreverse32
+    XCALL __bitreverse16
+#if defined (__AVR_HAVE_MOVW__)
+    movw    __tmp_reg__, r22
+    movw    r22, r24
+    movw    r24, __tmp_reg__
+    clr     __zero_reg__
+#else
+    bswap   r22, r24
+    bswap   r23, r25
+#endif
+    XJMP __bitreverse16
+ENDF __bitreverse32
+#endif /* L_bitreverse32 */
+
+
 /**********************************
  * 64-bit shifts
  **********************************/
