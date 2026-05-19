@@ -70,7 +70,7 @@ static const struct gfc_omp_directive gfc_omp_directives[] = {
   {"cancel", GFC_OMP_DIR_EXECUTABLE, ST_OMP_CANCEL},
   {"critical", GFC_OMP_DIR_EXECUTABLE, ST_OMP_CRITICAL},
   /* {"declare induction", GFC_OMP_DIR_DECLARATIVE, ST_OMP_DECLARE_INDUCTION}, */
-  /* {"declare mapper", GFC_OMP_DIR_DECLARATIVE, ST_OMP_DECLARE_MAPPER}, */
+  {"declare mapper", GFC_OMP_DIR_DECLARATIVE, ST_OMP_DECLARE_MAPPER},
   {"declare reduction", GFC_OMP_DIR_DECLARATIVE, ST_OMP_DECLARE_REDUCTION},
   {"declare simd", GFC_OMP_DIR_DECLARATIVE, ST_OMP_DECLARE_SIMD},
   {"declare target", GFC_OMP_DIR_DECLARATIVE, ST_OMP_DECLARE_TARGET},
@@ -376,6 +376,19 @@ gfc_free_omp_variants (gfc_omp_variant *variant)
       gfc_free_omp_set_selector_list (variant->selectors);
       free (variant);
       variant = next_variant;
+    }
+}
+
+/* Free an !$omp declare mapper.  */
+
+void
+gfc_free_omp_udm (gfc_omp_udm *omp_udm)
+{
+  if (omp_udm)
+    {
+      gfc_free_omp_udm (omp_udm->next);
+      gfc_free_namespace (omp_udm->mapper_ns);
+      free (omp_udm);
     }
 }
 
@@ -2379,13 +2392,52 @@ gfc_match_dupl_atomic (bool not_dupl, const char *name)
 			       "clause at %L");
 }
 
+
+/* Search upwards though namespace NS and its parents to find an
+   !$omp declare mapper named MAPPER_ID, for typespec TS.  */
+
+gfc_omp_udm *
+gfc_find_omp_udm (gfc_namespace *ns, const char *mapper_id, gfc_typespec *ts)
+{
+  gfc_symtree *st;
+
+  if (ns == NULL)
+    ns = gfc_current_ns;
+
+  do
+    {
+      gfc_omp_udm *omp_udm;
+
+      st = gfc_find_symtree (ns->omp_udm_root, mapper_id);
+
+      if (st != NULL)
+	{
+	  for (omp_udm = st->n.omp_udm; omp_udm; omp_udm = omp_udm->next)
+	    if (gfc_compare_types (&omp_udm->ts, ts))
+	      return omp_udm;
+	}
+
+      /* Don't escape an interface block.  */
+      if (ns && !ns->has_import_set
+	  && ns->proc_name && ns->proc_name->attr.if_source == IFSRC_IFBODY)
+	break;
+
+      ns = ns->parent;
+    }
+  while (ns != NULL);
+
+  return NULL;
+}
+
+
 /* Match OpenMP and OpenACC directive clauses. MASK is a bitmask of
    clauses that are allowed for a particular directive.  */
 
 static match
 gfc_match_omp_clauses (gfc_omp_clauses **cp, const omp_mask mask,
 		       bool first = true, bool needs_space = true,
-		       bool openacc = false, bool openmp_target = false)
+		       bool openacc = false, bool openmp_target = false,
+		       gfc_omp_map_op default_map_op = OMP_MAP_TOFROM)
 {
   bool error = false;
   gfc_omp_clauses *c = gfc_get_omp_clauses ();
@@ -3682,9 +3734,12 @@ gfc_match_omp_clauses (gfc_omp_clauses **cp, const omp_mask mask,
 	      int always_modifier = 0;
 	      int close_modifier = 0;
 	      int present_modifier = 0;
+	      int mapper_modifier = 0;
 	      locus second_always_locus = old_loc2;
 	      locus second_close_locus = old_loc2;
+	      locus second_mapper_locus = old_loc2;
 	      locus second_present_locus = old_loc2;
+	      char mapper_id[GFC_MAX_SYMBOL_LEN + 1] = { '\0' };
 
 	      for (;;)
 		{
@@ -3704,6 +3759,14 @@ gfc_match_omp_clauses (gfc_omp_clauses **cp, const omp_mask mask,
 		      if (present_modifier++ == 1)
 			second_present_locus = current_locus;
 		    }
+		  else if (gfc_match ("mapper ( ") == MATCH_YES)
+		    {
+		      if (mapper_modifier++ == 1)
+			second_mapper_locus = current_locus;
+		      m = gfc_match (" %n ) ", mapper_id);
+		      if (m != MATCH_YES)
+			goto error;
+		    }
 		  else
 		    break;
 		  if (gfc_match (", ") != MATCH_YES)
@@ -3714,7 +3777,7 @@ gfc_match_omp_clauses (gfc_omp_clauses **cp, const omp_mask mask,
 				 "OpenMP 5.2");
 		}
 
-	      gfc_omp_map_op map_op = OMP_MAP_TOFROM;
+	      gfc_omp_map_op map_op = default_map_op;
 	      int always_present_modifier
 		= always_modifier && present_modifier;
 
@@ -3745,6 +3808,7 @@ gfc_match_omp_clauses (gfc_omp_clauses **cp, const omp_mask mask,
 		  gfc_current_locus = old_loc2;
 		  always_modifier = 0;
 		  close_modifier = 0;
+		  mapper_modifier = 0;
 		}
 
 	      if (always_modifier > 1)
@@ -3765,6 +3829,12 @@ gfc_match_omp_clauses (gfc_omp_clauses **cp, const omp_mask mask,
 			     &second_present_locus);
 		  break;
 		}
+	      if (mapper_modifier > 1)
+		{
+		  gfc_error ("too many %<mapper%> modifiers at %L",
+			     &second_mapper_locus);
+		  break;
+		}
 
 	      head = NULL;
 	      if (gfc_match_omp_variable_list ("", &c->lists[OMP_LIST_MAP],
@@ -3773,7 +3843,22 @@ gfc_match_omp_clauses (gfc_omp_clauses **cp, const omp_mask mask,
 		{
 		  gfc_omp_namelist *n;
 		  for (n = *head; n; n = n->next)
-		    n->u.map.op = map_op;
+		    {
+		      n->u.map.op = map_op;
+
+		      gfc_typespec *ts;
+		      if (n->expr)
+			ts = &n->expr->ts;
+		      else
+			ts = &n->sym->ts;
+
+		      gfc_omp_udm *udm
+			= gfc_find_omp_udm (gfc_current_ns, mapper_id, ts);
+		      if (udm)
+			{
+			  n->u2.udm.udm = udm;
+			}
+		    }
 		  continue;
 		}
 	      gfc_current_locus = old_loc;
@@ -5790,6 +5875,169 @@ gfc_match_omp_declare_simd (void)
   ods->next = gfc_current_ns->omp_declare_simd;
   gfc_current_ns->omp_declare_simd = ods;
   return MATCH_YES;
+}
+
+
+/* Find a matching "!$omp declare mapper" for typespec TS in symtree ST.  */
+
+gfc_omp_udm *
+gfc_omp_udm_find (gfc_symtree *st, gfc_typespec *ts)
+{
+  gfc_omp_udm *omp_udm;
+
+  if (st == NULL)
+    return NULL;
+
+  for (omp_udm = st->n.omp_udm; omp_udm; omp_udm = omp_udm->next)
+    if ((omp_udm->ts.type == BT_DERIVED || omp_udm->ts.type == BT_CLASS)
+	&& (ts->type == BT_DERIVED || ts->type == BT_CLASS)
+	&& strcmp (omp_udm->ts.u.derived->name, ts->u.derived->name) == 0)
+      return omp_udm;
+
+  return NULL;
+}
+
+
+/* Match !$omp declare mapper([ mapper-identifier : ] type :: var) clauses-list  */
+
+match
+gfc_match_omp_declare_mapper (void)
+{
+  match m;
+  gfc_typespec ts;
+  char mapper_id[GFC_MAX_SYMBOL_LEN + 1];
+  char var[GFC_MAX_SYMBOL_LEN + 1];
+  gfc_namespace *mapper_ns = NULL;
+  gfc_symtree *var_st;
+  gfc_symtree *st;
+  gfc_omp_udm *omp_udm = NULL, *prev_udm = NULL;
+  locus where = gfc_current_locus;
+
+  if (gfc_match_char ('(') != MATCH_YES)
+    {
+      gfc_error ("Expected %<(%> at %C");
+      return MATCH_ERROR;
+    }
+
+  locus old_locus = gfc_current_locus;
+
+  m = gfc_match (" %n : ", mapper_id);
+
+  if (m == MATCH_ERROR)
+    return MATCH_ERROR;
+
+  /* As a special case, a mapper named "default" and an unnamed mapper are
+     both the default mapper for a given type.  */
+  if (strcmp (mapper_id, "default") == 0)
+    mapper_id[0] = '\0';
+
+  if (gfc_peek_ascii_char () == ':')
+   {
+     /* If we see '::', the user did not name the mapper, and instead we just
+	saw the type.  So backtrack and try parsing as a type instead.  */
+     mapper_id[0] = '\0';
+     gfc_current_locus = old_locus;
+   }
+  old_locus = gfc_current_locus;
+
+  m = gfc_match_type_spec (&ts);
+  if (m != MATCH_YES)
+    {
+      gfc_error ("Expected either a type name at %L or a map-type "
+		 "identifier, a colon, or a type name", &old_locus);
+      return MATCH_ERROR;
+    }
+
+  if (ts.type != BT_DERIVED)
+    {
+      gfc_error ("!$OMP DECLARE MAPPER with non-derived type at %L", &old_locus);
+      return MATCH_ERROR;
+    }
+
+  if (gfc_match (" :: ") != MATCH_YES)
+    {
+      gfc_error ("Expected %<::%> at %C");
+      return MATCH_ERROR;
+    }
+
+  if (gfc_match_name (var) != MATCH_YES)
+    {
+      gfc_error ("Expected variable name at %C");
+      return MATCH_ERROR;
+    }
+
+  if (gfc_match_char (')') != MATCH_YES)
+    {
+      gfc_error ("Expected %<)%> at %C");
+      return MATCH_ERROR;
+    }
+
+  st = gfc_find_symtree (gfc_current_ns->omp_udm_root, mapper_id);
+
+  /* Now we need to set up a new namespace, and create a new sym_tree for our
+     dummy variable so we can use it in the following list of mapping
+     clauses.  */
+
+  gfc_current_ns = mapper_ns = gfc_get_namespace (gfc_current_ns, 1);
+  mapper_ns->proc_name = mapper_ns->parent->proc_name;
+  mapper_ns->omp_udm_ns = 1;
+
+  gfc_get_sym_tree (var, mapper_ns, &var_st, false);
+  var_st->n.sym->ts = ts;
+  var_st->n.sym->attr.omp_udm_artificial_var = 1;
+  var_st->n.sym->attr.flavor = FL_VARIABLE;
+  gfc_commit_symbols ();
+
+  gfc_omp_clauses *clauses = NULL;
+
+  m = gfc_match_omp_clauses (&clauses, omp_mask (OMP_CLAUSE_MAP), true, true,
+			     false, false, OMP_MAP_UNSET);
+  if (m != MATCH_YES)
+    goto failure;
+
+  omp_udm = gfc_get_omp_udm ();
+  omp_udm->next = NULL;
+  omp_udm->where = where;
+  omp_udm->mapper_id = gfc_get_string ("%s", mapper_id);
+  omp_udm->ts = ts;
+  omp_udm->var_sym = var_st->n.sym;
+  omp_udm->mapper_ns = mapper_ns;
+  omp_udm->clauses = clauses;
+
+  gfc_current_ns = mapper_ns->parent;
+
+  prev_udm = gfc_omp_udm_find (st, &ts);
+  if (prev_udm)
+    {
+      if (mapper_id[0])
+	gfc_error ("Redefinition of !$OMP DECLARE MAPPER at %L for type %qs with id %qs",
+		   &where, gfc_typename (&ts), mapper_id);
+      else
+	gfc_error ("Redefinition of !$OMP DECLARE MAPPER at %L for type %qs",
+		   &where, gfc_typename (&ts));
+      inform (gfc_get_location (&prev_udm->where),
+	      "Previous !$OMP DECLARE MAPPER here");
+      return MATCH_ERROR;
+    }
+  else if (st)
+    {
+      omp_udm->next = st->n.omp_udm;
+      st->n.omp_udm = omp_udm;
+    }
+  else
+    {
+      st = gfc_new_symtree (&gfc_current_ns->omp_udm_root, mapper_id);
+      st->n.omp_udm = omp_udm;
+    }
+
+  return MATCH_YES;
+
+failure:
+  if (mapper_ns)
+    gfc_current_ns = mapper_ns->parent;
+  gfc_free_omp_udm (omp_udm);
+
+  return MATCH_ERROR;
 }
 
 
@@ -9145,9 +9393,13 @@ resolve_omp_clauses (gfc_code *code, gfc_omp_clauses *omp_clauses,
 	n->sym->reduc_mark = 0;
 	if (n->sym->attr.flavor == FL_VARIABLE
 	    || n->sym->attr.proc_pointer
-	    || (!code && (!n->sym->attr.dummy || n->sym->ns != ns)))
+	    || (!code
+		&& !ns->omp_udm_ns
+		&& (!n->sym->attr.dummy || n->sym->ns != ns)))
 	  {
-	    if (!code && (!n->sym->attr.dummy || n->sym->ns != ns))
+	    if (!code
+		&& !ns->omp_udm_ns
+		&& (!n->sym->attr.dummy || n->sym->ns != ns))
 	      gfc_error ("Variable %qs is not a dummy argument at %L",
 			 n->sym->name, &n->where);
 	    continue;
@@ -9879,7 +10131,8 @@ resolve_omp_clauses (gfc_code *code, gfc_omp_clauses *omp_clauses,
 			   array isn't contiguous.  An expression such as
 			   arr(-n:n,-n:n) could be contiguous even if it looks
 			   like it may not be.  */
-			if (code->op != EXEC_OACC_UPDATE
+			if (code
+			    && code->op != EXEC_OACC_UPDATE
 			    && list != OMP_LIST_CACHE
 			    && list != OMP_LIST_DEPEND
 			    && !gfc_is_simply_contiguous (n->expr, false, true)
@@ -9991,7 +10244,7 @@ resolve_omp_clauses (gfc_code *code, gfc_omp_clauses *omp_clauses,
 			 && n->sym->as->type == AS_ASSUMED_SIZE)
 		  gfc_error ("Assumed size array %qs in %s clause at %L",
 			     n->sym->name, name, &n->where);
-		if (list == OMP_LIST_MAP && !openacc)
+		if (code && list == OMP_LIST_MAP && !openacc)
 		  switch (code->op)
 		    {
 		    case EXEC_OMP_TARGET:
@@ -13738,4 +13991,34 @@ gfc_resolve_omp_udrs (gfc_symtree *st)
   gfc_resolve_omp_udrs (st->right);
   for (omp_udr = st->n.omp_udr; omp_udr; omp_udr = omp_udr->next)
     gfc_resolve_omp_udr (omp_udr);
+}
+
+/* Resolve !$omp declare mapper constructs.  */
+
+static void
+gfc_resolve_omp_udm (gfc_omp_udm *omp_udm)
+{
+  resolve_omp_clauses (NULL, omp_udm->clauses, omp_udm->mapper_ns);
+
+  gfc_omp_namelist *n;
+  for (n = omp_udm->clauses->lists[OMP_LIST_MAP]; n; n = n->next)
+    if (n->sym == omp_udm->var_sym)
+      break;
+  if (!n)
+    gfc_error ("At least one %<map%> clause in !$OMP DECLARE MAPPER at %L must "
+	       "map %qs or an element of it",
+	       &omp_udm->where, omp_udm->var_sym->name);
+}
+
+void
+gfc_resolve_omp_udms (gfc_symtree *st)
+{
+  gfc_omp_udm *omp_udm;
+
+  if (st == NULL)
+    return;
+  gfc_resolve_omp_udms (st->left);
+  gfc_resolve_omp_udms (st->right);
+  for (omp_udm = st->n.omp_udm; omp_udm; omp_udm = omp_udm->next)
+    gfc_resolve_omp_udm (omp_udm);
 }
