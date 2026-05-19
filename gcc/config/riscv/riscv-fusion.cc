@@ -226,7 +226,6 @@ riscv_macro_fusion_pair_p (rtx_insn *prev, rtx_insn *curr)
       if (MEM_P (SET_SRC (curr_set))
 	  && SCALAR_INT_MODE_P (GET_MODE (SET_DEST (curr_set)))
 	  && REG_P (XEXP (SET_SRC (curr_set), 0))
-	  && REG_P (XEXP (SET_SRC (curr_set), 0))
 	  && REGNO (XEXP (SET_SRC (curr_set), 0)) == prev_dest_regno
 	  && GET_CODE (SET_SRC (prev_set)) == PLUS
 	  && REG_P (XEXP (SET_SRC (prev_set), 0))
@@ -524,7 +523,7 @@ riscv_macro_fusion_pair_p (rtx_insn *prev, rtx_insn *curr)
 			      (mem:DI (plus:DI (reg:DI rD) (const_int IMM12)))) */
 
       if (GET_CODE (SET_SRC (prev_set)) == UNSPEC
-	  && XINT (prev_set, 1) == UNSPEC_AUIPC
+	  && XINT (SET_SRC (prev_set), 1) == UNSPEC_AUIPC
 	  && MEM_P (SET_SRC (curr_set))
 	  && SCALAR_INT_MODE_P (GET_MODE (SET_DEST (curr_set)))
 	  && GET_CODE (XEXP (SET_SRC (curr_set), 0)) == PLUS)
@@ -560,8 +559,8 @@ riscv_macro_fusion_pair_p (rtx_insn *prev, rtx_insn *curr)
 	     bases are the same register.  */
 	  if (base_prev != NULL_RTX && base_curr != NULL_RTX
 	      && REG_P (base_prev) && REG_P (base_curr)
-	      && REGNO (base_prev) != REGNO (base_curr)
-	      /* The alignment of hte base pointer is more useful than the
+	      && REGNO (base_prev) == REGNO (base_curr)
+	      /* The alignment of the base pointer is more useful than the
 		 alignment of the memory reference for determining if we're
 		 on opposite sides of a cache line.  */
 	      && REGNO_POINTER_ALIGN (ORIGINAL_REGNO (base_prev)) >= 128)
@@ -582,7 +581,7 @@ riscv_macro_fusion_pair_p (rtx_insn *prev, rtx_insn *curr)
 		  && (INTVAL (offset_prev) + 8 == INTVAL (offset_curr)))
 		{
 		  if (dump_file)
-		    fprintf (dump_file, "RISCV_FUSE_ALIGNED_STD\n");
+		    fprintf (dump_file, "RISCV_FUSE_CACHE_ALIGNED_STD\n");
 		  return true;
 		}
 	    }
@@ -720,7 +719,6 @@ riscv_macro_fusion_pair_p (rtx_insn *prev, rtx_insn *curr)
       if (GET_CODE (SET_SRC (prev_set)) == MINUS
 	  && (XEXP (SET_SRC (prev_set), 0)
 	      == CONST0_RTX (GET_MODE (SET_SRC (prev_set))))
-	  && CONST_INT_P (XEXP (SET_SRC (prev_set), 0))
 	  && GET_CODE (SET_SRC (curr_set)) == SMAX
 	  && REG_P (SET_DEST (prev_set))
 	  && REG_P (SET_DEST (curr_set))
