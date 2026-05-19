@@ -176,104 +176,104 @@ objective-c/c++         Mike Stump              <mikestump@comcast.net>
 Rust                    Arthur Cohen            <arthur.cohen@embecosm.com>
 Rust                    Philip Herron           <herron.philip@googlemail.com>
 
-                        Various Maintainers
+                        Various Maintainers   (Area alphabetical order)
 
+*gimpl*                 Aldy Hernandez          <aldy@quesejoda.com>
+*gimpl*                 Jakub Jelinek           <jakub@redhat.com>
+*gimpl*                 Jason Merrill           <jason@redhat.com>
+*vrp, ranger            Aldy Hernandez          <aldy@quesejoda.com>
+*vrp, ranger            Andrew MacLeod          <amacleod@redhat.com>
+AutoFDO                 Eugene Rozenfeld        <erozen@microsoft.com>
+build machinery (*.in)  Paolo Bonzini           <bonzini@gnu.org>
+build machinery (*.in)  Nathanael Nerode        <neroden@gcc.gnu.org>
+build machinery (*.in)  Alexandre Oliva         <aoliva@gcc.gnu.org>
+build machinery (*.in)  Ralf Wildenhues         <Ralf.Wildenhues@gmx.de>
+c++ runtime libs        Paolo Carlini           <pcarlini@gmail.com>
+c++ runtime libs        Ulrich Drepper          <drepper@gmail.com>
+c++ runtime libs        Benjamin De Kosnik      <bkoz@gnu.org>
+c++ runtime libs        Jonathan Wakely         <jwakely@redhat.com>
+c++ runtime libs special modes  François Dumont <fdumont@gcc.gnu.org>
+caller-save.cc          Jeff Law                <jeffreyalaw@gmail.com>
+callgraph               Jan Hubicka             <hubicka@ucw.cz>
+config.sub/config.guess  Ben Elliston           <config-patches@gnu.org>
+debugging code          Jim Wilson              <wilson@tuliptree.org>
+diagnostic messages     David Malcolm           <dmalcolm@redhat.com>
+diagnostic messages     Dodji Seketeli          <dodji@redhat.com>
+docs co-maintainer      Sandra Loosemore        <sloosemore@baylibre.com>
+docs co-maintainer      Joseph Myers            <josmyers@redhat.com>
+docs co-maintainer      Gerald Pfeifer          <gerald@pfeifer.com>
+docstring relicensing   Joseph Myers            <josmyers@redhat.com>
+docstring relicensing   Gerald Pfeifer          <gerald@pfeifer.com>
+dwarf debugging code    Cary Coutant            <ccoutant@gmail.com>
+dwarf debugging code    Jason Merrill           <jason@redhat.com>
+fixincludes             Bruce Korb              <bkorb@gnu.org>
+forge integration       Claudio Bantaloukas     <claudio.bantaloukas@arm.com>
+fp-bit                  Ian Lance Taylor        <ian@airs.com>
+gcov                    Jan Hubicka             <hubicka@ucw.cz>
+gcov                    Nathan Sidwell          <nathan@acm.org>
+gcse.cc                 Jeff Law                <jeffreyalaw@gmail.com>
+gdbhooks.py             David Malcolm           <dmalcolm@redhat.com>
+gen* on machine desc    Richard Sandiford       <rdsandiford@googlemail.com>
+global opt framework    Jeff Law                <jeffreyalaw@gmail.com>
+i18n                    Joseph Myers            <josmyers@redhat.com>
+i18n                    Philipp Thomas          <pth@suse.de>
+instruction combiner    Segher Boessenkool      <segher@kernel.crashing.org>
+jit                     David Malcolm           <dmalcolm@redhat.com>
+jump.cc                 David S. Miller         <davem@redhat.com>
 libbacktrace            Ian Lance Taylor        <ian@airs.com>
 libcpp                  Per Bothner             <per@bothner.com>
-libcpp                  All C and C++ front end maintainers
 libcpp                  David Malcolm           <dmalcolm@redhat.com>
-fp-bit                  Ian Lance Taylor        <ian@airs.com>
+libcpp                  All C and C++ front end maintainers
 libga68                 Jose E. Marchesi        <jemarch@gnu.org>
 libgcc                  Ian Lance Taylor        <ian@airs.com>
 libgo                   Ian Lance Taylor        <ian@airs.com>
-libgomp                 Jakub Jelinek           <jakub@redhat.com>
 libgomp                 Tobias Burnus           <tburnus@baylibre.com>
+libgomp                 Jakub Jelinek           <jakub@redhat.com>
 libgomp (OpenACC)       Thomas Schwinge         <tschwinge@baylibre.com>
 libgrust                All Rust front end maintainers
 libiberty               Ian Lance Taylor        <ian@airs.com>
 libitm                  Torvald Riegel          <triegel@redhat.com>
 libobjc                 Nicola Pero             <nicola.pero@meta-innovation.com>
 libobjc                 Andrew Pinski           <pinskia@gmail.com>
+libphobos               Iain Buclaw             <ibuclaw@gdcproject.org>
 libquadmath             Tobias Burnus           <tburnus@baylibre.com>
 libquadmath             Jakub Jelinek           <jakub@redhat.com>
 libvtv                  Caroline Tice           <cmtice@google.com>
-libphobos               Iain Buclaw             <ibuclaw@gdcproject.org>
 line map                Dodji Seketeli          <dodji@redhat.com>
-soft-fp                 Joseph Myers            <josmyers@redhat.com>
-scheduler (+ haifa)     Jim Wilson              <wilson@tuliptree.org>
-scheduler (+ haifa)     Michael Meissner        <gnu@the-meissners.org>
-scheduler (+ haifa)     Jeff Law                <jeffreyalaw@gmail.com>
-scheduler (+ haifa)     Vladimir Makarov        <vmakarov@redhat.com>
-modulo-scheduler        Roman Zhuykov           <zhroma@ispras.ru>
-reorg                   Jeff Law                <jeffreyalaw@gmail.com>
-caller-save.cc          Jeff Law                <jeffreyalaw@gmail.com>
-callgraph               Jan Hubicka             <hubicka@ucw.cz>
-debugging code          Jim Wilson              <wilson@tuliptree.org>
-dwarf debugging code    Jason Merrill           <jason@redhat.com>
-dwarf debugging code    Cary Coutant            <ccoutant@gmail.com>
-c++ runtime libs        Paolo Carlini           <pcarlini@gmail.com>
-c++ runtime libs        Ulrich Drepper          <drepper@gmail.com>
-c++ runtime libs        Benjamin De Kosnik      <bkoz@gnu.org>
-c++ runtime libs        Jonathan Wakely         <jwakely@redhat.com>
-c++ runtime libs special modes  François Dumont <fdumont@gcc.gnu.org>
-fixincludes             Bruce Korb              <bkorb@gnu.org>
-*gimpl*                 Jakub Jelinek           <jakub@redhat.com>
-*gimpl*                 Aldy Hernandez          <aldy@quesejoda.com>
-*gimpl*                 Jason Merrill           <jason@redhat.com>
-gcse.cc                 Jeff Law                <jeffreyalaw@gmail.com>
-global opt framework    Jeff Law                <jeffreyalaw@gmail.com>
-jump.cc                 David S. Miller         <davem@redhat.com>
-web pages               Gerald Pfeifer          <gerald@pfeifer.com>
-config.sub/config.guess Ben Elliston            <config-patches@gnu.org>
-i18n                    Philipp Thomas          <pth@suse.de>
-i18n                    Joseph Myers            <josmyers@redhat.com>
-diagnostic messages     Dodji Seketeli          <dodji@redhat.com>
-diagnostic messages     David Malcolm           <dmalcolm@redhat.com>
-build machinery (*.in)  Paolo Bonzini           <bonzini@gnu.org>
-build machinery (*.in)  Nathanael Nerode        <neroden@gcc.gnu.org>
-build machinery (*.in)  Alexandre Oliva         <aoliva@gcc.gnu.org>
-build machinery (*.in)  Ralf Wildenhues         <Ralf.Wildenhues@gmx.de>
-docs co-maintainer      Gerald Pfeifer          <gerald@pfeifer.com>
-docs co-maintainer      Joseph Myers            <josmyers@redhat.com>
-docs co-maintainer      Sandra Loosemore        <sloosemore@baylibre.com>
-docstring relicensing   Gerald Pfeifer          <gerald@pfeifer.com>
-docstring relicensing   Joseph Myers            <josmyers@redhat.com>
-predict.def             Jan Hubicka             <hubicka@ucw.cz>
-gcov                    Jan Hubicka             <hubicka@ucw.cz>
-gcov                    Nathan Sidwell          <nathan@acm.org>
-option handling         Joseph Myers            <josmyers@redhat.com>
-middle-end              Jeff Law                <jeffreyalaw@gmail.com>
-middle-end              Ian Lance Taylor        <ian@airs.com>
-middle-end              Richard Biener          <rguenther@suse.de>
-*vrp, ranger            Aldy Hernandez          <aldy@quesejoda.com>
-*vrp, ranger            Andrew MacLeod          <amacleod@redhat.com>
-tree-ssa                Andrew MacLeod          <amacleod@redhat.com>
-tree browser/unparser   Sebastian Pop           <sebpop@gmail.com>
-scev, data dependence   Sebastian Pop           <sebpop@gmail.com>
-profile feedback        Jan Hubicka             <hubicka@ucw.cz>
-AutoFDO                 Eugene Rozenfeld        <erozen@microsoft.com>
-reload                  Ulrich Weigand          <uweigand@de.ibm.com>
-RTL optimizers          Eric Botcazou           <ebotcazou@libertysurf.fr>
-instruction combiner    Segher Boessenkool      <segher@kernel.crashing.org>
-pair fusion             Alex Coplan             <alex.coplan@arm.com>
-vectorizer (+ tree-if-conv) Richard Biener      <rguenther@suse.de>
-vectorizer (+ tree-if-conv) Tamar Christina     <tamar.christina@arm.com>
-vectorizer (+ tree-if-conv) Zdenek Dvorak       <ook@ucw.cz>
 loop infrastructure     Zdenek Dvorak           <ook@ucw.cz>
 loop ivopts             Bin Cheng               <bin.cheng@linux.alibaba.com>
 loop optimizer          Bin Cheng               <bin.cheng@linux.alibaba.com>
-OpenACC                 Thomas Schwinge         <tschwinge@baylibre.com>
+middle-end              Richard Biener          <rguenther@suse.de>
+middle-end              Jeff Law                <jeffreyalaw@gmail.com>
+middle-end              Ian Lance Taylor        <ian@airs.com>
+modulo-scheduler        Roman Zhuykov           <zhroma@ispras.ru>
 OpenACC                 Tobias Burnus           <tburnus@baylibre.com>
-OpenMP                  Jakub Jelinek           <jakub@redhat.com>
+OpenACC                 Thomas Schwinge         <tschwinge@baylibre.com>
 OpenMP                  Tobias Burnus           <tburnus@baylibre.com>
+OpenMP                  Jakub Jelinek           <jakub@redhat.com>
+option handling         Joseph Myers            <josmyers@redhat.com>
+pair fusion             Alex Coplan             <alex.coplan@arm.com>
+predict.def             Jan Hubicka             <hubicka@ucw.cz>
+profile feedback        Jan Hubicka             <hubicka@ucw.cz>
+register allocation     Vladimir Makarov        <vmakarov@redhat.com>
+reload                  Ulrich Weigand          <uweigand@de.ibm.com>
+reorg                   Jeff Law                <jeffreyalaw@gmail.com>
+RTL optimizers          Eric Botcazou           <ebotcazou@libertysurf.fr>
+scev, data dependence   Sebastian Pop           <sebpop@gmail.com>
+scheduler (+ haifa)     Jeff Law                <jeffreyalaw@gmail.com>
+scheduler (+ haifa)     Vladimir Makarov        <vmakarov@redhat.com>
+scheduler (+ haifa)     Michael Meissner        <gnu@the-meissners.org>
+scheduler (+ haifa)     Jim Wilson              <wilson@tuliptree.org>
+soft-fp                 Joseph Myers            <josmyers@redhat.com>
+static analyzer         David Malcolm           <dmalcolm@redhat.com>
 testsuite               Rainer Orth             <ro@CeBiTec.Uni-Bielefeld.DE>
 testsuite               Mike Stump              <mikestump@comcast.net>
-register allocation     Vladimir Makarov        <vmakarov@redhat.com>
-gdbhooks.py             David Malcolm           <dmalcolm@redhat.com>
-jit                     David Malcolm           <dmalcolm@redhat.com>
-gen* on machine desc    Richard Sandiford       <rdsandiford@googlemail.com>
-static analyzer         David Malcolm           <dmalcolm@redhat.com>
-forge integration       Claudio Bantaloukas     <claudio.bantaloukas@arm.com>
+tree browser/unparser   Sebastian Pop           <sebpop@gmail.com>
+tree-ssa                Andrew MacLeod          <amacleod@redhat.com>
+vectorizer (+ tree-if-conv)  Richard Biener     <rguenther@suse.de>
+vectorizer (+ tree-if-conv)  Tamar Christina    <tamar.christina@arm.com>
+vectorizer (+ tree-if-conv)  Zdenek Dvorak      <ook@ucw.cz>
+web pages               Gerald Pfeifer          <gerald@pfeifer.com>
 
 Note that individuals who maintain parts of the compiler need approval to
 check in changes outside of the parts of the compiler they maintain.
