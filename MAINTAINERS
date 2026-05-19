@@ -158,23 +158,23 @@ VxWorks ports           Olivier Hainque         <hainque@adacore.com>
 
                         Language Front Ends Maintainers
 
-C front end/ISO C99     Joseph Myers            <josmyers@redhat.com>
-Ada front end           Arnaud Charlet          <charlet@adacore.com>
 Ada front end           Eric Botcazou           <ebotcazou@libertysurf.fr>
+Ada front end           Arnaud Charlet          <charlet@adacore.com>
 Ada front end           Marc Poulhiès           <poulhies@adacore.com>
 Ada front end           Pierre-Marie de Rodat   <derodat@adacore.com>
-COBOL front end         Robert Dubner           <rdubner@symas.com>
-COBOL front end         James K. Lowden         <jklowden@cobolworx.com>
+Algol 68                Jose E. Marchesi        <jemarch@gnu.org>
+C front end/ISO C99     Joseph Myers            <josmyers@redhat.com>
 c++                     Jason Merrill           <jason@redhat.com>
 c++                     Nathan Sidwell          <nathan@acm.org>
+COBOL front end         Robert Dubner           <rdubner@symas.com>
+COBOL front end         James K. Lowden         <jklowden@cobolworx.com>
 D front end             Iain Buclaw             <ibuclaw@gdcproject.org>
 go                      Ian Lance Taylor        <ian@airs.com>
 Modula-2 front end      Gaius Mulley            <gaiusmod2@gmail.com>
-objective-c/c++         Mike Stump              <mikestump@comcast.net>
 objective-c/c++         Iain Sandoe             <iain@sandoe.co.uk>
+objective-c/c++         Mike Stump              <mikestump@comcast.net>
 Rust                    Arthur Cohen            <arthur.cohen@embecosm.com>
 Rust                    Philip Herron           <herron.philip@googlemail.com>
-Algol 68                Jose E. Marchesi        <jemarch@gnu.org>
 
                         Various Maintainers
 
