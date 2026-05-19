@@ -78,6 +78,8 @@ void test01()
   VERIFY( !obj.tinyness_before );
   VERIFY( obj.round_style == std::round_toward_zero );
 }
+// { dg-warning "has_denorm' is deprecated" "" { target c++23 } 68 }
+// { dg-warning "has_denorm_loss' is deprecated" "" { target c++23 } 69 }
 
 // test linkage of the generic bits
 template struct std::numeric_limits<B>;

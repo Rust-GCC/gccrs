@@ -791,9 +791,14 @@ namespace ranges
       static constexpr bool has_infinity = false;
       static constexpr bool has_quiet_NaN = false;
       static constexpr bool has_signaling_NaN = false;
+      _GLIBCXX23_DEPRECATED
       static constexpr bool has_denorm_loss = false;
       static constexpr bool tinyness_before = false;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations" // denorm_absent
+      _GLIBCXX23_DEPRECATED
       static constexpr float_denorm_style has_denorm = denorm_absent;
+#pragma GCC diagnostic pop
       static constexpr float_round_style round_style = round_toward_zero;
 
       static constexpr _Sp
@@ -858,9 +863,14 @@ namespace ranges
       static constexpr bool has_infinity = false;
       static constexpr bool has_quiet_NaN = false;
       static constexpr bool has_signaling_NaN = false;
+      _GLIBCXX23_DEPRECATED
       static constexpr bool has_denorm_loss = false;
       static constexpr bool tinyness_before = false;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+      _GLIBCXX23_DEPRECATED
       static constexpr float_denorm_style has_denorm = denorm_absent;
+#pragma GCC diagnostic pop
       static constexpr float_round_style round_style = round_toward_zero;
 
       static constexpr _Dp

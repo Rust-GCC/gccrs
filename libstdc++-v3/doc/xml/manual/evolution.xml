@@ -1170,6 +1170,14 @@ Removed allocator-extended constructors and support for uses-allocator
 construction from <classname>std::promise</classname> and
 <classname>std::packaged_task</classname>.
 </para>
+
+<para>
+<code>std::numeric_limits::has_denorm</code>,
+<code>std::numeric_limits::has_denorm_loss</code>,
+and <code>enum std::float_denorm_style</code> and its enumerators
+were deprecated for C++23.
+</para>
+
 </section>
 
 </section>

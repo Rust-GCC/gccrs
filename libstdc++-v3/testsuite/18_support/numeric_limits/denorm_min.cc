@@ -43,6 +43,8 @@ test_denorm_min()
 
   VERIFY (test);
 }
+// { dg-warning "has_denorm' is deprecated" "" { target c++23 } 36 }
+// { dg-warning "denorm_present' is deprecated" "" { target c++23 } 36 }
 
 int main()
 {

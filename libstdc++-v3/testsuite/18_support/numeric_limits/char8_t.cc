@@ -63,6 +63,9 @@ template<typename T, typename R>
     VERIFY( char_type::round_style == impl_type::round_style );
   }
 
+// { dg-warning "has_denorm' is deprecated" "" { target c++23 } 52 }
+// { dg-warning "has_denorm_loss' is deprecated" "" { target c++23 } 53 }
+
 int main()
 {
   do_test<char8_t, unsigned char>();

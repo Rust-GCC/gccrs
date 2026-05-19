@@ -428,6 +428,8 @@ constexpr bool verify_numeric_limits_values_not_meaningful_for = true
 	&& (numeric_limits<integer_class>::quiet_NaN() == 0)
 	&& (numeric_limits<integer_class>::signaling_NaN() == 0);
 
+// { dg-warning "denorm_absent' is deprecated" "" { target c++23 } 422 }
+
 static_assert(verify_numeric_limits_values_not_meaningful_for<max_size_t>);
 static_assert(verify_numeric_limits_values_not_meaningful_for<max_diff_t>);
 

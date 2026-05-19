@@ -65,6 +65,8 @@ template<typename T>
     VERIFY( cv_limits::tinyness_before == limits::tinyness_before );
     VERIFY( cv_limits::round_style == limits::round_style );
   }
+// { dg-warning "has_denorm' is deprecated" "" { target c++23 } 52 }
+// { dg-warning "has_denorm_loss' is deprecated" "" { target c++23 } 53 }
 
 template<typename T>
   void
