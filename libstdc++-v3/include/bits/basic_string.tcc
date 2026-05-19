@@ -433,11 +433,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       if (_M_is_local())
 	return;
 
-#ifdef __glibcxx_allocate_at_least  // C++23
-      const size_type __limit = (__STDCPP_DEFAULT_NEW_ALIGNMENT__ - 1) / sizeof(_CharT);
-#else
-      const size_type __limit = 0;
-#endif
       const size_type __length = length();
       const size_type __capacity = _M_allocated_capacity;
 
@@ -447,9 +442,16 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	  this->_S_copy(_M_local_buf, _M_data(), __length + 1);
 	  _M_destroy(__capacity);
 	  _M_data(_M_local_data());
+	  return;
 	}
 #if __cpp_exceptions
-      else if (__capacity - __length > __limit )
+#ifdef __glibcxx_allocate_at_least  // C++23
+      const size_type __limit =
+	(__STDCPP_DEFAULT_NEW_ALIGNMENT__ - 1) / sizeof(_CharT);
+#else
+      const size_type __limit = 0;
+#endif
+      if (__capacity - __length > __limit )
 	try
 	  {
 	    _Alloc_result __r = _S_allocate_at_least(
