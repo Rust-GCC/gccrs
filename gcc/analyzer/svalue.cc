@@ -1748,7 +1748,8 @@ binop_svalue::maybe_get_value_range_1 (value_range &out) const
     if (m_arg1->maybe_get_value_range (rhs))
       {
 	range_op_handler handler (m_op);
-	if (handler)
+	if (handler
+	    && handler.operand_check_p (type, lhs.type (), rhs.type ()))
 	  {
 	    out.set_range_class (type);
 	    if (handler.fold_range (out, get_type (), lhs, rhs))
