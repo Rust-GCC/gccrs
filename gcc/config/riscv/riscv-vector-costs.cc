@@ -1095,6 +1095,74 @@ costs::prefer_unrolled_loop () const
 	      <= (unsigned int) param_max_completely_peeled_insns));
 }
 
+/* Return the estimated number of vector iterations for LOOP_VINFO, or
+   HOST_WIDE_INT_M1U if the scalar iteration count is not known.  */
+static unsigned HOST_WIDE_INT
+estimated_loop_iters (loop_vec_info loop_vinfo)
+{
+  if (!LOOP_VINFO_NITERS_KNOWN_P (loop_vinfo))
+    return HOST_WIDE_INT_M1U;
+
+  unsigned HOST_WIDE_INT scalar_niters = LOOP_VINFO_INT_NITERS (loop_vinfo);
+  unsigned int vf = vect_vf_for_cost (loop_vinfo);
+  return (LOOP_VINFO_USING_PARTIAL_VECTORS_P (loop_vinfo)
+	  ? CEIL (scalar_niters, vf)
+	  : scalar_niters / vf);
+}
+
+/* Compare the estimated loop overheads of two loops.  With LMUL cost scaling,
+   simple loop bodies can have equal inside-loop costs for different LMULs.
+   Include loop-back branch costs so that larger RVV modes are preferred when
+   they reduce or eliminate vector loop iterations.  */
+static int
+compare_loop_overhead (loop_vec_info this_loop_vinfo,
+		       loop_vec_info other_loop_vinfo)
+{
+  gcc_assert (LOOP_VINFO_NITERS_KNOWN_P (this_loop_vinfo));
+  gcc_assert (LOOP_VINFO_NITERS_KNOWN_P (other_loop_vinfo));
+
+  unsigned HOST_WIDE_INT this_niters = estimated_loop_iters (this_loop_vinfo);
+  unsigned HOST_WIDE_INT other_niters = estimated_loop_iters (other_loop_vinfo);
+  bool this_eliminate_loop_p = this_niters == 1;
+  bool other_eliminate_loop_p = other_niters == 1;
+
+  if (this_eliminate_loop_p != other_eliminate_loop_p)
+    {
+      if (dump_enabled_p ())
+	dump_printf_loc (MSG_NOTE, vect_location,
+			 "Preferring %s loop because it is estimated to"
+			 " eliminate the main loop entirely\n",
+			 GET_MODE_NAME ((this_eliminate_loop_p
+					 ? this_loop_vinfo
+					 : other_loop_vinfo)->vector_mode));
+      return this_eliminate_loop_p ? -1 : 1;
+    }
+
+  unsigned int branch_cost
+    = builtin_vectorization_cost (cond_branch_taken, NULL_TREE, 0);
+  unsigned HOST_WIDE_INT this_overhead
+    = this_niters > 1 ? (this_niters - 1) * branch_cost : 0;
+  unsigned HOST_WIDE_INT other_overhead
+    = other_niters > 1 ? (other_niters - 1) * branch_cost : 0;
+
+  if (this_overhead != other_overhead)
+    {
+      if (dump_enabled_p ())
+	dump_printf_loc (MSG_NOTE, vect_location,
+			 "Preferring %s loop because it has lower"
+			 " loop overhead ("
+			 HOST_WIDE_INT_PRINT_UNSIGNED " vs. "
+			 HOST_WIDE_INT_PRINT_UNSIGNED ")\n",
+			 GET_MODE_NAME ((this_overhead < other_overhead
+					 ? this_loop_vinfo
+					 : other_loop_vinfo)->vector_mode),
+			 this_overhead, other_overhead);
+      return this_overhead < other_overhead ? -1 : 1;
+    }
+
+  return 0;
+}
+
 bool
 costs::better_main_loop_than_p (const vector_costs *uncast_other) const
 {
@@ -1213,7 +1281,28 @@ costs::better_main_loop_than_p (const vector_costs *uncast_other) const
 	   && m_cost_type == VLS_VECTOR_COST)
     return false;
 
-  return vector_costs::better_main_loop_than_p (other);
+  /* Fall back to generic costing if either iteration count is unknown.  For
+     known iteration counts, include loop overhead when comparing different
+     LMULs.  This handles such cases better than better_main_loop_than_p,
+     especially while outside costs can still overestimate prologue costs
+     (PR target/125476).  */
+  if (!LOOP_VINFO_NITERS_KNOWN_P (this_loop_vinfo)
+      || !LOOP_VINFO_NITERS_KNOWN_P (other_loop_vinfo))
+    return vector_costs::better_main_loop_than_p (other);
+
+  int diff = compare_inside_loop_cost (other);
+  if (diff != 0)
+    return diff < 0;
+
+  diff = compare_loop_overhead (this_loop_vinfo, other_loop_vinfo);
+  if (diff != 0)
+    return diff < 0;
+
+  diff = compare_outside_loop_cost (other);
+  if (diff != 0)
+    return diff < 0;
+
+  return false;
 }
 
 /* Returns the group size i.e. the number of vectors to be loaded by a
