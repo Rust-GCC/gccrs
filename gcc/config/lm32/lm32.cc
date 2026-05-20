@@ -467,7 +467,7 @@ lm32_compute_frame_size (int size)
   callee_size = 0;
   reg_save_mask = 0;
 
-  /* Build mask that actually determines which regsiters we save
+  /* Build mask that actually determines which registers we save
      and calculate size required to store them in the stack.  */
   for (regno = 1; regno < SP_REGNUM; regno++)
     {
