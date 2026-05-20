@@ -327,58 +327,59 @@ new_elt_loc_list (cselib_val *val, rtx loc)
   if (GET_CODE (loc) == VALUE)
     {
       loc = canonical_cselib_val (CSELIB_VAL_PTR (loc))->val_rtx;
+      auto *loc_val = CSELIB_VAL_PTR (loc);
 
       gcc_checking_assert (PRESERVED_VALUE_P (loc)
 			   == PRESERVED_VALUE_P (val->val_rtx));
 
       if (val->val_rtx == loc)
 	return;
-      else if (val->uid > CSELIB_VAL_PTR (loc)->uid)
+      else if (val->uid > loc_val->uid)
 	{
 	  /* Reverse the insertion.  */
-	  new_elt_loc_list (CSELIB_VAL_PTR (loc), val->val_rtx);
+	  new_elt_loc_list (loc_val, val->val_rtx);
 	  return;
 	}
 
-      gcc_checking_assert (val->uid < CSELIB_VAL_PTR (loc)->uid);
+      gcc_checking_assert (val->uid < loc_val->uid);
 
-      if (CSELIB_VAL_PTR (loc)->locs)
+      if (loc_val->locs)
 	{
 	  /* Bring all locs from LOC to VAL.  */
-	  for (el = CSELIB_VAL_PTR (loc)->locs; el->next; el = el->next)
+	  for (el = loc_val->locs; el->next; el = el->next)
 	    {
 	      /* Adjust values that have LOC as canonical so that VAL
 		 becomes their canonical.  */
 	      if (el->loc && GET_CODE (el->loc) == VALUE)
 		{
-		  gcc_checking_assert (CSELIB_VAL_PTR (el->loc)->locs->loc
-				       == loc);
-		  CSELIB_VAL_PTR (el->loc)->locs->loc = val->val_rtx;
+		  auto *el_val = CSELIB_VAL_PTR (el->loc);
+		  gcc_checking_assert (el_val->locs->loc == loc);
+		  el_val->locs->loc = val->val_rtx;
 		}
 	    }
 	  el->next = val->locs;
-	  next = val->locs = CSELIB_VAL_PTR (loc)->locs;
+	  next = val->locs = loc_val->locs;
 	}
 
-      if (CSELIB_VAL_PTR (loc)->addr_list)
+      if (loc_val->addr_list)
 	{
 	  /* Bring in addr_list into canonical node.  */
-	  struct elt_list *last = CSELIB_VAL_PTR (loc)->addr_list;
+	  struct elt_list *last = loc_val->addr_list;
 	  while (last->next)
 	    last = last->next;
 	  last->next = val->addr_list;
-	  val->addr_list = CSELIB_VAL_PTR (loc)->addr_list;
-	  CSELIB_VAL_PTR (loc)->addr_list = NULL;
+	  val->addr_list = loc_val->addr_list;
+	  loc_val->addr_list = NULL;
 	}
 
-      if (CSELIB_VAL_PTR (loc)->next_containing_mem != NULL
+      if (loc_val->next_containing_mem != NULL
 	  && val->next_containing_mem == NULL)
 	{
 	  /* Add VAL to the containing_mem list after LOC.  LOC will
 	     be removed when we notice it doesn't contain any
 	     MEMs.  */
-	  val->next_containing_mem = CSELIB_VAL_PTR (loc)->next_containing_mem;
-	  CSELIB_VAL_PTR (loc)->next_containing_mem = val;
+	  val->next_containing_mem = loc_val->next_containing_mem;
+	  loc_val->next_containing_mem = val;
 	}
 
       /* Chain LOC back to VAL.  */
@@ -386,7 +387,7 @@ new_elt_loc_list (cselib_val *val, rtx loc)
       el->loc = val->val_rtx;
       el->setting_insn = cselib_current_insn;
       el->next = NULL;
-      CSELIB_VAL_PTR (loc)->locs = el;
+      loc_val->locs = el;
     }
 
   el = elt_loc_list_pool.allocate ();
