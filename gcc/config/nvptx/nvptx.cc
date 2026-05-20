@@ -431,7 +431,7 @@ nvptx_option_override (void)
 }
 
 /* Return a ptx type for MODE.  If PROMOTE, then use .u32 for QImode to
-   deal with ptx ideosyncracies.  */
+   deal with ptx idiosyncrasies.  */
 
 const char *
 nvptx_ptx_type_from_mode (machine_mode mode, bool promote)
@@ -2656,7 +2656,7 @@ nvptx_assemble_undefined_decl (FILE *file, const char *name, const_tree decl)
   if (DECL_IN_CONSTANT_POOL (decl))
     return;
 
-  /*  We support weak defintions, and hence have the right
+  /*  We support weak definitions, and hence have the right
       ASM_WEAKEN_DECL definition.  Diagnose the problem here.  */
   if (DECL_WEAK (decl))
     error_at (DECL_SOURCE_LOCATION (decl),
@@ -2971,7 +2971,7 @@ nvptx_mem_maybe_shared_p (const_rtx x)
 /* Print an operand, X, to FILE, with an optional modifier in CODE.
 
    Meaning of CODE:
-   . -- print the predicate for the instruction or an emptry string for an
+   . -- print the predicate for the instruction or an empty string for an
         unconditional one.
    # -- print a rounding mode for the instruction
 
@@ -3905,7 +3905,7 @@ nvptx_discover_pars (bb_insn_map_t *map)
    Single-Entry-Single-Exit regions.  Some of those regions will be
    trivial ones consisting of a single BB.  The blocks of a
    partitioned region might form a set of disjoint graphs -- because
-   the region encloses a differently partitoned sub region.
+   the region encloses a differently partitioned sub region.
 
    We use the linear time algorithm described in 'Finding Regions Fast:
    Single Entry Single Exit and control Regions in Linear Time'
@@ -3936,7 +3936,7 @@ nvptx_discover_pars (bb_insn_map_t *map)
    We use coloring to mark all BBs with cycle equivalency with the
    same color.  This is the output of the 'Finding Regions Fast'
    algorithm.  Notice it doesn't actually find the set of nodes within
-   a particular region, just unorderd sets of nodes that are the
+   a particular region, just unordered sets of nodes that are the
    entries and exits of SESE regions.
 
    After determining cycle equivalency, we need to find the minimal
@@ -3945,7 +3945,7 @@ nvptx_discover_pars (bb_insn_map_t *map)
    looking, and we're in the subgraph, we start coloring the color of
    the current node, and remember that node as the start of the
    current color's SESE region.  Every time we go to a new node, we
-   decrement the count of nodes with thet color.  If it reaches zero,
+   decrement the count of nodes with that color.  If it reaches zero,
    we remember that node as the end of the current color's SESE region
    and return to 'looking'.  Otherwise we color the node the current
    color.
@@ -3958,12 +3958,12 @@ typedef std::pair<basic_block, basic_block> bb_pair_t;
 typedef auto_vec<bb_pair_t> bb_pair_vec_t;
 
 /* A node in the undirected CFG.  The discriminator SECOND indicates just
-   above or just below the BB idicated by FIRST.  */
+   above or just below the BB indicated by FIRST.  */
 typedef std::pair<basic_block, int> pseudo_node_t;
 
 /* A bracket indicates an edge towards the root of the spanning tree of the
    undirected graph.  Each bracket has a color, determined
-   from the currrent set of brackets.  */
+   from the current set of brackets.  */
 struct bracket
 {
   pseudo_node_t back; /* Back target */
@@ -4902,7 +4902,7 @@ verify_neutering_labels (basic_block to, rtx_insn *vector_label,
      <possibly-broadcast-cond>
      <branch>
 
-   We currently only use differnt FROM and TO when skipping an entire
+   We currently only use different FROM and TO when skipping an entire
    loop.  We could do more if we detected superblocks.  */
 
 static void
@@ -5432,7 +5432,7 @@ populate_offload_attrs (offload_attrs *oa)
 #if WORKAROUND_PTXJIT_BUG_2
 /* Variant of pc_set that only requires JUMP_P (INSN) if STRICT.  This variant
    is needed in the nvptx target because the branches generated for
-   parititioning are NONJUMP_INSN_P, not JUMP_P.  */
+   partitioning are NONJUMP_INSN_P, not JUMP_P.  */
 
 static rtx
 nvptx_pc_set (const rtx_insn *insn, bool strict = true)
@@ -5475,7 +5475,7 @@ nvptx_condjump_label (const rtx_insn *insn, bool strict = true)
 }
 
 /* Insert a dummy ptx insn when encountering a branch to a label with no ptx
-   insn inbetween the branch and the label.  This works around a JIT bug
+   insn in between the branch and the label.  This works around a JIT bug
    observed at driver version 384.111, at -O0 for sm_50.  */
 
 static void
@@ -5527,7 +5527,7 @@ prevent_branch_around_nothing (void)
 #endif
 
 #ifdef WORKAROUND_PTXJIT_BUG_3
-/* Insert two membar.cta insns inbetween two subsequent bar.sync insns.  This
+/* Insert two membar.cta insns in between two subsequent bar.sync insns.  This
    works around a hang observed at driver version 390.48 for sm_50.  */
 
 static void
@@ -7160,10 +7160,10 @@ nvptx_lockfull_update (location_t loc, gimple_stmt_iterator *gsi,
   return acc_out;
 }
 
-/* Emit a sequence to update a reduction accumlator at *PTR with the
+/* Emit a sequence to update a reduction accumulator at *PTR with the
    value held in VAR using operator OP.  Return the updated value.
 
-   TODO: optimize for atomic ops and indepedent complex ops.  */
+   TODO: optimize for atomic ops and independent complex ops.  */
 
 static tree
 nvptx_reduction_update (location_t loc, gimple_stmt_iterator *gsi,

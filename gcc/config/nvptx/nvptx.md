@@ -89,7 +89,7 @@
 
 ;; The nvptx operand predicates, in general, don't permit subregs and
 ;; only literal constants, which differ from the generic ones, which
-;; permit subregs and symbolc constants (as appropriate)
+;; permit subregs and symbolic constants (as appropriate)
 (define_predicate "nvptx_register_operand"
   (match_code "reg")
 {
