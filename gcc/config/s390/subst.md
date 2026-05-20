@@ -50,7 +50,7 @@
 (define_subst_attr "cconly" "cconly_subst" "" "_cconly")
 
 
-; Does transformations to switch between patterns unsing risbg +
+; Does transformations to switch between patterns using risbg +
 ; clobber CC (z10) and risbgn without clobber (zEC12).
 (define_subst "clobbercc_or_nocc_subst"
   [(set (match_operand 0 "" "") (match_operand 1 "" ""))]

@@ -850,7 +850,7 @@ CUMULATIVE_ARGS;
 /* Don't perform CSE on function addresses.  */
 #define NO_FUNCTION_CSE 1
 
-/* This value is used in tree-sra to decide whether it might benefical
+/* This value is used in tree-sra to decide whether it might beneficial
    to split a struct move into several word-size moves.  For S/390
    only small values make sense here since struct moves are relatively
    cheap thanks to mvc so the small default value chosen for archs

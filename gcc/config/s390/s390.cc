@@ -2578,7 +2578,7 @@ s390_contiguous_bitmask_nowrap_p (unsigned HOST_WIDE_INT in, int size,
       }
     else
       {
-	/* Look for the firt zero bit after the range of ones.  */
+	/* Look for the first zero bit after the range of ones.  */
 	if (! (bitmask & in))
 	  /* Found it.  */
 	  break;
@@ -2656,7 +2656,7 @@ s390_contiguous_bitmask_p (unsigned HOST_WIDE_INT in, bool wrap_p,
 /* Return true if OP is a constant which fits into a vector register and if it
    is a 16-byte constant, then the high and low half must equal.  Otherwise
    return false.  The out parameter *VEC2 equals the high/low half for 16-byte
-   constants and for smaller constants it equals the concatination of constant
+   constants and for smaller constants it equals the concatenation of constant
    OP until an 8-byte constant is constructed.  */
 
 static bool
@@ -3156,7 +3156,7 @@ s390_short_displacement (rtx disp)
     return true;
 
   /* Without the long displacement facility we don't need to
-     distingiush between long and short displacement.  */
+     distinguish between long and short displacement.  */
   if (!TARGET_LONG_DISPLACEMENT)
     return true;
 
@@ -6641,7 +6641,7 @@ s390_expand_cmpmem (rtx target, rtx op0, rtx op1, rtx len)
 }
 
 /* Emit a conditional jump to LABEL for condition code mask MASK using
-   comparsion operator COMPARISON.  Return the emitted jump insn.  */
+   comparison operator COMPARISON.  Return the emitted jump insn.  */
 
 static rtx_insn *
 s390_emit_ccraw_jump (HOST_WIDE_INT mask, enum rtx_code comparison, rtx label)
@@ -6826,7 +6826,7 @@ s390_expand_vec_movstr (rtx result, rtx dst, rtx src)
   force_expand_binop (Pmode, sub_optab, offset, temp, offset,
 		      1, OPTAB_DIRECT);
 
-  /* Store `offset' bytes in the dstination string.  The quick check
+  /* Store `offset' bytes in the destination string.  The quick check
      has loaded at least `offset' bytes into vsrc.  */
 
   emit_insn (gen_vstlv16qi (vsrc, gen_lowpart (SImode, offset), dst));
@@ -7292,8 +7292,8 @@ s390_expand_cstoreti4 (rtx dst, rtx cmp, rtx op1, rtx op2)
   /* Prior VXE3 emulate the comparison.  For an (in)equality test exploit
      VECTOR COMPARE EQUAL.  For a relational test, first compare the high part
      via VECTOR ELEMENT COMPARE (LOGICAL).  If the high part does not equal,
-     then consume the CC immediatelly by a subsequent LOAD ON CONDITION.
-     Otherweise, if the high part equals, then perform a subsequent VECTOR
+     then consume the CC immediately by a subsequent LOAD ON CONDITION.
+     Otherwise, if the high part equals, then perform a subsequent VECTOR
      COMPARE HIGH LOGICAL followed by a LOAD ON CONDITION.  */
 
   op1 = force_reg (V2DImode, simplify_gen_subreg (V2DImode, op1, TImode, 0));
@@ -8286,8 +8286,8 @@ s390_expand_int_spaceship (rtx op0, rtx op1, rtx op2, rtx op3)
   machine_mode mode = GET_MODE (op1);
 
   /* Prior VXE3 emulate a 128-bit comparison by breaking it up into three
-     comparisons.  First test the high halfs.  In case they equal, then test
-     the low halfs.  Finally, test for equality.  Depending on the results
+     comparisons.  First test the high halves.  In case they equal, then test
+     the low halves.  Finally, test for equality.  Depending on the results
      make use of LOCs.  */
   if (mode == TImode && !TARGET_VXE3)
     {
@@ -8298,7 +8298,7 @@ s390_expand_int_spaceship (rtx op0, rtx op1, rtx op2, rtx op3)
 	= force_reg (V2DImode, simplify_gen_subreg (V2DImode, op2, TImode, 0));
       rtx lab = gen_label_rtx ();
       rtx ccz = gen_rtx_REG (CCZmode, CC_REGNUM);
-      /* Compare high halfs for equality.
+      /* Compare high halves for equality.
 	 VEC[L]G op1, op2 sets
 	   CC1 if high(op1) < high(op2)
 	 and
@@ -8311,7 +8311,7 @@ s390_expand_int_spaceship (rtx op0, rtx op1, rtx op2, rtx op3)
 			 gen_rtx_VEC_SELECT (DImode, op1, lane0),
 			 gen_rtx_VEC_SELECT (DImode, op2, lane0))));
       s390_emit_jump (lab, gen_rtx_NE (CCZmode, ccz, const0_rtx));
-      /* At this point we know that the high halfs equal.
+      /* At this point we know that the high halves equal.
 	 VCHLGS op2, op1 sets CC1 if low(op1) < low(op2)  */
       emit_insn (gen_rtx_PARALLEL (
 	VOIDmode,
@@ -8326,7 +8326,7 @@ s390_expand_int_spaceship (rtx op0, rtx op1, rtx op2, rtx op3)
 		     gen_rtx_LTU (CCUmode, gen_rtx_REG (CCUmode, CC_REGNUM),
 				  const0_rtx),
 		     constm1_rtx, op0));
-      /* Deal with the case where both halfs equal.  */
+      /* Deal with the case where both halves equal.  */
       emit_insn (gen_rtx_PARALLEL (
 	VOIDmode,
 	gen_rtvec (2,
@@ -15497,7 +15497,7 @@ s390_z10_optimize_cmp (rtx_insn *insn)
      COMPARE arguments and its mask.  If we already swapped
      the operands, or if swapping them would cause a conflict
      with the previous insn, issue a NOP after the COMPARE in
-     order to separate the two instuctions.  */
+     order to separate the two instructions.  */
   next_insn = next_active_insn (insn);
   if (next_insn != NULL_RTX && INSN_P (next_insn)
       && s390_non_addr_reg_read_p (*op1, next_insn))
@@ -17576,7 +17576,7 @@ s390_support_vector_misalignment (machine_mode mode ATTRIBUTE_UNUSED,
 
 /* The vector ABI requires vector types to be aligned on an 8 byte
    boundary (our stack alignment).  However, we allow this to be
-   overriden by the user, while this definitely breaks the ABI.  */
+   overridden by the user, while this definitely breaks the ABI.  */
 static HOST_WIDE_INT
 s390_vector_alignment (const_tree type)
 {

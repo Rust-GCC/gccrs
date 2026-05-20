@@ -2097,7 +2097,7 @@
 	(unspec:SI [(reg:CCVFHE CC_REGNUM)] UNSPEC_CC_TO_INT))]
   "TARGET_VX")
 
-; These 3 cannot be merged as the insn defintion above since it also
+; These 3 cannot be merged as the insn definition above since it also
 ; requires to rewrite the RTL equality operator that the same time as
 ; the CC mode.
 

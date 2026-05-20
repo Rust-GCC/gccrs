@@ -93,7 +93,7 @@ s390_fallback_frame_state (struct _Unwind_Context *context,
 	}
 
       /* ... except for %r14, which is stored at CFA+offset where offset
-	 is displacment of ICST_CRET or ICST_SRET from CFA */
+	 is displacement of ICST_CRET or ICST_SRET from CFA */
       if ( __isPATrange(context->ra) )  {
 	   fs->regs.how[14] = REG_SAVED_OFFSET;
 	   fs->regs.reg[14].loc.offset = ICST_CRET - STACK_POINTER_OFFSET;
