@@ -94,7 +94,7 @@ extern bool fp_setter_insn (rtx_insn *);
 extern machine_mode cselib_reg_set_mode (const_rtx);
 extern bool rtx_equal_for_cselib_1 (rtx, rtx, machine_mode, int);
 extern bool cselib_redundant_set_p (rtx);
-extern bool references_value_p (const_rtx, int);
+extern bool references_value_p (const_rtx);
 extern rtx cselib_expand_value_rtx (rtx, bitmap, int);
 typedef rtx (*cselib_expand_callback)(rtx, bitmap, int, void *);
 extern rtx cselib_expand_value_rtx_cb (rtx, bitmap, int,

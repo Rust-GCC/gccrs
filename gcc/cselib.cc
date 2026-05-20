@@ -515,7 +515,7 @@ invariant_or_equiv_p (cselib_val *v)
     {
       if (CONSTANT_P (v->locs->loc)
 	  && (GET_CODE (v->locs->loc) != CONST
-	      || !references_value_p (v->locs->loc, 0)))
+	      || !references_value_p (v->locs->loc)))
 	return true;
       /* Although a debug expr may be bound to different expressions,
 	 we can preserve it as if it was constant, to get unification
@@ -673,27 +673,12 @@ cselib_find_slot (machine_mode mode, rtx x, hashval_t hash,
    removed.  */
 
 bool
-references_value_p (const_rtx x, int only_useless)
+references_value_p (const_rtx x)
 {
-  const enum rtx_code code = GET_CODE (x);
-  const char *fmt = GET_RTX_FORMAT (code);
-  int i, j;
-
-  if (GET_CODE (x) == VALUE
-      && (! only_useless
-	  || (CSELIB_VAL_PTR (x)->locs == 0 && !PRESERVED_VALUE_P (x))))
-    return true;
-
-  for (i = GET_RTX_LENGTH (code) - 1; i >= 0; i--)
-    {
-      if (fmt[i] == 'e' && references_value_p (XEXP (x, i), only_useless))
-	return true;
-      else if (fmt[i] == 'E')
-	for (j = 0; j < XVECLEN (x, i); j++)
-	  if (references_value_p (XVECEXP (x, i, j), only_useless))
-	    return true;
-    }
-
+  subrtx_iterator::array_type array;
+  FOR_EACH_SUBRTX (iter, array, x, ALL)
+    if (GET_CODE (*iter) == VALUE)
+      return true;
   return false;
 }
 

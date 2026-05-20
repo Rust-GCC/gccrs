@@ -5900,7 +5900,7 @@ reverse_op (rtx val, const_rtx expr, rtx_insn *insn)
      prefer non-ENTRY_VALUE locations whenever possible.  */
   for (l = v->locs, count = 0; l; l = l->next, count++)
     if (CONSTANT_P (l->loc)
-	&& (GET_CODE (l->loc) != CONST || !references_value_p (l->loc, 0)))
+	&& (GET_CODE (l->loc) != CONST || !references_value_p (l->loc)))
       return;
     /* Avoid creating too large locs lists.  */
     else if (count == param_max_vartrack_reverse_op_size)

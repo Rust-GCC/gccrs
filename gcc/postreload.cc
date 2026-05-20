@@ -387,7 +387,7 @@ reload_cse_simplify_set (rtx set, rtx_insn *insn)
       rtx this_rtx = l->loc;
       int this_cost;
 
-      if (CONSTANT_P (this_rtx) && ! references_value_p (this_rtx, 0))
+      if (CONSTANT_P (this_rtx) && ! references_value_p (this_rtx))
 	{
 	  if (extend_op != UNKNOWN)
 	    {
