@@ -369,7 +369,7 @@ extract_offset_rtx (rtx_insn *insn)
   rtx plus_rtx;
   rtx offset_rtx;
 
-  /* Find the MEM rtx.  The multiple load/store insns doens't have
+  /* Find the MEM rtx.  The multiple load/store insns doesn't have
      the offset field so we can return NULL_RTX here.  */
   switch (get_attr_type (insn))
     {

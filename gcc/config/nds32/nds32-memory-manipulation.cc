@@ -404,7 +404,7 @@ nds32_expand_cpymemsi_unroll (rtx dstmem, rtx srcmem,
   bool align_to_4_bytes = (INTVAL (alignment) & 3) == 0;
   bool align_to_2_bytes = (INTVAL (alignment) & 1) == 0;
 
-  /* Because reduced-set regsiters has few registers
+  /* Because reduced-set registers has few registers
      (r0~r5, r6~10, r15, r28~r31, where 'r15' and 'r28~r31'
       cannot be used for register allocation),
      using 8 registers (32 bytes) for moving memory block
@@ -1080,7 +1080,7 @@ nds32_expand_load_multiple (int base_regno, int count,
   rtx new_addr, mem, reg;
 
   /* Generate a unaligned load to prevent load instruction pull out from
-     parallel, and then it will generate lwi, and lose unaligned acces */
+     parallel, and then it will generate lwi, and lose unaligned access */
   if (count == 1)
     {
       reg = gen_rtx_REG (SImode, base_regno);

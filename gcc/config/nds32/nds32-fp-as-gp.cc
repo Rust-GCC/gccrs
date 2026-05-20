@@ -116,7 +116,7 @@ nds32_fp_as_gp_check_available (void)
        3. Not optimize for size.
        4. Need frame pointer.
        5. If $fp is already required to be saved,
-	  it means $fp is already choosen by register allocator.
+	  it means $fp is already chosen by register allocator.
 	  Thus we better not to use it for fp_as_gp optimization.
        6. This function is a vararg function.
 	  DO NOT apply fp_as_gp optimization on this function

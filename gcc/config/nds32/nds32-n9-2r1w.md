@@ -271,7 +271,7 @@
 ;;     There are N micro-operations within an instruction that loads multiple
 ;;     words. The result produced by the M-th micro-operation is sent to
 ;;     consumers. The result is ready at MM.  If the base register should be
-;;     updated, an extra micro-operation is apppended to the end of the
+;;     updated, an extra micro-operation is appended to the end of the
 ;;     sequence, and the result is ready at EX.
 ;;   MUL, MAC
 ;;     Compute data in the multiply-adder and produce the data. The result
@@ -289,7 +289,7 @@
 ;;     micro-operation, and there are some latencies if data dependency occurs.
 ;;   MOVD44_E
 ;;     A double-word move instruction needs two micro-operations because the
-;;     reigster ports is 2R1W. The first micro-operation writes an even number
+;;     register ports is 2R1W. The first micro-operation writes an even number
 ;;     register, and the second micro-operation writes an odd number register.
 ;;     Each input operand is required at EX for each micro-operation. MOVD44_E
 ;;     stands for the first micro-operation.

@@ -379,7 +379,7 @@ nds32_can_use_bset_p (HOST_WIDE_INT ival)
   int one_bit_count;
   unsigned HOST_WIDE_INT mask = GET_MODE_MASK (SImode);
 
-  /* Caculate the number of 1-bit of ival, if there is only one 1-bit,
+  /* Calculate the number of 1-bit of ival, if there is only one 1-bit,
      it is ok to perform 'bset' operation.  */
 
   one_bit_count = popcount_hwi ((unsigned HOST_WIDE_INT) (ival) & mask);
@@ -395,7 +395,7 @@ nds32_can_use_btgl_p (HOST_WIDE_INT ival)
   int one_bit_count;
   unsigned HOST_WIDE_INT mask = GET_MODE_MASK (SImode);
 
-  /* Caculate the number of 1-bit of ival, if there is only one 1-bit,
+  /* Calculate the number of 1-bit of ival, if there is only one 1-bit,
      it is ok to perform 'btgl' operation.  */
 
   one_bit_count = popcount_hwi ((unsigned HOST_WIDE_INT) (ival) & mask);
@@ -452,7 +452,7 @@ nds32_symbol_load_store_p (rtx_insn *insn)
   return false;
 }
 
-/* Vaild memory operand for floating-point loads and stores */
+/* Valid memory operand for floating-point loads and stores */
 bool
 nds32_float_mem_operand_p (rtx op)
 {

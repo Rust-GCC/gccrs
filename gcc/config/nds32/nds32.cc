@@ -65,7 +65,7 @@
 
      PART 3: Implement target hook stuff definitions.
 
-     PART 4: Implemet extern function definitions,
+     PART 4: Implement extern function definitions,
              the prototype is in nds32-protos.h.
 
      PART 5: Initialize target hook structure and definitions.  */
@@ -237,7 +237,7 @@ static const char * const nds32_intrinsic_register_names[] =
   "$ITB"
 };
 
-/* Define instrinsic cctl names.  */
+/* Define intrinsic cctl names.  */
 static const char * const nds32_cctl_names[] =
 {
   "L1D_VA_FILLCK",
@@ -452,7 +452,7 @@ nds32_compute_stack_frame (void)
   cfun->machine->fp_size = (df_regs_ever_live_p (FP_REGNUM)) ? 4 : 0;
 
   /* If $gp value is required to be saved on stack, it needs 4 bytes space.
-     Check whether we are using PIC code genration.  */
+     Check whether we are using PIC code generation.  */
   cfun->machine->gp_size =
     (flag_pic && df_regs_ever_live_p (PIC_OFFSET_TABLE_REGNUM)) ? 4 : 0;
 
@@ -500,8 +500,8 @@ nds32_compute_stack_frame (void)
 	      if (cfun->machine->callee_saved_first_fpr_regno == SP_REGNUM)
 		{
 		  /* Make first callee-saved number is even,
-		     bacause we use doubleword access, and this way
-		     promise 8-byte alignemt.  */
+		     because we use doubleword access, and this way
+		     promise 8-byte alignment.  */
 		  if (!NDS32_FPR_REGNO_OK_FOR_DOUBLE (r))
 		    cfun->machine->callee_saved_first_fpr_regno = r - 1;
 		  else
@@ -903,7 +903,7 @@ nds32_emit_stack_pop_multiple (unsigned Rb, unsigned Re,
 		(set (reg:SI SP_REGNUM)
 		     (plus (reg:SI SP_REGNUM) (const_int 32)))]) */
 
-  /* Calculate the number of registers that will be poped.  */
+  /* Calculate the number of registers that will be popped.  */
   extra_count = 0;
   if (save_fp_p)
     extra_count++;
@@ -1177,8 +1177,8 @@ nds32_emit_stack_v3pop (unsigned Rb,
 		(set (reg:SI SP_REGNUM)
 		     (plus (reg:SI SP_REGNUM) (const_int 32+imm8u)))]) */
 
-  /* Calculate the number of registers that will be poped.
-     Since $fp, $gp, and $lp is always poped with v3pop instruction,
+  /* Calculate the number of registers that will be popped.
+     Since $fp, $gp, and $lp is always popped with v3pop instruction,
      we need to count these three registers.
      Under v3push, Rb is $r6, while Re is $r6, $r8, $r10, or $r14.
      So there is no need to worry about Rb=Re=SP_REGNUM case.  */
@@ -1768,7 +1768,7 @@ nds32_can_change_mode_class (machine_mode from,
 			     machine_mode to,
 			     reg_class_t rclass)
 {
-  /* Don't spill double-precision register to two singal-precision
+  /* Don't spill double-precision register to two single-precision
      registers  */
   if ((TARGET_FPU_SINGLE || TARGET_FPU_DOUBLE)
        && GET_MODE_SIZE (from) != GET_MODE_SIZE (to))
@@ -1795,7 +1795,7 @@ nds32_can_change_mode_class (machine_mode from,
        1. previous hard frame pointer
        2. return address
        3. callee-saved registers
-       4. <padding bytes> (we will calculte in nds32_compute_stack_frame()
+       4. <padding bytes> (we will calculate in nds32_compute_stack_frame()
 			   and save it at
 			   cfun->machine->callee_saved_area_padding_bytes)
 
@@ -1813,7 +1813,7 @@ nds32_can_change_mode_class (machine_mode from,
    We 'wrap' these blocks together with
    hard frame pointer ($r28) and stack pointer ($r31).
    By applying the basic frame/stack/argument pointers concept,
-   the layout of a stack frame shoule be like this:
+   the layout of a stack frame should be like this:
 
 			    |    |
        old stack pointer ->  ----
@@ -1980,7 +1980,7 @@ nds32_arg_partial_bytes (cumulative_args_t ca, const function_arg_info &arg)
   if (TARGET_HARD_FLOAT)
     return 0;
 
-  /* If we have already runned out of argument registers, return zero
+  /* If we have already run out of argument registers, return zero
      so that the argument will be entirely pushed on the stack.  */
   if (NDS32_AVAILABLE_REGNUM_FOR_GPR_ARG (cum->gpr_offset, arg.mode, arg.type)
       >= NDS32_GPR_ARG_FIRST_REGNUM + NDS32_MAX_GPR_REGS_FOR_ARGS)
@@ -1997,7 +1997,7 @@ nds32_arg_partial_bytes (cumulative_args_t ca, const function_arg_info &arg)
 					     arg.mode, arg.type)
 	 - NDS32_GPR_ARG_FIRST_REGNUM);
 
-  /* Note that we have to return the nubmer of bytes, not registers count.  */
+  /* Note that we have to return the number of bytes, not registers count.  */
   if (needed_reg_count > remaining_reg_count)
     return remaining_reg_count * UNITS_PER_WORD;
 
@@ -2321,7 +2321,7 @@ nds32_function_ok_for_sibcall (tree decl,
 	because the stack layout may be a mess.
      4. We don't want to apply sibling call optimization for indirect
 	sibcall because the pop behavior in epilogue may pollute the
-	content of caller-saved regsiter when the register is used for
+	content of caller-saved register when the register is used for
 	indirect sibcall.
      5. In pic mode, it may use some registers for PLT call.  */
   return (!TARGET_V3PUSH
@@ -3014,7 +3014,7 @@ nds32_register_move_cost (machine_mode mode,
 			  reg_class_t from,
 			  reg_class_t to)
 {
-  /* In garywolf cpu, FPR to GPR is chaper than other cpu.  */
+  /* In graywolf cpu, FPR to GPR is cheaper than other cpu.  */
   if (TARGET_PIPELINE_GRAYWOLF)
     {
       if (GET_MODE_SIZE (mode) == 8)
@@ -3467,7 +3467,7 @@ nds32_print_operand (FILE *stream, rtx x, int code)
       else
 	{
 	  /* If user applies normal way with __NDS32_REG_XXX__ enum data,
-	     we can print out register name.  Remember to substract 1024.  */
+	     we can print out register name.  Remember to subtract 1024.  */
 	  fprintf (stream, "%s",
 			   nds32_intrinsic_register_names[op_value - 1024]);
 	}
@@ -3920,7 +3920,7 @@ nds32_merge_decl_attributes (tree olddecl, tree newdecl)
   combined_attrs = merge_attributes (DECL_ATTRIBUTES (olddecl),
 				     DECL_ATTRIBUTES (newdecl));
 
-  /* Since newdecl is acutally a duplicate of olddecl,
+  /* Since newdecl is actually a duplicate of olddecl,
      we can take olddecl for some operations.  */
   if (TREE_CODE (olddecl) == FUNCTION_DECL)
     {
@@ -3983,7 +3983,7 @@ nds32_insert_attributes (tree decl, tree *attributes)
 
       /* The following code may use attribute arguments.  If there is no
 	 argument from source code, it will cause segmentation fault.
-	 Therefore, return dircetly and report error message later.  */
+	 Therefore, return directly and report error message later.  */
       if ((intr && TREE_VALUE (intr) == NULL)
 	  || (excp && TREE_VALUE (excp) == NULL)
 	  || (reset && TREE_VALUE (reset) == NULL))
@@ -4245,7 +4245,7 @@ nds32_init_libfuncs (void)
 
 /* ------------------------------------------------------------------------ */
 
-/* PART 4: Implemet extern function definitions,
+/* PART 4: Implement extern function definitions,
            the prototype is in nds32-protos.h.  */
 
 /* Run-time Target Specification.  */
@@ -5217,7 +5217,7 @@ nds32_expand_epilogue_v3pop (bool sibcall_p)
   /* We have to consider alloca issue as well.
      If the function does call alloca(), the stack pointer is not fixed.
      In that case, we cannot use 'pop25 Re,imm8u' directly.
-     We have to caculate stack pointer from frame pointer
+     We have to calculate stack pointer from frame pointer
      and then use 'pop25 Re,0'.
      Of course, the frame_pointer_needed should be nonzero
      if the function calls alloca().  */
@@ -5385,7 +5385,7 @@ nds32_can_use_return_insn (void)
      1. This is a naked function.
 	So there is no callee-saved, local size, or outgoing size.
      2. This is NOT a variadic function.
-	So there is no pushing arguement registers into the stack.  */
+	So there is no pushing argument registers into the stack.  */
   return (cfun->machine->naked_p && (cfun->machine->va_args_size == 0));
 }
 
@@ -5421,7 +5421,7 @@ nds32_target_alignment (rtx_insn *label)
 
   /* Always align to 4 byte when first instruction after label is jump
      instruction since length for that might changed, so let's always align
-     it for make sure we don't lose any perfomance here.  */
+     it for make sure we don't lose any performance here.  */
   if (insn == 0
       || (get_attr_length (insn) == 2
 	  && !JUMP_P (insn) && !CALL_P (insn)))
@@ -5495,7 +5495,7 @@ nds32_split_double_word_load_store_p(rtx *operands, bool load_p)
   if (optimize == 0 || !flag_schedule_insns_after_reload)
     return !satisfies_constraint_Da (mem) || MEM_VOLATILE_P (mem);
 
-  /* Split double word load store after copy propgation.  */
+  /* Split double word load store after copy propagation.  */
   if (current_pass == NULL)
     return false;
 

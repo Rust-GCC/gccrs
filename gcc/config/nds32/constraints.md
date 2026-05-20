@@ -20,7 +20,7 @@
 
 ;; Check 16.8.7 Defining Machine-Specific Constraints for detail.
 
-;; NO contrains can be prefixed with: E F V X g i m n o p r s
+;; NO constraints can be prefixed with: E F V X g i m n o p r s
 ;; Machine-dependent integer: I J K L M N O P
 ;; Machine-dependent floating: G H
 

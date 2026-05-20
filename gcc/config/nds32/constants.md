@@ -1,4 +1,4 @@
-;; Constant defintions of Andes NDS32 cpu for GNU compiler
+;; Constant definitions of Andes NDS32 cpu for GNU compiler
 ;; Copyright (C) 2012-2026 Free Software Foundation, Inc.
 ;; Contributed by Andes Technology Corporation.
 ;;

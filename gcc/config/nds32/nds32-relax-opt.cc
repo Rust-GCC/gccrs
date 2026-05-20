@@ -193,7 +193,7 @@ nds32_plus_reg_load_store_p (rtx_insn *insn)
   return false;
 }
 
-/* Return true if x is const and the referance is ict symbol.  */
+/* Return true if x is const and the reference is ict symbol.  */
 static bool
 nds32_ict_const_p (rtx x)
 {

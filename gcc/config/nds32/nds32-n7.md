@@ -36,7 +36,7 @@
 ;;   Register File Access
 ;;   Instruction Execution
 ;;   Interrupt Handling
-;; EXD - Psuedo Stage
+;; EXD - Pseudo Stage
 ;;   Load Data Completion
 
 (define_cpu_unit "n7_ii" "nds32_n7_machine")
@@ -229,7 +229,7 @@
 ;;     Require operands at II.
 ;;   MOVD44_E
 ;;     A double-word move instruction needs two micro-operations because the
-;;     reigster ports is 2R1W. The first micro-operation writes an even number
+;;     register ports is 2R1W. The first micro-operation writes an even number
 ;;     register, and the second micro-operation writes an odd number register.
 ;;     Each input operand is required at II for each micro-operation. The letter
 ;;     'E' stands for even.
@@ -239,7 +239,7 @@
 ;;     and Rb at II. The second micro-options does the accumulation, which
 ;;     requires the operand Rt at II.
 ;;   ADDR_IN_MOP(N)
-;;     Because the reigster port is 2R1W, some load/store instructions are
+;;     Because the register port is 2R1W, some load/store instructions are
 ;;     separated into many micro-operations. N denotes the address input is
 ;;     required by the N-th micro-operation. Such operand is required at II.
 ;;   ST_bi

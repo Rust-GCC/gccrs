@@ -33,7 +33,7 @@ typedef unsigned char uint8x4_t __attribute__ ((vector_size (4)));
 typedef unsigned short uint16x2_t __attribute__ ((vector_size (4)));
 typedef unsigned int uint32x2_t __attribute__((vector_size(8)));
 
-/* General instrinsic register names.  */
+/* General intrinsic register names.  */
 enum nds32_intrinsic_registers
 {
   __NDS32_REG_CPU_VER__ = 1024,

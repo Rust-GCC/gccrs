@@ -642,7 +642,7 @@
    (set_attr "length"   "4")])
 
 ;; divsr/divr will keep quotient only when quotient and remainder is the same
-;; register in our ISA spec, it's can reduce 1 register presure if we don't
+;; register in our ISA spec, it's can reduce 1 register pressure if we don't
 ;; want remainder.
 (define_insn "divsi4"
   [(set (match_operand:SI 0 "register_operand"         "=r")
@@ -1574,7 +1574,7 @@
 )
 
 ;; Subroutine call instruction returning a value.
-;;   operands[0]: It is the hard regiser in which the value is returned.
+;;   operands[0]: It is the hard register in which the value is returned.
 ;;   The rest three operands are the same as the
 ;;   three operands of the 'call' instruction.
 ;;   (but with numbers increased by one)
@@ -2078,7 +2078,7 @@
 
 ;; We are receiving operands from casesi pattern:
 ;;
-;; operands[0]: The index that have been substracted with lower bound.
+;; operands[0]: The index that have been subtracted with lower bound.
 ;; operands[1]: A label that precedes the table itself.
 ;; operands[2]: A temporary register to retrieve value in table.
 ;;

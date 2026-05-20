@@ -434,7 +434,7 @@ typedef struct
                   and software interrupt can be routed to any one of them.
 
    You may want to define your hardware interrupts in the following way
-   for easy maintainance.
+   for easy maintenance.
 
      IVIC mode:
        #define MY_HW_IVIC_TIMER NDS32_VECTOR_INTERRUPT_HW0 + 1

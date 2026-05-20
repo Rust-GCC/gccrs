@@ -1447,7 +1447,7 @@
   [(set_attr "type"    "dinsb")
    (set_attr "length"  "4")])
 
-;; Intermedium pattern for synthetize insvsiqi_internal
+;; Intermedium pattern for synthesize insvsiqi_internal
 ;; v0 = ((v1 & 0xff) << 8)
 (define_insn_and_split "and0xff_s8"
   [(set (match_operand:SI 0 "register_operand" "=r")
@@ -4342,7 +4342,7 @@
   [(set_attr "type"     "dmac")
    (set_attr "length"   "4")])
 
-;; mada for synthetize smalda
+;; mada for synthesize smalda
 (define_insn_and_split "mada1"
   [(set (match_operand:SI 0 "register_operand"                          "=r")
 	(plus:SI
@@ -4407,7 +4407,7 @@
   DONE;
 })
 
-;; sms for synthetize smalds
+;; sms for synthesize smalds
 (define_insn_and_split "sms1"
   [(set (match_operand:SI 0 "register_operand"                                       "=   r")
 	(minus:SI

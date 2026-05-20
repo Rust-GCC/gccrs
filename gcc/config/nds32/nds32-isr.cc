@@ -464,7 +464,7 @@ nds32_emit_isr_vector_section (int vector_id)
 	 For pushing GPRs, there are four variations for
 	 16-byte vector content and we have to handle each combination.
 	 For preparing software vid, note that the vid need to
-	 be substracted vector_number_offset.  */
+	 be subtracted vector_number_offset.  */
       if (TARGET_REDUCED_REGS)
 	{
 	  if (nds32_isr_vectors[vector_id].save_reg == NDS32_SAVE_ALL)
@@ -899,7 +899,7 @@ void nds32_asm_file_end_for_isr (void)
       if (nds32_isr_vectors[i].category == NDS32_ISR_INTERRUPT
 	  || nds32_isr_vectors[i].category == NDS32_ISR_EXCEPTION)
 	{
-	  /* Found one vector which is interupt or exception.
+	  /* Found one vector which is interrupt or exception.
 	     Output its jmptbl and vector section content.  */
 	  fprintf (asm_out_file, "\t! interrupt/exception vector %02d\n", i);
 	  fprintf (asm_out_file, "\t! security level: %d\n",

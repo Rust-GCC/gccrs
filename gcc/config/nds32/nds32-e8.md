@@ -31,7 +31,7 @@
 ;; IF - Instruction Fetch
 ;; II - Instruction Issue / Address Generation
 ;; EX - Instruction Execution
-;; EXD - Psuedo Stage / Load Data Completion
+;; EXD - Pseudo Stage / Load Data Completion
 
 (define_cpu_unit "e8_ii" "nds32_e8_machine")
 (define_cpu_unit "e8_ex" "nds32_e8_machine")

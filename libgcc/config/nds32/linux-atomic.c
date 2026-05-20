@@ -24,7 +24,7 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
    using the kernel helper defined below.  There is no support for
    64-bit operations yet.  */
 
-/* This function copy form NDS32 Linux-kernal. */
+/* This function copy form NDS32 Linux-kernel. */
 static inline int
 __kernel_cmpxchg (int oldval, int newval, int *mem)
 {

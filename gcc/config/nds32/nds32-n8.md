@@ -31,7 +31,7 @@
 ;; IF - Instruction Fetch
 ;; II - Instruction Issue / Address Generation
 ;; EX - Instruction Execution
-;; EXD - Psuedo Stage / Load Data Completion
+;; EXD - Pseudo Stage / Load Data Completion
 
 (define_cpu_unit "n8_ii" "nds32_n8_machine")
 (define_cpu_unit "n8_ex" "nds32_n8_machine")
@@ -233,7 +233,7 @@
 ;;   MOVD44_O
 ;;     A double-word move instruction needs to write registers twice. Because
 ;;     the register port is 2R1W, two micro-operations are required. The even
-;;     number reigster is updated by the first one, and the odd number register
+;;     number register is updated by the first one, and the odd number register
 ;;     is updated by the second one. Each of the results is ready at EX.
 ;;     The letter 'O' stands for odd.
 ;;   DIV_Rs
@@ -254,7 +254,7 @@
 ;;     and Rb at EX. The second micro-options does the accumulation, which
 ;;     requires the operand Rt at EX.
 ;;   ADDR_IN_MOP(N)
-;;     Because the reigster port is 2R1W, some load/store instructions are
+;;     Because the register port is 2R1W, some load/store instructions are
 ;;     separated into many micro-operations. N denotes the address input is
 ;;     required by the N-th micro-operation. Such operand is required at II.
 ;;   ST_bi

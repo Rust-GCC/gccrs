@@ -215,7 +215,7 @@ nds32_rtx_costs_speed_prefer (rtx x ATTRIBUTE_UNUSED,
       if (NDS32_EXT_DSP_P ())
 	{
 	  /* We prefer (and (ior) (ior)) than (ior (and) (and)) for
-	     synthetize pk** and insb instruction.  */
+	     synthesize pk** and insb instruction.  */
 	  if (code == AND && GET_CODE (op0) == IOR && GET_CODE (op1) == IOR)
 	    return COSTS_N_INSNS (1);
 
