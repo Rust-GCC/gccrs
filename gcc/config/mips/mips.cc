@@ -512,7 +512,7 @@ static const char *mips_base_align_functions; /* align_functions */
 /* Index [M][R] is true if register R is allowed to hold a value of mode M.  */
 static bool mips_hard_regno_mode_ok_p[MAX_MACHINE_MODE][FIRST_PSEUDO_REGISTER];
 
-/* Index C is true if character C is a valid PRINT_OPERAND punctation
+/* Index C is true if character C is a valid PRINT_OPERAND punctuation
    character.  */
 static bool mips_print_operand_punct[256];
 
@@ -6987,8 +6987,8 @@ mips_setup_incoming_varargs (cumulative_args_t cum,
   local_cum = *get_cumulative_args (cum);
 
   /* For a C23 variadic function w/o any named argument, and w/o an
-     artifical argument for large return value, skip advancing args.
-     There is such an artifical argument iff. arg.type is non-NULL
+     artificial argument for large return value, skip advancing args.
+     There is such an artificial argument iff. arg.type is non-NULL
      (PR 114175).  */
   if (!TYPE_NO_NAMED_ARGS_STDARG_P (TREE_TYPE (current_function_decl))
       || arg.type != NULL_TREE)
@@ -8360,7 +8360,7 @@ mips_function_ok_for_sibcall (tree decl, tree exp ATTRIBUTE_UNUSED)
     return false;
 
   /* Direct Js are only possible to functions that use the same ISA encoding.
-     There is no JX counterpoart of JALX.  */
+     There is no JX counterpart of JALX.  */
   if (decl
       && const_call_insn_operand (XEXP (DECL_RTL (decl), 0), VOIDmode)
       && mips_call_may_need_jalx_p (decl))
@@ -8880,7 +8880,7 @@ mips_expand_ext_as_unaligned_load (rtx dest, rtx src, HOST_WIDE_INT width,
     }
 
   /* If we were loading 32bits and the original register was DI then
-     sign/zero extend into the orignal dest.  */
+     sign/zero extend into the original dest.  */
   if (dest1)
     {
       if (unsigned_p)
@@ -8977,7 +8977,7 @@ mips_use_ins_ext_p (rtx op, HOST_WIDE_INT width, HOST_WIDE_INT bitpos)
 }
 
 /* Check if MASK and SHIFT are valid in mask-low-and-shift-left
-   operation if MAXLEN is the maxium length of consecutive bits that
+   operation if MAXLEN is the maximum length of consecutive bits that
    can make up MASK.  MODE is the mode of the operation.  See
    mask_low_and_shift_len for the actual definition.  */
 
@@ -9237,7 +9237,7 @@ mips_pop_asm_switch (struct mips_asm_switch *asm_switch)
   mips_pop_asm_switch_1 (asm_switch, "\t", "\n");
 }
 
-/* Print the text for PRINT_OPERAND punctation character CH to FILE.
+/* Print the text for PRINT_OPERAND punctuation character CH to FILE.
    The punctuation characters are:
 
    '('	Start a nested ".set noreorder" block.
@@ -11036,7 +11036,7 @@ mips_cfun_has_inflexible_gp_ref_p (void)
 	return true;
 
       /* MIPS16 functions that return in FPRs need to call an
-	 external libgcc routine.  This call is only made explict
+	 external libgcc routine.  This call is only made explicit
 	 during mips_expand_epilogue, and it too might be lazily bound.  */
       if (mips16_cfun_returns_in_fpr_p ())
 	return true;
@@ -20219,7 +20219,7 @@ mips_set_compression_mode (unsigned int compression_mode)
       /* Don't move loop invariants, because it tends to increase
 	 register pressure.  It also introduces an extra move in cases
 	 where the constant is the first operand in a two-operand binary
-	 instruction, or when it forms a register argument to a functon
+	 instruction, or when it forms a register argument to a function
 	 call.  */
       flag_move_loop_invariants = 0;
 
@@ -22384,7 +22384,7 @@ mips_expand_vec_unpack (rtx operands[2], bool unsigned_p, bool high_p)
 
       if (!unsigned_p)
 	{
-	  /* Extract sign extention for each element comparing each element
+	  /* Extract sign extension for each element comparing each element
 	     with immediate zero.  */
 	  tmp = gen_reg_rtx (imode);
 	  emit_insn (cmpFunc (tmp, operands[1], CONST0_RTX (imode)));

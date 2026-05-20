@@ -7056,7 +7056,7 @@
 ;; from being computed before an earlier call.  To do this, we:
 ;;
 ;;    - Ensure that the register is live on entry to the function,
-;;	so that it is never thought to be used uninitalized.
+;;	so that it is never thought to be used uninitialized.
 ;;
 ;;    - Ensure that the register is live on exit from the function,
 ;;	so that it is live throughout.
@@ -7842,7 +7842,7 @@
 ;; accessible in MIPS16.
 ;;
 ;; This is not represented as a call insn, to avoid the
-;; unnecesarry clobbering of caller-save registers by a
+;; unnecessary clobbering of caller-save registers by a
 ;; function consisting only of: "rdhwr $3,$29; j $31; nop;"
 ;;
 ;; A $25 clobber is added to cater for a $25 load stub added by the

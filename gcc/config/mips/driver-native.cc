@@ -44,7 +44,7 @@ const char *
 host_detect_local_cpu (int argc, const char **argv)
 {
   const char *cpu = NULL;
-  /* Don't assigne any static string to ret.  If you need to do so,
+  /* Don't assign any static string to ret.  If you need to do so,
      use concat.  */
   char *ret = NULL;
   char buf[128];
