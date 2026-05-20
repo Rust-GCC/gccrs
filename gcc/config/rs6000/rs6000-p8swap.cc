@@ -456,7 +456,7 @@ quad_aligned_store_p (swap_web_entry *insn_entry, rtx_insn *insn)
       if (!rtx_equal_p (DF_REF_REG (use), swap_reg))
 	continue;
 
-      /* If there is no def or the def is artifical or there are
+      /* If there is no def or the def is artificial or there are
 	 multiple defs, punt.  */
       if (!def_link || !def_link->ref || DF_REF_IS_ARTIFICIAL (def_link->ref)
 	  || def_link->next)
@@ -533,7 +533,7 @@ const_load_sequence_p (swap_web_entry *insn_entry, rtx insn)
   df_ref use;
 
   /* Iterate over the definitions that are used by this insn.  Since
-     this is known to be a swap insn, expect only one used definnition.  */
+     this is known to be a swap insn, expect only one used definition.  */
   FOR_EACH_INSN_INFO_USE (use, insn_info)
     {
       struct df_link *def_link = DF_REF_CHAIN (use);
@@ -1652,7 +1652,7 @@ replace_swapped_aligned_store (swap_web_entry *insn_entry,
       if (!rtx_equal_p (DF_REF_REG (use), swap_reg))
 	continue;
 
-      /* If there is no def or the def is artifical or there are
+      /* If there is no def or the def is artificial or there are
 	 multiple defs, we should not be here.  */
       gcc_assert (def_link && def_link->ref && !def_link->next
 		  && !DF_REF_IS_ARTIFICIAL (def_link->ref));

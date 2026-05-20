@@ -99,7 +99,7 @@
    since the functions are actually in libSystem but for 7.x compatibility
    we want them to be looked for in libmx first.
    Include libSystemStubs when compiling against 10.3 - 10.6 SDKs (we assume
-   this is the case when targetting these) - but not for 64-bit long double.
+   this is the case when targeting these) - but not for 64-bit long double.
    Don't do either for m64, the library is either a dummy or non-existent.
 */
 

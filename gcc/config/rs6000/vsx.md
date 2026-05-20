@@ -5595,7 +5595,7 @@
   emit_insn (gen_vcmpne<VSX_EXTRACT_WIDTH> (cmpz2_result, operands[2], vzero));
   emit_insn (gen_and<mode>3 (and_result, cmpz1_result, cmpz2_result));
 
-  /* Vector with ones in elments that do not match.  */
+  /* Vector with ones in elements that do not match.  */
   emit_insn (gen_vcmpnez<VSX_EXTRACT_WIDTH> (cmpz_result, operands[1],
                                              operands[2]));
 
@@ -5683,7 +5683,7 @@
   emit_insn (gen_vcmpne<VSX_EXTRACT_WIDTH> (cmpz2_result, operands[2], vzero));
   emit_insn (gen_and<mode>3 (and_result, cmpz1_result, cmpz2_result));
 
-  /* Vector with ones in elments that match.  */
+  /* Vector with ones in elements that match.  */
   emit_insn (gen_vcmpnez<VSX_EXTRACT_WIDTH> (cmpz_result, operands[1],
                                              operands[2]));
   emit_insn (gen_one_cmpl<mode>2 (not_cmpz_result, cmpz_result));
@@ -6714,8 +6714,8 @@
   else
     {
       /* Reverse value of byte element indexes by XORing with 0xFF.
-	 Reverse the 32-byte section identifier match by subracting bits [0:2]
-	 of elemet from 7.  */
+	 Reverse the 32-byte section identifier match by subtracting bits [0:2]
+	 of element from 7.  */
       int value = INTVAL (operands[4]);
       rtx vreg = gen_reg_rtx (V16QImode);
 

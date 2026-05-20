@@ -44,7 +44,7 @@
 ;; Dual issue exceptions:
 ;;(1) nop-pipelined FXU instr in slot 0 
 ;;(2) non-pipelined FPU inst in slot 0
-;; CSI instr(contex-synchronizing insn)
+;; CSI instr(context-synchronizing insn)
 ;; Microcode insn
 
 ;; BRU unit: bru(none register stall), bru_cr(cr register stall)
@@ -304,7 +304,7 @@
        (eq_attr "cpu" "cell"))
   "fxu_cell+slot01")
 
-; Basic FP latency is 10 cycles, thoughput is 1/cycle
+; Basic FP latency is 10 cycles, throughput is 1/cycle
 (define_insn_reservation "cell-fp" 10
   (and (eq_attr "type" "fp,fpsimple,dmul")
        (eq_attr "cpu" "cell"))
@@ -315,13 +315,13 @@
        (eq_attr "cpu" "cell"))
   "vsu1_cell+slot01")
 
-;; sdiv thoughput 1/74, not pipelined but only in the FPU
+;; sdiv throughput 1/74, not pipelined but only in the FPU
 (define_insn_reservation "cell-sdiv" 74
   (and (eq_attr "type" "sdiv,ddiv")
        (eq_attr "cpu" "cell"))
   "slot1,nonpipeline,nonpipeline*72")
 
-;; fsqrt thoughput 1/84, not pipelined but only in the FPU
+;; fsqrt throughput 1/84, not pipelined but only in the FPU
 (define_insn_reservation "cell-sqrt" 84
   (and (eq_attr "type" "ssqrt,dsqrt")
        (eq_attr "cpu" "cell"))
@@ -410,7 +410,7 @@
 ;; the target of VSU estimate should not be reused within 10 dispatch groups
 ;; the target of VSU float should not be reused within 8 dispatch groups
 ;; the target of VSU complex should not be reused within 5 dispatch groups
-;; FP LOAD should not reuse an FPU Arithmetic target with 6 dispatch gropus
+;; FP LOAD should not reuse an FPU Arithmetic target with 6 dispatch groups
 
 ;; mtctr-bcctr/bcctrl, branch target ctr register shadow update at
 ;;  ex4 stage(10 cycles)

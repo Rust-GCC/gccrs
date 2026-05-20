@@ -2572,7 +2572,7 @@ rs6000_gimplify_va_arg (tree valist, tree type, gimple_seq *pre_p,
      std_gimplify_va_arg_expr that carries out the align adjust, for the case
      of relevance.
      We don't need to check for pass-by-reference because of the test above.
-     We can return a simplifed answer, since we know there's no offset to add.  */
+     We can return a simplified answer, since we know there's no offset to add.  */
 
   if (((TARGET_MACHO
         && rs6000_darwin64_abi)

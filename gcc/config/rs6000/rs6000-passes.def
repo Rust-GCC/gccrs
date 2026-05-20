@@ -25,7 +25,7 @@ along with GCC; see the file COPYING3.  If not see
  */
 
   /* Pass to add the appropriate vector swaps on power8 little endian systems.
-     The power8 does not have instructions that automaticaly do the byte swaps
+     The power8 does not have instructions that automatically do the byte swaps
      for loads and stores.  */
   INSERT_PASS_BEFORE (pass_cse, 1, pass_analyze_swaps);
 

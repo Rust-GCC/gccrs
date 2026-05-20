@@ -758,7 +758,7 @@ expand_cmp_vec_sequence (unsigned HOST_WIDE_INT bytes_to_compare,
 	{
 	  /* Branch to cleanup code, otherwise fall through to do more
 	     compares.  P8 and P9 use different CR bits because on P8
-	     we are looking at the result of a comparsion vs a
+	     we are looking at the result of a comparison vs a
 	     register of zeroes so the all-true condition means no
 	     difference or zero was found.  On P9, vcmpnezb sets a byte
 	     to 0xff if there is a mismatch or zero, so the all-false
@@ -1405,7 +1405,7 @@ expand_compare_loop (rtx operands[])
 	  /* Alignment is larger than word_mode so we do not need to be
 	     concerned with extra page crossings.  But, we do not know
 	     that the length is larger than load_mode_size so we might
-	     end up compareing against data before the block if we try
+	     end up comparing against data before the block if we try
 	     an overlapping compare.  Also we use this on P7 for fixed length
 	     remainder because P7 doesn't like overlapping unaligned.
 	     Strategy: load 8B, shift off bytes past length, and compare.  */
@@ -1430,7 +1430,7 @@ expand_compare_loop (rtx operands[])
 	  rtx nonconst_overlap = gen_label_rtx ();
 	  emit_label (nonconst_overlap);
 
-	  /* Here we have to handle the case where whe have runtime
+	  /* Here we have to handle the case where we have runtime
 	     length which may be too short for overlap compare, and
 	     alignment is not at least load_mode_size so we have to
 	     tread carefully to avoid stepping across 4k boundaries.  */
@@ -1438,7 +1438,7 @@ expand_compare_loop (rtx operands[])
 	  /* If the length after the loop was larger than word_mode
 	     size, we can just do an overlapping compare and we're
 	     done.  We fall through to this code from the word_mode
-	     compare that preceeds this.  */
+	     compare that precedes this.  */
 	  do_overlap_load_compare (load_mode, false, 0, diff,
 				   cmp_rem, dcond, src1_addr, src2_addr,
 				   orig_src1, orig_src2);
@@ -1632,7 +1632,7 @@ expand_compare_loop (rtx operands[])
    produce the final result from memcmp.
 
    TARGET is the rtx for the register to receive the memcmp result.
-   SUB_RESULT is the rtx for the register contining the subtract result.  */
+   SUB_RESULT is the rtx for the register containing the subtract result.  */
 
 void
 generate_6432_conversion(rtx target, rtx sub_result)

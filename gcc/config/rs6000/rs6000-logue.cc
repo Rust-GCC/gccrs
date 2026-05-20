@@ -282,7 +282,7 @@ is_altivec_return_reg (rtx reg, void *xyes)
 }
 
 
-/* Return whether REG is a global user reg or has been specifed by
+/* Return whether REG is a global user reg or has been specified by
    -ffixed-REG.  We should not restore these, and so cannot use
    lmw or out-of-line restore functions if there are any.  We also
    can't save them (well, emit frame notes for them), because frame
@@ -4069,7 +4069,7 @@ rs6000_output_function_prologue (FILE *file)
       asm_fprintf (file, "\tmflr %s\n", reg_names[0]);
 
       /* In the ELFv2 ABI we have no compiler stack word.  It must be
-	 the resposibility of _mcount to preserve the static chain
+	 the responsibility of _mcount to preserve the static chain
 	 register if required.  */
       if (DEFAULT_ABI != ABI_ELFv2
 	  && cfun->static_chain_decl != NULL)

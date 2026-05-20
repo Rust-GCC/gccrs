@@ -97,7 +97,7 @@
    and __GLOBAL_AIXD_{libname} and are exported from each shared library.
 
    collect2 will detect these symbols when they exist in shared libraries that
-   the current program is being linked against.  All such initiliser functions
+   the current program is being linked against.  All such initialiser functions
    will be called prior to the constructors of the current program, and
    finaliser functions called after destructors.
 

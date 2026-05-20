@@ -1,5 +1,5 @@
 /* Internal to rs6000 type, variable, and function declarations and
-   definitons shared between the various rs6000 source files.
+   definitions shared between the various rs6000 source files.
    Copyright (C) 1991-2026 Free Software Foundation, Inc.
    Contributed by Richard Kenner (kenner@vlsi1.ultra.nyu.edu)
 

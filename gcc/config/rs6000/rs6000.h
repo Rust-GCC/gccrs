@@ -1778,10 +1778,10 @@ extern scalar_int_mode rs6000_pmode;
    In the PowerPC, we use this to adjust the length of an instruction if one or
    more prefixed instructions are generated, using the attribute
    num_prefixed_insns.  A prefixed instruction is 8 bytes instead of 4, but the
-   hardware requires that a prefied instruciton does not cross a 64-byte
+   hardware requires that a prefied instruction does not cross a 64-byte
    boundary.  This means the compiler has to assume the length of the first
    prefixed instruction is 12 bytes instead of 8 bytes.  Since the length is
-   already set for the non-prefixed instruction, we just need to udpate for the
+   already set for the non-prefixed instruction, we just need to update for the
    difference.  */
 
 #define ADJUST_INSN_LENGTH(INSN,LENGTH)					\

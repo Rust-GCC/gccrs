@@ -191,7 +191,7 @@ int rs6000_vector_align[NUM_MACHINE_MODES];
    reciprocal sqrt (frsqrte) for.  */
 unsigned char rs6000_recip_bits[MAX_MACHINE_MODE];
 
-/* Masks to determine which reciprocal esitmate instructions to generate
+/* Masks to determine which reciprocal estimate instructions to generate
    automatically.  */
 enum rs6000_recip_mask {
   RECIP_SF_DIV		= 0x001,	/* Use divide estimate */
@@ -279,7 +279,7 @@ bool cpu_builtin_p = false;
    don't link in rs6000-c.cc, so we can't call it directly.  */
 void (*rs6000_target_modify_macros_ptr) (bool, HOST_WIDE_INT);
 
-/* Simplfy register classes into simpler classifications.  We assume
+/* Simplify register classes into simpler classifications.  We assume
    GPR_REG_TYPE - FPR_REG_TYPE are ordered so that we can use a simple range
    check for standard register classes (gpr/floating/altivec/vsx) and
    floating/vector classes (float/altivec/vsx).  */
@@ -338,7 +338,7 @@ static const struct reload_reg_map_type reload_reg_map[N_RELOAD_REG] = {
 
 /* Mask bits for each register class, indexed per mode.  Historically the
    compiler has been more restrictive which types can do PRE_MODIFY instead of
-   PRE_INC and PRE_DEC, so keep track of sepaate bits for these two.  */
+   PRE_INC and PRE_DEC, so keep track of separate bits for these two.  */
 typedef unsigned char addr_mask_type;
 
 #define RELOAD_REG_VALID	0x01	/* Mode valid in register..  */
@@ -2173,7 +2173,7 @@ rs6000_debug_addr_mask (addr_mask_type mask, bool keep_spaces)
   return ret;
 }
 
-/* Print the address masks in a human readble fashion.  */
+/* Print the address masks in a human readable fashion.  */
 DEBUG_FUNCTION void
 rs6000_debug_print_mode (ssize_t m)
 {
@@ -2711,7 +2711,7 @@ rs6000_setup_reg_addr_masks (void)
 			  || (rc == RELOAD_REG_VMX && TARGET_P9_VECTOR)))))
 	    addr_mask |= RELOAD_REG_OFFSET;
 
-	  /* VSX registers can do REG+OFFSET addresssing if ISA 3.0
+	  /* VSX registers can do REG+OFFSET addressing if ISA 3.0
 	     instructions are enabled.  The offset for 128-bit VSX registers is
 	     only 12-bits.  While GPRs can handle the full offset range, VSX
 	     registers can only handle the restricted range.  */
@@ -3343,7 +3343,7 @@ darwin_rs6000_override_options (void)
 
   /* The linkers [ld64] that support 64Bit do not need the JBSR longcall
      optimisation, and will not work with the most generic case (where the
-     symbol is undefined external, but there is no symbl stub).  */
+     symbol is undefined external, but there is no symbol stub).  */
   if (TARGET_64BIT)
     rs6000_default_long_calls = 0;
 
@@ -3997,7 +3997,7 @@ rs6000_option_override_internal (bool global_init_p)
     }
 
   /* Assume if the user asked for normal quad memory instructions, they want
-     the atomic versions as well, unless they explicity told us not to use quad
+     the atomic versions as well, unless they explicitly told us not to use quad
      word atomic instructions.  */
   if (TARGET_QUAD_MEMORY
       && !TARGET_QUAD_MEMORY_ATOMIC
@@ -4152,7 +4152,7 @@ rs6000_option_override_internal (bool global_init_p)
     }
 
   /* Enable the default support for IEEE 128-bit floating point on Linux VSX
-     sytems.  In GCC 7, we would enable the IEEE 128-bit floating point
+     systems.  In GCC 7, we would enable the IEEE 128-bit floating point
      infrastructure (-mfloat128-type) but not enable the actual __float128 type
      unless the user used the explicit -mfloat128.  In GCC 8, we enable both
      the keyword as well as the type.  */
@@ -5528,7 +5528,7 @@ rs6000_cost_data::determine_suggested_unroll_factor (loop_vec_info loop_vinfo)
     {
       unsigned int epil_niter_unr = est_niter % unrolled_vf;
       unsigned int epil_niter = est_niter % vf;
-      /* Even if we have partial vector support, it can be still inefficent
+      /* Even if we have partial vector support, it can be still inefficient
 	 to calculate the length when the iteration count is unknown, so
 	 only expect it's good to unroll when the epilogue iteration count
 	 is not bigger than VF (only one time length calculation).  */
@@ -9828,7 +9828,7 @@ rs6000_init_stack_protect_guard (void)
 static bool
 rs6000_cannot_force_const_mem (machine_mode mode ATTRIBUTE_UNUSED, rtx x)
 {
-  /* If GET_CODE (x) is HIGH, the 'X' represets the high part of a symbol_ref.
+  /* If GET_CODE (x) is HIGH, the 'X' represents the high part of a symbol_ref.
      It can not be put into a constant pool.  e.g.
      (high:DI (unspec:DI [(symbol_ref/u:DI ("*.LC0")..)
      (high:DI (symbol_ref:DI ("var")..)).  */
@@ -10872,7 +10872,7 @@ rs6000_emit_le_vsx_move (rtx dest, rtx source, machine_mode mode)
 }
 
 /* Return whether a SFmode or SImode move can be done without converting one
-   mode to another.  This arrises when we have:
+   mode to another.  This arises when we have:
 
 	(SUBREG:SF (REG:SI ...))
 	(SUBREG:SI (REG:SF ...))
@@ -12627,7 +12627,7 @@ rs6000_secondary_reload_memory (rtx addr,
 }
 
 /* Helper function for rs6000_secondary_reload to return true if a move to a
-   different register classe is really a simple move.  */
+   different register class is really a simple move.  */
 
 static bool
 rs6000_secondary_reload_simple_move (enum rs6000_reg_type to_type,
@@ -15293,7 +15293,7 @@ rs6000_reverse_condition (machine_mode mode, enum rtx_code code)
     return reverse_condition (code);
 }
 
-/* Check if C (as 64bit integer) can be rotated to a constant which constains
+/* Check if C (as 64bit integer) can be rotated to a constant which contains
    nonzero bits at the LOWBITS low bits only.
 
    Return true if C can be rotated to such constant.  If so, *ROT is written
@@ -15629,7 +15629,7 @@ rs6000_expand_float128_convert (rtx dest, rtx src, bool unsigned_p)
     rtx_2func_t to_di_sign;
     rtx_2func_t to_di_uns;
   } hw_conversions[2] = {
-    /* convertions to/from KFmode */
+    /* conversions to/from KFmode */
     {
       gen_extenddfkf2_hw,		/* KFmode <- DFmode.  */
       gen_extendsfkf2_hw,		/* KFmode <- SFmode.  */
@@ -15645,7 +15645,7 @@ rs6000_expand_float128_convert (rtx dest, rtx src, bool unsigned_p)
       gen_fixuns_kfdi2_hw,		/* DImode <- KFmode (unsigned).  */
     },
 
-    /* convertions to/from TFmode */
+    /* conversions to/from TFmode */
     {
       gen_extenddftf2_hw,		/* TFmode <- DFmode.  */
       gen_extendsftf2_hw,		/* TFmode <- SFmode.  */
@@ -16919,7 +16919,7 @@ rs6000_adjust_atomic_subword (rtx orig_mem, rtx *pshift, rtx *pmask)
 }
 
 /* A subroutine of the various atomic expanders.  For sub-word operands,
-   combine OLDVAL and NEWVAL via MASK.  Returns a new pseduo.  */
+   combine OLDVAL and NEWVAL via MASK.  Returns a new pseudo.  */
 
 static rtx
 rs6000_mask_atomic_subword (rtx oldval, rtx newval, rtx mask)
@@ -17251,7 +17251,7 @@ rs6000_expand_atomic_op (enum rtx_code code, rtx mem, rtx val,
   if (shift)
     {
       /* QImode/HImode on machines without lbarx/lharx where we do a lwarx and
-	 then do the calcuations in a SImode register.  */
+	 then do the calculations in a SImode register.  */
       if (orig_before)
 	rs6000_finish_atomic_subword (orig_before, before, shift);
       if (orig_after)
@@ -17260,7 +17260,7 @@ rs6000_expand_atomic_op (enum rtx_code code, rtx mem, rtx val,
   else if (store_mode != mode)
     {
       /* QImode/HImode on machines with lbarx/lharx where we do the native
-	 operation and then do the calcuations in a SImode register.  */
+	 operation and then do the calculations in a SImode register.  */
       if (orig_before)
 	convert_move (orig_before, before, 1);
       if (orig_after)
@@ -22085,7 +22085,7 @@ rs6000_xcoff_declare_object_name (FILE *file, const char *name, tree decl)
 							       &data, true);
 }
 
-/* Overide the default 'SYMBOL-.' syntax with AIX compatible 'SYMBOL-$'. */
+/* Override the default 'SYMBOL-.' syntax with AIX compatible 'SYMBOL-$'. */
 
 void
 rs6000_asm_output_dwarf_pcrel (FILE *file, int size, const char *label)
@@ -27000,10 +27000,10 @@ output_pcrel_opt_reloc (rtx label_num)
    In the PowerPC, we use this to adjust the length of an instruction if one or
    more prefixed instructions are generated, using the attribute
    num_prefixed_insns.  A prefixed instruction is 8 bytes instead of 4, but the
-   hardware requires that a prefied instruciton does not cross a 64-byte
+   hardware requires that a prefied instruction does not cross a 64-byte
    boundary.  This means the compiler has to assume the length of the first
    prefixed instruction is 12 bytes instead of 8 bytes.  Since the length is
-   already set for the non-prefixed instruction, we just need to udpate for the
+   already set for the non-prefixed instruction, we just need to update for the
    difference.  */
 
 int
@@ -27123,7 +27123,7 @@ rs6000_set_up_by_prologue (struct hard_reg_set_container *set)
 
 
 /* Helper function for rs6000_split_logical to emit a logical instruction after
-   spliting the operation to single GPR registers.
+   splitting the operation to single GPR registers.
 
    DEST is the destination register.
    OP1 and OP2 are the input source registers.
@@ -27171,7 +27171,7 @@ rs6000_split_logical_inner (rtx dest,
 	}
 
       /* Optimize IOR/XOR of 0 to be a simple move.  Split large operations
-	 into separate ORI/ORIS or XORI/XORIS instrucitons.  */
+	 into separate ORI/ORIS or XORI/XORIS instructions.  */
       else if (code == IOR || code == XOR)
 	{
 	  if (value == 0)
@@ -27430,7 +27430,7 @@ rs6000_split_multireg_move (rtx dst, rtx src)
   /* TDmode residing in FP registers is special, since the ISA requires that
      the lower-numbered word of a register pair is always the most significant
      word, even in little-endian mode.  This does not match the usual subreg
-     semantics, so we cannnot use simplify_gen_subreg in those cases.  Access
+     semantics, so we cannot use simplify_gen_subreg in those cases.  Access
      the appropriate constituent registers "by hand" in little-endian mode.
 
      Note we do not need to check for destructive overlap here since TDmode

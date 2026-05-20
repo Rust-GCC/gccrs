@@ -265,7 +265,7 @@
   DONE;
 })
 
-;; Any supported integer mode that has atomic l<x>arx/st<x>cx. instrucitons
+;; Any supported integer mode that has atomic l<x>arx/st<x>cx. instructions
 ;; other than the quad memory operations, which have special restrictions.
 ;; Byte/halfword atomic instructions were added in ISA 2.06B, but were phased
 ;; in and did not show up until power8.  TImode atomic lqarx/stqcx. require

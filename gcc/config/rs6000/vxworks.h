@@ -187,7 +187,7 @@ along with GCC; see the file COPYING3.  If not see
 
 /* Leverage linker relaxation for RTPs.  This helps 32bit programs
    referring to kernel services too far away for short calls, is more
-   precise than -mlongcall and can be overriden with -Wl,--no-relax.  */
+   precise than -mlongcall and can be overridden with -Wl,--no-relax.  */
 #define VXWORKS_RELAX_LINK_SPEC "%{mrtp:--relax}"
 
 /*-------------------------------------------------------------*/
@@ -298,7 +298,7 @@ along with GCC; see the file COPYING3.  If not see
    This is essentially the linux64.h version with an extra guard on
    TARGET_VXWORKS_RTP to avoid DW_EH_PE_indirect in 64bit DKMs as they
    could result in references from one DKM to resolve to symbols exposed
-   by a previsouly loaded DKM even if the symbol is also provided by the
+   by a previously loaded DKM even if the symbol is also provided by the
    DKM where the reference takes place.  */
 #undef ASM_PREFERRED_EH_DATA_FORMAT
 #define ASM_PREFERRED_EH_DATA_FORMAT(CODE, GLOBAL) \
