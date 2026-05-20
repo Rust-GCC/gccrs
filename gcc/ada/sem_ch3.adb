@@ -16609,7 +16609,7 @@ package body Sem_Ch3 is
 
       procedure Replace_Type (Id, New_Id : Entity_Id) is
          Id_Type  : constant Entity_Id := Etype (Id);
-         Par      : constant Node_Id := Parent (Derived_Type);
+         Par      : constant Node_Id   := Parent (Derived_Type);
 
       begin
          --  When the type is an anonymous access type, create a new access
@@ -16641,11 +16641,11 @@ package body Sem_Ch3 is
                then
                   Acc_Type := New_Copy (Id_Type);
                   Set_Etype (Acc_Type, Acc_Type);
-                  Set_Scope (Acc_Type, New_Subp);
+                  Set_Scope (Acc_Type, Scope (Derived_Type));
 
                   --  Set size of anonymous access type. If we have an access
-                  --  to an unconstrained array, this is a fat pointer, so it
-                  --  is sizes at twice addtress size.
+                  --  to an unconstrained array, this is a fat pointer, so its
+                  --  size is twice the address size.
 
                   if Is_Array_Type (Desig_Typ)
                     and then not Is_Constrained (Desig_Typ)
@@ -16658,17 +16658,16 @@ package body Sem_Ch3 is
                      Init_Size (Acc_Type, System_Address_Size);
                   end if;
 
-                  --  Set remaining characterstics of anonymous access type
+                  --  Set remaining characteristics of anonymous access type
 
                   Reinit_Alignment (Acc_Type);
                   Set_Directly_Designated_Type (Acc_Type, Derived_Type);
 
                   Set_Etype (New_Id, Acc_Type);
-                  Set_Scope (New_Id, New_Subp);
 
                   --  Create a reference to it
 
-                  Build_Itype_Reference (Acc_Type, Parent (Derived_Type));
+                  Build_Itype_Reference (Acc_Type, Par);
 
                else
                   Set_Etype (New_Id, Id_Type);
