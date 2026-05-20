@@ -1228,7 +1228,7 @@ pdp11_insn_cost (rtx_insn *insn, bool speed)
     default:
       break;
     }
-  /* There are some other cases where souce and dest are distinct.  */
+  /* There are some other cases where source and dest are distinct.  */
   if (FLOAT_MODE_P (mode) &&
       (op == FLOAT_TRUNCATE || op == FLOAT_EXTEND || op == FIX || op == FLOAT))
     {
