@@ -9150,7 +9150,7 @@ ia64_add_bundle_selector_before (int template0, rtx_insn *insn)
 /* The following function does insn bundling.  Bundling means
    inserting templates and nop insns to fit insn groups into permitted
    templates.  Instruction scheduling uses NDFA (non-deterministic
-   finite automata) encoding informations about the templates and the
+   finite automata) encoding information about the templates and the
    inserted nops.  Nondeterminism of the automata permits follows
    all possible insn sequences very fast.
 

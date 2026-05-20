@@ -554,7 +554,7 @@
 
 (define_reservation "2_B" "2_B0|2_B1")
 
-;; MLX bunlde uses ports equivalent to MFI bundles.
+;; MLX bundle uses ports equivalent to MFI bundles.
 
 ;;   For the MLI template, the I slot insn is always assigned to port I0
 ;; if it is in the first bundle or it is assigned to port I1 if it is in
@@ -899,7 +899,7 @@
        (not (match_test "bundling_p")))
   "2_I+2_only_ui0")
 
-;; There is only ony insn `mov ar.pfs =' for toar_i:
+;; There is only one insn `mov ar.pfs =' for toar_i:
 (define_insn_reservation "2_toar_i"  0
   (and (and (eq_attr "cpu" "itanium2")
             (eq_attr "itanium_class" "toar_i"))

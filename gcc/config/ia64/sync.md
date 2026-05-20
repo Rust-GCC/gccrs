@@ -101,7 +101,7 @@
    (match_operand:SI 7 "const_int_operand" "")]			;; fail model
   ""
 {
-  /* No need to distinquish __sync from __atomic, so get base value.  */
+  /* No need to distinguish __sync from __atomic, so get base value.  */
   enum memmodel model = memmodel_base (INTVAL (operands[6]));
   rtx ccv = gen_rtx_REG (DImode, AR_CCV_REGNUM);
   rtx dval, eval;
@@ -201,7 +201,7 @@
    (match_operand:SI 3 "const_int_operand" "")]			;; succ model
   ""
 {
-  /* No need to distinquish __sync from __atomic, so get base value.  */
+  /* No need to distinguish __sync from __atomic, so get base value.  */
   enum memmodel model = memmodel_base (INTVAL (operands[3]));
 
   switch (model)
