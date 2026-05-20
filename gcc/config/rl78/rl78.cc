@@ -2443,7 +2443,7 @@ post-reload optimizers could operate on the real registers, but when I
 tried that there were some issues building the target libraries.
 
 During devirtualization, a simple register move optimizer is run.  It
-would be better to run a full CSE/propogation pass on it though, but
+would be better to run a full CSE/propagation pass on it though, but
 that has not yet been attempted.
 
  */
@@ -3672,7 +3672,7 @@ rl78_alloc_physical_registers (void)
 {
   /* During most of the compile, gcc is dealing with virtual
      registers.  At this point, we need to assign physical registers
-     to the vitual ones, and copy in/out as needed.  */
+     to the virtual ones, and copy in/out as needed.  */
 
   rtx_insn *insn, *curr;
   enum attr_valloc valloc_method;
@@ -4185,7 +4185,7 @@ set_origin (rtx pat, rtx_insn * insn, int * origins, int * age)
    C.  If B is a virtual register or memory, this is a big win on its
    own.  If B turns out to be unneeded after this, it's a bigger win.
    For each register, we try to determine where it's value originally
-   came from, if it's propogated purely through moves (and not
+   came from, if it's propagated purely through moves (and not
    computes).  The ORIGINS[] array has the regno for the "origin" of
    the value in the [regno] it's indexed by.  */
 static void
@@ -4303,7 +4303,7 @@ rl78_remove_unused_sets (void)
     }
 }
 
-/* This is the top of the devritualization pass.  */
+/* This is the top of the devirtualization pass.  */
 static void
 rl78_reorg (void)
 {
