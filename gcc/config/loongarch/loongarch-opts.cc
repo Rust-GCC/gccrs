@@ -985,7 +985,7 @@ loongarch_generate_mrecip_scheme (unsigned int mask)
 
 
 
-/* Refresh the switches acccording to the resolved loongarch_target struct.  */
+/* Refresh the switches according to the resolved loongarch_target struct.  */
 void
 loongarch_target_option_override (struct loongarch_target *target,
 				  struct gcc_options *opts,

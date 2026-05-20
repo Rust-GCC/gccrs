@@ -167,7 +167,7 @@
    (V4SI "V4HI")
    (V2DI "V2SI")])
 
-;; Double-sized Vector MODE with same elemet type. "Vector, Enlarged-MODE"
+;; Double-sized Vector MODE with same element type. "Vector, Enlarged-MODE"
 (define_mode_attr VEMODE
   [(V4SF "V8SF")
    (V4SI "V8SI")

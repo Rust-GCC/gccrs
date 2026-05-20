@@ -1073,7 +1073,7 @@ typedef struct {
 		...
 		.uleb128 foo-$LFBxxx
 
-   The .uleb128 requies $LFBxxx to match the FDE start address, which is
+   The .uleb128 requires $LFBxxx to match the FDE start address, which is
    likewise a byte pointer rather than an ISA-encoded address.
 
    At the time of writing, this hook is not used for the function end

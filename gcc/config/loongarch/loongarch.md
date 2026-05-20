@@ -360,7 +360,7 @@
 ;; Length of instruction in bytes.
 (define_attr "length" ""
    (cond [
-	  ;; Branch futher than +/- 128 KiB require two instructions.
+	  ;; Branch further than +/- 128 KiB require two instructions.
 	  (eq_attr "type" "branch")
 	  (if_then_else (and (le (minus (match_dup 0) (pc)) (const_int 131064))
 			     (le (minus (pc) (match_dup 0)) (const_int 131068)))
@@ -2074,7 +2074,7 @@
   [(set_attr "type" "fcvt")
    (set_attr "mode" "<ANYF:MODE>")])
 
-;; conversion of an integeral (or boolean) value to a floating-point value
+;; conversion of an integral (or boolean) value to a floating-point value
 
 (define_insn "floatsidf2"
   [(set (match_operand:DF 0 "register_operand" "=f")

@@ -904,7 +904,7 @@ static const struct loongarch_builtin_description loongarch_builtins[] = {
   DIRECT_NO_TARGET_BUILTIN (ldpte_d, LARCH_VOID_FTYPE_DI_UQI, la64),
   DIRECT_NO_TARGET_BUILTIN (ldpte_w, LARCH_VOID_FTYPE_SI_UQI,  la64_or_la32s),
 
-  /* CRC Instrinsic */
+  /* CRC Intrinsic */
 
   DIRECT_BUILTIN (crc_w_b_w, LARCH_SI_FTYPE_QI_SI, la64),
   DIRECT_BUILTIN (crc_w_h_w, LARCH_SI_FTYPE_HI_SI, la64),

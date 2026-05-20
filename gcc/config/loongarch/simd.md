@@ -373,7 +373,7 @@
     !flag_trapping_math")
 
 ;; fix_trunc is allowed to raise inexact exception even if
-;; -fno-fp-int-builtin-inexact.  Because the middle end trys to match
+;; -fno-fp-int-builtin-inexact.  Because the middle end tries to match
 ;; (FIX x) and it does not know (FIX (UNSPEC_SIMD_FRINTRZ x)), we need
 ;; to use define_insn_and_split instead of define_expand (expanders are
 ;; not considered during matching).
@@ -548,7 +548,7 @@
   [(set_attr "type" "simd_fcmp")
    (set_attr "mode" "<MODE>")])
 
-;; <x>vfcmp.*.{s/d} instructions only as instrinsics
+;; <x>vfcmp.*.{s/d} instructions only as intrinsics
 (define_c_enum "unspec"
   [UNSPEC_SIMD_FCMP_CAF
    UNSPEC_SIMD_FCMP_SAF

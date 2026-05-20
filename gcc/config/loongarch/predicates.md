@@ -430,8 +430,8 @@
   (match_code "const,symbol_ref,label_ref")
 {
   /* Split symbol to high and low if return false.
-     If defined TARGET_CMODEL_EXTREME, all symbol would be splited,
-     else if offset is not zero, the symbol would be splited.  */
+     If defined TARGET_CMODEL_EXTREME, all symbol would be split,
+     else if offset is not zero, the symbol would be split.  */
 
   enum loongarch_symbol_type symbol_type;
   loongarch_symbolic_constant_p (op, &symbol_type);
@@ -447,7 +447,7 @@
     return true;
 
   /* When compiling with '-mcmodel=medium -mexplicit-relocs'
-     symbols are splited in loongarch_legitimize_call_address.
+     symbols are split in loongarch_legitimize_call_address.
 
      When compiling with '-mcmodel=medium -mno-explicit-relocs',
      first obtain the symbolic address or the address of the
