@@ -849,6 +849,7 @@ create_var (gfc_expr * e, const char *vname)
   symbol->attr.referenced = 1;
   symbol->attr.dimension = e->rank > 0;
   symbol->attr.fe_temp = 1;
+  symbol->attr.automatic = 1;
   gfc_commit_symbol (symbol);
 
   result = gfc_get_expr ();
@@ -3808,6 +3809,7 @@ create_do_loop (gfc_expr *start, gfc_expr *end, gfc_expr *step, locus *where,
   symbol->attr.referenced = 1;
   symbol->attr.dimension = 0;
   symbol->attr.fe_temp = 1;
+  symbol->attr.automatic = 1;
   gfc_commit_symbol (symbol);
 
   i = gfc_get_expr ();
