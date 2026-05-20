@@ -867,7 +867,7 @@ rx_print_operand (FILE * file, rtx op, int letter)
 	    rtx base = XEXP (op, 0);
 	    rtx index = XEXP (op, 1);
 
-	    /* Check for a swaped index register and scaling factor.
+	    /* Check for a swapped index register and scaling factor.
 	       Not sure if this can happen, but be prepared to handle it.  */
 	    if (CONST_INT_P (base) && REG_P (index))
 	      {
@@ -2081,7 +2081,7 @@ rx_expand_epilogue (bool is_sibcall)
   unsigned int reg;
   unsigned HOST_WIDE_INT total_size;
 
-  /* FIXME: We do not support indirect sibcalls at the moment becaause we
+  /* FIXME: We do not support indirect sibcalls at the moment because we
      cannot guarantee that the register holding the function address is a
      call-used register.  If it is a call-saved register then the stack
      pop instructions generated in the epilogue will corrupt the address

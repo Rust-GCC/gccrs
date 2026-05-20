@@ -2064,7 +2064,7 @@
 ;; combiner bridge patterns.  Especially when the memory operands have a
 ;; displacement, the resulting patterns look too complex.
 ;; Instead we manually look around the matched insn to see if there is a
-;; preceeding memory load and a following memory store of the modified register
+;; preceding memory load and a following memory store of the modified register
 ;; which can be fused into the single *_in_memory insn.
 ;; Do that before register allocation, as it can eliminate one temporary
 ;; register that needs to be allocated.
