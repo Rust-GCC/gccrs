@@ -3627,7 +3627,7 @@ pa_assemble_integer (rtx x, unsigned int size, int aligned_p)
   /* When we have a SYMBOL_REF with a SYMBOL_REF_DECL, we need to call
      call assemble_external and set the SYMBOL_REF_DECL to NULL before
      calling output_addr_const.  Otherwise, it may call assemble_external
-     in the midst of outputing the assembler code for the SYMBOL_REF.
+     in the midst of outputting the assembler code for the SYMBOL_REF.
      We restore the SYMBOL_REF_DECL after the output is done.  */
   if (GET_CODE (x) == SYMBOL_REF)
     {
@@ -10527,7 +10527,7 @@ pa_can_change_mode_class (machine_mode from, machine_mode to,
 
    We should return FALSE for QImode and HImode because these modes
    are not ok in the floating-point registers.  However, this prevents
-   tieing these modes to SImode and DImode in the general registers.
+   tying these modes to SImode and DImode in the general registers.
    So, this isn't a good idea.  We rely on TARGET_HARD_REGNO_MODE_OK and
    TARGET_CAN_CHANGE_MODE_CLASS to prevent these modes from being used
    in the floating-point registers.  */
