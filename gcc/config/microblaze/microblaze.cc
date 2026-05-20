@@ -149,7 +149,7 @@ struct GTY(()) microblaze_frame_info {
 
 /* Global variables for machine-dependent things.  */
 
-/* Toggle which pipleline interface to use.  */
+/* Toggle which pipeline interface to use.  */
 static GTY(()) int microblaze_sched_use_dfa = 0;
 
 /* Threshold for data being put into the small data/bss area, instead
@@ -2147,7 +2147,7 @@ compute_frame_size (HOST_WIDE_INT size)
   HOST_WIDE_INT var_size;	/* # bytes that local variables take up.  */
   HOST_WIDE_INT args_size;	/* # bytes that outgoing arguments take up.  */
   int link_debug_size;		/* # bytes for link register.  */
-  HOST_WIDE_INT gp_reg_size;	/* # bytes needed to store calle-saved gp regs.  */
+  HOST_WIDE_INT gp_reg_size;	/* # bytes needed to store callee-saved gp regs.  */
   long mask;			/* mask of saved gp registers.  */
 
   interrupt_handler =

@@ -401,7 +401,7 @@ extern enum reg_class microblaze_regno_to_class[];
 /* The return address for the current frame is in r31 if this is a leaf
    function.  Otherwise, it is on the stack.  It is at a variable offset
    from sp/fp/ap, so we define a fake hard register rap which is a
-   poiner to the return address on the stack.  This always gets eliminated
+   pointer to the return address on the stack.  This always gets eliminated
    during reload to be either the frame pointer or the stack pointer plus
    an offset.  */
 
