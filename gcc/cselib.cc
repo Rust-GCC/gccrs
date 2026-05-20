@@ -34,6 +34,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "function-abi.h"
 #include "alias.h"
 #include "predict.h"
+#include "rtl-iter.h"
 
 /* A list of cselib_val structures.  */
 struct elt_list
@@ -177,6 +178,16 @@ static hash_table<cselib_hasher> *cselib_hash_table;
 /* A table to hold preserved values.  */
 static hash_table<cselib_hasher> *cselib_preserved_hash_table;
 
+/* The subset of cselib_preserved_hash_table that might have useless locations.
+   It excludes values for which all_locs_preserved_p is true.
+
+   This is an important compile-time optimization for inputs that have
+   many preserved values and many basic blocks (such as insn-extract.cc
+   at the time of writing, especially with RTL checking enabled).
+   If remove_useless_values iterated over the whole hash table for every
+   block, it would repeat a lot of useless and cache-unfriendly work.  */
+static vec<cselib_val *> cselib_preserved_prune_list;
+
 /* The unique id that the next create value will take.  */
 static unsigned int next_uid;
 
@@ -304,6 +315,21 @@ new_elt_list (struct elt_list *next, cselib_val *elt)
   return el;
 }
 
+/* Record that all_locs_preserved_p might no longer hold for VAL.  */
+
+static inline void
+cselib_clear_all_locs_preserved (cselib_val *val)
+{
+  if (val->all_locs_preserved_p)
+    {
+      val->all_locs_preserved_p = false;
+      if (val->in_preserved_table_p)
+	/* VAL would have been removed from cselib_preserved_prune_list
+	   but now needs to be considered by remove_useless_values.  */
+	cselib_preserved_prune_list.safe_push (val);
+    }
+}
+
 /* Allocate a struct elt_loc_list with LOC and prepend it to VAL's loc
    list.  */
 
@@ -355,6 +381,7 @@ new_elt_loc_list (cselib_val *val, rtx loc)
 		  auto *el_val = CSELIB_VAL_PTR (el->loc);
 		  gcc_checking_assert (el_val->locs->loc == loc);
 		  el_val->locs->loc = val->val_rtx;
+		  cselib_clear_all_locs_preserved (el_val);
 		}
 	    }
 	  el->next = val->locs;
@@ -388,6 +415,7 @@ new_elt_loc_list (cselib_val *val, rtx loc)
       el->setting_insn = cselib_current_insn;
       el->next = NULL;
       loc_val->locs = el;
+      cselib_clear_all_locs_preserved (loc_val);
     }
 
   el = elt_loc_list_pool.allocate ();
@@ -395,6 +423,7 @@ new_elt_loc_list (cselib_val *val, rtx loc)
   el->setting_insn = cselib_current_insn;
   el->next = next;
   val->locs = el;
+  cselib_clear_all_locs_preserved (val);
 }
 
 /* Promote loc L to a nondebug cselib_current_insn if L is marked as
@@ -526,6 +555,9 @@ preserve_constants_and_equivs (cselib_val **x, void *info ATTRIBUTE_UNUSED)
 							    v->hash, INSERT);
       gcc_assert (!*slot);
       *slot = v;
+      v->in_preserved_table_p = true;
+      if (!v->all_locs_preserved_p)
+	cselib_preserved_prune_list.safe_push (v);
     }
 
   cselib_hash_table->clear_slot (x);
@@ -626,6 +658,7 @@ cselib_find_slot (machine_mode mode, rtx x, hashval_t hash,
 {
   cselib_val **slot = NULL;
   cselib_hasher::key lookup = { mode, x, memmode };
+  hash &= cselib_val::HASH_MASK;
   if (cselib_preserve_constants)
     slot = cselib_preserved_hash_table->find_slot_with_hash (&lookup, hash,
 							     NO_INSERT);
@@ -674,25 +707,50 @@ cselib_useless_value_p (cselib_val *v)
 	  && !SP_DERIVED_VALUE_P (v->val_rtx));
 }
 
-/* For all locations found in X, delete locations that reference useless
-   values (i.e. values without any location).  Called through
-   htab_traverse.  */
+/* For all locations found in V, delete locations that reference useless
+   values (i.e. values without any location).  */
 
-int
-discard_useless_locs (cselib_val **x, void *info ATTRIBUTE_UNUSED)
+static void
+discard_useless_locs (cselib_val *v)
 {
-  cselib_val *v = *x;
   struct elt_loc_list **p = &v->locs;
   bool had_locs = v->locs != NULL;
   rtx_insn *setting_insn = v->locs ? v->locs->setting_insn : NULL;
 
+  if (v->all_locs_preserved_p)
+    return;
+
+  bool all_locs_preserved_p = true;
   while (*p)
     {
-      if (references_value_p ((*p)->loc, 1))
-	unchain_one_elt_loc_list (p);
+      /* True if every value referenced by (*p)->loc is preserved.  */
+      bool preserved_p = true;
+      bool keep_p = true;
+      subrtx_iterator::array_type array;
+      FOR_EACH_SUBRTX (iter, array, (*p)->loc, ALL)
+	{
+	  const_rtx x = *iter;
+	  if (GET_CODE (x) == VALUE && !PRESERVED_VALUE_P (x))
+	    {
+	      preserved_p = false;
+	      if (CSELIB_VAL_PTR (x)->locs == 0)
+		{
+		  keep_p = false;
+		  break;
+		}
+	    }
+	}
+      if (keep_p)
+	{
+	  all_locs_preserved_p &= preserved_p;
+	  p = &(*p)->next;
+	}
       else
-	p = &(*p)->next;
+	unchain_one_elt_loc_list (p);
     }
+
+  if (all_locs_preserved_p)
+    v->all_locs_preserved_p = true;
 
   if (had_locs && cselib_useless_value_p (v))
     {
@@ -702,6 +760,14 @@ discard_useless_locs (cselib_val **x, void *info ATTRIBUTE_UNUSED)
 	n_useless_values++;
       values_became_useless = 1;
     }
+}
+
+/* A hash-table traversal callback for the above.  */
+
+int
+discard_useless_locs (cselib_val **x, void *info ATTRIBUTE_UNUSED)
+{
+  discard_useless_locs (*x);
   return 1;
 }
 
@@ -755,8 +821,28 @@ remove_useless_values (void)
   *p = &dummy_val;
 
   if (cselib_preserve_constants)
-    cselib_preserved_hash_table->traverse <void *,
-					   discard_useless_locs> (NULL);
+    {
+      /* Apply discard_useless_locs to each element of
+	 cselib_preserved_prune_list.  Remove from consideration any values
+	 whose locations only reference preserved values, since those
+	 locations will never be useless in their current form.  */
+      unsigned int len = cselib_preserved_prune_list.length ();
+      unsigned int dest_i = 0;
+      unsigned int src_i = 0;
+      for (; src_i < len; ++src_i)
+	{
+	  auto *val = cselib_preserved_prune_list[src_i];
+	  discard_useless_locs (val);
+	  if (!val->all_locs_preserved_p)
+	    {
+	      if (dest_i < src_i)
+		cselib_preserved_prune_list[dest_i] = val;
+	      dest_i += 1;
+	    }
+	}
+      if (src_i != dest_i)
+	cselib_preserved_prune_list.truncate (dest_i);
+    }
   gcc_assert (!values_became_useless);
 
   n_useless_values += n_useless_debug_values;
@@ -1610,6 +1696,8 @@ new_cselib_val (hashval_t hash, machine_mode mode, rtx x)
   gcc_assert (next_uid);
 
   e->hash = hash;
+  e->in_preserved_table_p = false;
+  e->all_locs_preserved_p = false;
   e->uid = next_uid++;
   /* We use an alloc pool to allocate this RTL construct because it
      accounts for about 8% of the overall memory usage.  We know
@@ -3455,6 +3543,7 @@ cselib_finish (void)
   cselib_hash_table = NULL;
   if (preserved)
     delete cselib_preserved_hash_table;
+  cselib_preserved_prune_list.release ();
   cselib_preserved_hash_table = NULL;
   free (used_regs);
   used_regs = 0;
