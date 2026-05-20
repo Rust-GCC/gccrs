@@ -386,27 +386,41 @@ legitimate_small_data_address_p (rtx x, machine_mode mode)
       return SYMBOL_REF_SMALL_P (x);
     case PLUS:
       {
-	bool p0 = (GET_CODE (XEXP (x, 0)) == SYMBOL_REF)
-	  && SYMBOL_REF_SMALL_P (XEXP (x, 0));
+	if ((GET_CODE (XEXP (x, 0)) != SYMBOL_REF)
+	    || !SYMBOL_REF_SMALL_P (XEXP (x, 0)))
+	  return false;
 
 	/* If no constant then we cannot do small data.  */
 	if (!CONST_INT_P (XEXP (x, 1)))
 	  return false;
 
-	/* Small data relocs works with scalled addresses, check if
+	const int offset = INTVAL (XEXP (x, 1));
+	int size = GET_MODE_SIZE (mode);
+	size = size == 8 ? 4 : size;
+
+	/* Small data relocs works with scaled addresses, check if
 	   the immediate fits the requirements.  */
-	switch (GET_MODE_SIZE (mode))
+	switch (size)
 	  {
 	  case 1:
-	    return p0;
+	    break;
 	  case 2:
-	    return p0 && ((INTVAL (XEXP (x, 1)) & 0x1) == 0);
+	    if ((offset & 0x1) == 0)
+	      break;
+	    else
+	      return false;
 	  case 4:
-	  case 8:
-	    return p0 && ((INTVAL (XEXP (x, 1)) & 0x3) == 0);
+	    if ((offset & 0x3) == 0)
+	      break;
+	    else
+	      return false;
 	  default:
 	    return false;
 	  }
+
+	/* Reloc allows scaled signed 9 bits.  */
+	const int v = (offset / size) >> 8;
+	return v == 0 || v == -1;
       }
     default:
       return false;
