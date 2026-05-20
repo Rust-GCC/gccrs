@@ -1,3 +1,9 @@
+2026-05-19  Jakub Jelinek  <jakub@redhat.com>
+
+	PR other/125348
+	* gm2-compiler/M2GenGCC.mod (PerformLastForIterator): Fix diagnostic
+	typo, intemediate -> intermediate.
+
 2026-04-21  Gaius Mulley  <gaiusmod2@gmail.com>
 
 	PR modula2/120189

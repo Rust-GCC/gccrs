@@ -1,3 +1,19 @@
+2026-05-19  Paul-Antoine Arras  <parras@baylibre.com>
+	    Chung-Lin Tang  <cltang@baylibre.com>
+	    Sandra Loosemore  <sloosemore@baylibre.com>
+
+	* testsuite/libgomp.c++/target-map-multi-1.C: New test.
+	* testsuite/libgomp.c-c++-common/target-map-iterators-6.c: New test.
+	* testsuite/libgomp.c-c++-common/target-map-multi-1.c: New test.
+	* testsuite/libgomp.c-c++-common/target-map-multi-2.c: New test.
+	* testsuite/libgomp.c-c++-common/target-map-multi-3.c: New test.
+	* testsuite/libgomp.c-c++-common/target-map-multi-4.c: New test.
+	* testsuite/libgomp.fortran/target-map-multi-1.f90: New test.
+	* testsuite/libgomp.fortran/target-map-multi-2.f90: New test.
+	* testsuite/libgomp.fortran/target-map-multi-3.f90: New test.
+	* testsuite/libgomp.fortran/target-map-multi-4.f90: New test.
+	* testsuite/libgomp.fortran/target-map-multi-5.f90: New test.
+
 2026-05-16  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
 
 	* env.c (initialize_env): Check GOMP_DEFAULT_STACKSIZE for

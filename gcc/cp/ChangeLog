@@ -1,3 +1,25 @@
+2026-05-19  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/123536
+	* cp-tree.h (process_outer_var_ref): Remove a parameter's name.
+	* expr.cc (mark_use): Return if mark_rvalue_use returns
+	error_mark_node.
+	* semantics.cc (process_outer_var_ref): Return decl when it is
+	instantiation-dependent.
+
+2026-05-19  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/125336
+	* constexpr.cc (cxx_eval_bare_aggregate): Don't call
+	get_or_insert_ctor_field when there is no CONSTRUCTOR.  Assert
+	is_empty_class.
+
+2026-05-19  Paul-Antoine Arras  <parras@baylibre.com>
+	    Chung-Lin Tang  <cltang@baylibre.com>
+	    Sandra Loosemore  <sloosemore@baylibre.com>
+
+	* semantics.cc (finish_omp_clauses): Likewise.
+
 2026-05-18  Marek Polacek  <polacek@redhat.com>
 
 	* constexpr.cc (cxx_eval_bare_aggregate): Remove dead code.

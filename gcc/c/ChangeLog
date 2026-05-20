@@ -1,3 +1,10 @@
+2026-05-19  Paul-Antoine Arras  <parras@baylibre.com>
+	    Chung-Lin Tang  <cltang@baylibre.com>
+	    Sandra Loosemore  <sloosemore@baylibre.com>
+
+	* c-typeck.cc (c_finish_omp_clauses): Call omp_remove_duplicate_maps
+	before clause expansion.
+
 2026-05-15  Andi Kleen  <ak@gcc.gnu.org>
 
 	PR c/124532

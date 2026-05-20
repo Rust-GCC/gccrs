@@ -1,3 +1,50 @@
+2026-05-19  Julian Brown  <julian@codesourcery.com>
+	    Tobias Burnus  <tburnus@baylibre.com>
+
+	* dump-parse-tree.cc (show_attr): Show omp_udm_artificial_var flag.
+	(show_omp_namelist): Support OMP_MAP_UNSET.
+	* gfortran.h (enum gfc_statement): Add ST_OMP_DECLARE_MAPPER.
+	(symbol_attribute): Add omp_udm_artificial_var attribute.
+	(enum gfc_omp_map_op): Add OMP_MAP_UNSET.
+	(gfc_omp_namelist_udm): New struct.
+	(gfc_omp_namelist): Add udm pointer to u2 union.
+	(gfc_symtree): Add omp_udm pointer.
+	(gfc_namespace): Add omp_udm_root symtree and omp_udm_ns flag.
+	(gfc_free_omp_udm, gfc_omp_udm_find, gfc_find_omp_udm,
+	gfc_resolve_omp_udms): Add prototypes.
+	* match.h (gfc_match_omp_declare_mapper): Add prototype.
+	* match.cc (gfc_free_omp_namelist): Update for declare mapper's udm.
+	* openmp.cc (gfc_omp_directives): Uncomment 'declare mapper'.
+	(gfc_free_omp_udm, gfc_find_omp_udm, gfc_omp_udm_find,
+	gfc_match_omp_declare_mapper, gfc_resolve_omp_udm,
+	gfc_resolve_omp_udms): New.
+	(gfc_match_omp_clauses): Take argument for the default map-type
+	modifier; add support for the 'mapper' modifier.
+	(resolve_omp_clauses): Update for declare-mapper map clauses.
+	* parse.cc (decode_omp_directive): Add declare mapper support.
+	(case_omp_decl): Add ST_OMP_DECLARE_MAPPER case.
+	(gfc_ascii_statement): Add ST_OMP_DECLARE_MAPPER case.
+	* resolve.cc (resolve_types): Call gfc_resolve_omp_udms.
+	* symbol.cc (free_omp_udm_tree): New function.
+	(gfc_free_namespace): Call it.
+
+2026-05-19  Paul-Antoine Arras  <parras@baylibre.com>
+	    Chung-Lin Tang  <cltang@baylibre.com>
+	    Sandra Loosemore  <sloosemore@baylibre.com>
+
+	* gfortran.h (enum gfc_omp_map_op): Dedicate the two LSB to TO and FROM.
+	* openmp.cc (resolve_omp_clauses): Adjust to allow duplicate
+	mapped variables for OpenMP.
+	* trans-openmp.cc (gfc_trans_omp_clauses): Remove duplicates before
+	clause expansion.
+
+2026-05-19  Thomas Koenig  <tkoenig@gcc.gnu.org>
+
+	PR fortran/115260
+	* trans-expr.cc (gfc_conv_subref_array_arg): Pass false to
+	dealloc argument of gfc_trans_scalar_assign if we are
+	converting a g77-style argument.
+
 2026-05-16  Thomas Koenig  <tkoenig@gcc.gnu.org>
 
 	PR fortran/122245

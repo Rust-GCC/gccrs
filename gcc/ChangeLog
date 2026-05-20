@@ -1,3 +1,166 @@
+2026-05-19  Pengxuan Zheng  <pengxuan.zheng@oss.qualcomm.com>
+
+	PR target/123748
+	* config/aarch64/aarch64-simd.md (vec_packs_float_v2di): New pattern.
+
+2026-05-19  Christopher Bazley  <chris.bazley@arm.com>
+
+	* config/aarch64/aarch64.cc (aarch64_call_scalar_result_in_simd_reg_p):
+	New function to determine probabilistically whether a gcall
+	produces a scalar result in a SIMD/FP register.
+	(aarch64_scalar_op_to_vec_p): New function to determine
+	whether or not to add scalar_to_vec_cost per scalar operand
+	from which a vector is to be constructed.
+	(aarch64_external_adjust_stmt_cost): New function to adjust the
+	cost of an SLP tree node for a vec_construct that is fed by
+	values defined outside the vectorized region.
+	(aarch64_vector_costs::add_stmt_cost): Call the new
+	aarch64_external_adjust_stmt_cost function if we have an SLP
+	node and a vector type.
+
+2026-05-19  Paul-Antoine Arras  <parras@baylibre.com>
+	    Chung-Lin Tang  <cltang@baylibre.com>
+	    Sandra Loosemore  <sloosemore@baylibre.com>
+
+	* fold-const.cc (operand_compare::operand_equal_p): Handle
+	OMP_ARRAY_SECTION.
+	* gimplify.cc (gimplify_scan_omp_clauses): Call
+	omp_remove_duplicate_maps after partial clause expansion.
+	* omp-general.cc (omp_remove_duplicate_maps): New function.
+	* omp-general.h (omp_remove_duplicate_maps): Declare.
+	* omp-low.cc (install_var_field): Add new 'tree key_expr = NULL_TREE'
+	default parameter. Set splay-tree lookup key to key_expr instead of
+	var if key_expr is non-NULL. Adjust call to install_parm_decl.
+	Update comments.
+	(scan_sharing_clauses): Use clause tree expression as splay-tree key
+	for map/to/from and OpenACC firstprivate cases when installing the
+	variable field into the send/receive record type.
+	(lower_oacc_reductions): Adjust to find map-clause of reduction
+	variable, then create receiver-ref.
+	(lower_omp_target): Adjust to lookup var field using clause expression.
+
+2026-05-19  Jakub Jelinek  <jakub@redhat.com>
+
+	PR other/125348
+	* config/i386/i386-expand.cc (ix86_expand_builtin): Fix diagnostic
+	typo, forth -> fourth.
+
+2026-05-19  Georg-Johann Lay  <avr@gjlay.de>
+
+	PR target/50481
+	* config/avr/avr.md (bitreverseqi2): New insn-and-split.
+	(*bitreverseqi2): New insn.
+
+2026-05-19  Roger Sayle  <roger@nextmovesoftware.com>
+
+	PR target/90483
+	PR libstdc++/118416
+	* config/i386/i386-expand.cc (ix86_expand_sse_ptest):  Refactor
+	with optimizations for PTESTZ*, PTESTC* and PTESTNZC*, including
+	transforming ptestz(x,-1) into ptestz(x,x).
+
+2026-05-19  Christophe Lyon  <christophe.lyon@arm.com>
+
+	PR target/124870
+	* config/arm/arm-mve-builtins-base.cc (vstrq_scatter_base_impl)
+	(vldrq_gather_base_impl): Fix call_properties.
+
+2026-05-19  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	* cfgrtl.cc: Don't include gimplify.h or gimplify-me.h.
+	* cgraphbuild.cc: Likewise.
+	* emit-rtl.cc: Likewie.
+	* tree-ssa-dom.cc: Likewise.
+	* tree-ssa-dse.cc: Likewise.
+	* tree-ssa-loop-im.cc: Likewise.
+	* tree-ssa-loop-niter.cc: Likewise.
+	* tree-ssa-loop-unswitch.cc: Likewise.
+	* tree-ssa-math-opts.cc: Likewise.
+	* tree-ssa-phiopt.cc: Likewise.
+	* tree-ssa-phiprop.cc: Likewise.
+	* tree-ssa-pre.cc: Likewise.
+	* tree-ssa-propagate.cc: Likewise.
+	* tree-ssa-sccvn.cc: Likewise.
+	* gimplify.h (unshare_expr): Remove.
+	(unshare_expr_without_location): Remove.
+	(copy_if_shared): Remove.
+	* tree.h (unshare_expr): New decl.
+	(unshare_expr_without_location): Likewise.
+	(copy_if_shared): Likewise.
+	* gimplify.cc (mostly_copy_tree_r): Moved to tree.cc.
+	(copy_if_shared_r): Likewise.
+	(copy_if_shared): Likewise.
+	(unshare_expr): Likewise.
+	(prune_expr_location): Likewise.
+	(unshare_expr_without_location): Likewise.
+	* tree.cc (mostly_copy_tree_r): Moved from gimplify.cc
+	(copy_if_shared_r): Likewise.
+	(copy_if_shared): Likewise.
+	(unshare_expr): Likewise.
+	(prune_expr_location): Likewise.
+	(unshare_expr_without_location): Likewise.
+
+2026-05-19  Jakub Jelinek  <jakub@redhat.com>
+
+	PR target/125357
+	* config/i386/i386-expand.cc (ix86_expand_vec_perm): For
+	one_operand_shuffle if TARGET_AVX and not TARGET_AVX512F use
+	vpermilps for V4SImode/V4SFmode.  Formatting fix.
+
+2026-05-19  Georg-Johann Lay  <avr@gjlay.de>
+
+	* config/avr/avr.md (bitreversehi2, bitreversesi2): New insn_and_split.
+	(*bitreversehi2.libgcc, *bitreversesi2.libgcc): New insns.
+
+2026-05-19  Jakub Jelinek  <jakub@redhat.com>
+
+	PR target/50481
+	* optabs.cc (widen_bswap): Add UNOPTAB argument and use it instead
+	of hardcoded bswap_optab.  Rename to ...
+	(widen_bswap_or_bitreverse): ... this.
+	(expand_doubleword_bswap): Add UNOPTAB argument and use it instead
+	of hardcoded bswap_optab.  Rename to ...
+	(expand_doubleword_bswap_or_bitreverse): ... this.
+	(expand_bitreverse): Use widen_bswap_or_bitreverse and
+	expand_doubleword_bswap_or_bitreverse.
+	(expand_unop): Adjust widen_bswap and expand_doubleword_bswap callers
+	to use new names and add an extra bswap_optab argument.
+
+2026-05-19  H.J. Lu  <hjl.tools@gmail.com>
+
+	PR target/125355
+	* config/i386/i386-expand.cc (ix86_expand_movmem): Replace
+	optimize_function_for_size_p with optimize_insn_for_size_p.
+
+2026-05-19  Robin Dapp  <robin.dapp@oss.qualcomm.com>
+
+	PR target/125097
+	* config/riscv/riscv.cc (riscv_legitimize_move): Emit 32-bit
+	vec_extracts right away.
+
+2026-05-19  Robin Dapp  <rdapp@oss.qualcomm.com>
+
+	* config/riscv/autovec.md (<cbranch_optab><mode>): Remove.
+	* config/riscv/riscv-protos.h (expand_vec_cmp_float): Add mask
+	and else arguments.
+	* config/riscv/riscv-v.cc (expand_vec_cmp): Add mask and else
+	arguments.
+	(expand_vec_cmp_float): Ditto.
+	* config/riscv/vector-iterators.md: Remove iterators.
+
+2026-05-19  Peter Bergner  <bergner@linux.ibm.com>
+	    Jeevitha Palanisamy  <jeevitha@linux.ibm.com>
+
+	* config/rs6000/amo.h: Add missing atomic memory operations.
+	* doc/extend.texi (PowerPC Atomic Memory Operation Functions): Document
+	new functions.
+
+2026-05-19  Andi Kleen  <ak@gcc.gnu.org>
+
+	PR target/125351
+	* config/i386/i386.md: Use alternative to handle masm ptwrite
+	syntax.
+
 2026-05-18  Xin Wang  <yw987194828@gmail.com>
 
 	* tree-ssa-loop-split.cc (fix_loop_bb_probability): Rename

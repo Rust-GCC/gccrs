@@ -1,3 +1,41 @@
+2026-05-19  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/125304
+	* common.h (compare_bit_offsets_p): New decl.
+	(eval_region_offset_comparison): New decl.
+	* region-model.cc (region_model::on_assignment): Pass *this to
+	store::set_value to help determination of aliasing.
+	(region_model::set_value): Likewise.
+	(region_model::eval_condition): Likewise for
+	region_svalue::eval_condition.
+	* region.cc (compare_bit_offsets_p): New.
+	(region_offset::dump_to_pp): Dump the base region, wrapping the
+	whole thing in braces.
+	(eval_byte_offset_comparison): New.
+	(eval_region_offset_comparison): New.
+	* store.cc (store::set_value): Add "model" param and pass it to
+	eval_alias.
+	(store::eval_alias): Add "model" param and pass to eval_alias_1.
+	Add early return of true when checking a base region against
+	itself.  Replace final return of "unknown" with logic that
+	compares the kinds of the two base regions, and may be able
+	to return "false" rather than "unknown".
+	(store::eval_alias_1): Add "model" param and pass to eval_alias.
+	Assert that we have two different base_regions.
+	(store::replay_call_summary_cluster): Pass model to set_value.
+	* store.h (store::set_value): Add "model" param.
+	(store::eval_alias): Likewise.
+	(store::eval_alias_1): Likewise.
+	* svalue.cc (region_svalue::eval_condition): Likewise.
+	Reimplement in terms of eval_region_offset_comparison.
+	* svalue.h (region_svalue::eval_condition): Add "model" param.
+
+2026-05-19  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/124104
+	* svalue.cc (binop_svalue::maybe_get_value_range_1): Bail out for
+	incompatible types.
+
 2026-05-18  David Malcolm  <dmalcolm@redhat.com>
 
 	* analyzer.opt (-param=analyzer-bb-explosion-factor=): Rename to...

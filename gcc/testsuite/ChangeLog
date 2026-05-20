@@ -1,3 +1,134 @@
+2026-05-19  Pengxuan Zheng  <pengxuan.zheng@oss.qualcomm.com>
+
+	* gcc.target/aarch64/pr123748.c: Use "long long" instead of "long".
+
+2026-05-19  Julian Brown  <julian@codesourcery.com>
+	    Tobias Burnus  <tburnus@baylibre.com>
+
+	* gfortran.dg/gomp/declare-mapper-1.f90: New test.
+	* gfortran.dg/gomp/declare-mapper-2.f90: New test.
+
+2026-05-19  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/125304
+	* c-c++-common/analyzer/pointer-comparison-pr125304-eq.c: New test.
+	* c-c++-common/analyzer/pointer-comparison-pr125304-ge.c: New test.
+	* c-c++-common/analyzer/pointer-comparison-pr125304-gt.c: New test.
+	* c-c++-common/analyzer/pointer-comparison-pr125304-le.c: New test.
+	* c-c++-common/analyzer/pointer-comparison-pr125304-lt.c: New test.
+	* g++.dg/analyzer/pointer-casts-pr125304.C: New test.
+
+2026-05-19  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/123536
+	* g++.dg/cpp0x/lambda/lambda-const12.C: New test.
+	* g++.dg/cpp0x/lambda/lambda-const13.C: New test.
+	* g++.dg/cpp0x/lambda/lambda-const14.C: New test.
+	* g++.dg/template/local11.C: New test.
+
+2026-05-19  Pengxuan Zheng  <pengxuan.zheng@oss.qualcomm.com>
+
+	PR target/123748
+	* gcc.target/aarch64/pr123748.c: New test.
+
+2026-05-19  Christopher Bazley  <chris.bazley@arm.com>
+
+	* gcc.target/aarch64/sve/vec_construct_1.c: New test.
+	* gcc.target/aarch64/sve/vec_construct_2.c: New test.
+	* gcc.target/aarch64/sve/vec_construct_3.c: New test.
+	* gcc.target/aarch64/sve/vec_construct_4.c: New test.
+	* gcc.target/aarch64/sve/vec_construct_5.c: New test.
+	* gcc.target/aarch64/vec-construct-1.c: New test.
+	* gcc.target/aarch64/vec-construct-10.c: New test.
+	* gcc.target/aarch64/vec-construct-11.c: New test.
+	* gcc.target/aarch64/vec-construct-12.c: New test.
+	* gcc.target/aarch64/vec-construct-2.c: New test.
+	* gcc.target/aarch64/vec-construct-3.c: New test.
+	* gcc.target/aarch64/vec-construct-4.c: New test.
+	* gcc.target/aarch64/vec-construct-5.c: New test.
+	* gcc.target/aarch64/vec-construct-6.c: New test.
+	* gcc.target/aarch64/vec-construct-7.c: New test.
+	* gcc.target/aarch64/vec-construct-8.c: New test.
+	* gcc.target/aarch64/vec-construct-9.c: New test.
+
+2026-05-19  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/125336
+	* g++.dg/cpp2a/no_unique_address17.C: New test.
+	* g++.dg/cpp2a/no_unique_address18.C: New test.
+
+2026-05-19  Paul-Antoine Arras  <parras@baylibre.com>
+	    Chung-Lin Tang  <cltang@baylibre.com>
+	    Sandra Loosemore  <sloosemore@baylibre.com>
+
+	* c-c++-common/gomp/clauses-2.c: Adjust testcase.
+	* c-c++-common/gomp/map-6.c: Adjust testcase.
+	* gfortran.dg/gomp/pr107214.f90: Adjust testcase.
+	* c-c++-common/gomp/map-multi-1.c: New test.
+	* c-c++-common/gomp/map-multi-2.c: New test.
+	* gfortran.dg/gomp/map-multi-1.f90: New test.
+	* gfortran.dg/gomp/map-multi-2.f90: New test.
+
+2026-05-19  Thomas Koenig  <tkoenig@gcc.gnu.org>
+
+	PR fortran/115260
+	* gfortran.dg/pr115260.f90: New test.
+
+2026-05-19  Jakub Jelinek  <jakub@redhat.com>
+
+	PR other/125348
+	* gcc.target/i386/pr117416-2.c (prefetch_test): Adjust expected
+	diagnostic spelling.
+	* gdc.test/compilable/dtoh_TemplateDeclaration.d: Fix comment
+	spelling, paramter -> parameter.
+
+2026-05-19  Roger Sayle  <roger@nextmovesoftware.com>
+
+	PR target/90483
+	PR libstdc++/118416
+	* gcc.target/i386/sse4_1-ptest-8.c: New test case.
+	* gcc.target/i386/sse4_1-ptest-9.c: Likewise.
+
+2026-05-19  Christophe Lyon  <christophe.lyon@arm.com>
+
+	PR target/124870
+	* gcc.target/arm/mve/intrinsics/pr124870.c: New test.
+
+2026-05-19  Jakub Jelinek  <jakub@redhat.com>
+
+	PR target/125357
+	* gcc.target/i386/avx-pr125357.c: New test.
+	* gcc.target/i386/avx2-pr125357.c: New test.
+
+2026-05-19  H.J. Lu  <hjl.tools@gmail.com>
+
+	PR target/125355
+	* gcc.target/i386/pr125355-2.c: New test.
+
+2026-05-19  H.J. Lu  <hjl.tools@gmail.com>
+
+	* lib/scanasm.exp (configure_check-function-bodies): Check
+	"*-*-mingw32" instead of "aarch64*-*-mingw32".
+
+2026-05-19  Robin Dapp  <rdapp@oss.qualcomm.com>
+
+	* gcc.target/riscv/rvv/autovec/early-break-5.c: Remove redundant
+	comments.
+
+2026-05-19  Peter Bergner  <bergner@linux.ibm.com>
+	    Jeevitha Palanisamy  <jeevitha@linux.ibm.com>
+
+	* gcc.target/powerpc/amo3.c: New test.
+	* gcc.target/powerpc/amo4.c: Likewise.
+	* gcc.target/powerpc/amo5.c: Likewise.
+	* gcc.target/powerpc/amo6.c: Likewise.
+	* gcc.target/powerpc/amo7.c: Likewise.
+
+2026-05-19  Andi Kleen  <ak@gcc.gnu.org>
+
+	PR target/125351
+	* gcc.target/i386/pr125351.c: New test.
+
 2026-05-18  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
 
 	* gcc.dg/tree-ssa/pr112095.c: Add -Wno-psabi to the options.

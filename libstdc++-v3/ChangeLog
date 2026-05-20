@@ -1,3 +1,89 @@
+2026-05-19  Jonathan Wakely  <jwakely@redhat.com>
+
+	* src/c++20/tzdata.zi: Import new file from 2026b release.
+
+2026-05-19  Patrick Palka  <ppalka@redhat.com>
+
+	PR libstdc++/125374
+	* include/std/flat_map (_Flat_map_impl::_M_try_emplace): Forward
+	instead of unconditionally moving __k when inserting it.
+	* testsuite/23_containers/flat_map/1.cc (test10): New test.
+
+2026-05-19  Nathan Myers  <ncm@cantrip.org>
+
+	PR libstdc++/118030
+	* config/abi/pre/gnu.ver: Expose string::_S_allocate_at_least,
+	_M_create_plus symbols.
+	* include/bits/alloc_traits.h:
+	(allocate_at_least): Delegate in allocator_traits<allocator<_Tp>>
+	specialization to allocator<_Tp>::allocate_at_least, unconditionally;
+	annotate [[__gnu__::always_inline__]].
+	(allocate_at_least): Declare "= delete;" in allocator<void>.
+	* include/bits/allocator.h (allocate_at_least): Delegate to base
+	allocate_at_least where defined, calling with explicit base-class
+	qualification, picking up __new_allocator member.
+	* include/bits/basic_string.h:
+	(_Alloc_result): Define new type.
+	(_S_allocate_at_least): Define, using it.
+	(_S_allocate): Minimize for legacy ABI use only.
+	(_M_create_plus): Declare.
+	(_M_create_and_place): Define, abstracting common operations.
+	(assign): Use _S_allocate_at_least.
+	* include/bits/basic_string.tcc:
+	(_M_create_plus): Define.
+	(_M_replace, reserve): Use _S_allocate_at_least.
+	(_M_construct, others (3x)): Use _M_create_and_place.
+	(_M_construct, input iterators): Use _M_create_plus.
+	(_M_create, _M_assign, reserve, _M_mutate): Same.
+	* include/bits/memory_resource.h (allocate_at_least): Define,
+	document.
+	* include/bits/new_allocator.h (allocate_at_least): Define.
+	(_S_check_allocation_limit) Define.
+	(allocate): Use _S_check_allocation_limit.
+	(_S_max_size): Change from _M_max_size.
+	(deallocate): Refine "if constexpr" logic.
+	* include/bits/stl_vector.h:
+	(_S_max_size): Move to _Vector_base.
+	(_Alloc_result): Define type.
+	(_M_allocate_at_least): Define, using allocate_at_least where supported.
+	(_M_allocate): Delegate to _M_allocate_at_least.
+	(max_size, _S_check_init_len): Use _S_max_size as moved.
+	(_M_create_storage, append_range, _M_allocate_and_copy,
+	_M_replace_storage): Define, abstracting common operations.
+	(_M_replace_with): Define, likewise.
+	(_M_range_initialize_n): Use _M_allocate_at_least.
+	(_M_check_len): Improve logic.
+	* include/bits/vector.tcc:
+	(reserve, _M_fill_append, _M_range_insert): Use _M_allocate_at_least
+	and _M_replace_storage.
+	(operator=, _M_assign_aux): Use _M_replace_with.
+	(_M_realloc_insert, _M_realloc_append, _M_default_append, insert_range):
+	Use _M_allocate_at_least.
+	(_M_fill_insert): Use _M_replace_storage, normalize whitespace.
+	* testsuite/util/testsuite_allocator.h:
+	(allocate_at_least (3x)): Define.
+	(allocate): Use allocate_at_least.
+	* testsuite/20_util/allocator/allocate_at_least.cc: Add tests.
+	* testsuite/21_strings/basic_string/capacity/char/18654.cc:
+	Loosen capacity check.
+	* testsuite/21_strings/basic_string/capacity/char/shrink_to_fit.cc:
+	Same.
+	* testsuite/21_strings/basic_string/capacity/wchar_t/18654.cc: Same.
+	* testsuite/21_strings/basic_string/capacity/wchar_t/2.cc: Same.
+	* testsuite/21_strings/basic_string/capacity/wchar_t/shrink_to_fit.cc:
+	Same.
+	* testsuite/23_containers/vector/capacity/shrink_to_fit.cc: Same.
+	* testsuite/23_containers/vector/capacity/shrink_to_fit2.cc: Same
+	* testsuite/23_containers/vector/modifiers/emplace/self_emplace.cc:
+	Adapt to looser reserve behavior.
+
+2026-05-19  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/125369
+	* include/bits/chrono_io.h (__detail::_Parser::operator()):
+	Check for errors when parsing digits for a %z format.
+	* testsuite/std/time/parse/125369.cc: New test.
+
 2026-05-18  Jonathan Wakely  <jwakely@redhat.com>
 
 	* testsuite/23_containers/bitset/lwg4294.cc: Move to...

@@ -1,3 +1,10 @@
+2026-05-19  Georg-Johann Lay  <avr@gjlay.de>
+
+	* config/avr/t-avr (LIB1ASMFUNCS): Add _bitreverse8, _bitreverse16,
+	_bitreverse24, _bitreverse32.
+	* config/avr/lib1funcs.S (__bitreverse8, __bitreverse16)
+	(__bitreverse24, __bitreverse32): New functions.
+
 2026-05-11  John David Anglin  <danglin@gcc.gnu.org>
 
 	* config.host (hppa*64*-hp-hpux11*): Handle linking with GNU ld.
