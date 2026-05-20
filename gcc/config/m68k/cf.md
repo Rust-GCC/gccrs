@@ -299,7 +299,7 @@
 ;; Call instruction.
 ;; ??? It's not clear what reservation is best to use for calls.
 ;; ??? For now we use mem-write + return reservations to reflect the fact of
-;; ??? pushing and poping return address to and from the stack.
+;; ??? pushing and popping return address to and from the stack.
 ;; Takes 3 cycles.
 (define_reservation "cfv12_call" "cfv12_alu_01,cfv12_rts")
 ;; Takes 1/5 cycles.
@@ -313,7 +313,7 @@
 ;; Takes 1 cycles.
 (define_reservation "cfv3_bcc" "cfv123_alu_00")
 
-;; Unconditional branch instruciton.
+;; Unconditional branch instruction.
 ;; Takes 2 cycles.
 (define_reservation "cfv12_bra" "cfv12_alu_01")
 ;; Takes 1 cycles.

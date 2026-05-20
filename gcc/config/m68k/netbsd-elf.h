@@ -104,7 +104,7 @@ while (0)
 #define REGISTER_PREFIX "%"
 
 
-/* The prefix for local (compiler generated) lables.
+/* The prefix for local (compiler generated) labels.
    These labels will not appear in the symbol table.  */
 
 #undef LOCAL_LABEL_PREFIX

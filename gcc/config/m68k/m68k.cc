@@ -2521,7 +2521,7 @@ m68k_unwrap_symbol (rtx orig, bool unwrap_reloc32_p)
   return m68k_unwrap_symbol_1 (orig, unwrap_reloc32_p, NULL);
 }
 
-/* Adjust decorated address operand before outputing assembler for it.  */
+/* Adjust decorated address operand before outputting assembler for it.  */
 
 static void
 m68k_adjust_decorated_operand (rtx op)
@@ -2580,7 +2580,7 @@ m68k_adjust_decorated_operand (rtx op)
     }
 }
 
-/* Prescan insn before outputing assembler for it.  */
+/* Prescan insn before outputting assembler for it.  */
 
 void
 m68k_final_prescan_insn (rtx_insn *insn ATTRIBUTE_UNUSED,
@@ -2753,7 +2753,7 @@ m68k_call_tls_get_addr (rtx x, rtx eqv, enum m68k_reloc reloc)
   x = m68k_wrap_symbol (x, reloc, m68k_get_gp (), NULL_RTX);
 
   /* __tls_get_addr() is not a libcall, but emitting a libcall_value
-     is the simpliest way of generating a call.  The difference between
+     is the simplest way of generating a call.  The difference between
      __tls_get_addr() and libcall is that the result is returned in D0
      instead of A0.  To workaround this, we use m68k_libcall_value_in_a0_p
      which temporarily switches returning the result to A0.  */
@@ -2800,7 +2800,7 @@ m68k_call_m68k_read_tp (void)
   start_sequence ();
 
   /* __m68k_read_tp() is not a libcall, but emitting a libcall_value
-     is the simpliest way of generating a call.  The difference between
+     is the simplest way of generating a call.  The difference between
      __m68k_read_tp() and libcall is that the result is returned in D0
      instead of A0.  To workaround this, we use m68k_libcall_value_in_a0_p
      which temporarily switches returning the result to A0.  */
@@ -6359,7 +6359,7 @@ m68k_sched_attr_size (rtx_insn *insn)
 }
 
 /* Return operand X or Y (depending on OPX_P) of INSN,
-   if it is a MEM, or NULL overwise.  */
+   if it is a MEM, or NULL otherwise.  */
 static enum attr_op_type
 sched_get_opxy_mem_type (rtx_insn *insn, bool opx_p)
 {
@@ -6900,7 +6900,7 @@ m68k_sched_dfa_post_advance_cycle (void)
 }
 
 /* Return X or Y (depending on OPX_P) operand of INSN,
-   if it is an integer register, or NULL overwise.  */
+   if it is an integer register, or NULL otherwise.  */
 static rtx
 sched_get_reg_operand (rtx_insn *insn, bool opx_p)
 {
@@ -6949,7 +6949,7 @@ sched_mem_operand_p (rtx_insn *insn, bool opx_p)
 }
 
 /* Return X or Y (depending on OPX_P) operand of INSN,
-   if it is a MEM, or NULL overwise.  */
+   if it is a MEM, or NULL otherwise.  */
 static rtx
 sched_get_mem_operand (rtx_insn *insn, bool must_read_p, bool must_write_p)
 {
@@ -7004,7 +7004,7 @@ m68k_sched_address_bypass_p (rtx_insn *pro, rtx_insn *con)
 
 /* Helper function for m68k_sched_indexed_address_bypass_p.
    if PRO modifies register used as index in CON,
-   return scale of indexed memory access in CON.  Return zero overwise.  */
+   return scale of indexed memory access in CON.  Return zero otherwise.  */
 static int
 sched_get_indexed_address_scale (rtx_insn *pro, rtx_insn *con)
 {
