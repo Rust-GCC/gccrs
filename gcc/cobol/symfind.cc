@@ -523,6 +523,7 @@ symbol_find( size_t program, std::list<const char *> names ) {
                   std::inserter(qualified, qualified.begin()),
                   [i01]( auto item ) {
                     const std::vector<size_t>& ancestors(item.second);
+                    assert(!ancestors.empty());
                     return ancestors.back() == i01;
                   } );
     items = qualified;
