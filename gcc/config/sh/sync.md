@@ -42,7 +42,7 @@
 ;; Hardware Atomics (-matomic-model=hard-llcs; SH4A only)
 ;;
 ;; Hardware atomics implement all atomic operations using the 'movli.l' and
-;; 'movco.l' instructions that are availble on SH4A.  On multi-core hardware
+;; 'movco.l' instructions that are available on SH4A.  On multi-core hardware
 ;; configurations hardware atomics is the only safe mode.
 ;; However, it can also be safely used on single-core configurations.
 ;; Since these instructions operate on SImode memory only, QImode and HImode
@@ -196,7 +196,7 @@
   [(plus "add") (minus "sub") (ior "or") (xor "xor") (and "and")])
 
 ;;------------------------------------------------------------------------------
-;; comapre and swap
+;; compare and swap
 
 ;; Only the hard_llcs SImode patterns can use an I08 for the comparison
 ;; or for the new swapped in value.

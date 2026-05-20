@@ -273,7 +273,7 @@ sh_expand_cmpstr (rtx *operands)
   add_int_reg_note (jump, REG_BR_PROB, prob_likely);
   /* end loop.  */
 
-  /* Fallthu, substract words.  */
+  /* Fallthu, subtract words.  */
   if (TARGET_LITTLE_ENDIAN)
     {
       rtx low_1 = gen_lowpart (HImode, tmp1);

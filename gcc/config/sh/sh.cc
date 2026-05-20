@@ -847,7 +847,7 @@ sh_option_override (void)
       sh_cpu = PROCESSOR_SH4A;
     }
 
-  /* User/priviledged mode is supported only on SH3* and SH4*.
+  /* User/privileged mode is supported only on SH3* and SH4*.
      Disable it for everything else.  */
   if (!TARGET_SH3 && TARGET_USERMODE)
     TARGET_USERMODE = false;
@@ -3291,7 +3291,7 @@ sh_rtx_costs (rtx x, machine_mode mode ATTRIBUTE_UNUSED, int outer_code,
 	  && XEXP (x, 1) == const1_rtx
 	  && CONST_INT_P (XEXP (x, 2))
 	  && CONST_INT_P (XEXP (XEXP (x, 0), 1))
-	  /* Check that the xor constaint overlaps with the extracted bit.  */
+	  /* Check that the xor constraint overlaps with the extracted bit.  */
 	  && (INTVAL (XEXP (XEXP (x, 0), 1)) & (1LL << INTVAL (XEXP (x, 2)))))
 	{
 	  *total = 1; //COSTS_N_INSNS (1);
@@ -5728,7 +5728,7 @@ fixup_addr_diff_vecs (rtx_insn *first)
 	    break;
 	}
       /* FIXME: This is a bug in the optimizer, but it seems harmless
-	 to just avoid panicing.  */
+	 to just avoid panicking.  */
       if (!prev)
 	continue;
 
@@ -7298,7 +7298,7 @@ sh_expand_epilogue (bool sibcall_p)
 		else
 		  break;
 
-	      /* Use movml when all banked register are poped.  */
+	      /* Use movml when all banked register are popped.  */
 	      if (count == LAST_BANKED_REG - FIRST_BANKED_REG + 1)
 		use_movml = true;
 	    }
@@ -11451,7 +11451,7 @@ sh_legitimize_address_displacement (rtx *offset1, rtx *offset2,
   return false;
 }
 
-/* Return true if movsf insn should be splited with an additional
+/* Return true if movsf insn should be split with an additional
    register.  */
 bool
 sh_movsf_ie_ra_split_p (rtx op0, rtx op1, rtx op2)
@@ -11552,7 +11552,7 @@ sh_can_use_simple_return_p (void)
   if (! reload_completed || frame_pointer_needed)
     return false;
 
-  /* Moving prologue around does't reduce the size.  */
+  /* Moving prologue around doesn't reduce the size.  */
   if (optimize_function_for_size_p (cfun))
     return false;
 
@@ -11719,7 +11719,7 @@ sh_find_equiv_gbr_addr (rtx_insn* insn, rtx mem)
     {
       /* If GBR is marked as call clobbered we bail out if we see a call.
 	 FIXME: Actually should check if this mem refers to the gbr value
-	 before or after the call.  If there is a store_gbr preceeding this
+	 before or after the call.  If there is a store_gbr preceding this
 	 mem, it's safe to use GBR for this mem.
 
 	 If GBR is not marked as call clobbered, but there is some other
@@ -11884,7 +11884,7 @@ sh_check_add_incdec_notes (rtx_insn* i)
   return i;
 }
 
-/* Given a move insn destiation and a source, make sure that the move source
+/* Given a move insn destination and a source, make sure that the move source
    operand is not a post-inc mem load with the same address reg as the
    destination.  Returns the modified source operand with the post-inc removed
    if necessary.  */
@@ -12251,7 +12251,7 @@ private:
 };
 
 /* Given an rtx x, determine whether the expression can be used to create
-   an insn that calulates x and stores the result in the T bit.
+   an insn that calculates x and stores the result in the T bit.
    This is used by the 'treg_set_expr' predicate to construct insns sequences
    where T bit results are fed into other insns, such as addc, subc, negc
    insns.
@@ -12260,7 +12260,7 @@ private:
    distinguish between 'positive' and 'negative' forms.  For now this has to
    be done in the preparation code.  We could also introduce
    'pos_treg_set_expr' and 'neg_treg_set_expr' predicates for that and write
-   two different patterns for the 'postive' and 'negative' forms.  However,
+   two different patterns for the 'positive' and 'negative' forms.  However,
    the total amount of lines of code seems to be about the same and the
    '{pos|neg}_treg_set_expr' predicates would be more expensive, because the
    recog function would need to look inside the expression by temporarily
