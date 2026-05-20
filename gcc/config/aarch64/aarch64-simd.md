@@ -400,6 +400,12 @@
   [(set_attr "type" "neon_rev<q>")]
 )
 
+(define_expand "bitreverse<mode>2"
+  [(set (match_operand:VB 0 "register_operand")
+	(bitreverse:VB (match_operand:VB 1 "register_operand")))]
+  "TARGET_SIMD"
+  "")
+
 (define_insn "aarch64_rbit<mode><vczle><vczbe>"
   [(set (match_operand:VB 0 "register_operand" "=w")
 	(bitreverse:VB (match_operand:VB 1 "register_operand" "w")))]

@@ -5785,6 +5785,11 @@
   [(set_attr "type" "rbit")]
 )
 
+(define_expand "bitreverse<mode>2"
+  [(set (match_operand:GPI 0 "register_operand")
+	(bitreverse:GPI (match_operand:GPI 1 "register_operand")))]
+)
+
 (define_expand "ffs<mode>2"
   [(match_operand:GPI 0 "register_operand")
    (match_operand:GPI 1 "register_operand")]
