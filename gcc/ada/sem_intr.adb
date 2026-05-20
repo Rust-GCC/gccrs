@@ -309,6 +309,16 @@ package body Sem_Intr is
       Nam  : Name_Id;
 
    begin
+      --  Intrinsic subprograms will be accompanied by a pragma, either a one
+      --  that comes from source, or a one that comes from translating the
+      --  corresponding aspect. Generic intrinsics subprograms don't have such
+      --  a pragma; only their instances have.
+
+      pragma Assert
+        (if Is_Subprogram (E)
+         then Present (Import_Pragma (E))
+         else Is_Generic_Subprogram (E));
+
       if Present (Spec)
         and then Present (Generic_Parent (Spec))
       then
@@ -341,7 +351,9 @@ package body Sem_Intr is
       --  they are doing, and do not write or generate junk use of intrinsic.
 
       elsif not Comes_From_Source (E)
-        or else not Comes_From_Source (N)
+        or else (Is_Subprogram (E)
+                   and then not Comes_From_Source (N)
+                   and then not From_Aspect_Specification (Import_Pragma (E)))
         or else In_Predefined_Unit (N)
       then
          null;
