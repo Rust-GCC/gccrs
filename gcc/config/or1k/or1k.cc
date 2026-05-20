@@ -1032,7 +1032,7 @@ or1k_strict_argument_naming (cumulative_args_t /* ca */)
 
 /* Worker for TARGET_FUNCTION_ARG.
    Return the next register to be used to hold a function argument or NULL_RTX
-   if there's no more space.  Arugment CUM_V represents the current argument
+   if there's no more space.  Argument CUM_V represents the current argument
    offset, zero for the first function argument.  OpenRISC function arguments
    maybe be passed in registers r3 to r8.  */
 
@@ -1215,7 +1215,7 @@ or1k_print_operand_address (FILE *file, machine_mode, rtx addr)
 
 /* Worker for TARGET_PRINT_OPERAND.
    Print operand X, an RTX, to the file FILE.  The output is formed as expected
-   by the OpenRISC assember.  CODE is the letter following a '%' in an
+   by the OpenRISC assembler.  CODE is the letter following a '%' in an
    instrunction template used to control the RTX output.  Example(s):
 
      CODE   RTX                   OUTPUT     COMMENT

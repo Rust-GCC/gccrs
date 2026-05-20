@@ -519,7 +519,7 @@
 ;; avoids 'convert_mode_scalar' from trying to do subregging
 ;; which we don't have support for.
 ;; We require signed and unsigned extend instructions because
-;; signed comparisons require signed extention, but for SR_F
+;; signed comparisons require signed extension, but for SR_F
 ;; it doesn't matter.
 
 (define_expand "zero_extendbisi2_sr_f"
@@ -753,7 +753,7 @@
   DONE;
 })
 
-;; This is a placeholder, during RA, in order to create the PIC regiter.
+;; This is a placeholder, during RA, in order to create the PIC register.
 ;; We do this so that we don't unconditionally mark the LR register as
 ;; clobbered.  It is replaced during prologue generation with the proper
 ;; set_got pattern below.  This works because the set_got_tmp insn is the
@@ -797,7 +797,7 @@
 ;; Atomic Operations
 ;; -------------------------------------------------------------------------
 
-;; Note that MULT stands in for the non-existant NAND rtx_code.
+;; Note that MULT stands in for the non-existent NAND rtx_code.
 (define_code_iterator FETCHOP [plus minus ior xor and mult])
 
 (define_code_attr fetchop_name
