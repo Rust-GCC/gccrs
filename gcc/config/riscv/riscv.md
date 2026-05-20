@@ -362,7 +362,7 @@
 ;; rdvl        vector length vl csrr read
 ;; wrvxrm      vector fixed-point rounding mode write
 ;; wrfrm       vector floating-point rounding mode write
-;; vsetvl      vector configuration-setting instrucions
+;; vsetvl      vector configuration-setting instructions
 ;; 7. Vector Loads and Stores
 ;; vlde        vector unit-stride load instructions
 ;; vste        vector unit-stride store instructions
@@ -489,11 +489,11 @@
 ;; vsm4r        crypto vector SM4 Rounds instructions
 ;; vsm3me       crypto vector SM3 Message Expansion instructions
 ;; vsm3c        crypto vector SM3 Compression instructions
-;; 18.Vector BF16 instrctions
+;; 18.Vector BF16 instructions
 ;; vfncvtbf16  vector narrowing single floating-point to brain floating-point instruction
 ;; vfwcvtbf16  vector widening brain floating-point to single floating-point instruction
 ;; vfwmaccbf16  vector BF16 widening multiply-accumulate
-;; SiFive custom extension instrctions
+;; SiFive custom extension instructions
 ;; sf_vqmacc      vector matrix integer multiply-add instructions
 ;; sf_vfnrclip     vector fp32 to int8 ranged clip instructions
 ;; sf_vc vector coprocessor interface without side effect
@@ -3252,7 +3252,7 @@
 
 ;; Handle logical AND feeding an equality test against zero where an operand
 ;; to the AND is a constant requiring synthesis.  Because we only care about
-;; zero/nonzero state afte the AND, we may be able to shift both operands
+;; zero/nonzero state after the AND, we may be able to shift both operands
 ;; of the AND to the right and eliminate the need for constant synthesis.
 ;;
 ;; Once mvconst_internal goes away, this likely turns into a simple splitter.
@@ -4814,7 +4814,7 @@
   [(set_attr "type" "load")
    (set (attr "length") (const_int 8))])
 
-;; The AND is redunant here.  It always turns off the high 32 bits  and the
+;; The AND is redundant here.  It always turns off the high 32 bits  and the
 ;; low number of bits equal to the shift count.  Those upper 32 bits will be
 ;; reset by the SIGN_EXTEND at the end.
 ;;

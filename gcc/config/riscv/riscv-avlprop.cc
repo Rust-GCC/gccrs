@@ -51,7 +51,7 @@ along with GCC; see the file COPYING3.  If not see
 	tail elements are agnostic.
 
        We DON'T do this optimization on VSETVL pass since it is a
-       post-RA pass that consumed 't0' already wheras a standalone
+       post-RA pass that consumed 't0' already whereas a standalone
        pre-RA AVL propagation pass allows us elide the consumption
        of the pseudo register of 't0' then we can reduce scalar
        register pressure.

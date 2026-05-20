@@ -529,7 +529,7 @@ riscv_subset_list::add (const char *subset, int major_version,
     {
       if (ext->implied_p)
 	{
-	  /* We won't add impiled `ext` if it already in list. */
+	  /* We won't add implied `ext` if it already in list. */
 	  gcc_assert (!implied_p);
 	  ext->implied_p = implied_p;
 	  ext->major_version = major_version;
@@ -1266,7 +1266,7 @@ riscv_subset_list::parse_single_multiletter_ext (const char *p,
 	  found_any_number = true;
 	  continue;
 	}
-      /* Might be version seperator, but need to check one more char,
+      /* Might be version separator, but need to check one more char,
 	 we only allow <major>p<minor>, so we could stop parsing if found
 	 any more `p`.  */
       if (subset[i] == 'p' &&
@@ -1425,7 +1425,7 @@ riscv_subset_list::set_loc (location_t *loc)
 }
 
 /* Make sure the implied or combined extension is included after add
-   a new std extension to subset list or likewise.  For exmaple as below,
+   a new std extension to subset list or likewise.  For example as below,
 
    void __attribute__((target("arch=+v"))) func () with -march=rv64gc.
 
@@ -1465,7 +1465,7 @@ riscv_arch_str (bool version_p)
   {NAME, &gcc_options::VAR, &cl_target_option::VAR, MASK}
 
 /* Mapping table between extension to internal flag,
-   this table is not needed to add manually unless there is speical rule.  */
+   this table is not needed to add manually unless there is special rule.  */
 static const riscv_extra_ext_flag_table_t riscv_extra_ext_flag_table[] =
 {
   RISCV_EXT_FLAG_ENTRY ("zve32x", x_riscv_isa_flags, MASK_VECTOR),

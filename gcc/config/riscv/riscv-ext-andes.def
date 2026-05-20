@@ -24,7 +24,7 @@ Format of DEFINE_RISCV_EXT, please refer to riscv-ext.def.  */
 DEFINE_RISCV_EXT(
   /* NAME */ xandesperf,
   /* UPPERCASE_NAME */ XANDESPERF,
-  /* FULL_NAME */ "Andes performace extension",
+  /* FULL_NAME */ "Andes performance extension",
   /* DESC */ "",
   /* URL */ ,
   /* DEP_EXTS */ ({}),

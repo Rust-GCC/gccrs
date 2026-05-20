@@ -994,9 +994,9 @@ public:
 
 	E.g.  BB 2 (Empty) ---> BB 3 (VALID, has rvv insn 1)
 
-     BB 2 has empty VSETVL_INFO, wheras BB 3 has VSETVL_INFO that satisfies
+     BB 2 has empty VSETVL_INFO, whereas BB 3 has VSETVL_INFO that satisfies
      get_insn ()->bb () == get_bb (). In earliest fusion, we may fuse bb 3 and
-     bb 2 so that the 'get_bb ()' of BB2 VSETVL_INFO will be BB2 wheras the
+     bb 2 so that the 'get_bb ()' of BB2 VSETVL_INFO will be BB2 whereas the
      'get_insn ()' of BB2 VSETVL INFO will be the rvv insn 1 (which is located
      at BB3).  */
   bool insn_inside_bb_p () const { return get_insn ()->bb () == get_bb (); }

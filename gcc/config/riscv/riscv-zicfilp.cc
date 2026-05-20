@@ -53,7 +53,7 @@
    When forward-CFI is disabled or unimplemented in the CPU, the
    landing-pad check label instructions behave as NOP. When implemented in
    the CPU, and enabled, the destination of an indirect branch must be
-   LPAD insn. Otherwise, the CPU reaises an exception.
+   LPAD insn. Otherwise, the CPU raises an exception.
 
    In order to enable this mechanism, this pass iterates through the
    control flow of the code and adds appropriate LPAD instructions at the

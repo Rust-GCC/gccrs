@@ -4087,7 +4087,7 @@ shuffle_decompress_patterns (struct expand_vec_perm_d *d)
   poly_uint64 nelt = d->perm.length ();
   machine_mode mask_mode = get_mask_mode (d->vmode);
 
-  /* For constant size indices, we dont't need to handle it here.
+  /* For constant size indices, we don't need to handle it here.
      Just leave it to vec_perm<mode>.  */
   if (d->perm.length ().is_constant ())
     return false;
@@ -5309,7 +5309,7 @@ vls_mode_valid_p (machine_mode mode, bool allow_up_to_lmul_8)
 }
 
 /* We don't have to convert the floating point to integer when the
-   mantissa is zero.  Thus, ther will be a limitation for both the
+   mantissa is zero.  Thus, there will be a limitation for both the
    single and double precision floating point.  There will be no
    mantissa if the floating point is greater than the limit.
 

@@ -3720,7 +3720,7 @@ riscv_expand_mult_with_const_int (machine_mode mode, rtx dest, rtx multiplicand,
 
    Essentially we want to generate (set (dest) (src)), where SRC is
    a poly_int.  We may need TMP as a scratch register.  We assume TMP
-   is truely a scratch register and need not have any particular value
+   is truly a scratch register and need not have any particular value
    after the sequence.  */
 void
 riscv_legitimize_poly_move (machine_mode mode, rtx dest, rtx tmp, rtx src)
@@ -4404,7 +4404,7 @@ riscv_rtx_costs (rtx x, machine_mode mode, int outer_code, int opno ATTRIBUTE_UN
 	 instructions it needs.  */
       if ((cost = riscv_address_insns (XEXP (x, 0), mode, true)) > 0)
 	{
-	  /* When optimizing for size, make uncompressible 32-bit addresses
+	  /* When optimizing for size, make incompressible 32-bit addresses
 	     more expensive so that compressible 32-bit addresses are
 	     preferred.  */
 	  if ((TARGET_RVC || TARGET_ZCA)
@@ -4898,7 +4898,7 @@ riscv_address_cost (rtx addr, machine_mode mode,
 		    addr_space_t as ATTRIBUTE_UNUSED,
 		    bool speed ATTRIBUTE_UNUSED)
 {
-  /* When optimizing for size, make uncompressible 32-bit addresses more
+  /* When optimizing for size, make incompressible 32-bit addresses more
    * expensive so that compressible 32-bit addresses are preferred.  */
   if ((TARGET_RVC || TARGET_ZCA)
       && !speed && riscv_mshorten_memrefs && mode == SImode
@@ -7717,7 +7717,7 @@ riscv_vls_cc_function_abi (const_tree fntype, bool check_only)
   return riscv_get_vls_cc_attr (args);
 }
 
-/* Implemention of TARGET_FNTYPE_ABI, but one extra parameter `check_only`
+/* Implementation of TARGET_FNTYPE_ABI, but one extra parameter `check_only`
    to suppress warning message.  */
 
 static const predefined_function_abi &
@@ -13469,7 +13469,7 @@ riscv_frm_mode_needed (rtx_insn *cur_insn, int code)
 {
   if (!DYNAMIC_FRM_RTL(cfun))
     {
-      /* The dynamic frm will be initialized only onece during cfun.  */
+      /* The dynamic frm will be initialized only once during cfun.  */
       DYNAMIC_FRM_RTL (cfun) = gen_reg_rtx (SImode);
       emit_insn_at_entry (gen_frrmsi (DYNAMIC_FRM_RTL (cfun)));
       CFUN_IN_CALL (cfun) = false;
@@ -14832,7 +14832,7 @@ dispatch_function_versions (tree dispatch_decl,
 
   gseq = bb_seq (*empty_bb);
   /* Function version dispatch is via IFUNC.  IFUNC resolvers fire before
-     constructors, so explicity call __init_riscv_feature_bits here.  */
+     constructors, so explicitly call __init_riscv_feature_bits here.  */
   tree init_fn_type = build_function_type_list (void_type_node,
 						long_unsigned_type_node,
 						ptr_type_node,

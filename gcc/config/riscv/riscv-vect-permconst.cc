@@ -177,7 +177,7 @@ vector_permconst::process_bb (basic_block bb)
 	continue;
 
       /* A load from the constant pool should have a REG_EQUAL
-	 note with the vector contant in the note.  */
+	 note with the vector constant in the note.  */
       rtx note = find_reg_equal_equiv_note (insn);
       if (!note
 	  || REG_NOTE_KIND (note) != REG_EQUAL

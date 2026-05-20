@@ -164,7 +164,7 @@ find_later_ctz (rtx_insn *start, rtx src, int limit)
    inserting unrelated instructions between the two components of
    the x & (x - 1) idiom.  We'd have to match the ctz in various
    positions as well as deal with random insns the scheduler puts
-   in the middle of the key instrutions.
+   in the middle of the key instructions.
 
    So, this mini pass to optimize this scenario.  */
 

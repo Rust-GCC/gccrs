@@ -3703,7 +3703,7 @@ riscv_pragma_intrinsic_flags_pollute (struct pragma_intrinsic_flags *flags)
      only need to pollute those flags that might affect the type registration.
 
      e.g. zvfbmin and zvfhmin are required to define the vector bf16 and f16,
-	  and VECTOR_ELEN* also required for vector interger and floating
+	  and VECTOR_ELEN* also required for vector integer and floating
 	  type.  */
   flags->intrinsic_riscv_isa_flags = riscv_isa_flags;
   flags->intrinsic_riscv_base_subext = riscv_base_subext;

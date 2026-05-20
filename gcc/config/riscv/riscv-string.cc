@@ -487,7 +487,7 @@ riscv_expand_strcmp (rtx result, rtx src1, rtx src2,
   if (riscv_strcmp_inline_limit == 0)
     return false;
 
-  /* Round down the comparision limit to a multiple of xlen.  */
+  /* Round down the comparison limit to a multiple of xlen.  */
   compare_max = riscv_strcmp_inline_limit & ~(xlen - 1);
 
   /* Decide how many bytes to compare inline.  */
