@@ -74,7 +74,7 @@
 #endif
 
 /* The ability to have 4 byte alignment is being suppressed for now.
-   If this ability is reenabled, you must disable the definition below
+   If this ability is re-enabled, you must disable the definition below
    *and* edit t-mcore to enable multilibs for 4 byte alignment code.  */
 #undef TARGET_8ALIGN
 #define TARGET_8ALIGN 1
