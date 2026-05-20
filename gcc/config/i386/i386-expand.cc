@@ -5824,21 +5824,34 @@ ix86_expand_vec_perm (rtx operands[])
 	}
     }
 
-  if (TARGET_AVX
-      && one_operand_shuffle
-      && (mode == V4SImode || mode == V4SFmode))
-    {
-      if (mode == V4SImode)
-	{
-	  op0 = gen_lowpart (V4SFmode, op0);
-	  t1 = gen_reg_rtx (V4SFmode);
-	  emit_insn (gen_avx_vpermilvarv4sf3 (t1, op0, mask));
-	  emit_move_insn (target, gen_lowpart (mode, t1));
-	}
-      else
+  if (TARGET_AVX && one_operand_shuffle)
+    switch (mode)
+      {
+      case V4SImode:
+	op0 = gen_lowpart (V4SFmode, op0);
+	t1 = gen_reg_rtx (V4SFmode);
+	emit_insn (gen_avx_vpermilvarv4sf3 (t1, op0, mask));
+	emit_move_insn (target, gen_lowpart (mode, t1));
+	return;
+      case V4SFmode:
 	emit_insn (gen_avx_vpermilvarv4sf3 (target, op0, mask));
-      return;
-    }
+	return;
+      case V2DImode:
+	op0 = gen_lowpart (V2DFmode, op0);
+	t1 = gen_reg_rtx (V2DImode);
+	t2 = gen_reg_rtx (V2DFmode);
+	emit_insn (gen_addv2di3 (t1, mask, mask));
+	emit_insn (gen_avx_vpermilvarv2df3 (t2, op0, t1));
+	emit_move_insn (target, gen_lowpart (mode, t2));
+	return;
+      case V2DFmode:
+	t1 = gen_reg_rtx (V2DImode);
+	emit_insn (gen_addv2di3 (t1, mask, mask));
+	emit_insn (gen_avx_vpermilvarv2df3 (target, op0, t1));
+	return;
+      default:
+	break;
+      }
 
   if (TARGET_XOP)
     {
