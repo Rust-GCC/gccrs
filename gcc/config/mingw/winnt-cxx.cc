@@ -142,7 +142,7 @@ i386_pe_adjust_class_at_definition (tree t)
     {
       /* We don't actually add the attribute to the decl, just set the flag
 	 that signals that the address of this symbol is not a compile-time
-	 constant.   Any subsequent out-of-class declaration of members wil
+	 constant.   Any subsequent out-of-class declaration of members will
 	 cause the DECL_DLLIMPORT_P flag to be unset.
 	 (See  tree.cc: merge_dllimport_decl_attributes).
 	 That is just right since out-of class declarations can only be a
