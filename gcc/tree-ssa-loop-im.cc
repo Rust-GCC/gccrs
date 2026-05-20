@@ -202,34 +202,43 @@ mem_ref_hasher::hash (const im_mem_ref *mem)
 inline bool
 mem_ref_hasher::equal (const im_mem_ref *mem1, const ao_ref *obj2)
 {
-  if (obj2->max_size_known_p ())
-    return (mem1->ref_decomposed
-	    && ((TREE_CODE (mem1->mem.base) == MEM_REF
-		 && TREE_CODE (obj2->base) == MEM_REF
-		 && operand_equal_p (TREE_OPERAND (mem1->mem.base, 0),
-				     TREE_OPERAND (obj2->base, 0), 0)
-		 && known_eq (mem_ref_offset (mem1->mem.base) * BITS_PER_UNIT + mem1->mem.offset,
-			      mem_ref_offset (obj2->base) * BITS_PER_UNIT + obj2->offset))
-		|| (operand_equal_p (mem1->mem.base, obj2->base, 0)
-		    && known_eq (mem1->mem.offset, obj2->offset)))
-	    && known_eq (mem1->mem.size, obj2->size)
-	    && known_eq (mem1->mem.max_size, obj2->max_size)
-	    && mem1->mem.volatile_p == obj2->volatile_p
-	    && (mem1->mem.ref_alias_set == obj2->ref_alias_set
-		/* We are not canonicalizing alias-sets but for the
-		   special-case we didn't canonicalize yet and the
-		   incoming ref is a alias-set zero MEM we pick
-		   the correct one already.  */
-		|| (!mem1->ref_canonical
-		    && (TREE_CODE (obj2->ref) == MEM_REF
-			|| TREE_CODE (obj2->ref) == TARGET_MEM_REF)
-		    && obj2->ref_alias_set == 0)
-		/* Likewise if there's a canonical ref with alias-set zero.  */
-		|| (mem1->ref_canonical && mem1->mem.ref_alias_set == 0))
-	    && types_compatible_p (TREE_TYPE (mem1->mem.ref),
-				   TREE_TYPE (obj2->ref)));
-  else
+  if (!obj2->max_size_known_p ())
     return operand_equal_p (mem1->mem.ref, obj2->ref, 0);
+
+  if (!mem1->ref_decomposed)
+    return false;
+
+  /* obj2 is now known decomposable and the hash is based on offset,
+     size and base, matching gather_mem_refs_stmt.  */
+  bool refs_equal
+    = ((TREE_CODE (mem1->mem.base) == MEM_REF
+	&& TREE_CODE (obj2->base) == MEM_REF
+	&& operand_equal_p (TREE_OPERAND (mem1->mem.base, 0),
+			    TREE_OPERAND (obj2->base, 0), 0)
+	&& known_eq (mem_ref_offset (mem1->mem.base) * BITS_PER_UNIT
+		     + mem1->mem.offset,
+		     mem_ref_offset (obj2->base) * BITS_PER_UNIT
+		     + obj2->offset))
+       || (operand_equal_p (mem1->mem.base, obj2->base, 0)
+	   && known_eq (mem1->mem.offset, obj2->offset)));
+
+  return (refs_equal
+	  && known_eq (mem1->mem.size, obj2->size)
+	  && known_eq (mem1->mem.max_size, obj2->max_size)
+	  && mem1->mem.volatile_p == obj2->volatile_p
+	  && (mem1->mem.ref_alias_set == obj2->ref_alias_set
+	      /* We are not canonicalizing alias-sets but for the
+		 special-case we didn't canonicalize yet and the
+		 incoming ref is a alias-set zero MEM we pick
+		 the correct one already.  */
+	      || (!mem1->ref_canonical
+		  && (TREE_CODE (obj2->ref) == MEM_REF
+		      || TREE_CODE (obj2->ref) == TARGET_MEM_REF)
+		  && obj2->ref_alias_set == 0)
+	      /* Likewise if there's a canonical ref with alias-set zero.  */
+	      || (mem1->ref_canonical && mem1->mem.ref_alias_set == 0))
+	  && types_compatible_p (TREE_TYPE (mem1->mem.ref),
+				 TREE_TYPE (obj2->ref)));
 }
 
 
@@ -3865,5 +3874,4 @@ make_pass_lim (gcc::context *ctxt)
 {
   return new pass_lim (ctxt);
 }
-
 
