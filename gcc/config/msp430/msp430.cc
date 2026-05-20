@@ -540,7 +540,7 @@ static char const * const special_convention_function_names[] =
   NULL
 };
 
-/* TRUE if the function passed is a "speical" function.  Special
+/* TRUE if the function passed is a "special" function.  Special
    functions pass two DImode parameters in registers.  */
 static bool
 msp430_special_register_convention_p (const char *name)
@@ -4079,7 +4079,7 @@ msp430_op_not_in_high_mem (rtx op)
        memory.  */
     return true;
 
-  /* Check possibilites for (mem (plus)).
+  /* Check possibilities for (mem (plus)).
      e.g. (mem (const (plus ((symbol_ref) (const_int))))) : &addr+2.  */
   if (msp430_check_plus_not_high_mem (op0)
       || ((GET_CODE (op0) == CONST)
