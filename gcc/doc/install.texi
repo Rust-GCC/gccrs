@@ -238,7 +238,7 @@ compiler, and was also the version that declared C++17 support stable.
 To build all languages in a cross-compiler or other configuration where
 3-stage bootstrap is not performed, you need to start with an existing
 GCC binary (of a new enough version) because source code for language
-frontends other than C might use GCC extensions.
+frontends other than C and C++ might use GCC extensions.
 
 @item C standard library and headers
 
