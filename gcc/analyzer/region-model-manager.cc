@@ -738,6 +738,13 @@ region_model_manager::maybe_fold_binop (tree type, enum tree_code op,
 	  if (binop->get_arg0 () == arg1)
 	    return get_or_create_cast (type, binop->get_arg1 ());
       break;
+    case POINTER_DIFF_EXPR:
+      /* (X POINTER_PLUS Y) POINTER_DIFF_EXPR X -> Y.  */
+      if (const binop_svalue *binop = arg0->dyn_cast_binop_svalue ())
+	if (binop->get_op () == POINTER_PLUS_EXPR)
+	  if (binop->get_arg0 () == arg1)
+	    return get_or_create_cast (type, binop->get_arg1 ());
+      break;
     case MULT_EXPR:
       /* (VAL * 0).  */
       if (cst1
