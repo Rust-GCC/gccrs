@@ -1685,6 +1685,27 @@ begin cpu star-mc1
  costs v7m
 end cpu star-mc1
 
+begin cpu star-mc3
+ cname starmc3
+ tune flags LDSCHED
+ architecture armv8.1-m.main+pacbti+mve.fp+fp.dp
+ option nopacbti remove pacbti
+ option nomve.fp remove mve_float
+ option nomve remove mve mve_float
+ option nofp remove ALL_FP mve_float
+ option nodsp remove MVE mve_float
+ option cdecp0 add cdecp0
+ option cdecp1 add cdecp1
+ option cdecp2 add cdecp2
+ option cdecp3 add cdecp3
+ option cdecp4 add cdecp4
+ option cdecp5 add cdecp5
+ option cdecp6 add cdecp6
+ option cdecp7 add cdecp7
+ isa quirk_no_asmcpu
+ costs v7m
+end cpu star-mc3
+
 begin cpu cortex-m85
  cname cortexm85
  tune flags LDSCHED
