@@ -1411,7 +1411,7 @@ do									\
    If this macro is not defined, nothing special is output at the end
    of a jump table.
 
-   Here we output a word of zero so that jump-tables can be seperated
+   Here we output a word of zero so that jump-tables can be separated
    in reverse assembly. */
 #define ASM_OUTPUT_CASE_END(STREAM, NUM, TABLE) \
   asm_fprintf (STREAM, "\t.long   0\n")
@@ -1501,14 +1501,14 @@ do									\
 #undef CASE_VECTOR_PC_RELATIVE
 
 /* This says how to output assembler code to declare an
-   unitialised external linkage data object. */
+   uninitialised external linkage data object. */
 #define ASM_OUTPUT_COMMON(STREAM, NAME, SIZE, ROUNDED)      \
 ( fputs ("\n\t.comm  ", (STREAM)),                        \
   assemble_name ((STREAM), (NAME)),                         \
   fprintf ((STREAM), "," HOST_WIDE_INT_PRINT_UNSIGNED"\n", ROUNDED))
 
 /* This says how to output assembler code to declare an
-   unitialised internal linkage data object. */
+   uninitialised internal linkage data object. */
 #define ASM_OUTPUT_LOCAL(STREAM, NAME, SIZE, ROUNDED)     \
 ( fputs ("\n\t.lcomm ", (STREAM)),                      \
   assemble_name ((STREAM), (NAME)),                     \
