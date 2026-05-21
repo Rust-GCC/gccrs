@@ -450,7 +450,7 @@ build_capture_proxy (tree member, tree init, bool early_p)
        constness of the closure doesn't matter just like it doesn't matter to
        other by-ref capture.  It's simpler to handle this special case here
        than in lambda_proxy_type.  */
-    type = TREE_TYPE (member);
+    type = cp_build_qualified_type (TREE_TYPE (member), TYPE_QUAL_CONST);
   else
     {
       type = lambda_proxy_type (object);
