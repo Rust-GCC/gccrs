@@ -9112,54 +9112,41 @@
 
 
 ;; Count Leading Zeros
+;; Count Trailing Zeros
+;; Find First Set
 
-(define_expand "clzhi2"
-  [(set (reg:HI 24)
-        (match_operand:HI 1 "register_operand" ""))
-   (parallel [(set (reg:HI 24)
-                   (clz:HI (reg:HI 24)))
-              (clobber (reg:QI 26))])
-   (set (match_operand:HI 0 "register_operand" "")
-        (reg:HI 24))])
+(define_code_iterator ctz_ffs  [ctz ffs])
+(define_code_iterator cxz_ffs  [clz ctz ffs])
 
-(define_expand "clzsi2"
-  [(set (reg:SI 22)
-        (match_operand:SI 1 "register_operand" ""))
-   (parallel [(set (reg:HI 24)
-                   (truncate:HI (clz:SI (reg:SI 22))))
-              (clobber (reg:QI 26))])
-   (set (match_dup 2)
-        (reg:HI 24))
-   (set (match_operand:SI 0 "register_operand" "")
-        (zero_extend:SI (match_dup 2)))]
-  ""
-  {
-    operands[2] = gen_reg_rtx (HImode);
-  })
-
-(define_insn_and_split "*clzhi2.libgcc_split"
-  [(set (reg:HI 24)
-        (clz:HI (reg:HI 24)))
-   (clobber (reg:QI 26))]
+;; "clzhi2"
+;; "ctzhi2"
+;; "ffshi2"
+(define_insn_and_split "<code>hi2"
+  [(set (match_operand:HI 0 "register_operand"            "={r24}")
+        (cxz_ffs:HI (match_operand:HI 1 "register_operand" "{r24}")))
+   (clobber (match_scratch:QI 2                           "={r26}"))]
   ""
   "#"
   "&& reload_completed"
   [(scratch)]
   { DONE_ADD_CCC })
 
-(define_insn "*clzhi2.libgcc"
+;; "*clzhi2.libgcc"
+;; "*ctzhi2.libgcc"
+;; "*ffshi2.libgcc"
+(define_insn "*<code>hi2.libgcc"
   [(set (reg:HI 24)
-        (clz:HI (reg:HI 24)))
+        (cxz_ffs:HI (reg:HI 24)))
    (clobber (reg:QI 26))
    (clobber (reg:CC REG_CC))]
   "reload_completed"
-  "%~call __clzhi2"
+  "%~call __<code>hi2"
   [(set_attr "type" "xcall")])
 
-(define_insn_and_split "*clzsihi2.libgcc_split"
-  [(set (reg:HI 24)
-        (truncate:HI (clz:SI (reg:SI 22))))
-   (clobber (reg:QI 26))]
+(define_insn_and_split "clzsi2"
+  [(set (match_operand:HI 0 "register_operand"        "={r24}")
+        (clz:HI (match_operand:SI 1 "register_operand" "{r22}")))
+   (clobber (match_scratch:QI 2                       "={r26}"))]
   ""
   "#"
   "&& reload_completed"
@@ -9168,146 +9155,38 @@
 
 (define_insn "*clzsihi2.libgcc"
   [(set (reg:HI 24)
-        (truncate:HI (clz:SI (reg:SI 22))))
+        (clz:HI (reg:SI 22)))
    (clobber (reg:QI 26))
    (clobber (reg:CC REG_CC))]
   "reload_completed"
   "%~call __clzsi2"
   [(set_attr "type" "xcall")])
 
-;; Count Trailing Zeros
-
-(define_expand "ctzhi2"
-  [(set (reg:HI 24)
-        (match_operand:HI 1 "register_operand" ""))
-   (parallel [(set (reg:HI 24)
-                   (ctz:HI (reg:HI 24)))
-              (clobber (reg:QI 26))])
-   (set (match_operand:HI 0 "register_operand" "")
-        (reg:HI 24))])
-
-(define_expand "ctzsi2"
-  [(set (reg:SI 22)
-        (match_operand:SI 1 "register_operand" ""))
-   (parallel [(set (reg:HI 24)
-                   (truncate:HI (ctz:SI (reg:SI 22))))
-              (clobber (reg:QI 22))
-              (clobber (reg:QI 26))])
-   (set (match_dup 2)
-        (reg:HI 24))
-   (set (match_operand:SI 0 "register_operand" "")
-        (zero_extend:SI (match_dup 2)))]
-  ""
-  {
-    operands[2] = gen_reg_rtx (HImode);
-  })
-
-(define_insn_and_split "*ctzhi2.libgcc_split"
-  [(set (reg:HI 24)
-        (ctz:HI (reg:HI 24)))
-   (clobber (reg:QI 26))]
+;; "ctzsi2"
+;; "ffssi2"
+(define_insn_and_split "<code>si2"
+  [(set (match_operand:HI 0 "register_operand"            "={r24}")
+        (ctz_ffs:HI (match_operand:SI 1 "register_operand" "{r22}")))
+   (clobber (match_scratch:QI 2                           "={r22}"))
+   (clobber (match_scratch:QI 3                           "={r26}"))]
   ""
   "#"
   "&& reload_completed"
   [(scratch)]
   { DONE_ADD_CCC })
 
-(define_insn "*ctzhi2.libgcc"
+;; "*ctzsihi2.libgcc"
+;; "*ffssihi2.libgcc"
+(define_insn "*<code>hi2.libgcc"
   [(set (reg:HI 24)
-        (ctz:HI (reg:HI 24)))
-   (clobber (reg:QI 26))
-   (clobber (reg:CC REG_CC))]
-  "reload_completed"
-  "%~call __ctzhi2"
-  [(set_attr "type" "xcall")])
-
-(define_insn_and_split "*ctzsihi2.libgcc_split"
-  [(set (reg:HI 24)
-        (truncate:HI (ctz:SI (reg:SI 22))))
-   (clobber (reg:QI 22))
-   (clobber (reg:QI 26))]
-  ""
-  "#"
-  "&& reload_completed"
-  [(scratch)]
-  { DONE_ADD_CCC })
-
-(define_insn "*ctzsihi2.libgcc"
-  [(set (reg:HI 24)
-        (truncate:HI (ctz:SI (reg:SI 22))))
+        (ctz_ffs:HI (reg:SI 22)))
    (clobber (reg:QI 22))
    (clobber (reg:QI 26))
    (clobber (reg:CC REG_CC))]
   "reload_completed"
-  "%~call __ctzsi2"
+  "%~call __<code>si2"
   [(set_attr "type" "xcall")])
 
-;; Find First Set
-
-(define_expand "ffshi2"
-  [(set (reg:HI 24)
-        (match_operand:HI 1 "register_operand" ""))
-   (parallel [(set (reg:HI 24)
-                   (ffs:HI (reg:HI 24)))
-              (clobber (reg:QI 26))])
-   (set (match_operand:HI 0 "register_operand" "")
-        (reg:HI 24))])
-
-(define_expand "ffssi2"
-  [(set (reg:SI 22)
-        (match_operand:SI 1 "register_operand" ""))
-   (parallel [(set (reg:HI 24)
-                   (truncate:HI (ffs:SI (reg:SI 22))))
-              (clobber (reg:QI 22))
-              (clobber (reg:QI 26))])
-   (set (match_dup 2)
-        (reg:HI 24))
-   (set (match_operand:SI 0 "register_operand" "")
-        (zero_extend:SI (match_dup 2)))]
-  ""
-  {
-    operands[2] = gen_reg_rtx (HImode);
-  })
-
-(define_insn_and_split "*ffshi2.libgcc_split"
-  [(set (reg:HI 24)
-        (ffs:HI (reg:HI 24)))
-   (clobber (reg:QI 26))]
-  ""
-  "#"
-  "&& reload_completed"
-  [(scratch)]
-  { DONE_ADD_CCC })
-
-(define_insn "*ffshi2.libgcc"
-  [(set (reg:HI 24)
-        (ffs:HI (reg:HI 24)))
-   (clobber (reg:QI 26))
-   (clobber (reg:CC REG_CC))]
-  "reload_completed"
-  "%~call __ffshi2"
-  [(set_attr "type" "xcall")])
-
-(define_insn_and_split "*ffssihi2.libgcc_split"
-  [(set (reg:HI 24)
-        (truncate:HI (ffs:SI (reg:SI 22))))
-   (clobber (reg:QI 22))
-   (clobber (reg:QI 26))]
-  ""
-  "#"
-  "&& reload_completed"
-  [(scratch)]
-  { DONE_ADD_CCC })
-
-(define_insn "*ffssihi2.libgcc"
-  [(set (reg:HI 24)
-        (truncate:HI (ffs:SI (reg:SI 22))))
-   (clobber (reg:QI 22))
-   (clobber (reg:QI 26))
-   (clobber (reg:CC REG_CC))]
-  "reload_completed"
-  "%~call __ffssi2"
-  [(set_attr "type" "xcall")])
 
 ;; Copysign
 
@@ -9328,17 +9207,9 @@
 
 ;; Swap Bytes (change byte-endianness)
 
-(define_expand "bswapsi2"
-  [(set (reg:SI 22)
-        (match_operand:SI 1 "register_operand" ""))
-   (set (reg:SI 22)
-        (bswap:SI (reg:SI 22)))
-   (set (match_operand:SI 0 "register_operand" "")
-        (reg:SI 22))])
-
-(define_insn_and_split "*bswapsi2.libgcc_split"
-  [(set (reg:SI 22)
-        (bswap:SI (reg:SI 22)))]
+(define_insn_and_split "bswapsi2"
+  [(set (match_operand:SI 0 "register_operand"          "={r22}")
+        (bswap:SI (match_operand:SI 1 "register_operand" "{r22}")))]
   ""
   "#"
   "&& reload_completed"
