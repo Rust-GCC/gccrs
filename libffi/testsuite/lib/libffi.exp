@@ -15,12 +15,15 @@
 # <http://www.gnu.org/licenses/>.
 
 proc load_gcc_lib { filename } {
-    global srcdir
-    load_file $srcdir/lib/$filename
+    global srcdir loaded_libs
+    load_file $srcdir/../../gcc/testsuite/lib/$filename
+    set loaded_libs($filename) ""
 }
 
 load_lib dg.exp
 load_lib libgloss.exp
+load_gcc_lib target-supports.exp
+load_gcc_lib target-supports-dg.exp
 load_gcc_lib target-libpath.exp
 load_gcc_lib wrapper.exp
 
@@ -288,6 +291,7 @@ proc libffi-init { args } {
     global srcdir
     global blddirffi
     global objdir
+    global blddircxx
     global TOOL_OPTIONS
     global tool
     global libffi_include
@@ -296,13 +300,13 @@ proc libffi-init { args } {
     global ld_library_path
     global compiler_vendor
 
-    if ![info exists blddirffi] {
-        set blddirffi [pwd]/..
-    }
-
+    set blddirffi [lookfor_file [get_multilibs] libffi]
     verbose "libffi $blddirffi"
+    set blddircxx [lookfor_file [get_multilibs] libstdc++-v3]
+    verbose "libstdc++ $blddircxx"
 
-    # Which compiler are we building with?
+    set compiler_vendor "gnu"
+
     if { [string match $compiler_vendor "gnu"] } {
         set gccdir [lookfor_file $tool_root_dir gcc/libgcc.a]
         if {$gccdir != ""} {
@@ -331,6 +335,8 @@ proc libffi-init { args } {
 
     # add the library path for libffi.
     append ld_library_path ":${blddirffi}/.libs"
+    # add the library path for libstdc++ as well.
+    append ld_library_path ":${blddircxx}/src/.libs"
 
     verbose "ld_library_path: $ld_library_path"
 
@@ -342,7 +348,13 @@ proc libffi-init { args } {
     verbose "libffi_dir $libffi_dir"
     if { $libffi_dir != "" } {
         set libffi_dir [file dirname ${libffi_dir}]
-        set libffi_link_flags "-L ../.libs"
+	if [istarget *-*-darwin*] {
+	    set libffi_link_flags "-B${libffi_dir}/.libs"
+	    lappend libffi_link_flags "-B${blddircxx}/src/.libs"
+	} else {
+	    set libffi_link_flags "-L${libffi_dir}/.libs"
+	    lappend libffi_link_flags "-L${blddircxx}/src/.libs"
+	}
     }
 
     set_ld_library_path_env_vars
@@ -371,6 +383,13 @@ proc libffi_target_compile { source dest type options } {
     if { [target_info needs_status_wrapper]!="" && [info exists gluefile] } {
         lappend options "libs=${gluefile}"
         lappend options "ldflags=$wrap_flags"
+    }
+
+    if { $blddirffi != "" } {
+	# If '--with-build-sysroot=[...]' was specified, use it for build-tree
+	# testing.
+	global SYSROOT_CFLAGS_FOR_TARGET
+	lappend options "additional_flags=${SYSROOT_CFLAGS_FOR_TARGET}"
     }
 
     # TOOL_OPTIONS must come first, so that it doesn't override testcase
@@ -415,16 +434,8 @@ proc libffi_target_compile { source dest type options } {
             }
         }
 
-        # this may be required for g++, but just confused clang.
         if { [string match "*.cc" $source] } {
-            lappend options "c++"
-            if { [string match "*-*-darwin*" $target_triplet] } {
-                if { [string match $compiler_vendor "gnu"] } {
-                    lappend options "libs= -lc++"
-                }
-            } elseif { [string match "*android*" $target_triplet] } {
-                lappend options "libs= -lc++"
-            }
+            lappend options "ldflags=-shared-libgcc -lstdc++"
         }
 
         if { [string match "arc*-*-linux*" $target_triplet] } {
