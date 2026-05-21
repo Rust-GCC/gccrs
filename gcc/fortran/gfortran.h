@@ -3852,6 +3852,8 @@ int gfc_find_symbol (const char *, gfc_namespace *, int, gfc_symbol **);
 bool gfc_find_sym_tree (const char *, gfc_namespace *, int, gfc_symtree **);
 int gfc_get_symbol (const char *, gfc_namespace *, gfc_symbol **,
 		    locus * = NULL);
+bool gfc_find_symbol_by_name (const char *, gfc_namespace *,
+				    gfc_symbol **);
 bool gfc_verify_c_interop (gfc_typespec *);
 bool gfc_verify_c_interop_param (gfc_symbol *);
 bool verify_bind_c_sym (gfc_symbol *, gfc_typespec *, int, gfc_common_head *);

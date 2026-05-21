@@ -5727,3 +5727,33 @@ gfc_get_spec_ns (gfc_symbol *sym)
 
   return sym->ns;
 }
+
+/* This section deals with looking up a symbol when the symtree name and symbol
+   name do not agree, so gfc_find_symbol() cannot be used.  */
+
+static gfc_symbol* found_sym;		/* Where to store the symbol.  */
+static const char* sym_target_name;	/* What name to look for.  */
+
+/* Helper function.  */
+
+static void
+compare_target_sym_name (gfc_symbol *sym)
+{
+  if (strcmp(sym->name, sym_target_name) == 0)
+    found_sym = sym;
+}
+
+/* Search for a symbol when the symtree name may be different from the
+   symbol name.  Return true if found.  */
+
+bool
+gfc_find_symbol_by_name (const char *name, gfc_namespace *ns,
+			       gfc_symbol **result)
+{
+  found_sym = NULL;
+  sym_target_name = name;
+
+  do_traverse_symtree (ns->sym_root, NULL, compare_target_sym_name);
+  *result = found_sym;
+  return result != 0;
+}

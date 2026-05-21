@@ -15084,6 +15084,13 @@ gfc_verify_binding_labels (gfc_symbol *sym)
 	{
 	  gfc_symbol *global_sym;
 	  gfc_find_symbol (gsym->sym_name, gsym->ns, 0, &global_sym);
+
+	  /* For when the symtree does not match the symbol name, which can happen
+	     in modules with PRIVATE.  */
+
+	  if (global_sym == NULL)
+	    gfc_find_symbol_by_name (gsym->sym_name, gsym->ns, &global_sym);
+
 	  gcc_assert (global_sym);
 
 	  /* If subroutines and functions are conflated, there is little point
