@@ -3578,7 +3578,7 @@ emit_scc_insn (rtx operands[])
       return true;
     }
 
-  /* All the posibilities to use addx/subx based sequences has been
+  /* All the possibilities to use addx/subx based sequences has been
      exhausted, try for a 3 instruction sequence using v9 conditional
      moves.  */
   if (TARGET_V9 && gen_v9_scc (operands[0], code, x, y))
@@ -12763,7 +12763,7 @@ sparc_emit_membar_for_model (enum memmodel model,
 	 are followed by an implied StoreStore.  */
       implied |= StoreStore;
 
-      /* If we're not looking for a raw barrer (before+after), then atomic
+      /* If we're not looking for a raw barrier (before+after), then atomic
 	 operations get the benefit of being both load and store.  */
       if (load_store == 3 && before_after == 1)
 	implied |= StoreLoad;
@@ -12774,7 +12774,7 @@ sparc_emit_membar_for_model (enum memmodel model,
 	 are followed by an implied LoadLoad | LoadStore.  */
       implied |= LoadLoad | LoadStore;
 
-      /* If we're not looking for a raw barrer (before+after), then atomic
+      /* If we're not looking for a raw barrier (before+after), then atomic
 	 operations get the benefit of being both load and store.  */
       if (load_store == 3 && before_after == 2)
 	implied |= StoreLoad | StoreStore;
