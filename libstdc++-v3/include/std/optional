@@ -39,6 +39,7 @@
 #define __glibcxx_want_optional_range_support
 #define __glibcxx_want_constrained_equality
 #define __glibcxx_want_constexpr_exceptions
+#define __glibcxx_want_hardened_optional
 #include <bits/version.h>
 
 #ifdef __cpp_lib_optional // C++ >= 17

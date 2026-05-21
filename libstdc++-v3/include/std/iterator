@@ -71,6 +71,8 @@
 
 #define __glibcxx_want_array_constexpr
 #define __glibcxx_want_constexpr_iterator
+#define __glibcxx_want_hardened_common_iterator
+#define __glibcxx_want_hardened_counted_iterator
 #define __glibcxx_want_make_reverse_iterator
 #define __glibcxx_want_move_iterator_concept
 #define __glibcxx_want_nonmember_container_access

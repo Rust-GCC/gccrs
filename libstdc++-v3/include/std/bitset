@@ -62,6 +62,7 @@
 
 #define __glibcxx_want_constexpr_bitset
 #define __glibcxx_want_bitset  // ...construct from string_view
+#define __glibcxx_want_hardened_bitset
 #include <bits/version.h>
 
 #ifdef __cpp_lib_bitset // ...construct from string_view

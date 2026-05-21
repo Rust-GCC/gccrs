@@ -40,6 +40,7 @@
 
 #define __glibcxx_want_span
 #define __glibcxx_want_span_initializer_list
+#define __glibcxx_want_hardened_span
 #include <bits/version.h>
 
 #ifdef __cpp_lib_span // C++ >= 20 && concepts

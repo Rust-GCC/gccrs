@@ -40,6 +40,7 @@
 #define __glibcxx_want_constexpr_char_traits
 #define __glibcxx_want_constexpr_string_view
 #define __glibcxx_want_freestanding_string_view
+#define __glibcxx_want_hardened_basic_string_view
 #define __glibcxx_want_starts_ends_with
 #define __glibcxx_want_string_contains
 #define __glibcxx_want_string_subview

@@ -83,6 +83,7 @@
 #define __glibcxx_want_constexpr_vector
 #define __glibcxx_want_containers_ranges
 #define __glibcxx_want_erase_if
+#define __glibcxx_want_hardened_vector
 #define __glibcxx_want_incomplete_container_elements
 #define __glibcxx_want_nonmember_container_access
 #include <bits/version.h>

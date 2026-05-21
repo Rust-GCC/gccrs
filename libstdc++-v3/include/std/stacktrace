@@ -34,6 +34,7 @@
 
 #define __glibcxx_want_stacktrace
 #define __glibcxx_want_formatters
+#define __glibcxx_want_hardened_basic_stacktrace
 #include <bits/version.h>
 
 #ifdef __cpp_lib_stacktrace // C++ >= 23 && hosted && HAVE_STACKTRACE

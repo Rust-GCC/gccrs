@@ -49,6 +49,7 @@
 
 #define __glibcxx_want_array_constexpr
 #define __glibcxx_want_freestanding_array
+#define __glibcxx_want_hardened_array
 #define __glibcxx_want_nonmember_container_access
 #define __glibcxx_want_to_array
 #include <bits/version.h>

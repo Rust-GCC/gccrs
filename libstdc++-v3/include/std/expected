@@ -37,6 +37,7 @@
 #define __glibcxx_want_freestanding_expected
 #define __glibcxx_want_constrained_equality
 #define __glibcxx_want_constexpr_exceptions
+#define __glibcxx_want_hardened_expected
 #include <bits/version.h>
 
 #ifdef __cpp_lib_expected // C++ >= 23 && __cpp_concepts >= 202002L

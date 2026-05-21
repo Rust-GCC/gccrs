@@ -32,6 +32,7 @@
 
 #pragma GCC system_header
 
+#define __glibcxx_want_hardened_inplace_vector
 #define __glibcxx_want_inplace_vector
 #include <bits/version.h>
 

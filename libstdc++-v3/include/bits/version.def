@@ -2448,7 +2448,107 @@ ftms = {
   name = valarray;
   values = {
     v = 202511;
-    cxxmin = 26; 
+    cxxmin = 26;
+  };
+};
+
+ftms = {
+  name = hardened_array;
+  values = {
+    v = 202502;
+    cxxmin = 11;
+    extra_cond = "defined(_GLIBCXX_ASSERTIONS)";
+  };
+};
+
+ftms = {
+  name = hardened_basic_stacktrace;
+  values = {
+    v = 202502;
+    cxxmin = 23;
+    hosted = yes;
+    extra_cond = "defined(__glibcxx_stacktrace) && defined(_GLIBCXX_ASSERTIONS)";
+  };
+};
+
+ftms = {
+  name = hardened_basic_string;
+  values = {
+    v = 202502;
+    extra_cond = "defined(_GLIBCXX_ASSERTIONS)";
+  };
+};
+
+ftms = {
+  name = hardened_basic_string_view;
+  values = {
+    v = 202502;
+    extra_cond = "defined(__glibcxx_string_view) && defined(_GLIBCXX_ASSERTIONS)";
+  };
+};
+
+ftms = {
+  name = hardened_bitset;
+  values = {
+    v = 202502;
+    extra_cond = "defined(_GLIBCXX_ASSERTIONS)";
+  };
+};
+
+ftms = {
+  name = hardened_common_iterator;
+  values = {
+    v = 202502;
+    extra_cond = "defined(__glibcxx_ranges) && defined(_GLIBCXX_ASSERTIONS)";
+  };
+};
+
+ftms = {
+  name = hardened_counted_iterator;
+  values = {
+    v = 202502;
+    extra_cond = "defined(__glibcxx_ranges) && defined(_GLIBCXX_ASSERTIONS)";
+  };
+};
+
+ftms = {
+  name = hardened_deque;
+  values = {
+    v = 202502;
+    extra_cond = "defined(_GLIBCXX_ASSERTIONS)";
+  };
+};
+
+ftms = {
+  name = hardened_expected;
+  values = {
+    v = 202502;
+    extra_cond = "defined(__glibcxx_expected) && defined(_GLIBCXX_ASSERTIONS)";
+  };
+};
+
+ftms = {
+  name = hardened_forward_list;
+  values = {
+    v = 202502;
+    cxxmin = 11;
+    extra_cond = "defined(_GLIBCXX_ASSERTIONS)";
+  };
+};
+
+ftms = {
+  name = hardened_inplace_vector;
+  values = {
+    v = 202502;
+    extra_cond = "defined(__glibcxx_inplace_vector) && defined(_GLIBCXX_ASSERTIONS)";
+  };
+};
+
+ftms = {
+  name = hardened_list;
+  values = {
+    v = 202502;
+    extra_cond = "defined(_GLIBCXX_ASSERTIONS)";
   };
 };
 
@@ -2457,6 +2557,54 @@ ftms = {
   values = {
     v = 202502;
     extra_cond = "defined(__glibcxx_mdspan) && defined(_GLIBCXX_ASSERTIONS)";
+  };
+};
+
+ftms = {
+  name = hardened_optional;
+  values = {
+    v = 202502;
+    extra_cond = "defined(__glibcxx_optional) && defined(_GLIBCXX_ASSERTIONS)";
+  };
+};
+
+ftms = {
+  name = hardened_shared_ptr_array;
+  values = {
+    v = 202502;
+    extra_cond = "defined(__glibcxx_shared_ptr_arrays) && defined(_GLIBCXX_ASSERTIONS)";
+  };
+};
+
+ftms = {
+  name = hardened_span;
+  values = {
+    v = 202502;
+    extra_cond = "defined(__glibcxx_span) && defined(_GLIBCXX_ASSERTIONS)";
+  };
+};
+
+ftms = {
+  name = hardened_valarray;
+  values = {
+    v = 202502;
+    extra_cond = "defined(_GLIBCXX_ASSERTIONS)";
+  };
+};
+
+ftms = {
+  name = hardened_vector;
+  values = {
+    v = 202502;
+    extra_cond = "defined(_GLIBCXX_ASSERTIONS)";
+  };
+};
+
+ftms = {
+  name = hardened_view_interface;
+  values = {
+    v = 202502;
+    extra_cond = "defined(__glibcxx_ranges) && defined(_GLIBCXX_ASSERTIONS)";
   };
 };
 
