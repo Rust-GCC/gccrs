@@ -22,7 +22,7 @@
    see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
    <http://www.gnu.org/licenses/>.  */
 
-/* Provide target-independant access to the futex system call.  */
+/* Provide target-independent access to the futex system call.  */
 
 /* Note for ARM:
    There are two styles of syscall, and in the eabi style the syscall
