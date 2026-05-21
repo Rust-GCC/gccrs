@@ -234,7 +234,7 @@ solaris_elf_asm_comdat_section (const char *name, unsigned int flags, tree decl)
 
   /* Unlike GNU as, group signature symbols need to be defined explicitly
      for Sun as.  With a few exceptions, this is already the case.  To
-     identify the missing ones without changing the affected frontents,
+     identify the missing ones without changing the affected frontends,
      remember the signature symbols and emit those not marked
      TREE_SYMBOL_REFERENCED in solaris_file_end.  */
   if (!solaris_comdat_htab)

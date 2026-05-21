@@ -377,7 +377,7 @@ extern void vxworks_asm_out_destructor (rtx symbol, int priority);
    the base VxWorks environment doesn't come with a GNU toolchain.
 
    From VxWorks 7 on, the actual personality might vary for different instances
-   for a given architecture.  The TOOL/TOOL_FAMILY definitions are infered at
+   for a given architecture.  The TOOL/TOOL_FAMILY definitions are inferred at
    run-time from vxworks-predef.h, which allows accommodating such variations
    with a single toolchain.  */
 

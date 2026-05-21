@@ -546,7 +546,7 @@ find_subframework_header (cpp_reader *pfile, const char *header, cpp_dir **dirp)
 	{
 	  /* Logically, the place where we found the subframework is
 	     the place where we found the Framework that contains the
-	     subframework.  This is useful for tracking wether or not
+	     subframework.  This is useful for tracking whether or not
 	     we are in a system header.  */
 	  *dirp = _cpp_get_file_dir (cpp_get_file (b));
 	  return n;

@@ -178,7 +178,7 @@ along with GCC; see the file COPYING3.  If not see
    compilers use values-Xc.o with either -Xc or (since Studio 12.6)
    -pedantic to select strictly conformant ISO C behaviour, otherwise
    values-Xa.o.  Since -pedantic is a diagnostic option only in GCC, we
-   need to specifiy the -std=c* options and -std=iso9899:199409.  We
+   need to specify the -std=c* options and -std=iso9899:199409.  We
    traditionally include -ansi, which affects C and C++, and also -std=c++*
    for consistency.
 
@@ -189,7 +189,7 @@ along with GCC; see the file COPYING3.  If not see
    values-xpg6.o to get C99 semantics.  Besides, most of the runtime
    libraries always require C99 semantics.
 
-   Since only one instance of _lib_version and __xpg[46] takes effekt (the
+   Since only one instance of _lib_version and __xpg[46] takes effect (the
    first in ld.so.1's search path), we only link the values-*.o files into
    executable programs.  */
 #undef STARTFILE_ARCH_SPEC

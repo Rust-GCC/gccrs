@@ -2080,7 +2080,7 @@ darwin_label_is_anonymous_local_objc_name (const char *name)
    This version uses three mach-o sections to encapsulate the (unlimited
    number of) lto sections.
 
-   __GNU_LTO, __lto_sections  contains the concatented GNU LTO section data.
+   __GNU_LTO, __lto_sections  contains the concatenated GNU LTO section data.
    __GNU_LTO, __section_names contains the GNU LTO section names.
    __GNU_LTO, __section_index contains an array of values that index these.
 
@@ -2863,7 +2863,7 @@ fprintf (fp, "# adcom: %s (%lld,%d) ro %d cst %d stat %d com %d pub %d"
      be passed a decl that should be in coalesced space.  */
   if (one || weak)
     {
-      /* Weak or COMDAT objects are put in mergable sections.  */
+      /* Weak or COMDAT objects are put in mergeable sections.  */
       darwin_emit_weak_or_comdat (fp, decl, name, size,
 				  ld_uses_coal_sects, DECL_ALIGN (decl));
       return;
@@ -2885,7 +2885,7 @@ fprintf (fp, "# adcom: %s (%lld,%d) ro %d cst %d stat %d com %d pub %d"
     align = DECL_ALIGN (decl);
 
   l2align = floor_log2 (align / BITS_PER_UNIT);
-  /* Check we aren't asking for more aligment than the platform allows.  */
+  /* Check we aren't asking for more alignment than the platform allows.  */
   gcc_checking_assert (l2align <= L2_MAX_OFILE_ALIGNMENT);
 
   if (TREE_PUBLIC (decl) != 0)
@@ -2900,7 +2900,7 @@ fprintf (fp, "# adcom: %s (%lld,%d) ro %d cst %d stat %d com %d pub %d"
     darwin_emit_local_bss (fp, decl, name, size, l2align);
 }
 
-/* Output a chunk of BSS with alignment specfied.  */
+/* Output a chunk of BSS with alignment specified.  */
 void
 darwin_asm_output_aligned_decl_local (FILE *fp, tree decl, const char *name,
 				      unsigned HOST_WIDE_INT size,
@@ -2939,7 +2939,7 @@ fprintf (fp, "# adloc: %s (%lld,%d) ro %d cst %d stat %d one %d pub %d"
      be passed a decl that should be in coalesced space.  */
   if (one || weak)
     {
-      /* Weak or COMDAT objects are put in mergable sections.  */
+      /* Weak or COMDAT objects are put in mergeable sections.  */
       darwin_emit_weak_or_comdat (fp, decl, name, size,
 				  ld_uses_coal_sects, DECL_ALIGN (decl));
       return;

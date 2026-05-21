@@ -197,7 +197,7 @@ darwin_find_version_from_kernel (void)
 
    When building cross or native cross compilers, default to the OSX
    version of the target (as provided by the most specific target header
-   included in tm.h).  This may be overidden by setting the flag explicitly
+   included in tm.h).  This may be overridden by setting the flag explicitly
    (or by the MACOSX_DEPLOYMENT_TARGET environment).  */
 
 static const char *
