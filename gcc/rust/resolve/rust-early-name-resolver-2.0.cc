@@ -505,7 +505,6 @@ Early::finalize_rebind_import (const Early::ImportPair &mapping)
   auto data = mapping.data;
 
   NodeId import_id = UNKNOWN_NODEID;
-  location_t locus = UNKNOWN_LOCATION;
   std::string declared_name;
 
   // FIXME: This needs to be done in `FinalizeImports`
@@ -513,7 +512,6 @@ Early::finalize_rebind_import (const Early::ImportPair &mapping)
     {
     case AST::UseTreeRebind::NewBindType::IDENTIFIER:
       declared_name = rebind.get_identifier ().as_string ();
-      locus = rebind.get_identifier ().get_locus ();
       import_id = rebind.get_node_id ();
       break;
     case AST::UseTreeRebind::NewBindType::NONE:
@@ -533,7 +531,6 @@ Early::finalize_rebind_import (const Early::ImportPair &mapping)
 	    declared_name = path.get_final_segment ().as_string ();
 	    import_id = path.get_final_segment ().get_node_id ();
 	  }
-	locus = path.get_final_segment ().get_locus ();
 	break;
       }
     case AST::UseTreeRebind::NewBindType::WILDCARD:
