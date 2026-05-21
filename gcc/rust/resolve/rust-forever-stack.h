@@ -906,6 +906,27 @@ public:
     return (definition_rib
 	    && definition_rib.value ().kind == Rib::Kind::ForwardTypeParamBan);
   }
+
+  void map_usage (Usage usage, Definition definition)
+  {
+    auto inserted = resolved_nodes.emplace (usage, definition).second;
+
+    // is that valid?
+    rust_assert (inserted);
+  }
+
+  tl::optional<NodeId> lookup (NodeId usage) const
+  {
+    auto it = resolved_nodes.find (Usage (usage));
+
+    if (it == resolved_nodes.end ())
+      return tl::nullopt;
+
+    return it->second.id;
+  }
+
+  /* Map of "usage" nodes which have been resolved to a "definition" node */
+  std::map<Usage, Definition> resolved_nodes;
 };
 
 } // namespace Resolver2_0

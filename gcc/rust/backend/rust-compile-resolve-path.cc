@@ -27,6 +27,7 @@
 #include "rust-hir-path-probe.h"
 #include "rust-compile-extern.h"
 #include "rust-constexpr.h"
+#include "rust-rib.h"
 #include "rust-tyty.h"
 
 namespace Rust {
@@ -233,7 +234,9 @@ ResolvePathRef::resolve (const HIR::PathIdentSegment &final_segment,
   // in that case the caller should attempt ResolvePathType::Compile
   auto &nr_ctx = Resolver2_0::FinalizedNameResolutionContext::get ();
 
-  auto resolved = nr_ctx.lookup (mappings.get_nodeid ());
+  // TODO: Is Values the correct NS here?
+  auto resolved
+    = nr_ctx.lookup (mappings.get_nodeid (), Resolver2_0::Namespace::Values);
 
   if (!resolved)
     return attempt_constructor_expression_lookup (lookup, ctx, mappings,

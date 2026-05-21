@@ -26,6 +26,7 @@
 #include "rust-hir-type-bounds.h"
 #include "rust-finalized-name-resolution-context.h"
 #include "rust-mapping-common.h"
+#include "rust-rib.h"
 #include "rust-substitution-mapper.h"
 #include "rust-type-util.h"
 #include "rust-system.h"
@@ -346,9 +347,8 @@ TypeCheckType::resolve_root_path (HIR::TypePath &path, size_t *offset,
 	  auto &nr_ctx = Resolver2_0::FinalizedNameResolutionContext::get ();
 
 	  // assign the ref_node_id if we've found something
-	  nr_ctx.lookup (ast_node_id).map ([&ref_node_id] (NodeId resolved) {
-	    ref_node_id = resolved;
-	  });
+	  nr_ctx.lookup (ast_node_id, Resolver2_0::Namespace::Types)
+	    .map ([&ref_node_id] (NodeId resolved) { ref_node_id = resolved; });
 	}
 
       // ref_node_id is the NodeId that the segments refers to.
@@ -1109,7 +1109,7 @@ ResolveWhereClauseItem::visit (HIR::TypeBoundWhereClauseItem &item)
 
   auto &nr_ctx = Resolver2_0::FinalizedNameResolutionContext::get ();
 
-  if (auto id = nr_ctx.lookup (ast_node_id))
+  if (auto id = nr_ctx.lookup (ast_node_id, Resolver2_0::Namespace::Types))
     {
       ref_node_id = *id;
     }
