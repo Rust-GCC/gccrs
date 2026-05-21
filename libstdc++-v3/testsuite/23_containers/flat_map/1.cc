@@ -330,7 +330,9 @@ test_constexpr()
   test07();
   test08();
   test09();
+#if __cpp_lib_constexpr_string >= 201907L
   test10();
+#endif
   return true;
 }
 
