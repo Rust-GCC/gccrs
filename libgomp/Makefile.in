@@ -590,9 +590,7 @@ libgomp_la_SOURCES = alloc.c atomic.c barrier.c critical.c env.c \
 @PLUGIN_GCN_TRUE@libgomp_plugin_gcn_la_SOURCES = plugin/plugin-gcn.c simple-allocator.c \
 @PLUGIN_GCN_TRUE@				plugin/mutex.c
 
-@PLUGIN_GCN_TRUE@libgomp_plugin_gcn_la_CPPFLAGS = $(AM_CPPFLAGS) \
-@PLUGIN_GCN_TRUE@	-D_GNU_SOURCE
-
+@PLUGIN_GCN_TRUE@libgomp_plugin_gcn_la_CPPFLAGS = $(AM_CPPFLAGS)
 @PLUGIN_GCN_TRUE@libgomp_plugin_gcn_la_LDFLAGS = $(libgomp_plugin_gcn_version_info) \
 @PLUGIN_GCN_TRUE@	$(lt_host_flags)
 

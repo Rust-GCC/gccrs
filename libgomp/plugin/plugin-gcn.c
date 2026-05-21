@@ -28,6 +28,7 @@
 
 /* {{{ Includes and defines  */
 
+#define _GNU_SOURCE
 #include "config.h"
 #include "symcat.h"
 #include <stdio.h>
