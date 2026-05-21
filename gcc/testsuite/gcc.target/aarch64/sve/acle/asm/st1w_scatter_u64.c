@@ -42,8 +42,8 @@ TEST_STORE_SCATTER_ZS (st1w_scatter_0_u64_offset, svuint64_t, svuint64_t,
 
 /*
 ** st1w_scatter_5_u64_offset:
-**	mov	(x[0-9]+), #?5
-**	st1w	z0\.d, p0, \[\1, z1\.d\]
+**	mov	w([0-9]+), 5
+**	st1w	z0\.d, p0, \[x\1, z1\.d\]
 **	ret
 */
 TEST_STORE_SCATTER_ZS (st1w_scatter_5_u64_offset, svuint64_t, svuint64_t,
@@ -52,8 +52,8 @@ TEST_STORE_SCATTER_ZS (st1w_scatter_5_u64_offset, svuint64_t, svuint64_t,
 
 /*
 ** st1w_scatter_6_u64_offset:
-**	mov	(x[0-9]+), #?6
-**	st1w	z0\.d, p0, \[\1, z1\.d\]
+**	mov	w([0-9]+), 6
+**	st1w	z0\.d, p0, \[x\1, z1\.d\]
 **	ret
 */
 TEST_STORE_SCATTER_ZS (st1w_scatter_6_u64_offset, svuint64_t, svuint64_t,
@@ -62,8 +62,8 @@ TEST_STORE_SCATTER_ZS (st1w_scatter_6_u64_offset, svuint64_t, svuint64_t,
 
 /*
 ** st1w_scatter_7_u64_offset:
-**	mov	(x[0-9]+), #?7
-**	st1w	z0\.d, p0, \[\1, z1\.d\]
+**	mov	w([0-9]+), 7
+**	st1w	z0\.d, p0, \[x\1, z1\.d\]
 **	ret
 */
 TEST_STORE_SCATTER_ZS (st1w_scatter_7_u64_offset, svuint64_t, svuint64_t,
@@ -90,8 +90,8 @@ TEST_STORE_SCATTER_ZS (st1w_scatter_124_u64_offset, svuint64_t, svuint64_t,
 
 /*
 ** st1w_scatter_128_u64_offset:
-**	mov	(x[0-9]+), #?128
-**	st1w	z0\.d, p0, \[\1, z1\.d\]
+**	mov	w([0-9]+), 128
+**	st1w	z0\.d, p0, \[x\1, z1\.d\]
 **	ret
 */
 TEST_STORE_SCATTER_ZS (st1w_scatter_128_u64_offset, svuint64_t, svuint64_t,
@@ -147,8 +147,8 @@ TEST_STORE_SCATTER_ZS (st1w_scatter_31_u64_index, svuint64_t, svuint64_t,
 
 /*
 ** st1w_scatter_32_u64_index:
-**	mov	(x[0-9]+), #?128
-**	st1w	z0\.d, p0, \[\1, z1\.d\]
+**	mov	w([0-9]+), 128
+**	st1w	z0\.d, p0, \[x\1, z1\.d\]
 **	ret
 */
 TEST_STORE_SCATTER_ZS (st1w_scatter_32_u64_index, svuint64_t, svuint64_t,

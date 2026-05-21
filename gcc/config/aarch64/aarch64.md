@@ -1819,7 +1819,7 @@
      [r, r   ; mov_reg  , *   , 4] mov\t%x0, %x1
      [k, r   ; mov_reg  , *   , 4] mov\t%0, %x1
      [r, k   ; mov_reg  , *   , 4] mov\t%x0, %1
-     [r, O   ; mov_imm  , *   , 4] << aarch64_is_mov_xn_imm (INTVAL (operands[1])) ? "mov\t%x0, %1" : "mov\t%w0, %1";
+     [r, O   ; mov_imm  , *   , 4] << aarch64_output_move_imm (operands[1]);
      [r, n   ; mov_imm  , *   ,16] #
      /* The "mov_imm" type for CNT is just a placeholder.  */
      [r, Usv ; mov_imm  , sve , 4] << aarch64_output_sve_cnt_immediate ("cnt", "%x0", operands[1]);
@@ -2055,7 +2055,7 @@
      [ r        , m   ; load_8      , *     ] ldr\t%x0, %1
      [ m        , rY  ; store_8     , *     ] str\t%x1, %0
      [ r        , r   ; mov_reg     , *     ] mov\t%x0, %x1
-     [ r        , O   ; fconstd     , *     ] << aarch64_is_mov_xn_imm (INTVAL (operands[1])) ? "mov\t%x0, %1" : "mov\t%w0, %1";
+     [ r        , O   ; fconstd     , *     ] << aarch64_output_move_imm (operands[1]);
   }
 )
 

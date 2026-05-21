@@ -11,14 +11,14 @@ PROTO (cntd_pow2, uint64_t, ()) { return svcntd_pat (SV_POW2); }
 
 /*
 ** cntd_vl1:
-**	mov	x0, #?1
+**	mov	w0, 1
 **	ret
 */
 PROTO (cntd_vl1, uint64_t, ()) { return svcntd_pat (SV_VL1); }
 
 /*
 ** cntd_vl2:
-**	mov	x0, #?2
+**	mov	w0, 2
 **	ret
 */
 PROTO (cntd_vl2, uint64_t, ()) { return svcntd_pat (SV_VL2); }

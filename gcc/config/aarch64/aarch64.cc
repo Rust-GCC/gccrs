@@ -4916,6 +4916,12 @@ aarch64_move_imm (unsigned HOST_WIDE_INT val, machine_mode mode)
   return aarch64_bitmask_imm (val);
 }
 
+/* Return the output string with the MOV instruction for immediate IMM.  */
+const char*
+aarch64_output_move_imm (rtx imm)
+{
+  return UINTVAL (imm) < 0x100000000 ? "mov\t%w0, %1" : "mov\t%x0, %1";
+}
 
 /* Return true is VAL is a move immediate that can be created by add/sub of the
    12-bit shifted immediate VAL2.  If GENERATE is true, emit the sequence.  */

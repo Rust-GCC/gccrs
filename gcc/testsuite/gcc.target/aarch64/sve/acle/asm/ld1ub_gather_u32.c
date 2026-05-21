@@ -69,8 +69,8 @@ TEST_LOAD_GATHER_ZS (ld1ub_gather_31_u32_offset, svuint32_t, svuint32_t,
 
 /*
 ** ld1ub_gather_32_u32_offset:
-**	mov	(x[0-9]+), #?32
-**	ld1b	z0\.s, p0/z, \[\1, z0\.s, uxtw\]
+**	mov	w([0-9]+), 32
+**	ld1b	z0\.s, p0/z, \[x\1, z0\.s, uxtw\]
 **	ret
 */
 TEST_LOAD_GATHER_ZS (ld1ub_gather_32_u32_offset, svuint32_t, svuint32_t,

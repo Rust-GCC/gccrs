@@ -4,7 +4,7 @@
 
 /*
 **foo1:
-**	mov	x16, 1
+**	mov	w16, 1
 **	hint	40 // chkfeat x16
 **	mov	x0, x16
 **	ret
@@ -17,7 +17,7 @@ foo1 (void)
 
 /*
 **foo2:
-**	mov	x16, 1
+**	mov	w16, 1
 **	movk	x16, 0x5678, lsl 32
 **	movk	x16, 0x1234, lsl 48
 **	hint	40 // chkfeat x16
@@ -58,7 +58,7 @@ foo4 (unsigned long long *p)
 
 /*
 **foo5:
-**	mov	x16, 1
+**	mov	w16, 1
 **	hint	40 // chkfeat x16
 **	cmp	x16, 0
 **(

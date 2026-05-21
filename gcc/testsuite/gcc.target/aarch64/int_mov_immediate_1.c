@@ -48,7 +48,7 @@ long f8(void)
 /* { dg-final { scan-assembler-times "mov\tw\[0-9\]+, 1718026239"  1 } } */
 /* { dg-final { scan-assembler-times "mov\tx\[0-9\]+, -2576941057" 1 } } */
 /* { dg-final { scan-assembler-times "mov\tx\[0-9\]+, -39322"      1 } } */
-/* { dg-final { scan-assembler-times "mov\tx\[0-9\]+, 26214"       1 } } */
+/* { dg-final { scan-assembler-times "mov\tw\[0-9\]+, 26214"       1 } } */
 /* { dg-final { scan-assembler-times "movk\tx\[0-9\]+, 0xf00, lsl 48" 1 } } */
 /* { dg-final { scan-assembler-times "movk\tx\[0-9\]+, 0x1111, lsl 48" 2 } } */
 /* { dg-final { scan-assembler-times "movk\tx\[0-9\]+, 0x1000, lsl 32" 1 } } */

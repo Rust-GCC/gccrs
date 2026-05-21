@@ -6,7 +6,7 @@
 
 /*
 ** test_1:
-**	mov	x12, #?4608
+**	mov	w12, 4608
 **	sub	sp, sp, x12
 **	str	p4, \[sp\]
 **	str	p5, \[sp, #1, mul vl\]

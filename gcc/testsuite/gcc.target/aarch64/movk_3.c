@@ -51,6 +51,6 @@ void f48_3 (long *p)
   p[2] = 0x123456789abc + 0x1666666;
 }
 
-/* { dg-final { scan-assembler-times "mov\tx\[0-9\]+, \[0-9\]+" 10 } } */
+/* { dg-final { scan-assembler-times "mov\tw\[0-9\]+, \[0-9\]+" 10 } } */
 /* { dg-final { scan-assembler-times "movk\tx\[0-9\]+, 0x\[0-9a-f\]+" 12 } } */
 /* { dg-final { scan-assembler-times "add\tx\[0-9\]+, x\[0-9\]+, \[0-9\]+" 5 } } */

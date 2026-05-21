@@ -29,5 +29,5 @@ _start (void)
   return;
 }
 
-/* { dg-final { scan-assembler-times "mov\tx" 5 {target lp64} } } */
+/* { dg-final { scan-assembler-times "mov\tw\[0-9\]" 5 {target lp64} } } */
 /* { dg-final { scan-assembler-not {st[rp]\tq[0-9]+} {target lp64} } } */

@@ -7,7 +7,7 @@
 **	hint	25 // paciasp
 **	...
 **	cbz	w2, .*
-**	mov	x4, 0
+**	mov	w4, 0
 **	...
 **	cbz	x4, .*
 **	add	sp, sp, x5
@@ -19,7 +19,7 @@
 **	retaa
 ** )
 **	mov	x5, x0
-**	mov	x4, 1
+**	mov	w4, 1
 **	mov	x6, x1
 **	b	.*
 */

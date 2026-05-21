@@ -75,7 +75,7 @@ set256byte (int64_t *src, char c)
 
 /* More than 256 bytes goes to memset
 **set257byte:
-**	mov	x2, 257
+**	mov	w2, 257
 **	mov	w1, 99
 **	b	memset
 */

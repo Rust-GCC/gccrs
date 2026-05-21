@@ -69,8 +69,8 @@ TEST_LOAD_GATHER_ZS (ldff1sb_gather_31_u64_offset, svuint64_t, svuint64_t,
 
 /*
 ** ldff1sb_gather_32_u64_offset:
-**	mov	(x[0-9]+), #?32
-**	ldff1sb	z0\.d, p0/z, \[\1, z0\.d\]
+**	mov	w([0-9]+), 32
+**	ldff1sb	z0\.d, p0/z, \[x\1, z0\.d\]
 **	ret
 */
 TEST_LOAD_GATHER_ZS (ldff1sb_gather_32_u64_offset, svuint64_t, svuint64_t,

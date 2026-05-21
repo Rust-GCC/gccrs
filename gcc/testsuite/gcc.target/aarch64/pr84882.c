@@ -30,5 +30,5 @@ _start (void)
   return;
 }
 /* Should have only 1 mov instead of 5 and should not use stp (store pair).  */
-/* { dg-final { scan-assembler-times "mov\tx" 1 {target lp64} } } */
+/* { dg-final { scan-assembler-times "mov\tw\[0-9\]" 1 {target lp64} } } */
 /* { dg-final { scan-assembler-not "stp\tx\[0-9\]+, x\[0-9\]+," {target lp64} } } */

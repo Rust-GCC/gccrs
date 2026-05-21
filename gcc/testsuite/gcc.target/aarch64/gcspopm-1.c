@@ -15,7 +15,7 @@ foo1 (void)
 
 /*
 **foo2:
-**	mov	x0, 0
+**	mov	w0, 0
 **	sysl	x0, #3, c7, c7, #1 // gcspopm
 **	ret
 */
@@ -27,11 +27,11 @@ foo2 (void)
 
 /*
 **foo3:
-**	mov	x16, 1
+**	mov	w16, 1
 **	hint	40 // chkfeat x16
 **	cbz	x16, .*
 **	ret
-**	mov	x0, (0|x16)
+**	mov	[wx]0, (0|x16)
 **	sysl	x0, #3, c7, c7, #1 // gcspopm
 **	ret
 */
@@ -46,7 +46,7 @@ foo3 (unsigned long long x)
 /*
 **foo4:
 **	sysl	xzr, #3, c7, c7, #1 // gcspopm
-**	mov	x0, 0
+**	mov	w0, 0
 **	sysl	x0, #3, c7, c7, #1 // gcspopm
 **	sysl	xzr, #3, c7, c7, #1 // gcspopm
 **	ret

@@ -8,7 +8,7 @@
 /*
 ** test_chkfeat:
 ** ...
-**	mov	x16, 1
+**	mov	w16, 1
 **	hint	40 // chkfeat x16
 **	eor	x0, x16, 1
 **	ret

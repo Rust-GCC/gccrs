@@ -20,8 +20,8 @@ TEST_S (index_u64_x0_2, svuint64_t, uint64_t,
 
 /*
 ** index_u64_50_2:
-**	mov	(x[0-9]+), 50
-**	index	z0\.d, \1, #2
+**	mov	w([0-9]+), 50
+**	index	z0\.d, x\1, #2
 **	ret
 */
 TEST_S (index_u64_50_2, svuint64_t, uint64_t,
@@ -62,8 +62,8 @@ TEST_S (index_u64_0_15, svuint64_t, uint64_t,
 
 /*
 ** index_u64_0_16:
-**	mov	(x[0-9]+), 16
-**	index	z0\.d, #0, \1
+**	mov	w([0-9]+), 16
+**	index	z0\.d, #0, x\1
 **	ret
 */
 TEST_S (index_u64_0_16, svuint64_t, uint64_t,
@@ -112,8 +112,8 @@ TEST_S (index_u64_15_1, svuint64_t, uint64_t,
 
 /*
 ** index_u64_16_1:
-**	mov	(x[0-9]+), 16
-**	index	z0\.d, \1, #1
+**	mov	w([0-9]+), 16
+**	index	z0\.d, x\1, #1
 **	ret
 */
 TEST_S (index_u64_16_1, svuint64_t, uint64_t,
@@ -170,8 +170,8 @@ TEST_S (index_u64_15_x0, svuint64_t, uint64_t,
 
 /*
 ** index_u64_16_x0:
-**	mov	(x[0-9]+), 16
-**	index	z0\.d, \1, x0
+**	mov	w([0-9]+), 16
+**	index	z0\.d, x\1, x0
 **	ret
 */
 TEST_S (index_u64_16_x0, svuint64_t, uint64_t,
@@ -212,8 +212,8 @@ TEST_S (index_u64_x0_15, svuint64_t, uint64_t,
 
 /*
 ** index_u64_x0_16:
-**	mov	(x[0-9]+), 16
-**	index	z0\.d, x0, \1
+**	mov	w([0-9]+), 16
+**	index	z0\.d, x0, x\1
 **	ret
 */
 TEST_S (index_u64_x0_16, svuint64_t, uint64_t,

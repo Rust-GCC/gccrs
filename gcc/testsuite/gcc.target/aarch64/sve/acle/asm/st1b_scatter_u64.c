@@ -60,8 +60,8 @@ TEST_STORE_SCATTER_ZS (st1b_scatter_31_u64_offset, svuint64_t, svuint64_t,
 
 /*
 ** st1b_scatter_32_u64_offset:
-**	mov	(x[0-9]+), #?32
-**	st1b	z0\.d, p0, \[\1, z1\.d\]
+**	mov	w([0-9]+), 32
+**	st1b	z0\.d, p0, \[x\1, z1\.d\]
 **	ret
 */
 TEST_STORE_SCATTER_ZS (st1b_scatter_32_u64_offset, svuint64_t, svuint64_t,

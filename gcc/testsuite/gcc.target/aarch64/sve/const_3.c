@@ -17,4 +17,4 @@ TEST (uint64_t, 0x1234)
 
 /* { dg-final { scan-assembler {\tmov\t(w[0-9]+), 4660\n[^:]*\tmov\tz[0-9]+\.h, \1\n} } } */
 /* { dg-final { scan-assembler {\tmov\t(w[0-9]+), 4660\n[^:]*\tmov\tz[0-9]+\.s, \1\n} } } */
-/* { dg-final { scan-assembler {\tmov\t(x[0-9]+), 4660\n[^:]*\tmov\tz[0-9]+\.d, \1\n} } } */
+/* { dg-final { scan-assembler {\tmov\tw([0-9]+), 4660\n[^:]*\tmov\tz[0-9]+\.d, x\1\n} } } */

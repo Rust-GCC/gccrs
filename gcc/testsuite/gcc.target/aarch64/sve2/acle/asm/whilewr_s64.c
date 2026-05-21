@@ -22,8 +22,8 @@ TEST_COMPARE_S (whilewr_0r_s64, const int64_t *,
 
 /*
 ** whilewr_cr_s64:
-**	mov	(x[0-9]+), #?1073741824
-**	whilewr	p0\.d, \1, x1
+**	mov	w([0-9]+), 1073741824
+**	whilewr	p0\.d, x\1, x1
 **	ret
 */
 TEST_COMPARE_S (whilewr_cr_s64, const int64_t *,
@@ -41,8 +41,8 @@ TEST_COMPARE_S (whilewr_r0_s64, const int64_t *,
 
 /*
 ** whilewr_rc_s64:
-**	mov	(x[0-9]+), #?1073741824
-**	whilewr	p0\.d, x0, \1
+**	mov	w([0-9]+), 1073741824
+**	whilewr	p0\.d, x0, x\1
 **	ret
 */
 TEST_COMPARE_S (whilewr_rc_s64, const int64_t *,

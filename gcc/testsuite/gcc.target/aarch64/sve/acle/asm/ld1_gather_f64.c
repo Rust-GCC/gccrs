@@ -51,8 +51,8 @@ TEST_LOAD_GATHER_ZS (ld1_gather_0_f64_offset, svfloat64_t, svuint64_t,
 
 /*
 ** ld1_gather_9_f64_offset:
-**	mov	(x[0-9]+), #?9
-**	ld1d	z0\.d, p0/z, \[\1, z0\.d\]
+**	mov	w([0-9]+), 9
+**	ld1d	z0\.d, p0/z, \[x\1, z0\.d\]
 **	ret
 */
 TEST_LOAD_GATHER_ZS (ld1_gather_9_f64_offset, svfloat64_t, svuint64_t,
@@ -61,8 +61,8 @@ TEST_LOAD_GATHER_ZS (ld1_gather_9_f64_offset, svfloat64_t, svuint64_t,
 
 /*
 ** ld1_gather_10_f64_offset:
-**	mov	(x[0-9]+), #?10
-**	ld1d	z0\.d, p0/z, \[\1, z0\.d\]
+**	mov	w([0-9]+), 10
+**	ld1d	z0\.d, p0/z, \[x\1, z0\.d\]
 **	ret
 */
 TEST_LOAD_GATHER_ZS (ld1_gather_10_f64_offset, svfloat64_t, svuint64_t,
@@ -71,8 +71,8 @@ TEST_LOAD_GATHER_ZS (ld1_gather_10_f64_offset, svfloat64_t, svuint64_t,
 
 /*
 ** ld1_gather_11_f64_offset:
-**	mov	(x[0-9]+), #?11
-**	ld1d	z0\.d, p0/z, \[\1, z0\.d\]
+**	mov	w([0-9]+), 11
+**	ld1d	z0\.d, p0/z, \[x\1, z0\.d\]
 **	ret
 */
 TEST_LOAD_GATHER_ZS (ld1_gather_11_f64_offset, svfloat64_t, svuint64_t,
@@ -81,8 +81,8 @@ TEST_LOAD_GATHER_ZS (ld1_gather_11_f64_offset, svfloat64_t, svuint64_t,
 
 /*
 ** ld1_gather_12_f64_offset:
-**	mov	(x[0-9]+), #?12
-**	ld1d	z0\.d, p0/z, \[\1, z0\.d\]
+**	mov	w([0-9]+), 12
+**	ld1d	z0\.d, p0/z, \[x\1, z0\.d\]
 **	ret
 */
 TEST_LOAD_GATHER_ZS (ld1_gather_12_f64_offset, svfloat64_t, svuint64_t,
@@ -91,8 +91,8 @@ TEST_LOAD_GATHER_ZS (ld1_gather_12_f64_offset, svfloat64_t, svuint64_t,
 
 /*
 ** ld1_gather_13_f64_offset:
-**	mov	(x[0-9]+), #?13
-**	ld1d	z0\.d, p0/z, \[\1, z0\.d\]
+**	mov	w([0-9]+), 13
+**	ld1d	z0\.d, p0/z, \[x\1, z0\.d\]
 **	ret
 */
 TEST_LOAD_GATHER_ZS (ld1_gather_13_f64_offset, svfloat64_t, svuint64_t,
@@ -101,8 +101,8 @@ TEST_LOAD_GATHER_ZS (ld1_gather_13_f64_offset, svfloat64_t, svuint64_t,
 
 /*
 ** ld1_gather_14_f64_offset:
-**	mov	(x[0-9]+), #?14
-**	ld1d	z0\.d, p0/z, \[\1, z0\.d\]
+**	mov	w([0-9]+), 14
+**	ld1d	z0\.d, p0/z, \[x\1, z0\.d\]
 **	ret
 */
 TEST_LOAD_GATHER_ZS (ld1_gather_14_f64_offset, svfloat64_t, svuint64_t,
@@ -111,8 +111,8 @@ TEST_LOAD_GATHER_ZS (ld1_gather_14_f64_offset, svfloat64_t, svuint64_t,
 
 /*
 ** ld1_gather_15_f64_offset:
-**	mov	(x[0-9]+), #?15
-**	ld1d	z0\.d, p0/z, \[\1, z0\.d\]
+**	mov	w([0-9]+), 15
+**	ld1d	z0\.d, p0/z, \[x\1, z0\.d\]
 **	ret
 */
 TEST_LOAD_GATHER_ZS (ld1_gather_15_f64_offset, svfloat64_t, svuint64_t,
@@ -139,8 +139,8 @@ TEST_LOAD_GATHER_ZS (ld1_gather_248_f64_offset, svfloat64_t, svuint64_t,
 
 /*
 ** ld1_gather_256_f64_offset:
-**	mov	(x[0-9]+), #?256
-**	ld1d	z0\.d, p0/z, \[\1, z0\.d\]
+**	mov	w([0-9]+), 256
+**	ld1d	z0\.d, p0/z, \[x\1, z0\.d\]
 **	ret
 */
 TEST_LOAD_GATHER_ZS (ld1_gather_256_f64_offset, svfloat64_t, svuint64_t,
@@ -196,8 +196,8 @@ TEST_LOAD_GATHER_ZS (ld1_gather_31_f64_index, svfloat64_t, svuint64_t,
 
 /*
 ** ld1_gather_32_f64_index:
-**	mov	(x[0-9]+), #?256
-**	ld1d	z0\.d, p0/z, \[\1, z0\.d\]
+**	mov	w([0-9]+), 256
+**	ld1d	z0\.d, p0/z, \[x\1, z0\.d\]
 **	ret
 */
 TEST_LOAD_GATHER_ZS (ld1_gather_32_f64_index, svfloat64_t, svuint64_t,

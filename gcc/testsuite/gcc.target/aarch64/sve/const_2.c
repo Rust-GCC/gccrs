@@ -17,4 +17,4 @@ TEST (uint64_t, 129)
 
 /* { dg-final { scan-assembler {\tmovi\tv([0-9]+)\.8h, 0x81\n[^:]*\tdup\tz[0-9]+\.q, z\1\.q\[0\]\n} } } */
 /* { dg-final { scan-assembler {\tmovi\tv([0-9]+)\.4s, 0x81\n[^:]*\tdup\tz[0-9]+\.q, z\1\.q\[0\]\n} } } */
-/* { dg-final { scan-assembler {\tmov\t(x[0-9]+), 129\n[^:]*\tmov\tz[0-9]+\.d, \1\n} } } */
+/* { dg-final { scan-assembler {\tmov\tw([0-9]+), 129\n[^:]*\tmov\tz[0-9]+\.d, x\1\n} } } */

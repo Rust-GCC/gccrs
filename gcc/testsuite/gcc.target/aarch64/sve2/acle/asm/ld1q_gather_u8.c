@@ -64,8 +64,8 @@ TEST_LOAD_GATHER_ZS (ld1q_gather_0_offset, svuint8_t, svuint64_t,
 
 /*
 ** ld1q_gather_16_offset:
-**	mov	(x[0-9]+), #?16
-**	ld1q	{z0\.q}, p0/z, \[z0\.d, \1\]
+**	mov	w([0-9]+), 16
+**	ld1q	{z0\.q}, p0/z, \[z0\.d, x\1\]
 **	ret
 */
 TEST_LOAD_GATHER_ZS (ld1q_gather_16_offset, svuint8_t, svuint64_t,

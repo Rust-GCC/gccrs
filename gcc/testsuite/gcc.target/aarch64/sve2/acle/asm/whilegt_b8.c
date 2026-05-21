@@ -69,8 +69,8 @@ TEST_COMPARE_S (whilegt_0r_b8_s64, int64_t,
 
 /*
 ** whilegt_5r_b8_s64:
-**	mov	(x[0-9]+), #?5
-**	whilegt	p0\.b, \1, x1
+**	mov	w([0-9]+), 5
+**	whilegt	p0\.b, x\1, x1
 **	ret
 */
 TEST_COMPARE_S (whilegt_5r_b8_s64, int64_t,
@@ -88,8 +88,8 @@ TEST_COMPARE_S (whilegt_r0_b8_s64, int64_t,
 
 /*
 ** whilegt_r5_b8_s64:
-**	mov	(x[0-9]+), #?5
-**	whilegt	p0\.b, x0, \1
+**	mov	w([0-9]+), 5
+**	whilegt	p0\.b, x0, x\1
 **	ret
 */
 TEST_COMPARE_S (whilegt_r5_b8_s64, int64_t,
@@ -154,8 +154,8 @@ TEST_COMPARE_S (whilegt_0r_b8_u64, uint64_t,
 
 /*
 ** whilegt_5r_b8_u64:
-**	mov	(x[0-9]+), #?5
-**	whilehi	p0\.b, \1, x1
+**	mov	w([0-9]+), 5
+**	whilehi	p0\.b, x\1, x1
 **	ret
 */
 TEST_COMPARE_S (whilegt_5r_b8_u64, uint64_t,
@@ -164,8 +164,8 @@ TEST_COMPARE_S (whilegt_5r_b8_u64, uint64_t,
 
 /*
 ** whilegt_r5_b8_u64:
-**	mov	(x[0-9]+), #?5
-**	whilehi	p0\.b, x0, \1
+**	mov	w([0-9]+), 5
+**	whilehi	p0\.b, x0, x\1
 **	ret
 */
 TEST_COMPARE_S (whilegt_r5_b8_u64, uint64_t,

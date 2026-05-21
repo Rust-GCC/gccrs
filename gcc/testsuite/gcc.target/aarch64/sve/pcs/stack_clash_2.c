@@ -58,7 +58,7 @@ test_2 (void)
 /*
 ** test_3:
 **	cntb	x12
-**	mov	x13, #?4128
+**	mov	w13, 4128
 **	add	x12, x12, x13
 **	mov	x11, sp
 **	...
@@ -73,7 +73,7 @@ test_2 (void)
 **	addvl	sp, sp, #1
 **	ldp	x24, x25, \[sp\]
 **	ldr	x26, \[sp, 16\]
-**	mov	x12, #?4128
+**	mov	w12, 4128
 **	add	sp, sp, x12
 **	ret
 */
@@ -166,7 +166,7 @@ test_6 (void)
 /*
 ** test_7:
 **	cntb	x12
-**	mov	x13, #?4112
+**	mov	w13, 4112
 **	add	x12, x12, x13
 **	mov	x11, sp
 **	...
@@ -182,7 +182,7 @@ test_6 (void)
 **	ldr	p4, \[sp\]
 **	addvl	sp, sp, #1
 **	ldp	x29, x30, \[sp\]
-**	mov	x12, #?4112
+**	mov	w12, 4112
 **	add	sp, sp, x12
 **	ret
 */
@@ -198,7 +198,7 @@ test_7 (void)
 /*
 ** test_8:
 **	cntb	x12
-**	mov	x13, #?4144
+**	mov	w13, 4144
 **	add	x12, x12, x13
 **	mov	x11, sp
 **	...
@@ -218,7 +218,7 @@ test_7 (void)
 **	ldp	x29, x30, \[sp\]
 **	ldp	x24, x25, \[sp, 16\]
 **	ldr	x26, \[sp, 32\]
-**	mov	x12, #?4144
+**	mov	w12, 4144
 **	add	sp, sp, x12
 **	ret
 */
@@ -234,7 +234,7 @@ test_8 (void)
 /*
 ** test_9:
 **	cntb	x12
-**	mov	x13, #?4112
+**	mov	w13, 4112
 **	add	x12, x12, x13
 **	mov	x11, sp
 **	...
@@ -250,7 +250,7 @@ test_8 (void)
 **	ldr	p4, \[sp\]
 **	addvl	sp, sp, #1
 **	ldp	x29, x30, \[sp\]
-**	mov	x12, #?4112
+**	mov	w12, 4112
 **	add	sp, sp, x12
 **	ret
 */
@@ -266,7 +266,7 @@ test_9 (int n)
 /*
 ** test_10:
 **	cntb	x12
-**	mov	x13, #?4144
+**	mov	w13, 4144
 **	add	x12, x12, x13
 **	mov	x11, sp
 **	...
@@ -286,7 +286,7 @@ test_9 (int n)
 **	ldp	x29, x30, \[sp\]
 **	ldp	x24, x25, \[sp, 16\]
 **	ldr	x26, \[sp, 32\]
-**	mov	x12, #?4144
+**	mov	w12, 4144
 **	add	sp, sp, x12
 **	ret
 */

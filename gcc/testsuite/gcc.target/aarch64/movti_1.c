@@ -44,11 +44,11 @@ store_q (__int128_t *ptr)
 /*
 ** zero_x:
 ** (
-**	mov	x0, #?0
-**	mov	x1, #?0
+**	mov	w0, 0
+**	mov	w1, 0
 ** |
-**	mov	x1, #?0
-**	mov	x0, #?0
+**	mov	w1, 0
+**	mov	w0, 0
 ** )
 **	ret
 */

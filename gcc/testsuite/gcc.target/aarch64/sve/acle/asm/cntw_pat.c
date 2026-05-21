@@ -11,28 +11,28 @@ PROTO (cntw_pow2, uint64_t, ()) { return svcntw_pat (SV_POW2); }
 
 /*
 ** cntw_vl1:
-**	mov	x0, #?1
+**	mov	w0, 1
 **	ret
 */
 PROTO (cntw_vl1, uint64_t, ()) { return svcntw_pat (SV_VL1); }
 
 /*
 ** cntw_vl2:
-**	mov	x0, #?2
+**	mov	w0, 2
 **	ret
 */
 PROTO (cntw_vl2, uint64_t, ()) { return svcntw_pat (SV_VL2); }
 
 /*
 ** cntw_vl3:
-**	mov	x0, #?3
+**	mov	w0, 3
 **	ret
 */
 PROTO (cntw_vl3, uint64_t, ()) { return svcntw_pat (SV_VL3); }
 
 /*
 ** cntw_vl4:
-**	mov	x0, #?4
+**	mov	w0, 4
 **	ret
 */
 PROTO (cntw_vl4, uint64_t, ()) { return svcntw_pat (SV_VL4); }

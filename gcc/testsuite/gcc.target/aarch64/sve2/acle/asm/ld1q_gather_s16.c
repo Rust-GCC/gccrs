@@ -36,7 +36,7 @@ TEST_LOAD_GATHER_ZS (ld1q_gather_x0_offset, svint16_t, svuint64_t,
 
 /*
 ** ld1q_gather_m2_offset:
-**	mov	(x[0-9]+), #?-2
+**	mov	(x[0-9]+), -2
 **	ld1q	{z0\.q}, p0/z, \[z0\.d, \1\]
 **	ret
 */
@@ -55,8 +55,8 @@ TEST_LOAD_GATHER_ZS (ld1q_gather_0_offset, svint16_t, svuint64_t,
 
 /*
 ** ld1q_gather_6_offset:
-**	mov	(x[0-9]+), #?6
-**	ld1q	{z0\.q}, p0/z, \[z0\.d, \1\]
+**	mov	w([0-9]+), 6
+**	ld1q	{z0\.q}, p0/z, \[z0\.d, x\1\]
 **	ret
 */
 TEST_LOAD_GATHER_ZS (ld1q_gather_6_offset, svint16_t, svuint64_t,
@@ -94,8 +94,8 @@ TEST_LOAD_GATHER_ZS (ld1q_gather_0_index, svint16_t, svuint64_t,
 
 /*
 ** ld1q_gather_5_index:
-**	mov	(x[0-9]+), #?10
-**	ld1q	{z0\.q}, p0/z, \[z0\.d, \1\]
+**	mov	w([0-9]+), 10
+**	ld1q	{z0\.q}, p0/z, \[z0\.d, x\1\]
 **	ret
 */
 TEST_LOAD_GATHER_ZS (ld1q_gather_5_index, svint16_t, svuint64_t,

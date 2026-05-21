@@ -29,4 +29,4 @@ int no_reuse_mov (int i)
   return arr[i];
 }
 
-/* { dg-final { scan-assembler-times "mov\tx12, \[0-9\]+" 5 } } */
+/* { dg-final { scan-assembler-times "mov\tw12, \[0-9\]+" 5 } } */

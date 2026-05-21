@@ -31,8 +31,8 @@ TEST_UNIFORM_Z (dup_128_u64, svuint64_t,
 
 /*
 ** dup_129_u64:
-**	mov	(x[0-9]+), 129
-**	mov	z0\.d, \1
+**	mov	w([0-9]+), 129
+**	mov	z0\.d, x\1
 **	ret
 */
 TEST_UNIFORM_Z (dup_129_u64, svuint64_t,
@@ -41,8 +41,8 @@ TEST_UNIFORM_Z (dup_129_u64, svuint64_t,
 
 /*
 ** dup_253_u64:
-**	mov	(x[0-9]+), 253
-**	mov	z0\.d, \1
+**	mov	w([0-9]+), 253
+**	mov	z0\.d, x\1
 **	ret
 */
 TEST_UNIFORM_Z (dup_253_u64, svuint64_t,
@@ -78,8 +78,8 @@ TEST_UNIFORM_Z (dup_256_u64, svuint64_t,
 
 /*
 ** dup_257_u64:
-**	mov	(x[0-9]+), 257
-**	mov	z0\.d, \1
+**	mov	w([0-9]+), 257
+**	mov	z0\.d, x\1
 **	ret
 */
 TEST_UNIFORM_Z (dup_257_u64, svuint64_t,
@@ -106,8 +106,8 @@ TEST_UNIFORM_Z (dup_7f00_u64, svuint64_t,
 
 /*
 ** dup_7f01_u64:
-**	mov	(x[0-9]+), 32513
-**	mov	z0\.d, \1
+**	mov	w([0-9]+), 32513
+**	mov	z0\.d, x\1
 **	ret
 */
 TEST_UNIFORM_Z (dup_7f01_u64, svuint64_t,
@@ -116,8 +116,8 @@ TEST_UNIFORM_Z (dup_7f01_u64, svuint64_t,
 
 /*
 ** dup_7ffd_u64:
-**	mov	(x[0-9]+), 32765
-**	mov	z0\.d, \1
+**	mov	w([0-9]+), 32765
+**	mov	z0\.d, x\1
 **	ret
 */
 TEST_UNIFORM_Z (dup_7ffd_u64, svuint64_t,
@@ -955,8 +955,8 @@ TEST_UNIFORM_Z (dup_128_u64_x, svuint64_t,
 
 /*
 ** dup_129_u64_x:
-**	mov	(x[0-9]+), 129
-**	mov	z0\.d, \1
+**	mov	w([0-9]+), 129
+**	mov	z0\.d, x\1
 **	ret
 */
 TEST_UNIFORM_Z (dup_129_u64_x, svuint64_t,
@@ -965,8 +965,8 @@ TEST_UNIFORM_Z (dup_129_u64_x, svuint64_t,
 
 /*
 ** dup_253_u64_x:
-**	mov	(x[0-9]+), 253
-**	mov	z0\.d, \1
+**	mov	w([0-9]+), 253
+**	mov	z0\.d, x\1
 **	ret
 */
 TEST_UNIFORM_Z (dup_253_u64_x, svuint64_t,
@@ -1002,8 +1002,8 @@ TEST_UNIFORM_Z (dup_256_u64_x, svuint64_t,
 
 /*
 ** dup_257_u64_x:
-**	mov	(x[0-9]+), 257
-**	mov	z0\.d, \1
+**	mov	w([0-9]+), 257
+**	mov	z0\.d, x\1
 **	ret
 */
 TEST_UNIFORM_Z (dup_257_u64_x, svuint64_t,
@@ -1030,8 +1030,8 @@ TEST_UNIFORM_Z (dup_7f00_u64_x, svuint64_t,
 
 /*
 ** dup_7f01_u64_x:
-**	mov	(x[0-9]+), 32513
-**	mov	z0\.d, \1
+**	mov	w([0-9]+), 32513
+**	mov	z0\.d, x\1
 **	ret
 */
 TEST_UNIFORM_Z (dup_7f01_u64_x, svuint64_t,
@@ -1040,8 +1040,8 @@ TEST_UNIFORM_Z (dup_7f01_u64_x, svuint64_t,
 
 /*
 ** dup_7ffd_u64_x:
-**	mov	(x[0-9]+), 32765
-**	mov	z0\.d, \1
+**	mov	w([0-9]+), 32765
+**	mov	z0\.d, x\1
 **	ret
 */
 TEST_UNIFORM_Z (dup_7ffd_u64_x, svuint64_t,

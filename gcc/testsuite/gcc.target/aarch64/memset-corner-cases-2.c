@@ -6,7 +6,7 @@
 
 /* 127 bytes should use libcall for size.
 **set127byte:
-**	mov	x2, 127
+**	mov	w2, 127
 **	b	memset
 */
 void __attribute__((__noinline__))
@@ -17,7 +17,7 @@ set127byte (int64_t *src, int c)
 
 /* 128 bytes should use libcall for size.
 **set128byte:
-**	mov	x2, 128
+**	mov	w2, 128
 **	b	memset
 */
 void __attribute__((__noinline__))

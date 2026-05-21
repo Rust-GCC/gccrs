@@ -18,7 +18,7 @@ void do_it_cpy (char * in, char * out, size_t size)
 
 /*
 ** do_it_cpy_large:
-**	mov	x2, 1024
+**	mov	w2, 1024
 **	cpyfp	\[x1\]\!, \[x0\]!, x2\!
 **	cpyfm	\[x1\]\!, \[x0\]!, x2\!
 **	cpyfe	\[x1\]\!, \[x0\]\!, x2\!
@@ -31,7 +31,7 @@ void do_it_cpy_large (char * in, char * out)
 
 /*
 ** do_it_cpy_127:
-**	mov	x2, 127
+**	mov	w2, 127
 **	cpyfp	\[x1\]\!, \[x0\]!, x2\!
 **	cpyfm	\[x1\]\!, \[x0\]!, x2\!
 **	cpyfe	\[x1\]\!, \[x0\]\!, x2\!
@@ -44,7 +44,7 @@ void do_it_cpy_127 (char * in, char * out)
 
 /*
 ** do_it_cpy_128:
-**	mov	x2, 128
+**	mov	w2, 128
 **	cpyfp	\[x1\]\!, \[x0\]!, x2\!
 **	cpyfm	\[x1\]\!, \[x0\]!, x2\!
 **	cpyfe	\[x1\]\!, \[x0\]\!, x2\!

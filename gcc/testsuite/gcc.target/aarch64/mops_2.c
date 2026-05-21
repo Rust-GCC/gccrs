@@ -18,7 +18,7 @@ void do_it_mov (char * in, char * out, size_t size)
 
 /*
 ** do_it_mov_large:
-**	mov	x2, 1024
+**	mov	w2, 1024
 **	cpyp	\[x1\]\!, \[x0\]!, x2\!
 **	cpym	\[x1\]\!, \[x0\]!, x2\!
 **	cpye	\[x1\]\!, \[x0\]\!, x2\!
@@ -31,7 +31,7 @@ void do_it_mov_large (char * in, char * out)
 
 /*
 ** do_it_mov_127:
-**	mov	x2, 127
+**	mov	w2, 127
 **	cpyp	\[x1\]\!, \[x0\]!, x2\!
 **	cpym	\[x1\]\!, \[x0\]!, x2\!
 **	cpye	\[x1\]\!, \[x0\]\!, x2\!
@@ -44,7 +44,7 @@ void do_it_mov_127 (char * in, char * out)
 
 /*
 ** do_it_mov_128:
-**	mov	x2, 128
+**	mov	w2, 128
 **	cpyp	\[x1\]\!, \[x0\]!, x2\!
 **	cpym	\[x1\]\!, \[x0\]!, x2\!
 **	cpye	\[x1\]\!, \[x0\]\!, x2\!

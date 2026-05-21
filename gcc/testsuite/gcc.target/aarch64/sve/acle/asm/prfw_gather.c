@@ -70,8 +70,8 @@ TEST_PREFETCH_GATHER_ZS (prfw_gather_31_u32base_index, svuint32_t,
 
 /*
 ** prfw_gather_32_u32base_index:
-**	mov	(x[0-9]+), #?128
-**	prfb	pstl1strm, p0, \[\1, z0\.s, uxtw\]
+**	mov	w([0-9]+), 128
+**	prfb	pstl1strm, p0, \[x\1, z0\.s, uxtw\]
 **	ret
 */
 TEST_PREFETCH_GATHER_ZS (prfw_gather_32_u32base_index, svuint32_t,
@@ -127,8 +127,8 @@ TEST_PREFETCH_GATHER_ZS (prfw_gather_31_u64base_index, svuint64_t,
 
 /*
 ** prfw_gather_32_u64base_index:
-**	mov	(x[0-9]+), #?128
-**	prfb	pldl1strm, p0, \[\1, z0\.d\]
+**	mov	w([0-9]+), 128
+**	prfb	pldl1strm, p0, \[x\1, z0\.d\]
 **	ret
 */
 TEST_PREFETCH_GATHER_ZS (prfw_gather_32_u64base_index, svuint64_t,

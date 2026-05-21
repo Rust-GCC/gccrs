@@ -1612,7 +1612,7 @@ FAR_BRANCH(u64, 42);
 
 /*
 ** u64_x0_eq_4098:
-**	mov	x([0-9]+), 4098
+**	mov	w([0-9]+), 4098
 **	cbeq	x0, x\1, .L([0-9]+)
 **	b	not_taken
 ** .L\2:
@@ -1621,8 +1621,8 @@ FAR_BRANCH(u64, 42);
 
 /*
 ** u64_x0_ne_4098:
-**	mov	(x[0-9]+), 4098
-**	cbne	x0, \1, .L([0-9]+)
+**	mov	w([0-9]+), 4098
+**	cbne	x0, x\1, .L([0-9]+)
 **	b	not_taken
 ** .L\2:
 **	b	taken
@@ -1630,8 +1630,8 @@ FAR_BRANCH(u64, 42);
 
 /*
 ** u64_x0_ult_4098:
-**	mov	(x[0-9]+), 4097
-**	cbls	x0, \1, .L([0-9]+)
+**	mov	w([0-9]+), 4097
+**	cbls	x0, x\1, .L([0-9]+)
 **	b	not_taken
 ** .L\2:
 **	b	taken
@@ -1639,8 +1639,8 @@ FAR_BRANCH(u64, 42);
 
 /*
 ** u64_x0_ule_4098:
-**	mov	(x[0-9]+), 4098
-**	cbls	x0, \1, .L([0-9]+)
+**	mov	w([0-9]+), 4098
+**	cbls	x0, x\1, .L([0-9]+)
 **	b	not_taken
 ** .L\2:
 **	b	taken
@@ -1648,8 +1648,8 @@ FAR_BRANCH(u64, 42);
 
 /*
 ** u64_x0_ugt_4098:
-**	mov	(x[0-9]+), 4098
-**	cbhi	x0, \1, .L([0-9]+)
+**	mov	w([0-9]+), 4098
+**	cbhi	x0, x\1, .L([0-9]+)
 **	b	not_taken
 ** .L\2:
 **	b	taken
@@ -1657,8 +1657,8 @@ FAR_BRANCH(u64, 42);
 
 /*
 ** u64_x0_uge_4098:
-**	mov	(x[0-9]+), 4097
-**	cbhi	x0, \1, .L([0-9]+)
+**	mov	w([0-9]+), 4097
+**	cbhi	x0, x\1, .L([0-9]+)
 **	b	not_taken
 ** .L\2:
 **	b	taken
@@ -1666,8 +1666,8 @@ FAR_BRANCH(u64, 42);
 
 /*
 ** i64_x0_slt_4098:
-**	mov	(x[0-9]+), 4097
-**	cble	x0, \1, .L([0-9]+)
+**	mov	w([0-9]+), 4097
+**	cble	x0, x\1, .L([0-9]+)
 **	b	not_taken
 ** .L\2:
 **	b	taken
@@ -1675,8 +1675,8 @@ FAR_BRANCH(u64, 42);
 
 /*
 ** i64_x0_sle_4098:
-**	mov	(x[0-9]+), 4098
-**	cble	x0, \1, .L([0-9]+)
+**	mov	w([0-9]+), 4098
+**	cble	x0, x\1, .L([0-9]+)
 **	b	not_taken
 ** .L\2:
 **	b	taken
@@ -1684,8 +1684,8 @@ FAR_BRANCH(u64, 42);
 
 /*
 ** i64_x0_sgt_4098:
-**	mov	(x[0-9]+), 4098
-**	cbgt	x0, \1, .L([0-9]+)
+**	mov	w([0-9]+), 4098
+**	cbgt	x0, x\1, .L([0-9]+)
 **	b	not_taken
 ** .L\2:
 **	b	taken
@@ -1693,8 +1693,8 @@ FAR_BRANCH(u64, 42);
 
 /*
 ** i64_x0_sge_4098:
-**	mov	(x[0-9]+), 4097
-**	cbgt	x0, \1, .L([0-9]+)
+**	mov	w([0-9]+), 4097
+**	cbgt	x0, x\1, .L([0-9]+)
 **	b	not_taken
 ** .L\2:
 **	b	taken

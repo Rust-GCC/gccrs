@@ -18,7 +18,7 @@ test_gcspr ()
 
 /*
 **test_gcspopm:
-**	mov	x0, 0
+**	mov	w0, 0
 **	sysl	x0, #3, c7, c7, #1 // gcspopm
 **	ret
 */
@@ -31,7 +31,7 @@ test_gcspopm ()
 /*
 **test_gcsss:
 **	sys	#3, c7, c7, #2, x0 // gcsss1
-**	mov	x0, 0
+**	mov	w0, 0
 **	sysl	x0, #3, c7, c7, #3 // gcsss2
 **	ret
 */

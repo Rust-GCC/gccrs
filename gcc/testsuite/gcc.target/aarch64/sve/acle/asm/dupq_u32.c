@@ -32,8 +32,8 @@ TEST_UNIFORM_Z (dupq_ff00ffffff00d_u32, svuint32_t,
 
 /*
 ** dupq_fedcd_u32:
-**	mov	(x[0-9]+), 65244
-**	mov	z0\.d, \1
+**	mov	w([0-9]+), 65244
+**	mov	z0\.d, x\1
 **	ret
 */
 TEST_UNIFORM_Z (dupq_fedcd_u32, svuint32_t,

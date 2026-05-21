@@ -42,8 +42,8 @@ TEST_STORE_SCATTER_ZS (st1_scatter_0_f32_offset, svfloat32_t, svuint32_t,
 
 /*
 ** st1_scatter_5_f32_offset:
-**	mov	(x[0-9]+), #?5
-**	st1w	z0\.s, p0, \[\1, z1\.s, uxtw\]
+**	mov	w([0-9]+), 5
+**	st1w	z0\.s, p0, \[x\1, z1\.s, uxtw\]
 **	ret
 */
 TEST_STORE_SCATTER_ZS (st1_scatter_5_f32_offset, svfloat32_t, svuint32_t,
@@ -52,8 +52,8 @@ TEST_STORE_SCATTER_ZS (st1_scatter_5_f32_offset, svfloat32_t, svuint32_t,
 
 /*
 ** st1_scatter_6_f32_offset:
-**	mov	(x[0-9]+), #?6
-**	st1w	z0\.s, p0, \[\1, z1\.s, uxtw\]
+**	mov	w([0-9]+), 6
+**	st1w	z0\.s, p0, \[x\1, z1\.s, uxtw\]
 **	ret
 */
 TEST_STORE_SCATTER_ZS (st1_scatter_6_f32_offset, svfloat32_t, svuint32_t,
@@ -62,8 +62,8 @@ TEST_STORE_SCATTER_ZS (st1_scatter_6_f32_offset, svfloat32_t, svuint32_t,
 
 /*
 ** st1_scatter_7_f32_offset:
-**	mov	(x[0-9]+), #?7
-**	st1w	z0\.s, p0, \[\1, z1\.s, uxtw\]
+**	mov	w([0-9]+), 7
+**	st1w	z0\.s, p0, \[x\1, z1\.s, uxtw\]
 **	ret
 */
 TEST_STORE_SCATTER_ZS (st1_scatter_7_f32_offset, svfloat32_t, svuint32_t,
@@ -90,8 +90,8 @@ TEST_STORE_SCATTER_ZS (st1_scatter_124_f32_offset, svfloat32_t, svuint32_t,
 
 /*
 ** st1_scatter_128_f32_offset:
-**	mov	(x[0-9]+), #?128
-**	st1w	z0\.s, p0, \[\1, z1\.s, uxtw\]
+**	mov	w([0-9]+), 128
+**	st1w	z0\.s, p0, \[x\1, z1\.s, uxtw\]
 **	ret
 */
 TEST_STORE_SCATTER_ZS (st1_scatter_128_f32_offset, svfloat32_t, svuint32_t,
@@ -147,8 +147,8 @@ TEST_STORE_SCATTER_ZS (st1_scatter_31_f32_index, svfloat32_t, svuint32_t,
 
 /*
 ** st1_scatter_32_f32_index:
-**	mov	(x[0-9]+), #?128
-**	st1w	z0\.s, p0, \[\1, z1\.s, uxtw\]
+**	mov	w([0-9]+), 128
+**	st1w	z0\.s, p0, \[x\1, z1\.s, uxtw\]
 **	ret
 */
 TEST_STORE_SCATTER_ZS (st1_scatter_32_f32_index, svfloat32_t, svuint32_t,

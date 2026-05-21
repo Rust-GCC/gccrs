@@ -11,63 +11,63 @@ PROTO (cntb_pow2, uint64_t, ()) { return svcntb_pat (SV_POW2); }
 
 /*
 ** cntb_vl1:
-**	mov	x0, #?1
+**	mov	w0, 1
 **	ret
 */
 PROTO (cntb_vl1, uint64_t, ()) { return svcntb_pat (SV_VL1); }
 
 /*
 ** cntb_vl2:
-**	mov	x0, #?2
+**	mov	w0, 2
 **	ret
 */
 PROTO (cntb_vl2, uint64_t, ()) { return svcntb_pat (SV_VL2); }
 
 /*
 ** cntb_vl3:
-**	mov	x0, #?3
+**	mov	w0, 3
 **	ret
 */
 PROTO (cntb_vl3, uint64_t, ()) { return svcntb_pat (SV_VL3); }
 
 /*
 ** cntb_vl4:
-**	mov	x0, #?4
+**	mov	w0, 4
 **	ret
 */
 PROTO (cntb_vl4, uint64_t, ()) { return svcntb_pat (SV_VL4); }
 
 /*
 ** cntb_vl5:
-**	mov	x0, #?5
+**	mov	w0, 5
 **	ret
 */
 PROTO (cntb_vl5, uint64_t, ()) { return svcntb_pat (SV_VL5); }
 
 /*
 ** cntb_vl6:
-**	mov	x0, #?6
+**	mov	w0, 6
 **	ret
 */
 PROTO (cntb_vl6, uint64_t, ()) { return svcntb_pat (SV_VL6); }
 
 /*
 ** cntb_vl7:
-**	mov	x0, #?7
+**	mov	w0, 7
 **	ret
 */
 PROTO (cntb_vl7, uint64_t, ()) { return svcntb_pat (SV_VL7); }
 
 /*
 ** cntb_vl8:
-**	mov	x0, #?8
+**	mov	w0, 8
 **	ret
 */
 PROTO (cntb_vl8, uint64_t, ()) { return svcntb_pat (SV_VL8); }
 
 /*
 ** cntb_vl16:
-**	mov	x0, #?16
+**	mov	w0, 16
 **	ret
 */
 PROTO (cntb_vl16, uint64_t, ()) { return svcntb_pat (SV_VL16); }

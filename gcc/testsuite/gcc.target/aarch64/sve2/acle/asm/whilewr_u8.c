@@ -22,8 +22,8 @@ TEST_COMPARE_S (whilewr_0r_u8, const uint8_t *,
 
 /*
 ** whilewr_cr_u8:
-**	mov	(x[0-9]+), #?1073741824
-**	whilewr	p0\.b, \1, x1
+**	mov	w([0-9]+), 1073741824
+**	whilewr	p0\.b, x\1, x1
 **	ret
 */
 TEST_COMPARE_S (whilewr_cr_u8, const uint8_t *,
@@ -41,8 +41,8 @@ TEST_COMPARE_S (whilewr_r0_u8, const uint8_t *,
 
 /*
 ** whilewr_rc_u8:
-**	mov	(x[0-9]+), #?1073741824
-**	whilewr	p0\.b, x0, \1
+**	mov	w([0-9]+), 1073741824
+**	whilewr	p0\.b, x0, x\1
 **	ret
 */
 TEST_COMPARE_S (whilewr_rc_u8, const uint8_t *,

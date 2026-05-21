@@ -46,8 +46,8 @@ TEST_STORE_SCATTER_ZS (st1q_scatter_0_u16_offset, svuint16_t, svuint64_t,
 
 /*
 ** st1q_scatter_1_u16_offset:
-**	mov	(x[0-9]+), #?1
-**	st1q	{z0\.q}, p0, \[z1\.d, \1\]
+**	mov	w([0-9]+), 1
+**	st1q	{z0\.q}, p0, \[z1\.d, x\1\]
 **	ret
 */
 TEST_STORE_SCATTER_ZS (st1q_scatter_1_u16_offset, svuint16_t, svuint64_t,

@@ -49,7 +49,7 @@ test_2 (void)
 
 /*
 ** test_3:
-**	mov	x12, #?4256
+**	mov	w12, 4256
 **	sub	sp, sp, x12
 **	stp	x24, x25, \[sp, 128\]
 **	str	x26, \[sp, 144\]
@@ -136,7 +136,7 @@ test_6 (void)
 
 /*
 ** test_7:
-**	mov	x12, #?4240
+**	mov	w12, 4240
 **	sub	sp, sp, x12
 **	stp	x29, x30, \[sp, 128\]
 **	add	x29, sp, #?128
@@ -148,7 +148,7 @@ test_6 (void)
 **	ldr	z16, \[sp\]
 **	add	sp, sp, #?128
 **	ldp	x29, x30, \[sp\]
-**	mov	x12, #?4112
+**	mov	w12, 4112
 **	add	sp, sp, x12
 **	ret
 */
@@ -163,7 +163,7 @@ test_7 (void)
 
 /*
 ** test_8:
-**	mov	x12, #?4272
+**	mov	w12, 4272
 **	sub	sp, sp, x12
 **	stp	x29, x30, \[sp, 128\]
 **	add	x29, sp, #?128
@@ -179,7 +179,7 @@ test_7 (void)
 **	ldp	x29, x30, \[sp\]
 **	ldp	x24, x25, \[sp, 16\]
 **	ldr	x26, \[sp, 32\]
-**	mov	x12, #?4144
+**	mov	w12, 4144
 **	add	sp, sp, x12
 **	ret
 */
@@ -194,7 +194,7 @@ test_8 (void)
 
 /*
 ** test_9:
-**	mov	x12, #?4240
+**	mov	w12, 4240
 **	sub	sp, sp, x12
 **	stp	x29, x30, \[sp, 128\]
 **	add	x29, sp, #?128
@@ -206,7 +206,7 @@ test_8 (void)
 **	ldr	z16, \[sp\]
 **	add	sp, sp, #?128
 **	ldp	x29, x30, \[sp\]
-**	mov	x12, #?4112
+**	mov	w12, 4112
 **	add	sp, sp, x12
 **	ret
 */
@@ -221,7 +221,7 @@ test_9 (int n)
 
 /*
 ** test_10:
-**	mov	x12, #?4272
+**	mov	w12, 4272
 **	sub	sp, sp, x12
 **	stp	x29, x30, \[sp, 128\]
 **	add	x29, sp, #?128
@@ -237,7 +237,7 @@ test_9 (int n)
 **	ldp	x29, x30, \[sp\]
 **	ldp	x24, x25, \[sp, 16\]
 **	ldr	x26, \[sp, 32\]
-**	mov	x12, #?4144
+**	mov	w12, 4144
 **	add	sp, sp, x12
 **	ret
 */
@@ -254,7 +254,7 @@ test_10 (int n)
 ** test_11:
 **	sub	sp, sp, #65536
 **	str	xzr, \[sp, 1024\]
-**	mov	x12, #?64576
+**	mov	w12, 64576
 **	sub	sp, sp, x12
 **	str	xzr, \[sp, 1024\]
 **	stp	x29, x30, \[sp, 128\]

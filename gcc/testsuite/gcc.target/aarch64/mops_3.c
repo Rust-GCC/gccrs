@@ -19,7 +19,7 @@ void do_it_set (char * out, int n, size_t size)
 /*
 ** do_it_set_large:
 **	mov	w2, 1
-**	mov	x1, 1024
+**	mov	w1, 1024
 **	setp	\[x0\]\!, x1\!, x2
 **	setm	\[x0\]\!, x1\!, x2
 **	sete	\[x0\]\!, x1\!, x2
@@ -33,7 +33,7 @@ void do_it_set_large (char * out)
 /*
 ** do_it_set_256:
 **	mov	w2, 1
-**	mov	x1, 256
+**	mov	w1, 256
 **	setp	\[x0\]\!, x1\!, x2
 **	setm	\[x0\]\!, x1\!, x2
 **	sete	\[x0\]\!, x1\!, x2
@@ -47,7 +47,7 @@ void do_it_set_256 (char * out)
 /*
 ** do_it_set_255:
 **	mov	w2, 1
-**	mov	x1, 255
+**	mov	w1, 255
 **	setp	\[x0\]\!, x1\!, x2
 **	setm	\[x0\]\!, x1\!, x2
 **	sete	\[x0\]\!, x1\!, x2
@@ -72,7 +72,7 @@ void do_it_set_0 (char * out, size_t n)
 
 /*
 ** do_it_set_0_255:
-**	mov	x1, 255
+**	mov	w1, 255
 **	setp	\[x0\]\!, x1\!, xzr
 **	setm	\[x0\]\!, x1\!, xzr
 **	sete	\[x0\]\!, x1\!, xzr

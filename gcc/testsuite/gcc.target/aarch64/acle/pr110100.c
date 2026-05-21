@@ -4,4 +4,4 @@
 void do_st64b(data512_t data) {
   __arm_st64b((void*)0x10000000, data);
 }
-/* { dg-final { scan-assembler {mov\tx([123])?[0-9], 268435456} } } */
+/* { dg-final { scan-assembler {mov\tw([123])?[0-9], 268435456} } } */

@@ -24,8 +24,8 @@ TEST_UNIFORM_Z (dupq_5ic_f32, svfloat32_t,
 
 /*
 ** dupq_m1c_f32:
-**	mov	(x[0-9]+), 3212836864
-**	mov	z0\.d, \1
+**	mov	w([0-9]+), 3212836864
+**	mov	z0\.d, x\1
 **	ret
 */
 TEST_UNIFORM_Z (dupq_m1c_f32, svfloat32_t,
@@ -34,8 +34,8 @@ TEST_UNIFORM_Z (dupq_m1c_f32, svfloat32_t,
 
 /*
 ** dupq_40p5c_f32:
-**	mov	(x[0-9]+), 1109524480
-**	mov	z0\.d, \1
+**	mov	w([0-9]+), 1109524480
+**	mov	z0\.d, x\1
 **	ret
 */
 TEST_UNIFORM_Z (dupq_40p5c_f32, svfloat32_t,

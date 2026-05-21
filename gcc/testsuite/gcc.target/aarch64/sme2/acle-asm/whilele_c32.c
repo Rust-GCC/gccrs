@@ -51,8 +51,8 @@ TEST_COMPARE_S_C (whilele_pn8_0r_2_s64, int64_t,
 
 /*
 ** whilele_pn8_5r_4_s64:
-**	mov	(x[0-9]+), #?5
-**	whilele	pn8\.s, \1, x1, vlx4
+**	mov	w([0-9]+), 5
+**	whilele	pn8\.s, x\1, x1, vlx4
 **	ret
 */
 TEST_COMPARE_S_C (whilele_pn8_5r_4_s64, int64_t,
@@ -70,8 +70,8 @@ TEST_COMPARE_S_C (whilele_pn8_r0_2_s64, int64_t,
 
 /*
 ** whilele_pn15_r5_4_s64:
-**	mov	(x[0-9]+), #?5
-**	whilele	pn15\.s, x0, \1, vlx4
+**	mov	w([0-9]+), 5
+**	whilele	pn15\.s, x0, x\1, vlx4
 **	ret
 */
 TEST_COMPARE_S_C (whilele_pn15_r5_4_s64, int64_t,
@@ -98,8 +98,8 @@ TEST_COMPARE_S_C (whilele_pn8_0r_4_u64, uint64_t,
 
 /*
 ** whilele_pn8_5r_2_u64:
-**	mov	(x[0-9]+), #?5
-**	whilels	pn8\.s, \1, x1, vlx2
+**	mov	w([0-9]+), 5
+**	whilels	pn8\.s, x\1, x1, vlx2
 **	ret
 */
 TEST_COMPARE_S_C (whilele_pn8_5r_2_u64, uint64_t,
@@ -108,8 +108,8 @@ TEST_COMPARE_S_C (whilele_pn8_5r_2_u64, uint64_t,
 
 /*
 ** whilele_pn8_r5_4_u64:
-**	mov	(x[0-9]+), #?5
-**	whilels	pn8\.s, x0, \1, vlx4
+**	mov	w([0-9]+), 5
+**	whilels	pn8\.s, x0, x\1, vlx4
 **	ret
 */
 TEST_COMPARE_S_C (whilele_pn8_r5_4_u64, uint64_t,

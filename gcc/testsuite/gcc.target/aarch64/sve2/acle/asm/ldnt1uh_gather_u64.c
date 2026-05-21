@@ -51,8 +51,8 @@ TEST_LOAD_GATHER_ZS (ldnt1uh_gather_0_u64_offset, svuint64_t, svuint64_t,
 
 /*
 ** ldnt1uh_gather_5_u64_offset:
-**	mov	(x[0-9]+), #?5
-**	ldnt1h	z0\.d, p0/z, \[z0\.d, \1\]
+**	mov	w([0-9]+), 5
+**	ldnt1h	z0\.d, p0/z, \[z0\.d, x\1\]
 **	ret
 */
 TEST_LOAD_GATHER_ZS (ldnt1uh_gather_5_u64_offset, svuint64_t, svuint64_t,
@@ -61,8 +61,8 @@ TEST_LOAD_GATHER_ZS (ldnt1uh_gather_5_u64_offset, svuint64_t, svuint64_t,
 
 /*
 ** ldnt1uh_gather_6_u64_offset:
-**	mov	(x[0-9]+), #?6
-**	ldnt1h	z0\.d, p0/z, \[z0\.d, \1\]
+**	mov	w([0-9]+), 6
+**	ldnt1h	z0\.d, p0/z, \[z0\.d, x\1\]
 **	ret
 */
 TEST_LOAD_GATHER_ZS (ldnt1uh_gather_6_u64_offset, svuint64_t, svuint64_t,
@@ -71,8 +71,8 @@ TEST_LOAD_GATHER_ZS (ldnt1uh_gather_6_u64_offset, svuint64_t, svuint64_t,
 
 /*
 ** ldnt1uh_gather_62_u64_offset:
-**	mov	(x[0-9]+), #?62
-**	ldnt1h	z0\.d, p0/z, \[z0\.d, \1\]
+**	mov	w([0-9]+), 62
+**	ldnt1h	z0\.d, p0/z, \[z0\.d, x\1\]
 **	ret
 */
 TEST_LOAD_GATHER_ZS (ldnt1uh_gather_62_u64_offset, svuint64_t, svuint64_t,
@@ -81,8 +81,8 @@ TEST_LOAD_GATHER_ZS (ldnt1uh_gather_62_u64_offset, svuint64_t, svuint64_t,
 
 /*
 ** ldnt1uh_gather_64_u64_offset:
-**	mov	(x[0-9]+), #?64
-**	ldnt1h	z0\.d, p0/z, \[z0\.d, \1\]
+**	mov	w([0-9]+), 64
+**	ldnt1h	z0\.d, p0/z, \[z0\.d, x\1\]
 **	ret
 */
 TEST_LOAD_GATHER_ZS (ldnt1uh_gather_64_u64_offset, svuint64_t, svuint64_t,
@@ -120,8 +120,8 @@ TEST_LOAD_GATHER_ZS (ldnt1uh_gather_0_u64_index, svuint64_t, svuint64_t,
 
 /*
 ** ldnt1uh_gather_5_u64_index:
-**	mov	(x[0-9]+), #?10
-**	ldnt1h	z0\.d, p0/z, \[z0\.d, \1\]
+**	mov	w([0-9]+), 10
+**	ldnt1h	z0\.d, p0/z, \[z0\.d, x\1\]
 **	ret
 */
 TEST_LOAD_GATHER_ZS (ldnt1uh_gather_5_u64_index, svuint64_t, svuint64_t,
@@ -130,8 +130,8 @@ TEST_LOAD_GATHER_ZS (ldnt1uh_gather_5_u64_index, svuint64_t, svuint64_t,
 
 /*
 ** ldnt1uh_gather_31_u64_index:
-**	mov	(x[0-9]+), #?62
-**	ldnt1h	z0\.d, p0/z, \[z0\.d, \1\]
+**	mov	w([0-9]+), 62
+**	ldnt1h	z0\.d, p0/z, \[z0\.d, x\1\]
 **	ret
 */
 TEST_LOAD_GATHER_ZS (ldnt1uh_gather_31_u64_index, svuint64_t, svuint64_t,
@@ -140,8 +140,8 @@ TEST_LOAD_GATHER_ZS (ldnt1uh_gather_31_u64_index, svuint64_t, svuint64_t,
 
 /*
 ** ldnt1uh_gather_32_u64_index:
-**	mov	(x[0-9]+), #?64
-**	ldnt1h	z0\.d, p0/z, \[z0\.d, \1\]
+**	mov	w([0-9]+), 64
+**	ldnt1h	z0\.d, p0/z, \[z0\.d, x\1\]
 **	ret
 */
 TEST_LOAD_GATHER_ZS (ldnt1uh_gather_32_u64_index, svuint64_t, svuint64_t,

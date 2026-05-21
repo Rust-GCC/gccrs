@@ -75,8 +75,8 @@ TEST_STORE_SCATTER_ZS (st1q_scatter_0_s64_index, svint64_t, svuint64_t,
 
 /*
 ** st1q_scatter_1_s64_offset:
-**	mov	(x[0-9]+), #?1
-**	st1q	{z0\.q}, p0, \[z1\.d, \1\]
+**	mov	w([0-9]+), 1
+**	st1q	{z0\.q}, p0, \[z1\.d, x\1\]
 **	ret
 */
 TEST_STORE_SCATTER_ZS (st1q_scatter_1_s64_offset, svint64_t, svuint64_t,
@@ -85,8 +85,8 @@ TEST_STORE_SCATTER_ZS (st1q_scatter_1_s64_offset, svint64_t, svuint64_t,
 
 /*
 ** st1q_scatter_1_s64_index:
-**	mov	(x[0-9]+), #?8
-**	st1q	{z0\.q}, p0, \[z1\.d, \1\]
+**	mov	w([0-9]+), 8
+**	st1q	{z0\.q}, p0, \[z1\.d, x\1\]
 **	ret
 */
 TEST_STORE_SCATTER_ZS (st1q_scatter_1_s64_index, svint64_t, svuint64_t,

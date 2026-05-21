@@ -6,5 +6,5 @@
 
 ALL_PRED_UINT64 (cntp, IMPLICIT)
 
-/* { dg-final { scan-assembler-times {\t.cfi_startproc\n\tmov\tx0, 0\n\tret\n} 4 } } */
+/* { dg-final { scan-assembler-times {\t.cfi_startproc\n\tmov\tw0, 0\n\tret\n} 4 } } */
 /* { dg-final { scan-assembler-times {\t.cfi_startproc\n} 4 } } */

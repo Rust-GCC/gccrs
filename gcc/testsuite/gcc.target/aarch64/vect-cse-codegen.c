@@ -6,7 +6,7 @@
 
 /*
 **test1:
-**	mov	x[0-9]+, 16502
+**	mov	w[0-9]+, 16502
 **	movk	x[0-9]+, 0x1023, lsl 16
 **	movk	x[0-9]+, 0x4308, lsl 32
 **	movk	x[0-9]+, 0x942, lsl 48
@@ -29,7 +29,7 @@ test1 (uint64_t a, uint64x2_t b, uint64x2_t* rt)
 
 /*
 **test2:
-**	mov	x[0-9]+, 16502
+**	mov	w[0-9]+, 16502
 **	movk	x[0-9]+, 0x4223, lsl 16
 **	movk	x[0-9]+, 0x3032, lsl 32
 **	movk	x[0-9]+, 0x424, lsl 48
@@ -74,7 +74,7 @@ test3 (uint32_t a, uint32x4_t b, uint32x4_t* rt)
 /*
 **test4:
 **	ushr	v[0-9]+.16b, v[0-9]+.16b, 7
-**	mov	x[0-9]+, 16512
+**	mov	w[0-9]+, 16512
 **	movk	x[0-9]+, 0x1020, lsl 16
 **	orr	x[0-9]+, x[0-9]+, x[0-9]+, lsl 28
 **	fmov	d[0-9]+, x[0-9]+

@@ -895,9 +895,9 @@ test_nonpst2 (union nonpst2 x)
 
 /*
 ** ret_nonpst2:
-**	mov	x0, #?1
+**	mov	w0, #?1
 **	movk	x0, #?0x3, lsl #?32
-**	mov	x1, #?5
+**	mov	w1, #?5
 **	movk	x1, #?0x7, lsl #?32
 **	ret
 */
@@ -973,8 +973,8 @@ test_nonpst4 (union nonpst4 x)
 
 /*
 ** ret_nonpst4:
-**	mov	x0, 1
-**	mov	x1, 2
+**	mov	w0, 1
+**	mov	w1, 2
 **	ret
 */
 /* { dg-final { scan-assembler-not {\t\.variant_pcs\tret_nonpst4\n} } } */
