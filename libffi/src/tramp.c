@@ -1,5 +1,6 @@
 /* -----------------------------------------------------------------------
    tramp.c - Copyright (c) 2020 Madhavan T. Venkataraman
+             Copyright (c) 2022 Anthony Green
 
    API and support functions for managing statically defined closure
    trampolines.
@@ -31,13 +32,17 @@
 
 /* -------------------------- Headers and Definitions ---------------------*/
 /*
- * Add support for other OSes later. For now, it is just Linux.
+ * Add support for other OSes later. For now, it is just Linux and Cygwin.
  */
 
-#if defined __linux__
+#if defined (__linux__) || defined (__CYGWIN__)
 #ifdef __linux__
 #define _GNU_SOURCE 1
 #endif
+
+#include <ffi.h>
+#include <ffi_common.h>
+
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -50,7 +55,10 @@
 #include <linux/limits.h>
 #include <linux/types.h>
 #endif
-#endif /* __linux__ */
+#ifdef __CYGWIN__
+#include <limits.h>
+#endif
+#endif
 
 /*
  * Each architecture defines static code for a trampoline code table. The
@@ -191,7 +199,7 @@ static struct tramp_globals tramp_globals;
  */
 static int tramp_table_alloc (void);
 
-#if defined __linux__
+#if defined (__linux__) || defined (__CYGWIN__)
 
 static int
 ffi_tramp_get_libffi (void)
@@ -201,6 +209,11 @@ ffi_tramp_get_libffi (void)
   unsigned long start, end, offset, inode;
   uintptr_t addr = (uintptr_t) tramp_globals.text;
   int nfields, found;
+  int open_flags = O_RDONLY;
+
+#ifdef O_CLOEXEC
+  open_flags |= O_CLOEXEC;
+#endif
 
   snprintf (file, PATH_MAX, "/proc/%d/maps", getpid());
   fp = fopen (file, "r");
@@ -228,7 +241,7 @@ ffi_tramp_get_libffi (void)
   if (!found)
     return 0;
 
-  tramp_globals.fd = open (file, O_RDONLY);
+  tramp_globals.fd = open (file, open_flags);
   if (tramp_globals.fd == -1)
     return 0;
 
@@ -245,30 +258,24 @@ ffi_tramp_get_libffi (void)
   return 1;
 }
 
-#endif /* __linux__ */
+#endif /* defined (__linux__) || defined (__CYGWIN__) */
 
-#if defined __linux__
-
-#if defined HAVE_MKSTEMP
+#if defined (__linux__) || defined (__CYGWIN__)
 
 static int
 ffi_tramp_get_temp_file (void)
 {
-  char template[12] = "/tmp/XXXXXX";
   ssize_t count;
 
   tramp_globals.offset = 0;
-  tramp_globals.fd = mkstemp (template);
-  if (tramp_globals.fd == -1)
-    return 0;
+  tramp_globals.fd = open_temp_exec_file ();
 
-  unlink (template);
   /*
    * Write the trampoline code table into the temporary file and allocate a
    * trampoline table to make sure that the temporary file can be mapped.
    */
   count = write(tramp_globals.fd, tramp_globals.text, tramp_globals.map_size);
-  if (count == tramp_globals.map_size && tramp_table_alloc ())
+  if (count >=0 && (size_t)count == tramp_globals.map_size && tramp_table_alloc ())
     return 1;
 
   close (tramp_globals.fd);
@@ -276,29 +283,11 @@ ffi_tramp_get_temp_file (void)
   return 0;
 }
 
-#else /* !defined HAVE_MKSTEMP */
-
-/*
- * TODO:
- * src/closures.c contains code for finding temp file that has EXEC
- * permissions. May be, some of that code can be shared with static
- * trampolines.
- */
-static int
-ffi_tramp_get_temp_file (void)
-{
-  tramp_globals.offset = 0;
-  tramp_globals.fd = -1;
-  return 0;
-}
-
-#endif /* defined HAVE_MKSTEMP */
-
-#endif /* __linux__ */
+#endif /* defined (__linux__) || defined (__CYGWIN__) */
 
 /* ------------------------ OS-specific Initialization ----------------------*/
 
-#if defined __linux__
+#if defined (__linux__) || defined (__CYGWIN__)
 
 static int
 ffi_tramp_init_os (void)
@@ -308,11 +297,11 @@ ffi_tramp_init_os (void)
   return ffi_tramp_get_temp_file ();
 }
 
-#endif /* __linux__ */
+#endif /* defined (__linux__) || defined (__CYGWIN__) */
 
 /* --------------------------- OS-specific Locking -------------------------*/
 
-#if defined __linux__
+#if defined (__linux__) || defined (__CYGWIN__)
 
 static pthread_mutex_t tramp_globals_mutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -323,12 +312,12 @@ ffi_tramp_lock(void)
 }
 
 static void
-ffi_tramp_unlock()
+ffi_tramp_unlock(void)
 {
   pthread_mutex_unlock (&tramp_globals_mutex);
 }
 
-#endif /* __linux__ */
+#endif /* defined (__linux__) || defined (__CYGWIN__) */
 
 /* ------------------------ OS-specific Memory Mapping ----------------------*/
 
@@ -347,7 +336,7 @@ ffi_tramp_unlock()
  * sizeof (struct tramp_parm) cannot exceed the size of a parameter block.
  */
 
-#if defined __linux__
+#if defined (__linux__) || defined (__CYGWIN__)
 
 static int
 tramp_table_map (struct tramp_table *table)
@@ -384,7 +373,7 @@ tramp_table_unmap (struct tramp_table *table)
   (void) munmap (table->parm_table, tramp_globals.map_size);
 }
 
-#endif /* __linux__ */
+#endif /* defined (__linux__) || defined (__CYGWIN__) */
 
 /* ------------------------ Trampoline Initialization ----------------------*/
 
@@ -394,6 +383,8 @@ tramp_table_unmap (struct tramp_table *table)
 static int
 ffi_tramp_init (void)
 {
+  long page_size;
+
   if (tramp_globals.status == TRAMP_GLOBALS_PASSED)
     return 1;
 
@@ -416,7 +407,8 @@ ffi_tramp_init (void)
     &tramp_globals.map_size);
   tramp_globals.ntramp = tramp_globals.map_size / tramp_globals.size;
 
-  if (sysconf (_SC_PAGESIZE) > tramp_globals.map_size)
+  page_size = sysconf (_SC_PAGESIZE);
+  if (page_size >= 0 && (size_t)page_size > tramp_globals.map_size)
     return 0;
 
   if (ffi_tramp_init_os ())

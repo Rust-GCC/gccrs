@@ -1,5 +1,5 @@
 /* -----------------------------------------------------------------------
-   ffi64.c - Copyright (c) 2011, 2018  Anthony Green
+   ffi64.c - Copyright (c) 2011, 2018, 2022  Anthony Green
              Copyright (c) 2013  The Written Word, Inc.
              Copyright (c) 2008, 2010  Red Hat, Inc.
              Copyright (c) 2002, 2007  Bo Thorsen <bo@suse.de>
@@ -557,6 +557,9 @@ ffi_prep_cif_machdep (ffi_cif *cif)
   return FFI_OK;
 }
 
+/* n.b. ffi_call_unix64 will steal the alloca'd `stack` variable here for use
+   _as its own stack_ - so we need to compile this function without ASAN */
+FFI_ASAN_NO_SANITIZE
 static void
 ffi_call_int (ffi_cif *cif, void (*fn)(void), void *rvalue,
 	      void **avalue, void *closure)
@@ -581,6 +584,9 @@ ffi_call_int (ffi_cif *cif, void (*fn)(void), void *rvalue,
 	flags = UNIX64_RET_VOID;
     }
 
+  arg_types = cif->arg_types;
+  avn = cif->nargs;
+
   /* Allocate the space for the arguments, plus 4 words of temp space.  */
   stack = alloca (sizeof (struct register_args) + cif->bytes + 4*8);
   reg_args = (struct register_args *) stack;
@@ -594,9 +600,6 @@ ffi_call_int (ffi_cif *cif, void (*fn)(void), void *rvalue,
      first integer argument.  */
   if (flags & UNIX64_FLAG_RET_IN_MEM)
     reg_args->gpr[gprcount++] = (unsigned long) rvalue;
-
-  avn = cif->nargs;
-  arg_types = cif->arg_types;
 
   for (i = 0; i < avn; ++i)
     {
@@ -613,11 +616,12 @@ ffi_call_int (ffi_cif *cif, void (*fn)(void), void *rvalue,
 	  if (align < 8)
 	    align = 8;
 
-	  /* Pass this argument in memory.  */
-	  argp = (void *) FFI_ALIGN (argp, align);
-	  memcpy (argp, avalue[i], size);
-	  argp += size;
-	}
+          /* Pass this argument in memory.  */
+          argp = (void *) FFI_ALIGN (argp, align);
+          memcpy (argp, avalue[i], size);
+
+          argp += size;
+        }
       else
 	{
 	  /* The argument is passed entirely in registers.  */
@@ -650,7 +654,7 @@ ffi_call_int (ffi_cif *cif, void (*fn)(void), void *rvalue,
 		      break;
 		    default:
 		      reg_args->gpr[gprcount] = 0;
-		      memcpy (&reg_args->gpr[gprcount], a, size);
+		      memcpy (&reg_args->gpr[gprcount], a, size <= 8 ? size : 8);
 		    }
 		  gprcount++;
 		  break;
@@ -681,6 +685,24 @@ ffi_call_efi64(ffi_cif *cif, void (*fn)(void), void *rvalue, void **avalue);
 void
 ffi_call (ffi_cif *cif, void (*fn)(void), void *rvalue, void **avalue)
 {
+  ffi_type **arg_types = cif->arg_types;
+  int i, nargs = cif->nargs;
+  const int max_reg_struct_size = cif->abi == FFI_GNUW64 ? 8 : 16;
+
+  /* If we have any large structure arguments, make a copy so we are passing
+     by value.  */
+  for (i = 0; i < nargs; i++)
+    {
+      ffi_type *at = arg_types[i];
+      int size = at->size;
+      if (at->type == FFI_TYPE_STRUCT && size > max_reg_struct_size)
+        {
+          char *argcopy = alloca (size);
+          memcpy (argcopy, avalue[i], size);
+          avalue[i] = argcopy;
+        }
+    }
+
 #ifndef __ILP32__
   if (cif->abi == FFI_EFI64 || cif->abi == FFI_GNUW64)
     {
@@ -780,7 +802,9 @@ ffi_prep_closure_loc (ffi_closure* closure,
   memcpy (tramp, trampoline, sizeof(trampoline));
   *(UINT64 *)(tramp + sizeof (trampoline)) = (uintptr_t)dest;
 
+#if defined(FFI_EXEC_STATIC_TRAMP)
 out:
+#endif
   closure->cif = cif;
   closure->fun = fun;
   closure->user_data = user_data;

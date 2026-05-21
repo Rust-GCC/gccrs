@@ -1,9 +1,15 @@
+#undef __USE_MINGW_ANSI_STDIO
+#define __USE_MINGW_ANSI_STDIO 1
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <fcntl.h>
 #include <ffi.h>
 #include "fficonfig.h"
+
+#include <float.h>
+#include <math.h>
 
 #if defined HAVE_STDINT_H
 #include <stdint.h>
@@ -19,6 +25,22 @@
    do { \
       if(!(x)){ \
          printf("Check failed:\n%s\n", #x); \
+         abort(); \
+      } \
+   } while(0)
+
+#define CHECK_FLOAT_EQ(x, y) \
+   do { \
+      if(fabs((x) - (y)) > FLT_EPSILON){ \
+         printf("Check failed CHECK_FLOAT_EQ(%s, %s)\n", #x, #y); \
+         abort(); \
+      } \
+   } while(0)
+
+#define CHECK_DOUBLE_EQ(x, y) \
+   do { \
+      if(fabs((x) - (y)) > DBL_EPSILON){ \
+         printf("Check failed CHECK_FLOAT_EQ(%s, %s)\n", #x, #y); \
          abort(); \
       } \
    } while(0)
@@ -69,8 +91,8 @@
 
 #endif
 
-/* MinGW kludge.  */
-#if defined(_WIN64) | defined(_WIN32)
+/* msvc kludge.  */
+#if defined(_MSC_VER)
 #define PRIdLL "I64d"
 #define PRIuLL "I64u"
 #else

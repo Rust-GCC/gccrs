@@ -1,34 +1,27 @@
 dnl Process this with autoconf to create configure
 
-AC_PREREQ(2.68)
+AC_PREREQ([2.68])
 
-AC_INIT([libffi], [3.4.2], [http://github.com/libffi/libffi/issues])
+AC_INIT([libffi],[3.5.2],[http://github.com/libffi/libffi/issues])
 AC_CONFIG_HEADERS([fficonfig.h])
 
-AM_ENABLE_MULTILIB(, ..)
+FFI_VERSION_STRING="3.5.2"
+FFI_VERSION_NUMBER=30502
+AC_SUBST(FFI_VERSION_STRING)
+AC_SUBST(FFI_VERSION_NUMBER)
 
-AC_CANONICAL_SYSTEM
+AC_CANONICAL_TARGET
 target_alias=${target_alias-$host_alias}
 
-AM_INIT_AUTOMAKE([no-dist])
+case "${host}" in
+  frv*-elf)
+    LDFLAGS=`echo $LDFLAGS | sed "s/\-B[^ ]*libgloss\/frv\///"`\ -B`pwd`/../libgloss/frv/
+    ;;
+esac
 
-# We would like our source tree to be readonly. However when releases or
-# pre-releases are generated, the flex/bison generated files as well as the
-# various formats of manuals need to be included along with the rest of the
-# sources.  Therefore we have --enable-generated-files-in-srcdir to do
-# just that.
-AC_MSG_CHECKING(generated-files-in-srcdir)
-AC_ARG_ENABLE(generated-files-in-srcdir,
-AS_HELP_STRING([--enable-generated-files-in-srcdir],
- [put copies of generated files in source dir intended for creating source tarballs for users without texinfo bison or flex]),
-[case "$enableval" in
- yes) enable_generated_files_in_srcdir=yes ;;
- no)  enable_generated_files_in_srcdir=no ;;
- *)   AC_MSG_ERROR([Unknown argument to enable/disable version-specific libs]);;
- esac],
-[enable_generated_files_in_srcdir=no])
-AC_MSG_RESULT($enable_generated_files_in_srcdir)
-AM_CONDITIONAL(GENINSRC, test "$enable_generated_files_in_srcdir" = yes)
+AX_ENABLE_BUILDDIR
+
+AM_INIT_AUTOMAKE
 
 # The same as in boehm-gc and libstdc++. Have to borrow it from there.
 # We must force CC to /not/ be precious variables; otherwise
@@ -48,24 +41,32 @@ m4_rename_force([real_PRECIOUS],[_AC_ARG_VAR_PRECIOUS])
 
 AC_SUBST(CFLAGS)
 
-# Add CET specific flags if CET is enabled
-GCC_CET_FLAGS(CET_FLAGS)
-AC_SUBST(CET_FLAGS)
-
 AM_PROG_AS
 AM_PROG_CC_C_O
-AC_PROG_LIBTOOL
-AM_CONDITIONAL([ENABLE_DARWIN_AT_RPATH], [test x$enable_darwin_at_rpath = xyes])
+AC_PROG_EGREP
+LT_INIT
+AC_CONFIG_MACRO_DIR([m4])
 
-AC_CHECK_TOOL(READELF, readelf)
+AC_CHECK_TOOLS([READELF], [readelf greadelf])
 
 # Test for 64-bit build.
 AC_CHECK_SIZEOF([size_t])
 
-AC_SUBST(SYSROOT_CFLAGS_FOR_TARGET)
+AX_COMPILER_VENDOR
+AX_CC_MAXOPT
+# The AX_CFLAGS_WARN_ALL macro doesn't currently work for sunpro
+# compiler.
+if test "$ax_cv_c_compiler_vendor" != "sun"; then
+  AX_CFLAGS_WARN_ALL
+fi
+
+if test "x$GCC" = "xyes"; then
+  CFLAGS="$CFLAGS -fexceptions"
+fi
 
 cat > local.exp <<EOF
-set SYSROOT_CFLAGS_FOR_TARGET "$SYSROOT_CFLAGS_FOR_TARGET"
+set CC_FOR_TARGET "$CC"
+set CXX_FOR_TARGET "$CXX"
 set compiler_vendor "$ax_cv_c_compiler_vendor"
 EOF
 
@@ -73,10 +74,6 @@ AM_MAINTAINER_MODE
 
 AC_CHECK_HEADERS(sys/memfd.h)
 AC_CHECK_FUNCS([memfd_create])
-
-AC_CHECK_HEADERS(sys/mman.h)
-AC_CHECK_FUNCS([mmap mkostemp mkstemp])
-AC_FUNC_MMAP_BLACKLIST
 
 dnl The -no-testsuite modules omit the test subdir.
 AM_CONDITIONAL(TESTSUBDIR, test -d $srcdir/testsuite)
@@ -93,9 +90,13 @@ fi
 AC_SUBST(AM_RUNTESTFLAGS)
 AC_SUBST(AM_LTLDFLAGS)
 
-AC_HEADER_STDC
+m4_warn([obsolete],
+[The preprocessor macro `STDC_HEADERS' is obsolete.
+  Except in unusual embedded environments, you can safely include all
+  ISO C90 headers unconditionally.])dnl
+
 AC_CHECK_FUNCS(memcpy)
-AC_FUNC_ALLOCA
+AC_CHECK_HEADERS(alloca.h)
 
 AC_CHECK_SIZEOF(double)
 AC_CHECK_SIZEOF(long double)
@@ -122,6 +123,8 @@ AC_C_BIGENDIAN
 
 GCC_AS_CFI_PSEUDO_OP
 
+AC_ARG_VAR([WASM64_MEMORY64], [Used only for the wasm64 target. Set to 1 (default) or 2 for Emscripten's -sMEMORY64 mode])
+
 case "$TARGET" in
   SPARC)
     AC_CACHE_CHECK([assembler and linker support unaligned pc related relocs],
@@ -130,9 +133,7 @@ case "$TARGET" in
 	save_LDFLAGS="$LDFLAGS"
 	CFLAGS="$CFLAGS -fpic"
 	LDFLAGS="$LDFLAGS -shared"
-	AC_TRY_LINK([asm (".text; foo: nop; .data; .align 4; .byte 0; .uaword %r_disp32(foo); .text");],,
-		    [libffi_cv_as_sparc_ua_pcrel=yes],
-		    [libffi_cv_as_sparc_ua_pcrel=no])
+	AC_LINK_IFELSE([AC_LANG_PROGRAM([[asm (".text; foo: nop; .data; .align 4; .byte 0; .uaword %r_disp32(foo); .text");]], [[]])],[libffi_cv_as_sparc_ua_pcrel=yes],[libffi_cv_as_sparc_ua_pcrel=no])
 	CFLAGS="$save_CFLAGS"
 	LDFLAGS="$save_LDFLAGS"])
     if test "x$libffi_cv_as_sparc_ua_pcrel" = xyes; then
@@ -144,9 +145,7 @@ case "$TARGET" in
        libffi_cv_as_register_pseudo_op, [
        libffi_cv_as_register_pseudo_op=unknown
        # Check if we have .register
-       AC_TRY_COMPILE(,[asm (".register %g2, #scratch");],
-		       [libffi_cv_as_register_pseudo_op=yes],
-		       [libffi_cv_as_register_pseudo_op=no])
+       AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[]], [[asm (".register %g2, #scratch");]])],[libffi_cv_as_register_pseudo_op=yes],[libffi_cv_as_register_pseudo_op=no])
     ])
     if test "x$libffi_cv_as_register_pseudo_op" = xyes; then
        AC_DEFINE(HAVE_AS_REGISTER_PSEUDO_OP, 1,
@@ -175,7 +174,7 @@ case "$TARGET" in
 	libffi_cv_as_s390_zarch=no
 	echo 'void foo(void) { bar(); bar(); }' > conftest.c
 	if $CC $CFLAGS -S conftest.c > /dev/null 2>&1; then
-	    if grep -q brasl conftest.s; then
+	    if $GREP -q brasl conftest.s; then
 	        libffi_cv_as_s390_zarch=yes
 	    fi
 	fi
@@ -185,37 +184,51 @@ case "$TARGET" in
 		  [Define if the compiler uses zarch features.])
     fi
     ;;
+  wasm64)
+    if test -z "$WASM64_MEMORY64"; then
+      WASM64_MEMORY64=1
+    fi
+    CFLAGS="$CFLAGS -sMEMORY64=$WASM64_MEMORY64"
+    ;;
 esac
 
 AC_CACHE_CHECK([whether compiler supports pointer authentication],
    libffi_cv_as_ptrauth, [
    libffi_cv_as_ptrauth=unknown
-   AC_TRY_COMPILE(,[
+   AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[]], [[
 #ifdef __clang__
 # if __has_feature(ptrauth_calls)
-#  define HAVE_PTRAUTH 1
+#  define HAVE_ARM64E_PTRAUTH 1
 # endif
 #endif
 
-#ifndef HAVE_PTRAUTH
+#ifndef HAVE_ARM64E_PTRAUTH
 # error Pointer authentication not supported
 #endif
-		   ],
-		   [libffi_cv_as_ptrauth=yes],
-		   [libffi_cv_as_ptrauth=no])
+		   ]])],[libffi_cv_as_ptrauth=yes],[libffi_cv_as_ptrauth=no])
 ])
 if test "x$libffi_cv_as_ptrauth" = xyes; then
-    AC_DEFINE(HAVE_PTRAUTH, 1,
+    AC_DEFINE(HAVE_ARM64E_PTRAUTH, 1,
 	      [Define if your compiler supports pointer authentication.])
 fi
 
-# On PaX enable kernels that have MPROTECT enable we can't use PROT_EXEC.
+# On PaX enable kernels that have MPROTECT enable we can't use PROT_EXEC;
+# if EMUTRAMP is active too ffi could try mapping without PROT_EXEC,
+# but the kernel needs to recognize the trampoline generated by ffi.
+# Otherwise fallback to double mmap trick.
 AC_ARG_ENABLE(pax_emutramp,
-  [  --enable-pax_emutramp       enable pax emulated trampolines, for we can't use PROT_EXEC],
+  [  --enable-pax_emutramp       enable pax emulated trampolines (experimental)],
   if test "$enable_pax_emutramp" = "yes"; then
+    AC_MSG_WARN([EMUTRAMP is experimental only.  Use --enable-pax_emutramp=experimental to enforce.])
+  elif test "$enable_pax_emutramp" = "experimental"; then
     AC_DEFINE(FFI_MMAP_EXEC_EMUTRAMP_PAX, 1,
-      [Define this if you want to enable pax emulated trampolines])
+      [Define this if you want to enable pax emulated trampolines (experimental)])
   fi)
+
+LT_SYS_SYMBOL_USCORE
+if test "x$sys_symbol_underscore" = xyes; then
+    AC_DEFINE(SYMBOL_UNDERSCORE, 1, [Define if symbols are underscored.])
+fi
 
 FFI_EXEC_TRAMPOLINE_TABLE=0
 case "$target" in
@@ -225,7 +238,7 @@ case "$target" in
                  [Cannot use PROT_EXEC on this target, so, we revert to
                    alternative means])
      ;;
-     *-apple-* | *-*-freebsd* | *-*-kfreebsd* | *-*-openbsd* | *-pc-solaris* | *-linux-android*)
+     *-apple-* | *-*-dragonfly* | *-*-freebsd* | *-*-kfreebsd* | *-*-openbsd* | *-pc-solaris* | *-linux-android*)
        AC_DEFINE(FFI_MMAP_EXEC_WRIT, 1,
                  [Cannot use malloc on this target, so, we revert to
                    alternative means])
@@ -266,12 +279,14 @@ EOF
 fi
 
 if test "x$GCC" = "xyes"; then
+  AX_CHECK_COMPILE_FLAG(-fno-lto, libffi_cv_no_lto=-fno-lto)
+
   AC_CACHE_CHECK([whether .eh_frame section should be read-only],
       libffi_cv_ro_eh_frame, [
   	libffi_cv_ro_eh_frame=yes
   	echo 'extern void foo (void); void bar (void) { foo (); foo (); }' > conftest.c
-  	if $CC $CFLAGS -c -fpic -fexceptions -fno-lto -o conftest.o conftest.c > /dev/null 2>&1; then
-	    if $READELF -WS conftest.o | grep -q -n 'eh_frame .* WA'; then
+  	if $CC $CFLAGS -c -fpic -fexceptions $libffi_cv_no_lto -o conftest.o conftest.c > /dev/null 2>&1; then
+	    if $READELF -WS conftest.o 2>/dev/null | $GREP -q -n 'eh_frame .* WA'; then
 	        libffi_cv_ro_eh_frame=no
 	    fi
   	fi
@@ -292,7 +307,7 @@ if test "x$GCC" = "xyes"; then
   	echo 'int __attribute__ ((visibility ("hidden"))) foo (void) { return 1  ; }' > conftest.c
   	libffi_cv_hidden_visibility_attribute=no
   	if AC_TRY_COMMAND(${CC-cc} -Werror -S conftest.c -o conftest.s 1>&AS_MESSAGE_LOG_FD); then
-  	    if egrep '(\.hidden|\.private_extern).*foo' conftest.s >/dev/null; then
+  	    if $EGREP '(\.hidden|\.private_extern).*foo|foo.*,hidden' conftest.s >/dev/null; then
   		libffi_cv_hidden_visibility_attribute=yes
   	    fi
   	fi
@@ -304,12 +319,11 @@ if test "x$GCC" = "xyes"; then
   fi
 fi
 
-# See if makeinfo has been installed and is modern enough
-# that we can use it.
-ACX_CHECK_PROG_VER([MAKEINFO], [makeinfo], [--version],
-                   [GNU texinfo.* \([0-9][0-9.]*\)],
-                   [4.[4-9]*|4.[1-9][0-9]*|[5-9]*|[1-9][0-9]*])
-AM_CONDITIONAL(BUILD_DOCS, test $gcc_cv_prog_makeinfo_modern = "yes")
+AC_ARG_ENABLE(docs,
+              AS_HELP_STRING([--disable-docs],[Disable building of docs (default: no)]),
+              [enable_docs=no],
+              [enable_docs=yes])
+AM_CONDITIONAL(BUILD_DOCS, [test x$enable_docs = xyes])
 
 AH_BOTTOM([
 #ifdef HAVE_HIDDEN_VISIBILITY_ATTRIBUTE
@@ -365,13 +379,20 @@ AC_ARG_ENABLE(raw-api,
   fi)
 
 AC_ARG_ENABLE(exec-static-tramp,
-[  --enable-exec-static-tramp  enable use of static exec trampolines])
+[  --disable-exec-static-tramp  disable use of static exec trampolines (enabled by default)])
 
-if test "$enable_exec_static_tramp" = yes; then
+if test "$enable_exec_static_tramp" != no; then
 case "$target" in
-     *-cygwin*)
+     *-cygwin* | *-msys*)
+       # Only define static trampolines if we are using the cygwin runtime.
+       # Will this need to be changed for mingw?
+       if test "x$GCC" = "xyes"; then
+         AC_DEFINE(FFI_EXEC_STATIC_TRAMP, 1,
+                   [Define this if you want statically defined trampolines])
+       fi
      ;;
-     *arm*-*-linux-* | aarch64*-*-linux-* | i*86-*-linux-* | x86_64-*-linux-*)
+     *arm*-*-linux-* | aarch64*-*-linux-* | i*86-*-linux-* | x86_64-*-linux-* \
+     | loongarch*-*-linux-* | s390x*-linux-* | powerpc*-linux-*)
        AC_DEFINE(FFI_EXEC_STATIC_TRAMP, 1,
                  [Define this if you want statically defined trampolines])
      ;;
@@ -384,42 +405,46 @@ AC_ARG_ENABLE(purify-safety,
     AC_DEFINE(USING_PURIFY, 1, [Define this if you are using Purify and want to suppress spurious messages.])
   fi)
 
-GCC_WITH_TOOLEXECLIBDIR
+AC_ARG_ENABLE(multi-os-directory,
+[  --disable-multi-os-directory
+                          disable use of gcc --print-multi-os-directory to change the library installation directory])
 
-if test -n "$with_cross_host" &&
-   test x"$with_cross_host" != x"no"; then
-  toolexecdir='$(exec_prefix)/$(target_alias)'
-  case ${with_toolexeclibdir} in
-    no)
-      toolexeclibdir='$(toolexecdir)/lib'
-      ;;
-    *)
-      toolexeclibdir=${with_toolexeclibdir}
-      ;;
-  esac
+# These variables are only ever used when we cross-build to X86_WIN32.
+# And we only support this with GCC, so...
+if test "x$GCC" = "xyes"; then
+  if test -n "$with_cross_host" &&
+     test x"$with_cross_host" != x"no"; then
+    toolexecdir='${exec_prefix}'/'$(target_alias)'
+    toolexeclibdir='${toolexecdir}'/lib
+  else
+    toolexecdir='${libdir}'/gcc-lib/'$(target_alias)'
+    toolexeclibdir='${libdir}'
+  fi
+  if test x"$enable_multi_os_directory" != x"no"; then
+    multi_os_directory=`$CC $CFLAGS -print-multi-os-directory`
+    case $multi_os_directory in
+      .) ;; # Avoid trailing /.
+      ../*) toolexeclibdir=$toolexeclibdir/$multi_os_directory ;;
+    esac
+  fi
+  AC_SUBST(toolexecdir)
 else
-  toolexecdir='$(libdir)/gcc-lib/$(target_alias)'
-  toolexeclibdir='$(libdir)'
+  toolexeclibdir='${libdir}'
 fi
-multi_os_directory=`$CC -print-multi-os-directory`
-case $multi_os_directory in
-  .) ;; # Avoid trailing /.
-  *) toolexeclibdir=$toolexeclibdir/$multi_os_directory ;;
-esac
-AC_SUBST(toolexecdir)
 AC_SUBST(toolexeclibdir)
 
-if test "${multilib}" = "yes"; then
-  multilib_arg="--enable-multilib"
-else
-  multilib_arg=
-fi
+# Conditionalize the makefile for this target machine.
+tmake_file_=
+for f in ${tmake_file}; do
+  if test -f ${srcdir}/src/$TARGETDIR/$f; then
+     tmake_file_="${tmake_file_} \$(srcdir)/src/$TARGETDIR/$f"
+  fi
+done
+tmake_file="${tmake_file_}"
+AC_SUBST(tmake_file)
 
 # Check linker support.
 LIBFFI_ENABLE_SYMVERS
-
-# Determine what GCC version number to use in filesystem paths.
-GCC_BASE_VER
 
 AC_CONFIG_COMMANDS(include, [test -d include || mkdir include])
 AC_CONFIG_COMMANDS(src, [
@@ -427,8 +452,10 @@ test -d src || mkdir src
 test -d src/$TARGETDIR || mkdir src/$TARGETDIR
 ], [TARGETDIR="$TARGETDIR"])
 
-AC_CONFIG_FILES(include/Makefile include/ffi.h Makefile testsuite/Makefile man/Makefile libffi.pc)
-
-AC_CONFIG_LINKS(include/ffitarget.h:src/$TARGETDIR/ffitarget.h)
+AC_CONFIG_FILES(include/Makefile include/ffi.h Makefile testsuite/Makefile man/Makefile doc/Makefile libffi.pc)
 
 AC_OUTPUT
+
+# Copy this file instead of using AC_CONFIG_LINK in order to support
+# compiling with MSVC, which won't understand cygwin style symlinks.
+cp ${srcdir}/src/$TARGETDIR/ffitarget.h include/ffitarget.h

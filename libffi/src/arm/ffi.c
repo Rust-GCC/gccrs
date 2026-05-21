@@ -64,6 +64,10 @@ extern unsigned char ffi_arm_trampoline[12] FFI_HIDDEN;
 #include <machine/sysarch.h>
 #endif
 
+#if defined(__QNX__)
+#include <sys/mman.h>
+#endif
+
 /* Forward declares. */
 static int vfp_type_p (const ffi_type *);
 static void layout_vfp_args (ffi_cif *);
@@ -622,7 +626,7 @@ ffi_prep_closure_loc (ffi_closure * closure,
   config[1] = closure_func;
 #else
 
-#if defined(FFI_EXEC_STATIC_TRAMP)
+# if defined(FFI_EXEC_STATIC_TRAMP)
   if (ffi_tramp_is_present(closure))
     {
       /* Initialize the static trampoline's parameters. */
@@ -633,31 +637,33 @@ ffi_prep_closure_loc (ffi_closure * closure,
       ffi_tramp_set_parms (closure->ftramp, closure_func, closure);
       goto out;
     }
-#endif
+# endif
 
   /* Initialize the dynamic trampoline. */
-#ifndef _WIN32
+# ifndef _WIN32
   memcpy(closure->tramp, ffi_arm_trampoline, 8);
-#else
+# else
   // cast away function type so MSVC doesn't set the lower bit of the function pointer
   memcpy(closure->tramp, (void*)((uintptr_t)ffi_arm_trampoline & 0xFFFFFFFE), FFI_TRAMPOLINE_CLOSURE_OFFSET);
-#endif
+# endif
 
-#if defined (__QNX__)
-  msync(closure->tramp, 8, 0x1000000);	/* clear data map */
-  msync(codeloc, 8, 0x1000000);	/* clear insn map */
-#elif defined(_WIN32)
+# if defined(__QNX__)
+  msync (closure->tramp, 8, MS_INVALIDATE_ICACHE);	/* clear data map */
+  msync (codeloc, 8, MS_INVALIDATE_ICACHE);		/* clear insn map */
+# elif defined(_WIN32)
   FlushInstructionCache(GetCurrentProcess(), closure->tramp, FFI_TRAMPOLINE_SIZE);
-#else
+# else
   __clear_cache(closure->tramp, closure->tramp + 8);	/* clear data map */
   __clear_cache(codeloc, codeloc + 8);			/* clear insn map */
-#endif
-#ifdef _WIN32
+# endif
+# ifdef _WIN32
   *(void(**)(void))(closure->tramp + FFI_TRAMPOLINE_CLOSURE_FUNCTION) = closure_func;
-#else
+# else
   *(void (**)(void))(closure->tramp + 8) = closure_func;
-#endif
+# endif
+# if defined(FFI_EXEC_STATIC_TRAMP)
 out:
+# endif
 #endif
 
   closure->cif = cif;
