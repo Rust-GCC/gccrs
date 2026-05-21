@@ -5471,11 +5471,12 @@ package body Exp_Ch7 is
       --  subtype, its Finalize_Address primitive expects the address of
       --  an object with a dope vector (see Make_Finalize_Address_Stmts).
       --  This is achieved by setting Is_Constr_Array_Subt_With_Bounds,
-      --  but the address of the object is still that of its elements,
-      --  so we need to shift it back to skip the dope vector.
+      --  whose predicate also requires Has_Controlled_Component, so we
+      --  have to check for the controlled component here, too.
 
       if Is_Array_Type (Utyp)
         and then not Is_Constrained (First_Subtype (Utyp))
+        and then Has_Controlled_Component (Utyp)
       then
          Obj_Addr :=
            Shift_Address_For_Descriptor
