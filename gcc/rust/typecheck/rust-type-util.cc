@@ -25,6 +25,7 @@
 #include "rust-hir-type-check-type.h"
 #include "rust-casts.h"
 #include "rust-mapping-common.h"
+#include "rust-rib.h"
 #include "rust-unify.h"
 #include "rust-coercion.h"
 #include "rust-hir-type-bounds.h"
@@ -106,9 +107,8 @@ query_type (HirId reference, TyTy::BaseType **result)
 	  auto &nr_ctx = Resolver2_0::FinalizedNameResolutionContext::get ();
 
 	  // assign the ref_node_id if we've found something
-	  nr_ctx.lookup (ast_node_id).map ([&ref_node_id] (NodeId resolved) {
-	    ref_node_id = resolved;
-	  });
+	  nr_ctx.lookup (ast_node_id, Resolver2_0::Namespace::Types)
+	    .map ([&ref_node_id] (NodeId resolved) { ref_node_id = resolved; });
 
 	  if (ref_node_id != UNKNOWN_NODEID)
 	    {
