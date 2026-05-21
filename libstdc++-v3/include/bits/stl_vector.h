@@ -2383,7 +2383,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 
 #if __glibcxx_containers_ranges // C++ >= 23
   template<ranges::input_range _Rg,
-	   typename _Alloc = allocator<ranges::range_value_t<_Rg>>>
+	   __allocator_like _Alloc = allocator<ranges::range_value_t<_Rg>>>
     vector(from_range_t, _Rg&&, _Alloc = _Alloc())
       -> vector<ranges::range_value_t<_Rg>, _Alloc>;
 #endif
