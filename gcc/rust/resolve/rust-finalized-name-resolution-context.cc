@@ -42,24 +42,26 @@ FinalizedNameResolutionContext::get ()
 }
 
 void
-FinalizedNameResolutionContext::map_usage (Usage usage, Definition definition)
+FinalizedNameResolutionContext::map_usage (Usage usage, Definition definition,
+					   Namespace ns)
 {
   auto leaf_definition
     = ctx.find_leaf_definition (definition.id).value_or (definition);
 
-  ctx.map_usage (usage, leaf_definition);
+  ctx.map_usage (usage, leaf_definition, ns);
 }
 
 tl::optional<NodeId>
-FinalizedNameResolutionContext::lookup (NodeId usage) const
+FinalizedNameResolutionContext::lookup (NodeId usage, Namespace ns) const
 {
-  return ctx.lookup (usage);
+  return ctx.lookup (usage, ns);
 }
 
 Resolver::CanonicalPath
-FinalizedNameResolutionContext::to_canonical_path (NodeId id) const
+FinalizedNameResolutionContext::to_canonical_path (NodeId id,
+						   Namespace ns) const
 {
-  return ctx.canonical_ctx.get_path (id);
+  return ctx.canonical_ctx.get_path (id, ns);
 }
 
 FinalizedNameResolutionContext::FinalizedNameResolutionContext (

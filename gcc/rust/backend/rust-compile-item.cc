@@ -19,6 +19,7 @@
 #include "rust-compile-item.h"
 #include "rust-compile-implitem.h"
 #include "rust-compile-extern.h"
+#include "rust-rib.h"
 #include "rust-substitution-mapper.h"
 #include "rust-type-util.h"
 #include "rust-finalized-name-resolution-context.h"
@@ -53,7 +54,8 @@ CompileItem::visit (HIR::StaticItem &var)
   auto &nr_ctx = Resolver2_0::FinalizedNameResolutionContext::get ();
 
   Resolver::CanonicalPath canonical_path
-    = nr_ctx.to_canonical_path (var.get_mappings ().get_nodeid ());
+    = nr_ctx.to_canonical_path (var.get_mappings ().get_nodeid (),
+				Resolver2_0::Namespace::Values);
 
   ctx->push_const_context ();
   tree value
@@ -106,7 +108,8 @@ CompileItem::visit (HIR::ConstantItem &constant)
 
   // canonical path
   Resolver::CanonicalPath canonical_path
-    = nr_ctx.to_canonical_path (mappings.get_nodeid ());
+    = nr_ctx.to_canonical_path (mappings.get_nodeid (),
+				Resolver2_0::Namespace::Values);
   if (constant_type->is<const TyTy::FnType> ())
     {
       if (concrete == nullptr)
@@ -201,7 +204,8 @@ CompileItem::visit (HIR::Function &function)
   auto &nr_ctx = Resolver2_0::FinalizedNameResolutionContext::get ();
 
   Resolver::CanonicalPath canonical_path
-    = nr_ctx.to_canonical_path (function.get_mappings ().get_nodeid ());
+    = nr_ctx.to_canonical_path (function.get_mappings ().get_nodeid (),
+				Resolver2_0::Namespace::Values);
 
   const std::string asm_name = ctx->mangle_item (fntype, canonical_path);
 

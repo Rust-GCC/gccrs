@@ -16,6 +16,7 @@
 // along with GCC; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
+#include "rust-rib.h"
 #include "rust-system.h"
 #include "rust-hir-pattern-analysis.h"
 #include "rust-diagnostics.h"
@@ -235,7 +236,7 @@ PatternChecker::visit (CallExpr &expr)
 
   NodeId ast_node_id = expr.get_fnexpr ().get_mappings ().get_nodeid ();
   NodeId ref_node_id;
-  if (auto id = resolver.lookup (ast_node_id))
+  if (auto id = resolver.lookup (ast_node_id, Resolver2_0::Namespace::Values))
     ref_node_id = *id;
   else
     return;
