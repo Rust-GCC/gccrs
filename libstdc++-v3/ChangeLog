@@ -1,3 +1,19 @@
+2026-05-20  Jonathan Wakely  <jwakely@redhat.com>
+
+	* src/c++20/Makefile.am [USE_STATIC_TZDATA]: Remove targets for
+	tzdata.zi.h, tzdb.lo and tzdb.o.
+	* src/c++20/Makefile.in: Regenerate.
+	* src/c++20/tzdb.cc (tzdata_chars): Use #embed.
+	(tzdata_stream::ispanbuf): Remove adjustment for extra newline
+	inserted by the Makefile recipe for tzdata.zi.h.
+
+2026-05-20  Nathan Myers  <ncm@cantrip.org>
+
+	* config/abi/pre/gnu.ver: Remove recent symbol swept up in
+	GLIBCXX_3.4.21.
+	* include/bits/basic_string.tcc (reserve): Guard __limit decl
+	under #if __cpp_exceptions to quiet warning.
+
 2026-05-19  Jonathan Wakely  <jwakely@redhat.com>
 
 	* src/c++20/tzdata.zi: Import new file from 2026b release.

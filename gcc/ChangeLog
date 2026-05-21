@@ -1,3 +1,115 @@
+2026-05-20  Shivam Gupta  <shivam98.tkg@gmail.com>
+
+	PR tree-optimization/112533
+	* match.pd: Add integral narrowing eq/ne to XOR-against-zero
+	rule for (T)(x) == (T)(y) where precision(T) < precision(x).
+
+2026-05-20  Richard Sandiford  <rdsandiford@googlemail.com>
+
+	* cselib.h (references_value_p): Remove only_useless parameter.
+	* cselib.cc (references_value_p): Likewise.  Use rtx iterators.
+	(invariant_or_equiv_p): Update accordingly.
+	* postreload.cc (reload_cse_simplify_set): Likewise.
+	* var-tracking.cc (reverse_op): Likewise.
+
+2026-05-20  Richard Sandiford  <rdsandiford@googlemail.com>
+
+	* cselib.h (cselib_val::HASH_MASK): New static constant.
+	(cselib_val::hash): Turn into a 30-bit bitfield.
+	(cselib_val::in_preserved_table_p): New bitfield.
+	(cselib_val::all_locs_preserved_p): Likewise.
+	* cselib.cc: Include rtl-iter.h.
+	(cselib_preserved_prune_list): New variable.
+	(cselib_clear_all_locs_preserved): New function.
+	(new_elt_loc_list): Call it when modifying a value's location list.
+	(preserve_constants_and_equivs): Set in_preserved_table_p when
+	moving a value to the preserved hash table.  Also push such values
+	onto cselib_preserved_prune_list.
+	(cselib_find_slot): Mask out the upper 2 bits of the hash.
+	(discard_useless_locs): New overload, split out from original
+	hash table traverse callback.  Use an inline rtl iteration
+	instead of calling references_value_p.  Record whether the
+	retained location only reference preserved value.
+	(remove_useless_values): Iterate over cselib_preserved_prune_list
+	instead of the hash table itself.  Remove a value from the list
+	if all remaining locations only reference preserved value.
+	(new_cselib_val): Initialize the new bitfields.
+	(cselib_finish): Free cselib_preserved_prune_list.
+
+2026-05-20  Richard Sandiford  <rdsandiford@googlemail.com>
+
+	* cselib.cc (new_elt_loc_list): Cache CSELIB_VAL_PTR.
+
+2026-05-20  Nathan Sidwell  <nathan@acm.org>
+
+	* config/riscv/riscv-builtins.cc (enum riscv_builtin_type): Delete.
+	(struct riscv_builtin_description): Replace builtin_type by bool.
+	Reorder fields for better packing.
+	(RISCV_BUILTIN_NO_PREFIX): Remove BUILTIN_TYPE arg.
+	(RISCV_BUILTIN): Likewise, call RISCV_BUILTIN_NO_PREFIX.
+	(DIRECT_BUILTIN): Adjust RISCV_BUILTIN invocation.
+	(DIRECT_NO_TARGET_BUILTIN): Delete.
+	(riscv_builtins): Make non-constant. Adjust initializers.
+	(riscv_init_builtins): Compute no_target from function type.
+	(riscv_expand_builtin): Simplify.
+	* config/riscv/andes.def: Adjust.
+	* config/riscv/corev.def: Adjust.
+	* config/riscv/riscv-cmo.def: Adjust.
+	* config/riscv/riscv-scalar-crypto.def: Adjust.
+
+2026-05-20  Uros Bizjak  <ubizjak@gmail.com>
+
+	* config/i386/x86-tune.def (X86_TUNE_SHIFT1): Remove.
+	* config/i386/i386.h (TARGET_SHIFT1): Remove.
+	* config/i386/i386.md (*ashl<mode>3_1<nf_name>): Remove
+	TARGET_SHIFT1-gated implicit-1 encoding and simplify
+	length_immediate attribute.
+	(*ashlsi3_1_zext): Likewise.
+	(*ashlhi3_1<nf_name>): Likewise.
+	(*ashlqi3_1<nf_name>): Likewise.
+	(*ashl<mode>3_1_slp): Likewise.
+	(*ashl<mode>3_cmp): Likewise.
+	(*ashlsi3_cmp): Likewise.
+	(*<any_shiftrt:insn><mode>3_1<nf_name>): Likewise.
+	(*<any_shiftrt:insn>si3_1_zext): Likewise.
+	(*<any_shiftrt:insn><mode>3_1_slp): Likewise.
+	(*<any_shiftrt:insn><mode>3_cconly): Likewise.
+	(*<any_shiftrt:insn>qi_ext<mode>_1): Likewise.
+	(<any_shiftrt:insn><mode>3_carry): Likewise.
+
+2026-05-20  Michiel Derhaeg  <michiel@synopsys.com>
+
+	PR target/115650
+	* config/arc/arc.cc (legitimate_small_data_address_p): Check
+	offset size.
+
+2026-05-20  Jakub Jelinek  <jakub@redhat.com>
+
+	PR target/125373
+	* config/i386/i386.md
+	(Convert imul by three, five and nine into lea define_peephole2s): Use
+	index_reg_operand instead of register_operand.
+
+2026-05-20  Jakub Jelinek  <jakub@redhat.com>
+
+	PR target/125357
+	* config/i386/i386-expand.cc (ix86_expand_vec_perm): For TARGET_AVX
+	one_operand_shuffle handle also V2DImode and V2DFmode using
+	vpaddq and vpermilpd.
+
+2026-05-20  liuhongt  <hongtao.liu@intel.com>
+
+	* tree-ssa-loop-unswitch.cc (estimate_loop_insns): New function.
+	(init_loop_unswitch_info): Do not select an outer loop for
+	unswitching when the duplicated outer-body size exceeds
+	param_max_unswitch_insns.
+
+2026-05-20  Zhou Qiankang  <wszqkzqk@qq.com>
+
+	PR target/125362
+	* config/loongarch/t-loongarch (TM_H): Add
+	common/config/loongarch/cpu-features.h.
+
 2026-05-19  Pengxuan Zheng  <pengxuan.zheng@oss.qualcomm.com>
 
 	PR target/123748

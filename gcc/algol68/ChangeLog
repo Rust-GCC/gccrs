@@ -1,3 +1,10 @@
+2026-05-20  Pietro Monteiro  <pietro@sociotechnical.xyz>
+
+	* a68-parser-prelude.cc (gnu_prelude): Map FLOOR(L real):L int
+	to ENTIER(L real):L int.
+	* ga68.texi: Add a section for real operators in the Extended
+	prelude chapter and document FLOOR.
+
 2026-05-10  Jose E. Marchesi  <jemarch@gnu.org>
 
 	* a68-parser-taxes.cc (is_mappable_routine): Remove handling of

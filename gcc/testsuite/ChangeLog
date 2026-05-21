@@ -1,3 +1,71 @@
+2026-05-20  Pietro Monteiro  <pietro@sociotechnical.xyz>
+
+	* algol68/execute/entier-1.a68: Add test for FLOOR = ENTIER.
+	* algol68/compile/floor-1.a68: New test.
+
+2026-05-20  Shivam Gupta  <shivam98.tkg@gmail.com>
+
+	PR tree-optimization/112533
+	* gcc.dg/tree-ssa/narrow-bool-eq.c: New test.
+	* gcc.dg/tree-ssa/narrow-integral-eq.c: New test.
+	* gcc.dg/tree-ssa/narrow-short-eq.c: New test.
+	* gcc.dg/tree-ssa/narrow-float-eq.c: New test.
+
+2026-05-20  Thomas Koenig  <tkoenig@gcc.gnu.org>
+
+	PR fortran/106546
+	* gfortran.dg/inline_matmul_27.f90: New test.
+
+2026-05-20  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/125236
+	* g++.dg/analyzer/torture/README.txt: New.
+	* g++.dg/analyzer/torture/std-string-ctor-large-literal.C: New
+	test.
+	* g++.dg/analyzer/torture/std-string-ctor-small-literal.C: New
+	test.
+	* g++.dg/analyzer/torture/std-string-default-ctor.C: New test.
+	* g++.dg/analyzer/torture/std-unique-ptr-1.C: New test.
+
+2026-05-20  David Malcolm  <dmalcolm@redhat.com>
+
+	* c-c++-common/analyzer/ptr-subtraction-2.c: New test.
+
+2026-05-20  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/125304
+	* g++.dg/analyzer/torture/std-string-pr125304.C: New test.
+
+2026-05-20  David Malcolm  <dmalcolm@redhat.com>
+
+	* g++.dg/analyzer/torture/analyzer-torture.exp: New script.
+
+2026-05-20  Michiel Derhaeg  <michiel@synopsys.com>
+
+	PR target/115650
+	* gcc.target/arc/sdata-6.c: New test.
+
+2026-05-20  Jakub Jelinek  <jakub@redhat.com>
+
+	PR target/125373
+	* gcc.c-torture/compile/pr125373.c: New test.
+
+2026-05-20  Jakub Jelinek  <jakub@redhat.com>
+
+	PR target/125357
+	* gcc.target/i386/avx-pr125357-2.c: New test.
+	* gcc.target/i386/avx2-pr125357-2.c: New test.
+
+2026-05-20  liuhongt  <hongtao.liu@intel.com>
+
+	* gcc.dg/loop-unswitch-19.c: New test.
+
+2026-05-20  Kito Cheng  <kito.cheng@sifive.com>
+
+	* gcc.dg/crc-builtin-rev-target32.c: Match the new
+	"emitting reversed crc table" dump message.
+	* gcc.dg/crc-builtin-rev-target64.c: Likewise.
+
 2026-05-19  Pengxuan Zheng  <pengxuan.zheng@oss.qualcomm.com>
 
 	* gcc.target/aarch64/pr123748.c: Use "long long" instead of "long".

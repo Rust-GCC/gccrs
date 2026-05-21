@@ -1,3 +1,9 @@
+2026-05-20  David Malcolm  <dmalcolm@redhat.com>
+
+	* region-model-manager.cc
+	(region_model_manager::maybe_fold_binop): Fold
+	"(X POINTER_PLUS Y) POINTER_DIFF_EXPR X" to Y.
+
 2026-05-19  David Malcolm  <dmalcolm@redhat.com>
 
 	PR analyzer/125304
