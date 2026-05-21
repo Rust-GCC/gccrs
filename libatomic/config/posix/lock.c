@@ -40,7 +40,7 @@
 #endif
 
 /* The granularity at which locks are applied.  Almost certainly the
-   cachline size is the right thing to use here.  */
+   cacheline size is the right thing to use here.  */
 #ifndef WATCH_SIZE
 #define WATCH_SIZE	CACHLINE_SIZE
 #endif
