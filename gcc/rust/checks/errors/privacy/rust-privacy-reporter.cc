@@ -17,6 +17,7 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "rust-privacy-reporter.h"
+#include "rust-rib.h"
 #include "rust-session-manager.h"
 #include "rust-hir-expr.h"
 #include "rust-hir-stmt.h"
@@ -94,13 +95,14 @@ PrivacyReporter::go (HIR::Crate &crate)
 // FIXME: This function needs a lot of refactoring
 void
 PrivacyReporter::check_for_privacy_violation (const NodeId &use_id,
-					      const location_t locus)
+					      const location_t locus,
+					      Resolver2_0::Namespace ns)
 {
   NodeId ref_node_id;
 
   // FIXME: Assert here. For now, we return since this causes issues when
   // checking inferred types (#1260)
-  if (auto id = resolver.lookup (use_id))
+  if (auto id = resolver.lookup (use_id, ns))
     ref_node_id = *id;
   else
     return;
@@ -182,7 +184,8 @@ PrivacyReporter::check_base_type_privacy (Analysis::NodeMapping &node_mappings,
       {
 	auto ref_id = ty->get_ref ();
 	if (auto lookup_id = mappings.lookup_hir_to_node (ref_id))
-	  return check_for_privacy_violation (*lookup_id, locus);
+	  return check_for_privacy_violation (*lookup_id, locus,
+					      Resolver2_0::Namespace::Types);
       }
       break;
 
@@ -260,7 +263,8 @@ void
 PrivacyReporter::visit (HIR::PathInExpression &path)
 {
   check_for_privacy_violation (path.get_mappings ().get_nodeid (),
-			       path.get_locus ());
+			       path.get_locus (),
+			       Resolver2_0::Namespace::Values);
 }
 
 void
@@ -287,21 +291,24 @@ void
 PrivacyReporter::visit (HIR::TypePath &path)
 {
   check_for_privacy_violation (path.get_mappings ().get_nodeid (),
-			       path.get_locus ());
+			       path.get_locus (),
+			       Resolver2_0::Namespace::Types);
 }
 
 void
 PrivacyReporter::visit (HIR::QualifiedPathInExpression &path)
 {
-  check_for_privacy_violation (path.get_mappings ().get_nodeid (),
-			       path.get_locus ());
+  check_for_privacy_violation (
+    path.get_mappings ().get_nodeid (), path.get_locus (),
+    Resolver2_0::Namespace::Types /* FIXME: Is that correct? */);
 }
 
 void
 PrivacyReporter::visit (HIR::QualifiedPathInType &path)
 {
   check_for_privacy_violation (path.get_mappings ().get_nodeid (),
-			       path.get_locus ());
+			       path.get_locus (),
+			       Resolver2_0::Namespace::Types);
 }
 
 void

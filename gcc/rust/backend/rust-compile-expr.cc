@@ -27,6 +27,7 @@
 #include "rust-compile-implitem.h"
 #include "rust-constexpr.h"
 #include "rust-compile-type.h"
+#include "rust-finalized-name-resolution-context.h"
 #include "rust-gcc.h"
 #include "rust-compile-asm.h"
 #include "fold-const.h"
@@ -35,6 +36,7 @@
 #include "print-tree.h"
 #include "rust-hir-bound.h"
 #include "rust-hir-expr.h"
+#include "rust-rib.h"
 #include "rust-system.h"
 #include "rust-tree.h"
 #include "rust-tyty.h"
@@ -901,7 +903,8 @@ CompileExpr::visit (HIR::BreakExpr &expr)
 
       NodeId resolved_node_id;
       if (auto id
-	  = nr_ctx.lookup (expr.get_label ().get_mappings ().get_nodeid ()))
+	  = nr_ctx.lookup (expr.get_label ().get_mappings ().get_nodeid (),
+			   Resolver2_0::Namespace::Labels))
 	{
 	  resolved_node_id = *id;
 	}
@@ -956,7 +959,8 @@ CompileExpr::visit (HIR::ContinueExpr &expr)
 
       NodeId resolved_node_id;
       if (auto id
-	  = nr_ctx.lookup (expr.get_label ().get_mappings ().get_nodeid ()))
+	  = nr_ctx.lookup (expr.get_label ().get_mappings ().get_nodeid (),
+			   Resolver2_0::Namespace::Labels))
 	{
 	  resolved_node_id = *id;
 	}
@@ -2799,7 +2803,7 @@ CompileExpr::construct_block_label (HIR::BlockExpr &expr)
 tree
 CompileExpr::lookup_label (NodeId to_be_resolved)
 {
-  HirId ref = resolve_NodeId (to_be_resolved);
+  HirId ref = resolve_nodeid (to_be_resolved, Resolver2_0::Namespace::Labels);
   tree label = NULL_TREE;
   rust_assert (ctx->lookup_label_decl (ref, &label)
 	       && "failed to lookup a label");
@@ -2809,7 +2813,9 @@ CompileExpr::lookup_label (NodeId to_be_resolved)
 Bvariable *
 CompileExpr::lookup_temp_var (NodeId to_be_resolved)
 {
-  HirId ref = resolve_NodeId (to_be_resolved);
+  // TODO: Not sure that this temp var should have been inserted in the Labels
+  // namespace? Why not values?
+  HirId ref = resolve_nodeid (to_be_resolved, Resolver2_0::Namespace::Labels);
   Bvariable *ltemp = nullptr;
   rust_assert (ctx->lookup_var_decl (ref, &ltemp)
 	       && "failed to lookup a temp var");
@@ -2817,12 +2823,12 @@ CompileExpr::lookup_temp_var (NodeId to_be_resolved)
 }
 
 HirId
-CompileExpr::resolve_NodeId (NodeId to_be_resolved)
+CompileExpr::resolve_nodeid (NodeId to_be_resolved, Resolver2_0::Namespace ns)
 {
   auto &nr_ctx = Resolver2_0::FinalizedNameResolutionContext::get ();
 
   NodeId resolved_node_id;
-  resolved_node_id = nr_ctx.lookup (to_be_resolved).value ();
+  resolved_node_id = nr_ctx.lookup (to_be_resolved, ns).value ();
 
   HirId ref
     = ctx->get_mappings ().lookup_node_to_hir (resolved_node_id).value ();
