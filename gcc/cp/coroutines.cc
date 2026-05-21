@@ -4403,6 +4403,8 @@ register_local_var_uses (tree *stmt, int *do_subtree, void *d)
 	 identify them in the coroutine frame.  */
       tree lvname = DECL_NAME (lvar);
       char *buf = NULL;
+      if (name_independent_decl_p (lvar))
+	lvname = NULL_TREE;
 
       /* The outermost bind scope contains the artificial variables that
 	 we inject to implement the coro state machine.  We want to be able
