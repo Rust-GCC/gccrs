@@ -179,7 +179,7 @@ gomp_team_barrier_cancel (struct gomp_team *team)
   team->barrier.generation |= BAR_CANCELLED;
   gomp_mutex_unlock (&team->task_lock);
 
-  /* The 'exit' instruction cancels this thread and also fullfills any other
+  /* The 'exit' instruction cancels this thread and also fulfills any other
      CTA threads waiting on barriers.  */
   asm volatile ("exit;");
 }

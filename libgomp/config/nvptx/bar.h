@@ -86,7 +86,7 @@ static inline void
 gomp_team_barrier_wake (gomp_barrier_t *bar, int count)
 {
   /* We never "wake up" threads on nvptx.  Threads wait at barrier
-     instructions till barrier fullfilled.  Do nothing here.  */
+     instructions till barrier fulfilled.  Do nothing here.  */
 }
 
 static inline gomp_barrier_state_t

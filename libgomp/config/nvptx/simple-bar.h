@@ -24,7 +24,7 @@
    <http://www.gnu.org/licenses/>.  */
 
 /* This is a simplified barrier that is suitable for thread pool
-   synchronizaton.  Only a subset of full barrier API (bar.h) is exposed.
+   synchronization.  Only a subset of full barrier API (bar.h) is exposed.
    Here in the NVPTX-specific implementation, we expect that thread pool
    corresponds to a PTX CTA (thread block).  */
 

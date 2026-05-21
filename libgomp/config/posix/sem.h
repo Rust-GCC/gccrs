@@ -28,7 +28,7 @@
    the library.
 
    This is a bit heavy weight for what we need, in that we're not
-   interested in sem_wait as a cancelation point, but it's not too
+   interested in sem_wait as a cancellation point, but it's not too
    bad for a default.  */
 
 #ifndef GOMP_SEM_H

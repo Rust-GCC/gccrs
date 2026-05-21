@@ -25,7 +25,7 @@
 
 /* Provide target-specific access to the futex system call.  */
 
-/* The include file hierachy above us (wait.h) has pushed visibility
+/* The include file hierarchy above us (wait.h) has pushed visibility
    hidden, this will be applied to prototypes with headers we include
    with the effect that we cannot link against an external function
    (syscall). The solution here is to push default visibility, include

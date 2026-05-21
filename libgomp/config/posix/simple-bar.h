@@ -24,7 +24,7 @@
    <http://www.gnu.org/licenses/>.  */
 
 /* This is a simplified barrier that is suitable for thread pool
-   synchronizaton.  Only a subset of full barrier API (bar.h) is exposed.  */
+   synchronization.  Only a subset of full barrier API (bar.h) is exposed.  */
 
 #ifndef GOMP_SIMPLE_BARRIER_H
 #define GOMP_SIMPLE_BARRIER_H 1
