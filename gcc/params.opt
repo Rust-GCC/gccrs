@@ -250,7 +250,7 @@ Common Joined UInteger Var(param_integer_share_limit) Init(251) IntegerRange(2, 
 The upper bound for sharing integer constants.
 
 -param=ipa-cp-eval-threshold=
-Common Joined UInteger Var(param_ipa_cp_eval_threshold) Init(500) Param Optimization
+Common Joined UInteger Var(param_ipa_cp_eval_threshold) Init(1100) Param Optimization
 Threshold ipa-cp opportunity evaluation that is still considered beneficial to clone.
 
 -param=ipa-cp-loop-hint-bonus=

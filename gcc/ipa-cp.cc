@@ -3620,25 +3620,21 @@ perform_estimation_of_a_value (cgraph_node *node,
   val->local_size_cost = size;
 }
 
-/* Get the overall limit of growth based on parameters extracted from growth,
-   and CUR_SWEEP, which is the number of the current sweep of IPA-CP over the
-   call-graph in the decision stage.  It does not really make sense to mix
-   functions with different overall growth limits or even number of sweeps but
-   it is possible and if it happens, we do not want to select one limit at
-   random, so get the limits from NODE.  */
+/* Get the overall limit of growth based on parameters extracted from NODE.  It
+   does not really make sense to mix functions with different overall growth
+   limits or even number of sweeps but it is possible and if it happens, we do
+   not want to select one limit at random, so get the limits from NODE.  */
 
 static long
-get_max_overall_size (cgraph_node *node, int cur_sweep)
+get_max_overall_size (cgraph_node *node)
 {
   long max_new_size = orig_overall_size;
   long large_unit = opt_for_fn (node->decl, param_ipa_cp_large_unit_insns);
   if (max_new_size < large_unit)
     max_new_size = large_unit;
-  int num_sweeps = opt_for_fn (node->decl, param_ipa_cp_sweeps);
-  gcc_assert (cur_sweep <= num_sweeps);
   int unit_growth = opt_for_fn (node->decl, param_ipa_cp_unit_growth);
-  max_new_size += ((max_new_size * unit_growth * cur_sweep)
-		   / num_sweeps) / 100 + 1;
+  max_new_size += max_new_size * unit_growth / 100 + 1;
+
   return max_new_size;
 }
 
@@ -5958,8 +5954,7 @@ decide_about_value (struct cgraph_node *node, int index, HOST_WIDE_INT offset,
       perhaps_add_new_callers (node, val);
       return false;
     }
-  else if (val->local_size_cost + overall_size
-	   > get_max_overall_size (node, cur_sweep))
+  else if (val->local_size_cost + overall_size > get_max_overall_size (node))
     {
       if (dump_file && (dump_flags & TDF_DETAILS))
 	fprintf (dump_file, "   Ignoring candidate value because "
@@ -6337,7 +6332,7 @@ decide_whether_version_node (struct cgraph_node *node, int cur_sweep)
 					   stats.called_without_ipa_profile,
 					   cur_sweep))
 	{
-	  if (size + overall_size <= get_max_overall_size (node, cur_sweep))
+	  if (size + overall_size <= get_max_overall_size (node))
 	    {
 	      if (!dbg_cnt (ipa_cp_values))
 		return ret;

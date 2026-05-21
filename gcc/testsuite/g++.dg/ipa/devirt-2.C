@@ -48,6 +48,16 @@ int __attribute__ ((noinline,noclone,noipa)) get_input(void)
   return 1;
 }
 
+int extra (int init)
+{
+  class B b;
+  int i;
+  for (i = init; i < get_input(); i++)
+    if (b.middleman (get_input ()) != 3)
+      abort ();
+  return 0;
+}
+
 int main (int argc, char *argv[])
 {
   class B b;

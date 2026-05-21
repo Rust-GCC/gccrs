@@ -1,7 +1,7 @@
 /* Test that GOMP_task is special cased when cpyfn is NULL.  */
 
 /* { dg-do run } */
-/* { dg-options "-O3 -fopenmp -std=gnu99 -fdump-ipa-cp-details" } */
+/* { dg-options "-O3 -fopenmp -std=gnu99 -fdump-ipa-cp-details --param ipa-cp-eval-threshold=1" } */
 /* { dg-require-effective-target fopenmp } */
 
 void test(int c) {

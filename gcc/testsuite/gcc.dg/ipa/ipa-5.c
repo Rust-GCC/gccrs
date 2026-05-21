@@ -27,6 +27,6 @@ int main ()
   return 0;
 }
 
-/* { dg-final { scan-ipa-dump-times "Creating a specialized node" 3 "cp"  } } */
+/* { dg-final { scan-ipa-dump-times "Creating a specialized node" 2 "cp"  } } */
 /* { dg-final { scan-ipa-dump "replacing param .1 c with const 3" "cp"  } } */
 /* { dg-final { scan-ipa-dump "replacing param .0 a with const 7" "cp"  } } */

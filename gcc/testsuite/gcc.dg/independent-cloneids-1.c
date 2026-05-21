@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-O3 -fipa-cp -fipa-cp-clone -fdump-rtl-final"  } */
+/* { dg-options "-O3 -fipa-cp -fipa-cp-clone -fdump-rtl-final --param ipa-cp-eval-threshold=500"  } */
 /* { dg-skip-if "Odd label definition syntax" { mmix-*-* } } */
 
 extern int printf (const char *, ...);

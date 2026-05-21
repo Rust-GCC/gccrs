@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-g -O3 -fdump-tree-optimized -fvar-tracking-assignments -fno-selective-scheduling -fno-selective-scheduling2 -fno-ipa-vrp" } */
+/* { dg-options "-g -O3 -fdump-tree-optimized -fvar-tracking-assignments -fno-selective-scheduling -fno-selective-scheduling2 -fno-ipa-vrp --param ipa-cp-eval-threshold=1" } */
 
 int __attribute__((noinline))
 f1 (int i)
