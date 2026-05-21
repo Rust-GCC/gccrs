@@ -97,7 +97,7 @@ static const struct vms_crtl_name vms_crtl_names[] =
 #include "vms-crtlmap.h"
   };
 
-/* Number of entires in the above array.  */
+/* Number of entries in the above array.  */
 
 #define NBR_CRTL_NAMES (ARRAY_SIZE (vms_crtl_names))
 
@@ -290,7 +290,7 @@ vms_function_section (tree decl ATTRIBUTE_UNUSED,
   return NULL;
 }
 
-/* Additionnal VMS specific code for start_function.  */
+/* Additional VMS specific code for start_function.  */
 
 /* Must be kept in sync with libgcc/config/vms/vms-ucrt0.c  */
 #define VMS_MAIN_FLAGS_SYMBOL "__gcc_main_flags"

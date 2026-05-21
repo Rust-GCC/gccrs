@@ -170,7 +170,7 @@ enum extern_model_kind
      Only one initialized definition (case 3) is allows, but multiple
      uninitialize definition (case 2) are allowed.
      For case 2, this creates both a section named NAME and a global symbol.
-     For case 3, this creates a conditional global symbol defenition and a
+     For case 3, this creates a conditional global symbol definition and a
      conditional section definition.
      This is the traditional UNIX C behavior.  */
   extern_model_relaxed_refdef,
@@ -243,7 +243,7 @@ vms_pragma_extern_model (cpp_reader *pfile ATTRIBUTE_UNUSED)
 static void
 vms_pragma_message (cpp_reader *pfile ATTRIBUTE_UNUSED)
 {
-  /* Completly ignored.  */
+  /* Completely ignored.  */
 #if 0
   pedwarn (input_location, OPT_Wpragmas,
            "vms '#pragma __message' is ignored");
@@ -417,7 +417,7 @@ vms_c_register_includes (const char *sysroot,
   static const char dir_separator_str[] = { DIR_SEPARATOR, 0 };
   struct cpp_dir *dir;
 
-  /* Add on standard include pathes.  */
+  /* Add on standard include paths.  */
   if (!stdinc)
     return;
 
