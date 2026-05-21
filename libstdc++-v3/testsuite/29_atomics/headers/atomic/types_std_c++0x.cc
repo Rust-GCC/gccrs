@@ -30,6 +30,19 @@ void test01()
   using std::memory_order_acq_rel;
   using std::memory_order_seq_cst;
 
+#if __cplusplus >= 202002L
+  using std::memory_order;
+  constexpr auto relaxed = memory_order::relaxed;
+  constexpr auto consume = memory_order::consume;
+  constexpr auto acquire = memory_order::acquire;
+  constexpr auto release = memory_order::release;
+  constexpr auto acq_rel = memory_order::acq_rel;
+  constexpr auto seq_cst = memory_order::seq_cst;
+#ifdef __cpp_lib_is_scoped_enum
+  static_assert(std::is_scoped_enum_v<std::memory_order>);
+#endif
+#endif
+
   using std::atomic_flag;
 
   // atomics for builtins types
@@ -46,7 +59,7 @@ void test01()
   using std::atomic_llong;
   using std::atomic_ullong;
   using std::atomic_wchar_t;
-#ifdef _GLIBCXX_USE_CHAR8_T
+#ifdef __cpp_lib_char8_t
   using std::atomic_char8_t;
 #endif
   using std::atomic_char16_t;
