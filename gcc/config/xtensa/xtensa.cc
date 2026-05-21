@@ -2374,7 +2374,7 @@ xtensa_legitimize_address (rtx x,
 
   /* The upper limit of the ADDMI instruction's addition is allowed to be
      widened by the delta amount calculated above, and the excess is later
-     renormalized to the displacement of the load/store instrution.  */
+     renormalized to the displacement of the load/store instruction.  */
   offset2 = offset & ~0xff, offset = 0;
   if (! IN_RANGE (offset2, -32768, 32512 + delta))
     {
