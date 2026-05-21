@@ -51,7 +51,6 @@
    that two pinned allocations don't share the same page.  This also means
    that large allocations don't pin extra pages by being poorly aligned.  */
 
-#define _GNU_SOURCE
 #include <sys/mman.h>
 #include <unistd.h>
 #include <string.h>
