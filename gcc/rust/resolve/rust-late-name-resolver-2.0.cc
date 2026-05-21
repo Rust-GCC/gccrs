@@ -26,6 +26,7 @@
 #include "rust-name-resolution-context.h"
 #include "rust-resolve-builtins.h"
 #include "rust-path.h"
+#include "rust-rib.h"
 #include "rust-system.h"
 #include "rust-tyty.h"
 #include "rust-hir-type-check.h"
@@ -189,7 +190,8 @@ visit_identifier_as_pattern (NameResolutionContext &ctx,
     {
       auto res = ctx.values.get (ident);
       rust_assert (res.has_value () && !res->is_ambiguous ());
-      ctx.map_usage (Usage (node_id), Definition (res->get_node_id ()));
+      ctx.map_usage (Usage (node_id), Definition (res->get_node_id ()),
+		     Namespace::Values);
     }
   else
     {
@@ -244,7 +246,8 @@ Late::visit (AST::StructPatternFieldIdent &field)
   if (auto resolved = ctx.resolve_path (path, Namespace::Types))
     {
       ctx.map_usage (Usage (field.get_node_id ()),
-		     Definition (resolved->get_node_id ()));
+		     Definition (resolved->definition.get_node_id ()),
+		     Namespace::Types);
       return;
     }
 
@@ -299,7 +302,8 @@ Late::visit (AST::BreakExpr &expr)
 void
 Late::visit (AST::LoopLabel &label)
 {
-  auto resolved = ctx.lookup (label.get_lifetime ().get_node_id ());
+  auto resolved
+    = ctx.lookup (label.get_lifetime ().get_node_id (), Namespace::Labels);
   if (resolved.has_value ())
     return;
   auto &lifetime = label.get_lifetime ();
@@ -314,7 +318,8 @@ Late::resolve_label (AST::Lifetime &lifetime)
     {
       if (resolved->get_node_id () != lifetime.get_node_id ())
 	ctx.map_usage (Usage (lifetime.get_node_id ()),
-		       Definition (resolved->get_node_id ()));
+		       Definition (resolved->get_node_id ()),
+		       Namespace::Labels);
     }
   else
     rust_error_at (lifetime.get_locus (), ErrorCode::E0426,
@@ -337,14 +342,17 @@ Late::visit (AST::IdentifierExpr &expr)
   // TODO: same thing as visit(PathInExpression) here?
 
   tl::optional<Rib::Definition> resolved = tl::nullopt;
+  tl::optional<Namespace> ns = tl::nullopt;
 
   if (auto value = ctx.values.get (expr.get_ident ()))
     {
       resolved = value;
+      ns = Namespace::Values;
     }
   else if (auto type = ctx.types.get (expr.get_ident ()))
     {
       resolved = type;
+      ns = Namespace::Types;
     }
   else if (funny_error)
     {
@@ -359,15 +367,18 @@ Late::visit (AST::IdentifierExpr &expr)
       if (auto type = ctx.types.get_lang_prelude (expr.get_ident ()))
 	{
 	  resolved = type;
+	  ns = Namespace::Types;
 	}
       else if (!resolved && ctx.prelude)
 	{
 	  resolved
 	    = ctx.values.get_from_prelude (*ctx.prelude, expr.get_ident ());
+	  ns = Namespace::Values;
 
 	  if (!resolved)
 	    resolved
 	      = ctx.types.get_from_prelude (*ctx.prelude, expr.get_ident ());
+	  ns = Namespace::Types;
 	}
 
       if (!resolved)
@@ -387,7 +398,7 @@ Late::visit (AST::IdentifierExpr &expr)
     }
 
   ctx.map_usage (Usage (expr.get_node_id ()),
-		 Definition (resolved->get_node_id ()));
+		 Definition (resolved->get_node_id ()), ns.value ());
 
   // For empty types, do we perform a lookup in ctx.types or should the
   // toplevel instead insert a name in ctx.values? (like it currently does)
@@ -418,7 +429,7 @@ Late::visit (AST::StructExprFieldIdentifier &expr)
     }
 
   ctx.map_usage (Usage (expr.get_node_id ()),
-		 Definition (resolved->get_node_id ()));
+		 Definition (resolved->get_node_id ()), Namespace::Values);
 }
 
 void
@@ -430,26 +441,30 @@ Late::visit (AST::PathInExpression &expr)
 
   DefaultResolver::visit (expr);
 
+  // TODO: do we need a namespace associated with each lang item?
   if (expr.is_lang_item ())
     {
       ctx.map_usage (Usage (expr.get_node_id ()),
 		     Definition (Analysis::Mappings::get ().get_lang_item_node (
-		       expr.get_lang_item ())));
+		       expr.get_lang_item ())),
+		     Namespace::Values);
       return;
     }
 
+  // TODO: we need to know which namespace that was in actually
   auto resolved = ctx.resolve_path (expr, Namespace::Values, Namespace::Types);
 
   if (!resolved)
     {
-      if (!ctx.lookup (expr.get_segments ().front ().get_node_id ()))
+      if (!ctx.lookup (expr.get_segments ().front ().get_node_id (),
+		       Namespace::Values, Namespace::Types))
 	rust_error_at (expr.get_locus (), ErrorCode::E0433,
 		       "Cannot find path %qs in this scope",
 		       expr.as_simple_path ().as_string ().c_str ());
       return;
     }
 
-  if (resolved->is_ambiguous ())
+  if (resolved->definition.is_ambiguous ())
     {
       rust_error_at (expr.get_locus (), ErrorCode::E0659, "%qs is ambiguous",
 		     expr.as_string ().c_str ());
@@ -457,7 +472,8 @@ Late::visit (AST::PathInExpression &expr)
     }
 
   ctx.map_usage (Usage (expr.get_node_id ()),
-		 Definition (resolved->get_node_id ()));
+		 Definition (resolved->definition.get_node_id ()),
+		 resolved->ns);
 }
 
 void
@@ -498,21 +514,22 @@ resolve_type_path_like (NameResolutionContext &ctx, bool block_big_self,
 
   if (!resolved.has_value ())
     {
-      if (!ctx.lookup (unwrap_segment_node_id (type.get_segments ().front ())))
+      if (!ctx.lookup (unwrap_segment_node_id (type.get_segments ().front ()),
+		       Namespace::Types))
 	rust_error_at (type.get_locus (), ErrorCode::E0412,
 		       "could not resolve type path %qs",
 		       unwrap_segment_error_string (type).c_str ());
       return;
     }
 
-  if (resolved->is_ambiguous ())
+  if (resolved->definition.is_ambiguous ())
     {
       rust_error_at (type.get_locus (), ErrorCode::E0659, "%qs is ambiguous",
 		     unwrap_segment_error_string (type).c_str ());
       return;
     }
 
-  if (ctx.types.forward_declared (resolved->get_node_id (),
+  if (ctx.types.forward_declared (resolved->definition.get_node_id (),
 				  type.get_node_id ()))
     {
       rust_error_at (type.get_locus (), ErrorCode::E0128,
@@ -521,7 +538,8 @@ resolve_type_path_like (NameResolutionContext &ctx, bool block_big_self,
     }
 
   ctx.map_usage (Usage (type.get_node_id ()),
-		 Definition (resolved->get_node_id ()));
+		 Definition (resolved->definition.get_node_id ()),
+		 Namespace::Types);
 }
 
 void
@@ -578,14 +596,15 @@ Late::visit (AST::Visibility &vis)
     }
 
   // TODO: is this possible?
-  if (res->is_ambiguous ())
+  if (res->definition.is_ambiguous ())
     {
       rust_error_at (path.get_locus (), ErrorCode::E0659, "%qs is ambiguous",
 		     path.as_string ().c_str ());
       return;
     }
 
-  ctx.map_usage (Usage (path.get_node_id ()), Definition (res->get_node_id ()));
+  ctx.map_usage (Usage (path.get_node_id ()),
+		 Definition (res->definition.get_node_id ()), res->ns);
 }
 
 void
@@ -596,7 +615,7 @@ Late::visit (AST::Trait &trait)
   // which is then resolved to the node id of trait
   // we set up the latter mapping here
   ctx.map_usage (Usage (trait.get_implicit_self ().get_node_id ()),
-		 Definition (trait.get_node_id ()));
+		 Definition (trait.get_node_id ()), Namespace::Types);
 
   DefaultResolver::visit (trait);
 }
@@ -646,7 +665,8 @@ Late::visit (AST::StructExprStructFields &s)
     }
 
   ctx.map_usage (Usage (path.get_node_id ()),
-		 Definition (resolved->get_node_id ()));
+		 Definition (resolved->definition.get_node_id ()),
+		 Namespace::Types);
 }
 
 // needed because Late::visit (AST::GenericArg &) is non-virtual

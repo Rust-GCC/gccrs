@@ -25,6 +25,7 @@
 #include "rust-hir-type-check.h"
 #include "rust-mapping-common.h"
 #include "rust-finalized-name-resolution-context.h"
+#include "rust-rib.h"
 
 namespace Rust {
 namespace Privacy {
@@ -58,7 +59,8 @@ private:
    * @param locus Location of said expression/statement
    */
   void check_for_privacy_violation (const NodeId &use_id,
-				    const location_t locus);
+				    const location_t locus,
+				    Resolver2_0::Namespace ns);
 
   /**
    * Internal function used by `check_type_privacy` when dealing with complex
