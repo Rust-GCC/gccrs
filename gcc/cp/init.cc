@@ -3970,6 +3970,12 @@ build_new_1 (vec<tree, va_gc> **placement, tree type, tree nelts,
     rval = TARGET_EXPR_INITIAL (alloc_expr);
   else
     {
+      /* Skip the null-check when rval == data_addr: the resulting conditional
+	 would be "alloc_node != nullptr ? alloc_node : alloc_node", triggering
+	 -Wduplicated-branches (PR125422).  */
+      if (rval == data_addr)
+	check_new = 0;
+
       if (check_new)
 	{
 	  tree ifexp = cp_build_binary_op (input_location,
