@@ -8,4 +8,6 @@ int test(int x)
   return x != INT_MIN ? -x : INT_MIN;
 }
 
-/* { dg-final { scan-tree-dump "goto" "optimized" } } */
+/* The branch should now be eliminated since we emit
+   (signed)(-(unsigned)x) which is well-defined.  */
+/* { dg-final { scan-tree-dump-not "goto" "optimized" } } */

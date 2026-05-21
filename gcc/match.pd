@@ -6755,14 +6755,18 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
 )
 #endif
 
-/* X != C1 ? -X : C2 simplifies to -X when -C1 == C2.  */
+/* X != C1 ? -X : C2 simplifies to -X when -C1 == C2.  Additionally,
+   when C1 is the minimum signed value (e.g.  INT_MIN), -X would be
+   undefined for signed types, so emit (signed)(-(unsigned)X) instead.  */
 (simplify
  (cond (ne @0 INTEGER_CST@1) (negate@3 @0) INTEGER_CST@2)
  (if (!TYPE_SATURATING (type)
-      && (TYPE_OVERFLOW_WRAPS (type)
-	  || !wi::only_sign_bit_p (wi::to_wide (@1)))
       && wi::eq_p (wi::neg (wi::to_wide (@1)), wi::to_wide (@2)))
-  @3))
+  (if (TYPE_OVERFLOW_WRAPS (type)
+       || !wi::only_sign_bit_p (wi::to_wide (@1)))
+   @3
+   (with { tree utype = unsigned_type_for (TREE_TYPE (@0)); }
+    (convert (negate (convert:utype @0)))))))
 
 /* X != C1 ? ~X : C2 simplifies to ~X when ~C1 == C2.  */
 (simplify
