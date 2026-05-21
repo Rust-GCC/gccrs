@@ -21,6 +21,7 @@
 #include "rust-hir.h"
 #include "rust-hir-item.h"
 #include "rust-finalized-name-resolution-context.h"
+#include "rust-rib.h"
 
 namespace Rust {
 namespace Privacy {
@@ -63,7 +64,7 @@ VisibilityResolver::resolve_module_path (const HIR::SimplePath &restriction,
 	     "cannot use non-module path as privacy restrictor");
 
   NodeId ref_node_id;
-  if (auto id = resolver.lookup (ast_node_id))
+  if (auto id = resolver.lookup (ast_node_id, Resolver2_0::Namespace::Types))
     {
       ref_node_id = *id;
     }

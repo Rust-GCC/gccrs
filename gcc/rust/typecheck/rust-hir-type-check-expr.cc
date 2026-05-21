@@ -20,6 +20,7 @@
 #include "rust-common.h"
 #include "rust-hir-expr.h"
 #include "rust-hir-map.h"
+#include "rust-rib.h"
 #include "rust-system.h"
 #include "rust-tyty-call.h"
 #include "rust-hir-type-check-struct-field.h"
@@ -1539,7 +1540,8 @@ TypeCheckExpr::visit (HIR::MethodCallExpr &expr)
   auto &nr_ctx = Resolver2_0::FinalizedNameResolutionContext::get ();
 
   nr_ctx.map_usage (Resolver2_0::Usage (expr.get_mappings ().get_nodeid ()),
-		    Resolver2_0::Definition (resolved_node_id));
+		    Resolver2_0::Definition (resolved_node_id),
+		    Resolver2_0::Namespace::Values);
 
   // return the result of the function back
   infered = function_ret_tyty;
@@ -2182,7 +2184,8 @@ TypeCheckExpr::resolve_operator_overload (
   auto &nr_ctx = Resolver2_0::FinalizedNameResolutionContext::get ();
 
   nr_ctx.map_usage (Resolver2_0::Usage (expr.get_mappings ().get_nodeid ()),
-		    Resolver2_0::Definition (resolved_node_id));
+		    Resolver2_0::Definition (resolved_node_id),
+		    Resolver2_0::Namespace::Types);
 
   // return the result of the function back
   infered = function_ret_tyty;
@@ -2376,12 +2379,17 @@ TypeCheckExpr::resolve_fn_trait_call (HIR::CallExpr &expr,
   // set up the resolved name on the path
   auto &nr_ctx = Resolver2_0::FinalizedNameResolutionContext::get ();
 
-  auto existing = nr_ctx.lookup (expr.get_mappings ().get_nodeid ());
+  // TODO: What namespace to use for inserting and looking up here? It's a trait
+  // call, so NS::Types is right?
+
+  auto existing = nr_ctx.lookup (expr.get_mappings ().get_nodeid (),
+				 Resolver2_0::Namespace::Types);
   if (existing)
     rust_assert (*existing == resolved_node_id);
   else
     nr_ctx.map_usage (Resolver2_0::Usage (expr.get_mappings ().get_nodeid ()),
-		      Resolver2_0::Definition (resolved_node_id));
+		      Resolver2_0::Definition (resolved_node_id),
+		      Resolver2_0::Namespace::Types);
 
   // return the result of the function back
   *result = function_ret_tyty;

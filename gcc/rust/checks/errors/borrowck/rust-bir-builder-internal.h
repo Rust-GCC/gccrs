@@ -28,6 +28,7 @@
 #include "rust-bir-free-region.h"
 #include "rust-finalized-name-resolution-context.h"
 #include "options.h"
+#include "rust-rib.h"
 
 namespace Rust {
 
@@ -402,14 +403,16 @@ protected: // HIR resolution helpers
 
   template <typename T> NodeId resolve_label (T &expr)
   {
-    auto res = ctx.resolver.lookup (expr.get_mappings ().get_nodeid ());
+    auto res = ctx.resolver.lookup (expr.get_mappings ().get_nodeid (),
+				    Resolver2_0::Namespace::Labels);
     rust_assert (res.has_value ());
     return res.value ();
   }
 
   template <typename T> PlaceId resolve_variable (T &variable)
   {
-    auto res = ctx.resolver.lookup (variable.get_mappings ().get_nodeid ());
+    auto res = ctx.resolver.lookup (variable.get_mappings ().get_nodeid (),
+				    Resolver2_0::Namespace::Values);
     rust_assert (res.has_value ());
     return ctx.place_db.lookup_variable (res.value ());
   }
@@ -424,7 +427,8 @@ protected: // HIR resolution helpers
     if (ty->is<TyTy::FnType> ())
       return ctx.place_db.get_constant (ty);
 
-    auto res = ctx.resolver.lookup (variable.get_mappings ().get_nodeid ());
+    auto res = ctx.resolver.lookup (variable.get_mappings ().get_nodeid (),
+				    Resolver2_0::Namespace::Values);
     rust_assert (res.has_value ());
     return ctx.place_db.lookup_or_add_variable (res.value (), ty);
   }

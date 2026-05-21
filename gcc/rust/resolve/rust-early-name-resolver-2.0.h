@@ -79,14 +79,14 @@ public:
       Rebind
     } kind;
 
-    static ImportData
-    Simple (std::vector<std::pair<Rib::Definition, Namespace>> &&definitions)
+    static ImportData Simple (
+      std::vector<NameResolutionContext::NamespacedDefinition> &&definitions)
     {
       return ImportData (Kind::Simple, std::move (definitions));
     }
 
-    static ImportData
-    Rebind (std::vector<std::pair<Rib::Definition, Namespace>> &&definitions)
+    static ImportData Rebind (
+      std::vector<NameResolutionContext::NamespacedDefinition> &&definitions)
     {
       return ImportData (Kind::Rebind, std::move (definitions));
     }
@@ -102,7 +102,8 @@ public:
       return glob_container;
     }
 
-    std::vector<std::pair<Rib::Definition, Namespace>> definitions () const
+    std::vector<NameResolutionContext::NamespacedDefinition>
+    definitions () const
     {
       rust_assert (kind != Kind::Glob);
       return std::move (resolved_definitions);
@@ -111,7 +112,7 @@ public:
   private:
     ImportData (
       Kind kind,
-      std::vector<std::pair<Rib::Definition, Namespace>> &&definitions)
+      std::vector<NameResolutionContext::NamespacedDefinition> &&definitions)
       : kind (kind), resolved_definitions (std::move (definitions))
     {}
 
@@ -122,7 +123,8 @@ public:
     // TODO: Should this be a union?
 
     // For Simple and Rebind
-    std::vector<std::pair<Rib::Definition, Namespace>> resolved_definitions;
+    std::vector<NameResolutionContext::NamespacedDefinition>
+      resolved_definitions;
 
     // For Glob
     Rib::Definition glob_container;
@@ -221,29 +223,18 @@ private:
   bool resolve_rebind_import (NodeId use_dec_id, TopLevel::ImportKind &&import);
 
   template <typename P>
-  std::vector<std::pair<Rib::Definition, Namespace>>
+  std::vector<NameResolutionContext::NamespacedDefinition>
   resolve_path_in_all_ns (const P &path)
   {
-    std::vector<std::pair<Rib::Definition, Namespace>> resolved;
-
-    // Pair a definition with the namespace it was found in
-    auto pair_with_ns = [&] (Namespace ns) {
-      return [&, ns] (Rib::Definition def) {
-	auto pair = std::make_pair (def, ns);
-	return resolved.emplace_back (std::move (pair));
-      };
-    };
+    std::vector<NameResolutionContext::NamespacedDefinition> resolved;
 
     std::vector<Error> value_errors;
     std::vector<Error> type_errors;
     std::vector<Error> macro_errors;
 
-    ctx.resolve_path (path, value_errors, Namespace::Values)
-      .map (pair_with_ns (Namespace::Values));
-    ctx.resolve_path (path, type_errors, Namespace::Types)
-      .map (pair_with_ns (Namespace::Types));
-    ctx.resolve_path (path, macro_errors, Namespace::Macros)
-      .map (pair_with_ns (Namespace::Macros));
+    ctx.resolve_path (path, value_errors, Namespace::Values);
+    ctx.resolve_path (path, type_errors, Namespace::Types);
+    ctx.resolve_path (path, macro_errors, Namespace::Macros);
 
     if (!value_errors.empty () && !type_errors.empty ()
 	&& !macro_errors.empty ())

@@ -22,6 +22,7 @@
 #include "rust-hir-stmt.h"
 #include "rust-hir-item.h"
 #include "rust-attribute-values.h"
+#include "rust-rib.h"
 #include "rust-system.h"
 #include "rust-finalized-name-resolution-context.h"
 #include "rust-intrinsic-values.h"
@@ -220,7 +221,8 @@ UnsafeChecker::visit (PathInExpression &path)
   NodeId ast_node_id = path.get_mappings ().get_nodeid ();
   NodeId ref_node_id;
 
-  if (auto resolved = resolver.lookup (ast_node_id))
+  if (auto resolved
+      = resolver.lookup (ast_node_id, Resolver2_0::Namespace::Values))
     ref_node_id = resolved.value ();
   else
     return;
@@ -421,7 +423,8 @@ UnsafeChecker::visit (CallExpr &expr)
   NodeId ast_node_id = expr.get_fnexpr ().get_mappings ().get_nodeid ();
   NodeId ref_node_id;
 
-  if (auto resolved = resolver.lookup (ast_node_id))
+  if (auto resolved
+      = resolver.lookup (ast_node_id, Resolver2_0::Namespace::Values))
     ref_node_id = resolved.value ();
   else
     return;
