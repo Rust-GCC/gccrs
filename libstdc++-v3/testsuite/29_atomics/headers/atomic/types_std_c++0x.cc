@@ -33,7 +33,7 @@ void test01()
 #if __cplusplus >= 202002L
   using std::memory_order;
   constexpr auto relaxed = memory_order::relaxed;
-  constexpr auto consume = memory_order::consume;
+  constexpr auto consume = memory_order::consume; // { dg-warning "deprecated" "" { target c++26 } }
   constexpr auto acquire = memory_order::acquire;
   constexpr auto release = memory_order::release;
   constexpr auto acq_rel = memory_order::acq_rel;

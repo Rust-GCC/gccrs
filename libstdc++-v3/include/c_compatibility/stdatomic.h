@@ -39,7 +39,10 @@
 
 using std::memory_order;
 using std::memory_order_relaxed;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 using std::memory_order_consume;
+#pragma GCC diagnostic pop
 using std::memory_order_acquire;
 using std::memory_order_release;
 using std::memory_order_acq_rel;

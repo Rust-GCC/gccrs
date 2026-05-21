@@ -64,20 +64,25 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 #if __cplusplus > 201703L
   enum class memory_order : int
     {
-      relaxed,
-      consume,
-      acquire,
-      release,
-      acq_rel,
-      seq_cst
+      relaxed = 0,
+      consume _GLIBCXX26_DEPRECATED = 1,
+      acquire = 2,
+      release = 3,
+      acq_rel = 4,
+      seq_cst = 5
     };
 
   inline constexpr memory_order memory_order_relaxed = memory_order::relaxed;
-  inline constexpr memory_order memory_order_consume = memory_order::consume;
   inline constexpr memory_order memory_order_acquire = memory_order::acquire;
   inline constexpr memory_order memory_order_release = memory_order::release;
   inline constexpr memory_order memory_order_acq_rel = memory_order::acq_rel;
   inline constexpr memory_order memory_order_seq_cst = memory_order::seq_cst;
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+  _GLIBCXX26_DEPRECATED
+  inline constexpr memory_order memory_order_consume = memory_order::consume;
+#pragma GCC diagnostic pop
 #else
   enum memory_order : int
     {
@@ -152,6 +157,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   /// kill_dependency
   template<typename _Tp>
+    _GLIBCXX26_DEPRECATED
     inline _Tp
     kill_dependency(_Tp __y) noexcept
     {
@@ -278,6 +284,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     // TODO add const volatile overload
 #endif // __glibcxx_atomic_wait
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
     _GLIBCXX_ALWAYS_INLINE void
     clear(memory_order __m = memory_order_seq_cst) noexcept
     {
@@ -301,6 +309,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
       __atomic_clear (&_M_i, int(__m));
     }
+#pragma GCC diagnostic pop
 
   private:
     static constexpr __atomic_flag_data_type
@@ -482,6 +491,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	    reinterpret_cast<void *>(-_S_alignment));
       }
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
       _GLIBCXX_ALWAYS_INLINE void
       store(__int_type __i, memory_order __m = memory_order_seq_cst) noexcept
       {
@@ -506,6 +517,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
 	__atomic_store_n(&_M_i, __i, int(__m));
       }
+#pragma GCC diagnostic pop
 
       _GLIBCXX_ALWAYS_INLINE __int_type
       load(memory_order __m = memory_order_seq_cst) const noexcept
@@ -831,6 +843,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	    reinterpret_cast<void *>(-__alignof(_M_p)));
       }
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
       _GLIBCXX_ALWAYS_INLINE void
       store(__pointer_type __p,
 	    memory_order __m = memory_order_seq_cst) noexcept
@@ -857,6 +871,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
 	__atomic_store_n(&_M_p, __p, int(__m));
       }
+#pragma GCC diagnostic pop
 
       _GLIBCXX_ALWAYS_INLINE __pointer_type
       load(memory_order __m = memory_order_seq_cst) const noexcept

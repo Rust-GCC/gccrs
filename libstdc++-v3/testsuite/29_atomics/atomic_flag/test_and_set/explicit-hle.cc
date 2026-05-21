@@ -25,6 +25,8 @@
 
 #include <atomic>
 
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+
 const auto ACQ = std::memory_order_acquire | std::__memory_order_hle_acquire;
 const auto REL = std::memory_order_release | std::__memory_order_hle_release;
 

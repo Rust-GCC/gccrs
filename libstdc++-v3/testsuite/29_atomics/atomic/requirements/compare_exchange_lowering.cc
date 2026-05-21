@@ -20,6 +20,8 @@
 #include <atomic>
 #include <testsuite_common_types.h>
 
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+
 #define TEST_ALL_ORDERS()                       \
   do {                                          \
     ORDER_TEST(std::memory_order_relaxed);      \

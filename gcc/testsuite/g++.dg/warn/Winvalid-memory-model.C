@@ -2,7 +2,8 @@
    -Wsystem-headers
    Verify warnings for basic atomic functions with no optimization.
    { dg-do compile { target c++11 } }
-   { dg-options "-O0 -Wall" } */
+   { dg-options "-O0 -Wall" }
+   { dg-additional-options "-Wno-deprecated-declarations" { target c++26 } } */
 
 #include <atomic>
 
