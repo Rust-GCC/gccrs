@@ -2017,7 +2017,7 @@ vax_expand_addsub_di_operands (rtx * operands, enum rtx_code code)
     gcc_unreachable ();
 
   /* If this is addition (thus operands are commutative) and if there is one
-     addend that duplicates the desination, we want that addend to be the
+     addend that duplicates the destination, we want that addend to be the
      first addend.  */
   if (code == PLUS
       && rtx_equal_p (operands[0], operands[2])
