@@ -54,7 +54,7 @@
 // are going to include for libstdc++ have a few related intrinsic
 // assumptions.  We control our own configuration here to best integrate with
 // this environment: use C99 math headers, do not use the FP macros for
-// dynamic cast by default (overriden for RTPs below) and arrange to disable
+// dynamic cast by default (overridden for RTPs below) and arrange to disable
 // the system TR1 declarations as we'll provide ours.
 
 #if _VXWORKS_MAJOR_GE(7)
@@ -90,7 +90,7 @@
 
 #endif // _VXWORKS_MAJOR >= 7
 
-// The min/max "functions" may be refered to with a namespace prefix.
+// The min/max "functions" may be referred to with a namespace prefix.
 // Prevent possible redefinitions as macros from VxWorks headers.
 #undef NOMINMAX
 #define NOMINMAX 1
