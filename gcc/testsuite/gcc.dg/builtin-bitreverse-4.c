@@ -51,4 +51,10 @@ foo8 (unsigned a)
   return BS (BS (BS (BS (a))));
 }
 
+bool
+foo9 (unsigned a)
+{
+  return BS (a) == 0;
+}
+
 /* { dg-final { scan-tree-dump-not "__builtin_bitreverse" "optimized" } } */

@@ -55,8 +55,8 @@ along with GCC; see the file COPYING3.  If not see
 (define_operator_list swapped_simple_comparison gt   ge   eq ne le   lt)
 (define_operator_list BSWAP BUILT_IN_BSWAP16 BUILT_IN_BSWAP32
 	    BUILT_IN_BSWAP64 BUILT_IN_BSWAP128)
-(define_operator_list BITREVERSE BUILT_IN_BITREVERSE16 BUILT_IN_BITREVERSE32
-	    BUILT_IN_BITREVERSE64 BUILT_IN_BITREVERSE128)
+(define_operator_list BITREVERSE BUILT_IN_BITREVERSE8 BUILT_IN_BITREVERSE16
+	    BUILT_IN_BITREVERSE32 BUILT_IN_BITREVERSE64 BUILT_IN_BITREVERSE128)
 
 #include "cfn-operators.pd"
 
