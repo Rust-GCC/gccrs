@@ -34949,6 +34949,10 @@ cp_parser_requirement_body (cp_parser *parser)
   if (!braces.require_open (parser))
     return error_mark_node;
 
+  /* Within the body of a requires expression, a '>' token is always the
+     greater-than operator. */
+  auto gto = make_temp_override (parser->greater_than_is_operator_p, true);
+
   tree reqs = cp_parser_requirement_seq (parser);
 
   if (!braces.require_close (parser))
