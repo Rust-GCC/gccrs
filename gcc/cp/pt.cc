@@ -23924,6 +23924,16 @@ check_non_deducible_conversions (tree parms, const tree *args, unsigned nargs,
 	  conversion **conv_p = convs ? &convs[ia+offset] : NULL;
 	  int lflags = conv_flags (ia, nargs, fn, arg, flags);
 
+	  /* As in add_function_candidate, don't consider conversion to an
+	     unrelated type when LOOKUP_DEFAULTED.  */
+	  if ((flags & LOOKUP_DEFAULTED)
+	      && ia == 0
+	      && (DECL_CONSTRUCTOR_P (fn)
+		  || DECL_ASSIGNMENT_OPERATOR_P (fn))
+	      && !reference_related_p (non_reference (parm),
+				       DECL_CONTEXT (fn)))
+	    return 1;
+
 	  if (check_non_deducible_conversion (parm, arg, strict, lflags,
 					      conv_p, explain_p, noninst_only_p))
 	    return 1;
