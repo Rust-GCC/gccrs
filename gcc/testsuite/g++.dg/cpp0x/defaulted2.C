@@ -55,7 +55,7 @@ G::G() = default;
 
 union U
 {
-  G g;				// { dg-error "union member.*non-trivial" }
+  G g;				// { dg-error "union member.*non-trivial" "" { target c++23_down } }
 };
 
 int main()
@@ -63,7 +63,7 @@ int main()
   F f;
   F f2(f);			// { dg-error "use" }
   const B* b = new const B;		// { dg-error "uninitialized const" }
-  U u;				// { dg-error "deleted" }
+  U u;				// { dg-error "deleted" "" { target c++23_down } }
 }
 
 // { dg-prune-output "implicitly deleted because" }

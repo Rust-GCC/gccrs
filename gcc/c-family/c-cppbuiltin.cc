@@ -1122,6 +1122,7 @@ c_cpp_builtins (cpp_reader *pfile)
 	    cpp_define (pfile, "__cpp_impl_reflection=202603L");
 	  else
 	    cpp_warn (pfile, "__cpp_impl_reflection");
+	  cpp_define (pfile, "__cpp_trivial_union=202502L");
 	}
       if (flag_concepts && cxx_dialect > cxx14)
 	cpp_define (pfile, "__cpp_concepts=202002L");

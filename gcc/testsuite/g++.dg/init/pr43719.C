@@ -109,7 +109,7 @@ struct Z		// { dg-error "deleted" "" { target c++11 } }
   Z5 z5;
 };
 
-union U // { dg-error "uninitialized" "" { target c++11 } }
+union U
 {
   int const i; // { dg-message "should be initialized" }
 };

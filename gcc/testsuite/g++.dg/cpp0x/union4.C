@@ -3,15 +3,15 @@
 
 struct SFoo
 {
-  SFoo() =delete;		// { dg-message "declared" }
+  SFoo() =delete;		// { dg-message "declared" "" { target c++23_down } }
 };
 
-union UFoo			// { dg-error "deleted" }
+union UFoo			// { dg-error "deleted" "" { target c++23_down } }
 {
   SFoo foo;
 };
 
 int main()
 {
-  UFoo();			// { dg-error "deleted" }
+  UFoo();			// { dg-error "deleted" "" { target c++23_down } }
 }

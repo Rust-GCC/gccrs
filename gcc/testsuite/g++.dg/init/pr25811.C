@@ -124,10 +124,9 @@ struct Z // { dg-error "deleted" "" { target c++11 } }
   Z5 z5;
 };
 
-union U // { dg-message "implicitly deleted" "" { target c++11 } }
-	// { dg-error "uninitialized" "" { target c++11 } .-1 }
+union U
 {
-  int const i; // { dg-message "should be initialized" }
+  int const i;
 };
 
 void f1 ()
@@ -207,5 +206,5 @@ void f15 ()
 
 void f16 ()
 {
-  new U; // { dg-error "deleted|uninitialized const member" }
+  new U; // { dg-error "uninitialized const member in 'union U' using 'new' without new-initializer" "" { target c++98_only } }
 }

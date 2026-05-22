@@ -603,7 +603,7 @@ static_assert (!is_constructible_type (^^DelnAny, { ^^int, ^^void * }));
 static_assert (!is_constructible_type (^^const DelnAny, { ^^int, ^^void * }));
 static_assert (!is_constructible_type (^^DelnAny, { ^^Empty, ^^B, ^^D }));
 static_assert (!is_constructible_type (^^const DelnAny, { ^^Empty, ^^B, ^^D }));
-static_assert (!is_constructible_type (^^NontrivialUnion, {}));
+static_assert (is_constructible_type (^^NontrivialUnion, {}));
 static_assert (!is_constructible_type (^^NontrivialUnion, { ^^const NontrivialUnion & }));
 static_assert (!is_constructible_type (^^UnusualCopy, {}));
 static_assert (!is_constructible_type (^^UnusualCopy, { ^^UnusualCopy }));

@@ -3903,17 +3903,28 @@ check_field_decl (tree field,
       else
 	{
 	  TYPE_NEEDS_CONSTRUCTING (t) |= TYPE_NEEDS_CONSTRUCTING (type);
-	  TYPE_HAS_NONTRIVIAL_DESTRUCTOR (t)
-	    |= TYPE_HAS_NONTRIVIAL_DESTRUCTOR (type);
 	  TYPE_HAS_COMPLEX_COPY_ASSIGN (t)
 	    |= (TYPE_HAS_COMPLEX_COPY_ASSIGN (type)
 		|| !TYPE_HAS_COPY_ASSIGN (type));
 	  TYPE_HAS_COMPLEX_COPY_CTOR (t) |= (TYPE_HAS_COMPLEX_COPY_CTOR (type)
 					     || !TYPE_HAS_COPY_CTOR (type));
-	  TYPE_HAS_COMPLEX_MOVE_ASSIGN (t) |= TYPE_HAS_COMPLEX_MOVE_ASSIGN (type);
+	  TYPE_HAS_COMPLEX_MOVE_ASSIGN (t)
+	    |= TYPE_HAS_COMPLEX_MOVE_ASSIGN (type);
 	  TYPE_HAS_COMPLEX_MOVE_CTOR (t) |= TYPE_HAS_COMPLEX_MOVE_CTOR (type);
-	  TYPE_HAS_COMPLEX_DFLT (t) |= (!TYPE_HAS_DEFAULT_CONSTRUCTOR (type)
-					|| TYPE_HAS_COMPLEX_DFLT (type));
+	  /* In C++26, triviality of default ctor or dtor of a variant member
+	     doesn't matter for triviality of the t's default ctor or dtor.
+	     Before C++26, non-trivial default ctor or dtor of a variant
+	     member makes it deleted with the exception of default ctor
+	     when DMI is present, but in that case default ctor is
+	     non-trivial.   */
+	  if (TREE_CODE (DECL_CONTEXT (field)) != UNION_TYPE)
+	    {
+	      TYPE_HAS_NONTRIVIAL_DESTRUCTOR (t)
+		|= TYPE_HAS_NONTRIVIAL_DESTRUCTOR (type);
+	      TYPE_HAS_COMPLEX_DFLT (t)
+		|= (!TYPE_HAS_DEFAULT_CONSTRUCTOR (type)
+		    || TYPE_HAS_COMPLEX_DFLT (type));
+	    }
 	}
 
       if (TYPE_HAS_COPY_CTOR (type)

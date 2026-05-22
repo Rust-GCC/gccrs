@@ -6,5 +6,5 @@ struct S {
 };
 
 void f() {
-  union { S a; };		// { dg-error "constructor|no match" }
+  union { S a; };		// { dg-error "constructor|no match" "" { target c++23_down } }
 }

@@ -94,7 +94,7 @@
 #undef __cpp_template_parameters
 #undef __cpp_template_template_args	// { dg-warning "undefining '__cpp_template_template_args'" "" { target c++20 } }
 #undef __cpp_threadsafe_static_init	// { dg-warning "undefining '__cpp_threadsafe_static_init'" "" { target c++20 } }
-#undef __cpp_trivial_union
+#undef __cpp_trivial_union		// { dg-warning "undefining '__cpp_trivial_union'" "" { target c++26 } }
 #undef __cpp_unicode_characters		// { dg-warning "undefining '__cpp_unicode_characters'" "" { target c++20 } }
 #undef __cpp_unicode_literals		// { dg-warning "undefining '__cpp_unicode_literals'" "" { target c++20 } }
 #undef __cpp_user_defined_literals	// { dg-warning "undefining '__cpp_user_defined_literals'" "" { target c++20 } }
