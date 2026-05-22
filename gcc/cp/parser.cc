@@ -45179,7 +45179,7 @@ cp_parser_omp_clause_doacross (cp_parser *parser, tree list, location_t loc)
    to ( [motion-modifier[,] [motion-modifier[,]...]:] variable-list )
 
    motion-modifier:
-     present | iterator (iterators-definition)  */
+     present | iterator (iterators-definition) | mapper (id) */
 
 static tree
 cp_parser_omp_clause_from_to (cp_parser *parser, enum omp_clause_code kind,
@@ -45218,8 +45218,9 @@ cp_parser_omp_clause_from_to (cp_parser *parser, enum omp_clause_code kind,
 	}
     }
 
-  bool present = false;
+  bool present = false, mapper_modifier = false;
   tree iterators = NULL_TREE;
+  tree mapper_name = NULL_TREE;
 
   for (int pos = 1; pos < colon_pos; ++pos)
     {
@@ -45259,12 +45260,70 @@ cp_parser_omp_clause_from_to (cp_parser *parser, enum omp_clause_code kind,
 	  iterators = cp_parser_omp_iterators (parser);
 	  pos += iterator_length - 1;
 	}
-
+      else if (strcmp ("mapper", p) == 0)
+	{
+	  cp_lexer_consume_token (parser->lexer);
+	  matching_parens parens;
+	  if (parens.require_open (parser))
+	    {
+	      if (mapper_modifier)
+		{
+		  cp_parser_error (parser, "too many %<mapper%> modifiers");
+		  /* Assume it's a well-formed mapper modifier, even if it
+		     seems to be in the wrong place.  */
+		  cp_lexer_consume_token (parser->lexer);
+		  parens.require_close (parser);
+		  cp_parser_skip_to_closing_parenthesis (parser,
+							 /*recovering=*/true,
+							 /*or_comma=*/false,
+							 /*consume_paren=*/
+							 true);
+		  return list;
+		}
+	      token = cp_lexer_peek_token (parser->lexer);
+	      switch (token->type)
+		{
+		case CPP_NAME:
+		  {
+		    cp_expr e = cp_parser_identifier (parser);
+		    if (e != error_mark_node)
+		      mapper_name = e;
+		    else
+		      goto err;
+		  }
+		  break;
+		case CPP_KEYWORD:
+		  if (token->keyword == RID_DEFAULT)
+		    {
+		      cp_lexer_consume_token (parser->lexer);
+		      break;
+		    }
+		  /* Fallthrough.  */
+		  /* FALLTHROUGH.  */
+		default:
+		err:
+		  cp_parser_error (parser,
+				   "expected identifier or %<default%>");
+		  return list;
+		}
+	      if (!parens.require_close (parser))
+		{
+		  cp_parser_skip_to_closing_parenthesis (parser,
+							 /*recovering=*/true,
+							 /*or_comma=*/false,
+							 /*consume_paren=*/
+							 true);
+		  return list;
+		}
+	      mapper_modifier = true;
+	      pos += 3;
+	    }
+	}
       else
 	{
 	  error_at (token->location,
-		    "%qs clause with modifier other than %<iterator%> "
-		    "or %<present%>",
+		    "%qs clause with modifier other than %<iterator%>, "
+		    "%<mapper%>, or %<present%>",
 		    kind == OMP_CLAUSE_TO ? "to" : "from");
 	  cp_parser_skip_to_closing_parenthesis (parser,
 						 /*recovering=*/true,
@@ -45294,6 +45353,27 @@ cp_parser_omp_clause_from_to (cp_parser *parser, enum omp_clause_code kind,
   if (iterators)
     for (tree c = nl; c != list; c = OMP_CLAUSE_CHAIN (c))
       OMP_CLAUSE_ITERATORS (c) = iterators;
+
+  if (mapper_name)
+    {
+      tree last_new = NULL_TREE;
+      for (tree c = nl; c != list; c = OMP_CLAUSE_CHAIN (c))
+	last_new = c;
+
+      tree name = build_omp_clause (input_location, OMP_CLAUSE_MAP);
+      OMP_CLAUSE_SET_MAP_KIND (name, GOMP_MAP_PUSH_MAPPER_NAME);
+      OMP_CLAUSE_DECL (name) = mapper_name;
+      OMP_CLAUSE_CHAIN (name) = nl;
+      nl = name;
+
+      gcc_assert (last_new);
+
+      name = build_omp_clause (input_location, OMP_CLAUSE_MAP);
+      OMP_CLAUSE_SET_MAP_KIND (name, GOMP_MAP_POP_MAPPER_NAME);
+      OMP_CLAUSE_DECL (name) = null_pointer_node;
+      OMP_CLAUSE_CHAIN (name) = OMP_CLAUSE_CHAIN (last_new);
+      OMP_CLAUSE_CHAIN (last_new) = name;
+    }
 
   return nl;
 }
@@ -51925,7 +52005,12 @@ cp_parser_omp_target_update (cp_parser *parser, cp_token *pragma_tok,
 
   tree clauses
     = cp_parser_omp_all_clauses (parser, OMP_TARGET_UPDATE_CLAUSE_MASK,
-				 "#pragma omp target update", pragma_tok);
+				 "#pragma omp target update", pragma_tok,
+				 /* finish_p = */ false);
+  if (!processing_template_decl)
+    clauses = c_omp_instantiate_mappers (clauses, C_ORT_OMP_UPDATE);
+  clauses = finish_omp_clauses (clauses, C_ORT_OMP_UPDATE);
+
   if (omp_find_clause (clauses, OMP_CLAUSE_TO) == NULL_TREE
       && omp_find_clause (clauses, OMP_CLAUSE_FROM) == NULL_TREE)
     {

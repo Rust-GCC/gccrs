@@ -1,6 +1,6 @@
+#pragma GCC optimize("O0")
 /* Parser for C and Objective-C.
    Copyright (C) 1987-2026 Free Software Foundation, Inc.
-
    Parser actions based on the old Bison parser; structure somewhat
    influenced by and fragments based on the C++ parser.
 
@@ -21255,7 +21255,7 @@ c_parser_omp_clause_device_type (c_parser *parser, tree list)
    to ( [motion-modifier[,] [motion-modifier[,]...]:] variable-list )
 
    motion-modifier:
-     present | iterator (iterators-definition)  */
+     present | iterator (iterators-definition) | mapper (id)  */
 
 static tree
 c_parser_omp_clause_from_to (c_parser *parser, enum omp_clause_code kind,
@@ -21297,8 +21297,9 @@ c_parser_omp_clause_from_to (c_parser *parser, enum omp_clause_code kind,
 	}
     }
 
-  bool present = false;
+  bool present = false, mapper_modifier = false;
   tree iterators = NULL_TREE;
+  tree mapper_name = NULL_TREE;
 
   for (int pos = 1; pos < colon_pos; ++pos)
     {
@@ -21331,11 +21332,59 @@ c_parser_omp_clause_from_to (c_parser *parser, enum omp_clause_code kind,
 	  iterators = c_parser_omp_iterators (parser);
 	  pos += iterator_length - 1;
 	}
+      else if (strcmp ("mapper", p) == 0)
+	{
+	  c_parser_consume_token (parser);
+
+	  matching_parens mparens;
+	  if (mparens.require_open (parser))
+	    {
+	      if (mapper_modifier)
+		{
+		  c_parser_error (parser, "too many %<mapper%> modifiers");
+		  /* Assume it's a well-formed mapper modifier, even if it
+		     seems to be in the wrong place.  */
+		  c_parser_consume_token (parser);
+		  mparens.require_close (parser);
+		  parens.skip_until_found_close (parser);
+		  return list;
+		}
+
+	      token = c_parser_peek_token (parser);
+	      switch (token->type)
+		{
+		case CPP_NAME:
+		  {
+		    mapper_name = token->value;
+		    c_parser_consume_token (parser);
+		  }
+		  break;
+		case CPP_KEYWORD:
+		  if (token->keyword == RID_DEFAULT)
+		    {
+		      c_parser_consume_token (parser);
+		      break;
+		    }
+		  /* FALLTHROUGH  */
+		default:
+		  error_at (token->location,
+			    "expected identifier or %<default%>");
+		  return list;
+		}
+	      if (!mparens.require_close (parser))
+		{
+		  parens.skip_until_found_close (parser);
+		  return list;
+		}
+	      mapper_modifier = true;
+	      pos += 3;
+	    }
+	}
       else
 	{
 	  error_at (token->location,
-		    "%qs clause with modifier other than %<iterator%> or "
-		    "%<present%>",
+		    "%qs clause with modifier other than %<iterator%>, "
+		    "%<mapper%>, or %<present%>",
 		    kind == OMP_CLAUSE_TO ? "to" : "from");
 	  parens.skip_until_found_close (parser);
 	  return list;
@@ -21364,6 +21413,27 @@ c_parser_omp_clause_from_to (c_parser *parser, enum omp_clause_code kind,
   if (iterators)
     for (tree c = nl; c != list; c = OMP_CLAUSE_CHAIN (c))
       OMP_CLAUSE_ITERATORS (c) = iterators;
+
+  if (mapper_name)
+    {
+      tree last_new = NULL_TREE;
+      for (tree c = nl; c != list; c = OMP_CLAUSE_CHAIN (c))
+	last_new = c;
+
+      tree name = build_omp_clause (input_location, OMP_CLAUSE_MAP);
+      OMP_CLAUSE_SET_MAP_KIND (name, GOMP_MAP_PUSH_MAPPER_NAME);
+      OMP_CLAUSE_DECL (name) = mapper_name;
+      OMP_CLAUSE_CHAIN (name) = nl;
+      nl = name;
+
+      gcc_assert (last_new);
+
+      name = build_omp_clause (input_location, OMP_CLAUSE_MAP);
+      OMP_CLAUSE_SET_MAP_KIND (name, GOMP_MAP_POP_MAPPER_NAME);
+      OMP_CLAUSE_DECL (name) = null_pointer_node;
+      OMP_CLAUSE_CHAIN (name) = OMP_CLAUSE_CHAIN (last_new);
+      OMP_CLAUSE_CHAIN (last_new) = name;
+    }
 
   return nl;
 }
@@ -27037,7 +27107,11 @@ c_parser_omp_target_update (location_t loc, c_parser *parser,
 
   tree clauses
     = c_parser_omp_all_clauses (parser, OMP_TARGET_UPDATE_CLAUSE_MASK,
-				"#pragma omp target update");
+				"#pragma omp target update",
+				/* finish_p = */ false);
+  clauses = c_omp_instantiate_mappers (clauses, C_ORT_OMP_UPDATE);
+  clauses = c_finish_omp_clauses (clauses, C_ORT_OMP_UPDATE);
+
   if (omp_find_clause (clauses, OMP_CLAUSE_TO) == NULL_TREE
       && omp_find_clause (clauses, OMP_CLAUSE_FROM) == NULL_TREE)
     {
