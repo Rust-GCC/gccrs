@@ -558,8 +558,8 @@ update_bb_for_insn (basic_block bb)
 }
 
 
-/* Like active_insn_p, except keep the return value use or clobber around
-   even after reload.  */
+/* Return true if adding or removing instances of INSN might affect the
+   semantics of the RTL.  */
 
 static bool
 flow_active_insn_p (const rtx_insn *insn)
@@ -567,16 +567,29 @@ flow_active_insn_p (const rtx_insn *insn)
   if (active_insn_p (insn))
     return true;
 
-  /* A clobber of the function return value exists for buggy
-     programs that fail to return a value.  Its effect is to
-     keep the return value from being live across the entire
-     function.  If we allow it to be skipped, we introduce the
-     possibility for register lifetime confusion.
-     Similarly, keep a USE of the function return value, otherwise
-     the USE is dropped and we could fail to thread jump if USE
-     appears on some paths and not on others, see PR90257.  */
-  if ((GET_CODE (PATTERN (insn)) == CLOBBER
-       || GET_CODE (PATTERN (insn)) == USE)
+  /* We cannot add new clobbers to a path without first proving that
+     the clobbered thing is dead.
+
+     For example:
+
+	(code_label L1)
+	(clobber X)
+	(set (pc) (label_ref L2))
+
+     is a forwarder block in the sense that a jump to L1 can be replaced
+     with a jump to L2, although perhaps with some loss of dataflow precision.
+     However, any attempt to merge a jump to L1 with a jump to L2 would be an
+     asymmetric operation, in that the merged code must jump to L2 rather than
+     to L1.  Our current definition of "forwarder block" does not allow for
+     this distinction and so we need to take a conservatively correct
+     approach.  */
+  if (GET_CODE (PATTERN (insn)) == CLOBBER)
+    return true;
+
+  /* Keep a USE of the function return value, otherwise the USE is dropped and
+     we could fail to thread a jump if USE appears on some paths and not on
+     others, see PR90257.  */
+  if (GET_CODE (PATTERN (insn)) == USE
       && REG_P (XEXP (PATTERN (insn), 0))
       && REG_FUNCTION_VALUE_P (XEXP (PATTERN (insn), 0)))
     return true;
