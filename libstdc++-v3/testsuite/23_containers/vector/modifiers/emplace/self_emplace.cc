@@ -31,11 +31,12 @@ test01()
     };
 
   // Make sure emplace will imply reallocation.
-  VERIFY( vv.capacity() == 3 );
+  const auto n = vv.capacity();
+  vv.resize(n);
 
   vv.emplace(vv.begin(), vv[0]);
 
-  VERIFY( vv.size() == 4 );
+  VERIFY( vv.size() == (n + 1) );
   VERIFY( vv[0].size() == 2 );
   VERIFY( vv[0][0] == 2 );
   VERIFY( vv[0][1] == 3 );
