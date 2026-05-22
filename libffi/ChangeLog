@@ -1,3 +1,105 @@
+2026-05-21  Pietro Monteiro  <pietro@sociotechnical.xyz>
+
+	* LOCAL_PATCHES: Update list.
+
+2026-05-21  Pietro Monteiro  <pietro@sociotechnical.xyz>
+
+	PR libffi/117635
+	* src/x86/ffitarget.h (if defined (X86_64) &&
+	defined (__i386__)): Remove #warning.
+
+2026-05-21  Pietro Monteiro  <pietro@sociotechnical.xyz>
+
+	PR libffi/117635
+	* src/aarch64/ffi.c: Define `WIN32_LEAN_AND_MEAN` before
+	`#include <windows.h>`.
+
+2026-05-21  Pietro Monteiro  <pietro@sociotechnical.xyz>
+
+	PR libffi/117635
+	* testsuite/lib/libffi.exp (load_gcc_lib): Load library from GCC
+	testsuite.
+	Load target-supports.exp and target-supports-dg.exp.
+	(libffi-init): Use libraries in GCC build tree.
+	Pass correct flags on darwin.
+	(libffi_target_compile): If '--with-build-sysroot=[...]' was
+	specified, use it for build-tree testing. Link with
+	-shared-libgcc -lstdc++ for C++ sources.
+
+2026-05-21  Pietro Monteiro  <pietro@sociotechnical.xyz>
+
+	PR libffi/117635
+	* Makefile.am (AUTOMAKE_OPTIONS): Add info-in-builddir.
+	(ACLOCAL_AMFLAGS): Set to -I .. -I ../config.
+	(SUBDIRS): Don't add doc.
+	(TEXINFO_TEX): New.
+	(MAKEINFOFLAGS): Likewise.
+	(info_TEXINFOS): Likewise.
+	(STAMP_GENINSRC): Likewise.
+	(STAMP_BUILD_INFO): Likewise.
+	(all-local): Likewise.
+	(stamp-geninsrc): Likewise.
+	(doc/libffi.info): Likewise.
+	(stamp-build-info:): Likewise.
+	(CLEANFILES): Likewise.
+	(MAINTAINERCLEANFILES): Likewise.
+	(AM_MAKEFLAGS): Likewise.
+	(LTLDFLAGS): Replace libtool-ldflags with ../libtool-ldflags.
+	(AM_CFLAGS): Add -Wall -g -fexceptions $(CET_FLAGS).
+	(libffi.map-sun): Replace make_sunver.pl with
+	../contrib/make_sunver.pl. Pass $(libffi_la_OBJECTS),
+	$(libffi_la_LIBADD) to make_sunver.pl unmodified.
+	(libffi_la_LDFLAGS): Handle Darwin rpaths.
+	(AM_CCASFLAGS): Add $(CET_FLAGS).
+	(all-recursive): New.
+	(install-recursive): Likewise.
+	(mostlyclean-recursive): Likewise.
+	(clean-recursive): Likewise.
+	(distclean-recursive): Likewise.
+	(maintainer-clean-recursive): Likewise.
+	(dist-hook): Removed.
+	Include $(top_srcdir)/../multilib.am.
+	* Makefile.in: Regenerate.
+	* configure: Regenerate.
+	* configure.ac: Add AM_ENABLE_MULTILIB.
+	Remove the frv*-elf check.
+	(AX_ENABLE_BUILDDIR): Removed.
+	(AM_INIT_AUTOMAKE): Add [no-dist].
+	Add --enable-generated-files-in-srcdir.
+	(CET_FLAGS): Add GCC_CET_FLAGS and AC_SUBST.
+	(AC_CONFIG_MACRO_DIR): Removed.
+	(AM_CONDITIONAL([ENABLE_DARWIN_AT_RPATH])): New.
+	(AX_COMPILER_VENDOR): Removed.
+	(AX_CC_MAXOPT): Likewise.
+	(AX_CFLAGS_WARN_ALL): Likewise.
+	Remove the GCC check.
+	(AC_SUBST(SYSROOT_CFLAGS_FOR_TARGET)): New.
+	<local.exp>: Don't set 'CC_FOR_TARGET', 'CXX_FOR_TARGET',
+	instead set 'SYSROOT_CFLAGS_FOR_TARGET'.
+	(m4_warn([obsolete])): Removed.
+	(LT_SYS_SYMBOL_USCORE): Likewise.
+	(AX_CHECK_COMPILE_FLAG): Likewise.
+	Remove --disable-docs.
+	(ACX_CHECK_PROG_VER): Check makeinfo.
+	(BUILD_DOCS): Updated.
+	(exec-static-tramp): Don't enable use of static exec trampolines
+	by default.
+	Remove --disable-multi-os-directory.
+	(GCC_WITH_TOOLEXECLIBDIR): New.
+	Support cross host.
+	Support --enable-multilib.
+	(GCC_BASE_VER): New.
+	(AC_CONFIG_FILES): Remove doc/Makefile.
+	(AC_CONFIG_LINKS): New.
+	* fficonfig.h.in: Regenerate.
+	* include/Makefile.am (nodist_include_HEADERS): Removed.
+	(gcc_version): New.
+	(toollibffidir): Likewise.
+	(toollibffi_HEADERS): Likewise.
+	* include/Makefile.in: Regenerate.
+	* man/Makefile.in: Regenerate.
+	* testsuite/Makefile.in: Regenerate.
+
 2026-01-29  Pietro Monteiro  <pietro@sociotechnical.xyz>
 
 	PR libffi/117635

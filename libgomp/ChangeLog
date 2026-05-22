@@ -1,3 +1,8 @@
+2026-05-21  Martin Jambor  <mjambor@suse.cz>
+
+	* testsuite/libgomp.c/ipcp-cb-spec1.c: Set lower param
+	ipa-cp-eval-threshold.
+
 2026-05-19  Paul-Antoine Arras  <parras@baylibre.com>
 	    Chung-Lin Tang  <cltang@baylibre.com>
 	    Sandra Loosemore  <sloosemore@baylibre.com>

@@ -1,3 +1,72 @@
+2026-05-21  Jonathan Wakely  <jwakely@redhat.com>
+
+	* testsuite/29_atomics/headers/atomic/types_std_c++0x.cc: Check
+	for C++20 std::memory_order enum. Use feature test macro for
+	char8_t.
+	* testsuite/29_atomics/headers/atomic/types_std_c++0x_neg.cc:
+	Add check for atomic_char8_t.
+	* testsuite/29_atomics/headers/atomic/types_std_c++20.cc:
+	Removed.
+	* testsuite/29_atomics/headers/atomic/types_std_c++20_neg.cc:
+	Removed.
+	* testsuite/29_atomics/headers/atomic/types_std_c++2a.cc:
+	Removed.
+
+2026-05-21  Patrick Palka  <ppalka@redhat.com>
+
+	* testsuite/23_containers/flat_map/1.cc (test_constexpr):
+	If std::string isn't constexpr don't run test10.
+
+2026-05-21  Jonathan Wakely  <jwakely@redhat.com>
+
+	* doc/xml/manual/evolution.xml: Document deprecations.
+	* doc/html/manual/api.html: Regenerate.
+	* include/bits/max_size_type.h (numeric_limits::has_denorm):
+	Mark as deprecated.
+	(numeric_limits::has_denorm_loss): Likewise.
+	* include/std/limits (float_denorm_style): Mark as deprecated.
+	(numeric_limits::has_denorm, numeric_limits::has_denorm_loss):
+	Mark as deprecated.
+	* testsuite/18_support/numeric_limits/char16_32_t.cc: Add
+	dg-warning for expected deprecation warnings.
+	* testsuite/18_support/numeric_limits/char8_t.cc: Likewise.
+	* testsuite/18_support/numeric_limits/denorm_min.cc: Likewise.
+	* testsuite/18_support/numeric_limits/dr559.cc: Likewise.
+	* testsuite/18_support/numeric_limits/requirements/constexpr_data.cc:
+	Likewise.
+	* testsuite/18_support/numeric_limits/specialization_default_values.cc:
+	Likewise.
+	* testsuite/std/ranges/iota/max_size_type.cc: Likewise.
+
+2026-05-21  Jonathan Wakely  <jwakely@redhat.com>
+
+	* doc/xml/manual/evolution.xml: Document constructor changes.
+	* doc/html/*: Regenerate.
+	* include/std/future (uses_allocator): Remove specializations
+	for std::promise and std::packaged_task.
+	(promise(allocator_arg_t, const Alloc&, promise&&)): Remove
+	constructor proposed for LWG 2095 but not in P3503R3.
+	(packaged_task(allocator_arg_t, const Alloc&)): Likewise.
+	(packaged_task(allocator_arg_t, const Alloc&, packaged_task&&)):
+	Likewise.
+	(packaged_task(allocator_arg_t, const Alloc&, F&&)): Restore
+	constructor for C++20 and later.
+	* testsuite/30_threads/packaged_task/uses_allocator.cc: Adjust
+	expected result for static_assert.
+	* testsuite/30_threads/promise/uses_allocator.cc: Likewise.
+
+2026-05-21  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* include/std/inplace_vector (inplace_vector::assign_range)
+	(inplace_vector::append_range): Cast ranges::distance(__rg)
+	to size_t.
+	* testsuite/23_containers/inplace_vector/cons/from_range.cc: New
+	test for ranges with integer-class size_type.
+	* testsuite/23_containers/inplace_vector/modifiers/assign.cc:
+	Likewise.
+	* testsuite/23_containers/inplace_vector/modifiers/multi_insert.cc:
+	Likewise.
+
 2026-05-20  Jonathan Wakely  <jwakely@redhat.com>
 
 	* src/c++20/Makefile.am [USE_STATIC_TZDATA]: Remove targets for

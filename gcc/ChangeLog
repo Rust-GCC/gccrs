@@ -1,3 +1,143 @@
+2026-05-21  Konstantinos Eleftheriou  <konstantinos.eleftheriou@vrull.eu>
+
+	* avoid-store-forwarding.cc
+	(store_forwarding_analyzer::avoid_store_forwarding): Replace
+	return with flush-and-continue for complex memory operations.
+
+2026-05-21  Konstantinos Eleftheriou  <konstantinos.eleftheriou@vrull.eu>
+
+	* avoid-store-forwarding.cc: Include regs.h.
+	(record_hard_reg_clobbers): New callback.
+	(store_forwarding_analyzer::m_bb_live_after): New cache.
+	(store_forwarding_analyzer::compute_bb_live_after): New helper.
+	(store_forwarding_analyzer::process_store_forwarding): Add
+	liveness check for hard registers clobbered by bit-insert
+	sequences, using the cached per-BB live-out information, and
+	evict the load_insn entry from the cache before delete_insn
+	in the load-elim path.
+	(store_forwarding_analyzer::avoid_store_forwarding): Clear the
+	per-BB liveness cache on entry.
+
+2026-05-21  Konstantinos Eleftheriou  <konstantinos.eleftheriou@vrull.eu>
+
+	* avoid-store-forwarding.cc
+	(store_forwarding_analyzer::avoid_store_forwarding): Remove
+	store_exprs_del vector and all associated tracking.  Remove the
+	same_range_as_removed check from the forwarding loop.  Update
+	block comment.
+
+2026-05-21  Gerald Pfeifer  <gerald@pfeifer.com>
+
+	* doc/install.texi (Prerequisites): The C++ front end also does
+	not use extensions.
+
+2026-05-21  Wilco Dijkstra  <wilco.dijkstra@arm.com>
+
+	PR target/123791
+	* config/aarch64/aarch64.cc (aarch64_cannot_force_const_mem): Remove
+	forcing symbol references to const mem.
+	(aarch64_can_use_per_function_literal_pools_p): Return false for
+	large model.
+	(aarch64_use_blocks_for_constant_p): Update comment.
+	(initialize_aarch64_code_model): Allow PIC/PIE.
+	(aarch64_classify_symbol): Use SYMBOL_SMALL_ABSOLUTE for constant
+	references and SYMBOL_SMALL_GOT_4G for writeable data.
+
+2026-05-21  Xi Ruoyao  <xry111@xry111.site>
+
+	PR target/125320
+	* config/riscv/riscv.md (stack_protect_test_<mode>): Call
+	riscv_output_move() instead of hard coding <load>.
+	(stack_protect_set_<mode>): Call riscv_output_move() instead of
+	hard coding <load> and <store>.
+
+2026-05-21  Martin Jambor  <mjambor@suse.cz>
+
+	* ipa-cp.cc (get_max_overall_size): Remove parameter CUR_SWEEP and
+	its use.
+	(decide_about_value): Adjust the call to get_max_overall_size.
+	(decide_whether_version_node): Likewise.
+	* params.opt (param_ipa_cp_eval_threshold): Initialize to 1100.
+
+2026-05-21  Christoph Müllner  <christoph.muellner@vrull.eu>
+
+	* config/riscv/riscv.opt.urls: Regenerate.
+
+2026-05-21  Christoph Müllner  <christoph.muellner@vrull.eu>
+
+	* common/config/riscv/riscv-common.cc (riscv_handle_option):
+	Handle Zilsd alignment options and clear the Zilsd-specific
+	explicit marker for -mstrict-align.
+	* config/riscv/riscv-opts.h (riscv_zilsd_align_type): New enum.
+	* config/riscv/riscv-protos.h
+	(riscv_expand_zilsd_misaligned_move): Declare as void.
+	(riscv_zilsd_valid_mem_p): Declare.
+	* config/riscv/riscv.cc (riscv_zilsd_required_align): New
+	functions.
+	(riscv_zilsd_valid_mem_p): New function.
+	(riscv_rtx_costs): Honor Zilsd alignment policy.
+	(riscv_split_64bit_move_p): Split invalid Zilsd GPR accesses.
+	(riscv_expand_zilsd_misaligned_move): New function.
+	(riscv_can_inline_p): Check effective Zilsd alignment policy.
+	(riscv_override_options_internal): Reject explicit Zilsd
+	alignment options for RV64.
+	* config/riscv/riscv.md (movmisaligndi): New expander.
+	(movmisaligndf): New expander.
+	* config/riscv/riscv.opt: Add -mzilsd-word-align and
+	-mzilsd-strict-align.
+	* config/riscv/riscv.opt.urls: Regenerate.
+	* doc/invoke.texi: Document the new options.
+
+2026-05-21  Christoph Müllner  <christoph.muellner@vrull.eu>
+
+	* config/riscv/andes_vector.h: Define intrinsic detection macros.
+	* config/riscv/riscv_bitmanip.h: Likewise.
+	* config/riscv/riscv_crypto.h: Likewise.
+	* config/riscv/riscv_vector.h: Likewise.
+	* config/riscv/sifive_vector.h: Likewise.
+	* doc/extend.texi: Document RISC-V intrinsic detection macros.
+
+2026-05-21  Christoph Müllner  <christoph.muellner@vrull.eu>
+
+	* common/config/riscv/riscv-ext-bitmask.def: Add zicfiss.
+	* config/riscv/riscv-ext.def: Add C API bit position for
+	zicfiss.
+
+2026-05-21  Christoph Müllner  <christoph.muellner@vrull.eu>
+
+	* common/config/riscv/riscv-ext-bitmask.def: Add supm,
+	zicntr, zihpm, zfbfmin, zvfbfmin, zvfbfwma, zicbom,
+	zaamo, zalrsc, zabha, zalasr, zicbop, and zicfilp.
+	* config/riscv/riscv-ext.def: Add C API bit positions for
+	supm, zicntr, zihpm, zfbfmin, zvfbfmin, zvfbfwma,
+	zicbom, zaamo, zalrsc, zabha, zalasr, zicbop, and
+	zicfilp.
+
+2026-05-21  Christoph Müllner  <christoph.muellner@vrull.eu>
+
+	* common/config/riscv/riscv-ext-bitmask.def: Add b, e, h,
+	zilsd, zclsd, zcmp, zifencei, and zmmul.
+
+2026-05-21  Georg-Johann Lay  <avr@gjlay.de>
+
+	PR target/121343
+	* config/avr/avr.md (ctz_ffs, cxz_ffs): New code iterators.
+	(clzhi2, ctzhi2, ffshi2, clzsi2, ctzsi2, ffssi2, bswapsi2): New
+	insn-and-split's from former expanders.
+
+2026-05-21  Xi Ruoyao  <xry111@xry111.site>
+
+	PR target/50481
+	* config/loongarch/loongarch.md (@rbit<GPR:mode>2): Rename to
+	...
+	(@bitreverse<mode>2): ... this.
+	(rbithi2): Rename to ...
+	(bitreversehi2): ... this.
+	(rbitqi2): Rename to ...
+	(bitreverseqi2): ... this.
+	(rbitsi_extended): Rename to ...
+	(bitreversesi2_extended): ... this.
+
 2026-05-20  Shivam Gupta  <shivam98.tkg@gmail.com>
 
 	PR tree-optimization/112533

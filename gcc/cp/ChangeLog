@@ -1,3 +1,32 @@
+2026-05-21  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/125330
+	* parser.cc (cp_parser_parameter_declaration_list): Also
+	pushdecl when parameter->default_argument is this_identifier.
+
+2026-05-21  Jason Merrill  <jason@redhat.com>
+
+	* constexpr.cc (init_subob_ctx): Check is_empty_field.
+
+2026-05-21  Jason Merrill  <jason@redhat.com>
+
+	PR c++/125384
+	PR c++/113563
+	* lambda.cc (build_capture_proxy): 'this' capture proxy is const.
+
+2026-05-21  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/125284
+	PR c++/125333
+	* pt.cc (tsubst_decl) <case USING_DECL>: Copy targs before
+	modifying them.
+
+2026-05-21  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/125376
+	* coroutines.cc (register_local_var_uses): Ignore DECL_NAME for
+	name independent decls.
+
 2026-05-19  Marek Polacek  <polacek@redhat.com>
 
 	PR c++/123536

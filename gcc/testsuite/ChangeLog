@@ -1,3 +1,84 @@
+2026-05-21  Konstantinos Eleftheriou  <konstantinos.eleftheriou@vrull.eu>
+
+	* gcc.target/aarch64/avoid-store-forwarding-6.c: New test.
+
+2026-05-21  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/125330
+	* g++.dg/cpp23/explicit-obj-basic8.C: New test.
+
+2026-05-21  Jason Merrill  <jason@redhat.com>
+
+	PR c++/125384
+	PR c++/113563
+	* g++.dg/cpp0x/lambda/lambda-this23.C: New test.
+
+2026-05-21  Wilco Dijkstra  <wilco.dijkstra@arm.com>
+
+	PR target/123791
+	* gcc.target/aarch64/pr123791.c: Update test.
+	* gcc.target/aarch64/pr63304_1.c: Likewise.
+	* gcc.target/aarch64/pr78733.c: Likewise.
+	* gcc.target/aarch64/pr79041-2.c: Likewise.
+
+2026-05-21  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/125284
+	PR c++/125333
+	* g++.dg/cpp1z/using-variadic4.C: New test.
+	* g++.dg/cpp1z/using-variadic5.C: New test.
+
+2026-05-21  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/125376
+	* g++.dg/coroutines/pr125376.C: New test.
+
+2026-05-21  Thomas Koenig  <tkoenig@gcc.gnu.org>
+
+	PR fortran/125379
+	* gfortran.dg/binding_label_tests_38.f90: New test.
+
+2026-05-21  Xi Ruoyao  <xry111@xry111.site>
+
+	PR target/125320
+	* gcc.target/riscv/pr125320.c: New test.
+
+2026-05-21  Martin Jambor  <mjambor@suse.cz>
+
+	* gcc.dg/ipa/ipa-5.c: Adjust dump.
+	* gcc.dg/independent-cloneids-1.c: Set lower param
+	ipa-cp-eval-threshold.
+	* gcc.dg/vla-1.c: Likewise.
+	* g++.dg/ipa/devirt-2.C: Add an extra caller of the to-be-cloned
+	function.
+
+2026-05-21  Christoph Müllner  <christoph.muellner@vrull.eu>
+
+	* gcc.target/riscv/zilsd-align-default-1.c: New test.
+	* gcc.target/riscv/zilsd-align-df-1.c: New test.
+	* gcc.target/riscv/zilsd-align-rv64-1.c: New test.
+	* gcc.target/riscv/zilsd-align-rv64-2.c: New test.
+	* gcc.target/riscv/zilsd-align-rv64-3.c: New test.
+	* gcc.target/riscv/zilsd-align-rv64-4.c: New test.
+	* gcc.target/riscv/zilsd-align-word-1.c: New test.
+	* gcc.target/riscv/zilsd-align-word-2.c: New test.
+	* gcc.target/riscv/zilsd-align-word-3.c: New test.
+	* gcc.target/riscv/zilsd-align-word-4.c: New test.
+	* gcc.target/riscv/zilsd-align-word-5.c: New test.
+
+2026-05-21  Christoph Müllner  <christoph.muellner@vrull.eu>
+
+	* gcc.target/riscv/intrinsic-detection-bitmanip.c: New test.
+	* gcc.target/riscv/intrinsic-detection-crypto.c: New test.
+	* gcc.target/riscv/intrinsic-detection-scalar-reverse.c: New test.
+	* gcc.target/riscv/intrinsic-detection-scalar.c: New test.
+	* gcc.target/riscv/rvv/base/intrinsic-detection.c: New test.
+
+2026-05-21  Xi Ruoyao  <xry111@xry111.site>
+
+	PR target/50481
+	* gcc.target/loongarch/la64/bitreverse.c: New test.
+
 2026-05-20  Pietro Monteiro  <pietro@sociotechnical.xyz>
 
 	* algol68/execute/entier-1.a68: Add test for FLOOR = ENTIER.

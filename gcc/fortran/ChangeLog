@@ -1,3 +1,12 @@
+2026-05-21  Thomas Koenig  <tkoenig@gcc.gnu.org>
+
+	PR fortran/125379
+	* gfortran.h (gfc_find_symbol_by_name): Add prototype.
+	* resolve.cc (gfc_verify_binding_labels): Call gfc_find_symbol_by_name
+	if direct lookup fails.
+	* symbol.cc (compare_target_sym_name): New function.
+	(gfc_find_symbol_by_name): New function.
+
 2026-05-20  Thomas Koenig  <tkoenig@gcc.gnu.org>
 
 	PR fortran/106546
