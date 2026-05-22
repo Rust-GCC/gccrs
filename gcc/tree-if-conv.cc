@@ -2277,15 +2277,17 @@ again:
   if (!gimple_extract_op (arg0_def_stmt, &arg0_op))
     return;
 
-  /* At this point there should be no ssa names occuring in abnormals.  */
-  gcc_assert (!arg0_op.operands_occurs_in_abnormal_phi ());
+  /* Might pick up abnormals from previous bbs so stop the loop.  */
+  if (arg0_op.operands_occurs_in_abnormal_phi ())
+    return;
 
   gimple *arg1_def_stmt = SSA_NAME_DEF_STMT (*arg1);
   if (!gimple_extract_op (arg1_def_stmt, &arg1_op))
     return;
 
-  /* At this point there should be no ssa names occuring in abnormals.  */
-  gcc_assert (!arg1_op.operands_occurs_in_abnormal_phi ());
+  /* Might pick up abnormals from previous bbs so stop the loop.  */
+  if (arg1_op.operands_occurs_in_abnormal_phi ())
+    return;
 
   /* No factoring can happen if the codes are different
      or the number operands.  */
