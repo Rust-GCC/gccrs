@@ -1064,9 +1064,21 @@ store_integral_bit_field (rtx op0, opt_scalar_int_mode op0_mode,
 				 value, value_mode, reverse);
 	  return true;
 	}
-      op0 = simplify_gen_subreg (word_mode, op0, op0_mode.require (),
-				 bitnum / BITS_PER_WORD * UNITS_PER_WORD);
-      gcc_assert (op0);
+      rtx new_op0
+	= simplify_gen_subreg (word_mode, op0, op0_mode.require (),
+			       bitnum / BITS_PER_WORD * UNITS_PER_WORD);
+      if (!new_op0)
+	{
+	  /* No valid word-mode SUBREG of op0 at this offset.  Defer to
+	     store_split_bit_field, which addresses op0 a word at a time.  */
+	  if (!fallback_p)
+	    return false;
+	  store_split_bit_field (op0, op0_mode, bitsize, bitnum,
+				 bitregion_start, bitregion_end,
+				 value, value_mode, reverse);
+	  return true;
+	}
+      op0 = new_op0;
       op0_mode = word_mode;
       bitnum %= BITS_PER_WORD;
     }
