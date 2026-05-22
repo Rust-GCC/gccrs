@@ -190,7 +190,7 @@ and warnings}.
 -fbounds-check -ftail-call-workaround -ftail-call-workaround=@var{n}
 -fcheck-array-temporaries
 -fcheck=<all|array-temps|bits|bounds|do|mem|pointer|recursion>
--fcoarray=<none|single|lib> -fexternal-blas -fexternal-blas64 -ff2c
+-fcoarray=<none|single|shared|lib> -fexternal-blas -fexternal-blas64 -ff2c
 -ffrontend-loop-interchange -ffrontend-optimize
 -finit-character=@var{n} -finit-integer=@var{n} -finit-local-zero
 -finit-derived -finit-logical=<true|false>
@@ -1792,6 +1792,9 @@ statements produces a compile-time error. (Default)
 
 @item @samp{single}
 Single-image mode, i.e. @code{num_images()} is always one.
+
+@item @samp{shared}
+Use shared-memory mulithreading parallelization.
 
 @item @samp{lib}
 Library-based coarray parallelization; a suitable GNU Fortran coarray
