@@ -1785,7 +1785,7 @@ matmul_c10_avx512f (gfc_array_c10 * const restrict retarray,
 
 #endif  /* HAVE_AVX512F */
 
-/* AMD-specifix funtions with AVX128 and FMA3/FMA4.  */
+/* AMD-specific functions with AVX128 and FMA3/FMA4.  */
 
 #if defined(HAVE_AVX) && defined(HAVE_FMA3) && defined(HAVE_AVX128)
 void

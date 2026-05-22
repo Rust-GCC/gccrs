@@ -109,7 +109,7 @@ static' include(matmul_internal.m4)dnl
 static' include(matmul_internal.m4)dnl
 `#endif  /* HAVE_AVX512F */
 
-/* AMD-specifix funtions with AVX128 and FMA3/FMA4.  */
+/* AMD-specific functions with AVX128 and FMA3/FMA4.  */
 
 #if defined(HAVE_AVX) && defined(HAVE_FMA3) && defined(HAVE_AVX128)
 'define(`matmul_name',`matmul_'rtype_code`_avx128_fma3')dnl

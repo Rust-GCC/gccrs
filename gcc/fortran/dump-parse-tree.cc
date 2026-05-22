@@ -4123,8 +4123,8 @@ gfc_dump_parse_tree (gfc_namespace *ns, FILE *file)
   show_namespace (ns);
 }
 
-/* This part writes BIND(C) prototypes and declatations, and prototypes
-   for EXTERNAL preocedures, for use in a C programs.  */
+/* This part writes BIND(C) prototypes and declarations, and prototypes
+   for EXTERNAL procedures, for use in a C programs.  */
 
 static void write_interop_decl (gfc_symbol *);
 static void write_proc (gfc_symbol *, bool);

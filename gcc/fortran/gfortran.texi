@@ -1145,7 +1145,7 @@ variables, such as AIX, I/O is also performed as synchronous.
 
 On some systems, such as Darwin or Solaris, the POSIX thread library
 is always linked in, so asynchronous I/O is always performed. On other
-sytems, such as Linux, it is necessary to specify @option{-pthread},
+systems, such as Linux, it is necessary to specify @option{-pthread},
 @option{-lpthread} or @option{-fopenmp} during the linking step.
 
 @c ---------------------------------------------------------------------
@@ -3308,7 +3308,7 @@ Tools, @url{http://chasm-interop.sourceforge.net/}.
 @cindex prototypes
 @cindex C prototypes
 The options @option{-fc-prototypes} can be used to write out C
-declatations and function prototypes for @code{BIND(C)} entities.
+declarations and function prototypes for @code{BIND(C)} entities.
 The same can be done for writing out prototypes for external
 procedures using @option{-fc-prototypes-external},
 @pxref{Interoperability Options}.
@@ -4550,7 +4550,7 @@ void (*accessor)(void **, int32_t *, void *, void *, size_t *,
 size_t *))}
 
 @item @emph{Description}:
-Identification of access funtions across images is done using a unique hash.
+Identification of access functions across images is done using a unique hash.
 For each given hash an accessor has to be registered.  This routine is expected
 to register an accessor function pointer for the given hash in nearly constant
 time.  I.e. it is expected to add the hash and accessor to a buffer and return.
@@ -4634,7 +4634,7 @@ lookups.
 @end multitable
 
 @item @emph{Result}:
-The zero based index to access the accessor funtion in a lookup table.
+The zero based index to access the accessor function in a lookup table.
 On error, @code{-1} can be returned.
 
 @item @emph{Notes}:

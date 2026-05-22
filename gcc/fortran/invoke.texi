@@ -1083,7 +1083,7 @@ Warn for usage of deprecated OpenMP code.
 
 @opindex Wexternal-argument-mismatch
 @cindex warnings, argument mismatch
-@cindex argment mismatch, warnings
+@cindex argument mismatch, warnings
 @item -Wexternal-argument-mismatch
 Warn about argument mismatches for dummy external procedures.  This is
 implied by @option{-fc-prototypes-external} because generation of a
@@ -1517,7 +1517,7 @@ values for conversion on most systems are: @samp{native}, the default;
 big-endian representation for unformatted files; @samp{little-endian}, use
 little-endian representation for unformatted files.
 
-On POWER systems that suppport @option{-mabi=ieeelongdouble},
+On POWER systems that support @option{-mabi=ieeelongdouble},
 there are additional options, which can be combined with others with
 commas.  Those are
 @itemize @w{}
@@ -1794,7 +1794,7 @@ statements produces a compile-time error. (Default)
 Single-image mode, i.e. @code{num_images()} is always one.
 
 @item @samp{shared}
-Use shared-memory mulithreading parallelization.
+Use shared-memory multithreading parallelization.
 
 @item @samp{lib}
 Library-based coarray parallelization; a suitable GNU Fortran coarray
