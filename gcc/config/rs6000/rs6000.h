@@ -533,9 +533,13 @@ extern int rs6000_vector_align[];
 				 || TARGET_VSX				 \
 				 || TARGET_HARD_FLOAT)
 
-/* E500 cores only support plain "sync", not lwsync.  */
+/* E500 and MPC8xx cores require all should-be-zero bits in sync to
+   actually be zero; using lwsync (L=1) causes a fault on these cores.
+   Classic cores (601, 603, 604, 750 etc.) simply ignore the L field
+   and always do a full hwsync.  */
 #define TARGET_NO_LWSYNC (rs6000_cpu == PROCESSOR_PPC8540 \
-			  || rs6000_cpu == PROCESSOR_PPC8548)
+			  || rs6000_cpu == PROCESSOR_PPC8548 \
+			  || rs6000_cpu == PROCESSOR_MPCCORE)
 
 
 /* Which machine supports the various reciprocal estimate instructions.  */
