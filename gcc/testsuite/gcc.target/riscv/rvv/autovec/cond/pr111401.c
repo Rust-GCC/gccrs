@@ -1,5 +1,5 @@
 /* { dg-do run { target { riscv_v } } } */
-/* { dg-additional-options "-mrvv-vector-bits=scalable -fdump-tree-vect-details" } */
+/* { dg-additional-options "-mrvv-vector-bits=scalable -mmax-vectorization -fdump-tree-vect-details" } */
 
 double
 __attribute__ ((noipa))

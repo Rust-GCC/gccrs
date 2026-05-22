@@ -397,6 +397,16 @@ static const common_vector_cost rvv_vls_vector_cost = {
   1, /* align_store_cost  */
   2, /* unalign_load_cost  */
   2, /* unalign_store_cost  */
+  2, /* reduc_i8_cost  */
+  2, /* reduc_i16_cost  */
+  2, /* reduc_i32_cost  */
+  2, /* reduc_i64_cost  */
+  2, /* reduc_f16_cost  */
+  2, /* reduc_f32_cost  */
+  2, /* reduc_f64_cost  */
+  20, /* reduc_f16_ordered_cost  */
+  10, /* reduc_f32_ordered_cost  */
+  5, /* reduc_f64_ordered_cost  */
 };
 
 /* RVV costs for VLA vector operations.  */
@@ -420,6 +430,16 @@ static const scalable_vector_cost rvv_vla_vector_cost = {
     1, /* align_store_cost  */
     2, /* unalign_load_cost  */
     2, /* unalign_store_cost  */
+    2, /* reduc_i8_cost  */
+    2, /* reduc_i16_cost  */
+    2, /* reduc_i32_cost  */
+    2, /* reduc_i64_cost  */
+    2, /* reduc_f16_cost  */
+    2, /* reduc_f32_cost  */
+    2, /* reduc_f64_cost  */
+    20, /* reduc_f16_ordered_cost  */
+    10, /* reduc_f32_ordered_cost  */
+    5, /* reduc_f64_ordered_cost  */
   },
 };
 

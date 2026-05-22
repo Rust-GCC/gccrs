@@ -1,9 +1,9 @@
 /* { dg-do compile } */
-/* { dg-options "-march=rv64gcv_zvfh_zvl4096b -mabi=lp64d -O3 -mrvv-max-lmul=m8 -fdump-tree-optimized" } */
+/* { dg-options "-march=rv64gcv_zvfh_zvl4096b -mabi=lp64d -O3 -mrvv-max-lmul=m8 -mmax-vectorization -fdump-tree-optimized" } */
 
 #include "wred-2.c"
 
-/* { dg-final { scan-assembler-times {vfwredosum\.vs} 17 } } */
+/* { dg-final { scan-assembler-times {vfwredosum\.vs} 19 } } */
 /* { dg-final { scan-assembler-not {csrr} } } */
 /* { dg-final { scan-tree-dump-not "1,1" "optimized" } } */
 /* { dg-final { scan-tree-dump-not "2,2" "optimized" } } */

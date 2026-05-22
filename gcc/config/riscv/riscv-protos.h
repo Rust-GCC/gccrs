@@ -280,6 +280,21 @@ struct common_vector_cost
 
   /* Cost of an unaligned vector store.  */
   const int unalign_store_cost;
+
+  /* Cost of vector reduction operations (unordered / tree reduction).
+     Indexed by element type.  */
+  const int reduc_i8_cost;
+  const int reduc_i16_cost;
+  const int reduc_i32_cost;
+  const int reduc_i64_cost;
+  const int reduc_f16_cost;
+  const int reduc_f32_cost;
+  const int reduc_f64_cost;
+
+  /* Cost of ordered (fold-left) floating-point reductions.  */
+  const int reduc_f16_ordered_cost;
+  const int reduc_f32_ordered_cost;
+  const int reduc_f64_ordered_cost;
 };
 
 /* scalable vectorization (VLA) specific cost.  */
@@ -289,8 +304,6 @@ struct scalable_vector_cost : common_vector_cost
     : common_vector_cost (base)
   {}
 
-  /* TODO: We will need more other kinds of vector cost for VLA.
-     E.g. fold_left reduction cost, lanes load/store cost, ..., etc.  */
 };
 
 /* Additional costs for register copies.  Cost is for one register.  */
