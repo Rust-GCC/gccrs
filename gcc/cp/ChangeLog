@@ -1,3 +1,26 @@
+2026-05-22  Julian Brown  <julian@codesourcery.com>
+	    Tobias Burnus  <tburnus@baylibre.com>
+
+	* parser.cc (cp_parser_omp_clause_from_to): Add parsing for
+	mapper modifier.
+	(cp_parser_omp_target_update): Instantiate mappers.
+
+2026-05-22  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/119059
+	* method.cc: Implement C++26 P3074R7 - trivial unions (was
+	std::uninitialized<T>) (except the sentence removed again in P3726R2)
+	and proposed resolution of CWG3189 - Implicitly deleted destructors
+	for union-like classes.
+	(walk_field_subobs): Don't do default_init_uninitialized_part checks
+	for variant members.  Don't check subobject ctor/dtor for variant
+	members for ctor/inheriting ctor or when subobject doesn't have member
+	initializer for dtor and it is either the dtor_from_ctor case or
+	the current class doesn't have user provided ctors.
+	* class.cc (check_field_decl): Don't or in
+	TYPE_HAS_NONTRIVIAL_DESTRUCTOR or TYPE_HAS_DEFAULT_CONSTRUCTOR of
+	variant subobjects for C++26.
+
 2026-05-21  Marek Polacek  <polacek@redhat.com>
 
 	PR c++/125330

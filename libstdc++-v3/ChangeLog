@@ -1,3 +1,10 @@
+2026-05-22  Jonathan Wakely  <jwakely@redhat.com>
+
+	* testsuite/23_containers/vector/modifiers/emplace/self_emplace.cc:
+	Ensure there is no unused capacity before inserting new element.
+	* testsuite/23_containers/vector/modifiers/insert/self_insert.cc:
+	Likewise.
+
 2026-05-21  Jonathan Wakely  <jwakely@redhat.com>
 
 	* testsuite/29_atomics/headers/atomic/types_std_c++0x.cc: Check

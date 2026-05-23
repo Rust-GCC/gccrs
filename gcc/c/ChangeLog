@@ -1,3 +1,10 @@
+2026-05-22  Julian Brown  <julian@codesourcery.com>
+	    Tobias Burnus  <tburnus@baylibre.com>
+
+	* c-parser.cc (c_parser_omp_clause_from_to): Add parsing
+	for mapper modifier.
+	(c_parser_omp_target_update): Instantiate mappers.
+
 2026-05-19  Paul-Antoine Arras  <parras@baylibre.com>
 	    Chung-Lin Tang  <cltang@baylibre.com>
 	    Sandra Loosemore  <sloosemore@baylibre.com>

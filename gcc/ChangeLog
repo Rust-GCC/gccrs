@@ -1,3 +1,41 @@
+2026-05-22  Disservin  <disservin.social@gmail.com>
+
+	PR target/50481
+	* config/aarch64/aarch64.md (bitreverse<mode>2, bitreverseqi2,
+	bitreversehi2): New expanders.
+	* config/aarch64/aarch64-simd.md (bitreverse<mode>2): New expander.
+
+2026-05-22  Wang Yaduo  <wangyaduo@linux.alibaba.com>
+
+	* config/riscv/riscv-protos.h (common_vector_cost): Add
+	reduc_i8_cost through reduc_f64_cost and
+	reduc_f{16,32,64}_ordered_cost.
+	* config/riscv/riscv.cc: Set costs in rvv_vls_vector_cost and
+	rvv_vla_vector_cost.
+	* config/riscv/riscv-vector-costs.cc (is_reduction): New helper.
+	(get_reduction_cost): New helper.
+	(costs::adjust_stmt_cost): Use them for vec_to_scalar kind.
+
+2026-05-22  Richard Sandiford  <rdsandiford@googlemail.com>
+
+	PR rtl-optimization/125375
+	* cfgrtl.cc (flow_active_insn_p): Return true for clobbers.
+
+2026-05-22  Jakub Jelinek  <jakub@redhat.com>
+
+	PR tree-optimization/125399
+	* match.pd (BITREVERSE): Add BUILT_IN_BITREVERSE8.
+
+2026-05-22  Steve Markgraf  <steve@steve-m.de>
+
+	* config/rs6000/rs6000.h (TARGET_NO_LWSYNC): Add PROCESSOR_MPCCORE.
+
+2026-05-22  Avinal Kumar  <avinal.xlvii@gmail.com>
+
+	PR tree-optimization/125050
+	* match.pd: (X != C1 ? -X : C2): Handle C1 being INT_MIN
+	by emitting (signed)(-(unsigned)X) instead of bailing out.
+
 2026-05-21  Konstantinos Eleftheriou  <konstantinos.eleftheriou@vrull.eu>
 
 	* avoid-store-forwarding.cc

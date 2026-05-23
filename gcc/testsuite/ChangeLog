@@ -1,3 +1,83 @@
+2026-05-22  Julian Brown  <julian@codesourcery.com>
+	    Tobias Burnus  <tburnus@baylibre.com>
+
+	* c-c++-common/gomp/target-update-iterators-1.c: Update for
+	dg-error change.
+	* c-c++-common/gomp/declare-mapper-19.c: New test.
+
+2026-05-22  Disservin  <disservin.social@gmail.com>
+
+	PR target/50481
+	* gcc.target/aarch64/bitreverse.c: New test.
+
+2026-05-22  Wang Yaduo  <wangyaduo@linux.alibaba.com>
+
+	* gcc.dg/vect/costmodel/riscv/rvv/reduc_vla_ordered.c: New.
+	* gcc.dg/vect/costmodel/riscv/rvv/reduc_vla_unordered.c: New.
+	* gcc.dg/vect/costmodel/riscv/rvv/reduc_vls_ordered.c: New.
+	* gcc.dg/vect/costmodel/riscv/rvv/reduc_vls_unordered.c: New.
+	* gcc.target/riscv/rvv/autovec/cond/pr111401.c: Use
+	-mmax-vectorization.
+	* gcc.target/riscv/rvv/autovec/vls/reduc-19.c: Use
+	-mmax-vectorization, adjust scan counts.
+	* gcc.target/riscv/rvv/autovec/vls/reduc-20.c: Likewise.
+	* gcc.target/riscv/rvv/autovec/vls/reduc-21.c: Likewise.
+	* gcc.target/riscv/rvv/autovec/vls/wred-3.c: Likewise.
+
+2026-05-22  Richard Sandiford  <rdsandiford@googlemail.com>
+
+	* gcc.dg/pr125375.c: New test.
+
+2026-05-22  Jeff Law  <jeffrey.law@oss.qualcomm.com>
+
+	* gcc.target/aarch64/tbz_1.c: Update expected output.
+
+2026-05-22  Jakub Jelinek  <jakub@redhat.com>
+
+	PR tree-optimization/125399
+	* gcc.dg/builtin-bitreverse-4.c (foo9): New function.
+	* gcc.dg/builtin-bitreverse-5.c: New test.
+	* gcc.dg/builtin-bitreverse-6.c: New test.
+	* gcc.dg/builtin-bitreverse-7.c: New test.
+	* gcc.dg/builtin-bitreverse-8.c: New test.
+
+2026-05-22  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/119059
+	* g++.dg/DRs/dr2581-1.C: Expect warning for __cpp_trivial_union.
+	* g++.dg/DRs/dr2581-2.C: Expect error for __cpp_trivial_union.
+	* g++.dg/cpp26/feat-cxx26.C: Add __cpp_trivial_union checking.
+	* g++.dg/cpp26/trivial-union1.C: New test.
+	* g++.dg/cpp26/trivial-union2.C: New test.
+	* g++.dg/reflect/trivial-union1.C: New test.
+	* g++.dg/reflect/type_trait6.C: Adjust expected result of
+	one is_destructible_type and two is_nothrow_destructible_type calls.
+	* g++.dg/reflect/is_constructible_type1.C: Adjust expected result
+	of one is_constructible_type call.
+	* g++.dg/init/pr43719.C: Don't expect one error.
+	* g++.dg/init/pr25811.C: Don't expect 3 diagnostic messages,
+	instead expect a different one for C++98 only.
+	* g++.dg/other/anon-union2.C: Only expect one diagnostic for
+	C++23 and older.
+	* g++.dg/cpp0x/union1.C: Only expect 6 diagnostic messages for
+	C++23 and older.
+	* g++.dg/cpp0x/union4.C: Only expect 3 diagnostic messages for
+	C++23 and older.
+	* g++.dg/cpp0x/defaulted2.C: Only expect 2 diagnostic messages for
+	C++23 and older.
+
+2026-05-22  Steve Markgraf  <steve@steve-m.de>
+
+	* gcc.target/powerpc/mpc860_no_lwsync.c: New test.
+
+2026-05-22  Avinal Kumar  <avinal.xlvii@gmail.com>
+
+	PR tree-optimization/125050
+	* gcc.dg/fold-condneg-2.c: Update expected optimization.
+	* gcc.dg/pr125050.c: New test.
+	* gcc.dg/tree-ssa/phi-opt-50.c: New test.
+	* gcc.dg/tree-ssa/phi-opt-51.c: New test.
+
 2026-05-21  Konstantinos Eleftheriou  <konstantinos.eleftheriou@vrull.eu>
 
 	* gcc.target/aarch64/avoid-store-forwarding-6.c: New test.

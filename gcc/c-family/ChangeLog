@@ -1,3 +1,19 @@
+2026-05-22  Julian Brown  <julian@codesourcery.com>
+	    Tobias Burnus  <tburnus@baylibre.com>
+
+	* c-common.h (enum c_omp_region_type): Add C_ORT_UPDATE and
+	C_ORT_OMP_UPDATE codes.
+	* c-omp.cc (omp_basic_map_kind_name): New function.
+	(omp_instantiate_mapper): Add LOC parameter and 'target update'
+	support.
+	(c_omp_instantiate_mappers): Add 'target update' support.
+
+2026-05-22  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/119059
+	* c-cppbuiltin.cc (c_cpp_builtins): For C++26 predefine
+	__cpp_trivial_union to 202502L.
+
 2026-05-15  Jakub Jelinek  <jakub@redhat.com>
 
 	PR c++/125081

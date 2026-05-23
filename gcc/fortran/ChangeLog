@@ -1,3 +1,15 @@
+2026-05-22  Tobias Burnus  <tburnus@baylibre.com>
+
+	* dump-parse-tree.cc: Fix comment typo.
+	* gfortran.texi: Fix typo.
+	* intrinsic.texi: Likewise.
+	* invoke.texi: Likewise.
+
+2026-05-22  Tobias Burnus  <tburnus@baylibre.com>
+
+	PR fortran/125416
+	* invoke.texi (fcoarray): Document 'shared'.
+
 2026-05-21  Thomas Koenig  <tkoenig@gcc.gnu.org>
 
 	PR fortran/125379
