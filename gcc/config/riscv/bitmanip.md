@@ -123,6 +123,54 @@
   [(set_attr "type" "bitmanip")
    (set_attr "mode" "DI")])
 
+;; A shift-left, zext.w, shift-left sequence should turn into a
+;; shift-left followed by slli.uw.
+;; The "TARGET_ZBA && clz_hwi (operands[3]) <= 32" check in the
+;; "*zero_extendsidi2_shifted" pattern over in riscv.md ensures
+;; that we fall through to here, if appropriate.
+;;
+;; Due to the anonymous pattern which utilizes zext.w to clear
+;; the upper half of a 64bit register and avoid constant synthesis
+;; this must be a define_insn_and_split for now.
+;;
+(define_insn_and_split "*slli_slli_uw"
+  [(set (match_operand:DI 0 "register_operand" "=r")
+	(and:DI (ashift:DI (match_operand:DI 1 "register_operand" "r")
+			   (match_operand:QI 2 "dimode_shift_operand" ""))
+		(match_operand:DI 3 "consecutive_bits_operand" "")))
+   (clobber (match_scratch:DI 4 "=&r"))]
+  "TARGET_64BIT && TARGET_ZBA
+   && popcount_hwi (INTVAL (operands[3])) < 32
+   && riscv_shamt_matches_mask_p (INTVAL (operands[2]), INTVAL (operands[3]))
+   && IN_RANGE (clz_hwi (INTVAL (operands[3])), 29, 32)"
+  "#"
+  "&& reload_completed"
+  [(const_int 0)]
+{
+  unsigned HOST_WIDE_INT mask = INTVAL (operands[3]);
+  /* scale: shamt for the slli.uw */
+  int scale = 32 - clz_hwi (mask);
+  /* bias:  shamt for the prior shift (can be zero) */
+  int bias = ctz_hwi (mask) - scale;
+
+  /* Don't emit a zero count shift.  Nothing post-reload will clean
+     that up.  */
+  if (bias != 0)
+    emit_insn (gen_rtx_SET (operands[4],
+			    gen_rtx_ASHIFT (DImode, operands[1],
+					    GEN_INT (bias))));
+
+  /* If BIAS was zero, then the source is still in operands[1], else
+     it's in the scratch register.  */
+  emit_insn (gen_riscv_slli_uw (operands[0],
+				bias ? operands[4] : operands[1],
+				GEN_INT (scale),
+				GEN_INT (HOST_WIDE_INT_C (0xffffffff) << scale)));
+  DONE;
+}
+  [(set_attr "type" "bitmanip")])
+
+
 ;; During combine, we may encounter an attempt to combine
 ;;   slli rtmp, rs, #imm
 ;;   zext.w rtmp, rtmp
@@ -130,42 +178,46 @@
 ;; which will lead to the immediate not satisfying the above constraints.
 ;; By splitting the compound expression, we can simplify to a slli and a
 ;; sh[123]add.uw.
-(define_split
-  [(set (match_operand:DI 0 "register_operand")
-	(plus:DI (and:DI (ashift:DI (match_operand:DI 1 "register_operand")
-				    (match_operand:QI 2 "immediate_operand"))
-			 (match_operand:DI 3 "consecutive_bits_operand"))
-		 (match_operand:DI 4 "register_operand")))
-   (clobber (match_operand:DI 5 "register_operand"))]
-  "TARGET_64BIT && TARGET_ZBA"
+
+;; To match this target sequence, the final result must be shifted
+;; using the sh[123]add.uw instruction by 1, 2 or 3 bits into the high
+;; word.  To test for this property, we count the leading zero-bits of
+;; the mask (which must be in the range [29, 31]).
+
+(define_insn_and_split "*shift_then_shNadd.uw"
+  [(set (match_operand:DI 0 "register_operand" "=r")
+	(plus:DI (and:DI (ashift:DI (match_operand:DI 1 "register_operand" "r")
+				    (match_operand:QI 2 "dimode_shift_operand" ""))
+			 (match_operand:DI 3 "consecutive_bits_operand" ""))
+		 (match_operand:DI 4 "register_operand" "r")))
+   (clobber (match_scratch:DI 5 "=&r"))]
+  "TARGET_64BIT && TARGET_ZBA
+   && riscv_shamt_matches_mask_p (UINTVAL (operands[2]), UINTVAL (operands[3]))
+   && IN_RANGE (clz_hwi (UINTVAL (operands[3])), 29, 31)"
+  "#"
+  "&& reload_completed"
   [(set (match_dup 5) (ashift:DI (match_dup 1) (match_dup 6)))
    (set (match_dup 0) (plus:DI (and:DI (ashift:DI (match_dup 5)
 						  (match_dup 7))
 				       (match_dup 8))
 			       (match_dup 4)))]
 {
-	unsigned HOST_WIDE_INT mask = UINTVAL (operands[3]);
-	/* scale: shift within the sh[123]add.uw */
-	unsigned HOST_WIDE_INT scale = 32 - clz_hwi (mask);
-	/* bias:  pre-scale amount (i.e. the prior shift amount) */
-	int bias = ctz_hwi (mask) - scale;
+  unsigned HOST_WIDE_INT mask = INTVAL (operands[3]);
+  /* scale: shamt for the sh[123]add.uw */
+  unsigned HOST_WIDE_INT scale = 32 - clz_hwi (mask);
+  /* bias:  shamt for the prior shift */
+  unsigned HOST_WIDE_INT bias = ctz_hwi (mask) - scale;
 
-	/* If the bias + scale don't add up to operand[2], reject. */
-	if ((scale + bias) != UINTVAL (operands[2]))
-	   FAIL;
+  /* If there's no bias, the '*shNadduw' pattern should have matched.  */
+  if (bias == 0)
+    FAIL;
 
-	/* If the shift-amount is out-of-range for sh[123]add.uw, reject. */
-	if ((scale < 1) || (scale > 3))
-	   FAIL;
+  operands[6] = GEN_INT (bias);
+  operands[7] = GEN_INT (scale);
+  operands[8] = GEN_INT (HOST_WIDE_INT_C (0xffffffff) << scale);
+}
+  [(set_attr "type" "bitmanip")])
 
-	/* If there's no bias, the '*shNadduw' pattern should have matched. */
-	if (bias == 0)
-	   FAIL;
-
-	operands[6] = GEN_INT (bias);
-	operands[7] = GEN_INT (scale);
-	operands[8] = GEN_INT (0xffffffffULL << scale);
-})
 
 (define_insn "*add.uw"
   [(set (match_operand:DI 0 "register_operand" "=r")
@@ -177,7 +229,7 @@
   [(set_attr "type" "bitmanip")
    (set_attr "mode" "DI")])
 
-(define_insn "*slliuw"
+(define_insn "riscv_slli_uw"
   [(set (match_operand:DI 0 "register_operand" "=r")
 	(and:DI (ashift:DI (match_operand:DI 1 "register_operand" "r")
 			   (match_operand:QI 2 "immediate_operand" "I"))
