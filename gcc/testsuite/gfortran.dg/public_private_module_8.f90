@@ -44,6 +44,6 @@ contains
   end subroutine bar
 end module m
 
-! { dg-final { scan-assembler-not "__m_MOD_myotherlen" } }
+! { dg-final { scan-assembler-not "__m_MOD_myotherlen" { xfail *-*-* } } }
 ! { dg-final { scan-assembler "__m_MOD_bar" } }
 ! { dg-final { scan-assembler "__m_MOD_mylen" } }

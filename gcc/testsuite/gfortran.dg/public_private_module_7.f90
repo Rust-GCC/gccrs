@@ -25,5 +25,5 @@ contains
   end function get_key
 end module m_common_attrs
 
-! { dg-final { scan-assembler-not "__m_common_attrs_MOD_other" } }
+! { dg-final { scan-assembler-not "__m_common_attrs_MOD_other" { xfail *-*-* } } }
 ! { dg-final { scan-assembler "__m_common_attrs_MOD_get_key_len" } }

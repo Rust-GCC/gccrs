@@ -2575,11 +2575,27 @@ build_function_decl (gfc_symbol * sym, bool global)
 	      && flag_module_private)))
     sym->attr.access = ACCESS_PRIVATE;
 
+  bool in_module_contains = sym->module && sym->ns->proc_name
+			     && sym->ns->proc_name->attr.flavor == FL_MODULE;
+
   if (!current_function_decl
       && !sym->attr.entry_master && !sym->attr.is_main_program
       && (sym->attr.access != ACCESS_PRIVATE || sym->binding_label
-	  || sym->attr.public_used))
-    TREE_PUBLIC (fndecl) = 1;
+	  || sym->attr.public_used || in_module_contains))
+    {
+      TREE_PUBLIC (fndecl) = 1;
+
+      /* Mirror the variable treatment (see gfc_finish_var_decl): PRIVATE
+	 module procedures get global linkage but hidden visibility so the
+	 symbol is reachable from submodules in the same link without being
+	 exported to external DSOs.  */
+      if (in_module_contains && sym->attr.access == ACCESS_PRIVATE
+	  && !sym->attr.public_used)
+	{
+	  DECL_VISIBILITY (fndecl) = VISIBILITY_HIDDEN;
+	  DECL_VISIBILITY_SPECIFIED (fndecl) = true;
+	}
+    }
 
   if (sym->attr.referenced || sym->attr.entry_master)
     TREE_USED (fndecl) = 1;

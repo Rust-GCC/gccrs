@@ -19,8 +19,10 @@ module mod
   integer, bind(C,name='') :: qq
 end module mod
 
-! The two xfails below have appeared with the introduction of submodules. 'iii' and
+! The xfails below have appeared with the introduction of submodules. 'iii' and
 ! 'mmm' now are TREE_PUBLIC but has DECL_VISIBILITY (decl) = VISIBILITY_HIDDEN set.
+! Similarly 'two' and 'six' (PRIVATE procedures) now have TREE_PUBLIC +
+! VISIBILITY_HIDDEN so that submodules can reach them via host association.
 
       ! { dg-final { scan-assembler "__mod_MOD_aa" } }
       ! { dg-final { scan-assembler-not "iii" { xfail *-*-* } } }
@@ -64,11 +66,11 @@ CONTAINS
 END MODULE
 
 ! { dg-final { scan-assembler "__m_MOD_one" } }
-! { dg-final { scan-assembler-not "two" } }
+! { dg-final { scan-assembler-not "two" { xfail *-*-* } } }
 ! { dg-final { scan-assembler "three" } }
 ! { dg-final { scan-assembler-not "four" } }
 ! { dg-final { scan-assembler "five" } }
-! { dg-final { scan-assembler-not "six" } }
+! { dg-final { scan-assembler-not "six" { xfail *-*-* } } }
 ! { dg-final { scan-assembler "seven" } }
 ! { dg-final { scan-assembler "nine" } }
 ! { dg-final { scan-assembler "__m_MOD_ten" } }

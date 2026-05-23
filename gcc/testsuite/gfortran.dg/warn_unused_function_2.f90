@@ -13,7 +13,7 @@ module m
 
 contains
 
-  subroutine s1            ! { dg-warning "defined but not used" }
+  subroutine s1
     call s2(s3)
     contains
       subroutine s4        ! { dg-warning "defined but not used" }
