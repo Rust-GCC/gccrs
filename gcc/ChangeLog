@@ -1,3 +1,208 @@
+2026-05-23  Daniel Barboza  <daniel.barboza@oss.qualcomm.com>
+
+	* fold-const.cc (fold_overflow_warning): Removed.
+	(pointer_may_wrap_p): Removed.
+	(fold_comparison): Removed fold_overflow_warning and
+	pointer_may_wrap_up calls.
+	(fold_binary_loc): Likewise.
+	* fold-const.h (fold_overflow_warning): Removed.
+
+2026-05-23  Daniel Barboza  <daniel.barboza@oss.qualcomm.com>
+
+	* fold-const.cc (fold_binary_loc): Likewise.
+	(tree_expr_nonnegative_warnv_p): Renamed to
+	tree_expr_nonnegative_p. Argument strict_overflow_p removed.
+	(tree_expr_nonnegative_p): Removed.
+	(RECURSE): Removed strict_overflow_p argument.
+	(tree_unary_nonnegative_p): Local strict_overflow_p variable
+	added to support the RECURSE() macro was removed.
+	(tree_binary_nonnegative_p): Likewise.
+	(tree_single_nonnegative_p): Likewise.
+	(tree_call_nonnegative_p): Likewise.
+	(tree_invalid_nonnegative_p): Likewise.
+	(tree_binary_nonzero_p): Removed sub_strict_overflow_p variable
+	from tree_expr_nonnegative_p call.
+	* fold-const.h (tree_expr_nonnegative_p): Removed.
+	(tree_expr_nonnegative_warnv_p): Renamed to
+	tree_expr_nonnegative_p, removed strict_overflow_p argument.
+	* tree-ssa-loop-manip.cc (create_iv): Removed ovf variable from
+	tree_expr_nonnegative_p call.
+
+2026-05-23  Daniel Barboza  <daniel.barboza@oss.qualcomm.com>
+
+	* fold-const.cc (tree_call_nonnegative_warnv_p): Renamed to
+	tree_call_nonnegative_warnv_p.
+	(tree_call_nonnegative_p): Removed strict_overflow_p flag.
+	(tree_invalid_nonnegative_warnv_p): Renamed to
+	tree_invalid_nonnegative_p.
+	(tree_invalid_nonnegative_p): Removed strict_overflow_p flag.
+	(tree_expr_nonnegative_warnv_p): Added ATTRIBUTE_UNUSED tag in
+	the now unused strict_overflow_p argument. Removed
+	strict_overflow_p call from tree_invalid_nonnegative_p.
+	* fold-const.h (tree_call_nonnegative_warnv_p): Renamed to
+	tree_call_nonnegative_p.
+	(tree_call_nonnegative_p): Removed strict_overflow_p flag.
+	* gimple-fold.cc (gimple_call_nonnegative_warnv_p): Renamed to
+	gimple_call_nonnegative_p.
+	(gimple_call_nonnegative_p): Removed strict_overflow_p flag.
+	(gimple_stmt_nonnegative_warnv_p): Renamed to
+	gimple_stmt_nonnegative_p.
+	(gimple_stmt_nonnegative_p): Removed strict_overflow_p flag.
+	* gimple-fold.h (gimple_stmt_nonnegative_warnv_p): Renamed to
+	gimple_stmt_nonnegative_p.
+	(gimple_stmt_nonnegative_p): Removed strict_overflow_p flag.
+	* gimple-range-fold.cc (fold_using_range::fold_stmt): Removed
+	strict_overflow_p flag from gimple_stmt_nonnegative_p.
+	(fold_using_range::range_of_call): Likewise.
+
+2026-05-23  Daniel Barboza  <daniel.barboza@oss.qualcomm.com>
+
+	* fold-const.cc (tree_single_nonnegative_warnv_p): Renamed to
+	tree_single_nonnegative_p.
+	(tree_single_nonnegative_p): Removed strict_overflow_p flag.
+	(tree_expr_nonnegative_warnv_p): Removed strict_overflow_p flag
+	from tree_single_nonnegative_p call.
+	* fold-const.h (tree_single_nonnegative_warnv_p): Renamed to
+	tree_single_nonnegative_p.
+	(tree_single_nonnegative_p): Removed strict_overflow_p flag.
+	* gimple-fold.cc (gimple_assign_nonnegative_warnv_p): Renamed to
+	gimple_assign_nonnegative_p.
+	(gimple_assign_nonnegative_p): Removed strict_overflow_p flag.
+	(gimple_phi_nonnegative_warnv_p): Renamed to
+	gimple_phi_nonnegative_p.
+	(gimple_phi_nonnegative_p): Removed strict_overflow_p flag.
+	(gimple_stmt_nonnegative_warnv_p): Removed strict_overflow_p
+	flag from gimple_phi_nonnegative_p and gimple_assign_nonnegative_p
+	calls.
+
+2026-05-23  Daniel Barboza  <daniel.barboza@oss.qualcomm.com>
+
+	* fold-const.cc (tree_unary_nonnegative_warnv_p): Renamed to
+	tree_unary_nonnegative_p.
+	(tree_unary_nonnegative_p): Removed strict_overflow_p flag.
+	(tree_expr_nonnegative_warnv_p): Removed strict_overflow_flag
+	from tree_unary_nonnegative_p calls.
+	* fold-const.h (tree_unary_nonnegative_warnv_p): Renamed to
+	tree_unary_nonnegative_p.
+	(tree_unary_nonnegative_p): Removed strict_overflow_p flag.
+	* gimple-fold.cc (gimple_assign_nonnegative_warnv_p): Removed
+	strict_overflow_flag from tree_unary_nonnegative_p calls.
+
+2026-05-23  Daniel Barboza  <daniel.barboza@oss.qualcomm.com>
+
+	* fold-const.cc (tree_binary_nonnegative_warnv_p): Renamed to
+	tree_binary_nonnegative_p.
+	(tree_binary_nonnegative_p): Removed strict_overflow_p flag. Add
+	a local variable with the same name for RECURSE() that we'll
+	remove later.
+	(tree_expr_nonnegative_warnv_p): Removed strict_overflow_p flag
+	from tree_binary_nonnegative_p call.
+	* fold-const.h (tree_binary_nonnegative_warnv_p): Renamed to
+	tree_binary_nonnegative_p.
+	(tree_binary_nonnegative_p): Removed strict_overflow_p flag.
+	* gimple-fold.cc (gimple_assign_nonnegative_warnv_p): Likewise.
+
+2026-05-23  Daniel Barboza  <daniel.barboza@oss.qualcomm.com>
+
+	* fold-const.cc (maybe_canonicalize_comparison_1): Removed
+	strict_overflow_p flag.
+	(maybe_canonicalize_comparison): Removed strict_overflow_p
+	flag and all fold_overflow_warning calls.
+
+2026-05-23  Daniel Barboza  <daniel.barboza@oss.qualcomm.com>
+
+	* fold-const.cc (tree_expr_nonzero_warnv_p): Renamed to
+	tree_expr_nonzero_p and removed the strict_overflow_p flag.
+	(tree_expr_nonzero_p): Removed it since it's now redundant with
+	tree_expr_nonzero_warnv_p.
+	(tree_unary_nonzero_p): Removed the local sub_strict_overflow_p
+	flag from the tree_expr_nonzero_p call.
+	(tree_binary_nonzero_p): Likewise.
+	(tree_single_nonzero_p): Likewise.
+
+2026-05-23  Daniel Barboza  <daniel.barboza@oss.qualcomm.com>
+
+	* fold-const.cc (tree_expr_nonzero_warnv_p): Removed
+	strict_overflow_p flag.
+	(tree_single_nonzero_warnv_p): Renamed to tree_single_nonzero_p.
+	(tree_single_nonzero_p): Removed strict_overflow_p flag.
+	* fold-const.h (tree_single_nonzero_warnv_p): Renamed to
+	tree_single_nonzero_p.
+	(tree_single_nonzero_p): Removed strict_overflow_p flag.
+	* gimple-range-fold.cc (fold_using_range::range_of_address):
+	Removed strict_overflow_p flag.
+	(range_from_readonly_load): Likewise.
+	* ipa-prop.cc (ipa_compute_jump_functions_for_edge): Likewise.
+	* tree-ssa-phiopt.cc (absorbing_element_p): Likewise.
+	* value-query.cc (range_query::get_tree_range): Likewise.
+
+2026-05-23  Daniel Barboza  <daniel.barboza@oss.qualcomm.com>
+
+	* fold-const.cc (tree_expr_nonzero_warnv_p): Removed
+	strict_overflow_p flag from tree_binary_nonzero_p call.
+	(tree_binary_nonzero_warnv_p): Renamed to tree_binary_nonzero_p.
+	(tree_binary_nonzero_p): Removed strict_overflow_p flag.
+	* fold-const.h (tree_binary_nonzero_warnv_p): Renamed to
+	tree_binary_nonzero_p.
+	(tree_binary_nonzero_p): Removed strict_overflow_p flag.
+
+2026-05-23  Daniel Barboza  <daniel.barboza@oss.qualcomm.com>
+
+	* fold-const.cc (mask_with_tz): Changed comment that describes
+	tree_expr_nonzero_warnv_p warn on overflow behavior.
+	(tree_expr_nonzero_warnv_p): Removed strict_overflow_p flag.
+	(tree_unary_nonzero_warnv_p): Renamed to tree_unary_nonzero_p.
+	(tree_unary_nonzero_p): Removed strict_overflow_p flag.
+	* fold-const.h (tree_unary_nonzero_warnv_p): Renamed to
+	tree_unary_nonzero_p.
+	(tree_unary_nonzero_p): Removed strict_overflow_p flag.
+
+2026-05-23  Daniel Barboza  <daniel.barboza@oss.qualcomm.com>
+
+	* fold-const.cc (extract_muldiv): Removed strict_overflow_p
+	references, including temporary variables and comments.
+	(extract_muldiv_1): Likewise.
+	(fold_binary_loc): Likewise.
+
+2026-05-23  Daniel Barboza  <daniel.barboza@oss.qualcomm.com>
+
+	* fold-const.cc (make_range_step): Likewise.
+	(make_range): Likewise.
+	(fold_range_test): Likewise.
+	* fold-const.h (make_range): Likewise.
+	(make_range_step): Likewise.
+	* tree-ssa-reassoc.cc (init_range_entry): Likewise.
+
+2026-05-23  Philipp Tomsich  <philipp.tomsich@vrull.eu>
+
+	* config/riscv/bitmanip.md (slli_slli_uw): New pattern.
+	(plus+and+ashift splitter): Turn into define_insn_and_split.
+	(riscv_slli_uw): Renamed from *slliuw.
+
+2026-05-23  Dimitar Dimitrov  <dimitar@dinux.eu>
+
+	* config/pru/constraints.md (MULDST_REGS): Remove constraint.
+	(MULSRC0_REGS): Ditto.
+	(MULSRC1_REGS): Ditto.
+	* config/pru/predicates.md (pru_muldst_operand): Compare
+	register number directly.
+	(pru_mulsrc0_operand): Ditto.
+	(pru_mulsrc1_operand): Ditto.
+	* config/pru/pru.h (enum reg_class): Remove single-reg classes.
+	(REG_CLASS_NAMES): Ditto.
+	(REGNO_REG_CLASS): Ditto.
+	* config/pru/pru.md (mulsi3): Switch to hard register constraints.
+	(umulsidi3): Ditto.
+
+2026-05-23  Dimitar Dimitrov  <dimitar@dinux.eu>
+
+	* config/pru/constraints.md: Prevent allocating r27 as
+	SImode destination for mulsi3 pattern.
+	* config/pru/pru.h (enum reg_class): Expand MULDST_REGS
+	to allow fitting DImode.
+	* config/pru/pru.md (umulsidi3): New pattern.
+	(muldi3): Ditto.
+
 2026-05-22  Disservin  <disservin.social@gmail.com>
 
 	PR target/50481

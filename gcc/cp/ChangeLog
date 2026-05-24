@@ -1,3 +1,8 @@
+2026-05-23  Jason Merrill  <jason@redhat.com>
+
+	PR c++/125135
+	* pt.cc (check_non_deducible_conversions): Handle LOOKUP_DEFAULTED.
+
 2026-05-22  Julian Brown  <julian@codesourcery.com>
 	    Tobias Burnus  <tburnus@baylibre.com>
 

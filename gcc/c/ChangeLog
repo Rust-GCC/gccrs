@@ -1,3 +1,7 @@
+2026-05-23  Daniel Barboza  <daniel.barboza@oss.qualcomm.com>
+
+	* c-typeck.cc (build_conditional_expr): Likewise.
+
 2026-05-22  Julian Brown  <julian@codesourcery.com>
 	    Tobias Burnus  <tburnus@baylibre.com>
 

@@ -1,3 +1,44 @@
+2026-05-23  Daniel Barboza  <daniel.barboza@oss.qualcomm.com>
+
+	* gcc.dg/Wstrict-overflow-22.c: Removed, given that we do not
+	generated a warning for the pattern being tested.
+	* gcc.dg/Wstrict-overflow-5.c: Likewise.
+
+2026-05-23  Daniel Barboza  <daniel.barboza@oss.qualcomm.com>
+
+	* gcc.dg/Wstrict-overflow-24.c: Removed since the pattern
+	doesn't throw warnings anymore.
+	* gcc.dg/Wstrict-overflow-9.c: Likewise.
+
+2026-05-23  Daniel Barboza  <daniel.barboza@oss.qualcomm.com>
+
+	* gcc.dg/pr56355-1.c: Removed since it's a warning check test
+	and we do not emit warnings for the code being tested.
+
+2026-05-23  Daniel Barboza  <daniel.barboza@oss.qualcomm.com>
+
+	* gcc.dg/Wstrict-overflow-3.c: Removed. We do not throw warnings
+	for extract_muldiv patterns anymore.
+
+2026-05-23  Philipp Tomsich  <philipp.tomsich@vrull.eu>
+
+	* gcc.target/riscv/and-shift-1.c: New test.
+
+2026-05-23  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/125263
+	* gfortran.dg/pr125263.f90: New test.
+
+2026-05-23  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/125391
+	* gfortran.dg/pr125391.f90: New test.
+
+2026-05-23  Jason Merrill  <jason@redhat.com>
+
+	PR c++/125135
+	* g++.dg/cpp0x/implicit18.C: New test.
+
 2026-05-22  Julian Brown  <julian@codesourcery.com>
 	    Tobias Burnus  <tburnus@baylibre.com>
 

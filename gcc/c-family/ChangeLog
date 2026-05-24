@@ -1,3 +1,18 @@
+2026-05-23  Daniel Barboza  <daniel.barboza@oss.qualcomm.com>
+
+	* c-warn.cc (warn_for_sign_compare): Remove strict_overflow_p
+	argument from tree_expr_nonnegative_p call.
+
+2026-05-23  Daniel Barboza  <daniel.barboza@oss.qualcomm.com>
+
+	* c-ubsan.cc (ubsan_maybe_instrument_reference_or_call): Removed
+	strict_overflow_p flag.
+
+2026-05-23  Daniel Barboza  <daniel.barboza@oss.qualcomm.com>
+
+	* c-warn.cc (warn_logical_operator): Removed strict_overflow_p
+	variable.
+
 2026-05-22  Julian Brown  <julian@codesourcery.com>
 	    Tobias Burnus  <tburnus@baylibre.com>
 
