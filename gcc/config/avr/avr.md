@@ -546,33 +546,18 @@
 ;;========================================================================
 ;; Move stuff around
 
-;; Expand helper for mov<mode>.
-(define_expand "gen_load<mode>_libgcc"
-  [(set (match_dup 3)
-        (match_dup 2))
-   (set (reg:MOVMODE 22)
-        (match_operand:MOVMODE 1 "memory_operand"))
-   (set (match_operand:MOVMODE 0 "register_operand")
-        (reg:MOVMODE 22))]
-  "avr_load_libgcc_p (operands[1])"
-  {
-    operands[3] = gen_rtx_REG (HImode, REG_Z);
-    operands[2] = force_operand (XEXP (operands[1], 0), NULL_RTX);
-    operands[1] = replace_equiv_address (operands[1], operands[3]);
-    set_mem_addr_space (operands[1], ADDR_SPACE_FLASH);
-  })
-
-;; "load_qi_libgcc"
-;; "load_hi_libgcc"
+;; On devices without LPMx, __flash values > 2 bytes
+;; are loaded with libgcc's __load_<size>.
+;; Must be prior to the mov<mode> insns.
+;; "load_qi_libgcc" (unused)
+;; "load_hi_libgcc" (unused)
 ;; "load_psi_libgcc"
 ;; "load_si_libgcc"
 ;; "load_sf_libgcc"
 (define_insn_and_split "load_<mode>_libgcc"
-  [(set (reg:MOVMODE 22)
-        (match_operand:MOVMODE 0 "memory_operand" "m"))]
-  "avr_load_libgcc_p (operands[0])
-   && REG_P (XEXP (operands[0], 0))
-   && REG_Z == REGNO (XEXP (operands[0], 0))"
+  [(set (match_operand:MOVMODE 0 "register_operand" "={r22}")
+        (match_operand:MOVMODE 1 "memory_operand"     "m"))]
+  "avr_load_libgcc_p (operands[1])"
   "#"
   "&& reload_completed"
   [(scratch)]
@@ -823,12 +808,8 @@
         DONE;
       }
 
-    if (avr_load_libgcc_p (src))
-      {
-        // For the small devices, do loads per libgcc call.
-        emit_insn (gen_gen_load<mode>_libgcc (dest, src));
-        DONE;
-      }
+    // The avr_load_libgcc_p (src) insns are handled above by
+    // "load_<mode>_libgcc".  They look like ordinary move insns.
   })
 
 ;;========================================================================
