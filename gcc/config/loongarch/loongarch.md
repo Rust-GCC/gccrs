@@ -5057,19 +5057,25 @@
   ""
 {
   loongarch_output_asm_load_canary (operands[2], operands[1], NULL_RTX);
-  output_asm_insn (which_alternative ? "stptr.d\t%2,%0" : "st.d\t%2,%0",
+  output_asm_insn (which_alternative ? "stptr.d\t%2,%0"
+				     : "st.<d>\t%2,%0",
 		   operands);
   return "ori\t%2,$r0,0";
 }
   [(set_attr "type" "store")
-   (set_attr "length" "20")])
+   (set_attr "length" "20")
+   (set (attr "enabled")
+	(if_then_else
+	  (match_test "!which_alternative || TARGET_64BIT")
+	  (const_string "yes")
+	  (const_string "no")))])
 
-(define_insn "@stack_protect_combined_set_extreme_<mode>"
-  [(set (match_operand:P 0 "memory_operand" "=m,ZC")
-        (unspec:P [(mem:P (match_operand:P 1 "ssp_operand"))] UNSPEC_SSP))
-   (set (match_scratch:P 2 "=&r,&r") (const_int 0))
-   (set (match_scratch:P 3 "=&r,&r") (const_int 0))]
-  ""
+(define_insn "stack_protect_combined_set_extreme"
+  [(set (match_operand:DI 0 "memory_operand" "=m,ZC")
+        (unspec:DI [(mem:DI (match_operand:DI 1 "ssp_operand"))] UNSPEC_SSP))
+   (set (match_scratch:DI 2 "=&r,&r") (const_int 0))
+   (set (match_scratch:DI 3 "=&r,&r") (const_int 0))]
+  "TARGET_ABI_LP64"
 {
   loongarch_output_asm_load_canary (operands[2], operands[1], operands[3]);
   output_asm_insn (which_alternative ? "stptr.d\t%2,%0" : "st.d\t%2,%0",
@@ -5092,12 +5098,17 @@
   rtx t = (which_alternative >= 2 ? operands[0] : NULL_RTX);
   loongarch_output_asm_load_canary (operands[3], operands[2], t);
   output_asm_insn ((which_alternative & 1) ? "ldptr.d\t%0,%1"
-					   : "ld.d\t%0,%1",
+					   : "ld.<d>\t%0,%1",
 		   operands);
   return "xor\t%0,%0,%3\n\tori\t%3,$r0,0";
 }
   [(set_attr "type" "load,load,load,load")
-   (set_attr "length" "24,24,36,36")])
+   (set_attr "length" "24,24,36,36")
+   (set (attr "enabled")
+	(if_then_else
+	  (match_test "!(which_alternative & 1) || TARGET_64BIT")
+	  (const_string "yes")
+	  (const_string "no")))])
 
 (define_expand "stack_protect_combined_set"
   [(match_operand 0 "memory_operand")
@@ -5105,11 +5116,12 @@
   ""
 {
   rtx canary = XEXP (operands[1], 0);
-  auto fn = (ssp_normal_operand (canary, VOIDmode)
-	     ? gen_stack_protect_combined_set_normal
-	     : gen_stack_protect_combined_set_extreme);
-
-  emit_insn (fn (Pmode, operands[0], canary));
+  if (ssp_normal_operand (canary, VOIDmode))
+    emit_insn (gen_stack_protect_combined_set_normal (Pmode, operands[0],
+						      canary));
+  else
+    emit_insn (gen_stack_protect_combined_set_extreme (operands[0],
+						       canary));
   DONE;
 })
 
