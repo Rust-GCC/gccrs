@@ -128,7 +128,7 @@ get_float_hex_string (const void *source, int kind, char *buffer,
 	double mant;
 	int expon;
 	int int_part;
-	unsigned long frac_part;
+	GFC_UINTEGER_8 frac_part;
 
 	val = *(const GFC_REAL_8 *) source;
 	is_negative = signbit (val);
@@ -172,11 +172,13 @@ get_float_hex_string (const void *source, int kind, char *buffer,
 	int_part = (int) mant;
 	/* 56 is the nearest integer divisible by 4 that is >= 53 (mantissa bits
 	   for kind=8).  (56-4)/4 = 13 hex digits for the fractional part.  */
-	frac_part = (unsigned long) scalbn (mant - (double) int_part, 56 - 4);
+	frac_part = (GFC_UINTEGER_8) scalbn (mant - (double) int_part, 56 - 4);
 	if (is_negative)
-	  result = snprintf (buffer, 25, "-0X%X.%13.13lXP%+d", int_part, frac_part, expon);
+	  result = snprintf (buffer, 25, "-0X%X.%13.13llXP%+d", int_part,
+			     (GFC_UINTEGER_8) frac_part, expon);
 	else
-	  result = snprintf (buffer, 25, "0X%X.%13.13lXP%+d", int_part, frac_part, expon);
+	  result = snprintf (buffer, 25, "0X%X.%13.13llXP%+d", int_part,
+			     (GFC_UINTEGER_8) frac_part, expon);
       }
       break;
 #ifdef HAVE_GFC_REAL_10
@@ -186,7 +188,7 @@ get_float_hex_string (const void *source, int kind, char *buffer,
 	GFC_REAL_10 mant;
 	int expon;
 	int int_part;
-	unsigned long long frac_part;
+	GFC_UINTEGER_8 frac_part;
 
 	val = *(const GFC_REAL_10 *) source;
 	is_negative = signbit (val);
@@ -230,11 +232,13 @@ get_float_hex_string (const void *source, int kind, char *buffer,
 	int_part = (int) mant;
 	/* 64 is the nearest integer divisible by 4 that is >= 64 (mantissa bits
 	   for kind=10).  (64-4)/4 = 15 hex digits for the fractional part.  */
-	frac_part = (unsigned long long) scalbnl (mant - (GFC_REAL_10) int_part, 64 - 4);
+	frac_part = (GFC_UINTEGER_8) scalbnl (mant - (GFC_REAL_10) int_part, 64 - 4);
 	if (is_negative)
-	  result = snprintf (buffer, 28, "-0X%X.%15.15llXP%+d", int_part, frac_part, expon);
+	  result = snprintf (buffer, 28, "-0X%X.%15.15llXP%+d", int_part,
+			     (GFC_UINTEGER_8) frac_part, expon);
 	else
-	  result = snprintf (buffer, 28, "0X%X.%15.15llXP%+d", int_part, frac_part, expon);
+	  result = snprintf (buffer, 28, "0X%X.%15.15llXP%+d", int_part,
+			     (GFC_UINTEGER_8) frac_part, expon);
       }
       break;
 #endif
@@ -245,7 +249,7 @@ get_float_hex_string (const void *source, int kind, char *buffer,
 	GFC_REAL_16 mant;
 	int expon;
 	int int_part;
-	unsigned long long frac_hi, frac_lo;
+	GFC_UINTEGER_8 frac_hi, frac_lo;
 	GFC_REAL_16 frac_val, frac_lo_val;
 
 	val = *(const GFC_REAL_16 *) source;
@@ -291,17 +295,19 @@ get_float_hex_string (const void *source, int kind, char *buffer,
 	/* 116 is the nearest integer divisible by 4 that is >= 113 (mantissa
 	   bits for kind=16).  (116-4)/4 = 28 hex digits for the fractional
 	   part, split into two 56-bit halves (14 hex digits each) to fit in
-	   unsigned long long.  */
+	   GFC_UINTEGER_8.  */
 	frac_val = mant - (GFC_REAL_16) int_part;
-	frac_hi = (unsigned long long) GFC_REAL_16_SCALBN (frac_val, 56);
+	frac_hi = (GFC_UINTEGER_8) GFC_REAL_16_SCALBN (frac_val, 56);
 	frac_lo_val = frac_val - GFC_REAL_16_SCALBN ((GFC_REAL_16) frac_hi, -56);
-	frac_lo = (unsigned long long) GFC_REAL_16_SCALBN (frac_lo_val, 112);
+	frac_lo = (GFC_UINTEGER_8) GFC_REAL_16_SCALBN (frac_lo_val, 112);
 	if (is_negative)
 	  result = snprintf (buffer, 42, "-0X%X.%14.14llX%14.14llXP%+d",
-			     int_part, frac_hi, frac_lo, expon);
+			     int_part, (GFC_UINTEGER_8) frac_hi,
+			     (GFC_UINTEGER_8) frac_lo, expon);
 	else
 	  result = snprintf (buffer, 42, "0X%X.%14.14llX%14.14llXP%+d",
-			     int_part, frac_hi, frac_lo, expon);
+			     int_part, (GFC_UINTEGER_8) frac_hi,
+			     (GFC_UINTEGER_8) frac_lo, expon);
       }
       break;
 #endif /* HAVE_GFC_REAL_16  */
