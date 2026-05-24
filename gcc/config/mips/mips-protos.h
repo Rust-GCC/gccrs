@@ -223,6 +223,8 @@ extern void mips_split_msa_copy_d (rtx, rtx, rtx, rtx (*)(rtx, rtx, rtx));
 extern void mips_split_msa_insert_d (rtx, rtx, rtx, rtx);
 extern void mips_split_msa_fill_d (rtx, rtx);
 extern const char *mips_output_move (rtx, rtx);
+extern rtx mips_canary_expose_gp_use (rtx);
+extern void mips_output_asm_load_canary (rtx, rtx, rtx);
 extern bool mips_cfun_has_cprestore_slot_p (void);
 extern bool mips_cprestore_address_p (rtx, bool);
 extern void mips_save_gp_to_cprestore_slot (rtx, rtx, rtx, rtx);

@@ -168,6 +168,9 @@
   UNSPEC_INSN_PSEUDO
   UNSPEC_JRHB
 
+  UNSPEC_SSP
+  UNSPEC_SSP_GP
+
   VUNSPEC_SPECULATION_BARRIER
 ])
 
@@ -6234,7 +6237,7 @@
    bt%N1z\t%0"
   [(set_attr "type" "branch")])
 
-(define_expand "cbranch<mode>4"
+(define_expand "@cbranch<mode>4"
   [(set (pc)
 	(if_then_else (match_operator 0 "comparison_operator"
 		       [(match_operand:GPR 1 "register_operand")
@@ -8139,6 +8142,79 @@
 	      (set (match_dup 2)
 		   (any_extend:SI (match_dup 3)))])]
   "")
+
+(define_insn "@stack_protect_combined_set_normal_<mode>"
+  [(set (match_operand:P 0 "memory_operand" "=m")
+	(unspec:P [(mem:P (match_operand:P 1 "ssp_normal_operand"))]
+		  UNSPEC_SSP))
+   (set (match_scratch:P 2 "=&d") (const_int 0))]
+  ""
+{
+  mips_output_asm_load_canary (operands[2], operands[1], NULL_RTX);
+  return "<store>\t%2,%0\n\tmove\t%2,$0";
+}
+  [(set_attr "insn_count" "5")])
+
+(define_insn "stack_protect_combined_set_abs64"
+  [(set (match_operand:DI 0 "memory_operand" "=m")
+	(unspec:DI [(mem:DI (match_operand:DI 1 "absolute_symbolic_operand"))]
+		  UNSPEC_SSP))
+   (set (match_scratch:DI 2 "=&d") (const_int 0))
+   (set (match_scratch:DI 3 "=&d") (const_int 0))]
+  "ABI_HAS_64BIT_SYMBOLS && TARGET_EXPLICIT_RELOCS"
+{
+  mips_output_asm_load_canary (operands[2], operands[1], operands[3]);
+  return "sd\t%2,%0\n\tmove\t%2,$0\n\tmove\t%3,$0";
+}
+  [(set_attr "insn_count" "9")])
+
+(define_insn "@stack_protect_combined_test_internal_<mode>"
+  [(set (match_operand:P 0 "register_operand" "=d,d")
+	(xor:P
+	  (match_operand:P 1 "memory_operand" "m,m")
+	  (unspec:P [(mem:P (match_operand:P 2 "ssp_operand" "ZA,ZB"))]
+		    UNSPEC_SSP)))
+   (set (match_scratch:P 3 "=&d,&d") (const_int 0))]
+  ""
+{
+  rtx t = (which_alternative ? operands[0] : NULL_RTX);
+  mips_output_asm_load_canary (operands[3], operands[2], t);
+  return "<load>\t%0,%1\n\txor\t%0,%0,%3\n\tmove\t%3,$0";
+}
+  [(set_attr "insn_count" "6,9")])
+
+(define_expand "stack_protect_combined_set"
+  [(match_operand 0 "memory_operand")
+   (match_operand 1 "memory_operand")]
+  ""
+{
+  rtx canary = mips_canary_expose_gp_use (XEXP (operands[1], 0));
+
+  if (ssp_normal_operand (canary, VOIDmode))
+    emit_insn (gen_stack_protect_combined_set_normal (Pmode, operands[0],
+						      canary));
+  else
+    emit_insn (gen_stack_protect_combined_set_abs64 (operands[0],
+						     canary));
+  DONE;
+})
+
+(define_expand "stack_protect_combined_test"
+  [(match_operand 0 "memory_operand")
+   (match_operand 1 "memory_operand")
+   (match_operand 2 "")]
+  ""
+{
+  rtx t = gen_reg_rtx (Pmode);
+  rtx canary = mips_canary_expose_gp_use (XEXP (operands[1], 0));
+
+  emit_insn (gen_stack_protect_combined_test_internal (Pmode, t,
+						       operands[0],
+						       canary));
+  rtx cond = gen_rtx_EQ (VOIDmode, t, const0_rtx);
+  emit_jump_insn (gen_cbranch4 (Pmode, cond, t, const0_rtx, operands[2]));
+  DONE;
+})
 
 
 ;; Synchronization instructions.

@@ -495,6 +495,24 @@
 	  && mips_hi_relocs[(int) type]);
 })
 
+(define_predicate "ssp_gp_operand"
+  (match_code "unspec")
+{
+  return (XINT (op, 1) == UNSPEC_SSP_GP
+	  && XVECEXP (op, 0, 0) == pic_offset_table_rtx
+	  && GET_CODE (XVECEXP (op, 0, 1)) == SYMBOL_REF);
+})
+
+(define_predicate "ssp_operand"
+  (ior (match_code "symbol_ref")
+       (match_operand 0 "ssp_gp_operand")))
+
+(define_predicate "ssp_normal_operand"
+  (and (match_operand 0 "ssp_operand")
+       (not (and (match_operand 0 "absolute_symbolic_operand")
+		 (match_test "ABI_HAS_64BIT_SYMBOLS")
+		 (match_test "TARGET_EXPLICIT_RELOCS")))))
+
 (define_predicate "force_to_mem_operand"
   (match_code "const,symbol_ref,label_ref")
 {

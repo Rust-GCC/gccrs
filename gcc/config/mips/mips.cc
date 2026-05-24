@@ -3955,8 +3955,10 @@ mips_small_data_pattern_1 (rtx x, enum mips_symbol_context context)
 
       /* Ignore things like "g" constraints in asms.  We make no particular
 	 guarantee about which symbolic constants are acceptable as asm operands
-	 versus which must be forced into a GPR.  */
-      if (GET_CODE (x) == LO_SUM || GET_CODE (x) == ASM_OPERANDS)
+	 versus which must be forced into a GPR.  SSP canary GP use has
+	 been exposed earlier in expand.  */
+      if (GET_CODE (x) == LO_SUM || GET_CODE (x) == ASM_OPERANDS
+	  || (GET_CODE (x) == UNSPEC && XINT (x, 1) == UNSPEC_SSP_GP))
 	iter.skip_subrtxes ();
       else if (MEM_P (x))
 	{
@@ -5566,6 +5568,87 @@ mips_output_move (rtx dest, rtx src)
     }
   gcc_unreachable ();
 }
+
+rtx
+mips_canary_expose_gp_use (rtx canary)
+{
+  gcc_checking_assert (symbolic_operand (canary, VOIDmode));
+
+  switch (mips_classify_symbol (canary, SYMBOL_CONTEXT_LEA))
+    {
+    case SYMBOL_GOT_DISP:
+    case SYMBOL_GP_RELATIVE:
+      return gen_rtx_UNSPEC (Pmode, gen_rtvec (2, pic_offset_table_rtx,
+					       canary),
+			     UNSPEC_SSP_GP);
+    default:
+      return canary;
+    }
+}
+
+void
+mips_output_asm_load_canary (rtx reg, rtx canary, rtx tmp)
+{
+  gcc_checking_assert (register_operand (reg, Pmode));
+
+  if (ssp_gp_operand (canary, VOIDmode))
+    canary = XVECEXP (canary, 0, 1);
+
+  rtx op[] = {reg, canary, tmp};
+
+  if (!TARGET_EXPLICIT_RELOCS)
+    {
+      gcc_checking_assert (!tmp);
+      output_asm_insn (mips_output_move (reg, canary), op);
+    }
+  else
+    {
+      auto symbol_class = mips_classify_symbol (canary, SYMBOL_CONTEXT_LEA);
+      bool need_hi = false;
+      switch (symbol_class)
+	{
+	case SYMBOL_ABSOLUTE:
+	  if (ABI_HAS_64BIT_SYMBOLS)
+	    {
+	      gcc_checking_assert (tmp);
+	      output_asm_insn ("lui\t%0,%%highest(%1)", op);
+	      output_asm_insn ("lui\t%2,%%hi(%1)", op);
+	      output_asm_insn ("daddiu\t%0,%0,%%higher(%1)", op);
+	      output_asm_insn ("dsll\t%0,%0,32", op);
+	      output_asm_insn ("daddu\t%2,%0,%2", op);
+	      break;
+	    }
+	  need_hi = true;
+	  break;
+	case SYMBOL_GOT_DISP:
+	  op[1] = mips_unspec_address (op[1], SYMBOL_GOTOFF_DISP);
+	  if (TARGET_XGOT)
+	    {
+	      need_hi = true;
+	      break;
+	    }
+	  /* fall through */
+	case SYMBOL_GP_RELATIVE:
+	  op[2] = pic_offset_table_rtx;
+	  break;
+	default:
+	  sorry ("%<-fstack-protector%> with unexpected canary symbol");
+	  return;
+	}
+
+      if (need_hi)
+	{
+	  output_asm_insn ("lui\t%0,%h1", op);
+	  op[2] = op[0];
+	}
+
+      output_asm_insn ("l%v0\t%0,%R1(%2)", op);
+      if (symbol_class == SYMBOL_GOT_DISP)
+	output_asm_insn ("l%v0\t%0,(%0)", op);
+    }
+}
+
+
 
 /* Return true if CMP1 is a suitable second operand for integer ordering
    test CODE.  See also the *sCC patterns in mips.md.  */
@@ -9650,10 +9733,12 @@ mips_print_operand (FILE *file, rtx op, int letter)
 	  break;
 	case E_V4SImode:
 	case E_V4SFmode:
+	case E_SImode:
 	  fprintf (file, "w");
 	  break;
 	case E_V2DImode:
 	case E_V2DFmode:
+	case E_DImode:
 	  fprintf (file, "d");
 	  break;
 	default:
