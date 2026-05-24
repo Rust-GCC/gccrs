@@ -334,7 +334,7 @@ read_source_file (const char *filename)
   bool ret = true;
 
   /* First open the given file.  */
-  if (!(FILE_SOURCE_FD (&A68_JOB) = fopen (filename, "r")))
+  if (!(FILE_SOURCE_FD (&A68_JOB) = fopen (filename, "rb")))
     fatal_error (UNKNOWN_LOCATION, "could not open source file %s",
 		 filename);
   FILE_SOURCE_NAME (&A68_JOB) = ggc_strdup (filename);
@@ -1076,7 +1076,7 @@ include_files (LINE_T *top)
 	      t = NO_LINE;
 
 	      /* Access the file.  */
-	      fp = fopen (fn, "r");
+	      fp = fopen (fn, "rb");
 	      SCAN_ERROR (fp == NULL, start_l, start_c,
 			  "error opening included file");
 	      ssize = a68_file_size (fileno (fp));

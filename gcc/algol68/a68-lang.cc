@@ -538,7 +538,7 @@ a68_handle_option (size_t scode,
     case OPT_fmodules_map_file:
     case OPT_fmodules_map_file_:
       {
-	FILE *file = fopen (arg, "r");
+	FILE *file = fopen (arg, "rb");
 	if (file == NULL)
 	  fatal_error (UNKNOWN_LOCATION,
 		       "cannot open modules map file %<%s%>", arg);
