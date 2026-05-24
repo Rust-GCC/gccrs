@@ -1955,9 +1955,112 @@ write_ex (st_parameter_dt *dtp, const fnode *f, const char *p, int kind)
 	  /* Adjust mantissa to have exactly 'd' digits after decimal */
 	  if (d < mantissa_digits)
 	    {
-	      /* Truncate mantissa */
+	      /* Determine rounding direction before truncating.  */
+	      char *first_drop = decimal + d + 1;
+	      char fc = *first_drop;
+	      int fd_val = (fc >= '0' && fc <= '9') ? fc - '0'
+			  : (fc >= 'A' && fc <= 'F') ? fc - 'A' + 10 : 0;
+
+	      /* Check whether any tail digits (beyond the
+		 first dropped digit) are nonzero.  */
+	      bool tail_nonzero = false;
+	      for (char *tp = first_drop + 1; tp < p_pos; tp++)
+		if (*tp != '0')
+		  {
+		    tail_nonzero = true;
+		    break;
+		  }
+
+	      bool is_negative = (buf[0] == '-');
+	      bool do_round_up = false;
+
+	      switch (dtp->u.p.current_unit->round_status)
+		{
+		case ROUND_ZERO:
+		  /* Truncate toward zero; no adjustment needed.  */
+		  break;
+		case ROUND_UP:
+		  /* Toward +inf: round up positive values only.  */
+		  if (!is_negative && (fd_val > 0 || tail_nonzero))
+		    do_round_up = true;
+		  break;
+		case ROUND_DOWN:
+		  /* Toward -inf: round up negative values only.  */
+		  if (is_negative && (fd_val > 0 || tail_nonzero))
+		    do_round_up = true;
+		  break;
+		case ROUND_COMPATIBLE:
+		  /* Nearest, ties away from zero.  */
+		  do_round_up = (fd_val >= 8);
+		  break;
+		case ROUND_PROCDEFINED:
+		case ROUND_UNSPECIFIED:
+		  /* Processor-defined defaults to ROUND_NEAREST on IEEE 754
+		     systems.  Fall through.  */
+		default:
+		case ROUND_NEAREST:
+		  /* Round to nearest, ties to even.  */
+		  if (fd_val > 8)
+		    do_round_up = true;
+		  else if (fd_val == 8)
+		    {
+		      if (tail_nonzero)
+			do_round_up = true;
+		      else
+			{
+			  /* Exact tie: round last kept digit to even.  */
+			  char lk = *(decimal + d);
+			  int lk_val = (lk >= '0' && lk <= '9') ? lk - '0'
+				       : lk - 'A' + 10;
+			  do_round_up = (lk_val & 1) != 0;
+			}
+		    }
+		  break;
+		}
+
+	      /* Truncate the fractional part to d digits.  */
 	      memmove (decimal + d + 1, p_pos, strlen (p_pos) + 1);
 	      p_pos = decimal + d + 1;
+
+	      if (do_round_up)
+		{
+		  /* Propagate carry leftward through the fractional digits.  */
+		  char *pos = p_pos - 1;
+		  while (pos > decimal)
+		    {
+		      int dv = (*pos >= '0' && *pos <= '9') ? *pos - '0'
+			       : *pos - 'A' + 10;
+		      dv++;
+		      if (dv < 16)
+			{
+			  *pos = dv < 10 ? ('0' + dv) : ('A' + dv - 10);
+			  goto rounding_done;
+			}
+		      *pos = '0';
+		      pos--;
+		    }
+		  /* Carry reached the integer digit (at decimal - 1).  */
+		  pos = decimal - 1;
+		  {
+		    int dv = (*pos >= '0' && *pos <= '9') ? *pos - '0'
+			     : *pos - 'A' + 10;
+		    dv++;
+		    if (dv < 16)
+		      *pos = dv < 10 ? ('0' + dv) : ('A' + dv - 10);
+		    else
+		      {
+			/* Integer digit overflowed (was F).  Normalize: the
+			   value F.0...0 * 2^exp to 8.0...0 * 2^(exp+1).  */
+			*pos = '8';
+			int actual_exp = (sign_char == '-') ? -(int)exp_value
+							    : (int)exp_value;
+			actual_exp++;
+			exp_value = actual_exp >= 0 ? actual_exp : -actual_exp;
+			sign_char = actual_exp >= 0 ? '+' : '-';
+		      }
+		  }
+		  rounding_done:;
+		}
 	    }
 	  else if (d > mantissa_digits)
 	    {
