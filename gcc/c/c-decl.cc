@@ -2203,8 +2203,8 @@ diagnose_mismatched_decls (tree newdecl, tree olddecl,
   bool enum_and_int_p = false;
   auto_diagnostic_group d;
 
-  int comptypes_result = comptypes_check_enum_int (oldtype, newtype,
-						   &enum_and_int_p);
+  bool comptypes_result = comptypes_check_enum_int (oldtype, newtype,
+						    &enum_and_int_p);
   if (!comptypes_result)
     {
       if (TREE_CODE (olddecl) == FUNCTION_DECL
@@ -2359,7 +2359,7 @@ diagnose_mismatched_decls (tree newdecl, tree olddecl,
 		      if (comptypes (oldtype, trytype))
 			{
 			  *newtypep = newtype = trytype;
-			  comptypes_result = 1;
+			  comptypes_result = true;
 			}
 		    }
 		}
@@ -2399,12 +2399,7 @@ diagnose_mismatched_decls (tree newdecl, tree olddecl,
      compatible.  */
   if (TREE_CODE (newdecl) == TYPE_DECL)
     {
-      bool types_different = false;
-
-      comptypes_result
-	= comptypes_check_different_types (oldtype, newtype, &types_different);
-
-      if (comptypes_result != 1 || types_different)
+      if (!comptypes_same_p (oldtype, newtype))
 	{
 	  error ("redefinition of typedef %q+D with different type", newdecl);
 	  locate_old_decl (olddecl);
@@ -3457,7 +3452,7 @@ pushdecl (tree x)
 	  && TREE_CODE (x) == FUNCTION_DECL && DECL_FILE_SCOPE_P (b_use->decl)
 	  && DECL_FILE_SCOPE_P (x)
 	  && disjoint_version_decls (x, b_use->decl)
-	  && comptypes (vistype, type) != 0)
+	  && comptypes (vistype, type))
 	{
 	  maybe_mark_function_versioned (b_use->decl);
 	  maybe_mark_function_versioned (b->decl);

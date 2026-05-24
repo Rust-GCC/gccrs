@@ -1576,14 +1576,13 @@ comptypes_check_for_composite (tree t1, tree t2)
 bool
 compatible_types_for_indirection_note_p (tree type1, tree type2)
 {
-  return comptypes (type1, type2) == 1;
+  return comptypes (type1, type2);
 }
 
-/* Return 1 if TYPE1 and TYPE2 are compatible types for assignment
-   or various other operations.  Return 2 if they are compatible
-   but a warning may be needed if you use them together.  */
+/* Return true if TYPE1 and TYPE2 are compatible types for assignment
+   or various other operations.  */
 
-int
+bool
 comptypes (tree type1, tree type2)
 {
   struct comptypes_data data = { };
@@ -1591,7 +1590,7 @@ comptypes (tree type1, tree type2)
 
   gcc_checking_assert (!ret || comptypes_verify (type1, type2));
 
-  return ret ? (data.warning_needed ? 2 : 1) : 0;
+  return ret;
 }
 
 
@@ -1613,10 +1612,10 @@ comptypes_same_p (tree type1, tree type2)
 }
 
 
-/* Like comptypes, but if it returns non-zero because enum and int are
+/* Like comptypes, but if it returns true because enum and int are
    compatible, it sets *ENUM_AND_INT_P to true.  */
 
-int
+bool
 comptypes_check_enum_int (tree type1, tree type2, bool *enum_and_int_p)
 {
   struct comptypes_data data = { };
@@ -1625,24 +1624,9 @@ comptypes_check_enum_int (tree type1, tree type2, bool *enum_and_int_p)
 
   gcc_checking_assert (!ret || comptypes_verify (type1, type2));
 
-  return ret ? (data.warning_needed ? 2 : 1) : 0;
+  return ret;
 }
 
-/* Like comptypes, but if it returns nonzero for different types, it
-   sets *DIFFERENT_TYPES_P to true.  */
-
-int
-comptypes_check_different_types (tree type1, tree type2,
-				 bool *different_types_p)
-{
-  struct comptypes_data data = { };
-  bool ret = comptypes_internal (type1, type2, &data);
-  *different_types_p = data.different_types_p;
-
-  gcc_checking_assert (!ret || comptypes_verify (type1, type2));
-
-  return ret ? (data.warning_needed ? 2 : 1) : 0;
-}
 
 
 /* Like comptypes, but if it returns true for struct and union types
@@ -1703,9 +1687,7 @@ comptypes_equiv_p (tree type1, tree type2)
    If two functions types are not compatible only because one is
    an old-style definition that does not have self-promoting arguments,
    then this can be ignored by setting 'ignore_promoting_args_p'.
-   For 'equiv' we can compute equivalency classes (see above).
-   This differs from comptypes, in that we don't free the seen
-   types.  */
+   For 'equiv' we can compute equivalency classes (see above).  */
 
 static bool
 comptypes_internal (const_tree type1, const_tree type2,
@@ -1880,47 +1862,40 @@ comptypes_internal (const_tree type1, const_tree type2,
 static bool
 comp_target_types (location_t location, tree ttl, tree ttr)
 {
-  int val;
-  int val_ped;
   tree mvl = TREE_TYPE (ttl);
   tree mvr = TREE_TYPE (ttr);
   addr_space_t asl = TYPE_ADDR_SPACE (mvl);
   addr_space_t asr = TYPE_ADDR_SPACE (mvr);
   addr_space_t as_common;
-  bool enum_and_int_p;
 
   /* Fail if pointers point to incompatible address spaces.  */
   if (!addr_space_superset (asl, asr, &as_common))
     return 0;
 
-  /* For pedantic record result of comptypes on arrays before losing
-     qualifiers on the element type below. */
-  val_ped = 1;
-
-  if (TREE_CODE (mvl) == ARRAY_TYPE
-      && TREE_CODE (mvr) == ARRAY_TYPE)
-    val_ped = comptypes (mvl, mvr);
-
   /* Qualifiers on element types of array types that are
      pointer targets are also removed.  */
-  mvl = remove_qualifiers (mvl);
-  mvr = remove_qualifiers (mvr);
+  struct comptypes_data data = { };
+  if (!comptypes_internal (remove_qualifiers (mvl),
+			   remove_qualifiers (mvr), &data))
+    return false;
 
-  enum_and_int_p = false;
-  val = comptypes_check_enum_int (mvl, mvr, &enum_and_int_p);
+  /* For pedantic use comptypes on arrays before removing
+     qualifiers on the element type. */
+  if (TREE_CODE (mvl) == ARRAY_TYPE
+      && TREE_CODE (mvr) == ARRAY_TYPE
+      && !comptypes (mvl, mvr))
+    pedwarn_c11 (location, OPT_Wpedantic, "invalid use of pointers to arrays "
+					  "with different qualifiers in ISO C "
+					  "before C23");
 
-  if (val == 1 && val_ped != 1)
-    pedwarn_c11 (location, OPT_Wpedantic, "invalid use of pointers to arrays with different qualifiers "
-					  "in ISO C before C23");
-
-  if (val == 2)
+  if (data.warning_needed)
     pedwarn (location, OPT_Wpedantic, "types are not quite compatible");
 
-  if (val == 1 && enum_and_int_p && warn_cxx_compat)
+  if (data.enum_and_int_p && warn_cxx_compat)
     warning_at (location, OPT_Wc___compat,
 		"pointer target types incompatible in C++");
 
-  return val;
+  return true;
 }
 
 /* Subroutines of `comptypes'.  */
@@ -4316,13 +4291,6 @@ inform_declaration (tree decl, tree function_expr)
       }
 }
 
-/* C implementation of callback for use when checking param types.  */
-
-static bool
-comp_parm_types (tree wanted_type, tree actual_type)
-{
-  return comptypes (wanted_type, actual_type);
-}
 
 /* Build a function call to function FUNCTION with parameters PARAMS.
    If FUNCTION is the result of resolving an overloaded target built-in,
@@ -4445,7 +4413,7 @@ build_function_call_vec (location_t loc, vec<location_t> arg_loc,
   /* Check that the arguments to the function are valid.  */
   bool warned_p = check_function_arguments (loc, fundecl, fntype,
 					    nargs, argarray, &arg_loc,
-					    comp_parm_types);
+					    comptypes);
 
   if (TYPE_QUALS (return_type) != TYPE_UNQUALIFIED
       && !VOID_TYPE_P (return_type))
@@ -9959,9 +9927,9 @@ digest_init (location_t init_loc, tree decl, tree type, tree init,
       bool char_array = (typ1 == char_type_node
 			 || typ1 == signed_char_type_node
 			 || typ1 == unsigned_char_type_node);
-      bool wchar_array = !!comptypes (typ1, wchar_type_node);
-      bool char16_array = !!comptypes (typ1, char16_type_node);
-      bool char32_array = !!comptypes (typ1, char32_type_node);
+      bool wchar_array = comptypes (typ1, wchar_type_node);
+      bool char16_array = comptypes (typ1, char16_type_node);
+      bool char32_array = comptypes (typ1, char32_type_node);
 
       if (char_array || wchar_array || char16_array || char32_array)
 	{
