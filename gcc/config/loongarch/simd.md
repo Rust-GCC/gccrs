@@ -934,6 +934,60 @@
   DONE;
 })
 
+(define_expand "usdot_prod<wvec_half><mode>"
+  [(match_operand:<WVEC_HALF> 0 "register_operand")
+   (match_operand:IVEC	      1 "register_operand")
+   (match_operand:IVEC	      2 "register_operand")
+   (match_operand:<WVEC_HALF> 3 "reg_or_0_operand")]
+  ""
+{
+  rtx *op = operands;
+
+  if (op[3] == CONST0_RTX (<WVEC_HALF>mode))
+    emit_insn (
+      gen_<simd_isa>_<x>vmulwev_<simdfmt_w>_<simdfmt>u_<simdfmt> (
+	op[0], op[1], op[2]));
+  else
+    emit_insn (
+      gen_<simd_isa>_<x>vmaddwev_<simdfmt_w>_<simdfmt>u_<simdfmt> (
+	op[0], op[3], op[1], op[2]));
+
+  emit_insn (
+    gen_<simd_isa>_<x>vmaddwod_<simdfmt_w>_<simdfmt>u_<simdfmt> (
+      op[0], op[0], op[1], op[2]));
+  DONE;
+})
+
+(define_expand "usdot_prod<wvec_quarter><mode>"
+  [(match_operand:<WVEC_QUARTER> 0 "register_operand")
+   (match_operand:IVEC_HB        1 "register_operand")
+   (match_operand:IVEC_HB        2 "register_operand")
+   (match_operand:<WVEC_QUARTER> 3 "reg_or_0_operand")]
+  ""
+{
+  rtx *op = operands;
+  rtx res_mulev = gen_reg_rtx (<WVEC_HALF>mode);
+  rtx res_mulod = gen_reg_rtx (<WVEC_HALF>mode);
+  rtx res_addev = gen_reg_rtx (<WVEC_QUARTER>mode);
+  rtx res_addod = gen_reg_rtx (<WVEC_QUARTER>mode);
+  emit_insn (gen_<simd_isa>_<x>vmulwev_<simdfmt_w>_<simdfmt>u_<simdfmt>
+	      (res_mulev, op[1], op[2]));
+  emit_insn (gen_<simd_isa>_<x>vmulwod_<simdfmt_w>_<simdfmt>u_<simdfmt>
+	      (res_mulod, op[1], op[2]));
+  emit_insn (gen_<simd_isa>_<x>vhaddw_<simdfmt_qw>_<simdfmt_w>
+              (res_addev, res_mulev, res_mulev));
+  emit_insn (gen_<simd_isa>_<x>vhaddw_<simdfmt_qw>_<simdfmt_w>
+	      (res_addod, res_mulod, res_mulod));
+
+  rtx sum = gen_rtx_PLUS (<WVEC_QUARTER>mode, res_addev, res_addod);
+  if (op[3] == CONST0_RTX (<WVEC_QUARTER>mode))
+    emit_move_insn (op[0], sum);
+  else
+    emit_insn (gen_add<wvec_quarter>3 (
+		 op[0], force_reg (<WVEC_QUARTER>mode, sum), op[3]));
+  DONE;
+})
+
 ; For "historical" reason we need a punned version of q_d variants.
 (define_mode_iterator DIVEC [(V2DI "ISA_HAS_LSX") (V4DI "ISA_HAS_LASX")])
 
