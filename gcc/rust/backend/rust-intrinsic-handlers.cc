@@ -749,6 +749,71 @@ atomic_load (Context *ctx, TyTy::FnType *fntype, int ordering)
   return fndecl;
 }
 
+tree
+atomic_exchange (Context *ctx, TyTy::FnType *fntype, int ordering)
+{
+  rust_assert (fntype->get_params ().size () == 2);
+  rust_assert (fntype->get_num_substitutions () == 1);
+
+  tree lookup = NULL_TREE;
+  if (check_for_cached_intrinsic (ctx, fntype, &lookup))
+    return lookup;
+
+  auto fndecl = compile_intrinsic_function (ctx, fntype);
+
+  // Most intrinsic functions are pure but not the atomic ones
+  TREE_READONLY (fndecl) = 0;
+  TREE_SIDE_EFFECTS (fndecl) = 1;
+
+  // setup the params
+  std::vector<Bvariable *> param_vars;
+  std::vector<tree> types;
+  compile_fn_params (ctx, fntype, fndecl, &param_vars, &types);
+
+  auto ok = Backend::function_set_parameters (fndecl, param_vars);
+  rust_assert (ok);
+
+  enter_intrinsic_block (ctx, fndecl);
+
+  auto dst = Backend::var_expression (param_vars[0], UNDEF_LOCATION);
+  TREE_READONLY (dst) = 0;
+
+  auto value = Backend::var_expression (param_vars[1], UNDEF_LOCATION);
+  auto memorder = make_unsigned_long_tree (ordering);
+
+  auto monomorphized_type
+    = fntype->get_substs ()[0].get_param_ty ()->resolve ();
+
+  auto builtin_name
+    = build_atomic_builtin_name ("atomic_exchange_", fntype->get_locus (),
+				 monomorphized_type);
+  if (builtin_name.empty ())
+    return error_mark_node;
+
+  tree atomic_exchange_raw = nullptr;
+  BuiltinsContext::get ().lookup_simple_builtin (builtin_name,
+						 &atomic_exchange_raw);
+  rust_assert (atomic_exchange_raw);
+
+  auto atomic_exchange
+    = build_fold_addr_expr_loc (UNKNOWN_LOCATION, atomic_exchange_raw);
+
+  auto exchange_call
+    = Backend::call_expression (atomic_exchange, {dst, value, memorder},
+				nullptr, UNDEF_LOCATION);
+
+  auto return_statement
+    = Backend::return_statement (fndecl, exchange_call, UNDEF_LOCATION);
+
+  TREE_READONLY (exchange_call) = 0;
+  TREE_SIDE_EFFECTS (exchange_call) = 1;
+
+  ctx->add_statement (return_statement);
+  finalize_intrinsic_block (ctx, fndecl);
+
+  return fndecl;
+}
+
 // Shared inner implementation for ctlz and ctlz_nonzero.
 //
 // nonzero=false → ctlz: ctlz(0) is well-defined in Rust and must return
@@ -1067,6 +1132,14 @@ atomic_load (int ordering)
 {
   return [ordering] (Context *ctx, TyTy::FnType *fntype) {
     return inner::atomic_load (ctx, fntype, ordering);
+  };
+}
+
+HandlerBuilder
+atomic_exchange (int ordering)
+{
+  return [ordering] (Context *ctx, TyTy::FnType *fntype) {
+    return inner::atomic_exchange (ctx, fntype, ordering);
   };
 }
 

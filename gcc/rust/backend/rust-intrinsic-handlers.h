@@ -37,6 +37,7 @@ tree wrapping_op (Context *ctx, TyTy::FnType *fntype, tree_code op);
 
 tree atomic_store (Context *ctx, TyTy::FnType *fntype, int ordering);
 tree atomic_load (Context *ctx, TyTy::FnType *fntype, int ordering);
+tree atomic_exchange (Context *ctx, TyTy::FnType *fntype, int ordering);
 inline tree copy (Context *ctx, TyTy::FnType *fntype, bool overlaps);
 inline tree expect (Context *ctx, TyTy::FnType *fntype, bool likely);
 tree try_handler (Context *ctx, TyTy::FnType *fntype, bool is_new_api);
@@ -78,6 +79,8 @@ wrapping_op (tree_code op);
 HandlerBuilder atomic_store (int ordering);
 
 HandlerBuilder atomic_load (int ordering);
+
+HandlerBuilder atomic_exchange (int ordering);
 
 const HandlerBuilder unchecked_op (tree_code op);
 
