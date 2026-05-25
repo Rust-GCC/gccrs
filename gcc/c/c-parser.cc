@@ -1,5 +1,5 @@
-#pragma GCC optimize("O0")
 /* Parser for C and Objective-C.
+
    Copyright (C) 1987-2026 Free Software Foundation, Inc.
    Parser actions based on the old Bison parser; structure somewhat
    influenced by and fragments based on the C++ parser.
