@@ -370,6 +370,30 @@ rustc_std_internal_symbol (const AST::Attribute &attribute)
     }
 }
 
+void
+rustc_allocator (const AST::Attribute &attribute)
+{
+  if (attribute.has_attr_input ())
+    {
+      rust_error_at (attribute.get_locus (),
+		     "malformed %<rustc_allocator%> attribute input");
+      rust_inform (attribute.get_locus (),
+		   "must be of the form: %<#[rustc_allocator]%>");
+    }
+}
+
+void
+rustc_allocator_nounwind (const AST::Attribute &attribute)
+{
+  if (attribute.has_attr_input ())
+    {
+      rust_error_at (attribute.get_locus (),
+		     "malformed %<rustc_allocator_nounwind%> attribute input");
+      rust_inform (attribute.get_locus (),
+		   "must be of the form: %<#[rustc_allocator_nounwind]%>");
+    }
+}
+
 } // namespace handlers
 
 const std::unordered_map<std::string, std::function<void (AST::Attribute &)>>
@@ -389,6 +413,8 @@ const std::unordered_map<std::string, std::function<void (AST::Attribute &)>>
     {Attrs::PROC_MACRO_ATTRIBUTE, handlers::proc_macro},
     {Attrs::TARGET_FEATURE, handlers::target_feature},
     {Attrs::RUSTC_STD_INTERNAL_SYMBOL, handlers::rustc_std_internal_symbol},
+    {Attrs::RUSTC_ALLOCATOR, handlers::rustc_allocator},
+    {Attrs::RUSTC_ALLOCATOR_NOUNWIND, handlers::rustc_allocator_nounwind},
 };
 
 tl::optional<std::function<void (AST::Attribute &)>>
