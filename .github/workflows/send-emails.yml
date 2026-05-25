@@ -228,21 +228,23 @@ jobs:
 
              ## find issue(s) referenced in commit message
              gccrs_ref_regex='Rust-GCC/gccrs#[0-9]+'
-             git show -s --format=%B "$SHA1" | \
-                grep -Eo "$gccrs_ref_regex" | \
-                sort -u > "$LINKED_ISSUES_LIST_FILE"
+             if git show -s --format=%B "$SHA1" | \
+                   grep -Eo "$gccrs_ref_regex"  | \
+                   sort -u > "$LINKED_ISSUES_LIST_FILE";
+             then
 
-             echo "Issues list: >>>"
-             cat "$LINKED_ISSUES_LIST_FILE"
-             echo "<<<"
-             echo
+                echo "Issues list: >>>"
+                cat "$LINKED_ISSUES_LIST_FILE"
+                echo "<<<"
+                echo
 
-             if [ -s "$LINKED_ISSUES_LIST_FILE" ]; then
-               echo -e "\nThe commit has been mentioned in the following issue(s):" >> /tmp/tmp_descr.txt
-               while read -r i; do
-                 ISSUE_NUM=${i##*#}    # 1234
-                 echo " - $i: https://github.com/Rust-GCC/gccrs/issues/${ISSUE_NUM}" >> /tmp/tmp_descr.txt
-               done < "$LINKED_ISSUES_LIST_FILE"
+                echo -e "\nThe commit has been mentioned in the following issue(s):" >> /tmp/tmp_descr.txt
+                while read -r i; do
+                  ISSUE_NUM=${i##*#}    # 1234
+                  echo " - $i: https://github.com/Rust-GCC/gccrs/issues/${ISSUE_NUM}" >> /tmp/tmp_descr.txt
+                done < "$LINKED_ISSUES_LIST_FILE"
+             else
+                echo -e "\nThe commit has NOT been mentioned in any issue." | tee -a "$GITHUB_STEP_SUMMARY" /tmp/tmp_descr.txt
              fi
 
              ## find corresponding pull-request(s)
