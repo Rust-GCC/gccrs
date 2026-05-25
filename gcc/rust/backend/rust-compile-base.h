@@ -152,6 +152,9 @@ protected:
   static void handle_no_mangle_attribute_on_fndecl (tree fndecl,
 						    const AST::Attribute &attr);
 
+  static void handle_rustc_std_internal_symbol_attribute_on_fndecl (
+    tree fndecl, const AST::Attribute &attr);
+
   static void setup_abi_options (tree fndecl, ABI abi);
 
   static tree indirect_expression (tree expr, location_t locus);

@@ -358,25 +358,38 @@ no_mangle (const AST::Attribute &attribute)
 		   "must be of the form: %<#[no_mangle]%>");
     }
 }
+void
+rustc_std_internal_symbol (const AST::Attribute &attribute)
+{
+  if (attribute.has_attr_input ())
+    {
+      rust_error_at (attribute.get_locus (),
+		     "malformed %<rustc_std_internal_symbol%> attribute input");
+      rust_inform (attribute.get_locus (),
+		   "must be of the form: %<#[rustc_std_internal_symbol]%>");
+    }
+}
 
 } // namespace handlers
 
 const std::unordered_map<std::string, std::function<void (AST::Attribute &)>>
-  attribute_checking_handlers
-  = {{Attrs::DOC, handlers::doc},
-     {Attrs::DEPRECATED, handlers::deprecated},
-     {Attrs::LINK_SECTION, handlers::link_section},
-     {Attrs::EXPORT_NAME, handlers::export_name},
-     {Attrs::NO_MANGLE, handlers::no_mangle},
-     {Attrs::ALLOW, handlers::lint},
-     {Attrs::DENY, handlers::lint},
-     {Attrs::WARN, handlers::lint},
-     {Attrs::FORBID, handlers::lint},
-     {Attrs::LINK_NAME, handlers::link_name},
-     {Attrs::PROC_MACRO_DERIVE, handlers::proc_macro_derive},
-     {Attrs::PROC_MACRO, handlers::proc_macro},
-     {Attrs::PROC_MACRO_ATTRIBUTE, handlers::proc_macro},
-     {Attrs::TARGET_FEATURE, handlers::target_feature}};
+  attribute_checking_handlers = {
+    {Attrs::DOC, handlers::doc},
+    {Attrs::DEPRECATED, handlers::deprecated},
+    {Attrs::LINK_SECTION, handlers::link_section},
+    {Attrs::EXPORT_NAME, handlers::export_name},
+    {Attrs::NO_MANGLE, handlers::no_mangle},
+    {Attrs::ALLOW, handlers::lint},
+    {Attrs::DENY, handlers::lint},
+    {Attrs::WARN, handlers::lint},
+    {Attrs::FORBID, handlers::lint},
+    {Attrs::LINK_NAME, handlers::link_name},
+    {Attrs::PROC_MACRO_DERIVE, handlers::proc_macro_derive},
+    {Attrs::PROC_MACRO, handlers::proc_macro},
+    {Attrs::PROC_MACRO_ATTRIBUTE, handlers::proc_macro},
+    {Attrs::TARGET_FEATURE, handlers::target_feature},
+    {Attrs::RUSTC_STD_INTERNAL_SYMBOL, handlers::rustc_std_internal_symbol},
+};
 
 tl::optional<std::function<void (AST::Attribute &)>>
 lookup_handler (std::string attr_name)

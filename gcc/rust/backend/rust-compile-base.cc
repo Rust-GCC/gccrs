@@ -51,7 +51,10 @@ bool inline should_mangle_item (const tree fndecl)
 {
   return lookup_attribute (Values::Attributes::NO_MANGLE,
 			   DECL_ATTRIBUTES (fndecl))
-	 == NULL_TREE;
+	   == NULL_TREE
+	 && lookup_attribute (Values::Attributes::RUSTC_STD_INTERNAL_SYMBOL,
+			      DECL_ATTRIBUTES (fndecl))
+	      == NULL_TREE;
 }
 
 void
@@ -85,6 +88,8 @@ HIRCompileBase::setup_fndecl (tree fndecl, bool is_main_entry_point,
       bool is_cold = attr_str == Values::Attributes::COLD;
       bool is_link_section = attr_str == Values::Attributes::LINK_SECTION;
       bool no_mangle = attr_str == Values::Attributes::NO_MANGLE;
+      bool is_std_internal
+	= attr_str == Values::Attributes::RUSTC_STD_INTERNAL_SYMBOL;
       bool is_deprecated = attr_str == Values::Attributes::DEPRECATED;
       bool is_proc_macro = attr_str == Values::Attributes::PROC_MACRO;
       bool is_proc_macro_attribute
@@ -115,6 +120,10 @@ HIRCompileBase::setup_fndecl (tree fndecl, bool is_main_entry_point,
       else if (no_mangle)
 	{
 	  handle_no_mangle_attribute_on_fndecl (fndecl, attr);
+	}
+      else if (is_std_internal)
+	{
+	  handle_rustc_std_internal_symbol_attribute_on_fndecl (fndecl, attr);
 	}
       else if (is_proc_macro)
 	{
@@ -278,6 +287,15 @@ HIRCompileBase::handle_no_mangle_attribute_on_fndecl (
   DECL_ATTRIBUTES (fndecl)
     = tree_cons (get_identifier (Values::Attributes::NO_MANGLE), NULL_TREE,
 		 DECL_ATTRIBUTES (fndecl));
+}
+
+void
+HIRCompileBase::handle_rustc_std_internal_symbol_attribute_on_fndecl (
+  tree fndecl, const AST::Attribute &attr)
+{
+  DECL_ATTRIBUTES (fndecl)
+    = tree_cons (get_identifier (Values::Attributes::RUSTC_STD_INTERNAL_SYMBOL),
+		 NULL_TREE, DECL_ATTRIBUTES (fndecl));
 }
 
 void
