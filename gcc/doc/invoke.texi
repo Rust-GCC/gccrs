@@ -21095,15 +21095,17 @@ per-function basis.  The filename for the dump is made by appending
 @file{.su} to the @var{auxname}.  @var{auxname} is generated from the name of
 the output file, if explicitly specified and it is not an executable,
 otherwise it is the basename of the source file.  An entry is made up
-of three fields:
+of four fields separated by tabulation characters:
 
 @itemize
 @item
-The name of the function.
+The name of the function preceded by its source location
 @item
-A number of bytes.
+The mangled name of the function
 @item
-One or more qualifiers: @code{static}, @code{dynamic}, @code{bounded}.
+A number of bytes
+@item
+One or more qualifiers: @code{static}, @code{dynamic}, @code{bounded}
 @end itemize
 
 The qualifier @code{static} means that the function manipulates the stack

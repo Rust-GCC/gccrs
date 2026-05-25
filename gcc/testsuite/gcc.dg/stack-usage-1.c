@@ -116,5 +116,5 @@ int foo (void)
   return 0;
 }
 
-/* { dg-final { scan-stack-usage "foo `foo`\t\(256|264\)\tstatic" } } */
+/* { dg-final { scan-stack-usage "foo\tfoo\t\(256|264\)\tstatic" } } */
 /* { dg-final { cleanup-stack-usage } } */
