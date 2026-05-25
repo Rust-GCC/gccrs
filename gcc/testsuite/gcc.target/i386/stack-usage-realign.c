@@ -17,5 +17,5 @@ int main (void)
   return 0;
 }
 
-/* { dg-final { scan-stack-usage "main `main`\t48\tdynamic,bounded" } } */
+/* { dg-final { scan-stack-usage "main\tmain\t48\tdynamic,bounded" } } */
 /* { dg-final { cleanup-stack-usage } } */
