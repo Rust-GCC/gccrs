@@ -19,6 +19,7 @@
 
 #include "rust-compile-context.h"
 #include "langhooks.h"
+#include "memmodel.h"
 
 namespace Rust {
 namespace Compile {

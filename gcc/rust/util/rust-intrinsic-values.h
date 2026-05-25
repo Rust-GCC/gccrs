@@ -46,6 +46,12 @@ public:
   static constexpr auto &ATOMIC_LOAD_RELAXED = "atomic_load_relaxed";
   static constexpr auto &ATOMIC_LOAD_UNORDERED = "atomic_load_unordered";
 
+  static constexpr auto &ATOMIC_EXCHANGE_SEQCST = "atomic_xchg";
+  static constexpr auto &ATOMIC_EXCHANGE_RELEASE = "atomic_xchg_rel";
+  static constexpr auto &ATOMIC_EXCHANGE_ACQUIRE = "atomic_xchg_acq";
+  static constexpr auto &ATOMIC_EXCHANGE_ACQREL = "atomic_xchg_acqrel";
+  static constexpr auto &ATOMIC_EXCHANGE_RELAXED = "atomic_xchg_relaxed";
+
   static constexpr auto &UNCHECKED_ADD = "unchecked_add";
   static constexpr auto &UNCHECKED_SUB = "unchecked_sub";
   static constexpr auto &UNCHECKED_MUL = "unchecked_mul";
