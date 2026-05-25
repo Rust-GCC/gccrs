@@ -3068,8 +3068,42 @@ package body Sem_Ch4 is
          Act_List : List_Id;
          Expr     : Node_Id;
          Inst_Id  : Entity_Id;
+         Par      : Node_Id;
+         Prev_Par : Node_Id;
 
       begin
+         Prev_Par := N;
+         Par := Parent (N);
+
+         --  A structural instance cannot be used as a formal package with the
+         --  current implementation of structural instantiation.
+
+         while Present (Par) loop
+            if Nkind (Par) in N_Generic_Declaration
+              and then Is_List_Member (Prev_Par)
+              and then
+                Generic_Formal_Declarations (Par) = List_Containing (Prev_Par)
+            then
+               Error_Msg_N
+                 ("structural instantiation cannot be used in generic formal"
+                  & " part", N);
+               Rewrite (N,
+                 Make_Raise_Program_Error (Sloc (N),
+                   Reason => PE_Explicit_Raise));
+               Analyze (N);
+               return;
+
+            else
+               --  Prevent the search from going too far
+
+               exit when Is_Statement (Par)
+                 or else Is_Body_Or_Package_Declaration (Par);
+            end if;
+
+            Prev_Par := Par;
+            Par := Parent (Par);
+         end loop;
+
          Act_List := New_List;
          Expr := First (Expressions (N));
          while Present (Expr) loop
