@@ -120,8 +120,8 @@ package Accessibility is
    procedure Check_Return_Construct_Accessibility
      (Return_Stmt : Node_Id;
       Stm_Entity  : Entity_Id);
-   --  Apply legality rule of 6.5 (5.9) to the access discriminants of an
-   --  aggregate in a return statement.
+   --  Apply legality rules of 6.5(5.9) and 6.8(5) to the access discriminants
+   --  of an identifier or aggregate in a return statement.
 
    function Deepest_Type_Access_Level
      (Typ             : Entity_Id;
