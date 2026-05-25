@@ -2461,9 +2461,14 @@ gfc_find_derived_vtab (gfc_symbol *derived)
   if (derived->attr.pdt_template)
     return NULL;
 
-  /* Find the top-level namespace.  */
+  /* Find the top-level namespace, stopping at module/submodule boundaries.
+     A submodule's namespace may have its parent pointer set to the ancestor
+     module namespace for host-association purposes; we must not escape that
+     boundary, because vtables for types defined in a submodule belong in
+     the submodule namespace, not in its parent module.  */
   for (ns = gfc_current_ns; ns; ns = ns->parent)
-    if (!ns->parent)
+    if (!ns->parent
+	|| (ns->proc_name && ns->proc_name->attr.flavor == FL_MODULE))
       break;
 
   /* If the type is a class container, use the underlying derived type.  */

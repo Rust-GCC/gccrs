@@ -7854,6 +7854,12 @@ gfc_omp_requires_add_clause (gfc_omp_requires_kind clause,
       if (gfc_state_stack->previous
 	  && gfc_state_stack->previous->state == COMP_INTERFACE)
 	break;
+      /* A submodule namespace may have its parent set to the ancestor module
+	 for host-association purposes.  Do not escape the submodule boundary:
+	 the submodule itself is the program unit for OMP REQUIRES purposes.  */
+      if (prog_unit->proc_name
+	  && prog_unit->proc_name->attr.flavor == FL_MODULE)
+	break;
       prog_unit = prog_unit->parent;
     }
 
@@ -7937,7 +7943,13 @@ gfc_match_omp_requires (void)
   bool first = true;
   locus old_loc;
 
+  /* A submodule's namespace may have its parent pointer set to the ancestor
+     module namespace for host-association purposes.  The submodule spec part
+     is still a valid program-unit spec part for OMP REQUIRES.  Only reject
+     the directive when we are genuinely nested inside a procedure.  */
   if (gfc_current_ns->parent
+      && !(gfc_current_ns->proc_name
+	   && gfc_current_ns->proc_name->attr.flavor == FL_MODULE)
       && (!gfc_state_stack->previous
 	  || gfc_state_stack->previous->state != COMP_INTERFACE))
     {
@@ -8475,7 +8487,9 @@ gfc_match_omp_atomic (void)
   if (c->memorder == OMP_MEMORDER_UNSET)
     {
       gfc_namespace *prog_unit = gfc_current_ns;
-      while (prog_unit->parent)
+      while (prog_unit->parent
+	     && !(prog_unit->proc_name
+		  && prog_unit->proc_name->attr.flavor == FL_MODULE))
 	prog_unit = prog_unit->parent;
       switch (prog_unit->omp_requires & OMP_REQ_ATOMIC_MEM_ORDER_MASK)
 	{

@@ -7397,6 +7397,32 @@ parse_module (void)
     {
       use_modules ();
       gfc_traverse_ns (gfc_current_ns, set_syms_host_assoc);
+
+      /* Link the submodule namespace to the parent (sub)module namespace so
+	 that internal subprograms of the ancestor module are accessible via
+	 host association (Fortran 2018, 14.6.1.3).  The parent namespace is
+	 already in gfc_global_ns_list when both units are compiled together.
+	 The submodule's fully-qualified name is "parent.child"; strip the
+	 child part to obtain the parent's name, then search the global list.  */
+      {
+	const char *submod_name = gfc_new_block->name;
+	const char *dot = strrchr (submod_name, '.');
+	if (dot != NULL)
+	  {
+	    size_t plen = (size_t) (dot - submod_name);
+	    char parent_name[GFC_MAX_SYMBOL_LEN + 1];
+	    gcc_assert (plen < sizeof (parent_name));
+	    memcpy (parent_name, submod_name, plen);
+	    parent_name[plen] = '\0';
+	    for (gfc_namespace *ns = gfc_global_ns_list; ns; ns = ns->sibling)
+	      if (ns->proc_name
+		  && strcmp (ns->proc_name->name, parent_name) == 0)
+		{
+		  gfc_current_ns->parent = ns;
+		  break;
+		}
+	  }
+      }
     }
 
   st = parse_spec (ST_NONE);
@@ -7555,6 +7581,11 @@ clean_up_modules (gfc_gsymbol *&gsym)
   if (gsym->ns)
     {
       gfc_current_ns = gsym->ns;
+      /* Disconnect any host-association parent link set for submodules
+	 (see parse_module): each module/submodule namespace in gfc_gsym_root
+	 is independently managed, so gfc_symbol_done_2 must not walk up to
+	 and double-free a sibling top-level namespace.  */
+      gfc_current_ns->parent = NULL;
       gfc_derived_types = gfc_current_ns->derived_types;
       gfc_done_2 ();
       gsym->ns = NULL;
