@@ -98,8 +98,21 @@ private:
   irange_storage (const irange &r);
 };
 
-// Efficient memory storage for a prange.
 
+// A prange_kind summarizes some common variations for a prange, and is used
+// in a prange_storage clas for efficiency.
+
+enum prange_kind { PR_UNDEFINED,	// VR_UNDEFINED
+		   PR_VARYING,		// VR_VARYING
+		   PR_ZERO,		// [0, 0]
+		   PR_NONZERO,		// [1, +INF] (May have bitmask)
+		   PR_FULL,		// [0, +INF] (Must have bitmask)
+		   PR_OTHER };		// [x, y]    (MAy have bitmask)
+
+// Maximum number of words that may be allocated by a prange_storage class.
+const unsigned int PRANGE_STORAGE_NINTS = 4;
+
+// Efficient memory storage for a prange.
 class prange_storage : public vrange_storage
 {
 public:
@@ -112,25 +125,7 @@ public:
 private:
   DISABLE_COPY_AND_ASSIGN (prange_storage);
   prange_storage (const prange &r);
-
-  // A prange_format class summarizes the storage requirements for a prange
-  // which are then used to initialize the prange_storage fields.
-  enum prange_kind { PR_UNDEFINED,	// VR_UNDEFINED
-		     PR_VARYING,	// VR_VARYING
-		     PR_ZERO,		// [0, 0]
-		     PR_NONZERO,	// [1, +INF]
-		     PR_FULL,		// [0, +INF] (Must have bitmask)
-		     PR_OTHER };	// [x, y]
-  class prange_format
-  {
-  public:
-    prange_format (const prange &r);
-    enum prange_kind kind;
-    bool has_bitmask;
-    size_t extra_size;
-    unsigned short precision;
-    unsigned num_words;
-  };
+  static enum prange_kind prange_format (const prange &r, unsigned &num_words);
 
   enum prange_kind m_kind;
   bool m_has_bitmask;
@@ -143,8 +138,7 @@ private:
   template <typename T> void set_word (unsigned i, const T &x, tree)
     { m_trailing_ints[i] = x; }
 
-  static const unsigned int NINTS = 4;
-  trailing_wide_ints<NINTS> m_trailing_ints;
+  trailing_wide_ints<PRANGE_STORAGE_NINTS> m_trailing_ints;
 };
 
 // Efficient memory storage for an frange.
