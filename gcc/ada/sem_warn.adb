@@ -4423,6 +4423,7 @@ package body Sem_Warn is
             if Is_Formal (Ent)
               and then Is_Suspicious_Type (Typ)
               and then not Low_Bound_Tested (Ent)
+              and then Comes_From_Source (Ent)
             then
                Test_Suspicious_Index;
             end if;
