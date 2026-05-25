@@ -1642,7 +1642,7 @@ begin cpu cortex-m52
  option cdecp5 add cdecp5
  option cdecp6 add cdecp6
  option cdecp7 add cdecp7
- isa quirk_no_asmcpu quirk_vlldm
+ isa quirk_no_asmcpu
  costs v7m
 end cpu cortex-m52
 

@@ -24166,9 +24166,9 @@ Development Tools Engineering Specification", which can be found on
 @opindex mno-fix-cmse-cve-2021-35465
 @item -mfix-cmse-cve-2021-35465
 Mitigate against a potential security issue with the @code{VLLDM} instruction
-in some M-profile devices when using CMSE (CVE-2021-365465).  This option is
+in some M-profile devices when using CMSE (CVE-2021-35465).  This option is
 enabled by default when the option @option{-mcpu=} is used with
-@code{cortex-m33}, @code{cortex-m35p}, @code{cortex-m52}, @code{cortex-m55},
+@code{cortex-m33}, @code{cortex-m35p}, @code{cortex-m55},
 @code{cortex-m85} or @code{star-mc1}. The option @option{-mno-fix-cmse-cve-2021-35465}
 can be used to disable the mitigation.
 
