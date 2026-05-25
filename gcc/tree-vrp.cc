@@ -547,14 +547,10 @@ get_single_symbol (tree t, bool *neg, tree *inv)
 	+2 if VAL1 != VAL2
 
    This is similar to tree_int_cst_compare but supports pointer values
-   and values that cannot be compared at compile time.
-
-   If STRICT_OVERFLOW_P is not NULL, then set *STRICT_OVERFLOW_P to
-   true if the return value is only valid if we assume that signed
-   overflow is undefined.  */
+   and values that cannot be compared at compile time.  */
 
 int
-compare_values_warnv (tree val1, tree val2, bool *strict_overflow_p)
+compare_values (tree val1, tree val2)
 {
   if (val1 == val2)
     return 0;
@@ -593,13 +589,6 @@ compare_values_warnv (tree val1, tree val2, bool *strict_overflow_p)
       if (!overflow_undefined)
 	return -2;
 
-      if (strict_overflow_p != NULL
-	  /* Symbolic range building sets the no-warning bit to declare
-	     that overflow doesn't happen.  */
-	  && (!inv1 || !warning_suppressed_p (val1, OPT_Woverflow))
-	  && (!inv2 || !warning_suppressed_p (val2, OPT_Woverflow)))
-	*strict_overflow_p = true;
-
       if (!inv1)
 	inv1 = build_int_cst (TREE_TYPE (val1), 0);
       if (!inv2)
@@ -618,13 +607,6 @@ compare_values_warnv (tree val1, tree val2, bool *strict_overflow_p)
     {
       if (!overflow_undefined)
 	return -2;
-
-      if (strict_overflow_p != NULL
-	  /* Symbolic range building sets the no-warning bit to declare
-	     that overflow doesn't happen.  */
-	  && (!sym1 || !warning_suppressed_p (val1, OPT_Woverflow))
-	  && (!sym2 || !warning_suppressed_p (val2, OPT_Woverflow)))
-	*strict_overflow_p = true;
 
       const signop sgn = TYPE_SIGN (TREE_TYPE (val1));
       tree cst = cst1 ? val1 : val2;
@@ -714,15 +696,6 @@ compare_values_warnv (tree val1, tree val2, bool *strict_overflow_p)
 
       return -2;
     }
-}
-
-/* Compare values like compare_values_warnv.  */
-
-int
-compare_values (tree val1, tree val2)
-{
-  bool sop;
-  return compare_values_warnv (val1, val2, &sop);
 }
 
 /* Helper for overflow_comparison_p

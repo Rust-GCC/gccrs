@@ -868,10 +868,7 @@ simplify_using_ranges::simplify_bit_ops_using_ranges
    a known value range VR.
 
    If there is one and only one value which will satisfy the
-   conditional, then return that value.  Else return NULL.
-
-   If signed overflow must be undefined for the value to satisfy
-   the conditional, then set *STRICT_OVERFLOW_P to true.  */
+   conditional, then return that value.  Else return NULL.  */
 
 static tree
 test_for_singularity (enum tree_code cond_code, tree op0,
@@ -891,9 +888,6 @@ test_for_singularity (enum tree_code cond_code, tree op0,
 	{
 	  tree one = build_int_cst (TREE_TYPE (op0), 1);
 	  max = fold_build2 (MINUS_EXPR, TREE_TYPE (op0), max, one);
-	  /* Signal to compare_values_warnv this expr doesn't overflow.  */
-	  if (EXPR_P (max))
-	    suppress_warning (max, OPT_Woverflow);
 	}
     }
   else if (cond_code == GE_EXPR || cond_code == GT_EXPR)
@@ -905,9 +899,6 @@ test_for_singularity (enum tree_code cond_code, tree op0,
 	{
 	  tree one = build_int_cst (TREE_TYPE (op0), 1);
 	  min = fold_build2 (PLUS_EXPR, TREE_TYPE (op0), min, one);
-	  /* Signal to compare_values_warnv this expr doesn't overflow.  */
-	  if (EXPR_P (min))
-	    suppress_warning (min, OPT_Woverflow);
 	}
     }
 
