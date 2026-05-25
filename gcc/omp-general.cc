@@ -1562,7 +1562,7 @@ omp_check_for_duplicate_variant (location_t loc, tree base_decl, tree ctx)
 	  error_at (loc,
 		    "multiple definitions of variants with the same "
 		    "context selector violate the one-definition rule");
-	  inform (DECL_SOURCE_LOCATION (TREE_PURPOSE (attr)),
+	  inform (DECL_SOURCE_LOCATION (TREE_PURPOSE (TREE_VALUE (attr))),
 		  "previous variant declaration here");
 	  return false;
 	}
