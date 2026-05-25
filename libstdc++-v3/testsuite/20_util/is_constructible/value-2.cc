@@ -715,7 +715,11 @@ static_assert(!std::is_constructible<const DelnAny, Empty, B, D>::value,
 	      "Error");
 
 // Deleted members in unions with non-trivial members:
+#if __cpp_trivial_union >= 202502L
+static_assert(std::is_constructible<NontrivialUnion>::value, "Error");
+#else
 static_assert(!std::is_constructible<NontrivialUnion>::value, "Error");
+#endif
 static_assert(!std::is_constructible<NontrivialUnion,
 	      const NontrivialUnion&>::value, "Error");
 

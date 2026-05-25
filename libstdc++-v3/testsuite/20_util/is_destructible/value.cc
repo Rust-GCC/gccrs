@@ -99,7 +99,11 @@ static_assert(!std::is_destructible<Del[]>::value, "Error");
 static_assert(!std::is_destructible<const Del[]>::value, "Error");
 
 // Deleted members in unions with non-trivial members:
+#if __cpp_trivial_union >= 202502L
+static_assert(std::is_destructible<NontrivialUnion>::value, "Error");
+#else
 static_assert(!std::is_destructible<NontrivialUnion>::value, "Error");
+#endif
 
 // Unusual copy:
 static_assert(std::is_destructible<UnusualCopy>::value, "Error");
