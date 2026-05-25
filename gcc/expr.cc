@@ -13713,12 +13713,6 @@ maybe_optimize_sub_cmp_0 (enum tree_code code, tree *arg0, tree *arg1)
   if (!TYPE_OVERFLOW_UNDEFINED (TREE_TYPE (treeop0)))
     return;
 
-  if (issue_strict_overflow_warning (WARN_STRICT_OVERFLOW_COMPARISON))
-    warning_at (gimple_location (stmt), OPT_Wstrict_overflow,
-		"assuming signed overflow does not occur when "
-		"simplifying %<X - Y %s 0%> to %<X %s Y%>",
-		op_symbol_code (code), op_symbol_code (code));
-
   *arg0 = treeop0;
   *arg1 = treeop1;
 }
