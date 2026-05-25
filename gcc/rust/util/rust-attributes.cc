@@ -94,7 +94,9 @@ static const BuiltinAttrDefinition __definitions[]
      {Attrs::FUNDAMENTAL, TYPE_CHECK},
      {Attrs::NON_EXHAUSTIVE, TYPE_CHECK},
      {Attrs::RUSTFMT, EXTERNAL},
-     {Attrs::TEST, CODE_GENERATION}};
+     {Attrs::TEST, CODE_GENERATION},
+     {Attrs::RUSTC_ALLOCATOR, CODE_GENERATION},
+     {Attrs::RUSTC_ALLOCATOR_NOUNWIND, CODE_GENERATION}};
 
 static const std::set<std::string> __outer_attributes
   = {Attrs::INLINE,
