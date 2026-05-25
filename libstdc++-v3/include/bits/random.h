@@ -6474,6 +6474,11 @@ _GLIBCXX_END_INLINE_ABI_NAMESPACE(_V2)
 	std::vector<_RealType> _M_int;
 	std::vector<double> _M_den;
 	std::vector<double> _M_cp;
+
+	template<typename _RealType1, typename _CharT, typename _Traits>
+	  friend std::basic_ostream<_CharT, _Traits>&
+	  operator<<(std::basic_ostream<_CharT, _Traits>&,
+		     const std::piecewise_constant_distribution<_RealType1>&);
       };
 
       piecewise_constant_distribution()
@@ -6758,6 +6763,11 @@ _GLIBCXX_END_INLINE_ABI_NAMESPACE(_V2)
 	std::vector<double> _M_den;
 	std::vector<double> _M_cp;
 	std::vector<double> _M_m;
+
+	template<typename _RealType1, typename _CharT, typename _Traits>
+	  friend std::basic_ostream<_CharT, _Traits>&
+	  operator<<(std::basic_ostream<_CharT, _Traits>&,
+		     const std::piecewise_linear_distribution<_RealType1>&);
       };
 
       piecewise_linear_distribution()

@@ -3173,15 +3173,19 @@ namespace __detail
       __os.fill(__space);
       __os.precision(std::numeric_limits<_RealType>::max_digits10);
 
-      std::vector<_RealType> __int = __x.intervals();
-      __os << __int.size() - 1;
-
-      for (auto __xit = __int.begin(); __xit != __int.end(); ++__xit)
-	__os << __space << *__xit;
-
-      std::vector<double> __den = __x.densities();
-      for (auto __dit = __den.begin(); __dit != __den.end(); ++__dit)
-	__os << __space << *__dit;
+      const auto& __int = __x._M_param._M_int;
+      if (__int.empty())
+	__os << size_t(1)
+	     << __space << _RealType(0) << __space << _RealType(1)
+	     << __space << _RealType(1);
+      else
+	{
+	  __os << __int.size() - 1;
+	  for (auto __xv : __int)
+	    __os << __space << __xv;
+	  for (auto __dv : __x._M_param._M_den)
+	    __os << __space << __dv;
+	}
 
       __os.flags(__flags);
       __os.fill(__fill);
@@ -3436,15 +3440,19 @@ namespace __detail
       __os.fill(__space);
       __os.precision(std::numeric_limits<_RealType>::max_digits10);
 
-      std::vector<_RealType> __int = __x.intervals();
-      __os << __int.size() - 1;
-
-      for (auto __xit = __int.begin(); __xit != __int.end(); ++__xit)
-	__os << __space << *__xit;
-
-      std::vector<double> __den = __x.densities();
-      for (auto __dit = __den.begin(); __dit != __den.end(); ++__dit)
-	__os << __space << *__dit;
+      auto const& __int = __x._M_param._M_int;
+      if (__int.empty())
+	__os << size_t(1)
+	     << __space << _RealType(0) << __space << _RealType(1)
+	     << __space << _RealType(1) << __space << _RealType(1);
+      else
+	{
+	  __os << __int.size() - 1;
+	  for (auto __xv : __int)
+	    __os << __space << __xv;
+	  for (auto __dv : __x._M_param._M_den)
+	    __os << __space << __dv;
+	}
 
       __os.flags(__flags);
       __os.fill(__fill);
