@@ -1,3 +1,41 @@
+2026-05-24  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+	    Harald Anlauf  <anlauf@gcc.gnu.org>
+
+	PR fortran/93727
+	* io/format.c (format_lex): Add new FMT_EX token handing.
+	(parse_format_list): Likewise.
+	(next_format): Likewise
+	* io/io.h (write_ex): Add prototype for new function.
+	(internal_proto): Likewise.
+	* io/transfer.c (formatted_transfer_scalar_write): Use FMT_EX token.
+	* io/write.c (write_default_char4): White space fix.
+	(write_a): White space fix.
+	(write_boz): White space fix.
+	(write_decimal): White space fix.
+	(otoa_big): White space fix.
+	(write_character): White space fix.
+	(write_float_0): White space fix.
+	(write_ex): New function which uses the new helper function
+	get_float_hex_string() to build the hexadecimal float format for
+	output.
+	(write_real): White space fix.
+	(write_complex): White space fix.
+	(nml_write_obj): White space fix.
+	(namelist_write): White space fix.
+	* io/write_float.def: Add defines to handle the various forms of
+	KIND=16 floats. These handle the selection of the appropriate versions
+	of the frexp, fabs, and scalbn used to extract the components of the
+	floating point values.
+	(GFC_REAL_16_FREXP): New define.
+	(GFC_REAL_16_FABS): New define.
+	(GFC_REAL_16_SCALBN): New define.
+	(get_float_hex_string): New function which exatracts the bits and builds
+	the basic hexadecimal format strings into a buffer. The buffer is provided
+	by the caller write_ex.
+	(build_float_string): White space fix.
+	(quadmath_snprintf): White space fix.
+	(determine_en_precision): White space fix.
+
 2026-05-22  Tobias Burnus  <tburnus@baylibre.com>
 
 	* m4/matmul.m4: Fix comment typo.

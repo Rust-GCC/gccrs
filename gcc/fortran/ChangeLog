@@ -1,3 +1,12 @@
+2026-05-24  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+	    Harald Anlauf  <anlauf@gcc.gnu.org>
+
+	PR fortran/93727
+	* io.cc (enum format_token): Add FMT_EX, FMT_LPS, FMT_LPZ, FMT_LZ
+	enums to identify specific tokens.
+	(format_lex): Add parsing and checking of the EXw.d and EXw.dEe edit
+	specifiers.
+
 2026-05-23  Paul Thomas  <pault@gcc.gnu.org>
 
 	PR fortran/125263

@@ -1,3 +1,24 @@
+2026-05-24  Raven Hallsby  <karl@hallsby.com>
+
+	PR tree-optimization/125104
+	* gcc.dg/tree-ssa/pr125104.c: New test.
+
+2026-05-24  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	* gcc.dg/stack-usage-1.c: Update testcase.
+
+2026-05-24  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR tree-optimization/125419
+	* gcc.dg/torture/pr125419-1.c: New test.
+
+2026-05-24  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+	    Harald Anlauf  <anlauf@gcc.gnu.org>
+
+	PR fortran/93727
+	* gfortran.dg/EXformat_1.F90: New test.
+	* gfortran.dg/EXformat_2.f90: New test.
+
 2026-05-23  Daniel Barboza  <daniel.barboza@oss.qualcomm.com>
 
 	* gcc.dg/Wstrict-overflow-22.c: Removed, given that we do not

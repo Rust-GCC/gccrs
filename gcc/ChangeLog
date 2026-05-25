@@ -1,3 +1,20 @@
+2026-05-24  Raven Hallsby  <karl@hallsby.com>
+
+	PR tree-optimization/125104
+	* match.pd (`(~y & x) ^ y`): New Pattern.
+
+2026-05-24  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	* toplev.cc (output_stack_usage_1): Print out the human readable
+	name in quotes.
+
+2026-05-24  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR tree-optimization/125419
+	* tree-if-conv.cc (factor_out_operators): Change
+	asserts about abnormals into a conditional to reject
+	it.
+
 2026-05-23  Daniel Barboza  <daniel.barboza@oss.qualcomm.com>
 
 	* fold-const.cc (fold_overflow_warning): Removed.

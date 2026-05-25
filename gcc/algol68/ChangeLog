@@ -1,3 +1,9 @@
+2026-05-24  Peter Damianov  <peter0x44@disroot.org>
+
+	* a68-lang.cc (a68_handle_option): Open file in binary mode.
+	* a68-parser-scanner.cc (read_source_file): Open file in binary mode.
+	(include_files): Likewise.
+
 2026-05-20  Pietro Monteiro  <pietro@sociotechnical.xyz>
 
 	* a68-parser-prelude.cc (gnu_prelude): Map FLOOR(L real):L int
