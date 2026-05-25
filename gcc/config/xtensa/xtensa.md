@@ -1079,7 +1079,35 @@
    (set_attr "mode"	"SI")
    (set_attr "length"	"6")])
 
-(define_insn "insvsi"
+(define_expand "insvsi"
+  [(set (zero_extract:SI (match_operand:SI 0 "register_operand")
+			 (match_operand:SI 1 "extui_fldsz_operand")
+			 (match_operand:SI 2 "const_int_operand"))
+	(match_operand:SI 3 "register_operand"))]
+  ""
+{
+  if (TARGET_DEPBITS)
+    emit_insn (gen_insvsi_internal (operands[0], operands[1], operands[2],
+				    operands[3]));
+  else
+    {
+      int fldsz = INTVAL (operands[1]), shift;
+      rtx temp = gen_reg_rtx (SImode), mask;
+      if (BITS_BIG_ENDIAN)
+	shift = (32 - (fldsz + INTVAL (operands[2]))) & 0x1f;
+      else
+	shift = INTVAL (operands[2]) & 0x1f;
+      mask = GEN_INT (((1 << fldsz) - 1) << shift);
+      emit_insn (shift ? gen_ashlsi3 (temp, operands[3], GEN_INT (shift))
+		       : gen_rtx_SET (temp, operands[3]));
+      emit_insn (gen_xorsi3 (temp, operands[0], temp));
+      emit_insn (gen_andsi3 (temp, temp, force_reg (SImode, mask)));
+      emit_insn (gen_xorsi3 (operands[0], operands[0], temp));
+    }
+  DONE;
+})
+
+(define_insn "insvsi_internal"
   [(set (zero_extract:SI (match_operand:SI 0 "register_operand" "+a")
 			 (match_operand:SI 1 "extui_fldsz_operand" "")
 			 (match_operand:SI 2 "const_int_operand" ""))
