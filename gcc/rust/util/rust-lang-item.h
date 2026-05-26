@@ -90,6 +90,7 @@ public:
     // markers
     COPY,
     CLONE,
+    DROP,
     SIZED,
     SYNC,
 
