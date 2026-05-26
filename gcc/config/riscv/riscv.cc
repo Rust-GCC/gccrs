@@ -351,14 +351,14 @@ const enum reg_class riscv_regno_to_class[FIRST_PSEUDO_REGISTER] = {
   JALR_REGS,	JALR_REGS,	JALR_REGS,	JALR_REGS,
   JALR_REGS,	JALR_REGS,	JALR_REGS,	JALR_REGS,
   SIBCALL_REGS,	SIBCALL_REGS,	SIBCALL_REGS,	SIBCALL_REGS,
+  FP_REGS,	FP_REGS,	FP_REGS,	FP_REGS,
+  FP_REGS,	FP_REGS,	FP_REGS,	FP_REGS,
   RVC_FP_REGS,	RVC_FP_REGS,	RVC_FP_REGS,	RVC_FP_REGS,
   RVC_FP_REGS,	RVC_FP_REGS,	RVC_FP_REGS,	RVC_FP_REGS,
-  RVC_FP_REGS,	RVC_FP_REGS,	RVC_FP_REGS,	RVC_FP_REGS,
-  RVC_FP_REGS,	RVC_FP_REGS,	RVC_FP_REGS,	RVC_FP_REGS,
-  RVC_FP_REGS,	RVC_FP_REGS,	RVC_FP_REGS,	RVC_FP_REGS,
-  RVC_FP_REGS,	RVC_FP_REGS,	RVC_FP_REGS,	RVC_FP_REGS,
-  RVC_FP_REGS,	RVC_FP_REGS,	RVC_FP_REGS,	RVC_FP_REGS,
-  RVC_FP_REGS,	RVC_FP_REGS,	RVC_FP_REGS,	RVC_FP_REGS,
+  FP_REGS,	FP_REGS,	FP_REGS,	FP_REGS,
+  FP_REGS,	FP_REGS,	FP_REGS,	FP_REGS,
+  FP_REGS,	FP_REGS,	FP_REGS,	FP_REGS,
+  FP_REGS,	FP_REGS,	FP_REGS,	FP_REGS,
   FRAME_REGS,	FRAME_REGS,	NO_REGS,	NO_REGS,
   NO_REGS,	NO_REGS,	NO_REGS,	NO_REGS,
   NO_REGS,	NO_REGS,	NO_REGS,	NO_REGS,
@@ -10962,8 +10962,8 @@ static bool
 riscv_secondary_memory_needed (machine_mode mode, reg_class_t class1,
 			       reg_class_t class2)
 {
-  bool class1_is_fpr = class1 == FP_REGS || class1 == RVC_FP_REGS;
-  bool class2_is_fpr = class2 == FP_REGS || class2 == RVC_FP_REGS;
+  bool class1_is_fpr = reg_class_subset_p (class1, FP_REGS);
+  bool class2_is_fpr = reg_class_subset_p (class2, FP_REGS);
   return (!riscv_vector_mode_p (mode)
 	  && GET_MODE_SIZE (mode).to_constant () > UNITS_PER_WORD
 	  && (class1_is_fpr != class2_is_fpr)
