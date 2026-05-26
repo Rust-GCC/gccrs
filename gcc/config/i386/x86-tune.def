@@ -401,6 +401,10 @@ DEF_TUNE (X86_TUNE_AVOID_MFENCE, "avoid_mfence",
 DEF_TUNE (X86_TUNE_EXPAND_ABS, "expand_abs",
 	  m_CORE_ALL | m_SILVERMONT | m_GOLDMONT | m_GOLDMONT_PLUS | m_ZHAOXIN)
 
+/* X86_TUNE_DISABLE_SETZUCC: Disable SETcc with ZU suffix. */
+DEF_TUNE (X86_TUNE_DISABLE_SETZUCC, "disable_setzucc",
+	  m_DIAMONDRAPIDS | m_NOVALAKE)
+
 /*****************************************************************************/
 /* 387 instruction selection tuning                                          */
 /*****************************************************************************/
