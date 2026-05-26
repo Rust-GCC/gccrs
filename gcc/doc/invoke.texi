@@ -445,7 +445,7 @@ Objective-C and Objective-C++ Dialects}.
 -Wsizeof-array-div
 -Wsizeof-pointer-div  -Wsizeof-pointer-memaccess
 -Wstack-protector  -Wstack-usage=@var{byte-size}  -Wstrict-aliasing
--Wstrict-aliasing=@var{n}  -Wstrict-overflow  -Wstrict-overflow=@var{n}
+-Wstrict-aliasing=@var{n}
 -Wstring-compare
 -Wno-stringop-overflow  -Wno-stringop-overread
 -Wno-stringop-truncation  -Wstrict-flex-arrays
@@ -6864,7 +6864,6 @@ Options} and @ref{Objective-C and Objective-C++ Dialect Options}.
 -Wsizeof-pointer-div
 -Wsizeof-pointer-memaccess
 -Wstrict-aliasing
--Wstrict-overflow=1
 -Wswitch
 -Wtautological-compare
 -Wtrigraphs
@@ -8718,54 +8717,23 @@ Does not warn about incomplete types.
 @opindex Wno-strict-overflow
 @item -Wstrict-overflow
 @itemx -Wstrict-overflow=@var{n}
-This option is only active when signed overflow is undefined.
-It warns about cases where the compiler optimizes based on the
-assumption that signed overflow does not occur.  Note that it does not
-warn about all cases where the code might overflow: it only warns
-about cases where the compiler implements some optimization.  Thus
-this warning depends on the optimization level.
-
-An optimization that assumes that signed overflow does not occur is
-perfectly safe if the values of the variables involved are such that
-overflow never does, in fact, occur.  Therefore this warning can
-easily give a false positive: a warning about code that is not
-actually a problem.  To help focus on important issues, several
-warning levels are defined.  No warnings are issued for the use of
-undefined signed overflow when estimating how many iterations a loop
-requires, in particular when determining whether a loop will be
-executed at all.
+Does nothing.  Preserved for backward compatibility.
 
 @table @gcctabopt
 @item -Wstrict-overflow=1
-Warn about cases that are both questionable and easy to avoid.  For
-example the compiler simplifies
-@code{x + 1 > x} to @code{1}.  This level of
-@option{-Wstrict-overflow} is enabled by @option{-Wall}; higher levels
-are not, and must be explicitly requested.
+Does nothing.  Preserved for backward compatibility.
 
 @item -Wstrict-overflow=2
-Also warn about other cases where a comparison is simplified to a
-constant.  For example: @code{abs (x) >= 0}.  This can only be
-simplified when signed integer overflow is undefined, because
-@code{abs (INT_MIN)} overflows to @code{INT_MIN}, which is less than
-zero.  @option{-Wstrict-overflow} (with no level) is the same as
-@option{-Wstrict-overflow=2}.
+Does nothing.  Preserved for backward compatibility.
 
 @item -Wstrict-overflow=3
-Also warn about other cases where a comparison is simplified.  For
-example: @code{x + 1 > 1} is simplified to @code{x > 0}.
+Does nothing.  Preserved for backward compatibility.
 
 @item -Wstrict-overflow=4
-Also warn about other simplifications not covered by the above cases.
-For example: @code{(x * 10) / 5} is simplified to @code{x * 2}.
+Does nothing.  Preserved for backward compatibility.
 
 @item -Wstrict-overflow=5
-Also warn about cases where the compiler reduces the magnitude of a
-constant involved in a comparison.  For example: @code{x + 2 > y} is
-simplified to @code{x + 1 >= y}.  This is reported only at the
-highest warning level because this simplification applies to many
-comparisons, so this warning level gives a very large number of
-false positives.
+Does nothing.  Preserved for backward compatibility.
 @end table
 
 @opindex Wstring-compare

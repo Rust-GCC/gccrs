@@ -1443,10 +1443,6 @@ Wstrict-null-sentinel
 C++ ObjC++ Warning Var(warn_strict_null_sentinel)
 Warn about uncasted NULL used as sentinel.
 
-Wstrict-overflow=
-C ObjC C++ ObjC++ LangEnabledBy(C ObjC C++ ObjC++,Wall, 1, 0) IntegerRange(0, 5)
-;
-
 Wstrict-prototypes
 C ObjC Var(warn_strict_prototypes) Warning
 Warn about unprototyped function declarations.

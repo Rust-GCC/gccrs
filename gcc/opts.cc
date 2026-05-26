@@ -2952,9 +2952,7 @@ common_handle_option (struct gcc_options *opts,
       break;
 
     case OPT_Wstrict_overflow:
-      opts->x_warn_strict_overflow = (value
-				      ? (int) WARN_STRICT_OVERFLOW_CONDITIONAL
-				      : 0);
+      /* Deferred.  */
       break;
 
     case OPT_Wsystem_headers:

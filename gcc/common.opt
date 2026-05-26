@@ -782,11 +782,10 @@ Warn about code which might break strict aliasing rules.
 
 Wstrict-overflow
 Common Warning
-Warn about optimizations that assume that signed overflow is undefined.
+Does nothing.  Preserved for backward compatibility.
 
 Wstrict-overflow=
-Common Joined RejectNegative UInteger Var(warn_strict_overflow) Warning
-Warn about optimizations that assume that signed overflow is undefined.
+Does nothing.  Preserved for backward compatibility.
 
 Wsuggest-attribute=cold
 Common Var(warn_suggest_attribute_cold) Warning
