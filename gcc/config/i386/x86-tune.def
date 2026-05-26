@@ -534,7 +534,7 @@ DEF_TUNE (X86_TUNE_AVOID_4BYTE_PREFIXES, "avoid_4byte_prefixes",
 /* X86_TUNE_USE_GATHER_2PARTS: Use gather instructions for vectors with 2
    elements.  */
 DEF_TUNE (X86_TUNE_USE_GATHER_2PARTS, "use_gather_2parts",
-	  ~(m_ZNVER | m_CORE_HYBRID
+	  ~(m_ZNVER | m_CORE_HYBRID | m_DIAMONDRAPIDS
 	    | m_YONGFENG | m_SHIJIDADAO | m_CORE_ATOM | m_GENERIC | m_GDS
 	    | m_C86_4G))
 
@@ -547,7 +547,7 @@ DEF_TUNE (X86_TUNE_USE_SCATTER_2PARTS, "use_scatter_2parts",
 /* X86_TUNE_USE_GATHER_4PARTS: Use gather instructions for vectors with 4
    elements.  */
 DEF_TUNE (X86_TUNE_USE_GATHER_4PARTS, "use_gather_4parts",
-	  ~(m_ZNVER | m_CORE_HYBRID
+	  ~(m_ZNVER | m_CORE_HYBRID | m_DIAMONDRAPIDS
 	    | m_YONGFENG | m_SHIJIDADAO | m_CORE_ATOM | m_GENERIC | m_GDS
 	    | m_C86_4G))
 
