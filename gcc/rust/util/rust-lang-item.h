@@ -155,6 +155,8 @@ public:
     DISCRIMINANT_KIND,
 
     MANUALLY_DROP,
+
+    EXCHANGE_MALLOC
   };
 
   static const BiMap<std::string, Kind> lang_items;
