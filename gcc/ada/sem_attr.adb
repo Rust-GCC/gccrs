@@ -3143,6 +3143,7 @@ package body Sem_Attr is
          --  from Opt.Uneval_Old. Perhaps this is due to a previous error?
 
          else
+            Check_Error_Detected;
             Uneval_Old_Setting := Opt.Uneval_Old;
          end if;
 

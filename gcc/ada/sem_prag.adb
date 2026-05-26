@@ -5933,23 +5933,31 @@ package body Sem_Prag is
             declare
                Expr : constant Node_Id := Expression (Get_Argument (N));
 
+               Class_Wide_Expr : constant Node_Id := New_Copy_Tree (Expr);
+
             begin
                if Pname = Name_Pre_Class then
                   if Is_Ignored_In_Codegen (N) then
                      Set_Ignored_Class_Preconditions (Subp_Id,
-                       New_Copy_Tree (Expr));
+                       Class_Wide_Expr);
                   else
-                     Set_Class_Preconditions (Subp_Id, New_Copy_Tree (Expr));
+                     Set_Class_Preconditions (Subp_Id, Class_Wide_Expr);
                   end if;
 
                else
                   if Is_Ignored_In_Codegen (N) then
                      Set_Ignored_Class_Postconditions (Subp_Id,
-                       New_Copy_Tree (Expr));
+                       Class_Wide_Expr);
                   else
-                     Set_Class_Postconditions (Subp_Id, New_Copy_Tree (Expr));
+                     Set_Class_Postconditions (Subp_Id, Class_Wide_Expr);
                   end if;
                end if;
+
+               --  Attach the copied class-wide expression to the AST, so that
+               --  its original context can be retrieved by climbing the chain
+               --  of parents.
+
+               Set_Parent (Class_Wide_Expr, N);
             end;
          end if;
       end Analyze_Pre_Post_Condition;

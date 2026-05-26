@@ -5431,6 +5431,8 @@ package body Sem_Ch13 is
          when Pre_Post_Aspects => Pre_Post : declare
             Pname : Name_Id;
 
+            Class_Wide_Expr : Node_Id := Empty;
+
          begin
             if A_Id in Aspect_Pre | Aspect_Precondition then
                Pname := Name_Precondition;
@@ -5467,11 +5469,11 @@ package body Sem_Ch13 is
               and then not Is_Ignored_Ghost_Entity_In_Codegen (E)
             then
                if A_Id = Aspect_Pre then
+                  Class_Wide_Expr := New_Copy_Tree (Expr);
                   if Is_Ignored_In_Codegen (Aspect) then
-                     Set_Ignored_Class_Preconditions (E,
-                       New_Copy_Tree (Expr));
+                     Set_Ignored_Class_Preconditions (E, Class_Wide_Expr);
                   else
-                     Set_Class_Preconditions (E, New_Copy_Tree (Expr));
+                     Set_Class_Preconditions (E, Class_Wide_Expr);
                   end if;
 
                --  Postconditions may split into separate aspects, and we
@@ -5481,11 +5483,11 @@ package body Sem_Ch13 is
                elsif No (Class_Postconditions (E))
                  and then No (Ignored_Class_Postconditions (E))
                then
+                  Class_Wide_Expr := New_Copy_Tree (Expr);
                   if Is_Ignored_In_Codegen (Aspect) then
-                     Set_Ignored_Class_Postconditions (E,
-                       New_Copy_Tree (Expr));
+                     Set_Ignored_Class_Postconditions (E, Class_Wide_Expr);
                   else
-                     Set_Class_Postconditions (E, New_Copy_Tree (Expr));
+                     Set_Class_Postconditions (E, Class_Wide_Expr);
                   end if;
                end if;
             end if;
@@ -5502,6 +5504,14 @@ package body Sem_Ch13 is
                       Expression => Relocate_Expression (Expr))),
                     Pragma_Name                => Pname);
             end;
+
+            --  If class-wide expression was copied, then attach it to the AST,
+            --  so that its original context can be retrieved by climbing the
+            --  chain of parents.
+
+            if Present (Class_Wide_Expr) then
+               Set_Parent (Class_Wide_Expr, Aitem);
+            end if;
 
             --  For Pre/Post cases, insert immediately after the entity
             --  declaration, since that is the required pragma placement.
