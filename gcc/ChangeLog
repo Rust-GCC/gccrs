@@ -1,3 +1,45 @@
+2026-05-26  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR tree-optimization/125453
+	* match.pd (`(smaller)a ==/!= (smaller) b`): Reject
+	non integral types.
+
+2026-05-25  Georg-Johann Lay  <avr@gjlay.de>
+
+	PR target/125409
+	* config/avr/avr-fixed.md (FIXED_A, FIXED_B): Add PSI to iterators.
+
+2026-05-25  Georg-Johann Lay  <avr@gjlay.de>
+
+	PR target/121343
+	* config/avr/avr.md (load_<mode>_libgcc): Rewrite to use
+	a hard-reg constraint for operand 0.
+	(gen_load<mode>_libgcc): Remove expander.
+	(mov<mode>): No more special handling needed for sources that
+	satisfy avr_load_libgcc_p.
+
+2026-05-25  Tobias Burnus  <tburnus@baylibre.com>
+
+	PR c/125377
+	* omp-general.cc (omp_check_for_duplicate_variant): Fix used
+	tree for 'inform' part of the error message.
+
+2026-05-25  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* doc/invoke.texi (fstack-usage): Document new second field.
+	* toplev.cc (output_stack_usage_1): Revert latest changes and add
+	the mangled name as the second field.
+
+2026-05-25  Richard Sandiford  <rdsandiford@googlemail.com>
+
+	* bitmap.cc (bitmap_last_set_bit): Fix handling of index 0.
+
+2026-05-25  liuhongt  <hongtao.liu@intel.com>
+
+	PR middle-end/124630
+	* match.pd (popcount (x ^ (x - 1))): Fold to ctz (x) + 1 when
+	x is nonzero and CTZ is directly supported.
+
 2026-05-24  Raven Hallsby  <karl@hallsby.com>
 
 	PR tree-optimization/125104

@@ -1,3 +1,12 @@
+2026-05-25  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/93727
+	* io/write_float.def (get_float_hex_string): Fix kind=8 frac_part
+	from unsigned long to GFC_UINTEGER_8 to correct truncated hex
+	output and IEEE_INVALID_FLAG on ILP32 targets.  Update kind=10
+	and kind=16 to use GFC_UINTEGER_8 for consistency.
+	Assisted by: Claude Sonnet 4.6
+
 2026-05-24  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
 	    Harald Anlauf  <anlauf@gcc.gnu.org>
 

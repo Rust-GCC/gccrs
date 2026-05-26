@@ -1,3 +1,420 @@
+2026-05-25  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* sem_util.adb (Prefix_Is_Formal_Parameter): Rename into...
+	(Prefix_Is_Formal_Parameter_Of_EQ): ...this.  Return True only if
+	the formal parameter is that of an equality function built for an
+	unchecked union type.
+	(Has_Inferable_Discriminants): Adjust to above renaming.
+
+2026-05-25  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* exp_put_image.ads (Image_Should_Call_Put_Image): Rename into...
+	(Image_Must_Call_Put_Image): ...this.
+	* exp_put_image.adb (Image_Should_Call_Put_Image): Rename into...
+	(Image_Must_Call_Put_Image): ...this.
+	* exp_imgv.adb (Expand_Image_Attribute): Adjust to above renaming.
+	(Expand_Wide_Image_Attribute): Likewise.
+	(Expand_Wide_Wide_Image_Attribute): Likewise.
+	* sem_attr.adb (Eval_Attribute): Likewise.
+
+2026-05-25  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* sem_attr.adb: Add with and use clauses for Exp_Put_Image.
+	(Eval_Attribute.Fold_Compile_Time_Known_Enumeration_Image): New
+	procedure factored out from....
+	(Eval_Attribute): ...here.  Attempt to fold 'Img and 'Image for all
+	compile-time known values of enumeration, but not character, types,
+	provided that Put_Image need not be called, by invoking the nested
+	Fold_Compile_Time_Known_Enumeration_Image procedure on the value.
+
+2026-05-25  Denis Mazzucato  <mazzucato@adacore.com>
+
+	* sem_util.adb: Fix RM references.
+	* sem_util.ads: Likewise.
+	* sem_warn.adb: Likewise.
+
+2026-05-25  Martin Clochard  <clochard@adacore.com>
+
+	* sem_util.adb (As_Boolean): utility to fill decoration in expressions
+	(Determining_Condition): set Etype for generated Boolean connectors
+	(Conditional_Evaluation_Condition): set Etype for generated connectors
+
+2026-05-25  Gary Dismukes  <dismukes@adacore.com>
+
+	* par-ch12.adb (P_Formal_Subprogram_Declaration): Pass True for
+	the Is_Core_Extension parameter on call to Error_Msg_GNAT_Extension.
+
+2026-05-25  Piotr Trojanek  <trojanek@adacore.com>
+
+	* sem_ch13.adb (Analyze_Aspect_Specifications): Record aspect CPU and
+	Priority applied to subprogram as a representation item.
+
+2026-05-25  Claire Dross  <dross@adacore.com>
+
+	* sem_prag.adb (Analyze_Exit_Contract): The Exception_Raised exit kind
+	is not compatible with No_Raise.
+	(Analyze_Pragma): The Exceptional_Cases pragma is not compatible with
+	No_Raise.
+
+2026-05-25  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gen_il-gen-gen_entities.adb (E_Subprogram_Type): Add the missing
+	Scope_Depth_Value field.
+
+2026-05-25  Eric Botcazou  <ebotcazou@adacore.com>
+
+	PR ada/93702
+	* exp_ch3.adb (Make_Controlling_Function_Wrappers): Revert latest
+	change.
+	* sem_ch12.adb (Analyze_One_Association): Remove redundant line.
+	* sem_ch6.adb (Analyze_Subprogram_Body_Helper): Freeze the profile
+	again for bodies that are not generated from expression functions.
+
+2026-05-25  Javier Miranda  <miranda@adacore.com>
+
+	* sem_disp.adb (Check_Controlling_Formals): Formals of a type
+	specifying aspect First_Controlling_Parameter are not candidate
+	controlling parameters when they are not the first formal of
+	the dispatching primitive.
+
+2026-05-25  Javier Miranda  <miranda@adacore.com>
+
+	* exp_ch5.adb (Expand_N_Assignment_Statement): Handle internally
+	generated initialization invoking a C++ constructor.
+
+2026-05-25  Eric Botcazou  <ebotcazou@adacore.com>
+
+	PR ada/93702
+	* contracts.adb (Analyze_Entry_Or_Subprogram_Contract): Call
+	Freeze_Expr_Types_Before instead of Freeze_Expr_Types.
+	(Process_Preconditions_For): Likewise.
+	* exp_ch3.adb (Make_Controlling_Function_Wrappers): Do not set
+	Was_Expression_Function flag on the generated bodies.
+	* exp_ch6.adb (Expand_Call_Helper): Call Original_Node on the
+	result of the call to Expression_Of_Expression_Function.
+	* freeze.ads (Freeze_Expr_Types): Delete.
+	(Freeze_Expr_Types_Before): New procedure declaration.
+	* freeze.adb (Check_Expression_Function): Delete.
+	(Freeze_And_Append): Add Do_Freeze_Profile formal parameter and
+	pass it to Freeze_Entity.  Remove call to Check_Expression_Function.
+	(Freeze_Entity): Set Test_E consistently and freeze the expression
+	of expression functions that are primitives of a tagged type.
+	(Freeze_Profile): Adjust calls to Should_Freeze_Type.
+	(In_Expanded_Body): Also return true for DIC procedures.
+	(Freeze_Expression): Remove call to Check_Expression_Function.
+	Freeze the expression of expression functions.
+	(Freeze_Expr_Types): Add Result and Before formal parameters.
+	Make a copy and preanalyze/resolve it only if Typ is present.
+	(Freeze_Expr_Types.Explain_Error): New procedure.
+	(Freeze_Expr_Types.Find_Incomplete_Constant): Likewise.
+	(Freeze_Expr_Types.Check_And_Freeze_Type): Return immediately if
+	the type is already frozen.  Report errors on N instead of Node.
+	If Before is False, append the freeze nodes to Result.
+	(Freeze_Expr_Types.Freeze_Type_Refs): Call Find_Incomplete_Constant.
+	(Freeze_Expr_Types_Before): New procedure.
+	(Should_Freeze_Type): Remove formal parameter E and
+	specific kludge for stand-alone expression functions.
+	* ghost.ads (Mark_And_Set_Ghost_Body_Of_Expression_Function): New
+	procedure declaration.
+	* ghost.adb (Mark_And_Set_Ghost_Body_Of_Expression_Function): New
+	procedure body.
+	* rtsfind.adb (RTE): Preserve and reset the In_Inlined_Body flag.
+	(RTE_Record_Component): Likewise.
+	* sem_attr.adb (Resolve_Attribute) <Attribute_Access>: Just call
+	Freeze_Expression to freeze the expression of prefixes that are
+	expression functions and remove obsolete implementation.
+	* sem_ch3.adb (Analyze_Declarations): Adjust commentary.
+	(Check_Completion): Also skip stand-alone expressions functions.
+	* sem_ch4.adb (Analyze_Case_Expression): Always analyze the choices.
+	* sem_ch6.adb: Add with and use clauses for Sem_Ch7.
+	(Analyze_Expression_Function): Call Freeze_Expr_Types_Before instead
+	of Freeze_Expr_Types for expression functions that are completions.
+	For stand-alone expression functions, set In_Private_Part on the
+	entity if it is in the private part, propagate the results of the
+	resolution of the specification of the the declaration to that of
+	the body and insert the body at the next freezing point.
+	(Analyze_Subprogram_Body_Helper): Remove the machinery for masking
+	and unmasking unfrozen types. For a stand-alone expression function,
+	call Mark_And_Set_Ghost_Body_Of_Expression_Function, remove obsolete
+	code dealing with the freezing of the spec, set In_Inlined_Body to
+	True, make the full view of the private types of its scope visible
+	if this is not the current scope and it is in the private part, and
+	avoid making the spec immediately visible.
+	(Analyze_Subprogram_Specification): Fix typo.
+	(New_Overloaded_Entity): Set Has_Completion on a [generic] package
+	that conflicts with the entity to prevent a cascaded error.
+	* sem_ch7.ads (Is_Private_Base_Type): New function declaration moved
+	here from...
+	* sem_ch7.adb (Is_Private_Base_Type): ...here.  Remove.
+	* sem_ch8.adb (Analyze_Subprogram_Renaming): Call Freeze_Expression
+	to freeze the expression of expression functions, but only if the
+	renaming comes from source.
+	* sem_ch12.adb (Analyze_One_Association): Likewise, and remove the
+	manual freezing for calls to them.
+	* sem_res.adb (Resolve): Remove obsolete commentary.
+	(Resolve_Call): Always freeze the expression of names that are
+	expression functions.
+	* sem_util.adb (Check_Fully_Declared): Add commentary and do not
+	check types with private component declared outside of the current
+	scope when it is a generic unit.
+	(Expression_Of_Expression_Function): Return Expression directly.
+	(Is_Inlinable_Expression_Function): Call Original_Node on the
+	result of the call to Expression_Of_Expression_Function.
+
+2026-05-25  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* sem_ch8.adb (Analyze_Subprogram_Renaming): Retrieve again the
+	expression of the expression function manually.
+
+2026-05-25  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* sem_res.adb (Resolve_Entity_Name): Add the name of the constant
+	to the error message for premature freezing of deferred constants.
+
+2026-05-25  Gary Dismukes  <dismukes@adacore.com>
+
+	* sem_ch12.adb (Build_Subprogram_Wrapper): Remove the subprogram
+	renaming created for the formal-to-actual association from the
+	list of renamings (only when such a subprogram renaming is present).
+	Also, change the name from plural to singular, since the procedure
+	only creates one wrapper, update the spec comment to reflect that,
+	and clarify the state and use of the Renamings parameter.
+
+2026-05-25  Viljar Indus  <indus@adacore.com>
+
+	* sem_prag.adb (Analyze_Abstract_State): Improve handling of
+	True/False for Abstract_State with Ghost.
+
+2026-05-25  Denis Mazzucato  <mazzucato@adacore.com>
+
+	* exp_ch3.adb (Build_Implicit_Parameterless_Constructor): Add Initialize
+	aspect with default others to trigger Initialize aspect analysis.
+	* exp_ch6.adb (Prepend_Constructor_Procedure_Prologue): Fix
+	initialization order.
+	(Init_From_Initialize_Expression): Retrieve initialization expression or
+	the default one base on the Initialize aspect.
+	(Init_From_Default_Or_Constructor):. Retrieve initialization expression
+	based on the default one in the record initialization list or the init
+	procedure.
+	* sem_ch13.adb (Analyze_Aspect_Specifications): Add check for
+	missing components that require initialization, and add an
+	expression_with_action node to place ABE during resolution of
+	aggregates with function calls.
+	(Check_Constructor_Choices): Helper to check that the aggregate choices
+	do not refer to ancestors.
+	(Diagnose_Misplaced_Aspects): Improve diagnostics when it is a clear
+	misspelling of Initialize aspect.
+	* sem_ch6.adb (Analyze_Direct_Attribute_Definition): If missing, add a
+	compiler generated Initialize aspect with default others to trigger
+	Initialize analysis.
+
+2026-05-25  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* contracts.adb (Has_Public_Visibility_Of_Subprogram): Use Subp_Id
+	throughout and Is_Expression_Function to spot expression functions.
+	* ghost.adb (Is_OK_Declaration): Likewise.
+	* sem_ch12.adb (Analyze_One_Association): Likewise.
+	* sem_ch6.adb (Analyze_Subprogram_Body_Helper): Likewise.
+	(Analyze_Subprogram_Specification): Fix typo.
+	(Find_Corresponding_Spec): Call Is_Expression_Function.
+	* sem_ch8.adb (Analyze_Subprogram_Renaming): Retrieve the expression
+	by means of Expression_Of_Expression_Function.
+	* sem_res.adb (Resolve_Allocator): Call Is_Expression_Function.
+	(Rewrite_Renamed_Operator): Likewise.
+	* sem_util.adb (Expression_Of_Expression_Function): Streamline the
+	the implementation.
+	(Is_Expression_Function): Likewise.
+
+2026-05-25  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* exp_ch6.adb (Expand_Ctrl_Function_Call): Bail out for the name
+	of an object renaming declaration at library level, if the call
+	does not return on the secondary stack.
+	* exp_ch8.adb (Expand_N_Object_Renaming_Declaration): Rewrite the
+	renaming as a regular object declaration if it is declared at
+	library level and the name is a controlled function call whose
+	result is not returned on the secondary stack.
+	* exp_util.adb (Rewrite_Object_Declaration_As_Renaming): Minor fix.
+
+2026-05-25  Javier Miranda  <miranda@adacore.com>
+
+	* sem_ch3.adb (Analyze_Subtype_Declaration): Record subtypes
+	inherit the CPP_Class attribute; required for instantiations.
+
+2026-05-25  Gary Dismukes  <dismukes@adacore.com>
+
+	* contracts.adb (Analyze_Contracts): Add cases for formal subprogram
+	Nkinds so that Analyze_Entry_Or_Subprogram_Contract will be called
+	for them.
+	* sem_attr.adb (Analyze_Attribute_Old_Result): Account for the cases
+	of formal subprogram Nkinds, allowing Old attributes for those.
+	* sem_ch12.adb (Build_Subprogram_Wrappers): Add a formal for passing
+	the unanalyzed generic formal, and use it for copying any aspect
+	specifications of the generic formal rather than copying the analyzed
+	generic formal's aspects.
+	(Analyze_One_Association): Pass Assoc.Un_Formal as an additional
+	actual in the call to Build_Subprogram_Wrappers.
+
+2026-05-25  Steve Baird  <baird@adacore.com>
+
+	* accessibility.adb (Needs_Accessibility_Level_Temp_Or_Check): Conform
+	to spec changes. Return True for the RHS of an assignment statement.
+	* accessibility.ads: Change name of Is_Anonymous_Access_Actual
+	to Needs_Accessibility_Level_Temp_Or_Check; the function now returns
+	True in cases other than those described by the old name.
+	Also change name of the formal parameter from N to Conditional_Expr.
+	* exp_ch4.adb (Expand_N_If_Expression): Update call to a function
+	whose name changed.
+
+2026-05-25  Javier Miranda  <miranda@adacore.com>
+
+	* sem_util.adb (Is_Fully_Initialized_Variant): Moved inside
+	subprogram Is_Fully_Initialized_Type.
+	(Is_Fully_Initialized_Constrained_Array): New subprogram that
+	factorizes code of Is_[Fully|Partially]_Initialized_Type.
+	(Is_Fully_Initialized_Record_Type): New subprogram; add missing
+	support for incomplete types.
+	(Is_Partially_Initialized_Record_Type): New subprogram; add missing
+	support for incomplete types.
+	(Is_Partially_Initialized_Type): Add new formal for predicate checks.
+	* sem_util.ads (Is_Partially_Initialized_Type): Add new formal for
+	predicate checks.
+	* sem_warn.adb (Type_OK_For_No_Value_Assigned): Use named parameters
+	in call to Is_Partially_Initialized_Type.
+	* sem_ch3.adb (Analyze_Object_Declaration): Add new actual for
+	predicate checks.
+
+2026-05-25  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* sem_ch6.adb (Analyze_Subprogram_Body_Helper): Introduce new local
+	boolean constant From_Expression_Function, use it throughout, and
+	replace an equivalent test by it.  Do not deal with name conflicts
+	here when it is true.  Do not verify the consistency of overriding
+	indicators for stand-alone expression functions.
+	* sem_util.ads (Is_Expression_Function_Or_Completion): Fix improper
+	wording in description.
+	* sem_util.adb (Is_Expression_Function_Or_Completion): Streamline
+	the implementation.
+
+2026-05-25  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* exp_util.adb (Remove_Init_Call.Find_Init_Call_In_List): Check that
+	the first actual denotes the expected variable modulo qualification
+	and conversion.
+
+2026-05-25  Javier Miranda  <miranda@adacore.com>
+
+	* sem_ch3.adb (Analyze_Object_Declaration): Report an error if the
+	return statement of a function with foreign convention has a call
+	to a C++ constructor.
+	* exp_ch3.adb (Expand_N_Object_Declaration): Handle initialization
+	expression calling a C++ constructor in an extended return statement
+	of a subprogram with Ada convention.
+
+2026-05-25  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* sem_ch6.adb (Analyze_Subprogram_Body_Helper): Pull out the generic
+	case from the if-statement and put it first.
+
+2026-05-25  Denis Mazzucato  <mazzucato@adacore.com>
+
+	* exp_disp.adb (Expand_Dispatching_Call): Remove suppression of checks
+	during analysis of expanded dispatching calls.
+
+2026-05-25  Ronan Desplanques  <desplanques@adacore.com>
+
+	* doc/gnat_rm/gnat_language_extensions.rst: Add that finally is a
+	non-reserved keyword.
+	* par-ch5.adb (P_Sequence_Of_Statements): handle "finally" syntax
+	extension.
+	* snames.ads-tmpl: Remove the concept of GNAT extension reserved
+	word.
+	* snames.adb-tmpl (Is_Keyword_Name): Likewise.
+	* scans.adb (Initialize_Ada_Keywords): Likewise.
+	* par-util.adb (Check_Future_Keyword): Likewise.
+	* gnat_rm.texi: Regenerate.
+
+2026-05-25  Bob Duff  <duff@adacore.com>
+
+	* exp_ch9.adb (Expand_N_Protected_Body):
+	Remove "raise Program_Error" and consolidate other
+	cases.
+
+2026-05-25  Sebastian Poeplau  <poeplau@adacore.com>
+
+	* libgnarl/libgnarl.gpr: Add dependency on libgnat.gpr.
+	Set Library_Name and Library_Version depending on Library_Kind.
+	* libgnat/libgnat.gpr: Likewise.
+
+2026-05-25  Denis Mazzucato  <mazzucato@adacore.com>
+
+	* aspects.ads (Aspects): Make Super aspect optional to allow for
+	explicit call to parent parameterless constructor.
+	* exp_ch3.adb (Build_Implicit_Parameterless_Constructor): Build implicit
+	parameterless constructor when no other constructors are defined but the
+	type has an ancestor with constructors.
+	* exp_ch6.adb
+	(Init_Expression_If_Any): Pe4rmit implicit calls to parameterless
+	constructors in initialization expressions if available.
+	(Make_Parent_Constructor_Call): Super without parameters calls the
+	parent parameterless constructor.
+	* sem_ch13.adb (Analyze_Aspect_Specification): Allow Super aspect
+	without expression.
+	* sem_ch3.adb (Analyze_Object_Declaration): Delay check for missing
+	parameterless constructor until the the implicit constructor is built.
+
+2026-05-25  Steve Baird  <baird@adacore.com>
+
+	* aspects.ads: Add three new Taint_Xxx aspects to the Aspect_Id
+	enumeration type and define a corresponding subtype,
+	Ignored_Aspects.
+	* exp_prag.adb (Expand_N_Pragma): Don't rewrite a taint-related
+	pragma as a null statement. We want to leave the (unanalyzed)
+	pragma in the tree.
+	* sem_ch13.adb (Analyze_One_Aspect): Leave taint-related aspect
+	specifications
+	(and their arguments, if any) unanalyzed.
+	(Check_Aspect_At_Freeze_Point): Update a case statement to treat
+	the new aspects as an error case.
+	* sem_util.adb (Should_Ignore_Pragma_Sem): Return True for an
+	ignored pragma.
+	* snames.ads-tmpl: Define names for the three new aspects.
+
+2026-05-25  Bob Duff  <duff@adacore.com>
+
+	* scans.adb (Save_Scan_State): Use an aggregate.
+
+2026-05-25  Denis Mazzucato  <mazzucato@adacore.com>
+
+	* exp_ch6.adb (Build_Helper_Call): Refactor code to handle both static and
+	dynamic precondition calls in the same way.
+
+2026-05-25  Denis Mazzucato  <mazzucato@adacore.com>
+
+	* exp_ch3.adb (Build_Record_Init_Proc): Move Build_Assignment to
+	Build_Component_Assignment in Exp_Util for a more general use.
+	* exp_ch6.adb (Prepend_Constructor_Procedure_Prologue): refactor using
+	Build_Component_Assignment.
+	* exp_util.adb (Build_Component_Assignment): Logic to build component
+	assignments for initialization procedures and constructor prologues.
+	* exp_util.ads (Build_Component_Assignment): Likewise.
+	* sem_ch5.adb (Analyze_Assignment): Revert back changes from previous
+	attempt to fix assignments of limited types in constructor prologues,
+	the use of Build_Component_Assignment makes those changes unnecessary.
+
+2026-05-25  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* exp_ch3.adb (Expand_N_Object_Declaration): Minor comment fixes.
+
+2026-05-25  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* sinput.ads: Small tweak to head comment.
+
+2026-05-25  Denis Mazzucato  <mazzucato@adacore.com>
+
+	* sem_ch3.adb (Build_Derived_Type): Propagate by-constructor indication
+	only for derived tagged types, not for composition.
+
 2026-05-19  Jakub Jelinek  <jakub@redhat.com>
 
 	PR other/125348

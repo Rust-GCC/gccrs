@@ -1,3 +1,49 @@
+2026-05-25  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* testsuite/20_util/is_constructible/value-2.cc:
+	Adjust expected value for C++26 (__cpp_trivial_union >= 202502L).
+	* testsuite/20_util/is_destructible/value.cc: Likewise.
+	* testsuite/20_util/is_nothrow_destructible/value.cc: Likewise.
+
+2026-05-25  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* include/bits/version.def (valarray): Define.
+	* include/bits/version.h: Regenerate.
+	* include/std/valarray: (__cpp_lib_valarray): Define.
+	(valarray::begin, valarray::end, valarray::iterator)
+	(valarray::const_iterator) [__glibcxx_valarray >= 202511L]: Define.
+	(std::begin(valarray<_Tp>&), std::begin(const valarray<_Tp>&))
+	(std::end(valarray<_Tp>&), std::end(const valarray<_Tp>&)): Define
+	only if __glibcxx_valarray < 202511L (i.e. not defined).
+	* include/bits/range_access.h (std::valarray)
+	(std::begin(valarray<_Tp>&), std::begin(const valarray<_Tp>&))
+	(std::end(valarray<_Tp>&), std::end(const valarray<_Tp>&)): Forward
+	declare only if __glibcxx_valarray < 202511L (i.e. not defined).
+	* testsuite/26_numerics/valarray/range_access3.cc: New test.
+
+2026-05-25  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* include/bits/version.def (initializer_list): Define with value
+	202511 for C++26.
+	* include/bits/version.h: Regenerate.
+	* libsupc++/initializer_list (initializer_list::data)
+	(initializer_list::empty) [__glibcxx_initializer_list >= 202511L]:
+	Define.
+	(std::begin(initializer_list<_Tp>), std::end(initializer_list<_Tp>)):
+	Define only if __glibcxx_initializer_list < 202511L (i.e. not defined).
+	* include/bits/range_access.h (std::empty(initializer_list<_Tp>))
+	(std::data(initializer_list<_Tp>)): Define only if
+	__glibcxx_initializer_list < 202511L (i.e. not defined).
+	* testsuite/18_support/initializer_list/range_access.cc: Move test for
+	brace-init list to range_access_neg.c. Included <iterator> in C++26 or
+	later mode.
+	* testsuite/18_support/initializer_list/data_empty_mem.cc: New test.
+	* testsuite/18_support/initializer_list/range_access14.cc: New test.
+	* testsuite/18_support/initializer_list/range_access14_neg.cc: New test.
+	* testsuite/18_support/initializer_list/range_access17.cc: New test.
+	* testsuite/18_support/initializer_list/range_access17_neg.cc: New test.
+	* testsuite/18_support/initializer_list/range_access_neg.cc: New test.
+
 2026-05-22  Jonathan Wakely  <jwakely@redhat.com>
 
 	* testsuite/23_containers/vector/modifiers/emplace/self_emplace.cc:

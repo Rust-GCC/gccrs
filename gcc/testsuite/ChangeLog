@@ -1,3 +1,45 @@
+2026-05-26  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR tree-optimization/125453
+	* gcc.dg/torture/pr125453-1.c: New test.
+
+2026-05-25  H.J. Lu  <hjl.tools@gmail.com>
+
+	* gcc.target/i386/stack-usage-realign.c: Adjusted.
+
+2026-05-25  Georg-Johann Lay  <avr@gjlay.de>
+
+	PR target/125409
+	* gcc.target/avr/torture/pr125409.h: New file.
+	* gcc.target/avr/torture/pr125409-fx24-ssk.c: New test.
+	* gcc.target/avr/torture/pr125409-fx24-ssr.c: New test.
+	* gcc.target/avr/torture/pr125409-fx24-suk.c: New test.
+	* gcc.target/avr/torture/pr125409-fx24-sur.c: New test.
+	* gcc.target/avr/torture/pr125409-fx24-usk.c: New test.
+	* gcc.target/avr/torture/pr125409-fx24-usr.c: New test.
+	* gcc.target/avr/torture/pr125409-fx24-uuk.c: New test.
+	* gcc.target/avr/torture/pr125409-fx24-uur.c: New test.
+
+2026-05-25  Tobias Burnus  <tburnus@baylibre.com>
+
+	PR c/125377
+	* c-c++-common/gomp/begin-declare-variant-1.c: New test.
+
+2026-05-25  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc.dg/stack-usage-1.c: Adjust.
+
+2026-05-25  H.J. Lu  <hjl.tools@gmail.com>
+
+	* gcc.target/i386/stack-usage-realign.c: Add the user visibility
+	name to scan-stack-usage.
+
+2026-05-25  liuhongt  <hongtao.liu@intel.com>
+
+	PR middle-end/124630
+	* gcc.dg/pr124630.c: New test.
+	* gcc.target/i386/pr124630.c: New test.
+
 2026-05-24  Raven Hallsby  <karl@hallsby.com>
 
 	PR tree-optimization/125104
