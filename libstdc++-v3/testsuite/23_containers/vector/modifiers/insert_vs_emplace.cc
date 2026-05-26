@@ -223,11 +223,12 @@ test03()
 void
 test04()
 {
-  const X::special expected{ 0, 3, 1, 0, 3, 0 };
+  const X::special expected{ 0, 4, 1, 0, 4, 0 };
   X::special ins, emp;
   {
     std::vector<X> v;
-    v.reserve(3);
+    v.reserve(4);
+    v.push_back(X(0,0));
     v.push_back(X(0,0));
     v.push_back(X(0,0));
     v.push_back(X(0,0));
@@ -241,7 +242,8 @@ test04()
   }
   {
     std::vector<X> v;
-    v.reserve(3);
+    v.reserve(4);
+    v.push_back(X(0,0));
     v.push_back(X(0,0));
     v.push_back(X(0,0));
     v.push_back(X(0,0));
@@ -261,11 +263,12 @@ test04()
 void
 test05()
 {
-  const X::special expected{ 0, 3, 0, 0, 4, 0 };
+  const X::special expected{ 0, 4, 0, 0, 5, 0 };
   X::special ins, emp;
   {
     std::vector<X> v;
-    v.reserve(3);
+    v.reserve(4);
+    v.push_back(X(0,0));
     v.push_back(X(0,0));
     v.push_back(X(0,0));
     v.push_back(X(0,0));
@@ -279,7 +282,8 @@ test05()
   }
   {
     std::vector<X> v;
-    v.reserve(3);
+    v.reserve(4);
+    v.push_back(X(0,0));
     v.push_back(X(0,0));
     v.push_back(X(0,0));
     v.push_back(X(0,0));
@@ -299,11 +303,12 @@ test05()
 void
 test06()
 {
-  const X::special expected{ 1, 4, 0, 0, 4, 0 };
+  const X::special expected{ 1, 5, 0, 0, 5, 0 };
   X::special ins, emp;
   {
     std::vector<X> v;
-    v.reserve(3);
+    v.reserve(4);
+    v.push_back(X(0,0));
     v.push_back(X(0,0));
     v.push_back(X(0,0));
     v.push_back(X(0,0));
@@ -316,7 +321,8 @@ test06()
   }
   {
     std::vector<X> v;
-    v.reserve(3);
+    v.reserve(4);
+    v.push_back(X(0,0));
     v.push_back(X(0,0));
     v.push_back(X(0,0));
     v.push_back(X(0,0));
@@ -447,11 +453,12 @@ test09()
 void
 test10()
 {
-  const X::special expected{ 0, 3, 1, 0, 3, 0 };
+  const X::special expected{ 0, 4, 1, 0, 4, 0 };
   X::special ins, emp;
   {
     std::vector<X> v;
-    v.reserve(3);
+    v.reserve(4);
+    v.push_back(X(0,0));
     v.push_back(X(0,0));
     v.push_back(X(0,0));
     v.push_back(X(0,0));
@@ -465,7 +472,8 @@ test10()
   }
   {
     std::vector<X> v;
-    v.reserve(3);
+    v.reserve(4);
+    v.push_back(X(0,0));
     v.push_back(X(0,0));
     v.push_back(X(0,0));
     v.push_back(X(0,0));
@@ -485,11 +493,12 @@ test10()
 void
 test11()
 {
-  const X::special expected{ 0, 3, 0, 0, 4, 0 };
+  const X::special expected{ 0, 4, 0, 0, 5, 0 };
   X::special ins, emp;
   {
     std::vector<X> v;
-    v.reserve(3);
+    v.reserve(4);
+    v.push_back(X(0,0));
     v.push_back(X(0,0));
     v.push_back(X(0,0));
     v.push_back(X(0,0));
@@ -503,7 +512,8 @@ test11()
   }
   {
     std::vector<X> v;
-    v.reserve(3);
+    v.reserve(4);
+    v.push_back(X(0,0));
     v.push_back(X(0,0));
     v.push_back(X(0,0));
     v.push_back(X(0,0));
@@ -523,11 +533,12 @@ test11()
 void
 test12()
 {
-  const X::special expected{ 1, 4, 0, 0, 4, 0 };
+  const X::special expected{ 1, 5, 0, 0, 5, 0 };
   X::special ins, emp;
   {
     std::vector<X> v;
-    v.reserve(3);
+    v.reserve(4);
+    v.push_back(X(0,0));
     v.push_back(X(0,0));
     v.push_back(X(0,0));
     v.push_back(X(0,0));
@@ -540,7 +551,8 @@ test12()
   }
   {
     std::vector<X> v;
-    v.reserve(3);
+    v.reserve(4);
+    v.push_back(X(0,0));
     v.push_back(X(0,0));
     v.push_back(X(0,0));
     v.push_back(X(0,0));

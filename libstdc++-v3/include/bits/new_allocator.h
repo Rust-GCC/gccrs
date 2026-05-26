@@ -177,6 +177,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       [[nodiscard]] constexpr std::allocation_result<_Tp*, size_t>
       allocate_at_least(size_t __n)
       {
+#if __cpp_aligned_new
 	if ! consteval
 	  {
 	    if constexpr (requires { sizeof(_Tp); })
@@ -184,19 +185,28 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	    if constexpr ( sizeof(_Tp) <  __STDCPP_DEFAULT_NEW_ALIGNMENT__)
 	      {
 		_S_check_allocation_limit(__n);
-		const size_t __need = __n * sizeof(_Tp);
+		size_t __bytes = __n * sizeof(_Tp);
 		const size_t __mask = __STDCPP_DEFAULT_NEW_ALIGNMENT__ - 1;
-		size_t __ask = (__need + __mask) & ~__mask;
-		// Avoid rounding up to and asking for 2^63 bytes (PR108377):
-		__ask -= __ask >> (__SIZE_WIDTH__ - 1);
-		auto* __p = static_cast<_Tp*>(_GLIBCXX_OPERATOR_NEW(__ask));
-		using _U8 = const unsigned char;
-		static_assert(sizeof(_Tp) <= ~_U8());
-		// Use 8-bit division for minimal latency:
-		_U8 __spare = __ask - __need, __size = sizeof(_Tp);
-		return { __p , __n + __spare / __size };
+		size_t __max = (__bytes + __mask) & ~__mask;
+		// Avoid seeming to ask for 2^63 bytes (PR108377):
+		__max -= __max >> (__SIZE_WIDTH__ - 1);
+		auto __spare = static_cast<unsigned>(__max - __bytes);
+		if constexpr (sizeof(_Tp) < (__mask + 1) / 2)
+		  {
+		    auto __bonus = __spare / sizeof(_Tp);
+		    __n += __bonus;
+		    __bytes += __bonus * sizeof(_Tp);
+		  }
+		else if (sizeof(_Tp) <= __spare)
+		  {
+		    __n += 1;
+		    __bytes += sizeof(_Tp);
+		  }
+		void* __p = _GLIBCXX_OPERATOR_NEW(__bytes);
+		return { static_cast<_Tp*>(__p), __n };
 	      }
 	  }
+#endif
 	return { allocate(__n), __n };
       }
 #endif
