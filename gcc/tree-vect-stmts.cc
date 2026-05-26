@@ -10153,7 +10153,7 @@ vectorizable_load (vec_info *vinfo,
       tree ivstep;
       tree running_off;
       vec<constructor_elt, va_gc> *v = NULL;
-      tree stride_base, stride_step, alias_off;
+      tree stride_base, stride_step = NULL_TREE, alias_off;
       /* Checked by get_load_store_type.  */
       unsigned int const_nunits = nunits.to_constant ();
       unsigned HOST_WIDE_INT cst_offset = 0;
