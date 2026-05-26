@@ -1840,6 +1840,14 @@ formatted_transfer_scalar_read (st_parameter_dt *dtp, bt type, void *p, int kind
 	  read_f (dtp, f, p, kind);
 	  break;
 
+	case FMT_EX:
+	  if (n == 0)
+	    goto need_read_data;
+	  if (require_type (dtp, BT_REAL, type, f))
+	    return;
+	  read_ex (dtp, f, p, kind);
+	  break;
+
 	case FMT_F:
 	  if (n == 0)
 	    goto need_read_data;

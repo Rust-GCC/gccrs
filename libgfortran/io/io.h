@@ -887,6 +887,9 @@ internal_proto(read_a);
 extern void read_f (st_parameter_dt *, const fnode *, char *, int);
 internal_proto(read_f);
 
+extern void read_ex (st_parameter_dt *, const fnode *, char *, int);
+internal_proto(read_ex);
+
 extern void read_l (st_parameter_dt *, const fnode *, char *, int);
 internal_proto(read_l);
 

@@ -1525,6 +1525,364 @@ bad_float:
 }
 
 
+/* read_ex()-- Read a floating-point number with EX editing.
+   Per Fortran 2023 13.7.2.3.6 para 3, the input form is the same as for
+   Fw.d editing (13.7.2.3.2).  That includes the hexadecimal-significand
+   form (13.7.2.3.2 para 7): [sign] 0X [hex-significand] P [decimal-exp].
+   Decimal mantissas and IEEE exceptional forms (INF, NAN) are also
+   accepted.  Embedded blanks are not permitted within a hex float; C
+   strtod handles the 0x...p... form natively.  */
+
+void
+read_ex (st_parameter_dt *dtp, const fnode *f, char *dest, int length)
+{
+#define READEX_TMP 64
+  char tmp[READEX_TMP];
+  size_t buf_size = 0;
+  size_t w;
+  int seen_dp, exponent;
+  int exponent_sign;
+  const char *p;
+  char *buffer;
+  char *out;
+  int seen_int_digit;
+  int seen_dec_digit;
+
+  seen_dp = 0;
+  seen_int_digit = 0;
+  seen_dec_digit = 0;
+  exponent_sign = 1;
+  exponent = 0;
+  w = f->u.real.w;
+  buffer = tmp;
+
+  p = read_block_form (dtp, &w);
+  if (p == NULL)
+    return;
+  p = eat_leading_spaces (&w, (char *) p);
+  if (w == 0)
+    goto zero;
+
+  buf_size = w + 11;
+  if (buf_size > READEX_TMP)
+    buffer = xmalloc (buf_size);
+
+  out = buffer;
+
+  /* Optional sign.  */
+  if (*p == '-' || *p == '+')
+    {
+      if (*p == '-')
+	*(out++) = '-';
+      ++p;
+      --w;
+    }
+
+  p = eat_leading_spaces (&w, (char *) p);
+  if (w == 0)
+    {
+      if (buf_size > READEX_TMP)
+	free (buffer);
+      goto zero;
+    }
+
+  /* IEEE exceptional specification: INF or NAN.  */
+  if (unlikely (w >= 3 && (*p == 'i' || *p == 'I' || *p == 'n' || *p == 'N')))
+    {
+      int seen_paren = 0;
+      char *save = out;
+
+      while (w > 0)
+	{
+	  *out = safe_tolower (*p);
+	  switch (*p)
+	    {
+	    case ' ':
+	      if (dtp->u.p.blank_status == BLANK_ZERO)
+		{
+		  *out = '0';
+		  break;
+		}
+	      *out = '\0';
+	      if (seen_paren == 1)
+		goto bad_float;
+	      break;
+	    case '(':
+	      seen_paren++;
+	      *out = '\0';
+	      break;
+	    case ')':
+	      if (seen_paren++ != 1)
+		goto bad_float;
+	      break;
+	    default:
+	      if (!safe_isalnum (*out))
+		goto bad_float;
+	    }
+	  --w;
+	  ++p;
+	  ++out;
+	}
+
+      *out = '\0';
+
+      if (seen_paren != 0 && seen_paren != 2)
+	goto bad_float;
+
+      if ((strcmp (save, "inf") == 0) || (strcmp (save, "infinity") == 0))
+	{
+	  if (seen_paren)
+	    goto bad_float;
+	}
+      else if (strcmp (save, "nan") != 0)
+	goto bad_float;
+
+      convert_infnan (dtp, dest, buffer, length);
+      if (buf_size > READEX_TMP)
+	free (buffer);
+      return;
+    }
+
+  /* Hexadecimal-significand number: 0X or 0x prefix.
+     Embedded blanks are forbidden; we stop at the first blank and let
+     convert_real report an error if the string is malformed.  */
+  if (w >= 2 && *p == '0' && (p[1] == 'x' || p[1] == 'X'))
+    {
+      while (w > 0 && *p != ' ')
+	{
+	  *(out++) = *p++;
+	  --w;
+	}
+      *(out++) = '\0';
+
+      convert_real (dtp, dest, buffer, length);
+      if (buf_size > READEX_TMP)
+	free (buffer);
+      return;
+    }
+
+  /* Decimal floating-point fallback: same rules as Fw.d editing.  */
+  while (w > 0)
+    {
+      switch (*p)
+	{
+	case ',':
+	  if (dtp->u.p.current_unit->decimal_status != DECIMAL_COMMA)
+	    goto bad_float;
+	  if (seen_dp)
+	    goto bad_float;
+	  if (!seen_int_digit)
+	    *(out++) = '0';
+	  *(out++) = '.';
+	  seen_dp = 1;
+	  break;
+
+	case '.':
+	  if (dtp->u.p.current_unit->decimal_status != DECIMAL_POINT)
+	    goto bad_float;
+	  if (seen_dp)
+	    goto bad_float;
+	  if (!seen_int_digit)
+	    *(out++) = '0';
+	  *(out++) = '.';
+	  seen_dp = 1;
+	  break;
+
+	case ' ':
+	  if (dtp->u.p.blank_status == BLANK_ZERO)
+	    {
+	      *(out++) = '0';
+	      goto found_digit;
+	    }
+	  else if (dtp->u.p.blank_status == BLANK_NULL)
+	    break;
+	  else
+	    goto done;
+	  /* Fall through.  */
+	case '0':
+	case '1':
+	case '2':
+	case '3':
+	case '4':
+	case '5':
+	case '6':
+	case '7':
+	case '8':
+	case '9':
+	  *(out++) = *p;
+found_digit:
+	  if (!seen_dp)
+	    seen_int_digit = 1;
+	  else
+	    seen_dec_digit = 1;
+	  break;
+
+	case '-':
+	case '+':
+	  goto exponent;
+
+	case 'e':
+	case 'E':
+	case 'd':
+	case 'D':
+	case 'q':
+	case 'Q':
+	  ++p;
+	  --w;
+	  goto exponent;
+
+	default:
+	  goto bad_float;
+	}
+
+      ++p;
+      --w;
+    }
+
+  /* No exponent seen; apply the scale factor.  */
+  exponent = -dtp->u.p.scale_factor;
+  goto done;
+
+exponent:
+  p = eat_leading_spaces (&w, (char *) p);
+  if (*p == '-' || *p == '+')
+    {
+      if (*p == '-')
+	exponent_sign = -1;
+      ++p;
+      --w;
+    }
+
+  if (w == 0)
+    {
+      if (dtp->common.flags & IOPARM_DT_DEC_EXT)
+	goto done;
+      else
+	goto bad_float;
+    }
+
+  if (dtp->u.p.blank_status == BLANK_UNSPECIFIED)
+    {
+      while (w > 0 && safe_isdigit (*p))
+	{
+	  exponent *= 10;
+	  exponent += *p - '0';
+	  ++p;
+	  --w;
+	}
+      while (w > 0)
+	{
+	  if (*p != ' ')
+	    goto bad_float;
+	  ++p;
+	  --w;
+	}
+    }
+  else
+    {
+      while (w > 0)
+	{
+	  if (*p == ' ')
+	    {
+	      if (dtp->u.p.blank_status == BLANK_ZERO)
+		exponent *= 10;
+	      else
+		assert (dtp->u.p.blank_status == BLANK_NULL);
+	    }
+	  else if (!safe_isdigit (*p))
+	    goto bad_float;
+	  else
+	    {
+	      exponent *= 10;
+	      exponent += *p - '0';
+	    }
+	  ++p;
+	  --w;
+	}
+    }
+
+  exponent *= exponent_sign;
+
+done:
+  if (!seen_dp)
+    exponent -= f->u.real.d;
+
+  if (seen_dp && !seen_dec_digit)
+    *(out++) = '0';
+  else if (!seen_int_digit && !seen_dec_digit)
+    {
+      notify_std (&dtp->common, GFC_STD_LEGACY,
+		  "REAL input of style 'E+NN'");
+      *(out++) = '0';
+    }
+
+  if (exponent != 0)
+    {
+      int dig;
+
+      *(out++) = 'e';
+      if (exponent < 0)
+	{
+	  *(out++) = '-';
+	  exponent = -exponent;
+	}
+
+      if (exponent >= 10000)
+	goto bad_float;
+
+      for (dig = 3; dig >= 0; --dig)
+	{
+	  out[dig] = (char) ('0' + exponent % 10);
+	  exponent /= 10;
+	}
+      out += 4;
+    }
+  *(out++) = '\0';
+
+  convert_real (dtp, dest, buffer, length);
+  if (buf_size > READEX_TMP)
+    free (buffer);
+  return;
+
+zero:
+  switch (length)
+    {
+    case 4:
+      *((GFC_REAL_4 *) dest) = 0.0;
+      break;
+    case 8:
+      *((GFC_REAL_8 *) dest) = 0.0;
+      break;
+#ifdef HAVE_GFC_REAL_10
+    case 10:
+      *((GFC_REAL_10 *) dest) = 0.0;
+      break;
+#endif
+#ifdef HAVE_GFC_REAL_16
+    case 16:
+      *((GFC_REAL_16 *) dest) = 0.0;
+      break;
+#endif
+#ifdef HAVE_GFC_REAL_17
+    case 17:
+      *((GFC_REAL_17 *) dest) = 0.0;
+      break;
+#endif
+    default:
+      internal_error (&dtp->common, "Unsupported real kind during IO");
+    }
+  return;
+
+bad_float:
+  if (buf_size > READEX_TMP)
+    free (buffer);
+  generate_error (&dtp->common, LIBERROR_READ_VALUE,
+		  "Bad value during floating point read");
+  next_record (dtp, 1);
+  return;
+}
+
+
 /* read_x()-- Deal with the X/TR descriptor.  We just read some data
    and never look at it. */
 
