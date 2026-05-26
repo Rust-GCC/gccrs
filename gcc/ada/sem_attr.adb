@@ -5430,6 +5430,62 @@ package body Sem_Attr is
 
             if not Needs_Construction (Entity (P)) then
                Error_Msg_NE ("no available constructor for&", N, Entity (P));
+
+            --  Verify that the provided arguments are compatible with at least
+            --  one constructor (checked by parameters count). Mismatched
+            --  actuals will be caught later during resolution.
+
+            elsif not Is_Copy_Constructor_Call (N)
+              and then Comes_From_Source (N)
+            then
+               declare
+                  Num_Args : constant Nat := List_Length (Exprs);
+
+                  function Is_Candidate
+                    (Constructor_Id : Entity_Id) return Boolean;
+                  --  Determine whether Num_Args is between the minimum and
+                  --  maximum number of actuals required to invoke this
+                  --  constructor.
+
+                  ------------------
+                  -- Is_Candidate --
+                  ------------------
+
+                  function Is_Candidate
+                    (Constructor_Id : Entity_Id) return Boolean
+                  is
+                     Formal      : Entity_Id;
+                     Max_Actuals : Nat := 0;
+                     Min_Actuals : Nat := 0;
+
+                  begin
+                     Formal := Next_Formal (First_Formal (Constructor_Id));
+                     while Present (Formal) loop
+                        Max_Actuals := Max_Actuals + 1;
+
+                        if No (Default_Value (Formal)) then
+                           Min_Actuals := Min_Actuals + 1;
+                        end if;
+
+                        Next_Formal (Formal);
+                     end loop;
+
+                     return Num_Args in Min_Actuals .. Max_Actuals;
+                  end Is_Candidate;
+
+                  function Find_Candidate is
+                    new Find_Matching_Constructor (Is_Candidate);
+
+               begin
+                  if No (Find_Candidate
+                           (Typ           => Entity (P),
+                            Allow_Removed => False))
+                  then
+                     Error_Msg_NE
+                       ("no constructor matching given arguments for&",
+                        N, Entity (P));
+                  end if;
+               end;
             end if;
 
          elsif not Needs_Construction (Entity (P))

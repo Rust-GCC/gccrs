@@ -6043,6 +6043,17 @@ package body Exp_Ch6 is
                Append (Make_Mode_Literal (Loc, Full_Init), Params);
             end if;
 
+            --  The init proc for a limited record type has an extra
+            --  accessibility level formal (_Init_Level) that must be
+            --  passed.
+
+            if Present (Init_Proc_Level_Formal (Init_Proc)) then
+               Append
+                 (Make_Integer_Literal
+                    (Loc, Scope_Depth (Standard_Standard)),
+                  Params);
+            end if;
+
             return Init_Proc_Call : constant Node_Id :=
               Make_Procedure_Call_Statement (Loc,
                 Name => New_Occurrence_Of (Init_Proc, Loc),
@@ -6189,6 +6200,9 @@ package body Exp_Ch6 is
 
             elsif Chars (Component) = Name_uParent
               and then Needs_Construction (Etype (Component))
+              and then (Present (Find_Aspect (Body_Id, Aspect_Super))
+                          or else Has_Parameterless_Constructor
+                                    (Etype (Component)))
             then
                Append_To (Parent_List,
                  Make_Parent_Constructor_Call
