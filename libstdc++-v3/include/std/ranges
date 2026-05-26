@@ -1382,25 +1382,11 @@ namespace views::__adaptor
 
       constexpr bool
       empty() const requires requires { ranges::empty(*_M_r); }
-      {
-#if __cplusplus > 202302L
-	if constexpr (__static_sized_range<_Range>)
-	  return ranges::__static_size<_Range>() == 0;
-	else
-#endif
-	  return ranges::empty(*_M_r);
-      }
+      { return ranges::empty(*_M_r); }
 
       constexpr auto
       size() const requires sized_range<_Range>
-      {
-#if __cplusplus > 202302L
-	if constexpr (__static_sized_range<_Range>)
-	  return ranges::__static_size<_Range>();
-	else
-#endif
-	  return ranges::size(*_M_r);
-      }
+      { return ranges::size(*_M_r); }
 
       constexpr auto
       data() const requires contiguous_range<_Range>

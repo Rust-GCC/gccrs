@@ -62,14 +62,16 @@ test_all()
 
   test_one(a1); // { dg-error "from here" }
   test_one(s1); // { dg-error "from here" }
-  test_one(ref_view(a1)); // { dg-error "from here" }
-  test_one(a5 | std::views::adjacent<5> | std::views::elements<0>); // { dg-error "from here" }
+  // ref_view is not statically sized due pointer dereference
+  test_one(ref_view(a1));
+  test_one(a5 | std::views::adjacent<7> | std::views::elements<0>);
   test_one(s5 | std::views::adjacent<5> | std::views::elements<0>); // { dg-error "from here" }
 
   test_five(a5); // { dg-error "from here" }
   test_five(s5); // { dg-error "from here" }
-  test_five(ref_view(a5)); // { dg-error "from here" }
-  test_five(a7 | std::views::adjacent<3> | std::views::elements<0>); // { dg-error "from here" }
+  // ref_view is not statically sized due pointer dereference
+  test_five(ref_view(a5));
+  test_five(a7 | std::views::adjacent<3> | std::views::elements<0>);
   test_five(s7 | std::views::adjacent<3> | std::views::elements<0>); // { dg-error "from here" }
 }
 
