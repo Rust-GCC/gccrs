@@ -23376,6 +23376,9 @@ tsubst_expr (tree t, tree args, tsubst_flags_t complain, tree in_decl)
 	     instantiated entities and so no need to tsubst the annotation
 	     attribute and we rely on pointer equality of that.  */
 	  ;
+	else if (kind == REFLECT_BASE)
+	  /* Don't substitute; class_bases_of is never called for a dependent
+	     type.  */;
 	else if (TREE_CODE (h) == SCOPE_REF)
 	  h = tsubst_qualified_id (h, args, complain, in_decl,
 				   /*done=*/true, /*address_p=*/false,
