@@ -1,23 +1,8 @@
 /* { dg-do compile } */
-/* { dg-options "-Wswitch-enum -Wsign-compare -fstrict-overflow -Wstrict-overflow -Werror -Wno-error=switch-enum" } */
-/* PR c/66098 - #pragma diagnostic 'ignored' not fully undone by pop for strict-overflow 
-   PR c/66711 - GCC does not correctly restore diagnostic state after pragma GCC diagnostic pop with -Werror 
-*/
+/* { dg-options "-Wswitch-enum -Wsign-compare -fstrict-overflow -Werror -Wno-error=switch-enum" } */
 /* { dg-message "warnings being treated as errors" "" {target "*-*-*"} 0 } */
 
-void testing2() {
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wstrict-overflow"
-  int j = 4;
-  j + 4 < j;
-#pragma GCC diagnostic pop
-}
-
-void testing3() {
-  int k = 4;
-  k + 4 < k; /* { dg-error "overflow" "" { xfail *-*-* } } */
-}
-
+/* PR c/66711 - GCC does not correctly restore diagnostic state after pragma GCC diagnostic pop with -Werror  */
 int bar()
 {
   unsigned x = 0;

@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-O2 -Wall -fno-strict-overflow  -Wstrict-overflow=2 -fsanitize=signed-integer-overflow" } */
+/* { dg-options "-O2 -Wall -fsanitize=signed-integer-overflow" } */
 
 #include <stdio.h>
 
