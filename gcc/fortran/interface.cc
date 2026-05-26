@@ -3817,6 +3817,24 @@ gfc_compare_actual_formal (gfc_actual_arglist **ap, gfc_formal_arglist *formal,
 	  goto match;
 	}
 
+      /* F23:15.5.2.5, para 2: A procedure pointer actual argument cannot correspond
+	 to a data-object dummy argument (reverse of the two checks above).
+	 Only flag EXPR_VARIABLE to avoid false positives on function calls
+	 through procedure pointer components (e.g. o%f(args)).  */
+      if (!f->sym->attr.proc_pointer
+	  && f->sym->attr.flavor != FL_PROCEDURE
+	  && a->expr->expr_type == EXPR_VARIABLE
+	  && (a->expr->symtree->n.sym->attr.proc_pointer
+	      || gfc_is_proc_ptr_comp (a->expr)))
+	{
+	  if (where)
+	    gfc_error ("Procedure pointer actual argument at %L cannot "
+		       "be passed to data-object dummy argument %qs",
+		       &a->expr->where, f->sym->name);
+	  ok = false;
+	  goto match;
+	}
+
       /* Class array variables and expressions store array info in a
 	 different place from non-class objects; consolidate the logic
 	 to access it here instead of repeating it below.  Note that
