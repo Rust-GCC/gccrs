@@ -2212,7 +2212,12 @@ get_proc_pointer_decl (gfc_symbol *sym)
 
   if ((sym->ns->proc_name
       && sym->ns->proc_name->backend_decl == current_function_decl)
-      || sym->attr.contained)
+      || sym->attr.contained
+      || (sym->ns->proc_name
+	  && sym->ns->proc_name->attr.flavor == FL_LABEL))
+    /* The last condition handles BLOCK constructs: the proc_name has
+       FL_LABEL flavor and its backend_decl is not set, but the proc pointer
+       belongs to the enclosing function (current_function_decl).  */
     gfc_add_decl_to_function (decl);
   else if (sym->ns->proc_name->attr.flavor != FL_MODULE)
     gfc_add_decl_to_parent_function (decl);
