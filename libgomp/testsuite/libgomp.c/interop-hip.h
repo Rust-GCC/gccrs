@@ -169,15 +169,14 @@ main ()
 
   ivar = (int) omp_get_interop_int (obj, omp_ipr_vendor, &res);
   assert (res == omp_irc_success);
-  int vendor_is_amd = ivar == 1;
+  assert (ivar == 5);  /* gnu (= compiler vendor) */
   #if defined(__HIP_PLATFORM_AMD__)
-    assert (ivar == 1);
+    bool device_vendor_is_amd = true;
   #elif defined(__HIP_PLATFORM_NVIDIA__)
-    assert (ivar == 11);
+    bool device_vendor_is_amd = false;
   #else
-    assert (0);
+    #error "Missing valid __HIP_PLATFORM_..."
   #endif
-
 
   /* Check whether the omp_ipr_device -> hipDevice_t yields a valid device.  */
 
@@ -207,7 +206,7 @@ main ()
     hip_err = hipCtxGetApiVersion (hip_ctx, &ivar);
   #pragma GCC diagnostic pop
 
-  if (vendor_is_amd)
+  if (device_vendor_is_amd)
     assert (hip_err == hipErrorNotSupported && ivar == -99);
   else
     {

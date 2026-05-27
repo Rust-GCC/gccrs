@@ -120,17 +120,12 @@ program main
   if (fr /= omp_ifr_hip) error stop 1
 
   ivar = omp_get_interop_int (obj, omp_ipr_vendor, res)
-  if (ivar == 1) then  ! AMD
-    vendor_is_amd = .true.
-  else if (ivar == 11) then  ! Nvidia
-    vendor_is_amd = .false.
-  else
-    error stop 1  ! Unknown
-  endif
+  if (res /= omp_irc_success) error stop 1
+  if (ivar /= 5) error stop 1  ! gnu (= compiler vendor)
 #if USE_CUDA_NAMES
-  if (vendor_is_amd) error stop 1
+    vendor_is_amd = .false.
 #else
-  if (.not. vendor_is_amd) error stop 1
+    vendor_is_amd = .true.
 #endif
 
   ! Check whether the omp_ipr_device -> hipDevice_t yields a valid device.

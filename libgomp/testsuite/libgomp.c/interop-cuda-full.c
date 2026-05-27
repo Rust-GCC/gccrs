@@ -74,11 +74,11 @@ main ()
 
   ivar = (int) omp_get_interop_int (obj_cuda, omp_ipr_vendor, &res);
   assert (res == omp_irc_success);
-  assert (ivar == 11);
+  assert (ivar == 5);  /* gnu (= compiler vendor) */
 
   ivar = (int) omp_get_interop_int (obj_cuda_driver, omp_ipr_vendor, &res);
   assert (res == omp_irc_success);
-  assert (ivar == 11);
+  assert (ivar == 5);  /* gnu (= compiler vendor) */
 
 
   /* Check whether the omp_ipr_device -> cudaDevice_t yields a valid device.  */

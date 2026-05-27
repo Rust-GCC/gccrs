@@ -271,12 +271,12 @@ check_nvptx (int dev)
       ret_code = omp_irc_no_value;
       int vendor = (int) omp_get_interop_int (obj, omp_ipr_vendor, &ret_code);
       assert (ret_code == omp_irc_success);
-      assert (vendor == 11);  /* Nvidia */
+      assert (vendor == 5);  /* gnu (= compiler vendor) */
 
       ret_code = omp_irc_no_value;
       const char *vendor_name = omp_get_interop_str (obj, omp_ipr_vendor_name, &ret_code);
       assert (ret_code == omp_irc_success);
-      assert (strcmp (vendor_name, "nvidia") == 0);
+      assert (strcmp (vendor_name, "gnu") == 0);
 
       ret_code = omp_irc_no_value;
       int dev_num = (int) omp_get_interop_int (obj, omp_ipr_device_num, &ret_code);
@@ -464,12 +464,12 @@ check_gcn (int dev)
       ret_code = omp_irc_no_value;
       int vendor = (int) omp_get_interop_int (obj, omp_ipr_vendor, &ret_code);
       assert (ret_code == omp_irc_success);
-      assert (vendor == 1);  /* Amd */
+      assert (vendor == 5);  /* gnu (= compiler vendor) */
 
       ret_code = omp_irc_no_value;
       const char *vendor_name = omp_get_interop_str (obj, omp_ipr_vendor_name, &ret_code);
       assert (ret_code == omp_irc_success);
-      assert (strcmp (vendor_name, "amd") == 0);
+      assert (strcmp (vendor_name, "gnu") == 0);
 
       ret_code = omp_irc_no_value;
       int dev_num = (int) omp_get_interop_int (obj, omp_ipr_device_num, &ret_code);

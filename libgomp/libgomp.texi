@@ -7329,8 +7329,8 @@ Available properties for an HIP interop object:
 @headitem Property          @tab C data type             @tab API routine @tab value (if constant)
 @item @code{fr_id}          @tab @code{omp_interop_fr_t} @tab int         @tab @code{omp_fr_hip}
 @item @code{fr_name}        @tab @code{const char *}     @tab str         @tab @code{"hip"}
-@item @code{vendor}         @tab @code{int}              @tab int         @tab @code{1}
-@item @code{vendor_name}    @tab @code{const char *}     @tab str         @tab @code{"amd"}
+@item @code{vendor}         @tab @code{int}              @tab int         @tab @code{5}
+@item @code{vendor_name}    @tab @code{const char *}     @tab str         @tab @code{"gnu"}
 @item @code{device_num}     @tab @code{int}              @tab int         @tab
 @item @code{platform}       @tab N/A                     @tab             @tab
 @item @code{device}         @tab @code{hipDevice_t}      @tab int         @tab
@@ -7345,8 +7345,8 @@ Available properties for an HSA interop object:
 @headitem Property          @tab C data type             @tab API routine @tab value (if constant)
 @item @code{fr_id}          @tab @code{omp_interop_fr_t} @tab int         @tab @code{omp_fr_hsa}
 @item @code{fr_name}        @tab @code{const char *}     @tab str         @tab @code{"hsa"}
-@item @code{vendor}         @tab @code{int}              @tab int         @tab @code{1}
-@item @code{vendor_name}    @tab @code{const char *}     @tab str         @tab @code{"amd"}
+@item @code{vendor}         @tab @code{int}              @tab int         @tab @code{5}
+@item @code{vendor_name}    @tab @code{const char *}     @tab str         @tab @code{"gnu"}
 @item @code{device_num}     @tab @code{int}              @tab int         @tab
 @item @code{platform}       @tab N/A                     @tab             @tab
 @item @code{device}         @tab @code{hsa_agent *}      @tab ptr         @tab
@@ -7514,8 +7514,8 @@ Available properties for a CUDA runtime API interop object:
 @headitem Property          @tab C data type             @tab API routine @tab value (if constant)
 @item @code{fr_id}          @tab @code{omp_interop_fr_t} @tab int         @tab @code{omp_fr_cuda}
 @item @code{fr_name}        @tab @code{const char *}     @tab str         @tab @code{"cuda"}
-@item @code{vendor}         @tab @code{int}              @tab int         @tab @code{11}
-@item @code{vendor_name}    @tab @code{const char *}     @tab str         @tab @code{"nvidia"}
+@item @code{vendor}         @tab @code{int}              @tab int         @tab @code{5}
+@item @code{vendor_name}    @tab @code{const char *}     @tab str         @tab @code{"gnu"}
 @item @code{device_num}     @tab @code{int}              @tab int         @tab
 @item @code{platform}       @tab N/A                     @tab             @tab
 @item @code{device}         @tab @code{int}              @tab int         @tab
@@ -7530,8 +7530,8 @@ Available properties for a CUDA driver API interop object:
 @headitem Property          @tab C data type             @tab API routine @tab value (if constant)
 @item @code{fr_id}          @tab @code{omp_interop_fr_t} @tab int         @tab @code{omp_fr_cuda_driver}
 @item @code{fr_name}        @tab @code{const char *}     @tab str         @tab @code{"cuda_driver"}
-@item @code{vendor}         @tab @code{int}              @tab int         @tab @code{11}
-@item @code{vendor_name}    @tab @code{const char *}     @tab str         @tab @code{"nvidia"}
+@item @code{vendor}         @tab @code{int}              @tab int         @tab @code{5}
+@item @code{vendor_name}    @tab @code{const char *}     @tab str         @tab @code{"gnu"}
 @item @code{device_num}     @tab @code{int}              @tab int         @tab
 @item @code{platform}       @tab N/A                     @tab             @tab
 @item @code{device}         @tab @code{CUdevice}         @tab int         @tab
@@ -7546,8 +7546,8 @@ Available properties for an HIP interop object:
 @headitem Property          @tab C data type             @tab API routine @tab value (if constant)
 @item @code{fr_id}          @tab @code{omp_interop_fr_t} @tab int         @tab @code{omp_fr_hip}
 @item @code{fr_name}        @tab @code{const char *}     @tab str         @tab @code{"hip"}
-@item @code{vendor}         @tab @code{int}              @tab int         @tab @code{11}
-@item @code{vendor_name}    @tab @code{const char *}     @tab str         @tab @code{"nvidia"}
+@item @code{vendor}         @tab @code{int}              @tab int         @tab @code{5}
+@item @code{vendor_name}    @tab @code{const char *}     @tab str         @tab @code{"gnu"}
 @item @code{device_num}     @tab @code{int}              @tab int         @tab
 @item @code{platform}       @tab N/A                     @tab             @tab
 @item @code{device}         @tab @code{hipDevice_t}      @tab int         @tab

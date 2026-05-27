@@ -2748,7 +2748,7 @@ GOMP_OFFLOAD_get_interop_int (struct interop_obj_t *obj,
     case omp_ipr_vendor:
       if (ret_code)
 	*ret_code = omp_irc_success;
-      return 11; /* nvidia */
+      return 5; /* gnu */
     case omp_ipr_vendor_name:
       if (ret_code)
 	*ret_code = omp_irc_type_str;
@@ -2895,7 +2895,7 @@ GOMP_OFFLOAD_get_interop_str (struct interop_obj_t *obj,
     case omp_ipr_vendor_name:
       if (ret_code)
 	*ret_code = omp_irc_success;
-      return "nvidia";
+      return "gnu";
     case omp_ipr_device_num:
       if (ret_code)
 	*ret_code = omp_irc_type_int;
