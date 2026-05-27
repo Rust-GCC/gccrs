@@ -8740,7 +8740,7 @@ is_compatible_template_arg (tree parm, tree arg, tree args)
    conversion for the benefit of cp_tree_equal.  */
 
 static tree
-maybe_convert_nontype_argument (tree type, tree arg, bool force)
+maybe_build_nontype_implicit_conv (tree type, tree arg, bool force)
 {
   /* Auto parms get no conversion.  */
   if (type_uses_auto (type))
@@ -8778,6 +8778,33 @@ dependent_implicit_conv_p (tree type, tree expr, bool forced)
 	      && !(same_type_ignoring_top_level_qualifiers_p
 		   (TREE_TYPE (expr), type))
 	      && value_dependent_expression_p (expr)));
+}
+
+/* Convert the non-type template parameter ARG to the indicated TYPE.
+   If one of them is dependent, create an appropriate conversion.
+   FORCE_CONV is true in a forced context (i.e. alias or concept).  */
+
+static tree
+convert_nontype_argument_maybe_dependent (tree type, tree arg,
+					  bool force_conv,
+					  tsubst_flags_t complain)
+{
+  if (dependent_implicit_conv_p (type, arg, force_conv))
+    {
+      tree val = canonicalize_expr_argument (arg, complain);
+      return maybe_build_nontype_implicit_conv (type, val, force_conv);
+    }
+
+  /* We used to call digest_init here.  However, digest_init will report
+     errors, which we don't want when complain is zero.  More importantly,
+     digest_init will try too hard to convert things: for example,
+     `0' should not be converted to pointer type at this point according to
+     the standard.  Accepting this is not merely an extension, since
+     deciding whether or not these conversions can occur is part of
+     determining which function template to call, or whether a given
+     explicit argument specification is valid.  */
+  return convert_nontype_argument (type, convert_from_reference (arg),
+				   complain);
 }
 
 /* Convert the indicated template ARG as necessary to match the
@@ -9060,23 +9087,8 @@ convert_template_argument (tree parm,
 	  && same_type_p (TREE_TYPE (orig_arg), t))
 	orig_arg = TREE_OPERAND (orig_arg, 0);
 
-      if (!dependent_implicit_conv_p (t, orig_arg, force_conv))
-	/* We used to call digest_init here.  However, digest_init
-	   will report errors, which we don't want when complain
-	   is zero.  More importantly, digest_init will try too
-	   hard to convert things: for example, `0' should not be
-	   converted to pointer type at this point according to
-	   the standard.  Accepting this is not merely an
-	   extension, since deciding whether or not these
-	   conversions can occur is part of determining which
-	   function template to call, or whether a given explicit
-	   argument specification is valid.  */
-	val = convert_nontype_argument (t, orig_arg, complain);
-      else
-	{
-	  val = canonicalize_expr_argument (orig_arg, complain);
-	  val = maybe_convert_nontype_argument (t, val, force_conv);
-	}
+      val = convert_nontype_argument_maybe_dependent (t, orig_arg, force_conv,
+						      complain);
 
       if (val == NULL_TREE)
 	val = error_mark_node;
@@ -26567,10 +26579,12 @@ unify (tree tparms, tree targs, tree parm, tree arg, int strict,
 	  && !TEMPLATE_PARM_PARAMETER_PACK (parm))
 	return unify_parameter_pack_mismatch (explain_p, parm, arg);
 
-      {
-	bool removed_attr = false;
-	arg = strip_typedefs_expr (arg, &removed_attr);
-      }
+      arg = convert_nontype_argument_maybe_dependent (tparm, arg,
+						      /*forced=*/false,
+						      complain);
+      if (!arg || arg == error_mark_node)
+	return unify_invalid (explain_p);
+
       TREE_VEC_ELT (INNERMOST_TEMPLATE_ARGS (targs), idx) = arg;
       return unify_success (explain_p);
 

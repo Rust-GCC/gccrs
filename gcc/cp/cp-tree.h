@@ -5138,7 +5138,7 @@ get_vec_init_expr (tree t)
   (TREE_LANG_FLAG_0 (IMPLICIT_CONV_EXPR_CHECK (NODE)))
 
 /* True if NODE represents a dependent conversion of a non-type template
-   argument.  Set by maybe_convert_nontype_argument.  */
+   argument.  Set by maybe_build_nontype_implicit_conv.  */
 #define IMPLICIT_CONV_EXPR_NONTYPE_ARG(NODE) \
   (TREE_LANG_FLAG_1 (IMPLICIT_CONV_EXPR_CHECK (NODE)))
 
@@ -5148,7 +5148,7 @@ get_vec_init_expr (tree t)
   (TREE_LANG_FLAG_2 (IMPLICIT_CONV_EXPR_CHECK (NODE)))
 
 /* True if NODE represents a conversion forced to be represented in
-   maybe_convert_nontype_argument, i.e. for an alias template.  */
+   maybe_build_nontype_implicit_conv, i.e. for an alias template.  */
 #define IMPLICIT_CONV_EXPR_FORCED(NODE) \
   (TREE_LANG_FLAG_3 (IMPLICIT_CONV_EXPR_CHECK (NODE)))
 
