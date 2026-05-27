@@ -1,3 +1,8 @@
+2026-05-26  Paul-Antoine Arras  <parras@baylibre.com>
+
+	* dump-parse-tree.cc (debug): Add debug functions for gfc_omp_namelist
+	and gfc_omp_clauses.
+
 2026-05-24  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
 	    Harald Anlauf  <anlauf@gcc.gnu.org>
 

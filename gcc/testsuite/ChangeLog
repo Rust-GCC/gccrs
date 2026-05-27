@@ -1,3 +1,33 @@
+2026-05-26  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/125423
+	* g++.dg/reflect/bases_of6.C: New test.
+
+2026-05-26  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR tree-optimization/125396
+	* gcc.dg/torture/pr125396-1.c: New test.
+
+2026-05-26  Jonathan Wakely  <jwakely@redhat.com>
+
+	* g++.dg/warn/Winvalid-memory-model-2.C: Disable deprecated
+	warnings for C++26 and up.
+	* g++.dg/warn/Winvalid-memory-model.C: Likewise.
+
+2026-05-26  Jin Ma  <jinma@linux.alibaba.com>
+
+	* gcc.target/riscv/fusion-auipc-addi-2.c: New test.
+	* gcc.target/riscv/fusion-lui-addi-2.c: New test.
+	* gcc.target/riscv/fusion-zexth-2.c: New test.
+	* gcc.target/riscv/fusion-zextw-2.c: New test.
+
+2026-05-26  Jin Ma  <jinma@linux.alibaba.com>
+
+	* gcc.target/riscv/fusion-auipc-ld.c: New test.
+	* gcc.target/riscv/fusion-b-alui.c: New test.
+	* gcc.target/riscv/fusion-cache-aligned-std.c: New test.
+	* gcc.target/riscv/fusion-ldindexed.c: New test.
+
 2026-05-26  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
 
 	PR tree-optimization/125453

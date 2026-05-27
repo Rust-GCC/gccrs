@@ -1,3 +1,10 @@
+2026-05-26  Pietro Monteiro  <pietro@sociotechnical.xyz>
+
+	PR libffi/125417
+	* testsuite/lib/libffi.exp (libffi_target_compile): Use
+	${libffi_include} and ${blddirffi} instead of "../include" and
+	".." for include paths.
+
 2026-05-21  Pietro Monteiro  <pietro@sociotechnical.xyz>
 
 	* LOCAL_PATCHES: Update list.

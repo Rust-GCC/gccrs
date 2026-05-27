@@ -1,3 +1,55 @@
+2026-05-26  Sergei Trofimovich  <siarheit@google.com>
+
+	PR bootstrap/125318
+	* tree-vect-stmts.cc (vectorizable_load): Explicitly
+	initialize stride_step to work around
+	-Werror=maybe-uninitialized build failure.
+
+2026-05-26  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR tree-optimization/125396
+	* tree-cfgcleanup.cc (bb_phis_references_abnormal_uses): New function.
+	(maybe_remove_forwarder_block): Check to make sure the
+	forwarder block does not have a phi that references ssa name that has
+	abnormal uses.
+
+2026-05-26  Jin Ma  <jinma@linux.alibaba.com>
+
+	* config/riscv/riscv-fusion.cc (riscv_fusion_same_dest_p):
+	New function.
+	(riscv_set_is_add_p): Rename from riscv_set_is_add.
+	(riscv_set_is_addi_p): Rename from riscv_set_is_addi.
+	(riscv_set_is_adduw_p): Rename from riscv_set_is_adduw.
+	(riscv_set_is_shNadd_p): Rename from riscv_set_is_shNadd.
+	(riscv_set_is_shNadduw_p): Rename from riscv_set_is_shNadduw.
+	(riscv_fuse_zextws): New function.
+	(riscv_fuse_zexth): Likewise.
+	(riscv_fuse_ldindexed): Likewise.
+	(riscv_fuse_expanded_ld): Likewise.
+	(riscv_fuse_ldpreincrement): Likewise.
+	(riscv_fuse_lui_addi): Likewise.
+	(riscv_fuse_auipc_addi): Likewise.
+	(riscv_fuse_lui_ld): Likewise.
+	(riscv_fuse_auipc_ld): Likewise.
+	(riscv_fuse_cache_aligned_std): Likewise.
+	(riscv_fuse_aligned_std): Likewise.
+	(riscv_fuse_bfext): Likewise.
+	(riscv_fuse_b_alui): Likewise.
+	(struct riscv_fusion_entry): New struct.
+	(riscv_fusion_table): New table.
+	(riscv_macro_fusion_pair_p): Refactor to use table-driven
+	dispatch loop with simplified checker interface.
+
+2026-05-26  Jin Ma  <jinma@linux.alibaba.com>
+
+	* config/riscv/riscv-fusion.cc (riscv_macro_fusion_pair_p):
+	Fix XINT to access SET_SRC (prev_set) in AUIPC_LD case.
+	Fix base register comparison from != to == in
+	CACHE_ALIGNED_STD case.  Remove redundant CONST_INT_P
+	check in B_ALUI sub+smax case.  Remove duplicate REG_P
+	check in LDINDEXED case.  Fix typo in comment.  Fix dump
+	output name for CACHE_ALIGNED_STD.
+
 2026-05-26  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
 
 	PR tree-optimization/125453

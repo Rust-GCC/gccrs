@@ -1,3 +1,135 @@
+2026-05-26  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* include/std/ranges (ref_view::size()): Only call ranges::size(*_M_r).
+	(ref_view::empty): Only call ranges::empty(*_M_r).
+	* testsuite/23_containers/inplace_vector/cons/from_iota_neg.cc:
+	Except no errors from ref_view uses.
+	* testsuite/23_containers/inplace_vector/cons/from_range_neg.cc:
+	Likewise.
+
+2026-05-26  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/125450
+	* include/std/optional (range_format): Do not define for
+	freestanding.
+
+2026-05-26  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* include/bits/ranges_base.h (ranges::__static_size): Define.
+	* include/std/ranges (ref_view::size()): For ranges with static
+	size return ranges::__static_size<_Range>.
+	(ref_view::empty): For ranges with static size, compare size
+	against zero.
+	* testsuite/23_containers/inplace_vector/cons/from_iota_neg.cc:
+	Expect errors from ref_view uses.
+	* testsuite/23_containers/inplace_vector/cons/from_range_neg.cc:
+	Expect errors from ref_view uses.
+
+2026-05-26  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* include/std/inplace_vector (inplace_vector(std::from_range, __Rg&&)):
+	Add static_asserts checking range size.
+	* testsuite/23_containers/inplace_vector/cons/from_iota_neg.cc:
+	New test.
+	* testsuite/23_containers/inplace_vector/cons/from_range_neg.cc:
+	New test.
+
+2026-05-26  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/bits/atomic_base.h (memory_order::consume): Add
+	deprecate attribute.
+	(memory_order_consume): Likewise.
+	(kill_dependency): Likewise.
+	(atomic_flag::clear): Disable warning with pragmas.
+	(__atomic_base::store, __atomic_base<T*>::store): Likewise.
+	* include/c_compatibility/stdatomic.h (memory_order_consume):
+	Likewise.
+	* testsuite/29_atomics/atomic/requirements/compare_exchange_lowering.cc:
+	Ignore deprecation warnings.
+	* testsuite/29_atomics/atomic_flag/test_and_set/explicit-hle.cc:
+	Likewise.
+	* testsuite/29_atomics/headers/atomic/types_std_c++0x.cc: Add
+	dg-warning directives.
+	* testsuite/29_atomics/headers/stdatomic.h/c_compat.cc:
+	Likewise.
+
+2026-05-26  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/bits/stl_deque.h: Add missing constraint on allocator
+	type in deduction guide.
+	* include/bits/stl_vector.h: Likewise.
+	* include/debug/deque: Likewise.
+	* include/debug/vector: Likewise.
+	* testsuite/23_containers/deque/cons/deduction_c++23.cc: Check
+	that deduction fails for a type which does not qualify as an
+	allocator.
+	* testsuite/23_containers/vector/cons/deduction_c++23.cc:
+	Likewise.
+
+2026-05-26  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/125371
+	* config/io/basic_file_stdio.h: Include <bits/ios_base.h>
+	instead of <ios>.
+	* include/Makefile.am: Add new headers.
+	* include/Makefile.in: Regenerate.
+	* include/bits/fs_path.h: Include <bits/iosfwd.h> instead of
+	<iosfwd>.
+	* include/bits/locale_facets.h: Remove unused <iosfwd> and
+	<streambuf> includes.
+	* include/bits/localefwd.h: Include <bits/iosfwd.h> instead of
+	<iosfwd>.
+	* include/bits/ostream.h: Replace <ios> with its constituent
+	parts, except for <iosfwd>.
+	* include/bits/ostream_insert.h: Include <bits/iosfwd.h> instead
+	of <iosfwd>.
+	* include/bits/shared_ptr.h: Likewise.
+	* include/bits/std_thread.h: Likewise.
+	* include/bits/stream_iterator.h: Likewise.
+	* include/std/fstream: Include <bits/iosfwd_file.h>.
+	* include/std/iomanip: Include <bits/iosfwd.h> instead of
+	<iosfwd>.
+	* include/std/ios: Do not include <exception> or
+	<bits/char_traits.h>.
+	* include/std/iosfwd: Move declarations to new headers and
+	include those new headers. Tweak Doxygen comment.
+	* include/std/iostream: Include <ios>.
+	* include/std/istream: Replace <ios> with its constituent
+	parts, except for <iosfwd>.
+	* include/std/random: Include <bits/iosfwd.h> instead of
+	<iosfwd>.
+	* include/std/spanstream: Include <bits/iosfwd_span.h>.
+	* include/std/sstream: Include <bits/iosfwd_string.h>.
+	* include/std/streambuf: Include <bits/iosfwd.h> instead of
+	<iosfwd>.
+	* include/std/string_view: Likewise.
+	* include/std/syncstream: Include <bits/iosfwd_sync.h>.
+	* include/std/system_error: Include <bits/iosfwd.h> instead of
+	<iosfwd>.
+	* include/bits/iosfwd.h: New file.
+	* include/bits/iosfwd_file.h: New file.
+	* include/bits/iosfwd_span.h: New file.
+	* include/bits/iosfwd_string.h: New file.
+	* include/bits/iosfwd_sync.h: New file.
+
+2026-05-26  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* include/bits/ranges_base.h (ranges::__static_sized_range):
+	Define.
+	* include/bits/simd_details.h (simd::__static_sized_range):
+	Remove.
+	(simd::__static_range_size): Use ranges::__static_sized_range.
+	* include/bits/simd_loadstore.h (simd::unchecked_store)
+	(simd::unchecked_load): Use ranges::__static_sized_range.
+	* include/bits/simd_vec.h (basic_vec::basic_vec(_Rg&&, flags<_Flags>)):
+	Replace __static_sized_range<_Rg, _S_size> with
+	ranges::__static_sized_range<_Rg> and traing requires size
+	for size value.
+	* include/std/meta (__detail::__statically_sized): Remove.
+	(std::define_static_array): Use ranges::__static_sized_range.
+	* testsuite/std/simd/traits_impl.cc: Remove test for
+	simd::__static_sized_range.
+
 2026-05-25  Tomasz Kamiński  <tkaminsk@redhat.com>
 
 	* testsuite/20_util/is_constructible/value-2.cc:

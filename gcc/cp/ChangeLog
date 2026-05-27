@@ -1,3 +1,9 @@
+2026-05-26  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/125423
+	* pt.cc (tsubst_expr) <case REFLECT_EXPR>: Don't tsubst
+	REFLECT_BASEs.
+
 2026-05-23  Jason Merrill  <jason@redhat.com>
 
 	PR c++/125135
