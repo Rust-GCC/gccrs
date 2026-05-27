@@ -413,6 +413,7 @@ vect_stmt_relevant_p (stmt_vec_info stmt_info, loop_vec_info loop_vinfo,
 	      gcc_assert (gimple_code (USE_STMT (use_p)) == GIMPLE_PHI);
 
               *live_p = true;
+	      LOOP_VINFO_EARLY_BRK_NEEDS_EPILOG (loop_vinfo) = true;
 	    }
 	}
     }

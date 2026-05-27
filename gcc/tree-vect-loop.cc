@@ -775,7 +775,9 @@ _loop_vec_info::_loop_vec_info (class loop *loop_in, vec_info_shared *shared)
     drs_advanced_by (NULL_TREE),
     vec_loop_main_exit (NULL),
     vec_epilogue_loop_main_exit (NULL),
-    scalar_loop_main_exit (NULL)
+    scalar_loop_main_exit (NULL),
+    early_break_needs_epilogue (false),
+    early_break_niters_var (NULL)
 {
   /* CHECKME: We want to visit all BBs before their successors (except for
      latch blocks, for which this assertion wouldn't hold).  In the simple
@@ -1704,6 +1706,13 @@ vect_create_loop_vinfo (class loop *loop, vec_info_shared *shared,
   /* Check to see if we're vectorizing multiple exits.  */
   LOOP_VINFO_EARLY_BREAKS (loop_vinfo)
     = !LOOP_VINFO_LOOP_CONDS (loop_vinfo).is_empty ();
+
+  /* At the moment we can't support no epilogs for multiple exits, result of
+     the first compare should be masked by that of the second.  We can only
+     allow it if the early exits have the same live values.  for differing
+     values we have to calculate a third mask to disambiguate. */
+  LOOP_VINFO_EARLY_BRK_NEEDS_EPILOG (loop_vinfo)
+    = LOOP_VINFO_LOOP_CONDS (loop_vinfo).length () > 1;
 
   if (info->inner_loop_cond)
     {
@@ -11058,10 +11067,10 @@ vect_update_ivs_after_vectorizer_for_early_breaks (loop_vec_info loop_vinfo)
 {
   DUMP_VECT_SCOPE ("vect_update_ivs_after_vectorizer_for_early_breaks");
 
-  if (!LOOP_VINFO_EARLY_BREAKS (loop_vinfo))
+  if (!LOOP_VINFO_EARLY_BREAKS (loop_vinfo)
+      /* If no peeling was done then we have no IV to update.  */
+      || !LOOP_VINFO_EARLY_BRK_NITERS_VAR (loop_vinfo))
     return;
-
-  gcc_assert (LOOP_VINFO_EARLY_BRK_NITERS_VAR (loop_vinfo));
 
   tree phi_var = LOOP_VINFO_EARLY_BRK_NITERS_VAR (loop_vinfo);
   tree niters_skip = LOOP_VINFO_MASK_SKIP_NITERS (loop_vinfo);

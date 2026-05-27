@@ -889,6 +889,13 @@ vect_analyze_early_break_dependences (loop_vec_info loop_vinfo)
 			     dest_bb->index);
 
   LOOP_VINFO_EARLY_BRK_DEST_BB (loop_vinfo) = dest_bb;
+  /* Check if loop has a side-effect (stores), force scalar epilogue.  */
+  for (auto dr : LOOP_VINFO_DATAREFS (loop_vinfo))
+    if (DR_IS_WRITE (dr))
+      {
+	LOOP_VINFO_EARLY_BRK_NEEDS_EPILOG (loop_vinfo) = true;
+	break;
+      }
 
   if (!LOOP_VINFO_EARLY_BRK_VUSES (loop_vinfo).is_empty ())
     {

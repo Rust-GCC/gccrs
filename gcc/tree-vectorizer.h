@@ -1241,6 +1241,10 @@ public:
      For counted loops, this IV controls the natural exits of the loop.  */
   edge scalar_loop_main_exit;
 
+  /* Indicate if the multiple exit loop has any side-effects that require it to
+     have a scalar epilogue.  */
+  bool early_break_needs_epilogue;
+
   /* Used to store the list of stores needing to be moved if doing early
      break vectorization as they would violate the scalar loop semantics if
      vectorized in their current location.  These are stored in order that they
@@ -1325,6 +1329,7 @@ public:
 #define LOOP_VINFO_PEELING_FOR_GAPS(L)     (L)->peeling_for_gaps
 #define LOOP_VINFO_PEELING_FOR_NITER(L)    (L)->peeling_for_niter
 #define LOOP_VINFO_EARLY_BREAKS(L)         (L)->early_breaks
+#define LOOP_VINFO_EARLY_BRK_NEEDS_EPILOG(L) (L)->early_break_needs_epilogue
 #define LOOP_VINFO_EARLY_BRK_STORES(L)     (L)->early_break_stores
 #define LOOP_VINFO_EARLY_BREAKS_VECT_PEELED(L)  \
   ((single_pred ((L)->loop->latch) != (L)->vec_loop_main_exit->src) \
