@@ -7887,6 +7887,11 @@ process_metafunction (const constexpr_ctx *ctx, tree fun, tree call,
 	if (*jump_target || *non_constant_p)
 	  return NULL_TREE;
 	ht = REFLECT_EXPR_HANDLE (info);
+	if (error_operand_p (ht))
+	  {
+	    *non_constant_p = true;
+	    return NULL_TREE;
+	  }
 	if (METAFN_KIND_ARG (minfo, argno) == METAFN_KIND_ARG_TINFO
 	    && eval_is_type (ht) != boolean_true_node)
 	  return throw_exception_nontype (loc, ctx, fun, non_constant_p,
