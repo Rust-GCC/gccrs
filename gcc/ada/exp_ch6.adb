@@ -9932,8 +9932,7 @@ package body Exp_Ch6 is
 
       return not Restriction_Active (No_Finalization)
         and then (Needs_Finalization (Typ) or else Is_Tagged_Type (Typ))
-        and then not Has_Relaxed_Finalization (Typ)
-        and then not Has_Foreign_Convention (Typ);
+        and then not Has_Relaxed_Finalization (Typ);
    end Needs_BIP_Collection;
 
    --------------------------
