@@ -1,4 +1,4 @@
-/* { dg-do compile { target powerpc*-*-* } } */
+/* { dg-do compile { target { powerpc*-*-* && ilp32 } } } */
 /* { dg-options "-mcpu=860 -O2" } */
 
 /* Check that we do not emit lwsync when targeting MPC8xx (MPCCORE),
