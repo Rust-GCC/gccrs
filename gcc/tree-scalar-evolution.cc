@@ -3854,6 +3854,69 @@ analyze_and_compute_bitop_with_inv_effect (class loop* loop, tree phidef,
   return fold_build2 (code1, type, inv, match_op[0]);
 }
 
+/* Try to compute the final value of PHIDEF when PHIDEF is the result of a
+   loop-header PHI.
+
+   This handles the nonzero-latch-count delayed-value form:
+
+     y_phi = PHI <latch_arg (latch), init (preheader)>
+
+   If the latch count is known to be nonzero, the final value is:
+
+     latch_arg evaluated at iteration niter - 1
+
+   Return NULL_TREE if the pattern does not apply.  */
+static tree
+compute_final_value_from_loop_phi_latch (class loop *loop,
+	class loop *ex_loop, gphi *header_phi, tree niter, bool* folded_casts)
+{
+  if (gimple_bb (header_phi) != loop->header
+      || gimple_phi_num_args (header_phi) != 2)
+    return NULL_TREE;
+
+  /* If niter is a symbolic value make sure it can never be zero, otherwise we
+     do a bad replacement.  */
+  if (!tree_expr_nonzero_p (niter))
+    return NULL_TREE;
+
+  tree latch_arg = PHI_ARG_DEF_FROM_EDGE (header_phi,
+					  loop_latch_edge (loop));
+
+  tree ev = analyze_scalar_evolution_in_loop (ex_loop,
+					      loop,
+					      latch_arg,
+					      folded_casts);
+  if (ev == chrec_dont_know)
+    return NULL_TREE;
+
+  bool invariant_p;
+  if (no_evolution_in_loop_p (ev, ex_loop->num, &invariant_p) && invariant_p)
+    return ev;
+  else if (TREE_CODE (ev) == POLYNOMIAL_CHREC
+	   && get_chrec_loop (ev) == ex_loop)
+  {
+    tree niter_type = TREE_TYPE (niter);
+    tree prev_iter = fold_build2 (MINUS_EXPR,
+				  niter_type,
+				  niter,
+				  build_one_cst (niter_type));
+
+    tree res = chrec_apply (ex_loop->num, ev, prev_iter);
+    if (res == chrec_dont_know)
+      return NULL_TREE;
+
+    if (chrec_contains_symbols_defined_in_loop (res, ex_loop->num))
+    {
+      res = instantiate_parameters (ex_loop, res);
+      if (res == chrec_dont_know)
+	return NULL_TREE;
+    }
+
+    return res;
+  }
+  return NULL_TREE;
+}
+
 /* Do final value replacement for LOOP, return true if we did anything.  */
 
 bool
@@ -3865,7 +3928,11 @@ final_value_replacement_loop (class loop *loop)
   if (!exit)
     return false;
 
-  tree niter = number_of_latch_executions (loop);
+  class tree_niter_desc niter_desc;
+  if (!number_of_iterations_exit (loop, exit, &niter_desc, false))
+    return false;
+
+  tree niter = niter_desc.niter;
   if (niter == chrec_dont_know)
     return false;
 
@@ -3904,8 +3971,12 @@ final_value_replacement_loop (class loop *loop)
       def = analyze_scalar_evolution_in_loop (ex_loop, loop, def,
 					      &folded_casts);
 
-      tree bitinv_def, bit_def;
+      tree bitinv_def, bit_def, phi_latch_final_value;
       unsigned HOST_WIDE_INT niter_num;
+
+      gphi *header_phi = TREE_CODE (phidef) == SSA_NAME
+			 ? dyn_cast<gphi*> (SSA_NAME_DEF_STMT (phidef))
+			 : NULL;
 
       if (def != chrec_dont_know)
 	def = compute_overall_effect_of_inner_loop (ex_loop, def);
@@ -3940,6 +4011,16 @@ final_value_replacement_loop (class loop *loop)
 								   phidef,
 								   niter_num)))
 	def = bit_def;
+
+      else if (header_phi
+	       && integer_zerop (niter_desc.may_be_zero)
+	       && (phi_latch_final_value
+		   = compute_final_value_from_loop_phi_latch (loop,
+							      ex_loop,
+							      header_phi,
+							      niter,
+							      &folded_casts)))
+	def = phi_latch_final_value;
 
       bool cond_overflow_p;
       if (!tree_does_not_contain_chrecs (def)
