@@ -5578,11 +5578,6 @@ package body Sem_Ch3 is
       end if;
 
       Parent_Type := Find_Type_Of_Subtype_Indic (Indic);
-      if No (Parent_Type) then
-         pragma Assert (Serious_Errors_Detected > 0);
-         goto Leave;
-      end if;
-
       Parent_Base := Base_Type (Parent_Type);
 
       if Parent_Type = Any_Type or else Etype (Parent_Type) = Any_Type then
@@ -19305,6 +19300,11 @@ package body Sem_Ch3 is
 
       else
          Find_Type (S);
+         if not Is_Entity_Name (S) then
+            pragma Assert (Serious_Errors_Detected > 0);
+            --  Avoid passing bad argument to Entity
+            return Any_Type;
+         end if;
          Typ := Entity (S);
       end if;
 

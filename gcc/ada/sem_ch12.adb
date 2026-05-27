@@ -3220,8 +3220,9 @@ package body Sem_Ch12 is
          end if;
       end if;
 
-      if Serious_Errors_Detected > 0 then
-         --  avoid passing bad argument to Entity
+      if not Is_Entity_Name (Subtype_Mark (Def)) then
+         pragma Assert (Serious_Errors_Detected > 0);
+         --  Avoid passing bad argument to Entity
          return;
       end if;
 
