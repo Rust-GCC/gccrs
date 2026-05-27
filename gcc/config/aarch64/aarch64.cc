@@ -2939,10 +2939,23 @@ aarch64_hard_regno_call_part_clobbered (unsigned int abi_id,
       && abi_id != ARM_PCS_SVE
       && abi_id != ARM_PCS_PRESERVE_NONE)
     {
-      poly_int64 per_register_size = GET_MODE_SIZE (mode);
-      unsigned int nregs = hard_regno_nregs (regno, mode);
-      if (nregs > 1)
-	per_register_size = exact_div (per_register_size, nregs);
+      poly_int64 per_register_size;
+      if (aarch64_sve_mode_p (mode))
+	/* SVE instructions operate on the full SVE register, even for
+	   partial modes like VNx2SF whose GET_MODE_SIZE is only 8 bytes
+	   under -msve-vector-bits=128.  The elements of such partial
+	   modes are strided across the register and can lie outside the
+	   callee-preserved low 64 bits.  Compare against the full SVE
+	   vector size so that V8-V15 are correctly recognised as
+	   partially clobbered for any SVE mode under AAPCS64/AAPCS_SIMD.  */
+	per_register_size = BYTES_PER_SVE_VECTOR;
+      else
+	{
+	  per_register_size = GET_MODE_SIZE (mode);
+	  unsigned int nregs = hard_regno_nregs (regno, mode);
+	  if (nregs > 1)
+	    per_register_size = exact_div (per_register_size, nregs);
+	}
       if (abi_id == ARM_PCS_SIMD || abi_id == ARM_PCS_TLSDESC)
 	return maybe_gt (per_register_size, 16);
       return maybe_gt (per_register_size, 8);
