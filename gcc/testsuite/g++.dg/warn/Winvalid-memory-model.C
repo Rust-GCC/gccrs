@@ -26,8 +26,8 @@ void test_load (int *pi)
   *pi++ = eai.load (seq_cst);
 }
 
-/* { dg-regexp " *inlined from \[^\n\r\]+.C:23:.*" "" { target *-*-* } 0 }
-   { dg-regexp " *inlined from \[^\n\r\]+.C:24:.*" "" { target *-*-* } 0 }
+/* { dg-regexp " *inlined from \[^\n\r\]+.C:24:.*" "" { target *-*-* } 0 }
+   { dg-regexp " *inlined from \[^\n\r\]+.C:25:.*" "" { target *-*-* } 0 }
    { dg-warning "__atomic_load\[^\n\r\]* \\\[-Winvalid-memory-model" "warning" { target *-*-* } 0 } */
 
 
@@ -41,9 +41,9 @@ void test_store (int *pi)
   eai.store (*pi++, seq_cst);
 }
 
-/* { dg-regexp " *inlined from \[^\n\r\]+.C:36:.*" "" { target *-*-* } 0 }
-   { dg-regexp " *inlined from \[^\n\r\]+.C:37:.*" "" { target *-*-* } 0 }
-   { dg-regexp " *inlined from \[^\n\r\]+.C:39:.*" "" { target *-*-* } 0 }
+/* { dg-regexp " *inlined from \[^\n\r\]+.C:37:.*" "" { target *-*-* } 0 }
+   { dg-regexp " *inlined from \[^\n\r\]+.C:38:.*" "" { target *-*-* } 0 }
+   { dg-regexp " *inlined from \[^\n\r\]+.C:40:.*" "" { target *-*-* } 0 }
    { dg-warning "__atomic_store\[^\n\r]* \\\[-Winvalid-memory-model" "warning" { target *-*-* } 0 } */
 
 
@@ -76,10 +76,10 @@ void test_compare_exchange (int *pi, int *pj)
 
   /* HACK: xfail doesn't seem to work for the dg-regexp directives below,
      so disable them by prepending an X to their names...
-    { Xdg-regexp " *inlined from \[^\n\r\]+.C:66:.*" "" { xfail *-*-* } 0 }
     { Xdg-regexp " *inlined from \[^\n\r\]+.C:67:.*" "" { xfail *-*-* } 0 }
     { Xdg-regexp " *inlined from \[^\n\r\]+.C:68:.*" "" { xfail *-*-* } 0 }
     { Xdg-regexp " *inlined from \[^\n\r\]+.C:69:.*" "" { xfail *-*-* } 0 }
     { Xdg-regexp " *inlined from \[^\n\r\]+.C:70:.*" "" { xfail *-*-* } 0 }
+    { Xdg-regexp " *inlined from \[^\n\r\]+.C:71:.*" "" { xfail *-*-* } 0 }
     { dg-warning "__atomic_compare_exchange\[^\n\r\]* \\\[-Winvalid-memory-model" "cmpxchg 1" { xfail *-*-* } 0 } */
 }

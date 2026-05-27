@@ -26,8 +26,8 @@ void test_load (int *pi)
   *pi++ = eai.load (seq_cst);
 }
 
-/* { dg-regexp " *inlined from \[^\n\r\]+.C:23:.*" "" { target *-*-* } 0 }
-   { dg-regexp " *inlined from \[^\n\r\]+.C:24:.*" "" { target *-*-* } 0 }
+/* { dg-regexp " *inlined from \[^\n\r\]+.C:24:.*" "" { target *-*-* } 0 }
+   { dg-regexp " *inlined from \[^\n\r\]+.C:25:.*" "" { target *-*-* } 0 }
    { dg-warning "__atomic_load\[^\n\r\]* \\\[-Winvalid-memory-model" "warning" { target *-*-* } 0 } */
 
 
@@ -41,9 +41,9 @@ void test_store (int *pi)
   eai.store (*pi++, seq_cst);
 }
 
-/* { dg-regexp " *inlined from \[^\n\r\]+.C:36:.*" "" { target *-*-* } 0 }
-   { dg-regexp " *inlined from \[^\n\r\]+.C:37:.*" "" { target *-*-* } 0 }
-   { dg-regexp " *inlined from \[^\n\r\]+.C:39:.*" "" { target *-*-* } 0 }
+/* { dg-regexp " *inlined from \[^\n\r\]+.C:37:.*" "" { target *-*-* } 0 }
+   { dg-regexp " *inlined from \[^\n\r\]+.C:38:.*" "" { target *-*-* } 0 }
+   { dg-regexp " *inlined from \[^\n\r\]+.C:40:.*" "" { target *-*-* } 0 }
    { dg-warning "__atomic_store\[^\n\r]* \\\[-Winvalid-memory-model" "warning" { target *-*-* } 0 } */
 
 
@@ -71,10 +71,10 @@ void test_compare_exchange (int *pi, int *pj)
   cmpxchg (&eai, pi++, *pj++, relaxed, seq_cst);  // warning
   cmpxchg (&eai, pi++, *pj++, relaxed, relaxed);
 
-  /* { dg-regexp " *inlined from \[^\n\r\]+.C:66:.*" "" { target *-*-* } 0 }
-     { dg-regexp " *inlined from \[^\n\r\]+.C:67:.*" "" { target *-*-* } 0 }
+  /* { dg-regexp " *inlined from \[^\n\r\]+.C:67:.*" "" { target *-*-* } 0 }
      { dg-regexp " *inlined from \[^\n\r\]+.C:68:.*" "" { target *-*-* } 0 }
      { dg-regexp " *inlined from \[^\n\r\]+.C:69:.*" "" { target *-*-* } 0 }
      { dg-regexp " *inlined from \[^\n\r\]+.C:70:.*" "" { target *-*-* } 0 }
+     { dg-regexp " *inlined from \[^\n\r\]+.C:71:.*" "" { target *-*-* } 0 }
      { dg-warning "__atomic_compare_exchange\[^\n\r\]* \\\[-Winvalid-memory-model" "cmpxchg 1" { target *-*-* } 0 } */
 }
