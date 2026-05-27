@@ -1202,6 +1202,12 @@ if_convertible_stmt_p (gimple *stmt, vec<data_reference_p> refs)
 	      }
 	  }
 
+	/* Check if it's a prefetch.  Many ISAs contain vectorized and/or
+	   conditional prefetches so if-convert should convert them or remove
+	   them.  Mark them as supported.  */
+	if (gimple_call_builtin_p (stmt, BUILT_IN_PREFETCH))
+	  return true;
+
 	/* There are some IFN_s that are used to replace builtins but have the
 	   same semantics.  Even if MASK_CALL cannot handle them vectorable_call
 	   will insert the proper selection, so do not block conversion.  */
@@ -3122,6 +3128,16 @@ predicate_statements (loop_p loop)
 	    ;
 	  else if (is_false_predicate (cond)
 		   && gimple_vdef (stmt))
+	    {
+	      unlink_stmt_vdef (stmt);
+	      gsi_remove (&gsi, true);
+	      release_defs (stmt);
+	      continue;
+	    }
+	  /* For now, just drop prefetches.  Do it now to remove any possible
+	     aliasing check failures from the address calculations of the
+	     prefetch.  Vect would be too late in that regard.  */
+	  else if (gimple_call_builtin_p (stmt, BUILT_IN_PREFETCH))
 	    {
 	      unlink_stmt_vdef (stmt);
 	      gsi_remove (&gsi, true);
