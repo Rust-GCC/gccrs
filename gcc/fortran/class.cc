@@ -3136,7 +3136,9 @@ find_typebound_proc_uop (gfc_symbol* derived, bool* t,
     root = (uop ? derived->f2k_derived->tb_uop_root
 		: derived->f2k_derived->tb_sym_root);
   else
-    return NULL;
+    /* No f2k_derived namespace; allow the extension check below to proceed
+       so inherited type-bound procedures/operators are still found.  */
+    root = NULL;
 
   /* Try to find it in the current type's namespace.  */
   res = gfc_find_symtree (root, name);

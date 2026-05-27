@@ -1980,6 +1980,155 @@ check_coarray_assoc (const char *name, gfc_association_list *assoc)
   return true;
 }
 
+/* Try to resolve an EXPR_FUNCTION operand so its return type is known.
+   Called during ASSOCIATE selector parsing, before type-bound operator
+   extension, when the operand is an unresolved generic constructor call
+   such as `scalar_1D_t(initializer, order=2, ...)`.  Errors are suppressed
+   since we are still in the parsing phase.  */
+
+static void
+resolve_assoc_operand (gfc_expr *e)
+{
+  if (!e || e->ts.type != BT_UNKNOWN || e->expr_type != EXPR_FUNCTION)
+    return;
+
+  /* First, try full expression resolution (works when argument types are
+     already known at parse time).  */
+  gfc_push_suppress_errors ();
+  gfc_resolve_expr (e);
+  gfc_pop_suppress_errors ();
+
+  if (e->ts.type != BT_UNKNOWN)
+    return;
+
+  /* Fallback for generic constructor interfaces such as
+       scalar_1D_t(initializer, order=2, cells=16, x_min=0D0, x_max=5D0)
+     where full argument resolution is not possible at parse time.
+     If the function name resolves to a generic interface that wraps a
+     derived type (a constructor interface), infer the return type as
+     that derived type.  */
+  if (!e->symtree || !e->symtree->n.sym)
+    return;
+
+  gfc_symbol *dt_sym = gfc_find_dt_in_generic (e->symtree->n.sym);
+  if (dt_sym && gfc_fl_struct (dt_sym->attr.flavor))
+    {
+      e->ts.type = BT_DERIVED;
+      e->ts.u.derived = dt_sym;
+    }
+}
+
+/* Infer the return type of a type-bound user-defined operator without
+   converting the expression node or triggering gfc_resolve_symbol on the
+   return type.  This is used during ASSOCIATE selector parsing to propagate
+   type information bottom-up through nested UDO expressions such as
+   (.div. (.grad. x)), so that the outer gfc_extend_expr can locate the
+   type-bound .div. once the type of (.grad. x) is known.
+
+   Calling gfc_extend_expr for this purpose would partially resolve the
+   return type's derived-type symbol (setting resolve_symbol_called before
+   resolve_typebound_procedures has run), which prevents the subsequent
+   outer gfc_extend_expr from properly resolving the type-bound operator
+   on the return type.  We avoid that by reading the return type directly
+   from the procedure's result variable without triggering resolution.  */
+
+static void
+infer_typebound_uop_type (gfc_expr *e)
+{
+  if (!e || e->expr_type != EXPR_OP || e->value.op.op != INTRINSIC_USER
+      || e->ts.type != BT_UNKNOWN)
+    return;
+
+  /* Find the operand and strip parentheses.  */
+  gfc_expr *operand = e->value.op.op1;
+  while (operand && operand->expr_type == EXPR_OP
+	 && operand->value.op.op == INTRINSIC_PARENTHESES)
+    operand = operand->value.op.op1;
+
+  if (!operand || operand->ts.type != BT_DERIVED || !operand->ts.u.derived)
+    return;
+
+  /* Look up the UDO binding in the derived type's namespace (and its
+     parent types, via the recursion in find_typebound_proc_uop).  This
+     does not call resolve_symbol, so it leaves resolve_symbol_called
+     untouched for all types involved.  */
+  bool ok = true;
+  gfc_symtree *tb_uop
+    = gfc_find_typebound_user_op (operand->ts.u.derived, &ok,
+				  e->value.op.uop->name, false, NULL);
+  if (!tb_uop || !tb_uop->n.tb)
+    return;
+
+  gfc_typebound_proc *tb = tb_uop->n.tb;
+  if (!tb->is_generic || !tb->u.generic)
+    return;
+
+  /* Take the first specific binding.  specific_st is set from module reading;
+     its n.tb is the gfc_typebound_proc for that specific binding (same as
+     what resolve_typebound_procedures later stores in g->specific).  Follow
+     the chain specific_st->n.tb->u.specific->n.sym to reach the actual
+     implementing function symbol, whose ts holds the return type.
+     This mirrors what build_compcall_for_operator does via
+     g->specific->u.specific->n.sym->ts after resolution.  */
+  gfc_tbp_generic *g = tb->u.generic;
+  if (!g->specific_st || !g->specific_st->n.tb)
+    return;
+
+  gfc_typebound_proc *specific_tb = g->specific_st->n.tb;
+  if (specific_tb->is_generic || !specific_tb->u.specific
+      || !specific_tb->u.specific->n.sym)
+    return;
+
+  gfc_symbol *proc = specific_tb->u.specific->n.sym;
+  if (proc->ts.type != BT_UNKNOWN)
+    e->ts = proc->ts;
+}
+
+/* Recursively propagate type information bottom-up through a nested UDO
+   expression tree so that when gfc_extend_expr is called on the outermost
+   operator during ASSOCIATE selector parsing, the inner operands already have
+   their types set and the type-bound lookup can succeed.  Uses
+   infer_typebound_uop_type rather than gfc_extend_expr to avoid triggering
+   resolve_symbol on the return types, which would prevent the outer
+   gfc_extend_expr from working correctly.  */
+
+static void
+extend_assoc_op (gfc_expr *e)
+{
+  if (!e || e->expr_type != EXPR_OP)
+    return;
+
+  /* Bottom-up: process children first.  */
+  extend_assoc_op (e->value.op.op1);
+  extend_assoc_op (e->value.op.op2);
+
+  /* Propagate the child's type upward through parentheses nodes.
+     gfc_extend_expr's matching_typebound_op checks ts.type BEFORE stripping
+     INTRINSIC_PARENTHESES wrappers, so an untyped parentheses node prevents
+     the outer operator from being found.  */
+  if (e->value.op.op == INTRINSIC_PARENTHESES
+      && e->ts.type == BT_UNKNOWN
+      && e->value.op.op1
+      && e->value.op.op1->ts.type != BT_UNKNOWN)
+    {
+      e->ts = e->value.op.op1->ts;
+      return;
+    }
+
+  /* Only handle unresolved user-defined operators.  */
+  if (e->value.op.op != INTRINSIC_USER || e->ts.type != BT_UNKNOWN)
+    return;
+
+  /* Try to infer the type of each operand if it is an unresolved constructor
+     call (EXPR_FUNCTION whose return type is still BT_UNKNOWN).  */
+  resolve_assoc_operand (e->value.op.op1);
+  resolve_assoc_operand (e->value.op.op2);
+
+  /* Infer this operator's return type from the type-bound procedure's result
+     variable, without calling gfc_resolve_symbol on the return type.  */
+  infer_typebound_uop_type (e);
+}
+
 match
 match_association_list (bool for_change_team = false)
 {
@@ -2142,12 +2291,37 @@ match_association_list (bool for_change_team = false)
 	    }
 	}
       else if (newAssoc->target->ts.type == BT_UNKNOWN
-	       && newAssoc->target->expr_type == EXPR_OP)
+	       && newAssoc->target->expr_type == EXPR_OP
+	       && newAssoc->target->value.op.op == INTRINSIC_USER)
 	{
-	  /* This will work for sure if the operator is type bound to a use
-	     associated derived type.  */
-	  gfc_expr *tmp =gfc_copy_expr (newAssoc->target);
-	  if (gfc_extend_expr (tmp) == MATCH_YES)
+	  /* If the selector is an unresolved type-bound user-defined operator
+	     expression, try to extend it now so the associate name gets a usable
+	     type.  For nested operators such as
+	       (.div. (.grad. x))
+	     first propagate types bottom-up through the inner operands
+	     (extend_assoc_op).  For a direct operator applied to a constructor
+	     call such as
+	       (.div. vector_t(init_fn, n=8))
+	     additionally resolve the direct operands as constructor calls
+	     (resolve_assoc_operand).  Then call gfc_extend_expr on the
+	     outermost operator.  Only handle INTRINSIC_USER here; arithmetic
+	     operators are left to the normal resolution pass.  */
+	  gfc_expr *tmp = gfc_copy_expr (newAssoc->target);
+	  extend_assoc_op (tmp->value.op.op1);
+	  extend_assoc_op (tmp->value.op.op2);
+	  resolve_assoc_operand (tmp->value.op.op1);
+	  resolve_assoc_operand (tmp->value.op.op2);
+	  /* Suppress errors from gfc_extend_expr: during parsing the full
+	     resolution has not run yet, so gfc_resolve_expr(COMPCALL) may
+	     fail even when the type-bound operator was found and the node
+	     was correctly converted to EXPR_COMPCALL.  Accept the conversion
+	     in that case and let the normal resolution pass finish it.  */
+	  gfc_push_suppress_errors ();
+	  match ext_m = gfc_extend_expr (tmp);
+	  gfc_pop_suppress_errors ();
+	  if (ext_m == MATCH_YES
+	      || (tmp->expr_type == EXPR_COMPCALL
+		  && tmp->ts.type != BT_UNKNOWN))
 	    gfc_replace_expr (newAssoc->target, tmp);
 	  else
 	    gfc_free_expr (tmp);

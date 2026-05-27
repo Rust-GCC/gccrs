@@ -17218,12 +17218,16 @@ resolve_typebound_procedures (gfc_symbol* derived)
   int op;
   gfc_symbol* super_type;
 
-  if (!derived->f2k_derived || !derived->f2k_derived->tb_sym_root)
-    return true;
-
+  /* Resolve the super-type first so that inherited bindings (including
+     user operators) are fully resolved before we look them up via
+     gfc_find_typebound_user_op.  This must happen even when 'derived'
+     has no direct type-bound bindings of its own.  */
   super_type = gfc_get_derived_super_type (derived);
   if (super_type)
     resolve_symbol (super_type);
+
+  if (!derived->f2k_derived || !derived->f2k_derived->tb_sym_root)
+    return true;
 
   resolve_bindings_derived = derived;
   resolve_bindings_result = true;
