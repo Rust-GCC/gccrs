@@ -428,7 +428,10 @@ warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\n"
 	}
 
       if (need_caf_shmem)
-	append_option (OPT_l, CAF_SHMEM_LIBRARY, 1);
+	{
+	  append_option (OPT_l, CAF_SHMEM_LIBRARY, 1);
+	  append_option (OPT_l, "pthread", 1);
+	}
     }
 
 #ifdef ENABLE_SHARED_LIBGCC
