@@ -14403,7 +14403,7 @@ aarch64_strip_extend (rtx x, bool strip_shift)
   if (strip_shift
       && GET_CODE (op) == ASHIFT
       && CONST_INT_P (XEXP (op, 1))
-      && ((unsigned HOST_WIDE_INT) INTVAL (XEXP (op, 1))) <= 4)
+      && UINTVAL (XEXP (op, 1)) <= 4)
     op = XEXP (op, 0);
 
   if (GET_CODE (op) == ZERO_EXTEND

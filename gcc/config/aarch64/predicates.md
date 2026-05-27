@@ -254,15 +254,15 @@
 
 (define_predicate "aarch64_shift_imm_si"
   (and (match_code "const_int")
-       (match_test "(unsigned HOST_WIDE_INT) INTVAL (op) < 32")))
+       (match_test "UINTVAL (op) < 32")))
 
 (define_predicate "aarch64_shift_imm_di"
   (and (match_code "const_int")
-       (match_test "(unsigned HOST_WIDE_INT) INTVAL (op) < 64")))
+       (match_test "UINTVAL (op) < 64")))
 
 (define_predicate "aarch64_shift_imm64_di"
   (and (match_code "const_int")
-       (match_test "(unsigned HOST_WIDE_INT) INTVAL (op) <= 64")))
+       (match_test "UINTVAL (op) <= 64")))
 
 (define_predicate "aarch64_reg_or_shift_imm_si"
   (ior (match_operand 0 "register_operand")
@@ -276,7 +276,7 @@
 ;; range 0..4.
 (define_predicate "aarch64_imm3"
   (and (match_code "const_int")
-       (match_test "(unsigned HOST_WIDE_INT) INTVAL (op) <= 4")))
+       (match_test "UINTVAL (op) <= 4")))
 
 ;; The imm2 field is a 2-bit field that only accepts immediates in the
 ;; range 0..3.
