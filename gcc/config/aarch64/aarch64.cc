@@ -6887,29 +6887,6 @@ aarch64_stack_protect_canary_mem (machine_mode mode, rtx decl_rtl,
   return gen_rtx_MEM (mode, force_reg (Pmode, addr));
 }
 
-/* Emit a load/store from a subreg of SRC to a subreg of DEST.
-   The subregs have mode NEW_MODE. Use only for reg<->mem moves.  */
-void
-aarch64_emit_load_store_through_mode (rtx dest, rtx src, machine_mode new_mode)
-{
-  gcc_assert ((MEM_P (dest) && register_operand (src, VOIDmode))
-	      || (MEM_P (src) && register_operand (dest, VOIDmode)));
-  auto mode = GET_MODE (dest);
-  auto int_mode = aarch64_sve_int_mode (mode);
-  if (MEM_P (src))
-    {
-      rtx tmp = force_reg (new_mode, adjust_address (src, new_mode, 0));
-      tmp = force_lowpart_subreg (int_mode, tmp, new_mode);
-      emit_move_insn (dest, force_lowpart_subreg (mode, tmp, int_mode));
-    }
-  else
-    {
-      src = force_lowpart_subreg (int_mode, src, mode);
-      emit_move_insn (adjust_address (dest, new_mode, 0),
-		      force_lowpart_subreg (new_mode, src, int_mode));
-    }
-}
-
 /* PRED is a predicate that is known to contain PTRUE.
    For 128-bit VLS loads/stores, emit LDR/STR.
    Else, emit an SVE predicated move from SRC to DEST.  */
@@ -26310,6 +26287,47 @@ aarch64_sve_expand_vector_init_subvector (rtx target, rtx vals)
   emit_move_insn (target, worklist[0]);
 
   return;
+}
+
+/* Emit a load/store from a subreg of SRC to a subreg of DEST.
+   The subregs have mode NEW_MODE. Use only for reg<->mem moves.  */
+void
+aarch64_emit_load_store_through_mode (rtx dest, rtx src, machine_mode new_mode)
+{
+  gcc_assert ((MEM_P (dest) && register_operand (src, VOIDmode))
+	      || (MEM_P (src) && register_operand (dest, VOIDmode)));
+  auto mode = GET_MODE (dest);
+  auto int_mode = aarch64_sve_int_mode (mode);
+  rtx tmp_reg;
+  if (MEM_P (src))
+    {
+      rtx tmp = force_reg (new_mode, adjust_address (src, new_mode, 0));
+      if (!VECTOR_MODE_P (new_mode))
+	{
+	  machine_mode full_mode = int_mode;
+	  auto vmode = aarch64_classify_vector_mode (int_mode);
+	  /* Partial vectors have to go through a full mode insert since we
+	     don't support inserting an partial vectors.  */
+	  if (GET_MODE_INNER (int_mode) != new_mode || (vmode & VEC_PARTIAL))
+	    full_mode
+	      = aarch64_full_sve_mode (as_a <scalar_mode> (new_mode)).require ();
+
+	  /* Create an SVE register with the top bits explicitly zero'd.  */
+	  tmp_reg = force_reg (full_mode, CONST0_RTX (full_mode));
+	  emit_insr (tmp_reg, tmp);
+	  if (full_mode != int_mode)
+	    tmp_reg = force_lowpart_subreg (int_mode, tmp_reg, full_mode);
+	}
+      else
+	tmp_reg = force_lowpart_subreg (int_mode, tmp, new_mode);
+      emit_move_insn (dest, force_lowpart_subreg (mode, tmp_reg, int_mode));
+    }
+  else
+    {
+      src = force_lowpart_subreg (int_mode, src, mode);
+      emit_move_insn (adjust_address (dest, new_mode, 0),
+		      force_lowpart_subreg (new_mode, src, int_mode));
+    }
 }
 
 /* Check whether VALUE is a vector constant in which every element

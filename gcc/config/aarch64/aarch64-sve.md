@@ -3004,6 +3004,51 @@
   [(set_attr "sve_type" "sve_int_general")]
 )
 
+;; Shift an SVE vector left and insert a scalar into element 0 of a zero
+;; register.
+(define_insn "*aarch64_vec_shl_insert_into_zero_<mode>"
+  [(set (match_operand:SVE_FULL_HSD 0 "register_operand")
+	(unspec:SVE_FULL_HSD
+	  [(match_operand:SVE_FULL_HSD 1 "aarch64_simd_imm_zero")
+	   (match_operand:<VEL> 2 "register_operand")]
+	  UNSPEC_INSR))]
+  "TARGET_SVE"
+  {@ [ cons: =0 , 1  , 2 ]
+     [ w        , Dz , w ] fmov\t%<Vetype>0, %<Vetype>2
+  }
+  [(set_attr "type" "neon_move")]
+)
+
+;; Shift an SVE vector left and insert a scalar into element 0 of a zero
+;; register for bytes.
+(define_insn "*aarch64_vec_shl_insert_into_zero_vnx16qi"
+  [(set (match_operand:VNx16QI 0 "register_operand")
+	(unspec:VNx16QI
+	  [(match_operand:VNx16QI 1 "aarch64_simd_imm_zero")
+	   (match_operand:QI 2 "register_operand")]
+	  UNSPEC_INSR))]
+  "TARGET_SVE"
+  {@ [ cons: =0 , 1  , 2 ; attrs: length ]
+     [ w        , Dz , w ; 8              ] fmov\t%h0, %h2\;and\t%0.h, %0.h, #0xff
+  }
+  [(set_attr "type" "neon_move")]
+)
+
+;; Shift an SVE vector left and insert a scalar into element 0 from a memory
+;; load.
+(define_insn "*aarch64_vec_shl_insert_from_load_<mode>"
+  [(set (match_operand:SVE_FULL 0 "register_operand")
+	(unspec:SVE_FULL
+	  [(match_operand:SVE_FULL 1 "aarch64_simd_imm_zero")
+	   (match_operand:<VEL> 2 "memory_operand")]
+	  UNSPEC_INSR))]
+  "TARGET_SVE"
+  {@ [ cons: =0 , 1  , 2 ]
+     [ w        , Dz , m ] ldr\t%<Vetype>0, %2
+  }
+  [(set_attr "type" "neon_move")]
+)
+
 ;; -------------------------------------------------------------------------
 ;; ---- [INT] Linear series
 ;; -------------------------------------------------------------------------
