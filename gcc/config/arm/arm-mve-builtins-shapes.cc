@@ -2858,8 +2858,8 @@ struct viddup_def : public overloaded_base<0>
       return error_mark_node;
 
     type_suffix = r.type_suffix_ids[0];
-    /* With PRED_m, there is no type suffix, so infer it from the first (inactive)
-       argument.  */
+    /* With PRED_m, there is no type suffix, so infer it from the first
+       (inactive) argument.  */
     if (type_suffix == NUM_TYPE_SUFFIXES)
       type_suffix = r.infer_vector_type (0);
 
@@ -2943,8 +2943,8 @@ struct vidwdup_def : public overloaded_base<0>
       return error_mark_node;
 
     type_suffix = r.type_suffix_ids[0];
-    /* With PRED_m, there is no type suffix, so infer it from the first (inactive)
-       argument.  */
+    /* With PRED_m, there is no type suffix, so infer it from the first
+       (inactive) argument.  */
     if (type_suffix == NUM_TYPE_SUFFIXES)
       type_suffix = r.infer_vector_type (0);
 

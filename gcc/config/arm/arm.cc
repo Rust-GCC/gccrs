@@ -34836,9 +34836,9 @@ arm_mve_check_reg_origin_is_num_elems (loop *loop, rtx reg, rtx vctp_step,
   if (DF_REG_DEF_COUNT (REGNO (reg)) > 2)
     return false;
 
-  /* Look for a single definition of REG going into the loop.  The DEF_CHAIN will
-     have at least two values, as this is a loop induction variable that is
-     defined outside the loop.  */
+  /* Look for a single definition of REG going into the loop.  The DEF_CHAIN
+     will have at least two values, as this is a loop induction variable that
+     is defined outside the loop.  */
   for (df_ref def = DF_REG_DEF_CHAIN (REGNO (reg));
        def;
        def = DF_REF_NEXT_REG (def))

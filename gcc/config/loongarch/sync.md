@@ -74,8 +74,8 @@
 ;; [1]: https://git.kernel.org/torvalds/c/e031a5f3f1ed
 ;;
 ;; Implementations without support for the finer-granularity hints simply treat
-;; all as the full barrier (DBAR 0), so we can unconditionally start emitting the
-;; more precise hints right away.
+;; all as the full barrier (DBAR 0), so we can unconditionally start emitting
+;; the more precise hints right away.
 (define_insn "mem_thread_fence_1"
   [(set (match_operand:BLK 0 "" "")
 	(unspec:BLK [(match_dup 0)] UNSPEC_MEMORY_BARRIER))
