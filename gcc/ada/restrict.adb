@@ -1049,7 +1049,7 @@ package body Restrict is
          Error_Msg_Name_1 := Old_Name;
          Error_Msg_N ("restriction identifier % is obsolescent?j?", N);
          Error_Msg_Name_1 := New_Name;
-         Error_Msg_N ("|use restriction identifier % instead?j?", N);
+         Error_Msg_N ("\use restriction identifier % instead?j?", N);
       end if;
 
       return New_Name;

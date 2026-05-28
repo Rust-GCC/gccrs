@@ -20746,7 +20746,7 @@ package body Sem_Prag is
                   Error_Msg_N
                     ("pragma Interface is an obsolescent feature?j?", N);
                   Error_Msg_N
-                    ("|use pragma Import instead?j?", N);
+                    ("\use pragma Import instead?j?", N);
                end if;
             end if;
 
@@ -20783,7 +20783,7 @@ package body Sem_Prag is
                   Error_Msg_N
                     ("pragma Interface_Name is an obsolescent feature?j?", N);
                   Error_Msg_N
-                    ("|use pragma Import instead?j?", N);
+                    ("\use pragma Import instead?j?", N);
                end if;
             end if;
 
@@ -25572,7 +25572,7 @@ package body Sem_Prag is
                Error_Msg_N
                  ("pragma Ravenscar is an obsolescent feature?j?", N);
                Error_Msg_N
-                 ("|use pragma Profile (Ravenscar) instead?j?", N);
+                 ("\use pragma Profile (Ravenscar) instead?j?", N);
             end if;
 
          -------------------------
@@ -25593,7 +25593,7 @@ package body Sem_Prag is
                  ("pragma Restricted_Run_Time is an obsolescent feature?j?",
                   N);
                Error_Msg_N
-                 ("|use pragma Profile (Restricted) instead?j?", N);
+                 ("\use pragma Profile (Restricted) instead?j?", N);
             end if;
 
          ------------------
