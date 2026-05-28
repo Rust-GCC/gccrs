@@ -3117,6 +3117,13 @@ example, we ignore the return value:
   end
 @end smallexample
 
+Fortran 2023 added two new intrinsic functions for converting between
+C and Fortran string representations: @code{f_c_string} transforms a
+Fortran string into a C string by appending a null character, and
+@code{c_f_strpointer} allows access to a null-terminated C string or
+simply contiguous array of @code{c_char} as a Fortran deferred-length
+character pointer.
+
 The intrinsic procedures are described in @ref{Intrinsic Procedures}.
 
 @node Working with C Pointers

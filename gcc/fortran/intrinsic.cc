@@ -3957,14 +3957,27 @@ add_subroutines (void)
 	      "fptr", BT_UNKNOWN, 0, REQUIRED, INTENT_OUT,
 	      "shape", BT_INTEGER, di, OPTIONAL, INTENT_IN,
 	      "lower", BT_INTEGER, di, OPTIONAL, INTENT_IN);
-  make_from_module();
+  make_from_module ();
 
   add_sym_2s ("c_f_procpointer", GFC_ISYM_C_F_PROCPOINTER, CLASS_IMPURE,
 	      BT_UNKNOWN, 0, GFC_STD_F2003, gfc_check_c_f_procpointer,
 	      NULL, NULL,
 	      "cptr", BT_VOID, 0, REQUIRED, INTENT_IN,
 	      "fptr", BT_UNKNOWN, 0, REQUIRED, INTENT_OUT);
-  make_from_module();
+  make_from_module ();
+
+  /* This represents both forms of the intrinsic; the one with the
+     signature given here, and the one that accepts a scalar for the
+     first argument with name "cstrptr" instead of "cstrarray".
+     This is handled by special-casing in sort_actual as well as
+     in the check function.  */
+  add_sym_3s ("c_f_strpointer", GFC_ISYM_C_F_STRPOINTER, CLASS_IMPURE,
+	      BT_UNKNOWN, 0, GFC_STD_F2023, gfc_check_c_f_strpointer,
+	      NULL, NULL,
+	      "cstrarray", BT_VOID, dc, REQUIRED, INTENT_IN,
+	      "fstrptr", BT_UNKNOWN, dc, REQUIRED, INTENT_OUT,
+	      "nchars", BT_INTEGER, di, OPTIONAL, INTENT_IN);
+  make_from_module ();
 
   /* Internal subroutine for emitting a runtime error.  */
 
@@ -4516,6 +4529,7 @@ sort_actual (const char *name, gfc_actual_arglist **ap,
 {
   gfc_actual_arglist *actual, *a;
   gfc_intrinsic_arg *f;
+  bool is_c_f_strpointer = false;
 
   remove_nullargs (ap);
   actual = *ap;
@@ -4536,7 +4550,9 @@ sort_actual (const char *name, gfc_actual_arglist **ap,
     return true;
 
   /* ALLOCATED has two mutually exclusive keywords, but only one
-     can be present at time and neither is optional. */
+     can be present at time and neither is optional.  Likewise
+     C_F_STRPOINTER, but since that subroutine has multiple arguments
+     it has to be handled in the keywords loop below.  */
   if (strcmp (name, "allocated") == 0)
     {
       if (!a)
@@ -4605,9 +4621,32 @@ whoops:
 keywords:
   /* Associate the remaining actual arguments, all of which have
      to be keyword arguments.  */
+  is_c_f_strpointer = strcmp (name, "c_f_strpointer") == 0;
   for (; a; a = a->next)
     {
       int idx;
+
+      /* Special case C_F_STRPOINTER.  The first argument can either
+	 be an array named "cstrarray" or a scalar named "cstrptr".  */
+      if (is_c_f_strpointer)
+	{
+	  idx = 0;
+	  if (strcmp (a->name, "cstrarray") == 0)
+	    {
+	      if (a->expr->rank != 0)
+		goto got_keyword;
+	      gfc_error ("Array entity required at %L", &a->expr->where);
+	      return false;
+	    }
+	  else if (strcmp (a->name, "cstrptr") == 0)
+	    {
+	      if (a->expr->rank == 0)
+		goto got_keyword;
+	      gfc_error ("Scalar entity required at %L", &a->expr->where);
+	      return false;
+	    }
+	}
+
       FOR_EACH_VEC_ELT (dummy_args, idx, f)
 	if (strcmp (a->name, f->name) == 0)
 	  break;
@@ -4623,10 +4662,11 @@ keywords:
 	  return false;
 	}
 
+    got_keyword:
       if (ordered_actual_args[idx] != NULL)
 	{
 	  gfc_error ("Argument %qs appears twice in call to %qs at %L",
-		     f->name, name, where);
+		     a->name, name, where);
 	  return false;
 	}
       ordered_actual_args[idx] = a;

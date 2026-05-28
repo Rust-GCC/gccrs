@@ -10267,6 +10267,122 @@ conv_isocbinding_subroutine (gfc_code *code)
 }
 
 
+/* The following routine generates code for both forms of the intrinsic
+   subroutine C_F_STRPOINTER from the ISO_C_BINDING module.  */
+static tree
+conv_isocbinding_subroutine_strpointer (gfc_code *code)
+{
+  gfc_actual_arglist *arg = code->ext.actual;
+  gfc_expr *arg0 = arg->expr;
+  gfc_expr *fstrptr = arg->next->expr;
+  gfc_expr *nchars = arg->next->next->expr;
+  tree ptr;
+  tree size = NULL_TREE;
+  tree nc = NULL_TREE;
+  tree fstrptr_ptr, fstrptr_len;
+  stmtblock_t block;
+  gfc_init_block (&block);
+  gfc_se se0, se1, se2;
+  gfc_init_se (&se0, NULL);
+  gfc_init_se (&se1, NULL);
+  gfc_init_se (&se2, NULL);
+
+  /* arg0 can either be a simply contiguous rank-one character array,
+     or a scalar of type c_ptr that points to a contiguous array.
+     In the first case nchars may be omitted and defaults to the size
+     of the array.  */
+  if (arg0->rank == 1)
+    {
+      gfc_array_ref *ar = gfc_find_array_ref (arg0);
+      if (ar->as && ar->as->type == AS_ASSUMED_SIZE
+	  && (ar->type == AR_FULL || ar->end[0] == nullptr))
+	/* No size available.  */
+	gfc_conv_array_parameter (&se0, arg0, true, NULL, NULL, NULL);
+      else
+	{
+	  gfc_conv_array_parameter (&se0, arg0, true, NULL, NULL, &size);
+	  gcc_assert (size);
+	}
+      ptr = se0.expr;
+    }
+  else if (arg0->rank == 0)
+    {
+      /* Scalar case.  arg0 is a C pointer to the string, and the
+	 nchars argument is required.  */
+      gfc_conv_expr (&se0, arg0);
+      ptr = se0.expr;
+      /* We already issued a diagnostic for this in parsing.  */
+      gcc_assert (nchars);
+    }
+  else
+    gcc_unreachable ();
+
+  /* Translate the fortran array pointer argument.  AFAICT the
+     representation here is that this returns the pointer location in
+     se1.expr and there is a separate decl for the length.
+     Of course none of this is properly documented....  :-(  */
+  gfc_conv_expr (&se1, fstrptr);
+  fstrptr_ptr = se1.expr;
+  gcc_assert (fstrptr->ts.u.cl && fstrptr->ts.u.cl->backend_decl);
+  fstrptr_len = fstrptr->ts.u.cl->backend_decl;
+
+  /* Translate nchars, if provided.  If we have both the array size
+     and nchars, take the minimum value.  NC is the tree expr to hold
+     the value.  */
+  if (nchars)
+    {
+      gfc_conv_expr (&se2, nchars);
+      nc = se2.expr;
+      if (size)
+	nc = fold_build2_loc (input_location, MIN_EXPR,
+			      TREE_TYPE (nc), nc, size);
+      /* Check for the case where an optional dummy parameter is
+	 passed as the optional nchars argument.  It's not supposed to
+	 be omitted if we don't also have an array size; rather than
+	 produce a run-time error, assume size 0.  */
+      if (nchars->expr_type == EXPR_VARIABLE
+	  && nchars->symtree->n.sym->attr.dummy
+	  && nchars->symtree->n.sym->attr.optional)
+	{
+	  tree present = gfc_conv_expr_present (nchars->symtree->n.sym);
+	  nc = build3_loc (input_location, COND_EXPR,
+			   TREE_TYPE (nc), present, nc,
+			   size ? size : build_int_cst (TREE_TYPE (nc), 0));
+	}
+    }
+  else
+    {
+      gcc_assert (size);
+      nc = size;
+    }
+
+  /* Collect argument side-effect statements.  */
+  gfc_add_block_to_block (&block, &se0.pre);
+  gfc_add_block_to_block (&block, &se1.pre);
+  gfc_add_block_to_block (&block, &se2.pre);
+
+  /* Generate a call to builtin_strnlen to get the C string length
+     for the output fstrptr.  */
+  ptr = gfc_evaluate_now (ptr, &block);
+  size = build_call_expr_loc (input_location,
+			      builtin_decl_explicit (BUILT_IN_STRNLEN), 2,
+			      fold_convert (const_ptr_type_node, ptr),
+			      fold_convert (size_type_node, nc));
+
+  /* Stuff the raw C char pointer PTR and actual length SIZE into fstrptr.  */
+  gfc_add_modify (&block, fstrptr_ptr,
+		  fold_convert (TREE_TYPE (fstrptr_ptr), ptr));
+  gfc_add_modify (&block, fstrptr_len,
+		  fold_convert (gfc_charlen_type_node, size));
+
+  /* Collect argument cleanups.  */
+  gfc_add_block_to_block (&block, &se2.post);
+  gfc_add_block_to_block (&block, &se1.post);
+  gfc_add_block_to_block (&block, &se0.post);
+
+  return gfc_finish_block (&block);
+}
+
 /* Save and restore floating-point state.  */
 
 tree
@@ -13532,6 +13648,10 @@ gfc_conv_intrinsic_subroutine (gfc_code *code)
     case GFC_ISYM_C_F_POINTER:
     case GFC_ISYM_C_F_PROCPOINTER:
       res = conv_isocbinding_subroutine (code);
+      break;
+
+    case GFC_ISYM_C_F_STRPOINTER:
+      res = conv_isocbinding_subroutine_strpointer (code);
       break;
 
     case GFC_ISYM_CAF_SEND:

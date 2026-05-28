@@ -6306,6 +6306,148 @@ gfc_check_c_f_procpointer (gfc_expr *cptr, gfc_expr *fptr)
 }
 
 
+/* Handle both forms of this intrinsic, differentiated by whether
+   the first argument is a scalar or array.  */
+
+bool
+gfc_check_c_f_strpointer (gfc_expr *arg0, gfc_expr *fstrptr,
+			  gfc_expr *nchars)
+{
+  bool arg0_is_scalar = false;
+  const char *arg0name = "cstrarray";
+
+  if (arg0->rank == 0)
+    {
+      arg0_is_scalar = true;
+      arg0name = "cstrptr";
+
+      /* cstrptr is a scalar of type c_ptr.  It is an intent in argument
+	 holding the C address of a contiguous array s of nchars characters.
+	 Its value must not be the C address of a Fortran variable without
+	 the target attribute.  */
+      if (arg0->ts.type != BT_DERIVED
+	  || arg0->ts.u.derived->from_intmod != INTMOD_ISO_C_BINDING
+	  || arg0->ts.u.derived->intmod_sym_id != ISOCBINDING_PTR)
+	{
+	  gfc_error ("%qs argument of %qs intrinsic at %L shall be "
+		     "a scalar of type C_PTR",
+		     arg0name, gfc_current_intrinsic, &arg0->where);
+	  return false;
+	}
+
+      if (!nchars)
+	{
+	  gfc_error ("%qs argument of %qs intrinsic shall be present "
+		     "when the %qs argument at %L is a C_PTR",
+		     gfc_current_intrinsic_arg[2]->name,
+		     gfc_current_intrinsic, arg0name, &arg0->where);
+	  return false;
+	}
+    }
+  else
+    {
+      /* arg0 is a rank-one character array of kind c_char and character
+	 length one.  It is an intent in argument.  Its actual argument
+	 must be simply contiguous and have the target attribute.  */
+      if (arg0->rank != 1
+	  || arg0->ts.type != BT_CHARACTER
+	  || arg0->ts.kind != gfc_default_character_kind
+	  || get_ul_from_cst_cl (arg0->ts.u.cl) != 1)
+	{
+	  gfc_error ("%qs argument of %qs intrinsic at %L shall be "
+		     "a rank-one character array of kind C_CHAR and "
+		     "character length one",
+		     arg0name, gfc_current_intrinsic, &arg0->where);
+	  return false;
+	}
+      if (!gfc_is_simply_contiguous (arg0, true, false))
+	{
+	  gfc_error ("%qs argument of %qs intrinsic at %L shall be "
+		     "simply contiguous",
+		     arg0name, gfc_current_intrinsic, &arg0->where);
+	  return false;
+	}
+      if (!gfc_expr_attr (arg0).target)
+	{
+	  gfc_error ("%qs argument of %qs intrinsic at %L shall have "
+		     "the TARGET attribute",
+		     arg0name, gfc_current_intrinsic, &arg0->where);
+	  return false;
+	}
+
+      /* If cstrarray is assumed-size, nchars must be present.  */
+      if (!nchars)
+	{
+	  gfc_array_ref *ar = gfc_find_array_ref (arg0);
+	  if (ar->as && ar->as->type == AS_ASSUMED_SIZE
+	      && (ar->type == AR_FULL || ar->end[0] == nullptr))
+	    {
+	      gfc_error ("%qs argument of %qs intrinsic shall be present "
+			 "when the %qs argument at %L is assumed-size",
+			 gfc_current_intrinsic_arg[2]->name,
+			 gfc_current_intrinsic, arg0name, &arg0->where);
+	      return false;
+	    }
+	}
+    }
+
+  /* fstrptr is a scalar deferred-length character pointer of kind c_char.
+     It is an intent out argument [...]  */
+  if (fstrptr->rank != 0
+      || fstrptr->ts.type != BT_CHARACTER
+      || fstrptr->ts.kind != gfc_default_character_kind
+      || !fstrptr->ts.deferred
+      || !gfc_expr_attr (fstrptr).pointer)
+    {
+      gfc_error ("%qs argument of %qs intrinsic at %L shall be "
+		 "a scalar deferred-length character pointer of kind C_CHAR",
+		 gfc_current_intrinsic_arg[1]->name, gfc_current_intrinsic,
+		 &fstrptr->where);
+      return false;
+    }
+  if (gfc_expr_attr (fstrptr).intent == INTENT_IN)
+    {
+      gfc_error ("%qs argument of %qs intrinsic at %L cannot be INTENT(IN)",
+		 gfc_current_intrinsic_arg[1]->name, gfc_current_intrinsic,
+		 &fstrptr->where);
+      return false;
+    }
+
+  /* For the array form: nchars is an optional integer scalar with intent in.
+     If nchars is present, its value must be nonnegative and not greater
+     than the size of cstrarray.
+     For the scalar form: nchars is an integer scalar with intent in.  Its
+     value must be nonnegative.  */
+  if (!nchars)
+    return true;
+  if (nchars->rank != 0 || nchars->ts.type != BT_INTEGER)
+    {
+      gfc_error ("%qs argument of %qs intrinsic at %L shall be "
+		 "a scalar integer",
+		 gfc_current_intrinsic_arg[2]->name, gfc_current_intrinsic,
+		 &nchars->where);
+      return false;
+    }
+  if (nchars->expr_type != EXPR_CONSTANT)
+    return true;
+  if (!nonnegative_check (gfc_current_intrinsic_arg[2]->name, nchars))
+    return false;
+  if (!arg0_is_scalar)
+    {
+      mpz_t asize;
+      if (gfc_array_size (arg0, &asize)
+	  && mpz_cmp (nchars->value.integer, asize) > 0)
+	{
+	  gfc_error ("%qs at %L must not be greater than the size of %qs",
+		     gfc_current_intrinsic_arg[2]->name, &nchars->where,
+		     arg0name);
+	  return false;
+	}
+    }
+
+  return true;
+}
+
 bool
 gfc_check_c_funloc (gfc_expr *x)
 {

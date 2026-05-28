@@ -106,6 +106,7 @@ Some basic guidelines for editing this document:
 * @code{C_ASSOCIATED}:  C_ASSOCIATED, Status of a C pointer
 * @code{C_F_POINTER}:   C_F_POINTER, Convert C into Fortran pointer
 * @code{C_F_PROCPOINTER}: C_F_PROCPOINTER, Convert C into Fortran procedure pointer
+* @code{C_F_STRPOINTER}: C_F_STRPOINTER, Convert C string to Fortran string pointer
 * @code{C_FUNLOC}:      C_FUNLOC,  Obtain the C address of a procedure
 * @code{C_LOC}:         C_LOC,     Obtain the C address of an object
 * @code{C_SIZEOF}:      C_SIZEOF,  Size in bytes of an expression
@@ -3417,7 +3418,8 @@ Fortran 2003 and later, with @var{LOWER} argument Fortran 2023 and later
 
 @item @emph{See also}:
 @ref{C_LOC}, @*
-@ref{C_F_PROCPOINTER}
+@ref{C_F_PROCPOINTER}, @*
+@ref{C_F_STRPOINTER}
 @end table
 
 
@@ -3475,7 +3477,87 @@ Fortran 2003 and later
 
 @item @emph{See also}:
 @ref{C_LOC}, @*
-@ref{C_F_POINTER}
+@ref{C_F_POINTER}, @*
+@ref{C_F_STRPOINTER}
+@end table
+
+
+@node C_F_STRPOINTER
+@section @code{C_F_STRPOINTER} --- Convert C string into Fortran string pointer
+@fnindex C_F_STRPOINTER
+@cindex string, convert C to Fortran
+
+@table @asis
+@item @emph{Synopsis}:
+@multitable @columnfractions .80
+@item @code{CALL C_F_STRPOINTER(CSTRARRAY, FSTRPTR[, NCHARS])}
+@item @code{CALL C_F_STRPOINTER(CSTRPTR, FSTRPTR, NCHARS)}
+@end multitable
+
+@item @emph{Description}:
+@code{C_F_STRPOINTER(CSTRARRAY, FSTRPTR[, NCHARS])}
+pointer-associates the deferred-length character pointer
+@code{FSTRPTR} with the initial substring of the simply contiguous
+Fortran character array @code{STRARRAY}, up to the first null character,
+the length @code{NCHARS} if specified, or the actual size of @code{CSTRARRAY}.
+
+@code{CALL C_F_STRPOINTER(CSTRPTR, FSTRPTR, NCHARS)}
+pointer-associates the deferred-length array pointer @code{FSTRPTR} with the
+initial substring of the continguous array of characters pointed to by
+the C pointer @code{CSTRPTR}, up to the first null character or
+length @code{NCHARS}.
+
+@item @emph{Class}:
+Subroutine
+
+@item @emph{Arguments}:
+@multitable @columnfractions .15 .70
+@item @var{CSTRARRAY}  @tab Rank-one character array of kind @code{C_CHAR}
+and character length one, which must be simply contiguous and have the
+@code{TARGET} attribute. It is @code{INTENT(IN)}.
+@item @var{CSTRPTR}  @tab Scalar of the type @code{C_PTR}. It is
+@code{INTENT(IN)}.
+@item @var{FSTRPTR}  @tab Scalar deferred-length character pointer of kind
+@code{C_CHAR}.  It is @code{INTENT(OUT)}.
+@item @var{NCHARS} @tab (Optional) Integer scalar.  It is @code{INTENT(IN)}.
+This argument can only be omitted for the @code{CSTRARRAY} form of the
+intrinsic, and only if @code{STRARRAY} is not assumed-size.
+@end multitable
+
+@item @emph{Example}:
+@smallexample
+program main
+
+  use iso_c_binding
+  implicit none
+
+  character (kind=c_char, len=1), dimension(15), target :: a
+  type(c_ptr) :: p
+  character (len=:, kind=c_char), pointer :: fp1, fp2
+
+  a = [ character :: 'h', 'e', 'l', 'l', 'o', ' ', &
+                     'w', 'o', 'r', 'l', 'd', '!', &
+                     ' ', ' ', ' ']
+  ! give array a terminating null so its C string length is 12.
+  a(13) = C_NULL_CHAR
+
+  ! p is a C pointer to the the first character in the array
+  p = C_LOC (a(1))
+
+  ! Make both fp1 and fp2 point to a with Fortran string length 12.
+  call c_f_strpointer (p, fp1, 15)
+  call c_f_strpointer (a, fp2)
+end program main
+
+@end smallexample
+
+@item @emph{Standard}:
+Fortran 2023 and later.
+
+@item @emph{See also}:
+@ref{C_LOC}, @*
+@ref{C_F_POINTER}, @*
+@ref{C_F_PROCPOINTER}
 @end table
 
 

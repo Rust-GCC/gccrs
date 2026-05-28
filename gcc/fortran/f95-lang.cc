@@ -1036,6 +1036,11 @@ gfc_init_builtin_functions (void)
   gfc_define_builtin ("__builtin_realloc", ftype, BUILT_IN_REALLOC,
 		      "realloc", ATTR_NOTHROW_LEAF_LIST);
 
+  ftype = build_function_type_list (size_type_node, pchar_type_node,
+				    size_type_node, NULL_TREE);
+  gfc_define_builtin ("__builtin_strnlen", ftype, BUILT_IN_STRNLEN,
+		      "strnlen", ATTR_PURE_NOTHROW_LEAF_LIST);
+
   /* Type-generic floating-point classification built-ins.  */
 
   ftype = build_function_type (integer_type_node, NULL_TREE);

@@ -168,6 +168,7 @@ bool gfc_check_sizeof (gfc_expr *);
 bool gfc_check_c_associated (gfc_expr *, gfc_expr *);
 bool gfc_check_c_f_pointer (gfc_expr *, gfc_expr *, gfc_expr *, gfc_expr *);
 bool gfc_check_c_f_procpointer (gfc_expr *, gfc_expr *);
+bool gfc_check_c_f_strpointer (gfc_expr *, gfc_expr *, gfc_expr *);
 bool gfc_check_c_funloc (gfc_expr *);
 bool gfc_check_c_loc (gfc_expr *);
 bool gfc_check_c_sizeof (gfc_expr *);

@@ -5,7 +5,7 @@
 module associate_ptr
     use iso_c_binding
 contains
-    subroutine c_f_strpointer(cptr, ptr2)
+    subroutine my_c_f_strpointer(cptr, ptr2)
         type(c_ptr), target, intent(in) :: cptr
         character(kind=c_char,len=4), pointer :: ptr1
         character(kind=c_char,len=:), pointer, intent(out) :: ptr2
@@ -21,6 +21,6 @@ program test_associate_ptr
     character(kind=c_char,len=:), pointer :: ptr2
     char_array = ['a', 'b', 'c', 'd', c_null_char, 'e', 'f']
 ! The first argument was providing a constant hidden string length => segfault
-    call c_f_strpointer(c_loc(char_array), ptr2)
+    call my_c_f_strpointer(c_loc(char_array), ptr2)
     if (ptr2 .ne. 'abcd') stop 2
 end program
