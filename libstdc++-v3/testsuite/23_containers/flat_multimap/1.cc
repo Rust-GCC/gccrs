@@ -252,6 +252,103 @@ test09()
   using value_type = std::pair<int, int>;
 }
 
+template<typename T>
+struct throwing_vector : std::vector<T>
+{
+  static inline bool throw_on_move = false;
+
+  throwing_vector() = default;
+  throwing_vector(const throwing_vector&) = default;
+  throwing_vector& operator=(const throwing_vector&) = default;
+
+  throwing_vector(throwing_vector&& other)
+  : std::vector<T>(std::move(other))
+  {
+    if (throw_on_move)
+      throw std::runtime_error("move ctor");
+  }
+
+  throwing_vector&
+  operator=(throwing_vector&& other)
+  {
+    static_cast<std::vector<T>&>(*this) = std::move(other);
+    if (throw_on_move)
+      throw std::runtime_error("move assign");
+    return *this;
+  }
+};
+
+template<template<typename> class KC, template<typename> class MC>
+void
+test10()
+{
+#if __cpp_exceptions
+  using flat_multimap = std::flat_multimap<int, int, std::less<int>, KC<int>, MC<int>>;
+
+  auto is_really_empty = [](const flat_multimap& m) {
+    return m.empty() && m.keys().empty() && m.values().empty();
+  };
+  throwing_vector<int>::throw_on_move = true;
+
+  // Verify invariant preservation upon throwing move construction.
+  flat_multimap source;
+  source.insert({{1, 100}, {2, 200}});
+  try
+    {
+      flat_multimap target(std::move(source));
+      VERIFY( false );
+    }
+  catch (const std::runtime_error&)
+    {
+      VERIFY( is_really_empty(source) );
+    }
+
+  // Verify invariant preservation upon throwing move assignment.
+  source.clear();
+  source.insert({{1, 100}, {2, 200}});
+  flat_multimap target;
+  target.insert({{3, 300}, {4, 400}});
+  try
+    {
+      target = std::move(source);
+      VERIFY( false );
+    }
+  catch (const std::runtime_error&)
+    {
+      VERIFY( is_really_empty(source) );
+      VERIFY( is_really_empty(target) );
+    }
+
+  // Verify invariant preservation upon throwing swap.
+  source.clear();
+  source.insert({{1, 100}, {2, 200}});
+  target.clear();
+  target.insert({{3, 300}, {4, 400}});
+  try
+    {
+      source.swap(target);
+      VERIFY( false );
+    }
+  catch (const std::runtime_error&)
+    {
+      VERIFY( is_really_empty(source) );
+      VERIFY( is_really_empty(target) );
+    }
+#endif
+}
+
+constexpr
+void
+test11()
+{
+  // Verify usability of flat_multimap::insert_range(sorted_equivalent_t, Rg&&).
+  std::flat_multimap<int, int> m = {{2, 200}};;
+  std::pair<int, int> s[] = {{1, 100}, {3, 300}};
+  m.insert_range(std::sorted_equivalent, s);
+  VERIFY( std::ranges::equal(m.keys(), (int[]){1, 2, 3}) );
+  VERIFY( std::ranges::equal(m.values(), (int[]){100, 200, 300}) );
+}
+
 void
 test()
 {
@@ -266,6 +363,9 @@ test()
   test06();
   test07();
   test09();
+  test10<std::vector, throwing_vector>();
+  test10<throwing_vector, std::vector>();
+  test11();
 }
 
 constexpr
@@ -280,6 +380,8 @@ test_constexpr()
   test06();
   test07();
   test09();
+  // test10() is non-constexpr
+  test11();
   return true;
 }
 

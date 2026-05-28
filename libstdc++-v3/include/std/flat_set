@@ -71,7 +71,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     class _Flat_set_impl
     {
       static_assert(is_same_v<_Key, typename _KeyContainer::value_type>);
-      static_assert(is_nothrow_swappable_v<_KeyContainer>);
 
       using _Derived = __conditional_t<_Multi,
 				       flat_multiset<_Key, _Compare, _KeyContainer>,
@@ -324,6 +323,38 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	: _Flat_set_impl(__s, __il.begin(), __il.end(), __comp, __a)
 	{ }
 
+      _Flat_set_impl(const _Flat_set_impl&) = default;
+      _Flat_set_impl& operator=(const _Flat_set_impl&) = default;
+
+      _GLIBCXX26_CONSTEXPR
+      _Flat_set_impl(_Flat_set_impl&& __other)
+      noexcept(is_nothrow_move_constructible_v<container_type>
+	       && is_nothrow_move_constructible_v<key_compare>)
+#if __cpp_exceptions
+      try
+#endif
+      : _M_cont(std::move(__other._M_cont)), _M_comp(std::move(__other._M_comp))
+      { __other.clear(); }
+#if __cpp_exceptions
+      catch (...)
+      { __other.clear(); }
+#endif
+
+      _GLIBCXX26_CONSTEXPR
+      _Flat_set_impl&
+      operator=(_Flat_set_impl&& __other)
+      noexcept(is_nothrow_move_assignable_v<container_type>
+	       && is_nothrow_move_assignable_v<key_compare>)
+      {
+	auto __guard = _M_make_clear_guard();
+	auto __guard_other = _ClearGuard{__other._M_cont};
+	_M_cont = std::move(__other._M_cont);
+	_M_comp = std::move(__other._M_comp);
+	__guard._M_disable();
+	// __guard_other._M_disable is deliberately not called.
+	return *this;
+      }
+
       _GLIBCXX26_CONSTEXPR
       _Derived&
       operator=(initializer_list<value_type> __il)
@@ -540,10 +571,10 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	  __guard._M_disable();
 	}
 
-      template<__detail::__container_compatible_range<value_type> _Rg>
+      template<typename _Rg>
 	_GLIBCXX26_CONSTEXPR
 	void
-	insert_range(_Rg&& __rg)
+	_M_insert_range(_Rg&& __rg, bool __is_sorted = false)
 	{
 	  auto __guard = _M_make_clear_guard();
 	  typename container_type::iterator __it;
@@ -561,12 +592,27 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 		_M_cont.emplace_back(*__first);
 	      __it = _M_cont.begin() + __n;
 	    }
-	  std::sort(__it, _M_cont.end(), _M_comp);
+	  if (__is_sorted)
+	    _GLIBCXX_DEBUG_ASSERT(ranges::is_sorted(__it, _M_cont.end(), _M_comp));
+	  else
+	    std::sort(__it, _M_cont.end(), _M_comp);
 	  std::inplace_merge(_M_cont.begin(), __it, _M_cont.end(), _M_comp);
 	  if constexpr (!_Multi)
 	    _M_unique();
 	  __guard._M_disable();
 	}
+
+    template<__detail::__container_compatible_range<value_type> _Rg>
+      _GLIBCXX26_CONSTEXPR
+      void
+      insert_range(_Rg&& __rg)
+      { _M_insert_range(std::forward<_Rg>(__rg)); }
+
+    template<__detail::__container_compatible_range<value_type> _Rg>
+      _GLIBCXX26_CONSTEXPR
+      void
+      insert_range(__sorted_t, _Rg&& __rg)
+      { _M_insert_range(std::forward<_Rg>(__rg), true); }
 
       _GLIBCXX26_CONSTEXPR
       void
@@ -628,11 +674,16 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
       _GLIBCXX26_CONSTEXPR
       void
-      swap(_Derived& __x) noexcept
+      swap(_Derived& __y)
+      noexcept(is_nothrow_swappable_v<container_type>
+	       && is_nothrow_swappable_v<key_compare>)
       {
-	using std::swap;
-	swap(_M_cont, __x._M_cont);
-	swap(_M_comp, __x._M_comp);
+	auto __guard = _M_make_clear_guard();
+	auto __guard_y = _ClearGuard{__y._M_cont};
+	ranges::swap(_M_comp, __y._M_comp);
+	ranges::swap(_M_cont, __y._M_cont);
+	__guard._M_disable();
+	__guard_y._M_disable();
       }
 
       _GLIBCXX26_CONSTEXPR
@@ -830,7 +881,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	}
 
       friend _GLIBCXX26_CONSTEXPR void
-      swap(_Derived& __x, _Derived& __y) noexcept
+      swap(_Derived& __x, _Derived& __y) noexcept(noexcept(__x.swap(__y)))
       { return __x.swap(__y); }
 
       template<typename _Predicate>

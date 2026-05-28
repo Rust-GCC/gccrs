@@ -1898,16 +1898,21 @@ ftms = {
 
 ftms = {
   name = flat_map;
+  // 202207 P0429R9 A Standard flat_map
+  // 202511 P3567R2 flat_meow Fixes
   values = {
-    v = 202207;
+    v = 202511; // P3567R2 applied as DR for C++23
     cxxmin = 23;
   };
 };
 
 ftms = {
   name = flat_set;
+  // 202207 P1222R4 A Standard flat_set
+  //        LWG3751 Missing feature macro for flat_set
+  // 202511 P3567R2 flat_meow Fixes
   values = {
-    v = 202207;
+    v = 202511; // P3567R2 applied as DR for C++23
     cxxmin = 23;
   };
 };
