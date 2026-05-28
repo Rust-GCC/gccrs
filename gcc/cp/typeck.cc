@@ -4162,7 +4162,8 @@ cp_build_array_ref (location_t loc, tree array, tree idx,
     return error_mark_node;
 
   /* 0[array] */
-  if (TREE_CODE (TREE_TYPE (idx)) == ARRAY_TYPE)
+  if (TREE_CODE (TREE_TYPE (idx)) == ARRAY_TYPE
+      && TREE_CODE (TREE_TYPE (array)) != ARRAY_TYPE)
     {
       std::swap (array, idx);
 
