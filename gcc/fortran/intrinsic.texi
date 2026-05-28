@@ -159,6 +159,7 @@ Some basic guidelines for editing this document:
 * @code{EXP}:           EXP,       Exponential function
 * @code{EXPONENT}:      EXPONENT,  Exponent function
 * @code{EXTENDS_TYPE_OF}: EXTENDS_TYPE_OF,  Query dynamic type for extension
+* @code{F_C_STRING}:    F_C_STRING,  Convert character scalar to C string
 * @code{FDATE}:         FDATE,     Subroutine (or function) to get the current time as a string
 * @code{FGET}:          FGET,      Read a single character in stream mode from stdin
 * @code{FGETC}:         FGETC,     Read a single character in stream mode
@@ -3557,7 +3558,8 @@ Fortran 2023 and later.
 @item @emph{See also}:
 @ref{C_LOC}, @*
 @ref{C_F_POINTER}, @*
-@ref{C_F_PROCPOINTER}
+@ref{C_F_PROCPOINTER}, @*
+@ref{F_C_STRING}
 @end table
 
 
@@ -6392,6 +6394,61 @@ Fortran 2003 and later
 @ref{SAME_TYPE_AS}
 @end table
 
+
+
+@node F_C_STRING
+@section @code{F_C_STRING} --- Convert Fortran character scalar to C string
+@fnindex F_C_STRING
+@cindex string, convert Fortran to C
+
+@table @asis
+@item @emph{Synopsis}:
+@code{RESULT = F_C_STRING(STRING[, ASIS])}
+
+@item @emph{Description}:
+The @code{F_C_STRING} intrinsic is equivalent to @code{STRING//C_NULL_CHAR}
+if the @code{ASIS} argument is present and true, and to
+@code{TRIM(STRING)//C_NULL_CHAR} otherwise.
+
+@item @emph{Class}:
+Transformational function
+
+@item @emph{Arguments}:
+@multitable @columnfractions .15 .70
+@item @var{STRING}  @tab A character scalar of kind @code{C_CHAR}.
+@item @var{ASIS}    @tab An optional logical scalar.
+@end multitable
+
+@item @emph{Return value}:
+The result is a null-terminated character scalar of the same type and kind
+as @code{STRING}, suitable for passing to a C function that accepts a
+@code{char *} argument.
+
+@item @emph{Example}:
+@smallexample
+program main
+  use iso_c_binding, only: f_c_string, c_char
+  implicit none (external, type)
+  character(:, c_char), allocatable :: s1, s2, s3
+
+  ! s1 is null-terminated "hello, world!   "
+  s1 = f_c_string ("hello, world!   ", .true.)
+
+  ! s2 is null-terminated "hello, world!"
+  s2 = f_c_string ("hello, world!   ", .false.)
+
+  ! s3 is null-terminated "hello, world!" (same as s2 example)
+  s3 = f_c_string ("hello, world!   ")
+end program main
+
+@end smallexample
+
+@item @emph{Standard}:
+Fortran 2023 and later.
+
+@item @emph{See also}:
+@ref{C_F_STRPOINTER}
+@end table
 
 
 @node FDATE
