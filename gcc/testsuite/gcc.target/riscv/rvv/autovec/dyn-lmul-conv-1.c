@@ -37,7 +37,7 @@ void foo8x (long *restrict a, char *restrict b, int n)
     a[i] = b[i];
 }
 
-/* { dg-final { scan-assembler-times ",m1," 3 } } */
+/* { dg-final { scan-assembler-not ",m1," } } */
 /* { dg-final { scan-assembler-times ",m2," 3 } } */
-/* { dg-final { scan-assembler-times ",m4," 4 } } */
-/* { dg-final { scan-assembler-times ",m8," 2 } } */
+/* { dg-final { scan-assembler-times ",m4," 2 } } */
+/* { dg-final { scan-assembler-times ",m8," 1 } } */

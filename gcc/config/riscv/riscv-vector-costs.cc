@@ -1334,9 +1334,6 @@ segment_loadstore_group_size (enum vect_cost_for_stmt kind,
 static unsigned
 get_lmul_cost_scaling (machine_mode mode)
 {
-  if (!riscv_vla_mode_p (mode))
-    return 1;
-
   enum vlmul_type vlmul = get_vlmul (mode);
 
   /* Cost scaling based on LMUL and data processed.

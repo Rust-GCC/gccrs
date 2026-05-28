@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-march=rv64gcv_zvl256b -mabi=lp64d -mrvv-max-lmul=m8 -O3 -fsigned-char -fno-strict-aliasing -fwrapv -fdump-tree-optimized -std=gnu99" } */
+/* { dg-options "-march=rv64gcv_zvl256b -mabi=lp64d -mrvv-max-lmul=m8 -O3 -fsigned-char -fno-strict-aliasing -fwrapv -fdump-tree-optimized -std=gnu99 -fno-vect-cost-model" } */
 
 signed char a=2;
 long long b;
