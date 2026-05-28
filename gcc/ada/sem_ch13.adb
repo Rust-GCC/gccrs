@@ -4901,7 +4901,9 @@ package body Sem_Ch13 is
 
             Typ := Etype (First_Entity (E));
 
-            if No (First_Entity (Typ)) then
+            if Comes_From_Source (Aspect)
+              and then No (First_Entity (Typ))
+            then
                Error_Msg_N
                  ("Initialize can only apply to contructors"
                    & " whose type has one or more components", N);

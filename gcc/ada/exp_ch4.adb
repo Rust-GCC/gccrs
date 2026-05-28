@@ -4948,6 +4948,18 @@ package body Exp_Ch4 is
 
                if Is_Incomplete_Or_Private_Type (Designated_Type (PtrT)) then
                   Deref := Unchecked_Convert_To (Etype (Init_Expr), Deref);
+
+               --  For a class-wide designated type with a constructor-based
+               --  initializer, convert to the specific type to avoid a
+               --  dispatching constructor call. Constructors are not
+               --  dispatching primitives, so the call must target the
+               --  specific type directly.
+
+               elsif Is_Class_Wide_Type (Designated_Type (PtrT))
+                 and then Nkind (Init_Expr) = N_Attribute_Reference
+                 and then Attribute_Name (Init_Expr) = Name_Make
+               then
+                  Deref := Unchecked_Convert_To (Etyp, Deref);
                end if;
 
                Stmt :=
