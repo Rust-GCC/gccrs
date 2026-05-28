@@ -756,7 +756,7 @@ atomic_load (Context *ctx, TyTy::FnType *fntype, int ordering)
 }
 
 tree
-atomic_exchange (Context *ctx, TyTy::FnType *fntype, memmodel ordering)
+atomic_exchange (Context *ctx, TyTy::FnType *fntype, memmodel model)
 {
   rust_assert (fntype->get_params ().size () == 2);
   rust_assert (fntype->get_num_substitutions () == 1);
@@ -785,7 +785,7 @@ atomic_exchange (Context *ctx, TyTy::FnType *fntype, memmodel ordering)
   TREE_READONLY (dst) = 0;
 
   auto value = Backend::var_expression (param_vars[1], UNDEF_LOCATION);
-  auto memorder = make_memmodel_tree (ordering);
+  auto memorder = make_memmodel_tree (model);
 
   auto monomorphized_type
     = fntype->get_substs ()[0].get_param_ty ()->resolve ();
@@ -1142,10 +1142,10 @@ atomic_load (int ordering)
 }
 
 HandlerBuilder
-atomic_exchange (memmodel ordering)
+atomic_exchange (memmodel model)
 {
-  return [ordering] (Context *ctx, TyTy::FnType *fntype) {
-    return inner::atomic_exchange (ctx, fntype, ordering);
+  return [model] (Context *ctx, TyTy::FnType *fntype) {
+    return inner::atomic_exchange (ctx, fntype, model);
   };
 }
 
