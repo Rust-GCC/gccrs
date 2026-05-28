@@ -45,6 +45,12 @@ make_unsigned_long_tree (unsigned long value)
   return build_int_cst (integer_type_node, value);
 }
 
+static tree
+make_memmodel_tree (memmodel value)
+{
+  return build_int_cst (integer_type_node, value);
+}
+
 static bool
 is_basic_integer_type (TyTy::BaseType *type)
 {
@@ -750,7 +756,7 @@ atomic_load (Context *ctx, TyTy::FnType *fntype, int ordering)
 }
 
 tree
-atomic_exchange (Context *ctx, TyTy::FnType *fntype, int ordering)
+atomic_exchange (Context *ctx, TyTy::FnType *fntype, memmodel ordering)
 {
   rust_assert (fntype->get_params ().size () == 2);
   rust_assert (fntype->get_num_substitutions () == 1);
@@ -779,7 +785,7 @@ atomic_exchange (Context *ctx, TyTy::FnType *fntype, int ordering)
   TREE_READONLY (dst) = 0;
 
   auto value = Backend::var_expression (param_vars[1], UNDEF_LOCATION);
-  auto memorder = make_unsigned_long_tree (ordering);
+  auto memorder = make_memmodel_tree (ordering);
 
   auto monomorphized_type
     = fntype->get_substs ()[0].get_param_ty ()->resolve ();
@@ -1136,7 +1142,7 @@ atomic_load (int ordering)
 }
 
 HandlerBuilder
-atomic_exchange (int ordering)
+atomic_exchange (memmodel ordering)
 {
   return [ordering] (Context *ctx, TyTy::FnType *fntype) {
     return inner::atomic_exchange (ctx, fntype, ordering);

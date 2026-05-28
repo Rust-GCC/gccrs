@@ -28,6 +28,7 @@
 #include "rust-mangle.h"
 #include "rust-tree.h"
 #include "rust-immutable-name-resolution-context.h"
+#include "memmodel.h"
 
 namespace Rust {
 namespace Compile {
