@@ -761,9 +761,49 @@ prange_storage::equal_p (const prange &r) const
   if (r.undefined_p ())
     return m_kind == PR_UNDEFINED;
 
-  prange tmp;
-  get_prange (tmp, r.type ());
-  return tmp == r;
+  unsigned index = 0;
+  switch (m_kind)
+    {
+      case PR_VARYING:
+	return r.varying_p ();
+
+      case PR_ZERO:
+	return r.zero_p ();
+
+      case PR_NONZERO:
+	if (!r.nonzero_p ())
+	  return false;
+	break;
+
+      case PR_FULL:
+	if (r.m_min != wi::zero (TYPE_PRECISION (r.m_type))
+	    || r.m_max != wi::max_value (TYPE_PRECISION (r.m_type),
+					 TYPE_SIGN (r.m_type)))
+	  return false;
+	break;
+
+      case PR_OTHER:
+	if (r.m_min != get_word (index++, r.m_type)
+	    || r.m_max != get_word (index++, r.m_type))
+	  return false;
+	break;
+
+      default:
+	gcc_unreachable ();
+    }
+
+  if (m_has_bitmask)
+    {
+      wide_int value = get_word (index++, r.m_type);
+      wide_int mask = get_word (index++, r.m_type);
+      if (r.m_bitmask != irange_bitmask (value, mask))
+	return false;
+    }
+  else
+    if (!r.m_bitmask.unknown_p ())
+      return false;
+
+  return true;
 }
 
 bool
