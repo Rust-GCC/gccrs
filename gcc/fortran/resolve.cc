@@ -8597,15 +8597,23 @@ check_default_none_expr (gfc_expr **e, int *, void *data)
 	      ns2 = ns2->parent;
 	    }
 
-	  /* A DO CONCURRENT iterator cannot appear in a locality spec.  */
-	  if (sym->ns->code->ext.concur.forall_iterator)
+	  /* A DO CONCURRENT iterator cannot appear in a locality spec.
+	     Use d->code (the DO CONCURRENT node) rather than sym->ns->code,
+	     which may be a different code type (e.g. EXEC_ASSOCIATE) whose
+	     ext union would be read incorrectly.  */
+	  for (gfc_forall_iterator *iter = d->code->ext.concur.forall_iterator;
+	       iter; iter = iter->next)
 	    {
-	      gfc_forall_iterator *iter
-		= sym->ns->code->ext.concur.forall_iterator;
-	      for (; iter; iter = iter->next)
-		if (iter->var->symtree
-		    && strcmp(sym->name, iter->var->symtree->name) == 0)
-		  return 0;
+	      if (!iter->var || !iter->var->symtree)
+		continue;
+	      const char *iter_name = iter->var->symtree->name;
+	      /* Shadow iterators (from inline type-spec: integer :: i = ...)
+		 store the iterator with a leading underscore internally; the
+		 user-visible name does not have the underscore.  */
+	      if (iter->shadow)
+		iter_name++;
+	      if (strcmp (sym->name, iter_name) == 0)
+		return 0;
 	    }
 
 	  /* A named constant is not a variable, so skip test.  */
