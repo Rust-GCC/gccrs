@@ -261,7 +261,7 @@ static bitmap_obstack lim_bitmap_obstack;
 static obstack mem_ref_obstack;
 
 static bool ref_indep_loop_p (class loop *, im_mem_ref *, dep_kind);
-static bool ref_always_accessed_p (class loop *, im_mem_ref *, bool);
+static bool ref_always_stored_p (class loop *, im_mem_ref *);
 static bool refs_independent_p (im_mem_ref *, im_mem_ref *, bool = true);
 
 /* Minimum cost of an expensive expression.  */
@@ -2319,7 +2319,7 @@ execute_sm (class loop *loop, im_mem_ref *ref,
   fmt_data.orig_loop = loop;
   for_each_index (&ref->mem.ref, force_move_till, &fmt_data);
 
-  bool always_stored = ref_always_accessed_p (loop, ref, true);
+  bool always_stored = ref_always_stored_p (loop, ref);
   if (maybe_mt
       && (bb_in_transaction (loop_preheader_edge (loop)->src)
 	  || (ref_can_have_store_data_races (ref->mem.ref) && ! always_stored)
@@ -3104,36 +3104,29 @@ hoist_memory_references (class loop *loop, bitmap mem_refs,
     delete (*iter).second;
 }
 
-class ref_always_accessed
+class ref_always_stored
 {
 public:
-  ref_always_accessed (class loop *loop_, bool stored_p_)
-      : loop (loop_), stored_p (stored_p_) {}
+  ref_always_stored (class loop *loop_)
+      : loop (loop_) {}
   bool operator () (mem_ref_loc *loc);
   class loop *loop;
-  bool stored_p;
 };
 
 bool
-ref_always_accessed::operator () (mem_ref_loc *loc)
+ref_always_stored::operator () (mem_ref_loc *loc)
 {
-  class loop *must_exec;
+  /* Make sure the statement is a store.  */
+  tree lhs = gimple_get_lhs (loc->stmt);
+  if (!lhs
+      || !(DECL_P (lhs) || REFERENCE_CLASS_P (lhs)))
+    return false;
 
   struct lim_aux_data *lim_data = get_lim_data (loc->stmt);
   if (!lim_data)
     return false;
 
-  /* If we require an always executed store make sure the statement
-     is a store.  */
-  if (stored_p)
-    {
-      tree lhs = gimple_get_lhs (loc->stmt);
-      if (!lhs
-	  || !(DECL_P (lhs) || REFERENCE_CLASS_P (lhs)))
-	return false;
-    }
-
-  must_exec = lim_data->always_executed_in;
+  class loop *must_exec = lim_data->always_executed_in;
   if (!must_exec)
     return false;
 
@@ -3144,14 +3137,12 @@ ref_always_accessed::operator () (mem_ref_loc *loc)
   return false;
 }
 
-/* Returns true if REF is always accessed in LOOP.  If STORED_P is true
-   make sure REF is always stored to in LOOP.  */
+/* Returns true if REF is always stored in LOOP.  */
 
 static bool
-ref_always_accessed_p (class loop *loop, im_mem_ref *ref, bool stored_p)
+ref_always_stored_p (class loop *loop, im_mem_ref *ref)
 {
-  return for_all_locs_in_loop (loop, ref,
-			       ref_always_accessed (loop, stored_p));
+  return for_all_locs_in_loop (loop, ref, ref_always_stored (loop));
 }
 
 /* Returns true if LOAD_REF and STORE_REF form a "self write" pattern
@@ -3384,7 +3375,7 @@ can_sm_ref_p (class loop *loop, im_mem_ref *ref)
 	 stored to later anyway.  So this would only guard
 	 the load we need to emit.  Thus when the ref is not
 	 loaded we can elide this completely?  */
-      && !ref_always_accessed_p (loop, ref, true))
+      && !ref_always_stored_p (loop, ref))
     return false;
 
   /* Verify all loads of ref can be hoisted.  */
