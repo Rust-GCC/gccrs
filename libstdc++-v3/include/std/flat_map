@@ -602,13 +602,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       template<typename _Iter, typename _Sent>
 	_GLIBCXX26_CONSTEXPR
 	void
-	_M_insert(_Iter __first, _Sent __last)
+	_M_insert(_Iter __first, _Sent __last, bool __is_sorted = false)
 	{
-	  // FIXME: This implementation fails its complexity requirements.
-	  // We can't idiomatically implement an efficient version (as in the
-	  // disabled code) until ranges::inplace_merge is fixed to dispatch
-	  // on iterator concept instead of iterator category.
-#if 0
 	  auto __guard = _M_make_clear_guard();
 	  auto __n = size();
 	  for (; __first != __last; ++__first)
@@ -618,22 +613,16 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	      _M_cont.values.emplace_back(std::move(__value.second));
 	    }
 	  auto __zv = views::zip(_M_cont.keys, _M_cont.values);
-	  ranges::sort(__zv.begin() + __n, __zv.end(), value_comp());
-	  ranges::inplace_merge(__zv.begin(), __zv.begin() + __n, __zv.end(), value_comp());
+	  if (__is_sorted)
+	    _GLIBCXX_DEBUG_ASSERT(ranges::is_sorted(__zv.begin() + __n, __zv.end(),
+						    value_comp()));
+	  else
+	    ranges::sort(__zv.begin() + __n, __zv.end(), value_comp());
+	  ranges::inplace_merge(__zv.begin(), __zv.begin() + __n, __zv.end(),
+				value_comp());
 	  if constexpr (!_Multi)
 	    _M_unique();
-	  __guard._M_cont = nullptr;
-#else
-	  auto __guard = _M_make_clear_guard();
-	  for (; __first != __last; ++__first)
-	    {
-	      value_type __value = *__first;
-	      _M_cont.keys.emplace_back(std::move(__value.first));
-	      _M_cont.values.emplace_back(std::move(__value.second));
-	    }
-	  _M_sort_uniq();
 	  __guard._M_disable();
-#endif
 	}
 
     public:
@@ -647,10 +636,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	_GLIBCXX26_CONSTEXPR
 	void
 	insert(__sorted_t, _InputIterator __first, _InputIterator __last)
-	{
-	  // FIXME: This implementation fails its complexity requirements; see above.
-	  insert(std::move(__first), std::move(__last));
-	}
+	{ _M_insert(std::move(__first), std::move(__last), true); }
 
       template<__detail::__container_compatible_range<value_type> _Rg>
 	_GLIBCXX26_CONSTEXPR
