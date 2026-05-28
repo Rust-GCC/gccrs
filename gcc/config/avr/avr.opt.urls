@@ -78,6 +78,12 @@ UrlSuffix(gcc/AVR-Options.html#index-mfuse-add)
 mfuse-add=
 UrlSuffix(gcc/AVR-Options.html#index-mfuse-add)
 
+masm-len-notes
+UrlSuffix(gcc/AVR-Options.html#index-masm-len-notes)
+
+Wasm-len-notes
+UrlSuffix(gcc/AVR-Options.html#index-Wasm-len-notes)
+
 Waddr-space-convert
 UrlSuffix(gcc/AVR-Options.html#index-Waddr-space-convert)
 
