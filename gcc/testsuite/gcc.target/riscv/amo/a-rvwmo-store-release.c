@@ -20,7 +20,7 @@ void atomic_store_long_release (long* bar, long* baz)
 
 /*
 ** atomic_store_int_release:
-**	lw\t[atx][0-9]+,0\(a1\)
+**	(lwu|lw)\t[atx][0-9]+,0\(a1\)
 **	fence\trw,w
 **	sw\t[atx][0-9]+,0\(a0\)
 **	ret

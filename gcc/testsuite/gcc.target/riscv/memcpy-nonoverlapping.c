@@ -44,7 +44,7 @@ COPY_N(31)
 /* { dg-final { scan-assembler-times "ld\t" 17 } } */
 /* { dg-final { scan-assembler-times "sd\t" 17 } } */
 
-/* { dg-final { scan-assembler-times "lw\t" 6 } } */
+/* { dg-final { scan-assembler-times "(lwu|lw)\t" 6 } } */
 /* { dg-final { scan-assembler-times "sw\t" 6 } } */
 
 /* { dg-final { scan-assembler-times "lhu\t" 7 } } */

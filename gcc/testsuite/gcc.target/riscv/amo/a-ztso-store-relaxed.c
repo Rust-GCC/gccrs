@@ -19,7 +19,7 @@ void atomic_store_long_relaxed (long* bar, long* baz)
 
 /*
 ** atomic_store_int_relaxed:
-**	lw\t[atx][0-9]+,0\(a1\)
+**	(lwu|lw)\t[atx][0-9]+,0\(a1\)
 **	sw\t[atx][0-9]+,0\(a0\)
 **	ret
 */

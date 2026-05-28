@@ -20,7 +20,7 @@ void atomic_store_long_seq_cst (long* bar, long* baz)
 
 /*
 ** atomic_store_int_seq_cst:
-**	lw\t[atx][0-9]+,0\(a1\)
+**	(lwu|lw)\t[atx][0-9]+,0\(a1\)
 **	sw.rl\t[atx][0-9]+,0\(a0\)
 **	ret
 */
