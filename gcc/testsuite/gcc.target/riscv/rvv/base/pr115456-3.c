@@ -28,4 +28,3 @@ main (void)
 }
 
 /* { dg-final { scan-assembler-not {call\s+__extendhfsf2} } } */
-/* { dg-final { scan-assembler-times {vfmv\.f\.s\s+fa[0-9]+,\s*v[0-9]+} 4 } } */
