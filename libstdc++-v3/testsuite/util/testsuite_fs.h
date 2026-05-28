@@ -67,6 +67,8 @@ namespace __gnu_test
   compare_paths(const test_fs::path& p1,
 		const test_fs::path& p2)
   {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
     PATH_CHK( p1, p2, native );
     PATH_CHK( p1, p2, string );
     PATH_CHK( p1, p2, empty );
@@ -90,7 +92,7 @@ namespace __gnu_test
       throw test_fs::filesystem_error(
 	  "!equal(begin1, end1, begin2)", p1, p2,
 	  std::make_error_code(std::errc::invalid_argument) );
-
+#pragma GCC diagnostic pop
   }
 
   const std::string test_paths[] = {

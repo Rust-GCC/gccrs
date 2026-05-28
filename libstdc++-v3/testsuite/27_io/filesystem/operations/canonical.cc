@@ -22,6 +22,8 @@
 #include <testsuite_hooks.h>
 #include <testsuite_fs.h>
 
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+
 namespace fs = std::filesystem;
 using __gnu_test::compare_paths;
 

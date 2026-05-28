@@ -96,7 +96,7 @@ test03()
     {
       test(p, q.c_str());
       if constexpr (!std::is_same_v<path::value_type, char>)
-	test(p, q.string().c_str());
+	test(p, q.string().c_str()); // { dg-warning "deprecated" "" { target c++26 } }
     }
 }
 

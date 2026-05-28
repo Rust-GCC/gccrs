@@ -25,6 +25,8 @@
 #include <testsuite_fs.h>
 #include <testsuite_hooks.h>
 
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+
 void
 test01()
 {

@@ -1763,9 +1763,9 @@
 
 #if !defined(__cpp_lib_format_path)
 # if (__cplusplus >  202302L) && _GLIBCXX_HOSTED
-#  define __glibcxx_format_path 202403L
+#  define __glibcxx_format_path 202506L
 #  if defined(__glibcxx_want_all) || defined(__glibcxx_want_format_path)
-#   define __cpp_lib_format_path 202403L
+#   define __cpp_lib_format_path 202506L
 #  endif
 # endif
 #endif /* !defined(__cpp_lib_format_path) */

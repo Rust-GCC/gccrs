@@ -7,6 +7,8 @@
 #include <testsuite_hooks.h>
 #include <testsuite_fs.h>
 
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+
 void
 test_println_blank()
 {

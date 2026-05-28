@@ -462,7 +462,12 @@ namespace __detail
       std::basic_string<_CharT, _Traits, _Allocator>
       string(const _Allocator& __a = _Allocator()) const;
 
+    _GLIBCXX26_DEPRECATED_SUGGEST("display_string' or 'native_encoded_string")
     std::string    string() const;
+#if __glibcxx_format_path >= 202506L // C++ >= 26 && HOSTED
+    std::string    display_string() const;
+    std::string    native_encoded_string() const;
+#endif
 #if _GLIBCXX_USE_WCHAR_T
     std::wstring   wstring() const;
 #endif
@@ -481,7 +486,12 @@ namespace __detail
       std::basic_string<_CharT, _Traits, _Allocator>
       generic_string(const _Allocator& __a = _Allocator()) const;
 
+    _GLIBCXX26_DEPRECATED_SUGGEST("generic_display_string' or 'generic_native_encoded_string")
     std::string    generic_string() const;
+#if __glibcxx_format_path >= 202506L // C++ >= 26 && HOSTED
+    std::string    generic_display_string() const;
+    std::string    generic_native_encoded_string() const;
+#endif
 #if _GLIBCXX_USE_WCHAR_T
     std::wstring   generic_wstring() const;
 #endif
@@ -1173,6 +1183,23 @@ namespace __detail
   inline std::string
   path::string() const { return string<char>(); }
 
+#if __glibcxx_format_path >= 202506L // C++ >= 26 && HOSTED
+  inline std::string
+  path::display_string() const
+  {
+#ifdef _GLIBCXX_FILESYSTEM_IS_WINDOWS
+    return std::string(from_range,
+	     __unicode::_Utf_view<char, wstring_view>(native()));
+#else
+    return native();
+#endif
+  }
+
+  inline std::string
+  path::native_encoded_string() const
+  { return string<char>(); }
+#endif
+
 #if _GLIBCXX_USE_WCHAR_T
   inline std::wstring
   path::wstring() const { return string<wchar_t>(); }
@@ -1250,6 +1277,24 @@ namespace __detail
   inline std::string
   path::generic_string() const
   { return generic_string<char>(); }
+
+#if __glibcxx_format_path >= 202506L // C++ >= 26 && HOSTED
+  inline std::string
+  path::generic_display_string() const
+  {
+#ifdef _GLIBCXX_FILESYSTEM_IS_WINDOWS
+    string_type __str = generic_string<wchar_t>();
+    return std::string(from_range,
+	     __unicode::_Utf_view<char, wstring_view>(__str));
+#else
+    return generic_string<char>();
+#endif
+  }
+
+  inline std::string
+  path::generic_native_encoded_string() const
+  { return generic_string<char>(); }
+#endif
 
 #if _GLIBCXX_USE_WCHAR_T
   inline std::wstring

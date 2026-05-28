@@ -7,6 +7,8 @@
 #include <testsuite_hooks.h>
 #include <testsuite_fs.h>
 
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+
 void
 test_print_default()
 {
@@ -25,7 +27,7 @@ void
 test_print_file()
 {
   __gnu_test::scoped_file f;
-  FILE* strm = std::fopen(f.path.string().c_str(), "w");
+  FILE* strm = std::fopen(f.path.string().c_str(), "w"); 
   VERIFY( strm );
   std::print(strm, "File under '{}' for {}", 'O', "OUT OF FILE");
   std::fclose(strm);

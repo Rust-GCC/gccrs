@@ -21,6 +21,8 @@
 #include <filesystem>
 #include <testsuite_hooks.h>
 
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+
 using std::filesystem::filesystem_error;
 
 bool contains(std::string_view what_str, std::string_view expected)

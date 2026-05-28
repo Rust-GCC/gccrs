@@ -48,7 +48,7 @@ test02()
 
   auto str = p.string<char>();
   VERIFY( str == "abc" );
-  VERIFY( str == p.string() );
+  VERIFY( str == p.string() ); // { dg-warning "deprecated" "" { target c++26 } }
 
 #ifdef _GLIBCXX_USE_WCHAR_T
   auto strw = p.string<wchar_t>();

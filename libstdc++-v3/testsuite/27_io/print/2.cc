@@ -14,6 +14,8 @@
 #include <io.h>
 #endif
 
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+
 namespace std
 {
 _GLIBCXX_BEGIN_NAMESPACE_VERSION

@@ -1615,8 +1615,9 @@ ftms = {
 ftms = {
   name = format_path;
   // 202403 P2845R8 Formatting of std::filesystem::path
+  // 202506 P2319R5 Prevent path presentation problems
   values = {
-    v = 202403;
+    v = 202506;
     cxxmin = 26;
     hosted = yes;
   };
