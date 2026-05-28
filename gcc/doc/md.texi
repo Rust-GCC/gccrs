@@ -1950,6 +1950,14 @@ the meanings of that architecture's constraints.
 @item k
 The stack pointer register (@code{SP})
 
+@item Uci
+Like @code{r}, but restricted to registers 8 through 11 inclusive.  Can be used
+to index ZA.
+
+@item Ucj
+Like @code{r}, but restricted to registers 12 through 15 inclusive.  Can be
+used to index ZA.
+
 @item w
 Floating point register, Advanced SIMD vector register or SVE vector register
 

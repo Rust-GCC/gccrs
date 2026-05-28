@@ -22,10 +22,10 @@
   "@internal The stack register.")
 
 (define_register_constraint "Uci" "W8_W11_REGS"
-  "@internal r8-r11, which can be used to index ZA.")
+  "GPRs r8-r11, can be used to index ZA.")
 
 (define_register_constraint "Ucj" "W12_W15_REGS"
-  "@internal r12-r15, which can be used to index ZA.")
+  "GPRs r12-r15, can be used to index ZA.")
 
 (define_register_constraint "Ucs" "TAILCALL_ADDR_REGS"
   "@internal Registers suitable for an indirect tail call")
