@@ -16590,9 +16590,23 @@
   [(set (match_operand:VI_AVX2 0 "register_operand")
 	(plusminus:VI_AVX2
 	  (match_operand:VI_AVX2 1 "vector_operand")
-	  (match_operand:VI_AVX2 2 "vector_operand")))]
+	  (match_operand:VI_AVX2 2 "vector_or_const_vector_operand")))]
   "TARGET_SSE2"
-  "ix86_fixup_binary_operands_no_copy (<CODE>, <MODE>mode, operands);")
+{
+  /* Expand vector add/sub 1 as vector sub/add -1.  */
+  if (rtx_equal_p (operands[2], CONST1_RTX (<MODE>mode)))
+    {
+      operands[2] = force_reg (<MODE>mode, CONSTM1_RTX (<MODE>mode));
+      emit_insn (gen_<inv_insn><mode>3 (operands[0], operands[1],
+					operands[2]));
+      DONE;
+    }
+
+  if (CONST_VECTOR_P (operands[2]))
+    operands[2] = force_reg (<MODE>mode, operands[2]);
+
+  ix86_fixup_binary_operands_no_copy (<CODE>, <MODE>mode, operands);
+})
 
 (define_expand "cond_<insn><mode>"
   [(set (match_operand:VI1248_AVX512VLBW 0 "register_operand")
@@ -16676,6 +16690,33 @@
   [(set_attr "type" "sseiadd")
    (set_attr "prefix" "evex")
    (set_attr "mode" "<sseinsnmode>")])
+
+/* Split vector add 1 into vector sub -1.  */
+(define_insn_and_split "*add<mode>3_one"
+  [(set (match_operand:VI_AVX2 0 "register_operand")
+	(plus:VI_AVX2
+	  (match_operand:VI_AVX2 1 "nonimmediate_operand")
+	  (match_operand:VI_AVX2 2 "const1_operand")))]
+  "TARGET_SSE2 && ix86_pre_reload_split ()"
+  "#"
+  "&& 1"
+  [(set (match_dup 0) (minus:VI_AVX2 (match_dup 1) (match_dup 3)))]
+{
+  operands[1] = force_reg (<MODE>mode, operands[1]);
+  operands[3] = force_reg (<MODE>mode, CONSTM1_RTX (<MODE>mode));
+})
+
+/* Split vector sub 1 into vector add -1.  */
+(define_insn_and_split "*sub<mode>3_one"
+  [(set (match_operand:VI_AVX2 0 "register_operand")
+	(minus:VI_AVX2
+	  (match_operand:VI_AVX2 1 "nonimmediate_operand")
+	  (match_operand:VI_AVX2 2 "const1_operand")))]
+  "TARGET_SSE2 && ix86_pre_reload_split ()"
+  "#"
+  "&& 1"
+  [(set (match_dup 0) (plus:VI_AVX2 (match_dup 3) (match_dup 1)))]
+  "operands[3] = force_reg (<MODE>mode, CONSTM1_RTX (<MODE>mode));")
 
 (define_expand "<insn><mode>3<mask_name>"
   [(set (match_operand:VI12_AVX2_AVX512BW 0 "register_operand")

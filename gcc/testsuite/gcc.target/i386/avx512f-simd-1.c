@@ -13,7 +13,7 @@ f1 (void)
   int i;
   #pragma omp simd simdlen (4)
   for (i = 0; i < N; ++i)
-    a[i] = a[i] + 1;
+    a[i] = a[i] + 11;
 }
 
 void
@@ -22,7 +22,7 @@ f2 (void)
   int i;
   #pragma omp simd simdlen (8)
   for (i = 0; i < N; ++i)
-    a[i] = a[i] + 2;
+    a[i] = a[i] + 12;
 }
 
 void
@@ -31,5 +31,5 @@ f3 (void)
   int i;
   #pragma omp simd simdlen (16)
   for (i = 0; i < N; ++i)
-    a[i] = a[i] + 3;
+    a[i] = a[i] + 13;
 }
